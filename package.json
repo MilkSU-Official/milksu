@@ -1,0 +1,31 @@
+{
+  "name": "@milksu/milksu",
+  "version": "0.1.0",
+  "description": "MilkSU — Extensible AI Agent platform built on Pi agent harness",
+  "type": "module",
+  "keywords": [
+    "pi-package"
+  ],
+  "license": "MIT",
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ],
+    "skills": [
+      "./skills"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-agent-core": "*",
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "^0.80.2"
+  },
+  "dependencies": {
+    "playwright-core": "^1.61.1"
+  }
+}
