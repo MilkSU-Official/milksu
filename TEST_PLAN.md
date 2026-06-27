@@ -12,6 +12,43 @@ Wait for Vite (port 1420) + Rust compilation. A native window titled "MilkSU" ap
 
 If port 1420 is in use: `lsof -ti:1420 | xargs kill -9` first.
 
+### 0. Build Verification
+
+**Steps:**
+```bash
+cd ~/code/milksu/app && npm run build
+```
+
+**Expected:**
+- `tsc -b` passes with zero errors
+- `vite build` produces dist/ with index.html, CSS, and JS bundle
+- No TypeScript errors, no unused variable warnings
+
+**Verify:**
+- [ ] `npm run build` exits with code 0
+- [ ] dist/index.html exists
+- [ ] dist/assets/ contains .css and .js files
+
+### 0a. Browser Preview Smoke
+
+**Steps:**
+```bash
+cd ~/code/milksu/app && npm run dev -- --host 127.0.0.1
+```
+Open `http://127.0.0.1:1420/` in a browser.
+
+**Expected:**
+- Page renders without Tauri `invoke`/`listen` console errors
+- Welcome page shows default model `deepseek-chat`
+- Settings opens using browser-preview localStorage fallback data
+- Sending a prompt may show a clear "Agent bridge requires the Tauri desktop runtime" error
+
+**Verify:**
+- [ ] No console errors after a clean page reload
+- [ ] Welcome page renders, not a blank shell
+- [ ] Settings opens and does not white-screen
+- [ ] Browser preview never asks for real API keys
+
 ## Test Cases
 
 ### 1. Welcome Page
@@ -45,28 +82,104 @@ If port 1420 is in use: `lsof -ti:1420 | xargs kill -9` first.
 - [ ] Settings button uses SVG gear icon
 - [ ] All buttons have hover highlight
 
-### 3. Settings Page
+### 3. Settings Page Layout
 
 **Steps:**
 1. Click "Settings" at bottom of sidebar
-2. Settings page opens in the main area
+2. Settings page opens as full-page view
 
 **Expected:**
-- Back arrow button (top left), "Settings" title, "Save" button (top right)
-- "Active Model" section: Provider dropdown (default: DeepSeek) + Model dropdown (default: deepseek-chat)
-- "API Keys" section: cards for DeepSeek, Anthropic, OpenAI, Google Gemini, Groq
-- Each card: provider name, Enable checkbox, API key input (password type), Show/Hide toggle
-- Anthropic and OpenAI cards have additional "Base URL" field
-- Footer text about local storage
+- Conversation sidebar is HIDDEN, replaced by settings category sidebar
+- Left sidebar shows: Back button, then categories: General, API Keys, Usage, About
+- Each category has an SVG icon
+- Bottom of sidebar shows "MilkSU v0.1.0"
+- Main content area shows the selected category content
+- Top header shows category title + "Save changes" button (for General/API Keys)
+
+**Verify:**
+- [ ] Conversation sidebar disappears when settings opens
+- [ ] Settings sidebar shows 4 categories with icons
+- [ ] Clicking categories switches content
+- [ ] "Back" button returns to chat view with conversation sidebar restored
+- [ ] Active category is visually highlighted
+- [ ] Narrow window (~390px wide) stacks settings navigation above content without overlapping text
+- [ ] Narrow window may horizontally scroll setting tabs, but content cards and buttons remain readable
+
+### 3a. Settings - General
+
+**Steps:**
+1. Open Settings, click "General" (default)
+
+**Expected:**
+- "Default Provider" section: Provider + Model dropdowns
+- "Available Providers" section: list of all providers with green/gray dot status
+- Configured providers show green dot + model count
+- Unconfigured show gray dot + "Not configured"
 
 **Verify:**
 - [ ] Provider dropdown lists all 5 providers
 - [ ] Changing provider updates model dropdown
-- [ ] API key input is masked by default, "Show" reveals it
-- [ ] Enable checkbox toggles
-- [ ] "Save" button changes to "Saved" after click
-- [ ] Back arrow returns to chat view
-- [ ] Settings persist after closing and reopening settings page
+- [ ] Provider status dots reflect API key configuration
+- [ ] "Save changes" button works, shows "Saved" briefly
+
+### 3b. Settings - API Keys
+
+**Steps:**
+1. Click "API Keys" category
+
+**Expected:**
+- Privacy notice at top about local storage
+- Cards for each provider with: initial letter icon, name, env var name, toggle switch, password input
+- Configured + enabled providers have green-tinted card border
+- Toggle switch (not checkbox) for enable/disable
+- Show/Hide button on API key input
+- Anthropic and OpenAI have Base URL field
+
+**Verify:**
+- [ ] Toggle switches work (slide animation)
+- [ ] API key input is masked by default
+- [ ] Card border color changes when enabled + has key
+- [ ] "Save changes" persists across settings close/reopen
+
+### 3c. Settings - Usage
+
+**Steps:**
+1. Click "Usage" category
+
+**Expected:**
+- Session Overview: 3 stat cards (Conversations, Messages, Tool Calls) -- counted from local data
+- Token Usage (Estimated): clearly labeled "Estimated Tokens" with "~" prefix and "character-based estimate" sub-label
+- Description text explicitly states: "Rough estimate based on message character count (~4 chars per token). Real token counts from provider API are not yet available."
+- Usage bars: User Messages, Assistant Messages (with color coding)
+- Real-time Metrics section: 8 rows (Input Tokens, Output Tokens, Cache Read Tokens, Total Tokens (real), Context Window Limit, Cost (USD), Latency, Session Duration) all showing "unavailable" in italic
+- Description text for Real-time Metrics states they require provider API usage data
+- Provider Status: list of configured providers with active badge
+
+**Verify:**
+- [ ] Stat cards show correct counts matching sidebar conversation list
+- [ ] Token estimate card shows "~" prefix (never presents as exact)
+- [ ] Token estimate sub-label says "character-based estimate" (not implying real data)
+- [ ] Description text for Token Usage says "Rough estimate" and mentions real data not available
+- [ ] Real-time Metrics section exists with 8 unavailable rows
+- [ ] Each unavailable row shows italic "unavailable" text (not 0, not blank)
+- [ ] Usage bars have proportional fill
+- [ ] Active provider shows "Active" badge
+- [ ] types.ts has UsageData interface with: input_tokens, output_tokens, cache_read_tokens, total_tokens, context_limit, cost_usd, latency_ms, model, provider, tool_call_count, session_start, session_duration_ms (all nullable except tool_call_count)
+
+### 3d. Settings - About
+
+**Steps:**
+1. Click "About" category
+
+**Expected:**
+- App info: Version 0.1.0, Runtime Tauri v2, Agent Engine Pi, Frontend React + Vite, Backend Rust
+- Architecture: data flow diagram in monospace
+- Storage: paths to settings.json and conversations directory
+
+**Verify:**
+- [ ] All info rows display correctly
+- [ ] Architecture flow is readable
+- [ ] Storage paths are shown
 
 ### 4. Model Selector (Input Bar)
 

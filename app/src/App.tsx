@@ -1,10 +1,9 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
 import { Sidebar } from './components/Sidebar'
 import { ChatView } from './components/ChatView'
 import { OutputPanel } from './components/OutputPanel'
 import { SettingsPage } from './components/SettingsPage'
+import { invokeCommand, listenEvent } from './tauri'
 import type { Conversation, Message, AppSettings } from './types'
 
 interface AgentEvent {
@@ -65,14 +64,14 @@ export default function App() {
   const active = conversations.find(c => c.id === activeId) ?? null
 
   useEffect(() => {
-    invoke<AppSettings>('get_settings').then(setSettings)
-    invoke<StoredConversation[]>('list_conversations').then(stored => {
+    invokeCommand<AppSettings>('get_settings').then(setSettings)
+    invokeCommand<StoredConversation[]>('list_conversations').then(stored => {
       setConversations(stored.map(fromStored))
     })
   }, [])
 
   const persistConversation = useCallback((conv: Conversation) => {
-    invoke('save_conversation', { conversation: toStored(conv) }).catch(console.error)
+    invokeCommand('save_conversation', { conversation: toStored(conv) }).catch(console.error)
   }, [])
 
   const scheduleSave = useCallback((convs: Conversation[], convId: string) => {
@@ -84,7 +83,7 @@ export default function App() {
   }, [persistConversation])
 
   useEffect(() => {
-    const unlisten = listen<AgentEvent>('agent-message', (event) => {
+    const unlisten = listenEvent<AgentEvent>('agent-message', (event) => {
       const { conversation_id, role, content, tool_name, done } = event.payload
 
       setConversations(prev => {
@@ -140,7 +139,7 @@ export default function App() {
   }, [])
 
   const handleDelete = useCallback((id: string) => {
-    invoke('delete_conversation', { id }).catch(console.error)
+    invokeCommand('delete_conversation', { id }).catch(console.error)
     setConversations(prev => prev.filter(c => c.id !== id))
     if (activeId === id) setActiveId(null)
   }, [activeId])
@@ -182,7 +181,7 @@ export default function App() {
     }
 
     try {
-      await invoke('send_message', { conversationId: convId, prompt: text })
+      await invokeCommand('send_message', { conversationId: convId, prompt: text })
     } catch (err) {
       const errMsg: Message = {
         id: crypto.randomUUID(),
@@ -204,11 +203,27 @@ export default function App() {
     const updated = { ...settings, active_provider: provider, active_model: model }
     setSettings(updated)
     try {
-      await invoke('save_settings_cmd', { newSettings: updated })
+      await invokeCommand('save_settings_cmd', { newSettings: updated })
     } catch (err) {
       console.error('Failed to save model selection:', err)
     }
   }, [settings])
+
+  if (showSettings) {
+    return (
+      <div className="flex h-screen bg-white text-[#1a1a1a]">
+        <SettingsPage
+          settings={settings}
+          onSettingsChange={setSettings}
+          onClose={() => {
+            setShowSettings(false)
+            invokeCommand<AppSettings>('get_settings').then(setSettings)
+          }}
+          conversations={conversations}
+        />
+      </div>
+    )
+  }
 
   return (
     <div className="flex h-screen bg-white text-[#1a1a1a]">
@@ -221,24 +236,15 @@ export default function App() {
         onOpenSettings={() => setShowSettings(true)}
       />
       <div className="flex-1 flex min-w-0">
-        {showSettings ? (
-          <SettingsPage onClose={() => {
-            setShowSettings(false)
-            invoke<AppSettings>('get_settings').then(setSettings)
-          }} />
-        ) : (
-          <>
-            <ChatView
-              conversation={active}
-              onSend={handleSend}
-              onToggleOutput={() => setShowOutput(!showOutput)}
-              settings={settings}
-              onChangeModel={handleChangeModel}
-              onOpenSettings={() => setShowSettings(true)}
-            />
-            {showOutput && <OutputPanel conversation={active} />}
-          </>
-        )}
+        <ChatView
+          conversation={active}
+          onSend={handleSend}
+          onToggleOutput={() => setShowOutput(!showOutput)}
+          settings={settings}
+          onChangeModel={handleChangeModel}
+          onOpenSettings={() => setShowSettings(true)}
+        />
+        {showOutput && <OutputPanel conversation={active} />}
       </div>
     </div>
   )

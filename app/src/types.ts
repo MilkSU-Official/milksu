@@ -28,6 +28,36 @@ export interface AppSettings {
   providers: Record<string, ProviderConfig>
 }
 
+export interface UsageData {
+  input_tokens: number | null
+  output_tokens: number | null
+  cache_read_tokens: number | null
+  total_tokens: number | null
+  context_limit: number | null
+  cost_usd: number | null
+  latency_ms: number | null
+  model: string | null
+  provider: string | null
+  tool_call_count: number
+  session_start: number | null
+  session_duration_ms: number | null
+}
+
+export const EMPTY_USAGE: UsageData = {
+  input_tokens: null,
+  output_tokens: null,
+  cache_read_tokens: null,
+  total_tokens: null,
+  context_limit: null,
+  cost_usd: null,
+  latency_ms: null,
+  model: null,
+  provider: null,
+  tool_call_count: 0,
+  session_start: null,
+  session_duration_ms: null,
+}
+
 export interface ProviderInfo {
   id: string
   name: string

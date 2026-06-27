@@ -22,7 +22,6 @@ export function ModelSelector({ settings, onChangeModel, onOpenSettings }: Props
 
   if (!settings) return null
 
-  const currentProvider = PROVIDERS.find(p => p.id === settings.active_provider)
   const label = settings.active_model || 'Select model'
 
   return (

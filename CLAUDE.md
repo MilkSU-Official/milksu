@@ -20,9 +20,9 @@ milksu/
         Sidebar.tsx             #     Conversation list, search, delete
         ChatView.tsx            #     Welcome page + chat + model selector
         OutputPanel.tsx         #     Tool output side panel
-        SettingsPage.tsx        #     API key config, provider/model selection
+        SettingsPage.tsx        #     Full-page settings with category sidebar
         ModelSelector.tsx       #     Dropdown model switcher (in input bar)
-      types.ts                  #     Message, Conversation, AppSettings, PROVIDERS
+      types.ts                  #     Message, Conversation, AppSettings, UsageData, PROVIDERS
       index.css                 #     Light theme, Tailwind
     src-tauri/                  #   Rust backend
       src/lib.rs                #     IPC commands, bridge process management
@@ -77,6 +77,9 @@ User input
 - [x] Sidebar search: filter conversations by title/content
 - [x] Conversation delete: hover X button on sidebar items
 - [x] Tool result rendering: collapsible cards with status indicator
+- [x] Settings page redesign: full-page layout with category sidebar (General, API Keys, Usage, About)
+- [x] Usage statistics panel: conversation/message/tool counts, estimated token count, real usage placeholders, provider status
+- [x] Browser-preview fallback: `npm run dev` works outside Tauri using localStorage-backed settings/conversation stubs
 
 ### In Progress
 
@@ -90,11 +93,52 @@ User input
 - [ ] Vision loop: browser_vision_act tool using VL model
 - [ ] Export: conversation history, scan reports
 
+## Codex Handoff 2026-06-27
+
+Codex made direct supervisory fixes after finding issues during QA. Claude should review these files before continuing and avoid overwriting them blindly:
+
+- `app/src/tauri.ts`: Added a Tauri IPC wrapper. Native Tauri still uses real `invoke`/`listen`; browser-only `npm run dev` uses localStorage-backed settings and conversation stubs so UI QA does not white-screen outside the Tauri WebView.
+- `app/src/App.tsx`: Switched Tauri IPC calls to the wrapper and kept the desktop runtime path intact.
+- `app/src/components/SettingsPage.tsx`: Fixed responsive layout. Desktop keeps the full-page settings sidebar; narrow windows move settings navigation above content so labels, cards, and buttons do not overlap.
+- `app/src/types.ts`: Added `UsageData` and `EMPTY_USAGE` placeholders for future real usage telemetry.
+- `CLAUDE.md`, `TEST_PLAN.md`, `app/README.md`: Updated docs, browser-preview guidance, and verification steps.
+
+Verification already run by Codex:
+
+- `cd app && npm run build` passes.
+- `cd app && npm run lint` passes.
+- Browser preview at `http://127.0.0.1:1420/` renders without new console errors after a clean reload.
+- Settings opens in browser preview without a blank page.
+- Usage page clearly labels token counts as estimated and real metrics as unavailable.
+- Narrow viewport around 390px wide keeps settings content readable.
+
+Suggested commit message for this batch:
+
+```text
+feat(app): refine settings usage panel and browser preview fallback
+
+- add Tauri IPC wrapper with browser-preview localStorage stubs
+- clarify estimated versus real usage metrics
+- make settings page responsive for narrow windows
+- update README, CLAUDE notes, and UI test plan
+```
+
+Next phase ownership:
+
+- shadcn/ui migration is owned by Claude. Codex did not initialize shadcn, did not add components, and should not touch shadcn configuration unless the user explicitly reassigns that work.
+- Before starting shadcn work, Claude should inspect the current diff, decide whether to commit or preserve this batch, then plan the shadcn migration from the current working tree.
+
 ## Dev
 
 ```bash
+# Browser-only frontend preview (uses localStorage stubs, no agent bridge)
+cd app && npm run dev
+
 # Start Tauri dev (Vite + Rust hot reload)
 cd app && npx tauri dev
+
+# Frontend build/lint checks
+cd app && npm run build && npm run lint
 
 # Build for production
 cd app && npx tauri build
