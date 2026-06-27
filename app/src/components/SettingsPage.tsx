@@ -1,52 +1,23 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { invokeCommand } from '../tauri'
 import type { AppSettings, ProviderConfig, Conversation } from '../types'
 import { PROVIDERS } from '../types'
+import { Button } from '@/components/ui/button'
+import { Card, CardAction, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Switch } from '@/components/ui/switch'
+import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
+import { Separator } from '@/components/ui/separator'
+import { Label } from '@/components/ui/label'
+import { Settings, KeyRound, BarChart3, Info, ChevronLeft } from 'lucide-react'
 
 type Category = 'general' | 'apikeys' | 'usage' | 'about'
 
 const CATEGORIES: { id: Category; label: string; icon: React.ReactNode }[] = [
-  {
-    id: 'general',
-    label: 'General',
-    icon: (
-      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="3"/>
-        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-      </svg>
-    ),
-  },
-  {
-    id: 'apikeys',
-    label: 'API Keys',
-    icon: (
-      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
-      </svg>
-    ),
-  },
-  {
-    id: 'usage',
-    label: 'Usage',
-    icon: (
-      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M18 20V10"/>
-        <path d="M12 20V4"/>
-        <path d="M6 20v-6"/>
-      </svg>
-    ),
-  },
-  {
-    id: 'about',
-    label: 'About',
-    icon: (
-      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="10"/>
-        <line x1="12" y1="16" x2="12" y2="12"/>
-        <line x1="12" y1="8" x2="12.01" y2="8"/>
-      </svg>
-    ),
-  },
+  { id: 'general', label: 'General', icon: <Settings className="size-4" /> },
+  { id: 'apikeys', label: 'API Keys', icon: <KeyRound className="size-4" /> },
+  { id: 'usage', label: 'Usage', icon: <BarChart3 className="size-4" /> },
+  { id: 'about', label: 'About', icon: <Info className="size-4" /> },
 ]
 
 interface Props {
@@ -113,64 +84,57 @@ export function SettingsPage({ settings, onSettingsChange, onClose, conversation
 
   return (
     <div className="flex w-full h-full max-sm:flex-col">
-      <div className="w-56 border-r border-[#e5e5e5] flex flex-col bg-[#fafafa] max-sm:w-full max-sm:h-auto max-sm:border-r-0 max-sm:border-b">
+      <div className="w-56 border-r border-border flex flex-col bg-sidebar max-sm:w-full max-sm:h-auto max-sm:border-r-0 max-sm:border-b">
         <div className="p-3 pt-4 max-sm:pt-3 max-sm:pb-1">
-          <button
-            onClick={onClose}
-            className="flex items-center gap-2 px-3 py-2 text-sm text-[#666] hover:text-[#333] hover:bg-[#eee] rounded-lg transition-colors w-full"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="15 18 9 12 15 6" />
-            </svg>
+          <Button variant="ghost" size="sm" onClick={onClose} className="w-full justify-start gap-2 text-muted-foreground">
+            <ChevronLeft className="size-4" />
             Back
-          </button>
+          </Button>
         </div>
 
         <div className="px-3 mt-1 max-sm:hidden">
-          <p className="text-[10px] font-medium text-[#aaa] uppercase tracking-widest px-3 mb-1.5">Settings</p>
+          <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest px-3 mb-1.5">Settings</p>
         </div>
 
         <nav className="flex-1 px-3 space-y-0.5 max-sm:flex max-sm:gap-1 max-sm:space-y-0 max-sm:overflow-x-auto max-sm:pb-3">
           {CATEGORIES.map(cat => (
-            <button
+            <Button
               key={cat.id}
+              variant={category === cat.id ? 'secondary' : 'ghost'}
+              size="sm"
               onClick={() => setCategory(cat.id)}
-              className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors max-sm:w-auto max-sm:shrink-0 ${
-                category === cat.id
-                  ? 'bg-[#e8e8e8] text-[#1a1a1a] font-medium'
-                  : 'text-[#555] hover:bg-[#f0f0f0]'
+              className={`w-full justify-start gap-2.5 max-sm:w-auto max-sm:shrink-0 ${
+                category === cat.id ? 'font-medium' : 'text-muted-foreground'
               }`}
             >
-              <span className={category === cat.id ? 'text-[#333]' : 'text-[#999]'}>{cat.icon}</span>
+              {cat.icon}
               {cat.label}
-            </button>
+            </Button>
           ))}
         </nav>
 
-        <div className="p-3 border-t border-[#e5e5e5] max-sm:hidden">
+        <div className="p-3 border-t border-border max-sm:hidden">
           <div className="px-3 py-2">
-            <p className="text-[10px] text-[#bbb] uppercase tracking-wider">MilkSU v0.1.0</p>
+            <p className="text-[10px] text-muted-foreground/50 uppercase tracking-wider">MilkSU v0.1.0</p>
           </div>
         </div>
       </div>
 
       <div className="flex-1 flex flex-col min-w-0">
-        <div className="h-14 flex items-center justify-between px-8 border-b border-[#e5e5e5] max-sm:h-auto max-sm:px-4 max-sm:py-3 max-sm:gap-3">
+        <div className="h-14 flex items-center justify-between px-8 border-b border-border max-sm:h-auto max-sm:px-4 max-sm:py-3 max-sm:gap-3">
           <h1 className="text-base font-medium">
             {CATEGORIES.find(c => c.id === category)?.label}
           </h1>
           {(category === 'general' || category === 'apikeys') && (
-            <button
+            <Button
               onClick={handleSave}
               disabled={saving}
-              className={`text-sm px-5 py-1.5 rounded-lg transition-all max-sm:px-3 max-sm:shrink-0 ${
-                saved
-                  ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
-                  : 'bg-[#1a1a1a] text-white hover:bg-[#333]'
-              } disabled:opacity-50`}
+              variant={saved ? 'outline' : 'default'}
+              size="sm"
+              className={saved ? 'border-emerald-200 text-emerald-600 bg-emerald-50 hover:bg-emerald-50' : ''}
             >
               {saving ? 'Saving...' : saved ? 'Saved' : 'Save changes'}
-            </button>
+            </Button>
           )}
         </div>
 
@@ -224,11 +188,11 @@ function GeneralSection({ settings, onUpdate, activeProviderModels }: {
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-sm font-medium text-[#333] mb-1">Default Provider</h2>
-        <p className="text-xs text-[#999] mb-3">Select your primary LLM provider and model for new conversations.</p>
+        <h2 className="text-sm font-medium mb-1">Default Provider</h2>
+        <p className="text-sm text-muted-foreground mb-3">Select your primary LLM provider and model for new conversations.</p>
         <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
           <div>
-            <label className="text-xs font-medium text-[#666] mb-1.5 block">Provider</label>
+            <Label className="mb-1.5">Provider</Label>
             <select
               value={settings.active_provider}
               onChange={e => {
@@ -238,7 +202,7 @@ function GeneralSection({ settings, onUpdate, activeProviderModels }: {
                   active_model: provider?.models[0] ?? '',
                 })
               }}
-              className="w-full border border-[#e0e0e0] rounded-lg px-3 py-2.5 text-sm bg-white outline-none focus:border-[#bbb] focus:ring-1 focus:ring-[#e0e0e0] transition-all cursor-pointer"
+              className="flex h-9 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:border-ring focus:ring-1 focus:ring-ring/50 transition-colors cursor-pointer"
             >
               {PROVIDERS.map(p => (
                 <option key={p.id} value={p.id}>{p.name}</option>
@@ -246,11 +210,11 @@ function GeneralSection({ settings, onUpdate, activeProviderModels }: {
             </select>
           </div>
           <div>
-            <label className="text-xs font-medium text-[#666] mb-1.5 block">Model</label>
+            <Label className="mb-1.5">Model</Label>
             <select
               value={settings.active_model}
               onChange={e => onUpdate({ active_model: e.target.value })}
-              className="w-full border border-[#e0e0e0] rounded-lg px-3 py-2.5 text-sm bg-white outline-none focus:border-[#bbb] focus:ring-1 focus:ring-[#e0e0e0] transition-all cursor-pointer"
+              className="flex h-9 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:border-ring focus:ring-1 focus:ring-ring/50 transition-colors cursor-pointer"
             >
               {activeProviderModels.map(m => (
                 <option key={m} value={m}>{m}</option>
@@ -260,22 +224,22 @@ function GeneralSection({ settings, onUpdate, activeProviderModels }: {
         </div>
       </div>
 
-      <hr className="border-[#f0f0f0]" />
+      <Separator />
 
       <div>
-        <h2 className="text-sm font-medium text-[#333] mb-1">Available Providers</h2>
-        <p className="text-xs text-[#999] mb-3">Providers with configured API keys.</p>
+        <h2 className="text-sm font-medium mb-1">Available Providers</h2>
+        <p className="text-sm text-muted-foreground mb-3">Providers with configured API keys.</p>
         <div className="space-y-2">
           {PROVIDERS.map(p => {
             const cfg = settings.providers[p.id]
             const hasKey = cfg?.api_key && cfg.enabled
             return (
-              <div key={p.id} className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg bg-[#fafafa]">
+              <div key={p.id} className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg bg-muted/50">
                 <div className="flex items-center gap-3">
-                  <div className={`w-2 h-2 rounded-full ${hasKey ? 'bg-emerald-400' : 'bg-[#ddd]'}`} />
+                  <div className={`w-2 h-2 rounded-full ${hasKey ? 'bg-emerald-400' : 'bg-muted-foreground/20'}`} />
                   <span className="text-sm">{p.name}</span>
                 </div>
-                <span className="text-xs text-[#bbb] text-right shrink-0">
+                <span className="text-xs text-muted-foreground text-right shrink-0">
                   {hasKey ? `${p.models.length} models` : 'Not configured'}
                 </span>
               </div>
@@ -295,80 +259,68 @@ function ApiKeysSection({ getProvider, updateProvider, visibleKeys, setVisibleKe
   setVisibleKeys: (v: Record<string, boolean>) => void
 }) {
   return (
-    <div className="space-y-6">
-      <div>
-        <p className="text-xs text-[#999] mb-5">
-          API keys are stored locally in your app config directory and passed to the agent process as environment variables. They are never sent elsewhere.
-        </p>
-      </div>
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        API keys are stored locally in your app config directory and passed to the agent process as environment variables. They are never sent elsewhere.
+      </p>
 
       {PROVIDERS.map(p => {
         const config = getProvider(p.id)
         const isVisible = visibleKeys[p.id] ?? false
         const hasKey = !!config.api_key
+        const isActive = config.enabled && hasKey
 
         return (
-          <div
-            key={p.id}
-            className={`rounded-xl border transition-all ${
-              config.enabled && hasKey
-                ? 'border-emerald-200 bg-emerald-50/30'
-                : 'border-[#eee] bg-white'
-            }`}
-          >
-            <div className="flex items-center justify-between px-5 py-4">
+          <Card key={p.id} className={isActive ? 'border-emerald-200 bg-emerald-50/30' : ''}>
+            <CardHeader>
               <div className="flex items-center gap-3">
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${
-                  config.enabled && hasKey
-                    ? 'bg-emerald-100 text-emerald-700'
-                    : 'bg-[#f0f0f0] text-[#999]'
+                  isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-muted text-muted-foreground'
                 }`}>
                   {p.name.charAt(0)}
                 </div>
-                <div>
-                  <p className="text-sm font-medium">{p.name}</p>
-                  <p className="text-[11px] text-[#bbb]">{p.envKey}</p>
+                <div className="flex-1 min-w-0">
+                  <CardTitle className="text-sm">{p.name}</CardTitle>
+                  <CardDescription className="text-[11px]">{p.envKey}</CardDescription>
                 </div>
               </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
+              <CardAction>
+                <Switch
+                  id={`switch-${p.id}`}
                   checked={config.enabled}
-                  onChange={e => updateProvider(p.id, { enabled: e.target.checked })}
-                  className="sr-only peer"
+                  onCheckedChange={(checked: boolean) => updateProvider(p.id, { enabled: checked })}
                 />
-                <div className="w-9 h-5 bg-[#ddd] rounded-full peer-checked:bg-emerald-500 transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-4" />
-              </label>
-            </div>
-
-            <div className="px-5 pb-4 space-y-3">
+              </CardAction>
+            </CardHeader>
+            <CardContent className="space-y-3">
               <div className="relative">
-                <input
+                <Input
                   type={isVisible ? 'text' : 'password'}
                   value={config.api_key}
                   onChange={e => updateProvider(p.id, { api_key: e.target.value })}
                   placeholder={p.placeholder}
-                  className="w-full border border-[#e0e0e0] rounded-lg px-3 py-2.5 text-sm font-mono bg-white outline-none focus:border-[#bbb] focus:ring-1 focus:ring-[#e0e0e0] transition-all pr-16"
+                  className="font-mono pr-16"
                 />
-                <button
+                <Button
+                  variant="ghost"
+                  size="xs"
                   onClick={() => setVisibleKeys({ ...visibleKeys, [p.id]: !isVisible })}
-                  className="absolute right-1 top-1/2 -translate-y-1/2 text-[11px] text-[#aaa] hover:text-[#555] px-2.5 py-1.5 rounded-md hover:bg-[#f5f5f5] transition-colors"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground"
                 >
                   {isVisible ? 'Hide' : 'Show'}
-                </button>
+                </Button>
               </div>
 
               {(p.id === 'anthropic' || p.id === 'openai') && (
-                <input
+                <Input
                   type="text"
                   value={config.base_url ?? ''}
                   onChange={e => updateProvider(p.id, { base_url: e.target.value || undefined })}
                   placeholder="Base URL (optional, for proxy)"
-                  className="w-full border border-[#e0e0e0] rounded-lg px-3 py-2.5 text-sm bg-white outline-none focus:border-[#bbb] focus:ring-1 focus:ring-[#e0e0e0] transition-all"
                 />
               )}
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         )
       })}
     </div>
@@ -378,11 +330,13 @@ function ApiKeysSection({ getProvider, updateProvider, visibleKeys, setVisibleKe
 
 function StatCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (
-    <div className="bg-[#fafafa] rounded-xl px-5 py-4">
-      <p className="text-[11px] font-medium text-[#aaa] uppercase tracking-wider mb-1">{label}</p>
-      <p className="text-2xl font-semibold text-[#1a1a1a] tabular-nums">{value}</p>
-      {sub && <p className="text-[11px] text-[#bbb] mt-0.5">{sub}</p>}
-    </div>
+    <Card size="sm">
+      <CardContent className="pt-4">
+        <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-1">{label}</p>
+        <p className="text-2xl font-semibold tabular-nums">{value}</p>
+        {sub && <p className="text-[11px] text-muted-foreground mt-0.5">{sub}</p>}
+      </CardContent>
+    </Card>
   )
 }
 
@@ -393,27 +347,18 @@ function UsageBar({ label, value, max, unit }: { label: string; value: number; m
   return (
     <div>
       <div className="flex items-center justify-between mb-1.5">
-        <span className="text-xs text-[#666]">{label}</span>
-        <span className="text-xs tabular-nums text-[#999]">
+        <span className="text-xs text-muted-foreground">{label}</span>
+        <span className="text-xs tabular-nums text-muted-foreground">
           {value.toLocaleString()}{unit ? ` ${unit}` : ''} / {max.toLocaleString()}{unit ? ` ${unit}` : ''}
         </span>
       </div>
-      <div className="h-2 bg-[#f0f0f0] rounded-full overflow-hidden">
+      <div className="h-2 bg-muted rounded-full overflow-hidden">
         <div className={`h-full ${color} rounded-full transition-all`} style={{ width: `${pct}%` }} />
       </div>
     </div>
   )
 }
 
-
-function UnavailableValue({ label }: { label: string }) {
-  return (
-    <div className="flex items-center justify-between px-4 py-2.5 bg-[#fafafa] rounded-lg">
-      <span className="text-xs text-[#888]">{label}</span>
-      <span className="text-[11px] text-[#ccc] italic">unavailable</span>
-    </div>
-  )
-}
 
 function UsageSection({ totalConversations, totalMessages, userMessages, assistantMessages, toolCalls, estimatedTokens, configuredProviders, activeProvider, activeModel }: {
   totalConversations: number
@@ -429,8 +374,8 @@ function UsageSection({ totalConversations, totalMessages, userMessages, assista
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-sm font-medium text-[#333] mb-1">Session Overview</h2>
-        <p className="text-xs text-[#999] mb-4">Counted from local conversation history.</p>
+        <h2 className="text-sm font-medium mb-1">Session Overview</h2>
+        <p className="text-sm text-muted-foreground mb-4">Counted from local conversation history.</p>
         <div className="grid grid-cols-3 gap-3 max-sm:grid-cols-1">
           <StatCard label="Conversations" value={totalConversations} />
           <StatCard label="Messages" value={totalMessages} sub={`${userMessages} sent, ${assistantMessages} received`} />
@@ -438,11 +383,11 @@ function UsageSection({ totalConversations, totalMessages, userMessages, assista
         </div>
       </div>
 
-      <hr className="border-[#f0f0f0]" />
+      <Separator />
 
       <div>
-        <h2 className="text-sm font-medium text-[#333] mb-1">Token Usage (Estimated)</h2>
-        <p className="text-xs text-[#999] mb-4">
+        <h2 className="text-sm font-medium mb-1">Token Usage (Estimated)</h2>
+        <p className="text-sm text-muted-foreground mb-4">
           Rough estimate based on message character count (~4 chars per token).
           Real token counts from provider API are not yet available.
         </p>
@@ -454,60 +399,52 @@ function UsageSection({ totalConversations, totalMessages, userMessages, assista
             sub={PROVIDERS.find(p => p.id === activeProvider)?.name ?? activeProvider}
           />
         </div>
-        <div className="space-y-4 bg-[#fafafa] rounded-xl p-5">
-          <UsageBar
-            label="User Messages"
-            value={userMessages}
-            max={totalMessages || 1}
-            unit="msgs"
-          />
-          <UsageBar
-            label="Assistant Messages"
-            value={assistantMessages}
-            max={totalMessages || 1}
-            unit="msgs"
-          />
-        </div>
+        <Card size="sm">
+          <CardContent className="pt-4 space-y-4">
+            <UsageBar label="User Messages" value={userMessages} max={totalMessages || 1} unit="msgs" />
+            <UsageBar label="Assistant Messages" value={assistantMessages} max={totalMessages || 1} unit="msgs" />
+          </CardContent>
+        </Card>
       </div>
 
-      <hr className="border-[#f0f0f0]" />
+      <Separator />
 
       <div>
-        <h2 className="text-sm font-medium text-[#333] mb-1">Real-time Metrics</h2>
-        <p className="text-xs text-[#999] mb-4">
+        <h2 className="text-sm font-medium mb-1">Real-time Metrics</h2>
+        <p className="text-sm text-muted-foreground mb-4">
           These fields require usage data from the provider API.
           They will populate once the bridge reports token usage events.
         </p>
         <div className="space-y-1.5">
-          <UnavailableValue label="Input Tokens" />
-          <UnavailableValue label="Output Tokens" />
-          <UnavailableValue label="Cache Read Tokens" />
-          <UnavailableValue label="Total Tokens (real)" />
-          <UnavailableValue label="Context Window Limit" />
-          <UnavailableValue label="Cost (USD)" />
-          <UnavailableValue label="Latency" />
-          <UnavailableValue label="Session Duration" />
+          {['Input Tokens', 'Output Tokens', 'Cache Read Tokens', 'Total Tokens (real)', 'Context Window Limit', 'Cost (USD)', 'Latency', 'Session Duration'].map(label => (
+            <div key={label} className="flex items-center justify-between px-4 py-2.5 bg-muted/50 rounded-lg">
+              <span className="text-xs text-muted-foreground">{label}</span>
+              <span className="text-[11px] text-muted-foreground/50 italic">unavailable</span>
+            </div>
+          ))}
         </div>
       </div>
 
-      <hr className="border-[#f0f0f0]" />
+      <Separator />
 
       <div>
-        <h2 className="text-sm font-medium text-[#333] mb-1">Provider Status</h2>
-        <p className="text-xs text-[#999] mb-4">Currently configured and available providers.</p>
+        <h2 className="text-sm font-medium mb-1">Provider Status</h2>
+        <p className="text-sm text-muted-foreground mb-4">Currently configured and available providers.</p>
         {configuredProviders.length === 0 ? (
-          <div className="text-center py-8 bg-[#fafafa] rounded-xl">
-            <p className="text-sm text-[#bbb]">No providers configured yet.</p>
-            <p className="text-xs text-[#ccc] mt-1">Add API keys in the API Keys section.</p>
-          </div>
+          <Card>
+            <CardContent className="py-8 text-center">
+              <p className="text-sm text-muted-foreground">No providers configured yet.</p>
+              <p className="text-xs text-muted-foreground/60 mt-1">Add API keys in the API Keys section.</p>
+            </CardContent>
+          </Card>
         ) : (
           <div className="space-y-2">
             {configuredProviders.map(p => (
-              <div key={p.id} className="flex items-center gap-3 px-4 py-3 bg-[#fafafa] rounded-lg">
+              <div key={p.id} className="flex items-center gap-3 px-4 py-3 bg-muted/50 rounded-lg">
                 <div className="w-2 h-2 rounded-full bg-emerald-400" />
-                <span className="text-sm">{p.name}</span>
+                <span className="text-sm flex-1">{p.name}</span>
                 {p.id === activeProvider && (
-                  <span className="text-[10px] font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full ml-auto">Active</span>
+                  <Badge variant="outline" className="border-emerald-200 text-emerald-600 bg-emerald-50">Active</Badge>
                 )}
               </div>
             ))}
@@ -520,67 +457,67 @@ function UsageSection({ totalConversations, totalMessages, userMessages, assista
 
 
 function AboutSection() {
+  const infoRows = [
+    ['Version', '0.1.0'],
+    ['Runtime', 'Tauri v2'],
+    ['Agent Engine', 'Pi (earendil-works)'],
+    ['Frontend', 'React + Vite'],
+    ['Backend', 'Rust'],
+  ]
+
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-sm font-medium text-[#333] mb-1">MilkSU</h2>
-        <p className="text-xs text-[#999] mb-4">Pi agent harness extension for pluggable AI skills.</p>
+        <h2 className="text-sm font-medium mb-1">MilkSU</h2>
+        <p className="text-sm text-muted-foreground mb-4">Pi agent harness extension for pluggable AI skills.</p>
 
-        <div className="space-y-3">
-          <div className="flex items-center justify-between px-4 py-3 bg-[#fafafa] rounded-lg">
-            <span className="text-sm text-[#666]">Version</span>
-            <span className="text-sm font-mono">0.1.0</span>
-          </div>
-          <div className="flex items-center justify-between px-4 py-3 bg-[#fafafa] rounded-lg">
-            <span className="text-sm text-[#666]">Runtime</span>
-            <span className="text-sm font-mono">Tauri v2</span>
-          </div>
-          <div className="flex items-center justify-between px-4 py-3 bg-[#fafafa] rounded-lg">
-            <span className="text-sm text-[#666]">Agent Engine</span>
-            <span className="text-sm font-mono">Pi (earendil-works)</span>
-          </div>
-          <div className="flex items-center justify-between px-4 py-3 bg-[#fafafa] rounded-lg">
-            <span className="text-sm text-[#666]">Frontend</span>
-            <span className="text-sm font-mono">React + Vite</span>
-          </div>
-          <div className="flex items-center justify-between px-4 py-3 bg-[#fafafa] rounded-lg">
-            <span className="text-sm text-[#666]">Backend</span>
-            <span className="text-sm font-mono">Rust</span>
-          </div>
-        </div>
+        <Card size="sm">
+          <CardContent className="pt-4 divide-y divide-border">
+            {infoRows.map(([label, value]) => (
+              <div key={label} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
+                <span className="text-sm text-muted-foreground">{label}</span>
+                <span className="text-sm font-mono">{value}</span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
       </div>
 
-      <hr className="border-[#f0f0f0]" />
+      <Separator />
 
       <div>
-        <h2 className="text-sm font-medium text-[#333] mb-1">Architecture</h2>
-        <p className="text-xs text-[#999] mb-4">Tauri IPC dual-channel with Pi subprocess bridge.</p>
-        <div className="bg-[#fafafa] rounded-xl p-5 space-y-3 text-xs text-[#666] font-mono leading-relaxed">
-          <p>User input</p>
-          <p className="text-[#bbb]">  -&gt; React invoke("send_message")</p>
-          <p className="text-[#bbb]">  -&gt; Rust: spawn bridge.js subprocess</p>
-          <p className="text-[#bbb]">  -&gt; bridge.js: Pi createAgentSession()</p>
-          <p className="text-[#bbb]">  -&gt; Pi agent streams JSON line events</p>
-          <p className="text-[#bbb]">  -&gt; Rust: emit Tauri events to frontend</p>
-          <p className="text-[#bbb]">  -&gt; React: render streaming response</p>
-        </div>
+        <h2 className="text-sm font-medium mb-1">Architecture</h2>
+        <p className="text-sm text-muted-foreground mb-4">Tauri IPC dual-channel with Pi subprocess bridge.</p>
+        <Card size="sm">
+          <CardContent className="pt-4 space-y-1 text-xs font-mono leading-relaxed">
+            <p>User input</p>
+            <p className="text-muted-foreground">  -&gt; React invoke("send_message")</p>
+            <p className="text-muted-foreground">  -&gt; Rust: spawn bridge.js subprocess</p>
+            <p className="text-muted-foreground">  -&gt; bridge.js: Pi createAgentSession()</p>
+            <p className="text-muted-foreground">  -&gt; Pi agent streams JSON line events</p>
+            <p className="text-muted-foreground">  -&gt; Rust: emit Tauri events to frontend</p>
+            <p className="text-muted-foreground">  -&gt; React: render streaming response</p>
+          </CardContent>
+        </Card>
       </div>
 
-      <hr className="border-[#f0f0f0]" />
+      <Separator />
 
       <div>
-        <h2 className="text-sm font-medium text-[#333] mb-1">Storage</h2>
-        <p className="text-xs text-[#999] mb-3">All data is stored locally on your machine.</p>
-        <div className="space-y-2 text-xs">
-          <div className="flex gap-2 px-4 py-2.5 bg-[#fafafa] rounded-lg">
-            <span className="text-[#999] shrink-0">Settings:</span>
-            <span className="font-mono text-[#666] truncate">~/Library/Application Support/com.milksu.app/settings.json</span>
-          </div>
-          <div className="flex gap-2 px-4 py-2.5 bg-[#fafafa] rounded-lg">
-            <span className="text-[#999] shrink-0">Conversations:</span>
-            <span className="font-mono text-[#666] truncate">~/Library/Application Support/com.milksu.app/conversations/</span>
-          </div>
-        </div>
+        <h2 className="text-sm font-medium mb-1">Storage</h2>
+        <p className="text-sm text-muted-foreground mb-3">All data is stored locally on your machine.</p>
+        <Card size="sm">
+          <CardContent className="pt-4 space-y-2 text-xs">
+            <div className="flex gap-2">
+              <span className="text-muted-foreground shrink-0">Settings:</span>
+              <span className="font-mono truncate">~/Library/Application Support/com.milksu.app/settings.json</span>
+            </div>
+            <div className="flex gap-2">
+              <span className="text-muted-foreground shrink-0">Conversations:</span>
+              <span className="font-mono truncate">~/Library/Application Support/com.milksu.app/conversations/</span>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   )
