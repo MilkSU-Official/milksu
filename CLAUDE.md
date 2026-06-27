@@ -12,19 +12,24 @@ Pi agent harness extension for pluggable AI skills, with a Tauri v2 native deskt
 
 ```
 milksu/
+  bridge.js                     # Node.js bridge: Pi agent <-> Rust IPC
   app/                          # Tauri v2 desktop client
     src/                        #   React frontend (TypeScript)
-      App.tsx                   #     Root: conversation state, Tauri IPC
+      App.tsx                   #     Root: state, IPC, persistence
       components/
-        Sidebar.tsx             #     Conversation list, search
-        ChatView.tsx            #     Welcome page + chat view
+        Sidebar.tsx             #     Conversation list, search, delete
+        ChatView.tsx            #     Welcome page + chat + model selector
         OutputPanel.tsx         #     Tool output side panel
-      types.ts                  #     Message, Conversation types
+        SettingsPage.tsx        #     API key config, provider/model selection
+        ModelSelector.tsx       #     Dropdown model switcher (in input bar)
+      types.ts                  #     Message, Conversation, AppSettings, PROVIDERS
       index.css                 #     Light theme, Tailwind
     src-tauri/                  #   Rust backend
-      src/lib.rs                #     send_message command, agent-message event
+      src/lib.rs                #     IPC commands, bridge process management
+      src/settings.rs           #     Settings persistence (JSON file)
+      src/storage.rs            #     Conversation persistence (JSON files)
       src/main.rs               #     Entry point
-      capabilities/default.json #     IPC permission grants
+      capabilities/default.json #     IPC + event permission grants
       tauri.conf.json           #     Window config, build config
   src/                          # Pi extension (TypeScript)
     index.ts                    #   Extension entry: hooks, tool registration
@@ -44,10 +49,12 @@ milksu/
 ```
 User input
   -> React invoke("send_message", {conversationId, prompt})
-  -> Rust #[tauri::command] send_message()
-  -> (TODO) spawn Node.js subprocess -> Pi agent session
-  -> app.emit("agent-message", payload)
-  -> React listen("agent-message") -> render in ChatView
+  -> Rust send_message(): spawn/reuse bridge.js subprocess
+  -> bridge.js: Pi createAgentSession() -> session.prompt()
+  -> Pi agent streams events to stdout (JSON lines)
+  -> Rust reads stdout, emits "agent-message" Tauri events
+  -> React listen("agent-message") -> render streaming in ChatView
+  -> Conversation auto-saved to ~/Library/Application Support/com.milksu.app/conversations/
 ```
 
 ## Current Progress
@@ -59,28 +66,28 @@ User input
 - [x] Light/white theme throughout
 - [x] Custom app icon (transparent background, Dock only)
 - [x] Frontend-backend IPC wired: invoke + event channel
-- [x] Mock agent response (send message -> see reply)
+- [x] Tauri v2 capabilities/permissions configured
 - [x] Pi extension skeleton: skill-loader, skill-router, policy-engine
 - [x] Three skills: hello-world, browser-connect, network-recon
-- [x] Tauri v2 capabilities/permissions configured
+- [x] Bridge.js: Node.js subprocess calling Pi createAgentSession()
+- [x] Streaming text output: assistant_delta events -> incremental render
+- [x] Settings page: API key config for 5 providers (DeepSeek, Anthropic, OpenAI, Google, Groq)
+- [x] Model selector: dropdown in input bar, per-provider model list
+- [x] Conversation persistence: auto-save to JSON files, load on startup
+- [x] Sidebar search: filter conversations by title/content
+- [x] Conversation delete: hover X button on sidebar items
+- [x] Tool result rendering: collapsible cards with status indicator
 
 ### In Progress
 
-- [ ] Connect Rust backend to Pi agent (spawn Node.js subprocess)
-  - Rust uses Command to spawn `node bridge.js`
-  - bridge.js imports Pi agent core, runs agent loop
-  - Communication via stdin/stdout JSON line protocol
-  - Each agent event (assistant message, tool call, tool result) emits back to frontend
+- [ ] End-to-end test with real API key (DeepSeek)
+  - bridge.js + Pi session verified working
+  - Needs user to fill API key in Settings page
 
 ### Planned
 
-- [ ] Streaming output: show agent thinking and tool execution in real-time
-- [ ] Tool result rendering: structured display for different tool types
-- [ ] Conversation persistence: save/load from local storage or SQLite
-- [ ] Search functionality in sidebar
 - [ ] Security dashboard panels (pentest, CTF, reverse engineering)
 - [ ] Vision loop: browser_vision_act tool using VL model
-- [ ] Settings page: API key config, model selection, skill toggle
 - [ ] Export: conversation history, scan reports
 
 ## Dev
@@ -93,6 +100,22 @@ cd app && npx tauri dev
 cd app && npx tauri build
 ```
 
+## Settings Storage
+
+- Settings: `~/Library/Application Support/com.milksu.app/settings.json`
+- Conversations: `~/Library/Application Support/com.milksu.app/conversations/*.json`
+- API keys are stored locally, passed to bridge.js as environment variables
+
+## Supported Providers
+
+| Provider | Env Var | Default Model |
+|----------|---------|---------------|
+| DeepSeek (default) | DEEPSEEK_API_KEY | deepseek-chat |
+| Anthropic | ANTHROPIC_API_KEY | claude-sonnet-4-20250514 |
+| OpenAI | OPENAI_API_KEY | gpt-4o |
+| Google Gemini | GEMINI_API_KEY | gemini-2.5-flash |
+| Groq | GROQ_API_KEY | llama-3.3-70b-versatile |
+
 ## Key Concepts (Agent Harness)
 
 This section documents Agent Harness patterns for interview/presentation reference.
@@ -102,6 +125,13 @@ This section documents Agent Harness patterns for interview/presentation referen
 - **invoke**: Frontend -> Backend request-response (like HTTP POST). Used for user actions.
 - **emit/listen**: Backend -> Frontend event push (like WebSocket). Used for streaming agent output.
 - This maps well to agent workloads: user sends prompt (invoke), agent produces multiple outputs over time (emit).
+
+### Agent subprocess bridge pattern
+
+- Rust (host process): window management, security sandbox, process lifecycle
+- Node.js (agent process): LLM interaction, tool execution, extension loading
+- Communication: stdin/stdout JSON lines (simple, no dependency, cross-platform)
+- Same architecture as LSP: editor spawns language server via stdio JSON-RPC
 
 ### Pi Extension System
 
@@ -125,3 +155,11 @@ The skill-router builds a routing prompt listing available skills. Pi's agent se
 - `content`: Text for LLM reasoning (the agent reads this)
 - `details`: Structured data for UI rendering (the frontend renders this)
 - This separation lets the same tool call serve both the agent's decision-making and the user's visual feedback.
+
+### Streaming Architecture
+
+- Bridge.js subscribes to Pi session events: text_delta, thinking_delta, toolcall_start/end, done, error
+- Each event is a JSON line with `type`, `id` (conversation), and event-specific fields
+- Rust reads stdout line-by-line, maps to AgentMessage struct, emits to frontend
+- Frontend accumulates text_delta into a running assistant message, finalizes on message_done
+- This gives real-time character-by-character output like ChatGPT/Claude
