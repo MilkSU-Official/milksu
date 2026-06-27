@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
-import type { Conversation, AppSettings, Message } from '../types'
+import type { Conversation, AppSettings, Message, TaskType } from '../types'
+import { TASK_TYPES } from '../types'
 import { ModelSelector } from './ModelSelector'
+import { Shield, Flag, Network, Binary, MessageSquare } from 'lucide-react'
 
 function ToolMessage({ name, content, status }: { name?: string; content: string; status?: Message['status'] }) {
   const [expanded, setExpanded] = useState(false)
@@ -33,6 +35,30 @@ function ToolMessage({ name, content, status }: { name?: string; content: string
   )
 }
 
+const TASK_ICONS: Record<TaskType, React.ReactNode> = {
+  chat: <MessageSquare className="size-4" />,
+  pentest: <Shield className="size-4" />,
+  ctf: <Flag className="size-4" />,
+  recon: <Network className="size-4" />,
+  reverse: <Binary className="size-4" />,
+}
+
+const TASK_COLORS: Record<TaskType, string> = {
+  chat: 'border-neutral-200 bg-neutral-50 text-neutral-700 hover:bg-neutral-100',
+  pentest: 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100',
+  ctf: 'border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100',
+  recon: 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100',
+  reverse: 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100',
+}
+
+const TASK_COLORS_ACTIVE: Record<TaskType, string> = {
+  chat: 'border-neutral-400 bg-neutral-100 text-neutral-900 ring-1 ring-neutral-300',
+  pentest: 'border-red-400 bg-red-100 text-red-900 ring-1 ring-red-300',
+  ctf: 'border-purple-400 bg-purple-100 text-purple-900 ring-1 ring-purple-300',
+  recon: 'border-blue-400 bg-blue-100 text-blue-900 ring-1 ring-blue-300',
+  reverse: 'border-amber-400 bg-amber-100 text-amber-900 ring-1 ring-amber-300',
+}
+
 interface Props {
   conversation: Conversation | null
   onSend: (text: string) => void
@@ -40,16 +66,11 @@ interface Props {
   settings: AppSettings | null
   onChangeModel: (provider: string, model: string) => void
   onOpenSettings: () => void
+  pendingTaskType: TaskType
+  onTaskTypeChange: (t: TaskType) => void
 }
 
-const quickActions = [
-  { label: 'Scan a target' },
-  { label: 'Connect browser' },
-  { label: 'Start a CTF' },
-  { label: 'Generate report' },
-]
-
-export function ChatView({ conversation, onSend, onToggleOutput, settings, onChangeModel, onOpenSettings }: Props) {
+export function ChatView({ conversation, onSend, onToggleOutput, settings, onChangeModel, onOpenSettings, pendingTaskType, onTaskTypeChange }: Props) {
   const [input, setInput] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -79,12 +100,40 @@ export function ChatView({ conversation, onSend, onToggleOutput, settings, onCha
     />
   )
 
+  const taskTypeInfo = TASK_TYPES.find(t => t.id === pendingTaskType)
+  const placeholders: Record<TaskType, string> = {
+    chat: 'Type anything...',
+    pentest: 'Describe target or paste scope...',
+    ctf: 'Paste challenge description...',
+    recon: 'Enter target domain or IP range...',
+    reverse: 'Provide binary path or paste disassembly...',
+  }
+
   if (!hasMessages) {
     return (
       <div className="flex-1 flex flex-col min-w-0">
         <div className="flex-1 flex items-center justify-center">
           <div className="w-full max-w-xl px-6">
-            <h1 className="text-2xl font-medium text-center mb-8 text-[#1a1a1a]">What should we do?</h1>
+            <h1 className="text-2xl font-medium text-center mb-6 text-[#1a1a1a]">What should we do?</h1>
+
+            <div className="flex items-center justify-center gap-2 mb-6 flex-wrap">
+              {TASK_TYPES.map(t => (
+                <button
+                  key={t.id}
+                  onClick={() => onTaskTypeChange(t.id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-all ${
+                    pendingTaskType === t.id ? TASK_COLORS_ACTIVE[t.id] : TASK_COLORS[t.id]
+                  }`}
+                >
+                  {TASK_ICONS[t.id]}
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            {pendingTaskType !== 'chat' && taskTypeInfo && (
+              <p className="text-center text-xs text-muted-foreground mb-4">{taskTypeInfo.description}</p>
+            )}
 
             <div className="bg-[#f5f5f5] rounded-xl px-4 py-3 mb-2">
               <textarea
@@ -97,7 +146,7 @@ export function ChatView({ conversation, onSend, onToggleOutput, settings, onCha
                     handleSubmit()
                   }
                 }}
-                placeholder="Type anything..."
+                placeholder={placeholders[pendingTaskType]}
                 rows={1}
                 className="w-full bg-transparent text-sm resize-none outline-none placeholder-[#999] min-h-[20px] max-h-[120px]"
               />
@@ -114,18 +163,6 @@ export function ChatView({ conversation, onSend, onToggleOutput, settings, onCha
                 </button>
               </div>
             </div>
-
-            <div className="mt-4 space-y-1">
-              {quickActions.map(action => (
-                <button
-                  key={action.label}
-                  onClick={() => onSend(action.label)}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-[#555] hover:bg-[#f5f5f5] rounded-lg transition-colors text-left"
-                >
-                  {action.label}
-                </button>
-              ))}
-            </div>
           </div>
         </div>
       </div>
@@ -134,13 +171,19 @@ export function ChatView({ conversation, onSend, onToggleOutput, settings, onCha
 
   return (
     <div className="flex-1 flex flex-col min-w-0">
-      <div className="h-14 flex items-center px-6 border-b border-[#e5e5e5]">
+      <div className="h-14 flex items-center px-6 border-b border-[#e5e5e5] gap-3">
+        {conversation!.taskType !== 'chat' && (
+          <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-medium ${TASK_COLORS[conversation!.taskType]}`}>
+            {TASK_ICONS[conversation!.taskType]}
+            {TASK_TYPES.find(t => t.id === conversation!.taskType)?.label}
+          </div>
+        )}
         <span className="text-sm font-medium flex-1 truncate">{conversation!.title}</span>
         <button
           onClick={onToggleOutput}
           className="text-xs text-[#888] hover:text-[#333] px-2 py-1 rounded transition-colors"
         >
-          Output
+          {conversation!.taskType !== 'chat' ? 'Panel' : 'Output'}
         </button>
       </div>
 

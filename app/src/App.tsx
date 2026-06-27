@@ -2,9 +2,10 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { Sidebar } from './components/Sidebar'
 import { ChatView } from './components/ChatView'
 import { OutputPanel } from './components/OutputPanel'
+import { TaskPanel } from './components/TaskPanel'
 import { SettingsPage } from './components/SettingsPage'
 import { invokeCommand, listenEvent } from './tauri'
-import type { Conversation, Message, AppSettings } from './types'
+import type { Conversation, Message, AppSettings, TaskType } from './types'
 
 interface AgentEvent {
   conversation_id: string
@@ -19,6 +20,8 @@ interface StoredConversation {
   title: string
   created_at: number
   messages: { id: string; role: string; content: string; timestamp: number; tool_name?: string; status?: string }[]
+  task_type?: string
+  task_state?: unknown
 }
 
 function fromStored(s: StoredConversation): Conversation {
@@ -26,6 +29,8 @@ function fromStored(s: StoredConversation): Conversation {
     id: s.id,
     title: s.title,
     createdAt: s.created_at,
+    taskType: (s.task_type as TaskType) ?? 'chat',
+    taskState: s.task_state as Conversation['taskState'],
     messages: s.messages.map(m => ({
       id: m.id,
       role: m.role as Message['role'],
@@ -42,6 +47,8 @@ function toStored(c: Conversation): StoredConversation {
     id: c.id,
     title: c.title,
     created_at: c.createdAt,
+    task_type: c.taskType,
+    task_state: c.taskState,
     messages: c.messages.map(m => ({
       id: m.id,
       role: m.role,
@@ -57,7 +64,9 @@ export default function App() {
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
   const [showOutput, setShowOutput] = useState(false)
+  const [showTaskPanel, setShowTaskPanel] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [pendingTaskType, setPendingTaskType] = useState<TaskType>('chat')
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -135,7 +144,9 @@ export default function App() {
   const handleNew = useCallback(() => {
     setActiveId(null)
     setShowOutput(false)
+    setShowTaskPanel(false)
     setShowSettings(false)
+    setPendingTaskType('chat')
   }, [])
 
   const handleDelete = useCallback((id: string) => {
@@ -155,11 +166,13 @@ export default function App() {
     let convId = activeId
     if (!convId) {
       convId = crypto.randomUUID()
+      const taskType = pendingTaskType
       const conv: Conversation = {
         id: convId,
         title: text.slice(0, 40),
         createdAt: Date.now(),
         messages: [userMsg],
+        taskType,
       }
       setConversations(prev => {
         const updated = [conv, ...prev]
@@ -167,6 +180,10 @@ export default function App() {
         return updated
       })
       setActiveId(convId)
+      if (taskType !== 'chat') {
+        setShowTaskPanel(true)
+        setShowOutput(false)
+      }
     } else {
       setConversations(prev => {
         const updated = prev.map(c => {
@@ -196,7 +213,7 @@ export default function App() {
         return upd
       }))
     }
-  }, [activeId, persistConversation])
+  }, [activeId, pendingTaskType, persistConversation])
 
   const handleChangeModel = useCallback(async (provider: string, model: string) => {
     if (!settings) return
@@ -230,7 +247,17 @@ export default function App() {
       <Sidebar
         conversations={conversations}
         activeId={activeId}
-        onSelect={(id) => { setActiveId(id); setShowSettings(false) }}
+        onSelect={(id) => {
+          setActiveId(id)
+          setShowSettings(false)
+          const conv = conversations.find(c => c.id === id)
+          if (conv && conv.taskType !== 'chat') {
+            setShowTaskPanel(true)
+            setShowOutput(false)
+          } else {
+            setShowTaskPanel(false)
+          }
+        }}
         onNew={handleNew}
         onDelete={handleDelete}
         onOpenSettings={() => setShowSettings(true)}
@@ -239,12 +266,29 @@ export default function App() {
         <ChatView
           conversation={active}
           onSend={handleSend}
-          onToggleOutput={() => setShowOutput(!showOutput)}
+          onToggleOutput={() => {
+            if (active?.taskType && active.taskType !== 'chat') {
+              setShowTaskPanel(!showTaskPanel)
+            } else {
+              setShowOutput(!showOutput)
+            }
+          }}
           settings={settings}
           onChangeModel={handleChangeModel}
           onOpenSettings={() => setShowSettings(true)}
+          pendingTaskType={pendingTaskType}
+          onTaskTypeChange={setPendingTaskType}
         />
-        {showOutput && <OutputPanel conversation={active} />}
+        {showTaskPanel && active?.taskType && active.taskType !== 'chat' && (
+          <TaskPanel
+            taskType={active.taskType}
+            taskState={active.taskState}
+            onClose={() => setShowTaskPanel(false)}
+          />
+        )}
+        {showOutput && (!active || active.taskType === 'chat') && (
+          <OutputPanel conversation={active} />
+        )}
       </div>
     </div>
   )

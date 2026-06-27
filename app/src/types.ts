@@ -1,3 +1,84 @@
+export type TaskType = 'chat' | 'pentest' | 'ctf' | 'recon' | 'reverse'
+
+export interface TaskTypeInfo {
+  id: TaskType
+  label: string
+  description: string
+  color: string
+  phases?: string[]
+}
+
+export const TASK_TYPES: TaskTypeInfo[] = [
+  { id: 'chat', label: 'Chat', description: 'General conversation', color: 'neutral' },
+  {
+    id: 'pentest',
+    label: 'Pentest',
+    description: 'Penetration testing workflow',
+    color: 'red',
+    phases: ['Recon', 'Scanning', 'Enumeration', 'Exploitation', 'Post-Exploitation', 'Reporting'],
+  },
+  {
+    id: 'ctf',
+    label: 'CTF',
+    description: 'Capture the flag challenge',
+    color: 'purple',
+    phases: ['Analysis', 'Research', 'Exploitation', 'Flag'],
+  },
+  {
+    id: 'recon',
+    label: 'Recon',
+    description: 'Network reconnaissance and OSINT',
+    color: 'blue',
+    phases: ['Passive', 'Active', 'Enumeration', 'Report'],
+  },
+  {
+    id: 'reverse',
+    label: 'Reverse',
+    description: 'Binary analysis and reverse engineering',
+    color: 'amber',
+    phases: ['Triage', 'Static Analysis', 'Dynamic Analysis', 'Documentation'],
+  },
+]
+
+export interface PentestState {
+  target: string
+  phase: number
+  vulnerabilities: { severity: 'critical' | 'high' | 'medium' | 'low' | 'info'; title: string; detail?: string }[]
+  ports: { port: number; service: string; state: string }[]
+  tools_used: string[]
+}
+
+export interface CtfState {
+  challenge: string
+  category: string
+  points: number | null
+  flags: string[]
+  hints: string[]
+  solved: boolean
+}
+
+export interface ReconState {
+  scope: string[]
+  hosts: { ip: string; hostname?: string; os?: string }[]
+  ports: { host: string; port: number; service: string; version?: string }[]
+  findings: string[]
+}
+
+export interface ReverseState {
+  binary: string
+  arch: string
+  protections: { nx: boolean; canary: boolean; pie: boolean; relro: string }
+  functions: { name: string; address: string; note?: string }[]
+  findings: string[]
+}
+
+export type TaskState = PentestState | CtfState | ReconState | ReverseState
+
+export const EMPTY_PENTEST: PentestState = { target: '', phase: 0, vulnerabilities: [], ports: [], tools_used: [] }
+export const EMPTY_CTF: CtfState = { challenge: '', category: '', points: null, flags: [], hints: [], solved: false }
+export const EMPTY_RECON: ReconState = { scope: [], hosts: [], ports: [], findings: [] }
+export const EMPTY_REVERSE: ReverseState = { binary: '', arch: '', protections: { nx: false, canary: false, pie: false, relro: 'none' }, functions: [], findings: [] }
+
 export type MessageRole = 'user' | 'assistant' | 'tool'
 
 export interface Message {
@@ -14,6 +95,8 @@ export interface Conversation {
   title: string
   createdAt: number
   messages: Message[]
+  taskType: TaskType
+  taskState?: TaskState
 }
 
 export interface ProviderConfig {

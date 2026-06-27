@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import type { Conversation } from '../types'
+import type { Conversation, TaskType } from '../types'
+import { Shield, Flag, Network, Binary } from 'lucide-react'
 
 interface Props {
   conversations: Conversation[]
@@ -16,6 +17,25 @@ function timeLabel(ts: number): string {
   if (diff < 86400_000) return `${Math.floor(diff / 3600_000)} hr`
   if (diff < 604800_000) return `${Math.floor(diff / 86400_000)} days`
   return `${Math.floor(diff / 604800_000)} wk`
+}
+
+const TASK_ICON_COLORS: Record<TaskType, string> = {
+  chat: '',
+  pentest: 'text-red-400',
+  ctf: 'text-purple-400',
+  recon: 'text-blue-400',
+  reverse: 'text-amber-400',
+}
+
+function TaskIcon({ type }: { type: TaskType }) {
+  if (type === 'chat') return null
+  const cls = `size-3 shrink-0 ${TASK_ICON_COLORS[type]}`
+  switch (type) {
+    case 'pentest': return <Shield className={cls} />
+    case 'ctf': return <Flag className={cls} />
+    case 'recon': return <Network className={cls} />
+    case 'reverse': return <Binary className={cls} />
+  }
 }
 
 export function Sidebar({ conversations, activeId, onSelect, onNew, onDelete, onOpenSettings }: Props) {
@@ -73,7 +93,8 @@ export function Sidebar({ conversations, activeId, onSelect, onNew, onDelete, on
               onClick={() => onSelect(conv.id)}
               className="w-full text-left px-3 py-2"
             >
-              <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <TaskIcon type={conv.taskType} />
                 <p className="text-sm truncate flex-1 pr-6">{conv.title}</p>
                 <span className="text-xs text-[#bbb] shrink-0">{timeLabel(conv.createdAt)}</span>
               </div>
