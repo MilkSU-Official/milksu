@@ -43,7 +43,7 @@ export function TaskPanel({ taskType, taskState, onClose }: Props) {
   if (!typeInfo) return null
 
   return (
-    <div className="w-80 border-l border-border flex flex-col bg-sidebar shrink-0">
+    <div className="w-80 h-full border-l border-border flex flex-col bg-sidebar shrink-0">
       <div className="h-14 flex items-center justify-between px-4 border-b border-border">
         <div className="flex items-center gap-2">
           {TASK_ICONS[taskType]}

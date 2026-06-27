@@ -262,7 +262,7 @@ export default function App() {
         onDelete={handleDelete}
         onOpenSettings={() => setShowSettings(true)}
       />
-      <div className="flex-1 flex min-w-0">
+      <div className="flex-1 flex min-w-0 relative">
         <ChatView
           conversation={active}
           onSend={handleSend}
@@ -280,11 +280,13 @@ export default function App() {
           onTaskTypeChange={setPendingTaskType}
         />
         {showTaskPanel && active?.taskType && active.taskType !== 'chat' && (
-          <TaskPanel
-            taskType={active.taskType}
-            taskState={active.taskState}
-            onClose={() => setShowTaskPanel(false)}
-          />
+          <div className="absolute inset-y-0 right-0 z-10 shadow-xl">
+            <TaskPanel
+              taskType={active.taskType}
+              taskState={active.taskState}
+              onClose={() => setShowTaskPanel(false)}
+            />
+          </div>
         )}
         {showOutput && (!active || active.taskType === 'chat') && (
           <OutputPanel conversation={active} />
