@@ -4,6 +4,7 @@ mod storage;
 
 use serde::{Deserialize, Serialize};
 use settings::AppSettings;
+use std::collections::HashSet;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
@@ -48,6 +49,7 @@ struct BridgeProcess {
 
 struct AppState {
     bridge: Arc<Mutex<Option<BridgeProcess>>>,
+    active_sessions: Arc<Mutex<HashSet<String>>>,
     settings: Mutex<AppSettings>,
 }
 
@@ -126,8 +128,15 @@ fn ensure_bridge(state: &AppState, app: &tauri::AppHandle) -> Result<(), String>
         .take()
         .ok_or("Failed to capture bridge stdout")?;
 
+    state
+        .active_sessions
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clear();
+
     let app_clone = app.clone();
     let bridge_ref = state.bridge.clone();
+    let active_sessions_ref = state.active_sessions.clone();
     std::thread::spawn(move || {
         let reader = BufReader::new(stdout);
         for line in reader.lines() {
@@ -231,11 +240,30 @@ fn ensure_bridge(state: &AppState, app: &tauri::AppHandle) -> Result<(), String>
         if let Ok(mut guard) = bridge_ref.lock() {
             *guard = None;
         }
+        if let Ok(mut active_sessions) = active_sessions_ref.lock() {
+            active_sessions.clear();
+        }
         let _ = app_clone.emit("bridge-error", "Bridge process exited");
     });
 
     *guard = Some(BridgeProcess { stdin });
     Ok(())
+}
+
+fn write_bridge_command(
+    bridge: &mut BridgeProcess,
+    command: serde_json::Value,
+) -> Result<(), String> {
+    let line = serde_json::to_string(&command)
+        .map_err(|e| format!("Failed to serialize bridge command: {}", e))?;
+    bridge
+        .stdin
+        .write_all(format!("{}\n", line).as_bytes())
+        .map_err(|e| format!("Failed to write to bridge: {}", e))?;
+    bridge
+        .stdin
+        .flush()
+        .map_err(|e| format!("Failed to flush bridge stdin: {}", e))
 }
 
 #[tauri::command]
@@ -254,23 +282,29 @@ async fn send_message(
 
     let mut guard = state.bridge.lock().map_err(|e| e.to_string())?;
     let bridge = guard.as_mut().ok_or("Bridge not initialized")?;
+    let mut active_sessions = state.active_sessions.lock().map_err(|e| e.to_string())?;
 
-    let msg = serde_json::json!({
-        "type": "prompt",
-        "id": conversation_id,
-        "text": prompt,
-        "model": model,
-        "provider": provider,
-    });
+    if !active_sessions.contains(&conversation_id) {
+        write_bridge_command(
+            bridge,
+            serde_json::json!({
+                "action": "create_session",
+                "conversationId": conversation_id.clone(),
+                "model": model,
+                "provider": provider,
+            }),
+        )?;
+        active_sessions.insert(conversation_id.clone());
+    }
 
-    bridge
-        .stdin
-        .write_all(format!("{}\n", msg).as_bytes())
-        .map_err(|e| format!("Failed to write to bridge: {}", e))?;
-    bridge
-        .stdin
-        .flush()
-        .map_err(|e| format!("Failed to flush bridge stdin: {}", e))?;
+    write_bridge_command(
+        bridge,
+        serde_json::json!({
+            "action": "send_message",
+            "conversationId": conversation_id.clone(),
+            "prompt": prompt,
+        }),
+    )?;
 
     Ok(())
 }
@@ -303,7 +337,24 @@ async fn save_conversation(conversation: StoredConversation) -> Result<(), Strin
 }
 
 #[tauri::command]
-async fn delete_conversation(id: String) -> Result<(), String> {
+async fn delete_conversation(state: tauri::State<'_, AppState>, id: String) -> Result<(), String> {
+    if let Ok(mut guard) = state.bridge.lock() {
+        if let Ok(mut active_sessions) = state.active_sessions.lock() {
+            let was_active = active_sessions.remove(&id);
+            if was_active {
+                if let Some(bridge) = guard.as_mut() {
+                    let _ = write_bridge_command(
+                        bridge,
+                        serde_json::json!({
+                            "action": "destroy_session",
+                            "conversationId": id.clone(),
+                        }),
+                    );
+                }
+            }
+        }
+    }
+
     storage::delete_conversation(&id)
 }
 
@@ -314,6 +365,7 @@ pub fn run() {
             let s = settings::load_settings();
             app.manage(AppState {
                 bridge: Arc::new(Mutex::new(None)),
+                active_sessions: Arc::new(Mutex::new(HashSet::new())),
                 settings: Mutex::new(s),
             });
             Ok(())
