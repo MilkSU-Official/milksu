@@ -250,3 +250,322 @@ Look at `app/src/components/ModelSelector.tsx` for the dropdown pattern used in 
 - User can create new engagement with name and scope
 - Selected engagement persists with conversation
 - Browser preview mode works (localStorage fallback)
+
+---
+
+## Task S3: Wire Task Panels — Agent-to-Panel Event Pipeline
+
+### Context
+The app has TaskPanel components (PentestPanel, CtfPanel, ReconPanel, ReversePanel) that display structured security data (targets, ports, vulnerabilities, flags, etc.). Currently these panels are empty because nothing populates `conversation.taskState`.
+
+S3 adds a `panel_update` Pi tool that the agent can call to push structured data into the panel. The event flows through the full pipeline: Pi agent -> bridge.js -> Rust -> React state -> TaskPanel UI.
+
+This is the "Tool Result Dual-Channel" pattern: the tool returns minimal text to the LLM ("Panel updated.") while its structured input flows through a side-channel to update the UI.
+
+### Architecture
+
+```
+Agent calls panel_update({ set_fields: { target: "10.0.0.1" }, append_items: { ports: [...] } })
+  -> Pi executes tool, emits toolcall_end event
+  -> bridge.js detects toolName === "panel_update", emits "panel_update" JSON line
+  -> Rust parses "panel_update" event, emits Tauri "panel-update" event
+  -> React listener merges payload into conversation.taskState
+  -> TaskPanel re-renders with new data
+```
+
+### What to do
+
+#### 1. Create `skills/panel/SKILL.md`
+
+```markdown
+---
+name: panel-update
+description: Update the task panel UI with structured security data. Always available. Use this to populate panel fields as you discover targets, ports, vulnerabilities, flags, and other findings during security tasks.
+triggerKeywords: [panel, update, target, finding, result]
+---
+
+# Panel Update Skill
+
+Provides the `panel_update` tool for pushing structured data to the task panel sidebar.
+
+## When to use
+
+Call `panel_update` whenever you discover actionable information during a security task:
+- Set the target when the user specifies one
+- Append ports after a port scan
+- Append vulnerabilities after discovering one
+- Update the phase as work progresses
+- Add flags in CTF challenges
+
+## Field reference by task type
+
+### pentest
+- `target` (string): the target IP/hostname
+- `phase` (number 0-5): current workflow phase index
+- `vulnerabilities` (array): `{ severity, title, detail? }`
+- `ports` (array): `{ port, service, state }`
+- `tools_used` (array of strings)
+
+### ctf
+- `challenge` (string): challenge name
+- `category` (string): challenge category
+- `points` (number | null)
+- `flags` (array of strings)
+- `hints` (array of strings)
+- `solved` (boolean)
+
+### recon
+- `scope` (array of strings)
+- `hosts` (array): `{ ip, hostname?, os? }`
+- `ports` (array): `{ host, port, service, version? }`
+- `findings` (array of strings)
+
+### reverse
+- `binary` (string): binary file path
+- `arch` (string): architecture
+- `protections` (object): `{ nx, canary, pie, relro }`
+- `functions` (array): `{ name, address, note? }`
+- `findings` (array of strings)
+```
+
+#### 2. Create `skills/panel/tools/update.ts`
+
+```typescript
+import { Type } from "typebox";
+import { defineTool } from "@earendil-works/pi-coding-agent";
+
+export default defineTool({
+  name: "panel_update",
+  label: "Update Task Panel",
+  description:
+    "Push structured data to the task panel sidebar. Use set_fields to overwrite scalar values (target, phase, binary, solved). Use append_items to add entries to array fields (ports, vulnerabilities, flags, hosts, findings, functions, tools_used, scope, hints). Both parameters are optional but at least one must be provided.",
+  parameters: Type.Object({
+    set_fields: Type.Optional(
+      Type.Record(Type.String(), Type.Any(), {
+        description:
+          "Key-value pairs to set (overwrites). Example: { target: '10.0.0.1', phase: 2 }",
+      })
+    ),
+    append_items: Type.Optional(
+      Type.Record(
+        Type.String(),
+        Type.Array(Type.Any()),
+        {
+          description:
+            "Key-array pairs to append. Example: { ports: [{ port: 22, service: 'ssh', state: 'open' }] }",
+        }
+      )
+    ),
+  }),
+  async execute(_toolCallId, params) {
+    const fieldCount = Object.keys(params.set_fields ?? {}).length;
+    const appendCount = Object.values(params.append_items ?? {}).reduce(
+      (sum, arr) => sum + arr.length,
+      0
+    );
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Panel updated: ${fieldCount} field(s) set, ${appendCount} item(s) appended.`,
+        },
+      ],
+      details: {
+        panel_update: true,
+        set_fields: params.set_fields ?? {},
+        append_items: params.append_items ?? {},
+      },
+    };
+  },
+});
+```
+
+#### 3. Modify `bridge.js`
+
+In the `session.subscribe()` callback, add a check for `panel_update` in the `toolcall_end` case. When the tool name is `"panel_update"`, emit an additional `panel_update` event with the tool input:
+
+```javascript
+case "toolcall_end":
+  // Check if this is a panel_update tool call -- emit dedicated event
+  if (event.toolCall?.toolName === "panel_update") {
+    const input = event.toolCall?.toolInput ?? {};
+    emit("panel_update", {
+      set_fields: input.set_fields ?? {},
+      append_items: input.append_items ?? {},
+    });
+  }
+  // Always emit the regular tool_call_end too
+  emit("tool_call_end", {
+    toolName: event.toolCall?.toolName,
+    toolInput: event.toolCall?.toolInput,
+  });
+  break;
+```
+
+#### 4. Modify `app/src-tauri/src/lib.rs`
+
+**a.** Add a new Tauri event struct:
+
+```rust
+#[derive(Clone, Serialize)]
+struct PanelUpdateMessage {
+    conversation_id: String,
+    set_fields: serde_json::Value,
+    append_items: serde_json::Value,
+}
+```
+
+**b.** Add fields to `BridgeEvent`:
+
+```rust
+#[derive(Deserialize)]
+struct BridgeEvent {
+    // ... existing fields ...
+    set_fields: Option<serde_json::Value>,
+    append_items: Option<serde_json::Value>,
+}
+```
+
+**c.** Add a match arm in the stdout reader thread (in `ensure_bridge`), before the `_ => {}` default:
+
+```rust
+"panel_update" => {
+    let _ = app_clone.emit(
+        "panel-update",
+        PanelUpdateMessage {
+            conversation_id: conv_id,
+            set_fields: event.set_fields.unwrap_or(serde_json::Value::Object(Default::default())),
+            append_items: event.append_items.unwrap_or(serde_json::Value::Object(Default::default())),
+        },
+    );
+}
+```
+
+#### 5. Modify `app/src/App.tsx`
+
+**a.** Add a `PanelUpdateEvent` interface near the top:
+
+```typescript
+interface PanelUpdateEvent {
+  conversation_id: string
+  set_fields: Record<string, unknown>
+  append_items: Record<string, unknown[]>
+}
+```
+
+**b.** Import the empty state constants:
+
+```typescript
+import type { Conversation, Message, AppSettings, TaskType, TaskState, EngagementSummary } from './types'
+import { EMPTY_PENTEST, EMPTY_CTF, EMPTY_RECON, EMPTY_REVERSE } from './types'
+```
+
+**c.** Add a helper function to get the empty state for a task type:
+
+```typescript
+function emptyStateFor(taskType: TaskType): TaskState | undefined {
+  switch (taskType) {
+    case 'pentest': return { ...EMPTY_PENTEST }
+    case 'ctf': return { ...EMPTY_CTF }
+    case 'recon': return { ...EMPTY_RECON }
+    case 'reverse': return { ...EMPTY_REVERSE }
+    default: return undefined
+  }
+}
+```
+
+**d.** Add a helper function to merge panel updates into task state:
+
+```typescript
+function mergePanelUpdate(
+  current: TaskState | undefined,
+  taskType: TaskType,
+  setFields: Record<string, unknown>,
+  appendItems: Record<string, unknown[]>,
+): TaskState | undefined {
+  const base = current ?? emptyStateFor(taskType)
+  if (!base) return undefined
+
+  const merged = { ...base } as Record<string, unknown>
+
+  for (const [key, value] of Object.entries(setFields)) {
+    merged[key] = value
+  }
+
+  for (const [key, items] of Object.entries(appendItems)) {
+    const existing = Array.isArray(merged[key]) ? (merged[key] as unknown[]) : []
+    merged[key] = [...existing, ...items]
+  }
+
+  return merged as TaskState
+}
+```
+
+**e.** Add a useEffect to listen for `panel-update` events (place it right after the existing `agent-message` useEffect):
+
+```typescript
+useEffect(() => {
+  const unlisten = listenEvent<PanelUpdateEvent>('panel-update', (event) => {
+    const { conversation_id, set_fields, append_items } = event.payload
+
+    setConversations(prev => {
+      const updated = prev.map(c => {
+        if (c.id !== conversation_id) return c
+        const newState = mergePanelUpdate(c.taskState, c.taskType, set_fields, append_items)
+        return { ...c, taskState: newState }
+      })
+
+      const conv = updated.find(c => c.id === conversation_id)
+      if (conv) persistConversation(conv)
+
+      return updated
+    })
+  })
+  return () => { unlisten.then(fn => fn()) }
+}, [persistConversation])
+```
+
+**f.** Auto-open the task panel when a panel update arrives. In the `panel-update` listener, after updating conversations, also set `showTaskPanel(true)` if the updated conversation is the active one and its taskType is not 'chat':
+
+```typescript
+// Inside the panel-update listener, after setConversations:
+if (conversation_id === activeId) {
+  setShowTaskPanel(true)
+}
+```
+
+Note: The `activeId` reference needs to be stable. Use a ref or include it in the dependency array. The cleanest approach: use a ref for activeId:
+
+Add near the top of the App component:
+```typescript
+const activeIdRef = useRef(activeId)
+activeIdRef.current = activeId
+```
+
+Then in the panel-update listener, use `activeIdRef.current` instead of `activeId`.
+
+### Files
+
+| File | Action |
+|------|--------|
+| `skills/panel/SKILL.md` | Create |
+| `skills/panel/tools/update.ts` | Create |
+| `bridge.js` | Modify: add panel_update event emission in toolcall_end |
+| `app/src-tauri/src/lib.rs` | Modify: add PanelUpdateMessage struct, BridgeEvent fields, panel_update handler |
+| `app/src/App.tsx` | Modify: add panel-update listener, mergePanelUpdate helper, emptyStateFor helper, auto-open panel |
+
+### Do NOT modify
+- `app/src/components/TaskPanel.tsx` -- it already renders all fields from taskState correctly
+- `app/src/types.ts` -- TaskState types and EMPTY_* constants are already defined
+- `app/src/tauri.ts` -- the existing `listenEvent` function works for the new event
+- `app/src-tauri/src/storage.rs` -- `task_state` is already `Option<serde_json::Value>` and serialized
+
+### Acceptance criteria
+- `cargo build` succeeds in `app/src-tauri/`
+- `npm run build` succeeds in `app/`
+- The `panel_update` tool definition loads when the Pi extension starts (the skill-loader finds `skills/panel/SKILL.md` and loads `skills/panel/tools/update.ts`)
+- bridge.js emits `panel_update` JSON lines when the tool is called
+- Rust forwards `panel-update` Tauri events to the frontend
+- App.tsx merges `set_fields` (overwrite) and `append_items` (append to arrays) into `conversation.taskState`
+- TaskPanel auto-opens when a panel update arrives for the active conversation
+- Updated taskState persists to disk via `save_conversation`

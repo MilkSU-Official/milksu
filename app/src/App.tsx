@@ -5,7 +5,8 @@ import { OutputPanel } from './components/OutputPanel'
 import { TaskPanel } from './components/TaskPanel'
 import { SettingsPage } from './components/SettingsPage'
 import { invokeCommand, listenEvent, listEngagements } from './tauri'
-import type { Conversation, Message, AppSettings, TaskType, EngagementSummary } from './types'
+import type { Conversation, Message, AppSettings, TaskType, TaskState, EngagementSummary } from './types'
+import { EMPTY_PENTEST, EMPTY_CTF, EMPTY_RECON, EMPTY_REVERSE } from './types'
 
 interface AgentEvent {
   conversation_id: string
@@ -13,6 +14,12 @@ interface AgentEvent {
   content: string
   tool_name?: string
   done?: boolean
+}
+
+interface PanelUpdateEvent {
+  conversation_id: string
+  set_fields: Record<string, unknown>
+  append_items: Record<string, unknown[]>
 }
 
 interface StoredConversation {
@@ -23,6 +30,39 @@ interface StoredConversation {
   task_type?: string
   task_state?: unknown
   engagement_id?: string | null
+}
+
+function emptyStateFor(taskType: TaskType): TaskState | undefined {
+  switch (taskType) {
+    case 'pentest': return { ...EMPTY_PENTEST }
+    case 'ctf': return { ...EMPTY_CTF }
+    case 'recon': return { ...EMPTY_RECON }
+    case 'reverse': return { ...EMPTY_REVERSE }
+    default: return undefined
+  }
+}
+
+function mergePanelUpdate(
+  current: TaskState | undefined,
+  taskType: TaskType,
+  setFields: Record<string, unknown>,
+  appendItems: Record<string, unknown[]>,
+): TaskState | undefined {
+  const base = current ?? emptyStateFor(taskType)
+  if (!base) return undefined
+
+  const merged = { ...base } as Record<string, unknown>
+
+  for (const [key, value] of Object.entries(setFields)) {
+    merged[key] = value
+  }
+
+  for (const [key, items] of Object.entries(appendItems)) {
+    const existing = Array.isArray(merged[key]) ? (merged[key] as unknown[]) : []
+    merged[key] = [...existing, ...items]
+  }
+
+  return merged as unknown as TaskState
 }
 
 function fromStored(s: StoredConversation): Conversation {
@@ -76,6 +116,8 @@ export default function App() {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const active = conversations.find(c => c.id === activeId) ?? null
+  const activeIdRef = useRef(activeId)
+  activeIdRef.current = activeId
 
   useEffect(() => {
     invokeCommand<AppSettings>('get_settings').then(setSettings)
@@ -146,6 +188,30 @@ export default function App() {
     })
     return () => { unlisten.then(fn => fn()) }
   }, [scheduleSave])
+
+  useEffect(() => {
+    const unlisten = listenEvent<PanelUpdateEvent>('panel-update', (event) => {
+      const { conversation_id, set_fields, append_items } = event.payload
+
+      setConversations(prev => {
+        const updated = prev.map(c => {
+          if (c.id !== conversation_id) return c
+          const newState = mergePanelUpdate(c.taskState, c.taskType, set_fields, append_items)
+          return { ...c, taskState: newState }
+        })
+
+        const conv = updated.find(c => c.id === conversation_id)
+        if (conv) persistConversation(conv)
+
+        return updated
+      })
+
+      if (conversation_id === activeIdRef.current) {
+        setShowTaskPanel(true)
+      }
+    })
+    return () => { unlisten.then(fn => fn()) }
+  }, [persistConversation])
 
   const handleNew = useCallback(() => {
     setActiveId(null)

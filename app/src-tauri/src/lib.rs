@@ -19,6 +19,13 @@ struct AgentMessage {
     done: bool,
 }
 
+#[derive(Clone, Serialize)]
+struct PanelUpdateMessage {
+    conversation_id: String,
+    set_fields: serde_json::Value,
+    append_items: serde_json::Value,
+}
+
 #[derive(Deserialize)]
 struct BridgeEvent {
     #[serde(rename = "type")]
@@ -31,6 +38,8 @@ struct BridgeEvent {
     reason: Option<String>,
     #[serde(rename = "toolName")]
     tool_name: Option<String>,
+    set_fields: Option<serde_json::Value>,
+    append_items: Option<serde_json::Value>,
 }
 
 struct BridgeProcess {
@@ -198,6 +207,20 @@ fn ensure_bridge(state: &AppState, app: &tauri::AppHandle) -> Result<(), String>
                             content: format!("Error: {}", event.error.unwrap_or_default()),
                             tool_name: None,
                             done: true,
+                        },
+                    );
+                }
+                "panel_update" => {
+                    let _ = app_clone.emit(
+                        "panel-update",
+                        PanelUpdateMessage {
+                            conversation_id: conv_id,
+                            set_fields: event
+                                .set_fields
+                                .unwrap_or(serde_json::Value::Object(Default::default())),
+                            append_items: event
+                                .append_items
+                                .unwrap_or(serde_json::Value::Object(Default::default())),
                         },
                     );
                 }

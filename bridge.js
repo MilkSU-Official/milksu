@@ -35,6 +35,13 @@ async function initSession() {
           });
           break;
         case "toolcall_end":
+          if (event.toolCall?.toolName === "panel_update") {
+            const input = event.toolCall?.toolInput ?? {};
+            emit("panel_update", {
+              set_fields: input.set_fields ?? {},
+              append_items: input.append_items ?? {},
+            });
+          }
           emit("tool_call_end", {
             toolName: event.toolCall?.toolName,
             toolInput: event.toolCall?.toolInput,
