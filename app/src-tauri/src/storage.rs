@@ -20,6 +20,12 @@ pub struct StoredConversation {
     pub title: String,
     pub created_at: u64,
     pub messages: Vec<StoredMessage>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task_state: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub engagement_id: Option<String>,
 }
 
 fn conversations_dir() -> PathBuf {
@@ -57,16 +63,14 @@ pub fn save_conversation(conv: &StoredConversation) -> Result<(), String> {
     let path = dir.join(format!("{}.json", conv.id));
     let json = serde_json::to_string_pretty(conv)
         .map_err(|e| format!("Failed to serialize conversation: {}", e))?;
-    fs::write(&path, json)
-        .map_err(|e| format!("Failed to write conversation: {}", e))?;
+    fs::write(&path, json).map_err(|e| format!("Failed to write conversation: {}", e))?;
     Ok(())
 }
 
 pub fn delete_conversation(id: &str) -> Result<(), String> {
     let path = conversations_dir().join(format!("{}.json", id));
     if path.exists() {
-        fs::remove_file(&path)
-            .map_err(|e| format!("Failed to delete conversation: {}", e))?;
+        fs::remove_file(&path).map_err(|e| format!("Failed to delete conversation: {}", e))?;
     }
     Ok(())
 }

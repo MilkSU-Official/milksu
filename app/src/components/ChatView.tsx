@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
 import type { Conversation, AppSettings, Message, TaskType } from '../types'
+import type { EngagementSummary } from '../types'
 import { TASK_TYPES } from '../types'
 import { ModelSelector } from './ModelSelector'
+import { EngagementSelector } from './EngagementSelector'
 import { Shield, Flag, Network, Binary, MessageSquare } from 'lucide-react'
 
 function ToolMessage({ name, content, status }: { name?: string; content: string; status?: Message['status'] }) {
@@ -68,9 +70,26 @@ interface Props {
   onOpenSettings: () => void
   pendingTaskType: TaskType
   onTaskTypeChange: (t: TaskType) => void
+  engagements: EngagementSummary[]
+  selectedEngagementId: string | null
+  onEngagementChange: (id: string | null) => void
+  onEngagementsChange: (engagements: EngagementSummary[]) => void
 }
 
-export function ChatView({ conversation, onSend, onToggleOutput, settings, onChangeModel, onOpenSettings, pendingTaskType, onTaskTypeChange }: Props) {
+export function ChatView({
+  conversation,
+  onSend,
+  onToggleOutput,
+  settings,
+  onChangeModel,
+  onOpenSettings,
+  pendingTaskType,
+  onTaskTypeChange,
+  engagements,
+  selectedEngagementId,
+  onEngagementChange,
+  onEngagementsChange,
+}: Props) {
   const [input, setInput] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -135,6 +154,18 @@ export function ChatView({ conversation, onSend, onToggleOutput, settings, onCha
               <p className="text-center text-xs text-muted-foreground mb-4">{taskTypeInfo.description}</p>
             )}
 
+            {pendingTaskType !== 'chat' && (
+              <div className="mb-4 flex justify-center">
+                <EngagementSelector
+                  taskType={pendingTaskType}
+                  engagements={engagements}
+                  selectedEngagementId={selectedEngagementId}
+                  onEngagementChange={onEngagementChange}
+                  onEngagementsChange={onEngagementsChange}
+                />
+              </div>
+            )}
+
             <div className="bg-[#f5f5f5] rounded-xl px-4 py-3 mb-2">
               <textarea
                 ref={inputRef}
@@ -177,6 +208,15 @@ export function ChatView({ conversation, onSend, onToggleOutput, settings, onCha
             {TASK_ICONS[conversation!.taskType]}
             {TASK_TYPES.find(t => t.id === conversation!.taskType)?.label}
           </div>
+        )}
+        {conversation!.taskType !== 'chat' && (
+          <EngagementSelector
+            taskType={conversation!.taskType}
+            engagements={engagements}
+            selectedEngagementId={selectedEngagementId}
+            onEngagementChange={onEngagementChange}
+            onEngagementsChange={onEngagementsChange}
+          />
         )}
         <span className="text-sm font-medium flex-1 truncate">{conversation!.title}</span>
         <button
