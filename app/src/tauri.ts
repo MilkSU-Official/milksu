@@ -12,7 +12,7 @@ const ENGAGEMENT_TIMELINES_KEY = 'milksu.dev.engagements.timelines'
 
 const DEFAULT_SETTINGS: AppSettings = {
   active_provider: 'deepseek',
-  active_model: 'deepseek-chat',
+  active_model: 'deepseek-v4-flash',
   providers: {},
 }
 

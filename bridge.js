@@ -80,6 +80,19 @@ rl.on("line", async (line) => {
       }
       currentPromptId = msg.id;
       emit("prompt_ack", { id: msg.id });
+      if (msg.model && msg.provider) {
+        const desired = session.modelRegistry.find(msg.provider, msg.model);
+        if (desired) {
+          const current = session.model;
+          if (!current || current.provider !== msg.provider || current.id !== msg.model) {
+            try {
+              await session.setModel(desired);
+            } catch (err) {
+              emit("error", { reason: "model_switch_failed", error: String(err) });
+            }
+          }
+        }
+      }
       await session.prompt(msg.text);
     }
   } catch (err) {

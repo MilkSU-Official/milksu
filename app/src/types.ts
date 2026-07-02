@@ -154,21 +154,21 @@ export const PROVIDERS: ProviderInfo[] = [
   {
     id: 'deepseek',
     name: 'DeepSeek',
-    models: ['deepseek-chat', 'deepseek-coder', 'deepseek-reasoner'],
+    models: ['deepseek-v4-flash', 'deepseek-v4-pro'],
     envKey: 'DEEPSEEK_API_KEY',
     placeholder: 'sk-...',
   },
   {
     id: 'anthropic',
     name: 'Anthropic',
-    models: ['claude-sonnet-4-20250514', 'claude-haiku-4-20250414', 'claude-opus-4-20250514'],
+    models: ['claude-sonnet-4-20250514', 'claude-opus-4-20250514', 'claude-haiku-4-5-20251001'],
     envKey: 'ANTHROPIC_API_KEY',
     placeholder: 'sk-ant-...',
   },
   {
     id: 'openai',
     name: 'OpenAI',
-    models: ['gpt-4o', 'gpt-4o-mini', 'o3-mini'],
+    models: ['gpt-4o', 'gpt-4.1', 'gpt-4.1-mini'],
     envKey: 'OPENAI_API_KEY',
     placeholder: 'sk-...',
   },
@@ -182,7 +182,7 @@ export const PROVIDERS: ProviderInfo[] = [
   {
     id: 'groq',
     name: 'Groq',
-    models: ['llama-3.3-70b-versatile', 'mixtral-8x7b-32768'],
+    models: ['llama-3.3-70b-versatile', 'qwen/qwen3-32b'],
     envKey: 'GROQ_API_KEY',
     placeholder: 'gsk_...',
   },
