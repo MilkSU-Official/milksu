@@ -1,0 +1,1736 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MilkSU -- 子Agent/浏览器/自动模式/Codex复用 架构设计</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --bg-alt: #f8f9fa;
+    --bg-card: #ffffff;
+    --text: #1a1a2e;
+    --text-2: #4a4a6a;
+    --text-3: #8888a0;
+    --border: #e8e8f0;
+    --accent: #2563eb;
+    --accent-light: #eff6ff;
+    --red: #dc2626;
+    --red-light: #fef2f2;
+    --green: #059669;
+    --green-light: #ecfdf5;
+    --purple: #7c3aed;
+    --purple-light: #f5f3ff;
+    --amber: #d97706;
+    --amber-light: #fffbeb;
+    --teal: #0d9488;
+    --teal-light: #f0fdfa;
+    --code-bg: #f1f3f5;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", "PingFang SC", sans-serif;
+    color: var(--text);
+    background: var(--bg);
+    line-height: 1.8;
+    font-size: 15px;
+  }
+
+  nav {
+    position: fixed; top: 0; left: 0; width: 280px; height: 100vh;
+    background: var(--bg-alt); border-right: 1px solid var(--border);
+    padding: 24px 0; overflow-y: auto; z-index: 100;
+  }
+  nav .nav-title {
+    font-size: 16px; font-weight: 700; padding: 0 20px; margin-bottom: 20px;
+    color: var(--text);
+  }
+  nav .nav-section {
+    font-size: 11px; font-weight: 700; color: var(--text-3);
+    letter-spacing: 1.5px;
+    padding: 16px 20px 6px; margin-top: 4px;
+  }
+  nav a {
+    display: block; padding: 6px 20px; font-size: 13px;
+    color: var(--text-2); text-decoration: none; transition: all 0.15s;
+    border-left: 3px solid transparent;
+  }
+  nav a:hover, nav a.active { background: var(--accent-light); color: var(--accent); border-left-color: var(--accent); }
+
+  main { margin-left: 280px; max-width: 880px; padding: 40px 48px 80px; }
+
+  h1 { font-size: 30px; font-weight: 800; margin-bottom: 8px; letter-spacing: -0.5px; }
+  .subtitle { font-size: 15px; color: var(--text-3); margin-bottom: 40px; }
+  h2 {
+    font-size: 22px; font-weight: 700; margin-top: 56px; margin-bottom: 16px;
+    padding-bottom: 8px; border-bottom: 2px solid var(--border);
+  }
+  h3 { font-size: 17px; font-weight: 700; margin-top: 32px; margin-bottom: 12px; color: var(--text); }
+  h4 { font-size: 15px; font-weight: 700; margin-top: 24px; margin-bottom: 8px; color: var(--text-2); }
+  p { margin-bottom: 12px; }
+  ul, ol { margin: 8px 0 12px 20px; }
+  li { margin-bottom: 4px; }
+
+  .card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 20px 24px; margin-bottom: 16px;
+  }
+  .card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .card-num {
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; color: #fff; flex-shrink: 0;
+  }
+  .card-title { font-size: 16px; font-weight: 700; }
+
+  .tag {
+    display: inline-block; padding: 2px 8px; border-radius: 4px;
+    font-size: 11px; font-weight: 600; margin: 2px 3px;
+  }
+  .tag-done { background: var(--green-light); color: var(--green); }
+  .tag-partial { background: var(--amber-light); color: var(--amber); }
+  .tag-planned { background: var(--bg-alt); color: var(--text-3); }
+  .tag-none { background: var(--red-light); color: var(--red); }
+  .tag-unique { background: var(--purple-light); color: var(--purple); }
+  .tag-reuse { background: var(--teal-light); color: var(--teal); }
+
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13px; }
+  th {
+    text-align: left; padding: 10px 12px; font-weight: 600; font-size: 12px;
+    color: var(--text-3); border-bottom: 2px solid var(--border);
+    background: var(--bg-alt); position: sticky; top: 0;
+  }
+  td { padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:hover td { background: var(--bg-alt); }
+  .col-label { font-weight: 600; min-width: 110px; color: var(--text); }
+
+  code {
+    background: var(--code-bg); padding: 2px 6px; border-radius: 4px;
+    font-size: 13px; font-family: "SF Mono", "Fira Code", monospace;
+  }
+  pre {
+    background: var(--code-bg); padding: 16px 20px; border-radius: 8px;
+    overflow-x: auto; margin: 12px 0; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; font-size: 12.5px; }
+
+  .callout {
+    border-radius: 8px; padding: 16px 20px; margin: 16px 0;
+    font-size: 14px; line-height: 1.7;
+  }
+  .callout-blue { background: var(--accent-light); border-left: 4px solid var(--accent); }
+  .callout-green { background: var(--green-light); border-left: 4px solid var(--green); }
+  .callout-amber { background: var(--amber-light); border-left: 4px solid var(--amber); }
+  .callout-red { background: var(--red-light); border-left: 4px solid var(--red); }
+  .callout-purple { background: var(--purple-light); border-left: 4px solid var(--purple); }
+  .callout-teal { background: var(--teal-light); border-left: 4px solid var(--teal); }
+  .callout strong { font-weight: 700; }
+
+  .flow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+  .flow-box {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px 14px; font-size: 13px; font-weight: 500;
+  }
+  .flow-arrow { color: var(--text-3); font-size: 16px; }
+
+  .layer {
+    background: var(--bg-alt); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px 20px; margin: 12px 0;
+  }
+  .layer-label {
+    font-size: 11px; font-weight: 700; color: var(--text-3);
+    letter-spacing: 1px; margin-bottom: 10px;
+  }
+  .layer-boxes { display: flex; gap: 10px; flex-wrap: wrap; }
+  .layer-box {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 6px; padding: 10px 14px; flex: 1; min-width: 120px;
+  }
+  .layer-box-title { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+  .layer-box-sub { font-size: 11px; color: var(--text-3); }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+
+  .mapping-row {
+    display: grid; grid-template-columns: 1fr 40px 1fr; gap: 0; align-items: center;
+    margin: 8px 0; font-size: 13px;
+  }
+  .mapping-left {
+    background: var(--accent-light); border: 1px solid var(--accent);
+    border-radius: 6px; padding: 10px 14px;
+  }
+  .mapping-arrow { text-align: center; color: var(--text-3); font-size: 18px; }
+  .mapping-right {
+    background: var(--green-light); border: 1px solid var(--green);
+    border-radius: 6px; padding: 10px 14px;
+  }
+  .mapping-label { font-weight: 600; font-size: 12px; margin-bottom: 2px; }
+  .mapping-desc { font-size: 12px; color: var(--text-2); }
+
+  @media (max-width: 700px) {
+    nav { display: none; }
+    main { margin-left: 0; padding: 24px 20px; }
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    .mapping-row { grid-template-columns: 1fr; }
+    .mapping-arrow { transform: rotate(90deg); padding: 8px; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-title">MilkSU Agent 系统设计</div>
+
+  <div class="nav-section">序 / CODEX 开源复用</div>
+  <a href="#s0">0. Codex CLI 开源全景</a>
+  <a href="#s1">1. 模块映射：CLI -> App</a>
+  <a href="#s2">2. 可直接复用 vs 需重新设计</a>
+
+  <div class="nav-section">第一部分 / 子 AGENT</div>
+  <a href="#s3">3. 为什么需要子 Agent</a>
+  <a href="#s4">4. 行业方案对比</a>
+  <a href="#s5">5. MilkSU 编排架构</a>
+  <a href="#s6">6. 协调模式</a>
+  <a href="#s7">7. Pi 集成</a>
+
+  <div class="nav-section">第二部分 / 浏览器与 COMPUTER USE</div>
+  <a href="#s8">8. 两种视觉交互范式</a>
+  <a href="#s9">9. Vision Loop 设计</a>
+  <a href="#s10">10. 安全场景应用</a>
+  <a href="#s11">11. 集成架构</a>
+
+  <div class="nav-section">第三部分 / 自动模式</div>
+  <a href="#s12">12. 权限分类概念</a>
+  <a href="#s13">13. Codex execpolicy 深度解析</a>
+  <a href="#s14">14. MilkSU 安全工具风险模型</a>
+  <a href="#s15">15. 沙箱感知的自动审批</a>
+
+  <div class="nav-section">第四部分 / 综合</div>
+  <a href="#s16">16. 四系统交互</a>
+  <a href="#s17">17. 实现优先级</a>
+  <a href="#s18">18. 面试知识点</a>
+</nav>
+
+<main>
+
+<h1>子 Agent / 浏览器 / 自动模式</h1>
+<p class="subtitle">架构设计文档 -- 基于 Codex CLI 开源代码的复用分析与 MilkSU 适配设计</p>
+
+<!-- ================================================= -->
+<!-- 序：Codex 开源复用分析 -->
+<!-- ================================================= -->
+
+<h2 id="s0">0. Codex CLI 开源全景</h2>
+
+<p>先回答核心问题：<strong>Codex CLI 开源意味着什么？</strong></p>
+
+<p>Codex（github.com/openai/codex）是 OpenAI 的编码 Agent，Apache-2.0 开源，94k stars。关键认知：它不是一个简单的 CLI 封装，而是一个<strong>完整的 Agent 引擎</strong>，用 Rust 写了约 80+ 个 crate。</p>
+
+<h3>代码库结构总览</h3>
+
+<table>
+  <tr>
+    <th>目录/Crate</th>
+    <th>功能</th>
+    <th>对 MilkSU 的价值</th>
+  </tr>
+  <tr>
+    <td class="col-label">codex-rs/core</td>
+    <td>Agent 核心循环：会话管理、上下文构建、工具调度</td>
+    <td><span class="tag tag-reuse">高：原理可学</span></td>
+  </tr>
+  <tr>
+    <td class="col-label">codex-rs/sandboxing</td>
+    <td>跨平台沙箱：bubblewrap (Linux) / Seatbelt (macOS) / Windows Sandbox</td>
+    <td><span class="tag tag-reuse">极高：直接参考</span></td>
+  </tr>
+  <tr>
+    <td class="col-label">codex-rs/execpolicy</td>
+    <td>命令权限引擎：Starlark 规则语言，prefix matching，allow/prompt/forbidden 三级决策</td>
+    <td><span class="tag tag-reuse">极高：可移植</span></td>
+  </tr>
+  <tr>
+    <td class="col-label">codex-rs/linux-sandbox</td>
+    <td>Linux 沙箱细节：bubblewrap + seccomp + Landlock</td>
+    <td><span class="tag tag-reuse">高：实现参考</span></td>
+  </tr>
+  <tr>
+    <td class="col-label">codex-rs/memories</td>
+    <td>两阶段记忆流水线：rollout 提取 + 全局合并</td>
+    <td><span class="tag tag-reuse">高：架构参考</span></td>
+  </tr>
+  <tr>
+    <td class="col-label">codex-rs/thread-store</td>
+    <td>会话持久化：ThreadStore trait + JSONL + SQLite</td>
+    <td><span class="tag tag-partial">中：我们已有 JSON 方案</span></td>
+  </tr>
+  <tr>
+    <td class="col-label">codex-rs/hooks</td>
+    <td>生命周期钩子：Pre/Post tool use, Stop, Notification</td>
+    <td><span class="tag tag-reuse">高：设计参考</span></td>
+  </tr>
+  <tr>
+    <td class="col-label">codex-rs/skills</td>
+    <td>技能系统：类似 Pi 的 SKILL.md</td>
+    <td><span class="tag tag-partial">中：我们用 Pi 原生系统</span></td>
+  </tr>
+  <tr>
+    <td class="col-label">codex-rs/shell-escalation</td>
+    <td>Shell 命令提权检测</td>
+    <td><span class="tag tag-reuse">高：安全工具必需</span></td>
+  </tr>
+  <tr>
+    <td class="col-label">codex-rs/tui</td>
+    <td>终端 UI：Ratatui TUI 渲染</td>
+    <td><span class="tag tag-planned">低：我们用 React GUI</span></td>
+  </tr>
+  <tr>
+    <td class="col-label">codex-rs/mcp-server</td>
+    <td>MCP 服务端/客户端实现</td>
+    <td><span class="tag tag-partial">中：Pi 已有 MCP 支持</span></td>
+  </tr>
+  <tr>
+    <td class="col-label">codex-rs/core-plugins</td>
+    <td>内置插件系统</td>
+    <td><span class="tag tag-reuse">高：设计参考</span></td>
+  </tr>
+</table>
+
+<div class="callout callout-green">
+  <strong>核心结论：</strong>Codex 的代码库分层非常清晰 -- 引擎层（core, sandboxing, execpolicy, memories）和展示层（tui, cli）完全解耦。引擎层的设计和实现可以直接学习，因为 Agent 引擎的核心问题（沙箱隔离、权限决策、记忆持久化、会话管理）与展示形态无关。CLI 和 App 的区别只在于"用户怎么看到结果"，而不在于"引擎怎么运行 Agent"。
+</div>
+
+
+<h2 id="s1">1. 模块映射：Codex CLI -> MilkSU App</h2>
+
+<p>把 Codex 的关键模块逐一映射到 MilkSU 的架构中：</p>
+
+<div class="mapping-row">
+  <div class="mapping-left">
+    <div class="mapping-label">Codex: codex-rs/core</div>
+    <div class="mapping-desc">Agent 核心循环、会话管理、上下文窗口</div>
+  </div>
+  <div class="mapping-arrow">-></div>
+  <div class="mapping-right">
+    <div class="mapping-label">MilkSU: Pi Agent Runtime</div>
+    <div class="mapping-desc">Pi 的 createAgentSession() 已覆盖。我们不需要重写 Agent 循环。</div>
+  </div>
+</div>
+
+<div class="mapping-row">
+  <div class="mapping-left">
+    <div class="mapping-label">Codex: codex-rs/sandboxing</div>
+    <div class="mapping-desc">Seatbelt (macOS)、bubblewrap (Linux)、Windows Sandbox</div>
+  </div>
+  <div class="mapping-arrow">-></div>
+  <div class="mapping-right">
+    <div class="mapping-label">MilkSU: sandbox-manager.ts + Rust 沙箱</div>
+    <div class="mapping-desc">Codex 的 Seatbelt 代码可直接参考用于 macOS 沙箱！比 Docker 更轻量。</div>
+  </div>
+</div>
+
+<div class="mapping-row">
+  <div class="mapping-left">
+    <div class="mapping-label">Codex: codex-rs/execpolicy</div>
+    <div class="mapping-desc">Starlark 规则引擎，prefix_rule() 语法</div>
+  </div>
+  <div class="mapping-arrow">-></div>
+  <div class="mapping-right">
+    <div class="mapping-label">MilkSU: policy-engine.ts</div>
+    <div class="mapping-desc">当前是 stub。可以借鉴 Codex 的 allow/prompt/forbidden 三级决策模型。</div>
+  </div>
+</div>
+
+<div class="mapping-row">
+  <div class="mapping-left">
+    <div class="mapping-label">Codex: codex-rs/memories</div>
+    <div class="mapping-desc">两阶段：rollout 提取 -> 全局合并，JSONL + SQLite</div>
+  </div>
+  <div class="mapping-arrow">-></div>
+  <div class="mapping-right">
+    <div class="mapping-label">MilkSU: Engagement Memory</div>
+    <div class="mapping-desc">Codex 的通用记忆 vs 我们的领域特定记忆。架构思路可借鉴，数据模型需自己定义。</div>
+  </div>
+</div>
+
+<div class="mapping-row">
+  <div class="mapping-left">
+    <div class="mapping-label">Codex: codex-rs/hooks</div>
+    <div class="mapping-desc">PreToolUse、PostToolUse、Stop、Notification 钩子</div>
+  </div>
+  <div class="mapping-arrow">-></div>
+  <div class="mapping-right">
+    <div class="mapping-label">MilkSU: Pi extension hooks</div>
+    <div class="mapping-desc">Pi 的 tool_call / before_agent_start 已提供类似能力。可参考 Codex 的 schema 设计。</div>
+  </div>
+</div>
+
+<div class="mapping-row">
+  <div class="mapping-left">
+    <div class="mapping-label">Codex: codex-rs/tui</div>
+    <div class="mapping-desc">Ratatui 终端 UI</div>
+  </div>
+  <div class="mapping-arrow">-></div>
+  <div class="mapping-right">
+    <div class="mapping-label">MilkSU: React + Tauri</div>
+    <div class="mapping-desc">完全不同的展示层。我们的 GUI 能力远超 TUI（面板、可视化、浏览器集成）。</div>
+  </div>
+</div>
+
+<div class="mapping-row">
+  <div class="mapping-left">
+    <div class="mapping-label">Codex: codex-rs/thread-store</div>
+    <div class="mapping-desc">ThreadStore trait、LiveThread、JSONL rollout</div>
+  </div>
+  <div class="mapping-arrow">-></div>
+  <div class="mapping-right">
+    <div class="mapping-label">MilkSU: storage.rs + conversations/</div>
+    <div class="mapping-desc">我们已有 JSON 文件持久化。Codex 用 JSONL + SQLite，后期可参考升级。</div>
+  </div>
+</div>
+
+
+<h2 id="s2">2. 可直接复用 vs 需重新设计</h2>
+
+<h3>可直接复用的（原理相同，实现可参考）</h3>
+
+<div class="grid-2">
+  <div class="card" style="border-left:4px solid var(--green)">
+    <div class="card-title" style="font-size:14px">Seatbelt 沙箱（macOS）</div>
+    <p style="font-size:13px;color:var(--text-2)">Codex 的 <code>sandboxing/seatbelt.rs</code> 使用 macOS 原生的 <code>sandbox-exec</code> 命令和 SBPL（Sandbox Profile Language）策略文件。这是 macOS 上最轻量的沙箱方案，比 Docker 快几个数量级。MilkSU 的 Rust 后端可以直接实现相同的 Seatbelt 集成。</p>
+    <p style="font-size:12px;color:var(--green);font-weight:600;margin-top:8px">Codex 文件：sandboxing/seatbelt_base_policy.sbpl, seatbelt_network_policy.sbpl</p>
+  </div>
+  <div class="card" style="border-left:4px solid var(--green)">
+    <div class="card-title" style="font-size:14px">execpolicy 规则引擎</div>
+    <p style="font-size:13px;color:var(--text-2)">Codex 用 Starlark 语法定义命令权限规则（<code>prefix_rule()</code>），这套"命令前缀匹配 + 三级决策"的模型与 MilkSU 的安全工具场景完美匹配。我们可以用同样的规则语言，只是规则内容不同（安全工具 vs 编码工具）。</p>
+    <p style="font-size:12px;color:var(--green);font-weight:600;margin-top:8px">Codex 文件：execpolicy/src/*, execpolicy/README.md</p>
+  </div>
+  <div class="card" style="border-left:4px solid var(--green)">
+    <div class="card-title" style="font-size:14px">Shell 提权检测</div>
+    <p style="font-size:13px;color:var(--text-2)">Codex 的 <code>shell-escalation</code> crate 检测 shell 命令中的提权行为（sudo、chmod、chown 等）。对安全工具平台来说这更重要 -- 我们需要区分"正常的安全工具调用"和"意外的提权企图"。</p>
+    <p style="font-size:12px;color:var(--green);font-weight:600;margin-top:8px">Codex 文件：shell-escalation/src/*</p>
+  </div>
+  <div class="card" style="border-left:4px solid var(--green)">
+    <div class="card-title" style="font-size:14px">记忆流水线架构</div>
+    <p style="font-size:13px;color:var(--text-2)">Codex 的两阶段记忆（Phase 1: 逐个会话提取 -> Phase 2: 全局合并）是一个成熟的异步流水线设计。我们的 Engagement Memory 可以借鉴同样的架构：工具结果提取 -> Engagement 合并 -> 知识库提炼。</p>
+    <p style="font-size:12px;color:var(--green);font-weight:600;margin-top:8px">Codex 文件：memories/read/*, memories/write/*</p>
+  </div>
+</div>
+
+<h3>需要重新设计的（场景不同，原理可学）</h3>
+
+<div class="grid-2">
+  <div class="card" style="border-left:4px solid var(--amber)">
+    <div class="card-title" style="font-size:14px">子 Agent 系统</div>
+    <p style="font-size:13px;color:var(--text-2)">Codex 的子 Agent 面向"代码编辑"（并行修改不同文件），MilkSU 面向"安全测试"（并行扫描不同目标）。协调模式完全不同：Codex 需要文件锁和 git worktree 隔离，MilkSU 需要网络隔离和结果汇总。</p>
+  </div>
+  <div class="card" style="border-left:4px solid var(--amber)">
+    <div class="card-title" style="font-size:14px">权限决策的数据源</div>
+    <p style="font-size:13px;color:var(--text-2)">Codex 的权限决策基于"命令是否安全"（文件操作 vs shell 命令）。MilkSU 的权限决策需要额外维度："目标是否授权"、"沙箱等级是否足够"、"当前 engagement 是否 active"。</p>
+  </div>
+  <div class="card" style="border-left:4px solid var(--amber)">
+    <div class="card-title" style="font-size:14px">浏览器/Computer Use</div>
+    <p style="font-size:13px;color:var(--text-2)">Codex CLI 没有浏览器集成。这是 MilkSU 作为 GUI App 的独特优势 -- 我们可以内嵌 WebView、集成 CDP、提供 Computer Use 能力。这部分需要从 Claude Code / Anthropic Computer Use 的方向参考。</p>
+  </div>
+  <div class="card" style="border-left:4px solid var(--amber)">
+    <div class="card-title" style="font-size:14px">数据模型</div>
+    <p style="font-size:13px;color:var(--text-2)">Codex 的记忆内容是通用文本（代码修改摘要、开发者偏好）。MilkSU 的记忆是强结构化的安全数据（Host/Service/Vulnerability/Credential）。数据模型需要完全自己定义。</p>
+  </div>
+</div>
+
+<div class="callout callout-purple">
+  <strong>面试知识点 -- 开源复用策略：</strong>复用开源代码有三个层次：<strong>代码级复用</strong>（直接引用/fork 源码）、<strong>架构级复用</strong>（学习设计模式和分层方式）、<strong>概念级复用</strong>（借鉴解决问题的思路）。对 MilkSU 来说，Codex 主要提供架构级和概念级复用。代码级复用受限于语言（Codex 的引擎是 Rust，MilkSU 的 Agent 逻辑在 TypeScript/Pi 层；但 Rust 后端可以参考 sandboxing crate）。判断复用层次的关键问题：<strong>"问题域是否相同？"</strong>相同则可代码级复用（沙箱 SBPL），不同则只能架构/概念级复用（记忆系统）。
+</div>
+
+
+<!-- ================================================= -->
+<!-- 第一部分：子 Agent -->
+<!-- ================================================= -->
+
+<h2 id="s3">3. 为什么安全场景需要子 Agent</h2>
+
+<p>单个 Agent 在安全测试中会遇到两个瓶颈：</p>
+
+<h4>瓶颈一：串行等待</h4>
+<p>nmap 全端口扫描一台主机需要 2-5 分钟。扫描 10 台主机串行执行需要 20-50 分钟。用户盯着进度条看半小时，而其中每次扫描之间没有任何依赖关系。</p>
+
+<h4>瓶颈二：上下文污染</h4>
+<p>渗透测试是一个"分支探索"过程 -- 发现 5 个潜在入口后，需要分别深入测试每一个。如果单个 Agent 串行处理，越往后上下文越长，LLM 的注意力被稀释，容易"忘记"早期发现或混淆不同目标的信息。</p>
+
+<div class="callout callout-blue">
+  <strong>子 Agent 的本质：</strong>不是"多个 AI 同时聊天"，而是<strong>将一个复杂任务分解为独立子任务，在各自隔离的上下文中并行执行，最后汇总结果</strong>。每个子 Agent 有自己的 LLM 上下文窗口、工具调用权限、沙箱环境。
+</div>
+
+<h3>安全场景的典型并行模式</h3>
+
+<table>
+  <tr>
+    <th>场景</th>
+    <th>主 Agent 任务</th>
+    <th>子 Agent 任务</th>
+    <th>并行度</th>
+  </tr>
+  <tr>
+    <td class="col-label">多目标扫描</td>
+    <td>协调扫描范围，汇总发现</td>
+    <td>每个子 Agent 扫描一个 IP 段或主机</td>
+    <td>按目标数量</td>
+  </tr>
+  <tr>
+    <td class="col-label">多维度侦察</td>
+    <td>选择目标，综合评估</td>
+    <td>分别执行端口扫描、DNS 枚举、Web 目录爆破、子域名发现</td>
+    <td>按工具维度</td>
+  </tr>
+  <tr>
+    <td class="col-label">漏洞验证</td>
+    <td>收集候选漏洞列表，确认结果</td>
+    <td>每个子 Agent 验证一个候选漏洞（尝试利用 + 判断是否成功）</td>
+    <td>按漏洞数量</td>
+  </tr>
+  <tr>
+    <td class="col-label">密码爆破</td>
+    <td>选择目标服务，收集凭证</td>
+    <td>分别对 SSH、FTP、MySQL、RDP 等服务执行字典爆破</td>
+    <td>按服务数量</td>
+  </tr>
+  <tr>
+    <td class="col-label">CTF 解题</td>
+    <td>分析题目，分配方向</td>
+    <td>分别尝试不同解题思路（逆向、Web、Crypto 方向）</td>
+    <td>按思路数量</td>
+  </tr>
+</table>
+
+
+<h2 id="s4">4. 行业子 Agent 方案对比</h2>
+
+<table>
+  <tr>
+    <th>平台</th>
+    <th>并行度</th>
+    <th>隔离方式</th>
+    <th>协调模式</th>
+    <th>通信机制</th>
+  </tr>
+  <tr>
+    <td class="col-label">Codex</td>
+    <td>最多 6 个并发</td>
+    <td>git worktree（文件隔离）</td>
+    <td>主 Agent 分发任务，子 Agent 返回结果</td>
+    <td>线程内消息传递</td>
+  </tr>
+  <tr>
+    <td class="col-label">Claude Code</td>
+    <td>5 层嵌套 + Workflow</td>
+    <td>worktree + 独立上下文</td>
+    <td>Agent 工具调用（递归）或 Workflow 脚本编排</td>
+    <td>工具调用返回值</td>
+  </tr>
+  <tr>
+    <td class="col-label">Arkloop</td>
+    <td>不限（受资源限制）</td>
+    <td>每个 Agent 独立 Firecracker VM</td>
+    <td>API 编排（Go 微服务协调）</td>
+    <td>ACP 协议 + PostgreSQL 共享状态</td>
+  </tr>
+  <tr>
+    <td class="col-label">Memoh</td>
+    <td>不限（每 Agent 一个容器）</td>
+    <td>每个 Agent 独立 Docker 容器</td>
+    <td>外部触发（Telegram/Discord 消息）</td>
+    <td>共享记忆（Mem0）+ 渠道消息</td>
+  </tr>
+</table>
+
+<h3>Codex 的子 Agent 实现细节</h3>
+
+<p>从 Codex 的 <code>thread-store</code> 和 <code>thread-manager-sample</code> 源码可以看出：</p>
+
+<ul>
+  <li><strong>ThreadStore trait：</strong>定义了 <code>append_items</code>（追加历史）和 <code>update_thread_metadata</code>（更新元数据）两个核心 API。每个子 Agent 就是一个独立的 thread。</li>
+  <li><strong>LiveThread：</strong>活跃会话的封装，管理元数据同步、rollout 持久化策略、历史追加。子 Agent 的会话生命周期由 LiveThread 管理。</li>
+  <li><strong>ThreadManager：</strong>路由器，管理加载和冷冻的 thread。主 Agent 通过 ThreadManager 创建和管理子 Agent thread。</li>
+  <li><strong>隔离：</strong>使用 git worktree 让每个子 Agent 在独立的文件系统副本上工作，避免并行写入冲突。</li>
+</ul>
+
+<div class="callout callout-amber">
+  <strong>关键差异：</strong>Codex 的子 Agent 隔离是<strong>文件系统级</strong>的（git worktree），因为编码场景的冲突在文件修改上。MilkSU 的子 Agent 隔离需要是<strong>网络级</strong>的（每个子 Agent 的沙箱只允许访问各自的目标），因为安全场景的冲突在网络访问上。但上层的编排模式（ThreadManager -> 子 Thread -> 结果汇总）是通用的。
+</div>
+
+
+<h2 id="s5">5. MilkSU 子 Agent 编排架构</h2>
+
+<h3>三层编排模型</h3>
+
+<div class="layer">
+  <div class="layer-label">ORCHESTRATOR（编排层）</div>
+  <div class="layer-boxes">
+    <div class="layer-box">
+      <div class="layer-box-title">主 Agent</div>
+      <div class="layer-box-sub">任务分解、结果汇总、决策</div>
+    </div>
+    <div class="layer-box" style="border-color:var(--accent);border-width:2px">
+      <div class="layer-box-title" style="color:var(--accent)">SubAgentManager</div>
+      <div class="layer-box-sub">创建/监控/终止子 Agent</div>
+    </div>
+  </div>
+</div>
+
+<div style="text-align:center;color:var(--text-3);padding:8px;font-size:14px">spawn / collect</div>
+
+<div class="layer">
+  <div class="layer-label">WORKER（执行层）</div>
+  <div class="layer-boxes">
+    <div class="layer-box" style="background:var(--accent-light)">
+      <div class="layer-box-title">子 Agent A</div>
+      <div class="layer-box-sub">扫描 192.168.1.0/28</div>
+    </div>
+    <div class="layer-box" style="background:var(--accent-light)">
+      <div class="layer-box-title">子 Agent B</div>
+      <div class="layer-box-sub">扫描 192.168.1.16/28</div>
+    </div>
+    <div class="layer-box" style="background:var(--accent-light)">
+      <div class="layer-box-title">子 Agent C</div>
+      <div class="layer-box-sub">扫描 192.168.1.32/28</div>
+    </div>
+  </div>
+</div>
+
+<div style="text-align:center;color:var(--text-3);padding:8px;font-size:14px">read / write</div>
+
+<div class="layer">
+  <div class="layer-label">SHARED STATE（共享状态层）</div>
+  <div class="layer-boxes">
+    <div class="layer-box">
+      <div class="layer-box-title">Engagement Memory</div>
+      <div class="layer-box-sub">所有子 Agent 写入同一个 Engagement</div>
+    </div>
+    <div class="layer-box">
+      <div class="layer-box-title">Task State</div>
+      <div class="layer-box-sub">面板实时聚合所有子 Agent 进度</div>
+    </div>
+  </div>
+</div>
+
+<h3>SubAgentManager 核心设计</h3>
+
+<pre><code>interface SubAgentConfig {
+  id: string;
+  parentId: string;              // 主 Agent 会话 ID
+  task: string;                  // 自然语言任务描述
+  systemPrompt: string;          // 注入的上下文（Engagement 子集）
+  sandboxScope: string[];        // 此子 Agent 允许访问的网络范围
+  timeout: number;               // 超时（秒）
+  maxTokens: number;             // Token 预算
+}
+
+interface SubAgentResult {
+  id: string;
+  status: "completed" | "failed" | "timeout";
+  findings: Finding[];           // 结构化发现
+  rawOutput: string;             // 原始输出
+  tokensUsed: number;
+  duration: number;
+}
+
+class SubAgentManager {
+  private agents: Map&lt;string, SubAgentHandle&gt; = new Map();
+  private maxConcurrent: number = 4;     // 最大并发
+
+  // 创建并启动子 Agent
+  async spawn(config: SubAgentConfig): Promise&lt;string&gt; {
+    // 等待并发槽位
+    await this.waitForSlot();
+
+    // 为子 Agent 创建独立的 Pi 会话
+    const session = await createAgentSession({
+      systemPrompt: config.systemPrompt,
+      tools: this.filterToolsForSubAgent(config),
+      sandbox: {
+        level: 2,  // 子 Agent 默认 Layer 2 容器沙箱
+        networkScope: config.sandboxScope,
+      },
+    });
+
+    // 注入子 Agent 专用指令
+    const handle = new SubAgentHandle(session, config);
+    this.agents.set(config.id, handle);
+
+    // 异步执行，不阻塞主 Agent
+    handle.run().then(result => {
+      this.onComplete(config.id, result);
+    });
+
+    return config.id;
+  }
+
+  // 等待所有子 Agent 完成
+  async awaitAll(): Promise&lt;SubAgentResult[]&gt; {
+    return Promise.all(
+      [...this.agents.values()].map(h => h.promise)
+    );
+  }
+
+  // 向主 Agent 汇报进度
+  private onComplete(id: string, result: SubAgentResult) {
+    // 写入 Engagement Memory（去重合并）
+    engagementStore.mergeFindings(result.findings);
+    // 通知主 Agent
+    this.emit("sub_agent_complete", { id, result });
+  }
+}</code></pre>
+
+
+<h2 id="s6">6. 协调模式</h2>
+
+<p>子 Agent 之间的协调有三种基本模式，适用于不同场景：</p>
+
+<h3>模式一：Fan-out / Fan-in（扇出/扇入）</h3>
+
+<div class="card">
+  <p style="font-size:13px;color:var(--text-2)">
+    <strong>结构：</strong>主 Agent 将任务分成 N 份，N 个子 Agent 并行执行，全部完成后主 Agent 汇总。<br>
+    <strong>适用：</strong>多目标扫描、多服务爆破 -- 子任务之间完全独立。<br>
+    <strong>类比：</strong>MapReduce 的 Map 阶段。
+  </p>
+  <pre><code>主 Agent: "扫描 192.168.1.0/24 的所有主机"
+  |
+  +-> 子 Agent A: nmap 192.168.1.1-64     (并行)
+  +-> 子 Agent B: nmap 192.168.1.65-128   (并行)
+  +-> 子 Agent C: nmap 192.168.1.129-192  (并行)
+  +-> 子 Agent D: nmap 192.168.1.193-254  (并行)
+  |
+  汇总: 合并所有 Host/Service 发现 -> 写入 Engagement</code></pre>
+</div>
+
+<h3>模式二：Pipeline（流水线）</h3>
+
+<div class="card">
+  <p style="font-size:13px;color:var(--text-2)">
+    <strong>结构：</strong>阶段 A 的输出是阶段 B 的输入，每个阶段可以有多个子 Agent 并行。<br>
+    <strong>适用：</strong>侦察 -> 漏洞扫描 -> 利用 这种有依赖关系的链条。<br>
+    <strong>类比：</strong>Unix 管道，但每段可以 fan-out。
+  </p>
+  <pre><code>阶段 1: 侦察 (4 个子 Agent 并行扫描)
+  |
+  v  发现 12 台主机
+阶段 2: 漏洞扫描 (每台主机一个子 Agent)
+  |
+  v  发现 5 个潜在漏洞
+阶段 3: 漏洞验证 (每个漏洞一个子 Agent)
+  |
+  v  确认 2 个可利用漏洞</code></pre>
+</div>
+
+<h3>模式三：Competitive（竞争式）</h3>
+
+<div class="card">
+  <p style="font-size:13px;color:var(--text-2)">
+    <strong>结构：</strong>多个子 Agent 尝试同一个问题的不同解法，第一个成功的终止其他。<br>
+    <strong>适用：</strong>CTF 解题 -- 不确定哪种方向能解出来。<br>
+    <strong>类比：</strong>Promise.race()
+  </p>
+  <pre><code>目标: 获取 flag
+  |
+  +-> 子 Agent A: 尝试 SQL 注入     (竞争)
+  +-> 子 Agent B: 尝试 XSS -> SSRF  (竞争)
+  +-> 子 Agent C: 尝试目录遍历      (竞争)
+  |
+  Agent B 首先得到 flag -> 终止 A 和 C</code></pre>
+</div>
+
+<div class="callout callout-purple">
+  <strong>面试知识点 -- 并发编排模式：</strong>Fan-out/Fan-in、Pipeline、Competitive 是三种经典的并发编排模式，在分布式系统中广泛使用。Fan-out/Fan-in 对应 MapReduce 和 Scatter-Gather 模式；Pipeline 对应流处理和 Actor chain；Competitive 对应 Hedged Request（Google 论文）和 Promise.race。AI Agent 的子 Agent 编排本质上就是分布式任务调度，只是"worker"不是线程或容器，而是独立的 LLM 会话。这三种模式也可以组合 -- 例如 Pipeline 的每个阶段内部用 Fan-out。
+</div>
+
+
+<h2 id="s7">7. 子 Agent 与 Pi 集成</h2>
+
+<p>MilkSU 的子 Agent 需要在 Pi 框架内实现。Pi 的 <code>createAgentSession()</code> 已经支持创建独立的 Agent 会话，子 Agent 本质上就是由主 Agent 的工具调用触发的新会话。</p>
+
+<h3>实现方案：子 Agent 作为工具</h3>
+
+<pre><code>// skills/orchestration/tools/spawn-agent.ts
+export const spawnSubAgent = defineTool({
+  name: "spawn_sub_agent",
+  description: "创建子 Agent 执行独立任务。子 Agent 有自己的上下文和沙箱。",
+  parameters: Type.Object({
+    task: Type.String({ description: "子 Agent 的任务描述" }),
+    scope: Type.Array(Type.String(), { description: "授权网络范围" }),
+    tools: Type.Array(Type.String(), { description: "允许使用的工具列表" }),
+  }),
+  async execute({ task, scope, tools }) {
+    const subAgentId = await subAgentManager.spawn({
+      task,
+      sandboxScope: scope,
+      tools,
+      parentId: currentSession.id,
+      systemPrompt: buildSubAgentPrompt(task, scope),
+      timeout: 600,
+      maxTokens: 50000,
+    });
+
+    return {
+      content: `子 Agent ${subAgentId} 已启动，任务: ${task}`,
+      details: { subAgentId, status: "running" }
+    };
+  }
+});
+
+export const collectSubAgents = defineTool({
+  name: "collect_sub_agents",
+  description: "等待所有子 Agent 完成并收集结果",
+  parameters: Type.Object({}),
+  async execute() {
+    const results = await subAgentManager.awaitAll();
+    const summary = summarizeResults(results);
+
+    return {
+      content: summary.text,
+      details: { results: summary.structured }
+    };
+  }
+});</code></pre>
+
+<h3>bridge.js 中的多会话管理</h3>
+
+<p>当前 bridge.js 管理单个 Pi 会话。子 Agent 需要扩展为多会话：</p>
+
+<pre><code>// bridge.js 扩展
+class SessionPool {
+  constructor(maxConcurrent = 4) {
+    this.sessions = new Map();
+    this.maxConcurrent = maxConcurrent;
+  }
+
+  async createSubSession(parentId, config) {
+    const session = await createAgentSession({
+      // 子 Agent 用相同的模型但独立的上下文
+      model: config.model || parentSession.model,
+      systemPrompt: config.systemPrompt,
+      tools: config.tools,
+    });
+
+    // 子 Agent 的事件通过父会话的事件通道上报
+    session.on("text_delta", (delta) => {
+      parentSession.emit("sub_agent_delta", {
+        subAgentId: config.id,
+        delta,
+      });
+    });
+
+    this.sessions.set(config.id, session);
+    return session;
+  }
+}</code></pre>
+
+<h3>前端展示</h3>
+
+<p>子 Agent 的进度在 TaskPanel 中实时展示：</p>
+
+<pre><code>// TaskPanel 中的 SubAgentProgress 组件
+function SubAgentProgress({ agents }) {
+  return (
+    &lt;div className="sub-agents"&gt;
+      {agents.map(agent =&gt; (
+        &lt;div key={agent.id} className="sub-agent-card"&gt;
+          &lt;div className="sub-agent-header"&gt;
+            &lt;StatusIndicator status={agent.status} /&gt;
+            &lt;span&gt;{agent.task}&lt;/span&gt;
+          &lt;/div&gt;
+          &lt;div className="sub-agent-scope"&gt;{agent.scope.join(", ")}&lt;/div&gt;
+          {agent.status === "completed" &amp;&amp; (
+            &lt;div className="sub-agent-findings"&gt;
+              {agent.findings.length} 个发现
+            &lt;/div&gt;
+          )}
+        &lt;/div&gt;
+      ))}
+    &lt;/div&gt;
+  );
+}</code></pre>
+
+
+<!-- ================================================= -->
+<!-- 第二部分：浏览器与 Computer Use -->
+<!-- ================================================= -->
+
+<h2 id="s8">8. 两种视觉交互范式</h2>
+
+<p>AI Agent 与浏览器/GUI 交互有两种截然不同的范式：</p>
+
+<div class="grid-2">
+  <div class="card" style="border-left:4px solid var(--accent)">
+    <div class="card-title" style="font-size:14px">CDP（Chrome DevTools Protocol）</div>
+    <p style="font-size:13px;color:var(--text-2)">
+      <strong>原理：</strong>通过 WebSocket 连接到 Chrome 的调试端口（默认 9222），发送 JSON-RPC 命令直接操控浏览器 DOM、网络、JavaScript 执行。<br><br>
+      <strong>优势：</strong>精确、快速、可编程。可以直接读取 DOM 结构、执行 JS、拦截网络请求。<br><br>
+      <strong>局限：</strong>只能操作 Chrome/Chromium 浏览器内的网页。无法操作原生应用、桌面 GUI、弹窗。<br><br>
+      <strong>典型操作：</strong><code>page.click("#login-btn")</code>、<code>page.evaluate(() => document.title)</code><br><br>
+      <strong>MilkSU 现状：</strong>browser-connect skill 已实现基本 CDP 连接
+    </p>
+  </div>
+  <div class="card" style="border-left:4px solid var(--purple)">
+    <div class="card-title" style="font-size:14px">Computer Use（截图 + 坐标点击）</div>
+    <p style="font-size:13px;color:var(--text-2)">
+      <strong>原理：</strong>对屏幕截图，用视觉语言模型（VLM）分析截图内容，输出要点击的坐标或要输入的文本，然后通过系统 API 模拟鼠标/键盘操作。<br><br>
+      <strong>优势：</strong>通用性极强。可以操作任何可见的 GUI 元素 -- 浏览器、原生应用、远程桌面、甚至游戏界面。<br><br>
+      <strong>局限：</strong>慢（每次操作需要截图 + VLM 推理，~1-3 秒），不够精确（坐标可能偏移），看不到隐藏元素。<br><br>
+      <strong>典型操作：</strong>截图 -> VLM: "点击登录按钮" -> 返回 (423, 567) -> 模拟点击<br><br>
+      <strong>典型用户：</strong>Anthropic Computer Use、Claude Code Chrome 扩展
+    </p>
+  </div>
+</div>
+
+<h3>两种范式的选择矩阵</h3>
+
+<table>
+  <tr>
+    <th>场景</th>
+    <th>CDP</th>
+    <th>Computer Use</th>
+    <th>推荐</th>
+  </tr>
+  <tr>
+    <td class="col-label">Web 应用渗透测试</td>
+    <td><span class="tag tag-done">最佳</span></td>
+    <td><span class="tag tag-partial">可用</span></td>
+    <td>CDP -- 可以直接操作 DOM、拦截 XHR、执行 JS</td>
+  </tr>
+  <tr>
+    <td class="col-label">需要绕过 WAF/反爬</td>
+    <td><span class="tag tag-partial">容易被检测</span></td>
+    <td><span class="tag tag-done">更像真人</span></td>
+    <td>Computer Use -- CDP 连接会被 navigator.webdriver 检测</td>
+  </tr>
+  <tr>
+    <td class="col-label">已认证会话测试</td>
+    <td><span class="tag tag-done">最佳</span></td>
+    <td><span class="tag tag-done">可用</span></td>
+    <td>CDP -- 直接连接用户已登录的浏览器</td>
+  </tr>
+  <tr>
+    <td class="col-label">原生应用测试</td>
+    <td><span class="tag tag-none">不可用</span></td>
+    <td><span class="tag tag-done">唯一选择</span></td>
+    <td>Computer Use -- CDP 不能操作非浏览器应用</td>
+  </tr>
+  <tr>
+    <td class="col-label">Burp Suite 操控</td>
+    <td><span class="tag tag-none">不可用</span></td>
+    <td><span class="tag tag-done">可行</span></td>
+    <td>Computer Use -- 操作桌面 Java 应用</td>
+  </tr>
+  <tr>
+    <td class="col-label">验证码交互</td>
+    <td><span class="tag tag-none">被阻止</span></td>
+    <td><span class="tag tag-partial">视觉分析</span></td>
+    <td>Computer Use -- 但要注意合规性</td>
+  </tr>
+</table>
+
+<div class="callout callout-blue">
+  <strong>MilkSU 策略：两者都要。</strong>CDP 作为默认的 Web 交互通道（快速、精确），Computer Use 作为后备和原生应用通道。Agent 根据目标类型自动选择：Web URL -> CDP，桌面应用 -> Computer Use，CDP 失败/被检测 -> 降级到 Computer Use。
+</div>
+
+
+<h2 id="s9">9. Vision Loop 设计</h2>
+
+<p>Vision Loop 是 Computer Use 的核心架构：一个"截图 -> 分析 -> 操作 -> 再截图"的循环。</p>
+
+<h3>循环结构</h3>
+
+<pre><code>while (!task.completed) {
+  // 1. 截图
+  const screenshot = await captureScreen();
+
+  // 2. VLM 分析：当前状态 + 任务目标 -> 下一步操作
+  const action = await vlm.analyze({
+    image: screenshot,
+    task: task.description,
+    history: task.previousActions,  // 防止重复
+  });
+
+  // 3. 执行操作
+  switch (action.type) {
+    case "click":
+      await mouse.click(action.x, action.y);
+      break;
+    case "type":
+      await keyboard.type(action.text);
+      break;
+    case "scroll":
+      await mouse.scroll(action.direction, action.amount);
+      break;
+    case "done":
+      task.completed = true;
+      task.result = action.result;
+      break;
+    case "failed":
+      task.failed = true;
+      task.error = action.reason;
+      break;
+  }
+
+  // 4. 等待页面响应
+  await wait(action.waitMs || 500);
+
+  // 5. 安全检查：是否超出预期（误操作检测）
+  if (task.actionCount++ > task.maxActions) {
+    throw new Error("超过最大操作次数限制");
+  }
+}</code></pre>
+
+<h3>VLM（视觉语言模型）选择</h3>
+
+<table>
+  <tr>
+    <th>模型</th>
+    <th>提供者</th>
+    <th>特点</th>
+    <th>适用场景</th>
+  </tr>
+  <tr>
+    <td class="col-label">Claude Sonnet (Computer Use)</td>
+    <td>Anthropic</td>
+    <td>原生 Computer Use 支持，坐标精度高</td>
+    <td>通用 GUI 操作</td>
+  </tr>
+  <tr>
+    <td class="col-label">GPT-4o</td>
+    <td>OpenAI</td>
+    <td>强视觉理解，但无原生坐标输出</td>
+    <td>截图分析（非操控）</td>
+  </tr>
+  <tr>
+    <td class="col-label">DeepSeek-VL2</td>
+    <td>DeepSeek</td>
+    <td>开源，可本地部署，但精度不及商用模型</td>
+    <td>隐私敏感场景</td>
+  </tr>
+  <tr>
+    <td class="col-label">Qwen-VL-Max</td>
+    <td>Alibaba</td>
+    <td>中文场景强，坐标理解逐步改善</td>
+    <td>中文 UI 操作</td>
+  </tr>
+</table>
+
+<div class="callout callout-amber">
+  <strong>MilkSU 的 VLM 策略：</strong>默认用 DeepSeek（我们的主力 LLM 已有 VL 能力），但 Computer Use 场景允许用户配置专用的 VLM 端点。当用户配置了 Anthropic API Key 时，自动使用 Claude Sonnet 执行 Computer Use（精度最高）。这与模型选择器的多 provider 设计一致。
+</div>
+
+
+<h2 id="s10">10. 安全场景的浏览器应用</h2>
+
+<h3>场景一：Web 应用渗透测试（CDP）</h3>
+
+<pre><code>// 连接用户已认证的浏览器
+const browser = await cdp.connect("localhost:9222");
+const page = await browser.currentPage();
+
+// 读取当前页面 DOM，发现表单
+const forms = await page.evaluate(() =>
+  [...document.querySelectorAll("form")].map(f => ({
+    action: f.action,
+    method: f.method,
+    inputs: [...f.querySelectorAll("input")].map(i => ({
+      name: i.name, type: i.type, value: i.value
+    }))
+  }))
+);
+
+// 拦截 XHR 请求，分析 API 端点
+const requests = [];
+page.on("request", req => {
+  if (req.url().includes("/api/")) {
+    requests.push({
+      url: req.url(),
+      method: req.method(),
+      headers: req.headers(),
+      postData: req.postData(),
+    });
+  }
+});
+
+// 执行操作，观察响应
+await page.click("#search-input");
+await page.type("' OR 1=1 --");  // SQL 注入测试
+await page.click("#search-btn");
+
+// 分析响应是否泄露了数据库信息
+const response = await page.content();
+const sqliIndicators = checkSqlInjection(response);</code></pre>
+
+<h3>场景二：Burp Suite 自动化（Computer Use）</h3>
+
+<pre><code>// Vision Loop 操控 Burp Suite
+async function automatedBurpScan(target) {
+  // 截图 -> 找到 Target 标签
+  await visionLoop.execute({
+    task: `在 Burp Suite 中添加 ${target} 到 scope`,
+    steps: [
+      "点击 Target 标签",
+      "右键 Scope 面板",
+      "选择 Add to scope",
+      "输入目标 URL",
+      "确认",
+    ],
+  });
+
+  // 截图 -> 启动 Active Scan
+  await visionLoop.execute({
+    task: "启动主动扫描",
+    steps: [
+      "点击 Scanner 标签",
+      "点击 New scan",
+      "确认 scope 设置",
+      "点击 OK 开始扫描",
+    ],
+  });
+}</code></pre>
+
+<h3>场景三：逆向分析辅助（Computer Use + CDP 混合）</h3>
+
+<p>在 IDA Pro / Ghidra 中辅助分析：</p>
+<ul>
+  <li><strong>Computer Use</strong> 操控 IDA Pro 桌面界面（导航函数列表、设置断点、查看反编译结果）</li>
+  <li><strong>CDP</strong> 操控 Ghidra 的 Web UI（如果使用 Ghidra Server 的 Web 界面）</li>
+  <li><strong>Vision Loop</strong> 截图分析 IDA 的反编译窗口，理解函数逻辑</li>
+</ul>
+
+
+<h2 id="s11">11. 浏览器集成架构</h2>
+
+<h3>分层设计</h3>
+
+<div class="layer">
+  <div class="layer-label">AGENT 层（工具调用）</div>
+  <div class="layer-boxes">
+    <div class="layer-box">
+      <div class="layer-box-title">browser_navigate</div>
+      <div class="layer-box-sub">导航到 URL</div>
+    </div>
+    <div class="layer-box">
+      <div class="layer-box-title">browser_interact</div>
+      <div class="layer-box-sub">点击/输入/滚动</div>
+    </div>
+    <div class="layer-box">
+      <div class="layer-box-title">browser_analyze</div>
+      <div class="layer-box-sub">截图分析</div>
+    </div>
+    <div class="layer-box">
+      <div class="layer-box-title">browser_intercept</div>
+      <div class="layer-box-sub">请求拦截</div>
+    </div>
+  </div>
+</div>
+
+<div style="text-align:center;color:var(--text-3);padding:8px;font-size:14px">自动路由</div>
+
+<div class="layer">
+  <div class="layer-label">ROUTER 层（协议选择）</div>
+  <div class="layer-boxes">
+    <div class="layer-box" style="border-color:var(--accent)">
+      <div class="layer-box-title" style="color:var(--accent)">BrowserRouter</div>
+      <div class="layer-box-sub">根据目标类型选择 CDP 或 Computer Use</div>
+    </div>
+  </div>
+</div>
+
+<div style="text-align:center;color:var(--text-3);padding:8px;font-size:14px">| CDP 路径 | Computer Use 路径 |</div>
+
+<div class="layer">
+  <div class="layer-label">BACKEND 层（协议实现）</div>
+  <div class="layer-boxes">
+    <div class="layer-box" style="background:var(--accent-light)">
+      <div class="layer-box-title">CDP Backend</div>
+      <div class="layer-box-sub">Playwright / puppeteer-core</div>
+    </div>
+    <div class="layer-box" style="background:var(--purple-light)">
+      <div class="layer-box-title">Computer Use Backend</div>
+      <div class="layer-box-sub">截图 API + VLM + 系统输入模拟</div>
+    </div>
+  </div>
+</div>
+
+<h3>Tauri 集成方案</h3>
+
+<p>MilkSU 作为 Tauri App 有两个独特优势：</p>
+
+<div class="grid-2">
+  <div class="card" style="border-left:4px solid var(--green)">
+    <div class="card-title" style="font-size:14px">内嵌 WebView</div>
+    <p style="font-size:13px;color:var(--text-2)">Tauri v2 可以创建额外的 WebView 窗口。我们可以在 App 内打开目标网站，直接通过 Tauri 的 IPC 与 WebView 交互，无需 CDP 外部连接。这比 Codex CLI 更方便 -- CLI 无法内嵌浏览器。</p>
+  </div>
+  <div class="card" style="border-left:4px solid var(--green)">
+    <div class="card-title" style="font-size:14px">系统级截图</div>
+    <p style="font-size:13px;color:var(--text-2)">Rust 后端可以通过 Core Graphics (macOS) / X11 (Linux) 截取屏幕截图，实现 Computer Use 的截图步骤。比 CDP 的 <code>Page.captureScreenshot</code> 范围更广，能捕获任何应用。</p>
+  </div>
+</div>
+
+<div class="callout callout-purple">
+  <strong>面试知识点 -- CDP（Chrome DevTools Protocol）：</strong>CDP 是 Chrome 浏览器暴露的远程调试协议，基于 WebSocket + JSON-RPC。它由若干"域"组成（Page、DOM、Network、Runtime、Debugger 等），每个域提供一组方法和事件。Puppeteer 和 Playwright 的底层都是 CDP。关键特性：<strong>双向通信</strong>（可以发命令也可以监听事件）、<strong>无状态方法</strong>（每个命令独立执行）、<strong>会话隔离</strong>（每个 tab 是独立的 debugging session）。安全领域的特殊用法：<code>Network.setRequestInterception</code> 拦截并修改 HTTP 请求（类似 Burp Proxy），<code>Runtime.evaluate</code> 在页面上下文执行 JS（类似 XSS payload 注入），<code>DOM.getDocument</code> 遍历完整 DOM 树（类似爬虫）。
+</div>
+
+
+<!-- ================================================= -->
+<!-- 第三部分：自动模式 -->
+<!-- ================================================= -->
+
+<h2 id="s12">12. 权限分类概念</h2>
+
+<p>自动模式（Auto Mode）要解决的问题：用户不想每次工具调用都手动确认，但也不想完全放弃控制。</p>
+
+<h3>行业方案</h3>
+
+<div class="grid-2">
+  <div class="card">
+    <div class="card-title" style="font-size:14px">Claude Code: Auto Mode</div>
+    <p style="font-size:13px;color:var(--text-2)">使用<strong>分类器</strong>（小型 ML 模型或规则）判断每个工具调用的风险等级。低风险操作（读文件、运行测试）自动执行，高风险操作（删除文件、git push）请求确认。分类器的输入是工具名 + 参数，输出是 allow/deny。</p>
+  </div>
+  <div class="card">
+    <div class="card-title" style="font-size:14px">Codex: execpolicy 规则引擎</div>
+    <p style="font-size:13px;color:var(--text-2)">使用 <strong>Starlark 规则语言</strong>定义命令权限。<code>prefix_rule(pattern=["git","status"], decision="allow")</code> 表示 <code>git status</code> 自动执行。<code>prefix_rule(pattern=["rm","-rf"], decision="forbidden")</code> 表示 <code>rm -rf</code> 永远禁止。支持三级决策：allow（自动执行）、prompt（请求确认）、forbidden（禁止）。</p>
+  </div>
+</div>
+
+<div class="callout callout-blue">
+  <strong>核心区别：</strong>Claude Code 用<strong>动态分类器</strong>（运行时判断），Codex 用<strong>静态规则</strong>（配置时定义）。Claude Code 更灵活（可以理解上下文），Codex 更可预测（规则是确定性的）。对安全工具场景来说，<strong>可预测性更重要</strong> -- 安全测试者需要精确控制哪些操作自动执行，不能依赖分类器的"理解"。
+</div>
+
+
+<h2 id="s13">13. Codex execpolicy 深度解析</h2>
+
+<p>Codex 的 execpolicy 是目前最成熟的开源权限引擎实现，值得深入学习。</p>
+
+<h3>规则语言（Starlark）</h3>
+
+<pre><code># Codex 默认规则示例（概念性重构，非逐行复制）
+
+# Git 操作分级
+prefix_rule(
+    pattern = ["git", "status"],
+    decision = "allow",       # git status 总是安全的
+)
+
+prefix_rule(
+    pattern = ["git", "push"],
+    decision = "prompt",      # git push 需要确认
+    justification = "推送代码到远程仓库会影响其他人",
+)
+
+prefix_rule(
+    pattern = ["git", "push", "--force"],
+    decision = "forbidden",   # force push 永远禁止
+    justification = "强制推送可能覆盖他人工作，使用 jj 或 --force-with-lease",
+)
+
+# 危险命令
+prefix_rule(
+    pattern = ["rm", "-rf"],
+    decision = "forbidden",
+    justification = "递归强制删除风险太高",
+)
+
+# 文件操作
+prefix_rule(
+    pattern = ["cat"],
+    decision = "allow",       # 读文件总是安全的
+)</code></pre>
+
+<h3>匹配语义</h3>
+
+<ol>
+  <li><strong>前缀匹配：</strong><code>pattern = ["git", "status"]</code> 匹配 <code>git status</code>、<code>git status -s</code>、<code>git status --porcelain</code> 等所有以 <code>git status</code> 开头的命令</li>
+  <li><strong>备选项：</strong><code>pattern = ["git", ["commit", "add"]]</code> 匹配 <code>git commit</code> 和 <code>git add</code></li>
+  <li><strong>优先级：</strong>更具体的规则优先。<code>["git", "push", "--force"]</code> 优先于 <code>["git", "push"]</code></li>
+  <li><strong>默认行为：</strong>没有匹配规则时 -> <code>prompt</code>（请求确认）</li>
+  <li><strong>内置测试：</strong><code>match</code> 和 <code>not_match</code> 字段在规则加载时验证，相当于规则的单元测试</li>
+</ol>
+
+<h3>三级决策模型</h3>
+
+<table>
+  <tr>
+    <th>决策</th>
+    <th>行为</th>
+    <th>用户体验</th>
+    <th>示例</th>
+  </tr>
+  <tr>
+    <td class="col-label" style="color:var(--green)">allow</td>
+    <td>直接执行，不中断</td>
+    <td>用户看到执行结果，无需操作</td>
+    <td>git status, ls, cat, npm test</td>
+  </tr>
+  <tr>
+    <td class="col-label" style="color:var(--amber)">prompt</td>
+    <td>暂停，显示命令和理由，等待用户确认</td>
+    <td>用户看到弹窗，选择允许/拒绝</td>
+    <td>git push, npm install, docker run</td>
+  </tr>
+  <tr>
+    <td class="col-label" style="color:var(--red)">forbidden</td>
+    <td>直接拒绝，Agent 收到错误信息</td>
+    <td>Agent 被告知此操作被禁止及原因</td>
+    <td>rm -rf, git push --force, sudo rm</td>
+  </tr>
+</table>
+
+
+<h2 id="s14">14. MilkSU 安全工具风险模型</h2>
+
+<p>MilkSU 的自动模式需要在 Codex execpolicy 的基础上增加<strong>安全工具特有的维度</strong>：</p>
+
+<h3>四维风险评估</h3>
+
+<table>
+  <tr>
+    <th>维度</th>
+    <th>低风险（allow）</th>
+    <th>中风险（prompt）</th>
+    <th>高风险（forbidden/需升级沙箱）</th>
+  </tr>
+  <tr>
+    <td class="col-label">工具类型</td>
+    <td>被动信息收集：whois, dig, nslookup</td>
+    <td>主动扫描：nmap, masscan</td>
+    <td>漏洞利用：sqlmap, metasploit</td>
+  </tr>
+  <tr>
+    <td class="col-label">目标授权</td>
+    <td>目标在 Engagement scope 内</td>
+    <td>目标部分在 scope 内</td>
+    <td>目标完全不在 scope 内</td>
+  </tr>
+  <tr>
+    <td class="col-label">沙箱等级</td>
+    <td>工具在声明的沙箱等级内运行</td>
+    <td>工具请求降低沙箱等级</td>
+    <td>工具尝试逃逸沙箱</td>
+  </tr>
+  <tr>
+    <td class="col-label">破坏性</td>
+    <td>只读操作（扫描、查询）</td>
+    <td>可逆写入（发送探测包）</td>
+    <td>不可逆操作（数据库写入、文件删除）</td>
+  </tr>
+</table>
+
+<h3>MilkSU execpolicy 规则示例</h3>
+
+<pre><code># MilkSU 安全工具权限规则
+
+# === 信息收集（Layer 0, 自动执行）===
+prefix_rule(
+    pattern = ["whois"],
+    decision = "allow",
+    justification = "WHOIS 查询是公开数据，无风险",
+)
+prefix_rule(
+    pattern = ["dig"],
+    decision = "allow",
+)
+prefix_rule(
+    pattern = ["nslookup"],
+    decision = "allow",
+)
+
+# === 被动扫描（Layer 1, scope 内自动执行）===
+prefix_rule(
+    pattern = ["nmap", "-sn"],      # Ping 扫描
+    decision = "allow",
+    justification = "Ping 扫描仅发送 ICMP/ARP，低噪声",
+    # 注意：scope 校验由 sandbox-manager 处理，不在 execpolicy 层
+)
+prefix_rule(
+    pattern = ["nmap", "-sV"],      # 版本扫描
+    decision = "prompt",
+    justification = "版本扫描发送服务探针，目标可能记录日志",
+)
+
+# === 主动扫描（Layer 2, 需确认）===
+prefix_rule(
+    pattern = ["nmap", "--script"],  # NSE 脚本
+    decision = "prompt",
+    justification = "NSE 脚本可能执行漏洞利用，需确认",
+)
+prefix_rule(
+    pattern = ["masscan"],
+    decision = "prompt",
+    justification = "masscan 发包速率极高，可能触发 IDS/IPS",
+)
+prefix_rule(
+    pattern = ["gobuster"],
+    decision = "prompt",
+)
+
+# === 漏洞利用（Layer 2, 需确认 + 升级沙箱）===
+prefix_rule(
+    pattern = ["sqlmap"],
+    decision = "prompt",
+    justification = "SQL 注入测试可能修改目标数据库",
+)
+prefix_rule(
+    pattern = ["hydra"],
+    decision = "prompt",
+    justification = "密码爆破可能触发账号锁定",
+)
+
+# === 禁止的危险操作 ===
+prefix_rule(
+    pattern = ["rm", "-rf"],
+    decision = "forbidden",
+    justification = "递归删除在安全测试中不应自动执行",
+)
+prefix_rule(
+    pattern = ["nmap", "-sU", "-p-"],   # 全端口 UDP 扫描
+    decision = "forbidden",
+    justification = "全端口 UDP 扫描耗时极长且噪声极大，手动执行",
+)</code></pre>
+
+
+<h2 id="s15">15. 沙箱感知的自动审批</h2>
+
+<p>MilkSU 的自动模式与沙箱系统深度联动 -- 沙箱等级影响审批决策，审批决策影响沙箱配置。</p>
+
+<h3>决策流程</h3>
+
+<pre><code>工具调用进入 policy-engine
+  |
+  v
+[1] execpolicy 规则匹配
+    |
+    +-- forbidden -> 立即拒绝，返回原因
+    |
+    +-- allow -> 进入沙箱检查
+    |
+    +-- prompt -> 进入确认流程
+    |
+    +-- no match -> 默认 prompt
+    |
+    v
+[2] 沙箱等级检查
+    |
+    +-- 工具声明 Layer N
+    +-- 全局策略要求 Layer M
+    +-- 实际等级 = max(N, M)
+    |
+    v
+[3] scope 校验（如需网络）
+    |
+    +-- 目标在 scope 内 -> 继续
+    +-- 目标不在 scope 内 -> 拒绝（无论 allow/prompt）
+    |
+    v
+[4] 执行（在对应沙箱等级中）
+    |
+    v
+[5] 结果 -> 三通道分发（Agent / Memory / Panel）</code></pre>
+
+<h3>Human-in-the-Loop 确认界面</h3>
+
+<p>当决策为 <code>prompt</code> 时，前端弹出确认对话框：</p>
+
+<pre><code>// ConfirmDialog 组件
+function ToolConfirmDialog({ request, onAllow, onDeny }) {
+  return (
+    &lt;Dialog&gt;
+      &lt;DialogHeader&gt;工具执行确认&lt;/DialogHeader&gt;
+      &lt;DialogBody&gt;
+        &lt;div className="tool-name"&gt;{request.toolName}&lt;/div&gt;
+        &lt;div className="tool-args"&gt;
+          &lt;pre&gt;{JSON.stringify(request.args, null, 2)}&lt;/pre&gt;
+        &lt;/div&gt;
+        &lt;div className="sandbox-level"&gt;
+          沙箱等级: Layer {request.sandboxLevel}
+        &lt;/div&gt;
+        &lt;div className="justification"&gt;
+          {request.justification}
+        &lt;/div&gt;
+
+        {/* 允许 "本次允许" 和 "总是允许" */}
+        &lt;div className="actions"&gt;
+          &lt;Button onClick={() =&gt; onAllow("once")}&gt;本次允许&lt;/Button&gt;
+          &lt;Button onClick={() =&gt; onAllow("always")}&gt;
+            本会话总是允许
+          &lt;/Button&gt;
+          &lt;Button variant="destructive" onClick={onDeny}&gt;
+            拒绝
+          &lt;/Button&gt;
+        &lt;/div&gt;
+      &lt;/DialogBody&gt;
+    &lt;/Dialog&gt;
+  );
+}</code></pre>
+
+<h3>自动审批的安全保障</h3>
+
+<div class="callout callout-red">
+  <strong>硬性约束（不可覆盖）：</strong>
+  <ul style="margin-top:8px">
+    <li>没有 active Engagement 时，所有网络工具调用被拒绝</li>
+    <li>目标不在 scope 内时，即使规则是 allow，也被拒绝</li>
+    <li>子 Agent 的权限不能超过主 Agent 的权限</li>
+    <li>forbidden 规则不可通过"总是允许"覆盖</li>
+    <li>沙箱等级只能提升不能降低</li>
+  </ul>
+</div>
+
+<div class="callout callout-purple">
+  <strong>面试知识点 -- 权限分类器 vs 规则引擎：</strong>这是两种截然不同的权限控制策略。<strong>分类器</strong>（Claude Code）的优势是灵活 -- 可以理解上下文（"这个 rm 是在删临时文件，安全"），但劣势是不确定性 -- 分类器可能误判。<strong>规则引擎</strong>（Codex execpolicy）的优势是确定性 -- 规则的行为完全可预测，但劣势是需要人工编写规则，难以覆盖所有边缘情况。<br><br>MilkSU 选择规则引擎而非分类器的原因：安全工具场景下，<strong>误放行（False Positive Allow）的后果远大于误拒绝（False Positive Deny）</strong>。一个被误放行的 <code>sqlmap --os-shell</code> 可能导致目标系统被完全控制；而一个被误拒绝的 <code>nmap -sV</code> 只是让用户多点一次确认。在这种不对称风险下，规则引擎的确定性比分类器的灵活性更重要。
+</div>
+
+
+<!-- ================================================= -->
+<!-- 第四部分：综合 -->
+<!-- ================================================= -->
+
+<h2 id="s16">16. 四系统交互</h2>
+
+<p>子 Agent、浏览器控制、自动模式这三个系统，加上之前设计的沙箱和记忆系统，共同构成 MilkSU 的 Agent 引擎。它们之间的交互关系：</p>
+
+<div class="layer">
+  <div class="layer-label">用户输入</div>
+  <div class="layer-boxes">
+    <div class="layer-box">
+      <div class="layer-box-title">Chat Input</div>
+      <div class="layer-box-sub">"扫描这个网段并测试所有 Web 服务"</div>
+    </div>
+  </div>
+</div>
+
+<div style="text-align:center;color:var(--text-3);padding:4px;font-size:14px">|</div>
+
+<div class="layer">
+  <div class="layer-label">主 AGENT -- 任务规划</div>
+  <div class="layer-boxes">
+    <div class="layer-box">
+      <div class="layer-box-title">任务分解</div>
+      <div class="layer-box-sub">1) 网段扫描 2) Web 服务识别 3) 漏洞测试</div>
+    </div>
+    <div class="layer-box" style="border-color:var(--accent)">
+      <div class="layer-box-title" style="color:var(--accent)">记忆注入</div>
+      <div class="layer-box-sub">Engagement 上下文、已知发现</div>
+    </div>
+  </div>
+</div>
+
+<div style="text-align:center;color:var(--text-3);padding:4px;font-size:14px">| spawn_sub_agent x 3</div>
+
+<div class="layer">
+  <div class="layer-label">子 AGENT 并行执行</div>
+  <div class="layer-boxes">
+    <div class="layer-box" style="background:var(--accent-light)">
+      <div class="layer-box-title">子 Agent A: nmap</div>
+      <div class="layer-box-sub">Layer 1 沙箱 | auto allow</div>
+    </div>
+    <div class="layer-box" style="background:var(--amber-light)">
+      <div class="layer-box-title">子 Agent B: Web 分析</div>
+      <div class="layer-box-sub">CDP 浏览器 | auto allow</div>
+    </div>
+    <div class="layer-box" style="background:var(--red-light)">
+      <div class="layer-box-title">子 Agent C: 漏洞扫描</div>
+      <div class="layer-box-sub">Layer 2 容器 | prompt</div>
+    </div>
+  </div>
+</div>
+
+<div style="text-align:center;color:var(--text-3);padding:4px;font-size:14px">| 结果汇总 + 自动填充</div>
+
+<div class="layer">
+  <div class="layer-label">共享状态更新</div>
+  <div class="layer-boxes">
+    <div class="layer-box">
+      <div class="layer-box-title">Engagement Memory</div>
+      <div class="layer-box-sub">合并所有子 Agent 的发现</div>
+    </div>
+    <div class="layer-box">
+      <div class="layer-box-title">Task Panel</div>
+      <div class="layer-box-sub">实时显示进度和结果</div>
+    </div>
+    <div class="layer-box">
+      <div class="layer-box-title">Timeline</div>
+      <div class="layer-box-sub">记录所有操作审计日志</div>
+    </div>
+  </div>
+</div>
+
+<h3>系统间的数据流</h3>
+
+<table>
+  <tr>
+    <th>从</th>
+    <th>到</th>
+    <th>数据</th>
+    <th>触发时机</th>
+  </tr>
+  <tr>
+    <td class="col-label">记忆</td>
+    <td>主 Agent</td>
+    <td>Engagement 上下文</td>
+    <td>before_agent_start</td>
+  </tr>
+  <tr>
+    <td class="col-label">记忆</td>
+    <td>沙箱</td>
+    <td>scope（授权目标列表）</td>
+    <td>创建沙箱时</td>
+  </tr>
+  <tr>
+    <td class="col-label">主 Agent</td>
+    <td>子 Agent</td>
+    <td>任务描述 + 上下文子集</td>
+    <td>spawn_sub_agent</td>
+  </tr>
+  <tr>
+    <td class="col-label">子 Agent</td>
+    <td>自动模式</td>
+    <td>工具调用请求</td>
+    <td>每次工具调用</td>
+  </tr>
+  <tr>
+    <td class="col-label">自动模式</td>
+    <td>沙箱</td>
+    <td>执行决策 + 沙箱等级</td>
+    <td>allow/prompt 决策后</td>
+  </tr>
+  <tr>
+    <td class="col-label">沙箱</td>
+    <td>记忆</td>
+    <td>工具执行结果</td>
+    <td>工具完成后</td>
+  </tr>
+  <tr>
+    <td class="col-label">子 Agent</td>
+    <td>浏览器</td>
+    <td>CDP/Computer Use 命令</td>
+    <td>Web 测试时</td>
+  </tr>
+  <tr>
+    <td class="col-label">浏览器</td>
+    <td>记忆</td>
+    <td>Web 发现（表单、API、漏洞）</td>
+    <td>分析完成后</td>
+  </tr>
+</table>
+
+
+<h2 id="s17">17. 实现优先级</h2>
+
+<p>基于依赖关系和价值排序：</p>
+
+<div class="card" style="border-left:4px solid var(--green)">
+  <div class="card-title" style="font-size:14px">Phase 0: 前置条件（1 周）</div>
+  <p style="font-size:13px;color:var(--text-2)">完成 end-to-end agent loop（bridge.js + DeepSeek API Key）。所有后续系统都依赖一个能运行的 Agent。</p>
+</div>
+
+<div class="card" style="border-left:4px solid var(--accent)">
+  <div class="card-title" style="font-size:14px">Phase 1: 自动模式（2 周）</div>
+  <p style="font-size:13px;color:var(--text-2)">
+    <strong>为什么先做：</strong>不需要沙箱和记忆就能工作（规则引擎 + 确认对话框），且立即改善用户体验（减少手动确认）。<br>
+    <strong>内容：</strong>execpolicy 规则解析器、三级决策逻辑、前端确认对话框、"本次/总是"允许机制<br>
+    <strong>Codex 参考：</strong>codex-rs/execpolicy 的规则语法和匹配逻辑
+  </p>
+</div>
+
+<div class="card" style="border-left:4px solid var(--amber)">
+  <div class="card-title" style="font-size:14px">Phase 2: 浏览器 CDP 增强（2 周）</div>
+  <p style="font-size:13px;color:var(--text-2)">
+    <strong>为什么第二：</strong>browser-connect skill 已有基础 CDP 连接。增强为完整的 Web 测试工具集（DOM 遍历、请求拦截、JS 执行）价值高。<br>
+    <strong>内容：</strong>browser_interact / browser_intercept / browser_analyze 工具、BrowserRouter 协议选择<br>
+    <strong>不做 Computer Use：</strong>CDP 已覆盖 80% 的 Web 测试场景，Computer Use 留到后面
+  </p>
+</div>
+
+<div class="card" style="border-left:4px solid var(--purple)">
+  <div class="card-title" style="font-size:14px">Phase 3: 子 Agent（3 周）</div>
+  <p style="font-size:13px;color:var(--text-2)">
+    <strong>为什么第三：</strong>子 Agent 需要自动模式（子 Agent 的工具调用也要过 policy）和记忆系统（共享状态）。<br>
+    <strong>内容：</strong>SubAgentManager、bridge.js 多会话池、spawn/collect 工具、前端进度展示<br>
+    <strong>先做简单版：</strong>Fan-out/Fan-in 模式，最多 4 个并发，后续再加 Pipeline 和 Competitive
+  </p>
+</div>
+
+<div class="card" style="border-left:4px solid var(--text-3)">
+  <div class="card-title" style="font-size:14px">Phase 4: Computer Use + Vision Loop（远期）</div>
+  <p style="font-size:13px;color:var(--text-2)">
+    <strong>为什么最后：</strong>需要 VLM 集成，依赖模型能力进步。当前 DeepSeek-VL 的坐标精度不够，等模型成熟。<br>
+    <strong>内容：</strong>系统截图 API、VLM 集成、Vision Loop、Computer Use 后端
+  </p>
+</div>
+
+
+<h2 id="s18">18. 面试知识点</h2>
+
+<h3>Codex 开源复用</h3>
+
+<div class="card">
+  <div class="card-title" style="font-size:14px;margin-bottom:8px">开源代码的三层复用策略</div>
+  <p style="font-size:13px;color:var(--text-2)"><strong>代码级</strong>（直接引用/fork 源码）、<strong>架构级</strong>（学习设计模式和分层方式）、<strong>概念级</strong>（借鉴解决问题的思路）。判断复用层次的关键：问题域是否相同。Codex 的沙箱（Seatbelt SBPL）和规则引擎（execpolicy Starlark）可以代码级复用；记忆系统可以架构级复用；子 Agent 编排只能概念级复用。</p>
+</div>
+
+<div class="card">
+  <div class="card-title" style="font-size:14px;margin-bottom:8px">CLI vs App 的架构边界</div>
+  <p style="font-size:13px;color:var(--text-2)">成熟的系统都会将"引擎层"和"展示层"解耦。Codex 的 codex-rs/core（引擎）和 codex-rs/tui（展示）就是两个独立的 crate。这意味着 CLI 的引擎可以驱动 GUI App -- 前端从 Ratatui 换成 React，后端逻辑（agent loop, sandboxing, policy）不变。MilkSU 的"bridge.js 子进程"架构天然支持这种解耦 -- Rust 后端不关心 Agent 逻辑，只管进程生命周期和事件转发。</p>
+</div>
+
+<h3>子 Agent</h3>
+
+<div class="card">
+  <div class="card-title" style="font-size:14px;margin-bottom:8px">并发编排三模式</div>
+  <p style="font-size:13px;color:var(--text-2)">Fan-out/Fan-in（MapReduce/Scatter-Gather）、Pipeline（流处理/Actor chain）、Competitive（Hedged Request/Promise.race）。AI Agent 子任务编排本质上是分布式任务调度 -- worker 不是线程而是独立的 LLM 会话。关键挑战：上下文隔离（每个子 Agent 独立的 token 窗口）、状态同步（共享 Engagement Memory）、资源控制（并发数限制、token 预算）。</p>
+</div>
+
+<h3>浏览器控制</h3>
+
+<div class="card">
+  <div class="card-title" style="font-size:14px;margin-bottom:8px">CDP vs Computer Use 选择矩阵</div>
+  <p style="font-size:13px;color:var(--text-2)">CDP（Chrome DevTools Protocol）是结构化的浏览器控制 -- 精确、快速、可编程，但只能操作 Web 内容。Computer Use 是视觉驱动的通用 GUI 控制 -- 通用但慢、不够精确。选择策略：Web 目标用 CDP（80% 场景），桌面应用用 Computer Use（20% 场景），CDP 被反爬检测时降级到 Computer Use。两者不是替代关系而是互补关系。</p>
+</div>
+
+<h3>自动模式</h3>
+
+<div class="card">
+  <div class="card-title" style="font-size:14px;margin-bottom:8px">规则引擎 vs 分类器：不对称风险下的选择</div>
+  <p style="font-size:13px;color:var(--text-2)">当误放行（false allow）的后果远大于误拒绝（false deny）时，选择确定性的规则引擎优于概率性的分类器。安全工具场景就是典型的不对称风险 -- 一个被误放行的漏洞利用命令可能造成不可逆损害，而一个被误拒绝的扫描命令只需要用户多点一次确认。这个原则在金融、医疗等高风险领域同样适用。</p>
+</div>
+
+<div class="card">
+  <div class="card-title" style="font-size:14px;margin-bottom:8px">Starlark 作为配置语言</div>
+  <p style="font-size:13px;color:var(--text-2)">Codex 选择 Starlark（Python 的确定性子集，由 Google 为 Bazel 开发）作为规则语言，而不是 YAML/JSON/TOML。原因：Starlark 支持函数调用语法（<code>prefix_rule(...)</code>），比声明式格式更适合表达带逻辑的规则；同时它是"纯确定性"的（没有 import、没有 I/O、没有随机数），保证配置的可重现性。这是"内嵌 DSL"设计模式 -- 用一个受限的通用语言代替自制的配置格式。</p>
+</div>
+
+<div style="margin-top:48px;padding-top:24px;border-top:1px solid var(--border);font-size:13px;color:var(--text-3)">
+  MilkSU Agent 系统架构设计文档 | 2026-07
+</div>
+
+</main>
+
+<script>
+const links = document.querySelectorAll('nav a');
+const sections = [];
+links.forEach(link => {
+  const id = link.getAttribute('href')?.slice(1);
+  if (id) {
+    const el = document.getElementById(id);
+    if (el) sections.push({ el, link });
+  }
+});
+window.addEventListener('scroll', () => {
+  let current = sections[0];
+  for (const s of sections) {
+    if (s.el.getBoundingClientRect().top <= 100) current = s;
+  }
+  links.forEach(l => l.classList.remove('active'));
+  current?.link.classList.add('active');
+});
+</script>
+
+</body>
+</html>

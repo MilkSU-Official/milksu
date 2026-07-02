@@ -15,22 +15,27 @@ milksu/
   bridge.js                     # Node.js bridge: Pi agent <-> Rust IPC
   app/                          # Tauri v2 desktop client
     src/                        #   React frontend (TypeScript)
-      App.tsx                   #     Root: state, IPC, persistence
+      App.tsx                   #     Root: state, IPC, persistence, task type routing
       components/
-        Sidebar.tsx             #     Conversation list, search, delete
-        ChatView.tsx            #     Welcome page + chat + model selector
-        OutputPanel.tsx         #     Tool output side panel
-        SettingsPage.tsx        #     Full-page settings with category sidebar
+        Sidebar.tsx             #     Conversation list with task-type icons, search, delete
+        ChatView.tsx            #     Welcome page (task type selector) + chat + model selector
+        TaskPanel.tsx           #     Security task panels (pentest/ctf/recon/reverse)
+        OutputPanel.tsx         #     Tool output side panel (for chat-type conversations)
+        SettingsPage.tsx        #     Full-page settings with shadcn/ui (General, API Keys, Usage, About)
         ModelSelector.tsx       #     Dropdown model switcher (in input bar)
-      types.ts                  #     Message, Conversation, AppSettings, UsageData, PROVIDERS
-      index.css                 #     Light theme, Tailwind
+        ui/                     #     shadcn/ui components (Button, Card, Switch, Input, Badge, Separator, Label)
+      lib/utils.ts              #     cn() utility (clsx + tailwind-merge)
+      types.ts                  #     TaskType, TaskState, Message, Conversation, AppSettings, UsageData, PROVIDERS
+      tauri.ts                  #     IPC wrapper: native Tauri or localStorage stubs for browser preview
+      index.css                 #     Tailwind v4 + shadcn theme (oklch variables, Geist font)
     src-tauri/                  #   Rust backend
       src/lib.rs                #     IPC commands, bridge process management
       src/settings.rs           #     Settings persistence (JSON file)
       src/storage.rs            #     Conversation persistence (JSON files)
       src/main.rs               #     Entry point
       capabilities/default.json #     IPC + event permission grants
-      tauri.conf.json           #     Window config, build config
+      tauri.conf.json           #     Window config (1200x800), build config
+    components.json             #   shadcn/ui config (base-nova style, Vite framework)
   src/                          # Pi extension (TypeScript)
     index.ts                    #   Extension entry: hooks, tool registration
     skill-loader.ts             #   Scan skills/ for SKILL.md + tools
@@ -57,13 +62,31 @@ User input
   -> Conversation auto-saved to ~/Library/Application Support/com.milksu.app/conversations/
 ```
 
+## Task Type System
+
+Each conversation binds to a task type at creation time:
+
+| Type | Panel | State Tracks |
+|------|-------|-------------|
+| chat | none (OutputPanel for tool results) | messages only |
+| pentest | PentestPanel | target, phase (6 stages), vulnerabilities, ports, tools used |
+| ctf | CtfPanel | challenge, category, points, flags, solved status |
+| recon | ReconPanel | scope, hosts, ports/services, findings |
+| reverse | ReversePanel | binary, arch, protections (NX/canary/PIE/RELRO), functions, findings |
+
+- Welcome page shows task type selector (color-coded pills with lucide icons)
+- Sidebar shows task type icon per conversation
+- Chat header shows task type badge
+- Task panel overlays chat area from the right (does not squeeze chat layout)
+- Panel button in chat header toggles the panel
+
 ## Current Progress
 
 ### Done
 
 - [x] Tauri v2 project scaffolding (React + Rust + Vite)
 - [x] Codex-style UI: centered welcome page, sidebar, chat view
-- [x] Light/white theme throughout
+- [x] Light/white theme with Geist font
 - [x] Custom app icon (transparent background, Dock only)
 - [x] Frontend-backend IPC wired: invoke + event channel
 - [x] Tauri v2 capabilities/permissions configured
@@ -71,15 +94,18 @@ User input
 - [x] Three skills: hello-world, browser-connect, network-recon
 - [x] Bridge.js: Node.js subprocess calling Pi createAgentSession()
 - [x] Streaming text output: assistant_delta events -> incremental render
-- [x] Settings page: API key config for 5 providers (DeepSeek, Anthropic, OpenAI, Google, Groq)
+- [x] Settings page: full-page layout with shadcn/ui (General, API Keys, Usage, About)
 - [x] Model selector: dropdown in input bar, per-provider model list
 - [x] Conversation persistence: auto-save to JSON files, load on startup
 - [x] Sidebar search: filter conversations by title/content
 - [x] Conversation delete: hover X button on sidebar items
 - [x] Tool result rendering: collapsible cards with status indicator
-- [x] Settings page redesign: full-page layout with category sidebar (General, API Keys, Usage, About)
-- [x] Usage statistics panel: conversation/message/tool counts, estimated token count, real usage placeholders, provider status
-- [x] Browser-preview fallback: `npm run dev` works outside Tauri using localStorage-backed settings/conversation stubs
+- [x] Usage statistics panel: estimated tokens, real-time metrics placeholders, provider status
+- [x] Browser-preview fallback: `npm run dev` works outside Tauri using localStorage stubs
+- [x] shadcn/ui migration: Button, Card, Switch, Input, Badge, Separator, Label + lucide icons
+- [x] Task type system: per-conversation task type (chat/pentest/ctf/recon/reverse)
+- [x] Security panels: pentest (phase tracker, vulns, ports), CTF (flags, solved), recon (hosts, services), reverse (protections, functions)
+- [x] Task panel overlay layout: floats over chat area, does not squeeze content
 
 ### In Progress
 
@@ -89,44 +115,14 @@ User input
 
 ### Planned
 
-- [ ] Security dashboard panels (pentest, CTF, reverse engineering)
+- [ ] Wire task panel state: agent tool results populate panel fields (target, vulns, ports, flags)
+- [ ] Subagents: parallel task execution (both Codex and Claude Code have this)
+- [ ] Hooks/lifecycle: policy-engine.ts real implementation (PreToolUse, Stop, Notification)
+- [ ] Auto mode: permission classification for security tools
+- [ ] Long-running tasks: /goal-like autonomous scans
+- [ ] Conversation branching: /fork-like attack path exploration
 - [ ] Vision loop: browser_vision_act tool using VL model
-- [ ] Export: conversation history, scan reports
-
-## Codex Handoff 2026-06-27
-
-Codex made direct supervisory fixes after finding issues during QA. Claude should review these files before continuing and avoid overwriting them blindly:
-
-- `app/src/tauri.ts`: Added a Tauri IPC wrapper. Native Tauri still uses real `invoke`/`listen`; browser-only `npm run dev` uses localStorage-backed settings and conversation stubs so UI QA does not white-screen outside the Tauri WebView.
-- `app/src/App.tsx`: Switched Tauri IPC calls to the wrapper and kept the desktop runtime path intact.
-- `app/src/components/SettingsPage.tsx`: Fixed responsive layout. Desktop keeps the full-page settings sidebar; narrow windows move settings navigation above content so labels, cards, and buttons do not overlap.
-- `app/src/types.ts`: Added `UsageData` and `EMPTY_USAGE` placeholders for future real usage telemetry.
-- `CLAUDE.md`, `TEST_PLAN.md`, `app/README.md`: Updated docs, browser-preview guidance, and verification steps.
-
-Verification already run by Codex:
-
-- `cd app && npm run build` passes.
-- `cd app && npm run lint` passes.
-- Browser preview at `http://127.0.0.1:1420/` renders without new console errors after a clean reload.
-- Settings opens in browser preview without a blank page.
-- Usage page clearly labels token counts as estimated and real metrics as unavailable.
-- Narrow viewport around 390px wide keeps settings content readable.
-
-Suggested commit message for this batch:
-
-```text
-feat(app): refine settings usage panel and browser preview fallback
-
-- add Tauri IPC wrapper with browser-preview localStorage stubs
-- clarify estimated versus real usage metrics
-- make settings page responsive for narrow windows
-- update README, CLAUDE notes, and UI test plan
-```
-
-Next phase ownership:
-
-- shadcn/ui migration is owned by Claude. Codex did not initialize shadcn, did not add components, and should not touch shadcn configuration unless the user explicitly reassigns that work.
-- Before starting shadcn work, Claude should inspect the current diff, decide whether to commit or preserve this batch, then plan the shadcn migration from the current working tree.
+- [ ] Export: conversation history, scan reports (deprioritized)
 
 ## Dev
 
@@ -159,6 +155,24 @@ cd app && npx tauri build
 | OpenAI | OPENAI_API_KEY | gpt-4o |
 | Google Gemini | GEMINI_API_KEY | gemini-2.5-flash |
 | Groq | GROQ_API_KEY | llama-3.3-70b-versatile |
+
+## Feature Gap vs Commercial Platforms
+
+Based on analysis of Codex and Claude Code capabilities (see ~/Downloads/agent-harness-talk_7.html):
+
+| Capability | Codex | Claude Code | MilkSU |
+|-----------|-------|-------------|--------|
+| Project rules | AGENTS.md | CLAUDE.md | SKILL.md |
+| Skills | Skills | Skills (.claude/skills/) | Pi skill system |
+| Subagents | 6 concurrent | 5 layers + Workflows | Planned |
+| Auto execution | Permission Profiles | Auto Mode (classifier) | Planned |
+| Lifecycle hooks | PostToolUse (limited) | Hooks (Pre/Stop/Notification) | policy-engine stub |
+| Browser | Computer Use + Chrome ext | Computer Use + Chrome ext | Planned |
+| Long tasks | /goal | -- | Planned |
+| Fork | /fork | -- | Planned |
+| Scheduled | Automations | CLI headless + GH Action | -- |
+| Plugins | -- | Plugin marketplace | Pi extension system |
+| MCP | MCP | MCP | Pi native |
 
 ## Key Concepts (Agent Harness)
 
@@ -193,6 +207,15 @@ Each skill is a directory with:
 - `prompts/`: Optional workflow prompts for complex operations
 
 The skill-router builds a routing prompt listing available skills. Pi's agent sees this in its system prompt and selects appropriate tools based on user intent.
+
+### Task-Type-Aware Chat (MilkSU-specific)
+
+- Each conversation carries a `taskType` field persisted to JSON
+- ChatView renders task-specific placeholder text and description on the welcome page
+- TaskPanel component dispatches to type-specific sub-panels (PentestPanel, CtfPanel, etc.)
+- Panel state (`TaskState` union type) tracks domain-specific data structures
+- The panel overlays the chat area (position: absolute) to avoid squeezing the chat layout
+- This pattern maps well to the Agent Harness concept: the harness (panel) provides context and structure, while the agent (chat) provides intelligence
 
 ### Tool Result Dual-Channel
 
