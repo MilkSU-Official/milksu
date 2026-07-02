@@ -31,9 +31,22 @@ google-chrome --remote-debugging-port=9222
 - `browser_type` — Type text into an input field
 - `browser_evaluate` — Execute JavaScript in the page context
 - `browser_navigate` — Navigate to a URL
+- `browser_analyze` -- Analyze page for security-relevant elements (forms, links, scripts, cookies, headers, storage)
+- `browser_intercept` -- Intercept HTTP requests: log, block by pattern, modify headers
+- `browser_network` -- Passive network monitor: capture request/response pairs with headers and timing
 
 ## Usage Patterns
 
 For known DOM structure, use CSS selectors (`browser_click`, `browser_type`).
 For unknown or complex pages, use `browser_screenshot` + Vision Loop for visual analysis.
 Always use `browser_get_page` first to understand the current page state before interacting.
+
+## Pentest Workflow
+
+1. Connect with `browser_connect`
+2. Run `browser_analyze` to map the page attack surface
+3. Start `browser_network` to capture traffic
+4. Interact with forms, click links, trigger AJAX calls
+5. Read `browser_network` log to find API endpoints, auth tokens, CSRF tokens
+6. Use `browser_intercept` to replay modified requests (header injection, parameter tampering)
+7. Report findings via `panel_update` from the panel skill

@@ -569,3 +569,492 @@ Then in the panel-update listener, use `activeIdRef.current` instead of `activeI
 - App.tsx merges `set_fields` (overwrite) and `append_items` (append to arrays) into `conversation.taskState`
 - TaskPanel auto-opens when a panel update arrives for the active conversation
 - Updated taskState persists to disk via `save_conversation`
+
+---
+
+## Task S4: Browser CDP Enhancement -- Pentest-Focused Tools
+
+### Context
+The `skills/browser-connect/` skill connects to Chrome via CDP using Playwright. It already has 9 tools for basic browsing (connect, tabs, navigate, get_page, screenshot, click, type, evaluate). S4 adds 3 pentest-focused tools to give the agent the capabilities it needs for web application security testing.
+
+All new tools go in `skills/browser-connect/tools/` and use the same `ensureConnected()` pattern from `connect.ts`. No changes to bridge.js, Rust, or the frontend are needed.
+
+### What to do
+
+#### 1. Create `skills/browser-connect/tools/analyze.ts`
+
+A single tool `browser_analyze` that performs automated page security analysis. Returns structured data about the page's attack surface.
+
+```typescript
+import { Type } from "typebox";
+import { defineTool } from "@earendil-works/pi-coding-agent";
+import { ensureConnected } from "./connect.ts";
+
+export const browserAnalyze = defineTool({
+  name: "browser_analyze",
+  label: "Browser Analyze",
+  description:
+    "Analyze the current page for security-relevant elements: forms (with hidden fields, CSRF tokens), links (internal/external), scripts (inline/external), cookies, meta tags, and response headers. Use this as a first step when assessing a web application page.",
+  parameters: Type.Object({
+    scope: Type.Optional(
+      Type.Array(
+        Type.Union([
+          Type.Literal("forms"),
+          Type.Literal("links"),
+          Type.Literal("scripts"),
+          Type.Literal("cookies"),
+          Type.Literal("headers"),
+          Type.Literal("storage"),
+        ]),
+        { description: "Which analyses to run (default: all)" }
+      )
+    ),
+  }),
+  async execute(_toolCallId, params) {
+    const { page } = await ensureConnected();
+    const scope = params.scope ?? ["forms", "links", "scripts", "cookies", "headers", "storage"];
+    const result: Record<string, unknown> = {};
+
+    if (scope.includes("forms")) {
+      result.forms = await page.evaluate(() => {
+        return Array.from(document.querySelectorAll("form")).map((form) => ({
+          action: form.action,
+          method: form.method,
+          id: form.id || null,
+          inputs: Array.from(form.querySelectorAll("input, select, textarea")).map((el) => ({
+            name: (el as HTMLInputElement).name,
+            type: (el as HTMLInputElement).type,
+            value: (el as HTMLInputElement).type === "hidden" ? (el as HTMLInputElement).value : null,
+          })),
+        }));
+      });
+    }
+
+    if (scope.includes("links")) {
+      result.links = await page.evaluate(() => {
+        const origin = window.location.origin;
+        return Array.from(document.querySelectorAll("a[href]")).map((a) => {
+          const href = (a as HTMLAnchorElement).href;
+          return {
+            href,
+            text: (a as HTMLAnchorElement).innerText.trim().slice(0, 80),
+            external: !href.startsWith(origin),
+          };
+        });
+      });
+    }
+
+    if (scope.includes("scripts")) {
+      result.scripts = await page.evaluate(() => {
+        return Array.from(document.querySelectorAll("script")).map((s) => ({
+          src: s.src || null,
+          inline: !s.src,
+          length: s.src ? null : s.textContent?.length ?? 0,
+          type: s.type || null,
+          nonce: s.nonce || null,
+        }));
+      });
+    }
+
+    if (scope.includes("cookies")) {
+      const cookies = await page.context().cookies();
+      result.cookies = cookies.map((c) => ({
+        name: c.name,
+        domain: c.domain,
+        path: c.path,
+        httpOnly: c.httpOnly,
+        secure: c.secure,
+        sameSite: c.sameSite,
+        expires: c.expires,
+      }));
+    }
+
+    if (scope.includes("headers")) {
+      // Get response headers from the main document by re-fetching the URL
+      // via the CDP session to read headers without navigating
+      result.headers = await page.evaluate(() => {
+        const meta: Record<string, string> = {};
+        document.querySelectorAll("meta").forEach((m) => {
+          const name = m.getAttribute("name") || m.getAttribute("http-equiv");
+          const content = m.getAttribute("content");
+          if (name && content) meta[name] = content;
+        });
+        return meta;
+      });
+    }
+
+    if (scope.includes("storage")) {
+      result.storage = await page.evaluate(() => {
+        const ls: Record<string, string> = {};
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key) ls[key] = localStorage.getItem(key)?.slice(0, 200) ?? "";
+        }
+        const ss: Record<string, string> = {};
+        for (let i = 0; i < sessionStorage.length; i++) {
+          const key = sessionStorage.key(i);
+          if (key) ss[key] = sessionStorage.getItem(key)?.slice(0, 200) ?? "";
+        }
+        return { localStorage: ls, sessionStorage: ss };
+      });
+    }
+
+    const url = page.url();
+    const title = await page.title();
+    const text = JSON.stringify(result, null, 2);
+
+    return {
+      content: [{ type: "text", text: `Page analysis for [${title}] (${url}):\n\n${text}` }],
+      details: { url, title, ...result },
+    };
+  },
+});
+```
+
+#### 2. Create `skills/browser-connect/tools/intercept.ts`
+
+Request interception tool using Playwright's `page.route()`. The agent can set up rules to log, block, or modify requests.
+
+```typescript
+import { Type } from "typebox";
+import { defineTool } from "@earendil-works/pi-coding-agent";
+import { ensureConnected } from "./connect.ts";
+import type { Route, Request } from "playwright-core";
+
+interface InterceptedRequest {
+  url: string;
+  method: string;
+  headers: Record<string, string>;
+  postData: string | null;
+  resourceType: string;
+  timestamp: number;
+}
+
+const interceptLog: InterceptedRequest[] = [];
+let interceptActive = false;
+
+export const browserIntercept = defineTool({
+  name: "browser_intercept",
+  label: "Browser Intercept",
+  description:
+    "Start or stop HTTP request interception on the current page. When active, all requests are logged. Optionally block requests by URL pattern or modify request headers. Call with action 'start' to begin, 'stop' to end and get the log, or 'log' to read the current log without stopping.",
+  parameters: Type.Object({
+    action: Type.Union(
+      [Type.Literal("start"), Type.Literal("stop"), Type.Literal("log")],
+      { description: "start: begin intercepting, stop: end and return log, log: read log" }
+    ),
+    blockPatterns: Type.Optional(
+      Type.Array(Type.String(), {
+        description: "URL substrings to block (e.g., ['analytics', 'tracking']). Only used with 'start'.",
+      })
+    ),
+    modifyHeaders: Type.Optional(
+      Type.Record(Type.String(), Type.String(), {
+        description: "Headers to add/override on outgoing requests. Only used with 'start'.",
+      })
+    ),
+  }),
+  async execute(_toolCallId, params) {
+    const { page } = await ensureConnected();
+
+    if (params.action === "log") {
+      return {
+        content: [
+          {
+            type: "text",
+            text: interceptActive
+              ? `Intercepting. ${interceptLog.length} request(s) captured:\n${formatLog(interceptLog)}`
+              : "Interception is not active.",
+          },
+        ],
+        details: { active: interceptActive, count: interceptLog.length, requests: interceptLog.slice(-50) },
+      };
+    }
+
+    if (params.action === "stop") {
+      await page.unrouteAll({ behavior: "ignoreErrors" });
+      interceptActive = false;
+      const log = [...interceptLog];
+      interceptLog.length = 0;
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Interception stopped. ${log.length} request(s) captured:\n${formatLog(log)}`,
+          },
+        ],
+        details: { count: log.length, requests: log.slice(-100) },
+      };
+    }
+
+    // action === "start"
+    if (interceptActive) {
+      await page.unrouteAll({ behavior: "ignoreErrors" });
+    }
+    interceptLog.length = 0;
+    interceptActive = true;
+
+    const blockPatterns = params.blockPatterns ?? [];
+    const modifyHeaders = params.modifyHeaders ?? {};
+
+    await page.route("**/*", async (route: Route, request: Request) => {
+      interceptLog.push({
+        url: request.url(),
+        method: request.method(),
+        headers: request.headers(),
+        postData: request.postData(),
+        resourceType: request.resourceType(),
+        timestamp: Date.now(),
+      });
+
+      const shouldBlock = blockPatterns.some((pattern) =>
+        request.url().includes(pattern)
+      );
+      if (shouldBlock) {
+        await route.abort("blockedbyclient");
+        return;
+      }
+
+      if (Object.keys(modifyHeaders).length > 0) {
+        const headers = { ...request.headers(), ...modifyHeaders };
+        await route.continue({ headers });
+        return;
+      }
+
+      await route.continue();
+    });
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Interception started.${blockPatterns.length > 0 ? ` Blocking: ${blockPatterns.join(", ")}` : ""}${Object.keys(modifyHeaders).length > 0 ? ` Modifying headers: ${Object.keys(modifyHeaders).join(", ")}` : ""}`,
+        },
+      ],
+      details: { active: true, blockPatterns, modifyHeaders },
+    };
+  },
+});
+
+function formatLog(log: InterceptedRequest[]): string {
+  if (log.length === 0) return "(none)";
+  return log
+    .slice(-30)
+    .map((r) => `${r.method} ${r.url}${r.postData ? " [has body]" : ""}`)
+    .join("\n");
+}
+```
+
+#### 3. Create `skills/browser-connect/tools/network.ts`
+
+Passive network monitor that captures request/response pairs with headers, status codes, and timing. Complements `browser_intercept` (which can modify) by providing a read-only view.
+
+```typescript
+import { Type } from "typebox";
+import { defineTool } from "@earendil-works/pi-coding-agent";
+import { ensureConnected } from "./connect.ts";
+
+interface CapturedExchange {
+  url: string;
+  method: string;
+  requestHeaders: Record<string, string>;
+  postData: string | null;
+  status: number | null;
+  responseHeaders: Record<string, string>;
+  contentType: string | null;
+  responseSize: number | null;
+  timing: number | null;
+  timestamp: number;
+}
+
+const exchanges: CapturedExchange[] = [];
+let monitorActive = false;
+let cleanupFns: (() => void)[] = [];
+
+export const browserNetwork = defineTool({
+  name: "browser_network",
+  label: "Browser Network",
+  description:
+    "Start or stop passive network monitoring. Captures HTTP request/response pairs with headers, status, size, and timing. Use 'start' to begin, 'stop' to end and get the full log, 'log' to read current captures. Optionally filter by URL pattern and/or HTTP method.",
+  parameters: Type.Object({
+    action: Type.Union(
+      [Type.Literal("start"), Type.Literal("stop"), Type.Literal("log")],
+      { description: "start/stop/log" }
+    ),
+    urlFilter: Type.Optional(
+      Type.String({ description: "Only capture URLs containing this substring" })
+    ),
+    methodFilter: Type.Optional(
+      Type.String({ description: "Only capture this HTTP method (GET, POST, etc.)" })
+    ),
+  }),
+  async execute(_toolCallId, params) {
+    const { page } = await ensureConnected();
+
+    if (params.action === "log") {
+      const filtered = filterExchanges(exchanges, params.urlFilter, params.methodFilter);
+      return {
+        content: [
+          {
+            type: "text",
+            text: monitorActive
+              ? `Monitoring. ${filtered.length} exchange(s):\n${formatExchanges(filtered)}`
+              : "Monitor is not active.",
+          },
+        ],
+        details: { active: monitorActive, count: filtered.length, exchanges: filtered.slice(-50) },
+      };
+    }
+
+    if (params.action === "stop") {
+      for (const fn of cleanupFns) fn();
+      cleanupFns = [];
+      monitorActive = false;
+      const filtered = filterExchanges(exchanges, params.urlFilter, params.methodFilter);
+      const result = [...filtered];
+      exchanges.length = 0;
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Monitor stopped. ${result.length} exchange(s):\n${formatExchanges(result)}`,
+          },
+        ],
+        details: { count: result.length, exchanges: result.slice(-100) },
+      };
+    }
+
+    // action === "start"
+    for (const fn of cleanupFns) fn();
+    cleanupFns = [];
+    exchanges.length = 0;
+    monitorActive = true;
+
+    const pending = new Map<string, { req: CapturedExchange; startTime: number }>();
+
+    const onRequest = (request: import("playwright-core").Request) => {
+      const entry: CapturedExchange = {
+        url: request.url(),
+        method: request.method(),
+        requestHeaders: request.headers(),
+        postData: request.postData(),
+        status: null,
+        responseHeaders: {},
+        contentType: null,
+        responseSize: null,
+        timing: null,
+        timestamp: Date.now(),
+      };
+      pending.set(request.url() + request.method(), { req: entry, startTime: Date.now() });
+    };
+
+    const onResponse = (response: import("playwright-core").Response) => {
+      const key = response.url() + response.request().method();
+      const record = pending.get(key);
+      if (record) {
+        record.req.status = response.status();
+        record.req.responseHeaders = response.headers();
+        record.req.contentType = response.headers()["content-type"] ?? null;
+        record.req.timing = Date.now() - record.startTime;
+        exchanges.push(record.req);
+        pending.delete(key);
+      } else {
+        exchanges.push({
+          url: response.url(),
+          method: response.request().method(),
+          requestHeaders: response.request().headers(),
+          postData: response.request().postData(),
+          status: response.status(),
+          responseHeaders: response.headers(),
+          contentType: response.headers()["content-type"] ?? null,
+          responseSize: null,
+          timing: null,
+          timestamp: Date.now(),
+        });
+      }
+    };
+
+    page.on("request", onRequest);
+    page.on("response", onResponse);
+    cleanupFns.push(
+      () => page.removeListener("request", onRequest),
+      () => page.removeListener("response", onResponse)
+    );
+
+    return {
+      content: [{ type: "text", text: "Network monitor started. Navigate or interact with the page to capture traffic." }],
+      details: { active: true },
+    };
+  },
+});
+
+function filterExchanges(
+  items: CapturedExchange[],
+  urlFilter?: string,
+  methodFilter?: string
+): CapturedExchange[] {
+  return items.filter((e) => {
+    if (urlFilter && !e.url.includes(urlFilter)) return false;
+    if (methodFilter && e.method.toUpperCase() !== methodFilter.toUpperCase()) return false;
+    return true;
+  });
+}
+
+function formatExchanges(items: CapturedExchange[]): string {
+  if (items.length === 0) return "(none)";
+  return items
+    .slice(-30)
+    .map((e) => {
+      const status = e.status !== null ? ` -> ${e.status}` : "";
+      const ct = e.contentType ? ` (${e.contentType.split(";")[0]})` : "";
+      const timing = e.timing !== null ? ` ${e.timing}ms` : "";
+      return `${e.method} ${e.url}${status}${ct}${timing}`;
+    })
+    .join("\n");
+}
+```
+
+#### 4. Update `skills/browser-connect/SKILL.md`
+
+Add the 3 new tools to the "Available Tools" section:
+
+After the existing list, add:
+```markdown
+- `browser_analyze` -- Analyze page for security-relevant elements (forms, links, scripts, cookies, headers, storage)
+- `browser_intercept` -- Intercept HTTP requests: log, block by pattern, modify headers
+- `browser_network` -- Passive network monitor: capture request/response pairs with headers and timing
+```
+
+Add a new section after "Usage Patterns":
+```markdown
+## Pentest Workflow
+
+1. Connect with `browser_connect`
+2. Run `browser_analyze` to map the page attack surface
+3. Start `browser_network` to capture traffic
+4. Interact with forms, click links, trigger AJAX calls
+5. Read `browser_network` log to find API endpoints, auth tokens, CSRF tokens
+6. Use `browser_intercept` to replay modified requests (header injection, parameter tampering)
+7. Report findings via `panel_update` from the panel skill
+```
+
+### Files
+
+| File | Action |
+|------|--------|
+| `skills/browser-connect/tools/analyze.ts` | Create |
+| `skills/browser-connect/tools/intercept.ts` | Create |
+| `skills/browser-connect/tools/network.ts` | Create |
+| `skills/browser-connect/SKILL.md` | Modify: add 3 tools + pentest workflow section |
+
+### Do NOT modify
+- `skills/browser-connect/tools/connect.ts` -- ensureConnected() and existing connect tools stay as-is
+- `skills/browser-connect/tools/interact.ts` -- existing click/type/evaluate stay as-is
+- `skills/browser-connect/tools/page-ops.ts` -- existing get_page/screenshot/navigate stay as-is
+- Any files outside `skills/browser-connect/`
+
+### Acceptance criteria
+- `node --check` passes on all 3 new files (no syntax errors)
+- `discoverSkills('/Users/milksu/code/milksu/skills')` finds `browser_analyze`, `browser_intercept`, and `browser_network` as registered tools
+- SKILL.md lists all 12 tools (9 existing + 3 new)
+- No changes to files outside `skills/browser-connect/`
