@@ -35,6 +35,10 @@ google-chrome --remote-debugging-port=9222
 - `browser_intercept` -- Intercept HTTP requests: log, block by pattern, modify headers
 - `browser_network` -- Passive network monitor: capture request/response pairs with headers and timing
 
+## Limitations
+
+- Single-session only: `browser_intercept` and `browser_network` use module-level state. If multiple conversations use browser tools concurrently, intercepted requests and network logs will be shared across conversations. Run one browser-related conversation at a time until session isolation is implemented (tracked as architecture issue #4).
+
 ## Usage Patterns
 
 For known DOM structure, use CSS selectors (`browser_click`, `browser_type`).

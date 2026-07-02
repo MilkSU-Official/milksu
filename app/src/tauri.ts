@@ -71,10 +71,6 @@ function writeEngagements(engagements: Engagement[]) {
   writeJson(ENGAGEMENTS_KEY, engagements)
 }
 
-function commandArg<T>(args: CommandArgs | undefined, camelName: string, snakeName?: string): T | undefined {
-  const value = args?.[camelName] ?? (snakeName ? args?.[snakeName] : undefined)
-  return value as T | undefined
-}
 
 export async function invokeCommand<T = unknown>(command: string, args?: CommandArgs): Promise<T> {
   if (hasTauriRuntime()) {
@@ -168,7 +164,7 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
       return undefined as T
     }
     case 'append_timeline_entry': {
-      const engagementId = commandArg<string>(args, 'engagementId', 'engagement_id')
+      const engagementId = args?.engagementId as string | undefined ?? args?.engagement_id as string | undefined
       if (typeof engagementId !== 'string') throw new Error('append_timeline_entry requires engagementId.')
 
       const timelines = readJson<Record<string, unknown[]>>(ENGAGEMENT_TIMELINES_KEY, {})
@@ -177,7 +173,7 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
       return undefined as T
     }
     case 'merge_hosts': {
-      const engagementId = commandArg<string>(args, 'engagementId', 'engagement_id')
+      const engagementId = args?.engagementId as string | undefined ?? args?.engagement_id as string | undefined
       const hosts = args?.hosts
       if (typeof engagementId !== 'string' || !Array.isArray(hosts)) {
         throw new Error('merge_hosts requires engagementId and hosts.')

@@ -15,7 +15,11 @@ milksu/
   bridge.js                     # Node.js bridge: Pi agent <-> Rust IPC
   app/                          # Tauri v2 desktop client
     src/                        #   React frontend (TypeScript)
-      App.tsx                   #     Root: state, IPC, persistence, task type routing
+      App.tsx                   #     Root: layout, routing, settings
+      hooks/
+        useConversations.ts     #     Conversation CRUD, persistence, panel merge
+        useAgentEvents.ts       #     agent-message + panel-update event listeners
+        useDerivedState.ts      #     Derive TaskState from Engagement data
       components/
         Sidebar.tsx             #     Conversation list with task-type icons, search, delete
         ChatView.tsx            #     Welcome page (task type selector) + chat + model selector
@@ -107,15 +111,21 @@ Each conversation binds to a task type at creation time:
 - [x] Security panels: pentest (phase tracker, vulns, ports), CTF (flags, solved), recon (hosts, services), reverse (protections, functions)
 - [x] Task panel overlay layout: floats over chat area, does not squeeze content
 
+### Architecture Fixes (2026-07-02)
+
+- [x] serde rename_all camelCase: eliminated fromStored/toStored/commandArg manual mapping
+- [x] Bridge crash recovery: Arc<Mutex<...>>, emit bridge-error on reader thread exit
+- [x] App.tsx hook extraction: useConversations + useAgentEvents (394 -> 181 lines)
+- [x] TaskState derived from Engagement: deriveTaskState() for pentest/recon panels
+- [x] Browser tools single-session limitation documented in SKILL.md
+
 ### In Progress
 
+- [ ] Bridge SessionPool (single bridge -> per-conversation sessions, S5 prerequisite)
 - [ ] End-to-end test with real API key (DeepSeek)
-  - bridge.js + Pi session verified working
-  - Needs user to fill API key in Settings page
 
 ### Planned
 
-- [ ] Wire task panel state: agent tool results populate panel fields (target, vulns, ports, flags)
 - [ ] Subagents: parallel task execution (both Codex and Claude Code have this)
 - [ ] Hooks/lifecycle: policy-engine.ts real implementation (PreToolUse, Stop, Notification)
 - [ ] Auto mode: permission classification for security tools

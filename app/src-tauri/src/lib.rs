@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use settings::AppSettings;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Command, Stdio};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use storage::StoredConversation;
 use tauri::{Emitter, Manager};
 
@@ -47,7 +47,7 @@ struct BridgeProcess {
 }
 
 struct AppState {
-    bridge: Mutex<Option<BridgeProcess>>,
+    bridge: Arc<Mutex<Option<BridgeProcess>>>,
     settings: Mutex<AppSettings>,
 }
 
@@ -127,6 +127,7 @@ fn ensure_bridge(state: &AppState, app: &tauri::AppHandle) -> Result<(), String>
         .ok_or("Failed to capture bridge stdout")?;
 
     let app_clone = app.clone();
+    let bridge_ref = state.bridge.clone();
     std::thread::spawn(move || {
         let reader = BufReader::new(stdout);
         for line in reader.lines() {
@@ -227,6 +228,10 @@ fn ensure_bridge(state: &AppState, app: &tauri::AppHandle) -> Result<(), String>
                 _ => {}
             }
         }
+        if let Ok(mut guard) = bridge_ref.lock() {
+            *guard = None;
+        }
+        let _ = app_clone.emit("bridge-error", "Bridge process exited");
     });
 
     *guard = Some(BridgeProcess { stdin });
@@ -308,7 +313,7 @@ pub fn run() {
         .setup(|app| {
             let s = settings::load_settings();
             app.manage(AppState {
-                bridge: Mutex::new(None),
+                bridge: Arc::new(Mutex::new(None)),
                 settings: Mutex::new(s),
             });
             Ok(())

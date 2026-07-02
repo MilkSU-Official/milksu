@@ -194,6 +194,7 @@
   <div class="nav-section">Part 3: 未来方向</div>
   <a href="#strategy">战略定位</a>
   <a href="#directions">六个方向</a>
+  <a href="#arch-issues">架构问题</a>
   <a href="#priority">优先级路线</a>
   <a href="#summary">最终总结</a>
 </nav>
@@ -582,7 +583,7 @@ listenEvent('agent-message',
   </tr>
   <tr>
     <td class="col-label">技能 / 插件</td>
-    <td><span class="tag tag-done">Pi skills</span></td>
+    <td><span class="tag tag-done">Pi skills (4 个, 15 工具)</span></td>
     <td><span class="tag tag-done">Skills</span></td>
     <td><span class="tag tag-done">.claude/skills</span></td>
     <td><span class="tag tag-done">ClawHub</span></td>
@@ -597,8 +598,32 @@ listenEvent('agent-message',
     <td><span class="tag tag-done">MCP</span></td>
   </tr>
   <tr>
+    <td class="col-label">面板状态管道</td>
+    <td><span class="tag tag-unique">panel_update 双通道 (S3)</span></td>
+    <td><span class="tag tag-none">--</span></td>
+    <td><span class="tag tag-none">--</span></td>
+    <td><span class="tag tag-none">--</span></td>
+    <td><span class="tag tag-none">--</span></td>
+  </tr>
+  <tr>
+    <td class="col-label">Engagement 记忆</td>
+    <td><span class="tag tag-done">Rust CRUD + UI (S1+S2)</span></td>
+    <td><span class="tag tag-partial">仅会话</span></td>
+    <td><span class="tag tag-done">.claude/ memory</span></td>
+    <td><span class="tag tag-done">OpenViking</span></td>
+    <td><span class="tag tag-done">Mem0 / OpenViking</span></td>
+  </tr>
+  <tr>
+    <td class="col-label">模型切换</td>
+    <td><span class="tag tag-done">5 家 Provider (S0)</span></td>
+    <td><span class="tag tag-none">仅 OpenAI</span></td>
+    <td><span class="tag tag-none">仅 Anthropic</span></td>
+    <td><span class="tag tag-done">多模型路由</span></td>
+    <td><span class="tag tag-done">多模型</span></td>
+  </tr>
+  <tr>
     <td class="col-label">子 Agent</td>
-    <td><span class="tag tag-planned">计划中</span></td>
+    <td><span class="tag tag-planned">计划中 (S5)</span></td>
     <td><span class="tag tag-done">6 个并发</span></td>
     <td><span class="tag tag-done">5 层 + Workflows</span></td>
     <td><span class="tag tag-done">subagentctl</span></td>
@@ -613,16 +638,8 @@ listenEvent('agent-message',
     <td><span class="tag tag-done">容器</span></td>
   </tr>
   <tr>
-    <td class="col-label">记忆系统</td>
-    <td><span class="tag tag-none">无</span></td>
-    <td><span class="tag tag-partial">仅会话</span></td>
-    <td><span class="tag tag-done">.claude/ memory</span></td>
-    <td><span class="tag tag-done">OpenViking</span></td>
-    <td><span class="tag tag-done">Mem0 / OpenViking</span></td>
-  </tr>
-  <tr>
     <td class="col-label">浏览器控制</td>
-    <td><span class="tag tag-planned">计划中 (CDP)</span></td>
+    <td><span class="tag tag-done">CDP 12 工具 (S4)</span></td>
     <td><span class="tag tag-done">Computer Use</span></td>
     <td><span class="tag tag-done">Computer Use + Chrome 扩展</span></td>
     <td><span class="tag tag-none">--</span></td>
@@ -957,58 +974,103 @@ case 'nmap_scan':
   <p>这完成了端到端工作流：发现（agent）-> 追踪（面板）-> 报告（导出）。</p>
 </div>
 
+<!-- 架构问题 (2026-07-02 review) -->
+<h2 id="arch-issues">17. 架构问题 (2026-07-02 Review)</h2>
+
+<div class="callout callout-red">
+  <strong>#1 Engagement vs TaskState 数据重复 [严重]</strong><br>
+  <code>Engagement</code> 有 <code>EngagementHost</code>（ip, services, vulnerabilities）。<code>PentestState</code> 有 <code>ports[]</code> 和 <code>vulnerabilities[]</code>。<code>ReconState</code> 有 <code>hosts[]</code> 和 <code>ports[]</code>。同样的数据两种形状，互不同步。panel_update 写 TaskState，engagement CRUD 写 Engagement。<br>
+  <strong>修复方案：</strong>让 TaskState 成为 Engagement 数据的<em>视图</em>，不是独立存储。
+</div>
+
+<div class="callout callout-red">
+  <strong>#2 单 Bridge 进程，单对话 [严重]</strong><br>
+  <code>bridge.js</code> 用模块级 <code>currentPromptId</code> 和单个 <code>session</code>。所有事件携带最后设置的 prompt ID。Rust 侧 <code>Mutex&lt;Option&lt;BridgeProcess&gt;&gt;</code> -- 整个应用只有一个 bridge。无对话隔离。<br>
+  <strong>修复方案：</strong>bridge 管理 <code>Map&lt;convId, Session&gt;</code>，按 ID 路由事件。S5 子 agent 的前置条件。
+</div>
+
+<div class="callout callout-amber">
+  <strong>#3 App.tsx God Component [警告]</strong><br>
+  394 行，11 个 useState，7 个 useCallback，3 个 useEffect。拥有对话 CRUD、消息路由、面板合并、engagement 状态、设置管理、任务类型切换和布局切换。每个 sprint 都在增长。<br>
+  <strong>修复方案：</strong>提取 <code>useConversations()</code>、<code>useAgentEvents()</code>、<code>usePanelUpdates()</code> 自定义 hook。
+</div>
+
+<div class="callout callout-amber">
+  <strong>#4 Browser 工具共享可变模块状态 [警告]</strong><br>
+  <code>intercept.ts</code> 和 <code>network.ts</code> 有模块级数组和标志。两个对话用浏览器工具会共享拦截日志和网络捕获。<br>
+  <strong>修复方案：</strong>按连接/会话 key 隔离状态，或文档标注为单会话限制。
+</div>
+
+<div class="callout callout-blue">
+  <strong>#5 Bridge 崩溃 = 静默死亡 [次要]</strong><br>
+  bridge.js 崩溃后，stdout 读取线程静默退出（<code>Err(_) =&gt; break</code>）。<code>Mutex</code> 仍然持有 <code>Some(...)</code> 和死掉的 stdin 管道。无重连、无 UI 通知。<br>
+  <strong>修复方案：</strong>读取线程退出时把 bridge 设为 <code>None</code>（通过 <code>Arc&lt;Mutex&gt;</code>），emit <code>bridge-error</code> 事件。
+</div>
+
+<div class="callout callout-blue">
+  <strong>#6 camelCase / snake_case 边界脆弱 [次要]</strong><br>
+  前端 camelCase，Rust snake_case。<code>App.tsx</code> 有 <code>fromStored()</code>/<code>toStored()</code> 手动映射。<code>tauri.ts</code> 有 <code>commandArg()</code> 尝试两种命名。每个新字段需要在 3 处添加映射。<br>
+  <strong>修复方案：</strong>Rust struct 加 <code>#[serde(rename_all = "camelCase")]</code>，JSON 统一 camelCase。删除手动映射代码。
+</div>
+
 <!-- 优先级 -->
-<h2 id="priority">17. 优先级路线</h2>
+<h2 id="priority">18. 优先级路线 (已更新)</h2>
 
 <table>
-  <tr><th>阶段</th><th>做什么</th><th>为什么排在这</th><th>前置依赖</th></tr>
+  <tr><th>阶段</th><th>做什么</th><th>状态</th><th>前置依赖</th></tr>
   <tr>
-    <td class="col-label">当前</td>
-    <td>端到端 agent 联调（DeepSeek API key）</td>
-    <td>所有后续工作都被这个阻塞</td>
+    <td class="col-label" style="color: var(--green);">S0</td>
+    <td>Agent 循环修复 -- model/provider 传递</td>
+    <td><span class="tag tag-done">完成</span></td>
     <td>--</td>
   </tr>
   <tr>
-    <td class="col-label">第一阶段</td>
-    <td>工具结果 -> 面板状态</td>
-    <td>把空面板变成实时仪表盘。核心差异化。</td>
-    <td>agent 循环跑通</td>
+    <td class="col-label" style="color: var(--green);">S1</td>
+    <td>Engagement 记忆后端 -- Rust CRUD + IPC</td>
+    <td><span class="tag tag-done">完成</span></td>
+    <td>--</td>
   </tr>
   <tr>
-    <td class="col-label">第二阶段</td>
-    <td>安全权限分级（policy-engine.ts）</td>
-    <td>不加安全门禁就不能跑真正的安全工具</td>
-    <td>第一阶段</td>
+    <td class="col-label" style="color: var(--green);">S2</td>
+    <td>Engagement 选择器 UI -- 下拉菜单 + 内联创建</td>
+    <td><span class="tag tag-done">完成</span></td>
+    <td>S1</td>
   </tr>
   <tr>
-    <td class="col-label">第三阶段</td>
-    <td>对话 fork + 攻击图</td>
-    <td>支持并行探索攻击路径</td>
-    <td>第一阶段</td>
+    <td class="col-label" style="color: var(--green);">S3</td>
+    <td>面板状态管道 -- panel_update 事件管道</td>
+    <td><span class="tag tag-done">完成</span></td>
+    <td>--</td>
   </tr>
   <tr>
-    <td class="col-label">第四阶段</td>
-    <td>后台扫描 / /goal 模式</td>
-    <td>长时间扫描不阻塞 UI</td>
-    <td>第二阶段</td>
+    <td class="col-label" style="color: var(--green);">S4</td>
+    <td>Browser CDP -- analyze/intercept/network 渗透工具</td>
+    <td><span class="tag tag-done">完成</span></td>
+    <td>--</td>
   </tr>
   <tr>
-    <td class="col-label">第五阶段</td>
-    <td>视觉循环（浏览器 + VL 模型）</td>
-    <td>Web 渗透自动化</td>
-    <td>第二阶段</td>
+    <td class="col-label" style="color: var(--amber);">Fix</td>
+    <td>架构修复 -- #6 serde camelCase, #5 bridge 崩溃恢复, #3 提取 hooks</td>
+    <td><span class="tag tag-partial">进行中</span></td>
+    <td>--</td>
   </tr>
   <tr>
-    <td class="col-label">第六阶段</td>
-    <td>报告导出 + 发现聚合</td>
-    <td>闭合 发现->追踪->报告 循环</td>
-    <td>第一阶段</td>
+    <td class="col-label">S5</td>
+    <td>子 Agent -- SessionPool, 并行任务, 进度 UI</td>
+    <td><span class="tag tag-planned">计划中</span></td>
+    <td>Fix #2</td>
+  </tr>
+  <tr>
+    <td class="col-label">E2E</td>
+    <td>端到端测试 -- DeepSeek API key 联调</td>
+    <td><span class="tag tag-planned">计划中</span></td>
+    <td>S5</td>
   </tr>
 </table>
 
 <div class="sep"></div>
 
-<h2 id="summary">18. 最终总结</h2>
+<h2 id="summary">19. 最终总结</h2>
 
 <div class="verdict">
   <h3>定义 MilkSU 战略的三句话</h3>

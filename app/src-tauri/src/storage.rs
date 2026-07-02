@@ -3,28 +3,31 @@ use std::fs;
 use std::path::PathBuf;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StoredMessage {
     pub id: String,
     pub role: String,
     pub content: String,
     pub timestamp: u64,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none", alias = "tool_name")]
     pub tool_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StoredConversation {
     pub id: String,
     pub title: String,
+    #[serde(alias = "created_at")]
     pub created_at: u64,
     pub messages: Vec<StoredMessage>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none", alias = "task_type")]
     pub task_type: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none", alias = "task_state")]
     pub task_state: Option<serde_json::Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none", alias = "engagement_id")]
     pub engagement_id: Option<String>,
 }
 
