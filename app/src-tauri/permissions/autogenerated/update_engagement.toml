@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-update-engagement"
+description = "Enables the update_engagement command without any pre-configured scope."
+commands.allow = ["update_engagement"]
+
+[[permission]]
+identifier = "deny-update-engagement"
+description = "Denies the update_engagement command without any pre-configured scope."
+commands.deny = ["update_engagement"]

@@ -97,6 +97,7 @@ export interface Conversation {
   messages: Message[]
   taskType: TaskType
   taskState?: TaskState
+  engagementId?: string | null
 }
 
 export interface ProviderConfig {
@@ -186,3 +187,91 @@ export const PROVIDERS: ProviderInfo[] = [
     placeholder: 'gsk_...',
   },
 ]
+
+export interface Engagement {
+  id: string
+  name: string
+  scope: string[]
+  status: 'active' | 'completed' | 'archived'
+  created: string
+  updated: string
+  conversation_ids: string[]
+  targets: EngagementTarget[]
+  credentials: EngagementCredential[]
+  attack_paths: AttackPath[]
+  notes: string[]
+}
+
+export interface EngagementTarget {
+  id: string
+  type: 'host' | 'domain' | 'subnet' | 'url'
+  value: string
+  authorized: boolean
+  hosts: EngagementHost[]
+}
+
+export interface EngagementHost {
+  ip: string
+  hostnames: string[]
+  os: string | null
+  status: string
+  last_seen: string | null
+  services: EngagementService[]
+  vulnerabilities: EngagementVulnerability[]
+}
+
+export interface EngagementService {
+  port: number
+  protocol: string
+  state: string
+  service: string
+  version: string | null
+  banner: string | null
+  notes: string[]
+}
+
+export interface EngagementVulnerability {
+  id: string
+  severity: 'critical' | 'high' | 'medium' | 'low' | 'info'
+  title: string
+  description: string
+  proof: string | null
+  exploitable: boolean
+  remediation: string | null
+  references: string[]
+}
+
+export interface EngagementCredential {
+  id: string
+  username: string
+  secret: string
+  type: 'password' | 'hash' | 'privateKey' | 'token' | 'cookie'
+  source: string
+  valid: boolean
+}
+
+export interface AttackPath {
+  id: string
+  name: string
+  impact: string
+  steps: AttackStep[]
+}
+
+export interface AttackStep {
+  order: number
+  action: string
+  target: string
+  tool: string
+  result: string
+  timestamp: string
+}
+
+export interface EngagementSummary {
+  id: string
+  name: string
+  status: 'active' | 'completed' | 'archived'
+  updated: string
+  host_count: number
+  vuln_count: number
+  cred_count: number
+}

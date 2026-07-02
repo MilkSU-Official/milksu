@@ -1,12 +1,13 @@
+mod engagement;
 mod settings;
 mod storage;
 
 use serde::{Deserialize, Serialize};
 use settings::AppSettings;
-use storage::StoredConversation;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Command, Stdio};
 use std::sync::Mutex;
+use storage::StoredConversation;
 use tauri::{Emitter, Manager};
 
 #[derive(Clone, Serialize)]
@@ -43,7 +44,10 @@ struct AppState {
 
 fn find_project_root() -> String {
     let exe = std::env::current_exe().unwrap_or_default();
-    let mut dir = exe.parent().unwrap_or(std::path::Path::new(".")).to_path_buf();
+    let mut dir = exe
+        .parent()
+        .unwrap_or(std::path::Path::new("."))
+        .to_path_buf();
 
     for _ in 0..10 {
         if dir.join("bridge.js").exists() {
@@ -56,10 +60,11 @@ fn find_project_root() -> String {
         }
     }
 
-    std::env::var("MILKSU_ROOT")
-        .unwrap_or_else(|_| std::env::current_dir()
+    std::env::var("MILKSU_ROOT").unwrap_or_else(|_| {
+        std::env::current_dir()
             .map(|p| p.to_string_lossy().to_string())
-            .unwrap_or_else(|_| ".".to_string()))
+            .unwrap_or_else(|_| ".".to_string())
+    })
 }
 
 fn ensure_bridge(state: &AppState, app: &tauri::AppHandle) -> Result<(), String> {
@@ -102,12 +107,14 @@ fn ensure_bridge(state: &AppState, app: &tauri::AppHandle) -> Result<(), String>
     }
     drop(s);
 
-    let mut child = cmd.spawn()
+    let mut child = cmd
+        .spawn()
         .map_err(|e| format!("Failed to spawn bridge: {}", e))?;
 
-    let stdin = child.stdin.take()
-        .ok_or("Failed to capture bridge stdin")?;
-    let stdout = child.stdout.take()
+    let stdin = child.stdin.take().ok_or("Failed to capture bridge stdin")?;
+    let stdout = child
+        .stdout
+        .take()
         .ok_or("Failed to capture bridge stdout")?;
 
     let app_clone = app.clone();
@@ -134,50 +141,65 @@ fn ensure_bridge(state: &AppState, app: &tauri::AppHandle) -> Result<(), String>
                 }
                 "text_delta" => {
                     if let Some(delta) = event.delta {
-                        let _ = app_clone.emit("agent-message", AgentMessage {
-                            conversation_id: conv_id,
-                            role: "assistant_delta".to_string(),
-                            content: delta,
-                            tool_name: None,
-                            done: false,
-                        });
+                        let _ = app_clone.emit(
+                            "agent-message",
+                            AgentMessage {
+                                conversation_id: conv_id,
+                                role: "assistant_delta".to_string(),
+                                content: delta,
+                                tool_name: None,
+                                done: false,
+                            },
+                        );
                     }
                 }
                 "message_done" => {
-                    let _ = app_clone.emit("agent-message", AgentMessage {
-                        conversation_id: conv_id,
-                        role: "assistant".to_string(),
-                        content: event.content.unwrap_or_default(),
-                        tool_name: None,
-                        done: true,
-                    });
+                    let _ = app_clone.emit(
+                        "agent-message",
+                        AgentMessage {
+                            conversation_id: conv_id,
+                            role: "assistant".to_string(),
+                            content: event.content.unwrap_or_default(),
+                            tool_name: None,
+                            done: true,
+                        },
+                    );
                 }
                 "tool_call_start" => {
-                    let _ = app_clone.emit("agent-message", AgentMessage {
-                        conversation_id: conv_id,
-                        role: "tool".to_string(),
-                        content: String::new(),
-                        tool_name: event.tool_name,
-                        done: false,
-                    });
+                    let _ = app_clone.emit(
+                        "agent-message",
+                        AgentMessage {
+                            conversation_id: conv_id,
+                            role: "tool".to_string(),
+                            content: String::new(),
+                            tool_name: event.tool_name,
+                            done: false,
+                        },
+                    );
                 }
                 "tool_call_end" => {
-                    let _ = app_clone.emit("agent-message", AgentMessage {
-                        conversation_id: conv_id,
-                        role: "tool".to_string(),
-                        content: event.content.unwrap_or_default(),
-                        tool_name: event.tool_name,
-                        done: true,
-                    });
+                    let _ = app_clone.emit(
+                        "agent-message",
+                        AgentMessage {
+                            conversation_id: conv_id,
+                            role: "tool".to_string(),
+                            content: event.content.unwrap_or_default(),
+                            tool_name: event.tool_name,
+                            done: true,
+                        },
+                    );
                 }
                 "error" => {
-                    let _ = app_clone.emit("agent-message", AgentMessage {
-                        conversation_id: conv_id,
-                        role: "assistant".to_string(),
-                        content: format!("Error: {}", event.error.unwrap_or_default()),
-                        tool_name: None,
-                        done: true,
-                    });
+                    let _ = app_clone.emit(
+                        "agent-message",
+                        AgentMessage {
+                            conversation_id: conv_id,
+                            role: "assistant".to_string(),
+                            content: format!("Error: {}", event.error.unwrap_or_default()),
+                            tool_name: None,
+                            done: true,
+                        },
+                    );
                 }
                 _ => {}
             }
@@ -213,10 +235,13 @@ async fn send_message(
         "provider": provider,
     });
 
-    bridge.stdin
+    bridge
+        .stdin
         .write_all(format!("{}\n", msg).as_bytes())
         .map_err(|e| format!("Failed to write to bridge: {}", e))?;
-    bridge.stdin.flush()
+    bridge
+        .stdin
+        .flush()
         .map_err(|e| format!("Failed to flush bridge stdin: {}", e))?;
 
     Ok(())
@@ -272,6 +297,13 @@ pub fn run() {
             list_conversations,
             save_conversation,
             delete_conversation,
+            engagement::create_engagement,
+            engagement::get_engagement,
+            engagement::update_engagement,
+            engagement::list_engagements,
+            engagement::delete_engagement,
+            engagement::append_timeline_entry,
+            engagement::merge_hosts,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
