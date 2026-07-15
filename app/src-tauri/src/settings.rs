@@ -4,6 +4,16 @@ use std::fs;
 use std::path::PathBuf;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RelayConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub url: String,
+    #[serde(default)]
+    pub key: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ProviderConfig {
     pub api_key: String,
     #[serde(default)]
@@ -18,6 +28,10 @@ pub struct AppSettings {
     pub active_provider: String,
     #[serde(default = "default_model")]
     pub active_model: String,
+    #[serde(default)]
+    pub relay: Option<RelayConfig>,
+    #[serde(default)]
+    pub locale: Option<String>,
     #[serde(default)]
     pub providers: HashMap<String, ProviderConfig>,
 }
@@ -35,6 +49,8 @@ impl Default for AppSettings {
         Self {
             active_provider: default_provider(),
             active_model: default_model(),
+            relay: None,
+            locale: None,
             providers: HashMap::new(),
         }
     }

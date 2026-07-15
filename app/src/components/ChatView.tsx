@@ -1,12 +1,15 @@
 import { useState, useRef, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { Conversation, AppSettings, Message, TaskType } from '../types'
 import type { EngagementSummary } from '../types'
 import { TASK_TYPES } from '../types'
 import { ModelSelector } from './ModelSelector'
 import { EngagementSelector } from './EngagementSelector'
+import { Card, CardContent } from './ui/card'
 import { Shield, Flag, Network, Binary, MessageSquare } from 'lucide-react'
 
 function ToolMessage({ name, content, status }: { name?: string; content: string; status?: Message['status'] }) {
+  const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
   const preview = content.length > 200 ? content.slice(0, 200) + '...' : content
 
@@ -21,7 +24,7 @@ function ToolMessage({ name, content, status }: { name?: string; content: string
         ) : (
           <svg className="w-3 h-3 text-green-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
         )}
-        <span className="text-xs font-medium text-[#555]">{name || 'tool'}</span>
+        <span className="text-xs font-medium text-[#555]">{name || t('chat.tool')}</span>
         <svg className={`w-3 h-3 text-[#999] ml-auto transition-transform ${expanded ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
       </button>
       {expanded ? (
@@ -34,6 +37,56 @@ function ToolMessage({ name, content, status }: { name?: string; content: string
         </div>
       ) : null}
     </div>
+  )
+}
+
+function SubagentToolMessage({ message }: { message: Message }) {
+  const { t } = useTranslation()
+  const [expanded, setExpanded] = useState(message.status === 'done')
+  const results = [...(message.subagentResults ?? [])].sort((a, b) => a.subId - b.subId)
+  const count = message.subagentCount ?? results.length
+  const running = message.status === 'running'
+
+  return (
+    <Card size="sm" className="border-[#e5e5e5] bg-white">
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-[#fafafa] transition-colors"
+      >
+        {running ? (
+          <span className="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin shrink-0" />
+        ) : (
+          <svg className="w-3 h-3 text-green-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        )}
+        <span className="text-xs font-medium text-[#555]">
+          {running
+            ? t('chat.subagents.running', { count })
+            : t('chat.subagents.results')}
+        </span>
+        <svg className={`w-3 h-3 text-[#999] ml-auto transition-transform ${expanded ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      {expanded && (
+        <CardContent className="border-t border-[#eee] px-3 py-3">
+          {results.length > 0 ? (
+            <div className="space-y-3">
+              {results.map(result => (
+                <div key={result.subId} className="rounded-md bg-muted/50 px-3 py-2">
+                  <p className="text-[11px] font-medium text-muted-foreground mb-1">
+                    {t('chat.subagents.resultTitle', { index: result.subId + 1 })}
+                  </p>
+                  <pre className="text-xs font-mono text-[#555] whitespace-pre-wrap max-h-72 overflow-y-auto">
+                    {result.content || t('chat.subagents.noResult')}
+                  </pre>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">{message.content}</p>
+          )}
+        </CardContent>
+      )}
+    </Card>
   )
 }
 
@@ -90,6 +143,7 @@ export function ChatView({
   onEngagementChange,
   onEngagementsChange,
 }: Props) {
+  const { t } = useTranslation()
   const [input, setInput] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -120,38 +174,33 @@ export function ChatView({
   )
 
   const taskTypeInfo = TASK_TYPES.find(t => t.id === pendingTaskType)
-  const placeholders: Record<TaskType, string> = {
-    chat: 'Type anything...',
-    pentest: 'Describe target or paste scope...',
-    ctf: 'Paste challenge description...',
-    recon: 'Enter target domain or IP range...',
-    reverse: 'Provide binary path or paste disassembly...',
-  }
 
   if (!hasMessages) {
     return (
       <div className="flex-1 flex flex-col min-w-0">
         <div className="flex-1 flex items-center justify-center">
           <div className="w-full max-w-xl px-6">
-            <h1 className="text-2xl font-medium text-center mb-6 text-[#1a1a1a]">What should we do?</h1>
+            <h1 className="text-2xl font-medium text-center mb-6 text-[#1a1a1a]">{t('chat.welcome')}</h1>
 
             <div className="flex items-center justify-center gap-2 mb-6 flex-wrap">
-              {TASK_TYPES.map(t => (
+              {TASK_TYPES.map(taskType => (
                 <button
-                  key={t.id}
-                  onClick={() => onTaskTypeChange(t.id)}
+                  key={taskType.id}
+                  onClick={() => onTaskTypeChange(taskType.id)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-all ${
-                    pendingTaskType === t.id ? TASK_COLORS_ACTIVE[t.id] : TASK_COLORS[t.id]
+                    pendingTaskType === taskType.id ? TASK_COLORS_ACTIVE[taskType.id] : TASK_COLORS[taskType.id]
                   }`}
                 >
-                  {TASK_ICONS[t.id]}
-                  {t.label}
+                  {TASK_ICONS[taskType.id]}
+                  {t(`taskTypes.${taskType.id}.label`)}
                 </button>
               ))}
             </div>
 
             {pendingTaskType !== 'chat' && taskTypeInfo && (
-              <p className="text-center text-xs text-muted-foreground mb-4">{taskTypeInfo.description}</p>
+              <p className="text-center text-xs text-muted-foreground mb-4">
+                {t(`taskTypes.${pendingTaskType}.description`)}
+              </p>
             )}
 
             {pendingTaskType !== 'chat' && (
@@ -177,7 +226,7 @@ export function ChatView({
                     handleSubmit()
                   }
                 }}
-                placeholder={placeholders[pendingTaskType]}
+                placeholder={t(`chat.placeholders.${pendingTaskType}`)}
                 rows={1}
                 className="w-full bg-transparent text-sm resize-none outline-none placeholder-[#999] min-h-[20px] max-h-[120px]"
               />
@@ -185,6 +234,8 @@ export function ChatView({
                 {modelSelector}
                 <button
                   onClick={handleSubmit}
+                  aria-label={t('chat.send')}
+                  title={t('chat.send')}
                   className="w-7 h-7 flex items-center justify-center rounded-full bg-[#1a1a1a] text-white hover:bg-[#333] transition-colors"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -206,7 +257,7 @@ export function ChatView({
         {conversation!.taskType !== 'chat' && (
           <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-medium ${TASK_COLORS[conversation!.taskType]}`}>
             {TASK_ICONS[conversation!.taskType]}
-            {TASK_TYPES.find(t => t.id === conversation!.taskType)?.label}
+            {t(`taskTypes.${conversation!.taskType}.label`)}
           </div>
         )}
         {conversation!.taskType !== 'chat' && (
@@ -223,7 +274,7 @@ export function ChatView({
           onClick={onToggleOutput}
           className="text-xs text-[#888] hover:text-[#333] px-2 py-1 rounded transition-colors"
         >
-          {conversation!.taskType !== 'chat' ? 'Panel' : 'Output'}
+          {conversation!.taskType !== 'chat' ? t('chat.panel') : t('chat.output')}
         </button>
       </div>
 
@@ -237,13 +288,15 @@ export function ChatView({
                     <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
                   </div>
                 </div>
+              ) : msg.role === 'tool' && msg.toolName === 'spawn_subagents' ? (
+                <SubagentToolMessage message={msg} />
               ) : msg.role === 'tool' ? (
                 <ToolMessage name={msg.toolName} content={msg.content} status={msg.status} />
               ) : (
                 <div className="max-w-[85%]">
                   <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
                   {msg.status === 'running' && (
-                    <span className="inline-block mt-1 text-xs text-amber-500 animate-pulse">thinking...</span>
+                    <span className="inline-block mt-1 text-xs text-amber-500 animate-pulse">{t('chat.thinking')}</span>
                   )}
                 </div>
               )}
@@ -266,7 +319,7 @@ export function ChatView({
                   handleSubmit()
                 }
               }}
-              placeholder="Send a message..."
+              placeholder={t('chat.sendMessage')}
               rows={1}
               className="w-full bg-transparent text-sm resize-none outline-none placeholder-[#999] min-h-[20px] max-h-[120px]"
             />
@@ -274,6 +327,8 @@ export function ChatView({
               {modelSelector}
               <button
                 onClick={handleSubmit}
+                aria-label={t('chat.send')}
+                title={t('chat.send')}
                 className="w-7 h-7 flex items-center justify-center rounded-full bg-[#1a1a1a] text-white hover:bg-[#333] transition-colors"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

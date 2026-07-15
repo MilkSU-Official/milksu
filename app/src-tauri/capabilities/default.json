@@ -8,6 +8,7 @@
     "core:event:allow-listen",
     "core:event:allow-emit",
     "allow-send-message",
+    "allow-spawn-subagents",
     "allow-get-settings",
     "allow-save-settings-cmd",
     "allow-list-conversations",

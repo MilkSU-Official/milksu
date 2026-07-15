@@ -8,9 +8,11 @@ dist/
 !bridge.js
 .DS_Store
 .claude/
+auth.json
 
 # Tauri
 app/node_modules/
 app/dist/
 app/src-tauri/target/
 app/src-tauri/gen/schemas/
+docs/.vitepress/cache/

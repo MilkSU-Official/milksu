@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { AppSettings } from '../types'
 import { PROVIDERS } from '../types'
 
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export function ModelSelector({ settings, onChangeModel, onOpenSettings }: Props) {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -22,7 +24,7 @@ export function ModelSelector({ settings, onChangeModel, onOpenSettings }: Props
 
   if (!settings) return null
 
-  const label = settings.active_model || 'Select model'
+  const label = settings.active_model || t('model.selectModel')
 
   return (
     <div className="relative" ref={ref}>
@@ -46,7 +48,7 @@ export function ModelSelector({ settings, onChangeModel, onOpenSettings }: Props
                 <div key={p.id}>
                   <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-[#999] bg-[#fafafa] flex items-center justify-between">
                     <span>{p.name}</span>
-                    {!hasKey && <span className="text-[#ccc]">No key</span>}
+                    {!hasKey && <span className="text-[#ccc]">{t('model.noKey')}</span>}
                   </div>
                   {p.models.map(m => (
                     <button
@@ -73,7 +75,7 @@ export function ModelSelector({ settings, onChangeModel, onOpenSettings }: Props
               onClick={() => { onOpenSettings(); setOpen(false) }}
               className="w-full text-left px-3 py-2 text-xs text-[#888] hover:bg-[#f5f5f5] transition-colors"
             >
-              Configure API keys...
+              {t('model.openSettings')}
             </button>
           </div>
         </div>

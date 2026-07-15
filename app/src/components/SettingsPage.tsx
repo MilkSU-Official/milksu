@@ -1,6 +1,8 @@
 import { useState } from 'react'
+import i18next from 'i18next'
+import { useTranslation } from 'react-i18next'
 import { invokeCommand } from '../tauri'
-import type { AppSettings, ProviderConfig, Conversation } from '../types'
+import type { AppSettings, ProviderConfig, RelayConfig, Conversation } from '../types'
 import { PROVIDERS } from '../types'
 import { Button } from '@/components/ui/button'
 import { Card, CardAction, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -13,11 +15,11 @@ import { Settings, KeyRound, BarChart3, Info, ChevronLeft } from 'lucide-react'
 
 type Category = 'general' | 'apikeys' | 'usage' | 'about'
 
-const CATEGORIES: { id: Category; label: string; icon: React.ReactNode }[] = [
-  { id: 'general', label: 'General', icon: <Settings className="size-4" /> },
-  { id: 'apikeys', label: 'API Keys', icon: <KeyRound className="size-4" /> },
-  { id: 'usage', label: 'Usage', icon: <BarChart3 className="size-4" /> },
-  { id: 'about', label: 'About', icon: <Info className="size-4" /> },
+const CATEGORIES: { id: Category; labelKey: string; icon: React.ReactNode }[] = [
+  { id: 'general', labelKey: 'settings.general', icon: <Settings className="size-4" /> },
+  { id: 'apikeys', labelKey: 'settings.apiKeys', icon: <KeyRound className="size-4" /> },
+  { id: 'usage', labelKey: 'settings.usage', icon: <BarChart3 className="size-4" /> },
+  { id: 'about', labelKey: 'settings.about', icon: <Info className="size-4" /> },
 ]
 
 interface Props {
@@ -28,6 +30,7 @@ interface Props {
 }
 
 export function SettingsPage({ settings, onSettingsChange, onClose, conversations }: Props) {
+  const { t } = useTranslation()
   const [category, setCategory] = useState<Category>('general')
   const [localSettings, setLocalSettings] = useState<AppSettings | null>(settings)
   const [saving, setSaving] = useState(false)
@@ -88,12 +91,12 @@ export function SettingsPage({ settings, onSettingsChange, onClose, conversation
         <div className="p-3 pt-4 max-sm:pt-3 max-sm:pb-1">
           <Button variant="ghost" size="sm" onClick={onClose} className="w-full justify-start gap-2 text-muted-foreground">
             <ChevronLeft className="size-4" />
-            Back
+            {t('settings.back')}
           </Button>
         </div>
 
         <div className="px-3 mt-1 max-sm:hidden">
-          <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest px-3 mb-1.5">Settings</p>
+          <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest px-3 mb-1.5">{t('settings.title')}</p>
         </div>
 
         <nav className="flex-1 px-3 space-y-0.5 max-sm:flex max-sm:gap-1 max-sm:space-y-0 max-sm:overflow-x-auto max-sm:pb-3">
@@ -108,7 +111,7 @@ export function SettingsPage({ settings, onSettingsChange, onClose, conversation
               }`}
             >
               {cat.icon}
-              {cat.label}
+              {t(cat.labelKey)}
             </Button>
           ))}
         </nav>
@@ -123,7 +126,7 @@ export function SettingsPage({ settings, onSettingsChange, onClose, conversation
       <div className="flex-1 flex flex-col min-w-0">
         <div className="h-14 flex items-center justify-between px-8 border-b border-border max-sm:h-auto max-sm:px-4 max-sm:py-3 max-sm:gap-3">
           <h1 className="text-base font-medium">
-            {CATEGORIES.find(c => c.id === category)?.label}
+            {t(CATEGORIES.find(c => c.id === category)?.labelKey ?? 'settings.general')}
           </h1>
           {(category === 'general' || category === 'apikeys') && (
             <Button
@@ -133,7 +136,7 @@ export function SettingsPage({ settings, onSettingsChange, onClose, conversation
               size="sm"
               className={saved ? 'border-emerald-200 text-emerald-600 bg-emerald-50 hover:bg-emerald-50' : ''}
             >
-              {saving ? 'Saving...' : saved ? 'Saved' : 'Save changes'}
+              {saving ? t('settings.saving') : saved ? t('settings.saved') : t('settings.saveChanges')}
             </Button>
           )}
         </div>
@@ -152,6 +155,11 @@ export function SettingsPage({ settings, onSettingsChange, onClose, conversation
             )}
             {category === 'apikeys' && (
               <ApiKeysSection
+                relay={localSettings.relay ?? { enabled: false, url: '', key: '' }}
+                onRelayChange={(relay) => {
+                  setLocalSettings({ ...localSettings, relay })
+                  setSaved(false)
+                }}
                 getProvider={getProvider}
                 updateProvider={updateProvider}
                 visibleKeys={visibleKeys}
@@ -185,14 +193,16 @@ function GeneralSection({ settings, onUpdate, activeProviderModels }: {
   onUpdate: (patch: Partial<AppSettings>) => void
   activeProviderModels: string[]
 }) {
+  const { t } = useTranslation()
+
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-sm font-medium mb-1">Default Provider</h2>
-        <p className="text-sm text-muted-foreground mb-3">Select your primary LLM provider and model for new conversations.</p>
+        <h2 className="text-sm font-medium mb-1">{t('settings.defaultProvider')}</h2>
+        <p className="text-sm text-muted-foreground mb-3">{t('settings.defaultProviderDesc')}</p>
         <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
           <div>
-            <Label className="mb-1.5">Provider</Label>
+            <Label className="mb-1.5">{t('settings.provider')}</Label>
             <select
               value={settings.active_provider}
               onChange={e => {
@@ -210,7 +220,7 @@ function GeneralSection({ settings, onUpdate, activeProviderModels }: {
             </select>
           </div>
           <div>
-            <Label className="mb-1.5">Model</Label>
+            <Label className="mb-1.5">{t('settings.model')}</Label>
             <select
               value={settings.active_model}
               onChange={e => onUpdate({ active_model: e.target.value })}
@@ -224,11 +234,28 @@ function GeneralSection({ settings, onUpdate, activeProviderModels }: {
         </div>
       </div>
 
+      <div>
+        <h2 className="text-sm font-medium mb-1">{t('settings.language')}</h2>
+        <p className="text-sm text-muted-foreground mb-3">{t('settings.languageDesc')}</p>
+        <select
+          value={settings.locale ?? (i18next.resolvedLanguage === 'zh' ? 'zh' : 'en')}
+          onChange={e => {
+            const locale = e.target.value as AppSettings['locale']
+            onUpdate({ locale })
+            void i18next.changeLanguage(locale)
+          }}
+          className="flex h-9 w-full max-w-xs rounded-lg border border-input bg-background px-3 text-sm outline-none focus:border-ring focus:ring-1 focus:ring-ring/50 transition-colors cursor-pointer"
+        >
+          <option value="en">{t('settings.english')}</option>
+          <option value="zh">{t('settings.chinese')}</option>
+        </select>
+      </div>
+
       <Separator />
 
       <div>
-        <h2 className="text-sm font-medium mb-1">Available Providers</h2>
-        <p className="text-sm text-muted-foreground mb-3">Providers with configured API keys.</p>
+        <h2 className="text-sm font-medium mb-1">{t('settings.availableProviders')}</h2>
+        <p className="text-sm text-muted-foreground mb-3">{t('settings.availableProvidersDesc')}</p>
         <div className="space-y-2">
           {PROVIDERS.map(p => {
             const cfg = settings.providers[p.id]
@@ -240,7 +267,7 @@ function GeneralSection({ settings, onUpdate, activeProviderModels }: {
                   <span className="text-sm">{p.name}</span>
                 </div>
                 <span className="text-xs text-muted-foreground text-right shrink-0">
-                  {hasKey ? `${p.models.length} models` : 'Not configured'}
+                  {hasKey ? t('settings.models', { count: p.models.length }) : t('settings.notConfigured')}
                 </span>
               </div>
             )
@@ -252,16 +279,89 @@ function GeneralSection({ settings, onUpdate, activeProviderModels }: {
 }
 
 
-function ApiKeysSection({ getProvider, updateProvider, visibleKeys, setVisibleKeys }: {
+function ApiKeysSection({ relay, onRelayChange, getProvider, updateProvider, visibleKeys, setVisibleKeys }: {
+  relay: RelayConfig
+  onRelayChange: (relay: RelayConfig) => void
   getProvider: (id: string) => ProviderConfig
   updateProvider: (id: string, patch: Partial<ProviderConfig>) => void
   visibleKeys: Record<string, boolean>
   setVisibleKeys: (v: Record<string, boolean>) => void
 }) {
+  const { t } = useTranslation()
+  const relayKeyVisible = visibleKeys['__relay'] ?? false
+
   return (
     <div className="space-y-4">
+      <Card className={relay.enabled ? 'border-blue-200 bg-blue-50/30' : ''}>
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${
+              relay.enabled ? 'bg-blue-100 text-blue-700' : 'bg-muted text-muted-foreground'
+            }`}>
+              R
+            </div>
+            <div className="flex-1 min-w-0">
+              <CardTitle className="text-sm">{t('settings.relay')}</CardTitle>
+              <CardDescription className="text-[11px]">
+                {t('settings.relayDesc')}
+              </CardDescription>
+            </div>
+          </div>
+          <CardAction>
+            <Switch
+              id="switch-relay"
+              aria-label={t('settings.relayToggle')}
+              checked={relay.enabled}
+              onCheckedChange={(checked: boolean) => onRelayChange({ ...relay, enabled: checked })}
+            />
+          </CardAction>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div>
+            <Label className="mb-1.5 text-xs">{t('settings.relayUrl')}</Label>
+            <Input
+              type="text"
+              value={relay.url}
+              onChange={e => onRelayChange({ ...relay, url: e.target.value })}
+              placeholder="https://api.example.com/v1"
+              disabled={!relay.enabled}
+            />
+          </div>
+          <div>
+            <Label className="mb-1.5 text-xs">{t('settings.relayKey')}</Label>
+            <div className="relative">
+              <Input
+                type={relayKeyVisible ? 'text' : 'password'}
+                value={relay.key}
+                onChange={e => onRelayChange({ ...relay, key: e.target.value })}
+                placeholder="sk-..."
+                className="font-mono pr-16"
+                disabled={!relay.enabled}
+              />
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={() => setVisibleKeys({ ...visibleKeys, '__relay': !relayKeyVisible })}
+                className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground"
+              >
+                {relayKeyVisible ? t('settings.hide') : t('settings.show')}
+              </Button>
+            </div>
+          </div>
+          {relay.enabled && (
+            <p className="text-[11px] text-muted-foreground">
+              {t('settings.relayHint')}
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Separator />
+
       <p className="text-sm text-muted-foreground">
-        API keys are stored locally in your app config directory and passed to the agent process as environment variables. They are never sent elsewhere.
+        {relay.enabled
+          ? t('settings.relayActiveHint')
+          : t('settings.directKeysHint')}
       </p>
 
       {PROVIDERS.map(p => {
@@ -269,9 +369,10 @@ function ApiKeysSection({ getProvider, updateProvider, visibleKeys, setVisibleKe
         const isVisible = visibleKeys[p.id] ?? false
         const hasKey = !!config.api_key
         const isActive = config.enabled && hasKey
+        const dimmed = relay.enabled
 
         return (
-          <Card key={p.id} className={isActive ? 'border-emerald-200 bg-emerald-50/30' : ''}>
+          <Card key={p.id} className={`${isActive && !dimmed ? 'border-emerald-200 bg-emerald-50/30' : ''} ${dimmed ? 'opacity-50' : ''}`}>
             <CardHeader>
               <div className="flex items-center gap-3">
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${
@@ -285,9 +386,10 @@ function ApiKeysSection({ getProvider, updateProvider, visibleKeys, setVisibleKe
                 </div>
               </div>
               <CardAction>
-                <Switch
-                  id={`switch-${p.id}`}
-                  checked={config.enabled}
+              <Switch
+                id={`switch-${p.id}`}
+                aria-label={t('settings.providerToggle', { provider: p.name })}
+                checked={config.enabled}
                   onCheckedChange={(checked: boolean) => updateProvider(p.id, { enabled: checked })}
                 />
               </CardAction>
@@ -307,7 +409,7 @@ function ApiKeysSection({ getProvider, updateProvider, visibleKeys, setVisibleKe
                   onClick={() => setVisibleKeys({ ...visibleKeys, [p.id]: !isVisible })}
                   className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground"
                 >
-                  {isVisible ? 'Hide' : 'Show'}
+                  {isVisible ? t('settings.hide') : t('settings.show')}
                 </Button>
               </div>
 
@@ -316,7 +418,7 @@ function ApiKeysSection({ getProvider, updateProvider, visibleKeys, setVisibleKe
                   type="text"
                   value={config.base_url ?? ''}
                   onChange={e => updateProvider(p.id, { base_url: e.target.value || undefined })}
-                  placeholder="Base URL (optional, for proxy)"
+                  placeholder={t('settings.baseUrl')}
                 />
               )}
             </CardContent>
@@ -371,38 +473,49 @@ function UsageSection({ totalConversations, totalMessages, userMessages, assista
   activeProvider: string
   activeModel: string
 }) {
+  const { t } = useTranslation()
+  const metricLabels = [
+    t('usage.inputTokens'),
+    t('usage.outputTokens'),
+    t('usage.cacheReadTokens'),
+    t('usage.totalTokensReal'),
+    t('usage.contextWindowLimit'),
+    t('usage.costUsd'),
+    t('usage.latency'),
+    t('usage.sessionDuration'),
+  ]
+
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-sm font-medium mb-1">Session Overview</h2>
-        <p className="text-sm text-muted-foreground mb-4">Counted from local conversation history.</p>
+        <h2 className="text-sm font-medium mb-1">{t('usage.sessionOverview')}</h2>
+        <p className="text-sm text-muted-foreground mb-4">{t('usage.sessionOverviewDesc')}</p>
         <div className="grid grid-cols-3 gap-3 max-sm:grid-cols-1">
-          <StatCard label="Conversations" value={totalConversations} />
-          <StatCard label="Messages" value={totalMessages} sub={`${userMessages} sent, ${assistantMessages} received`} />
-          <StatCard label="Tool Calls" value={toolCalls} />
+          <StatCard label={t('usage.conversations')} value={totalConversations} />
+          <StatCard label={t('usage.messages')} value={totalMessages} sub={t('usage.messagesSub', { sent: userMessages, received: assistantMessages })} />
+          <StatCard label={t('usage.toolCalls')} value={toolCalls} />
         </div>
       </div>
 
       <Separator />
 
       <div>
-        <h2 className="text-sm font-medium mb-1">Token Usage (Estimated)</h2>
+        <h2 className="text-sm font-medium mb-1">{t('usage.tokenUsageEstimated')}</h2>
         <p className="text-sm text-muted-foreground mb-4">
-          Rough estimate based on message character count (~4 chars per token).
-          Real token counts from provider API are not yet available.
+          {t('usage.tokenUsageDesc')}
         </p>
         <div className="grid grid-cols-2 gap-3 mb-5 max-sm:grid-cols-1">
-          <StatCard label="Estimated Tokens" value={`~${estimatedTokens.toLocaleString()}`} sub="character-based estimate" />
+          <StatCard label={t('usage.estimatedTokens')} value={`~${estimatedTokens.toLocaleString()}`} sub={t('usage.characterEstimate')} />
           <StatCard
-            label="Active Model"
+            label={t('usage.activeModel')}
             value={activeModel}
             sub={PROVIDERS.find(p => p.id === activeProvider)?.name ?? activeProvider}
           />
         </div>
         <Card size="sm">
           <CardContent className="pt-4 space-y-4">
-            <UsageBar label="User Messages" value={userMessages} max={totalMessages || 1} unit="msgs" />
-            <UsageBar label="Assistant Messages" value={assistantMessages} max={totalMessages || 1} unit="msgs" />
+            <UsageBar label={t('usage.userMessages')} value={userMessages} max={totalMessages || 1} unit={t('usage.messageUnit')} />
+            <UsageBar label={t('usage.assistantMessages')} value={assistantMessages} max={totalMessages || 1} unit={t('usage.messageUnit')} />
           </CardContent>
         </Card>
       </div>
@@ -410,16 +523,15 @@ function UsageSection({ totalConversations, totalMessages, userMessages, assista
       <Separator />
 
       <div>
-        <h2 className="text-sm font-medium mb-1">Real-time Metrics</h2>
+        <h2 className="text-sm font-medium mb-1">{t('usage.realTimeMetrics')}</h2>
         <p className="text-sm text-muted-foreground mb-4">
-          These fields require usage data from the provider API.
-          They will populate once the bridge reports token usage events.
+          {t('usage.realTimeMetricsDesc')}
         </p>
         <div className="space-y-1.5">
-          {['Input Tokens', 'Output Tokens', 'Cache Read Tokens', 'Total Tokens (real)', 'Context Window Limit', 'Cost (USD)', 'Latency', 'Session Duration'].map(label => (
+          {metricLabels.map(label => (
             <div key={label} className="flex items-center justify-between px-4 py-2.5 bg-muted/50 rounded-lg">
               <span className="text-xs text-muted-foreground">{label}</span>
-              <span className="text-[11px] text-muted-foreground/50 italic">unavailable</span>
+              <span className="text-[11px] text-muted-foreground/50 italic">{t('usage.unavailable')}</span>
             </div>
           ))}
         </div>
@@ -428,13 +540,13 @@ function UsageSection({ totalConversations, totalMessages, userMessages, assista
       <Separator />
 
       <div>
-        <h2 className="text-sm font-medium mb-1">Provider Status</h2>
-        <p className="text-sm text-muted-foreground mb-4">Currently configured and available providers.</p>
+        <h2 className="text-sm font-medium mb-1">{t('usage.providerStatus')}</h2>
+        <p className="text-sm text-muted-foreground mb-4">{t('usage.providerStatusDesc')}</p>
         {configuredProviders.length === 0 ? (
           <Card>
             <CardContent className="py-8 text-center">
-              <p className="text-sm text-muted-foreground">No providers configured yet.</p>
-              <p className="text-xs text-muted-foreground/60 mt-1">Add API keys in the API Keys section.</p>
+              <p className="text-sm text-muted-foreground">{t('usage.noProvidersConfigured')}</p>
+              <p className="text-xs text-muted-foreground/60 mt-1">{t('usage.configuredNote')}</p>
             </CardContent>
           </Card>
         ) : (
@@ -444,7 +556,7 @@ function UsageSection({ totalConversations, totalMessages, userMessages, assista
                 <div className="w-2 h-2 rounded-full bg-emerald-400" />
                 <span className="text-sm flex-1">{p.name}</span>
                 {p.id === activeProvider && (
-                  <Badge variant="outline" className="border-emerald-200 text-emerald-600 bg-emerald-50">Active</Badge>
+                  <Badge variant="outline" className="border-emerald-200 text-emerald-600 bg-emerald-50">{t('usage.active')}</Badge>
                 )}
               </div>
             ))}
@@ -457,19 +569,20 @@ function UsageSection({ totalConversations, totalMessages, userMessages, assista
 
 
 function AboutSection() {
+  const { t } = useTranslation()
   const infoRows = [
-    ['Version', '0.1.0'],
-    ['Runtime', 'Tauri v2'],
-    ['Agent Engine', 'Pi (earendil-works)'],
-    ['Frontend', 'React + Vite'],
-    ['Backend', 'Rust'],
+    [t('about.version'), '0.1.0'],
+    [t('about.runtime'), 'Tauri v2'],
+    [t('about.agentEngine'), 'Pi (earendil-works)'],
+    [t('about.frontend'), 'React + Vite'],
+    [t('about.backend'), 'Rust'],
   ]
 
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-sm font-medium mb-1">MilkSU</h2>
-        <p className="text-sm text-muted-foreground mb-4">Pi agent harness extension for pluggable AI skills.</p>
+        <h2 className="text-sm font-medium mb-1">{t('about.title')}</h2>
+        <p className="text-sm text-muted-foreground mb-4">{t('about.description')}</p>
 
         <Card size="sm">
           <CardContent className="pt-4 divide-y divide-border">
@@ -486,17 +599,17 @@ function AboutSection() {
       <Separator />
 
       <div>
-        <h2 className="text-sm font-medium mb-1">Architecture</h2>
-        <p className="text-sm text-muted-foreground mb-4">Tauri IPC dual-channel with Pi subprocess bridge.</p>
+        <h2 className="text-sm font-medium mb-1">{t('about.architecture')}</h2>
+        <p className="text-sm text-muted-foreground mb-4">{t('about.architectureDesc')}</p>
         <Card size="sm">
           <CardContent className="pt-4 space-y-1 text-xs font-mono leading-relaxed">
-            <p>User input</p>
-            <p className="text-muted-foreground">  -&gt; React invoke("send_message")</p>
-            <p className="text-muted-foreground">  -&gt; Rust: spawn bridge.js subprocess</p>
-            <p className="text-muted-foreground">  -&gt; bridge.js: Pi createAgentSession()</p>
-            <p className="text-muted-foreground">  -&gt; Pi agent streams JSON line events</p>
-            <p className="text-muted-foreground">  -&gt; Rust: emit Tauri events to frontend</p>
-            <p className="text-muted-foreground">  -&gt; React: render streaming response</p>
+            <p>{t('about.flow.userInput')}</p>
+            <p className="text-muted-foreground">  -&gt; {t('about.flow.reactInvoke')}</p>
+            <p className="text-muted-foreground">  -&gt; {t('about.flow.rustBridge')}</p>
+            <p className="text-muted-foreground">  -&gt; {t('about.flow.bridgeSession')}</p>
+            <p className="text-muted-foreground">  -&gt; {t('about.flow.piEvents')}</p>
+            <p className="text-muted-foreground">  -&gt; {t('about.flow.tauriEvents')}</p>
+            <p className="text-muted-foreground">  -&gt; {t('about.flow.renderResponse')}</p>
           </CardContent>
         </Card>
       </div>
@@ -504,16 +617,16 @@ function AboutSection() {
       <Separator />
 
       <div>
-        <h2 className="text-sm font-medium mb-1">Storage</h2>
-        <p className="text-sm text-muted-foreground mb-3">All data is stored locally on your machine.</p>
+        <h2 className="text-sm font-medium mb-1">{t('about.storage')}</h2>
+        <p className="text-sm text-muted-foreground mb-3">{t('about.storageDesc')}</p>
         <Card size="sm">
           <CardContent className="pt-4 space-y-2 text-xs">
             <div className="flex gap-2">
-              <span className="text-muted-foreground shrink-0">Settings:</span>
+              <span className="text-muted-foreground shrink-0">{t('about.settingsPath')}:</span>
               <span className="font-mono truncate">~/Library/Application Support/com.milksu.app/settings.json</span>
             </div>
             <div className="flex gap-2">
-              <span className="text-muted-foreground shrink-0">Conversations:</span>
+              <span className="text-muted-foreground shrink-0">{t('about.conversationsPath')}:</span>
               <span className="font-mono truncate">~/Library/Application Support/com.milksu.app/conversations/</span>
             </div>
           </CardContent>

@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from 'react'
+import i18next from 'i18next'
 import { Sidebar } from './components/Sidebar'
 import { ChatView } from './components/ChatView'
 import { OutputPanel } from './components/OutputPanel'
@@ -45,7 +46,10 @@ export default function App() {
   }, [active, activeEngagement])
 
   useEffect(() => {
-    invokeCommand<AppSettings>('get_settings').then(setSettings)
+    invokeCommand<AppSettings>('get_settings').then(loadedSettings => {
+      setSettings(loadedSettings)
+      if (loadedSettings.locale) void i18next.changeLanguage(loadedSettings.locale)
+    })
     loadConversations()
     listEngagements().then(setEngagements).catch(console.error)
   }, [loadConversations])
@@ -138,7 +142,10 @@ export default function App() {
           onSettingsChange={setSettings}
           onClose={() => {
             setShowSettings(false)
-            invokeCommand<AppSettings>('get_settings').then(setSettings)
+            invokeCommand<AppSettings>('get_settings').then(loadedSettings => {
+              setSettings(loadedSettings)
+              if (loadedSettings.locale) void i18next.changeLanguage(loadedSettings.locale)
+            })
           }}
           conversations={conversations}
         />

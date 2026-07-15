@@ -2,41 +2,31 @@ export type TaskType = 'chat' | 'pentest' | 'ctf' | 'recon' | 'reverse'
 
 export interface TaskTypeInfo {
   id: TaskType
-  label: string
-  description: string
   color: string
   phases?: string[]
 }
 
 export const TASK_TYPES: TaskTypeInfo[] = [
-  { id: 'chat', label: 'Chat', description: 'General conversation', color: 'neutral' },
+  { id: 'chat', color: 'neutral' },
   {
     id: 'pentest',
-    label: 'Pentest',
-    description: 'Penetration testing workflow',
     color: 'red',
-    phases: ['Recon', 'Scanning', 'Enumeration', 'Exploitation', 'Post-Exploitation', 'Reporting'],
+    phases: ['recon', 'scanning', 'enumeration', 'exploitation', 'postExploitation', 'reporting'],
   },
   {
     id: 'ctf',
-    label: 'CTF',
-    description: 'Capture the flag challenge',
     color: 'purple',
-    phases: ['Analysis', 'Research', 'Exploitation', 'Flag'],
+    phases: ['analysis', 'research', 'exploitation', 'flag'],
   },
   {
     id: 'recon',
-    label: 'Recon',
-    description: 'Network reconnaissance and OSINT',
     color: 'blue',
-    phases: ['Passive', 'Active', 'Enumeration', 'Report'],
+    phases: ['passive', 'active', 'enumeration', 'report'],
   },
   {
     id: 'reverse',
-    label: 'Reverse',
-    description: 'Binary analysis and reverse engineering',
     color: 'amber',
-    phases: ['Triage', 'Static Analysis', 'Dynamic Analysis', 'Documentation'],
+    phases: ['triage', 'staticAnalysis', 'dynamicAnalysis', 'documentation'],
   },
 ]
 
@@ -88,6 +78,13 @@ export interface Message {
   timestamp: number
   toolName?: string
   status?: 'running' | 'done'
+  subagentCount?: number
+  subagentResults?: SubagentResult[]
+}
+
+export interface SubagentResult {
+  subId: number
+  content: string | null
 }
 
 export interface Conversation {
@@ -106,9 +103,17 @@ export interface ProviderConfig {
   enabled: boolean
 }
 
+export interface RelayConfig {
+  enabled: boolean
+  url: string
+  key: string
+}
+
 export interface AppSettings {
   active_provider: string
   active_model: string
+  relay?: RelayConfig
+  locale?: 'en' | 'zh'
   providers: Record<string, ProviderConfig>
 }
 
@@ -161,21 +166,21 @@ export const PROVIDERS: ProviderInfo[] = [
   {
     id: 'anthropic',
     name: 'Anthropic',
-    models: ['claude-sonnet-4-20250514', 'claude-opus-4-20250514', 'claude-haiku-4-5-20251001'],
+    models: ['claude-sonnet-4-6', 'claude-opus-4-8', 'claude-haiku-4-5'],
     envKey: 'ANTHROPIC_API_KEY',
     placeholder: 'sk-ant-...',
   },
   {
     id: 'openai',
     name: 'OpenAI',
-    models: ['gpt-4o', 'gpt-4.1', 'gpt-4.1-mini'],
+    models: ['gpt-4o', 'gpt-4.1', 'gpt-4.1-mini', 'o4-mini'],
     envKey: 'OPENAI_API_KEY',
     placeholder: 'sk-...',
   },
   {
     id: 'google',
     name: 'Google Gemini',
-    models: ['gemini-2.5-flash', 'gemini-2.5-pro'],
+    models: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-3.5-flash'],
     envKey: 'GEMINI_API_KEY',
     placeholder: 'AI...',
   },

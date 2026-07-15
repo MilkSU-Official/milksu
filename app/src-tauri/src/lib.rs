@@ -27,6 +27,28 @@ struct PanelUpdateMessage {
     append_items: serde_json::Value,
 }
 
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SubagentMessage {
+    conversation_id: String,
+    sub_id: usize,
+    content: String,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SubagentsDoneMessage {
+    conversation_id: String,
+    results: Vec<SubagentResult>,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SubagentResult {
+    sub_id: usize,
+    content: Option<String>,
+}
+
 #[derive(Deserialize)]
 struct BridgeEvent {
     #[serde(rename = "type")]
@@ -41,6 +63,10 @@ struct BridgeEvent {
     tool_name: Option<String>,
     set_fields: Option<serde_json::Value>,
     append_items: Option<serde_json::Value>,
+    #[serde(rename = "subId")]
+    sub_id: Option<usize>,
+    count: Option<usize>,
+    results: Option<Vec<SubagentResult>>,
 }
 
 struct BridgeProcess {
@@ -89,7 +115,8 @@ fn ensure_bridge(state: &AppState, app: &tauri::AppHandle) -> Result<(), String>
 
     let s = state.settings.lock().map_err(|e| e.to_string())?;
     let mut cmd = Command::new("node");
-    cmd.arg(&bridge_path)
+    cmd.arg("--experimental-strip-types")
+        .arg(&bridge_path)
         .current_dir(&project_root)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -113,6 +140,15 @@ fn ensure_bridge(state: &AppState, app: &tauri::AppHandle) -> Result<(), String>
             if !url.is_empty() {
                 let url_key = format!("{}_BASE_URL", name.to_uppercase());
                 cmd.env(&url_key, url);
+            }
+        }
+    }
+    if let Some(ref relay) = s.relay {
+        if relay.enabled && !relay.key.is_empty() {
+            cmd.env("MILKSU_RELAY_ENABLED", "1");
+            cmd.env("MILKSU_RELAY_KEY", &relay.key);
+            if !relay.url.is_empty() {
+                cmd.env("MILKSU_RELAY_URL", &relay.url);
             }
         }
     }
@@ -234,6 +270,60 @@ fn ensure_bridge(state: &AppState, app: &tauri::AppHandle) -> Result<(), String>
                         },
                     );
                 }
+                "subagents_start" => {
+                    let _ = app_clone.emit(
+                        "subagents-start",
+                        serde_json::json!({
+                            "conversationId": conv_id,
+                            "count": event.count.unwrap_or(0),
+                        }),
+                    );
+                }
+                "subagent_delta" => {
+                    if let (Some(sub_id), Some(delta)) = (event.sub_id, event.delta.clone()) {
+                        let _ = app_clone.emit(
+                            "subagent-delta",
+                            SubagentMessage {
+                                conversation_id: conv_id,
+                                sub_id,
+                                content: delta,
+                            },
+                        );
+                    }
+                }
+                "subagent_done" => {
+                    if let Some(sub_id) = event.sub_id {
+                        let _ = app_clone.emit(
+                            "subagent-done",
+                            SubagentMessage {
+                                conversation_id: conv_id,
+                                sub_id,
+                                content: event.content.clone().unwrap_or_default(),
+                            },
+                        );
+                    }
+                }
+                "subagent_error" => {
+                    if let Some(sub_id) = event.sub_id {
+                        let _ = app_clone.emit(
+                            "subagent-error",
+                            SubagentMessage {
+                                conversation_id: conv_id,
+                                sub_id,
+                                content: event.error.clone().unwrap_or_default(),
+                            },
+                        );
+                    }
+                }
+                "subagents_done" => {
+                    let _ = app_clone.emit(
+                        "subagents-done",
+                        SubagentsDoneMessage {
+                            conversation_id: conv_id,
+                            results: event.results.clone().unwrap_or_default(),
+                        },
+                    );
+                }
                 _ => {}
             }
         }
@@ -310,6 +400,37 @@ async fn send_message(
 }
 
 #[tauri::command]
+async fn spawn_subagents(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    conversation_id: String,
+    tasks: Vec<String>,
+) -> Result<(), String> {
+    ensure_bridge(&state, &app)?;
+
+    let s = state.settings.lock().map_err(|e| e.to_string())?;
+    let model = s.active_model.clone();
+    let provider = s.active_provider.clone();
+    drop(s);
+
+    let mut guard = state.bridge.lock().map_err(|e| e.to_string())?;
+    let bridge = guard.as_mut().ok_or("Bridge not initialized")?;
+
+    write_bridge_command(
+        bridge,
+        serde_json::json!({
+            "action": "spawn_subagents",
+            "conversationId": conversation_id,
+            "tasks": tasks,
+            "provider": provider,
+            "model": model,
+        }),
+    )?;
+
+    Ok(())
+}
+
+#[tauri::command]
 async fn get_settings(state: tauri::State<'_, AppState>) -> Result<AppSettings, String> {
     let s = state.settings.lock().map_err(|e| e.to_string())?;
     Ok(s.clone())
@@ -372,6 +493,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             send_message,
+            spawn_subagents,
             get_settings,
             save_settings_cmd,
             list_conversations,

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import type { Conversation } from '../types'
 
 interface Props {
@@ -5,16 +6,17 @@ interface Props {
 }
 
 export function OutputPanel({ conversation }: Props) {
+  const { t } = useTranslation()
   const toolMessages = conversation?.messages.filter(m => m.role === 'tool') ?? []
 
   return (
     <div className="w-72 border-l border-[#e5e5e5] flex flex-col bg-[#fafafa]">
       <div className="h-14 flex items-center px-4 border-b border-[#e5e5e5]">
-        <span className="text-sm font-medium text-[#666]">Output</span>
+        <span className="text-sm font-medium text-[#666]">{t('output.title')}</span>
       </div>
       <div className="flex-1 overflow-y-auto p-4">
         {toolMessages.length === 0 ? (
-          <p className="text-xs text-[#999]">No output yet</p>
+          <p className="text-xs text-[#999]">{t('output.noOutput')}</p>
         ) : (
           <div className="space-y-3">
             {toolMessages.map(msg => (

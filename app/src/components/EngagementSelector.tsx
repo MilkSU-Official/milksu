@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ChevronDown, Plus, Shield, Target } from 'lucide-react'
 import type { EngagementSummary, TaskType } from '../types'
 import { createEngagement, listEngagements } from '../tauri'
@@ -22,10 +23,6 @@ function statusVariant(status: EngagementSummary['status']): 'default' | 'second
   return 'ghost'
 }
 
-function countLabel(count: number, singular: string) {
-  return `${count} ${count === 1 ? singular : `${singular}s`}`
-}
-
 export function EngagementSelector({
   taskType,
   engagements,
@@ -33,6 +30,7 @@ export function EngagementSelector({
   onEngagementChange,
   onEngagementsChange,
 }: Props) {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [creating, setCreating] = useState(false)
   const [name, setName] = useState('')
@@ -60,7 +58,7 @@ export function EngagementSelector({
     try {
       onEngagementsChange(await listEngagements())
     } catch (err) {
-      setError(`Failed to load engagements: ${err}`)
+      setError(t('engagement.loadError', { error: String(err) }))
     } finally {
       setLoading(false)
     }
@@ -94,7 +92,7 @@ export function EngagementSelector({
       setCreating(false)
       setOpen(false)
     } catch (err) {
-      setError(`Failed to create engagement: ${err}`)
+      setError(t('engagement.createError', { error: String(err) }))
     } finally {
       setLoading(false)
     }
@@ -111,7 +109,7 @@ export function EngagementSelector({
         className="max-w-[260px] justify-start"
       >
         <Shield data-icon="inline-start" />
-        <span className="min-w-0 truncate">{selected?.name ?? 'Select engagement'}</span>
+        <span className="min-w-0 truncate">{selected?.name ?? t('engagement.selectEngagement')}</span>
         <ChevronDown data-icon="inline-end" className={cn('ml-auto transition-transform', open && 'rotate-180')} />
       </Button>
 
@@ -120,9 +118,9 @@ export function EngagementSelector({
           <CardContent className="flex flex-col gap-1 p-2">
             <div className="max-h-72 overflow-y-auto">
               {loading && engagements.length === 0 ? (
-                <p className="px-2 py-3 text-xs text-muted-foreground">Loading engagements</p>
+                <p className="px-2 py-3 text-xs text-muted-foreground">{t('engagement.loadingEngagements')}</p>
               ) : engagements.length === 0 ? (
-                <p className="px-2 py-3 text-xs text-muted-foreground">No engagements yet</p>
+                <p className="px-2 py-3 text-xs text-muted-foreground">{t('engagement.noEngagements')}</p>
               ) : (
                 <div className="flex flex-col gap-1">
                   {selectedEngagementId && (
@@ -134,7 +132,7 @@ export function EngagementSelector({
                       }}
                       className="rounded-md px-2 py-2 text-left text-xs text-muted-foreground hover:bg-muted"
                     >
-                      No engagement
+                      {t('engagement.noEngagement')}
                     </button>
                   )}
                   {engagements.map(engagement => (
@@ -152,12 +150,14 @@ export function EngagementSelector({
                     >
                       <span className="flex min-w-0 items-center gap-2">
                         <span className="truncate text-sm font-medium">{engagement.name}</span>
-                        <Badge variant={statusVariant(engagement.status)}>{engagement.status}</Badge>
+                        <Badge variant={statusVariant(engagement.status)}>
+                          {t(`engagement.status.${engagement.status}`)}
+                        </Badge>
                       </span>
                       <span className="flex items-center gap-2 text-xs text-muted-foreground">
                         <Target className="size-3" />
-                        <span>{countLabel(engagement.host_count, 'host')}</span>
-                        <span>{countLabel(engagement.vuln_count, 'vuln')}</span>
+                        <span>{t('engagement.hostCount', { count: engagement.host_count })}</span>
+                        <span>{t('engagement.vulnCount', { count: engagement.vuln_count })}</span>
                       </span>
                     </button>
                   ))}
@@ -171,15 +171,15 @@ export function EngagementSelector({
                   <Input
                     value={name}
                     onChange={event => setName(event.target.value)}
-                    placeholder="Engagement name"
-                    aria-label="Engagement name"
+                    placeholder={t('engagement.engagementName')}
+                    aria-label={t('engagement.engagementName')}
                     autoFocus
                   />
                   <Input
                     value={scope}
                     onChange={event => setScope(event.target.value)}
-                    placeholder="Scope, comma separated"
-                    aria-label="Engagement scope"
+                    placeholder={t('engagement.scopePlaceholder')}
+                    aria-label={t('engagement.engagementScope')}
                   />
                   {error && <p className="text-xs text-destructive">{error}</p>}
                   <div className="flex justify-end gap-2">
@@ -192,11 +192,11 @@ export function EngagementSelector({
                         setError(null)
                       }}
                     >
-                      Cancel
+                      {t('engagement.cancel')}
                     </Button>
                     <Button type="submit" size="sm" disabled={loading || !name.trim()}>
                       <Plus data-icon="inline-start" />
-                      Create
+                      {t('engagement.create')}
                     </Button>
                   </div>
                 </form>
@@ -211,7 +211,7 @@ export function EngagementSelector({
                     onClick={() => setCreating(true)}
                   >
                     <Plus data-icon="inline-start" />
-                    New Engagement
+                    {t('engagement.newEngagement')}
                   </Button>
                 </>
               )}

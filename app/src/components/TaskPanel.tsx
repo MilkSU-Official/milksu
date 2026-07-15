@@ -1,8 +1,8 @@
 import type {
   TaskType, TaskState,
   PentestState, CtfState, ReconState, ReverseState,
-  EMPTY_PENTEST as _EP,
 } from '../types'
+import { useTranslation } from 'react-i18next'
 import { TASK_TYPES } from '../types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -37,6 +37,7 @@ interface Props {
 }
 
 export function TaskPanel({ taskType, taskState, onClose }: Props) {
+  const { t } = useTranslation()
   if (taskType === 'chat') return null
 
   const typeInfo = TASK_TYPES.find(t => t.id === taskType)
@@ -47,7 +48,7 @@ export function TaskPanel({ taskType, taskState, onClose }: Props) {
       <div className="h-14 flex items-center justify-between px-4 border-b border-border">
         <div className="flex items-center gap-2">
           {TASK_ICONS[taskType]}
-          <span className="text-sm font-medium">{typeInfo.label}</span>
+          <span className="text-sm font-medium">{t(`taskTypes.${taskType}.label`)}</span>
         </div>
         <Button variant="ghost" size="icon-xs" onClick={onClose}>
           <X className="size-3.5" />
@@ -66,6 +67,8 @@ export function TaskPanel({ taskType, taskState, onClose }: Props) {
 
 
 function PhaseTracker({ phases, current }: { phases: string[]; current: number }) {
+  const { t } = useTranslation()
+
   return (
     <div className="space-y-1">
       {phases.map((phase, i) => (
@@ -77,7 +80,9 @@ function PhaseTracker({ phases, current }: { phases: string[]; current: number }
           ) : (
             <Circle className="size-3.5 text-muted-foreground/30 shrink-0" />
           )}
-          <span className={i <= current ? 'text-foreground font-medium' : 'text-muted-foreground'}>{phase}</span>
+          <span className={i <= current ? 'text-foreground font-medium' : 'text-muted-foreground'}>
+            {t(`taskPhases.${phase}`)}
+          </span>
         </div>
       ))}
     </div>
@@ -90,6 +95,7 @@ function EmptyState({ message }: { message: string }) {
 
 
 function PentestPanel({ state, phases }: { state?: PentestState; phases: string[] }) {
+  const { t } = useTranslation()
   const target = state?.target || ''
   const phase = state?.phase ?? 0
   const vulns = state?.vulnerabilities ?? []
@@ -102,20 +108,20 @@ function PentestPanel({ state, phases }: { state?: PentestState; phases: string[
         <CardHeader>
           <CardTitle className="text-xs flex items-center gap-1.5">
             <Target className="size-3" />
-            Target
+            {t('taskPanel.target')}
           </CardTitle>
         </CardHeader>
         <CardContent>
           {target ? (
             <p className="text-sm font-mono">{target}</p>
           ) : (
-            <EmptyState message="No target set. Tell the agent what to scan." />
+            <EmptyState message={t('taskPanel.empty.target')} />
           )}
         </CardContent>
       </Card>
 
       <div>
-        <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest mb-2">Phase</p>
+        <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest mb-2">{t('taskPanel.phase')}</p>
         <PhaseTracker phases={phases} current={phase} />
       </div>
 
@@ -123,13 +129,13 @@ function PentestPanel({ state, phases }: { state?: PentestState; phases: string[
 
       <div>
         <div className="flex items-center justify-between mb-2">
-          <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest">Vulnerabilities</p>
+          <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest">{t('taskPanel.vulnerabilities')}</p>
           {vulns.length > 0 && (
             <Badge variant="outline" className="text-[10px]">{vulns.length}</Badge>
           )}
         </div>
         {vulns.length === 0 ? (
-          <EmptyState message="No vulnerabilities discovered yet." />
+          <EmptyState message={t('taskPanel.empty.vulnerabilities')} />
         ) : (
           <div className="space-y-1.5">
             {vulns.map((v, i) => (
@@ -147,9 +153,9 @@ function PentestPanel({ state, phases }: { state?: PentestState; phases: string[
       <Separator />
 
       <div>
-        <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest mb-2">Open Ports</p>
+        <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest mb-2">{t('taskPanel.openPorts')}</p>
         {ports.length === 0 ? (
-          <EmptyState message="No ports discovered yet." />
+          <EmptyState message={t('taskPanel.empty.ports')} />
         ) : (
           <div className="space-y-1">
             {ports.map((p, i) => (
@@ -167,7 +173,7 @@ function PentestPanel({ state, phases }: { state?: PentestState; phases: string[
         <>
           <Separator />
           <div>
-            <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest mb-2">Tools Used</p>
+            <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest mb-2">{t('taskPanel.toolsUsed')}</p>
             <div className="flex flex-wrap gap-1">
               {tools.map(t => (
                 <Badge key={t} variant="secondary" className="text-[10px]">{t}</Badge>
@@ -182,6 +188,7 @@ function PentestPanel({ state, phases }: { state?: PentestState; phases: string[
 
 
 function CtfPanel({ state, phases }: { state?: CtfState; phases: string[] }) {
+  const { t } = useTranslation()
   const challenge = state?.challenge || ''
   const category = state?.category || ''
   const points = state?.points
@@ -194,7 +201,7 @@ function CtfPanel({ state, phases }: { state?: CtfState; phases: string[] }) {
         <CardHeader>
           <CardTitle className="text-xs flex items-center gap-1.5">
             <Flag className="size-3" />
-            Challenge
+            {t('taskPanel.challenge')}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-1">
@@ -203,17 +210,17 @@ function CtfPanel({ state, phases }: { state?: CtfState; phases: string[] }) {
               <p className="text-sm font-medium">{challenge}</p>
               <div className="flex items-center gap-2">
                 {category && <Badge variant="secondary" className="text-[10px]">{category}</Badge>}
-                {points !== null && <span className="text-xs text-muted-foreground">{points} pts</span>}
+                {points !== null && <span className="text-xs text-muted-foreground">{points} {t('taskPanel.pointsSuffix')}</span>}
               </div>
             </>
           ) : (
-            <EmptyState message="No challenge set. Describe the CTF problem." />
+            <EmptyState message={t('taskPanel.empty.challenge')} />
           )}
         </CardContent>
       </Card>
 
       <div>
-        <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest mb-2">Progress</p>
+        <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest mb-2">{t('taskPanel.progress')}</p>
         <PhaseTracker phases={phases} current={solved ? phases.length : Math.min(flags.length, phases.length - 1)} />
       </div>
 
@@ -221,11 +228,11 @@ function CtfPanel({ state, phases }: { state?: CtfState; phases: string[] }) {
 
       <div>
         <div className="flex items-center justify-between mb-2">
-          <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest">Flags</p>
-          {solved && <Badge className="bg-emerald-500 text-[10px]">Solved</Badge>}
+          <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest">{t('taskPanel.flags')}</p>
+          {solved && <Badge className="bg-emerald-500 text-[10px]">{t('taskPanel.solved')}</Badge>}
         </div>
         {flags.length === 0 ? (
-          <EmptyState message="No flags captured yet." />
+          <EmptyState message={t('taskPanel.empty.flags')} />
         ) : (
           <div className="space-y-1">
             {flags.map((f, i) => (
@@ -242,6 +249,7 @@ function CtfPanel({ state, phases }: { state?: CtfState; phases: string[] }) {
 
 
 function ReconPanel({ state, phases }: { state?: ReconState; phases: string[] }) {
+  const { t } = useTranslation()
   const scope = state?.scope ?? []
   const hosts = state?.hosts ?? []
   const ports = state?.ports ?? []
@@ -255,7 +263,7 @@ function ReconPanel({ state, phases }: { state?: ReconState; phases: string[] })
         <CardHeader>
           <CardTitle className="text-xs flex items-center gap-1.5">
             <Network className="size-3" />
-            Scope
+            {t('taskPanel.scope')}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -266,13 +274,13 @@ function ReconPanel({ state, phases }: { state?: ReconState; phases: string[] })
               ))}
             </div>
           ) : (
-            <EmptyState message="No targets in scope. Provide IP ranges or domains." />
+            <EmptyState message={t('taskPanel.empty.scope')} />
           )}
         </CardContent>
       </Card>
 
       <div>
-        <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest mb-2">Phase</p>
+        <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest mb-2">{t('taskPanel.phase')}</p>
         <PhaseTracker phases={phases} current={activePhase} />
       </div>
 
@@ -280,11 +288,11 @@ function ReconPanel({ state, phases }: { state?: ReconState; phases: string[] })
 
       <div>
         <div className="flex items-center justify-between mb-2">
-          <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest">Hosts</p>
+          <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest">{t('taskPanel.hosts')}</p>
           {hosts.length > 0 && <Badge variant="outline" className="text-[10px]">{hosts.length}</Badge>}
         </div>
         {hosts.length === 0 ? (
-          <EmptyState message="No hosts discovered yet." />
+          <EmptyState message={t('taskPanel.empty.hosts')} />
         ) : (
           <div className="space-y-1">
             {hosts.map((h, i) => (
@@ -301,11 +309,11 @@ function ReconPanel({ state, phases }: { state?: ReconState; phases: string[] })
 
       <div>
         <div className="flex items-center justify-between mb-2">
-          <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest">Services</p>
+          <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest">{t('taskPanel.services')}</p>
           {ports.length > 0 && <Badge variant="outline" className="text-[10px]">{ports.length}</Badge>}
         </div>
         {ports.length === 0 ? (
-          <EmptyState message="No services enumerated yet." />
+          <EmptyState message={t('taskPanel.empty.services')} />
         ) : (
           <div className="space-y-1">
             {ports.map((p, i) => (
@@ -322,7 +330,7 @@ function ReconPanel({ state, phases }: { state?: ReconState; phases: string[] })
         <>
           <Separator />
           <div>
-            <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest mb-2">Findings</p>
+            <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest mb-2">{t('taskPanel.findings')}</p>
             <div className="space-y-1">
               {findings.map((f, i) => (
                 <div key={i} className="flex items-start gap-1.5 px-2 py-1.5 bg-muted/50 rounded-md">
@@ -340,6 +348,7 @@ function ReconPanel({ state, phases }: { state?: ReconState; phases: string[] })
 
 
 function ReversePanel({ state, phases }: { state?: ReverseState; phases: string[] }) {
+  const { t } = useTranslation()
   const binary = state?.binary || ''
   const arch = state?.arch || ''
   const prot = state?.protections ?? { nx: false, canary: false, pie: false, relro: 'none' }
@@ -354,7 +363,7 @@ function ReversePanel({ state, phases }: { state?: ReverseState; phases: string[
         <CardHeader>
           <CardTitle className="text-xs flex items-center gap-1.5">
             <Binary className="size-3" />
-            Binary
+            {t('taskPanel.binary')}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
@@ -364,13 +373,13 @@ function ReversePanel({ state, phases }: { state?: ReverseState; phases: string[
               {arch && <Badge variant="secondary" className="text-[10px]">{arch}</Badge>}
             </>
           ) : (
-            <EmptyState message="No binary loaded. Provide a file path." />
+            <EmptyState message={t('taskPanel.empty.binary')} />
           )}
         </CardContent>
       </Card>
 
       <div>
-        <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest mb-2">Phase</p>
+        <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest mb-2">{t('taskPanel.phase')}</p>
         <PhaseTracker phases={phases} current={activePhase} />
       </div>
 
@@ -379,13 +388,13 @@ function ReversePanel({ state, phases }: { state?: ReverseState; phases: string[
       {binary && (
         <>
           <div>
-            <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest mb-2">Protections</p>
+            <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest mb-2">{t('taskPanel.protections')}</p>
             <div className="grid grid-cols-2 gap-1.5">
               {[
-                { label: 'NX', on: prot.nx },
-                { label: 'Canary', on: prot.canary },
-                { label: 'PIE', on: prot.pie },
-                { label: `RELRO: ${prot.relro}`, on: prot.relro !== 'none' },
+                { label: t('taskPanel.nx'), on: prot.nx },
+                { label: t('taskPanel.canary'), on: prot.canary },
+                { label: t('taskPanel.pie'), on: prot.pie },
+                { label: `${t('taskPanel.relro')}: ${prot.relro === 'none' ? t('taskPanel.none') : prot.relro}`, on: prot.relro !== 'none' },
               ].map(p => (
                 <div key={p.label} className={`px-2 py-1.5 rounded-md text-xs text-center ${
                   p.on ? 'bg-red-50 text-red-600 font-medium' : 'bg-muted/50 text-muted-foreground'
@@ -401,11 +410,11 @@ function ReversePanel({ state, phases }: { state?: ReverseState; phases: string[
 
       <div>
         <div className="flex items-center justify-between mb-2">
-          <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest">Functions</p>
+          <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest">{t('taskPanel.functions')}</p>
           {functions.length > 0 && <Badge variant="outline" className="text-[10px]">{functions.length}</Badge>}
         </div>
         {functions.length === 0 ? (
-          <EmptyState message="No functions analyzed yet." />
+          <EmptyState message={t('taskPanel.empty.functions')} />
         ) : (
           <div className="space-y-1">
             {functions.map((f, i) => (
@@ -425,7 +434,7 @@ function ReversePanel({ state, phases }: { state?: ReverseState; phases: string[
         <>
           <Separator />
           <div>
-            <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest mb-2">Findings</p>
+            <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest mb-2">{t('taskPanel.findings')}</p>
             <div className="space-y-1">
               {findings.map((f, i) => (
                 <div key={i} className="flex items-start gap-1.5 px-2 py-1.5 bg-muted/50 rounded-md">
