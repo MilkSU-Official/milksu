@@ -1,0 +1,52 @@
+/* Table horizontal scroll support */
+.vp-doc table {
+  display: block;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.vp-doc table th,
+.vp-doc table td {
+  min-width: 80px;
+}
+
+/* Always show scrollbar for overflowing tables */
+.vp-doc table::-webkit-scrollbar {
+  height: 6px;
+}
+.vp-doc table::-webkit-scrollbar-track {
+  background: var(--vp-c-bg-soft);
+  border-radius: 3px;
+}
+.vp-doc table::-webkit-scrollbar-thumb {
+  background: var(--vp-c-text-3);
+  border-radius: 3px;
+}
+
+/* Improve code block readability on mobile */
+@media (max-width: 640px) {
+  .vp-doc div[class*='language-'] {
+    margin: 16px -24px;
+    border-radius: 0;
+  }
+}
+
+/* Keep the architecture boundary visible as the first homepage reminder. */
+.VPHomeFeatures .item:first-child {
+  width: 100%;
+}
+
+.VPHomeFeatures .item:first-child .VPFeature {
+  border-color: var(--vp-c-brand-1);
+  background-color: var(--vp-c-brand-soft);
+}
+
+.VPHomeFeatures .item:first-child .title {
+  color: var(--vp-c-brand-1);
+}
+
+@media (min-width: 768px) {
+  .VPHomeFeatures .item:not(:first-child) {
+    width: calc(100% / 3);
+  }
+}

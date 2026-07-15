@@ -7,6 +7,7 @@ Pi agent harness extension for pluggable AI skills, with a Tauri v2 native deskt
 - No emoji anywhere: code, comments, docs, UI text, commit messages.
 - Communicate in Chinese.
 - Explain Agent Harness concepts during development for interview/presentation prep.
+- Before changing architecture, read `docs/developer/security-agent-boundary.md` and keep Agent Security, Role Package, and Capability Package separate.
 
 ## Architecture
 

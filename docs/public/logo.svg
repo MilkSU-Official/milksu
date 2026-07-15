@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <rect width="128" height="128" rx="24" fill="#1a1a2e"/>
+  <text x="64" y="78" text-anchor="middle" font-family="system-ui, sans-serif" font-weight="700" font-size="36" fill="#e2e8f0">MSU</text>
+  <rect x="20" y="90" width="88" height="4" rx="2" fill="#6366f1"/>
+</svg>

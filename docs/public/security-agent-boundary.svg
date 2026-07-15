@@ -1,0 +1,188 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 860" role="img" aria-labelledby="title desc">
+  <title id="title">通用 Agent 与角色特定安全闭环</title>
+  <desc id="desc">通用 Agent 与安全任务高度重叠。基础模型增强会继续覆盖安全知识、分析和规划能力。图中以红队、蓝队、CTF 和 AppSec 为例展示角色各自的环境、状态、判分和副作用闭环。Agent Security 是与任务类型正交的通用完整性基础设施，二进制分析等技术则属于跨角色共享能力。</desc>
+  <defs>
+    <clipPath id="security-circle">
+      <circle cx="760" cy="350" r="285"/>
+    </clipPath>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
+      <path d="M0 0 L10 5 L0 10 Z" class="arrow-head"/>
+    </marker>
+    <style>
+      text {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        fill: #1f2937;
+      }
+      .muted { fill: #6b7280; }
+      .general-set {
+        fill: #3b82f624;
+        stroke: #3b82f6;
+        stroke-width: 3;
+      }
+      .security-set {
+        fill: #f973161c;
+        stroke: #f97316;
+        stroke-width: 3;
+      }
+      .role-closure { fill: #22c55e2b; }
+      .integrity-layer {
+        fill: #6b728012;
+        stroke: #6b7280;
+        stroke-width: 2;
+      }
+      .boundary {
+        stroke: #22c55e;
+        stroke-width: 2;
+        stroke-dasharray: 8 8;
+      }
+      .set-label {
+        font-size: 26px;
+        font-weight: 600;
+      }
+      .zone-label {
+        font-size: 19px;
+        font-weight: 600;
+      }
+      .task { font-size: 17px; }
+      .role-name {
+        font-size: 17px;
+        font-weight: 600;
+      }
+      .role-detail { font-size: 14px; }
+      .note { font-size: 17px; }
+      .dot-general { fill: #3b82f6; }
+      .dot-domain { fill: #f97316; }
+      .dot-role { fill: #22c55e; }
+      .arrow-line {
+        stroke: #6b7280;
+        stroke-width: 2;
+        fill: none;
+      }
+      .arrow-head { fill: #6b7280; }
+      @media (prefers-color-scheme: dark) {
+        text { fill: #f3f4f6; }
+        .muted { fill: #a7adb7; }
+        .general-set { fill: #10233f; }
+        .security-set { fill: #382113; }
+        .role-closure { fill: #173620; }
+        .integrity-layer {
+          fill: #20242c;
+          stroke: #9ca3af;
+        }
+        .arrow-line { stroke: #9ca3af; }
+        .arrow-head { fill: #9ca3af; }
+      }
+    </style>
+  </defs>
+
+  <circle class="security-set" cx="760" cy="350" r="285"/>
+  <rect class="role-closure" x="855" y="60" width="205" height="580" clip-path="url(#security-circle)"/>
+  <line class="boundary" x1="855" y1="82" x2="855" y2="618"/>
+  <circle class="general-set" cx="380" cy="350" r="285"/>
+
+  <text class="set-label" x="205" y="95">通用 Agent 可完成</text>
+  <text class="set-label" x="670" y="95">安全角色任务全集</text>
+  <text class="zone-label" x="875" y="135">角色运行闭环示例</text>
+
+  <g transform="translate(150 205)">
+    <circle class="dot-general" r="7"/>
+    <text class="task" x="17" y="6">软件架构与实现</text>
+  </g>
+  <g transform="translate(135 275)">
+    <circle class="dot-general" r="7"/>
+    <text class="task" x="17" y="6">测试、调试与研究</text>
+  </g>
+  <g transform="translate(155 345)">
+    <circle class="dot-general" r="7"/>
+    <text class="task" x="17" y="6">通用工具开发</text>
+  </g>
+  <g transform="translate(195 415)">
+    <circle class="dot-general" r="7"/>
+    <text class="task" x="17" y="6">自动化与数据分析</text>
+  </g>
+
+  <g transform="translate(470 185)">
+    <circle class="dot-general" r="7"/>
+    <text class="task" x="17" y="6">安全工具开发</text>
+  </g>
+  <g transform="translate(495 245)">
+    <circle class="dot-general" r="7"/>
+    <text class="task" x="17" y="6">代码审计与修复</text>
+  </g>
+  <g transform="translate(520 305)">
+    <circle class="dot-general" r="7"/>
+    <text class="task" x="17" y="6">协议与二进制分析</text>
+  </g>
+  <g transform="translate(505 365)">
+    <circle class="dot-general" r="7"/>
+    <text class="task" x="17" y="6">PoC 与 exploit 脚本</text>
+  </g>
+  <g transform="translate(535 425)">
+    <circle class="dot-general" r="7"/>
+    <text class="task" x="17" y="6">漏洞模式识别</text>
+  </g>
+
+  <text class="zone-label" x="680" y="165">随 SOTA 收缩的角色认知</text>
+  <g transform="translate(690 215)">
+    <circle class="dot-domain" r="7"/>
+    <text class="task" x="17" y="6">利用链规划</text>
+  </g>
+  <g transform="translate(690 275)">
+    <circle class="dot-domain" r="7"/>
+    <text class="task" x="17" y="6">攻击面枚举</text>
+  </g>
+  <g transform="translate(690 335)">
+    <circle class="dot-domain" r="7"/>
+    <text class="task" x="17" y="6">静态威胁建模</text>
+  </g>
+  <g transform="translate(690 395)">
+    <circle class="dot-domain" r="7"/>
+    <text class="task" x="17" y="6">领域知识与策略</text>
+  </g>
+
+  <g transform="translate(875 195)">
+    <circle class="dot-role" r="7"/>
+    <text class="role-name" x="17" y="2">Red</text>
+    <text class="role-detail" x="17" y="24">Scope / AttackGraph</text>
+    <text class="role-detail" x="17" y="44">Effect / Cleanup</text>
+  </g>
+  <g transform="translate(875 295)">
+    <circle class="dot-role" r="7"/>
+    <text class="role-name" x="17" y="2">Blue</text>
+    <text class="role-detail" x="17" y="24">Evidence / Hypothesis</text>
+    <text class="role-detail" x="17" y="44">Response / Recovery</text>
+  </g>
+  <g transform="translate(875 395)">
+    <circle class="dot-role" r="7"/>
+    <text class="role-name" x="17" y="2">CTF</text>
+    <text class="role-detail" x="17" y="24">Snapshot / Experiment</text>
+    <text class="role-detail" x="17" y="44">Judge / success@N</text>
+  </g>
+  <g transform="translate(875 495)">
+    <circle class="dot-role" r="7"/>
+    <text class="role-name" x="17" y="2">AppSec</text>
+    <text class="role-detail" x="17" y="24">PoC / Patch / Variant</text>
+    <text class="role-detail" x="17" y="44">Regression Evaluator</text>
+  </g>
+
+  <path class="arrow-line" d="M455 610 L815 610" marker-end="url(#arrow)"/>
+  <text class="note muted" x="520" y="595">基础模型增强：通用覆盖继续右移</text>
+
+  <rect class="integrity-layer" x="105" y="685" width="990" height="105" rx="18"/>
+  <text class="zone-label" x="140" y="725">Agent Security / 通用 Agent Integrity</text>
+  <text class="note" x="140" y="758">prompt injection · observation provenance · 沙箱 · 凭据隔离 · 工具权限 · 供应链安全</text>
+  <text class="note muted" x="140" y="781">与任务类型正交：普通办公 Agent 和安全任务 Agent 都可能需要，不构成安全角色专属长板</text>
+
+  <g transform="translate(330 830)">
+    <circle class="dot-general" r="7"/>
+    <text class="note" x="17" y="6">通用能力</text>
+  </g>
+  <g transform="translate(530 830)">
+    <circle class="dot-domain" r="7"/>
+    <text class="note" x="17" y="6">暂时角色认知</text>
+  </g>
+  <g transform="translate(750 830)">
+    <circle class="dot-role" r="7"/>
+    <text class="note" x="17" y="6">角色专属闭环</text>
+  </g>
+</svg>
