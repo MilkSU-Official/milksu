@@ -4,6 +4,18 @@
 
 技能 (Skills) 是可插拔的能力模块，通过领域特定的工具和上下文扩展 Pi 代理。每个技能是一个遵循标准结构的目录。
 
+当前 Skill loader 只是“把工具和上下文装进 Worker”的实现机制，不等同于最终的 Role Package。`browser-connect`、`network-recon` 更接近 Capability，`panel`、`subagent` 更接近 Infrastructure；它们本身都不能定义某个安全任务怎样才算成功。
+
+## 包契约 TODO
+
+- [ ] 给包增加 `kind: role | capability | infrastructure`，或者为三类包采用独立 manifest，避免所有东西都继续叫 Skill。
+- [ ] Role Package 声明 `outcome`、`environment`、`capabilities`、`actions`、`evaluator`、`evidenceSchema`、`benchmarkCases` 与 `integrityRequirements`。
+- [ ] Capability Package 声明工具输入输出、运行环境、权限、副作用、重试与清理语义；Binary、Web、Network、Mobile、Forensics、Fuzzing 均按共享能力建模。
+- [ ] Infrastructure Package 声明它影响的执行阶段与通用事件，例如 Policy、Sandbox、Subagent、Trace 和 UI Projection，但不得假装自己是安全角色。
+- [ ] 保留现有 `SKILL.md` 的向后兼容解析；新契约先通过版本字段与校验器渐进引入，不一次性破坏已安装技能。
+
+TODO 完成前，文档中的“技能”应理解为加载单元，而不是 MilkSU 的完整领域边界。
+
 ## 技能结构
 
 ```

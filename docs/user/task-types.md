@@ -1,6 +1,15 @@
 # 任务类型
 
+> 本页描述的是当前已经实现的兼容层，不是 MilkSU 最终的领域架构。现有 `taskType` 同时混入了角色（CTF、渗透测试）、活动（侦察）和能力（逆向），这个早期抽象已经被判定为不够准确。架构目标与迁移 TODO 见[路线图的架构纠偏](/progress/roadmap#架构纠偏-todo-2026-07-16-优先于旧冲刺计划)。
+
 MilkSU 中的每个对话在创建时绑定一个任务类型。任务类型决定了对话旁边可用的结构化面板。
+
+## 迁移 TODO
+
+- [ ] 在不破坏现有持久化数据的前提下，把 `taskType` 重命名或降级为 UI/工作区 profile。
+- [ ] 新增独立的 Role/Profile，用来表达任务目标、长期状态与 evaluator。
+- [ ] 新增可多选的 Capability Package；例如 Binary Reverse 可以同时服务 CTF、AppSec、红队、恶意样本分析和漏洞研究。
+- [ ] 让面板从 Trace、Artifact 和 Evaluation 投影事实，不再直接把模型通过 `panel_update` 写入的总结视为已验证结论。
 
 ## 对话（默认）
 

@@ -7,9 +7,9 @@ Pi agent harness extension for pluggable AI skills, with a Tauri v2 native deskt
 - No emoji anywhere: code, comments, docs, UI text, commit messages.
 - Communicate in Chinese.
 - Explain Agent Harness concepts during development for interview/presentation prep.
-- Before changing architecture, read `docs/developer/security-agent-boundary.md` and keep Agent Security, Role Package, and Capability Package separate.
+- Before planning or changing architecture, read `docs/developer/security-agent-boundary.md`. It is the current canonical architecture goal: keep Agent Security, Role Package, and Capability Package separate, and do not restore older Sprint, fixed Task Type, or Security Kernel assumptions as the mainline.
 - Documentation site (`docs/`) is the single source of truth for architecture and progress:
-  - Before starting a feature: read `docs/progress/roadmap.md` for priorities and `docs/developer/` for architecture context.
+  - Before starting a feature: read `docs/developer/security-agent-boundary.md` for the goal, then `docs/progress/roadmap.md` for current priorities.
   - After completing a feature: update `docs/progress/status.md` (checklist), `docs/progress/changelog.md` (entry), and relevant `docs/developer/` pages if architecture changed.
   - Do NOT duplicate architecture or progress information in this file. This file contains rules and quick-reference only; detailed docs live in the docs site.
 

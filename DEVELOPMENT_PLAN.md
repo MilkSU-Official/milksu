@@ -1,6 +1,6 @@
 # MilkSU Development Plan
 
-> 本文件是早期 S0-S5 平台计划的历史快照，不再作为当前优先级或完成状态的依据。当前路线图见 `docs/progress/roadmap.md`，当前实现状态见 `docs/progress/status.md`。
+> 本文件是早期 S0-S5 平台计划的历史快照，不再作为架构目标、当前优先级或完成状态的依据。当前架构目标见 `docs/developer/security-agent-boundary.md`，落地顺序见 `docs/progress/roadmap.md`，实现状态见 `docs/progress/status.md`。
 
 ## Sprint Overview
 

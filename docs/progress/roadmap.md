@@ -1,5 +1,7 @@
 # 路线图
 
+> 本文只负责把[安全 Agent 与通用 Agent 的能力边界](/developer/security-agent-boundary)转成阶段任务。能力边界文档是当前架构目标；本文与它冲突时，应修改 Roadmap，而不是恢复旧主线。
+
 ## 面试冲刺轨道 (2026-07, 最高优先)
 
 背景: 求职 last day 为 2026-07-31, 约 22 天窗口。在职交接期每天约 2 小时可投入开发, 其余时间用于面试准备。这段时间 MilkSU 的目标不是把平台做全, 而是产出一个**能在面试现场演示、能讲清取舍**的安全切片。功能数量不是目标, 一个跑得通的闭环才是。
@@ -16,6 +18,19 @@
 
 checkpoint、多 Agent、模型路由、领域 UI 和 prompt 循环本身只属于工程能力。若没有真实任务资产和量化收益，应实现为外围 Skill、MCP 或实验，不进入核心。
 
+### 架构纠偏 TODO（2026-07-16，优先于旧冲刺计划）
+
+> 2026-07-09 的计划把“防御 Prompt Injection 的 PolicyDecision 演示”当成了安全 Agent 的唯一核心闭环。这个理解不够准确：它证明的是 **Agent Security / Integrity**，即任何会读取外部内容并调用高权限工具的 Agent 都需要的通用防护；它不能单独证明 MilkSU 在“用 Agent 做安全任务”上的差异化。下面的 TODO 是对旧计划的正式修正，后续 Agent 不得继续把旧结论当作架构前提。
+
+- [ ] **把 Integrity 演示重新归位**：保留 `Prompt Injection -> PolicyDecision -> Trace`，但明确标为跨领域完整性基础设施演示；不要再把拦截记录硬塞进 recon/pentest 角色面板，而应投影到通用运行/策略事件视图。
+- [ ] **补一个角色特定的最小闭环**：在 CTF `Experiment -> Judge -> Flag` 与 AppSec `PoC -> Patch -> Regression` 中选择一个作为首个 Role Package 演示。成功必须由外部 evaluator 判定，并保留 artifact 与可重放 trace。
+- [ ] **拆开当前 `taskType`**：把现有 `chat/pentest/ctf/recon/reverse` 明确为兼容旧数据的 UI/工作区 profile，不再视为完整领域模型；设计正交的 `Role/Profile` 与 `Capability Package`，其中 Binary、Web、Network、Mobile、Forensics、Fuzzing 是能力，不被某个角色独占。
+- [ ] **升级包契约**：为模块增加 `role / capability / infrastructure` 分类，或拆成独立 manifest。Role 至少声明 outcome、environment、actions、evaluator、evidence schema、benchmark 与 integrity requirements；Capability 声明工具、环境依赖、副作用和清理语义。
+- [ ] **拆分 benchmark**：分别测量 Worker 通用能力、Integrity 防护收益和 Role 闭环收益，不再把 prompt injection、CTF flag 与 PoC 回归混成一个无法解释的总分。
+- [ ] **清理会误导 Agent 的旧计划**：`.codex/TASKS.md` 和 `DEVELOPMENT_PLAN.md` 只保留为历史快照；`docs-legacy/` 若要入库必须进入 archive 并标明 superseded，过时的根目录 `MODULE_STATUS.md` 不作为当前文档来源。
+
+完成标准：新人或 Agent 只阅读 README、本文和架构边界文档时，能够清楚回答三件事——“Agent 自己如何不被攻击”“这个安全角色怎样才算赢”“它使用哪些跨角色能力”，且不会把三者合并成一个 Security Kernel。
+
 ### 已就位的地基 (截至 2026-07-04, 见 status.md)
 
 演示需要的下层链路其实已经通了, 不要重复做:
@@ -23,36 +38,38 @@ checkpoint、多 Agent、模型路由、领域 UI 和 prompt 循环本身只属�
 - 模型名不一致已修复; 核心 loop E2E 已跑通 (DeepSeek, 流式思考 + 文本)。
 - 5 个 skill / 18 工具已注入 Pi session; skill 加载 E2E 通过。
 - 面板数据流全链路已验证 (`panel_update` tool call -> bridge event -> Tauri emit -> TaskPanel)。
-- 子代理 E2E 通过。
+- 子代理宿主执行路径已实现；新路径仍需使用真实模型确认结果能稳定返回父代理上下文。
 
-也就是说, 距离"可演示安全闭环"只差**策略判定与证据这一层**, 而不是整条链。
+这些地基足以继续做 Integrity 演示，但不能推出“安全任务闭环只差一层”。Role Package 仍缺少明确的环境、角色状态、外部 evaluator 和证据契约，必须按架构纠偏 TODO 另行补齐。
 
-### 唯一冲刺目标: 补上 PolicyDecision 这一层
+### 旧冲刺切片：PolicyDecision（保留，但不再是唯一架构目标）
 
 `Prompt Injection -> 危险工具调用 -> PolicyDecision -> 面板显示 -> JSONL trace`
+
+这条链仍适合作为工程演示，但它属于上面 TODO 中的 Integrity 轨道。面试演示应把它与一个 Role Package 的可判分闭环并列介绍，不能再用它代替“安全任务 Agent 的差异化”。
 
 按依赖顺序, 做完即收手, 不横向扩张:
 
 1. **policy-engine 从 stub 升级为风险决策** (核心): 给 `check()` 增加工具风险分级 (`read_only / network / file_read / file_write / shell / credential`), 输出结构化 `PolicyDecision { tool, args, risk, decision(allow|deny|require_approval), reason, evidence, trace_id }`。接入点 (`src/index.ts` 的 `tool_call` 钩子) 已存在, 这是增量改造不是从零。
 2. **一个可复现攻击样例**: agent 浏览一个恶意网页, 网页诱导它读本地 secret 或调用高危工具; policy 判 `deny` 或 `require_approval`。放到 `skills/agent-security/attacks/` 下。
-3. **一条 JSONL trace + 面板显示一次拦截**: 把这次 PolicyDecision 写入 trace, 并复用已验证的 `panel_update` 管道, 在 recon/pentest 面板显示一条真实的 blocked 记录。
+3. **一条 JSONL trace + 通用策略视图显示一次拦截**: 把这次 PolicyDecision 写入 trace，并投影到通用运行/策略事件视图；不得把 Agent 自身完整性事件伪装成 recon/pentest 的角色任务状态。
 4. **一次端到端演示彩排**: 从恶意网页到面板拦截记录完整跑一遍, 确认可现场复现、可讲清每一步。
 
 ### 节奏
 
-- 只差一层, 加上 AI 辅助, 实现量不大; 真正花时间的是设计风险分级、造攻击样例和把演示打磨顺。
-- Demo-ready 目标: **7 月中下旬**, 赶在面试循环密集之前就绪。就绪后, 面试 pitch 从"还早"升级为"可现场演示一次危险工具调用被拦截并留证"。
+- Integrity 轨道是现有实现上的增量；真正的新设计工作是首个 Role Package 的环境、判分和证据闭环。
+- Demo-ready 目标: **7 月中下旬**。面试 pitch 应同时展示“危险工具调用被拦截并留证”和“一个安全角色的结果由外部 evaluator 判定”，并能解释两者为什么是正交能力。
 - 演示彩排要真跑, 不要只在脑子里过。面试现场最怕临时环境问题。
 
-### 演示后的第一项架构验证
+### 双轨演示后的第一项架构验证
 
-完成 PolicyDecision 演示后，不立即扩张功能。先建立一个最小 benchmark：
+完成 Integrity 与首个 Role Package 演示后，不立即扩张功能。先建立三个可分开解释的最小 benchmark 套件：
 
-1. 选择可机器判定结果的窄任务集，例如 prompt injection 策略判定、CTF flag 或 PoC/补丁回归。
-2. 基线 A 使用相同模型、相同工具和相同预算的最小 Pi Agent，不启用 MilkSU 领域控制面。
-3. 基线 B 使用固定预算运行 Codex 或 Claude Code，作为成熟通用 Agent 的外部参照。
-4. MilkSU 运行同一任务集，记录 `success@1`、`success@N`、单次成功成本、完成时间、误报成功率、中断恢复率、重复副作用和结果复现率。
-5. 只有当控制面产生可重复的指标提升，或完成基线无法接入的环境任务时，才继续扩展对应核心模块。
+1. **Worker 基线**：测通用规划、编码、工具使用和领域推理，确认收益是否其实来自更强模型。
+2. **Integrity 套件**：测 prompt injection、越权工具调用和数据外传的阻断与误报，不混入安全角色成败。
+3. **Role 套件**：单独测 CTF flag、AppSec PoC/补丁回归等由角色 evaluator 判定的 outcome。
+4. 每个套件都用相同模型、工具和预算比较最小 Pi Agent、成熟通用 Agent 与 MilkSU，记录 `success@1`、`success@N`、单次成功成本、完成时间、误报成功率、中断恢复率、重复副作用和结果复现率。
+5. 只有当某一层产生可重复的指标提升，或接入基线无法使用的环境时，才继续扩展对应模块；不得用 Integrity 的成绩替 Role Package 证明差异化，反之亦然。
 
 停止条件：如果 MilkSU 只是让同一个模型多跑几次，却没有更好的 evaluator、环境资产或执行经济性，就回退为 Skill / benchmark 工具，不继续重造通用 Agent。
 
@@ -66,7 +83,7 @@ checkpoint、多 Agent、模型路由、领域 UI 和 prompt 循环本身只属�
 - 沙箱、Auto Mode、上下文管理 (原 P2)
 - Marketplace、CI 模式、代理角色 (原 P3)
 
-> 判断标准: 如果一个任务不能让"面试现场演示的那次拦截"更可信或更顺, 这 22 天就先不做。
+> 判断标准：短期工作必须让 Integrity 演示或首个 Role Package 闭环更可信、更可判定、更可复现；不能只增加界面或通用 Agent 功能。
 
 ## 优先级矩阵
 

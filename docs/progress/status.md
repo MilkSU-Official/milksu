@@ -1,6 +1,6 @@
 # 项目状态
 
-最后更新: 2026-07-15
+最后更新: 2026-07-16
 
 ## 模块成熟度概览
 
@@ -74,11 +74,14 @@
 
 | 优先级 | 事项 |
 |--------|------|
+| P0 | 架构纠偏: 分离 Agent Integrity、Role Package 与 Capability Package |
+| P0 | 将旧 `taskType` 降级为兼容 UI profile，并设计正交角色/能力契约 |
+| P0 | 首个角色闭环: CTF Judge 或 AppSec PoC/Patch/Regression（二选一） |
 | P0 | 固定安全任务 benchmark 与最小 Agent 基线 |
 | P0 | Evaluator 接口与版本化判定结果 |
 | P0 | Trace 数据模型 (Run 到 Outcome) |
 | P1 | Environment Adapter 生命周期协议 |
-| P1 | PolicyDecision 演示闭环 |
+| P1 | 作为通用 Integrity 轨道的 PolicyDecision 演示闭环 |
 | P1 | checkpoint、幂等键与恢复语义 |
 | P1 | 面板/报告改为 Evidence 投影视图 |
 | P2 | 沙箱与完整策略引擎 |

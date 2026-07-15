@@ -1,5 +1,7 @@
 # MilkSU Codex Tasks
 
+> **Superseded implementation snapshot.** 本文件记录早期 S0-S5 的实施说明，不再是当前 TODO 或架构依据。它使用的固定 `taskType`、面板写入和 Security Kernel 假设已经被后续研究修正。继续任何任务前，必须先阅读 `docs/developer/security-agent-boundary.md` 理解当前目标，再阅读 `docs/progress/roadmap.md` 的“架构纠偏 TODO”确认落地优先级。
+
 ## Task S0: Fix Agent Loop - Model/Provider Pass-through
 
 ### Context

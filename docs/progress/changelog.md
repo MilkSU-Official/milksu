@@ -1,5 +1,16 @@
 # 变更日志
 
+## 2026-07-16
+
+### 将旧理解转成显式纠偏 TODO
+
+- 将 `security-agent-boundary.md` 提升为当前架构目标与最高优先级设计依据；Roadmap 只负责任务排序，旧计划不得覆盖新的能力边界。
+- 正式撤销“Prompt Injection / PolicyDecision 是安全 Agent 唯一核心闭环”的旧结论：该演示归入跨领域 Agent Integrity，而不是 Agent for Security 的专属差异化。
+- Roadmap 改为双轨最小验证：一条通用 Integrity 演示，加一条由外部 evaluator 判分的 Role Package 闭环。
+- 新增 `taskType` 兼容迁移 TODO，将角色、活动与能力从早期扁平枚举拆成正交的 Role/Profile 与 Capability Package。
+- 新增包契约 TODO，区分 Role、Capability 与 Infrastructure，并把 outcome、environment、evidence、benchmark 和 integrity requirements 纳入目标契约。
+- 将 `.codex/TASKS.md` 标为历史实施快照，防止后续 Agent 按已经过时的 Security Kernel、固定任务类型和面板假设继续开发。
+
 ## 2026-07-15
 
 ### 工作树审查与实现收口

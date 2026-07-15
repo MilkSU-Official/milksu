@@ -4,6 +4,8 @@ MilkSU 是一个由用户拥有的安全任务控制面。它把 Codex、Claude 
 
 MilkSU 不试图训练一个比前沿模型更聪明的“安全大脑”。它要解决的是另一类问题：如何让强模型在真实安全环境里形成可验证、可复现、可积累的任务闭环。
 
+当前产品目标和概念边界以[安全 Agent 与通用 Agent 的能力边界](docs/developer/security-agent-boundary.md)为最高优先级设计依据。Roadmap 负责落地这个目标；早期 Sprint、固定 Task Type 和 Security Kernel 方案不再是主线。
+
 ## 核心命题
 
 安全任务的结果不只取决于模型能力：
@@ -70,13 +72,13 @@ Provenance、Sandbox、Credential、Capability、Supply Chain
 
 Agent Integrity 按内容信任度、权限和数据风险配置；Role Package 按任务结果配置；Capability Package 按所需技术配置。三者各自演进，Agent Integrity 不是安全任务专属护城河，二进制逆向等共享能力也不应被某一个角色独占。
 
-详细设计以文档站为准：
+详细设计以文档站为准，阅读顺序如下：
 
-- [核心架构](docs/developer/architecture.md)
-- [安全 Agent 与通用 Agent 的能力边界](docs/developer/security-agent-boundary.md)
+- [安全 Agent 与通用 Agent 的能力边界](docs/developer/security-agent-boundary.md)（当前架构目标）
+- [核心架构](docs/developer/architecture.md)（目标分层）
 - [Agent Harness 设计边界](docs/guide/agent-harness.md)
 - [平台对比与差异化](docs/developer/comparison.md)
-- [路线图与验证门槛](docs/progress/roadmap.md)
+- [路线图与验证门槛](docs/progress/roadmap.md)（落地顺序）
 
 ## 验证原则
 
