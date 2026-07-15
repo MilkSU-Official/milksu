@@ -2,16 +2,14 @@
 
 ## 概述
 
-MilkSU 支持从一个父对话中生成最多 4 个并发子代理 (Sub-agents)。子代理是独立的 Pi 会话，并行执行任务并将结果流式传回父对话。
+MilkSU 支持从一个父对话中一次派生最多 8 个子代理 (Sub-agents)，同时最多运行 4 个。子代理是独立的 Pi 会话，结果一边流式投影到界面，一边在全部完成后作为标准工具结果返回父代理。
 
 ## 架构
 
 ```
 Parent conversation (conv-123)
-  |-- Sub-agent 0 (conv-123:sub:0)
-  |-- Sub-agent 1 (conv-123:sub:1)
-  |-- Sub-agent 2 (conv-123:sub:2)
-  +-- Sub-agent 3 (conv-123:sub:3)
+  |-- Batch 1: Sub-agent 0..3 (concurrent)
+  +-- Batch 2: Sub-agent 4..7 (concurrent after batch 1)
 ```
 
 每个子代理:
@@ -19,30 +17,28 @@ Parent conversation (conv-123)
 - 获得唯一的会话 ID: `{parentId}:sub:{index}`
 - 继承父会话的 provider/model 设置
 - 通过桥接事件流式返回结果
-- 不能再生成子代理 (递归守卫)
+- 不注入 `spawn_subagents` 工具，不能递归生成子代理
 
 ## 生成流程
 
 1. 代理调用 `spawn_subagents` 工具并传入任务列表
-2. Pi 将工具结果返回给代理 (内容通道): "Spawning N sub-agents..."
-3. 桥接层拦截 `toolcall_end` (触发通道)
-4. 桥接层按批次生成最多 4 个并发 Pi 会话
+2. 当前父会话绑定的工具执行器验证任务数量
+3. 桥接层按批次生成最多 4 个并发 Pi 会话
+4. 子代理可以使用普通技能工具，但没有 `spawn_subagents`
 5. 结果通过 `subagent_delta` / `subagent_done` 事件流式传输
-6. 所有子代理完成后触发 `subagents_done`
+6. 所有子代理在 `agent_end` 后完成，桥接触发 `subagents_done`
+7. 汇总结果通过 Pi 的正常工具结果通道返回父代理，父代理据此继续推理
 
-## 递归守卫
+## 递归边界
 
-一行代码即可防止子代理无限递归:
+子代理会话只注入不含 `spawn_subagents` 的工具集:
 
 ```javascript
-const toolName = toolCall.name ?? toolCall.toolName;
-if (toolName === "spawn_subagents" && !conversationId.includes(":sub:")) {
-  const toolInput = toolCall.arguments ?? toolCall.toolInput ?? {};
-  void handleSpawnSubagents({ conversationId, tasks: toolInput.tasks });
-}
+const tools = bindSkillTools(await loadSkillTools(), subConvId, false);
+const { session } = await createAgentSession({ customTools: tools });
 ```
 
-如果对话 ID 包含 `:sub:`，说明它已经是子代理，生成请求会被静默忽略。
+这不是靠提示词要求模型“不要继续生成”，而是直接拿走能力，因此最大深度固定为 1。`:sub:` 会话 ID 只负责追踪，不再承担安全边界。
 
 ## 子代理事件订阅
 
@@ -59,12 +55,13 @@ session.subscribe((event) => {
         });
       }
       break;
-    case "message_end":
-      if (event.message?.role === "assistant") {
-        const content = extractTextContent(event.message);
-        emit(parentConversationId, "subagent_done", { subId: index, content });
-        settle(content);
-      }
+    case "agent_end":
+      const finalMessage = [...event.messages]
+        .reverse()
+        .find(message => message.role === "assistant");
+      const content = extractTextContent(finalMessage);
+      emit(parentConversationId, "subagent_done", { subId: index, content });
+      settle(content);
       break;
   }
 });
@@ -87,11 +84,12 @@ session.subscribe((event) => {
 - `pipeline()` 用于流式扇出，`parallel()` 用于屏障同步
 - 5 个内置角色 (Explore, Plan, code-reviewer, fork, statusline-setup)
 
-### MilkSU (扁平 + 工具即触发器)
+### MilkSU (扁平 + 宿主绑定工具)
 
 - 4 个并发代理
 - 最大深度 1 (通过递归守卫硬性限制)
-- 工具即触发器模式 (无专用编排语言)
+- 一次最多 8 个任务，最多 4 个并发会话
+- 宿主绑定工具 (无专用编排语言)
 - 统一代理角色 (无角色特化)
 
 ## 事件协议

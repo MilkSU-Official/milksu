@@ -80,27 +80,18 @@ Rust (host) <-- stdin/stdout JSON lines --> Node.js (agent)
 - Codex CLI 是单一 Rust 进程（120+ crate），直接调用 OpenAI Responses API
 - Claude Code 是 Bun 二进制文件，使用 React + Ink 终端 UI
 
-## 模式：工具即触发器
+## 模式：宿主绑定工具
 
 **问题**：LLM 的工具调用需要触发宿主级别的副作用（生成子代理、更新面板），但工具本身运行在 Pi 沙箱中，没有 IPC 访问权限。
 
-**方案**：将工具拆分为两个通道：
-1. **内容通道**：Pi 技能的 `execute()` 向 LLM 返回推理用的文本
-2. **触发通道**：桥接拦截 `toolcall_end` 来执行实际操作
+**方案**：技能保留工具的名称、描述和参数契约；桥接在创建会话时绑定宿主执行器。执行器等待宿主操作完成，把真实结果返回 Pi，同时发事件更新 UI。
 
 ```javascript
-// 内容通道 (Pi skill)
-async execute(_toolCallId, params) {
-  return { content: [{ type: "text", text: "Spawning 3 sub-agents..." }] };
-}
-
-// 触发通道 (bridge.js)
-if (event.toolCall?.toolName === "spawn_subagents") {
-  handleSpawnSubagents({ conversationId, tasks: event.toolCall.toolInput.tasks });
-}
+const tools = bindSkillTools(await loadSkillTools(), conversationId);
+const { session } = await createAgentSession({ customTools: tools });
 ```
 
-**为什么不直接让工具完成操作？** 因为工具运行在 Pi 的沙箱内，无法访问 Rust IPC，无法生成进程，也不应该具备这些能力。触发通道将宿主级别的操作保留在桥接中，这正是它们应该存在的位置。
+**为什么不能只拦截 `toolcall_end`？** 它只代表模型完成了参数生成。若宿主操作在旁路异步运行，父代理会在真实结果回来前继续推理，而且结果只存在于 UI。绑定执行器让模型和界面共享同一次执行结果。
 
 **对比**：
 - Codex：工具（`shell`、`apply_patch`）直接在沙箱中执行，以审批策略作为门控
@@ -110,7 +101,7 @@ if (event.toolCall?.toolName === "spawn_subagents") {
 
 **问题**：在没有复杂编排开销的情况下并行化独立任务。
 
-**方案**：生成 N 个独立的 Pi 会话（最多 4 个），通过 `Promise.allSettled` 收集结果。
+**方案**：一次接受最多 8 个任务，生成独立 Pi 会话，每批最多并发 4 个，通过 `Promise.allSettled` 收集结果。
 
 ```
 Parent session
@@ -124,7 +115,7 @@ Parent session
 
 会话 ID：`{parentConversationId}:sub:{index}` -- 维持父子可追溯性。
 
-通过在对话 ID 中检查 `:sub:` 来防止递归生成。
+子代理会话不注入 `spawn_subagents` 工具，因此最大深度固定为 1；会话 ID 仍保留 `:sub:` 方便追踪。
 
 **对比**：
 | | MilkSU | Codex | Claude Code |

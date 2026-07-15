@@ -26,16 +26,20 @@ message_update
   -> assistantMessageEvent.type:
        text_delta      (增量文本, delta 字段)
        thinking_delta  (推理输出, delta 字段)
-       toolcall_start  (工具调用开始, partial.content[contentIndex].name)
-       toolcall_end    (工具完成, toolCall.name + toolCall.arguments)
 
 message_end
   -> message.role === "assistant"
   -> message.stopReason: "stop" | "toolUse"
   -> message.content[]: {type: "text"} | {type: "thinking"} | {type: "toolCall"}
 
-error
-  -> error, reason
+tool_execution_start
+  -> toolName, args
+
+tool_execution_end
+  -> toolName, result, isError
+
+agent_end
+  -> 一次包含工具调用的完整代理循环结束
 ```
 
 ### 2. 桥接事件解包
@@ -52,11 +56,24 @@ session.subscribe((event) => {
       break;
     case "message_end":
       if (event.message?.role === "assistant") {
-        emit(conversationId, "message_done", {
-          reason: event.message?.stopReason ?? "stop",
-          content: extractTextContent(event.message),
-        });
+        const content = extractTextContent(event.message);
+        if (content || assistantTextStreamed) {
+          emit(conversationId, "message_done", {
+            reason: event.message.stopReason ?? "stop",
+            content,
+          });
+        }
       }
+      break;
+    case "tool_execution_start":
+      emit(conversationId, "tool_call_start", { toolName: event.toolName });
+      break;
+    case "tool_execution_end":
+      emit(conversationId, "tool_call_end", {
+        toolName: event.toolName,
+        content: extractToolResultContent(event.result),
+        isError: event.isError,
+      });
       break;
   }
 });
@@ -69,18 +86,6 @@ function handleAssistantEvent(conversationId, ae) {
     case "thinking_delta":
       emit(conversationId, "thinking_delta", { delta: ae.delta });
       break;
-    case "toolcall_start":
-      emit(conversationId, "tool_call_start", {
-        toolName: ae.partial?.content?.[ae.contentIndex]?.name,
-      });
-      break;
-    case "toolcall_end": {
-      const toolCall = ae.toolCall ?? ae;
-      const toolName = toolCall.name ?? toolCall.toolName;
-      const toolInput = toolCall.arguments ?? toolCall.toolInput ?? {};
-      emit(conversationId, "tool_call_end", { toolName, toolInput });
-      break;
-    }
   }
 }
 ```
@@ -137,12 +142,12 @@ listenEvent<PanelUpdateEvent>('panel-update', (event) => {
 });
 ```
 
-## 工具即触发器的流式表现
+## 工具执行与界面投影
 
 当 LLM 调用 `panel_update` 工具时，一次调用产生两条事件路径:
 
 ```
-toolcall_end
+tool_execution_start / tool_execution_end
   |-- (1) emit("tool_call_end") -> Rust agent-message -> React tool card
   +-- (2) emit("panel_update") -> Rust panel-update -> React TaskPanel re-render
 ```

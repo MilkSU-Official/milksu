@@ -7,7 +7,7 @@
 | 模块 | 代码 | 类型 | 端到端 | 用户体验 | 综合 |
 |------|------|------|--------|----------|------|
 | 核心代理循环 (Agent Loop) | L2 | L2 | L2 | L2 | **L2** |
-| 子代理 (Sub-agents) | L2 | L2 | L2 | L2 | **L2** |
+| 子代理 (Sub-agents) | L2 | L2 | L0 | L1 | **L1** |
 | 安全面板 | L2 | L2 | L2 | L3 | **L2** |
 | 任务管理 (Engagement) | L1 | L1 | L0 | L2 | **L1** |
 | 设置与供应商 | L2 | L2 | L0 | L3 | **L2** |
@@ -49,9 +49,10 @@
 - [x] Bridge 多路复用会话池
 - [x] 中继模式 (Relay)
 - [x] 国际化: react-i18next (en/zh)
-- [x] 子代理: 工具即触发器模式, 最多 4 个并发, 流式结果卡片
-- [x] P1 修复: 子代理递归保护
-- [x] P2 修复: 中继环境变量竞态条件
+- [x] 子代理: 每次最多 8 个任务, 最多 4 个并发, 流式结果卡片
+- [x] 子代理结果返回父代理工具上下文
+- [x] P1 修复: 子代理会话移除递归生成能力
+- [x] P2 修复: 中继使用会话级临时 provider, 不修改全局环境变量
 - [x] 模块成熟度矩阵
 - [x] 顶级平台对比 (Codex + Claude Code)
 - [x] 文档站点 (VitePress)
@@ -59,9 +60,9 @@
 - [x] P0: 模型名称不匹配修复 (deepseek-v4-flash vs deepseek-chat)
 - [x] P0: Bridge 事件协议修复 (Pi 嵌套事件结构 message_update.assistantMessageEvent)
 - [x] P0: 端到端测试通过 (DeepSeek deepseek-v4-flash, 流式思考 + 文本)
-- [x] P1: 技能加载端到端 -- 18 工具 (5 skill) 通过 _customTools 注入 Pi session
+- [x] P1: 技能加载端到端 -- 18 工具 (5 skill) 通过公开 customTools 参数注入 Pi session
 - [x] P1: 面板数据流 -- panel_update 从 LLM tool call 到 bridge event 到 Tauri emit 全链路验证
-- [x] P1: 子代理端到端 -- 2 并发子代理, 流式 delta, 正确返回结果
+- [ ] 回归验证: 使用真实模型确认宿主绑定执行器把多个子代理结果返回父代理上下文
 - [x] P1: bridge 事件字段名修复 (toolCall.name/arguments vs toolName/toolInput)
 - [x] P1: 子代理事件订阅适配 Pi 嵌套事件结构
 

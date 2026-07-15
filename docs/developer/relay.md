@@ -9,8 +9,8 @@
 在设置中启用中继模式后：
 
 1. Rust 将中继配置作为环境变量传递给 bridge.js
-2. 桥接层在启动时（仅一次）设置 `OPENAI_API_KEY` 和 `OPENAI_BASE_URL`
-3. 所有会话使用 `provider: "openai"`，无论实际选择了哪个供应商
+2. 桥接层为每个会话注册一个临时的 `milksu-relay` provider
+3. 临时 provider 保留用户所选模型 ID，但统一使用 OpenAI Chat Completions 协议
 4. 中继服务将请求转发到实际的 LLM 供应商
 
 ```
@@ -40,22 +40,23 @@ User -> Tauri -> Bridge -> Relay Service -> LLM Provider
 
 ## 实现细节
 
-环境变量在桥接启动时设置一次（而非每个会话）：
+中继配置在桥接启动时读取一次。创建会话时，桥接层复制所选模型的上下文窗口等元数据，并把请求端点改为中继 URL：
 
 ```javascript
-const relayEnabled = process.env.MILKSU_RELAY_ENABLED === "1";
-if (relayEnabled) {
-  process.env.OPENAI_API_KEY = process.env.MILKSU_RELAY_KEY;
-  process.env.OPENAI_BASE_URL = process.env.MILKSU_RELAY_URL || "https://api.ciyuanliudong.com/v1";
-}
+session.modelRegistry.registerProvider("milksu-relay", {
+  baseUrl: relayUrl,
+  apiKey: relayKey,
+  api: "openai-completions",
+  models: [relayModel],
+});
 ```
 
-每个会话创建时检查标志位，无需重新读取环境变量：
+会话随后切换到这个临时 provider：
 
 ```javascript
-if (relayEnabled) {
-  effectiveProvider = "openai";
-}
+await setSessionModel(conversationId, session, "milksu-relay", selectedModel);
 ```
 
-这避免了并发会话修改 `process.env` 时的竞态条件。
+这样既避免并发会话修改 `process.env` 的竞态，也避免把 DeepSeek、Anthropic 等模型 ID错误地拿到 OpenAI 内置模型表中查找。
+
+设置保存在应用配置中，但桥接进程只在启动时读取中继密钥和 URL。修改中继设置后需要重启 MilkSU，现有会话才会使用新配置。

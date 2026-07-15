@@ -88,16 +88,15 @@ Tauri spawns: node --experimental-strip-types bridge.js
   -> Discovers .ts files in tools/ subdirectories
   -> Dynamic-imports tool definitions (absolute paths required)
   -> Tools cached in memory (cachedSkillTools)
-  -> On createSession(): tools injected via session._customTools.push()
-  -> session._refreshToolRegistry() makes tools available to LLM
+  -> On createSession(): tools passed through createAgentSession({ customTools })
   -> Agent sees all 18 tools in its tool list
 ```
 
-### 为什么用手动注入
+### 为什么由桥接层注入
 
 Pi 的 `DefaultResourceLoader` 通过 `resolveProjectTrust` 和 `packageManager.resolve()` 发现扩展。在 MilkSU 的运行环境下这个机制失效 (`getExtensions()` 返回空数组)。
 
-手动注入方案 (`_customTools.push` + `_refreshToolRegistry`) 已验证有效，且语义上等价 -- 工具注册后 LLM 能正常调用，工具执行返回结果。
+桥接层使用 Pi SDK 公开的 `customTools` 参数注入工具，避免依赖 `_customTools`、`_refreshToolRegistry()` 等私有字段。它还可以在不污染通用技能契约的前提下，为父会话绑定 `spawn_subagents` 的宿主执行器。
 
 ### 绝对路径要求
 

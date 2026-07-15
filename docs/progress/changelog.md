@@ -2,6 +2,14 @@
 
 ## 2026-07-15
 
+### 工作树审查与实现收口
+
+- 完成中英文界面、运行时语言切换与设置持久化，并补齐开关的可访问名称。
+- 子代理改为宿主绑定工具：一次最多 8 个任务、4 个并发，结果同时更新 UI 并返回父代理上下文；子会话不注入递归生成能力。
+- Bridge 改用 Pi SDK 公开的 `customTools` 与 `tool_execution_*` 生命周期，避免私有字段和过早完成判定。
+- 中继模式改为会话级 `milksu-relay` provider，保留所选模型 ID，避免非 OpenAI 模型在 OpenAI 内置模型表中查找失败。
+- 忽略本地 `auth.json` 与 VitePress 缓存；将 CLAUDE.md 收束为规则和文档入口，将旧 DEVELOPMENT_PLAN 明确标记为历史快照。
+
 ### 核心架构目标校正
 
 - 将 MilkSU 从“可扩展安全 Agent 平台”重新定义为“用户拥有的安全任务控制面”，把 Pi、Codex、Claude Code 和其他模型作为可替换 Worker。
@@ -33,6 +41,8 @@
 - Demo-ready 目标定为 7 月中下旬, 赶在面试密集前。
 
 ## 2026-07-04
+
+> 历史说明：本节记录当日实现。后续已把私有 `_customTools` 注入迁移到公开 `customTools` 参数，并把子代理完成判定改为 `agent_end`；当前设计以开发者文档为准。
 
 ### 缺陷修复
 - **Bridge 事件协议**: Pi 的 subscribe 事件是双层结构 (message_update.assistantMessageEvent), bridge.js 之前直接匹配顶层类型导致所有流式事件被丢弃

@@ -1,86 +1,70 @@
-# 工具即触发器模式
+# 宿主绑定工具与投影事件
 
 ## 问题
 
-一个 LLM 工具调用需要触发宿主级别的副作用（如生成子代理、更新面板），但工具本身运行在 Pi 沙箱中，没有 IPC 访问权限。
+一个 LLM 工具调用有时需要宿主级协调，例如生成子代理或把结构化状态投影到界面。这里必须区分两种情况：
 
-直接的方案都会失败：
-- 工具无法访问 Rust IPC（没有桥接引用）
-- 工具不应具备该能力（最小权限原则）
-- 让工具感知宿主会破坏技能的抽象边界
+- **需要把结果返回给模型继续推理**：必须等待宿主操作完成，再走正常工具结果通道。
+- **只更新界面投影**：可以旁路观察同一次工具执行，但旁路事件不能代替工具结果。
 
 ## 解决方案
 
-将工具拆分为两个独立通道：
+MilkSU 在创建 Pi 会话时，通过公开的 `customTools` 参数把技能工具绑定到当前会话。对于 `spawn_subagents`，桥接层替换占位执行器并等待所有子代理完成：
 
 ```
-LLM calls tool
-  |-- Content channel (Pi skill execute)
-  |   Returns text to LLM for reasoning
-  |
-  +-- Trigger channel (bridge.js intercepts toolcall_end)
-      Performs the actual host-level operation
+LLM calls spawn_subagents
+  -> Session-bound executor in bridge.js
+  -> Spawn isolated Pi sessions
+  -> Stream progress to UI
+  -> Await all results
+  -> Return results through Pi tool channel
 ```
-
-### 内容通道 (Content Channel)
-
-Pi 技能的 `execute()` 返回工具结果供 LLM 使用。这是标准的工具响应路径。
 
 ```javascript
-// skills/panel/tools/panel_update.ts
-async execute(_toolCallId, params) {
-  return {
-    content: [{
-      type: "text",
-      text: `Panel updated: set ${Object.keys(params.set_fields).join(", ")}`
-    }]
-  };
-}
+const tools = bindSkillTools(await loadSkillTools(), conversationId);
+const { session } = await createAgentSession({ customTools: tools });
 ```
 
-### 触发通道 (Trigger Channel)
+这样父代理在工具调用返回后能直接看到子代理结果，而不是只收到一句“正在生成”。
 
-桥接层在 `toolcall_end` 事件中拦截同一个工具调用，执行真正的操作。
+## 界面投影通道
+
+`panel_update` 的参数还需要更新 Tauri 界面。桥接层观察 Pi 的 `tool_execution_start`，把同一份结构化参数发成 `panel_update` 事件：
 
 ```javascript
-// bridge.js
-session.on("toolcall_end", (event) => {
-  if (event.toolCall?.toolName === "panel_update") {
-    const payload = event.toolCall.toolInput;
-    emit({ type: "panel_update", id: conversationId, ...payload });
-  }
-  if (event.toolCall?.toolName === "spawn_subagents") {
-    if (!conversationId.includes(":sub:")) {  // recursion guard
-      handleSpawnSubagents({ conversationId, tasks: event.toolCall.toolInput.tasks });
-    }
+session.subscribe((event) => {
+  if (event.type === "tool_execution_start" && event.toolName === "panel_update") {
+    emit(conversationId, "panel_update", event.args);
   }
 });
 ```
 
+这条事件只服务 UI 投影。Pi 自己仍然执行工具并把结果放进模型上下文。
+
 ## 使用场景
 
-| 工具 | 内容（供 LLM 使用） | 触发（宿主侧副作用） |
-|------|---------------------|----------------------|
-| `panel_update` | "Panel updated: target, phase" | 发出 panel-update Tauri 事件 |
-| `spawn_subagents` | "Spawning 3 sub-agents..." | 创建独立的 Pi 会话 |
+| 工具 | 模型获得的结果 | 宿主侧行为 |
+|------|---------------|------------|
+| `panel_update` | 更新确认 | 发出 panel-update Tauri 投影事件 |
+| `spawn_subagents` | 完整子代理结果 | 创建独立会话并流式更新 UI |
 
 ## 为什么不用其他方案？
 
-### 直接工具执行（Codex 模式）
-Codex 的工具（`shell`、`apply_patch`）以审批策略 (Approval Policy) 作为门控，直接执行。当工具的效果是自包含的（运行命令、写文件）时可行，但当效果需要宿主级协调（生成进程、发出 IPC 事件）时不适用。
+### 为什么不能只拦截工具调用事件？
 
-### 权限门控执行（Claude Code 模式）
-Claude Code 通过 `StreamingToolExecutor` 和 7 层权限检查来运行工具。工具本身执行操作。这要求工具具备访问宿主能力的权限，破坏了 Pi 的扩展沙箱模型。
+`toolcall_end` 只表示模型把工具参数生成完毕，不表示工具执行完成。如果在这个事件上异步启动子代理，父代理会先拿到占位结果并继续推理，真正结果只留在 UI，形成两个不一致的世界。
 
-### 为什么工具即触发器是一个干净的解决方案
-- 工具保持为纯 Pi 技能（无宿主依赖）
-- 桥接层在明确定义的点（toolcall_end 事件）进行拦截
-- LLM 获得即时反馈（内容通道）
-- 宿主获得异步控制（触发通道）
-- 同一事件流承载两个通道（无需额外 IPC）
+### 为什么不把桥接引用放进通用技能？
+
+那会让技能依赖 Tauri/stdio 细节，失去可复用性。技能保留名称、描述和参数契约；桥接层只在桌面会话创建时绑定宿主实现。
+
+- 技能契约不依赖宿主 IPC
+- 宿主协调结果仍通过标准工具通道返回模型
+- UI 进度事件与最终工具结果共享一次执行
+- 子代理工具不会注入子代理会话，从能力层阻止递归
 
 ## 面试要点
 
-此模式解决的问题是："LLM 工具调用如何在工具本身不需要 IPC 访问权限的情况下触发宿主级操作？"
+此模式解决的问题是："宿主级操作如何既保留技能抽象，又成为模型可见、可等待、可审计的一次工具执行？"
 
-关键洞察在于，工具调用事件已经作为 Pi 事件系统的副作用流经桥接层。桥接层可以在工具无感知的情况下观察并响应该事件。这是观察者模式 (Observer Pattern) 在代理套壳 (Agent Harness) 层面的应用。
+关键点不是“看到工具调用就触发副作用”，而是明确区分执行通道和投影通道：执行结果决定代理下一步，投影事件只决定界面如何显示。

@@ -99,4 +99,4 @@ milksu/
 {"type": "message_done", "id": "abc", "content": "Done."}
 ```
 
-共有 10 种事件类型从桥接流向 Rust：`text_delta`、`thinking_delta`、`toolcall_start`、`toolcall_end`、`message_done`、`error`、`subagents_start`、`subagent_delta`、`subagent_done`、`subagents_done`。
+核心事件包括：`text_delta`、`thinking_delta`、`tool_call_start`、`tool_call_end`、`panel_update`、`message_done`、`error`、`subagents_start`、`subagent_delta`、`subagent_done`、`subagents_done`。协议以 `docs/developer/bridge.md` 的事件表为准。

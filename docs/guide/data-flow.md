@@ -27,22 +27,23 @@ User types message in ChatView
 
 ```
 Agent calls spawn_subagents tool
-  -> Pi returns tool result to agent (content channel)
-  -> Bridge intercepts toolcall_end for "spawn_subagents" (trigger channel)
+  -> Bridge-bound tool executor validates up to 8 tasks
   -> Bridge spawns N independent Pi sessions (max 4 concurrent)
   -> Each sub-agent streams subagent_delta/subagent_done events
   -> Rust forwards as "subagent-delta"/"subagents-done" Tauri events
   -> React accumulates results into SubagentToolMessage card
+  -> Collected results return through Pi's normal tool-result channel
+  -> Parent agent continues reasoning with those results in context
 ```
 
-这使用了[工具即触发器模式](/developer/tool-as-trigger) -- 工具的 `execute()` 向 LLM 返回文本，而桥接拦截同一个工具调用来执行实际的子代理生成操作。
+这使用了[宿主绑定工具模式](/developer/tool-as-trigger)：技能提供参数契约，桥接层在创建父会话时绑定真正的执行器。UI 事件和返回给父代理的工具结果来自同一次执行，不会出现“界面看到了结果、父代理却看不到”的双轨状态。
 
 ## 面板更新流
 
 ```
-Agent calls panel_update tool
+Agent executes panel_update tool
   -> Pi returns confirmation text to agent (content channel)
-  -> Bridge intercepts toolcall_end for "panel_update" (trigger channel)
+  -> Bridge observes tool_execution_start (projection channel)
   -> Bridge emits panel_update event with set_fields/append_items
   -> Rust forwards as "panel-update" Tauri event
   -> React merges update into conversation's taskState

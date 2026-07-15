@@ -18,7 +18,7 @@
 | 会话池 | bridge.js | ~100 | L2 | 按对话分配 Pi 会话，提示队列 |
 | 流式管线 | bridge.js -> lib.rs -> useAgentEvents | ~200 | L2 | 10 种事件类型，text_delta 累积 |
 | 模型选择 | bridge.js | ~30 | L1 | Pi modelRegistry.find() |
-| 中继模式 | bridge.js + settings.rs + SettingsPage | ~50 | L2 | 全局开关，启动时一次性设置环境变量 |
+| 中继模式 | bridge.js + settings.rs + SettingsPage | ~80 | L1 | 会话级临时 provider，已验证会话创建，未验证真实中继请求 |
 
 **风险**: 以上所有模块均未对接真实 LLM API 运行。一次端到端测试即可验证或暴露整条链路的问题。
 
@@ -26,11 +26,11 @@
 
 | 子模块 | 文件 | 代码行数 | 等级 | 备注 |
 |--------|------|----------|------|------|
-| 生成逻辑 | bridge.js | ~100 | L2 | 最多 4 个并发，Promise.allSettled |
-| 递归守卫 | bridge.js | 1 | L2 | `:sub:` 前缀检查 |
+| 生成逻辑 | bridge.js | ~140 | L1 | 每次最多 8 个任务、4 个并发，Promise.allSettled；待真实模型回归 |
+| 递归边界 | bridge.js | ~5 | L2 | 子会话不注入 spawn_subagents 工具 |
 | Rust 事件转发 | lib.rs | ~60 | L2 | 5 种事件类型 |
 | 前端渲染 | useAgentEvents + ChatView | ~120 | L2 | 可折叠卡片，按代理显示结果 |
-| Pi 技能 | skills/subagent/ | ~30 | L1 | 工具即触发器模式 |
+| Pi 技能 | skills/subagent/ | ~30 | L1 | 桥接层为父会话绑定宿主执行器 |
 
 ## 安全面板
 
