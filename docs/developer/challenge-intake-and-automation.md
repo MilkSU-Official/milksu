@@ -153,6 +153,8 @@ Chrome DevTools MCP 的优势是 DevTools 网络、Console、Trace 和性能分�
 
 ## 建议的 M2 顺序
 
+以下只是 M2 内部的交付顺序，不改变全局 M0 → M1 → M2 里程碑；当前不能跳过尚未完成的 Engine 和可恢复任务骨架去直接开发浏览器。
+
 ```text
 M2a  Challenge Intake
      chat / attachment / image / directory / URL / browser / managed lab

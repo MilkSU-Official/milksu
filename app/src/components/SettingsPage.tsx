@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import i18next from 'i18next'
 import { useTranslation } from 'react-i18next'
-import { invokeCommand } from '../tauri'
+import { invokeCommand } from '../desktop'
 import type { AppSettings, ProviderConfig, RelayConfig, Conversation } from '../types'
 import { PROVIDERS } from '../types'
 import { Button } from '@/components/ui/button'

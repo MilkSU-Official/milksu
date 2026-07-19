@@ -32,6 +32,7 @@ export default defineConfig({
           items: [
             { text: '能力边界（当前主线）', link: '/developer/security-agent-boundary' },
             { text: '六层运行时架构', link: '/developer/architecture' },
+            { text: 'ADR-0001 · Engine 与桌面边界', link: '/developer/adr/0001-agent-engine-and-desktop-boundary' },
             { text: '题目接入与自动操作', link: '/developer/challenge-intake-and-automation' },
             { text: '靶场与环境管理', link: '/developer/lab-management' },
             { text: 'Role Packages', link: '/developer/role-packages' },

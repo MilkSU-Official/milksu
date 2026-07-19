@@ -7,13 +7,16 @@
   "scripts": {
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
-    "docs:preview": "vitepress preview docs"
+    "docs:preview": "vitepress preview docs",
+    "spike:pi:protocol": "node spikes/engine-comparison/pi-spike.mjs --protocol-only",
+    "spike:pi": "node spikes/engine-comparison/pi-spike.mjs",
+    "spike:codex:protocol": "node spikes/engine-comparison/codex-spike.mjs --protocol-only",
+    "spike:codex": "node spikes/engine-comparison/codex-spike.mjs"
   },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "^0.80.2",
     "vitepress": "^1.6.4"
   },
   "dependencies": {
-    "playwright-core": "^1.61.1"
+    "@earendil-works/pi-coding-agent": "0.80.2"
   }
 }

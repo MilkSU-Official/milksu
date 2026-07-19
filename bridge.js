@@ -1,5 +1,10 @@
-import { createAgentSession, SessionManager } from "@earendil-works/pi-coding-agent";
+import {
+  createAgentSession,
+  DefaultResourceLoader,
+  SessionManager,
+} from "@earendil-works/pi-coding-agent";
 import { createInterface } from "node:readline";
+import { join } from "node:path";
 
 const relayKey = process.env.MILKSU_RELAY_KEY;
 const relayUrl = process.env.MILKSU_RELAY_URL || "https://api.ciyuanliudong.com/v1";
@@ -111,9 +116,25 @@ async function createSession(command) {
   const existing = sessions.get(conversationId);
   if (existing) existing.dispose();
 
+  const cwd = process.cwd();
+  const resourceLoader = new DefaultResourceLoader({
+    cwd,
+    agentDir: join(cwd, ".milksu", "pi"),
+    noExtensions: true,
+    noSkills: true,
+    noPromptTemplates: true,
+    noThemes: true,
+    noContextFiles: true,
+  });
+  await resourceLoader.reload();
+
   const { session } = await createAgentSession({
-    cwd: process.cwd(),
+    cwd,
     sessionManager: SessionManager.inMemory(),
+    resourceLoader,
+    // M0 chat has no execution authority. M1 will register MilkSU Capability
+    // adapters explicitly instead of inheriting Pi's coding tools.
+    noTools: "all",
   });
   subscribeSession(conversationId, session);
 

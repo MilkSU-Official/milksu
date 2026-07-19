@@ -35,6 +35,8 @@ MVP 不做 Web 产品、GraphQL、PostgreSQL、微服务、多用户、Red/Blue/
 
 ### M0 · Agent Engine 选型与工程起点
 
+> 实现状态：已完成（2026-07-19）。Go/Wails/React 骨架、Pi/Codex 同题 Spike 和桌面结构化事件链均已实跑；决策与保留技术债见 [ADR-0001](/developer/adr/0001-agent-engine-and-desktop-boundary)。进入 M1 前仍按约定由用户确认模块边界。
+
 目标：先决定 MilkSU 应在什么成熟通用 Harness 上做最小改造，避免因为偏爱某种语言而重写已经解决的问题。
 
 - 用同一个微型 CTF 对 Pi SDK 和 Codex 开源核心/服务接口做两条 Spike；
@@ -72,6 +74,8 @@ CTF 不是“解完一题就结束”的 Solver 页面，而是长期陪伴 CTFe
 Juice Shop 只承担可重复的本地回归测试。M2 的真人验收可能直接使用 NSSCTF 或其他任意小众 CTF 网站，因此 `Challenge` 不能依赖 Docker、Juice Shop、某个平台的数据结构，也不能假设网站会为 AI 提供 API/CLI。
 
 首期先实现统一的 **Challenge Intake**，而不是把 Browser 当成任务入口。用户可以通过聊天粘贴题面、上传附件或截图、选择一个本地目录、提供 URL/Socket/SSH、打开本地 Lab，或显式分享浏览器页面。Intake 保存原始 Artifact、哈希、provenance 和授权范围，再归一化为同一个 Challenge/Material；Browser Use 只是其中一个 L3 Capability。详细候选和安全约束见 [Challenge Intake、Browser Use 与 Computer Use](/developer/challenge-intake-and-automation)。
+
+这里描述的是 **M2 内部**怎样兼容真实题目来源，不会把 Challenge Intake 提前到 M0/M1 之前。全局开发顺序仍是 M0 Engine 与桌面工程起点 → M1 可恢复任务骨架 → M2 CTF 可玩 MVP。
 
 1. **Chat / File / Image / Directory Intake**：接受文字、附件、截图与用户明确选择的本地目录；原始材料先保存和哈希，附件不自动执行，目录默认只读且不能扩大到用户未选择的位置。
 2. **Managed Browser**：MilkSU 启动独立浏览器与专用 Profile，用户亲自登录任意 CTF 网站；Agent 只能操作这个受控上下文。它负责读取题目、下载附件、点击开启环境、取得连接信息和在批准后提交 Flag。

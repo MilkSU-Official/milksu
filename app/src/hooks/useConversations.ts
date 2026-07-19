@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
-import { invokeCommand } from '../tauri'
+import { invokeCommand } from '../desktop'
 import type { Conversation, Message } from '../types'
 
 function normalizeConversation(raw: Record<string, unknown>): Conversation {

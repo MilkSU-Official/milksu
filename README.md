@@ -16,6 +16,7 @@ MilkSU 是一个由用户拥有的、可验证的 Security Agent Harness 与桌�
 4. [靶场与环境管理](docs/developer/lab-management.md)
 5. [开源项目坐标](docs/developer/industry-baseline.md)
 6. [开发计划](docs/developer/development-plan.md)
+7. [ADR-0001：Agent Engine 与桌面进程边界](docs/developer/adr/0001-agent-engine-and-desktop-boundary.md)
 
 ## 三个不能混淆的问题
 
@@ -42,12 +43,13 @@ L2 定义角色闭环，L5 提供可改造的通用 Agent Engine，L6 横切保�
 
 早期围绕“无限上下文 Codex”、固定 `taskType`、模型直写安全面板、通用子代理、仓库内 Skill 路由和红队 Engagement 数据模型的实现已经删除。它们没有经过开源项目基线和可验证任务闭环的检验，不再作为历史兼容层保留。
 
-仓库目前只保留：
+仓库目前包含：
 
 - 文档站与已经确定的架构认知；
-- Tauri / React 桌面宿主；
+- Go / Wails / React 桌面宿主；
 - 通用聊天、会话存储、模型配置与流式工具输出；
-- 一个临时 Pi 对话桥；Pi 现在同时是 Harness 基座候选，能否从桥接升级为内嵌 Engine 要由 M0 实跑决定。
+- 一个进程隔离的 Pi SDK Sidecar 和版本化结构化事件边界；
+- Pi 与 Codex app-server 使用同一微型 CTF 的 M0 Spike。Pi 是默认可改造 Engine，Codex 暂作对照与未来兼容运行时。
 
 核心 Runtime 仍是空白。当前按[开发计划](docs/developer/development-plan.md)推进：先建立 Go/Wails/SQLite 的最小纵向骨架，再依次跑通 CTF 与 Vulnerability Research；在这两个场景成立之前，不并行开发 Red、Blue、AppSec 或 Malware Role。两者都支持 Coach、Copilot、Delegate，并分别保存安全任务 Outcome 与人类学习 Outcome。
 
@@ -74,7 +76,12 @@ cd app
 npm install
 npm run dev
 
-# Tauri 桌面端
-cd app
-npx tauri dev
+# Wails 桌面端（先固定安装一次 CLI）
+go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
+wails dev
+
+# 自动验证与打包
+go test ./...
+npm --prefix app run build
+wails build
 ```

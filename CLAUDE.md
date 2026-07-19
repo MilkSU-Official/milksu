@@ -12,7 +12,8 @@ Verifiable security job runtime and user-owned control plane.
   2. `docs/developer/architecture.md`
   3. `docs/developer/role-packages.md`
   4. `docs/developer/industry-baseline.md`
-- The documentation home page is the compact architecture map. The four developer documents above are the detailed source of truth.
+  5. `docs/developer/adr/0001-agent-engine-and-desktop-boundary.md`
+- The documentation home page is the compact architecture map. The developer documents above are the detailed source of truth.
 - Do not restore the removed unlimited-context Codex, fixed Task Type, model-written panel, generic sub-agent, in-repo Skill router, or red-team-only Engagement designs.
 
 ## Architecture Guardrails
@@ -32,7 +33,7 @@ Product mission: MilkSU is a research and training environment where people and 
 
 ## Current Code Boundary
 
-`app/` retains a generic Tauri/React host, chat history, settings, streaming messages, and tool-output UI. `bridge.js` is a temporary Pi chat adapter. Pi is also a candidate embedded Agent Engine, so do not delete it until the M0 base-engine spike decides whether to embed Pi, adapt Codex, or choose another extensible core. None of these files define the target Runtime contract.
+The M0 desktop host is Go/Wails/React. `app/` retains the generic React UI; Go owns desktop lifecycle, compatible settings/conversation storage, and Sidecar supervision. `bridge.js` embeds Pi as the selected default Agent Engine behind versioned JSONL events. It must start without Pi coding tools or user extensions/skills/context; M1 may add only explicit MilkSU Capability adapters. Codex app-server remains comparison code and a possible External Agent Runtime, not the default product engine. None of these M0 files define the M1 domain Runtime contract.
 
 Before adding a new core module, state its layer, contract, evaluator, evidence, effects, and baseline comparison in the relevant developer document. Do not add placeholder architecture merely to make the six layers look complete.
 
@@ -48,5 +49,9 @@ cd app
 npm run dev
 npm run build
 npm run lint
-npx tauri dev
+
+cd ..
+go test ./...
+wails dev
+wails build
 ```
