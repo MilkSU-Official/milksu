@@ -48,7 +48,7 @@ Go Desktop Host
           Pi TypeScript Sidecar
           ├─ Model Provider adapter
           ├─ generic Session / Compaction / Tool Loop
-          └─ MilkSU allowlisted Capability tools (from M1 onward)
+          └─ MilkSU allowlisted Capability tools (from M2 onward)
 ```
 
 边界规则：
@@ -56,7 +56,7 @@ Go Desktop Host
 1. React 只接收 MilkSU `engine-event`，不直接理解 Pi event；
 2. Go 只监管 Sidecar 生命周期、凭据最小传递和稳定事件，不复制 Pi 的模型循环；
 3. M0 通用聊天以 `noTools: "all"` 启动，并关闭 Pi 用户级 Extension、Skill、Prompt Template、Theme 和 Context File；
-4. M1 起只有 MilkSU 显式注册的 Capability 能进入 Tool Loop；Pi 自带 `bash/edit/write` 不自动获得权限；
+4. Pi 从 M2 进入 Security Job 后，只有 MilkSU 显式注册的 Capability 能进入 Tool Loop；Pi 自带 `bash/edit/write` 不自动获得权限；
 5. Sidecar 不继承宿主全部环境变量，只得到基础进程环境和当前 Provider 所需凭据；
 6. Codex app-server 不进入默认进程树，避免 Codex 用户配置、插件、MCP 与 MilkSU Role 状态混在一起。
 
@@ -64,7 +64,7 @@ Go Desktop Host
 
 - 旧配置兼容层仍把 Provider Key 保存在权限为 `0600` 的 JSON 文件中。进入 M2 前应迁移到 macOS Keychain，JSON 只保留非秘密配置和 Key 引用。
 - 开发态依赖系统 Node；产品打包前必须选择固定、签名的 Node/Sidecar 分发方式，不能假设用户已经安装 Node。
-- `bridge.js` 目前只有对话事件。M1 应将其改成正式的 `AgentEngine v1alpha1` Adapter，并加入取消、恢复、错误类别和契约测试。
+- `bridge.js` 仍只服务兼容聊天。M1 已在 Go 中冻结窄的 `AgentEngine v1alpha1` 接口，并用 Fake Engine 验证任务契约；M2 应新增独立 Pi Adapter，把 Projection 转为 Engine 输入并加入取消、错误类别和契约测试，不把兼容聊天桥硬改成 Security Runtime。
 - Pi 固定在本轮实跑的 `0.80.2`；不能因为上游有新版本就运行时自动升级。升级必须重新跑微型 CTF、事件契约和依赖审查。
 - 根目录 VitePress 开发依赖仍有只影响本地文档 Dev Server 的旧 esbuild advisory；它不在桌面产品运行链，但文档工具升级时应消除。
 

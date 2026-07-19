@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+
+	"github.com/MilkSU-Official/milksu/internal/appdata"
 )
 
 var validID = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
@@ -32,11 +34,11 @@ type Store struct {
 }
 
 func NewStore() (*Store, error) {
-	base, err := os.UserConfigDir()
+	base, err := appdata.Directory()
 	if err != nil {
-		return nil, fmt.Errorf("resolve user config directory: %w", err)
+		return nil, err
 	}
-	directory := filepath.Join(base, "com.milksu.app", "conversations")
+	directory := filepath.Join(base, "conversations")
 	if err := os.MkdirAll(directory, 0o700); err != nil {
 		return nil, fmt.Errorf("create conversation directory: %w", err)
 	}

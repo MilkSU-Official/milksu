@@ -1,4 +1,5 @@
 import type { AppSettings } from './types'
+import type { JobProjection, JobSummary } from './runtimeTypes'
 
 type CommandArgs = Record<string, unknown>
 type UnlistenFn = () => void
@@ -12,6 +13,10 @@ interface WailsAppBindings {
   DeleteConversation(id: string): Promise<void>
   SendMessage(conversationId: string, prompt: string): Promise<void>
   GetRuntimeStatus(): Promise<unknown>
+  StartWalkingSkeleton(title: string): Promise<JobProjection>
+  ListJobs(): Promise<JobSummary[]>
+  GetJob(id: string): Promise<JobProjection>
+  CancelJob(id: string): Promise<void>
 }
 
 declare global {
@@ -71,6 +76,14 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.SendMessage(args?.conversationId as string, args?.prompt as string) as Promise<T>
       case 'get_runtime_status':
         return app.GetRuntimeStatus() as Promise<T>
+      case 'start_walking_skeleton':
+        return app.StartWalkingSkeleton(args?.title as string) as Promise<T>
+      case 'list_jobs':
+        return app.ListJobs() as Promise<T>
+      case 'get_job':
+        return app.GetJob(args?.id as string) as Promise<T>
+      case 'cancel_job':
+        return app.CancelJob(args?.id as string) as Promise<T>
       default:
         throw new Error(`Unsupported desktop command: ${command}`)
     }
@@ -103,6 +116,12 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
     }
     case 'send_message':
       throw new Error('Agent bridge requires the Wails desktop runtime.')
+    case 'list_jobs':
+      return [] as T
+    case 'start_walking_skeleton':
+    case 'get_job':
+    case 'cancel_job':
+      throw new Error('Task Runtime requires the Wails desktop runtime.')
     default:
       throw new Error(`Unsupported browser-preview command: ${command}`)
   }

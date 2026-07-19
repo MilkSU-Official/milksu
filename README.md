@@ -17,6 +17,8 @@ MilkSU 是一个由用户拥有的、可验证的 Security Agent Harness 与桌�
 5. [开源项目坐标](docs/developer/industry-baseline.md)
 6. [开发计划](docs/developer/development-plan.md)
 7. [ADR-0001：Agent Engine 与桌面进程边界](docs/developer/adr/0001-agent-engine-and-desktop-boundary.md)
+8. [Runtime v1alpha1：M1 可恢复任务契约](docs/developer/runtime-v1alpha1.md)
+9. [ADR-0002：Runtime 事实、存储与恢复边界](docs/developer/adr/0002-runtime-facts-and-recovery.md)
 
 ## 三个不能混淆的问题
 
@@ -50,8 +52,10 @@ L2 定义角色闭环，L5 提供可改造的通用 Agent Engine，L6 横切保�
 - 通用聊天、会话存储、模型配置与流式工具输出；
 - 一个进程隔离的 Pi SDK Sidecar 和版本化结构化事件边界；
 - Pi 与 Codex app-server 使用同一微型 CTF 的 M0 Spike。Pi 是默认可改造 Engine，Codex 暂作对照与未来兼容运行时。
+- Go 实现的 M1 Shared Security Runtime：追加式 SQLite 事件、内容寻址 Artifact、只读 Projection、独立 Evaluator、取消和中断恢复；
+- 一个由 Fake Engine、Fake Capability、Fake Environment 与 Fake Evaluator 构成的确定性桌面闭环，用来验证 Harness 而不是冒充 CTF Solver。
 
-核心 Runtime 仍是空白。当前按[开发计划](docs/developer/development-plan.md)推进：先建立 Go/Wails/SQLite 的最小纵向骨架，再依次跑通 CTF 与 Vulnerability Research；在这两个场景成立之前，不并行开发 Red、Blue、AppSec 或 Malware Role。两者都支持 Coach、Copilot、Delegate，并分别保存安全任务 Outcome 与人类学习 Outcome。
+M1 已完成，下一步是经用户亲自验收后进入 M2：用真实 Pi Engine Adapter、真实模型、受控 Capability 与本地 Lab 跑通第一条 CTF 纵切。之后再以 Vulnerability Research 检验公共抽象；在这两个场景成立之前，不并行开发 Red、Blue、AppSec 或 Malware Role。两者都支持 Coach、Copilot、Delegate，并分别保存安全任务 Outcome 与人类学习 Outcome。
 
 ## 核心验收原则
 

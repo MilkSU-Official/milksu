@@ -5,6 +5,7 @@
     "filterConversations": "筛选对话...",
     "conversations": "对话列表",
     "deleteConversation": "删除对话",
+    "taskRuntime": "任务运行时",
     "settings": "设置",
     "noResults": "没有找到对话",
     "time": {
@@ -13,6 +14,31 @@
       "days": "{{count}} 天",
       "weeks": "{{count}} 周"
     }
+  },
+  "runtime": {
+    "title": "任务运行时",
+    "refresh": "刷新",
+    "create": "运行 M1 事实链",
+    "creating": "正在创建...",
+    "createHelp": "确定性测试任务：用来验证事件、证据、判分与中断恢复，不是 CTF 角色界面。",
+    "loading": "正在读取本地任务...",
+    "empty": "还没有 Runtime 任务",
+    "emptyHelp": "先运行一条事实链，看看模型提议怎样变成可验证结果。",
+    "emptyDetail": "可恢复的任务骨架",
+    "emptyDetailHelp": "这里读取 Go Runtime 的只读 Projection。React 不保存任务真相，也不能直接把任务标记为完成。",
+    "jobHelp": "Fake Engine 提议动作，Capability 提交事实，Evaluator 独立决定结果。",
+    "cancel": "取消任务",
+    "attempts": "Attempts",
+    "evidence": "Evidence",
+    "effects": "Effects",
+    "evaluator": "Evaluator",
+    "notRun": "尚未运行",
+    "outcome": "最终结果",
+    "eventStream": "追加式事件流",
+    "eventHelp": "每条记录先写入 SQLite，再推送到界面。",
+    "boundary": "本次运行边界",
+    "lastEvidence": "最近证据",
+    "waitingEvidence": "等待 Capability 提交原始材料。"
   },
   "chat": {
     "welcome": "想做什么?",
@@ -102,7 +128,7 @@
     "frontend": "前端",
     "backend": "后端",
     "architecture": "架构",
-    "architectureDesc": "Tauri IPC 双通道与 Pi 子进程桥接。",
+    "architectureDesc": "Go/Wails 桌面宿主、Pi Sidecar 与可恢复安全任务运行时。",
     "storage": "存储",
     "storageDesc": "所有数据都存储在你的本机。",
     "settingsPath": "设置",
@@ -111,10 +137,10 @@
     "flow": {
       "userInput": "用户输入",
       "reactInvoke": "React invoke(\"send_message\")",
-      "rustBridge": "Rust: 启动 bridge.js 子进程",
+      "rustBridge": "Go: 监管 bridge.js 子进程",
       "bridgeSession": "bridge.js: Pi createAgentSession()",
       "piEvents": "Pi Agent 流式输出 JSON 行事件",
-      "tauriEvents": "Rust: 向前端发送 Tauri 事件",
+      "tauriEvents": "Go/Wails: 向前端发送版本化事件",
       "renderResponse": "React: 渲染流式响应"
     }
   },

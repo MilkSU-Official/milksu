@@ -4,6 +4,7 @@ import { Sidebar } from './components/Sidebar'
 import { ChatView } from './components/ChatView'
 import { OutputPanel } from './components/OutputPanel'
 import { SettingsPage } from './components/SettingsPage'
+import { RuntimePage } from './components/RuntimePage'
 import { invokeCommand } from './desktop'
 import { useConversations } from './hooks/useConversations'
 import { useAgentEvents } from './hooks/useAgentEvents'
@@ -25,6 +26,7 @@ export default function App() {
 
   const [showOutput, setShowOutput] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [showRuntime, setShowRuntime] = useState(false)
   const [settings, setSettings] = useState<AppSettings | null>(null)
 
   useEffect(() => {
@@ -41,6 +43,7 @@ export default function App() {
     setActiveId(null)
     setShowOutput(false)
     setShowSettings(false)
+    setShowRuntime(false)
   }, [setActiveId])
 
   const handleSend = useCallback(async (text: string) => {
@@ -128,21 +131,33 @@ export default function App() {
         onSelect={id => {
           setActiveId(id)
           setShowOutput(false)
+          setShowRuntime(false)
         }}
         onNew={handleNew}
         onDelete={deleteConversation}
         onOpenSettings={() => setShowSettings(true)}
+        onOpenRuntime={() => {
+          setShowRuntime(true)
+          setShowOutput(false)
+        }}
+        activeSection={showRuntime ? 'runtime' : 'chat'}
       />
       <div className="flex min-w-0 flex-1">
-        <ChatView
-          conversation={active}
-          onSend={handleSend}
-          onToggleOutput={() => setShowOutput(previous => !previous)}
-          settings={settings}
-          onChangeModel={handleChangeModel}
-          onOpenSettings={() => setShowSettings(true)}
-        />
-        {showOutput && <OutputPanel conversation={active} />}
+        {showRuntime ? (
+          <RuntimePage onOpenSettings={() => setShowSettings(true)} />
+        ) : (
+          <>
+            <ChatView
+              conversation={active}
+              onSend={handleSend}
+              onToggleOutput={() => setShowOutput(previous => !previous)}
+              settings={settings}
+              onChangeModel={handleChangeModel}
+              onOpenSettings={() => setShowSettings(true)}
+            />
+            {showOutput && <OutputPanel conversation={active} />}
+          </>
+        )}
       </div>
     </div>
   )

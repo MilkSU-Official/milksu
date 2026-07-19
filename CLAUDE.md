@@ -13,6 +13,7 @@ Verifiable security job runtime and user-owned control plane.
   3. `docs/developer/role-packages.md`
   4. `docs/developer/industry-baseline.md`
   5. `docs/developer/adr/0001-agent-engine-and-desktop-boundary.md`
+  6. `docs/developer/adr/0002-runtime-facts-and-recovery.md`
 - The documentation home page is the compact architecture map. The developer documents above are the detailed source of truth.
 - Do not restore the removed unlimited-context Codex, fixed Task Type, model-written panel, generic sub-agent, in-repo Skill router, or red-team-only Engagement designs.
 
@@ -33,7 +34,7 @@ Product mission: MilkSU is a research and training environment where people and 
 
 ## Current Code Boundary
 
-The M0 desktop host is Go/Wails/React. `app/` retains the generic React UI; Go owns desktop lifecycle, compatible settings/conversation storage, and Sidecar supervision. `bridge.js` embeds Pi as the selected default Agent Engine behind versioned JSONL events. It must start without Pi coding tools or user extensions/skills/context; M1 may add only explicit MilkSU Capability adapters. Codex app-server remains comparison code and a possible External Agent Runtime, not the default product engine. None of these M0 files define the M1 domain Runtime contract.
+M1 is complete. The desktop host is Go/Wails/React; `internal/securityruntime` owns the append-only Event Store, Artifact Store, Projection, recovery semantics, narrow Engine/Capability/Environment/Evaluator boundaries, and their tests. React reads Go projections and may request start/cancel, but never writes runtime facts. `bridge.js` still serves compatible chat only; M2 must add a separate Pi AgentEngine Adapter rather than turn that bridge into the security domain model. Codex app-server remains comparison code and a possible External Agent Runtime, not the default product engine.
 
 Before adding a new core module, state its layer, contract, evaluator, evidence, effects, and baseline comparison in the relevant developer document. Do not add placeholder architecture merely to make the six layers look complete.
 

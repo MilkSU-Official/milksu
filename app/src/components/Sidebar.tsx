@@ -9,9 +9,11 @@ interface Props {
   onNew: () => void
   onDelete: (id: string) => void
   onOpenSettings: () => void
+  onOpenRuntime: () => void
+  activeSection: 'chat' | 'runtime'
 }
 
-export function Sidebar({ conversations, activeId, onSelect, onNew, onDelete, onOpenSettings }: Props) {
+export function Sidebar({ conversations, activeId, onSelect, onNew, onDelete, onOpenSettings, onOpenRuntime, activeSection }: Props) {
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
   const [showSearch, setShowSearch] = useState(false)
@@ -40,6 +42,16 @@ export function Sidebar({ conversations, activeId, onSelect, onNew, onDelete, on
         >
           <span className="text-base text-[#888]">+</span>
           {t('sidebar.newConversation')}
+        </button>
+        <button
+          onClick={onOpenRuntime}
+          className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-[#333] transition-colors ${
+            activeSection === 'runtime' ? 'bg-[#e8e8e8]' : 'hover:bg-[#eee]'
+          }`}
+        >
+          <svg className="size-3.5 text-[#888]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 5h16v14H4z" /><path d="M8 9h8M8 13h5" /></svg>
+          {t('sidebar.taskRuntime')}
+          <span className="ml-auto rounded bg-[#ddd] px-1.5 py-0.5 font-mono text-[9px] text-[#777]">M1</span>
         </button>
         <button
           onClick={() => setShowSearch(previous => !previous)}
@@ -71,7 +83,7 @@ export function Sidebar({ conversations, activeId, onSelect, onNew, onDelete, on
           <div
             key={conversation.id}
             className={`group relative mb-0.5 rounded-lg transition-colors ${
-              conversation.id === activeId ? 'bg-[#e8e8e8]' : 'hover:bg-[#f0f0f0]'
+              activeSection === 'chat' && conversation.id === activeId ? 'bg-[#e8e8e8]' : 'hover:bg-[#f0f0f0]'
             }`}
           >
             <button onClick={() => onSelect(conversation.id)} className="w-full px-3 py-2 text-left">

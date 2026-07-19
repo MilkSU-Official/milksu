@@ -1,6 +1,6 @@
 # 靶场与环境管理
 
-> 状态：M0 调研结论，`LabPackage` 仍是 v1alpha1 草案
+> 状态：M1 冻结 `LabPackage v1alpha1` 最小字段；Compose/OCI Provider 留到 M2 实跑
 >
 > 日期：2026-07-19
 
@@ -97,7 +97,7 @@ SubmissionJudge
 
 共同执行底座已经存在：[OCI Image/Runtime](https://specs.opencontainers.org/) 负责镜像和容器规范，[Compose Specification](https://compose-spec.io/) 负责多服务、网络、卷和健康检查。它们不理解 Challenge、学习目标、Evidence 或 Judge，这部分才由 MilkSU 补上。
 
-## LabPackage v1alpha1 草案
+## LabPackage v1alpha1 最小契约
 
 ```yaml
 apiVersion: labs.milksu.dev/v1alpha1
@@ -145,6 +145,8 @@ spec:
 ```
 
 必须是一等字段的内容：来源和固定版本、目标架构、Endpoint、Readiness、Reset、Judge 与 Security Policy。导入第三方项目时可以在旁边生成 MilkSU manifest，不要求上游修改仓库。
+
+M1 只冻结字段、校验器和类型化 `lab.start / lab.reset / lab.stop / lab.submit` 请求，不执行 Docker。这样可以先证明 Agent 不能绕过 Runtime 获得任意 Shell 或 Docker socket；真正的 Compose/OCI Provider 在 M2 与固定本地 fixture 一起实跑。
 
 ### Readiness 和 Judge 必须分开
 

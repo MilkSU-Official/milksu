@@ -4,7 +4,7 @@
 >
 > 日期：2026-07-19
 >
-> 当前仓库只保留 Tauri、Pi 聊天、配置和通用 UI 作为可复用宿主壳。固定 `taskType`、安全面板、Engagement 红队模型、模型直写面板和通用子代理原型已经删除，不能成为本文的约束。
+> 当前仓库只保留 Go/Wails 桌面宿主、Pi 聊天、配置和通用 UI 作为可复用宿主壳。固定 `taskType`、安全面板、Engagement 红队模型、模型直写面板和通用子代理原型已经删除，不能成为本文的约束。
 
 ## 一句话定义
 
@@ -195,6 +195,8 @@ Browser Use 与 Computer Use 也只是这里的执行能力，不是新的 Role 
 
 L4 驱动安全任务状态和事实提交，但不应该重新发明模型的通用规划能力。通用会话、模型调用、上下文压缩和 Tool Loop 由 L5 的成熟 Agent Engine 提供。
 
+M1 首先按 [Runtime v1alpha1](/developer/runtime-v1alpha1) 实现确定性的 Walking Skeleton。它用 Fake Engine/Capability/Environment/Evaluator 验证事实链和恢复语义，不提前把 Fake 对象写成 CTF 或 Vuln 领域模型。
+
 Environment Manager 也不能退化成让模型自由执行 `docker compose`。靶场由 `LabSourceAdapter + LabPackage + EnvironmentProvider` 确定性管理，Agent 只能通过类型化工具请求生命周期动作；Readiness 与 Judge 分开。详细契约见[靶场与环境管理](/developer/lab-management)。
 
 ### L5：Agent Engine and Tool Executors
@@ -285,13 +287,13 @@ L5 首先区分“内嵌基座”和“外部完整运行时”。两者都可�
 
 ## 当前代码边界
 
-架构重启已经删除固定 `taskType`、`TaskState`、`panel_update`、通用子代理、仓库内 Skill 路由和红队专用 Engagement 数据模型。当前代码只保留 UI 外壳、会话存储、进程生命周期、流式工具事件、设置界面和临时 Pi 对话桥。
+架构重启已经删除固定 `taskType`、`TaskState`、`panel_update`、通用子代理、仓库内 Skill 路由和红队专用 Engagement 数据模型。M0 保留 UI 外壳、会话存储、进程生命周期、流式工具事件、设置界面和临时 Pi 对话桥；M1 已增加 Go 实现的追加事件、Artifact、Projection、独立 Evaluator 与恢复骨架。
 
-这些宿主能力不能充当 Runtime 的领域模型。后续顺序固定为：
+这些宿主能力不能充当 Runtime 的领域模型。M1 也只证明共享事实链，不冒充 CTF/Vuln Role 已经落地。后续顺序固定为：
 
-1. 在无 UI 的契约测试中定义 Job、Attempt、Step、Evidence、Effect、Evaluation 和 Package；
-2. 跑通 CTF 的 Environment、Experiment、Artifact 与 Judge 纵切；
+1. 由用户验收 M1 的 Job、Attempt、Step、Evidence、Effect、Evaluation 和 Recovery 骨架；
+2. 新增独立 Pi AgentEngine Adapter，跑通 CTF 的 Environment、Experiment、Artifact 与 Judge 纵切；
 3. 冻结 Vuln 的 Attack Surface、Hypothesis、Crash、Reproduction、Root Cause 与 Disclosure 状态；
-4. 再为 CTF 与 Vuln 分别增加只读投影事实的角色面板。
+4. 为 CTF 与 Vuln 分别增加只读投影事实的角色面板。
 
-Pi 的临时桥不是 L5 接口标准，但 Pi SDK 本身是 M0 的首要 Embedded Agent Engine 候选；Codex 开源核心/服务接口是对照候选。是否依赖、扩展或小范围 fork 必须由可运行 Spike 和 ADR 决定。行业依据见[开源项目基线与架构启示](/developer/industry-baseline)。
+Pi 的临时聊天桥不是 L5 接口标准；M0 实跑后 Pi SDK 已选为首要 Embedded Agent Engine，Codex app-server 保留为对照与可能的 External Agent Runtime。M2 的 Adapter 仍应优先依赖或扩展，不轻易 fork。决策见 [ADR-0001](/developer/adr/0001-agent-engine-and-desktop-boundary)，M1 事实边界见 [ADR-0002](/developer/adr/0002-runtime-facts-and-recovery)。

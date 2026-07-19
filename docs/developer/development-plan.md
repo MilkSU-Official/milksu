@@ -35,7 +35,7 @@ MVP 不做 Web 产品、GraphQL、PostgreSQL、微服务、多用户、Red/Blue/
 
 ### M0 · Agent Engine 选型与工程起点
 
-> 实现状态：已完成（2026-07-19）。Go/Wails/React 骨架、Pi/Codex 同题 Spike 和桌面结构化事件链均已实跑；决策与保留技术债见 [ADR-0001](/developer/adr/0001-agent-engine-and-desktop-boundary)。进入 M1 前仍按约定由用户确认模块边界。
+> 实现状态：已完成（2026-07-19）。Go/Wails/React 骨架、Pi/Codex 同题 Spike 和桌面结构化事件链均已实跑；决策与保留技术债见 [ADR-0001](/developer/adr/0001-agent-engine-and-desktop-boundary)。用户已经确认边界并完成 M1 开发。
 
 目标：先决定 MilkSU 应在什么成熟通用 Harness 上做最小改造，避免因为偏爱某种语言而重写已经解决的问题。
 
@@ -52,6 +52,8 @@ MVP 不做 Web 产品、GraphQL、PostgreSQL、微服务、多用户、Red/Blue/
 
 ### M1 · Walking Skeleton：可恢复的任务骨架
 
+> 实现状态：已完成（2026-07-19）。用户现在可以在桌面创建、观察和取消确定性的 Fake Job；追加事件、Artifact 哈希、独立 Evaluator、正常关闭与强制中断恢复均已验证。实现边界见 [Runtime v1alpha1](/developer/runtime-v1alpha1)，存储与恢复决策见 [ADR-0002](/developer/adr/0002-runtime-facts-and-recovery)。按约定，进入 M2 前由用户亲自验收并确认第一个真实 CTF 纵切。
+
 目标：在选定的 Agent Engine 上，用确定性 Fake Model/Fake Tool 验证最小安全事实链。
 
 - 定义 `Job / Attempt / Step / Action / Observation / Artifact / Evidence / Effect / Evaluation / Outcome`；
@@ -59,7 +61,7 @@ MVP 不做 Web 产品、GraphQL、PostgreSQL、微服务、多用户、Red/Blue/
 - 建立 Artifact 目录、哈希和来源引用；
 - 在不复制底层 Engine 接口的前提下，建立 MilkSU 的 `AgentEngine`、`Capability`、`Environment`、`Evaluator` 边界；
 - 冻结 `LabPackage v1alpha1` 的最小来源、架构、Endpoint、Readiness、Reset、Judge 和 Security 字段；
-- 让程序而不是 Agent 管理 Compose/OCI 生命周期；Agent 只能调用类型化的 `lab.start/reset/stop/submit`；
+- 冻结“程序管理 Compose/OCI、Agent 只请求类型化 `lab.start/reset/stop/submit`”的边界；M1 只校验 manifest，真实 Provider 留到 M2；
 - 将 Go 事件实时推送到 React；
 - 支持开始、取消、崩溃后恢复一个 Fake Job。
 

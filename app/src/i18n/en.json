@@ -5,6 +5,7 @@
     "filterConversations": "Filter conversations...",
     "conversations": "Conversations",
     "deleteConversation": "Delete conversation",
+    "taskRuntime": "Task Runtime",
     "settings": "Settings",
     "noResults": "No conversations found",
     "time": {
@@ -13,6 +14,31 @@
       "days": "{{count}} days",
       "weeks": "{{count}} wk"
     }
+  },
+  "runtime": {
+    "title": "Task Runtime",
+    "refresh": "Refresh",
+    "create": "Run M1 fact chain",
+    "creating": "Creating...",
+    "createHelp": "A deterministic task for testing events, evidence, evaluation, and recovery. It is not the CTF role UI.",
+    "loading": "Loading local jobs...",
+    "empty": "No Runtime jobs yet",
+    "emptyHelp": "Run one fact chain to see a proposal become a verifiable outcome.",
+    "emptyDetail": "Recoverable task skeleton",
+    "emptyDetailHelp": "This page reads a projection owned by the Go Runtime. React cannot change task facts or declare success.",
+    "jobHelp": "The Fake Engine proposes, the Capability commits facts, and the Evaluator independently decides the outcome.",
+    "cancel": "Cancel job",
+    "attempts": "Attempts",
+    "evidence": "Evidence",
+    "effects": "Effects",
+    "evaluator": "Evaluator",
+    "notRun": "Not run",
+    "outcome": "Outcome",
+    "eventStream": "Append-only event stream",
+    "eventHelp": "Every record is committed to SQLite before it reaches this page.",
+    "boundary": "Run boundary",
+    "lastEvidence": "Latest evidence",
+    "waitingEvidence": "Waiting for the Capability to commit raw material."
   },
   "chat": {
     "welcome": "What should we do?",
@@ -102,7 +128,7 @@
     "frontend": "Frontend",
     "backend": "Backend",
     "architecture": "Architecture",
-    "architectureDesc": "Tauri IPC dual-channel with Pi subprocess bridge.",
+    "architectureDesc": "Go/Wails desktop host, Pi sidecar, and recoverable security task runtime.",
     "storage": "Storage",
     "storageDesc": "All data is stored locally on your machine.",
     "settingsPath": "Settings",
@@ -111,10 +137,10 @@
     "flow": {
       "userInput": "User input",
       "reactInvoke": "React invoke(\"send_message\")",
-      "rustBridge": "Rust: spawn bridge.js subprocess",
+      "rustBridge": "Go: supervise bridge.js subprocess",
       "bridgeSession": "bridge.js: Pi createAgentSession()",
       "piEvents": "Pi agent streams JSON line events",
-      "tauriEvents": "Rust: emit Tauri events to frontend",
+      "tauriEvents": "Go/Wails: emit versioned events to React",
       "renderResponse": "React: render streaming response"
     }
   },

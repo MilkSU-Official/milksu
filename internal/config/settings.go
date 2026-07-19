@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/MilkSU-Official/milksu/internal/appdata"
 )
 
 type RelayConfig struct {
@@ -98,11 +100,7 @@ func (s *Store) load() error {
 }
 
 func appDataDirectory() (string, error) {
-	directory, err := os.UserConfigDir()
-	if err != nil {
-		return "", fmt.Errorf("resolve user config directory: %w", err)
-	}
-	return filepath.Join(directory, "com.milksu.app"), nil
+	return appdata.Directory()
 }
 
 func writePrivateFile(path string, data []byte) error {
