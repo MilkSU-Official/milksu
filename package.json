@@ -1,31 +1,13 @@
 {
   "name": "@milksu/milksu",
   "version": "0.1.0",
-  "description": "MilkSU — Extensible AI Agent platform built on Pi agent harness",
+  "description": "MilkSU — verifiable security job runtime and user-owned control plane",
   "type": "module",
-  "keywords": [
-    "pi-package"
-  ],
   "license": "MIT",
   "scripts": {
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs"
-  },
-  "pi": {
-    "extensions": [
-      "./src/index.ts"
-    ],
-    "skills": [
-      "./skills"
-    ]
-  },
-  "peerDependencies": {
-    "@earendil-works/pi-agent-core": "*",
-    "@earendil-works/pi-ai": "*",
-    "@earendil-works/pi-coding-agent": "*",
-    "@earendil-works/pi-tui": "*",
-    "typebox": "*"
   },
   "devDependencies": {
     "@earendil-works/pi-coding-agent": "^0.80.2",

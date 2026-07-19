@@ -1,10 +1,10 @@
 # 安全 Agent 与通用 Agent 的能力边界
 
-> **当前架构目标与最高优先级设计依据。** MilkSU 的产品定位、领域拆分和核心边界以本文为准；Roadmap 负责把本文转成阶段任务，不能反过来覆盖本文。旧的 Sprint、TASKS、Task Type 和 Security Kernel 设计只保留为历史背景。
+> **当前架构目标与最高优先级设计依据。** MilkSU 的产品定位、领域拆分和核心边界以本文为准；六层架构与 Role Package 文档负责把本文转成实现边界，不能反过来覆盖本文。旧的 Roadmap、Sprint、固定 Task Type 和 Security Kernel 设计已经从仓库删除。
 >
 > 状态：当前主线（其中关于差异化的产品假设仍需用固定任务集验证）
 >
-> 日期：2026-07-16
+> 日期：2026-07-16；目标 Runtime 于 2026-07-19 按本文边界完成架构重启
 
 ## 文档优先级
 
@@ -12,11 +12,9 @@
 
 1. **本文**决定“为什么做、哪些概念不能混、什么值得进入核心”。
 2. `docs/developer/architecture.md` 决定“目标系统怎样分层和交换数据”。
-3. `docs/progress/roadmap.md` 决定“当前先做什么、怎样验收”。
-4. `docs/progress/status.md` 只记录已经实现和验证到什么程度。
-5. `.codex/TASKS.md`、`DEVELOPMENT_PLAN.md`、旧 Sprint 和 `docs-legacy/` 是历史资料，不得用来推翻前四项。
-
-如果实现或旧计划与本文冲突，不应为了迁就现状修改目标；应先在 Roadmap 记录迁移 TODO，再渐进修正实现。只有新的研究、任务数据或 benchmark 证据推翻本文假设时，才更新本文本身，并在 changelog 说明原因。
+3. `docs/developer/role-packages.md` 决定“CTF 与 Vuln 怎样工作、怎样与人协作”。
+4. `docs/developer/industry-baseline.md` 决定“怎样研究和分类候选开源项目”。
+如果实现与前四项冲突，不应为了迁就现状修改目标。要么删除冲突实现，要么先写清新的契约和证据，再实现。只有新的研究、任务数据或 benchmark 证据推翻本文假设时，才更新本文本身，并在提交说明中写明原因。
 
 ## 建议怎么读
 
@@ -148,6 +146,12 @@
 | Vulnerability Research | 研究产品或固件的攻击面和未知漏洞 | 版本、目标组件、假设、崩溃、根因、利用条件和披露状态 | 可重复触发、根因证据和影响验证 |
 
 `DFIR` 是数字取证与事件响应，`SOC` 是安全运营中心。它们都属于蓝队，但侧重点不同。
+
+### 安全结果和人类学习是两个 Outcome
+
+MilkSU 的 CTF 与 Vulnerability Research 不只替人完成任务，也要帮助人理解方法、练习推理并扩大人工工作的覆盖面。因此同一个 Role Package 还要支持三种正交的协作方式：Coach（带练）、Copilot（共同完成）和 Delegate（自主执行）。
+
+安全任务是否完成仍由外部 Evaluator 判断；人类是否学会也不能由模型自报，而应记录提示层级、用户独立完成的关键步骤、根因解释和变体迁移等可观察证据。具体设计见[Role Packages](/developer/role-packages)。
 
 ### 红队：维护一场受约束的攻击过程
 

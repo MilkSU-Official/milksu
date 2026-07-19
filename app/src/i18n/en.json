@@ -20,49 +20,8 @@
     "send": "Send",
     "sendMessage": "Send a message...",
     "output": "Output",
-    "panel": "Panel",
-    "enter": "Enter",
     "thinking": "thinking...",
-    "tool": "tool",
-    "subagents": {
-      "spawning": "Spawning {{count}} sub-agents...",
-      "running": "Sub-agents running ({{count}} tasks)",
-      "results": "Sub-agent results",
-      "resultTitle": "Sub-agent {{index}}",
-      "noResult": "No result"
-    },
-    "placeholders": {
-      "chat": "Type anything...",
-      "pentest": "Describe target or paste scope...",
-      "ctf": "Paste challenge description...",
-      "recon": "Enter target domain or IP range...",
-      "reverse": "Provide binary path or paste disassembly..."
-    }
-  },
-  "taskTypes": {
-    "chat": { "label": "Chat", "description": "General conversation" },
-    "pentest": { "label": "Pentest", "description": "Penetration testing workflow" },
-    "ctf": { "label": "CTF", "description": "Capture the flag challenge" },
-    "recon": { "label": "Recon", "description": "Network reconnaissance and OSINT" },
-    "reverse": { "label": "Reverse", "description": "Binary analysis and reverse engineering" }
-  },
-  "taskPhases": {
-    "recon": "Recon",
-    "scanning": "Scanning",
-    "enumeration": "Enumeration",
-    "exploitation": "Exploitation",
-    "postExploitation": "Post-Exploitation",
-    "reporting": "Reporting",
-    "analysis": "Analysis",
-    "research": "Research",
-    "flag": "Flag",
-    "passive": "Passive",
-    "active": "Active",
-    "report": "Report",
-    "triage": "Triage",
-    "staticAnalysis": "Static Analysis",
-    "dynamicAnalysis": "Dynamic Analysis",
-    "documentation": "Documentation"
+    "tool": "tool"
   },
   "settings": {
     "back": "Back",
@@ -137,7 +96,7 @@
   "about": {
     "title": "MilkSU",
     "version": "Version",
-    "description": "Pi agent harness extension for pluggable AI skills.",
+    "description": "Generic desktop host retained during the MilkSU architecture restart.",
     "runtime": "Runtime",
     "agentEngine": "Agent Engine",
     "frontend": "Frontend",
@@ -157,72 +116,6 @@
       "piEvents": "Pi agent streams JSON line events",
       "tauriEvents": "Rust: emit Tauri events to frontend",
       "renderResponse": "React: render streaming response"
-    }
-  },
-  "taskPanel": {
-    "target": "Target",
-    "phase": "Phase",
-    "progress": "Progress",
-    "vulnerabilities": "Vulnerabilities",
-    "openPorts": "Open Ports",
-    "toolsUsed": "Tools Used",
-    "challenge": "Challenge",
-    "category": "Category",
-    "points": "Points",
-    "pointsSuffix": "pts",
-    "flags": "Flags",
-    "hints": "Hints",
-    "solved": "Solved",
-    "scope": "Scope",
-    "hosts": "Hosts",
-    "services": "Services",
-    "findings": "Findings",
-    "binary": "Binary",
-    "architecture": "Architecture",
-    "protections": "Protections",
-    "functions": "Functions",
-    "nx": "NX",
-    "canary": "Canary",
-    "pie": "PIE",
-    "relro": "RELRO",
-    "notSet": "Not set",
-    "none": "None",
-    "active": "Active",
-    "empty": {
-      "target": "No target set. Tell the agent what to scan.",
-      "vulnerabilities": "No vulnerabilities discovered yet.",
-      "ports": "No ports discovered yet.",
-      "challenge": "No challenge set. Describe the CTF problem.",
-      "flags": "No flags captured yet.",
-      "scope": "No targets in scope. Provide IP ranges or domains.",
-      "hosts": "No hosts discovered yet.",
-      "services": "No services enumerated yet.",
-      "binary": "No binary loaded. Provide a file path.",
-      "functions": "No functions analyzed yet."
-    }
-  },
-  "engagement": {
-    "selectEngagement": "Select engagement",
-    "noEngagement": "No engagement",
-    "noEngagements": "No engagements yet",
-    "loadingEngagements": "Loading engagements...",
-    "createNew": "Create new",
-    "newEngagement": "New Engagement",
-    "engagementName": "Engagement name",
-    "engagementScope": "Engagement scope",
-    "scopePlaceholder": "Scope, comma separated",
-    "create": "Create",
-    "cancel": "Cancel",
-    "loadError": "Failed to load engagements: {{error}}",
-    "createError": "Failed to create engagement: {{error}}",
-    "hostCount_one": "{{count}} host",
-    "hostCount_other": "{{count}} hosts",
-    "vulnCount_one": "{{count}} vuln",
-    "vulnCount_other": "{{count}} vulns",
-    "status": {
-      "active": "active",
-      "completed": "completed",
-      "archived": "archived"
     }
   },
   "model": {

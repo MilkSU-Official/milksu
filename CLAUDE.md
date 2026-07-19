@@ -1,84 +1,48 @@
 # MilkSU
 
-Pi agent harness extension for pluggable AI skills, with a Tauri v2 native desktop client.
+Verifiable security job runtime and user-owned control plane.
 
 ## Rules
 
-- No emoji anywhere: code, comments, docs, UI text, commit messages.
-- Communicate in Chinese.
-- Explain Agent Harness concepts during development for interview/presentation prep.
-- Before planning or changing architecture, read `docs/developer/security-agent-boundary.md`. It is the current canonical architecture goal: keep Agent Security, Role Package, and Capability Package separate, and do not restore older Sprint, fixed Task Type, or Security Kernel assumptions as the mainline.
-- Documentation site (`docs/`) is the single source of truth for architecture and progress:
-  - Before starting a feature: read `docs/developer/security-agent-boundary.md` for the goal, then `docs/progress/roadmap.md` for current priorities.
-  - After completing a feature: update `docs/progress/status.md` (checklist), `docs/progress/changelog.md` (entry), and relevant `docs/developer/` pages if architecture changed.
-  - Do NOT duplicate architecture or progress information in this file. This file contains rules and quick-reference only; detailed docs live in the docs site.
+- Communicate with the user in Chinese.
+- Do not use emoji in code, comments, docs, UI text, or commit messages.
+- Explain relevant Agent Harness concepts while developing; the repository also supports the user's interview and presentation preparation.
+- Before architecture or domain work, read these files in order:
+  1. `docs/developer/security-agent-boundary.md`
+  2. `docs/developer/architecture.md`
+  3. `docs/developer/role-packages.md`
+  4. `docs/developer/industry-baseline.md`
+- The documentation home page is the compact architecture map. The four developer documents above are the detailed source of truth.
+- Do not restore the removed unlimited-context Codex, fixed Task Type, model-written panel, generic sub-agent, in-repo Skill router, or red-team-only Engagement designs.
 
-## Architecture
+## Architecture Guardrails
 
-See docs site for full details:
-- **Architecture overview**: `docs/developer/architecture.md`
-- **Data flow**: `docs/guide/data-flow.md`
-- **Bridge protocol**: `docs/developer/bridge.md`
-- **Tauri IPC**: `docs/developer/tauri-ipc.md`
-- **Skill system**: `docs/developer/skills.md`
-- **Key patterns**: `docs/developer/tool-as-trigger.md`, `docs/developer/subagents.md`, `docs/developer/streaming.md`
-- **Task types**: `docs/user/task-types.md`
+- L2 Role Packages define goals, durable state, Evidence, Evaluators, and Human Outcomes.
+- L3 Capability Packages expose reusable security techniques and deterministic tools.
+- L4 Shared Security Runtime owns Environment, Job, Attempt, Step, Action, Observation, Artifact, Evidence, Effect, Evaluation, Outcome, Trace, and Recovery.
+- L5 Workers are replaceable. Pi, Codex, Claude Code, and external security agents must not define the core domain model.
+- L6 Agent Integrity is cross-cutting and risk-based. It is not a Red, Blue, CTF, or AppSec role.
+- The model may propose actions and conclusions; only committed observations, artifacts, and evaluators may establish facts or success.
 
-Quick reference -- three-process architecture:
-- React frontend (TypeScript): UI, chat, panels
-- Rust backend (Tauri v2): IPC, process management, persistence
-- Node.js bridge (bridge.js): Pi agent sessions, tool execution
+The first implementation vertical is CTF, followed by Vulnerability Research. Both must support Coach, Copilot, and Delegate as a separate collaboration dimension.
 
-## Progress Tracking
+Product mission: MilkSU is a research and training environment where people and security agents work together. It helps users complete more real security tasks while using verifiable experiments, evidence, and review to help them genuinely learn how those tasks are done. Domain Outcome and Human Outcome are equally explicit product outputs.
 
-All feature progress, module status, roadmap, and changelogs are tracked in the documentation site:
+## Current Code Boundary
 
-- **Module status**: `docs/progress/status.md` -> `/progress/status`
-- **Roadmap (P0-P3)**: `docs/progress/roadmap.md` -> `/progress/roadmap`
-- **Changelog**: `docs/progress/changelog.md` -> `/progress/changelog`
-- **Sprint reviews**: `docs/progress/sprint-*.md`
-- **Module maturity (detailed)**: `docs/developer/module-status.md`
+`app/` retains a generic Tauri/React host, chat history, settings, streaming messages, and tool-output UI. `bridge.js` is a temporary Pi chat adapter. None of these files define the target Runtime contract.
 
-Run `npm run docs:dev` and use the local URL printed by VitePress.
+Before adding a new core module, state its layer, contract, evaluator, evidence, effects, and baseline comparison in the relevant developer document. Do not add placeholder architecture merely to make the six layers look complete.
 
-Do NOT duplicate progress information in this file. Update the docs site instead.
-
-## Dev
+## Development
 
 ```bash
-# Browser-only frontend preview (uses localStorage stubs, no agent bridge)
-cd app && npm run dev
+npm run docs:dev
+npm run docs:build
 
-# Start Tauri dev (Vite + Rust hot reload)
-cd app && npx tauri dev
-
-# Frontend build/lint checks
-cd app && npm run build && npm run lint
-
-# Build for production
-cd app && npx tauri build
+cd app
+npm run dev
+npm run build
+npm run lint
+npx tauri dev
 ```
-
-## Settings Storage
-
-- Settings: `~/Library/Application Support/com.milksu.app/settings.json`
-- Conversations: `~/Library/Application Support/com.milksu.app/conversations/*.json`
-- API keys are stored locally, passed to bridge.js as environment variables
-
-## Supported Providers
-
-| Provider | Env Var | Default Model |
-|----------|---------|---------------|
-| DeepSeek (default) | DEEPSEEK_API_KEY | deepseek-v4-flash |
-| Anthropic | ANTHROPIC_API_KEY | claude-sonnet-4-6 |
-| OpenAI | OPENAI_API_KEY | gpt-4o |
-| Google Gemini | GEMINI_API_KEY | gemini-2.5-flash |
-| Groq | GROQ_API_KEY | llama-3.3-70b-versatile |
-
-## Feature Gap & Key Concepts
-
-See docs site:
-- **Platform comparison**: `docs/developer/comparison.md`
-- **Agent Harness patterns**: `docs/guide/agent-harness.md`
-- **Relay mode**: `docs/developer/relay.md`
-- **Providers**: `docs/developer/providers.md`

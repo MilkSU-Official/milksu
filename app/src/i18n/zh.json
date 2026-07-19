@@ -20,49 +20,8 @@
     "send": "发送",
     "sendMessage": "发送消息...",
     "output": "输出",
-    "panel": "面板",
-    "enter": "回车",
     "thinking": "思考中...",
-    "tool": "工具",
-    "subagents": {
-      "spawning": "正在启动 {{count}} 个子 Agent...",
-      "running": "子 Agent 运行中 ({{count}} 个任务)",
-      "results": "子 Agent 结果",
-      "resultTitle": "子 Agent {{index}}",
-      "noResult": "无结果"
-    },
-    "placeholders": {
-      "chat": "输入任何内容...",
-      "pentest": "描述目标或粘贴范围...",
-      "ctf": "粘贴挑战描述...",
-      "recon": "输入目标域名或 IP 范围...",
-      "reverse": "提供二进制路径或粘贴反汇编..."
-    }
-  },
-  "taskTypes": {
-    "chat": { "label": "对话", "description": "通用对话" },
-    "pentest": { "label": "渗透测试", "description": "渗透测试工作流" },
-    "ctf": { "label": "CTF", "description": "夺旗挑战赛" },
-    "recon": { "label": "侦察", "description": "网络侦察和开源情报" },
-    "reverse": { "label": "逆向", "description": "二进制分析与逆向工程" }
-  },
-  "taskPhases": {
-    "recon": "侦察",
-    "scanning": "扫描",
-    "enumeration": "枚举",
-    "exploitation": "利用",
-    "postExploitation": "后渗透",
-    "reporting": "报告",
-    "analysis": "分析",
-    "research": "研究",
-    "flag": "Flag",
-    "passive": "被动",
-    "active": "主动",
-    "report": "报告",
-    "triage": "初筛",
-    "staticAnalysis": "静态分析",
-    "dynamicAnalysis": "动态分析",
-    "documentation": "文档记录"
+    "tool": "工具"
   },
   "settings": {
     "back": "返回",
@@ -137,7 +96,7 @@
   "about": {
     "title": "MilkSU",
     "version": "版本",
-    "description": "面向可插拔 AI Skills 的 Pi Agent Harness 扩展。",
+    "description": "MilkSU 架构重启期间保留的通用桌面宿主。",
     "runtime": "运行时",
     "agentEngine": "Agent 引擎",
     "frontend": "前端",
@@ -157,72 +116,6 @@
       "piEvents": "Pi Agent 流式输出 JSON 行事件",
       "tauriEvents": "Rust: 向前端发送 Tauri 事件",
       "renderResponse": "React: 渲染流式响应"
-    }
-  },
-  "taskPanel": {
-    "target": "目标",
-    "phase": "阶段",
-    "progress": "进度",
-    "vulnerabilities": "漏洞",
-    "openPorts": "开放端口",
-    "toolsUsed": "使用的工具",
-    "challenge": "挑战",
-    "category": "分类",
-    "points": "分值",
-    "pointsSuffix": "pts",
-    "flags": "Flag",
-    "hints": "提示",
-    "solved": "已解决",
-    "scope": "范围",
-    "hosts": "主机",
-    "services": "服务",
-    "findings": "发现",
-    "binary": "二进制文件",
-    "architecture": "架构",
-    "protections": "保护机制",
-    "functions": "函数",
-    "nx": "NX",
-    "canary": "Canary",
-    "pie": "PIE",
-    "relro": "RELRO",
-    "notSet": "未设置",
-    "none": "无",
-    "active": "活跃",
-    "empty": {
-      "target": "尚未设置目标。告诉 Agent 要扫描什么。",
-      "vulnerabilities": "尚未发现漏洞。",
-      "ports": "尚未发现端口。",
-      "challenge": "尚未设置挑战。描述 CTF 题目。",
-      "flags": "尚未捕获 Flag。",
-      "scope": "范围中暂无目标。提供 IP 范围或域名。",
-      "hosts": "尚未发现主机。",
-      "services": "尚未枚举服务。",
-      "binary": "尚未加载二进制文件。提供文件路径。",
-      "functions": "尚未分析函数。"
-    }
-  },
-  "engagement": {
-    "selectEngagement": "选择项目",
-    "noEngagement": "不关联项目",
-    "noEngagements": "暂无项目",
-    "loadingEngagements": "加载项目中...",
-    "createNew": "新建项目",
-    "newEngagement": "新建项目",
-    "engagementName": "项目名称",
-    "engagementScope": "项目范围",
-    "scopePlaceholder": "范围，用逗号分隔",
-    "create": "创建",
-    "cancel": "取消",
-    "loadError": "加载项目失败: {{error}}",
-    "createError": "创建项目失败: {{error}}",
-    "hostCount_one": "{{count}} 个主机",
-    "hostCount_other": "{{count}} 个主机",
-    "vulnCount_one": "{{count}} 个漏洞",
-    "vulnCount_other": "{{count}} 个漏洞",
-    "status": {
-      "active": "活跃",
-      "completed": "已完成",
-      "archived": "已归档"
     }
   },
   "model": {

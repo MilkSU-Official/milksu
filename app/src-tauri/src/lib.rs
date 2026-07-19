@@ -1,8 +1,7 @@
-mod engagement;
 mod settings;
 mod storage;
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use settings::AppSettings;
 use std::collections::HashSet;
 use std::io::{BufRead, BufReader, Write};
@@ -11,42 +10,13 @@ use std::sync::{Arc, Mutex};
 use storage::StoredConversation;
 use tauri::{Emitter, Manager};
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, serde::Serialize)]
 struct AgentMessage {
     conversation_id: String,
     role: String,
     content: String,
     tool_name: Option<String>,
     done: bool,
-}
-
-#[derive(Clone, Serialize)]
-struct PanelUpdateMessage {
-    conversation_id: String,
-    set_fields: serde_json::Value,
-    append_items: serde_json::Value,
-}
-
-#[derive(Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct SubagentMessage {
-    conversation_id: String,
-    sub_id: usize,
-    content: String,
-}
-
-#[derive(Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct SubagentsDoneMessage {
-    conversation_id: String,
-    results: Vec<SubagentResult>,
-}
-
-#[derive(Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct SubagentResult {
-    sub_id: usize,
-    content: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -57,16 +27,8 @@ struct BridgeEvent {
     delta: Option<String>,
     content: Option<String>,
     error: Option<String>,
-    #[allow(dead_code)]
-    reason: Option<String>,
     #[serde(rename = "toolName")]
     tool_name: Option<String>,
-    set_fields: Option<serde_json::Value>,
-    append_items: Option<serde_json::Value>,
-    #[serde(rename = "subId")]
-    sub_id: Option<usize>,
-    count: Option<usize>,
-    results: Option<Vec<SubagentResult>>,
 }
 
 struct BridgeProcess {
@@ -80,18 +42,18 @@ struct AppState {
 }
 
 fn find_project_root() -> String {
-    let exe = std::env::current_exe().unwrap_or_default();
-    let mut dir = exe
+    let executable = std::env::current_exe().unwrap_or_default();
+    let mut directory = executable
         .parent()
         .unwrap_or(std::path::Path::new("."))
         .to_path_buf();
 
     for _ in 0..10 {
-        if dir.join("bridge.js").exists() {
-            return dir.to_string_lossy().to_string();
+        if directory.join("bridge.js").exists() {
+            return directory.to_string_lossy().to_string();
         }
-        if let Some(parent) = dir.parent() {
-            dir = parent.to_path_buf();
+        if let Some(parent) = directory.parent() {
+            directory = parent.to_path_buf();
         } else {
             break;
         }
@@ -99,34 +61,34 @@ fn find_project_root() -> String {
 
     std::env::var("MILKSU_ROOT").unwrap_or_else(|_| {
         std::env::current_dir()
-            .map(|p| p.to_string_lossy().to_string())
+            .map(|path| path.to_string_lossy().to_string())
             .unwrap_or_else(|_| ".".to_string())
     })
 }
 
 fn ensure_bridge(state: &AppState, app: &tauri::AppHandle) -> Result<(), String> {
-    let mut guard = state.bridge.lock().map_err(|e| e.to_string())?;
+    let mut guard = state.bridge.lock().map_err(|error| error.to_string())?;
     if guard.is_some() {
         return Ok(());
     }
 
     let project_root = find_project_root();
     let bridge_path = format!("{}/bridge.js", project_root);
+    let settings = state.settings.lock().map_err(|error| error.to_string())?;
 
-    let s = state.settings.lock().map_err(|e| e.to_string())?;
-    let mut cmd = Command::new("node");
-    cmd.arg("--experimental-strip-types")
+    let mut command = Command::new("node");
+    command
         .arg(&bridge_path)
         .current_dir(&project_root)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+        .stderr(Stdio::inherit());
 
-    for (name, provider) in &s.providers {
+    for (name, provider) in &settings.providers {
         if !provider.enabled || provider.api_key.is_empty() {
             continue;
         }
-        let env_key = match name.as_str() {
+        let environment_key = match name.as_str() {
             "anthropic" => "ANTHROPIC_API_KEY",
             "openai" => "OPENAI_API_KEY",
             "deepseek" => "DEEPSEEK_API_KEY",
@@ -135,205 +97,102 @@ fn ensure_bridge(state: &AppState, app: &tauri::AppHandle) -> Result<(), String>
             "groq" => "GROQ_API_KEY",
             _ => continue,
         };
-        cmd.env(env_key, &provider.api_key);
-        if let Some(ref url) = provider.base_url {
+        command.env(environment_key, &provider.api_key);
+        if let Some(url) = &provider.base_url {
             if !url.is_empty() {
-                let url_key = format!("{}_BASE_URL", name.to_uppercase());
-                cmd.env(&url_key, url);
+                command.env(format!("{}_BASE_URL", name.to_uppercase()), url);
             }
         }
     }
-    if let Some(ref relay) = s.relay {
+
+    if let Some(relay) = &settings.relay {
         if relay.enabled && !relay.key.is_empty() {
-            cmd.env("MILKSU_RELAY_ENABLED", "1");
-            cmd.env("MILKSU_RELAY_KEY", &relay.key);
+            command.env("MILKSU_RELAY_ENABLED", "1");
+            command.env("MILKSU_RELAY_KEY", &relay.key);
             if !relay.url.is_empty() {
-                cmd.env("MILKSU_RELAY_URL", &relay.url);
+                command.env("MILKSU_RELAY_URL", &relay.url);
             }
         }
     }
-    drop(s);
+    drop(settings);
 
-    let mut child = cmd
+    let mut child = command
         .spawn()
-        .map_err(|e| format!("Failed to spawn bridge: {}", e))?;
-
+        .map_err(|error| format!("Failed to spawn bridge: {error}"))?;
     let stdin = child.stdin.take().ok_or("Failed to capture bridge stdin")?;
-    let stdout = child
-        .stdout
-        .take()
-        .ok_or("Failed to capture bridge stdout")?;
+    let stdout = child.stdout.take().ok_or("Failed to capture bridge stdout")?;
 
     state
         .active_sessions
         .lock()
-        .map_err(|e| e.to_string())?
+        .map_err(|error| error.to_string())?
         .clear();
 
-    let app_clone = app.clone();
-    let bridge_ref = state.bridge.clone();
-    let active_sessions_ref = state.active_sessions.clone();
+    let app_handle = app.clone();
+    let bridge_reference = state.bridge.clone();
+    let active_sessions_reference = state.active_sessions.clone();
     std::thread::spawn(move || {
-        let reader = BufReader::new(stdout);
-        for line in reader.lines() {
-            let line = match line {
-                Ok(l) => l,
-                Err(_) => break,
-            };
+        for line in BufReader::new(stdout).lines() {
+            let Ok(line) = line else { break };
             if line.trim().is_empty() {
                 continue;
             }
-            let event: BridgeEvent = match serde_json::from_str(&line) {
-                Ok(e) => e,
-                Err(_) => continue,
+            let Ok(event) = serde_json::from_str::<BridgeEvent>(&line) else {
+                continue;
+            };
+            let conversation_id = event.id.unwrap_or_default();
+
+            let message = match event.event_type.as_str() {
+                "text_delta" => event.delta.map(|content| AgentMessage {
+                    conversation_id,
+                    role: "assistant_delta".to_string(),
+                    content,
+                    tool_name: None,
+                    done: false,
+                }),
+                "message_done" => Some(AgentMessage {
+                    conversation_id,
+                    role: "assistant".to_string(),
+                    content: event.content.unwrap_or_default(),
+                    tool_name: None,
+                    done: true,
+                }),
+                "tool_call_start" => Some(AgentMessage {
+                    conversation_id,
+                    role: "tool".to_string(),
+                    content: String::new(),
+                    tool_name: event.tool_name,
+                    done: false,
+                }),
+                "tool_call_end" => Some(AgentMessage {
+                    conversation_id,
+                    role: "tool".to_string(),
+                    content: event.content.unwrap_or_default(),
+                    tool_name: event.tool_name,
+                    done: true,
+                }),
+                "error" => Some(AgentMessage {
+                    conversation_id,
+                    role: "assistant".to_string(),
+                    content: format!("Error: {}", event.error.unwrap_or_default()),
+                    tool_name: None,
+                    done: true,
+                }),
+                _ => None,
             };
 
-            let conv_id = event.id.clone().unwrap_or_default();
-
-            match event.event_type.as_str() {
-                "ready" => {
-                    let _ = app_clone.emit("bridge-status", "ready");
-                }
-                "text_delta" => {
-                    if let Some(delta) = event.delta {
-                        let _ = app_clone.emit(
-                            "agent-message",
-                            AgentMessage {
-                                conversation_id: conv_id,
-                                role: "assistant_delta".to_string(),
-                                content: delta,
-                                tool_name: None,
-                                done: false,
-                            },
-                        );
-                    }
-                }
-                "message_done" => {
-                    let _ = app_clone.emit(
-                        "agent-message",
-                        AgentMessage {
-                            conversation_id: conv_id,
-                            role: "assistant".to_string(),
-                            content: event.content.unwrap_or_default(),
-                            tool_name: None,
-                            done: true,
-                        },
-                    );
-                }
-                "tool_call_start" => {
-                    let _ = app_clone.emit(
-                        "agent-message",
-                        AgentMessage {
-                            conversation_id: conv_id,
-                            role: "tool".to_string(),
-                            content: String::new(),
-                            tool_name: event.tool_name,
-                            done: false,
-                        },
-                    );
-                }
-                "tool_call_end" => {
-                    let _ = app_clone.emit(
-                        "agent-message",
-                        AgentMessage {
-                            conversation_id: conv_id,
-                            role: "tool".to_string(),
-                            content: event.content.unwrap_or_default(),
-                            tool_name: event.tool_name,
-                            done: true,
-                        },
-                    );
-                }
-                "error" => {
-                    let _ = app_clone.emit(
-                        "agent-message",
-                        AgentMessage {
-                            conversation_id: conv_id,
-                            role: "assistant".to_string(),
-                            content: format!("Error: {}", event.error.unwrap_or_default()),
-                            tool_name: None,
-                            done: true,
-                        },
-                    );
-                }
-                "panel_update" => {
-                    let _ = app_clone.emit(
-                        "panel-update",
-                        PanelUpdateMessage {
-                            conversation_id: conv_id,
-                            set_fields: event
-                                .set_fields
-                                .unwrap_or(serde_json::Value::Object(Default::default())),
-                            append_items: event
-                                .append_items
-                                .unwrap_or(serde_json::Value::Object(Default::default())),
-                        },
-                    );
-                }
-                "subagents_start" => {
-                    let _ = app_clone.emit(
-                        "subagents-start",
-                        serde_json::json!({
-                            "conversationId": conv_id,
-                            "count": event.count.unwrap_or(0),
-                        }),
-                    );
-                }
-                "subagent_delta" => {
-                    if let (Some(sub_id), Some(delta)) = (event.sub_id, event.delta.clone()) {
-                        let _ = app_clone.emit(
-                            "subagent-delta",
-                            SubagentMessage {
-                                conversation_id: conv_id,
-                                sub_id,
-                                content: delta,
-                            },
-                        );
-                    }
-                }
-                "subagent_done" => {
-                    if let Some(sub_id) = event.sub_id {
-                        let _ = app_clone.emit(
-                            "subagent-done",
-                            SubagentMessage {
-                                conversation_id: conv_id,
-                                sub_id,
-                                content: event.content.clone().unwrap_or_default(),
-                            },
-                        );
-                    }
-                }
-                "subagent_error" => {
-                    if let Some(sub_id) = event.sub_id {
-                        let _ = app_clone.emit(
-                            "subagent-error",
-                            SubagentMessage {
-                                conversation_id: conv_id,
-                                sub_id,
-                                content: event.error.clone().unwrap_or_default(),
-                            },
-                        );
-                    }
-                }
-                "subagents_done" => {
-                    let _ = app_clone.emit(
-                        "subagents-done",
-                        SubagentsDoneMessage {
-                            conversation_id: conv_id,
-                            results: event.results.clone().unwrap_or_default(),
-                        },
-                    );
-                }
-                _ => {}
+            if let Some(message) = message {
+                let _ = app_handle.emit("agent-message", message);
             }
         }
-        if let Ok(mut guard) = bridge_ref.lock() {
-            *guard = None;
+
+        if let Ok(mut bridge) = bridge_reference.lock() {
+            *bridge = None;
         }
-        if let Ok(mut active_sessions) = active_sessions_ref.lock() {
-            active_sessions.clear();
+        if let Ok(mut sessions) = active_sessions_reference.lock() {
+            sessions.clear();
         }
-        let _ = app_clone.emit("bridge-error", "Bridge process exited");
+        let _ = app_handle.emit("bridge-error", "Bridge process exited");
     });
 
     *guard = Some(BridgeProcess { stdin });
@@ -345,15 +204,15 @@ fn write_bridge_command(
     command: serde_json::Value,
 ) -> Result<(), String> {
     let line = serde_json::to_string(&command)
-        .map_err(|e| format!("Failed to serialize bridge command: {}", e))?;
+        .map_err(|error| format!("Failed to serialize bridge command: {error}"))?;
     bridge
         .stdin
-        .write_all(format!("{}\n", line).as_bytes())
-        .map_err(|e| format!("Failed to write to bridge: {}", e))?;
+        .write_all(format!("{line}\n").as_bytes())
+        .map_err(|error| format!("Failed to write to bridge: {error}"))?;
     bridge
         .stdin
         .flush()
-        .map_err(|e| format!("Failed to flush bridge stdin: {}", e))
+        .map_err(|error| format!("Failed to flush bridge stdin: {error}"))
 }
 
 #[tauri::command]
@@ -365,14 +224,17 @@ async fn send_message(
 ) -> Result<(), String> {
     ensure_bridge(&state, &app)?;
 
-    let s = state.settings.lock().map_err(|e| e.to_string())?;
-    let model = s.active_model.clone();
-    let provider = s.active_provider.clone();
-    drop(s);
+    let settings = state.settings.lock().map_err(|error| error.to_string())?;
+    let model = settings.active_model.clone();
+    let provider = settings.active_provider.clone();
+    drop(settings);
 
-    let mut guard = state.bridge.lock().map_err(|e| e.to_string())?;
-    let bridge = guard.as_mut().ok_or("Bridge not initialized")?;
-    let mut active_sessions = state.active_sessions.lock().map_err(|e| e.to_string())?;
+    let mut bridge_guard = state.bridge.lock().map_err(|error| error.to_string())?;
+    let bridge = bridge_guard.as_mut().ok_or("Bridge not initialized")?;
+    let mut active_sessions = state
+        .active_sessions
+        .lock()
+        .map_err(|error| error.to_string())?;
 
     if !active_sessions.contains(&conversation_id) {
         write_bridge_command(
@@ -391,49 +253,19 @@ async fn send_message(
         bridge,
         serde_json::json!({
             "action": "send_message",
-            "conversationId": conversation_id.clone(),
+            "conversationId": conversation_id,
             "prompt": prompt,
         }),
-    )?;
-
-    Ok(())
-}
-
-#[tauri::command]
-async fn spawn_subagents(
-    app: tauri::AppHandle,
-    state: tauri::State<'_, AppState>,
-    conversation_id: String,
-    tasks: Vec<String>,
-) -> Result<(), String> {
-    ensure_bridge(&state, &app)?;
-
-    let s = state.settings.lock().map_err(|e| e.to_string())?;
-    let model = s.active_model.clone();
-    let provider = s.active_provider.clone();
-    drop(s);
-
-    let mut guard = state.bridge.lock().map_err(|e| e.to_string())?;
-    let bridge = guard.as_mut().ok_or("Bridge not initialized")?;
-
-    write_bridge_command(
-        bridge,
-        serde_json::json!({
-            "action": "spawn_subagents",
-            "conversationId": conversation_id,
-            "tasks": tasks,
-            "provider": provider,
-            "model": model,
-        }),
-    )?;
-
-    Ok(())
+    )
 }
 
 #[tauri::command]
 async fn get_settings(state: tauri::State<'_, AppState>) -> Result<AppSettings, String> {
-    let s = state.settings.lock().map_err(|e| e.to_string())?;
-    Ok(s.clone())
+    state
+        .settings
+        .lock()
+        .map(|settings| settings.clone())
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -442,8 +274,8 @@ async fn save_settings_cmd(
     new_settings: AppSettings,
 ) -> Result<(), String> {
     settings::save_settings(&new_settings)?;
-    let mut s = state.settings.lock().map_err(|e| e.to_string())?;
-    *s = new_settings;
+    let mut settings = state.settings.lock().map_err(|error| error.to_string())?;
+    *settings = new_settings;
     Ok(())
 }
 
@@ -459,53 +291,41 @@ async fn save_conversation(conversation: StoredConversation) -> Result<(), Strin
 
 #[tauri::command]
 async fn delete_conversation(state: tauri::State<'_, AppState>, id: String) -> Result<(), String> {
-    if let Ok(mut guard) = state.bridge.lock() {
-        if let Ok(mut active_sessions) = state.active_sessions.lock() {
-            let was_active = active_sessions.remove(&id);
-            if was_active {
-                if let Some(bridge) = guard.as_mut() {
-                    let _ = write_bridge_command(
-                        bridge,
-                        serde_json::json!({
-                            "action": "destroy_session",
-                            "conversationId": id.clone(),
-                        }),
-                    );
-                }
+    if let (Ok(mut bridge_guard), Ok(mut sessions)) =
+        (state.bridge.lock(), state.active_sessions.lock())
+    {
+        if sessions.remove(&id) {
+            if let Some(bridge) = bridge_guard.as_mut() {
+                let _ = write_bridge_command(
+                    bridge,
+                    serde_json::json!({
+                        "action": "destroy_session",
+                        "conversationId": id.clone(),
+                    }),
+                );
             }
         }
     }
-
     storage::delete_conversation(&id)
 }
 
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_shell::init())
         .setup(|app| {
-            let s = settings::load_settings();
             app.manage(AppState {
                 bridge: Arc::new(Mutex::new(None)),
                 active_sessions: Arc::new(Mutex::new(HashSet::new())),
-                settings: Mutex::new(s),
+                settings: Mutex::new(settings::load_settings()),
             });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             send_message,
-            spawn_subagents,
             get_settings,
             save_settings_cmd,
             list_conversations,
             save_conversation,
             delete_conversation,
-            engagement::create_engagement,
-            engagement::get_engagement,
-            engagement::update_engagement,
-            engagement::list_engagements,
-            engagement::delete_engagement,
-            engagement::append_timeline_entry,
-            engagement::merge_hosts,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

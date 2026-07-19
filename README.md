@@ -1,111 +1,78 @@
 # MilkSU
 
-MilkSU 是一个由用户拥有的安全任务控制面。它把 Codex、Claude Code、Pi 以及其他模型视为可替换的执行器，围绕它们提供环境接入、结果判定、轨迹留存、失败恢复和规模化运行。
+MilkSU 是一个由用户拥有的、可验证的安全任务运行时与控制面。它不重新发明 Coding Agent，而是把 Codex、Claude Code、Pi 和外部安全 Agent 当成可替换 Worker，补上安全任务真正需要的环境、证据、副作用、判分和恢复闭环。
 
-MilkSU 不试图训练一个比前沿模型更聪明的“安全大脑”。它要解决的是另一类问题：如何让强模型在真实安全环境里形成可验证、可复现、可积累的任务闭环。
+## 产品使命
 
-当前产品目标和概念边界以[安全 Agent 与通用 Agent 的能力边界](docs/developer/security-agent-boundary.md)为最高优先级设计依据。Roadmap 负责落地这个目标；早期 Sprint、固定 Task Type 和 Security Kernel 方案不再是主线。
+**MilkSU 是一个人与安全 Agent 共同工作的研究与训练环境。它既帮助用户完成更多真实安全任务，也通过可验证的实验、证据和复盘，让用户真正掌握完成这些任务的方法。**
 
-## 核心命题
+第一阶段只开发两个场景：**CTF** 与 **Vulnerability Research（Vuln）**。这不是把两个按钮写进聊天页，而是先做出两套真实、可验证、可教学的 Role Package 闭环。
 
-安全任务的结果不只取决于模型能力：
+文档站首页是一屏架构总图，也是当前设计基准。完整论证按以下顺序阅读：
 
-~~~text
-任务结果
-  = 模型能力
-  x 环境与工具接入
-  x 判分器质量
-  x 真实反馈与轨迹数据
-  x 执行效率与恢复能力
-~~~
-
-模型能力主要来自上游供应商。MilkSU 应当长期积累后四项，而不是重复实现一个更弱的通用 Coding Agent。
+1. [安全 Agent 与通用 Agent 的能力边界](docs/developer/security-agent-boundary.md)
+2. [六层运行时架构](docs/developer/architecture.md)
+3. [CTF / Vuln Role Packages](docs/developer/role-packages.md)
+4. [开源项目坐标](docs/developer/industry-baseline.md)
 
 ## 三个不能混淆的问题
 
-- **Agent Security** 保护 Agent 自身免受 prompt injection、工具投毒、凭据滥用、数据外传和供应链攻击。这是浏览、邮件、办公、开发和安全 Agent 都可能需要的通用基础设施。
-- **Role Package（角色包）**定义 Agent for Security 最终要完成什么，例如红队证明攻击路径、蓝队完成遏制恢复、CTF 提交正确 flag。
-- **Capability Package（能力包）**提供完成任务的方法和工具，例如二进制逆向、Web 测试、取证和 Fuzzing。
+- **Agent Security**：保护 Agent、凭据、数据和工具边界，是所有高权限 Agent 都可能需要的横切能力。
+- **Role Package**：定义安全任务的目标、长期状态、证据与独立判分方式，回答“怎样才算赢”。
+- **Capability Package**：提供 Binary、Web、Network、Mobile、Forensics、Fuzz 等可复用工具箱。
 
-三者应分开组合。普通 CTF Agent 可以在隔离环境中执行安全任务，却不一定面对外部攻击者；浏览网页的普通 Agent 不是安全任务 Agent，却可能需要很强的输入完整性保护；二进制逆向则是一种可被 Red、CTF、AppSec、恶意样本分析和漏洞研究共享的能力。MilkSU 不使用“所有安全 Agent 都面对恶意输入”作为统一架构前提，也不把“会用某种工具”误当成一个安全角色。
+Role 与 Capability 可以自由组合。二进制逆向不是某个角色的别名；读取不可信内容也不是安全任务 Agent 的专属定义。
 
-## 什么时候值得使用 MilkSU
+## 六层架构
 
-- 任务需要接入长期靶场、内网、设备、调试器、扫描器或可回滚环境。
-- 成败可以由 flag、PoC、补丁验证、覆盖率、策略命中或其他判分器确认。
-- 同类任务需要批量运行、重复评测，或者比较不同模型与 Skill 的效果。
-- 任务跨越多个会话、进程或主机，需要恢复执行并避免重复副作用。
-- 用户需要拥有自己的模型路由、策略边界、证据和运行数据。
+```text
+L1  Surface              Desktop / CLI / API
+L2  Role Packages        Red / Blue / CTF / AppSec / Malware / Vuln
+L3  Capability Packages  Binary / Web / Net / Mobile / Forensics / Fuzz
+L4  Security Runtime     Environment / Evidence / Effect / Evaluator / Recovery
+L5  Workers              Codex / Claude Code / Pi / External Security Agents
+L6  Agent Integrity      Scope / Provenance / Sandbox / Credential / Supply Chain
+```
 
-如果只是一次性 CTF、单仓库审计或临时漏洞分析，优先直接使用成熟的通用 Agent。只有当 MilkSU 能提供不可替代的环境、判分与数据闭环时，额外的 Harness 层才有意义。
+L2 定义角色闭环，L6 横切保护整条执行链。模型可以越来越强、L5 Worker 可以随时替换，但角色状态、真实环境、可引用证据、外部判分器和可恢复轨迹不会自动出现。
 
-## 核心架构目标
+## 重新开始的边界
 
-1. **Model-as-Worker**：模型是可替换的执行器，不是系统唯一的状态来源。
-2. **Environment Adapter**：用统一接口管理目标、工具、凭据引用、快照和清理动作。
-3. **Evaluator First**：模型不能自行宣布任务成功；关键结论必须由判分器或证据验证。
-4. **Trace as Data**：持久化 action、observation、artifact、decision 和 outcome，使运行可回放、可比较、可学习。
-5. **Recoverable Execution**：先保存工具结果和 checkpoint，再继续推理；重试不得重复有副作用的动作。
-6. **Role and Capability Packages**：角色包定义结果、状态和判分；能力包提供跨角色共享的工具与方法。
-7. **Evidence Projection**：桌面 UI 和安全面板展示任务状态、证据与决策，但展示层本身不被视为护城河。
+早期围绕“无限上下文 Codex”、固定 `taskType`、模型直写安全面板、通用子代理、仓库内 Skill 路由和红队 Engagement 数据模型的实现已经删除。它们没有经过开源项目基线和可验证任务闭环的检验，不再作为历史兼容层保留。
 
-目标架构把通用 Worker、跨领域完整性和角色闭环分开：
+仓库目前只保留：
 
-~~~text
-Desktop / CLI / API
-        |
-Role Packages
-Red / Blue / CTF / AppSec / Malware / Vulnerability Research
-        |
-Capability Packages
-Binary / Web / Network / Mobile / Forensics / Fuzzing
-        |
-Shared Security Substrate
-Environment、Evaluator、Evidence、Trace、Effect
-        |
-General Worker
-Pi / Codex / Claude Code / 其他模型与工具
+- 文档站与已经确定的架构认知；
+- Tauri / React 桌面宿主；
+- 通用聊天、会话存储、模型配置与流式工具输出；
+- 一个临时 Pi 对话桥，用于保留宿主链路，不代表最终 Worker Adapter 契约。
 
-Cross-cutting Agent Integrity
-Provenance、Sandbox、Credential、Capability、Supply Chain
-~~~
+核心 Runtime 仍是空白。第一条实现纵切是 CTF，第二条是 Vulnerability Research；在这两个场景成立之前，不并行开发 Red、Blue、AppSec 或 Malware Role。两者都支持 Coach、Copilot、Delegate，并分别保存安全任务 Outcome 与人类学习 Outcome。
 
-Agent Integrity 按内容信任度、权限和数据风险配置；Role Package 按任务结果配置；Capability Package 按所需技术配置。三者各自演进，Agent Integrity 不是安全任务专属护城河，二进制逆向等共享能力也不应被某一个角色独占。
+## 核心验收原则
 
-详细设计以文档站为准，阅读顺序如下：
+任何新模块都必须回答：
 
-- [安全 Agent 与通用 Agent 的能力边界](docs/developer/security-agent-boundary.md)（当前架构目标）
-- [核心架构](docs/developer/architecture.md)（目标分层）
-- [Agent Harness 设计边界](docs/guide/agent-harness.md)
-- [平台对比与差异化](docs/developer/comparison.md)
-- [路线图与验证门槛](docs/progress/roadmap.md)（落地顺序）
+1. 它属于哪一层，是否错误地把 Role、Capability、Worker 或 Agent Integrity 混在一起？
+2. 它保存了什么不可由模型自报的事实？
+3. 谁独立判断成功，Evidence 怎样引用，Effect 怎样恢复或清理？
+4. 在相同模型、工具、环境和预算下，它是否优于最小通用 Agent 基线？
 
-## 验证原则
-
-任何“优势”都必须通过对照实验而不是功能清单证明。使用相同模型、相同工具和相同预算，对比最小 Agent 基线与 MilkSU，至少记录：
-
-- `success@1` 与 `success@N`
-- 单次成功成本与完成时间
-- 无证据的误报成功率
-- 中断后的恢复成功率
-- 重复副作用次数
-- 结果复现率
-
-如果一个新模块既不能改善这些指标，也不能接入基线无法使用的环境，它不应进入核心架构。
+如果一个模块只是一段 Prompt、固定流程、工具薄封装或泛化 Planner，它默认不进入 MilkSU 核心。
 
 ## 开发
 
-~~~bash
-# 启动文档站
+```bash
+# 文档站
+npm install
 npm run docs:dev
 
-# 启动桌面端浏览器预览
+# 桌面 UI 浏览器预览
 cd app
+npm install
 npm run dev
 
-# 启动 Tauri 桌面端
+# Tauri 桌面端
 cd app
 npx tauri dev
-~~~
-
-项目当前状态与优先级见 [模块状态](docs/progress/status.md) 和 [路线图](docs/progress/roadmap.md)。
+```

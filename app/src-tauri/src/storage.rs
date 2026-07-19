@@ -23,12 +23,6 @@ pub struct StoredConversation {
     #[serde(alias = "created_at")]
     pub created_at: u64,
     pub messages: Vec<StoredMessage>,
-    #[serde(skip_serializing_if = "Option::is_none", alias = "task_type")]
-    pub task_type: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none", alias = "task_state")]
-    pub task_state: Option<serde_json::Value>,
-    #[serde(skip_serializing_if = "Option::is_none", alias = "engagement_id")]
-    pub engagement_id: Option<String>,
 }
 
 fn conversations_dir() -> PathBuf {

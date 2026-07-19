@@ -1,74 +1,3 @@
-export type TaskType = 'chat' | 'pentest' | 'ctf' | 'recon' | 'reverse'
-
-export interface TaskTypeInfo {
-  id: TaskType
-  color: string
-  phases?: string[]
-}
-
-export const TASK_TYPES: TaskTypeInfo[] = [
-  { id: 'chat', color: 'neutral' },
-  {
-    id: 'pentest',
-    color: 'red',
-    phases: ['recon', 'scanning', 'enumeration', 'exploitation', 'postExploitation', 'reporting'],
-  },
-  {
-    id: 'ctf',
-    color: 'purple',
-    phases: ['analysis', 'research', 'exploitation', 'flag'],
-  },
-  {
-    id: 'recon',
-    color: 'blue',
-    phases: ['passive', 'active', 'enumeration', 'report'],
-  },
-  {
-    id: 'reverse',
-    color: 'amber',
-    phases: ['triage', 'staticAnalysis', 'dynamicAnalysis', 'documentation'],
-  },
-]
-
-export interface PentestState {
-  target: string
-  phase: number
-  vulnerabilities: { severity: 'critical' | 'high' | 'medium' | 'low' | 'info'; title: string; detail?: string }[]
-  ports: { port: number; service: string; state: string }[]
-  tools_used: string[]
-}
-
-export interface CtfState {
-  challenge: string
-  category: string
-  points: number | null
-  flags: string[]
-  hints: string[]
-  solved: boolean
-}
-
-export interface ReconState {
-  scope: string[]
-  hosts: { ip: string; hostname?: string; os?: string }[]
-  ports: { host: string; port: number; service: string; version?: string }[]
-  findings: string[]
-}
-
-export interface ReverseState {
-  binary: string
-  arch: string
-  protections: { nx: boolean; canary: boolean; pie: boolean; relro: string }
-  functions: { name: string; address: string; note?: string }[]
-  findings: string[]
-}
-
-export type TaskState = PentestState | CtfState | ReconState | ReverseState
-
-export const EMPTY_PENTEST: PentestState = { target: '', phase: 0, vulnerabilities: [], ports: [], tools_used: [] }
-export const EMPTY_CTF: CtfState = { challenge: '', category: '', points: null, flags: [], hints: [], solved: false }
-export const EMPTY_RECON: ReconState = { scope: [], hosts: [], ports: [], findings: [] }
-export const EMPTY_REVERSE: ReverseState = { binary: '', arch: '', protections: { nx: false, canary: false, pie: false, relro: 'none' }, functions: [], findings: [] }
-
 export type MessageRole = 'user' | 'assistant' | 'tool'
 
 export interface Message {
@@ -78,13 +7,6 @@ export interface Message {
   timestamp: number
   toolName?: string
   status?: 'running' | 'done'
-  subagentCount?: number
-  subagentResults?: SubagentResult[]
-}
-
-export interface SubagentResult {
-  subId: number
-  content: string | null
 }
 
 export interface Conversation {
@@ -92,9 +14,6 @@ export interface Conversation {
   title: string
   createdAt: number
   messages: Message[]
-  taskType: TaskType
-  taskState?: TaskState
-  engagementId?: string | null
 }
 
 export interface ProviderConfig {
@@ -192,91 +111,3 @@ export const PROVIDERS: ProviderInfo[] = [
     placeholder: 'gsk_...',
   },
 ]
-
-export interface Engagement {
-  id: string
-  name: string
-  scope: string[]
-  status: 'active' | 'completed' | 'archived'
-  created: string
-  updated: string
-  conversation_ids: string[]
-  targets: EngagementTarget[]
-  credentials: EngagementCredential[]
-  attack_paths: AttackPath[]
-  notes: string[]
-}
-
-export interface EngagementTarget {
-  id: string
-  type: 'host' | 'domain' | 'subnet' | 'url'
-  value: string
-  authorized: boolean
-  hosts: EngagementHost[]
-}
-
-export interface EngagementHost {
-  ip: string
-  hostnames: string[]
-  os: string | null
-  status: string
-  last_seen: string | null
-  services: EngagementService[]
-  vulnerabilities: EngagementVulnerability[]
-}
-
-export interface EngagementService {
-  port: number
-  protocol: string
-  state: string
-  service: string
-  version: string | null
-  banner: string | null
-  notes: string[]
-}
-
-export interface EngagementVulnerability {
-  id: string
-  severity: 'critical' | 'high' | 'medium' | 'low' | 'info'
-  title: string
-  description: string
-  proof: string | null
-  exploitable: boolean
-  remediation: string | null
-  references: string[]
-}
-
-export interface EngagementCredential {
-  id: string
-  username: string
-  secret: string
-  type: 'password' | 'hash' | 'privateKey' | 'token' | 'cookie'
-  source: string
-  valid: boolean
-}
-
-export interface AttackPath {
-  id: string
-  name: string
-  impact: string
-  steps: AttackStep[]
-}
-
-export interface AttackStep {
-  order: number
-  action: string
-  target: string
-  tool: string
-  result: string
-  timestamp: string
-}
-
-export interface EngagementSummary {
-  id: string
-  name: string
-  status: 'active' | 'completed' | 'archived'
-  updated: string
-  host_count: number
-  vuln_count: number
-  cred_count: number
-}

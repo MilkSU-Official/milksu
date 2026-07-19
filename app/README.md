@@ -1,105 +1,43 @@
-# MilkSU Desktop Client
+# MilkSU Desktop Host
 
-Tauri v2 native desktop application for MilkSU -- a Pi agent harness extension for pluggable AI skills.
+This directory contains the reusable desktop shell retained during the architecture restart. It provides conversation storage, settings, provider selection, streaming messages, and generic tool-output UI.
+
+It intentionally has no built-in Pentest, CTF, Recon, Reverse, Engagement, or Role state. Future CTF and Vuln panels must read committed projections from the Shared Security Runtime; they must not treat a conversation or model-authored panel update as domain truth.
+
+`../bridge.js` is a temporary Pi chat adapter that keeps the existing desktop interaction path usable. It is not the final L5 Worker Adapter contract.
 
 ## Stack
 
-- **Frontend**: React + TypeScript + Vite + Tailwind CSS v4 + shadcn/ui (base-nova)
-- **Backend**: Rust (Tauri v2)
-- **Agent Engine**: Pi (earendil-works) via Node.js bridge subprocess
-- **Icons**: lucide-react
-- **Font**: Geist (oklch color system)
+- React + TypeScript + Vite + Tailwind CSS
+- Tauri v2 with a Rust host
+- Pi through a temporary Node.js subprocess bridge
+- Local settings and conversation persistence
 
 ## Development
 
-Browser-only frontend preview:
-
 ```bash
 npm install
-npm run dev -- --host 127.0.0.1
-```
-
-This mode uses localStorage-backed stubs for settings and conversations so the UI can be tested outside the Tauri WebView. The agent bridge still requires the native Tauri runtime.
-
-Native desktop development:
-
-```bash
-npm install
+npm run dev
+npm run build
+npm run lint
 npx tauri dev
 ```
 
-Starts Vite dev server on port 1420 with Rust hot reload.
+Browser preview stores settings and conversations in `localStorage`; sending messages still requires the native Tauri bridge.
 
-If port 1420 is in use: `lsof -ti:1420 | xargs kill -9`
+## Retained Structure
 
-## Production Build
+```text
+src/
+  App.tsx                 generic host composition
+  components/ChatView    conversation and tool output
+  components/Sidebar     conversation navigation
+  components/Settings    model and provider configuration
+  hooks/                  conversation persistence and streamed events
+  tauri.ts                IPC wrapper plus browser preview storage
 
-Frontend checks:
-
-```bash
-npm run build
-npm run lint
+src-tauri/
+  src/lib.rs              bridge lifecycle and IPC
+  src/settings.rs         local settings
+  src/storage.rs          local conversation history
 ```
-
-Native bundle:
-
-```bash
-npx tauri build
-```
-
-## Project Structure
-
-```
-src/                    React frontend
-  App.tsx               Root: state, IPC, persistence, task type routing
-  components/
-    Sidebar.tsx         Conversation list with task-type icons, search, delete
-    ChatView.tsx        Welcome page (task type selector) + chat + model selector
-    TaskPanel.tsx       Security task panels (pentest/ctf/recon/reverse)
-    OutputPanel.tsx     Tool output side panel (for chat-type conversations)
-    SettingsPage.tsx    Full-page settings with shadcn/ui (General, API Keys, Usage, About)
-    ModelSelector.tsx   Dropdown model switcher (in input bar)
-    ui/                 shadcn/ui components (Button, Card, Switch, Input, Badge, Separator, Label)
-  lib/utils.ts          cn() utility (clsx + tailwind-merge)
-  tauri.ts              Tauri IPC wrapper + browser-preview fallback
-  types.ts              TaskType, TaskState, Message, Conversation, AppSettings, UsageData, PROVIDERS
-  index.css             Tailwind v4 + shadcn theme (oklch variables, Geist font)
-
-src-tauri/              Rust backend
-  src/lib.rs            IPC commands, bridge process management
-  src/settings.rs       Settings persistence (JSON file)
-  src/storage.rs        Conversation persistence (JSON files)
-  src/main.rs           Entry point
-
-components.json         shadcn/ui config (base-nova style, Vite framework)
-```
-
-## Task Type System
-
-Each conversation binds to a task type at creation time. The welcome page shows a task type selector with 5 color-coded pills:
-
-| Type | Color | Icon | Panel Content |
-|------|-------|------|---------------|
-| Chat | neutral | MessageSquare | none (OutputPanel for tool results) |
-| Pentest | red | Shield | target, phase tracker, vulns, ports, tools |
-| CTF | purple | Flag | challenge, category, points, flags, solved |
-| Recon | blue | Network | scope, hosts, services, findings |
-| Reverse | amber | Binary | binary, arch, protections, functions, findings |
-
-- Sidebar shows task type icon per conversation
-- Chat header shows task type badge for security types
-- Task panel overlays chat area from the right (absolute positioning, does not squeeze layout)
-
-## Data Storage
-
-All data is stored locally:
-
-- Settings: `~/Library/Application Support/com.milksu.app/settings.json`
-- Conversations: `~/Library/Application Support/com.milksu.app/conversations/*.json`
-- Each conversation JSON includes `task_type` and `task_state` fields
-
-## Supported Providers
-
-DeepSeek (default), Anthropic, OpenAI, Google Gemini, Groq.
-
-API keys are stored locally and passed to the bridge subprocess as environment variables.
