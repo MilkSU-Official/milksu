@@ -24,6 +24,7 @@ export default defineConfig({
           text: '开始',
           items: [
             { text: '开发者文档', link: '/developer/' },
+            { text: '开发计划（当前主线）', link: '/developer/development-plan' },
           ],
         },
         {
@@ -31,6 +32,7 @@ export default defineConfig({
           items: [
             { text: '能力边界（当前主线）', link: '/developer/security-agent-boundary' },
             { text: '六层运行时架构', link: '/developer/architecture' },
+            { text: '靶场与环境管理', link: '/developer/lab-management' },
             { text: 'Role Packages', link: '/developer/role-packages' },
             { text: '开源项目坐标', link: '/developer/industry-baseline' },
           ],

@@ -2,8 +2,8 @@
 const layers = [
   {
     id: 'L1',
-    name: 'Surface',
-    description: 'Desktop / CLI / API',
+    name: 'Desktop Surface',
+    description: 'macOS first / Windows later',
     references: '参考 PentAGI、Agentic SOC 的运行与案件视图',
   },
   {
@@ -27,9 +27,9 @@ const layers = [
   },
   {
     id: 'L5',
-    name: 'Workers',
-    description: 'Codex / Claude Code / Pi / External Security Agents',
-    references: '通用能力可替换；完整安全产品可外部委派',
+    name: 'Agent Engine',
+    description: 'Pi / Codex Core / Model APIs / Optional External Runtimes',
+    references: '复用通用 Loop；MilkSU 改造为自己的 Security Harness',
   },
   {
     id: 'L6',
@@ -170,7 +170,7 @@ const roles = [
             <p><b>Role</b> 定义怎样算赢</p>
             <p><b>Capability</b> 提供工具箱</p>
             <p><b>Runtime</b> 保存事实并独立判分</p>
-            <p><b>Worker</b> 随 SOTA 替换</p>
+            <p><b>Engine</b> 可改造替换，不从零重写通用 Loop</p>
           </footer>
         </section>
       </div>

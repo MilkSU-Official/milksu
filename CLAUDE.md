@@ -20,7 +20,7 @@ Verifiable security job runtime and user-owned control plane.
 - L2 Role Packages define goals, durable state, Evidence, Evaluators, and Human Outcomes.
 - L3 Capability Packages expose reusable security techniques and deterministic tools.
 - L4 Shared Security Runtime owns Environment, Job, Attempt, Step, Action, Observation, Artifact, Evidence, Effect, Evaluation, Outcome, Trace, and Recovery.
-- L5 Workers are replaceable. Pi, Codex, Claude Code, and external security agents must not define the core domain model.
+- L5 is an adaptable Agent Engine. MilkSU may embed or minimally fork a mature open-source Coding Agent core such as Pi or Codex instead of rebuilding generic planning, context, and tool-loop capabilities. The selected engine and model providers remain replaceable and must not define the security domain model.
 - L6 Agent Integrity is cross-cutting and risk-based. It is not a Red, Blue, CTF, or AppSec role.
 - The model may propose actions and conclusions; only committed observations, artifacts, and evaluators may establish facts or success.
 
@@ -30,9 +30,11 @@ Product mission: MilkSU is a research and training environment where people and 
 
 ## Current Code Boundary
 
-`app/` retains a generic Tauri/React host, chat history, settings, streaming messages, and tool-output UI. `bridge.js` is a temporary Pi chat adapter. None of these files define the target Runtime contract.
+`app/` retains a generic Tauri/React host, chat history, settings, streaming messages, and tool-output UI. `bridge.js` is a temporary Pi chat adapter. Pi is also a candidate embedded Agent Engine, so do not delete it until the M0 base-engine spike decides whether to embed Pi, adapt Codex, or choose another extensible core. None of these files define the target Runtime contract.
 
 Before adding a new core module, state its layer, contract, evaluator, evidence, effects, and baseline comparison in the relevant developer document. Do not add placeholder architecture merely to make the six layers look complete.
+
+Follow `docs/developer/development-plan.md` for implementation order and milestone acceptance criteria.
 
 ## Development
 

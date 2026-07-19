@@ -266,7 +266,7 @@ MilkSU 会操作浏览器、工具、凭据和外部内容，所以仍然需要 
 ### 推荐分层
 
 ~~~text
-Desktop / CLI / API
+Desktop Surface (macOS first)
         |
 Role Packages
 Red / Blue / CTF / AppSec / Malware / Vulnerability Research
@@ -277,8 +277,8 @@ Binary / Web / Network / Mobile / Forensics / Fuzzing
 Shared Security Substrate
 Environment / Evaluator / Evidence / Trace / Effect
         |
-General Worker
-Pi / Codex / Claude Code / 其他模型和工具
+Adaptable Agent Engine
+Pi SDK / Codex Core / Model Providers / External Runtimes
 
 Cross-cutting Agent Integrity
 Provenance / Sandbox / Credential / Capability / Supply Chain
@@ -286,7 +286,7 @@ Provenance / Sandbox / Credential / Capability / Supply Chain
 
 每层的人话解释：
 
-1. **General Worker**：真正调用模型、写代码和使用工具的执行器，应该尽量薄，方便直接更换成新 SOTA。
+1. **Adaptable Agent Engine**：复用成熟 Coding Harness 的模型调用、上下文、会话和通用 Tool Loop。MilkSU 可以通过 SDK、扩展或可维护的小范围 fork 改造它，但不能让它定义安全任务事实；模型仍应方便替换成新 SOTA。
 2. **Shared Security Substrate（公共安全底座）**：保存运行、环境、证据和结果的通用机制，不替任何角色决定业务含义。
 3. **Capability Package**：跨角色共享的工具箱，例如 Binary、Web 和 Forensics。
 4. **Role Package**：定义目标、长期状态、动作含义和 evaluator，回答“怎样才算完成”。
@@ -374,6 +374,6 @@ G = Agent Integrity + Sandbox + Credential Isolation
 
 ## 最终原则
 
-> 新 SOTA 发布时，MilkSU 应优先替换 General Worker，然后重新运行各角色 benchmark。角色包、能力包、环境、判分器、证据和历史轨迹应当继续复用。
+> 新 SOTA 发布时，MilkSU 应优先替换 Agent Engine 使用的 Model Provider，然后重新运行各角色 benchmark。只有 Engine 本身阻碍安全闭环时才替换或升级 Engine；角色包、能力包、环境、判分器、证据和历史轨迹应当继续复用。
 
-安全 Agent 不是一种统一、永久领先于通用 Agent 的智能。MilkSU 真正要建设的是：让强通用 Worker 能够接入共享安全能力，并在不同角色的真实环境中形成可验证、可恢复、可积累的任务闭环，同时不把 Agent 自身安全误当成安全任务的定义。
+安全 Agent 不是一种统一、永久领先于通用 Agent 的智能。MilkSU 真正要建设的是：在成熟通用 Agent Engine 上做最小但关键的安全化改造，使它接入共享安全能力，并在不同角色的真实环境中形成可验证、可恢复、可积累、可教学的任务闭环，同时不把 Agent 自身安全误当成安全任务的定义。

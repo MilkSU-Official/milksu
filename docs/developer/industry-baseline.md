@@ -16,7 +16,7 @@
 | `external-worker` | 把完整 Job 委派给外部安全 Agent，再收回 Evidence 与 Outcome |
 | `adapt` | 学习其已验证的数据模型和运行行为，用 MilkSU 契约重做 |
 | `benchmark-only` | 只用于任务、Judge、Ablation、失败分类和对照 |
-| `reject` | 与通用 Worker 重复、无法验证收益或引入不可接受风险 |
+| `reject` | 与原版通用 Agent 重复、无法验证收益或引入不可接受风险 |
 
 “写在架构图上”不等于“把仓库加入依赖”。
 
@@ -41,7 +41,7 @@
 | L2 Role | Red: PentAGI/ARTEMIS；Blue: Agentic SOC；AppSec: Shannon；CTF: BoxPwnr；Vuln: Taskflow/Co-RedTeam | 角色状态、证据和成功条件 | 只换 system prompt 的角色人格 |
 | L3 Capability | CodeQL、Burp、HexStrike、Operant MCP | 结构化工具 Adapter、Artifact 和权限 | 运行时临时安装几十个未知工具 |
 | L4 Runtime | BoxPwnr、PentAGI、Taskflow、Shannon | Environment、Attempt、Trace、Effect、Judge、Recovery | 复制整个外部 Agent Loop |
-| L5 Worker | Codex、Claude Code、Pi、CAI、PentAGI、Shannon、Strix | Worker 替换与黑盒委派 | 自研通用 Planner/Executor/Reviewer |
+| L5 Agent Engine | Pi SDK、Codex 开源核心、Claude Code、CAI、PentAGI、Shannon、Strix | 内嵌可扩展基座、模型替换与黑盒委派 | 从 API 重写成熟的通用 Planner/Tool Loop |
 | L6 Integrity | Agentic Radar、Garak、PyRIT、RAMPART | Agent/MCP/Tool 的安全测试与策略回归 | 把 Agent Security 当成 Blue/Red Role |
 
 ## 六个 Role 的项目坐标
@@ -57,9 +57,11 @@
 
 ## 对新架构的直接推论
 
-### 1. 不再自研通用 Agent Loop
+### 1. 不从零发明通用 Agent Loop
 
-规划、命令生成、上下文压缩、普通代码修改和泛化子代理优先交给 Codex、Claude Code、Pi 或外部安全 Worker。MilkSU 只保留跨 Worker 的 Job、Evidence、Effect、Evaluator 和 Recovery。
+规划、模型调用、上下文压缩、普通代码修改和 Tool Loop 优先复用 Pi SDK、Codex 开源核心等成熟实现。复用不等于把整个安全 Job 黑盒委派出去：MilkSU 仍然拥有并改造自己的 Security Harness，负责 Job、角色状态、Experiment、Evidence、Effect、Evaluator、Recovery 和 Human Outcome。
+
+优先顺序是：稳定 SDK/扩展点，其次是本地服务协议，最后才是可持续的小范围 fork。只有扩展点无法表达安全语义时才改上游核心，并记录 fork 差异和升级成本。
 
 ### 2. Package 不是 Prompt 加工具列表
 
@@ -84,7 +86,7 @@ CodeQL、Fuzzer、Debugger、Judge、SIEM 查询和沙箱会产生可验证 Obse
 1. 一条根据源码和实跑得到的完整执行轨迹；
 2. 核心数据模型和状态转换；
 3. 它的价值来自模型、环境、Evaluator、Evidence 还是产品 UI；
-4. 与相同 Worker、工具、预算的最小基线对照；
+4. 与相同 Agent Engine、模型、工具、预算的最小基线对照；
 5. 选择 `adapter / external-worker / adapt / benchmark-only / reject` 的理由；
 6. 许可证、维护状态、凭据、网络、沙箱和供应链风险。
 

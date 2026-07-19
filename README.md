@@ -1,6 +1,6 @@
 # MilkSU
 
-MilkSU 是一个由用户拥有的、可验证的安全任务运行时与控制面。它不重新发明 Coding Agent，而是把 Codex、Claude Code、Pi 和外部安全 Agent 当成可替换 Worker，补上安全任务真正需要的环境、证据、副作用、判分和恢复闭环。
+MilkSU 是一个由用户拥有的、可验证的 Security Agent Harness 与桌面控制面。它不从零重写模型调用、上下文压缩和通用工具循环，而是选择 Pi、Codex CLI 开源核心等成熟 Coding Agent Engine 作为可改造基座，再由 MilkSU 自己实现安全任务的假设、实验、证据、副作用、判分、恢复和教学闭环。直接运行完整 Codex/Claude Code CLI 仍只是可选兼容方式。
 
 ## 产品使命
 
@@ -13,7 +13,9 @@ MilkSU 是一个由用户拥有的、可验证的安全任务运行时与控制�
 1. [安全 Agent 与通用 Agent 的能力边界](docs/developer/security-agent-boundary.md)
 2. [六层运行时架构](docs/developer/architecture.md)
 3. [CTF / Vuln Role Packages](docs/developer/role-packages.md)
-4. [开源项目坐标](docs/developer/industry-baseline.md)
+4. [靶场与环境管理](docs/developer/lab-management.md)
+5. [开源项目坐标](docs/developer/industry-baseline.md)
+6. [开发计划](docs/developer/development-plan.md)
 
 ## 三个不能混淆的问题
 
@@ -26,15 +28,15 @@ Role 与 Capability 可以自由组合。二进制逆向不是某个角色的别
 ## 六层架构
 
 ```text
-L1  Surface              Desktop / CLI / API
+L1  Desktop Surface      macOS first / Windows later
 L2  Role Packages        Red / Blue / CTF / AppSec / Malware / Vuln
 L3  Capability Packages  Binary / Web / Net / Mobile / Forensics / Fuzz
 L4  Security Runtime     Environment / Evidence / Effect / Evaluator / Recovery
-L5  Workers              Codex / Claude Code / Pi / External Security Agents
+L5  Agent Engine         Pi / Codex Core / Model APIs / External Runtimes
 L6  Agent Integrity      Scope / Provenance / Sandbox / Credential / Supply Chain
 ```
 
-L2 定义角色闭环，L6 横切保护整条执行链。模型可以越来越强、L5 Worker 可以随时替换，但角色状态、真实环境、可引用证据、外部判分器和可恢复轨迹不会自动出现。
+L2 定义角色闭环，L5 提供可改造的通用 Agent Engine，L6 横切保护整条执行链。MilkSU Security Harness 是 L2–L6 的组合，不等于从 API 重写 L5。模型和底层 Engine 可以演进，但角色状态、真实环境、可引用证据、外部判分器和可恢复轨迹不会自动出现。
 
 ## 重新开始的边界
 
@@ -45,9 +47,9 @@ L2 定义角色闭环，L6 横切保护整条执行链。模型可以越来越�
 - 文档站与已经确定的架构认知；
 - Tauri / React 桌面宿主；
 - 通用聊天、会话存储、模型配置与流式工具输出；
-- 一个临时 Pi 对话桥，用于保留宿主链路，不代表最终 Worker Adapter 契约。
+- 一个临时 Pi 对话桥；Pi 现在同时是 Harness 基座候选，能否从桥接升级为内嵌 Engine 要由 M0 实跑决定。
 
-核心 Runtime 仍是空白。第一条实现纵切是 CTF，第二条是 Vulnerability Research；在这两个场景成立之前，不并行开发 Red、Blue、AppSec 或 Malware Role。两者都支持 Coach、Copilot、Delegate，并分别保存安全任务 Outcome 与人类学习 Outcome。
+核心 Runtime 仍是空白。当前按[开发计划](docs/developer/development-plan.md)推进：先建立 Go/Wails/SQLite 的最小纵向骨架，再依次跑通 CTF 与 Vulnerability Research；在这两个场景成立之前，不并行开发 Red、Blue、AppSec 或 Malware Role。两者都支持 Coach、Copilot、Delegate，并分别保存安全任务 Outcome 与人类学习 Outcome。
 
 ## 核心验收原则
 

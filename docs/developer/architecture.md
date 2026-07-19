@@ -10,7 +10,7 @@
 
 MilkSU 是一个**可验证的安全任务运行时与用户控制面**：它让通用 Coding Agent、专用安全 Agent 和确定性工具在受约束的真实环境中执行 Security Job，并把每一步转化为可恢复的状态、可追溯的证据和由外部 Evaluator 判定的结果。
 
-它不是“没有上下文限制的 Codex”，也不是重新实现一个 Planner、ReAct Loop 或多 Agent 聊天系统。
+它不是“没有上下文限制的 Codex”，也不从零重新实现模型调用、Planner、ReAct Loop、上下文压缩或多 Agent 聊天系统。MilkSU 可以嵌入或小范围改造 Pi、Codex 开源核心等成熟 Coding Agent Engine，但必须自己拥有 Security Harness 的角色状态、环境、证据、评测、恢复和教学语义。
 
 ## 为什么需要重启
 
@@ -20,7 +20,7 @@ MilkSU 是一个**可验证的安全任务运行时与用户控制面**：它让
 
 1. 先定义一类安全任务怎样才算成功。
 2. 再定义完成它需要的环境、证据、允许的副作用和恢复语义。
-3. 然后选择通用 Worker、外部安全 Agent 或确定性工具执行。
+3. 然后让选定的可扩展 Agent Engine、外部安全 Agent 或确定性工具执行；通用 Loop 优先复用成熟开源实现。
 4. 最后才决定用 Desktop、CLI、API 或报告怎样展示。
 
 ## 核心对象模型
@@ -45,7 +45,7 @@ Engagement
 | --- | --- | --- |
 | `Engagement` | 一次获得授权的工作范围 | 谁授权、可以碰什么、何时到期、数据怎样保留？ |
 | `Job` | 一个有明确结果的安全任务 | 目标是什么、使用哪个 Role Package、怎样才算完成？ |
-| `Attempt` | 在固定配置下的一次尝试 | 使用哪个 Worker、模型、环境版本、预算和随机种子？ |
+| `Attempt` | 在固定配置下的一次尝试 | 使用哪个 Agent Engine、模型、环境版本、预算和随机种子？ |
 | `Step` | 可恢复的最小推进单元 | 这一步想验证什么、执行了什么、观察到什么？ |
 | `Action` | 对工具或环境的结构化调用 | 权限、参数、副作用和幂等键是什么？ |
 | `Observation` | 工具或目标返回的原始事实 | 原始输出在哪里、何时得到、是否完整？ |
@@ -55,7 +55,7 @@ Engagement
 | `Evaluation` | 独立判分结果 | 哪个 Evaluator、哪个版本、依据什么给出 pass/fail/score？ |
 | `Outcome` | Job 的最终状态 | 成功、失败、部分完成、人工复核还是无法判定？ |
 
-`Conversation` 只能作为人与 Worker 的交互记录，不能替代上述对象。
+`Conversation` 只能作为人与 Agent Engine 的交互记录，不能替代上述对象。
 
 ## 不可破坏的架构约束
 
@@ -77,14 +77,14 @@ Engagement
   -> 保存 Observation / Artifact
   -> 记录 Effect
   -> 提交 Step checkpoint
-  -> 再让 Worker 解释和规划
+  -> 再让 Agent Engine 解释和规划
 ```
 
 这样模型超时、切换或上下文压缩都不会让已经发生的事实消失。
 
 ### 3. 任务状态不能只存在于上下文
 
-Worker 可以重建上下文，但不能拥有唯一真相。攻击路径、案件状态、实验树、PoC、补丁、IOC 和披露状态都必须由 Role Package 投影到持久对象。
+Agent Engine 可以重建上下文，但不能拥有唯一真相。攻击路径、案件状态、实验树、PoC、补丁、IOC 和披露状态都必须由 Role Package 投影到持久对象。
 
 ### 4. 副作用必须可识别
 
@@ -96,14 +96,15 @@ Worker 可以重建上下文，但不能拥有唯一真相。攻击路径、案�
 - `approval`：是否需要人工批准；
 - `scope_check`：如何证明目标仍在授权范围内。
 
-### 5. Worker 和工具都可替换
+### 5. Agent Engine、模型和工具都可替换
 
 核心契约不得依赖 Pi 的消息格式、Codex 的 rollout、Claude Code 的 session 或某个 MCP schema。它们通过 Adapter 进入系统。
 
 ## 六层架构
 
 ```text
-L1  Desktop / CLI / API / CI
+L1  Desktop Surface
+    macOS first / Windows later
                  │
 L2  Role Packages
     Red / Blue / CTF / AppSec / Malware / Vulnerability Research
@@ -114,24 +115,24 @@ L3  Capability Packages
 L4  Shared Security Runtime
     Job / Environment / Evidence / Effect / Evaluator / Trace / Recovery
                  │
-L5  Workers and Tool Executors
-    Codex / Claude Code / Pi / External Security Agents / Deterministic Tools
+L5  Agent Engine and Tool Executors
+    Embedded Pi/Codex Core / Model Providers / External Agent Runtimes / Deterministic Tools
 
 L6  Cross-cutting Agent Integrity
     Scope / Provenance / Sandbox / Credential / Approval / Egress / Supply Chain
 ```
 
-### L1：交互与集成表面
+### L1：桌面交互表面
 
-Desktop、CLI、API 和 CI 只负责：
+第一阶段产品只有 macOS 桌面客户端，后续再评估 Windows；不提供 Web 产品、GraphQL 或本地 HTTP 服务。Wails binding 只把 React UI 连接到 Go application service。L1 负责：
 
 - 创建和查看 Engagement/Job；
-- 选择 Role Package、环境、Worker 与预算；
+- 选择 Role Package、环境、Agent Engine、模型与预算；
 - 批准高风险 Action；
 - 查看 Evidence、Effect、Evaluation 和成本；
 - 暂停、恢复、比较和导出 Attempt。
 
-L1 不拥有任务真相。删除桌面 UI 后，同一 Job 仍应能通过 CLI 或 API 完整运行。
+L1 不拥有任务真相。即使不启动桌面 UI，同一 Job 的核心逻辑仍应能由 Go 契约测试或内部开发命令完整运行；这不等于第一阶段要发布 CLI/API 产品。
 
 ### L2：Role Package
 
@@ -190,17 +191,20 @@ Capability Package 定义“怎样调用一种技术”，而不是“任务是�
 - **Recovery Engine**：从已提交 Step 恢复，避免重复副作用；
 - **Projection API**：为 Role 状态、UI、报告和 benchmark 提供只读投影。
 
-L4 可以调度 Worker，但不应该重新发明模型的通用规划能力。
+L4 驱动安全任务状态和事实提交，但不应该重新发明模型的通用规划能力。通用会话、模型调用、上下文压缩和 Tool Loop 由 L5 的成熟 Agent Engine 提供。
 
-### L5：Workers and Tool Executors
+Environment Manager 也不能退化成让模型自由执行 `docker compose`。靶场由 `LabSourceAdapter + LabPackage + EnvironmentProvider` 确定性管理，Agent 只能通过类型化工具请求生命周期动作；Readiness 与 Judge 分开。详细契约见[靶场与环境管理](/developer/lab-management)。
 
-MilkSU 支持三种执行关系：
+### L5：Agent Engine and Tool Executors
 
-1. **General Worker Adapter**：Codex、Claude Code、Pi、OpenCode 等负责分析、规划、编码和普通工具使用。
-2. **External Security Worker Adapter**：PentAGI、CAI、Shannon、Strix 等完整产品作为黑盒或半结构化 Worker，MilkSU 只负责输入 Job、约束环境并收回 Evidence/Outcome。
-3. **Deterministic Tool Executor**：CodeQL、Burp、Ghidra、Fuzzer、SIEM 查询等直接作为 Capability 执行，不再套一层伪 Agent。
+L5 首先区分“内嵌基座”和“外部完整运行时”。两者都可能来自 Codex 或其他 Coding Agent，但集成深度不同：
 
-选择 Worker 是运行配置，不是修改核心领域模型。
+1. **Embedded Agent Engine**：优先通过 SDK、library 或稳定服务协议复用 Pi、Codex 开源核心等成熟实现的模型接入、Session、Compaction、通用 Tool Loop 和事件；MilkSU 在其上实现 Security Harness。先扩展，必要时才维护小范围 fork。
+2. **Model Provider**：由 Engine 调用云端或本地模型 API。换模型不应改变 Role、Evidence 或 Evaluator。
+3. **External Agent Runtime**：用户已有的 Codex CLI、Claude Code，或 PentAGI、CAI、Shannon、Strix 等完整产品以原版 Harness 运行；MilkSU 只输入有边界的 Attempt 并归一化事件和结果。
+4. **Deterministic Tool Executor**：CodeQL、Burp、Ghidra、Fuzzer、SIEM 查询等直接作为 Capability 执行，不再套一层伪 Agent。
+
+更换内嵌 Engine 或选择外部 Runtime 是运行配置，不是修改核心领域模型。MilkSU Security Harness 是 L2–L6 的组合，不能把它缩写成某个模型或某个 CLI。
 
 ### L6：Cross-cutting Agent Integrity
 
@@ -224,13 +228,13 @@ MilkSU 支持三种执行关系：
    校验授权、Role Package、输入 schema、预算和完整性要求
 
 2. Prepare
-   创建/连接 Environment，解析 Capability 与 Worker Adapter
+   创建/连接 Environment，解析 Capability 与 Agent Engine
 
 3. Start Attempt
    固定模型、工具、环境、Package 和 Evaluator 版本
 
 4. Propose
-   Worker 根据结构化状态提出下一 Action 或结束候选
+   Agent Engine 根据结构化状态提出下一 Action 或结束候选
 
 5. Gate
    校验 scope、capability、policy、approval、预算和幂等键
@@ -242,7 +246,7 @@ MilkSU 支持三种执行关系：
    在规定时机运行增量或最终 Evaluator
 
 8. Continue / Finish
-   Worker 继续探索，或由 Evaluation 产生 Outcome
+   Agent Engine 继续探索，或由 Evaluation 产生 Outcome
 
 9. Cleanup
    执行清理、撤销凭据租约、保存最终证据与成本
@@ -255,14 +259,14 @@ MilkSU 支持三种执行关系：
 - 环境可创建和重置；
 - Flag Judge 是独立 Evaluator；
 - Attempt 可以重复运行并计算 `success@N`；
-- Worker 可以在 Codex、Claude Code、Pi 和外部 Agent 之间替换；
+- 底层 Agent Engine 或 Model Provider 可以替换，外部 Agent Runtime 也能作为对照运行；
 - 失败轨迹、成本和恢复行为可以直接比较。
 
 与 CTF 同批设计的第二个角色是 **Vulnerability Research Role Package**：`Target/Version -> Attack Surface -> Hypothesis -> Experiment/Fuzz -> Reproduction -> Root Cause -> Exploitability -> Disclosure`。CTF 先验证边界清楚的 Judge 与可重置环境；Vuln 再验证开放式探索、长期假设、Crash/PoC 证据和人工复核。AppSec 保留为后续角色，不再是第二条主线。
 
 这两个角色都必须同时支持 `Coach / Copilot / Delegate` 三种协作方式。任务除了安全领域的 `Domain Outcome`，还保存 `Human Outcome`：用户使用过哪些提示、是否独立完成关键步骤、能否解释根因或迁移到变体。详细契约见[Role Packages](/developer/role-packages)。
 
-如果 CTF 与 Vuln 两条链都不能在相同 Worker、工具和预算下优于最小基线，MilkSU 应收缩为 benchmark、Adapter 和证据工具，而不是继续扩张平台。
+如果 CTF 与 Vuln 两条链都不能在相同 Agent Engine、模型、工具和预算下优于原版 Coding Agent 基线，MilkSU 应收缩为 benchmark、Adapter 和证据工具，而不是继续扩张平台。
 
 ## 评测与停止条件
 
@@ -288,4 +292,4 @@ MilkSU 支持三种执行关系：
 3. 冻结 Vuln 的 Attack Surface、Hypothesis、Crash、Reproduction、Root Cause 与 Disclosure 状态；
 4. 再为 CTF 与 Vuln 分别增加只读投影事实的角色面板。
 
-Pi 只是暂时保留下来的对话 Worker，不是 L5 接口标准。行业依据见[开源项目基线与架构启示](/developer/industry-baseline)。
+Pi 的临时桥不是 L5 接口标准，但 Pi SDK 本身是 M0 的首要 Embedded Agent Engine 候选；Codex 开源核心/服务接口是对照候选。是否依赖、扩展或小范围 fork 必须由可运行 Spike 和 ADR 决定。行业依据见[开源项目基线与架构启示](/developer/industry-baseline)。

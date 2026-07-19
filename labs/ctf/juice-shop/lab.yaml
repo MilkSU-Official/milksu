@@ -1,0 +1,47 @@
+apiVersion: labs.milksu.dev/v1alpha1
+kind: LabPackage
+metadata:
+  id: owasp.juice-shop
+  title: OWASP Juice Shop
+  version: v20.1.1
+  license: MIT
+  source:
+    url: https://github.com/juice-shop/juice-shop
+    revision: f915bddd82790d0f3018902d36ae9b4241a5f51f
+    image: bkimminich/juice-shop:v20.1.1
+    digest: sha256:cd58d79c5cb4d82f22fbaf616f9ff43bbd04ba630cd6b448a9ed99cf652fcebf
+spec:
+  role: ctf
+  categories: [web]
+  learning:
+    objectives:
+      - Discover and retrieve an unintentionally exposed confidential document.
+  runtime:
+    provider: compose
+    entry: compose.yaml
+    platforms: [linux/arm64, linux/amd64]
+    endpoints:
+      - name: web
+        service: juice-shop
+        targetPort: 3000
+        protocol: http
+        publish: loopback-configured
+    network:
+      ingress: loopback
+      egress: no-nat-best-effort
+  readiness:
+    - type: http
+      endpoint: web
+      path: /
+      timeout: 120s
+  reset:
+    strategy: recreate-with-volumes
+  judge:
+    type: application-oracle
+    challenge: Confidential Document
+    endpoint: /api/Challenges/
+  security:
+    privileged: false
+    hostNetwork: false
+    dockerSocket: false
+    hostMounts: []

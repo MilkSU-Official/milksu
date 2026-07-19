@@ -44,6 +44,20 @@ Human Outcome 不能靠 Agent 说“用户已经学会”。它至少要引用�
 
 CTF 的价值不只在提交 flag。它还要把解题过程变成可重复实验和可调节的带练过程。
 
+它也不是一次性“解题聊天”。MilkSU 要长期陪伴 CTFer 训练和参加比赛，暂定用下面的层级组织事实：
+
+```text
+CTF Workspace
+├─ Competition
+│  └─ Challenge
+│     └─ Attempt / Experiment
+├─ Training Task
+│  └─ Challenge
+└─ Standalone Challenge
+```
+
+用户可以新建一场比赛、一组训练任务，或者只打开一道题。`CTF Workspace` 长期保存题型覆盖、知识点、常见失败、提示依赖、用户独立完成的关键步骤和复盘；Competition 和 Training Task 负责组织 Challenge，但不能替代每道题自己的 Judge 与 Evidence。这里先冻结信息含义，不提前锁定界面布局。
+
 ### 领域闭环
 
 ```text
