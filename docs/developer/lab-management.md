@@ -50,6 +50,39 @@ Agent 只能：
 
 一句话：**Agent 是 Lab Manager 的智能调用者，不是拥有 root 权限的靶场管理员。**
 
+## 本地 Lab 和外部 CTF 网站不是一种生命周期
+
+MilkSU 必须用同一个 CTF Role 接受两类目标，但不能假装自己能重置所有目标：
+
+```text
+ChallengeSource
+├─ LocalLabSource        → Lab Manager 可以 start/reset/stop
+├─ ManagedBrowserSource  → 独立浏览器中登录和操作任意网站
+├─ UserTabSource         → 用户显式分享已登录的当前标签页
+├─ ManualImport          → 用户提供描述、附件、URL 或 Socket
+└─ PlatformAPIAdapter    → 仅作可选体验优化
+
+TargetProvider
+├─ ManagedEnvironment    → MilkSU 拥有完整生命周期
+└─ ExternalTarget        → 只记录授权、连接、到期和平台返回状态
+
+SubmissionJudge
+├─ LocalJudge
+├─ PlatformJudge
+└─ UserConfirmedJudge
+```
+
+例如 NSSCTF 页面可以提供题目和“开启环境”，但用户不可能保证任意小众比赛都提供 API。MilkSU 的通用能力必须来自浏览器：用户在独立 Profile 登录，或显式分享已经打开的标签页；Agent 从页面读取题目、下载附件、点击开启环境并在批准后填写 Flag。深度 API 适配只能作为后续优化。
+
+这层兼容性也有明确边界：
+
+- 任意网站首先做到“浏览器中导入并协作”；页面结构、验证码或比赛规则仍可能要求用户点击，不能承诺对所有网站完全无人值守；
+- Managed Browser 使用独立 Profile；User Browser Bridge 只分享用户选择的标签页，Agent 不默认读取整个浏览器或所有 Cookie；
+- Platform Browser Context 与 Target Browser Context 分开，平台账户 Cookie 不能发送到题目靶机；
+- 自动提交必须经过用户启用、平台规则检查、频率限制和完整审计；
+- 远程网站返回的正确/错误提示可以成为 Evaluation Evidence，但模型自己说“提交成功”仍不算；
+- Juice Shop、CTFd、NSSCTF 的字段只能存在于来源 Adapter 或 Browser Observation，不能进入 `Challenge` 核心对象。
+
 ## 业界已经做到哪里
 
 | 项目 | 已有能力 | MilkSU 怎样使用 |

@@ -177,6 +177,8 @@ Capability Package 定义“怎样调用一种技术”，而不是“任务是�
 
 `Binary`、`Web`、`Network`、`Mobile`、`Forensics`、`Fuzzing` 和 `Source/Code Audit` 都是共享能力。一个包可以服务多个 Role，也不能自行把 Finding 标记为已验证。
 
+Browser Use 与 Computer Use 也只是这里的执行能力，不是新的 Role 或 Agent Engine。用户通过聊天文字、附件、截图、本地目录、浏览器页面、远程连接或本地 Lab 发起任务时，统一 Challenge Intake 必须先保存原始材料、provenance 和授权，再交给 CTF Role。第三方浏览器/桌面项目的候选、固定版本和准入条件见 [Challenge Intake、Browser Use 与 Computer Use](/developer/challenge-intake-and-automation)。
+
 ### L4：Shared Security Runtime
 
 这是 MilkSU 自己必须稳定拥有的部分：

@@ -58,6 +58,8 @@ CTF Workspace
 
 用户可以新建一场比赛、一组训练任务，或者只打开一道题。`CTF Workspace` 长期保存题型覆盖、知识点、常见失败、提示依赖、用户独立完成的关键步骤和复盘；Competition 和 Training Task 负责组织 Challenge，但不能替代每道题自己的 Judge 与 Evidence。这里先冻结信息含义，不提前锁定界面布局。
 
+Challenge 的来源与运行位置不属于角色定义。它既可以来自 MilkSU 管理的本地 Lab，也可以来自用户登录的任意 CTF 网站、显式分享的浏览器标签页、聊天中粘贴的题面、上传的文件或截图、用户明确选择的本地目录，以及 URL/Socket/SSH 等远程连接。统一 Challenge Intake 负责保存原始材料、哈希、provenance 与授权，再产生规范化输入。Role 只依赖规范化后的 Challenge、Evidence 和 Submission Verdict，不能出现 Juice Shop、NSSCTF、Docker、“任务一定来自浏览器”或“平台一定有 API”等假设。
+
 ### 领域闭环
 
 ```text

@@ -26,6 +26,8 @@ Verifiable security job runtime and user-owned control plane.
 
 The first implementation vertical is CTF, followed by Vulnerability Research. Both must support Coach, Copilot, and Delegate as a separate collaboration dimension.
 
+The local Juice Shop fixture is only a deterministic regression baseline. CTF domain code must not depend on Juice Shop, Docker, any single platform, or the existence of a platform API/CLI. M2 must normalize chat text, files, screenshots, explicitly selected local directories, browser pages, remote connections, and managed labs through one Challenge Intake. Browser and Computer Use are optional capabilities, not the CTF Agent or its only entry point; platform APIs are optional accelerators only.
+
 Product mission: MilkSU is a research and training environment where people and security agents work together. It helps users complete more real security tasks while using verifiable experiments, evidence, and review to help them genuinely learn how those tasks are done. Domain Outcome and Human Outcome are equally explicit product outputs.
 
 ## Current Code Boundary

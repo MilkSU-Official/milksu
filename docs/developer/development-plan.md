@@ -69,17 +69,34 @@ MVP 不做 Web 产品、GraphQL、PostgreSQL、微服务、多用户、Red/Blue/
 
 CTF 不是“解完一题就结束”的 Solver 页面，而是长期陪伴 CTFer 成长的训练与比赛空间。暂定的信息层级是 `CTF Workspace → Competition/Training Task → Challenge → Attempt/Experiment`：用户可以新建一场比赛、一组训练任务，或直接开始一道题。具体导航和布局等实际使用后再定，但单题 MVP 的数据不能阻断以后向比赛和长期学习扩展。
 
+Juice Shop 只承担可重复的本地回归测试。M2 的真人验收可能直接使用 NSSCTF 或其他任意小众 CTF 网站，因此 `Challenge` 不能依赖 Docker、Juice Shop、某个平台的数据结构，也不能假设网站会为 AI 提供 API/CLI。
+
+首期先实现统一的 **Challenge Intake**，而不是把 Browser 当成任务入口。用户可以通过聊天粘贴题面、上传附件或截图、选择一个本地目录、提供 URL/Socket/SSH、打开本地 Lab，或显式分享浏览器页面。Intake 保存原始 Artifact、哈希、provenance 和授权范围，再归一化为同一个 Challenge/Material；Browser Use 只是其中一个 L3 Capability。详细候选和安全约束见 [Challenge Intake、Browser Use 与 Computer Use](/developer/challenge-intake-and-automation)。
+
+1. **Chat / File / Image / Directory Intake**：接受文字、附件、截图与用户明确选择的本地目录；原始材料先保存和哈希，附件不自动执行，目录默认只读且不能扩大到用户未选择的位置。
+2. **Managed Browser**：MilkSU 启动独立浏览器与专用 Profile，用户亲自登录任意 CTF 网站；Agent 只能操作这个受控上下文。它负责读取题目、下载附件、点击开启环境、取得连接信息和在批准后提交 Flag。
+3. **User Browser Bridge**：用户把已经打开并登录的某个标签页显式分享给 MilkSU。只授权选中的标签页，不读取整个浏览器 Profile。它解决临时比赛、复杂登录和用户已经进行到一半的场景。
+4. **Remote / Manual Intake**：即使浏览器不可用，用户仍可提供 URL、Pwn Socket、SSH、连接说明或手工确认结果；它不是次等保底，而是很多题型的正常入口。
+5. **Platform Adapter**：只有网站恰好提供稳定公开 API 且规则允许时才增加，用于改善体验；它不是任意网站兼容性的基础，也不是 M2 必须依赖的前提。
+
 - 通过选定 Engine 接入第一个真实 Model Provider；
 - 在通用 Tool Loop 上实现 MilkSU Security Loop：观察 → 假设 → 实验 → 证据 → Judge → 调整；
 - 接入隔离环境、Shell/File Capability 和已固定版本的 OWASP Juice Shop 本地 fixture（`labs/ctf/juice-shop`）；
 - 用户从 CTF Workspace 选择 Challenge 后由 Lab Manager 一键准备环境，不需要复制启动命令或端口；
+- 定义与 Environment 解耦的 `ChallengeSource / TargetProvider / SubmissionJudge`：本地 Lab、远程 URL/Socket 和网站题共享 CTF Role，但生命周期能力不同；
+- 实现统一 Challenge Intake：聊天文字、文件、截图、本地目录、浏览器页面和远程连接都产生保留原始材料与授权的规范化输入；
+- 实现 Managed Browser Sandbox：用户可在隔离 Profile 中登录任意网站，Agent 通过受控 Browser Action 读取、点击、下载和填写；
+- 实现或至少跑通 User Browser Bridge 的最小共享标签页路径，让用户能把已经登录的当前题交给 MilkSU；
+- 分离 Platform Context 与 Target Context：前者持有比赛账户，后者访问不可信靶机，Cookie、存储和凭据不能互通；
+- 跑通 Manual Import 保底路径，覆盖非浏览器的 Pwn Socket、SSH、附件题和临时连接信息；
+- 自动 Flag 提交必须显式启用、限速并保存提交前确认与网页响应 Evidence；没有平台 API 时，浏览器页面的成功提示就是外部 Judge 输入；
 - 保存 Experiment Tree、命令输出、脚本、Flag 来源和失败分支；
 - 实现版本化 Flag Judge；
 - CTF 面板展示当前假设、实验、证据、Judge 和对话；
 - Coach 提供分级提示，Copilot 支持共同选择实验，Delegate 可自主推进。
 - 在 Workspace 中累计题型、知识点、失败模式、提示依赖和用户独立完成的关键步骤，形成可继续的学习记录。
 
-**完成标志**：真实模型能从桌面完成一题；环境由 MilkSU 自动启动、重置和清理，flag 由 Judge 验证；用户可以在三种协作方式下介入，并从复盘看到“为什么这样解”；再次打开 Workspace 时可以继续下一题，而不是回到一个失忆的空聊天框。
+**完成标志**：真实模型能从桌面完成一题；用户无论粘贴题面、上传文件/截图、选择本地目录、提供远程连接还是分享网页，都进入同一个完整 CTF Agent 闭环；本地环境由 MilkSU 自动启动、重置和清理，远程网站题不错误调用本地生命周期；在没有任何专用 API/CLI Adapter 的情况下，用户能登录一个未针对开发过的小众 CTF 网站，把题目、附件和目标交给 Agent，并由本地 Judge、网站页面响应或用户确认验证 Flag；用户可以在三种协作方式下介入，并从复盘看到“为什么这样解”；再次打开 Workspace 时可以继续下一题。更换输入通道、网站或本地 Lab 不能要求修改 CTF Role、Evidence 或教学闭环代码。
 
 ### M3 · Vuln Research 可用 MVP
 
