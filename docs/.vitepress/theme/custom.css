@@ -652,6 +652,117 @@
   }
 }
 
+/* Keep the complete whiteboard visible on common 1280×720 desktop windows. */
+@media (min-width: 961px) and (max-height: 800px) {
+  .boundary-canvas {
+    padding-bottom: 8px;
+    padding-top: 10px;
+  }
+
+  .boundary-intro {
+    min-height: 50px;
+    padding-bottom: 8px;
+  }
+
+  .boundary-intro h1 {
+    font-size: clamp(25px, 2vw, 31px);
+  }
+
+  .boundary-intro p {
+    margin-top: 3px;
+  }
+
+  .boundary-board {
+    padding-top: 8px;
+  }
+
+  .quadrant-figure {
+    padding-bottom: 6px;
+  }
+
+  .quadrant-wrap {
+    height: 174px;
+  }
+
+  .quadrant-grid {
+    height: 150px;
+  }
+
+  .set-diagram {
+    height: 155px;
+  }
+
+  .set-circle {
+    height: 151px;
+    padding-top: 22px;
+  }
+
+  .set-circle span {
+    margin-top: 8px;
+  }
+
+  .set-overlap {
+    top: 40px;
+  }
+
+  .agent-contrast p {
+    padding-bottom: 6px;
+    padding-top: 6px;
+  }
+
+  .dual-outcome {
+    margin-top: 4px;
+  }
+
+  .architecture-note {
+    padding-bottom: 4px;
+  }
+
+  .architecture-body {
+    min-height: 474px;
+  }
+
+  .layer-row {
+    min-height: 79px;
+    padding-bottom: 5px;
+    padding-top: 6px;
+  }
+
+  .layer-row p {
+    margin-top: 2px;
+  }
+
+  .layer-row small {
+    margin-top: 2px;
+  }
+
+  .role-map {
+    padding-top: 6px;
+  }
+
+  .role-map h3 {
+    margin-bottom: 4px;
+  }
+
+  .role-row {
+    min-height: 58px;
+    padding: 5px 0;
+  }
+
+  .role-row p,
+  .role-row small {
+    margin-top: 2px;
+  }
+
+  .relation-legend {
+    margin-top: 6px;
+  }
+
+  .architecture-footer {
+    padding-top: 5px;
+  }
+}
+
 @media (max-width: 640px) {
   .vp-doc div[class*='language-'] {
     border-radius: 0;

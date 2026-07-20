@@ -1,6 +1,6 @@
 # MilkSU
 
-Verifiable security job runtime and user-owned control plane.
+One-stop cybersecurity AI learning client with a verifiable security-learning runtime.
 
 ## Rules
 
@@ -30,7 +30,9 @@ The first implementation vertical is CTF, followed by Vulnerability Research. Bo
 
 The local Juice Shop fixture is only a deterministic regression baseline. CTF domain code must not depend on Juice Shop, Docker, any single platform, or the existence of a platform API/CLI. M2 must normalize chat text, files, screenshots, explicitly selected local directories, browser pages, remote connections, and managed labs through one Challenge Intake. Browser and Computer Use are optional capabilities, not the CTF Agent or its only entry point; platform APIs are optional accelerators only.
 
-Product mission: MilkSU is a research and training environment where people and security agents work together. It helps users complete more real security tasks while using verifiable experiments, evidence, and review to help them genuinely learn how those tasks are done. Domain Outcome and Human Outcome are equally explicit product outputs.
+Product mission: MilkSU is a one-stop cybersecurity AI learning client where people and security agents work together in explicitly authorized CTF, vulnerability-research, and attack-defense training environments. It helps users complete real learning tasks while using verifiable experiments, evidence, and review to help them genuinely learn how those tasks are done. Domain Outcome and Human Outcome are equally explicit product outputs.
+
+The public product is not a general internet scanner or autonomous pentesting service. Default/open-source capabilities must not provide arbitrary target lists, internet-range bulk scanning, credential spraying, stealth/evasion, or unapproved external attack workflows. Every external target must carry visible scope/provenance; external effects require policy checks, evidence, rate limits where applicable, and risk-based approval. Read `docs/developer/adr/0004-learning-product-and-release-boundary.md` before adding Browser, Shell, Network, Lab, or release functionality.
 
 ## Current Code Boundary
 

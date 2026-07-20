@@ -60,11 +60,23 @@ Go Desktop Host
 5. Sidecar 不继承宿主全部环境变量，只得到基础进程环境和当前 Provider 所需凭据；
 6. Codex app-server 不进入默认进程树，避免 Codex 用户配置、插件、MCP 与 MilkSU Role 状态混在一起。
 
+## M2 前置工程校准（2026-07-20）
+
+开放 Browser、Shell 或 Lab 前，M0 的两个分发缺口已经按以下方式关闭：
+
+- Provider 与 Relay 密钥由 macOS Keychain 保存；`settings.json` 只保留 `has_key` 状态，Wails `GetSettings` 不返回密钥。旧版明文配置在首次启动时迁移并立即重写脱敏文件；
+- 固定官方 Node.js `24.18.0` LTS 的 macOS arm64/x64 归档与 SHA-256，构建时先校验再使用；
+- esbuild `0.28.1` 把 `bridge.js` 与 `security-bridge.js` 分别打成不依赖源码树和 `node_modules` 的 CommonJS bundle；
+- Wails pre/post build hook 把官方 Node、两份 bundle、Node License 和含版本/哈希的 manifest 安装到 `.app/Contents/Resources/milksu-sidecar`；
+- Go 优先启动 App Resources 中的运行时；仅源码开发回退系统 Node。随包 Node 使用 Permission Model，只开放 MilkSU 专用 Agent Workspace 的读写，不开放 child process、native addon、worker 或用户目录。Node 24 的 Permission Model 不限制网络；Sidecar 仍需访问 Model Provider，出站目标限制必须在后续 Network/Provider Policy 中单独实现，不能误写成已由 Node 沙箱解决。
+
+这里选择“官方 Node LTS + bundle”，而不是复制 Homebrew Node 或采用 Node SEA。Homebrew Node 动态链接大量 Homebrew dylib，无法独立搬到另一台 Mac；Node SEA 仍处于 active development，本机 Homebrew 构建也不含 SEA fuse。固定官方 LTS 运行时体积更大，但升级、审计和兼容风险更清楚。
+
+可运行 `npm run sidecar:smoke` 验证两份 Bridge 在独立 Workspace 和文件权限沙箱中启动，并确认 Security Bridge 返回零继承工具的协议声明。Wails 在 post-build hook 之前先自签，新增 Resources 会使旧签名失效，因此安装脚本会在最后重新签整个 App：开发构建默认 ad-hoc，发布构建通过 `MILKSU_CODESIGN_IDENTITY` 指定 Developer ID。最终公开发布仍需要对整个 `.app` 做 SBOM、公证和最终产物复验；当前 hook 解决的是“脱离源码树运行”和签名顺序，不等于已完成正式发行流程。
+
 ## 当前保留的技术债
 
-- 旧配置兼容层仍可能把 Provider Key 保存在权限为 `0600` 的 JSON 文件中。M2-A 真实模型验收使用进程环境，没有扩大凭据权限；迁移 macOS Keychain 已成为开放 Browser/Shell/Lab 前的硬门，JSON 届时只保留非秘密配置和 Key 引用。
-- 开发态依赖系统 Node；产品打包前必须选择固定、签名的 Node/Sidecar 分发方式，不能假设用户已经安装 Node。
-- `bridge.js` 仍只服务兼容聊天。M2-A 已按本 ADR 新增独立 `security-bridge.js` 与 Go `SecuritySupervisor`，把 Projection 转为 Engine 输入并加入 Attempt 取消和设置重启；当前协议只暴露三种 CTF 提议工具。开发构建仍从仓库定位 Sidecar，独立 App bundle 分发尚未完成。
+- `bridge.js` 仍只服务兼容聊天。M2-A 已按本 ADR 新增独立 `security-bridge.js` 与 Go `SecuritySupervisor`，把 Projection 转为 Engine 输入并加入 Attempt 取消和设置重启；当前协议只暴露三种 CTF 提议工具。
 - Pi 固定在本轮实跑的 `0.80.2`；不能因为上游有新版本就运行时自动升级。升级必须重新跑微型 CTF、事件契约和依赖审查。
 - 根目录 VitePress 开发依赖仍有只影响本地文档 Dev Server 的旧 esbuild advisory；它不在桌面产品运行链，但文档工具升级时应消除。
 
@@ -90,6 +102,7 @@ npm run spike:codex
 # Go、React 与桌面打包
 go test ./...
 npm --prefix app run build
+npm run sidecar:smoke
 /Users/milksu/go/bin/wails build
 ```
 

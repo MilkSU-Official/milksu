@@ -18,6 +18,12 @@ function emit(requestId, type, data = {}) {
   process.stdout.write(`${JSON.stringify({ requestId: requestId ?? null, type, ...data })}\n`);
 }
 
+function describeError(error) {
+  if (!(error instanceof Error)) return String(error);
+  const resource = error.resource ? `\nresource: ${error.resource}` : "";
+  return `${error.stack || error.message}${resource}`;
+}
+
 function configureRelayModel(session, provider, model) {
   if (!relayEnabled) return { provider, model };
   const source = session.modelRegistry.find(provider, model);
@@ -121,9 +127,10 @@ async function createSession(command) {
   if (existing) return existing;
 
   const cwd = process.cwd();
+  const agentDir = join(cwd, ".milksu", "pi-security");
   const resourceLoader = new DefaultResourceLoader({
     cwd,
-    agentDir: join(cwd, ".milksu", "pi-security"),
+    agentDir,
     noExtensions: true,
     noSkills: true,
     noPromptTemplates: true,
@@ -135,6 +142,7 @@ async function createSession(command) {
   const selection = { value: null };
   const { session } = await createAgentSession({
     cwd,
+    agentDir,
     sessionManager: SessionManager.inMemory(),
     resourceLoader,
     // Keep only the three custom CTF proposal tools. Pi's coding tools are not
@@ -216,7 +224,7 @@ input.on("line", (line) => {
     return;
   }
   void handleCommand(command).catch((error) => {
-    emit(command.requestId, "error", { error: String(error) });
+    emit(command.requestId, "error", { error: describeError(error) });
   });
 });
 

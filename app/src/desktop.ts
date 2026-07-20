@@ -43,6 +43,27 @@ const DEFAULT_SETTINGS: AppSettings = {
   providers: {},
 }
 
+function withoutCredentials(settings: AppSettings): AppSettings {
+  const providers = Object.fromEntries(Object.entries(settings.providers).map(([name, provider]) => [
+    name,
+    {
+      ...provider,
+      api_key: '',
+      has_api_key: provider.has_api_key || !!provider.api_key,
+      remove_api_key: false,
+    },
+  ]))
+  const relay = settings.relay
+    ? {
+        ...settings.relay,
+        key: '',
+        has_key: settings.relay.has_key || !!settings.relay.key,
+        remove_key: false,
+      }
+    : undefined
+  return { ...settings, providers, relay }
+}
+
 function getWailsApp() {
   return window.go?.main?.App
 }
@@ -109,7 +130,7 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
     case 'get_settings':
       return readJson(SETTINGS_KEY, DEFAULT_SETTINGS) as T
     case 'save_settings_cmd':
-      writeJson(SETTINGS_KEY, args?.newSettings ?? DEFAULT_SETTINGS)
+      writeJson(SETTINGS_KEY, withoutCredentials((args?.newSettings as AppSettings | undefined) ?? DEFAULT_SETTINGS))
       return undefined as T
     case 'list_conversations':
       return readJson(CONVERSATIONS_KEY, []) as T

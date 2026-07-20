@@ -44,7 +44,7 @@ func NewApp() (*App, error) {
 		conversations: conversations,
 	}
 	application.engines = engine.NewSupervisor(application.emitEngineEvent)
-	application.securityEngine, err = engine.NewSecuritySupervisor(application.settings.Get)
+	application.securityEngine, err = engine.NewSecuritySupervisor(application.settings.GetResolved)
 	if err != nil {
 		return nil, fmt.Errorf("create security agent engine: %w", err)
 	}
@@ -107,7 +107,7 @@ func (a *App) DeleteConversation(id string) error {
 }
 
 func (a *App) SendMessage(conversationID, prompt string) error {
-	return a.engines.SendMessage(conversationID, prompt, a.settings.Get())
+	return a.engines.SendMessage(conversationID, prompt, a.settings.GetResolved())
 }
 
 func (a *App) GetRuntimeStatus() engine.RuntimeStatus {

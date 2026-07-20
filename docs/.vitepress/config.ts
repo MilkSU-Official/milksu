@@ -2,7 +2,7 @@ import { defineConfig } from 'vitepress'
 
 export default defineConfig({
   title: 'MilkSU',
-  description: '用户拥有的安全任务控制面',
+  description: '一站式网络安全 AI 学习客户端',
   lang: 'zh-CN',
   appearance: false,
 
@@ -36,6 +36,7 @@ export default defineConfig({
             { text: 'ADR-0001 · Engine 与桌面边界', link: '/developer/adr/0001-agent-engine-and-desktop-boundary' },
             { text: 'ADR-0002 · Runtime 事实与恢复', link: '/developer/adr/0002-runtime-facts-and-recovery' },
             { text: 'ADR-0003 · CTF 纵切与 Pi Adapter', link: '/developer/adr/0003-ctf-vertical-slice' },
+            { text: 'ADR-0004 · 学习产品与发布边界', link: '/developer/adr/0004-learning-product-and-release-boundary' },
             { text: '题目接入与自动操作', link: '/developer/challenge-intake-and-automation' },
             { text: '靶场与环境管理', link: '/developer/lab-management' },
             { text: 'Role Packages', link: '/developer/role-packages' },
@@ -69,7 +70,7 @@ export default defineConfig({
     },
 
     footer: {
-      message: '可验证的安全任务运行时与用户控制面',
+      message: '人与安全 Agent 共同学习、实验、验证与复盘',
       copyright: 'MIT 许可证',
     },
   },

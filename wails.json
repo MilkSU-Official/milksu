@@ -8,6 +8,12 @@
   "frontend:build": "npm run build",
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "auto",
+  "preBuildHooks": {
+    "darwin/*": "npm run sidecar:build -- --platform ${platform}"
+  },
+  "postBuildHooks": {
+    "darwin/*": "node ../../scripts/package-sidecar.mjs install --platform ${platform} --bin \"${bin}\""
+  },
   "author": {
     "name": "MilkSU",
     "email": "milksu@proton.me"

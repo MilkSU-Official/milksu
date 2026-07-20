@@ -20,4 +20,8 @@ app/package.json.md5
 app/src-tauri/
 app/wailsjs/
 build/bin/
+build/sidecar/
+build/sidecar-cache/
+build/sidecar-smoke/
+build/sidecar-spike/
 docs/.vitepress/cache/

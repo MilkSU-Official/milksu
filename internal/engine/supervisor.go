@@ -144,14 +144,11 @@ func (s *Supervisor) ensureProcessLocked(settings config.AppSettings) error {
 	if s.process != nil {
 		return nil
 	}
-	root, err := findProjectRoot()
+	command, err := newSidecarCommand("chat-bridge.cjs", "bridge.js")
 	if err != nil {
 		return err
 	}
-
-	command := exec.Command("node", filepath.Join(root, "bridge.js"))
-	command.Dir = root
-	command.Env = engineEnvironment(settings)
+	command.Env = sidecarEnvironment(settings, command.Dir)
 	command.Stderr = os.Stderr
 
 	stdin, err := command.StdinPipe()

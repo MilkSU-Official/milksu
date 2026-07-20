@@ -19,6 +19,12 @@ function emit(conversationId, type, data = {}) {
   process.stdout.write(`${JSON.stringify({ type, id: conversationId ?? null, ...data })}\n`);
 }
 
+function describeError(error) {
+  if (!(error instanceof Error)) return String(error);
+  const resource = error.resource ? `\nresource: ${error.resource}` : "";
+  return `${error.stack || error.message}${resource}`;
+}
+
 function extractTextContent(message) {
   if (!Array.isArray(message?.content)) return "";
   return message.content
@@ -117,9 +123,10 @@ async function createSession(command) {
   if (existing) existing.dispose();
 
   const cwd = process.cwd();
+  const agentDir = join(cwd, ".milksu", "pi");
   const resourceLoader = new DefaultResourceLoader({
     cwd,
-    agentDir: join(cwd, ".milksu", "pi"),
+    agentDir,
     noExtensions: true,
     noSkills: true,
     noPromptTemplates: true,
@@ -130,6 +137,7 @@ async function createSession(command) {
 
   const { session } = await createAgentSession({
     cwd,
+    agentDir,
     sessionManager: SessionManager.inMemory(),
     resourceLoader,
     // M0 chat has no execution authority. M1 will register MilkSU Capability
@@ -201,7 +209,7 @@ input.on("line", (line) => {
       } catch {
         // The error event below is enough for malformed input.
       }
-      emit(conversationId, "error", { error: String(error) });
+      emit(conversationId, "error", { error: describeError(error) });
     });
 });
 

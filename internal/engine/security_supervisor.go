@@ -8,8 +8,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
 	"sync"
 
@@ -180,13 +178,11 @@ func (s *SecuritySupervisor) ensureProcessLocked(settings config.AppSettings) er
 	if s.process != nil {
 		return nil
 	}
-	root, err := findProjectRoot()
+	command, err := newSidecarCommand("security-bridge.cjs", "security-bridge.js")
 	if err != nil {
 		return err
 	}
-	command := exec.Command("node", filepath.Join(root, "security-bridge.js"))
-	command.Dir = root
-	command.Env = engineEnvironment(settings)
+	command.Env = sidecarEnvironment(settings, command.Dir)
 	command.Stderr = os.Stderr
 	stdin, err := command.StdinPipe()
 	if err != nil {

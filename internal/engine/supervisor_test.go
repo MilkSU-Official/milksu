@@ -3,6 +3,8 @@ package engine
 import (
 	"bytes"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -47,5 +49,33 @@ func TestSafeBaseEnvironmentDropsUnrelatedSecrets(t *testing.T) {
 		if entry == "GITHUB_TOKEN=secret" || entry == "NODE_OPTIONS=--require=/tmp/inject.js" {
 			t.Fatalf("unsafe environment entry survived: %q", entry)
 		}
+	}
+}
+
+func TestResolveSidecarRuntimeUsesCompletePackagedOverride(t *testing.T) {
+	directory := t.TempDir()
+	node := filepath.Join(directory, "node")
+	bridge := filepath.Join(directory, "security-bridge.cjs")
+	if err := os.WriteFile(node, []byte("runtime"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(bridge, []byte("bridge"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("MILKSU_SIDECAR_DIR", directory)
+
+	runtime, err := resolveSidecarRuntime("security-bridge.cjs", "security-bridge.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !runtime.packaged || runtime.node != node || runtime.bridge != bridge {
+		t.Fatalf("unexpected packaged runtime: %#v", runtime)
+	}
+}
+
+func TestResolveSidecarRuntimeRejectsIncompleteOverride(t *testing.T) {
+	t.Setenv("MILKSU_SIDECAR_DIR", t.TempDir())
+	if _, err := resolveSidecarRuntime("security-bridge.cjs", "security-bridge.js"); err == nil {
+		t.Fatal("expected an incomplete packaged runtime to be rejected")
 	}
 }

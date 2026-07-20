@@ -43,7 +43,7 @@ export function ModelSelector({ settings, onChangeModel, onOpenSettings }: Props
           <div className="max-h-64 overflow-y-auto">
             {PROVIDERS.map(p => {
               const providerConfig = settings.providers[p.id]
-              const hasKey = providerConfig?.api_key && providerConfig.enabled
+              const hasKey = (providerConfig?.has_api_key || !!providerConfig?.api_key) && providerConfig.enabled
               return (
                 <div key={p.id}>
                   <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-[#999] bg-[#fafafa] flex items-center justify-between">

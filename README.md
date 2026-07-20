@@ -1,12 +1,14 @@
 # MilkSU
 
-MilkSU 是一个由用户拥有的、可验证的 Security Agent Harness 与桌面控制面。它不从零重写模型调用、上下文压缩和通用工具循环，而是选择 Pi、Codex CLI 开源核心等成熟 Coding Agent Engine 作为可改造基座，再由 MilkSU 自己实现安全任务的假设、实验、证据、副作用、判分、恢复和教学闭环。直接运行完整 Codex/Claude Code CLI 仍只是可选兼容方式。
+MilkSU 是一个**一站式网络安全 AI 学习客户端**。它让人与安全 Agent 在明确授权的 CTF、漏洞研究和攻防训练环境中共同提出假设、执行实验、验证证据并复盘方法；它不把“自动扫描任意互联网目标”作为产品能力或开源目标。
+
+底层仍是一个由用户拥有的、可验证的 Security Agent Harness 与桌面控制面：MilkSU 不从零重写模型调用、上下文压缩和通用工具循环，而是选择 Pi、Codex CLI 开源核心等成熟 Coding Agent Engine 作为可改造基座，再自己实现安全学习任务的假设、实验、证据、副作用、判分、恢复和教学闭环。直接运行完整 Codex/Claude Code CLI 仍只是可选兼容方式。
 
 ## 产品使命
 
-**MilkSU 是一个人与安全 Agent 共同工作的研究与训练环境。它既帮助用户完成更多真实安全任务，也通过可验证的实验、证据和复盘，让用户真正掌握完成这些任务的方法。**
+**MilkSU 是一个人与安全 Agent 共同工作的网络安全研究与训练环境。它既帮助用户在授权环境中完成更多真实学习任务，也通过可验证的实验、证据和复盘，让用户真正掌握完成这些任务的方法。**
 
-第一阶段只开发两个场景：**CTF** 与 **Vulnerability Research（Vuln）**。这不是把两个按钮写进聊天页，而是先做出两套真实、可验证、可教学的 Role Package 闭环。
+第一阶段只开发两个学习场景：**CTF** 与 **Vulnerability Research（Vuln）**；以后再扩展红队、蓝队等攻防学习。它们不是聊天页里的几个按钮，而是独立、可验证、可教学的 Role Package 闭环。
 
 文档站首页是一屏架构总图，也是当前设计基准。完整论证按以下顺序阅读：
 
@@ -20,6 +22,7 @@ MilkSU 是一个由用户拥有的、可验证的 Security Agent Harness 与桌�
 8. [Runtime v1alpha1：M1 可恢复任务契约](docs/developer/runtime-v1alpha1.md)
 9. [ADR-0002：Runtime 事实、存储与恢复边界](docs/developer/adr/0002-runtime-facts-and-recovery.md)
 10. [ADR-0003：M2-A CTF 纵切与 Pi Security Adapter](docs/developer/adr/0003-ctf-vertical-slice.md)
+11. [ADR-0004：学习产品、能力与开源发布边界](docs/developer/adr/0004-learning-product-and-release-boundary.md)
 
 ## 三个不能混淆的问题
 
@@ -60,7 +63,13 @@ L2 定义角色闭环，L5 提供可改造的通用 Agent Engine，L6 横切保�
 
 M1 与 M2-A 已完成工程验证。M2 整体仍未完成：当前只接受粘贴题面与小型本地附件，只支持 Delegate、离线 Artifact Workspace 和已知答案的本地 Judge；没有任意 Shell、浏览器、网站提交、自动 Lab、截图理解或比赛级长期学习。进入下一个大模块前需要用户确认，不能把内置 Hex 题的成功误写成“CTF MVP 已完成”。之后仍以 Vulnerability Research 检验公共抽象；在这两个场景成立之前，不并行开发 Red、Blue、AppSec 或 Malware Role。
 
-当前开发构建还依赖仓库中的 TypeScript Sidecar 与系统 Node。可分发的签名 Sidecar、macOS Keychain 和外部能力审批必须在开放 Browser/Shell/Lab 之前完成；不要把 `build/bin/MilkSU.app` 当成已经可独立分发的产品包。
+当前 macOS 构建已经把固定版本、固定哈希的官方 Node LTS 与两份 Pi Bridge bundle 放入 App Resources，Provider/Relay 密钥也已迁移到 macOS Keychain；生成的 `.app` 可以脱离源码树和系统 Node 运行。开发包目前仍是 ad-hoc 签名，尚未完成 Developer ID、公证、SBOM 与外部能力审批，因此不要把 `build/bin/MilkSU.app` 当成正式公开发行包。
+
+## 开源与使用边界
+
+MilkSU 的默认开源版本面向 CTF 平台、项目自带靶场、用户本地实验环境和用户有权研究的目标。默认产品不提供任意目标清单、互联网网段批量扫描、凭据喷洒、隐蔽规避或无确认的外部攻击流水线；带外部副作用的动作必须绑定可见范围、保存证据并经过风险分级审批。
+
+“学习工具”描述的是产品目的和默认能力，不构成对具体使用行为的免责。公开发布、托管服务和高风险能力包必须分别评审；详细决策见 [ADR-0004](docs/developer/adr/0004-learning-product-and-release-boundary.md)。
 
 ## 核心验收原则
 
@@ -92,5 +101,8 @@ wails dev
 # 自动验证与打包
 go test ./...
 npm --prefix app run build
+# 下载并校验固定的官方 Node LTS，打包 Pi Bridges 并跑脱离源码树测试
+npm run sidecar:smoke
+# pre/post build hooks 会把 Sidecar 安装到 .app/Contents/Resources
 wails build
 ```

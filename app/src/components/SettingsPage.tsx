@@ -40,7 +40,7 @@ export function SettingsPage({ settings, onSettingsChange, onClose, conversation
   if (!localSettings) return null
 
   const getProvider = (id: string): ProviderConfig => {
-    return localSettings.providers[id] ?? { api_key: '', enabled: false }
+    return localSettings.providers[id] ?? { api_key: '', has_api_key: false, enabled: false }
   }
 
   const updateProvider = (id: string, patch: Partial<ProviderConfig>) => {
@@ -59,7 +59,9 @@ export function SettingsPage({ settings, onSettingsChange, onClose, conversation
     setSaving(true)
     try {
       await invokeCommand('save_settings_cmd', { newSettings: localSettings })
-      onSettingsChange(localSettings)
+      const persisted = await invokeCommand<AppSettings>('get_settings')
+      setLocalSettings(persisted)
+      onSettingsChange(persisted)
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     } catch (err) {
@@ -78,7 +80,7 @@ export function SettingsPage({ settings, onSettingsChange, onClose, conversation
 
   const configuredProviders = PROVIDERS.filter(p => {
     const cfg = getProvider(p.id)
-    return cfg.api_key && cfg.enabled
+    return (cfg.has_api_key || !!cfg.api_key) && cfg.enabled
   })
 
   const estimatedTokens = conversations.reduce((sum, c) => {
@@ -155,7 +157,7 @@ export function SettingsPage({ settings, onSettingsChange, onClose, conversation
             )}
             {category === 'apikeys' && (
               <ApiKeysSection
-                relay={localSettings.relay ?? { enabled: false, url: '', key: '' }}
+                relay={localSettings.relay ?? { enabled: false, url: '', key: '', has_key: false }}
                 onRelayChange={(relay) => {
                   setLocalSettings({ ...localSettings, relay })
                   setSaved(false)
@@ -259,7 +261,7 @@ function GeneralSection({ settings, onUpdate, activeProviderModels }: {
         <div className="space-y-2">
           {PROVIDERS.map(p => {
             const cfg = settings.providers[p.id]
-            const hasKey = cfg?.api_key && cfg.enabled
+            const hasKey = (cfg?.has_api_key || !!cfg?.api_key) && cfg.enabled
             return (
               <div key={p.id} className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg bg-muted/50">
                 <div className="flex items-center gap-3">
@@ -331,21 +333,55 @@ function ApiKeysSection({ relay, onRelayChange, getProvider, updateProvider, vis
             <Label className="mb-1.5 text-xs">{t('settings.relayKey')}</Label>
             <div className="relative">
               <Input
-                type={relayKeyVisible ? 'text' : 'password'}
+                aria-label={t('settings.relayKey')}
+                type={relayKeyVisible && relay.key ? 'text' : 'password'}
                 value={relay.key}
-                onChange={e => onRelayChange({ ...relay, key: e.target.value })}
-                placeholder="sk-..."
+                onChange={e => onRelayChange({ ...relay, key: e.target.value, remove_key: false })}
+                placeholder={relay.has_key ? t('settings.replaceKeyPlaceholder') : 'sk-...'}
                 className="font-mono pr-16"
                 disabled={!relay.enabled}
               />
-              <Button
-                variant="ghost"
-                size="xs"
-                onClick={() => setVisibleKeys({ ...visibleKeys, '__relay': !relayKeyVisible })}
-                className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground"
-              >
-                {relayKeyVisible ? t('settings.hide') : t('settings.show')}
-              </Button>
+              {relay.key && (
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => setVisibleKeys({ ...visibleKeys, '__relay': !relayKeyVisible })}
+                  className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground"
+                >
+                  {relayKeyVisible ? t('settings.hide') : t('settings.show')}
+                </Button>
+              )}
+            </div>
+            <div className="mt-1.5 flex items-center justify-between gap-3">
+              <p className="text-[11px] text-muted-foreground">
+                {relay.remove_key
+                  ? t('settings.pendingRemoval')
+                  : relay.key
+                    ? relay.has_key
+                      ? t('settings.pendingReplacement')
+                      : t('settings.pendingSave')
+                    : relay.has_key
+                    ? t('settings.keychainStored')
+                    : t('settings.noKeyStored')}
+              </p>
+              {relay.key && !relay.remove_key ? (
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => onRelayChange({ ...relay, key: '', remove_key: false })}
+                >
+                  {t('settings.clearInput')}
+                </Button>
+              ) : relay.has_key && !relay.remove_key ? (
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => onRelayChange({ ...relay, key: '', has_key: false, remove_key: true })}
+                  className="text-destructive hover:text-destructive"
+                >
+                  {t('settings.removeKey')}
+                </Button>
+              ) : null}
             </div>
           </div>
           {relay.enabled && (
@@ -367,7 +403,7 @@ function ApiKeysSection({ relay, onRelayChange, getProvider, updateProvider, vis
       {PROVIDERS.map(p => {
         const config = getProvider(p.id)
         const isVisible = visibleKeys[p.id] ?? false
-        const hasKey = !!config.api_key
+        const hasKey = config.has_api_key || !!config.api_key
         const isActive = config.enabled && hasKey
         const dimmed = relay.enabled
 
@@ -397,20 +433,55 @@ function ApiKeysSection({ relay, onRelayChange, getProvider, updateProvider, vis
             <CardContent className="space-y-3">
               <div className="relative">
                 <Input
-                  type={isVisible ? 'text' : 'password'}
+                  aria-label={t('settings.providerKeyLabel', { provider: p.name })}
+                  type={isVisible && config.api_key ? 'text' : 'password'}
                   value={config.api_key}
-                  onChange={e => updateProvider(p.id, { api_key: e.target.value })}
-                  placeholder={p.placeholder}
+                  onChange={e => updateProvider(p.id, { api_key: e.target.value, remove_api_key: false })}
+                  placeholder={config.has_api_key ? t('settings.replaceKeyPlaceholder') : p.placeholder}
                   className="font-mono pr-16"
                 />
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  onClick={() => setVisibleKeys({ ...visibleKeys, [p.id]: !isVisible })}
-                  className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground"
-                >
-                  {isVisible ? t('settings.hide') : t('settings.show')}
-                </Button>
+                {config.api_key && (
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    onClick={() => setVisibleKeys({ ...visibleKeys, [p.id]: !isVisible })}
+                    className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground"
+                  >
+                    {isVisible ? t('settings.hide') : t('settings.show')}
+                  </Button>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[11px] text-muted-foreground">
+                  {config.remove_api_key
+                    ? t('settings.pendingRemoval')
+                    : config.api_key
+                      ? config.has_api_key
+                        ? t('settings.pendingReplacement')
+                        : t('settings.pendingSave')
+                      : config.has_api_key
+                      ? t('settings.keychainStored')
+                      : t('settings.noKeyStored')}
+                </p>
+                {config.api_key && !config.remove_api_key ? (
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    onClick={() => updateProvider(p.id, { api_key: '', remove_api_key: false })}
+                  >
+                    {t('settings.clearInput')}
+                  </Button>
+                ) : config.has_api_key && !config.remove_api_key ? (
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    onClick={() => updateProvider(p.id, { api_key: '', has_api_key: false, remove_api_key: true })}
+                    className="text-destructive hover:text-destructive"
+                  >
+                    {t('settings.removeKey')}
+                  </Button>
+                ) : null}
               </div>
 
               {(p.id === 'anthropic' || p.id === 'openai') && (
@@ -572,10 +643,10 @@ function AboutSection() {
   const { t } = useTranslation()
   const infoRows = [
     [t('about.version'), '0.1.0'],
-    [t('about.runtime'), 'Tauri v2'],
+    [t('about.runtime'), 'Wails v2'],
     [t('about.agentEngine'), 'Pi (earendil-works)'],
     [t('about.frontend'), 'React + Vite'],
-    [t('about.backend'), 'Rust'],
+    [t('about.backend'), 'Go'],
   ]
 
   return (

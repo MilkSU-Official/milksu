@@ -1,13 +1,15 @@
 {
   "name": "@milksu/milksu",
   "version": "0.1.0",
-  "description": "MilkSU — verifiable security job runtime and user-owned control plane",
+  "description": "MilkSU — one-stop cybersecurity AI learning client",
   "type": "module",
   "license": "MIT",
   "scripts": {
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs",
+    "sidecar:build": "node scripts/package-sidecar.mjs build",
+    "sidecar:smoke": "node scripts/package-sidecar.mjs smoke",
     "test:security-bridge": "printf '%s\\n' '{\"action\":\"protocol_info\",\"requestId\":\"protocol-test\"}' | node security-bridge.js",
     "spike:pi:protocol": "node spikes/engine-comparison/pi-spike.mjs --protocol-only",
     "spike:pi": "node spikes/engine-comparison/pi-spike.mjs",
@@ -15,6 +17,7 @@
     "spike:codex": "node spikes/engine-comparison/codex-spike.mjs"
   },
   "devDependencies": {
+    "esbuild": "0.28.1",
     "vitepress": "^1.6.4"
   },
   "dependencies": {

@@ -18,6 +18,8 @@ export interface Conversation {
 
 export interface ProviderConfig {
   api_key: string
+  has_api_key: boolean
+  remove_api_key?: boolean
   base_url?: string
   enabled: boolean
 }
@@ -26,6 +28,8 @@ export interface RelayConfig {
   enabled: boolean
   url: string
   key: string
+  has_key: boolean
+  remove_key?: boolean
 }
 
 export interface AppSettings {

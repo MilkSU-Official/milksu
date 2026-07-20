@@ -9,7 +9,7 @@ const layers = [
   {
     id: 'L2',
     name: 'Role Packages',
-    description: 'Red / Blue / CTF / AppSec / Malware / Vuln',
+    description: 'CTF / Vuln / Red / Blue / AppSec / Malware',
     references: '目标、长期状态、Evidence 与 Evaluator',
   },
   {
@@ -40,12 +40,12 @@ const layers = [
 ]
 
 const roles = [
+  { name: 'CTF', projects: 'BoxPwnr · CAI', relation: 'Benchmark / 学习' },
+  { name: 'Vuln', projects: 'ARTEMIS · Taskflow + CodeQL', relation: 'Benchmark / 接入' },
   { name: 'Red', projects: 'CAI · PentAGI · Strix · ARTEMIS', relation: '外部 Worker / 学习' },
   { name: 'Blue', projects: 'Agentic SOC', relation: '学习 Case / Evidence' },
-  { name: 'CTF', projects: 'BoxPwnr · CAI', relation: 'Benchmark / 学习' },
   { name: 'AppSec', projects: 'Shannon · Taskflow + CodeQL', relation: '外部 Worker / 接入' },
-  { name: 'Vuln', projects: 'ARTEMIS · Taskflow + CodeQL', relation: 'Benchmark / 接入' },
-  { name: 'Malware', projects: '暂无完整 Role 样本', relation: '保留调研空白' },
+  { name: 'Malware', projects: 'Assemblyline · CAPEv2 · capa · AgentRE-Bench', relation: '候选：学习 / 接入 / Benchmark' },
 ]
 </script>
 
@@ -54,10 +54,10 @@ const roles = [
     <main class="boundary-canvas">
       <header class="boundary-intro">
         <div>
-          <h1>安全 Agent 与通用 Agent 的能力边界</h1>
-          <p>首页总地图：先分清两种安全，再决定角色、能力与可替换的 Worker。</p>
+          <h1>MilkSU：一站式网络安全 AI 学习客户端</h1>
+          <p>人与安全 Agent 共同学习、实验、验证与复盘的桌面客户端。</p>
         </div>
-        <a class="deep-link" href="/developer/security-agent-boundary">阅读完整论证 <span>→</span></a>
+        <a class="deep-link" href="/developer/security-agent-boundary">架构与能力边界 <span>→</span></a>
       </header>
 
       <div class="boundary-board">
