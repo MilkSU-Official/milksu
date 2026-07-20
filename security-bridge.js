@@ -76,13 +76,13 @@ function makeActionTool({ name, actionName, label, description, parameters, mapI
   });
 }
 
-function createTools(selection) {
+function createTools(selection, profile = {}) {
   const rationale = Type.String({
     minLength: 1,
     maxLength: 2000,
     description: "Why this one action follows from the current evidence and what it should establish",
   });
-  return [
+  const tools = [
     makeActionTool({
       name: "ctf_inspect_material",
       actionName: "ctf.inspect_material",
@@ -106,6 +106,20 @@ function createTools(selection) {
       mapInput: ({ artifactId }) => ({ artifactId }),
     }, selection),
     makeActionTool({
+      name: "ctf_coach_hint",
+      actionName: "ctf.coach_hint",
+      label: "Give a graded CTF hint",
+      description: "Record one evidence-grounded hint and guiding question for the learner without revealing an unsupported final answer.",
+      parameters: Type.Object({
+        hint: Type.String({ minLength: 1, maxLength: 1800 }),
+        concept: Type.String({ minLength: 1, maxLength: 160 }),
+        question: Type.String({ minLength: 1, maxLength: 1000 }),
+        level: Type.Integer({ minimum: 1, maximum: 3 }),
+        rationale,
+      }),
+      mapInput: ({ hint, concept, question, level }) => ({ hint, concept, question, level }),
+    }, selection),
+    makeActionTool({
       name: "ctf_submit_flag",
       actionName: "ctf.submit_flag",
       label: "Submit candidate flag",
@@ -118,6 +132,10 @@ function createTools(selection) {
       mapInput: ({ candidate, explanation }) => ({ candidate, explanation }),
     }, selection),
   ];
+  if (profile.role === "ctf" && profile.collaborationMode === "coach") {
+    return tools.filter((tool) => tool.name !== "ctf_submit_flag");
+  }
+  return tools;
 }
 
 async function createSession(command) {
@@ -148,7 +166,10 @@ async function createSession(command) {
     // Keep only the three custom CTF proposal tools. Pi's coding tools are not
     // registered into this session.
     noTools: "builtin",
-    customTools: createTools(selection),
+    customTools: createTools(selection, {
+      role: command.roleState?.role || "ctf",
+      collaborationMode: command.roleState?.collaborationMode || "delegate",
+    }),
   });
   const effectiveModel = configureRelayModel(session, command.provider, command.model);
   await setSessionModel(session, effectiveModel.provider, effectiveModel.model);
@@ -196,7 +217,7 @@ async function handleCommand(command) {
     case "protocol_info":
       emit(command.requestId, "protocol_info", {
         protocol: "milksu-security-engine/v1alpha1",
-        capabilities: ["ctf.inspect_material", "ctf.decode_hex", "ctf.submit_flag"],
+        capabilities: ["ctf.inspect_material", "ctf.decode_hex", "ctf.coach_hint", "ctf.submit_flag"],
         inheritedTools: [],
       });
       break;

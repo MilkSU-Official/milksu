@@ -77,6 +77,8 @@ MVP 不做 Web 产品、GraphQL、PostgreSQL、微服务、多用户、Red/Blue/
 
 > 实现状态：M2-A 离线单题纵切已完成工程验证（2026-07-20），详见 [ADR-0003](/developer/adr/0003-ctf-vertical-slice)。M2 整体未完成，尚不能按本节“完成标志”验收。下一个大模块开始前必须由用户确认。
 
+> 2026-07-21 已保存一个 [M2 → M3 授权学习能力基础检查点](/developer/checkpoints/2026-07-21-m2-m3-foundation)：授权策略、Lab/Browser 基础包、CTF 教学契约和本地 Vuln fixture 已进入可测试代码，但桌面接线与真实环境验收未完成。下表的 M2-B 至 M2-E 状态因此仍不变。
+
 目标：尽快看到第一个由 MilkSU Security Harness 完成并能带练的真实安全任务。
 
 CTF 不是“解完一题就结束”的 Solver 页面，而是长期陪伴 CTFer 成长的训练与比赛空间。暂定的信息层级是 `CTF Workspace → Competition/Training Task → Challenge → Attempt/Experiment`：用户可以新建一场比赛、一组训练任务，或直接开始一道题。具体导航和布局等实际使用后再定，但单题 MVP 的数据不能阻断以后向比赛和长期学习扩展。

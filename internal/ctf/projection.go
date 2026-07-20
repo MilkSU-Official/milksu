@@ -31,6 +31,17 @@ func Project(core securityruntime.JobProjection) (Projection, error) {
 	if !found {
 		return Projection{}, fmt.Errorf("job has no admitted challenge")
 	}
+	learning := make([]LearningRecord, 0)
+	for _, fact := range core.RoleFacts {
+		if fact.PackageID != PackageID || fact.SchemaVersion != SchemaVersion || fact.Kind != FactLearningRecorded {
+			continue
+		}
+		var record LearningRecord
+		if err := json.Unmarshal(fact.Data, &record); err != nil || record.ID == "" || record.Kind == "" || record.Content == "" {
+			return Projection{}, fmt.Errorf("invalid CTF learning record")
+		}
+		learning = append(learning, record)
+	}
 
 	actionsByStep := make(map[string]securityruntime.Action, len(core.Actions))
 	observationsByAction := make(map[string][]securityruntime.Observation)
@@ -91,24 +102,45 @@ func Project(core securityruntime.JobProjection) (Projection, error) {
 		submissions = append(submissions, submission)
 	}
 
+	humanOutcome := HumanOutcomeView{
+		Goal: challenge.HumanGoal, KnowledgePoints: append([]string{}, challenge.KnowledgePoints...),
+		Summary: "尚未记录学习复盘。",
+	}
+	for _, record := range learning {
+		switch record.Kind {
+		case "hint":
+			humanOutcome.HintCount++
+		case "reflection":
+			humanOutcome.ReflectionCount++
+		case "independent_step":
+			humanOutcome.IndependentSteps++
+		}
+	}
+	if humanOutcome.ReflectionCount > 0 {
+		humanOutcome.Summary = fmt.Sprintf("已完成 %d 次复盘，记录 %d 个独立步骤，使用 %d 条提示。", humanOutcome.ReflectionCount, humanOutcome.IndependentSteps, humanOutcome.HintCount)
+	}
+
 	return Projection{
 		ContractVersion: SchemaVersion,
 		Job:             core.Job,
 		Challenge: ChallengeView{
 			ID: challenge.ID, Title: challenge.Title, Statement: challenge.Statement,
 			Category: challenge.Category, CollaborationMode: challenge.CollaborationMode,
+			TrackName: challenge.TrackName, HumanGoal: challenge.HumanGoal, Source: challenge.Source,
 			Materials: append([]Material{}, challenge.Materials...), KnowledgePoints: append([]string{}, challenge.KnowledgePoints...),
 			JudgeType: challenge.Judge.Type, JudgeVersion: challenge.Judge.Version,
 			AdmittedAt: challenge.AdmittedAt,
 		},
-		Attempts:    append([]securityruntime.Attempt{}, core.Attempts...),
-		Experiments: experiments,
-		Artifacts:   append([]securityruntime.Artifact{}, core.Artifacts...),
-		Evidence:    append([]securityruntime.Evidence{}, core.Evidence...),
-		Evaluations: append([]securityruntime.Evaluation{}, core.Evaluations...),
-		Submissions: submissions,
-		Outcome:     core.Outcome,
-		Events:      append([]securityruntime.Event{}, core.Events...),
+		Attempts:     append([]securityruntime.Attempt{}, core.Attempts...),
+		Experiments:  experiments,
+		Artifacts:    append([]securityruntime.Artifact{}, core.Artifacts...),
+		Evidence:     append([]securityruntime.Evidence{}, core.Evidence...),
+		Evaluations:  append([]securityruntime.Evaluation{}, core.Evaluations...),
+		Submissions:  submissions,
+		Learning:     learning,
+		HumanOutcome: humanOutcome,
+		Outcome:      core.Outcome,
+		Events:       append([]securityruntime.Event{}, core.Events...),
 	}, nil
 }
 

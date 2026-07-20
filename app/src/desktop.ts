@@ -1,6 +1,6 @@
 import type { AppSettings } from './types'
 import type { JobProjection, JobSummary } from './runtimeTypes'
-import type { CTFChallengeRequest, CTFProjection, CTFSummary } from './ctfTypes'
+import type { CTFChallengeRequest, CTFLearningRecordRequest, CTFProjection, CTFSummary } from './ctfTypes'
 
 type CommandArgs = Record<string, unknown>
 type UnlistenFn = () => void
@@ -23,6 +23,9 @@ interface WailsAppBindings {
   ListCTFJobs(): Promise<CTFSummary[]>
   GetCTFJob(id: string): Promise<CTFProjection>
   CancelCTFJob(id: string): Promise<void>
+  RecordCTFLearning(id: string, request: CTFLearningRecordRequest): Promise<CTFProjection>
+  ContinueCTFJob(id: string): Promise<CTFProjection>
+  ReviewCTFSubmission(id: string, accepted: boolean, summary: string): Promise<CTFProjection>
 }
 
 declare global {
@@ -121,6 +124,12 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.GetCTFJob(args?.id as string) as Promise<T>
       case 'cancel_ctf_job':
         return app.CancelCTFJob(args?.id as string) as Promise<T>
+      case 'record_ctf_learning':
+        return app.RecordCTFLearning(args?.id as string, args?.request as CTFLearningRecordRequest) as Promise<T>
+      case 'continue_ctf_job':
+        return app.ContinueCTFJob(args?.id as string) as Promise<T>
+      case 'review_ctf_submission':
+        return app.ReviewCTFSubmission(args?.id as string, args?.accepted as boolean, args?.summary as string) as Promise<T>
       default:
         throw new Error(`Unsupported desktop command: ${command}`)
     }
@@ -163,6 +172,9 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
     case 'start_ctf_challenge':
     case 'get_ctf_job':
     case 'cancel_ctf_job':
+    case 'record_ctf_learning':
+    case 'continue_ctf_job':
+    case 'review_ctf_submission':
       throw new Error('Task Runtime requires the Wails desktop runtime.')
     default:
       throw new Error(`Unsupported browser-preview command: ${command}`)

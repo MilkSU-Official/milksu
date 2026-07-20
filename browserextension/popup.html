@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <style>
+      body { width: 320px; margin: 0; padding: 16px; font: 13px/1.45 -apple-system, BlinkMacSystemFont, sans-serif; color: #20231f; background: #f7f6f1; }
+      h1 { margin: 0 0 4px; font-size: 15px; } p { margin: 0 0 12px; color: #686b64; }
+      label { display: block; margin-top: 10px; font-size: 11px; font-weight: 600; }
+      input { box-sizing: border-box; width: 100%; margin-top: 4px; padding: 8px; border: 1px solid #d8d7d0; border-radius: 8px; background: white; }
+      button { width: 100%; margin-top: 12px; padding: 9px; border: 0; border-radius: 9px; color: white; background: #19231f; font-weight: 650; cursor: pointer; }
+      #status { min-height: 18px; margin-top: 10px; color: #526322; }
+    </style>
+  </head>
+  <body>
+    <h1>分享当前标签页给 MilkSU</h1>
+    <p>只发送标题、URL 与当前页面可见文本；不会发送 Cookie、密码或浏览器历史。</p>
+    <label>本地桥地址<input id="endpoint" placeholder="http://127.0.0.1:..." /></label>
+    <label>配对令牌<input id="token" type="password" /></label>
+    <button id="share">明确分享当前标签页</button>
+    <div id="status"></div>
+    <script src="popup.js"></script>
+  </body>
+</html>

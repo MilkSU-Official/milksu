@@ -150,6 +150,18 @@ func (a *App) CancelCTFJob(id string) error {
 	return a.ctfJobs.CancelJob(a.commandContext(), id)
 }
 
+func (a *App) RecordCTFLearning(id string, request ctf.LearningRecordRequest) (ctf.Projection, error) {
+	return a.ctfJobs.RecordLearning(a.commandContext(), id, request)
+}
+
+func (a *App) ContinueCTFJob(id string) (ctf.Projection, error) {
+	return a.ctfJobs.ContinueJob(a.commandContext(), id)
+}
+
+func (a *App) ReviewCTFSubmission(id string, accepted bool, summary string) (ctf.Projection, error) {
+	return a.ctfJobs.ReviewSubmission(a.commandContext(), id, accepted, summary)
+}
+
 func (a *App) emitEngineEvent(event engine.Event) {
 	if a.ctx == nil {
 		return

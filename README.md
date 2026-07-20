@@ -61,7 +61,9 @@ L2 定义角色闭环，L5 提供可改造的通用 Agent Engine，L6 横切保�
 - M2-A 的单题 CTF 纵切：真实 Pi/DeepSeek 提议受控动作，Go 执行材料读取与确定性解码，独立本地 Judge 判 Flag，React 面板展示实验、证据与复盘；
 - 独立于通用聊天的 `security-bridge.js`。它关闭 Pi 内建 Coding Tools 与用户级扩展，只向模型暴露三种 CTF 提议工具。
 
-M1 与 M2-A 已完成工程验证。M2 整体仍未完成：当前只接受粘贴题面与小型本地附件，只支持 Delegate、离线 Artifact Workspace 和已知答案的本地 Judge；没有任意 Shell、浏览器、网站提交、自动 Lab、截图理解或比赛级长期学习。进入下一个大模块前需要用户确认，不能把内置 Hex 题的成功误写成“CTF MVP 已完成”。之后仍以 Vulnerability Research 检验公共抽象；在这两个场景成立之前，不并行开发 Red、Blue、AppSec 或 Malware Role。
+M1 与 M2-A 已完成工程验证。M2 整体仍未完成：当前已验收的桌面路径只接受粘贴题面与小型本地附件，只支持 Delegate、离线 Artifact Workspace 和已知答案的本地 Judge；没有任意 Shell、浏览器、网站提交、自动 Lab、截图理解或比赛级长期学习。进入下一个大模块前需要用户确认，不能把内置 Hex 题的成功误写成“CTF MVP 已完成”。之后仍以 Vulnerability Research 检验公共抽象；在这两个场景成立之前，不并行开发 Red、Blue、AppSec 或 Malware Role。
+
+2026-07-21 已保存一个 [M2 → M3 授权学习能力基础检查点](docs/developer/checkpoints/2026-07-21-m2-m3-foundation.md)：精确授权策略、Managed Lab/Browser 基础包、CTF 教学与外部人工 Judge 契约、以及本地 Vuln fixture 已经可以编译和自动测试。它们尚未完整接入桌面 UI 或真实环境，因此不改变上面的 M2 验收结论。
 
 当前 macOS 构建已经把固定版本、固定哈希的官方 Node LTS 与两份 Pi Bridge bundle 放入 App Resources，Provider/Relay 密钥也已迁移到 macOS Keychain；生成的 `.app` 可以脱离源码树和系统 Node 运行。开发包目前仍是 ad-hoc 签名，尚未完成 Developer ID、公证、SBOM 与外部能力审批，因此不要把 `build/bin/MilkSU.app` 当成正式公开发行包。
 

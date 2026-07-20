@@ -77,6 +77,21 @@ func (c *Capability) EffectSpec(actionName string, input json.RawMessage) (secur
 			Cleanup: "retain with judge evidence", Approval: "not-required: local judge only",
 			ScopeCheck: "submission is evaluated only by this Job's local judge",
 		}, nil
+	case "ctf.coach_hint":
+		var value struct {
+			Hint     string `json:"hint"`
+			Concept  string `json:"concept"`
+			Question string `json:"question"`
+			Level    int    `json:"level"`
+		}
+		if err := json.Unmarshal(input, &value); err != nil || strings.TrimSpace(value.Hint) == "" || strings.TrimSpace(value.Question) == "" || value.Level < 1 || value.Level > 3 {
+			return securityruntime.EffectSpec{}, fmt.Errorf("coach_hint requires a hint, guiding question, and level 1-3")
+		}
+		return securityruntime.EffectSpec{
+			Class: "learning.record", IdempotencyKey: fmt.Sprintf("ctf.hint:%d:%s", value.Level, strings.TrimSpace(value.Concept)),
+			Cleanup: "retain with human outcome", Approval: "not-required: explanatory learning record",
+			ScopeCheck: "hint may reference only evidence in the current Job",
+		}, nil
 	default:
 		return securityruntime.EffectSpec{}, fmt.Errorf("unsupported CTF action %q", actionName)
 	}
@@ -94,9 +109,35 @@ func (c *Capability) Execute(ctx context.Context, jobID string, action securityr
 		return c.decodeHex(ctx, projection, action.Input)
 	case "ctf.submit_flag":
 		return c.submitFlag(action.Input)
+	case "ctf.coach_hint":
+		return c.coachHint(action.Input)
 	default:
 		return CapabilityResult{}, fmt.Errorf("unsupported CTF action %q", action.Name)
 	}
+}
+
+func (c *Capability) coachHint(input json.RawMessage) (CapabilityResult, error) {
+	var value struct {
+		Hint     string `json:"hint"`
+		Concept  string `json:"concept"`
+		Question string `json:"question"`
+		Level    int    `json:"level"`
+	}
+	if err := json.Unmarshal(input, &value); err != nil {
+		return CapabilityResult{}, err
+	}
+	value.Hint = strings.TrimSpace(value.Hint)
+	value.Concept = strings.TrimSpace(value.Concept)
+	value.Question = strings.TrimSpace(value.Question)
+	if value.Hint == "" || value.Question == "" || value.Level < 1 || value.Level > 3 || len([]rune(value.Hint))+len([]rune(value.Question)) > 3000 {
+		return CapabilityResult{}, fmt.Errorf("invalid coach hint")
+	}
+	data, _ := json.Marshal(value)
+	return CapabilityResult{
+		Summary:   fmt.Sprintf("第 %d 级提示（%s）：%s\n引导问题：%s", value.Level, value.Concept, value.Hint, value.Question),
+		MediaType: "application/vnd.milksu.learning-hint+json", Complete: true,
+		Artifacts: []securityruntime.ArtifactDraft{{MediaType: "application/json", Data: data}},
+	}, nil
 }
 
 func (c *Capability) inspectMaterial(ctx context.Context, projection securityruntime.JobProjection, input json.RawMessage) (CapabilityResult, error) {

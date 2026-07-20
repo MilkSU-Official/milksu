@@ -95,13 +95,16 @@ func (s *Service) StartChallenge(ctx context.Context, request ChallengeRequest) 
 		Statement:         admitted.statement,
 		Category:          admitted.category,
 		CollaborationMode: admitted.collaborationMode,
+		TrackName:         admitted.trackName,
+		HumanGoal:         admitted.humanGoal,
+		Source:            admitted.source,
 		KnowledgePoints:   append([]string{}, admitted.knowledgePoints...),
 		Materials:         []Material{},
-		Judge: JudgeSpec{
-			Type: "flag.sha256", Version: s.judge.Version(),
-			ExpectedFlagSHA256: hashFlag(admitted.expectedFlag),
-		},
-		AdmittedAt: now,
+		Judge:             JudgeSpec{Type: "external.manual", Version: s.judge.Version()},
+		AdmittedAt:        now,
+	}
+	if admitted.expectedFlag != "" {
+		challenge.Judge = JudgeSpec{Type: "flag.sha256", Version: s.judge.Version(), ExpectedFlagSHA256: hashFlag(admitted.expectedFlag)}
 	}
 	artifactIDs := make([]string, 0, len(admitted.materials))
 	for _, material := range admitted.materials {
@@ -140,6 +143,9 @@ func (s *Service) StartSampleChallenge(ctx context.Context) (Projection, error) 
 		Statement:         "附件是一段十六进制文本。请检查材料、恢复原文，并把得到的 Flag 交给本地判题器。",
 		Category:          "misc",
 		CollaborationMode: "delegate",
+		TrackName:         "CTF 基础训练",
+		HumanGoal:         "理解十六进制编码，并能用证据向 Judge 说明答案来源。",
+		SourceKind:        "file",
 		ExpectedFlag:      expected,
 		KnowledgePoints:   []string{"十六进制编码", "证据驱动的逐步验证", "模型与判题器职责分离"},
 		Materials: []MaterialRequest{{
@@ -202,6 +208,119 @@ func (s *Service) CancelJob(ctx context.Context, jobID string) error {
 	return s.finishCancellation(jobID, stateFromProjection(projection))
 }
 
+func (s *Service) RecordLearning(ctx context.Context, jobID string, request LearningRecordRequest) (Projection, error) {
+	projection, err := s.runtime.GetJob(ctx, jobID)
+	if err != nil {
+		return Projection{}, err
+	}
+	if projection.Job.Role != PackageID {
+		return Projection{}, fmt.Errorf("job is not a CTF challenge")
+	}
+	kind := strings.ToLower(strings.TrimSpace(request.Kind))
+	if kind != "hint" && kind != "reflection" && kind != "independent_step" && kind != "goal" {
+		return Projection{}, fmt.Errorf("unsupported learning record kind")
+	}
+	content := strings.TrimSpace(request.Content)
+	if content == "" || len([]rune(content)) > 4000 {
+		return Projection{}, fmt.Errorf("learning record content is required and must be at most 4000 characters")
+	}
+	concept := strings.TrimSpace(request.Concept)
+	if len([]rune(concept)) > 160 || request.Level < 0 || request.Level > 3 {
+		return Projection{}, fmt.Errorf("learning concept or hint level is invalid")
+	}
+	record := LearningRecord{
+		ID: securityruntime.NewIdentifier("learning"), Kind: kind, Content: content,
+		Concept: concept, Level: request.Level, CreatedAt: time.Now().UTC(),
+	}
+	data, err := json.Marshal(record)
+	if err != nil {
+		return Projection{}, err
+	}
+	fact := securityruntime.RoleFact{
+		ID: securityruntime.NewIdentifier("fact"), PackageID: PackageID, SchemaVersion: SchemaVersion,
+		Kind: FactLearningRecorded, Data: data,
+	}
+	if err := s.runtime.CommitRoleFact(ctx, securityruntime.EventScope{JobID: jobID}, fact); err != nil {
+		return Projection{}, err
+	}
+	return s.GetJob(ctx, jobID)
+}
+
+func (s *Service) ContinueJob(ctx context.Context, jobID string) (Projection, error) {
+	projection, err := s.runtime.GetJob(ctx, jobID)
+	if err != nil {
+		return Projection{}, err
+	}
+	if projection.Job.Role != PackageID || projection.Terminal() || projection.Outcome != nil {
+		return Projection{}, fmt.Errorf("CTF challenge cannot be continued")
+	}
+	if len(projection.Evaluations) > 0 && projection.Evaluations[len(projection.Evaluations)-1].Verdict == securityruntime.VerdictNeedsReview {
+		return Projection{}, fmt.Errorf("review the pending external submission before continuing")
+	}
+	if err := s.startRunner(jobID); err != nil {
+		return Projection{}, err
+	}
+	return s.GetJob(ctx, jobID)
+}
+
+func (s *Service) ReviewSubmission(ctx context.Context, jobID string, accepted bool, summary string) (Projection, error) {
+	core, err := s.runtime.GetJob(ctx, jobID)
+	if err != nil {
+		return Projection{}, err
+	}
+	challenge, err := challengeFromProjection(core)
+	if err != nil {
+		return Projection{}, err
+	}
+	if challenge.Judge.Type != "external.manual" || core.Terminal() || len(core.Evaluations) == 0 || len(core.Evidence) == 0 {
+		return Projection{}, fmt.Errorf("challenge has no external submission awaiting review")
+	}
+	latest := core.Evaluations[len(core.Evaluations)-1]
+	if latest.Verdict != securityruntime.VerdictNeedsReview {
+		return Projection{}, fmt.Errorf("latest submission is not awaiting review")
+	}
+	verdict := securityruntime.VerdictFail
+	score := 0.0
+	if accepted {
+		verdict = securityruntime.VerdictPass
+		score = 1
+	}
+	summary = strings.TrimSpace(summary)
+	if summary == "" {
+		if accepted {
+			summary = "用户根据已授权平台响应确认 Flag 正确。"
+		} else {
+			summary = "用户根据平台响应确认该候选未通过。"
+		}
+	}
+	evaluation := securityruntime.Evaluation{
+		ID: securityruntime.NewIdentifier("evaluation"), Evaluator: "ctf-external-user-review", Version: "1",
+		Verdict: verdict, Score: score, Summary: summary,
+		EvidenceIDs: []string{core.Evidence[len(core.Evidence)-1].ID},
+	}
+	scope := securityruntime.EventScope{JobID: jobID}
+	if len(core.Attempts) > 0 {
+		scope.AttemptID = core.Attempts[len(core.Attempts)-1].ID
+	}
+	if err := s.runtime.RecordEvaluation(ctx, scope, evaluation); err != nil {
+		return Projection{}, err
+	}
+	if !accepted {
+		if err := s.startRunner(jobID); err != nil {
+			return Projection{}, err
+		}
+		return s.GetJob(ctx, jobID)
+	}
+	outcome := securityruntime.Outcome{Status: securityruntime.OutcomeSucceeded, Summary: summary, EvaluationID: evaluation.ID}
+	if err := s.runtime.DecideOutcome(ctx, scope, outcome); err != nil {
+		return Projection{}, err
+	}
+	if err := s.runtime.FinishJob(ctx, jobID, securityruntime.JobSucceeded, summary); err != nil {
+		return Projection{}, err
+	}
+	return s.GetJob(ctx, jobID)
+}
+
 func (s *Service) Recover(ctx context.Context) error {
 	values, err := s.runtime.ListJobs(ctx)
 	if err != nil {
@@ -216,6 +335,12 @@ func (s *Service) Recover(ctx context.Context) error {
 			return projectionErr
 		}
 		if projection.Terminal() {
+			continue
+		}
+		if challenge, challengeErr := challengeFromProjection(projection); challengeErr == nil && challenge.Judge.Type == "external.manual" && len(projection.Evaluations) > 0 && projection.Evaluations[len(projection.Evaluations)-1].Verdict == securityruntime.VerdictNeedsReview {
+			continue
+		}
+		if challenge, challengeErr := challengeFromProjection(projection); challengeErr == nil && challenge.CollaborationMode == "coach" && len(projection.Attempts) > 0 && projection.Attempts[len(projection.Attempts)-1].Status == securityruntime.AttemptCompleted {
 			continue
 		}
 		if projection.Outcome != nil {
@@ -364,6 +489,9 @@ func (s *Service) runJob(ctx context.Context, jobID string) (state runState, res
 		if proposal.Capability != CapabilityName {
 			return state, fmt.Errorf("engine proposed unavailable capability %q", proposal.Capability)
 		}
+		if challenge.CollaborationMode == "coach" && proposal.Name != "ctf.inspect_material" && proposal.Name != "ctf.decode_hex" && proposal.Name != "ctf.coach_hint" {
+			return state, fmt.Errorf("coach mode denied solution/submission action %q", proposal.Name)
+		}
 		proposal.Rationale = strings.TrimSpace(proposal.Rationale)
 		if proposal.Rationale == "" || len([]rune(proposal.Rationale)) > 2000 {
 			return state, fmt.Errorf("engine proposal requires a rationale of at most 2000 characters")
@@ -465,6 +593,21 @@ func (s *Service) runJob(ctx context.Context, jobID string) (state runState, res
 		}); err != nil {
 			return state, err
 		}
+		if action.Name == "ctf.coach_hint" {
+			if err := s.recordAgentHint(jobID, action.Input); err != nil {
+				return state, err
+			}
+			if challenge.CollaborationMode == "coach" {
+				if err := s.runtime.FinishAttempt(ctx, jobID, attempt.ID, securityruntime.AttemptCompleted, "coach returned one graded hint and waits for the learner"); err != nil {
+					return state, err
+				}
+				if err := s.releaseEnvironment(jobID, attempt.ID, lease); err != nil {
+					return state, err
+				}
+				state.lease = nil
+				return state, nil
+			}
+		}
 		state.action = nil
 		state.step = nil
 
@@ -488,6 +631,16 @@ func (s *Service) runJob(ctx context.Context, jobID string) (state runState, res
 			return state, err
 		}
 		if decision.Verdict != securityruntime.VerdictPass {
+			if decision.Verdict == securityruntime.VerdictNeedsReview {
+				if err := s.runtime.FinishAttempt(ctx, jobID, attempt.ID, securityruntime.AttemptCompleted, decision.Summary); err != nil {
+					return state, err
+				}
+				if err := s.releaseEnvironment(jobID, attempt.ID, lease); err != nil {
+					return state, err
+				}
+				state.lease = nil
+				return state, nil
+			}
 			continue
 		}
 		outcome := securityruntime.Outcome{
@@ -508,6 +661,21 @@ func (s *Service) runJob(ctx context.Context, jobID string) (state runState, res
 		}
 		return state, nil
 	}
+}
+
+func (s *Service) recordAgentHint(jobID string, input json.RawMessage) error {
+	var value struct {
+		Hint    string `json:"hint"`
+		Concept string `json:"concept"`
+		Level   int    `json:"level"`
+	}
+	if err := json.Unmarshal(input, &value); err != nil {
+		return err
+	}
+	_, err := s.RecordLearning(context.Background(), jobID, LearningRecordRequest{
+		Kind: "hint", Content: value.Hint, Concept: value.Concept, Level: value.Level,
+	})
+	return err
 }
 
 func (s *Service) finishBudgetExhausted(jobID string, attempt securityruntime.Attempt, lease securityruntime.EnvironmentLease) error {

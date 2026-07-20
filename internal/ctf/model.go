@@ -4,11 +4,13 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"time"
 	"unicode/utf8"
 
+	"github.com/MilkSU-Official/milksu/internal/securitypolicy"
 	"github.com/MilkSU-Official/milksu/internal/securityruntime"
 )
 
@@ -17,9 +19,10 @@ const (
 	SchemaVersion = "ctf.milksu.dev/v1alpha1"
 
 	FactChallengeAdmitted = "challenge.admitted"
-	maxMaterialBytes      = 512 * 1024
-	maxTotalMaterialBytes = 2 * 1024 * 1024
-	maxExperiments        = 8
+	FactLearningRecorded  = "learning.recorded"
+	maxMaterialBytes      = 4 * 1024 * 1024
+	maxTotalMaterialBytes = 12 * 1024 * 1024
+	maxExperiments        = 12
 	proposalTimeout       = 2 * time.Minute
 )
 
@@ -28,6 +31,10 @@ type ChallengeRequest struct {
 	Statement         string            `json:"statement"`
 	Category          string            `json:"category"`
 	CollaborationMode string            `json:"collaborationMode"`
+	TrackName         string            `json:"trackName"`
+	HumanGoal         string            `json:"humanGoal"`
+	SourceKind        string            `json:"sourceKind"`
+	SourceURI         string            `json:"sourceUri"`
 	ExpectedFlag      string            `json:"expectedFlag"`
 	KnowledgePoints   []string          `json:"knowledgePoints"`
 	Materials         []MaterialRequest `json:"materials"`
@@ -45,6 +52,9 @@ type admittedRequest struct {
 	statement         string
 	category          string
 	collaborationMode string
+	trackName         string
+	humanGoal         string
+	source            ChallengeSource
 	expectedFlag      string
 	knowledgePoints   []string
 	materials         []admittedMaterial
@@ -58,15 +68,24 @@ type admittedMaterial struct {
 }
 
 type Challenge struct {
-	ID                string     `json:"id"`
-	Title             string     `json:"title"`
-	Statement         string     `json:"statement"`
-	Category          string     `json:"category"`
-	CollaborationMode string     `json:"collaborationMode"`
-	Materials         []Material `json:"materials"`
-	KnowledgePoints   []string   `json:"knowledgePoints"`
-	Judge             JudgeSpec  `json:"judge"`
-	AdmittedAt        time.Time  `json:"admittedAt"`
+	ID                string          `json:"id"`
+	Title             string          `json:"title"`
+	Statement         string          `json:"statement"`
+	Category          string          `json:"category"`
+	CollaborationMode string          `json:"collaborationMode"`
+	TrackName         string          `json:"trackName"`
+	HumanGoal         string          `json:"humanGoal"`
+	Source            ChallengeSource `json:"source"`
+	Materials         []Material      `json:"materials"`
+	KnowledgePoints   []string        `json:"knowledgePoints"`
+	Judge             JudgeSpec       `json:"judge"`
+	AdmittedAt        time.Time       `json:"admittedAt"`
+}
+
+type ChallengeSource struct {
+	Kind  string                    `json:"kind"`
+	URI   string                    `json:"uri,omitempty"`
+	Scope securitypolicy.ScopeGrant `json:"scope"`
 }
 
 type Material struct {
@@ -85,16 +104,44 @@ type JudgeSpec struct {
 }
 
 type ChallengeView struct {
-	ID                string     `json:"id"`
-	Title             string     `json:"title"`
-	Statement         string     `json:"statement"`
-	Category          string     `json:"category"`
-	CollaborationMode string     `json:"collaborationMode"`
-	Materials         []Material `json:"materials"`
-	KnowledgePoints   []string   `json:"knowledgePoints"`
-	JudgeType         string     `json:"judgeType"`
-	JudgeVersion      string     `json:"judgeVersion"`
-	AdmittedAt        time.Time  `json:"admittedAt"`
+	ID                string          `json:"id"`
+	Title             string          `json:"title"`
+	Statement         string          `json:"statement"`
+	Category          string          `json:"category"`
+	CollaborationMode string          `json:"collaborationMode"`
+	TrackName         string          `json:"trackName"`
+	HumanGoal         string          `json:"humanGoal"`
+	Source            ChallengeSource `json:"source"`
+	Materials         []Material      `json:"materials"`
+	KnowledgePoints   []string        `json:"knowledgePoints"`
+	JudgeType         string          `json:"judgeType"`
+	JudgeVersion      string          `json:"judgeVersion"`
+	AdmittedAt        time.Time       `json:"admittedAt"`
+}
+
+type LearningRecord struct {
+	ID        string    `json:"id"`
+	Kind      string    `json:"kind"`
+	Content   string    `json:"content"`
+	Concept   string    `json:"concept,omitempty"`
+	Level     int       `json:"level,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+type LearningRecordRequest struct {
+	Kind    string `json:"kind"`
+	Content string `json:"content"`
+	Concept string `json:"concept"`
+	Level   int    `json:"level"`
+}
+
+type HumanOutcomeView struct {
+	Goal             string   `json:"goal"`
+	KnowledgePoints  []string `json:"knowledgePoints"`
+	HintCount        int      `json:"hintCount"`
+	ReflectionCount  int      `json:"reflectionCount"`
+	IndependentSteps int      `json:"independentSteps"`
+	Summary          string   `json:"summary"`
 }
 
 type ExperimentView struct {
@@ -122,6 +169,8 @@ type Projection struct {
 	Evidence        []securityruntime.Evidence   `json:"evidence"`
 	Evaluations     []securityruntime.Evaluation `json:"evaluations"`
 	Submissions     []SubmissionView             `json:"submissions"`
+	Learning        []LearningRecord             `json:"learning"`
+	HumanOutcome    HumanOutcomeView             `json:"humanOutcome"`
 	Outcome         *securityruntime.Outcome     `json:"outcome,omitempty"`
 	Events          []securityruntime.Event      `json:"events"`
 }
@@ -142,6 +191,8 @@ func validateRequest(request ChallengeRequest) (admittedRequest, error) {
 	category := strings.TrimSpace(request.Category)
 	mode := strings.ToLower(strings.TrimSpace(request.CollaborationMode))
 	expectedFlag := strings.TrimSpace(request.ExpectedFlag)
+	trackName := strings.TrimSpace(request.TrackName)
+	humanGoal := strings.TrimSpace(request.HumanGoal)
 	if title == "" || len([]rune(title)) > 120 {
 		return admittedRequest{}, fmt.Errorf("challenge title is required and must be at most 120 characters")
 	}
@@ -154,19 +205,26 @@ func validateRequest(request ChallengeRequest) (admittedRequest, error) {
 	if mode == "" {
 		mode = "delegate"
 	}
-	if mode != "delegate" {
-		return admittedRequest{}, fmt.Errorf("M2-A currently supports delegate mode only")
+	if mode != "coach" && mode != "copilot" && mode != "delegate" {
+		return admittedRequest{}, fmt.Errorf("collaboration mode must be coach, copilot, or delegate")
 	}
-	if expectedFlag == "" || len([]rune(expectedFlag)) > 512 {
-		return admittedRequest{}, fmt.Errorf("a local expected flag is required and must be at most 512 characters")
+	if len([]rune(expectedFlag)) > 512 {
+		return admittedRequest{}, fmt.Errorf("expected flag must be at most 512 characters")
 	}
-	if len(request.Materials) > 8 {
-		return admittedRequest{}, fmt.Errorf("at most 8 challenge materials are supported")
+	if len(request.Materials) > 32 {
+		return admittedRequest{}, fmt.Errorf("at most 32 challenge materials are supported")
+	}
+	if len([]rune(trackName)) > 120 || len([]rune(humanGoal)) > 1000 {
+		return admittedRequest{}, fmt.Errorf("track name or human learning goal is too long")
+	}
+	source, err := validateSource(request.SourceKind, request.SourceURI)
+	if err != nil {
+		return admittedRequest{}, err
 	}
 
 	result := admittedRequest{
 		title: title, statement: statement, category: category, collaborationMode: mode,
-		expectedFlag: expectedFlag,
+		trackName: trackName, humanGoal: humanGoal, source: source, expectedFlag: expectedFlag,
 	}
 	seenKnowledge := make(map[string]struct{})
 	for _, point := range request.KnowledgePoints {
@@ -196,11 +254,11 @@ func validateRequest(request ChallengeRequest) (admittedRequest, error) {
 			return admittedRequest{}, fmt.Errorf("decode material %q: %w", name, err)
 		}
 		if len(data) == 0 || len(data) > maxMaterialBytes {
-			return admittedRequest{}, fmt.Errorf("material %q must be between 1 byte and 512 KiB", name)
+			return admittedRequest{}, fmt.Errorf("material %q must be between 1 byte and 4 MiB", name)
 		}
 		total += len(data)
 		if total > maxTotalMaterialBytes {
-			return admittedRequest{}, fmt.Errorf("challenge materials exceed the 2 MiB M2-A limit")
+			return admittedRequest{}, fmt.Errorf("challenge materials exceed the 12 MiB limit")
 		}
 		provenance := strings.TrimSpace(material.Provenance)
 		if provenance == "" {
@@ -216,6 +274,50 @@ func validateRequest(request ChallengeRequest) (admittedRequest, error) {
 	return result, nil
 }
 
+func validateSource(kind, rawURI string) (ChallengeSource, error) {
+	kind = strings.ToLower(strings.TrimSpace(kind))
+	rawURI = strings.TrimSpace(rawURI)
+	if kind == "" {
+		kind = "text"
+	}
+	var target securitypolicy.Target
+	switch kind {
+	case "text", "file", "image":
+		target = securitypolicy.Target{Kind: securitypolicy.TargetLab, Value: "offline-intake"}
+	case "directory":
+		target = securitypolicy.Target{Kind: securitypolicy.TargetDirectory, Value: rawURI}
+	case "url", "managed-browser", "user-browser":
+		parsed, err := url.Parse(rawURI)
+		if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.User != nil {
+			return ChallengeSource{}, fmt.Errorf("browser/URL intake requires an http(s) URL without credentials")
+		}
+		target = securitypolicy.Target{Kind: securitypolicy.TargetOrigin, Value: parsed.String()}
+	case "socket", "ssh":
+		value := rawURI
+		if kind == "ssh" {
+			parsed, err := url.Parse(rawURI)
+			if err != nil || parsed.Scheme != "ssh" || parsed.Host == "" || parsed.User == nil || parsed.User.String() == "" || strings.Contains(parsed.User.String(), ":") {
+				return ChallengeSource{}, fmt.Errorf("SSH intake requires ssh://user@host:port without a password")
+			}
+			value = parsed.Host
+		}
+		target = securitypolicy.Target{Kind: securitypolicy.TargetSocket, Value: value}
+	case "local-lab":
+		target = securitypolicy.Target{Kind: securitypolicy.TargetLab, Value: rawURI}
+	default:
+		return ChallengeSource{}, fmt.Errorf("unsupported challenge source %q", kind)
+	}
+	normalized, err := securitypolicy.NormalizeTarget(target)
+	if err != nil {
+		return ChallengeSource{}, err
+	}
+	grant, err := securitypolicy.NewGrant("challenge-intake:"+kind, "ctf learning", []securitypolicy.Target{normalized}, 24*time.Hour)
+	if err != nil {
+		return ChallengeSource{}, err
+	}
+	return ChallengeSource{Kind: kind, URI: rawURI, Scope: grant}, nil
+}
+
 func decodeChallengeFact(fact securityruntime.RoleFact) (Challenge, error) {
 	if fact.PackageID != PackageID || fact.SchemaVersion != SchemaVersion || fact.Kind != FactChallengeAdmitted {
 		return Challenge{}, fmt.Errorf("unsupported CTF role fact")
@@ -224,7 +326,19 @@ func decodeChallengeFact(fact securityruntime.RoleFact) (Challenge, error) {
 	if err := json.Unmarshal(fact.Data, &challenge); err != nil {
 		return Challenge{}, fmt.Errorf("decode challenge fact: %w", err)
 	}
-	if challenge.ID == "" || challenge.Judge.Type != "flag.sha256" || challenge.Judge.Version == "" || len(challenge.Judge.ExpectedFlagSHA256) != 64 {
+	if challenge.Source.Scope.ID == "" {
+		created := challenge.AdmittedAt
+		if created.IsZero() {
+			created = time.Unix(0, 0).UTC()
+		}
+		challenge.Source = ChallengeSource{Kind: "text", Scope: securitypolicy.ScopeGrant{
+			ID: "scope_legacy_" + challenge.ID, Source: "legacy-offline-intake", Purpose: "ctf learning",
+			Targets:   []securitypolicy.Target{{Kind: securitypolicy.TargetLab, Value: "offline-intake"}},
+			GrantedBy: "local-user", CreatedAt: created, ExpiresAt: created.Add(30 * 24 * time.Hour), Revocable: true,
+		}}
+	}
+	validJudge := challenge.Judge.Type == "external.manual" || (challenge.Judge.Type == "flag.sha256" && len(challenge.Judge.ExpectedFlagSHA256) == 64)
+	if challenge.ID == "" || !validJudge || challenge.Judge.Version == "" || challenge.Source.Scope.ID == "" {
 		return Challenge{}, fmt.Errorf("invalid admitted challenge")
 	}
 	return challenge, nil

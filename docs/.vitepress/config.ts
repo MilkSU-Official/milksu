@@ -25,6 +25,7 @@ export default defineConfig({
           items: [
             { text: '开发者文档', link: '/developer/' },
             { text: '开发计划（当前主线）', link: '/developer/development-plan' },
+            { text: 'M2 → M3 基础检查点', link: '/developer/checkpoints/2026-07-21-m2-m3-foundation' },
           ],
         },
         {
