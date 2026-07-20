@@ -59,6 +59,8 @@ export interface ActionRecord {
   stepId: string
   capability: string
   name: string
+  input: Record<string, unknown>
+  rationale?: string
   status: string
   expectedEffect: {
     class: string
@@ -80,11 +82,24 @@ export interface ObservationRecord {
 export interface ArtifactRecord {
   id: string
   jobId: string
-  sourceActionId: string
+  sourceActionId?: string
+  source: string
   sha256: string
   mediaType: string
   size: number
   relativePath: string
+}
+
+export interface RoleFactRecord {
+  id: string
+  packageId: string
+  schemaVersion: string
+  kind: string
+  attemptId?: string
+  stepId?: string
+  artifactIds?: string[]
+  evidenceIds?: string[]
+  data: Record<string, unknown>
 }
 
 export interface EffectRecord {
@@ -144,6 +159,7 @@ export interface JobProjection {
   effects: EffectRecord[]
   evidence: EvidenceRecord[]
   evaluations: EvaluationRecord[]
+  roleFacts: RoleFactRecord[]
   outcome?: OutcomeRecord
   events: RuntimeEvent[]
 }

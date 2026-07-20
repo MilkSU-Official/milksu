@@ -2,6 +2,7 @@ package securityruntime
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 	"testing"
 	"time"
@@ -53,6 +54,36 @@ func TestWalkingSkeletonCompletesOnlyAfterEvaluatorPasses(t *testing.T) {
 		if projection.Events[index].Kind != kind {
 			t.Fatalf("event[%d] = %s, want %s", index, projection.Events[index].Kind, kind)
 		}
+	}
+}
+
+func TestRoleFactMustMatchItsEventScope(t *testing.T) {
+	service, err := NewService(t.TempDir(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = service.Close() })
+	now := time.Now().UTC()
+	job := Job{
+		ID: "job_role_scope", Title: "Role scope", Role: "test.role", CollaborationMode: "delegate",
+		Status: JobQueued, CreatedAt: now, UpdatedAt: now,
+	}
+	if err := service.CreateJob(context.Background(), job); err != nil {
+		t.Fatal(err)
+	}
+	attempt := Attempt{
+		ID: "attempt_role_scope", JobID: job.ID, Engine: "test", Model: "test",
+		Environment: "test", Evaluator: "test@1", Status: AttemptRunning, StartedAt: now,
+	}
+	if err := service.StartAttempt(context.Background(), attempt); err != nil {
+		t.Fatal(err)
+	}
+	err = service.CommitRoleFact(context.Background(), EventScope{JobID: job.ID, AttemptID: attempt.ID}, RoleFact{
+		ID: "fact_wrong_scope", PackageID: job.Role, SchemaVersion: "test/v1", Kind: "test",
+		Data: json.RawMessage(`{"ok":true}`),
+	})
+	if err == nil {
+		t.Fatal("expected role fact/event scope mismatch to be rejected")
 	}
 }
 

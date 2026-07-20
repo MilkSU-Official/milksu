@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useState } from 'react'
+import { Component, useCallback, useEffect, useState } from 'react'
+import type { ErrorInfo, ReactNode } from 'react'
 import i18next from 'i18next'
 import { Sidebar } from './components/Sidebar'
 import { ChatView } from './components/ChatView'
 import { OutputPanel } from './components/OutputPanel'
 import { SettingsPage } from './components/SettingsPage'
 import { RuntimePage } from './components/RuntimePage'
+import { CTFPage } from './components/CTFPage'
 import { invokeCommand } from './desktop'
 import { useConversations } from './hooks/useConversations'
 import { useAgentEvents } from './hooks/useAgentEvents'
@@ -27,6 +29,7 @@ export default function App() {
   const [showOutput, setShowOutput] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showRuntime, setShowRuntime] = useState(false)
+  const [showCTF, setShowCTF] = useState(false)
   const [settings, setSettings] = useState<AppSettings | null>(null)
 
   useEffect(() => {
@@ -44,6 +47,7 @@ export default function App() {
     setShowOutput(false)
     setShowSettings(false)
     setShowRuntime(false)
+    setShowCTF(false)
   }, [setActiveId])
 
   const handleSend = useCallback(async (text: string) => {
@@ -132,18 +136,29 @@ export default function App() {
           setActiveId(id)
           setShowOutput(false)
           setShowRuntime(false)
+          setShowCTF(false)
         }}
         onNew={handleNew}
         onDelete={deleteConversation}
         onOpenSettings={() => setShowSettings(true)}
         onOpenRuntime={() => {
           setShowRuntime(true)
+          setShowCTF(false)
           setShowOutput(false)
         }}
-        activeSection={showRuntime ? 'runtime' : 'chat'}
+        onOpenCTF={() => {
+          setShowCTF(true)
+          setShowRuntime(false)
+          setShowOutput(false)
+        }}
+        activeSection={showCTF ? 'ctf' : showRuntime ? 'runtime' : 'chat'}
       />
       <div className="flex min-w-0 flex-1">
-        {showRuntime ? (
+        {showCTF ? (
+          <CTFErrorBoundary>
+            <CTFPage onOpenSettings={() => setShowSettings(true)} />
+          </CTFErrorBoundary>
+        ) : showRuntime ? (
           <RuntimePage onOpenSettings={() => setShowSettings(true)} />
         ) : (
           <>
@@ -161,4 +176,30 @@ export default function App() {
       </div>
     </div>
   )
+}
+
+class CTFErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state = { error: null as Error | null }
+
+  static getDerivedStateFromError(error: Error) {
+    return { error }
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('CTF workspace render failed', error, info)
+  }
+
+  render() {
+    if (!this.state.error) return this.props.children
+    return (
+      <main className="flex min-w-0 flex-1 items-center justify-center bg-[#f3f1ec] px-8">
+        <div className="max-w-lg rounded-2xl border border-red-200 bg-white p-6 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-red-600">CTF workspace error</p>
+          <h1 className="mt-2 text-lg font-semibold text-[#292927]">界面没有吞掉这次错误</h1>
+          <pre className="mt-3 whitespace-pre-wrap break-words rounded-xl bg-red-50 p-3 font-mono text-[11px] leading-5 text-red-800">{this.state.error.message}</pre>
+          <button type="button" onClick={() => this.setState({ error: null })} className="mt-4 rounded-lg border border-[#d8d8d2] px-3 py-2 text-xs font-medium hover:bg-[#f5f5f2]">重新渲染</button>
+        </div>
+      </main>
+    )
+  }
 }

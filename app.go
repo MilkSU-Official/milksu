@@ -8,6 +8,7 @@ import (
 	"github.com/MilkSU-Official/milksu/internal/appdata"
 	"github.com/MilkSU-Official/milksu/internal/config"
 	"github.com/MilkSU-Official/milksu/internal/conversation"
+	"github.com/MilkSU-Official/milksu/internal/ctf"
 	"github.com/MilkSU-Official/milksu/internal/engine"
 	"github.com/MilkSU-Official/milksu/internal/securityruntime"
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
@@ -15,11 +16,13 @@ import (
 
 // App is the thin L1 desktop adapter. Domain code must not depend on Wails.
 type App struct {
-	ctx           context.Context
-	settings      *config.Store
-	conversations *conversation.Store
-	engines       *engine.Supervisor
-	jobs          *securityruntime.Service
+	ctx            context.Context
+	settings       *config.Store
+	conversations  *conversation.Store
+	engines        *engine.Supervisor
+	securityEngine *engine.SecuritySupervisor
+	jobs           *securityruntime.Service
+	ctfJobs        *ctf.Service
 }
 
 func NewApp() (*App, error) {
@@ -41,9 +44,19 @@ func NewApp() (*App, error) {
 		conversations: conversations,
 	}
 	application.engines = engine.NewSupervisor(application.emitEngineEvent)
+	application.securityEngine, err = engine.NewSecuritySupervisor(application.settings.Get)
+	if err != nil {
+		return nil, fmt.Errorf("create security agent engine: %w", err)
+	}
 	application.jobs, err = securityruntime.NewService(filepath.Join(dataDirectory, "runtime"), application.emitJobEvent)
 	if err != nil {
 		return nil, fmt.Errorf("create security job runtime: %w", err)
+	}
+	application.ctfJobs, err = ctf.NewService(application.jobs, ctf.ServiceOptions{Engine: application.securityEngine})
+	if err != nil {
+		_ = application.jobs.Close()
+		application.securityEngine.Close()
+		return nil, fmt.Errorf("create CTF role service: %w", err)
 	}
 	return application, nil
 }
@@ -53,9 +66,14 @@ func (a *App) Startup(ctx context.Context) {
 	if err := a.jobs.Recover(ctx); err != nil {
 		wailsruntime.EventsEmit(ctx, "job-runtime-error", err.Error())
 	}
+	if err := a.ctfJobs.Recover(ctx); err != nil {
+		wailsruntime.EventsEmit(ctx, "job-runtime-error", err.Error())
+	}
 }
 
 func (a *App) Shutdown(_ context.Context) {
+	_ = a.ctfJobs.Close()
+	a.securityEngine.Close()
 	_ = a.jobs.Close()
 	a.engines.Close()
 }
@@ -71,6 +89,7 @@ func (a *App) SaveSettingsCmd(settings config.AppSettings) error {
 	// Provider credentials are supplied only when a sidecar starts. Restarting
 	// prevents a running child from retaining credentials removed by the user.
 	a.engines.Close()
+	a.securityEngine.Restart()
 	return nil
 }
 
@@ -109,6 +128,26 @@ func (a *App) GetJob(id string) (securityruntime.JobProjection, error) {
 
 func (a *App) CancelJob(id string) error {
 	return a.jobs.CancelJob(a.commandContext(), id)
+}
+
+func (a *App) StartSampleCTF() (ctf.Projection, error) {
+	return a.ctfJobs.StartSampleChallenge(a.commandContext())
+}
+
+func (a *App) StartCTFChallenge(request ctf.ChallengeRequest) (ctf.Projection, error) {
+	return a.ctfJobs.StartChallenge(a.commandContext(), request)
+}
+
+func (a *App) ListCTFJobs() ([]ctf.Summary, error) {
+	return a.ctfJobs.ListJobs(a.commandContext())
+}
+
+func (a *App) GetCTFJob(id string) (ctf.Projection, error) {
+	return a.ctfJobs.GetJob(a.commandContext(), id)
+}
+
+func (a *App) CancelCTFJob(id string) error {
+	return a.ctfJobs.CancelJob(a.commandContext(), id)
 }
 
 func (a *App) emitEngineEvent(event engine.Event) {

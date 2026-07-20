@@ -28,8 +28,8 @@ func TestArtifactStoreIsContentAddressedAndIdempotent(t *testing.T) {
 	if created {
 		t.Fatal("identical second write must reuse the artifact")
 	}
-	if first.ID != second.ID || first.RelativePath != second.RelativePath {
-		t.Fatalf("content address changed: %#v %#v", first, second)
+	if first.ID == second.ID || first.RelativePath != second.RelativePath || first.SHA256 != second.SHA256 {
+		t.Fatalf("artifact identity and content address were conflated: %#v %#v", first, second)
 	}
 	read, err := store.Read(context.Background(), second)
 	if err != nil {
@@ -44,6 +44,20 @@ func TestArtifactStoreIsContentAddressedAndIdempotent(t *testing.T) {
 	}
 	if info.Mode().Perm() != 0o600 {
 		t.Fatalf("artifact permissions = %o", info.Mode().Perm())
+	}
+}
+
+func TestArtifactStoreAdmitsUserMaterialWithoutInventingAnAction(t *testing.T) {
+	store, err := NewArtifactStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	artifact, created, err := store.Admit(context.Background(), "job_intake", "user:file:challenge.txt", "text/plain", []byte("challenge"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !created || artifact.SourceActionID != "" || artifact.Source != "user:file:challenge.txt" {
+		t.Fatalf("unexpected admitted artifact: %#v created=%v", artifact, created)
 	}
 }
 

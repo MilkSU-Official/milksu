@@ -29,11 +29,13 @@ const (
 	EventActionFailed         EventKind = "action.failed"
 	EventObservationCommitted EventKind = "observation.committed"
 	EventArtifactCommitted    EventKind = "artifact.committed"
+	EventArtifactAdmitted     EventKind = "artifact.admitted"
 	EventEffectCommitted      EventKind = "effect.committed"
 	EventEffectReused         EventKind = "effect.reused"
 	EventEvidenceLinked       EventKind = "evidence.linked"
 	EventEvaluationRecorded   EventKind = "evaluation.recorded"
 	EventOutcomeDecided       EventKind = "outcome.decided"
+	EventRoleFactCommitted    EventKind = "role.fact.committed"
 )
 
 type Event struct {
@@ -98,6 +100,10 @@ type observationPayload struct {
 type artifactPayload struct {
 	Artifact Artifact `json:"artifact"`
 	Created  bool     `json:"created"`
+}
+
+type roleFactPayload struct {
+	Fact RoleFact `json:"fact"`
 }
 
 type effectPayload struct {

@@ -23,14 +23,30 @@ func NewArtifactStore(root string) (*ArtifactStore, error) {
 }
 
 func (s *ArtifactStore) Put(ctx context.Context, jobID, sourceActionID, mediaType string, data []byte) (Artifact, bool, error) {
+	if err := validateIdentifier("source action id", sourceActionID); err != nil {
+		return Artifact{}, false, err
+	}
+	return s.put(ctx, jobID, sourceActionID, "action:"+sourceActionID, mediaType, data)
+}
+
+func (s *ArtifactStore) Admit(ctx context.Context, jobID, source, mediaType string, data []byte) (Artifact, bool, error) {
+	if source == "" {
+		return Artifact{}, false, fmt.Errorf("artifact source is required")
+	}
+	return s.put(ctx, jobID, "", source, mediaType, data)
+}
+
+func (s *ArtifactStore) put(ctx context.Context, jobID, sourceActionID, source, mediaType string, data []byte) (Artifact, bool, error) {
 	if err := ctx.Err(); err != nil {
 		return Artifact{}, false, err
 	}
 	if err := validateIdentifier("job id", jobID); err != nil {
 		return Artifact{}, false, err
 	}
-	if err := validateIdentifier("source action id", sourceActionID); err != nil {
-		return Artifact{}, false, err
+	if sourceActionID != "" {
+		if err := validateIdentifier("source action id", sourceActionID); err != nil {
+			return Artifact{}, false, err
+		}
 	}
 	if mediaType == "" {
 		return Artifact{}, false, fmt.Errorf("artifact media type is required")
@@ -75,9 +91,10 @@ func (s *ArtifactStore) Put(ctx context.Context, jobID, sourceActionID, mediaTyp
 	}
 
 	return Artifact{
-		ID:             "sha256:" + digest,
+		ID:             newID("artifact"),
 		JobID:          jobID,
 		SourceActionID: sourceActionID,
+		Source:         source,
 		SHA256:         digest,
 		MediaType:      mediaType,
 		Size:           int64(len(data)),

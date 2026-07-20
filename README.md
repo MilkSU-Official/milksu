@@ -19,6 +19,7 @@ MilkSU 是一个由用户拥有的、可验证的 Security Agent Harness 与桌�
 7. [ADR-0001：Agent Engine 与桌面进程边界](docs/developer/adr/0001-agent-engine-and-desktop-boundary.md)
 8. [Runtime v1alpha1：M1 可恢复任务契约](docs/developer/runtime-v1alpha1.md)
 9. [ADR-0002：Runtime 事实、存储与恢复边界](docs/developer/adr/0002-runtime-facts-and-recovery.md)
+10. [ADR-0003：M2-A CTF 纵切与 Pi Security Adapter](docs/developer/adr/0003-ctf-vertical-slice.md)
 
 ## 三个不能混淆的问题
 
@@ -54,8 +55,12 @@ L2 定义角色闭环，L5 提供可改造的通用 Agent Engine，L6 横切保�
 - Pi 与 Codex app-server 使用同一微型 CTF 的 M0 Spike。Pi 是默认可改造 Engine，Codex 暂作对照与未来兼容运行时。
 - Go 实现的 M1 Shared Security Runtime：追加式 SQLite 事件、内容寻址 Artifact、只读 Projection、独立 Evaluator、取消和中断恢复；
 - 一个由 Fake Engine、Fake Capability、Fake Environment 与 Fake Evaluator 构成的确定性桌面闭环，用来验证 Harness 而不是冒充 CTF Solver。
+- M2-A 的单题 CTF 纵切：真实 Pi/DeepSeek 提议受控动作，Go 执行材料读取与确定性解码，独立本地 Judge 判 Flag，React 面板展示实验、证据与复盘；
+- 独立于通用聊天的 `security-bridge.js`。它关闭 Pi 内建 Coding Tools 与用户级扩展，只向模型暴露三种 CTF 提议工具。
 
-M1 已完成，下一步是经用户亲自验收后进入 M2：用真实 Pi Engine Adapter、真实模型、受控 Capability 与本地 Lab 跑通第一条 CTF 纵切。之后再以 Vulnerability Research 检验公共抽象；在这两个场景成立之前，不并行开发 Red、Blue、AppSec 或 Malware Role。两者都支持 Coach、Copilot、Delegate，并分别保存安全任务 Outcome 与人类学习 Outcome。
+M1 与 M2-A 已完成工程验证。M2 整体仍未完成：当前只接受粘贴题面与小型本地附件，只支持 Delegate、离线 Artifact Workspace 和已知答案的本地 Judge；没有任意 Shell、浏览器、网站提交、自动 Lab、截图理解或比赛级长期学习。进入下一个大模块前需要用户确认，不能把内置 Hex 题的成功误写成“CTF MVP 已完成”。之后仍以 Vulnerability Research 检验公共抽象；在这两个场景成立之前，不并行开发 Red、Blue、AppSec 或 Malware Role。
+
+当前开发构建还依赖仓库中的 TypeScript Sidecar 与系统 Node。可分发的签名 Sidecar、macOS Keychain 和外部能力审批必须在开放 Browser/Shell/Lab 之前完成；不要把 `build/bin/MilkSU.app` 当成已经可独立分发的产品包。
 
 ## 核心验收原则
 

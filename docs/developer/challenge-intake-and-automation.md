@@ -153,26 +153,29 @@ Chrome DevTools MCP 的优势是 DevTools 网络、Console、Trace 和性能分�
 
 ## 建议的 M2 顺序
 
-以下只是 M2 内部的交付顺序，不改变全局 M0 → M1 → M2 里程碑；当前不能跳过尚未完成的 Engine 和可恢复任务骨架去直接开发浏览器。
+以下只是 M2 内部的交付顺序，不改变全局 M0 → M1 → M2 里程碑。M2-A 已先完成最小 Offline Intake 与真实 CTF Loop；Browser 与完整 Intake 仍需单独确认和准入。
 
 ```text
-M2a  Challenge Intake
-     chat / attachment / image / directory / URL / browser / managed lab
+M2-A  Offline Challenge Slice                         已完成工程验证
+      pasted statement / small attachment / Pi / typed tools / local judge
                        │
-M2b  完整 CTF Agent 闭环
-     clarification -> hypothesis -> experiment -> evidence -> judge -> teaching
+M2-B  Managed Local Lab                               待确认
+      controlled file / shell / socket + lifecycle provider
                        │
-M2c  Managed Browser Capability
-     Playwright MCP v0.0.78 / dedicated profile / stdio / Action Gateway
+M2-C  Managed Browser Capability                      待确认
+      Playwright MCP / dedicated profile / stdio / Action Gateway
                        │
-M2d  User Browser Bridge
-     selected tab / explicit approval / visible sharing / revocation
+M2-D  User Browser Bridge                             待确认
+      selected tab / explicit approval / visible sharing / revocation
+
+M2-E  Teaching and long-term Workspace                待确认
+      Coach / Copilot / competition / learning record
 
 Later  Computer Use
        only after a native-GUI use case proves Browser + CLI is insufficient
 ```
 
-这份评审只授权继续讨论和做最小 Spike，不代表已经同意把依赖写入产品。真正动工前还需要确认 Playwright PoC 的范围；Cua 必须等独立模块评审。
+这份评审只授权继续讨论和做最小 Spike，不代表已经同意把浏览器依赖写入产品。真正动工前还需要确认 Playwright PoC 的范围；Computer Use 必须等独立模块评审。
 
 ## 审查覆盖与限制
 

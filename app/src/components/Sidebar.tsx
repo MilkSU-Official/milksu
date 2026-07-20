@@ -10,10 +10,11 @@ interface Props {
   onDelete: (id: string) => void
   onOpenSettings: () => void
   onOpenRuntime: () => void
-  activeSection: 'chat' | 'runtime'
+  onOpenCTF: () => void
+  activeSection: 'chat' | 'runtime' | 'ctf'
 }
 
-export function Sidebar({ conversations, activeId, onSelect, onNew, onDelete, onOpenSettings, onOpenRuntime, activeSection }: Props) {
+export function Sidebar({ conversations, activeId, onSelect, onNew, onDelete, onOpenSettings, onOpenRuntime, onOpenCTF, activeSection }: Props) {
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
   const [showSearch, setShowSearch] = useState(false)
@@ -42,6 +43,16 @@ export function Sidebar({ conversations, activeId, onSelect, onNew, onDelete, on
         >
           <span className="text-base text-[#888]">+</span>
           {t('sidebar.newConversation')}
+        </button>
+        <button
+          onClick={onOpenCTF}
+          className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-[#333] transition-colors ${
+            activeSection === 'ctf' ? 'bg-[#e7edd7]' : 'hover:bg-[#eee]'
+          }`}
+        >
+          <svg className="size-3.5 text-[#718044]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 21V4" /><path d="M5 5h11l-2 4 2 4H5" /></svg>
+          {t('sidebar.ctfLab')}
+          <span className="ml-auto rounded bg-[#d8e2bd] px-1.5 py-0.5 font-mono text-[9px] text-[#67733e]">M2-A</span>
         </button>
         <button
           onClick={onOpenRuntime}

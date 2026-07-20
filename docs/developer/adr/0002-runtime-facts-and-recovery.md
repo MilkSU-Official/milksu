@@ -65,7 +65,7 @@ Artifact Store    -> 保存并哈希结果
 Fake Evaluator    -> 重新读取 Artifact 后独立判分
 ```
 
-这证明的是 Harness 的事实和恢复语义，不是模型能力。Pi 仍是选定的 Embedded Agent Engine，但本轮不把旧聊天 `bridge.js` 强行改成 Runtime 协议。M2 会新增独立的 Pi `AgentEngine` Adapter，把 Runtime Projection 转成 Engine 输入，并只注册 MilkSU 明确允许的 Capability；通用聊天兼容桥继续与 Security Job 分开。
+这证明的是 Harness 的事实和恢复语义，不是模型能力。Pi 仍是选定的 Embedded Agent Engine，但本轮不把旧聊天 `bridge.js` 强行改成 Runtime 协议。M2-A 随后新增了独立 Pi `AgentEngine` Adapter，把 Runtime Projection 转成 Engine 输入，并只注册 MilkSU 明确允许的 CTF Capability；通用聊天兼容桥继续与 Security Job 分开。落地结果见 [ADR-0003](/developer/adr/0003-ctf-vertical-slice)。
 
 ## 结果与代价
 
@@ -85,7 +85,7 @@ Fake Evaluator    -> 重新读取 Artifact 后独立判分
 - Projection 是 O(n) 事件重放，M1 不提前增加 snapshot 或 cache；
 - SQLite 当前限制为单进程单 writer，符合首期单用户桌面产品；
 - `time.Time` 与 `json.RawMessage` 由手写 TypeScript v1alpha1 类型接收，因为 Wails v2 的生成器会把它们降级成 `any` 或 `number[]`；进入稳定公开协议前应增加自动 schema 生成或显式 Desktop DTO；
-- 真实 Pi Adapter、Action Gateway、PolicyDecision 和 Compose/OCI Provider 从 M2 的第一个 CTF 纵切开始实现。
+- M2-A 已实现真实 Pi Adapter 与 CTF 内部的最小 Capability Gate；通用 Action Gateway、显式 PolicyDecision 和 Compose/OCI Provider 仍待后续经用户确认的 M2 模块。
 
 ## 被否决的方案
 

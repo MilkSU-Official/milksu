@@ -4,7 +4,7 @@
 >
 > 日期：2026-07-19
 
-> 实现结果：契约、SQLite Event Store、Artifact Store、Projection、桌面事件流、取消与恢复已完成并通过自动测试和 Wails 实跑。M2 前不再扩张此契约；先由用户验收当前 Walking Skeleton。
+> 实现结果：契约、SQLite Event Store、Artifact Store、Projection、桌面事件流、取消与恢复已完成并通过自动测试和 Wails 实跑。M2-A 只加入通用 `RoleFact` 与 Job-owned Artifact Admission，让 CTF 拥有自己的版本化 Projection；没有把 CTF 特有字段塞回 Shared Runtime。
 
 本文冻结 M1 Walking Skeleton 的最小边界。它不是 CTF 或 Vuln Role，也不是另一套模型 Planner；它只证明 MilkSU 能把一次任务变成可保存、可验证、可恢复的事实链。
 
@@ -46,6 +46,8 @@ Outcome ──来源──> Evaluation 或控制面终止原因
 - `Evaluation`：带版本的独立判分记录。
 - `Outcome`：只有通过 Evaluation 才能是 `succeeded`；取消、运行错误可以产生非成功 Outcome。
 
+M2-A 增加两个不绑定 CTF 的扩展点：`artifact.admitted` 表示用户或可信 Adapter 接入的 Job-owned 原始材料；`RoleFact` 是 `packageId / schemaVersion / kind / artifactIds / data` 的不可变信封。Shared Runtime 只验证身份和引用，CTF 自己解释 `ctf.milksu.dev/v1alpha1`；以后 Vuln 必须定义自己的 schema，不能复用 CTF 字段。
+
 ## 追加式事实链
 
 M1 的正常事件顺序是：
@@ -69,6 +71,8 @@ environment.released
 job.completed
 ```
 
+CTF M2-A 会在 `job.created` 后、`attempt.started` 前先提交 `artifact.admitted` 与 `role.fact.committed`，把题目材料和角色状态固定下来；后续实验仍使用同一条 Shared Runtime 事实链。
+
 事件使用 `runtime.milksu.dev/v1alpha1` 契约、每个 Job 内严格递增的 `sequence` 和 UTC 时间。SQLite 表禁止 `UPDATE` 与 `DELETE`；Projection 每次只从事件重建，不另设可以绕过事件修改的 Job 状态表。
 
 M1 的 Artifact Store 使用 `Job ID + SHA-256` 内容寻址和原子创建。若进程在文件写入后、`effect.committed` 事件前崩溃，恢复后的新 Attempt 会发现同一文件并写入 `effect.reused`，不会再次制造副作用。
@@ -80,13 +84,13 @@ M1 的 Artifact Store 使用 `Job ID + SHA-256` 内容寻址和原子创建。�
 - 进程被强制终止：下次启动从事件发现非终态 Job，补记旧 Attempt 中断和 `job.recovery.started`，再创建新 Attempt。
 - 已完成 Job 永不自动重跑；已提交 Artifact/Evidence 不因换 Attempt 丢失。
 
-M1 不承诺恢复 Pi 的 token 级生成位置。它恢复的是 MilkSU 已提交的安全任务事实；M2 才把这些事实重新投影给真实 Engine。
+M1 不承诺恢复 Pi 的 token 级生成位置。它恢复的是 MilkSU 已提交的安全任务事实；M2-A 已把这些事实重新投影给真实 Pi Engine，但恢复粒度仍是新 Attempt，而不是 token 级续写。
 
 ## 四个可替换边界
 
 M1 只定义 MilkSU 必须看到的窄接口：
 
-1. `AgentEngine.Propose`：根据只读 Job Projection 提出下一 Action；Pi Adapter 以后在此边界归一化结果，但 Pi 仍拥有自己的通用 Loop。
+1. `AgentEngine.Propose`：根据只读 Job Projection 提出下一 Action；M2-A 的 Pi Adapter 已在此边界归一化结果，但 Pi 仍拥有自己的通用 Loop。
 2. `Capability.Execute`：执行一个已允许的类型化 Action，返回 Observation 和待保存 Artifact。
 3. `Environment.Prepare/Release`：管理一个 Attempt 的环境租约；具体 Compose/OCI 状态机由后续 Provider 实现。
 4. `Evaluator.Evaluate`：只读取已经提交的 Evidence 与 Artifact，产生可版本化 Verdict。

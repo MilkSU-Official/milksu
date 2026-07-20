@@ -1,5 +1,6 @@
 import type { AppSettings } from './types'
 import type { JobProjection, JobSummary } from './runtimeTypes'
+import type { CTFChallengeRequest, CTFProjection, CTFSummary } from './ctfTypes'
 
 type CommandArgs = Record<string, unknown>
 type UnlistenFn = () => void
@@ -17,6 +18,11 @@ interface WailsAppBindings {
   ListJobs(): Promise<JobSummary[]>
   GetJob(id: string): Promise<JobProjection>
   CancelJob(id: string): Promise<void>
+  StartSampleCTF(): Promise<CTFProjection>
+  StartCTFChallenge(request: CTFChallengeRequest): Promise<CTFProjection>
+  ListCTFJobs(): Promise<CTFSummary[]>
+  GetCTFJob(id: string): Promise<CTFProjection>
+  CancelCTFJob(id: string): Promise<void>
 }
 
 declare global {
@@ -84,6 +90,16 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.GetJob(args?.id as string) as Promise<T>
       case 'cancel_job':
         return app.CancelJob(args?.id as string) as Promise<T>
+      case 'start_sample_ctf':
+        return app.StartSampleCTF() as Promise<T>
+      case 'start_ctf_challenge':
+        return app.StartCTFChallenge(args?.request as CTFChallengeRequest) as Promise<T>
+      case 'list_ctf_jobs':
+        return app.ListCTFJobs() as Promise<T>
+      case 'get_ctf_job':
+        return app.GetCTFJob(args?.id as string) as Promise<T>
+      case 'cancel_ctf_job':
+        return app.CancelCTFJob(args?.id as string) as Promise<T>
       default:
         throw new Error(`Unsupported desktop command: ${command}`)
     }
@@ -117,10 +133,15 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
     case 'send_message':
       throw new Error('Agent bridge requires the Wails desktop runtime.')
     case 'list_jobs':
+    case 'list_ctf_jobs':
       return [] as T
     case 'start_walking_skeleton':
     case 'get_job':
     case 'cancel_job':
+    case 'start_sample_ctf':
+    case 'start_ctf_challenge':
+    case 'get_ctf_job':
+    case 'cancel_ctf_job':
       throw new Error('Task Runtime requires the Wails desktop runtime.')
     default:
       throw new Error(`Unsupported browser-preview command: ${command}`)

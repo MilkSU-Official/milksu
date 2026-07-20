@@ -29,6 +29,7 @@ func (FakeAgentEngine) Propose(_ context.Context, input EngineInput) (ActionProp
 		Capability: "fixture-inspector",
 		Name:       "fixture.inspect",
 		Input:      payload,
+		Rationale:  "用确定性 Capability 读取固定材料，再把原始结果交给独立 Evaluator。",
 		ExpectedEffect: EffectSpec{
 			Class:          "local_file.create",
 			IdempotencyKey: "walking-skeleton-result:" + input.Projection.Job.ID,

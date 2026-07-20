@@ -11,6 +11,8 @@ import (
 
 const ContractVersion = "runtime.milksu.dev/v1alpha1"
 
+const WalkingSkeletonRole = "system.walking-skeleton"
+
 var validIdentifier = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:-]{0,191}$`)
 
 type JobStatus string
@@ -115,6 +117,7 @@ type Action struct {
 	Capability     string          `json:"capability"`
 	Name           string          `json:"name"`
 	Input          json.RawMessage `json:"input"`
+	Rationale      string          `json:"rationale,omitempty"`
 	ExpectedEffect EffectSpec      `json:"expectedEffect"`
 	Status         ActionStatus    `json:"status"`
 }
@@ -130,11 +133,27 @@ type Observation struct {
 type Artifact struct {
 	ID             string `json:"id"`
 	JobID          string `json:"jobId"`
-	SourceActionID string `json:"sourceActionId"`
+	SourceActionID string `json:"sourceActionId,omitempty"`
+	Source         string `json:"source"`
 	SHA256         string `json:"sha256"`
 	MediaType      string `json:"mediaType"`
 	Size           int64  `json:"size"`
 	RelativePath   string `json:"relativePath"`
+}
+
+// RoleFact is the generic L4 envelope for immutable L2 state. The shared
+// Runtime validates identity and references; each Role Package owns Data and
+// its state transitions.
+type RoleFact struct {
+	ID            string          `json:"id"`
+	PackageID     string          `json:"packageId"`
+	SchemaVersion string          `json:"schemaVersion"`
+	Kind          string          `json:"kind"`
+	AttemptID     string          `json:"attemptId,omitempty"`
+	StepID        string          `json:"stepId,omitempty"`
+	ArtifactIDs   []string        `json:"artifactIds,omitempty"`
+	EvidenceIDs   []string        `json:"evidenceIds,omitempty"`
+	Data          json.RawMessage `json:"data"`
 }
 
 type Effect struct {
@@ -189,6 +208,7 @@ type JobProjection struct {
 	Effects         []Effect      `json:"effects"`
 	Evidence        []Evidence    `json:"evidence"`
 	Evaluations     []Evaluation  `json:"evaluations"`
+	RoleFacts       []RoleFact    `json:"roleFacts"`
 	Outcome         *Outcome      `json:"outcome,omitempty"`
 	Events          []Event       `json:"events"`
 }
@@ -254,12 +274,15 @@ type EngineInput struct {
 	Projection JobProjection
 	Attempt    Attempt
 	Step       Step
+	RolePrompt string
+	RoleState  json.RawMessage
 }
 
 type ActionProposal struct {
 	Capability     string
 	Name           string
 	Input          json.RawMessage
+	Rationale      string
 	ExpectedEffect EffectSpec
 }
 
@@ -269,6 +292,12 @@ type AgentEngine interface {
 	Name() string
 	Model() string
 	Propose(context.Context, EngineInput) (ActionProposal, error)
+}
+
+// AgentAttemptLifecycle is optional. Adapters with persistent sessions use it
+// to release one Attempt without coupling the Runtime to an engine SDK.
+type AgentAttemptLifecycle interface {
+	CloseAttempt(context.Context, string) error
 }
 
 type ArtifactDraft struct {

@@ -16,7 +16,8 @@ func Project(events []Event) (JobProjection, error) {
 		Effects:         []Effect{},
 		Evidence:        []Evidence{},
 		Evaluations:     []Evaluation{},
-		Events:          append([]Event(nil), events...),
+		RoleFacts:       []RoleFact{},
+		Events:          append([]Event{}, events...),
 	}
 
 	var previousSequence int64
@@ -214,6 +215,23 @@ func applyEvent(projection *JobProjection, event Event) error {
 		if payload.Artifact.JobID != event.JobID || !hasAction(*projection, payload.Artifact.SourceActionID) {
 			return fmt.Errorf("artifact provenance is not a committed action in this job")
 		}
+		if payload.Artifact.Source == "" {
+			// Backward compatibility for M1 events written before Source became
+			// explicit. SourceActionID remains the authoritative provenance.
+			payload.Artifact.Source = "action:" + payload.Artifact.SourceActionID
+		}
+		if payload.Artifact.ID == "" || hasArtifact(*projection, payload.Artifact.ID) {
+			return fmt.Errorf("artifact must have a unique identity")
+		}
+		projection.Artifacts = append(projection.Artifacts, payload.Artifact)
+	case EventArtifactAdmitted:
+		var payload artifactPayload
+		if err := decodePayload(event, &payload); err != nil {
+			return err
+		}
+		if payload.Artifact.JobID != event.JobID || payload.Artifact.SourceActionID != "" || payload.Artifact.Source == "" {
+			return fmt.Errorf("admitted artifact requires job-owned intake provenance")
+		}
 		if payload.Artifact.ID == "" || hasArtifact(*projection, payload.Artifact.ID) {
 			return fmt.Errorf("artifact must have a unique identity")
 		}
@@ -306,6 +324,41 @@ func applyEvent(projection *JobProjection, event Event) error {
 			return fmt.Errorf("outcome references unknown evaluation")
 		}
 		projection.Outcome = &payload.Outcome
+	case EventRoleFactCommitted:
+		var payload roleFactPayload
+		if err := decodePayload(event, &payload); err != nil {
+			return err
+		}
+		fact := payload.Fact
+		if err := validateIdentifier("role fact id", fact.ID); err != nil {
+			return err
+		}
+		if fact.PackageID == "" || fact.PackageID != projection.Job.Role || fact.SchemaVersion == "" || fact.Kind == "" {
+			return fmt.Errorf("role fact does not match the job package")
+		}
+		if fact.AttemptID != event.AttemptID || fact.StepID != event.StepID {
+			return fmt.Errorf("role fact payload does not match event scope")
+		}
+		if len(fact.Data) == 0 || !json.Valid(fact.Data) || hasRoleFact(*projection, fact.ID) {
+			return fmt.Errorf("role fact requires unique identity and valid data")
+		}
+		if fact.AttemptID != "" && !hasAttempt(*projection, fact.AttemptID) {
+			return fmt.Errorf("role fact references unknown attempt")
+		}
+		if fact.StepID != "" && !hasStep(*projection, fact.StepID) {
+			return fmt.Errorf("role fact references unknown step")
+		}
+		for _, id := range fact.ArtifactIDs {
+			if !hasArtifact(*projection, id) {
+				return fmt.Errorf("role fact references unknown artifact")
+			}
+		}
+		for _, id := range fact.EvidenceIDs {
+			if !hasEvidence(*projection, id) {
+				return fmt.Errorf("role fact references unknown evidence")
+			}
+		}
+		projection.RoleFacts = append(projection.RoleFacts, fact)
 	case EventEnvironmentPrepared, EventEnvironmentReleased:
 		// Environment facts remain visible in Events in v1alpha1. A dedicated
 		// Environment projection is added when the real provider lands.
@@ -457,6 +510,15 @@ func hasEffect(projection JobProjection, id string) bool {
 
 func hasEvaluation(projection JobProjection, id string) bool {
 	for _, value := range projection.Evaluations {
+		if value.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+func hasRoleFact(projection JobProjection, id string) bool {
+	for _, value := range projection.RoleFacts {
 		if value.ID == id {
 			return true
 		}

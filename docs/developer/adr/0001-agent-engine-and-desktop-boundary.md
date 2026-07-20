@@ -62,9 +62,9 @@ Go Desktop Host
 
 ## 当前保留的技术债
 
-- 旧配置兼容层仍把 Provider Key 保存在权限为 `0600` 的 JSON 文件中。进入 M2 前应迁移到 macOS Keychain，JSON 只保留非秘密配置和 Key 引用。
+- 旧配置兼容层仍可能把 Provider Key 保存在权限为 `0600` 的 JSON 文件中。M2-A 真实模型验收使用进程环境，没有扩大凭据权限；迁移 macOS Keychain 已成为开放 Browser/Shell/Lab 前的硬门，JSON 届时只保留非秘密配置和 Key 引用。
 - 开发态依赖系统 Node；产品打包前必须选择固定、签名的 Node/Sidecar 分发方式，不能假设用户已经安装 Node。
-- `bridge.js` 仍只服务兼容聊天。M1 已在 Go 中冻结窄的 `AgentEngine v1alpha1` 接口，并用 Fake Engine 验证任务契约；M2 应新增独立 Pi Adapter，把 Projection 转为 Engine 输入并加入取消、错误类别和契约测试，不把兼容聊天桥硬改成 Security Runtime。
+- `bridge.js` 仍只服务兼容聊天。M2-A 已按本 ADR 新增独立 `security-bridge.js` 与 Go `SecuritySupervisor`，把 Projection 转为 Engine 输入并加入 Attempt 取消和设置重启；当前协议只暴露三种 CTF 提议工具。开发构建仍从仓库定位 Sidecar，独立 App bundle 分发尚未完成。
 - Pi 固定在本轮实跑的 `0.80.2`；不能因为上游有新版本就运行时自动升级。升级必须重新跑微型 CTF、事件契约和依赖审查。
 - 根目录 VitePress 开发依赖仍有只影响本地文档 Dev Server 的旧 esbuild advisory；它不在桌面产品运行链，但文档工具升级时应消除。
 
@@ -94,3 +94,5 @@ npm --prefix app run build
 ```
 
 Spike 源码和题目位于 `spikes/engine-comparison/`。真实 Provider 凭据由环境或本地登录提供，不写入仓库。
+
+M2-A 的落地结果与新增分发安全门见 [ADR-0003](/developer/adr/0003-ctf-vertical-slice)。

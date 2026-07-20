@@ -195,7 +195,7 @@ Browser Use 与 Computer Use 也只是这里的执行能力，不是新的 Role 
 
 L4 驱动安全任务状态和事实提交，但不应该重新发明模型的通用规划能力。通用会话、模型调用、上下文压缩和 Tool Loop 由 L5 的成熟 Agent Engine 提供。
 
-M1 首先按 [Runtime v1alpha1](/developer/runtime-v1alpha1) 实现确定性的 Walking Skeleton。它用 Fake Engine/Capability/Environment/Evaluator 验证事实链和恢复语义，不提前把 Fake 对象写成 CTF 或 Vuln 领域模型。
+M1 按 [Runtime v1alpha1](/developer/runtime-v1alpha1) 实现确定性的 Walking Skeleton，用 Fake Engine/Capability/Environment/Evaluator 验证事实链和恢复语义。M2-A 已在同一 Runtime 上增加通用 `RoleFact` 与 CTF Projection，并用独立 Pi Security Adapter、真实模型、类型化 Capability 和 Flag Judge 跑通离线单题；实现边界见 [ADR-0003](/developer/adr/0003-ctf-vertical-slice)。
 
 Environment Manager 也不能退化成让模型自由执行 `docker compose`。靶场由 `LabSourceAdapter + LabPackage + EnvironmentProvider` 确定性管理，Agent 只能通过类型化工具请求生命周期动作；Readiness 与 Judge 分开。详细契约见[靶场与环境管理](/developer/lab-management)。
 
@@ -287,13 +287,13 @@ L5 首先区分“内嵌基座”和“外部完整运行时”。两者都可�
 
 ## 当前代码边界
 
-架构重启已经删除固定 `taskType`、`TaskState`、`panel_update`、通用子代理、仓库内 Skill 路由和红队专用 Engagement 数据模型。M0 保留 UI 外壳、会话存储、进程生命周期、流式工具事件、设置界面和临时 Pi 对话桥；M1 已增加 Go 实现的追加事件、Artifact、Projection、独立 Evaluator 与恢复骨架。
+架构重启已经删除固定 `taskType`、`TaskState`、`panel_update`、通用子代理、仓库内 Skill 路由和红队专用 Engagement 数据模型。M0 保留 UI 外壳、会话存储、进程生命周期、流式工具事件、设置界面和临时 Pi 对话桥；M1 增加 Go 实现的追加事件、Artifact、Projection、独立 Evaluator 与恢复骨架；M2-A 增加 CTF Role Projection、独立 Pi Security Adapter、三种类型化动作、本地 Judge 与独立 CTF 面板。
 
-这些宿主能力不能充当 Runtime 的领域模型。M1 也只证明共享事实链，不冒充 CTF/Vuln Role 已经落地。后续顺序固定为：
+这些宿主能力不能充当 Runtime 的领域模型。M2-A 也只证明离线单题纵切，不冒充完整 CTF/Vuln Role 已经落地。后续顺序是：
 
-1. 由用户验收 M1 的 Job、Attempt、Step、Evidence、Effect、Evaluation 和 Recovery 骨架；
-2. 新增独立 Pi AgentEngine Adapter，跑通 CTF 的 Environment、Experiment、Artifact 与 Judge 纵切；
-3. 冻结 Vuln 的 Attack Surface、Hypothesis、Crash、Reproduction、Root Cause 与 Disclosure 状态；
-4. 为 CTF 与 Vuln 分别增加只读投影事实的角色面板。
+1. 用户验收 M2-A 的真实模型、Experiment、Artifact、Evidence 与 Judge 桌面纵切；
+2. 由用户确认先做 Managed Local Lab，还是先做 Managed Browser；
+3. 补齐完整 CTF Intake、Coach/Copilot 与长期学习 Workspace；
+4. 冻结 Vuln 的 Attack Surface、Hypothesis、Crash、Reproduction、Root Cause 与 Disclosure 状态，并增加独立角色面板。
 
-Pi 的临时聊天桥不是 L5 接口标准；M0 实跑后 Pi SDK 已选为首要 Embedded Agent Engine，Codex app-server 保留为对照与可能的 External Agent Runtime。M2 的 Adapter 仍应优先依赖或扩展，不轻易 fork。决策见 [ADR-0001](/developer/adr/0001-agent-engine-and-desktop-boundary)，M1 事实边界见 [ADR-0002](/developer/adr/0002-runtime-facts-and-recovery)。
+Pi 的临时聊天桥不是 L5 接口标准；M0 实跑后 Pi SDK 已选为首要 Embedded Agent Engine，Codex app-server 保留为对照与可能的 External Agent Runtime。M2-A 已通过独立 Security Adapter 依赖 Pi SDK，没有 fork 上游；新增 Role 仍应优先扩展窄 Adapter。决策见 [ADR-0001](/developer/adr/0001-agent-engine-and-desktop-boundary)、[ADR-0002](/developer/adr/0002-runtime-facts-and-recovery) 与 [ADR-0003](/developer/adr/0003-ctf-vertical-slice)。

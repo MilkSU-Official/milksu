@@ -52,7 +52,7 @@ MVP 不做 Web 产品、GraphQL、PostgreSQL、微服务、多用户、Red/Blue/
 
 ### M1 · Walking Skeleton：可恢复的任务骨架
 
-> 实现状态：已完成（2026-07-19）。用户现在可以在桌面创建、观察和取消确定性的 Fake Job；追加事件、Artifact 哈希、独立 Evaluator、正常关闭与强制中断恢复均已验证。实现边界见 [Runtime v1alpha1](/developer/runtime-v1alpha1)，存储与恢复决策见 [ADR-0002](/developer/adr/0002-runtime-facts-and-recovery)。按约定，进入 M2 前由用户亲自验收并确认第一个真实 CTF 纵切。
+> 实现状态：已完成（2026-07-19）。用户可以在桌面创建、观察和取消确定性的 Fake Job；追加事件、Artifact 哈希、独立 Evaluator、正常关闭与强制中断恢复均已验证。实现边界见 [Runtime v1alpha1](/developer/runtime-v1alpha1)，存储与恢复决策见 [ADR-0002](/developer/adr/0002-runtime-facts-and-recovery)。用户随后已确认并启动第一条真实 CTF 纵切。
 
 目标：在选定的 Agent Engine 上，用确定性 Fake Model/Fake Tool 验证最小安全事实链。
 
@@ -69,6 +69,8 @@ MVP 不做 Web 产品、GraphQL、PostgreSQL、微服务、多用户、Red/Blue/
 
 ### M2 · CTF 可玩 MVP
 
+> 实现状态：M2-A 离线单题纵切已完成工程验证（2026-07-20），详见 [ADR-0003](/developer/adr/0003-ctf-vertical-slice)。M2 整体未完成，尚不能按本节“完成标志”验收。下一个大模块开始前必须由用户确认。
+
 目标：尽快看到第一个由 MilkSU Security Harness 完成并能带练的真实安全任务。
 
 CTF 不是“解完一题就结束”的 Solver 页面，而是长期陪伴 CTFer 成长的训练与比赛空间。暂定的信息层级是 `CTF Workspace → Competition/Training Task → Challenge → Attempt/Experiment`：用户可以新建一场比赛、一组训练任务，或直接开始一道题。具体导航和布局等实际使用后再定，但单题 MVP 的数据不能阻断以后向比赛和长期学习扩展。
@@ -84,6 +86,18 @@ Juice Shop 只承担可重复的本地回归测试。M2 的真人验收可能直
 3. **User Browser Bridge**：用户把已经打开并登录的某个标签页显式分享给 MilkSU。只授权选中的标签页，不读取整个浏览器 Profile。它解决临时比赛、复杂登录和用户已经进行到一半的场景。
 4. **Remote / Manual Intake**：即使浏览器不可用，用户仍可提供 URL、Pwn Socket、SSH、连接说明或手工确认结果；它不是次等保底，而是很多题型的正常入口。
 5. **Platform Adapter**：只有网站恰好提供稳定公开 API 且规则允许时才增加，用于改善体验；它不是任意网站兼容性的基础，也不是 M2 必须依赖的前提。
+
+为避免把一个内置题的成功误当成完整 CTF 产品，M2 拆成以下可单独确认的交付块：
+
+| 交付块 | 状态 | 用户能得到什么 | 明确不包含 |
+| --- | --- | --- | --- |
+| M2-A · Offline Challenge Slice | 已完成工程验证 | 粘贴题面、上传小文件、真实 Pi/Model、三种类型化动作、独立本地 Judge、实验与证据面板 | Browser、Shell、Lab、在线提交、Coach/Copilot |
+| M2-B · Managed Local Lab | 待确认 | 固定本地靶场由程序启动/重置/清理，受控 File/Shell/Socket Capability | 任意网站与用户浏览器 |
+| M2-C · Managed Browser | 待确认 | 独立 Profile 登录小众 CTF，读取题面、下载附件和在审批后提交 | 读取用户整个浏览器 Profile |
+| M2-D · User Browser Bridge | 待确认 | 用户显式分享当前已登录标签页，可撤销授权 | 静默接管其他标签页 |
+| M2-E · Teaching and Workspace | 待确认 | Coach/Copilot、比赛/训练组织、长期学习记录与复盘 | Vuln 领域状态 |
+
+M2-B 与 M2-C 谁先做不是架构定律，要根据用户当前最想验收的场景选择。两条路径都必须复用 M2-A 的 Challenge、Experiment、Evidence 与 Judge，而不能另造一套任务真相。
 
 - 通过选定 Engine 接入第一个真实 Model Provider；
 - 在通用 Tool Loop 上实现 MilkSU Security Loop：观察 → 假设 → 实验 → 证据 → Judge → 调整；
@@ -184,4 +198,4 @@ Vuln 面板的产品方向不是“一次性扫描向导”，而是赏金猎人
 5. 一起阅读失败轨迹，决定保留、修改或删除；
 6. 完成一个小提交，再进入下一纵切。
 
-短期目标不是把七个里程碑一次设计完，而是尽快到达 **M2：您可以亲自和 CTF Agent 做完第一题**。M3 紧随其后，用 Vuln 任务检验我们是否真的做出了 Security Harness，而不是 CTF 专用脚本。
+短期目标不是把七个里程碑一次设计完。M2-A 已经证明真实模型能在受控离线纵切中完成一题；接下来要让用户亲自在本地靶场或任意网站完成一题，并据此决定后续模块。M3 紧随完整 M2，用 Vuln 任务检验我们是否真的做出了 Security Harness，而不是 CTF 专用脚本。

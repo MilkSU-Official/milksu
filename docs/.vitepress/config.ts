@@ -35,6 +35,7 @@ export default defineConfig({
             { text: 'Runtime v1alpha1 · M1 契约', link: '/developer/runtime-v1alpha1' },
             { text: 'ADR-0001 · Engine 与桌面边界', link: '/developer/adr/0001-agent-engine-and-desktop-boundary' },
             { text: 'ADR-0002 · Runtime 事实与恢复', link: '/developer/adr/0002-runtime-facts-and-recovery' },
+            { text: 'ADR-0003 · CTF 纵切与 Pi Adapter', link: '/developer/adr/0003-ctf-vertical-slice' },
             { text: '题目接入与自动操作', link: '/developer/challenge-intake-and-automation' },
             { text: '靶场与环境管理', link: '/developer/lab-management' },
             { text: 'Role Packages', link: '/developer/role-packages' },

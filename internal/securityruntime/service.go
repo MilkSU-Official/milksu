@@ -109,7 +109,7 @@ func (s *Service) StartWalkingSkeleton(ctx context.Context, title string) (JobPr
 	job := Job{
 		ID:                newID("job"),
 		Title:             title,
-		Role:              "system.walking-skeleton",
+		Role:              WalkingSkeletonRole,
 		CollaborationMode: "delegate",
 		Status:            JobQueued,
 		CreatedAt:         now,
@@ -166,7 +166,7 @@ func (s *Service) Recover(ctx context.Context) error {
 		return err
 	}
 	for _, projection := range projections {
-		if projection.Terminal() {
+		if projection.Job.Role != WalkingSkeletonRole || projection.Terminal() {
 			continue
 		}
 		if projection.Outcome != nil {
@@ -391,6 +391,7 @@ func (s *Service) runJob(ctx context.Context, jobID string) (state runState, res
 		Capability:     proposal.Capability,
 		Name:           proposal.Name,
 		Input:          proposal.Input,
+		Rationale:      proposal.Rationale,
 		ExpectedEffect: proposal.ExpectedEffect,
 		Status:         ActionProposed,
 	}
@@ -453,7 +454,7 @@ func (s *Service) runJob(ctx context.Context, jobID string) (state runState, res
 			return state, projectionErr
 		}
 		for _, existing := range current.Artifacts {
-			if existing.ID == artifact.ID {
+			if existing.SHA256 == artifact.SHA256 && existing.MediaType == artifact.MediaType {
 				artifact = existing
 				artifactAlreadyCommitted = true
 				break
