@@ -1,6 +1,13 @@
 import type { AppSettings } from './types'
 import type { JobProjection, JobSummary } from './runtimeTypes'
 import type { CTFChallengeRequest, CTFLearningRecordRequest, CTFProjection, CTFSummary } from './ctfTypes'
+import type {
+  VulnLearningRecordRequest,
+  VulnProjection,
+  VulnReproductionRequest,
+  VulnSummary,
+} from './vulnTypes'
+import { createDemoVulnProjection, summarizeDemoVuln } from './vulnDemo'
 
 type CommandArgs = Record<string, unknown>
 type UnlistenFn = () => void
@@ -26,6 +33,12 @@ interface WailsAppBindings {
   RecordCTFLearning(id: string, request: CTFLearningRecordRequest): Promise<CTFProjection>
   ContinueCTFJob(id: string): Promise<CTFProjection>
   ReviewCTFSubmission(id: string, accepted: boolean, summary: string): Promise<CTFProjection>
+  StartPacketParserResearch(): Promise<VulnProjection>
+  ListVulnJobs(): Promise<VulnSummary[]>
+  GetVulnJob(id: string): Promise<VulnProjection>
+  SubmitVulnReproduction(id: string, request: VulnReproductionRequest): Promise<VulnProjection>
+  RecordVulnLearning(id: string, request: VulnLearningRecordRequest): Promise<VulnProjection>
+  CancelVulnJob(id: string): Promise<void>
 }
 
 declare global {
@@ -39,6 +52,7 @@ declare global {
 
 const SETTINGS_KEY = 'milksu.dev.settings'
 const CONVERSATIONS_KEY = 'milksu.dev.conversations'
+const VULN_PROJECTIONS_KEY = 'milksu.dev.vuln-projections'
 
 const DEFAULT_SETTINGS: AppSettings = {
   active_provider: 'deepseek',
@@ -130,6 +144,18 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.ContinueCTFJob(args?.id as string) as Promise<T>
       case 'review_ctf_submission':
         return app.ReviewCTFSubmission(args?.id as string, args?.accepted as boolean, args?.summary as string) as Promise<T>
+      case 'start_packet_parser_research':
+        return app.StartPacketParserResearch() as Promise<T>
+      case 'list_vuln_jobs':
+        return app.ListVulnJobs() as Promise<T>
+      case 'get_vuln_job':
+        return app.GetVulnJob(args?.id as string) as Promise<T>
+      case 'submit_vuln_reproduction':
+        return app.SubmitVulnReproduction(args?.id as string, args?.request as VulnReproductionRequest) as Promise<T>
+      case 'record_vuln_learning':
+        return app.RecordVulnLearning(args?.id as string, args?.request as VulnLearningRecordRequest) as Promise<T>
+      case 'cancel_vuln_job':
+        return app.CancelVulnJob(args?.id as string) as Promise<T>
       default:
         throw new Error(`Unsupported desktop command: ${command}`)
     }
@@ -165,6 +191,71 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
     case 'list_jobs':
     case 'list_ctf_jobs':
       return [] as T
+    case 'list_vuln_jobs': {
+      const projections = readJson<Record<string, VulnProjection>>(VULN_PROJECTIONS_KEY, {})
+      return Object.values(projections)
+        .map(summarizeDemoVuln)
+        .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)) as T
+    }
+    case 'start_packet_parser_research': {
+      const projection = createDemoVulnProjection(false)
+      const projections = readJson<Record<string, VulnProjection>>(VULN_PROJECTIONS_KEY, {})
+      writeJson(VULN_PROJECTIONS_KEY, { ...projections, [projection.job.id]: projection })
+      return projection as T
+    }
+    case 'get_vuln_job': {
+      const id = args?.id as string
+      const projections = readJson<Record<string, VulnProjection>>(VULN_PROJECTIONS_KEY, {})
+      const projection = projections[id]
+      if (!projection) throw new Error('Vulnerability research workspace not found.')
+      return projection as T
+    }
+    case 'submit_vuln_reproduction': {
+      const id = args?.id as string
+      const projections = readJson<Record<string, VulnProjection>>(VULN_PROJECTIONS_KEY, {})
+      if (!projections[id]) throw new Error('Vulnerability research workspace not found.')
+      const projection = createDemoVulnProjection(true, id)
+      writeJson(VULN_PROJECTIONS_KEY, { ...projections, [id]: projection })
+      return projection as T
+    }
+    case 'record_vuln_learning': {
+      const id = args?.id as string
+      const request = args?.request as VulnLearningRecordRequest
+      const projections = readJson<Record<string, VulnProjection>>(VULN_PROJECTIONS_KEY, {})
+      const projection = projections[id]
+      if (!projection) throw new Error('Vulnerability research workspace not found.')
+      const updated: VulnProjection = {
+        ...projection,
+        learning: [...projection.learning, {
+          id: crypto.randomUUID(),
+          kind: request.kind,
+          content: request.content,
+          concept: request.concept,
+          createdAt: new Date().toISOString(),
+        }],
+        humanOutcome: {
+          ...projection.humanOutcome,
+          reflectionCount: projection.humanOutcome.reflectionCount + (request.kind === 'reflection' ? 1 : 0),
+          independentSteps: projection.humanOutcome.independentSteps + (request.kind === 'independent_step' ? 1 : 0),
+          variantCount: projection.humanOutcome.variantCount + (request.kind === 'variant' ? 1 : 0),
+        },
+      }
+      writeJson(VULN_PROJECTIONS_KEY, { ...projections, [id]: updated })
+      return updated as T
+    }
+    case 'cancel_vuln_job': {
+      const id = args?.id as string
+      const projections = readJson<Record<string, VulnProjection>>(VULN_PROJECTIONS_KEY, {})
+      const projection = projections[id]
+      if (!projection) return undefined as T
+      const updated: VulnProjection = {
+        ...projection,
+        job: { ...projection.job, status: 'cancelled', updatedAt: new Date().toISOString() },
+        outcome: { status: 'cancelled', summary: '漏洞研究任务已由用户取消。' },
+      }
+      writeJson(VULN_PROJECTIONS_KEY, { ...projections, [id]: updated })
+      return undefined as T
+    }
     case 'start_walking_skeleton':
     case 'get_job':
     case 'cancel_job':

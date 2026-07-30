@@ -146,4 +146,16 @@ body {
   .ctf-input {
     @apply w-full rounded-xl border border-[#d8d6cf] bg-white px-3 py-2.5 text-xs text-[#333531] outline-none transition-colors placeholder:text-[#b0b1ab] focus:border-[#9eaf64] focus:ring-2 focus:ring-[#dce8b4]/60;
   }
+
+  .vuln-input {
+    @apply w-full rounded-xl border border-[#d8dad3] bg-white px-3 py-2.5 text-[12px] text-[#343733] outline-none transition-colors placeholder:text-[#a6a9a0] focus:border-[#899c5b] focus:ring-2 focus:ring-[#dce6bd]/65;
+  }
+
+  .workspace-scrollbar-hidden {
+    scrollbar-width: none;
+  }
+
+  .workspace-scrollbar-hidden::-webkit-scrollbar {
+    display: none;
+  }
 }

@@ -65,6 +65,8 @@ M1 与 M2-A 已完成工程验证。M2 整体仍未完成：当前已验收的�
 
 2026-07-21 已保存一个 [M2 → M3 授权学习能力基础检查点](docs/developer/checkpoints/2026-07-21-m2-m3-foundation.md)：精确授权策略、Managed Lab/Browser 基础包、CTF 教学与外部人工 Judge 契约、以及本地 Vuln fixture 已经可以编译和自动测试。它们尚未完整接入桌面 UI 或真实环境，因此不改变上面的 M2 验收结论。
 
+2026-07-30 已完成 [M3-A Vuln Research 证据纵切](docs/developer/adr/0005-vuln-research-evidence-slice.md)：固定本地 packet-parser 的 Target/Scope、Attack Surface、Hypothesis、静态 Root Cause Evidence、外部三次 ASan 日志一致性 Evaluator、研究工作台与 Human Outcome 已接入同一 Runtime。MilkSU 不接收、生成或执行触发样本字节；因此原计划中自动编译、最小化和干净环境重放仍是未完成的后续能力，不能把 M3-A 写成完整自动复现 Runner。
+
 当前 macOS 构建已经把固定版本、固定哈希的官方 Node LTS 与两份 Pi Bridge bundle 放入 App Resources，Provider/Relay 密钥也已迁移到 macOS Keychain；生成的 `.app` 可以脱离源码树和系统 Node 运行。开发包目前仍是 ad-hoc 签名，尚未完成 Developer ID、公证、SBOM 与外部能力审批，因此不要把 `build/bin/MilkSU.app` 当成正式公开发行包。
 
 ## 开源与使用边界

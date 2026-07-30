@@ -7,6 +7,7 @@ import { OutputPanel } from './components/OutputPanel'
 import { SettingsPage } from './components/SettingsPage'
 import { RuntimePage } from './components/RuntimePage'
 import { CTFPage } from './components/CTFPage'
+import { VulnPage } from './components/VulnPage'
 import { invokeCommand } from './desktop'
 import { useConversations } from './hooks/useConversations'
 import { useAgentEvents } from './hooks/useAgentEvents'
@@ -30,6 +31,7 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false)
   const [showRuntime, setShowRuntime] = useState(false)
   const [showCTF, setShowCTF] = useState(false)
+  const [showVuln, setShowVuln] = useState(false)
   const [settings, setSettings] = useState<AppSettings | null>(null)
 
   useEffect(() => {
@@ -48,6 +50,7 @@ export default function App() {
     setShowSettings(false)
     setShowRuntime(false)
     setShowCTF(false)
+    setShowVuln(false)
   }, [setActiveId])
 
   const handleSend = useCallback(async (text: string) => {
@@ -137,6 +140,7 @@ export default function App() {
           setShowOutput(false)
           setShowRuntime(false)
           setShowCTF(false)
+          setShowVuln(false)
         }}
         onNew={handleNew}
         onDelete={deleteConversation}
@@ -144,17 +148,29 @@ export default function App() {
         onOpenRuntime={() => {
           setShowRuntime(true)
           setShowCTF(false)
+          setShowVuln(false)
           setShowOutput(false)
         }}
         onOpenCTF={() => {
           setShowCTF(true)
+          setShowVuln(false)
           setShowRuntime(false)
           setShowOutput(false)
         }}
-        activeSection={showCTF ? 'ctf' : showRuntime ? 'runtime' : 'chat'}
+        onOpenVuln={() => {
+          setShowVuln(true)
+          setShowCTF(false)
+          setShowRuntime(false)
+          setShowOutput(false)
+        }}
+        activeSection={showVuln ? 'vuln' : showCTF ? 'ctf' : showRuntime ? 'runtime' : 'chat'}
       />
       <div className="flex min-w-0 flex-1">
-        {showCTF ? (
+        {showVuln ? (
+          <WorkspaceErrorBoundary workspace="漏洞研究">
+            <VulnPage onOpenSettings={() => setShowSettings(true)} />
+          </WorkspaceErrorBoundary>
+        ) : showCTF ? (
           <CTFErrorBoundary>
             <CTFPage onOpenSettings={() => setShowSettings(true)} />
           </CTFErrorBoundary>
@@ -195,6 +211,32 @@ class CTFErrorBoundary extends Component<{ children: ReactNode }, { error: Error
       <main className="flex min-w-0 flex-1 items-center justify-center bg-[#f3f1ec] px-8">
         <div className="max-w-lg rounded-2xl border border-red-200 bg-white p-6 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-red-600">CTF workspace error</p>
+          <h1 className="mt-2 text-lg font-semibold text-[#292927]">界面没有吞掉这次错误</h1>
+          <pre className="mt-3 whitespace-pre-wrap break-words rounded-xl bg-red-50 p-3 font-mono text-[11px] leading-5 text-red-800">{this.state.error.message}</pre>
+          <button type="button" onClick={() => this.setState({ error: null })} className="mt-4 rounded-lg border border-[#d8d8d2] px-3 py-2 text-xs font-medium hover:bg-[#f5f5f2]">重新渲染</button>
+        </div>
+      </main>
+    )
+  }
+}
+
+class WorkspaceErrorBoundary extends Component<{ children: ReactNode; workspace: string }, { error: Error | null }> {
+  state = { error: null as Error | null }
+
+  static getDerivedStateFromError(error: Error) {
+    return { error }
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('Workspace render failed', error, info)
+  }
+
+  render() {
+    if (!this.state.error) return this.props.children
+    return (
+      <main className="flex min-w-0 flex-1 items-center justify-center bg-[#f8f8f5] px-8">
+        <div className="max-w-lg rounded-2xl border border-red-200 bg-white p-6 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-red-600">{this.props.workspace} workspace error</p>
           <h1 className="mt-2 text-lg font-semibold text-[#292927]">界面没有吞掉这次错误</h1>
           <pre className="mt-3 whitespace-pre-wrap break-words rounded-xl bg-red-50 p-3 font-mono text-[11px] leading-5 text-red-800">{this.state.error.message}</pre>
           <button type="button" onClick={() => this.setState({ error: null })} className="mt-4 rounded-lg border border-[#d8d8d2] px-3 py-2 text-xs font-medium hover:bg-[#f5f5f2]">重新渲染</button>

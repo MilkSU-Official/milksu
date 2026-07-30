@@ -12,12 +12,13 @@
 6. [ADR-0002：Runtime 事实、存储与恢复边界](/developer/adr/0002-runtime-facts-and-recovery)：M1 为什么选择追加事件、内容寻址 Artifact、新 Attempt 恢复和只读桌面 Adapter。
 7. [ADR-0003：M2-A CTF 纵切与 Pi Security Adapter](/developer/adr/0003-ctf-vertical-slice)：真实模型怎样只能提议三种类型化动作，并由 Go Runtime 与独立 Judge 掌握事实和成功条件。
 8. [ADR-0004：学习产品、能力与开源发布边界](/developer/adr/0004-learning-product-and-release-boundary)：为什么“学习工具”必须落实为默认能力、授权、审批与分级发布，而不是免责文案。
-9. [靶场与环境管理](/developer/lab-management)：怎样自动导入、启动、重置、判题和清理本地 CTF/Vuln 环境。
-10. [Challenge Intake、Browser Use 与 Computer Use](/developer/challenge-intake-and-automation)：怎样接受聊天、文件、截图、目录与任意网站，并安全复用浏览器/桌面项目。
-11. [Role Packages](/developer/role-packages)：说明首批 CTF 与 Vulnerability Research 角色，以及人类学习 Outcome。
-12. [开源项目坐标](/developer/industry-baseline)：决定一个项目应该接入、委派、学习、只做 benchmark，还是拒绝。
+9. [ADR-0005：M3 Vuln Research 证据纵切](/developer/adr/0005-vuln-research-evidence-slice)：第二个 Role 怎样复用 Runtime，并用固定源码、外部三次日志和独立 Evaluator 形成研究工作台。
+10. [靶场与环境管理](/developer/lab-management)：怎样自动导入、启动、重置、判题和清理本地 CTF/Vuln 环境。
+11. [Challenge Intake、Browser Use 与 Computer Use](/developer/challenge-intake-and-automation)：怎样接受聊天、文件、截图、目录与任意网站，并安全复用浏览器/桌面项目。
+12. [Role Packages](/developer/role-packages)：说明首批 CTF 与 Vulnerability Research 角色，以及人类学习 Outcome。
+13. [开源项目坐标](/developer/industry-baseline)：决定一个项目应该接入、委派、学习、只做 benchmark，还是拒绝。
 ## 当前实现边界
 
-M0、M1 与 M2-A 已完成工程验证：Go/Wails/React 桌面宿主、Pi Sidecar、追加式 Event Store、Artifact Store、只读 Projection、独立 Evaluator和中断恢复已经实跑；真实 Pi/DeepSeek 也已在桌面通过 CTF 类型化动作与本地 Judge 解完内置 Hex 题。
+M0、M1、M2-A 与 M3-A 已完成工程验证：Go/Wails/React 桌面宿主、Pi Sidecar、追加式 Event Store、Artifact Store、只读 Projection、独立 Evaluator和中断恢复已经实跑；真实 Pi/DeepSeek 也已在桌面通过 CTF 类型化动作与本地 Judge 解完内置 Hex 题。Vuln Role 已增加固定本地 packet-parser 的 Target、Attack Surface、Hypothesis、静态 Root Cause、外部三次 ASan 日志一致性 Evaluation 和 Human Outcome 工作台。
 
-这仍只是离线单题纵切，不等于 M2 可玩 MVP：Browser、Shell、自动 Lab、在线网站、截图/目录接入、Coach/Copilot 与长期学习尚未实现。下一个大模块必须先和用户确认；完成完整 CTF MVP 后，再用 Vuln MVP 检验公共抽象。两个 Role 从首个 MVP 起就有独立面板，具体 UI/UX 随实跑逐步确定。
+这些仍是窄纵切，不等于完整 M2/M3：Browser、Shell、自动 Lab、在线网站、截图/目录接入、完整 Coach/Copilot 与 CTF 长期学习尚未实现；Vuln 也尚未由 MilkSU 自动生成、最小化或执行触发输入。两个 Role 已有独立面板，后续继续以真实使用和明确安全评审扩展能力。

@@ -128,6 +128,8 @@ M2-B 与 M2-C 谁先做不是架构定律，要根据用户当前最想验收的
 
 ### M3 · Vuln Research 可用 MVP
 
+> 实现状态：M3-A 证据纵切已完成工程验证（2026-07-30）。Vuln Role、固定本地 Target/Scope、静态攻击面与根因 Evidence、三次外部 ASan 日志一致性 Evaluator、独立研究工作台和 Human Outcome 已接入桌面，见 [ADR-0005](/developer/adr/0005-vuln-research-evidence-slice)。MilkSU 未生成或执行漏洞触发输入；因此下面“自动编译、触发、最小化并由自身干净环境重放”的严格完成标志仍保留为后续工作。
+
 目标：用第二类任务检验第一版抽象，避免把 CTF 的特殊性误写成通用 Runtime。
 
 M3 开始前必须完成一次“学习产品发布门”评审：确认密钥不落明文、Sidecar 可固定和审计、Browser/Shell/Network 权限默认最小化、外部目标有显式授权记录，并检查当前界面和能力没有退回通用扫描产品语义。未通过时只允许继续本地 fixture 与文档开发，不发布外部目标能力。

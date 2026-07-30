@@ -11,6 +11,7 @@ import (
 	"github.com/MilkSU-Official/milksu/internal/ctf"
 	"github.com/MilkSU-Official/milksu/internal/engine"
 	"github.com/MilkSU-Official/milksu/internal/securityruntime"
+	"github.com/MilkSU-Official/milksu/internal/vuln"
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -23,6 +24,7 @@ type App struct {
 	securityEngine *engine.SecuritySupervisor
 	jobs           *securityruntime.Service
 	ctfJobs        *ctf.Service
+	vulnJobs       *vuln.Service
 }
 
 func NewApp() (*App, error) {
@@ -58,6 +60,13 @@ func NewApp() (*App, error) {
 		application.securityEngine.Close()
 		return nil, fmt.Errorf("create CTF role service: %w", err)
 	}
+	application.vulnJobs, err = vuln.NewService(application.jobs)
+	if err != nil {
+		_ = application.ctfJobs.Close()
+		_ = application.jobs.Close()
+		application.securityEngine.Close()
+		return nil, fmt.Errorf("create vulnerability research role service: %w", err)
+	}
 	return application, nil
 }
 
@@ -69,9 +78,13 @@ func (a *App) Startup(ctx context.Context) {
 	if err := a.ctfJobs.Recover(ctx); err != nil {
 		wailsruntime.EventsEmit(ctx, "job-runtime-error", err.Error())
 	}
+	if err := a.vulnJobs.Recover(ctx); err != nil {
+		wailsruntime.EventsEmit(ctx, "job-runtime-error", err.Error())
+	}
 }
 
 func (a *App) Shutdown(_ context.Context) {
+	_ = a.vulnJobs.Close()
 	_ = a.ctfJobs.Close()
 	a.securityEngine.Close()
 	_ = a.jobs.Close()
@@ -160,6 +173,30 @@ func (a *App) ContinueCTFJob(id string) (ctf.Projection, error) {
 
 func (a *App) ReviewCTFSubmission(id string, accepted bool, summary string) (ctf.Projection, error) {
 	return a.ctfJobs.ReviewSubmission(a.commandContext(), id, accepted, summary)
+}
+
+func (a *App) StartPacketParserResearch() (vuln.Projection, error) {
+	return a.vulnJobs.StartPacketParserFixture(a.commandContext())
+}
+
+func (a *App) ListVulnJobs() ([]vuln.Summary, error) {
+	return a.vulnJobs.ListJobs(a.commandContext())
+}
+
+func (a *App) GetVulnJob(id string) (vuln.Projection, error) {
+	return a.vulnJobs.GetJob(a.commandContext(), id)
+}
+
+func (a *App) SubmitVulnReproduction(id string, request vuln.ReproductionRequest) (vuln.Projection, error) {
+	return a.vulnJobs.SubmitReproductionEvidence(a.commandContext(), id, request)
+}
+
+func (a *App) RecordVulnLearning(id string, request vuln.LearningRecordRequest) (vuln.Projection, error) {
+	return a.vulnJobs.RecordLearning(a.commandContext(), id, request)
+}
+
+func (a *App) CancelVulnJob(id string) error {
+	return a.vulnJobs.CancelJob(a.commandContext(), id)
 }
 
 func (a *App) emitEngineEvent(event engine.Event) {
