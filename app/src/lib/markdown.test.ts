@@ -45,11 +45,11 @@ safe output
 
   it('opens normal links in an isolated browser context and never embeds images', () => {
     const html = renderMarkdown(`
-[HTB](https://ctf.hackthebox.com/)
+[MilkSU](https://github.com/MilkSU-Official/milksu)
 
 ![remote](https://example.com/tracker.png)
 `)
-    expect(html).toContain('href="https://ctf.hackthebox.com/"')
+    expect(html).toContain('href="https://github.com/MilkSU-Official/milksu"')
     expect(html).toContain('target="_blank"')
     expect(html).toContain('rel="noopener noreferrer"')
     expect(html).toContain('[图片：remote]')

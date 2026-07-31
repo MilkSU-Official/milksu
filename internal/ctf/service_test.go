@@ -596,6 +596,79 @@ func TestDeferredArenaChallengeRecordsPlatformVerdictsAsEvidence(t *testing.T) {
 	}
 }
 
+func TestInconclusiveExternalReceiptAllowsControlledRetryAndManualReview(t *testing.T) {
+	core, err := securityruntime.NewService(t.TempDir(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	blocking := &blockingEngine{called: make(chan struct{})}
+	service, err := NewService(core, ServiceOptions{Engine: blocking})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = service.Close()
+		_ = core.Close()
+	})
+	started, err := service.StartChallenge(context.Background(), ChallengeRequest{
+		Title: "Recover ambiguous Judge", Statement: "Submit through paired browser.", Category: "web",
+		CollaborationMode: "coach", SourceKind: "url", SourceURI: "https://www.nssctf.cn/problem/316",
+		ExternalPlatform: "nssctf-web", ExternalAttemptID: 316, DeferAgent: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	candidate := "NSSCTF{recoverable}"
+	if _, err := service.PrepareExternalSubmission(
+		context.Background(), started.Job.ID, candidate, "候选来自可复核证据。", 0,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.RecordExternalJudgeReceipt(context.Background(), started.Job.ID, ExternalJudgeReceiptRequest{
+		Platform: "nssctf-web", Status: "ambiguous",
+		Summary: "Judge timed out before a verdict.", Reference: "https://www.nssctf.cn/problem/316#timeout",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	inconclusive, err := service.RecordExternalInconclusive(
+		context.Background(), started.Job.ID, "Judge 回执不明确；允许受控重试。",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(inconclusive.Submissions) != 1 ||
+		inconclusive.Submissions[0].Verdict != securityruntime.VerdictInconclusive {
+		t.Fatalf("inconclusive verdict was not folded into the submission: %+v", inconclusive.Submissions)
+	}
+	summary := SummaryFrom(inconclusive)
+	if !summary.PendingSubmission || summary.PendingJudge {
+		t.Fatalf("inconclusive submission should be retryable, not permanently pending Judge: %+v", summary)
+	}
+	retried, err := service.PrepareExternalSubmission(
+		context.Background(), started.Job.ID, candidate, "同一候选在不明确回执后受控重试。", 0,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(retried.Submissions) != 2 ||
+		retried.Submissions[1].Verdict != securityruntime.VerdictNeedsReview {
+		t.Fatalf("same candidate did not enter a fresh external gate after inconclusive result: %+v", retried.Submissions)
+	}
+	accepted, err := service.RecordExternalVerdict(
+		context.Background(), started.Job.ID, true, "用户在 NSSCTF 页面核对为 Accepted。",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if accepted.Outcome == nil ||
+		accepted.Outcome.Status != securityruntime.OutcomeSucceeded ||
+		len(accepted.Submissions) != 2 ||
+		accepted.Submissions[0].Verdict != securityruntime.VerdictInconclusive ||
+		accepted.Submissions[1].Verdict != securityruntime.VerdictPass {
+		t.Fatalf("manual review after controlled retry did not preserve both decisions: %+v", accepted)
+	}
+}
+
 func TestProjectionUsesEmptyArraysAcrossTheDesktopContract(t *testing.T) {
 	challenge := Challenge{
 		ID: "challenge_contract", Title: "Contract", Statement: "Text only", Category: "misc",

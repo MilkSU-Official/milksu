@@ -41,14 +41,15 @@ func TestLabsThemeAndHTBLabsPlatformAreVisibleWithoutCTFProduct(t *testing.T) {
 		"HTB Labs",
 		"Machines",
 		"Starting Point",
+		"仅人工训练",
 		"https://app.hackthebox.com/machines",
-		`:disabled="platform.status === 'restricted'"`,
 	)
 	assertSourceContains(
 		"internal/ctf/platform_registry.go",
 		`Experience: "interactive-lab"`,
-		`Adapter: "official-labs-api"`,
-		`"machines", "starting-point", "challenges", "vpn", "instance-lifecycle", "progress"`,
+		`Status: PlatformRestricted`,
+		`Adapter: "permission-gated-official-labs"`,
+		`"machines", "starting-point", "challenges", "human-only", "written-permission"`,
 		`SourceURL:   "https://app.hackthebox.com/machines"`,
 	)
 

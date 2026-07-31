@@ -4589,7 +4589,7 @@
         <path data-edge-from="ctf_runtime" data-edge-to="platform_adapters" data-edge-key="6" data-edge-id="runtime_to_platform" data-composition-points="850,373;920,373" d="M 850 373 L 920 373" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
         <path data-edge-from="platform_adapters" data-edge-to="browser_extension" data-edge-key="7" data-edge-id="platform_to_browser" data-composition-points="1095,366;1119,366;1119,387;1136,387;1136,371;1160,371" d="M 1095 366 L 1111 366 Q 1119 366 1119 374 L 1119 379 Q 1119 387 1127 387 L 1128 387 Q 1136 387 1136 379 L 1136 379 Q 1136 371 1144 371 L 1160 371" class="a-security" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
         <path data-edge-from="browser_extension" data-edge-to="ctf_platforms" data-edge-key="8" data-edge-id="browser_to_platforms" data-composition-points="1240,407;1240,485" d="M 1240 407 L 1240 485" class="a-security" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
-        <path data-edge-from="platform_adapters" data-edge-to="ctf_platforms" data-edge-label="official API / MCP" data-edge-key="9" data-edge-id="adapter_to_platforms" data-composition-points="1095,380;1127.5,380;1127.5,519;1160,519" d="M 1095 380 L 1119.5 380 Q 1127.5 380 1127.5 388 L 1127.5 511 Q 1127.5 519 1135.5 519 L 1160 519" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="platform_adapters" data-edge-to="ctf_platforms" data-edge-label="paired browser / public API" data-edge-key="9" data-edge-id="adapter_to_platforms" data-composition-points="1095,380;1127.5,380;1127.5,519;1160,519" d="M 1095 380 L 1119.5 380 Q 1127.5 380 1127.5 388 L 1127.5 511 Q 1127.5 519 1135.5 519 L 1160 519" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
         <path data-edge-from="ctf_runtime" data-edge-to="lab_manager" data-edge-key="10" data-edge-id="runtime_to_lab" data-composition-points="760,411;760,630" d="M 760 411 L 760 630" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
         <path data-edge-from="wails_app" data-edge-to="legacy_security" data-edge-key="11" data-edge-id="app_to_legacy" data-composition-points="522.5,405;522.5,630" d="M 522.5 405 L 522.5 630" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
 
@@ -4682,15 +4682,15 @@
         <text data-detail="fine" x="1007.5" y="553" class="t-database" font-size="7" text-anchor="middle">user data directory</text>
         </g>
 
-        <g id="node-platform_adapters" data-node-id="platform_adapters" data-node-label="Platform Adapters" tabindex="0" role="button" aria-label="Focus Platform Adapters, NSSCTF / CTFshow / HTB, MilkSU Desktop Process" aria-pressed="false" data-node-kind="backend" data-node-sublabel="NSSCTF / CTFshow / HTB" data-node-tag="authoritative receipts" data-node-context="MilkSU Desktop Process">
-          <title>Platform Adapters · NSSCTF / CTFshow / HTB · MilkSU Desktop Process · authoritative receipts</title>
+        <g id="node-platform_adapters" data-node-id="platform_adapters" data-node-label="Platform Adapters" tabindex="0" role="button" aria-label="Focus Platform Adapters, NSSCTF / CTFshow / restricted facts, MilkSU Desktop Process" aria-pressed="false" data-node-kind="backend" data-node-sublabel="NSSCTF / CTFshow / restricted facts" data-node-tag="authoritative receipts" data-node-context="MilkSU Desktop Process">
+          <title>Platform Adapters · NSSCTF / CTFshow / restricted facts · MilkSU Desktop Process · authoritative receipts</title>
           <rect x="920" y="335" width="175" height="76" rx="6" class="c-mask"/>
           <rect x="920" y="335" width="175" height="76" rx="6" class="c-backend" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(926 341) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
           <text data-detail-anchor x="1007.5" y="371" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Platform Adapters</text>
-        <text data-detail="context" x="1007.5" y="387" class="t-muted" font-size="9" text-anchor="middle">NSSCTF / CTFshow / HTB</text>
+        <text data-detail="context" x="1007.5" y="387" class="t-muted" font-size="9" text-anchor="middle">NSSCTF / CTFshow / restricted facts</text>
         <text data-detail="fine" x="1007.5" y="403" class="t-backend" font-size="7" text-anchor="middle">authoritative receipts</text>
         </g>
 
@@ -4762,9 +4762,9 @@
 
 
 
-        <g data-detail="context" data-edge-from="platform_adapters" data-edge-to="ctf_platforms" data-edge-label="official API / MCP" data-edge-key="9" data-edge-id="adapter_to_platforms">
-          <rect x="1079.3" y="429.5" width="96.39999999999999" height="14" rx="3" class="c-mask"/>
-          <text x="1127.5" y="439.5" class="t-messagebus" font-size="8" text-anchor="middle">official API / MCP</text>
+        <g data-detail="context" data-edge-from="platform_adapters" data-edge-to="ctf_platforms" data-edge-label="paired browser / public API" data-edge-key="9" data-edge-id="adapter_to_platforms">
+          <rect x="1057.7" y="429.5" width="139.6" height="14" rx="3" class="c-mask"/>
+          <text x="1127.5" y="439.5" class="t-messagebus" font-size="8" text-anchor="middle">paired browser / public API</text>
         </g>
 
 

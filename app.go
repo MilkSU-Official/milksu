@@ -1014,7 +1014,40 @@ func (a *App) SubmitNSSCTFWebFlag(jobID, candidate string) (NSSCTFWebSubmission,
 	defer cancel()
 	receipt, err := a.browserBridge.SubmitNSSCTFFlag(submitContext, page.ID, candidate)
 	if err != nil {
-		return NSSCTFWebSubmission{CTF: pending}, fmt.Errorf("NSSCTF 浏览器提交失败: %w", err)
+		summary := fmt.Sprintf("NSSCTF 浏览器提交没有返回可确认结果：%v", err)
+		withReceipt, receiptErr := a.ctfJobs.RecordExternalJudgeReceipt(
+			a.commandContext(),
+			jobID,
+			ctf.ExternalJudgeReceiptRequest{
+				Platform: "nssctf-web",
+				Status:   "error",
+				Summary:  summary,
+				Reference: fmt.Sprintf(
+					"%s#milkSU=browser-submit-error",
+					page.URL,
+				),
+			},
+		)
+		if receiptErr != nil {
+			return NSSCTFWebSubmission{CTF: pending}, fmt.Errorf(
+				"NSSCTF 浏览器提交失败: %v；保存失败回执时又发生错误: %w",
+				err,
+				receiptErr,
+			)
+		}
+		inconclusive, inconclusiveErr := a.ctfJobs.RecordExternalInconclusive(
+			a.commandContext(),
+			jobID,
+			summary+"。MilkSU 已保留证据，可重试同一候选或在平台页面人工核对。",
+		)
+		if inconclusiveErr != nil {
+			return NSSCTFWebSubmission{CTF: withReceipt}, fmt.Errorf(
+				"NSSCTF 浏览器提交失败: %v；结束待判定状态时又发生错误: %w",
+				err,
+				inconclusiveErr,
+			)
+		}
+		return NSSCTFWebSubmission{CTF: inconclusive}, fmt.Errorf("NSSCTF 浏览器提交失败: %w", err)
 	}
 	withReceipt, err := a.ctfJobs.RecordExternalJudgeReceipt(a.commandContext(), jobID, ctf.ExternalJudgeReceiptRequest{
 		Platform: "nssctf-web", Status: receipt.Status, Correct: receipt.Correct,
@@ -1024,7 +1057,15 @@ func (a *App) SubmitNSSCTFWebFlag(jobID, candidate string) (NSSCTFWebSubmission,
 		return NSSCTFWebSubmission{}, err
 	}
 	if receipt.Correct == nil {
-		return NSSCTFWebSubmission{Receipt: receipt, CTF: withReceipt}, fmt.Errorf(
+		inconclusive, inconclusiveErr := a.ctfJobs.RecordExternalInconclusive(
+			a.commandContext(),
+			jobID,
+			"NSSCTF Judge 回执不明确："+receipt.Message+"。可重试同一候选或在平台页面人工核对。",
+		)
+		if inconclusiveErr != nil {
+			return NSSCTFWebSubmission{Receipt: receipt, CTF: withReceipt}, inconclusiveErr
+		}
+		return NSSCTFWebSubmission{Receipt: receipt, CTF: inconclusive}, fmt.Errorf(
 			"NSSCTF Judge 回执不明确：%s",
 			receipt.Message,
 		)

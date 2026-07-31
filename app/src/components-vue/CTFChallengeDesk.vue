@@ -87,6 +87,7 @@ const emit = defineEmits<{
   startCtfshow: [id: number]
   openProblem: []
   openCtfshow: []
+  syncNssctf: []
   refreshJudge: []
   prepareBrowserExtension: []
   copyPairingCode: []
@@ -383,10 +384,14 @@ function runPrimaryAction() {
             <p class="text-control font-medium">
               {{
                 catalogError
-                  ? '题库暂时不可用'
+                  ? activeBank === 'nssctf' && !catalogReady
+                    ? '题库同步失败'
+                    : '题库暂时不可用'
                   : activeBank === 'ctfshow'
                     ? '连接 CTFshow 题库'
-                    : '没有匹配题目'
+                    : catalogReady
+                      ? '没有匹配题目'
+                      : '准备 NSSCTF 题库'
               }}
             </p>
             <p class="mt-1 text-caption text-muted-foreground">
@@ -394,9 +399,21 @@ function runPrimaryAction() {
                 catalogError
                   || (activeBank === 'ctfshow'
                     ? '在已登录页面点击 MilkSU 扩展，然后回来刷新。'
-                    : '换个题号、题名或分类试试。')
+                    : catalogReady
+                      ? '换个题号、题名或分类试试。'
+                      : '首次使用会把公开题目目录同步到本机 SQLite。')
               }}
             </p>
+            <Button
+              v-if="activeBank === 'nssctf' && !catalogReady"
+              variant="brand"
+              size="sm"
+              class="mt-4"
+              @click="emit('syncNssctf')"
+            >
+              <RefreshCw class="size-4" />
+              {{ catalogError ? '重试同步' : '同步 NSSCTF 题库' }}
+            </Button>
             <Button
               v-if="activeBank === 'ctfshow' && !catalogError"
               variant="outline"

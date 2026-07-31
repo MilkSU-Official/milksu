@@ -72,6 +72,7 @@ import { useCTFShowCatalog } from '@/composables/useCTFShow'
 import { useNSSCTFArena, useNSSCTFChallenges, useNSSCTFWebBridge } from '@/composables/useNSSCTF'
 import { useNSSCTFCatalog, useNSSCTFTraining } from '@/composables/useNSSCTFTraining'
 import { invokeCommand } from '@/desktop'
+import { shouldBootstrapNSSCTFCatalog } from '@/lib/ctfCatalogBootstrap'
 import type {
   CTFAgentWorkspaceHandoff,
   CTFChallengeRequest,
@@ -149,6 +150,7 @@ const flagCandidate = ref('')
 const platformReview = ref(false)
 const outcomeNotice = ref('')
 const catalogNotice = ref('')
+const catalogBootstrapAttempted = ref(false)
 const attachmentError = ref('')
 const localMaterials = ref<CTFMaterialRequest[]>([])
 const working = ref(false)
@@ -194,11 +196,16 @@ const matchingSubmissionMessage = computed(() => {
     case 'needs_review':
       return '这个候选正在等待平台判题，不能并发重复提交。'
     case 'inconclusive':
-      return '这个候选已有不明确回执。请先刷新 Judge 状态或核对平台页面。'
+      return '上次没有得到明确回执。你可以安全重试同一候选，或在平台页面核对后手动记录结果。'
     default:
       return ''
   }
 })
+const matchingSubmissionBlocks = computed(() => (
+  matchingSubmission.value?.verdict === 'pass'
+  || matchingSubmission.value?.verdict === 'fail'
+  || matchingSubmission.value?.verdict === 'needs_review'
+))
 const authorizedTargets = computed(() => (
   activeProjection.value?.challenge.source.scope.targets ?? []
 ))
@@ -439,7 +446,7 @@ const externalPlatformStatusLabel = computed(() => {
 const externalPlatformSummary = computed(() => {
   switch (activeExternalPlatform.value?.id) {
     case 'hackthebox':
-      return '接入目标是 HTB Labs：Machines、Starting Point 与 Challenges 进入统一训练列表，启动靶机后再交给 Agent。'
+      return 'HTB Labs 当前只提供人工训练入口。HTB 规则禁止把 Labs 内容或目标用于 AI 训练、评测、测试或开发；获得 HTB 书面许可或 AI Range 授权前，MilkSU 不会把题面、附件或靶机交给 Agent。'
     case 'tryhackme':
       return 'TryHackMe 目前只向 Business / Classroom 提供官方 API；个人版没有可依赖的完整题库与靶机接口。'
     default:
@@ -454,6 +461,8 @@ const externalPlatformCapabilities = computed(() => {
     vpn: 'VPN',
     'instance-lifecycle': '靶机生命周期',
     progress: '训练进度',
+    'human-only': '仅人工训练',
+    'written-permission': '需书面许可',
     'room-catalog': '房间目录',
     'room-questions': '房间题目',
     scoreboard: '积分榜',
@@ -666,7 +675,10 @@ watch(activeBank, bank => {
   if (bank === 'ctfshow') {
     void ctfshow.refresh().then(() => selectDefaultDeskProblem())
   } else if (bank === 'nssctf') {
-    void loadPublicCatalog(1).then(() => selectDefaultDeskProblem())
+    void loadPublicCatalog(1).then(async () => {
+      await bootstrapNSSCTFCatalog()
+      await selectDefaultDeskProblem()
+    })
   }
 })
 
@@ -748,6 +760,17 @@ async function syncCatalog() {
       await loadPublicCatalog(1)
     }
   }
+}
+
+async function bootstrapNSSCTFCatalog() {
+  if (!shouldBootstrapNSSCTFCatalog({
+    activeBank: activeBank.value,
+    catalogTotal: training.dashboard.value?.catalogTotal ?? 0,
+    syncing: training.syncing.value,
+    attempted: catalogBootstrapAttempted.value,
+  })) return
+  catalogBootstrapAttempted.value = true
+  await syncCatalog()
 }
 
 async function loadPublicCatalog(page = catalogPage.value) {
@@ -1215,7 +1238,7 @@ async function archiveTrainingMemory(memory: CTFTrainingMemory) {
 async function submitCandidate() {
   if (!activeProjection.value || !flagCandidate.value.trim()) return
   outcomeNotice.value = ''
-  if (matchingSubmissionMessage.value) {
+  if (matchingSubmissionBlocks.value) {
     outcomeNotice.value = matchingSubmissionMessage.value
     return
   }
@@ -1274,6 +1297,7 @@ async function submitCandidate() {
       // receipt. Reload the projection so the user sees that evidence and can
       // decide whether to retry instead of losing the platform observation.
       await backend.loadJobs()
+      platformReview.value = activeProjection.value?.evaluations.at(-1)?.verdict === 'inconclusive'
     }
     working.value = false
     return
@@ -1310,7 +1334,7 @@ async function submitCandidate() {
 async function recordPlatformResult(accepted: boolean) {
   if (!activeProjection.value) return
   const latest = activeProjection.value.evaluations.at(-1)
-  const recorded = latest?.verdict === 'needs_review'
+  const recorded = latest?.verdict === 'needs_review' || latest?.verdict === 'inconclusive'
     ? await backend.recordExternalVerdict(
         activeProjection.value.job.id,
         accepted,
@@ -1356,6 +1380,7 @@ onMounted(async () => {
     activeBank.value === 'ctfshow' ? ctfshow.refresh() : Promise.resolve(null),
     activeBank.value === 'nssctf' ? loadPublicCatalog(1) : Promise.resolve(null),
   ])
+  await bootstrapNSSCTFCatalog()
   if (props.initialJobId) await resumeJob(props.initialJobId)
   await selectDefaultDeskProblem()
   if (props.arenaReady) await arena.refresh()
@@ -1402,7 +1427,6 @@ onBeforeUnmount(() => {
               v-for="platform in platformRegistry.platforms.value"
               :key="platform.id"
               :value="platform.id"
-              :disabled="platform.status === 'restricted'"
             >
               <span class="flex min-w-44 items-center justify-between gap-4">
                 <span>{{ platform.name }}</span>
@@ -2197,7 +2221,7 @@ onBeforeUnmount(() => {
           :page="deskPage"
           :page-count="deskPageCount"
           :total="deskProblemTotal"
-          :loading="deskLoading"
+          :loading="deskLoading || (activeBank === 'nssctf' && training.syncing.value)"
           :collaboration-mode="collaborationMode"
           :selected-browser-ready="selectedBrowserReady"
           :ctfshow-bridge-ready="ctfshowBridgeReady"
@@ -2225,6 +2249,7 @@ onBeforeUnmount(() => {
           @prepare-browser-extension="prepareBrowserExtension"
           @copy-pairing-code="copyBridgeValue(webBridge.status.value?.bridge.pairingCode ?? '', '配对码')"
           @open-ctfshow="ctfshow.open()"
+          @sync-nssctf="syncCatalog"
           @refresh-judge="activeBank === 'ctfshow' ? ctfshow.open() : webBridge.refresh()"
           @open-settings="$emit('openSettings')"
           @update:collaboration-mode="collaborationMode = $event"
@@ -3270,7 +3295,7 @@ onBeforeUnmount(() => {
                     :loading="working"
                     :disabled="!flagCandidate.trim()
                       || !canContinue
-                      || Boolean(matchingSubmissionMessage)
+                      || matchingSubmissionBlocks
                       || (isWebWorkspace && !activeBrowserCanSubmit)
                       || (isCTFShowWorkspace && !ctfshowBridgeReady)"
                     @click="submitCandidate"
@@ -3300,7 +3325,7 @@ onBeforeUnmount(() => {
                   </div>
 
                   <div
-                    v-if="platformReview && !isWebWorkspace"
+                    v-if="platformReview && (!isWebWorkspace || activeProjection.evaluations.at(-1)?.verdict === 'inconclusive')"
                     class="mt-4 border-t border-border pt-4"
                   >
                     <p class="text-caption font-medium">{{ externalJudgeLabel }}的结果是？</p>

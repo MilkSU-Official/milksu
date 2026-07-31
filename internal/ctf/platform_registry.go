@@ -38,11 +38,11 @@ func TrainingPlatforms() []TrainingPlatform {
 		},
 		{
 			ID: "hackthebox", Name: "HTB Labs", Experience: "interactive-lab",
-			Status: PlatformPlanned, Adapter: "official-labs-api", Selectable: false,
+			Status: PlatformRestricted, Adapter: "permission-gated-official-labs", Selectable: false,
 			Capabilities: []string{
-				"machines", "starting-point", "challenges", "vpn", "instance-lifecycle", "progress",
+				"machines", "starting-point", "challenges", "human-only", "written-permission",
 			},
-			Requirement: "HTB Labs API token; machine catalog and lifecycle mapping require real-account verification",
+			Requirement: "HTB written permission or an AI Range entitlement is required before any Agent receives HTB content or targets",
 			SourceURL:   "https://app.hackthebox.com/machines",
 		},
 		{

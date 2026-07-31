@@ -359,6 +359,49 @@ func (s *Service) RecordExternalJudgeReceipt(
 	return s.GetJob(ctx, jobID)
 }
 
+func (s *Service) RecordExternalInconclusive(
+	ctx context.Context,
+	jobID string,
+	summary string,
+) (Projection, error) {
+	core, err := s.runtime.GetJob(ctx, jobID)
+	if err != nil {
+		return Projection{}, err
+	}
+	challenge, err := challengeFromProjection(core)
+	if err != nil {
+		return Projection{}, err
+	}
+	if challenge.Judge.Type != "external.manual" || core.Terminal() ||
+		len(core.Evaluations) == 0 || len(core.Evidence) == 0 {
+		return Projection{}, fmt.Errorf("challenge has no external submission awaiting an inconclusive result")
+	}
+	latest := core.Evaluations[len(core.Evaluations)-1]
+	if latest.Verdict != securityruntime.VerdictNeedsReview {
+		return Projection{}, fmt.Errorf("latest submission is not awaiting an external result")
+	}
+	summary = strings.TrimSpace(summary)
+	if summary == "" {
+		summary = "外部 Judge 没有返回可确认的结果；保留回执并允许受控重试。"
+	}
+	if len([]rune(summary)) > 2000 {
+		return Projection{}, fmt.Errorf("external inconclusive summary must be at most 2000 characters")
+	}
+	evaluation := securityruntime.Evaluation{
+		ID: securityruntime.NewIdentifier("evaluation"), Evaluator: "ctf-external-platform", Version: "1",
+		Verdict: securityruntime.VerdictInconclusive, Score: 0,
+		Summary: summary, EvidenceIDs: append([]string{}, latest.EvidenceIDs...),
+	}
+	scope := securityruntime.EventScope{JobID: jobID}
+	if len(core.Attempts) > 0 {
+		scope.AttemptID = core.Attempts[len(core.Attempts)-1].ID
+	}
+	if err := s.runtime.RecordEvaluation(ctx, scope, evaluation); err != nil {
+		return Projection{}, err
+	}
+	return s.GetJob(ctx, jobID)
+}
+
 func (s *Service) ContinueJob(ctx context.Context, jobID string) (Projection, error) {
 	projection, err := s.runtime.GetJob(ctx, jobID)
 	if err != nil {
@@ -626,6 +669,9 @@ func (s *Service) PrepareExternalSubmission(
 	}
 	for _, submission := range projected.Submissions {
 		if strings.TrimSpace(submission.Candidate) == candidate {
+			if submission.Verdict == securityruntime.VerdictInconclusive {
+				continue
+			}
 			return Projection{}, fmt.Errorf("candidate has already received an external platform verdict")
 		}
 	}
@@ -809,7 +855,8 @@ func (s *Service) reviewSubmission(ctx context.Context, jobID string, accepted b
 		return Projection{}, fmt.Errorf("challenge has no external submission awaiting review")
 	}
 	latest := core.Evaluations[len(core.Evaluations)-1]
-	if latest.Verdict != securityruntime.VerdictNeedsReview {
+	if latest.Verdict != securityruntime.VerdictNeedsReview &&
+		latest.Verdict != securityruntime.VerdictInconclusive {
 		return Projection{}, fmt.Errorf("latest submission is not awaiting review")
 	}
 	verdict := securityruntime.VerdictFail

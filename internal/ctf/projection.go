@@ -171,8 +171,7 @@ func Project(core securityruntime.JobProjection) (Projection, error) {
 		if evaluationIndex < len(core.Evaluations) {
 			evaluation := core.Evaluations[evaluationIndex]
 			evaluationIndex++
-			if evaluation.Verdict == securityruntime.VerdictNeedsReview &&
-				evaluationIndex < len(core.Evaluations) &&
+			for evaluationIndex < len(core.Evaluations) &&
 				evaluationsShareEvidence(evaluation, core.Evaluations[evaluationIndex]) {
 				evaluation = core.Evaluations[evaluationIndex]
 				evaluationIndex++
@@ -370,8 +369,10 @@ func pendingExternalDecision(projection Projection) (bool, bool) {
 		return true, false
 	}
 	switch latestSubmission.Verdict {
-	case securityruntime.VerdictNeedsReview, securityruntime.VerdictInconclusive:
+	case securityruntime.VerdictNeedsReview:
 		return false, true
+	case securityruntime.VerdictInconclusive:
+		return true, false
 	default:
 		return false, false
 	}

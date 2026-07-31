@@ -168,7 +168,7 @@
       "id": "platform_adapters",
       "type": "backend",
       "label": "Platform Adapters",
-      "sublabel": "NSSCTF / CTFshow / HTB",
+      "sublabel": "NSSCTF / CTFshow / restricted facts",
       "tag": "authoritative receipts",
       "pos": [920, 335],
       "size": [175, 76],
@@ -325,7 +325,7 @@
       "id": "adapter_to_platforms",
       "from": "platform_adapters",
       "to": "ctf_platforms",
-      "label": "official API / MCP",
+      "label": "paired browser / public API",
       "variant": "dashed"
     },
     {

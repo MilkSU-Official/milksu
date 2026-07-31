@@ -2,7 +2,7 @@
 
 > Review date: 2026-07-31
 >
-> Scope: current `codex/authorized-learning-foundation` implementation, packaged Sidecar, local persistence, Vue desktop surface, NSSCTF / CTFshow / HTB adapters, and CTF runtime.
+> Scope: current `codex/authorized-learning-foundation` implementation, packaged Sidecar, local persistence, Vue desktop surface, NSSCTF / CTFshow adapters, permission-gated external platform facts, and CTF runtime.
 >
 > Companion diagrams: [system architecture](/architecture/milksu-system.architecture.html) and [CTF solve loop](/architecture/ctf-solve-loop.workflow.html).
 
@@ -16,15 +16,15 @@ The project is not “architecturally out of control,” but four files have bec
 
 | File | Current size | Concentrated responsibilities |
 | --- | ---: | --- |
-| `app/src/components-vue/CTFPage.vue` | 3,483 lines | platform picker, catalog paging, browser pairing, challenge desk, Agent launch, history, ability UI, Judge state |
-| `app.go` | 2,189 lines / 81 `App` methods | Wails facade, settings, conversations, all CTF platforms, Arena, memory, reports, Vuln entry points |
+| `app/src/components-vue/CTFPage.vue` | 3,355 lines | platform picker, catalog paging, browser pairing, challenge desk, Agent launch, history, ability UI, Judge state |
+| `app.go` | 1,790 lines | Wails facade, settings, conversations, active CTF platforms, Arena, memory, reports, Vuln entry points |
 | `internal/browsercap/manager.go` | 1,786 lines / 33 methods | browser sessions, policy, extension installation, pairing server, NSSCTF and CTFshow commands/results/persistence |
 | `internal/ctf/service.go` | 1,463 lines / 30 methods | job commands, runner lifecycle, recorder ingestion, candidate gate, recovery, external Judge, cancellation |
 
 These are maintainability risks, not a reason for a rewrite. The correct sequence is:
 
-1. finish one real NSSCTF `correct=true` receipt and one real HTB lifecycle receipt;
-2. freeze those flows as integration fixtures;
+1. freeze the real NSSCTF P3879 `correct=true` receipt as an integration fixture;
+2. close the clean-install catalog, paired-page intake, and ambiguous Judge recovery gaps;
 3. split the four change concentrators behind their existing public contracts;
 4. keep product work moving on the extracted seams.
 
@@ -32,7 +32,7 @@ These are maintainability risks, not a reason for a rewrite. The correct sequenc
 
 ### Authoritative completion boundary
 
-`internal/ctf` separates a model candidate from platform acceptance. NSSCTF, CTFshow, HTB, and local
+`internal/ctf` separates a model candidate from platform acceptance. NSSCTF, CTFshow, and local
 fixtures normalize their result into a Judge receipt before solved state changes. This is the most
 important invariant in the product and must survive every refactor.
 
@@ -56,19 +56,21 @@ do not inherit Archify or PI LSP tools. Packaged smoke tests assert both the pos
 
 ### Platform scope becomes tool scope
 
-NSSCTF and CTFshow use an explicitly paired browser tab. HTB container metadata is converted into one
-exact URL origin or socket target. The model is not handed a user browser session or a platform token.
+NSSCTF and CTFshow use an explicitly paired browser tab. The model is not handed a user browser session
+or a platform token. HTB Labs stays outside Agent scope because its Platform Rules prohibit standard
+Labs content from being used to test, evaluate, benchmark, or develop AI without written permission.
 
 ## Findings and decisions
 
-### P0 — Live acceptance evidence is still a release gate
+### P0 — Clean-user recovery is still a release gate
 
-The code and fixtures prove the Judge contracts, but the product has not yet recorded its first native
-desktop NSSCTF `correct=true` receipt. HTB has a typed official MCP client and UI path, but the real
-`list → retrieve → start → status → solve → submit → stop` path is also not yet recorded.
+The product recorded a native desktop NSSCTF P3879 `correct=true` receipt. The remaining P0s are
+clean-install catalog bootstrap, carrying the explicitly paired page text into the workspace, and
+recovering a candidate after a timeout or ambiguous Judge receipt.
 
-**Decision:** do not call the CTF experience MVP-complete until both receipts exist. A pre-solved problem,
-an auto-completed sign-in task, or a mocked receipt does not satisfy this gate.
+**Decision:** do not call the CTF experience MVP-complete until a clean user can reach an unsolved
+challenge, produce a candidate, recover from an ambiguous Judge result, and finish with an authoritative
+receipt. HTB is not an acceptance gate unless HTB grants written Agent permission.
 
 ### P1 — Extract facades; do not rewrite domains
 
@@ -78,7 +80,7 @@ an auto-completed sign-in task, or a mocked receipt does not satisfy this gate.
 - `TrainingFacade`: catalog, challenge start, memory, replay, reports;
 - `NSSCTFWebFacade`: bridge status, attachment, Judge submission, Arena;
 - `CTFShowWebFacade`: catalog sync, challenge import, Judge submission;
-- `HTBFacade`: probe, events, challenge lifecycle, Judge;
+- `ExternalPlatformFacts`: restricted/planned status, policy boundary, and official human-only links;
 - `VulnFacade`: current evidence slice.
 
 The frontend and Wails method names can remain stable while implementation moves. This avoids a generated
@@ -146,7 +148,7 @@ loopback-only.
 `security-bridge.js` and `internal/engine/security_supervisor.go` remain a useful typed fixture baseline,
 but maintaining both that path and the PI CTF path can create divergent semantics.
 
-**Decision:** keep it through NSSCTF and HTB acceptance as a regression oracle. Then freeze it to fixtures
+**Decision:** keep it through the clean-user NSSCTF acceptance flow as a regression oracle. Then freeze it to fixtures
 or remove production reachability once PI covers cancellation, recovery, evidence, and Judge semantics.
 
 ### P2 — Platform capability must be data, not UI conditionals
@@ -168,7 +170,7 @@ Vue Product Surface
           -> PlatformAdapter registry
               -> NSSCTF Browser Adapter
               -> CTFshow Browser Adapter
-              -> HTB Official MCP Adapter
+              -> Restricted platform facts / official links
               -> Local / Custom Adapter
           -> AgentEngine Adapter
               -> PI Coding Sidecar
@@ -193,7 +195,7 @@ Rules:
 | Checkpoint | Acceptance |
 | --- | --- |
 | NSSCTF native E2E | One unsolved problem; attachment evidence; MilkSU candidate; paired Bridge submit; `correct=true`; debrief and ability update |
-| HTB native E2E | Official MCP probe; real event/challenge; lifecycle receipt; exact target scope; authoritative submit; cleanup |
+| HTB permission gate | No Agent access to HTB content or targets without written HTB permission or an explicit AI Range entitlement |
 | Browser adapter split | Existing NSSCTF and CTFshow bridge tests pass without platform strings in transport package |
 | App facade split | Existing Wails public method names and frontend generated bindings remain unchanged |
 | CTFPage split | Same viewport and interactions; no dense dashboard regression; frontend build and targeted UI tests pass |
@@ -205,6 +207,6 @@ Rules:
 - Architecture diagram: showcase validation 9/9, 0 errors, 0 warnings; dark and light visual review passed.
 - CTF workflow diagram: showcase validation 9/9, 0 errors, 0 warnings; dark and light visual review passed.
 - Go package count: 16.
-- Go test files: 55.
+- Go test files: 52.
 - Vue components in `components-vue`: 14.
-- Current release status remains **M3 in progress** until real NSSCTF and HTB acceptance gates pass.
+- Current release status remains **M3 in progress** until clean-install NSSCTF bootstrap, paired-page intake, and ambiguous Judge recovery pass.

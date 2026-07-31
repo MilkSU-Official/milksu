@@ -20,8 +20,8 @@ func TestTrainingPlatformsExposeOnlyWorkingSourcesAsSelectable(t *testing.T) {
 	if !selectable["nssctf"] || !selectable["ctfshow"] {
 		t.Fatalf("working platform adapters must be selectable: %#v", platforms)
 	}
-	if selectable["hackthebox"] || status["hackthebox"] != PlatformPlanned {
-		t.Fatalf("HTB must not appear usable before its MCP adapter ships: %#v", platforms)
+	if selectable["hackthebox"] || status["hackthebox"] != PlatformRestricted {
+		t.Fatalf("permission-gated HTB Labs must stay restricted: %#v", platforms)
 	}
 	if selectable["tryhackme"] || status["tryhackme"] != PlatformRestricted {
 		t.Fatalf("TryHackMe consumer users must not be promised an unavailable API: %#v", platforms)
