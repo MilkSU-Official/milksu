@@ -5,6 +5,8 @@ dist/
 *.js.map
 *.d.ts.map
 !bridge.js
+!bridge-policy.js
+!bridge-policy.test.js
 !security-bridge.js
 !browserextension/background.js
 !browserextension/popup.js
