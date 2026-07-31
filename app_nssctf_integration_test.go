@@ -11,7 +11,9 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/MilkSU-Official/milksu/internal/browsercap"
 	"github.com/MilkSU-Official/milksu/internal/ctf"
@@ -107,6 +109,23 @@ func TestNSSCTFPageToAcceptedTrainingReportSurvivesRestart(t *testing.T) {
 	connection := dialBrowserBridge(t, bridgeInfo, "nssctf-session-integration")
 	defer connection.Close()
 
+	pageMaterial, err := app.ImportNSSCTFWebPageMaterial(317)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pageText, err := base64.StdEncoding.DecodeString(pageMaterial.DataBase64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pageDigest := sha256.Sum256(pageText)
+	pageDigestText := hex.EncodeToString(pageDigest[:])
+	if pageMaterial.Name != "nssctf-p317-page.txt" ||
+		pageMaterial.MediaType != "text/plain; charset=utf-8" ||
+		!bytes.Contains(pageText, []byte("pwn.example:31337")) ||
+		!strings.Contains(pageMaterial.Provenance, pageDigestText) {
+		t.Fatalf("NSSCTF page text lost its bounded provenance: %#v", pageMaterial)
+	}
+
 	archive := nssctfFixtureArchive(t)
 	archiveDigest := sha256.Sum256(archive)
 	archiveDigestText := hex.EncodeToString(archiveDigest[:])
@@ -156,15 +175,20 @@ func TestNSSCTFPageToAcceptedTrainingReportSurvivesRestart(t *testing.T) {
 		ExternalPlatform:  "nssctf-web",
 		ExternalAttemptID: 317,
 		KnowledgePoints:   []string{"attachment intake", "authoritative Judge receipt"},
-		Materials:         []ctf.MaterialRequest{imported.material},
+		Materials:         []ctf.MaterialRequest{imported.material, pageMaterial},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if projection.Challenge.ExternalPlatform != "nssctf-web" ||
 		projection.Challenge.ExternalAttemptID != 317 ||
-		len(projection.Challenge.Materials) != 1 {
+		len(projection.Challenge.Materials) != 2 {
 		t.Fatalf("NSSCTF problem did not enter the shared CTF domain: %#v", projection)
+	}
+	if len(projection.Challenge.Source.Scope.Targets) != 1 ||
+		projection.Challenge.Source.Scope.Targets[0].Kind != securitypolicy.TargetOrigin ||
+		strings.Contains(projection.Challenge.Source.Scope.Targets[0].Value, "pwn.example") {
+		t.Fatalf("page text expanded the authorized challenge scope: %#v", projection.Challenge.Source.Scope)
 	}
 	missingCheckpoint, err := app.GetCTFAgentRunCheckpoint(projection.Job.ID)
 	if err != nil {
@@ -202,7 +226,7 @@ func TestNSSCTFPageToAcceptedTrainingReportSurvivesRestart(t *testing.T) {
 		}) {
 		t.Fatalf("NSSCTF workspace has an unexpected authorization scope: %#v", manifest.Source.Scope)
 	}
-	if len(manifest.Materials) != 1 ||
+	if len(manifest.Materials) != 2 ||
 		manifest.Materials[0].Inspection.ArchiveFormat != "zip" ||
 		manifest.Materials[0].Inspection.EntryCount != 1 ||
 		manifest.Materials[0].Inspection.ReviewRequired ||
@@ -405,6 +429,26 @@ func TestNSSCTFPageToAcceptedTrainingReportSurvivesRestart(t *testing.T) {
 	}
 }
 
+func TestBoundedNSSCTFPageTextNormalizesAndTruncatesOnUTF8Boundary(t *testing.T) {
+	normalized, err := boundedNSSCTFPageText("  第一行\r\n第二行\r第三行  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(normalized) != "第一行\n第二行\n第三行" {
+		t.Fatalf("unexpected normalized page text: %q", normalized)
+	}
+	large, err := boundedNSSCTFPageText(strings.Repeat("题", maxNSSCTFPageMaterialBytes))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(large) > maxNSSCTFPageMaterialBytes || !utf8.Valid(large) {
+		t.Fatalf("page material was not truncated safely: bytes=%d valid=%v", len(large), utf8.Valid(large))
+	}
+	if _, err := boundedNSSCTFPageText(" \r\n "); err == nil {
+		t.Fatal("empty browser page text was accepted as a material")
+	}
+}
+
 func ingestNSSCTFProblem(t *testing.T, info browsercap.BridgeInfo, problemID int) {
 	t.Helper()
 	body, err := json.Marshal(map[string]any{
@@ -412,7 +456,7 @@ func ingestNSSCTFProblem(t *testing.T, info browsercap.BridgeInfo, problemID int
 		"adapter":         "nssctf-web-v1",
 		"title":           "P317 - NSSCTF",
 		"url":             "https://www.nssctf.cn/problem/317",
-		"text":            "Inspect the provided attachment.",
+		"text":            "Inspect the provided attachment.\r\nDynamic target suggestion: pwn.example:31337",
 		"nssctf": map[string]any{
 			"problemId": problemID, "title": "P317 Browser integration",
 			"category": "Misc", "tags": []string{"attachment"},

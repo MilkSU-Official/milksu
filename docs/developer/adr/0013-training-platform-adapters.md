@@ -2,7 +2,7 @@
 
 > 状态：Accepted
 >
-> 日期：2026-07-31
+> 日期：2026-08-01
 
 ## 背景
 
@@ -31,7 +31,16 @@ MilkSU 的 CTF 学习对象不只包含按 Flag 判定的比赛题。Hack The Bo
    - 官方 Enterprise API 可获取 Room、Questions、Scoreboard 与 Time Report；
    - 该 API 仅面向 Business/Classroom，不承诺普通个人账户可用；
    - 在没有官方消费者接口前，不展示成可点击的可用题库，也不抓取私有接口。
-5. 每个平台 Adapter 仍须落入统一 `Challenge Workspace → Agent → Candidate Gate → authoritative Judge → Evidence → Training Report` 契约。
+5. 自托管来源与在线平台分开：
+   - OWASP Juice Shop 作为第一间用户可一键启动、重置和停止的 Web 靶场；
+   - WebGoat 作为后续引导式 Web 学习房间；
+   - Vulhub 只通过 MilkSU 白名单清单接入，逐项固定 revision、镜像 digest、Endpoint、Readiness、Reset、Judge 与安全策略，不执行任意上游目录；
+   - GOAD 因 AD 部署与资源成本不进入 M3；pwn.college 已有成熟引导体系，不重复包装。
+6. NYU CTF Bench 是开发者基准，不是普通用户题库：
+   - development split 用于调整 Prompt、工具、Agent 编排和运行环境；
+   - test split 只用于版本验收，避免把针对测试题的调参伪装成能力提升；
+   - 记录成功率、Pass@1、耗时、Token/成本、工具失败与分类能力，不混入用户训练进度或推荐器。
+7. 每个平台或自托管来源仍须落入统一 `Challenge Workspace → Agent → Candidate Gate → authoritative Judge → Evidence → Training Report` 契约。
 
 ## 官方依据
 
@@ -40,6 +49,10 @@ MilkSU 的 CTF 学习对象不只包含按 Flag 判定的比赛题。Hack The Bo
 - Hack The Box User Agreement：<https://resources.hackthebox.com/hubfs/Legal/UA.pdf>
 - TryHackMe Enterprise API：<https://help.tryhackme.com/en/articles/6498330-enterprise-api>
 - TryHackMe Room 类型：<https://help.tryhackme.com/en/articles/6611837-rooms>
+- OWASP Juice Shop：<https://github.com/juice-shop/juice-shop>
+- OWASP WebGoat：<https://github.com/WebGoat/WebGoat>
+- Vulhub：<https://github.com/vulhub/vulhub>
+- NYU CTF Bench：<https://github.com/NYU-LLM-CTF/NYU_CTF_Bench>
 
 ## 后果
 
@@ -47,3 +60,5 @@ MilkSU 的 CTF 学习对象不只包含按 Flag 判定的比赛题。Hack The Bo
 - UI 用统一下拉列出可用、规划中、受限和本地自定义来源；只有可用来源进入题库，规划中或受限来源进入带真实能力范围、限制与官方入口的状态页，避免把配置按钮伪装成平台内容或留下死按钮。
 - HTB Labs 只展示人工训练与官方入口；未取得书面许可前不实现 Agent 解题链路，不复用或展示赛事 CTF 的 MCP、Token、赛事目录与 Judge UI。
 - TryHackMe 先保留清晰边界，不制造不可维护的集成。
+- 普通用户看到“比赛题库”和“本地靶场”，不会看到 development/test split、批量模型成本或 benchmark 运行器。
+- 自托管靶场可进入统一能力画像，但环境生命周期和 Judge 必须由 MilkSU 自己验证，不能依赖 Agent 自报。

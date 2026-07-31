@@ -91,6 +91,7 @@ interface WailsAppBindings {
   ): Promise<CTFShowChallengeWorkspace>
   SubmitCTFShowWebFlag(jobId: string, candidate: string): Promise<CTFShowWebSubmission>
   GetNSSCTFWebBridgeStatus(): Promise<NSSCTFWebBridgeStatus>
+  ImportNSSCTFWebPageMaterial(problemId: number): Promise<CTFMaterialRequest>
   ImportNSSCTFWebAttachment(problemId: number): Promise<CTFMaterialRequest>
   SubmitNSSCTFWebFlag(jobId: string, candidate: string): Promise<NSSCTFWebSubmission>
   GetNSSCTFArenaCurrent(): Promise<NSSCTFArenaWorkspace>
@@ -346,6 +347,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         ) as Promise<T>
       case 'get_nssctf_web_bridge_status':
         return app.GetNSSCTFWebBridgeStatus() as Promise<T>
+      case 'import_nssctf_web_page_material':
+        return app.ImportNSSCTFWebPageMaterial(args?.problemId as number) as Promise<T>
       case 'import_nssctf_web_attachment':
         return app.ImportNSSCTFWebAttachment(args?.problemId as number) as Promise<T>
       case 'submit_nssctf_web_flag':

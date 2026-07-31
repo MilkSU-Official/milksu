@@ -932,12 +932,69 @@ type NSSCTFWebSubmission struct {
 	CTF     ctf.Projection                `json:"ctf"`
 }
 
+const maxNSSCTFPageMaterialBytes = 64 * 1024
+
 func (a *App) GetNSSCTFWebBridgeStatus() (NSSCTFWebBridgeStatus, error) {
 	info, err := a.browserBridge.StartBridge()
 	if err != nil {
 		return NSSCTFWebBridgeStatus{}, err
 	}
 	return NSSCTFWebBridgeStatus{Bridge: info, Pages: a.browserBridge.NSSCTFPages()}, nil
+}
+
+func (a *App) ImportNSSCTFWebPageMaterial(problemID int) (ctf.MaterialRequest, error) {
+	if problemID <= 0 {
+		return ctf.MaterialRequest{}, fmt.Errorf("invalid NSSCTF problem id")
+	}
+	if _, err := a.browserBridge.StartBridge(); err != nil {
+		return ctf.MaterialRequest{}, err
+	}
+	page := latestNSSCTFPage(a.browserBridge.NSSCTFPages(), int64(problemID))
+	if page == nil {
+		return ctf.MaterialRequest{}, fmt.Errorf(
+			"请先在 Chrome 打开 P%d，并用 MilkSU 扩展连接当前题目；已关闭的旧标签不会被复用",
+			problemID,
+		)
+	}
+	data, err := boundedNSSCTFPageText(page.Text)
+	if err != nil {
+		return ctf.MaterialRequest{}, err
+	}
+	digest := sha256.Sum256(data)
+	digestText := hex.EncodeToString(digest[:])
+	return ctf.MaterialRequest{
+		Name:       fmt.Sprintf("nssctf-p%d-page.txt", problemID),
+		MediaType:  "text/plain; charset=utf-8",
+		DataBase64: base64.StdEncoding.EncodeToString(data),
+		Provenance: fmt.Sprintf(
+			"user-browser-extension:nssctf:P%d:page-text:sha256:%s",
+			problemID,
+			digestText,
+		),
+	}, nil
+}
+
+func boundedNSSCTFPageText(raw string) ([]byte, error) {
+	normalized := strings.TrimSpace(strings.ReplaceAll(
+		strings.ReplaceAll(raw, "\r\n", "\n"),
+		"\r",
+		"\n",
+	))
+	if normalized == "" {
+		return nil, fmt.Errorf("已连接的 NSSCTF 页面没有可读取题面；将继续使用公开题面")
+	}
+	data := []byte(normalized)
+	if len(data) <= maxNSSCTFPageMaterialBytes {
+		return data, nil
+	}
+	data = data[:maxNSSCTFPageMaterialBytes]
+	for len(data) > 0 && !utf8.Valid(data) {
+		data = data[:len(data)-1]
+	}
+	if len(data) == 0 {
+		return nil, fmt.Errorf("已连接的 NSSCTF 页面题面不是有效 UTF-8")
+	}
+	return data, nil
 }
 
 func (a *App) ImportNSSCTFWebAttachment(problemID int) (ctf.MaterialRequest, error) {

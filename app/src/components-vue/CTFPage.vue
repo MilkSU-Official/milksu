@@ -1051,6 +1051,16 @@ async function startPublicWorkspace() {
   attachmentError.value = ''
   const challenge = selectedProblem.value
   const materials: CTFMaterialRequest[] = [...localMaterials.value]
+  let materialWarning = ''
+  if (selectedBrowserReady.value) {
+    try {
+      materials.push(await invokeCommand<CTFMaterialRequest>('import_nssctf_web_page_material', {
+        problemId: challenge.platformId,
+      }))
+    } catch (reason) {
+      materialWarning = reason instanceof Error ? reason.message : String(reason)
+    }
+  }
   if (challenge.hasAttachment) {
     if (!selectedBrowserReady.value && materials.length === 0) {
       attachmentError.value = `P${challenge.platformId} 有附件；请先连接已登录的 Chrome 题目页。`
@@ -1063,9 +1073,13 @@ async function startPublicWorkspace() {
           problemId: challenge.platformId,
         }))
       } catch (reason) {
-        attachmentError.value = reason instanceof Error ? reason.message : String(reason)
-        working.value = false
-        return
+        const message = reason instanceof Error ? reason.message : String(reason)
+        if (localMaterials.value.length === 0) {
+          attachmentError.value = message
+          working.value = false
+          return
+        }
+        materialWarning = materialWarning ? `${materialWarning}；${message}` : message
       }
     }
   }
@@ -1087,6 +1101,9 @@ async function startPublicWorkspace() {
   })
   working.value = false
   if (started) {
+    if (materialWarning) {
+      outcomeNotice.value = `${materialWarning}。工作台已使用公开题面和现有材料继续建立。`
+    }
     screen.value = 'workspace'
     if (props.modelReady) await openCodingAgent()
   }
@@ -2225,7 +2242,7 @@ onBeforeUnmount(() => {
           :collaboration-mode="collaborationMode"
           :selected-browser-ready="selectedBrowserReady"
           :ctfshow-bridge-ready="ctfshowBridgeReady"
-          :attachment-error="attachmentError"
+          :attachment-error="attachmentError || publicProblems.error.value || ''"
           :local-materials="localMaterials"
           :catalog-error="activeBank === 'nssctf'
             ? publicCatalog.error.value ?? training.error.value ?? ''
