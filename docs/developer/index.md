@@ -25,8 +25,11 @@
 19. [Challenge Intake、Browser Use 与 Computer Use](/developer/challenge-intake-and-automation)：怎样接受聊天、文件、截图、目录与任意网站，并安全复用浏览器/桌面项目。
 20. [Role Packages](/developer/role-packages)：说明首批 CTF 与 Vulnerability Research 角色，以及人类学习 Outcome。
 21. [开源项目坐标](/developer/industry-baseline)：决定一个项目应该接入、委派、学习、只做 benchmark，还是拒绝。
+22. [PI Resource Whitelist](/developer/pi-resource-whitelist)：记录 Coding Agent 可加载的固定版本 Skill/Extension，以及 CTF 隔离断言。
+23. [CTF Agent 开源项目对照](/developer/research/2026-07-31-ctf-agent-landscape)：BoxPwnr、D-CIPHER、EnIGMA+、CAI 等框架与 MilkSU 底座取舍。
+24. [M3 Architecture Review](/developer/architecture-review-2026-07-31)：当前变更集中点、优先级、目标模块边界和真实平台验收门槛。
 ## 当前实现边界
 
-M0、M1、M2-A 与 M3-A 已完成工程验证：Go/Wails 桌面宿主、Vue 3 + Memoh UI 控制面、Pi Sidecar、追加式 Event Store、Artifact Store、只读 Projection、独立 Evaluator和中断恢复已经实跑；真实 Pi/DeepSeek 也已在桌面通过 CTF 类型化动作与本地 Judge 解完内置 Hex 题。Vuln Role 已增加固定本地 packet-parser 的 Target、Attack Surface、Hypothesis、静态 Root Cause、外部三次 ASan 日志一致性 Evaluation 和 Human Outcome 工作台。
+M0、M1、M2-A 与 M3-A 已完成工程验证：Go/Wails 桌面宿主、Vue 3 + Memoh UI 控制面、Pi Sidecar、追加式 Event Store、Artifact Store、只读 Projection、独立 Evaluator和中断恢复已经实跑；真实 Pi/DeepSeek 也已在桌面通过 CTF 类型化动作与本地 Judge 解完内置 Hex 题。普通 Coding 会话目前只额外加载经过审阅和固定版本的 Archify Skill、PI LSP Extension 与 MilkSU Workflow；CTF 会话保持隔离。Vuln Role 已增加固定本地 packet-parser 的 Target、Attack Surface、Hypothesis、静态 Root Cause、外部三次 ASan 日志一致性 Evaluation 和 Human Outcome 工作台。
 
 这些仍不等于完整 M2/M3：自动 Lab、真正容器隔离和精确网络 allowlist 尚未实现；Vuln 也尚未由 MilkSU 自动生成、最小化或执行触发输入。M3 Product Shell 已把入口调整为列表式 Challenge Desk、PI Coding Agent 项目工作区和 CVE 优先队列。CTF 侧现已支持 NSSCTF 公开题库限速同步到本地 SQLite、NSSCTF/CTFshow 切换、完整分页选题、通用题面/URL/Socket/SSH/本地附件 Intake、紧凑能力画像、可解释推荐、Coach/Copilot/Delegate、官方 Agent Arena、只绑定当前题目页的 Chrome bridge，以及 Challenge 到 PI 单题工作区的一键交接；PI 工具轨迹和显式候选会回到 Runtime Evidence 与 Judge 闸门。解题会话现可切换到同题 Coding Agent 工具工坊，通过结构化请求、测试工具和独立轨迹交接；用户确认的复盘会进入本机 SQLite + Markdown 训练记忆，并在同分类新题中作为待验证先验召回。CTF Sidecar 已限制工作区文件边界、Coach Shell、命令时长和输出量，并在 macOS 使用 Seatbelt 约束 Copilot/Delegate 的本地命令，但这仍不是容器。Chrome 扩展仍需用户手工加载，完整自动闭环也仍需第一次真实 `correct=true` 原生桌面验收。CVE 情报仍是明确标识的演示 Adapter。

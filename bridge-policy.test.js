@@ -57,13 +57,24 @@ async function workspaceWithManifest(value) {
   return workspace;
 }
 
-test("normal coding sessions add only MilkSU's progress plugin to Pi built-ins", async () => {
+test("normal coding sessions enable only MilkSU-reviewed Coding tools", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "milksu-coding-policy-"));
   const policy = await loadSessionPolicy(workspace);
   assert.equal(policy.ctf, false);
   assert.deepEqual(
     policy.activeTools,
-    ["read", "bash", "edit", "write", "grep", "find", "ls", "milksu_progress"],
+    [
+      "read",
+      "bash",
+      "edit",
+      "write",
+      "grep",
+      "find",
+      "ls",
+      "milksu_progress",
+      "lsp_diagnostics",
+      "lsp_fix",
+    ],
   );
   assert.deepEqual(policy.customTools, []);
 });

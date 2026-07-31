@@ -37,7 +37,12 @@ const workspaceSchemaVersion = "ctf-workspace.milksu.dev/v1alpha1";
 const toolBuilderRole = "tool-builder";
 const strategistRole = "strategist";
 const codingToolNames = ["read", "bash", "edit", "write", "grep", "find", "ls"];
-const codingAgentToolNames = [...codingToolNames, "milksu_progress"];
+const codingAgentToolNames = [
+  ...codingToolNames,
+  "milksu_progress",
+  "lsp_diagnostics",
+  "lsp_fix",
+];
 const ctfLocalToolNames = [
   ...codingToolNames,
   "milksu_progress",

@@ -9,6 +9,7 @@ import { dirname, join } from "node:path";
 import { readFile, unlink } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { Type } from "typebox";
+import piLspExtension from "@narumitw/pi-lsp/src/index.ts";
 import { loadSessionPolicy } from "./bridge-policy.js";
 
 const relayKey = process.env.MILKSU_RELAY_KEY;
@@ -280,6 +281,8 @@ function createMilkSUResourceLoader(cwd, agentDir, systemPrompt, sessionRole) {
         join(bridgeDirectory, "skills", "archify"),
         join(bridgeDirectory, "third_party", "archify", "archify"),
       ].filter((path) => existsSync(join(path, "SKILL.md"))).slice(0, 1);
+  const extensionFactories = [createMilkSUWorkflowExtension(sessionRole)];
+  if (!sessionRole) extensionFactories.push(piLspExtension);
   return new DefaultResourceLoader({
     cwd,
     agentDir,
@@ -290,7 +293,7 @@ function createMilkSUResourceLoader(cwd, agentDir, systemPrompt, sessionRole) {
     noContextFiles: true,
     systemPrompt,
     additionalSkillPaths: codingSkillPaths,
-    extensionFactories: [createMilkSUWorkflowExtension(sessionRole)],
+    extensionFactories,
   });
 }
 
@@ -345,7 +348,10 @@ async function createSession(command) {
     emit(conversationId, "ready", {
       workspace: cwd,
       tools: session.getActiveToolNames(),
-      extensions: ["milksu-workflow"],
+      extensions: [
+        "milksu-workflow",
+        ...(effectiveSessionRole ? [] : ["pi-lsp"]),
+      ],
       skills: resourceLoader.getSkills().skills.map((skill) => skill.name),
       resumed: session.messages.length > 0,
     });

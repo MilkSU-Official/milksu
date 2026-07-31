@@ -15,6 +15,7 @@ go test ./...
 node --test bridge-policy.test.js
 npm --prefix app run build
 npm run sidecar:smoke
+npm run docs:build
 "$wails_bin" build
 
 rg -q "TestAgentModel" app/wailsjs/go/main/App.d.ts

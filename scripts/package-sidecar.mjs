@@ -10,6 +10,7 @@ const execFileAsync = promisify(execFile)
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const nodeVersion = '24.18.0'
 const archifyCommit = '7b49d0b715fd4ba48116bcdecd1ba3789a279613'
+const piLspVersion = '0.29.0'
 const nodeArchives = {
   'darwin/arm64': {
     file: `node-v${nodeVersion}-darwin-arm64.tar.xz`,
@@ -179,6 +180,14 @@ async function buildSidecar(platform) {
         path: 'skills/archify',
       },
     },
+    extensions: {
+      piLsp: {
+        package: '@narumitw/pi-lsp',
+        version: piLspVersion,
+        license: 'MIT',
+        scope: 'coding-only',
+      },
+    },
     esbuild: { version: '0.28.1' },
     bridges: {
       chat: { file: 'chat-bridge.cjs', sha256: await sha256(chatOutput) },
@@ -230,12 +239,26 @@ async function smokeSidecar(platform) {
   )
   const chatResponses = chatRun.stdout.trim().split('\n').map(line => JSON.parse(line))
   const ready = chatResponses.find(value => value.type === 'ready')
-  const expectedTools = ['read', 'bash', 'edit', 'write', 'grep', 'find', 'ls']
-  const ctfRequestedTools = [...expectedTools, 'ctf_inspect']
+  const coreExpectedTools = [
+    'read',
+    'bash',
+    'edit',
+    'write',
+    'grep',
+    'find',
+    'ls',
+  ]
+  const expectedTools = [
+    ...coreExpectedTools,
+    'lsp_diagnostics',
+    'lsp_fix',
+  ]
+  const ctfRequestedTools = [...coreExpectedTools, 'ctf_inspect']
   if (
     !ready
     || !expectedTools.every(tool => ready.tools?.includes(tool))
     || !ready.skills?.includes('archify')
+    || !ready.extensions?.includes('pi-lsp')
     || !chatResponses.some(value => value.type === 'session_destroyed')
   ) {
     throw new Error(`unexpected packaged Chat Sidecar response: ${chatRun.stdout}`)
@@ -282,7 +305,10 @@ async function smokeSidecar(platform) {
   if (
     !ctfReady
     || ctfReady.tools?.includes('bash')
+    || ctfReady.tools?.includes('lsp_diagnostics')
+    || ctfReady.tools?.includes('lsp_fix')
     || ctfReady.skills?.includes('archify')
+    || ctfReady.extensions?.includes('pi-lsp')
     || !coachTools.every(tool => ctfReady.tools?.includes(tool))
     || !ctfChatResponses.some(value => value.type === 'session_destroyed')
   ) {

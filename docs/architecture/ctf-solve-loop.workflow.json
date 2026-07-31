@@ -1,0 +1,366 @@
+{
+  "schema_version": 1,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "MilkSU CTF Solve Loop",
+    "subtitle": "One evidence-backed training run from platform intake to authoritative Judge receipt and learner debrief",
+    "output": "ctf-solve-loop.workflow.html",
+    "animation": "trace",
+    "visual_preset": "signal-flow",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "intake",
+        "label": "Intake and scope",
+        "focus": ["choose", "pair", "capture", "plan"],
+        "note": "The learner chooses a platform problem; MilkSU captures only the paired challenge and establishes an explicit scope."
+      },
+      {
+        "id": "solve",
+        "label": "Agent solve cycle",
+        "focus": ["plan", "attempt", "tools", "checkpoint", "candidate"],
+        "note": "PI iterates inside MilkSU budgets while checkpoints preserve resumable evidence."
+      },
+      {
+        "id": "judge",
+        "label": "Judge and learn",
+        "focus": ["candidate", "approve", "submit", "receipt", "debrief"],
+        "note": "The model proposes; the candidate gate and authoritative platform Judge decide; the result updates learner memory."
+      }
+    ]
+  },
+  "lanes": [
+    {
+      "id": "learner",
+      "label": "Learner"
+    },
+    {
+      "id": "platform",
+      "label": "Paired CTF Platform"
+    },
+    {
+      "id": "runtime",
+      "label": "MilkSU CTF Runtime"
+    },
+    {
+      "id": "agent",
+      "label": "PI Agent + Tools"
+    },
+    {
+      "id": "evidence",
+      "label": "Evidence + Learning"
+    },
+    {
+      "id": "exceptions",
+      "label": "Guardrails + Recovery",
+      "variant": "exception"
+    }
+  ],
+  "phases": [
+    {
+      "id": "intake_phase",
+      "label": "Read + scope",
+      "fromCol": 0,
+      "toCol": 1
+    },
+    {
+      "id": "solve_phase",
+      "label": "Plan + attempt",
+      "fromCol": 2,
+      "toCol": 3,
+      "variant": "emphasis"
+    },
+    {
+      "id": "judge_phase",
+      "label": "Judge + debrief",
+      "fromCol": 4,
+      "toCol": 5,
+      "variant": "dashed"
+    }
+  ],
+  "groups": [
+    {
+      "id": "bounded_attempt",
+      "label": "Budgeted solve run",
+      "lane": "agent",
+      "fromCol": 2,
+      "toCol": 3,
+      "variant": "emphasis"
+    },
+    {
+      "id": "submission_gate",
+      "label": "Submission authority stays outside the model",
+      "lane": "runtime",
+      "fromCol": 3,
+      "toCol": 4,
+      "variant": "security"
+    }
+  ],
+  "mainPath": [
+    "choose",
+    "pair",
+    "capture",
+    "plan",
+    "attempt",
+    "tools",
+    "candidate",
+    "approve",
+    "submit",
+    "receipt",
+    "debrief"
+  ],
+  "nodes": [
+    {
+      "id": "choose",
+      "lane": "learner",
+      "col": 0,
+      "type": "external",
+      "label": "Choose Problem",
+      "sublabel": "platform + mode"
+    },
+    {
+      "id": "pair",
+      "lane": "platform",
+      "col": 0,
+      "width": 74,
+      "type": "security",
+      "label": "Pair Tab",
+      "sublabel": "page scope",
+      "tag": "local token"
+    },
+    {
+      "id": "capture",
+      "lane": "runtime",
+      "col": 1,
+      "width": 68,
+      "type": "backend",
+      "label": "Capture",
+      "sublabel": "prompt + files"
+    },
+    {
+      "id": "plan",
+      "lane": "runtime",
+      "col": 2,
+      "width": 68,
+      "type": "backend",
+      "label": "Plan",
+      "sublabel": "goal + budget"
+    },
+    {
+      "id": "attempt",
+      "lane": "agent",
+      "col": 2,
+      "type": "backend",
+      "label": "Agent Attempt",
+      "sublabel": "reason + inspect"
+    },
+    {
+      "id": "tools",
+      "lane": "agent",
+      "col": 3,
+      "type": "cloud",
+      "label": "Tool Gate",
+      "sublabel": "workspace / Docker",
+      "tag": "deny by default"
+    },
+    {
+      "id": "checkpoint",
+      "lane": "evidence",
+      "col": 3,
+      "type": "database",
+      "label": "Checkpoint",
+      "sublabel": "trajectory + artifacts"
+    },
+    {
+      "id": "candidate",
+      "lane": "runtime",
+      "col": 3,
+      "type": "security",
+      "label": "Candidate Gate",
+      "sublabel": "format + dedupe"
+    },
+    {
+      "id": "approve",
+      "lane": "learner",
+      "col": 4,
+      "type": "external",
+      "label": "Review",
+      "sublabel": "approval by mode"
+    },
+    {
+      "id": "submit",
+      "lane": "platform",
+      "col": 4,
+      "type": "security",
+      "label": "Judge Submit",
+      "sublabel": "paired tab / API"
+    },
+    {
+      "id": "receipt",
+      "lane": "evidence",
+      "col": 5,
+      "type": "database",
+      "label": "Judge Receipt",
+      "sublabel": "accepted / rejected",
+      "tag": "authoritative"
+    },
+    {
+      "id": "debrief",
+      "lane": "learner",
+      "col": 5,
+      "type": "frontend",
+      "label": "Debrief",
+      "sublabel": "skill delta + next"
+    },
+    {
+      "id": "pause",
+      "lane": "exceptions",
+      "col": 4,
+      "width": 74,
+      "type": "messagebus",
+      "label": "Pause",
+      "sublabel": "budget / scope"
+    },
+    {
+      "id": "resume",
+      "lane": "exceptions",
+      "col": 5,
+      "width": 74,
+      "type": "backend",
+      "label": "Resume",
+      "sublabel": "checkpoint"
+    }
+  ],
+  "edges": [
+    {
+      "from": "choose",
+      "to": "pair",
+      "variant": "emphasis",
+      "route": "drop",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "from": "pair",
+      "to": "capture",
+      "variant": "security",
+      "route": "drop",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "from": "capture",
+      "to": "plan",
+      "variant": "emphasis",
+      "route": "bottom-channel",
+      "fromSide": "bottom",
+      "toSide": "bottom"
+    },
+    {
+      "from": "plan",
+      "to": "attempt",
+      "variant": "emphasis",
+      "route": "drop",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "from": "attempt",
+      "to": "tools",
+      "variant": "security"
+    },
+    {
+      "from": "tools",
+      "to": "checkpoint",
+      "route": "drop",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "from": "tools",
+      "to": "candidate",
+      "variant": "emphasis",
+      "route": "up-channel",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "from": "candidate",
+      "to": "approve",
+      "variant": "security",
+      "route": "return-left",
+      "fromSide": "left",
+      "toSide": "left"
+    },
+    {
+      "from": "approve",
+      "to": "submit",
+      "variant": "security",
+      "route": "drop",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "from": "submit",
+      "to": "receipt",
+      "variant": "emphasis",
+      "route": "drop",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "from": "receipt",
+      "to": "debrief",
+      "variant": "emphasis",
+      "route": "outside-right",
+      "fromSide": "right",
+      "toSide": "right"
+    },
+    {
+      "from": "checkpoint",
+      "to": "pause",
+      "variant": "security",
+      "role": "error",
+      "route": "drop",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "from": "pause",
+      "to": "resume",
+      "variant": "dashed",
+      "route": "bottom-channel",
+      "fromSide": "bottom",
+      "toSide": "bottom"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Candidate Is Not a Solve",
+      "items": [
+        "The model writes a candidate, never a completion claim",
+        "Mode and policy decide whether learner approval is required",
+        "Only the platform Judge receipt updates solved state"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Every Run Is Resumable",
+      "items": [
+        "Attachments, commands, outputs, and hypotheses are checkpointed",
+        "Budget or tool errors pause without erasing progress",
+        "Resume starts from the last verified checkpoint"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Training Becomes Memory",
+      "items": [
+        "Hints and independent steps are recorded separately",
+        "Debrief turns evidence into skill deltas and review tasks",
+        "Recommendation uses real outcomes, not profile guesses"
+      ]
+    }
+  ]
+}

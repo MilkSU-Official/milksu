@@ -14,6 +14,13 @@ MilkSU 是一个**一站式网络安全 AI 学习客户端**；它的技术核�
 
 它也不是任意目标的通用互联网扫描器、自动渗透服务或隐蔽攻击编排器。学习定位必须由默认能力、授权范围、审批、速率、证据和发布方式共同成立，不能只改首页文案。详细边界见 [ADR-0004：学习产品、能力与开源发布边界](/developer/adr/0004-learning-product-and-release-boundary)。
 
+## 可交互架构视图
+
+- [MilkSU M3 System Architecture](/architecture/milksu-system.architecture.html)：桌面进程、PI Sidecar、CTF Runtime、平台 Adapter、Browser Bridge、Docker Lab 与本地持久化边界。
+- [MilkSU CTF Solve Loop](/architecture/ctf-solve-loop.workflow.html)：从选题、读取材料、预算内解题，到候选闸门、权威 Judge 回执与训练复盘。
+
+两张图由固定版本 Archify 生成，JSON 规格与 HTML 产物都在仓库中；规格引用了对应实现文件和仓库 revision。
+
 ## 为什么需要重启
 
 早期架构从界面和 Agent Loop 出发：先有聊天、任务类型、面板、Skill 和子代理，再设想它们可以承载安全工作。行业项目调研表明，真正可用的安全 Agent 通常已经拥有自己的工作流、环境、工具链和状态模型。MilkSU 如果继续从通用对话框向外堆功能，只会得到一个更弱的 Coding Agent 外壳。
@@ -126,7 +133,7 @@ L6  Cross-cutting Agent Integrity
 
 ### L1：桌面交互表面
 
-第一阶段产品只有 macOS 桌面客户端，后续再评估 Windows；不提供 Web 产品、GraphQL 或本地 HTTP 服务。Wails binding 只把 React UI 连接到 Go application service。L1 负责：
+第一阶段产品只有 macOS 桌面客户端，后续再评估 Windows；不提供 Web 产品、GraphQL 或公开 HTTP API。唯一的本地网络监听是带持久配对令牌的 loopback Browser Bridge，用于把用户明确选择的已登录 CTF 标签页连接到桌面进程。Wails binding 只把 Vue 3 + Memoh UI 连接到 Go application service。L1 负责：
 
 - 创建和查看 Engagement/Job；
 - 选择 Role Package、环境、Agent Engine、模型与预算；
