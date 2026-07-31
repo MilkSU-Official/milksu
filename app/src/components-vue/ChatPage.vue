@@ -362,12 +362,15 @@ watch(
 
 <template>
   <section class="flex min-w-0 flex-1 overflow-hidden bg-surface-editor">
-  <main class="flex min-w-0 flex-1 flex-col bg-surface-editor">
-    <header class="app-drag flex h-14 shrink-0 items-center justify-between border-b border-border px-6">
-      <div class="min-w-0">
-        <div class="flex items-center gap-2">
+  <main class="chat-main flex min-w-0 flex-1 flex-col overflow-hidden bg-surface-editor">
+    <header
+      class="chat-toolbar app-drag shrink-0 border-b border-border"
+      :class="{ 'chat-toolbar--ctf': ctfSession }"
+    >
+      <div class="chat-toolbar__summary min-w-0">
+        <div class="flex min-w-0 items-center gap-2 overflow-hidden">
           <p class="truncate text-control font-medium">Coding</p>
-          <Badge v-if="ctfSession" variant="secondary">
+          <Badge v-if="ctfSession" variant="secondary" class="max-w-full truncate">
             {{ ctfRoleLabel }}
           </Badge>
         </div>
@@ -376,11 +379,12 @@ watch(
           · {{ workspacePath || '临时沙盒 · 选择项目后可读写代码并运行命令' }}
         </p>
       </div>
-      <div class="app-no-drag flex items-center gap-2">
+      <div class="chat-toolbar__actions app-no-drag flex min-w-0 items-center gap-2">
         <Button
           v-if="ctfSession && ctfRole === 'solver'"
           variant="outline"
           size="sm"
+          title="切换到独立策略复盘"
           @click="$emit('switchCtfAgent', 'strategist')"
         >
           <Route class="size-4" />
@@ -390,6 +394,7 @@ watch(
           v-if="ctfSession && ctfRole === 'solver'"
           variant="outline"
           size="sm"
+          title="打开本题工具工坊"
           @click="$emit('switchCtfAgent', 'tool-builder')"
         >
           <Wrench class="size-4" />
@@ -403,24 +408,32 @@ watch(
           v-else-if="ctfSession"
           variant="outline"
           size="sm"
+          title="返回 CTF 解题 Agent"
           @click="$emit('switchCtfAgent', 'solver')"
         >
           <Flag class="size-4" />
           返回解题 Agent
         </Button>
-        <Button v-if="ctfSession" variant="ghost" size="sm" @click="$emit('returnCtf')">
+        <Button
+          v-if="ctfSession"
+          variant="ghost"
+          size="sm"
+          title="返回训练工作台"
+          @click="$emit('returnCtf')"
+        >
           <Flag class="size-4" />
           返回训练工作台
         </Button>
         <Button
           variant="outline"
           size="sm"
+          class="chat-toolbar__workspace max-w-56"
           :disabled="workspaceLocked"
           :title="workspaceLocked ? '项目目录在任务开始后锁定；请新建任务来切换项目' : '选择项目目录'"
           @click="$emit('chooseWorkspace')"
         >
-          <FolderOpen class="size-4" />
-          {{ workspacePath ? workspaceName : '选择项目' }}
+          <FolderOpen class="size-4 shrink-0" />
+          <span class="truncate">{{ workspacePath ? workspaceName : '选择项目' }}</span>
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
@@ -491,7 +504,7 @@ watch(
         >
           <SelectTrigger
             size="sm"
-            class="min-w-64"
+            class="chat-toolbar__model min-w-0"
             aria-label="选择本任务模型"
             :title="effectiveModelMode === 'auto'
               ? 'MilkSU 按任务角色自动选择模型；你可以仅为当前对话覆盖'
@@ -905,3 +918,79 @@ watch(
   </aside>
   </section>
 </template>
+
+<style scoped>
+.chat-main {
+  container-name: chat-main;
+  container-type: inline-size;
+}
+
+.chat-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 3.5rem;
+  padding: 0.5rem 1.5rem;
+}
+
+.chat-toolbar__summary {
+  overflow: hidden;
+}
+
+.chat-toolbar__actions {
+  max-width: 100%;
+}
+
+.chat-toolbar__model {
+  width: 16rem;
+  max-width: 100%;
+}
+
+.chat-toolbar--ctf {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  padding-inline: 1rem;
+}
+
+.chat-toolbar--ctf .chat-toolbar__actions {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+.chat-toolbar--ctf .chat-toolbar__model {
+  flex: 1 1 14rem;
+  width: auto;
+  max-width: 20rem;
+  margin-left: auto;
+}
+
+@container chat-main (max-width: 72rem) {
+  .chat-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+    padding-inline: 1rem;
+  }
+
+  .chat-toolbar__actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .chat-toolbar__model {
+    margin-left: auto;
+  }
+}
+
+@container chat-main (max-width: 52rem) {
+  .chat-toolbar__workspace {
+    max-width: 10rem;
+  }
+
+  .chat-toolbar__model {
+    flex: 1 1 14rem;
+    width: auto;
+    margin-left: 0;
+  }
+}
+</style>

@@ -51,7 +51,6 @@ const modelVerified = computed(() => Boolean(
   && settings.value.model_verification.model === defaultTaskModel.value?.model,
 ))
 const arenaReady = computed(() => Boolean(settings.value?.nssctf_arena?.has_token))
-const htbReady = computed(() => Boolean(settings.value?.htb_ctf?.has_token))
 const activeCTFConversation = computed(() => (
   Boolean(conversations.active.value?.ctfJobId)
 ))
@@ -173,7 +172,6 @@ onMounted(async () => {
       :model-ready="modelReady"
       :model-verified="modelVerified"
       :arena-ready="arenaReady"
-      :htb-ready="htbReady"
       :initial-job-id="ctfResumeJobId"
       @open-settings="openSettings('apikeys')"
       @start-coding-agent="startCTFAgent"

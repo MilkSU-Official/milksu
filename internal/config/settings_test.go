@@ -72,7 +72,6 @@ func TestStoreKeepsSecretsOutOfSettingsAndPublicBoundary(t *testing.T) {
 	settings.Providers["deepseek"] = ProviderConfig{APIKey: "provider-secret", Enabled: true}
 	settings.Relay = &RelayConfig{Enabled: true, URL: "https://relay.example", Key: "relay-secret"}
 	settings.NSSCTFArena = &NSSCTFArenaConfig{Token: "nss_agent_arena-secret"}
-	settings.HTBCTF = &HTBCTFConfig{Token: "htb-mcp-secret"}
 	if err := store.Save(settings); err != nil {
 		t.Fatal(err)
 	}
@@ -83,8 +82,7 @@ func TestStoreKeepsSecretsOutOfSettingsAndPublicBoundary(t *testing.T) {
 	}
 	if strings.Contains(string(data), "provider-secret") ||
 		strings.Contains(string(data), "relay-secret") ||
-		strings.Contains(string(data), "arena-secret") ||
-		strings.Contains(string(data), "htb-mcp-secret") {
+		strings.Contains(string(data), "arena-secret") {
 		t.Fatalf("settings file contains a credential: %s", data)
 	}
 	public := store.Get()
@@ -97,14 +95,10 @@ func TestStoreKeepsSecretsOutOfSettingsAndPublicBoundary(t *testing.T) {
 	if public.NSSCTFArena.Token != "" || !public.NSSCTFArena.HasToken {
 		t.Fatalf("public NSSCTF Arena settings leaked or lost token status: %#v", public.NSSCTFArena)
 	}
-	if public.HTBCTF.Token != "" || !public.HTBCTF.HasToken {
-		t.Fatalf("public HTB CTF settings leaked or lost token status: %#v", public.HTBCTF)
-	}
 	resolved := store.GetResolved()
 	if resolved.Providers["deepseek"].APIKey != "provider-secret" ||
 		resolved.Relay.Key != "relay-secret" ||
-		resolved.NSSCTFArena.Token != "nss_agent_arena-secret" ||
-		resolved.HTBCTF.Token != "htb-mcp-secret" {
+		resolved.NSSCTFArena.Token != "nss_agent_arena-secret" {
 		t.Fatal("engine settings did not resolve stored credentials")
 	}
 }
@@ -358,66 +352,5 @@ func TestStoreNormalizesAndExplicitlyRemovesArenaToken(t *testing.T) {
 	}
 	if store.Get().NSSCTFArena.HasToken {
 		t.Fatal("removed Arena token still appears configured")
-	}
-}
-
-func TestStoreNormalizesAndExplicitlyRemovesHTBToken(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "settings.json")
-	secrets := fakeSecretStore{}
-	store, err := newStore(path, secrets)
-	if err != nil {
-		t.Fatal(err)
-	}
-	settings := DefaultSettings()
-	settings.HTBCTF = &HTBCTFConfig{Token: "  htb-mcp-secret  "}
-	if err := store.Save(settings); err != nil {
-		t.Fatal(err)
-	}
-	if resolved := store.GetResolved().HTBCTF.Token; resolved != "htb-mcp-secret" {
-		t.Fatalf("HTB MCP token was not normalized: %q", resolved)
-	}
-
-	public := store.Get()
-	public.HTBCTF.RemoveToken = true
-	if err := store.Save(public); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := secrets.Get(htbCTFSecretAccount); !errors.Is(err, errSecretNotFound) {
-		t.Fatalf("HTB MCP token still exists: %v", err)
-	}
-	if store.Get().HTBCTF.HasToken {
-		t.Fatal("removed HTB MCP token still appears configured")
-	}
-}
-
-func TestStoreKeepsHTBTokenInSessionWhenPersistentWriteFails(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "settings.json")
-	store, err := newStore(path, failingSetSecretStore{
-		fakeSecretStore: fakeSecretStore{},
-		err:             errors.New("credential database unavailable"),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	settings := DefaultSettings()
-	settings.HTBCTF = &HTBCTFConfig{Token: "htb-session-secret"}
-	err = store.Save(settings)
-	if err == nil || !strings.Contains(err.Error(), "credential database unavailable") {
-		t.Fatalf("expected persistence failure, got %v", err)
-	}
-	public := store.Get().HTBCTF
-	if !public.HasToken || !public.SessionOnly || public.Token != "" {
-		t.Fatalf("unexpected public HTB session state: %#v", public)
-	}
-	if resolved := store.GetResolved().HTBCTF.Token; resolved != "htb-session-secret" {
-		t.Fatal("HTB session token is unavailable to the adapter")
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(string(data), "htb-session-secret") ||
-		strings.Contains(string(data), "session_only") {
-		t.Fatalf("HTB session token metadata leaked to disk: %s", data)
 	}
 }

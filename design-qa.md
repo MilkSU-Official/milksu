@@ -140,7 +140,7 @@ final result: passed
 No actionable P0, P1, or P2 findings remain.
 
 - Platform selection is one real dropdown containing NSSCTF, CTFshow, Hack The Box, TryHackMe, and the local custom source. HTB no longer competes with the platform chooser as a special configuration button.
-- The HTB selection opens a first-class platform state page with explicit capabilities, integration status, connection, and official CTF entry.
+- The HTB selection opens a first-class Labs state page with explicit Machine/Starting Point/Challenge capabilities, integration status, and the official Labs entry.
 - The ambiguous `继续上次` and `下一步` header controls are replaced by one Bilibili-style history dropdown containing real local attempts, status, experiment count, and update time.
 - Import is absent from connected platform headers. `自定义题目` owns local intake and states twice that it creates only a MilkSU workspace and uploads nothing.
 - `补充图片或附件` is renamed `添加本地材料`; the selected-challenge surface states that files are copied only into that challenge workspace and are not uploaded.

@@ -37,13 +37,13 @@ func TrainingPlatforms() []TrainingPlatform {
 			SourceURL:    "https://ctf.show/challenges",
 		},
 		{
-			ID: "hackthebox", Name: "Hack The Box", Experience: "competition-and-interactive-lab",
-			Status: PlatformPlanned, Adapter: "official-remote-mcp", Selectable: false,
+			ID: "hackthebox", Name: "HTB Labs", Experience: "interactive-lab",
+			Status: PlatformPlanned, Adapter: "official-labs-api", Selectable: false,
 			Capabilities: []string{
-				"ctf-events", "challenge-instances", "judge", "solve-stats",
+				"machines", "starting-point", "challenges", "vpn", "instance-lifecycle", "progress",
 			},
-			Requirement: "HTB MCP token; Labs machine support waits for an official standard-account interface",
-			SourceURL:   "https://mcp.hackthebox.ai/v1/ctf/mcp/",
+			Requirement: "HTB Labs API token; machine catalog and lifecycle mapping require real-account verification",
+			SourceURL:   "https://app.hackthebox.com/machines",
 		},
 		{
 			ID: "tryhackme", Name: "TryHackMe", Experience: "guided-room-and-interactive-lab",

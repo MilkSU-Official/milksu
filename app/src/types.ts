@@ -57,13 +57,6 @@ export interface NSSCTFArenaConfig {
   remove_token?: boolean
 }
 
-export interface HTBCTFConfig {
-  token: string
-  has_token: boolean
-  session_only?: boolean
-  remove_token?: boolean
-}
-
 export interface ModelVerification {
   provider: string
   model: string
@@ -88,7 +81,6 @@ export interface AppSettings {
   model_verification?: ModelVerification
   relay?: RelayConfig
   nssctf_arena?: NSSCTFArenaConfig
-  htb_ctf?: HTBCTFConfig
   locale?: 'en' | 'zh'
   providers: Record<string, ProviderConfig>
 }

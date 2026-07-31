@@ -21,7 +21,6 @@ import {
 } from '@felinic/ui'
 import { AlertCircle, ArrowLeft, Check, KeyRound, ShieldCheck } from 'lucide-vue-next'
 import { invokeCommand } from '@/desktop'
-import type { HTBCTFProbe } from '@/ctfPlatformTypes'
 import type { AppSettings, ModelProbeResult, ModelSelection } from '@/types'
 import {
   PROVIDERS,
@@ -44,8 +43,6 @@ const category = ref(props.initialCategory)
 const working = ref<AppSettings | null>(null)
 const saving = ref(false)
 const verifying = ref(false)
-const probingHTB = ref(false)
-const htbProbe = ref<HTBCTFProbe | null>(null)
 const notice = ref<{ tone: 'ok' | 'error'; text: string } | null>(null)
 
 function cloneSettings(value: AppSettings): AppSettings {
@@ -146,7 +143,6 @@ async function save() {
       Object.values(refreshed.providers).some(item => item.session_only)
       || refreshed.relay?.session_only
       || refreshed.nssctf_arena?.session_only
-      || refreshed.htb_ctf?.session_only
     )
     notice.value = { tone: 'error', text: sessionOnly
       ? `${String(reason)} 当前密钥仅保留在本次运行内，退出应用后需要重新输入。`
@@ -156,36 +152,6 @@ async function save() {
   }
 }
 
-async function probeHTB() {
-  if (!working.value) return
-  const config = working.value.htb_ctf
-  if (!config?.token && !config?.has_token) {
-    notice.value = { tone: 'error', text: '请先输入 Hack The Box MCP Token。' }
-    return
-  }
-  probingHTB.value = true
-  notice.value = null
-  htbProbe.value = null
-  try {
-    await invokeCommand('save_settings_cmd', { newSettings: working.value })
-    const refreshed = await invokeCommand<AppSettings>('get_settings')
-    working.value = cloneSettings(refreshed)
-    emit('settingsChange', refreshed)
-    const result = await invokeCommand<HTBCTFProbe>('probe_htb_ctf')
-    htbProbe.value = result
-    notice.value = {
-      tone: 'ok',
-      text: `已连接 ${result.server.title || result.server.name}，发现 ${result.toolNames.length} 个官方 CTF 工具。`,
-    }
-  } catch (reason) {
-    notice.value = {
-      tone: 'error',
-      text: `Hack The Box CTF MCP 连接失败：${String(reason)}`,
-    }
-  } finally {
-    probingHTB.value = false
-  }
-}
 </script>
 
 <template>
@@ -443,51 +409,12 @@ async function probeHTB() {
             </SettingsRow>
           </SettingsSection>
 
-          <SettingsSection title="Hack The Box CTF (Beta)" class="mt-6">
-            <SettingsRow
-              stack="always"
-              label="MCP Token"
-              :description="working.htb_ctf?.session_only ? '本地数据库写入失败；当前仅在本次运行可用' : working.htb_ctf?.has_token ? '已保存在本机 SQLite 凭据库' : '从 HTB Profile Settings → MCP Access 生成；只发往 HTB 官方 MCP'"
-            >
-              <Input
-                :model-value="working.htb_ctf?.token ?? ''"
-                type="password"
-                autocomplete="off"
-                placeholder="HTB MCP Token"
-                @update:model-value="value => {
-                  htbProbe = null
-                  working!.htb_ctf = {
-                    token: String(value),
-                    has_token: working!.htb_ctf?.has_token ?? false,
-                    session_only: value ? false : working!.htb_ctf?.session_only,
-                  }
-                }"
-              />
-            </SettingsRow>
-            <SettingsRow
-              label="官方 CTF MCP"
-              :description="htbProbe
-                ? `${htbProbe.server.title || htbProbe.server.name} · 已映射 ${htbProbe.mappedOperations.length}/${htbProbe.toolNames.length} 个工具 · ${htbProbe.protocolVersion}`
-                : '验证赛事、挑战实例、Judge 与 solve stats 的官方工具清单'"
-            >
-              <Button
-                variant="outline"
-                size="sm"
-                :loading="probingHTB"
-                :disabled="!working.htb_ctf?.token && !working.htb_ctf?.has_token"
-                @click="probeHTB"
-              >
-                连接测试
-              </Button>
-            </SettingsRow>
-          </SettingsSection>
-
           <div class="mt-6 flex items-center justify-between gap-4">
             <p class="flex items-center gap-2 text-caption text-muted-foreground">
               <KeyRound class="size-3.5" />
               凭据写入本机 SQLite；保存后立即重启 Agent 会话引擎
             </p>
-            <Button :loading="saving || verifying || probingHTB" @click="save">
+            <Button :loading="saving || verifying" @click="save">
               {{ verifying ? '正在验证 PI' : '保存并验证' }}
             </Button>
           </div>

@@ -428,22 +428,19 @@ func TestChallengeIntakeRejectsPathLikeMaterialNames(t *testing.T) {
 	}
 }
 
-func TestChallengeIntakeAllowsOfficialHTBCTFJobs(t *testing.T) {
-	admitted, err := validateRequest(ChallengeRequest{
-		Title:             "HTB Warmup",
-		Statement:         "Solve the authorized HTB CTF challenge.",
+func TestChallengeIntakeRejectsRemovedHTBCTFJobs(t *testing.T) {
+	_, err := validateRequest(ChallengeRequest{
+		Title:             "Removed HTB CTF event",
+		Statement:         "This product adapter must no longer be admitted.",
 		Category:          "web",
 		CollaborationMode: "copilot",
 		SourceKind:        "url",
-		SourceURI:         "https://warmup.example.test/",
+		SourceURI:         "https://ctf.hackthebox.com/",
 		ExternalPlatform:  "hackthebox-ctf",
 		ExternalAttemptID: 901,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if admitted.externalPlatform != "hackthebox-ctf" || admitted.externalAttemptID != 901 {
-		t.Fatalf("HTB CTF identity was not preserved: %#v", admitted)
+	if err == nil || !strings.Contains(err.Error(), "unsupported external CTF platform") {
+		t.Fatalf("expected removed HTB CTF adapter to be rejected, got %v", err)
 	}
 }
 

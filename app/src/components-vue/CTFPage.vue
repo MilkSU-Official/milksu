@@ -52,7 +52,6 @@ import {
   RefreshCw,
   RotateCcw,
   Send,
-  Server,
   ShieldCheck,
   Sparkles,
   Target,
@@ -66,12 +65,10 @@ import CTFDebrief from '@/components-vue/CTFDebrief.vue'
 import CTFManualIntake from '@/components-vue/CTFManualIntake.vue'
 import CTFTrainingArchive from '@/components-vue/CTFTrainingArchive.vue'
 import CTFTrajectory from '@/components-vue/CTFTrajectory.vue'
-import HTBCTFDesk from '@/components-vue/HTBCTFDesk.vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import { useCTFTrainingPlatforms } from '@/composables/useCTFTrainingPlatforms'
 import { useCTFWorkspace } from '@/composables/useCTFWorkspace'
 import { useCTFShowCatalog } from '@/composables/useCTFShow'
-import { useHTBCTF } from '@/composables/useHTBCTF'
 import { useNSSCTFArena, useNSSCTFChallenges, useNSSCTFWebBridge } from '@/composables/useNSSCTF'
 import { useNSSCTFCatalog, useNSSCTFTraining } from '@/composables/useNSSCTFTraining'
 import { invokeCommand } from '@/desktop'
@@ -108,7 +105,6 @@ const props = defineProps<{
   modelReady: boolean
   modelVerified: boolean
   arenaReady: boolean
-  htbReady: boolean
   initialJobId?: string | null
 }>()
 
@@ -125,7 +121,6 @@ const webBridge = useNSSCTFWebBridge()
 const training = useNSSCTFTraining()
 const publicCatalog = useNSSCTFCatalog()
 const ctfshow = useCTFShowCatalog()
-const htb = useHTBCTF()
 const screen = ref<Screen>('challenge')
 const storedTrainingSource = window.localStorage.getItem('milksu.ctf.question-bank')
 const activeBank = ref<TrainingSource>(
@@ -215,9 +210,6 @@ const isWebWorkspace = computed(() => (
 ))
 const isCTFShowWorkspace = computed(() => (
   activeProjection.value?.challenge.externalPlatform === 'ctfshow-web'
-))
-const isHTBWorkspace = computed(() => (
-  activeProjection.value?.challenge.externalPlatform === 'hackthebox-ctf'
 ))
 const externalJudgeLabel = computed(() => {
   switch (activeProjection.value?.challenge.source.kind) {
@@ -447,7 +439,7 @@ const externalPlatformStatusLabel = computed(() => {
 const externalPlatformSummary = computed(() => {
   switch (activeExternalPlatform.value?.id) {
     case 'hackthebox':
-      return '通过 HTB 官方 CTF MCP 读取赛事与题目；实例、附件和 Judge 只在工具映射通过后启用。'
+      return '接入目标是 HTB Labs：Machines、Starting Point 与 Challenges 进入统一训练列表，启动靶机后再交给 Agent。'
     case 'tryhackme':
       return 'TryHackMe 目前只向 Business / Classroom 提供官方 API；个人版没有可依赖的完整题库与靶机接口。'
     default:
@@ -456,10 +448,12 @@ const externalPlatformSummary = computed(() => {
 })
 const externalPlatformCapabilities = computed(() => {
   const labels: Record<string, string> = {
-    'ctf-events': '赛事',
-    'challenge-instances': '题目实例',
-    judge: 'Judge',
-    'solve-stats': '解题统计',
+    machines: 'Machines',
+    'starting-point': 'Starting Point',
+    challenges: 'Challenges',
+    vpn: 'VPN',
+    'instance-lifecycle': '靶机生命周期',
+    progress: '训练进度',
     'room-catalog': '房间目录',
     'room-questions': '房间题目',
     scoreboard: '积分榜',
@@ -673,8 +667,6 @@ watch(activeBank, bank => {
     void ctfshow.refresh().then(() => selectDefaultDeskProblem())
   } else if (bank === 'nssctf') {
     void loadPublicCatalog(1).then(() => selectDefaultDeskProblem())
-  } else if (bank === 'hackthebox' && props.htbReady) {
-    void htb.loadEvents()
   }
 })
 
@@ -865,7 +857,7 @@ function formatHistoryTime(value: string) {
 async function openExternalPlatform() {
   if (!activeExternalPlatform.value) return
   const sourceUrl = activeExternalPlatform.value.id === 'hackthebox'
-    ? 'https://ctf.hackthebox.com/'
+    ? 'https://app.hackthebox.com/machines'
     : activeExternalPlatform.value.id === 'tryhackme'
       ? 'https://tryhackme.com/hacktivities'
       : activeExternalPlatform.value.sourceUrl
@@ -938,59 +930,6 @@ async function chooseCTFShowProblem(problemId: number) {
   } finally {
     working.value = false
   }
-}
-
-async function startHTBChallenge(challengeId: number) {
-  const ctfId = htb.selectedEventId.value
-  if (!ctfId) {
-    outcomeNotice.value = '请先选择一场 Hack The Box CTF 赛事。'
-    return
-  }
-  if (!props.modelVerified) {
-    emit('openSettings')
-    return
-  }
-  working.value = true
-  outcomeNotice.value = ''
-  try {
-    const workspace = await htb.startChallenge(
-      ctfId,
-      challengeId,
-      collaborationMode.value,
-    )
-    if (!workspace) {
-      outcomeNotice.value = htb.error.value ?? '无法建立 HTB CTF 工作台。'
-      return
-    }
-    await backend.adoptProjection(workspace.ctf)
-    screen.value = 'workspace'
-    outcomeNotice.value = workspace.container
-      ? 'HTB 实例已由官方 MCP 启动，附件与精确授权目标已进入工作台。'
-      : 'HTB 题目附件与官方 Judge 已接入工作台。'
-    if (props.modelReady) await openCodingAgent()
-  } finally {
-    working.value = false
-  }
-}
-
-async function refreshHTBContainer() {
-  if (!activeProjection.value || !isHTBWorkspace.value) return
-  const state = await htb.refreshContainer(activeProjection.value.job.id)
-  if (state) {
-    outcomeNotice.value = `HTB 实例状态：${state.status}${state.expiresAt ? ` · ${state.expiresAt}` : ''}`
-  } else {
-    outcomeNotice.value = htb.error.value ?? '无法刷新 HTB 实例状态。'
-  }
-}
-
-async function stopHTBContainer() {
-  if (!activeProjection.value || !isHTBWorkspace.value) return
-  working.value = true
-  const state = await htb.stopContainer(activeProjection.value.job.id)
-  outcomeNotice.value = state
-    ? `HTB 实例已停止：${state.status}`
-    : htb.error.value ?? '无法停止 HTB 实例。'
-  working.value = false
 }
 
 async function openActiveChallenge() {
@@ -1340,24 +1279,6 @@ async function submitCandidate() {
     return
   }
 
-  if (isHTBWorkspace.value) {
-    working.value = true
-    const jobId = activeProjection.value.job.id
-    const result = await htb.submitFlag(jobId, flagCandidate.value.trim())
-    if (result) {
-      await backend.adoptProjection(result.ctf)
-      await refreshTrainingProgress()
-      outcomeNotice.value = result.receipt.correct
-        ? `HTB challenge #${result.receipt.challengeId} 已确认 Accepted，官方 MCP 回执已进入证据链。`
-        : `HTB challenge #${result.receipt.challengeId} 返回 Rejected；该候选不会被记为完成。`
-    } else {
-      await backend.selectJob(jobId)
-      outcomeNotice.value = htb.error.value ?? 'HTB CTF Judge 没有返回可确认结果。'
-    }
-    working.value = false
-    return
-  }
-
   working.value = true
   const prepared = await backend.prepareExternalSubmission(
     activeProjection.value.job.id,
@@ -1416,9 +1337,6 @@ async function recordPlatformResult(accepted: boolean) {
 async function resumeJob(id: string) {
   await backend.selectJob(id)
   screen.value = 'workspace'
-  if (isHTBWorkspace.value && authorizedTargets.value.length) {
-    await htb.refreshContainer(id)
-  }
 }
 
 let bridgeStatusTimer: number | undefined
@@ -1437,9 +1355,6 @@ onMounted(async () => {
     platformRegistry.load(),
     activeBank.value === 'ctfshow' ? ctfshow.refresh() : Promise.resolve(null),
     activeBank.value === 'nssctf' ? loadPublicCatalog(1) : Promise.resolve(null),
-    activeBank.value === 'hackthebox' && props.htbReady
-      ? htb.loadEvents()
-      : Promise.resolve(null),
   ])
   if (props.initialJobId) await resumeJob(props.initialJobId)
   await selectDefaultDeskProblem()
@@ -2224,27 +2139,8 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
-        <HTBCTFDesk
-          v-else-if="screen === 'challenge' && activeBank === 'hackthebox'"
-          :configured="htbReady"
-          :events="htb.events.value"
-          :details="htb.details.value"
-          :selected-event-id="htb.selectedEventId.value"
-          :loading="htb.loading.value"
-          :starting="htb.starting.value"
-          :model-verified="modelVerified"
-          :collaboration-mode="collaborationMode"
-          :error="htb.error.value"
-          @connect="$emit('openSettings')"
-          @refresh="htb.loadEvents"
-          @select-event="htb.loadEvent"
-          @start-challenge="startHTBChallenge"
-          @open-official="openExternalPlatform"
-          @update:collaboration-mode="collaborationMode = $event"
-        />
-
         <section
-          v-else-if="screen === 'challenge' && activeBank === 'tryhackme'"
+          v-else-if="screen === 'challenge' && (activeBank === 'hackthebox' || activeBank === 'tryhackme')"
           class="h-full overflow-y-auto px-6 py-8"
           :aria-labelledby="`${activeBank}-platform-title`"
         >
@@ -2887,13 +2783,13 @@ onBeforeUnmount(() => {
           </div>
 
           <Alert
-            v-if="backend.error.value || arena.error.value || webBridge.error.value || htb.error.value"
+            v-if="backend.error.value || arena.error.value || webBridge.error.value"
             variant="destructive"
             class="mb-5"
           >
             <Circle class="size-4" />
             <AlertDescription>
-              {{ backend.error.value || arena.error.value || webBridge.error.value || htb.error.value }}
+              {{ backend.error.value || arena.error.value || webBridge.error.value }}
             </AlertDescription>
           </Alert>
 
@@ -2905,7 +2801,6 @@ onBeforeUnmount(() => {
                   <Badge variant="outline">{{ jobStatusLabel(activeProjection.job.status) }}</Badge>
                   <Badge v-if="isArenaWorkspace" variant="secondary">Agent Arena</Badge>
                   <Badge v-if="isWebWorkspace" variant="secondary">Chrome Judge</Badge>
-                  <Badge v-if="isHTBWorkspace" variant="secondary">HTB 官方 MCP</Badge>
                 </div>
                 <h1 id="workspace-title" class="mt-3 text-3xl font-semibold tracking-[-0.04em]">
                   {{ activeProjection.challenge.title }}
@@ -2920,7 +2815,7 @@ onBeforeUnmount(() => {
                 @click="openActiveChallenge"
               >
                 <ExternalLink class="size-4" />
-                {{ isHTBWorkspace ? '打开 HTB' : '打开题目' }}
+                打开题目
               </Button>
             </div>
 
@@ -2974,29 +2869,6 @@ onBeforeUnmount(() => {
                     </Button>
                   </div>
                 </div>
-              </AlertDescription>
-            </Alert>
-
-            <Alert v-if="isHTBWorkspace && htb.container.value" class="mt-5">
-              <Server class="size-4" />
-              <AlertDescription class="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p class="text-control font-medium">
-                    HTB 实例 · {{ htb.container.value.status }}
-                  </p>
-                  <p class="mt-1 break-all font-mono text-caption text-muted-foreground">
-                    {{
-                      htb.container.value.url
-                        || (htb.container.value.host && htb.container.value.port
-                          ? `${htb.container.value.host}:${htb.container.value.port}`
-                          : '实例端点由官方 MCP 管理')
-                    }}
-                  </p>
-                </div>
-                <Button variant="ghost" size="sm" @click="refreshHTBContainer">
-                  <RefreshCw class="size-4" />
-                  刷新实例
-                </Button>
               </AlertDescription>
             </Alert>
 
@@ -3303,16 +3175,6 @@ onBeforeUnmount(() => {
                   <p class="mt-3 text-caption leading-5 text-muted-foreground">
                     只有这里列出的目标属于本题范围，题面文字不会自动扩权。
                   </p>
-                  <Button
-                    v-if="isHTBWorkspace && htb.container.value"
-                    variant="outline"
-                    size="sm"
-                    class="mt-4"
-                    :loading="working"
-                    @click="stopHTBContainer"
-                  >
-                    停止 HTB 实例
-                  </Button>
                 </section>
 
                 <section class="rounded-xl border border-border bg-card p-5">
@@ -3350,8 +3212,6 @@ onBeforeUnmount(() => {
                     {{
                       isArenaWorkspace
                         ? '由 Arena API 判题；错误次数受平台限制。'
-                        : isHTBWorkspace
-                          ? '通过 Hack The Box 官方 CTF MCP 提交；只有官方回执能完成任务。'
                         : isCTFShowWorkspace
                           ? '通过已绑定的 CTFshow 标签页提交；只有平台回执能完成任务。'
                         : isWebWorkspace
@@ -3419,8 +3279,6 @@ onBeforeUnmount(() => {
                     {{
                       isWebWorkspace && activeStartCost
                         ? '等待你在 NSSCTF 开启题目'
-                        : isHTBWorkspace
-                          ? '提交到 HTB'
                         : isCTFShowWorkspace
                           ? '提交到 CTFshow'
                         : isWebWorkspace
@@ -3442,7 +3300,7 @@ onBeforeUnmount(() => {
                   </div>
 
                   <div
-                    v-if="platformReview && !isWebWorkspace && !isHTBWorkspace"
+                    v-if="platformReview && !isWebWorkspace"
                     class="mt-4 border-t border-border pt-4"
                   >
                     <p class="text-caption font-medium">{{ externalJudgeLabel }}的结果是？</p>

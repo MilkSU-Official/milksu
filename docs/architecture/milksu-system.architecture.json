@@ -180,10 +180,6 @@
         {
           "path": "internal/ctfshow/catalog.go",
           "label": "CTFshow"
-        },
-        {
-          "path": "internal/htb/ctf.go",
-          "label": "HTB CTF"
         }
       ]
     },

@@ -322,8 +322,7 @@ func validateRequest(request ChallengeRequest) (admittedRequest, error) {
 	if externalPlatform != "" &&
 		externalPlatform != "nssctf-agent-arena" &&
 		externalPlatform != "nssctf-web" &&
-		externalPlatform != "ctfshow-web" &&
-		externalPlatform != "hackthebox-ctf" {
+		externalPlatform != "ctfshow-web" {
 		return admittedRequest{}, fmt.Errorf("unsupported external CTF platform %q", externalPlatform)
 	}
 	if (externalPlatform == "") != (request.ExternalAttemptID == 0) || request.ExternalAttemptID < 0 {

@@ -44,15 +44,7 @@ import type {
   NSSCTFTrainingDashboard,
   NSSCTFTrainingSeries,
 } from './nssctfTrainingTypes'
-import type {
-  CTFTrainingPlatform,
-  HTBCTFContainer,
-  HTBCTFDetails,
-  HTBCTFEvent,
-  HTBCTFProbe,
-  HTBCTFSubmission,
-  HTBCTFWorkspace,
-} from './ctfPlatformTypes'
+import type { CTFTrainingPlatform } from './ctfPlatformTypes'
 import type { CodingEnvironmentSnapshot } from './codingEnvironmentTypes'
 import { createPreviewCTFProjection, summarizePreviewCTF } from './ctfPreview'
 
@@ -86,17 +78,6 @@ interface WailsAppBindings {
   GetNSSCTFTrainingDashboard(): Promise<NSSCTFTrainingDashboard>
   ListNSSCTFCatalog(query: NSSCTFCatalogQuery): Promise<NSSCTFCatalogSearchResult>
   GetCTFTrainingPlatforms(): Promise<CTFTrainingPlatform[]>
-  ProbeHTBCTF(): Promise<HTBCTFProbe>
-  ListHTBCTFEvents(): Promise<HTBCTFEvent[]>
-  GetHTBCTFEvent(id: number): Promise<HTBCTFDetails>
-  StartHTBCTFChallenge(
-    ctfId: number,
-    challengeId: number,
-    collaborationMode: string,
-  ): Promise<HTBCTFWorkspace>
-  GetHTBCTFContainerStatus(jobId: string): Promise<HTBCTFContainer>
-  StopHTBCTFContainer(jobId: string): Promise<HTBCTFContainer>
-  SubmitHTBCTFFlag(jobId: string, candidate: string): Promise<HTBCTFSubmission>
   OpenNSSCTFChallenge(rawURL: string): Promise<void>
   OpenCTFSourceURL(rawURL: string): Promise<void>
   OpenChromeExtensionManager(): Promise<void>
@@ -203,21 +184,12 @@ function withoutCredentials(settings: AppSettings): AppSettings {
         remove_token: false,
       }
     : undefined
-  const htbCTF = settings.htb_ctf
-    ? {
-        ...settings.htb_ctf,
-        token: '',
-        has_token: settings.htb_ctf.has_token || !!settings.htb_ctf.token,
-        remove_token: false,
-      }
-    : undefined
   return {
     ...settings,
     providers,
     model_verification: settings.model_verification,
     relay,
     nssctf_arena: nssctfArena,
-    htb_ctf: htbCTF,
   }
 }
 
@@ -261,28 +233,6 @@ function defaultAbilityDimensions(): CTFAbilityDimension[] {
     { key: 'forensics', label: '取证', score: 20, confidence: 0, attempts: 0, solved: 0 },
     { key: 'misc', label: 'Misc', score: 20, confidence: 0, attempts: 0, solved: 0 },
   ]
-}
-
-function previewHTBDetails(id = 77): HTBCTFDetails {
-  return {
-    id,
-    name: 'CTF Try Out',
-    status: 'ongoing',
-    description: 'Hack The Box 官方练习赛事。',
-    challenges: [
-      {
-        id: 901,
-        name: 'Warmup',
-        description: 'A warm-up challenge for testing the CTF workflow.',
-        category: 'Warmup',
-        difficulty: 'Easy',
-        points: 100,
-        solved: false,
-        hasContainer: true,
-        hasDownload: true,
-      },
-    ],
-  }
 }
 
 function previewTrainingSeries(problems: NSSCTFCatalogProblem[]): NSSCTFTrainingSeries[] {
@@ -371,27 +321,6 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.ListNSSCTFCatalog(args?.query as NSSCTFCatalogQuery) as Promise<T>
       case 'get_ctf_training_platforms':
         return app.GetCTFTrainingPlatforms() as Promise<T>
-      case 'probe_htb_ctf':
-        return app.ProbeHTBCTF() as Promise<T>
-      case 'list_htb_ctf_events':
-        return app.ListHTBCTFEvents() as Promise<T>
-      case 'get_htb_ctf_event':
-        return app.GetHTBCTFEvent(args?.id as number) as Promise<T>
-      case 'start_htb_ctf_challenge':
-        return app.StartHTBCTFChallenge(
-          args?.ctfId as number,
-          args?.challengeId as number,
-          args?.collaborationMode as string,
-        ) as Promise<T>
-      case 'get_htb_ctf_container_status':
-        return app.GetHTBCTFContainerStatus(args?.jobId as string) as Promise<T>
-      case 'stop_htb_ctf_container':
-        return app.StopHTBCTFContainer(args?.jobId as string) as Promise<T>
-      case 'submit_htb_ctf_flag':
-        return app.SubmitHTBCTFFlag(
-          args?.jobId as string,
-          args?.candidate as string,
-        ) as Promise<T>
       case 'open_nssctf_challenge':
         return app.OpenNSSCTFChallenge(args?.url as string) as Promise<T>
       case 'open_ctf_source_url':
@@ -777,14 +706,14 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         },
         {
           id: 'hackthebox',
-          name: 'Hack The Box',
-          experience: 'competition-and-interactive-lab',
+          name: 'HTB Labs',
+          experience: 'interactive-lab',
           status: 'planned',
-          adapter: 'official-remote-mcp',
+          adapter: 'official-labs-api',
           selectable: false,
-          capabilities: ['ctf-events', 'challenge-instances', 'judge', 'solve-stats'],
-          requirement: 'HTB MCP token',
-          sourceUrl: 'https://mcp.hackthebox.ai/v1/ctf/mcp/',
+          capabilities: ['machines', 'starting-point', 'challenges', 'vpn', 'instance-lifecycle', 'progress'],
+          requirement: 'HTB Labs API token; real-account verification pending',
+          sourceUrl: 'https://app.hackthebox.com/machines',
         },
         {
           id: 'tryhackme',
@@ -798,145 +727,6 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
           sourceUrl: 'https://help.tryhackme.com/en/articles/6498330-enterprise-api',
         },
       ] as T
-    case 'probe_htb_ctf':
-      throw new Error('Hack The Box MCP 连接测试需要 MilkSU 桌面运行时。')
-    case 'list_htb_ctf_events':
-      return [
-        {
-          id: 77,
-          name: 'CTF Try Out',
-          status: 'ongoing',
-          canPlay: true,
-          hasJoined: true,
-          mcpAccessMode: 'both',
-        },
-      ] as T
-    case 'get_htb_ctf_event':
-      return previewHTBDetails(Number(args?.id ?? 77)) as T
-    case 'start_htb_ctf_challenge': {
-      const event = previewHTBDetails(Number(args?.ctfId ?? 77))
-      const challengeId = Number(args?.challengeId)
-      const challenge = event.challenges.find(item => item.id === challengeId)
-      if (!challenge) throw new Error(`HTB preview challenge not found: ${challengeId}`)
-      const container: HTBCTFContainer = {
-        challengeId,
-        status: 'running',
-        url: `https://preview-${challengeId}.htb.invalid/`,
-        expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-      }
-      const projection = createPreviewCTFProjection({
-        title: challenge.name,
-        statement: challenge.description || `完成 ${event.name} 中的 ${challenge.name}。`,
-        category: challenge.category.toLowerCase(),
-        collaborationMode: (args?.collaborationMode as CTFChallengeRequest['collaborationMode'])
-          || 'copilot',
-        deferAgent: true,
-        trackName: `Hack The Box · ${event.name}`,
-        humanGoal: '完成真实 HTB CTF 题目并保留可复现证据。',
-        sourceKind: 'url',
-        sourceUri: container.url,
-        sourceTargets: [{ kind: 'origin', value: container.url! }],
-        externalPlatform: 'hackthebox-ctf',
-        externalAttemptId: challenge.id,
-        expectedFlag: '',
-        knowledgePoints: [challenge.category, challenge.difficulty || 'Easy', 'HTB CTF'],
-        materials: [],
-      })
-      const projections = readJson<Record<string, CTFProjection>>(CTF_PROJECTIONS_KEY, {})
-      writeJson(CTF_PROJECTIONS_KEY, { ...projections, [projection.job.id]: projection })
-      return { event, challenge, container, ctf: projection } as T
-    }
-    case 'get_htb_ctf_container_status': {
-      const projections = readJson<Record<string, CTFProjection>>(CTF_PROJECTIONS_KEY, {})
-      const projection = projections[String(args?.jobId ?? '')]
-      if (!projection?.challenge.externalAttemptId) throw new Error('HTB preview workspace not found.')
-      return {
-        challengeId: projection.challenge.externalAttemptId,
-        status: 'running',
-        url: projection.challenge.source.uri,
-        expiresAt: projection.challenge.source.scope.expiresAt,
-      } as T
-    }
-    case 'stop_htb_ctf_container': {
-      const projections = readJson<Record<string, CTFProjection>>(CTF_PROJECTIONS_KEY, {})
-      const projection = projections[String(args?.jobId ?? '')]
-      if (!projection?.challenge.externalAttemptId) throw new Error('HTB preview workspace not found.')
-      return {
-        challengeId: projection.challenge.externalAttemptId,
-        status: 'stopped',
-      } as T
-    }
-    case 'submit_htb_ctf_flag': {
-      const jobId = String(args?.jobId ?? '')
-      const candidate = String(args?.candidate ?? '').trim()
-      const projections = readJson<Record<string, CTFProjection>>(CTF_PROJECTIONS_KEY, {})
-      const projection = projections[jobId]
-      if (!projection?.challenge.externalAttemptId) throw new Error('HTB preview workspace not found.')
-      const correct = candidate === 'HTB{preview}'
-      const now = new Date().toISOString()
-      const summary = correct
-        ? 'HTB preview Judge accepted the candidate.'
-        : 'HTB preview Judge rejected the candidate.'
-      const evaluationId = crypto.randomUUID()
-      const updated: CTFProjection = {
-        ...projection,
-        job: {
-          ...projection.job,
-          status: correct ? 'succeeded' : 'running',
-          updatedAt: now,
-        },
-        submissions: [...projection.submissions, {
-          candidate,
-          externalWrongCountBefore: projection.submissions.filter(item => item.verdict === 'fail').length,
-          verdict: correct ? 'pass' : 'fail',
-          summary,
-        }],
-        judgeReceipts: [...projection.judgeReceipts, {
-          id: crypto.randomUUID(),
-          platform: 'hackthebox-ctf',
-          status: correct ? 'accepted' : 'rejected',
-          correct,
-          summary,
-          reference: `preview:htb:${projection.challenge.externalAttemptId}`,
-          recordedAt: now,
-        }],
-        evaluations: [...projection.evaluations, {
-          id: evaluationId,
-          evaluator: 'htb-preview-judge',
-          version: 'browser-preview',
-          verdict: correct ? 'pass' : 'fail',
-          score: correct ? 1 : 0,
-          summary,
-          evidenceIds: [],
-        }],
-        outcome: correct ? {
-          status: 'succeeded',
-          summary,
-          evaluationId,
-        } : projection.outcome,
-        debrief: {
-          ...projection.debrief,
-          status: correct ? 'succeeded' : 'in_progress',
-          summary,
-          candidates: [...projection.debrief.candidates, {
-            candidate,
-            verdict: correct ? 'pass' : 'fail',
-            summary,
-          }],
-        },
-      }
-      writeJson(CTF_PROJECTIONS_KEY, { ...projections, [jobId]: updated })
-      return {
-        receipt: {
-          challengeId: projection.challenge.externalAttemptId,
-          status: correct ? 'accepted' : 'rejected',
-          correct,
-          message: summary,
-          reference: `preview:htb:${projection.challenge.externalAttemptId}`,
-        },
-        ctf: updated,
-      } as T
-    }
     case 'open_nssctf_challenge': {
       const normalized = normalizeNSSCTFProblemURL(args?.url as string)
       window.open(normalized.url, '_blank', 'noopener,noreferrer')

@@ -17,7 +17,6 @@ import (
 const (
 	relaySecretAccount       = "relay"
 	nssctfArenaSecretAccount = "nssctf-agent-arena"
-	htbCTFSecretAccount      = "hackthebox-ctf-mcp"
 	providerAccountPrefix    = "provider:"
 )
 
@@ -40,13 +39,6 @@ type ProviderConfig struct {
 }
 
 type NSSCTFArenaConfig struct {
-	Token       string `json:"token,omitempty"`
-	HasToken    bool   `json:"has_token"`
-	SessionOnly bool   `json:"session_only,omitempty"`
-	RemoveToken bool   `json:"remove_token,omitempty"`
-}
-
-type HTBCTFConfig struct {
 	Token       string `json:"token,omitempty"`
 	HasToken    bool   `json:"has_token"`
 	SessionOnly bool   `json:"session_only,omitempty"`
@@ -77,7 +69,6 @@ type AppSettings struct {
 	ModelRouting   ModelRoutingConfig        `json:"model_routing"`
 	Relay          *RelayConfig              `json:"relay,omitempty"`
 	NSSCTFArena    *NSSCTFArenaConfig        `json:"nssctf_arena,omitempty"`
-	HTBCTF         *HTBCTFConfig             `json:"htb_ctf,omitempty"`
 	Locale         *string                   `json:"locale,omitempty"`
 	Providers      map[string]ProviderConfig `json:"providers"`
 }
@@ -157,9 +148,6 @@ func (s *Store) GetResolved() AppSettings {
 	}
 	if value.NSSCTFArena != nil {
 		value.NSSCTFArena.Token = s.secretValues[nssctfArenaSecretAccount]
-	}
-	if value.HTBCTF != nil {
-		value.HTBCTF.Token = s.secretValues[htbCTFSecretAccount]
 	}
 	return value
 }
@@ -284,40 +272,6 @@ func (s *Store) Save(value AppSettings) error {
 		value.NSSCTFArena.Token = ""
 		value.NSSCTFArena.RemoveToken = false
 		value.NSSCTFArena.HasToken = secrets[nssctfArenaSecretAccount] != ""
-	}
-
-	if value.HTBCTF != nil {
-		value.HTBCTF.Token = strings.TrimSpace(value.HTBCTF.Token)
-		if err := validateHTBToken(value.HTBCTF.Token); err != nil {
-			return err
-		}
-		switch {
-		case value.HTBCTF.RemoveToken:
-			if err := deleteSecretIfPresent(s.secretStore, htbCTFSecretAccount); err != nil {
-				return fmt.Errorf("remove HTB CTF MCP token: %w", err)
-			}
-			delete(secrets, htbCTFSecretAccount)
-			value.HTBCTF.SessionOnly = false
-		case value.HTBCTF.Token != "":
-			if value.HTBCTF.SessionOnly {
-				secrets[htbCTFSecretAccount] = value.HTBCTF.Token
-			} else if err := s.secretStore.Set(htbCTFSecretAccount, value.HTBCTF.Token); err != nil {
-				if secrets[htbCTFSecretAccount] == "" {
-					secrets[htbCTFSecretAccount] = value.HTBCTF.Token
-					value.HTBCTF.SessionOnly = true
-				}
-				persistenceErrors = append(
-					persistenceErrors,
-					fmt.Errorf("store HTB CTF MCP token: %w", err),
-				)
-			} else {
-				secrets[htbCTFSecretAccount] = value.HTBCTF.Token
-				value.HTBCTF.SessionOnly = false
-			}
-		}
-		value.HTBCTF.Token = ""
-		value.HTBCTF.RemoveToken = false
-		value.HTBCTF.HasToken = secrets[htbCTFSecretAccount] != ""
 	}
 
 	if err := persistSettings(s.path, value); err != nil {
@@ -448,31 +402,6 @@ func (s *Store) load() error {
 		value.NSSCTFArena.HasToken = s.secretValues[nssctfArenaSecretAccount] != ""
 	}
 
-	if value.HTBCTF != nil {
-		value.HTBCTF.Token = strings.TrimSpace(value.HTBCTF.Token)
-		if err := validateHTBToken(value.HTBCTF.Token); err != nil {
-			return fmt.Errorf("migrate HTB CTF MCP token: %w", err)
-		}
-		if value.HTBCTF.Token != "" {
-			if err := s.secretStore.Set(htbCTFSecretAccount, value.HTBCTF.Token); err != nil {
-				return fmt.Errorf("migrate HTB CTF MCP token: %w", err)
-			}
-			s.secretValues[htbCTFSecretAccount] = value.HTBCTF.Token
-			migrated = true
-		} else if value.HTBCTF.HasToken {
-			secret, err := s.secretStore.Get(htbCTFSecretAccount)
-			if err != nil && !errors.Is(err, errSecretNotFound) {
-				return fmt.Errorf("read HTB CTF MCP token: %w", err)
-			}
-			if err == nil {
-				s.secretValues[htbCTFSecretAccount] = secret
-			}
-		}
-		value.HTBCTF.Token = ""
-		value.HTBCTF.RemoveToken = false
-		value.HTBCTF.HasToken = s.secretValues[htbCTFSecretAccount] != ""
-	}
-
 	s.settings = value
 	if migrated {
 		return persistSettings(s.path, value)
@@ -508,10 +437,6 @@ func withoutSessionCredentials(value AppSettings) AppSettings {
 	if value.NSSCTFArena != nil && value.NSSCTFArena.SessionOnly {
 		value.NSSCTFArena.HasToken = false
 		value.NSSCTFArena.SessionOnly = false
-	}
-	if value.HTBCTF != nil && value.HTBCTF.SessionOnly {
-		value.HTBCTF.HasToken = false
-		value.HTBCTF.SessionOnly = false
 	}
 	return value
 }
@@ -585,10 +510,6 @@ func clone(value AppSettings) AppSettings {
 	if value.NSSCTFArena != nil {
 		arena := *value.NSSCTFArena
 		copy.NSSCTFArena = &arena
-	}
-	if value.HTBCTF != nil {
-		htb := *value.HTBCTF
-		copy.HTBCTF = &htb
 	}
 	if value.Locale != nil {
 		locale := *value.Locale
@@ -678,16 +599,6 @@ func normalizedBaseURL(value *string) string {
 		return ""
 	}
 	return strings.TrimSpace(*value)
-}
-
-func validateHTBToken(value string) error {
-	if err := validateSecretInput(value); err != nil {
-		return fmt.Errorf("HTB CTF MCP token: %w", err)
-	}
-	if len(value) > 4096 {
-		return fmt.Errorf("HTB CTF MCP token must be at most 4096 characters")
-	}
-	return nil
 }
 
 func deleteSecretIfPresent(store secretStore, account string) error {

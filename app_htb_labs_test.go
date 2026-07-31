@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestLabsThemeAndHTBCTFPlatformAreVisibleInTheDesktopProduct(t *testing.T) {
+func TestLabsThemeAndHTBLabsPlatformAreVisibleWithoutCTFProduct(t *testing.T) {
 	repositoryRoot, err := os.Getwd()
 	if err != nil {
 		t.Fatal(err)
@@ -36,41 +36,32 @@ func TestLabsThemeAndHTBCTFPlatformAreVisibleInTheDesktopProduct(t *testing.T) {
 		"--terminal-cursor: var(--brand)",
 	)
 	assertSourceContains(
-		"app/src/components-vue/SettingsPage.vue",
-		"Hack The Box CTF (Beta)",
-		"HTB Profile Settings → MCP Access",
-		"probe_htb_ctf",
-		"连接测试",
-	)
-	assertSourceContains(
 		"app/src/components-vue/CTFPage.vue",
 		"activeBank === 'hackthebox'",
-		"<HTBCTFDesk",
-		`:configured="htbReady"`,
-		`@select-event="htb.loadEvent"`,
-		`@start-challenge="startHTBChallenge"`,
-		"isHTBWorkspace",
-		"htb.submitFlag",
-		"提交到 HTB",
+		"HTB Labs",
+		"Machines",
+		"Starting Point",
+		"https://app.hackthebox.com/machines",
 		`:disabled="platform.status === 'restricted'"`,
 	)
 	assertSourceContains(
+		"internal/ctf/platform_registry.go",
+		`Experience: "interactive-lab"`,
+		`Adapter: "official-labs-api"`,
+		`"machines", "starting-point", "challenges", "vpn", "instance-lifecycle", "progress"`,
+		`SourceURL:   "https://app.hackthebox.com/machines"`,
+	)
+
+	for _, path := range []string{
 		"app/src/components-vue/HTBCTFDesk.vue",
-		"Hack The Box CTF",
-		"官方 MCP",
-		"配置 HTB Token",
-		"details.challenges",
-		"用 Agent 开始",
-		"<CTFCollaborationModePicker",
-	)
-	assertSourceContains(
-		"app.go",
-		"func (a *App) ListHTBCTFEvents()",
-		"func (a *App) GetHTBCTFEvent(id int64)",
-		"func (a *App) StartHTBCTFChallenge(",
-		"func (a *App) SubmitHTBCTFFlag(",
-		"func (a *App) StopHTBCTFContainer(",
-	)
+		"app/src/composables/useHTBCTF.ts",
+		"internal/htb/ctf.go",
+		"internal/htb/mcp.go",
+	} {
+		if _, statErr := os.Stat(filepath.Join(repositoryRoot, path)); !os.IsNotExist(statErr) {
+			t.Fatalf("obsolete HTB CTF integration still exists: %s", path)
+		}
+	}
 
 	for _, name := range []string{
 		"htb-labs-challenges-reference.png",
