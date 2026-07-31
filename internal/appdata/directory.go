@@ -24,5 +24,8 @@ func Ensure() (string, error) {
 	if err := os.MkdirAll(directory, 0o700); err != nil {
 		return "", fmt.Errorf("create app data directory: %w", err)
 	}
+	if err := os.Chmod(directory, 0o700); err != nil {
+		return "", fmt.Errorf("protect app data directory: %w", err)
+	}
 	return directory, nil
 }

@@ -4,39 +4,80 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/MilkSU-Official/milksu/internal/appdata"
 )
 
 const (
-	relaySecretAccount    = "relay"
-	providerAccountPrefix = "provider:"
+	relaySecretAccount       = "relay"
+	nssctfArenaSecretAccount = "nssctf-agent-arena"
+	htbCTFSecretAccount      = "hackthebox-ctf-mcp"
+	providerAccountPrefix    = "provider:"
 )
 
 type RelayConfig struct {
-	Enabled   bool   `json:"enabled"`
-	URL       string `json:"url"`
-	Key       string `json:"key,omitempty"`
-	HasKey    bool   `json:"has_key"`
-	RemoveKey bool   `json:"remove_key,omitempty"`
+	Enabled     bool   `json:"enabled"`
+	URL         string `json:"url"`
+	Key         string `json:"key,omitempty"`
+	HasKey      bool   `json:"has_key"`
+	SessionOnly bool   `json:"session_only,omitempty"`
+	RemoveKey   bool   `json:"remove_key,omitempty"`
 }
 
 type ProviderConfig struct {
 	APIKey       string  `json:"api_key,omitempty"`
 	HasAPIKey    bool    `json:"has_api_key"`
+	SessionOnly  bool    `json:"session_only,omitempty"`
 	RemoveAPIKey bool    `json:"remove_api_key,omitempty"`
 	BaseURL      *string `json:"base_url,omitempty"`
 	Enabled      bool    `json:"enabled"`
 }
 
+type NSSCTFArenaConfig struct {
+	Token       string `json:"token,omitempty"`
+	HasToken    bool   `json:"has_token"`
+	SessionOnly bool   `json:"session_only,omitempty"`
+	RemoveToken bool   `json:"remove_token,omitempty"`
+}
+
+type HTBCTFConfig struct {
+	Token       string `json:"token,omitempty"`
+	HasToken    bool   `json:"has_token"`
+	SessionOnly bool   `json:"session_only,omitempty"`
+	RemoveToken bool   `json:"remove_token,omitempty"`
+}
+
+type ModelVerification struct {
+	Provider   string `json:"provider"`
+	Model      string `json:"model"`
+	VerifiedAt string `json:"verified_at"`
+}
+
+type ModelSelection struct {
+	Provider string `json:"provider"`
+	Model    string `json:"model"`
+}
+
+type ModelRoutingConfig struct {
+	DefaultMode string         `json:"default_mode"`
+	Fast        ModelSelection `json:"fast"`
+	Deep        ModelSelection `json:"deep"`
+}
+
 type AppSettings struct {
 	ActiveProvider string                    `json:"active_provider"`
 	ActiveModel    string                    `json:"active_model"`
+	ModelVerified  *ModelVerification        `json:"model_verification,omitempty"`
+	ModelRouting   ModelRoutingConfig        `json:"model_routing"`
 	Relay          *RelayConfig              `json:"relay,omitempty"`
+	NSSCTFArena    *NSSCTFArenaConfig        `json:"nssctf_arena,omitempty"`
+	HTBCTF         *HTBCTFConfig             `json:"htb_ctf,omitempty"`
 	Locale         *string                   `json:"locale,omitempty"`
 	Providers      map[string]ProviderConfig `json:"providers"`
 }
@@ -45,7 +86,18 @@ func DefaultSettings() AppSettings {
 	return AppSettings{
 		ActiveProvider: "deepseek",
 		ActiveModel:    "deepseek-v4-flash",
-		Providers:      make(map[string]ProviderConfig),
+		ModelRouting: ModelRoutingConfig{
+			DefaultMode: "auto",
+			Fast: ModelSelection{
+				Provider: "deepseek",
+				Model:    "deepseek-v4-flash",
+			},
+			Deep: ModelSelection{
+				Provider: "kourichat",
+				Model:    "kimi-k3",
+			},
+		},
+		Providers: make(map[string]ProviderConfig),
 	}
 }
 
@@ -58,14 +110,15 @@ type Store struct {
 }
 
 func NewStore() (*Store, error) {
-	directory, err := appDataDirectory()
+	directory, err := appdata.Ensure()
 	if err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(directory, 0o700); err != nil {
-		return nil, fmt.Errorf("create app data directory: %w", err)
+	secrets, err := newSQLiteSecretStore(filepath.Join(directory, localCredentialsDatabaseName))
+	if err != nil {
+		return nil, err
 	}
-	return newStore(filepath.Join(directory, "settings.json"), newPlatformSecretStore())
+	return newStore(filepath.Join(directory, "settings.json"), secrets)
 }
 
 func newStore(path string, secrets secretStore) (*Store, error) {
@@ -102,6 +155,12 @@ func (s *Store) GetResolved() AppSettings {
 	if value.Relay != nil {
 		value.Relay.Key = s.secretValues[relaySecretAccount]
 	}
+	if value.NSSCTFArena != nil {
+		value.NSSCTFArena.Token = s.secretValues[nssctfArenaSecretAccount]
+	}
+	if value.HTBCTF != nil {
+		value.HTBCTF.Token = s.secretValues[htbCTFSecretAccount]
+	}
 	return value
 }
 
@@ -110,9 +169,26 @@ func (s *Store) Save(value AppSettings) error {
 	defer s.mu.Unlock()
 
 	value = withDefaults(value)
+	verification := cloneModelVerification(s.settings.ModelVerified)
+	if modelVerificationInvalidated(s.settings, value) {
+		verification = nil
+	}
+	value.ModelVerified = verification
 	secrets := cloneSecrets(s.secretValues)
+	var persistenceErrors []error
 	for name, provider := range value.Providers {
 		account := providerSecretAccount(name)
+		if provider.BaseURL != nil {
+			baseURL := strings.TrimSpace(*provider.BaseURL)
+			if baseURL == "" {
+				provider.BaseURL = nil
+			} else {
+				if err := validateProviderBaseURL(baseURL); err != nil {
+					return fmt.Errorf("provider %s Base URL: %w", name, err)
+				}
+				provider.BaseURL = &baseURL
+			}
+		}
 		if err := validateSecretInput(provider.APIKey); err != nil {
 			return fmt.Errorf("provider %s credential: %w", name, err)
 		}
@@ -122,11 +198,20 @@ func (s *Store) Save(value AppSettings) error {
 				return fmt.Errorf("remove provider %s credential: %w", name, err)
 			}
 			delete(secrets, account)
+			provider.SessionOnly = false
 		case provider.APIKey != "":
-			if err := s.secretStore.Set(account, provider.APIKey); err != nil {
-				return fmt.Errorf("store provider %s credential: %w", name, err)
+			if provider.SessionOnly {
+				secrets[account] = provider.APIKey
+			} else if err := s.secretStore.Set(account, provider.APIKey); err != nil {
+				if secrets[account] == "" {
+					secrets[account] = provider.APIKey
+					provider.SessionOnly = true
+				}
+				persistenceErrors = append(persistenceErrors, fmt.Errorf("store provider %s credential: %w", name, err))
+			} else {
+				secrets[account] = provider.APIKey
+				provider.SessionOnly = false
 			}
-			secrets[account] = provider.APIKey
 		}
 		provider.APIKey = ""
 		provider.RemoveAPIKey = false
@@ -144,15 +229,95 @@ func (s *Store) Save(value AppSettings) error {
 				return fmt.Errorf("remove relay credential: %w", err)
 			}
 			delete(secrets, relaySecretAccount)
+			value.Relay.SessionOnly = false
 		case value.Relay.Key != "":
-			if err := s.secretStore.Set(relaySecretAccount, value.Relay.Key); err != nil {
-				return fmt.Errorf("store relay credential: %w", err)
+			if value.Relay.SessionOnly {
+				secrets[relaySecretAccount] = value.Relay.Key
+			} else if err := s.secretStore.Set(relaySecretAccount, value.Relay.Key); err != nil {
+				if secrets[relaySecretAccount] == "" {
+					secrets[relaySecretAccount] = value.Relay.Key
+					value.Relay.SessionOnly = true
+				}
+				persistenceErrors = append(persistenceErrors, fmt.Errorf("store relay credential: %w", err))
+			} else {
+				secrets[relaySecretAccount] = value.Relay.Key
+				value.Relay.SessionOnly = false
 			}
-			secrets[relaySecretAccount] = value.Relay.Key
 		}
 		value.Relay.Key = ""
 		value.Relay.RemoveKey = false
 		value.Relay.HasKey = secrets[relaySecretAccount] != ""
+	}
+
+	if value.NSSCTFArena != nil {
+		value.NSSCTFArena.Token = strings.TrimSpace(value.NSSCTFArena.Token)
+		if err := validateSecretInput(value.NSSCTFArena.Token); err != nil {
+			return fmt.Errorf("NSSCTF Agent Arena token: %w", err)
+		}
+		switch {
+		case value.NSSCTFArena.RemoveToken:
+			if err := deleteSecretIfPresent(s.secretStore, nssctfArenaSecretAccount); err != nil {
+				return fmt.Errorf("remove NSSCTF Agent Arena token: %w", err)
+			}
+			delete(secrets, nssctfArenaSecretAccount)
+			value.NSSCTFArena.SessionOnly = false
+		case value.NSSCTFArena.Token != "":
+			if len(value.NSSCTFArena.Token) > 1024 {
+				return fmt.Errorf("NSSCTF Agent Arena token must be at most 1024 characters")
+			}
+			if !strings.HasPrefix(value.NSSCTFArena.Token, "nss_agent_") {
+				return fmt.Errorf("NSSCTF Agent Arena token must start with nss_agent_")
+			}
+			if value.NSSCTFArena.SessionOnly {
+				secrets[nssctfArenaSecretAccount] = value.NSSCTFArena.Token
+			} else if err := s.secretStore.Set(nssctfArenaSecretAccount, value.NSSCTFArena.Token); err != nil {
+				if secrets[nssctfArenaSecretAccount] == "" {
+					secrets[nssctfArenaSecretAccount] = value.NSSCTFArena.Token
+					value.NSSCTFArena.SessionOnly = true
+				}
+				persistenceErrors = append(persistenceErrors, fmt.Errorf("store NSSCTF Agent Arena token: %w", err))
+			} else {
+				secrets[nssctfArenaSecretAccount] = value.NSSCTFArena.Token
+				value.NSSCTFArena.SessionOnly = false
+			}
+		}
+		value.NSSCTFArena.Token = ""
+		value.NSSCTFArena.RemoveToken = false
+		value.NSSCTFArena.HasToken = secrets[nssctfArenaSecretAccount] != ""
+	}
+
+	if value.HTBCTF != nil {
+		value.HTBCTF.Token = strings.TrimSpace(value.HTBCTF.Token)
+		if err := validateHTBToken(value.HTBCTF.Token); err != nil {
+			return err
+		}
+		switch {
+		case value.HTBCTF.RemoveToken:
+			if err := deleteSecretIfPresent(s.secretStore, htbCTFSecretAccount); err != nil {
+				return fmt.Errorf("remove HTB CTF MCP token: %w", err)
+			}
+			delete(secrets, htbCTFSecretAccount)
+			value.HTBCTF.SessionOnly = false
+		case value.HTBCTF.Token != "":
+			if value.HTBCTF.SessionOnly {
+				secrets[htbCTFSecretAccount] = value.HTBCTF.Token
+			} else if err := s.secretStore.Set(htbCTFSecretAccount, value.HTBCTF.Token); err != nil {
+				if secrets[htbCTFSecretAccount] == "" {
+					secrets[htbCTFSecretAccount] = value.HTBCTF.Token
+					value.HTBCTF.SessionOnly = true
+				}
+				persistenceErrors = append(
+					persistenceErrors,
+					fmt.Errorf("store HTB CTF MCP token: %w", err),
+				)
+			} else {
+				secrets[htbCTFSecretAccount] = value.HTBCTF.Token
+				value.HTBCTF.SessionOnly = false
+			}
+		}
+		value.HTBCTF.Token = ""
+		value.HTBCTF.RemoveToken = false
+		value.HTBCTF.HasToken = secrets[htbCTFSecretAccount] != ""
 	}
 
 	if err := persistSettings(s.path, value); err != nil {
@@ -160,6 +325,36 @@ func (s *Store) Save(value AppSettings) error {
 	}
 	s.settings = clone(value)
 	s.secretValues = secrets
+	return errors.Join(persistenceErrors...)
+}
+
+func (s *Store) RecordModelVerification(provider, model string, verifiedAt time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	provider = strings.TrimSpace(provider)
+	model = strings.TrimSpace(model)
+	if provider == "" || model == "" {
+		return fmt.Errorf("verified provider and model are required")
+	}
+	if provider != s.settings.ActiveProvider || model != s.settings.ActiveModel {
+		return fmt.Errorf(
+			"verified model %s/%s no longer matches active model %s/%s",
+			provider,
+			model,
+			s.settings.ActiveProvider,
+			s.settings.ActiveModel,
+		)
+	}
+	next := clone(s.settings)
+	next.ModelVerified = &ModelVerification{
+		Provider:   provider,
+		Model:      model,
+		VerifiedAt: verifiedAt.UTC().Format(time.RFC3339),
+	}
+	if err := persistSettings(s.path, next); err != nil {
+		return err
+	}
+	s.settings = next
 	return nil
 }
 
@@ -225,6 +420,59 @@ func (s *Store) load() error {
 		value.Relay.HasKey = s.secretValues[relaySecretAccount] != ""
 	}
 
+	if value.NSSCTFArena != nil {
+		value.NSSCTFArena.Token = strings.TrimSpace(value.NSSCTFArena.Token)
+		if value.NSSCTFArena.Token != "" {
+			if err := validateSecretInput(value.NSSCTFArena.Token); err != nil {
+				return fmt.Errorf("migrate NSSCTF Agent Arena token: %w", err)
+			}
+			if len(value.NSSCTFArena.Token) > 1024 || !strings.HasPrefix(value.NSSCTFArena.Token, "nss_agent_") {
+				return fmt.Errorf("migrate NSSCTF Agent Arena token: invalid token prefix")
+			}
+			if err := s.secretStore.Set(nssctfArenaSecretAccount, value.NSSCTFArena.Token); err != nil {
+				return fmt.Errorf("migrate NSSCTF Agent Arena token: %w", err)
+			}
+			s.secretValues[nssctfArenaSecretAccount] = value.NSSCTFArena.Token
+			migrated = true
+		} else if value.NSSCTFArena.HasToken {
+			secret, err := s.secretStore.Get(nssctfArenaSecretAccount)
+			if err != nil && !errors.Is(err, errSecretNotFound) {
+				return fmt.Errorf("read NSSCTF Agent Arena token: %w", err)
+			}
+			if err == nil {
+				s.secretValues[nssctfArenaSecretAccount] = secret
+			}
+		}
+		value.NSSCTFArena.Token = ""
+		value.NSSCTFArena.RemoveToken = false
+		value.NSSCTFArena.HasToken = s.secretValues[nssctfArenaSecretAccount] != ""
+	}
+
+	if value.HTBCTF != nil {
+		value.HTBCTF.Token = strings.TrimSpace(value.HTBCTF.Token)
+		if err := validateHTBToken(value.HTBCTF.Token); err != nil {
+			return fmt.Errorf("migrate HTB CTF MCP token: %w", err)
+		}
+		if value.HTBCTF.Token != "" {
+			if err := s.secretStore.Set(htbCTFSecretAccount, value.HTBCTF.Token); err != nil {
+				return fmt.Errorf("migrate HTB CTF MCP token: %w", err)
+			}
+			s.secretValues[htbCTFSecretAccount] = value.HTBCTF.Token
+			migrated = true
+		} else if value.HTBCTF.HasToken {
+			secret, err := s.secretStore.Get(htbCTFSecretAccount)
+			if err != nil && !errors.Is(err, errSecretNotFound) {
+				return fmt.Errorf("read HTB CTF MCP token: %w", err)
+			}
+			if err == nil {
+				s.secretValues[htbCTFSecretAccount] = secret
+			}
+		}
+		value.HTBCTF.Token = ""
+		value.HTBCTF.RemoveToken = false
+		value.HTBCTF.HasToken = s.secretValues[htbCTFSecretAccount] != ""
+	}
+
 	s.settings = value
 	if migrated {
 		return persistSettings(s.path, value)
@@ -233,6 +481,7 @@ func (s *Store) load() error {
 }
 
 func persistSettings(path string, value AppSettings) error {
+	value = withoutSessionCredentials(value)
 	data, err := json.MarshalIndent(value, "", "  ")
 	if err != nil {
 		return fmt.Errorf("encode settings: %w", err)
@@ -241,6 +490,30 @@ func persistSettings(path string, value AppSettings) error {
 		return fmt.Errorf("write settings: %w", err)
 	}
 	return nil
+}
+
+func withoutSessionCredentials(value AppSettings) AppSettings {
+	value = clone(value)
+	for name, provider := range value.Providers {
+		if provider.SessionOnly {
+			provider.HasAPIKey = false
+			provider.SessionOnly = false
+			value.Providers[name] = provider
+		}
+	}
+	if value.Relay != nil && value.Relay.SessionOnly {
+		value.Relay.HasKey = false
+		value.Relay.SessionOnly = false
+	}
+	if value.NSSCTFArena != nil && value.NSSCTFArena.SessionOnly {
+		value.NSSCTFArena.HasToken = false
+		value.NSSCTFArena.SessionOnly = false
+	}
+	if value.HTBCTF != nil && value.HTBCTF.SessionOnly {
+		value.HTBCTF.HasToken = false
+		value.HTBCTF.SessionOnly = false
+	}
+	return value
 }
 
 func appDataDirectory() (string, error) {
@@ -277,11 +550,21 @@ func writePrivateFile(path string, data []byte) error {
 }
 
 func withDefaults(value AppSettings) AppSettings {
+	defaults := DefaultSettings()
 	if value.ActiveProvider == "" {
-		value.ActiveProvider = "deepseek"
+		value.ActiveProvider = defaults.ActiveProvider
 	}
 	if value.ActiveModel == "" {
-		value.ActiveModel = "deepseek-v4-flash"
+		value.ActiveModel = defaults.ActiveModel
+	}
+	if value.ModelRouting.DefaultMode != "manual" {
+		value.ModelRouting.DefaultMode = defaults.ModelRouting.DefaultMode
+	}
+	if value.ModelRouting.Fast.Provider == "" || value.ModelRouting.Fast.Model == "" {
+		value.ModelRouting.Fast = defaults.ModelRouting.Fast
+	}
+	if value.ModelRouting.Deep.Provider == "" || value.ModelRouting.Deep.Model == "" {
+		value.ModelRouting.Deep = defaults.ModelRouting.Deep
 	}
 	if value.Providers == nil {
 		value.Providers = make(map[string]ProviderConfig)
@@ -299,11 +582,56 @@ func clone(value AppSettings) AppSettings {
 		relay := *value.Relay
 		copy.Relay = &relay
 	}
+	if value.NSSCTFArena != nil {
+		arena := *value.NSSCTFArena
+		copy.NSSCTFArena = &arena
+	}
+	if value.HTBCTF != nil {
+		htb := *value.HTBCTF
+		copy.HTBCTF = &htb
+	}
 	if value.Locale != nil {
 		locale := *value.Locale
 		copy.Locale = &locale
 	}
+	copy.ModelVerified = cloneModelVerification(value.ModelVerified)
 	return copy
+}
+
+func cloneModelVerification(value *ModelVerification) *ModelVerification {
+	if value == nil {
+		return nil
+	}
+	copy := *value
+	return &copy
+}
+
+func modelVerificationInvalidated(previous, next AppSettings) bool {
+	if previous.ActiveProvider != next.ActiveProvider || previous.ActiveModel != next.ActiveModel {
+		return true
+	}
+	active := next.Providers[next.ActiveProvider]
+	if active.APIKey != "" || active.RemoveAPIKey {
+		return true
+	}
+	previousActive := previous.Providers[previous.ActiveProvider]
+	if previousActive.Enabled != active.Enabled {
+		return true
+	}
+	if normalizedBaseURL(previousActive.BaseURL) != normalizedBaseURL(active.BaseURL) {
+		return true
+	}
+	if next.Relay != nil {
+		if next.Relay.Key != "" || next.Relay.RemoveKey {
+			return true
+		}
+		if previous.Relay == nil || previous.Relay.Enabled != next.Relay.Enabled {
+			return true
+		}
+	} else if previous.Relay != nil && previous.Relay.Enabled {
+		return true
+	}
+	return false
 }
 
 func providerSecretAccount(name string) string {
@@ -321,6 +649,43 @@ func cloneSecrets(source map[string]string) map[string]string {
 func validateSecretInput(value string) error {
 	if strings.ContainsAny(value, "\x00\r\n") {
 		return fmt.Errorf("must not contain NUL or newline characters")
+	}
+	return nil
+}
+
+func validateProviderBaseURL(value string) error {
+	if len(value) > 2048 {
+		return fmt.Errorf("must be at most 2048 characters")
+	}
+	parsed, err := url.Parse(value)
+	if err != nil {
+		return fmt.Errorf("must be a valid URL: %w", err)
+	}
+	if parsed.Scheme != "https" && parsed.Scheme != "http" {
+		return fmt.Errorf("must use http or https")
+	}
+	if parsed.Host == "" {
+		return fmt.Errorf("must include a host")
+	}
+	if parsed.User != nil {
+		return fmt.Errorf("must not include credentials")
+	}
+	return nil
+}
+
+func normalizedBaseURL(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return strings.TrimSpace(*value)
+}
+
+func validateHTBToken(value string) error {
+	if err := validateSecretInput(value); err != nil {
+		return fmt.Errorf("HTB CTF MCP token: %w", err)
+	}
+	if len(value) > 4096 {
+		return fmt.Errorf("HTB CTF MCP token must be at most 4096 characters")
 	}
 	return nil
 }

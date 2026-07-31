@@ -1,6 +1,9 @@
 package conversation
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 func TestConversationIDRejectsPaths(t *testing.T) {
 	invalid := []string{"", "../settings", "a/b", "a b", "."}
@@ -14,5 +17,30 @@ func TestConversationIDRejectsPaths(t *testing.T) {
 func TestConversationIDAcceptsUUID(t *testing.T) {
 	if !validID.MatchString("bb97144e-64b2-4bcc-a07f-4f5b3f9f8aa1") {
 		t.Fatal("expected UUID to be accepted")
+	}
+}
+
+func TestStorePreservesCTFLearningContext(t *testing.T) {
+	store := &Store{directory: t.TempDir()}
+	want := StoredConversation{
+		ID:            "ctf_019fb283",
+		Title:         "NSSCTF P316",
+		CreatedAt:     42,
+		WorkspacePath: "/tmp/milksu-ctf",
+		CTFJobID:      "job-316",
+		CTFMode:       "coach",
+		Messages: []StoredMessage{{
+			ID: "message-1", Role: "user", Content: "先帮我梳理题面", Timestamp: 43,
+		}},
+	}
+	if err := store.Save(want); err != nil {
+		t.Fatalf("save CTF conversation: %v", err)
+	}
+	got, err := store.List()
+	if err != nil {
+		t.Fatalf("list CTF conversations: %v", err)
+	}
+	if len(got) != 1 || !reflect.DeepEqual(got[0], want) {
+		t.Fatalf("CTF learning context did not round-trip: %#v", got)
 	}
 }

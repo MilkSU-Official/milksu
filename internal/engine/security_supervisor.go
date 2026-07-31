@@ -47,14 +47,24 @@ func NewSecuritySupervisor(settings func() config.AppSettings) (*SecuritySupervi
 func (s *SecuritySupervisor) Name() string { return "pi-security-adapter" }
 
 func (s *SecuritySupervisor) Model() string {
-	return s.settings().ActiveModel
+	settings, err := ResolveTaskModel(s.settings(), "solver", "", "", "")
+	if err != nil {
+		return s.settings().ActiveModel
+	}
+	return settings.ActiveModel
 }
 
 func (s *SecuritySupervisor) Propose(ctx context.Context, input securityruntime.EngineInput) (securityruntime.ActionProposal, error) {
 	if input.Attempt.ID == "" || input.Step.ID == "" || len(input.RoleState) == 0 || strings.TrimSpace(input.RolePrompt) == "" {
 		return securityruntime.ActionProposal{}, fmt.Errorf("security engine requires attempt, step, role prompt, and role state")
 	}
-	settings := s.settings()
+	settings, err := ResolveTaskModel(s.settings(), "solver", "", "", "")
+	if err != nil {
+		return securityruntime.ActionProposal{}, err
+	}
+	if err := validateModelAccess(settings); err != nil {
+		return securityruntime.ActionProposal{}, err
+	}
 	requestID := securityruntime.NewIdentifier("engine-request")
 	responseChannel := make(chan securityBridgeResponse, 1)
 	command := map[string]any{
@@ -182,7 +192,11 @@ func (s *SecuritySupervisor) ensureProcessLocked(settings config.AppSettings) er
 	if err != nil {
 		return err
 	}
-	command.Env = sidecarEnvironment(settings, command.Dir)
+	command.Env, err = sidecarEnvironment(settings)
+	if err != nil {
+		return err
+	}
+	command.Env = withSidecarRuntimePath(command.Env, command.Path)
 	command.Stderr = os.Stderr
 	stdin, err := command.StdinPipe()
 	if err != nil {

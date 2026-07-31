@@ -42,7 +42,14 @@ func TestManagerOwnsFixedLabLifecycle(t *testing.T) {
 	if _, err := manager.Stop(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"pull", "start", "reset", "stop"}
+	cleaned, err := manager.Clean(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cleaned.Phase != "cleaned" || cleaned.Endpoint != "" || cleaned.Port != 0 || len(cleaned.Scope.Targets) != 0 {
+		t.Fatalf("cleanup retained runtime authority: %#v", cleaned)
+	}
+	want := []string{"pull", "start", "reset", "stop", "clean"}
 	if strings.Join(runner.commands, ",") != strings.Join(want, ",") {
 		t.Fatalf("unexpected lifecycle commands: %v", runner.commands)
 	}

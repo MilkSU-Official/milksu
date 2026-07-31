@@ -107,6 +107,31 @@ func TestCoachModeRecordsOneHintAndWaitsForLearner(t *testing.T) {
 	if projection.HumanOutcome.ReflectionCount != 1 || projection.HumanOutcome.HintCount != 1 {
 		t.Fatalf("expected hint and reflection to remain independently projected, got %+v", projection.HumanOutcome)
 	}
+	coreProjection, err := core.GetJob(context.Background(), started.Job.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	challenge, err := challengeFromProjection(coreProjection)
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, err := buildAgentInput(coreProjection, challenge, coreProjection.Attempts[0], coreProjection.Steps[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var roleState agentState
+	if err := json.Unmarshal(input.RoleState, &roleState); err != nil {
+		t.Fatal(err)
+	}
+	foundReflection := false
+	for _, record := range roleState.Learning {
+		if record.Kind == "reflection" && strings.Contains(record.Content, "one byte") {
+			foundReflection = true
+		}
+	}
+	if !foundReflection {
+		t.Fatalf("learner observation must be available to the next coaching turn: %+v", roleState.Learning)
+	}
 
 	if _, err := service.ContinueJob(context.Background(), started.Job.ID); err != nil {
 		t.Fatal(err)

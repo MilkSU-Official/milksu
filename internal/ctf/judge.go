@@ -41,7 +41,7 @@ func (j *Judge) Evaluate(ctx context.Context, challenge Challenge, artifact secu
 		}
 		return securityruntime.EvaluationDecision{
 			Verdict: securityruntime.VerdictNeedsReview, Score: 0.5,
-			Summary: "候选 Flag 已保存；等待用户根据已授权 CTF 平台的响应确认，MilkSU 不会替平台伪造成功。",
+			Summary: "候选 Flag 已保存；等待外部平台适配器或用户记录权威 Judge 回执，MilkSU 不会替平台伪造成功。",
 		}, nil
 	}
 	if challenge.Judge.Type != "flag.sha256" {

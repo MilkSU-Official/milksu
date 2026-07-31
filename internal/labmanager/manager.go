@@ -194,6 +194,40 @@ func (m *Manager) Stop(ctx context.Context) (State, error) {
 	return m.state, m.persistLocked()
 }
 
+func (m *Manager) Clean(ctx context.Context) (State, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.state.PackageID == "" {
+		return m.state, nil
+	}
+	if m.state.PackageID != JuiceShopPackageID {
+		return State{}, fmt.Errorf("unknown managed lab %q", m.state.PackageID)
+	}
+	if !m.state.Scope.ExpiresAt.IsZero() {
+		decision := securitypolicy.Decide(m.state.Scope, securitypolicy.EffectRequest{
+			Class: "modify", Target: securitypolicy.Target{
+				Kind: securitypolicy.TargetLab, Value: JuiceShopPackageID,
+			}, Approved: true,
+		}, time.Now())
+		if !decision.Allowed {
+			return State{}, fmt.Errorf("lab cleanup denied: %s", decision.Reason)
+		}
+	}
+	directory := m.juiceShopDirectory()
+	environment := commandEnvironment(m.state.Port)
+	output, err := m.runner.Run(ctx, filepath.Join(directory, "lab.sh"), []string{"clean"}, environment, directory)
+	if err != nil {
+		return m.failLocked("清理训练环境失败", output, err)
+	}
+	m.state = State{
+		PackageID: JuiceShopPackageID,
+		Phase:     "cleaned",
+		Message:   "训练环境、容器和卷已清理",
+		UpdatedAt: time.Now().UTC(),
+	}
+	return m.state, m.persistLocked()
+}
+
 func (m *Manager) installFixedFixtures() error {
 	if err := fs.WalkDir(labs.Assets, "ctf/juice-shop", func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {

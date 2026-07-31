@@ -11,6 +11,15 @@ import { join } from "node:path";
 const relayKey = process.env.MILKSU_RELAY_KEY;
 const relayUrl = process.env.MILKSU_RELAY_URL || "https://api.ciyuanliudong.com/v1";
 const relayEnabled = process.env.MILKSU_RELAY_ENABLED === "1" && Boolean(relayKey);
+const kouriKey = process.env.KOURICHAT_API_KEY;
+const kouriUrl = process.env.KOURICHAT_BASE_URL || "https://api.kourichat.com/v1";
+const providerBaseUrls = {
+  anthropic: process.env.ANTHROPIC_BASE_URL,
+  openai: process.env.OPENAI_BASE_URL,
+  deepseek: process.env.DEEPSEEK_BASE_URL,
+  google: process.env.GOOGLE_BASE_URL,
+  groq: process.env.GROQ_BASE_URL,
+};
 const sessions = new Map();
 const input = createInterface({ input: process.stdin });
 
@@ -43,6 +52,36 @@ function configureRelayModel(session, provider, model) {
     }],
   });
   return { provider: "milksu-relay", model };
+}
+
+function configureRuntimeModel(session, provider, model) {
+  if (provider === "kourichat") {
+    session.modelRegistry.registerProvider("kourichat", {
+      name: "KouriChat",
+      baseUrl: kouriUrl,
+      apiKey: kouriKey,
+      api: "openai-completions",
+      models: [{
+        id: model,
+        name: model === "kimi-k3" ? "Kimi K3" : model,
+        reasoning: false,
+        input: ["text"],
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: 128000,
+        maxTokens: 32768,
+        compat: {
+          supportsDeveloperRole: false,
+          supportsReasoningEffort: false,
+          maxTokensField: "max_tokens",
+        },
+      }],
+    });
+  } else if (providerBaseUrls[provider]) {
+    session.modelRegistry.registerProvider(provider, {
+      baseUrl: providerBaseUrls[provider],
+    });
+  }
+  return configureRelayModel(session, provider, model);
 }
 
 async function setSessionModel(session, provider, model) {
@@ -106,6 +145,26 @@ function createTools(selection, profile = {}) {
       mapInput: ({ artifactId }) => ({ artifactId }),
     }, selection),
     makeActionTool({
+      name: "ctf_decode_text",
+      actionName: "ctf.decode_text",
+      label: "Decode CTF text",
+      description: "Deterministically decode a bounded text value as Base64, hexadecimal, binary, Morse, URL encoding, or an automatically detected chain. Use auto with maxLayers for nested encodings.",
+      parameters: Type.Object({
+        source: Type.String({ minLength: 1, maxLength: 65536 }),
+        encoding: Type.Union([
+          Type.Literal("auto"),
+          Type.Literal("base64"),
+          Type.Literal("hex"),
+          Type.Literal("binary"),
+          Type.Literal("morse"),
+          Type.Literal("url"),
+        ]),
+        maxLayers: Type.Integer({ minimum: 1, maximum: 20 }),
+        rationale,
+      }),
+      mapInput: ({ source, encoding, maxLayers }) => ({ source, encoding, maxLayers }),
+    }, selection),
+    makeActionTool({
       name: "ctf_coach_hint",
       actionName: "ctf.coach_hint",
       label: "Give a graded CTF hint",
@@ -163,7 +222,7 @@ async function createSession(command) {
     agentDir,
     sessionManager: SessionManager.inMemory(),
     resourceLoader,
-    // Keep only the three custom CTF proposal tools. Pi's coding tools are not
+    // Keep only MilkSU's typed CTF proposal tools. Pi's coding tools are not
     // registered into this session.
     noTools: "builtin",
     customTools: createTools(selection, {
@@ -171,7 +230,7 @@ async function createSession(command) {
       collaborationMode: command.roleState?.collaborationMode || "delegate",
     }),
   });
-  const effectiveModel = configureRelayModel(session, command.provider, command.model);
+  const effectiveModel = configureRuntimeModel(session, command.provider, command.model);
   await setSessionModel(session, effectiveModel.provider, effectiveModel.model);
   const value = { session, selection, queue: Promise.resolve() };
   sessions.set(attemptId, value);
@@ -217,7 +276,7 @@ async function handleCommand(command) {
     case "protocol_info":
       emit(command.requestId, "protocol_info", {
         protocol: "milksu-security-engine/v1alpha1",
-        capabilities: ["ctf.inspect_material", "ctf.decode_hex", "ctf.coach_hint", "ctf.submit_flag"],
+        capabilities: ["ctf.inspect_material", "ctf.decode_hex", "ctf.decode_text", "ctf.coach_hint", "ctf.submit_flag"],
         inheritedTools: [],
       });
       break;

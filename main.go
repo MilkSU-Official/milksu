@@ -30,6 +30,12 @@ func main() {
 		BackgroundColour: &options.RGBA{R: 247, G: 247, B: 245, A: 1},
 		OnStartup:        application.Startup,
 		OnShutdown:       application.Shutdown,
+		SingleInstanceLock: &options.SingleInstanceLock{
+			UniqueId: "com.milksu.app",
+			OnSecondInstanceLaunch: func(options.SecondInstanceData) {
+				application.showPrimaryWindow()
+			},
+		},
 		Bind: []interface{}{
 			application,
 		},

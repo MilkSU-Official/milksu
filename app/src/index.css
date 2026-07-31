@@ -1,161 +1,191 @@
 @import "tailwindcss";
-@import "tw-animate-css";
-@import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
-
-@custom-variant dark (&:is(.dark *));
+@import "@felinic/ui/style.css";
+@source "../node_modules/@felinic/ui/src";
+@source ".";
 
 :root {
-  color-scheme: light;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-}
+  font-family: "Inter Variable", "PingFang SC", "Microsoft YaHei", sans-serif;
+  color-scheme: dark;
 
-body {
-  margin: 0;
-  background: #ffffff;
-  color: #1a1a1a;
-  font-family: system-ui, -apple-system, sans-serif;
-}
+  /*
+   * MilkSU "Labs" theme.
+   *
+   * The base palette is sampled from the authenticated HTB Labs Machines and
+   * Challenges surfaces on 2026-07-31. These remain semantic application
+   * tokens: components consume roles such as background, card, border and
+   * brand, never HTB-specific color literals.
+   */
+  --background: #101927;
+  --background-chrome: #0d1522;
+  --foreground: #f4f4f4;
+  --card: #151f2e;
+  --card-foreground: #f4f4f4;
+  --popover: #1e2939;
+  --popover-foreground: #f4f4f4;
+  --secondary: #1e2939;
+  --secondary-foreground: #f4f4f4;
+  --muted: #1e2939;
+  --muted-foreground: #8799b5;
+  --accent: #1e2939;
+  --accent-foreground: #f4f4f4;
+  --border: #212c3c;
+  --border-soft: color-mix(in oklab, var(--border) 62%, transparent);
+  --border-hairline: #344158;
+  --border-menu: #344158;
+  --border-menu-elevated: #344158;
+  --input: #344158;
+  --ring: #9fef00;
+  --sidebar: #0d1522;
+  --sidebar-foreground: #f4f4f4;
+  --sidebar-border: #212c3c;
+  --sidebar-accent: var(--overlay-hover);
+  --sidebar-accent-foreground: #f4f4f4;
+  --scrollbar-thumb: rgb(135 153 181 / 0.24);
+  --scrollbar-thumb-hover: rgb(159 239 0 / 0.44);
 
-#root {
-  height: 100vh;
-  overflow: hidden;
+  --primary: var(--brand);
+  --primary-foreground: var(--brand-foreground);
+  --brand: #9fef00;
+  --brand-foreground: #101927;
+  --brand-soft: rgb(159 239 0 / 0.13);
+  --brand-border: rgb(159 239 0 / 0.36);
+  --brand-hover: #b5f542;
+  --sidebar-primary: var(--brand);
+  --sidebar-primary-foreground: var(--brand-foreground);
+  --sidebar-ring: var(--brand);
+  --btn-primary: var(--brand);
+  --btn-primary-hover: var(--brand-hover);
+  --btn-primary-active: #87ca00;
+
+  --overlay-hover-light: rgb(255 255 255 / 0.055);
+  --overlay-hover: rgb(255 255 255 / 0.09);
+  --overlay-hover-strong: rgb(255 255 255 / 0.13);
+  --overlay-active: rgb(255 255 255 / 0.155);
+  --overlay-active-strong: rgb(255 255 255 / 0.19);
+  --action-card-hover: rgb(255 255 255 / 0.055);
+  --action-card-active: rgb(255 255 255 / 0.085);
+  --segment-track: #1e2939;
+  --segment-thumb: #344158;
+
+  --success: #9fef00;
+  --success-foreground: #c8ff5b;
+  --success-solid-foreground: #101927;
+  --success-soft: rgb(159 239 0 / 0.13);
+  --success-border: rgb(159 239 0 / 0.34);
+  --warning: #f6c344;
+  --warning-foreground: #ffd979;
+  --warning-solid-foreground: #101927;
+  --warning-soft: rgb(246 195 68 / 0.13);
+  --warning-border: rgb(246 195 68 / 0.34);
+  --info: #6aa9ff;
+  --info-foreground: #9bc5ff;
+  --info-soft: rgb(106 169 255 / 0.13);
+  --info-border: rgb(106 169 255 / 0.34);
+  --destructive: #ff5e57;
+  --destructive-foreground: #fff;
+  --destructive-soft: rgb(255 94 87 / 0.11);
+  --destructive-border: rgb(255 94 87 / 0.34);
+
+  --chart-1: var(--brand);
+  --chart-2: #6aa9ff;
+  --chart-3: #c494ff;
+  --chart-4: #f6c344;
+  --chart-5: #ff5e57;
+
+  --tooltip: #f4f4f4;
+  --tooltip-foreground: #101927;
+  --terminal-background: #0a111c;
+  --terminal-foreground: #dce7f9;
+  --terminal-cursor: var(--brand);
+  --terminal-selection: rgb(159 239 0 / 0.2);
+
+  --surface-editor: var(--background);
+  --surface-chrome: var(--background-chrome);
+  --surface-composer: var(--card);
+  --chat-user-bubble: rgb(159 239 0 / 0.13);
+  --chat-user-bubble-fg: #e5ffaf;
 }
 
 @theme inline {
-  --font-heading: var(--font-sans);
-  --font-sans: 'Geist Variable', sans-serif;
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
-  --color-card: var(--card);
-  --color-foreground: var(--foreground);
-  --color-background: var(--background);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  --color-surface-editor: var(--surface-editor);
+  --color-surface-chrome: var(--surface-chrome);
+  --color-surface-composer: var(--surface-composer);
+  --color-chat-user-bubble: var(--chat-user-bubble);
+  --color-chat-user-bubble-fg: var(--chat-user-bubble-fg);
 }
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+html,
+body,
+#app {
+  width: 100%;
+  min-width: 320px;
+  height: 100%;
+  margin: 0;
 }
 
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
-  html {
-    @apply font-sans;
-  }
+body {
+  overflow: hidden;
+  background: var(--surface-editor);
+  color: var(--foreground);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 }
 
-@layer components {
-  .ctf-input {
-    @apply w-full rounded-xl border border-[#d8d6cf] bg-white px-3 py-2.5 text-xs text-[#333531] outline-none transition-colors placeholder:text-[#b0b1ab] focus:border-[#9eaf64] focus:ring-2 focus:ring-[#dce8b4]/60;
-  }
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
 
-  .vuln-input {
-    @apply w-full rounded-xl border border-[#d8dad3] bg-white px-3 py-2.5 text-[12px] text-[#343733] outline-none transition-colors placeholder:text-[#a6a9a0] focus:border-[#899c5b] focus:ring-2 focus:ring-[#dce6bd]/65;
-  }
+/*
+ * Fixed-height chooser controls must leave their full content box to the text.
+ * WebKit's native select adds its own internal metrics; combining those with
+ * vertical utility padding was clipping Chinese and Latin glyphs in every
+ * Settings dropdown.
+ */
+[data-slot="native-select"],
+[data-slot="select-trigger"] {
+  padding-block: 0;
+}
 
-  .workspace-scrollbar-hidden {
-    scrollbar-width: none;
-  }
+[data-slot="native-select"][data-size="sm"],
+[data-slot="select-trigger"][data-size="sm"] {
+  font-size: var(--text-body, 0.75rem);
+  line-height: var(--text-body--line-height, 1rem);
+}
 
-  .workspace-scrollbar-hidden::-webkit-scrollbar {
-    display: none;
-  }
+[data-slot="native-select"][data-size="default"],
+[data-slot="select-trigger"][data-size="default"] {
+  font-size: var(--text-label, 0.8125rem);
+  line-height: var(--text-label--line-height, 1.125rem);
+}
+
+[data-slot="native-select"][data-size="lg"],
+[data-slot="select-trigger"][data-size="lg"] {
+  font-size: var(--text-control, 0.875rem);
+  line-height: var(--text-control--line-height, 1.25rem);
+}
+
+button {
+  -webkit-app-region: no-drag;
+}
+
+.app-drag {
+  -webkit-app-region: drag;
+}
+
+.app-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+code,
+pre,
+.font-mono {
+  font-family: "SFMono-Regular", "Cascadia Code", "Liberation Mono", monospace;
+}
+
+::selection {
+  background: var(--brand-soft);
+  color: var(--foreground);
 }

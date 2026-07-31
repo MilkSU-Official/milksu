@@ -6,6 +6,8 @@ dist/
 *.d.ts.map
 !bridge.js
 !security-bridge.js
+!browserextension/background.js
+!browserextension/popup.js
 .DS_Store
 .claude/
 auth.json

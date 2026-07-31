@@ -29,7 +29,7 @@ Runtime 继续拥有 Job、Attempt、Step、Action、Observation、Artifact、Ev
 
 - 只开放内置本地 fixture，不提供 URL、Socket、任意目录或目标列表入口；
 - Scope 由本机用户动作创建，精确绑定 `packet-parser@local-v1`；
-- Provider 密钥继续由 Keychain 与 Sidecar 进程边界管理，不进入 Vuln 事件、Artifact 或 React；
+- Provider 密钥由用户级本地凭据数据库与 Sidecar 进程边界管理，不进入 Vuln 事件、Artifact 或前端；
 - Browser、Network、Shell 和 Lab 外部执行能力没有因 M3 工作台而扩大；
 - 页面同时显示 Domain Outcome、Evidence/Evaluator 与 Human Outcome。
 

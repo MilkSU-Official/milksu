@@ -1,0 +1,7 @@
+[submodule "packages/ui"]
+	path = packages/ui
+	url = https://github.com/MilkSU-Official/ui.git
+	branch = codex/milksu-select-alignment
+[submodule "third_party/archify"]
+	path = third_party/archify
+	url = https://github.com/tt-a1i/archify.git

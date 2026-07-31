@@ -10,6 +10,7 @@
     "docs:preview": "vitepress preview docs",
     "sidecar:build": "node scripts/package-sidecar.mjs build",
     "sidecar:smoke": "node scripts/package-sidecar.mjs smoke",
+    "m3:release-check": "bash scripts/m3-release-check.sh",
     "test:security-bridge": "printf '%s\\n' '{\"action\":\"protocol_info\",\"requestId\":\"protocol-test\"}' | node security-bridge.js",
     "spike:pi:protocol": "node spikes/engine-comparison/pi-spike.mjs --protocol-only",
     "spike:pi": "node spikes/engine-comparison/pi-spike.mjs",

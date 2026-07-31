@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { execFile, spawn } from 'node:child_process'
-import { chmod, copyFile, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { chmod, copyFile, cp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
@@ -9,6 +9,7 @@ import { build } from 'esbuild'
 const execFileAsync = promisify(execFile)
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const nodeVersion = '24.18.0'
+const archifyCommit = '7b49d0b715fd4ba48116bcdecd1ba3789a279613'
 const nodeArchives = {
   'darwin/arm64': {
     file: `node-v${nodeVersion}-darwin-arm64.tar.xz`,
@@ -125,7 +126,22 @@ async function buildSidecar(platform) {
   const nodeOutput = join(output, 'node')
   const chatOutput = join(output, 'chat-bridge.cjs')
   const securityOutput = join(output, 'security-bridge.cjs')
+  const archifySource = join(repositoryRoot, 'third_party', 'archify', 'archify')
+  const archifyOutput = join(output, 'skills', 'archify')
+  const archifyPackage = JSON.parse(await readFile(join(archifySource, 'package.json'), 'utf8'))
+  const { stdout: checkedOutArchifyCommit } = await execFileAsync(
+    'git',
+    ['-C', join(repositoryRoot, 'third_party', 'archify'), 'rev-parse', 'HEAD'],
+  )
+  if (checkedOutArchifyCommit.trim() !== archifyCommit) {
+    throw new Error(
+      `Archify checkout mismatch: expected ${archifyCommit}, got ${checkedOutArchifyCommit.trim()}`,
+    )
+  }
 
+  await rm(archifyOutput, { recursive: true, force: true })
+  await mkdir(dirname(archifyOutput), { recursive: true, mode: 0o700 })
+  await cp(archifySource, archifyOutput, { recursive: true })
   await Promise.all([
     copyFile(runtime.binary, nodeOutput),
     copyFile(runtime.license, join(output, 'NODE-LICENSE')),
@@ -154,6 +170,15 @@ async function buildSidecar(platform) {
       binarySha256: await sha256(nodeOutput),
     },
     pi: { package: '@earendil-works/pi-coding-agent', version: '0.80.2' },
+    skills: {
+      archify: {
+        package: 'tt-a1i/archify',
+        version: archifyPackage.version,
+        commit: archifyCommit,
+        license: archifyPackage.license,
+        path: 'skills/archify',
+      },
+    },
     esbuild: { version: '0.28.1' },
     bridges: {
       chat: { file: 'chat-bridge.cjs', sha256: await sha256(chatOutput) },
@@ -176,6 +201,13 @@ async function smokeSidecar(platform) {
     `--allow-fs-read=${workspace}`,
     `--allow-fs-write=${workspace}`,
   ]
+  const chatRuntimeArguments = [
+    ...runtimeArguments,
+    '--allow-child-process',
+    '--allow-fs-read=/bin/bash',
+    '--allow-fs-read=/bin/sh',
+    '--allow-fs-read=/usr/bin/sandbox-exec',
+  ]
   const securityRun = await runWithInput(
     node,
     [...runtimeArguments, join(output, 'security-bridge.cjs')],
@@ -188,7 +220,7 @@ async function smokeSidecar(platform) {
   }
   const chatRun = await runWithInput(
     node,
-    [...runtimeArguments, join(output, 'chat-bridge.cjs')],
+    [...chatRuntimeArguments, join(output, 'chat-bridge.cjs')],
     [
       '{"action":"create_session","conversationId":"packaged-smoke","provider":"deepseek","model":"deepseek-v4-flash"}',
       '{"action":"destroy_session","conversationId":"packaged-smoke"}',
@@ -196,8 +228,86 @@ async function smokeSidecar(platform) {
     ].join('\n'),
     { cwd: workspace, env: { ...process.env, HOME: workspace } },
   )
-  if (!chatRun.stdout.includes('"type":"ready"') || !chatRun.stdout.includes('"type":"session_destroyed"')) {
+  const chatResponses = chatRun.stdout.trim().split('\n').map(line => JSON.parse(line))
+  const ready = chatResponses.find(value => value.type === 'ready')
+  const expectedTools = ['read', 'bash', 'edit', 'write', 'grep', 'find', 'ls']
+  const ctfRequestedTools = [...expectedTools, 'ctf_inspect']
+  if (
+    !ready
+    || !expectedTools.every(tool => ready.tools?.includes(tool))
+    || !ready.skills?.includes('archify')
+    || !chatResponses.some(value => value.type === 'session_destroyed')
+  ) {
     throw new Error(`unexpected packaged Chat Sidecar response: ${chatRun.stdout}`)
+  }
+  const ctfWorkspace = join(workspace, 'ctf-coach')
+  await mkdir(join(ctfWorkspace, '.git'), { recursive: true, mode: 0o700 })
+  await writeFile(join(ctfWorkspace, 'challenge.json'), `${JSON.stringify({
+    schemaVersion: 'ctf-workspace.milksu.dev/v1alpha1',
+    source: { scope: { targets: [{ kind: 'directory', value: 'workspace' }] } },
+    policy: {
+      mode: 'coach',
+      allowedTools: ctfRequestedTools,
+      execution: {
+        workspaceOnly: true,
+        defaultCommandTimeoutSeconds: 120,
+        maxCommandTimeoutSeconds: 300,
+        maxToolEventOutputBytes: 60000,
+      },
+    },
+  }, null, 2)}\n`, { mode: 0o600 })
+  const ctfRuntimeArguments = [
+    '--permission',
+    `--allow-fs-read=${output}`,
+    `--allow-fs-read=${ctfWorkspace}`,
+    `--allow-fs-write=${ctfWorkspace}`,
+    '--allow-child-process',
+    '--allow-fs-read=/bin/bash',
+    '--allow-fs-read=/bin/sh',
+    '--allow-fs-read=/usr/bin/sandbox-exec',
+  ]
+  const ctfChatRun = await runWithInput(
+    node,
+    [...ctfRuntimeArguments, join(output, 'chat-bridge.cjs')],
+    [
+      '{"action":"create_session","conversationId":"packaged-ctf-coach","provider":"deepseek","model":"deepseek-v4-flash"}',
+      '{"action":"destroy_session","conversationId":"packaged-ctf-coach"}',
+      '',
+    ].join('\n'),
+    { cwd: ctfWorkspace, env: { ...process.env, HOME: ctfWorkspace } },
+  )
+  const ctfChatResponses = ctfChatRun.stdout.trim().split('\n').map(line => JSON.parse(line))
+  const ctfReady = ctfChatResponses.find(value => value.type === 'ready')
+  const coachTools = ['read', 'edit', 'write', 'grep', 'find', 'ls', 'ctf_inspect']
+  if (
+    !ctfReady
+    || ctfReady.tools?.includes('bash')
+    || ctfReady.skills?.includes('archify')
+    || !coachTools.every(tool => ctfReady.tools?.includes(tool))
+    || !ctfChatResponses.some(value => value.type === 'session_destroyed')
+  ) {
+    throw new Error(`unexpected packaged CTF Coach response: ${ctfChatRun.stdout}`)
+  }
+  const bashProbe = await runWithInput(
+    node,
+    [
+      ...chatRuntimeArguments,
+      '-e',
+      [
+        'const { existsSync } = require("node:fs");',
+        'const { spawn } = require("node:child_process");',
+        'if (!existsSync("/bin/bash")) throw new Error("bash is unavailable");',
+        'const child = spawn("/bin/bash", ["-c", "printf packaged-bash-ok"]);',
+        'child.stdout.pipe(process.stdout);',
+        'child.stderr.pipe(process.stderr);',
+        'child.on("close", code => { if (code) process.exitCode = code; });',
+      ].join(' '),
+    ],
+    '',
+    { cwd: workspace, env: { ...process.env, HOME: workspace } },
+  )
+  if (bashProbe.stdout !== 'packaged-bash-ok') {
+    throw new Error(`unexpected packaged Bash probe: ${bashProbe.stdout}\n${bashProbe.stderr}`)
   }
   process.stdout.write(`${JSON.stringify(response)}\n`)
 }
@@ -223,6 +333,7 @@ async function installSidecar(platform, binaryPath) {
   await rm(destination, { recursive: true, force: true })
   await mkdir(destination, { recursive: true, mode: 0o700 })
   await Promise.all(distributableFiles.map(file => copyFile(join(source, file), join(destination, file))))
+  await cp(join(source, 'skills'), join(destination, 'skills'), { recursive: true })
   await chmod(join(destination, 'node'), 0o755)
   await execFileAsync('/usr/bin/codesign', ['--force', '--sign', process.env.MILKSU_CODESIGN_IDENTITY || '-', application])
   process.stdout.write(`Installed MilkSU Sidecar into ${destination}\n`)

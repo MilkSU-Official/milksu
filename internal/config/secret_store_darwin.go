@@ -12,7 +12,8 @@ static CFMutableDictionaryRef milksu_keychain_query(
   const char *service,
   CFIndex service_length,
   const char *account,
-  CFIndex account_length
+  CFIndex account_length,
+  Boolean use_data_protection
 ) {
   CFStringRef service_string = CFStringCreateWithBytes(
     kCFAllocatorDefault,
@@ -43,6 +44,11 @@ static CFMutableDictionaryRef milksu_keychain_query(
   CFDictionarySetValue(query, kSecClass, kSecClassGenericPassword);
   CFDictionarySetValue(query, kSecAttrService, service_string);
   CFDictionarySetValue(query, kSecAttrAccount, account_string);
+  if (use_data_protection) {
+    if (__builtin_available(macOS 10.15, *)) {
+      CFDictionarySetValue(query, kSecUseDataProtectionKeychain, kCFBooleanTrue);
+    }
+  }
   CFRelease(service_string);
   CFRelease(account_string);
   return query;
@@ -56,7 +62,7 @@ static OSStatus milksu_keychain_copy(
   CFIndex *secret_length,
   void **secret
 ) {
-  CFMutableDictionaryRef query = milksu_keychain_query(service, service_length, account, account_length);
+  CFMutableDictionaryRef query = milksu_keychain_query(service, service_length, account, account_length, true);
   if (query == NULL) return errSecParam;
   CFDictionarySetValue(query, kSecReturnData, kCFBooleanTrue);
   CFDictionarySetValue(query, kSecMatchLimit, kSecMatchLimitOne);
@@ -64,6 +70,14 @@ static OSStatus milksu_keychain_copy(
   CFTypeRef result = NULL;
   OSStatus status = SecItemCopyMatching(query, &result);
   CFRelease(query);
+  if (status == errSecItemNotFound || status == errSecMissingEntitlement) {
+    query = milksu_keychain_query(service, service_length, account, account_length, false);
+    if (query == NULL) return errSecParam;
+    CFDictionarySetValue(query, kSecReturnData, kCFBooleanTrue);
+    CFDictionarySetValue(query, kSecMatchLimit, kSecMatchLimitOne);
+    status = SecItemCopyMatching(query, &result);
+    CFRelease(query);
+  }
   if (status != errSecSuccess) return status;
 
   CFDataRef data = (CFDataRef)result;
@@ -90,7 +104,7 @@ static OSStatus milksu_keychain_set(
   const void *secret,
   CFIndex secret_length
 ) {
-  CFMutableDictionaryRef query = milksu_keychain_query(service, service_length, account, account_length);
+  CFMutableDictionaryRef query = milksu_keychain_query(service, service_length, account, account_length, true);
   if (query == NULL) return errSecParam;
   CFDataRef secret_data = CFDataCreate(kCFAllocatorDefault, (const UInt8 *)secret, secret_length);
   if (secret_data == NULL) {
@@ -117,6 +131,37 @@ static OSStatus milksu_keychain_set(
   }
   CFRelease(secret_data);
   CFRelease(query);
+  // Ad-hoc development builds can report errSecAuthFailed rather than
+  // errSecMissingEntitlement when adding to the data-protection Keychain.
+  // Retry the ordinary login Keychain before treating that as a real
+  // authentication failure.
+  if (status == errSecMissingEntitlement || status == errSecAuthFailed) {
+    query = milksu_keychain_query(service, service_length, account, account_length, false);
+    if (query == NULL) return errSecParam;
+    secret_data = CFDataCreate(kCFAllocatorDefault, (const UInt8 *)secret, secret_length);
+    if (secret_data == NULL) {
+      CFRelease(query);
+      return errSecAllocate;
+    }
+    const void *legacy_keys[] = { kSecValueData };
+    const void *legacy_values[] = { secret_data };
+    attributes = CFDictionaryCreate(
+      kCFAllocatorDefault,
+      legacy_keys,
+      legacy_values,
+      1,
+      &kCFTypeDictionaryKeyCallBacks,
+      &kCFTypeDictionaryValueCallBacks
+    );
+    status = SecItemUpdate(query, attributes);
+    CFRelease(attributes);
+    if (status == errSecItemNotFound) {
+      CFDictionarySetValue(query, kSecValueData, secret_data);
+      status = SecItemAdd(query, NULL);
+    }
+    CFRelease(secret_data);
+    CFRelease(query);
+  }
   return status;
 }
 
@@ -126,11 +171,18 @@ static OSStatus milksu_keychain_delete(
   const char *account,
   CFIndex account_length
 ) {
-  CFMutableDictionaryRef query = milksu_keychain_query(service, service_length, account, account_length);
+  CFMutableDictionaryRef query = milksu_keychain_query(service, service_length, account, account_length, true);
   if (query == NULL) return errSecParam;
   OSStatus status = SecItemDelete(query);
   CFRelease(query);
-  return status;
+  query = milksu_keychain_query(service, service_length, account, account_length, false);
+  if (query == NULL) return status == errSecSuccess ? errSecSuccess : errSecParam;
+  OSStatus legacy_status = SecItemDelete(query);
+  CFRelease(query);
+  if (status == errSecSuccess || legacy_status == errSecSuccess) return errSecSuccess;
+  if (status == errSecMissingEntitlement) return legacy_status;
+  if (status != errSecItemNotFound) return status;
+  return legacy_status;
 }
 */
 import "C"
@@ -222,5 +274,11 @@ func (keychainSecretStore) Delete(account string) error {
 }
 
 func keychainError(operation string, status C.OSStatus) error {
+	if status == C.errSecAuthFailed {
+		return fmt.Errorf("%s macOS Keychain item: authentication failed; unlock the login Keychain or retry from the signed MilkSU app (OSStatus %d)", operation, int32(status))
+	}
+	if status == C.errSecInteractionNotAllowed {
+		return fmt.Errorf("%s macOS Keychain item: user interaction is not allowed in the current session (OSStatus %d)", operation, int32(status))
+	}
 	return fmt.Errorf("%s macOS Keychain item: OSStatus %d", operation, int32(status))
 }

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/MilkSU-Official/milksu/internal/securitypolicy"
@@ -20,24 +21,30 @@ const (
 
 	FactChallengeAdmitted = "challenge.admitted"
 	FactLearningRecorded  = "learning.recorded"
-	maxMaterialBytes      = 4 * 1024 * 1024
-	maxTotalMaterialBytes = 12 * 1024 * 1024
+	FactAgentCandidate    = "agent.candidate"
+	FactJudgeReceipt      = "judge.receipt"
+	maxMaterialBytes      = 32 * 1024 * 1024
+	maxTotalMaterialBytes = 96 * 1024 * 1024
 	maxExperiments        = 12
 	proposalTimeout       = 2 * time.Minute
 )
 
 type ChallengeRequest struct {
-	Title             string            `json:"title"`
-	Statement         string            `json:"statement"`
-	Category          string            `json:"category"`
-	CollaborationMode string            `json:"collaborationMode"`
-	TrackName         string            `json:"trackName"`
-	HumanGoal         string            `json:"humanGoal"`
-	SourceKind        string            `json:"sourceKind"`
-	SourceURI         string            `json:"sourceUri"`
-	ExpectedFlag      string            `json:"expectedFlag"`
-	KnowledgePoints   []string          `json:"knowledgePoints"`
-	Materials         []MaterialRequest `json:"materials"`
+	Title             string                  `json:"title"`
+	Statement         string                  `json:"statement"`
+	Category          string                  `json:"category"`
+	CollaborationMode string                  `json:"collaborationMode"`
+	DeferAgent        bool                    `json:"deferAgent,omitempty"`
+	TrackName         string                  `json:"trackName"`
+	HumanGoal         string                  `json:"humanGoal"`
+	SourceKind        string                  `json:"sourceKind"`
+	SourceURI         string                  `json:"sourceUri"`
+	SourceTargets     []securitypolicy.Target `json:"sourceTargets,omitempty"`
+	ExternalPlatform  string                  `json:"externalPlatform,omitempty"`
+	ExternalAttemptID int64                   `json:"externalAttemptId,omitempty"`
+	ExpectedFlag      string                  `json:"expectedFlag"`
+	KnowledgePoints   []string                `json:"knowledgePoints"`
+	Materials         []MaterialRequest       `json:"materials"`
 }
 
 type MaterialRequest struct {
@@ -52,9 +59,12 @@ type admittedRequest struct {
 	statement         string
 	category          string
 	collaborationMode string
+	deferAgent        bool
 	trackName         string
 	humanGoal         string
 	source            ChallengeSource
+	externalPlatform  string
+	externalAttemptID int64
 	expectedFlag      string
 	knowledgePoints   []string
 	materials         []admittedMaterial
@@ -73,6 +83,8 @@ type Challenge struct {
 	Statement         string          `json:"statement"`
 	Category          string          `json:"category"`
 	CollaborationMode string          `json:"collaborationMode"`
+	ExternalPlatform  string          `json:"externalPlatform,omitempty"`
+	ExternalAttemptID int64           `json:"externalAttemptId,omitempty"`
 	TrackName         string          `json:"trackName"`
 	HumanGoal         string          `json:"humanGoal"`
 	Source            ChallengeSource `json:"source"`
@@ -104,19 +116,22 @@ type JudgeSpec struct {
 }
 
 type ChallengeView struct {
-	ID                string          `json:"id"`
-	Title             string          `json:"title"`
-	Statement         string          `json:"statement"`
-	Category          string          `json:"category"`
-	CollaborationMode string          `json:"collaborationMode"`
-	TrackName         string          `json:"trackName"`
-	HumanGoal         string          `json:"humanGoal"`
-	Source            ChallengeSource `json:"source"`
-	Materials         []Material      `json:"materials"`
-	KnowledgePoints   []string        `json:"knowledgePoints"`
-	JudgeType         string          `json:"judgeType"`
-	JudgeVersion      string          `json:"judgeVersion"`
-	AdmittedAt        time.Time       `json:"admittedAt"`
+	ID                string               `json:"id"`
+	Title             string               `json:"title"`
+	Statement         string               `json:"statement"`
+	Category          string               `json:"category"`
+	CollaborationMode string               `json:"collaborationMode"`
+	ExternalPlatform  string               `json:"externalPlatform,omitempty"`
+	ExternalAttemptID int64                `json:"externalAttemptId,omitempty"`
+	TrackName         string               `json:"trackName"`
+	HumanGoal         string               `json:"humanGoal"`
+	Source            ChallengeSource      `json:"source"`
+	Materials         []Material           `json:"materials"`
+	KnowledgePoints   []string             `json:"knowledgePoints"`
+	AgentPolicy       AgentWorkspacePolicy `json:"agentPolicy"`
+	JudgeType         string               `json:"judgeType"`
+	JudgeVersion      string               `json:"judgeVersion"`
+	AdmittedAt        time.Time            `json:"admittedAt"`
 }
 
 type LearningRecord struct {
@@ -135,6 +150,24 @@ type LearningRecordRequest struct {
 	Level   int    `json:"level"`
 }
 
+type ExternalJudgeReceiptRequest struct {
+	Platform  string `json:"platform"`
+	Status    string `json:"status"`
+	Correct   *bool  `json:"correct,omitempty"`
+	Summary   string `json:"summary"`
+	Reference string `json:"reference"`
+}
+
+type ExternalJudgeReceipt struct {
+	ID         string    `json:"id"`
+	Platform   string    `json:"platform"`
+	Status     string    `json:"status"`
+	Correct    *bool     `json:"correct,omitempty"`
+	Summary    string    `json:"summary"`
+	Reference  string    `json:"reference"`
+	RecordedAt time.Time `json:"recordedAt"`
+}
+
 type HumanOutcomeView struct {
 	Goal             string   `json:"goal"`
 	KnowledgePoints  []string `json:"knowledgePoints"`
@@ -146,17 +179,77 @@ type HumanOutcomeView struct {
 
 type ExperimentView struct {
 	ID           string                        `json:"id"`
+	AttemptID    string                        `json:"attemptId"`
 	Number       int                           `json:"number"`
 	Status       securityruntime.StepStatus    `json:"status"`
+	StartedAt    time.Time                     `json:"startedAt"`
+	FinishedAt   *time.Time                    `json:"finishedAt,omitempty"`
 	Action       *securityruntime.Action       `json:"action,omitempty"`
 	Observations []securityruntime.Observation `json:"observations"`
 	ArtifactIDs  []string                      `json:"artifactIds"`
 }
 
 type SubmissionView struct {
+	Candidate                string                  `json:"candidate"`
+	ExternalWrongCountBefore *int                    `json:"externalWrongCountBefore,omitempty"`
+	Verdict                  securityruntime.Verdict `json:"verdict"`
+	Summary                  string                  `json:"summary"`
+}
+
+type AgentCandidate struct {
+	ID          string              `json:"id"`
+	SessionID   string              `json:"sessionId"`
+	Candidate   string              `json:"candidate"`
+	Explanation string              `json:"explanation"`
+	ArtifactID  string              `json:"artifactId"`
+	Assessment  CandidateAssessment `json:"assessment"`
+	CreatedAt   time.Time           `json:"createdAt"`
+}
+
+type CandidateAssessment struct {
+	Status   string   `json:"status"`
+	Warnings []string `json:"warnings"`
+}
+
+type AgentRunView struct {
+	AttemptID            string          `json:"attemptId"`
+	SessionID            string          `json:"sessionId"`
+	Model                string          `json:"model"`
+	Summary              string          `json:"summary"`
+	Metrics              AgentRunMetrics `json:"metrics"`
+	TrajectoryArtifactID string          `json:"trajectoryArtifactId,omitempty"`
+	StartedAt            time.Time       `json:"startedAt"`
+	FinishedAt           *time.Time      `json:"finishedAt,omitempty"`
+}
+
+type DebriefCandidate struct {
 	Candidate string                  `json:"candidate"`
 	Verdict   securityruntime.Verdict `json:"verdict"`
 	Summary   string                  `json:"summary"`
+}
+
+type DebriefView struct {
+	Status                string             `json:"status"`
+	Summary               string             `json:"summary"`
+	KeyObservations       []string           `json:"keyObservations"`
+	FailureBranches       []string           `json:"failureBranches"`
+	Candidates            []DebriefCandidate `json:"candidates"`
+	KnowledgePoints       []string           `json:"knowledgePoints"`
+	HintCount             int                `json:"hintCount"`
+	ReflectionCount       int                `json:"reflectionCount"`
+	IndependentSteps      int                `json:"independentSteps"`
+	EvidenceCount         int                `json:"evidenceCount"`
+	ArtifactCount         int                `json:"artifactCount"`
+	NeedsReflection       bool               `json:"needsReflection"`
+	RecommendedNextAction string             `json:"recommendedNextAction"`
+}
+
+type ArtifactPreview struct {
+	Artifact    securityruntime.Artifact `json:"artifact"`
+	Previewable bool                     `json:"previewable"`
+	Truncated   bool                     `json:"truncated"`
+	Content     string                   `json:"content,omitempty"`
+	Reason      string                   `json:"reason,omitempty"`
 }
 
 type Projection struct {
@@ -168,21 +261,29 @@ type Projection struct {
 	Artifacts       []securityruntime.Artifact   `json:"artifacts"`
 	Evidence        []securityruntime.Evidence   `json:"evidence"`
 	Evaluations     []securityruntime.Evaluation `json:"evaluations"`
+	AgentRuns       []AgentRunView               `json:"agentRuns"`
+	AgentCandidates []AgentCandidate             `json:"agentCandidates"`
 	Submissions     []SubmissionView             `json:"submissions"`
+	JudgeReceipts   []ExternalJudgeReceipt       `json:"judgeReceipts"`
 	Learning        []LearningRecord             `json:"learning"`
 	HumanOutcome    HumanOutcomeView             `json:"humanOutcome"`
+	Debrief         DebriefView                  `json:"debrief"`
 	Outcome         *securityruntime.Outcome     `json:"outcome,omitempty"`
 	Events          []securityruntime.Event      `json:"events"`
 }
 
 type Summary struct {
-	ID              string                    `json:"id"`
-	Title           string                    `json:"title"`
-	Category        string                    `json:"category"`
-	Status          securityruntime.JobStatus `json:"status"`
-	ExperimentCount int                       `json:"experimentCount"`
-	Verdict         securityruntime.Verdict   `json:"verdict,omitempty"`
-	UpdatedAt       time.Time                 `json:"updatedAt"`
+	ID                string                    `json:"id"`
+	Title             string                    `json:"title"`
+	Category          string                    `json:"category"`
+	ExternalPlatform  string                    `json:"externalPlatform,omitempty"`
+	ExternalAttemptID int64                     `json:"externalAttemptId,omitempty"`
+	Status            securityruntime.JobStatus `json:"status"`
+	ExperimentCount   int                       `json:"experimentCount"`
+	Verdict           securityruntime.Verdict   `json:"verdict,omitempty"`
+	PendingSubmission bool                      `json:"pendingSubmission"`
+	PendingJudge      bool                      `json:"pendingJudge"`
+	UpdatedAt         time.Time                 `json:"updatedAt"`
 }
 
 func validateRequest(request ChallengeRequest) (admittedRequest, error) {
@@ -193,6 +294,7 @@ func validateRequest(request ChallengeRequest) (admittedRequest, error) {
 	expectedFlag := strings.TrimSpace(request.ExpectedFlag)
 	trackName := strings.TrimSpace(request.TrackName)
 	humanGoal := strings.TrimSpace(request.HumanGoal)
+	externalPlatform := strings.ToLower(strings.TrimSpace(request.ExternalPlatform))
 	if title == "" || len([]rune(title)) > 120 {
 		return admittedRequest{}, fmt.Errorf("challenge title is required and must be at most 120 characters")
 	}
@@ -217,14 +319,25 @@ func validateRequest(request ChallengeRequest) (admittedRequest, error) {
 	if len([]rune(trackName)) > 120 || len([]rune(humanGoal)) > 1000 {
 		return admittedRequest{}, fmt.Errorf("track name or human learning goal is too long")
 	}
-	source, err := validateSource(request.SourceKind, request.SourceURI)
+	if externalPlatform != "" &&
+		externalPlatform != "nssctf-agent-arena" &&
+		externalPlatform != "nssctf-web" &&
+		externalPlatform != "ctfshow-web" &&
+		externalPlatform != "hackthebox-ctf" {
+		return admittedRequest{}, fmt.Errorf("unsupported external CTF platform %q", externalPlatform)
+	}
+	if (externalPlatform == "") != (request.ExternalAttemptID == 0) || request.ExternalAttemptID < 0 {
+		return admittedRequest{}, fmt.Errorf("external platform and attempt id must be supplied together")
+	}
+	source, err := validateSource(request.SourceKind, request.SourceURI, request.SourceTargets)
 	if err != nil {
 		return admittedRequest{}, err
 	}
 
 	result := admittedRequest{
 		title: title, statement: statement, category: category, collaborationMode: mode,
-		trackName: trackName, humanGoal: humanGoal, source: source, expectedFlag: expectedFlag,
+		deferAgent: request.DeferAgent, trackName: trackName, humanGoal: humanGoal, source: source,
+		externalPlatform: externalPlatform, externalAttemptID: request.ExternalAttemptID, expectedFlag: expectedFlag,
 	}
 	seenKnowledge := make(map[string]struct{})
 	for _, point := range request.KnowledgePoints {
@@ -254,11 +367,11 @@ func validateRequest(request ChallengeRequest) (admittedRequest, error) {
 			return admittedRequest{}, fmt.Errorf("decode material %q: %w", name, err)
 		}
 		if len(data) == 0 || len(data) > maxMaterialBytes {
-			return admittedRequest{}, fmt.Errorf("material %q must be between 1 byte and 4 MiB", name)
+			return admittedRequest{}, fmt.Errorf("material %q must be between 1 byte and 32 MiB", name)
 		}
 		total += len(data)
 		if total > maxTotalMaterialBytes {
-			return admittedRequest{}, fmt.Errorf("challenge materials exceed the 12 MiB limit")
+			return admittedRequest{}, fmt.Errorf("challenge materials exceed the 96 MiB limit")
 		}
 		provenance := strings.TrimSpace(material.Provenance)
 		if provenance == "" {
@@ -274,7 +387,41 @@ func validateRequest(request ChallengeRequest) (admittedRequest, error) {
 	return result, nil
 }
 
-func validateSource(kind, rawURI string) (ChallengeSource, error) {
+func validateCandidateText(candidate string) error {
+	if candidate == "" || len([]rune(candidate)) > 512 || !utf8.ValidString(candidate) {
+		return fmt.Errorf("flag candidate is empty, invalid UTF-8, or too long")
+	}
+	for _, character := range candidate {
+		if unicode.IsControl(character) {
+			return fmt.Errorf("flag candidate contains control characters")
+		}
+	}
+	return nil
+}
+
+func assessCandidate(candidate, externalPlatform string) CandidateAssessment {
+	warnings := make([]string, 0, 3)
+	if strings.ContainsFunc(candidate, unicode.IsSpace) {
+		warnings = append(warnings, "候选中包含空白字符，请对照题目 Flag 格式复核。")
+	}
+	if !strings.Contains(candidate, "{") || !strings.HasSuffix(candidate, "}") {
+		warnings = append(warnings, "候选不像常见的 PREFIX{...} 格式；仍可由用户确认后提交。")
+	}
+	if strings.HasPrefix(externalPlatform, "nssctf") &&
+		!strings.HasPrefix(strings.ToUpper(candidate), "NSSCTF{") {
+		warnings = append(warnings, "候选不是常见 NSSCTF{...} 前缀，请确认题目是否使用自定义格式。")
+	}
+	status := "plausible"
+	if len(warnings) > 0 {
+		status = "unusual"
+	}
+	return CandidateAssessment{Status: status, Warnings: warnings}
+}
+
+func validateSource(
+	kind, rawURI string,
+	additionalTargets []securitypolicy.Target,
+) (ChallengeSource, error) {
 	kind = strings.ToLower(strings.TrimSpace(kind))
 	rawURI = strings.TrimSpace(rawURI)
 	if kind == "" {
@@ -311,7 +458,31 @@ func validateSource(kind, rawURI string) (ChallengeSource, error) {
 	if err != nil {
 		return ChallengeSource{}, err
 	}
-	grant, err := securitypolicy.NewGrant("challenge-intake:"+kind, "ctf learning", []securitypolicy.Target{normalized}, 24*time.Hour)
+	targets := []securitypolicy.Target{normalized}
+	seen := map[string]struct{}{
+		string(normalized.Kind) + "\x00" + normalized.Value: {},
+	}
+	for _, candidate := range additionalTargets {
+		normalizedCandidate, err := securitypolicy.NormalizeTarget(candidate)
+		if err != nil {
+			return ChallengeSource{}, fmt.Errorf("additional source target: %w", err)
+		}
+		key := string(normalizedCandidate.Kind) + "\x00" + normalizedCandidate.Value
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		if len(targets) >= 16 {
+			return ChallengeSource{}, fmt.Errorf("challenge source may contain at most 16 exact targets")
+		}
+		seen[key] = struct{}{}
+		targets = append(targets, normalizedCandidate)
+	}
+	grant, err := securitypolicy.NewGrant(
+		"challenge-intake:"+kind,
+		"ctf learning",
+		targets,
+		24*time.Hour,
+	)
 	if err != nil {
 		return ChallengeSource{}, err
 	}

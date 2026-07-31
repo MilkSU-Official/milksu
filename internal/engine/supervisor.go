@@ -17,16 +17,21 @@ import (
 
 const eventSchemaVersion = 1
 
+const defaultTurnActivityTimeout = 90 * time.Second
+
 type Event struct {
-	SchemaVersion int    `json:"schemaVersion"`
-	Engine        string `json:"engine"`
-	SessionID     string `json:"sessionId,omitempty"`
-	Type          string `json:"type"`
-	Timestamp     string `json:"timestamp"`
-	Text          string `json:"text,omitempty"`
-	ToolName      string `json:"toolName,omitempty"`
-	Error         string `json:"error,omitempty"`
-	Done          bool   `json:"done,omitempty"`
+	SchemaVersion int      `json:"schemaVersion"`
+	Engine        string   `json:"engine"`
+	SessionID     string   `json:"sessionId,omitempty"`
+	Type          string   `json:"type"`
+	Timestamp     string   `json:"timestamp"`
+	Text          string   `json:"text,omitempty"`
+	ToolName      string   `json:"toolName,omitempty"`
+	Error         string   `json:"error,omitempty"`
+	Done          bool     `json:"done,omitempty"`
+	Tools         []string `json:"tools,omitempty"`
+	Extensions    []string `json:"extensions,omitempty"`
+	Skills        []string `json:"skills,omitempty"`
 }
 
 type RuntimeStatus struct {
@@ -34,71 +39,167 @@ type RuntimeStatus struct {
 	Running       bool   `json:"running"`
 	SessionCount  int    `json:"sessionCount"`
 	Protocol      string `json:"protocol"`
+	Workspace     string `json:"workspace,omitempty"`
+}
+
+type ModelProbeResult struct {
+	Provider  string `json:"provider"`
+	Model     string `json:"model"`
+	Ready     bool   `json:"ready"`
+	LatencyMS int64  `json:"latencyMs"`
 }
 
 type bridgeEvent struct {
-	Type     string `json:"type"`
-	ID       string `json:"id"`
-	Delta    string `json:"delta"`
-	Content  string `json:"content"`
-	Error    string `json:"error"`
-	ToolName string `json:"toolName"`
-	IsError  bool   `json:"isError"`
+	Type       string   `json:"type"`
+	ID         string   `json:"id"`
+	Delta      string   `json:"delta"`
+	Content    string   `json:"content"`
+	Error      string   `json:"error"`
+	ToolName   string   `json:"toolName"`
+	IsError    bool     `json:"isError"`
+	Tools      []string `json:"tools"`
+	Extensions []string `json:"extensions"`
+	Skills     []string `json:"skills"`
 }
 
 type childProcess struct {
-	command *exec.Cmd
-	stdin   io.WriteCloser
+	command   *exec.Cmd
+	stdin     io.WriteCloser
+	workspace string
 }
 
 type Supervisor struct {
-	mu       sync.Mutex
-	process  *childProcess
-	sessions map[string]struct{}
-	emit     func(Event)
+	mu           sync.Mutex
+	probeMu      sync.Mutex
+	process      *childProcess
+	sessions     map[string]struct{}
+	probeWaiters map[string]chan Event
+	turnTimeout  time.Duration
+	turnTimers   map[string]*time.Timer
+	turnSequence map[string]uint64
+	emit         func(Event)
 }
 
 func NewSupervisor(emit func(Event)) *Supervisor {
 	return &Supervisor{
-		sessions: make(map[string]struct{}),
-		emit:     emit,
+		sessions:     make(map[string]struct{}),
+		probeWaiters: make(map[string]chan Event),
+		turnTimeout:  defaultTurnActivityTimeout,
+		turnTimers:   make(map[string]*time.Timer),
+		turnSequence: make(map[string]uint64),
+		emit:         emit,
 	}
 }
 
-func (s *Supervisor) SendMessage(sessionID, prompt string, settings config.AppSettings) error {
+func (s *Supervisor) SendMessage(
+	sessionID,
+	prompt,
+	workspacePath string,
+	sessionRole string,
+	settings config.AppSettings,
+) error {
 	if strings.TrimSpace(sessionID) == "" {
 		return fmt.Errorf("session id is required")
 	}
 	if strings.TrimSpace(prompt) == "" {
 		return fmt.Errorf("prompt is required")
 	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if err := s.ensureProcessLocked(settings); err != nil {
+	if err := validateModelAccess(settings); err != nil {
+		return err
+	}
+	workspace, err := resolveAgentWorkspace(workspacePath)
+	if err != nil {
 		return err
 	}
 
-	if _, exists := s.sessions[sessionID]; !exists {
-		if err := writeCommand(s.process.stdin, map[string]any{
-			"action":         "create_session",
-			"conversationId": sessionID,
-			"provider":       settings.ActiveProvider,
-			"model":          settings.ActiveModel,
-		}); err != nil {
-			return fmt.Errorf("create engine session: %w", err)
-		}
-		s.sessions[sessionID] = struct{}{}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.ensureProcessLocked(settings, workspace); err != nil {
+		return err
 	}
 
 	if err := writeCommand(s.process.stdin, map[string]any{
 		"action":         "send_message",
 		"conversationId": sessionID,
 		"prompt":         prompt,
+		"provider":       settings.ActiveProvider,
+		"model":          settings.ActiveModel,
+		"sessionRole":    strings.TrimSpace(sessionRole),
 	}); err != nil {
 		return fmt.Errorf("send engine message: %w", err)
 	}
+	s.sessions[sessionID] = struct{}{}
+	s.armTurnTimerLocked(sessionID)
 	return nil
+}
+
+func (s *Supervisor) AbortMessage(sessionID string) error {
+	if strings.TrimSpace(sessionID) == "" {
+		return fmt.Errorf("session id is required")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.process == nil {
+		return nil
+	}
+	return writeCommand(s.process.stdin, map[string]any{
+		"action":         "abort_session",
+		"conversationId": sessionID,
+	})
+}
+
+func (s *Supervisor) ProbeModel(settings config.AppSettings) (ModelProbeResult, error) {
+	if err := validateModelAccess(settings); err != nil {
+		return ModelProbeResult{}, err
+	}
+
+	sessionID := fmt.Sprintf("milksu_model_probe_%d", time.Now().UnixNano())
+	events := make(chan Event, 16)
+	s.probeMu.Lock()
+	s.probeWaiters[sessionID] = events
+	s.probeMu.Unlock()
+	defer func() {
+		s.DestroySession(sessionID)
+		s.probeMu.Lock()
+		delete(s.probeWaiters, sessionID)
+		s.probeMu.Unlock()
+	}()
+
+	startedAt := time.Now()
+	if err := s.SendMessage(
+		sessionID,
+		"Reply with exactly OK. Do not call tools.",
+		"",
+		"",
+		settings,
+	); err != nil {
+		return ModelProbeResult{}, err
+	}
+
+	timer := time.NewTimer(45 * time.Second)
+	defer timer.Stop()
+	for {
+		select {
+		case event := <-events:
+			switch event.Type {
+			case "assistant.completed":
+				return ModelProbeResult{
+					Provider:  settings.ActiveProvider,
+					Model:     settings.ActiveModel,
+					Ready:     true,
+					LatencyMS: time.Since(startedAt).Milliseconds(),
+				}, nil
+			case "engine.error", "engine.stopped", "engine.protocol_error":
+				return ModelProbeResult{}, fmt.Errorf(
+					"PI model verification failed: %s",
+					probeFailureMessage(event),
+				)
+			}
+		case <-timer.C:
+			_ = s.AbortMessage(sessionID)
+			return ModelProbeResult{}, fmt.Errorf("PI model verification timed out after 45 seconds")
+		}
+	}
 }
 
 func (s *Supervisor) DestroySession(sessionID string) {
@@ -106,22 +207,28 @@ func (s *Supervisor) DestroySession(sessionID string) {
 	defer s.mu.Unlock()
 	if s.process != nil {
 		_ = writeCommand(s.process.stdin, map[string]any{
-			"action":         "destroy_session",
-			"conversationId": sessionID,
+			"action":          "destroy_session",
+			"conversationId":  sessionID,
+			"deletePersisted": true,
 		})
 	}
+	s.stopTurnTimerLocked(sessionID)
 	delete(s.sessions, sessionID)
 }
 
 func (s *Supervisor) Status() RuntimeStatus {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return RuntimeStatus{
+	status := RuntimeStatus{
 		DefaultEngine: "pi",
 		Running:       s.process != nil,
 		SessionCount:  len(s.sessions),
 		Protocol:      "jsonl-stdio/v1alpha1",
 	}
+	if s.process != nil {
+		status.Workspace = s.process.workspace
+	}
+	return status
 }
 
 func (s *Supervisor) Close() {
@@ -129,6 +236,7 @@ func (s *Supervisor) Close() {
 	process := s.process
 	s.process = nil
 	s.sessions = make(map[string]struct{})
+	s.stopAllTurnTimersLocked()
 	s.mu.Unlock()
 
 	if process == nil {
@@ -140,15 +248,33 @@ func (s *Supervisor) Close() {
 	}
 }
 
-func (s *Supervisor) ensureProcessLocked(settings config.AppSettings) error {
-	if s.process != nil {
+func (s *Supervisor) ensureProcessLocked(settings config.AppSettings, workspace string) error {
+	if s.process != nil && s.process.workspace == workspace {
 		return nil
 	}
-	command, err := newSidecarCommand("chat-bridge.cjs", "bridge.js")
+	if s.process != nil {
+		previous := s.process
+		s.process = nil
+		s.sessions = make(map[string]struct{})
+		s.stopAllTurnTimersLocked()
+		_ = previous.stdin.Close()
+		if previous.command.Process != nil {
+			_ = previous.command.Process.Kill()
+		}
+	}
+	command, err := newSidecarCommandAt("chat-bridge.cjs", "bridge.js", workspace, true)
 	if err != nil {
 		return err
 	}
-	command.Env = sidecarEnvironment(settings, command.Dir)
+	command.Env, err = sidecarEnvironment(settings)
+	if err != nil {
+		return err
+	}
+	command.Env = withSidecarRuntimePath(command.Env, command.Path)
+	command.Env, err = withWorkspaceTemporaryDirectory(command.Env, workspace)
+	if err != nil {
+		return err
+	}
 	command.Stderr = os.Stderr
 
 	stdin, err := command.StdinPipe()
@@ -165,7 +291,7 @@ func (s *Supervisor) ensureProcessLocked(settings config.AppSettings) error {
 		return fmt.Errorf("start Pi sidecar: %w", err)
 	}
 
-	process := &childProcess{command: command, stdin: stdin}
+	process := &childProcess{command: command, stdin: stdin, workspace: workspace}
 	s.process = process
 	go s.readEvents(process, stdout)
 	s.emitEvent(Event{Engine: "pi", Type: "engine.started"})
@@ -182,16 +308,28 @@ func (s *Supervisor) readEvents(process *childProcess, stdout io.Reader) {
 			s.emitEvent(Event{Engine: "pi", Type: "engine.protocol_error", Error: err.Error()})
 			continue
 		}
-		s.emitEvent(normalizeBridgeEvent(raw))
+		event := normalizeBridgeEvent(raw)
+		s.observeTurnEvent(event)
+		if raw.ID != "" && (raw.Type == "error" || raw.Type == "session_destroyed") {
+			s.mu.Lock()
+			delete(s.sessions, raw.ID)
+			s.mu.Unlock()
+		}
+		s.emitEvent(event)
 	}
 
 	waitError := process.command.Wait()
 	s.mu.Lock()
+	current := s.process == process
 	if s.process == process {
 		s.process = nil
 		s.sessions = make(map[string]struct{})
+		s.stopAllTurnTimersLocked()
 	}
 	s.mu.Unlock()
+	if !current {
+		return
+	}
 
 	errorText := ""
 	if waitError != nil {
@@ -203,16 +341,145 @@ func (s *Supervisor) readEvents(process *childProcess, stdout io.Reader) {
 	s.emitEvent(Event{Engine: "pi", Type: "engine.stopped", Error: errorText, Done: true})
 }
 
+func (s *Supervisor) observeTurnEvent(event Event) {
+	if event.SessionID == "" {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	switch event.Type {
+	case "assistant.completed", "engine.error", "session.destroyed":
+		s.stopTurnTimerLocked(event.SessionID)
+	case "session.ready", "session.model_selected", "assistant.delta", "assistant.segment_completed", "tool.started", "tool.completed":
+		if _, exists := s.turnTimers[event.SessionID]; exists {
+			s.armTurnTimerLocked(event.SessionID)
+		}
+	}
+}
+
+func (s *Supervisor) armTurnTimerLocked(sessionID string) {
+	if timer := s.turnTimers[sessionID]; timer != nil {
+		timer.Stop()
+	}
+	timeout := s.turnTimeout
+	if timeout <= 0 {
+		timeout = defaultTurnActivityTimeout
+	}
+	s.turnSequence[sessionID]++
+	sequence := s.turnSequence[sessionID]
+	s.turnTimers[sessionID] = time.AfterFunc(timeout, func() {
+		s.handleTurnTimeout(sessionID, sequence, timeout)
+	})
+}
+
+func (s *Supervisor) stopTurnTimerLocked(sessionID string) {
+	if timer := s.turnTimers[sessionID]; timer != nil {
+		timer.Stop()
+		delete(s.turnTimers, sessionID)
+	}
+	s.turnSequence[sessionID]++
+}
+
+func (s *Supervisor) stopAllTurnTimersLocked() {
+	for sessionID, timer := range s.turnTimers {
+		timer.Stop()
+		delete(s.turnTimers, sessionID)
+		s.turnSequence[sessionID]++
+	}
+}
+
+func (s *Supervisor) handleTurnTimeout(
+	sessionID string,
+	sequence uint64,
+	timeout time.Duration,
+) {
+	s.mu.Lock()
+	if s.turnSequence[sessionID] != sequence || s.turnTimers[sessionID] == nil {
+		s.mu.Unlock()
+		return
+	}
+	delete(s.turnTimers, sessionID)
+	s.turnSequence[sessionID]++
+	process := s.process
+	if process != nil {
+		_ = writeCommand(process.stdin, map[string]any{
+			"action":         "abort_session",
+			"conversationId": sessionID,
+		})
+	}
+	s.mu.Unlock()
+	s.emitEvent(Event{
+		Engine:    "pi",
+		SessionID: sessionID,
+		Type:      "engine.error",
+		Error: fmt.Sprintf(
+			"Agent turn produced no model or tool activity for %s and was stopped; retry to resume from the persisted workspace",
+			timeout.Round(time.Second),
+		),
+		Done: true,
+	})
+}
+
 func (s *Supervisor) emitEvent(event Event) {
 	event.SchemaVersion = eventSchemaVersion
 	event.Timestamp = time.Now().UTC().Format(time.RFC3339Nano)
+	s.deliverProbeEvent(event)
 	if s.emit != nil {
 		s.emit(event)
 	}
 }
 
+func (s *Supervisor) deliverProbeEvent(event Event) {
+	s.probeMu.Lock()
+	defer s.probeMu.Unlock()
+	if event.SessionID != "" {
+		if waiter := s.probeWaiters[event.SessionID]; waiter != nil {
+			select {
+			case waiter <- event:
+			default:
+			}
+		}
+		return
+	}
+	if event.Type != "engine.stopped" && event.Type != "engine.protocol_error" {
+		return
+	}
+	for _, waiter := range s.probeWaiters {
+		select {
+		case waiter <- event:
+		default:
+		}
+	}
+}
+
+func probeFailureMessage(event Event) string {
+	message := strings.TrimSpace(event.Error)
+	if message == "" {
+		message = strings.TrimSpace(event.Text)
+	}
+	if message == "" {
+		return event.Type
+	}
+	if line, _, found := strings.Cut(message, "\n"); found {
+		message = line
+	}
+	message = strings.TrimSpace(strings.TrimPrefix(message, "Error:"))
+	if len(message) > 320 {
+		message = message[:320] + "..."
+	}
+	return message
+}
+
 func normalizeBridgeEvent(raw bridgeEvent) Event {
-	event := Event{Engine: "pi", SessionID: raw.ID, Text: raw.Content, ToolName: raw.ToolName}
+	event := Event{
+		Engine:     "pi",
+		SessionID:  raw.ID,
+		Text:       raw.Content,
+		ToolName:   raw.ToolName,
+		Tools:      raw.Tools,
+		Extensions: raw.Extensions,
+		Skills:     raw.Skills,
+	}
 	switch raw.Type {
 	case "ready":
 		event.Type = "session.ready"
@@ -223,6 +490,9 @@ func normalizeBridgeEvent(raw bridgeEvent) Event {
 		event.Text = raw.Delta
 	case "message_done":
 		event.Type = "assistant.completed"
+		event.Done = true
+	case "message_segment_done":
+		event.Type = "assistant.segment_completed"
 		event.Done = true
 	case "tool_call_start":
 		event.Type = "tool.started"
@@ -255,27 +525,66 @@ func writeCommand(writer io.Writer, value any) error {
 	return err
 }
 
-func engineEnvironment(settings config.AppSettings) []string {
-	environment := safeBaseEnvironment(os.Environ())
+func providerAPIKeyEnvironment(provider string) (string, bool) {
 	keys := map[string]string{
 		"anthropic": "ANTHROPIC_API_KEY",
 		"openai":    "OPENAI_API_KEY",
 		"deepseek":  "DEEPSEEK_API_KEY",
+		"kourichat": "KOURICHAT_API_KEY",
 		"google":    "GEMINI_API_KEY",
 		"mistral":   "MISTRAL_API_KEY",
 		"groq":      "GROQ_API_KEY",
 	}
+	key, supported := keys[provider]
+	return key, supported
+}
+
+func validateModelAccess(settings config.AppSettings) error {
+	provider := strings.TrimSpace(settings.ActiveProvider)
+	model := strings.TrimSpace(settings.ActiveModel)
+	if provider == "" || model == "" {
+		return fmt.Errorf("model provider and model must be selected")
+	}
+
+	if relay := settings.Relay; relay != nil && relay.Enabled {
+		if strings.TrimSpace(relay.Key) == "" {
+			return fmt.Errorf("MilkSU Relay is enabled but has no API key; open Settings > API Keys, enter the relay key, and save")
+		}
+		return nil
+	}
+
+	environmentKey, supported := providerAPIKeyEnvironment(provider)
+	if !supported {
+		return fmt.Errorf("model provider %q is not supported by the local Agent runtime", provider)
+	}
+	if configured, exists := settings.Providers[provider]; exists {
+		if !configured.Enabled {
+			return fmt.Errorf("%s/%s cannot start because the provider is disabled; open Settings > API Keys, enable %s, and save", provider, model, provider)
+		}
+		if strings.TrimSpace(configured.APIKey) == "" {
+			return fmt.Errorf("%s/%s cannot start because no API key is configured; open Settings > API Keys, enter a key for %s, enable it, and save", provider, model, provider)
+		}
+		return nil
+	}
+	if strings.TrimSpace(os.Getenv(environmentKey)) == "" {
+		return fmt.Errorf("%s/%s cannot start because no API key is configured; open Settings > API Keys, enter a key for %s, enable it, and save", provider, model, provider)
+	}
+	return nil
+}
+
+func engineEnvironment(settings config.AppSettings) []string {
+	environment := safeBaseEnvironment(os.Environ())
 	for name, provider := range settings.Providers {
-		key, supported := keys[name]
+		key, supported := providerAPIKeyEnvironment(name)
 		if !supported || !provider.Enabled || provider.APIKey == "" {
 			continue
 		}
 		environment = append(environment, key+"="+provider.APIKey)
-		if provider.BaseURL != nil && *provider.BaseURL != "" {
-			environment = append(environment, strings.ToUpper(name)+"_BASE_URL="+*provider.BaseURL)
+		if provider.BaseURL != nil && strings.TrimSpace(*provider.BaseURL) != "" {
+			environment = append(environment, strings.ToUpper(name)+"_BASE_URL="+strings.TrimSpace(*provider.BaseURL))
 		}
 	}
-	if key, supported := keys[settings.ActiveProvider]; supported {
+	if key, supported := providerAPIKeyEnvironment(settings.ActiveProvider); supported {
 		if _, configured := settings.Providers[settings.ActiveProvider]; !configured {
 			if value := os.Getenv(key); value != "" {
 				environment = append(environment, key+"="+value)

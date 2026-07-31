@@ -34,13 +34,14 @@ require() {
 
 usage() {
   cat <<'EOF'
-Usage: ./lab.sh <pull|start|stop|reset|status|logs|health|judge> [challenge]
+Usage: ./lab.sh <pull|start|stop|reset|clean|status|logs|health|judge> [challenge]
 
 Commands:
   pull               Download the pinned multi-architecture image.
   start              Start the lab and wait for its health check.
   stop               Stop the lab without discarding challenge state.
   reset              Discard challenge state and start a clean lab.
+  clean              Remove the lab container, network and local volumes.
   status             Show the local container status.
   logs               Follow container logs.
   health             Check only the loopback target.
@@ -71,6 +72,10 @@ case "$command" in
     compose down --volumes --remove-orphans
     compose up --detach --wait --wait-timeout 120 --pull never
     printf 'Juice Shop was reset at %s\n' "$BASE_URL"
+    ;;
+  clean)
+    require docker
+    compose down --volumes --remove-orphans
     ;;
   status)
     require docker
