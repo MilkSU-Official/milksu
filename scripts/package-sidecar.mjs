@@ -11,6 +11,7 @@ const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const nodeVersion = '24.18.0'
 const archifyCommit = '7b49d0b715fd4ba48116bcdecd1ba3789a279613'
 const piLspVersion = '0.29.0'
+const piRetryVersion = '0.31.0'
 const nodeArchives = {
   'darwin/arm64': {
     file: `node-v${nodeVersion}-darwin-arm64.tar.xz`,
@@ -187,6 +188,12 @@ async function buildSidecar(platform) {
         license: 'MIT',
         scope: 'coding-only',
       },
+      piRetry: {
+        package: '@narumitw/pi-retry',
+        version: piRetryVersion,
+        license: 'MIT',
+        scope: 'coding-only',
+      },
     },
     esbuild: { version: '0.28.1' },
     bridges: {
@@ -259,6 +266,7 @@ async function smokeSidecar(platform) {
     || !expectedTools.every(tool => ready.tools?.includes(tool))
     || !ready.skills?.includes('archify')
     || !ready.extensions?.includes('pi-lsp')
+    || !ready.extensions?.includes('pi-retry')
     || !chatResponses.some(value => value.type === 'session_destroyed')
   ) {
     throw new Error(`unexpected packaged Chat Sidecar response: ${chatRun.stdout}`)
@@ -309,6 +317,7 @@ async function smokeSidecar(platform) {
     || ctfReady.tools?.includes('lsp_fix')
     || ctfReady.skills?.includes('archify')
     || ctfReady.extensions?.includes('pi-lsp')
+    || ctfReady.extensions?.includes('pi-retry')
     || !coachTools.every(tool => ctfReady.tools?.includes(tool))
     || !ctfChatResponses.some(value => value.type === 'session_destroyed')
   ) {

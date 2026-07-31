@@ -140,7 +140,7 @@ const navItems = [
           side="right"
           align="end"
           :side-offset="12"
-          class="w-[440px] max-w-[calc(100vw-5rem)] p-5"
+          class="w-[540px] max-w-[calc(100vw-5rem)] p-5"
           aria-label="CTF 能力"
         >
           <div class="flex items-center gap-3">
@@ -161,9 +161,9 @@ const navItems = [
             </div>
           </div>
 
-          <div class="mt-5 grid grid-cols-[minmax(210px,1fr)_minmax(145px,.72fr)] items-center gap-5 border-t border-border pt-5">
+          <div class="mt-5 grid grid-cols-[minmax(280px,1fr)_minmax(150px,.55fr)] items-center gap-6 border-t border-border pt-5">
             <AbilityRadar
-              class="mx-auto w-full max-w-60"
+              class="mx-auto w-full max-w-[300px]"
               :dimensions="ctfDashboard?.dimensions ?? []"
             />
             <div class="space-y-2.5 border-l border-border pl-5 text-label">

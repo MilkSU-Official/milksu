@@ -158,8 +158,10 @@ func TestCTFPrimaryActionOpensTheAgentAfterWorkspaceCreation(t *testing.T) {
 	}
 	desk := string(deskData)
 	for _, expected := range []string{
-		"modelVerified ? emit('startNssctf') : emit('openSettings')",
-		"'配置模型后开始'",
+		"if (!props.modelVerified) return 'settings'",
+		"emit('openSettings')",
+		"emit('startNssctf')",
+		"'配置模型'",
 		"'用 Agent 开始'",
 	} {
 		if !strings.Contains(desk, expected) {

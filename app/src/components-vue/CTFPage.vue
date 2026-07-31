@@ -67,6 +67,7 @@ import CTFManualIntake from '@/components-vue/CTFManualIntake.vue'
 import CTFTrainingArchive from '@/components-vue/CTFTrainingArchive.vue'
 import CTFTrajectory from '@/components-vue/CTFTrajectory.vue'
 import HTBCTFDesk from '@/components-vue/HTBCTFDesk.vue'
+import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import { useCTFTrainingPlatforms } from '@/composables/useCTFTrainingPlatforms'
 import { useCTFWorkspace } from '@/composables/useCTFWorkspace'
 import { useCTFShowCatalog } from '@/composables/useCTFShow'
@@ -108,6 +109,7 @@ const props = defineProps<{
   modelVerified: boolean
   arenaReady: boolean
   htbReady: boolean
+  initialJobId?: string | null
 }>()
 
 const emit = defineEmits<{
@@ -1439,6 +1441,7 @@ onMounted(async () => {
       ? htb.loadEvents()
       : Promise.resolve(null),
   ])
+  if (props.initialJobId) await resumeJob(props.initialJobId)
   await selectDefaultDeskProblem()
   if (props.arenaReady) await arena.refresh()
   bridgeStatusTimer = window.setInterval(refreshBridgePresence, 2500)
@@ -2726,9 +2729,11 @@ onBeforeUnmount(() => {
                   <span class="text-caption text-muted-foreground">{{ selectedProblem.points }} pts</span>
                 </div>
                 <h2 class="mt-3 text-xl font-semibold tracking-[-0.025em]">{{ selectedProblem.title }}</h2>
-                <p class="mt-2 line-clamp-3 whitespace-pre-wrap text-body leading-6 text-muted-foreground">
-                  {{ selectedProblem.statement }}
-                </p>
+                <MarkdownContent
+                  class="mt-2 line-clamp-3 text-body leading-6 text-muted-foreground"
+                  :content="selectedProblem.statement"
+                  compact
+                />
               </div>
               <div class="flex items-center gap-2">
                 <Button variant="ghost" size="sm" @click="returnToProblemList">
@@ -3002,9 +3007,10 @@ onBeforeUnmount(() => {
                     <Trophy class="size-4 text-muted-foreground" />
                     <h2 class="text-label font-medium">题面</h2>
                   </div>
-                  <p class="mt-4 max-h-52 overflow-y-auto whitespace-pre-wrap text-body leading-6">
-                    {{ activeProjection.challenge.statement }}
-                  </p>
+                  <MarkdownContent
+                    class="mt-4 max-h-52 overflow-y-auto text-body leading-6"
+                    :content="activeProjection.challenge.statement"
+                  />
                 </section>
 
                 <section class="rounded-xl border border-border bg-card p-6">
@@ -3173,7 +3179,10 @@ onBeforeUnmount(() => {
 
                   <div v-if="activeProjection.learning.length" class="mt-5 border-t border-border pt-4">
                     <p class="text-caption font-medium text-muted-foreground">最近记录</p>
-                    <p class="mt-2 text-body leading-6">{{ activeProjection.learning.at(-1)?.content }}</p>
+                    <MarkdownContent
+                      class="mt-2 text-body leading-6"
+                      :content="activeProjection.learning.at(-1)?.content ?? ''"
+                    />
                   </div>
 
                   <form class="mt-5 flex items-end gap-2" @submit.prevent="sendObservation">
@@ -3243,9 +3252,11 @@ onBeforeUnmount(() => {
                         <div class="flex items-start gap-2">
                           <div class="min-w-0 flex-1">
                             <p class="line-clamp-1 text-control font-medium">{{ memory.title }}</p>
-                            <p class="mt-1 line-clamp-3 text-caption leading-5 text-muted-foreground">
-                              {{ memory.summary }}
-                            </p>
+                            <MarkdownContent
+                              class="mt-1 line-clamp-3 text-caption leading-5 text-muted-foreground"
+                              :content="memory.summary"
+                              compact
+                            />
                           </div>
                           <Button
                             variant="ghost"
@@ -3423,9 +3434,11 @@ onBeforeUnmount(() => {
                       <span class="font-medium">最新 Judge 回执</span>
                       <Badge variant="outline">{{ activeProjection.judgeReceipts.at(-1)?.status }}</Badge>
                     </div>
-                    <p class="mt-2 line-clamp-3 text-caption leading-5 text-muted-foreground">
-                      {{ activeProjection.judgeReceipts.at(-1)?.summary }}
-                    </p>
+                    <MarkdownContent
+                      class="mt-2 line-clamp-3 text-caption leading-5 text-muted-foreground"
+                      :content="activeProjection.judgeReceipts.at(-1)?.summary ?? ''"
+                      compact
+                    />
                   </div>
 
                   <div

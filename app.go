@@ -23,6 +23,7 @@ import (
 
 	"github.com/MilkSU-Official/milksu/internal/appdata"
 	"github.com/MilkSU-Official/milksu/internal/browsercap"
+	"github.com/MilkSU-Official/milksu/internal/codingenv"
 	"github.com/MilkSU-Official/milksu/internal/config"
 	"github.com/MilkSU-Official/milksu/internal/conversation"
 	"github.com/MilkSU-Official/milksu/internal/ctf"
@@ -388,6 +389,12 @@ func (a *App) AbortMessage(conversationID string) error {
 
 func (a *App) GetRuntimeStatus() engine.RuntimeStatus {
 	return a.engines.Status()
+}
+
+func (a *App) GetCodingEnvironment(workspacePath string) (codingenv.Snapshot, error) {
+	inspectContext, cancel := context.WithTimeout(a.commandContext(), 4*time.Second)
+	defer cancel()
+	return codingenv.Inspect(inspectContext, workspacePath)
 }
 
 func (a *App) TestAgentModel() (engine.ModelProbeResult, error) {

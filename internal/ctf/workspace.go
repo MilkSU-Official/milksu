@@ -123,6 +123,12 @@ func PrepareAgentWorkspace(
 	materialsPath := filepath.Join(workspacePath, "materials")
 	for _, directory := range []string{
 		workspacePath,
+		// Pi walks parent directories looking for repository-scoped resources
+		// even when CTF Skills and extensions are disabled. The packaged Node
+		// runtime only grants this challenge directory, so an empty boundary
+		// marker keeps discovery inside the authorized workspace instead of
+		// probing a denied parent path.
+		filepath.Join(workspacePath, ".git"),
 		materialsPath,
 		filepath.Join(workspacePath, "work"),
 		filepath.Join(workspacePath, "work", "tool-requests"),

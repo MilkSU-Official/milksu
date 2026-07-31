@@ -45,8 +45,8 @@ func TestBrowserExtensionSetupIsExposedToTheDesktopTrainingFlow(t *testing.T) {
 	assertSourceContains(
 		"app/src/components-vue/CTFChallengeDesk.vue",
 		"连接 NSSCTF Judge",
-		"安装本地扩展",
-		"本页不显示明文",
+		"连接 NSSCTF Judge 的步骤",
+		"本地扩展",
 		"复制配对码",
 		"打开 P{{ selectedNssctf.platformId }}",
 	)

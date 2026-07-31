@@ -10,6 +10,7 @@ import { readFile, unlink } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { Type } from "typebox";
 import piLspExtension from "@narumitw/pi-lsp/src/index.ts";
+import piRetryExtension from "@narumitw/pi-retry/src/index.ts";
 import { loadSessionPolicy } from "./bridge-policy.js";
 
 const relayKey = process.env.MILKSU_RELAY_KEY;
@@ -282,7 +283,9 @@ function createMilkSUResourceLoader(cwd, agentDir, systemPrompt, sessionRole) {
         join(bridgeDirectory, "third_party", "archify", "archify"),
       ].filter((path) => existsSync(join(path, "SKILL.md"))).slice(0, 1);
   const extensionFactories = [createMilkSUWorkflowExtension(sessionRole)];
-  if (!sessionRole) extensionFactories.push(piLspExtension);
+  if (!sessionRole) {
+    extensionFactories.push(piLspExtension, piRetryExtension);
+  }
   return new DefaultResourceLoader({
     cwd,
     agentDir,
@@ -350,7 +353,7 @@ async function createSession(command) {
       tools: session.getActiveToolNames(),
       extensions: [
         "milksu-workflow",
-        ...(effectiveSessionRole ? [] : ["pi-lsp"]),
+        ...(effectiveSessionRole ? [] : ["pi-lsp", "pi-retry"]),
       ],
       skills: resourceLoader.getSkills().skills.map((skill) => skill.name),
       resumed: session.messages.length > 0,

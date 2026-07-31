@@ -10,11 +10,14 @@ Only resources reviewed here may enter a packaged Agent session.
 | `milksu-workflow` | MilkSU source | Coding + CTF roles | Visible progress and role-specific execution guidance | First-party; `milksu_progress` has a bounded schema and no external effects |
 | `tt-a1i/archify` | `2.12.0` / `7b49d0b715fd4ba48116bcdecd1ba3789a279613` | Normal Coding only | Architecture, workflow, sequence, dataflow, and lifecycle diagrams | Pinned submodule; MIT; packaged commit check; CTF sessions must not load it |
 | `@narumitw/pi-lsp` | `0.29.0` | Normal Coding only | `lsp_diagnostics` and opt-in `lsp_fix` through installed language servers | Exact npm pin; MIT; source reviewed; project config loads only for trusted workspaces; `write` defaults to false; CTF sessions must not load either tool |
+| `@narumitw/pi-retry` | `0.31.0` | Normal Coding only | Classifies known transient provider failures for Pi's built-in bounded retry path and detects stalled streams | Exact npm pin; MIT; source reviewed; does not implement a second retry loop; CTF sessions keep MilkSU's recorder-owned retry and budget semantics |
 
 The packaged Sidecar smoke test asserts both sides of the boundary:
 
-- a normal Coding session exposes Archify, `lsp_diagnostics`, and `lsp_fix`;
-- a CTF session exposes none of them and continues to use MilkSU's dedicated CTF tools.
+- a normal Coding session exposes Archify, `lsp_diagnostics`, `lsp_fix`, and the
+  `pi-retry` extension;
+- a CTF session exposes none of these external resources and continues to use
+  MilkSU's dedicated CTF tools and recorder-owned retry semantics.
 
 ## Reviewed but not active
 

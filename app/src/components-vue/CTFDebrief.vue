@@ -13,6 +13,7 @@ import {
   X,
 } from 'lucide-vue-next'
 import type { CTFDebrief } from '@/ctfTypes'
+import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 
 const props = defineProps<{
   debrief: CTFDebrief
@@ -92,7 +93,7 @@ function verdictLabel(verdict: string) {
       </Badge>
     </div>
 
-    <p class="mt-5 text-body leading-6">{{ debrief.summary }}</p>
+    <MarkdownContent class="mt-5 text-body leading-6" :content="debrief.summary" />
 
     <div class="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
       <div class="rounded-lg bg-muted/50 px-3 py-2">
@@ -126,7 +127,7 @@ function verdictLabel(verdict: string) {
             class="flex gap-2 text-caption leading-5 text-muted-foreground"
           >
             <Check class="mt-0.5 size-3.5 shrink-0 text-primary" />
-            <span>{{ item }}</span>
+            <MarkdownContent class="min-w-0 flex-1" :content="item" compact />
           </li>
         </ul>
         <p v-else class="mt-3 text-caption leading-5 text-muted-foreground">
@@ -146,7 +147,7 @@ function verdictLabel(verdict: string) {
             class="flex gap-2 text-caption leading-5 text-muted-foreground"
           >
             <X class="mt-0.5 size-3.5 shrink-0 text-destructive" />
-            <span>{{ item }}</span>
+            <MarkdownContent class="min-w-0 flex-1" :content="item" compact />
           </li>
         </ul>
         <p v-else class="mt-3 text-caption leading-5 text-muted-foreground">
@@ -169,9 +170,12 @@ function verdictLabel(verdict: string) {
               {{ verdictLabel(candidate.verdict) }}
             </Badge>
           </div>
-          <p v-if="candidate.summary" class="mt-1 text-caption leading-5 text-muted-foreground">
-            {{ candidate.summary }}
-          </p>
+          <MarkdownContent
+            v-if="candidate.summary"
+            class="mt-1 text-caption leading-5 text-muted-foreground"
+            :content="candidate.summary"
+            compact
+          />
         </div>
       </div>
     </div>
@@ -187,9 +191,11 @@ function verdictLabel(verdict: string) {
         <Sparkles class="size-3.5 text-primary" />
         推荐下一步
       </p>
-      <p class="mt-1 text-caption leading-5 text-muted-foreground">
-        {{ debrief.recommendedNextAction }}
-      </p>
+      <MarkdownContent
+        class="mt-1 text-caption leading-5 text-muted-foreground"
+        :content="debrief.recommendedNextAction"
+        compact
+      />
       <p class="mt-2 text-caption leading-5 text-muted-foreground">
         {{ memoryHint }}
       </p>

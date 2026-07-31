@@ -53,6 +53,7 @@ import type {
   HTBCTFSubmission,
   HTBCTFWorkspace,
 } from './ctfPlatformTypes'
+import type { CodingEnvironmentSnapshot } from './codingEnvironmentTypes'
 import { createPreviewCTFProjection, summarizePreviewCTF } from './ctfPreview'
 
 type CommandArgs = Record<string, unknown>
@@ -77,6 +78,7 @@ interface WailsAppBindings {
   ): Promise<void>
   AbortMessage(conversationId: string): Promise<void>
   GetRuntimeStatus(): Promise<unknown>
+  GetCodingEnvironment(workspacePath: string): Promise<CodingEnvironmentSnapshot>
   TestAgentModel(): Promise<ModelProbeResult>
   StartSampleCTF(): Promise<CTFProjection>
   ImportNSSCTFChallenge(rawURL: string): Promise<NSSCTFChallenge>
@@ -353,6 +355,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.AbortMessage(args?.conversationId as string) as Promise<T>
       case 'get_runtime_status':
         return app.GetRuntimeStatus() as Promise<T>
+      case 'get_coding_environment':
+        return app.GetCodingEnvironment(args?.workspacePath as string) as Promise<T>
       case 'test_agent_model':
         return app.TestAgentModel() as Promise<T>
       case 'start_sample_ctf':
@@ -557,6 +561,30 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
       throw new Error('CTFshow browser bridge requires the MilkSU desktop runtime.')
     case 'abort_message':
       return undefined as T
+    case 'get_coding_environment': {
+      const workspace = String(args?.workspacePath ?? '')
+      const name = workspace.replace(/\/+$/, '').split('/').at(-1) || 'workspace'
+      return {
+        workspace,
+        workspaceName: name,
+        capturedAt: new Date().toISOString(),
+        git: {
+          available: false,
+          isRepository: false,
+          ahead: 0,
+          behind: 0,
+          changedFiles: 0,
+          staged: 0,
+          modified: 0,
+          untracked: 0,
+          conflicts: 0,
+          additions: 0,
+          deletions: 0,
+          dirty: false,
+          problem: 'Git 状态只在 MilkSU 桌面运行时读取。',
+        },
+      } as T
+    }
     case 'list_ctf_jobs': {
       const projections = readJson<Record<string, CTFProjection>>(CTF_PROJECTIONS_KEY, {})
       return Object.values(projections)

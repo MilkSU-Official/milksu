@@ -12,6 +12,7 @@ import {
   TerminalSquare,
 } from 'lucide-vue-next'
 import { invokeCommand } from '@/desktop'
+import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import type {
   CTFAgentReplay,
   CTFAgentReplayEvent,
@@ -195,6 +196,15 @@ function formatTime(value?: string) {
       <p class="mt-4 truncate rounded-md border border-border bg-background px-3 py-2 font-mono text-caption text-muted-foreground">
         {{ report.markdownPath }}
       </p>
+      <details class="mt-3 overflow-hidden rounded-md border border-border bg-background">
+        <summary class="cursor-pointer px-3 py-2 text-caption font-medium">
+          预览报告
+        </summary>
+        <MarkdownContent
+          class="max-h-80 overflow-y-auto border-t border-border px-4 py-4 text-caption leading-5"
+          :content="report.report.markdown"
+        />
+      </details>
       <div class="mt-3 flex flex-wrap gap-2">
         <Button variant="outline" size="sm" @click="copy(report.report.markdown, 'Markdown 报告')">
           <ClipboardCopy class="size-4" />
@@ -231,12 +241,18 @@ function formatTime(value?: string) {
             <Badge v-if="event.truncated" variant="secondary">内容已截断</Badge>
             <span class="ml-auto text-caption text-muted-foreground">{{ formatTime(event.timestamp) }}</span>
           </div>
-          <p
-            class="mt-1 whitespace-pre-wrap break-words text-caption leading-5"
+          <pre
+            v-if="event.type === 'tool_result' || event.type === 'tool_call'"
+            class="mt-1 max-h-64 overflow-auto whitespace-pre-wrap break-words font-mono text-caption leading-5"
             :class="event.error ? 'text-destructive' : 'text-muted-foreground'"
-          >
-            {{ eventSummary(event) }}
-          </p>
+          >{{ eventSummary(event) }}</pre>
+          <MarkdownContent
+            v-else
+            class="mt-1 text-caption leading-5"
+            :class="event.error ? 'text-destructive' : 'text-muted-foreground'"
+            :content="eventSummary(event)"
+            compact
+          />
         </article>
       </div>
       <p v-else class="mt-4 text-caption text-muted-foreground">工作区已建立，但还没有 PI 事件。</p>

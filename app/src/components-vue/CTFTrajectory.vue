@@ -13,6 +13,7 @@ import {
   X,
 } from 'lucide-vue-next'
 import type { CTFProjection } from '@/ctfTypes'
+import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 
 type TimelineKind = 'agent' | 'experiment' | 'submission' | 'failure'
 
@@ -155,9 +156,11 @@ function statusLabel(status: string) {
             </Badge>
             <span class="text-caption text-muted-foreground">{{ formatTime(entry.occurredAt) }}</span>
           </div>
-          <p class="mt-1 line-clamp-3 text-caption leading-5 text-muted-foreground">
-            {{ entry.summary }}
-          </p>
+          <MarkdownContent
+            class="mt-1 line-clamp-3 text-caption leading-5 text-muted-foreground"
+            :content="entry.summary"
+            compact
+          />
           <div v-if="entry.detail || entry.artifactCount" class="mt-2 flex flex-wrap gap-3 text-caption text-muted-foreground">
             <span v-if="entry.detail">{{ entry.detail }}</span>
             <span v-if="entry.artifactCount">{{ entry.artifactCount }} 个制品</span>

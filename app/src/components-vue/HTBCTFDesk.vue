@@ -14,6 +14,7 @@ import {
   Trophy,
 } from 'lucide-vue-next'
 import CTFCollaborationModePicker from '@/components-vue/CTFCollaborationModePicker.vue'
+import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import type { HTBCTFDetails, HTBCTFEvent } from '@/ctfPlatformTypes'
 import type { CTFCollaborationMode } from '@/ctfTypes'
 
@@ -176,9 +177,11 @@ function challengeCategory(value: string) {
             <div>
               <p class="font-mono text-caption text-muted-foreground">HTB CTF · #{{ details.id }}</p>
               <h3 class="mt-2 text-2xl font-semibold tracking-[-0.035em]">{{ details.name }}</h3>
-              <p v-if="details.description" class="mt-2 max-w-3xl text-body leading-6 text-muted-foreground">
-                {{ details.description }}
-              </p>
+              <MarkdownContent
+                v-if="details.description"
+                class="mt-2 max-w-3xl text-body leading-6 text-muted-foreground"
+                :content="details.description"
+              />
             </div>
             <div class="flex flex-col items-end gap-3">
               <Badge variant="outline">{{ details.status || '赛事' }}</Badge>

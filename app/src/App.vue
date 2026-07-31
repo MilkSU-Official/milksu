@@ -16,6 +16,7 @@ type Section = 'chat' | 'ctf' | 'vuln' | 'settings'
 const conversations = useConversations()
 const ctfTraining = useNSSCTFTraining()
 const section = ref<Section>('ctf')
+const ctfResumeJobId = ref<string | null>(null)
 const settingsCategory = ref<'general' | 'apikeys'>('general')
 const settings = ref<AppSettings | null>(null)
 
@@ -68,6 +69,16 @@ function openSettings(category: 'general' | 'apikeys' = 'general') {
 function newConversation() {
   conversations.startNew()
   section.value = 'chat'
+}
+
+function navigateSection(value: Section) {
+  if (value === 'ctf') ctfResumeJobId.value = null
+  section.value = value
+}
+
+function returnToCTFWorkspace() {
+  ctfResumeJobId.value = conversations.active.value?.ctfJobId ?? null
+  section.value = 'ctf'
 }
 
 async function chooseAgentWorkspace() {
@@ -144,7 +155,7 @@ onMounted(async () => {
       :conversations="conversations.conversations.value"
       :ctf-dashboard="ctfTraining.dashboard.value"
       @new="newConversation"
-      @navigate="value => { section = value }"
+      @navigate="navigateSection"
       @select-conversation="id => { conversations.activeId.value = id; section = 'chat' }"
       @delete-conversation="conversations.remove"
       @settings="openSettings('general')"
@@ -163,6 +174,7 @@ onMounted(async () => {
       :model-verified="modelVerified"
       :arena-ready="arenaReady"
       :htb-ready="htbReady"
+      :initial-job-id="ctfResumeJobId"
       @open-settings="openSettings('apikeys')"
       @start-coding-agent="startCTFAgent"
     />
@@ -188,7 +200,7 @@ onMounted(async () => {
       @choose-workspace="chooseAgentWorkspace"
       @change-model="changeModel"
       @open-settings="openSettings('apikeys')"
-      @return-ctf="section = 'ctf'"
+      @return-ctf="returnToCTFWorkspace"
       @switch-ctf-agent="switchCTFAgent"
     />
   </div>

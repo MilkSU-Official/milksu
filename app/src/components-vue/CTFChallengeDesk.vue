@@ -24,6 +24,7 @@ import {
   TerminalSquare,
 } from 'lucide-vue-next'
 import CTFCollaborationModePicker from '@/components-vue/CTFCollaborationModePicker.vue'
+import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import type { CTFCollaborationMode, CTFMaterialRequest } from '@/ctfTypes'
 import type { CTFShowCatalogProblem } from '@/ctfshowTypes'
 import type { NSSCTFChallenge } from '@/nssctfTypes'
@@ -110,6 +111,31 @@ const selectedRecommendationReason = computed(() => {
 
 const readiness = computed(() => (
   Number(props.modelVerified) + Number(props.catalogReady) + Number(props.judgeReady)
+))
+const nssctfNeedsMaterial = computed(() => Boolean(
+  props.selectedNssctf?.hasAttachment
+  && !props.selectedBrowserReady
+  && !props.localMaterials.length,
+))
+const primaryActionType = computed<'settings' | 'open' | 'start'>(() => {
+  if (!props.modelVerified) return 'settings'
+  if (props.hasActiveTraining) return 'start'
+  if (props.activeBank === 'nssctf' && nssctfNeedsMaterial.value) return 'open'
+  if (props.activeBank === 'ctfshow' && !props.ctfshowBridgeReady) return 'open'
+  return 'start'
+})
+const primaryActionLabel = computed(() => {
+  if (primaryActionType.value === 'settings') return '配置模型'
+  if (props.hasActiveTraining) return '继续训练'
+  if (primaryActionType.value === 'open') {
+    return props.activeBank === 'nssctf' ? '打开题目并连接' : '连接 CTFshow'
+  }
+  return props.activeBank === 'nssctf' ? '用 Agent 开始' : '读取题面并开始'
+})
+const primaryActionDisabled = computed(() => (
+  props.activeBank === 'nssctf'
+    ? !props.selectedNssctf
+    : !props.selectedCtfshow
 ))
 const detailPane = ref<HTMLElement | null>(null)
 const selectedNssctfCatalogProblem = computed<NSSCTFCatalogProblem | null>(() => {
@@ -210,6 +236,23 @@ function nssctfCategory(problem: NSSCTFCatalogProblem) {
 function pinnedNssctfLabel(id: number) {
   if (props.nssctfProblems.some(problem => problem.platformId === id)) return ''
   return props.dashboard?.recommendations[0]?.problem.platformId === id ? '推荐' : '当前'
+}
+
+function runPrimaryAction() {
+  if (primaryActionType.value === 'settings') {
+    emit('openSettings')
+    return
+  }
+  if (primaryActionType.value === 'open') {
+    if (props.activeBank === 'nssctf') emit('openProblem')
+    else emit('openCtfshow')
+    return
+  }
+  if (props.activeBank === 'nssctf') {
+    emit('startNssctf')
+    return
+  }
+  if (props.selectedCtfshow) emit('startCtfshow', props.selectedCtfshow.platformId)
 }
 </script>
 
@@ -439,9 +482,10 @@ function pinnedNssctfLabel(id: number) {
 
           <section class="mt-7 border-t border-border pt-6">
             <h3 class="text-label font-medium">题目描述</h3>
-            <p class="mt-3 max-h-48 overflow-y-auto whitespace-pre-wrap text-body leading-7 text-foreground/75">
-              {{ selectedNssctf.statement }}
-            </p>
+            <MarkdownContent
+              class="mt-3 max-h-48 overflow-y-auto text-body leading-7 text-foreground/75"
+              :content="selectedNssctf.statement"
+            />
           </section>
 
           <section class="mt-6 border-t border-border pt-6">
@@ -473,103 +517,93 @@ function pinnedNssctfLabel(id: number) {
                 <div class="min-w-0">
                   <p class="text-control font-medium">连接 NSSCTF Judge</p>
                   <p class="mt-1 text-caption leading-5 text-muted-foreground">
-                    第一次使用：安装扩展，复制下方配对码，再到当前题目页点击 MilkSU 扩展并粘贴。
+                    首次连接按顺序完成；以后只需在题目页点击 MilkSU。
                   </p>
                 </div>
               </div>
-              <div
-                v-if="pairingCode"
-                class="mt-3 flex items-center gap-2 rounded-md border border-warning-border bg-background/80 px-3 py-2 text-caption text-muted-foreground"
+              <ol class="mt-3 grid gap-2 sm:grid-cols-3" aria-label="连接 NSSCTF Judge 的步骤">
+                <li class="rounded-md border border-warning-border bg-background/80 p-2">
+                  <span class="mb-2 block font-mono text-caption text-muted-foreground">1 · 安装</span>
+                  <Button
+                    block
+                    variant="outline"
+                    size="sm"
+                    :loading="browserSetupBusy"
+                    :disabled="!browserExtensionReady"
+                    @click="emit('prepareBrowserExtension')"
+                  >
+                    <FolderOpen class="size-4" />
+                    本地扩展
+                  </Button>
+                </li>
+                <li class="rounded-md border border-warning-border bg-background/80 p-2">
+                  <span class="mb-2 block font-mono text-caption text-muted-foreground">2 · 配对</span>
+                  <Button
+                    block
+                    variant="default"
+                    size="sm"
+                    :disabled="!pairingCode"
+                    @click="emit('copyPairingCode')"
+                  >
+                    <Copy class="size-4" />
+                    复制配对码
+                  </Button>
+                </li>
+                <li class="rounded-md border border-warning-border bg-background/80 p-2">
+                  <span class="mb-2 block font-mono text-caption text-muted-foreground">3 · 连接</span>
+                  <Button block variant="outline" size="sm" @click="emit('openProblem')">
+                    <ExternalLink class="size-4" />
+                    打开 P{{ selectedNssctf.platformId }}
+                  </Button>
+                </li>
+              </ol>
+              <p
+                v-if="selectedNssctf.hasAttachment"
+                class="mt-3 flex items-center gap-2 text-caption text-muted-foreground"
               >
                 <ShieldCheck class="size-3.5 shrink-0 text-success" />
-                配对码已生成。为避免泄露，本页不显示明文；点击下方按钮复制。
-              </div>
-              <div class="mt-3 grid gap-2 sm:grid-cols-3">
+                连接后自动校验并导入本题附件。
+              </p>
+            </div>
+
+            <details
+              v-if="selectedNssctf.hasAttachment || localMaterials.length"
+              class="mt-4 rounded-lg border border-border bg-muted/20"
+              :open="localMaterials.length > 0"
+            >
+              <summary class="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-caption font-medium [&::-webkit-details-marker]:hidden">
+                <Paperclip class="size-3.5 text-muted-foreground" />
+                使用本地附件
+                <span class="ml-auto font-normal text-muted-foreground">
+                  {{ localMaterials.length ? `${localMaterials.length} 项` : '备用方式' }}
+                </span>
+              </summary>
+              <div class="flex min-w-0 flex-wrap items-center gap-3 border-t border-border px-3 py-3">
                 <Button
                   variant="outline"
                   size="sm"
-                  :loading="browserSetupBusy"
-                  :disabled="!browserExtensionReady"
-                  @click="emit('prepareBrowserExtension')"
+                  title="从电脑选择文件，只复制到这道题的 MilkSU 本地工作区"
+                  @click="emit('chooseLocalMaterials')"
                 >
-                  <FolderOpen class="size-4" />
-                  安装本地扩展
+                  <Paperclip class="size-4" />
+                  选择附件
                 </Button>
-                <Button
-                  variant="default"
-                  size="sm"
-                  :disabled="!pairingCode"
-                  @click="emit('copyPairingCode')"
+                <span
+                  v-if="localMaterials.length"
+                  class="min-w-0 flex-1 truncate text-caption text-muted-foreground"
+                  :title="localMaterials.map(material => material.name).join(' · ')"
                 >
-                  <Copy class="size-4" />
-                  复制配对码
-                </Button>
-                <Button variant="outline" size="sm" @click="emit('openProblem')">
-                  <ExternalLink class="size-4" />
-                  打开 P{{ selectedNssctf.platformId }}
-                </Button>
+                  {{ localMaterials.map(material => material.name).join(' · ') }}
+                </span>
+                <span v-else class="text-caption text-muted-foreground">
+                  只复制到本题工作区，不会上传平台。
+                </span>
               </div>
-            </div>
-
-            <div class="mt-4 flex min-w-0 flex-wrap items-center gap-3">
-              <Button
-                variant="outline"
-                size="sm"
-                title="从电脑选择文件，只复制到这道题的 MilkSU 本地工作区"
-                @click="emit('chooseLocalMaterials')"
-              >
-                <Paperclip class="size-4" />
-                添加本地材料
-              </Button>
-              <span
-                v-if="localMaterials.length"
-                class="min-w-0 truncate text-caption text-muted-foreground"
-                :title="localMaterials.map(material => material.name).join(' · ')"
-              >
-                已添加 {{ localMaterials.length }} 项 ·
-                {{ localMaterials.map(material => material.name).join(' · ') }}
-              </span>
-              <span v-else class="text-caption text-muted-foreground">
-                仅保存到本题工作区，不会上传平台
-              </span>
-            </div>
-
-            <div
-              v-if="selectedNssctf.hasAttachment && !selectedBrowserReady && !localMaterials.length"
-              class="mt-5 flex items-start gap-3 rounded-lg border border-warning-border bg-warning-soft px-4 py-3"
-            >
-              <Cable class="mt-0.5 size-4 shrink-0 text-warning" />
-              <div class="min-w-0 flex-1">
-                <p class="text-control font-medium">先连接当前题目页</p>
-                <p class="mt-1 text-caption leading-5 text-muted-foreground">
-                  此题有附件。打开 P{{ selectedNssctf.platformId }} 后，用 MilkSU Chrome 扩展连接当前页。
-                </p>
-              </div>
-              <Button variant="outline" size="sm" @click="emit('openProblem')">打开题目</Button>
-            </div>
+            </details>
 
             <Alert v-if="attachmentError" variant="destructive" class="mt-4">
               <AlertDescription>{{ attachmentError }}</AlertDescription>
             </Alert>
-
-            <Button
-              block
-              size="lg"
-              class="mt-5"
-              :loading="loading"
-              :disabled="!hasActiveTraining && selectedNssctf.hasAttachment && !selectedBrowserReady && !localMaterials.length"
-              @click="modelVerified ? emit('startNssctf') : emit('openSettings')"
-            >
-              <TerminalSquare class="size-4" />
-              {{
-                !modelVerified
-                  ? '配置模型后开始'
-                  : hasActiveTraining
-                    ? '继续训练'
-                    : '用 Agent 开始'
-              }}
-              <ArrowRight class="size-4" />
-            </Button>
           </section>
 
         </div>
@@ -627,49 +661,29 @@ function pinnedNssctfLabel(id: number) {
               </Button>
             </div>
 
-            <div class="mt-4 flex min-w-0 flex-wrap items-center gap-3">
-              <Button
-                variant="outline"
-                size="sm"
-                title="从电脑选择文件，只复制到这道题的 MilkSU 本地工作区"
-                @click="emit('chooseLocalMaterials')"
-              >
-                <Paperclip class="size-4" />
-                添加本地材料
-              </Button>
-              <span
-                v-if="localMaterials.length"
-                class="min-w-0 truncate text-caption text-muted-foreground"
-                :title="localMaterials.map(material => material.name).join(' · ')"
-              >
-                已添加 {{ localMaterials.length }} 项 ·
-                {{ localMaterials.map(material => material.name).join(' · ') }}
-              </span>
-              <span v-else class="text-caption text-muted-foreground">
-                仅保存到本题工作区，不会上传平台
-              </span>
-            </div>
-
-            <Button
-              block
-              size="lg"
-              class="mt-5"
-              :loading="loading"
-              :disabled="!hasActiveTraining && !ctfshowBridgeReady"
-              @click="modelVerified
-                ? emit('startCtfshow', selectedCtfshow.platformId)
-                : emit('openSettings')"
+            <details
+              v-if="localMaterials.length"
+              class="mt-4 rounded-lg border border-border bg-muted/20"
+              open
             >
-              <TerminalSquare class="size-4" />
-              {{
-                !modelVerified
-                  ? '配置模型后开始'
-                  : hasActiveTraining
-                    ? '继续训练'
-                    : '读取题面并开始'
-              }}
-              <ArrowRight class="size-4" />
-            </Button>
+              <summary class="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-caption font-medium [&::-webkit-details-marker]:hidden">
+                <Paperclip class="size-3.5 text-muted-foreground" />
+                本地附件
+                <span class="ml-auto font-normal text-muted-foreground">{{ localMaterials.length }} 项</span>
+              </summary>
+              <div class="flex min-w-0 flex-wrap items-center gap-3 border-t border-border px-3 py-3">
+                <Button variant="outline" size="sm" @click="emit('chooseLocalMaterials')">
+                  <Paperclip class="size-4" />
+                  继续添加
+                </Button>
+                <span
+                  class="min-w-0 flex-1 truncate text-caption text-muted-foreground"
+                  :title="localMaterials.map(material => material.name).join(' · ')"
+                >
+                  {{ localMaterials.map(material => material.name).join(' · ') }}
+                </span>
+              </div>
+            </details>
           </section>
 
         </div>
@@ -685,42 +699,47 @@ function pinnedNssctfLabel(id: number) {
         </div>
       </div>
 
-      <div class="sticky bottom-0 flex items-center gap-4 border-t border-border bg-background/95 px-6 py-3 backdrop-blur">
-        <span class="text-caption font-medium">准备状态 {{ readiness }}/3</span>
-        <span class="flex items-center gap-1.5 text-caption text-muted-foreground">
+      <div class="sticky bottom-0 z-10 flex flex-wrap items-center gap-3 border-t border-border bg-background/95 px-5 py-3 backdrop-blur">
+        <span class="text-caption font-medium">准备 {{ readiness }}/3</span>
+        <span class="flex items-center gap-1 text-caption text-muted-foreground">
           <Check v-if="modelVerified" class="size-3.5 text-success" />
           <RefreshCw v-else class="size-3.5" />
           模型
         </span>
-        <span class="flex items-center gap-1.5 text-caption text-muted-foreground">
+        <span class="flex items-center gap-1 text-caption text-muted-foreground">
           <Check v-if="catalogReady" class="size-3.5 text-success" />
           <RefreshCw v-else class="size-3.5" />
           题库
         </span>
-        <span class="flex items-center gap-1.5 text-caption text-muted-foreground">
+        <span class="flex items-center gap-1 text-caption text-muted-foreground">
           <Check v-if="judgeReady" class="size-3.5 text-success" />
           <RefreshCw v-else class="size-3.5" />
           Judge
         </span>
-        <Button
-          v-if="!modelVerified"
-          variant="link"
-          size="text"
-          class="ml-auto"
-          @click="emit('openSettings')"
-        >
-          配置模型
-        </Button>
-        <Button
-          v-else-if="!judgeReady"
-          variant="link"
-          size="text"
-          class="ml-auto"
-          @click="emit('refreshJudge')"
-        >
-          检测连接
-        </Button>
-        <ShieldCheck v-else class="ml-auto size-4 text-success" />
+        <div class="ml-auto flex items-center gap-2">
+          <Button
+            v-if="activeBank === 'nssctf' && !judgeReady && pairingCode"
+            variant="outline"
+            size="sm"
+            @click="emit('copyPairingCode')"
+          >
+            <Copy class="size-4" />
+            配对码
+          </Button>
+          <Button
+            variant="brand"
+            size="sm"
+            :loading="loading && primaryActionType === 'start'"
+            :disabled="primaryActionDisabled"
+            @click="runPrimaryAction"
+          >
+            <TerminalSquare v-if="primaryActionType === 'start'" class="size-4" />
+            <ExternalLink v-else-if="primaryActionType === 'open'" class="size-4" />
+            <ShieldCheck v-else class="size-4" />
+            {{ primaryActionLabel }}
+            <ArrowRight class="size-4" />
+          </Button>
+        </div>
       </div>
     </aside>
   </section>

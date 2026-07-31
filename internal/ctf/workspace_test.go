@@ -84,6 +84,9 @@ func TestPrepareAgentWorkspaceExportsVerifiedMaterialsAndPreservesNotes(t *testi
 	if string(exported) != string(data) {
 		t.Fatalf("unexpected exported material: %q", exported)
 	}
+	if info, err := os.Stat(filepath.Join(handoff.WorkspacePath, ".git")); err != nil || !info.IsDir() {
+		t.Fatalf("CTF workspace is missing the Pi discovery boundary: info=%v err=%v", info, err)
+	}
 	manifestData, err := os.ReadFile(filepath.Join(handoff.WorkspacePath, "challenge.json"))
 	if err != nil {
 		t.Fatal(err)

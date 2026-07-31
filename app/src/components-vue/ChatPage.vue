@@ -19,18 +19,24 @@ import {
   Textarea,
 } from '@felinic/ui'
 import {
+  Activity,
   ArrowUp,
   Bot,
   Check,
+  CircleDot,
   Compass,
   FilePenLine,
   Files,
   Flag,
   FolderOpen,
+  GitBranch,
   KeyRound,
   Lightbulb,
   LoaderCircle,
+  PanelRightClose,
+  PanelRightOpen,
   Puzzle,
+  RefreshCw,
   Route,
   Square,
   StickyNote,
@@ -38,7 +44,14 @@ import {
   Wrench,
 } from 'lucide-vue-next'
 import { invokeCommand } from '@/desktop'
-import type { CTFToolWorkshopState } from '@/ctfTypes'
+import MarkdownContent from '@/components-vue/MarkdownContent.vue'
+import type { CodingEnvironmentSnapshot } from '@/codingEnvironmentTypes'
+import type {
+  CTFAgentBudgetStatus,
+  CTFAgentRunCheckpoint,
+  CTFProjection,
+  CTFToolWorkshopState,
+} from '@/ctfTypes'
 import type { AppSettings, Conversation, CTFChatAction } from '@/types'
 import { PROVIDER_GROUPS, providerModelLabel } from '@/types'
 
@@ -69,6 +82,13 @@ const emit = defineEmits<{
 const draft = ref('')
 const scrollArea = ref<HTMLElement | null>(null)
 const workshopState = ref<CTFToolWorkshopState | null>(null)
+const environmentOpen = ref(!props.ctfSession)
+const environmentLoading = ref(false)
+const environmentError = ref('')
+const codingEnvironment = ref<CodingEnvironmentSnapshot | null>(null)
+const ctfBudget = ref<CTFAgentBudgetStatus | null>(null)
+const ctfCheckpoint = ref<CTFAgentRunCheckpoint | null>(null)
+const ctfProjection = ref<CTFProjection | null>(null)
 const automaticModel = computed(() => {
   if (!props.settings) return null
   const preferred = props.ctfRole === 'strategist'
@@ -111,7 +131,22 @@ const activeTools = computed(() => (
   props.conversation?.agentTools ?? []
 ))
 const extensionLabel = (value: string) => (
-  value === 'milksu-workflow' ? 'MilkSU Workflow' : value
+  value === 'milksu-workflow'
+    ? 'MilkSU Workflow'
+    : value === 'pi-lsp'
+      ? 'PI LSP'
+      : value === 'pi-retry'
+        ? 'PI Retry'
+        : value
+)
+const extensionDescription = (value: string) => (
+  value === 'milksu-workflow'
+    ? '计划可见、角色工作流与结果验证'
+    : value === 'pi-lsp'
+      ? '语言服务器诊断与显式代码修复'
+      : value === 'pi-retry'
+        ? '识别可重试的上游错误与停滞响应'
+        : '已由 MilkSU 白名单加载'
 )
 const hasCredential = computed(() => {
   if (!props.settings) return false
@@ -124,6 +159,20 @@ const workspaceName = computed(() => {
   return value.split('/').at(-1) || '临时沙盒'
 })
 const workspaceLocked = computed(() => Boolean(props.conversation?.messages.length))
+const activeModelLabel = computed(() => {
+  if (effectiveModelMode.value === 'auto') return automaticModelLabel.value.replace(/^自动 · /, '')
+  const provider = props.modelProvider || props.settings?.active_provider
+  const model = props.modelId || props.settings?.active_model
+  return provider && model ? providerModelLabel(provider, model) : '等待选择'
+})
+const messageCount = computed(() => props.conversation?.messages.length ?? 0)
+const toolMessageCount = computed(() => (
+  props.conversation?.messages.filter(message => message.role === 'tool').length ?? 0
+))
+const latestJudge = computed(() => ctfProjection.value?.judgeReceipts.at(-1))
+const environmentTitle = computed(() => (
+  props.ctfSession ? '解题环境' : '环境信息'
+))
 const ctfRoleLabel = computed(() => {
   if (props.ctfRole === 'tool-builder') return 'Coding Agent 工具工坊'
   if (props.ctfRole === 'strategist') return '策略 Agent 复盘'
@@ -217,6 +266,56 @@ async function loadWorkshopState() {
   }
 }
 
+async function refreshEnvironment() {
+  environmentError.value = ''
+  if (props.ctfSession) {
+    codingEnvironment.value = null
+    const jobId = props.conversation?.ctfJobId
+    if (!jobId) {
+      ctfBudget.value = null
+      ctfCheckpoint.value = null
+      ctfProjection.value = null
+      return
+    }
+    environmentLoading.value = true
+    const [budget, checkpoint, projection] = await Promise.allSettled([
+      invokeCommand<CTFAgentBudgetStatus>('get_ctf_agent_budget_status', { id: jobId }),
+      invokeCommand<CTFAgentRunCheckpoint | null>('get_ctf_agent_run_checkpoint', { id: jobId }),
+      invokeCommand<CTFProjection>('get_ctf_job', { id: jobId }),
+    ])
+    ctfBudget.value = budget.status === 'fulfilled' ? budget.value : null
+    ctfCheckpoint.value = checkpoint.status === 'fulfilled' ? checkpoint.value : null
+    ctfProjection.value = projection.status === 'fulfilled' ? projection.value : null
+    if ([budget, checkpoint, projection].every(result => result.status === 'rejected')) {
+      environmentError.value = '暂时无法读取解题环境。'
+    }
+    environmentLoading.value = false
+    return
+  }
+
+  ctfBudget.value = null
+  ctfCheckpoint.value = null
+  ctfProjection.value = null
+  if (!props.workspacePath) {
+    codingEnvironment.value = null
+    return
+  }
+  environmentLoading.value = true
+  try {
+    codingEnvironment.value = await invokeCommand<CodingEnvironmentSnapshot>(
+      'get_coding_environment',
+      { workspacePath: props.workspacePath },
+    )
+  } catch (reason) {
+    codingEnvironment.value = null
+    environmentError.value = reason instanceof Error
+      ? reason.message
+      : '暂时无法读取项目环境。'
+  } finally {
+    environmentLoading.value = false
+  }
+}
+
 function requestTool() {
   emit('ctfAction', {
     kind: 'handoff',
@@ -235,16 +334,34 @@ watch(() => props.conversation?.messages.length, async () => {
   await nextTick()
   if (scrollArea.value) scrollArea.value.scrollTop = scrollArea.value.scrollHeight
 })
+watch(() => props.ctfSession, (current, previous) => {
+  if (current !== previous) environmentOpen.value = !current
+})
 watch(
   () => [props.ctfSession, props.conversation?.ctfJobId, props.ctfRole, props.running] as const,
   async ([ctfSession, jobId, _role, running]) => {
-    if (ctfSession && jobId && !running) await loadWorkshopState()
+    if (ctfSession && jobId && !running) {
+      await Promise.all([loadWorkshopState(), refreshEnvironment()])
+    }
+  },
+  { immediate: true },
+)
+watch(
+  () => [
+    props.ctfSession,
+    props.conversation?.id,
+    props.workspacePath,
+    props.running,
+  ] as const,
+  async ([_ctfSession, _conversationId, _workspacePath, running]) => {
+    if (!running) await refreshEnvironment()
   },
   { immediate: true },
 )
 </script>
 
 <template>
+  <section class="flex min-w-0 flex-1 overflow-hidden bg-surface-editor">
   <main class="flex min-w-0 flex-1 flex-col bg-surface-editor">
     <header class="app-drag flex h-14 shrink-0 items-center justify-between border-b border-border px-6">
       <div class="min-w-0">
@@ -331,7 +448,7 @@ watch(
                 <div>
                   <p class="text-body font-medium">{{ extensionLabel(extension) }}</p>
                   <p class="text-caption text-muted-foreground">
-                    计划可见、角色工作流与结果验证
+                    {{ extensionDescription(extension) }}
                   </p>
                 </div>
               </div>
@@ -357,6 +474,16 @@ watch(
             </template>
           </DropdownMenuContent>
         </DropdownMenu>
+        <Button
+          variant="outline"
+          size="icon-sm"
+          :aria-label="environmentOpen ? `关闭${environmentTitle}` : `打开${environmentTitle}`"
+          :title="environmentOpen ? `关闭${environmentTitle}` : `打开${environmentTitle}`"
+          @click="environmentOpen = !environmentOpen"
+        >
+          <PanelRightClose v-if="environmentOpen" class="size-4" />
+          <PanelRightOpen v-else class="size-4" />
+        </Button>
         <Select
           :model-value="currentModelKey"
           :disabled="running"
@@ -507,10 +634,10 @@ watch(
           </div>
           <div
             v-else
-            class="whitespace-pre-wrap break-words text-label leading-7"
+            class="break-words text-label leading-7"
             :class="message.role === 'user' ? 'rounded-xl bg-chat-user-bubble px-4 py-3 text-chat-user-bubble-fg' : ''"
           >
-            {{ message.content }}
+            <MarkdownContent :content="message.content" :compact="message.role === 'user'" />
             <LoaderCircle v-if="message.status === 'running'" class="ml-2 inline size-3.5 animate-spin text-muted-foreground" />
           </div>
         </article>
@@ -569,4 +696,212 @@ watch(
       </form>
     </div>
   </main>
+  <aside
+    v-if="environmentOpen"
+    class="flex w-80 shrink-0 flex-col border-l border-border bg-card/55"
+    :aria-label="environmentTitle"
+  >
+    <header class="app-drag flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
+      <div class="flex items-center gap-2">
+        <Activity class="size-4 text-primary" />
+        <p class="text-control font-medium">{{ environmentTitle }}</p>
+      </div>
+      <div class="app-no-drag flex items-center gap-1">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          :disabled="environmentLoading"
+          aria-label="刷新环境信息"
+          @click="refreshEnvironment"
+        >
+          <RefreshCw class="size-4" :class="{ 'animate-spin': environmentLoading }" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          :aria-label="`关闭${environmentTitle}`"
+          @click="environmentOpen = false"
+        >
+          <PanelRightClose class="size-4" />
+        </Button>
+      </div>
+    </header>
+
+    <div class="min-h-0 flex-1 overflow-y-auto">
+      <div v-if="environmentError" class="border-b border-border px-4 py-3 text-caption text-destructive">
+        {{ environmentError }}
+      </div>
+
+      <section class="border-b border-border px-4 py-4">
+        <p class="text-caption font-medium text-muted-foreground">工作区</p>
+        <div class="mt-3 flex items-start gap-3">
+          <FolderOpen class="mt-0.5 size-4 shrink-0 text-primary" />
+          <div class="min-w-0">
+            <p class="truncate text-body font-medium">
+              {{ codingEnvironment?.workspaceName || workspaceName }}
+            </p>
+            <p class="mt-1 truncate font-mono text-caption text-muted-foreground" :title="workspacePath">
+              {{ workspacePath || '尚未选择项目' }}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <template v-if="!ctfSession">
+        <section class="border-b border-border px-4 py-4">
+          <div class="flex items-center justify-between">
+            <p class="text-caption font-medium text-muted-foreground">Git</p>
+            <Badge
+              v-if="codingEnvironment?.git.isRepository"
+              :variant="codingEnvironment.git.dirty ? 'secondary' : 'outline'"
+            >
+              {{ codingEnvironment.git.dirty ? '有变更' : '干净' }}
+            </Badge>
+          </div>
+          <div v-if="codingEnvironment?.git.isRepository" class="mt-3 space-y-3 text-body">
+            <div class="flex items-center justify-between gap-3">
+              <span class="flex min-w-0 items-center gap-2 text-muted-foreground">
+                <GitBranch class="size-4 shrink-0" />
+                <span class="truncate">{{ codingEnvironment.git.branch || 'detached' }}</span>
+              </span>
+              <span v-if="codingEnvironment.git.ahead || codingEnvironment.git.behind" class="font-mono text-caption">
+                ↑{{ codingEnvironment.git.ahead }} ↓{{ codingEnvironment.git.behind }}
+              </span>
+            </div>
+            <div v-if="codingEnvironment.git.head" class="flex items-center justify-between gap-3">
+              <span class="text-muted-foreground">提交</span>
+              <span class="font-mono text-caption">{{ codingEnvironment.git.head }}</span>
+            </div>
+            <div class="flex items-center justify-between gap-3">
+              <span class="text-muted-foreground">变更</span>
+              <span class="font-mono text-caption">
+                {{ codingEnvironment.git.changedFiles }} 文件
+                <span class="text-primary">+{{ codingEnvironment.git.additions }}</span>
+                <span class="text-destructive">-{{ codingEnvironment.git.deletions }}</span>
+              </span>
+            </div>
+            <div class="grid grid-cols-2 gap-x-3 gap-y-2 text-caption text-muted-foreground">
+              <span>暂存 {{ codingEnvironment.git.staged }}</span>
+              <span>修改 {{ codingEnvironment.git.modified }}</span>
+              <span>未跟踪 {{ codingEnvironment.git.untracked }}</span>
+              <span :class="{ 'text-destructive': codingEnvironment.git.conflicts }">
+                冲突 {{ codingEnvironment.git.conflicts }}
+              </span>
+            </div>
+          </div>
+          <p v-else class="mt-3 text-caption leading-5 text-muted-foreground">
+            {{ codingEnvironment?.git.problem || '当前目录不是 Git 仓库。' }}
+          </p>
+        </section>
+      </template>
+
+      <template v-else>
+        <section class="border-b border-border px-4 py-4">
+          <p class="text-caption font-medium text-muted-foreground">当前解题</p>
+          <div class="mt-3 space-y-3 text-body">
+            <div class="flex items-center justify-between gap-3">
+              <span class="text-muted-foreground">角色</span>
+              <span>{{ ctfRoleLabel }}</span>
+            </div>
+            <div class="flex items-center justify-between gap-3">
+              <span class="text-muted-foreground">协作</span>
+              <span>{{ ctfMode === 'coach' ? '教练' : ctfMode === 'delegate' ? '代理' : '搭档' }}</span>
+            </div>
+            <div class="flex items-center justify-between gap-3">
+              <span class="text-muted-foreground">阶段</span>
+              <span>{{ ctfCheckpoint?.progress?.phase || ctfCheckpoint?.status || '待启动' }}</span>
+            </div>
+            <div v-if="ctfBudget" class="flex items-center justify-between gap-3">
+              <span class="text-muted-foreground">回合预算</span>
+              <span class="font-mono text-caption">
+                {{ ctfBudget.remainingTurns }}/{{ ctfBudget.budget.maxTurns }}
+              </span>
+            </div>
+          </div>
+        </section>
+
+        <section class="border-b border-border px-4 py-4">
+          <p class="text-caption font-medium text-muted-foreground">证据与 Judge</p>
+          <div class="mt-3 grid grid-cols-2 gap-3">
+            <div>
+              <p class="text-xl font-semibold">{{ ctfProjection?.evidence.length ?? 0 }}</p>
+              <p class="text-caption text-muted-foreground">证据</p>
+            </div>
+            <div>
+              <p class="text-xl font-semibold">{{ ctfProjection?.artifacts.length ?? 0 }}</p>
+              <p class="text-caption text-muted-foreground">制品</p>
+            </div>
+          </div>
+          <div v-if="latestJudge" class="mt-4 flex items-start gap-2">
+            <CircleDot
+              class="mt-0.5 size-4 shrink-0"
+              :class="latestJudge.correct ? 'text-primary' : 'text-muted-foreground'"
+            />
+            <div>
+              <p class="text-body font-medium">
+                {{ latestJudge.platform }} · {{ latestJudge.status }}
+              </p>
+              <MarkdownContent
+                class="mt-1 line-clamp-3 text-caption leading-5 text-muted-foreground"
+                :content="latestJudge.summary"
+                compact
+              />
+            </div>
+          </div>
+          <p v-else class="mt-3 text-caption text-muted-foreground">尚无外部 Judge 回执。</p>
+        </section>
+      </template>
+
+      <section class="border-b border-border px-4 py-4">
+        <p class="text-caption font-medium text-muted-foreground">Agent</p>
+        <div class="mt-3 space-y-3 text-body">
+          <div class="flex items-center justify-between gap-3">
+            <span class="text-muted-foreground">状态</span>
+            <span class="flex items-center gap-2">
+              <span
+                class="size-1.5 rounded-full"
+                :class="running ? 'animate-pulse bg-primary' : 'bg-muted-foreground'"
+              />
+              {{ running ? '执行中' : '空闲' }}
+            </span>
+          </div>
+          <div class="flex items-start justify-between gap-3">
+            <span class="shrink-0 text-muted-foreground">模型</span>
+            <span class="text-right text-caption leading-5">{{ activeModelLabel }}</span>
+          </div>
+          <div class="flex items-start justify-between gap-3">
+            <span class="shrink-0 text-muted-foreground">插件</span>
+            <span class="text-right text-caption leading-5">
+              {{ activeExtensions.length ? activeExtensions.map(extensionLabel).join(' · ') : '启动后显示' }}
+            </span>
+          </div>
+          <div class="flex items-start justify-between gap-3">
+            <span class="shrink-0 text-muted-foreground">工具</span>
+            <span class="text-right text-caption leading-5">
+              {{ activeTools.length }} 个
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <section class="px-4 py-4">
+        <p class="text-caption font-medium text-muted-foreground">任务上下文</p>
+        <div class="mt-3 space-y-3 text-body">
+          <div class="flex items-center justify-between gap-3">
+            <span class="text-muted-foreground">消息</span>
+            <span>{{ messageCount }}</span>
+          </div>
+          <div class="flex items-center justify-between gap-3">
+            <span class="text-muted-foreground">工具记录</span>
+            <span>{{ toolMessageCount }}</span>
+          </div>
+          <div v-if="ctfSession" class="flex items-center justify-between gap-3">
+            <span class="text-muted-foreground">工具工坊</span>
+            <span class="text-right text-caption">{{ workshopSummary }}</span>
+          </div>
+        </div>
+      </section>
+    </div>
+  </aside>
+  </section>
 </template>
