@@ -1464,12 +1464,15 @@ export function normalizeCodingPolicy(
   ].includes(approvalPolicy)
     ? approvalPolicy
     : "read-only";
+  const effectfulToolsAvailable = normalizedExecutionMode === "go"
+    && ["ask", "workspace-auto", "full-auto"].includes(normalizedApprovalPolicy);
   const workspaceWritesAllowed = normalizedExecutionMode === "go"
     && ["workspace-auto", "full-auto"].includes(normalizedApprovalPolicy);
   const fullAccess = normalizedExecutionMode === "go"
     && normalizedApprovalPolicy === "full-auto";
-  const approvalChannelAvailable = false;
-  const activeTools = workspaceWritesAllowed
+  const approvalChannelAvailable = normalizedExecutionMode === "go"
+    && normalizedApprovalPolicy === "ask";
+  const activeTools = effectfulToolsAvailable
     ? codingWorkspaceAutoToolNames
     : codingReadOnlyToolNames;
 
@@ -1500,26 +1503,38 @@ export function normalizeCodingPolicy(
           : workspaceWritesAllowed
             ? "文件与命令写入限制在项目内；允许正常 Git 操作，文件工具保护 .milksu。"
           : normalizedApprovalPolicy === "ask" && normalizedExecutionMode === "go"
-            ? "当前 Sidecar 没有可回传桌面的同步审批通道，因此本档暂按只读执行。"
+            ? "每次 edit / write 前暂停并在桌面展示参数；只有本次明确批准后执行。"
             : "Plan 或 Read-only 策略禁止 edit / write。",
       },
       {
         id: "command",
         label: "命令执行",
-        status: workspaceWritesAllowed ? "allowed" : "blocked",
+        status: workspaceWritesAllowed
+          ? "allowed"
+          : approvalChannelAvailable
+            ? "approval-required"
+            : "blocked",
         detail: fullAccess
           ? "命令自动执行，不受项目沙箱限制；模型 Provider Key 不传给子进程。"
           : workspaceWritesAllowed
             ? "项目沙箱内可运行开发命令和后台工具，支持网络。"
-          : "Plan、Read-only 与当前 Ask 档均不提供 bash。",
+          : approvalChannelAvailable
+            ? "每次 bash 调用前展示完整命令并等待批准；仍受项目沙箱约束。"
+            : "Plan 与 Read-only 不提供 bash。",
       },
       {
         id: "network",
         label: "网络",
-        status: workspaceWritesAllowed ? "allowed" : "blocked",
+        status: workspaceWritesAllowed
+          ? "allowed"
+          : approvalChannelAvailable
+            ? "approval-required"
+            : "blocked",
         detail: workspaceWritesAllowed
           ? "允许开发命令访问网络。"
-          : "当前模式禁止网络命令。",
+          : approvalChannelAvailable
+            ? "网络只能通过已展示并单次批准的命令使用。"
+            : "当前模式禁止网络命令。",
       },
       {
         id: "credentials",

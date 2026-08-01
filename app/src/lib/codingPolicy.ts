@@ -48,24 +48,30 @@ export function previewCodingCapabilities(
         : workspaceAuto
           ? '文件与命令写入限制在项目内；允许正常 Git 操作，文件工具保护 .milksu。'
         : ask
-          ? 'Sidecar 暂无桌面同步审批通道，因此当前按只读执行。'
+          ? '每次 edit / write 前暂停并展示参数；只有本次明确批准后执行。'
           : '当前模式禁止修改文件。',
     },
     {
       id: 'command',
       label: '命令执行',
-      status: mutating ? 'allowed' : 'blocked',
+      status: mutating ? 'allowed' : ask ? 'approval-required' : 'blocked',
       detail: fullAuto
         ? '命令自动执行，不受项目沙箱限制；模型 Provider Key 不传给子进程。'
         : workspaceAuto
           ? '项目沙箱内可运行开发命令和后台工具，支持网络。'
-        : '当前模式不提供 bash。',
+        : ask
+          ? '每次 bash 调用前展示完整命令并等待批准；仍受项目沙箱约束。'
+          : '当前模式不提供 bash。',
     },
     {
       id: 'network',
       label: '网络',
-      status: mutating ? 'allowed' : 'blocked',
-      detail: mutating ? '允许开发命令访问网络。' : '当前模式禁止网络命令。',
+      status: mutating ? 'allowed' : ask ? 'approval-required' : 'blocked',
+      detail: mutating
+        ? '允许开发命令访问网络。'
+        : ask
+          ? '网络只能通过已展示并单次批准的命令使用。'
+          : '当前模式禁止网络命令。',
     },
     {
       id: 'credentials',

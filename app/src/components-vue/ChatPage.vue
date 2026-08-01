@@ -118,6 +118,7 @@ const emit = defineEmits<{
     executionMode: CodingExecutionMode,
     approvalPolicy: CodingApprovalPolicy,
   ]
+  respondApproval: [requestId: string, approved: boolean]
   openSettings: []
   returnCtf: []
   switchCtfAgent: [role: 'solver' | 'tool-builder' | 'strategist']
@@ -772,12 +773,75 @@ watch(
           :class="message.role === 'user' ? 'ml-auto max-w-[82%]' : 'max-w-full'"
         >
           <div v-if="message.role === 'tool'" class="rounded-lg border border-border bg-muted/30 px-4 py-3">
-            <p class="flex items-center gap-2 text-caption font-medium text-muted-foreground">
-              <Wrench class="size-3.5" />
-              {{ message.toolName ?? 'tool' }}
-              <LoaderCircle v-if="message.status === 'running'" class="size-3.5 animate-spin" />
-            </p>
-            <pre v-if="message.content" class="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-words text-body leading-5">{{ message.content }}</pre>
+            <template v-if="message.approvalRequestId">
+              <div class="flex items-start justify-between gap-4">
+                <div class="min-w-0">
+                  <p class="flex items-center gap-2 text-body font-medium">
+                    <Hand class="size-4 shrink-0 text-warning" />
+                    请求批准 · {{ message.toolName ?? 'tool' }}
+                  </p>
+                  <p class="mt-1 text-caption text-muted-foreground">
+                    Agent 已暂停；只有允许本次操作后才会继续。
+                  </p>
+                </div>
+                <Badge
+                  :variant="message.approvalState === 'approved' ? 'secondary' : 'outline'"
+                  :class="message.approvalState === 'denied' || message.approvalState === 'expired'
+                    ? 'text-muted-foreground'
+                    : ''"
+                >
+                  {{ message.approvalState === 'pending'
+                    ? '等待决定'
+                    : message.approvalState === 'approved'
+                      ? '已允许'
+                      : message.approvalState === 'denied'
+                        ? '已拒绝'
+                        : '已失效' }}
+                </Badge>
+              </div>
+              <pre
+                v-if="message.content"
+                class="mt-3 max-h-40 overflow-auto rounded-md bg-background/70 px-3 py-2 whitespace-pre-wrap break-words font-mono text-caption leading-5"
+              >{{ message.content }}</pre>
+              <details v-if="message.approvalInput" class="mt-2">
+                <summary class="cursor-pointer text-caption text-muted-foreground">
+                  查看完整参数
+                </summary>
+                <pre class="mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words font-mono text-caption leading-5">{{ message.approvalInput }}</pre>
+              </details>
+              <div
+                v-if="message.approvalState === 'pending'"
+                class="mt-3 flex justify-end gap-2"
+              >
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  @click="$emit('respondApproval', message.approvalRequestId, false)"
+                >
+                  拒绝
+                </Button>
+                <Button
+                  type="button"
+                  variant="brand"
+                  size="sm"
+                  @click="$emit('respondApproval', message.approvalRequestId, true)"
+                >
+                  允许这一次
+                </Button>
+              </div>
+              <p v-else-if="message.approvalReason" class="mt-2 text-caption text-muted-foreground">
+                {{ message.approvalReason }}
+              </p>
+            </template>
+            <template v-else>
+              <p class="flex items-center gap-2 text-caption font-medium text-muted-foreground">
+                <Wrench class="size-3.5" />
+                {{ message.toolName ?? 'tool' }}
+                <LoaderCircle v-if="message.status === 'running'" class="size-3.5 animate-spin" />
+              </p>
+              <pre v-if="message.content" class="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-words text-body leading-5">{{ message.content }}</pre>
+            </template>
           </div>
           <div
             v-else
@@ -918,7 +982,7 @@ watch(
                 <div class="min-w-0 flex-1">
                   <p class="approval-option__title">请求批准</p>
                   <p class="approval-option__description">
-                    编辑项目或使用互联网前询问；当前版本会按只读保护
+                    编辑文件、运行命令或使用互联网前始终询问
                   </p>
                 </div>
                 <Check

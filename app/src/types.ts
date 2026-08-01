@@ -7,6 +7,10 @@ export interface Message {
   timestamp: number
   toolName?: string
   status?: 'running' | 'done'
+  approvalRequestId?: string
+  approvalInput?: string
+  approvalState?: 'pending' | 'approved' | 'denied' | 'expired'
+  approvalReason?: string
 }
 
 export type CodingExecutionMode = 'plan' | 'go'

@@ -85,12 +85,11 @@ test("legacy Coding sessions preserve deliverable Go defaults without unrestrict
   assert.equal(policy.activeTools.includes("lsp_fix"), false);
 });
 
-test("Plan and non-automatic Go policies enforce a read-only tool allowlist", async () => {
+test("Plan and Read-only enforce a read-only tool allowlist", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "milksu-coding-policy-"));
   for (const [executionMode, approvalPolicy] of [
     ["plan", "workspace-auto"],
     ["go", "read-only"],
-    ["go", "ask"],
   ]) {
     const policy = await loadSessionPolicy(workspace, "", {
       executionMode,
@@ -104,10 +103,25 @@ test("Plan and non-automatic Go policies enforce a read-only tool allowlist", as
       assert.equal(policy.activeTools.includes(denied), false);
     }
   }
+});
+
+test("Ask exposes effectful tools behind the desktop approval channel", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "milksu-coding-policy-"));
+  const policy = await loadSessionPolicy(workspace, "", {
+    executionMode: "go",
+    approvalPolicy: "ask",
+  });
   const ask = normalizeCodingPolicy("go", "ask");
-  assert.equal(ask.approvalChannelAvailable, false);
+  assert.equal(ask.approvalChannelAvailable, true);
+  for (const gated of ["bash", "edit", "write"]) {
+    assert.equal(policy.activeTools.includes(gated), true);
+  }
   assert.equal(
     ask.capabilities.find(value => value.id === "workspace-write").status,
+    "approval-required",
+  );
+  assert.equal(
+    ask.capabilities.find(value => value.id === "command").status,
     "approval-required",
   );
 });

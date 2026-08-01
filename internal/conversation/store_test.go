@@ -22,6 +22,12 @@ func TestConversationIDAcceptsUUID(t *testing.T) {
 
 func TestStorePreservesCTFLearningContext(t *testing.T) {
 	store := &Store{directory: t.TempDir()}
+	toolName := "bash"
+	status := "done"
+	approvalRequestID := "approval-1"
+	approvalInput := `{"command":"npm test"}`
+	approvalState := "approved"
+	approvalReason := "approved by user"
 	want := StoredConversation{
 		ID:             "ctf_019fb283",
 		Title:          "NSSCTF P316",
@@ -36,6 +42,17 @@ func TestStorePreservesCTFLearningContext(t *testing.T) {
 		CTFMode:  "coach",
 		Messages: []StoredMessage{{
 			ID: "message-1", Role: "user", Content: "先帮我梳理题面", Timestamp: 43,
+		}, {
+			ID:                "message-2",
+			Role:              "tool",
+			Content:           "$ npm test",
+			Timestamp:         44,
+			ToolName:          &toolName,
+			Status:            &status,
+			ApprovalRequestID: &approvalRequestID,
+			ApprovalInput:     &approvalInput,
+			ApprovalState:     &approvalState,
+			ApprovalReason:    &approvalReason,
 		}},
 	}
 	if err := store.Save(want); err != nil {

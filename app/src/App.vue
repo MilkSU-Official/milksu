@@ -210,6 +210,7 @@ onMounted(async () => {
       @send="conversations.send"
       @ctf-action="runCTFChatAction"
       @abort="abortConversation"
+      @respond-approval="conversations.respondApproval"
       @choose-workspace="chooseAgentWorkspace"
       @change-model="changeModel"
       @change-coding-policy="conversations.setCodingPolicy"

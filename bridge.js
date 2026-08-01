@@ -15,6 +15,7 @@ import {
   codingSessionToolNames,
   loadSessionPolicy,
 } from "./bridge-policy.js";
+import { createApprovalBroker } from "./bridge-approval.js";
 import {
   applyCodingResourcePolicy,
   describeLoadedExtensions,
@@ -41,10 +42,13 @@ const abortedSessions = new Set();
 const input = createInterface({ input: process.stdin });
 let commandQueue = Promise.resolve();
 const bridgeDirectory = dirname(fileURLToPath(import.meta.url));
+const approvalRequiredCodingTools = new Set(["bash", "edit", "write", "lsp_fix"]);
 
 function emit(conversationId, type, data = {}) {
   process.stdout.write(`${JSON.stringify({ type, id: conversationId ?? null, ...data })}\n`);
 }
+
+const approvalBroker = createApprovalBroker(emit);
 
 function describeError(error) {
   if (!(error instanceof Error)) return String(error);
@@ -152,15 +156,20 @@ function codingPolicyGuidance(policy) {
       + "Computer Use, and lsp_fix remain unavailable.";
   }
   if (policy.approvalPolicy === "ask") {
-    return "Go mode is active with Ask. This headless Sidecar cannot pause and return a synchronous "
-      + "approval request to the MilkSU desktop yet, so the enforced tool set remains read-only. "
-      + "Explain the intended workspace mutation and ask the user to switch to Workspace Auto.";
+    return "Go mode is active with Request Approval. Read-only inspection runs directly. Before "
+      + "bash, edit, write, or another effectful Coding tool executes, MilkSU pauses the tool and "
+      + "shows its exact parameters in the desktop. Continue only after that one request is approved; "
+      + "a rejection is authoritative and must not be bypassed with another tool.";
   }
   return "Go mode is active with Read-only. Inspect and explain, but do not claim any mutation or "
     + "command execution; write and side-effect tools are unavailable.";
 }
 
-function createCodingPermissionExtension(getPolicy, registerController) {
+function createCodingPermissionExtension(
+  conversationId,
+  getPolicy,
+  registerController,
+) {
   return (pi) => {
     registerController({
       setActiveTools: names => pi.setActiveTools(names),
@@ -174,6 +183,23 @@ function createCodingPermissionExtension(getPolicy, registerController) {
           reason: `MilkSU Coding policy blocked ${event.toolName}: `
             + `${policy.executionMode}/${policy.approvalPolicy}`,
         };
+      }
+      if (
+        policy.approvalPolicy === "ask"
+        && approvalRequiredCodingTools.has(event.toolName)
+      ) {
+        const approved = await approvalBroker.request({
+          conversationId,
+          toolName: event.toolName,
+          content: formatToolInput(event.toolName, event.input),
+          input: truncate(JSON.stringify(event.input ?? {}, null, 2), 16000),
+        });
+        if (!approved) {
+          return {
+            block: true,
+            reason: `MilkSU user denied ${event.toolName}`,
+          };
+        }
       }
       return undefined;
     });
@@ -346,6 +372,7 @@ function createMilkSUResourceLoader(
   systemPrompt,
   sessionRole,
   codingSkillPaths,
+  conversationId,
   getPolicy,
   registerPolicyController,
 ) {
@@ -354,7 +381,11 @@ function createMilkSUResourceLoader(
   const extensionFactories = [createMilkSUWorkflowExtension(sessionRole)];
   if (!sessionRole) {
     extensionFactories.push(
-      createCodingPermissionExtension(getPolicy, registerPolicyController),
+      createCodingPermissionExtension(
+        conversationId,
+        getPolicy,
+        registerPolicyController,
+      ),
       piLspExtension,
       piRetryExtension,
     );
@@ -425,6 +456,7 @@ async function createSession(command) {
     projectInstructions,
     effectiveSessionRole,
     codingSkillPaths,
+    conversationId,
     () => sessionPolicies.get(conversationId),
     controller => sessionPolicyControllers.set(conversationId, controller),
   );
@@ -560,6 +592,7 @@ async function abortSession(command) {
   if (!conversationId) throw new Error("conversationId is required");
   const session = sessions.get(conversationId);
   if (!session) return;
+  approvalBroker.cancelConversation(conversationId, "turn aborted");
   abortedSessions.add(conversationId);
   await session.abort();
   emit(conversationId, "message_done", { reason: "aborted", content: "" });
@@ -571,6 +604,7 @@ async function destroySession(command) {
 
   const session = sessions.get(conversationId);
   const sessionFile = session?.sessionFile;
+  approvalBroker.cancelConversation(conversationId, "session destroyed");
   session?.dispose();
   sessions.delete(conversationId);
   sessionPolicies.delete(conversationId);
@@ -587,6 +621,18 @@ async function destroySession(command) {
   emit(conversationId, "session_destroyed");
 }
 
+function respondToolApproval(command) {
+  const conversationId = command.conversationId;
+  const requestId = command.requestId;
+  if (!conversationId) throw new Error("conversationId is required");
+  if (!requestId) throw new Error("requestId is required");
+  approvalBroker.respond({
+    conversationId,
+    requestId,
+    approved: command.approved === true,
+  });
+}
+
 async function handleCommand(command) {
   switch (command.action) {
     case "create_session":
@@ -597,6 +643,9 @@ async function handleCommand(command) {
       break;
     case "abort_session":
       await abortSession(command);
+      break;
+    case "approval_response":
+      respondToolApproval(command);
       break;
     case "destroy_session":
       await destroySession(command);
@@ -621,6 +670,14 @@ input.on("line", (line) => {
     });
     return;
   }
+  if (command.action === "approval_response") {
+    try {
+      respondToolApproval(command);
+    } catch (error) {
+      emit(command.conversationId ?? null, "error", { error: describeError(error) });
+    }
+    return;
+  }
   commandQueue = commandQueue
     .then(() => handleCommand(command))
     .catch((error) => {
@@ -629,6 +686,7 @@ input.on("line", (line) => {
 });
 
 function disposeAllSessions() {
+  approvalBroker.cancelAll("Sidecar stopped");
   for (const session of sessions.values()) session.dispose();
   sessions.clear();
   promptQueues.clear();

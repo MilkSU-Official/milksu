@@ -82,6 +82,11 @@ interface WailsAppBindings {
     approvalPolicy: string,
   ): Promise<void>
   AbortMessage(conversationId: string): Promise<void>
+  RespondToolApproval(
+    conversationId: string,
+    requestId: string,
+    approved: boolean,
+  ): Promise<void>
   GetRuntimeStatus(): Promise<unknown>
   GetCodingEnvironment(workspacePath: string): Promise<CodingEnvironmentSnapshot>
   GetCodingDiff(workspacePath: string, relativePath: string): Promise<CodingDiffSnapshot>
@@ -335,6 +340,12 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         ) as Promise<T>
       case 'abort_message':
         return app.AbortMessage(args?.conversationId as string) as Promise<T>
+      case 'respond_tool_approval':
+        return app.RespondToolApproval(
+          args?.conversationId as string,
+          args?.requestId as string,
+          args?.approved as boolean,
+        ) as Promise<T>
       case 'get_runtime_status':
         return app.GetRuntimeStatus() as Promise<T>
       case 'get_coding_environment':
@@ -574,6 +585,7 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
     case 'submit_ctfshow_web_flag':
       throw new Error('CTFshow browser bridge requires the MilkSU desktop runtime.')
     case 'abort_message':
+    case 'respond_tool_approval':
       return undefined as T
     case 'get_coding_environment': {
       const workspace = String(args?.workspacePath ?? '')

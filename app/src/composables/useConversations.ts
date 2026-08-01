@@ -27,6 +27,10 @@ interface AgentEvent {
   executionMode?: CodingExecutionMode
   approvalPolicy?: CodingApprovalPolicy
   capabilities?: CodingCapability[]
+  requestId?: string
+  input?: string
+  approved?: boolean
+  reason?: string
 }
 
 interface WorkspaceTask {
@@ -41,7 +45,7 @@ interface WorkspaceTask {
   role: 'solver' | 'tool-builder' | 'strategist'
 }
 
-function normalizeConversation(raw: Record<string, unknown>): Conversation {
+export function normalizeConversation(raw: Record<string, unknown>): Conversation {
   const messages = (raw.messages as Record<string, unknown>[] | undefined) ?? []
   return {
     id: String(raw.id ?? ''),
@@ -85,14 +89,36 @@ function normalizeConversation(raw: Record<string, unknown>): Conversation {
     ctfRole: ['solver', 'tool-builder', 'strategist'].includes(String(raw.ctfRole))
       ? raw.ctfRole as Conversation['ctfRole']
       : undefined,
-    messages: messages.map(message => ({
-      id: String(message.id ?? crypto.randomUUID()),
-      role: message.role as Message['role'],
-      content: String(message.content ?? ''),
-      timestamp: Number(message.timestamp ?? Date.now()),
-      toolName: message.toolName as string | undefined,
-      status: (message.status as Message['status']) ?? 'done',
-    })),
+    messages: messages.map(message => {
+      const rawApprovalState = String(message.approvalState ?? '')
+      const approvalState = rawApprovalState === 'pending'
+        ? 'expired'
+        : ['approved', 'denied', 'expired'].includes(rawApprovalState)
+          ? rawApprovalState as Message['approvalState']
+          : undefined
+      return {
+        id: String(message.id ?? crypto.randomUUID()),
+        role: message.role as Message['role'],
+        content: String(message.content ?? ''),
+        timestamp: Number(message.timestamp ?? Date.now()),
+        toolName: message.toolName as string | undefined,
+        status: approvalState === 'expired'
+          ? 'done'
+          : (message.status as Message['status']) ?? 'done',
+        approvalRequestId: typeof message.approvalRequestId === 'string'
+          ? message.approvalRequestId
+          : undefined,
+        approvalInput: typeof message.approvalInput === 'string'
+          ? message.approvalInput
+          : undefined,
+        approvalState,
+        approvalReason: approvalState === 'expired'
+          ? '应用或 Agent 已重启，本次审批已失效'
+          : typeof message.approvalReason === 'string'
+            ? message.approvalReason
+            : undefined,
+      }
+    }),
   }
 }
 
@@ -352,6 +378,50 @@ export function useConversations() {
     runningIds.value = nextRunning
   }
 
+  async function respondApproval(requestId: string, approved: boolean) {
+    const conversation = conversations.value.find(item => (
+      item.messages.some(message => (
+        message.approvalRequestId === requestId
+        && message.approvalState === 'pending'
+      ))
+    ))
+    if (!conversation) return
+    try {
+      await invokeCommand('respond_tool_approval', {
+        conversationId: conversation.id,
+        requestId,
+        approved,
+      })
+      update(conversation.id, current => ({
+        ...current,
+        messages: current.messages.map(message => (
+          message.approvalRequestId === requestId
+            ? {
+                ...message,
+                status: 'done',
+                approvalState: approved ? 'approved' : 'denied',
+                approvalReason: approved ? '已允许本次操作' : '已拒绝本次操作',
+              }
+            : message
+        )),
+      }))
+    } catch (reason) {
+      update(conversation.id, current => ({
+        ...current,
+        messages: current.messages.map(message => (
+          message.approvalRequestId === requestId
+            ? {
+                ...message,
+                status: 'done',
+                approvalState: 'expired',
+                approvalReason: `审批失败：${agentErrorMessage(reason)}`,
+              }
+            : message
+        )),
+      }))
+    }
+  }
+
   async function listen() {
     disposeEvents = await listenEvent<AgentEvent>('engine-event', event => {
       const {
@@ -367,6 +437,10 @@ export function useConversations() {
         executionMode,
         approvalPolicy,
         capabilities,
+        requestId,
+        input,
+        approved,
+        reason,
       } = event.payload
       if (!sessionId && (type === 'engine.stopped' || type === 'engine.protocol_error')) {
         const affected = [...runningIds.value]
@@ -377,13 +451,25 @@ export function useConversations() {
           affected.includes(conversation.id)
             ? {
                 ...conversation,
-                messages: [...conversation.messages, {
-                  id: crypto.randomUUID(),
-                  role: 'assistant' as const,
-                  content: message,
-                  timestamp: Date.now(),
-                  status: 'done' as const,
-                }],
+                messages: [
+                  ...conversation.messages.map(item => (
+                    item.approvalState === 'pending'
+                      ? {
+                          ...item,
+                          status: 'done' as const,
+                          approvalState: 'expired' as const,
+                          approvalReason: 'Agent 进程已结束，本次审批已失效',
+                        }
+                      : item
+                  )),
+                  {
+                    id: crypto.randomUUID(),
+                    role: 'assistant' as const,
+                    content: message,
+                    timestamp: Date.now(),
+                    status: 'done' as const,
+                  },
+                ],
               }
             : conversation
         ))
@@ -408,7 +494,33 @@ export function useConversations() {
             agentCapabilities: capabilities ?? conversation.agentCapabilities,
           }
         }
-        if (type === 'assistant.delta') {
+        if (type === 'approval.requested' && requestId) {
+          messages.push({
+            id: crypto.randomUUID(),
+            role: 'tool',
+            content: text,
+            timestamp: Date.now(),
+            toolName,
+            status: 'running',
+            approvalRequestId: requestId,
+            approvalInput: input,
+            approvalState: 'pending',
+          })
+        } else if (type === 'approval.resolved' && requestId) {
+          const approvalIndex = messages.findIndex(message => (
+            message.approvalRequestId === requestId
+          ))
+          if (approvalIndex >= 0) {
+            messages[approvalIndex] = {
+              ...messages[approvalIndex],
+              status: 'done',
+              approvalState: approved ? 'approved' : 'denied',
+              approvalReason: reason || (approved
+                ? '已允许本次操作'
+                : '已拒绝本次操作'),
+            }
+          }
+        } else if (type === 'assistant.delta') {
           if (last?.role === 'assistant' && last.status === 'running') {
             messages[messages.length - 1] = { ...last, content: last.content + text }
           } else {
@@ -470,6 +582,16 @@ export function useConversations() {
           const nextRunning = new Set(runningIds.value)
           nextRunning.delete(sessionId)
           runningIds.value = nextRunning
+          for (let index = 0; index < messages.length; index++) {
+            if (messages[index].approvalState === 'pending') {
+              messages[index] = {
+                ...messages[index],
+                status: 'done',
+                approvalState: 'expired',
+                approvalReason: 'Agent 运行失败，本次审批已失效',
+              }
+            }
+          }
           messages.push({
             id: crypto.randomUUID(),
             role: 'assistant',
@@ -505,6 +627,7 @@ export function useConversations() {
     listen,
     send,
     abort,
+    respondApproval,
     remove,
     startNew,
     setWorkspace,

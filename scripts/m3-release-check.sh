@@ -13,7 +13,7 @@ fi
 
 go test ./...
 go vet ./...
-node --test bridge-policy.test.js bridge-resource-policy.test.js
+node --test bridge-approval.test.js bridge-policy.test.js bridge-resource-policy.test.js
 npm --prefix app test -- --run
 npm --prefix app run lint
 npm --prefix app run build
@@ -24,6 +24,7 @@ npm run docs:build
 rg -q "TestAgentModel" app/wailsjs/go/main/App.d.ts
 rg -q "GetCodingDiff" app/wailsjs/go/main/App.d.ts
 rg -q "GetCodingArchitecturePreview" app/wailsjs/go/main/App.d.ts
+rg -q "RespondToolApproval" app/wailsjs/go/main/App.d.ts
 rg -q "ListNSSCTFCatalog" app/wailsjs/go/main/App.d.ts
 rg -q "GetCTFAgentBudgetStatus" app/wailsjs/go/main/App.d.ts
 rg -q "GetCTFAgentRunCheckpoint" app/wailsjs/go/main/App.d.ts

@@ -35,6 +35,10 @@ type Event struct {
 	ExecutionMode  string                   `json:"executionMode,omitempty"`
 	ApprovalPolicy string                   `json:"approvalPolicy,omitempty"`
 	Capabilities   []CodingCapabilityStatus `json:"capabilities,omitempty"`
+	RequestID      string                   `json:"requestId,omitempty"`
+	Input          string                   `json:"input,omitempty"`
+	Reason         string                   `json:"reason,omitempty"`
+	Approved       *bool                    `json:"approved,omitempty"`
 }
 
 type RuntimeStatus struct {
@@ -78,6 +82,10 @@ type bridgeEvent struct {
 	ExecutionMode  string                   `json:"executionMode"`
 	ApprovalPolicy string                   `json:"approvalPolicy"`
 	Capabilities   []CodingCapabilityStatus `json:"capabilities"`
+	RequestID      string                   `json:"requestId"`
+	Input          string                   `json:"input"`
+	Reason         string                   `json:"reason"`
+	Approved       *bool                    `json:"approved"`
 }
 
 type childProcess struct {
@@ -95,6 +103,7 @@ type Supervisor struct {
 	turnTimeout  time.Duration
 	turnTimers   map[string]*time.Timer
 	turnSequence map[string]uint64
+	approvals    map[string]int
 	emit         func(Event)
 }
 
@@ -105,6 +114,7 @@ func NewSupervisor(emit func(Event)) *Supervisor {
 		turnTimeout:  defaultTurnActivityTimeout,
 		turnTimers:   make(map[string]*time.Timer),
 		turnSequence: make(map[string]uint64),
+		approvals:    make(map[string]int),
 		emit:         emit,
 	}
 }
@@ -208,6 +218,33 @@ func (s *Supervisor) AbortMessage(sessionID string) error {
 	})
 }
 
+func (s *Supervisor) RespondToolApproval(
+	sessionID,
+	requestID string,
+	approved bool,
+) error {
+	if strings.TrimSpace(sessionID) == "" {
+		return fmt.Errorf("session id is required")
+	}
+	if strings.TrimSpace(requestID) == "" {
+		return fmt.Errorf("approval request id is required")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.process == nil {
+		return fmt.Errorf("PI Sidecar is not running")
+	}
+	if _, exists := s.sessions[sessionID]; !exists {
+		return fmt.Errorf("PI session not found: %s", sessionID)
+	}
+	return writeCommand(s.process.stdin, map[string]any{
+		"action":         "approval_response",
+		"conversationId": sessionID,
+		"requestId":      requestID,
+		"approved":       approved,
+	})
+}
+
 func (s *Supervisor) ProbeModel(settings config.AppSettings) (ModelProbeResult, error) {
 	if err := validateModelAccess(settings); err != nil {
 		return ModelProbeResult{}, err
@@ -276,6 +313,7 @@ func (s *Supervisor) DestroySession(sessionID string) {
 	}
 	s.stopTurnTimerLocked(sessionID)
 	delete(s.sessions, sessionID)
+	delete(s.approvals, sessionID)
 }
 
 func (s *Supervisor) Status() RuntimeStatus {
@@ -299,6 +337,7 @@ func (s *Supervisor) Close() {
 	s.process = nil
 	s.sessions = make(map[string]struct{})
 	s.stopAllTurnTimersLocked()
+	s.approvals = make(map[string]int)
 	s.mu.Unlock()
 
 	if process == nil {
@@ -319,6 +358,7 @@ func (s *Supervisor) ensureProcessLocked(settings config.AppSettings, workspace 
 		s.process = nil
 		s.sessions = make(map[string]struct{})
 		s.stopAllTurnTimersLocked()
+		s.approvals = make(map[string]int)
 		_ = previous.stdin.Close()
 		if previous.command.Process != nil {
 			_ = previous.command.Process.Kill()
@@ -387,6 +427,7 @@ func (s *Supervisor) readEvents(process *childProcess, stdout io.Reader) {
 		s.process = nil
 		s.sessions = make(map[string]struct{})
 		s.stopAllTurnTimersLocked()
+		s.approvals = make(map[string]int)
 	}
 	s.mu.Unlock()
 	if !current {
@@ -412,8 +453,22 @@ func (s *Supervisor) observeTurnEvent(event Event) {
 	switch event.Type {
 	case "assistant.completed", "engine.error", "session.destroyed":
 		s.stopTurnTimerLocked(event.SessionID)
+		delete(s.approvals, event.SessionID)
+	case "approval.requested":
+		s.approvals[event.SessionID]++
+		s.stopTurnTimerLocked(event.SessionID)
+	case "approval.resolved":
+		if s.approvals[event.SessionID] > 1 {
+			s.approvals[event.SessionID]--
+		} else {
+			delete(s.approvals, event.SessionID)
+			if _, exists := s.sessions[event.SessionID]; exists {
+				s.armTurnTimerLocked(event.SessionID)
+			}
+		}
 	case "session.ready", "session.policy_updated", "session.model_selected", "assistant.delta", "assistant.segment_completed", "tool.started", "tool.completed":
-		if _, exists := s.turnTimers[event.SessionID]; exists {
+		if _, exists := s.turnTimers[event.SessionID]; exists &&
+			s.approvals[event.SessionID] == 0 {
 			s.armTurnTimerLocked(event.SessionID)
 		}
 	}
@@ -544,6 +599,10 @@ func normalizeBridgeEvent(raw bridgeEvent) Event {
 		ExecutionMode:  raw.ExecutionMode,
 		ApprovalPolicy: raw.ApprovalPolicy,
 		Capabilities:   raw.Capabilities,
+		RequestID:      raw.RequestID,
+		Input:          raw.Input,
+		Reason:         raw.Reason,
+		Approved:       raw.Approved,
 	}
 	switch raw.Type {
 	case "ready":
@@ -569,6 +628,11 @@ func normalizeBridgeEvent(raw bridgeEvent) Event {
 		if raw.IsError {
 			event.Error = raw.Content
 		}
+	case "approval_requested":
+		event.Type = "approval.requested"
+	case "approval_resolved":
+		event.Type = "approval.resolved"
+		event.Done = true
 	case "session_destroyed":
 		event.Type = "session.destroyed"
 		event.Done = true

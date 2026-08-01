@@ -408,6 +408,14 @@ func (a *App) AbortMessage(conversationID string) error {
 	return a.engines.AbortMessage(conversationID)
 }
 
+func (a *App) RespondToolApproval(
+	conversationID,
+	requestID string,
+	approved bool,
+) error {
+	return a.engines.RespondToolApproval(conversationID, requestID, approved)
+}
+
 func (a *App) GetRuntimeStatus() engine.RuntimeStatus {
 	return a.engines.Status()
 }

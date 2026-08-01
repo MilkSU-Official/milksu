@@ -47,6 +47,38 @@ func TestNormalizeToolError(t *testing.T) {
 	}
 }
 
+func TestNormalizeApprovalLifecycle(t *testing.T) {
+	requested := normalizeBridgeEvent(bridgeEvent{
+		Type:      "approval_requested",
+		ID:        "session-1",
+		RequestID: "approval-1",
+		ToolName:  "bash",
+		Content:   "$ npm test",
+		Input:     `{"command":"npm test"}`,
+	})
+	if requested.Type != "approval.requested" ||
+		requested.RequestID != "approval-1" ||
+		requested.Input == "" ||
+		requested.Done {
+		t.Fatalf("unexpected approval request: %#v", requested)
+	}
+	approved := true
+	resolved := normalizeBridgeEvent(bridgeEvent{
+		Type:      "approval_resolved",
+		ID:        "session-1",
+		RequestID: "approval-1",
+		ToolName:  "bash",
+		Approved:  &approved,
+		Reason:    "approved by user",
+	})
+	if resolved.Type != "approval.resolved" ||
+		resolved.Approved == nil ||
+		!*resolved.Approved ||
+		!resolved.Done {
+		t.Fatalf("unexpected approval resolution: %#v", resolved)
+	}
+}
+
 func TestNormalizeAssistantToolSegmentDoesNotCompleteTurn(t *testing.T) {
 	event := normalizeBridgeEvent(bridgeEvent{
 		Type: "message_segment_done", ID: "session-1", Content: "先运行验收。",
@@ -366,6 +398,44 @@ func TestTurnActivityEventResetsThenCompletionStopsTimeout(t *testing.T) {
 	case event := <-events:
 		t.Fatalf("completed turn emitted a timeout: %#v", event)
 	default:
+	}
+}
+
+func TestPendingApprovalPausesTurnTimeoutUntilResolved(t *testing.T) {
+	events := make(chan Event, 2)
+	supervisor := NewSupervisor(func(event Event) {
+		events <- event
+	})
+	defer supervisor.Close()
+	supervisor.turnTimeout = 30 * time.Millisecond
+	supervisor.mu.Lock()
+	supervisor.sessions["session-approval"] = struct{}{}
+	supervisor.armTurnTimerLocked("session-approval")
+	supervisor.mu.Unlock()
+
+	supervisor.observeTurnEvent(Event{
+		SessionID: "session-approval",
+		Type:      "approval.requested",
+	})
+	time.Sleep(60 * time.Millisecond)
+	select {
+	case event := <-events:
+		t.Fatalf("pending user approval timed out: %#v", event)
+	default:
+	}
+
+	supervisor.observeTurnEvent(Event{
+		SessionID: "session-approval",
+		Type:      "approval.resolved",
+	})
+	select {
+	case event := <-events:
+		if event.Type != "engine.error" ||
+			event.SessionID != "session-approval" {
+			t.Fatalf("unexpected resumed timeout event: %#v", event)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("resolved approval did not resume the turn timeout")
 	}
 }
 

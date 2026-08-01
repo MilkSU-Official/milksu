@@ -11,10 +11,9 @@ describe('Coding policy presentation', () => {
     expect(normalizeCodingApprovalPolicy(undefined)).toBe('workspace-auto')
   })
 
-  it('shows Plan and Ask as non-mutating', () => {
+  it('shows Plan and Read-only as non-mutating', () => {
     for (const [mode, approval] of [
       ['plan', 'workspace-auto'],
-      ['go', 'ask'],
       ['go', 'read-only'],
     ] as const) {
       const capabilities = previewCodingCapabilities(mode, approval)
@@ -22,6 +21,14 @@ describe('Coding policy presentation', () => {
       expect(capabilities.find(item => item.id === 'workspace-write')?.status)
         .not.toBe('allowed')
     }
+  })
+
+  it('shows Ask as a real per-tool approval mode', () => {
+    const capabilities = previewCodingCapabilities('go', 'ask')
+    for (const id of ['workspace-write', 'command', 'network']) {
+      expect(capabilities.find(item => item.id === id)?.status).toBe('approval-required')
+    }
+    expect(capabilities.find(item => item.id === 'credentials')?.status).toBe('blocked')
   })
 
   it('keeps Project Auto useful without granting local credentials or UI control', () => {
