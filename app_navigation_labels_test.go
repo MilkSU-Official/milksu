@@ -221,6 +221,24 @@ func TestCodingComposerKeepsOnlyMessageContextControls(t *testing.T) {
 			t.Fatalf("Coding composer duplicates the right-side environment action %q", duplicate)
 		}
 	}
+
+	pageData, err := os.ReadFile("app/src/components-vue/ChatPage.vue")
+	if err != nil {
+		t.Fatal(err)
+	}
+	page := string(pageData)
+	for _, expected := range []string{
+		`<SelectItem v-if="!ctfSession" value="architecture">架构图</SelectItem>`,
+		`<p class="text-caption font-medium text-muted-foreground">任务操作</p>`,
+		`<span class="shrink-0 text-muted-foreground">技能</span>`,
+		`@media (max-width: 68.75rem)`,
+		`width: 20rem;`,
+		`@media (max-width: 56rem)`,
+	} {
+		if !strings.Contains(page, expected) {
+			t.Fatalf("Coding right panel does not preserve responsive context ownership %q", expected)
+		}
+	}
 }
 
 func TestBrowserExtensionRejectsEmptyPairingCodeClearly(t *testing.T) {

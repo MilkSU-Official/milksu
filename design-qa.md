@@ -117,6 +117,71 @@ No actionable P0, P1, or P2 findings remain.
 
 final result: passed
 
+# Coding 输入区与右侧页面响应式收口 · Design QA
+
+**Comparison Target**
+
+- Source visual truth:
+  `/var/folders/wf/0w9rnrs904501nhp57pd_jzw0000gn/T/codex-clipboard-f2880711-da45-47ce-a0f4-ca509eb52978.png`
+- Packaged macOS implementation:
+  `/private/tmp/milksu-composer-native-final.jpeg`
+- Source pixels: `1568 × 238`.
+- Implementation pixels and app window: `1187 × 768`.
+- State: Coding 新任务、架构图右侧页面打开、输入区空闲。
+- Density normalization: source is a focused composer crop while implementation is a full packaged-app
+  capture. The composer and right-panel boundary were compared at visible scale; unrelated sidebars
+  and empty-state content were excluded from fidelity judgments.
+
+**Findings**
+
+No actionable P0, P1, or P2 finding remains.
+
+- The input island exposes only the four values that affect the next message: project, Plan/Go,
+  permission policy, and model.
+- Product actions and persistent goals live in Environment; Architecture is selected from the
+  right-page selector. Capability, plugin, skill, tool, and model runtime facts live in Environment.
+- At the desktop compact breakpoint, Architecture and Changes use a `20rem` side panel instead of
+  covering the composer. The model selector remains visible as `V4 Flash`.
+- Below `56rem`, the right page intentionally becomes a drawer because both work surfaces can no
+  longer remain usable side by side.
+
+**Required Fidelity Surfaces**
+
+- Fonts and typography: all four composer controls share the compact body token and retain readable
+  labels; the model value is not clipped.
+- Spacing and layout rhythm: one quiet context row sits above the borderless input island. The
+  right page uses a stable desktop split and no longer overlaps the composer at ordinary compact
+  desktop widths.
+- Colors and tokens: existing HTB-inspired navy, muted, border, and lime action tokens are unchanged.
+- Image and asset fidelity: no new raster, placeholder, custom SVG, CSS drawing, emoji, or substitute
+  asset was introduced.
+- Copy and content: duplicate `动作 / 目标 / 架构图 / 能力` controls are absent from the composer.
+  The configured model remains explicit.
+
+**Comparison History**
+
+- Pass 1 — P1: the supplied view contained eight competing controls and reduced the model selector
+  to an ambiguous or hidden value.
+- Fix: moved product actions, goals, architecture, and runtime capability facts to the right-side
+  surfaces; reserved non-shrinking trailing space for the model.
+- Pass 2 — P2: at `1100px` browser width, the compact right page changed to an overlay and visually
+  covered the trailing model control.
+- Fix: keep a `20rem` side-by-side right page through the desktop compact breakpoint; switch to an
+  overlay drawer only below `56rem`.
+- Pass 3 — passed: the rebuilt and self-signed Wails app shows
+  `项目 / Go / 替我审批 / V4 Flash` while the Architecture page is open. The accessibility tree
+  confirms the four composer controls and the independent Architecture selector.
+
+**Checks**
+
+- Packaged Wails build: passed.
+- Go test suite: passed.
+- Vue/Vitest suite: `11` files, `43` tests passed.
+- Browser console at `1280 × 720`: `0` errors, `0` warnings.
+- Native packaged-app interaction: Coding → right-page selector → Architecture; model remains visible.
+
+final result: passed
+
 # Coding 输入区发送上下文收口 · Follow-up QA
 
 - Source visual truth:

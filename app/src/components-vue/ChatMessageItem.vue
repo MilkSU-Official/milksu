@@ -4,16 +4,19 @@ import {
   FileText,
   Hand,
   LoaderCircle,
+  RotateCcw,
 } from 'lucide-vue-next'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import type { Message } from '@/types'
 
 defineProps<{
   message: Message
+  recoverable?: boolean
 }>()
 
 defineEmits<{
   respondApproval: [requestId: string, approved: boolean]
+  retry: []
 }>()
 
 function formatAttachmentSize(size: number) {
@@ -115,6 +118,23 @@ function formatAttachmentSize(size: number) {
         v-if="message.status === 'running'"
         class="ml-2 inline size-3.5 animate-spin text-muted-foreground"
       />
+      <div
+        v-if="recoverable"
+        class="mt-3 flex flex-wrap items-center gap-2"
+      >
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          @click="$emit('retry')"
+        >
+          <RotateCcw class="size-3.5" />
+          继续
+        </Button>
+        <span class="text-caption text-muted-foreground">
+          从已保留的工作区、工具结果和证据继续
+        </span>
+      </div>
     </div>
   </article>
 </template>

@@ -67,6 +67,10 @@ import type {
 } from '@/codingEnvironmentTypes'
 import type { CTFShowCatalogStatus } from '@/ctfshowTypes'
 import { buildChatTranscript } from '@/lib/chatActivity'
+import {
+  agentRecoveryPrompt,
+  recoverableAgentFailureId,
+} from '@/lib/agentRecovery'
 import { buildCodingArchitectureAction } from '@/lib/codingArchitecture'
 import {
   codingProductAction,
@@ -368,6 +372,12 @@ const toolMessageCount = computed(() => (
 const chatTranscript = computed(() => (
   buildChatTranscript(props.conversation?.messages ?? [], props.running)
 ))
+const recoverableFailureId = computed(() => (
+  recoverableAgentFailureId(
+    props.conversation?.messages ?? [],
+    props.running,
+  )
+))
 const latestJudge = computed(() => ctfProjection.value?.judgeReceipts.at(-1))
 const contextPanelTitle = computed(() => ({
   environment: props.ctfSession ? '解题环境' : '环境信息',
@@ -464,6 +474,11 @@ function submit() {
   attachmentError.value = ''
   goalMode.value = false
   emit('send', prompt, text, attachments)
+}
+
+function resumeAfterFailure() {
+  if (props.running || !recoverableFailureId.value) return
+  emit('send', agentRecoveryPrompt(props.ctfSession), '继续')
 }
 
 function formatAttachmentSize(size: number) {
@@ -953,7 +968,9 @@ watch(
           <ChatMessageItem
             v-else
             :message="item.message"
+            :recoverable="item.message.id === recoverableFailureId"
             @respond-approval="(requestId, approved) => $emit('respondApproval', requestId, approved)"
+            @retry="resumeAfterFailure"
           />
         </template>
       </div>
@@ -1896,9 +1913,16 @@ watch(
 
 @media (max-width: 68.75rem) {
   .context-sidebar {
+    width: 20rem;
+  }
+}
+
+@media (max-width: 56rem) {
+  .context-sidebar {
     position: absolute;
     inset-block: 0;
     right: 0;
+    width: min(20rem, calc(100% - 3rem));
     z-index: 20;
     box-shadow: -18px 0 40px rgb(0 0 0 / 28%);
   }
