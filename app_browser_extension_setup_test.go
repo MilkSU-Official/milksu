@@ -154,6 +154,29 @@ func TestNSSCTFJudgeNeverPromisesToSpendCoins(t *testing.T) {
 	}
 }
 
+func TestNSSCTFJudgeRecognizesCurrentWrongFlagReceipt(t *testing.T) {
+	data, err := os.ReadFile("browserextension/background.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := string(data)
+	for _, expected := range []string{
+		`world: 'MAIN'`,
+		"fetch(`/api/problem/submit/${command.problemId}/`",
+		`body: JSON.stringify({ flag: command.candidate })`,
+		`const judgeCode = Number(payload?.code)`,
+		`judgeCode === 200`,
+		`[201, 202, 204, 205].includes(judgeCode)`,
+		`message: receipt || 'flag有误，请重新提交。'`,
+		`status: 'rejected'`,
+		`correct: false`,
+	} {
+		if !strings.Contains(source, expected) {
+			t.Fatalf("NSSCTF Judge adapter does not use the current structured receipt: %q", expected)
+		}
+	}
+}
+
 func TestCTFMemoryRequiresAConcludedReflectedRun(t *testing.T) {
 	data, err := os.ReadFile("app/src/components-vue/CTFDebrief.vue")
 	if err != nil {

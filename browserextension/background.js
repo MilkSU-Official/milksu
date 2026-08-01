@@ -125,9 +125,9 @@ async function handleBridgeMessage(raw) {
   try {
     const [{ result: adapterResult }] = await chrome.scripting.executeScript({
       target: { tabId: session.tabId },
+      world: 'MAIN',
       args: [command],
       func: async command => {
-        const delay = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
         const normalize = value => (value || '').replace(/\s+/g, ' ').trim();
         const match = /^\/problem\/([1-9][0-9]*)\/?$/.exec(location.pathname);
         if (location.origin !== 'https://www.nssctf.cn' || !match || Number(match[1]) !== command.problemId) {
@@ -150,31 +150,66 @@ async function handleBridgeMessage(raw) {
         }
         if (!input) return { status: 'error', message: '没有找到 NSSCTF 提交区。' };
 
-        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-        if (!setter) return { status: 'error', message: '无法写入 NSSCTF Flag 输入框。' };
-        setter.call(input, command.candidate);
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-
-        const submit = Array.from(document.querySelectorAll('button'))
-          .find(button => normalize(button.textContent).replace(/\s/g, '') === '提交');
-        if (!submit) return { status: 'error', message: '没有找到 NSSCTF 提交按钮。' };
-        submit.click();
-
-        for (let attempt = 0; attempt < 60; attempt++) {
-          await delay(200);
-          const notices = Array.from(document.querySelectorAll('[role="dialog"],[role="alert"],.el-message,.el-notification'))
-            .map(element => normalize(element.textContent))
-            .filter(Boolean);
-          const receipt = notices.join(' · ').slice(0, 1800);
-          if (receipt.includes('恭喜您通过了该题')) {
-            return { status: 'accepted', correct: true, message: receipt };
-          }
-          if (/(flag|答案).*(错误|不正确|失败)|(错误|不正确).*(flag|答案)|incorrect|wrong flag/i.test(receipt)) {
-            return { status: 'rejected', correct: false, message: receipt };
-          }
+        let response;
+        try {
+          response = await fetch(`/api/problem/submit/${command.problemId}/`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+              accept: 'application/json',
+              'content-type': 'application/json',
+            },
+            body: JSON.stringify({ flag: command.candidate }),
+          });
+        } catch (error) {
+          return { status: 'error', message: `NSSCTF 提交请求失败：${String(error?.message || error)}` };
         }
-        return { status: 'ambiguous', message: 'NSSCTF 在等待时间内没有返回可识别的 Judge 回执。' };
+
+        const rawPayload = await response.text();
+        let payload;
+        try {
+          payload = JSON.parse(rawPayload);
+        } catch {
+          return {
+            status: 'ambiguous',
+            message: `NSSCTF Judge 返回了无法识别的 HTTP ${response.status} 响应。`,
+          };
+        }
+        const receipt = normalize(
+          payload?.message
+          || payload?.msg
+          || payload?.data?.message
+          || payload?.data?.msg,
+        );
+        const judgeCode = Number(payload?.code);
+        if (judgeCode === 200) {
+          return {
+            status: 'accepted',
+            correct: true,
+            message: receipt || 'NSSCTF Judge 已确认答案正确。',
+          };
+        }
+        if (
+          response.status === 401
+          || response.status === 403
+          || [201, 202, 204, 205].includes(judgeCode)
+        ) {
+          return {
+            status: 'error',
+            message: receipt || 'NSSCTF 拒绝了当前会话的提交请求；请检查登录与账号状态。',
+          };
+        }
+        if (payload && Object.prototype.hasOwnProperty.call(payload, 'code')) {
+          return {
+            status: 'rejected',
+            correct: false,
+            message: receipt || 'flag有误，请重新提交。',
+          };
+        }
+        return {
+          status: 'ambiguous',
+          message: 'NSSCTF Judge 没有返回可识别的判题状态。',
+        };
       },
     });
     result = {
