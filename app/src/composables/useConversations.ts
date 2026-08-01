@@ -686,6 +686,13 @@ export function useConversations() {
           const nextRunning = new Set(runningIds.value)
           nextRunning.delete(sessionId)
           runningIds.value = nextRunning
+        } else if (type === 'assistant.settled') {
+          if (last?.role === 'assistant' && last.status === 'running') {
+            messages[messages.length - 1] = { ...last, status: 'done' }
+          }
+          const nextRunning = new Set(runningIds.value)
+          nextRunning.delete(sessionId)
+          runningIds.value = nextRunning
         } else if (type === 'tool.started' || type === 'tool.completed') {
           if (last?.role === 'tool' && last.toolName === toolName && last.status === 'running') {
             messages[messages.length - 1] = {

@@ -31,7 +31,10 @@ import {
 import { preparePromptAttachments } from "./bridge-attachments.js";
 import { analyzeTextOnlyImages } from "./bridge-vision.js";
 import { projectBackgroundTaskMetas } from "./bridge-background-view.js";
-import { projectSessionGoal } from "./bridge-goal-view.js";
+import {
+  goalKeepsSessionRunning,
+  projectSessionGoal,
+} from "./bridge-goal-view.js";
 
 const relayKey = process.env.MILKSU_RELAY_KEY;
 const relayUrl = process.env.MILKSU_RELAY_URL || "https://api.ciyuanliudong.com/v1";
@@ -79,9 +82,11 @@ function emitBackgroundTasks(conversationId) {
 }
 
 function emitGoalState(conversationId, session) {
+  const goal = projectSessionGoal(session?.sessionManager);
   emit(conversationId, "goal_state", {
-    goal: projectSessionGoal(session?.sessionManager),
+    goal,
   });
+  return goal;
 }
 
 const approvalBroker = createApprovalBroker(emit);
@@ -451,7 +456,10 @@ function subscribeSession(conversationId, session, maxToolEventOutputBytes) {
     }
 
     if (event.type === "agent_settled") {
-      emitGoalState(conversationId, session);
+      const goal = emitGoalState(conversationId, session);
+      if (!goalKeepsSessionRunning(goal)) {
+        emit(conversationId, "turn_settled");
+      }
       return;
     }
 

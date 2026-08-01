@@ -157,6 +157,17 @@ func TestNormalizeAssistantToolSegmentDoesNotCompleteTurn(t *testing.T) {
 	}
 }
 
+func TestNormalizeTurnSettledCompletesVisibleRunWithoutInventingMessage(t *testing.T) {
+	event := normalizeBridgeEvent(bridgeEvent{
+		Type: "turn_settled", ID: "session-1",
+	})
+	if event.Type != "assistant.settled" ||
+		event.Text != "" ||
+		!event.Done {
+		t.Fatalf("unexpected event: %#v", event)
+	}
+}
+
 func TestWriteCommandUsesOneJSONLine(t *testing.T) {
 	var buffer bytes.Buffer
 	if err := writeCommand(&buffer, map[string]string{"action": "probe"}); err != nil {
@@ -526,7 +537,7 @@ func TestTurnActivityTimeoutEmitsRecoverableFailure(t *testing.T) {
 	}
 }
 
-func TestTurnActivityEventResetsThenCompletionStopsTimeout(t *testing.T) {
+func TestTurnActivityEventResetsThenSettledStopsTimeout(t *testing.T) {
 	events := make(chan Event, 2)
 	supervisor := NewSupervisor(func(event Event) {
 		events <- event
@@ -545,7 +556,7 @@ func TestTurnActivityEventResetsThenCompletionStopsTimeout(t *testing.T) {
 	time.Sleep(25 * time.Millisecond)
 	supervisor.observeTurnEvent(Event{
 		SessionID: "session-active",
-		Type:      "assistant.completed",
+		Type:      "assistant.settled",
 	})
 	time.Sleep(50 * time.Millisecond)
 	select {

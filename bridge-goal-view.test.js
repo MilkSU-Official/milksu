@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  goalKeepsSessionRunning,
   projectGoalStateData,
   projectSessionGoal,
 } from "./bridge-goal-view.js";
@@ -59,4 +60,19 @@ test("rejects malformed or unsupported goal state", () => {
   assert.equal(projectGoalStateData({ goal: { ...activeGoal, status: "mystery" } }), null);
   assert.equal(projectGoalStateData({ goal: { ...activeGoal, id: "" } }), null);
   assert.equal(projectGoalStateData({ goal: null }), null);
+});
+
+test("only active or queued goals keep the visible turn running", () => {
+  assert.equal(goalKeepsSessionRunning(activeGoal), true);
+  assert.equal(goalKeepsSessionRunning({ ...activeGoal, status: "queued" }), true);
+  for (const status of [
+    "complete",
+    "paused",
+    "blocked",
+    "usage_limited",
+    "budget_limited",
+  ]) {
+    assert.equal(goalKeepsSessionRunning({ ...activeGoal, status }), false);
+  }
+  assert.equal(goalKeepsSessionRunning(null), false);
 });

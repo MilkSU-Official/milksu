@@ -495,7 +495,7 @@ func (s *Supervisor) observeTurnEvent(event Event) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	switch event.Type {
-	case "assistant.completed", "engine.error", "session.destroyed":
+	case "assistant.completed", "assistant.settled", "engine.error", "session.destroyed":
 		s.stopTurnTimerLocked(event.SessionID)
 		delete(s.approvals, event.SessionID)
 	case "approval.requested":
@@ -683,6 +683,9 @@ func normalizeBridgeEvent(raw bridgeEvent) Event {
 		event.Done = true
 	case "message_segment_done":
 		event.Type = "assistant.segment_completed"
+		event.Done = true
+	case "turn_settled":
+		event.Type = "assistant.settled"
 		event.Done = true
 	case "tool_call_start":
 		event.Type = "tool.started"

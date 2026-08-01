@@ -71,3 +71,7 @@ export function projectSessionGoal(sessionManager) {
   }
   return null;
 }
+
+export function goalKeepsSessionRunning(goal) {
+  return goal?.status === "active" || goal?.status === "queued";
+}
