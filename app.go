@@ -42,6 +42,7 @@ import (
 type App struct {
 	ctx            context.Context
 	dataDirectory  string
+	diagnostics    *appdata.DiagnosticRecorder
 	settings       *config.Store
 	conversations  *conversation.Store
 	codingFiles    *codingattachment.Store
@@ -82,10 +83,12 @@ func NewApp() (*App, error) {
 
 	application := &App{
 		dataDirectory: dataDirectory,
+		diagnostics:   appdata.NewDiagnosticRecorder(256),
 		settings:      settings,
 		conversations: conversations,
 		codingFiles:   codingFiles,
 	}
+	application.diagnostics.Record("app", "info", "application services initialized")
 	if managedLabsFeatureEnabled() {
 		application.managedLabs, err = labmanager.New(dataDirectory)
 		if err != nil {
@@ -183,20 +186,25 @@ func managedLabsFeatureEnabled() bool {
 
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
+	a.diagnostics.Record("app", "info", "desktop runtime started")
 	if a.managedLabs != nil {
 		reconcileContext, cancel := context.WithTimeout(ctx, managedLabReconcileTimeout)
 		if _, err := a.managedLabs.Reconcile(reconcileContext); err != nil {
+			a.diagnostics.Record("managed-labs", "error", err.Error())
 			wailsruntime.EventsEmit(ctx, "managed-lab-runtime-error", err.Error())
 		}
 		cancel()
 	}
 	if err := a.jobs.Recover(ctx); err != nil {
+		a.diagnostics.Record("runtime", "error", err.Error())
 		wailsruntime.EventsEmit(ctx, "job-runtime-error", err.Error())
 	}
 	if err := a.ctfJobs.Recover(ctx); err != nil {
+		a.diagnostics.Record("ctf", "error", err.Error())
 		wailsruntime.EventsEmit(ctx, "job-runtime-error", err.Error())
 	}
 	if err := a.vulnJobs.Recover(ctx); err != nil {
+		a.diagnostics.Record("vuln", "error", err.Error())
 		wailsruntime.EventsEmit(ctx, "job-runtime-error", err.Error())
 	}
 }
@@ -248,6 +256,59 @@ func (a *App) ExportLocalDataBackup() (appdata.BackupExport, error) {
 		return appdata.BackupExport{Cancelled: true}, nil
 	}
 	return appdata.ExportBackup(a.commandContext(), a.dataDirectory, destination)
+}
+
+func (a *App) ExportLocalDiagnostics() (appdata.DiagnosticExport, error) {
+	if a.ctx == nil {
+		return appdata.DiagnosticExport{}, fmt.Errorf("desktop runtime is not ready")
+	}
+	destination, err := wailsruntime.SaveFileDialog(a.ctx, wailsruntime.SaveDialogOptions{
+		Title:                "导出 MilkSU 诊断包",
+		DefaultFilename:      "MilkSU-diagnostics-" + time.Now().Format("2006-01-02") + ".zip",
+		CanCreateDirectories: true,
+		Filters: []wailsruntime.FileFilter{
+			{DisplayName: "MilkSU 诊断包", Pattern: "*.zip"},
+		},
+	})
+	if err != nil {
+		return appdata.DiagnosticExport{}, err
+	}
+	if strings.TrimSpace(destination) == "" {
+		return appdata.DiagnosticExport{Cancelled: true}, nil
+	}
+	runtimeStatus := a.engines.Status()
+	settings := a.settings.Get()
+	providers := make([]string, 0, len(settings.Providers))
+	for provider, configured := range settings.Providers {
+		if configured.Enabled || configured.HasAPIKey {
+			providers = append(providers, provider)
+		}
+	}
+	return appdata.ExportDiagnostics(
+		a.commandContext(),
+		a.dataDirectory,
+		destination,
+		appdata.DiagnosticInput{
+			AppVersion: "0.1.0",
+			Runtime: appdata.DiagnosticRuntime{
+				DefaultEngine:       runtimeStatus.DefaultEngine,
+				Running:             runtimeStatus.Running,
+				SessionCount:        runtimeStatus.SessionCount,
+				Protocol:            runtimeStatus.Protocol,
+				BackgroundTaskCount: len(runtimeStatus.BackgroundTasks),
+			},
+			Settings: appdata.DiagnosticSettings{
+				ActiveProvider:     settings.ActiveProvider,
+				ActiveModel:        settings.ActiveModel,
+				DefaultMode:        settings.ModelRouting.DefaultMode,
+				RelayEnabled:       settings.Relay != nil && settings.Relay.Enabled,
+				ModelVerified:      settings.ModelVerified != nil,
+				ConfiguredProvider: providers,
+				ArenaTokenPresent:  settings.NSSCTFArena != nil && settings.NSSCTFArena.HasToken,
+			},
+			Events: a.diagnostics.Snapshot(),
+		},
+	)
 }
 
 func (a *App) RevealLocalDataDirectory() error {
@@ -2019,11 +2080,17 @@ func (a *App) CancelVulnJob(id string) error {
 }
 
 func (a *App) emitEngineEvent(event engine.Event) {
+	if event.Error != "" {
+		a.diagnostics.Record("coding-engine", "error", event.Type+": "+event.Error)
+	} else if event.Type == "engine.started" || event.Type == "engine.stopped" {
+		a.diagnostics.Record("coding-engine", "info", event.Type)
+	}
 	if a.ctx != nil {
 		wailsruntime.EventsEmit(a.ctx, "engine-event", event)
 	}
 	if a.ctfAgent != nil {
 		if err := a.ctfAgent.Record(a.commandContext(), event); err != nil && a.ctx != nil {
+			a.diagnostics.Record("ctf-agent", "error", err.Error())
 			if errors.Is(err, errCTFAgentLoopDetected) {
 				_ = a.engines.AbortMessage(event.SessionID)
 			}
@@ -2033,6 +2100,13 @@ func (a *App) emitEngineEvent(event engine.Event) {
 }
 
 func (a *App) emitJobEvent(event securityruntime.Event) {
+	switch event.Kind {
+	case securityruntime.EventJobFailed,
+		securityruntime.EventAttemptFailed,
+		securityruntime.EventStepFailed,
+		securityruntime.EventActionFailed:
+		a.diagnostics.Record("security-runtime", "error", string(event.Kind))
+	}
 	if a.ctx == nil {
 		return
 	}

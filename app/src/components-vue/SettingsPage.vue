@@ -24,6 +24,7 @@ import {
   ArrowLeft,
   Check,
   Download,
+  FileWarning,
   FolderOpen,
   KeyRound,
   ShieldCheck,
@@ -33,6 +34,7 @@ import type {
   AppSettings,
   LocalDataBackupExport,
   LocalDataStatus,
+  LocalDiagnosticExport,
   ModelProbeResult,
   ModelSelection,
 } from '@/types'
@@ -59,6 +61,7 @@ const saving = ref(false)
 const verifying = ref(false)
 const localDataLoading = ref(false)
 const backupExporting = ref(false)
+const diagnosticExporting = ref(false)
 const localData = ref<LocalDataStatus | null>(null)
 const notice = ref<{ tone: 'ok' | 'error'; text: string } | null>(null)
 
@@ -202,6 +205,23 @@ async function exportLocalDataBackup() {
   }
 }
 
+async function exportLocalDiagnostics() {
+  diagnosticExporting.value = true
+  notice.value = null
+  try {
+    const exported = await invokeCommand<LocalDiagnosticExport>('export_local_diagnostics')
+    if (exported.cancelled) return
+    notice.value = {
+      tone: 'ok',
+      text: `诊断包已导出（${formatBytes(exported.bytes)}，${exported.eventCount} 条脱敏运行事件）；不包含会话正文、附件或凭据。`,
+    }
+  } catch (reason) {
+    notice.value = { tone: 'error', text: `诊断包导出失败：${String(reason)}` }
+  } finally {
+    diagnosticExporting.value = false
+  }
+}
+
 async function save() {
   if (!working.value) return
   saving.value = true
@@ -327,9 +347,21 @@ async function save() {
                   <Download class="size-3.5" />
                   导出安全备份
                 </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  :loading="diagnosticExporting"
+                  @click="exportLocalDiagnostics"
+                >
+                  <FileWarning class="size-3.5" />
+                  导出诊断包
+                </Button>
               </div>
               <p class="mt-3 text-caption leading-5 text-muted-foreground">
                 备份包含会话、训练记录、附件和一致的 SQLite 快照；凭据库、浏览器配对令牌和 PI 认证文件不会写入。会话正文按原样备份。
+              </p>
+              <p class="mt-1 text-caption leading-5 text-muted-foreground">
+                诊断包只包含版本、运行状态、数据库健康检查和脱敏错误事件，便于排查启动与连接问题。
               </p>
             </SettingsRow>
           </SettingsSection>

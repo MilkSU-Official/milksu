@@ -217,6 +217,14 @@ export interface LocalDataBackupExport {
   cancelled?: boolean
 }
 
+export interface LocalDiagnosticExport {
+  path: string
+  generatedAt: string
+  bytes: number
+  eventCount: number
+  cancelled?: boolean
+}
+
 export const EMPTY_USAGE: UsageData = {
   input_tokens: null,
   output_tokens: null,

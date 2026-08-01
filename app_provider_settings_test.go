@@ -26,7 +26,7 @@ func TestProviderSettingsSeparateOfficialAndRelayServices(t *testing.T) {
 
 	for _, file := range []string{
 		"app/src/components-vue/SettingsPage.vue",
-		"app/src/components-vue/ChatPage.vue",
+		"app/src/components-vue/CodingComposerControls.vue",
 	} {
 		data, err := os.ReadFile(file)
 		if err != nil {
