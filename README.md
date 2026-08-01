@@ -67,7 +67,7 @@ L2 定义角色闭环，L5 提供可改造的通用 Agent Engine，L6 横切保�
 - Go / Wails / Vue 3 桌面宿主，界面组件复用 `memohai/ui`，当前产品视觉采用高对比黑绿工作台方案；
 - PI Coding Agent 项目工作区、持久会话、模型配置、停止控制与流式工具输出；
 - Plan / Go、请求批准 / Project Auto / Full Access 的后端权限策略，以及工作区、Git、模型、插件和工具环境信息；
-- 固定版本 Archify、PI LSP 与 PI Retry 的 Coding 资源白名单；CTF 会话通过负向 Smoke 保持隔离；
+- 固定版本 Archify、PI LSP、PI Goal、后台任务、项目 MCP 与本地 OCR 的 Coding 资源白名单；CTF 会话通过负向 Smoke 保持隔离；
 - 一个进程隔离的 Pi SDK Sidecar 和版本化结构化事件边界；
 - Pi 与 Codex app-server 使用同一微型 CTF 的 M0 Spike。Pi 是默认可改造 Engine，Codex 暂作对照与未来兼容运行时。
 - Go 实现的 M1 Shared Security Runtime：追加式 SQLite 事件、内容寻址 Artifact、只读 Projection、独立 Evaluator、取消和中断恢复；
@@ -76,7 +76,7 @@ L2 定义角色闭环，L5 提供可改造的通用 Agent Engine，L6 横切保�
 - 面向真实入门题的有界文本分析：Base64（含多层）、Hex、Binary、Morse 与 URL 编码只在 Go capability 中确定性转换，结果作为 Artifact/Observation 回到 Agent，而不是让模型自报计算结果；
 - 独立于通用聊天的 `security-bridge.js`。它关闭 Pi 内建 Coding Tools 与用户级扩展，只向模型暴露三种 CTF 提议工具。
 
-当前可以准确声称的是：MilkSU 已完成一条真实 NSSCTF P3879 的题面与附件 Intake、Pi 解题、候选闸门、配对浏览器 Judge `correct=true`、恢复和复盘闭环；Coding 核心也已通过一次打包应用内的连续短提示交付。它仍不能被描述成通用 CTF Solver 或 Codex 等价产品：CTF 多题型、动态 Endpoint 确认、能力画像校准，以及 Coding 的逐次审批、Diff/Git 发布、附件、MCP Browser、Computer Use 和后台进程仍未完成。
+当前可以准确声称的是：MilkSU 已完成一条真实 NSSCTF P3879 的题面与附件 Intake、Pi 解题、候选闸门、配对浏览器 Judge `correct=true`、恢复和复盘闭环；Coding 核心也已通过一次打包应用内的连续短提示交付，并已接入逐工具审批、文件/图片附件、文件级 Diff、后台任务和 opt-in 项目 MCP。它仍不能被描述成通用 CTF Solver 或 Codex 等价产品：CTF 多题型、动态 Endpoint 确认、能力画像校准，以及 Coding 的 Git 发布、Coding Browser、Computer Use、可见终端和完整进程/端口面板仍未完成。
 
 2026-07-21 已保存一个 [M2 → M3 授权学习能力基础检查点](docs/developer/checkpoints/2026-07-21-m2-m3-foundation.md)：精确授权策略、Managed Lab/Browser 基础包、CTF 教学与外部人工 Judge 契约、以及本地 Vuln fixture 已经可以编译和自动测试。它们尚未完整接入桌面 UI 或真实环境，因此不改变上面的 M2 验收结论。
 

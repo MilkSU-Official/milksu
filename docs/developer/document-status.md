@@ -2,7 +2,7 @@
 
 > 状态：**Living document**
 >
-> 最后事实审计：2026-08-01
+> 最后事实审计：2026-08-02
 >
 > 规则：未经自动化或真实产品验收的工作区改动不能从 `Partial` 升为 `Verified`。
 
@@ -14,8 +14,9 @@ MilkSU 当前是一个 local-first 的授权安全学习与研究桌面工作台
   Debrief 闭环，但多题型、动态 Endpoint 和能力画像仍需样本校准；
 - **Coding** 核心 Plan → Go、多轮编辑、命令与测试已经真实交付；Codex 风格三档权限菜单、
   Project Auto 和显式 Full Access 已实现；理解项目、运行测试、审阅变更、修复失败和总结
-  已成为固定的一键动作，文件级 Diff 有独立右侧页。仍缺真正的逐次审批、Git 发布、附件、
-  MCP Browser、Computer Use 和后台进程；
+  已在同一打包 App 会话完成连续真实验收，文件级 Diff 有独立右侧页并向审阅动作注入桌面
+  Git Adapter 的可信证据。逐工具审批、文件/图片附件、项目级 MCP 选择与后台任务运行时
+  已接线；仍缺 Git 发布、Coding Browser、Computer Use、可见终端和完整后台进程/端口面板；
 - **NYU CTF Bench** 只有开发者专用 safe-static 单次 Runner 与 Digest Judge，不是完整
   Challenge Runner，也不是用户训练能力；
 - **Labs** 与 **CVE Research** 已完成顶层/详细设计，但保持 `Paused / Designed`；
@@ -49,9 +50,13 @@ MilkSU 当前是一个 local-first 的授权安全学习与研究桌面工作台
 | Coding 核心交付 | 打包 App 中 Plan → Go、多轮修改、`npm test`、smoke 与外部独立复验。 |
 | Coding 权限执行 | Project Auto 项目外写入负向测试、Full Access 显式项目外写入与 Provider Key 隔离测试。 |
 | Coding 权限菜单 | Codex 三档层级、帮助入口、选中态、警示色和 1024 × 700 视口完成浏览器交互与视觉对照；推荐状态恢复为 Project Auto。 |
-| Coding 日常动作与 Diff | 五个固定动作协议有单测；右侧变更页支持文件列表、暂存/工作区 Diff、截断和 Agent 审阅入口。 |
+| Coding 日常动作与 Diff | 同一真实打包 App 会话连续完成理解、失败复现、审阅、修复和总结；修复后 `npm test` 为 3/3；右侧变更页支持文件列表、暂存/工作区 Diff、截断和可信 Git 证据审阅。 |
+| Coding 运行时隔离 | Project Auto 的 HOME/TMP/Node wrapper 位于用户数据目录的稳定工作区哈希路径；用户仓库不再生成运行时 `.milksu`，旧目录不会被自动删除且从 Git 面板隐藏。 |
+| Coding 审批与扩展底座 | Request Approval 会暂停单次工具并由桌面批准/拒绝；固定 `pi-goal`、`pi-lsp`、后台任务和 opt-in MCP Adapter 已进入打包清单、正向 Smoke 与 CTF 负向隔离。 |
+| Coding 附件与文本视觉降级 | 文件/图片会复制到用户数据目录并随会话持久化；纯文本模型使用本地 OCR 或显式视觉路由，无法可靠识图时必须披露降级。 |
 | Archify 一键产品动作 | 真实打包 App 一键生成固定 JSON/HTML，独立复验 9/9、0 error、0 warning，右侧预览成功。 |
 | 本地持久化 | 用户目录 SQLite、Workspace、Artifact、Conversation、Memory 和 Credential Store。 |
+| 安全备份恢复 | 设置页可导出一致 SQLite 快照并从备份恢复；恢复在 Store 打开前执行，拒绝未来版本/损坏哈希/路径穿越，保留凭据与配对，并生成可回滚快照。 |
 | NYU safe-static 基线 | 人工准入、一次无工具 Provider 调用、Digest Judge、成本/Token/退出原因报告。 |
 | 当前架构图 | Archify 规格与 HTML 通过 showcase 9/9、0 error、0 warning。 |
 
@@ -59,15 +64,15 @@ MilkSU 当前是一个 local-first 的授权安全学习与研究桌面工作台
 
 | 优先级 | 任务 | 完成条件 |
 | --- | --- | --- |
-| P0 | Coding 逐次审批与权限闭环 | Ask 能真正暂停、展示工具参数并由用户批准/拒绝；网络、凭据、Browser、Computer Use 独立授权。 |
+| P0 | Coding 审批与外部副作用闭环 | 保持单次工具批准/拒绝回归；Git 发布、Browser、Computer Use 等外部副作用继续使用独立授权。 |
 | P0 | Coding Diff / Git 发布 | 文件级 Diff、行级反馈、stage/commit/push 状态和副作用确认形成闭环。 |
-| P0 | Coding 附件与产物预览 | 文件/图片输入、发送范围、大小类型、HTML/Markdown/图片预览真实可用。 |
+| P0 | Coding 产物与视觉预览 | 在已实现附件输入之上补 HTML/Markdown/图片产物预览，并区分 OCR 文本与真正视觉理解。 |
 | P0 | 原生 UI / Markdown 回归 | 长代码块、表格、旧会话、窄窗口、下拉框和右侧面板在打包 App 中不重叠、不截断。 |
 | P0 | CTF 多题型验收 | Web、Reverse、Crypto、Forensics 各保留 Judge、轨迹、提示依赖和恢复证据。 |
-| P1 | Coding MCP Browser / Computer Use | 复用成熟 Pi/MCP 能力；环境面板显示来源、权限、活动和停止状态。 |
+| P1 | Coding Browser / Computer Use | 项目 MCP 已 opt-in 接入；继续复用成熟 Browser/Computer Use 能力，并在环境面板显示来源、权限、活动和停止状态。 |
 | P1 | CTF Memory / 能力画像校准 | 错误记忆可停用；跨题召回与六维变化能由真实训练样本解释。 |
-| P1 | 架构债拆分 | 保持 Wails/领域契约稳定，逐步拆 `app.go`、`CTFPage.vue`、Browser Manager、CTF Service 和 Bridge Policy。 |
-| P1 | SQLite 迁移与公开发行 | 编号迁移、升级备份测试、Developer ID、公证和升级路径。 |
+| P1 | 架构债拆分 | CTFshow、NSSCTF Web 与 Arena 桌面适配器已从 `app.go` 独立；继续保持 Wails/领域契约稳定，拆 `CTFPage.vue`、Browser Manager、CTF Service 和 Bridge Policy。 |
+| P1 | SQLite 迁移与公开发行 | 可回滚备份恢复已完成；仍需统一编号迁移、Developer ID、公证和升级路径。 |
 
 ### Designed / Paused
 
