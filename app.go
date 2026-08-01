@@ -60,6 +60,14 @@ type App struct {
 }
 
 func NewApp() (*App, error) {
+	dataDirectory, err := appdata.Ensure()
+	if err != nil {
+		return nil, err
+	}
+	restoreResult, err := appdata.ApplyPendingRestore(dataDirectory)
+	if err != nil {
+		return nil, fmt.Errorf("apply pending local data restore: %w", err)
+	}
 	settings, err := config.NewStore()
 	if err != nil {
 		return nil, fmt.Errorf("create settings store: %w", err)
@@ -67,10 +75,6 @@ func NewApp() (*App, error) {
 	conversations, err := conversation.NewStore()
 	if err != nil {
 		return nil, fmt.Errorf("create conversation store: %w", err)
-	}
-	dataDirectory, err := appdata.Ensure()
-	if err != nil {
-		return nil, err
 	}
 	codingFiles, err := codingattachment.NewStore(
 		filepath.Join(dataDirectory, "agent-home", "attachments"),
@@ -87,6 +91,12 @@ func NewApp() (*App, error) {
 		codingFiles:   codingFiles,
 	}
 	application.diagnostics.Record("app", "info", "application services initialized")
+	if restoreResult.Applied {
+		application.diagnostics.Record("appdata", "info", "pending local data restore applied")
+	}
+	if restoreResult.RecoveredFirst {
+		application.diagnostics.Record("appdata", "warning", "interrupted local data restore recovered")
+	}
 	if managedLabsFeatureEnabled() {
 		application.managedLabs, err = labmanager.New(dataDirectory)
 		if err != nil {
@@ -254,6 +264,44 @@ func (a *App) ExportLocalDataBackup() (appdata.BackupExport, error) {
 		return appdata.BackupExport{Cancelled: true}, nil
 	}
 	return appdata.ExportBackup(a.commandContext(), a.dataDirectory, destination)
+}
+
+func (a *App) ScheduleLocalDataRestore() (appdata.BackupRestoreStage, error) {
+	if a.ctx == nil {
+		return appdata.BackupRestoreStage{}, fmt.Errorf("desktop runtime is not ready")
+	}
+	source, err := wailsruntime.OpenFileDialog(a.ctx, wailsruntime.OpenDialogOptions{
+		Title: "从 MilkSU 安全备份恢复",
+		Filters: []wailsruntime.FileFilter{
+			{DisplayName: "MilkSU 备份", Pattern: "*.zip"},
+		},
+	})
+	if err != nil {
+		return appdata.BackupRestoreStage{}, err
+	}
+	if strings.TrimSpace(source) == "" {
+		return appdata.BackupRestoreStage{Cancelled: true}, nil
+	}
+	validation, err := appdata.ValidateBackup(source)
+	if err != nil {
+		return appdata.BackupRestoreStage{}, err
+	}
+	const confirmButton = "恢复并在重启后应用"
+	selection, err := wailsruntime.MessageDialog(a.ctx, wailsruntime.MessageDialogOptions{
+		Type:          wailsruntime.WarningDialog,
+		Title:         "确认恢复本地数据",
+		Message:       fmt.Sprintf("将恢复 %d 个文件。当前数据会先保存为可回滚快照；API 凭据、浏览器配对和 PI 认证保持不变。恢复会在下次启动 MilkSU 时应用。", validation.FileCount),
+		Buttons:       []string{confirmButton, "取消"},
+		DefaultButton: "取消",
+		CancelButton:  "取消",
+	})
+	if err != nil {
+		return appdata.BackupRestoreStage{}, err
+	}
+	if selection != confirmButton {
+		return appdata.BackupRestoreStage{Cancelled: true}, nil
+	}
+	return appdata.StageBackupRestore(a.dataDirectory, source)
 }
 
 func (a *App) ExportLocalDiagnostics() (appdata.DiagnosticExport, error) {

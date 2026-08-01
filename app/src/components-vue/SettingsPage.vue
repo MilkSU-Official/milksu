@@ -27,12 +27,14 @@ import {
   FileWarning,
   FolderOpen,
   KeyRound,
+  RotateCcw,
   ShieldCheck,
 } from 'lucide-vue-next'
 import { invokeCommand } from '@/desktop'
 import type {
   AppSettings,
   LocalDataBackupExport,
+  LocalDataBackupRestore,
   LocalDataStatus,
   LocalDiagnosticExport,
   ModelProbeResult,
@@ -61,6 +63,7 @@ const saving = ref(false)
 const verifying = ref(false)
 const localDataLoading = ref(false)
 const backupExporting = ref(false)
+const restoreScheduling = ref(false)
 const diagnosticExporting = ref(false)
 const localData = ref<LocalDataStatus | null>(null)
 const notice = ref<{ tone: 'ok' | 'error'; text: string } | null>(null)
@@ -202,6 +205,23 @@ async function exportLocalDataBackup() {
     notice.value = { tone: 'error', text: `备份导出失败：${String(reason)}` }
   } finally {
     backupExporting.value = false
+  }
+}
+
+async function scheduleLocalDataRestore() {
+  restoreScheduling.value = true
+  notice.value = null
+  try {
+    const restore = await invokeCommand<LocalDataBackupRestore>('schedule_local_data_restore')
+    if (restore.cancelled) return
+    notice.value = {
+      tone: 'ok',
+      text: `已验证并暂存 ${restore.fileCount} 个文件（${formatBytes(restore.bytes)}）。关闭并重新打开 MilkSU 后应用；当前数据会保留为回滚快照，凭据与浏览器配对不会被覆盖。`,
+    }
+  } catch (reason) {
+    notice.value = { tone: 'error', text: `备份恢复失败：${String(reason)}` }
+  } finally {
+    restoreScheduling.value = false
   }
 }
 
@@ -350,6 +370,15 @@ async function save() {
                 <Button
                   variant="outline"
                   size="sm"
+                  :loading="restoreScheduling"
+                  @click="scheduleLocalDataRestore"
+                >
+                  <RotateCcw class="size-3.5" />
+                  从备份恢复
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
                   :loading="diagnosticExporting"
                   @click="exportLocalDiagnostics"
                 >
@@ -358,7 +387,7 @@ async function save() {
                 </Button>
               </div>
               <p class="mt-3 text-caption leading-5 text-muted-foreground">
-                备份包含会话、训练记录、附件和一致的 SQLite 快照；凭据库、浏览器配对令牌和 PI 认证文件不会写入。会话正文按原样备份。
+                备份包含会话、训练记录、附件和一致的 SQLite 快照；恢复会在下次启动前应用，并先保留当前数据的回滚快照。凭据库、浏览器配对令牌和 PI 认证文件不会被导出或覆盖。
               </p>
               <p class="mt-1 text-caption leading-5 text-muted-foreground">
                 诊断包只包含版本、运行状态、数据库健康检查和脱敏错误事件，便于排查启动与连接问题。

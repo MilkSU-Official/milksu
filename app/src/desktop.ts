@@ -4,6 +4,7 @@ import {
   type AppSettings,
   type CodingAttachment,
   type LocalDataBackupExport,
+  type LocalDataBackupRestore,
   type LocalDataStatus,
   type LocalDiagnosticExport,
   type ModelProbeResult,
@@ -76,6 +77,7 @@ interface WailsAppBindings {
   SaveSettingsCmd(settings: AppSettings): Promise<void>
   GetLocalDataStatus(): Promise<LocalDataStatus>
   ExportLocalDataBackup(): Promise<LocalDataBackupExport>
+  ScheduleLocalDataRestore(): Promise<LocalDataBackupRestore>
   ExportLocalDiagnostics(): Promise<LocalDiagnosticExport>
   RevealLocalDataDirectory(): Promise<void>
   ListConversations(): Promise<unknown>
@@ -344,6 +346,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.GetLocalDataStatus() as Promise<T>
       case 'export_local_data_backup':
         return app.ExportLocalDataBackup() as Promise<T>
+      case 'schedule_local_data_restore':
+        return app.ScheduleLocalDataRestore() as Promise<T>
       case 'export_local_diagnostics':
         return app.ExportLocalDiagnostics() as Promise<T>
       case 'reveal_local_data_directory':
@@ -586,6 +590,7 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         bytes: 0,
       } as T
     case 'export_local_data_backup':
+    case 'schedule_local_data_restore':
     case 'export_local_diagnostics':
     case 'reveal_local_data_directory':
       throw new Error('本地数据管理需要 MilkSU 桌面运行时。')

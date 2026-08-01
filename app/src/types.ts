@@ -217,6 +217,14 @@ export interface LocalDataBackupExport {
   cancelled?: boolean
 }
 
+export interface LocalDataBackupRestore {
+  createdAt: string
+  fileCount: number
+  bytes: number
+  requiresRestart: boolean
+  cancelled?: boolean
+}
+
 export interface LocalDiagnosticExport {
   path: string
   generatedAt: string
