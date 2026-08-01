@@ -197,21 +197,25 @@ func TestCodingSidecarAllowsOnlyTheRequiredSystemShells(t *testing.T) {
 	}
 }
 
-func TestWorkspaceTemporaryDirectoryStaysInsideAgentWorkspace(t *testing.T) {
+func TestWorkspaceTemporaryDirectoryStaysOutsideAgentWorkspace(t *testing.T) {
 	workspace := t.TempDir()
-	environment, err := withWorkspaceTemporaryDirectory(
-		[]string{"PATH=/bin", "TMPDIR=/private/tmp"},
-		workspace,
-	)
+	runtimeHome := t.TempDir()
+	runtimeDirectory, err := workspaceRuntimeDirectory(runtimeHome, workspace)
 	if err != nil {
 		t.Fatal(err)
 	}
-	expected := "TMPDIR=" + filepath.Join(workspace, ".milksu", "tmp")
-	if !containsEnvironmentEntry(environment, expected) {
-		t.Fatalf("expected %q in %#v", expected, environment)
+	if strings.HasPrefix(runtimeDirectory, workspace+string(filepath.Separator)) {
+		t.Fatalf("runtime directory polluted the workspace: %s", runtimeDirectory)
 	}
-	if containsEnvironmentEntry(environment, "TMPDIR=/private/tmp") {
-		t.Fatalf("host temporary directory survived: %#v", environment)
+	if !strings.HasPrefix(runtimeDirectory, runtimeHome+string(filepath.Separator)) {
+		t.Fatalf("runtime directory escaped the app runtime home: %s", runtimeDirectory)
+	}
+	again, err := workspaceRuntimeDirectory(runtimeHome, workspace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again != runtimeDirectory {
+		t.Fatalf("workspace runtime directory is not stable: %q != %q", again, runtimeDirectory)
 	}
 }
 

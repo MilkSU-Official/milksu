@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   codingProductAction,
   codingProductActions,
+  codingReviewPrompt,
 } from '@/lib/codingProductActions'
 
 describe('Coding product actions', () => {
@@ -41,5 +42,51 @@ describe('Coding product actions', () => {
       .toContain('Re-run the smallest')
     expect(codingProductAction('fix').prompt)
       .toContain('no reproducible failure was found')
+  })
+
+  it('injects the desktop Git snapshot and diff into review actions', () => {
+    const prompt = codingReviewPrompt(
+      codingProductAction('review').prompt,
+      {
+        workspace: '/tmp/project',
+        workspaceName: 'project',
+        capturedAt: '2026-08-01T10:00:00Z',
+        git: {
+          available: true,
+          isRepository: true,
+          branch: 'main',
+          head: 'abc123',
+          ahead: 0,
+          behind: 0,
+          changedFiles: 1,
+          staged: 0,
+          modified: 1,
+          untracked: 0,
+          conflicts: 0,
+          additions: 1,
+          deletions: 1,
+          dirty: true,
+          changes: [{
+            path: 'src/metrics.js',
+            indexStatus: ' ',
+            worktreeStatus: 'M',
+            staged: false,
+            modified: true,
+            untracked: false,
+            conflict: false,
+          }],
+        },
+      },
+      [{
+        workspace: '/tmp/project',
+        path: 'src/metrics.js',
+        workingTree: '@@ -1 +1 @@\n-old\n+new',
+      }],
+    )
+    expect(prompt).toContain('[MilkSU trusted Git evidence]')
+    expect(prompt).toContain('changed=1')
+    expect(prompt).toContain(' M src/metrics.js')
+    expect(prompt).toContain('@@ -1 +1 @@')
+    expect(prompt).toContain('Do not run shell Git commands')
   })
 })

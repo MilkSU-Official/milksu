@@ -293,11 +293,13 @@ function sandboxProfile(
   extraProtectedEntries = [],
   includeCTFProtectedEntries = true,
   extraReadableRoots = [],
+  extraWritableRoots = [],
 ) {
   const readableRoots = [
     workspace,
     dirname(process.execPath),
     ...extraReadableRoots,
+    ...extraWritableRoots,
     "/System",
     "/usr",
     "/bin",
@@ -330,7 +332,9 @@ function sandboxProfile(
       `(literal ${sandboxString(path)})`
     )).join(" ")})`,
     `(allow file-read* ${readableRoots.map(path => `(subpath ${sandboxString(path)})`).join(" ")})`,
-    `(allow file-write* (subpath ${sandboxString(workspace)}))`,
+    `(allow file-write* ${[workspace, ...extraWritableRoots].map(path => (
+      `(subpath ${sandboxString(path)})`
+    )).join(" ")})`,
     `(deny file-write* ${[
       ...(includeCTFProtectedEntries ? protectedWorkspaceEntries : []),
       ...extraProtectedEntries,
@@ -345,10 +349,15 @@ function sandboxProfile(
   return rules.join("\n");
 }
 
-function commandEnvironment(workspace, source = {}) {
-  const home = join(workspace, ".milksu", "home");
-  const temporary = join(workspace, ".milksu", "tmp");
-  const runtimeBin = join(workspace, ".milksu", "runtime-bin");
+function commandRuntimeDirectory(workspace) {
+  const configured = String(process.env.MILKSU_WORKSPACE_RUNTIME || "").trim();
+  return configured ? resolve(configured) : join(workspace, ".milksu");
+}
+
+function commandEnvironment(workspace, source = {}, runtimeDirectory = commandRuntimeDirectory(workspace)) {
+  const home = join(runtimeDirectory, "home");
+  const temporary = join(runtimeDirectory, "tmp");
+  const runtimeBin = join(runtimeDirectory, "runtime-bin");
   const environment = {
     PATH: `${runtimeBin}:${commandPath}`,
     HOME: home,
@@ -363,8 +372,8 @@ function commandEnvironment(workspace, source = {}) {
   return environment;
 }
 
-async function ensureSandboxedCommandRuntime(workspace) {
-  const runtimeBin = join(workspace, ".milksu", "runtime-bin");
+async function ensureSandboxedCommandRuntime(runtimeDirectory) {
+  const runtimeBin = join(runtimeDirectory, "runtime-bin");
   const nodeWrapper = join(runtimeBin, "node");
   const nodeBinary = process.execPath;
   await mkdir(runtimeBin, { recursive: true, mode: 0o700 });
@@ -405,13 +414,14 @@ function createSandboxedBashOperations(
       }
       const canonicalWorkspace = await realpath(workspace);
       const canonicalCwd = await assertWorkspacePath(canonicalWorkspace, cwd);
+      const runtimeDirectory = commandRuntimeDirectory(canonicalWorkspace);
       const timeout = Math.min(
         Math.max(Number(options.timeout) || execution.defaultCommandTimeoutSeconds, 1),
         execution.maxCommandTimeoutSeconds,
       );
-      await mkdir(join(canonicalWorkspace, ".milksu", "home"), { recursive: true, mode: 0o700 });
-      await mkdir(join(canonicalWorkspace, ".milksu", "tmp"), { recursive: true, mode: 0o700 });
-      await ensureSandboxedCommandRuntime(canonicalWorkspace);
+      await mkdir(join(runtimeDirectory, "home"), { recursive: true, mode: 0o700 });
+      await mkdir(join(runtimeDirectory, "tmp"), { recursive: true, mode: 0o700 });
+      await ensureSandboxedCommandRuntime(runtimeDirectory);
 
       return await new Promise((resolvePromise, rejectPromise) => {
         const child = spawn(
@@ -424,6 +434,7 @@ function createSandboxedBashOperations(
               extraProtectedEntries,
               includeCTFProtectedEntries,
               extraReadableRoots,
+              [runtimeDirectory],
             ),
             "/bin/bash",
             "--noprofile",
@@ -434,7 +445,7 @@ function createSandboxedBashOperations(
           {
             cwd: canonicalCwd,
             detached: true,
-            env: commandEnvironment(canonicalWorkspace, options.env),
+            env: commandEnvironment(canonicalWorkspace, options.env, runtimeDirectory),
             stdio: ["ignore", "pipe", "pipe"],
           },
         );

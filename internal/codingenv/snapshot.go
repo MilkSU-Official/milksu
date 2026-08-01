@@ -251,7 +251,10 @@ func parsePorcelainStatus(output string) GitStatus {
 			parseBranchLine(&status, strings.TrimPrefix(line, "## "))
 			continue
 		}
-		if len(line) < 2 {
+		if len(line) < 4 {
+			continue
+		}
+		if isMilkSUInternalPath(strings.TrimSpace(line[3:])) {
 			continue
 		}
 		code := line[:2]
@@ -303,6 +306,9 @@ func parsePorcelainChanges(output string) ([]GitChange, bool) {
 				index++
 			}
 		}
+		if isMilkSUInternalPath(change.Path) {
+			continue
+		}
 		if len(changes) >= maxGitChanges {
 			truncated = true
 			continue
@@ -319,7 +325,8 @@ func resolveGitPathspec(workspace, value string) (string, error) {
 	cleaned := filepath.Clean(filepath.FromSlash(value))
 	if cleaned == "." || cleaned == ".." ||
 		strings.HasPrefix(cleaned, ".."+string(filepath.Separator)) ||
-		cleaned == ".git" || strings.HasPrefix(cleaned, ".git"+string(filepath.Separator)) {
+		cleaned == ".git" || strings.HasPrefix(cleaned, ".git"+string(filepath.Separator)) ||
+		cleaned == ".milksu" || strings.HasPrefix(cleaned, ".milksu"+string(filepath.Separator)) {
 		return "", errors.New("Git diff path leaves the project workspace")
 	}
 	absolute := filepath.Join(workspace, cleaned)
@@ -336,6 +343,11 @@ func resolveGitPathspec(workspace, value string) (string, error) {
 		}
 	}
 	return filepath.ToSlash(relative), nil
+}
+
+func isMilkSUInternalPath(value string) bool {
+	normalized := filepath.ToSlash(strings.TrimSpace(value))
+	return normalized == ".milksu" || strings.HasPrefix(normalized, ".milksu/")
 }
 
 func boundedDiff(value string) (string, bool) {
@@ -396,6 +408,9 @@ func parseNumstat(output string) (int, int) {
 	for _, line := range strings.Split(strings.ReplaceAll(output, "\r\n", "\n"), "\n") {
 		fields := strings.Fields(line)
 		if len(fields) < 3 {
+			continue
+		}
+		if isMilkSUInternalPath(fields[len(fields)-1]) {
 			continue
 		}
 		if value, err := strconv.Atoi(fields[0]); err == nil {

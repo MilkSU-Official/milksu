@@ -30,10 +30,31 @@ func TestParsePorcelainStatus(t *testing.T) {
 	}
 }
 
+func TestParsePorcelainStatusIgnoresMilkSURuntimeFiles(t *testing.T) {
+	status := parsePorcelainStatus(
+		"## main\n" +
+			" M src/app.go\n" +
+			"?? .milksu/\n",
+	)
+	if status.ChangedFiles != 1 || status.Modified != 1 || status.Untracked != 0 {
+		t.Fatalf("MilkSU runtime files leaked into status counts: %#v", status)
+	}
+}
+
 func TestParseNumstatIgnoresBinaryCounters(t *testing.T) {
 	additions, deletions := parseNumstat("12\t4\tapp.go\n-\t-\tasset.png\n3\t0\tnew.go\n")
 	if additions != 15 || deletions != 4 {
 		t.Fatalf("unexpected numstat: +%d -%d", additions, deletions)
+	}
+}
+
+func TestParseNumstatIgnoresMilkSURuntimeFiles(t *testing.T) {
+	additions, deletions := parseNumstat(
+		"12\t4\tapp.go\n" +
+			"80\t0\t.milksu/home/npm.log\n",
+	)
+	if additions != 12 || deletions != 4 {
+		t.Fatalf("MilkSU runtime files leaked into numstat: +%d -%d", additions, deletions)
 	}
 }
 
@@ -48,6 +69,15 @@ func TestParsePorcelainChangesPreservesStatusAndRename(t *testing.T) {
 		!changes[1].Modified || !changes[2].Untracked ||
 		changes[3].OriginalPath != "old.go" || changes[3].Path != "renamed.go" {
 		t.Fatalf("unexpected parsed changes: %#v", changes)
+	}
+}
+
+func TestParsePorcelainChangesIgnoresMilkSURuntimeFiles(t *testing.T) {
+	changes, truncated := parsePorcelainChanges(
+		" M src/app.go\x00?? .milksu/home/npm.log\x00",
+	)
+	if truncated || len(changes) != 1 || changes[0].Path != "src/app.go" {
+		t.Fatalf("MilkSU runtime files leaked into change list: %#v", changes)
 	}
 }
 

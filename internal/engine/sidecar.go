@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"os/exec"
@@ -103,17 +105,46 @@ func newSidecarCommandAt(
 }
 
 func withWorkspaceTemporaryDirectory(environment []string, workspace string) ([]string, error) {
-	temporaryDirectory := filepath.Join(workspace, ".milksu", "tmp")
-	if err := os.MkdirAll(temporaryDirectory, 0o700); err != nil {
-		return nil, fmt.Errorf("create Sidecar workspace temp directory: %w", err)
+	runtimeHome, err := sidecarRuntimeHome()
+	if err != nil {
+		return nil, err
+	}
+	runtimeDirectory, err := workspaceRuntimeDirectory(runtimeHome, workspace)
+	if err != nil {
+		return nil, err
+	}
+	temporaryDirectory := filepath.Join(runtimeDirectory, "tmp")
+	for _, directory := range []string{
+		filepath.Join(runtimeDirectory, "home"),
+		temporaryDirectory,
+		filepath.Join(runtimeDirectory, "runtime-bin"),
+	} {
+		if err := os.MkdirAll(directory, 0o700); err != nil {
+			return nil, fmt.Errorf("create Sidecar workspace runtime directory: %w", err)
+		}
 	}
 	filtered := environment[:0]
 	for _, entry := range environment {
-		if !strings.HasPrefix(entry, "TMPDIR=") {
+		if !strings.HasPrefix(entry, "TMPDIR=") &&
+			!strings.HasPrefix(entry, "MILKSU_WORKSPACE_RUNTIME=") {
 			filtered = append(filtered, entry)
 		}
 	}
-	return append(filtered, "TMPDIR="+temporaryDirectory), nil
+	return append(
+		filtered,
+		"TMPDIR="+temporaryDirectory,
+		"MILKSU_WORKSPACE_RUNTIME="+runtimeDirectory,
+	), nil
+}
+
+func workspaceRuntimeDirectory(runtimeHome, workspace string) (string, error) {
+	resolved, err := resolveAgentWorkspace(workspace)
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256([]byte(resolved))
+	key := hex.EncodeToString(sum[:12])
+	return filepath.Join(runtimeHome, "workspaces", key), nil
 }
 
 func withSidecarRuntimePath(environment []string, nodeBinary string) []string {

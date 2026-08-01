@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, symlink, writeFile } from "node:fs/promises";
+import { access, mkdtemp, mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import { createServer as createHTTPServer } from "node:http";
 import { createServer as createTCPServer } from "node:net";
 import { tmpdir } from "node:os";
@@ -204,6 +204,36 @@ test("Go Project Auto can run a reviewed Node CLI outside the project", {
     {},
   );
   assert.match(response.content[0].text, /Archify doctor/i);
+});
+
+test("Go Project Auto keeps command runtime files outside the project", {
+  skip: process.platform !== "darwin",
+}, async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "milksu-coding-runtime-project-"));
+  const runtime = await mkdtemp(join(tmpdir(), "milksu-coding-runtime-home-"));
+  const previous = process.env.MILKSU_WORKSPACE_RUNTIME;
+  process.env.MILKSU_WORKSPACE_RUNTIME = runtime;
+  try {
+    const policy = await loadSessionPolicy(workspace, "", {
+      executionMode: "go",
+      approvalPolicy: "workspace-auto",
+    });
+    const bash = policy.customTools.find(tool => tool.name === "bash");
+    await bash.execute(
+      "external-runtime",
+      { command: 'printf "%s\\n%s" "$HOME" "$TMPDIR"' },
+      undefined,
+      undefined,
+      {},
+    );
+    await assert.rejects(access(join(workspace, ".milksu")), /ENOENT/);
+    await access(join(runtime, "home"));
+    await access(join(runtime, "tmp"));
+    await access(join(runtime, "runtime-bin", "node"));
+  } finally {
+    if (previous === undefined) delete process.env.MILKSU_WORKSPACE_RUNTIME;
+    else process.env.MILKSU_WORKSPACE_RUNTIME = previous;
+  }
 });
 
 test("Go Full Access automatically runs outside-project commands without leaking model keys", async () => {

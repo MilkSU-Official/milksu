@@ -61,6 +61,7 @@ import CodingChangesPanel from '@/components-vue/CodingChangesPanel.vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import type {
   CodingArchitecturePreview,
+  CodingDiffSnapshot,
   CodingEnvironmentSnapshot,
 } from '@/codingEnvironmentTypes'
 import type { CTFShowCatalogStatus } from '@/ctfshowTypes'
@@ -68,6 +69,7 @@ import { buildCodingArchitectureAction } from '@/lib/codingArchitecture'
 import {
   codingProductAction,
   codingProductActions,
+  codingReviewPrompt,
   type CodingProductActionKind,
 } from '@/lib/codingProductActions'
 import {
@@ -437,7 +439,7 @@ function generateArchitecture() {
   )
 }
 
-function runCodingProductAction(kind: CodingProductActionKind) {
+async function runCodingProductAction(kind: CodingProductActionKind) {
   if (!props.workspacePath) {
     emit('chooseWorkspace')
     return
@@ -451,7 +453,31 @@ function runCodingProductAction(kind: CodingProductActionKind) {
     action.executionMode,
     action.approvalPolicy ?? effectiveApprovalPolicy.value,
   )
-  emit('send', action.prompt, action.visibleText)
+  let prompt = action.prompt
+  if (kind === 'review') {
+    await refreshEnvironment()
+    const environment = codingEnvironment.value
+    if (!environment?.git.isRepository) {
+      environmentError.value = environment?.git.problem
+        || '当前目录不是 Git 仓库，无法审阅变更。'
+      return
+    }
+    const changes = environment.git.changes ?? []
+    const diffResults = await Promise.allSettled(
+      changes.slice(0, 20).map(change => invokeCommand<CodingDiffSnapshot>(
+        'get_coding_diff',
+        {
+          workspacePath: props.workspacePath,
+          relativePath: change.path,
+        },
+      )),
+    )
+    const diffs = diffResults.flatMap(result => (
+      result.status === 'fulfilled' ? [result.value] : []
+    ))
+    prompt = codingReviewPrompt(prompt, environment, diffs)
+  }
+  emit('send', prompt, action.visibleText)
 }
 
 async function refreshArchitecturePreview() {

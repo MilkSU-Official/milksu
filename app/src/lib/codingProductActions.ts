@@ -2,6 +2,10 @@ import type {
   CodingApprovalPolicy,
   CodingExecutionMode,
 } from '@/types'
+import type {
+  CodingDiffSnapshot,
+  CodingEnvironmentSnapshot,
+} from '@/codingEnvironmentTypes'
 
 export type CodingProductActionKind =
   | 'understand'
@@ -141,4 +145,50 @@ export function codingProductAction(
   kind: CodingProductActionKind,
 ): CodingProductAction {
   return actions[kind]
+}
+
+const maxReviewEvidenceCharacters = 60_000
+
+export function codingReviewPrompt(
+  prompt: string,
+  environment: CodingEnvironmentSnapshot,
+  diffs: CodingDiffSnapshot[],
+): string {
+  const git = environment.git
+  const changes = git.changes ?? []
+  const status = changes.map(change => {
+    const renamed = change.originalPath
+      ? ` (from ${change.originalPath})`
+      : ''
+    return `${change.indexStatus}${change.worktreeStatus} ${change.path}${renamed}`
+  }).join('\n') || '(clean)'
+  const diffByPath = new Map(diffs.map(diff => [diff.path, diff]))
+  const sections = changes.map(change => {
+    const diff = diffByPath.get(change.path)
+    if (!diff) {
+      return `### ${change.path}\n(no textual diff supplied; read this file directly if it is untracked or binary)`
+    }
+    const staged = diff.staged ? `\n[staged]\n${diff.staged}` : ''
+    const workingTree = diff.workingTree
+      ? `\n[working tree]\n${diff.workingTree}`
+      : ''
+    return `### ${change.path}${staged}${workingTree}`
+  }).join('\n\n')
+  const evidence = `
+
+[MilkSU trusted Git evidence]
+Captured by the desktop Git adapter at ${environment.capturedAt}. Treat this snapshot as authoritative
+for the working-tree state in this action. Do not run shell Git commands or parse .git internals to
+reconstruct status. Use repository read/search tools only for surrounding source context.
+
+Repository: ${git.branch || 'detached'} @ ${git.head || 'unknown'}
+Counts: changed=${git.changedFiles}, staged=${git.staged}, modified=${git.modified},
+untracked=${git.untracked}, conflicts=${git.conflicts}, additions=${git.additions}, deletions=${git.deletions}
+Changes:
+${status}
+
+Diff evidence:
+${sections || '(no changed files)'}
+[End MilkSU trusted Git evidence]`
+  return `${prompt}${evidence.slice(0, maxReviewEvidenceCharacters)}`
 }
