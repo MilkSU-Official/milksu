@@ -25,14 +25,18 @@ import {
   Check,
   CircleDot,
   Compass,
+  Copy,
+  ExternalLink,
   FilePenLine,
   Files,
   Flag,
   FolderOpen,
   GitBranch,
+  Globe2,
   KeyRound,
   Lightbulb,
   LoaderCircle,
+  LockKeyhole,
   PanelRightClose,
   PanelRightOpen,
   Puzzle,
@@ -46,13 +50,26 @@ import {
 import { invokeCommand } from '@/desktop'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import type { CodingDiffSnapshot, CodingEnvironmentSnapshot } from '@/codingEnvironmentTypes'
+import type { CTFShowCatalogStatus } from '@/ctfshowTypes'
+import {
+  normalizeCodingApprovalPolicy,
+  normalizeCodingExecutionMode,
+  previewCodingCapabilities,
+} from '@/lib/codingPolicy'
 import type {
   CTFAgentBudgetStatus,
   CTFAgentRunCheckpoint,
   CTFProjection,
   CTFToolWorkshopState,
 } from '@/ctfTypes'
-import type { AppSettings, Conversation, CTFChatAction } from '@/types'
+import type {
+  AppSettings,
+  CodingApprovalPolicy,
+  CodingExecutionMode,
+  Conversation,
+  CTFChatAction,
+} from '@/types'
+import type { NSSCTFWebBridgeStatus } from '@/nssctfWebTypes'
 import { PROVIDER_GROUPS, providerModelLabel } from '@/types'
 
 const props = defineProps<{
@@ -66,6 +83,8 @@ const props = defineProps<{
   modelMode?: 'auto' | 'manual'
   modelProvider?: string
   modelId?: string
+  executionMode?: CodingExecutionMode
+  approvalPolicy?: CodingApprovalPolicy
 }>()
 
 const emit = defineEmits<{
@@ -74,6 +93,10 @@ const emit = defineEmits<{
   abort: []
   chooseWorkspace: []
   changeModel: [mode: 'auto' | 'manual', provider?: string, model?: string]
+  changeCodingPolicy: [
+    executionMode: CodingExecutionMode,
+    approvalPolicy: CodingApprovalPolicy,
+  ]
   openSettings: []
   returnCtf: []
   switchCtfAgent: [role: 'solver' | 'tool-builder' | 'strategist']
@@ -83,8 +106,12 @@ const draft = ref('')
 const scrollArea = ref<HTMLElement | null>(null)
 const workshopState = ref<CTFToolWorkshopState | null>(null)
 const environmentOpen = ref(!props.ctfSession)
+const contextPanel = ref<'environment' | 'browser' | 'collaboration' | 'evidence'>('environment')
 const environmentLoading = ref(false)
 const environmentError = ref('')
+const browserPanelError = ref('')
+const nssctfBrowserStatus = ref<NSSCTFWebBridgeStatus | null>(null)
+const ctfshowBrowserStatus = ref<CTFShowCatalogStatus | null>(null)
 const codingEnvironment = ref<CodingEnvironmentSnapshot | null>(null)
 const codingDiff = ref<CodingDiffSnapshot | null>(null)
 const codingDiffLoading = ref(false)
@@ -133,6 +160,51 @@ const activeSkills = computed(() => (
 const activeTools = computed(() => (
   props.conversation?.agentTools ?? []
 ))
+const effectiveExecutionMode = computed(() => (
+  normalizeCodingExecutionMode(props.executionMode)
+))
+const effectiveApprovalPolicy = computed(() => (
+  normalizeCodingApprovalPolicy(props.approvalPolicy)
+))
+const codingCapabilities = computed(() => (
+  props.conversation?.agentCapabilities?.length
+    ? props.conversation.agentCapabilities
+    : previewCodingCapabilities(
+        effectiveExecutionMode.value,
+        effectiveApprovalPolicy.value,
+      )
+))
+const codingPolicyLabel = computed(() => {
+  const mode = effectiveExecutionMode.value === 'plan' ? 'Plan' : 'Go'
+  const approval = effectiveApprovalPolicy.value === 'read-only'
+    ? '只读'
+    : effectiveApprovalPolicy.value === 'ask'
+      ? '每次询问'
+      : '工作区自动'
+  return `${mode} · ${approval}`
+})
+const compactModelLabel = computed(() => {
+  const provider = effectiveModelMode.value === 'auto'
+    ? automaticModel.value?.provider
+    : props.modelProvider || props.settings?.active_provider
+  const model = effectiveModelMode.value === 'auto'
+    ? automaticModel.value?.model
+    : props.modelId || props.settings?.active_model
+  if (!provider || !model) {
+    return effectiveModelMode.value === 'auto' ? '自动编排' : '选择模型'
+  }
+  const modelName = providerModelLabel(provider, model).split(' · ').at(-1) || model
+  return effectiveModelMode.value === 'auto' ? `自动 · ${modelName}` : modelName
+})
+const capabilityStatusLabel = (status: string) => (
+  status === 'allowed'
+    ? '允许'
+    : status === 'approval-required'
+      ? '需批准'
+      : status === 'unavailable'
+        ? '未接入'
+        : '阻止'
+)
 const extensionLabel = (value: string) => (
   value === 'milksu-workflow'
     ? 'MilkSU Workflow'
@@ -173,9 +245,12 @@ const toolMessageCount = computed(() => (
   props.conversation?.messages.filter(message => message.role === 'tool').length ?? 0
 ))
 const latestJudge = computed(() => ctfProjection.value?.judgeReceipts.at(-1))
-const environmentTitle = computed(() => (
-  props.ctfSession ? '解题环境' : '环境信息'
-))
+const contextPanelTitle = computed(() => ({
+  environment: props.ctfSession ? '解题环境' : '环境信息',
+  browser: '浏览器',
+  collaboration: 'Agent 协作',
+  evidence: '证据与 Judge',
+})[contextPanel.value])
 const ctfRoleLabel = computed(() => {
   if (props.ctfRole === 'tool-builder') return 'Coding Agent 工具工坊'
   if (props.ctfRole === 'strategist') return '策略 Agent 复盘'
@@ -253,6 +328,16 @@ function changeModel(value: string) {
   if (mode === 'manual' && provider && model) emit('changeModel', 'manual', provider, model)
 }
 
+function changeExecutionMode(value: string) {
+  const executionMode = normalizeCodingExecutionMode(value)
+  emit('changeCodingPolicy', executionMode, effectiveApprovalPolicy.value)
+}
+
+function changeApprovalPolicy(value: string) {
+  const approvalPolicy = normalizeCodingApprovalPolicy(value)
+  emit('changeCodingPolicy', effectiveExecutionMode.value, approvalPolicy)
+}
+
 async function loadWorkshopState() {
   const jobId = props.conversation?.ctfJobId
   if (!props.ctfSession || !jobId || props.ctfRole === 'strategist') {
@@ -321,6 +406,68 @@ async function refreshEnvironment() {
   }
 }
 
+async function refreshBrowserPanel() {
+  browserPanelError.value = ''
+  if (!props.ctfSession) {
+    nssctfBrowserStatus.value = null
+    ctfshowBrowserStatus.value = null
+    return
+  }
+  environmentLoading.value = true
+  const [nssctf, ctfshow] = await Promise.allSettled([
+    invokeCommand<NSSCTFWebBridgeStatus>('get_nssctf_web_bridge_status'),
+    invokeCommand<CTFShowCatalogStatus>('get_ctfshow_catalog_status'),
+  ])
+  nssctfBrowserStatus.value = nssctf.status === 'fulfilled' ? nssctf.value : null
+  ctfshowBrowserStatus.value = ctfshow.status === 'fulfilled' ? ctfshow.value : null
+  if (nssctf.status === 'rejected' && ctfshow.status === 'rejected') {
+    browserPanelError.value = '暂时无法读取浏览器连接。'
+  }
+  environmentLoading.value = false
+}
+
+async function refreshContextPanel() {
+  if (contextPanel.value === 'browser') {
+    await refreshBrowserPanel()
+    return
+  }
+  await Promise.all([refreshEnvironment(), loadWorkshopState()])
+}
+
+function changeContextPanel(value: string) {
+  if (!['environment', 'browser', 'collaboration', 'evidence'].includes(value)) return
+  contextPanel.value = value as typeof contextPanel.value
+  environmentOpen.value = true
+  void refreshContextPanel()
+}
+
+async function revealBrowserExtension() {
+  browserPanelError.value = ''
+  try {
+    await invokeCommand('reveal_browser_extension')
+  } catch (reason) {
+    browserPanelError.value = reason instanceof Error ? reason.message : String(reason)
+  }
+}
+
+async function copyPairingCode(value: string) {
+  if (!value) return
+  try {
+    await navigator.clipboard.writeText(value)
+  } catch {
+    browserPanelError.value = '复制失败，请回到训练工作台手动复制配对码。'
+  }
+}
+
+async function openSharedBrowserPage(url: string) {
+  if (!url) return
+  try {
+    await invokeCommand('open_ctf_source_url', { url })
+  } catch (reason) {
+    browserPanelError.value = reason instanceof Error ? reason.message : String(reason)
+  }
+}
+
 async function inspectCodingDiff(relativePath: string) {
   if (!props.workspacePath || codingDiffLoading.value) return
   codingDiffLoading.value = true
@@ -359,7 +506,13 @@ watch(() => props.conversation?.messages.length, async () => {
   if (scrollArea.value) scrollArea.value.scrollTop = scrollArea.value.scrollHeight
 })
 watch(() => props.ctfSession, (current, previous) => {
-  if (current !== previous) environmentOpen.value = !current
+  if (current !== previous) {
+    environmentOpen.value = !current
+    contextPanel.value = 'environment'
+  }
+})
+watch(contextPanel, panel => {
+  if (panel === 'browser' && environmentOpen.value) void refreshBrowserPanel()
 })
 watch(
   () => [props.ctfSession, props.conversation?.ctfJobId, props.ctfRole, props.running] as const,
@@ -385,7 +538,7 @@ watch(
 </script>
 
 <template>
-  <section class="flex min-w-0 flex-1 overflow-hidden bg-surface-editor">
+  <section class="relative flex min-w-0 flex-1 overflow-hidden bg-surface-editor">
   <main class="chat-main flex min-w-0 flex-1 flex-col overflow-hidden bg-surface-editor">
     <header
       class="chat-toolbar app-drag shrink-0"
@@ -400,59 +553,15 @@ watch(
         </div>
         <p class="truncate text-caption text-muted-foreground">
           {{ conversation?.title ?? '新编码任务' }}
-          · {{ workspacePath || '临时沙盒 · 选择项目后可读写代码并运行命令' }}
+          · {{ workspacePath || `临时工作区 · ${codingPolicyLabel}` }}
         </p>
       </div>
       <div class="chat-toolbar__actions app-no-drag flex min-w-0 items-center gap-2">
         <Button
-          v-if="ctfSession && ctfRole === 'solver'"
-          variant="outline"
-          size="sm"
-          title="切换到独立策略复盘"
-          @click="$emit('switchCtfAgent', 'strategist')"
-        >
-          <Route class="size-4" />
-          策略复盘
-        </Button>
-        <Button
-          v-if="ctfSession && ctfRole === 'solver'"
-          variant="outline"
-          size="sm"
-          title="打开本题工具工坊"
-          @click="$emit('switchCtfAgent', 'tool-builder')"
-        >
-          <Wrench class="size-4" />
-          {{
-            workshopState?.pendingCount
-              ? '交给 Coding Agent'
-              : '打开工具工坊'
-          }}
-        </Button>
-        <Button
-          v-else-if="ctfSession"
-          variant="outline"
-          size="sm"
-          title="返回 CTF 解题 Agent"
-          @click="$emit('switchCtfAgent', 'solver')"
-        >
-          <Flag class="size-4" />
-          返回解题 Agent
-        </Button>
-        <Button
-          v-if="ctfSession"
-          variant="ghost"
-          size="sm"
-          title="返回训练工作台"
-          @click="$emit('returnCtf')"
-        >
-          <Flag class="size-4" />
-          返回训练工作台
-        </Button>
-        <Button
           variant="ghost"
           size="icon-sm"
-          :aria-label="environmentOpen ? `关闭${environmentTitle}` : `打开${environmentTitle}`"
-          :title="environmentOpen ? `关闭${environmentTitle}` : `打开${environmentTitle}`"
+          :aria-label="environmentOpen ? '关闭右侧栏' : '打开右侧栏'"
+          :title="environmentOpen ? '关闭右侧栏' : '打开右侧栏'"
           @click="environmentOpen = !environmentOpen"
         >
           <PanelRightClose v-if="environmentOpen" class="size-4" />
@@ -461,60 +570,12 @@ watch(
       </div>
     </header>
 
-    <div
-      v-if="ctfSession && ctfRole === 'strategist'"
-      class="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border bg-primary/5 px-6 py-2 text-caption"
-    >
-      <span class="text-muted-foreground">
-        独立审阅题面、轨迹与证据；不执行命令，不修改解题笔记或候选。
-      </span>
-      <Button variant="link" size="text" @click="$emit('switchCtfAgent', 'solver')">
-        复盘完成后返回验证
-      </Button>
-    </div>
-    <div
-      v-else-if="ctfSession"
-      class="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border bg-primary/5 px-6 py-2 text-caption"
-    >
-      <div class="flex min-w-0 flex-wrap items-center gap-2">
-        <Badge variant="outline">{{ workshopSummary }}</Badge>
-        <span
-          v-if="workshopState?.latestRequest"
-          class="max-w-80 truncate text-muted-foreground"
-          :title="workshopState.latestRequest.relativePath"
-        >
-          {{ workshopState.latestRequest.title }}
-        </span>
-      </div>
-      <div class="flex items-center gap-2">
-        <Button
-          v-if="ctfRole !== 'tool-builder' && workshopState?.readyCount"
-          variant="outline"
-          size="sm"
-          :disabled="running"
-          @click="verifyDeliveredTool"
-        >
-          验收工具
-        </Button>
-        <Button
-          v-else-if="ctfRole !== 'tool-builder' && !workshopState?.pendingCount"
-          variant="outline"
-          size="sm"
-          :disabled="running"
-          @click="requestTool"
-        >
-          提出工具需求
-        </Button>
-        <Button variant="link" size="text" @click="$emit('returnCtf')">查看轨迹与提交</Button>
-      </div>
-    </div>
-
     <div ref="scrollArea" class="min-h-0 flex-1 overflow-y-auto">
       <div v-if="!conversation?.messages.length" class="mx-auto flex min-h-full max-w-2xl flex-col justify-center px-8 py-16">
         <Bot class="size-6 text-muted-foreground" />
         <h1 class="mt-5 text-3xl font-semibold tracking-[-0.04em]">Coding</h1>
         <p class="mt-2 max-w-lg text-body leading-6 text-muted-foreground">
-          选择项目并描述目标。MilkSU 使用 PI 读取项目、编辑文件并执行命令，你可以随时查看或停止。
+          选择项目并描述目标。MilkSU 使用 PI，并由当前执行模式和权限策略决定可用工具。
         </p>
         <div class="mt-6 grid grid-cols-3 gap-3">
           <div class="rounded-lg border border-border bg-card px-4 py-3">
@@ -589,6 +650,53 @@ watch(
             <FolderOpen class="size-3.5 shrink-0" />
             <span class="truncate">{{ workspacePath ? workspaceName : '项目' }}</span>
           </Button>
+          <Select
+            v-if="!ctfSession"
+            :model-value="effectiveExecutionMode"
+            :disabled="running"
+            @update:model-value="value => changeExecutionMode(String(value ?? ''))"
+          >
+            <SelectTrigger
+              size="sm"
+              class="w-20 border-0 bg-transparent shadow-none"
+              aria-label="Coding 执行模式"
+              title="Plan 只分析和规划；Go 按右侧权限策略使用工具。"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent size="sm" align="start">
+              <SelectItem value="plan">Plan</SelectItem>
+              <SelectItem value="go">Go</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select
+            v-if="!ctfSession"
+            :model-value="effectiveApprovalPolicy"
+            :disabled="running"
+            @update:model-value="value => changeApprovalPolicy(String(value ?? ''))"
+          >
+            <SelectTrigger
+              size="sm"
+              class="w-36 border-0 bg-transparent shadow-none"
+              aria-label="Coding 权限策略"
+              :title="effectiveApprovalPolicy === 'ask'
+                ? 'Ask 暂无 Sidecar 同步审批通道，当前会按只读执行。'
+                : effectiveApprovalPolicy === 'workspace-auto'
+                  ? '仅自动批准工作区 edit/write 和固定的无网络 build/test/lint 命令。'
+                  : '只允许读取、搜索和诊断。'"
+            >
+              <LockKeyhole class="size-3.5 shrink-0" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent size="sm" align="start" class="min-w-72">
+              <SelectGroup>
+                <SelectLabel>权限策略</SelectLabel>
+                <SelectItem value="read-only">只读</SelectItem>
+                <SelectItem value="ask">每次询问 · 当前按只读</SelectItem>
+                <SelectItem value="workspace-auto">工作区自动</SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
           <DropdownMenu>
             <DropdownMenuTrigger as-child>
               <Button
@@ -639,6 +747,27 @@ watch(
                   {{ activeTools.join(' · ') }}
                 </p>
               </template>
+              <template v-if="!ctfSession">
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>权限能力 · {{ codingPolicyLabel }}</DropdownMenuLabel>
+                <div class="space-y-2 px-2 py-2">
+                  <div
+                    v-for="capability in codingCapabilities"
+                    :key="capability.id"
+                    class="grid grid-cols-[1fr_auto] gap-x-3 gap-y-0.5"
+                  >
+                    <p class="text-body font-medium">{{ capability.label }}</p>
+                    <Badge
+                      :variant="capability.status === 'allowed' ? 'secondary' : 'outline'"
+                    >
+                      {{ capabilityStatusLabel(capability.status) }}
+                    </Badge>
+                    <p class="col-span-2 text-caption leading-5 text-muted-foreground">
+                      {{ capability.detail }}
+                    </p>
+                  </div>
+                </div>
+              </template>
             </DropdownMenuContent>
           </DropdownMenu>
           <Select
@@ -654,7 +783,7 @@ watch(
                 ? 'MilkSU 按任务角色自动选择模型；你可以仅为当前对话覆盖'
                 : '当前对话固定使用所选模型'"
             >
-              <SelectValue />
+              <SelectValue>{{ compactModelLabel }}</SelectValue>
             </SelectTrigger>
             <SelectContent size="sm" align="start" :align-offset="0" class="min-w-96">
               <SelectGroup>
@@ -741,28 +870,49 @@ watch(
   </main>
   <aside
     v-if="environmentOpen"
-    class="flex w-80 shrink-0 flex-col border-l border-border bg-card/55"
-    :aria-label="environmentTitle"
+    class="context-sidebar flex w-80 shrink-0 flex-col border-l border-border bg-card/95 backdrop-blur"
+    :aria-label="contextPanelTitle"
   >
     <header class="app-drag flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
-      <div class="flex items-center gap-2">
-        <Activity class="size-4 text-primary" />
-        <p class="text-control font-medium">{{ environmentTitle }}</p>
-      </div>
+      <Select
+        :model-value="contextPanel"
+        @update:model-value="value => changeContextPanel(String(value ?? ''))"
+      >
+        <SelectTrigger
+          size="sm"
+          class="app-no-drag min-w-44 border-0 bg-transparent px-0 shadow-none"
+          aria-label="选择右侧页面"
+        >
+          <Activity v-if="contextPanel === 'environment'" class="size-4 text-primary" />
+          <Globe2 v-else-if="contextPanel === 'browser'" class="size-4 text-primary" />
+          <Wrench v-else-if="contextPanel === 'collaboration'" class="size-4 text-primary" />
+          <CircleDot v-else class="size-4 text-primary" />
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent size="sm" align="start" class="min-w-56">
+          <SelectItem value="environment">{{ ctfSession ? '解题环境' : '环境信息' }}</SelectItem>
+          <SelectItem value="browser">浏览器</SelectItem>
+          <template v-if="ctfSession">
+            <SelectSeparator />
+            <SelectItem value="collaboration">Agent 协作</SelectItem>
+            <SelectItem value="evidence">证据与 Judge</SelectItem>
+          </template>
+        </SelectContent>
+      </Select>
       <div class="app-no-drag flex items-center gap-1">
         <Button
           variant="ghost"
           size="icon-sm"
           :disabled="environmentLoading"
-          aria-label="刷新环境信息"
-          @click="refreshEnvironment"
+          :aria-label="`刷新${contextPanelTitle}`"
+          @click="refreshContextPanel"
         >
           <RefreshCw class="size-4" :class="{ 'animate-spin': environmentLoading }" />
         </Button>
         <Button
           variant="ghost"
           size="icon-sm"
-          :aria-label="`关闭${environmentTitle}`"
+          aria-label="关闭右侧栏"
           @click="environmentOpen = false"
         >
           <PanelRightClose class="size-4" />
@@ -771,26 +921,55 @@ watch(
     </header>
 
     <div class="min-h-0 flex-1 overflow-y-auto">
-      <div v-if="environmentError" class="border-b border-border px-4 py-3 text-caption text-destructive">
-        {{ environmentError }}
-      </div>
-
-      <section class="border-b border-border px-4 py-4">
-        <p class="text-caption font-medium text-muted-foreground">工作区</p>
-        <div class="mt-3 flex items-start gap-3">
-          <FolderOpen class="mt-0.5 size-4 shrink-0 text-primary" />
-          <div class="min-w-0">
-            <p class="truncate text-body font-medium">
-              {{ codingEnvironment?.workspaceName || workspaceName }}
-            </p>
-            <p class="mt-1 truncate font-mono text-caption text-muted-foreground" :title="workspacePath">
-              {{ workspacePath || '尚未选择项目' }}
-            </p>
-          </div>
+      <template v-if="contextPanel === 'environment'">
+        <div v-if="environmentError" class="border-b border-border px-4 py-3 text-caption text-destructive">
+          {{ environmentError }}
         </div>
-      </section>
 
-      <template v-if="!ctfSession">
+        <section class="border-b border-border px-4 py-4">
+          <p class="text-caption font-medium text-muted-foreground">工作区</p>
+          <div class="mt-3 flex items-start gap-3">
+            <FolderOpen class="mt-0.5 size-4 shrink-0 text-primary" />
+            <div class="min-w-0">
+              <p class="truncate text-body font-medium">
+                {{ codingEnvironment?.workspaceName || workspaceName }}
+              </p>
+              <p class="mt-1 truncate font-mono text-caption text-muted-foreground" :title="workspacePath">
+                {{ workspacePath || '尚未选择项目' }}
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <template v-if="!ctfSession">
+        <section class="border-b border-border px-4 py-4">
+          <div class="flex items-center justify-between gap-3">
+            <p class="text-caption font-medium text-muted-foreground">执行与权限</p>
+            <Badge variant="outline">{{ codingPolicyLabel }}</Badge>
+          </div>
+          <div class="mt-3 space-y-3">
+            <div
+              v-for="capability in codingCapabilities"
+              :key="capability.id"
+              class="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1"
+            >
+              <p class="text-body">{{ capability.label }}</p>
+              <span
+                class="text-caption"
+                :class="capability.status === 'allowed'
+                  ? 'text-primary'
+                  : capability.status === 'approval-required'
+                    ? 'text-amber-500'
+                    : 'text-muted-foreground'"
+              >
+                {{ capabilityStatusLabel(capability.status) }}
+              </span>
+              <p class="col-span-2 text-caption leading-5 text-muted-foreground">
+                {{ capability.detail }}
+              </p>
+            </div>
+          </div>
+        </section>
         <section class="border-b border-border px-4 py-4">
           <div class="flex items-center justify-between">
             <p class="text-caption font-medium text-muted-foreground">Git</p>
@@ -896,9 +1075,9 @@ watch(
             {{ codingEnvironment?.git.problem || '当前目录不是 Git 仓库。' }}
           </p>
         </section>
-      </template>
+        </template>
 
-      <template v-else>
+        <template v-else>
         <section class="border-b border-border px-4 py-4">
           <p class="text-caption font-medium text-muted-foreground">当前解题</p>
           <div class="mt-3 space-y-3 text-body">
@@ -923,39 +1102,9 @@ watch(
           </div>
         </section>
 
-        <section class="border-b border-border px-4 py-4">
-          <p class="text-caption font-medium text-muted-foreground">证据与 Judge</p>
-          <div class="mt-3 grid grid-cols-2 gap-3">
-            <div>
-              <p class="text-xl font-semibold">{{ ctfProjection?.evidence.length ?? 0 }}</p>
-              <p class="text-caption text-muted-foreground">证据</p>
-            </div>
-            <div>
-              <p class="text-xl font-semibold">{{ ctfProjection?.artifacts.length ?? 0 }}</p>
-              <p class="text-caption text-muted-foreground">制品</p>
-            </div>
-          </div>
-          <div v-if="latestJudge" class="mt-4 flex items-start gap-2">
-            <CircleDot
-              class="mt-0.5 size-4 shrink-0"
-              :class="latestJudge.correct ? 'text-primary' : 'text-muted-foreground'"
-            />
-            <div>
-              <p class="text-body font-medium">
-                {{ latestJudge.platform }} · {{ latestJudge.status }}
-              </p>
-              <MarkdownContent
-                class="mt-1 line-clamp-3 text-caption leading-5 text-muted-foreground"
-                :content="latestJudge.summary"
-                compact
-              />
-            </div>
-          </div>
-          <p v-else class="mt-3 text-caption text-muted-foreground">尚无外部 Judge 回执。</p>
-        </section>
-      </template>
+        </template>
 
-      <section class="border-b border-border px-4 py-4">
+        <section class="border-b border-border px-4 py-4">
         <p class="text-caption font-medium text-muted-foreground">Agent</p>
         <div class="mt-3 space-y-3 text-body">
           <div class="flex items-center justify-between gap-3">
@@ -985,9 +1134,9 @@ watch(
             </span>
           </div>
         </div>
-      </section>
+        </section>
 
-      <section class="px-4 py-4">
+        <section class="px-4 py-4">
         <p class="text-caption font-medium text-muted-foreground">任务上下文</p>
         <div class="mt-3 space-y-3 text-body">
           <div class="flex items-center justify-between gap-3">
@@ -1003,7 +1152,221 @@ watch(
             <span class="text-right text-caption">{{ workshopSummary }}</span>
           </div>
         </div>
-      </section>
+        </section>
+      </template>
+
+      <template v-else-if="contextPanel === 'browser'">
+        <div v-if="browserPanelError" class="border-b border-border px-4 py-3 text-caption text-destructive">
+          {{ browserPanelError }}
+        </div>
+        <section v-if="!ctfSession" class="px-4 py-5">
+          <p class="text-body font-medium">Coding 浏览器能力尚未启用</p>
+          <p class="mt-2 text-caption leading-5 text-muted-foreground">
+            MCP 浏览器与 Computer Use 会走独立权限授权；当前任务不会静默继承浏览器会话。
+          </p>
+        </section>
+        <template v-else>
+          <section class="border-b border-border px-4 py-4">
+            <div class="flex items-center justify-between gap-3">
+              <div>
+                <p class="text-body font-medium">MilkSU Chrome Bridge</p>
+                <p class="mt-1 text-caption text-muted-foreground">
+                  {{
+                    nssctfBrowserStatus?.bridge.connected || ctfshowBrowserStatus?.bridge.connected
+                      ? '扩展已连接'
+                      : '等待扩展连接'
+                  }}
+                </p>
+              </div>
+              <span
+                class="size-2 rounded-full"
+                :class="nssctfBrowserStatus?.bridge.connected || ctfshowBrowserStatus?.bridge.connected
+                  ? 'bg-primary'
+                  : 'bg-muted-foreground'"
+              />
+            </div>
+            <div class="mt-4 flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" @click="revealBrowserExtension">
+                查看扩展
+              </Button>
+              <Button
+                v-if="nssctfBrowserStatus?.bridge.pairingCode"
+                variant="ghost"
+                size="sm"
+                @click="copyPairingCode(nssctfBrowserStatus.bridge.pairingCode)"
+              >
+                <Copy class="size-3.5" />
+                复制配对码
+              </Button>
+            </div>
+          </section>
+          <section class="border-b border-border px-4 py-4">
+            <p class="text-caption font-medium text-muted-foreground">
+              NSSCTF · {{ nssctfBrowserStatus?.pages.length ?? 0 }} 个页面
+            </p>
+            <div v-if="nssctfBrowserStatus?.pages.length" class="mt-3 space-y-2">
+              <button
+                v-for="page in nssctfBrowserStatus.pages"
+                :key="page.id"
+                type="button"
+                class="flex w-full items-start gap-2 rounded-md px-2 py-2 text-left hover:bg-muted"
+                @click="openSharedBrowserPage(page.url)"
+              >
+                <Globe2 class="mt-0.5 size-4 shrink-0 text-primary" />
+                <span class="min-w-0 flex-1">
+                  <span class="block truncate text-body">{{ page.title }}</span>
+                  <span class="mt-0.5 block truncate text-caption text-muted-foreground">
+                    P{{ page.nssctf.problemId }} · {{ page.connected ? '已连接' : '已断开' }}
+                  </span>
+                </span>
+                <ExternalLink class="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+              </button>
+            </div>
+            <p v-else class="mt-3 text-caption text-muted-foreground">没有共享的 NSSCTF 页面。</p>
+          </section>
+          <section class="px-4 py-4">
+            <p class="text-caption font-medium text-muted-foreground">
+              CTFshow · {{ ctfshowBrowserStatus?.pages.length ?? 0 }} 个页面
+            </p>
+            <div v-if="ctfshowBrowserStatus?.pages.length" class="mt-3 space-y-2">
+              <button
+                v-for="page in ctfshowBrowserStatus.pages"
+                :key="page.id"
+                type="button"
+                class="flex w-full items-start gap-2 rounded-md px-2 py-2 text-left hover:bg-muted"
+                @click="openSharedBrowserPage(page.url)"
+              >
+                <Globe2 class="mt-0.5 size-4 shrink-0 text-primary" />
+                <span class="min-w-0 flex-1 truncate text-body">{{ page.title }}</span>
+                <ExternalLink class="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+              </button>
+            </div>
+            <p v-else class="mt-3 text-caption text-muted-foreground">没有共享的 CTFshow 页面。</p>
+          </section>
+        </template>
+      </template>
+
+      <template v-else-if="contextPanel === 'collaboration'">
+        <section class="border-b border-border px-4 py-4">
+          <p class="text-caption font-medium text-muted-foreground">当前角色</p>
+          <div class="mt-3 grid gap-2">
+            <Button
+              :variant="ctfRole === 'solver' ? 'secondary' : 'outline'"
+              class="justify-start"
+              @click="$emit('switchCtfAgent', 'solver')"
+            >
+              <Flag class="size-4" />
+              解题 Agent
+            </Button>
+            <Button
+              :variant="ctfRole === 'tool-builder' ? 'secondary' : 'outline'"
+              class="justify-start"
+              @click="$emit('switchCtfAgent', 'tool-builder')"
+            >
+              <Wrench class="size-4" />
+              Coding Agent 工具工坊
+            </Button>
+            <Button
+              :variant="ctfRole === 'strategist' ? 'secondary' : 'outline'"
+              class="justify-start"
+              @click="$emit('switchCtfAgent', 'strategist')"
+            >
+              <Route class="size-4" />
+              策略复盘
+            </Button>
+          </div>
+          <div
+            v-if="ctfRole === 'strategist'"
+            class="mt-3 rounded-lg bg-primary/5 px-3 py-3"
+          >
+            <p class="text-body font-medium">策略 Agent 复盘</p>
+            <p class="mt-1 text-caption leading-5 text-muted-foreground">
+              独立审阅题面、轨迹与证据；不执行命令，不修改解题笔记或候选。
+            </p>
+            <Button
+              variant="link"
+              size="text"
+              class="mt-2"
+              @click="$emit('switchCtfAgent', 'solver')"
+            >
+              复盘完成后返回验证
+            </Button>
+          </div>
+        </section>
+        <section class="border-b border-border px-4 py-4">
+          <p class="text-caption font-medium text-muted-foreground">工具交接</p>
+          <p class="mt-2 text-body">{{ workshopSummary }}</p>
+          <p
+            v-if="workshopState?.latestRequest"
+            class="mt-1 truncate text-caption text-muted-foreground"
+            :title="workshopState.latestRequest.relativePath"
+          >
+            {{ workshopState.latestRequest.title }}
+          </p>
+          <div class="mt-4 flex flex-wrap gap-2">
+            <Button
+              v-if="ctfRole !== 'tool-builder' && workshopState?.readyCount"
+              variant="outline"
+              size="sm"
+              :disabled="running"
+              @click="verifyDeliveredTool"
+            >
+              验收工具
+            </Button>
+            <Button
+              v-else-if="ctfRole !== 'tool-builder' && !workshopState?.pendingCount"
+              variant="outline"
+              size="sm"
+              :disabled="running"
+              @click="requestTool"
+            >
+              提出工具需求
+            </Button>
+          </div>
+        </section>
+        <section class="px-4 py-4">
+          <Button variant="outline" class="w-full justify-start" @click="$emit('returnCtf')">
+            <Flag class="size-4" />
+            返回训练工作台
+          </Button>
+        </section>
+      </template>
+
+      <template v-else>
+        <section class="border-b border-border px-4 py-4">
+          <p class="text-caption font-medium text-muted-foreground">证据与 Judge</p>
+          <div class="mt-3 grid grid-cols-2 gap-3">
+            <div>
+              <p class="text-xl font-semibold">{{ ctfProjection?.evidence.length ?? 0 }}</p>
+              <p class="text-caption text-muted-foreground">证据</p>
+            </div>
+            <div>
+              <p class="text-xl font-semibold">{{ ctfProjection?.artifacts.length ?? 0 }}</p>
+              <p class="text-caption text-muted-foreground">制品</p>
+            </div>
+          </div>
+          <div v-if="latestJudge" class="mt-4 flex items-start gap-2">
+            <CircleDot
+              class="mt-0.5 size-4 shrink-0"
+              :class="latestJudge.correct ? 'text-primary' : 'text-muted-foreground'"
+            />
+            <div>
+              <p class="text-body font-medium">{{ latestJudge.platform }} · {{ latestJudge.status }}</p>
+              <MarkdownContent
+                class="mt-1 line-clamp-3 text-caption leading-5 text-muted-foreground"
+                :content="latestJudge.summary"
+                compact
+              />
+            </div>
+          </div>
+          <p v-else class="mt-3 text-caption text-muted-foreground">尚无外部 Judge 回执。</p>
+        </section>
+        <section class="px-4 py-4">
+          <Button variant="outline" class="w-full justify-start" @click="$emit('returnCtf')">
+            查看完整轨迹与提交
+          </Button>
+        </section>
+      </template>
     </div>
   </aside>
   </section>
@@ -1064,6 +1427,16 @@ watch(
   box-shadow:
     0 14px 34px rgb(0 0 0 / 18%),
     0 2px 8px rgb(0 0 0 / 10%);
+}
+
+@media (max-width: 68.75rem) {
+  .context-sidebar {
+    position: absolute;
+    inset-block: 0;
+    right: 0;
+    z-index: 20;
+    box-shadow: -18px 0 40px rgb(0 0 0 / 28%);
+  }
 }
 
 @container chat-main (max-width: 52rem) {

@@ -3,6 +3,18 @@
 MilkSU disables PI ambient discovery for Extensions, Skills, prompts, themes, and context files.
 Only resources reviewed here may enter a packaged Agent session.
 
+## Build-vs-buy rule
+
+Coding Harness adopts a strict **reuse-first** policy:
+
+1. If Pi core already owns the lifecycle, MilkSU calls Pi instead of reimplementing it.
+2. If a reviewed Pi package provides a general Coding capability, MilkSU pins and adapts it instead of shipping an interim clone.
+3. MilkSU-owned code is limited to desktop product boundaries that an extension cannot own safely: workspace/sandbox enforcement, credential isolation, explicit approval transport, Wails event/state projection, and user-data persistence.
+4. Product-specific invention is concentrated in the CTF Agent: role orchestration, evidence, Judge, recovery, training memory, and ability calibration.
+5. A planned Coding feature with a credible upstream candidate stays visibly `Planned` until that candidate is integrated or rejected with evidence. It must not accumulate a temporary bespoke harness meanwhile.
+
+The goal is not the raw number of installed packages. The acceptance metric is a smaller MilkSU-specific control plane, with each external capability pinned, licensed, scoped, and tested in both positive Coding and negative CTF-isolation paths.
+
 ## Active resources
 
 | Resource | Version / revision | Session scope | Capability | Controls |
@@ -33,11 +45,29 @@ must state that requirement until MilkSU packages reviewed binaries.
 
 | Resource | Decision |
 | --- | --- |
-| `pi-plan-mode` | Do not load yet. It overlaps MilkSU's progress workflow and introduces a second planning UX. |
-| `pi-subagents` | Keep under review. Multi-agent delegation is useful, but its budget, context, and handoff semantics must map to MilkSU Recorder before activation. |
+| Pi plan-mode example/package | Preferred source for the Agent-side plan lifecycle. MilkSU's UI may project the plan, but must not grow a second planning engine. Integrate only after its embedded/non-TUI events map cleanly to the desktop composer. |
+| `pi-sub-agent` | Preferred multi-agent candidate. It already supplies isolated subprocess contexts, single/parallel/chain modes, bounded output, abort propagation, role presets, and recursion prevention. Activation still requires a packaged `pi` executable, parent-tool narrowing, budget projection, and visible desktop status. Do not build a competing subagent runner. |
+| `tomsej/pi-ext` permissions | Preferred rule-matching/reference implementation for safe/read-only modes. Pi itself explicitly has no built-in permission boundary, so MilkSU must retain its OS sandbox and credential isolation. The extension's TUI confirmation cannot silently stand in for the missing desktop approval protocol. |
+| `tomsej/pi-ext` Session Snap / Query / Handoff | Preferred candidates for archive, recall, and fresh-session handoff. Reuse their session semantics where possible; MilkSU supplies repository-grouped navigation and desktop persistence. |
+| `tomsej/pi-ext` Code Review / Tool Pills / `pi-sem` | Preferred candidates for review workflow, compact tool rendering, and semantic change inspection. Evaluate measured context cost before enabling semantic tools by default. |
+| `tomsej/pi-ext` Ask User Question | Preferred structured clarification candidate once extension UI requests can round-trip through Wails. |
 | `pi-chrome-devtools` | Do not load. It duplicates the explicit browser pairing boundary and would widen browser authority. |
-| `tomsej/pi-ext` permissions / review extensions | Reference patterns only until SDK embedding and non-TUI behavior are verified. |
 | Community CTF Skill packs | Do not bulk install. Select one category Skill only after a real failed trajectory establishes the need; review scripts and tool prerequisites before activation. |
+
+Pi's official documentation states that Pi runs with the launching process's filesystem, process, network, and credential authority unless it is sandboxed or containerized. Therefore the MilkSU OS sandbox is platform code, not a duplicate plugin feature. A community permission matcher can improve policy authoring, but cannot replace the enforcement layer.
+
+## MilkSU custom-code disposition
+
+| Current area | Decision | Target |
+| --- | --- | --- |
+| Pi SessionManager, context compaction, model/tool loop | Keep upstream-owned | Remove MilkSU behavior that duplicates Pi lifecycle decisions |
+| `milksu_progress` | Thin projection only | Replace its planning semantics with the selected Pi plan/task package; keep only the bounded Wails event schema |
+| Coding permission matcher | Reduce/replace | Reuse a reviewed permission package's matching rules where embedding permits; retain MilkSU sandbox, credential boundary, and desktop approval transport |
+| Agent-side subtask orchestration | Do not build | Integrate `pi-sub-agent` after packaged-runtime and budget tests |
+| Session archive/query/handoff | Do not build | Evaluate Session Snap / Query / Handoff and adapt only desktop navigation/state |
+| Code review and semantic diff | Do not build from scratch | Evaluate Code Review / Tool Pills / `pi-sem`; MilkSU owns file/diff presentation in the right panel |
+| Architecture diagrams, LSP, retry | Keep pinned external resources | Finish packaged real-world verification; avoid feature forks |
+| CTF recorder, Judge, evidence, role handoff, learning memory | Keep MilkSU-owned | This remains the product's primary innovation surface |
 
 ## Update procedure
 

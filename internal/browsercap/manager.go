@@ -474,8 +474,9 @@ func (m *Manager) StartBridge() (BridgeInfo, error) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ingest", m.handleBridgeIngest)
 	mux.HandleFunc("/ws", m.handleBridgeWebSocket)
-	m.bridgeServer = &http.Server{Handler: mux, ReadHeaderTimeout: 3 * time.Second, ReadTimeout: 5 * time.Second, WriteTimeout: 5 * time.Second}
-	go func() { _ = m.bridgeServer.Serve(listener) }()
+	bridgeServer := &http.Server{Handler: mux, ReadHeaderTimeout: 3 * time.Second, ReadTimeout: 5 * time.Second, WriteTimeout: 5 * time.Second}
+	m.bridgeServer = bridgeServer
+	go func() { _ = bridgeServer.Serve(listener) }()
 	return m.bridgeInfoLocked(), nil
 }
 

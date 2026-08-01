@@ -43,7 +43,9 @@ func run(arguments []string, stdout io.Writer) error {
 	splitName := flags.String("split", string(evalbench.SplitDevelopment), "development or test")
 	output := flags.String("out", "", "optional report path; defaults to stdout")
 	var runPaths repeatedPaths
+	var baselineRunPaths repeatedPaths
 	flags.Var(&runPaths, "run", "summary RunRecord JSON path; may be repeated")
+	flags.Var(&baselineRunPaths, "baseline-run", "safe-static BaselineRunRecord JSON path; may be repeated")
 	if err := flags.Parse(arguments); err != nil {
 		return err
 	}
@@ -59,7 +61,7 @@ func run(arguments []string, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	runs := make([]evalbench.RunRecord, 0, len(runPaths))
+	runs := make([]evalbench.RunRecord, 0, len(runPaths)+len(baselineRunPaths))
 	for _, runPath := range runPaths {
 		data, err := readBounded(runPath, maximumRunRecordSize)
 		if err != nil {
@@ -70,6 +72,21 @@ func run(arguments []string, stdout io.Writer) error {
 			return fmt.Errorf("load run record %q: %w", runPath, err)
 		}
 		runs = append(runs, record)
+	}
+	for _, runPath := range baselineRunPaths {
+		data, err := readBounded(runPath, maximumRunRecordSize)
+		if err != nil {
+			return fmt.Errorf("read baseline run record %q: %w", runPath, err)
+		}
+		record, err := evalbench.DecodeBaselineRunRecord(data)
+		if err != nil {
+			return fmt.Errorf("load baseline run record %q: %w", runPath, err)
+		}
+		summary, err := record.Summary()
+		if err != nil {
+			return fmt.Errorf("summarize baseline run record %q: %w", runPath, err)
+		}
+		runs = append(runs, summary)
 	}
 
 	report, err := evalbench.Aggregate([]evalbench.Catalog{catalog}, runs)

@@ -9,6 +9,17 @@ export interface Message {
   status?: 'running' | 'done'
 }
 
+export type CodingExecutionMode = 'plan' | 'go'
+export type CodingApprovalPolicy = 'read-only' | 'ask' | 'workspace-auto'
+export type CodingCapabilityStatus = 'allowed' | 'blocked' | 'approval-required' | 'unavailable'
+
+export interface CodingCapability {
+  id: string
+  label: string
+  status: CodingCapabilityStatus
+  detail: string
+}
+
 export interface Conversation {
   id: string
   title: string
@@ -17,9 +28,12 @@ export interface Conversation {
   modelMode?: 'auto' | 'manual'
   modelProvider?: string
   modelId?: string
+  executionMode?: CodingExecutionMode
+  approvalPolicy?: CodingApprovalPolicy
   agentTools?: string[]
   agentExtensions?: string[]
   agentSkills?: string[]
+  agentCapabilities?: CodingCapability[]
   ctfJobId?: string
   ctfMode?: 'coach' | 'copilot' | 'delegate'
   ctfRole?: 'solver' | 'tool-builder' | 'strategist'
@@ -181,7 +195,7 @@ export const PROVIDERS: ProviderInfo[] = [
     kind: 'relay',
     models: ['kimi-k3'],
     envKey: 'KOURICHAT_API_KEY',
-    placeholder: 'sk-kouri-...',
+    placeholder: 'sk-...',
     defaultBaseUrl: 'https://api.kourichat.com/v1',
     summary: 'Kimi K3 · 深度策略、卡关复盘与复杂推理',
   },

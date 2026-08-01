@@ -20,18 +20,21 @@ const eventSchemaVersion = 1
 const defaultTurnActivityTimeout = 90 * time.Second
 
 type Event struct {
-	SchemaVersion int      `json:"schemaVersion"`
-	Engine        string   `json:"engine"`
-	SessionID     string   `json:"sessionId,omitempty"`
-	Type          string   `json:"type"`
-	Timestamp     string   `json:"timestamp"`
-	Text          string   `json:"text,omitempty"`
-	ToolName      string   `json:"toolName,omitempty"`
-	Error         string   `json:"error,omitempty"`
-	Done          bool     `json:"done,omitempty"`
-	Tools         []string `json:"tools,omitempty"`
-	Extensions    []string `json:"extensions,omitempty"`
-	Skills        []string `json:"skills,omitempty"`
+	SchemaVersion  int                      `json:"schemaVersion"`
+	Engine         string                   `json:"engine"`
+	SessionID      string                   `json:"sessionId,omitempty"`
+	Type           string                   `json:"type"`
+	Timestamp      string                   `json:"timestamp"`
+	Text           string                   `json:"text,omitempty"`
+	ToolName       string                   `json:"toolName,omitempty"`
+	Error          string                   `json:"error,omitempty"`
+	Done           bool                     `json:"done,omitempty"`
+	Tools          []string                 `json:"tools,omitempty"`
+	Extensions     []string                 `json:"extensions,omitempty"`
+	Skills         []string                 `json:"skills,omitempty"`
+	ExecutionMode  string                   `json:"executionMode,omitempty"`
+	ApprovalPolicy string                   `json:"approvalPolicy,omitempty"`
+	Capabilities   []CodingCapabilityStatus `json:"capabilities,omitempty"`
 }
 
 type RuntimeStatus struct {
@@ -49,17 +52,32 @@ type ModelProbeResult struct {
 	LatencyMS int64  `json:"latencyMs"`
 }
 
+type CodingCapabilityStatus struct {
+	ID     string `json:"id"`
+	Label  string `json:"label"`
+	Status string `json:"status"`
+	Detail string `json:"detail"`
+}
+
+type CodingPolicy struct {
+	ExecutionMode  string `json:"executionMode"`
+	ApprovalPolicy string `json:"approvalPolicy"`
+}
+
 type bridgeEvent struct {
-	Type       string   `json:"type"`
-	ID         string   `json:"id"`
-	Delta      string   `json:"delta"`
-	Content    string   `json:"content"`
-	Error      string   `json:"error"`
-	ToolName   string   `json:"toolName"`
-	IsError    bool     `json:"isError"`
-	Tools      []string `json:"tools"`
-	Extensions []string `json:"extensions"`
-	Skills     []string `json:"skills"`
+	Type           string                   `json:"type"`
+	ID             string                   `json:"id"`
+	Delta          string                   `json:"delta"`
+	Content        string                   `json:"content"`
+	Error          string                   `json:"error"`
+	ToolName       string                   `json:"toolName"`
+	IsError        bool                     `json:"isError"`
+	Tools          []string                 `json:"tools"`
+	Extensions     []string                 `json:"extensions"`
+	Skills         []string                 `json:"skills"`
+	ExecutionMode  string                   `json:"executionMode"`
+	ApprovalPolicy string                   `json:"approvalPolicy"`
+	Capabilities   []CodingCapabilityStatus `json:"capabilities"`
 }
 
 type childProcess struct {
@@ -91,11 +109,43 @@ func NewSupervisor(emit func(Event)) *Supervisor {
 	}
 }
 
+func normalizeCodingPolicy(
+	executionMode,
+	approvalPolicy,
+	sessionRole string,
+) (CodingPolicy, error) {
+	if strings.TrimSpace(sessionRole) != "" {
+		return CodingPolicy{}, nil
+	}
+	execution := strings.TrimSpace(executionMode)
+	if execution == "" {
+		execution = "go"
+	}
+	if execution != "plan" && execution != "go" {
+		return CodingPolicy{}, fmt.Errorf("unsupported Coding execution mode %q", execution)
+	}
+	approval := strings.TrimSpace(approvalPolicy)
+	if approval == "" {
+		approval = "workspace-auto"
+	}
+	switch approval {
+	case "read-only", "ask", "workspace-auto":
+	default:
+		return CodingPolicy{}, fmt.Errorf("unsupported Coding approval policy %q", approval)
+	}
+	return CodingPolicy{
+		ExecutionMode:  execution,
+		ApprovalPolicy: approval,
+	}, nil
+}
+
 func (s *Supervisor) SendMessage(
 	sessionID,
 	prompt,
 	workspacePath string,
 	sessionRole string,
+	executionMode string,
+	approvalPolicy string,
 	settings config.AppSettings,
 ) error {
 	if strings.TrimSpace(sessionID) == "" {
@@ -103,6 +153,14 @@ func (s *Supervisor) SendMessage(
 	}
 	if strings.TrimSpace(prompt) == "" {
 		return fmt.Errorf("prompt is required")
+	}
+	codingPolicy, err := normalizeCodingPolicy(
+		executionMode,
+		approvalPolicy,
+		sessionRole,
+	)
+	if err != nil {
+		return err
 	}
 	if err := validateModelAccess(settings); err != nil {
 		return err
@@ -125,6 +183,8 @@ func (s *Supervisor) SendMessage(
 		"provider":       settings.ActiveProvider,
 		"model":          settings.ActiveModel,
 		"sessionRole":    strings.TrimSpace(sessionRole),
+		"executionMode":  codingPolicy.ExecutionMode,
+		"approvalPolicy": codingPolicy.ApprovalPolicy,
 	}); err != nil {
 		return fmt.Errorf("send engine message: %w", err)
 	}
@@ -169,6 +229,8 @@ func (s *Supervisor) ProbeModel(settings config.AppSettings) (ModelProbeResult, 
 	if err := s.SendMessage(
 		sessionID,
 		"Reply with exactly OK. Do not call tools.",
+		"",
+		"",
 		"",
 		"",
 		settings,
@@ -350,7 +412,7 @@ func (s *Supervisor) observeTurnEvent(event Event) {
 	switch event.Type {
 	case "assistant.completed", "engine.error", "session.destroyed":
 		s.stopTurnTimerLocked(event.SessionID)
-	case "session.ready", "session.model_selected", "assistant.delta", "assistant.segment_completed", "tool.started", "tool.completed":
+	case "session.ready", "session.policy_updated", "session.model_selected", "assistant.delta", "assistant.segment_completed", "tool.started", "tool.completed":
 		if _, exists := s.turnTimers[event.SessionID]; exists {
 			s.armTurnTimerLocked(event.SessionID)
 		}
@@ -472,17 +534,22 @@ func probeFailureMessage(event Event) string {
 
 func normalizeBridgeEvent(raw bridgeEvent) Event {
 	event := Event{
-		Engine:     "pi",
-		SessionID:  raw.ID,
-		Text:       raw.Content,
-		ToolName:   raw.ToolName,
-		Tools:      raw.Tools,
-		Extensions: raw.Extensions,
-		Skills:     raw.Skills,
+		Engine:         "pi",
+		SessionID:      raw.ID,
+		Text:           raw.Content,
+		ToolName:       raw.ToolName,
+		Tools:          raw.Tools,
+		Extensions:     raw.Extensions,
+		Skills:         raw.Skills,
+		ExecutionMode:  raw.ExecutionMode,
+		ApprovalPolicy: raw.ApprovalPolicy,
+		Capabilities:   raw.Capabilities,
 	}
 	switch raw.Type {
 	case "ready":
 		event.Type = "session.ready"
+	case "policy_updated":
+		event.Type = "session.policy_updated"
 	case "model_selected":
 		event.Type = "session.model_selected"
 	case "text_delta":

@@ -108,6 +108,23 @@ func TestCurrentTabBridgePairingSurvivesApplicationRestart(t *testing.T) {
 	}
 }
 
+func TestStartBridgeCanCloseImmediately(t *testing.T) {
+	root := t.TempDir()
+	for iteration := 0; iteration < 100; iteration++ {
+		manager, err := New(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := manager.StartBridge(); err != nil {
+			manager.Close()
+			t.Fatal(err)
+		}
+		// StartBridge launches Serve asynchronously. Close is allowed as soon
+		// as StartBridge returns, even when that goroutine has not run yet.
+		manager.Close()
+	}
+}
+
 func TestCurrentTabBridgeDoesNotTreatAnotherSessionAsTheSelectedJudge(t *testing.T) {
 	manager, err := New(t.TempDir())
 	if err != nil {

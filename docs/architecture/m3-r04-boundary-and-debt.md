@@ -21,14 +21,16 @@
 
 | 能力 | 状态 | R0.4 声明 |
 | --- | --- | --- |
-| NSSCTF 题库 → Challenge Workspace → PI | **Implemented** | 可声明真实主链已跑通；仍需纳入最终原生回归。 |
-| 显式候选 → Browser/Arena Judge → Recovery | **Implemented** | 可声明平台权威结果决定成功。 |
-| CTF Trajectory / Debrief / Memory | **Implemented** | 可声明本地可恢复和用户确认后沉淀。 |
-| 全局 Rail `CTF → CVE → Coding` 与上下文侧栏 | **Implemented / Partial** | 代码与浏览器回归已有，待原生包和全页面状态回归。 |
+| NSSCTF 题库 → Challenge Workspace → PI | **Verified for current narrow path** | 用户目录内 4,204 题；真实主链、候选和平台结果已有记录。多题型仍未验收。 |
+| 显式候选 → Browser/Arena Judge → Recovery | **Implemented** | 可声明平台权威结果决定成功；浏览器当前真实配对可见。 |
+| CTF Trajectory / Debrief / Memory | **Implemented / Partial evidence** | Event Store 有真实轨迹和恢复事件，Memory Store 有 1 条综合；跨题型复用和错误记忆停用仍欠验收。 |
+| 全局 Rail `CTF → CVE → Coding` 与上下文侧栏 | **Verified for current native package** | 原生包已回归；一级/二级选中态明确，Coding 最近任务按仓库分组，CTF 角色会话不混入 Coding。 |
 | 全页面 Markdown 渲染 | **Implemented / Partial** | 统一安全渲染器与单测已存在；原生真实会话、长代码块和窄窗口仍需回归。 |
-| Archify / LSP / Retry | **Partial** | 固定加载和 Smoke 已有，真实 Coding 场景验收未完成。 |
-| 架构文档 | **Implemented by this snapshot** | 当前代码和边界已有 Mermaid 快照；生成式 Archify 图仍需更新。 |
-| NYU CTF Bench | **Implemented / Partial** | 固定 revision 的只读 Catalog、摘要 Run Record、静态 Report 和开发者 CLI 已实现；无 Runner、Judge 或用户 UI。 |
+| Archify / LSP / Retry | **Mixed** | Archify 产物通过 showcase 9/9；固定资源和 CTF 隔离 Smoke 已有。LSP Server 未打包，Retry 仍欠可控瞬态/慢首 Token 真实验收。 |
+| Coding Plan / Go 与权限策略 | **Verified for M3 allowlist / Partial overall** | 打包 App 内真实多轮 Plan→Go、写入、`npm test`、smoke 和人类纠错已通过；Ask 的同步逐工具审批、任意 Shell 和后台进程仍未实现。 |
+| 架构文档 | **Verified snapshot** | 当前/目标/债务文档与 Archify 交互式 HTML 已生成；规格验证 9/9、0 error、0 warning。 |
+| NYU CTF Bench | **Verified narrow safe-static baseline** | 固定 revision、人工 fail-closed 准入、单次无工具 Runner、Digest Judge 与 Report 已跑通；5 completed 中 3 solved，另有 1 个零调用阻断。无用户 UI，不代表真实 CTF Agent。 |
+| Coding 附件 / MCP Browser / Computer Use | **Planned** | 当前只在右侧能力面板明确显示未接入；不能列入 M3 完成能力。 |
 | Managed Labs / Juice Shop / WebGoat / Vulhub | **Paused** | 本轮不发布、不验收、不出现在完成声明。 |
 | HTB / THM 自动化 | **Out of scope** | 不接内容抓取、Lab Token 或 Agent 自动化。 |
 | 云端用户系统 | **Out of scope** | 继续 local-first。 |
@@ -51,10 +53,10 @@ flowchart LR
 
 1. 新用户能从 CTF 题库进入真实题目和 PI，不出现空按钮、重叠、被截断的下拉框或原始 Markdown。
 2. 已完成 NSSCTF Accepted、候选不明确恢复、报告脱敏和应用重启恢复回归。
-3. Archify、LSP、Retry 各有一个真实可重复验收；CTF 隔离负向测试继续通过。
+3. Archify、LSP、Retry 的真实状态逐项披露；Archify 与资源隔离已验，LSP/Retry 未完成项不能被加载 Smoke 冒充。
 4. 当前四份架构文档与代码一致，并标明 Labs 暂停和 NYU 仅开发者可见。
-5. NYU 最小 Adapter 只读取固定开发样本，记录模型、Harness、预算、退出原因、步骤、时间和
-   Judge 结果；不把 benchmark 成绩写进用户能力画像。
+5. NYU safe-static Runner 只消费人工审核的固定静态材料，记录模型、Harness、预算、退出原因、
+   token、成本和 Digest Judge 结果；不执行模型输出，也不把 benchmark 成绩写进用户能力画像。
 6. `go test ./...`、Bridge Policy、前端测试/构建、Sidecar Smoke、文档构建和原生 Wails
    打包全部通过后，才提交并 push。
 
@@ -66,18 +68,20 @@ flowchart LR
 | --- | --- | --- | --- |
 | Markdown 原生状态未冻结 | `MarkdownContent.vue`、清洗策略与单测已存在 | 打包 App 的真实长代码块、表格或旧会话仍可能暴露布局问题 | 逐页验证真实会话、代码块、链接和超长内容；保留工具原始输出的等宽 `<pre>`。 |
 | 原生 UI 状态未冻结 | 浏览器预览无法覆盖 Wails Binding、原生标题栏和真实数据 | 浏览器看似正常，打包 App 仍可能重叠或无响应 | 用真实 Wails 包验 CTF/CVE/Coding/设置、下拉框、长文本和窄窗口。 |
-| Coding 插件只有加载证据 | `bridge.js` 和 Sidecar Smoke 证明注册，不证明真实任务质量 | 面试演示时插件可能不可用或权限不清 | 完成 Archify/LSP/Retry 的固定验收矩阵。 |
-| NYU Eval 无 Runner / Judge | `internal/evalbench` 只消费索引和外部摘要结果 | 能比较静态记录，但不能形成独立验证成绩 | 保持安全边界；先提供可审计的报告入口，Runner 需单独设计隔离和 Judge。 |
+| LSP / Retry 仍主要是加载证据 | `bridge.js` 和 Sidecar Smoke 证明注册；LSP 真实调用因缺语言服务器失败 | 面试演示时插件可能显示已加载但不可用 | 打包固定语言服务器；用可控 Provider fixture 验 Retry，不增加第二个自研重试循环。 |
+| Coding 通用能力仍有自研膨胀风险 | 计划、权限、会话、审阅、子 Agent 都有成熟 Pi 候选 | Harness 胶水持续增长并偏离产品重点 | 执行 `pi-resource-whitelist.md` 的 reuse-first 与 custom-code disposition；禁止临时自造替代品。 |
+| CTF 真实题型覆盖不足 | 当前本机真实训练记录集中在静态编码/取证类；能力画像多数维度未校准 | 单一路径成功被误述为通用解题能力 | 固定 Web、Reverse、Crypto、Forensics 四类安全验收；每类保留 Judge、轨迹、提示依赖和恢复证据。 |
+| Coding 附件 / MCP / Computer Use 未接入 | 能力面板明确显示 `未接入` | UI 入口可能被误读为已有能力 | 复用成熟 Pi Package / MCP；在真实打包回归前保持 Planned。 |
 
 ### P1 · 冻结后优先
 
 | 债务 | 当前集中点 | 建议边界 |
 | --- | --- | --- |
-| Wails God Facade | `app.go` 约 1,900 行 | 保持公开 Binding 名称，内部委托 `AgentFacade`、`TrainingFacade`、平台 Facade、`VulnFacade`。 |
-| CTF 巨型页面 | `CTFPage.vue` 约 3,500 行 | 按 Catalog、Challenge Workspace、Paired Judge、Agent Handoff、History 拆 composable 和 panel。 |
+| Wails God Facade | `app.go` 1,917 行 | 保持公开 Binding 名称，内部委托 `AgentFacade`、`TrainingFacade`、平台 Facade、`VulnFacade`。 |
+| CTF 巨型页面 | `CTFPage.vue` 3,553 行 | 按 Catalog、Challenge Workspace、Paired Judge、Agent Handoff、History 拆 composable 和 panel。 |
 | Browser Manager 混合职责 | `internal/browsercap/manager.go` 约 1,800 行 | Loopback Transport 与 NSSCTF/CTFshow Page Adapter 分离。 |
 | CTF Service 混合命令与 Runner | `internal/ctf/service.go` 约 1,700 行 | 保留领域契约，分 Intake、Agent Ingest、Submission/Judge、Recovery Application Service。 |
-| Bridge Policy 规则集中 | `bridge-policy.js` 约 1,500 行 | 按普通 Coding、CTF common、Solver、Tool Builder、Strategist 拆策略模块和契约测试。 |
+| Bridge Policy 规则集中 | `bridge-policy.js` 1,785 行 | 通用 Coding 行为优先替换为固定 Pi Package；剩余边界按普通 Coding、CTF common、Solver、Tool Builder、Strategist 拆契约。 |
 | SQLite 迁移不统一 | Event Store 有 migration；Credential/Memory/Catalog 各自建表 | 引入每库独立、编号、事务化迁移和升级前备份测试。 |
 | 明文 SQLite 凭据 | `credentials.db` 0600，但不加密 | 保持“不经 Wails/日志/报告返回”的约束；后续提供可选口令加密，不静默恢复 Keychain。 |
 
@@ -129,5 +133,7 @@ flowchart LR
 - “完整 M0—M7 的 M3 已完成”；
 - “Managed Labs 已接入”；
 - “Coding 插件体系已稳定完成”；
-- “NYU CTF Bench 已有对比成绩”；
+- “NYU CTF Bench 的 3/5 静态结果代表完整模型或 CTF Agent 能力”；
+- “CTF 已完成 Web / Pwn / Reverse / Crypto / Forensics 多题型验收”；
+- “Coding 已支持附件、MCP Browser 或 Computer Use”；
 - “MilkSU Shell 已实现容器级隔离”。

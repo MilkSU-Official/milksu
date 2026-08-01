@@ -365,7 +365,9 @@ func (a *App) SendMessage(
 	workspacePath,
 	modelMode,
 	modelProvider,
-	modelID string,
+	modelID,
+	executionMode,
+	approvalPolicy string,
 ) error {
 	sessionRole := ""
 	if a.ctfAgent != nil {
@@ -396,6 +398,8 @@ func (a *App) SendMessage(
 		prompt,
 		workspacePath,
 		sessionRole,
+		executionMode,
+		approvalPolicy,
 		settings,
 	)
 }

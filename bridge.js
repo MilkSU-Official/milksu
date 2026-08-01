@@ -11,7 +11,10 @@ import { fileURLToPath } from "node:url";
 import { Type } from "typebox";
 import piLspExtension from "@narumitw/pi-lsp/src/index.ts";
 import piRetryExtension from "@narumitw/pi-retry/src/index.ts";
-import { loadSessionPolicy } from "./bridge-policy.js";
+import {
+  codingSessionToolNames,
+  loadSessionPolicy,
+} from "./bridge-policy.js";
 import {
   applyCodingResourcePolicy,
   describeLoadedExtensions,
@@ -31,6 +34,8 @@ const providerBaseUrls = {
 };
 
 const sessions = new Map();
+const sessionPolicies = new Map();
+const sessionPolicyControllers = new Map();
 const promptQueues = new Map();
 const abortedSessions = new Set();
 const input = createInterface({ input: process.stdin });
@@ -120,6 +125,56 @@ function createMilkSUWorkflowExtension(sessionRole) {
         systemPrompt: `${event.systemPrompt}\n\nMilkSU Workflow extension:\n${roleGuidance}\n`
           + "Use milksu_progress for multi-step Coding tasks when the plan is created or materially changes. "
           + "Do not use it for a single obvious action. Keep at most one step in_progress.",
+      };
+    });
+  };
+}
+
+function codingPolicyGuidance(policy) {
+  if (!policy || policy.ctf) return "";
+  if (policy.executionMode === "plan") {
+    return "Plan mode is active. Inspect, reason, and propose a concrete plan. "
+      + "Do not claim that files, commands, or external systems were changed. "
+      + "bash, edit, write, and lsp_fix are unavailable.";
+  }
+  if (policy.approvalPolicy === "workspace-auto") {
+    return "Go mode is active with Workspace Auto. You may use edit/write only inside the selected "
+      + "workspace and may run only the reviewed networkless build/test/lint command set. "
+      + "Other commands, network, credentials, browser/MCP, Computer Use, lsp_fix, and paths "
+      + "outside the workspace remain blocked.";
+  }
+  if (policy.approvalPolicy === "ask") {
+    return "Go mode is active with Ask. This headless Sidecar cannot pause and return a synchronous "
+      + "approval request to the MilkSU desktop yet, so the enforced tool set remains read-only. "
+      + "Explain the intended workspace mutation and ask the user to switch to Workspace Auto.";
+  }
+  return "Go mode is active with Read-only. Inspect and explain, but do not claim any mutation or "
+    + "command execution; write and side-effect tools are unavailable.";
+}
+
+function createCodingPermissionExtension(getPolicy, registerController) {
+  return (pi) => {
+    registerController({
+      setActiveTools: names => pi.setActiveTools(names),
+    });
+    pi.on("tool_call", async (event) => {
+      const policy = getPolicy();
+      if (!policy || policy.ctf) return undefined;
+      if (!policy.activeTools.includes(event.toolName)) {
+        return {
+          block: true,
+          reason: `MilkSU Coding policy blocked ${event.toolName}: `
+            + `${policy.executionMode}/${policy.approvalPolicy}`,
+        };
+      }
+      return undefined;
+    });
+
+    pi.on("before_agent_start", async (event) => {
+      const guidance = codingPolicyGuidance(getPolicy());
+      if (!guidance) return undefined;
+      return {
+        systemPrompt: `${event.systemPrompt}\n\nMilkSU Coding permission policy:\n${guidance}`,
       };
     });
   };
@@ -277,7 +332,14 @@ async function loadProjectInstructions(cwd) {
   }
 }
 
-function createMilkSUResourceLoader(cwd, agentDir, systemPrompt, sessionRole) {
+function createMilkSUResourceLoader(
+  cwd,
+  agentDir,
+  systemPrompt,
+  sessionRole,
+  getPolicy,
+  registerPolicyController,
+) {
   // Skills and extensions may execute instructions supplied by third parties.
   // Keep Pi's ambient discovery disabled and load only MilkSU-reviewed resources.
   const codingSkillPaths = sessionRole
@@ -288,7 +350,11 @@ function createMilkSUResourceLoader(cwd, agentDir, systemPrompt, sessionRole) {
       ].filter((path) => existsSync(join(path, "SKILL.md"))).slice(0, 1);
   const extensionFactories = [createMilkSUWorkflowExtension(sessionRole)];
   if (!sessionRole) {
-    extensionFactories.push(piLspExtension, piRetryExtension);
+    extensionFactories.push(
+      createCodingPermissionExtension(getPolicy, registerPolicyController),
+      piLspExtension,
+      piRetryExtension,
+    );
   }
   return new DefaultResourceLoader({
     cwd,
@@ -314,20 +380,33 @@ async function createSession(command) {
   const cwd = process.cwd();
   const agentDir = process.env.MILKSU_PI_AGENT_DIR || join(cwd, ".milksu", "pi");
   const projectInstructions = await loadProjectInstructions(cwd);
-  const sessionPolicy = await loadSessionPolicy(cwd, command.sessionRole);
+  const sessionPolicy = await loadSessionPolicy(cwd, command.sessionRole, {
+    executionMode: command.executionMode,
+    approvalPolicy: command.approvalPolicy,
+  });
   const effectiveSessionRole = sessionPolicy.ctf
     ? command.sessionRole || "solver"
     : "";
   if (!effectiveSessionRole) {
     applyCodingResourcePolicy();
   }
+  sessionPolicies.set(conversationId, sessionPolicy);
   const resourceLoader = createMilkSUResourceLoader(
     cwd,
     agentDir,
     projectInstructions,
     effectiveSessionRole,
+    () => sessionPolicies.get(conversationId),
+    controller => sessionPolicyControllers.set(conversationId, controller),
   );
-  await resourceLoader.reload();
+  // MilkSU performs its own explicit, reviewed resource loading. Mark the
+  // project untrusted at Pi's package-manager layer so it does not walk parent
+  // directories looking for ambient .agents/.pi resources. Besides preventing
+  // accidental inheritance, this keeps packaged Node permission grants scoped
+  // to the selected workspace even when that workspace is not a Git repo.
+  await resourceLoader.reload({
+    resolveProjectTrust: async () => false,
+  });
 
   let session;
   try {
@@ -336,9 +415,22 @@ async function createSession(command) {
       agentDir,
       sessionManager: await createSessionManager(cwd, agentDir, conversationId),
       resourceLoader,
-      tools: sessionPolicy.activeTools,
+      // Coding conversations can switch Plan/Go and permission modes without
+      // recreating the session. Construct the reviewed superset once, then
+      // expose only the active policy subset below. CTF roles remain fixed to
+      // their manifest-derived tool catalog.
+      tools: sessionPolicy.ctf
+        ? sessionPolicy.activeTools
+        : codingSessionToolNames,
       customTools: sessionPolicy.customTools,
     }));
+    if (!sessionPolicy.ctf) {
+      const controller = sessionPolicyControllers.get(conversationId);
+      if (!controller) {
+        throw new Error("MilkSU Coding permission controller is unavailable");
+      }
+      controller.setActiveTools(sessionPolicy.activeTools);
+    }
     subscribeSession(
       conversationId,
       session,
@@ -362,11 +454,16 @@ async function createSession(command) {
       extensions: loadedExtensions.names,
       extensionErrors: loadedExtensions.errors,
       skills: resourceLoader.getSkills().skills.map((skill) => skill.name),
+      executionMode: sessionPolicy.executionMode,
+      approvalPolicy: sessionPolicy.approvalPolicy,
+      capabilities: sessionPolicy.capabilities,
       resumed: session.messages.length > 0,
     });
     return session;
   } catch (error) {
     session?.dispose();
+    sessionPolicies.delete(conversationId);
+    sessionPolicyControllers.delete(conversationId);
     throw error;
   }
 }
@@ -378,6 +475,18 @@ async function sendMessage(command) {
   const existing = sessions.get(conversationId);
   const session = existing ?? await createSession(command);
   if (existing) {
+    const sessionPolicy = await loadSessionPolicy(process.cwd(), command.sessionRole, {
+      executionMode: command.executionMode,
+      approvalPolicy: command.approvalPolicy,
+    });
+    sessionPolicies.set(conversationId, sessionPolicy);
+    if (!sessionPolicy.ctf) {
+      const controller = sessionPolicyControllers.get(conversationId);
+      if (!controller) {
+        throw new Error("MilkSU Coding permission controller is unavailable");
+      }
+      controller.setActiveTools(sessionPolicy.activeTools);
+    }
     const effectiveModel = configureRuntimeModel(session, command.provider, command.model);
     await setSessionModel(
       conversationId,
@@ -385,6 +494,14 @@ async function sendMessage(command) {
       effectiveModel.provider,
       effectiveModel.model,
     );
+    if (!sessionPolicy.ctf) {
+      emit(conversationId, "policy_updated", {
+        tools: session.getActiveToolNames(),
+        executionMode: sessionPolicy.executionMode,
+        approvalPolicy: sessionPolicy.approvalPolicy,
+        capabilities: sessionPolicy.capabilities,
+      });
+    }
   }
 
   const previous = promptQueues.get(conversationId) ?? Promise.resolve();
@@ -416,6 +533,8 @@ async function destroySession(command) {
   const sessionFile = session?.sessionFile;
   session?.dispose();
   sessions.delete(conversationId);
+  sessionPolicies.delete(conversationId);
+  sessionPolicyControllers.delete(conversationId);
   promptQueues.delete(conversationId);
   abortedSessions.delete(conversationId);
   if (command.deletePersisted && sessionFile) {

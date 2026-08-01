@@ -39,7 +39,7 @@ func TestRunRecordRejectsExecutableOrAuthoritativeExtensions(t *testing.T) {
 
 	record := testRun("run-2", SplitDevelopment, "web-one", RunCompleted, OutcomeSolved)
 	record.ResultAuthority = "independently-verified"
-	if err := ValidateRunRecord(record); err == nil || !strings.Contains(err.Error(), ReportedResultAuthority) {
+	if err := ValidateRunRecord(record); err == nil || !strings.Contains(err.Error(), "unsupported result authority") {
 		t.Fatalf("expected non-authoritative result constraint, got %v", err)
 	}
 }

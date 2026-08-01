@@ -22,21 +22,31 @@ type StoredMessage struct {
 	Status    *string `json:"status,omitempty"`
 }
 
+type StoredCapability struct {
+	ID     string `json:"id"`
+	Label  string `json:"label"`
+	Status string `json:"status"`
+	Detail string `json:"detail"`
+}
+
 type StoredConversation struct {
-	ID              string          `json:"id"`
-	Title           string          `json:"title"`
-	CreatedAt       uint64          `json:"createdAt"`
-	WorkspacePath   string          `json:"workspacePath,omitempty"`
-	ModelMode       string          `json:"modelMode,omitempty"`
-	ModelProvider   string          `json:"modelProvider,omitempty"`
-	ModelID         string          `json:"modelId,omitempty"`
-	AgentTools      []string        `json:"agentTools,omitempty"`
-	AgentExtensions []string        `json:"agentExtensions,omitempty"`
-	AgentSkills     []string        `json:"agentSkills,omitempty"`
-	CTFJobID        string          `json:"ctfJobId,omitempty"`
-	CTFMode         string          `json:"ctfMode,omitempty"`
-	CTFRole         string          `json:"ctfRole,omitempty"`
-	Messages        []StoredMessage `json:"messages"`
+	ID                string             `json:"id"`
+	Title             string             `json:"title"`
+	CreatedAt         uint64             `json:"createdAt"`
+	WorkspacePath     string             `json:"workspacePath,omitempty"`
+	ModelMode         string             `json:"modelMode,omitempty"`
+	ModelProvider     string             `json:"modelProvider,omitempty"`
+	ModelID           string             `json:"modelId,omitempty"`
+	ExecutionMode     string             `json:"executionMode,omitempty"`
+	ApprovalPolicy    string             `json:"approvalPolicy,omitempty"`
+	AgentTools        []string           `json:"agentTools,omitempty"`
+	AgentExtensions   []string           `json:"agentExtensions,omitempty"`
+	AgentSkills       []string           `json:"agentSkills,omitempty"`
+	AgentCapabilities []StoredCapability `json:"agentCapabilities,omitempty"`
+	CTFJobID          string             `json:"ctfJobId,omitempty"`
+	CTFMode           string             `json:"ctfMode,omitempty"`
+	CTFRole           string             `json:"ctfRole,omitempty"`
+	Messages          []StoredMessage    `json:"messages"`
 }
 
 type Store struct {

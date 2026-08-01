@@ -41,6 +41,25 @@ MVP 不做 Web 产品、GraphQL、PostgreSQL、微服务、多用户、Red/Blue/
 
 本文后面的 `M0—M7` 是长期**能力里程碑**。当前桌面版本所说的 `M3 MVP` 是一次**产品发布检查点**，两者不要混用：产品已经先行吸收了部分 M3/M7 的界面与打包能力，但这不代表长期能力里程碑已经按完成标志验收。
 
+### 2026-08-01 优先级重排
+
+当前迭代冻结 Managed Labs 与 CVE 扩展，不继续推进 Juice Shop、WebGoat、Vulhub、HTB/THM
+自动化或新的漏洞研究执行能力。工作区中已经存在的 Lab 实验代码不能写入当前发布声明。
+
+新的交付顺序是：
+
+1. **NYU CTF Bench + Coding Agent first**：先建立最小开发者 Eval；用
+   [Coding Agent 真实交付验收](coding-agent-delivery-acceptance.md)证明连续短提示、附件、
+   编辑、命令、测试、修错、恢复、审批和最终交付，而不只证明工具已注册。
+2. **CTF**：保持现有 NSSCTF Intake → PI → Candidate → Judge → Debrief 主链不回归；
+   只修阻断真实使用的问题，不扩新的平台或 Lab。
+3. **Memory**：使用真实 CTF/Coding 轨迹校准召回、脱敏和用户确认，不提前增加向量数据库。
+4. **Foundation**：统一 UI/Markdown、权限可见性、发布回归和本地数据迁移。
+5. **Architecture**：按当前架构快照逐步拆分职责集中点，保持 Wails、Pi 和 Runtime 公开契约。
+
+Labs 与 CVE 何时解冻，必须由新的用户目标、授权边界和独立验收决定；它们不再阻塞当前
+R0.4 的冻结、提交与演示。
+
 2026-08-01 回归结果：
 
 | 产品面 | 状态 | 已有事实 | 距离可用 MVP 的缺口 |
@@ -263,4 +282,8 @@ Vuln 面板的产品方向不是“一次性扫描向导”，而是赏金猎人
 5. 一起阅读失败轨迹，决定保留、修改或删除；
 6. 完成一个小提交，再进入下一纵切。
 
-短期目标不是把七个里程碑一次设计完。当前只推进上面的 CTF-first M3 MVP：真实 P3879 Accepted、清洁安装题库同步、配对页面正文 Intake 和 Judge 不明确结果恢复均已完成。下一步优先完成动态 endpoint 用户确认、一键 Juice Shop 用户入口、工作台布局/Markdown 原生回归，再用 `m3:release-check` 冻结可演示版本。Vulhub、WebGoat 和 NYU CTF Bench 分别进入靶场、课程与开发者基准后续，不阻塞第一次可用交付。
+短期目标不是把七个里程碑一次设计完。真实 P3879 Accepted、清洁安装题库同步、配对页面
+正文 Intake 和 Judge 不明确结果恢复已经形成 CTF 基线；当前按“NYU + Coding first →
+CTF → Memory → Foundation → Architecture”的顺序收口。Managed Labs 与 CVE 扩展已冻结，
+不再作为 R0.4 完成条件。下一步先让最小 Eval 和 Coding Agent 真实交付 fixture 进入可重复
+回归，再完成 UI/Markdown 与原生发布门。

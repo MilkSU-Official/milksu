@@ -19,6 +19,25 @@ func TestNormalizeAssistantDelta(t *testing.T) {
 	}
 }
 
+func TestNormalizePolicyStatus(t *testing.T) {
+	event := normalizeBridgeEvent(bridgeEvent{
+		Type:           "policy_updated",
+		ID:             "session-1",
+		Tools:          []string{"read", "edit"},
+		ExecutionMode:  "go",
+		ApprovalPolicy: "workspace-auto",
+		Capabilities: []CodingCapabilityStatus{{
+			ID: "workspace-write", Label: "工作区写入", Status: "allowed",
+		}},
+	})
+	if event.Type != "session.policy_updated" ||
+		event.ExecutionMode != "go" ||
+		event.ApprovalPolicy != "workspace-auto" ||
+		len(event.Capabilities) != 1 {
+		t.Fatalf("unexpected policy event: %#v", event)
+	}
+}
+
 func TestNormalizeToolError(t *testing.T) {
 	event := normalizeBridgeEvent(bridgeEvent{
 		Type: "tool_call_end", ID: "session-1", ToolName: "read", Content: "denied", IsError: true,
@@ -82,13 +101,40 @@ func TestSendMessageRejectsMissingKeyBeforeStartingSidecar(t *testing.T) {
 	supervisor := NewSupervisor(nil)
 	defer supervisor.Close()
 
-	err := supervisor.SendMessage("session-1", "hello", "", "", config.DefaultSettings())
+	err := supervisor.SendMessage("session-1", "hello", "", "", "", "", config.DefaultSettings())
 	if err == nil || !strings.Contains(err.Error(), "Settings > API Keys") {
 		t.Fatalf("expected actionable missing-key error, got %v", err)
 	}
 	status := supervisor.Status()
 	if status.Running || status.SessionCount != 0 {
 		t.Fatalf("missing credentials must not start a sidecar or session: %#v", status)
+	}
+}
+
+func TestNormalizeCodingPolicyPreservesLegacyGoAndValidatesExplicitModes(t *testing.T) {
+	legacy, err := normalizeCodingPolicy("", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if legacy.ExecutionMode != "go" || legacy.ApprovalPolicy != "workspace-auto" {
+		t.Fatalf("unexpected legacy policy: %#v", legacy)
+	}
+	plan, err := normalizeCodingPolicy("plan", "read-only", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.ExecutionMode != "plan" || plan.ApprovalPolicy != "read-only" {
+		t.Fatalf("unexpected explicit policy: %#v", plan)
+	}
+	if _, err := normalizeCodingPolicy("execute", "workspace-auto", ""); err == nil {
+		t.Fatal("expected unknown execution mode to be rejected")
+	}
+	if _, err := normalizeCodingPolicy("go", "always", ""); err == nil {
+		t.Fatal("expected unknown approval policy to be rejected")
+	}
+	ctfPolicy, err := normalizeCodingPolicy("unknown", "unknown", "solver")
+	if err != nil || ctfPolicy != (CodingPolicy{}) {
+		t.Fatalf("CTF session must ignore Coding policy fields: %#v, %v", ctfPolicy, err)
 	}
 }
 

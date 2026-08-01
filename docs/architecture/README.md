@@ -3,7 +3,8 @@
 > 审阅日期：2026-08-01
 >
 > 范围：当前 `codex/authorized-learning-foundation` 分支及本轮工作区。本文档只描述代码中
-> 已存在或已经明确规划的边界，不把本地 Lab、NYU CTF Bench 或尚未完成的原生回归写成已发布能力。
+> 已存在或已经明确规划的边界，不把本地 Lab、内部 NYU CTF Bench 基线或尚未完成的
+> 插件专项回归写成面向用户的已发布能力。
 
 这组文档用于回答四个不同问题：
 
@@ -30,12 +31,19 @@
   PI 轨迹和候选可以回流，用户复盘后才允许沉淀长期训练记忆。
 - 当前最大风险不是“底层完全缺失”，而是职责集中：`app.go`、`CTFPage.vue`、
   `internal/browsercap/manager.go` 和 `internal/ctf/service.go` 都已经成为变更热点。
-- 普通 Coding 会话已经在代码层接入固定版本 Archify、PI LSP 和 PI Retry；真实 Coding
-  任务验收和插件权限 UI 仍是 **Partial**，不能仅凭包已安装就宣称完成。
+- 普通 Coding 会话已经在代码层接入固定版本 Archify、PI LSP 和 PI Retry；Coding 核心
+  的 Plan → Go、多轮修改、真实打包命令执行与独立复验已经 **Verified**。Archify 的
+  生成/更新、真实 LSP Server 和 Retry 故障注入仍是 **Partial**，不能仅凭包已安装就
+  宣称插件体系完成。
 - Managed Labs 本轮已暂停。工作区里的 Lab Manager / WebGoat 实验不能进入 R0.4 发布声明，
   也不能作为 M3 完成条件。
-- NYU CTF Bench 的只读元数据与静态报告适配器是 **Implemented**；Runner 明确不存在，
-  因此它仍不是可执行评测服务、用户题库或已验证成绩。
+- NYU CTF Bench 的只读元数据、Admission、DeepSeek 单回合安全静态 Runner 和摘要 Judge
+  是 **Implemented**；当前只有 6 个手选静态任务的内部基线，其中 5 次真实 Provider
+  调用、3 次摘要命中。它不是完整 NYU CTF Bench 成绩、不是 CTF Agent 工具链验收，也
+  不是面向用户的题库或评测服务。
+- Coding Harness 遵循 **reuse-first**：Pi Core 或经审阅的社区扩展能负责的通用能力，
+  MilkSU 不再写临时替代品；自研集中在桌面安全边界和 CTF 的 Evidence / Judge /
+  Recovery / Memory。
 
 ## 证据入口
 

@@ -16,10 +16,11 @@ The project is not “architecturally out of control,” but four files have bec
 
 | File | Current size | Concentrated responsibilities |
 | --- | ---: | --- |
-| `app/src/components-vue/CTFPage.vue` | 3,355 lines | platform picker, catalog paging, browser pairing, challenge desk, Agent launch, history, ability UI, Judge state |
-| `app.go` | 1,790 lines | Wails facade, settings, conversations, active CTF platforms, Arena, memory, reports, Vuln entry points |
-| `internal/browsercap/manager.go` | 1,786 lines / 33 methods | browser sessions, policy, extension installation, pairing server, NSSCTF and CTFshow commands/results/persistence |
-| `internal/ctf/service.go` | 1,463 lines / 30 methods | job commands, runner lifecycle, recorder ingestion, candidate gate, recovery, external Judge, cancellation |
+| `app/src/components-vue/CTFPage.vue` | 3,553 lines | platform picker, catalog paging, browser pairing, challenge desk, Agent launch, history, ability UI, Judge state |
+| `app.go` | 1,917 lines | Wails facade, settings, conversations, active CTF platforms, Arena, memory, reports, Vuln entry points |
+| `internal/browsercap/manager.go` | 1,787 lines | browser sessions, policy, extension installation, pairing server, NSSCTF and CTFshow commands/results/persistence |
+| `internal/ctf/service.go` | 1,683 lines | job commands, runner lifecycle, recorder ingestion, candidate gate, recovery, external Judge, cancellation |
+| `bridge-policy.js` | 1,785 lines | Coding/CTF tool policy, path enforcement, command sandbox, custom CTF tools, capability projection |
 
 These are maintainability risks, not a reason for a rewrite. The correct sequence is:
 
@@ -206,7 +207,7 @@ Rules:
 
 - Architecture diagram: showcase validation 9/9, 0 errors, 0 warnings; dark and light visual review passed.
 - CTF workflow diagram: showcase validation 9/9, 0 errors, 0 warnings; dark and light visual review passed.
-- Go package count: 16.
-- Go test files: 52.
-- Vue components in `components-vue`: 14.
+- Go internal package count: 15.
+- Go internal test files: 47.
+- Vue components in `components-vue`: 17.
 - Current release status remains **M3 in progress** until clean-install NSSCTF bootstrap, paired-page intake, and ambiguous Judge recovery pass.

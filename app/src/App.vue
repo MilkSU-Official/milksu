@@ -56,6 +56,9 @@ const arenaReady = computed(() => Boolean(settings.value?.nssctf_arena?.has_toke
 const activeCTFConversation = computed(() => (
   Boolean(conversations.active.value?.ctfJobId)
 ))
+const sidebarSection = computed(() => (
+  section.value === 'chat' && activeCTFConversation.value ? 'ctf' : section.value
+))
 
 async function loadSettings() {
   const value = await invokeCommand<AppSettings>('get_settings')
@@ -73,7 +76,12 @@ function newConversation() {
 }
 
 function navigateSection(value: Section) {
-  if (value === 'ctf') ctfResumeJobId.value = null
+  if (value === 'ctf') {
+    ctfResumeJobId.value = conversations.active.value?.ctfJobId ?? null
+  }
+  if (value === 'chat' && activeCTFConversation.value) {
+    conversations.startNew()
+  }
   section.value = value
 }
 
@@ -151,7 +159,7 @@ onMounted(async () => {
   <div class="flex h-screen min-w-0 bg-surface-editor text-foreground">
     <AppSidebar
       v-if="section !== 'settings'"
-      :active-section="section"
+      :active-section="sidebarSection"
       :active-conversation-id="conversations.activeId.value"
       :conversations="conversations.conversations.value"
       :ctf-dashboard="ctfTraining.dashboard.value"
@@ -197,11 +205,14 @@ onMounted(async () => {
       :model-mode="conversations.selectedModelMode.value"
       :model-provider="conversations.selectedModelProvider.value"
       :model-id="conversations.selectedModelId.value"
+      :execution-mode="conversations.selectedExecutionMode.value"
+      :approval-policy="conversations.selectedApprovalPolicy.value"
       @send="conversations.send"
       @ctf-action="runCTFChatAction"
       @abort="abortConversation"
       @choose-workspace="chooseAgentWorkspace"
       @change-model="changeModel"
+      @change-coding-policy="conversations.setCodingPolicy"
       @open-settings="openSettings('apikeys')"
       @return-ctf="returnToCTFWorkspace"
       @switch-ctf-agent="switchCTFAgent"

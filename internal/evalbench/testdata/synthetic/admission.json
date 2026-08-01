@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "milksu.evalbench.admission/v1alpha1",
+  "sourceRevision": "1dc13a0dc41a71504f727649679e2b5a6d0cb1b1",
+  "reviewPolicyVersion": "milksu.safe-static-review/v1",
+  "tasks": [
+    {
+      "split": "development",
+      "taskId": "synthetic-static",
+      "classification": "safe-static",
+      "reason": "Human-reviewed synthetic text-only fixture.",
+      "reviewedBy": "fixture-reviewer",
+      "reviewedAt": "2026-08-01T00:00:00Z",
+      "staticMaterial": {
+        "prompt": "A plain text word puzzle. Return the uppercase spelling of milk.",
+        "promptSha256": "e9bcf944b5621cc671165f7792ce30ba828c094bc8bea48d78d8d814b51043c5",
+        "expectedAnswerSha256": "382f260f0c0b9a255befde3f14be45964c13c534cff3d5419da857f8930f17b0"
+      }
+    }
+  ]
+}

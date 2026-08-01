@@ -10,6 +10,8 @@ dist/
 !security-bridge.js
 !browserextension/background.js
 !browserextension/popup.js
+!tests/fixtures/coding-agent-delivery/template/src/*.js
+!tests/fixtures/coding-agent-delivery/template/test/*.js
 .DS_Store
 .claude/
 auth.json
@@ -28,4 +30,5 @@ build/sidecar/
 build/sidecar-cache/
 build/sidecar-smoke/
 build/sidecar-spike/
+build/test-results/
 docs/.vitepress/cache/

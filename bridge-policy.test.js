@@ -5,7 +5,12 @@ import { createServer as createTCPServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { loadSessionPolicy, scopeAllowsNetwork } from "./bridge-policy.js";
+import {
+  assertCodingWorkspaceCommand,
+  loadSessionPolicy,
+  normalizeCodingPolicy,
+  scopeAllowsNetwork,
+} from "./bridge-policy.js";
 
 function manifest(
   mode,
@@ -57,10 +62,12 @@ async function workspaceWithManifest(value) {
   return workspace;
 }
 
-test("normal coding sessions enable only MilkSU-reviewed Coding tools", async () => {
+test("legacy Coding sessions preserve deliverable Go defaults without unrestricted tools", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "milksu-coding-policy-"));
   const policy = await loadSessionPolicy(workspace);
   assert.equal(policy.ctf, false);
+  assert.equal(policy.executionMode, "go");
+  assert.equal(policy.approvalPolicy, "workspace-auto");
   assert.deepEqual(
     policy.activeTools,
     [
@@ -73,10 +80,101 @@ test("normal coding sessions enable only MilkSU-reviewed Coding tools", async ()
       "ls",
       "milksu_progress",
       "lsp_diagnostics",
-      "lsp_fix",
     ],
   );
-  assert.deepEqual(policy.customTools, []);
+  assert.equal(policy.customTools.some(tool => tool.name === "bash"), true);
+  assert.equal(policy.activeTools.includes("lsp_fix"), false);
+});
+
+test("Plan and non-automatic Go policies enforce a read-only tool allowlist", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "milksu-coding-policy-"));
+  for (const [executionMode, approvalPolicy] of [
+    ["plan", "workspace-auto"],
+    ["go", "read-only"],
+    ["go", "ask"],
+  ]) {
+    const policy = await loadSessionPolicy(workspace, "", {
+      executionMode,
+      approvalPolicy,
+    });
+    assert.deepEqual(
+      policy.activeTools,
+      ["read", "grep", "find", "ls", "milksu_progress", "lsp_diagnostics"],
+    );
+    for (const denied of ["bash", "edit", "write", "lsp_fix"]) {
+      assert.equal(policy.activeTools.includes(denied), false);
+    }
+  }
+  const ask = normalizeCodingPolicy("go", "ask");
+  assert.equal(ask.approvalChannelAvailable, false);
+  assert.equal(
+    ask.capabilities.find(value => value.id === "workspace-write").status,
+    "approval-required",
+  );
+});
+
+test("Workspace Auto accepts reviewed build/test commands and rejects shell escape", () => {
+  for (const command of [
+    "go test ./...",
+    "go vet ./...",
+    "npm --prefix app test -- --run",
+    "npm run build",
+    "npm run smoke",
+    "cargo check",
+    "python3 -m pytest",
+  ]) {
+    assert.equal(assertCodingWorkspaceCommand(command), command);
+  }
+  for (const command of [
+    "go test ./... && curl https://example.com",
+    "npm run arbitrary",
+    "cat .env",
+    "rm -rf .",
+    "npm --prefix ../other test",
+  ]) {
+    assert.throws(() => assertCodingWorkspaceCommand(command), /Workspace Auto/);
+  }
+});
+
+test("Go Workspace Auto can build/test but cannot mutate outside the workspace", {
+  skip: process.platform !== "darwin",
+}, async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "milksu-coding-policy-"));
+  await writeFile(
+    join(workspace, "package.json"),
+    `${JSON.stringify({
+      private: true,
+      scripts: { test: "node --test" },
+    })}\n`,
+  );
+  await writeFile(
+    join(workspace, "policy.test.js"),
+    "import test from 'node:test';\nimport assert from 'node:assert/strict';\ntest('fixture', () => assert.equal(2 + 2, 4));\n",
+  );
+  const outside = join(tmpdir(), `milksu-policy-outside-${Date.now()}.txt`);
+  const policy = await loadSessionPolicy(workspace, "", {
+    executionMode: "go",
+    approvalPolicy: "workspace-auto",
+  });
+  const bash = policy.customTools.find(tool => tool.name === "bash");
+  await bash.execute(
+    "build-test",
+    { command: "npm test" },
+    undefined,
+    undefined,
+    {},
+  );
+  const write = policy.customTools.find(tool => tool.name === "write");
+  await assert.rejects(
+    write.execute(
+      "outside-write",
+      { path: outside, content: "blocked" },
+      undefined,
+      undefined,
+      {},
+    ),
+    /denied path outside/,
+  );
 });
 
 test("coach mode removes bash even if a manifest requests it", async () => {

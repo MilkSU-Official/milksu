@@ -267,7 +267,7 @@ async function smokeSidecar(platform) {
     node,
     [...chatRuntimeArguments, join(output, 'chat-bridge.cjs')],
     [
-      '{"action":"create_session","conversationId":"packaged-smoke"}',
+      '{"action":"create_session","conversationId":"packaged-smoke","executionMode":"go","approvalPolicy":"workspace-auto"}',
       '{"action":"destroy_session","conversationId":"packaged-smoke"}',
       '',
     ].join('\n'),
@@ -287,18 +287,76 @@ async function smokeSidecar(platform) {
   const expectedTools = [
     ...coreExpectedTools,
     'lsp_diagnostics',
-    'lsp_fix',
   ]
   const ctfRequestedTools = [...coreExpectedTools, 'ctf_inspect']
   if (
     !ready
     || !expectedTools.every(tool => ready.tools?.includes(tool))
+    || ready.tools?.includes('lsp_fix')
+    || ready.executionMode !== 'go'
+    || ready.approvalPolicy !== 'workspace-auto'
     || !ready.skills?.includes('archify')
     || !ready.extensions?.includes('pi-lsp')
     || !ready.extensions?.includes('pi-retry')
     || !chatResponses.some(value => value.type === 'session_destroyed')
   ) {
     throw new Error(`unexpected packaged Chat Sidecar response: ${chatRun.stdout}`)
+  }
+  const planRun = await runWithInput(
+    node,
+    [...chatRuntimeArguments, join(output, 'chat-bridge.cjs')],
+    [
+      '{"action":"create_session","conversationId":"packaged-plan","executionMode":"plan","approvalPolicy":"workspace-auto"}',
+      '{"action":"destroy_session","conversationId":"packaged-plan"}',
+      '',
+    ].join('\n'),
+    { cwd: workspace, env: { ...process.env, HOME: workspace } },
+  )
+  const planResponses = planRun.stdout.trim().split('\n').map(line => JSON.parse(line))
+  const planReady = planResponses.find(value => value.type === 'ready')
+  if (
+    !planReady
+    || ['bash', 'edit', 'write', 'lsp_fix'].some(tool => planReady.tools?.includes(tool))
+    || !['read', 'grep', 'find', 'ls', 'lsp_diagnostics'].every(tool => planReady.tools?.includes(tool))
+    || planReady.executionMode !== 'plan'
+  ) {
+    throw new Error(`unexpected packaged Plan response: ${planRun.stdout}`)
+  }
+  const nonGitWorkspace = join(
+    repositoryRoot,
+    'build',
+    'sidecar-smoke-non-git',
+    platform.replace('/', '-'),
+  )
+  await mkdir(nonGitWorkspace, { recursive: true, mode: 0o700 })
+  const nonGitArguments = [
+    '--permission',
+    `--allow-fs-read=${output}`,
+    `--allow-fs-read=${nonGitWorkspace}`,
+    `--allow-fs-write=${nonGitWorkspace}`,
+    '--allow-child-process',
+    '--allow-fs-read=/bin/bash',
+    '--allow-fs-read=/bin/sh',
+    '--allow-fs-read=/usr/bin/env',
+    '--allow-fs-read=/usr/bin/sandbox-exec',
+  ]
+  const nonGitRun = await runWithInput(
+    node,
+    [...nonGitArguments, join(output, 'chat-bridge.cjs')],
+    [
+      '{"action":"create_session","conversationId":"packaged-non-git","executionMode":"plan","approvalPolicy":"workspace-auto"}',
+      '{"action":"destroy_session","conversationId":"packaged-non-git"}',
+      '',
+    ].join('\n'),
+    { cwd: nonGitWorkspace, env: { ...process.env, HOME: nonGitWorkspace } },
+  )
+  const nonGitResponses = nonGitRun.stdout.trim().split('\n').map(line => JSON.parse(line))
+  if (
+    !nonGitResponses.some(value => value.type === 'ready')
+    || !nonGitResponses.some(value => value.type === 'session_destroyed')
+    || nonGitResponses.some(value => value.type === 'error')
+  ) {
+    throw new Error(`unexpected packaged non-Git workspace response: ${nonGitRun.stdout}`)
   }
   const ctfWorkspace = join(workspace, 'ctf-coach')
   await mkdir(join(ctfWorkspace, '.git'), { recursive: true, mode: 0o700 })
@@ -374,7 +432,27 @@ async function smokeSidecar(platform) {
   if (bashProbe.stdout !== 'packaged-bash-ok') {
     throw new Error(`unexpected packaged Bash probe: ${bashProbe.stdout}\n${bashProbe.stderr}`)
   }
-  process.stdout.write(`${JSON.stringify(response)}\n`)
+  const { stdout: codingDeliveryOutput } = await execFileAsync(
+    process.execPath,
+    [join(repositoryRoot, 'scripts', 'test-coding-agent-delivery.mjs')],
+    {
+      cwd: repositoryRoot,
+      env: {
+        ...process.env,
+        MILKSU_CODING_SIDECAR_NODE: node,
+      },
+      maxBuffer: 4 * 1024 * 1024,
+      timeout: 60_000,
+    },
+  )
+  const codingDelivery = JSON.parse(codingDeliveryOutput)
+  if (!codingDelivery.passed || codingDelivery.score !== 100) {
+    throw new Error(`packaged Coding delivery failed: ${codingDeliveryOutput}`)
+  }
+  process.stdout.write(`${JSON.stringify({
+    ...response,
+    codingDeliveryScore: codingDelivery.score,
+  })}\n`)
 }
 
 async function installSidecar(platform, binaryPath) {

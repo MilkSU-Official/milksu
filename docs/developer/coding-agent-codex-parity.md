@@ -42,7 +42,7 @@ MilkSU Coding 的北极星不是“能调用模型的聊天框”，而是让用
 | Codex 工作流 | MilkSU 当前状态 | 差距与验收 | 优先级 |
 | --- | --- | --- | --- |
 | 本地项目与工作目录 | `Verified`：原生目录选择；首条消息后锁定目录 | 支持多根目录；清楚展示主目录与附加目录 | P1 |
-| 独立任务与最近历史 | `Implemented`：独立 Conversation、搜索、删除、SQLite 持久化 | 增加重命名、置顶、归档和恢复入口 | P1 |
+| 独立任务与最近历史 | `Verified`：独立 Conversation、搜索、删除、用户数据目录持久化；Coding 任务按仓库折叠，未绑定仓库的任务归入临时沙盒，CTF 角色会话不混入 Coding | 增加重命名、置顶、归档和恢复入口；未来复用 Pi Session Snap / Query / Handoff，而不是再造一套归档引擎 | P1 |
 | 会话恢复 | `Verified`：Pi SessionManager 与 Conversation ID 恢复 | 增加“从上次中断继续”的明确状态和恢复摘要 | P0 |
 | `AGENTS.md` 项目指令 | `Partial`：加载工作区根目录 `AGENTS.md` | 支持更近目录优先的嵌套规则并展示已加载来源 | P0 |
 | Goal / Plan 长任务 | `Partial`：`milksu_progress` 工具存在 | 独立的目标行、计划状态、暂停/继续/编辑和完成条件 | P0 |
@@ -52,7 +52,7 @@ MilkSU Coding 的北极星不是“能调用模型的聊天框”，而是让用
 | Codex 工作流 | MilkSU 当前状态 | 差距与验收 | 优先级 |
 | --- | --- | --- | --- |
 | 读、搜、改、写文件 | `Verified`：Pi `read/edit/write/grep/find/ls` | 增加逐文件/逐块 diff 可视化和撤销 | P0 |
-| Shell 与测试 | `Verified`：Pi `bash`，工具输入输出可见，可停止 | 后台进程列表、终端复用、退出码和端口状态 | P0 |
+| Shell 与测试 | `Verified`（M3 allowlist）：`Go + Workspace Auto` 在打包应用真实运行 `npm test` / `npm run smoke`；任意 Shell 被拒绝 | 增加桌面逐次审批、后台进程列表、终端复用、退出码和端口状态 | P0 |
 | 上下文压缩与持久会话 | `Implemented`：复用 Pi Session | UI 显示压缩/恢复事件；建立长任务回归 | P1 |
 | LSP | `Partial`：固定插件并仅用于 Coding；仓库配置被 MilkSU 白名单覆盖，语言服务器进程不继承模型凭据 | 打包 Go/Vue/TypeScript Server；用 fixture 验证诊断，写修复必须显式展示 | P0 |
 | Retry | `Partial`：固定插件并仅用于 Coding；保留瞬态错误分类，慢模型 watchdog 暂停 | 用可控瞬态失败与慢首 Token fixture 验证有界重试和停止后再启用 watchdog | P0 |
@@ -74,8 +74,8 @@ MilkSU Coding 的北极星不是“能调用模型的聊天框”，而是让用
 
 | Codex 工作流 | MilkSU 当前状态 | 差距与验收 | 优先级 |
 | --- | --- | --- | --- |
-| 工作区范围 | `Partial`：Sidecar 只获得所选目录和 Agent 数据目录 | UI 展示可读/可写根目录；多根目录显式授权 | P0 |
-| 命令与网络审批 | `Planned` | Read-only / Auto / Full 三档；网络与工作区外操作单独审批 | P0 |
+| 工作区范围 | `Implemented`：文件工具二次校验路径/符号链接；Workspace Auto 保护 `.git` / `.milksu`，Sidecar 仍限所选目录 | 多根目录显式授权；原生包负向回归 | P0 |
+| 命令与网络审批 | `Partial`：Plan/Go 与 Read-only/Ask/Workspace Auto 已由后端 allowlist 执行；Ask 因无桌面同步审批协议暂按只读 | 增加逐工具审批；网络、凭据、Browser、Computer Use、任意 Shell 保持独立批准 | P0 |
 | 环境信息 | `Implemented`：工作区、Git、模型、插件、工具、消息与工具记录 | 补后台进程、端口、浏览器、来源与变更详情 | P0 |
 | Local Environment / Actions | `Planned` | 项目级 setup 和常用命令；固定配置、可见输出、可停止 | P1 |
 | 集成终端 | `Planned` | 同一项目的可见终端与 Agent 后台进程，不隐藏 Shell 状态 | P1 |
@@ -115,7 +115,7 @@ MilkSU Coding 的北极星不是“能调用模型的聊天框”，而是让用
 ### C1：日常 Git 与权限闭环
 
 - Diff 审阅、stage、commit、push；
-- Read-only / Auto / Full 权限；
+- Plan / Go 与 Read-only / Ask / Workspace Auto 权限；补齐 Ask 的桌面同步审批；
 - 工作区外、网络、外部副作用具有独立批准；
 - 项目 Actions 与后台进程可见、可停止、可恢复。
 
@@ -137,3 +137,16 @@ MilkSU Coding 的北极星不是“能调用模型的聊天框”，而是让用
 5. CTF Sidecar 负向隔离测试；
 6. 中断、恢复和失败信息不让界面停在虚假运行态；
 7. 外部写入、push、PR、浏览器提交等副作用在动作发生前获得明确授权。
+
+## 2026-08-01 packaged delivery evidence
+
+一个从零构造、非 Git 的 Node.js 报告 CLI fixture 在正式打包的 MilkSU 中完成了连续短提示交付：
+
+1. Plan 模式读取 `README.md`、`AGENTS.md`、静态 JSON 与现有源码，不写文件；
+2. 同一 Conversation 切到 Go + Workspace Auto 后实现 `src/report.js`、`src/cli.js` 和测试；
+3. 修复打包 Node 权限继承后，Agent 自己执行 `npm test` 与 `npm run smoke`；
+4. 用户指出旧消息中的临时 shim 已由外部删除，Agent 重新 `ls` 验证当前事实，没有继续依赖旧结论；
+5. 用户追加 `items: null` 边界要求，Agent 修改实现、补测试，并将测试从 4/4 推进到 5/5；
+6. 主验收进程在 Agent 外独立复跑测试与 smoke，结果一致。
+
+该样本证明当前 Coding 核心链路已可交付，也暴露出模型会受旧对话误导、需要“先验证当前状态再下结论”的真实弱点。它不证明任意 Shell、桌面 Ask 审批、附件、MCP Browser、Computer Use、多 Agent 或 Git 发布闭环已经完成。

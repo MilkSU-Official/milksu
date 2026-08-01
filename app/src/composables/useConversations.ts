@@ -1,6 +1,18 @@
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { invokeCommand, listenEvent } from '@/desktop'
-import type { Conversation, Message } from '@/types'
+import {
+  DEFAULT_CODING_APPROVAL_POLICY,
+  DEFAULT_CODING_EXECUTION_MODE,
+  normalizeCodingApprovalPolicy,
+  normalizeCodingExecutionMode,
+} from '@/lib/codingPolicy'
+import type {
+  CodingApprovalPolicy,
+  CodingCapability,
+  CodingExecutionMode,
+  Conversation,
+  Message,
+} from '@/types'
 
 interface AgentEvent {
   sessionId?: string
@@ -12,6 +24,9 @@ interface AgentEvent {
   tools?: string[]
   extensions?: string[]
   skills?: string[]
+  executionMode?: CodingExecutionMode
+  approvalPolicy?: CodingApprovalPolicy
+  capabilities?: CodingCapability[]
 }
 
 interface WorkspaceTask {
@@ -38,6 +53,8 @@ function normalizeConversation(raw: Record<string, unknown>): Conversation {
       : undefined,
     modelProvider: typeof raw.modelProvider === 'string' ? raw.modelProvider : undefined,
     modelId: typeof raw.modelId === 'string' ? raw.modelId : undefined,
+    executionMode: normalizeCodingExecutionMode(raw.executionMode),
+    approvalPolicy: normalizeCodingApprovalPolicy(raw.approvalPolicy),
     agentTools: Array.isArray(raw.agentTools)
       ? raw.agentTools.map(String)
       : undefined,
@@ -46,6 +63,20 @@ function normalizeConversation(raw: Record<string, unknown>): Conversation {
       : undefined,
     agentSkills: Array.isArray(raw.agentSkills)
       ? raw.agentSkills.map(String)
+      : undefined,
+    agentCapabilities: Array.isArray(raw.agentCapabilities)
+      ? raw.agentCapabilities.flatMap(value => {
+          if (!value || typeof value !== 'object') return []
+          const capability = value as Record<string, unknown>
+          const status = String(capability.status)
+          if (!['allowed', 'blocked', 'approval-required', 'unavailable'].includes(status)) return []
+          return [{
+            id: String(capability.id ?? ''),
+            label: String(capability.label ?? ''),
+            status: status as CodingCapability['status'],
+            detail: String(capability.detail ?? ''),
+          }]
+        })
       : undefined,
     ctfJobId: typeof raw.ctfJobId === 'string' ? raw.ctfJobId : undefined,
     ctfMode: ['coach', 'copilot', 'delegate'].includes(String(raw.ctfMode))
@@ -87,6 +118,8 @@ export function useConversations() {
   const pendingModelMode = ref<'auto' | 'manual' | undefined>()
   const pendingModelProvider = ref<string | undefined>()
   const pendingModelId = ref<string | undefined>()
+  const pendingExecutionMode = ref<CodingExecutionMode>(DEFAULT_CODING_EXECUTION_MODE)
+  const pendingApprovalPolicy = ref<CodingApprovalPolicy>(DEFAULT_CODING_APPROVAL_POLICY)
   const runningIds = ref(new Set<string>())
   const active = computed(() => conversations.value.find(item => item.id === activeId.value) ?? null)
   const workspacePath = computed(() => active.value?.workspacePath ?? pendingWorkspacePath.value)
@@ -96,6 +129,12 @@ export function useConversations() {
   const selectedModelMode = computed(() => active.value?.modelMode ?? pendingModelMode.value)
   const selectedModelProvider = computed(() => active.value?.modelProvider ?? pendingModelProvider.value)
   const selectedModelId = computed(() => active.value?.modelId ?? pendingModelId.value)
+  const selectedExecutionMode = computed(() => (
+    active.value?.executionMode ?? pendingExecutionMode.value
+  ))
+  const selectedApprovalPolicy = computed(() => (
+    active.value?.approvalPolicy ?? pendingApprovalPolicy.value
+  ))
   const saveTimers = new Map<string, number>()
   let disposeEvents: (() => void) | undefined
 
@@ -139,6 +178,8 @@ export function useConversations() {
     pendingModelMode.value = undefined
     pendingModelProvider.value = undefined
     pendingModelId.value = undefined
+    pendingExecutionMode.value = DEFAULT_CODING_EXECUTION_MODE
+    pendingApprovalPolicy.value = DEFAULT_CODING_APPROVAL_POLICY
   }
 
   function setWorkspace(path: string) {
@@ -172,6 +213,22 @@ export function useConversations() {
       modelMode: mode,
       modelProvider: mode === 'manual' ? normalizedProvider : undefined,
       modelId: mode === 'manual' ? normalizedModel : undefined,
+    }))
+  }
+
+  function setCodingPolicy(
+    executionMode: CodingExecutionMode,
+    approvalPolicy: CodingApprovalPolicy,
+  ) {
+    if (!activeId.value) {
+      pendingExecutionMode.value = executionMode
+      pendingApprovalPolicy.value = approvalPolicy
+      return
+    }
+    update(activeId.value, conversation => ({
+      ...conversation,
+      executionMode,
+      approvalPolicy,
     }))
   }
 
@@ -243,6 +300,8 @@ export function useConversations() {
         modelMode: pendingModelMode.value,
         modelProvider: pendingModelProvider.value,
         modelId: pendingModelId.value,
+        executionMode: pendingExecutionMode.value,
+        approvalPolicy: pendingApprovalPolicy.value,
         messages: [message],
       }
       conversations.value = [conversation, ...conversations.value]
@@ -265,6 +324,8 @@ export function useConversations() {
         modelMode: conversation?.modelMode ?? '',
         modelProvider: conversation?.modelProvider ?? '',
         modelId: conversation?.modelId ?? '',
+        executionMode: conversation?.executionMode ?? DEFAULT_CODING_EXECUTION_MODE,
+        approvalPolicy: conversation?.approvalPolicy ?? DEFAULT_CODING_APPROVAL_POLICY,
       })
     } catch (reason) {
       const nextRunning = new Set(runningIds.value)
@@ -302,6 +363,9 @@ export function useConversations() {
         tools,
         extensions,
         skills,
+        executionMode,
+        approvalPolicy,
+        capabilities,
       } = event.payload
       if (!sessionId && (type === 'engine.stopped' || type === 'engine.protocol_error')) {
         const affected = [...runningIds.value]
@@ -332,12 +396,15 @@ export function useConversations() {
         const messages = [...conversation.messages]
         const last = messages.at(-1)
 
-        if (type === 'session.ready') {
+        if (type === 'session.ready' || type === 'session.policy_updated') {
           return {
             ...conversation,
             agentTools: tools ?? conversation.agentTools,
             agentExtensions: extensions ?? conversation.agentExtensions,
             agentSkills: skills ?? conversation.agentSkills,
+            executionMode: executionMode ?? conversation.executionMode,
+            approvalPolicy: approvalPolicy ?? conversation.approvalPolicy,
+            agentCapabilities: capabilities ?? conversation.agentCapabilities,
           }
         }
         if (type === 'assistant.delta') {
@@ -431,6 +498,8 @@ export function useConversations() {
     selectedModelMode,
     selectedModelProvider,
     selectedModelId,
+    selectedExecutionMode,
+    selectedApprovalPolicy,
     load,
     listen,
     send,
@@ -439,6 +508,7 @@ export function useConversations() {
     startNew,
     setWorkspace,
     setModelSelection,
+    setCodingPolicy,
     startWorkspaceTask,
   }
 }

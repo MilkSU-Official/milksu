@@ -16,24 +16,39 @@ type ResultCounts struct {
 	Cancelled int `json:"cancelled"`
 }
 
+type ExitReasonCount struct {
+	Reason string `json:"reason"`
+	Count  int    `json:"count"`
+}
+
+type ExecutionAggregate struct {
+	ProviderCalls      int               `json:"providerCalls"`
+	InputTokens        int64             `json:"inputTokens"`
+	OutputTokens       int64             `json:"outputTokens"`
+	ActualCostMicroUSD int64             `json:"actualCostMicroUsd"`
+	ExitReasons        []ExitReasonCount `json:"exitReasons"`
+}
+
 type DimensionSummary struct {
-	Name            string       `json:"name"`
-	Tasks           int          `json:"tasks"`
-	AttemptedTasks  int          `json:"attemptedTasks"`
-	SolvedTasks     int          `json:"reportedSolvedTasks"`
-	Results         ResultCounts `json:"results"`
-	SolveRate       float64      `json:"reportedSolveRate"`
-	ResultAuthority string       `json:"resultAuthority"`
+	Name            string             `json:"name"`
+	Tasks           int                `json:"tasks"`
+	AttemptedTasks  int                `json:"attemptedTasks"`
+	SolvedTasks     int                `json:"reportedSolvedTasks"`
+	Results         ResultCounts       `json:"results"`
+	SolveRate       float64            `json:"reportedSolveRate"`
+	ResultAuthority string             `json:"resultAuthority"`
+	Execution       ExecutionAggregate `json:"execution"`
 }
 
 type ConfigurationSummary struct {
-	Model           ModelIdentity   `json:"model"`
-	Harness         HarnessIdentity `json:"harness"`
-	AttemptedTasks  int             `json:"attemptedTasks"`
-	SolvedTasks     int             `json:"reportedSolvedTasks"`
-	Results         ResultCounts    `json:"results"`
-	SolveRate       float64         `json:"reportedSolveRate"`
-	ResultAuthority string          `json:"resultAuthority"`
+	Model           ModelIdentity      `json:"model"`
+	Harness         HarnessIdentity    `json:"harness"`
+	AttemptedTasks  int                `json:"attemptedTasks"`
+	SolvedTasks     int                `json:"reportedSolvedTasks"`
+	Results         ResultCounts       `json:"results"`
+	SolveRate       float64            `json:"reportedSolveRate"`
+	ResultAuthority string             `json:"resultAuthority"`
+	Execution       ExecutionAggregate `json:"execution"`
 }
 
 type Report struct {
@@ -45,24 +60,37 @@ type Report struct {
 	Results         ResultCounts           `json:"results"`
 	SolveRate       float64                `json:"reportedSolveRate"`
 	ResultAuthority string                 `json:"resultAuthority"`
+	Execution       ExecutionAggregate     `json:"execution"`
 	Splits          []DimensionSummary     `json:"splits"`
 	Categories      []DimensionSummary     `json:"categories"`
 	Configurations  []ConfigurationSummary `json:"configurations"`
 }
 
 type summaryAccumulator struct {
-	taskIDs  map[string]struct{}
-	attempts map[string]struct{}
-	solved   map[string]struct{}
-	results  ResultCounts
+	taskIDs     map[string]struct{}
+	attempts    map[string]struct{}
+	solved      map[string]struct{}
+	results     ResultCounts
+	authorities map[string]struct{}
+	execution   executionAccumulator
 }
 
 type configurationAccumulator struct {
-	model    ModelIdentity
-	harness  HarnessIdentity
-	attempts map[string]struct{}
-	solved   map[string]struct{}
-	results  ResultCounts
+	model       ModelIdentity
+	harness     HarnessIdentity
+	attempts    map[string]struct{}
+	solved      map[string]struct{}
+	results     ResultCounts
+	authorities map[string]struct{}
+	execution   executionAccumulator
+}
+
+type executionAccumulator struct {
+	providerCalls      int
+	inputTokens        int64
+	outputTokens       int64
+	actualCostMicroUSD int64
+	exitReasons        map[string]int
 }
 
 // Aggregate builds a deterministic static report. Runs are treated only as
@@ -119,10 +147,12 @@ func Aggregate(catalogs []Catalog, runs []RunRecord) (Report, error) {
 		configuration := configurations[configKey]
 		if configuration == nil {
 			configuration = &configurationAccumulator{
-				model:    run.Model,
-				harness:  run.Harness,
-				attempts: map[string]struct{}{},
-				solved:   map[string]struct{}{},
+				model:       run.Model,
+				harness:     run.Harness,
+				attempts:    map[string]struct{}{},
+				solved:      map[string]struct{}{},
+				authorities: map[string]struct{}{},
+				execution:   executionAccumulator{exitReasons: map[string]int{}},
 			}
 			configurations[configKey] = configuration
 		}
@@ -137,7 +167,8 @@ func Aggregate(catalogs []Catalog, runs []RunRecord) (Report, error) {
 		SolvedTasks:     len(all.solved),
 		Results:         all.results,
 		SolveRate:       reportedSolveRate(all.results),
-		ResultAuthority: ReportedResultAuthority,
+		ResultAuthority: summarizedAuthority(all.authorities),
+		Execution:       executionReport(all.execution),
 		Splits:          dimensionReports(splitSummaries),
 		Categories:      dimensionReports(categorySummaries),
 		Configurations:  configurationReports(configurations),
@@ -147,7 +178,7 @@ func Aggregate(catalogs []Catalog, runs []RunRecord) (Report, error) {
 func EncodeReport(report Report) ([]byte, error) {
 	if report.SchemaVersion != ReportSchemaVersion ||
 		report.Source != NYUCTFBenchSource() ||
-		report.ResultAuthority != ReportedResultAuthority {
+		!validReportAuthority(report.ResultAuthority) {
 		return nil, errors.New("invalid eval report")
 	}
 	data, err := json.MarshalIndent(report, "", "  ")
@@ -181,9 +212,11 @@ func validateCatalog(catalog Catalog, expected Source) error {
 
 func newSummaryAccumulator() *summaryAccumulator {
 	return &summaryAccumulator{
-		taskIDs:  map[string]struct{}{},
-		attempts: map[string]struct{}{},
-		solved:   map[string]struct{}{},
+		taskIDs:     map[string]struct{}{},
+		attempts:    map[string]struct{}{},
+		solved:      map[string]struct{}{},
+		authorities: map[string]struct{}{},
+		execution:   executionAccumulator{exitReasons: map[string]int{}},
 	}
 }
 
@@ -198,6 +231,8 @@ func addTask(target map[string]*summaryAccumulator, name, taskID string) {
 
 func accumulateResult(summary *summaryAccumulator, taskID string, run RunRecord) {
 	summary.attempts[taskID] = struct{}{}
+	summary.authorities[run.ResultAuthority] = struct{}{}
+	accumulateExecution(&summary.execution, run)
 	accumulateCounts(&summary.results, run)
 	if run.Status == RunCompleted && run.ReportedOutcome == OutcomeSolved {
 		summary.solved[taskID] = struct{}{}
@@ -206,6 +241,8 @@ func accumulateResult(summary *summaryAccumulator, taskID string, run RunRecord)
 
 func accumulateConfiguration(summary *configurationAccumulator, taskID string, run RunRecord) {
 	summary.attempts[taskID] = struct{}{}
+	summary.authorities[run.ResultAuthority] = struct{}{}
+	accumulateExecution(&summary.execution, run)
 	accumulateCounts(&summary.results, run)
 	if run.Status == RunCompleted && run.ReportedOutcome == OutcomeSolved {
 		summary.solved[taskID] = struct{}{}
@@ -252,7 +289,8 @@ func dimensionReports(input map[string]*summaryAccumulator) []DimensionSummary {
 			SolvedTasks:     len(summary.solved),
 			Results:         summary.results,
 			SolveRate:       reportedSolveRate(summary.results),
-			ResultAuthority: ReportedResultAuthority,
+			ResultAuthority: summarizedAuthority(summary.authorities),
+			Execution:       executionReport(summary.execution),
 		})
 	}
 	return result
@@ -274,7 +312,8 @@ func configurationReports(input map[string]*configurationAccumulator) []Configur
 			SolvedTasks:     len(summary.solved),
 			Results:         summary.results,
 			SolveRate:       reportedSolveRate(summary.results),
-			ResultAuthority: ReportedResultAuthority,
+			ResultAuthority: summarizedAuthority(summary.authorities),
+			Execution:       executionReport(summary.execution),
 		})
 	}
 	return result
@@ -299,4 +338,55 @@ func modelKey(model ModelIdentity) string {
 
 func harnessKey(harness HarnessIdentity) string {
 	return harness.Name + "\x00" + harness.Version + "\x00" + harness.ConfigSHA256
+}
+
+func accumulateExecution(summary *executionAccumulator, run RunRecord) {
+	summary.inputTokens += run.Metrics.InputTokens
+	summary.outputTokens += run.Metrics.OutputTokens
+	if run.Execution == nil {
+		return
+	}
+	summary.providerCalls += run.Execution.ProviderCalls
+	summary.actualCostMicroUSD += run.Execution.ActualCostMicroUSD
+	summary.exitReasons[run.Execution.ExitReason]++
+}
+
+func executionReport(summary executionAccumulator) ExecutionAggregate {
+	reasons := make([]string, 0, len(summary.exitReasons))
+	for reason := range summary.exitReasons {
+		reasons = append(reasons, reason)
+	}
+	sort.Strings(reasons)
+	counts := make([]ExitReasonCount, 0, len(reasons))
+	for _, reason := range reasons {
+		counts = append(counts, ExitReasonCount{
+			Reason: reason,
+			Count:  summary.exitReasons[reason],
+		})
+	}
+	return ExecutionAggregate{
+		ProviderCalls:      summary.providerCalls,
+		InputTokens:        summary.inputTokens,
+		OutputTokens:       summary.outputTokens,
+		ActualCostMicroUSD: summary.actualCostMicroUSD,
+		ExitReasons:        counts,
+	}
+}
+
+func summarizedAuthority(authorities map[string]struct{}) string {
+	if len(authorities) == 1 {
+		for authority := range authorities {
+			return authority
+		}
+	}
+	if len(authorities) > 1 {
+		return MixedResultAuthority
+	}
+	return ReportedResultAuthority
+}
+
+func validReportAuthority(authority string) bool {
+	return authority == ReportedResultAuthority ||
+		authority == DeterministicStaticAnswerAuthority ||
+		authority == MixedResultAuthority
 }

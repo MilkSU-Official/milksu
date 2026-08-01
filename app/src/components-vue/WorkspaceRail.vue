@@ -55,9 +55,13 @@ const abilitySourceText = computed(() => {
       <Button
         v-for="item in WORKSPACE_RAIL_ITEMS"
         :key="item.id"
-        variant="ghost"
-        class="h-auto min-h-14 flex-col gap-1 px-1 py-2 text-caption"
+        :variant="activeSection === item.id ? 'secondary' : 'ghost'"
+        :class="[
+          'relative h-auto min-h-14 flex-col gap-1 px-1 py-2 text-caption',
+          activeSection === item.id ? 'workspace-rail-active' : '',
+        ]"
         :aria-label="item.label"
+        :aria-current="activeSection === item.id ? 'page' : undefined"
         :title="item.label"
         :data-ui-selected="activeSection === item.id ? '' : undefined"
         @click="$emit('navigate', item.id)"
@@ -132,3 +136,19 @@ const abilitySourceText = computed(() => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.workspace-rail-active {
+  color: var(--brand);
+}
+
+.workspace-rail-active::after {
+  position: absolute;
+  inset-block: 0.75rem;
+  inset-inline-start: 0.125rem;
+  width: 0.1875rem;
+  border-radius: 999px;
+  background: var(--brand);
+  content: '';
+}
+</style>

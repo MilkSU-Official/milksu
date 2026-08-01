@@ -37,12 +37,29 @@ const workspaceSchemaVersion = "ctf-workspace.milksu.dev/v1alpha1";
 const toolBuilderRole = "tool-builder";
 const strategistRole = "strategist";
 const codingToolNames = ["read", "bash", "edit", "write", "grep", "find", "ls"];
-const codingAgentToolNames = [
-  ...codingToolNames,
+const codingReadOnlyToolNames = [
+  "read",
+  "grep",
+  "find",
+  "ls",
   "milksu_progress",
   "lsp_diagnostics",
-  "lsp_fix",
 ];
+const codingWorkspaceAutoToolNames = [
+  "read",
+  "bash",
+  "edit",
+  "write",
+  "grep",
+  "find",
+  "ls",
+  "milksu_progress",
+  "lsp_diagnostics",
+];
+// A Coding session must construct the full reviewed tool catalog up front.
+// Pi's setActiveTools() can narrow or restore tools that already exist, but it
+// cannot add definitions that were omitted when createAgentSession() ran.
+export const codingSessionToolNames = [...codingWorkspaceAutoToolNames];
 const ctfLocalToolNames = [
   ...codingToolNames,
   "milksu_progress",
@@ -121,20 +138,28 @@ export async function assertWorkspacePath(workspace, requestedPath) {
   const unresolvedSuffix = relative(existing, absolutePath);
   const canonicalPath = resolve(canonicalAncestor, unresolvedSuffix);
   if (!within(root, canonicalPath)) {
-    throw new Error(`CTF workspace policy denied path outside or through a symlink: ${requestedPath}`);
+    throw new Error(`MilkSU workspace policy denied path outside or through a symlink: ${requestedPath}`);
   }
   return canonicalPath;
 }
 
-async function assertWorkspaceMutationPath(workspace, requestedPath, extraProtectedEntries = []) {
+async function assertWorkspaceMutationPath(
+  workspace,
+  requestedPath,
+  extraProtectedEntries = [],
+  includeCTFProtectedEntries = true,
+) {
   const root = await realpath(workspace);
   const safePath = await assertWorkspacePath(root, requestedPath);
   const relativePath = relative(root, safePath);
-  const protectedEntry = [...protectedWorkspaceEntries, ...extraProtectedEntries].find(entry => (
+  const protectedEntry = [
+    ...(includeCTFProtectedEntries ? protectedWorkspaceEntries : []),
+    ...extraProtectedEntries,
+  ].find(entry => (
     relativePath === entry || relativePath.startsWith(`${entry}${sep}`)
   ));
   if (protectedEntry) {
-    throw new Error(`CTF workspace policy denied mutation of protected entry: ${protectedEntry}`);
+    throw new Error(`MilkSU workspace policy denied mutation of protected entry: ${protectedEntry}`);
   }
   return safePath;
 }
@@ -262,9 +287,21 @@ function sandboxString(value) {
   return JSON.stringify(value);
 }
 
-function sandboxProfile(workspace, allowNetwork, extraProtectedEntries = []) {
+function sandboxProfile(
+  workspace,
+  allowNetwork,
+  extraProtectedEntries = [],
+  includeCTFProtectedEntries = true,
+) {
+  const metadataOnlyRoots = ["/opt"];
+  let workspaceParent = dirname(workspace);
+  while (workspaceParent !== dirname(workspaceParent)) {
+    metadataOnlyRoots.push(workspaceParent);
+    workspaceParent = dirname(workspaceParent);
+  }
   const readableRoots = [
     workspace,
+    dirname(process.execPath),
     "/System",
     "/usr",
     "/bin",
@@ -280,9 +317,15 @@ function sandboxProfile(workspace, allowNetwork, extraProtectedEntries = []) {
     '(import "system.sb")',
     "(allow process*)",
     "(allow sysctl-read)",
+    `(allow file-read-metadata ${[...new Set(metadataOnlyRoots)].map(path => (
+      `(literal ${sandboxString(path)})`
+    )).join(" ")})`,
     `(allow file-read* ${readableRoots.map(path => `(subpath ${sandboxString(path)})`).join(" ")})`,
     `(allow file-write* (subpath ${sandboxString(workspace)}))`,
-    `(deny file-write* ${[...protectedWorkspaceEntries, ...extraProtectedEntries].map(entry => {
+    `(deny file-write* ${[
+      ...(includeCTFProtectedEntries ? protectedWorkspaceEntries : []),
+      ...extraProtectedEntries,
+    ].map(entry => {
       const path = join(workspace, entry);
       return ["materials", "evidence", ".git"].includes(entry)
         ? `(subpath ${sandboxString(path)})`
@@ -296,8 +339,9 @@ function sandboxProfile(workspace, allowNetwork, extraProtectedEntries = []) {
 function commandEnvironment(workspace, source = {}) {
   const home = join(workspace, ".milksu", "home");
   const temporary = join(workspace, ".milksu", "tmp");
+  const runtimeBin = join(workspace, ".milksu", "runtime-bin");
   const environment = {
-    PATH: commandPath,
+    PATH: `${runtimeBin}:${commandPath}`,
     HOME: home,
     TMPDIR: temporary,
     LANG: source.LANG || "en_US.UTF-8",
@@ -308,6 +352,24 @@ function commandEnvironment(workspace, source = {}) {
     if (source[name]) environment[name] = source[name];
   }
   return environment;
+}
+
+async function ensureSandboxedCommandRuntime(workspace) {
+  const runtimeBin = join(workspace, ".milksu", "runtime-bin");
+  const nodeWrapper = join(runtimeBin, "node");
+  const nodeBinary = process.execPath;
+  await mkdir(runtimeBin, { recursive: true, mode: 0o700 });
+  // Node's permission model automatically injects its own --permission flags
+  // into child-process NODE_OPTIONS, even when spawn() receives a sanitized
+  // environment. That makes npm scripts inherit the Sidecar's read grants
+  // instead of the selected project. The wrapper removes only that inherited
+  // Node layer; sandbox-exec still enforces network denial, workspace-only
+  // writes, and protected .git/.milksu paths for the reviewed command.
+  await writeFile(
+    nodeWrapper,
+    `#!/bin/sh\nunset NODE_OPTIONS\nexec ${JSON.stringify(nodeBinary)} "$@"\n`,
+    { mode: 0o700 },
+  );
 }
 
 function killChildProcess(child) {
@@ -324,6 +386,7 @@ function createSandboxedBashOperations(
   execution,
   allowNetwork,
   extraProtectedEntries = [],
+  includeCTFProtectedEntries = true,
 ) {
   return {
     exec: async (command, cwd, options) => {
@@ -338,13 +401,19 @@ function createSandboxedBashOperations(
       );
       await mkdir(join(canonicalWorkspace, ".milksu", "home"), { recursive: true, mode: 0o700 });
       await mkdir(join(canonicalWorkspace, ".milksu", "tmp"), { recursive: true, mode: 0o700 });
+      await ensureSandboxedCommandRuntime(canonicalWorkspace);
 
       return await new Promise((resolvePromise, rejectPromise) => {
         const child = spawn(
           "/usr/bin/sandbox-exec",
           [
             "-p",
-            sandboxProfile(canonicalWorkspace, allowNetwork, extraProtectedEntries),
+            sandboxProfile(
+              canonicalWorkspace,
+              allowNetwork,
+              extraProtectedEntries,
+              includeCTFProtectedEntries,
+            ),
             "/bin/bash",
             "--noprofile",
             "--norc",
@@ -1282,6 +1351,233 @@ async function findWorkspaceFiles(workspace, start, pattern, limit) {
   return matches;
 }
 
+export function assertCodingWorkspaceCommand(command) {
+  const value = String(command || "").trim();
+  if (!value || value.length > 1000) {
+    throw new Error("MilkSU Workspace Auto denied an empty or oversized command");
+  }
+  if (!/^[-A-Za-z0-9_./:@=,+%~]+(?: [-A-Za-z0-9_./:@=,+%~]+)*$/.test(value)) {
+    throw new Error(
+      "MilkSU Workspace Auto accepts one simple build/test command without shell operators or quoting",
+    );
+  }
+  const tokens = value.split(" ");
+  const executable = basename(tokens[0]);
+  let args = tokens.slice(1);
+
+  if (["npm", "pnpm", "yarn"].includes(executable)) {
+    if (args[0] === "--prefix") {
+      const prefix = args[1] || "";
+      if (!prefix || isAbsolute(prefix) || prefix === ".." || prefix.startsWith(`..${sep}`)) {
+        throw new Error("MilkSU Workspace Auto denied a package prefix outside the workspace");
+      }
+      args = args.slice(2);
+    }
+    const direct = args[0] === "test";
+    const scripted = args[0] === "run"
+      && ["test", "build", "lint", "typecheck", "check", "smoke"].includes(args[1]);
+    if (direct || scripted) return value;
+  }
+  if (executable === "go" && ["test", "vet", "build"].includes(args[0])) return value;
+  if (executable === "cargo" && ["test", "check", "build"].includes(args[0])) return value;
+  if (["pytest", "python", "python3"].includes(executable)) {
+    if (executable === "pytest" || (args[0] === "-m" && args[1] === "pytest")) return value;
+  }
+  throw new Error(
+    "MilkSU Workspace Auto permits only reviewed build/test/lint commands; other commands require a future explicit approval channel",
+  );
+}
+
+export function normalizeCodingPolicy(
+  executionMode = "go",
+  approvalPolicy = "workspace-auto",
+) {
+  const normalizedExecutionMode = executionMode === "go" ? "go" : "plan";
+  const normalizedApprovalPolicy = [
+    "read-only",
+    "ask",
+    "workspace-auto",
+  ].includes(approvalPolicy)
+    ? approvalPolicy
+    : "read-only";
+  const workspaceWritesAllowed = normalizedExecutionMode === "go"
+    && normalizedApprovalPolicy === "workspace-auto";
+  const approvalChannelAvailable = false;
+  const activeTools = workspaceWritesAllowed
+    ? codingWorkspaceAutoToolNames
+    : codingReadOnlyToolNames;
+
+  return {
+    executionMode: normalizedExecutionMode,
+    approvalPolicy: normalizedApprovalPolicy,
+    approvalChannelAvailable,
+    activeTools: [...activeTools],
+    capabilities: [
+      {
+        id: "workspace-read",
+        label: "工作区读取",
+        status: "allowed",
+        detail: "read / grep / find / ls 只能访问当前项目目录。",
+      },
+      {
+        id: "workspace-write",
+        label: "工作区写入",
+        status: workspaceWritesAllowed
+          ? "allowed"
+          : normalizedApprovalPolicy === "ask" && normalizedExecutionMode === "go"
+            ? "approval-required"
+            : "blocked",
+        detail: workspaceWritesAllowed
+          ? "仅 edit / write；路径和符号链接均限制在当前项目，且不能改写 .git 或 .milksu。"
+          : normalizedApprovalPolicy === "ask" && normalizedExecutionMode === "go"
+            ? "当前 Sidecar 没有可回传桌面的同步审批通道，因此本档暂按只读执行。"
+            : "Plan 或 Read-only 策略禁止 edit / write。",
+      },
+      {
+        id: "command",
+        label: "命令执行",
+        status: workspaceWritesAllowed ? "allowed" : "blocked",
+        detail: workspaceWritesAllowed
+          ? "只允许固定 build/test/lint/smoke 命令；无 shell 运算符、无网络，并限制在 macOS 工作区沙箱。"
+          : "Plan、Read-only 与当前 Ask 档均不提供 bash。",
+      },
+      {
+        id: "network",
+        label: "网络",
+        status: "blocked",
+        detail: "普通 Coding 策略不自动批准网络动作。",
+      },
+      {
+        id: "credentials",
+        label: "凭据",
+        status: "blocked",
+        detail: "没有凭据读取或导出工具；Provider Key 不进入模型上下文。",
+      },
+      {
+        id: "browser",
+        label: "浏览器 / MCP",
+        status: "unavailable",
+        detail: "尚未接入 Coding Agent；未来接入仍需逐次显式批准。",
+      },
+      {
+        id: "computer-use",
+        label: "Computer Use",
+        status: "unavailable",
+        detail: "尚未接入 Coding Agent；不会由 Workspace Auto 隐式启用。",
+      },
+    ],
+  };
+}
+
+async function createCodingToolDefinitions(workspace) {
+  const root = await realpath(workspace);
+  const protectedEntries = [".git", ".milksu"];
+  const ensure = path => assertWorkspacePath(root, path);
+  const ensureMutation = path => assertWorkspaceMutationPath(
+    root,
+    path,
+    protectedEntries,
+    false,
+  );
+  const readOperations = {
+    access: async path => access(await ensure(path), constants.R_OK),
+    readFile: async path => readFile(await ensure(path)),
+    detectImageMimeType: async path => {
+      const safePath = await ensure(path);
+      const file = await open(safePath, "r");
+      try {
+        const data = Buffer.alloc(12);
+        const { bytesRead } = await file.read(data, 0, data.length, 0);
+        return detectImageMimeType(safePath, data.subarray(0, bytesRead));
+      } finally {
+        await file.close();
+      }
+    },
+  };
+  const bashOperations = createSandboxedBashOperations(
+    root,
+    defaultExecution,
+    false,
+    protectedEntries,
+    false,
+  );
+  const guardedBashOperations = {
+    exec: async (command, cwd, options) => {
+      assertCodingWorkspaceCommand(command);
+      return bashOperations.exec(command, cwd, options);
+    },
+  };
+  const definitions = [
+    createReadToolDefinition(root, { operations: readOperations }),
+    createBashToolDefinition(root, { operations: guardedBashOperations }),
+    createEditToolDefinition(root, {
+      operations: {
+        access: async path => access(await ensure(path), constants.R_OK | constants.W_OK),
+        readFile: async path => readFile(await ensure(path)),
+        writeFile: async (path, content) => writeFile(
+          await ensureMutation(path),
+          content,
+          { encoding: "utf8", mode: 0o600 },
+        ),
+      },
+    }),
+    createWriteToolDefinition(root, {
+      operations: {
+        mkdir: async path => mkdir(
+          await ensureMutation(path),
+          { recursive: true, mode: 0o700 },
+        ),
+        writeFile: async (path, content) => writeFile(
+          await ensureMutation(path),
+          content,
+          { encoding: "utf8", mode: 0o600 },
+        ),
+      },
+    }),
+    createGrepToolDefinition(root, {
+      operations: {
+        isDirectory: async path => (await lstat(await ensure(path))).isDirectory(),
+        readFile: async path => readFile(await ensure(path), "utf8"),
+      },
+    }),
+    createFindToolDefinition(root, {
+      operations: {
+        exists: async path => {
+          try {
+            await lstat(await ensure(path));
+            return true;
+          } catch (error) {
+            if (error?.code === "ENOENT") return false;
+            throw error;
+          }
+        },
+        glob: async (pattern, path, options) => (
+          findWorkspaceFiles(root, await ensure(path), pattern, options.limit)
+        ),
+      },
+    }),
+    createLsToolDefinition(root, {
+      operations: {
+        exists: async path => {
+          try {
+            await lstat(await ensure(path));
+            return true;
+          } catch (error) {
+            if (error?.code === "ENOENT") return false;
+            throw error;
+          }
+        },
+        stat: async path => lstat(await ensure(path)),
+        readdir: async path => readdir(await ensure(path)),
+      },
+    }),
+  ];
+  const bash = definitions.find(tool => tool.name === "bash");
+  bash.description += " Workspace Auto permits only one reviewed build/test/lint command, "
+    + "without shell operators or network access, inside the selected macOS workspace.";
+  return definitions;
+}
+
 export async function createCTFToolDefinitions(
   workspace,
   manifest,
@@ -1420,29 +1716,36 @@ export async function createCTFToolDefinitions(
   return definitions;
 }
 
-export async function loadSessionPolicy(workspace, sessionRole = "") {
+async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
+  const normalized = normalizeCodingPolicy(
+    codingPolicy.executionMode,
+    codingPolicy.approvalPolicy,
+  );
+  return {
+    ctf: false,
+    ...normalized,
+    customTools: await createCodingToolDefinitions(workspace),
+    maxToolEventOutputBytes: 60000,
+  };
+}
+
+export async function loadSessionPolicy(
+  workspace,
+  sessionRole = "",
+  codingPolicy = {},
+) {
   let content;
   try {
     content = await readFile(join(workspace, "challenge.json"), "utf8");
   } catch (error) {
     if (error?.code === "ENOENT") {
-      return {
-        ctf: false,
-        activeTools: codingAgentToolNames,
-        customTools: [],
-        maxToolEventOutputBytes: 60000,
-      };
+      return loadCodingSessionPolicy(workspace, codingPolicy);
     }
     throw error;
   }
   const manifest = JSON.parse(content);
   if (manifest?.schemaVersion !== workspaceSchemaVersion) {
-    return {
-      ctf: false,
-      activeTools: codingAgentToolNames,
-      customTools: [],
-      maxToolEventOutputBytes: 60000,
-    };
+    return loadCodingSessionPolicy(workspace, codingPolicy);
   }
   const toolBuilder = sessionRole === toolBuilderRole;
   const strategist = sessionRole === strategistRole;

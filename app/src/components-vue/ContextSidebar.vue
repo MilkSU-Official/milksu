@@ -6,6 +6,8 @@ import {
 } from '@felinic/ui'
 import {
   Boxes,
+  ChevronRight,
+  Folder,
   Library,
   MessageSquarePlus,
   Radar,
@@ -13,6 +15,7 @@ import {
   Settings,
   Trash2,
 } from 'lucide-vue-next'
+import { groupCodingConversations } from '@/lib/codingConversationGroups'
 import {
   CTF_CONTEXT_ITEMS,
   showsCodingHistory,
@@ -38,12 +41,7 @@ defineEmits<{
 }>()
 
 const query = ref('')
-const filtered = computed(() => {
-  const normalized = query.value.trim().toLowerCase()
-  return normalized
-    ? props.conversations.filter(item => item.title.toLowerCase().includes(normalized))
-    : props.conversations
-})
+const codingGroups = computed(() => groupCodingConversations(props.conversations, query.value))
 const contextLabel = computed(() => workspaceContextLabel(props.activeSection))
 const codingContext = computed(() => showsCodingHistory(props.activeSection))
 const ctfContext = computed(() => props.activeSection === 'ctf')
@@ -65,9 +63,13 @@ const vulnContext = computed(() => props.activeSection === 'vuln')
       <Button
         v-for="item in CTF_CONTEXT_ITEMS"
         :key="item.id"
-        variant="ghost"
+        :variant="ctfSection === item.id ? 'secondary' : 'ghost'"
         block
-        class="justify-start"
+        :class="[
+          'justify-start',
+          ctfSection === item.id ? 'context-nav-active' : '',
+        ]"
+        :aria-current="ctfSection === item.id ? 'page' : undefined"
         :data-ui-selected="ctfSection === item.id ? '' : undefined"
         @click="$emit('navigateCtf', item.id)"
       >
@@ -82,7 +84,13 @@ const vulnContext = computed(() => props.activeSection === 'vuln')
       class="app-no-drag flex flex-1 flex-col gap-1 p-3"
       aria-label="CVE 工作区"
     >
-      <Button variant="ghost" block class="justify-start" data-ui-selected="">
+      <Button
+        variant="secondary"
+        block
+        class="context-nav-active justify-start"
+        aria-current="page"
+        data-ui-selected=""
+      >
         <Radar class="size-4" />
         追踪
       </Button>
@@ -101,34 +109,56 @@ const vulnContext = computed(() => props.activeSection === 'vuln')
       </div>
 
       <div class="mt-3 min-h-0 flex-1 overflow-y-auto px-2">
-        <p class="px-3 py-2 text-caption font-medium text-muted-foreground">最近任务</p>
-        <div v-if="filtered.length" class="space-y-0.5">
-          <div
-            v-for="conversation in filtered"
-            :key="conversation.id"
-            class="group flex items-center rounded-md"
-            :data-ui-selected="activeConversationId === conversation.id ? '' : undefined"
+        <p class="px-3 py-2 text-caption font-medium text-muted-foreground">项目</p>
+        <div v-if="codingGroups.length" class="space-y-1">
+          <details
+            v-for="group in codingGroups"
+            :key="group.key"
+            open
+            class="coding-project-group"
           >
-            <Button
-              variant="ghost"
-              size="sm"
-              class="min-w-0 flex-1 justify-start"
-              @click="$emit('selectConversation', conversation.id)"
+            <summary
+              class="flex cursor-pointer list-none items-center gap-2 rounded-md px-3 py-2 text-body font-medium hover:bg-accent/50"
+              :title="group.path ?? '未绑定仓库的临时编码任务'"
             >
-              <span class="truncate">{{ conversation.title }}</span>
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              class="mr-1 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-              aria-label="删除编码任务"
-              @click="$emit('deleteConversation', conversation.id)"
-            >
-              <Trash2 class="size-3.5" />
-            </Button>
-          </div>
+              <ChevronRight class="coding-project-chevron size-3.5 shrink-0 text-muted-foreground" />
+              <Folder class="size-4 shrink-0 text-muted-foreground" />
+              <span class="min-w-0 flex-1 truncate">{{ group.name }}</span>
+              <span class="text-caption font-normal tabular-nums text-muted-foreground">
+                {{ group.conversations.length }}
+              </span>
+            </summary>
+            <div class="ml-5 mt-0.5 space-y-0.5 border-l border-border/70 pl-1.5">
+              <div
+                v-for="conversation in group.conversations"
+                :key="conversation.id"
+                class="group flex items-center rounded-md"
+                :data-ui-selected="activeConversationId === conversation.id ? '' : undefined"
+              >
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  class="min-w-0 flex-1 justify-start pl-2"
+                  @click="$emit('selectConversation', conversation.id)"
+                >
+                  <span class="truncate">{{ conversation.title }}</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  class="mr-1 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                  aria-label="删除编码任务"
+                  @click="$emit('deleteConversation', conversation.id)"
+                >
+                  <Trash2 class="size-3.5" />
+                </Button>
+              </div>
+            </div>
+          </details>
         </div>
-        <p v-else class="px-3 py-3 text-body text-muted-foreground">还没有编码任务</p>
+        <p v-else class="px-3 py-3 text-body text-muted-foreground">
+          {{ query.trim() ? '没有匹配的 Coding 任务' : '还没有 Coding 项目' }}
+        </p>
       </div>
     </div>
     <div v-else class="flex-1" />
@@ -146,3 +176,17 @@ const vulnContext = computed(() => props.activeSection === 'vuln')
     </div>
   </div>
 </template>
+
+<style scoped>
+.coding-project-group[open] > summary .coding-project-chevron {
+  transform: rotate(90deg);
+}
+
+.coding-project-chevron {
+  transition: transform 140ms ease;
+}
+
+.context-nav-active {
+  color: var(--brand);
+}
+</style>

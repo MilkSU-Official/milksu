@@ -74,6 +74,8 @@ interface WailsAppBindings {
     modelMode: string,
     modelProvider: string,
     modelId: string,
+    executionMode: string,
+    approvalPolicy: string,
   ): Promise<void>
   AbortMessage(conversationId: string): Promise<void>
   GetRuntimeStatus(): Promise<unknown>
@@ -320,6 +322,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
           (args?.modelMode as string) ?? '',
           (args?.modelProvider as string) ?? '',
           (args?.modelId as string) ?? '',
+          (args?.executionMode as string) ?? '',
+          (args?.approvalPolicy as string) ?? '',
         ) as Promise<T>
       case 'abort_message':
         return app.AbortMessage(args?.conversationId as string) as Promise<T>

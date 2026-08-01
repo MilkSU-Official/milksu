@@ -1,0 +1,2 @@
+This file is intentionally not valid JSON.
+The metadata adapter verifies its presence but must never read it.

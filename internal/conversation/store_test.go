@@ -23,12 +23,17 @@ func TestConversationIDAcceptsUUID(t *testing.T) {
 func TestStorePreservesCTFLearningContext(t *testing.T) {
 	store := &Store{directory: t.TempDir()}
 	want := StoredConversation{
-		ID:            "ctf_019fb283",
-		Title:         "NSSCTF P316",
-		CreatedAt:     42,
-		WorkspacePath: "/tmp/milksu-ctf",
-		CTFJobID:      "job-316",
-		CTFMode:       "coach",
+		ID:             "ctf_019fb283",
+		Title:          "NSSCTF P316",
+		CreatedAt:      42,
+		WorkspacePath:  "/tmp/milksu-ctf",
+		ExecutionMode:  "go",
+		ApprovalPolicy: "workspace-auto",
+		AgentCapabilities: []StoredCapability{{
+			ID: "workspace-write", Label: "工作区写入", Status: "allowed", Detail: "workspace only",
+		}},
+		CTFJobID: "job-316",
+		CTFMode:  "coach",
 		Messages: []StoredMessage{{
 			ID: "message-1", Role: "user", Content: "先帮我梳理题面", Timestamp: 43,
 		}},
