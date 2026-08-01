@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { computed, markRaw, nextTick, ref, watch } from 'vue'
+import {
+  computed,
+  defineAsyncComponent,
+  markRaw,
+  nextTick,
+  ref,
+  watch,
+} from 'vue'
 import {
   Badge,
   Button,
@@ -56,7 +63,6 @@ import ChatActivityGroup from '@/components-vue/ChatActivityGroup.vue'
 import ChatMessageItem from '@/components-vue/ChatMessageItem.vue'
 import CodingComposerControls from '@/components-vue/CodingComposerControls.vue'
 import CodingChangesPanel from '@/components-vue/CodingChangesPanel.vue'
-import CodingTerminalPanel from '@/components-vue/CodingTerminalPanel.vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import type {
   CodingArchitecturePreview,
@@ -77,6 +83,7 @@ import {
   codingReviewPrompt,
   type CodingProductActionKind,
 } from '@/lib/codingProductActions'
+
 import {
   normalizeCodingApprovalPolicy,
   normalizeCodingExecutionMode,
@@ -98,6 +105,10 @@ import type {
 } from '@/types'
 import type { NSSCTFWebBridgeStatus } from '@/nssctfWebTypes'
 import { providerModelLabel } from '@/types'
+
+const CodingTerminalPanel = defineAsyncComponent(
+  () => import('@/components-vue/CodingTerminalPanel.vue'),
+)
 
 const props = defineProps<{
   conversation: Conversation | null

@@ -75,7 +75,7 @@ defineEmits<{
         <Button
           variant="ghost"
           size="sm"
-          class="composer-control composer-permission min-w-32 justify-start"
+          class="composer-control composer-permission justify-start"
           :class="{ 'composer-permission--full': approvalPolicy === 'full-auto' }"
           :disabled="running"
           aria-label="Coding 权限策略"
@@ -220,6 +220,12 @@ defineEmits<{
   color: var(--warning);
 }
 
+.composer-permission {
+  width: 8rem;
+  min-width: 6.5rem;
+  flex: 0 1 8rem;
+}
+
 .approval-option {
   display: flex;
   min-height: 4.5rem;
@@ -264,10 +270,9 @@ defineEmits<{
 }
 
 .composer-model {
-  width: auto;
+  width: min(18rem, 44%);
   min-width: 10rem;
-  flex: 1 1 14rem;
-  max-width: 24rem;
+  flex: 0 0 auto;
 }
 
 @container chat-main (max-width: 52rem) {
@@ -277,13 +282,14 @@ defineEmits<{
   }
 
   .composer-permission {
-    min-width: 6rem;
+    width: 7rem;
+    min-width: 5.75rem;
+    flex-basis: 7rem;
   }
 
   .composer-model {
     min-width: 9rem;
-    flex: 1 1 9rem;
-    width: auto;
+    width: min(14rem, 48%);
   }
 }
 </style>

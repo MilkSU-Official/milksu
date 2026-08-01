@@ -24,6 +24,7 @@ import (
 	"github.com/MilkSU-Official/milksu/internal/browsercap"
 	"github.com/MilkSU-Official/milksu/internal/codingattachment"
 	"github.com/MilkSU-Official/milksu/internal/codingenv"
+	"github.com/MilkSU-Official/milksu/internal/codingterminal"
 	"github.com/MilkSU-Official/milksu/internal/config"
 	"github.com/MilkSU-Official/milksu/internal/conversation"
 	"github.com/MilkSU-Official/milksu/internal/ctf"
@@ -38,25 +39,26 @@ import (
 
 // App is the thin L1 desktop adapter. Domain code must not depend on Wails.
 type App struct {
-	ctx            context.Context
-	dataDirectory  string
-	diagnostics    *appdata.DiagnosticRecorder
-	settings       *config.Store
-	conversations  *conversation.Store
-	codingFiles    *codingattachment.Store
-	engines        *engine.Supervisor
-	securityEngine *engine.SecuritySupervisor
-	nssctf         *nssctf.Client
-	nssctfCatalog  *nssctf.CatalogService
-	ctfshowCatalog *ctfshow.CatalogService
-	nssctfArena    *nssctf.ArenaClient
-	browserBridge  *browsercap.Manager
-	managedLabs    *labmanager.Manager
-	jobs           *securityruntime.Service
-	ctfJobs        *ctf.Service
-	ctfAgent       *ctfAgentRecorder
-	ctfMemory      *ctf.MemoryStore
-	vulnJobs       *vuln.Service
+	ctx             context.Context
+	dataDirectory   string
+	diagnostics     *appdata.DiagnosticRecorder
+	settings        *config.Store
+	conversations   *conversation.Store
+	codingFiles     *codingattachment.Store
+	codingTerminals *codingterminal.Manager
+	engines         *engine.Supervisor
+	securityEngine  *engine.SecuritySupervisor
+	nssctf          *nssctf.Client
+	nssctfCatalog   *nssctf.CatalogService
+	ctfshowCatalog  *ctfshow.CatalogService
+	nssctfArena     *nssctf.ArenaClient
+	browserBridge   *browsercap.Manager
+	managedLabs     *labmanager.Manager
+	jobs            *securityruntime.Service
+	ctfJobs         *ctf.Service
+	ctfAgent        *ctfAgentRecorder
+	ctfMemory       *ctf.MemoryStore
+	vulnJobs        *vuln.Service
 }
 
 func NewApp() (*App, error) {
@@ -185,6 +187,9 @@ func NewApp() (*App, error) {
 		application.nssctfCatalog.Close()
 		return nil, fmt.Errorf("create vulnerability research role service: %w", err)
 	}
+	application.codingTerminals = codingterminal.NewManager(
+		application.emitCodingTerminalEvent,
+	)
 	return application, nil
 }
 
@@ -224,6 +229,9 @@ func (a *App) Shutdown(_ context.Context) {
 	a.securityEngine.Close()
 	_ = a.jobs.Close()
 	a.engines.Close()
+	if a.codingTerminals != nil {
+		a.codingTerminals.Close()
+	}
 	a.browserBridge.Close()
 	_ = a.ctfshowCatalog.Close()
 	_ = a.nssctfCatalog.Close()
@@ -403,6 +411,9 @@ func (a *App) SaveConversation(value conversation.StoredConversation) error {
 
 func (a *App) DeleteConversation(id string) error {
 	a.engines.DestroySession(id)
+	if a.codingTerminals != nil {
+		a.codingTerminals.CloseConversation(id)
+	}
 	return a.conversations.Delete(id)
 }
 

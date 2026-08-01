@@ -76,7 +76,7 @@ L2 定义角色闭环，L5 提供可改造的通用 Agent Engine，L6 横切保�
 - 面向真实入门题的有界文本分析：Base64（含多层）、Hex、Binary、Morse 与 URL 编码只在 Go capability 中确定性转换，结果作为 Artifact/Observation 回到 Agent，而不是让模型自报计算结果；
 - 独立于通用聊天的 `security-bridge.js`。它关闭 Pi 内建 Coding Tools 与用户级扩展，只向模型暴露三种 CTF 提议工具。
 
-当前可以准确声称的是：MilkSU 已完成一条真实 NSSCTF P3879 的题面与附件 Intake、Pi 解题、候选闸门、配对浏览器 Judge `correct=true`、恢复和复盘闭环；Coding 核心也已通过一次打包应用内的连续短提示交付，并已接入逐工具审批、文件/图片附件、文件级 Diff、会话隔离的项目终端、可停止的后台进程/端口/日志、stage/commit/push 本地远端闭环和 opt-in 项目 MCP。它仍不能被描述成通用 CTF Solver 或 Codex 等价产品：CTF 多题型、动态 Endpoint 确认、能力画像校准，以及 Coding 的托管平台 PR、交互式 PTY、Coding Browser 和 Computer Use 仍未完成。
+当前可以准确声称的是：MilkSU 已完成一条真实 NSSCTF P3879 的题面与附件 Intake、Pi 解题、候选闸门、配对浏览器 Judge `correct=true`、恢复和复盘闭环；Coding 核心也已通过一次打包应用内的连续短提示交付，并已接入逐工具审批、文件/图片附件、文件级 Diff、会话隔离的交互式项目 PTY、可停止的后台进程/端口/日志、stage/commit/push 本地远端闭环和 opt-in 项目 MCP。它仍不能被描述成通用 CTF Solver 或 Codex 等价产品：CTF 多题型、动态 Endpoint 确认、能力画像校准，以及 Coding 的托管平台 PR、跨应用重启终端恢复、Coding Browser 和 Computer Use 仍未完成。
 
 2026-07-21 已保存一个 [M2 → M3 授权学习能力基础检查点](docs/developer/checkpoints/2026-07-21-m2-m3-foundation.md)：精确授权策略、Managed Lab/Browser 基础包、CTF 教学与外部人工 Judge 契约、以及本地 Vuln fixture 已经可以编译和自动测试。它们尚未完整接入桌面 UI 或真实环境，因此不改变上面的 M2 验收结论。
 

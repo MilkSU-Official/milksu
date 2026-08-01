@@ -1,6 +1,6 @@
 # Coding Agent / Pi 扩展边界
 
-> 状态：Coding 核心交付链、桌面逐次审批、附件、会话隔离终端、后台任务和项目 MCP
+> 状态：Coding 核心交付链、桌面逐次审批、附件、会话隔离 PTY、后台任务和项目 MCP
 > **Verified / Implemented**；LSP 语言服务器、Coding Browser 与 Computer Use **Partial / Planned**。
 
 MilkSU 不重写通用 Coding Agent Loop。Pi 负责会话、模型、上下文、工具循环和扩展 API；
@@ -14,6 +14,7 @@ flowchart LR
     user["用户"]
     vue["Coding UI<br/>选择项目 / 会话 / 模型"]
     host["Go Host<br/>Engine Supervisor"]
+    pty["Go PTY Host<br/>用户直接输入 · Conversation 隔离"]
 
     subgraph sidecar["Pi Coding Sidecar"]
         bridge["MilkSU JSONL Bridge"]
@@ -34,6 +35,7 @@ flowchart LR
     agentData["MilkSU Agent 数据目录<br/>持久会话"]
 
     user --> vue --> host --> bridge
+    vue --> pty --> project
     bridge --> loader --> session
     session --> coreTools
     session --> workflow
@@ -63,7 +65,7 @@ flowchart LR
 | Archify | 是 | **否** | 固定 Coding Skill |
 | `lsp_diagnostics` / `lsp_fix` | 诊断可用；`lsp_fix` 在三档策略中均阻止，等待独立审批协议 | **否** | 固定 Coding Extension + MilkSU 启动策略 |
 | Pi Goal | 是；与桌面目标状态并存 | **否**；CTF 使用自己的进度与 Judge 语义 | 固定 Coding Extension |
-| 项目终端 / 后台任务 | 是；右侧终端页复用后台任务 Extension，按 Conversation 隔离生命周期事件、PID、监听端口、有界日志、退出码和停止动作 | **否** | 固定 Coding Extension + MilkSU 会话级控制/状态投影 |
+| 项目终端 / 后台任务 | 是；用户直接操作的多会话 PTY 由 Go Host 承担，后台任务复用固定 Pi Extension；两者按 Conversation 隔离，展示生命周期、输出和停止动作 | **否** | `creack/pty + xterm.js` Host Adapter；固定 Coding Extension + MilkSU 状态投影 |
 | 项目 MCP | 用户从项目 `.mcp.json` 明确选择后启用，每次调用仍走桌面审批 | **否** | 固定 Coding Extension + MilkSU Sandbox |
 | 文件 / 图片附件 | 是；复制到用户数据目录，纯文本模型可走本地 OCR 或已配置视觉模型 | 使用 CTF Material 管线，不复用 Coding 附件上下文 | MilkSU 附件桥 + 本地 OCR |
 | CTF 类型化工具 | 否 | 按 Role、Scope 和协作模式 | MilkSU CTF Harness |
@@ -127,6 +129,8 @@ flowchart TB
 | `@narumitw/pi-lsp` | `0.29.0` | `bridge-resource-policy.js`、`bridge.js`、`package-lock.json` | 项目命令覆盖和凭据继承已阻断；语言服务器尚未打包，真实诊断与 opt-in fix 待验 |
 | `@narumitw/pi-goal` | `0.43.0` | `bridge-resource-policy.js`、`bridge.js`、`package-lock.json` | **Verified**：普通 Coding 固定加载，CTF 负向隔离；桌面目标仍以 `milksu_progress` 为事实源 |
 | `pi-better-background-tasks` | `0.1.10` | `bridge.js`、Sidecar manifest、会话级控制/运行时事件、右侧终端页 | **Verified**：真实原生会话运行短命令，并启动监听 `127.0.0.1:18876` 的任务；显示 PID/端口/有界日志后从桌面停止并确认端口关闭；不同 Conversation 的任务互相不可见，CTF 保持负向隔离 |
+| `@xterm/xterm` / `@xterm/addon-fit` | `6.0.0` / `0.11.0` | `CodingTerminalPanel.vue`、`third_party/licenses/xterm.js-MIT.txt` | **Verified**：真实原生 App 显示项目 Shell、实时输入输出和 resize；前端独立懒加载，不进入基础 ChatPage chunk |
+| `github.com/creack/pty` | `1.1.24` | `internal/codingterminal`、`app_coding_terminal.go`、`third_party/licenses/creack-pty-MIT.txt` | **Verified on macOS arm64**：多会话 PTY、stdin、resize、stop、退出状态、输出尾部、Conversation ownership 和 Provider Key 环境剥离通过 race test 与原生 `pwd` |
 | `pi-mcp-adapter` | `2.17.0` | `bridge.js`、项目 MCP 配置摘要与批准桥 | **Verified**：项目显式选择、摘要校验、Sandbox、环境过滤、逐次审批和 CTF 负向隔离 |
 | `@napi-rs/system-ocr` | `1.1.0` | Coding 附件桥、Sidecar manifest、平台原生包 | **Verified**：图片附件可本地 OCR；配置视觉路由时可改用视觉模型 |
 | MilkSU Workflow | first-party | `createMilkSUWorkflowExtension` | Schema 和可见事件已有 |
@@ -163,6 +167,8 @@ flowchart TB
   `HOME/PATH/TMPDIR/LANG/LC_ALL`，不能看到 Provider 或 Relay Key。
 - 插件升级不能使用浮动版本；必须重新审阅许可、权限、正向能力和 CTF 负向隔离。
 - 扩展异常不能吞掉持久会话或让 UI 永久停在“运行中”。
+- 用户在右侧 PTY 中直接键入的命令以当前 macOS 用户权限运行；它不是 Agent 工具，也不受
+  Plan/Go 自动执行策略伪装。Agent 自动命令仍走 Pi 与桌面审批，二者的权限语义不能混用。
 
 ## R0.4 真实验收清单
 
@@ -180,6 +186,6 @@ flowchart TB
    后台任务/项目 MCP，
    Recorder 的回合预算、候选闸门和轨迹仍通过。
 
-当前正确说法是“核心插件已经固定并通过打包与隔离验收；项目命令和后台进程已有右侧
-终端页，但 PTY/stdin/标签页仍缺；LSP 语言服务器、Coding Browser 和 Computer Use
-尚未完成”，不是“Coding Agent 插件体系已完成”。
+当前正确说法是“核心插件已经固定并通过打包与隔离验收；右侧终端页已有会话隔离的项目
+PTY/stdin/实时输出/标签页，以及可停止的后台进程；跨应用重启恢复、LSP 语言服务器、
+Coding Browser 和 Computer Use 尚未完成”，不是“Coding Agent 插件体系已完成”。

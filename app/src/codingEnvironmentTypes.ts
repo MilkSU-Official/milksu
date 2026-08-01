@@ -71,6 +71,41 @@ export interface CodingRuntimeStatus {
   backgroundTasks?: CodingBackgroundTask[]
 }
 
+export type CodingTerminalStatus =
+  | 'running'
+  | 'exited'
+  | 'stopped'
+  | 'failed'
+
+export interface CodingTerminalSession {
+  id: string
+  conversationId: string
+  workspace: string
+  shell: string
+  status: CodingTerminalStatus
+  pid?: number
+  columns: number
+  rows: number
+  startedAt: number
+  endedAt?: number
+  exitCode?: number
+  output?: string
+  outputTrimmed?: boolean
+  error?: string
+}
+
+export interface CodingTerminalEvent {
+  type:
+    | 'terminal.started'
+    | 'terminal.output'
+    | 'terminal.resized'
+    | 'terminal.exited'
+  conversationId: string
+  terminalId: string
+  data?: string
+  session?: CodingTerminalSession
+}
+
 export interface CodingDiffSnapshot {
   workspace: string
   path: string

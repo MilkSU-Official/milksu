@@ -608,3 +608,45 @@ final result: passed
 - Interaction: Plan/Go, permission policy and model menus remain independently operable.
 
 final result: passed
+
+# Coding Composer 最小控制面与交互式 PTY · Follow-up QA
+
+**Evidence**
+
+- Browser:
+  - `/private/tmp/milksu-composer-three-controls-1280.png`
+  - `/private/tmp/milksu-composer-three-controls-1024.png`
+- Native packaged App:
+  - `/private/tmp/milksu-interactive-pty-native.png`
+- Browser viewports: default 1280 × 720 and compact 1024 × 700.
+- Native state: existing `/Users/milksu/code/milksu` Coding conversation, right-side Terminal page.
+
+**Composer Findings**
+
+- The message composer owns only controls that change the next turn: `Plan / Go`, approval policy,
+  and model selection.
+- Project selection, product actions, persistent goal, architecture, capability details, changes,
+  terminal and browser are owned by the right-side pages and are not duplicated above the input.
+- At the compact viewport the three controls remained visible with no horizontal document overflow;
+  the model trigger retained about 173 px of width. Browser logs contained zero errors or warnings.
+- The packaged App showed the same three-control hierarchy after the stale process was stopped and
+  the newly built application was opened.
+
+**Interactive Terminal Findings**
+
+- The right-side Terminal page opened one project zsh PTY automatically and exposed Shell tabs,
+  a new-Shell action, stop, and the separate background-task view.
+- Direct keyboard input produced live output. `pwd` returned `/Users/milksu/code/milksu`.
+- The terminal copy explicitly distinguishes direct user Shell authority from Agent automation:
+  user-entered commands run as the current macOS user; Agent commands still follow the selected
+  execution and approval policy.
+- `go test -race ./internal/codingterminal`, all Go tests, 43 frontend tests, the production frontend
+  build, Wails production packaging and strict code-sign verification passed.
+
+**Remaining Boundaries**
+
+- PTY sessions are not restored after a full application restart.
+- Windows/Linux PTY adapters, terminal rename, copy/search and large-output stress remain follow-up.
+- Coding Browser and Computer Use are still not connected and remain separate permission surfaces.
+
+final result: passed

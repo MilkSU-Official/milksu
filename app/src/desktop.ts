@@ -58,6 +58,7 @@ import type {
   CodingGitActionResult,
   CodingMCPConfigSnapshot,
   CodingRuntimeStatus,
+  CodingTerminalSession,
 } from './codingEnvironmentTypes'
 import type {
   ManagedLabAccess,
@@ -121,6 +122,30 @@ interface WailsAppBindings {
     conversationId: string,
     taskId: string,
   ): Promise<CodingRuntimeStatus>
+  ListCodingTerminals(
+    conversationId: string,
+  ): Promise<CodingTerminalSession[]>
+  StartCodingTerminal(
+    conversationId: string,
+    workspacePath: string,
+    columns: number,
+    rows: number,
+  ): Promise<CodingTerminalSession>
+  WriteCodingTerminal(
+    conversationId: string,
+    terminalId: string,
+    data: string,
+  ): Promise<void>
+  ResizeCodingTerminal(
+    conversationId: string,
+    terminalId: string,
+    columns: number,
+    rows: number,
+  ): Promise<CodingTerminalSession>
+  StopCodingTerminal(
+    conversationId: string,
+    terminalId: string,
+  ): Promise<CodingTerminalSession>
   GetCodingEnvironment(workspacePath: string): Promise<CodingEnvironmentSnapshot>
   GetCodingMCPConfig(workspacePath: string): Promise<CodingMCPConfigSnapshot>
   GetCodingDiff(workspacePath: string, relativePath: string): Promise<CodingDiffSnapshot>
@@ -270,6 +295,10 @@ function withoutCredentials(settings: AppSettings): AppSettings {
 
 function getWailsApp() {
   return window.go?.main?.App
+}
+
+export function hasDesktopRuntime(): boolean {
+  return Boolean(getWailsApp())
 }
 
 function readJson<T>(key: string, fallback: T): T {
@@ -422,6 +451,35 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.StopCodingBackgroundTask(
           args?.conversationId as string,
           args?.taskId as string,
+        ) as Promise<T>
+      case 'list_coding_terminals':
+        return app.ListCodingTerminals(
+          args?.conversationId as string,
+        ) as Promise<T>
+      case 'start_coding_terminal':
+        return app.StartCodingTerminal(
+          args?.conversationId as string,
+          args?.workspacePath as string,
+          Number(args?.columns ?? 100),
+          Number(args?.rows ?? 28),
+        ) as Promise<T>
+      case 'write_coding_terminal':
+        return app.WriteCodingTerminal(
+          args?.conversationId as string,
+          args?.terminalId as string,
+          args?.data as string,
+        ) as Promise<T>
+      case 'resize_coding_terminal':
+        return app.ResizeCodingTerminal(
+          args?.conversationId as string,
+          args?.terminalId as string,
+          Number(args?.columns ?? 100),
+          Number(args?.rows ?? 28),
+        ) as Promise<T>
+      case 'stop_coding_terminal':
+        return app.StopCodingTerminal(
+          args?.conversationId as string,
+          args?.terminalId as string,
         ) as Promise<T>
       case 'get_coding_environment':
         return app.GetCodingEnvironment(args?.workspacePath as string) as Promise<T>
@@ -695,6 +753,13 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
     case 'stop_coding_background_task':
     case 'start_coding_background_task':
       throw new Error('后台任务控制需要 MilkSU 桌面运行时。')
+    case 'start_coding_terminal':
+    case 'write_coding_terminal':
+    case 'resize_coding_terminal':
+    case 'stop_coding_terminal':
+      throw new Error('交互式项目终端需要 MilkSU 桌面运行时。')
+    case 'list_coding_terminals':
+      return [] as T
     case 'refresh_coding_background_tasks':
       return {
         defaultEngine: 'pi',

@@ -15,9 +15,10 @@ MilkSU 当前是一个 local-first 的授权安全学习与研究桌面工作台
 - **Coding** 核心 Plan → Go、多轮编辑、命令与测试已经真实交付；Codex 风格三档权限菜单、
   Project Auto 和显式 Full Access 已实现；理解项目、运行测试、审阅变更、修复失败和总结
   已在同一打包 App 会话完成连续真实验收，文件级 Diff 有独立右侧页并向审阅动作注入桌面
-  Git Adapter 的可信证据。逐工具审批、文件/图片附件、项目级 MCP 选择，以及可显示 PID、
-  监听端口、有界日志并停止任务的会话隔离终端已接线；本地远端已完成 stage、commit、
-  push 原生回归，仍缺托管平台 PR、Coding Browser、Computer Use 和交互式 PTY；
+  Git Adapter 的可信证据。逐工具审批、文件/图片附件、项目级 MCP 选择，以及会话隔离的
+  交互式项目 PTY 与可显示 PID、监听端口、有界日志并停止任务的后台任务页已接线；本地
+  远端已完成 stage、commit、push 原生回归，仍缺托管平台 PR、Coding Browser、
+  Computer Use 和跨应用重启终端恢复；
 - **NYU CTF Bench** 只有开发者专用 safe-static 单次 Runner 与 Digest Judge，不是完整
   Challenge Runner，也不是用户训练能力；
 - **Labs** 与 **CVE Research** 已完成顶层/详细设计，但保持 `Paused / Designed`；
@@ -52,7 +53,7 @@ MilkSU 当前是一个 local-first 的授权安全学习与研究桌面工作台
 | Coding 权限执行 | Project Auto 项目外写入负向测试、Full Access 显式项目外写入与 Provider Key 隔离测试。 |
 | Coding 权限菜单 | Codex 三档层级、帮助入口、选中态、警示色和 1024 × 700 视口完成浏览器交互与视觉对照；推荐状态恢复为 Project Auto。 |
 | Coding 日常动作与 Diff | 同一真实打包 App 会话连续完成理解、失败复现、审阅、修复和总结；修复后 `npm test` 为 3/3；右侧变更页支持文件列表、暂存/工作区 Diff、截断和可信 Git 证据审阅。 |
-| Coding Git 与项目终端 | 本地临时远端完成原生 stage、commit、push 与远端 HEAD 核对；右侧终端页在原生 App 中完成短命令和 `127.0.0.1:18876` 后台服务启停，显示 PID、端口、日志和退出状态，并按 Conversation 隔离任务。 |
+| Coding Git 与项目终端 | 本地临时远端完成原生 stage、commit、push 与远端 HEAD 核对；右侧终端页在原生 App 中完成多会话 zsh PTY 输入与项目 `pwd`，后台任务完成 `127.0.0.1:18876` 服务启停并显示 PID、端口、日志和退出状态；两类会话均按 Conversation 隔离。 |
 | Coding 运行时隔离 | Project Auto 的 HOME/TMP/Node wrapper 位于用户数据目录的稳定工作区哈希路径；用户仓库不再生成运行时 `.milksu`，旧目录不会被自动删除且从 Git 面板隐藏。 |
 | Coding 审批与扩展底座 | Request Approval 会暂停单次工具并由桌面批准/拒绝；固定 `pi-goal`、`pi-lsp`、后台任务和 opt-in MCP Adapter 已进入打包清单、正向 Smoke 与 CTF 负向隔离。 |
 | Coding 附件与文本视觉降级 | 文件/图片会复制到用户数据目录并随会话持久化；纯文本模型使用本地 OCR 或显式视觉路由，无法可靠识图时必须披露降级。 |
