@@ -466,6 +466,27 @@ func (a *App) GetCodingDiff(workspacePath, relativePath string) (codingenv.DiffS
 	return codingenv.InspectDiff(inspectContext, workspacePath, relativePath)
 }
 
+func (a *App) ApplyCodingGitAction(
+	workspacePath,
+	action,
+	relativePath,
+	message string,
+) (codingenv.GitActionResult, error) {
+	timeout := 15 * time.Second
+	if action == codingenv.GitActionPush {
+		timeout = 2 * time.Minute
+	}
+	actionContext, cancel := context.WithTimeout(a.commandContext(), timeout)
+	defer cancel()
+	return codingenv.ApplyGitAction(
+		actionContext,
+		workspacePath,
+		action,
+		relativePath,
+		message,
+	)
+}
+
 func (a *App) GetCodingArchitecturePreview(
 	workspacePath,
 	relativePath string,

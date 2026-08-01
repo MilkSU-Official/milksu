@@ -45,6 +45,21 @@ export interface CodingDiffSnapshot {
   truncated?: boolean
 }
 
+export type CodingGitAction =
+  | 'stage'
+  | 'stage-all'
+  | 'unstage'
+  | 'unstage-all'
+  | 'discard-worktree'
+  | 'commit'
+  | 'push'
+
+export interface CodingGitActionResult {
+  action: CodingGitAction
+  message: string
+  snapshot: CodingEnvironmentSnapshot
+}
+
 export interface CodingArchitecturePreview {
   exists: boolean
   relativePath: string

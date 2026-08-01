@@ -25,6 +25,7 @@ OCR 只能提取文字，不能可靠证明布局、颜色、控件关系、图�
 
 | 项目 | 可复用机制 | 取舍 |
 | --- | --- | --- |
+| [`deepseek-v4-for-copilot`](https://github.com/Vizards/deepseek-v4-for-copilot/tree/00fded758f358d438d9527aba63a57cde487245a) | DeepSeek 官方 Agent 集合推荐的社区扩展；图片自动交给另一个 Copilot 视觉模型描述，再把稳定的 `[Image Description: …]` 文字交给 DeepSeek；只代理当前尾部用户图片，历史轮次复用可回放标记；失败时显式注入不可用标记；MIT | 这是与 MilkSU 产品行为最接近的现成先例，证明用户无需手动选择 OCR/代理路径。实现依赖 VS Code 非公开 Copilot API，不能直接作为 MilkSU/PI 依赖；复用其“透明代理、稳定标记、历史不重复外发、失败显式降级”的协议设计 |
 | [`@getpipher/vision`](https://github.com/getpipher/vision/tree/44a13a0f9811b11cc5f61010ae093ece119cb37a) | PI 原生扩展；按当前模型 `input` 能力自动选择原生透传或视觉模型委托；提供内容哈希缓存、重试、回退、批量图片、local-only 和不保存图片内容的外发审计；MIT；固定 revision 的 CI 成功 | 与 MilkSU 最接近。优先复用其公开 Delegator 核心和测试思路，但不直接同时加载其完整 Paste/设置 UI，避免与 MilkSU 已有附件、凭据和产品设置形成双入口 |
 | [`luma-mcp`](https://github.com/JochenYang/luma-mcp/tree/ec42ea28ecc2330710a9f97a0861f4e6c7782c5b) | 单一 `image_understand` MCP 工具；按 OCR、UI、Debug、Describe 等任务选择提示和预处理；支持大图多裁剪与多个视觉 Provider；MIT | 可作为未来的跨平台、可插拔视觉 MCP 参考。当前会复制 MilkSU 的 Provider、重试和图片预处理控制面，并引入独立进程与 `sharp`，不作为 M3 默认依赖 |
 | [`ocrtool-mcp`](https://github.com/ihugang/ocrtool-mcp/tree/5b2b0394627d122132a4a35d97d24d3f491551bc) | Swift + macOS Vision，本地离线 OCR，返回文本、置信度和坐标；同时提供 MCP 与 Skill；固定 revision 的 CI 成功 | 证明“本地 Apple Vision 先行”是成熟做法。MilkSU 已通过 `@napi-rs/system-ocr` 直接调用同类系统能力，再启动一个 Swift MCP 进程只会增加打包和生命周期成本 |
@@ -41,6 +42,16 @@ OCR 只能提取文字，不能可靠证明布局、颜色、控件关系、图�
 3. 纯文本模型通过工具或旁路模型获得派生文字证据；
 4. OCR 与完整视觉理解分层；
 5. 对网络外发、缓存、失败和来源做显式记录。
+
+对于 DeepSeek 这类纯文本主模型，两个最接近 MilkSU 的实现形成了互补样板：
+
+- `deepseek-v4-for-copilot` 负责产品行为：用户照常贴图，系统自动选视觉代理，并把本轮
+  描述固化成可回放的稳定标记；
+- `@getpipher/vision` 负责运行时韧性：能力感知、内容寻址缓存、取消、重试、第二模型
+  回退、并发限制、local-only 与不记录图片内容的审计。
+
+MilkSU 不直接复制 VS Code 私有接口，也不再另造一套 Pi 视觉工具。目标是保留 MilkSU
+唯一的附件与设置入口，在其后使用 Pi 扩展的公开 Delegator，并补上本地 OCR 这一层。
 
 浏览器和桌面操作还多一层共同策略：能读取 DOM、Accessibility Tree、UI Automation 或
 CDP 时，先使用结构化元素、角色、状态和坐标；只有结构不可用或需要判断颜色、图像和

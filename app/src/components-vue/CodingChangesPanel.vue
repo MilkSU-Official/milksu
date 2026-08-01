@@ -3,17 +3,25 @@ import { computed, ref, watch } from 'vue'
 import {
   Badge,
   Button,
+  Input,
 } from '@felinic/ui'
 import {
   FileDiff,
+  GitCommitHorizontal,
   LoaderCircle,
+  Minus,
+  Plus,
   RefreshCw,
+  RotateCcw,
   SearchCheck,
+  Upload,
 } from 'lucide-vue-next'
 import { invokeCommand } from '@/desktop'
 import type {
   CodingDiffSnapshot,
   CodingEnvironmentSnapshot,
+  CodingGitAction,
+  CodingGitActionResult,
   CodingGitChange,
 } from '@/codingEnvironmentTypes'
 
@@ -32,9 +40,13 @@ const selectedPath = ref('')
 const diff = ref<CodingDiffSnapshot | null>(null)
 const loading = ref(false)
 const error = ref('')
+const operation = ref('')
+const operationMessage = ref('')
+const commitMessage = ref('')
 
 const git = computed(() => props.environment?.git)
 const changes = computed(() => git.value?.changes ?? [])
+const busy = computed(() => Boolean(props.running || operation.value))
 const selectedChange = computed(() => (
   changes.value.find(change => change.path === selectedPath.value)
 ))
@@ -66,12 +78,65 @@ async function inspectDiff(change: CodingGitChange) {
   }
 }
 
+async function applyGitAction(
+  action: CodingGitAction,
+  relativePath = '',
+  message = '',
+) {
+  if (!props.workspacePath || busy.value) return
+  if (
+    action === 'discard-worktree'
+    && !window.confirm(`丢弃 ${relativePath} 的未暂存修改？此操作无法从 MilkSU 恢复。`)
+  ) {
+    return
+  }
+  operation.value = `${action}:${relativePath}`
+  operationMessage.value = ''
+  error.value = ''
+  try {
+    const result = await invokeCommand<CodingGitActionResult>(
+      'apply_coding_git_action',
+      {
+        workspacePath: props.workspacePath,
+        action,
+        relativePath,
+        message,
+      },
+    )
+    operationMessage.value = result.message
+    if (action === 'commit') commitMessage.value = ''
+    if (selectedPath.value) {
+      const current = result.snapshot.git.changes?.find(
+        change => change.path === selectedPath.value,
+      )
+      if (current) await inspectDiff(current)
+      else {
+        selectedPath.value = ''
+        diff.value = null
+      }
+    }
+    emit('refresh')
+  } catch (reason) {
+    error.value = reason instanceof Error
+      ? reason.message
+      : 'Git 操作失败。'
+  } finally {
+    operation.value = ''
+  }
+}
+
+async function commitStagedChanges() {
+  await applyGitAction('commit', '', commitMessage.value)
+}
+
 watch(
   () => props.workspacePath,
   () => {
     selectedPath.value = ''
     diff.value = null
     error.value = ''
+    operationMessage.value = ''
+    commitMessage.value = ''
   },
 )
 
@@ -113,9 +178,27 @@ watch(changes, current => {
         </div>
         <div class="flex shrink-0 items-center gap-1">
           <Button
+            v-if="git?.isRepository && git.dirty"
+            variant="ghost"
+            size="sm"
+            :disabled="busy"
+            @click="applyGitAction('stage-all')"
+          >
+            全部暂存
+          </Button>
+          <Button
+            v-if="git?.isRepository && git.staged"
+            variant="ghost"
+            size="sm"
+            :disabled="busy"
+            @click="applyGitAction('unstage-all')"
+          >
+            全部取消
+          </Button>
+          <Button
             variant="outline"
             size="sm"
-            :disabled="running || !git?.isRepository"
+            :disabled="busy || !git?.isRepository"
             @click="emit('review')"
           >
             <SearchCheck class="size-3.5" />
@@ -124,6 +207,7 @@ watch(changes, current => {
           <Button
             variant="ghost"
             size="icon-sm"
+            :disabled="busy"
             aria-label="刷新 Git 变更"
             @click="emit('refresh')"
           >
@@ -145,27 +229,64 @@ watch(changes, current => {
           <span :class="{ 'text-destructive': git.conflicts }">冲突 {{ git.conflicts }}</span>
         </div>
         <div class="max-h-64 space-y-1 overflow-y-auto">
-          <button
+          <div
             v-for="change in changes"
             :key="`${change.indexStatus}${change.worktreeStatus}:${change.path}`"
-            type="button"
-            class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-caption transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            class="group flex w-full items-center gap-1 rounded-md px-1 py-0.5 text-caption transition-colors hover:bg-muted"
             :class="{ 'bg-muted': selectedPath === change.path }"
             :title="change.originalPath ? `${change.originalPath} → ${change.path}` : change.path"
-            @click="inspectDiff(change)"
           >
-            <span
-              class="w-6 shrink-0 font-mono"
-              :class="change.conflict
-                ? 'text-destructive'
-                : change.untracked
-                  ? 'text-primary'
-                  : 'text-muted-foreground'"
+            <button
+              type="button"
+              class="flex min-w-0 flex-1 items-center gap-2 rounded px-1 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              @click="inspectDiff(change)"
             >
-              {{ changeStatus(change) }}
-            </span>
-            <span class="min-w-0 flex-1 truncate">{{ change.path }}</span>
-          </button>
+              <span
+                class="w-6 shrink-0 font-mono"
+                :class="change.conflict
+                  ? 'text-destructive'
+                  : change.untracked
+                    ? 'text-primary'
+                    : 'text-muted-foreground'"
+              >
+                {{ changeStatus(change) }}
+              </span>
+              <span class="min-w-0 flex-1 truncate">{{ change.path }}</span>
+            </button>
+            <Button
+              v-if="change.staged"
+              variant="ghost"
+              size="icon-sm"
+              :disabled="busy"
+              :aria-label="`取消暂存 ${change.path}`"
+              :title="`取消暂存 ${change.path}`"
+              @click="applyGitAction('unstage', change.path)"
+            >
+              <Minus class="size-3.5" />
+            </Button>
+            <Button
+              v-if="change.untracked || change.modified"
+              variant="ghost"
+              size="icon-sm"
+              :disabled="busy || change.conflict"
+              :aria-label="`暂存 ${change.path}`"
+              :title="`暂存 ${change.path}`"
+              @click="applyGitAction('stage', change.path)"
+            >
+              <Plus class="size-3.5" />
+            </Button>
+            <Button
+              v-if="change.modified && !change.staged && !change.untracked && !change.conflict"
+              variant="ghost"
+              size="icon-sm"
+              :disabled="busy"
+              :aria-label="`丢弃 ${change.path} 的未暂存修改`"
+              :title="`丢弃 ${change.path} 的未暂存修改`"
+              @click="applyGitAction('discard-worktree', change.path)"
+            >
+              <RotateCcw class="size-3.5" />
+            </Button>
+          </div>
         </div>
         <p
           v-if="git.changesTruncated"
@@ -221,6 +342,43 @@ watch(changes, current => {
             Agent 审阅会结合全部变更与周边代码；这里用于逐文件核对证据。
           </p>
         </div>
+      </div>
+
+      <div class="border-t border-border px-3 py-3">
+        <form class="flex items-center gap-2" @submit.prevent="commitStagedChanges">
+          <GitCommitHorizontal class="size-4 shrink-0 text-muted-foreground" />
+          <Input
+            v-model="commitMessage"
+            size="sm"
+            emphasis="subtle"
+            class="min-w-0 flex-1"
+            placeholder="提交说明"
+            :disabled="busy || !git.staged || Boolean(git.conflicts)"
+          />
+          <Button
+            type="submit"
+            size="sm"
+            :disabled="busy || !git.staged || !commitMessage.trim() || Boolean(git.conflicts)"
+          >
+            提交
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            :disabled="busy || !git.branch || git.branch === 'detached' || Boolean(git.conflicts)"
+            @click="applyGitAction('push')"
+          >
+            <Upload class="size-3.5" />
+            推送
+          </Button>
+        </form>
+        <p
+          v-if="operationMessage"
+          class="mt-2 text-caption text-primary"
+        >
+          {{ operationMessage }}
+        </p>
       </div>
     </template>
   </section>

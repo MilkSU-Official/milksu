@@ -50,6 +50,8 @@ import type {
   CodingArchitecturePreview,
   CodingDiffSnapshot,
   CodingEnvironmentSnapshot,
+  CodingGitAction,
+  CodingGitActionResult,
 } from './codingEnvironmentTypes'
 import type {
   ManagedLabAccess,
@@ -93,6 +95,12 @@ interface WailsAppBindings {
   GetRuntimeStatus(): Promise<unknown>
   GetCodingEnvironment(workspacePath: string): Promise<CodingEnvironmentSnapshot>
   GetCodingDiff(workspacePath: string, relativePath: string): Promise<CodingDiffSnapshot>
+  ApplyCodingGitAction(
+    workspacePath: string,
+    action: CodingGitAction,
+    relativePath: string,
+    message: string,
+  ): Promise<CodingGitActionResult>
   GetCodingArchitecturePreview(
     workspacePath: string,
     relativePath: string,
@@ -360,6 +368,13 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.GetCodingDiff(
           args?.workspacePath as string,
           args?.relativePath as string,
+        ) as Promise<T>
+      case 'apply_coding_git_action':
+        return app.ApplyCodingGitAction(
+          args?.workspacePath as string,
+          args?.action as CodingGitAction,
+          (args?.relativePath as string) ?? '',
+          (args?.message as string) ?? '',
         ) as Promise<T>
       case 'get_coding_architecture_preview':
         return app.GetCodingArchitecturePreview(
