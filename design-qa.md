@@ -295,3 +295,77 @@ No actionable P0/P1/P2 differences remain for the requested layout. The selected
 the source is a different data state, not a shell-layout defect.
 
 final result: passed
+
+# Coding 活动折叠 · Design QA
+
+**Comparison Target**
+
+- Source visual truth:
+  - `/var/folders/wf/0w9rnrs904501nhp57pd_jzw0000gn/T/codex-clipboard-d2f1a6b8-4824-414c-9758-914d173be191.png`
+  - `/var/folders/wf/0w9rnrs904501nhp57pd_jzw0000gn/T/codex-clipboard-cffd7e9a-093a-4b3b-8984-abc53a99b263.png`
+  - `/var/folders/wf/0w9rnrs904501nhp57pd_jzw0000gn/T/codex-clipboard-b813ee6c-16f4-466e-abb4-7d1e312f6b2c.png`
+- Rendered implementation:
+  - `/var/folders/wf/0w9rnrs904501nhp57pd_jzw0000gn/T/com.openai.sky.CUAService/MilkSU Screenshot 2026-08-02 at 0.16.52.jpeg`
+- State: dark theme, existing Coding task, top-level activity expanded, one child tool entry expanded.
+- Source pixels: 1380 × 2022, 1424 × 1092, and 1414 × 908.
+- Implementation pixels and viewport: 1187 × 768 at the packaged macOS app window size.
+- Density normalization: the sources are cropped Codex captures while the implementation is a full MilkSU window, so pixel-perfect whole-screen comparison is not valid. The activity disclosure region was compared at visible 1:1 scale; surrounding Codex chrome was excluded from fidelity judgments.
+
+**Findings**
+
+- No actionable P0, P1, or P2 mismatch remains in the requested activity-disclosure behavior.
+- [P3] MilkSU does not currently append elapsed time to every tool-row summary.
+  - Location: `app/src/components-vue/ChatActivityGroup.vue`.
+  - Evidence: Codex shows summaries such as “Ran command in 1s”; MilkSU shows the localized action and subject.
+  - Impact: timing is useful operational metadata but does not affect hierarchy or discoverability.
+  - Follow-up: persist tool start/end timestamps and append a compact duration only when reliable.
+
+**Full-view Comparison Evidence**
+
+- Codex keeps assistant progress and the final response in the main transcript while collapsing raw command activity.
+- MilkSU now keeps ordinary assistant messages in the main transcript and renders tool runs as compact disclosure rows.
+- The MilkSU sidebars reduce the center-column width compared with the cropped Codex transcript. This is an intentional product constraint, not activity-component drift.
+
+**Focused Region Comparison Evidence**
+
+- Level 1: both surfaces show one compact aggregate activity summary with an icon and disclosure chevron.
+- Level 2: expanding the aggregate reveals compact per-tool summaries without raw output.
+- Level 3: expanding one tool reveals a bordered, independently scrollable monospace detail surface.
+- Tool details stay bounded and no longer push the final assistant answer behind permanently expanded output.
+
+**Required Fidelity Surfaces**
+
+- Fonts and typography: MilkSU retains Inter and its existing mono stack. Aggregate and child summaries have distinct but compatible weights and line heights; long paths truncate at the summary level and wrap only inside details.
+- Spacing and layout rhythm: disclosure rows use a compact vertical rhythm; nested details are indented and bounded. No persistent control is hidden by the expanded detail.
+- Colors and tokens: the implementation intentionally keeps MilkSU’s HTB-inspired navy/green tokens instead of copying Codex’s neutral black palette. Muted rows, border contrast, and hover affordances remain legible.
+- Image and asset fidelity: this interaction has no photographic or illustrative assets. Icons come from the project’s existing icon library; no placeholder, emoji, CSS drawing, or handcrafted SVG was introduced.
+- Copy and content: Codex’s English action labels are localized to concise Chinese product language. Raw command, path, and result content remains unchanged in the third level.
+
+**Comparison History**
+
+- Earlier P1: tool output and model process content were expanded inline, occupying most of the transcript and obscuring the useful response.
+- Fix: introduced an aggregate activity disclosure, nested per-tool disclosures, bounded detail panels, and transcript segmentation that leaves assistant progress/final answers outside tool groups.
+- Post-fix evidence: the packaged MilkSU app was opened with a real persisted Archify task; the first aggregate row was expanded, then an individual `read` action was expanded. The three levels were independently operable and the assistant text remained visible below the activity group.
+
+**Primary Interactions Tested**
+
+- Open a persisted Coding task in the packaged Wails app.
+- Expand and collapse the top-level activity group.
+- Expand an individual tool action.
+- Inspect the bounded raw request/result detail.
+- Confirm normal assistant progress and the final answer remain outside the activity group.
+
+**Implementation Checklist**
+
+- [x] Aggregate consecutive tool events.
+- [x] Keep assistant progress and final answers in the transcript.
+- [x] Add independently expandable tool summaries.
+- [x] Bound and scroll raw tool details.
+- [x] Preserve MilkSU tokens and localization.
+- [ ] Optionally add reliable elapsed-time metadata.
+
+**Follow-up Polish**
+
+- Add per-tool duration after the runtime persists trustworthy start/end timestamps.
+
+final result: passed

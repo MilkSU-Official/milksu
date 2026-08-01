@@ -41,6 +41,7 @@ type Event struct {
 	Reason          string                   `json:"reason,omitempty"`
 	Approved        *bool                    `json:"approved,omitempty"`
 	BackgroundTasks []BackgroundTask         `json:"backgroundTasks,omitempty"`
+	Goal            *CodingGoalState         `json:"goal,omitempty"`
 }
 
 type RuntimeStatus struct {
@@ -65,6 +66,20 @@ type BackgroundTask struct {
 	LogPath      string `json:"logPath,omitempty"`
 	LastExitCode *int   `json:"lastExitCode,omitempty"`
 	Error        string `json:"error,omitempty"`
+}
+
+type CodingGoalState struct {
+	ID                  string `json:"id"`
+	Text                string `json:"text"`
+	Status              string `json:"status"`
+	StartedAt           int64  `json:"startedAt"`
+	UpdatedAt           int64  `json:"updatedAt"`
+	Iteration           int    `json:"iteration"`
+	TokenBudget         *int64 `json:"tokenBudget,omitempty"`
+	TokensUsed          int64  `json:"tokensUsed"`
+	TimeUsedSeconds     int64  `json:"timeUsedSeconds"`
+	AutomaticModelTurns int    `json:"automaticModelTurns"`
+	QueuedCount         int    `json:"queuedCount"`
 }
 
 type ModelProbeResult struct {
@@ -105,6 +120,7 @@ type bridgeEvent struct {
 	Reason         string                   `json:"reason"`
 	Approved       *bool                    `json:"approved"`
 	Tasks          []BackgroundTask         `json:"tasks"`
+	Goal           *CodingGoalState         `json:"goal"`
 }
 
 type childProcess struct {
@@ -494,6 +510,11 @@ func (s *Supervisor) observeTurnEvent(event Event) {
 				s.armTurnTimerLocked(event.SessionID)
 			}
 		}
+	case "assistant.started":
+		if _, exists := s.sessions[event.SessionID]; exists &&
+			s.approvals[event.SessionID] == 0 {
+			s.armTurnTimerLocked(event.SessionID)
+		}
 	case "session.ready", "session.policy_updated", "session.model_selected", "assistant.delta", "assistant.segment_completed", "tool.started", "tool.completed":
 		if _, exists := s.turnTimers[event.SessionID]; exists &&
 			s.approvals[event.SessionID] == 0 {
@@ -641,6 +662,7 @@ func normalizeBridgeEvent(raw bridgeEvent) Event {
 		Reason:          raw.Reason,
 		Approved:        raw.Approved,
 		BackgroundTasks: raw.Tasks,
+		Goal:            raw.Goal,
 	}
 	switch raw.Type {
 	case "ready":
@@ -649,6 +671,10 @@ func normalizeBridgeEvent(raw bridgeEvent) Event {
 		event.Type = "session.policy_updated"
 	case "model_selected":
 		event.Type = "session.model_selected"
+	case "turn_started":
+		event.Type = "assistant.started"
+	case "goal_state":
+		event.Type = "session.goal_updated"
 	case "text_delta":
 		event.Type = "assistant.delta"
 		event.Text = raw.Delta

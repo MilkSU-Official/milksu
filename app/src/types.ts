@@ -37,6 +37,29 @@ export interface CodingCapability {
   detail: string
 }
 
+export type CodingGoalStatus =
+  | 'active'
+  | 'paused'
+  | 'blocked'
+  | 'usage_limited'
+  | 'budget_limited'
+  | 'complete'
+  | 'queued'
+
+export interface CodingGoalState {
+  id: string
+  text: string
+  status: CodingGoalStatus
+  startedAt: number
+  updatedAt: number
+  iteration: number
+  tokenBudget?: number
+  tokensUsed: number
+  timeUsedSeconds: number
+  automaticModelTurns: number
+  queuedCount: number
+}
+
 export interface Conversation {
   id: string
   title: string
@@ -51,6 +74,7 @@ export interface Conversation {
   agentExtensions?: string[]
   agentSkills?: string[]
   agentCapabilities?: CodingCapability[]
+  agentGoal?: CodingGoalState
   ctfJobId?: string
   ctfMode?: 'coach' | 'copilot' | 'delegate'
   ctfRole?: 'solver' | 'tool-builder' | 'strategist'

@@ -38,6 +38,37 @@ func TestNormalizePolicyStatus(t *testing.T) {
 	}
 }
 
+func TestNormalizeGoalStateAndAutomaticTurnStart(t *testing.T) {
+	budget := int64(100000)
+	goal := &CodingGoalState{
+		ID:          "goal-1",
+		Text:        "完成并验证交付",
+		Status:      "active",
+		TokenBudget: &budget,
+		TokensUsed:  12000,
+	}
+	updated := normalizeBridgeEvent(bridgeEvent{
+		Type: "goal_state",
+		ID:   "session-1",
+		Goal: goal,
+	})
+	if updated.Type != "session.goal_updated" ||
+		updated.Goal == nil ||
+		updated.Goal.ID != "goal-1" ||
+		updated.Goal.TokenBudget == nil ||
+		*updated.Goal.TokenBudget != 100000 {
+		t.Fatalf("unexpected goal event: %#v", updated)
+	}
+
+	started := normalizeBridgeEvent(bridgeEvent{
+		Type: "turn_started",
+		ID:   "session-1",
+	})
+	if started.Type != "assistant.started" {
+		t.Fatalf("unexpected automatic turn event: %#v", started)
+	}
+}
+
 func TestNormalizeToolError(t *testing.T) {
 	event := normalizeBridgeEvent(bridgeEvent{
 		Type: "tool_call_end", ID: "session-1", ToolName: "read", Content: "denied", IsError: true,

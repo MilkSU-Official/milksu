@@ -42,6 +42,20 @@ type StoredCapability struct {
 	Detail string `json:"detail"`
 }
 
+type StoredGoal struct {
+	ID                  string `json:"id"`
+	Text                string `json:"text"`
+	Status              string `json:"status"`
+	StartedAt           int64  `json:"startedAt"`
+	UpdatedAt           int64  `json:"updatedAt"`
+	Iteration           int    `json:"iteration"`
+	TokenBudget         *int64 `json:"tokenBudget,omitempty"`
+	TokensUsed          int64  `json:"tokensUsed"`
+	TimeUsedSeconds     int64  `json:"timeUsedSeconds"`
+	AutomaticModelTurns int    `json:"automaticModelTurns"`
+	QueuedCount         int    `json:"queuedCount"`
+}
+
 type StoredConversation struct {
 	ID                string             `json:"id"`
 	Title             string             `json:"title"`
@@ -56,6 +70,7 @@ type StoredConversation struct {
 	AgentExtensions   []string           `json:"agentExtensions,omitempty"`
 	AgentSkills       []string           `json:"agentSkills,omitempty"`
 	AgentCapabilities []StoredCapability `json:"agentCapabilities,omitempty"`
+	AgentGoal         *StoredGoal        `json:"agentGoal,omitempty"`
 	CTFJobID          string             `json:"ctfJobId,omitempty"`
 	CTFMode           string             `json:"ctfMode,omitempty"`
 	CTFRole           string             `json:"ctfRole,omitempty"`

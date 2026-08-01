@@ -31,7 +31,7 @@ test("reviewed LSP config ignores project commands and strips provider secrets",
   }
 });
 
-test("coding resource policy overrides ambient LSP configuration and disables retry watchdog", () => {
+test("coding resource policy overrides ambient LSP configuration", () => {
   const environment = {
     HOME: "/tmp/home",
     PATH: "/usr/bin",
@@ -42,11 +42,10 @@ test("coding resource policy overrides ambient LSP configuration and disables re
   applyCodingResourcePolicy(environment, "darwin");
 
   assert.doesNotThrow(() => JSON.parse(environment.PI_LSP_CONFIG));
-  assert.equal(environment.PI_RETRY_STALL_TIMEOUT_MS, "0");
   assert.equal("PI_MILKSU_GO_LSP_COMMAND" in environment, false);
 });
 
-test("loaded extension names come from registered tools and flags", () => {
+test("loaded extension names come from registered tools", () => {
   const extension = (tools = [], flags = []) => ({
     tools: new Map(tools.map(name => [name, {}])),
     flags: new Map(flags.map(name => [name, {}])),
@@ -57,7 +56,7 @@ test("loaded extension names come from registered tools and flags", () => {
         extensions: [
           extension(["milksu_progress"]),
           extension(["lsp_diagnostics", "lsp_fix"]),
-          extension([], ["retry-stall-timeout-ms"]),
+          extension(["goal_complete", "goal_blocked"]),
           extension(["bg_task", "bg_status"]),
         ],
         errors: [{ path: "broken-extension", error: "failed to load" }],
@@ -66,7 +65,7 @@ test("loaded extension names come from registered tools and flags", () => {
   };
 
   assert.deepEqual(describeLoadedExtensions(resourceLoader), {
-    names: ["milksu-workflow", "pi-lsp", "pi-retry", "pi-background-tasks"],
+    names: ["milksu-workflow", "pi-lsp", "pi-goal", "pi-background-tasks"],
     errors: [{ path: "broken-extension", error: "failed to load" }],
   });
 });

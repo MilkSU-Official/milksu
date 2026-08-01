@@ -38,6 +38,7 @@ const workspaceSchemaVersion = "ctf-workspace.milksu.dev/v1alpha1";
 const toolBuilderRole = "tool-builder";
 const strategistRole = "strategist";
 const codingToolNames = ["read", "bash", "edit", "write", "grep", "find", "ls"];
+const codingGoalToolNames = ["goal_complete", "goal_blocked"];
 const codingReadOnlyToolNames = [
   "read",
   "grep",
@@ -46,6 +47,7 @@ const codingReadOnlyToolNames = [
   "bg_status",
   "milksu_progress",
   "lsp_diagnostics",
+  ...codingGoalToolNames,
 ];
 const codingWorkspaceAutoToolNames = [
   "read",
@@ -59,6 +61,7 @@ const codingWorkspaceAutoToolNames = [
   "bg_status",
   "milksu_progress",
   "lsp_diagnostics",
+  ...codingGoalToolNames,
 ];
 const codingArchitectureToolNames = [
   "read",
@@ -68,6 +71,7 @@ const codingArchitectureToolNames = [
   "write",
   "milksu_archify",
   "milksu_progress",
+  ...codingGoalToolNames,
 ];
 const codingProductReadOnlyToolNames = [
   "read",
@@ -76,6 +80,7 @@ const codingProductReadOnlyToolNames = [
   "ls",
   "milksu_progress",
   "lsp_diagnostics",
+  ...codingGoalToolNames,
 ];
 const codingProductTestToolNames = [
   "read",
@@ -85,6 +90,7 @@ const codingProductTestToolNames = [
   "ls",
   "milksu_progress",
   "lsp_diagnostics",
+  ...codingGoalToolNames,
 ];
 const codingProductFixToolNames = [
   "read",
@@ -96,6 +102,7 @@ const codingProductFixToolNames = [
   "ls",
   "milksu_progress",
   "lsp_diagnostics",
+  ...codingGoalToolNames,
 ];
 // A Coding session must construct the full reviewed tool catalog up front.
 // Pi's setActiveTools() can narrow or restore tools that already exist, but it
@@ -2053,7 +2060,12 @@ async function createCodingToolDefinitions(
       );
   const definitions = [
     createReadToolDefinition(root, { operations: readOperations }),
-    createBashToolDefinition(root, { operations: bashOperations }),
+    createBashToolDefinition(root, {
+      operations: bashOperations,
+      // MilkSU exposes session/model context through the desktop environment
+      // panel. Child commands do not need Pi's ambient PI_* variables.
+      exposeSessionEnvironment: false,
+    }),
     createEditToolDefinition(root, {
       operations: {
         access: async path => access(await ensure(path), constants.R_OK | constants.W_OK),
@@ -2262,6 +2274,7 @@ export async function createCTFToolDefinitions(
         !toolBuilder && !strategist && scopeAllowsNetwork(manifest),
         roleProtectedEntries,
       ),
+      exposeSessionEnvironment: false,
     });
     bash.description += ` MilkSU enforces a ${execution.defaultCommandTimeoutSeconds}s default timeout, `
       + `${execution.maxCommandTimeoutSeconds}s maximum, workspace-only writes, and a macOS sandbox.`;

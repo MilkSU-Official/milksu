@@ -11,6 +11,7 @@ import type {
   CodingAttachment,
   CodingCapability,
   CodingExecutionMode,
+  CodingGoalState,
   Conversation,
   Message,
 } from '@/types'
@@ -44,6 +45,45 @@ function normalizeAttachments(value: unknown): CodingAttachment[] | undefined {
   return attachments.length ? attachments.slice(0, 8) : undefined
 }
 
+const goalStatuses = new Set<CodingGoalState['status']>([
+  'active',
+  'paused',
+  'blocked',
+  'usage_limited',
+  'budget_limited',
+  'complete',
+  'queued',
+])
+
+function normalizeGoal(value: unknown): CodingGoalState | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const goal = value as Record<string, unknown>
+  const status = String(goal.status ?? '') as CodingGoalState['status']
+  const id = String(goal.id ?? '').trim().slice(0, 160)
+  const text = String(goal.text ?? '').trim().slice(0, 4000)
+  if (!id || !text || !goalStatuses.has(status)) return undefined
+  const nonNegativeInteger = (candidate: unknown) => {
+    const number = Number(candidate)
+    return Number.isFinite(number) && number >= 0 ? Math.floor(number) : 0
+  }
+  const tokenBudget = Number(goal.tokenBudget)
+  return {
+    id,
+    text,
+    status,
+    startedAt: nonNegativeInteger(goal.startedAt),
+    updatedAt: nonNegativeInteger(goal.updatedAt),
+    iteration: nonNegativeInteger(goal.iteration),
+    tokenBudget: Number.isSafeInteger(tokenBudget) && tokenBudget > 0
+      ? tokenBudget
+      : undefined,
+    tokensUsed: nonNegativeInteger(goal.tokensUsed),
+    timeUsedSeconds: nonNegativeInteger(goal.timeUsedSeconds),
+    automaticModelTurns: nonNegativeInteger(goal.automaticModelTurns),
+    queuedCount: nonNegativeInteger(goal.queuedCount),
+  }
+}
+
 interface AgentEvent {
   sessionId?: string
   type: string
@@ -61,6 +101,7 @@ interface AgentEvent {
   input?: string
   approved?: boolean
   reason?: string
+  goal?: CodingGoalState
 }
 
 interface WorkspaceTask {
@@ -112,6 +153,7 @@ export function normalizeConversation(raw: Record<string, unknown>): Conversatio
           }]
         })
       : undefined,
+    agentGoal: normalizeGoal(raw.agentGoal),
     ctfJobId: typeof raw.ctfJobId === 'string' ? raw.ctfJobId : undefined,
     ctfMode: ['coach', 'copilot', 'delegate'].includes(String(raw.ctfMode))
       ? raw.ctfMode as Conversation['ctfMode']
@@ -415,6 +457,43 @@ export function useConversations() {
     runningIds.value = nextRunning
   }
 
+  async function controlGoal(action: 'resume' | 'clear') {
+    const conversationId = activeId.value
+    if (!conversationId || runningIds.value.has(conversationId)) return
+    const conversation = conversations.value.find(item => item.id === conversationId)
+    if (!conversation) return
+    if (action === 'resume') {
+      runningIds.value = new Set(runningIds.value).add(conversationId)
+    }
+    try {
+      await invokeCommand('send_message', {
+        conversationId,
+        prompt: `/goal ${action}`,
+        workspacePath: conversation.workspacePath ?? '',
+        modelMode: conversation.modelMode ?? '',
+        modelProvider: conversation.modelProvider ?? '',
+        modelId: conversation.modelId ?? '',
+        executionMode: conversation.executionMode ?? DEFAULT_CODING_EXECUTION_MODE,
+        approvalPolicy: conversation.approvalPolicy ?? DEFAULT_CODING_APPROVAL_POLICY,
+        attachments: [],
+      })
+    } catch (reason) {
+      const nextRunning = new Set(runningIds.value)
+      nextRunning.delete(conversationId)
+      runningIds.value = nextRunning
+      update(conversationId, current => ({
+        ...current,
+        messages: [...current.messages, {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: `目标操作失败：${agentErrorMessage(reason)}`,
+          timestamp: Date.now(),
+          status: 'done',
+        }],
+      }))
+    }
+  }
+
   async function respondApproval(requestId: string, approved: boolean) {
     const conversation = conversations.value.find(item => (
       item.messages.some(message => (
@@ -478,6 +557,7 @@ export function useConversations() {
         input,
         approved,
         reason,
+        goal,
       } = event.payload
       if (!sessionId && (type === 'engine.stopped' || type === 'engine.protocol_error')) {
         const affected = [...runningIds.value]
@@ -530,6 +610,16 @@ export function useConversations() {
             approvalPolicy: approvalPolicy ?? conversation.approvalPolicy,
             agentCapabilities: capabilities ?? conversation.agentCapabilities,
           }
+        }
+        if (type === 'session.goal_updated') {
+          return {
+            ...conversation,
+            agentGoal: normalizeGoal(goal),
+          }
+        }
+        if (type === 'assistant.started') {
+          runningIds.value = new Set(runningIds.value).add(sessionId)
+          return conversation
         }
         if (type === 'approval.requested' && requestId) {
           messages.push({
@@ -664,6 +754,7 @@ export function useConversations() {
     listen,
     send,
     abort,
+    controlGoal,
     respondApproval,
     remove,
     startNew,

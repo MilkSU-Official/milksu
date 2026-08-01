@@ -685,7 +685,7 @@ async function main() {
         readyResources.extensions.includes('milksu-workflow')
         && readyResources.extensions.includes('pi-background-tasks')
         && readyResources.extensions.includes('pi-lsp')
-        && readyResources.extensions.includes('pi-retry')
+        && readyResources.extensions.includes('pi-goal')
         && readyResources.skills.includes('archify'),
       workflowCoverage:
         understandChanges.length === 0

@@ -10,8 +10,9 @@ const execFileAsync = promisify(execFile)
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const nodeVersion = '24.18.0'
 const archifyCommit = '7b49d0b715fd4ba48116bcdecd1ba3789a279613'
+const piVersion = '0.83.0'
 const piLspVersion = '0.29.0'
-const piRetryVersion = '0.31.0'
+const piGoalVersion = '0.43.0'
 const piBackgroundTasksVersion = '0.1.10'
 const systemOcrVersion = '1.1.0'
 const systemOcrNativePackages = {
@@ -198,7 +199,7 @@ async function buildSidecar(platform) {
     ),
     writeFile(join(output, 'package.json'), `${JSON.stringify({
       name: '@earendil-works/pi-coding-agent',
-      version: '0.80.2',
+      version: piVersion,
       type: 'commonjs',
       private: true,
     }, null, 2)}\n`, { mode: 0o600 }),
@@ -222,7 +223,7 @@ async function buildSidecar(platform) {
     },
     pi: {
       package: '@earendil-works/pi-coding-agent',
-      version: '0.80.2',
+      version: piVersion,
       license: 'MIT',
       licenseFile: 'THIRD_PARTY-LICENSES/pi-MIT.txt',
     },
@@ -244,9 +245,9 @@ async function buildSidecar(platform) {
         licenseFile: 'THIRD_PARTY-LICENSES/narumitw-pi-extensions-MIT.txt',
         scope: 'coding-only',
       },
-      piRetry: {
-        package: '@narumitw/pi-retry',
-        version: piRetryVersion,
+      piGoal: {
+        package: '@narumitw/pi-goal',
+        version: piGoalVersion,
         license: 'MIT',
         licenseFile: 'THIRD_PARTY-LICENSES/narumitw-pi-extensions-MIT.txt',
         scope: 'coding-only',
@@ -368,6 +369,8 @@ async function smokeSidecar(platform) {
     'bg_task',
     'bg_status',
     'lsp_diagnostics',
+    'goal_complete',
+    'goal_blocked',
   ]
   const ctfRequestedTools = [...coreExpectedTools, 'ctf_inspect']
   if (
@@ -378,7 +381,7 @@ async function smokeSidecar(platform) {
     || ready.approvalPolicy !== 'workspace-auto'
     || !ready.skills?.includes('archify')
     || !ready.extensions?.includes('pi-lsp')
-    || !ready.extensions?.includes('pi-retry')
+    || !ready.extensions?.includes('pi-goal')
     || !ready.extensions?.includes('pi-background-tasks')
     || !chatResponses.some(value => value.type === 'session_destroyed')
   ) {
@@ -399,7 +402,16 @@ async function smokeSidecar(platform) {
   if (
     !planReady
     || ['bash', 'edit', 'write', 'bg_task', 'lsp_fix'].some(tool => planReady.tools?.includes(tool))
-    || !['read', 'grep', 'find', 'ls', 'bg_status', 'lsp_diagnostics'].every(tool => planReady.tools?.includes(tool))
+    || ![
+      'read',
+      'grep',
+      'find',
+      'ls',
+      'bg_status',
+      'lsp_diagnostics',
+      'goal_complete',
+      'goal_blocked',
+    ].every(tool => planReady.tools?.includes(tool))
     || planReady.executionMode !== 'plan'
   ) {
     throw new Error(`unexpected packaged Plan response: ${planRun.stdout}`)
@@ -487,7 +499,9 @@ async function smokeSidecar(platform) {
     || ctfReady.tools?.includes('lsp_fix')
     || ctfReady.skills?.includes('archify')
     || ctfReady.extensions?.includes('pi-lsp')
-    || ctfReady.extensions?.includes('pi-retry')
+    || ctfReady.extensions?.includes('pi-goal')
+    || ctfReady.tools?.includes('goal_complete')
+    || ctfReady.tools?.includes('goal_blocked')
     || !coachTools.every(tool => ctfReady.tools?.includes(tool))
     || !ctfChatResponses.some(value => value.type === 'session_destroyed')
   ) {

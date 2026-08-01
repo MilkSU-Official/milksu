@@ -61,4 +61,46 @@ describe('Coding approval conversation recovery', () => {
     })
     expect(conversation.messages[0]?.attachments).toBeUndefined()
   })
+
+  it('restores only a valid bounded Coding goal projection', () => {
+    const conversation = normalizeConversation({
+      id: 'conversation-goal',
+      title: 'Goal fixture',
+      createdAt: 1,
+      agentGoal: {
+        id: 'goal-1',
+        text: '完成并验证交付',
+        status: 'paused',
+        startedAt: 10,
+        updatedAt: 20,
+        iteration: 3,
+        tokenBudget: 100000,
+        tokensUsed: 12000,
+        timeUsedSeconds: 90,
+        automaticModelTurns: 2,
+        queuedCount: 0,
+      },
+      messages: [],
+    })
+    expect(conversation.agentGoal).toMatchObject({
+      id: 'goal-1',
+      text: '完成并验证交付',
+      status: 'paused',
+      tokenBudget: 100000,
+      tokensUsed: 12000,
+    })
+
+    const malformed = normalizeConversation({
+      id: 'conversation-bad-goal',
+      title: 'Bad Goal fixture',
+      createdAt: 1,
+      agentGoal: {
+        id: 'goal-2',
+        text: 'unknown state',
+        status: 'mystery',
+      },
+      messages: [],
+    })
+    expect(malformed.agentGoal).toBeUndefined()
+  })
 })

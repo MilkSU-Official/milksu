@@ -63,10 +63,6 @@ export function applyCodingResourcePolicy(
 ) {
   environment.PI_LSP_CONFIG = reviewedLspConfig(environment, platform);
 
-  // Keep retry error classification, but do not let a generic 90-second
-  // watchdog abort slow first-token models. MilkSU owns the turn timeout.
-  environment.PI_RETRY_STALL_TIMEOUT_MS = "0";
-
   for (const name of REVIEWED_LSP_SERVER_NAMES) {
     const override = `PI_${name.replaceAll("-", "_").toUpperCase()}_LSP_COMMAND`;
     delete environment[override];
@@ -77,10 +73,9 @@ export function describeLoadedExtensions(resourceLoader) {
   const result = resourceLoader.getExtensions();
   const names = result.extensions.flatMap((extension) => {
     const tools = extension.tools;
-    const flags = extension.flags;
     if (tools.has("milksu_progress")) return ["milksu-workflow"];
     if (tools.has("lsp_diagnostics") && tools.has("lsp_fix")) return ["pi-lsp"];
-    if (flags.has("retry-stall-timeout-ms")) return ["pi-retry"];
+    if (tools.has("goal_complete") && tools.has("goal_blocked")) return ["pi-goal"];
     if (tools.has("bg_task") && tools.has("bg_status")) {
       return ["pi-background-tasks"];
     }

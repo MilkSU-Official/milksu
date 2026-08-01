@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import {
-  Bot,
   ChevronDown,
   FilePenLine,
   LoaderCircle,
@@ -9,7 +8,6 @@ import {
   Terminal,
   Wrench,
 } from 'lucide-vue-next'
-import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import {
   buildChatActivityEntries,
   chatActivityEntrySummary,
@@ -24,14 +22,13 @@ const props = defineProps<{
 
 const summary = computed(() => chatActivitySummary(props.activity.messages))
 const toolEntries = computed(() => buildChatActivityEntries(props.activity.messages))
-const assistantMessages = computed(() => (
-  props.activity.messages.filter(message => message.role === 'assistant' && message.content.trim())
-))
-const assistantProcess = computed(() => (
-  assistantMessages.value
-    .map(message => message.content.trim())
-    .join('\n\n---\n\n')
-))
+const summaryIcon = computed(() => {
+  const names = new Set(toolEntries.value.map(entry => entry.toolName))
+  if (names.has('edit') || names.has('write') || names.has('lsp_fix')) return FilePenLine
+  if (names.has('milksu_archify')) return Wrench
+  if ([...names].some(name => ['read', 'ls', 'find', 'grep'].includes(name))) return Search
+  return Terminal
+})
 
 function entryIcon(entry: ChatActivityEntry) {
   const name = entry.toolName
@@ -63,7 +60,7 @@ function detailLabel(entry: ChatActivityEntry) {
 <template>
   <details class="tool-activity mb-7">
     <summary class="tool-activity__summary">
-      <Terminal class="size-4 shrink-0 text-muted-foreground" />
+      <component :is="summaryIcon" class="size-4 shrink-0 text-muted-foreground" />
       <span class="min-w-0 truncate">{{ summary }}</span>
       <LoaderCircle v-if="activity.running" class="size-3.5 shrink-0 animate-spin text-muted-foreground" />
       <ChevronDown class="tool-activity__chevron size-4 shrink-0 text-muted-foreground" />
@@ -99,27 +96,6 @@ function detailLabel(entry: ChatActivityEntry) {
             </p>
             <pre>{{ entry.result.content || '工具没有返回可显示的内容。' }}</pre>
           </template>
-        </div>
-      </details>
-      <details
-        v-if="assistantMessages.length"
-        class="tool-activity-entry"
-      >
-        <summary class="tool-activity-entry__summary">
-          <Bot class="size-3.5 shrink-0 text-muted-foreground" />
-          <span class="min-w-0 truncate">
-            查看 Agent 过程 · {{ assistantMessages.length }} 条
-          </span>
-          <ChevronDown class="tool-activity-entry__chevron size-3.5 shrink-0 text-muted-foreground" />
-        </summary>
-        <div class="tool-activity-entry__detail">
-          <p class="tool-activity-entry__detail-label">
-            Agent
-          </p>
-          <MarkdownContent
-            :content="assistantProcess"
-            compact
-          />
         </div>
       </details>
     </div>

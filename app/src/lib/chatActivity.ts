@@ -23,8 +23,14 @@ export interface ChatActivityEntry {
 
 export type ChatTranscriptBlock = ChatMessageBlock | ChatActivityBlock
 
-const commandTools = new Set(['bash', 'background', 'background_output'])
-const mutationTools = new Set(['edit', 'write'])
+const commandTools = new Set([
+  'bash',
+  'background',
+  'background_output',
+  'bg_task',
+  'bg_status',
+])
+const mutationTools = new Set(['edit', 'write', 'lsp_fix'])
 const searchTools = new Set(['find', 'grep', 'ls', 'read'])
 
 function isApproval(message: Message) {
@@ -48,31 +54,16 @@ function activityBlock(messages: Message[], running: boolean): ChatActivityBlock
   }
 }
 
-function flushAgentSegment(
+function flushToolSegment(
   blocks: ChatTranscriptBlock[],
   segment: Message[],
   conversationRunning: boolean,
 ) {
   if (!segment.length) return
-
-  let lastToolIndex = -1
-  segment.forEach((message, index) => {
-    if (message.role === 'tool') lastToolIndex = index
-  })
-
-  if (lastToolIndex < 0) {
-    blocks.push(...segment.map(messageBlock))
-    return
-  }
-
-  const activityMessages = segment.slice(0, lastToolIndex + 1)
-  const trailingMessages = segment.slice(lastToolIndex + 1)
-
   blocks.push(activityBlock(
-    activityMessages,
-    conversationRunning && activityMessages.some(message => message.status === 'running'),
+    segment,
+    conversationRunning && segment.some(message => message.status === 'running'),
   ))
-  blocks.push(...trailingMessages.map(messageBlock))
 }
 
 export function buildChatTranscript(
@@ -80,55 +71,56 @@ export function buildChatTranscript(
   conversationRunning: boolean,
 ): ChatTranscriptBlock[] {
   const blocks: ChatTranscriptBlock[] = []
-  let agentSegment: Message[] = []
+  let toolSegment: Message[] = []
 
   const flush = () => {
-    flushAgentSegment(blocks, agentSegment, conversationRunning)
-    agentSegment = []
+    flushToolSegment(blocks, toolSegment, conversationRunning)
+    toolSegment = []
   }
 
   for (const message of messages) {
-    if (message.role === 'user' || isApproval(message)) {
-      flush()
-      blocks.push(messageBlock(message))
+    if (message.role === 'tool' && !isApproval(message)) {
+      toolSegment.push(message)
       continue
     }
-    agentSegment.push(message)
+
+    flush()
+    if (message.role === 'assistant' && !message.content.trim()) {
+      continue
+    }
+    if (message.role === 'user' || message.role === 'assistant' || isApproval(message)) {
+      blocks.push(messageBlock(message))
+    }
   }
   flush()
 
   return blocks
 }
 
-function toolCount(messages: Message[], tools: Set<string>) {
-  return messages.filter(message => (
-    message.role === 'tool'
-    && tools.has(String(message.toolName ?? '').toLowerCase())
-  )).length
+function entryCount(entries: ChatActivityEntry[], tools: Set<string>) {
+  return entries.filter(entry => tools.has(entry.toolName)).length
 }
 
 export function chatActivitySummary(messages: Message[]) {
-  const tools = messages.filter(message => message.role === 'tool')
-  if (!tools.length) return '正在思考'
+  const entries = buildChatActivityEntries(messages)
+  if (!entries.length) return '正在思考'
 
-  const architectureCount = tools.filter(message => (
-    String(message.toolName ?? '').toLowerCase() === 'milksu_archify'
-  )).length
+  const architectureCount = entries.filter(entry => entry.toolName === 'milksu_archify').length
   if (architectureCount) return '处理架构图'
 
-  const mutations = toolCount(messages, mutationTools)
-  const commands = toolCount(messages, commandTools)
-  const searches = toolCount(messages, searchTools)
+  const mutations = entryCount(entries, mutationTools)
+  const commands = entryCount(entries, commandTools)
+  const searches = entryCount(entries, searchTools)
   const parts: string[] = []
 
   if (mutations) parts.push('编辑了文件')
   if (commands) parts.push(commands > 1 ? '运行了多个命令' : '运行了命令')
   if (!parts.length && searches) parts.push('读取并检索了项目')
   if (!parts.length) {
-    parts.push(tools.length > 1 ? '使用了多个工具' : `使用了 ${tools[0]?.toolName ?? '工具'}`)
+    parts.push(entries.length > 1 ? '使用了多个工具' : `使用了 ${entries[0]?.toolName ?? '工具'}`)
   }
 
-  return parts.join('并')
+  return parts.join('')
 }
 
 export function buildChatActivityEntries(messages: Message[]): ChatActivityEntry[] {

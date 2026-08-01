@@ -9,8 +9,8 @@ import { dirname, join } from "node:path";
 import { readFile, unlink } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { Type } from "typebox";
+import piGoalExtension from "@narumitw/pi-goal/src/index.ts";
 import piLspExtension from "@narumitw/pi-lsp/src/index.ts";
-import piRetryExtension from "@narumitw/pi-retry/src/index.ts";
 import piBackgroundTasksExtension from "pi-better-background-tasks/src/index.ts";
 import { listMetas as listPiBackgroundTaskMetas } from "pi-better-background-tasks/src/registry.ts";
 import {
@@ -31,6 +31,7 @@ import {
 import { preparePromptAttachments } from "./bridge-attachments.js";
 import { analyzeTextOnlyImages } from "./bridge-vision.js";
 import { projectBackgroundTaskMetas } from "./bridge-background-view.js";
+import { projectSessionGoal } from "./bridge-goal-view.js";
 
 const relayKey = process.env.MILKSU_RELAY_KEY;
 const relayUrl = process.env.MILKSU_RELAY_URL || "https://api.ciyuanliudong.com/v1";
@@ -75,6 +76,12 @@ function emitBackgroundTasks(conversationId) {
       error: describeError(error),
     });
   }
+}
+
+function emitGoalState(conversationId, session) {
+  emit(conversationId, "goal_state", {
+    goal: projectSessionGoal(session?.sessionManager),
+  });
 }
 
 const approvalBroker = createApprovalBroker(emit);
@@ -352,8 +359,8 @@ function formatToolInput(toolName, args) {
 function configureRelayModel(session, provider, model) {
   if (!relayEnabled) return { provider, model };
 
-  const source = session.modelRegistry.find(provider, model);
-  session.modelRegistry.registerProvider("milksu-relay", {
+  const source = session.modelRuntime.getModel(provider, model);
+  session.modelRuntime.registerProvider("milksu-relay", {
     name: "MilkSU Relay",
     baseUrl: relayUrl,
     apiKey: relayKey,
@@ -373,7 +380,7 @@ function configureRelayModel(session, provider, model) {
 
 function configureRuntimeModel(session, provider, model) {
   if (provider === "kourichat") {
-    session.modelRegistry.registerProvider("kourichat", {
+    session.modelRuntime.registerProvider("kourichat", {
       name: "KouriChat",
       baseUrl: kouriUrl,
       apiKey: kouriKey,
@@ -394,7 +401,7 @@ function configureRuntimeModel(session, provider, model) {
       }],
     });
   } else if (providerBaseUrls[provider]) {
-    session.modelRegistry.registerProvider(provider, {
+    session.modelRuntime.registerProvider(provider, {
       baseUrl: providerBaseUrls[provider],
     });
   }
@@ -407,7 +414,7 @@ function configureProviderEndpoint(session, provider) {
     return;
   }
   if (providerBaseUrls[provider]) {
-    session.modelRegistry.registerProvider(provider, {
+    session.modelRuntime.registerProvider(provider, {
       baseUrl: providerBaseUrls[provider],
     });
   }
@@ -416,7 +423,7 @@ function configureProviderEndpoint(session, provider) {
 async function setSessionModel(conversationId, session, provider, model) {
   if (!provider || !model) return;
 
-  const desired = session.modelRegistry.find(provider, model);
+  const desired = session.modelRuntime.getModel(provider, model);
   if (!desired) {
     throw new Error(`Model not found: ${provider}/${model}`);
   }
@@ -428,6 +435,26 @@ function subscribeSession(conversationId, session, maxToolEventOutputBytes) {
   let assistantTextStreamed = false;
 
   session.subscribe((event) => {
+    if (event.type === "agent_start") {
+      emit(conversationId, "turn_started");
+      return;
+    }
+
+    if (event.type === "entry_appended") {
+      if (
+        event.entry?.type === "custom"
+        && event.entry.customType === "goal-state"
+      ) {
+        emitGoalState(conversationId, session);
+      }
+      return;
+    }
+
+    if (event.type === "agent_settled") {
+      emitGoalState(conversationId, session);
+      return;
+    }
+
     if (event.type === "message_update" && event.assistantMessageEvent) {
       const update = event.assistantMessageEvent;
       if (update.type === "text_delta") {
@@ -510,6 +537,7 @@ function createMilkSUResourceLoader(
   const extensionFactories = [createMilkSUWorkflowExtension(sessionRole)];
   if (!sessionRole) {
     extensionFactories.push(
+      piGoalExtension,
       piBackgroundTasksExtension,
       createCodingPermissionExtension(
         conversationId,
@@ -517,7 +545,6 @@ function createMilkSUResourceLoader(
         registerPolicyController,
       ),
       piLspExtension,
-      piRetryExtension,
     );
   }
   return new DefaultResourceLoader({
@@ -683,7 +710,10 @@ async function createSession(command) {
       capabilities: sessionPolicy.capabilities,
       resumed: session.messages.length > 0,
     });
-    if (!sessionPolicy.ctf) emitBackgroundTasks(conversationId);
+    if (!sessionPolicy.ctf) {
+      emitBackgroundTasks(conversationId);
+      emitGoalState(conversationId, session);
+    }
     return session;
   } catch (error) {
     session?.dispose();

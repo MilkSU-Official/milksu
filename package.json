@@ -24,12 +24,12 @@
     "vitepress": "^1.6.4"
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "0.80.2",
-    "@earendil-works/pi-coding-agent": "0.80.2",
-    "@earendil-works/pi-tui": "0.80.2",
+    "@earendil-works/pi-ai": "0.83.0",
+    "@earendil-works/pi-coding-agent": "0.83.0",
+    "@earendil-works/pi-tui": "0.83.0",
     "@napi-rs/system-ocr": "1.1.0",
+    "@narumitw/pi-goal": "0.43.0",
     "@narumitw/pi-lsp": "0.29.0",
-    "@narumitw/pi-retry": "0.31.0",
     "pi-better-background-tasks": "0.1.10",
     "typebox": "1.1.38"
   }

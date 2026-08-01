@@ -37,6 +37,7 @@ import {
   FolderOpen,
   GitBranch,
   Globe2,
+  Hand,
   KeyRound,
   Lightbulb,
   LoaderCircle,
@@ -53,6 +54,7 @@ import {
   Sparkles,
   Square,
   StickyNote,
+  Target,
   Terminal,
   Wrench,
   X,
@@ -126,12 +128,14 @@ const emit = defineEmits<{
     approvalPolicy: CodingApprovalPolicy,
   ]
   respondApproval: [requestId: string, approved: boolean]
+  controlGoal: [action: 'resume' | 'clear']
   openSettings: []
   returnCtf: []
   switchCtfAgent: [role: 'solver' | 'tool-builder' | 'strategist']
 }>()
 
 const draft = ref('')
+const goalMode = ref(false)
 const pendingAttachments = ref<CodingAttachment[]>([])
 const attachmentError = ref('')
 const scrollArea = ref<HTMLElement | null>(null)
@@ -195,6 +199,30 @@ const activeSkills = computed(() => (
 const activeTools = computed(() => (
   props.conversation?.agentTools ?? []
 ))
+const activeGoal = computed(() => props.conversation?.agentGoal)
+const hasUnfinishedGoal = computed(() => (
+  Boolean(activeGoal.value && activeGoal.value.status !== 'complete')
+))
+const goalStatusLabel = computed(() => {
+  const status = activeGoal.value?.status
+  if (status === 'active') return '进行中'
+  if (status === 'paused') return '已暂停'
+  if (status === 'blocked') return '受阻'
+  if (status === 'usage_limited') return '额度受限'
+  if (status === 'budget_limited') return '预算已用完'
+  if (status === 'queued') return '排队中'
+  return '已完成'
+})
+const resumableGoal = computed(() => (
+  ['paused', 'blocked', 'usage_limited', 'budget_limited'].includes(
+    activeGoal.value?.status ?? '',
+  )
+))
+const goalUsageLabel = computed(() => {
+  const goal = activeGoal.value
+  if (!goal?.tokenBudget) return ''
+  return `${goal.tokensUsed.toLocaleString()} / ${goal.tokenBudget.toLocaleString()} tokens`
+})
 const effectiveExecutionMode = computed(() => (
   normalizeCodingExecutionMode(props.executionMode)
 ))
@@ -256,8 +284,8 @@ const extensionLabel = (value: string) => (
     ? 'MilkSU Workflow'
     : value === 'pi-lsp'
       ? 'PI LSP'
-      : value === 'pi-retry'
-        ? 'PI Retry'
+      : value === 'pi-goal'
+        ? 'PI Goal'
         : value === 'pi-background-tasks'
           ? 'PI Background Tasks'
         : value
@@ -267,8 +295,8 @@ const extensionDescription = (value: string) => (
     ? '计划可见、角色工作流与结果验证'
     : value === 'pi-lsp'
       ? '固定 Go / Vue / TypeScript 路由；需本机安装对应语言服务器'
-      : value === 'pi-retry'
-        ? '识别可重试的上游错误；慢模型停滞中止暂不启用'
+      : value === 'pi-goal'
+        ? '持续推进用户目标，跨回合恢复，并要求完成或受阻证据'
         : value === 'pi-background-tasks'
           ? '复用社区持久任务、条件等待和日志管理；进程仍受 MilkSU 权限策略约束'
         : '已由 MilkSU 白名单加载'
@@ -437,10 +465,14 @@ function submit() {
   const text = draft.value.trim()
     || (attachments.length ? '请检查这些附件并完成我接下来需要处理的任务。' : '')
   if (!text || props.running) return
+  const prompt = !props.ctfSession && goalMode.value
+    ? `/goal ${text}`
+    : text
   draft.value = ''
   pendingAttachments.value = []
   attachmentError.value = ''
-  emit('send', text, text, attachments)
+  goalMode.value = false
+  emit('send', prompt, text, attachments)
 }
 
 function formatAttachmentSize(size: number) {
@@ -765,6 +797,9 @@ watch(() => props.ctfSession, (current, previous) => {
     contextPanel.value = 'environment'
   }
 })
+watch(() => props.conversation?.id, () => {
+  goalMode.value = false
+})
 watch(contextPanel, panel => {
   if (panel === 'browser' && environmentOpen.value) void refreshBrowserPanel()
   if (panel === 'architecture' && environmentOpen.value) void refreshArchitecturePreview()
@@ -885,6 +920,53 @@ watch(
 
     <div class="chat-composer shrink-0 bg-surface-editor px-5 pb-4 pt-2">
       <div class="mx-auto max-w-3xl">
+        <div
+          v-if="!ctfSession && (activeGoal || goalMode)"
+          class="chat-goal-strip mb-2 flex min-w-0 items-center gap-2 px-2"
+        >
+          <Target class="size-3.5 shrink-0 text-primary" />
+          <Badge variant="secondary">
+            {{ goalMode && !activeGoal ? '下一条设为目标' : goalStatusLabel }}
+          </Badge>
+          <span class="min-w-0 flex-1 truncate text-control">
+            {{ activeGoal?.text || 'Agent 会持续推进，直到验证完成、暂停或确认受阻。' }}
+          </span>
+          <span v-if="goalUsageLabel" class="shrink-0 text-caption text-muted-foreground">
+            {{ goalUsageLabel }}
+          </span>
+          <Button
+            v-if="activeGoal && resumableGoal"
+            type="button"
+            variant="ghost"
+            size="sm"
+            :disabled="running"
+            @click="$emit('controlGoal', 'resume')"
+          >
+            继续
+          </Button>
+          <Button
+            v-if="activeGoal && !running"
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label="清除当前目标"
+            title="清除当前目标"
+            @click="$emit('controlGoal', 'clear')"
+          >
+            <X class="size-3.5" />
+          </Button>
+          <Button
+            v-else-if="goalMode && !activeGoal"
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label="取消目标模式"
+            title="取消目标模式"
+            @click="goalMode = false"
+          >
+            <X class="size-3.5" />
+          </Button>
+        </div>
         <div class="chat-composer__controls app-no-drag mb-2 flex min-w-0 items-center gap-1.5 px-1">
           <Button
             variant="ghost"
@@ -935,6 +1017,20 @@ watch(
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          <Button
+            v-if="!ctfSession"
+            :variant="goalMode ? 'secondary' : 'ghost'"
+            size="sm"
+            class="chat-composer__control"
+            :disabled="running || hasUnfinishedGoal"
+            :title="hasUnfinishedGoal
+              ? '当前已有持续目标；可在上方暂停、继续或清除'
+              : '把下一条消息设为持续目标；Agent 会跨回合推进并验证完成'"
+            @click="goalMode = !goalMode"
+          >
+            <Target class="size-3.5" />
+            目标
+          </Button>
           <Button
             v-if="!ctfSession"
             variant="ghost"
@@ -1238,9 +1334,11 @@ watch(
                   : ctfRole === 'tool-builder'
                     ? '告诉 Coding Agent 要实现或修正的本题工具…'
                     : '告诉 Agent 你的观察、假设，或直接使用上面的快捷协作…'
-                : workspacePath
-                  ? `让 Agent 在 ${workspaceName} 中完成任务…`
-                  : '在临时沙盒中开始，或先选择一个项目…'"
+                : goalMode
+                  ? '描述要持续推进并验证完成的目标…'
+                  : workspacePath
+                    ? `让 Agent 在 ${workspaceName} 中完成任务…`
+                    : '在临时沙盒中开始，或先选择一个项目…'"
               aria-label="消息"
               @keydown.enter.exact.prevent="submit"
             />
@@ -1906,6 +2004,12 @@ watch(
 
 .chat-composer__workspace {
   max-width: 9rem;
+}
+
+.chat-goal-strip {
+  min-height: 2rem;
+  border-radius: 0.65rem;
+  background: color-mix(in srgb, var(--primary) 7%, transparent);
 }
 
 .chat-composer__control {

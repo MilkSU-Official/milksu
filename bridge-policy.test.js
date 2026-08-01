@@ -82,6 +82,8 @@ test("legacy Coding sessions preserve deliverable Go defaults without unrestrict
       "bg_status",
       "milksu_progress",
       "lsp_diagnostics",
+      "goal_complete",
+      "goal_blocked",
     ],
   );
   assert.equal(policy.customTools.some(tool => tool.name === "bash"), true);
@@ -100,7 +102,17 @@ test("Plan and Read-only enforce a read-only tool allowlist", async () => {
     });
     assert.deepEqual(
       policy.activeTools,
-      ["read", "grep", "find", "ls", "bg_status", "milksu_progress", "lsp_diagnostics"],
+      [
+        "read",
+        "grep",
+        "find",
+        "ls",
+        "bg_status",
+        "milksu_progress",
+        "lsp_diagnostics",
+        "goal_complete",
+        "goal_blocked",
+      ],
     );
     for (const denied of ["bash", "edit", "write", "bg_task", "lsp_fix"]) {
       assert.equal(policy.activeTools.includes(denied), false);
@@ -241,6 +253,8 @@ test("Architecture product action gets a narrow typed tool policy", async () => 
     "write",
     "milksu_archify",
     "milksu_progress",
+    "goal_complete",
+    "goal_blocked",
   ]);
   assert.equal(policy.activeTools.includes("bash"), false);
   assert.equal(policy.activeTools.includes("edit"), false);
@@ -307,6 +321,8 @@ test("Daily Coding product actions get action-specific tool policies", async () 
     "ls",
     "milksu_progress",
     "lsp_diagnostics",
+    "goal_complete",
+    "goal_blocked",
   ];
   const testTools = [
     "read",
@@ -316,6 +332,8 @@ test("Daily Coding product actions get action-specific tool policies", async () 
     "ls",
     "milksu_progress",
     "lsp_diagnostics",
+    "goal_complete",
+    "goal_blocked",
   ];
   const fixTools = [
     "read",
@@ -327,6 +345,8 @@ test("Daily Coding product actions get action-specific tool policies", async () 
     "ls",
     "milksu_progress",
     "lsp_diagnostics",
+    "goal_complete",
+    "goal_blocked",
   ];
   const cases = [
     {
