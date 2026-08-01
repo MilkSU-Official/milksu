@@ -47,8 +47,14 @@ function normalizeAttachments(value: unknown): CodingAttachment[] | undefined {
 
 function normalizeMCPServers(value: unknown): string[] | undefined {
   if (!Array.isArray(value)) return undefined
+  const hasControlCharacter = (name: string) => (
+    [...name].some(character => {
+      const codePoint = character.codePointAt(0) ?? 0
+      return codePoint <= 0x1f || codePoint === 0x7f
+    })
+  )
   const servers = [...new Set(value.map(item => String(item).trim()).filter(Boolean))]
-    .filter(name => name.length <= 80 && !/[\u0000-\u001f\u007f]/u.test(name))
+    .filter(name => name.length <= 80 && !hasControlCharacter(name))
     .slice(0, 16)
     .sort((left, right) => left.localeCompare(right))
   return servers.length ? servers : undefined

@@ -1,16 +1,17 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, defineAsyncComponent, onMounted, ref } from 'vue'
 import AppSidebar from '@/components-vue/AppSidebar.vue'
-import ChatPage from '@/components-vue/ChatPage.vue'
-import CTFPage from '@/components-vue/CTFPage.vue'
-import SettingsPage from '@/components-vue/SettingsPage.vue'
-import VulnPage from '@/components-vue/VulnPage.vue'
 import { useConversations } from '@/composables/useConversations'
 import { useNSSCTFTraining } from '@/composables/useNSSCTFTraining'
 import { invokeCommand } from '@/desktop'
 import type { CTFAgentWorkspaceHandoff } from '@/ctfTypes'
 import type { CTFWorkspaceSection } from '@/lib/workspaceNavigation'
 import { withAppSettingsDefaults, type AppSettings, type CTFChatAction } from '@/types'
+
+const ChatPage = defineAsyncComponent(() => import('@/components-vue/ChatPage.vue'))
+const CTFPage = defineAsyncComponent(() => import('@/components-vue/CTFPage.vue'))
+const SettingsPage = defineAsyncComponent(() => import('@/components-vue/SettingsPage.vue'))
+const VulnPage = defineAsyncComponent(() => import('@/components-vue/VulnPage.vue'))
 
 type Section = 'chat' | 'ctf' | 'vuln' | 'settings'
 

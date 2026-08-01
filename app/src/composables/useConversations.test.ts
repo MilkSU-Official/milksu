@@ -103,4 +103,23 @@ describe('Coding approval conversation recovery', () => {
     })
     expect(malformed.agentGoal).toBeUndefined()
   })
+
+  it('restores only bounded MCP server names without control characters', () => {
+    const conversation = normalizeConversation({
+      id: 'conversation-mcp',
+      title: 'MCP fixture',
+      createdAt: 1,
+      mcpServers: [
+        'zeta',
+        'alpha',
+        'alpha',
+        `line${String.fromCodePoint(10)}break`,
+        `delete${String.fromCodePoint(127)}character`,
+        'x'.repeat(81),
+      ],
+      messages: [],
+    })
+
+    expect(conversation.mcpServers).toEqual(['alpha', 'zeta'])
+  })
 })
