@@ -37,7 +37,6 @@ import {
   FolderOpen,
   GitBranch,
   Globe2,
-  Hand,
   KeyRound,
   Lightbulb,
   LoaderCircle,
@@ -59,6 +58,8 @@ import {
   X,
 } from 'lucide-vue-next'
 import { invokeCommand } from '@/desktop'
+import ChatActivityGroup from '@/components-vue/ChatActivityGroup.vue'
+import ChatMessageItem from '@/components-vue/ChatMessageItem.vue'
 import CodingChangesPanel from '@/components-vue/CodingChangesPanel.vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import type {
@@ -67,6 +68,7 @@ import type {
   CodingEnvironmentSnapshot,
 } from '@/codingEnvironmentTypes'
 import type { CTFShowCatalogStatus } from '@/ctfshowTypes'
+import { buildChatTranscript } from '@/lib/chatActivity'
 import { buildCodingArchitectureAction } from '@/lib/codingArchitecture'
 import {
   codingProductAction,
@@ -315,6 +317,9 @@ const activeModelLabel = computed(() => {
 const messageCount = computed(() => props.conversation?.messages.length ?? 0)
 const toolMessageCount = computed(() => (
   props.conversation?.messages.filter(message => message.role === 'tool').length ?? 0
+))
+const chatTranscript = computed(() => (
+  buildChatTranscript(props.conversation?.messages ?? [], props.running)
 ))
 const latestJudge = computed(() => ctfProjection.value?.judgeReceipts.at(-1))
 const contextPanelTitle = computed(() => ({
@@ -814,108 +819,17 @@ watch(
       </div>
 
       <div v-else class="mx-auto max-w-3xl px-8 py-8">
-        <article
-          v-for="message in conversation.messages"
-          :key="message.id"
-          class="mb-7"
-          :class="message.role === 'user' ? 'ml-auto max-w-[82%]' : 'max-w-full'"
-        >
-          <div v-if="message.role === 'tool'" class="rounded-lg border border-border bg-muted/30 px-4 py-3">
-            <template v-if="message.approvalRequestId">
-              <div class="flex items-start justify-between gap-4">
-                <div class="min-w-0">
-                  <p class="flex items-center gap-2 text-body font-medium">
-                    <Hand class="size-4 shrink-0 text-warning" />
-                    请求批准 · {{ message.toolName ?? 'tool' }}
-                  </p>
-                  <p class="mt-1 text-caption text-muted-foreground">
-                    Agent 已暂停；只有允许本次操作后才会继续。
-                  </p>
-                </div>
-                <Badge
-                  :variant="message.approvalState === 'approved' ? 'secondary' : 'outline'"
-                  :class="message.approvalState === 'denied' || message.approvalState === 'expired'
-                    ? 'text-muted-foreground'
-                    : ''"
-                >
-                  {{ message.approvalState === 'pending'
-                    ? '等待决定'
-                    : message.approvalState === 'approved'
-                      ? '已允许'
-                      : message.approvalState === 'denied'
-                        ? '已拒绝'
-                        : '已失效' }}
-                </Badge>
-              </div>
-              <pre
-                v-if="message.content"
-                class="mt-3 max-h-40 overflow-auto rounded-md bg-background/70 px-3 py-2 whitespace-pre-wrap break-words font-mono text-caption leading-5"
-              >{{ message.content }}</pre>
-              <details v-if="message.approvalInput" class="mt-2">
-                <summary class="cursor-pointer text-caption text-muted-foreground">
-                  查看完整参数
-                </summary>
-                <pre class="mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words font-mono text-caption leading-5">{{ message.approvalInput }}</pre>
-              </details>
-              <div
-                v-if="message.approvalState === 'pending'"
-                class="mt-3 flex justify-end gap-2"
-              >
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  @click="$emit('respondApproval', message.approvalRequestId, false)"
-                >
-                  拒绝
-                </Button>
-                <Button
-                  type="button"
-                  variant="brand"
-                  size="sm"
-                  @click="$emit('respondApproval', message.approvalRequestId, true)"
-                >
-                  允许这一次
-                </Button>
-              </div>
-              <p v-else-if="message.approvalReason" class="mt-2 text-caption text-muted-foreground">
-                {{ message.approvalReason }}
-              </p>
-            </template>
-            <template v-else>
-              <p class="flex items-center gap-2 text-caption font-medium text-muted-foreground">
-                <Wrench class="size-3.5" />
-                {{ message.toolName ?? 'tool' }}
-                <LoaderCircle v-if="message.status === 'running'" class="size-3.5 animate-spin" />
-              </p>
-              <pre v-if="message.content" class="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-words text-body leading-5">{{ message.content }}</pre>
-            </template>
-          </div>
-          <div
+        <template v-for="item in chatTranscript" :key="item.id">
+          <ChatActivityGroup
+            v-if="item.kind === 'activity'"
+            :activity="item"
+          />
+          <ChatMessageItem
             v-else
-            class="break-words text-label leading-7"
-            :class="message.role === 'user' ? 'rounded-xl bg-chat-user-bubble px-4 py-3 text-chat-user-bubble-fg' : ''"
-          >
-            <div
-              v-if="message.attachments?.length"
-              class="mb-2 flex flex-wrap gap-2"
-              aria-label="消息附件"
-            >
-              <span
-                v-for="attachment in message.attachments"
-                :key="`${attachment.id}:${attachment.name}`"
-                class="inline-flex max-w-full items-center gap-2 rounded-lg border border-current/15 bg-background/20 px-2.5 py-1.5 text-caption"
-                :title="`${attachment.mediaType} · sha256:${attachment.sha256}`"
-              >
-                <FileText class="size-3.5 shrink-0" />
-                <span class="truncate">{{ attachment.name }}</span>
-                <span class="shrink-0 opacity-65">{{ formatAttachmentSize(attachment.size) }}</span>
-              </span>
-            </div>
-            <MarkdownContent :content="message.content" :compact="message.role === 'user'" />
-            <LoaderCircle v-if="message.status === 'running'" class="ml-2 inline size-3.5 animate-spin text-muted-foreground" />
-          </div>
-        </article>
+            :message="item.message"
+            @respond-approval="(requestId, approved) => $emit('respondApproval', requestId, approved)"
+          />
+        </template>
       </div>
     </div>
 
