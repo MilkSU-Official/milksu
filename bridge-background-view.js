@@ -25,7 +25,24 @@ function visibleMeta(meta, now) {
   return Number.isFinite(meta.endedAt) && now - meta.endedAt < terminalRetentionMs;
 }
 
-export function projectBackgroundTaskMetas(metas, now = Date.now()) {
+function logPreview(meta, readTaskLog) {
+  if (typeof readTaskLog !== "function" || !meta.logPath) return {};
+  try {
+    const log = readTaskLog(meta.logPath, 24);
+    return {
+      logTail: boundedText(log?.text, 6000),
+      logTruncated: log?.truncated === true,
+    };
+  } catch {
+    return {};
+  }
+}
+
+export function projectBackgroundTaskMetas(
+  metas,
+  now = Date.now(),
+  readTaskLog,
+) {
   if (!Array.isArray(metas)) return [];
   return metas
     .filter(meta => visibleMeta(meta, now))
@@ -43,7 +60,9 @@ export function projectBackgroundTaskMetas(metas, now = Date.now()) {
       command: commandLabel(meta),
       cwd: boundedText(meta.cwd, 1200),
       pid: Number.isSafeInteger(meta.pid) && meta.pid > 0 ? meta.pid : undefined,
+      pgid: Number.isSafeInteger(meta.pgid) && meta.pgid > 0 ? meta.pgid : undefined,
       logPath: boundedText(meta.logPath, 1200),
+      ...logPreview(meta, readTaskLog),
       lastExitCode: Number.isInteger(meta.lastExitCode) ? meta.lastExitCode : undefined,
       error: boundedText(meta.error, 1000),
     }));

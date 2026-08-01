@@ -66,7 +66,11 @@ type BackgroundTask struct {
 	Command      string `json:"command,omitempty"`
 	Cwd          string `json:"cwd,omitempty"`
 	PID          int    `json:"pid,omitempty"`
+	PGID         int    `json:"pgid,omitempty"`
+	Ports        []int  `json:"ports,omitempty"`
 	LogPath      string `json:"logPath,omitempty"`
+	LogTail      string `json:"logTail,omitempty"`
+	LogTruncated bool   `json:"logTruncated,omitempty"`
 	LastExitCode *int   `json:"lastExitCode,omitempty"`
 	Error        string `json:"error,omitempty"`
 }
@@ -141,6 +145,7 @@ type Supervisor struct {
 	process          *childProcess
 	sessions         map[string]struct{}
 	probeWaiters     map[string]chan Event
+	controlWaiters   map[string]chan Event
 	turnTimeout      time.Duration
 	turnTimers       map[string]*time.Timer
 	turnSequence     map[string]uint64
@@ -152,13 +157,14 @@ type Supervisor struct {
 
 func NewSupervisor(emit func(Event)) *Supervisor {
 	return &Supervisor{
-		sessions:     make(map[string]struct{}),
-		probeWaiters: make(map[string]chan Event),
-		turnTimeout:  defaultTurnActivityTimeout,
-		turnTimers:   make(map[string]*time.Timer),
-		turnSequence: make(map[string]uint64),
-		approvals:    make(map[string]int),
-		emit:         emit,
+		sessions:       make(map[string]struct{}),
+		probeWaiters:   make(map[string]chan Event),
+		controlWaiters: make(map[string]chan Event),
+		turnTimeout:    defaultTurnActivityTimeout,
+		turnTimers:     make(map[string]*time.Timer),
+		turnSequence:   make(map[string]uint64),
+		approvals:      make(map[string]int),
+		emit:           emit,
 	}
 }
 
@@ -301,6 +307,67 @@ func (s *Supervisor) RespondToolApproval(
 		"requestId":      requestID,
 		"approved":       approved,
 	})
+}
+
+func (s *Supervisor) StopBackgroundTask(
+	sessionID,
+	taskID string,
+) (RuntimeStatus, error) {
+	sessionID = strings.TrimSpace(sessionID)
+	taskID = strings.TrimSpace(taskID)
+	if sessionID == "" {
+		return RuntimeStatus{}, fmt.Errorf("session id is required")
+	}
+	if taskID == "" {
+		return RuntimeStatus{}, fmt.Errorf("background task id is required")
+	}
+
+	requestID := fmt.Sprintf("bg_control_%d", time.Now().UnixNano())
+	events := make(chan Event, 1)
+	s.probeMu.Lock()
+	s.controlWaiters[requestID] = events
+	s.probeMu.Unlock()
+	defer func() {
+		s.probeMu.Lock()
+		delete(s.controlWaiters, requestID)
+		s.probeMu.Unlock()
+	}()
+
+	s.mu.Lock()
+	if s.process == nil {
+		s.mu.Unlock()
+		return RuntimeStatus{}, fmt.Errorf("PI Sidecar is not running")
+	}
+	if _, exists := s.sessions[sessionID]; !exists {
+		s.mu.Unlock()
+		return RuntimeStatus{}, fmt.Errorf("PI session not found: %s", sessionID)
+	}
+	err := writeCommand(s.process.stdin, map[string]any{
+		"action":         "background_task_control",
+		"conversationId": sessionID,
+		"requestId":      requestID,
+		"control":        "stop",
+		"taskId":         taskID,
+	})
+	s.mu.Unlock()
+	if err != nil {
+		return RuntimeStatus{}, fmt.Errorf("stop background task: %w", err)
+	}
+
+	timer := time.NewTimer(5 * time.Second)
+	defer timer.Stop()
+	select {
+	case event := <-events:
+		if strings.TrimSpace(event.Error) != "" {
+			return RuntimeStatus{}, fmt.Errorf(
+				"stop background task: %s",
+				probeFailureMessage(event),
+			)
+		}
+		return s.Status(), nil
+	case <-timer.C:
+		return RuntimeStatus{}, fmt.Errorf("stop background task timed out")
+	}
 }
 
 func (s *Supervisor) ProbeModel(settings config.AppSettings) (ModelProbeResult, error) {
@@ -552,7 +619,8 @@ func (s *Supervisor) observeTurnEvent(event Event) {
 }
 
 func (s *Supervisor) observeRuntimeEvent(event Event) {
-	if event.Type != "runtime.background_tasks" {
+	if event.Type != "runtime.background_tasks" &&
+		event.Type != "runtime.background_task_controlled" {
 		return
 	}
 	s.mu.Lock()
@@ -627,8 +695,32 @@ func (s *Supervisor) emitEvent(event Event) {
 	event.SchemaVersion = eventSchemaVersion
 	event.Timestamp = time.Now().UTC().Format(time.RFC3339Nano)
 	s.deliverProbeEvent(event)
+	s.deliverControlEvent(event)
 	if s.emit != nil {
 		s.emit(event)
+	}
+}
+
+func (s *Supervisor) deliverControlEvent(event Event) {
+	s.probeMu.Lock()
+	defer s.probeMu.Unlock()
+	if event.RequestID != "" {
+		if waiter := s.controlWaiters[event.RequestID]; waiter != nil {
+			select {
+			case waiter <- event:
+			default:
+			}
+		}
+		return
+	}
+	if event.Type != "engine.stopped" && event.Type != "engine.protocol_error" {
+		return
+	}
+	for _, waiter := range s.controlWaiters {
+		select {
+		case waiter <- event:
+		default:
+		}
 	}
 }
 
@@ -736,6 +828,8 @@ func normalizeBridgeEvent(raw bridgeEvent) Event {
 		event.Done = true
 	case "background_tasks":
 		event.Type = "runtime.background_tasks"
+	case "background_task_controlled":
+		event.Type = "runtime.background_task_controlled"
 	case "error":
 		event.Type = "engine.error"
 		event.Error = raw.Error

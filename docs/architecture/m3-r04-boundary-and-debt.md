@@ -27,7 +27,7 @@
 | 全局 Rail `CTF → CVE → Coding` 与上下文侧栏 | **Verified for current native package** | 原生包已回归；一级/二级选中态明确，Coding 最近任务按仓库分组，CTF 角色会话不混入 Coding。 |
 | 全页面 Markdown 渲染 | **Implemented / Partial** | 统一安全渲染器与单测已存在；原生真实会话、长代码块和窄窗口仍需回归。 |
 | Archify / LSP / Goal / Background | **Mixed** | Archify 已在真实打包 App 一键生成固定产物、showcase 9/9 并右侧预览；固定 `pi-goal`、后台任务、LSP 与 CTF 隔离 Smoke 已有。LSP Server 尚未打包；当前固定清单不再包含 `pi-retry`。 |
-| Coding Plan / Go 与权限策略 | **Implemented / Partial overall** | Codex 风格三档菜单、Project Auto 常规开发 Shell/Git/网络、显式 Full Access 和 Ask 单次工具审批已落地并有交付门禁；仍缺可见终端、完整后台进程/端口面板以及 Browser/Computer Use 授权。 |
+| Coding Plan / Go 与权限策略 | **Implemented / Partial overall** | Codex 风格三档菜单、Project Auto 常规开发 Shell/Git/网络、显式 Full Access 和 Ask 单次工具审批已落地并有交付门禁；后台进程状态、PID、监听端口、有界日志与停止动作已在原生 App 真实验收；仍缺可见复用终端以及 Browser/Computer Use 授权。 |
 | Coding 日常产品动作与 Diff | **Verified for one real delivery chain** | 同一真实打包 App 会话已连续完成理解项目、失败测试、可信 Diff 审阅、最小修复、回归测试和总结；右侧文件级 Diff 页已接线。仍欠多语言样本、行级反馈和 Git 发布。 |
 | 架构文档 | **Verified snapshot** | 当前/目标/债务文档与 Archify 交互式 HTML 已生成；规格验证 9/9、0 error、0 warning。 |
 | NYU CTF Bench | **Verified narrow safe-static baseline** | 固定 revision、人工 fail-closed 准入、单次无工具 Runner、Digest Judge 与 Report 已跑通；5 completed 中 3 solved，另有 1 个零调用阻断。无用户 UI，不代表真实 CTF Agent。 |

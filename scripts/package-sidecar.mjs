@@ -400,6 +400,68 @@ async function smokeSidecar(platform) {
   ) {
     throw new Error(`unexpected packaged Chat Sidecar response: ${chatRun.stdout}`)
   }
+  const backgroundTasksDirectory = join(workspace, 'background-control')
+  const backgroundTaskId = 'bg_packaged_control'
+  const backgroundTaskDirectory = join(
+    backgroundTasksDirectory,
+    'tasks',
+    backgroundTaskId,
+  )
+  const backgroundTaskNow = Date.now()
+  await mkdir(backgroundTaskDirectory, { recursive: true, mode: 0o700 })
+  await writeFile(join(backgroundTaskDirectory, 'meta.json'), `${JSON.stringify({
+    id: backgroundTaskId,
+    name: 'Packaged control receipt',
+    kind: 'process',
+    status: 'succeeded',
+    startedAt: backgroundTaskNow - 1000,
+    endedAt: backgroundTaskNow,
+    logPath: join(backgroundTaskDirectory, 'output.log'),
+    cwd: workspace,
+    spawnPid: process.pid,
+  }, null, 2)}\n`, { mode: 0o600 })
+  const backgroundControlRun = await runWithInput(
+    node,
+    [...chatRuntimeArguments, join(output, 'chat-bridge.cjs')],
+    [
+      '{"action":"create_session","conversationId":"packaged-background-control","executionMode":"go","approvalPolicy":"workspace-auto"}',
+      JSON.stringify({
+        action: 'background_task_control',
+        conversationId: 'packaged-background-control',
+        requestId: 'packaged-background-control-1',
+        control: 'stop',
+        taskId: backgroundTaskId,
+      }),
+      '{"action":"destroy_session","conversationId":"packaged-background-control"}',
+      '',
+    ].join('\n'),
+    {
+      cwd: workspace,
+      env: {
+        ...process.env,
+        HOME: workspace,
+        MILKSU_BACKGROUND_TASKS_DIR: backgroundTasksDirectory,
+      },
+    },
+  )
+  const backgroundControlResponses = backgroundControlRun.stdout
+    .trim()
+    .split('\n')
+    .map(line => JSON.parse(line))
+  const backgroundControlReceipt = backgroundControlResponses.find(
+    value => value.type === 'background_task_controlled',
+  )
+  if (
+    backgroundControlReceipt?.requestId !== 'packaged-background-control-1'
+    || backgroundControlReceipt?.error
+    || !backgroundControlReceipt?.tasks?.some(
+      task => task.id === backgroundTaskId && task.status === 'succeeded',
+    )
+  ) {
+    throw new Error(
+      `unexpected packaged background control response: ${backgroundControlRun.stdout}`,
+    )
+  }
   const mcpConfig = `${JSON.stringify({
     mcpServers: {
       fixture: {

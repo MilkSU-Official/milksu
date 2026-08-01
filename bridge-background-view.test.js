@@ -14,6 +14,7 @@ test("background task projection keeps active and recent Pi tasks without env va
       command: "npm run dev",
       cwd: "/workspace",
       pid: 4321,
+      pgid: 4320,
       logPath: "/runtime/output.log",
       env: { SECRET: "must-not-leak" },
     },
@@ -39,14 +40,37 @@ test("background task projection keeps active and recent Pi tasks without env va
       spawnPid: 13,
       logPath: "/runtime/old.log",
     },
-  ], now);
+  ], now, (path, tailLines) => ({
+    text: `${path}:${tailLines}\nready on http://127.0.0.1:4173`,
+    truncated: true,
+  }));
 
   assert.deepEqual(tasks.map(task => task.id), ["running", "recent"]);
   assert.equal(tasks[0].command, "npm run dev");
+  assert.equal(tasks[0].pgid, 4320);
+  assert.match(tasks[0].logTail, /ready on/);
+  assert.equal(tasks[0].logTruncated, true);
   assert.equal(tasks[1].kind, "watch");
   assert.equal(tasks[1].lastExitCode, 0);
   assert.equal("env" in tasks[0], false);
   assert.equal(JSON.stringify(tasks).includes("must-not-leak"), false);
+});
+
+test("background task projection treats unreadable logs as optional", () => {
+  const task = projectBackgroundTaskMetas([{
+    id: "running",
+    kind: "process",
+    status: "running",
+    startedAt: 1,
+    cwd: "/workspace",
+    spawnPid: 12,
+    logPath: "/runtime/output.log",
+  }], 2, () => {
+    throw new Error("unreadable");
+  })[0];
+
+  assert.equal("logTail" in task, false);
+  assert.equal("logTruncated" in task, false);
 });
 
 test("background task projection bounds untrusted registry text", () => {

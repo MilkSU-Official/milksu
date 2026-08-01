@@ -200,18 +200,19 @@ func TestCodingComposerKeepsOnlyMessageContextControls(t *testing.T) {
 	}
 	source := string(data)
 	for _, expected := range []string{
-		`$emit('chooseWorkspace')`,
 		`aria-label="Coding 执行模式"`,
 		`aria-label="Coding 权限策略"`,
 		`aria-label="选择本任务模型"`,
 		`class="composer-control composer-model ml-auto`,
-		`min-width: 8rem`,
+		`min-width: 10rem`,
 	} {
 		if !strings.Contains(source, expected) {
 			t.Fatalf("Coding composer does not preserve the essential send-context control %q", expected)
 		}
 	}
 	for _, duplicate := range []string{
+		`chooseWorkspace`,
+		`composer-workspace`,
 		`Coding 快捷动作`,
 		`设为目标`,
 		`架构图`,
@@ -228,6 +229,8 @@ func TestCodingComposerKeepsOnlyMessageContextControls(t *testing.T) {
 	}
 	page := string(pageData)
 	for _, expected := range []string{
+		`v-if="!ctfSession && !workspaceLocked"`,
+		`@click="$emit('chooseWorkspace')"`,
 		`<SelectItem v-if="!ctfSession" value="architecture">架构图</SelectItem>`,
 		`<p class="text-caption font-medium text-muted-foreground">任务操作</p>`,
 		`<span class="shrink-0 text-muted-foreground">技能</span>`,

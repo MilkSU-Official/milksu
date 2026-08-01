@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"os"
@@ -130,6 +131,79 @@ func TestNormalizeAndCacheBackgroundTasks(t *testing.T) {
 	if supervisor.Status().BackgroundTasks[0].Command != "npm run dev" {
 		t.Fatal("runtime status leaked its internal background task slice")
 	}
+}
+
+func TestStopBackgroundTaskWaitsForSidecarReceipt(t *testing.T) {
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	defer writer.Close()
+
+	supervisor := NewSupervisor(nil)
+	supervisor.process = &childProcess{
+		stdin:     writer,
+		workspace: "/workspace",
+	}
+	supervisor.sessions["session-1"] = struct{}{}
+	type stopResult struct {
+		status RuntimeStatus
+		err    error
+	}
+	result := make(chan stopResult, 1)
+	go func() {
+		status, stopErr := supervisor.StopBackgroundTask("session-1", "bg_task_1")
+		result <- stopResult{status: status, err: stopErr}
+	}()
+
+	line, err := bufio.NewReader(reader).ReadBytes('\n')
+	if err != nil {
+		t.Fatal(err)
+	}
+	var command map[string]any
+	if err := json.Unmarshal(line, &command); err != nil {
+		t.Fatal(err)
+	}
+	requestID, _ := command["requestId"].(string)
+	if command["action"] != "background_task_control" ||
+		command["control"] != "stop" ||
+		command["taskId"] != "bg_task_1" ||
+		requestID == "" {
+		t.Fatalf("unexpected background control command: %#v", command)
+	}
+
+	event := normalizeBridgeEvent(bridgeEvent{
+		Type:      "background_task_controlled",
+		ID:        "session-1",
+		RequestID: requestID,
+		Tasks: []BackgroundTask{{
+			ID:        "bg_task_1",
+			Kind:      "process",
+			Status:    "cancelled",
+			StartedAt: 1000,
+			EndedAt:   2000,
+		}},
+	})
+	supervisor.observeRuntimeEvent(event)
+	supervisor.emitEvent(event)
+
+	select {
+	case stopped := <-result:
+		if stopped.err != nil {
+			t.Fatal(stopped.err)
+		}
+		if len(stopped.status.BackgroundTasks) != 1 ||
+			stopped.status.BackgroundTasks[0].Status != "cancelled" {
+			t.Fatalf("unexpected stopped runtime status: %#v", stopped.status)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("background task stop receipt was not delivered")
+	}
+
+	supervisor.mu.Lock()
+	supervisor.process = nil
+	supervisor.mu.Unlock()
 }
 
 func TestNormalizeApprovalLifecycle(t *testing.T) {

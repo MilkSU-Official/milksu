@@ -599,10 +599,6 @@ func (a *App) RespondToolApproval(
 	return a.engines.RespondToolApproval(conversationID, requestID, approved)
 }
 
-func (a *App) GetRuntimeStatus() engine.RuntimeStatus {
-	return a.engines.Status()
-}
-
 func (a *App) GetCodingEnvironment(workspacePath string) (codingenv.Snapshot, error) {
 	inspectContext, cancel := context.WithTimeout(a.commandContext(), 4*time.Second)
 	defer cancel()

@@ -15,8 +15,9 @@ MilkSU 当前是一个 local-first 的授权安全学习与研究桌面工作台
 - **Coding** 核心 Plan → Go、多轮编辑、命令与测试已经真实交付；Codex 风格三档权限菜单、
   Project Auto 和显式 Full Access 已实现；理解项目、运行测试、审阅变更、修复失败和总结
   已在同一打包 App 会话完成连续真实验收，文件级 Diff 有独立右侧页并向审阅动作注入桌面
-  Git Adapter 的可信证据。逐工具审批、文件/图片附件、项目级 MCP 选择与后台任务运行时
-  已接线；仍缺 Git 发布、Coding Browser、Computer Use、可见终端和完整后台进程/端口面板；
+  Git Adapter 的可信证据。逐工具审批、文件/图片附件、项目级 MCP 选择，以及可显示 PID、
+  监听端口、有界日志并停止任务的后台进程面板已接线；仍缺 Git 发布、Coding Browser、
+  Computer Use 和可见复用终端；
 - **NYU CTF Bench** 只有开发者专用 safe-static 单次 Runner 与 Digest Judge，不是完整
   Challenge Runner，也不是用户训练能力；
 - **Labs** 与 **CVE Research** 已完成顶层/详细设计，但保持 `Paused / Designed`；

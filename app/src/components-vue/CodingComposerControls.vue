@@ -18,7 +18,6 @@ import {
 import {
   Check,
   ChevronDown,
-  FolderOpen,
   Hand,
   LockKeyhole,
   ShieldAlert,
@@ -31,8 +30,6 @@ import type {
 import { PROVIDER_GROUPS, providerModelLabel } from '@/types'
 
 defineProps<{
-  workspaceName: string
-  workspaceLocked: boolean
   running: boolean
   ctfSession: boolean
   executionMode: CodingExecutionMode
@@ -44,7 +41,6 @@ defineProps<{
 }>()
 
 defineEmits<{
-  chooseWorkspace: []
   changeExecutionMode: [value: string]
   changeApprovalPolicy: [value: string]
   changeModel: [value: string]
@@ -54,20 +50,6 @@ defineEmits<{
 
 <template>
   <div class="composer-controls app-no-drag mb-2 flex min-w-0 items-center gap-1.5 px-1">
-    <Button
-      variant="ghost"
-      size="sm"
-      class="composer-control composer-workspace min-w-0"
-      :disabled="workspaceLocked"
-      :title="workspaceLocked
-        ? '项目目录在任务开始后锁定；请新建任务来切换项目'
-        : '选择项目目录'"
-      @click="$emit('chooseWorkspace')"
-    >
-      <FolderOpen class="size-3.5 shrink-0" />
-      <span class="truncate">{{ workspaceName }}</span>
-    </Button>
-
     <Select
       v-if="!ctfSession"
       :model-value="executionMode"
@@ -223,10 +205,6 @@ defineEmits<{
 </template>
 
 <style scoped>
-.composer-workspace {
-  max-width: 9rem;
-}
-
 .composer-control {
   font-size: var(--text-body, 0.75rem);
   line-height: var(--text-body--line-height, 1rem);
@@ -287,9 +265,9 @@ defineEmits<{
 
 .composer-model {
   width: auto;
-  min-width: 8rem;
-  flex: 1 0 10rem;
-  max-width: 15rem;
+  min-width: 10rem;
+  flex: 1 1 14rem;
+  max-width: 24rem;
 }
 
 @container chat-main (max-width: 52rem) {
@@ -298,17 +276,13 @@ defineEmits<{
     gap: 0.25rem;
   }
 
-  .composer-workspace {
-    max-width: 6rem;
-  }
-
   .composer-permission {
     min-width: 6rem;
   }
 
   .composer-model {
-    min-width: 7rem;
-    flex: 1 0 7rem;
+    min-width: 9rem;
+    flex: 1 1 9rem;
     width: auto;
   }
 }

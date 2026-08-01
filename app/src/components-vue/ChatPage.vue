@@ -156,6 +156,7 @@ const nssctfBrowserStatus = ref<NSSCTFWebBridgeStatus | null>(null)
 const ctfshowBrowserStatus = ref<CTFShowCatalogStatus | null>(null)
 const codingEnvironment = ref<CodingEnvironmentSnapshot | null>(null)
 const codingRuntime = ref<CodingRuntimeStatus | null>(null)
+const backgroundTaskStopping = ref<string[]>([])
 const mcpConfig = ref<CodingMCPConfigSnapshot | null>(null)
 const mcpConfigLoading = ref(false)
 const ctfBudget = ref<CTFAgentBudgetStatus | null>(null)
@@ -755,6 +756,32 @@ async function refreshRuntimeStatus() {
   }
 }
 
+async function stopBackgroundTask(task: CodingBackgroundTask) {
+  const conversationId = props.conversation?.id
+  if (!conversationId || task.status !== 'running') return
+  if (backgroundTaskStopping.value.includes(task.id)) return
+  backgroundTaskStopping.value = [...backgroundTaskStopping.value, task.id]
+  environmentError.value = ''
+  try {
+    codingRuntime.value = await invokeCommand<CodingRuntimeStatus>(
+      'stop_coding_background_task',
+      {
+        conversationId,
+        taskId: task.id,
+      },
+    )
+  } catch (reason) {
+    environmentError.value = reason instanceof Error
+      ? reason.message
+      : '无法停止后台任务。'
+    await refreshRuntimeStatus()
+  } finally {
+    backgroundTaskStopping.value = backgroundTaskStopping.value.filter(
+      id => id !== task.id,
+    )
+  }
+}
+
 async function refreshBrowserPanel() {
   browserPanelError.value = ''
   if (!props.ctfSession) {
@@ -979,8 +1006,6 @@ watch(
     <div class="chat-composer shrink-0 bg-surface-editor px-5 pb-4 pt-2">
       <div class="mx-auto max-w-3xl">
         <CodingComposerControls
-          :workspace-name="workspacePath ? workspaceName : '项目'"
-          :workspace-locked="workspaceLocked"
           :running="running"
           :ctf-session="ctfSession"
           :execution-mode="effectiveExecutionMode"
@@ -989,7 +1014,6 @@ watch(
           :model-key="currentModelKey"
           :automatic-model-label="automaticModelLabel"
           :compact-model-label="compactModelLabel"
-          @choose-workspace="$emit('chooseWorkspace')"
           @change-execution-mode="changeExecutionMode"
           @change-approval-policy="changeApprovalPolicy"
           @change-model="changeModel"
@@ -1154,7 +1178,18 @@ watch(
         </div>
 
         <section class="border-b border-border px-4 py-4">
-          <p class="text-caption font-medium text-muted-foreground">工作区</p>
+          <div class="flex items-center justify-between gap-3">
+            <p class="text-caption font-medium text-muted-foreground">工作区</p>
+            <Button
+              v-if="!ctfSession && !workspaceLocked"
+              type="button"
+              variant="ghost"
+              size="sm"
+              @click="$emit('chooseWorkspace')"
+            >
+              更换
+            </Button>
+          </div>
           <div class="mt-3 flex items-start gap-3">
             <FolderOpen class="mt-0.5 size-4 shrink-0 text-primary" />
             <div class="min-w-0">
@@ -1311,6 +1346,9 @@ watch(
                   <span class="mt-0.5 block truncate text-caption text-muted-foreground">
                     {{ backgroundTaskStatusLabel(task.status) }} · {{ backgroundTaskElapsed(task) }}
                     <template v-if="task.pid"> · PID {{ task.pid }}</template>
+                    <template v-if="task.ports?.length">
+                      · {{ task.ports.map(port => `:${port}`).join(' ') }}
+                    </template>
                   </span>
                 </span>
                 <ChevronDown
@@ -1318,20 +1356,52 @@ watch(
                 />
               </summary>
               <div class="space-y-2 pb-3 pl-3 text-caption leading-5">
-                <p v-if="task.command" class="break-words font-mono text-foreground">
-                  {{ task.command }}
-                </p>
-                <p v-if="task.cwd" class="break-all text-muted-foreground">
-                  {{ task.cwd }}
-                </p>
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0 space-y-1">
+                    <p v-if="task.command" class="break-words font-mono text-foreground">
+                      {{ task.command }}
+                    </p>
+                    <p v-if="task.cwd" class="break-all text-muted-foreground">
+                      {{ task.cwd }}
+                    </p>
+                  </div>
+                  <Button
+                    v-if="task.status === 'running'"
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    class="shrink-0"
+                    :disabled="backgroundTaskStopping.includes(task.id)"
+                    :aria-label="`停止后台任务 ${backgroundTaskLabel(task)}`"
+                    @click="stopBackgroundTask(task)"
+                  >
+                    <LoaderCircle
+                      v-if="backgroundTaskStopping.includes(task.id)"
+                      class="size-3.5 animate-spin"
+                    />
+                    <Square v-else class="size-3 fill-current" />
+                    停止
+                  </Button>
+                </div>
+                <div v-if="task.ports?.length" class="flex flex-wrap items-center gap-1.5">
+                  <span class="text-muted-foreground">监听端口</span>
+                  <Badge v-for="port in task.ports" :key="port" variant="outline">
+                    {{ port }}
+                  </Badge>
+                </div>
+                <div v-if="task.logTail" class="space-y-1">
+                  <p class="text-muted-foreground">
+                    日志摘要<template v-if="task.logTruncated"> · 仅显示末尾</template>
+                  </p>
+                  <pre
+                    class="max-h-44 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-background/70 px-3 py-2 font-mono text-caption text-foreground"
+                  >{{ task.logTail }}</pre>
+                </div>
                 <p v-if="task.lastExitCode !== undefined" class="text-muted-foreground">
                   退出码 {{ task.lastExitCode }}
                 </p>
                 <p v-if="task.error" class="break-words text-destructive">
                   {{ task.error }}
-                </p>
-                <p v-if="task.logPath" class="break-all text-muted-foreground">
-                  日志 {{ task.logPath }}
                 </p>
               </div>
             </details>

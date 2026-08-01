@@ -106,6 +106,10 @@ interface WailsAppBindings {
     approved: boolean,
   ): Promise<void>
   GetRuntimeStatus(): Promise<CodingRuntimeStatus>
+  StopCodingBackgroundTask(
+    conversationId: string,
+    taskId: string,
+  ): Promise<CodingRuntimeStatus>
   GetCodingEnvironment(workspacePath: string): Promise<CodingEnvironmentSnapshot>
   GetCodingMCPConfig(workspacePath: string): Promise<CodingMCPConfigSnapshot>
   GetCodingDiff(workspacePath: string, relativePath: string): Promise<CodingDiffSnapshot>
@@ -388,6 +392,11 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         ) as Promise<T>
       case 'get_runtime_status':
         return app.GetRuntimeStatus() as Promise<T>
+      case 'stop_coding_background_task':
+        return app.StopCodingBackgroundTask(
+          args?.conversationId as string,
+          args?.taskId as string,
+        ) as Promise<T>
       case 'get_coding_environment':
         return app.GetCodingEnvironment(args?.workspacePath as string) as Promise<T>
       case 'get_coding_mcp_config':
@@ -649,6 +658,16 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
     case 'abort_message':
     case 'respond_tool_approval':
       return undefined as T
+    case 'get_runtime_status':
+      return {
+        defaultEngine: 'pi',
+        running: false,
+        sessionCount: 0,
+        protocol: 'browser-preview',
+        backgroundTasks: [],
+      } as T
+    case 'stop_coding_background_task':
+      throw new Error('后台任务控制需要 MilkSU 桌面运行时。')
     case 'get_coding_environment': {
       const workspace = String(args?.workspacePath ?? '')
       const name = workspace.replace(/\/+$/, '').split('/').at(-1) || 'workspace'

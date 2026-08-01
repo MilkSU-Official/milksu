@@ -136,8 +136,8 @@ final result: passed
 
 No actionable P0, P1, or P2 finding remains.
 
-- The input island exposes only the four values that affect the next message: project, Plan/Go,
-  permission policy, and model.
+- The input island exposes only the three values that affect the next message: Plan/Go,
+  permission policy, and model. Project selection now lives in the Environment workspace card.
 - Product actions and persistent goals live in Environment; Architecture is selected from the
   right-page selector. Capability, plugin, skill, tool, and model runtime facts live in Environment.
 - At the desktop compact breakpoint, Architecture and Changes use a `20rem` side panel instead of
@@ -147,7 +147,7 @@ No actionable P0, P1, or P2 finding remains.
 
 **Required Fidelity Surfaces**
 
-- Fonts and typography: all four composer controls share the compact body token and retain readable
+- Fonts and typography: all three composer controls share the compact body token and retain readable
   labels; the model value is not clipped.
 - Spacing and layout rhythm: one quiet context row sits above the borderless input island. The
   right page uses a stable desktop split and no longer overlaps the composer at ordinary compact
@@ -169,8 +169,9 @@ No actionable P0, P1, or P2 finding remains.
 - Fix: keep a `20rem` side-by-side right page through the desktop compact breakpoint; switch to an
   overlay drawer only below `56rem`.
 - Pass 3 — passed: the rebuilt and self-signed Wails app shows
-  `项目 / Go / 替我审批 / V4 Flash` while the Architecture page is open. The accessibility tree
-  confirms the four composer controls and the independent Architecture selector.
+  `Go / 替我审批 / V4 Flash` while the Architecture page is open. The accessibility tree
+  confirms the three composer controls, the Environment-owned workspace action, and the independent
+  Architecture selector.
 
 **Checks**
 
@@ -199,16 +200,16 @@ final result: passed
 
 No actionable P0, P1, or P2 finding remains.
 
-- The composer now contains only the four controls that change the next message: project, Plan/Go,
-  approval mode, and model.
+- The composer now contains only the three controls that change the next message: Plan/Go,
+  approval mode, and model. Workspace selection is available from Environment.
 - Product actions, persistent goals, architecture generation, and capability details remain in the
   right-side panel and no longer duplicate the composer.
-- The model trigger is the flexible trailing control and reserves at least `8rem` (`7rem` in the
+- The model trigger is the flexible trailing control and reserves at least `10rem` (`9rem` in the
   compact container rule). `V4 Flash` remains fully visible with the wider Architecture page open.
 
 ## Required fidelity surfaces
 
-- Fonts and typography: all four controls use the same compact body token; no label is clipped.
+- Fonts and typography: all three controls use the same compact body token; no label is clipped.
 - Spacing and layout rhythm: one quiet control row sits above the input island, with the model owning
   the flexible trailing space.
 - Colors and tokens: the existing HTB-inspired surface, foreground, muted, and brand tokens remain
@@ -225,7 +226,7 @@ No actionable P0, P1, or P2 finding remains.
 - Pass 1 — P1 in the supplied screenshot: eight controls competed for width and reduced the model
   selection to an ambiguous `自动`.
 - Fix: kept only send-context controls and gave the model trigger a non-shrinking minimum width.
-- Pass 2 — passed: focused side-by-side evidence shows `项目 / Go / 替我审批 / V4 Flash` in the
+- Pass 2 — passed: focused side-by-side evidence shows `Go / 替我审批 / V4 Flash` in the
   narrow center column while Architecture remains available in the right panel.
 
 final result: passed
@@ -297,7 +298,7 @@ No actionable P0, P1, or P2 mismatch remains in the requested regions.
 - Pass 2 — passed: `V4 Flash` remains fully visible with both environment and architecture panels;
   the composer has no placeholder; the side navigation and task hierarchy are materially quieter.
 - Pass 3 — passed: goal mode was enabled and verified under the right-panel `任务操作` section; the
-  composer text contains only `项目 / Go / 替我审批 / V4 Flash`. The model trigger remains visible at
+  composer text contains only `Go / 替我审批 / V4 Flash`. The model trigger remains visible at
   the default viewport and at `1024 × 768` and `800 × 700`.
 
 **Browser and Build Verification**
@@ -564,5 +565,45 @@ final result: passed
 **Follow-up Polish**
 
 - Add per-tool duration after the runtime persists trustworthy start/end timestamps.
+
+final result: passed
+
+# Coding 三项发送上下文与后台任务面板 · Follow-up QA
+
+**Comparison Target**
+
+- Source visual truth:
+  - `/var/folders/wf/0w9rnrs904501nhp57pd_jzw0000gn/T/codex-clipboard-f2880711-da45-47ce-a0f4-ca509eb52978.png`
+- Browser implementation:
+  - `/private/tmp/milksu-coding-composer-three-controls.png`
+  - `/private/tmp/milksu-coding-composer-three-controls-1100.png`
+  - `/private/tmp/milksu-coding-architecture-three-controls.png`
+- Focused comparison:
+  - `/private/tmp/milksu-coding-composer-three-controls-focused.jpg`
+- Native packaged implementation:
+  - `/private/tmp/milksu-native-three-controls.png`
+  - `/private/tmp/milksu-background-task-stopped-native.png`
+- Viewports: browser 1280 × 720 and 1100 × 720 at DPR 2; native packaged app 1187 × 768.
+- States: Coding architecture side page with the composer visible, model menu open, and a real background HTTP task stopped from Environment.
+
+**Findings**
+
+- No actionable P0, P1, or P2 mismatch remains for the requested composer hierarchy.
+- The model selector remains visible and operable at both tested browser widths.
+- Browser console inspection reported zero errors and zero warnings.
+
+**Comparison History**
+
+- Earlier P1: eight project/action/context controls competed for one row and squeezed the model selector out of view.
+- Fix: moved project selection, product actions, persistent goal, architecture, and capabilities into the right-side Environment surfaces.
+- Current result: the composer owns only execution mode, permission policy, and model selection.
+- Product-flow validation: a real `python3 -m http.server` process was started through Pi, surfaced with PID, listening port and bounded logs, stopped from the right panel, and verified no longer listening.
+
+**Required Fidelity Surfaces**
+
+- Typography: all three controls share the same compact control type scale and vertical alignment.
+- Spacing: the control row has stable gaps and the model selector flexes into remaining width instead of disappearing.
+- Ownership: repository switching is available from Environment; architecture and capability entry points are not duplicated above the composer.
+- Interaction: Plan/Go, permission policy and model menus remain independently operable.
 
 final result: passed

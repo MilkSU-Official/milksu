@@ -54,7 +54,10 @@ export interface CodingBackgroundTask {
   command?: string
   cwd?: string
   pid?: number
+  ports?: number[]
   logPath?: string
+  logTail?: string
+  logTruncated?: boolean
   lastExitCode?: number
   error?: string
 }
