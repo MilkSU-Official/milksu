@@ -307,6 +307,37 @@ func TestEngineEnvironmentIncludesEditableProviderBaseURL(t *testing.T) {
 	}
 }
 
+func TestSidecarEnvironmentIncludesConfiguredVisionRoute(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	settings := config.DefaultSettings()
+	settings.ModelRouting.Vision = &config.ModelSelection{
+		Provider: "openai",
+		Model:    "gpt-4o",
+	}
+	environment, err := sidecarEnvironment(settings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, expected := range []string{
+		"MILKSU_VISION_PROVIDER=openai",
+		"MILKSU_VISION_MODEL=gpt-4o",
+	} {
+		if !containsEnvironmentEntry(environment, expected) {
+			t.Fatalf("expected %q in %#v", expected, environment)
+		}
+	}
+	foundCache := false
+	for _, entry := range environment {
+		if strings.HasPrefix(entry, "MILKSU_VISION_CACHE=") {
+			foundCache = true
+			break
+		}
+	}
+	if !foundCache {
+		t.Fatalf("vision cache path missing from %#v", environment)
+	}
+}
+
 func TestDeliverProbeEventRoutesSessionAndProcessFailures(t *testing.T) {
 	supervisor := NewSupervisor(nil)
 	first := make(chan Event, 2)

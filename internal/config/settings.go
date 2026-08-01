@@ -57,9 +57,10 @@ type ModelSelection struct {
 }
 
 type ModelRoutingConfig struct {
-	DefaultMode string         `json:"default_mode"`
-	Fast        ModelSelection `json:"fast"`
-	Deep        ModelSelection `json:"deep"`
+	DefaultMode string          `json:"default_mode"`
+	Fast        ModelSelection  `json:"fast"`
+	Deep        ModelSelection  `json:"deep"`
+	Vision      *ModelSelection `json:"vision,omitempty"`
 }
 
 type AppSettings struct {
@@ -491,6 +492,18 @@ func withDefaults(value AppSettings) AppSettings {
 	if value.ModelRouting.Deep.Provider == "" || value.ModelRouting.Deep.Model == "" {
 		value.ModelRouting.Deep = defaults.ModelRouting.Deep
 	}
+	if value.ModelRouting.Vision != nil {
+		provider := strings.TrimSpace(value.ModelRouting.Vision.Provider)
+		model := strings.TrimSpace(value.ModelRouting.Vision.Model)
+		if provider == "" || model == "" {
+			value.ModelRouting.Vision = nil
+		} else {
+			value.ModelRouting.Vision = &ModelSelection{
+				Provider: provider,
+				Model:    model,
+			}
+		}
+	}
 	if value.Providers == nil {
 		value.Providers = make(map[string]ProviderConfig)
 	}
@@ -516,6 +529,10 @@ func clone(value AppSettings) AppSettings {
 		copy.Locale = &locale
 	}
 	copy.ModelVerified = cloneModelVerification(value.ModelVerified)
+	if value.ModelRouting.Vision != nil {
+		vision := *value.ModelRouting.Vision
+		copy.ModelRouting.Vision = &vision
+	}
 	return copy
 }
 

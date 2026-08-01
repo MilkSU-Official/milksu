@@ -54,10 +54,36 @@ func TestWithDefaults(t *testing.T) {
 func TestCloneDoesNotShareMaps(t *testing.T) {
 	original := DefaultSettings()
 	original.Providers["openai"] = ProviderConfig{APIKey: "secret", Enabled: true}
+	original.ModelRouting.Vision = &ModelSelection{Provider: "openai", Model: "gpt-4o"}
 	copied := clone(original)
 	delete(copied.Providers, "openai")
+	copied.ModelRouting.Vision.Model = "gpt-4.1"
 	if _, exists := original.Providers["openai"]; !exists {
 		t.Fatal("clone modified original provider map")
+	}
+	if original.ModelRouting.Vision.Model != "gpt-4o" {
+		t.Fatal("clone modified original vision model selection")
+	}
+}
+
+func TestWithDefaultsSanitizesVisionModelSelection(t *testing.T) {
+	settings := withDefaults(AppSettings{
+		ModelRouting: ModelRoutingConfig{
+			Vision: &ModelSelection{Provider: " openai ", Model: " gpt-4o "},
+		},
+	})
+	if settings.ModelRouting.Vision == nil ||
+		settings.ModelRouting.Vision.Provider != "openai" ||
+		settings.ModelRouting.Vision.Model != "gpt-4o" {
+		t.Fatalf("unexpected vision selection: %#v", settings.ModelRouting.Vision)
+	}
+	settings = withDefaults(AppSettings{
+		ModelRouting: ModelRoutingConfig{
+			Vision: &ModelSelection{Provider: "openai"},
+		},
+	})
+	if settings.ModelRouting.Vision != nil {
+		t.Fatalf("incomplete vision selection must be removed: %#v", settings.ModelRouting.Vision)
 	}
 }
 

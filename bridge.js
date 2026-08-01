@@ -21,6 +21,7 @@ import {
   describeLoadedExtensions,
 } from "./bridge-resource-policy.js";
 import { preparePromptAttachments } from "./bridge-attachments.js";
+import { analyzeTextOnlyImages } from "./bridge-vision.js";
 
 const relayKey = process.env.MILKSU_RELAY_KEY;
 const relayUrl = process.env.MILKSU_RELAY_URL || "https://api.ciyuanliudong.com/v1";
@@ -33,6 +34,10 @@ const providerBaseUrls = {
   deepseek: process.env.DEEPSEEK_BASE_URL,
   google: process.env.GOOGLE_BASE_URL,
   groq: process.env.GROQ_BASE_URL,
+};
+const auxiliaryVisionSelection = {
+  provider: String(process.env.MILKSU_VISION_PROVIDER ?? "").trim(),
+  model: String(process.env.MILKSU_VISION_MODEL ?? "").trim(),
 };
 
 const sessions = new Map();
@@ -286,6 +291,18 @@ function configureRuntimeModel(session, provider, model) {
     });
   }
   return configureRelayModel(session, provider, model);
+}
+
+function configureProviderEndpoint(session, provider) {
+  if (provider === "kourichat") {
+    configureRuntimeModel(session, provider, "kimi-k3");
+    return;
+  }
+  if (providerBaseUrls[provider]) {
+    session.modelRegistry.registerProvider(provider, {
+      baseUrl: providerBaseUrls[provider],
+    });
+  }
 }
 
 async function setSessionModel(conversationId, session, provider, model) {
@@ -597,7 +614,16 @@ async function sendMessage(command) {
       attachmentRoot,
       supportsImages,
     );
-    const prompt = `${command.prompt ?? ""}${prepared.context}`;
+    if (!supportsImages && auxiliaryVisionSelection.provider) {
+      configureProviderEndpoint(session, auxiliaryVisionSelection.provider);
+    }
+    const analyzed = supportsImages
+      ? { context: "" }
+      : await analyzeTextOnlyImages(prepared.attachments, {
+        session,
+        auxiliary: auxiliaryVisionSelection,
+      });
+    const prompt = `${command.prompt ?? ""}${prepared.context}${analyzed.context}`;
     await session.prompt(
       prompt,
       prepared.images.length ? { images: prepared.images } : undefined,

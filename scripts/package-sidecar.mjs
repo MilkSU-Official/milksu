@@ -12,6 +12,11 @@ const nodeVersion = '24.18.0'
 const archifyCommit = '7b49d0b715fd4ba48116bcdecd1ba3789a279613'
 const piLspVersion = '0.29.0'
 const piRetryVersion = '0.31.0'
+const systemOcrVersion = '1.1.0'
+const systemOcrNativePackages = {
+  'darwin/arm64': '@napi-rs/system-ocr-darwin-arm64',
+  'darwin/amd64': '@napi-rs/system-ocr-darwin-x64',
+}
 const nodeArchives = {
   'darwin/arm64': {
     file: `node-v${nodeVersion}-darwin-arm64.tar.xz`,
@@ -94,6 +99,7 @@ async function bundleBridge(entry, outfile) {
     platform: 'node',
     format: 'cjs',
     target: 'node24',
+    external: ['@napi-rs/system-ocr'],
     banner: { js: "const __import_meta_url = require('node:url').pathToFileURL(__filename).href;" },
     define: { 'import.meta.url': '__import_meta_url' },
     legalComments: 'eof',
@@ -132,6 +138,22 @@ async function buildSidecar(platform) {
   const archifyOutput = join(output, 'skills', 'archify')
   const licenseOutput = join(output, 'THIRD_PARTY-LICENSES')
   const archifyPackage = JSON.parse(await readFile(join(archifySource, 'package.json'), 'utf8'))
+  const systemOcrNativePackage = systemOcrNativePackages[platform]
+  if (!systemOcrNativePackage) {
+    throw new Error(`system OCR does not support Sidecar platform: ${platform}`)
+  }
+  const systemOcrSource = join(repositoryRoot, 'node_modules', '@napi-rs', 'system-ocr')
+  const systemOcrNativeSource = join(
+    repositoryRoot,
+    'node_modules',
+    ...systemOcrNativePackage.split('/'),
+  )
+  if (!await exists(systemOcrSource) || !await exists(systemOcrNativeSource)) {
+    throw new Error(
+      `system OCR packages are incomplete for ${platform}; run npm install on the target architecture`,
+    )
+  }
+  const systemOcrOutputRoot = join(output, 'node_modules', '@napi-rs')
   const { stdout: checkedOutArchifyCommit } = await execFileAsync(
     'git',
     ['-C', join(repositoryRoot, 'third_party', 'archify'), 'rev-parse', 'HEAD'],
@@ -143,7 +165,9 @@ async function buildSidecar(platform) {
   }
 
   await rm(archifyOutput, { recursive: true, force: true })
+  await rm(systemOcrOutputRoot, { recursive: true, force: true })
   await mkdir(dirname(archifyOutput), { recursive: true, mode: 0o700 })
+  await mkdir(systemOcrOutputRoot, { recursive: true, mode: 0o700 })
   await mkdir(licenseOutput, { recursive: true, mode: 0o700 })
   await cp(archifySource, archifyOutput, { recursive: true })
   await Promise.all([
@@ -156,6 +180,16 @@ async function buildSidecar(platform) {
     copyFile(
       join(repositoryRoot, 'third_party', 'licenses', 'narumitw-pi-extensions-MIT.txt'),
       join(licenseOutput, 'narumitw-pi-extensions-MIT.txt'),
+    ),
+    copyFile(
+      join(systemOcrSource, 'LICENSE'),
+      join(licenseOutput, 'napi-rs-system-ocr-MIT.txt'),
+    ),
+    cp(systemOcrSource, join(systemOcrOutputRoot, 'system-ocr'), { recursive: true }),
+    cp(
+      systemOcrNativeSource,
+      join(systemOcrOutputRoot, systemOcrNativePackage.split('/')[1]),
+      { recursive: true },
     ),
     writeFile(join(output, 'package.json'), `${JSON.stringify({
       name: '@earendil-works/pi-coding-agent',
@@ -212,6 +246,13 @@ async function buildSidecar(platform) {
         licenseFile: 'THIRD_PARTY-LICENSES/narumitw-pi-extensions-MIT.txt',
         scope: 'coding-only',
       },
+      localOcr: {
+        package: '@napi-rs/system-ocr',
+        version: systemOcrVersion,
+        license: 'MIT',
+        licenseFile: 'THIRD_PARTY-LICENSES/napi-rs-system-ocr-MIT.txt',
+        scope: 'coding-attachments',
+      },
     },
     esbuild: { version: '0.28.1' },
     bridges: {
@@ -229,6 +270,7 @@ async function smokeSidecar(platform) {
     join(output, 'NODE-LICENSE'),
     join(output, 'THIRD_PARTY-LICENSES', 'pi-MIT.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'narumitw-pi-extensions-MIT.txt'),
+    join(output, 'THIRD_PARTY-LICENSES', 'napi-rs-system-ocr-MIT.txt'),
     join(output, 'skills', 'archify', 'LICENSE'),
   ]) {
     if (!await exists(licensePath)) {
@@ -239,6 +281,11 @@ async function smokeSidecar(platform) {
   const workspace = join(repositoryRoot, 'build', 'sidecar-smoke', platform.replace('/', '-'))
   await mkdir(workspace, { recursive: true, mode: 0o700 })
   await mkdir(join(workspace, '.git'), { recursive: true, mode: 0o700 })
+  const ocrFixture = join(workspace, 'ocr-fixture.png')
+  await copyFile(
+    join(repositoryRoot, 'docs', 'design', 'milksu-coding-composer-layout-reference.png'),
+    ocrFixture,
+  )
   const runtimeArguments = [
     '--permission',
     `--allow-fs-read=${output}`,
@@ -247,12 +294,31 @@ async function smokeSidecar(platform) {
   ]
   const chatRuntimeArguments = [
     ...runtimeArguments,
+    '--allow-addons',
     '--allow-child-process',
     '--allow-fs-read=/bin/bash',
     '--allow-fs-read=/bin/sh',
     '--allow-fs-read=/usr/bin/env',
     '--allow-fs-read=/usr/bin/sandbox-exec',
   ]
+  const ocrLoad = await runWithInput(
+    node,
+    [
+      ...runtimeArguments,
+      '--allow-addons',
+      '-e',
+      "const {recognize}=require('@napi-rs/system-ocr');"
+        + "recognize(process.argv[1],1,['zh-Hans','en-US']).then(result=>{"
+        + "if(!result.text)throw new Error('empty OCR result');"
+        + "process.stdout.write(`system-ocr-ready:${result.text.length}`)});",
+      ocrFixture,
+    ],
+    '',
+    { cwd: output, env: { ...process.env, HOME: output } },
+  )
+  if (!ocrLoad.stdout.startsWith('system-ocr-ready:')) {
+    throw new Error(`packaged system OCR did not load: ${ocrLoad.stdout}${ocrLoad.stderr}`)
+  }
   const securityRun = await runWithInput(
     node,
     [...runtimeArguments, join(output, 'security-bridge.cjs')],
@@ -477,8 +543,33 @@ async function installSidecar(platform, binaryPath) {
   await mkdir(destination, { recursive: true, mode: 0o700 })
   await Promise.all(distributableFiles.map(file => copyFile(join(source, file), join(destination, file))))
   await cp(join(source, 'skills'), join(destination, 'skills'), { recursive: true })
+  await cp(
+    join(source, 'THIRD_PARTY-LICENSES'),
+    join(destination, 'THIRD_PARTY-LICENSES'),
+    { recursive: true },
+  )
+  await cp(join(source, 'node_modules'), join(destination, 'node_modules'), { recursive: true })
+  const installedOcrPackage = join(
+    destination,
+    'node_modules',
+    ...systemOcrNativePackages[platform].split('/'),
+  )
+  for (const requiredPath of [
+    join(destination, 'THIRD_PARTY-LICENSES', 'napi-rs-system-ocr-MIT.txt'),
+    installedOcrPackage,
+  ]) {
+    if (!await exists(requiredPath)) {
+      throw new Error(`installed Sidecar is missing OCR runtime artifact: ${requiredPath}`)
+    }
+  }
   await chmod(join(destination, 'node'), 0o755)
-  await execFileAsync('/usr/bin/codesign', ['--force', '--sign', process.env.MILKSU_CODESIGN_IDENTITY || '-', application])
+  await execFileAsync('/usr/bin/codesign', [
+    '--force',
+    '--deep',
+    '--sign',
+    process.env.MILKSU_CODESIGN_IDENTITY || '-',
+    application,
+  ])
   process.stdout.write(`Installed MilkSU Sidecar into ${destination}\n`)
 }
 

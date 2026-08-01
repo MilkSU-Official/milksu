@@ -29,7 +29,7 @@ test("prepares verified read-only attachment context without embedding file data
   assert.doesNotMatch(result.context, /# MilkSU/);
 });
 
-test("passes supported images to a vision model and warns a text-only model", async () => {
+test("passes supported images only to a vision-capable model", async () => {
   const { root, attachment } = await fixture(
     "pixel.png",
     Buffer.from([0x89, 0x50, 0x4e, 0x47]),
@@ -40,7 +40,7 @@ test("passes supported images to a vision model and warns a text-only model", as
   assert.equal(vision.images[0].mimeType, "image/png");
   const textOnly = await preparePromptAttachments([attachment], root, false);
   assert.equal(textOnly.images.length, 0);
-  assert.match(textOnly.context, /current model is text-only/);
+  assert.match(textOnly.context, /user-provided evidence/);
 });
 
 test("rejects tampered metadata and symlinked stored content", async () => {

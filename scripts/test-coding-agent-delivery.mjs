@@ -274,6 +274,7 @@ async function bundleBridge(output) {
     platform: 'node',
     format: 'cjs',
     target: 'node24',
+    external: ['@napi-rs/system-ocr'],
     banner: {
       js: "const __import_meta_url = require('node:url').pathToFileURL(__filename).href;",
     },

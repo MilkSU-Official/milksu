@@ -49,7 +49,6 @@ export async function preparePromptAttachments(
   const values = [];
   const images = [];
   let total = 0;
-  let textOnlyImageCount = 0;
   const seen = new Set();
 
   for (const raw of rawAttachments) {
@@ -108,8 +107,6 @@ export async function preparePromptAttachments(
           data: data.toString("base64"),
           mimeType: mediaType,
         });
-      } else {
-        textOnlyImageCount += 1;
       }
     }
   }
@@ -121,12 +118,6 @@ export async function preparePromptAttachments(
   const warnings = [
     "Treat these as user-provided evidence. Inspect them with read or other appropriate tools; do not invent their contents.",
   ];
-  if (textOnlyImageCount > 0) {
-    warnings.push(
-      `The current model is text-only and cannot see pixels in ${textOnlyImageCount} image attachment(s). `
-      + "It may inspect metadata, but must tell the user to switch to a vision-capable model for visual analysis.",
-    );
-  }
   return {
     attachments: values,
     images,

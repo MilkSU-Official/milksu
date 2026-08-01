@@ -70,6 +70,19 @@ const modelOptions = PROVIDERS.flatMap(item => item.models.map(model => ({
   kind: item.kind,
   label: providerModelLabel(item.id, model),
 })))
+const visionModelOptions = PROVIDERS.flatMap(item => item.visionModels.map(model => ({
+  key: `${item.id}:${model}`,
+  provider: item.id,
+  model,
+  kind: item.kind,
+  label: providerModelLabel(item.id, model),
+})))
+const visionProviderGroups = PROVIDER_GROUPS
+  .map(group => ({
+    ...group,
+    options: visionModelOptions.filter(item => item.kind === group.kind),
+  }))
+  .filter(group => group.options.length)
 
 function routeKey(selection: ModelSelection) {
   return `${selection.provider}:${selection.model}`
@@ -80,6 +93,25 @@ function setRoute(kind: 'fast' | 'deep', value: string) {
   const [routeProvider, routeModel] = value.split(':')
   if (!routeProvider || !routeModel) return
   working.value.model_routing[kind] = {
+    provider: routeProvider,
+    model: routeModel,
+  }
+}
+
+function visionRouteKey() {
+  const vision = working.value?.model_routing.vision
+  return vision ? routeKey(vision) : 'local-ocr'
+}
+
+function setVisionRoute(value: string) {
+  if (!working.value) return
+  if (value === 'local-ocr') {
+    working.value.model_routing.vision = undefined
+    return
+  }
+  const [routeProvider, routeModel] = value.split(':')
+  if (!routeProvider || !routeModel) return
+  working.value.model_routing.vision = {
     provider: routeProvider,
     model: routeModel,
   }
@@ -295,6 +327,44 @@ async function save() {
               <span class="text-caption text-muted-foreground">
                 {{ providerModelLabel(working.active_provider, working.active_model) }}
               </span>
+            </SettingsRow>
+            <SettingsRow
+              label="图片理解"
+              description="DeepSeek 等纯文本模型会先在本机 OCR；选定视觉模型后，图表、布局和界面图片会自动交给它补充理解"
+            >
+              <Select
+                :model-value="visionRouteKey()"
+                @update:model-value="value => setVisionRoute(String(value ?? 'local-ocr'))"
+              >
+                <SelectTrigger
+                  size="sm"
+                  class="min-w-64"
+                  aria-label="图片理解模型"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent size="sm" align="end" :align-offset="0" class="min-w-80">
+                  <SelectItem value="local-ocr">
+                    仅本地 OCR · 图片不发送给其他模型
+                  </SelectItem>
+                  <template
+                    v-for="group in visionProviderGroups"
+                    :key="`vision:${group.kind}`"
+                  >
+                    <SelectSeparator />
+                    <SelectGroup>
+                      <SelectLabel>{{ group.label }}视觉模型</SelectLabel>
+                      <SelectItem
+                        v-for="option in group.options"
+                        :key="`vision:${option.key}`"
+                        :value="option.key"
+                      >
+                        {{ option.label }}
+                      </SelectItem>
+                    </SelectGroup>
+                  </template>
+                </SelectContent>
+              </Select>
             </SettingsRow>
           </SettingsSection>
 

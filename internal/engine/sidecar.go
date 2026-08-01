@@ -46,8 +46,16 @@ func sidecarEnvironment(settings config.AppSettings) ([]string, error) {
 		"HOME="+runtimeHome,
 		"MILKSU_PI_AGENT_DIR="+filepath.Join(runtimeHome, "pi"),
 		"MILKSU_CODING_ATTACHMENT_ROOT="+attachmentRoot,
+		"MILKSU_VISION_CACHE="+filepath.Join(runtimeHome, "vision-cache.json"),
 		"MILKSU_USER_HOME="+userHome,
 	)
+	if vision := settings.ModelRouting.Vision; vision != nil {
+		environment = append(
+			environment,
+			"MILKSU_VISION_PROVIDER="+strings.TrimSpace(vision.Provider),
+			"MILKSU_VISION_MODEL="+strings.TrimSpace(vision.Model),
+		)
+	}
 	if socket := strings.TrimSpace(os.Getenv("SSH_AUTH_SOCK")); socket != "" {
 		environment = append(environment, "MILKSU_USER_SSH_AUTH_SOCK="+socket)
 	}
@@ -86,6 +94,7 @@ func newSidecarCommandAt(
 		sidecarDirectory := filepath.Dir(runtime.bridge)
 		arguments = []string{
 			"--permission",
+			"--allow-addons",
 			"--allow-fs-read=" + sidecarDirectory,
 			"--allow-fs-read=" + workspace,
 			"--allow-fs-read=" + runtimeHome,
