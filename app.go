@@ -225,6 +225,44 @@ func (a *App) GetSettings() config.AppSettings {
 	return a.settings.Get()
 }
 
+func (a *App) GetLocalDataStatus() (appdata.DataStatus, error) {
+	return appdata.Inspect(a.dataDirectory)
+}
+
+func (a *App) ExportLocalDataBackup() (appdata.BackupExport, error) {
+	if a.ctx == nil {
+		return appdata.BackupExport{}, fmt.Errorf("desktop runtime is not ready")
+	}
+	destination, err := wailsruntime.SaveFileDialog(a.ctx, wailsruntime.SaveDialogOptions{
+		Title:                "导出 MilkSU 本地数据备份",
+		DefaultFilename:      "MilkSU-backup-" + time.Now().Format("2006-01-02") + ".zip",
+		CanCreateDirectories: true,
+		Filters: []wailsruntime.FileFilter{
+			{DisplayName: "MilkSU 备份", Pattern: "*.zip"},
+		},
+	})
+	if err != nil {
+		return appdata.BackupExport{}, err
+	}
+	if strings.TrimSpace(destination) == "" {
+		return appdata.BackupExport{Cancelled: true}, nil
+	}
+	return appdata.ExportBackup(a.commandContext(), a.dataDirectory, destination)
+}
+
+func (a *App) RevealLocalDataDirectory() error {
+	if a.ctx == nil {
+		return fmt.Errorf("desktop runtime is not ready")
+	}
+	if runtime.GOOS != "darwin" {
+		return fmt.Errorf("reveal local data directory is currently supported on macOS")
+	}
+	if err := exec.Command("/usr/bin/open", a.dataDirectory).Run(); err != nil {
+		return fmt.Errorf("open local data directory: %w", err)
+	}
+	return nil
+}
+
 func (a *App) SaveSettingsCmd(settings config.AppSettings) error {
 	err := a.settings.Save(settings)
 	if err != nil && !hasSessionOnlyCredential(a.settings.Get()) {

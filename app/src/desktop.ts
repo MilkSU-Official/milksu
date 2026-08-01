@@ -3,6 +3,8 @@ import {
   withAppSettingsDefaults,
   type AppSettings,
   type CodingAttachment,
+  type LocalDataBackupExport,
+  type LocalDataStatus,
   type ModelProbeResult,
 } from './types'
 import type {
@@ -71,6 +73,9 @@ type EventEnvelope<T> = { payload: T }
 interface WailsAppBindings {
   GetSettings(): Promise<AppSettings>
   SaveSettingsCmd(settings: AppSettings): Promise<void>
+  GetLocalDataStatus(): Promise<LocalDataStatus>
+  ExportLocalDataBackup(): Promise<LocalDataBackupExport>
+  RevealLocalDataDirectory(): Promise<void>
   ListConversations(): Promise<unknown>
   SaveConversation(conversation: unknown): Promise<void>
   DeleteConversation(id: string): Promise<void>
@@ -333,6 +338,12 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.GetSettings() as Promise<T>
       case 'save_settings_cmd':
         return app.SaveSettingsCmd(args?.newSettings as AppSettings) as Promise<T>
+      case 'get_local_data_status':
+        return app.GetLocalDataStatus() as Promise<T>
+      case 'export_local_data_backup':
+        return app.ExportLocalDataBackup() as Promise<T>
+      case 'reveal_local_data_directory':
+        return app.RevealLocalDataDirectory() as Promise<T>
       case 'list_conversations':
         return app.ListConversations() as Promise<T>
       case 'save_conversation':
@@ -564,6 +575,15 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
     case 'save_settings_cmd':
       writeJson(SETTINGS_KEY, withoutCredentials((args?.newSettings as AppSettings | undefined) ?? DEFAULT_SETTINGS))
       return undefined as T
+    case 'get_local_data_status':
+      return {
+        directory: 'MilkSU 用户数据目录',
+        fileCount: 0,
+        bytes: 0,
+      } as T
+    case 'export_local_data_backup':
+    case 'reveal_local_data_directory':
+      throw new Error('本地数据管理需要 MilkSU 桌面运行时。')
     case 'list_conversations':
       return readJson(CONVERSATIONS_KEY, []) as T
     case 'save_conversation': {

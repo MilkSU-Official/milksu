@@ -201,6 +201,22 @@ export interface ModelProbeResult {
   latencyMs: number
 }
 
+export interface LocalDataStatus {
+  directory: string
+  fileCount: number
+  bytes: number
+  lastModifiedAt?: string
+}
+
+export interface LocalDataBackupExport {
+  path: string
+  createdAt: string
+  fileCount: number
+  bytes: number
+  credentialsIncluded: boolean
+  cancelled?: boolean
+}
+
 export const EMPTY_USAGE: UsageData = {
   input_tokens: null,
   output_tokens: null,

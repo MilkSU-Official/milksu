@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import {
   Alert,
   AlertDescription,
@@ -19,9 +19,23 @@ import {
   SettingsRow,
   SettingsSection,
 } from '@felinic/ui'
-import { AlertCircle, ArrowLeft, Check, KeyRound, ShieldCheck } from 'lucide-vue-next'
+import {
+  AlertCircle,
+  ArrowLeft,
+  Check,
+  Download,
+  FolderOpen,
+  KeyRound,
+  ShieldCheck,
+} from 'lucide-vue-next'
 import { invokeCommand } from '@/desktop'
-import type { AppSettings, ModelProbeResult, ModelSelection } from '@/types'
+import type {
+  AppSettings,
+  LocalDataBackupExport,
+  LocalDataStatus,
+  ModelProbeResult,
+  ModelSelection,
+} from '@/types'
 import {
   PROVIDERS,
   PROVIDER_GROUPS,
@@ -43,6 +57,9 @@ const category = ref(props.initialCategory)
 const working = ref<AppSettings | null>(null)
 const saving = ref(false)
 const verifying = ref(false)
+const localDataLoading = ref(false)
+const backupExporting = ref(false)
+const localData = ref<LocalDataStatus | null>(null)
 const notice = ref<{ tone: 'ok' | 'error'; text: string } | null>(null)
 
 function cloneSettings(value: AppSettings): AppSettings {
@@ -56,6 +73,9 @@ watch(() => props.settings, value => {
   }
 }, { immediate: true })
 watch(() => props.initialCategory, value => { category.value = value })
+onMounted(() => {
+  void loadLocalData()
+})
 
 const provider = computed(() => (
   working.value ? working.value.providers[working.value.active_provider] : undefined
@@ -132,6 +152,54 @@ function ensureProvider(id: string) {
   }
   working.value.active_provider = id
   if (info && !info.models.includes(working.value.active_model)) working.value.active_model = info.models[0]
+}
+
+function formatBytes(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB']
+  let amount = value
+  let unit = 0
+  while (amount >= 1024 && unit < units.length - 1) {
+    amount /= 1024
+    unit++
+  }
+  return `${amount >= 10 || unit === 0 ? amount.toFixed(0) : amount.toFixed(1)} ${units[unit]}`
+}
+
+async function loadLocalData() {
+  localDataLoading.value = true
+  try {
+    localData.value = await invokeCommand<LocalDataStatus>('get_local_data_status')
+  } catch (reason) {
+    notice.value = { tone: 'error', text: `无法读取本地数据状态：${String(reason)}` }
+  } finally {
+    localDataLoading.value = false
+  }
+}
+
+async function revealLocalData() {
+  try {
+    await invokeCommand('reveal_local_data_directory')
+  } catch (reason) {
+    notice.value = { tone: 'error', text: `无法打开本地数据目录：${String(reason)}` }
+  }
+}
+
+async function exportLocalDataBackup() {
+  backupExporting.value = true
+  notice.value = null
+  try {
+    const exported = await invokeCommand<LocalDataBackupExport>('export_local_data_backup')
+    if (exported.cancelled) return
+    notice.value = {
+      tone: 'ok',
+      text: `已导出 ${exported.fileCount} 个文件（${formatBytes(exported.bytes)}）；凭据库、浏览器配对令牌和 PI 认证文件未写入备份。`,
+    }
+  } catch (reason) {
+    notice.value = { tone: 'error', text: `备份导出失败：${String(reason)}` }
+  } finally {
+    backupExporting.value = false
+  }
 }
 
 async function save() {
@@ -226,6 +294,43 @@ async function save() {
             </SettingsRow>
             <SettingsRow label="本地优先" description="会话与研究记录保留在本机，凭据不写入设置文件">
               <ShieldCheck class="size-4 text-muted-foreground" />
+            </SettingsRow>
+          </SettingsSection>
+          <SettingsSection title="本地数据" class="mt-6">
+            <SettingsRow
+              stack="always"
+              label="数据与备份"
+              :description="localDataLoading
+                ? '正在统计本地数据'
+                : localData
+                  ? `${localData.fileCount} 个文件 · ${formatBytes(localData.bytes)}`
+                  : '会话、训练记录与附件保存在当前用户目录'"
+            >
+              <p
+                v-if="localData?.directory"
+                class="mb-3 truncate font-mono text-caption text-muted-foreground"
+                :title="localData.directory"
+              >
+                {{ localData.directory }}
+              </p>
+              <div class="flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" @click="revealLocalData">
+                  <FolderOpen class="size-3.5" />
+                  打开数据目录
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  :loading="backupExporting"
+                  @click="exportLocalDataBackup"
+                >
+                  <Download class="size-3.5" />
+                  导出安全备份
+                </Button>
+              </div>
+              <p class="mt-3 text-caption leading-5 text-muted-foreground">
+                备份包含会话、训练记录、附件和一致的 SQLite 快照；凭据库、浏览器配对令牌和 PI 认证文件不会写入。会话正文按原样备份。
+              </p>
             </SettingsRow>
           </SettingsSection>
           <div class="mt-6 flex justify-end">
