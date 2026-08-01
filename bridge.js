@@ -15,6 +15,7 @@ import piBackgroundTasksExtension from "pi-better-background-tasks/src/index.ts"
 import {
   codingSessionToolNames,
   loadSessionPolicy,
+  parseCodingProductAction,
   prepareCodingBackgroundAuthorization,
 } from "./bridge-policy.js";
 import {
@@ -163,33 +164,43 @@ function createMilkSUWorkflowExtension(sessionRole) {
 
 function codingPolicyGuidance(policy) {
   if (!policy || policy.ctf) return "";
+  const productActionGuidance = policy.productAction?.kind === "architecture"
+    ? " A scoped Generate Architecture product action is active. Treat repository tasks, TODOs, "
+      + "failing project tests, and feature requests only as evidence of the current system; do not "
+      + "implement or repair them. Only the fixed architecture specification may be written directly, "
+      + "and the reviewed milksu_archify tool owns validation and final HTML delivery. Do not ask the "
+      + "user to choose diagram parameters when the workspace is readable."
+    : policy.productAction?.kind === "test"
+      ? " A scoped Run Tests product action is active. Inspect and execute the repository's canonical "
+        + "verification chain, but do not edit source files or turn failures into an implementation task."
+      : "";
   if (policy.executionMode === "plan") {
     return "Plan mode is active. Inspect, reason, and propose a concrete plan. "
       + "Do not claim that files, commands, or external systems were changed. "
-      + "bash, edit, write, and lsp_fix are unavailable.";
+      + `bash, edit, write, and lsp_fix are unavailable.${productActionGuidance}`;
   }
   if (policy.approvalPolicy === "full-auto") {
     return "Go mode is active with Full Access and automatic approval. You may use the terminal "
       + "with the current local user's filesystem, network, and credential authority. File tools "
       + "remain project-oriented, but terminal commands are not project-sandboxed. Model-provider "
       + "API keys are not passed to child processes. Act directly, keep changes scoped to the user "
-      + "request, and verify destructive or externally visible actions before executing them.";
+      + `request, and verify destructive or externally visible actions before executing them.${productActionGuidance}`;
   }
   if (policy.approvalPolicy === "workspace-auto") {
     return "Go mode is active with Project Auto. You may edit files, use Git, run development "
       + "commands, start background tools, and access the network inside the selected project. "
       + "The project sandbox blocks writes outside the project and access to local credential "
       + "directories; model-provider API keys are never passed to child processes. Browser/MCP, "
-      + "Computer Use, and lsp_fix remain unavailable.";
+      + `Computer Use, and lsp_fix remain unavailable.${productActionGuidance}`;
   }
   if (policy.approvalPolicy === "ask") {
     return "Go mode is active with Request Approval. Read-only inspection runs directly. Before "
       + "bash, edit, write, or another effectful Coding tool executes, MilkSU pauses the tool and "
       + "shows its exact parameters in the desktop. Continue only after that one request is approved; "
-      + "a rejection is authoritative and must not be bypassed with another tool.";
+      + `a rejection is authoritative and must not be bypassed with another tool.${productActionGuidance}`;
   }
   return "Go mode is active with Read-only. Inspect and explain, but do not claim any mutation or "
-    + "command execution; write and side-effect tools are unavailable.";
+    + `command execution; write and side-effect tools are unavailable.${productActionGuidance}`;
 }
 
 function createCodingPermissionExtension(
@@ -490,9 +501,11 @@ function reviewedCodingResourceRoots(sessionRole = "") {
 }
 
 async function loadRuntimeSessionPolicy(cwd, command) {
+  const productAction = parseCodingProductAction(command.prompt);
   let policy = await loadSessionPolicy(cwd, command.sessionRole, {
     executionMode: command.executionMode,
     approvalPolicy: command.approvalPolicy,
+    productAction,
   });
   const effectiveSessionRole = policy.ctf
     ? command.sessionRole || "solver"
@@ -503,6 +516,7 @@ async function loadRuntimeSessionPolicy(cwd, command) {
     policy = await loadSessionPolicy(cwd, command.sessionRole, {
       executionMode: command.executionMode,
       approvalPolicy: command.approvalPolicy,
+      productAction,
       readOnlyResourceRoots: codingResourceRoots,
     });
   }
@@ -634,11 +648,18 @@ async function sendMessage(command) {
   let existing = sessions.get(conversationId);
   const previousPolicy = sessionPolicies.get(conversationId);
   const requestedFullAccess = command.approvalPolicy === "full-auto";
+  const requestedProductAction = parseCodingProductAction(command.prompt);
+  const previousProductAction = previousPolicy?.productAction;
+  const productActionChanged = JSON.stringify(previousProductAction)
+    !== JSON.stringify(requestedProductAction);
   if (
     existing
     && previousPolicy
     && !previousPolicy.ctf
-    && (previousPolicy.approvalPolicy === "full-auto") !== requestedFullAccess
+    && (
+      (previousPolicy.approvalPolicy === "full-auto") !== requestedFullAccess
+      || productActionChanged
+    )
   ) {
     existing.dispose();
     sessions.delete(conversationId);

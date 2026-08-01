@@ -10,6 +10,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
 import { constants } from "node:fs";
 import {
   access,
@@ -59,10 +60,21 @@ const codingWorkspaceAutoToolNames = [
   "milksu_progress",
   "lsp_diagnostics",
 ];
+const codingArchitectureToolNames = [
+  "read",
+  "grep",
+  "find",
+  "ls",
+  "write",
+  "milksu_archify",
+  "milksu_progress",
+];
 // A Coding session must construct the full reviewed tool catalog up front.
 // Pi's setActiveTools() can narrow or restore tools that already exist, but it
 // cannot add definitions that were omitted when createAgentSession() ran.
-export const codingSessionToolNames = [...codingWorkspaceAutoToolNames];
+export const codingSessionToolNames = [
+  ...new Set([...codingWorkspaceAutoToolNames, "milksu_archify"]),
+];
 const ctfLocalToolNames = [
   ...codingToolNames,
   "milksu_progress",
@@ -1694,10 +1706,219 @@ export function normalizeCodingPolicy(
   };
 }
 
+const codingArchitectureHeader = "[MilkSU product action: Generate architecture diagram]";
+
+export function parseCodingProductAction(prompt) {
+  const value = String(prompt || "");
+  if (value.startsWith(codingArchitectureHeader)) {
+    const specPath = /^Product spec path: (.+)$/m.exec(value)?.[1]?.trim();
+    const htmlPath = /^Product HTML path: (.+)$/m.exec(value)?.[1]?.trim();
+    if (!specPath || !htmlPath) return undefined;
+    return {
+      kind: "architecture",
+      specPath,
+      htmlPath,
+    };
+  }
+  if (value.startsWith("[MilkSU product action: Run tests]")) {
+    return { kind: "test" };
+  }
+  return undefined;
+}
+
+function normalizedCodingProductAction(workspace, value) {
+  if (!value || typeof value !== "object") return undefined;
+  if (value.kind === "test") return { kind: "test" };
+  if (value.kind !== "architecture") return undefined;
+  const normalizeOutput = (path, extension) => {
+    const candidate = String(path || "").trim().replaceAll("\\", "/");
+    const allowedPrefix = "docs/architecture/generated/";
+    if (
+      !candidate.startsWith(allowedPrefix)
+      || candidate.includes("../")
+      || candidate.startsWith("/")
+      || !candidate.endsWith(extension)
+    ) {
+      throw new Error(`MilkSU rejected unsafe architecture output path: ${candidate || "(empty)"}`);
+    }
+    return relative(workspace, resolve(workspace, candidate)).replaceAll("\\", "/");
+  };
+  return {
+    kind: "architecture",
+    specPath: normalizeOutput(value.specPath, ".architecture.json"),
+    htmlPath: normalizeOutput(value.htmlPath, ".html"),
+  };
+}
+
+function codingProductActionTools(action, fallback) {
+  if (action?.kind === "architecture") return [...codingArchitectureToolNames];
+  if (action?.kind === "test") {
+    return ["read", "bash", "grep", "find", "ls", "milksu_progress", "lsp_diagnostics"];
+  }
+  return fallback;
+}
+
+function createArchifyTool(workspace, reviewedResourceRoots, productAction) {
+  const archifyRoot = reviewedResourceRoots.find(path => (
+    existsSync(join(path, "bin", "archify.mjs"))
+  ));
+  return defineTool({
+    name: "milksu_archify",
+    label: "Validate and deliver with Archify",
+    description: "Run the reviewed packaged Archify CLI without a generic shell. "
+      + "Use validate after writing a candidate specification and deliver only after validation "
+      + "passes. MilkSU confines inputs and outputs to the selected workspace.",
+    parameters: Type.Object({
+      action: Type.Union([
+        Type.Literal("validate"),
+        Type.Literal("deliver"),
+      ]),
+      diagramType: Type.Optional(Type.Union([
+        Type.Literal("architecture"),
+        Type.Literal("workflow"),
+        Type.Literal("sequence"),
+        Type.Literal("dataflow"),
+        Type.Literal("lifecycle"),
+      ])),
+      inputPath: Type.String({ maxLength: 1024 }),
+      outputPath: Type.Optional(Type.String({ maxLength: 1024 })),
+      quality: Type.Optional(Type.Union([
+        Type.Literal("standard"),
+        Type.Literal("showcase"),
+      ])),
+    }),
+    execute: async (_toolCallId, params, signal) => {
+      if (!archifyRoot) {
+        throw new Error("MilkSU packaged Archify resource is unavailable");
+      }
+      const root = await realpath(workspace);
+      const input = await assertWorkspacePath(root, resolve(root, params.inputPath));
+      const diagramType = params.diagramType || "architecture";
+      const quality = params.quality || "showcase";
+      const argumentsList = [
+        join(archifyRoot, "bin", "archify.mjs"),
+        params.action,
+        diagramType,
+        input,
+      ];
+      let output;
+      if (params.action === "deliver") {
+        if (!params.outputPath) {
+          throw new Error("milksu_archify deliver requires outputPath");
+        }
+        output = await assertWorkspaceMutationPath(
+          root,
+          resolve(root, params.outputPath),
+          [".git", ".milksu"],
+          false,
+        );
+        argumentsList.push(output);
+      }
+      if (productAction?.kind === "architecture") {
+        const inputRelative = relative(root, input).replaceAll("\\", "/");
+        const outputRelative = output
+          ? relative(root, output).replaceAll("\\", "/")
+          : "";
+        if (
+          inputRelative !== productAction.specPath
+          || (
+            params.action === "deliver"
+            && outputRelative !== productAction.htmlPath
+          )
+        ) {
+          throw new Error("MilkSU architecture action denied an unexpected input or output path");
+        }
+      }
+      argumentsList.push("--quality", quality, "--json", "--repo-root", root);
+
+      const runtimeDirectory = commandRuntimeDirectory(root);
+      const runtimeHome = join(runtimeDirectory, "home");
+      const runtimeTemporary = join(runtimeDirectory, "tmp");
+      const runtimeBin = join(runtimeDirectory, "runtime-bin");
+      await mkdir(runtimeHome, { recursive: true, mode: 0o700 });
+      await mkdir(runtimeTemporary, { recursive: true, mode: 0o700 });
+      await ensureSandboxedCommandRuntime(runtimeDirectory);
+
+      const result = await new Promise((resolvePromise, rejectPromise) => {
+        const child = spawn(
+          "/usr/bin/sandbox-exec",
+          [
+            "-p",
+            sandboxProfile(
+              root,
+              false,
+              [],
+              false,
+              [archifyRoot, runtimeBin],
+              [runtimeHome, runtimeTemporary],
+            ),
+            join(runtimeBin, "node"),
+            ...argumentsList,
+          ],
+          {
+            cwd: root,
+            detached: true,
+            env: commandEnvironment(root, process.env, runtimeDirectory),
+            stdio: ["ignore", "pipe", "pipe"],
+          },
+        );
+        const chunks = [];
+        let bytes = 0;
+        let timedOut = false;
+        const append = chunk => {
+          if (bytes >= 131072) return;
+          const data = Buffer.from(chunk);
+          const remaining = 131072 - bytes;
+          chunks.push(data.subarray(0, remaining));
+          bytes += Math.min(data.length, remaining);
+        };
+        const onAbort = () => killChildProcess(child);
+        const timeout = setTimeout(() => {
+          timedOut = true;
+          killChildProcess(child);
+        }, 120_000);
+        signal?.addEventListener("abort", onAbort, { once: true });
+        child.stdout?.on("data", append);
+        child.stderr?.on("data", append);
+        child.on("error", error => {
+          clearTimeout(timeout);
+          signal?.removeEventListener("abort", onAbort);
+          rejectPromise(error);
+        });
+        child.on("close", exitCode => {
+          clearTimeout(timeout);
+          signal?.removeEventListener("abort", onAbort);
+          const text = Buffer.concat(chunks, bytes).toString("utf8").trim();
+          if (signal?.aborted) {
+            rejectPromise(new Error("Archify action aborted"));
+          } else if (timedOut) {
+            rejectPromise(new Error("Archify action timed out after 120 seconds"));
+          } else if (exitCode !== 0) {
+            rejectPromise(new Error(text || `Archify exited with code ${exitCode}`));
+          } else {
+            resolvePromise(text);
+          }
+        });
+      });
+      let receipt;
+      try {
+        receipt = JSON.parse(result);
+      } catch {
+        receipt = { ok: true, output: result };
+      }
+      return {
+        content: [{ type: "text", text: JSON.stringify(receipt, null, 2) }],
+        details: receipt,
+      };
+    },
+  });
+}
+
 async function createCodingToolDefinitions(
   workspace,
   resourceReadRoots = [],
   approvalPolicy = "workspace-auto",
+  productAction = undefined,
 ) {
   const root = await realpath(workspace);
   const reviewedResourceRoots = [];
@@ -1710,10 +1931,13 @@ async function createCodingToolDefinitions(
   }
   const protectedEntries = [".git", ".milksu"];
   const ensure = path => assertWorkspacePath(root, path);
-  const ensureRead = async path => {
+  const resolveReadScope = async path => {
     for (const allowedRoot of [root, ...reviewedResourceRoots]) {
       try {
-        return await assertWorkspacePath(allowedRoot, path);
+        return {
+          root: allowedRoot,
+          path: await assertWorkspacePath(allowedRoot, path),
+        };
       } catch {
         // Try the next explicitly reviewed read root.
       }
@@ -1722,12 +1946,30 @@ async function createCodingToolDefinitions(
       `MilkSU workspace policy denied path outside the workspace and reviewed resources: ${path}`,
     );
   };
-  const ensureMutation = path => assertWorkspaceMutationPath(
-    root,
-    path,
-    protectedEntries,
-    false,
-  );
+  const ensureRead = async path => (await resolveReadScope(path)).path;
+  const ensureMutation = async (path, allowArchitectureParent = false) => {
+    const safePath = await assertWorkspaceMutationPath(
+      root,
+      path,
+      protectedEntries,
+      false,
+    );
+    const relativePath = relative(root, safePath).replaceAll("\\", "/");
+    const architecturePathAllowed = relativePath === productAction?.specPath
+      || (
+        allowArchitectureParent
+        && (
+          relativePath === ""
+          || productAction?.specPath.startsWith(`${relativePath}/`)
+        )
+      );
+    if (productAction?.kind === "architecture" && !architecturePathAllowed) {
+      throw new Error(
+        `MilkSU architecture action only allows writing ${productAction.specPath}`,
+      );
+    }
+    return safePath;
+  };
   const readOperations = {
     access: async path => access(await ensureRead(path), constants.R_OK),
     readFile: async path => readFile(await ensureRead(path)),
@@ -1771,7 +2013,7 @@ async function createCodingToolDefinitions(
     createWriteToolDefinition(root, {
       operations: {
         mkdir: async path => mkdir(
-          await ensureMutation(path),
+          await ensureMutation(path, true),
           { recursive: true, mode: 0o700 },
         ),
         writeFile: async (path, content) => writeFile(
@@ -1783,41 +2025,48 @@ async function createCodingToolDefinitions(
     }),
     createGrepToolDefinition(root, {
       operations: {
-        isDirectory: async path => (await lstat(await ensure(path))).isDirectory(),
-        readFile: async path => readFile(await ensure(path), "utf8"),
+        isDirectory: async path => (await lstat(await ensureRead(path))).isDirectory(),
+        readFile: async path => readFile(await ensureRead(path), "utf8"),
       },
     }),
     createFindToolDefinition(root, {
       operations: {
         exists: async path => {
           try {
-            await lstat(await ensure(path));
+            await lstat(await ensureRead(path));
             return true;
           } catch (error) {
             if (error?.code === "ENOENT") return false;
             throw error;
           }
         },
-        glob: async (pattern, path, options) => (
-          findWorkspaceFiles(root, await ensure(path), pattern, options.limit)
-        ),
+        glob: async (pattern, path, options) => {
+          const scope = await resolveReadScope(path);
+          return findWorkspaceFiles(
+            scope.root,
+            scope.path,
+            pattern,
+            options.limit,
+          );
+        },
       },
     }),
     createLsToolDefinition(root, {
       operations: {
         exists: async path => {
           try {
-            await lstat(await ensure(path));
+            await lstat(await ensureRead(path));
             return true;
           } catch (error) {
             if (error?.code === "ENOENT") return false;
             throw error;
           }
         },
-        stat: async path => lstat(await ensure(path)),
-        readdir: async path => readdir(await ensure(path)),
+        stat: async path => lstat(await ensureRead(path)),
+        readdir: async path => readdir(await ensureRead(path)),
       },
     }),
+    createArchifyTool(root, reviewedResourceRoots, productAction),
   ];
   const bash = definitions.find(tool => tool.name === "bash");
   bash.description += fullAccess
@@ -1967,19 +2216,27 @@ export async function createCTFToolDefinitions(
 }
 
 async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
+  const root = await realpath(workspace);
   const normalized = normalizeCodingPolicy(
     codingPolicy.executionMode,
     codingPolicy.approvalPolicy,
   );
+  const productAction = normalizedCodingProductAction(
+    root,
+    codingPolicy.productAction,
+  );
   return {
     ctf: false,
     ...normalized,
-    workspace: await realpath(workspace),
+    activeTools: codingProductActionTools(productAction, normalized.activeTools),
+    workspace: root,
+    productAction,
     readOnlyResourceRoots: [...(codingPolicy.readOnlyResourceRoots || [])],
     customTools: await createCodingToolDefinitions(
-      workspace,
+      root,
       codingPolicy.readOnlyResourceRoots,
       normalized.approvalPolicy,
+      productAction,
     ),
     maxToolEventOutputBytes: 60000,
   };

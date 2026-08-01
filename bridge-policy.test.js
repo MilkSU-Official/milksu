@@ -3,11 +3,12 @@ import { access, mkdtemp, mkdir, readFile, symlink, writeFile } from "node:fs/pr
 import { createServer as createHTTPServer } from "node:http";
 import { createServer as createTCPServer } from "node:net";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import test from "node:test";
 import {
   loadSessionPolicy,
   normalizeCodingPolicy,
+  parseCodingProductAction,
   scopeAllowsNetwork,
 } from "./bridge-policy.js";
 
@@ -129,12 +130,16 @@ test("Ask exposes effectful tools behind the desktop approval channel", async ()
   );
 });
 
-test("Coding read can access reviewed packaged skill resources but no other outside path", async () => {
+test("Coding read/search tools can access reviewed resources but no other outside path", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "milksu-coding-policy-"));
   const resourceRoot = await mkdtemp(join(tmpdir(), "milksu-archify-resource-"));
   const skillPath = join(resourceRoot, "SKILL.md");
+  const exampleDirectory = join(resourceRoot, "examples");
+  const examplePath = join(exampleDirectory, "architecture.example.json");
   const outside = join(await mkdtemp(join(tmpdir(), "milksu-unreviewed-")), "secret.txt");
+  await mkdir(exampleDirectory);
   await writeFile(skillPath, "# Archify\n", "utf8");
+  await writeFile(examplePath, '{"diagram_type":"architecture"}\n', "utf8");
   await writeFile(outside, "outside-secret", "utf8");
 
   const policy = await loadSessionPolicy(workspace, "", {
@@ -151,10 +156,143 @@ test("Coding read can access reviewed packaged skill resources but no other outs
     {},
   );
   assert.match(response.content[0].text, /Archify/);
+
+  const ls = policy.customTools.find(tool => tool.name === "ls");
+  const listing = await ls.execute(
+    "list-reviewed-skill",
+    { path: resourceRoot },
+    undefined,
+    undefined,
+    {},
+  );
+  assert.match(listing.content[0].text, /SKILL\.md/);
+  assert.match(listing.content[0].text, /examples/);
+
+  const find = policy.customTools.find(tool => tool.name === "find");
+  const found = await find.execute(
+    "find-reviewed-example",
+    { path: resourceRoot, pattern: "**/*.json" },
+    undefined,
+    undefined,
+    {},
+  );
+  assert.match(found.content[0].text, /architecture\.example\.json/);
+
+  const grep = policy.customTools.find(tool => tool.name === "grep");
+  const matches = await grep.execute(
+    "grep-reviewed-example",
+    { path: resourceRoot, pattern: "diagram_type" },
+    undefined,
+    undefined,
+    {},
+  );
+  assert.match(matches.content[0].text, /architecture\.example\.json/);
+
   await assert.rejects(
     read.execute("read-unreviewed", { path: outside }, undefined, undefined, {}),
     /denied path outside/,
   );
+  await assert.rejects(
+    ls.execute(
+      "list-unreviewed",
+      { path: dirname(outside) },
+      undefined,
+      undefined,
+      {},
+    ),
+    /denied path outside/,
+  );
+});
+
+test("Architecture product action gets a narrow typed tool policy", async () => {
+  const workspace = await mkdtemp(join(
+    process.platform === "darwin" ? "/private/tmp" : tmpdir(),
+    "milksu-architecture-action-",
+  ));
+  const resourceRoot = join(process.cwd(), "third_party", "archify", "archify");
+  const specRelative = "docs/architecture/generated/project-current-system.architecture.json";
+  const htmlRelative = "docs/architecture/generated/project-current-system.html";
+  const candidate = await readFile(
+    join(resourceRoot, "examples", "web-app.architecture.json"),
+    "utf8",
+  );
+
+  const action = parseCodingProductAction(
+    `[MilkSU product action: Generate architecture diagram]\n`
+      + `Product spec path: ${specRelative}\n`
+      + `Product HTML path: ${htmlRelative}\n`,
+  );
+  assert.deepEqual(action, {
+    kind: "architecture",
+    specPath: specRelative,
+    htmlPath: htmlRelative,
+  });
+  const policy = await loadSessionPolicy(workspace, "", {
+    executionMode: "go",
+    approvalPolicy: "workspace-auto",
+    productAction: action,
+    readOnlyResourceRoots: [resourceRoot],
+  });
+  assert.deepEqual(policy.activeTools, [
+    "read",
+    "grep",
+    "find",
+    "ls",
+    "write",
+    "milksu_archify",
+    "milksu_progress",
+  ]);
+  assert.equal(policy.activeTools.includes("bash"), false);
+  assert.equal(policy.activeTools.includes("edit"), false);
+
+  const write = policy.customTools.find(tool => tool.name === "write");
+  await write.execute(
+    "write-architecture-spec",
+    { path: join(workspace, specRelative), content: candidate },
+    undefined,
+    undefined,
+    {},
+  );
+  await assert.rejects(
+    write.execute(
+      "write-unrelated-source",
+      { path: join(workspace, "src.js"), content: "changed" },
+      undefined,
+      undefined,
+      {},
+    ),
+    /only allows writing/,
+  );
+
+  const archify = policy.customTools.find(tool => tool.name === "milksu_archify");
+  const validation = await archify.execute(
+    "validate-architecture",
+    {
+      action: "validate",
+      diagramType: "architecture",
+      inputPath: specRelative,
+      quality: "showcase",
+    },
+    undefined,
+    undefined,
+    {},
+  );
+  assert.match(validation.content[0].text, /"ok": true/);
+  const delivery = await archify.execute(
+    "deliver-architecture",
+    {
+      action: "deliver",
+      diagramType: "architecture",
+      inputPath: specRelative,
+      outputPath: htmlRelative,
+      quality: "showcase",
+    },
+    undefined,
+    undefined,
+    {},
+  );
+  assert.match(delivery.content[0].text, /"ok": true/);
+  await access(join(workspace, htmlRelative));
 });
 
 test("Go Project Auto runs normal development commands but contains filesystem writes", {
