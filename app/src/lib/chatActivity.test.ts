@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  buildChatActivityEntries,
   buildChatTranscript,
   chatActivityEntrySummary,
   chatActivitySummary,
@@ -39,15 +40,27 @@ describe('buildChatTranscript', () => {
     expect(transcript[2]?.kind === 'message' && transcript[2].message.id).toBe('a3')
   })
 
-  it('keeps the live response inside the collapsed activity until the run finishes', () => {
+  it('keeps a live assistant response visible after collapsed activity', () => {
     const transcript = buildChatTranscript([
       message('u1', 'user', '完成任务'),
-      message('a1', 'assistant', '正在检查。', { status: 'running' }),
+      message('a1', 'assistant', '先运行测试。'),
+      message('t1', 'tool', 'npm test', { toolName: 'bash' }),
+      message('a2', 'assistant', '测试完成，正在整理结果。', { status: 'running' }),
     ], true)
 
-    expect(transcript).toHaveLength(2)
+    expect(transcript).toHaveLength(3)
     expect(transcript[1]?.kind).toBe('activity')
-    expect(transcript[1]?.kind === 'activity' && transcript[1].running).toBe(true)
+    expect(transcript[2]?.kind).toBe('message')
+    expect(transcript[2]?.kind === 'message' && transcript[2].message.id).toBe('a2')
+  })
+
+  it('shows an assistant-only live response instead of folding it as thinking', () => {
+    const transcript = buildChatTranscript([
+      message('u1', 'user', '解释一下'),
+      message('a1', 'assistant', '正在回答。', { status: 'running' }),
+    ], true)
+
+    expect(transcript.map(block => block.kind)).toEqual(['message', 'message'])
   })
 
   it('leaves approvals visible as standalone decision cards', () => {
@@ -91,5 +104,35 @@ describe('activity labels', () => {
     expect(chatActivityEntrySummary(
       message('assistant', 'assistant', '接下来检查构建结果。\n更多推理'),
     )).toBe('接下来检查构建结果。')
+  })
+
+  it('pairs tool start and result events into one expandable row', () => {
+    const entries = buildChatActivityEntries([
+      message('ls-start', 'tool', '{}', { toolName: 'ls', status: 'running' }),
+      message('bash-start', 'tool', '$ npm test', { toolName: 'bash', status: 'running' }),
+      message('ls-result', 'tool', 'src/\ntest/', { toolName: 'ls' }),
+      message('bash-result', 'tool', '2 tests passed', { toolName: 'bash' }),
+    ])
+
+    expect(entries).toHaveLength(2)
+    expect(entries[0]).toMatchObject({
+      toolName: 'ls',
+      request: { id: 'ls-start' },
+      result: { id: 'ls-result' },
+      running: false,
+    })
+    expect(entries[1]).toMatchObject({
+      toolName: 'bash',
+      request: { id: 'bash-start' },
+      result: { id: 'bash-result' },
+      running: false,
+    })
+    expect(chatActivityEntrySummary(entries[0]!)).toBe('查看目录')
+    expect(chatActivityEntrySummary(entries[1]!)).toBe('运行 $ npm test')
+    expect(chatActivityEntrySummary(
+      message('write-result', 'tool', 'Successfully wrote 12 bytes to src/app.ts', {
+        toolName: 'write',
+      }),
+    )).toBe('写入 src/app.ts')
   })
 })

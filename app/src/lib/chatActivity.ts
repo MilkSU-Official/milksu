@@ -13,6 +13,14 @@ export interface ChatActivityBlock {
   running: boolean
 }
 
+export interface ChatActivityEntry {
+  id: string
+  toolName: string
+  request?: Message
+  result?: Message
+  running: boolean
+}
+
 export type ChatTranscriptBlock = ChatMessageBlock | ChatActivityBlock
 
 const commandTools = new Set(['bash', 'background', 'background_output'])
@@ -53,23 +61,12 @@ function flushAgentSegment(
   })
 
   if (lastToolIndex < 0) {
-    const hasLiveAssistant = conversationRunning
-      && segment.some(message => message.role === 'assistant')
-    if (hasLiveAssistant) {
-      blocks.push(activityBlock(segment, true))
-      return
-    }
     blocks.push(...segment.map(messageBlock))
     return
   }
 
   const activityMessages = segment.slice(0, lastToolIndex + 1)
   const trailingMessages = segment.slice(lastToolIndex + 1)
-
-  if (conversationRunning && trailingMessages.length) {
-    activityMessages.push(...trailingMessages)
-    trailingMessages.length = 0
-  }
 
   blocks.push(activityBlock(
     activityMessages,
@@ -134,6 +131,47 @@ export function chatActivitySummary(messages: Message[]) {
   return parts.join('并')
 }
 
+export function buildChatActivityEntries(messages: Message[]): ChatActivityEntry[] {
+  const entries: ChatActivityEntry[] = []
+  const pending = new Map<string, ChatActivityEntry[]>()
+
+  for (const message of messages) {
+    if (message.role !== 'tool') continue
+    const toolName = String(message.toolName ?? 'tool').toLowerCase()
+
+    if (message.status === 'running') {
+      const entry: ChatActivityEntry = {
+        id: `tool:${message.id}`,
+        toolName,
+        request: message,
+        running: true,
+      }
+      entries.push(entry)
+      const queue = pending.get(toolName) ?? []
+      queue.push(entry)
+      pending.set(toolName, queue)
+      continue
+    }
+
+    const queue = pending.get(toolName)
+    const requestEntry = queue?.shift()
+    if (requestEntry) {
+      requestEntry.result = message
+      requestEntry.running = false
+      continue
+    }
+
+    entries.push({
+      id: `tool:${message.id}`,
+      toolName,
+      result: message,
+      running: false,
+    })
+  }
+
+  return entries
+}
+
 function compactLine(value: string, limit = 112) {
   const line = value
     .split(/\r?\n/)
@@ -146,21 +184,49 @@ function compactLine(value: string, limit = 112) {
   return `${line.slice(0, Math.max(0, limit - 1)).trimEnd()}…`
 }
 
-export function chatActivityEntrySummary(message: Message) {
+function usefulToolSubject(value: string) {
+  const subject = compactLine(value)
+  if (!subject || subject === '{}' || subject === '[]') return ''
+  if (/^[{[]/.test(subject)) return ''
+  return subject
+}
+
+function isChatActivityEntry(value: Message | ChatActivityEntry): value is ChatActivityEntry {
+  return 'request' in value || 'result' in value
+}
+
+export function chatActivityEntrySummary(messageOrEntry: Message | ChatActivityEntry) {
+  const isEntry = isChatActivityEntry(messageOrEntry)
+  const message: Message | undefined = isEntry
+    ? messageOrEntry.request ?? messageOrEntry.result
+    : messageOrEntry
+  if (!message) return '使用工具'
+
   const firstLine = compactLine(message.content)
   if (message.role === 'assistant') return firstLine || '整理下一步'
 
-  const name = String(message.toolName ?? 'tool').toLowerCase()
-  const suffix = firstLine ? ` ${firstLine}` : ''
-  if (name === 'bash') return `运行${suffix || '命令'}`
+  const name = isEntry
+    ? messageOrEntry.toolName
+    : String(message.toolName ?? 'tool').toLowerCase()
+  const writtenPath = name === 'write'
+    ? message.content.match(/Successfully wrote \d+ bytes to ([^\r\n]+)/)?.[1]
+    : undefined
+  const subject = writtenPath ?? usefulToolSubject(message.content)
+  const suffix = subject ? ` ${subject}` : ''
+  if (name === 'bash') {
+    return subject && (!isEntry || subject.startsWith('$'))
+      ? `运行 ${subject}`
+      : '运行命令'
+  }
   if (name === 'background') return `启动后台任务${suffix}`
-  if (name === 'background_output') return `读取后台任务${suffix}`
+  if (name === 'background_output') return '读取后台任务'
   if (name === 'read') return `读取${suffix || '文件'}`
   if (name === 'write') return `写入${suffix || '文件'}`
   if (name === 'edit') return `编辑${suffix || '文件'}`
   if (name === 'ls') return `查看${suffix || '目录'}`
   if (name === 'find') return `查找${suffix || '文件'}`
   if (name === 'grep') return `搜索${suffix || '内容'}`
+  if (name === 'milksu_progress') return '更新任务进度'
   if (name === 'milksu_archify') return '处理架构图'
-  return firstLine ? `${message.toolName ?? '工具'} · ${firstLine}` : message.toolName ?? '使用工具'
+  return subject ? `${message.toolName ?? '工具'} · ${subject}` : message.toolName ?? '使用工具'
 }

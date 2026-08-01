@@ -11,28 +11,46 @@ import {
 } from 'lucide-vue-next'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import {
+  buildChatActivityEntries,
   chatActivityEntrySummary,
   chatActivitySummary,
   type ChatActivityBlock,
+  type ChatActivityEntry,
 } from '@/lib/chatActivity'
-import type { Message } from '@/types'
 
 const props = defineProps<{
   activity: ChatActivityBlock
 }>()
 
 const summary = computed(() => chatActivitySummary(props.activity.messages))
-const toolMessages = computed(() => (
-  props.activity.messages.filter(message => message.role === 'tool')
+const toolEntries = computed(() => buildChatActivityEntries(props.activity.messages))
+const assistantMessages = computed(() => (
+  props.activity.messages.filter(message => message.role === 'assistant' && message.content.trim())
+))
+const assistantProcess = computed(() => (
+  assistantMessages.value
+    .map(message => message.content.trim())
+    .join('\n\n---\n\n')
 ))
 
-function entryIcon(message: Message) {
-  if (message.role === 'assistant') return Bot
-  const name = String(message.toolName ?? '').toLowerCase()
+function entryIcon(entry: ChatActivityEntry) {
+  const name = entry.toolName
   if (name === 'bash' || name === 'background' || name === 'background_output') return Terminal
   if (name === 'write' || name === 'edit') return FilePenLine
   if (name === 'read' || name === 'ls' || name === 'find' || name === 'grep') return Search
   return Wrench
+}
+
+function detailLabel(entry: ChatActivityEntry) {
+  const name = entry.toolName
+  if (name === 'bash') return 'Shell'
+  if (name === 'background') return '后台进程'
+  if (name === 'background_output') return '进程输出'
+  if (name === 'read') return '文件内容'
+  if (name === 'write' || name === 'edit') return '文件变更'
+  if (name === 'ls' || name === 'find' || name === 'grep') return '检索结果'
+  if (name === 'milksu_archify') return '架构图'
+  return entry.request?.toolName ?? entry.result?.toolName ?? '工具详情'
 }
 </script>
 
@@ -40,38 +58,62 @@ function entryIcon(message: Message) {
   <details class="tool-activity mb-7">
     <summary class="tool-activity__summary">
       <Terminal class="size-4 shrink-0 text-muted-foreground" />
-      <span class="min-w-0 flex-1 truncate">{{ summary }}</span>
-      <span class="shrink-0 text-caption font-normal text-muted-foreground">
-        {{ toolMessages.length ? `${toolMessages.length} 个工具` : '思考中' }}
-      </span>
+      <span class="min-w-0 truncate">{{ summary }}</span>
       <LoaderCircle v-if="activity.running" class="size-3.5 shrink-0 animate-spin text-muted-foreground" />
       <ChevronDown class="tool-activity__chevron size-4 shrink-0 text-muted-foreground" />
     </summary>
 
     <div class="tool-activity__entries">
       <details
-        v-for="message in activity.messages"
-        :key="message.id"
+        v-for="entry in toolEntries"
+        :key="entry.id"
         class="tool-activity-entry"
       >
         <summary class="tool-activity-entry__summary">
-          <component :is="entryIcon(message)" class="size-3.5 shrink-0 text-muted-foreground" />
+          <component :is="entryIcon(entry)" class="size-3.5 shrink-0 text-muted-foreground" />
           <span class="min-w-0 flex-1 truncate">
-            {{ chatActivityEntrySummary(message) }}
+            {{ chatActivityEntrySummary(entry) }}
           </span>
           <LoaderCircle
-            v-if="message.status === 'running'"
+            v-if="entry.running"
             class="size-3.5 shrink-0 animate-spin text-muted-foreground"
           />
           <ChevronDown class="tool-activity-entry__chevron size-3.5 shrink-0 text-muted-foreground" />
         </summary>
         <div class="tool-activity-entry__detail">
+          <p class="tool-activity-entry__detail-label">
+            {{ detailLabel(entry) }}
+          </p>
+          <template v-if="entry.request">
+            <pre>{{ entry.request.content || '工具没有可显示的输入。' }}</pre>
+          </template>
+          <template v-if="entry.result">
+            <p v-if="entry.request" class="tool-activity-entry__result-label">
+              结果
+            </p>
+            <pre>{{ entry.result.content || '工具没有返回可显示的内容。' }}</pre>
+          </template>
+        </div>
+      </details>
+      <details
+        v-if="assistantMessages.length"
+        class="tool-activity-entry"
+      >
+        <summary class="tool-activity-entry__summary">
+          <Bot class="size-3.5 shrink-0 text-muted-foreground" />
+          <span class="min-w-0 truncate">
+            查看 Agent 过程 · {{ assistantMessages.length }} 条
+          </span>
+          <ChevronDown class="tool-activity-entry__chevron size-3.5 shrink-0 text-muted-foreground" />
+        </summary>
+        <div class="tool-activity-entry__detail">
+          <p class="tool-activity-entry__detail-label">
+            Agent
+          </p>
           <MarkdownContent
-            v-if="message.role === 'assistant'"
-            :content="message.content"
+            :content="assistantProcess"
             compact
           />
-          <pre v-else>{{ message.content || '工具没有返回可显示的内容。' }}</pre>
         </div>
       </details>
     </div>
@@ -86,6 +128,8 @@ function entryIcon(message: Message) {
 .tool-activity__summary,
 .tool-activity-entry__summary {
   display: flex;
+  width: fit-content;
+  max-width: 100%;
   cursor: pointer;
   list-style: none;
   align-items: center;
@@ -95,7 +139,7 @@ function entryIcon(message: Message) {
 
 .tool-activity__summary {
   min-height: 2.25rem;
-  padding: 0.35rem 0.5rem;
+  padding: 0.35rem 0.25rem;
   font-size: var(--text-label, 0.875rem);
   line-height: 1.25rem;
   font-weight: 550;
@@ -113,14 +157,16 @@ function entryIcon(message: Message) {
 }
 
 .tool-activity__entries {
-  margin: 0.25rem 0 0 0.85rem;
-  border-left: 1px solid var(--border);
-  padding: 0.15rem 0 0.15rem 0.75rem;
+  margin-top: 0.15rem;
+  max-height: min(28rem, 48vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 0.25rem;
 }
 
 .tool-activity-entry__summary {
-  min-height: 2rem;
-  padding: 0.3rem 0.5rem;
+  min-height: 2.2rem;
+  padding: 0.3rem 0.25rem;
   font-size: var(--text-body, 0.875rem);
   line-height: 1.25rem;
 }
@@ -136,7 +182,7 @@ function entryIcon(message: Message) {
 }
 
 .tool-activity-entry__detail {
-  margin: 0.2rem 0.5rem 0.55rem 1.65rem;
+  margin: 0.2rem 0 0.65rem 1.75rem;
   max-height: 18rem;
   overflow: auto;
   border: 1px solid var(--border);
@@ -146,6 +192,24 @@ function entryIcon(message: Message) {
   color: var(--foreground);
   font-size: var(--text-caption, 0.8125rem);
   line-height: 1.35rem;
+}
+
+.tool-activity-entry__detail-label {
+  margin: 0 0 0.55rem;
+  color: var(--muted-foreground);
+  font-family: var(--font-sans, Inter, ui-sans-serif, system-ui, sans-serif);
+  font-size: var(--text-caption, 0.8125rem);
+  line-height: 1.1rem;
+}
+
+.tool-activity-entry__result-label {
+  margin: 0.75rem 0 0.35rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.65rem;
+  color: var(--muted-foreground);
+  font-family: var(--font-sans, Inter, ui-sans-serif, system-ui, sans-serif);
+  font-size: var(--text-caption, 0.8125rem);
+  line-height: 1.1rem;
 }
 
 .tool-activity-entry__detail pre {
