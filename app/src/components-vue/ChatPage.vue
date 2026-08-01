@@ -1026,58 +1026,6 @@ watch(
             <FolderOpen class="size-3.5 shrink-0" />
             <span class="truncate">{{ workspacePath ? workspaceName : '项目' }}</span>
           </Button>
-          <DropdownMenu v-if="!ctfSession">
-            <DropdownMenuTrigger as-child>
-              <Button
-                variant="ghost"
-                size="sm"
-                class="chat-composer__control"
-                :disabled="running"
-                aria-label="Coding 快捷动作"
-              >
-                <Sparkles class="size-3.5 shrink-0" />
-                动作
-                <ChevronDown class="size-3.5 shrink-0 text-muted-foreground" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="start"
-              :side-offset="8"
-              class="w-[22rem] max-w-[calc(100vw-2rem)] p-1"
-            >
-              <DropdownMenuLabel class="px-3 pb-2 pt-2 text-label">
-                直接完成
-              </DropdownMenuLabel>
-              <DropdownMenuItem
-                v-for="option in codingActionOptions"
-                :key="option.kind"
-                class="coding-action-option"
-                @select="runCodingProductAction(option.kind)"
-              >
-                <component :is="option.icon" class="mt-0.5 size-4 shrink-0" />
-                <div class="min-w-0 flex-1">
-                  <p class="text-label font-medium">{{ option.label }}</p>
-                  <p class="mt-0.5 text-caption leading-5 text-muted-foreground">
-                    {{ option.description }}
-                  </p>
-                </div>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Button
-            v-if="!ctfSession"
-            :variant="goalMode ? 'secondary' : 'ghost'"
-            size="sm"
-            class="chat-composer__control"
-            :disabled="running || hasUnfinishedGoal"
-            :title="hasUnfinishedGoal
-              ? '当前已有持续目标；可在上方暂停、继续或清除'
-              : '把下一条消息设为持续目标；Agent 会跨回合推进并验证完成'"
-            @click="goalMode = !goalMode"
-          >
-            <Target class="size-3.5" />
-            目标
-          </Button>
           <Select
             v-if="!ctfSession"
             :model-value="effectiveExecutionMode"
@@ -1191,7 +1139,8 @@ watch(
           >
             <SelectTrigger
               size="sm"
-              class="chat-composer__control chat-composer__model ml-auto min-w-0 border-0 bg-transparent shadow-none"
+              class="chat-composer__control chat-composer__model min-w-0 border-0 bg-transparent shadow-none"
+              :class="{ 'ml-auto': ctfSession }"
               aria-label="选择本任务模型"
               :title="effectiveModelMode === 'auto'
                 ? 'MilkSU 按任务角色自动选择模型；你可以仅为当前对话覆盖'
@@ -1399,6 +1348,64 @@ watch(
                 {{ workspacePath || '尚未选择项目' }}
               </p>
             </div>
+          </div>
+        </section>
+
+        <section v-if="!ctfSession" class="border-b border-border px-4 py-4">
+          <p class="text-caption font-medium text-muted-foreground">任务操作</p>
+          <div class="mt-3 grid grid-cols-2 gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger as-child>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  class="justify-between"
+                  :disabled="running"
+                  aria-label="Coding 快捷动作"
+                >
+                  <span class="flex min-w-0 items-center gap-2">
+                    <Sparkles class="size-3.5 shrink-0" />
+                    <span class="truncate">直接完成</span>
+                  </span>
+                  <ChevronDown class="size-3.5 shrink-0 text-muted-foreground" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="start"
+                :side-offset="8"
+                class="w-[22rem] max-w-[calc(100vw-2rem)] p-1"
+              >
+                <DropdownMenuLabel class="px-3 pb-2 pt-2 text-label">
+                  直接完成
+                </DropdownMenuLabel>
+                <DropdownMenuItem
+                  v-for="option in codingActionOptions"
+                  :key="option.kind"
+                  class="coding-action-option"
+                  @select="runCodingProductAction(option.kind)"
+                >
+                  <component :is="option.icon" class="mt-0.5 size-4 shrink-0" />
+                  <div class="min-w-0 flex-1">
+                    <p class="text-label font-medium">{{ option.label }}</p>
+                    <p class="mt-0.5 text-caption leading-5 text-muted-foreground">
+                      {{ option.description }}
+                    </p>
+                  </div>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button
+              :variant="goalMode ? 'secondary' : 'outline'"
+              size="sm"
+              :disabled="running || hasUnfinishedGoal"
+              :title="hasUnfinishedGoal
+                ? '当前已有持续目标；可在输入区上方暂停、继续或清除'
+                : '把下一条消息设为持续目标；Agent 会跨回合推进并验证完成'"
+              @click="goalMode = !goalMode"
+            >
+              <Target class="size-3.5" />
+              {{ goalMode ? '已设为目标' : '设为目标' }}
+            </Button>
           </div>
         </section>
 
@@ -2093,9 +2100,9 @@ watch(
 }
 
 .chat-composer__model {
-  width: clamp(12rem, 22vw, 20rem);
-  flex: 1 1 16rem;
-  max-width: 20rem;
+  width: auto;
+  flex: 1 1 10rem;
+  max-width: 15rem;
 }
 
 .chat-composer__island {
@@ -2139,8 +2146,8 @@ watch(
   }
 
   .chat-composer__model {
-    min-width: 9rem;
-    flex: 1 1 11rem;
+    min-width: 6rem;
+    flex: 1 1 8rem;
     width: auto;
   }
 }
