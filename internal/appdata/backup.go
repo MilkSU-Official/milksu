@@ -28,6 +28,7 @@ const (
 )
 
 var backupRoots = []string{
+	DataLayoutFile,
 	"conversations",
 	"ctf-workspaces",
 	filepath.Join("ctf", "memories"),

@@ -22,6 +22,11 @@ func TestExportBackupIncludesUserStateAndExcludesCredentials(t *testing.T) {
 		filepath.Join(root, "settings.json"),
 		`{"locale":"zh","providers":{"legacy":{"api_key":"legacy-provider-secret","has_api_key":true}}}`,
 	)
+	writeBackupFixture(
+		t,
+		filepath.Join(root, DataLayoutFile),
+		`{"schema":"milksu-data-layout/v1","version":1,"updatedAt":"2026-08-02T00:00:00Z"}`,
+	)
 	writeBackupFixture(t, filepath.Join(root, "conversations", "one.json"), `{"id":"one"}`)
 	writeBackupFixture(t, filepath.Join(root, "ctf-workspaces", "job", "notes.md"), "evidence")
 	writeBackupFixture(t, filepath.Join(root, "credentials.db"), "provider-secret")
@@ -41,7 +46,7 @@ func TestExportBackupIncludesUserStateAndExcludesCredentials(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if exported.CredentialsIncluded || exported.FileCount != 5 || exported.Bytes <= 0 {
+	if exported.CredentialsIncluded || exported.FileCount != 6 || exported.Bytes <= 0 {
 		t.Fatalf("unexpected export: %#v", exported)
 	}
 	validation, err := ValidateBackup(destination)
@@ -54,6 +59,7 @@ func TestExportBackupIncludesUserStateAndExcludesCredentials(t *testing.T) {
 
 	names, manifest := readBackupArchive(t, destination)
 	for _, required := range []string{
+		"data/data-layout.json",
 		"data/settings.json",
 		"data/conversations/one.json",
 		"data/ctf-workspaces/job/notes.md",

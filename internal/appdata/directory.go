@@ -27,5 +27,8 @@ func Ensure() (string, error) {
 	if err := os.Chmod(directory, 0o700); err != nil {
 		return "", fmt.Errorf("protect app data directory: %w", err)
 	}
+	if err := ensureDataLayout(directory); err != nil {
+		return "", err
+	}
 	return directory, nil
 }
