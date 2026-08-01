@@ -59,6 +59,22 @@ export interface CTFTrainingSourceSummary {
   userConfirmedSolved: number
 }
 
+export interface CTFTrainingAcceptanceTrack {
+  key: string
+  label: string
+  status: 'missing' | 'attempted' | 'user-confirmed' | 'judge-verified'
+  attempts: number
+  judgeVerifiedSolved: number
+  userConfirmedSolved: number
+}
+
+export interface CTFTrainingAcceptance {
+  requiredTracks: number
+  judgeVerifiedTracks: number
+  ready: boolean
+  tracks: CTFTrainingAcceptanceTrack[]
+}
+
 export interface NSSCTFRecommendation {
   problem: NSSCTFCatalogProblem
   kind: '校准' | '补短板' | '巩固' | '进阶' | '复盘'
@@ -89,6 +105,7 @@ export interface NSSCTFTrainingDashboard {
   realSolvedCount: number
   judgeVerifiedSolvedCount: number
   userConfirmedSolvedCount: number
+  acceptance: CTFTrainingAcceptance
   sources: CTFTrainingSourceSummary[]
   dimensions: CTFAbilityDimension[]
   recommendations: NSSCTFRecommendation[]

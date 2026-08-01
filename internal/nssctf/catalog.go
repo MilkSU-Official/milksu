@@ -69,6 +69,29 @@ type TrainingSourceSummary struct {
 	UserConfirmedSolved int    `json:"userConfirmedSolved"`
 }
 
+type TrainingAcceptanceTrack struct {
+	Key                 string `json:"key"`
+	Label               string `json:"label"`
+	Status              string `json:"status"`
+	Attempts            int    `json:"attempts"`
+	JudgeVerifiedSolved int    `json:"judgeVerifiedSolved"`
+	UserConfirmedSolved int    `json:"userConfirmedSolved"`
+}
+
+type TrainingAcceptance struct {
+	RequiredTracks      int                       `json:"requiredTracks"`
+	JudgeVerifiedTracks int                       `json:"judgeVerifiedTracks"`
+	Ready               bool                      `json:"ready"`
+	Tracks              []TrainingAcceptanceTrack `json:"tracks"`
+}
+
+const (
+	TrainingAcceptanceMissing       = "missing"
+	TrainingAcceptanceAttempted     = "attempted"
+	TrainingAcceptanceUserConfirmed = "user-confirmed"
+	TrainingAcceptanceJudgeVerified = "judge-verified"
+)
+
 type Recommendation struct {
 	Problem CatalogProblem `json:"problem"`
 	Kind    string         `json:"kind"`
@@ -99,6 +122,7 @@ type TrainingDashboard struct {
 	RealSolvedCount          int                     `json:"realSolvedCount"`
 	JudgeVerifiedSolvedCount int                     `json:"judgeVerifiedSolvedCount"`
 	UserConfirmedSolvedCount int                     `json:"userConfirmedSolvedCount"`
+	Acceptance               TrainingAcceptance      `json:"acceptance"`
 	Sources                  []TrainingSourceSummary `json:"sources"`
 	Dimensions               []AbilityDimension      `json:"dimensions"`
 	Recommendations          []Recommendation        `json:"recommendations"`
@@ -405,6 +429,7 @@ func (s *CatalogService) Dashboard(ctx context.Context, signals []TrainingSignal
 		return TrainingDashboard{}, err
 	}
 	dimensions := buildAbilityDimensions(signals, problems)
+	acceptance := buildTrainingAcceptance(dimensions)
 	recommendations := buildRecommendations(dimensions, signals, problems, 6)
 	series := buildTrainingSeries(problems, signals, 8)
 	sources := buildTrainingSourceSummaries(signals)
@@ -440,9 +465,43 @@ func (s *CatalogService) Dashboard(ctx context.Context, signals []TrainingSignal
 		RealAttemptCount: realAttemptCount, RealSolvedCount: realSolvedCount,
 		JudgeVerifiedSolvedCount: judgeVerifiedSolvedCount,
 		UserConfirmedSolvedCount: userConfirmedSolvedCount,
+		Acceptance:               acceptance,
 		Sources:                  sources,
 		Dimensions:               dimensions, Recommendations: recommendations, Series: series,
 	}, nil
+}
+
+func buildTrainingAcceptance(dimensions []AbilityDimension) TrainingAcceptance {
+	result := TrainingAcceptance{
+		RequiredTracks: len(abilityAxes),
+		Tracks:         make([]TrainingAcceptanceTrack, 0, len(abilityAxes)),
+	}
+	byKey := make(map[string]AbilityDimension, len(dimensions))
+	for _, dimension := range dimensions {
+		byKey[dimension.Key] = dimension
+	}
+	for _, axis := range abilityAxes {
+		dimension := byKey[axis.Key]
+		status := TrainingAcceptanceMissing
+		switch {
+		case dimension.JudgeVerifiedSolved > 0:
+			status = TrainingAcceptanceJudgeVerified
+			result.JudgeVerifiedTracks++
+		case dimension.UserConfirmedSolved > 0:
+			status = TrainingAcceptanceUserConfirmed
+		case dimension.Attempts > 0:
+			status = TrainingAcceptanceAttempted
+		}
+		result.Tracks = append(result.Tracks, TrainingAcceptanceTrack{
+			Key: axis.Key, Label: axis.Label, Status: status,
+			Attempts:            dimension.Attempts,
+			JudgeVerifiedSolved: dimension.JudgeVerifiedSolved,
+			UserConfirmedSolved: dimension.UserConfirmedSolved,
+		})
+	}
+	result.Ready = result.RequiredTracks > 0 &&
+		result.JudgeVerifiedTracks == result.RequiredTracks
+	return result
 }
 
 func (s *CatalogService) Search(ctx context.Context, request CatalogQuery) (CatalogSearchResult, error) {

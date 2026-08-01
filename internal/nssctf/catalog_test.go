@@ -114,6 +114,12 @@ func TestCatalogSyncAndDashboard(t *testing.T) {
 	if coldDashboard.OverallScore != 0 || coldDashboard.OverallConfidence != 0 {
 		t.Fatalf("untrained profile must remain uncalibrated: %+v", coldDashboard)
 	}
+	if coldDashboard.Acceptance.RequiredTracks != 6 ||
+		coldDashboard.Acceptance.JudgeVerifiedTracks != 0 ||
+		coldDashboard.Acceptance.Ready ||
+		len(coldDashboard.Acceptance.Tracks) != 6 {
+		t.Fatalf("cold-start acceptance matrix is dishonest: %+v", coldDashboard.Acceptance)
+	}
 	for _, recommendation := range coldDashboard.Recommendations {
 		if recommendation.Kind != "校准" || recommendation.Reason == "" {
 			t.Fatalf("cold-start recommendation must explain calibration: %+v", recommendation)
@@ -147,6 +153,11 @@ func TestCatalogSyncAndDashboard(t *testing.T) {
 		dashboard.Sources[0].Solved != 1 ||
 		dashboard.Sources[0].JudgeVerifiedSolved != 1 {
 		t.Fatalf("dashboard must expose real training provenance: %+v", dashboard)
+	}
+	if dashboard.Acceptance.JudgeVerifiedTracks != 1 ||
+		dashboard.Acceptance.Ready ||
+		dashboard.Acceptance.Tracks[0].Status != TrainingAcceptanceJudgeVerified {
+		t.Fatalf("single Web solve overstated multi-type acceptance: %+v", dashboard.Acceptance)
 	}
 	if len(dashboard.Recommendations) == 0 {
 		t.Fatal("expected catalog recommendations")
@@ -217,6 +228,42 @@ func TestCatalogSyncAndDashboard(t *testing.T) {
 	}
 	if empty.Total != 0 || empty.Page != 1 || empty.PageCount != 0 || len(empty.Problems) != 0 {
 		t.Fatalf("empty catalog search returned an invalid page contract: %+v", empty)
+	}
+}
+
+func TestTrainingAcceptanceRequiresJudgeEvidenceAcrossEveryTrack(t *testing.T) {
+	partial := buildTrainingAcceptance([]AbilityDimension{
+		{Key: "web", Label: "Web", Attempts: 1, JudgeVerifiedSolved: 1},
+		{Key: "pwn", Label: "Pwn", Attempts: 1, UserConfirmedSolved: 1},
+		{Key: "reverse", Label: "Reverse", Attempts: 1},
+	})
+	if partial.Ready ||
+		partial.RequiredTracks != 6 ||
+		partial.JudgeVerifiedTracks != 1 ||
+		partial.Tracks[0].Status != TrainingAcceptanceJudgeVerified ||
+		partial.Tracks[1].Status != TrainingAcceptanceUserConfirmed ||
+		partial.Tracks[2].Status != TrainingAcceptanceAttempted ||
+		partial.Tracks[3].Status != TrainingAcceptanceMissing {
+		t.Fatalf("partial evidence produced an invalid acceptance matrix: %+v", partial)
+	}
+
+	verified := make([]AbilityDimension, 0, len(abilityAxes))
+	for _, axis := range abilityAxes {
+		verified = append(verified, AbilityDimension{
+			Key: axis.Key, Label: axis.Label,
+			Attempts: 1, Solved: 1, JudgeVerifiedSolved: 1,
+		})
+	}
+	complete := buildTrainingAcceptance(verified)
+	if !complete.Ready ||
+		complete.RequiredTracks != 6 ||
+		complete.JudgeVerifiedTracks != 6 {
+		t.Fatalf("complete Judge evidence did not satisfy acceptance: %+v", complete)
+	}
+	for _, track := range complete.Tracks {
+		if track.Status != TrainingAcceptanceJudgeVerified {
+			t.Fatalf("complete acceptance retained an unverified track: %+v", complete)
+		}
 	}
 }
 

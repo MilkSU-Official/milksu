@@ -46,6 +46,13 @@ const abilitySourceText = computed(() => {
     return `${source.label} ${source.solved}/${source.attempts} · ${evidence}`
   }).join(' · ')
 })
+
+function acceptanceStatusText(status: string) {
+  if (status === 'judge-verified') return '已有平台 Judge 回执'
+  if (status === 'user-confirmed') return '仅有用户确认，仍需 Judge 回执'
+  if (status === 'attempted') return '已有尝试，尚未完成'
+  return '尚无真实训练记录'
+}
 </script>
 
 <template>
@@ -133,6 +140,35 @@ const abilitySourceText = computed(() => {
                   {{ dimension.confidence ? dimension.score : '—' }}
                 </span>
               </div>
+            </div>
+          </div>
+
+          <div class="mt-4 border-t border-border pt-4">
+            <div class="flex items-center justify-between gap-3 text-caption">
+              <span class="font-medium text-foreground">多题型真实验收</span>
+              <span class="font-mono text-muted-foreground">
+                {{ ctfDashboard?.acceptance?.judgeVerifiedTracks ?? 0 }}/{{ ctfDashboard?.acceptance?.requiredTracks ?? 6 }}
+              </span>
+            </div>
+            <div class="mt-2.5 grid grid-cols-3 gap-1.5">
+              <span
+                v-for="track in ctfDashboard?.acceptance?.tracks ?? []"
+                :key="track.key"
+                class="flex min-w-0 items-center gap-1.5 rounded-md bg-muted/45 px-2 py-1.5 text-caption"
+                :title="acceptanceStatusText(track.status)"
+              >
+                <span
+                  class="size-1.5 shrink-0 rounded-full"
+                  :class="track.status === 'judge-verified'
+                    ? 'bg-primary'
+                    : track.status === 'user-confirmed'
+                      ? 'bg-amber-400'
+                      : track.status === 'attempted'
+                        ? 'bg-muted-foreground'
+                        : 'border border-muted-foreground/60'"
+                />
+                <span class="truncate">{{ track.label }}</span>
+              </span>
             </div>
           </div>
 
