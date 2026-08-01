@@ -46,6 +46,8 @@ export interface CTFAbilityDimension {
   confidence: number
   attempts: number
   solved: number
+  judgeVerifiedSolved: number
+  userConfirmedSolved: number
 }
 
 export interface CTFTrainingSourceSummary {
@@ -53,6 +55,8 @@ export interface CTFTrainingSourceSummary {
   label: string
   attempts: number
   solved: number
+  judgeVerifiedSolved: number
+  userConfirmedSolved: number
 }
 
 export interface NSSCTFRecommendation {
@@ -83,6 +87,8 @@ export interface NSSCTFTrainingDashboard {
   overallConfidence: number
   realAttemptCount: number
   realSolvedCount: number
+  judgeVerifiedSolvedCount: number
+  userConfirmedSolvedCount: number
   sources: CTFTrainingSourceSummary[]
   dimensions: CTFAbilityDimension[]
   recommendations: NSSCTFRecommendation[]

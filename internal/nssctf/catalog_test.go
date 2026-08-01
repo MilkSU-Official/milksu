@@ -123,6 +123,7 @@ func TestCatalogSyncAndDashboard(t *testing.T) {
 	dashboard, err := service.Dashboard(context.Background(), []TrainingSignal{{
 		ProblemID: 101, Platform: "nssctf-web", Category: "Web", Succeeded: true,
 		Attempts: 1, IndependentSteps: 2,
+		Verification: TrainingVerificationPlatformJudge,
 	}})
 	if err != nil {
 		t.Fatalf("build dashboard: %v", err)
@@ -136,11 +137,15 @@ func TestCatalogSyncAndDashboard(t *testing.T) {
 	if dashboard.OverallScore != dashboard.Dimensions[0].Score || dashboard.OverallConfidence <= 0 {
 		t.Fatalf("overall ability must use calibrated axes and report confidence: %+v", dashboard)
 	}
-	if dashboard.RealAttemptCount != 1 || dashboard.RealSolvedCount != 1 ||
+	if dashboard.RealAttemptCount != 1 ||
+		dashboard.RealSolvedCount != 1 ||
+		dashboard.JudgeVerifiedSolvedCount != 1 ||
+		dashboard.UserConfirmedSolvedCount != 0 ||
 		len(dashboard.Sources) != 1 ||
 		dashboard.Sources[0].Key != "nssctf" ||
 		dashboard.Sources[0].Attempts != 1 ||
-		dashboard.Sources[0].Solved != 1 {
+		dashboard.Sources[0].Solved != 1 ||
+		dashboard.Sources[0].JudgeVerifiedSolved != 1 {
 		t.Fatalf("dashboard must expose real training provenance: %+v", dashboard)
 	}
 	if len(dashboard.Recommendations) == 0 {
@@ -275,10 +280,12 @@ func TestCrossPlatformAbilityUsesTagsWithoutPollutingCatalogProgress(t *testing.
 		{
 			ProblemID: 1, Platform: "nssctf-web", Category: "Web",
 			Succeeded: true, Attempts: 1,
+			Verification: TrainingVerificationPlatformJudge,
 		},
 		{
 			Platform: "ctfshow-web", Category: "Misc", Tags: []string{"pcap", "流量分析"},
 			Succeeded: true, Attempts: 1, IndependentSteps: 2,
+			Verification: TrainingVerificationUserConfirmed,
 		},
 	}
 	dimensions := buildAbilityDimensions(signals, problems)
@@ -294,14 +301,21 @@ func TestCrossPlatformAbilityUsesTagsWithoutPollutingCatalogProgress(t *testing.
 	if forensics.Attempts != 1 || forensics.Solved != 1 || forensics.Score <= 20 {
 		t.Fatalf("cross-platform tags did not classify the real solve: %#v", dimensions)
 	}
+	if dimensions[0].JudgeVerifiedSolved != 1 ||
+		forensics.UserConfirmedSolved != 1 ||
+		forensics.JudgeVerifiedSolved != 0 {
+		t.Fatalf("ability dimensions lost Judge provenance: %#v", dimensions)
+	}
 	sources := buildTrainingSourceSummaries(signals)
 	if len(sources) != 2 ||
 		sources[0].Key != "nssctf" ||
 		sources[0].Attempts != 1 ||
 		sources[0].Solved != 1 ||
+		sources[0].JudgeVerifiedSolved != 1 ||
 		sources[1].Key != "ctfshow" ||
 		sources[1].Attempts != 1 ||
-		sources[1].Solved != 1 {
+		sources[1].Solved != 1 ||
+		sources[1].UserConfirmedSolved != 1 {
 		t.Fatalf("cross-platform provenance was not summarized: %#v", sources)
 	}
 	series := buildTrainingSeries(problems, signals, 8)
@@ -309,6 +323,35 @@ func TestCrossPlatformAbilityUsesTagsWithoutPollutingCatalogProgress(t *testing.
 		series[0].AttemptedCount != 1 ||
 		series[0].CompletedCount != 1 {
 		t.Fatalf("cross-platform signal polluted NSSCTF series progress: %#v", series)
+	}
+}
+
+func TestJudgeVerifiedSolveScoresHigherThanUserConfirmedSolve(t *testing.T) {
+	problems := []CatalogProblem{{
+		PlatformID: 1,
+		Category:   "Web",
+		Difficulty: 3,
+	}}
+	verified := buildAbilityDimensions([]TrainingSignal{{
+		ProblemID:    1,
+		Platform:     "nssctf-web",
+		Category:     "Web",
+		Succeeded:    true,
+		Attempts:     1,
+		Verification: TrainingVerificationPlatformJudge,
+	}}, problems)[0]
+	confirmed := buildAbilityDimensions([]TrainingSignal{{
+		ProblemID:    1,
+		Platform:     "nssctf-web",
+		Category:     "Web",
+		Succeeded:    true,
+		Attempts:     1,
+		Verification: TrainingVerificationUserConfirmed,
+	}}, problems)[0]
+	if verified.Score <= confirmed.Score ||
+		verified.JudgeVerifiedSolved != 1 ||
+		confirmed.UserConfirmedSolved != 1 {
+		t.Fatalf("Judge provenance did not affect ability confidence: verified=%#v confirmed=%#v", verified, confirmed)
 	}
 }
 

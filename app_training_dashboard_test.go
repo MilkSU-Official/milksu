@@ -65,6 +65,10 @@ func TestRealTrainingSignalPreservesPlatformEvidenceWithoutCountingRuntimeRestar
 			IndependentSteps: 3,
 		},
 		Outcome: &securityruntime.Outcome{Status: securityruntime.OutcomeSucceeded},
+		JudgeReceipts: []ctf.ExternalJudgeReceipt{{
+			Platform: "nssctf-web",
+			Correct:  boolPointer(true),
+		}},
 	}
 	signal, eligible := realTrainingSignal(projection)
 	if !eligible {
@@ -77,11 +81,36 @@ func TestRealTrainingSignalPreservesPlatformEvidenceWithoutCountingRuntimeRestar
 		signal.Attempts != 1 ||
 		signal.Hints != 2 ||
 		signal.IndependentSteps != 3 ||
+		signal.Verification != nssctf.TrainingVerificationPlatformJudge ||
 		!signal.Succeeded ||
 		len(signal.Tags) != 1 ||
 		signal.Tags[0] != "SQL injection" {
 		t.Fatalf("unexpected real training signal: %#v", signal)
 	}
+}
+
+func TestRealTrainingSignalDistinguishesUserConfirmationFromJudgeReceipt(t *testing.T) {
+	signal, eligible := realTrainingSignal(ctf.Projection{
+		Challenge: ctf.ChallengeView{
+			Category:         "Misc",
+			ExternalPlatform: "nssctf-web",
+			Source:           securityruntimeSource("url", "https://www.nssctf.cn/problem/317"),
+		},
+		Outcome: &securityruntime.Outcome{Status: securityruntime.OutcomeSucceeded},
+		JudgeReceipts: []ctf.ExternalJudgeReceipt{{
+			Platform: "another-platform",
+			Correct:  boolPointer(true),
+		}},
+	})
+	if !eligible ||
+		!signal.Succeeded ||
+		signal.Verification != nssctf.TrainingVerificationUserConfirmed {
+		t.Fatalf("unmatched receipt was treated as platform authority: %#v", signal)
+	}
+}
+
+func boolPointer(value bool) *bool {
+	return &value
 }
 
 func TestRealTrainingSignalKeepsCrossPlatformTrainingOutOfNSSCTFProblemProgress(t *testing.T) {

@@ -656,19 +656,33 @@ func realTrainingSignal(projection ctf.Projection) (nssctf.TrainingSignal, bool)
 			state = nssctf.TrainingStateCancelled
 		}
 	}
+	succeeded := projection.Outcome != nil &&
+		projection.Outcome.Status == securityruntime.OutcomeSucceeded
+	verification := nssctf.TrainingVerificationUnverified
+	if succeeded {
+		verification = nssctf.TrainingVerificationUserConfirmed
+		for _, receipt := range projection.JudgeReceipts {
+			if receipt.Correct != nil &&
+				*receipt.Correct &&
+				strings.EqualFold(receipt.Platform, platform) {
+				verification = nssctf.TrainingVerificationPlatformJudge
+				break
+			}
+		}
+	}
 	return nssctf.TrainingSignal{
 		ProblemID: problemID,
 		Platform:  platform,
 		Category:  projection.Challenge.Category,
 		Tags:      append([]string{}, projection.Challenge.KnowledgePoints...),
 		State:     state,
-		Succeeded: projection.Outcome != nil &&
-			projection.Outcome.Status == securityruntime.OutcomeSucceeded,
+		Succeeded: succeeded,
 		// A persisted CTF job is one learner attempt. Runtime/PI restarts inside
 		// the job are execution details and must not lower the learner's solve rate.
 		Attempts:         1,
 		Hints:            projection.HumanOutcome.HintCount,
 		IndependentSteps: projection.HumanOutcome.IndependentSteps,
+		Verification:     verification,
 	}, true
 }
 

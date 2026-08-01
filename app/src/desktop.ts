@@ -277,12 +277,12 @@ function inferCatalogCategory(tags: string[]) {
 
 function defaultAbilityDimensions(): CTFAbilityDimension[] {
   return [
-    { key: 'web', label: 'Web', score: 20, confidence: 0, attempts: 0, solved: 0 },
-    { key: 'pwn', label: 'Pwn', score: 20, confidence: 0, attempts: 0, solved: 0 },
-    { key: 'reverse', label: 'Reverse', score: 20, confidence: 0, attempts: 0, solved: 0 },
-    { key: 'crypto', label: 'Crypto', score: 20, confidence: 0, attempts: 0, solved: 0 },
-    { key: 'forensics', label: '取证', score: 20, confidence: 0, attempts: 0, solved: 0 },
-    { key: 'misc', label: 'Misc', score: 20, confidence: 0, attempts: 0, solved: 0 },
+    { key: 'web', label: 'Web', score: 20, confidence: 0, attempts: 0, solved: 0, judgeVerifiedSolved: 0, userConfirmedSolved: 0 },
+    { key: 'pwn', label: 'Pwn', score: 20, confidence: 0, attempts: 0, solved: 0, judgeVerifiedSolved: 0, userConfirmedSolved: 0 },
+    { key: 'reverse', label: 'Reverse', score: 20, confidence: 0, attempts: 0, solved: 0, judgeVerifiedSolved: 0, userConfirmedSolved: 0 },
+    { key: 'crypto', label: 'Crypto', score: 20, confidence: 0, attempts: 0, solved: 0, judgeVerifiedSolved: 0, userConfirmedSolved: 0 },
+    { key: 'forensics', label: '取证', score: 20, confidence: 0, attempts: 0, solved: 0, judgeVerifiedSolved: 0, userConfirmedSolved: 0 },
+    { key: 'misc', label: 'Misc', score: 20, confidence: 0, attempts: 0, solved: 0, judgeVerifiedSolved: 0, userConfirmedSolved: 0 },
   ]
 }
 
@@ -782,6 +782,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         overallConfidence: 0,
         realAttemptCount: 0,
         realSolvedCount: 0,
+        judgeVerifiedSolvedCount: 0,
+        userConfirmedSolvedCount: 0,
         sources: [],
         dimensions,
         recommendations,

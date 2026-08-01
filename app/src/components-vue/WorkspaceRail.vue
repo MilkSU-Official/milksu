@@ -37,7 +37,14 @@ const icons = {
 const abilitySourceText = computed(() => {
   const sources = props.ctfDashboard?.sources ?? []
   if (!sources.length) return '完成第一道真实平台题后开始校准'
-  return sources.map(source => `${source.label} ${source.solved}/${source.attempts}`).join(' · ')
+  return sources.map((source) => {
+    const evidence = source.judgeVerifiedSolved
+      ? `平台回执 ${source.judgeVerifiedSolved}`
+      : source.userConfirmedSolved
+        ? `人工确认 ${source.userConfirmedSolved}`
+        : '暂无成功回执'
+    return `${source.label} ${source.solved}/${source.attempts} · ${evidence}`
+  }).join(' · ')
 })
 </script>
 
@@ -106,6 +113,7 @@ const abilitySourceText = computed(() => {
             <div class="ml-auto text-right text-caption text-muted-foreground">
               <p>真实训练 {{ ctfDashboard?.realAttemptCount ?? 0 }}</p>
               <p class="mt-1">已完成 {{ ctfDashboard?.realSolvedCount ?? 0 }}</p>
+              <p class="mt-1">平台回执 {{ ctfDashboard?.judgeVerifiedSolvedCount ?? 0 }}</p>
             </div>
           </div>
 

@@ -25,12 +25,14 @@ type CatalogSyncResult struct {
 }
 
 type AbilityDimension struct {
-	Key        string `json:"key"`
-	Label      string `json:"label"`
-	Score      int    `json:"score"`
-	Confidence int    `json:"confidence"`
-	Attempts   int    `json:"attempts"`
-	Solved     int    `json:"solved"`
+	Key                 string `json:"key"`
+	Label               string `json:"label"`
+	Score               int    `json:"score"`
+	Confidence          int    `json:"confidence"`
+	Attempts            int    `json:"attempts"`
+	Solved              int    `json:"solved"`
+	JudgeVerifiedSolved int    `json:"judgeVerifiedSolved"`
+	UserConfirmedSolved int    `json:"userConfirmedSolved"`
 }
 
 type TrainingSignal struct {
@@ -44,6 +46,7 @@ type TrainingSignal struct {
 	Attempts         int
 	Hints            int
 	IndependentSteps int
+	Verification     string
 }
 
 const (
@@ -51,13 +54,19 @@ const (
 	TrainingStateSucceeded = "succeeded"
 	TrainingStateFailed    = "failed"
 	TrainingStateCancelled = "cancelled"
+
+	TrainingVerificationPlatformJudge = "platform-judge"
+	TrainingVerificationUserConfirmed = "user-confirmed"
+	TrainingVerificationUnverified    = "unverified"
 )
 
 type TrainingSourceSummary struct {
-	Key      string `json:"key"`
-	Label    string `json:"label"`
-	Attempts int    `json:"attempts"`
-	Solved   int    `json:"solved"`
+	Key                 string `json:"key"`
+	Label               string `json:"label"`
+	Attempts            int    `json:"attempts"`
+	Solved              int    `json:"solved"`
+	JudgeVerifiedSolved int    `json:"judgeVerifiedSolved"`
+	UserConfirmedSolved int    `json:"userConfirmedSolved"`
 }
 
 type Recommendation struct {
@@ -82,16 +91,18 @@ type TrainingSeries struct {
 }
 
 type TrainingDashboard struct {
-	CatalogTotal      int                     `json:"catalogTotal"`
-	LastSyncedAt      string                  `json:"lastSyncedAt"`
-	OverallScore      int                     `json:"overallScore"`
-	OverallConfidence int                     `json:"overallConfidence"`
-	RealAttemptCount  int                     `json:"realAttemptCount"`
-	RealSolvedCount   int                     `json:"realSolvedCount"`
-	Sources           []TrainingSourceSummary `json:"sources"`
-	Dimensions        []AbilityDimension      `json:"dimensions"`
-	Recommendations   []Recommendation        `json:"recommendations"`
-	Series            []TrainingSeries        `json:"series"`
+	CatalogTotal             int                     `json:"catalogTotal"`
+	LastSyncedAt             string                  `json:"lastSyncedAt"`
+	OverallScore             int                     `json:"overallScore"`
+	OverallConfidence        int                     `json:"overallConfidence"`
+	RealAttemptCount         int                     `json:"realAttemptCount"`
+	RealSolvedCount          int                     `json:"realSolvedCount"`
+	JudgeVerifiedSolvedCount int                     `json:"judgeVerifiedSolvedCount"`
+	UserConfirmedSolvedCount int                     `json:"userConfirmedSolvedCount"`
+	Sources                  []TrainingSourceSummary `json:"sources"`
+	Dimensions               []AbilityDimension      `json:"dimensions"`
+	Recommendations          []Recommendation        `json:"recommendations"`
+	Series                   []TrainingSeries        `json:"series"`
 }
 
 type CatalogQuery struct {
@@ -399,9 +410,13 @@ func (s *CatalogService) Dashboard(ctx context.Context, signals []TrainingSignal
 	sources := buildTrainingSourceSummaries(signals)
 	realAttemptCount := 0
 	realSolvedCount := 0
+	judgeVerifiedSolvedCount := 0
+	userConfirmedSolvedCount := 0
 	for _, source := range sources {
 		realAttemptCount += source.Attempts
 		realSolvedCount += source.Solved
+		judgeVerifiedSolvedCount += source.JudgeVerifiedSolved
+		userConfirmedSolvedCount += source.UserConfirmedSolved
 	}
 	overall := 0
 	overallConfidence := 0
@@ -423,8 +438,10 @@ func (s *CatalogService) Dashboard(ctx context.Context, signals []TrainingSignal
 		CatalogTotal: len(problems), LastSyncedAt: lastSyncedAt,
 		OverallScore: overall, OverallConfidence: overallConfidence,
 		RealAttemptCount: realAttemptCount, RealSolvedCount: realSolvedCount,
-		Sources:    sources,
-		Dimensions: dimensions, Recommendations: recommendations, Series: series,
+		JudgeVerifiedSolvedCount: judgeVerifiedSolvedCount,
+		UserConfirmedSolvedCount: userConfirmedSolvedCount,
+		Sources:                  sources,
+		Dimensions:               dimensions, Recommendations: recommendations, Series: series,
 	}, nil
 }
 
@@ -632,6 +649,12 @@ func buildTrainingSourceSummaries(signals []TrainingSignal) []TrainingSourceSumm
 		summary.Attempts += max(1, signal.Attempts)
 		if signal.Succeeded {
 			summary.Solved++
+			switch signal.Verification {
+			case TrainingVerificationPlatformJudge:
+				summary.JudgeVerifiedSolved++
+			case TrainingVerificationUserConfirmed:
+				summary.UserConfirmedSolved++
+			}
 		}
 		summaries[key] = summary
 	}
@@ -683,9 +706,10 @@ func buildAbilityDimensions(signals []TrainingSignal, problems []CatalogProblem)
 		tagsByID[problem.PlatformID] = problem.Tags
 	}
 	type aggregate struct {
-		attempts, solved, hints, independent int
-		difficultySamples                    int
-		solvedDifficulty                     float64
+		attempts, solved, hints, independent     int
+		judgeVerifiedSolved, userConfirmedSolved int
+		difficultySamples                        int
+		solvedDifficulty, weightedSolved         float64
 	}
 	values := make(map[string]*aggregate)
 	for _, axis := range abilityAxes {
@@ -707,6 +731,18 @@ func buildAbilityDimensions(signals []TrainingSignal, problems []CatalogProblem)
 		value.independent += signal.IndependentSteps
 		if signal.Succeeded {
 			value.solved++
+			switch signal.Verification {
+			case TrainingVerificationPlatformJudge:
+				value.judgeVerifiedSolved++
+				value.weightedSolved += 1
+			case TrainingVerificationUserConfirmed:
+				value.userConfirmedSolved++
+				value.weightedSolved += 0.8
+			default:
+				// Older or imported records without typed Judge provenance can
+				// still contribute, but never at platform-receipt strength.
+				value.weightedSolved += 0.6
+			}
 			difficulty := signal.Difficulty
 			if difficulty <= 0 {
 				difficulty = difficultyByID[signal.ProblemID]
@@ -722,7 +758,7 @@ func buildAbilityDimensions(signals []TrainingSignal, problems []CatalogProblem)
 		value := values[axis.Key]
 		score := 20
 		if value.attempts > 0 {
-			successRate := float64(value.solved) / float64(value.attempts)
+			successRate := value.weightedSolved / float64(value.attempts)
 			averageDifficulty := 0.0
 			if value.difficultySamples > 0 {
 				averageDifficulty = value.solvedDifficulty / float64(value.difficultySamples)
@@ -742,6 +778,8 @@ func buildAbilityDimensions(signals []TrainingSignal, problems []CatalogProblem)
 			Key: axis.Key, Label: axis.Label, Score: score,
 			Confidence: min(100, value.attempts*14),
 			Attempts:   value.attempts, Solved: value.solved,
+			JudgeVerifiedSolved: value.judgeVerifiedSolved,
+			UserConfirmedSolved: value.userConfirmedSolved,
 		})
 	}
 	return result
