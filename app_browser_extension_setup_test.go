@@ -55,6 +55,9 @@ func TestBrowserExtensionSetupIsExposedToTheDesktopTrainingFlow(t *testing.T) {
 		"type: 'hello'",
 		"bridgeSessionIds:",
 		"'milksu.bridge.status'",
+		"if (bridgeSocket?.readyState === WebSocket.OPEN)",
+		"await sendBridgeHello()",
+		"await connectBridge()",
 		"MilkSU 尚未运行，扩展会自动重连。",
 	)
 	assertSourceContains(
@@ -72,6 +75,33 @@ func TestBrowserExtensionSetupIsExposedToTheDesktopTrainingFlow(t *testing.T) {
 		"if (!bridge?.paired)",
 		"chrome.runtime.reload()",
 	)
+}
+
+func TestBrowserExtensionSessionRefreshKeepsAHealthyBridgeOpen(t *testing.T) {
+	data, err := os.ReadFile("browserextension/background.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := string(data)
+	handlerStart := strings.Index(source, "if (message?.type === 'milksu.bridge.reconnect')")
+	handlerEnd := strings.Index(source[handlerStart:], "if (message?.type === 'milksu.bridge.status')")
+	if handlerStart < 0 || handlerEnd < 0 {
+		t.Fatal("browser extension reconnect handler is missing")
+	}
+	handler := source[handlerStart : handlerStart+handlerEnd]
+	for _, expected := range []string{
+		"if (bridgeSocket?.readyState === WebSocket.OPEN)",
+		"await sendBridgeHello()",
+		"await connectBridge()",
+		"return true",
+	} {
+		if !strings.Contains(handler, expected) {
+			t.Fatalf("session refresh handler is missing %q", expected)
+		}
+	}
+	if strings.Contains(handler, "bridgeSocket?.close()") {
+		t.Fatal("session refresh must not close a healthy WebSocket")
+	}
 }
 
 func TestBrowserPairingCodeIsCopyOnlyInTheDesktopUI(t *testing.T) {

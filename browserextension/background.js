@@ -599,9 +599,23 @@ async function flushPendingResults() {
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === 'milksu.bridge.reconnect') {
-    bridgeSocket?.close();
-    scheduleReconnect();
-    return;
+    void (async () => {
+      try {
+        if (bridgeSocket?.readyState === WebSocket.OPEN) {
+          await sendBridgeHello();
+        } else {
+          await connectBridge();
+        }
+        sendResponse({
+          connected: bridgeConnected && bridgeSocket?.readyState === WebSocket.OPEN,
+        });
+      } catch (error) {
+        lastBridgeError = String(error?.message || error);
+        scheduleReconnect();
+        sendResponse({ connected: false, error: lastBridgeError });
+      }
+    })();
+    return true;
   }
   if (message?.type === 'milksu.bridge.status') {
     chrome.storage.local.get(['endpoint', 'pairingCode', 'bridgeSessions']).then(stored => {
