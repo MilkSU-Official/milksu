@@ -34,6 +34,9 @@ rg -q "GetCodingDiff" app/wailsjs/go/main/App.d.ts
 rg -q "GetCodingArchitecturePreview" app/wailsjs/go/main/App.d.ts
 rg -q "RespondToolApproval" app/wailsjs/go/main/App.d.ts
 rg -q "ChooseCodingAttachments" app/wailsjs/go/main/App.d.ts
+rg -q "GetLocalDataStatus" app/wailsjs/go/main/App.d.ts
+rg -q "ExportLocalDataBackup" app/wailsjs/go/main/App.d.ts
+rg -q "ExportLocalDiagnostics" app/wailsjs/go/main/App.d.ts
 rg -q "ListNSSCTFCatalog" app/wailsjs/go/main/App.d.ts
 rg -q "GetCTFAgentBudgetStatus" app/wailsjs/go/main/App.d.ts
 rg -q "GetCTFAgentRunCheckpoint" app/wailsjs/go/main/App.d.ts
