@@ -1,0 +1,336 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "MilkSU 当前系统架构",
+    "subtitle": "M3 收口快照 · 本地桌面产品、Pi Coding 基座、CTF 证据闭环与开发者评测边界",
+    "output": "milksu-current-system.html",
+    "animation": "trace",
+    "visual_preset": "blueprint",
+    "quality_profile": "showcase",
+    "viewBox": [1460, 780],
+    "views": [
+      {
+        "id": "coding-path",
+        "label": "Coding 主链",
+        "focus": ["learner", "vue-shell", "go-host", "pi-sidecar", "coding-resources", "model-provider"],
+        "note": "从桌面交互到 Pi 会话、固定资源和模型 Provider。"
+      },
+      {
+        "id": "ctf-path",
+        "label": "CTF 证据闭环",
+        "focus": ["learner", "vue-shell", "go-host", "ctf-service", "browser-bridge", "ctf-platforms", "evidence-runtime", "local-state"],
+        "note": "候选答案必须经过平台 Judge 回执，才能进入证据和复盘。"
+      },
+      {
+        "id": "eval-boundary",
+        "label": "内部模型评测",
+        "focus": ["nyu-eval", "local-state"],
+        "note": "NYU CTF Bench 当前只做固定索引、摘要 Run 与报告，不执行挑战。"
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "learner",
+      "type": "external",
+      "label": "学习者",
+      "sublabel": "选题 · 指导 · 审批 · 复盘",
+      "pos": [40, 303],
+      "size": [160, 66]
+    },
+    {
+      "id": "vue-shell",
+      "type": "frontend",
+      "label": "Vue 产品表面",
+      "sublabel": "Wails WebView · CTF / CVE / Coding",
+      "tag": "L1 Product Surface",
+      "pos": [250, 300],
+      "size": [180, 72]
+    },
+    {
+      "id": "go-host",
+      "type": "backend",
+      "label": "Go / Wails Host",
+      "sublabel": "组合根 · Facade · Supervisor",
+      "tag": "L2 Application",
+      "pos": [500, 300],
+      "size": [180, 72]
+    },
+    {
+      "id": "pi-sidecar",
+      "type": "backend",
+      "label": "Pi Coding Sidecar",
+      "sublabel": "Session · Context · Generic Tool Loop",
+      "tag": "JSONL process boundary",
+      "pos": [770, 92],
+      "size": [190, 76]
+    },
+    {
+      "id": "coding-resources",
+      "type": "security",
+      "label": "固定 Coding 资源",
+      "sublabel": "Workflow · Archify · LSP · Retry",
+      "tag": "pinned + isolated",
+      "pos": [1040, 92],
+      "size": [190, 76]
+    },
+    {
+      "id": "model-provider",
+      "type": "external",
+      "label": "模型 Provider",
+      "sublabel": "用户配置的 API",
+      "tag": "secret injected at launch",
+      "pos": [1290, 92],
+      "size": [150, 76]
+    },
+    {
+      "id": "ctf-service",
+      "type": "backend",
+      "label": "CTF Application",
+      "sublabel": "Challenge · Role · Candidate · Judge",
+      "tag": "L3–L4",
+      "pos": [770, 298],
+      "size": [190, 76]
+    },
+    {
+      "id": "browser-bridge",
+      "type": "security",
+      "label": "Browser Bridge",
+      "sublabel": "loopback · 明确配对标签页",
+      "tag": "user-authorized",
+      "pos": [1040, 298],
+      "size": [190, 76]
+    },
+    {
+      "id": "ctf-platforms",
+      "type": "external",
+      "label": "CTF 平台",
+      "sublabel": "NSSCTF · CTFshow",
+      "tag": "authoritative Judge",
+      "pos": [1290, 298],
+      "size": [150, 76]
+    },
+    {
+      "id": "evidence-runtime",
+      "type": "backend",
+      "label": "Evidence Runtime",
+      "sublabel": "事件 · 制品 · 投影 · 恢复",
+      "tag": "L5 Integrity",
+      "pos": [770, 520],
+      "size": [190, 76]
+    },
+    {
+      "id": "local-state",
+      "type": "database",
+      "label": "用户目录本地状态",
+      "sublabel": "SQLite · Workspace · Artifacts",
+      "tag": "com.milksu.app",
+      "pos": [1040, 520],
+      "size": [190, 76]
+    },
+    {
+      "id": "nyu-eval",
+      "type": "backend",
+      "label": "NYU Eval Adapter",
+      "sublabel": "固定索引 · 摘要 Run · Report",
+      "tag": "developer-only · no runner",
+      "pos": [1290, 520],
+      "size": [150, 76]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "MilkSU.app · 本地桌面系统",
+      "wraps": ["vue-shell", "go-host", "ctf-service", "browser-bridge", "evidence-runtime"],
+      "pad": 30
+    },
+    {
+      "kind": "security-group",
+      "label": "受管 Sidecar · 固定资源白名单",
+      "wraps": ["pi-sidecar", "coding-resources"],
+      "pad": 24
+    },
+    {
+      "kind": "security-group",
+      "label": "用户配置目录",
+      "wraps": ["local-state"],
+      "pad": 22
+    }
+  ],
+  "connections": [
+    {
+      "id": "learner-to-vue",
+      "from": "learner",
+      "to": "vue-shell",
+      "label": "交互",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "left",
+      "route": "straight",
+      "labelAt": [225, 288]
+    },
+    {
+      "id": "vue-to-host",
+      "from": "vue-shell",
+      "to": "go-host",
+      "label": "Wails bindings",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "left",
+      "route": "straight",
+      "labelAt": [465, 286]
+    },
+    {
+      "id": "host-to-pi",
+      "from": "go-host",
+      "to": "pi-sidecar",
+      "label": "Coding session · JSONL",
+      "variant": "emphasis",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "route": "orthogonal-v",
+      "labelAt": [710, 206]
+    },
+    {
+      "id": "resources-to-pi",
+      "from": "coding-resources",
+      "to": "pi-sidecar",
+      "label": "审核后加载",
+      "variant": "security",
+      "fromSide": "left",
+      "toSide": "right",
+      "route": "straight",
+      "labelAt": [1000, 76]
+    },
+    {
+      "id": "pi-to-provider",
+      "from": "pi-sidecar",
+      "to": "model-provider",
+      "label": "推理 API",
+      "variant": "dashed",
+      "fromSide": "top",
+      "toSide": "top",
+      "route": "orthogonal-v",
+      "via": [[865, 38], [1365, 38]],
+      "labelAt": [1260, 24]
+    },
+    {
+      "id": "host-to-ctf",
+      "from": "go-host",
+      "to": "ctf-service",
+      "label": "训练编排",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "left",
+      "route": "straight",
+      "labelAt": [725, 396]
+    },
+    {
+      "id": "ctf-to-browser",
+      "from": "ctf-service",
+      "to": "browser-bridge",
+      "label": "配对与同步",
+      "variant": "security",
+      "fromSide": "right",
+      "toSide": "left",
+      "route": "straight",
+      "labelAt": [1000, 286]
+    },
+    {
+      "id": "browser-to-platform",
+      "from": "browser-bridge",
+      "to": "ctf-platforms",
+      "label": "读取 / 提交",
+      "variant": "dashed",
+      "fromSide": "right",
+      "toSide": "left",
+      "route": "straight",
+      "labelAt": [1260, 286]
+    },
+    {
+      "id": "platform-to-browser",
+      "from": "ctf-platforms",
+      "to": "browser-bridge",
+      "label": "Judge 回执",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "bottom",
+      "route": "orthogonal-v",
+      "via": [[1365, 426], [1135, 426]],
+      "labelAt": [1260, 446]
+    },
+    {
+      "id": "ctf-to-runtime",
+      "from": "ctf-service",
+      "to": "evidence-runtime",
+      "label": "事实 / 候选 / 回执",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "straight",
+      "labelAt": [930, 448]
+    },
+    {
+      "id": "runtime-to-state",
+      "from": "evidence-runtime",
+      "to": "local-state",
+      "label": "append + artifact",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "left",
+      "route": "straight",
+      "labelAt": [1000, 500]
+    },
+    {
+      "id": "host-to-state",
+      "from": "go-host",
+      "to": "local-state",
+      "label": "配置 / Catalog / 会话",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "left",
+      "route": "orthogonal-v",
+      "via": [[590, 680], [1000, 680], [1000, 558]],
+      "labelAt": [795, 700]
+    },
+    {
+      "id": "eval-to-state",
+      "from": "nyu-eval",
+      "to": "local-state",
+      "label": "只读输入 / 报告输出",
+      "variant": "dashed",
+      "fromSide": "left",
+      "toSide": "right",
+      "route": "straight",
+      "labelAt": [1260, 612]
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Coding 北极星",
+      "items": [
+        "Pi 提供通用 Agent Loop，MilkSU 不重造会话、上下文和工具循环",
+        "向 Codex 对齐项目、执行、Git、权限、上下文、产物和自动化能力"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "CTF 差异化",
+      "items": [
+        "Agent 只产生候选，平台 Judge 回执才是成功事实",
+        "实验轨迹、证据、提示依赖和独立步骤进入能力画像"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "当前边界",
+      "items": [
+        "Managed Labs 已暂停，不计入当前 M3 交付",
+        "NYU CTF Bench 仅做内部元数据与摘要报告，不执行挑战"
+      ]
+    }
+  ]
+}

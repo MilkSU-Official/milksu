@@ -94,6 +94,71 @@ func (e *blockingEngine) Propose(ctx context.Context, _ securityruntime.EngineIn
 	return securityruntime.ActionProposal{}, ctx.Err()
 }
 
+func TestManagedLabAuthorityReceiptCompletesWithoutSyntheticFlag(t *testing.T) {
+	core, err := securityruntime.NewService(t.TempDir(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewService(core, ServiceOptions{Engine: &solvingEngine{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = service.Close()
+		_ = core.Close()
+	})
+
+	started, err := service.StartChallenge(context.Background(), ChallengeRequest{
+		Title:     "OWASP Juice Shop · Confidential Document",
+		Statement: "在当前本地隔离环境中找到并访问意外暴露的 confidential document。",
+		Category:  "web", CollaborationMode: "copilot", DeferAgent: true,
+		TrackName: "Managed Labs", HumanGoal: "理解敏感文件暴露的发现与验证过程。",
+		SourceKind: "local-lab", SourceURI: "instance-1",
+		SourceTargets: []securitypolicy.Target{{
+			Kind: securitypolicy.TargetOrigin, Value: "http://127.0.0.1:41234",
+		}},
+		KnowledgePoints: []string{"Web", "Sensitive Data Exposure"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rejected, err := service.RecordAuthorityReceipt(context.Background(), started.Job.ID, AuthorityReceiptRequest{
+		Evaluator: "milksu-managed-lab", Version: "1", Accepted: false,
+		Summary:   "应用内判定器尚未观察到挑战完成。",
+		Reference: "managed-lab://instance-1/Confidential%20Document",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rejected.Job.Status == securityruntime.JobSucceeded ||
+		rejected.Job.Status == securityruntime.JobFailed ||
+		rejected.Job.Status == securityruntime.JobCancelled ||
+		rejected.Outcome != nil ||
+		len(rejected.Evaluations) != 1 ||
+		rejected.Evaluations[0].Verdict != securityruntime.VerdictFail ||
+		len(rejected.JudgeReceipts) != 1 ||
+		rejected.JudgeReceipts[0].Platform != "milksu-managed-lab" {
+		t.Fatalf("unsolved authority check was not retained as retryable evidence: %#v", rejected)
+	}
+
+	accepted, err := service.RecordAuthorityReceipt(context.Background(), started.Job.ID, AuthorityReceiptRequest{
+		Evaluator: "milksu-managed-lab", Version: "1", Accepted: true,
+		Summary:   "应用内判定器确认 Confidential Document 挑战已完成。",
+		Reference: "managed-lab://instance-1/Confidential%20Document",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if accepted.Job.Status != securityruntime.JobSucceeded ||
+		accepted.Outcome == nil ||
+		accepted.Outcome.Status != securityruntime.OutcomeSucceeded ||
+		len(accepted.Evaluations) != 2 ||
+		accepted.Evaluations[1].Verdict != securityruntime.VerdictPass ||
+		len(accepted.Evidence) != 2 {
+		t.Fatalf("accepted authority receipt did not complete the job: %#v", accepted)
+	}
+}
+
 func TestSampleChallengeRunsThroughTypedActionsAndIndependentJudge(t *testing.T) {
 	core, err := securityruntime.NewService(t.TempDir(), nil)
 	if err != nil {

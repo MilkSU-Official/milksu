@@ -130,6 +130,7 @@ async function buildSidecar(platform) {
   const securityOutput = join(output, 'security-bridge.cjs')
   const archifySource = join(repositoryRoot, 'third_party', 'archify', 'archify')
   const archifyOutput = join(output, 'skills', 'archify')
+  const licenseOutput = join(output, 'THIRD_PARTY-LICENSES')
   const archifyPackage = JSON.parse(await readFile(join(archifySource, 'package.json'), 'utf8'))
   const { stdout: checkedOutArchifyCommit } = await execFileAsync(
     'git',
@@ -143,10 +144,19 @@ async function buildSidecar(platform) {
 
   await rm(archifyOutput, { recursive: true, force: true })
   await mkdir(dirname(archifyOutput), { recursive: true, mode: 0o700 })
+  await mkdir(licenseOutput, { recursive: true, mode: 0o700 })
   await cp(archifySource, archifyOutput, { recursive: true })
   await Promise.all([
     copyFile(runtime.binary, nodeOutput),
     copyFile(runtime.license, join(output, 'NODE-LICENSE')),
+    copyFile(
+      join(repositoryRoot, 'third_party', 'licenses', 'pi-MIT.txt'),
+      join(licenseOutput, 'pi-MIT.txt'),
+    ),
+    copyFile(
+      join(repositoryRoot, 'third_party', 'licenses', 'narumitw-pi-extensions-MIT.txt'),
+      join(licenseOutput, 'narumitw-pi-extensions-MIT.txt'),
+    ),
     writeFile(join(output, 'package.json'), `${JSON.stringify({
       name: '@earendil-works/pi-coding-agent',
       version: '0.80.2',
@@ -171,13 +181,19 @@ async function buildSidecar(platform) {
       archiveSha256: runtime.archive.sha256,
       binarySha256: await sha256(nodeOutput),
     },
-    pi: { package: '@earendil-works/pi-coding-agent', version: '0.80.2' },
+    pi: {
+      package: '@earendil-works/pi-coding-agent',
+      version: '0.80.2',
+      license: 'MIT',
+      licenseFile: 'THIRD_PARTY-LICENSES/pi-MIT.txt',
+    },
     skills: {
       archify: {
         package: 'tt-a1i/archify',
         version: archifyPackage.version,
         commit: archifyCommit,
         license: archifyPackage.license,
+        licenseFile: 'skills/archify/LICENSE',
         path: 'skills/archify',
       },
     },
@@ -186,12 +202,14 @@ async function buildSidecar(platform) {
         package: '@narumitw/pi-lsp',
         version: piLspVersion,
         license: 'MIT',
+        licenseFile: 'THIRD_PARTY-LICENSES/narumitw-pi-extensions-MIT.txt',
         scope: 'coding-only',
       },
       piRetry: {
         package: '@narumitw/pi-retry',
         version: piRetryVersion,
         license: 'MIT',
+        licenseFile: 'THIRD_PARTY-LICENSES/narumitw-pi-extensions-MIT.txt',
         scope: 'coding-only',
       },
     },
@@ -207,6 +225,16 @@ async function buildSidecar(platform) {
 
 async function smokeSidecar(platform) {
   const output = await buildSidecar(platform)
+  for (const licensePath of [
+    join(output, 'NODE-LICENSE'),
+    join(output, 'THIRD_PARTY-LICENSES', 'pi-MIT.txt'),
+    join(output, 'THIRD_PARTY-LICENSES', 'narumitw-pi-extensions-MIT.txt'),
+    join(output, 'skills', 'archify', 'LICENSE'),
+  ]) {
+    if (!await exists(licensePath)) {
+      throw new Error(`packaged Sidecar is missing license file: ${licensePath}`)
+    }
+  }
   const node = join(output, 'node')
   const workspace = join(repositoryRoot, 'build', 'sidecar-smoke', platform.replace('/', '-'))
   await mkdir(workspace, { recursive: true, mode: 0o700 })
@@ -222,6 +250,7 @@ async function smokeSidecar(platform) {
     '--allow-child-process',
     '--allow-fs-read=/bin/bash',
     '--allow-fs-read=/bin/sh',
+    '--allow-fs-read=/usr/bin/env',
     '--allow-fs-read=/usr/bin/sandbox-exec',
   ]
   const securityRun = await runWithInput(
@@ -238,7 +267,7 @@ async function smokeSidecar(platform) {
     node,
     [...chatRuntimeArguments, join(output, 'chat-bridge.cjs')],
     [
-      '{"action":"create_session","conversationId":"packaged-smoke","provider":"deepseek","model":"deepseek-v4-flash"}',
+      '{"action":"create_session","conversationId":"packaged-smoke"}',
       '{"action":"destroy_session","conversationId":"packaged-smoke"}',
       '',
     ].join('\n'),
@@ -295,13 +324,14 @@ async function smokeSidecar(platform) {
     '--allow-child-process',
     '--allow-fs-read=/bin/bash',
     '--allow-fs-read=/bin/sh',
+    '--allow-fs-read=/usr/bin/env',
     '--allow-fs-read=/usr/bin/sandbox-exec',
   ]
   const ctfChatRun = await runWithInput(
     node,
     [...ctfRuntimeArguments, join(output, 'chat-bridge.cjs')],
     [
-      '{"action":"create_session","conversationId":"packaged-ctf-coach","provider":"deepseek","model":"deepseek-v4-flash"}',
+      '{"action":"create_session","conversationId":"packaged-ctf-coach"}',
       '{"action":"destroy_session","conversationId":"packaged-ctf-coach"}',
       '',
     ].join('\n'),

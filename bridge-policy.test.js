@@ -5,7 +5,7 @@ import { createServer as createTCPServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { loadSessionPolicy } from "./bridge-policy.js";
+import { loadSessionPolicy, scopeAllowsNetwork } from "./bridge-policy.js";
 
 function manifest(
   mode,
@@ -227,6 +227,26 @@ test("CTF HTTP uses exact granted origins without ambient redirects", async () =
   } finally {
     await close(server);
   }
+});
+
+test("managed lab shell remains networkless while ctf_http keeps exact loopback access", async () => {
+  const origin = "http://127.0.0.1:41234";
+  const value = manifest(
+    "copilot",
+    ["read", "bash"],
+    {},
+    [
+      { kind: "lab", value: "instance-1" },
+      { kind: "origin", value: origin },
+    ],
+  );
+  value.source.kind = "local-lab";
+  assert.equal(scopeAllowsNetwork(value), false);
+
+  const workspace = await workspaceWithManifest(value);
+  const policy = await loadSessionPolicy(workspace);
+  assert.equal(policy.activeTools.includes("ctf_http"), true);
+  assert.equal(policy.activeTools.includes("bash"), true);
 });
 
 test("CTF socket exchanges one bounded payload only with an exact granted target", async () => {

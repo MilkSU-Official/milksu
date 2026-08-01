@@ -3,8 +3,6 @@ services:
     image: bkimminich/juice-shop:v20.1.1@sha256:cd58d79c5cb4d82f22fbaf616f9ff43bbd04ba630cd6b448a9ed99cf652fcebf
     init: true
     restart: "no"
-    ports:
-      - "127.0.0.1:${MILKSU_CTF_PORT:-3000}:3000"
     cap_drop:
       - ALL
     security_opt:
@@ -25,8 +23,52 @@ services:
     networks:
       - lab
 
+  loopback-proxy:
+    image: bkimminich/juice-shop:v20.1.1@sha256:cd58d79c5cb4d82f22fbaf616f9ff43bbd04ba630cd6b448a9ed99cf652fcebf
+    init: true
+    restart: "no"
+    entrypoint:
+      - /nodejs/bin/node
+      - -e
+    command:
+      - |
+        const net = require("net");
+        const server = net.createServer((client) => {
+          const upstream = net.connect(3000, "juice-shop");
+          client.on("error", () => upstream.destroy());
+          upstream.on("error", () => client.destroy());
+          client.pipe(upstream).pipe(client);
+        });
+        server.listen(3001, "0.0.0.0");
+    depends_on:
+      juice-shop:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${MILKSU_CTF_PORT:-3000}:3001"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 64
+    mem_limit: 128m
+    cpus: 0.25
+    healthcheck:
+      test:
+        - CMD
+        - /nodejs/bin/node
+        - -e
+        - "const net=require('net');const socket=net.connect(3001,'127.0.0.1',()=>{socket.end();process.exit(0)});socket.on('error',()=>process.exit(1))"
+      interval: 3s
+      timeout: 2s
+      retries: 20
+      start_period: 3s
+    networks:
+      - lab
+      - ingress
+
 networks:
   lab:
     driver: bridge
-    driver_opts:
-      com.docker.network.bridge.enable_ip_masquerade: "false"
+    internal: true
+  ingress:
+    driver: bridge

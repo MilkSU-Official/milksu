@@ -9,6 +9,9 @@ import (
 func TestPrimaryNavigationUsesConciseProductNames(t *testing.T) {
 	files := []string{
 		"app/src/components-vue/AppSidebar.vue",
+		"app/src/components-vue/WorkspaceRail.vue",
+		"app/src/components-vue/ContextSidebar.vue",
+		"app/src/lib/workspaceNavigation.ts",
 		"app/src/components-vue/CTFPage.vue",
 		"app/src/components-vue/ChatPage.vue",
 		"app/src/components-vue/VulnPage.vue",
@@ -45,6 +48,17 @@ func TestPrimaryNavigationUsesConciseProductNames(t *testing.T) {
 	}
 }
 
+func TestManagedLabsStayOutOfTheDefaultRelease(t *testing.T) {
+	t.Setenv("MILKSU_ENABLE_MANAGED_LABS", "")
+	if managedLabsFeatureEnabled() {
+		t.Fatal("managed labs must remain disabled in the default release")
+	}
+	t.Setenv("MILKSU_ENABLE_MANAGED_LABS", "1")
+	if !managedLabsFeatureEnabled() {
+		t.Fatal("the explicit developer feature flag should enable managed labs")
+	}
+}
+
 func TestCTFPlatformChooserOwnsHistoryPairingAndCustomImport(t *testing.T) {
 	data, err := os.ReadFile("app/src/components-vue/CTFPage.vue")
 	if err != nil {
@@ -77,11 +91,20 @@ func TestCTFPlatformChooserOwnsHistoryPairingAndCustomImport(t *testing.T) {
 }
 
 func TestCTFAbilityLivesBehindTheSidebarAvatar(t *testing.T) {
-	sidebarData, err := os.ReadFile("app/src/components-vue/AppSidebar.vue")
-	if err != nil {
-		t.Fatal(err)
+	files := []string{
+		"app/src/components-vue/AppSidebar.vue",
+		"app/src/components-vue/WorkspaceRail.vue",
+		"app/src/components-vue/ContextSidebar.vue",
 	}
-	sidebar := string(sidebarData)
+	var sidebarSource strings.Builder
+	for _, name := range files {
+		data, err := os.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sidebarSource.Write(data)
+	}
+	sidebar := sidebarSource.String()
 	for _, fragment := range []string{
 		`aria-label="查看 CTF 能力"`,
 		`class="size-full rounded-full object-cover"`,

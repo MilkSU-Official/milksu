@@ -168,6 +168,17 @@ type ExternalJudgeReceipt struct {
 	RecordedAt time.Time `json:"recordedAt"`
 }
 
+// AuthorityReceiptRequest records a read-only completion oracle owned by
+// MilkSU, such as a validated local LabPackage judge. It deliberately carries
+// no user-supplied candidate: the authority verifies environment state.
+type AuthorityReceiptRequest struct {
+	Evaluator string `json:"evaluator"`
+	Version   string `json:"version"`
+	Accepted  bool   `json:"accepted"`
+	Summary   string `json:"summary"`
+	Reference string `json:"reference"`
+}
+
 type HumanOutcomeView struct {
 	Goal             string   `json:"goal"`
 	KnowledgePoints  []string `json:"knowledgePoints"`

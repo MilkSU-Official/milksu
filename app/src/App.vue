@@ -9,6 +9,7 @@ import { useConversations } from '@/composables/useConversations'
 import { useNSSCTFTraining } from '@/composables/useNSSCTFTraining'
 import { invokeCommand } from '@/desktop'
 import type { CTFAgentWorkspaceHandoff } from '@/ctfTypes'
+import type { CTFWorkspaceSection } from '@/lib/workspaceNavigation'
 import { withAppSettingsDefaults, type AppSettings, type CTFChatAction } from '@/types'
 
 type Section = 'chat' | 'ctf' | 'vuln' | 'settings'
@@ -16,6 +17,7 @@ type Section = 'chat' | 'ctf' | 'vuln' | 'settings'
 const conversations = useConversations()
 const ctfTraining = useNSSCTFTraining()
 const section = ref<Section>('ctf')
+const ctfSection = ref<CTFWorkspaceSection>('catalog')
 const ctfResumeJobId = ref<string | null>(null)
 const settingsCategory = ref<'general' | 'apikeys'>('general')
 const settings = ref<AppSettings | null>(null)
@@ -153,10 +155,12 @@ onMounted(async () => {
       :active-conversation-id="conversations.activeId.value"
       :conversations="conversations.conversations.value"
       :ctf-dashboard="ctfTraining.dashboard.value"
+      :ctf-section="ctfSection"
       @new="newConversation"
       @navigate="navigateSection"
       @select-conversation="id => { conversations.activeId.value = id; section = 'chat' }"
       @delete-conversation="conversations.remove"
+      @navigate-ctf="ctfSection = $event"
       @settings="openSettings('general')"
     />
 
@@ -173,6 +177,7 @@ onMounted(async () => {
       :model-verified="modelVerified"
       :arena-ready="arenaReady"
       :initial-job-id="ctfResumeJobId"
+      :ctf-section="ctfSection"
       @open-settings="openSettings('apikeys')"
       @start-coding-agent="startCTFAgent"
     />

@@ -1,3 +1,14 @@
+export interface CodingGitChange {
+  path: string
+  originalPath?: string
+  indexStatus: string
+  worktreeStatus: string
+  staged: boolean
+  modified: boolean
+  untracked: boolean
+  conflict: boolean
+}
+
 export interface CodingGitStatus {
   available: boolean
   isRepository: boolean
@@ -15,6 +26,8 @@ export interface CodingGitStatus {
   deletions: number
   dirty: boolean
   problem?: string
+  changes?: CodingGitChange[]
+  changesTruncated?: boolean
 }
 
 export interface CodingEnvironmentSnapshot {
@@ -22,4 +35,12 @@ export interface CodingEnvironmentSnapshot {
   workspaceName: string
   capturedAt: string
   git: CodingGitStatus
+}
+
+export interface CodingDiffSnapshot {
+  workspace: string
+  path: string
+  staged?: string
+  workingTree?: string
+  truncated?: boolean
 }

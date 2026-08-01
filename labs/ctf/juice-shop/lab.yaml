@@ -22,13 +22,13 @@ spec:
     platforms: [linux/arm64, linux/amd64]
     endpoints:
       - name: web
-        service: juice-shop
-        targetPort: 3000
+        service: loopback-proxy
+        targetPort: 3001
         protocol: http
-        publish: loopback-configured
+        publish: loopback-ephemeral
     network:
       ingress: loopback
-      egress: no-nat-best-effort
+      egress: deny
   readiness:
     - type: http
       endpoint: web

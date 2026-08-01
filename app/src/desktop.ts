@@ -45,7 +45,14 @@ import type {
   NSSCTFTrainingSeries,
 } from './nssctfTrainingTypes'
 import type { CTFTrainingPlatform } from './ctfPlatformTypes'
-import type { CodingEnvironmentSnapshot } from './codingEnvironmentTypes'
+import type { CodingDiffSnapshot, CodingEnvironmentSnapshot } from './codingEnvironmentTypes'
+import type {
+  ManagedLabAccess,
+  ManagedLabInstance,
+  ManagedLabJudgeResponse,
+  ManagedLabPackage,
+  ManagedLabTrainingWorkspace,
+} from './ctfLabTypes'
 import { createPreviewCTFProjection, summarizePreviewCTF } from './ctfPreview'
 
 type CommandArgs = Record<string, unknown>
@@ -71,6 +78,7 @@ interface WailsAppBindings {
   AbortMessage(conversationId: string): Promise<void>
   GetRuntimeStatus(): Promise<unknown>
   GetCodingEnvironment(workspacePath: string): Promise<CodingEnvironmentSnapshot>
+  GetCodingDiff(workspacePath: string, relativePath: string): Promise<CodingDiffSnapshot>
   TestAgentModel(): Promise<ModelProbeResult>
   StartSampleCTF(): Promise<CTFProjection>
   ImportNSSCTFChallenge(rawURL: string): Promise<NSSCTFChallenge>
@@ -78,6 +86,17 @@ interface WailsAppBindings {
   GetNSSCTFTrainingDashboard(): Promise<NSSCTFTrainingDashboard>
   ListNSSCTFCatalog(query: NSSCTFCatalogQuery): Promise<NSSCTFCatalogSearchResult>
   GetCTFTrainingPlatforms(): Promise<CTFTrainingPlatform[]>
+  ListManagedLabPackages(): Promise<ManagedLabPackage[]>
+  ListManagedLabInstances(): Promise<ManagedLabInstance[]>
+  GetManagedLabInstance(instanceId: string): Promise<ManagedLabInstance>
+  StartManagedLab(packageId: string): Promise<ManagedLabInstance>
+  ResetManagedLab(instanceId: string): Promise<ManagedLabInstance>
+  StopManagedLab(instanceId: string): Promise<ManagedLabInstance>
+  DestroyManagedLab(instanceId: string): Promise<ManagedLabInstance>
+  OpenManagedLab(instanceId: string): Promise<void>
+  GetManagedLabAccess(instanceId: string): Promise<ManagedLabAccess>
+  StartManagedLabTraining(instanceId: string, collaborationMode: string): Promise<ManagedLabTrainingWorkspace>
+  CheckManagedLabTraining(instanceId: string, jobId: string): Promise<ManagedLabJudgeResponse>
   OpenNSSCTFChallenge(rawURL: string): Promise<void>
   OpenCTFSourceURL(rawURL: string): Promise<void>
   OpenChromeExtensionManager(): Promise<void>
@@ -308,6 +327,11 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.GetRuntimeStatus() as Promise<T>
       case 'get_coding_environment':
         return app.GetCodingEnvironment(args?.workspacePath as string) as Promise<T>
+      case 'get_coding_diff':
+        return app.GetCodingDiff(
+          args?.workspacePath as string,
+          args?.relativePath as string,
+        ) as Promise<T>
       case 'test_agent_model':
         return app.TestAgentModel() as Promise<T>
       case 'start_sample_ctf':
@@ -322,6 +346,34 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.ListNSSCTFCatalog(args?.query as NSSCTFCatalogQuery) as Promise<T>
       case 'get_ctf_training_platforms':
         return app.GetCTFTrainingPlatforms() as Promise<T>
+      case 'list_managed_lab_packages':
+        return app.ListManagedLabPackages() as Promise<T>
+      case 'list_managed_lab_instances':
+        return app.ListManagedLabInstances() as Promise<T>
+      case 'get_managed_lab_instance':
+        return app.GetManagedLabInstance(args?.instanceId as string) as Promise<T>
+      case 'start_managed_lab':
+        return app.StartManagedLab(args?.packageId as string) as Promise<T>
+      case 'reset_managed_lab':
+        return app.ResetManagedLab(args?.instanceId as string) as Promise<T>
+      case 'stop_managed_lab':
+        return app.StopManagedLab(args?.instanceId as string) as Promise<T>
+      case 'destroy_managed_lab':
+        return app.DestroyManagedLab(args?.instanceId as string) as Promise<T>
+      case 'open_managed_lab':
+        return app.OpenManagedLab(args?.instanceId as string) as Promise<T>
+      case 'get_managed_lab_access':
+        return app.GetManagedLabAccess(args?.instanceId as string) as Promise<T>
+      case 'start_managed_lab_training':
+        return app.StartManagedLabTraining(
+          args?.instanceId as string,
+          args?.collaborationMode as string,
+        ) as Promise<T>
+      case 'check_managed_lab_training':
+        return app.CheckManagedLabTraining(
+          args?.instanceId as string,
+          args?.jobId as string,
+        ) as Promise<T>
       case 'open_nssctf_challenge':
         return app.OpenNSSCTFChallenge(args?.url as string) as Promise<T>
       case 'open_ctf_source_url':
@@ -475,6 +527,19 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
     }
     case 'choose_agent_workspace':
       throw new Error('请在 MilkSU 桌面应用中选择项目目录。')
+    case 'list_managed_lab_packages':
+    case 'list_managed_lab_instances':
+      return [] as T
+    case 'get_managed_lab_instance':
+    case 'start_managed_lab':
+    case 'reset_managed_lab':
+    case 'stop_managed_lab':
+    case 'destroy_managed_lab':
+    case 'open_managed_lab':
+    case 'get_managed_lab_access':
+    case 'start_managed_lab_training':
+    case 'check_managed_lab_training':
+      throw new Error('请在 MilkSU 桌面应用中管理本地靶场。')
     case 'send_message':
       throw new Error('Agent bridge requires the Wails desktop runtime.')
     case 'prepare_ctf_tool_builder_workspace':
@@ -514,9 +579,12 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
           deletions: 0,
           dirty: false,
           problem: 'Git 状态只在 MilkSU 桌面运行时读取。',
+          changes: [],
         },
       } as T
     }
+    case 'get_coding_diff':
+      throw new Error('Git Diff 只在 MilkSU 桌面运行时读取。')
     case 'list_ctf_jobs': {
       const projections = readJson<Record<string, CTFProjection>>(CTF_PROJECTIONS_KEY, {})
       return Object.values(projections)

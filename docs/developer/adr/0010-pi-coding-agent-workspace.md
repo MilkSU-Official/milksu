@@ -16,7 +16,7 @@ M3 Product Shell 仍把 `任务运行时 M1` 暴露为一级入口，同时“�
 
 ### 用户信息架构
 
-一级导航固定为 `CTF / Coding / CVE`。Milestone 编号和 Runtime Walking Skeleton 不再出现在产品界面。会话搜索与最近任务只在 Coding 中显示，不占用 CTF 和 CVE 的注意力。
+一级导航固定为 `CTF / CVE / Coding`。Milestone 编号和 Runtime Walking Skeleton 不再出现在产品界面。会话搜索与最近任务只在 Coding 中显示，不占用 CTF 和 CVE 的注意力。
 
 Runtime、Event Store、Artifact 和恢复机制继续作为内部基础设施保留；删除的是用户入口与页面，不是底层事实链。
 

@@ -1,0 +1,5 @@
+OWASP WebGoat is licensed under GPL-2.0-or-later.
+
+Upstream source and complete license text:
+https://github.com/WebGoat/WebGoat/tree/v2025.3
+https://github.com/WebGoat/WebGoat/blob/v2025.3/LICENSE.txt

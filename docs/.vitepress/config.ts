@@ -15,6 +15,7 @@ export default defineConfig({
 
     nav: [
       { text: '开发者文档', link: '/developer/' },
+      { text: '架构快照', link: '/architecture/' },
       { text: 'Wiki', link: '/wiki/' },
     ],
 
@@ -40,6 +41,7 @@ export default defineConfig({
             { text: 'ADR-0004 · 学习产品与发布边界', link: '/developer/adr/0004-learning-product-and-release-boundary' },
             { text: '题目接入与自动操作', link: '/developer/challenge-intake-and-automation' },
             { text: '靶场与环境管理', link: '/developer/lab-management' },
+            { text: 'NYU CTF Bench 离线评测', link: '/developer/nyu-ctf-bench-eval' },
             { text: 'Role Packages', link: '/developer/role-packages' },
             { text: '开源项目坐标', link: '/developer/industry-baseline' },
           ],

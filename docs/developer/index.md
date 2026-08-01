@@ -26,8 +26,10 @@
 20. [Role Packages](/developer/role-packages)：说明首批 CTF 与 Vulnerability Research 角色，以及人类学习 Outcome。
 21. [开源项目坐标](/developer/industry-baseline)：决定一个项目应该接入、委派、学习、只做 benchmark，还是拒绝。
 22. [PI Resource Whitelist](/developer/pi-resource-whitelist)：记录 Coding Agent 可加载的固定版本 Skill/Extension，以及 CTF 隔离断言。
-23. [CTF Agent 开源项目对照](/developer/research/2026-07-31-ctf-agent-landscape)：BoxPwnr、D-CIPHER、EnIGMA+、CAI 等框架与 MilkSU 底座取舍。
-24. [M3 Architecture Review](/developer/architecture-review-2026-07-31)：当前变更集中点、优先级、目标模块边界和真实平台验收门槛。
+23. [Coding Agent 与 Codex 能力对照](/developer/coding-agent-codex-parity)：按日常开发工作流追踪项目、执行、Git、权限、扩展与自动化的实现和验收差距。
+24. [CTF Agent 开源项目对照](/developer/research/2026-07-31-ctf-agent-landscape)：BoxPwnr、D-CIPHER、EnIGMA+、CAI 等框架与 MilkSU 底座取舍。
+25. [M3 Architecture Review](/developer/architecture-review-2026-07-31)：当前变更集中点、优先级、目标模块边界和真实平台验收门槛。
+25. [NYU CTF Bench 离线评测](/developer/nyu-ctf-bench-eval)：只导入固定版本的 benchmark 索引与任务目录，记录非权威运行摘要并生成可复现静态报告，不启动挑战或执行 Agent 输出。
 ## 当前实现边界
 
 M0、M1、M2-A 与 M3-A 已完成工程验证：Go/Wails 桌面宿主、Vue 3 + Memoh UI 控制面、Pi Sidecar、追加式 Event Store、Artifact Store、只读 Projection、独立 Evaluator和中断恢复已经实跑；真实 Pi/DeepSeek 也已在桌面通过 CTF 类型化动作与本地 Judge 解完内置 Hex 题。普通 Coding 会话目前只额外加载经过审阅和固定版本的 Archify Skill、PI LSP Extension 与 MilkSU Workflow；CTF 会话保持隔离。Vuln Role 已增加固定本地 packet-parser 的 Target、Attack Surface、Hypothesis、静态 Root Cause、外部三次 ASan 日志一致性 Evaluation 和 Human Outcome 工作台。

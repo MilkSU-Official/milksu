@@ -29,6 +29,7 @@ import (
 	"github.com/MilkSU-Official/milksu/internal/ctf"
 	"github.com/MilkSU-Official/milksu/internal/ctfshow"
 	"github.com/MilkSU-Official/milksu/internal/engine"
+	"github.com/MilkSU-Official/milksu/internal/labmanager"
 	"github.com/MilkSU-Official/milksu/internal/nssctf"
 	"github.com/MilkSU-Official/milksu/internal/securitypolicy"
 	"github.com/MilkSU-Official/milksu/internal/securityruntime"
@@ -49,6 +50,7 @@ type App struct {
 	ctfshowCatalog *ctfshow.CatalogService
 	nssctfArena    *nssctf.ArenaClient
 	browserBridge  *browsercap.Manager
+	managedLabs    *labmanager.Manager
 	jobs           *securityruntime.Service
 	ctfJobs        *ctf.Service
 	ctfAgent       *ctfAgentRecorder
@@ -74,6 +76,12 @@ func NewApp() (*App, error) {
 		dataDirectory: dataDirectory,
 		settings:      settings,
 		conversations: conversations,
+	}
+	if managedLabsFeatureEnabled() {
+		application.managedLabs, err = labmanager.New(dataDirectory)
+		if err != nil {
+			return nil, fmt.Errorf("create managed lab service: %w", err)
+		}
 	}
 	application.engines = engine.NewSupervisor(application.emitEngineEvent)
 	application.nssctf = nssctf.NewClient(nssctf.ClientOptions{})
@@ -160,8 +168,19 @@ func NewApp() (*App, error) {
 	return application, nil
 }
 
+func managedLabsFeatureEnabled() bool {
+	return strings.TrimSpace(os.Getenv("MILKSU_ENABLE_MANAGED_LABS")) == "1"
+}
+
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
+	if a.managedLabs != nil {
+		reconcileContext, cancel := context.WithTimeout(ctx, managedLabReconcileTimeout)
+		if _, err := a.managedLabs.Reconcile(reconcileContext); err != nil {
+			wailsruntime.EventsEmit(ctx, "managed-lab-runtime-error", err.Error())
+		}
+		cancel()
+	}
 	if err := a.jobs.Recover(ctx); err != nil {
 		wailsruntime.EventsEmit(ctx, "job-runtime-error", err.Error())
 	}
@@ -393,6 +412,12 @@ func (a *App) GetCodingEnvironment(workspacePath string) (codingenv.Snapshot, er
 	inspectContext, cancel := context.WithTimeout(a.commandContext(), 4*time.Second)
 	defer cancel()
 	return codingenv.Inspect(inspectContext, workspacePath)
+}
+
+func (a *App) GetCodingDiff(workspacePath, relativePath string) (codingenv.DiffSnapshot, error) {
+	inspectContext, cancel := context.WithTimeout(a.commandContext(), 4*time.Second)
+	defer cancel()
+	return codingenv.InspectDiff(inspectContext, workspacePath, relativePath)
 }
 
 func (a *App) TestAgentModel() (engine.ModelProbeResult, error) {

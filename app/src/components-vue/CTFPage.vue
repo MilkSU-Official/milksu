@@ -65,9 +65,11 @@ import CTFDebrief from '@/components-vue/CTFDebrief.vue'
 import CTFManualIntake from '@/components-vue/CTFManualIntake.vue'
 import CTFTrainingArchive from '@/components-vue/CTFTrainingArchive.vue'
 import CTFTrajectory from '@/components-vue/CTFTrajectory.vue'
+import ManagedLabCatalog from '@/components-vue/ManagedLabCatalog.vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import { useCTFTrainingPlatforms } from '@/composables/useCTFTrainingPlatforms'
 import { useCTFWorkspace } from '@/composables/useCTFWorkspace'
+import { useManagedLabs } from '@/composables/useManagedLabs'
 import { useCTFShowCatalog } from '@/composables/useCTFShow'
 import { useNSSCTFArena, useNSSCTFChallenges, useNSSCTFWebBridge } from '@/composables/useNSSCTF'
 import { useNSSCTFCatalog, useNSSCTFTraining } from '@/composables/useNSSCTFTraining'
@@ -82,6 +84,8 @@ import type {
   CTFTrainingMemory,
 } from '@/ctfTypes'
 import type { CTFTrainingPlatform } from '@/ctfPlatformTypes'
+import type { ManagedLabAccess } from '@/ctfLabTypes'
+import type { CTFWorkspaceSection } from '@/lib/workspaceNavigation'
 import type { NSSCTFChallenge } from '@/nssctfTypes'
 import type { NSSCTFRecommendation, NSSCTFTrainingSeries } from '@/nssctfTrainingTypes'
 
@@ -107,6 +111,7 @@ const props = defineProps<{
   modelVerified: boolean
   arenaReady: boolean
   initialJobId?: string | null
+  ctfSection: CTFWorkspaceSection
 }>()
 
 const emit = defineEmits<{
@@ -122,7 +127,13 @@ const webBridge = useNSSCTFWebBridge()
 const training = useNSSCTFTraining()
 const publicCatalog = useNSSCTFCatalog()
 const ctfshow = useCTFShowCatalog()
+const managedLabs = useManagedLabs()
 const screen = ref<Screen>('challenge')
+const ctfSection = computed(() => props.ctfSection)
+const selectedLabId = ref('')
+const labNotice = ref('')
+const managedLabAccess = ref<ManagedLabAccess | null>(null)
+const labTrainingJobIds = ref<Record<string, string>>({})
 const storedTrainingSource = window.localStorage.getItem('milksu.ctf.question-bank')
 const activeBank = ref<TrainingSource>(
   storedTrainingSource === 'ctfshow'
@@ -425,6 +436,11 @@ const activeQuestionBank = computed<QuestionBank | null>(() => (
     ? activeBank.value
     : null
 ))
+const visibleTrainingPlatforms = computed(() => (
+  platformRegistry.platforms.value.filter(platform => (
+    platform.selectable && platform.status === 'ready'
+  ))
+))
 const activeCatalogBank = computed<QuestionBank>(() => (
   activeBank.value === 'ctfshow' ? 'ctfshow' : 'nssctf'
 ))
@@ -679,6 +695,29 @@ watch(activeBank, bank => {
       await bootstrapNSSCTFCatalog()
       await selectDefaultDeskProblem()
     })
+  }
+})
+
+watch(ctfSection, section => {
+  labNotice.value = ''
+  managedLabAccess.value = null
+  if (section === 'labs') {
+    screen.value = 'challenge'
+    closeHistoryMenu()
+    closeBridgeMenu()
+    void managedLabs.refresh()
+    return
+  }
+  void selectDefaultDeskProblem()
+})
+
+watch(managedLabs.labs, labs => {
+  if (!labs.length) {
+    selectedLabId.value = ''
+    return
+  }
+  if (!labs.some(lab => lab.id === selectedLabId.value)) {
+    selectedLabId.value = labs[0].id
   }
 })
 
@@ -1388,6 +1427,103 @@ function refreshBridgePresence() {
   else if (activeBank.value === 'nssctf') void webBridge.refresh()
 }
 
+function selectManagedLab(labId: string) {
+  selectedLabId.value = labId
+  labNotice.value = ''
+  managedLabAccess.value = null
+}
+
+function selectedManagedLab(labId: string) {
+  return managedLabs.labs.value.find(lab => lab.id === labId)
+}
+
+async function startManagedLab(labId: string) {
+  selectedLabId.value = labId
+  labNotice.value = ''
+  managedLabAccess.value = null
+  await managedLabs.start(labId).catch(() => undefined)
+}
+
+async function openManagedLab(labId: string) {
+  const instanceId = selectedManagedLab(labId)?.instanceId
+  if (!instanceId) return
+  await managedLabs.open(instanceId).catch(cause => {
+    labNotice.value = cause instanceof Error ? cause.message : String(cause)
+  })
+}
+
+async function resetManagedLab(labId: string) {
+  const instanceId = selectedManagedLab(labId)?.instanceId
+  if (!instanceId) return
+  labNotice.value = ''
+  managedLabAccess.value = null
+  await managedLabs.reset(instanceId).catch(() => undefined)
+}
+
+async function stopManagedLab(labId: string) {
+  const instanceId = selectedManagedLab(labId)?.instanceId
+  if (!instanceId) return
+  labNotice.value = ''
+  await managedLabs.stop(instanceId).catch(() => undefined)
+}
+
+async function destroyManagedLab(labId: string) {
+  const instanceId = selectedManagedLab(labId)?.instanceId
+  if (!instanceId) return
+  labNotice.value = ''
+  managedLabAccess.value = null
+  await managedLabs.destroy(instanceId).catch(() => undefined)
+}
+
+async function revealManagedLabAccess(labId: string) {
+  const instanceId = selectedManagedLab(labId)?.instanceId
+  if (!instanceId) return
+  labNotice.value = ''
+  managedLabAccess.value = await managedLabs.access(instanceId).catch(cause => {
+    labNotice.value = cause instanceof Error ? cause.message : String(cause)
+    return null
+  })
+}
+
+async function ensureManagedLabTraining(labId: string) {
+  const instanceId = selectedManagedLab(labId)?.instanceId
+  if (!instanceId) return null
+  const workspace = await managedLabs.startTraining(
+    instanceId,
+    collaborationMode.value,
+  ).catch(() => null)
+  if (!workspace) return null
+  labTrainingJobIds.value[instanceId] = workspace.ctf.job.id
+  await backend.adoptProjection(workspace.ctf)
+  return workspace
+}
+
+async function startManagedLabAgent(labId: string) {
+  labNotice.value = ''
+  const workspace = await ensureManagedLabTraining(labId)
+  if (!workspace) return
+  emit('startCodingAgent', workspace.handoff)
+}
+
+async function checkManagedLabTraining(labId: string) {
+  labNotice.value = ''
+  const lab = selectedManagedLab(labId)
+  const instanceId = lab?.instanceId
+  if (!instanceId) return
+  let jobId = labTrainingJobIds.value[instanceId]
+  if (!jobId) {
+    const workspace = await ensureManagedLabTraining(labId)
+    jobId = workspace?.ctf.job.id ?? ''
+  }
+  if (!jobId) return
+  const response = await managedLabs.checkTraining(instanceId, jobId).catch(() => null)
+  if (!response) return
+  await backend.adoptProjection(response.ctf)
+  labNotice.value = response.result.solved
+    ? `${response.result.challenge} 已由应用内 Judge 确认完成。`
+    : `${response.result.challenge} 尚未完成；保留本次检查证据，可以继续练习。`
+}
+
 onMounted(async () => {
   document.addEventListener('pointerdown', closeHistoryMenuOnOutsidePointer)
   await Promise.all([
@@ -1397,6 +1533,9 @@ onMounted(async () => {
     activeBank.value === 'ctfshow' ? ctfshow.refresh() : Promise.resolve(null),
     activeBank.value === 'nssctf' ? loadPublicCatalog(1) : Promise.resolve(null),
   ])
+  if (ctfSection.value === 'labs') {
+    await managedLabs.refresh()
+  }
   await bootstrapNSSCTFCatalog()
   if (props.initialJobId) await resumeJob(props.initialJobId)
   await selectDefaultDeskProblem()
@@ -1429,7 +1568,7 @@ onBeforeUnmount(() => {
     >
       <div class="flex w-full items-center gap-3">
         <h1 class="mr-2 shrink-0 text-xl font-semibold tracking-[-0.03em]">CTF</h1>
-        <Select v-model="activeBank">
+        <Select v-if="ctfSection === 'catalog'" v-model="activeBank">
         <SelectTrigger
           class="app-no-drag min-w-48 shrink-0"
           aria-label="选择训练平台"
@@ -1441,7 +1580,7 @@ onBeforeUnmount(() => {
           <SelectGroup>
             <SelectLabel>训练平台</SelectLabel>
             <SelectItem
-              v-for="platform in platformRegistry.platforms.value"
+              v-for="platform in visibleTrainingPlatforms"
               :key="platform.id"
               :value="platform.id"
             >
@@ -1470,7 +1609,7 @@ onBeforeUnmount(() => {
         </SelectContent>
         </Select>
         <details
-        v-if="backend.jobs.value.length"
+        v-if="ctfSection === 'catalog' && backend.jobs.value.length"
         ref="historyMenu"
         class="app-no-drag relative shrink-0"
         @keydown.esc.stop.prevent="closeHistoryMenu"
@@ -1536,7 +1675,7 @@ onBeforeUnmount(() => {
         </div>
         </details>
         <details
-        v-if="activeQuestionBank"
+        v-if="ctfSection === 'catalog' && activeQuestionBank"
         ref="bridgeMenu"
         class="app-no-drag relative shrink-0"
         @keydown.esc.stop.prevent="closeBridgeMenu"
@@ -1618,7 +1757,7 @@ onBeforeUnmount(() => {
           <ShieldCheck class="size-4" />
         </Button>
       </div>
-      <div v-if="activeQuestionBank" class="flex w-full items-center gap-3">
+      <div v-if="ctfSection === 'catalog' && activeQuestionBank" class="flex w-full items-center gap-3">
         <label class="app-no-drag relative min-w-52 flex-1">
         <FileSearch class="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
@@ -1663,7 +1802,25 @@ onBeforeUnmount(() => {
         class="w-full"
         :class="screen === 'challenge' ? 'h-full' : screen === 'source' ? 'mx-auto max-w-5xl' : 'mx-auto max-w-5xl'"
       >
-        <ol v-if="screen === 'source'" class="mx-auto mb-10 grid max-w-3xl grid-cols-3" aria-label="训练步骤">
+        <ManagedLabCatalog
+          v-if="screen === 'challenge' && ctfSection === 'labs'"
+          :labs="managedLabs.labs.value"
+          :selected-lab-id="selectedLabId"
+          :busy="managedLabs.loading.value || managedLabs.busy.value"
+          :notice="labNotice || managedLabs.error.value"
+          :access="managedLabAccess"
+          @select="selectManagedLab"
+          @request-start="startManagedLab"
+          @open-workspace="openManagedLab"
+          @request-reset="resetManagedLab"
+          @request-stop="stopManagedLab"
+          @request-destroy="destroyManagedLab"
+          @start-training="startManagedLabAgent"
+          @check-training="checkManagedLabTraining"
+          @request-access="revealManagedLabAccess"
+        />
+
+        <ol v-if="ctfSection === 'catalog' && screen === 'source'" class="mx-auto mb-10 grid max-w-3xl grid-cols-3" aria-label="训练步骤">
           <li
             v-for="item in [
               { index: 1, label: '选择入口' },
@@ -1691,7 +1848,7 @@ onBeforeUnmount(() => {
           </li>
         </ol>
 
-        <section v-if="screen === 'source'" aria-labelledby="source-title">
+        <section v-if="ctfSection === 'catalog' && screen === 'source'" aria-labelledby="source-title">
           <h1 id="source-title" class="sr-only">CTF</h1>
 
           <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
@@ -1700,7 +1857,7 @@ onBeforeUnmount(() => {
               aria-label="选择题库"
             >
               <NativeSelectOption
-                v-for="platform in platformRegistry.platforms.value"
+                v-for="platform in visibleTrainingPlatforms"
                 :key="platform.id"
                 :value="platform.id"
               >
@@ -2138,7 +2295,7 @@ onBeforeUnmount(() => {
         </section>
 
         <section
-          v-else-if="screen === 'challenge' && activeBank === 'custom'"
+          v-else-if="ctfSection === 'catalog' && screen === 'challenge' && activeBank === 'custom'"
           class="h-full overflow-y-auto px-6 py-8"
           aria-labelledby="custom-challenge-title"
         >
@@ -2181,7 +2338,7 @@ onBeforeUnmount(() => {
         </section>
 
         <section
-          v-else-if="screen === 'challenge' && (activeBank === 'hackthebox' || activeBank === 'tryhackme')"
+          v-else-if="ctfSection === 'catalog' && screen === 'challenge' && (activeBank === 'hackthebox' || activeBank === 'tryhackme')"
           class="h-full overflow-y-auto px-6 py-8"
           :aria-labelledby="`${activeBank}-platform-title`"
         >
@@ -2224,7 +2381,7 @@ onBeforeUnmount(() => {
         </section>
 
         <CTFChallengeDesk
-          v-else-if="screen === 'challenge'"
+          v-else-if="ctfSection === 'catalog' && screen === 'challenge'"
           :active-bank="activeCatalogBank"
           :nssctf-problems="publicCatalog.result.value?.problems ?? []"
           :ctfshow-problems="visibleCTFShowProblems"
@@ -2812,7 +2969,7 @@ onBeforeUnmount(() => {
         </section>
         -->
 
-        <section v-else aria-labelledby="workspace-title">
+        <section v-else-if="screen === 'workspace'" aria-labelledby="workspace-title">
           <div class="mb-6 flex items-center justify-between gap-4">
             <Button variant="ghost" size="sm" @click="showSource">
               <ArrowLeft class="size-4" />

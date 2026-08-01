@@ -1,0 +1,49 @@
+# MilkSU 架构快照
+
+> 审阅日期：2026-08-01
+>
+> 范围：当前 `codex/authorized-learning-foundation` 分支及本轮工作区。本文档只描述代码中
+> 已存在或已经明确规划的边界，不把本地 Lab、NYU CTF Bench 或尚未完成的原生回归写成已发布能力。
+
+这组文档用于回答四个不同问题：
+
+0. [Archify 交互式架构图](generated/milksu-current-system.html)：一张图查看 Coding 主链、
+   CTF 证据闭环、持久化和内部评测边界；对应的
+   [可审阅规格](generated/milksu-current-system.architecture.json) 可继续迭代。
+1. [当前系统与分层](current-system.md)：MilkSU 现在由哪些进程、容器和模块组成？
+2. [CTF 数据与时序](ctf-intake-agent-judge-memory.md)：一道题怎样从 Intake 进入 Agent、Judge 和训练记忆？
+3. [Coding Agent / Pi 扩展边界](coding-agent-pi-extension-boundary.md)：哪些能力复用 Pi，哪些能力属于 MilkSU，CTF 为什么不继承 Coding 插件？
+4. [架构债与 M3 / R0.4 边界](m3-r04-boundary-and-debt.md)：现在能声称什么、不能声称什么，下一轮先还哪些债？
+
+## 状态约定
+
+| 状态 | 含义 |
+| --- | --- |
+| **Implemented** | 实现和自动化证据都在仓库中；仍可能需要纳入最终原生发布回归。 |
+| **Partial** | 主体代码已存在，但真实场景、原生 UI 或发布门仍未全部验收。 |
+| **Planned** | 只有决策、研究或接口方向，不能在产品中宣称可用。 |
+| **Paused** | 有实验或未发布代码，但已经从当前交付范围移除。 |
+
+## 本快照的关键结论
+
+- CTF 的产品内核已经成立：模型候选与权威 Judge 分离，事实进入追加式 Event Store，
+  PI 轨迹和候选可以回流，用户复盘后才允许沉淀长期训练记忆。
+- 当前最大风险不是“底层完全缺失”，而是职责集中：`app.go`、`CTFPage.vue`、
+  `internal/browsercap/manager.go` 和 `internal/ctf/service.go` 都已经成为变更热点。
+- 普通 Coding 会话已经在代码层接入固定版本 Archify、PI LSP 和 PI Retry；真实 Coding
+  任务验收和插件权限 UI 仍是 **Partial**，不能仅凭包已安装就宣称完成。
+- Managed Labs 本轮已暂停。工作区里的 Lab Manager / WebGoat 实验不能进入 R0.4 发布声明，
+  也不能作为 M3 完成条件。
+- NYU CTF Bench 的只读元数据与静态报告适配器是 **Implemented**；Runner 明确不存在，
+  因此它仍不是可执行评测服务、用户题库或已验证成绩。
+
+## 证据入口
+
+- 进程组合：`main.go`、`app.go`
+- 通用 Agent：`bridge.js`、`internal/engine/supervisor.go`
+- CTF 事实链：`internal/ctf/`、`ctf_agent_recorder.go`
+- 追加式事实存储：`internal/securityruntime/`
+- 平台与浏览器：`internal/nssctf/`、`internal/ctfshow/`、`internal/browsercap/`
+- 本地数据根：`internal/appdata/directory.go`
+- 固定 Coding 资源：`docs/developer/pi-resource-whitelist.md`、`scripts/package-sidecar.mjs`
+- 发布检查：`scripts/m3-release-check.sh`

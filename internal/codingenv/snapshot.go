@@ -14,26 +14,49 @@ import (
 )
 
 const maxGitOutputBytes = 2 << 20
+const maxGitChanges = 80
+const maxDiffSectionBytes = 384 << 10
 
 var aheadBehindPattern = regexp.MustCompile(`\b(ahead|behind) ([0-9]+)\b`)
 
 type GitStatus struct {
-	Available    bool   `json:"available"`
-	IsRepository bool   `json:"isRepository"`
-	Branch       string `json:"branch,omitempty"`
-	Upstream     string `json:"upstream,omitempty"`
-	Head         string `json:"head,omitempty"`
-	Ahead        int    `json:"ahead"`
-	Behind       int    `json:"behind"`
-	ChangedFiles int    `json:"changedFiles"`
-	Staged       int    `json:"staged"`
-	Modified     int    `json:"modified"`
-	Untracked    int    `json:"untracked"`
-	Conflicts    int    `json:"conflicts"`
-	Additions    int    `json:"additions"`
-	Deletions    int    `json:"deletions"`
-	Dirty        bool   `json:"dirty"`
-	Problem      string `json:"problem,omitempty"`
+	Available        bool        `json:"available"`
+	IsRepository     bool        `json:"isRepository"`
+	Branch           string      `json:"branch,omitempty"`
+	Upstream         string      `json:"upstream,omitempty"`
+	Head             string      `json:"head,omitempty"`
+	Ahead            int         `json:"ahead"`
+	Behind           int         `json:"behind"`
+	ChangedFiles     int         `json:"changedFiles"`
+	Staged           int         `json:"staged"`
+	Modified         int         `json:"modified"`
+	Untracked        int         `json:"untracked"`
+	Conflicts        int         `json:"conflicts"`
+	Additions        int         `json:"additions"`
+	Deletions        int         `json:"deletions"`
+	Dirty            bool        `json:"dirty"`
+	Problem          string      `json:"problem,omitempty"`
+	Changes          []GitChange `json:"changes,omitempty"`
+	ChangesTruncated bool        `json:"changesTruncated,omitempty"`
+}
+
+type GitChange struct {
+	Path           string `json:"path"`
+	OriginalPath   string `json:"originalPath,omitempty"`
+	IndexStatus    string `json:"indexStatus"`
+	WorktreeStatus string `json:"worktreeStatus"`
+	Staged         bool   `json:"staged"`
+	Modified       bool   `json:"modified"`
+	Untracked      bool   `json:"untracked"`
+	Conflict       bool   `json:"conflict"`
+}
+
+type DiffSnapshot struct {
+	Workspace   string `json:"workspace"`
+	Path        string `json:"path"`
+	Staged      string `json:"staged,omitempty"`
+	WorkingTree string `json:"workingTree,omitempty"`
+	Truncated   bool   `json:"truncated,omitempty"`
 }
 
 type Snapshot struct {
@@ -79,6 +102,17 @@ func Inspect(ctx context.Context, workspace string) (Snapshot, error) {
 	snapshot.Git = parsePorcelainStatus(statusOutput)
 	snapshot.Git.Available = true
 	snapshot.Git.IsRepository = true
+	if fileOutput, fileErr := runGit(
+		ctx,
+		gitPath,
+		resolved,
+		"status",
+		"--porcelain=v1",
+		"-z",
+		"--untracked-files=normal",
+	); fileErr == nil {
+		snapshot.Git.Changes, snapshot.Git.ChangesTruncated = parsePorcelainChanges(fileOutput)
+	}
 
 	if head, headErr := runGit(ctx, gitPath, resolved, "rev-parse", "--short=12", "HEAD"); headErr == nil {
 		snapshot.Git.Head = strings.TrimSpace(head)
@@ -87,6 +121,62 @@ func Inspect(ctx context.Context, workspace string) (Snapshot, error) {
 		snapshot.Git.Additions, snapshot.Git.Deletions = parseNumstat(numstat)
 	}
 	return snapshot, nil
+}
+
+func InspectDiff(ctx context.Context, workspace, relativePath string) (DiffSnapshot, error) {
+	resolved, err := resolveWorkspace(workspace)
+	if err != nil {
+		return DiffSnapshot{}, err
+	}
+	pathspec, err := resolveGitPathspec(resolved, relativePath)
+	if err != nil {
+		return DiffSnapshot{}, err
+	}
+	gitPath, err := exec.LookPath("git")
+	if err != nil {
+		return DiffSnapshot{}, errors.New("Git is not installed or unavailable")
+	}
+	if _, err := runGit(ctx, gitPath, resolved, "rev-parse", "--is-inside-work-tree"); err != nil {
+		return DiffSnapshot{}, errors.New("Coding workspace is not a Git repository")
+	}
+	staged, stagedErr := runGit(
+		ctx,
+		gitPath,
+		resolved,
+		"diff",
+		"--cached",
+		"--no-ext-diff",
+		"--no-color",
+		"--unified=3",
+		"--",
+		pathspec,
+	)
+	if stagedErr != nil {
+		return DiffSnapshot{}, fmt.Errorf("read staged diff: %w", stagedErr)
+	}
+	workingTree, workingErr := runGit(
+		ctx,
+		gitPath,
+		resolved,
+		"diff",
+		"--no-ext-diff",
+		"--no-color",
+		"--unified=3",
+		"--",
+		pathspec,
+	)
+	if workingErr != nil {
+		return DiffSnapshot{}, fmt.Errorf("read working tree diff: %w", workingErr)
+	}
+	staged, stagedTruncated := boundedDiff(staged)
+	workingTree, workingTruncated := boundedDiff(workingTree)
+	return DiffSnapshot{
+		Workspace:   resolved,
+		Path:        filepath.ToSlash(pathspec),
+		Staged:      staged,
+		WorkingTree: workingTree,
+		Truncated:   stagedTruncated || workingTruncated,
+	}, nil
 }
 
 func resolveWorkspace(value string) (string, error) {
@@ -186,6 +276,73 @@ func parsePorcelainStatus(output string) GitStatus {
 	}
 	status.Dirty = status.ChangedFiles > 0
 	return status
+}
+
+func parsePorcelainChanges(output string) ([]GitChange, bool) {
+	entries := strings.Split(output, "\x00")
+	changes := make([]GitChange, 0, min(len(entries), maxGitChanges))
+	truncated := false
+	for index := 0; index < len(entries); index++ {
+		entry := entries[index]
+		if len(entry) < 4 {
+			continue
+		}
+		code := entry[:2]
+		change := GitChange{
+			Path:           entry[3:],
+			IndexStatus:    string(code[0]),
+			WorktreeStatus: string(code[1]),
+			Staged:         code[0] != ' ' && code[0] != '?',
+			Modified:       code[1] != ' ' && code[1] != '?',
+			Untracked:      code == "??",
+			Conflict:       isConflictCode(code),
+		}
+		if code[0] == 'R' || code[0] == 'C' {
+			if index+1 < len(entries) {
+				change.OriginalPath = entries[index+1]
+				index++
+			}
+		}
+		if len(changes) >= maxGitChanges {
+			truncated = true
+			continue
+		}
+		changes = append(changes, change)
+	}
+	return changes, truncated
+}
+
+func resolveGitPathspec(workspace, value string) (string, error) {
+	if strings.TrimSpace(value) == "" || filepath.IsAbs(value) {
+		return "", errors.New("Git diff path must be a relative workspace path")
+	}
+	cleaned := filepath.Clean(filepath.FromSlash(value))
+	if cleaned == "." || cleaned == ".." ||
+		strings.HasPrefix(cleaned, ".."+string(filepath.Separator)) ||
+		cleaned == ".git" || strings.HasPrefix(cleaned, ".git"+string(filepath.Separator)) {
+		return "", errors.New("Git diff path leaves the project workspace")
+	}
+	absolute := filepath.Join(workspace, cleaned)
+	relative, err := filepath.Rel(workspace, absolute)
+	if err != nil || filepath.IsAbs(relative) || relative == ".." ||
+		strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return "", errors.New("Git diff path leaves the project workspace")
+	}
+	if resolved, resolveErr := filepath.EvalSymlinks(absolute); resolveErr == nil {
+		resolvedRelative, relErr := filepath.Rel(workspace, resolved)
+		if relErr != nil || filepath.IsAbs(resolvedRelative) || resolvedRelative == ".." ||
+			strings.HasPrefix(resolvedRelative, ".."+string(filepath.Separator)) {
+			return "", errors.New("Git diff path resolves outside the project workspace")
+		}
+	}
+	return filepath.ToSlash(relative), nil
+}
+
+func boundedDiff(value string) (string, bool) {
+	if len(value) <= maxDiffSectionBytes {
+		return value, false
+	}
+	return value[:maxDiffSectionBytes] + "\n…diff truncated by MilkSU\n", true
 }
 
 func parseBranchLine(status *GitStatus, line string) {

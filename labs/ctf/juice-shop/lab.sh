@@ -4,8 +4,15 @@ set -eu
 
 LAB_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 COMPOSE_FILE="$LAB_DIR/compose.yaml"
-PROJECT_NAME=milksu-ctf-juice-shop
+PROJECT_NAME=${MILKSU_LAB_PROJECT_ID:-milksu-ctf-juice-shop}
 PORT=${MILKSU_CTF_PORT:-3000}
+
+case "$PROJECT_NAME" in
+  ''|*[!a-z0-9_-]*)
+    echo "MILKSU_LAB_PROJECT_ID must contain only lowercase letters, digits, underscores, and hyphens" >&2
+    exit 2
+    ;;
+esac
 
 case "$PORT" in
   ''|*[!0-9]*)
@@ -79,6 +86,10 @@ case "$command" in
     ;;
   status)
     require docker
+    if [ -z "$(compose ps --status running --quiet)" ]; then
+      echo "managed lab project has no running containers" >&2
+      exit 1
+    fi
     compose ps --all
     ;;
   logs)
@@ -86,30 +97,40 @@ case "$command" in
     compose logs --follow
     ;;
   health)
+    require docker
+    if [ -z "$(compose ps --status running --quiet)" ]; then
+      echo "managed lab project has no running containers" >&2
+      exit 1
+    fi
     require curl
     curl --fail --silent --show-error --output /dev/null "$BASE_URL/"
     printf 'healthy: %s\n' "$BASE_URL"
     ;;
   judge)
-    require curl
-    require jq
     challenge=${2:-Confidential Document}
-    response=$(curl --fail --silent --show-error "$BASE_URL/api/Challenges/")
-    match=$(printf '%s' "$response" | jq --compact-output --arg name "$challenge" \
-      '.data[] | select(.name == $name)' | head -n 1)
-
-    if [ -z "$match" ]; then
-      printf 'unknown challenge: %s\n' "$challenge" >&2
-      exit 2
-    fi
-
-    if [ "$(printf '%s' "$match" | jq --raw-output '.solved')" = "true" ]; then
-      printf 'solved: %s\n' "$challenge"
-      exit 0
-    fi
-
-    printf 'not solved: %s\n' "$challenge"
-    exit 1
+    require docker
+    compose exec --no-TTY juice-shop /nodejs/bin/node -e '
+      const challengeName = process.argv[1];
+      (async () => {
+        const response = await fetch("http://127.0.0.1:3000/api/Challenges/");
+        if (!response.ok) throw new Error(`judge endpoint returned ${response.status}`);
+        const payload = await response.json();
+        const challenge = payload.data.find((item) => item.name === challengeName);
+        if (!challenge) {
+          console.error(`unknown challenge: ${challengeName}`);
+          process.exit(2);
+        }
+        if (challenge.solved === true) {
+          console.log(`solved: ${challengeName}`);
+          process.exit(0);
+        }
+        console.log(`not solved: ${challengeName}`);
+        process.exit(1);
+      })().catch((error) => {
+        console.error(error.message);
+        process.exit(2);
+      });
+    ' "$challenge"
     ;;
   *)
     usage >&2

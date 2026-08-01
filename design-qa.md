@@ -165,3 +165,72 @@ No actionable P0, P1, or P2 findings remain.
 - Pass 2 — passed: the revised header, HTB/custom states, history and pairing menus had no actionable visual or interaction mismatch, and the console remained clean.
 
 final result: passed
+
+# Coding 输入区布局 · Design QA
+
+- Source visual truth:
+  `/Users/milksu/code/milksu/docs/design/milksu-coding-composer-layout-reference.png`
+- Implementation screenshot:
+  `/Users/milksu/code/milksu/docs/design/milksu-coding-composer-layout.png`
+- Full comparison:
+  `/Users/milksu/code/milksu/docs/design/milksu-coding-composer-layout-comparison.png`
+- Focused top / bottom comparison:
+  `/Users/milksu/code/milksu/docs/design/milksu-coding-composer-layout-focused-comparison.png`
+- Viewport: `1440 × 932` CSS px.
+- Density normalization: source `2880 × 1864` at 2× was downsampled to `1440 × 932`;
+  implementation was captured at `1440 × 932` with the in-app browser viewport override.
+- State: Coding empty state, environment panel open. The source had a selected project and history;
+  those data-state differences were excluded from the requested shell-layout comparison.
+
+## Full-view comparison evidence
+
+The implementation preserves the source shell proportions and existing dark-green token system. The
+main content remains centered between the task sidebar and environment panel. The top title block is a
+single 56 px row with no bottom border. Project, capability and model controls are removed from that
+row and appear directly above the bottom composer. The composer is a centered 768 px island with a
+16 px radius, one-pixel border and restrained shadow; no full-width top divider remains.
+
+## Focused comparison evidence
+
+The focused comparison covers the two user-marked regions:
+
+- Top: title and path remain on the left; the environment-panel toggle stays at the far right.
+- Bottom: project, capability and model controls sit above the prompt; the prompt and send action are
+  enclosed by the rounded island rather than a full-width footer bar.
+
+## Required fidelity surfaces
+
+- Fonts and typography: existing Inter/CJK fallback, weights, sizes and truncation were preserved.
+- Spacing and layout rhythm: requested control relocation, 56 px header, centered 768 px composer,
+  16 px island radius and responsive widths are aligned with the reference.
+- Colors and visual tokens: only existing MilkSU surface, card, border, foreground and brand tokens
+  are used; no new palette or gradient was introduced.
+- Image quality and asset fidelity: no new raster assets were needed; existing MilkSU avatar and
+  icon-library components were preserved.
+- Copy and content: existing product copy and actual model/provider labels are preserved.
+
+## Comparison history
+
+### Iteration 1
+
+- Finding: **P2** — at the narrower main-column width created by the open environment panel, the
+  environment toggle wrapped below the title instead of remaining at the top-right.
+- Fix: removed the non-CTF header's container-query stack behavior while preserving wrapping for the
+  CTF-specific action header.
+- Post-fix evidence: measured header width `824 px`, height `56 px`, bottom border `0 px`; the toggle
+  remains at the right edge. With the environment panel closed, main width expands to `1144 px` and
+  the toggle remains at `x=1384`, adjacent to the header's right edge at `x=1440`.
+
+## Interaction checks
+
+- Capability menu opens and exposes the real loaded-extension state.
+- Model menu opens with readable `自动`、`原厂`、`中转站` groups; no option text is clipped.
+- Environment panel closes and reopens from the top-right control.
+- Browser console error count: `0`.
+
+## Remaining findings
+
+No actionable P0/P1/P2 differences remain for the requested layout. The selected-project content in
+the source is a different data state, not a shell-layout defect.
+
+final result: passed

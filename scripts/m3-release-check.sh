@@ -12,13 +12,17 @@ if [[ ! -x "$wails_bin" ]]; then
 fi
 
 go test ./...
-node --test bridge-policy.test.js
+go vet ./...
+node --test bridge-policy.test.js bridge-resource-policy.test.js
+npm --prefix app test -- --run
+npm --prefix app run lint
 npm --prefix app run build
 npm run sidecar:smoke
 npm run docs:build
 "$wails_bin" build
 
 rg -q "TestAgentModel" app/wailsjs/go/main/App.d.ts
+rg -q "GetCodingDiff" app/wailsjs/go/main/App.d.ts
 rg -q "ListNSSCTFCatalog" app/wailsjs/go/main/App.d.ts
 rg -q "GetCTFAgentBudgetStatus" app/wailsjs/go/main/App.d.ts
 rg -q "GetCTFAgentRunCheckpoint" app/wailsjs/go/main/App.d.ts

@@ -45,7 +45,7 @@ import {
 } from 'lucide-vue-next'
 import { invokeCommand } from '@/desktop'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
-import type { CodingEnvironmentSnapshot } from '@/codingEnvironmentTypes'
+import type { CodingDiffSnapshot, CodingEnvironmentSnapshot } from '@/codingEnvironmentTypes'
 import type {
   CTFAgentBudgetStatus,
   CTFAgentRunCheckpoint,
@@ -86,6 +86,9 @@ const environmentOpen = ref(!props.ctfSession)
 const environmentLoading = ref(false)
 const environmentError = ref('')
 const codingEnvironment = ref<CodingEnvironmentSnapshot | null>(null)
+const codingDiff = ref<CodingDiffSnapshot | null>(null)
+const codingDiffLoading = ref(false)
+const codingDiffError = ref('')
 const ctfBudget = ref<CTFAgentBudgetStatus | null>(null)
 const ctfCheckpoint = ref<CTFAgentRunCheckpoint | null>(null)
 const ctfProjection = ref<CTFProjection | null>(null)
@@ -143,9 +146,9 @@ const extensionDescription = (value: string) => (
   value === 'milksu-workflow'
     ? '计划可见、角色工作流与结果验证'
     : value === 'pi-lsp'
-      ? '语言服务器诊断与显式代码修复'
+      ? '固定 Go / Vue / TypeScript 路由；需本机安装对应语言服务器'
       : value === 'pi-retry'
-        ? '识别可重试的上游错误与停滞响应'
+        ? '识别可重试的上游错误；慢模型停滞中止暂不启用'
         : '已由 MilkSU 白名单加载'
 )
 const hasCredential = computed(() => {
@@ -268,6 +271,8 @@ async function loadWorkshopState() {
 
 async function refreshEnvironment() {
   environmentError.value = ''
+  codingDiff.value = null
+  codingDiffError.value = ''
   if (props.ctfSession) {
     codingEnvironment.value = null
     const jobId = props.conversation?.ctfJobId
@@ -313,6 +318,25 @@ async function refreshEnvironment() {
       : '暂时无法读取项目环境。'
   } finally {
     environmentLoading.value = false
+  }
+}
+
+async function inspectCodingDiff(relativePath: string) {
+  if (!props.workspacePath || codingDiffLoading.value) return
+  codingDiffLoading.value = true
+  codingDiffError.value = ''
+  try {
+    codingDiff.value = await invokeCommand<CodingDiffSnapshot>(
+      'get_coding_diff',
+      { workspacePath: props.workspacePath, relativePath },
+    )
+  } catch (reason) {
+    codingDiff.value = null
+    codingDiffError.value = reason instanceof Error
+      ? reason.message
+      : '暂时无法读取文件 Diff。'
+  } finally {
+    codingDiffLoading.value = false
   }
 }
 
@@ -364,7 +388,7 @@ watch(
   <section class="flex min-w-0 flex-1 overflow-hidden bg-surface-editor">
   <main class="chat-main flex min-w-0 flex-1 flex-col overflow-hidden bg-surface-editor">
     <header
-      class="chat-toolbar app-drag shrink-0 border-b border-border"
+      class="chat-toolbar app-drag shrink-0"
       :class="{ 'chat-toolbar--ctf': ctfSession }"
     >
       <div class="chat-toolbar__summary min-w-0">
@@ -425,70 +449,7 @@ watch(
           返回训练工作台
         </Button>
         <Button
-          variant="outline"
-          size="sm"
-          class="chat-toolbar__workspace max-w-56"
-          :disabled="workspaceLocked"
-          :title="workspaceLocked ? '项目目录在任务开始后锁定；请新建任务来切换项目' : '选择项目目录'"
-          @click="$emit('chooseWorkspace')"
-        >
-          <FolderOpen class="size-4 shrink-0" />
-          <span class="truncate">{{ workspacePath ? workspaceName : '选择项目' }}</span>
-        </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger as-child>
-            <Button
-              variant="outline"
-              size="sm"
-              :aria-label="`查看本任务能力，${activeExtensions.length} 个插件`"
-            >
-              <Puzzle class="size-4" />
-              能力
-              <Badge v-if="activeExtensions.length" variant="secondary">
-                {{ activeExtensions.length }}
-              </Badge>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" class="w-80">
-            <DropdownMenuLabel>本任务已启用</DropdownMenuLabel>
-            <div v-if="activeExtensions.length" class="space-y-2 px-2 py-2">
-              <div
-                v-for="extension in activeExtensions"
-                :key="extension"
-                class="flex items-start gap-2"
-              >
-                <Check class="mt-0.5 size-3.5 shrink-0 text-primary" />
-                <div>
-                  <p class="text-body font-medium">{{ extensionLabel(extension) }}</p>
-                  <p class="text-caption text-muted-foreground">
-                    {{ extensionDescription(extension) }}
-                  </p>
-                </div>
-              </div>
-            </div>
-            <p v-else class="px-2 py-3 text-caption text-muted-foreground">
-              启动一次 Agent 任务后显示实际加载结果。
-            </p>
-            <template v-if="activeSkills.length">
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel>技能</DropdownMenuLabel>
-              <div class="flex flex-wrap gap-1.5 px-2 py-2">
-                <Badge v-for="skill in activeSkills" :key="skill" variant="outline">
-                  {{ skill }}
-                </Badge>
-              </div>
-            </template>
-            <template v-if="activeTools.length">
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel>工具 · {{ activeTools.length }}</DropdownMenuLabel>
-              <p class="px-2 pb-2 text-caption leading-5 text-muted-foreground">
-                {{ activeTools.join(' · ') }}
-              </p>
-            </template>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <Button
-          variant="outline"
+          variant="ghost"
           size="icon-sm"
           :aria-label="environmentOpen ? `关闭${environmentTitle}` : `打开${environmentTitle}`"
           :title="environmentOpen ? `关闭${environmentTitle}` : `打开${environmentTitle}`"
@@ -497,49 +458,6 @@ watch(
           <PanelRightClose v-if="environmentOpen" class="size-4" />
           <PanelRightOpen v-else class="size-4" />
         </Button>
-        <Select
-          :model-value="currentModelKey"
-          :disabled="running"
-          @update:model-value="value => changeModel(String(value ?? ''))"
-        >
-          <SelectTrigger
-            size="sm"
-            class="chat-toolbar__model min-w-0"
-            aria-label="选择本任务模型"
-            :title="effectiveModelMode === 'auto'
-              ? 'MilkSU 按任务角色自动选择模型；你可以仅为当前对话覆盖'
-              : '当前对话固定使用所选模型'"
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent size="sm" align="end" :align-offset="0" class="min-w-96">
-            <SelectGroup>
-              <SelectLabel>自动</SelectLabel>
-              <SelectItem value="auto">
-                {{ automaticModelLabel }}
-              </SelectItem>
-            </SelectGroup>
-            <SelectSeparator />
-            <template
-              v-for="(group, groupIndex) in PROVIDER_GROUPS"
-              :key="group.kind"
-            >
-              <SelectSeparator v-if="groupIndex > 0" />
-              <SelectGroup>
-                <SelectLabel>{{ group.label }}</SelectLabel>
-                <template v-for="provider in group.providers" :key="provider.id">
-                  <SelectItem
-                    v-for="model in provider.models"
-                    :key="`${provider.id}:${model}`"
-                    :value="`manual:${provider.id}:${model}`"
-                  >
-                    {{ providerModelLabel(provider.id, model) }}
-                  </SelectItem>
-                </template>
-              </SelectGroup>
-            </template>
-          </SelectContent>
-        </Select>
       </div>
     </header>
 
@@ -657,56 +575,168 @@ watch(
       </div>
     </div>
 
-    <div class="shrink-0 border-t border-border bg-surface-composer px-5 py-4">
-      <div
-        v-if="ctfSession && ctfRole === 'solver'"
-        class="mx-auto mb-3 flex max-w-3xl flex-wrap items-center gap-2"
-        aria-label="CTF 快捷协作"
-      >
-        <span class="mr-1 text-caption text-muted-foreground">快捷协作</span>
-        <Button
-          v-for="option in ctfActionOptions"
-          :key="option.label"
-          type="button"
-          variant="outline"
-          size="sm"
-          :disabled="running"
-          @click="$emit('ctfAction', option.action)"
+    <div class="chat-composer shrink-0 bg-surface-editor px-5 pb-4 pt-2">
+      <div class="mx-auto max-w-3xl">
+        <div class="chat-composer__controls app-no-drag mb-2 flex min-w-0 items-center gap-1.5 px-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            class="chat-composer__workspace min-w-0"
+            :disabled="workspaceLocked"
+            :title="workspaceLocked ? '项目目录在任务开始后锁定；请新建任务来切换项目' : '选择项目目录'"
+            @click="$emit('chooseWorkspace')"
+          >
+            <FolderOpen class="size-3.5 shrink-0" />
+            <span class="truncate">{{ workspacePath ? workspaceName : '项目' }}</span>
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger as-child>
+              <Button
+                variant="ghost"
+                size="sm"
+                :aria-label="`查看本任务能力，${activeExtensions.length} 个插件`"
+              >
+                <Puzzle class="size-3.5" />
+                能力
+                <Badge v-if="activeExtensions.length" variant="secondary">
+                  {{ activeExtensions.length }}
+                </Badge>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" class="w-80">
+              <DropdownMenuLabel>本任务已启用</DropdownMenuLabel>
+              <div v-if="activeExtensions.length" class="space-y-2 px-2 py-2">
+                <div
+                  v-for="extension in activeExtensions"
+                  :key="extension"
+                  class="flex items-start gap-2"
+                >
+                  <Check class="mt-0.5 size-3.5 shrink-0 text-primary" />
+                  <div>
+                    <p class="text-body font-medium">{{ extensionLabel(extension) }}</p>
+                    <p class="text-caption text-muted-foreground">
+                      {{ extensionDescription(extension) }}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <p v-else class="px-2 py-3 text-caption text-muted-foreground">
+                启动一次 Agent 任务后显示实际加载结果。
+              </p>
+              <template v-if="activeSkills.length">
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>技能</DropdownMenuLabel>
+                <div class="flex flex-wrap gap-1.5 px-2 py-2">
+                  <Badge v-for="skill in activeSkills" :key="skill" variant="outline">
+                    {{ skill }}
+                  </Badge>
+                </div>
+              </template>
+              <template v-if="activeTools.length">
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>工具 · {{ activeTools.length }}</DropdownMenuLabel>
+                <p class="px-2 pb-2 text-caption leading-5 text-muted-foreground">
+                  {{ activeTools.join(' · ') }}
+                </p>
+              </template>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Select
+            :model-value="currentModelKey"
+            :disabled="running"
+            @update:model-value="value => changeModel(String(value ?? ''))"
+          >
+            <SelectTrigger
+              size="sm"
+              class="chat-composer__model min-w-0 border-0 bg-transparent shadow-none"
+              aria-label="选择本任务模型"
+              :title="effectiveModelMode === 'auto'
+                ? 'MilkSU 按任务角色自动选择模型；你可以仅为当前对话覆盖'
+                : '当前对话固定使用所选模型'"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent size="sm" align="start" :align-offset="0" class="min-w-96">
+              <SelectGroup>
+                <SelectLabel>自动</SelectLabel>
+                <SelectItem value="auto">
+                  {{ automaticModelLabel }}
+                </SelectItem>
+              </SelectGroup>
+              <SelectSeparator />
+              <template
+                v-for="(group, groupIndex) in PROVIDER_GROUPS"
+                :key="group.kind"
+              >
+                <SelectSeparator v-if="groupIndex > 0" />
+                <SelectGroup>
+                  <SelectLabel>{{ group.label }}</SelectLabel>
+                  <template v-for="provider in group.providers" :key="provider.id">
+                    <SelectItem
+                      v-for="model in provider.models"
+                      :key="`${provider.id}:${model}`"
+                      :value="`manual:${provider.id}:${model}`"
+                    >
+                      {{ providerModelLabel(provider.id, model) }}
+                    </SelectItem>
+                  </template>
+                </SelectGroup>
+              </template>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div
+          v-if="ctfSession && ctfRole === 'solver'"
+          class="mb-2 flex flex-wrap items-center gap-2 px-1"
+          aria-label="CTF 快捷协作"
         >
-          <component :is="option.icon" class="size-3.5" />
-          {{ option.label }}
-        </Button>
+          <span class="mr-1 text-caption text-muted-foreground">快捷协作</span>
+          <Button
+            v-for="option in ctfActionOptions"
+            :key="option.label"
+            type="button"
+            variant="outline"
+            size="sm"
+            :disabled="running"
+            @click="$emit('ctfAction', option.action)"
+          >
+            <component :is="option.icon" class="size-3.5" />
+            {{ option.label }}
+          </Button>
+        </div>
+
+        <form class="chat-composer__island flex items-end gap-2" @submit.prevent="submit">
+          <Textarea
+            v-model="draft"
+            class="max-h-40 min-h-11 resize-none border-0 bg-transparent shadow-none focus-visible:ring-0"
+            :placeholder="ctfSession
+              ? ctfRole === 'strategist'
+                ? '补充你希望独立复盘的卡点或失败路线…'
+                : ctfRole === 'tool-builder'
+                  ? '告诉 Coding Agent 要实现或修正的本题工具…'
+                  : '告诉 Agent 你的观察、假设，或直接使用上面的快捷协作…'
+              : workspacePath
+                ? `让 Agent 在 ${workspaceName} 中完成任务…`
+                : '在临时沙盒中开始，或先选择一个项目…'"
+            aria-label="消息"
+            @keydown.enter.exact.prevent="submit"
+          />
+          <Button
+            v-if="running"
+            type="button"
+            variant="destructive"
+            size="icon"
+            aria-label="停止 Agent"
+            @click="$emit('abort')"
+          >
+            <Square class="size-3.5 fill-current" />
+          </Button>
+          <Button v-else type="submit" variant="brand" size="icon" :disabled="!draft.trim()" aria-label="发送">
+            <ArrowUp class="size-4" />
+          </Button>
+        </form>
       </div>
-      <form class="mx-auto flex max-w-3xl items-end gap-2" @submit.prevent="submit">
-        <Textarea
-          v-model="draft"
-          class="max-h-40 min-h-11"
-          :placeholder="ctfSession
-            ? ctfRole === 'strategist'
-              ? '补充你希望独立复盘的卡点或失败路线…'
-              : ctfRole === 'tool-builder'
-                ? '告诉 Coding Agent 要实现或修正的本题工具…'
-                : '告诉 Agent 你的观察、假设，或直接使用上面的快捷协作…'
-            : workspacePath
-              ? `让 Agent 在 ${workspaceName} 中完成任务…`
-              : '在临时沙盒中开始，或先选择一个项目…'"
-          aria-label="消息"
-          @keydown.enter.exact.prevent="submit"
-        />
-        <Button
-          v-if="running"
-          type="button"
-          variant="destructive"
-          size="icon"
-          aria-label="停止 Agent"
-          @click="$emit('abort')"
-        >
-          <Square class="size-3.5 fill-current" />
-        </Button>
-        <Button v-else type="submit" variant="brand" size="icon" :disabled="!draft.trim()" aria-label="发送">
-          <ArrowUp class="size-4" />
-        </Button>
-      </form>
     </div>
   </main>
   <aside
@@ -800,6 +830,66 @@ watch(
               <span :class="{ 'text-destructive': codingEnvironment.git.conflicts }">
                 冲突 {{ codingEnvironment.git.conflicts }}
               </span>
+            </div>
+            <div v-if="codingEnvironment.git.changes?.length" class="border-t border-border pt-3">
+              <div class="mb-2 flex items-center justify-between gap-3">
+                <span class="text-caption font-medium text-muted-foreground">文件</span>
+                <span v-if="codingEnvironment.git.changesTruncated" class="text-caption text-muted-foreground">
+                  仅显示前 80 项
+                </span>
+              </div>
+              <div class="space-y-1">
+                <button
+                  v-for="change in codingEnvironment.git.changes"
+                  :key="`${change.indexStatus}${change.worktreeStatus}:${change.path}`"
+                  type="button"
+                  class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-caption transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  :class="{ 'bg-muted': codingDiff?.path === change.path }"
+                  :title="change.originalPath ? `${change.originalPath} → ${change.path}` : change.path"
+                  @click="inspectCodingDiff(change.path)"
+                >
+                  <span
+                    class="w-6 shrink-0 font-mono"
+                    :class="change.conflict ? 'text-destructive' : change.untracked ? 'text-primary' : 'text-muted-foreground'"
+                  >
+                    {{ change.indexStatus }}{{ change.worktreeStatus }}
+                  </span>
+                  <span class="min-w-0 flex-1 truncate">{{ change.path }}</span>
+                </button>
+              </div>
+            </div>
+            <div
+              v-if="codingDiffLoading || codingDiffError || codingDiff"
+              class="rounded-md border border-border bg-background/50 p-3"
+            >
+              <div class="flex items-center justify-between gap-3">
+                <span class="min-w-0 truncate font-mono text-caption">
+                  {{ codingDiff?.path || '读取 Diff' }}
+                </span>
+                <LoaderCircle v-if="codingDiffLoading" class="size-3.5 animate-spin text-muted-foreground" />
+              </div>
+              <p v-if="codingDiffError" class="mt-2 text-caption leading-5 text-destructive">
+                {{ codingDiffError }}
+              </p>
+              <template v-else-if="codingDiff">
+                <div v-if="codingDiff.staged" class="mt-3">
+                  <p class="mb-1 text-caption font-medium text-muted-foreground">已暂存</p>
+                  <pre class="max-h-52 overflow-auto whitespace-pre font-mono text-[11px] leading-4">{{ codingDiff.staged }}</pre>
+                </div>
+                <div v-if="codingDiff.workingTree" class="mt-3">
+                  <p class="mb-1 text-caption font-medium text-muted-foreground">工作区</p>
+                  <pre class="max-h-52 overflow-auto whitespace-pre font-mono text-[11px] leading-4">{{ codingDiff.workingTree }}</pre>
+                </div>
+                <p
+                  v-if="!codingDiff.staged && !codingDiff.workingTree"
+                  class="mt-2 text-caption leading-5 text-muted-foreground"
+                >
+                  未跟踪文件或二进制变更没有可显示的文本 Diff。
+                </p>
+                <p v-if="codingDiff.truncated" class="mt-2 text-caption text-muted-foreground">
+                  Diff 过长，已截断。
+                </p>
+              </template>
             </div>
           </div>
           <p v-else class="mt-3 text-caption leading-5 text-muted-foreground">
@@ -942,11 +1032,6 @@ watch(
   max-width: 100%;
 }
 
-.chat-toolbar__model {
-  width: 16rem;
-  max-width: 100%;
-}
-
 .chat-toolbar--ctf {
   grid-template-columns: minmax(0, 1fr);
   align-items: stretch;
@@ -958,39 +1043,41 @@ watch(
   justify-content: flex-start;
 }
 
-.chat-toolbar--ctf .chat-toolbar__model {
-  flex: 1 1 14rem;
-  width: auto;
-  max-width: 20rem;
-  margin-left: auto;
+.chat-composer {
+  position: relative;
+  z-index: 2;
 }
 
-@container chat-main (max-width: 72rem) {
-  .chat-toolbar {
-    grid-template-columns: minmax(0, 1fr);
-    align-items: stretch;
-    padding-inline: 1rem;
-  }
+.chat-composer__workspace {
+  max-width: 12rem;
+}
 
-  .chat-toolbar__actions {
-    flex-wrap: wrap;
-    justify-content: flex-start;
-  }
+.chat-composer__model {
+  width: min(22rem, 48vw);
+}
 
-  .chat-toolbar__model {
-    margin-left: auto;
-  }
+.chat-composer__island {
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: var(--card);
+  padding: 0.5rem 0.55rem 0.5rem 0.8rem;
+  box-shadow:
+    0 14px 34px rgb(0 0 0 / 18%),
+    0 2px 8px rgb(0 0 0 / 10%);
 }
 
 @container chat-main (max-width: 52rem) {
-  .chat-toolbar__workspace {
-    max-width: 10rem;
+  .chat-composer__controls {
+    flex-wrap: wrap;
   }
 
-  .chat-toolbar__model {
-    flex: 1 1 14rem;
+  .chat-composer__workspace {
+    max-width: 9rem;
+  }
+
+  .chat-composer__model {
+    flex: 1 1 13rem;
     width: auto;
-    margin-left: 0;
   }
 }
 </style>

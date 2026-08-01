@@ -248,10 +248,14 @@ function authorizedSockets(manifest) {
   );
 }
 
-function scopeAllowsNetwork(manifest) {
+export function scopeAllowsNetwork(manifest) {
+  // Managed Labs expose one exact loopback origin through ctf_http. Their
+  // general-purpose shell remains networkless so a challenge cannot turn an
+  // admitted lab identifier into ambient host, Docker, or internet access.
+  if (String(manifest?.source?.kind) === "local-lab") return false;
   const targets = manifest?.source?.scope?.targets;
   if (!Array.isArray(targets)) return false;
-  return targets.some(target => ["origin", "socket", "lab"].includes(String(target?.kind)));
+  return targets.some(target => ["origin", "socket"].includes(String(target?.kind)));
 }
 
 function sandboxString(value) {

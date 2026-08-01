@@ -138,6 +138,7 @@ func TestCodingSidecarAllowsOnlyTheRequiredSystemShells(t *testing.T) {
 		"--allow-child-process",
 		"--allow-fs-read=/bin/bash",
 		"--allow-fs-read=/bin/sh",
+		"--allow-fs-read=/usr/bin/env",
 		"--allow-fs-read=/usr/bin/sandbox-exec",
 	} {
 		if !strings.Contains(arguments, expected) {

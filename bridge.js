@@ -12,6 +12,10 @@ import { Type } from "typebox";
 import piLspExtension from "@narumitw/pi-lsp/src/index.ts";
 import piRetryExtension from "@narumitw/pi-retry/src/index.ts";
 import { loadSessionPolicy } from "./bridge-policy.js";
+import {
+  applyCodingResourcePolicy,
+  describeLoadedExtensions,
+} from "./bridge-resource-policy.js";
 
 const relayKey = process.env.MILKSU_RELAY_KEY;
 const relayUrl = process.env.MILKSU_RELAY_URL || "https://api.ciyuanliudong.com/v1";
@@ -314,6 +318,9 @@ async function createSession(command) {
   const effectiveSessionRole = sessionPolicy.ctf
     ? command.sessionRole || "solver"
     : "";
+  if (!effectiveSessionRole) {
+    applyCodingResourcePolicy();
+  }
   const resourceLoader = createMilkSUResourceLoader(
     cwd,
     agentDir,
@@ -348,13 +355,12 @@ async function createSession(command) {
 
     sessions.set(conversationId, session);
     promptQueues.set(conversationId, Promise.resolve());
+    const loadedExtensions = describeLoadedExtensions(resourceLoader);
     emit(conversationId, "ready", {
       workspace: cwd,
       tools: session.getActiveToolNames(),
-      extensions: [
-        "milksu-workflow",
-        ...(effectiveSessionRole ? [] : ["pi-lsp", "pi-retry"]),
-      ],
+      extensions: loadedExtensions.names,
+      extensionErrors: loadedExtensions.errors,
       skills: resourceLoader.getSkills().skills.map((skill) => skill.name),
       resumed: session.messages.length > 0,
     });
