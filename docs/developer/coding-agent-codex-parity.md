@@ -57,6 +57,7 @@ MilkSU Coding 的北极星不是“能调用模型的聊天框”，而是让用
 | LSP | `Partial`：固定插件并仅用于 Coding；仓库配置被 MilkSU 白名单覆盖，语言服务器进程不继承模型凭据 | 打包 Go/Vue/TypeScript Server；用 fixture 验证诊断，写修复必须显式展示 | P0 |
 | Retry | `Partial`：固定插件并仅用于 Coding；保留瞬态错误分类，慢模型 watchdog 暂停 | 用可控瞬态失败与慢首 Token fixture 验证有界重试和停止后再启用 watchdog | P0 |
 | Architecture | `Verified`：真实打包 App 中一键“架构图”自动读取项目、固定输出 JSON/HTML、9/9、0 error、0 warning，并在右侧安全预览；Archify 固定 commit 且只用于 Coding | 后续补“仓库变化后更新图”的独立回归 | P1 |
+| 日常产品动作 | `Implemented`：Composer 提供理解项目、运行测试、审阅变更、修复失败、生成总结；固定动作协议自动选择 Plan/Go、权限和右侧结果页，不把工作流参数抛给用户 | 用同一真实项目连续执行五个短动作，验收模型不追问内部参数、结果均有工具证据 | P0 |
 | 多 Agent | `Planned` | 子任务、状态、预算、独立工作区和主 Agent 汇总 | P1 |
 
 ### 3. Git 与代码审阅
@@ -64,8 +65,8 @@ MilkSU Coding 的北极星不是“能调用模型的聊天框”，而是让用
 | Codex 工作流 | MilkSU 当前状态 | 差距与验收 | 优先级 |
 | --- | --- | --- | --- |
 | 分支、HEAD、ahead/behind | `Verified`：右侧环境面板只读展示 | 增加远端与 detached 状态说明 | P0 |
-| 变更统计 | `Verified`：文件数、增删行、暂存/修改/未跟踪/冲突 | 点击进入文件级 diff | P0 |
-| Diff 审阅与行级反馈 | `Planned` | 文件树、unified diff、行级反馈回流下一回合 | P0 |
+| 变更统计 | `Verified`：文件数、增删行、暂存/修改/未跟踪/冲突 | 增加远端过滤和大型仓库分页 | P0 |
+| Diff 审阅与行级反馈 | `Implemented`：右侧独立变更页展示文件列表、暂存/工作区 unified diff、截断状态，并可一键发起 Agent 审阅 | 增加行级评论回流、逐块审阅与真实仓库原生回归 | P0 |
 | Stage / revert | `Planned` | 逐块和逐文件操作；破坏性操作前确认 | P1 |
 | Commit / push / PR | `Planned` | 明确目标分支与远端；push 和 PR 属于外部副作用 | P0 |
 | Worktree / Handoff | `Alternative` | 使用 Git worktree 为并行 Coding 任务隔离；不复制 Codex 私有 Handoff | P1 |
@@ -75,7 +76,7 @@ MilkSU Coding 的北极星不是“能调用模型的聊天框”，而是让用
 | Codex 工作流 | MilkSU 当前状态 | 差距与验收 | 优先级 |
 | --- | --- | --- | --- |
 | 工作区范围 | `Implemented`：文件工具二次校验路径/符号链接；Project Auto 保护 `.milksu` 并由 macOS 沙箱阻止项目外写入；Full Access 只能由用户显式选择 | 多根目录显式授权；原生包负向回归 | P0 |
-| 命令与网络审批 | `Partial`：Plan/Go 与 Codex 风格 `请求批准 / 替我审批 / 完全访问权限` 已由后端真实执行；Ask 因无桌面同步审批协议暂按只读 | 增加逐工具审批；Browser、Computer Use 与外部产品副作用保持独立批准 | P0 |
+| 命令与网络审批 | `Partial`：Plan/Go 与 Codex 风格 `请求批准 / 替我审批 / 完全访问权限` 已由后端真实执行；菜单的标题/帮助/说明/分隔/选中态与警示色已完成浏览器视觉回归；Ask 因无桌面同步审批协议暂按只读 | 增加逐工具审批；Browser、Computer Use 与外部产品副作用保持独立批准 | P0 |
 | 环境信息 | `Implemented`：工作区、Git、模型、插件、工具、消息与工具记录 | 补后台进程、端口、浏览器、来源与变更详情 | P0 |
 | Local Environment / Actions | `Planned` | 项目级 setup 和常用命令；固定配置、可见输出、可停止 | P1 |
 | 集成终端 | `Planned` | 同一项目的可见终端与 Agent 后台进程，不隐藏 Shell 状态 | P1 |

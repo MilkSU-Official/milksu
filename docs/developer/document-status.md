@@ -13,7 +13,8 @@ MilkSU 当前是一个 local-first 的授权安全学习与研究桌面工作台
 - **CTF** 已跑通一条真实 NSSCTF Intake → Pi → Candidate → Browser Judge → Recovery →
   Debrief 闭环，但多题型、动态 Endpoint 和能力画像仍需样本校准；
 - **Coding** 核心 Plan → Go、多轮编辑、命令与测试已经真实交付；Codex 风格三档权限菜单、
-  Project Auto 和显式 Full Access 已实现，仍缺真正的逐次审批、Diff/Git 发布、附件、
+  Project Auto 和显式 Full Access 已实现；理解项目、运行测试、审阅变更、修复失败和总结
+  已成为固定的一键动作，文件级 Diff 有独立右侧页。仍缺真正的逐次审批、Git 发布、附件、
   MCP Browser、Computer Use 和后台进程；
 - **NYU CTF Bench** 只有开发者专用 safe-static 单次 Runner 与 Digest Judge，不是完整
   Challenge Runner，也不是用户训练能力；
@@ -47,6 +48,8 @@ MilkSU 当前是一个 local-first 的授权安全学习与研究桌面工作台
 | 清洁用户题库与恢复 | 自动同步 4,204 题、Judge 不明确恢复、报告脱敏、跨进程恢复。 |
 | Coding 核心交付 | 打包 App 中 Plan → Go、多轮修改、`npm test`、smoke 与外部独立复验。 |
 | Coding 权限执行 | Project Auto 项目外写入负向测试、Full Access 显式项目外写入与 Provider Key 隔离测试。 |
+| Coding 权限菜单 | Codex 三档层级、帮助入口、选中态、警示色和 1024 × 700 视口完成浏览器交互与视觉对照；推荐状态恢复为 Project Auto。 |
+| Coding 日常动作与 Diff | 五个固定动作协议有单测；右侧变更页支持文件列表、暂存/工作区 Diff、截断和 Agent 审阅入口。 |
 | Archify 一键产品动作 | 真实打包 App 一键生成固定 JSON/HTML，独立复验 9/9、0 error、0 warning，右侧预览成功。 |
 | 本地持久化 | 用户目录 SQLite、Workspace、Artifact、Conversation、Memory 和 Credential Store。 |
 | NYU safe-static 基线 | 人工准入、一次无工具 Provider 调用、Digest Judge、成本/Token/退出原因报告。 |

@@ -29,7 +29,9 @@ import {
   Compass,
   Copy,
   ExternalLink,
+  FileDiff,
   FilePenLine,
+  FileText,
   Files,
   Flag,
   FolderOpen,
@@ -48,20 +50,26 @@ import {
   Route,
   ShieldAlert,
   ShieldCheck,
+  Sparkles,
   Square,
   StickyNote,
   Terminal,
   Wrench,
 } from 'lucide-vue-next'
 import { invokeCommand } from '@/desktop'
+import CodingChangesPanel from '@/components-vue/CodingChangesPanel.vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import type {
   CodingArchitecturePreview,
-  CodingDiffSnapshot,
   CodingEnvironmentSnapshot,
 } from '@/codingEnvironmentTypes'
 import type { CTFShowCatalogStatus } from '@/ctfshowTypes'
 import { buildCodingArchitectureAction } from '@/lib/codingArchitecture'
+import {
+  codingProductAction,
+  codingProductActions,
+  type CodingProductActionKind,
+} from '@/lib/codingProductActions'
 import {
   normalizeCodingApprovalPolicy,
   normalizeCodingExecutionMode,
@@ -118,7 +126,7 @@ const scrollArea = ref<HTMLElement | null>(null)
 const workshopState = ref<CTFToolWorkshopState | null>(null)
 const environmentOpen = ref(!props.ctfSession)
 const contextPanel = ref<
-  'environment' | 'architecture' | 'browser' | 'collaboration' | 'evidence'
+  'environment' | 'changes' | 'architecture' | 'browser' | 'collaboration' | 'evidence'
 >('environment')
 const environmentLoading = ref(false)
 const environmentError = ref('')
@@ -130,9 +138,6 @@ const browserPanelError = ref('')
 const nssctfBrowserStatus = ref<NSSCTFWebBridgeStatus | null>(null)
 const ctfshowBrowserStatus = ref<CTFShowCatalogStatus | null>(null)
 const codingEnvironment = ref<CodingEnvironmentSnapshot | null>(null)
-const codingDiff = ref<CodingDiffSnapshot | null>(null)
-const codingDiffLoading = ref(false)
-const codingDiffError = ref('')
 const ctfBudget = ref<CTFAgentBudgetStatus | null>(null)
 const ctfCheckpoint = ref<CTFAgentRunCheckpoint | null>(null)
 const ctfProjection = ref<CTFProjection | null>(null)
@@ -302,11 +307,25 @@ const toolMessageCount = computed(() => (
 const latestJudge = computed(() => ctfProjection.value?.judgeReceipts.at(-1))
 const contextPanelTitle = computed(() => ({
   environment: props.ctfSession ? '解题环境' : '环境信息',
+  changes: '变更',
   architecture: '架构图',
   browser: '浏览器',
   collaboration: 'Agent 协作',
   evidence: '证据与 Judge',
 })[contextPanel.value])
+const codingActionIcons = {
+  understand: Compass,
+  test: Terminal,
+  review: FileDiff,
+  fix: Wrench,
+  summary: FileText,
+} as const
+const codingActionOptions = computed(() => (
+  codingProductActions().map(action => ({
+    ...action,
+    icon: markRaw(codingActionIcons[action.kind]),
+  }))
+))
 const ctfRoleLabel = computed(() => {
   if (props.ctfRole === 'tool-builder') return 'Coding Agent 工具工坊'
   if (props.ctfRole === 'strategist') return '策略 Agent 复盘'
@@ -394,6 +413,11 @@ function changeApprovalPolicy(value: string) {
   emit('changeCodingPolicy', effectiveExecutionMode.value, approvalPolicy)
 }
 
+function showCodingPermissions() {
+  contextPanel.value = 'environment'
+  environmentOpen.value = true
+}
+
 function generateArchitecture() {
   if (!props.workspacePath) {
     emit('chooseWorkspace')
@@ -411,6 +435,23 @@ function generateArchitecture() {
     architectureAction.value.prompt,
     architectureAction.value.visibleText,
   )
+}
+
+function runCodingProductAction(kind: CodingProductActionKind) {
+  if (!props.workspacePath) {
+    emit('chooseWorkspace')
+    return
+  }
+  if (props.running) return
+  const action = codingProductAction(kind)
+  contextPanel.value = action.panel
+  environmentOpen.value = true
+  emit(
+    'changeCodingPolicy',
+    action.executionMode,
+    action.approvalPolicy ?? effectiveApprovalPolicy.value,
+  )
+  emit('send', action.prompt, action.visibleText)
 }
 
 async function refreshArchitecturePreview() {
@@ -456,8 +497,6 @@ async function loadWorkshopState() {
 
 async function refreshEnvironment() {
   environmentError.value = ''
-  codingDiff.value = null
-  codingDiffError.value = ''
   if (props.ctfSession) {
     codingEnvironment.value = null
     const jobId = props.conversation?.ctfJobId
@@ -539,7 +578,7 @@ async function refreshContextPanel() {
 }
 
 function changeContextPanel(value: string) {
-  if (!['environment', 'architecture', 'browser', 'collaboration', 'evidence'].includes(value)) return
+  if (!['environment', 'changes', 'architecture', 'browser', 'collaboration', 'evidence'].includes(value)) return
   contextPanel.value = value as typeof contextPanel.value
   environmentOpen.value = true
   void refreshContextPanel()
@@ -572,25 +611,6 @@ async function openSharedBrowserPage(url: string) {
   }
 }
 
-async function inspectCodingDiff(relativePath: string) {
-  if (!props.workspacePath || codingDiffLoading.value) return
-  codingDiffLoading.value = true
-  codingDiffError.value = ''
-  try {
-    codingDiff.value = await invokeCommand<CodingDiffSnapshot>(
-      'get_coding_diff',
-      { workspacePath: props.workspacePath, relativePath },
-    )
-  } catch (reason) {
-    codingDiff.value = null
-    codingDiffError.value = reason instanceof Error
-      ? reason.message
-      : '暂时无法读取文件 Diff。'
-  } finally {
-    codingDiffLoading.value = false
-  }
-}
-
 function requestTool() {
   emit('ctfAction', {
     kind: 'handoff',
@@ -618,6 +638,7 @@ watch(() => props.ctfSession, (current, previous) => {
 watch(contextPanel, panel => {
   if (panel === 'browser' && environmentOpen.value) void refreshBrowserPanel()
   if (panel === 'architecture' && environmentOpen.value) void refreshArchitecturePreview()
+  if (panel === 'changes' && environmentOpen.value) void refreshEnvironment()
 })
 watch(
   () => [props.ctfSession, props.conversation?.ctfJobId, props.ctfRole, props.running] as const,
@@ -758,6 +779,44 @@ watch(
             <FolderOpen class="size-3.5 shrink-0" />
             <span class="truncate">{{ workspacePath ? workspaceName : '项目' }}</span>
           </Button>
+          <DropdownMenu v-if="!ctfSession">
+            <DropdownMenuTrigger as-child>
+              <Button
+                variant="ghost"
+                size="sm"
+                class="chat-composer__control"
+                :disabled="running"
+                aria-label="Coding 快捷动作"
+              >
+                <Sparkles class="size-3.5 shrink-0" />
+                动作
+                <ChevronDown class="size-3.5 shrink-0 text-muted-foreground" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="start"
+              :side-offset="8"
+              class="w-[22rem] max-w-[calc(100vw-2rem)] p-1"
+            >
+              <DropdownMenuLabel class="px-3 pb-2 pt-2 text-label">
+                直接完成
+              </DropdownMenuLabel>
+              <DropdownMenuItem
+                v-for="option in codingActionOptions"
+                :key="option.kind"
+                class="coding-action-option"
+                @select="runCodingProductAction(option.kind)"
+              >
+                <component :is="option.icon" class="mt-0.5 size-4 shrink-0" />
+                <div class="min-w-0 flex-1">
+                  <p class="text-label font-medium">{{ option.label }}</p>
+                  <p class="mt-0.5 text-caption leading-5 text-muted-foreground">
+                    {{ option.description }}
+                  </p>
+                </div>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             v-if="!ctfSession"
             variant="ghost"
@@ -794,7 +853,8 @@ watch(
               <Button
                 variant="ghost"
                 size="sm"
-                class="chat-composer__control min-w-32 justify-start"
+                class="chat-composer__control chat-composer__permission min-w-32 justify-start"
+                :class="{ 'chat-composer__permission--full': effectiveApprovalPolicy === 'full-auto' }"
                 :disabled="running"
                 aria-label="Coding 权限策略"
               >
@@ -812,9 +872,18 @@ watch(
               :side-offset="8"
               class="w-[25rem] max-w-[calc(100vw-2rem)] p-0"
             >
-              <DropdownMenuLabel class="px-4 pb-2 pt-3 text-label">
-                应如何批准 Agent 操作？
-              </DropdownMenuLabel>
+              <div class="flex items-center justify-between gap-4 px-4 pb-2 pt-3">
+                <p class="text-label font-medium text-muted-foreground">
+                  应如何批准 MilkSU 操作？
+                </p>
+                <button
+                  type="button"
+                  class="shrink-0 text-label font-medium text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                  @click.stop="showCodingPermissions"
+                >
+                  了解更多
+                </button>
+              </div>
               <DropdownMenuItem
                 class="approval-option"
                 @select="changeApprovalPolicy('ask')"
@@ -823,7 +892,7 @@ watch(
                 <div class="min-w-0 flex-1">
                   <p class="approval-option__title">请求批准</p>
                   <p class="approval-option__description">
-                    编辑项目或使用互联网时询问；审批通道接入前暂按只读
+                    编辑项目或使用互联网前询问；当前版本会按只读保护
                   </p>
                 </div>
                 <Check
@@ -839,7 +908,7 @@ watch(
                 <div class="min-w-0 flex-1">
                   <p class="approval-option__title">替我审批</p>
                   <p class="approval-option__description">
-                    项目内文件、Git、开发命令和网络自动执行；项目外访问拦截
+                    项目内自动执行；越过项目边界或高风险操作时拦截
                   </p>
                 </div>
                 <Check
@@ -856,7 +925,7 @@ watch(
                 <div class="min-w-0 flex-1">
                   <p class="approval-option__title">完全访问权限</p>
                   <p class="approval-option__description">
-                    可不受项目边界限制地访问互联网和当前用户可访问的文件
+                    可不受限制地访问互联网和当前用户可访问的任何文件
                   </p>
                 </div>
                 <Check
@@ -1041,7 +1110,7 @@ watch(
   <aside
     v-if="environmentOpen"
     class="context-sidebar flex shrink-0 flex-col border-l border-border bg-card/95 backdrop-blur"
-    :class="contextPanel === 'architecture' ? 'w-[36rem]' : 'w-80'"
+    :class="['architecture', 'changes'].includes(contextPanel) ? 'w-[36rem]' : 'w-80'"
     :aria-label="contextPanelTitle"
   >
     <header class="app-drag flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
@@ -1055,6 +1124,7 @@ watch(
           aria-label="选择右侧页面"
         >
           <Activity v-if="contextPanel === 'environment'" class="size-4 text-primary" />
+          <FileDiff v-else-if="contextPanel === 'changes'" class="size-4 text-primary" />
           <Network v-else-if="contextPanel === 'architecture'" class="size-4 text-primary" />
           <Globe2 v-else-if="contextPanel === 'browser'" class="size-4 text-primary" />
           <Wrench v-else-if="contextPanel === 'collaboration'" class="size-4 text-primary" />
@@ -1063,6 +1133,7 @@ watch(
         </SelectTrigger>
         <SelectContent size="sm" align="start" class="min-w-56">
           <SelectItem value="environment">{{ ctfSession ? '解题环境' : '环境信息' }}</SelectItem>
+          <SelectItem v-if="!ctfSession" value="changes">变更</SelectItem>
           <SelectItem v-if="!ctfSession" value="architecture">架构图</SelectItem>
           <SelectItem value="browser">浏览器</SelectItem>
           <template v-if="ctfSession">
@@ -1186,66 +1257,19 @@ watch(
                 冲突 {{ codingEnvironment.git.conflicts }}
               </span>
             </div>
-            <div v-if="codingEnvironment.git.changes?.length" class="border-t border-border pt-3">
-              <div class="mb-2 flex items-center justify-between gap-3">
-                <span class="text-caption font-medium text-muted-foreground">文件</span>
-                <span v-if="codingEnvironment.git.changesTruncated" class="text-caption text-muted-foreground">
-                  仅显示前 80 项
-                </span>
-              </div>
-              <div class="space-y-1">
-                <button
-                  v-for="change in codingEnvironment.git.changes"
-                  :key="`${change.indexStatus}${change.worktreeStatus}:${change.path}`"
-                  type="button"
-                  class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-caption transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  :class="{ 'bg-muted': codingDiff?.path === change.path }"
-                  :title="change.originalPath ? `${change.originalPath} → ${change.path}` : change.path"
-                  @click="inspectCodingDiff(change.path)"
-                >
-                  <span
-                    class="w-6 shrink-0 font-mono"
-                    :class="change.conflict ? 'text-destructive' : change.untracked ? 'text-primary' : 'text-muted-foreground'"
-                  >
-                    {{ change.indexStatus }}{{ change.worktreeStatus }}
-                  </span>
-                  <span class="min-w-0 flex-1 truncate">{{ change.path }}</span>
-                </button>
-              </div>
-            </div>
-            <div
-              v-if="codingDiffLoading || codingDiffError || codingDiff"
-              class="rounded-md border border-border bg-background/50 p-3"
+            <Button
+              variant="outline"
+              class="w-full justify-between"
+              @click="changeContextPanel('changes')"
             >
-              <div class="flex items-center justify-between gap-3">
-                <span class="min-w-0 truncate font-mono text-caption">
-                  {{ codingDiff?.path || '读取 Diff' }}
-                </span>
-                <LoaderCircle v-if="codingDiffLoading" class="size-3.5 animate-spin text-muted-foreground" />
-              </div>
-              <p v-if="codingDiffError" class="mt-2 text-caption leading-5 text-destructive">
-                {{ codingDiffError }}
-              </p>
-              <template v-else-if="codingDiff">
-                <div v-if="codingDiff.staged" class="mt-3">
-                  <p class="mb-1 text-caption font-medium text-muted-foreground">已暂存</p>
-                  <pre class="max-h-52 overflow-auto whitespace-pre font-mono text-[11px] leading-4">{{ codingDiff.staged }}</pre>
-                </div>
-                <div v-if="codingDiff.workingTree" class="mt-3">
-                  <p class="mb-1 text-caption font-medium text-muted-foreground">工作区</p>
-                  <pre class="max-h-52 overflow-auto whitespace-pre font-mono text-[11px] leading-4">{{ codingDiff.workingTree }}</pre>
-                </div>
-                <p
-                  v-if="!codingDiff.staged && !codingDiff.workingTree"
-                  class="mt-2 text-caption leading-5 text-muted-foreground"
-                >
-                  未跟踪文件或二进制变更没有可显示的文本 Diff。
-                </p>
-                <p v-if="codingDiff.truncated" class="mt-2 text-caption text-muted-foreground">
-                  Diff 过长，已截断。
-                </p>
-              </template>
-            </div>
+              <span class="flex items-center gap-2">
+                <FileDiff class="size-4" />
+                查看文件级变更
+              </span>
+              <span class="text-caption text-muted-foreground">
+                {{ codingEnvironment.git.changedFiles }} 文件
+              </span>
+            </Button>
           </div>
           <p v-else class="mt-3 text-caption leading-5 text-muted-foreground">
             {{ codingEnvironment?.git.problem || '当前目录不是 Git 仓库。' }}
@@ -1329,6 +1353,16 @@ watch(
           </div>
         </div>
         </section>
+      </template>
+
+      <template v-else-if="contextPanel === 'changes'">
+        <CodingChangesPanel
+          :workspace-path="workspacePath"
+          :environment="codingEnvironment"
+          :running="running"
+          @review="runCodingProductAction('review')"
+          @refresh="refreshEnvironment"
+        />
       </template>
 
       <template v-else-if="contextPanel === 'architecture'">
@@ -1659,6 +1693,22 @@ watch(
   line-height: var(--text-control--line-height, 1.25rem) !important;
 }
 
+.coding-action-option {
+  display: flex;
+  cursor: pointer;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.65rem 0.75rem;
+}
+
+.chat-composer__permission--full {
+  color: var(--warning);
+}
+
+.chat-composer__permission--full:hover {
+  color: var(--warning);
+}
+
 .approval-option {
   display: flex;
   min-height: 4.5rem;
@@ -1697,7 +1747,7 @@ watch(
 
 .approval-option--full,
 .approval-option--full .approval-option__description {
-  color: var(--warning-foreground);
+  color: var(--warning);
 }
 
 .approval-option--full .approval-option__icon,

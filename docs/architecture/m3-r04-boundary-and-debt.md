@@ -28,6 +28,7 @@
 | 全页面 Markdown 渲染 | **Implemented / Partial** | 统一安全渲染器与单测已存在；原生真实会话、长代码块和窄窗口仍需回归。 |
 | Archify / LSP / Retry | **Mixed** | Archify 已在真实打包 App 一键生成固定产物、showcase 9/9 并右侧预览，固定资源和 CTF 隔离 Smoke 已有。LSP Server 未打包，Retry 仍欠可控瞬态/慢首 Token 真实验收。 |
 | Coding Plan / Go 与权限策略 | **Implemented / Partial overall** | Codex 风格三档菜单、Project Auto 常规开发 Shell/Git/网络和显式 Full Access 已落地并有边界测试；Ask 的同步逐工具审批、后台进程和终端 UI 仍未实现。 |
+| Coding 日常产品动作与 Diff | **Implemented** | 理解项目、运行测试、审阅变更、修复失败、生成总结已由固定协议直接发起；右侧文件级 Diff 页已接线。仍欠同一真实项目的连续短提示原生验收、行级反馈和 Git 发布。 |
 | 架构文档 | **Verified snapshot** | 当前/目标/债务文档与 Archify 交互式 HTML 已生成；规格验证 9/9、0 error、0 warning。 |
 | NYU CTF Bench | **Verified narrow safe-static baseline** | 固定 revision、人工 fail-closed 准入、单次无工具 Runner、Digest Judge 与 Report 已跑通；5 completed 中 3 solved，另有 1 个零调用阻断。无用户 UI，不代表真实 CTF Agent。 |
 | Coding 附件 / MCP Browser / Computer Use | **Planned** | 当前只在右侧能力面板明确显示未接入；不能列入 M3 完成能力。 |

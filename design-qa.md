@@ -117,6 +117,67 @@ No actionable P0, P1, or P2 findings remain.
 
 final result: passed
 
+# Coding 权限菜单 · Design QA
+
+- Source visual truth:
+  `/var/folders/wf/0w9rnrs904501nhp57pd_jzw0000gn/T/codex-clipboard-89bf5171-9bfd-483d-acea-af050d56d693.png`
+- Implementation screenshot:
+  `/tmp/milksu-permission-full-selected-crop.png`
+- Focused side-by-side comparison:
+  `/tmp/milksu-permission-full-comparison.png`
+- Browser-rendered full screen:
+  `/tmp/milksu-permission-full-selected.png`
+- Viewport: `1280 × 720` CSS px; implementation screenshot pixels `1280 × 720`.
+- Source pixels: `720 × 424`; focused implementation pixels: `416 × 353`.
+- Density normalization: the focused implementation was proportionally scaled to the source height
+  for side-by-side comparison; neither image was stretched.
+- State: Coding workspace, permission menu open, `完全访问权限` selected.
+
+## Full-view and focused comparison evidence
+
+The implementation follows the supplied Codex hierarchy: the current permission is a compact composer
+control; opening it reveals a floating rounded menu; the title and underlined help action share the
+first row; three permission choices use icon, title, one-line boundary explanation and a right-aligned
+check; a separator isolates full access; full access uses the semantic warning color in both the menu
+and the collapsed trigger.
+
+The MilkSU product remains on its user-selected dark HTB-inspired theme rather than copying Codex's
+light palette. The copy reflects the implemented MilkSU boundary: project auto stops at the project
+boundary, and request approval remains read-only until the synchronous approval channel exists.
+
+## Required fidelity surfaces
+
+- Fonts and typography: the existing Inter variable stack is retained; header, option title,
+  explanation and trigger use one consistent control scale and weight hierarchy without clipping.
+- Spacing and layout rhythm: the `400 px` menu, `12–16 px` insets, grouped option rows, separator,
+  rounded frame and right-aligned check match the reference structure. At a `1024 × 700` viewport the
+  menu bounds remained fully visible (`left 624`, `right 1024`, `top 281`, `bottom 573.6`).
+- Colors and visual tokens: neutral options use existing foreground/muted tokens; full access alone
+  uses the established warning token. The dark surface is an intentional product-theme adaptation.
+- Image quality and asset fidelity: no raster stand-ins or custom-drawn icons were introduced.
+  Existing Lucide icons provide the closest semantic equivalents within MilkSU's icon system.
+- Copy and content: labels match Codex's three-level mental model while descriptions state MilkSU's
+  real behavior instead of overstating unavailable approval capabilities.
+- States and interactions: menu open/close, project-auto selection, full-access selection, selected
+  check, warning trigger state, help action and permission-detail panel were exercised. The recommended
+  `替我审批` state was restored after the test.
+
+## Comparison history
+
+### Pass 1 — passed
+
+- No actionable P0/P1/P2 mismatch remained after matching the title/help row, option layout, separator,
+  warning treatment and selected check.
+- Intentional deviations are the dark product theme, MilkSU name and honest current boundary copy.
+- Browser console after interaction: `0` errors and `0` warnings.
+
+## Follow-up polish
+
+- Replace the middle shield icon only if MilkSU later adopts Codex's exact icon family; the current
+  icon is semantically clear and consistent with the rest of the application.
+
+final result: passed
+
 ## Follow-up QA — scalable CTF sources, history, custom intake, and browser pairing
 
 - Source visual truth:
