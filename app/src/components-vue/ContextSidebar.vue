@@ -102,10 +102,10 @@ const vulnContext = computed(() => props.activeSection === 'vuln')
           variant="outline"
           size="sm"
           block
-          class="coding-sidebar-control justify-start"
+          class="coding-sidebar-control h-7 justify-start"
           @click="$emit('new')"
         >
-          <MessageSquarePlus class="size-4" />
+          <MessageSquarePlus class="size-3.5" />
           新建编码任务
         </Button>
         <label class="relative mt-3 block">
@@ -114,7 +114,7 @@ const vulnContext = computed(() => props.activeSection === 'vuln')
             v-model="query"
             size="sm"
             emphasis="subtle"
-            class="coding-sidebar-control pl-8"
+            class="coding-sidebar-control h-7 pl-8"
             placeholder="搜索任务"
           />
         </label>
@@ -130,7 +130,7 @@ const vulnContext = computed(() => props.activeSection === 'vuln')
             class="coding-project-group"
           >
             <summary
-              class="coding-project-row flex cursor-pointer list-none items-center gap-2 rounded-md px-3 py-2 font-medium hover:bg-accent/50"
+              class="coding-project-row flex cursor-pointer list-none items-center gap-2 rounded-md px-3 py-1.5 font-medium hover:bg-accent/50"
               :title="group.path ?? '未绑定仓库的临时编码任务'"
             >
               <ChevronRight class="coding-project-chevron size-3.5 shrink-0 text-muted-foreground" />
@@ -150,7 +150,7 @@ const vulnContext = computed(() => props.activeSection === 'vuln')
                 <Button
                   variant="ghost"
                   size="sm"
-                  class="coding-project-row min-w-0 flex-1 justify-start pl-2"
+                  class="coding-project-row h-7 min-w-0 flex-1 justify-start pl-2"
                   @click="$emit('selectConversation', conversation.id)"
                 >
                   <span class="truncate">{{ conversation.title }}</span>
@@ -192,9 +192,9 @@ const vulnContext = computed(() => props.activeSection === 'vuln')
 <style scoped>
 .coding-sidebar-control,
 .coding-project-row {
-  font-size: var(--text-body);
-  line-height: var(--text-body--line-height);
-  letter-spacing: var(--text-body--letter-spacing);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  letter-spacing: var(--text-caption--letter-spacing);
 }
 
 .coding-project-group[open] > summary .coding-project-chevron {

@@ -57,7 +57,7 @@ const abilitySourceText = computed(() => {
         :key="item.id"
         :variant="activeSection === item.id ? 'secondary' : 'ghost'"
         :class="[
-          'workspace-rail-item relative h-auto min-h-14 flex-col gap-1 px-1 py-2',
+          'workspace-rail-item relative h-auto min-h-12 flex-col gap-0.5 px-1 py-1.5',
           activeSection === item.id ? 'workspace-rail-active' : '',
         ]"
         :aria-label="item.label"
@@ -66,7 +66,7 @@ const abilitySourceText = computed(() => {
         :data-ui-selected="activeSection === item.id ? '' : undefined"
         @click="$emit('navigate', item.id)"
       >
-        <component :is="icons[item.id]" class="size-4.5" />
+        <component :is="icons[item.id]" class="size-4" />
         <span>{{ item.label }}</span>
       </Button>
     </nav>
@@ -139,8 +139,8 @@ const abilitySourceText = computed(() => {
 
 <style scoped>
 .workspace-rail-item {
-  font-size: var(--text-caption);
-  line-height: var(--text-caption--line-height);
+  font-size: 0.625rem;
+  line-height: 0.875rem;
   letter-spacing: var(--text-caption--letter-spacing);
 }
 

@@ -46,7 +46,6 @@ import {
   Paperclip,
   PanelRightClose,
   PanelRightOpen,
-  Puzzle,
   RefreshCw,
   Route,
   ShieldAlert,
@@ -200,10 +199,6 @@ const activeExtensions = computed(() => (
   props.conversation?.agentExtensions ?? []
 ))
 const selectedMCPServers = computed(() => props.mcpServers ?? [])
-const capabilityCount = computed(() => new Set([
-  ...activeExtensions.value,
-  ...(selectedMCPServers.value.length ? ['pi-mcp-adapter'] : []),
-]).size)
 const activeSkills = computed(() => (
   props.conversation?.agentSkills ?? []
 ))
@@ -279,7 +274,7 @@ const compactModelLabel = computed(() => {
     return effectiveModelMode.value === 'auto' ? '自动编排' : '选择模型'
   }
   const modelName = providerModelLabel(provider, model).split(' · ').at(-1) || model
-  return effectiveModelMode.value === 'auto' ? `自动 · ${modelName}` : modelName
+  return modelName.replace(/^DeepSeek\s+/i, '')
 })
 const capabilityStatusLabel = (status: string) => (
   status === 'allowed'
@@ -302,19 +297,6 @@ const extensionLabel = (value: string) => (
           : value === 'pi-mcp-adapter'
             ? 'PI MCP Adapter'
         : value
-)
-const extensionDescription = (value: string) => (
-  value === 'milksu-workflow'
-    ? '计划可见、角色工作流与结果验证'
-    : value === 'pi-lsp'
-      ? '固定 Go / Vue / TypeScript 路由；需本机安装对应语言服务器'
-      : value === 'pi-goal'
-        ? '持续推进用户目标，跨回合恢复，并要求完成或受阻证据'
-        : value === 'pi-background-tasks'
-          ? '复用社区持久任务、条件等待和日志管理；进程仍受 MilkSU 权限策略约束'
-          : value === 'pi-mcp-adapter'
-            ? '复用社区 MCP 适配器；仅加载当前任务明确勾选的服务器'
-        : '已由 MilkSU 白名单加载'
 )
 const hasCredential = computed(() => {
   if (!props.settings) return false
@@ -587,11 +569,6 @@ function toggleMCPServer(name: string) {
     [...selection].sort((left, right) => left.localeCompare(right)),
     mcpConfig.value.digest,
   )
-}
-
-function selectMCPServer(event: Event, name: string) {
-  event.preventDefault()
-  toggleMCPServer(name)
 }
 
 function showCodingPermissions() {
@@ -1101,18 +1078,6 @@ watch(
             <Target class="size-3.5" />
             目标
           </Button>
-          <Button
-            v-if="!ctfSession"
-            variant="ghost"
-            size="sm"
-            class="chat-composer__control"
-            :disabled="running"
-            title="自动读取当前仓库，使用 Archify 生成、验证并在右侧预览"
-            @click="generateArchitecture"
-          >
-            <Network class="size-3.5" />
-            架构图
-          </Button>
           <Select
             v-if="!ctfSession"
             :model-value="effectiveExecutionMode"
@@ -1219,118 +1184,6 @@ watch(
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <DropdownMenu>
-            <DropdownMenuTrigger as-child>
-              <Button
-                variant="ghost"
-                size="sm"
-                class="chat-composer__control"
-                :aria-label="`查看本任务能力，${capabilityCount} 个扩展`"
-              >
-                <Puzzle class="size-3.5" />
-                能力
-                <Badge v-if="capabilityCount" variant="secondary">
-                  {{ capabilityCount }}
-                </Badge>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" class="w-80">
-              <DropdownMenuLabel>本任务已启用</DropdownMenuLabel>
-              <div v-if="activeExtensions.length" class="space-y-2 px-2 py-2">
-                <div
-                  v-for="extension in activeExtensions"
-                  :key="extension"
-                  class="flex items-start gap-2"
-                >
-                  <Check class="mt-0.5 size-3.5 shrink-0 text-primary" />
-                  <div>
-                    <p class="text-body font-medium">{{ extensionLabel(extension) }}</p>
-                    <p class="text-caption text-muted-foreground">
-                      {{ extensionDescription(extension) }}
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <p v-else class="px-2 py-3 text-caption text-muted-foreground">
-                启动一次 Agent 任务后显示实际加载结果。
-              </p>
-              <template v-if="activeSkills.length">
-                <DropdownMenuSeparator />
-                <DropdownMenuLabel>技能</DropdownMenuLabel>
-                <div class="flex flex-wrap gap-1.5 px-2 py-2">
-                  <Badge v-for="skill in activeSkills" :key="skill" variant="outline">
-                    {{ skill }}
-                  </Badge>
-                </div>
-              </template>
-              <template v-if="activeTools.length">
-                <DropdownMenuSeparator />
-                <DropdownMenuLabel>工具 · {{ activeTools.length }}</DropdownMenuLabel>
-                <p class="px-2 pb-2 text-caption leading-5 text-muted-foreground">
-                  {{ activeTools.join(' · ') }}
-                </p>
-              </template>
-              <template v-if="!ctfSession">
-                <DropdownMenuSeparator />
-                <DropdownMenuLabel>项目 MCP</DropdownMenuLabel>
-                <p v-if="mcpConfigLoading" class="px-2 py-3 text-caption text-muted-foreground">
-                  正在读取项目的 .mcp.json…
-                </p>
-                <p
-                  v-else-if="mcpConfig?.problem"
-                  class="px-2 py-3 text-caption leading-5 text-destructive"
-                >
-                  {{ mcpConfig.problem }}
-                </p>
-                <p
-                  v-else-if="!mcpConfig?.configured || !mcpConfig.servers.length"
-                  class="px-2 py-3 text-caption leading-5 text-muted-foreground"
-                >
-                  当前项目没有可选择的 .mcp.json 服务器。
-                </p>
-                <template v-else>
-                  <DropdownMenuItem
-                    v-for="server in mcpConfig.servers"
-                    :key="server.name"
-                    class="gap-2"
-                    :disabled="running"
-                    @select="selectMCPServer($event, server.name)"
-                  >
-                    <span class="flex size-4 shrink-0 items-center justify-center">
-                      <Check
-                        v-if="selectedMCPServers.includes(server.name)"
-                        class="size-3.5 text-primary"
-                      />
-                    </span>
-                    <span class="min-w-0 flex-1 truncate">{{ server.name }}</span>
-                    <Badge variant="outline">{{ server.transport }}</Badge>
-                  </DropdownMenuItem>
-                  <p class="px-2 pb-2 pt-1 text-caption leading-5 text-muted-foreground">
-                    只接入本任务勾选的服务器；连接、认证与工具调用仍逐次批准。
-                  </p>
-                </template>
-                <DropdownMenuSeparator />
-                <DropdownMenuLabel>权限能力 · {{ codingPolicyLabel }}</DropdownMenuLabel>
-                <div class="space-y-2 px-2 py-2">
-                  <div
-                    v-for="capability in codingCapabilities"
-                    :key="capability.id"
-                    class="grid grid-cols-[1fr_auto] gap-x-3 gap-y-0.5"
-                  >
-                    <p class="text-body font-medium">{{ capability.label }}</p>
-                    <Badge
-                      :variant="capability.status === 'allowed' ? 'secondary' : 'outline'"
-                    >
-                      {{ capabilityStatusLabel(capability.status) }}
-                    </Badge>
-                    <p class="col-span-2 text-caption leading-5 text-muted-foreground">
-                      {{ capability.detail }}
-                    </p>
-                  </div>
-                </div>
-              </template>
-            </DropdownMenuContent>
-          </DropdownMenu>
           <Select
             :model-value="currentModelKey"
             :disabled="running"
@@ -1338,7 +1191,7 @@ watch(
           >
             <SelectTrigger
               size="sm"
-              class="chat-composer__control chat-composer__model min-w-0 border-0 bg-transparent shadow-none"
+              class="chat-composer__control chat-composer__model ml-auto min-w-0 border-0 bg-transparent shadow-none"
               aria-label="选择本任务模型"
               :title="effectiveModelMode === 'auto'
                 ? 'MilkSU 按任务角色自动选择模型；你可以仅为当前对话覆盖'
@@ -1435,18 +1288,8 @@ watch(
             </Button>
             <Textarea
               v-model="draft"
-              class="chat-composer__input max-h-40 min-h-11 flex-1 resize-none border-0 bg-transparent shadow-none focus-visible:ring-0"
-              :placeholder="ctfSession
-                ? ctfRole === 'strategist'
-                  ? '补充你希望独立复盘的卡点或失败路线…'
-                  : ctfRole === 'tool-builder'
-                    ? '告诉 Coding Agent 要实现或修正的本题工具…'
-                    : '告诉 Agent 你的观察、假设，或直接使用上面的快捷协作…'
-                : goalMode
-                  ? '描述要持续推进并验证完成的目标…'
-                  : workspacePath
-                    ? `让 Agent 在 ${workspaceName} 中完成任务…`
-                    : '在临时沙盒中开始，或先选择一个项目…'"
+              class="chat-composer__input max-h-40 min-h-11 flex-1 resize-none border-0 bg-transparent py-[0.875rem] shadow-none focus-visible:ring-0"
+              placeholder=""
               aria-label="消息"
               @keydown.enter.exact.prevent="submit"
             />
@@ -1647,6 +1490,49 @@ watch(
               </p>
             </div>
           </div>
+          <div class="mt-4 border-t border-border/70 pt-4">
+            <p class="text-caption font-medium text-muted-foreground">项目 MCP</p>
+            <p v-if="mcpConfigLoading" class="mt-2 text-caption text-muted-foreground">
+              正在读取项目的 .mcp.json…
+            </p>
+            <p
+              v-else-if="mcpConfig?.problem"
+              class="mt-2 text-caption leading-5 text-destructive"
+            >
+              {{ mcpConfig.problem }}
+            </p>
+            <p
+              v-else-if="!mcpConfig?.configured || !mcpConfig.servers.length"
+              class="mt-2 text-caption leading-5 text-muted-foreground"
+            >
+              当前项目没有可选择的 .mcp.json 服务器。
+            </p>
+            <template v-else>
+              <div class="mt-2 space-y-1">
+                <button
+                  v-for="server in mcpConfig.servers"
+                  :key="server.name"
+                  type="button"
+                  class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-body transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+                  :disabled="running"
+                  :aria-pressed="selectedMCPServers.includes(server.name)"
+                  @click="toggleMCPServer(server.name)"
+                >
+                  <span class="flex size-4 shrink-0 items-center justify-center rounded border border-border">
+                    <Check
+                      v-if="selectedMCPServers.includes(server.name)"
+                      class="size-3 text-primary"
+                    />
+                  </span>
+                  <span class="min-w-0 flex-1 truncate">{{ server.name }}</span>
+                  <Badge variant="outline">{{ server.transport }}</Badge>
+                </button>
+              </div>
+              <p class="mt-2 text-caption leading-5 text-muted-foreground">
+                只接入本任务勾选的服务器；连接、认证与工具调用仍逐次批准。
+              </p>
+            </template>
+          </div>
         </section>
         <section class="border-b border-border px-4 py-4">
           <div class="flex items-center justify-between">
@@ -1758,12 +1644,26 @@ watch(
               {{ activeExtensions.length ? activeExtensions.map(extensionLabel).join(' · ') : '启动后显示' }}
             </span>
           </div>
+          <div v-if="activeSkills.length" class="flex items-start justify-between gap-3">
+            <span class="shrink-0 text-muted-foreground">技能</span>
+            <span class="text-right text-caption leading-5">
+              {{ activeSkills.join(' · ') }}
+            </span>
+          </div>
           <div class="flex items-start justify-between gap-3">
             <span class="shrink-0 text-muted-foreground">工具</span>
             <span class="text-right text-caption leading-5">
               {{ activeTools.length }} 个
             </span>
           </div>
+          <details v-if="activeTools.length" class="rounded-md bg-muted/40 px-2.5 py-2">
+            <summary class="cursor-pointer text-caption text-muted-foreground">
+              查看本任务工具
+            </summary>
+            <p class="mt-2 break-words text-caption leading-5 text-muted-foreground">
+              {{ activeTools.join(' · ') }}
+            </p>
+          </details>
         </div>
         </section>
 
@@ -2121,13 +2021,13 @@ watch(
 }
 
 .chat-composer__control {
-  font-size: var(--text-control, 0.875rem);
-  line-height: var(--text-control--line-height, 1.25rem);
+  font-size: var(--text-body, 0.75rem);
+  line-height: var(--text-body--line-height, 1rem);
 }
 
 .chat-composer__control[data-slot='select-trigger'] {
-  font-size: var(--text-control, 0.875rem) !important;
-  line-height: var(--text-control--line-height, 1.25rem) !important;
+  font-size: var(--text-body, 0.75rem) !important;
+  line-height: var(--text-body--line-height, 1rem) !important;
 }
 
 .coding-action-option {
@@ -2193,7 +2093,9 @@ watch(
 }
 
 .chat-composer__model {
-  width: clamp(10rem, 15vw, 18rem);
+  width: clamp(12rem, 22vw, 20rem);
+  flex: 1 1 16rem;
+  max-width: 20rem;
 }
 
 .chat-composer__island {
@@ -2225,15 +2127,20 @@ watch(
 @container chat-main (max-width: 52rem) {
   .chat-composer__controls {
     flex-wrap: nowrap;
+    gap: 0.25rem;
   }
 
   .chat-composer__workspace {
-    max-width: 9rem;
+    max-width: 6rem;
+  }
+
+  .chat-composer__permission {
+    min-width: 6rem;
   }
 
   .chat-composer__model {
     min-width: 9rem;
-    flex: 1 1 10rem;
+    flex: 1 1 11rem;
     width: auto;
   }
 }

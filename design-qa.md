@@ -117,6 +117,82 @@ No actionable P0, P1, or P2 findings remain.
 
 final result: passed
 
+# Coding 导航与输入控制密度 · Design QA
+
+**Comparison Target**
+
+- Source visual truth:
+  - `/var/folders/wf/0w9rnrs904501nhp57pd_jzw0000gn/T/codex-clipboard-2a2d8d4f-316e-481a-a979-b97c4fb66d2d.png`
+  - `/var/folders/wf/0w9rnrs904501nhp57pd_jzw0000gn/T/codex-clipboard-f2880711-da45-47ce-a0f4-ca509eb52978.png`
+- Packaged-app implementation:
+  - `/private/tmp/milksu-coding-density-final.png`
+  - `/private/tmp/milksu-coding-architecture-final.png`
+  - `/private/tmp/milksu-composer-alignment-final-typed.png`
+- Full-view comparison:
+  - `/private/tmp/milksu-coding-density-comparison.png`
+- Focused comparisons:
+  - `/private/tmp/milksu-sidebar-density-comparison.png`
+  - `/private/tmp/milksu-composer-density-comparison.png`
+- App viewport and implementation pixels: `1187 × 768`.
+- Source pixels: `2880 × 1864`, normalized to `1187 × 768` at the same aspect ratio.
+- State: Coding workspace with the environment panel open; a second capture verifies the wider architecture panel.
+
+**Findings**
+
+No actionable P0, P1, or P2 mismatch remains in the requested regions.
+
+- The product rail, new-task/search controls, project rows, and conversation rows now share a compact
+  type scale and tighter vertical rhythm. Folder names and their conversation rows use the same
+  `11 px` caption token.
+- The composer toolbar no longer duplicates the right-panel `架构图` action or Agent `能力` details.
+  Architecture remains in the right-panel selector; skills, tools, and project MCP state live in
+  `环境信息`.
+- The model trigger has the remaining flexible width and displays `V4 Flash` completely, including
+  while the wider architecture panel is open. Provider and full model metadata remain available in
+  the model menu and environment panel.
+- The empty composer no longer displays descriptive placeholder copy. Typed single-line text is
+  vertically centered inside the input island.
+
+**Required Fidelity Surfaces**
+
+- Fonts and typography: rail labels are `10 px`; Coding navigation and task hierarchy use the same
+  `11 px` caption token; composer controls use `12 px`. The model label remains readable and does not
+  clip.
+- Spacing and layout rhythm: rail targets are `48 px`; task controls and conversation rows are
+  `28 px`; the composer keeps one compact control row above the input island without duplicate
+  product actions.
+- Colors and tokens: existing MilkSU HTB-inspired surface, foreground, muted, border, and brand
+  tokens are unchanged.
+- Image and asset fidelity: no new raster asset, placeholder, custom SVG, emoji, or CSS drawing was
+  introduced. Existing icon-library components remain in use.
+- Copy and content: the unnecessary prompt hint is absent. The compact model trigger uses the
+  unambiguous model name while full provider context remains in detailed surfaces.
+- States and interactions: Coding navigation, empty composer, environment panel, architecture panel,
+  model visibility, typed-input alignment, project MCP placement, and Agent skill/tool placement
+  were exercised in the packaged Wails app.
+
+**Comparison History**
+
+- Pass 1 — blocked by P2: after removing duplicate actions, the full
+  `DeepSeek · DeepSeek V4 Flash` trigger could still be squeezed by the architecture panel.
+- Fix: assigned the model trigger the flexible trailing slot, tightened control typography and
+  displayed the concise configured model name in the trigger.
+- Pass 2 — passed: `V4 Flash` remains fully visible with both environment and architecture panels;
+  the composer has no placeholder; the side navigation and task hierarchy are materially quieter.
+
+**Browser and Build Verification**
+
+- In-app Browser DOM check confirmed:
+  - Coding is the active primary workspace.
+  - `架构图` is available from the right-panel selector.
+  - no bottom `能力` button remains.
+  - the composer placeholder is empty.
+  - the model trigger contains `V4 Flash`.
+- Browser console: `0` errors, `0` warnings.
+- Packaged macOS app: rebuilt and opened successfully.
+
+final result: passed
+
 # Coding 权限菜单 · Design QA
 
 - Source visual truth:
