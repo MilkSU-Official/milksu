@@ -143,7 +143,8 @@ func withWorkspaceTemporaryDirectory(environment []string, workspace string) ([]
 	for _, entry := range environment {
 		if !strings.HasPrefix(entry, "TMPDIR=") &&
 			!strings.HasPrefix(entry, "MILKSU_WORKSPACE_RUNTIME=") &&
-			!strings.HasPrefix(entry, "MILKSU_BACKGROUND_TASKS_DIR=") {
+			!strings.HasPrefix(entry, "MILKSU_BACKGROUND_TASKS_DIR=") &&
+			!strings.HasPrefix(entry, "MILKSU_AGENT_WORKSPACE=") {
 			filtered = append(filtered, entry)
 		}
 	}
@@ -152,6 +153,7 @@ func withWorkspaceTemporaryDirectory(environment []string, workspace string) ([]
 		"TMPDIR="+temporaryDirectory,
 		"MILKSU_WORKSPACE_RUNTIME="+runtimeDirectory,
 		"MILKSU_BACKGROUND_TASKS_DIR="+backgroundTasksDirectory,
+		"MILKSU_AGENT_WORKSPACE="+workspace,
 	), nil
 }
 

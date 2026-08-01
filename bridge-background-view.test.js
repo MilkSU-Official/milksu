@@ -1,0 +1,68 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { projectBackgroundTaskMetas } from "./bridge-background-view.js";
+
+test("background task projection keeps active and recent Pi tasks without env values", () => {
+  const now = 100_000;
+  const tasks = projectBackgroundTaskMetas([
+    {
+      id: "running",
+      name: "Vite dev server",
+      kind: "process",
+      status: "running",
+      startedAt: 90_000,
+      command: "npm run dev",
+      cwd: "/workspace",
+      pid: 4321,
+      logPath: "/runtime/output.log",
+      env: { SECRET: "must-not-leak" },
+    },
+    {
+      id: "recent",
+      kind: "command_watch",
+      status: "succeeded",
+      startedAt: 80_000,
+      endedAt: 95_000,
+      argv: ["npm", "test"],
+      cwd: "/workspace",
+      spawnPid: 12,
+      logPath: "/runtime/test.log",
+      lastExitCode: 0,
+    },
+    {
+      id: "expired",
+      kind: "process",
+      status: "failed",
+      startedAt: 1,
+      endedAt: 60_000,
+      cwd: "/workspace",
+      spawnPid: 13,
+      logPath: "/runtime/old.log",
+    },
+  ], now);
+
+  assert.deepEqual(tasks.map(task => task.id), ["running", "recent"]);
+  assert.equal(tasks[0].command, "npm run dev");
+  assert.equal(tasks[1].kind, "watch");
+  assert.equal(tasks[1].lastExitCode, 0);
+  assert.equal("env" in tasks[0], false);
+  assert.equal(JSON.stringify(tasks).includes("must-not-leak"), false);
+});
+
+test("background task projection bounds untrusted registry text", () => {
+  const task = projectBackgroundTaskMetas([{
+    id: "task\u0000",
+    kind: "process",
+    status: "running",
+    startedAt: 1,
+    command: `node ${"x".repeat(3000)}`,
+    cwd: "/workspace",
+    spawnPid: 12,
+    logPath: "/runtime/output.log",
+    error: "y".repeat(1500),
+  }], 2)[0];
+
+  assert.equal(task.id, "task");
+  assert.ok(task.command.length <= 2000);
+  assert.ok(task.error.length <= 1000);
+});

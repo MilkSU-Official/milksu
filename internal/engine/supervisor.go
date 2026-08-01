@@ -21,33 +21,50 @@ const eventSchemaVersion = 1
 const defaultTurnActivityTimeout = 90 * time.Second
 
 type Event struct {
-	SchemaVersion  int                      `json:"schemaVersion"`
-	Engine         string                   `json:"engine"`
-	SessionID      string                   `json:"sessionId,omitempty"`
-	Type           string                   `json:"type"`
-	Timestamp      string                   `json:"timestamp"`
-	Text           string                   `json:"text,omitempty"`
-	ToolName       string                   `json:"toolName,omitempty"`
-	Error          string                   `json:"error,omitempty"`
-	Done           bool                     `json:"done,omitempty"`
-	Tools          []string                 `json:"tools,omitempty"`
-	Extensions     []string                 `json:"extensions,omitempty"`
-	Skills         []string                 `json:"skills,omitempty"`
-	ExecutionMode  string                   `json:"executionMode,omitempty"`
-	ApprovalPolicy string                   `json:"approvalPolicy,omitempty"`
-	Capabilities   []CodingCapabilityStatus `json:"capabilities,omitempty"`
-	RequestID      string                   `json:"requestId,omitempty"`
-	Input          string                   `json:"input,omitempty"`
-	Reason         string                   `json:"reason,omitempty"`
-	Approved       *bool                    `json:"approved,omitempty"`
+	SchemaVersion   int                      `json:"schemaVersion"`
+	Engine          string                   `json:"engine"`
+	SessionID       string                   `json:"sessionId,omitempty"`
+	Type            string                   `json:"type"`
+	Timestamp       string                   `json:"timestamp"`
+	Text            string                   `json:"text,omitempty"`
+	ToolName        string                   `json:"toolName,omitempty"`
+	Error           string                   `json:"error,omitempty"`
+	Done            bool                     `json:"done,omitempty"`
+	Tools           []string                 `json:"tools,omitempty"`
+	Extensions      []string                 `json:"extensions,omitempty"`
+	Skills          []string                 `json:"skills,omitempty"`
+	ExecutionMode   string                   `json:"executionMode,omitempty"`
+	ApprovalPolicy  string                   `json:"approvalPolicy,omitempty"`
+	Capabilities    []CodingCapabilityStatus `json:"capabilities,omitempty"`
+	RequestID       string                   `json:"requestId,omitempty"`
+	Input           string                   `json:"input,omitempty"`
+	Reason          string                   `json:"reason,omitempty"`
+	Approved        *bool                    `json:"approved,omitempty"`
+	BackgroundTasks []BackgroundTask         `json:"backgroundTasks,omitempty"`
 }
 
 type RuntimeStatus struct {
-	DefaultEngine string `json:"defaultEngine"`
-	Running       bool   `json:"running"`
-	SessionCount  int    `json:"sessionCount"`
-	Protocol      string `json:"protocol"`
-	Workspace     string `json:"workspace,omitempty"`
+	DefaultEngine   string           `json:"defaultEngine"`
+	Running         bool             `json:"running"`
+	SessionCount    int              `json:"sessionCount"`
+	Protocol        string           `json:"protocol"`
+	Workspace       string           `json:"workspace,omitempty"`
+	BackgroundTasks []BackgroundTask `json:"backgroundTasks,omitempty"`
+}
+
+type BackgroundTask struct {
+	ID           string `json:"id"`
+	Name         string `json:"name,omitempty"`
+	Kind         string `json:"kind"`
+	Status       string `json:"status"`
+	StartedAt    int64  `json:"startedAt"`
+	EndedAt      int64  `json:"endedAt,omitempty"`
+	Command      string `json:"command,omitempty"`
+	Cwd          string `json:"cwd,omitempty"`
+	PID          int    `json:"pid,omitempty"`
+	LogPath      string `json:"logPath,omitempty"`
+	LastExitCode *int   `json:"lastExitCode,omitempty"`
+	Error        string `json:"error,omitempty"`
 }
 
 type ModelProbeResult struct {
@@ -87,6 +104,7 @@ type bridgeEvent struct {
 	Input          string                   `json:"input"`
 	Reason         string                   `json:"reason"`
 	Approved       *bool                    `json:"approved"`
+	Tasks          []BackgroundTask         `json:"tasks"`
 }
 
 type childProcess struct {
@@ -96,16 +114,17 @@ type childProcess struct {
 }
 
 type Supervisor struct {
-	mu           sync.Mutex
-	probeMu      sync.Mutex
-	process      *childProcess
-	sessions     map[string]struct{}
-	probeWaiters map[string]chan Event
-	turnTimeout  time.Duration
-	turnTimers   map[string]*time.Timer
-	turnSequence map[string]uint64
-	approvals    map[string]int
-	emit         func(Event)
+	mu              sync.Mutex
+	probeMu         sync.Mutex
+	process         *childProcess
+	sessions        map[string]struct{}
+	probeWaiters    map[string]chan Event
+	turnTimeout     time.Duration
+	turnTimers      map[string]*time.Timer
+	turnSequence    map[string]uint64
+	approvals       map[string]int
+	backgroundTasks []BackgroundTask
+	emit            func(Event)
 }
 
 func NewSupervisor(emit func(Event)) *Supervisor {
@@ -332,6 +351,7 @@ func (s *Supervisor) Status() RuntimeStatus {
 	if s.process != nil {
 		status.Workspace = s.process.workspace
 	}
+	status.BackgroundTasks = append([]BackgroundTask(nil), s.backgroundTasks...)
 	return status
 }
 
@@ -342,6 +362,7 @@ func (s *Supervisor) Close() {
 	s.sessions = make(map[string]struct{})
 	s.stopAllTurnTimersLocked()
 	s.approvals = make(map[string]int)
+	s.backgroundTasks = nil
 	s.mu.Unlock()
 
 	if process == nil {
@@ -363,6 +384,7 @@ func (s *Supervisor) ensureProcessLocked(settings config.AppSettings, workspace 
 		s.sessions = make(map[string]struct{})
 		s.stopAllTurnTimersLocked()
 		s.approvals = make(map[string]int)
+		s.backgroundTasks = nil
 		_ = previous.stdin.Close()
 		if previous.command.Process != nil {
 			_ = previous.command.Process.Kill()
@@ -416,6 +438,7 @@ func (s *Supervisor) readEvents(process *childProcess, stdout io.Reader) {
 		}
 		event := normalizeBridgeEvent(raw)
 		s.observeTurnEvent(event)
+		s.observeRuntimeEvent(event)
 		if raw.ID != "" && (raw.Type == "error" || raw.Type == "session_destroyed") {
 			s.mu.Lock()
 			delete(s.sessions, raw.ID)
@@ -432,6 +455,7 @@ func (s *Supervisor) readEvents(process *childProcess, stdout io.Reader) {
 		s.sessions = make(map[string]struct{})
 		s.stopAllTurnTimersLocked()
 		s.approvals = make(map[string]int)
+		s.backgroundTasks = nil
 	}
 	s.mu.Unlock()
 	if !current {
@@ -476,6 +500,15 @@ func (s *Supervisor) observeTurnEvent(event Event) {
 			s.armTurnTimerLocked(event.SessionID)
 		}
 	}
+}
+
+func (s *Supervisor) observeRuntimeEvent(event Event) {
+	if event.Type != "runtime.background_tasks" {
+		return
+	}
+	s.mu.Lock()
+	s.backgroundTasks = append([]BackgroundTask(nil), event.BackgroundTasks...)
+	s.mu.Unlock()
 }
 
 func (s *Supervisor) armTurnTimerLocked(sessionID string) {
@@ -593,20 +626,21 @@ func probeFailureMessage(event Event) string {
 
 func normalizeBridgeEvent(raw bridgeEvent) Event {
 	event := Event{
-		Engine:         "pi",
-		SessionID:      raw.ID,
-		Text:           raw.Content,
-		ToolName:       raw.ToolName,
-		Tools:          raw.Tools,
-		Extensions:     raw.Extensions,
-		Skills:         raw.Skills,
-		ExecutionMode:  raw.ExecutionMode,
-		ApprovalPolicy: raw.ApprovalPolicy,
-		Capabilities:   raw.Capabilities,
-		RequestID:      raw.RequestID,
-		Input:          raw.Input,
-		Reason:         raw.Reason,
-		Approved:       raw.Approved,
+		Engine:          "pi",
+		SessionID:       raw.ID,
+		Text:            raw.Content,
+		ToolName:        raw.ToolName,
+		Tools:           raw.Tools,
+		Extensions:      raw.Extensions,
+		Skills:          raw.Skills,
+		ExecutionMode:   raw.ExecutionMode,
+		ApprovalPolicy:  raw.ApprovalPolicy,
+		Capabilities:    raw.Capabilities,
+		RequestID:       raw.RequestID,
+		Input:           raw.Input,
+		Reason:          raw.Reason,
+		Approved:        raw.Approved,
+		BackgroundTasks: raw.Tasks,
 	}
 	switch raw.Type {
 	case "ready":
@@ -640,6 +674,8 @@ func normalizeBridgeEvent(raw bridgeEvent) Event {
 	case "session_destroyed":
 		event.Type = "session.destroyed"
 		event.Done = true
+	case "background_tasks":
+		event.Type = "runtime.background_tasks"
 	case "error":
 		event.Type = "engine.error"
 		event.Error = raw.Error

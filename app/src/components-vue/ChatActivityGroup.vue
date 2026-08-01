@@ -35,7 +35,13 @@ const assistantProcess = computed(() => (
 
 function entryIcon(entry: ChatActivityEntry) {
   const name = entry.toolName
-  if (name === 'bash' || name === 'background' || name === 'background_output') return Terminal
+  if (
+    name === 'bash'
+    || name === 'background'
+    || name === 'background_output'
+    || name === 'bg_task'
+    || name === 'bg_status'
+  ) return Terminal
   if (name === 'write' || name === 'edit') return FilePenLine
   if (name === 'read' || name === 'ls' || name === 'find' || name === 'grep') return Search
   return Wrench
@@ -44,8 +50,8 @@ function entryIcon(entry: ChatActivityEntry) {
 function detailLabel(entry: ChatActivityEntry) {
   const name = entry.toolName
   if (name === 'bash') return 'Shell'
-  if (name === 'background') return '后台进程'
-  if (name === 'background_output') return '进程输出'
+  if (name === 'background' || name === 'bg_task') return '后台进程'
+  if (name === 'background_output' || name === 'bg_status') return '进程状态'
   if (name === 'read') return '文件内容'
   if (name === 'write' || name === 'edit') return '文件变更'
   if (name === 'ls' || name === 'find' || name === 'grep') return '检索结果'

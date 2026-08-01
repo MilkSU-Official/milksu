@@ -47,6 +47,42 @@ func TestNormalizeToolError(t *testing.T) {
 	}
 }
 
+func TestNormalizeAndCacheBackgroundTasks(t *testing.T) {
+	exitCode := 0
+	event := normalizeBridgeEvent(bridgeEvent{
+		Type: "background_tasks",
+		ID:   "session-1",
+		Tasks: []BackgroundTask{{
+			ID:           "bg-1",
+			Name:         "Vite",
+			Kind:         "process",
+			Status:       "running",
+			StartedAt:    1000,
+			Command:      "npm run dev",
+			Cwd:          "/workspace",
+			PID:          4321,
+			LastExitCode: &exitCode,
+		}},
+	})
+	if event.Type != "runtime.background_tasks" ||
+		len(event.BackgroundTasks) != 1 ||
+		event.BackgroundTasks[0].PID != 4321 {
+		t.Fatalf("unexpected background task event: %#v", event)
+	}
+
+	supervisor := NewSupervisor(nil)
+	supervisor.observeRuntimeEvent(event)
+	status := supervisor.Status()
+	if len(status.BackgroundTasks) != 1 ||
+		status.BackgroundTasks[0].Command != "npm run dev" {
+		t.Fatalf("background tasks were not cached: %#v", status)
+	}
+	status.BackgroundTasks[0].Command = "mutated"
+	if supervisor.Status().BackgroundTasks[0].Command != "npm run dev" {
+		t.Fatal("runtime status leaked its internal background task slice")
+	}
+}
+
 func TestNormalizeApprovalLifecycle(t *testing.T) {
 	requested := normalizeBridgeEvent(bridgeEvent{
 		Type:      "approval_requested",
@@ -259,6 +295,7 @@ func TestWorkspaceRuntimeSeparatesBackgroundRegistryFromChildTemporaryDirectory(
 			"TMPDIR=/untrusted/tmp",
 			"MILKSU_WORKSPACE_RUNTIME=/untrusted/runtime",
 			"MILKSU_BACKGROUND_TASKS_DIR=/untrusted/tasks",
+			"MILKSU_AGENT_WORKSPACE=/untrusted/workspace",
 		},
 		workspace,
 	)
@@ -269,6 +306,7 @@ func TestWorkspaceRuntimeSeparatesBackgroundRegistryFromChildTemporaryDirectory(
 	var temporaryDirectory string
 	var runtimeDirectory string
 	var backgroundTasksDirectory string
+	var agentWorkspace string
 	for _, entry := range environment {
 		switch {
 		case strings.HasPrefix(entry, "TMPDIR="):
@@ -280,10 +318,16 @@ func TestWorkspaceRuntimeSeparatesBackgroundRegistryFromChildTemporaryDirectory(
 				entry,
 				"MILKSU_BACKGROUND_TASKS_DIR=",
 			)
+		case strings.HasPrefix(entry, "MILKSU_AGENT_WORKSPACE="):
+			agentWorkspace = strings.TrimPrefix(entry, "MILKSU_AGENT_WORKSPACE=")
 		}
 	}
-	if runtimeDirectory == "" || temporaryDirectory == "" || backgroundTasksDirectory == "" {
+	if runtimeDirectory == "" || temporaryDirectory == "" ||
+		backgroundTasksDirectory == "" || agentWorkspace == "" {
 		t.Fatalf("workspace runtime environment is incomplete: %#v", environment)
+	}
+	if agentWorkspace != workspace {
+		t.Fatalf("unexpected reviewed workspace: %s", agentWorkspace)
 	}
 	if temporaryDirectory != filepath.Join(runtimeDirectory, "tmp") {
 		t.Fatalf("unexpected child temporary directory: %s", temporaryDirectory)

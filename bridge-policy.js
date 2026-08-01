@@ -174,8 +174,9 @@ async function nearestExistingAncestor(path) {
 }
 
 export async function assertWorkspacePath(workspace, requestedPath) {
-  const root = await realpath(workspace);
+  const root = await resolveReviewedWorkspace(workspace);
   const absolutePath = resolve(requestedPath);
+  if (absolutePath === root) return root;
   const existing = await nearestExistingAncestor(absolutePath);
   const canonicalAncestor = await realpath(existing);
   const unresolvedSuffix = relative(existing, absolutePath);
@@ -192,7 +193,7 @@ async function assertWorkspaceMutationPath(
   extraProtectedEntries = [],
   includeCTFProtectedEntries = true,
 ) {
-  const root = await realpath(workspace);
+  const root = await resolveReviewedWorkspace(workspace);
   const safePath = await assertWorkspacePath(root, requestedPath);
   const relativePath = relative(root, safePath);
   const protectedEntry = [
@@ -455,7 +456,7 @@ function createSandboxedBashOperations(
       if (process.platform !== "darwin") {
         throw new Error("CTF bash containment is currently available only on macOS");
       }
-      const canonicalWorkspace = await realpath(workspace);
+      const canonicalWorkspace = await resolveReviewedWorkspace(workspace);
       const canonicalCwd = await assertWorkspacePath(canonicalWorkspace, cwd);
       const runtimeDirectory = commandRuntimeDirectory(canonicalWorkspace);
       const runtimeHome = join(runtimeDirectory, "home");
@@ -589,12 +590,12 @@ export async function prepareCodingBackgroundAuthorization(
   input,
   resourceReadRoots = [],
 ) {
-  const root = await realpath(workspace);
+  const root = await resolveReviewedWorkspace(workspace);
   const requested = typeof input?.cwd === "string" && input.cwd.trim()
     ? input.cwd.trim()
     : root;
   const candidate = isAbsolute(requested) ? requested : resolve(root, requested);
-  const cwd = await realpath(candidate);
+  const cwd = candidate === root ? root : await realpath(candidate);
   const fullAccess = approvalPolicy === "full-auto";
   if (!fullAccess) await assertWorkspacePath(root, cwd);
 
@@ -1830,7 +1831,7 @@ function createArchifyTool(workspace, reviewedResourceRoots, productAction) {
       if (!archifyRoot) {
         throw new Error("MilkSU packaged Archify resource is unavailable");
       }
-      const root = await realpath(workspace);
+      const root = await resolveReviewedWorkspace(workspace);
       const input = await assertWorkspacePath(root, resolve(root, params.inputPath));
       const diagramType = params.diagramType || "architecture";
       const quality = params.quality || "showcase";
@@ -1953,13 +1954,26 @@ function createArchifyTool(workspace, reviewedResourceRoots, productAction) {
   });
 }
 
+async function resolveReviewedWorkspace(workspace) {
+  const requestedWorkspace = resolve(workspace);
+  const trustedWorkspace = String(process.env.MILKSU_AGENT_WORKSPACE ?? "").trim();
+  if (
+    trustedWorkspace
+    && requestedWorkspace === resolve(trustedWorkspace)
+    && requestedWorkspace === resolve(process.cwd())
+  ) {
+    return requestedWorkspace;
+  }
+  return realpath(workspace);
+}
+
 async function createCodingToolDefinitions(
   workspace,
   resourceReadRoots = [],
   approvalPolicy = "workspace-auto",
   productAction = undefined,
 ) {
-  const root = await realpath(workspace);
+  const root = await resolveReviewedWorkspace(workspace);
   const reviewedResourceRoots = [];
   for (const value of resourceReadRoots) {
     try {
@@ -2124,7 +2138,7 @@ export async function createCTFToolDefinitions(
   execution,
   sessionRole = "",
 ) {
-  const root = await realpath(workspace);
+  const root = await resolveReviewedWorkspace(workspace);
   const toolBuilder = sessionRole === toolBuilderRole;
   const strategist = sessionRole === strategistRole;
   const roleProtectedEntries = toolBuilder
@@ -2257,7 +2271,7 @@ export async function createCTFToolDefinitions(
 }
 
 async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
-  const root = await realpath(workspace);
+  const root = await resolveReviewedWorkspace(workspace);
   const normalized = normalizeCodingPolicy(
     codingPolicy.executionMode,
     codingPolicy.approvalPolicy,

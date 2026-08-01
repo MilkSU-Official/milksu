@@ -218,8 +218,8 @@ export function chatActivityEntrySummary(messageOrEntry: Message | ChatActivityE
       ? `运行 ${subject}`
       : '运行命令'
   }
-  if (name === 'background') return `启动后台任务${suffix}`
-  if (name === 'background_output') return '读取后台任务'
+  if (name === 'background' || name === 'bg_task') return `管理后台任务${suffix}`
+  if (name === 'background_output' || name === 'bg_status') return `检查后台任务${suffix}`
   if (name === 'read') return `读取${suffix || '文件'}`
   if (name === 'write') return `写入${suffix || '文件'}`
   if (name === 'edit') return `编辑${suffix || '文件'}`

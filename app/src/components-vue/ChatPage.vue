@@ -64,8 +64,10 @@ import CodingChangesPanel from '@/components-vue/CodingChangesPanel.vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import type {
   CodingArchitecturePreview,
+  CodingBackgroundTask,
   CodingDiffSnapshot,
   CodingEnvironmentSnapshot,
+  CodingRuntimeStatus,
 } from '@/codingEnvironmentTypes'
 import type { CTFShowCatalogStatus } from '@/ctfshowTypes'
 import { buildChatTranscript } from '@/lib/chatActivity'
@@ -148,6 +150,7 @@ const browserPanelError = ref('')
 const nssctfBrowserStatus = ref<NSSCTFWebBridgeStatus | null>(null)
 const ctfshowBrowserStatus = ref<CTFShowCatalogStatus | null>(null)
 const codingEnvironment = ref<CodingEnvironmentSnapshot | null>(null)
+const codingRuntime = ref<CodingRuntimeStatus | null>(null)
 const ctfBudget = ref<CTFAgentBudgetStatus | null>(null)
 const ctfCheckpoint = ref<CTFAgentRunCheckpoint | null>(null)
 const ctfProjection = ref<CTFProjection | null>(null)
@@ -280,6 +283,31 @@ const workspaceName = computed(() => {
   const value = props.workspacePath.replace(/\/+$/, '')
   return value.split('/').at(-1) || '临时沙盒'
 })
+const backgroundTasks = computed(() => {
+  const runtime = codingRuntime.value
+  if (!runtime?.backgroundTasks?.length) return []
+  const resolvedWorkspace = codingEnvironment.value?.workspace || props.workspacePath
+  if (runtime.workspace && resolvedWorkspace && runtime.workspace !== resolvedWorkspace) return []
+  return runtime.backgroundTasks
+})
+const backgroundTaskLabel = (task: CodingBackgroundTask) => (
+  task.name || task.command || task.id
+)
+const backgroundTaskStatusLabel = (status: CodingBackgroundTask['status']) => {
+  if (status === 'running') return '运行中'
+  if (status === 'succeeded') return '已完成'
+  if (status === 'cancelled') return '已停止'
+  if (status === 'timed_out') return '超时'
+  return '失败'
+}
+const backgroundTaskElapsed = (task: CodingBackgroundTask) => {
+  const elapsed = Math.max(0, (task.endedAt ?? Date.now()) - task.startedAt)
+  const seconds = Math.round(elapsed / 1000)
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m ${String(seconds % 60).padStart(2, '0')}s`
+  return `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, '0')}m`
+}
 const architectureAction = computed(() => (
   props.workspacePath
     ? buildCodingArchitectureAction(props.workspacePath)
@@ -607,6 +635,7 @@ async function refreshEnvironment() {
   ctfProjection.value = null
   if (!props.workspacePath) {
     codingEnvironment.value = null
+    codingRuntime.value = null
     return
   }
   environmentLoading.value = true
@@ -615,13 +644,31 @@ async function refreshEnvironment() {
       'get_coding_environment',
       { workspacePath: props.workspacePath },
     )
+    try {
+      codingRuntime.value = await invokeCommand<CodingRuntimeStatus>('get_runtime_status')
+    } catch {
+      codingRuntime.value = null
+    }
   } catch (reason) {
     codingEnvironment.value = null
+    codingRuntime.value = null
     environmentError.value = reason instanceof Error
       ? reason.message
       : '暂时无法读取项目环境。'
   } finally {
     environmentLoading.value = false
+  }
+}
+
+async function refreshRuntimeStatus() {
+  if (props.ctfSession || !props.workspacePath) {
+    codingRuntime.value = null
+    return
+  }
+  try {
+    codingRuntime.value = await invokeCommand<CodingRuntimeStatus>('get_runtime_status')
+  } catch {
+    codingRuntime.value = null
   }
 }
 
@@ -708,6 +755,9 @@ function verifyDeliveredTool() {
 watch(() => props.conversation?.messages.length, async () => {
   await nextTick()
   if (scrollArea.value) scrollArea.value.scrollTop = scrollArea.value.scrollHeight
+  if (!props.ctfSession && environmentOpen.value && contextPanel.value === 'environment') {
+    await refreshRuntimeStatus()
+  }
 })
 watch(() => props.ctfSession, (current, previous) => {
   if (current !== previous) {
@@ -1300,6 +1350,66 @@ watch(
                 {{ workspacePath || '尚未选择项目' }}
               </p>
             </div>
+          </div>
+        </section>
+
+        <section v-if="!ctfSession && backgroundTasks.length" class="border-b border-border px-4 py-4">
+          <div class="flex items-center justify-between gap-3">
+            <p class="text-caption font-medium text-muted-foreground">后台进程</p>
+            <Badge variant="outline">
+              {{ backgroundTasks.filter(task => task.status === 'running').length }} 运行中
+            </Badge>
+          </div>
+          <div class="mt-2">
+            <details
+              v-for="task in backgroundTasks"
+              :key="task.id"
+              class="group border-b border-border/70 last:border-b-0"
+            >
+              <summary
+                class="flex cursor-pointer list-none items-center gap-2 py-3 [&::-webkit-details-marker]:hidden"
+              >
+                <span
+                  class="size-1.5 shrink-0 rounded-full"
+                  :class="task.status === 'running'
+                    ? 'animate-pulse bg-primary'
+                    : task.status === 'succeeded'
+                      ? 'bg-primary'
+                      : task.status === 'failed' || task.status === 'timed_out'
+                        ? 'bg-destructive'
+                        : 'bg-muted-foreground'"
+                />
+                <span class="min-w-0 flex-1">
+                  <span class="block truncate text-body font-medium" :title="backgroundTaskLabel(task)">
+                    {{ backgroundTaskLabel(task) }}
+                  </span>
+                  <span class="mt-0.5 block truncate text-caption text-muted-foreground">
+                    {{ backgroundTaskStatusLabel(task.status) }} · {{ backgroundTaskElapsed(task) }}
+                    <template v-if="task.pid"> · PID {{ task.pid }}</template>
+                  </span>
+                </span>
+                <ChevronDown
+                  class="size-3.5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
+                />
+              </summary>
+              <div class="space-y-2 pb-3 pl-3 text-caption leading-5">
+                <p v-if="task.command" class="break-words font-mono text-foreground">
+                  {{ task.command }}
+                </p>
+                <p v-if="task.cwd" class="break-all text-muted-foreground">
+                  {{ task.cwd }}
+                </p>
+                <p v-if="task.lastExitCode !== undefined" class="text-muted-foreground">
+                  退出码 {{ task.lastExitCode }}
+                </p>
+                <p v-if="task.error" class="break-words text-destructive">
+                  {{ task.error }}
+                </p>
+                <p v-if="task.logPath" class="break-all text-muted-foreground">
+                  日志 {{ task.logPath }}
+                </p>
+              </div>
+            </details>
           </div>
         </section>
 

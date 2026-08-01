@@ -12,6 +12,7 @@ import { Type } from "typebox";
 import piLspExtension from "@narumitw/pi-lsp/src/index.ts";
 import piRetryExtension from "@narumitw/pi-retry/src/index.ts";
 import piBackgroundTasksExtension from "pi-better-background-tasks/src/index.ts";
+import { listMetas as listPiBackgroundTaskMetas } from "pi-better-background-tasks/src/registry.ts";
 import {
   codingSessionToolNames,
   loadSessionPolicy,
@@ -29,6 +30,7 @@ import {
 } from "./bridge-resource-policy.js";
 import { preparePromptAttachments } from "./bridge-attachments.js";
 import { analyzeTextOnlyImages } from "./bridge-vision.js";
+import { projectBackgroundTaskMetas } from "./bridge-background-view.js";
 
 const relayKey = process.env.MILKSU_RELAY_KEY;
 const relayUrl = process.env.MILKSU_RELAY_URL || "https://api.ciyuanliudong.com/v1";
@@ -59,6 +61,20 @@ const approvalRequiredCodingTools = new Set(["bash", "edit", "write", "lsp_fix"]
 
 function emit(conversationId, type, data = {}) {
   process.stdout.write(`${JSON.stringify({ type, id: conversationId ?? null, ...data })}\n`);
+}
+
+function emitBackgroundTasks(conversationId) {
+  try {
+    emit(conversationId, "background_tasks", {
+      tasks: projectBackgroundTaskMetas(listPiBackgroundTaskMetas()),
+    });
+  } catch (error) {
+    console.error("MilkSU could not read Pi background task state", error);
+    emit(conversationId, "background_tasks", {
+      tasks: [],
+      error: describeError(error),
+    });
+  }
 }
 
 const approvalBroker = createApprovalBroker(emit);
@@ -302,6 +318,21 @@ function formatToolInput(toolName, args) {
   if (toolName === "bash" && typeof args.command === "string") {
     return `$ ${args.command}`;
   }
+  if (toolName === "bg_task") {
+    const action = String(args.action ?? "").trim();
+    const name = String(args.name ?? "").trim();
+    const command = typeof args.command === "string"
+      ? args.command
+      : Array.isArray(args.argv)
+        ? args.argv.join(" ")
+        : "";
+    return [action, name, command].filter(Boolean).join(" · ");
+  }
+  if (toolName === "bg_status") {
+    return [args.action, args.id].map(value => String(value ?? "").trim())
+      .filter(Boolean)
+      .join(" · ");
+  }
   const path = typeof args.path === "string" ? args.path : "";
   if (toolName === "read") {
     const range = [
@@ -432,6 +463,9 @@ function subscribeSession(conversationId, session, maxToolEventOutputBytes) {
     }
 
     if (event.type === "tool_execution_end") {
+      if (event.toolName === "bg_task" || event.toolName === "bg_status") {
+        emitBackgroundTasks(conversationId);
+      }
       emit(conversationId, "tool_call_end", {
         toolName: event.toolName,
         content: truncate(extractToolResultContent(event.result), maxToolEventOutputBytes),
@@ -649,6 +683,7 @@ async function createSession(command) {
       capabilities: sessionPolicy.capabilities,
       resumed: session.messages.length > 0,
     });
+    if (!sessionPolicy.ctf) emitBackgroundTasks(conversationId);
     return session;
   } catch (error) {
     session?.dispose();
@@ -840,6 +875,7 @@ input.on("line", (line) => {
   commandQueue = commandQueue
     .then(() => handleCommand(command))
     .catch((error) => {
+      console.error("MilkSU Pi Sidecar command failed", error);
       emit(command.conversationId ?? null, "error", { error: describeError(error) });
     });
 });

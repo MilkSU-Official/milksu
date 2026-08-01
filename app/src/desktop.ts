@@ -52,6 +52,7 @@ import type {
   CodingEnvironmentSnapshot,
   CodingGitAction,
   CodingGitActionResult,
+  CodingRuntimeStatus,
 } from './codingEnvironmentTypes'
 import type {
   ManagedLabAccess,
@@ -92,7 +93,7 @@ interface WailsAppBindings {
     requestId: string,
     approved: boolean,
   ): Promise<void>
-  GetRuntimeStatus(): Promise<unknown>
+  GetRuntimeStatus(): Promise<CodingRuntimeStatus>
   GetCodingEnvironment(workspacePath: string): Promise<CodingEnvironmentSnapshot>
   GetCodingDiff(workspacePath: string, relativePath: string): Promise<CodingDiffSnapshot>
   ApplyCodingGitAction(

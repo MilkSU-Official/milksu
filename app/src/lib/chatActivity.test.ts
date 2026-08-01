@@ -134,5 +134,10 @@ describe('activity labels', () => {
         toolName: 'write',
       }),
     )).toBe('写入 src/app.ts')
+    expect(chatActivityEntrySummary(
+      message('background', 'tool', 'spawn · Vite · npm run dev', {
+        toolName: 'bg_task',
+      }),
+    )).toBe('管理后台任务 spawn · Vite · npm run dev')
   })
 })

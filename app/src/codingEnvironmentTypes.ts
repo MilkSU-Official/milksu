@@ -37,6 +37,37 @@ export interface CodingEnvironmentSnapshot {
   git: CodingGitStatus
 }
 
+export type CodingBackgroundTaskStatus =
+  | 'running'
+  | 'succeeded'
+  | 'failed'
+  | 'cancelled'
+  | 'timed_out'
+
+export interface CodingBackgroundTask {
+  id: string
+  name?: string
+  kind: 'process' | 'watch'
+  status: CodingBackgroundTaskStatus
+  startedAt: number
+  endedAt?: number
+  command?: string
+  cwd?: string
+  pid?: number
+  logPath?: string
+  lastExitCode?: number
+  error?: string
+}
+
+export interface CodingRuntimeStatus {
+  defaultEngine: string
+  running: boolean
+  sessionCount: number
+  protocol: string
+  workspace?: string
+  backgroundTasks?: CodingBackgroundTask[]
+}
+
 export interface CodingDiffSnapshot {
   workspace: string
   path: string
