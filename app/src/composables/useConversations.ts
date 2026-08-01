@@ -89,6 +89,8 @@ interface AgentEvent {
   type: string
   text?: string
   toolName?: string
+  toolCallId?: string
+  durationMs?: number
   error?: string
   done?: boolean
   tools?: string[]
@@ -174,6 +176,13 @@ export function normalizeConversation(raw: Record<string, unknown>): Conversatio
         content: String(message.content ?? ''),
         timestamp: Number(message.timestamp ?? Date.now()),
         toolName: message.toolName as string | undefined,
+        toolCallId: typeof message.toolCallId === 'string'
+          ? message.toolCallId
+          : undefined,
+        durationMs: Number.isFinite(Number(message.durationMs))
+          && Number(message.durationMs) >= 0
+          ? Math.floor(Number(message.durationMs))
+          : undefined,
         status: approvalState === 'expired'
           ? 'done'
           : (message.status as Message['status']) ?? 'done',
@@ -545,6 +554,8 @@ export function useConversations() {
         type,
         text = '',
         toolName,
+        toolCallId,
+        durationMs,
         error,
         done,
         tools,
@@ -694,12 +705,21 @@ export function useConversations() {
           nextRunning.delete(sessionId)
           runningIds.value = nextRunning
         } else if (type === 'tool.started' || type === 'tool.completed') {
-          if (last?.role === 'tool' && last.toolName === toolName && last.status === 'running') {
+          if (
+            last?.role === 'tool'
+            && last.toolName === toolName
+            && last.status === 'running'
+            && (!toolCallId || !last.toolCallId || last.toolCallId === toolCallId)
+          ) {
             messages[messages.length - 1] = {
               ...last,
               content: text
                 ? [last.content, text].filter(Boolean).join('\n\n')
                 : last.content,
+              toolCallId: toolCallId || last.toolCallId,
+              durationMs: type === 'tool.completed'
+                ? durationMs
+                : last.durationMs,
               status: type === 'tool.completed' || done ? 'done' : 'running',
             }
           } else {
@@ -709,6 +729,8 @@ export function useConversations() {
               content: text,
               timestamp: Date.now(),
               toolName,
+              toolCallId,
+              durationMs: type === 'tool.completed' ? durationMs : undefined,
               status: type === 'tool.completed' || done ? 'done' : 'running',
             })
           }

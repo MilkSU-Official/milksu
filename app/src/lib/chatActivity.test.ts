@@ -138,9 +138,17 @@ describe('activity labels', () => {
   it('pairs tool start and result events into one expandable row', () => {
     const entries = buildChatActivityEntries([
       message('ls-start', 'tool', '{}', { toolName: 'ls', status: 'running' }),
-      message('bash-start', 'tool', '$ npm test', { toolName: 'bash', status: 'running' }),
+      message('bash-start', 'tool', '$ npm test', {
+        toolName: 'bash',
+        toolCallId: 'call-bash',
+        status: 'running',
+      }),
       message('ls-result', 'tool', 'src/\ntest/', { toolName: 'ls' }),
-      message('bash-result', 'tool', '2 tests passed', { toolName: 'bash' }),
+      message('bash-result', 'tool', '2 tests passed', {
+        toolName: 'bash',
+        toolCallId: 'call-bash',
+        durationMs: 1250,
+      }),
     ])
 
     expect(entries).toHaveLength(2)
@@ -154,6 +162,7 @@ describe('activity labels', () => {
       toolName: 'bash',
       request: { id: 'bash-start' },
       result: { id: 'bash-result' },
+      durationMs: 1250,
       running: false,
     })
     expect(chatActivityEntrySummary(entries[0]!)).toBe('查看目录')
@@ -168,5 +177,33 @@ describe('activity labels', () => {
         toolName: 'bg_task',
       }),
     )).toBe('管理后台任务 spawn · Vite · npm run dev')
+  })
+
+  it('pairs concurrent calls by Pi tool call id instead of tool name order', () => {
+    const entries = buildChatActivityEntries([
+      message('bash-a-start', 'tool', '$ npm test', {
+        toolName: 'bash',
+        toolCallId: 'call-a',
+        status: 'running',
+      }),
+      message('bash-b-start', 'tool', '$ npm run build', {
+        toolName: 'bash',
+        toolCallId: 'call-b',
+        status: 'running',
+      }),
+      message('bash-b-result', 'tool', 'build ok', {
+        toolName: 'bash',
+        toolCallId: 'call-b',
+      }),
+      message('bash-a-result', 'tool', 'tests ok', {
+        toolName: 'bash',
+        toolCallId: 'call-a',
+      }),
+    ])
+
+    expect(entries[0]?.request?.id).toBe('bash-a-start')
+    expect(entries[0]?.result?.id).toBe('bash-a-result')
+    expect(entries[1]?.request?.id).toBe('bash-b-start')
+    expect(entries[1]?.result?.id).toBe('bash-b-result')
   })
 })

@@ -28,6 +28,8 @@ type Event struct {
 	Timestamp       string                   `json:"timestamp"`
 	Text            string                   `json:"text,omitempty"`
 	ToolName        string                   `json:"toolName,omitempty"`
+	ToolCallID      string                   `json:"toolCallId,omitempty"`
+	DurationMS      int64                    `json:"durationMs,omitempty"`
 	Error           string                   `json:"error,omitempty"`
 	Done            bool                     `json:"done,omitempty"`
 	Tools           []string                 `json:"tools,omitempty"`
@@ -108,6 +110,8 @@ type bridgeEvent struct {
 	Content        string                   `json:"content"`
 	Error          string                   `json:"error"`
 	ToolName       string                   `json:"toolName"`
+	ToolCallID     string                   `json:"toolCallId"`
+	DurationMS     int64                    `json:"durationMs"`
 	IsError        bool                     `json:"isError"`
 	Tools          []string                 `json:"tools"`
 	Extensions     []string                 `json:"extensions"`
@@ -651,6 +655,8 @@ func normalizeBridgeEvent(raw bridgeEvent) Event {
 		SessionID:       raw.ID,
 		Text:            raw.Content,
 		ToolName:        raw.ToolName,
+		ToolCallID:      raw.ToolCallID,
+		DurationMS:      raw.DurationMS,
 		Tools:           raw.Tools,
 		Extensions:      raw.Extensions,
 		Skills:          raw.Skills,

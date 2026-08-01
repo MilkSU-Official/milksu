@@ -19,6 +19,8 @@ type StoredMessage struct {
 	Content           string             `json:"content"`
 	Timestamp         uint64             `json:"timestamp"`
 	ToolName          *string            `json:"toolName,omitempty"`
+	ToolCallID        *string            `json:"toolCallId,omitempty"`
+	DurationMS        *int64             `json:"durationMs,omitempty"`
 	Status            *string            `json:"status,omitempty"`
 	ApprovalRequestID *string            `json:"approvalRequestId,omitempty"`
 	ApprovalInput     *string            `json:"approvalInput,omitempty"`

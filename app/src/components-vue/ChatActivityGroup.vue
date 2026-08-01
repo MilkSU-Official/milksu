@@ -55,6 +55,13 @@ function detailLabel(entry: ChatActivityEntry) {
   if (name === 'milksu_archify') return '架构图'
   return entry.request?.toolName ?? entry.result?.toolName ?? '工具详情'
 }
+
+function durationLabel(durationMs?: number) {
+  if (durationMs === undefined) return ''
+  if (durationMs < 1000) return `${durationMs} 毫秒`
+  if (durationMs < 10_000) return `${(durationMs / 1000).toFixed(1)} 秒`
+  return `${Math.round(durationMs / 1000)} 秒`
+}
 </script>
 
 <template>
@@ -76,6 +83,12 @@ function detailLabel(entry: ChatActivityEntry) {
           <component :is="entryIcon(entry)" class="size-3.5 shrink-0 text-muted-foreground" />
           <span class="min-w-0 flex-1 truncate">
             {{ chatActivityEntrySummary(entry) }}
+          </span>
+          <span
+            v-if="entry.durationMs !== undefined"
+            class="shrink-0 text-caption tabular-nums text-muted-foreground"
+          >
+            {{ durationLabel(entry.durationMs) }}
           </span>
           <LoaderCircle
             v-if="entry.running"

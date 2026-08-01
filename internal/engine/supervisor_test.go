@@ -157,6 +157,23 @@ func TestNormalizeAssistantToolSegmentDoesNotCompleteTurn(t *testing.T) {
 	}
 }
 
+func TestNormalizeToolCompletionPreservesCallIdentityAndDuration(t *testing.T) {
+	event := normalizeBridgeEvent(bridgeEvent{
+		Type:       "tool_call_end",
+		ID:         "session-1",
+		ToolName:   "bash",
+		ToolCallID: "call-42",
+		DurationMS: 1250,
+		Content:    "ok",
+	})
+	if event.Type != "tool.completed" ||
+		event.ToolCallID != "call-42" ||
+		event.DurationMS != 1250 ||
+		!event.Done {
+		t.Fatalf("unexpected event: %#v", event)
+	}
+}
+
 func TestNormalizeTurnSettledCompletesVisibleRunWithoutInventingMessage(t *testing.T) {
 	event := normalizeBridgeEvent(bridgeEvent{
 		Type: "turn_settled", ID: "session-1",

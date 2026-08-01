@@ -14,6 +14,8 @@ export interface Message {
   content: string
   timestamp: number
   toolName?: string
+  toolCallId?: string
+  durationMs?: number
   status?: 'running' | 'done'
   approvalRequestId?: string
   approvalInput?: string

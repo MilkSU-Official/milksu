@@ -438,6 +438,7 @@ async function setSessionModel(conversationId, session, provider, model) {
 
 function subscribeSession(conversationId, session, maxToolEventOutputBytes) {
   let assistantTextStreamed = false;
+  const toolStartedAt = new Map();
 
   session.subscribe((event) => {
     if (event.type === "agent_start") {
@@ -490,7 +491,9 @@ function subscribeSession(conversationId, session, maxToolEventOutputBytes) {
     }
 
     if (event.type === "tool_execution_start") {
+      toolStartedAt.set(event.toolCallId, Date.now());
       emit(conversationId, "tool_call_start", {
+        toolCallId: event.toolCallId,
         toolName: event.toolName,
         content: formatToolInput(event.toolName, event.args),
       });
@@ -498,12 +501,18 @@ function subscribeSession(conversationId, session, maxToolEventOutputBytes) {
     }
 
     if (event.type === "tool_execution_end") {
+      const startedAt = toolStartedAt.get(event.toolCallId);
+      toolStartedAt.delete(event.toolCallId);
       if (event.toolName === "bg_task" || event.toolName === "bg_status") {
         emitBackgroundTasks(conversationId);
       }
       emit(conversationId, "tool_call_end", {
+        toolCallId: event.toolCallId,
         toolName: event.toolName,
         content: truncate(extractToolResultContent(event.result), maxToolEventOutputBytes),
+        durationMs: startedAt === undefined
+          ? undefined
+          : Math.max(0, Date.now() - startedAt),
         isError: event.isError,
       });
     }

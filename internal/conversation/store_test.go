@@ -23,6 +23,8 @@ func TestConversationIDAcceptsUUID(t *testing.T) {
 func TestStorePreservesCTFLearningContext(t *testing.T) {
 	store := &Store{directory: t.TempDir()}
 	toolName := "bash"
+	toolCallID := "call-1"
+	durationMS := int64(1250)
 	status := "done"
 	approvalRequestID := "approval-1"
 	approvalInput := `{"command":"npm test"}`
@@ -53,6 +55,8 @@ func TestStorePreservesCTFLearningContext(t *testing.T) {
 			Content:           "$ npm test",
 			Timestamp:         44,
 			ToolName:          &toolName,
+			ToolCallID:        &toolCallID,
+			DurationMS:        &durationMS,
 			Status:            &status,
 			ApprovalRequestID: &approvalRequestID,
 			ApprovalInput:     &approvalInput,

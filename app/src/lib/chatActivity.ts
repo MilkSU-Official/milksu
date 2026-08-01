@@ -18,6 +18,7 @@ export interface ChatActivityEntry {
   toolName: string
   request?: Message
   result?: Message
+  durationMs?: number
   running: boolean
 }
 
@@ -125,7 +126,8 @@ export function chatActivitySummary(messages: Message[]) {
 
 export function buildChatActivityEntries(messages: Message[]): ChatActivityEntry[] {
   const entries: ChatActivityEntry[] = []
-  const pending = new Map<string, ChatActivityEntry[]>()
+  const pendingByCallID = new Map<string, ChatActivityEntry>()
+  const pendingByToolName = new Map<string, ChatActivityEntry[]>()
 
   for (const message of messages) {
     if (message.role !== 'tool') continue
@@ -139,16 +141,27 @@ export function buildChatActivityEntries(messages: Message[]): ChatActivityEntry
         running: true,
       }
       entries.push(entry)
-      const queue = pending.get(toolName) ?? []
+      if (message.toolCallId) {
+        pendingByCallID.set(message.toolCallId, entry)
+      }
+      const queue = pendingByToolName.get(toolName) ?? []
       queue.push(entry)
-      pending.set(toolName, queue)
+      pendingByToolName.set(toolName, queue)
       continue
     }
 
-    const queue = pending.get(toolName)
-    const requestEntry = queue?.shift()
+    const queue = pendingByToolName.get(toolName)
+    const requestEntry = message.toolCallId
+      ? pendingByCallID.get(message.toolCallId)
+      : queue?.[0]
     if (requestEntry) {
+      if (requestEntry.request?.toolCallId) {
+        pendingByCallID.delete(requestEntry.request.toolCallId)
+      }
+      const queueIndex = queue?.indexOf(requestEntry) ?? -1
+      if (queue && queueIndex >= 0) queue.splice(queueIndex, 1)
       requestEntry.result = message
+      requestEntry.durationMs = message.durationMs
       requestEntry.running = false
       continue
     }
@@ -157,6 +170,7 @@ export function buildChatActivityEntries(messages: Message[]): ChatActivityEntry
       id: `tool:${message.id}`,
       toolName,
       result: message,
+      durationMs: message.durationMs,
       running: false,
     })
   }
