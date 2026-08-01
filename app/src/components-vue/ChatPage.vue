@@ -1056,7 +1056,6 @@ watch(
             <Textarea
               v-model="draft"
               class="chat-composer__input max-h-40 min-h-11 flex-1 resize-none border-0 bg-transparent py-[0.875rem] shadow-none focus-visible:ring-0"
-              placeholder=""
               aria-label="消息"
               @keydown.enter.exact.prevent="submit"
             />
@@ -1909,6 +1908,10 @@ watch(
   font-size: var(--text-body);
   line-height: var(--text-body--line-height);
   letter-spacing: var(--text-body--letter-spacing);
+}
+
+:deep(.chat-composer__input::placeholder) {
+  color: transparent;
 }
 
 @media (max-width: 68.75rem) {
