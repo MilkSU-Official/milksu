@@ -150,21 +150,22 @@ type Supervisor struct {
 	turnTimers       map[string]*time.Timer
 	turnSequence     map[string]uint64
 	approvals        map[string]int
-	backgroundTasks  []BackgroundTask
+	backgroundTasks  map[string][]BackgroundTask
 	emit             func(Event)
 	sidecarDirectory string
 }
 
 func NewSupervisor(emit func(Event)) *Supervisor {
 	return &Supervisor{
-		sessions:       make(map[string]struct{}),
-		probeWaiters:   make(map[string]chan Event),
-		controlWaiters: make(map[string]chan Event),
-		turnTimeout:    defaultTurnActivityTimeout,
-		turnTimers:     make(map[string]*time.Timer),
-		turnSequence:   make(map[string]uint64),
-		approvals:      make(map[string]int),
-		emit:           emit,
+		sessions:        make(map[string]struct{}),
+		probeWaiters:    make(map[string]chan Event),
+		controlWaiters:  make(map[string]chan Event),
+		turnTimeout:     defaultTurnActivityTimeout,
+		turnTimers:      make(map[string]*time.Timer),
+		turnSequence:    make(map[string]uint64),
+		approvals:       make(map[string]int),
+		backgroundTasks: make(map[string][]BackgroundTask),
+		emit:            emit,
 	}
 }
 
@@ -309,19 +310,107 @@ func (s *Supervisor) RespondToolApproval(
 	})
 }
 
+func (s *Supervisor) StartBackgroundTask(
+	sessionID,
+	workspacePath,
+	command,
+	name,
+	executionMode,
+	approvalPolicy string,
+	settings config.AppSettings,
+) (RuntimeStatus, error) {
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return RuntimeStatus{}, fmt.Errorf("session id is required")
+	}
+	command = strings.TrimSpace(command)
+	if command == "" {
+		return RuntimeStatus{}, fmt.Errorf("terminal command is required")
+	}
+	codingPolicy, err := normalizeCodingPolicy(
+		executionMode,
+		approvalPolicy,
+		"",
+	)
+	if err != nil {
+		return RuntimeStatus{}, err
+	}
+	if codingPolicy.ExecutionMode != "go" ||
+		codingPolicy.ApprovalPolicy == "read-only" {
+		return RuntimeStatus{}, fmt.Errorf(
+			"terminal commands require Go mode with a writable permission policy",
+		)
+	}
+	workspace, err := resolveAgentWorkspace(workspacePath)
+	if err != nil {
+		return RuntimeStatus{}, err
+	}
+	s.mu.Lock()
+	err = s.ensureProcessLocked(settings, workspace)
+	s.mu.Unlock()
+	if err != nil {
+		return RuntimeStatus{}, err
+	}
+	return s.sendBackgroundTaskControl(
+		sessionID,
+		"start background task",
+		map[string]any{
+			"control":        "spawn",
+			"command":        command,
+			"name":           strings.TrimSpace(name),
+			"executionMode":  codingPolicy.ExecutionMode,
+			"approvalPolicy": codingPolicy.ApprovalPolicy,
+		},
+	)
+}
+
 func (s *Supervisor) StopBackgroundTask(
 	sessionID,
 	taskID string,
 ) (RuntimeStatus, error) {
-	sessionID = strings.TrimSpace(sessionID)
 	taskID = strings.TrimSpace(taskID)
-	if sessionID == "" {
-		return RuntimeStatus{}, fmt.Errorf("session id is required")
-	}
 	if taskID == "" {
 		return RuntimeStatus{}, fmt.Errorf("background task id is required")
 	}
+	return s.sendBackgroundTaskControl(
+		sessionID,
+		"stop background task",
+		map[string]any{
+			"control": "stop",
+			"taskId":  taskID,
+		},
+	)
+}
 
+func (s *Supervisor) RefreshBackgroundTasks(
+	sessionID string,
+) (RuntimeStatus, error) {
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return RuntimeStatus{}, fmt.Errorf("session id is required")
+	}
+	s.mu.Lock()
+	running := s.process != nil
+	s.mu.Unlock()
+	if !running {
+		return s.StatusForSession(sessionID), nil
+	}
+	return s.sendBackgroundTaskControl(
+		sessionID,
+		"refresh background tasks",
+		map[string]any{"control": "list"},
+	)
+}
+
+func (s *Supervisor) sendBackgroundTaskControl(
+	sessionID,
+	label string,
+	payload map[string]any,
+) (RuntimeStatus, error) {
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return RuntimeStatus{}, fmt.Errorf("session id is required")
+	}
 	requestID := fmt.Sprintf("bg_control_%d", time.Now().UnixNano())
 	events := make(chan Event, 1)
 	s.probeMu.Lock()
@@ -338,20 +427,18 @@ func (s *Supervisor) StopBackgroundTask(
 		s.mu.Unlock()
 		return RuntimeStatus{}, fmt.Errorf("PI Sidecar is not running")
 	}
-	if _, exists := s.sessions[sessionID]; !exists {
-		s.mu.Unlock()
-		return RuntimeStatus{}, fmt.Errorf("PI session not found: %s", sessionID)
-	}
-	err := writeCommand(s.process.stdin, map[string]any{
+	wireCommand := map[string]any{
 		"action":         "background_task_control",
 		"conversationId": sessionID,
 		"requestId":      requestID,
-		"control":        "stop",
-		"taskId":         taskID,
-	})
+	}
+	for key, value := range payload {
+		wireCommand[key] = value
+	}
+	err := writeCommand(s.process.stdin, wireCommand)
 	s.mu.Unlock()
 	if err != nil {
-		return RuntimeStatus{}, fmt.Errorf("stop background task: %w", err)
+		return RuntimeStatus{}, fmt.Errorf("%s: %w", label, err)
 	}
 
 	timer := time.NewTimer(5 * time.Second)
@@ -360,13 +447,14 @@ func (s *Supervisor) StopBackgroundTask(
 	case event := <-events:
 		if strings.TrimSpace(event.Error) != "" {
 			return RuntimeStatus{}, fmt.Errorf(
-				"stop background task: %s",
+				"%s: %s",
+				label,
 				probeFailureMessage(event),
 			)
 		}
-		return s.Status(), nil
+		return s.StatusForSession(sessionID), nil
 	case <-timer.C:
-		return RuntimeStatus{}, fmt.Errorf("stop background task timed out")
+		return RuntimeStatus{}, fmt.Errorf("%s timed out", label)
 	}
 }
 
@@ -442,11 +530,22 @@ func (s *Supervisor) DestroySession(sessionID string) {
 	s.stopTurnTimerLocked(sessionID)
 	delete(s.sessions, sessionID)
 	delete(s.approvals, sessionID)
+	delete(s.backgroundTasks, sessionID)
 }
 
 func (s *Supervisor) Status() RuntimeStatus {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.statusLocked("")
+}
+
+func (s *Supervisor) StatusForSession(sessionID string) RuntimeStatus {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.statusLocked(strings.TrimSpace(sessionID))
+}
+
+func (s *Supervisor) statusLocked(sessionID string) RuntimeStatus {
 	status := RuntimeStatus{
 		DefaultEngine: "pi",
 		Running:       s.process != nil,
@@ -456,7 +555,23 @@ func (s *Supervisor) Status() RuntimeStatus {
 	if s.process != nil {
 		status.Workspace = s.process.workspace
 	}
-	status.BackgroundTasks = append([]BackgroundTask(nil), s.backgroundTasks...)
+	if sessionID != "" {
+		status.BackgroundTasks = append(
+			[]BackgroundTask(nil),
+			s.backgroundTasks[sessionID]...,
+		)
+		return status
+	}
+	seen := make(map[string]struct{})
+	for _, tasks := range s.backgroundTasks {
+		for _, task := range tasks {
+			if _, exists := seen[task.ID]; exists {
+				continue
+			}
+			seen[task.ID] = struct{}{}
+			status.BackgroundTasks = append(status.BackgroundTasks, task)
+		}
+	}
 	return status
 }
 
@@ -467,7 +582,7 @@ func (s *Supervisor) Close() {
 	s.sessions = make(map[string]struct{})
 	s.stopAllTurnTimersLocked()
 	s.approvals = make(map[string]int)
-	s.backgroundTasks = nil
+	s.backgroundTasks = make(map[string][]BackgroundTask)
 	s.mu.Unlock()
 
 	if process == nil {
@@ -489,7 +604,7 @@ func (s *Supervisor) ensureProcessLocked(settings config.AppSettings, workspace 
 		s.sessions = make(map[string]struct{})
 		s.stopAllTurnTimersLocked()
 		s.approvals = make(map[string]int)
-		s.backgroundTasks = nil
+		s.backgroundTasks = make(map[string][]BackgroundTask)
 		_ = previous.stdin.Close()
 		if previous.command.Process != nil {
 			_ = previous.command.Process.Kill()
@@ -566,7 +681,7 @@ func (s *Supervisor) readEvents(process *childProcess, stdout io.Reader) {
 		s.sessions = make(map[string]struct{})
 		s.stopAllTurnTimersLocked()
 		s.approvals = make(map[string]int)
-		s.backgroundTasks = nil
+		s.backgroundTasks = make(map[string][]BackgroundTask)
 	}
 	s.mu.Unlock()
 	if !current {
@@ -624,7 +739,15 @@ func (s *Supervisor) observeRuntimeEvent(event Event) {
 		return
 	}
 	s.mu.Lock()
-	s.backgroundTasks = append([]BackgroundTask(nil), event.BackgroundTasks...)
+	if s.backgroundTasks == nil {
+		s.backgroundTasks = make(map[string][]BackgroundTask)
+	}
+	if event.SessionID != "" {
+		s.backgroundTasks[event.SessionID] = append(
+			[]BackgroundTask(nil),
+			event.BackgroundTasks...,
+		)
+	}
 	s.mu.Unlock()
 }
 

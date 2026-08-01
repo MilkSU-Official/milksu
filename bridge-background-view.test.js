@@ -1,16 +1,39 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { projectBackgroundTaskMetas } from "./bridge-background-view.js";
+import {
+  backgroundTaskMetasForSession,
+  projectBackgroundTaskMetas,
+} from "./bridge-background-view.js";
+
+test("background task selection isolates conversations sharing one workspace", () => {
+  const selected = backgroundTaskMetasForSession([
+    {
+      id: "first",
+      callbackOrigin: { cwd: "/workspace", sessionId: "conversation-1" },
+    },
+    {
+      id: "second",
+      callbackOrigin: { cwd: "/workspace", sessionId: "conversation-2" },
+    },
+    {
+      id: "legacy",
+      cwd: "/workspace",
+    },
+  ], "conversation-1");
+
+  assert.deepEqual(selected.map(task => task.id), ["first"]);
+  assert.deepEqual(backgroundTaskMetasForSession(selected, ""), []);
+});
 
 test("background task projection keeps active and recent Pi tasks without env values", () => {
-  const now = 100_000;
+  const now = 2_000_000;
   const tasks = projectBackgroundTaskMetas([
     {
       id: "running",
       name: "Vite dev server",
       kind: "process",
       status: "running",
-      startedAt: 90_000,
+      startedAt: 1_990_000,
       command: "npm run dev",
       cwd: "/workspace",
       pid: 4321,
@@ -22,8 +45,8 @@ test("background task projection keeps active and recent Pi tasks without env va
       id: "recent",
       kind: "command_watch",
       status: "succeeded",
-      startedAt: 80_000,
-      endedAt: 95_000,
+      startedAt: 1_980_000,
+      endedAt: 1_995_000,
       argv: ["npm", "test"],
       cwd: "/workspace",
       spawnPid: 12,
@@ -35,7 +58,7 @@ test("background task projection keeps active and recent Pi tasks without env va
       kind: "process",
       status: "failed",
       startedAt: 1,
-      endedAt: 60_000,
+      endedAt: 100_000,
       cwd: "/workspace",
       spawnPid: 13,
       logPath: "/runtime/old.log",

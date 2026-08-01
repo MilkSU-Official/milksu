@@ -133,6 +133,123 @@ func TestNormalizeAndCacheBackgroundTasks(t *testing.T) {
 	}
 }
 
+func TestBackgroundTaskStatusIsScopedToConversation(t *testing.T) {
+	supervisor := NewSupervisor(nil)
+	supervisor.observeRuntimeEvent(normalizeBridgeEvent(bridgeEvent{
+		Type: "background_tasks",
+		ID:   "conversation-1",
+		Tasks: []BackgroundTask{{
+			ID: "bg-first", Kind: "process", Status: "running", StartedAt: 1000,
+		}},
+	}))
+	supervisor.observeRuntimeEvent(normalizeBridgeEvent(bridgeEvent{
+		Type: "background_tasks",
+		ID:   "conversation-2",
+		Tasks: []BackgroundTask{{
+			ID: "bg-second", Kind: "process", Status: "running", StartedAt: 2000,
+		}},
+	}))
+
+	first := supervisor.StatusForSession("conversation-1")
+	second := supervisor.StatusForSession("conversation-2")
+	if len(first.BackgroundTasks) != 1 ||
+		first.BackgroundTasks[0].ID != "bg-first" {
+		t.Fatalf("unexpected first conversation status: %#v", first)
+	}
+	if len(second.BackgroundTasks) != 1 ||
+		second.BackgroundTasks[0].ID != "bg-second" {
+		t.Fatalf("unexpected second conversation status: %#v", second)
+	}
+	first.BackgroundTasks[0].ID = "mutated"
+	if supervisor.StatusForSession("conversation-1").BackgroundTasks[0].ID != "bg-first" {
+		t.Fatal("session runtime status leaked its internal background task slice")
+	}
+}
+
+func TestStartBackgroundTaskSendsReviewedTerminalCommand(t *testing.T) {
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	defer writer.Close()
+
+	workspace, err := resolveAgentWorkspace(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	supervisor := NewSupervisor(nil)
+	supervisor.process = &childProcess{
+		stdin:     writer,
+		workspace: workspace,
+	}
+	type startResult struct {
+		status RuntimeStatus
+		err    error
+	}
+	result := make(chan startResult, 1)
+	go func() {
+		status, startErr := supervisor.StartBackgroundTask(
+			"session-terminal",
+			workspace,
+			"npm test",
+			"Tests",
+			"go",
+			"workspace-auto",
+			config.DefaultSettings(),
+		)
+		result <- startResult{status: status, err: startErr}
+	}()
+
+	line, err := bufio.NewReader(reader).ReadBytes('\n')
+	if err != nil {
+		t.Fatal(err)
+	}
+	var command map[string]any
+	if err := json.Unmarshal(line, &command); err != nil {
+		t.Fatal(err)
+	}
+	requestID, _ := command["requestId"].(string)
+	if command["action"] != "background_task_control" ||
+		command["control"] != "spawn" ||
+		command["conversationId"] != "session-terminal" ||
+		command["command"] != "npm test" ||
+		command["name"] != "Tests" ||
+		command["executionMode"] != "go" ||
+		command["approvalPolicy"] != "workspace-auto" ||
+		requestID == "" {
+		t.Fatalf("unexpected terminal control command: %#v", command)
+	}
+
+	event := normalizeBridgeEvent(bridgeEvent{
+		Type:      "background_task_controlled",
+		ID:        "session-terminal",
+		RequestID: requestID,
+		Tasks: []BackgroundTask{{
+			ID: "bg_terminal", Kind: "process", Status: "running", StartedAt: 1000,
+		}},
+	})
+	supervisor.observeRuntimeEvent(event)
+	supervisor.emitEvent(event)
+
+	select {
+	case started := <-result:
+		if started.err != nil {
+			t.Fatal(started.err)
+		}
+		if len(started.status.BackgroundTasks) != 1 ||
+			started.status.BackgroundTasks[0].ID != "bg_terminal" {
+			t.Fatalf("unexpected started runtime status: %#v", started.status)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("terminal task start receipt was not delivered")
+	}
+
+	supervisor.mu.Lock()
+	supervisor.process = nil
+	supervisor.mu.Unlock()
+}
+
 func TestStopBackgroundTaskWaitsForSidecarReceipt(t *testing.T) {
 	reader, writer, err := os.Pipe()
 	if err != nil {

@@ -14,7 +14,10 @@ import piLspExtension from "@narumitw/pi-lsp/src/index.ts";
 import piBackgroundTasksExtension from "pi-better-background-tasks/src/index.ts";
 import { readLog as readPiBackgroundTaskLog } from "pi-better-background-tasks/src/logs.ts";
 import { listMetas as listPiBackgroundTaskMetas } from "pi-better-background-tasks/src/registry.ts";
-import { stopTask as stopPiBackgroundTask } from "pi-better-background-tasks/src/runtime.ts";
+import {
+  spawnTask as spawnPiBackgroundTask,
+  stopTask as stopPiBackgroundTask,
+} from "pi-better-background-tasks/src/runtime.ts";
 import { createMcpAdapter } from "pi-mcp-adapter";
 import {
   codingSessionToolNames,
@@ -33,7 +36,10 @@ import {
 } from "./bridge-resource-policy.js";
 import { preparePromptAttachments } from "./bridge-attachments.js";
 import { analyzeTextOnlyImages } from "./bridge-vision.js";
-import { projectBackgroundTaskMetas } from "./bridge-background-view.js";
+import {
+  backgroundTaskMetasForSession,
+  projectBackgroundTaskMetas,
+} from "./bridge-background-view.js";
 import {
   goalKeepsSessionRunning,
   projectSessionGoal,
@@ -79,11 +85,7 @@ function emit(conversationId, type, data = {}) {
 function emitBackgroundTasks(conversationId) {
   try {
     emit(conversationId, "background_tasks", {
-      tasks: projectBackgroundTaskMetas(
-        listPiBackgroundTaskMetas(),
-        Date.now(),
-        readPiBackgroundTaskLog,
-      ),
+      tasks: projectedBackgroundTasks(conversationId),
     });
   } catch (error) {
     console.error("MilkSU could not read Pi background task state", error);
@@ -94,9 +96,12 @@ function emitBackgroundTasks(conversationId) {
   }
 }
 
-function projectedBackgroundTasks() {
+function projectedBackgroundTasks(conversationId) {
   return projectBackgroundTaskMetas(
-    listPiBackgroundTaskMetas(),
+    backgroundTaskMetasForSession(
+      listPiBackgroundTaskMetas(),
+      conversationId,
+    ),
     Date.now(),
     readPiBackgroundTaskLog,
   );
@@ -954,6 +959,17 @@ async function destroySession(command) {
 
   const session = sessions.get(conversationId);
   const sessionFile = session?.sessionFile;
+  const backgroundController = backgroundTaskControllers.get(conversationId) ?? {
+    sendUserMessage: async () => undefined,
+  };
+  for (const task of backgroundTaskMetasForSession(
+    listPiBackgroundTaskMetas(),
+    conversationId,
+  )) {
+    if (task.status === "running") {
+      stopPiBackgroundTask(backgroundController, task.id, () => undefined);
+    }
+  }
   approvalBroker.cancelConversation(conversationId, "session destroyed");
   session?.dispose();
   sessions.delete(conversationId);
@@ -984,35 +1000,108 @@ function respondToolApproval(command) {
   });
 }
 
-function controlBackgroundTask(command) {
+function terminalCommandName(value, command) {
+  const explicit = String(value ?? "")
+    .replace(/[\u0000-\u001F\u007F]/g, " ")
+    .trim();
+  if (explicit) return explicit.slice(0, 120);
+  const firstLine = String(command ?? "").split(/\r?\n/, 1)[0].trim();
+  return (firstLine || "终端命令").slice(0, 120);
+}
+
+async function controlBackgroundTask(command) {
   const conversationId = String(command.conversationId ?? "").trim();
   const requestId = String(command.requestId ?? "").trim();
-  const taskId = String(command.taskId ?? "").trim();
   try {
     if (!conversationId) throw new Error("conversationId is required");
     if (!requestId) throw new Error("requestId is required");
+    const control = String(command.control ?? "").trim();
+    if (control === "list") {
+      emit(conversationId, "background_task_controlled", {
+        requestId,
+        tasks: projectedBackgroundTasks(conversationId),
+      });
+      return;
+    }
+    if (control === "spawn") {
+      const commandText = String(command.command ?? "").trim();
+      if (!commandText) throw new Error("terminal command is required");
+      if (commandText.includes("\u0000")) {
+        throw new Error("terminal command contains an invalid null byte");
+      }
+      if (commandText.length > 16_000) {
+        throw new Error("terminal command must be at most 16000 characters");
+      }
+      const policy = await loadSessionPolicy(process.cwd(), "", {
+        executionMode: command.executionMode,
+        approvalPolicy: command.approvalPolicy,
+      });
+      if (
+        policy.ctf
+        || policy.executionMode !== "go"
+        || policy.approvalPolicy === "read-only"
+      ) {
+        throw new Error(
+          `MilkSU Coding policy blocked terminal command: `
+          + `${policy.executionMode}/${policy.approvalPolicy}`,
+        );
+      }
+      const input = {
+        command: commandText,
+        cwd: policy.workspace,
+        shell: true,
+        callback: false,
+        name: terminalCommandName(command.name, commandText),
+      };
+      const authorization = await prepareCodingBackgroundAuthorization(
+        policy.workspace,
+        policy.approvalPolicy,
+        input,
+        policy.readOnlyResourceRoots,
+      );
+      authorizeBackgroundToolInput(input, authorization);
+      const pi = backgroundTaskControllers.get(conversationId) ?? {
+        sendUserMessage: async () => undefined,
+      };
+      spawnPiBackgroundTask(
+        pi,
+        input,
+        policy.workspace,
+        { cwd: policy.workspace, sessionId: conversationId },
+        () => ({ cwd: policy.workspace, sessionId: conversationId }),
+      );
+      emit(conversationId, "background_task_controlled", {
+        requestId,
+        tasks: projectedBackgroundTasks(conversationId),
+      });
+      return;
+    }
+    if (control !== "stop") {
+      throw new Error(`unsupported background task control: ${control}`);
+    }
+    const taskId = String(command.taskId ?? "").trim();
     if (!/^bg_[a-z0-9_]+$/i.test(taskId)) {
       throw new Error("invalid background task id");
     }
-    if (command.control !== "stop") {
-      throw new Error(`unsupported background task control: ${String(command.control)}`);
-    }
-    const pi = backgroundTaskControllers.get(conversationId);
-    if (!pi || !sessions.has(conversationId)) {
-      throw new Error(`PI session not found: ${conversationId}`);
-    }
-    const meta = listPiBackgroundTaskMetas().find(task => task.id === taskId);
+    const metas = backgroundTaskMetasForSession(
+      listPiBackgroundTaskMetas(),
+      conversationId,
+    );
+    const meta = metas.find(task => task.id === taskId);
     if (!meta) throw new Error(`background task not found: ${taskId}`);
+    const pi = backgroundTaskControllers.get(conversationId) ?? {
+      sendUserMessage: async () => undefined,
+    };
     stopPiBackgroundTask(pi, taskId, () => undefined);
     emit(conversationId, "background_task_controlled", {
       requestId,
-      tasks: projectedBackgroundTasks(),
+      tasks: projectedBackgroundTasks(conversationId),
     });
   } catch (error) {
     emit(conversationId || null, "background_task_controlled", {
       requestId,
       error: describeError(error),
-      tasks: projectedBackgroundTasks(),
+      tasks: projectedBackgroundTasks(conversationId),
     });
   }
 }
@@ -1032,7 +1121,7 @@ async function handleCommand(command) {
       respondToolApproval(command);
       break;
     case "background_task_control":
-      controlBackgroundTask(command);
+      await controlBackgroundTask(command);
       break;
     case "destroy_session":
       await destroySession(command);
@@ -1067,7 +1156,7 @@ input.on("line", (line) => {
   }
   if (command.action === "background_task_control") {
     if (sessions.has(command.conversationId)) {
-      controlBackgroundTask(command);
+      void controlBackgroundTask(command);
       return;
     }
   }

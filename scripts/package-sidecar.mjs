@@ -419,6 +419,10 @@ async function smokeSidecar(platform) {
     logPath: join(backgroundTaskDirectory, 'output.log'),
     cwd: workspace,
     spawnPid: process.pid,
+    callbackOrigin: {
+      cwd: workspace,
+      sessionId: 'packaged-background-control',
+    },
   }, null, 2)}\n`, { mode: 0o600 })
   const backgroundControlRun = await runWithInput(
     node,

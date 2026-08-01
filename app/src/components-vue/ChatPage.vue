@@ -56,14 +56,13 @@ import ChatActivityGroup from '@/components-vue/ChatActivityGroup.vue'
 import ChatMessageItem from '@/components-vue/ChatMessageItem.vue'
 import CodingComposerControls from '@/components-vue/CodingComposerControls.vue'
 import CodingChangesPanel from '@/components-vue/CodingChangesPanel.vue'
+import CodingTerminalPanel from '@/components-vue/CodingTerminalPanel.vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import type {
   CodingArchitecturePreview,
-  CodingBackgroundTask,
   CodingDiffSnapshot,
   CodingEnvironmentSnapshot,
   CodingMCPConfigSnapshot,
-  CodingRuntimeStatus,
 } from '@/codingEnvironmentTypes'
 import type { CTFShowCatalogStatus } from '@/ctfshowTypes'
 import { buildChatTranscript } from '@/lib/chatActivity'
@@ -143,7 +142,7 @@ const scrollArea = ref<HTMLElement | null>(null)
 const workshopState = ref<CTFToolWorkshopState | null>(null)
 const environmentOpen = ref(!props.ctfSession)
 const contextPanel = ref<
-  'environment' | 'changes' | 'architecture' | 'browser' | 'collaboration' | 'evidence'
+  'environment' | 'changes' | 'terminal' | 'architecture' | 'browser' | 'collaboration' | 'evidence'
 >('environment')
 const environmentLoading = ref(false)
 const environmentError = ref('')
@@ -155,8 +154,6 @@ const browserPanelError = ref('')
 const nssctfBrowserStatus = ref<NSSCTFWebBridgeStatus | null>(null)
 const ctfshowBrowserStatus = ref<CTFShowCatalogStatus | null>(null)
 const codingEnvironment = ref<CodingEnvironmentSnapshot | null>(null)
-const codingRuntime = ref<CodingRuntimeStatus | null>(null)
-const backgroundTaskStopping = ref<string[]>([])
 const mcpConfig = ref<CodingMCPConfigSnapshot | null>(null)
 const mcpConfigLoading = ref(false)
 const ctfBudget = ref<CTFAgentBudgetStatus | null>(null)
@@ -307,31 +304,6 @@ const workspaceName = computed(() => {
   const value = props.workspacePath.replace(/\/+$/, '')
   return value.split('/').at(-1) || '临时沙盒'
 })
-const backgroundTasks = computed(() => {
-  const runtime = codingRuntime.value
-  if (!runtime?.backgroundTasks?.length) return []
-  const resolvedWorkspace = codingEnvironment.value?.workspace || props.workspacePath
-  if (runtime.workspace && resolvedWorkspace && runtime.workspace !== resolvedWorkspace) return []
-  return runtime.backgroundTasks
-})
-const backgroundTaskLabel = (task: CodingBackgroundTask) => (
-  task.name || task.command || task.id
-)
-const backgroundTaskStatusLabel = (status: CodingBackgroundTask['status']) => {
-  if (status === 'running') return '运行中'
-  if (status === 'succeeded') return '已完成'
-  if (status === 'cancelled') return '已停止'
-  if (status === 'timed_out') return '超时'
-  return '失败'
-}
-const backgroundTaskElapsed = (task: CodingBackgroundTask) => {
-  const elapsed = Math.max(0, (task.endedAt ?? Date.now()) - task.startedAt)
-  const seconds = Math.round(elapsed / 1000)
-  if (seconds < 60) return `${seconds}s`
-  const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `${minutes}m ${String(seconds % 60).padStart(2, '0')}s`
-  return `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, '0')}m`
-}
 const architectureAction = computed(() => (
   props.workspacePath
     ? buildCodingArchitectureAction(props.workspacePath)
@@ -383,6 +355,7 @@ const latestJudge = computed(() => ctfProjection.value?.judgeReceipts.at(-1))
 const contextPanelTitle = computed(() => ({
   environment: props.ctfSession ? '解题环境' : '环境信息',
   changes: '变更',
+  terminal: '终端',
   architecture: '架构图',
   browser: '浏览器',
   collaboration: 'Agent 协作',
@@ -719,7 +692,6 @@ async function refreshEnvironment() {
   ctfProjection.value = null
   if (!props.workspacePath) {
     codingEnvironment.value = null
-    codingRuntime.value = null
     return
   }
   environmentLoading.value = true
@@ -728,57 +700,13 @@ async function refreshEnvironment() {
       'get_coding_environment',
       { workspacePath: props.workspacePath },
     )
-    try {
-      codingRuntime.value = await invokeCommand<CodingRuntimeStatus>('get_runtime_status')
-    } catch {
-      codingRuntime.value = null
-    }
   } catch (reason) {
     codingEnvironment.value = null
-    codingRuntime.value = null
     environmentError.value = reason instanceof Error
       ? reason.message
       : '暂时无法读取项目环境。'
   } finally {
     environmentLoading.value = false
-  }
-}
-
-async function refreshRuntimeStatus() {
-  if (props.ctfSession || !props.workspacePath) {
-    codingRuntime.value = null
-    return
-  }
-  try {
-    codingRuntime.value = await invokeCommand<CodingRuntimeStatus>('get_runtime_status')
-  } catch {
-    codingRuntime.value = null
-  }
-}
-
-async function stopBackgroundTask(task: CodingBackgroundTask) {
-  const conversationId = props.conversation?.id
-  if (!conversationId || task.status !== 'running') return
-  if (backgroundTaskStopping.value.includes(task.id)) return
-  backgroundTaskStopping.value = [...backgroundTaskStopping.value, task.id]
-  environmentError.value = ''
-  try {
-    codingRuntime.value = await invokeCommand<CodingRuntimeStatus>(
-      'stop_coding_background_task',
-      {
-        conversationId,
-        taskId: task.id,
-      },
-    )
-  } catch (reason) {
-    environmentError.value = reason instanceof Error
-      ? reason.message
-      : '无法停止后台任务。'
-    await refreshRuntimeStatus()
-  } finally {
-    backgroundTaskStopping.value = backgroundTaskStopping.value.filter(
-      id => id !== task.id,
-    )
   }
 }
 
@@ -803,6 +731,9 @@ async function refreshBrowserPanel() {
 }
 
 async function refreshContextPanel() {
+  if (contextPanel.value === 'terminal') {
+    return
+  }
   if (contextPanel.value === 'architecture') {
     await refreshArchitecturePreview()
     return
@@ -815,7 +746,7 @@ async function refreshContextPanel() {
 }
 
 function changeContextPanel(value: string) {
-  if (!['environment', 'changes', 'architecture', 'browser', 'collaboration', 'evidence'].includes(value)) return
+  if (!['environment', 'changes', 'terminal', 'architecture', 'browser', 'collaboration', 'evidence'].includes(value)) return
   contextPanel.value = value as typeof contextPanel.value
   environmentOpen.value = true
   void refreshContextPanel()
@@ -865,9 +796,6 @@ function verifyDeliveredTool() {
 watch(() => props.conversation?.messages.length, async () => {
   await nextTick()
   if (scrollArea.value) scrollArea.value.scrollTop = scrollArea.value.scrollHeight
-  if (!props.ctfSession && environmentOpen.value && contextPanel.value === 'environment') {
-    await refreshRuntimeStatus()
-  }
 })
 watch(() => props.ctfSession, (current, previous) => {
   if (current !== previous) {
@@ -1114,7 +1042,9 @@ watch(
   <aside
     v-if="environmentOpen"
     class="context-sidebar flex shrink-0 flex-col border-l border-border bg-card/95 backdrop-blur"
-    :class="['architecture', 'changes'].includes(contextPanel) ? 'w-[36rem]' : 'w-80'"
+    :class="['architecture', 'changes', 'terminal'].includes(contextPanel)
+      ? 'w-[min(36rem,36vw)] min-w-[22rem]'
+      : 'w-80'"
     :aria-label="contextPanelTitle"
   >
     <header class="app-drag flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
@@ -1129,6 +1059,7 @@ watch(
         >
           <Activity v-if="contextPanel === 'environment'" class="size-4 text-primary" />
           <FileDiff v-else-if="contextPanel === 'changes'" class="size-4 text-primary" />
+          <Terminal v-else-if="contextPanel === 'terminal'" class="size-4 text-primary" />
           <Network v-else-if="contextPanel === 'architecture'" class="size-4 text-primary" />
           <Globe2 v-else-if="contextPanel === 'browser'" class="size-4 text-primary" />
           <Wrench v-else-if="contextPanel === 'collaboration'" class="size-4 text-primary" />
@@ -1138,6 +1069,7 @@ watch(
         <SelectContent size="sm" align="start" class="min-w-56">
           <SelectItem value="environment">{{ ctfSession ? '解题环境' : '环境信息' }}</SelectItem>
           <SelectItem v-if="!ctfSession" value="changes">变更</SelectItem>
+          <SelectItem v-if="!ctfSession" value="terminal">终端</SelectItem>
           <SelectItem v-if="!ctfSession" value="architecture">架构图</SelectItem>
           <SelectItem value="browser">浏览器</SelectItem>
           <template v-if="ctfSession">
@@ -1149,6 +1081,7 @@ watch(
       </Select>
       <div class="app-no-drag flex items-center gap-1">
         <Button
+          v-if="contextPanel !== 'terminal'"
           variant="ghost"
           size="icon-sm"
           :disabled="environmentLoading || architecturePreviewLoading"
@@ -1310,101 +1243,6 @@ watch(
                 取消
               </Button>
             </div>
-          </div>
-        </section>
-
-        <section v-if="!ctfSession && backgroundTasks.length" class="border-b border-border px-4 py-4">
-          <div class="flex items-center justify-between gap-3">
-            <p class="text-caption font-medium text-muted-foreground">后台进程</p>
-            <Badge variant="outline">
-              {{ backgroundTasks.filter(task => task.status === 'running').length }} 运行中
-            </Badge>
-          </div>
-          <div class="mt-2">
-            <details
-              v-for="task in backgroundTasks"
-              :key="task.id"
-              class="group border-b border-border/70 last:border-b-0"
-            >
-              <summary
-                class="flex cursor-pointer list-none items-center gap-2 py-3 [&::-webkit-details-marker]:hidden"
-              >
-                <span
-                  class="size-1.5 shrink-0 rounded-full"
-                  :class="task.status === 'running'
-                    ? 'animate-pulse bg-primary'
-                    : task.status === 'succeeded'
-                      ? 'bg-primary'
-                      : task.status === 'failed' || task.status === 'timed_out'
-                        ? 'bg-destructive'
-                        : 'bg-muted-foreground'"
-                />
-                <span class="min-w-0 flex-1">
-                  <span class="block truncate text-body font-medium" :title="backgroundTaskLabel(task)">
-                    {{ backgroundTaskLabel(task) }}
-                  </span>
-                  <span class="mt-0.5 block truncate text-caption text-muted-foreground">
-                    {{ backgroundTaskStatusLabel(task.status) }} · {{ backgroundTaskElapsed(task) }}
-                    <template v-if="task.pid"> · PID {{ task.pid }}</template>
-                    <template v-if="task.ports?.length">
-                      · {{ task.ports.map(port => `:${port}`).join(' ') }}
-                    </template>
-                  </span>
-                </span>
-                <ChevronDown
-                  class="size-3.5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
-                />
-              </summary>
-              <div class="space-y-2 pb-3 pl-3 text-caption leading-5">
-                <div class="flex items-start justify-between gap-3">
-                  <div class="min-w-0 space-y-1">
-                    <p v-if="task.command" class="break-words font-mono text-foreground">
-                      {{ task.command }}
-                    </p>
-                    <p v-if="task.cwd" class="break-all text-muted-foreground">
-                      {{ task.cwd }}
-                    </p>
-                  </div>
-                  <Button
-                    v-if="task.status === 'running'"
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    class="shrink-0"
-                    :disabled="backgroundTaskStopping.includes(task.id)"
-                    :aria-label="`停止后台任务 ${backgroundTaskLabel(task)}`"
-                    @click="stopBackgroundTask(task)"
-                  >
-                    <LoaderCircle
-                      v-if="backgroundTaskStopping.includes(task.id)"
-                      class="size-3.5 animate-spin"
-                    />
-                    <Square v-else class="size-3 fill-current" />
-                    停止
-                  </Button>
-                </div>
-                <div v-if="task.ports?.length" class="flex flex-wrap items-center gap-1.5">
-                  <span class="text-muted-foreground">监听端口</span>
-                  <Badge v-for="port in task.ports" :key="port" variant="outline">
-                    {{ port }}
-                  </Badge>
-                </div>
-                <div v-if="task.logTail" class="space-y-1">
-                  <p class="text-muted-foreground">
-                    日志摘要<template v-if="task.logTruncated"> · 仅显示末尾</template>
-                  </p>
-                  <pre
-                    class="max-h-44 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-background/70 px-3 py-2 font-mono text-caption text-foreground"
-                  >{{ task.logTail }}</pre>
-                </div>
-                <p v-if="task.lastExitCode !== undefined" class="text-muted-foreground">
-                  退出码 {{ task.lastExitCode }}
-                </p>
-                <p v-if="task.error" class="break-words text-destructive">
-                  {{ task.error }}
-                </p>
-              </div>
-            </details>
           </div>
         </section>
 
@@ -1639,6 +1477,16 @@ watch(
           :running="running"
           @review="runCodingProductAction('review')"
           @refresh="refreshEnvironment"
+        />
+      </template>
+
+      <template v-else-if="contextPanel === 'terminal'">
+        <CodingTerminalPanel
+          :active="environmentOpen && contextPanel === 'terminal'"
+          :conversation-id="conversation?.id ?? ''"
+          :workspace-path="workspacePath"
+          :execution-mode="effectiveExecutionMode"
+          :approval-policy="effectiveApprovalPolicy"
         />
       </template>
 

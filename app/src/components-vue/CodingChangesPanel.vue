@@ -169,6 +169,9 @@ watch(changes, current => {
             class="mt-1 font-mono text-caption text-muted-foreground"
           >
             <span>{{ git.branch || 'detached' }}</span>
+            <span v-if="git.upstream" class="ml-3">
+              ↑{{ git.ahead }} ↓{{ git.behind }}
+            </span>
             <span class="ml-3 text-primary">+{{ git.additions }}</span>
             <span class="ml-1 text-destructive">-{{ git.deletions }}</span>
           </p>
@@ -366,11 +369,17 @@ watch(changes, current => {
             type="button"
             variant="outline"
             size="sm"
-            :disabled="busy || !git.branch || git.branch === 'detached' || Boolean(git.conflicts)"
+            :disabled="
+              busy
+              || !git.branch
+              || git.branch === 'detached'
+              || Boolean(git.conflicts)
+              || Boolean(git.upstream && git.ahead === 0)
+            "
             @click="applyGitAction('push')"
           >
             <Upload class="size-3.5" />
-            推送
+            推送<template v-if="git.ahead"> {{ git.ahead }}</template>
           </Button>
         </form>
         <p

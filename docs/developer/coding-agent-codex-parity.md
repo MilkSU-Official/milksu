@@ -52,7 +52,7 @@ MilkSU Coding 的北极星不是“能调用模型的聊天框”，而是让用
 | Codex 工作流 | MilkSU 当前状态 | 差距与验收 | 优先级 |
 | --- | --- | --- | --- |
 | 读、搜、改、写文件 | `Verified`：Pi `read/edit/write/grep/find/ls` | 增加逐文件/逐块 diff 可视化和撤销 | P0 |
-| Shell 与测试 | `Verified / Partial UX`：`Project Auto` 支持常规开发命令、Shell 组合、Git 与网络并限制项目外写入；显式 `Full Access` 自动执行当前用户可运行的命令；Provider Key 不进入子进程；后台进程面板已显示状态、PID、监听端口、有界日志和停止动作 | 增加可见复用终端与完整交互式输出 | P0 |
+| Shell 与测试 | `Verified / Partial UX`：`Project Auto` 支持常规开发命令、Shell 组合、Git 与网络并限制项目外写入；显式 `Full Access` 自动执行当前用户可运行的命令；Provider Key 不进入子进程；右侧“终端”可直接运行项目命令并显示会话隔离的状态、PID、监听端口、有界日志、退出码和停止动作 | 增加 PTY、stdin、终端标签页与完整交互式输出 | P0 |
 | 上下文压缩与持久会话 | `Implemented`：复用 Pi Session | UI 显示压缩/恢复事件；建立长任务回归 | P1 |
 | LSP | `Partial`：固定插件并仅用于 Coding；仓库配置被 MilkSU 白名单覆盖，语言服务器进程不继承模型凭据 | 打包 Go/Vue/TypeScript Server；用 fixture 验证诊断，写修复必须显式展示 | P0 |
 | Retry | `Alternative`：当前固定清单不再加载 `pi-retry`，模型/Provider 的重试语义保持在 Pi 边界，MilkSU 只处理可见失败与恢复 | 用可控瞬态失败与慢首 Token fixture 验证现有 Pi/Provider 行为；不增加第二个自研重试循环 | P1 |
@@ -67,8 +67,8 @@ MilkSU Coding 的北极星不是“能调用模型的聊天框”，而是让用
 | 分支、HEAD、ahead/behind | `Verified`：右侧环境面板只读展示 | 增加远端与 detached 状态说明 | P0 |
 | 变更统计 | `Verified`：文件数、增删行、暂存/修改/未跟踪/冲突 | 增加远端过滤和大型仓库分页 | P0 |
 | Diff 审阅与行级反馈 | `Verified / Partial`：右侧独立变更页展示文件列表、暂存/工作区 unified diff、截断状态；一键审阅使用桌面 Git Adapter 的有界可信快照，不要求模型执行 Git 或解析 `.git`；真实回归正确识别一行除数回归 | 增加行级评论回流、逐块审阅和大型/二进制 Diff 样本 | P0 |
-| Stage / revert | `Planned` | 逐块和逐文件操作；破坏性操作前确认 | P1 |
-| Commit / push / PR | `Planned` | 明确目标分支与远端；push 和 PR 属于外部副作用 | P0 |
+| Stage / revert | `Verified / Partial`：右侧变更页支持逐文件及全部 stage/unstage、未暂存文件丢弃；本地临时 Git 仓库完成原生 UI 回归 | 增加逐块操作；扩大未跟踪文件和冲突恢复样本 | P1 |
+| Commit / push / PR | `Verified / Partial`：右侧变更页支持提交和当前分支 push，显示 upstream 与 ahead/behind；本地 bare remote 已完成原生 stage → commit → push 并核对远端 HEAD | 真实托管服务 push 继续使用用户已配置凭据；PR 创建与发布前确认仍待接入 | P0 |
 | Worktree / Handoff | `Alternative` | 使用 Git worktree 为并行 Coding 任务隔离；不复制 Codex 私有 Handoff | P1 |
 
 ### 4. 权限与环境
@@ -77,9 +77,9 @@ MilkSU Coding 的北极星不是“能调用模型的聊天框”，而是让用
 | --- | --- | --- | --- |
 | 工作区范围 | `Verified`：文件工具二次校验路径/符号链接；Project Auto 的 HOME/TMP/runtime 位于用户数据目录，不污染项目仓库；macOS 沙箱阻止项目外写入；旧 `.milksu` 目录继续受保护并从 Git 面板隐藏；Full Access 只能由用户显式选择 | 多根目录显式授权；为旧项目提供可审阅的遗留目录清理入口 | P0 |
 | 命令与网络审批 | `Verified / Partial coverage`：Plan/Go 与 Codex 风格 `请求批准 / 替我审批 / 完全访问权限` 已由后端真实执行；Ask 会暂停单次 `bash/edit/write` 或后台/MCP 副作用，桌面展示参数并等待批准/拒绝 | Browser、Computer Use、Git push/PR 等外部产品副作用继续保持独立批准并补原生负向样本 | P0 |
-| 环境信息 | `Verified`：工作区、Git、模型、固定扩展、工具、消息、工具记录、项目 MCP，以及后台进程状态、PID、监听端口、有界日志和停止动作 | 补 Coding Browser、来源详情与可见复用终端 | P0 |
+| 环境信息 | `Verified`：工作区、Git、模型、固定扩展、工具、消息、工具记录、项目 MCP 和能力摘要集中在右侧；变更、终端、架构图和浏览器使用同一个右侧页面选择器，不再挤占 Composer | 补 Coding Browser 与扩展来源详情 | P0 |
 | Local Environment / Actions | `Planned` | 项目级 setup 和常用命令；固定配置、可见输出、可停止 | P1 |
-| 集成终端 | `Planned` | 同一项目的可见终端与 Agent 后台进程，不隐藏 Shell 状态 | P1 |
+| 集成终端 | `Verified / Partial`：右侧独立“终端”页通过固定 `pi-better-background-tasks` 运行项目命令，按 Conversation 隔离任务并展示 PID、端口、日志、退出码与停止动作；原生 App 已完成短命令及 HTTP Server 启停回归 | 增加 PTY、stdin、终端标签页和重启后的可恢复交互会话 | P1 |
 
 ### 5. 上下文、扩展与工具
 
@@ -98,7 +98,7 @@ MilkSU Coding 的北极星不是“能调用模型的聊天框”，而是让用
 
 | Codex 工作流 | MilkSU 当前状态 | 差距与验收 | 优先级 |
 | --- | --- | --- | --- |
-| 后台任务 | `Verified runtime + native product flow`：固定 `pi-better-background-tasks` 支持启动、查询、停止和恢复事件；右侧环境面板展示状态、PID、监听端口、有界日志、退出码与停止动作；原生 App 已真实启动 `127.0.0.1:18765` 并从面板停止，端口随后关闭 | 增加可见复用终端与多进程压力样本 | P0 |
+| 后台任务 | `Verified runtime + native product flow`：固定 `pi-better-background-tasks` 支持启动、查询、停止和恢复事件；右侧终端页展示 Conversation 隔离的状态、PID、监听端口、有界日志、退出码与停止动作；原生 App 已真实启动 `127.0.0.1:18876` 并停止，端口随后关闭 | 增加多进程压力、重启恢复和交互式 PTY 样本 | P0 |
 | 生成文件预览 | `Partial`：CTF Artifact 与 Archify HTML 可预览；普通 Coding 主要显示路径和 Diff | 文本、Markdown、HTML、图片和常用文档预览 | P1 |
 | Scheduled tasks | `Planned` | 仅在稳定任务模板、权限和隔离完成后进入 | P2 |
 | Cloud/offload | `Excluded` | 当前产品坚持本机优先；未来可接外部 Runtime Adapter | — |
@@ -112,7 +112,7 @@ MilkSU Coding 的北极星不是“能调用模型的聊天框”，而是让用
 - 右侧环境信息不遮挡，工作区、Git、模型、插件、工具状态真实；
 - Markdown、代码块、表格和链接全局统一渲染；
 - Archify、LSP、Goal、后台任务与 MCP Adapter 在打包 Sidecar 中通过正向 smoke，CTF 会话通过负向隔离；未打包语言服务器时必须明确显示 `Partial`；
-- 保持逐工具审批、附件输入、后台任务面板和文件级 Diff 回归；补可见复用终端。
+- 保持逐工具审批、附件输入、会话隔离终端和文件级 Diff 回归；补交互式 PTY。
 
 ### C1：日常 Git 与权限闭环
 
@@ -151,7 +151,7 @@ MilkSU Coding 的北极星不是“能调用模型的聊天框”，而是让用
 5. 用户追加 `items: null` 边界要求，Agent 修改实现、补测试，并将测试从 4/4 推进到 5/5；
 6. 主验收进程在 Agent 外独立复跑测试与 smoke，结果一致。
 
-该样本证明当前 Coding 核心链路已可交付，也暴露出模型会受旧对话误导、需要“先验证当前状态再下结论”的真实弱点。后续已移除普通研发命令白名单并加入显式 Full Access；当前交付门禁也已覆盖桌面 Ask 审批、附件引用、项目 MCP 选择和后台任务生命周期，原生右栏也已真实显示并停止带监听端口的后台进程。但这仍不证明 MCP Browser、Computer Use、多 Agent、可见复用终端或 Git 发布闭环已经完成。
+该样本证明当前 Coding 核心链路已可交付，也暴露出模型会受旧对话误导、需要“先验证当前状态再下结论”的真实弱点。后续已移除普通研发命令白名单并加入显式 Full Access；当前交付门禁也已覆盖桌面 Ask 审批、附件引用、项目 MCP 选择、会话隔离的项目终端和后台任务生命周期。原生右栏已真实运行短命令，并启动、显示和停止带监听端口的后台进程；本地 Git 远端也完成 stage、commit、push 与远端 HEAD 核对。但这仍不证明 MCP Browser、Computer Use、多 Agent、交互式 PTY 或托管平台 PR 发布闭环已经完成。
 
 同日，真实打包 App 在上述项目会话中点击一次“架构图”，自动读取仓库、修复候选布局、
 执行 Archify `validate` 与 `deliver`，生成固定 JSON/HTML；独立 CLI 复验为 9/9、

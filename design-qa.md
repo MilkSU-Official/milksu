@@ -583,8 +583,9 @@ final result: passed
 - Native packaged implementation:
   - `/private/tmp/milksu-native-three-controls.png`
   - `/private/tmp/milksu-background-task-stopped-native.png`
+  - `/private/tmp/milksu-coding-terminal-session-native.png`
 - Viewports: browser 1280 × 720 and 1100 × 720 at DPR 2; native packaged app 1187 × 768.
-- States: Coding architecture side page with the composer visible, model menu open, and a real background HTTP task stopped from Environment.
+- States: Coding architecture side page with the composer visible, model menu open, and a real background HTTP task stopped from the dedicated Terminal page.
 
 **Findings**
 
@@ -597,7 +598,7 @@ final result: passed
 - Earlier P1: eight project/action/context controls competed for one row and squeezed the model selector out of view.
 - Fix: moved project selection, product actions, persistent goal, architecture, and capabilities into the right-side Environment surfaces.
 - Current result: the composer owns only execution mode, permission policy, and model selection.
-- Product-flow validation: a real `python3 -m http.server` process was started through Pi, surfaced with PID, listening port and bounded logs, stopped from the right panel, and verified no longer listening.
+- Product-flow validation: a short command completed with exit code 0; a real `python3 -m http.server 18876 --bind 127.0.0.1` process was then started through Pi, surfaced with PID, listening port and bounded logs, stopped from the right Terminal page, and verified no longer listening.
 
 **Required Fidelity Surfaces**
 

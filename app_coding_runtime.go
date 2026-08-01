@@ -8,8 +8,43 @@ import (
 	"github.com/MilkSU-Official/milksu/internal/engine"
 )
 
-func (a *App) GetRuntimeStatus() engine.RuntimeStatus {
-	return a.enrichRuntimeStatus(a.engines.Status())
+func (a *App) GetRuntimeStatus(conversationID string) engine.RuntimeStatus {
+	return a.enrichRuntimeStatus(
+		a.engines.StatusForSession(conversationID),
+	)
+}
+
+func (a *App) RefreshCodingBackgroundTasks(
+	conversationID string,
+) (engine.RuntimeStatus, error) {
+	status, err := a.engines.RefreshBackgroundTasks(conversationID)
+	if err != nil {
+		return engine.RuntimeStatus{}, err
+	}
+	return a.enrichRuntimeStatus(status), nil
+}
+
+func (a *App) StartCodingBackgroundTask(
+	conversationID,
+	workspacePath,
+	command,
+	name,
+	executionMode,
+	approvalPolicy string,
+) (engine.RuntimeStatus, error) {
+	status, err := a.engines.StartBackgroundTask(
+		conversationID,
+		workspacePath,
+		command,
+		name,
+		executionMode,
+		approvalPolicy,
+		a.settings.GetResolved(),
+	)
+	if err != nil {
+		return engine.RuntimeStatus{}, err
+	}
+	return a.enrichRuntimeStatus(status), nil
 }
 
 func (a *App) StopCodingBackgroundTask(

@@ -105,7 +105,18 @@ interface WailsAppBindings {
     requestId: string,
     approved: boolean,
   ): Promise<void>
-  GetRuntimeStatus(): Promise<CodingRuntimeStatus>
+  GetRuntimeStatus(conversationId: string): Promise<CodingRuntimeStatus>
+  RefreshCodingBackgroundTasks(
+    conversationId: string,
+  ): Promise<CodingRuntimeStatus>
+  StartCodingBackgroundTask(
+    conversationId: string,
+    workspacePath: string,
+    command: string,
+    name: string,
+    executionMode: string,
+    approvalPolicy: string,
+  ): Promise<CodingRuntimeStatus>
   StopCodingBackgroundTask(
     conversationId: string,
     taskId: string,
@@ -391,7 +402,22 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
           args?.approved as boolean,
         ) as Promise<T>
       case 'get_runtime_status':
-        return app.GetRuntimeStatus() as Promise<T>
+        return app.GetRuntimeStatus(
+          (args?.conversationId as string) ?? '',
+        ) as Promise<T>
+      case 'refresh_coding_background_tasks':
+        return app.RefreshCodingBackgroundTasks(
+          args?.conversationId as string,
+        ) as Promise<T>
+      case 'start_coding_background_task':
+        return app.StartCodingBackgroundTask(
+          args?.conversationId as string,
+          args?.workspacePath as string,
+          args?.command as string,
+          (args?.name as string) ?? '',
+          (args?.executionMode as string) ?? 'go',
+          (args?.approvalPolicy as string) ?? 'workspace-auto',
+        ) as Promise<T>
       case 'stop_coding_background_task':
         return app.StopCodingBackgroundTask(
           args?.conversationId as string,
@@ -667,7 +693,16 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         backgroundTasks: [],
       } as T
     case 'stop_coding_background_task':
+    case 'start_coding_background_task':
       throw new Error('后台任务控制需要 MilkSU 桌面运行时。')
+    case 'refresh_coding_background_tasks':
+      return {
+        defaultEngine: 'pi',
+        running: false,
+        sessionCount: 0,
+        protocol: 'browser-preview',
+        backgroundTasks: [],
+      } as T
     case 'get_coding_environment': {
       const workspace = String(args?.workspacePath ?? '')
       const name = workspace.replace(/\/+$/, '').split('/').at(-1) || 'workspace'

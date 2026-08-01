@@ -1,6 +1,6 @@
 # Coding Agent / Pi 扩展边界
 
-> 状态：Coding 核心交付链、桌面逐次审批、附件、后台任务和项目 MCP
+> 状态：Coding 核心交付链、桌面逐次审批、附件、会话隔离终端、后台任务和项目 MCP
 > **Verified / Implemented**；LSP 语言服务器、Coding Browser 与 Computer Use **Partial / Planned**。
 
 MilkSU 不重写通用 Coding Agent Loop。Pi 负责会话、模型、上下文、工具循环和扩展 API；
@@ -63,7 +63,7 @@ flowchart LR
 | Archify | 是 | **否** | 固定 Coding Skill |
 | `lsp_diagnostics` / `lsp_fix` | 诊断可用；`lsp_fix` 在三档策略中均阻止，等待独立审批协议 | **否** | 固定 Coding Extension + MilkSU 启动策略 |
 | Pi Goal | 是；与桌面目标状态并存 | **否**；CTF 使用自己的进度与 Judge 语义 | 固定 Coding Extension |
-| 后台任务 | 是；生命周期事件、PID、监听端口、有界日志和桌面停止动作已接入 | **否** | 固定 Coding Extension + MilkSU 只读状态投影 |
+| 项目终端 / 后台任务 | 是；右侧终端页复用后台任务 Extension，按 Conversation 隔离生命周期事件、PID、监听端口、有界日志、退出码和停止动作 | **否** | 固定 Coding Extension + MilkSU 会话级控制/状态投影 |
 | 项目 MCP | 用户从项目 `.mcp.json` 明确选择后启用，每次调用仍走桌面审批 | **否** | 固定 Coding Extension + MilkSU Sandbox |
 | 文件 / 图片附件 | 是；复制到用户数据目录，纯文本模型可走本地 OCR 或已配置视觉模型 | 使用 CTF Material 管线，不复用 Coding 附件上下文 | MilkSU 附件桥 + 本地 OCR |
 | CTF 类型化工具 | 否 | 按 Role、Scope 和协作模式 | MilkSU CTF Harness |
@@ -126,7 +126,7 @@ flowchart TB
 | Archify | `2.12.0`，commit `7b49d0b…` | `third_party/archify`、`bridge.js`、Sidecar manifest、Composer 产品动作 | **Verified**：真实打包 App 一键生成固定 JSON/HTML、9/9、0 error、0 warning，并在右侧预览 |
 | `@narumitw/pi-lsp` | `0.29.0` | `bridge-resource-policy.js`、`bridge.js`、`package-lock.json` | 项目命令覆盖和凭据继承已阻断；语言服务器尚未打包，真实诊断与 opt-in fix 待验 |
 | `@narumitw/pi-goal` | `0.43.0` | `bridge-resource-policy.js`、`bridge.js`、`package-lock.json` | **Verified**：普通 Coding 固定加载，CTF 负向隔离；桌面目标仍以 `milksu_progress` 为事实源 |
-| `pi-better-background-tasks` | `0.1.10` | `bridge.js`、Sidecar manifest、运行时事件、右侧环境面板 | **Verified**：真实原生会话启动监听 `127.0.0.1:18765` 的任务，显示 PID/端口/有界日志，并从桌面停止；CTF 保持负向隔离 |
+| `pi-better-background-tasks` | `0.1.10` | `bridge.js`、Sidecar manifest、会话级控制/运行时事件、右侧终端页 | **Verified**：真实原生会话运行短命令，并启动监听 `127.0.0.1:18876` 的任务；显示 PID/端口/有界日志后从桌面停止并确认端口关闭；不同 Conversation 的任务互相不可见，CTF 保持负向隔离 |
 | `pi-mcp-adapter` | `2.17.0` | `bridge.js`、项目 MCP 配置摘要与批准桥 | **Verified**：项目显式选择、摘要校验、Sandbox、环境过滤、逐次审批和 CTF 负向隔离 |
 | `@napi-rs/system-ocr` | `1.1.0` | Coding 附件桥、Sidecar manifest、平台原生包 | **Verified**：图片附件可本地 OCR；配置视觉路由时可改用视觉模型 |
 | MilkSU Workflow | first-party | `createMilkSUWorkflowExtension` | Schema 和可见事件已有 |
@@ -180,5 +180,6 @@ flowchart TB
    后台任务/项目 MCP，
    Recorder 的回合预算、候选闸门和轨迹仍通过。
 
-当前正确说法是“核心插件已经固定并通过打包与隔离验收；LSP 语言服务器、Coding Browser、
-Computer Use 和完整进程面板尚未完成”，不是“Coding Agent 插件体系已完成”。
+当前正确说法是“核心插件已经固定并通过打包与隔离验收；项目命令和后台进程已有右侧
+终端页，但 PTY/stdin/标签页仍缺；LSP 语言服务器、Coding Browser 和 Computer Use
+尚未完成”，不是“Coding Agent 插件体系已完成”。

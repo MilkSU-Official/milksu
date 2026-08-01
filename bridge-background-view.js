@@ -1,4 +1,4 @@
-const terminalRetentionMs = 30_000;
+const terminalRetentionMs = 30 * 60_000;
 const maximumTasks = 24;
 
 function boundedText(value, limit) {
@@ -36,6 +36,14 @@ function logPreview(meta, readTaskLog) {
   } catch {
     return {};
   }
+}
+
+export function backgroundTaskMetasForSession(metas, sessionId) {
+  const resolvedSession = String(sessionId ?? "").trim();
+  if (!resolvedSession || !Array.isArray(metas)) return [];
+  return metas.filter(meta => (
+    String(meta?.callbackOrigin?.sessionId ?? "").trim() === resolvedSession
+  ));
 }
 
 export function projectBackgroundTaskMetas(
