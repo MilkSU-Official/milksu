@@ -961,53 +961,6 @@ watch(
 
     <div class="chat-composer shrink-0 bg-surface-editor px-5 pb-4 pt-2">
       <div class="mx-auto max-w-3xl">
-        <div
-          v-if="!ctfSession && (activeGoal || goalMode)"
-          class="chat-goal-strip mb-2 flex min-w-0 items-center gap-2 px-2"
-        >
-          <Target class="size-3.5 shrink-0 text-primary" />
-          <Badge variant="secondary">
-            {{ goalMode && !activeGoal ? '下一条设为目标' : goalStatusLabel }}
-          </Badge>
-          <span class="min-w-0 flex-1 truncate text-control">
-            {{ activeGoal?.text || 'Agent 会持续推进，直到验证完成、暂停或确认受阻。' }}
-          </span>
-          <span v-if="goalUsageLabel" class="shrink-0 text-caption text-muted-foreground">
-            {{ goalUsageLabel }}
-          </span>
-          <Button
-            v-if="activeGoal && resumableGoal"
-            type="button"
-            variant="ghost"
-            size="sm"
-            :disabled="running"
-            @click="$emit('controlGoal', 'resume')"
-          >
-            继续
-          </Button>
-          <Button
-            v-if="activeGoal && !running"
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            aria-label="清除当前目标"
-            title="清除当前目标"
-            @click="$emit('controlGoal', 'clear')"
-          >
-            <X class="size-3.5" />
-          </Button>
-          <Button
-            v-else-if="goalMode && !activeGoal"
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            aria-label="取消目标模式"
-            title="取消目标模式"
-            @click="goalMode = false"
-          >
-            <X class="size-3.5" />
-          </Button>
-        </div>
         <CodingComposerControls
           :workspace-name="workspacePath ? workspaceName : '项目'"
           :workspace-locked="workspaceLocked"
@@ -1254,6 +1207,58 @@ watch(
               <Target class="size-3.5" />
               {{ goalMode ? '已设为目标' : '设为目标' }}
             </Button>
+          </div>
+          <div
+            v-if="activeGoal || goalMode"
+            class="mt-3 rounded-lg bg-primary/[0.07] p-3"
+          >
+            <div class="flex min-w-0 items-center gap-2">
+              <Target class="size-3.5 shrink-0 text-primary" />
+              <Badge variant="secondary">
+                {{ goalMode && !activeGoal ? '下一条设为目标' : goalStatusLabel }}
+              </Badge>
+              <span
+                v-if="goalUsageLabel"
+                class="ml-auto shrink-0 text-caption text-muted-foreground"
+              >
+                {{ goalUsageLabel }}
+              </span>
+            </div>
+            <p class="mt-2 break-words text-body leading-5">
+              {{ activeGoal?.text || '下一条消息会成为持续目标。' }}
+            </p>
+            <div class="mt-2 flex justify-end gap-1">
+              <Button
+                v-if="activeGoal && resumableGoal"
+                type="button"
+                variant="ghost"
+                size="sm"
+                :disabled="running"
+                @click="$emit('controlGoal', 'resume')"
+              >
+                继续
+              </Button>
+              <Button
+                v-if="activeGoal && !running"
+                type="button"
+                variant="ghost"
+                size="sm"
+                aria-label="清除当前目标"
+                @click="$emit('controlGoal', 'clear')"
+              >
+                清除
+              </Button>
+              <Button
+                v-else-if="goalMode && !activeGoal"
+                type="button"
+                variant="ghost"
+                size="sm"
+                aria-label="取消目标模式"
+                @click="goalMode = false"
+              >
+                取消
+              </Button>
+            </div>
           </div>
         </section>
 
@@ -1863,12 +1868,6 @@ watch(
 .chat-composer {
   position: relative;
   z-index: 2;
-}
-
-.chat-goal-strip {
-  min-height: 2rem;
-  border-radius: 0.65rem;
-  background: color-mix(in srgb, var(--primary) 7%, transparent);
 }
 
 .coding-action-option {

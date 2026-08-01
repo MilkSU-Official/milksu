@@ -128,11 +128,13 @@ final result: passed
   - `/private/tmp/milksu-coding-density-final.png`
   - `/private/tmp/milksu-coding-architecture-final.png`
   - `/private/tmp/milksu-composer-alignment-final-typed.png`
+  - `/private/tmp/milksu-coding-controls-goal-in-sidebar.png`
 - Full-view comparison:
   - `/private/tmp/milksu-coding-density-comparison.png`
 - Focused comparisons:
   - `/private/tmp/milksu-sidebar-density-comparison.png`
   - `/private/tmp/milksu-composer-density-comparison.png`
+  - `/private/tmp/milksu-coding-controls-focused-comparison.png`
 - App viewport and implementation pixels: `1187 × 768`.
 - Source pixels: `2880 × 1864`, normalized to `1187 × 768` at the same aspect ratio.
 - State: Coding workspace with the environment panel open; a second capture verifies the wider architecture panel.
@@ -147,6 +149,8 @@ No actionable P0, P1, or P2 mismatch remains in the requested regions.
 - The composer toolbar no longer duplicates the right-panel `架构图` action or Agent `能力` details.
   Architecture remains in the right-panel selector; skills, tools, and project MCP state live in
   `环境信息`.
+- Persistent-goal status and its resume/clear controls also live under the right-panel `任务操作`
+  section. Enabling goal mode does not add another row above the composer.
 - The model trigger has the remaining flexible width and displays `V4 Flash` completely, including
   while the wider architecture panel is open. Provider and full model metadata remain available in
   the model menu and environment panel.
@@ -168,8 +172,8 @@ No actionable P0, P1, or P2 mismatch remains in the requested regions.
 - Copy and content: the unnecessary prompt hint is absent. The compact model trigger uses the
   unambiguous model name while full provider context remains in detailed surfaces.
 - States and interactions: Coding navigation, empty composer, environment panel, architecture panel,
-  model visibility, typed-input alignment, project MCP placement, and Agent skill/tool placement
-  were exercised in the packaged Wails app.
+  model visibility, typed-input alignment, goal-mode placement, project MCP placement, and Agent
+  skill/tool placement were exercised in the packaged Wails app.
 
 **Comparison History**
 
@@ -179,6 +183,9 @@ No actionable P0, P1, or P2 mismatch remains in the requested regions.
   displayed the concise configured model name in the trigger.
 - Pass 2 — passed: `V4 Flash` remains fully visible with both environment and architecture panels;
   the composer has no placeholder; the side navigation and task hierarchy are materially quieter.
+- Pass 3 — passed: goal mode was enabled and verified under the right-panel `任务操作` section; the
+  composer text contains only `项目 / Go / 替我审批 / V4 Flash`. The model trigger remains visible at
+  the default viewport and at `1024 × 768` and `800 × 700`.
 
 **Browser and Build Verification**
 
@@ -186,6 +193,7 @@ No actionable P0, P1, or P2 mismatch remains in the requested regions.
   - Coding is the active primary workspace.
   - `架构图` is available from the right-panel selector.
   - no bottom `能力` button remains.
+  - goal mode and goal controls stay in the environment panel instead of adding a composer row.
   - the composer placeholder is empty.
   - the model trigger contains `V4 Flash`.
 - Browser console: `0` errors, `0` warnings.
