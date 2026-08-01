@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 )
 
 type ResultCounts struct {
@@ -22,11 +23,13 @@ type ExitReasonCount struct {
 }
 
 type ExecutionAggregate struct {
-	ProviderCalls      int               `json:"providerCalls"`
-	InputTokens        int64             `json:"inputTokens"`
-	OutputTokens       int64             `json:"outputTokens"`
-	ActualCostMicroUSD int64             `json:"actualCostMicroUsd"`
-	ExitReasons        []ExitReasonCount `json:"exitReasons"`
+	ProviderCalls       int               `json:"providerCalls"`
+	InputTokens         int64             `json:"inputTokens"`
+	OutputTokens        int64             `json:"outputTokens"`
+	ActualCostMicroUSD  int64             `json:"actualCostMicroUsd"`
+	UsageUnmeasuredRuns int               `json:"usageUnmeasuredRuns,omitempty"`
+	UsageMeasurements   []string          `json:"usageMeasurements,omitempty"`
+	ExitReasons         []ExitReasonCount `json:"exitReasons"`
 }
 
 type DimensionSummary struct {
@@ -86,11 +89,13 @@ type configurationAccumulator struct {
 }
 
 type executionAccumulator struct {
-	providerCalls      int
-	inputTokens        int64
-	outputTokens       int64
-	actualCostMicroUSD int64
-	exitReasons        map[string]int
+	providerCalls       int
+	inputTokens         int64
+	outputTokens        int64
+	actualCostMicroUSD  int64
+	usageUnmeasuredRuns int
+	usageMeasurements   map[string]struct{}
+	exitReasons         map[string]int
 }
 
 // Aggregate builds a deterministic static report. Runs are treated only as
@@ -152,7 +157,10 @@ func Aggregate(catalogs []Catalog, runs []RunRecord) (Report, error) {
 				attempts:    map[string]struct{}{},
 				solved:      map[string]struct{}{},
 				authorities: map[string]struct{}{},
-				execution:   executionAccumulator{exitReasons: map[string]int{}},
+				execution: executionAccumulator{
+					usageMeasurements: map[string]struct{}{},
+					exitReasons:       map[string]int{},
+				},
 			}
 			configurations[configKey] = configuration
 		}
@@ -216,7 +224,10 @@ func newSummaryAccumulator() *summaryAccumulator {
 		attempts:    map[string]struct{}{},
 		solved:      map[string]struct{}{},
 		authorities: map[string]struct{}{},
-		execution:   executionAccumulator{exitReasons: map[string]int{}},
+		execution: executionAccumulator{
+			usageMeasurements: map[string]struct{}{},
+			exitReasons:       map[string]int{},
+		},
 	}
 }
 
@@ -343,6 +354,10 @@ func harnessKey(harness HarnessIdentity) string {
 func accumulateExecution(summary *executionAccumulator, run RunRecord) {
 	summary.inputTokens += run.Metrics.InputTokens
 	summary.outputTokens += run.Metrics.OutputTokens
+	if measurement := strings.TrimSpace(run.Metrics.UsageMeasurement); measurement != "" {
+		summary.usageUnmeasuredRuns++
+		summary.usageMeasurements[measurement] = struct{}{}
+	}
 	if run.Execution == nil {
 		return
 	}
@@ -364,12 +379,19 @@ func executionReport(summary executionAccumulator) ExecutionAggregate {
 			Count:  summary.exitReasons[reason],
 		})
 	}
+	measurements := make([]string, 0, len(summary.usageMeasurements))
+	for measurement := range summary.usageMeasurements {
+		measurements = append(measurements, measurement)
+	}
+	sort.Strings(measurements)
 	return ExecutionAggregate{
-		ProviderCalls:      summary.providerCalls,
-		InputTokens:        summary.inputTokens,
-		OutputTokens:       summary.outputTokens,
-		ActualCostMicroUSD: summary.actualCostMicroUSD,
-		ExitReasons:        counts,
+		ProviderCalls:       summary.providerCalls,
+		InputTokens:         summary.inputTokens,
+		OutputTokens:        summary.outputTokens,
+		ActualCostMicroUSD:  summary.actualCostMicroUSD,
+		UsageUnmeasuredRuns: summary.usageUnmeasuredRuns,
+		UsageMeasurements:   measurements,
+		ExitReasons:         counts,
 	}
 }
 

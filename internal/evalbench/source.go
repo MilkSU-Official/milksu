@@ -6,6 +6,7 @@ const (
 	ReportSchemaVersion           = "milksu.evalbench.report/v1alpha1"
 	AdmissionSchemaVersion        = "milksu.evalbench.admission/v1alpha1"
 	BaselineRunSchemaVersion      = "milksu.evalbench.baseline-run/v1alpha1"
+	AgentRuntimeRunSchemaVersion  = "milksu.evalbench.agent-runtime-run/v1alpha1"
 	SafeStaticReviewPolicyVersion = "milksu.safe-static-review/v1"
 
 	NYUCTFBenchSourceID                = "nyu-ctf-bench"

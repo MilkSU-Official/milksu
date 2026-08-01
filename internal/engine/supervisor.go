@@ -44,6 +44,7 @@ type Event struct {
 	Approved        *bool                    `json:"approved,omitempty"`
 	BackgroundTasks []BackgroundTask         `json:"backgroundTasks,omitempty"`
 	Goal            *CodingGoalState         `json:"goal,omitempty"`
+	Resumed         bool                     `json:"resumed,omitempty"`
 }
 
 type RuntimeStatus struct {
@@ -125,6 +126,7 @@ type bridgeEvent struct {
 	Approved       *bool                    `json:"approved"`
 	Tasks          []BackgroundTask         `json:"tasks"`
 	Goal           *CodingGoalState         `json:"goal"`
+	Resumed        bool                     `json:"resumed"`
 }
 
 type childProcess struct {
@@ -134,17 +136,18 @@ type childProcess struct {
 }
 
 type Supervisor struct {
-	mu              sync.Mutex
-	probeMu         sync.Mutex
-	process         *childProcess
-	sessions        map[string]struct{}
-	probeWaiters    map[string]chan Event
-	turnTimeout     time.Duration
-	turnTimers      map[string]*time.Timer
-	turnSequence    map[string]uint64
-	approvals       map[string]int
-	backgroundTasks []BackgroundTask
-	emit            func(Event)
+	mu               sync.Mutex
+	probeMu          sync.Mutex
+	process          *childProcess
+	sessions         map[string]struct{}
+	probeWaiters     map[string]chan Event
+	turnTimeout      time.Duration
+	turnTimers       map[string]*time.Timer
+	turnSequence     map[string]uint64
+	approvals        map[string]int
+	backgroundTasks  []BackgroundTask
+	emit             func(Event)
+	sidecarDirectory string
 }
 
 func NewSupervisor(emit func(Event)) *Supervisor {
@@ -157,6 +160,15 @@ func NewSupervisor(emit func(Event)) *Supervisor {
 		approvals:    make(map[string]int),
 		emit:         emit,
 	}
+}
+
+func NewSupervisorWithSidecarDirectory(
+	emit func(Event),
+	sidecarDirectory string,
+) *Supervisor {
+	supervisor := NewSupervisor(emit)
+	supervisor.sidecarDirectory = strings.TrimSpace(sidecarDirectory)
+	return supervisor
 }
 
 func normalizeCodingPolicy(
@@ -416,7 +428,13 @@ func (s *Supervisor) ensureProcessLocked(settings config.AppSettings, workspace 
 			_ = previous.command.Process.Kill()
 		}
 	}
-	command, err := newSidecarCommandAt("chat-bridge.cjs", "bridge.js", workspace, true)
+	command, err := newSidecarCommandAtWithDirectory(
+		"chat-bridge.cjs",
+		"bridge.js",
+		workspace,
+		true,
+		s.sidecarDirectory,
+	)
 	if err != nil {
 		return err
 	}
@@ -675,6 +693,7 @@ func normalizeBridgeEvent(raw bridgeEvent) Event {
 		Approved:        raw.Approved,
 		BackgroundTasks: raw.Tasks,
 		Goal:            raw.Goal,
+		Resumed:         raw.Resumed,
 	}
 	switch raw.Type {
 	case "ready":

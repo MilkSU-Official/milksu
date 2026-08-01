@@ -44,8 +44,10 @@ func run(arguments []string, stdout io.Writer) error {
 	output := flags.String("out", "", "optional report path; defaults to stdout")
 	var runPaths repeatedPaths
 	var baselineRunPaths repeatedPaths
+	var agentRunPaths repeatedPaths
 	flags.Var(&runPaths, "run", "summary RunRecord JSON path; may be repeated")
 	flags.Var(&baselineRunPaths, "baseline-run", "safe-static BaselineRunRecord JSON path; may be repeated")
+	flags.Var(&agentRunPaths, "agent-run", "safe AgentRuntimeRunRecord JSON path; may be repeated")
 	if err := flags.Parse(arguments); err != nil {
 		return err
 	}
@@ -61,7 +63,11 @@ func run(arguments []string, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	runs := make([]evalbench.RunRecord, 0, len(runPaths)+len(baselineRunPaths))
+	runs := make(
+		[]evalbench.RunRecord,
+		0,
+		len(runPaths)+len(baselineRunPaths)+len(agentRunPaths),
+	)
 	for _, runPath := range runPaths {
 		data, err := readBounded(runPath, maximumRunRecordSize)
 		if err != nil {
@@ -85,6 +91,21 @@ func run(arguments []string, stdout io.Writer) error {
 		summary, err := record.Summary()
 		if err != nil {
 			return fmt.Errorf("summarize baseline run record %q: %w", runPath, err)
+		}
+		runs = append(runs, summary)
+	}
+	for _, runPath := range agentRunPaths {
+		data, err := readBounded(runPath, maximumRunRecordSize)
+		if err != nil {
+			return fmt.Errorf("read agent run record %q: %w", runPath, err)
+		}
+		record, err := evalbench.DecodeAgentRuntimeRunRecord(data)
+		if err != nil {
+			return fmt.Errorf("load agent run record %q: %w", runPath, err)
+		}
+		summary, err := record.Summary()
+		if err != nil {
+			return fmt.Errorf("summarize agent run record %q: %w", runPath, err)
 		}
 		runs = append(runs, summary)
 	}

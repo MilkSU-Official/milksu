@@ -19,6 +19,24 @@ func TestNormalizeAssistantDelta(t *testing.T) {
 	}
 }
 
+func TestNormalizeReadyPreservesResumeEvidence(t *testing.T) {
+	event := normalizeBridgeEvent(bridgeEvent{
+		Type:           "ready",
+		ID:             "session-1",
+		Tools:          []string{"read", "grep"},
+		ExecutionMode:  "plan",
+		ApprovalPolicy: "read-only",
+		Resumed:        true,
+	})
+	if event.Type != "session.ready" ||
+		!event.Resumed ||
+		event.ExecutionMode != "plan" ||
+		event.ApprovalPolicy != "read-only" ||
+		len(event.Tools) != 2 {
+		t.Fatalf("unexpected ready event: %#v", event)
+	}
+}
+
 func TestNormalizePolicyStatus(t *testing.T) {
 	event := normalizeBridgeEvent(bridgeEvent{
 		Type:           "policy_updated",
@@ -668,5 +686,55 @@ func TestResolveSidecarRuntimeRejectsIncompleteOverride(t *testing.T) {
 	t.Setenv("MILKSU_SIDECAR_DIR", t.TempDir())
 	if _, err := resolveSidecarRuntime("security-bridge.cjs", "security-bridge.js"); err == nil {
 		t.Fatal("expected an incomplete packaged runtime to be rejected")
+	}
+}
+
+func TestResolveSidecarRuntimeUsesExplicitCompleteDirectory(t *testing.T) {
+	directory := t.TempDir()
+	node := filepath.Join(directory, "node")
+	bridge := filepath.Join(directory, "chat-bridge.cjs")
+	if err := os.WriteFile(node, []byte("runtime"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(bridge, []byte("bridge"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("MILKSU_SIDECAR_DIR", t.TempDir())
+
+	runtime, err := resolveSidecarRuntimeWithDirectory(
+		"chat-bridge.cjs",
+		"bridge.js",
+		directory,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !runtime.packaged || runtime.node != node || runtime.bridge != bridge {
+		t.Fatalf("unexpected explicit packaged runtime: %#v", runtime)
+	}
+}
+
+func TestResolveSidecarRuntimeRejectsIncompleteExplicitDirectory(t *testing.T) {
+	directory := t.TempDir()
+	if err := os.WriteFile(
+		filepath.Join(directory, "chat-bridge.cjs"),
+		[]byte("bridge"),
+		0o600,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := resolveSidecarRuntimeWithDirectory(
+		"chat-bridge.cjs",
+		"bridge.js",
+		directory,
+	); err == nil || !strings.Contains(err.Error(), "complete runtime") {
+		t.Fatalf("expected an incomplete explicit runtime to be rejected, got %v", err)
+	}
+}
+
+func TestSupervisorStoresTrimmedExplicitSidecarDirectory(t *testing.T) {
+	supervisor := NewSupervisorWithSidecarDirectory(nil, "  /tmp/milksu-sidecar  ")
+	if supervisor.sidecarDirectory != "/tmp/milksu-sidecar" {
+		t.Fatalf("unexpected Sidecar directory: %q", supervisor.sidecarDirectory)
 	}
 }

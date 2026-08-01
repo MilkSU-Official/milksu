@@ -38,10 +38,11 @@ type HarnessIdentity struct {
 }
 
 type RunMetrics struct {
-	Turns        int   `json:"turns"`
-	ToolCalls    int   `json:"toolCalls"`
-	InputTokens  int64 `json:"inputTokens"`
-	OutputTokens int64 `json:"outputTokens"`
+	Turns            int    `json:"turns"`
+	ToolCalls        int    `json:"toolCalls"`
+	InputTokens      int64  `json:"inputTokens"`
+	OutputTokens     int64  `json:"outputTokens"`
+	UsageMeasurement string `json:"usageMeasurement,omitempty"`
 }
 
 type RunExecutionSummary struct {
@@ -155,6 +156,10 @@ func ValidateRunRecord(record RunRecord) error {
 	if record.Metrics.Turns < 0 || record.Metrics.ToolCalls < 0 ||
 		record.Metrics.InputTokens < 0 || record.Metrics.OutputTokens < 0 {
 		return errors.New("run metrics cannot be negative")
+	}
+	if len(record.Metrics.UsageMeasurement) > 200 ||
+		strings.ContainsAny(record.Metrics.UsageMeasurement, "\r\n") {
+		return errors.New("run usage measurement is invalid")
 	}
 	if record.Execution != nil {
 		if err := validateRunExecution(*record.Execution); err != nil {

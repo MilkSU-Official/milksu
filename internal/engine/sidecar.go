@@ -76,7 +76,27 @@ func newSidecarCommandAt(
 	workspace string,
 	allowChildProcess bool,
 ) (*exec.Cmd, error) {
-	runtime, err := resolveSidecarRuntime(packagedBridge, sourceBridge)
+	return newSidecarCommandAtWithDirectory(
+		packagedBridge,
+		sourceBridge,
+		workspace,
+		allowChildProcess,
+		"",
+	)
+}
+
+func newSidecarCommandAtWithDirectory(
+	packagedBridge,
+	sourceBridge,
+	workspace string,
+	allowChildProcess bool,
+	sidecarDirectory string,
+) (*exec.Cmd, error) {
+	runtime, err := resolveSidecarRuntimeWithDirectory(
+		packagedBridge,
+		sourceBridge,
+		sidecarDirectory,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -191,6 +211,23 @@ func withSidecarRuntimePath(environment []string, nodeBinary string) []string {
 }
 
 func resolveSidecarRuntime(packagedBridge, sourceBridge string) (sidecarRuntime, error) {
+	return resolveSidecarRuntimeWithDirectory(packagedBridge, sourceBridge, "")
+}
+
+func resolveSidecarRuntimeWithDirectory(
+	packagedBridge,
+	sourceBridge,
+	sidecarDirectory string,
+) (sidecarRuntime, error) {
+	if directory := strings.TrimSpace(sidecarDirectory); directory != "" {
+		if runtime, ok := packagedRuntimeAt(directory, packagedBridge); ok {
+			return runtime, nil
+		}
+		return sidecarRuntime{}, fmt.Errorf(
+			"selected Sidecar directory does not contain a complete runtime: %s",
+			directory,
+		)
+	}
 	if override := os.Getenv("MILKSU_SIDECAR_DIR"); override != "" {
 		if runtime, ok := packagedRuntimeAt(override, packagedBridge); ok {
 			return runtime, nil
