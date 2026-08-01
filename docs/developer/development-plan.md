@@ -1,4 +1,4 @@
-# 开发计划：先跑通 CTF 与 Vuln
+# 开发计划：CTF / Coding 收口，Labs / CVE 设计待解冻
 
 > 状态：当前实现主线
 >
@@ -14,28 +14,29 @@ MilkSU 现在以**一站式网络安全 AI 学习客户端**开源。CTF、Vulne
 
 MilkSU 不在“先造完整基础架构”和“先做一次性 Demo”之间二选一。我们采用**最小纵向骨架**：只实现足够支撑一个真实任务的公共契约，然后立即让真实模型、真实工具、真实环境和独立 Evaluator 连成闭环。
 
-第一条纵切是 CTF，第二条是 Vulnerability Research（下文简称 Vuln）。只有两条纵切都用过的抽象，才有资格进入稳定的共享 Runtime。
+历史上的第一条纵切是 CTF，第二条是 Vulnerability Research（下文简称 Vuln），它们帮助冻结了 Runtime 的事实、证据、Evaluator 和恢复边界。当前实现优先级已经调整为 CTF 真实闭环、Coding 日常交付、内部 Eval 与产品底座；Vuln/CVE 和 Labs 保留设计，但不再阻塞 R0.4。
 
 MilkSU Security Harness 是默认运行方式，但“自己的 Harness”不等于从模型 API 开始重写通用 Agent Loop。我们会先评估 Pi SDK、Codex CLI 开源核心等成熟 Coding Agent Engine，尽量复用它们的模型接入、上下文压缩、会话、通用 Tool Loop 与流式事件，再在其上改造出由 MilkSU 掌握的安全任务状态、实验、证据、评测和人机协作。
 
 直接运行用户已有的 Codex/Claude Code CLI 是另一种 External Agent Runtime；它与“把开源 Agent Engine 嵌入并改造成 MilkSU Harness”不是同一件事。
 
-## MVP 的边界
+## 当前 R0.4 的边界
 
-第一个可用版本只承诺：
+当前可演示版本只承诺：
 
 - macOS 单用户桌面客户端；
 - macOS 桌面控制面采用 Go + Wails v2 + Vue 3/TypeScript；界面组件复用 Memoh 主仓库锁定的 `memohai/ui`，Agent Engine 可以保留其原生语言，通过明确的进程内或本地协议边界接入；
 - SQLite 事件与状态存储，文件系统保存 Artifact；
-- 一个经实跑选定的可扩展 Agent Engine、可替换 Model Provider 和 MilkSU Security Harness；
-- 一个隔离的本地任务环境；
-- 一个自动获取、启动、等待就绪、重置、停止和清理的 Lab Manager，用户不需要手动启动靶场；
-- CTF Flag Judge 与 Vuln Reproduction Evaluator；
-- CTF、Vuln 各自的最小面板；
+- 固定版本 Pi Coding Agent、可替换 Model Provider 和 MilkSU Security Harness；
+- CTF 单题私有工作区与受控本机执行；它不是容器或 VM；
+- NSSCTF/CTFshow 题库、自定义题目 Intake、显式候选与独立平台/本地 Judge；
+- Coding 的项目选择、持久会话、Plan/Go、Codex 风格三档权限、Project Auto 项目沙箱、
+  显式 Full Access、停止与真实交付回归；
+- 开发者专用 NYU safe-static 单次推理与 Digest Judge；
 - Coach、Copilot、Delegate 三种协作方式的最小闭环；
 - 任务退出后可以恢复，事实不只存在于聊天上下文。
 
-MVP 不做 Web 产品、GraphQL、PostgreSQL、微服务、多用户、Red/Blue/AppSec/Malware Role、通用工作流编辑器，也不把用户安装的 Codex/Claude Code CLI 作为默认运行方式。
+R0.4 不发布 Managed Labs、真实 CVE 目标接入、Web 产品、GraphQL、PostgreSQL、微服务、多用户、Red/Blue/AppSec/Malware Role 或通用工作流编辑器，也不把用户安装的 Codex/Claude Code CLI 作为默认运行方式。Labs 和 CVE 的长期设计不等于当前能力承诺。
 
 ## 当前发布检查点：CTF-first M3 MVP
 
@@ -64,17 +65,17 @@ R0.4 的冻结、提交与演示。
 
 | 产品面 | 状态 | 已有事实 | 距离可用 MVP 的缺口 |
 | --- | --- | --- | --- |
-| 用户信息架构 | 已完成 | 一级入口收敛为 `CTF / Coding / CVE`；`任务运行时`、通用 Walking Skeleton Wails 接口和里程碑标签已从用户产品面删除 | 无；Role 专用接口继续使用内部 Runtime 事实基础设施 |
+| 用户信息架构 | 已完成 | 一级入口收敛为 `CTF / CVE / Coding`；`任务运行时`、通用 Walking Skeleton Wails 接口和里程碑标签已从用户产品面删除 | Labs 未来位于 CTF 二级导航，但当前不展示为可用入口 |
 | PI Coding Agent | 已完成工程与真实模型验收 | 用户选择项目后可使用 `read / bash / edit / write / grep / find / ls`；工具输入与结果可见；会话可恢复、可停止；CTF 题可一键进入固定 PI 工作区；设置页保存凭据后会发起一次有界 PI 模型预检，直接报告模型选择、凭据或网络错误；2026-07-31 已用用户 SQLite 凭据对 `deepseek/deepseek-v4-flash` 完成真实响应验证 | CTF Shell 仍是本机子进程，不是容器沙箱 |
-| CTF 产品入口 | 已完成工程接线 | 默认直接进入列表式 Challenge Desk：左侧是题库、搜索、题型筛选、状态和分页，右侧是所选题面、材料状态、协作模式与 Agent 主动作；训练来源统一收进一个可扩展下拉，NSSCTF/CTFshow 直接显示题库，HTB Labs/TryHackMe 显示真实接入状态与官方入口，自定义题目独立建立本地工作区；顶栏只有一个本机训练历史下拉和一个 NSSCTF/CTFshow 共用的浏览器连接入口，不再并列“继续上次 / 下一步 / 导入题目”；“添加本地材料”明确只复制到本题工作区且不会上传平台；NSSCTF 完整本地 SQLite 目录按题号、题名、标签、题型在后端分页；真实平台训练共同进入紧凑的本机能力画像，且题号进度保持隔离；点题后自动读取题面/附件并进入现有 PI 工作台；Arena 状态机、已登录页面 Judge/附件 Bridge 和训练平台注册表均已接线；清洁用户目录原生回归已自动同步 4,204 道 NSSCTF 题并选中第一题 | NSSCTF 公开列表没有稳定的官方赛事字段；自托管靶场尚未进入普通用户训练来源 |
-| CTF 解题 Harness | 真实 Judge 与恢复链路已验收 | 单题 `challenge.json / AGENTS.md / TASK.md / materials / work / evidence`、精确授权目标与材料清单、Arena 动态 HTTP/TCP/SSH 端点归一化、PI File/Shell、无需外部工具的只读材料分诊、严格单步常见编码转换、沙箱可见 CTF CLI 探测，以及只接受 Scope 中精确 Origin/host:port 的有界 `ctf_http / ctf_socket` 已接通；轨迹回流、显式候选闸门、按模式区分的回合/时间/错误提交预算和最小循环检测已接通；CTF PI 会话在 Sidecar 层限制文件访问和受保护策略文件写入，Coach 移除 Shell 但保留类型化基线能力，Copilot/Delegate 的 Shell 使用 macOS Seatbelt、固定环境、命令超时和输出上限；运行中可一键梳理题面、请求两级提示、隔离策略复盘或重新规划，提示依赖进入 Human Outcome；训练工作台展示脱敏恢复点并复用固定会话；2026-07-31 DeepSeek 已完成真实 NSSCTF P3879 的题面/附件、Agent 候选、Chrome Bridge Judge `correct=true`、证据与复盘闭环；已配对页面正文会作为 64 KiB 上限、带 SHA-256 provenance 的只读材料进入工作区，正文中的 URL/socket 不会自动扩权；Judge 超时或不明确会写入 `inconclusive`，允许受控重试并可跨重启恢复；应用级回归覆盖附件哈希、ZIP 安全展开、工作区、Accepted、脱敏报告和进程重启恢复；固定 Juice Shop Lab 已用真实 Docker 跑通 pull/start/health/reset/stop/clean，并核对回环端口、去能力、`no-new-privileges` 与无 host mount | 页面发现的动态 endpoint 仍缺用户确认 UI；Shell 精确网络 allowlist、真正容器/VM 和专用 Debugger 仍缺 |
+| CTF 产品入口 | 已完成工程接线 | 默认直接进入列表式 Challenge Desk：NSSCTF/CTFshow 使用正常分页题库，自定义模式独立导入本地题面与材料；训练历史使用按题目分组的下拉；“添加本地材料”只复制到本题私有工作区，不上传平台；NSSCTF 完整本地 SQLite 目录按题号、题名、标签、题型在后端分页；Arena、已登录页面 Judge/附件 Bridge 和训练平台注册表均已接线；清洁用户目录原生回归已同步 4,204 道 NSSCTF 题并选中第一题 | NSSCTF 公开列表没有稳定赛事字段；Labs 是未来 CTF 二级入口而不是平台来源，当前暂停；HTB/THM 自动化不在范围内 |
+| CTF 解题 Harness | 真实 Judge 与恢复链路已验收 | 单题 `challenge.json / AGENTS.md / TASK.md / materials / work / evidence`、精确授权目标与材料清单、PI File/Shell、有界 `ctf_http / ctf_socket`、轨迹回流、显式候选闸门、三种协作模式预算、Sidecar 路径策略与 macOS Seatbelt 已接通；2026-07-31 DeepSeek 已完成真实 NSSCTF P3879 的题面/附件、Agent 候选、Chrome Bridge Judge `correct=true`、证据与复盘闭环；Judge 不明确可受控重试并跨重启恢复 | 页面发现的动态 endpoint 仍缺用户确认 UI；Shell 精确网络 allowlist、真正容器/VM、专用 Debugger和多题型真实验收仍缺。Juice Shop 的 Docker 生命周期只算暂停中的内部实验，不是当前产品能力 |
 | 训练与复盘 | 首次真实 Accepted 已完成，待样本校准 | 学习记录、Human Outcome、Evidence/Experiment、跨 NSSCTF/CTFshow 的六维能力画像与来源计数、区分进行中/已通过/未通过/已取消的可解释 NSSCTF 推荐、最多一题且展示提示依赖与独立步骤的失败复盘候选、PI 回合/失败轨迹、候选历史、证据驱动结构化复盘、受限 Artifact 预览、有界逐事件回放，以及默认隐去原始 Flag 的 JSON/Markdown 训练报告均已进入当前工作台；Challenge Desk、平台下拉、训练历史、浏览器配对和自定义本地 Intake 已通过浏览器与原生桌面 QA；P3879 Accepted 已进入能力画像与恢复链路 | 真实解题质量、提示粒度和能力画像有效性仍需更多不同题型的训练样本校准 |
 | CVE 追踪 | 产品壳完成 | CVE 优先队列、筛选、关注、研究任务和本地持久化可用 | 来源仍是演示 Adapter，资产不是真实 CMDB，研究任务未完整接 Runtime；在 CTF MVP 前冻结扩展 |
 | macOS 交付 | 开发构建完成 | 2026-08-01 `npm run m3:release-check` 已同时通过全量 Go 测试、Sidecar 策略测试、Vue 生产构建、打包 Sidecar 冒烟、Wails 生产构建、自签名和 diff 检查；最新原生 App 已回归题库、来源下拉、训练历史、已完成工作台、Markdown 轨迹和模型设置；单实例锁避免两个 Bridge/SQLite 进程争用用户数据 | 正式 Developer ID 签名、公证、升级和数据迁移仍属于公开发行工作 |
 
-### M3 MVP 完成标志
+### CTF-first M3 检查点：已完成
 
-只有以下路径在原生桌面中连成一次真实闭环，当前产品检查点才可以标记为完成：
+以下窄路径已经在原生桌面连成一次真实闭环，因此可以称为“CTF 产品闭环完成”，但不能称为完整 M2、长期 M3 或通用 CTF Agent 已完成：
 
 1. 用户选择一场比赛或一题 NSSCTF，并显式共享题目材料；
 2. MilkSU 自动建立应用私有、每题独立的 Challenge Workspace，保存题面、附件、连接信息、provenance 和授权范围；M3 不把该目录误称为容器沙箱；
@@ -83,9 +84,9 @@ R0.4 的冻结、提交与演示。
 5. 至少一题真实 NSSCTF 返回 `correct=true`，退出应用后可以恢复并查看学习复盘。
 6. 清洁安装能明确同步首批题目；页面读取失败可恢复；Judge 超时或不明确时不会永久锁死候选。
 
-工程发布门可通过 `npm run m3:release-check` 重复执行：全量 Go 测试、Vue 生产构建、打包 Sidecar 协议检查、Wails 生产包、关键生成绑定、macOS 签名和 diff 格式必须同时通过。该命令证明工程产物一致，不替代第 5 条真实平台 Accepted 验收。
+工程发布门可通过 `npm run m3:release-check` 重复执行：全量 Go 测试、Vue 生产构建、打包 Sidecar 协议检查、Wails 生产包、关键生成绑定、macOS 签名和 diff 格式必须同时通过。该命令证明工程产物一致；P3879 的 Accepted 是独立的真实平台证据。
 
-### 当前任务队列
+### 验收记录与当前任务队列
 
 | 优先级 | 任务 | 验收方式 |
 | --- | --- | --- |
@@ -100,7 +101,7 @@ R0.4 的冻结、提交与演示。
 | P1-1 | 做实比赛训练组织 | 默认 Challenge Desk 已采用与 NSSCTF 相同心智模型的完整 SQLite 分页列表，支持题号/题名/标签搜索、题型筛选、逐题状态和右侧题面预览，不再要求用户记题号或先进入“前缀系列”；下一步接官方赛事元数据 Adapter，在真实赛事字段可用时提供比赛视图 |
 | P1-2 | 做实 Coach/Copilot/Delegate | 已完成不同运行契约、候选规则、程序化预算和底层工具裁剪；下一步用真实训练轨迹校准提示粒度和自治边界 |
 | P1-3 | 学习复盘 | 已展示关键观察、失败实验、候选历史、提示依赖、独立步骤和下一步建议；推荐器区分任务生命周期，进行中/已通过不重复推荐，未通过题最多占一个复盘位并解释提示依赖与独立步骤；结题后要求用户提交自己的 Reflection；工作台可查看逐事件回放并生成含平台 Judge、材料哈希、工具统计和学习指标的可分享报告，原始 Flag 默认只保留哈希 |
-| P1-4 | 扩展训练平台 | 在线来源保留 NSSCTF/CTFshow；HTB Labs 与 TryHackMe 因官方 AI/自动化与消费者接口限制只保留 human-only 入口。自托管路线收敛为：Juice Shop 先进入普通用户的一键 Web 靶场，WebGoat 补引导式 Web 课程，Vulhub 经过白名单审查后提供大量可启停漏洞环境。GOAD 因 AD 部署和资源成本排除出 M3，pwn.college 已有完整引导体系，不再重复接入。NYU CTF Bench 只作为开发者模式的模型/Harness 基准工具，不进入普通用户题库 |
+| P1-4 | Labs 设计与解冻准备 | 已完成顶层与详细设计；Juice Shop、WebGoat、Vulhub 只保留未来自托管路线。当前暂停实现与真实接入；HTB/THM 自动化不在范围内。NYU CTF Bench 只作为开发者模式的模型/Harness 基准工具，不进入普通用户题库 |
 | P2 | 恢复 CVE 主线 | 接真实增量 Feed、资产来源和研究 Runtime；不阻塞当前 CTF-first MVP |
 
 ## 里程碑
@@ -141,11 +142,11 @@ R0.4 的冻结、提交与演示。
 
 ### M2 · CTF 可玩 MVP
 
-> 实现状态：M2-A 离线单题纵切已完成工程验证（2026-07-20），详见 [ADR-0003](/developer/adr/0003-ctf-vertical-slice)。M2 整体未完成，尚不能按本节“完成标志”验收。下一个大模块开始前必须由用户确认。
+> 实现状态：离线单题纵切和一条真实 NSSCTF Browser Judge 闭环已完成。M2 的广义完成标志仍包含多输入通道、Managed Browser/Lab 和多题型验证，因此长期 M2 仍是 Partial。
 
-> 2026-07-21 已保存一个 [M2 → M3 授权学习能力基础检查点](/developer/checkpoints/2026-07-21-m2-m3-foundation)：授权策略、Lab/Browser 基础包、CTF 教学契约和本地 Vuln fixture 已进入可测试代码，但桌面接线与真实环境验收未完成。下表的 M2-B 至 M2-E 状态因此仍不变。
+> 2026-07-21 的 [M2 → M3 授权学习能力基础检查点](/developer/checkpoints/2026-07-21-m2-m3-foundation) 是历史快照；后续真实进展以下表和当前架构快照为准。
 
-> 2026-07-30 已接入 NSSCTF 公开单题导入和官方 Agent Arena 真实评测轨道，见 [ADR-0007](/developer/adr/0007-ctf-agent-harness-and-nssctf-arena)。Token、领题、恢复、提交、放弃和平台判题已有工程闭环，但尚未取得第一次真实 `correct=true`；这不会把 M2 整体状态提前改成完成。
+> 2026-07-31 已通过已登录页面 Bridge 取得 P3879 `correct=true`，并保留题面、附件、候选、Judge、恢复和复盘证据；这只完成窄路径，不代表全部题型或全部 M2 交付块。
 
 目标：尽快看到第一个由 MilkSU Security Harness 完成并能带练的真实安全任务。
 
@@ -168,11 +169,11 @@ Juice Shop 只承担可重复的本地回归测试。M2 的真人验收可能直
 | 交付块 | 状态 | 用户能得到什么 | 明确不包含 |
 | --- | --- | --- | --- |
 | M2-A · Offline Challenge Slice | 已完成工程验证 | 粘贴题面、上传小文件、真实 Pi/Model、三种类型化动作、独立本地 Judge、实验与证据面板 | Browser、Shell、Lab、在线提交、Coach/Copilot |
-| M2-B · Managed Local Lab | 待确认 | 固定本地靶场由程序启动/重置/清理，受控 File/Shell/Socket Capability | 任意网站与用户浏览器 |
-| M2-C · Managed Browser | 待确认 | 独立 Profile 登录小众 CTF，读取题面、下载附件和在审批后提交 | 读取用户整个浏览器 Profile |
-| M2-D · User Browser Bridge | 已实现 NSSCTF 纵切，待真实会话验收 | 用户显式绑定当前 NSSCTF 题目页，候选提交与平台回执进入 Evidence/Outcome | 静默接管其他标签页、读取 Cookie/密码、任意网页脚本 |
+| M2-B · Managed Local Lab | Paused / Designed | 固定本地靶场由程序启动/重置/清理，受控 File/Shell/Socket Capability | 当前发布、任意网站与用户浏览器 |
+| M2-C · Managed Browser | Planned | 独立 Profile 登录小众 CTF，读取题面、下载附件和在审批后提交 | 当前发布、读取用户整个浏览器 Profile |
+| M2-D · User Browser Bridge | 已完成 NSSCTF 窄路径验收 | 用户显式绑定当前 NSSCTF 题目页，候选提交与平台回执进入 Evidence/Outcome | 静默接管其他标签页、读取 Cookie/密码、任意网页脚本 |
 | M2-E · Teaching and Workspace | 工程完成，待真实训练验证 | 列表式 Challenge Desk、公开题库同步、跨 NSSCTF/CTFshow 且带来源计数的六维能力雷达、可解释 NSSCTF 推荐、Coach/Copilot/Delegate 运行契约、批量材料分诊、同题 Coding Agent 工具工坊、隔离的策略 Agent 复盘、失败轨迹、结构化复盘、用户确认的本机训练记忆、安全制品预览与有界逐事件回放 | 长期跨比赛学习计划、逐工具 Diff、自动并行 Agent、提示策略和能力画像的真实样本校准 |
-| M2-F · Platform Evaluation Track | 状态机工程完成，待真实正确回执 | 公开题目导入；官方 Token 领题、恢复、提交、放弃；已登录页面提交；平台 Judge 回写 Evidence/Outcome | 通用平台账号、完整解题工具层、第一次 `correct=true`、Swarm/Benchmark 执行器 |
+| M2-F · Platform Evaluation Track | NSSCTF 窄路径已验收 | 公开题目导入；官方 Token 领题、恢复、提交、放弃；已登录页面提交；平台 Judge 回写 Evidence/Outcome | 通用平台账号、全部平台 E2E、Swarm/完整 benchmark Runner |
 
 M2-B 与 M2-C 谁先做不是架构定律，要根据用户当前最想验收的场景选择。两条路径都必须复用 M2-A 的 Challenge、Experiment、Evidence 与 Judge，而不能另造一套任务真相。
 

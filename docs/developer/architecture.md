@@ -1,10 +1,14 @@
 # 核心架构：可验证安全任务运行时
 
-> **状态：重启后的目标架构，优先级仅次于[安全 Agent 与通用 Agent 的能力边界](/developer/security-agent-boundary)。**
+> **状态：基础目标架构。核心原则仍有效；“当前实现”以
+> [2026-08-01 架构快照](/architecture/)和[实际交付边界](/architecture/m3-r04-boundary-and-debt)
+> 为准。**
 >
 > 日期：2026-07-19
 >
-> 当前仓库只保留 Go/Wails 桌面宿主、Pi 聊天、配置和通用 UI 作为可复用宿主壳。固定 `taskType`、安全面板、Engagement 红队模型、模型直写面板和通用子代理原型已经删除，不能成为本文的约束。
+> 本文形成于架构重启阶段。固定 `taskType`、模型直写安全面板、Engagement 红队模型和通用
+> 子代理原型已经删除；其后的 CTF、Coding、Browser Judge、Memory 与 Eval 实现不在本文的
+> 原始“当前代码”叙述中。
 
 ## 产品与运行时的一句话定义
 
@@ -16,10 +20,14 @@ MilkSU 是一个**一站式网络安全 AI 学习客户端**；它的技术核�
 
 ## 可交互架构视图
 
-- [MilkSU M3 System Architecture](/architecture/milksu-system.architecture.html)：桌面进程、PI Sidecar、CTF Runtime、平台 Adapter、Browser Bridge、Docker Lab 与本地持久化边界。
+- [MilkSU 当前系统架构](/architecture/generated/milksu-current-system.html)：R0.4 的 Coding 主链、
+  CTF 证据闭环、持久化和 NYU safe-static Eval 边界。
+- [2026-07-31 M3 System Architecture 历史图](/architecture/milksu-system.architecture.html)：
+  保留当日桌面进程、PI Sidecar、CTF Runtime、Browser Bridge 和 Lab 实验边界，不代表当前发布状态。
 - [MilkSU CTF Solve Loop](/architecture/ctf-solve-loop.workflow.html)：从选题、读取材料、预算内解题，到候选闸门、权威 Judge 回执与训练复盘。
 
-两张图由固定版本 Archify 生成，JSON 规格与 HTML 产物都在仓库中；规格引用了对应实现文件和仓库 revision。
+这些图由固定版本 Archify 生成，JSON 规格与 HTML 产物都在仓库中。带日期的图是历史快照；
+无日期的“当前系统”图随事实审计更新。
 
 ## 为什么需要重启
 
@@ -206,7 +214,10 @@ L4 驱动安全任务状态和事实提交，但不应该重新发明模型的�
 
 M1 按 [Runtime v1alpha1](/developer/runtime-v1alpha1) 实现确定性的 Walking Skeleton，用 Fake Engine/Capability/Environment/Evaluator 验证事实链和恢复语义。M2-A 已在同一 Runtime 上增加通用 `RoleFact` 与 CTF Projection，并用独立 Pi Security Adapter、真实模型、类型化 Capability 和 Flag Judge 跑通离线单题；实现边界见 [ADR-0003](/developer/adr/0003-ctf-vertical-slice)。
 
-Environment Manager 也不能退化成让模型自由执行 `docker compose`。靶场由 `LabSourceAdapter + LabPackage + EnvironmentProvider` 确定性管理，Agent 只能通过类型化工具请求生命周期动作；Readiness 与 Judge 分开。详细契约见[靶场与环境管理](/developer/lab-management)。
+Environment Manager 也不能退化成让模型自由执行 `docker compose`。靶场由
+`LabSourceAdapter + LabPackage + EnvironmentProvider` 确定性管理，Agent 只能通过类型化工具
+请求生命周期动作；Readiness 与 Judge 分开。详细契约见
+[CTF Labs 顶层与详细设计](/architecture/ctf-labs-design)。
 
 ### L5：Agent Engine and Tool Executors
 
@@ -294,11 +305,12 @@ L5 首先区分“内嵌基座”和“外部完整运行时”。两者都可�
 
 如果新增层不能改善这些指标，也不能接入基线无法使用的环境，应将其降级为外围 Package、Skill、MCP 或研究实验。
 
-## 当前代码边界
+## 重启阶段的代码边界（历史基线）
 
 架构重启已经删除固定 `taskType`、`TaskState`、`panel_update`、通用子代理、仓库内 Skill 路由和红队专用 Engagement 数据模型。M0 保留 UI 外壳、会话存储、进程生命周期、流式工具事件、设置界面和临时 Pi 对话桥；M1 增加 Go 实现的追加事件、Artifact、Projection、独立 Evaluator 与恢复骨架；M2-A 增加 CTF Role Projection、独立 Pi Security Adapter、三种类型化动作、本地 Judge 与独立 CTF 面板。
 
-这些宿主能力不能充当 Runtime 的领域模型。M2-A 也只证明离线单题纵切，不冒充完整 CTF/Vuln Role 已经落地。后续顺序是：
+这些宿主能力不能充当 Runtime 的领域模型。下面是 2026-07-19 当时的后续顺序，现已由
+[开发计划](/developer/development-plan)取代：
 
 1. 用户验收 M2-A 的真实模型、Experiment、Artifact、Evidence 与 Judge 桌面纵切；
 2. 由用户确认先做 Managed Local Lab，还是先做 Managed Browser；
@@ -306,3 +318,6 @@ L5 首先区分“内嵌基座”和“外部完整运行时”。两者都可�
 4. 冻结 Vuln 的 Attack Surface、Hypothesis、Crash、Reproduction、Root Cause 与 Disclosure 状态，并增加独立角色面板。
 
 Pi 的临时聊天桥不是 L5 接口标准；M0 实跑后 Pi SDK 已选为首要 Embedded Agent Engine，Codex app-server 保留为对照与可能的 External Agent Runtime。M2-A 已通过独立 Security Adapter 依赖 Pi SDK，没有 fork 上游；新增 Role 仍应优先扩展窄 Adapter。决策见 [ADR-0001](/developer/adr/0001-agent-engine-and-desktop-boundary)、[ADR-0002](/developer/adr/0002-runtime-facts-and-recovery) 与 [ADR-0003](/developer/adr/0003-ctf-vertical-slice)。
+
+当前实现已经继续前进到真实 NSSCTF Judge、CTF 单题工作区、训练记忆、Pi Coding 交付与
+NYU safe-static 内部评测。本文继续负责不可破坏的对象和分层原则，不再负责发布状态。

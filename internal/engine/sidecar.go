@@ -24,6 +24,10 @@ func sidecarEnvironment(settings config.AppSettings) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	userHome, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("resolve local user home: %w", err)
+	}
 	environment := engineEnvironment(settings)
 	filtered := environment[:0]
 	for _, entry := range environment {
@@ -31,11 +35,16 @@ func sidecarEnvironment(settings config.AppSettings) ([]string, error) {
 			filtered = append(filtered, entry)
 		}
 	}
-	return append(
+	environment = append(
 		filtered,
 		"HOME="+runtimeHome,
 		"MILKSU_PI_AGENT_DIR="+filepath.Join(runtimeHome, "pi"),
-	), nil
+		"MILKSU_USER_HOME="+userHome,
+	)
+	if socket := strings.TrimSpace(os.Getenv("SSH_AUTH_SOCK")); socket != "" {
+		environment = append(environment, "MILKSU_USER_SSH_AUTH_SOCK="+socket)
+	}
+	return environment, nil
 }
 
 func newSidecarCommand(packagedBridge, sourceBridge string) (*exec.Cmd, error) {

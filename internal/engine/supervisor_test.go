@@ -129,6 +129,10 @@ func TestNormalizeCodingPolicyPreservesLegacyGoAndValidatesExplicitModes(t *test
 	if _, err := normalizeCodingPolicy("execute", "workspace-auto", ""); err == nil {
 		t.Fatal("expected unknown execution mode to be rejected")
 	}
+	full, err := normalizeCodingPolicy("go", "full-auto", "")
+	if err != nil || full.ApprovalPolicy != "full-auto" {
+		t.Fatalf("expected Full Access policy, got %#v, %v", full, err)
+	}
 	if _, err := normalizeCodingPolicy("go", "always", ""); err == nil {
 		t.Fatal("expected unknown approval policy to be rejected")
 	}

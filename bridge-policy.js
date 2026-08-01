@@ -292,16 +292,12 @@ function sandboxProfile(
   allowNetwork,
   extraProtectedEntries = [],
   includeCTFProtectedEntries = true,
+  extraReadableRoots = [],
 ) {
-  const metadataOnlyRoots = ["/opt"];
-  let workspaceParent = dirname(workspace);
-  while (workspaceParent !== dirname(workspaceParent)) {
-    metadataOnlyRoots.push(workspaceParent);
-    workspaceParent = dirname(workspaceParent);
-  }
   const readableRoots = [
     workspace,
     dirname(process.execPath),
+    ...extraReadableRoots,
     "/System",
     "/usr",
     "/bin",
@@ -312,6 +308,19 @@ function sandboxProfile(
     "/opt/homebrew",
     "/usr/local",
   ];
+  // sandbox-exec evaluates path traversal one component at a time. A reviewed
+  // resource can be readable while its ancestors (for example /Users) still
+  // reject lstat/realpath, which prevents Node CLIs such as Archify from ever
+  // reaching the admitted directory. Grant metadata only—not file contents—
+  // for every ancestor needed to traverse each readable root.
+  const metadataOnlyRoots = ["/opt"];
+  for (const root of readableRoots) {
+    let parent = dirname(root);
+    while (parent !== dirname(parent)) {
+      metadataOnlyRoots.push(parent);
+      parent = dirname(parent);
+    }
+  }
   const rules = [
     "(version 1)",
     '(import "system.sb")',
@@ -327,7 +336,7 @@ function sandboxProfile(
       ...extraProtectedEntries,
     ].map(entry => {
       const path = join(workspace, entry);
-      return ["materials", "evidence", ".git"].includes(entry)
+      return ["materials", "evidence", ".git", ".milksu"].includes(entry)
         ? `(subpath ${sandboxString(path)})`
         : `(literal ${sandboxString(path)})`;
     }).join(" ")})`,
@@ -387,6 +396,7 @@ function createSandboxedBashOperations(
   allowNetwork,
   extraProtectedEntries = [],
   includeCTFProtectedEntries = true,
+  extraReadableRoots = [],
 ) {
   return {
     exec: async (command, cwd, options) => {
@@ -413,6 +423,7 @@ function createSandboxedBashOperations(
               allowNetwork,
               extraProtectedEntries,
               includeCTFProtectedEntries,
+              extraReadableRoots,
             ),
             "/bin/bash",
             "--noprofile",
@@ -424,6 +435,84 @@ function createSandboxedBashOperations(
             cwd: canonicalCwd,
             detached: true,
             env: commandEnvironment(canonicalWorkspace, options.env),
+            stdio: ["ignore", "pipe", "pipe"],
+          },
+        );
+        let settled = false;
+        let timedOut = false;
+        const finish = callback => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeoutHandle);
+          options.signal?.removeEventListener("abort", onAbort);
+          callback();
+        };
+        const onAbort = () => {
+          killChildProcess(child);
+        };
+        const timeoutHandle = setTimeout(() => {
+          timedOut = true;
+          killChildProcess(child);
+        }, timeout * 1000);
+
+        options.signal?.addEventListener("abort", onAbort, { once: true });
+        child.stdout?.on("data", options.onData);
+        child.stderr?.on("data", options.onData);
+        child.on("error", error => finish(() => rejectPromise(error)));
+        child.on("close", exitCode => {
+          finish(() => {
+            if (options.signal?.aborted) {
+              rejectPromise(new Error("aborted"));
+              return;
+            }
+            if (timedOut) {
+              rejectPromise(new Error(`timeout:${timeout}`));
+              return;
+            }
+            resolvePromise({ exitCode });
+          });
+        });
+      });
+    },
+  };
+}
+
+function fullAccessCommandEnvironment(source = {}) {
+  const environment = {
+    PATH: source.PATH || commandPath,
+    HOME: source.MILKSU_USER_HOME || source.HOME || "/",
+    TMPDIR: source.TMPDIR || "/tmp",
+    LANG: source.LANG || "en_US.UTF-8",
+    TERM: source.TERM || "dumb",
+    SHELL: source.SHELL || "/bin/bash",
+  };
+  for (const name of ["LC_ALL", "SSL_CERT_DIR", "SSL_CERT_FILE"]) {
+    if (source[name]) environment[name] = source[name];
+  }
+  if (source.MILKSU_USER_SSH_AUTH_SOCK) {
+    environment.SSH_AUTH_SOCK = source.MILKSU_USER_SSH_AUTH_SOCK;
+  }
+  return environment;
+}
+
+function createFullAccessBashOperations(execution) {
+  return {
+    exec: async (command, cwd, options = {}) => {
+      const timeout = Math.min(
+        Math.max(Number(options.timeout) || execution.defaultCommandTimeoutSeconds, 1),
+        execution.maxCommandTimeoutSeconds,
+      );
+      return await new Promise((resolvePromise, rejectPromise) => {
+        const child = spawn(
+          "/bin/bash",
+          ["--noprofile", "--norc", "-c", command],
+          {
+            cwd: resolve(cwd),
+            detached: true,
+            env: fullAccessCommandEnvironment({
+              ...process.env,
+              ...options.env,
+            }),
             stdio: ["ignore", "pipe", "pipe"],
           },
         );
@@ -1351,43 +1440,6 @@ async function findWorkspaceFiles(workspace, start, pattern, limit) {
   return matches;
 }
 
-export function assertCodingWorkspaceCommand(command) {
-  const value = String(command || "").trim();
-  if (!value || value.length > 1000) {
-    throw new Error("MilkSU Workspace Auto denied an empty or oversized command");
-  }
-  if (!/^[-A-Za-z0-9_./:@=,+%~]+(?: [-A-Za-z0-9_./:@=,+%~]+)*$/.test(value)) {
-    throw new Error(
-      "MilkSU Workspace Auto accepts one simple build/test command without shell operators or quoting",
-    );
-  }
-  const tokens = value.split(" ");
-  const executable = basename(tokens[0]);
-  let args = tokens.slice(1);
-
-  if (["npm", "pnpm", "yarn"].includes(executable)) {
-    if (args[0] === "--prefix") {
-      const prefix = args[1] || "";
-      if (!prefix || isAbsolute(prefix) || prefix === ".." || prefix.startsWith(`..${sep}`)) {
-        throw new Error("MilkSU Workspace Auto denied a package prefix outside the workspace");
-      }
-      args = args.slice(2);
-    }
-    const direct = args[0] === "test";
-    const scripted = args[0] === "run"
-      && ["test", "build", "lint", "typecheck", "check", "smoke"].includes(args[1]);
-    if (direct || scripted) return value;
-  }
-  if (executable === "go" && ["test", "vet", "build"].includes(args[0])) return value;
-  if (executable === "cargo" && ["test", "check", "build"].includes(args[0])) return value;
-  if (["pytest", "python", "python3"].includes(executable)) {
-    if (executable === "pytest" || (args[0] === "-m" && args[1] === "pytest")) return value;
-  }
-  throw new Error(
-    "MilkSU Workspace Auto permits only reviewed build/test/lint commands; other commands require a future explicit approval channel",
-  );
-}
-
 export function normalizeCodingPolicy(
   executionMode = "go",
   approvalPolicy = "workspace-auto",
@@ -1397,11 +1449,14 @@ export function normalizeCodingPolicy(
     "read-only",
     "ask",
     "workspace-auto",
+    "full-auto",
   ].includes(approvalPolicy)
     ? approvalPolicy
     : "read-only";
   const workspaceWritesAllowed = normalizedExecutionMode === "go"
-    && normalizedApprovalPolicy === "workspace-auto";
+    && ["workspace-auto", "full-auto"].includes(normalizedApprovalPolicy);
+  const fullAccess = normalizedExecutionMode === "go"
+    && normalizedApprovalPolicy === "full-auto";
   const approvalChannelAvailable = false;
   const activeTools = workspaceWritesAllowed
     ? codingWorkspaceAutoToolNames
@@ -1417,7 +1472,9 @@ export function normalizeCodingPolicy(
         id: "workspace-read",
         label: "工作区读取",
         status: "allowed",
-        detail: "read / grep / find / ls 只能访问当前项目目录。",
+        detail: fullAccess
+          ? "文件工具读取项目；终端可访问当前系统用户可读的路径。"
+          : "文件与终端读取限制在当前项目和系统开发工具。",
       },
       {
         id: "workspace-write",
@@ -1427,8 +1484,10 @@ export function normalizeCodingPolicy(
           : normalizedApprovalPolicy === "ask" && normalizedExecutionMode === "go"
             ? "approval-required"
             : "blocked",
-        detail: workspaceWritesAllowed
-          ? "仅 edit / write；路径和符号链接均限制在当前项目，且不能改写 .git 或 .milksu。"
+        detail: fullAccess
+          ? "终端具有当前系统用户权限；文件工具仍以项目为默认边界。"
+          : workspaceWritesAllowed
+            ? "文件与命令写入限制在项目内；允许正常 Git 操作，文件工具保护 .milksu。"
           : normalizedApprovalPolicy === "ask" && normalizedExecutionMode === "go"
             ? "当前 Sidecar 没有可回传桌面的同步审批通道，因此本档暂按只读执行。"
             : "Plan 或 Read-only 策略禁止 edit / write。",
@@ -1437,21 +1496,27 @@ export function normalizeCodingPolicy(
         id: "command",
         label: "命令执行",
         status: workspaceWritesAllowed ? "allowed" : "blocked",
-        detail: workspaceWritesAllowed
-          ? "只允许固定 build/test/lint/smoke 命令；无 shell 运算符、无网络，并限制在 macOS 工作区沙箱。"
+        detail: fullAccess
+          ? "命令自动执行，不受项目沙箱限制；模型 Provider Key 不传给子进程。"
+          : workspaceWritesAllowed
+            ? "项目沙箱内可运行开发命令和后台工具，支持网络。"
           : "Plan、Read-only 与当前 Ask 档均不提供 bash。",
       },
       {
         id: "network",
         label: "网络",
-        status: "blocked",
-        detail: "普通 Coding 策略不自动批准网络动作。",
+        status: workspaceWritesAllowed ? "allowed" : "blocked",
+        detail: workspaceWritesAllowed
+          ? "允许开发命令访问网络。"
+          : "当前模式禁止网络命令。",
       },
       {
         id: "credentials",
         label: "凭据",
-        status: "blocked",
-        detail: "没有凭据读取或导出工具；Provider Key 不进入模型上下文。",
+        status: fullAccess ? "allowed" : "blocked",
+        detail: fullAccess
+          ? "终端可使用当前系统用户的凭据；模型 Provider Key 仍不进入子进程。"
+          : "Provider Key 不进入模型上下文，项目自动也不能读取用户凭据目录。",
       },
       {
         id: "browser",
@@ -1469,10 +1534,34 @@ export function normalizeCodingPolicy(
   };
 }
 
-async function createCodingToolDefinitions(workspace) {
+async function createCodingToolDefinitions(
+  workspace,
+  resourceReadRoots = [],
+  approvalPolicy = "workspace-auto",
+) {
   const root = await realpath(workspace);
+  const reviewedResourceRoots = [];
+  for (const value of resourceReadRoots) {
+    try {
+      reviewedResourceRoots.push(await realpath(value));
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error;
+    }
+  }
   const protectedEntries = [".git", ".milksu"];
   const ensure = path => assertWorkspacePath(root, path);
+  const ensureRead = async path => {
+    for (const allowedRoot of [root, ...reviewedResourceRoots]) {
+      try {
+        return await assertWorkspacePath(allowedRoot, path);
+      } catch {
+        // Try the next explicitly reviewed read root.
+      }
+    }
+    throw new Error(
+      `MilkSU workspace policy denied path outside the workspace and reviewed resources: ${path}`,
+    );
+  };
   const ensureMutation = path => assertWorkspaceMutationPath(
     root,
     path,
@@ -1480,10 +1569,10 @@ async function createCodingToolDefinitions(workspace) {
     false,
   );
   const readOperations = {
-    access: async path => access(await ensure(path), constants.R_OK),
-    readFile: async path => readFile(await ensure(path)),
+    access: async path => access(await ensureRead(path), constants.R_OK),
+    readFile: async path => readFile(await ensureRead(path)),
     detectImageMimeType: async path => {
-      const safePath = await ensure(path);
+      const safePath = await ensureRead(path);
       const file = await open(safePath, "r");
       try {
         const data = Buffer.alloc(12);
@@ -1494,22 +1583,20 @@ async function createCodingToolDefinitions(workspace) {
       }
     },
   };
-  const bashOperations = createSandboxedBashOperations(
-    root,
-    defaultExecution,
-    false,
-    protectedEntries,
-    false,
-  );
-  const guardedBashOperations = {
-    exec: async (command, cwd, options) => {
-      assertCodingWorkspaceCommand(command);
-      return bashOperations.exec(command, cwd, options);
-    },
-  };
+  const fullAccess = approvalPolicy === "full-auto";
+  const bashOperations = fullAccess
+    ? createFullAccessBashOperations(defaultExecution)
+    : createSandboxedBashOperations(
+        root,
+        defaultExecution,
+        true,
+        [],
+        false,
+        reviewedResourceRoots,
+      );
   const definitions = [
     createReadToolDefinition(root, { operations: readOperations }),
-    createBashToolDefinition(root, { operations: guardedBashOperations }),
+    createBashToolDefinition(root, { operations: bashOperations }),
     createEditToolDefinition(root, {
       operations: {
         access: async path => access(await ensure(path), constants.R_OK | constants.W_OK),
@@ -1573,8 +1660,11 @@ async function createCodingToolDefinitions(workspace) {
     }),
   ];
   const bash = definitions.find(tool => tool.name === "bash");
-  bash.description += " Workspace Auto permits only one reviewed build/test/lint command, "
-    + "without shell operators or network access, inside the selected macOS workspace.";
+  bash.description += fullAccess
+    ? " Full Access runs commands automatically with the current local user authority. "
+      + "Model-provider secrets are removed from child-process environments."
+    : " Project Auto runs development commands with network access while macOS sandboxing keeps "
+      + "file writes inside the selected project and blocks local credential directories.";
   return definitions;
 }
 
@@ -1724,7 +1814,11 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
   return {
     ctf: false,
     ...normalized,
-    customTools: await createCodingToolDefinitions(workspace),
+    customTools: await createCodingToolDefinitions(
+      workspace,
+      codingPolicy.readOnlyResourceRoots,
+      normalized.approvalPolicy,
+    ),
     maxToolEventOutputBytes: 60000,
   };
 }

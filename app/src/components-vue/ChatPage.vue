@@ -5,6 +5,7 @@ import {
   Button,
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -23,6 +24,7 @@ import {
   ArrowUp,
   Bot,
   Check,
+  ChevronDown,
   CircleDot,
   Compass,
   Copy,
@@ -33,15 +35,19 @@ import {
   FolderOpen,
   GitBranch,
   Globe2,
+  Hand,
   KeyRound,
   Lightbulb,
   LoaderCircle,
   LockKeyhole,
+  Network,
   PanelRightClose,
   PanelRightOpen,
   Puzzle,
   RefreshCw,
   Route,
+  ShieldAlert,
+  ShieldCheck,
   Square,
   StickyNote,
   Terminal,
@@ -49,8 +55,13 @@ import {
 } from 'lucide-vue-next'
 import { invokeCommand } from '@/desktop'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
-import type { CodingDiffSnapshot, CodingEnvironmentSnapshot } from '@/codingEnvironmentTypes'
+import type {
+  CodingArchitecturePreview,
+  CodingDiffSnapshot,
+  CodingEnvironmentSnapshot,
+} from '@/codingEnvironmentTypes'
 import type { CTFShowCatalogStatus } from '@/ctfshowTypes'
+import { buildCodingArchitectureAction } from '@/lib/codingArchitecture'
 import {
   normalizeCodingApprovalPolicy,
   normalizeCodingExecutionMode,
@@ -88,7 +99,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  send: [text: string]
+  send: [text: string, visibleText?: string]
   ctfAction: [action: CTFChatAction]
   abort: []
   chooseWorkspace: []
@@ -106,9 +117,15 @@ const draft = ref('')
 const scrollArea = ref<HTMLElement | null>(null)
 const workshopState = ref<CTFToolWorkshopState | null>(null)
 const environmentOpen = ref(!props.ctfSession)
-const contextPanel = ref<'environment' | 'browser' | 'collaboration' | 'evidence'>('environment')
+const contextPanel = ref<
+  'environment' | 'architecture' | 'browser' | 'collaboration' | 'evidence'
+>('environment')
 const environmentLoading = ref(false)
 const environmentError = ref('')
+const architecturePreview = ref<CodingArchitecturePreview | null>(null)
+const architecturePreviewLoading = ref(false)
+const architecturePreviewError = ref('')
+const requestedArchitecturePath = ref('')
 const browserPanelError = ref('')
 const nssctfBrowserStatus = ref<NSSCTFWebBridgeStatus | null>(null)
 const ctfshowBrowserStatus = ref<CTFShowCatalogStatus | null>(null)
@@ -180,9 +197,20 @@ const codingPolicyLabel = computed(() => {
     ? '只读'
     : effectiveApprovalPolicy.value === 'ask'
       ? '每次询问'
-      : '工作区自动'
+      : effectiveApprovalPolicy.value === 'full-auto'
+        ? '完全访问'
+        : '项目自动'
   return `${mode} · ${approval}`
 })
+const approvalMenuLabel = computed(() => (
+  effectiveApprovalPolicy.value === 'full-auto'
+    ? '完全访问'
+    : effectiveApprovalPolicy.value === 'workspace-auto'
+      ? '替我审批'
+      : effectiveApprovalPolicy.value === 'ask'
+        ? '请求批准'
+        : '只读'
+))
 const compactModelLabel = computed(() => {
   const provider = effectiveModelMode.value === 'auto'
     ? automaticModel.value?.provider
@@ -233,6 +261,33 @@ const workspaceName = computed(() => {
   const value = props.workspacePath.replace(/\/+$/, '')
   return value.split('/').at(-1) || '临时沙盒'
 })
+const architectureAction = computed(() => (
+  props.workspacePath
+    ? buildCodingArchitectureAction(props.workspacePath)
+    : null
+))
+const architecturePath = computed(() => (
+  requestedArchitecturePath.value
+  || architectureAction.value?.relativeHtmlPath
+  || ''
+))
+const architecturePreviewSource = computed(() => {
+  const html = architecturePreview.value?.html
+  if (!html) return ''
+  const policy = [
+    "default-src 'none'",
+    "style-src 'unsafe-inline'",
+    "script-src 'unsafe-inline'",
+    'img-src data: blob:',
+    'font-src data:',
+    "connect-src 'none'",
+    'media-src data: blob:',
+  ].join('; ')
+  const csp = `<meta http-equiv="Content-Security-Policy" content="${policy}">`
+  return /<head(?:\s[^>]*)?>/i.test(html)
+    ? html.replace(/<head(\s[^>]*)?>/i, match => `${match}${csp}`)
+    : `${csp}${html}`
+})
 const workspaceLocked = computed(() => Boolean(props.conversation?.messages.length))
 const activeModelLabel = computed(() => {
   if (effectiveModelMode.value === 'auto') return automaticModelLabel.value.replace(/^自动 · /, '')
@@ -247,6 +302,7 @@ const toolMessageCount = computed(() => (
 const latestJudge = computed(() => ctfProjection.value?.judgeReceipts.at(-1))
 const contextPanelTitle = computed(() => ({
   environment: props.ctfSession ? '解题环境' : '环境信息',
+  architecture: '架构图',
   browser: '浏览器',
   collaboration: 'Agent 协作',
   evidence: '证据与 Judge',
@@ -338,6 +394,50 @@ function changeApprovalPolicy(value: string) {
   emit('changeCodingPolicy', effectiveExecutionMode.value, approvalPolicy)
 }
 
+function generateArchitecture() {
+  if (!props.workspacePath) {
+    emit('chooseWorkspace')
+    return
+  }
+  if (props.running || !architectureAction.value) return
+  requestedArchitecturePath.value = architectureAction.value.relativeHtmlPath
+  architecturePreview.value = null
+  architecturePreviewError.value = ''
+  contextPanel.value = 'architecture'
+  environmentOpen.value = true
+  emit('changeCodingPolicy', 'go', 'workspace-auto')
+  emit(
+    'send',
+    architectureAction.value.prompt,
+    architectureAction.value.visibleText,
+  )
+}
+
+async function refreshArchitecturePreview() {
+  architecturePreviewError.value = ''
+  if (!props.workspacePath || !architecturePath.value) {
+    architecturePreview.value = null
+    return
+  }
+  architecturePreviewLoading.value = true
+  try {
+    architecturePreview.value = await invokeCommand<CodingArchitecturePreview>(
+      'get_coding_architecture_preview',
+      {
+        workspacePath: props.workspacePath,
+        relativePath: architecturePath.value,
+      },
+    )
+  } catch (reason) {
+    architecturePreview.value = null
+    architecturePreviewError.value = reason instanceof Error
+      ? reason.message
+      : '暂时无法读取架构图。'
+  } finally {
+    architecturePreviewLoading.value = false
+  }
+}
+
 async function loadWorkshopState() {
   const jobId = props.conversation?.ctfJobId
   if (!props.ctfSession || !jobId || props.ctfRole === 'strategist') {
@@ -427,6 +527,10 @@ async function refreshBrowserPanel() {
 }
 
 async function refreshContextPanel() {
+  if (contextPanel.value === 'architecture') {
+    await refreshArchitecturePreview()
+    return
+  }
   if (contextPanel.value === 'browser') {
     await refreshBrowserPanel()
     return
@@ -435,7 +539,7 @@ async function refreshContextPanel() {
 }
 
 function changeContextPanel(value: string) {
-  if (!['environment', 'browser', 'collaboration', 'evidence'].includes(value)) return
+  if (!['environment', 'architecture', 'browser', 'collaboration', 'evidence'].includes(value)) return
   contextPanel.value = value as typeof contextPanel.value
   environmentOpen.value = true
   void refreshContextPanel()
@@ -513,6 +617,7 @@ watch(() => props.ctfSession, (current, previous) => {
 })
 watch(contextPanel, panel => {
   if (panel === 'browser' && environmentOpen.value) void refreshBrowserPanel()
+  if (panel === 'architecture' && environmentOpen.value) void refreshArchitecturePreview()
 })
 watch(
   () => [props.ctfSession, props.conversation?.ctfJobId, props.ctfRole, props.running] as const,
@@ -531,7 +636,10 @@ watch(
     props.running,
   ] as const,
   async ([_ctfSession, _conversationId, _workspacePath, running]) => {
-    if (!running) await refreshEnvironment()
+    if (!running) {
+      await refreshEnvironment()
+      if (architecturePath.value) await refreshArchitecturePreview()
+    }
   },
   { immediate: true },
 )
@@ -642,13 +750,25 @@ watch(
           <Button
             variant="ghost"
             size="sm"
-            class="chat-composer__workspace min-w-0"
+            class="chat-composer__control chat-composer__workspace min-w-0"
             :disabled="workspaceLocked"
             :title="workspaceLocked ? '项目目录在任务开始后锁定；请新建任务来切换项目' : '选择项目目录'"
             @click="$emit('chooseWorkspace')"
           >
             <FolderOpen class="size-3.5 shrink-0" />
             <span class="truncate">{{ workspacePath ? workspaceName : '项目' }}</span>
+          </Button>
+          <Button
+            v-if="!ctfSession"
+            variant="ghost"
+            size="sm"
+            class="chat-composer__control"
+            :disabled="running"
+            title="自动读取当前仓库，使用 Archify 生成、验证并在右侧预览"
+            @click="generateArchitecture"
+          >
+            <Network class="size-3.5" />
+            架构图
           </Button>
           <Select
             v-if="!ctfSession"
@@ -658,7 +778,7 @@ watch(
           >
             <SelectTrigger
               size="sm"
-              class="w-20 border-0 bg-transparent shadow-none"
+              class="chat-composer__control w-16 border-0 bg-transparent shadow-none"
               aria-label="Coding 执行模式"
               title="Plan 只分析和规划；Go 按右侧权限策略使用工具。"
             >
@@ -669,39 +789,89 @@ watch(
               <SelectItem value="go">Go</SelectItem>
             </SelectContent>
           </Select>
-          <Select
-            v-if="!ctfSession"
-            :model-value="effectiveApprovalPolicy"
-            :disabled="running"
-            @update:model-value="value => changeApprovalPolicy(String(value ?? ''))"
-          >
-            <SelectTrigger
-              size="sm"
-              class="w-36 border-0 bg-transparent shadow-none"
-              aria-label="Coding 权限策略"
-              :title="effectiveApprovalPolicy === 'ask'
-                ? 'Ask 暂无 Sidecar 同步审批通道，当前会按只读执行。'
-                : effectiveApprovalPolicy === 'workspace-auto'
-                  ? '仅自动批准工作区 edit/write 和固定的无网络 build/test/lint 命令。'
-                  : '只允许读取、搜索和诊断。'"
+          <DropdownMenu v-if="!ctfSession">
+            <DropdownMenuTrigger as-child>
+              <Button
+                variant="ghost"
+                size="sm"
+                class="chat-composer__control min-w-32 justify-start"
+                :disabled="running"
+                aria-label="Coding 权限策略"
+              >
+                <ShieldAlert
+                  v-if="effectiveApprovalPolicy === 'full-auto'"
+                  class="size-3.5 shrink-0 text-warning"
+                />
+                <LockKeyhole v-else class="size-3.5 shrink-0" />
+                {{ approvalMenuLabel }}
+                <ChevronDown class="ml-auto size-3.5 shrink-0 text-muted-foreground" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="start"
+              :side-offset="8"
+              class="w-[25rem] max-w-[calc(100vw-2rem)] p-0"
             >
-              <LockKeyhole class="size-3.5 shrink-0" />
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent size="sm" align="start" class="min-w-72">
-              <SelectGroup>
-                <SelectLabel>权限策略</SelectLabel>
-                <SelectItem value="read-only">只读</SelectItem>
-                <SelectItem value="ask">每次询问 · 当前按只读</SelectItem>
-                <SelectItem value="workspace-auto">工作区自动</SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
+              <DropdownMenuLabel class="px-4 pb-2 pt-3 text-label">
+                应如何批准 Agent 操作？
+              </DropdownMenuLabel>
+              <DropdownMenuItem
+                class="approval-option"
+                @select="changeApprovalPolicy('ask')"
+              >
+                <Hand class="approval-option__icon" />
+                <div class="min-w-0 flex-1">
+                  <p class="approval-option__title">请求批准</p>
+                  <p class="approval-option__description">
+                    编辑项目或使用互联网时询问；审批通道接入前暂按只读
+                  </p>
+                </div>
+                <Check
+                  v-if="effectiveApprovalPolicy === 'ask' || effectiveApprovalPolicy === 'read-only'"
+                  class="approval-option__check"
+                />
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                class="approval-option"
+                @select="changeApprovalPolicy('workspace-auto')"
+              >
+                <ShieldCheck class="approval-option__icon" />
+                <div class="min-w-0 flex-1">
+                  <p class="approval-option__title">替我审批</p>
+                  <p class="approval-option__description">
+                    项目内文件、Git、开发命令和网络自动执行；项目外访问拦截
+                  </p>
+                </div>
+                <Check
+                  v-if="effectiveApprovalPolicy === 'workspace-auto'"
+                  class="approval-option__check"
+                />
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                class="approval-option approval-option--full"
+                @select="changeApprovalPolicy('full-auto')"
+              >
+                <ShieldAlert class="approval-option__icon" />
+                <div class="min-w-0 flex-1">
+                  <p class="approval-option__title">完全访问权限</p>
+                  <p class="approval-option__description">
+                    可不受项目边界限制地访问互联网和当前用户可访问的文件
+                  </p>
+                </div>
+                <Check
+                  v-if="effectiveApprovalPolicy === 'full-auto'"
+                  class="approval-option__check"
+                />
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <DropdownMenu>
             <DropdownMenuTrigger as-child>
               <Button
                 variant="ghost"
                 size="sm"
+                class="chat-composer__control"
                 :aria-label="`查看本任务能力，${activeExtensions.length} 个插件`"
               >
                 <Puzzle class="size-3.5" />
@@ -777,7 +947,7 @@ watch(
           >
             <SelectTrigger
               size="sm"
-              class="chat-composer__model min-w-0 border-0 bg-transparent shadow-none"
+              class="chat-composer__control chat-composer__model min-w-0 border-0 bg-transparent shadow-none"
               aria-label="选择本任务模型"
               :title="effectiveModelMode === 'auto'
                 ? 'MilkSU 按任务角色自动选择模型；你可以仅为当前对话覆盖'
@@ -870,7 +1040,8 @@ watch(
   </main>
   <aside
     v-if="environmentOpen"
-    class="context-sidebar flex w-80 shrink-0 flex-col border-l border-border bg-card/95 backdrop-blur"
+    class="context-sidebar flex shrink-0 flex-col border-l border-border bg-card/95 backdrop-blur"
+    :class="contextPanel === 'architecture' ? 'w-[36rem]' : 'w-80'"
     :aria-label="contextPanelTitle"
   >
     <header class="app-drag flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
@@ -884,6 +1055,7 @@ watch(
           aria-label="选择右侧页面"
         >
           <Activity v-if="contextPanel === 'environment'" class="size-4 text-primary" />
+          <Network v-else-if="contextPanel === 'architecture'" class="size-4 text-primary" />
           <Globe2 v-else-if="contextPanel === 'browser'" class="size-4 text-primary" />
           <Wrench v-else-if="contextPanel === 'collaboration'" class="size-4 text-primary" />
           <CircleDot v-else class="size-4 text-primary" />
@@ -891,6 +1063,7 @@ watch(
         </SelectTrigger>
         <SelectContent size="sm" align="start" class="min-w-56">
           <SelectItem value="environment">{{ ctfSession ? '解题环境' : '环境信息' }}</SelectItem>
+          <SelectItem v-if="!ctfSession" value="architecture">架构图</SelectItem>
           <SelectItem value="browser">浏览器</SelectItem>
           <template v-if="ctfSession">
             <SelectSeparator />
@@ -903,11 +1076,14 @@ watch(
         <Button
           variant="ghost"
           size="icon-sm"
-          :disabled="environmentLoading"
+          :disabled="environmentLoading || architecturePreviewLoading"
           :aria-label="`刷新${contextPanelTitle}`"
           @click="refreshContextPanel"
         >
-          <RefreshCw class="size-4" :class="{ 'animate-spin': environmentLoading }" />
+          <RefreshCw
+            class="size-4"
+            :class="{ 'animate-spin': environmentLoading || architecturePreviewLoading }"
+          />
         </Button>
         <Button
           variant="ghost"
@@ -1152,6 +1328,64 @@ watch(
             <span class="text-right text-caption">{{ workshopSummary }}</span>
           </div>
         </div>
+        </section>
+      </template>
+
+      <template v-else-if="contextPanel === 'architecture'">
+        <section class="flex min-h-full flex-col">
+          <div class="border-b border-border px-4 py-3">
+            <div class="flex items-center justify-between gap-3">
+              <div class="min-w-0">
+                <p class="text-body font-medium">
+                  {{ architecturePreview?.exists ? '当前架构图' : running ? '正在生成架构图' : '尚未生成' }}
+                </p>
+                <p
+                  class="mt-1 truncate font-mono text-caption text-muted-foreground"
+                  :title="architecturePath"
+                >
+                  {{ architecturePath || '请先选择项目' }}
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                :disabled="running"
+                @click="generateArchitecture"
+              >
+                <Network class="size-3.5" />
+                {{ architecturePreview?.exists ? '重新生成' : '生成' }}
+              </Button>
+            </div>
+          </div>
+          <p
+            v-if="architecturePreviewError"
+            class="border-b border-border px-4 py-3 text-caption leading-5 text-destructive"
+          >
+            {{ architecturePreviewError }}
+          </p>
+          <iframe
+            v-if="architecturePreview?.exists && architecturePreviewSource"
+            class="min-h-[32rem] flex-1 bg-white"
+            :srcdoc="architecturePreviewSource"
+            sandbox="allow-scripts"
+            title="Archify 架构图预览"
+          />
+          <div
+            v-else
+            class="flex min-h-80 flex-1 flex-col items-center justify-center px-8 text-center"
+          >
+            <LoaderCircle
+              v-if="running || architecturePreviewLoading"
+              class="size-6 animate-spin text-primary"
+            />
+            <Network v-else class="size-6 text-muted-foreground" />
+            <p class="mt-4 text-label font-medium">
+              {{ running ? 'Agent 正在读取仓库、生成并验证' : '点击一次即可生成' }}
+            </p>
+            <p class="mt-2 max-w-sm text-body leading-6 text-muted-foreground">
+              MilkSU 会自动选择系统架构图、标题和输出目录，并要求 Archify 通过 9 项检查。
+            </p>
+          </div>
         </section>
       </template>
 
@@ -1412,11 +1646,67 @@ watch(
 }
 
 .chat-composer__workspace {
-  max-width: 12rem;
+  max-width: 9rem;
+}
+
+.chat-composer__control {
+  font-size: var(--text-control, 0.875rem);
+  line-height: var(--text-control--line-height, 1.25rem);
+}
+
+.chat-composer__control[data-slot='select-trigger'] {
+  font-size: var(--text-control, 0.875rem) !important;
+  line-height: var(--text-control--line-height, 1.25rem) !important;
+}
+
+.approval-option {
+  display: flex;
+  min-height: 4.5rem;
+  cursor: pointer;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+}
+
+.approval-option__icon {
+  width: 1.15rem;
+  height: 1.15rem;
+  margin-top: 0.15rem;
+  flex: none;
+}
+
+.approval-option__title {
+  font-size: var(--text-label, 0.875rem);
+  line-height: 1.25rem;
+  font-weight: 600;
+}
+
+.approval-option__description {
+  margin-top: 0.1rem;
+  color: var(--muted-foreground);
+  font-size: var(--text-control, 0.875rem);
+  line-height: 1.25rem;
+}
+
+.approval-option__check {
+  width: 1rem;
+  height: 1rem;
+  margin-top: 0.15rem;
+  flex: none;
+}
+
+.approval-option--full,
+.approval-option--full .approval-option__description {
+  color: var(--warning-foreground);
+}
+
+.approval-option--full .approval-option__icon,
+.approval-option--full .approval-option__check {
+  color: var(--warning);
 }
 
 .chat-composer__model {
-  width: min(22rem, 48vw);
+  width: clamp(10rem, 15vw, 18rem);
 }
 
 .chat-composer__island {
@@ -1441,7 +1731,7 @@ watch(
 
 @container chat-main (max-width: 52rem) {
   .chat-composer__controls {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
   }
 
   .chat-composer__workspace {
@@ -1449,7 +1739,8 @@ watch(
   }
 
   .chat-composer__model {
-    flex: 1 1 13rem;
+    min-width: 9rem;
+    flex: 1 1 10rem;
     width: auto;
   }
 }

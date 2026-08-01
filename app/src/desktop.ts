@@ -45,7 +45,11 @@ import type {
   NSSCTFTrainingSeries,
 } from './nssctfTrainingTypes'
 import type { CTFTrainingPlatform } from './ctfPlatformTypes'
-import type { CodingDiffSnapshot, CodingEnvironmentSnapshot } from './codingEnvironmentTypes'
+import type {
+  CodingArchitecturePreview,
+  CodingDiffSnapshot,
+  CodingEnvironmentSnapshot,
+} from './codingEnvironmentTypes'
 import type {
   ManagedLabAccess,
   ManagedLabInstance,
@@ -81,6 +85,10 @@ interface WailsAppBindings {
   GetRuntimeStatus(): Promise<unknown>
   GetCodingEnvironment(workspacePath: string): Promise<CodingEnvironmentSnapshot>
   GetCodingDiff(workspacePath: string, relativePath: string): Promise<CodingDiffSnapshot>
+  GetCodingArchitecturePreview(
+    workspacePath: string,
+    relativePath: string,
+  ): Promise<CodingArchitecturePreview>
   TestAgentModel(): Promise<ModelProbeResult>
   StartSampleCTF(): Promise<CTFProjection>
   ImportNSSCTFChallenge(rawURL: string): Promise<NSSCTFChallenge>
@@ -333,6 +341,11 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.GetCodingEnvironment(args?.workspacePath as string) as Promise<T>
       case 'get_coding_diff':
         return app.GetCodingDiff(
+          args?.workspacePath as string,
+          args?.relativePath as string,
+        ) as Promise<T>
+      case 'get_coding_architecture_preview':
+        return app.GetCodingArchitecturePreview(
           args?.workspacePath as string,
           args?.relativePath as string,
         ) as Promise<T>

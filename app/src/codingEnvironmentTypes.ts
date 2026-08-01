@@ -44,3 +44,10 @@ export interface CodingDiffSnapshot {
   workingTree?: string
   truncated?: boolean
 }
+
+export interface CodingArchitecturePreview {
+  exists: boolean
+  relativePath: string
+  html?: string
+  sizeBytes?: number
+}

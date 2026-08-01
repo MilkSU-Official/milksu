@@ -424,6 +424,13 @@ func (a *App) GetCodingDiff(workspacePath, relativePath string) (codingenv.DiffS
 	return codingenv.InspectDiff(inspectContext, workspacePath, relativePath)
 }
 
+func (a *App) GetCodingArchitecturePreview(
+	workspacePath,
+	relativePath string,
+) (codingenv.ArchitecturePreview, error) {
+	return codingenv.InspectArchitecturePreview(workspacePath, relativePath)
+}
+
 func (a *App) TestAgentModel() (engine.ModelProbeResult, error) {
 	result, err := a.engines.ProbeModel(a.settings.GetResolved())
 	if err != nil {

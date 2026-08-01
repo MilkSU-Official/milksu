@@ -26,14 +26,42 @@
 | CTF Trajectory / Debrief / Memory | **Implemented / Partial evidence** | Event Store 有真实轨迹和恢复事件，Memory Store 有 1 条综合；跨题型复用和错误记忆停用仍欠验收。 |
 | 全局 Rail `CTF → CVE → Coding` 与上下文侧栏 | **Verified for current native package** | 原生包已回归；一级/二级选中态明确，Coding 最近任务按仓库分组，CTF 角色会话不混入 Coding。 |
 | 全页面 Markdown 渲染 | **Implemented / Partial** | 统一安全渲染器与单测已存在；原生真实会话、长代码块和窄窗口仍需回归。 |
-| Archify / LSP / Retry | **Mixed** | Archify 产物通过 showcase 9/9；固定资源和 CTF 隔离 Smoke 已有。LSP Server 未打包，Retry 仍欠可控瞬态/慢首 Token 真实验收。 |
-| Coding Plan / Go 与权限策略 | **Verified for M3 allowlist / Partial overall** | 打包 App 内真实多轮 Plan→Go、写入、`npm test`、smoke 和人类纠错已通过；Ask 的同步逐工具审批、任意 Shell 和后台进程仍未实现。 |
+| Archify / LSP / Retry | **Mixed** | Archify 已在真实打包 App 一键生成固定产物、showcase 9/9 并右侧预览，固定资源和 CTF 隔离 Smoke 已有。LSP Server 未打包，Retry 仍欠可控瞬态/慢首 Token 真实验收。 |
+| Coding Plan / Go 与权限策略 | **Implemented / Partial overall** | Codex 风格三档菜单、Project Auto 常规开发 Shell/Git/网络和显式 Full Access 已落地并有边界测试；Ask 的同步逐工具审批、后台进程和终端 UI 仍未实现。 |
 | 架构文档 | **Verified snapshot** | 当前/目标/债务文档与 Archify 交互式 HTML 已生成；规格验证 9/9、0 error、0 warning。 |
 | NYU CTF Bench | **Verified narrow safe-static baseline** | 固定 revision、人工 fail-closed 准入、单次无工具 Runner、Digest Judge 与 Report 已跑通；5 completed 中 3 solved，另有 1 个零调用阻断。无用户 UI，不代表真实 CTF Agent。 |
 | Coding 附件 / MCP Browser / Computer Use | **Planned** | 当前只在右侧能力面板明确显示未接入；不能列入 M3 完成能力。 |
 | Managed Labs / Juice Shop / WebGoat / Vulhub | **Paused** | 本轮不发布、不验收、不出现在完成声明。 |
 | HTB / THM 自动化 | **Out of scope** | 不接内容抓取、Lab Token 或 Agent 自动化。 |
 | 云端用户系统 | **Out of scope** | 继续 local-first。 |
+
+## 当前项目地图
+
+```mermaid
+flowchart LR
+    subgraph active["R0.4 Active"]
+        coding["Coding 日常交付<br/>审批 · Diff/Git · 附件 · MCP"]
+        ctf["CTF 稳定与扩样本<br/>多题型 · Endpoint · 画像校准"]
+        foundation["本地产品底座<br/>UI · Markdown · Migration · Release"]
+        docs["架构与文档<br/>事实状态 · 债务 · 图"]
+    end
+
+    eval["NYU safe-static<br/>窄基线已完成"]
+    release["R0.4 可演示冻结"]
+
+    subgraph paused["Designed / Paused"]
+        labs["Labs<br/>Juice Shop · WebGoat · Vulhub"]
+        cve["CVE Research<br/>情报 · 资产 · 证据 · 披露"]
+    end
+
+    eval --> coding
+    coding --> ctf --> foundation --> docs --> release
+    labs -. "取得解冻条件后" .-> ctf
+    cve -. "取得授权后" .-> foundation
+```
+
+这张图描述优先级，不表示所有 Active 节点都已完成。`NYU safe-static` 只完成窄的开发者
+基线；Coding 和 CTF 的具体未完成项仍以下方债务表为准。
 
 ## R0.4 冻结门
 
@@ -54,7 +82,8 @@ flowchart LR
 1. 新用户能从 CTF 题库进入真实题目和 PI，不出现空按钮、重叠、被截断的下拉框或原始 Markdown。
 2. 已完成 NSSCTF Accepted、候选不明确恢复、报告脱敏和应用重启恢复回归。
 3. Archify、LSP、Retry 的真实状态逐项披露；Archify 与资源隔离已验，LSP/Retry 未完成项不能被加载 Smoke 冒充。
-4. 当前四份架构文档与代码一致，并标明 Labs 暂停和 NYU 仅开发者可见。
+4. 当前架构快照、CTF/Coding 边界、Labs/CVE 设计和项目状态与代码一致，并标明
+   `Implemented / Partial / Planned / Paused / Historical`。
 5. NYU safe-static Runner 只消费人工审核的固定静态材料，记录模型、Harness、预算、退出原因、
    token、成本和 Digest Judge 结果；不执行模型输出，也不把 benchmark 成绩写进用户能力画像。
 6. `go test ./...`、Bridge Policy、前端测试/构建、Sidecar Smoke、文档构建和原生 Wails

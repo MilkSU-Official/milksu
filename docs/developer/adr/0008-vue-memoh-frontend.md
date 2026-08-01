@@ -1,7 +1,8 @@
 # ADR-0008：Vue 3、Memoh UI 与 Challenge Desk
 
 日期：2026-07-30
-状态：Accepted
+状态：Accepted；配色部分已被后续黑绿产品主题取代，Vue、Memoh 依赖与 Challenge Desk
+信息架构仍有效。当前视觉事实见 `/architecture/`。
 
 ## 背景
 

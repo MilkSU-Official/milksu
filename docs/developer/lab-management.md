@@ -1,6 +1,8 @@
 # 靶场与环境管理
 
-> 状态：M1 冻结 `LabPackage v1alpha1` 最小字段；Compose/OCI Provider 留到 M2 实跑
+> 状态：**Historical / Superseded**。Labs 当前保持 `Paused / Designed`，后继设计见
+> [CTF Labs 顶层与详细设计](/architecture/ctf-labs-design)；本页只保留早期
+> `LabPackage v1alpha1` 决策。
 >
 > 日期：2026-07-19
 

@@ -51,8 +51,8 @@ flowchart LR
 | --- | --- | --- | --- |
 | Pi Session / Model / Tool Loop | 是 | 是 | Pi |
 | `read/grep/find/ls` | 所选项目范围 | MilkSU 单题工作区内按角色裁剪 | Pi 工具 + MilkSU Policy |
-| `edit/write` | 仅 `Go + Workspace Auto`；`.git` / `.milksu` 与工作区外路径被拒绝 | 按 CTF Role 裁剪 | Pi 工具 + `bridge-policy.js` |
-| `bash` | 仅 `Go + Workspace Auto` 的固定 build/test/lint 命令；无网络、无 shell 运算符、macOS 工作区沙箱 | Coach/Strategist 无；Solver 模式按策略；Tool Builder 仅离线工作区 | Pi 工具 + `bridge-policy.js` |
+| `edit/write` | `Go + Project Auto` 的文件工具限制在项目内；显式 `Full Access` 的终端继承当前用户权限 | 按 CTF Role 裁剪 | Pi 工具 + `bridge-policy.js` |
+| `bash` | `Project Auto` 支持正常开发命令、Shell 组合、Git 和网络，但写入受 macOS 项目沙箱约束；`Full Access` 显式解除项目沙箱 | Coach/Strategist 无；Solver 模式按策略；Tool Builder 仅离线工作区 | Pi 工具 + `bridge-policy.js` |
 | `milksu_progress` | 是 | 是，附角色 Guidance | MilkSU first-party Extension |
 | Archify | 是 | **否** | 固定 Coding Skill |
 | `lsp_diagnostics` / `lsp_fix` | 诊断可用；`lsp_fix` 在三档策略中均阻止，等待独立审批协议 | **否** | 固定 Coding Extension + MilkSU 启动策略 |
@@ -75,19 +75,21 @@ JSONL Sidecar 传递。`bridge-policy.js` 每回合重新计算 allowlist，调�
 | `Plan` | 任意 | `read/grep/find/ls/milksu_progress/lsp_diagnostics`；明确移除 `bash/edit/write/lsp_fix`。 |
 | `Go` | `Read-only` | 与 Plan 相同，只允许分析和诊断。 |
 | `Go` | `Ask` | 当前仍与 Read-only 相同；UI 明确显示“需批准”，但不会假装已经弹出逐工具审批。 |
-| `Go` | `Workspace Auto` | 增加工作区受限 `edit/write`，以及固定的无网络 build/test/lint `bash`。 |
+| `Go` | `Project Auto`（存储值 `workspace-auto`） | 项目内文件、Git、常规开发命令和网络自动执行；文件写入仍受项目沙箱约束，`.milksu` 受保护。 |
+| `Go` | `Full Access`（存储值 `full-auto`） | 用户显式选择后，终端以当前本机用户权限自动执行，可访问项目外文件和网络；Provider Key 仍从子进程环境移除。 |
 
-旧 Conversation 没有字段时迁移为 `Go + Workspace Auto`，保持 Coding Agent 可以交付代码；
-这不恢复旧的任意 Shell。自动命令只接受一条无引号、无管道、无重定向、无命令拼接的
-`go test/vet/build`、`npm/pnpm/yarn test/build/lint/typecheck/check`、`cargo
-test/check/build` 或 `pytest` 命令；实际进程仍在 macOS `sandbox-exec` 中运行，网络关闭，
-环境不含 Provider Key。
+旧 Conversation 没有字段时迁移为 `Go + Project Auto`，保持 Coding Agent 可以直接交付
+代码。`Project Auto` 不再维护脆弱的命令白名单：Agent 可以使用真实研发所需的命令、
+Shell 运算符、Git 和网络；macOS `sandbox-exec` 仍把写入收口在项目内，并只为审阅过的
+打包资源开放只读路径。`Full Access` 必须由用户从 Composer 权限菜单明确选择，不能由
+模型、项目文件或旧会话自行升级。
 
 当前 Pi SDK 的 `tool_call` hook 可以阻止调用，但 MilkSU 的 headless Sidecar 没有把
 `ctx.ui.confirm/select` 同步转发到桌面并等待用户决定的协议。因此 `Ask` 是真实的
-“approval required, execution blocked”状态，不是完整的交互审批。Browser/MCP、Computer
-Use、凭据、网络、任意命令、`lsp_fix` 和工作区外动作都没有进入 Workspace Auto；它们必须
-等待后续显式审批协议。
+“approval required, execution blocked”状态，不是完整的交互审批。Browser/MCP、
+Computer Use 与 `lsp_fix` 仍未接入；它们不能因为用户选择 `Project Auto` 或
+`Full Access` 就被静默启用。Provider API Key 不进入模型上下文，也不传给任何 Bash
+子进程；`Full Access` 能使用的只是当前登录用户本来可用的本地凭据和 SSH Agent。
 
 ## 资源加载与供应链
 
@@ -111,7 +113,7 @@ flowchart TB
 | 资源 | 固定版本 | 当前代码证据 | 当前验收 |
 | --- | --- | --- | --- |
 | Pi Coding Agent | `0.80.2` | `package.json`、`scripts/package-sidecar.mjs` | Sidecar 打包 / Smoke 已有 |
-| Archify | `2.12.0`，commit `7b49d0b…` | `third_party/archify`、`bridge.js`、Sidecar manifest | 加载与隔离 Smoke 已有；真实生成/修改图任务待验 |
+| Archify | `2.12.0`，commit `7b49d0b…` | `third_party/archify`、`bridge.js`、Sidecar manifest、Composer 产品动作 | **Verified**：真实打包 App 一键生成固定 JSON/HTML、9/9、0 error、0 warning，并在右侧预览 |
 | `@narumitw/pi-lsp` | `0.29.0` | `bridge-resource-policy.js`、`bridge.js`、`package-lock.json` | 项目命令覆盖和凭据继承已阻断；语言服务器尚未打包，真实诊断与 opt-in fix 待验 |
 | `@narumitw/pi-retry` | `0.31.0` | `bridge-resource-policy.js`、`bridge.js`、`package-lock.json` | 扩展加载 Smoke 已有；保留瞬态错误分类，90 秒 watchdog 暂停到慢模型回归后 |
 | MilkSU Workflow | first-party | `createMilkSUWorkflowExtension` | Schema 和可见事件已有 |
@@ -151,15 +153,15 @@ flowchart TB
 
 ## R0.4 真实验收清单
 
-1. **Archify**：在普通 Coding 会话中读取 MilkSU 仓库，生成一张图，再根据一次自然语言
-   架构变更更新；输出文件可打开，且 CTF 会话找不到该 Skill。
+1. **Archify**：在普通 Coding 会话点击一次“架构图”，自动读取仓库、选择系统架构图与
+   固定输出目录、执行 9 项校验并在右侧预览；CTF 会话必须找不到该 Skill。
 2. **LSP**：先打包审核过的 Go/Vue/TypeScript Server，再在固定小项目制造一个确定性诊断；
    `lsp_diagnostics` 返回位置，`lsp_fix` 在独立审批协议完成前始终不可见。
 3. **Retry**：用可控的瞬时错误和慢首 Token fixture 证明使用 Pi 的有界重试，不产生
    第二个无限重试循环；确认阈值后才恢复 stalled stream watchdog。
-4. **权限可见性**：Coding 顶部和环境信息面板能看到 Plan/Go、Read-only/Ask/Workspace
-   Auto、实际加载工具与每类能力状态；Plan 负向测试和 Workspace Auto 真实 build/test
-   回归同时通过。
+4. **权限可见性**：Composer 使用 Codex 风格三档菜单显示 `请求批准 / 替我审批 /
+   完全访问权限`，右侧环境信息只展示生效状态；Plan 负向测试、Project Auto 项目外写入
+   拒绝和 Full Access 显式项目外写入回归同时通过。
 5. **CTF 隔离**：重复 Sidecar 负向 Smoke；CTF Session 不加载 Archify/LSP/Retry，
    Recorder 的回合预算、候选闸门和轨迹仍通过。
 

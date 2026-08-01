@@ -160,7 +160,7 @@
       "col": 3,
       "type": "cloud",
       "label": "Tool Gate",
-      "sublabel": "workspace / Docker",
+      "sublabel": "workspace / network",
       "tag": "deny by default"
     },
     {

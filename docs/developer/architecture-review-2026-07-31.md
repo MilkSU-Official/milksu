@@ -1,5 +1,9 @@
 # MilkSU M3 Architecture Review
 
+> 状态：**Historical**。当前事实以
+> [架构快照](/architecture/) 与
+> [文档状态登记](/developer/document-status) 为准；本页保留 2026-07-31 的审阅证据。
+>
 > Review date: 2026-07-31
 >
 > Scope: current `codex/authorized-learning-foundation` implementation, packaged Sidecar, local persistence, Vue desktop surface, NSSCTF / CTFshow adapters, permission-gated external platform facts, and CTF runtime.

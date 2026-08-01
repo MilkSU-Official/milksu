@@ -32,13 +32,13 @@ flowchart LR
 | 边界 | 状态 | 代码证据 |
 | --- | --- | --- |
 | Wails 本地桌面宿主 | **Implemented** | `main.go` 只绑定一个 `App`，静态资源来自 `app/dist`。 |
-| Vue 产品表面 | **Implemented / Partial** | `app/src/App.vue` 组合 CTF、CVE、Coding 与设置；全页面 Markdown 和原生视觉回归仍待冻结。 |
-| Pi 通用 Agent | **Implemented / Partial** | `bridge.js` 使用 Pi SessionManager、工具事件和持久会话；插件真实任务验收仍待完成。 |
+| Vue 产品表面 | **Implemented / Partial** | `app/src/App.vue` 组合 CTF、CVE、Coding 与设置；统一安全 Markdown 已实现，原生长内容、窄窗口和多状态视觉仍需持续发布回归。 |
+| Pi 通用 Agent | **Verified core / Partial extensions** | `bridge.js` 使用 Pi SessionManager、工具事件和持久会话；Plan → Go 真实交付已验，Archify/LSP/Retry 的专项能力仍按各自证据披露。 |
 | CTF Runtime | **Implemented** | `internal/ctf` 将 Challenge、Agent Turn、Candidate、Judge Receipt、Debrief 投影到共享 Runtime。 |
 | 浏览器平台 Judge | **Implemented** | `internal/browsercap` 只接受明确配对页，NSSCTF/CTFshow 回执进入 Go Host。 |
 | 本地持久化 | **Implemented** | `internal/appdata`、`internal/securityruntime`、Catalog、Conversation、Memory 和 Credential Store。 |
 | Managed Labs | **Paused** | 工作区存在实验代码，但已从当前交付范围移除，不是已发布系统能力。 |
-| NYU CTF Bench | **Implemented / Partial** | `internal/evalbench` 已有固定 revision 的只读 Catalog、摘要 Run Record 与确定性 Report；Runner、Judge 和产品 UI 不存在。 |
+| NYU CTF Bench | **Verified narrow baseline** | `internal/evalbench` 与 `cmd/nyu-ctf-bench-run` 已有 fail-closed safe-static Runner、一次无工具 Provider 调用、Digest Judge 与确定性 Report；无产品 UI，也不代表真实 CTF Agent。 |
 
 ## C4 · Containers / Processes
 
@@ -139,6 +139,27 @@ flowchart TB
 | L4 Domain Contracts | CTF Challenge、RoleFact、AgentCandidate、JudgeReceipt、LearningRecord | **Implemented**。 |
 | L5 Evidence Runtime | 追加式 SQLite Event Store、Artifact SHA-256、Projection、Recover | **Implemented**。 |
 | L6 Integrity | Scope、CTF 工作区策略、预算、候选闸门、外部 Judge、资源白名单 | **Partial**：宿主 Shell 不是容器，动态网络精确内核 allowlist 未完成。 |
+
+## 开发者评测边界
+
+NYU safe-static Runner 是仓库内的开发者 CLI，不是 `MilkSU.app` 用户流程，也不经过 Pi 工具循环：
+
+```mermaid
+flowchart LR
+    reviewer["人工审核的静态任务<br/>固定 revision + Admission"]
+    runner["NYU safe-static Runner<br/>单次、无工具、无 Retry"]
+    provider["DeepSeek Provider<br/>本地凭据"]
+    judge["Digest Judge<br/>只比较规范化 SHA-256"]
+    report["开发者 Report<br/>token / cost / exit / result"]
+    profile["用户能力画像"]
+
+    reviewer --> runner --> provider
+    provider --> runner --> judge --> report
+    report -. "禁止写入" .-> profile
+```
+
+完整 NYU challenge Runner、容器执行、Agent 工具调用和用户 UI 均不存在。这里的 “Runner”
+只指安全静态单次推理，不能被扩写成完整 benchmark 或 CTF Agent 成绩。
 
 ## 依赖方向
 

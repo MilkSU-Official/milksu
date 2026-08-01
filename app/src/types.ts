@@ -10,7 +10,11 @@ export interface Message {
 }
 
 export type CodingExecutionMode = 'plan' | 'go'
-export type CodingApprovalPolicy = 'read-only' | 'ask' | 'workspace-auto'
+export type CodingApprovalPolicy =
+  | 'read-only'
+  | 'ask'
+  | 'workspace-auto'
+  | 'full-auto'
 export type CodingCapabilityStatus = 'allowed' | 'blocked' | 'approval-required' | 'unavailable'
 
 export interface CodingCapability {

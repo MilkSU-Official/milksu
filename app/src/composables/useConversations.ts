@@ -280,13 +280,14 @@ export function useConversations() {
     await send(task.prompt)
   }
 
-  async function send(text: string) {
+  async function send(text: string, visibleText = text) {
     const prompt = text.trim()
     if (!prompt) return
+    const visiblePrompt = visibleText.trim() || prompt
     const message: Message = {
       id: crypto.randomUUID(),
       role: 'user',
-      content: prompt,
+      content: visiblePrompt,
       timestamp: Date.now(),
     }
     let conversationId = activeId.value
@@ -294,7 +295,7 @@ export function useConversations() {
       conversationId = crypto.randomUUID()
       const conversation: Conversation = {
         id: conversationId,
-        title: prompt.slice(0, 40),
+        title: visiblePrompt.slice(0, 40),
         createdAt: Date.now(),
         workspacePath: pendingWorkspacePath.value || undefined,
         modelMode: pendingModelMode.value,

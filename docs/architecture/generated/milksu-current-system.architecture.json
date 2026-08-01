@@ -3,7 +3,7 @@
   "diagram_type": "architecture",
   "meta": {
     "title": "MilkSU 当前系统架构",
-    "subtitle": "M3 收口快照 · 本地桌面产品、Pi Coding 基座、CTF 证据闭环与开发者评测边界",
+    "subtitle": "R0.4 当前事实 · Pi Coding 基座、CTF 证据闭环与安全静态开发者评测",
     "output": "milksu-current-system.html",
     "animation": "trace",
     "visual_preset": "blueprint",
@@ -26,7 +26,7 @@
         "id": "eval-boundary",
         "label": "内部模型评测",
         "focus": ["nyu-eval", "local-state"],
-        "note": "NYU CTF Bench 当前只做固定索引、摘要 Run 与报告，不执行挑战。"
+        "note": "NYU CTF Bench 只运行人工准入的静态单次推理与 Digest Judge；不执行挑战或模型输出。"
       }
     ]
   },
@@ -132,9 +132,9 @@
     {
       "id": "nyu-eval",
       "type": "backend",
-      "label": "NYU Eval Adapter",
-      "sublabel": "固定索引 · 摘要 Run · Report",
-      "tag": "developer-only · no runner",
+      "label": "NYU Safe-static Eval",
+      "sublabel": "One-shot Runner · Digest Judge · Report",
+      "tag": "developer-only · no tools",
       "pos": [1290, 520],
       "size": [150, 76]
     }
@@ -329,7 +329,7 @@
       "title": "当前边界",
       "items": [
         "Managed Labs 已暂停，不计入当前 M3 交付",
-        "NYU CTF Bench 仅做内部元数据与摘要报告，不执行挑战"
+        "NYU CTF Bench 只做人工准入的无工具单次推理与 Digest Judge，不执行挑战"
       ]
     }
   ]

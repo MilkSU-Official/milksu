@@ -137,11 +137,19 @@ function codingPolicyGuidance(policy) {
       + "Do not claim that files, commands, or external systems were changed. "
       + "bash, edit, write, and lsp_fix are unavailable.";
   }
+  if (policy.approvalPolicy === "full-auto") {
+    return "Go mode is active with Full Access and automatic approval. You may use the terminal "
+      + "with the current local user's filesystem, network, and credential authority. File tools "
+      + "remain project-oriented, but terminal commands are not project-sandboxed. Model-provider "
+      + "API keys are not passed to child processes. Act directly, keep changes scoped to the user "
+      + "request, and verify destructive or externally visible actions before executing them.";
+  }
   if (policy.approvalPolicy === "workspace-auto") {
-    return "Go mode is active with Workspace Auto. You may use edit/write only inside the selected "
-      + "workspace and may run only the reviewed networkless build/test/lint command set. "
-      + "Other commands, network, credentials, browser/MCP, Computer Use, lsp_fix, and paths "
-      + "outside the workspace remain blocked.";
+    return "Go mode is active with Project Auto. You may edit files, use Git, run development "
+      + "commands, start background tools, and access the network inside the selected project. "
+      + "The project sandbox blocks writes outside the project and access to local credential "
+      + "directories; model-provider API keys are never passed to child processes. Browser/MCP, "
+      + "Computer Use, and lsp_fix remain unavailable.";
   }
   if (policy.approvalPolicy === "ask") {
     return "Go mode is active with Ask. This headless Sidecar cannot pause and return a synchronous "
@@ -337,17 +345,12 @@ function createMilkSUResourceLoader(
   agentDir,
   systemPrompt,
   sessionRole,
+  codingSkillPaths,
   getPolicy,
   registerPolicyController,
 ) {
   // Skills and extensions may execute instructions supplied by third parties.
   // Keep Pi's ambient discovery disabled and load only MilkSU-reviewed resources.
-  const codingSkillPaths = sessionRole
-    ? []
-    : [
-        join(bridgeDirectory, "skills", "archify"),
-        join(bridgeDirectory, "third_party", "archify", "archify"),
-      ].filter((path) => existsSync(join(path, "SKILL.md"))).slice(0, 1);
   const extensionFactories = [createMilkSUWorkflowExtension(sessionRole)];
   if (!sessionRole) {
     extensionFactories.push(
@@ -370,6 +373,33 @@ function createMilkSUResourceLoader(
   });
 }
 
+function reviewedCodingSkillPaths(sessionRole = "") {
+  if (sessionRole) return [];
+  return [
+    join(bridgeDirectory, "skills", "archify"),
+    join(bridgeDirectory, "third_party", "archify", "archify"),
+  ].filter((path) => existsSync(join(path, "SKILL.md"))).slice(0, 1);
+}
+
+async function loadRuntimeSessionPolicy(cwd, command) {
+  let policy = await loadSessionPolicy(cwd, command.sessionRole, {
+    executionMode: command.executionMode,
+    approvalPolicy: command.approvalPolicy,
+  });
+  const effectiveSessionRole = policy.ctf
+    ? command.sessionRole || "solver"
+    : "";
+  const codingSkillPaths = reviewedCodingSkillPaths(effectiveSessionRole);
+  if (!policy.ctf && codingSkillPaths.length) {
+    policy = await loadSessionPolicy(cwd, command.sessionRole, {
+      executionMode: command.executionMode,
+      approvalPolicy: command.approvalPolicy,
+      readOnlyResourceRoots: codingSkillPaths,
+    });
+  }
+  return { policy, effectiveSessionRole, codingSkillPaths };
+}
+
 async function createSession(command) {
   const conversationId = command.conversationId;
   if (!conversationId) throw new Error("conversationId is required");
@@ -380,13 +410,11 @@ async function createSession(command) {
   const cwd = process.cwd();
   const agentDir = process.env.MILKSU_PI_AGENT_DIR || join(cwd, ".milksu", "pi");
   const projectInstructions = await loadProjectInstructions(cwd);
-  const sessionPolicy = await loadSessionPolicy(cwd, command.sessionRole, {
-    executionMode: command.executionMode,
-    approvalPolicy: command.approvalPolicy,
-  });
-  const effectiveSessionRole = sessionPolicy.ctf
-    ? command.sessionRole || "solver"
-    : "";
+  const {
+    policy: sessionPolicy,
+    effectiveSessionRole,
+    codingSkillPaths,
+  } = await loadRuntimeSessionPolicy(cwd, command);
   if (!effectiveSessionRole) {
     applyCodingResourcePolicy();
   }
@@ -396,6 +424,7 @@ async function createSession(command) {
     agentDir,
     projectInstructions,
     effectiveSessionRole,
+    codingSkillPaths,
     () => sessionPolicies.get(conversationId),
     controller => sessionPolicyControllers.set(conversationId, controller),
   );
@@ -472,13 +501,24 @@ async function sendMessage(command) {
   const conversationId = command.conversationId;
   if (!conversationId) throw new Error("conversationId is required");
 
-  const existing = sessions.get(conversationId);
+  let existing = sessions.get(conversationId);
+  const previousPolicy = sessionPolicies.get(conversationId);
+  const requestedFullAccess = command.approvalPolicy === "full-auto";
+  if (
+    existing
+    && previousPolicy
+    && !previousPolicy.ctf
+    && (previousPolicy.approvalPolicy === "full-auto") !== requestedFullAccess
+  ) {
+    existing.dispose();
+    sessions.delete(conversationId);
+    sessionPolicies.delete(conversationId);
+    sessionPolicyControllers.delete(conversationId);
+    existing = undefined;
+  }
   const session = existing ?? await createSession(command);
   if (existing) {
-    const sessionPolicy = await loadSessionPolicy(process.cwd(), command.sessionRole, {
-      executionMode: command.executionMode,
-      approvalPolicy: command.approvalPolicy,
-    });
+    const { policy: sessionPolicy } = await loadRuntimeSessionPolicy(process.cwd(), command);
     sessionPolicies.set(conversationId, sessionPolicy);
     if (!sessionPolicy.ctf) {
       const controller = sessionPolicyControllers.get(conversationId);

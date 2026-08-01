@@ -1,5 +1,8 @@
 # PI Resource Whitelist
 
+> 状态：**Living / Enforced**。打包清单、版本固定和 CTF 负向隔离以当前代码与 Sidecar Smoke
+> 为准；“已加载”不等于专项能力已经 Verified。
+
 MilkSU disables PI ambient discovery for Extensions, Skills, prompts, themes, and context files.
 Only resources reviewed here may enter a packaged Agent session.
 

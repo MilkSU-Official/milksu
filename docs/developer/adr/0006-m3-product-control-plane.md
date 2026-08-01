@@ -88,7 +88,8 @@ M3 Product Shell 使用三层状态：
 本 ADR 接受的是 M3 Product Shell，不是完整 M3。CTF 真实平台的后续决策见 [ADR-0007](/developer/adr/0007-ctf-agent-harness-and-nssctf-arena)：
 
 - 比赛目录已支持 NSSCTF 公开单题导入，Agent Arena 已连接官方 Token、领题、恢复、提交与放弃 API；通用比赛账号、分页、平台限速和浏览器提交仍未完成；
-- Arena 平台响应已经进入 Runtime Evidence/Evaluation，但尚未取得第一次真实 `correct=true`，不能宣称真实解题成绩；
+- Arena 平台响应已经进入 Runtime Evidence/Evaluation；后续 P3879 已取得真实配对页面
+  `correct=true`，当前可宣称的是这一条已验证样本，不能外推为多题型或通用解题成绩；
 - 环境启动仍需接 Managed Lab 生命周期；
 - CVE 数据尚未接 NVD/CISA/Vendor 的增量同步、去重和更新时间语义；
 - 资产来自演示关联，不是 CMDB 或真实暴露面扫描；

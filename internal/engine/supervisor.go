@@ -129,7 +129,7 @@ func normalizeCodingPolicy(
 		approval = "workspace-auto"
 	}
 	switch approval {
-	case "read-only", "ask", "workspace-auto":
+	case "read-only", "ask", "workspace-auto", "full-auto":
 	default:
 		return CodingPolicy{}, fmt.Errorf("unsupported Coding approval policy %q", approval)
 	}

@@ -6,7 +6,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import {
-  assertCodingWorkspaceCommand,
   loadSessionPolicy,
   normalizeCodingPolicy,
   scopeAllowsNetwork,
@@ -113,44 +112,38 @@ test("Plan and non-automatic Go policies enforce a read-only tool allowlist", as
   );
 });
 
-test("Workspace Auto accepts reviewed build/test commands and rejects shell escape", () => {
-  for (const command of [
-    "go test ./...",
-    "go vet ./...",
-    "npm --prefix app test -- --run",
-    "npm run build",
-    "npm run smoke",
-    "cargo check",
-    "python3 -m pytest",
-  ]) {
-    assert.equal(assertCodingWorkspaceCommand(command), command);
-  }
-  for (const command of [
-    "go test ./... && curl https://example.com",
-    "npm run arbitrary",
-    "cat .env",
-    "rm -rf .",
-    "npm --prefix ../other test",
-  ]) {
-    assert.throws(() => assertCodingWorkspaceCommand(command), /Workspace Auto/);
-  }
+test("Coding read can access reviewed packaged skill resources but no other outside path", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "milksu-coding-policy-"));
+  const resourceRoot = await mkdtemp(join(tmpdir(), "milksu-archify-resource-"));
+  const skillPath = join(resourceRoot, "SKILL.md");
+  const outside = join(await mkdtemp(join(tmpdir(), "milksu-unreviewed-")), "secret.txt");
+  await writeFile(skillPath, "# Archify\n", "utf8");
+  await writeFile(outside, "outside-secret", "utf8");
+
+  const policy = await loadSessionPolicy(workspace, "", {
+    executionMode: "go",
+    approvalPolicy: "workspace-auto",
+    readOnlyResourceRoots: [resourceRoot],
+  });
+  const read = policy.customTools.find(tool => tool.name === "read");
+  const response = await read.execute(
+    "read-reviewed-skill",
+    { path: skillPath },
+    undefined,
+    undefined,
+    {},
+  );
+  assert.match(response.content[0].text, /Archify/);
+  await assert.rejects(
+    read.execute("read-unreviewed", { path: outside }, undefined, undefined, {}),
+    /denied path outside/,
+  );
 });
 
-test("Go Workspace Auto can build/test but cannot mutate outside the workspace", {
+test("Go Project Auto runs normal development commands but contains filesystem writes", {
   skip: process.platform !== "darwin",
 }, async () => {
   const workspace = await mkdtemp(join(tmpdir(), "milksu-coding-policy-"));
-  await writeFile(
-    join(workspace, "package.json"),
-    `${JSON.stringify({
-      private: true,
-      scripts: { test: "node --test" },
-    })}\n`,
-  );
-  await writeFile(
-    join(workspace, "policy.test.js"),
-    "import test from 'node:test';\nimport assert from 'node:assert/strict';\ntest('fixture', () => assert.equal(2 + 2, 4));\n",
-  );
   const outside = join(tmpdir(), `milksu-policy-outside-${Date.now()}.txt`);
   const policy = await loadSessionPolicy(workspace, "", {
     executionMode: "go",
@@ -158,11 +151,24 @@ test("Go Workspace Auto can build/test but cannot mutate outside the workspace",
   });
   const bash = policy.customTools.find(tool => tool.name === "bash");
   await bash.execute(
-    "build-test",
-    { command: "npm test" },
+    "normal-development-command",
+    {
+      command: "printf medium > generated.txt && git init -q && git add generated.txt && git status --short",
+    },
     undefined,
     undefined,
     {},
+  );
+  assert.equal(await readFile(join(workspace, "generated.txt"), "utf8"), "medium");
+  await assert.rejects(
+    bash.execute(
+      "outside-command-write",
+      { command: `printf escaped > ${JSON.stringify(outside)}` },
+      undefined,
+      undefined,
+      {},
+    ),
+    /Operation not permitted|Permission denied|exited with code/,
   );
   const write = policy.customTools.find(tool => tool.name === "write");
   await assert.rejects(
@@ -175,6 +181,67 @@ test("Go Workspace Auto can build/test but cannot mutate outside the workspace",
     ),
     /denied path outside/,
   );
+});
+
+test("Go Project Auto can run a reviewed Node CLI outside the project", {
+  skip: process.platform !== "darwin",
+}, async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "milksu-coding-policy-"));
+  const resourceRoot = join(process.cwd(), "third_party", "archify", "archify");
+  const policy = await loadSessionPolicy(workspace, "", {
+    executionMode: "go",
+    approvalPolicy: "workspace-auto",
+    readOnlyResourceRoots: [resourceRoot],
+  });
+  const bash = policy.customTools.find(tool => tool.name === "bash");
+  const response = await bash.execute(
+    "reviewed-node-cli",
+    {
+      command: `test -n "$TMPDIR" && touch "$TMPDIR/runtime-write-check" && node ${JSON.stringify(join(resourceRoot, "bin", "archify.mjs"))} doctor`,
+    },
+    undefined,
+    undefined,
+    {},
+  );
+  assert.match(response.content[0].text, /Archify doctor/i);
+});
+
+test("Go Full Access automatically runs outside-project commands without leaking model keys", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "milksu-coding-full-"));
+  const outside = join(
+    await mkdtemp(join(tmpdir(), "milksu-coding-full-outside-")),
+    "result.txt",
+  );
+  const previousKey = process.env.DEEPSEEK_API_KEY;
+  process.env.DEEPSEEK_API_KEY = "must-not-reach-child";
+  try {
+    const policy = await loadSessionPolicy(workspace, "", {
+      executionMode: "go",
+      approvalPolicy: "full-auto",
+    });
+    assert.equal(
+      policy.capabilities.find(value => value.id === "network").status,
+      "allowed",
+    );
+    assert.equal(
+      policy.capabilities.find(value => value.id === "credentials").status,
+      "allowed",
+    );
+    const bash = policy.customTools.find(tool => tool.name === "bash");
+    await bash.execute(
+      "full-access-write",
+      {
+        command: `test -z "$DEEPSEEK_API_KEY" && printf full > ${JSON.stringify(outside)}`,
+      },
+      undefined,
+      undefined,
+      {},
+    );
+    assert.equal(await readFile(outside, "utf8"), "full");
+  } finally {
+    if (previousKey === undefined) delete process.env.DEEPSEEK_API_KEY;
+    else process.env.DEEPSEEK_API_KEY = previousKey;
+  }
 });
 
 test("coach mode removes bash even if a manifest requests it", async () => {

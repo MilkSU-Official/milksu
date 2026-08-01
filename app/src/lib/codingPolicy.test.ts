@@ -24,12 +24,23 @@ describe('Coding policy presentation', () => {
     }
   })
 
-  it('never presents network, credentials, browser, or Computer Use as automatic', () => {
+  it('keeps Project Auto useful without granting local credentials or UI control', () => {
     const capabilities = previewCodingCapabilities('go', 'workspace-auto')
     expect(capabilities.find(item => item.id === 'workspace-write')?.status).toBe('allowed')
     expect(capabilities.find(item => item.id === 'command')?.status).toBe('allowed')
-    for (const id of ['network', 'credentials', 'browser', 'computer-use']) {
+    expect(capabilities.find(item => item.id === 'network')?.status).toBe('allowed')
+    for (const id of ['credentials', 'browser', 'computer-use']) {
       expect(capabilities.find(item => item.id === id)?.status).not.toBe('allowed')
     }
+  })
+
+  it('presents Full Access as an explicit higher-authority option', () => {
+    expect(normalizeCodingApprovalPolicy('full-auto')).toBe('full-auto')
+    const capabilities = previewCodingCapabilities('go', 'full-auto')
+    for (const id of ['workspace-write', 'command', 'network', 'credentials']) {
+      expect(capabilities.find(item => item.id === id)?.status).toBe('allowed')
+    }
+    expect(capabilities.find(item => item.id === 'browser')?.status).toBe('unavailable')
+    expect(capabilities.find(item => item.id === 'computer-use')?.status).toBe('unavailable')
   })
 })

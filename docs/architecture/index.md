@@ -6,7 +6,7 @@
 > 已存在或已经明确规划的边界，不把本地 Lab、内部 NYU CTF Bench 基线或尚未完成的
 > 插件专项回归写成面向用户的已发布能力。
 
-这组文档用于回答四个不同问题：
+这组文档用于回答当前实现与未来解冻设计：
 
 0. [Archify 交互式架构图](generated/milksu-current-system.html)：一张图查看 Coding 主链、
    CTF 证据闭环、持久化和内部评测边界；对应的
@@ -15,6 +15,13 @@
 2. [CTF 数据与时序](ctf-intake-agent-judge-memory.md)：一道题怎样从 Intake 进入 Agent、Judge 和训练记忆？
 3. [Coding Agent / Pi 扩展边界](coding-agent-pi-extension-boundary.md)：哪些能力复用 Pi，哪些能力属于 MilkSU，CTF 为什么不继承 Coding 插件？
 4. [架构债与 M3 / R0.4 边界](m3-r04-boundary-and-debt.md)：现在能声称什么、不能声称什么，下一轮先还哪些债？
+5. [授权安全学习与研究平台](security-learning-and-research-platform.md)：CTF、Labs、CVE、
+   Coding 怎样共享证据、授权、环境与学习底座？
+6. [CTF Labs 顶层与详细设计](ctf-labs-design.md)：未来怎样提供一键启动、可重置、
+   可判定的环境型训练？
+7. [CVE 研究工作台顶层与详细设计](cve-research-workbench-design.md)：未来怎样支撑
+   赏金猎人的情报、资产、研究、证据与披露日常？
+8. [文档与任务状态登记](/developer/document-status)：跨文档的唯一当前口径与任务状态。
 
 ## 状态约定
 
@@ -25,6 +32,18 @@
 | **Planned** | 只有决策、研究或接口方向，不能在产品中宣称可用。 |
 | **Paused** | 有实验或未发布代码，但已经从当前交付范围移除。 |
 
+## 文档事实优先级
+
+当不同年代的文档出现冲突时，按以下顺序判断：
+
+1. 本目录的 `current-system.md` 与 `m3-r04-boundary-and-debt.md`；
+2. `developer/development-plan.md` 的当前检查点和任务队列；
+3. `Planned / Paused` 详细设计；
+4. ADR 与带日期的 Architecture Review / Checkpoint。
+
+ADR、Review 和 Checkpoint 记录当时为什么这样决定，不会因为后续实现而改写历史；它们必须
+通过 `Historical`、`Superseded` 或后继链接避免被误读成当前状态。
+
 ## 本快照的关键结论
 
 - CTF 的产品内核已经成立：模型候选与权威 Judge 分离，事实进入追加式 Event Store，
@@ -32,9 +51,9 @@
 - 当前最大风险不是“底层完全缺失”，而是职责集中：`app.go`、`CTFPage.vue`、
   `internal/browsercap/manager.go` 和 `internal/ctf/service.go` 都已经成为变更热点。
 - 普通 Coding 会话已经在代码层接入固定版本 Archify、PI LSP 和 PI Retry；Coding 核心
-  的 Plan → Go、多轮修改、真实打包命令执行与独立复验已经 **Verified**。Archify 的
-  生成/更新、真实 LSP Server 和 Retry 故障注入仍是 **Partial**，不能仅凭包已安装就
-  宣称插件体系完成。
+  的 Plan → Go、多轮修改、真实打包命令执行与独立复验已经 **Verified**。Archify 一键
+  动作已在原生包完成固定输出、9/9 与右侧预览；真实 LSP Server 和 Retry 故障注入仍按
+  各自证据披露，不能仅凭包已安装就宣称插件体系完成。
 - Managed Labs 本轮已暂停。工作区里的 Lab Manager / WebGoat 实验不能进入 R0.4 发布声明，
   也不能作为 M3 完成条件。
 - NYU CTF Bench 的只读元数据、Admission、DeepSeek 单回合安全静态 Runner 和摘要 Judge

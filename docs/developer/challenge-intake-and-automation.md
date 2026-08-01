@@ -1,6 +1,8 @@
 # Challenge Intake、Browser Use 与 Computer Use
 
-> 状态：依赖准入评审草案；尚未安装或接入第三方运行时代码
+> 状态：**Implemented / Partial**。本地文字/附件/目录、URL/Socket/SSH 和显式 User Browser
+> Bridge 已接线；Managed Browser、普通 Coding Browser/MCP 与 Computer Use 仍是 Planned。
+> 本文中的第三方候选仍只是准入研究，不代表已安装。
 >
 > 评审日期：2026-07-19
 
