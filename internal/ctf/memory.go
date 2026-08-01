@@ -16,7 +16,16 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const TrainingMemorySchemaVersion = "ctf-memory.milksu.dev/v1alpha1"
+const TrainingMemorySchemaVersion = "ctf-memory.milksu.dev/v1alpha2"
+
+type TrainingMemoryVerification string
+
+const (
+	TrainingMemoryJudgeVerified   TrainingMemoryVerification = "judge-verified"
+	TrainingMemoryUserConfirmed   TrainingMemoryVerification = "user-confirmed"
+	TrainingMemoryFailureObserved TrainingMemoryVerification = "failure-observed"
+	TrainingMemoryLegacyUntyped   TrainingMemoryVerification = "legacy-untyped"
+)
 
 var (
 	memoryFlagPattern      = regexp.MustCompile(`(?i)\b(?:flag|nssctf|ctf)\{[^}\r\n]{1,512}\}`)
@@ -26,22 +35,23 @@ var (
 )
 
 type TrainingMemory struct {
-	ID              string    `json:"id"`
-	SchemaVersion   string    `json:"schemaVersion"`
-	Kind            string    `json:"kind"`
-	Title           string    `json:"title"`
-	Summary         string    `json:"summary"`
-	Category        string    `json:"category"`
-	Tags            []string  `json:"tags"`
-	SourceJobID     string    `json:"sourceJobId"`
-	SourceSessionID string    `json:"sourceSessionId,omitempty"`
-	EvidenceRefs    []string  `json:"evidenceRefs"`
-	Confidence      float64   `json:"confidence"`
-	Path            string    `json:"path"`
-	CreatedAt       time.Time `json:"createdAt"`
-	UpdatedAt       time.Time `json:"updatedAt"`
-	ArchivedAt      time.Time `json:"archivedAt,omitempty"`
-	ArchivedReason  string    `json:"archivedReason,omitempty"`
+	ID              string                     `json:"id"`
+	SchemaVersion   string                     `json:"schemaVersion"`
+	Kind            string                     `json:"kind"`
+	Verification    TrainingMemoryVerification `json:"verification"`
+	Title           string                     `json:"title"`
+	Summary         string                     `json:"summary"`
+	Category        string                     `json:"category"`
+	Tags            []string                   `json:"tags"`
+	SourceJobID     string                     `json:"sourceJobId"`
+	SourceSessionID string                     `json:"sourceSessionId,omitempty"`
+	EvidenceRefs    []string                   `json:"evidenceRefs"`
+	Confidence      float64                    `json:"confidence"`
+	Path            string                     `json:"path"`
+	CreatedAt       time.Time                  `json:"createdAt"`
+	UpdatedAt       time.Time                  `json:"updatedAt"`
+	ArchivedAt      time.Time                  `json:"archivedAt,omitempty"`
+	ArchivedReason  string                     `json:"archivedReason,omitempty"`
 }
 
 type TrainingMemoryRecallContext struct {
@@ -90,6 +100,7 @@ CREATE TABLE IF NOT EXISTS ctf_memories (
 	id TEXT PRIMARY KEY,
 	schema_version TEXT NOT NULL,
 	kind TEXT NOT NULL,
+	verification TEXT NOT NULL DEFAULT 'legacy-untyped',
 	title TEXT NOT NULL,
 	summary TEXT NOT NULL,
 	category TEXT NOT NULL,
@@ -112,7 +123,69 @@ CREATE INDEX IF NOT EXISTS idx_ctf_memories_source
 	if err != nil {
 		return fmt.Errorf("migrate CTF memory database: %w", err)
 	}
+	addedVerification, err := ensureTrainingMemoryVerificationColumn(s.database)
+	if err != nil {
+		return fmt.Errorf("migrate CTF memory verification: %w", err)
+	}
+	if addedVerification {
+		if _, err := s.database.Exec(`
+UPDATE ctf_memories
+SET verification = 'legacy-untyped',
+	confidence = CASE WHEN confidence > 0.6 THEN 0.6 ELSE confidence END
+`); err != nil {
+			return fmt.Errorf("downgrade untyped legacy CTF memory confidence: %w", err)
+		}
+	}
 	return nil
+}
+
+func ensureTrainingMemoryVerificationColumn(database *sql.DB) (bool, error) {
+	rows, err := database.Query(`PRAGMA table_info(ctf_memories)`)
+	if err != nil {
+		return false, err
+	}
+	found := false
+	for rows.Next() {
+		var (
+			position     int
+			name         string
+			columnType   string
+			notNull      int
+			defaultValue sql.NullString
+			primaryKey   int
+		)
+		if err := rows.Scan(
+			&position,
+			&name,
+			&columnType,
+			&notNull,
+			&defaultValue,
+			&primaryKey,
+		); err != nil {
+			rows.Close()
+			return false, err
+		}
+		if name == "verification" {
+			found = true
+		}
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return false, err
+	}
+	if err := rows.Close(); err != nil {
+		return false, err
+	}
+	if found {
+		return false, nil
+	}
+	if _, err := database.Exec(`
+ALTER TABLE ctf_memories
+ADD COLUMN verification TEXT NOT NULL DEFAULT 'legacy-untyped'
+`); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (s *MemoryStore) Close() error {
@@ -158,10 +231,8 @@ func (s *MemoryStore) SaveFromProjection(
 	}
 
 	kind := "technique"
-	confidence := 0.7
-	if projection.Debrief.Status == "succeeded" {
-		confidence = 1
-	} else {
+	verification, confidence := classifyTrainingMemory(projection)
+	if projection.Debrief.Status != "succeeded" {
 		kind = "failure-lesson"
 	}
 	candidates := memoryCandidateSecrets(projection)
@@ -196,6 +267,7 @@ func (s *MemoryStore) SaveFromProjection(
 		ID:              memoryID,
 		SchemaVersion:   TrainingMemorySchemaVersion,
 		Kind:            kind,
+		Verification:    verification,
 		Title:           title,
 		Summary:         truncateRunes(summary, 1200),
 		Category:        strings.ToLower(strings.TrimSpace(projection.Challenge.Category)),
@@ -217,13 +289,14 @@ func (s *MemoryStore) SaveFromProjection(
 	_, err = s.database.ExecContext(
 		ctx,
 		`INSERT INTO ctf_memories (
-			id, schema_version, kind, title, summary, category, tags_json,
+			id, schema_version, kind, verification, title, summary, category, tags_json,
 			source_job_id, source_session_id, evidence_refs_json, confidence,
 			path, created_at, updated_at, archived_at, archived_reason
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)
 		ON CONFLICT(source_job_id) DO UPDATE SET
 			schema_version=excluded.schema_version,
 			kind=excluded.kind,
+			verification=excluded.verification,
 			title=excluded.title,
 			summary=excluded.summary,
 			category=excluded.category,
@@ -238,6 +311,7 @@ func (s *MemoryStore) SaveFromProjection(
 		memory.ID,
 		memory.SchemaVersion,
 		memory.Kind,
+		memory.Verification,
 		memory.Title,
 		memory.Summary,
 		memory.Category,
@@ -276,7 +350,7 @@ func (s *MemoryStore) Recall(
 	}
 	rows, err := s.database.QueryContext(
 		ctx,
-		`SELECT id, schema_version, kind, title, summary, category, tags_json,
+		`SELECT id, schema_version, kind, verification, title, summary, category, tags_json,
 			source_job_id, COALESCE(source_session_id, ''), evidence_refs_json,
 			confidence, path, created_at, updated_at,
 			COALESCE(archived_at, ''), COALESCE(archived_reason, '')
@@ -417,6 +491,8 @@ func WriteAgentMemoryContext(workspacePath string, memories []TrainingMemory) er
 			builder.WriteString(memory.Summary)
 			builder.WriteString("\n\n- 类型：")
 			builder.WriteString(memory.Kind)
+			builder.WriteString("\n- 验证等级：")
+			builder.WriteString(trainingMemoryVerificationLabel(memory.Verification))
 			builder.WriteString("\n- 置信度：")
 			builder.WriteString(fmt.Sprintf("%.2f", memory.Confidence))
 			builder.WriteString("\n- 标签：")
@@ -448,6 +524,7 @@ func scanTrainingMemory(scanner memoryScanner) (TrainingMemory, error) {
 		&memory.ID,
 		&memory.SchemaVersion,
 		&memory.Kind,
+		&memory.Verification,
 		&memory.Title,
 		&memory.Summary,
 		&memory.Category,
@@ -478,6 +555,34 @@ func scanTrainingMemory(scanner memoryScanner) (TrainingMemory, error) {
 	return memory, nil
 }
 
+func classifyTrainingMemory(projection Projection) (TrainingMemoryVerification, float64) {
+	if projection.Debrief.Status != "succeeded" {
+		return TrainingMemoryFailureObserved, 0.7
+	}
+	for _, receipt := range projection.JudgeReceipts {
+		if receipt.Correct != nil && *receipt.Correct {
+			return TrainingMemoryJudgeVerified, 1
+		}
+	}
+	if !strings.EqualFold(strings.TrimSpace(projection.Challenge.JudgeType), "external.manual") {
+		return TrainingMemoryJudgeVerified, 1
+	}
+	return TrainingMemoryUserConfirmed, 0.8
+}
+
+func trainingMemoryVerificationLabel(value TrainingMemoryVerification) string {
+	switch value {
+	case TrainingMemoryJudgeVerified:
+		return "Judge 或确定性评测已验证"
+	case TrainingMemoryUserConfirmed:
+		return "用户根据平台结果确认，尚无机器可读回执"
+	case TrainingMemoryFailureObserved:
+		return "训练失败分支与复盘已记录"
+	default:
+		return "旧记录，原始验证等级不可追溯"
+	}
+}
+
 func renderTrainingMemory(
 	memory TrainingMemory,
 	projection Projection,
@@ -488,6 +593,10 @@ func renderTrainingMemory(
 	builder.WriteString(memory.Title)
 	builder.WriteString("\n\n")
 	builder.WriteString(memory.Summary)
+	builder.WriteString("\n\n## 可信度\n\n- 验证等级：")
+	builder.WriteString(trainingMemoryVerificationLabel(memory.Verification))
+	builder.WriteString("\n- 置信度：")
+	builder.WriteString(fmt.Sprintf("%.2f", memory.Confidence))
 	builder.WriteString("\n\n## 关键观察\n")
 	writeMemoryBullets(&builder, projection.Debrief.KeyObservations, redact)
 	builder.WriteString("\n## 已证伪或失败分支\n")

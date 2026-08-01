@@ -106,6 +106,13 @@ function formatCategory(value: string) {
   return labels[normalized] ?? value
 }
 
+function memoryVerificationLabel(memory: CTFTrainingMemory) {
+  if (memory.verification === 'judge-verified') return 'Judge 验证'
+  if (memory.verification === 'user-confirmed') return '用户确认'
+  if (memory.verification === 'failure-observed') return '失败观察'
+  return '旧记录 · 未分级'
+}
+
 const props = defineProps<{
   modelReady: boolean
   modelVerified: boolean
@@ -3341,7 +3348,7 @@ onBeforeUnmount(() => {
                         </div>
                         <div class="mt-2 flex flex-wrap items-center gap-1.5">
                           <Badge variant="outline">
-                            {{ memory.kind === 'failure-lesson' ? '失败教训' : '已验证技法' }}
+                            {{ memoryVerificationLabel(memory) }}
                           </Badge>
                           <Badge variant="outline">置信 {{ Math.round(memory.confidence * 100) }}%</Badge>
                           <Badge v-for="tag in memory.tags.slice(0, 2)" :key="tag" variant="secondary">

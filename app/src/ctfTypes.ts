@@ -338,6 +338,7 @@ export interface CTFTrainingMemory {
   id: string
   schemaVersion: string
   kind: 'technique' | 'failure-lesson'
+  verification: 'judge-verified' | 'user-confirmed' | 'failure-observed' | 'legacy-untyped'
   title: string
   summary: string
   category: string
