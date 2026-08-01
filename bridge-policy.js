@@ -69,6 +69,34 @@ const codingArchitectureToolNames = [
   "milksu_archify",
   "milksu_progress",
 ];
+const codingProductReadOnlyToolNames = [
+  "read",
+  "grep",
+  "find",
+  "ls",
+  "milksu_progress",
+  "lsp_diagnostics",
+];
+const codingProductTestToolNames = [
+  "read",
+  "bash",
+  "grep",
+  "find",
+  "ls",
+  "milksu_progress",
+  "lsp_diagnostics",
+];
+const codingProductFixToolNames = [
+  "read",
+  "bash",
+  "edit",
+  "write",
+  "grep",
+  "find",
+  "ls",
+  "milksu_progress",
+  "lsp_diagnostics",
+];
 // A Coding session must construct the full reviewed tool catalog up front.
 // Pi's setActiveTools() can narrow or restore tools that already exist, but it
 // cannot add definitions that were omitted when createAgentSession() ran.
@@ -1707,6 +1735,13 @@ export function normalizeCodingPolicy(
 }
 
 const codingArchitectureHeader = "[MilkSU product action: Generate architecture diagram]";
+const codingProductActionHeaders = new Map([
+  ["[MilkSU product action: Understand project]", "understand"],
+  ["[MilkSU product action: Run tests]", "test"],
+  ["[MilkSU product action: Review changes]", "review"],
+  ["[MilkSU product action: Fix failure]", "fix"],
+  ["[MilkSU product action: Summarize work]", "summary"],
+]);
 
 export function parseCodingProductAction(prompt) {
   const value = String(prompt || "");
@@ -1720,15 +1755,17 @@ export function parseCodingProductAction(prompt) {
       htmlPath,
     };
   }
-  if (value.startsWith("[MilkSU product action: Run tests]")) {
-    return { kind: "test" };
+  for (const [header, kind] of codingProductActionHeaders) {
+    if (value.startsWith(header)) return { kind };
   }
   return undefined;
 }
 
 function normalizedCodingProductAction(workspace, value) {
   if (!value || typeof value !== "object") return undefined;
-  if (value.kind === "test") return { kind: "test" };
+  if (["understand", "test", "review", "fix", "summary"].includes(value.kind)) {
+    return { kind: value.kind };
+  }
   if (value.kind !== "architecture") return undefined;
   const normalizeOutput = (path, extension) => {
     const candidate = String(path || "").trim().replaceAll("\\", "/");
@@ -1752,9 +1789,11 @@ function normalizedCodingProductAction(workspace, value) {
 
 function codingProductActionTools(action, fallback) {
   if (action?.kind === "architecture") return [...codingArchitectureToolNames];
-  if (action?.kind === "test") {
-    return ["read", "bash", "grep", "find", "ls", "milksu_progress", "lsp_diagnostics"];
+  if (["understand", "review", "summary"].includes(action?.kind)) {
+    return [...codingProductReadOnlyToolNames];
   }
+  if (action?.kind === "test") return [...codingProductTestToolNames];
+  if (action?.kind === "fix") return [...codingProductFixToolNames];
   return fallback;
 }
 
@@ -1955,18 +1994,20 @@ async function createCodingToolDefinitions(
       false,
     );
     const relativePath = relative(root, safePath).replaceAll("\\", "/");
-    const architecturePathAllowed = relativePath === productAction?.specPath
-      || (
-        allowArchitectureParent
-        && (
-          relativePath === ""
-          || productAction?.specPath.startsWith(`${relativePath}/`)
-        )
-      );
-    if (productAction?.kind === "architecture" && !architecturePathAllowed) {
-      throw new Error(
-        `MilkSU architecture action only allows writing ${productAction.specPath}`,
-      );
+    if (productAction?.kind === "architecture") {
+      const architecturePathAllowed = relativePath === productAction.specPath
+        || (
+          allowArchitectureParent
+          && (
+            relativePath === ""
+            || productAction.specPath.startsWith(`${relativePath}/`)
+          )
+        );
+      if (!architecturePathAllowed) {
+        throw new Error(
+          `MilkSU architecture action only allows writing ${productAction.specPath}`,
+        );
+      }
     }
     return safePath;
   };

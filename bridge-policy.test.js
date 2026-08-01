@@ -295,6 +295,128 @@ test("Architecture product action gets a narrow typed tool policy", async () => 
   await access(join(workspace, htmlRelative));
 });
 
+test("Daily Coding product actions get action-specific tool policies", async () => {
+  const workspace = await mkdtemp(join(
+    process.platform === "darwin" ? "/private/tmp" : tmpdir(),
+    "milksu-product-actions-",
+  ));
+  const readOnlyTools = [
+    "read",
+    "grep",
+    "find",
+    "ls",
+    "milksu_progress",
+    "lsp_diagnostics",
+  ];
+  const testTools = [
+    "read",
+    "bash",
+    "grep",
+    "find",
+    "ls",
+    "milksu_progress",
+    "lsp_diagnostics",
+  ];
+  const fixTools = [
+    "read",
+    "bash",
+    "edit",
+    "write",
+    "grep",
+    "find",
+    "ls",
+    "milksu_progress",
+    "lsp_diagnostics",
+  ];
+  const cases = [
+    {
+      header: "[MilkSU product action: Understand project]",
+      kind: "understand",
+      executionMode: "plan",
+      tools: readOnlyTools,
+    },
+    {
+      header: "[MilkSU product action: Run tests]",
+      kind: "test",
+      executionMode: "go",
+      tools: testTools,
+    },
+    {
+      header: "[MilkSU product action: Review changes]",
+      kind: "review",
+      executionMode: "plan",
+      tools: readOnlyTools,
+    },
+    {
+      header: "[MilkSU product action: Fix failure]",
+      kind: "fix",
+      executionMode: "go",
+      tools: fixTools,
+    },
+    {
+      header: "[MilkSU product action: Summarize work]",
+      kind: "summary",
+      executionMode: "plan",
+      tools: readOnlyTools,
+    },
+  ];
+
+  for (const value of cases) {
+    const action = parseCodingProductAction(`${value.header}\nexecute now`);
+    assert.deepEqual(action, { kind: value.kind });
+    const policy = await loadSessionPolicy(workspace, "", {
+      executionMode: value.executionMode,
+      approvalPolicy: "workspace-auto",
+      productAction: action,
+    });
+    assert.deepEqual(policy.activeTools, value.tools);
+    assert.deepEqual(policy.productAction, { kind: value.kind });
+  }
+
+  const understand = await loadSessionPolicy(workspace, "", {
+    executionMode: "plan",
+    approvalPolicy: "workspace-auto",
+    productAction: { kind: "understand" },
+  });
+  assert.equal(understand.activeTools.includes("bash"), false);
+  assert.equal(understand.activeTools.includes("edit"), false);
+  assert.equal(understand.activeTools.includes("write"), false);
+
+  const testAction = await loadSessionPolicy(workspace, "", {
+    executionMode: "go",
+    approvalPolicy: "workspace-auto",
+    productAction: { kind: "test" },
+  });
+  assert.equal(testAction.activeTools.includes("bash"), true);
+  assert.equal(testAction.activeTools.includes("edit"), false);
+  assert.equal(testAction.activeTools.includes("write"), false);
+
+  const fix = await loadSessionPolicy(workspace, "", {
+    executionMode: "go",
+    approvalPolicy: "workspace-auto",
+    productAction: { kind: "fix" },
+  });
+  assert.equal(fix.activeTools.includes("bash"), true);
+  assert.equal(fix.activeTools.includes("edit"), true);
+  assert.equal(fix.activeTools.includes("write"), true);
+  assert.equal(fix.activeTools.includes("milksu_archify"), false);
+  const write = fix.customTools.find(tool => tool.name === "write");
+  await write.execute(
+    "write-fix-regression",
+    {
+      path: join(workspace, "src", "created-by-fix.js"),
+      content: "export const fixed = true\n",
+    },
+    undefined,
+    undefined,
+    {},
+  );
+  assert.equal(
+    await readFile(join(workspace, "src", "created-by-fix.js"), "utf8"),
+    "export const fixed = true\n",
+  );
+});
+
 test("Go Project Auto runs normal development commands but contains filesystem writes", {
   skip: process.platform !== "darwin",
 }, async () => {

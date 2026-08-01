@@ -51,6 +51,8 @@ Do not modify files or run mutating commands. Return a compact project brief wit
 3. how to build, test, and run it, citing the exact files that prove each command;
 4. the three highest-impact areas for the next coding task;
 5. uncertainties that require evidence rather than guesses.
+Use exactly those five numbered headings. Section 4 must contain exactly three numbered items; move
+contract ambiguities and other unresolved questions into section 5 instead of adding a fourth action.
 Prefer direct repository evidence over README claims when they disagree.`,
   },
   test: {

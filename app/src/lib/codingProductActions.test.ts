@@ -34,6 +34,8 @@ describe('Coding product actions', () => {
   })
 
   it('requires review findings to be source-backed and fix to reproduce first', () => {
+    expect(codingProductAction('understand').prompt)
+      .toContain('exactly three numbered items')
     expect(codingProductAction('review').prompt)
       .toContain('workspace-relative file')
     expect(codingProductAction('review').prompt)
