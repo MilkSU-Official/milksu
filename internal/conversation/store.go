@@ -14,16 +14,25 @@ import (
 var validID = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
 
 type StoredMessage struct {
-	ID                string  `json:"id"`
-	Role              string  `json:"role"`
-	Content           string  `json:"content"`
-	Timestamp         uint64  `json:"timestamp"`
-	ToolName          *string `json:"toolName,omitempty"`
-	Status            *string `json:"status,omitempty"`
-	ApprovalRequestID *string `json:"approvalRequestId,omitempty"`
-	ApprovalInput     *string `json:"approvalInput,omitempty"`
-	ApprovalState     *string `json:"approvalState,omitempty"`
-	ApprovalReason    *string `json:"approvalReason,omitempty"`
+	ID                string             `json:"id"`
+	Role              string             `json:"role"`
+	Content           string             `json:"content"`
+	Timestamp         uint64             `json:"timestamp"`
+	ToolName          *string            `json:"toolName,omitempty"`
+	Status            *string            `json:"status,omitempty"`
+	ApprovalRequestID *string            `json:"approvalRequestId,omitempty"`
+	ApprovalInput     *string            `json:"approvalInput,omitempty"`
+	ApprovalState     *string            `json:"approvalState,omitempty"`
+	ApprovalReason    *string            `json:"approvalReason,omitempty"`
+	Attachments       []StoredAttachment `json:"attachments,omitempty"`
+}
+
+type StoredAttachment struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	MediaType string `json:"mediaType"`
+	Size      int64  `json:"size"`
+	SHA256    string `json:"sha256"`
 }
 
 type StoredCapability struct {

@@ -23,6 +23,7 @@ import (
 
 	"github.com/MilkSU-Official/milksu/internal/appdata"
 	"github.com/MilkSU-Official/milksu/internal/browsercap"
+	"github.com/MilkSU-Official/milksu/internal/codingattachment"
 	"github.com/MilkSU-Official/milksu/internal/codingenv"
 	"github.com/MilkSU-Official/milksu/internal/config"
 	"github.com/MilkSU-Official/milksu/internal/conversation"
@@ -43,6 +44,7 @@ type App struct {
 	dataDirectory  string
 	settings       *config.Store
 	conversations  *conversation.Store
+	codingFiles    *codingattachment.Store
 	engines        *engine.Supervisor
 	securityEngine *engine.SecuritySupervisor
 	nssctf         *nssctf.Client
@@ -71,11 +73,18 @@ func NewApp() (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+	codingFiles, err := codingattachment.NewStore(
+		filepath.Join(dataDirectory, "agent-home", "attachments"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create Coding attachment store: %w", err)
+	}
 
 	application := &App{
 		dataDirectory: dataDirectory,
 		settings:      settings,
 		conversations: conversations,
+		codingFiles:   codingFiles,
 	}
 	if managedLabsFeatureEnabled() {
 		application.managedLabs, err = labmanager.New(dataDirectory)
@@ -281,6 +290,29 @@ func (a *App) ChooseCTFMaterials() ([]ctf.MaterialRequest, error) {
 	return loadLocalCTFMaterials(paths)
 }
 
+func (a *App) ChooseCodingAttachments() ([]codingattachment.Attachment, error) {
+	if a.ctx == nil {
+		return nil, fmt.Errorf("desktop runtime is not ready")
+	}
+	paths, err := wailsruntime.OpenMultipleFilesDialog(a.ctx, wailsruntime.OpenDialogOptions{
+		Title: "添加 Coding 文件或图片",
+		Filters: []wailsruntime.FileFilter{
+			{
+				DisplayName: "代码、文档与图片",
+				Pattern:     "*.png;*.jpg;*.jpeg;*.gif;*.webp;*.svg;*.txt;*.md;*.json;*.yaml;*.yml;*.toml;*.xml;*.html;*.css;*.js;*.jsx;*.ts;*.tsx;*.vue;*.py;*.go;*.rs;*.c;*.cpp;*.h;*.java;*.kt;*.swift;*.sh;*.sql;*.csv;*.pdf;*.zip;*.gz;*.tar",
+			},
+			{DisplayName: "所有文件", Pattern: "*"},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(paths) == 0 {
+		return []codingattachment.Attachment{}, nil
+	}
+	return a.codingFiles.Import(paths)
+}
+
 const (
 	maxLocalCTFMaterialCount = 8
 	maxLocalCTFMaterialBytes = 32 * 1024 * 1024
@@ -368,6 +400,7 @@ func (a *App) SendMessage(
 	modelID,
 	executionMode,
 	approvalPolicy string,
+	attachments []codingattachment.Attachment,
 ) error {
 	sessionRole := ""
 	if a.ctfAgent != nil {
@@ -400,6 +433,7 @@ func (a *App) SendMessage(
 		sessionRole,
 		executionMode,
 		approvalPolicy,
+		attachments,
 		settings,
 	)
 }

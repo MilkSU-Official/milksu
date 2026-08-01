@@ -43,6 +43,7 @@ import {
   LoaderCircle,
   LockKeyhole,
   Network,
+  Paperclip,
   PanelRightClose,
   PanelRightOpen,
   Puzzle,
@@ -55,6 +56,7 @@ import {
   StickyNote,
   Terminal,
   Wrench,
+  X,
 } from 'lucide-vue-next'
 import { invokeCommand } from '@/desktop'
 import CodingChangesPanel from '@/components-vue/CodingChangesPanel.vue'
@@ -86,6 +88,7 @@ import type {
 import type {
   AppSettings,
   CodingApprovalPolicy,
+  CodingAttachment,
   CodingExecutionMode,
   Conversation,
   CTFChatAction,
@@ -109,7 +112,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  send: [text: string, visibleText?: string]
+  send: [text: string, visibleText?: string, attachments?: CodingAttachment[]]
   ctfAction: [action: CTFChatAction]
   abort: []
   chooseWorkspace: []
@@ -125,6 +128,8 @@ const emit = defineEmits<{
 }>()
 
 const draft = ref('')
+const pendingAttachments = ref<CodingAttachment[]>([])
+const attachmentError = ref('')
 const scrollArea = ref<HTMLElement | null>(null)
 const workshopState = ref<CTFToolWorkshopState | null>(null)
 const environmentOpen = ref(!props.ctfSession)
@@ -391,10 +396,49 @@ const ctfActionOptions = computed(() => {
 })
 
 function submit() {
+  const attachments = [...pendingAttachments.value]
   const text = draft.value.trim()
+    || (attachments.length ? '请检查这些附件并完成我接下来需要处理的任务。' : '')
   if (!text || props.running) return
   draft.value = ''
-  emit('send', text)
+  pendingAttachments.value = []
+  attachmentError.value = ''
+  emit('send', text, text, attachments)
+}
+
+function formatAttachmentSize(size: number) {
+  if (size >= 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`
+  if (size >= 1024) return `${(size / 1024).toFixed(1)} KB`
+  return `${size} B`
+}
+
+async function chooseCodingAttachments() {
+  if (props.running || props.ctfSession) return
+  attachmentError.value = ''
+  try {
+    const selected = await invokeCommand<CodingAttachment[]>('choose_coding_attachments')
+    const merged = new Map(
+      pendingAttachments.value.map(value => [`${value.id}:${value.name}`, value]),
+    )
+    for (const attachment of selected) {
+      merged.set(`${attachment.id}:${attachment.name}`, attachment)
+    }
+    if (merged.size > 8) {
+      attachmentError.value = '每条消息最多添加 8 个附件。'
+      return
+    }
+    pendingAttachments.value = [...merged.values()]
+  } catch (reason) {
+    attachmentError.value = reason instanceof Error
+      ? reason.message
+      : '暂时无法添加附件。'
+  }
+}
+
+function removeCodingAttachment(attachment: CodingAttachment) {
+  pendingAttachments.value = pendingAttachments.value.filter(value => (
+    value.id !== attachment.id || value.name !== attachment.name
+  ))
 }
 
 function changeModel(value: string) {
@@ -848,6 +892,22 @@ watch(
             class="break-words text-label leading-7"
             :class="message.role === 'user' ? 'rounded-xl bg-chat-user-bubble px-4 py-3 text-chat-user-bubble-fg' : ''"
           >
+            <div
+              v-if="message.attachments?.length"
+              class="mb-2 flex flex-wrap gap-2"
+              aria-label="消息附件"
+            >
+              <span
+                v-for="attachment in message.attachments"
+                :key="`${attachment.id}:${attachment.name}`"
+                class="inline-flex max-w-full items-center gap-2 rounded-lg border border-current/15 bg-background/20 px-2.5 py-1.5 text-caption"
+                :title="`${attachment.mediaType} · sha256:${attachment.sha256}`"
+              >
+                <FileText class="size-3.5 shrink-0" />
+                <span class="truncate">{{ attachment.name }}</span>
+                <span class="shrink-0 opacity-65">{{ formatAttachmentSize(attachment.size) }}</span>
+              </span>
+            </div>
             <MarkdownContent :content="message.content" :compact="message.role === 'user'" />
             <LoaderCircle v-if="message.status === 'running'" class="ml-2 inline size-3.5 animate-spin text-muted-foreground" />
           </div>
@@ -1164,36 +1224,83 @@ watch(
           </Button>
         </div>
 
-        <form class="chat-composer__island flex items-end gap-2" @submit.prevent="submit">
-          <Textarea
-            v-model="draft"
-            class="max-h-40 min-h-11 resize-none border-0 bg-transparent shadow-none focus-visible:ring-0"
-            :placeholder="ctfSession
-              ? ctfRole === 'strategist'
-                ? '补充你希望独立复盘的卡点或失败路线…'
-                : ctfRole === 'tool-builder'
-                  ? '告诉 Coding Agent 要实现或修正的本题工具…'
-                  : '告诉 Agent 你的观察、假设，或直接使用上面的快捷协作…'
-              : workspacePath
-                ? `让 Agent 在 ${workspaceName} 中完成任务…`
-                : '在临时沙盒中开始，或先选择一个项目…'"
-            aria-label="消息"
-            @keydown.enter.exact.prevent="submit"
-          />
-          <Button
-            v-if="running"
-            type="button"
-            variant="destructive"
-            size="icon"
-            aria-label="停止 Agent"
-            @click="$emit('abort')"
+        <form class="chat-composer__island flex flex-col gap-1" @submit.prevent="submit">
+          <div
+            v-if="pendingAttachments.length"
+            class="flex flex-wrap gap-2 px-1 pb-1"
+            aria-label="待发送附件"
           >
-            <Square class="size-3.5 fill-current" />
-          </Button>
-          <Button v-else type="submit" variant="brand" size="icon" :disabled="!draft.trim()" aria-label="发送">
-            <ArrowUp class="size-4" />
-          </Button>
+            <span
+              v-for="attachment in pendingAttachments"
+              :key="`${attachment.id}:${attachment.name}`"
+              class="inline-flex max-w-full items-center gap-2 rounded-lg border border-border bg-muted/60 px-2.5 py-1.5 text-caption"
+              :title="`${attachment.mediaType} · ${formatAttachmentSize(attachment.size)}`"
+            >
+              <FileText class="size-3.5 shrink-0 text-muted-foreground" />
+              <span class="max-w-52 truncate">{{ attachment.name }}</span>
+              <button
+                type="button"
+                class="rounded-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                :aria-label="`移除 ${attachment.name}`"
+                @click="removeCodingAttachment(attachment)"
+              >
+                <X class="size-3.5" />
+              </button>
+            </span>
+          </div>
+          <div class="flex items-end gap-2">
+            <Button
+              v-if="!ctfSession"
+              type="button"
+              variant="ghost"
+              size="icon"
+              :disabled="running"
+              aria-label="添加文件或图片"
+              title="添加文件或图片；文件会安全复制到 MilkSU 用户数据目录"
+              @click="chooseCodingAttachments"
+            >
+              <Paperclip class="size-4" />
+            </Button>
+            <Textarea
+              v-model="draft"
+              class="max-h-40 min-h-11 flex-1 resize-none border-0 bg-transparent shadow-none focus-visible:ring-0"
+              :placeholder="ctfSession
+                ? ctfRole === 'strategist'
+                  ? '补充你希望独立复盘的卡点或失败路线…'
+                  : ctfRole === 'tool-builder'
+                    ? '告诉 Coding Agent 要实现或修正的本题工具…'
+                    : '告诉 Agent 你的观察、假设，或直接使用上面的快捷协作…'
+                : workspacePath
+                  ? `让 Agent 在 ${workspaceName} 中完成任务…`
+                  : '在临时沙盒中开始，或先选择一个项目…'"
+              aria-label="消息"
+              @keydown.enter.exact.prevent="submit"
+            />
+            <Button
+              v-if="running"
+              type="button"
+              variant="destructive"
+              size="icon"
+              aria-label="停止 Agent"
+              @click="$emit('abort')"
+            >
+              <Square class="size-3.5 fill-current" />
+            </Button>
+            <Button
+              v-else
+              type="submit"
+              variant="brand"
+              size="icon"
+              :disabled="!draft.trim() && !pendingAttachments.length"
+              aria-label="发送"
+            >
+              <ArrowUp class="size-4" />
+            </Button>
+          </div>
         </form>
+        <p v-if="attachmentError" class="px-2 pt-1.5 text-caption text-destructive">
+          {{ attachmentError }}
+        </p>
       </div>
     </div>
   </main>

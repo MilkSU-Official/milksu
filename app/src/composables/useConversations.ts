@@ -8,11 +8,41 @@ import {
 } from '@/lib/codingPolicy'
 import type {
   CodingApprovalPolicy,
+  CodingAttachment,
   CodingCapability,
   CodingExecutionMode,
   Conversation,
   Message,
 } from '@/types'
+
+function normalizeAttachments(value: unknown): CodingAttachment[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const attachments = value.flatMap(item => {
+    if (!item || typeof item !== 'object') return []
+    const attachment = item as Record<string, unknown>
+    const id = String(attachment.id ?? '').toLowerCase()
+    const sha256 = String(attachment.sha256 ?? '').toLowerCase()
+    const name = String(attachment.name ?? '')
+    const size = Number(attachment.size ?? 0)
+    if (
+      !/^[a-f0-9]{64}$/.test(id)
+      || sha256 !== id
+      || !name
+      || name.length > 320
+      || !Number.isSafeInteger(size)
+      || size <= 0
+      || size > 32 * 1024 * 1024
+    ) return []
+    return [{
+      id,
+      sha256,
+      name,
+      mediaType: String(attachment.mediaType ?? 'application/octet-stream'),
+      size,
+    }]
+  })
+  return attachments.length ? attachments.slice(0, 8) : undefined
+}
 
 interface AgentEvent {
   sessionId?: string
@@ -117,6 +147,7 @@ export function normalizeConversation(raw: Record<string, unknown>): Conversatio
           : typeof message.approvalReason === 'string'
             ? message.approvalReason
             : undefined,
+        attachments: normalizeAttachments(message.attachments),
       }
     }),
   }
@@ -306,7 +337,11 @@ export function useConversations() {
     await send(task.prompt)
   }
 
-  async function send(text: string, visibleText = text) {
+  async function send(
+    text: string,
+    visibleText = text,
+    attachments: CodingAttachment[] = [],
+  ) {
     const prompt = text.trim()
     if (!prompt) return
     const visiblePrompt = visibleText.trim() || prompt
@@ -315,6 +350,7 @@ export function useConversations() {
       role: 'user',
       content: visiblePrompt,
       timestamp: Date.now(),
+      attachments: attachments.length ? attachments : undefined,
     }
     let conversationId = activeId.value
     if (!conversationId) {
@@ -353,6 +389,7 @@ export function useConversations() {
         modelId: conversation?.modelId ?? '',
         executionMode: conversation?.executionMode ?? DEFAULT_CODING_EXECUTION_MODE,
         approvalPolicy: conversation?.approvalPolicy ?? DEFAULT_CODING_APPROVAL_POLICY,
+        attachments,
       })
     } catch (reason) {
       const nextRunning = new Set(runningIds.value)

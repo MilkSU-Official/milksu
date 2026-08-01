@@ -1,5 +1,13 @@
 export type MessageRole = 'user' | 'assistant' | 'tool'
 
+export interface CodingAttachment {
+  id: string
+  name: string
+  mediaType: string
+  size: number
+  sha256: string
+}
+
 export interface Message {
   id: string
   role: MessageRole
@@ -11,6 +19,7 @@ export interface Message {
   approvalInput?: string
   approvalState?: 'pending' | 'approved' | 'denied' | 'expired'
   approvalReason?: string
+  attachments?: CodingAttachment[]
 }
 
 export type CodingExecutionMode = 'plan' | 'go'

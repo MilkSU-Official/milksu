@@ -20,6 +20,7 @@ import {
   applyCodingResourcePolicy,
   describeLoadedExtensions,
 } from "./bridge-resource-policy.js";
+import { preparePromptAttachments } from "./bridge-attachments.js";
 
 const relayKey = process.env.MILKSU_RELAY_KEY;
 const relayUrl = process.env.MILKSU_RELAY_URL || "https://api.ciyuanliudong.com/v1";
@@ -412,6 +413,15 @@ function reviewedCodingSkillPaths(sessionRole = "") {
   ].filter((path) => existsSync(join(path, "SKILL.md"))).slice(0, 1);
 }
 
+function reviewedCodingResourceRoots(sessionRole = "") {
+  if (sessionRole) return [];
+  const attachmentRoot = process.env.MILKSU_CODING_ATTACHMENT_ROOT;
+  return [
+    ...reviewedCodingSkillPaths(sessionRole),
+    attachmentRoot,
+  ].filter((path) => path && existsSync(path));
+}
+
 async function loadRuntimeSessionPolicy(cwd, command) {
   let policy = await loadSessionPolicy(cwd, command.sessionRole, {
     executionMode: command.executionMode,
@@ -421,11 +431,12 @@ async function loadRuntimeSessionPolicy(cwd, command) {
     ? command.sessionRole || "solver"
     : "";
   const codingSkillPaths = reviewedCodingSkillPaths(effectiveSessionRole);
-  if (!policy.ctf && codingSkillPaths.length) {
+  const codingResourceRoots = reviewedCodingResourceRoots(effectiveSessionRole);
+  if (!policy.ctf && codingResourceRoots.length) {
     policy = await loadSessionPolicy(cwd, command.sessionRole, {
       executionMode: command.executionMode,
       approvalPolicy: command.approvalPolicy,
-      readOnlyResourceRoots: codingSkillPaths,
+      readOnlyResourceRoots: codingResourceRoots,
     });
   }
   return { policy, effectiveSessionRole, codingSkillPaths };
@@ -577,7 +588,21 @@ async function sendMessage(command) {
   }
 
   const previous = promptQueues.get(conversationId) ?? Promise.resolve();
-  const next = previous.then(() => session.prompt(command.prompt ?? ""));
+  const next = previous.then(async () => {
+    const attachmentRoot = process.env.MILKSU_CODING_ATTACHMENT_ROOT;
+    const supportsImages = Array.isArray(session.model?.input)
+      && session.model.input.includes("image");
+    const prepared = await preparePromptAttachments(
+      command.attachments,
+      attachmentRoot,
+      supportsImages,
+    );
+    const prompt = `${command.prompt ?? ""}${prepared.context}`;
+    await session.prompt(
+      prompt,
+      prepared.images.length ? { images: prepared.images } : undefined,
+    );
+  });
   promptQueues.set(conversationId, next.catch(() => undefined));
   try {
     await next;

@@ -42,6 +42,11 @@ func TestStorePreservesCTFLearningContext(t *testing.T) {
 		CTFMode:  "coach",
 		Messages: []StoredMessage{{
 			ID: "message-1", Role: "user", Content: "先帮我梳理题面", Timestamp: 43,
+			Attachments: []StoredAttachment{{
+				ID:   "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+				Name: "evidence.png", MediaType: "image/png", Size: 42,
+				SHA256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+			}},
 		}, {
 			ID:                "message-2",
 			Role:              "tool",

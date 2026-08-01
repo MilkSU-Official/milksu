@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/MilkSU-Official/milksu/internal/codingattachment"
 	"github.com/MilkSU-Official/milksu/internal/config"
 )
 
@@ -156,6 +157,7 @@ func (s *Supervisor) SendMessage(
 	sessionRole string,
 	executionMode string,
 	approvalPolicy string,
+	attachments []codingattachment.Attachment,
 	settings config.AppSettings,
 ) error {
 	if strings.TrimSpace(sessionID) == "" {
@@ -195,6 +197,7 @@ func (s *Supervisor) SendMessage(
 		"sessionRole":    strings.TrimSpace(sessionRole),
 		"executionMode":  codingPolicy.ExecutionMode,
 		"approvalPolicy": codingPolicy.ApprovalPolicy,
+		"attachments":    attachments,
 	}); err != nil {
 		return fmt.Errorf("send engine message: %w", err)
 	}
@@ -270,6 +273,7 @@ func (s *Supervisor) ProbeModel(settings config.AppSettings) (ModelProbeResult, 
 		"",
 		"",
 		"",
+		nil,
 		settings,
 	); err != nil {
 		return ModelProbeResult{}, err

@@ -2,6 +2,7 @@ import {
   DEFAULT_MODEL_ROUTING,
   withAppSettingsDefaults,
   type AppSettings,
+  type CodingAttachment,
   type ModelProbeResult,
 } from './types'
 import type {
@@ -71,6 +72,7 @@ interface WailsAppBindings {
   DeleteConversation(id: string): Promise<void>
   ChooseAgentWorkspace(): Promise<string>
   ChooseCTFMaterials(): Promise<CTFMaterialRequest[]>
+  ChooseCodingAttachments(): Promise<CodingAttachment[]>
   SendMessage(
     conversationId: string,
     prompt: string,
@@ -80,6 +82,7 @@ interface WailsAppBindings {
     modelId: string,
     executionMode: string,
     approvalPolicy: string,
+    attachments: CodingAttachment[],
   ): Promise<void>
   AbortMessage(conversationId: string): Promise<void>
   RespondToolApproval(
@@ -327,6 +330,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.ChooseAgentWorkspace() as Promise<T>
       case 'choose_ctf_materials':
         return app.ChooseCTFMaterials() as Promise<T>
+      case 'choose_coding_attachments':
+        return app.ChooseCodingAttachments() as Promise<T>
       case 'send_message':
         return app.SendMessage(
           args?.conversationId as string,
@@ -337,6 +342,7 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
           (args?.modelId as string) ?? '',
           (args?.executionMode as string) ?? '',
           (args?.approvalPolicy as string) ?? '',
+          (args?.attachments as CodingAttachment[]) ?? [],
         ) as Promise<T>
       case 'abort_message':
         return app.AbortMessage(args?.conversationId as string) as Promise<T>
@@ -555,6 +561,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
     }
     case 'choose_agent_workspace':
       throw new Error('请在 MilkSU 桌面应用中选择项目目录。')
+    case 'choose_coding_attachments':
+      throw new Error('请在 MilkSU 桌面应用中选择文件或图片。')
     case 'list_managed_lab_packages':
     case 'list_managed_lab_instances':
       return [] as T

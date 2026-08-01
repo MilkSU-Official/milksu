@@ -26,6 +26,10 @@ func sidecarEnvironment(settings config.AppSettings) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	attachmentRoot := filepath.Join(runtimeHome, "attachments")
+	if err := os.MkdirAll(attachmentRoot, 0o700); err != nil {
+		return nil, fmt.Errorf("create Coding attachment directory: %w", err)
+	}
 	userHome, err := os.UserHomeDir()
 	if err != nil {
 		return nil, fmt.Errorf("resolve local user home: %w", err)
@@ -41,6 +45,7 @@ func sidecarEnvironment(settings config.AppSettings) ([]string, error) {
 		filtered,
 		"HOME="+runtimeHome,
 		"MILKSU_PI_AGENT_DIR="+filepath.Join(runtimeHome, "pi"),
+		"MILKSU_CODING_ATTACHMENT_ROOT="+attachmentRoot,
 		"MILKSU_USER_HOME="+userHome,
 	)
 	if socket := strings.TrimSpace(os.Getenv("SSH_AUTH_SOCK")); socket != "" {
