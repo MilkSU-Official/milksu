@@ -128,10 +128,12 @@ func withWorkspaceTemporaryDirectory(environment []string, workspace string) ([]
 		return nil, err
 	}
 	temporaryDirectory := filepath.Join(runtimeDirectory, "tmp")
+	backgroundTasksDirectory := filepath.Join(runtimeDirectory, "background-tasks")
 	for _, directory := range []string{
 		filepath.Join(runtimeDirectory, "home"),
 		temporaryDirectory,
 		filepath.Join(runtimeDirectory, "runtime-bin"),
+		backgroundTasksDirectory,
 	} {
 		if err := os.MkdirAll(directory, 0o700); err != nil {
 			return nil, fmt.Errorf("create Sidecar workspace runtime directory: %w", err)
@@ -140,7 +142,8 @@ func withWorkspaceTemporaryDirectory(environment []string, workspace string) ([]
 	filtered := environment[:0]
 	for _, entry := range environment {
 		if !strings.HasPrefix(entry, "TMPDIR=") &&
-			!strings.HasPrefix(entry, "MILKSU_WORKSPACE_RUNTIME=") {
+			!strings.HasPrefix(entry, "MILKSU_WORKSPACE_RUNTIME=") &&
+			!strings.HasPrefix(entry, "MILKSU_BACKGROUND_TASKS_DIR=") {
 			filtered = append(filtered, entry)
 		}
 	}
@@ -148,6 +151,7 @@ func withWorkspaceTemporaryDirectory(environment []string, workspace string) ([]
 		filtered,
 		"TMPDIR="+temporaryDirectory,
 		"MILKSU_WORKSPACE_RUNTIME="+runtimeDirectory,
+		"MILKSU_BACKGROUND_TASKS_DIR="+backgroundTasksDirectory,
 	), nil
 }
 

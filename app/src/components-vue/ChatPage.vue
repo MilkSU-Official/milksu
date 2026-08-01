@@ -253,6 +253,8 @@ const extensionLabel = (value: string) => (
       ? 'PI LSP'
       : value === 'pi-retry'
         ? 'PI Retry'
+        : value === 'pi-background-tasks'
+          ? 'PI Background Tasks'
         : value
 )
 const extensionDescription = (value: string) => (
@@ -262,6 +264,8 @@ const extensionDescription = (value: string) => (
       ? '固定 Go / Vue / TypeScript 路由；需本机安装对应语言服务器'
       : value === 'pi-retry'
         ? '识别可重试的上游错误；慢模型停滞中止暂不启用'
+        : value === 'pi-background-tasks'
+          ? '复用社区持久任务、条件等待和日志管理；进程仍受 MilkSU 权限策略约束'
         : '已由 MilkSU 白名单加载'
 )
 const hasCredential = computed(() => {

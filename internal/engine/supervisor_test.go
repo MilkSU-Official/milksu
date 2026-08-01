@@ -251,6 +251,54 @@ func TestWorkspaceTemporaryDirectoryStaysOutsideAgentWorkspace(t *testing.T) {
 	}
 }
 
+func TestWorkspaceRuntimeSeparatesBackgroundRegistryFromChildTemporaryDirectory(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	workspace := t.TempDir()
+	environment, err := withWorkspaceTemporaryDirectory(
+		[]string{
+			"TMPDIR=/untrusted/tmp",
+			"MILKSU_WORKSPACE_RUNTIME=/untrusted/runtime",
+			"MILKSU_BACKGROUND_TASKS_DIR=/untrusted/tasks",
+		},
+		workspace,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var temporaryDirectory string
+	var runtimeDirectory string
+	var backgroundTasksDirectory string
+	for _, entry := range environment {
+		switch {
+		case strings.HasPrefix(entry, "TMPDIR="):
+			temporaryDirectory = strings.TrimPrefix(entry, "TMPDIR=")
+		case strings.HasPrefix(entry, "MILKSU_WORKSPACE_RUNTIME="):
+			runtimeDirectory = strings.TrimPrefix(entry, "MILKSU_WORKSPACE_RUNTIME=")
+		case strings.HasPrefix(entry, "MILKSU_BACKGROUND_TASKS_DIR="):
+			backgroundTasksDirectory = strings.TrimPrefix(
+				entry,
+				"MILKSU_BACKGROUND_TASKS_DIR=",
+			)
+		}
+	}
+	if runtimeDirectory == "" || temporaryDirectory == "" || backgroundTasksDirectory == "" {
+		t.Fatalf("workspace runtime environment is incomplete: %#v", environment)
+	}
+	if temporaryDirectory != filepath.Join(runtimeDirectory, "tmp") {
+		t.Fatalf("unexpected child temporary directory: %s", temporaryDirectory)
+	}
+	if backgroundTasksDirectory != filepath.Join(runtimeDirectory, "background-tasks") {
+		t.Fatalf("unexpected background registry: %s", backgroundTasksDirectory)
+	}
+	if backgroundTasksDirectory == temporaryDirectory {
+		t.Fatal("background registry must not share the child-writable temporary directory")
+	}
+	if _, err := os.Stat(backgroundTasksDirectory); err != nil {
+		t.Fatalf("background registry was not created: %v", err)
+	}
+}
+
 func TestSidecarRuntimePathPrecedesHostPath(t *testing.T) {
 	node := filepath.Join(t.TempDir(), "node")
 	environment := withSidecarRuntimePath(

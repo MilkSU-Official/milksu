@@ -141,6 +141,23 @@ function responsePlan(stubSource) {
       edits: [{ oldText: brokenCLI, newText: fixedCLI }],
     }),
     tool('bash', { command: 'npm run smoke' }),
+    tool('bg_task', {
+      action: 'spawn',
+      name: 'delivery-preview',
+      command: 'node -e "setInterval(() => {}, 1000)"',
+      callback: false,
+      timeout_seconds: 1,
+    }),
+    tool('bg_task', {
+      action: 'watch',
+      name: 'delivery-watch',
+      command: 'test -f .milksu/runtime/watch-ready',
+      success_when: { type: 'exit_code', equals: 0 },
+      interval_seconds: 1,
+      timeout_seconds: 5,
+      callback: false,
+    }),
+    tool('bg_status', { action: 'list' }),
     answer('实现已完成；测试通过。CLI smoke 首次暴露了导入错误，我修复后重新验证通过。'),
 
     answer('可以生成，但根据仓库规则，我需要你先明确批准写入 dist/report.txt。'),
@@ -296,6 +313,7 @@ async function bundleBridge(output) {
 }
 
 function startBridge({ bundlePath, workspace, agentDirectory, baseURL }) {
+  const workspaceRuntime = join(workspace, '.milksu', 'runtime')
   const executable = process.env.MILKSU_CODING_SIDECAR_NODE || process.execPath
   const argumentsList = executable === process.execPath
     ? [bundlePath]
@@ -323,6 +341,9 @@ function startBridge({ bundlePath, workspace, agentDirectory, baseURL }) {
       KOURICHAT_API_KEY: 'fixture-only-not-a-secret',
       KOURICHAT_BASE_URL: baseURL,
       MILKSU_PI_AGENT_DIR: agentDirectory,
+      MILKSU_WORKSPACE_RUNTIME: workspaceRuntime,
+      MILKSU_BACKGROUND_TASKS_DIR: join(workspaceRuntime, 'background-tasks'),
+      TMPDIR: join(workspaceRuntime, 'tmp'),
     },
     stdio: ['pipe', 'pipe', 'pipe'],
   })
@@ -468,6 +489,29 @@ async function exists(path) {
   }
 }
 
+async function backgroundTaskMetas(workspace) {
+  const taskDirectory = join(
+    workspace,
+    '.milksu',
+    'runtime',
+    'background-tasks',
+    'tasks',
+  )
+  let entries
+  try {
+    entries = await readdir(taskDirectory, { withFileTypes: true })
+  } catch {
+    return []
+  }
+  return await Promise.all(
+    entries
+      .filter(entry => entry.isDirectory())
+      .map(async entry => JSON.parse(
+        await readFile(join(taskDirectory, entry.name, 'meta.json'), 'utf8'),
+      )),
+  )
+}
+
 async function main() {
   const temporaryBase = process.env.MILKSU_CODING_SIDECAR_NODE
     && process.platform === 'darwin'
@@ -480,6 +524,11 @@ async function main() {
   await cp(fixtureRoot, workspace, { recursive: true })
   await mkdir(join(workspace, '.git'), { recursive: true })
   await mkdir(agentDirectory, { recursive: true })
+  await mkdir(join(workspace, '.milksu', 'runtime', 'tmp'), { recursive: true })
+  await mkdir(
+    join(workspace, '.milksu', 'runtime', 'background-tasks'),
+    { recursive: true },
+  )
   await mkdir(dirname(bundlePath), { recursive: true })
   await bundleBridge(bundlePath)
 
@@ -531,9 +580,16 @@ async function main() {
     })
     bridge = restarted
     const resumedReady = await restarted.createSession()
+    await writeFile(
+      join(workspace, '.milksu', 'runtime', 'watch-ready'),
+      'ready\n',
+      { mode: 0o600 },
+    )
+    await new Promise(resolvePromise => setTimeout(resolvePromise, 1_200))
     transcript.fixAfterRestart = await restarted.prompt(
       '我发现只有一项时还显示 items。修好并补回归测试，然后给我最终交付说明。',
     )
+    await new Promise(resolvePromise => setTimeout(resolvePromise, 1_200))
 
     const after = await snapshotFiles(workspace)
     const changes = changedPaths(before, after)
@@ -594,6 +650,9 @@ async function main() {
     const modeSwitch = transcript.implement.find(
       event => event.type === 'policy_updated',
     )
+    const backgroundMetas = await backgroundTaskMetas(workspace)
+    const backgroundTask = backgroundMetas.find(meta => meta.name === 'delivery-preview')
+    const backgroundWatch = backgroundMetas.find(meta => meta.name === 'delivery-watch')
 
     const checks = {
       buildAndTest: testOutput.includes('pass') && smokeOutput.includes('Mina: 2 open items'),
@@ -608,12 +667,23 @@ async function main() {
         && /批准/.test(approvalText)
         && toolEvents(transcript.askApproval).length === 0,
       failureRecovery: implementationSuccessAfterFailure,
+      backgroundTaskLifecycle:
+        backgroundTask?.kind === 'process'
+        && backgroundTask?.status === 'timed_out'
+        && backgroundTask?.result?.reason === 'timeout'
+        && Number.isFinite(backgroundTask?.endedAt)
+        && backgroundWatch?.kind === 'command_watch'
+        && backgroundWatch?.status === 'succeeded'
+        && backgroundWatch?.result?.reason === 'success condition matched'
+        && backgroundWatch?.lastExitCode === 0
+        && Number.isFinite(backgroundWatch?.endedAt),
       noOverreach:
         !outsideExists
         && toolEvents(transcript.outside).length === 0
         && /拒绝|超出/.test(outsideText),
       resourceBoundary:
         readyResources.extensions.includes('milksu-workflow')
+        && readyResources.extensions.includes('pi-background-tasks')
         && readyResources.extensions.includes('pi-lsp')
         && readyResources.extensions.includes('pi-retry')
         && readyResources.skills.includes('archify'),
@@ -627,14 +697,18 @@ async function main() {
         )
         && implementTools.some(event => event.toolName === 'edit')
         && implementTools.some(event => event.toolName === 'write')
-        && implementTools.some(event => event.toolName === 'bash'),
+        && implementTools.some(event => event.toolName === 'bash')
+        && implementTools.some(event => event.toolName === 'bg_task')
+        && implementTools.some(event => event.toolName === 'bg_status'),
       planToGo:
         initialReady.executionMode === 'plan'
         && !initialReady.tools.includes('write')
         && modeSwitch?.executionMode === 'go'
         && modeSwitch?.approvalPolicy === 'workspace-auto'
         && modeSwitch?.tools?.includes('write')
-        && modeSwitch?.tools?.includes('bash'),
+        && modeSwitch?.tools?.includes('bash')
+        && modeSwitch?.tools?.includes('bg_task')
+        && modeSwitch?.tools?.includes('bg_status'),
       finalDelivery:
         /src\/report\.js/.test(finalText)
         && /npm test/.test(finalText)
@@ -660,6 +734,7 @@ async function main() {
         && checks.resourceBoundary
         && checks.workflowCoverage
         && checks.planToGo
+        && checks.backgroundTaskLifecycle
         && checks.finalDelivery
         && checks.providerPlanConsumed,
       checks,
@@ -684,6 +759,22 @@ async function main() {
         understandChangedPaths: understandChanges,
         unexpectedChanges,
         changedPaths: changes,
+        backgroundTask: backgroundTask
+          ? {
+              id: backgroundTask.id,
+              kind: backgroundTask.kind,
+              status: backgroundTask.status,
+              lastSignal: backgroundTask.lastSignal,
+            }
+          : null,
+        backgroundWatch: backgroundWatch
+          ? {
+              id: backgroundWatch.id,
+              kind: backgroundWatch.kind,
+              status: backgroundWatch.status,
+              lastExitCode: backgroundWatch.lastExitCode,
+            }
+          : null,
       },
       resources: readyResources,
       workspace: keepFixture ? workspace : '(temporary workspace removed)',

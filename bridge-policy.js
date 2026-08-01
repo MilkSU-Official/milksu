@@ -42,6 +42,7 @@ const codingReadOnlyToolNames = [
   "grep",
   "find",
   "ls",
+  "bg_status",
   "milksu_progress",
   "lsp_diagnostics",
 ];
@@ -53,6 +54,8 @@ const codingWorkspaceAutoToolNames = [
   "grep",
   "find",
   "ls",
+  "bg_task",
+  "bg_status",
   "milksu_progress",
   "lsp_diagnostics",
 ];
@@ -415,6 +418,9 @@ function createSandboxedBashOperations(
       const canonicalWorkspace = await realpath(workspace);
       const canonicalCwd = await assertWorkspacePath(canonicalWorkspace, cwd);
       const runtimeDirectory = commandRuntimeDirectory(canonicalWorkspace);
+      const runtimeHome = join(runtimeDirectory, "home");
+      const runtimeTemporary = join(runtimeDirectory, "tmp");
+      const runtimeBin = join(runtimeDirectory, "runtime-bin");
       const timeout = Math.min(
         Math.max(Number(options.timeout) || execution.defaultCommandTimeoutSeconds, 1),
         execution.maxCommandTimeoutSeconds,
@@ -433,8 +439,8 @@ function createSandboxedBashOperations(
               allowNetwork,
               extraProtectedEntries,
               includeCTFProtectedEntries,
-              extraReadableRoots,
-              [runtimeDirectory],
+              [...extraReadableRoots, runtimeBin],
+              [runtimeHome, runtimeTemporary],
             ),
             "/bin/bash",
             "--noprofile",
@@ -504,6 +510,134 @@ function fullAccessCommandEnvironment(source = {}) {
     environment.SSH_AUTH_SOCK = source.MILKSU_USER_SSH_AUTH_SOCK;
   }
   return environment;
+}
+
+const blockedBackgroundEnvironmentNames = new Set([
+  "BASH_ENV",
+  "ENV",
+  "HOME",
+  "LD_LIBRARY_PATH",
+  "NODE_OPTIONS",
+  "PATH",
+  "SHELL",
+  "TMPDIR",
+]);
+
+function sanitizedBackgroundEnvironment(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const environment = {};
+  for (const [rawName, rawValue] of Object.entries(value)) {
+    const name = String(rawName).trim();
+    if (
+      !/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)
+      || blockedBackgroundEnvironmentNames.has(name)
+      || name.startsWith("DYLD_")
+      || name.startsWith("MILKSU_")
+      || name.startsWith("PI_")
+      || /(?:^|_)(?:API_?KEY|AUTH|COOKIE|CREDENTIAL|PASSWORD|SECRET|TOKEN)(?:_|$)/i.test(name)
+    ) {
+      continue;
+    }
+    environment[name] = String(rawValue).replaceAll("\0", "");
+  }
+  return environment;
+}
+
+export async function prepareCodingBackgroundAuthorization(
+  workspace,
+  approvalPolicy,
+  input,
+  resourceReadRoots = [],
+) {
+  const root = await realpath(workspace);
+  const requested = typeof input?.cwd === "string" && input.cwd.trim()
+    ? input.cwd.trim()
+    : root;
+  const candidate = isAbsolute(requested) ? requested : resolve(root, requested);
+  const cwd = await realpath(candidate);
+  const fullAccess = approvalPolicy === "full-auto";
+  if (!fullAccess) await assertWorkspacePath(root, cwd);
+
+  const readableRoots = [];
+  for (const value of resourceReadRoots) {
+    try {
+      readableRoots.push(await realpath(value));
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error;
+    }
+  }
+  const runtimeDirectory = commandRuntimeDirectory(root);
+  await mkdir(join(runtimeDirectory, "home"), { recursive: true, mode: 0o700 });
+  await mkdir(join(runtimeDirectory, "tmp"), { recursive: true, mode: 0o700 });
+  await ensureSandboxedCommandRuntime(runtimeDirectory);
+
+  input.cwd = cwd;
+  return {
+    workspace: root,
+    cwd,
+    mode: fullAccess ? "full-auto" : "workspace-auto",
+    readableRoots,
+    runtimeDirectory,
+  };
+}
+
+export function buildCodingBackgroundLaunch(specification, authorization) {
+  const workspace = resolve(authorization.workspace);
+  const cwd = resolve(specification.cwd || authorization.cwd);
+  if (cwd !== resolve(authorization.cwd)) {
+    throw new Error("MilkSU denied a background process whose cwd changed after authorization");
+  }
+  if (
+    authorization.mode !== "full-auto"
+    && relative(workspace, cwd).split(sep).includes("..")
+  ) {
+    throw new Error("MilkSU denied a background process outside the selected project");
+  }
+
+  const explicitEnvironment = sanitizedBackgroundEnvironment(specification.env);
+  const direct = specification.shell === false;
+  const command = direct ? specification.argv?.[0] : "/bin/bash";
+  const argumentsList = direct
+    ? specification.argv.slice(1)
+    : ["--noprofile", "--norc", "-c", specification.command];
+
+  if (authorization.mode === "full-auto") {
+    return {
+      file: command,
+      arguments: argumentsList,
+      cwd,
+      environment: {
+        ...fullAccessCommandEnvironment(process.env),
+        ...explicitEnvironment,
+      },
+    };
+  }
+
+  const runtimeDirectory = resolve(authorization.runtimeDirectory);
+  const runtimeHome = join(runtimeDirectory, "home");
+  const runtimeTemporary = join(runtimeDirectory, "tmp");
+  const runtimeBin = join(runtimeDirectory, "runtime-bin");
+  return {
+    file: "/usr/bin/sandbox-exec",
+    arguments: [
+      "-p",
+      sandboxProfile(
+        workspace,
+        true,
+        [],
+        false,
+        [...authorization.readableRoots, runtimeBin],
+        [runtimeHome, runtimeTemporary],
+      ),
+      command,
+      ...argumentsList,
+    ],
+    cwd,
+    environment: {
+      ...commandEnvironment(workspace, process.env, runtimeDirectory),
+      ...explicitEnvironment,
+    },
+  };
 }
 
 function createFullAccessBashOperations(execution) {
@@ -1840,6 +1974,8 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
   return {
     ctf: false,
     ...normalized,
+    workspace: await realpath(workspace),
+    readOnlyResourceRoots: [...(codingPolicy.readOnlyResourceRoots || [])],
     customTools: await createCodingToolDefinitions(
       workspace,
       codingPolicy.readOnlyResourceRoots,

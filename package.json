@@ -8,6 +8,7 @@
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs",
+    "postinstall": "patch-package",
     "sidecar:build": "node scripts/package-sidecar.mjs build",
     "sidecar:smoke": "node scripts/package-sidecar.mjs smoke",
     "m3:release-check": "bash scripts/m3-release-check.sh",
@@ -19,14 +20,17 @@
   },
   "devDependencies": {
     "esbuild": "0.28.1",
+    "patch-package": "8.0.1",
     "vitepress": "^1.6.4"
   },
   "dependencies": {
     "@earendil-works/pi-ai": "0.80.2",
     "@earendil-works/pi-coding-agent": "0.80.2",
+    "@earendil-works/pi-tui": "0.80.2",
     "@napi-rs/system-ocr": "1.1.0",
     "@narumitw/pi-lsp": "0.29.0",
     "@narumitw/pi-retry": "0.31.0",
+    "pi-better-background-tasks": "0.1.10",
     "typebox": "1.1.38"
   }
 }

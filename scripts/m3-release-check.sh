@@ -11,13 +11,21 @@ if [[ ! -x "$wails_bin" ]]; then
   exit 1
 fi
 
+for source_file in bridge*.js; do
+  if ! git ls-files --error-unmatch "$source_file" >/dev/null 2>&1; then
+    echo "Required Sidecar source is not tracked by Git: $source_file" >&2
+    exit 1
+  fi
+done
+
 go test ./...
 go vet ./...
-node --test bridge-approval.test.js bridge-attachments.test.js bridge-policy.test.js bridge-resource-policy.test.js bridge-vision.test.js
+node --test bridge-approval.test.js bridge-attachments.test.js bridge-background-process.test.js bridge-policy.test.js bridge-resource-policy.test.js bridge-vision.test.js
 npm --prefix app test -- --run
 npm --prefix app run lint
 npm --prefix app run build
 npm run sidecar:smoke
+node scripts/test-coding-agent-delivery.mjs
 npm run docs:build
 "$wails_bin" build
 

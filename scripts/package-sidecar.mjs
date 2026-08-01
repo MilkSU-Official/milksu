@@ -12,6 +12,7 @@ const nodeVersion = '24.18.0'
 const archifyCommit = '7b49d0b715fd4ba48116bcdecd1ba3789a279613'
 const piLspVersion = '0.29.0'
 const piRetryVersion = '0.31.0'
+const piBackgroundTasksVersion = '0.1.10'
 const systemOcrVersion = '1.1.0'
 const systemOcrNativePackages = {
   'darwin/arm64': '@napi-rs/system-ocr-darwin-arm64',
@@ -182,6 +183,10 @@ async function buildSidecar(platform) {
       join(licenseOutput, 'narumitw-pi-extensions-MIT.txt'),
     ),
     copyFile(
+      join(repositoryRoot, 'node_modules', 'pi-better-background-tasks', 'LICENSE'),
+      join(licenseOutput, 'pi-better-background-tasks-MIT.txt'),
+    ),
+    copyFile(
       join(systemOcrSource, 'LICENSE'),
       join(licenseOutput, 'napi-rs-system-ocr-MIT.txt'),
     ),
@@ -246,6 +251,13 @@ async function buildSidecar(platform) {
         licenseFile: 'THIRD_PARTY-LICENSES/narumitw-pi-extensions-MIT.txt',
         scope: 'coding-only',
       },
+      piBackgroundTasks: {
+        package: 'pi-better-background-tasks',
+        version: piBackgroundTasksVersion,
+        license: 'MIT',
+        licenseFile: 'THIRD_PARTY-LICENSES/pi-better-background-tasks-MIT.txt',
+        scope: 'coding-only',
+      },
       localOcr: {
         package: '@napi-rs/system-ocr',
         version: systemOcrVersion,
@@ -270,6 +282,7 @@ async function smokeSidecar(platform) {
     join(output, 'NODE-LICENSE'),
     join(output, 'THIRD_PARTY-LICENSES', 'pi-MIT.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'narumitw-pi-extensions-MIT.txt'),
+    join(output, 'THIRD_PARTY-LICENSES', 'pi-better-background-tasks-MIT.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'napi-rs-system-ocr-MIT.txt'),
     join(output, 'skills', 'archify', 'LICENSE'),
   ]) {
@@ -352,6 +365,8 @@ async function smokeSidecar(platform) {
   ]
   const expectedTools = [
     ...coreExpectedTools,
+    'bg_task',
+    'bg_status',
     'lsp_diagnostics',
   ]
   const ctfRequestedTools = [...coreExpectedTools, 'ctf_inspect']
@@ -364,6 +379,7 @@ async function smokeSidecar(platform) {
     || !ready.skills?.includes('archify')
     || !ready.extensions?.includes('pi-lsp')
     || !ready.extensions?.includes('pi-retry')
+    || !ready.extensions?.includes('pi-background-tasks')
     || !chatResponses.some(value => value.type === 'session_destroyed')
   ) {
     throw new Error(`unexpected packaged Chat Sidecar response: ${chatRun.stdout}`)
@@ -382,8 +398,8 @@ async function smokeSidecar(platform) {
   const planReady = planResponses.find(value => value.type === 'ready')
   if (
     !planReady
-    || ['bash', 'edit', 'write', 'lsp_fix'].some(tool => planReady.tools?.includes(tool))
-    || !['read', 'grep', 'find', 'ls', 'lsp_diagnostics'].every(tool => planReady.tools?.includes(tool))
+    || ['bash', 'edit', 'write', 'bg_task', 'lsp_fix'].some(tool => planReady.tools?.includes(tool))
+    || !['read', 'grep', 'find', 'ls', 'bg_status', 'lsp_diagnostics'].every(tool => planReady.tools?.includes(tool))
     || planReady.executionMode !== 'plan'
   ) {
     throw new Error(`unexpected packaged Plan response: ${planRun.stdout}`)

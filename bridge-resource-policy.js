@@ -1,0 +1,93 @@
+const REVIEWED_LSP_SERVER_NAMES = [
+  "milksu-go",
+  "milksu-vue",
+  "milksu-typescript",
+];
+
+const PASSTHROUGH_ENVIRONMENT_NAMES = [
+  "HOME",
+  "PATH",
+  "TMPDIR",
+  "LANG",
+  "LC_ALL",
+];
+
+function sanitizedEnvironmentArguments(environment) {
+  return PASSTHROUGH_ENVIRONMENT_NAMES.flatMap((name) => {
+    const value = environment[name];
+    if (typeof value !== "string" || value.length === 0) return [];
+    return [`${name}=${value.replaceAll("\0", "")}`];
+  });
+}
+
+export function reviewedLspConfig(
+  environment = process.env,
+  platform = process.platform,
+) {
+  if (platform !== "darwin" && platform !== "linux") {
+    return JSON.stringify({ timeout: 20000, servers: {} });
+  }
+
+  // pi-lsp merges the Sidecar environment into each language-server process.
+  // Launching through the operating system's trusted `env -i` binary gives the
+  // actual server only the small non-secret environment below. The project
+  // cannot replace this command through .pi/pi-lsp.json.
+  const commandPrefix = [
+    "/usr/bin/env",
+    "-i",
+    ...sanitizedEnvironmentArguments(environment),
+  ];
+
+  return JSON.stringify({
+    timeout: 20000,
+    servers: {
+      "milksu-go": {
+        command: [...commandPrefix, "gopls"],
+        extensions: [".go"],
+      },
+      "milksu-vue": {
+        command: [...commandPrefix, "vue-language-server", "--stdio"],
+        extensions: [".vue"],
+      },
+      "milksu-typescript": {
+        command: [...commandPrefix, "typescript-language-server", "--stdio"],
+        extensions: [".ts", ".tsx", ".js", ".jsx", ".mts", ".cts", ".mjs", ".cjs"],
+      },
+    },
+  });
+}
+
+export function applyCodingResourcePolicy(
+  environment = process.env,
+  platform = process.platform,
+) {
+  environment.PI_LSP_CONFIG = reviewedLspConfig(environment, platform);
+
+  // Keep retry error classification, but do not let a generic 90-second
+  // watchdog abort slow first-token models. MilkSU owns the turn timeout.
+  environment.PI_RETRY_STALL_TIMEOUT_MS = "0";
+
+  for (const name of REVIEWED_LSP_SERVER_NAMES) {
+    const override = `PI_${name.replaceAll("-", "_").toUpperCase()}_LSP_COMMAND`;
+    delete environment[override];
+  }
+}
+
+export function describeLoadedExtensions(resourceLoader) {
+  const result = resourceLoader.getExtensions();
+  const names = result.extensions.flatMap((extension) => {
+    const tools = extension.tools;
+    const flags = extension.flags;
+    if (tools.has("milksu_progress")) return ["milksu-workflow"];
+    if (tools.has("lsp_diagnostics") && tools.has("lsp_fix")) return ["pi-lsp"];
+    if (flags.has("retry-stall-timeout-ms")) return ["pi-retry"];
+    if (tools.has("bg_task") && tools.has("bg_status")) {
+      return ["pi-background-tasks"];
+    }
+    return [];
+  });
+  return {
+    names: [...new Set(names)],
+    errors: result.errors.map(({ path, error }) => ({ path, error })),
+  };
+}

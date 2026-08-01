@@ -11,10 +11,16 @@ import { fileURLToPath } from "node:url";
 import { Type } from "typebox";
 import piLspExtension from "@narumitw/pi-lsp/src/index.ts";
 import piRetryExtension from "@narumitw/pi-retry/src/index.ts";
+import piBackgroundTasksExtension from "pi-better-background-tasks/src/index.ts";
 import {
   codingSessionToolNames,
   loadSessionPolicy,
+  prepareCodingBackgroundAuthorization,
 } from "./bridge-policy.js";
+import {
+  authorizeBackgroundToolInput,
+  withBackgroundResumeAuthorization,
+} from "./bridge-background-authorization.js";
 import { createApprovalBroker } from "./bridge-approval.js";
 import {
   applyCodingResourcePolicy,
@@ -55,6 +61,21 @@ function emit(conversationId, type, data = {}) {
 }
 
 const approvalBroker = createApprovalBroker(emit);
+const backgroundEffectfulActions = new Set(["spawn", "watch", "stop", "clear"]);
+
+function backgroundToolAction(toolName, input) {
+  if (toolName !== "bg_task" && toolName !== "bg_status") return "";
+  return String(input?.action ?? "").trim();
+}
+
+function backgroundToolRequiresApproval(toolName, input) {
+  return backgroundEffectfulActions.has(backgroundToolAction(toolName, input));
+}
+
+function backgroundToolStartsProcess(toolName, input) {
+  return toolName === "bg_task"
+    && ["spawn", "watch"].includes(backgroundToolAction(toolName, input));
+}
 
 function describeError(error) {
   if (!(error instanceof Error)) return String(error);
@@ -187,12 +208,31 @@ function createCodingPermissionExtension(
         return {
           block: true,
           reason: `MilkSU Coding policy blocked ${event.toolName}: `
-            + `${policy.executionMode}/${policy.approvalPolicy}`,
+          + `${policy.executionMode}/${policy.approvalPolicy}`,
+        };
+      }
+      const backgroundEffect = backgroundToolRequiresApproval(event.toolName, event.input);
+      if (
+        backgroundEffect
+        && (
+          policy.executionMode !== "go"
+          || policy.approvalPolicy === "read-only"
+        )
+      ) {
+        return {
+          block: true,
+          reason: `MilkSU Coding policy blocked ${event.toolName}/${backgroundToolAction(
+            event.toolName,
+            event.input,
+          )}: ${policy.executionMode}/${policy.approvalPolicy}`,
         };
       }
       if (
         policy.approvalPolicy === "ask"
-        && approvalRequiredCodingTools.has(event.toolName)
+        && (
+          approvalRequiredCodingTools.has(event.toolName)
+          || backgroundEffect
+        )
       ) {
         const approved = await approvalBroker.request({
           conversationId,
@@ -206,6 +246,15 @@ function createCodingPermissionExtension(
             reason: `MilkSU user denied ${event.toolName}`,
           };
         }
+      }
+      if (backgroundToolStartsProcess(event.toolName, event.input)) {
+        const authorization = await prepareCodingBackgroundAuthorization(
+          policy.workspace,
+          policy.approvalPolicy,
+          event.input,
+          policy.readOnlyResourceRoots,
+        );
+        authorizeBackgroundToolInput(event.input, authorization);
       }
       return undefined;
     });
@@ -399,6 +448,7 @@ function createMilkSUResourceLoader(
   const extensionFactories = [createMilkSUWorkflowExtension(sessionRole)];
   if (!sessionRole) {
     extensionFactories.push(
+      piBackgroundTasksExtension,
       createCodingPermissionExtension(
         conversationId,
         getPolicy,
@@ -513,6 +563,26 @@ async function createSession(command) {
         : codingSessionToolNames,
       customTools: sessionPolicy.customTools,
     }));
+    // Pi's SDK constructs the extension runner but deliberately leaves
+    // lifecycle binding to embedders. Without this call extension tools appear
+    // available, while session_start handlers never run. Durable extensions
+    // such as background tasks then cannot reconcile processes after a
+    // Sidecar restart.
+    if (sessionPolicy.ctf) {
+      await session.bindExtensions({ mode: "print" });
+    } else {
+      const resumeInput = { cwd: sessionPolicy.workspace };
+      const resumeAuthorization = await prepareCodingBackgroundAuthorization(
+        sessionPolicy.workspace,
+        sessionPolicy.approvalPolicy,
+        resumeInput,
+        sessionPolicy.readOnlyResourceRoots,
+      );
+      await withBackgroundResumeAuthorization(
+        resumeAuthorization,
+        () => session.bindExtensions({ mode: "print" }),
+      );
+    }
     if (!sessionPolicy.ctf) {
       const controller = sessionPolicyControllers.get(conversationId);
       if (!controller) {

@@ -1,0 +1,155 @@
+diff --git a/node_modules/pi-better-background-tasks/src/process.ts b/node_modules/pi-better-background-tasks/src/process.ts
+index d81c850..fd8fb9e 100644
+--- a/node_modules/pi-better-background-tasks/src/process.ts
++++ b/node_modules/pi-better-background-tasks/src/process.ts
+@@ -1,99 +1,7 @@
+-import { spawn } from "node:child_process";
+-import { appendFileSync, closeSync, mkdirSync, openSync, writeSync } from "node:fs";
+-import { dirname } from "node:path";
+-import type { ChildProcess } from "node:child_process";
+-import type { CommandResult, CommandSpec } from "./types.js";
+-
+-const DEFAULT_SHELL = process.env.PI_BETTER_BACKGROUND_TASKS_SHELL || "/bin/bash";
+-
+-export interface SpawnedProcess {
+-  child: ChildProcess;
+-  pgid?: number;
+-}
+-
+-export function validateCommandSpec(spec: CommandSpec): void {
+-  if (spec.shell === false) {
+-    if (!spec.argv || spec.argv.length === 0 || !spec.argv[0]) {
+-      throw new Error("argv with at least one element is required when shell:false");
+-    }
+-    return;
+-  }
+-  if (!spec.command || spec.command.trim().length === 0) {
+-    throw new Error("command is required unless shell:false with argv is provided");
+-  }
+-}
+-
+-export function spawnCommand(spec: CommandSpec, logPath: string, detached: boolean): SpawnedProcess {
+-  validateCommandSpec(spec);
+-  mkdirSync(dirname(logPath), { recursive: true });
+-  const fd = openSync(logPath, "a");
+-  const child = spawnArgs(spec, detached, ["ignore", fd, fd]);
+-  writeSync(fd, `\n--- spawn ${new Date().toISOString()} pid=${child.pid ?? "unknown"} ---\n`);
+-  closeSync(fd);
+-  child.on("close", (code, signal) => {
+-    appendFileSync(logPath, `\n--- exit ${new Date().toISOString()} code=${code ?? "null"} signal=${signal ?? "null"} ---\n`);
+-  });
+-  return { child, pgid: detached && child.pid ? child.pid : undefined };
+-}
+-
+-export function runCommandOnce(spec: CommandSpec, maxBufferBytes = 1024 * 1024): Promise<CommandResult> {
+-  validateCommandSpec(spec);
+-  const startedAt = Date.now();
+-  const child = spawnArgs(spec, false, ["ignore", "pipe", "pipe"]);
+-  let stdout = "";
+-  let stderr = "";
+-  child.stdout?.on("data", (chunk: Buffer) => {
+-    if (Buffer.byteLength(stdout) < maxBufferBytes) stdout += chunk.toString("utf8");
+-  });
+-  child.stderr?.on("data", (chunk: Buffer) => {
+-    if (Buffer.byteLength(stderr) < maxBufferBytes) stderr += chunk.toString("utf8");
+-  });
+-  return new Promise((resolve, reject) => {
+-    child.on("error", reject);
+-    child.on("close", (exitCode, signal) => {
+-      resolve({ exitCode, signal, stdout, stderr, startedAt, endedAt: Date.now() });
+-    });
+-  });
+-}
+-
+-export function stopProcessGroup(pid: number, pgid?: number): void {
+-  const target = pgid ?? pid;
+-  try {
+-    process.kill(-target, "SIGTERM");
+-    return;
+-  } catch {
+-    process.kill(pid, "SIGTERM");
+-  }
+-}
+-
+-export function processExists(pid: number): boolean {
+-  try {
+-    process.kill(pid, 0);
+-    return true;
+-  } catch {
+-    return false;
+-  }
+-}
+-
+-function spawnArgs(
+-  spec: CommandSpec,
+-  detached: boolean,
+-  stdio: ["ignore", "pipe" | number, "pipe" | number],
+-): ChildProcess {
+-  const env = { ...process.env, ...spec.env };
+-  if (spec.shell === false) {
+-    const [command, ...args] = spec.argv!;
+-    return spawn(command!, args, {
+-      cwd: spec.cwd,
+-      env,
+-      detached,
+-      stdio,
+-    });
+-  }
+-  return spawn(DEFAULT_SHELL, ["-lc", spec.command!], {
+-    cwd: spec.cwd,
+-    env,
+-    detached,
+-    stdio,
+-  });
+-}
+\ No newline at end of file
++export {
++  processExists,
++  runCommandOnce,
++  spawnCommand,
++  stopProcessGroup,
++  validateCommandSpec,
++} from "../../../bridge-background-process.js";
+diff --git a/node_modules/pi-better-background-tasks/src/registry.ts b/node_modules/pi-better-background-tasks/src/registry.ts
+index 9d82042..414c25a 100644
+--- a/node_modules/pi-better-background-tasks/src/registry.ts
++++ b/node_modules/pi-better-background-tasks/src/registry.ts
+@@ -1,6 +1,6 @@
+ import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+ import { tmpdir } from "node:os";
+-import { join } from "node:path";
++import { join, resolve } from "node:path";
+ import type { BackgroundTaskMeta } from "./types.js";
+ import { isTerminalStatus } from "./types.js";
+-
++
+@@ -8,6 +8,8 @@ let seq = 0;
+ const metaCache = new Map<string, BackgroundTaskMeta>();
+-
++
+ export function baseDir(): string {
++  const configured = process.env.MILKSU_BACKGROUND_TASKS_DIR?.trim();
++  if (configured) return resolve(configured);
+   return join(tmpdir(), "pi-better-background-tasks");
+ }
+-
++
+diff --git a/node_modules/pi-better-background-tasks/src/runtime.ts b/node_modules/pi-better-background-tasks/src/runtime.ts
+index 292fe9e..f1669ac 100644
+--- a/node_modules/pi-better-background-tasks/src/runtime.ts
++++ b/node_modules/pi-better-background-tasks/src/runtime.ts
+@@ -1,4 +1,5 @@
+ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
++import { authorizeResumedBackgroundSpecification } from "../../../bridge-background-authorization.js";
+ import { appendLine, appendWatchResult, retainLogTail, resolveMaxLogBytes } from "./logs.js";
+ import { evaluateCondition } from "./conditions.js";
+ import { processExists, runCommandOnce, spawnCommand, stopProcessGroup } from "./process.js";
+@@ -142,6 +143,8 @@ export function resumeRunningTask(
+     return meta;
+   }
+   if (meta.kind === "command_watch") {
++    authorizeResumedBackgroundSpecification(meta);
++    writeMeta(meta);
+     scheduleWatch(pi, meta.id, 0, getActiveSession);
+     return meta;
+   }

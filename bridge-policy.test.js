@@ -77,6 +77,8 @@ test("legacy Coding sessions preserve deliverable Go defaults without unrestrict
       "grep",
       "find",
       "ls",
+      "bg_task",
+      "bg_status",
       "milksu_progress",
       "lsp_diagnostics",
     ],
@@ -97,9 +99,9 @@ test("Plan and Read-only enforce a read-only tool allowlist", async () => {
     });
     assert.deepEqual(
       policy.activeTools,
-      ["read", "grep", "find", "ls", "milksu_progress", "lsp_diagnostics"],
+      ["read", "grep", "find", "ls", "bg_status", "milksu_progress", "lsp_diagnostics"],
     );
-    for (const denied of ["bash", "edit", "write", "lsp_fix"]) {
+    for (const denied of ["bash", "edit", "write", "bg_task", "lsp_fix"]) {
       assert.equal(policy.activeTools.includes(denied), false);
     }
   }
@@ -116,6 +118,7 @@ test("Ask exposes effectful tools behind the desktop approval channel", async ()
   for (const gated of ["bash", "edit", "write"]) {
     assert.equal(policy.activeTools.includes(gated), true);
   }
+  assert.equal(policy.activeTools.includes("bg_task"), true);
   assert.equal(
     ask.capabilities.find(value => value.id === "workspace-write").status,
     "approval-required",
