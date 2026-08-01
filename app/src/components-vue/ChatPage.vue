@@ -7,13 +7,10 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
-  SelectLabel,
   SelectSeparator,
   SelectTrigger,
   SelectValue,
@@ -37,19 +34,15 @@ import {
   FolderOpen,
   GitBranch,
   Globe2,
-  Hand,
   KeyRound,
   Lightbulb,
   LoaderCircle,
-  LockKeyhole,
   Network,
   Paperclip,
   PanelRightClose,
   PanelRightOpen,
   RefreshCw,
   Route,
-  ShieldAlert,
-  ShieldCheck,
   Sparkles,
   Square,
   StickyNote,
@@ -61,6 +54,7 @@ import {
 import { invokeCommand } from '@/desktop'
 import ChatActivityGroup from '@/components-vue/ChatActivityGroup.vue'
 import ChatMessageItem from '@/components-vue/ChatMessageItem.vue'
+import CodingComposerControls from '@/components-vue/CodingComposerControls.vue'
 import CodingChangesPanel from '@/components-vue/CodingChangesPanel.vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import type {
@@ -100,7 +94,7 @@ import type {
   CTFChatAction,
 } from '@/types'
 import type { NSSCTFWebBridgeStatus } from '@/nssctfWebTypes'
-import { PROVIDER_GROUPS, providerModelLabel } from '@/types'
+import { providerModelLabel } from '@/types'
 
 const props = defineProps<{
   conversation: Conversation | null
@@ -1014,169 +1008,23 @@ watch(
             <X class="size-3.5" />
           </Button>
         </div>
-        <div class="chat-composer__controls app-no-drag mb-2 flex min-w-0 items-center gap-1.5 px-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            class="chat-composer__control chat-composer__workspace min-w-0"
-            :disabled="workspaceLocked"
-            :title="workspaceLocked ? '项目目录在任务开始后锁定；请新建任务来切换项目' : '选择项目目录'"
-            @click="$emit('chooseWorkspace')"
-          >
-            <FolderOpen class="size-3.5 shrink-0" />
-            <span class="truncate">{{ workspacePath ? workspaceName : '项目' }}</span>
-          </Button>
-          <Select
-            v-if="!ctfSession"
-            :model-value="effectiveExecutionMode"
-            :disabled="running"
-            @update:model-value="value => changeExecutionMode(String(value ?? ''))"
-          >
-            <SelectTrigger
-              size="sm"
-              class="chat-composer__control w-16 border-0 bg-transparent shadow-none"
-              aria-label="Coding 执行模式"
-              title="Plan 只分析和规划；Go 按右侧权限策略使用工具。"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent size="sm" align="start">
-              <SelectItem value="plan">Plan</SelectItem>
-              <SelectItem value="go">Go</SelectItem>
-            </SelectContent>
-          </Select>
-          <DropdownMenu v-if="!ctfSession">
-            <DropdownMenuTrigger as-child>
-              <Button
-                variant="ghost"
-                size="sm"
-                class="chat-composer__control chat-composer__permission min-w-32 justify-start"
-                :class="{ 'chat-composer__permission--full': effectiveApprovalPolicy === 'full-auto' }"
-                :disabled="running"
-                aria-label="Coding 权限策略"
-              >
-                <ShieldAlert
-                  v-if="effectiveApprovalPolicy === 'full-auto'"
-                  class="size-3.5 shrink-0 text-warning"
-                />
-                <LockKeyhole v-else class="size-3.5 shrink-0" />
-                {{ approvalMenuLabel }}
-                <ChevronDown class="ml-auto size-3.5 shrink-0 text-muted-foreground" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="start"
-              :side-offset="8"
-              class="w-[25rem] max-w-[calc(100vw-2rem)] p-0"
-            >
-              <div class="flex items-center justify-between gap-4 px-4 pb-2 pt-3">
-                <p class="text-label font-medium text-muted-foreground">
-                  应如何批准 MilkSU 操作？
-                </p>
-                <button
-                  type="button"
-                  class="shrink-0 text-label font-medium text-muted-foreground underline underline-offset-4 hover:text-foreground"
-                  @click.stop="showCodingPermissions"
-                >
-                  了解更多
-                </button>
-              </div>
-              <DropdownMenuItem
-                class="approval-option"
-                @select="changeApprovalPolicy('ask')"
-              >
-                <Hand class="approval-option__icon" />
-                <div class="min-w-0 flex-1">
-                  <p class="approval-option__title">请求批准</p>
-                  <p class="approval-option__description">
-                    编辑文件、运行命令或使用互联网前始终询问
-                  </p>
-                </div>
-                <Check
-                  v-if="effectiveApprovalPolicy === 'ask' || effectiveApprovalPolicy === 'read-only'"
-                  class="approval-option__check"
-                />
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                class="approval-option"
-                @select="changeApprovalPolicy('workspace-auto')"
-              >
-                <ShieldCheck class="approval-option__icon" />
-                <div class="min-w-0 flex-1">
-                  <p class="approval-option__title">替我审批</p>
-                  <p class="approval-option__description">
-                    项目内自动执行；越过项目边界或高风险操作时拦截
-                  </p>
-                </div>
-                <Check
-                  v-if="effectiveApprovalPolicy === 'workspace-auto'"
-                  class="approval-option__check"
-                />
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                class="approval-option approval-option--full"
-                @select="changeApprovalPolicy('full-auto')"
-              >
-                <ShieldAlert class="approval-option__icon" />
-                <div class="min-w-0 flex-1">
-                  <p class="approval-option__title">完全访问权限</p>
-                  <p class="approval-option__description">
-                    可不受限制地访问互联网和当前用户可访问的任何文件
-                  </p>
-                </div>
-                <Check
-                  v-if="effectiveApprovalPolicy === 'full-auto'"
-                  class="approval-option__check"
-                />
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Select
-            :model-value="currentModelKey"
-            :disabled="running"
-            @update:model-value="value => changeModel(String(value ?? ''))"
-          >
-            <SelectTrigger
-              size="sm"
-              class="chat-composer__control chat-composer__model min-w-0 border-0 bg-transparent shadow-none"
-              :class="{ 'ml-auto': ctfSession }"
-              aria-label="选择本任务模型"
-              :title="effectiveModelMode === 'auto'
-                ? 'MilkSU 按任务角色自动选择模型；你可以仅为当前对话覆盖'
-                : '当前对话固定使用所选模型'"
-            >
-              <SelectValue>{{ compactModelLabel }}</SelectValue>
-            </SelectTrigger>
-            <SelectContent size="sm" align="start" :align-offset="0" class="min-w-96">
-              <SelectGroup>
-                <SelectLabel>自动</SelectLabel>
-                <SelectItem value="auto">
-                  {{ automaticModelLabel }}
-                </SelectItem>
-              </SelectGroup>
-              <SelectSeparator />
-              <template
-                v-for="(group, groupIndex) in PROVIDER_GROUPS"
-                :key="group.kind"
-              >
-                <SelectSeparator v-if="groupIndex > 0" />
-                <SelectGroup>
-                  <SelectLabel>{{ group.label }}</SelectLabel>
-                  <template v-for="provider in group.providers" :key="provider.id">
-                    <SelectItem
-                      v-for="model in provider.models"
-                      :key="`${provider.id}:${model}`"
-                      :value="`manual:${provider.id}:${model}`"
-                    >
-                      {{ providerModelLabel(provider.id, model) }}
-                    </SelectItem>
-                  </template>
-                </SelectGroup>
-              </template>
-            </SelectContent>
-          </Select>
-        </div>
+        <CodingComposerControls
+          :workspace-name="workspacePath ? workspaceName : '项目'"
+          :workspace-locked="workspaceLocked"
+          :running="running"
+          :ctf-session="ctfSession"
+          :execution-mode="effectiveExecutionMode"
+          :approval-policy="effectiveApprovalPolicy"
+          :approval-label="approvalMenuLabel"
+          :model-key="currentModelKey"
+          :automatic-model-label="automaticModelLabel"
+          :compact-model-label="compactModelLabel"
+          @choose-workspace="$emit('chooseWorkspace')"
+          @change-execution-mode="changeExecutionMode"
+          @change-approval-policy="changeApprovalPolicy"
+          @change-model="changeModel"
+          @show-permissions="showCodingPermissions"
+        />
 
         <div
           v-if="ctfSession && ctfRole === 'solver'"
@@ -2017,24 +1865,10 @@ watch(
   z-index: 2;
 }
 
-.chat-composer__workspace {
-  max-width: 9rem;
-}
-
 .chat-goal-strip {
   min-height: 2rem;
   border-radius: 0.65rem;
   background: color-mix(in srgb, var(--primary) 7%, transparent);
-}
-
-.chat-composer__control {
-  font-size: var(--text-body, 0.75rem);
-  line-height: var(--text-body--line-height, 1rem);
-}
-
-.chat-composer__control[data-slot='select-trigger'] {
-  font-size: var(--text-body, 0.75rem) !important;
-  line-height: var(--text-body--line-height, 1rem) !important;
 }
 
 .coding-action-option {
@@ -2043,66 +1877,6 @@ watch(
   align-items: flex-start;
   gap: 0.75rem;
   padding: 0.65rem 0.75rem;
-}
-
-.chat-composer__permission--full {
-  color: var(--warning);
-}
-
-.chat-composer__permission--full:hover {
-  color: var(--warning);
-}
-
-.approval-option {
-  display: flex;
-  min-height: 4.5rem;
-  cursor: pointer;
-  align-items: flex-start;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
-}
-
-.approval-option__icon {
-  width: 1.15rem;
-  height: 1.15rem;
-  margin-top: 0.15rem;
-  flex: none;
-}
-
-.approval-option__title {
-  font-size: var(--text-label, 0.875rem);
-  line-height: 1.25rem;
-  font-weight: 600;
-}
-
-.approval-option__description {
-  margin-top: 0.1rem;
-  color: var(--muted-foreground);
-  font-size: var(--text-control, 0.875rem);
-  line-height: 1.25rem;
-}
-
-.approval-option__check {
-  width: 1rem;
-  height: 1rem;
-  margin-top: 0.15rem;
-  flex: none;
-}
-
-.approval-option--full,
-.approval-option--full .approval-option__description {
-  color: var(--warning);
-}
-
-.approval-option--full .approval-option__icon,
-.approval-option--full .approval-option__check {
-  color: var(--warning);
-}
-
-.chat-composer__model {
-  width: auto;
-  flex: 1 1 10rem;
-  max-width: 15rem;
 }
 
 .chat-composer__island {
@@ -2131,24 +1905,4 @@ watch(
   }
 }
 
-@container chat-main (max-width: 52rem) {
-  .chat-composer__controls {
-    flex-wrap: nowrap;
-    gap: 0.25rem;
-  }
-
-  .chat-composer__workspace {
-    max-width: 6rem;
-  }
-
-  .chat-composer__permission {
-    min-width: 6rem;
-  }
-
-  .chat-composer__model {
-    min-width: 6rem;
-    flex: 1 1 8rem;
-    width: auto;
-  }
-}
 </style>
