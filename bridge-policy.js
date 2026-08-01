@@ -338,7 +338,7 @@ function sandboxString(value) {
   return JSON.stringify(value);
 }
 
-function sandboxProfile(
+export function sandboxProfile(
   workspace,
   allowNetwork,
   extraProtectedEntries = [],
@@ -2289,16 +2289,44 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
     codingPolicy.executionMode,
     codingPolicy.approvalPolicy,
   );
+  const mcpServers = Array.isArray(codingPolicy.mcpServers)
+    ? [...new Set(codingPolicy.mcpServers.map(value => String(value).trim()).filter(Boolean))]
+    : [];
   const productAction = normalizedCodingProductAction(
     root,
     codingPolicy.productAction,
   );
+  const actionTools = codingProductActionTools(productAction, normalized.activeTools);
+  const mcpAvailable = !productAction
+    && mcpServers.length > 0
+    && normalized.executionMode === "go"
+    && normalized.approvalPolicy !== "read-only";
+  const activeTools = mcpAvailable
+    ? [...new Set([...actionTools, "mcp"])]
+    : actionTools;
+  const capabilities = normalized.capabilities.map(capability => (
+    capability.id === "browser"
+      ? {
+          ...capability,
+          status: mcpAvailable ? "approval-required" : "unavailable",
+          detail: mcpAvailable
+            ? `${mcpServers.length} 个 MCP 服务器已为本任务启用；`
+              + "每次外部连接或工具调用前都会在桌面请求批准。"
+            : mcpServers.length
+              ? "当前 Plan、只读或一键只读动作不会加载 MCP；切换到 Go 后可用。"
+            : "项目 .mcp.json 中的服务器仅在本任务“能力”菜单勾选后加载。",
+        }
+      : capability
+  ));
   return {
     ctf: false,
     ...normalized,
-    activeTools: codingProductActionTools(productAction, normalized.activeTools),
+    activeTools,
+    capabilities,
     workspace: root,
     productAction,
+    mcpServers,
+    mcpConfigDigest: String(codingPolicy.mcpConfigDigest ?? "").trim(),
     readOnlyResourceRoots: [...(codingPolicy.readOnlyResourceRoots || [])],
     customTools: await createCodingToolDefinitions(
       root,

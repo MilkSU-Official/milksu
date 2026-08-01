@@ -14,6 +14,7 @@ const piVersion = '0.83.0'
 const piLspVersion = '0.29.0'
 const piGoalVersion = '0.43.0'
 const piBackgroundTasksVersion = '0.1.10'
+const piMcpAdapterVersion = '2.17.0'
 const systemOcrVersion = '1.1.0'
 const systemOcrNativePackages = {
   'darwin/arm64': '@napi-rs/system-ocr-darwin-arm64',
@@ -188,6 +189,10 @@ async function buildSidecar(platform) {
       join(licenseOutput, 'pi-better-background-tasks-MIT.txt'),
     ),
     copyFile(
+      join(repositoryRoot, 'node_modules', 'pi-mcp-adapter', 'LICENSE'),
+      join(licenseOutput, 'pi-mcp-adapter-MIT.txt'),
+    ),
+    copyFile(
       join(systemOcrSource, 'LICENSE'),
       join(licenseOutput, 'napi-rs-system-ocr-MIT.txt'),
     ),
@@ -259,6 +264,13 @@ async function buildSidecar(platform) {
         licenseFile: 'THIRD_PARTY-LICENSES/pi-better-background-tasks-MIT.txt',
         scope: 'coding-only',
       },
+      piMcpAdapter: {
+        package: 'pi-mcp-adapter',
+        version: piMcpAdapterVersion,
+        license: 'MIT',
+        licenseFile: 'THIRD_PARTY-LICENSES/pi-mcp-adapter-MIT.txt',
+        scope: 'coding-opt-in',
+      },
       localOcr: {
         package: '@napi-rs/system-ocr',
         version: systemOcrVersion,
@@ -284,6 +296,7 @@ async function smokeSidecar(platform) {
     join(output, 'THIRD_PARTY-LICENSES', 'pi-MIT.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'narumitw-pi-extensions-MIT.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'pi-better-background-tasks-MIT.txt'),
+    join(output, 'THIRD_PARTY-LICENSES', 'pi-mcp-adapter-MIT.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'napi-rs-system-ocr-MIT.txt'),
     join(output, 'skills', 'archify', 'LICENSE'),
   ]) {
@@ -387,6 +400,42 @@ async function smokeSidecar(platform) {
   ) {
     throw new Error(`unexpected packaged Chat Sidecar response: ${chatRun.stdout}`)
   }
+  const mcpConfig = `${JSON.stringify({
+    mcpServers: {
+      fixture: {
+        command: '/bin/sh',
+        args: ['-c', 'printf fixture-ready'],
+      },
+    },
+  }, null, 2)}\n`
+  await writeFile(join(workspace, '.mcp.json'), mcpConfig, { mode: 0o600 })
+  const mcpRun = await runWithInput(
+    node,
+    [...chatRuntimeArguments, join(output, 'chat-bridge.cjs')],
+    [
+      JSON.stringify({
+        action: 'create_session',
+        conversationId: 'packaged-mcp',
+        executionMode: 'go',
+        approvalPolicy: 'workspace-auto',
+        mcpServers: ['fixture'],
+        mcpConfigDigest: createHash('sha256').update(mcpConfig).digest('hex'),
+      }),
+      '{"action":"destroy_session","conversationId":"packaged-mcp"}',
+      '',
+    ].join('\n'),
+    { cwd: workspace, env: { ...process.env, HOME: workspace } },
+  )
+  const mcpResponses = mcpRun.stdout.trim().split('\n').map(line => JSON.parse(line))
+  const mcpReady = mcpResponses.find(value => value.type === 'ready')
+  if (
+    !mcpReady?.tools?.includes('mcp')
+    || !mcpReady?.extensions?.includes('pi-mcp-adapter')
+    || !mcpResponses.some(value => value.type === 'session_destroyed')
+    || mcpResponses.some(value => value.type === 'error')
+  ) {
+    throw new Error(`unexpected packaged MCP response: ${mcpRun.stdout}`)
+  }
   const planRun = await runWithInput(
     node,
     [...chatRuntimeArguments, join(output, 'chat-bridge.cjs')],
@@ -401,7 +450,10 @@ async function smokeSidecar(platform) {
   const planReady = planResponses.find(value => value.type === 'ready')
   if (
     !planReady
-    || ['bash', 'edit', 'write', 'bg_task', 'lsp_fix'].some(tool => planReady.tools?.includes(tool))
+    || ['bash', 'edit', 'write', 'bg_task', 'lsp_fix', 'mcp'].some(
+      tool => planReady.tools?.includes(tool),
+    )
+    || planReady.extensions?.includes('pi-mcp-adapter')
     || ![
       'read',
       'grep',
@@ -500,6 +552,8 @@ async function smokeSidecar(platform) {
     || ctfReady.skills?.includes('archify')
     || ctfReady.extensions?.includes('pi-lsp')
     || ctfReady.extensions?.includes('pi-goal')
+    || ctfReady.extensions?.includes('pi-mcp-adapter')
+    || ctfReady.tools?.includes('mcp')
     || ctfReady.tools?.includes('goal_complete')
     || ctfReady.tools?.includes('goal_blocked')
     || !coachTools.every(tool => ctfReady.tools?.includes(tool))

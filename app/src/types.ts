@@ -72,6 +72,8 @@ export interface Conversation {
   modelId?: string
   executionMode?: CodingExecutionMode
   approvalPolicy?: CodingApprovalPolicy
+  mcpServers?: string[]
+  mcpConfigDigest?: string
   agentTools?: string[]
   agentExtensions?: string[]
   agentSkills?: string[]

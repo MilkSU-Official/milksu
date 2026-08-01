@@ -52,6 +52,7 @@ import type {
   CodingEnvironmentSnapshot,
   CodingGitAction,
   CodingGitActionResult,
+  CodingMCPConfigSnapshot,
   CodingRuntimeStatus,
 } from './codingEnvironmentTypes'
 import type {
@@ -85,6 +86,8 @@ interface WailsAppBindings {
     modelId: string,
     executionMode: string,
     approvalPolicy: string,
+    mcpConfigDigest: string,
+    mcpServers: string[],
     attachments: CodingAttachment[],
   ): Promise<void>
   AbortMessage(conversationId: string): Promise<void>
@@ -95,6 +98,7 @@ interface WailsAppBindings {
   ): Promise<void>
   GetRuntimeStatus(): Promise<CodingRuntimeStatus>
   GetCodingEnvironment(workspacePath: string): Promise<CodingEnvironmentSnapshot>
+  GetCodingMCPConfig(workspacePath: string): Promise<CodingMCPConfigSnapshot>
   GetCodingDiff(workspacePath: string, relativePath: string): Promise<CodingDiffSnapshot>
   ApplyCodingGitAction(
     workspacePath: string,
@@ -351,6 +355,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
           (args?.modelId as string) ?? '',
           (args?.executionMode as string) ?? '',
           (args?.approvalPolicy as string) ?? '',
+          (args?.mcpConfigDigest as string) ?? '',
+          (args?.mcpServers as string[]) ?? [],
           (args?.attachments as CodingAttachment[]) ?? [],
         ) as Promise<T>
       case 'abort_message':
@@ -365,6 +371,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.GetRuntimeStatus() as Promise<T>
       case 'get_coding_environment':
         return app.GetCodingEnvironment(args?.workspacePath as string) as Promise<T>
+      case 'get_coding_mcp_config':
+        return app.GetCodingMCPConfig(args?.workspacePath as string) as Promise<T>
       case 'get_coding_diff':
         return app.GetCodingDiff(
           args?.workspacePath as string,
@@ -636,6 +644,13 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         },
       } as T
     }
+    case 'get_coding_mcp_config':
+      return {
+        workspace: String(args?.workspacePath ?? ''),
+        configured: false,
+        servers: [],
+        problem: 'MCP 服务器只在 MilkSU 桌面运行时读取。',
+      } as T
     case 'get_coding_diff':
       throw new Error('Git Diff 只在 MilkSU 桌面运行时读取。')
     case 'list_ctf_jobs': {

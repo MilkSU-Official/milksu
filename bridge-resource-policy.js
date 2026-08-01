@@ -62,6 +62,9 @@ export function applyCodingResourcePolicy(
   platform = process.platform,
 ) {
   environment.PI_LSP_CONFIG = reviewedLspConfig(environment, platform);
+  // MilkSU intentionally exposes only pi-mcp-adapter's single proxy tool so
+  // every external call passes through one approval and activity boundary.
+  environment.MCP_DIRECT_TOOLS = "__none__";
 
   for (const name of REVIEWED_LSP_SERVER_NAMES) {
     const override = `PI_${name.replaceAll("-", "_").toUpperCase()}_LSP_COMMAND`;
@@ -79,6 +82,7 @@ export function describeLoadedExtensions(resourceLoader) {
     if (tools.has("bg_task") && tools.has("bg_status")) {
       return ["pi-background-tasks"];
     }
+    if (tools.has("mcp")) return ["pi-mcp-adapter"];
     return [];
   });
   return {

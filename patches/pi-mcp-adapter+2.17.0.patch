@@ -1,0 +1,11 @@
+diff --git a/node_modules/pi-mcp-adapter/sampling-handler.ts b/node_modules/pi-mcp-adapter/sampling-handler.ts
+index 340b6ae..48904ff 100644
+--- a/node_modules/pi-mcp-adapter/sampling-handler.ts
++++ b/node_modules/pi-mcp-adapter/sampling-handler.ts
+@@ -1,4 +1,5 @@
+-import { complete, type Api, type AssistantMessage, type Message, type Model, type TextContent } from "@earendil-works/pi-ai";
++import { type Api, type AssistantMessage, type Message, type Model, type TextContent } from "@earendil-works/pi-ai";
++import { complete } from "@earendil-works/pi-ai/compat";
+ import { truncateAtWord } from "./utils.ts";
+ import { throwIfAborted } from "./abort.ts";
+ import type { ExtensionUIContext, ModelRegistry } from "@earendil-works/pi-coding-agent";

@@ -399,7 +399,9 @@ func (a *App) SendMessage(
 	modelProvider,
 	modelID,
 	executionMode,
-	approvalPolicy string,
+	approvalPolicy,
+	mcpConfigDigest string,
+	mcpServers []string,
 	attachments []codingattachment.Attachment,
 ) error {
 	sessionRole := ""
@@ -433,6 +435,8 @@ func (a *App) SendMessage(
 		sessionRole,
 		executionMode,
 		approvalPolicy,
+		mcpServers,
+		mcpConfigDigest,
 		attachments,
 		settings,
 	)
@@ -458,6 +462,10 @@ func (a *App) GetCodingEnvironment(workspacePath string) (codingenv.Snapshot, er
 	inspectContext, cancel := context.WithTimeout(a.commandContext(), 4*time.Second)
 	defer cancel()
 	return codingenv.Inspect(inspectContext, workspacePath)
+}
+
+func (a *App) GetCodingMCPConfig(workspacePath string) (codingenv.MCPConfigSnapshot, error) {
+	return codingenv.InspectMCPConfig(workspacePath)
 }
 
 func (a *App) GetCodingDiff(workspacePath, relativePath string) (codingenv.DiffSnapshot, error) {

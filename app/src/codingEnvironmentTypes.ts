@@ -97,3 +97,17 @@ export interface CodingArchitecturePreview {
   html?: string
   sizeBytes?: number
 }
+
+export interface CodingMCPServerSummary {
+  name: string
+  transport: string
+}
+
+export interface CodingMCPConfigSnapshot {
+  workspace: string
+  configured: boolean
+  path?: string
+  digest?: string
+  servers: CodingMCPServerSummary[]
+  problem?: string
+}

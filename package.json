@@ -31,6 +31,7 @@
     "@narumitw/pi-goal": "0.43.0",
     "@narumitw/pi-lsp": "0.29.0",
     "pi-better-background-tasks": "0.1.10",
+    "pi-mcp-adapter": "2.17.0",
     "typebox": "1.1.38"
   }
 }

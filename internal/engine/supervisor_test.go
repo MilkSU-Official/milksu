@@ -228,7 +228,9 @@ func TestSendMessageRejectsMissingKeyBeforeStartingSidecar(t *testing.T) {
 	supervisor := NewSupervisor(nil)
 	defer supervisor.Close()
 
-	err := supervisor.SendMessage("session-1", "hello", "", "", "", "", nil, config.DefaultSettings())
+	err := supervisor.SendMessage(
+		"session-1", "hello", "", "", "", "", nil, "", nil, config.DefaultSettings(),
+	)
 	if err == nil || !strings.Contains(err.Error(), "Settings > API Keys") {
 		t.Fatalf("expected actionable missing-key error, got %v", err)
 	}

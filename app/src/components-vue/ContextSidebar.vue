@@ -98,13 +98,25 @@ const vulnContext = computed(() => props.activeSection === 'vuln')
 
     <div v-else-if="codingContext" class="app-no-drag flex min-h-0 flex-1 flex-col pt-4">
       <div class="px-3">
-        <Button variant="outline" block class="justify-start" @click="$emit('new')">
+        <Button
+          variant="outline"
+          size="sm"
+          block
+          class="coding-sidebar-control justify-start"
+          @click="$emit('new')"
+        >
           <MessageSquarePlus class="size-4" />
           新建编码任务
         </Button>
         <label class="relative mt-3 block">
           <Search class="pointer-events-none absolute left-3 top-1/2 z-10 size-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input v-model="query" size="sm" emphasis="subtle" class="pl-8" placeholder="搜索任务" />
+          <Input
+            v-model="query"
+            size="sm"
+            emphasis="subtle"
+            class="coding-sidebar-control pl-8"
+            placeholder="搜索任务"
+          />
         </label>
       </div>
 
@@ -118,7 +130,7 @@ const vulnContext = computed(() => props.activeSection === 'vuln')
             class="coding-project-group"
           >
             <summary
-              class="flex cursor-pointer list-none items-center gap-2 rounded-md px-3 py-2 text-body font-medium hover:bg-accent/50"
+              class="coding-project-row flex cursor-pointer list-none items-center gap-2 rounded-md px-3 py-2 font-medium hover:bg-accent/50"
               :title="group.path ?? '未绑定仓库的临时编码任务'"
             >
               <ChevronRight class="coding-project-chevron size-3.5 shrink-0 text-muted-foreground" />
@@ -138,7 +150,7 @@ const vulnContext = computed(() => props.activeSection === 'vuln')
                 <Button
                   variant="ghost"
                   size="sm"
-                  class="min-w-0 flex-1 justify-start pl-2"
+                  class="coding-project-row min-w-0 flex-1 justify-start pl-2"
                   @click="$emit('selectConversation', conversation.id)"
                 >
                   <span class="truncate">{{ conversation.title }}</span>
@@ -178,6 +190,13 @@ const vulnContext = computed(() => props.activeSection === 'vuln')
 </template>
 
 <style scoped>
+.coding-sidebar-control,
+.coding-project-row {
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+  letter-spacing: var(--text-body--letter-spacing);
+}
+
 .coding-project-group[open] > summary .coding-project-chevron {
   transform: rotate(90deg);
 }

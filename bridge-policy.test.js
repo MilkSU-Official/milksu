@@ -142,6 +142,31 @@ test("Ask exposes effectful tools behind the desktop approval channel", async ()
   );
 });
 
+test("MCP is exposed only for an explicitly selected Coding task", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "milksu-coding-policy-"));
+  const disabled = await loadSessionPolicy(workspace, "", {
+    executionMode: "go",
+    approvalPolicy: "workspace-auto",
+  });
+  assert.equal(disabled.activeTools.includes("mcp"), false);
+  assert.equal(
+    disabled.capabilities.find(value => value.id === "browser").status,
+    "unavailable",
+  );
+
+  const enabled = await loadSessionPolicy(workspace, "", {
+    executionMode: "go",
+    approvalPolicy: "workspace-auto",
+    mcpServers: ["browser"],
+  });
+  assert.equal(enabled.activeTools.includes("mcp"), true);
+  assert.deepEqual(enabled.mcpServers, ["browser"]);
+  assert.equal(
+    enabled.capabilities.find(value => value.id === "browser").status,
+    "approval-required",
+  );
+});
+
 test("Coding read/search tools can access reviewed resources but no other outside path", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "milksu-coding-policy-"));
   const resourceRoot = await mkdtemp(join(tmpdir(), "milksu-archify-resource-"));

@@ -69,6 +69,7 @@ import type {
   CodingBackgroundTask,
   CodingDiffSnapshot,
   CodingEnvironmentSnapshot,
+  CodingMCPConfigSnapshot,
   CodingRuntimeStatus,
 } from '@/codingEnvironmentTypes'
 import type { CTFShowCatalogStatus } from '@/ctfshowTypes'
@@ -115,6 +116,8 @@ const props = defineProps<{
   modelId?: string
   executionMode?: CodingExecutionMode
   approvalPolicy?: CodingApprovalPolicy
+  mcpServers?: string[]
+  mcpConfigDigest?: string
 }>()
 
 const emit = defineEmits<{
@@ -127,6 +130,7 @@ const emit = defineEmits<{
     executionMode: CodingExecutionMode,
     approvalPolicy: CodingApprovalPolicy,
   ]
+  changeMcpServers: [servers: string[], configDigest: string]
   respondApproval: [requestId: string, approved: boolean]
   controlGoal: [action: 'resume' | 'clear']
   openSettings: []
@@ -155,6 +159,8 @@ const nssctfBrowserStatus = ref<NSSCTFWebBridgeStatus | null>(null)
 const ctfshowBrowserStatus = ref<CTFShowCatalogStatus | null>(null)
 const codingEnvironment = ref<CodingEnvironmentSnapshot | null>(null)
 const codingRuntime = ref<CodingRuntimeStatus | null>(null)
+const mcpConfig = ref<CodingMCPConfigSnapshot | null>(null)
+const mcpConfigLoading = ref(false)
 const ctfBudget = ref<CTFAgentBudgetStatus | null>(null)
 const ctfCheckpoint = ref<CTFAgentRunCheckpoint | null>(null)
 const ctfProjection = ref<CTFProjection | null>(null)
@@ -193,6 +199,11 @@ const automaticModelLabel = computed(() => {
 const activeExtensions = computed(() => (
   props.conversation?.agentExtensions ?? []
 ))
+const selectedMCPServers = computed(() => props.mcpServers ?? [])
+const capabilityCount = computed(() => new Set([
+  ...activeExtensions.value,
+  ...(selectedMCPServers.value.length ? ['pi-mcp-adapter'] : []),
+]).size)
 const activeSkills = computed(() => (
   props.conversation?.agentSkills ?? []
 ))
@@ -288,6 +299,8 @@ const extensionLabel = (value: string) => (
         ? 'PI Goal'
         : value === 'pi-background-tasks'
           ? 'PI Background Tasks'
+          : value === 'pi-mcp-adapter'
+            ? 'PI MCP Adapter'
         : value
 )
 const extensionDescription = (value: string) => (
@@ -299,6 +312,8 @@ const extensionDescription = (value: string) => (
         ? '持续推进用户目标，跨回合恢复，并要求完成或受阻证据'
         : value === 'pi-background-tasks'
           ? '复用社区持久任务、条件等待和日志管理；进程仍受 MilkSU 权限策略约束'
+          : value === 'pi-mcp-adapter'
+            ? '复用社区 MCP 适配器；仅加载当前任务明确勾选的服务器'
         : '已由 MilkSU 白名单加载'
 )
 const hasCredential = computed(() => {
@@ -527,6 +542,56 @@ function changeExecutionMode(value: string) {
 function changeApprovalPolicy(value: string) {
   const approvalPolicy = normalizeCodingApprovalPolicy(value)
   emit('changeCodingPolicy', effectiveExecutionMode.value, approvalPolicy)
+}
+
+async function refreshMCPConfig() {
+  if (props.ctfSession || !props.workspacePath) {
+    mcpConfig.value = null
+    return
+  }
+  mcpConfigLoading.value = true
+  try {
+    const snapshot = await invokeCommand<CodingMCPConfigSnapshot>(
+      'get_coding_mcp_config',
+      { workspacePath: props.workspacePath },
+    )
+    mcpConfig.value = snapshot
+    if (!selectedMCPServers.value.length) return
+
+    const available = new Set(snapshot.servers.map(server => server.name))
+    const selectionIsStale = props.mcpConfigDigest !== snapshot.digest
+      || selectedMCPServers.value.some(server => !available.has(server))
+    if (selectionIsStale) emit('changeMcpServers', [], '')
+  } catch (reason) {
+    mcpConfig.value = {
+      workspace: props.workspacePath,
+      configured: false,
+      servers: [],
+      problem: reason instanceof Error
+        ? reason.message
+        : '暂时无法读取项目 MCP 配置。',
+    }
+    if (selectedMCPServers.value.length) emit('changeMcpServers', [], '')
+  } finally {
+    mcpConfigLoading.value = false
+  }
+}
+
+function toggleMCPServer(name: string) {
+  if (props.running || !mcpConfig.value?.digest) return
+  const selection = new Set(selectedMCPServers.value)
+  if (selection.has(name)) selection.delete(name)
+  else selection.add(name)
+  emit(
+    'changeMcpServers',
+    [...selection].sort((left, right) => left.localeCompare(right)),
+    mcpConfig.value.digest,
+  )
+}
+
+function selectMCPServer(event: Event, name: string) {
+  event.preventDefault()
+  toggleMCPServer(name)
 }
 
 function showCodingPermissions() {
@@ -800,6 +865,11 @@ watch(() => props.ctfSession, (current, previous) => {
 watch(() => props.conversation?.id, () => {
   goalMode.value = false
 })
+watch(
+  () => [props.ctfSession, props.workspacePath] as const,
+  () => void refreshMCPConfig(),
+  { immediate: true },
+)
 watch(contextPanel, panel => {
   if (panel === 'browser' && environmentOpen.value) void refreshBrowserPanel()
   if (panel === 'architecture' && environmentOpen.value) void refreshArchitecturePreview()
@@ -1155,12 +1225,12 @@ watch(
                 variant="ghost"
                 size="sm"
                 class="chat-composer__control"
-                :aria-label="`查看本任务能力，${activeExtensions.length} 个插件`"
+                :aria-label="`查看本任务能力，${capabilityCount} 个扩展`"
               >
                 <Puzzle class="size-3.5" />
                 能力
-                <Badge v-if="activeExtensions.length" variant="secondary">
-                  {{ activeExtensions.length }}
+                <Badge v-if="capabilityCount" variant="secondary">
+                  {{ capabilityCount }}
                 </Badge>
               </Button>
             </DropdownMenuTrigger>
@@ -1201,6 +1271,44 @@ watch(
                 </p>
               </template>
               <template v-if="!ctfSession">
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>项目 MCP</DropdownMenuLabel>
+                <p v-if="mcpConfigLoading" class="px-2 py-3 text-caption text-muted-foreground">
+                  正在读取项目的 .mcp.json…
+                </p>
+                <p
+                  v-else-if="mcpConfig?.problem"
+                  class="px-2 py-3 text-caption leading-5 text-destructive"
+                >
+                  {{ mcpConfig.problem }}
+                </p>
+                <p
+                  v-else-if="!mcpConfig?.configured || !mcpConfig.servers.length"
+                  class="px-2 py-3 text-caption leading-5 text-muted-foreground"
+                >
+                  当前项目没有可选择的 .mcp.json 服务器。
+                </p>
+                <template v-else>
+                  <DropdownMenuItem
+                    v-for="server in mcpConfig.servers"
+                    :key="server.name"
+                    class="gap-2"
+                    :disabled="running"
+                    @select="selectMCPServer($event, server.name)"
+                  >
+                    <span class="flex size-4 shrink-0 items-center justify-center">
+                      <Check
+                        v-if="selectedMCPServers.includes(server.name)"
+                        class="size-3.5 text-primary"
+                      />
+                    </span>
+                    <span class="min-w-0 flex-1 truncate">{{ server.name }}</span>
+                    <Badge variant="outline">{{ server.transport }}</Badge>
+                  </DropdownMenuItem>
+                  <p class="px-2 pb-2 pt-1 text-caption leading-5 text-muted-foreground">
+                    只接入本任务勾选的服务器；连接、认证与工具调用仍逐次批准。
+                  </p>
+                </template>
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel>权限能力 · {{ codingPolicyLabel }}</DropdownMenuLabel>
                 <div class="space-y-2 px-2 py-2">
@@ -1327,7 +1435,7 @@ watch(
             </Button>
             <Textarea
               v-model="draft"
-              class="max-h-40 min-h-11 flex-1 resize-none border-0 bg-transparent shadow-none focus-visible:ring-0"
+              class="chat-composer__input max-h-40 min-h-11 flex-1 resize-none border-0 bg-transparent shadow-none focus-visible:ring-0"
               :placeholder="ctfSession
                 ? ctfRole === 'strategist'
                   ? '补充你希望独立复盘的卡点或失败路线…'
@@ -2096,6 +2204,12 @@ watch(
   box-shadow:
     0 14px 34px rgb(0 0 0 / 18%),
     0 2px 8px rgb(0 0 0 / 10%);
+}
+
+.chat-composer__input {
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+  letter-spacing: var(--text-body--letter-spacing);
 }
 
 @media (max-width: 68.75rem) {

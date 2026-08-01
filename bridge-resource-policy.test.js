@@ -43,6 +43,7 @@ test("coding resource policy overrides ambient LSP configuration", () => {
 
   assert.doesNotThrow(() => JSON.parse(environment.PI_LSP_CONFIG));
   assert.equal("PI_MILKSU_GO_LSP_COMMAND" in environment, false);
+  assert.equal(environment.MCP_DIRECT_TOOLS, "__none__");
 });
 
 test("loaded extension names come from registered tools", () => {
@@ -58,6 +59,7 @@ test("loaded extension names come from registered tools", () => {
           extension(["lsp_diagnostics", "lsp_fix"]),
           extension(["goal_complete", "goal_blocked"]),
           extension(["bg_task", "bg_status"]),
+          extension(["mcp"]),
         ],
         errors: [{ path: "broken-extension", error: "failed to load" }],
       };
@@ -65,7 +67,13 @@ test("loaded extension names come from registered tools", () => {
   };
 
   assert.deepEqual(describeLoadedExtensions(resourceLoader), {
-    names: ["milksu-workflow", "pi-lsp", "pi-goal", "pi-background-tasks"],
+    names: [
+      "milksu-workflow",
+      "pi-lsp",
+      "pi-goal",
+      "pi-background-tasks",
+      "pi-mcp-adapter",
+    ],
     errors: [{ path: "broken-extension", error: "failed to load" }],
   });
 });

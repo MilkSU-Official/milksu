@@ -196,6 +196,8 @@ func (s *Supervisor) SendMessage(
 	sessionRole string,
 	executionMode string,
 	approvalPolicy string,
+	mcpServers []string,
+	mcpConfigDigest string,
 	attachments []codingattachment.Attachment,
 	settings config.AppSettings,
 ) error {
@@ -228,15 +230,17 @@ func (s *Supervisor) SendMessage(
 	}
 
 	if err := writeCommand(s.process.stdin, map[string]any{
-		"action":         "send_message",
-		"conversationId": sessionID,
-		"prompt":         prompt,
-		"provider":       settings.ActiveProvider,
-		"model":          settings.ActiveModel,
-		"sessionRole":    strings.TrimSpace(sessionRole),
-		"executionMode":  codingPolicy.ExecutionMode,
-		"approvalPolicy": codingPolicy.ApprovalPolicy,
-		"attachments":    attachments,
+		"action":          "send_message",
+		"conversationId":  sessionID,
+		"prompt":          prompt,
+		"provider":        settings.ActiveProvider,
+		"model":           settings.ActiveModel,
+		"sessionRole":     strings.TrimSpace(sessionRole),
+		"executionMode":   codingPolicy.ExecutionMode,
+		"approvalPolicy":  codingPolicy.ApprovalPolicy,
+		"mcpServers":      mcpServers,
+		"mcpConfigDigest": strings.TrimSpace(mcpConfigDigest),
+		"attachments":     attachments,
 	}); err != nil {
 		return fmt.Errorf("send engine message: %w", err)
 	}
@@ -311,6 +315,8 @@ func (s *Supervisor) ProbeModel(settings config.AppSettings) (ModelProbeResult, 
 		"",
 		"",
 		"",
+		"",
+		nil,
 		"",
 		nil,
 		settings,

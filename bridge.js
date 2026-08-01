@@ -13,6 +13,7 @@ import piGoalExtension from "@narumitw/pi-goal/src/index.ts";
 import piLspExtension from "@narumitw/pi-lsp/src/index.ts";
 import piBackgroundTasksExtension from "pi-better-background-tasks/src/index.ts";
 import { listMetas as listPiBackgroundTaskMetas } from "pi-better-background-tasks/src/registry.ts";
+import { createMcpAdapter } from "pi-mcp-adapter";
 import {
   codingSessionToolNames,
   loadSessionPolicy,
@@ -35,6 +36,11 @@ import {
   goalKeepsSessionRunning,
   projectSessionGoal,
 } from "./bridge-goal-view.js";
+import {
+  ensureMcpMetadataCache,
+  loadSelectedMcpConfig,
+  mcpSelectionChanged,
+} from "./bridge-mcp.js";
 
 const relayKey = process.env.MILKSU_RELAY_KEY;
 const relayUrl = process.env.MILKSU_RELAY_URL || "https://api.ciyuanliudong.com/v1";
@@ -229,20 +235,23 @@ function codingPolicyGuidance(policy) {
       + "with the current local user's filesystem, network, and credential authority. File tools "
       + "remain project-oriented, but terminal commands are not project-sandboxed. Model-provider "
       + "API keys are not passed to child processes. Act directly, keep changes scoped to the user "
-      + `request, and verify destructive or externally visible actions before executing them.${productActionGuidance}`;
+      + "request, and verify destructive or externally visible actions before executing them. "
+      + `Selected MCP servers remain an independent per-call desktop approval boundary.${productActionGuidance}`;
   }
   if (policy.approvalPolicy === "workspace-auto") {
     return "Go mode is active with Project Auto. You may edit files, use Git, run development "
       + "commands, start background tools, and access the network inside the selected project. "
       + "The project sandbox blocks writes outside the project and access to local credential "
       + "directories; model-provider API keys are never passed to child processes. Browser/MCP, "
-      + `Computer Use, and lsp_fix remain unavailable.${productActionGuidance}`;
+      + "when selected for this task, remains behind per-call desktop approval. Computer Use and "
+      + `lsp_fix remain unavailable.${productActionGuidance}`;
   }
   if (policy.approvalPolicy === "ask") {
     return "Go mode is active with Request Approval. Read-only inspection runs directly. Before "
       + "bash, edit, write, or another effectful Coding tool executes, MilkSU pauses the tool and "
       + "shows its exact parameters in the desktop. Continue only after that one request is approved; "
-      + `a rejection is authoritative and must not be bypassed with another tool.${productActionGuidance}`;
+      + "selected MCP calls use the same independent approval channel. A rejection is authoritative "
+      + `and must not be bypassed with another tool.${productActionGuidance}`;
   }
   return "Go mode is active with Read-only. Inspect and explain, but do not claim any mutation or "
     + `command execution; write and side-effect tools are unavailable.${productActionGuidance}`;
@@ -303,6 +312,21 @@ function createCodingPermissionExtension(
           };
         }
       }
+      if (event.toolName === "mcp" && mcpOperationRequiresApproval(event.input)) {
+        const serverName = selectedMcpServer(policy, event.input);
+        const approved = await approvalBroker.request({
+          conversationId,
+          toolName: `mcp:${serverName}`,
+          content: formatMcpApprovalInput(event.input, serverName),
+          input: truncate(JSON.stringify(event.input ?? {}, null, 2), 16000),
+        });
+        if (!approved) {
+          return {
+            block: true,
+            reason: `MilkSU user denied MCP server ${serverName}`,
+          };
+        }
+      }
       if (backgroundToolStartsProcess(event.toolName, event.input)) {
         const authorization = await prepareCodingBackgroundAuthorization(
           policy.workspace,
@@ -323,6 +347,32 @@ function createCodingPermissionExtension(
       };
     });
   };
+}
+
+function mcpOperationRequiresApproval(input) {
+  if (!input || typeof input !== "object") return false;
+  return Boolean(
+    input.tool
+    || input.connect
+    || ["auth-start", "auth-complete"].includes(String(input.action ?? "")),
+  );
+}
+
+function selectedMcpServer(policy, input) {
+  const explicit = String(input?.server ?? input?.connect ?? "").trim();
+  if (explicit) return explicit;
+  const selected = Array.isArray(policy?.mcpServers) ? policy.mcpServers : [];
+  return selected.length === 1 ? selected[0] : "已选择的 MCP 服务器";
+}
+
+function formatMcpApprovalInput(input, serverName) {
+  const tool = String(input?.tool ?? "").trim();
+  const action = String(input?.action ?? input?.connect ?? "").trim();
+  return [
+    `服务器 ${serverName}`,
+    tool ? `工具 ${tool}` : "",
+    action ? `操作 ${action}` : "",
+  ].filter(Boolean).join(" · ");
 }
 
 function formatToolInput(toolName, args) {
@@ -548,6 +598,7 @@ function createMilkSUResourceLoader(
   conversationId,
   getPolicy,
   registerPolicyController,
+  mcpConfig,
 ) {
   // Skills and extensions may execute instructions supplied by third parties.
   // Keep Pi's ambient discovery disabled and load only MilkSU-reviewed resources.
@@ -563,6 +614,9 @@ function createMilkSUResourceLoader(
       ),
       piLspExtension,
     );
+    if (mcpConfig) {
+      extensionFactories.push(createMcpAdapter({ config: mcpConfig }));
+    }
   }
   return new DefaultResourceLoader({
     cwd,
@@ -597,10 +651,19 @@ function reviewedCodingResourceRoots(sessionRole = "") {
 
 async function loadRuntimeSessionPolicy(cwd, command) {
   const productAction = parseCodingProductAction(command.prompt);
+  const selectedMcp = command.sessionRole
+    ? { selected: [], config: undefined }
+    : await loadSelectedMcpConfig(
+        cwd,
+        command.mcpServers,
+        command.mcpConfigDigest,
+      );
   let policy = await loadSessionPolicy(cwd, command.sessionRole, {
     executionMode: command.executionMode,
     approvalPolicy: command.approvalPolicy,
     productAction,
+    mcpServers: selectedMcp.selected,
+    mcpConfigDigest: command.mcpConfigDigest,
   });
   const effectiveSessionRole = policy.ctf
     ? command.sessionRole || "solver"
@@ -612,10 +675,17 @@ async function loadRuntimeSessionPolicy(cwd, command) {
       executionMode: command.executionMode,
       approvalPolicy: command.approvalPolicy,
       productAction,
+      mcpServers: selectedMcp.selected,
+      mcpConfigDigest: command.mcpConfigDigest,
       readOnlyResourceRoots: codingResourceRoots,
     });
   }
-  return { policy, effectiveSessionRole, codingSkillPaths };
+  return {
+    policy,
+    effectiveSessionRole,
+    codingSkillPaths,
+    mcpConfig: selectedMcp.config,
+  };
 }
 
 async function createSession(command) {
@@ -632,11 +702,15 @@ async function createSession(command) {
     policy: sessionPolicy,
     effectiveSessionRole,
     codingSkillPaths,
+    mcpConfig,
   } = await loadRuntimeSessionPolicy(cwd, command);
   if (!effectiveSessionRole) {
     applyCodingResourcePolicy();
   }
   sessionPolicies.set(conversationId, sessionPolicy);
+  if (mcpConfig) {
+    await ensureMcpMetadataCache(agentDir);
+  }
   const resourceLoader = createMilkSUResourceLoader(
     cwd,
     agentDir,
@@ -646,6 +720,7 @@ async function createSession(command) {
     conversationId,
     () => sessionPolicies.get(conversationId),
     controller => sessionPolicyControllers.set(conversationId, controller),
+    mcpConfig,
   );
   // MilkSU performs its own explicit, reviewed resource loading. Mark the
   // project untrusted at Pi's package-manager layer so it does not walk parent
@@ -669,7 +744,10 @@ async function createSession(command) {
       // their manifest-derived tool catalog.
       tools: sessionPolicy.ctf
         ? sessionPolicy.activeTools
-        : codingSessionToolNames,
+        : [
+            ...codingSessionToolNames,
+            ...(sessionPolicy.mcpServers?.length ? ["mcp"] : []),
+          ],
       customTools: sessionPolicy.customTools,
     }));
     // Pi's SDK constructs the extension runner but deliberately leaves
@@ -751,6 +829,7 @@ async function sendMessage(command) {
   const previousProductAction = previousPolicy?.productAction;
   const productActionChanged = JSON.stringify(previousProductAction)
     !== JSON.stringify(requestedProductAction);
+  const requestedMcpServers = command.sessionRole ? [] : command.mcpServers;
   if (
     existing
     && previousPolicy
@@ -758,6 +837,9 @@ async function sendMessage(command) {
     && (
       (previousPolicy.approvalPolicy === "full-auto") !== requestedFullAccess
       || productActionChanged
+      || mcpSelectionChanged(previousPolicy.mcpServers, requestedMcpServers)
+      || String(previousPolicy.mcpConfigDigest ?? "")
+        !== String(command.mcpConfigDigest ?? "")
     )
   ) {
     existing.dispose();

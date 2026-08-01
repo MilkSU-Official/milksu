@@ -45,6 +45,15 @@ function normalizeAttachments(value: unknown): CodingAttachment[] | undefined {
   return attachments.length ? attachments.slice(0, 8) : undefined
 }
 
+function normalizeMCPServers(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const servers = [...new Set(value.map(item => String(item).trim()).filter(Boolean))]
+    .filter(name => name.length <= 80 && !/[\u0000-\u001f\u007f]/u.test(name))
+    .slice(0, 16)
+    .sort((left, right) => left.localeCompare(right))
+  return servers.length ? servers : undefined
+}
+
 const goalStatuses = new Set<CodingGoalState['status']>([
   'active',
   'paused',
@@ -132,6 +141,10 @@ export function normalizeConversation(raw: Record<string, unknown>): Conversatio
     modelId: typeof raw.modelId === 'string' ? raw.modelId : undefined,
     executionMode: normalizeCodingExecutionMode(raw.executionMode),
     approvalPolicy: normalizeCodingApprovalPolicy(raw.approvalPolicy),
+    mcpServers: normalizeMCPServers(raw.mcpServers),
+    mcpConfigDigest: /^[a-f0-9]{64}$/i.test(String(raw.mcpConfigDigest ?? ''))
+      ? String(raw.mcpConfigDigest).toLowerCase()
+      : undefined,
     agentTools: Array.isArray(raw.agentTools)
       ? raw.agentTools.map(String)
       : undefined,
@@ -228,6 +241,8 @@ export function useConversations() {
   const pendingModelId = ref<string | undefined>()
   const pendingExecutionMode = ref<CodingExecutionMode>(DEFAULT_CODING_EXECUTION_MODE)
   const pendingApprovalPolicy = ref<CodingApprovalPolicy>(DEFAULT_CODING_APPROVAL_POLICY)
+  const pendingMCPServers = ref<string[]>([])
+  const pendingMCPConfigDigest = ref('')
   const runningIds = ref(new Set<string>())
   const active = computed(() => conversations.value.find(item => item.id === activeId.value) ?? null)
   const workspacePath = computed(() => active.value?.workspacePath ?? pendingWorkspacePath.value)
@@ -242,6 +257,12 @@ export function useConversations() {
   ))
   const selectedApprovalPolicy = computed(() => (
     active.value?.approvalPolicy ?? pendingApprovalPolicy.value
+  ))
+  const selectedMCPServers = computed(() => (
+    active.value?.mcpServers ?? pendingMCPServers.value
+  ))
+  const selectedMCPConfigDigest = computed(() => (
+    active.value?.mcpConfigDigest ?? pendingMCPConfigDigest.value
   ))
   const saveTimers = new Map<string, number>()
   let disposeEvents: (() => void) | undefined
@@ -288,6 +309,8 @@ export function useConversations() {
     pendingModelId.value = undefined
     pendingExecutionMode.value = DEFAULT_CODING_EXECUTION_MODE
     pendingApprovalPolicy.value = DEFAULT_CODING_APPROVAL_POLICY
+    pendingMCPServers.value = []
+    pendingMCPConfigDigest.value = ''
   }
 
   function setWorkspace(path: string) {
@@ -295,11 +318,15 @@ export function useConversations() {
     if (!normalized) return
     if (!activeId.value) {
       pendingWorkspacePath.value = normalized
+      pendingMCPServers.value = []
+      pendingMCPConfigDigest.value = ''
       return
     }
     update(activeId.value, conversation => ({
       ...conversation,
       workspacePath: normalized,
+      mcpServers: undefined,
+      mcpConfigDigest: undefined,
     }))
   }
 
@@ -337,6 +364,24 @@ export function useConversations() {
       ...conversation,
       executionMode,
       approvalPolicy,
+    }))
+  }
+
+  function setMCPSelection(servers: string[], configDigest: string) {
+    const normalizedServers = normalizeMCPServers(servers) ?? []
+    const normalizedDigest = /^[a-f0-9]{64}$/i.test(configDigest)
+      ? configDigest.toLowerCase()
+      : ''
+    if (normalizedServers.length && !normalizedDigest) return
+    if (!activeId.value) {
+      pendingMCPServers.value = normalizedServers
+      pendingMCPConfigDigest.value = normalizedServers.length ? normalizedDigest : ''
+      return
+    }
+    update(activeId.value, conversation => ({
+      ...conversation,
+      mcpServers: normalizedServers.length ? normalizedServers : undefined,
+      mcpConfigDigest: normalizedServers.length ? normalizedDigest : undefined,
     }))
   }
 
@@ -416,6 +461,10 @@ export function useConversations() {
         modelId: pendingModelId.value,
         executionMode: pendingExecutionMode.value,
         approvalPolicy: pendingApprovalPolicy.value,
+        mcpServers: pendingMCPServers.value.length ? pendingMCPServers.value : undefined,
+        mcpConfigDigest: pendingMCPServers.value.length
+          ? pendingMCPConfigDigest.value
+          : undefined,
         messages: [message],
       }
       conversations.value = [conversation, ...conversations.value]
@@ -440,6 +489,8 @@ export function useConversations() {
         modelId: conversation?.modelId ?? '',
         executionMode: conversation?.executionMode ?? DEFAULT_CODING_EXECUTION_MODE,
         approvalPolicy: conversation?.approvalPolicy ?? DEFAULT_CODING_APPROVAL_POLICY,
+        mcpServers: conversation?.mcpServers ?? [],
+        mcpConfigDigest: conversation?.mcpConfigDigest ?? '',
         attachments,
       })
     } catch (reason) {
@@ -484,6 +535,8 @@ export function useConversations() {
         modelId: conversation.modelId ?? '',
         executionMode: conversation.executionMode ?? DEFAULT_CODING_EXECUTION_MODE,
         approvalPolicy: conversation.approvalPolicy ?? DEFAULT_CODING_APPROVAL_POLICY,
+        mcpServers: conversation.mcpServers ?? [],
+        mcpConfigDigest: conversation.mcpConfigDigest ?? '',
         attachments: [],
       })
     } catch (reason) {
@@ -779,6 +832,8 @@ export function useConversations() {
     selectedModelId,
     selectedExecutionMode,
     selectedApprovalPolicy,
+    selectedMCPServers,
+    selectedMCPConfigDigest,
     load,
     listen,
     send,
@@ -790,6 +845,7 @@ export function useConversations() {
     setWorkspace,
     setModelSelection,
     setCodingPolicy,
+    setMCPSelection,
     startWorkspaceTask,
   }
 }
