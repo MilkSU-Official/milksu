@@ -193,6 +193,36 @@ func TestCTFPrimaryActionOpensTheAgentAfterWorkspaceCreation(t *testing.T) {
 	}
 }
 
+func TestCodingComposerKeepsOnlyMessageContextControls(t *testing.T) {
+	data, err := os.ReadFile("app/src/components-vue/CodingComposerControls.vue")
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := string(data)
+	for _, expected := range []string{
+		`$emit('chooseWorkspace')`,
+		`aria-label="Coding 执行模式"`,
+		`aria-label="Coding 权限策略"`,
+		`aria-label="选择本任务模型"`,
+		`class="composer-control composer-model ml-auto`,
+		`min-width: 8rem`,
+	} {
+		if !strings.Contains(source, expected) {
+			t.Fatalf("Coding composer does not preserve the essential send-context control %q", expected)
+		}
+	}
+	for _, duplicate := range []string{
+		`Coding 快捷动作`,
+		`设为目标`,
+		`架构图`,
+		`能力`,
+	} {
+		if strings.Contains(source, duplicate) {
+			t.Fatalf("Coding composer duplicates the right-side environment action %q", duplicate)
+		}
+	}
+}
+
 func TestBrowserExtensionRejectsEmptyPairingCodeClearly(t *testing.T) {
 	data, err := os.ReadFile("browserextension/popup.js")
 	if err != nil {

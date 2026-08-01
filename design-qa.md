@@ -117,6 +117,54 @@ No actionable P0, P1, or P2 findings remain.
 
 final result: passed
 
+# Coding 输入区发送上下文收口 · Follow-up QA
+
+- Source visual truth:
+  `/var/folders/wf/0w9rnrs904501nhp57pd_jzw0000gn/T/codex-clipboard-f2880711-da45-47ce-a0f4-ca509eb52978.png`
+- Rendered implementation:
+  `http://127.0.0.1:1421/`
+- Implementation screenshot:
+  `/private/tmp/milksu-coding-composer-final-full.png`
+- Focused before/after comparison:
+  `/private/tmp/milksu-coding-composer-controls-comparison.png`
+- Browser viewport and implementation pixels: `1280 × 720`; device pixel ratio `2`.
+- State: Coding empty task, the wider right-side Architecture page open, composer idle.
+
+## Findings
+
+No actionable P0, P1, or P2 finding remains.
+
+- The composer now contains only the four controls that change the next message: project, Plan/Go,
+  approval mode, and model.
+- Product actions, persistent goals, architecture generation, and capability details remain in the
+  right-side panel and no longer duplicate the composer.
+- The model trigger is the flexible trailing control and reserves at least `8rem` (`7rem` in the
+  compact container rule). `V4 Flash` remains fully visible with the wider Architecture page open.
+
+## Required fidelity surfaces
+
+- Fonts and typography: all four controls use the same compact body token; no label is clipped.
+- Spacing and layout rhythm: one quiet control row sits above the input island, with the model owning
+  the flexible trailing space.
+- Colors and tokens: the existing HTB-inspired surface, foreground, muted, and brand tokens remain
+  unchanged.
+- Image and asset fidelity: no new image, custom SVG, CSS drawing, emoji, or placeholder was added.
+- Copy and content: duplicate `动作 / 目标 / 架构图 / 能力` labels are absent from the composer; the
+  configured model name is explicit.
+- States and interactions: the right-side selector was changed from Environment to Architecture,
+  the model menu was opened and closed without changing the configured model, and the browser
+  reported zero errors and zero warnings.
+
+## Comparison history
+
+- Pass 1 — P1 in the supplied screenshot: eight controls competed for width and reduced the model
+  selection to an ambiguous `自动`.
+- Fix: kept only send-context controls and gave the model trigger a non-shrinking minimum width.
+- Pass 2 — passed: focused side-by-side evidence shows `项目 / Go / 替我审批 / V4 Flash` in the
+  narrow center column while Architecture remains available in the right panel.
+
+final result: passed
+
 # Coding 导航与输入控制密度 · Design QA
 
 **Comparison Target**

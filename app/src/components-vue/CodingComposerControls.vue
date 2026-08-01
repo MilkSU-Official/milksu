@@ -103,7 +103,7 @@ defineEmits<{
             class="size-3.5 shrink-0 text-warning"
           />
           <LockKeyhole v-else class="size-3.5 shrink-0" />
-          {{ approvalLabel }}
+          <span class="truncate">{{ approvalLabel }}</span>
           <ChevronDown class="ml-auto size-3.5 shrink-0 text-muted-foreground" />
         </Button>
       </DropdownMenuTrigger>
@@ -183,8 +183,7 @@ defineEmits<{
     >
       <SelectTrigger
         size="sm"
-        class="composer-control composer-model min-w-0 border-0 bg-transparent shadow-none"
-        :class="{ 'ml-auto': ctfSession }"
+        class="composer-control composer-model ml-auto min-w-0 border-0 bg-transparent shadow-none"
         aria-label="选择本任务模型"
         :title="modelKey === 'auto'
           ? 'MilkSU 按任务角色自动选择模型；你可以仅为当前对话覆盖'
@@ -288,7 +287,8 @@ defineEmits<{
 
 .composer-model {
   width: auto;
-  flex: 1 1 10rem;
+  min-width: 8rem;
+  flex: 1 0 10rem;
   max-width: 15rem;
 }
 
@@ -307,8 +307,8 @@ defineEmits<{
   }
 
   .composer-model {
-    min-width: 6rem;
-    flex: 1 1 8rem;
+    min-width: 7rem;
+    flex: 1 0 7rem;
     width: auto;
   }
 }
