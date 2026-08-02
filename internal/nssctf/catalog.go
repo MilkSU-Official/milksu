@@ -14,7 +14,15 @@ import (
 	"sync"
 	"time"
 
-	_ "modernc.org/sqlite"
+	"github.com/MilkSU-Official/milksu/internal/sqlitemigrate"
+)
+
+const (
+	// SupportedNSSCTFCatalogDatabaseVersion is the numbered SQLite migration
+	// version recorded in schema_migrations for the local NSSCTF catalog.
+	SupportedNSSCTFCatalogDatabaseVersion = 1
+
+	nssctfCatalogV1MigrationName = "create NSSCTF catalog"
 )
 
 type CatalogSyncResult struct {
@@ -179,18 +187,29 @@ func newCatalogService(path string, client *Client, options CatalogServiceOption
 	if err := os.Chmod(directory, 0o700); err != nil {
 		return nil, fmt.Errorf("protect NSSCTF catalog directory: %w", err)
 	}
-	db, err := sql.Open("sqlite", path)
+	migrator, err := sqlitemigrate.Open(
+		path,
+		[]sqlitemigrate.Migration{{
+			Version: 1,
+			Name:    nssctfCatalogV1MigrationName,
+			Up:      nssctfCatalogV1Up,
+		}},
+		sqlitemigrate.WithPragmas([]string{
+			"PRAGMA journal_mode = WAL",
+			"PRAGMA foreign_keys = ON",
+		}),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("open NSSCTF catalog: %w", err)
 	}
-	db.SetMaxOpenConns(1)
+	if err := migrator.Migrate(context.Background()); err != nil {
+		migrator.Close()
+		return nil, fmt.Errorf("migrate NSSCTF catalog: %w", err)
+	}
+	db := migrator.DB()
 	service := &CatalogService{
 		client: client, db: db, path: path, requestDelay: options.RequestDelay,
 		retryDelays: append([]time.Duration{}, options.RateLimitRetryDelays...),
-	}
-	if err := service.migrate(); err != nil {
-		db.Close()
-		return nil, err
 	}
 	if err := protectCatalogSQLiteFiles(path); err != nil {
 		db.Close()
@@ -199,10 +218,12 @@ func newCatalogService(path string, client *Client, options CatalogServiceOption
 	return service, nil
 }
 
-func (s *CatalogService) migrate() error {
-	statements := []string{
-		`PRAGMA journal_mode = WAL`,
-		`PRAGMA foreign_keys = ON`,
+// nssctfCatalogV1Up creates the current catalog schema. CREATE IF NOT EXISTS
+// deliberately adopts the pre-migrator schema without rewriting catalog rows;
+// the schema, index, and migration-history record share sqlitemigrate's
+// transaction, so an incompatible legacy shape cannot leave a half-upgrade.
+func nssctfCatalogV1Up(ctx context.Context, tx *sql.Tx) error {
+	for _, statement := range []string{
 		`CREATE TABLE IF NOT EXISTS catalog_meta (
 			key TEXT PRIMARY KEY,
 			value TEXT NOT NULL
@@ -223,13 +244,132 @@ func (s *CatalogService) migrate() error {
 			synced_at TEXT NOT NULL,
 			sync_run TEXT NOT NULL
 		)`,
-		`CREATE INDEX IF NOT EXISTS catalog_problems_category_difficulty
-			ON catalog_problems(category, difficulty)`,
-	}
-	for _, statement := range statements {
-		if _, err := s.db.Exec(statement); err != nil {
-			return fmt.Errorf("migrate NSSCTF catalog: %w", err)
+	} {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return fmt.Errorf("create NSSCTF catalog schema: %w", err)
 		}
+	}
+
+	if err := requireNSSCTFCatalogColumns(
+		ctx,
+		tx,
+		"catalog_meta",
+		[]string{"key", "value"},
+	); err != nil {
+		return err
+	}
+	if err := requireNSSCTFCatalogColumns(
+		ctx,
+		tx,
+		"catalog_problems",
+		[]string{
+			"platform_id", "source_url", "title", "category", "points",
+			"difficulty", "tags_json", "has_writeup", "solved_count",
+			"wrong_answer_count", "no_answer_count", "is_open", "synced_at",
+			"sync_run",
+		},
+	); err != nil {
+		return err
+	}
+
+	if _, err := tx.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS
+		catalog_problems_category_difficulty
+		ON catalog_problems(category, difficulty)`); err != nil {
+		return fmt.Errorf("create NSSCTF catalog index: %w", err)
+	}
+	if err := requireNSSCTFCatalogIndexColumns(
+		ctx,
+		tx,
+		"catalog_problems_category_difficulty",
+		[]string{"category", "difficulty"},
+	); err != nil {
+		return err
+	}
+	return nil
+}
+
+func requireNSSCTFCatalogColumns(
+	ctx context.Context,
+	tx *sql.Tx,
+	table string,
+	want []string,
+) error {
+	rows, err := tx.QueryContext(ctx, `PRAGMA table_info(`+table+`)`)
+	if err != nil {
+		return fmt.Errorf("inspect NSSCTF %s columns: %w", table, err)
+	}
+	defer rows.Close()
+
+	got := make([]string, 0, len(want))
+	for rows.Next() {
+		var (
+			position     int
+			name         string
+			columnType   string
+			notNull      int
+			defaultValue sql.NullString
+			primaryKey   int
+		)
+		if err := rows.Scan(
+			&position,
+			&name,
+			&columnType,
+			&notNull,
+			&defaultValue,
+			&primaryKey,
+		); err != nil {
+			return fmt.Errorf("inspect NSSCTF %s columns: %w", table, err)
+		}
+		got = append(got, name)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("inspect NSSCTF %s columns: %w", table, err)
+	}
+	if strings.Join(got, "\x00") != strings.Join(want, "\x00") {
+		return fmt.Errorf(
+			"incompatible NSSCTF %s columns: got %v, want %v",
+			table,
+			got,
+			want,
+		)
+	}
+	return nil
+}
+
+func requireNSSCTFCatalogIndexColumns(
+	ctx context.Context,
+	tx *sql.Tx,
+	index string,
+	want []string,
+) error {
+	rows, err := tx.QueryContext(ctx, `PRAGMA index_info(`+index+`)`)
+	if err != nil {
+		return fmt.Errorf("inspect NSSCTF %s index: %w", index, err)
+	}
+	defer rows.Close()
+
+	got := make([]string, 0, len(want))
+	for rows.Next() {
+		var (
+			position int
+			columnID int
+			name     string
+		)
+		if err := rows.Scan(&position, &columnID, &name); err != nil {
+			return fmt.Errorf("inspect NSSCTF %s index: %w", index, err)
+		}
+		got = append(got, name)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("inspect NSSCTF %s index: %w", index, err)
+	}
+	if strings.Join(got, "\x00") != strings.Join(want, "\x00") {
+		return fmt.Errorf(
+			"incompatible NSSCTF %s index columns: got %v, want %v",
+			index,
+			got,
+			want,
+		)
 	}
 	return nil
 }

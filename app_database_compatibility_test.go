@@ -10,6 +10,7 @@ import (
 
 	"github.com/MilkSU-Official/milksu/internal/appdata"
 	"github.com/MilkSU-Official/milksu/internal/ctf"
+	"github.com/MilkSU-Official/milksu/internal/nssctf"
 	"github.com/MilkSU-Official/milksu/internal/securityruntime"
 
 	_ "modernc.org/sqlite"
@@ -28,6 +29,12 @@ func TestDatabaseCompatDescriptors(t *testing.T) {
 			ctf.SupportedCTFMemoryDatabaseVersion,
 		)
 	}
+	if nssctf.SupportedNSSCTFCatalogDatabaseVersion != 1 {
+		t.Fatalf(
+			"SupportedNSSCTFCatalogDatabaseVersion = %d, want 1",
+			nssctf.SupportedNSSCTFCatalogDatabaseVersion,
+		)
+	}
 	descriptors := databaseCompatDescriptors()
 	want := []appdata.DatabaseDescriptor{
 		{
@@ -43,7 +50,7 @@ func TestDatabaseCompatDescriptors(t *testing.T) {
 		{
 			LogicalName:  "NSSCTF Catalog",
 			RelativePath: "nssctf/catalog.sqlite3",
-			Supported:    0,
+			Supported:    nssctf.SupportedNSSCTFCatalogDatabaseVersion,
 		},
 		{
 			LogicalName:  "CTFshow Catalog",
@@ -98,6 +105,16 @@ func TestGetLocalDataStatusIncludesDatabaseCompatibility(t *testing.T) {
 	if err := memoryStore.Close(); err != nil {
 		t.Fatal(err)
 	}
+	nssctfCatalog, err := nssctf.NewCatalogService(
+		filepath.Join(dataDirectory, "nssctf", "catalog.sqlite3"),
+		nssctf.NewClient(nssctf.ClientOptions{}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := nssctfCatalog.Close(); err != nil {
+		t.Fatal(err)
+	}
 
 	app := &App{dataDirectory: dataDirectory}
 	status, err := app.GetLocalDataStatus()
@@ -144,7 +161,25 @@ func TestGetLocalDataStatusIncludesDatabaseCompatibility(t *testing.T) {
 		)
 	}
 
-	for _, remaining := range status.Databases[2:] {
+	nssctfStatus := status.Databases[2]
+	if nssctfStatus.LogicalName != "NSSCTF Catalog" ||
+		nssctfStatus.RelativePath != "nssctf/catalog.sqlite3" ||
+		nssctfStatus.State != "compatible" {
+		t.Fatalf("unexpected NSSCTF Catalog status: %#v", nssctfStatus)
+	}
+	if nssctfStatus.Current == nil || *nssctfStatus.Current != 1 {
+		t.Fatalf("NSSCTF Catalog current = %v, want 1", nssctfStatus.Current)
+	}
+	if nssctfStatus.Supported == nil ||
+		*nssctfStatus.Supported != nssctf.SupportedNSSCTFCatalogDatabaseVersion {
+		t.Fatalf(
+			"NSSCTF Catalog supported = %v, want %d",
+			nssctfStatus.Supported,
+			nssctf.SupportedNSSCTFCatalogDatabaseVersion,
+		)
+	}
+
+	for _, remaining := range status.Databases[3:] {
 		if remaining.State != "remaining" {
 			t.Fatalf(
 				"database %q state = %q, want remaining: %#v",

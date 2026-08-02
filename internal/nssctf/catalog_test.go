@@ -1,8 +1,11 @@
 package nssctf
 
 import (
+	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +15,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/MilkSU-Official/milksu/internal/sqlitemigrate"
 )
 
 func TestNormalizeCatalogURL(t *testing.T) {
@@ -47,6 +52,258 @@ func TestCatalogSQLiteFilesArePrivate(t *testing.T) {
 	}
 	defer service.Close()
 	assertPrivateCatalogFiles(t, path)
+}
+
+func TestCatalogDatabaseUsesNumberedMigration(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "nssctf", "catalog.sqlite3")
+	service, err := NewCatalogService(path, NewClient(ClientOptions{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer service.Close()
+
+	var (
+		version   int
+		name      string
+		appliedAt string
+	)
+	if err := service.db.QueryRow(
+		`SELECT version, name, applied_at FROM schema_migrations`,
+	).Scan(&version, &name, &appliedAt); err != nil {
+		t.Fatalf("query NSSCTF catalog migration history: %v", err)
+	}
+	if version != SupportedNSSCTFCatalogDatabaseVersion ||
+		name != nssctfCatalogV1MigrationName ||
+		strings.TrimSpace(appliedAt) == "" {
+		t.Fatalf(
+			"migration history = (%d, %q, %q), want (%d, %q, non-empty)",
+			version,
+			name,
+			appliedAt,
+			SupportedNSSCTFCatalogDatabaseVersion,
+			nssctfCatalogV1MigrationName,
+		)
+	}
+}
+
+func TestCatalogDatabaseAdoptsPreMigratorSchemaWithoutLosingRows(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "catalog.sqlite3")
+	database := openCatalogFixtureDatabase(t, path)
+	execCatalogFixtureStatements(t, database,
+		`CREATE TABLE catalog_meta (
+			key TEXT PRIMARY KEY,
+			value TEXT NOT NULL
+		)`,
+		`CREATE TABLE catalog_problems (
+			platform_id INTEGER PRIMARY KEY,
+			source_url TEXT NOT NULL,
+			title TEXT NOT NULL,
+			category TEXT NOT NULL,
+			points INTEGER NOT NULL,
+			difficulty REAL NOT NULL,
+			tags_json TEXT NOT NULL,
+			has_writeup INTEGER NOT NULL,
+			solved_count INTEGER NOT NULL,
+			wrong_answer_count INTEGER NOT NULL,
+			no_answer_count INTEGER NOT NULL,
+			is_open INTEGER NOT NULL,
+			synced_at TEXT NOT NULL,
+			sync_run TEXT NOT NULL
+		)`,
+		`CREATE INDEX catalog_problems_category_difficulty
+			ON catalog_problems(category, difficulty)`,
+		`INSERT INTO catalog_meta(key, value)
+			VALUES ('last_synced_at', '2026-07-31T12:34:56Z')`,
+		`INSERT INTO catalog_problems (
+			platform_id, source_url, title, category, points, difficulty,
+			tags_json, has_writeup, solved_count, wrong_answer_count,
+			no_answer_count, is_open, synced_at, sync_run
+		) VALUES (
+			3879, 'https://www.nssctf.cn/problem/3879', 'legacy fixture',
+			'Web', 100, 2.5, '["legacy","web"]', 1, 42, 3, 1, 1,
+			'2026-07-31T12:34:56Z', 'legacy-run'
+		)`,
+	)
+	if err := database.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	service, err := NewCatalogService(path, NewClient(ClientOptions{}))
+	if err != nil {
+		t.Fatalf("upgrade pre-migrator NSSCTF catalog: %v", err)
+	}
+	var (
+		title      string
+		category   string
+		tagsJSON   string
+		lastSynced string
+	)
+	if err := service.db.QueryRow(
+		`SELECT title, category, tags_json FROM catalog_problems WHERE platform_id = 3879`,
+	).Scan(&title, &category, &tagsJSON); err != nil {
+		t.Fatalf("query preserved NSSCTF catalog row: %v", err)
+	}
+	if err := service.db.QueryRow(
+		`SELECT value FROM catalog_meta WHERE key = 'last_synced_at'`,
+	).Scan(&lastSynced); err != nil {
+		t.Fatalf("query preserved NSSCTF catalog metadata: %v", err)
+	}
+	if title != "legacy fixture" ||
+		category != "Web" ||
+		tagsJSON != `["legacy","web"]` ||
+		lastSynced != "2026-07-31T12:34:56Z" {
+		t.Fatalf(
+			"pre-migrator catalog data changed: title=%q category=%q tags=%q lastSynced=%q",
+			title,
+			category,
+			tagsJSON,
+			lastSynced,
+		)
+	}
+	if err := service.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	reopened, err := NewCatalogService(path, NewClient(ClientOptions{}))
+	if err != nil {
+		t.Fatalf("reopen migrated NSSCTF catalog: %v", err)
+	}
+	defer reopened.Close()
+	var historyCount int
+	if err := reopened.db.QueryRow(`SELECT count(*) FROM schema_migrations`).Scan(&historyCount); err != nil {
+		t.Fatal(err)
+	}
+	if historyCount != 1 {
+		t.Fatalf("idempotent reopen recorded %d migrations, want 1", historyCount)
+	}
+}
+
+func TestCatalogDatabaseRejectsFutureVersionWithoutWriting(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "catalog.sqlite3")
+	database := openCatalogFixtureDatabase(t, path)
+	execCatalogFixtureStatements(t, database,
+		`CREATE TABLE schema_migrations (
+			version INTEGER PRIMARY KEY,
+			name TEXT NOT NULL,
+			applied_at TEXT NOT NULL
+		)`,
+		`INSERT INTO schema_migrations(version, name, applied_at)
+			VALUES (1, 'create NSSCTF catalog', '2026-07-31T12:34:56Z')`,
+		`INSERT INTO schema_migrations(version, name, applied_at)
+			VALUES (2, 'future NSSCTF catalog schema', '2026-08-01T12:34:56Z')`,
+		`CREATE TABLE future_marker(value TEXT NOT NULL)`,
+		`INSERT INTO future_marker(value) VALUES ('preserve-me')`,
+	)
+	if err := database.Close(); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	service, err := NewCatalogService(path, NewClient(ClientOptions{}))
+	if service != nil {
+		service.Close()
+		t.Fatal("future NSSCTF catalog unexpectedly returned a service")
+	}
+	if !errors.Is(err, sqlitemigrate.ErrDatabaseTooNew) {
+		t.Fatalf("future NSSCTF catalog error = %v, want ErrDatabaseTooNew", err)
+	}
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Fatal("future NSSCTF catalog rejection modified database bytes")
+	}
+	for _, sidecar := range []string{path + "-wal", path + "-shm"} {
+		if _, err := os.Stat(sidecar); !os.IsNotExist(err) {
+			t.Fatalf("future-version rejection created SQLite sidecar %q: %v", sidecar, err)
+		}
+	}
+}
+
+func TestCatalogDatabaseMigrationFailureRollsBackSchemaAndHistory(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "catalog.sqlite3")
+	database := openCatalogFixtureDatabase(t, path)
+	execCatalogFixtureStatements(t, database,
+		`CREATE TABLE catalog_problems (
+			platform_id INTEGER PRIMARY KEY,
+			marker TEXT NOT NULL
+		)`,
+		`INSERT INTO catalog_problems(platform_id, marker)
+			VALUES (1, 'preserve-me')`,
+	)
+	if err := database.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	service, err := NewCatalogService(path, NewClient(ClientOptions{}))
+	if service != nil {
+		service.Close()
+		t.Fatal("incompatible NSSCTF catalog unexpectedly returned a service")
+	}
+	if err == nil || !strings.Contains(err.Error(), "incompatible NSSCTF catalog_problems columns") {
+		t.Fatalf("incompatible NSSCTF catalog error = %v, want schema-shape migration failure", err)
+	}
+
+	checked := openCatalogFixtureDatabase(t, path)
+	defer checked.Close()
+	for _, table := range []string{"schema_migrations", "catalog_meta"} {
+		var count int
+		if err := checked.QueryRow(
+			`SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = ?`,
+			table,
+		).Scan(&count); err != nil {
+			t.Fatal(err)
+		}
+		if count != 0 {
+			t.Fatalf("failed migration left table %q behind", table)
+		}
+	}
+	rows, err := checked.Query(`PRAGMA table_info(catalog_problems)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var columns []string
+	for rows.Next() {
+		var (
+			position     int
+			name         string
+			columnType   string
+			notNull      int
+			defaultValue sql.NullString
+			primaryKey   int
+		)
+		if err := rows.Scan(
+			&position,
+			&name,
+			&columnType,
+			&notNull,
+			&defaultValue,
+			&primaryKey,
+		); err != nil {
+			rows.Close()
+			t.Fatal(err)
+		}
+		columns = append(columns, name)
+	}
+	if err := rows.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(columns, ",") != "platform_id,marker" {
+		t.Fatalf("failed migration changed legacy columns: %v", columns)
+	}
+	var marker string
+	if err := checked.QueryRow(
+		`SELECT marker FROM catalog_problems WHERE platform_id = 1`,
+	).Scan(&marker); err != nil {
+		t.Fatal(err)
+	}
+	if marker != "preserve-me" {
+		t.Fatalf("failed migration changed legacy row: %q", marker)
+	}
 }
 
 func TestCatalogSyncAndDashboard(t *testing.T) {
@@ -279,6 +536,29 @@ func assertPrivateCatalogFiles(t *testing.T, path string) {
 		}
 		if info.Mode().Perm() != 0o600 {
 			t.Fatalf("catalog file is not private: %s has %o", candidate, info.Mode().Perm())
+		}
+	}
+}
+
+func openCatalogFixtureDatabase(t *testing.T, path string) *sql.DB {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	database, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	database.SetMaxOpenConns(1)
+	return database
+}
+
+func execCatalogFixtureStatements(t *testing.T, database *sql.DB, statements ...string) {
+	t.Helper()
+	for _, statement := range statements {
+		if _, err := database.Exec(statement); err != nil {
+			database.Close()
+			t.Fatalf("execute catalog fixture statement: %v", err)
 		}
 	}
 }
