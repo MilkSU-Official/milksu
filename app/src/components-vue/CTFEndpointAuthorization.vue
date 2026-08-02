@@ -15,6 +15,8 @@ const props = defineProps<{
   requests: CTFEndpointRequest[]
   working?: boolean
   terminal?: boolean
+  pendingOnly?: boolean
+  embedded?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -89,18 +91,23 @@ function submitRequest() {
 </script>
 
 <template>
-  <section class="rounded-xl border border-border bg-card p-5" aria-labelledby="endpoint-authorization-title">
+  <section
+    v-if="!pendingOnly || pending.length"
+    :class="embedded ? '' : 'rounded-xl border border-border bg-card p-5'"
+    aria-labelledby="endpoint-authorization-title"
+  >
     <div class="flex items-start gap-3">
       <span class="mt-0.5 grid size-8 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground">
         <Network class="size-4" />
       </span>
       <div class="min-w-0 flex-1">
         <h2 id="endpoint-authorization-title" class="text-label font-medium">
-          Endpoint 授权
+          {{ pendingOnly ? '批准新的 Endpoint' : 'Endpoint 授权' }}
         </h2>
         <p class="mt-1 text-caption leading-5 text-muted-foreground">
-          新地址只会进入待确认列表。批准一项只生成一个协议、一个目标的 Scope；
-          通用 Shell 始终禁网。
+          {{ pendingOnly
+            ? '这个地址仍只是一项申请。你批准后只生成一个协议、一个目标的 Scope；通用 Shell 仍然禁网。'
+            : '新地址只会进入待确认列表。批准一项只生成一个协议、一个目标的 Scope；通用 Shell 始终禁网。' }}
         </p>
       </div>
       <Badge v-if="pending.length" variant="outline">{{ pending.length }} 待确认</Badge>
@@ -149,7 +156,11 @@ function submitRequest() {
       </article>
     </div>
 
-    <form class="mt-4 space-y-3 border-t border-border pt-4" @submit.prevent="submitRequest">
+    <form
+      v-if="!pendingOnly"
+      class="mt-4 space-y-3 border-t border-border pt-4"
+      @submit.prevent="submitRequest"
+    >
       <p class="text-caption font-medium">手动提出一个地址</p>
       <div class="grid gap-3 sm:grid-cols-[110px_minmax(0,1fr)]">
         <label class="space-y-1">
@@ -192,7 +203,7 @@ function submitRequest() {
       </Button>
     </form>
 
-    <div class="mt-4 border-t border-border pt-4">
+    <div v-if="!pendingOnly" class="mt-4 border-t border-border pt-4">
       <p class="text-caption font-medium">当前授权目标</p>
       <div class="mt-2 space-y-2">
         <div
@@ -224,7 +235,7 @@ function submitRequest() {
       </p>
     </div>
 
-    <details v-if="decided.length" class="mt-4 border-t border-border pt-3">
+    <details v-if="!pendingOnly && decided.length" class="mt-4 border-t border-border pt-3">
       <summary class="cursor-pointer text-caption text-muted-foreground">
         已处理申请 {{ decided.length }} 项
       </summary>

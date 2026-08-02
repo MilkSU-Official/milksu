@@ -44,19 +44,16 @@ import {
   FileSearch,
   Flag,
   FolderOpen,
-  GraduationCap,
   KeyRound,
   Library,
   LoaderCircle,
   Play,
   RefreshCw,
-  RotateCcw,
   Send,
   ShieldCheck,
   Sparkles,
   Target,
   Trophy,
-  Users,
   Zap,
 } from 'lucide-vue-next'
 import CTFArtifacts from '@/components-vue/CTFArtifacts.vue'
@@ -65,6 +62,7 @@ import CTFDebrief from '@/components-vue/CTFDebrief.vue'
 import CTFEndpointAuthorization from '@/components-vue/CTFEndpointAuthorization.vue'
 import CTFManualIntake from '@/components-vue/CTFManualIntake.vue'
 import CTFMemoryRecall from '@/components-vue/CTFMemoryRecall.vue'
+import CTFSubmissionGate from '@/components-vue/CTFSubmissionGate.vue'
 import CTFTrainingArchive from '@/components-vue/CTFTrainingArchive.vue'
 import CTFTrajectory from '@/components-vue/CTFTrajectory.vue'
 import ManagedLabCatalog from '@/components-vue/ManagedLabCatalog.vue'
@@ -77,6 +75,7 @@ import { useNSSCTFArena, useNSSCTFChallenges, useNSSCTFWebBridge } from '@/compo
 import { useNSSCTFCatalog, useNSSCTFTraining } from '@/composables/useNSSCTFTraining'
 import { invokeCommand } from '@/desktop'
 import { shouldBootstrapNSSCTFCatalog } from '@/lib/ctfCatalogBootstrap'
+import { deriveCTFWorkspacePresentation } from '@/lib/ctfWorkspacePresentation'
 import type {
   CTFAgentWorkspaceHandoff,
   CTFChallengeRequest,
@@ -94,6 +93,7 @@ import type { NSSCTFChallenge } from '@/nssctfTypes'
 import type { NSSCTFRecommendation, NSSCTFTrainingSeries } from '@/nssctfTrainingTypes'
 
 type Screen = 'source' | 'challenge' | 'workspace'
+type WorkspaceMode = 'solve' | 'review'
 type QuestionBank = Extract<CTFTrainingPlatform['id'], 'nssctf' | 'ctfshow'>
 type TrainingSource = CTFTrainingPlatform['id'] | 'custom'
 
@@ -133,6 +133,7 @@ const publicCatalog = useNSSCTFCatalog()
 const ctfshow = useCTFShowCatalog()
 const managedLabs = useManagedLabs()
 const screen = ref<Screen>('challenge')
+const workspaceMode = ref<WorkspaceMode>('solve')
 const ctfSection = computed(() => props.ctfSection)
 const selectedLabId = ref('')
 const labNotice = ref('')
@@ -192,35 +193,6 @@ let catalogSearchTimer: ReturnType<typeof setTimeout> | undefined
 
 const step = computed(() => screen.value === 'source' ? 1 : screen.value === 'challenge' ? 2 : 3)
 const activeProjection = computed(() => backend.projection.value)
-const activeAgentCandidate = computed(() => {
-  const candidate = activeProjection.value?.agentCandidates.at(-1)
-  if (!candidate || candidate.candidate !== flagCandidate.value.trim()) return null
-  return candidate
-})
-const matchingSubmission = computed(() => {
-  const candidate = flagCandidate.value.trim()
-  if (!candidate) return null
-  return activeProjection.value?.submissions.find(submission => submission.candidate === candidate) ?? null
-})
-const matchingSubmissionMessage = computed(() => {
-  switch (matchingSubmission.value?.verdict) {
-    case 'pass':
-      return '这个候选已经被平台确认 Accepted，无需再次提交。'
-    case 'fail':
-      return '这个候选已经被平台拒绝。请先根据证据修改候选，MilkSU 不会重复盲试。'
-    case 'needs_review':
-      return '这个候选正在等待平台判题，不能并发重复提交。'
-    case 'inconclusive':
-      return '上次没有得到明确回执。你可以安全重试同一候选，或在平台页面核对后手动记录结果。'
-    default:
-      return ''
-  }
-})
-const matchingSubmissionBlocks = computed(() => (
-  matchingSubmission.value?.verdict === 'pass'
-  || matchingSubmission.value?.verdict === 'fail'
-  || matchingSubmission.value?.verdict === 'needs_review'
-))
 const isArenaWorkspace = computed(() => (
   activeProjection.value?.challenge.externalPlatform === 'nssctf-agent-arena'
 ))
@@ -422,6 +394,44 @@ const agentBudgetStopMessage = computed(() => {
       return '本次 PI 训练预算已停止；请先复盘，再由你决定下一次尝试。'
   }
 })
+const workspacePresentation = computed(() => {
+  const projection = activeProjection.value
+  if (!projection) return null
+  return deriveCTFWorkspacePresentation({
+    terminal: !canContinue.value,
+    hasAgentRecoveryPoint: hasAgentRecoveryPoint.value,
+    experimentCount: projection.experiments.length,
+    evidenceCount: projection.evidence.length,
+    artifactCount: projection.artifacts.length,
+    agentRunCount: projection.agentRuns.length,
+    agentCandidateCount: projection.agentCandidates.length,
+    submissionCount: projection.submissions.length,
+    judgeReceiptCount: projection.judgeReceipts.length,
+    evaluationCount: projection.evaluations.length,
+    learningCount: projection.learning.length,
+    hintCount: projection.humanOutcome.hintCount,
+    reflectionCount: projection.humanOutcome.reflectionCount,
+    independentStepCount: projection.humanOutcome.independentSteps,
+    endpointRequestStatuses: projection.endpointRequests.map(request => request.status),
+    candidate: flagCandidate.value,
+    platformReview: platformReview.value,
+  })
+})
+const remainingAgentTurns = computed(() => (
+  backend.agentBudget.value?.remainingTurns
+  ?? activeProjection.value?.challenge.agentPolicy.budget.maxTurns
+  ?? 0
+))
+const remainingAgentMinutes = computed(() => Math.ceil(
+  (backend.agentBudget.value?.remainingWallSeconds
+    ?? (activeProjection.value?.challenge.agentPolicy.budget.maxWallMinutes ?? 0) * 60)
+  / 60,
+))
+const remainingWrongSubmissions = computed(() => (
+  backend.agentBudget.value?.remainingWrongSubmissions
+  ?? activeProjection.value?.challenge.agentPolicy.budget.maxWrongSubmissions
+  ?? 0
+))
 const resumableJob = computed(() => (
   backend.jobs.value.find(job => !['succeeded', 'failed', 'cancelled'].includes(job.status))
 ))
@@ -568,6 +578,10 @@ const modeItems = [
   { value: 'coach' as const, label: '教练' },
   { value: 'copilot' as const, label: '搭档' },
   { value: 'delegate' as const, label: '代理' },
+]
+const workspaceModeItems = [
+  { value: 'solve' as const, label: '解题' },
+  { value: 'review' as const, label: '复盘' },
 ]
 const dailyMission = computed(() => {
   if (resumableJob.value) {
@@ -745,8 +759,12 @@ watch(
 watch(
   () => activeProjection.value?.job.id,
   async jobId => {
+    workspaceMode.value = 'solve'
+    platformReview.value = false
+    observation.value = ''
+    outcomeNotice.value = ''
+    recalledMemories.value = []
     if (jobId) await loadMemoryContext(jobId)
-    else recalledMemories.value = []
   },
   { immediate: true },
 )
@@ -1358,8 +1376,20 @@ async function archiveTrainingMemory(memory: CTFTrainingMemory) {
 async function submitCandidate() {
   if (!activeProjection.value || !flagCandidate.value.trim()) return
   outcomeNotice.value = ''
-  if (matchingSubmissionBlocks.value) {
-    outcomeNotice.value = matchingSubmissionMessage.value
+  const candidate = flagCandidate.value.trim()
+  const previousSubmission = activeProjection.value.submissions.find(
+    submission => submission.candidate === candidate,
+  )
+  if (previousSubmission?.verdict === 'pass') {
+    outcomeNotice.value = '这个候选已经被平台确认 Accepted，无需再次提交。'
+    return
+  }
+  if (previousSubmission?.verdict === 'fail') {
+    outcomeNotice.value = '这个候选已经被平台拒绝。请先根据证据修改候选，MilkSU 不会重复盲试。'
+    return
+  }
+  if (previousSubmission?.verdict === 'needs_review') {
+    outcomeNotice.value = '这个候选正在等待平台判题，不能并发重复提交。'
     return
   }
   if (isArenaWorkspace.value && arenaAttempt.value) {
@@ -2532,15 +2562,41 @@ onBeforeUnmount(() => {
                 <p class="mt-2 text-body text-muted-foreground">
                   {{ activeProjection.challenge.trackName }} · {{ activeProjection.challenge.agentPolicy.label }}模式
                 </p>
+                <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-caption text-muted-foreground">
+                  <span class="flex items-center gap-1.5">
+                    <Target class="size-3.5" />
+                    {{ remainingAgentTurns }} 回合
+                  </span>
+                  <span class="flex items-center gap-1.5">
+                    <Clock3 class="size-3.5" />
+                    {{ remainingAgentMinutes }} 分钟
+                    {{ backend.agentBudget.value?.firstTurnStartedAt ? '剩余' : '（启动后计时）' }}
+                  </span>
+                  <span class="flex items-center gap-1.5">
+                    <Flag class="size-3.5" />
+                    {{ remainingWrongSubmissions }} 次错误提交额度
+                  </span>
+                  <span v-if="activeProjection.challenge.materials.length" class="flex items-center gap-1.5">
+                    <FileSearch class="size-3.5" />
+                    {{ activeProjection.challenge.materials.length }} 个附件
+                  </span>
+                </div>
               </div>
-              <Button
-                v-if="activeProjection.challenge.source.uri"
-                variant="outline"
-                @click="openActiveChallenge"
-              >
-                <ExternalLink class="size-4" />
-                打开题目
-              </Button>
+              <div class="flex flex-wrap items-center gap-2">
+                <SegmentedControl
+                  v-model="workspaceMode"
+                  aria-label="CTF 工作区模式"
+                  :items="workspaceModeItems"
+                />
+                <Button
+                  v-if="activeProjection.challenge.source.uri"
+                  variant="outline"
+                  @click="openActiveChallenge"
+                >
+                  <ExternalLink class="size-4" />
+                  打开题目
+                </Button>
+              </div>
             </div>
 
             <Alert v-if="isWebWorkspace" class="mt-5">
@@ -2596,7 +2652,13 @@ onBeforeUnmount(() => {
               </AlertDescription>
             </Alert>
 
-            <div class="mt-8 grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(260px,.65fr)]">
+            <div
+              v-if="workspaceMode === 'solve'"
+              class="mt-8 grid gap-5"
+              :class="workspacePresentation?.showActionRail
+                ? 'lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,.65fr)]'
+                : 'max-w-5xl'"
+            >
               <div class="space-y-5">
                 <section class="rounded-xl border border-border bg-card p-6">
                   <div class="flex items-center gap-2">
@@ -2619,16 +2681,18 @@ onBeforeUnmount(() => {
                       <p class="mt-1 text-caption text-muted-foreground">
                         {{ activeProjection.challenge.agentPolicy.startBehavior }}
                       </p>
-                      <div class="mt-2 flex flex-wrap items-center gap-1.5">
-                        <span class="mr-1 text-caption text-muted-foreground">本题可用</span>
-                        <Badge
-                          v-for="capability in agentCapabilityLabels"
-                          :key="capability"
-                          variant="outline"
-                        >
-                          {{ capability }}
-                        </Badge>
-                      </div>
+                      <details class="mt-2 text-caption text-muted-foreground">
+                        <summary class="cursor-pointer">本题工具与权限</summary>
+                        <div class="mt-2 flex flex-wrap items-center gap-1.5">
+                          <Badge
+                            v-for="capability in agentCapabilityLabels"
+                            :key="capability"
+                            variant="outline"
+                          >
+                            {{ capability }}
+                          </Badge>
+                        </div>
+                      </details>
                     </div>
                     <Button :loading="working" :disabled="!canStartAgentTurn" @click="openCodingAgent">
                       <Sparkles class="size-4" />
@@ -2714,55 +2778,6 @@ onBeforeUnmount(() => {
                     </div>
                   </div>
 
-                  <div class="mt-4 grid grid-cols-3 gap-2">
-                    <div class="rounded-lg bg-muted/50 px-3 py-2">
-                      <p class="text-caption text-muted-foreground">剩余回合</p>
-                      <p class="mt-1 font-mono text-control">
-                        {{
-                          backend.agentBudget.value?.remainingTurns
-                            ?? activeProjection.challenge.agentPolicy.budget.maxTurns
-                        }}
-                        / {{ activeProjection.challenge.agentPolicy.budget.maxTurns }}
-                      </p>
-                      <p class="mt-0.5 text-caption text-muted-foreground">
-                        已用 {{ backend.agentBudget.value?.usedTurns ?? 0 }} 回合
-                      </p>
-                    </div>
-                    <div class="rounded-lg bg-muted/50 px-3 py-2">
-                      <p class="text-caption text-muted-foreground">剩余时间</p>
-                      <p class="mt-1 font-mono text-control">
-                        {{
-                          Math.ceil(
-                            (backend.agentBudget.value?.remainingWallSeconds
-                              ?? activeProjection.challenge.agentPolicy.budget.maxWallMinutes * 60)
-                            / 60,
-                          )
-                        }}
-                        min
-                      </p>
-                      <p class="mt-0.5 text-caption text-muted-foreground">
-                        {{
-                          backend.agentBudget.value?.firstTurnStartedAt
-                            ? `已用 ${Math.floor(backend.agentBudget.value.elapsedWallSeconds / 60)} min`
-                            : '首回合后计时'
-                        }}
-                      </p>
-                    </div>
-                    <div class="rounded-lg bg-muted/50 px-3 py-2">
-                      <p class="text-caption text-muted-foreground">提交余额</p>
-                      <p class="mt-1 font-mono text-control">
-                        {{
-                          backend.agentBudget.value?.remainingWrongSubmissions
-                            ?? activeProjection.challenge.agentPolicy.budget.maxWrongSubmissions
-                        }}
-                        次
-                      </p>
-                      <p class="mt-0.5 text-caption text-muted-foreground">
-                        已拒绝 {{ backend.agentBudget.value?.wrongSubmissions ?? 0 }} 次
-                      </p>
-                    </div>
-                  </div>
-
                   <Alert v-if="agentBudgetStopMessage" variant="destructive" class="mt-4">
                     <Circle class="size-4" />
                     <AlertDescription class="flex flex-wrap items-center justify-between gap-3">
@@ -2773,15 +2788,11 @@ onBeforeUnmount(() => {
                     </AlertDescription>
                   </Alert>
 
-                  <div v-if="activeProjection.learning.length" class="mt-5 border-t border-border pt-4">
-                    <p class="text-caption font-medium text-muted-foreground">最近记录</p>
-                    <MarkdownContent
-                      class="mt-2 text-body leading-6"
-                      :content="activeProjection.learning.at(-1)?.content ?? ''"
-                    />
-                  </div>
-
-                  <form class="mt-5 flex items-end gap-2" @submit.prevent="sendObservation">
+                  <form
+                    v-if="workspacePresentation?.showAgentComposer"
+                    class="mt-5 flex items-end gap-2 border-t border-border pt-4"
+                    @submit.prevent="sendObservation"
+                  >
                     <Textarea v-model="observation" placeholder="告诉 Agent：我在页面、附件或环境里观察到了什么…" />
                     <Button type="submit" variant="brand" :disabled="!observation.trim()">
                       <Send class="size-4" />
@@ -2790,202 +2801,167 @@ onBeforeUnmount(() => {
                   </form>
                 </section>
 
-                <CTFTrajectory :projection="activeProjection" />
+                <CTFTrajectory
+                  v-if="workspacePresentation?.showTrajectory"
+                  :projection="activeProjection"
+                />
 
                 <CTFArtifacts
                   v-if="activeProjection.artifacts.length"
                   :projection="activeProjection"
                 />
 
-                <CTFDebrief
-                  :debrief="activeProjection.debrief"
-                  :human-outcome="activeProjection.humanOutcome"
-                  :submitting="working"
-                  @submit-independent-step="sendIndependentStep"
-                  @submit-reflection="sendDebriefReflection"
-                  @save-memory="saveTrainingMemory"
-                />
-
-                <CTFTrainingArchive
-                  :job-id="activeProjection.job.id"
-                  :replay-available="Boolean(
-                    activeProjection.agentRuns.length || activeProjection.agentCandidates.length
-                  )"
-                />
               </div>
 
-              <div class="space-y-5">
-                <CTFMemoryRecall
-                  :memories="recalledMemories"
-                  :loading="memoryLoading"
-                  @archive="archiveTrainingMemory"
-                />
-
+              <div v-if="workspacePresentation?.showActionRail" class="space-y-5">
                 <CTFEndpointAuthorization
+                  v-if="workspacePresentation?.showEndpointAction"
                   :source-scope="activeProjection.challenge.source.scope"
                   :network-scopes="activeProjection.networkScopes"
                   :requests="activeProjection.endpointRequests"
                   :working="working"
                   :terminal="Boolean(activeProjection.outcome)"
+                  pending-only
                   @request="requestEndpoint"
                   @approve="approveEndpoint"
                   @deny="denyEndpoint"
                 />
 
-                <section class="rounded-xl border border-border bg-card p-5">
-                  <h2 class="text-label font-medium">可验证进度</h2>
-                  <dl class="mt-4 space-y-3 text-body">
-                    <div class="flex items-center justify-between">
-                      <dt class="text-muted-foreground">实验</dt>
-                      <dd class="font-mono">{{ activeProjection.experiments.length }}</dd>
-                    </div>
-                    <div class="flex items-center justify-between">
-                      <dt class="text-muted-foreground">证据</dt>
-                      <dd class="font-mono">{{ activeProjection.evidence.length }}</dd>
-                    </div>
-                    <div class="flex items-center justify-between">
-                      <dt class="text-muted-foreground">制品</dt>
-                      <dd class="font-mono">{{ activeProjection.artifacts.length }}</dd>
-                    </div>
-                    <div class="flex items-center justify-between">
-                      <dt class="text-muted-foreground">平台回执</dt>
-                      <dd class="font-mono">{{ activeProjection.judgeReceipts.length }}</dd>
-                    </div>
-                    <div class="flex items-center justify-between border-t border-border pt-3">
-                      <dt class="text-muted-foreground">Judge</dt>
-                      <dd class="font-mono">{{ verdictLabel(activeProjection.evaluations.at(-1)?.verdict) }}</dd>
-                    </div>
-                  </dl>
-                </section>
+                <CTFSubmissionGate
+                  v-if="workspacePresentation?.showSubmissionAction"
+                  v-model="flagCandidate"
+                  :projection="activeProjection"
+                  :working="working"
+                  :can-continue="canContinue"
+                  :active-start-cost="activeStartCost"
+                  :active-browser-can-submit="activeBrowserCanSubmit"
+                  :ctfshow-bridge-ready="ctfshowBridgeReady"
+                  :platform-review="platformReview"
+                  :external-judge-label="externalJudgeLabel"
+                  @submit="submitCandidate"
+                  @record-platform-result="recordPlatformResult"
+                />
+              </div>
+            </div>
 
-                <section class="rounded-xl border border-border bg-card p-5">
-                  <h2 class="flex items-center gap-2 text-label font-medium">
-                    <Flag class="size-4" />
-                    提交闸门
-                  </h2>
-                  <p class="mt-1 text-caption leading-5 text-muted-foreground">
-                    {{
-                      isArenaWorkspace
-                        ? '由 Arena API 判题；错误次数受平台限制。'
-                        : isCTFShowWorkspace
-                          ? '通过已绑定的 CTFshow 标签页提交；只有平台回执能完成任务。'
-                        : isWebWorkspace
-                          ? '通过已绑定的 Chrome 标签页提交；只有 NSSCTF 回执能完成任务。'
-                          : '复制到外部平台提交，再回来记录结果。'
-                    }}
-                  </p>
-                  <p v-if="activeStartCost" class="mt-3 rounded-md border border-border bg-muted/50 px-3 py-2 text-caption leading-5">
-                    NSSCTF 仍显示“开启环境”（{{ activeStartCost }} 金币）。请先在平台页面亲自开启；
-                    MilkSU 不会自动扣币。开启后点击上方“检测连接”。
-                  </p>
-                  <Input v-model="flagCandidate" class="mt-4 font-mono" placeholder="flag{...}" />
-                  <Alert v-if="matchingSubmissionMessage" class="mt-3">
-                    <RotateCcw class="size-4" />
-                    <AlertDescription>{{ matchingSubmissionMessage }}</AlertDescription>
-                  </Alert>
-                  <div
-                    v-if="activeAgentCandidate && !activeProjection.submissions.length"
-                    class="mt-3 rounded-lg border border-border bg-muted/50 px-3 py-2 text-caption leading-5"
-                  >
-                    <div class="flex flex-wrap items-center gap-2">
-                      <span class="font-medium">PI 候选已载入</span>
-                      <Badge
-                        :variant="activeAgentCandidate.assessment.status === 'unusual' ? 'destructive' : 'secondary'"
-                      >
-                        {{ activeAgentCandidate.assessment.status === 'unusual' ? '格式需要确认' : '格式正常' }}
-                      </Badge>
-                    </div>
-                    <p class="mt-1 line-clamp-4 text-muted-foreground">
-                      {{ activeAgentCandidate.explanation }}
-                    </p>
-                    <ul
-                      v-if="activeAgentCandidate.assessment.warnings.length"
-                      class="mt-2 space-y-1 border-t border-border pt-2 text-destructive"
-                    >
-                      <li
-                        v-for="warning in activeAgentCandidate.assessment.warnings"
-                        :key="warning"
-                        class="flex items-start gap-1.5"
-                      >
-                        <Circle class="mt-1 size-2 shrink-0 fill-current" />
-                        <span>{{ warning }}</span>
-                      </li>
-                    </ul>
-                    <p class="mt-2 text-muted-foreground">
-                      {{
-                        activeStartCost
-                          ? '这只是格式检查；请先亲自开启题目，平台提交入口可用后才能进入 Judge 闸门。'
-                          : '这只是格式检查；点击提交后才会进入平台 Judge 闸门。'
-                      }}
-                    </p>
-                  </div>
-                  <Button
-                    block
-                    class="mt-2"
-                    :loading="working"
-                    :disabled="!flagCandidate.trim()
-                      || !canContinue
-                      || matchingSubmissionBlocks
-                      || (isWebWorkspace && !activeBrowserCanSubmit)
-                      || (isCTFShowWorkspace && !ctfshowBridgeReady)"
-                    @click="submitCandidate"
-                  >
-                    <Send class="size-4" />
-                    {{
-                      isWebWorkspace && activeStartCost
-                        ? '等待你在 NSSCTF 开启题目'
-                        : isCTFShowWorkspace
-                          ? '提交到 CTFshow'
-                        : isWebWorkspace
-                          ? '提交到 NSSCTF'
-                          : '提交候选'
-                    }}
-                  </Button>
+            <div v-else class="mt-8">
+              <section
+                v-if="!workspacePresentation?.hasReviewActivity"
+                class="max-w-3xl rounded-xl border border-border bg-card px-6 py-14 text-center"
+              >
+                <Archive class="mx-auto size-6 text-muted-foreground" />
+                <h2 class="mt-4 text-label font-medium">还没有可复盘的记录</h2>
+                <p class="mx-auto mt-2 max-w-xl text-body leading-6 text-muted-foreground">
+                  开始解题后，实验、候选、Judge 回执、失败路线和你的实际贡献会在这里按证据汇总。
+                </p>
+                <Button class="mt-5" @click="workspaceMode = 'solve'">
+                  返回解题
+                </Button>
+              </section>
 
-                  <div v-if="activeProjection.judgeReceipts.length" class="mt-4 rounded-lg bg-muted/50 p-3">
-                    <div class="flex items-center justify-between gap-3 text-caption">
-                      <span class="font-medium">最新 Judge 回执</span>
-                      <Badge variant="outline">{{ activeProjection.judgeReceipts.at(-1)?.status }}</Badge>
-                    </div>
-                    <MarkdownContent
-                      class="mt-2 line-clamp-3 text-caption leading-5 text-muted-foreground"
-                      :content="activeProjection.judgeReceipts.at(-1)?.summary ?? ''"
-                      compact
+              <div
+                v-else
+                class="grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,.65fr)]"
+              >
+                <div class="space-y-5">
+                  <CTFDebrief
+                    :debrief="activeProjection.debrief"
+                    :human-outcome="activeProjection.humanOutcome"
+                    :submitting="working"
+                    @submit-independent-step="sendIndependentStep"
+                    @submit-reflection="sendDebriefReflection"
+                    @save-memory="saveTrainingMemory"
+                  />
+
+                  <CTFArtifacts
+                    v-if="activeProjection.artifacts.length"
+                    :projection="activeProjection"
+                  />
+
+                  <CTFTrainingArchive
+                    v-if="activeProjection.agentRuns.length || activeProjection.agentCandidates.length"
+                    :job-id="activeProjection.job.id"
+                    :replay-available="true"
+                  />
+                </div>
+
+                <div class="space-y-5">
+                  <CTFMemoryRecall
+                    v-if="memoryLoading || recalledMemories.length"
+                    :memories="recalledMemories"
+                    :loading="memoryLoading"
+                    @archive="archiveTrainingMemory"
+                  />
+
+                  <section class="rounded-xl border border-border bg-card p-5">
+                    <h2 class="text-label font-medium">证据摘要</h2>
+                    <dl class="mt-4 space-y-3 text-body">
+                      <div class="flex items-center justify-between">
+                        <dt class="text-muted-foreground">实验</dt>
+                        <dd class="font-mono">{{ activeProjection.experiments.length }}</dd>
+                      </div>
+                      <div class="flex items-center justify-between">
+                        <dt class="text-muted-foreground">证据</dt>
+                        <dd class="font-mono">{{ activeProjection.evidence.length }}</dd>
+                      </div>
+                      <div class="flex items-center justify-between">
+                        <dt class="text-muted-foreground">制品</dt>
+                        <dd class="font-mono">{{ activeProjection.artifacts.length }}</dd>
+                      </div>
+                      <div class="flex items-center justify-between">
+                        <dt class="text-muted-foreground">平台回执</dt>
+                        <dd class="font-mono">{{ activeProjection.judgeReceipts.length }}</dd>
+                      </div>
+                      <div class="flex items-center justify-between border-t border-border pt-3">
+                        <dt class="text-muted-foreground">Judge</dt>
+                        <dd class="font-mono">
+                          {{ verdictLabel(activeProjection.evaluations.at(-1)?.verdict) }}
+                        </dd>
+                      </div>
+                    </dl>
+                  </section>
+
+                  <details
+                    v-if="activeProjection.endpointRequests.length || activeProjection.networkScopes.length"
+                    class="rounded-xl border border-border bg-card p-5"
+                  >
+                    <summary class="cursor-pointer text-label font-medium">Endpoint 与授权记录</summary>
+                    <CTFEndpointAuthorization
+                      class="mt-4"
+                      :source-scope="activeProjection.challenge.source.scope"
+                      :network-scopes="activeProjection.networkScopes"
+                      :requests="activeProjection.endpointRequests"
+                      :working="working"
+                      :terminal="Boolean(activeProjection.outcome)"
+                      embedded
+                      @request="requestEndpoint"
+                      @approve="approveEndpoint"
+                      @deny="denyEndpoint"
                     />
-                  </div>
+                  </details>
 
-                  <div
-                    v-if="platformReview && (!isWebWorkspace || activeProjection.evaluations.at(-1)?.verdict === 'inconclusive')"
-                    class="mt-4 border-t border-border pt-4"
-                  >
-                    <p class="text-caption font-medium">{{ externalJudgeLabel }}的结果是？</p>
-                    <div class="mt-3 flex gap-2">
-                      <Button variant="outline" class="flex-1" @click="recordPlatformResult(false)">
-                        <RotateCcw class="size-4" />
-                        Rejected
-                      </Button>
-                      <Button class="flex-1" @click="recordPlatformResult(true)">
-                        <Check class="size-4" />
-                        Accepted
-                      </Button>
-                    </div>
-                  </div>
-                </section>
+                  <p class="flex items-center gap-2 px-1 text-caption text-muted-foreground">
+                    <ShieldCheck class="size-3.5" />
+                    证据与训练记录只保存在本机
+                  </p>
+                </div>
               </div>
             </div>
 
             <Alert v-if="outcomeNotice" class="mt-5">
               <Check class="size-4" />
-              <AlertDescription>{{ outcomeNotice }}</AlertDescription>
+              <AlertDescription class="flex flex-wrap items-center justify-between gap-3">
+                <span>{{ outcomeNotice }}</span>
+                <Button
+                  v-if="workspaceMode === 'solve' && workspacePresentation?.hasReviewActivity"
+                  variant="outline"
+                  size="sm"
+                  @click="workspaceMode = 'review'"
+                >
+                  查看复盘
+                </Button>
+              </AlertDescription>
             </Alert>
-
-            <section class="mt-8 border-t border-border pt-5">
-              <div class="flex flex-wrap items-center gap-x-6 gap-y-2 text-caption text-muted-foreground">
-                <span class="flex items-center gap-1.5"><GraduationCap class="size-3.5" />提示 {{ activeProjection.humanOutcome.hintCount }}</span>
-                <span class="flex items-center gap-1.5"><Users class="size-3.5" />独立步骤 {{ activeProjection.humanOutcome.independentSteps }}</span>
-                <span class="flex items-center gap-1.5"><ShieldCheck class="size-3.5" />证据只保存在本机</span>
-              </div>
-            </section>
           </template>
 
           <div v-else class="rounded-xl border border-border bg-card px-6 py-16 text-center">

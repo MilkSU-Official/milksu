@@ -131,4 +131,37 @@ describe('CTFEndpointAuthorization', () => {
       purpose: '读取 HTTP 基线',
     }])
   })
+
+  it('keeps the solve-time action focused on the pending decision', async () => {
+    const request: CTFEndpointRequest = {
+      id: 'endpoint_pending',
+      protocol: 'http',
+      host: '127.0.0.1',
+      port: 65533,
+      target: { kind: 'origin', value: 'http://127.0.0.1:65533' },
+      source: 'Agent 从题面发现',
+      purpose: '读取题目 HTTP 基线',
+      requestedBy: 'agent',
+      status: 'pending',
+      requestedAt: '2026-08-03T00:10:00Z',
+    }
+    const host = document.createElement('div')
+    document.body.append(host)
+    const app = createApp(CTFEndpointAuthorization, {
+      sourceScope: scope('scope_source', 'lab', 'offline-intake'),
+      networkScopes: [scope('scope_http', 'origin', 'https://approved.example.test')],
+      requests: [request],
+      pendingOnly: true,
+    })
+    app.mount(host)
+    mountedApps.push(app)
+    await nextTick()
+
+    expect(host.textContent).toContain('批准新的 Endpoint')
+    expect(host.textContent).toContain('127.0.0.1:65533')
+    expect(host.textContent).toContain('仅批准此 Endpoint')
+    expect(host.textContent).not.toContain('手动提出一个地址')
+    expect(host.textContent).not.toContain('当前授权目标')
+    expect(host.textContent).not.toContain('https://approved.example.test')
+  })
 })

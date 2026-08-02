@@ -128,18 +128,24 @@ func TestBrowserPairingCodeIsCopyOnlyInTheDesktopUI(t *testing.T) {
 }
 
 func TestNSSCTFJudgeNeverPromisesToSpendCoins(t *testing.T) {
-	data, err := os.ReadFile("app/src/components-vue/CTFPage.vue")
-	if err != nil {
-		t.Fatal(err)
+	var source strings.Builder
+	for _, path := range []string{
+		"app/src/components-vue/CTFPage.vue",
+		"app/src/components-vue/CTFSubmissionGate.vue",
+	} {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		source.Write(data)
 	}
-	source := string(data)
 	for _, fragment := range []string{
 		`selectedBrowserCanSubmit`,
 		`activeBrowserCanSubmit`,
 		`MilkSU 不会自动扣币`,
 		`等待你在 NSSCTF 开启题目`,
 	} {
-		if !strings.Contains(source, fragment) {
+		if !strings.Contains(source.String(), fragment) {
 			t.Fatalf("NSSCTF Judge UI does not expose %q", fragment)
 		}
 	}
@@ -148,7 +154,7 @@ func TestNSSCTFJudgeNeverPromisesToSpendCoins(t *testing.T) {
 		`第一次提交会开启题目并消耗`,
 		`花费 ${activeStartCost} 金币并提交`,
 	} {
-		if strings.Contains(source, obsolete) {
+		if strings.Contains(source.String(), obsolete) {
 			t.Fatalf("NSSCTF Judge UI still promises an automatic coin spend: %q", obsolete)
 		}
 	}
