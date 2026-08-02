@@ -1,8 +1,8 @@
 # 核心架构：可验证安全任务运行时
 
 > **状态：基础目标架构。核心原则仍有效；“当前实现”以
-> [2026-08-01 架构快照](/architecture/)和[实际交付边界](/architecture/m3-r04-boundary-and-debt)
-> 为准。**
+> [2026-08-01 架构快照](/architecture/)为准，当前任务只以
+> [当前开发目标](/developer/current-objectives)为执行契约。**
 >
 > 日期：2026-07-19
 >
@@ -311,13 +311,8 @@ L5 首先区分“内嵌基座”和“外部完整运行时”。两者都可�
 
 架构重启已经删除固定 `taskType`、`TaskState`、`panel_update`、通用子代理、仓库内 Skill 路由和红队专用 Engagement 数据模型。M0 保留 UI 外壳、会话存储、进程生命周期、流式工具事件、设置界面和临时 Pi 对话桥；M1 增加 Go 实现的追加事件、Artifact、Projection、独立 Evaluator 与恢复骨架；M2-A 增加 CTF Role Projection、独立 Pi Security Adapter、三种类型化动作、本地 Judge 与独立 CTF 面板。
 
-这些宿主能力不能充当 Runtime 的领域模型。下面是 2026-07-19 当时的后续顺序，现已由
-[开发计划](/developer/development-plan)取代：
-
-1. 用户验收 M2-A 的真实模型、Experiment、Artifact、Evidence 与 Judge 桌面纵切；
-2. 由用户确认先做 Managed Local Lab，还是先做 Managed Browser；
-3. 补齐完整 CTF Intake、Coach/Copilot 与长期学习 Workspace；
-4. 冻结 Vuln 的 Attack Surface、Hypothesis、Crash、Reproduction、Root Cause 与 Disclosure 状态，并增加独立角色面板。
+这些宿主能力不能充当 Runtime 的领域模型。2026-07-19 的临时后续顺序已经失效并移除；
+当前任务只以 [当前开发目标](/developer/current-objectives) 为准。
 
 Pi 的临时聊天桥不是 L5 接口标准；M0 实跑后 Pi SDK 已选为首要 Embedded Agent Engine，Codex app-server 保留为对照与可能的 External Agent Runtime。M2-A 已通过独立 Security Adapter 依赖 Pi SDK，没有 fork 上游；新增 Role 仍应优先扩展窄 Adapter。决策见 [ADR-0001](/developer/adr/0001-agent-engine-and-desktop-boundary)、[ADR-0002](/developer/adr/0002-runtime-facts-and-recovery) 与 [ADR-0003](/developer/adr/0003-ctf-vertical-slice)。
 

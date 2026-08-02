@@ -14,7 +14,7 @@
 1. [当前系统与分层](current-system.md)：MilkSU 现在由哪些进程、容器和模块组成？
 2. [CTF 数据与时序](ctf-intake-agent-judge-memory.md)：一道题怎样从 Intake 进入 Agent、Judge 和训练记忆？
 3. [Coding Agent / Pi 扩展边界](coding-agent-pi-extension-boundary.md)：哪些能力复用 Pi，哪些能力属于 MilkSU，CTF 为什么不继承 Coding 插件？
-4. [架构债与 M3 / R0.4 边界](m3-r04-boundary-and-debt.md)：现在能声称什么、不能声称什么，下一轮先还哪些债？
+4. [当前开发目标](/developer/current-objectives)：本轮唯一执行契约与完成门槛。
 5. [授权安全学习与研究平台](security-learning-and-research-platform.md)：CTF、Labs、CVE、
    Coding 怎样共享证据、授权、环境与学习底座？
 6. [CTF Labs 顶层与详细设计](ctf-labs-design.md)：未来怎样提供一键启动、可重置、
@@ -36,8 +36,8 @@
 
 当不同年代的文档出现冲突时，按以下顺序判断：
 
-1. 本目录的 `current-system.md` 与 `m3-r04-boundary-and-debt.md`；
-2. `developer/development-plan.md` 的当前检查点和任务队列；
+1. `developer/current-objectives.md` 的当前任务与完成门槛；
+2. 本目录的 `current-system.md` 与代码、测试、原生 App 的实现事实；
 3. `Planned / Paused` 详细设计；
 4. ADR 与带日期的 Architecture Review / Checkpoint。
 

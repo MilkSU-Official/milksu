@@ -149,35 +149,9 @@ Chrome DevTools MCP 的优势是 DevTools 网络、Console、Trace 和性能分�
 3. 启动前设置 `CUA_DRIVER_RS_TELEMETRY_ENABLED=0`，写入持久 opt-out，并用默认拒绝的 egress policy 验证没有遥测请求。
 4. 禁用 `CUA_DRIVER_RS_MCP_HTTP_PORT`；只允许 stdio proxy + 每次运行创建的私有 Unix socket，父目录 `0700`、socket `0600`，任务结束即删除。
 5. MilkSU 只暴露 allowlist 后的窗口级 screenshot/AX/click/type 工具；`launch_app`、desktop capture、全局热键、录制和 scope escalation 分别审批。
-6. Computer Use 不是 M2 的前置条件。等 CTF/Vuln 确实需要操作 Burp、Ghidra、VM Console 或其他本地 GUI 时，再做单独 PoC 和完整仓库扫描。
+6. Computer Use 是 Coding 自举验收的一部分，用于原生 App 的可见验证；它不是 CTF / Labs 前置，并且在产品化前必须固定依赖版本、默认关闭遥测并完成独立安全审查。
 
 当前判断：**没有发现故意后门的直接证据，但不接受直接安装或默认运行；保留 Rust Driver 为有条件的后期候选。**
-
-## 建议的 M2 顺序
-
-以下只是 M2 内部的交付顺序，不改变全局 M0 → M1 → M2 里程碑。M2-A 已先完成最小 Offline Intake 与真实 CTF Loop；Browser 与完整 Intake 仍需单独确认和准入。
-
-```text
-M2-A  Offline Challenge Slice                         已完成工程验证
-      pasted statement / small attachment / Pi / typed tools / local judge
-                       │
-M2-B  Managed Local Lab                               待确认
-      controlled file / shell / socket + lifecycle provider
-                       │
-M2-C  Managed Browser Capability                      待确认
-      Playwright MCP / dedicated profile / stdio / Action Gateway
-                       │
-M2-D  User Browser Bridge                             待确认
-      selected tab / explicit approval / visible sharing / revocation
-
-M2-E  Teaching and long-term Workspace                待确认
-      Coach / Copilot / competition / learning record
-
-Later  Computer Use
-       only after a native-GUI use case proves Browser + CLI is insufficient
-```
-
-这份评审只授权继续讨论和做最小 Spike，不代表已经同意把浏览器依赖写入产品。真正动工前还需要确认 Playwright PoC 的范围；Computer Use 必须等独立模块评审。
 
 ## 审查覆盖与限制
 

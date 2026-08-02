@@ -25,7 +25,7 @@ export default defineConfig({
           text: '开始',
           items: [
             { text: '开发者文档', link: '/developer/' },
-            { text: '开发计划（当前主线）', link: '/developer/development-plan' },
+            { text: '当前开发目标（唯一执行契约）', link: '/developer/current-objectives' },
             { text: '文档与任务状态', link: '/developer/document-status' },
             { text: 'M2 → M3 基础检查点', link: '/developer/checkpoints/2026-07-21-m2-m3-foundation' },
           ],
@@ -36,7 +36,6 @@ export default defineConfig({
             { text: '能力边界（当前主线）', link: '/developer/security-agent-boundary' },
             { text: '六层运行时架构', link: '/developer/architecture' },
             { text: '当前架构快照', link: '/architecture/' },
-            { text: 'Coding 与 Codex 能力对照', link: '/developer/coding-agent-codex-parity' },
             { text: 'Runtime v1alpha1 · M1 契约', link: '/developer/runtime-v1alpha1' },
             { text: 'ADR-0001 · Engine 与桌面边界', link: '/developer/adr/0001-agent-engine-and-desktop-boundary' },
             { text: 'ADR-0002 · Runtime 事实与恢复', link: '/developer/adr/0002-runtime-facts-and-recovery' },
@@ -58,7 +57,6 @@ export default defineConfig({
             { text: '当前系统与分层', link: '/architecture/current-system' },
             { text: 'CTF Intake / Judge / Memory', link: '/architecture/ctf-intake-agent-judge-memory' },
             { text: 'Coding / Pi 扩展边界', link: '/architecture/coding-agent-pi-extension-boundary' },
-            { text: 'M3 / R0.4 与架构债', link: '/architecture/m3-r04-boundary-and-debt' },
           ],
         },
         {

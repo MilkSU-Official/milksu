@@ -8,7 +8,7 @@ MilkSU 是一个**一站式网络安全 AI 学习客户端**。它让人与安�
 
 **MilkSU 是一个人与安全 Agent 共同工作的网络安全研究与训练环境。它既帮助用户在授权环境中完成更多真实学习任务，也通过可验证的实验、证据和复盘，让用户真正掌握完成这些任务的方法。**
 
-当前产品主线是 **CTF、Coding、CVE**：CTF 已跑通一条真实平台闭环；Coding 正按日常可交付项目补齐 Codex 级工作流；CVE 目前只有演示壳与经过设计的未来研究工作台。Labs 作为 CTF 下的环境型训练领域已经完成顶层设计，但当前暂停，不属于 R0.4 的发布声明。未来再扩展的能力必须继续遵守独立 Judge、可引用证据、显式授权和可恢复轨迹。
+当前产品主线是 **CTF 与 Coding**：CTF 已跑通一条真实平台闭环；Coding 正按能够开发、验证和安全交付 MilkSU 自身的自举门槛继续收口。CVE 目前只有演示壳与经过设计的未来研究工作台；Labs 与 CVE 当前暂停，不属于本轮完成条件。未来再扩展的能力必须继续遵守独立 Judge、可引用证据、显式授权和可恢复轨迹。
 
 文档站首页是一屏架构总图，也是当前设计基准。完整论证按以下顺序阅读：
 
@@ -17,7 +17,7 @@ MilkSU 是一个**一站式网络安全 AI 学习客户端**。它让人与安�
 3. [CTF / Vuln Role Packages](docs/developer/role-packages.md)
 4. [CTF Labs 顶层与详细设计](docs/architecture/ctf-labs-design.md)
 5. [开源项目坐标](docs/developer/industry-baseline.md)
-6. [开发计划](docs/developer/development-plan.md)
+6. [当前开发目标](docs/developer/current-objectives.md)
 7. [ADR-0001：Agent Engine 与桌面进程边界](docs/developer/adr/0001-agent-engine-and-desktop-boundary.md)
 8. [Runtime v1alpha1：M1 可恢复任务契约](docs/developer/runtime-v1alpha1.md)
 9. [ADR-0002：Runtime 事实、存储与恢复边界](docs/developer/adr/0002-runtime-facts-and-recovery.md)
@@ -76,7 +76,7 @@ L2 定义角色闭环，L5 提供可改造的通用 Agent Engine，L6 横切保�
 - 面向真实入门题的有界文本分析：Base64（含多层）、Hex、Binary、Morse 与 URL 编码只在 Go capability 中确定性转换，结果作为 Artifact/Observation 回到 Agent，而不是让模型自报计算结果；
 - 独立于通用聊天的 `security-bridge.js`。它关闭 Pi 内建 Coding Tools 与用户级扩展，只向模型暴露三种 CTF 提议工具。
 
-当前可以准确声称的是：MilkSU 已完成一条真实 NSSCTF P3879 的题面与附件 Intake、Pi 解题、候选闸门、配对浏览器 Judge `correct=true`、恢复和复盘闭环；Coding 核心也已通过一次打包应用内的连续短提示交付，并已接入逐工具审批、文件/图片附件、文件级 Diff、会话隔离的交互式项目 PTY、可停止的后台进程/端口/日志、stage/commit/push 本地远端闭环、opt-in 项目 MCP、隔离 Coding Browser 与随包 TypeScript/Vue LSP 诊断。它仍不能被描述成通用 CTF Solver 或 Codex 等价产品：CTF 多题型、动态 Endpoint 确认、能力画像校准，以及 Coding 的 `gopls`、`lsp_fix` 审批、托管平台 PR、跨应用重启终端恢复和 Computer Use 仍未完成。
+当前可以准确声称的是：MilkSU 已完成一条真实 NSSCTF P3879 的题面与附件 Intake、Pi 解题、候选闸门、配对浏览器 Judge `correct=true`、恢复和复盘闭环；Coding 核心也已通过一次打包应用内的连续短提示交付，并已接入逐工具审批、文件/图片附件、文件级 Diff、会话隔离的交互式项目 PTY、可停止的后台进程/端口/日志、stage/commit/push 本地远端闭环、opt-in 项目 MCP、隔离 Coding Browser、随包 TypeScript/Vue/Go LSP 诊断，以及带预览、精确 Diff、逐次批准和写后校验的 `lsp_fix`。它仍不能被描述成通用 CTF Solver 或 Codex 等价产品：CTF 六类真实题、动态 Endpoint 确认、能力画像校准，以及 Coding 的普通产物预览、多 Agent/worktree 协作、托管平台 PR 确认、跨应用状态恢复和 Computer Use 仍未完成。
 
 2026-07-21 已保存一个 [M2 → M3 授权学习能力基础检查点](docs/developer/checkpoints/2026-07-21-m2-m3-foundation.md)：精确授权策略、Managed Lab/Browser 基础包、CTF 教学与外部人工 Judge 契约、以及本地 Vuln fixture 已经可以编译和自动测试。它们尚未完整接入桌面 UI 或真实环境，因此不改变上面的 M2 验收结论。
 

@@ -4,8 +4,8 @@
 
 ## 推荐阅读路径
 
-1. [开发计划](/developer/development-plan)：当前实现顺序与每个里程碑的完成标志。
-2. [文档与任务状态登记](/developer/document-status)：当前唯一口径、文档生命周期和 Active/Paused/Out-of-scope 队列。
+1. [当前开发目标](/developer/current-objectives)：本轮唯一执行契约与每个纵切的完成门槛。
+2. [文档与事实状态](/developer/document-status)：稳定事实来源、文档生命周期与暂停范围。
 3. [安全 Agent 与通用 Agent 的能力边界](/developer/security-agent-boundary)：先分清 Agent Security、Agent for Security、Role 与 Capability。
 4. [六层运行时架构](/developer/architecture)：把主线转成可实现的对象、分层和执行约束。
 5. [Runtime v1alpha1](/developer/runtime-v1alpha1)：M1 怎样保存事实、判分、取消并从中断恢复。
@@ -26,13 +26,12 @@
 20. [Role Packages](/developer/role-packages)：说明首批 CTF 与 Vulnerability Research 角色，以及人类学习 Outcome。
 21. [开源项目坐标](/developer/industry-baseline)：决定一个项目应该接入、委派、学习、只做 benchmark，还是拒绝。
 22. [PI Resource Whitelist](/developer/pi-resource-whitelist)：记录 Coding Agent 可加载的固定版本 Skill/Extension，以及 CTF 隔离断言。
-23. [Coding Agent 与 Codex 能力对照](/developer/coding-agent-codex-parity)：按日常开发工作流追踪项目、执行、Git、权限、扩展与自动化的实现和验收差距。
-24. [CTF Agent 开源项目对照](/developer/research/2026-07-31-ctf-agent-landscape)：BoxPwnr、D-CIPHER、EnIGMA+、CAI 等框架与 MilkSU 底座取舍。
-25. [NYU CTF Bench 离线评测](/developer/nyu-ctf-bench-eval)：只导入固定版本的 benchmark 索引与人工准入材料；提供 one-shot 与两回合 Pi 只读 Agent Runtime，生成可复现摘要报告，但不启动挑战或执行 Agent 输出。
-26. [授权安全学习与研究平台](/architecture/security-learning-and-research-platform)：CTF、Labs、CVE 与 Coding 怎样共享授权、证据、环境和学习底座。
-27. [CTF Labs 顶层与详细设计](/architecture/ctf-labs-design)：未来怎样提供一键启动、可重置、可判定的环境型训练。
-28. [CVE 研究工作台顶层与详细设计](/architecture/cve-research-workbench-design)：未来怎样支撑赏金猎人的情报、资产、研究、证据和披露日常。
-29. [2026-07-31 M3 Architecture Review](/developer/architecture-review-2026-07-31)：保留当时的变更集中点、优先级和真实平台验收判断；当前状态以后继文档为准。
+23. [CTF Agent 开源项目对照](/developer/research/2026-07-31-ctf-agent-landscape)：BoxPwnr、D-CIPHER、EnIGMA+、CAI 等框架与 MilkSU 底座取舍。
+24. [NYU CTF Bench 离线评测](/developer/nyu-ctf-bench-eval)：只导入固定版本的 benchmark 索引与人工准入材料；提供 one-shot 与两回合 Pi 只读 Agent Runtime，生成可复现摘要报告，但不启动挑战或执行 Agent 输出。
+25. [授权安全学习与研究平台](/architecture/security-learning-and-research-platform)：CTF、Labs、CVE 与 Coding 怎样共享授权、证据、环境和学习底座。
+26. [CTF Labs 顶层与详细设计](/architecture/ctf-labs-design)：未来怎样提供一键启动、可重置、可判定的环境型训练。
+27. [CVE 研究工作台顶层与详细设计](/architecture/cve-research-workbench-design)：未来怎样支撑赏金猎人的情报、资产、研究、证据和披露日常。
+28. [2026-07-31 M3 Architecture Review](/developer/architecture-review-2026-07-31)：保留当时的变更集中点、优先级和真实平台验收判断；当前状态以后继文档为准。
 
 ## 当前实现边界
 
