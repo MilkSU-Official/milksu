@@ -29,6 +29,12 @@ const packagedTypeScriptLanguageServer = join(
   "lib",
   "cli.mjs",
 );
+const packagedTypeScriptSdk = join(
+  installedLspRuntime,
+  "node_modules",
+  "typescript",
+  "lib",
+);
 const packagedGopls = join(installedLspRuntime, "gopls");
 
 const PASSTHROUGH_ENVIRONMENT_NAMES = [
@@ -80,6 +86,18 @@ export function reviewedLspConfig(
           "--stdio",
         ],
         extensions: [".vue"],
+        initialization: {
+          typescript: {
+            tsdk: packagedTypeScriptSdk,
+            disableAutoImportCache: true,
+          },
+          vue: {
+            hybridMode: false,
+          },
+        },
+        // Vue Language Server can stay silent for a clean document. pi-lsp
+        // needs a bounded grace period before requesting a source action.
+        pushDiagnosticsGraceMs: 3000,
       },
       "milksu-typescript": {
         command: [

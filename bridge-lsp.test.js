@@ -3,6 +3,7 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { build } from "esbuild";
 import { createReviewedLspFixTool } from "./bridge-lsp.js";
 
 const beforeText = "const answer: string = 42\n";
@@ -209,4 +210,71 @@ test("LSP fix cannot use a model-supplied root outside the selected project", as
 
   assert.equal(value.calls.every(call => call.root === value.workspace), true);
   assert.equal(await readFile(value.path, "utf8"), afterText);
+});
+
+test("patched pi-lsp rejects edits it cannot review and apply atomically", async () => {
+  const bundle = await build({
+    stdin: {
+      contents: "export { unsupportedWorkspaceEditTargets } "
+        + "from './node_modules/@narumitw/pi-lsp/src/text-edits.ts';",
+      resolveDir: process.cwd(),
+      sourcefile: "pi-lsp-workspace-edit-probe.js",
+    },
+    bundle: true,
+    format: "esm",
+    platform: "node",
+    target: "node24",
+    write: false,
+    logLevel: "silent",
+  });
+  const encoded = Buffer.from(bundle.outputFiles[0].text).toString("base64");
+  const { unsupportedWorkspaceEditTargets } = await import(
+    `data:text/javascript;base64,${encoded}`
+  );
+  const currentUri = "file:///workspace/main.go";
+
+  assert.deepEqual(
+    unsupportedWorkspaceEditTargets({
+      changes: {
+        [currentUri]: [{
+          range: {
+            start: { line: 0, character: 0 },
+            end: { line: 0, character: 0 },
+          },
+          newText: "package main\n",
+        }],
+      },
+    }, currentUri),
+    [],
+  );
+  assert.deepEqual(
+    unsupportedWorkspaceEditTargets({
+      changes: {
+        "file:///workspace/helper.go": [],
+      },
+    }, currentUri),
+    [{ kind: "text", uri: "file:///workspace/helper.go" }],
+  );
+  assert.deepEqual(
+    unsupportedWorkspaceEditTargets({
+      documentChanges: [
+        { kind: "create", uri: "file:///workspace/generated.go" },
+        {
+          kind: "rename",
+          oldUri: "file:///workspace/old.go",
+          newUri: "file:///workspace/new.go",
+        },
+        { kind: "delete", uri: "file:///workspace/obsolete.go" },
+      ],
+    }, currentUri),
+    [
+      { kind: "create", uri: "file:///workspace/generated.go" },
+      {
+        kind: "rename",
+        oldUri: "file:///workspace/old.go",
+        newUri: "file:///workspace/new.go",
+      },
+      { kind: "delete", uri: "file:///workspace/obsolete.go" },
+    ],
+  );
 });

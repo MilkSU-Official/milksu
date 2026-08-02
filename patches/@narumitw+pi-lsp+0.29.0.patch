@@ -1,0 +1,102 @@
+diff --git a/node_modules/@narumitw/pi-lsp/src/runner.ts b/node_modules/@narumitw/pi-lsp/src/runner.ts
+index 32ef505..bce47b9 100644
+--- a/node_modules/@narumitw/pi-lsp/src/runner.ts
++++ b/node_modules/@narumitw/pi-lsp/src/runner.ts
+@@ -4,7 +4,12 @@ import { pathToFileURL } from "node:url";
+ import { commandFromEnv } from "./command.js";
+ import { collectSupportedFiles, resolveRoot, resolveSupportedFile } from "./files.js";
+ import { LspClient } from "./lsp-client.js";
+-import { applyTextEdits, collectWorkspaceEdits, hasOverlappingTextEdits } from "./text-edits.js";
++import {
++	applyTextEdits,
++	collectWorkspaceEdits,
++	hasOverlappingTextEdits,
++	unsupportedWorkspaceEditTargets,
++} from "./text-edits.js";
+ import type {
+ 	CodeAction,
+ 	DiagnosticEntry,
+@@ -115,6 +120,15 @@ export async function runFix(
+ 			const actions = await client.codeActions(uri, text, diagnostics, actionKind);
+ 			resolvedActions = await client.resolveActions(actions);
+ 			selectedActions = selectCodeActions(resolvedActions, actionKind);
++			const unsupportedTargets = selectedActions
++				.flatMap((action) => unsupportedWorkspaceEditTargets(action.edit, uri));
++			if (unsupportedTargets.length > 0) {
++				const relativePath = path.relative(root, file) || file;
++				throw new Error(
++					`${adapter.name} LSP returned a multi-file or resource code action for `
++						+ `${relativePath}; MilkSU cannot review and apply it atomically.`,
++				);
++			}
+ 			edits = selectedActions.flatMap((action) => collectWorkspaceEdits(action.edit, uri));
+ 			if (hasOverlappingTextEdits(text, edits)) {
+ 				const relativePath = path.relative(root, file) || file;
+diff --git a/node_modules/@narumitw/pi-lsp/src/text-edits.ts b/node_modules/@narumitw/pi-lsp/src/text-edits.ts
+index 3053f5b..a17ac51 100644
+--- a/node_modules/@narumitw/pi-lsp/src/text-edits.ts
++++ b/node_modules/@narumitw/pi-lsp/src/text-edits.ts
+@@ -1,5 +1,12 @@
+ import type { LspPosition, LspTextEdit, WorkspaceEdit } from "./types.js";
+ 
++export interface WorkspaceEditTarget {
++	kind: "text" | "create" | "rename" | "delete" | "unknown";
++	uri?: string;
++	oldUri?: string;
++	newUri?: string;
++}
++
+ export function positionAt(text: string, offset: number): LspPosition {
+ 	const boundedOffset = Math.max(0, Math.min(offset, text.length));
+ 	let line = 0;
+@@ -94,3 +101,50 @@ export function collectWorkspaceEdits(edit: WorkspaceEdit | undefined, uri: stri
+ 
+ 	return edit.changes?.[uri] ?? [];
+ }
++
++export function collectWorkspaceEditTargets(
++	edit: WorkspaceEdit | undefined,
++): WorkspaceEditTarget[] {
++	if (!edit) return [];
++	if (edit.documentChanges) {
++		return edit.documentChanges.map((change) => {
++			if (change.textDocument?.uri) {
++				return { kind: "text", uri: change.textDocument.uri };
++			}
++			const resourceChange = change as unknown as {
++				kind?: string;
++				uri?: string;
++				oldUri?: string;
++				newUri?: string;
++			};
++			if (
++				resourceChange.kind === "create"
++				|| resourceChange.kind === "delete"
++			) {
++				return {
++					kind: resourceChange.kind,
++					uri: resourceChange.uri,
++				};
++			}
++			if (resourceChange.kind === "rename") {
++				return {
++					kind: "rename",
++					oldUri: resourceChange.oldUri,
++					newUri: resourceChange.newUri,
++				};
++			}
++			return { kind: "unknown" };
++		});
++	}
++
++	return Object.keys(edit.changes ?? {}).map((uri) => ({ kind: "text", uri }));
++}
++
++export function unsupportedWorkspaceEditTargets(
++	edit: WorkspaceEdit | undefined,
++	currentUri: string,
++) {
++	return collectWorkspaceEditTargets(edit).filter(
++		(target) => target.kind !== "text" || target.uri !== currentUri,
++	);
++}

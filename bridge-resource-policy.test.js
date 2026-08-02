@@ -41,6 +41,16 @@ test("reviewed LSP config ignores project commands and strips provider secrets",
     join(root, "node_modules", "@vue", "language-server", "bin", "vue-language-server.js"),
     "--stdio",
   ]);
+  assert.deepEqual(config.servers["milksu-vue"].initialization, {
+    typescript: {
+      tsdk: join(root, "node_modules", "typescript", "lib"),
+      disableAutoImportCache: true,
+    },
+    vue: {
+      hybridMode: false,
+    },
+  });
+  assert.equal(config.servers["milksu-vue"].pushDiagnosticsGraceMs, 3000);
   assert.deepEqual(config.servers["milksu-typescript"].command.slice(-3), [
     process.execPath,
     join(root, "node_modules", "typescript-language-server", "lib", "cli.mjs"),

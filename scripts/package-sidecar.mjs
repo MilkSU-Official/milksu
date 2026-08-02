@@ -20,7 +20,7 @@ const playwrightVersion = '1.62.0-alpha-1783623505000'
 const playwrightSocketRoot = '/private/tmp/milksu-playwright'
 const systemOcrVersion = '1.1.0'
 const typescriptLanguageServerVersion = '5.3.0'
-const vueLanguageServerVersion = '3.3.9'
+const vueLanguageServerVersion = '2.2.12'
 const typescriptVersion = '6.0.3'
 const diffVersion = '8.0.4'
 const goplsVersion = '0.23.0'
@@ -325,10 +325,14 @@ async function bundleBridge(entry, outfile) {
 
 async function runWithInput(executable, argumentsList, input, options) {
   return await new Promise((resolvePromise, rejectPromise) => {
-    const child = spawn(executable, argumentsList, { ...options, stdio: ['pipe', 'pipe', 'pipe'] })
+    const { timeoutMs = 15_000, ...spawnOptions } = options
+    const child = spawn(executable, argumentsList, {
+      ...spawnOptions,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
     let stdout = ''
     let stderr = ''
-    const timeout = setTimeout(() => child.kill('SIGKILL'), 15_000)
+    const timeout = setTimeout(() => child.kill('SIGKILL'), timeoutMs)
     child.stdout.setEncoding('utf8')
     child.stderr.setEncoding('utf8')
     child.stdout.on('data', chunk => { stdout += chunk })
@@ -341,6 +345,151 @@ async function runWithInput(executable, argumentsList, input, options) {
     })
     child.stdin.end(input)
   })
+}
+
+async function verifyReviewedLspCodeActions({
+  output,
+  node,
+  workspace,
+  runtimeArguments,
+}) {
+  const fixtureRoot = join(workspace, 'lsp-code-actions')
+  const vueRoot = join(fixtureRoot, 'vue')
+  const goRoot = join(fixtureRoot, 'go')
+  const probe = join(output, 'lsp-code-action-probe.cjs')
+  await rm(fixtureRoot, { recursive: true, force: true })
+  await Promise.all([
+    mkdir(vueRoot, { recursive: true, mode: 0o700 }),
+    mkdir(goRoot, { recursive: true, mode: 0o700 }),
+  ])
+  await bundleBridge('scripts/lsp-code-action-probe.mjs', probe)
+
+  const vueBefore = [
+    '<script setup lang="ts">',
+    'import { unusedValue } from "./unused"',
+    'import { usedValue } from "./used"',
+    '',
+    'const value = usedValue',
+    '</script>',
+    '',
+    '<template><div>{{ value }}</div></template>',
+    '',
+  ].join('\n')
+  const goBefore = [
+    'package main',
+    '',
+    'import (',
+    '\t"fmt"',
+    '\t"strings"',
+    ')',
+    '',
+    'func main() {',
+    '\t_ = strings.TrimSpace(" MilkSU ")',
+    '}',
+    '',
+  ].join('\n')
+  await Promise.all([
+    writeFile(join(vueRoot, 'Component.vue'), vueBefore, { mode: 0o600 }),
+    writeFile(join(vueRoot, 'used.ts'), 'export const usedValue = 42\n', { mode: 0o600 }),
+    writeFile(
+      join(vueRoot, 'unused.ts'),
+      'export const unusedValue = "unused"\n',
+      { mode: 0o600 },
+    ),
+    writeFile(join(vueRoot, 'tsconfig.json'), `${JSON.stringify({
+      compilerOptions: {
+        module: 'ESNext',
+        moduleResolution: 'Bundler',
+        target: 'ES2022',
+      },
+      include: ['**/*'],
+    }, null, 2)}\n`, { mode: 0o600 }),
+    writeFile(join(goRoot, 'go.mod'), 'module example.com/milksu/lspfixture\n\ngo 1.24\n', {
+      mode: 0o600,
+    }),
+    writeFile(join(goRoot, 'main.go'), goBefore, { mode: 0o600 }),
+  ])
+
+  const probeArguments = [
+    ...runtimeArguments,
+    '--allow-child-process',
+    '--allow-fs-read=/usr/bin/env',
+    probe,
+  ]
+  const probeEnvironment = {
+    ...process.env,
+    HOME: workspace,
+    TMPDIR: workspace,
+  }
+  const runProbe = async (input) => {
+    const run = await runWithInput(
+      node,
+      probeArguments,
+      `${JSON.stringify(input)}\n`,
+      {
+        cwd: input.workspace,
+        env: probeEnvironment,
+        timeoutMs: 30_000,
+      },
+    )
+    const result = JSON.parse(run.stdout)
+    if (!result.ok) {
+      throw new Error(`packaged ${input.server} Code Action failed: ${result.error}`)
+    }
+    return result
+  }
+
+  const vueResult = await runProbe({
+    workspace: vueRoot,
+    path: 'Component.vue',
+    kind: 'source.organizeImports',
+    server: 'milksu-vue',
+    write: true,
+  })
+  const goResult = await runProbe({
+    workspace: goRoot,
+    path: 'main.go',
+    kind: 'source.organizeImports',
+    server: 'milksu-go',
+    write: true,
+  })
+  const [vueAfter, goAfter] = await Promise.all([
+    readFile(join(vueRoot, 'Component.vue'), 'utf8'),
+    readFile(join(goRoot, 'main.go'), 'utf8'),
+  ])
+  if (
+    vueAfter === vueBefore
+    || vueAfter.includes('unusedValue')
+    || !vueAfter.includes('usedValue')
+    || vueResult.result?.details?.write !== true
+    || !vueResult.result?.details?.diff?.includes('-import { unusedValue }')
+  ) {
+    throw new Error(`Vue Code Action was not applied and reviewed: ${JSON.stringify(vueResult)}`)
+  }
+  if (
+    goAfter === goBefore
+    || goAfter.includes('"fmt"')
+    || !goAfter.includes('"strings"')
+    || goResult.result?.details?.write !== true
+    || !goResult.result?.details?.diff?.includes('-\t"fmt"')
+  ) {
+    throw new Error(`Go Code Action was not applied and reviewed: ${JSON.stringify(goResult)}`)
+  }
+
+  return {
+    vue: {
+      server: 'milksu-vue',
+      kind: 'source.organizeImports',
+      beforeSha256: vueResult.result.details.beforeSha256,
+      afterSha256: vueResult.result.details.afterSha256,
+    },
+    go: {
+      server: 'milksu-go',
+      kind: 'source.organizeImports',
+      beforeSha256: goResult.result.details.beforeSha256,
+      afterSha256: goResult.result.details.afterSha256,
+    },
+  }
 }
 
 async function buildSidecar(platform) {
@@ -816,6 +965,12 @@ async function smokeSidecar(platform) {
       + `${goplsVersionRun.stdout}${goplsVersionRun.stderr}`,
     )
   }
+  const lspCodeActions = await verifyReviewedLspCodeActions({
+    output,
+    node,
+    workspace,
+    runtimeArguments,
+  })
   const ocrLoad = await runWithInput(
     node,
     [
@@ -1199,6 +1354,7 @@ async function smokeSidecar(platform) {
   process.stdout.write(`${JSON.stringify({
     ...response,
     codingDeliveryScore: codingDelivery.score,
+    lspCodeActions,
   })}\n`)
 }
 

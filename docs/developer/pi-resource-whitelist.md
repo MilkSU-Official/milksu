@@ -24,7 +24,7 @@ The goal is not the raw number of installed packages. The acceptance metric is a
 | --- | --- | --- | --- | --- |
 | `milksu-workflow` | MilkSU source | Coding + CTF roles | Visible progress and role-specific execution guidance | First-party; `milksu_progress` has a bounded schema and no external effects |
 | `tt-a1i/archify` | `2.12.0` / `7b49d0b715fd4ba48116bcdecd1ba3789a279613` | Normal Coding only | Architecture, workflow, sequence, dataflow, and lifecycle diagrams | Pinned submodule; MIT; packaged commit check; CTF sessions must not load it |
-| `@narumitw/pi-lsp` | `0.29.0` | Normal Coding only | `lsp_diagnostics` and reviewed `lsp_fix` through fixed language servers | Exact npm pin; MIT; MilkSU forces a reviewed Go/Vue/TypeScript config, ignores repository commands, launches the real server with a non-secret environment, forces a dry-run before writes, validates the project path and hashes, shows a complete Diff in Ask, and verifies the applied text; TypeScript `5.3.0`, Vue `3.3.9`, and TypeScript SDK `6.0.3` are bundled |
+| `@narumitw/pi-lsp` | `0.29.0` + reviewed MilkSU patch | Normal Coding only | `lsp_diagnostics` and reviewed `lsp_fix` through fixed language servers | Exact npm pin; MIT; MilkSU rejects multi-file/resource WorkspaceEdits that cannot be reviewed and applied atomically, forces a reviewed Go/Vue/TypeScript config, ignores repository commands, launches the real server with a non-secret environment, forces a dry-run before writes, validates the project path and hashes, shows a complete Diff in Ask, and verifies the applied text; TypeScript `5.3.0`, Vue `2.2.12` non-Hybrid mode, and TypeScript SDK `6.0.3` are bundled |
 | `diff` | `8.0.4` | Normal Coding LSP adapter | Unified Diff generation for reviewed `lsp_fix` | Exact npm pin; BSD-3-Clause; only formats the upstream Pi LSP dry-run result; license copied into the Sidecar manifest |
 | `@narumitw/pi-goal` | `0.43.0` | Normal Coding only | Pi-native goal lifecycle, alongside the desktop progress projection | Exact npm pin; MIT; CTF sessions keep MilkSU's recorder-owned progress and Judge semantics |
 | `pi-better-background-tasks` | `0.1.10` | Normal Coding only | Conversation-owned background processes, bounded logs and stop | Exact npm pin; MIT; visible lifecycle; CTF sessions must not load it |
@@ -42,7 +42,8 @@ by the resource loader; it is not a hard-coded declaration:
 - a CTF session exposes none of these external resources and continues to use
   MilkSU's dedicated CTF tools and recorder-owned retry semantics.
 
-`pi-lsp` diagnostics and the reviewed TypeScript write-fix path are **Verified**. MilkSU deliberately
+`pi-lsp` diagnostics and the reviewed TypeScript, Vue, and Go write-fix paths are **Verified**.
+MilkSU deliberately
 overrides both repository and user LSP configuration with `PI_LSP_CONFIG`.
 The fixed commands run through `/usr/bin/env -i` and receive only `HOME`,
 `PATH`, `TMPDIR`, `LANG`, and `LC_ALL`; provider and relay credentials do not
@@ -52,6 +53,12 @@ Vue and Go servers in `milksu-sidecar/lsp-runtime`; the packaged-app fixtures re
 their source files. A packaged TypeScript fixture also verified `source.organizeImports`
 under Project Auto and Request Approval: the desktop showed the full unified Diff,
 approval applied the reviewed text, and rejection preserved the original SHA-256.
+Packaged Vue and Go fixtures now verify the same action under Project Auto with exact
+before/after SHA-256 values and reviewed unified Diffs. Vue uses the official
+`@vue/language-server@2.2.12` non-Hybrid mode with MilkSU's fixed TypeScript SDK; this avoids
+requiring an ambient editor-owned tsserver plugin bridge. MilkSU's reviewed `pi-lsp` patch rejects
+cross-file text edits and create/rename/delete resource operations instead of partially applying
+the current file.
 `gopls v0.23.0` is built from the verified official module
 sum and commit, and its BSD-3-Clause license and binary SHA-256 are recorded in
 the Sidecar manifest.
