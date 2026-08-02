@@ -26,14 +26,22 @@ func TestManagedBrowserRoundTrip(t *testing.T) {
 	defer manager.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	session, err := manager.Start(ctx, server.URL)
+	status, err := manager.StartCoding(ctx, "conversation-browser-fixture", server.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer manager.Stop(session.ID)
+	defer manager.StopCoding("conversation-browser-fixture")
+	if !status.Enabled || status.SessionID == "" {
+		t.Fatalf("Coding browser did not become ready: %#v", status)
+	}
+	descriptor, enabled := manager.CodingDescriptor("conversation-browser-fixture")
+	if !enabled || descriptor.SessionID != status.SessionID ||
+		!strings.HasPrefix(descriptor.CDPEndpoint, "http://127.0.0.1:") {
+		t.Fatalf("unexpected Coding browser descriptor: %#v, %v", descriptor, enabled)
+	}
 	var pages []Page
 	for deadline := time.Now().Add(8 * time.Second); time.Now().Before(deadline); {
-		pages, err = manager.Pages(ctx, session.ID)
+		pages, err = manager.Pages(ctx, status.SessionID)
 		if err == nil && len(pages) > 0 && strings.HasPrefix(pages[0].URL, server.URL) {
 			break
 		}
@@ -42,7 +50,7 @@ func TestManagedBrowserRoundTrip(t *testing.T) {
 	if len(pages) == 0 {
 		t.Fatalf("managed browser exposed no page: %v", err)
 	}
-	capture, err := manager.Capture(ctx, session.ID, pages[0].ID)
+	capture, err := manager.Capture(ctx, status.SessionID, pages[0].ID)
 	if err != nil {
 		t.Fatal(err)
 	}

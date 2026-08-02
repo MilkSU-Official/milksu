@@ -210,6 +210,7 @@ onMounted(async () => {
       :approval-policy="conversations.selectedApprovalPolicy.value"
       :mcp-servers="conversations.selectedMCPServers.value"
       :mcp-config-digest="conversations.selectedMCPConfigDigest.value"
+      :ensure-conversation="conversations.ensureConversation"
       @send="conversations.send"
       @ctf-action="runCTFChatAction"
       @abort="abortConversation"

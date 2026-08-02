@@ -2292,6 +2292,21 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
   const mcpServers = Array.isArray(codingPolicy.mcpServers)
     ? [...new Set(codingPolicy.mcpServers.map(value => String(value).trim()).filter(Boolean))]
     : [];
+  const projectMcpServers = Array.isArray(codingPolicy.projectMcpServers)
+    ? [...new Set(
+        codingPolicy.projectMcpServers
+          .map(value => String(value).trim())
+          .filter(Boolean),
+      )]
+    : mcpServers;
+  const codingBrowser = codingPolicy.codingBrowser
+    && typeof codingPolicy.codingBrowser === "object"
+    && !Array.isArray(codingPolicy.codingBrowser)
+    ? {
+        sessionId: String(codingPolicy.codingBrowser.sessionId ?? ""),
+        cdpEndpoint: String(codingPolicy.codingBrowser.cdpEndpoint ?? ""),
+      }
+    : undefined;
   const productAction = normalizedCodingProductAction(
     root,
     codingPolicy.productAction,
@@ -2310,8 +2325,12 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
           ...capability,
           status: mcpAvailable ? "approval-required" : "unavailable",
           detail: mcpAvailable
-            ? `${mcpServers.length} 个 MCP 服务器已为本任务启用；`
-              + "每次外部连接或工具调用前都会在桌面请求批准。"
+            ? codingBrowser
+              ? `MilkSU 隔离浏览器已为本任务启用`
+                + `${projectMcpServers.length ? `，另有 ${projectMcpServers.length} 个项目 MCP` : ""}；`
+                + "每次连接或工具调用前都会在桌面请求批准。"
+              : `${mcpServers.length} 个 MCP 服务器已为本任务启用；`
+                + "每次外部连接或工具调用前都会在桌面请求批准。"
             : mcpServers.length
               ? "当前 Plan、只读或一键只读动作不会加载 MCP；切换到 Go 后可用。"
             : "项目 .mcp.json 中的服务器仅在本任务“能力”菜单勾选后加载。",
@@ -2326,7 +2345,9 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
     workspace: root,
     productAction,
     mcpServers,
+    projectMcpServers,
     mcpConfigDigest: String(codingPolicy.mcpConfigDigest ?? "").trim(),
+    codingBrowser,
     readOnlyResourceRoots: [...(codingPolicy.readOnlyResourceRoots || [])],
     customTools: await createCodingToolDefinitions(
       root,

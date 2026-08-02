@@ -319,6 +319,31 @@ export function useConversations() {
     pendingMCPConfigDigest.value = ''
   }
 
+  function ensureConversation(title = '新编码任务') {
+    if (activeId.value) return activeId.value
+    const conversationId = crypto.randomUUID()
+    const conversation: Conversation = {
+      id: conversationId,
+      title: title.trim().slice(0, 40) || '新编码任务',
+      createdAt: Date.now(),
+      workspacePath: pendingWorkspacePath.value || undefined,
+      modelMode: pendingModelMode.value,
+      modelProvider: pendingModelProvider.value,
+      modelId: pendingModelId.value,
+      executionMode: pendingExecutionMode.value,
+      approvalPolicy: pendingApprovalPolicy.value,
+      mcpServers: pendingMCPServers.value.length ? pendingMCPServers.value : undefined,
+      mcpConfigDigest: pendingMCPServers.value.length
+        ? pendingMCPConfigDigest.value
+        : undefined,
+      messages: [],
+    }
+    conversations.value = [conversation, ...conversations.value]
+    activeId.value = conversationId
+    persist(conversation)
+    return conversationId
+  }
+
   function setWorkspace(path: string) {
     const normalized = path.trim()
     if (!normalized) return
@@ -848,6 +873,7 @@ export function useConversations() {
     respondApproval,
     remove,
     startNew,
+    ensureConversation,
     setWorkspace,
     setModelSelection,
     setCodingPolicy,

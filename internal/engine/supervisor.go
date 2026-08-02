@@ -5,9 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -106,6 +109,11 @@ type CodingCapabilityStatus struct {
 type CodingPolicy struct {
 	ExecutionMode  string `json:"executionMode"`
 	ApprovalPolicy string `json:"approvalPolicy"`
+}
+
+type CodingBrowserDescriptor struct {
+	SessionID   string `json:"sessionId"`
+	CDPEndpoint string `json:"cdpEndpoint"`
 }
 
 type bridgeEvent struct {
@@ -217,6 +225,7 @@ func (s *Supervisor) SendMessage(
 	approvalPolicy string,
 	mcpServers []string,
 	mcpConfigDigest string,
+	codingBrowser *CodingBrowserDescriptor,
 	attachments []codingattachment.Attachment,
 	settings config.AppSettings,
 ) error {
@@ -234,6 +243,13 @@ func (s *Supervisor) SendMessage(
 	if err != nil {
 		return err
 	}
+	codingBrowser, err = normalizeCodingBrowserDescriptor(codingBrowser)
+	if err != nil {
+		return err
+	}
+	if sessionRole != "" || codingPolicy.ExecutionMode != "go" {
+		codingBrowser = nil
+	}
 	if err := validateModelAccess(settings); err != nil {
 		return err
 	}
@@ -248,7 +264,7 @@ func (s *Supervisor) SendMessage(
 		return err
 	}
 
-	if err := writeCommand(s.process.stdin, map[string]any{
+	command := map[string]any{
 		"action":          "send_message",
 		"conversationId":  sessionID,
 		"prompt":          prompt,
@@ -260,12 +276,57 @@ func (s *Supervisor) SendMessage(
 		"mcpServers":      mcpServers,
 		"mcpConfigDigest": strings.TrimSpace(mcpConfigDigest),
 		"attachments":     attachments,
-	}); err != nil {
+	}
+	if codingBrowser != nil {
+		command["codingBrowser"] = codingBrowser
+	}
+	if err := writeCommand(s.process.stdin, command); err != nil {
 		return fmt.Errorf("send engine message: %w", err)
 	}
 	s.sessions[sessionID] = struct{}{}
 	s.armTurnTimerLocked(sessionID)
 	return nil
+}
+
+func normalizeCodingBrowserDescriptor(
+	descriptor *CodingBrowserDescriptor,
+) (*CodingBrowserDescriptor, error) {
+	if descriptor == nil {
+		return nil, nil
+	}
+	sessionID := strings.TrimSpace(descriptor.SessionID)
+	endpoint := strings.TrimSpace(descriptor.CDPEndpoint)
+	if !strings.HasPrefix(sessionID, "browser_") || len(sessionID) > 160 {
+		return nil, fmt.Errorf("invalid Coding browser session id")
+	}
+	for _, character := range sessionID {
+		if character >= 'a' && character <= 'z' ||
+			character >= 'A' && character <= 'Z' ||
+			character >= '0' && character <= '9' ||
+			strings.ContainsRune("_-", character) {
+			continue
+		}
+		return nil, fmt.Errorf("invalid Coding browser session id")
+	}
+	parsed, err := url.Parse(endpoint)
+	if err != nil ||
+		parsed.Scheme != "http" ||
+		parsed.Hostname() != "127.0.0.1" ||
+		parsed.Path != "" ||
+		parsed.RawQuery != "" ||
+		parsed.Fragment != "" ||
+		parsed.User != nil {
+		return nil, fmt.Errorf("invalid Coding browser CDP endpoint")
+	}
+	port, err := strconv.Atoi(parsed.Port())
+	if err != nil || port <= 0 || port > 65535 ||
+		net.JoinHostPort(parsed.Hostname(), strconv.Itoa(port)) != parsed.Host {
+		return nil, fmt.Errorf("invalid Coding browser CDP endpoint")
+	}
+	return &CodingBrowserDescriptor{
+		SessionID:   sessionID,
+		CDPEndpoint: endpoint,
+	}, nil
 }
 
 func (s *Supervisor) AbortMessage(sessionID string) error {
@@ -486,6 +547,7 @@ func (s *Supervisor) ProbeModel(settings config.AppSettings) (ModelProbeResult, 
 		nil,
 		"",
 		nil,
+		nil,
 		settings,
 	); err != nil {
 		return ModelProbeResult{}, err
@@ -518,13 +580,23 @@ func (s *Supervisor) ProbeModel(settings config.AppSettings) (ModelProbeResult, 
 }
 
 func (s *Supervisor) DestroySession(sessionID string) {
+	s.disposeSession(sessionID, true)
+}
+
+// DetachSession disposes live tools and child-process state while retaining the
+// persisted Pi conversation so the next turn can resume normally.
+func (s *Supervisor) DetachSession(sessionID string) {
+	s.disposeSession(sessionID, false)
+}
+
+func (s *Supervisor) disposeSession(sessionID string, deletePersisted bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.process != nil {
 		_ = writeCommand(s.process.stdin, map[string]any{
 			"action":          "destroy_session",
 			"conversationId":  sessionID,
-			"deletePersisted": true,
+			"deletePersisted": deletePersisted,
 		})
 	}
 	s.stopTurnTimerLocked(sessionID)

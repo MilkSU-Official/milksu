@@ -27,12 +27,12 @@
 | 全局 Rail `CTF → CVE → Coding` 与上下文侧栏 | **Verified for current native package** | 原生包已回归；一级/二级选中态明确，Coding 最近任务按仓库分组，CTF 角色会话不混入 Coding。 |
 | 全页面 Markdown 渲染 | **Implemented / Partial** | 统一安全渲染器与单测已存在；原生真实会话、长代码块和窄窗口仍需回归。 |
 | Archify / LSP / Goal / Background | **Mixed** | Archify 已在真实打包 App 一键生成固定产物、showcase 9/9 并右侧预览；固定 `pi-goal`、后台任务、LSP 与 CTF 隔离 Smoke 已有。LSP Server 尚未打包；当前固定清单不再包含 `pi-retry`。 |
-| Coding Plan / Go 与权限策略 | **Implemented / Partial overall** | Codex 风格三档菜单、Project Auto 常规开发 Shell/Git/网络、显式 Full Access 和 Ask 单次工具审批已落地并有交付门禁；右侧终端页已在原生 App 验证交互式项目 PTY，并启停带 PID/端口/日志的后台服务；仍缺跨应用重启终端恢复以及 Browser/Computer Use 授权。 |
+| Coding Plan / Go 与权限策略 | **Implemented / Partial overall** | Codex 风格三档菜单、Project Auto 常规开发 Shell/Git/网络、显式 Full Access 和 Ask 单次工具审批已落地并有交付门禁；右侧终端页已在原生 App 验证交互式项目 PTY，并启停带 PID/端口/日志的后台服务；隔离 Coding Browser 已验证逐次审批；仍缺跨应用重启终端恢复和 Computer Use 授权。 |
 | Coding 日常产品动作与 Diff | **Verified for one real delivery chain** | 同一真实打包 App 会话已连续完成理解项目、失败测试、可信 Diff 审阅、最小修复、回归测试和总结；右侧文件级 Diff 页已接线；本地临时远端完成 stage、commit、push 与远端 HEAD 核对。仍欠多语言样本、逐块/行级反馈和托管平台 PR。 |
 | 架构文档 | **Verified snapshot** | 当前/目标/债务文档与 Archify 交互式 HTML 已生成；规格验证 9/9、0 error、0 warning。 |
 | NYU CTF Bench | **Verified narrow safe-static baseline** | 固定 revision、人工 fail-closed 准入、单次无工具 Runner、Digest Judge 与 Report 已跑通；5 completed 中 3 solved，另有 1 个零调用阻断。无用户 UI，不代表真实 CTF Agent。 |
 | Coding 附件 / 项目 MCP / 后台任务 | **Implemented / Verified by packaged gates** | 文件/图片附件、纯文本模型 OCR/视觉降级、项目 `.mcp.json` 选择与摘要固定、单次 MCP 审批和按 Conversation 隔离的后台任务生命周期已接线；仍需多进程压力、重启恢复和产物预览。 |
-| Coding Browser / Computer Use | **Planned** | 不因项目 MCP 或 Full Access 静默启用；当前不能列入 M3 完成能力。 |
+| Coding Browser / Computer Use | **Verified Browser / Planned Computer Use** | Coding Browser 复用固定 Playwright MCP，必须从右侧显式启动专用 Chrome，每次调用单独批准；真实打包 App 已回读 `MILKSU-BROWSER-OK`。Computer Use 仍不能列入完成能力。 |
 | Managed Labs / Juice Shop / WebGoat / Vulhub | **Paused** | 本轮不发布、不验收、不出现在完成声明。 |
 | HTB / THM 自动化 | **Out of scope** | 不接内容抓取、Lab Token 或 Agent 自动化。 |
 | 云端用户系统 | **Out of scope** | 继续 local-first。 |
@@ -104,7 +104,7 @@ flowchart LR
 | LSP 仍主要是加载证据 | `bridge.js` 和 Sidecar Smoke 证明注册；LSP 真实调用因缺语言服务器失败 | 面试演示时插件可能显示已加载但不可用 | 打包固定语言服务器并用 fixture 验证诊断；重试继续依赖 Pi/Provider，不恢复已移除的临时自研循环。 |
 | Coding 通用能力仍有自研膨胀风险 | 计划、权限、会话、审阅、子 Agent 都有成熟 Pi 候选 | Harness 胶水持续增长并偏离产品重点 | 执行 `pi-resource-whitelist.md` 的 reuse-first 与 custom-code disposition；禁止临时自造替代品。 |
 | CTF 真实题型覆盖不足 | 当前本机真实训练记录集中在静态编码/取证类；能力画像多数维度未校准 | 单一路径成功被误述为通用解题能力 | 固定 Web、Reverse、Crypto、Forensics 四类安全验收；每类保留 Judge、轨迹、提示依赖和恢复证据。 |
-| Coding Browser / Computer Use 未接入 | 附件、项目 MCP 和后台任务已接入，但浏览器与桌面操作仍明确显示 `未接入` | 用户可能把 MCP 与浏览器能力混为一谈 | 保持独立入口和授权；在真实打包回归前维持 Planned。 |
+| Computer Use 未接入 | 附件、项目 MCP、后台任务和隔离 Coding Browser 已接入；跨应用桌面操作仍明确显示 `未接入` | 用户可能把浏览器 MCP 与 Computer Use 混为一谈 | 保持独立入口、应用范围和授权；在真实打包回归前维持 Planned。 |
 
 ### P1 · 冻结后优先
 
@@ -168,5 +168,5 @@ flowchart LR
 - “Coding 插件体系已稳定完成”；
 - “NYU CTF Bench 的 3/5 静态结果代表完整模型或 CTF Agent 能力”；
 - “CTF 已完成 Web / Pwn / Reverse / Crypto / Forensics 多题型验收”；
-- “Coding 已支持 MCP Browser 或 Computer Use”（当前只支持本地附件和 opt-in 项目 MCP）；
+- “Coding 已支持 Computer Use”（当前只支持隔离 Coding Browser；跨应用桌面控制仍未接入）；
 - “MilkSU Shell 已实现容器级隔离”。

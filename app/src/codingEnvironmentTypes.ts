@@ -136,6 +136,25 @@ export interface CodingArchitecturePreview {
   sizeBytes?: number
 }
 
+export interface CodingBrowserPage {
+  id: string
+  title: string
+  url: string
+  type: string
+}
+
+export interface CodingBrowserStatus {
+  enabled: boolean
+  conversationId: string
+  sessionId?: string
+  phase: 'disabled' | 'ready' | 'stopped' | string
+  initialUrl?: string
+  profileLabel?: string
+  startedAt?: string
+  browserBinary?: string
+  pages?: CodingBrowserPage[]
+}
+
 export interface CodingMCPServerSummary {
   name: string
   transport: string

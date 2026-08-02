@@ -10,6 +10,7 @@ flowchart LR
     model["模型 Provider API<br/>DeepSeek / 其他已配置 Provider"]
     platform["CTF 平台<br/>NSSCTF / CTFshow"]
     browser["用户明确配对的浏览器标签页<br/>MilkSU Browser Bridge"]
+    coding_browser["会话隔离的专用 Chrome<br/>Coding Browser"]
 
     subgraph milksu["MilkSU 本地桌面系统"]
         desktop["Wails 桌面应用<br/>Vue UI + Go Host"]
@@ -24,6 +25,8 @@ flowchart LR
     desktop --> runtime
     runtime --> local
     desktop <--> browser
+    desktop --> coding_browser
+    pi <--> coding_browser
     browser <--> platform
     pi -. "候选，不是成功事实" .-> runtime
     platform -. "权威 Judge 回执" .-> runtime
@@ -33,9 +36,10 @@ flowchart LR
 | --- | --- | --- |
 | Wails 本地桌面宿主 | **Implemented** | `main.go` 只绑定一个 `App`，静态资源来自 `app/dist`。 |
 | Vue 产品表面 | **Implemented / Partial** | `app/src/App.vue` 组合 CTF、CVE、Coding 与设置；统一安全 Markdown 已实现，原生长内容、窄窗口和多状态视觉仍需持续发布回归。 |
-| Pi 通用 Agent | **Verified core / Partial extensions** | `bridge.js` 使用 Pi SessionManager、工具事件和持久会话；Plan → Go 真实交付已验，Archify/LSP/Retry 的专项能力仍按各自证据披露。 |
+| Pi 通用 Agent | **Verified core / Partial extensions** | `bridge.js` 使用 Pi SessionManager、工具事件和持久会话；Plan → Go 真实交付已验，Archify 与隔离 Coding Browser 已完成原生专项验收，LSP Server 仍未打包。 |
 | CTF Runtime | **Implemented** | `internal/ctf` 将 Challenge、Agent Turn、Candidate、Judge Receipt、Debrief 投影到共享 Runtime。 |
 | 浏览器平台 Judge | **Implemented** | `internal/browsercap` 只接受明确配对页，NSSCTF/CTFshow 回执进入 Go Host。 |
+| Coding Browser | **Verified** | `internal/browsercap` 由右侧页面显式启停专用 Chrome；Go Host 向当前 Pi Session 注入瞬态 loopback 描述符，固定 Playwright MCP 在逐次桌面审批下完成真实页面 E2E。 |
 | 本地持久化 | **Implemented** | `internal/appdata`、`internal/securityruntime`、Catalog、Conversation、Memory 和 Credential Store。 |
 | Managed Labs | **Paused** | 工作区存在实验代码，但已从当前交付范围移除，不是已发布系统能力。 |
 | NYU CTF Bench | **Verified narrow baseline** | `internal/evalbench` 与 `cmd/nyu-ctf-bench-run` 已有 fail-closed safe-static Runner、一次无工具 Provider 调用、Digest Judge 与确定性 Report；无产品 UI，也不代表真实 CTF Agent。 |
@@ -50,6 +54,7 @@ flowchart TB
         security_runtime["Shared Security Runtime<br/>append-only events + artifacts"]
         platform_adapters["平台 Adapter<br/>NSSCTF / CTFshow / Arena"]
         browser_manager["Browser Bridge Manager<br/>loopback + paired page"]
+        coding_browser_manager["Coding Browser Manager<br/>isolated Chrome + transient CDP"]
     end
 
     subgraph webview["Wails WebView"]
@@ -64,7 +69,8 @@ flowchart TB
         supervisor["Go Engine Supervisor"]
         pi_session["Pi Session + Tool Loop"]
         policy["Session Tool Policy"]
-        resources["固定资源<br/>MilkSU Workflow / Archify / LSP / Retry"]
+        resources["固定资源<br/>Workflow / Archify / LSP / Goal / MCP"]
+        playwright["Playwright MCP<br/>explicit opt-in · per-call approval"]
     end
 
     subgraph user_data["用户配置目录 · com.milksu.app"]
@@ -88,10 +94,13 @@ flowchart TB
     app_services --> security_runtime
     app_services --> platform_adapters
     app_services --> browser_manager
+    app_services --> coding_browser_manager
     app_services --> supervisor
     supervisor --> pi_session
     pi_session --> policy
     pi_session --> resources
+    pi_session --> playwright
+    coding_browser_manager <--> playwright
     security_runtime --> event_db
     security_runtime --> artifacts
     app_services --> ctf_ws
@@ -107,8 +116,9 @@ flowchart TB
   返回给 Vue。
 - Node Sidecar 通过 JSONL 与 `internal/engine.Supervisor` 通讯。普通 Coding 与 CTF
   Workspace 共用 Pi 基座，但使用不同 Session Policy。
-- Browser Bridge 是 loopback 本地桥，只处理用户明确配对的页面；它不是把整个 Chrome
-  Profile 交给模型。
+- Browser Bridge 是 loopback 本地桥，只处理用户明确配对的页面；Coding Browser 则由
+  MilkSU 启动 Conversation 隔离的专用 Chrome。二者都不会把用户整个日常 Chrome Profile
+  交给模型，且 Coding 的 CDP 描述符不会写入前端、SQLite 或项目配置。
 - SQLite、工作区和制品均位于 `os.UserConfigDir()/com.milksu.app`，不写入应用包或源码目录。
 - `credentials.db` 依赖当前 OS 用户和文件权限，不提供静态加密；这是已知产品权衡。
 
@@ -118,7 +128,7 @@ flowchart TB
 flowchart TB
     L1["L1 · Product Surface<br/>Vue + Memoh UI + Wails"]
     L2["L2 · Application / Role Services<br/>CTF Service · Vuln Service · Conversations"]
-    L3["L3 · Agent and Platform Adapters<br/>Pi Supervisor · NSSCTF · CTFshow · Browser Bridge"]
+    L3["L3 · Agent and Platform Adapters<br/>Pi Supervisor · NSSCTF · CTFshow · Browser Bridge · Playwright MCP"]
     L4["L4 · Domain Contracts<br/>Challenge · Attempt · Candidate · Judge Receipt · Memory"]
     L5["L5 · Evidence Runtime<br/>Event Store · Artifact Store · Projection · Recovery"]
     L6["L6 · Integrity Controls<br/>Scope · Tool Policy · Budget · Credential / Egress Boundary"]
@@ -135,7 +145,7 @@ flowchart TB
 | --- | --- | --- |
 | L1 Product Surface | Vue 3、`WorkspaceRail`、`ContextSidebar`、CTF/CVE/Coding 页面 | **Partial**：安全 Markdown 组件和测试已存在，原生多状态视觉回归尚未冻结。 |
 | L2 Application / Role Services | 单一 `App` 组合 `ctf.Service`、`vuln.Service`、Catalog、Memory | **Implemented but concentrated**：接口可用，Facade 未拆。 |
-| L3 Agent / Platform Adapters | Pi Supervisor、Security Supervisor、NSSCTF、CTFshow、Browser Bridge | **Implemented / Partial**：NSSCTF 主链已验，CTFshow 真实账号 E2E 仍需持续回归。 |
+| L3 Agent / Platform Adapters | Pi Supervisor、Security Supervisor、NSSCTF、CTFshow、Browser Bridge、Playwright MCP | **Implemented / Partial**：NSSCTF 主链和隔离 Coding Browser 已验，CTFshow 真实账号 E2E 仍需持续回归。 |
 | L4 Domain Contracts | CTF Challenge、RoleFact、AgentCandidate、JudgeReceipt、LearningRecord | **Implemented**。 |
 | L5 Evidence Runtime | 追加式 SQLite Event Store、Artifact SHA-256、Projection、Recover | **Implemented**。 |
 | L6 Integrity | Scope、CTF 工作区策略、预算、候选闸门、外部 Judge、资源白名单 | **Partial**：宿主 Shell 不是容器，动态网络精确内核 allowlist 未完成。 |

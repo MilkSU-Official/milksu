@@ -52,6 +52,7 @@ import type {
 import type { CTFTrainingPlatform } from './ctfPlatformTypes'
 import type {
   CodingArchitecturePreview,
+  CodingBrowserStatus,
   CodingDiffSnapshot,
   CodingEnvironmentSnapshot,
   CodingGitAction,
@@ -159,6 +160,12 @@ interface WailsAppBindings {
     workspacePath: string,
     relativePath: string,
   ): Promise<CodingArchitecturePreview>
+  StartCodingBrowser(
+    conversationId: string,
+    initialUrl: string,
+  ): Promise<CodingBrowserStatus>
+  GetCodingBrowserStatus(conversationId: string): Promise<CodingBrowserStatus>
+  StopCodingBrowser(conversationId: string): Promise<CodingBrowserStatus>
   TestAgentModel(): Promise<ModelProbeResult>
   StartSampleCTF(): Promise<CTFProjection>
   ImportNSSCTFChallenge(rawURL: string): Promise<NSSCTFChallenge>
@@ -502,6 +509,19 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
           args?.workspacePath as string,
           args?.relativePath as string,
         ) as Promise<T>
+      case 'start_coding_browser':
+        return app.StartCodingBrowser(
+          args?.conversationId as string,
+          args?.initialUrl as string,
+        ) as Promise<T>
+      case 'get_coding_browser_status':
+        return app.GetCodingBrowserStatus(
+          args?.conversationId as string,
+        ) as Promise<T>
+      case 'stop_coding_browser':
+        return app.StopCodingBrowser(
+          args?.conversationId as string,
+        ) as Promise<T>
       case 'test_agent_model':
         return app.TestAgentModel() as Promise<T>
       case 'start_sample_ctf':
@@ -802,6 +822,16 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
       } as T
     case 'get_coding_diff':
       throw new Error('Git Diff 只在 MilkSU 桌面运行时读取。')
+    case 'start_coding_browser':
+    case 'stop_coding_browser':
+      throw new Error('隔离 Coding 浏览器需要 MilkSU 桌面运行时。')
+    case 'get_coding_browser_status':
+      return {
+        enabled: false,
+        conversationId: String(args?.conversationId ?? ''),
+        phase: 'disabled',
+        pages: [],
+      } as T
     case 'list_ctf_jobs': {
       const projections = readJson<Record<string, CTFProjection>>(CTF_PROJECTIONS_KEY, {})
       return Object.values(projections)

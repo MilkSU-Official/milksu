@@ -1,7 +1,8 @@
 # Coding Agent / Pi 扩展边界
 
-> 状态：Coding 核心交付链、桌面逐次审批、附件、会话隔离 PTY、后台任务和项目 MCP
-> **Verified / Implemented**；LSP 语言服务器、Coding Browser 与 Computer Use **Partial / Planned**。
+> 状态：Coding 核心交付链、桌面逐次审批、附件、会话隔离 PTY、后台任务、项目 MCP
+> 和隔离 Coding Browser **Verified / Implemented**；LSP 语言服务器与 Computer Use
+> **Partial / Planned**。
 
 MilkSU 不重写通用 Coding Agent Loop。Pi 负责会话、模型、上下文、工具循环和扩展 API；
 MilkSU 负责桌面授权、固定资源白名单、工具可见性、事件桥、产品 UI，以及 CTF 专用的事实、
@@ -27,6 +28,7 @@ flowchart LR
         goal["pi-goal Extension<br/>0.43.0"]
         background["Background Tasks<br/>0.1.10"]
         mcp["Project MCP Adapter<br/>2.17.0 · opt-in"]
+        browserMcp["Playwright MCP<br/>0.0.78 · first-party opt-in"]
         ocr["Local OCR<br/>1.1.0"]
     end
 
@@ -44,11 +46,13 @@ flowchart LR
     session --> goal
     session --> background
     session --> mcp
+    session --> browserMcp
     session --> ocr
     session --> provider
     coreTools --> project
     lsp --> project
     archify --> project
+    browserMcp --> managedBrowser["专用 Chrome<br/>Conversation 隔离 Profile"]
     session --> agentData
     bridge -. "结构化工具事件" .-> host
 ```
@@ -67,6 +71,7 @@ flowchart LR
 | Pi Goal | 是；与桌面目标状态并存 | **否**；CTF 使用自己的进度与 Judge 语义 | 固定 Coding Extension |
 | 项目终端 / 后台任务 | 是；用户直接操作的多会话 PTY 由 Go Host 承担，后台任务复用固定 Pi Extension；两者按 Conversation 隔离，展示生命周期、输出和停止动作 | **否** | `creack/pty + xterm.js` Host Adapter；固定 Coding Extension + MilkSU 状态投影 |
 | 项目 MCP | 用户从项目 `.mcp.json` 明确选择后启用，每次调用仍走桌面审批 | **否** | 固定 Coding Extension + MilkSU Sandbox |
+| Coding Browser | 用户从右侧浏览器页显式启动专用 Chrome；每次 Playwright MCP 调用走桌面审批 | **否** | 固定 Playwright MCP + Go Browser Manager + MilkSU Sandbox |
 | 文件 / 图片附件 | 是；复制到用户数据目录，纯文本模型可走本地 OCR 或已配置视觉模型 | 使用 CTF Material 管线，不复用 Coding 附件上下文 | MilkSU 附件桥 + 本地 OCR |
 | CTF 类型化工具 | 否 | 按 Role、Scope 和协作模式 | MilkSU CTF Harness |
 | 平台提交 | 否 | Agent 不能直接提交，只能写候选 | MilkSU Judge Gate |
@@ -98,8 +103,10 @@ Shell 运算符、Git 和网络；macOS `sandbox-exec` 仍把写入收口在项�
 
 MilkSU 已在 Sidecar 与桌面之间实现 Approval Broker：需要审批的工具调用带上稳定请求
 ID 暂停，桌面明确显示目标、参数和风险，并把一次性批准或拒绝结果送回原调用。
-项目 MCP 也使用独立的逐次审批和沙箱，不会因为用户选择 `Project Auto` 或
-`Full Access` 就静默启用。Coding Browser、Computer Use 与 `lsp_fix` 的完整产品入口
+项目 MCP 与 Coding Browser 都使用独立的逐次审批和沙箱，不会因为用户选择 `Project Auto`
+或 `Full Access` 就静默启用。Coding Browser 只能由用户从右侧页面显式启动，使用
+Conversation 隔离 Profile；Go Host 只向当前 Pi Session 注入瞬态 loopback 描述符，
+不把 CDP 地址写进前端、SQLite 或项目配置。Computer Use 与 `lsp_fix` 的完整产品入口
 仍未接入；Provider API Key 不进入模型上下文，也不传给 Bash 或 MCP 子进程；
 `Full Access` 能使用的只是当前登录用户本来可用的本地凭据和 SSH Agent。
 
@@ -132,6 +139,7 @@ flowchart TB
 | `@xterm/xterm` / `@xterm/addon-fit` | `6.0.0` / `0.11.0` | `CodingTerminalPanel.vue`、`third_party/licenses/xterm.js-MIT.txt` | **Verified**：真实原生 App 显示项目 Shell、实时输入输出和 resize；前端独立懒加载，不进入基础 ChatPage chunk |
 | `github.com/creack/pty` | `1.1.24` | `internal/codingterminal`、`app_coding_terminal.go`、`third_party/licenses/creack-pty-MIT.txt` | **Verified on macOS arm64**：多会话 PTY、stdin、resize、stop、退出状态、输出尾部、Conversation ownership 和 Provider Key 环境剥离通过 race test 与原生 `pwd` |
 | `pi-mcp-adapter` | `2.17.0` | `bridge.js`、项目 MCP 配置摘要与批准桥 | **Verified**：项目显式选择、摘要校验、Sandbox、环境过滤、逐次审批和 CTF 负向隔离 |
+| `@playwright/mcp` | `0.0.78` | `bridge-mcp.js`、`internal/browsercap`、右侧浏览器页、Sidecar manifest | **Verified**：真实打包 App 启动专用 Chrome，并在逐次审批下完成 snapshot、type、click、结果回读和停止；CTF 会话不加载该服务器 |
 | `@napi-rs/system-ocr` | `1.1.0` | Coding 附件桥、Sidecar manifest、平台原生包 | **Verified**：图片附件可本地 OCR；配置视觉路由时可改用视觉模型 |
 | MilkSU Workflow | first-party | `createMilkSUWorkflowExtension` | Schema 和可见事件已有 |
 
@@ -187,5 +195,6 @@ flowchart TB
    Recorder 的回合预算、候选闸门和轨迹仍通过。
 
 当前正确说法是“核心插件已经固定并通过打包与隔离验收；右侧终端页已有会话隔离的项目
-PTY/stdin/实时输出/标签页，以及可停止的后台进程；跨应用重启恢复、LSP 语言服务器、
-Coding Browser 和 Computer Use 尚未完成”，不是“Coding Agent 插件体系已完成”。
+PTY/stdin/实时输出/标签页，以及可停止的后台进程；右侧浏览器页已有显式启停、隔离
+Profile、逐次审批和真实页面交互；跨应用重启恢复、LSP 语言服务器和 Computer Use
+尚未完成”，不是“Coding Agent 插件体系已完成”。

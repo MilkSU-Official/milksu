@@ -5,9 +5,14 @@ import { mkdtemp, readFile, realpath, symlink, writeFile } from "node:fs/promise
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
+  codingBrowserMcpServerName,
+  codingBrowserSelectionChanged,
+  createFirstPartyPlaywrightMcpServer,
   ensureMcpMetadataCache,
+  loadCodingMcpConfig,
   loadSelectedMcpConfig,
   mcpSelectionChanged,
+  normalizeCodingBrowserDescriptor,
   normalizeSelectedMcpServers,
 } from "./bridge-mcp.js";
 
@@ -109,6 +114,115 @@ test("normalizes task selections deterministically", () => {
   );
   assert.equal(mcpSelectionChanged(["alpha"], ["alpha"]), false);
   assert.equal(mcpSelectionChanged(["alpha"], ["zed"]), true);
+});
+
+test("builds the first-party Playwright server from a strict loopback descriptor", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "milksu-browser-mcp-"));
+  const descriptor = {
+    sessionId: "browser_12345678-abcd-4567-8901-123456789abc",
+    cdpEndpoint: "http://127.0.0.1:43127/",
+  };
+  const builtIn = await createFirstPartyPlaywrightMcpServer(workspace, descriptor);
+  assert.deepEqual(builtIn.browser, {
+    sessionId: descriptor.sessionId,
+    cdpEndpoint: "http://127.0.0.1:43127",
+  });
+  assert.equal(builtIn.server.command, "/usr/bin/sandbox-exec");
+  assert.equal(builtIn.server.cwd, await realpath(workspace));
+  assert.ok(builtIn.server.args.includes(process.execPath));
+  assert.ok(
+    builtIn.server.args.some(value => value.endsWith("/node_modules/@playwright/mcp/cli.js")),
+  );
+  assert.deepEqual(
+    builtIn.server.args.slice(-4),
+    [
+      "--cdp-endpoint",
+      "http://127.0.0.1:43127",
+      "--codegen=none",
+      "--output-mode=stdout",
+    ],
+  );
+  assert.equal(builtIn.server.args.includes("npx"), false);
+  assert.ok(
+    builtIn.server.args.some(value => (
+      value === "PWTEST_SOCKETS_DIR=/private/tmp/milksu-playwright/123456789abc"
+    )),
+  );
+  assert.deepEqual(builtIn.server.env, {});
+  assert.equal(builtIn.server.lifecycle, "lazy");
+  assert.equal(builtIn.server.directTools, false);
+});
+
+test("combines selected project MCP with the reserved Coding Browser server", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "milksu-browser-mcp-"));
+  const config = JSON.stringify({
+    mcpServers: {
+      fixture: {
+        command: "/bin/sh",
+        args: ["-c", "printf fixture-ready"],
+      },
+    },
+  });
+  await writeFile(join(workspace, ".mcp.json"), config);
+  const loaded = await loadCodingMcpConfig(
+    workspace,
+    ["fixture"],
+    createHash("sha256").update(config).digest("hex"),
+    {
+      sessionId: "browser_12345678-abcd-4567-8901-123456789abc",
+      cdpEndpoint: "http://127.0.0.1:43127",
+    },
+  );
+  assert.deepEqual(loaded.projectSelected, ["fixture"]);
+  assert.deepEqual(loaded.selected, ["fixture", codingBrowserMcpServerName]);
+  assert.deepEqual(
+    Object.keys(loaded.config.mcpServers).sort(),
+    ["fixture", codingBrowserMcpServerName].sort(),
+  );
+  assert.equal(loaded.config.settings.directTools, false);
+});
+
+test("rejects non-loopback, ambiguous, and caller-controlled Coding Browser descriptors", () => {
+  const valid = {
+    sessionId: "browser_12345678-abcd-4567-8901-123456789abc",
+    cdpEndpoint: "http://127.0.0.1:43127",
+  };
+  for (const descriptor of [
+    { ...valid, cdpEndpoint: "http://localhost:43127" },
+    { ...valid, cdpEndpoint: "http://[::1]:43127" },
+    { ...valid, cdpEndpoint: "https://127.0.0.1:43127" },
+    { ...valid, cdpEndpoint: "http://127.0.0.1:43127/json/version" },
+    { ...valid, cdpEndpoint: "http://127.0.0.1:43127?tool=npx" },
+    { ...valid, cdpEndpoint: "http://127.0.0.1:0" },
+    { ...valid, cdpEndpoint: "http://127.0.0.1:65536" },
+    { ...valid, sessionId: "not-a-browser-session" },
+    { ...valid, command: "npx" },
+  ]) {
+    assert.throws(
+      () => normalizeCodingBrowserDescriptor(descriptor),
+      /Coding Browser|descriptor/,
+    );
+  }
+  assert.equal(codingBrowserSelectionChanged(valid, { ...valid }), false);
+  assert.equal(
+    codingBrowserSelectionChanged(valid, {
+      ...valid,
+      cdpEndpoint: "http://127.0.0.1:43128",
+    }),
+    true,
+  );
+});
+
+test("reserves the built-in Playwright server name from project MCP config", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "milksu-browser-mcp-"));
+  await assert.rejects(
+    loadSelectedMcpConfig(
+      workspace,
+      [codingBrowserMcpServerName],
+      "0".repeat(64),
+    ),
+    /reserved by MilkSU/,
+  );
 });
 
 test("pre-creates a valid adapter cache without overwriting existing state", async () => {

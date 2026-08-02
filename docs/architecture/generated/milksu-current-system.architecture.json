@@ -3,7 +3,7 @@
   "diagram_type": "architecture",
   "meta": {
     "title": "MilkSU 当前系统架构",
-    "subtitle": "R0.4 当前事实 · Pi Coding 基座、CTF 证据闭环与安全静态开发者评测",
+    "subtitle": "R0.4 当前事实 · Pi Coding 基座、隔离 Coding Browser、CTF 证据闭环与安全静态开发者评测",
     "output": "milksu-current-system.html",
     "animation": "trace",
     "visual_preset": "blueprint",
@@ -13,8 +13,8 @@
       {
         "id": "coding-path",
         "label": "Coding 主链",
-        "focus": ["learner", "vue-shell", "go-host", "pi-sidecar", "coding-resources", "model-provider"],
-        "note": "从桌面交互到 Pi 会话、固定资源和模型 Provider。"
+        "focus": ["learner", "vue-shell", "go-host", "pi-sidecar", "coding-resources", "browser-bridge", "model-provider"],
+        "note": "从桌面交互到 Pi 会话、固定资源、显式启用的隔离浏览器和模型 Provider。"
       },
       {
         "id": "ctf-path",
@@ -70,7 +70,7 @@
       "id": "coding-resources",
       "type": "security",
       "label": "固定 Coding 资源",
-      "sublabel": "Workflow · Archify · LSP · Retry",
+      "sublabel": "Workflow · Archify · Goal · MCP",
       "tag": "pinned + isolated",
       "pos": [1040, 92],
       "size": [190, 76]
@@ -96,9 +96,9 @@
     {
       "id": "browser-bridge",
       "type": "security",
-      "label": "Browser Bridge",
-      "sublabel": "loopback · 明确配对标签页",
-      "tag": "user-authorized",
+      "label": "Browser Adapters",
+      "sublabel": "配对标签页 · 隔离 Chrome",
+      "tag": "explicit per session",
       "pos": [1040, 298],
       "size": [190, 76]
     },
@@ -217,6 +217,17 @@
       "labelAt": [1260, 24]
     },
     {
+      "id": "pi-to-coding-browser",
+      "from": "pi-sidecar",
+      "to": "browser-bridge",
+      "label": "Playwright MCP · transient CDP",
+      "variant": "security",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "orthogonal-v",
+      "labelAt": [1000, 206]
+    },
+    {
       "id": "host-to-ctf",
       "from": "go-host",
       "to": "ctf-service",
@@ -313,7 +324,7 @@
       "title": "Coding 北极星",
       "items": [
         "Pi 提供通用 Agent Loop，MilkSU 不重造会话、上下文和工具循环",
-        "向 Codex 对齐项目、执行、Git、权限、上下文、产物和自动化能力"
+        "向 Codex 对齐项目、执行、Git、权限、上下文、产物和显式启用的隔离浏览器"
       ]
     },
     {

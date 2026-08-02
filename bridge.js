@@ -45,10 +45,12 @@ import {
   projectSessionGoal,
 } from "./bridge-goal-view.js";
 import {
+  codingBrowserSelectionChanged,
   ensureMcpMetadataCache,
-  loadSelectedMcpConfig,
+  loadCodingMcpConfig,
   mcpSelectionChanged,
 } from "./bridge-mcp.js";
+import { disposeAgentSession } from "./bridge-session-lifecycle.js";
 
 const relayKey = process.env.MILKSU_RELAY_KEY;
 const relayUrl = process.env.MILKSU_RELAY_URL || "https://api.ciyuanliudong.com/v1";
@@ -684,18 +686,26 @@ function reviewedCodingResourceRoots(sessionRole = "") {
 async function loadRuntimeSessionPolicy(cwd, command) {
   const productAction = parseCodingProductAction(command.prompt);
   const selectedMcp = command.sessionRole
-    ? { selected: [], config: undefined }
-    : await loadSelectedMcpConfig(
+    ? {
+        selected: [],
+        projectSelected: [],
+        codingBrowser: undefined,
+        config: undefined,
+      }
+    : await loadCodingMcpConfig(
         cwd,
         command.mcpServers,
         command.mcpConfigDigest,
+        command.codingBrowser,
       );
   let policy = await loadSessionPolicy(cwd, command.sessionRole, {
     executionMode: command.executionMode,
     approvalPolicy: command.approvalPolicy,
     productAction,
     mcpServers: selectedMcp.selected,
+    projectMcpServers: selectedMcp.projectSelected,
     mcpConfigDigest: command.mcpConfigDigest,
+    codingBrowser: selectedMcp.codingBrowser,
   });
   const effectiveSessionRole = policy.ctf
     ? command.sessionRole || "solver"
@@ -708,7 +718,9 @@ async function loadRuntimeSessionPolicy(cwd, command) {
       approvalPolicy: command.approvalPolicy,
       productAction,
       mcpServers: selectedMcp.selected,
+      projectMcpServers: selectedMcp.projectSelected,
       mcpConfigDigest: command.mcpConfigDigest,
+      codingBrowser: selectedMcp.codingBrowser,
       readOnlyResourceRoots: codingResourceRoots,
     });
   }
@@ -843,7 +855,7 @@ async function createSession(command) {
     }
     return session;
   } catch (error) {
-    session?.dispose();
+    await disposeAgentSession(session, "create_failed");
     sessionPolicies.delete(conversationId);
     sessionPolicyControllers.delete(conversationId);
     throw error;
@@ -862,6 +874,7 @@ async function sendMessage(command) {
   const productActionChanged = JSON.stringify(previousProductAction)
     !== JSON.stringify(requestedProductAction);
   const requestedMcpServers = command.sessionRole ? [] : command.mcpServers;
+  const requestedCodingBrowser = command.sessionRole ? undefined : command.codingBrowser;
   if (
     existing
     && previousPolicy
@@ -869,12 +882,16 @@ async function sendMessage(command) {
     && (
       (previousPolicy.approvalPolicy === "full-auto") !== requestedFullAccess
       || productActionChanged
-      || mcpSelectionChanged(previousPolicy.mcpServers, requestedMcpServers)
+      || mcpSelectionChanged(previousPolicy.projectMcpServers, requestedMcpServers)
       || String(previousPolicy.mcpConfigDigest ?? "")
         !== String(command.mcpConfigDigest ?? "")
+      || codingBrowserSelectionChanged(
+        previousPolicy.codingBrowser,
+        requestedCodingBrowser,
+      )
     )
   ) {
-    existing.dispose();
+    await disposeAgentSession(existing, "reload");
     sessions.delete(conversationId);
     sessionPolicies.delete(conversationId);
     sessionPolicyControllers.delete(conversationId);
@@ -971,7 +988,7 @@ async function destroySession(command) {
     }
   }
   approvalBroker.cancelConversation(conversationId, "session destroyed");
-  session?.dispose();
+  await disposeAgentSession(session);
   sessions.delete(conversationId);
   sessionPolicies.delete(conversationId);
   sessionPolicyControllers.delete(conversationId);
@@ -1168,19 +1185,30 @@ input.on("line", (line) => {
     });
 });
 
-function disposeAllSessions() {
+async function disposeAllSessions() {
   approvalBroker.cancelAll("Sidecar stopped");
-  for (const session of sessions.values()) session.dispose();
+  await Promise.all(
+    [...sessions.values()].map(session => disposeAgentSession(session)),
+  );
   sessions.clear();
   backgroundTaskControllers.clear();
   promptQueues.clear();
   abortedSessions.clear();
 }
 
+let shutdownPromise;
+
 function shutdown() {
-  disposeAllSessions();
-  input.close();
-  process.exit(0);
+  if (shutdownPromise) return shutdownPromise;
+  shutdownPromise = disposeAllSessions()
+    .catch(error => {
+      console.error("MilkSU Pi Sidecar shutdown failed", error);
+    })
+    .finally(() => {
+      input.close();
+      process.exit(0);
+    });
+  return shutdownPromise;
 }
 
 process.on("SIGTERM", shutdown);

@@ -112,6 +112,7 @@ func newSidecarCommandAtWithDirectory(
 	arguments := []string{runtime.bridge}
 	if runtime.packaged {
 		sidecarDirectory := filepath.Dir(runtime.bridge)
+		playwrightSocketDirectory := filepath.Join("/private/tmp", "milksu-playwright")
 		arguments = []string{
 			"--permission",
 			"--allow-addons",
@@ -120,6 +121,7 @@ func newSidecarCommandAtWithDirectory(
 			"--allow-fs-read=" + runtimeHome,
 			"--allow-fs-write=" + workspace,
 			"--allow-fs-write=" + runtimeHome,
+			"--allow-fs-write=" + playwrightSocketDirectory,
 		}
 		if allowChildProcess {
 			arguments = append(

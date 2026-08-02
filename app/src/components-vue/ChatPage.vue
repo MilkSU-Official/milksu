@@ -15,6 +15,7 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
+  Input,
   Select,
   SelectContent,
   SelectItem,
@@ -66,6 +67,7 @@ import CodingChangesPanel from '@/components-vue/CodingChangesPanel.vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import type {
   CodingArchitecturePreview,
+  CodingBrowserStatus,
   CodingDiffSnapshot,
   CodingEnvironmentSnapshot,
   CodingMCPConfigSnapshot,
@@ -125,6 +127,7 @@ const props = defineProps<{
   approvalPolicy?: CodingApprovalPolicy
   mcpServers?: string[]
   mcpConfigDigest?: string
+  ensureConversation: (title?: string) => string
 }>()
 
 const emit = defineEmits<{
@@ -162,6 +165,9 @@ const architecturePreviewLoading = ref(false)
 const architecturePreviewError = ref('')
 const requestedArchitecturePath = ref('')
 const browserPanelError = ref('')
+const codingBrowserLoading = ref(false)
+const codingBrowserURL = ref('http://127.0.0.1:3000')
+const codingBrowserStatus = ref<CodingBrowserStatus | null>(null)
 const nssctfBrowserStatus = ref<NSSCTFWebBridgeStatus | null>(null)
 const ctfshowBrowserStatus = ref<CTFShowCatalogStatus | null>(null)
 const codingEnvironment = ref<CodingEnvironmentSnapshot | null>(null)
@@ -726,6 +732,33 @@ async function refreshBrowserPanel() {
   if (!props.ctfSession) {
     nssctfBrowserStatus.value = null
     ctfshowBrowserStatus.value = null
+    if (codingBrowserLoading.value) return
+    if (!props.conversation?.id) {
+      codingBrowserStatus.value = {
+        enabled: false,
+        conversationId: '',
+        phase: 'disabled',
+        pages: [],
+      }
+      return
+    }
+    codingBrowserLoading.value = true
+    try {
+      codingBrowserStatus.value = await invokeCommand<CodingBrowserStatus>(
+        'get_coding_browser_status',
+        { conversationId: props.conversation.id },
+      )
+      if (codingBrowserStatus.value.initialUrl) {
+        codingBrowserURL.value = codingBrowserStatus.value.initialUrl
+      }
+    } catch (reason) {
+      codingBrowserStatus.value = null
+      browserPanelError.value = reason instanceof Error
+        ? reason.message
+        : '暂时无法读取 Coding 浏览器状态。'
+    } finally {
+      codingBrowserLoading.value = false
+    }
     return
   }
   environmentLoading.value = true
@@ -739,6 +772,54 @@ async function refreshBrowserPanel() {
     browserPanelError.value = '暂时无法读取浏览器连接。'
   }
   environmentLoading.value = false
+}
+
+async function startCodingBrowser() {
+  browserPanelError.value = ''
+  const initialURL = codingBrowserURL.value.trim()
+  if (!/^https?:\/\//i.test(initialURL)) {
+    browserPanelError.value = '请输入以 http:// 或 https:// 开头的地址。'
+    return
+  }
+  const workspaceName = props.workspacePath
+    .replace(/\/+$/, '')
+    .split('/')
+    .at(-1)
+  const conversationID = props.ensureConversation(
+    workspaceName ? `${workspaceName} · 浏览器` : 'Coding 浏览器',
+  )
+  codingBrowserLoading.value = true
+  try {
+    codingBrowserStatus.value = await invokeCommand<CodingBrowserStatus>(
+      'start_coding_browser',
+      { conversationId: conversationID, initialUrl: initialURL },
+    )
+  } catch (reason) {
+    browserPanelError.value = reason instanceof Error
+      ? reason.message
+      : 'Coding 浏览器启动失败。'
+  } finally {
+    codingBrowserLoading.value = false
+  }
+}
+
+async function stopCodingBrowser() {
+  const conversationID = props.conversation?.id
+  if (!conversationID) return
+  browserPanelError.value = ''
+  codingBrowserLoading.value = true
+  try {
+    codingBrowserStatus.value = await invokeCommand<CodingBrowserStatus>(
+      'stop_coding_browser',
+      { conversationId: conversationID },
+    )
+  } catch (reason) {
+    browserPanelError.value = reason instanceof Error
+      ? reason.message
+      : 'Coding 浏览器停止失败。'
+  } finally {
+    codingBrowserLoading.value = false
+  }
 }
 
 async function refreshContextPanel() {
@@ -816,6 +897,10 @@ watch(() => props.ctfSession, (current, previous) => {
 })
 watch(() => props.conversation?.id, () => {
   goalMode.value = false
+  codingBrowserStatus.value = null
+  if (contextPanel.value === 'browser' && environmentOpen.value) {
+    void refreshBrowserPanel()
+  }
 })
 watch(
   () => [props.ctfSession, props.workspacePath] as const,
@@ -1564,10 +1649,74 @@ watch(
           {{ browserPanelError }}
         </div>
         <section v-if="!ctfSession" class="px-4 py-5">
-          <p class="text-body font-medium">Coding 浏览器能力尚未启用</p>
-          <p class="mt-2 text-caption leading-5 text-muted-foreground">
-            MCP 浏览器与 Computer Use 会走独立权限授权；当前任务不会静默继承浏览器会话。
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <p class="text-body font-medium">隔离 Coding 浏览器</p>
+              <p class="mt-1 text-caption leading-5 text-muted-foreground">
+                Playwright 连接到 MilkSU 专用 Chrome；不会读取你日常 Chrome 的登录状态。
+              </p>
+            </div>
+            <span
+              class="mt-1 size-2 shrink-0 rounded-full"
+              :class="codingBrowserStatus?.enabled ? 'bg-primary' : 'bg-muted-foreground'"
+            />
+          </div>
+          <div class="mt-4 flex gap-2">
+            <Input
+              v-model="codingBrowserURL"
+              :disabled="codingBrowserLoading || codingBrowserStatus?.enabled"
+              class="min-w-0 flex-1 font-mono text-caption"
+              aria-label="Coding 浏览器初始地址"
+              placeholder="http://127.0.0.1:3000"
+              @keydown.enter.prevent="startCodingBrowser"
+            />
+            <Button
+              v-if="codingBrowserStatus?.enabled"
+              variant="outline"
+              size="sm"
+              :disabled="codingBrowserLoading"
+              @click="stopCodingBrowser"
+            >
+              停止
+            </Button>
+            <Button
+              v-else
+              variant="brand"
+              size="sm"
+              :disabled="codingBrowserLoading"
+              @click="startCodingBrowser"
+            >
+              <LoaderCircle v-if="codingBrowserLoading" class="size-3.5 animate-spin" />
+              <Globe2 v-else class="size-3.5" />
+              启动
+            </Button>
+          </div>
+          <p class="mt-3 text-caption leading-5 text-muted-foreground">
+            启用后，Agent 可在 Go 模式中使用浏览器；每次浏览器工具调用仍会单独请求批准。
           </p>
+          <div v-if="codingBrowserStatus?.enabled" class="mt-5 border-t border-border pt-4">
+            <div class="flex items-center justify-between gap-3 text-caption">
+              <span class="font-medium text-foreground">当前页面</span>
+              <span class="text-muted-foreground">
+                {{ codingBrowserStatus.browserBinary || 'Chrome' }}
+              </span>
+            </div>
+            <div v-if="codingBrowserStatus.pages?.length" class="mt-3 space-y-2">
+              <div
+                v-for="page in codingBrowserStatus.pages"
+                :key="page.id"
+                class="rounded-md bg-muted/45 px-3 py-2"
+              >
+                <p class="truncate text-body">{{ page.title || '未命名页面' }}</p>
+                <p class="mt-1 truncate font-mono text-caption text-muted-foreground">
+                  {{ page.url }}
+                </p>
+              </div>
+            </div>
+            <p v-else class="mt-3 text-caption text-muted-foreground">
+              Chrome 已启动，等待页面就绪。
+            </p>
+          </div>
         </section>
         <template v-else>
           <section class="border-b border-border px-4 py-4">

@@ -50,10 +50,10 @@ ADR、Review 和 Checkpoint 记录当时为什么这样决定，不会因为后�
   PI 轨迹和候选可以回流，用户复盘后才允许沉淀长期训练记忆。
 - 当前最大风险不是“底层完全缺失”，而是职责集中：`app.go`、`CTFPage.vue`、
   `internal/browsercap/manager.go` 和 `internal/ctf/service.go` 都已经成为变更热点。
-- 普通 Coding 会话已经在代码层接入固定版本 Archify、PI LSP 和 PI Retry；Coding 核心
-  的 Plan → Go、多轮修改、真实打包命令执行与独立复验已经 **Verified**。Archify 一键
-  动作已在原生包完成固定输出、9/9 与右侧预览；真实 LSP Server 和 Retry 故障注入仍按
-  各自证据披露，不能仅凭包已安装就宣称插件体系完成。
+- 普通 Coding 会话已经在代码层接入固定版本 Archify、PI LSP、Goal、后台任务、MCP
+  Adapter 和 Playwright MCP；Coding 核心的 Plan → Go、多轮修改、真实打包命令执行与
+  独立复验已经 **Verified**。Archify 一键动作和隔离 Coding Browser 已在原生包完成
+  真实验收；LSP Server 仍未打包，不能仅凭插件已注册就宣称插件体系完成。
 - Managed Labs 本轮已暂停。工作区里的 Lab Manager / WebGoat 实验不能进入 R0.4 发布声明，
   也不能作为 M3 完成条件。
 - NYU CTF Bench 的只读元数据、Admission、DeepSeek 单回合安全静态 Runner 和摘要 Judge

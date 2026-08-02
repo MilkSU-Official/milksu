@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MilkSU Coding Browser Fixture</title>
+  </head>
+  <body>
+    <main>
+      <h1>MilkSU Coding Browser</h1>
+      <label>
+        Project
+        <input id="project" value="unverified" />
+      </label>
+      <button id="verify" type="button">Verify</button>
+      <output id="result">pending</output>
+    </main>
+    <script>
+      document.querySelector('#verify').addEventListener('click', () => {
+        document.querySelector('#result').textContent =
+          document.querySelector('#project').value === 'MilkSU'
+            ? 'MILKSU-BROWSER-OK'
+            : 'invalid'
+      })
+    </script>
+  </body>
+</html>

@@ -76,8 +76,8 @@ MilkSU Coding 的北极星不是“能调用模型的聊天框”，而是让用
 | Codex 工作流 | MilkSU 当前状态 | 差距与验收 | 优先级 |
 | --- | --- | --- | --- |
 | 工作区范围 | `Verified`：文件工具二次校验路径/符号链接；Project Auto 的 HOME/TMP/runtime 位于用户数据目录，不污染项目仓库；macOS 沙箱阻止项目外写入；旧 `.milksu` 目录继续受保护并从 Git 面板隐藏；Full Access 只能由用户显式选择 | 多根目录显式授权；为旧项目提供可审阅的遗留目录清理入口 | P0 |
-| 命令与网络审批 | `Verified / Partial coverage`：Plan/Go 与 Codex 风格 `请求批准 / 替我审批 / 完全访问权限` 已由后端真实执行；Ask 会暂停单次 `bash/edit/write` 或后台/MCP 副作用，桌面展示参数并等待批准/拒绝 | Browser、Computer Use、Git push/PR 等外部产品副作用继续保持独立批准并补原生负向样本 | P0 |
-| 环境信息 | `Verified`：工作区、Git、模型、固定扩展、工具、消息、工具记录、项目 MCP 和能力摘要集中在右侧；变更、终端、架构图和浏览器使用同一个右侧页面选择器，不再挤占 Composer | 补 Coding Browser 与扩展来源详情 | P0 |
+| 命令与网络审批 | `Verified / Partial coverage`：Plan/Go 与 Codex 风格 `请求批准 / 替我审批 / 完全访问权限` 已由后端真实执行；Ask 会暂停单次 `bash/edit/write` 或后台/MCP 副作用，桌面展示参数并等待批准/拒绝；Coding Browser 每次 MCP 工具调用同样单独批准 | Computer Use、托管平台 push/PR 等外部产品副作用继续保持独立批准并补原生负向样本 | P0 |
+| 环境信息 | `Verified`：工作区、Git、模型、固定扩展、工具、消息、工具记录、项目 MCP 和能力摘要集中在右侧；变更、终端、架构图和浏览器使用同一个右侧页面选择器，不再挤占 Composer | 补扩展版本、来源与更新状态 | P0 |
 | Local Environment / Actions | `Planned` | 项目级 setup 和常用命令；固定配置、可见输出、可停止 | P1 |
 | 集成终端 | `Verified / Partial persistence`：右侧独立“终端”页使用 `@xterm/xterm + creack/pty` 提供多会话项目 Shell，支持 stdin、实时输出、resize、停止、输出恢复与退出状态；原生 App 已验证 zsh 输入和项目 `pwd`。后台任务页继续复用固定 `pi-better-background-tasks`，展示 PID、端口、日志和停止动作 | 增加跨应用重启后的可恢复交互会话、终端重命名、复制/查找与 Windows/Linux Adapter | P1 |
 
@@ -90,7 +90,7 @@ MilkSU Coding 的北极星不是“能调用模型的聊天框”，而是让用
 | 固定 Skills / Extensions | `Verified`：关闭 ambient discovery，仅白名单加载 | UI 展示来源、版本、权限、启用范围与更新状态 | P0 |
 | 用户插件管理 | `Planned` | 安装、审阅、启用、禁用、权限和版本锁定 | P1 |
 | MCP | `Implemented / Partial`：固定 `pi-mcp-adapter` 只在普通 Coding opt-in；项目 `.mcp.json` 经过 schema、digest、选择列表和本地 stdio 沙箱校验；每次连接/工具/Auth 仍走桌面批准 | 增加更多真实 MCP Server 验收、OAuth UX、活动/停止状态和错误恢复 | P1 |
-| Browser / Chrome | `Partial`：CTF 有显式浏览器桥；Coding 尚未接入 | 独立于 CTF 的 Coding 浏览器工具和环境面板状态 | P1 |
+| Browser / Chrome | `Verified / isolated profile`：右侧浏览器页显式启动/停止会话隔离的专用 Chrome；固定 Playwright MCP 通过瞬态 loopback 描述符接入 Pi，不读取用户日常 Profile；真实打包 App 已完成 snapshot → type → click → snapshot，并回读 `MILKSU-BROWSER-OK` | 增加多页面、下载、失败恢复和长时间任务样本；需要用户已登录状态的场景继续使用独立授权的 Chrome Bridge，而不扩大此隔离 Profile | P1 |
 | Computer Use | `Planned` | 可见会话、应用范围和逐次授权 | P2 |
 | Web search | `Planned` | 与命令网络权限分离；结果带来源 | P1 |
 
@@ -125,7 +125,7 @@ MilkSU Coding 的北极星不是“能调用模型的聊天框”，而是让用
 
 - 插件、Skill、MCP 的安装与权限中心（项目 MCP 的 opt-in Adapter 已作为底座）；
 - 多 Agent + worktree 隔离；
-- Coding Browser、Computer Use、Web Search；
+- Coding Browser 的多页面/下载/恢复加固、Computer Use、Web Search；
 - 在已实现的文件/图片输入之上补完整产物预览。
 
 ## 发布门槛
@@ -151,7 +151,7 @@ MilkSU Coding 的北极星不是“能调用模型的聊天框”，而是让用
 5. 用户追加 `items: null` 边界要求，Agent 修改实现、补测试，并将测试从 4/4 推进到 5/5；
 6. 主验收进程在 Agent 外独立复跑测试与 smoke，结果一致。
 
-该样本证明当前 Coding 核心链路已可交付，也暴露出模型会受旧对话误导、需要“先验证当前状态再下结论”的真实弱点。后续已移除普通研发命令白名单并加入显式 Full Access；当前交付门禁也已覆盖桌面 Ask 审批、附件引用、项目 MCP 选择、会话隔离的项目终端和后台任务生命周期。原生右栏已真实运行多会话 zsh PTY、验证项目 `pwd`，并启动、显示和停止带监听端口的后台进程；本地 Git 远端也完成 stage、commit、push 与远端 HEAD 核对。但这仍不证明 MCP Browser、Computer Use、多 Agent、跨应用重启终端恢复或托管平台 PR 发布闭环已经完成。
+该样本证明当前 Coding 核心链路已可交付，也暴露出模型会受旧对话误导、需要“先验证当前状态再下结论”的真实弱点。后续已移除普通研发命令白名单并加入显式 Full Access；当前交付门禁也已覆盖桌面 Ask 审批、附件引用、项目 MCP 选择、会话隔离的项目终端和后台任务生命周期。原生右栏已真实运行多会话 zsh PTY、验证项目 `pwd`，并启动、显示和停止带监听端口的后台进程；本地 Git 远端也完成 stage、commit、push 与远端 HEAD 核对；隔离 Coding Browser 已完成真实 Playwright MCP 页面交互。但这仍不证明 Computer Use、多 Agent、跨应用重启终端恢复或托管平台 PR 发布闭环已经完成。
 
 同日，真实打包 App 在上述项目会话中点击一次“架构图”，自动读取仓库、修复候选布局、
 执行 Archify `validate` 与 `deliver`，生成固定 JSON/HTML；独立 CLI 复验为 9/9、

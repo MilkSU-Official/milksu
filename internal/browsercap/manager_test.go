@@ -18,6 +18,46 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+func TestCodingBrowserDescriptorStaysLoopbackAndConversationBound(t *testing.T) {
+	manager, err := New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer manager.Close()
+	manager.sessions["browser_fixture"] = &managedSession{
+		public: Session{
+			ID:    "browser_fixture",
+			Phase: "ready",
+			port:  43117,
+		},
+		conversationID: "conversation-1",
+	}
+
+	descriptor, ok := manager.CodingDescriptor("conversation-1")
+	if !ok {
+		t.Fatal("expected a Coding browser descriptor")
+	}
+	if descriptor.SessionID != "browser_fixture" ||
+		descriptor.CDPEndpoint != "http://127.0.0.1:43117" {
+		t.Fatalf("unexpected descriptor: %#v", descriptor)
+	}
+	if _, ok := manager.CodingDescriptor("conversation-2"); ok {
+		t.Fatal("descriptor must not leak across conversations")
+	}
+}
+
+func TestNormalizeCodingConversationIDRejectsUnsafeValues(t *testing.T) {
+	for _, value := range []string{"", "conversation/1", "conversation 1", "对话"} {
+		if _, err := normalizeCodingConversationID(value); err == nil {
+			t.Fatalf("expected %q to be rejected", value)
+		}
+	}
+	if value, err := normalizeCodingConversationID("conversation-1:retry"); err != nil ||
+		value != "conversation-1:retry" {
+		t.Fatalf("expected safe id, got %q, %v", value, err)
+	}
+}
+
 func TestCurrentTabBridgeRequiresPairingAndPersistsExactPage(t *testing.T) {
 	manager, err := New(t.TempDir())
 	if err != nil {

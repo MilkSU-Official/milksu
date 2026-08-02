@@ -52,6 +52,28 @@ type Page struct {
 	wsURL string
 }
 
+// CodingBrowserStatus is the frontend-safe state of an isolated browser owned
+// by one Coding conversation. The loopback CDP endpoint intentionally never
+// leaves the backend/Sidecar boundary.
+type CodingBrowserStatus struct {
+	Enabled        bool      `json:"enabled"`
+	ConversationID string    `json:"conversationId"`
+	SessionID      string    `json:"sessionId,omitempty"`
+	Phase          string    `json:"phase"`
+	InitialURL     string    `json:"initialUrl,omitempty"`
+	ProfileLabel   string    `json:"profileLabel,omitempty"`
+	StartedAt      time.Time `json:"startedAt,omitempty"`
+	BrowserBinary  string    `json:"browserBinary,omitempty"`
+	Pages          []Page    `json:"pages,omitempty"`
+}
+
+// CodingBrowserDescriptor is transient input for the trusted Sidecar adapter.
+// It must never be persisted or returned to the frontend.
+type CodingBrowserDescriptor struct {
+	SessionID   string `json:"sessionId"`
+	CDPEndpoint string `json:"cdpEndpoint"`
+}
+
 type Capture struct {
 	SessionID        string                    `json:"sessionId"`
 	PageID           string                    `json:"pageId"`
@@ -149,7 +171,8 @@ type NSSCTFJudgeReceipt struct {
 }
 
 type managedSession struct {
-	public Session
+	public         Session
+	conversationID string
 }
 
 type bridgeClient struct {
@@ -277,6 +300,130 @@ func (m *Manager) Sessions() []Session {
 		result = append(result, publicView(session.public))
 	}
 	return result
+}
+
+// StartCoding starts a fresh isolated Chrome profile for a Coding
+// conversation. Re-enabling the browser replaces only that conversation's
+// previous managed session.
+func (m *Manager) StartCoding(
+	ctx context.Context,
+	conversationID,
+	initialURL string,
+) (CodingBrowserStatus, error) {
+	conversationID, err := normalizeCodingConversationID(conversationID)
+	if err != nil {
+		return CodingBrowserStatus{}, err
+	}
+	if existingID := m.codingSessionID(conversationID); existingID != "" {
+		if err := m.Stop(existingID); err != nil {
+			return CodingBrowserStatus{}, err
+		}
+	}
+	session, err := m.Start(ctx, initialURL)
+	if err != nil {
+		return CodingBrowserStatus{}, err
+	}
+	m.mu.Lock()
+	managed := m.sessions[session.ID]
+	if managed != nil {
+		managed.conversationID = conversationID
+	}
+	m.mu.Unlock()
+	if managed == nil {
+		_ = m.Stop(session.ID)
+		return CodingBrowserStatus{}, fmt.Errorf("managed Coding browser session disappeared")
+	}
+	return m.CodingStatus(ctx, conversationID)
+}
+
+// CodingStatus returns only UI-safe state. Missing sessions are represented as
+// disabled so reopening an old conversation never revives a stale endpoint.
+func (m *Manager) CodingStatus(
+	ctx context.Context,
+	conversationID string,
+) (CodingBrowserStatus, error) {
+	conversationID, err := normalizeCodingConversationID(conversationID)
+	if err != nil {
+		return CodingBrowserStatus{}, err
+	}
+	sessionID := m.codingSessionID(conversationID)
+	if sessionID == "" {
+		return CodingBrowserStatus{
+			Enabled:        false,
+			ConversationID: conversationID,
+			Phase:          "disabled",
+		}, nil
+	}
+	session, err := m.session(sessionID)
+	if err != nil {
+		return CodingBrowserStatus{
+			Enabled:        false,
+			ConversationID: conversationID,
+			SessionID:      sessionID,
+			Phase:          "stopped",
+		}, nil
+	}
+	pages, pagesErr := m.Pages(ctx, sessionID)
+	if pagesErr != nil {
+		return CodingBrowserStatus{}, pagesErr
+	}
+	return CodingBrowserStatus{
+		Enabled:        true,
+		ConversationID: conversationID,
+		SessionID:      session.ID,
+		Phase:          session.Phase,
+		InitialURL:     session.InitialURL,
+		ProfileLabel:   session.ProfileLabel,
+		StartedAt:      session.StartedAt,
+		BrowserBinary:  session.BrowserBinary,
+		Pages:          pages,
+	}, nil
+}
+
+// CodingDescriptor returns the private loopback endpoint only for backend
+// injection into the trusted Playwright MCP adapter.
+func (m *Manager) CodingDescriptor(
+	conversationID string,
+) (CodingBrowserDescriptor, bool) {
+	conversationID, err := normalizeCodingConversationID(conversationID)
+	if err != nil {
+		return CodingBrowserDescriptor{}, false
+	}
+	sessionID := m.codingSessionID(conversationID)
+	if sessionID == "" {
+		return CodingBrowserDescriptor{}, false
+	}
+	session, err := m.session(sessionID)
+	if err != nil || session.port <= 0 || session.port > 65535 {
+		return CodingBrowserDescriptor{}, false
+	}
+	return CodingBrowserDescriptor{
+		SessionID:   session.ID,
+		CDPEndpoint: fmt.Sprintf("http://127.0.0.1:%d", session.port),
+	}, true
+}
+
+func (m *Manager) StopCoding(conversationID string) error {
+	conversationID, err := normalizeCodingConversationID(conversationID)
+	if err != nil {
+		return err
+	}
+	sessionID := m.codingSessionID(conversationID)
+	if sessionID == "" {
+		return nil
+	}
+	return m.Stop(sessionID)
+}
+
+func (m *Manager) codingSessionID(conversationID string) string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for sessionID, session := range m.sessions {
+		if session.conversationID == conversationID {
+			return sessionID
+		}
+	}
+	return ""
 }
 
 func (m *Manager) Pages(ctx context.Context, sessionID string) ([]Page, error) {
@@ -1777,6 +1924,23 @@ func publicView(session Session) Session {
 	session.port = 0
 	session.command = nil
 	return session
+}
+
+func normalizeCodingConversationID(value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" || len(value) > 160 {
+		return "", fmt.Errorf("Coding conversation id is required")
+	}
+	for _, character := range value {
+		if character >= 'a' && character <= 'z' ||
+			character >= 'A' && character <= 'Z' ||
+			character >= '0' && character <= '9' ||
+			strings.ContainsRune("._:-", character) {
+			continue
+		}
+		return "", fmt.Errorf("Coding conversation id contains unsupported characters")
+	}
+	return value, nil
 }
 
 func DecodeScreenshot(value string) ([]byte, error) {

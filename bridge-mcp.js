@@ -1,10 +1,21 @@
 import { createHash } from "node:crypto";
 import { lstat, mkdir, open, readFile, realpath } from "node:fs/promises";
-import { join, relative, resolve, sep } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import { sandboxProfile } from "./bridge-policy.js";
 
 const maxConfigBytes = 1 << 20;
 const maxSelectedServers = 16;
+export const codingBrowserMcpServerName = "milksu-playwright";
+const bridgeDirectory = dirname(fileURLToPath(import.meta.url));
+const playwrightMcpCliPath = join(
+  bridgeDirectory,
+  "node_modules",
+  "@playwright",
+  "mcp",
+  "cli.js",
+);
+const playwrightSocketRoot = "/private/tmp/milksu-playwright";
 const safeChildEnvironmentNames = [
   "HOME",
   "PATH",
@@ -130,7 +141,12 @@ function sanitizeRemoteDefinition(definition, serverName) {
   };
 }
 
-function sanitizeLocalDefinition(definition, serverName, workspace) {
+function sanitizeLocalDefinition(
+  definition,
+  serverName,
+  workspace,
+  { extraWritableRoots = [] } = {},
+) {
   const command = String(definition.command ?? "").trim();
   if (!command || command.includes("\0")) {
     throw new Error(`MCP server "${serverName}" has an invalid command`);
@@ -152,7 +168,7 @@ function sanitizeLocalDefinition(definition, serverName, workspace) {
         [],
         false,
         [],
-        [runtimeHome, runtimeTemporary],
+        [runtimeHome, runtimeTemporary, ...extraWritableRoots],
       ),
       "/usr/bin/env",
       "-i",
@@ -170,14 +186,16 @@ function sanitizeLocalDefinition(definition, serverName, workspace) {
   };
 }
 
-function sanitizeServerDefinition(definition, serverName, workspace) {
+function sanitizeServerDefinition(definition, serverName, workspace, options) {
   if (!definition || typeof definition !== "object" || Array.isArray(definition)) {
     throw new Error(`MCP server "${serverName}" must be an object`);
   }
   if (definition.disabled === true) {
     throw new Error(`MCP server "${serverName}" is disabled in .mcp.json`);
   }
-  if (definition.command) return sanitizeLocalDefinition(definition, serverName, workspace);
+  if (definition.command) {
+    return sanitizeLocalDefinition(definition, serverName, workspace, options);
+  }
   if (definition.url) return sanitizeRemoteDefinition(definition, serverName);
   if (definition.socket) {
     return {
@@ -189,6 +207,107 @@ function sanitizeServerDefinition(definition, serverName, workspace) {
   throw new Error(`MCP server "${serverName}" has no command, URL, or socket`);
 }
 
+function adapterConfig(mcpServers) {
+  return {
+    settings: {
+      toolPrefix: "server",
+      hostConfigDiscovery: "off",
+      idleTimeout: 10,
+      outputGuard: true,
+      directTools: false,
+      disableProxyTool: false,
+      sampling: false,
+      samplingAutoApprove: false,
+      elicitation: false,
+      autoAuth: false,
+    },
+    mcpServers,
+  };
+}
+
+export function normalizeCodingBrowserDescriptor(value) {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("MilkSU Coding Browser descriptor must be an object");
+  }
+  const fields = Object.keys(value).sort();
+  if (
+    fields.length !== 2
+    || fields[0] !== "cdpEndpoint"
+    || fields[1] !== "sessionId"
+  ) {
+    throw new Error(
+      "MilkSU Coding Browser descriptor may contain only sessionId and cdpEndpoint",
+    );
+  }
+  const sessionId = String(value.sessionId ?? "").trim();
+  if (!/^browser_[A-Za-z0-9-]{8,128}$/.test(sessionId)) {
+    throw new Error("MilkSU rejected an invalid Coding Browser session id");
+  }
+  const rawEndpoint = String(value.cdpEndpoint ?? "").trim();
+  const endpointMatch = /^http:\/\/127\.0\.0\.1:([1-9][0-9]{0,4})\/?$/.exec(rawEndpoint);
+  const port = Number(endpointMatch?.[1] ?? 0);
+  if (!endpointMatch || !Number.isInteger(port) || port > 65535) {
+    throw new Error(
+      "MilkSU Coding Browser CDP endpoint must be http://127.0.0.1:<port>",
+    );
+  }
+  return {
+    sessionId,
+    cdpEndpoint: `http://127.0.0.1:${port}`,
+  };
+}
+
+export function codingBrowserSelectionChanged(previous, next) {
+  return JSON.stringify(normalizeCodingBrowserDescriptor(previous))
+    !== JSON.stringify(normalizeCodingBrowserDescriptor(next));
+}
+
+export async function createFirstPartyPlaywrightMcpServer(workspace, descriptor) {
+  const browser = normalizeCodingBrowserDescriptor(descriptor);
+  if (!browser) return undefined;
+  const root = await realpath(workspace);
+  const cliMetadata = await lstat(playwrightMcpCliPath);
+  if (cliMetadata.isSymbolicLink() || !cliMetadata.isFile()) {
+    throw new Error("MilkSU packaged Playwright MCP CLI is unavailable");
+  }
+  const runtimeRoot = join(root, ".milksu", "mcp-runtime");
+  await Promise.all([
+    mkdir(join(runtimeRoot, "home"), { recursive: true, mode: 0o700 }),
+    mkdir(join(runtimeRoot, "tmp"), { recursive: true, mode: 0o700 }),
+  ]);
+  // Playwright creates a Unix domain socket while attaching over CDP. macOS
+  // limits socket paths to roughly 104 bytes, so the user-data directory is too
+  // deep even though it is otherwise writable. Keep only this ephemeral socket
+  // under a short, session-derived directory.
+  const socketRoot = join(
+    playwrightSocketRoot,
+    browser.sessionId.slice(-12),
+  );
+  await mkdir(socketRoot, { recursive: true, mode: 0o700 });
+  return {
+    browser,
+    server: sanitizeServerDefinition(
+      {
+        command: process.execPath,
+        args: [
+          playwrightMcpCliPath,
+          "--cdp-endpoint",
+          browser.cdpEndpoint,
+          "--codegen=none",
+          "--output-mode=stdout",
+        ],
+        env: {
+          PWTEST_SOCKETS_DIR: socketRoot,
+        },
+      },
+      codingBrowserMcpServerName,
+      root,
+      { extraWritableRoots: [socketRoot] },
+    ),
+  };
+}
+
 export async function loadSelectedMcpConfig(
   workspace,
   requestedServers,
@@ -197,6 +316,11 @@ export async function loadSelectedMcpConfig(
   const selected = normalizeSelectedMcpServers(requestedServers);
   if (selected.length === 0) {
     return { selected, config: undefined };
+  }
+  if (selected.includes(codingBrowserMcpServerName)) {
+    throw new Error(
+      `MCP server name "${codingBrowserMcpServerName}" is reserved by MilkSU`,
+    );
   }
 
   const root = await realpath(workspace);
@@ -246,21 +370,39 @@ export async function loadSelectedMcpConfig(
   }
   return {
     selected,
-    config: {
-      settings: {
-        toolPrefix: "server",
-        hostConfigDiscovery: "off",
-        idleTimeout: 10,
-        outputGuard: true,
-        directTools: false,
-        disableProxyTool: false,
-        sampling: false,
-        samplingAutoApprove: false,
-        elicitation: false,
-        autoAuth: false,
-      },
-      mcpServers,
-    },
+    config: adapterConfig(mcpServers),
+  };
+}
+
+export async function loadCodingMcpConfig(
+  workspace,
+  requestedServers,
+  expectedDigest,
+  codingBrowser,
+) {
+  const project = await loadSelectedMcpConfig(
+    workspace,
+    requestedServers,
+    expectedDigest,
+  );
+  const builtIn = await createFirstPartyPlaywrightMcpServer(workspace, codingBrowser);
+  if (!builtIn) {
+    return {
+      ...project,
+      projectSelected: project.selected,
+      codingBrowser: undefined,
+    };
+  }
+  return {
+    projectSelected: project.selected,
+    selected: [...project.selected, codingBrowserMcpServerName].sort(
+      (left, right) => left.localeCompare(right),
+    ),
+    codingBrowser: builtIn.browser,
+    config: adapterConfig({
+      ...(project.config?.mcpServers ?? {}),
+      [codingBrowserMcpServerName]: builtIn.server,
+    }),
   };
 }
 

@@ -165,6 +165,42 @@ test("MCP is exposed only for an explicitly selected Coding task", async () => {
     enabled.capabilities.find(value => value.id === "browser").status,
     "approval-required",
   );
+
+  const codingBrowser = {
+    sessionId: "browser_12345678-abcd-4567-8901-123456789abc",
+    cdpEndpoint: "http://127.0.0.1:43127",
+  };
+  const browserEnabled = await loadSessionPolicy(workspace, "", {
+    executionMode: "go",
+    approvalPolicy: "workspace-auto",
+    mcpServers: ["milksu-playwright"],
+    projectMcpServers: [],
+    codingBrowser,
+  });
+  assert.equal(browserEnabled.activeTools.includes("mcp"), true);
+  assert.deepEqual(browserEnabled.projectMcpServers, []);
+  assert.deepEqual(browserEnabled.codingBrowser, codingBrowser);
+  assert.match(
+    browserEnabled.capabilities.find(value => value.id === "browser").detail,
+    /MilkSU 隔离浏览器/,
+  );
+
+  for (const policyInput of [
+    { executionMode: "plan", approvalPolicy: "workspace-auto" },
+    { executionMode: "go", approvalPolicy: "read-only" },
+  ]) {
+    const gated = await loadSessionPolicy(workspace, "", {
+      ...policyInput,
+      mcpServers: ["milksu-playwright"],
+      projectMcpServers: [],
+      codingBrowser,
+    });
+    assert.equal(gated.activeTools.includes("mcp"), false);
+    assert.equal(
+      gated.capabilities.find(value => value.id === "browser").status,
+      "unavailable",
+    );
+  }
 });
 
 test("Coding read/search tools can access reviewed resources but no other outside path", async () => {

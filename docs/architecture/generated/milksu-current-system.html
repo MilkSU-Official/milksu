@@ -4498,10 +4498,10 @@
         <div class="pulse-dot"></div>
         <h1>MilkSU 当前系统架构</h1>
       </div>
-      <p class="subtitle">R0.4 当前事实 · Pi Coding 基座、CTF 证据闭环与安全静态开发者评测</p>
+      <p class="subtitle">R0.4 当前事实 · Pi Coding 基座、隔离 Coding Browser、CTF 证据闭环与安全静态开发者评测</p>
     </div>
 
-    <script id="archify-guided-views-data" type="application/json">[{"id":"coding-path","label":"Coding 主链","focus":["learner","vue-shell","go-host","pi-sidecar","coding-resources","model-provider"],"note":"从桌面交互到 Pi 会话、固定资源和模型 Provider。"},{"id":"ctf-path","label":"CTF 证据闭环","focus":["learner","vue-shell","go-host","ctf-service","browser-bridge","ctf-platforms","evidence-runtime","local-state"],"note":"候选答案必须经过平台 Judge 回执，才能进入证据和复盘。"},{"id":"eval-boundary","label":"内部模型评测","focus":["nyu-eval","local-state"],"note":"NYU CTF Bench 只运行人工准入的静态单次推理与 Digest Judge；不执行挑战或模型输出。"}]</script>
+    <script id="archify-guided-views-data" type="application/json">[{"id":"coding-path","label":"Coding 主链","focus":["learner","vue-shell","go-host","pi-sidecar","coding-resources","browser-bridge","model-provider"],"note":"从桌面交互到 Pi 会话、固定资源、显式启用的隔离浏览器和模型 Provider。"},{"id":"ctf-path","label":"CTF 证据闭环","focus":["learner","vue-shell","go-host","ctf-service","browser-bridge","ctf-platforms","evidence-runtime","local-state"],"note":"候选答案必须经过平台 Judge 回执，才能进入证据和复盘。"},{"id":"eval-boundary","label":"内部模型评测","focus":["nyu-eval","local-state"],"note":"NYU CTF Bench 只运行人工准入的静态单次推理与 Digest Judge；不执行挑战或模型输出。"}]</script>
 
     <div class="guided-views no-print" id="guided-views" hidden aria-label="Guided diagram views">
       <button id="guided-view-prev" type="button" aria-label="Previous guided view" title="Previous guided view ([)">&#8592;</button>
@@ -4546,7 +4546,7 @@
     <div class="diagram-container" data-detail-level="read">
       <svg viewBox="0 0 1460 780" role="img" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="blueprint" data-quality-profile="showcase">
         <title id="archify-diagram-title">MilkSU 当前系统架构</title>
-        <desc id="archify-diagram-description">R0.4 当前事实 · Pi Coding 基座、CTF 证据闭环与安全静态开发者评测</desc>
+        <desc id="archify-diagram-description">R0.4 当前事实 · Pi Coding 基座、隔离 Coding Browser、CTF 证据闭环与安全静态开发者评测</desc>
         <!-- Definitions -->
         <defs>
           <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
@@ -4585,14 +4585,15 @@
         <path data-edge-from="go-host" data-edge-to="pi-sidecar" data-edge-label="Coding session · JSONL" data-edge-key="2" data-edge-id="host-to-pi" data-composition-points="590,300;590,234;865,234;865,168" d="M 590 300 L 590 242 Q 590 234 598 234 L 857 234 Q 865 234 865 226 L 865 168" class="a-emphasis" data-animate="edge" style="--step:2" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
         <path data-edge-from="coding-resources" data-edge-to="pi-sidecar" data-edge-label="审核后加载" data-edge-key="3" data-edge-id="resources-to-pi" data-composition-points="1040,130;960,130" d="M 1040 130 L 960 130" class="a-security" data-animate="edge" style="--step:3" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
         <path data-edge-from="pi-sidecar" data-edge-to="model-provider" data-edge-label="推理 API" data-edge-key="4" data-edge-id="pi-to-provider" data-composition-points="865,92;865,38;1365,38;1365,92" d="M 865 92 L 865 46 Q 865 38 873 38 L 1357 38 Q 1365 38 1365 46 L 1365 92" class="a-dashed" data-animate="edge" style="--step:4" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
-        <path data-edge-from="go-host" data-edge-to="ctf-service" data-edge-label="训练编排" data-edge-key="5" data-edge-id="host-to-ctf" data-composition-points="680,336;770,336" d="M 680 336 L 770 336" class="a-emphasis" data-animate="edge" style="--step:5" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="ctf-service" data-edge-to="browser-bridge" data-edge-label="配对与同步" data-edge-key="6" data-edge-id="ctf-to-browser" data-composition-points="960,336;1040,336" d="M 960 336 L 1040 336" class="a-security" data-animate="edge" style="--step:6" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
-        <path data-edge-from="browser-bridge" data-edge-to="ctf-platforms" data-edge-label="读取 / 提交" data-edge-key="7" data-edge-id="browser-to-platform" data-composition-points="1230,336;1290,336" d="M 1230 336 L 1290 336" class="a-dashed" data-animate="edge" style="--step:7" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
-        <path data-edge-from="ctf-platforms" data-edge-to="browser-bridge" data-edge-label="Judge 回执" data-edge-key="8" data-edge-id="platform-to-browser" data-composition-points="1365,374;1365,426;1135,426;1135,374" d="M 1365 374 L 1365 418 Q 1365 426 1357 426 L 1143 426 Q 1135 426 1135 418 L 1135 374" class="a-emphasis" data-animate="edge" style="--step:8" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="ctf-service" data-edge-to="evidence-runtime" data-edge-label="事实 / 候选 / 回执" data-edge-key="9" data-edge-id="ctf-to-runtime" data-composition-points="865,374;865,520" d="M 865 374 L 865 520" class="a-emphasis" data-animate="edge" style="--step:9" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="evidence-runtime" data-edge-to="local-state" data-edge-label="append + artifact" data-edge-key="10" data-edge-id="runtime-to-state" data-composition-points="960,558;1040,558" d="M 960 558 L 1040 558" class="a-emphasis" data-animate="edge" style="--step:10" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="go-host" data-edge-to="local-state" data-edge-label="配置 / Catalog / 会话" data-edge-key="11" data-edge-id="host-to-state" data-composition-points="590,372;590,680;1000,680;1000,558;1040,558" d="M 590 372 L 590 672 Q 590 680 598 680 L 992 680 Q 1000 680 1000 672 L 1000 566 Q 1000 558 1008 558 L 1040 558" class="a-dashed" data-animate="edge" style="--step:11" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
-        <path data-edge-from="nyu-eval" data-edge-to="local-state" data-edge-label="只读输入 / 报告输出" data-edge-key="12" data-edge-id="eval-to-state" data-composition-points="1290,558;1230,558" d="M 1290 558 L 1230 558" class="a-dashed" data-animate="edge" style="--step:12" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="pi-sidecar" data-edge-to="browser-bridge" data-edge-label="Playwright MCP · transient CDP" data-edge-key="5" data-edge-id="pi-to-coding-browser" data-composition-points="865,168;865,233;1135,233;1135,298" d="M 865 168 L 865 225 Q 865 233 873 233 L 1127 233 Q 1135 233 1135 241 L 1135 298" class="a-security" data-animate="edge" style="--step:5" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
+        <path data-edge-from="go-host" data-edge-to="ctf-service" data-edge-label="训练编排" data-edge-key="6" data-edge-id="host-to-ctf" data-composition-points="680,336;770,336" d="M 680 336 L 770 336" class="a-emphasis" data-animate="edge" style="--step:6" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="ctf-service" data-edge-to="browser-bridge" data-edge-label="配对与同步" data-edge-key="7" data-edge-id="ctf-to-browser" data-composition-points="960,336;1040,336" d="M 960 336 L 1040 336" class="a-security" data-animate="edge" style="--step:7" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
+        <path data-edge-from="browser-bridge" data-edge-to="ctf-platforms" data-edge-label="读取 / 提交" data-edge-key="8" data-edge-id="browser-to-platform" data-composition-points="1230,336;1290,336" d="M 1230 336 L 1290 336" class="a-dashed" data-animate="edge" style="--step:8" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="ctf-platforms" data-edge-to="browser-bridge" data-edge-label="Judge 回执" data-edge-key="9" data-edge-id="platform-to-browser" data-composition-points="1365,374;1365,426;1135,426;1135,374" d="M 1365 374 L 1365 418 Q 1365 426 1357 426 L 1143 426 Q 1135 426 1135 418 L 1135 374" class="a-emphasis" data-animate="edge" style="--step:9" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="ctf-service" data-edge-to="evidence-runtime" data-edge-label="事实 / 候选 / 回执" data-edge-key="10" data-edge-id="ctf-to-runtime" data-composition-points="865,374;865,520" d="M 865 374 L 865 520" class="a-emphasis" data-animate="edge" style="--step:10" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="evidence-runtime" data-edge-to="local-state" data-edge-label="append + artifact" data-edge-key="11" data-edge-id="runtime-to-state" data-composition-points="960,558;1040,558" d="M 960 558 L 1040 558" class="a-emphasis" data-animate="edge" style="--step:11" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="go-host" data-edge-to="local-state" data-edge-label="配置 / Catalog / 会话" data-edge-key="12" data-edge-id="host-to-state" data-composition-points="590,372;590,680;1000,680;1000,558;1040,558" d="M 590 372 L 590 672 Q 590 680 598 680 L 992 680 Q 1000 680 1000 672 L 1000 566 Q 1000 558 1008 558 L 1040 558" class="a-dashed" data-animate="edge" style="--step:12" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="nyu-eval" data-edge-to="local-state" data-edge-label="只读输入 / 报告输出" data-edge-key="13" data-edge-id="eval-to-state" data-composition-points="1290,558;1230,558" d="M 1290 558 L 1230 558" class="a-dashed" data-animate="edge" style="--step:12" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
 
         <!-- Components -->
         <g id="node-learner" data-node-id="learner" data-node-label="学习者" tabindex="0" role="button" aria-label="Focus 学习者, 选题 · 指导 · 审批 · 复盘, Architecture component" aria-pressed="false" data-node-kind="external" data-node-sublabel="选题 · 指导 · 审批 · 复盘" data-node-context="Architecture component">
@@ -4646,8 +4647,8 @@
         <text data-detail="fine" x="865" y="160" class="t-backend" font-size="7" text-anchor="middle">JSONL process boundary</text>
         </g>
 
-        <g id="node-coding-resources" data-node-id="coding-resources" data-node-label="固定 Coding 资源" tabindex="0" role="button" aria-label="Focus 固定 Coding 资源, Workflow · Archify · LSP · Retry, 受管 Sidecar · 固定资源白名单" aria-pressed="false" data-node-kind="security" data-node-sublabel="Workflow · Archify · LSP · Retry" data-node-tag="pinned + isolated" data-node-context="受管 Sidecar · 固定资源白名单">
-          <title>固定 Coding 资源 · Workflow · Archify · LSP · Retry · 受管 Sidecar · 固定资源白名单 · pinned + isolated</title>
+        <g id="node-coding-resources" data-node-id="coding-resources" data-node-label="固定 Coding 资源" tabindex="0" role="button" aria-label="Focus 固定 Coding 资源, Workflow · Archify · Goal · MCP, 受管 Sidecar · 固定资源白名单" aria-pressed="false" data-node-kind="security" data-node-sublabel="Workflow · Archify · Goal · MCP" data-node-tag="pinned + isolated" data-node-context="受管 Sidecar · 固定资源白名单">
+          <title>固定 Coding 资源 · Workflow · Archify · Goal · MCP · 受管 Sidecar · 固定资源白名单 · pinned + isolated</title>
           <rect x="1040" y="92" width="190" height="76" rx="6" class="c-mask"/>
           <rect x="1040" y="92" width="190" height="76" rx="6" class="c-security" data-animate="node" style="--step:3" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(1046 98) scale(0.6875)">
@@ -4655,7 +4656,7 @@
             <path d="m5.8 8 1.5 1.5 3-3"/>
           </g>
           <text data-detail-anchor x="1135" y="128" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">固定 Coding 资源</text>
-        <text data-detail="context" x="1135" y="144" class="t-muted" font-size="9" text-anchor="middle">Workflow · Archify · LSP · Retry</text>
+        <text data-detail="context" x="1135" y="144" class="t-muted" font-size="9" text-anchor="middle">Workflow · Archify · Goal · MCP</text>
         <text data-detail="fine" x="1135" y="160" class="t-security" font-size="7" text-anchor="middle">pinned + isolated</text>
         </g>
 
@@ -4675,7 +4676,7 @@
         <g id="node-ctf-service" data-node-id="ctf-service" data-node-label="CTF Application" tabindex="0" role="button" aria-label="Focus CTF Application, Challenge · Role · Candidate · Judge, MilkSU.app · 本地桌面系统" aria-pressed="false" data-node-kind="backend" data-node-sublabel="Challenge · Role · Candidate · Judge" data-node-tag="L3–L4" data-node-context="MilkSU.app · 本地桌面系统">
           <title>CTF Application · Challenge · Role · Candidate · Judge · MilkSU.app · 本地桌面系统 · L3–L4</title>
           <rect x="770" y="298" width="190" height="76" rx="6" class="c-mask"/>
-          <rect x="770" y="298" width="190" height="76" rx="6" class="c-backend" data-animate="node" style="--step:6" stroke-width="1.5"/>
+          <rect x="770" y="298" width="190" height="76" rx="6" class="c-backend" data-animate="node" style="--step:7" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(776 304) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
@@ -4684,23 +4685,23 @@
         <text data-detail="fine" x="865" y="366" class="t-backend" font-size="7" text-anchor="middle">L3–L4</text>
         </g>
 
-        <g id="node-browser-bridge" data-node-id="browser-bridge" data-node-label="Browser Bridge" tabindex="0" role="button" aria-label="Focus Browser Bridge, loopback · 明确配对标签页, MilkSU.app · 本地桌面系统" aria-pressed="false" data-node-kind="security" data-node-sublabel="loopback · 明确配对标签页" data-node-tag="user-authorized" data-node-context="MilkSU.app · 本地桌面系统">
-          <title>Browser Bridge · loopback · 明确配对标签页 · MilkSU.app · 本地桌面系统 · user-authorized</title>
+        <g id="node-browser-bridge" data-node-id="browser-bridge" data-node-label="Browser Adapters" tabindex="0" role="button" aria-label="Focus Browser Adapters, 配对标签页 · 隔离 Chrome, MilkSU.app · 本地桌面系统" aria-pressed="false" data-node-kind="security" data-node-sublabel="配对标签页 · 隔离 Chrome" data-node-tag="explicit per session" data-node-context="MilkSU.app · 本地桌面系统">
+          <title>Browser Adapters · 配对标签页 · 隔离 Chrome · MilkSU.app · 本地桌面系统 · explicit per session</title>
           <rect x="1040" y="298" width="190" height="76" rx="6" class="c-mask"/>
-          <rect x="1040" y="298" width="190" height="76" rx="6" class="c-security" data-animate="node" style="--step:7" stroke-width="1.5"/>
+          <rect x="1040" y="298" width="190" height="76" rx="6" class="c-security" data-animate="node" style="--step:6" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(1046 304) scale(0.6875)">
             <path d="M8 2.2 13 4v3.5c0 3.1-1.8 5.4-5 6.5-3.2-1.1-5-3.4-5-6.5V4Z"/>
             <path d="m5.8 8 1.5 1.5 3-3"/>
           </g>
-          <text data-detail-anchor x="1135" y="334" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Browser Bridge</text>
-        <text data-detail="context" x="1135" y="350" class="t-muted" font-size="9" text-anchor="middle">loopback · 明确配对标签页</text>
-        <text data-detail="fine" x="1135" y="366" class="t-security" font-size="7" text-anchor="middle">user-authorized</text>
+          <text data-detail-anchor x="1135" y="334" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Browser Adapters</text>
+        <text data-detail="context" x="1135" y="350" class="t-muted" font-size="9" text-anchor="middle">配对标签页 · 隔离 Chrome</text>
+        <text data-detail="fine" x="1135" y="366" class="t-security" font-size="7" text-anchor="middle">explicit per session</text>
         </g>
 
         <g id="node-ctf-platforms" data-node-id="ctf-platforms" data-node-label="CTF 平台" tabindex="0" role="button" aria-label="Focus CTF 平台, NSSCTF · CTFshow, Architecture component" aria-pressed="false" data-node-kind="external" data-node-sublabel="NSSCTF · CTFshow" data-node-tag="authoritative Judge" data-node-context="Architecture component">
           <title>CTF 平台 · NSSCTF · CTFshow · Architecture component · authoritative Judge</title>
           <rect x="1290" y="298" width="150" height="76" rx="6" class="c-mask"/>
-          <rect x="1290" y="298" width="150" height="76" rx="6" class="c-external" data-animate="node" style="--step:8" stroke-width="1.5"/>
+          <rect x="1290" y="298" width="150" height="76" rx="6" class="c-external" data-animate="node" style="--step:9" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="external" class="semantic-sigil s-external" transform="translate(1296 304) scale(0.6875)">
             <rect x="2.5" y="5" width="8.5" height="8" rx="1.5"/>
             <path d="M8 2.5h5.5V8M13.5 2.5 7.5 8.5"/>
@@ -4713,7 +4714,7 @@
         <g id="node-evidence-runtime" data-node-id="evidence-runtime" data-node-label="Evidence Runtime" tabindex="0" role="button" aria-label="Focus Evidence Runtime, 事件 · 制品 · 投影 · 恢复, MilkSU.app · 本地桌面系统" aria-pressed="false" data-node-kind="backend" data-node-sublabel="事件 · 制品 · 投影 · 恢复" data-node-tag="L5 Integrity" data-node-context="MilkSU.app · 本地桌面系统">
           <title>Evidence Runtime · 事件 · 制品 · 投影 · 恢复 · MilkSU.app · 本地桌面系统 · L5 Integrity</title>
           <rect x="770" y="520" width="190" height="76" rx="6" class="c-mask"/>
-          <rect x="770" y="520" width="190" height="76" rx="6" class="c-backend" data-animate="node" style="--step:10" stroke-width="1.5"/>
+          <rect x="770" y="520" width="190" height="76" rx="6" class="c-backend" data-animate="node" style="--step:11" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(776 526) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
@@ -4725,7 +4726,7 @@
         <g id="node-local-state" data-node-id="local-state" data-node-label="用户目录本地状态" tabindex="0" role="button" aria-label="Focus 用户目录本地状态, SQLite · Workspace · Artifacts, 用户配置目录" aria-pressed="false" data-node-kind="database" data-node-sublabel="SQLite · Workspace · Artifacts" data-node-tag="com.milksu.app" data-node-context="用户配置目录">
           <title>用户目录本地状态 · SQLite · Workspace · Artifacts · 用户配置目录 · com.milksu.app</title>
           <rect x="1040" y="520" width="190" height="76" rx="6" class="c-mask"/>
-          <rect x="1040" y="520" width="190" height="76" rx="6" class="c-database" data-animate="node" style="--step:11" stroke-width="1.5"/>
+          <rect x="1040" y="520" width="190" height="76" rx="6" class="c-database" data-animate="node" style="--step:12" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(1046 526) scale(0.6875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
@@ -4768,35 +4769,39 @@
           <rect x="1235.8" y="14" width="48.4" height="14" rx="3" class="c-mask"/>
           <text x="1260" y="24" class="t-messagebus" font-size="8" text-anchor="middle">推理 API</text>
         </g>
-        <g data-detail="context" data-edge-from="go-host" data-edge-to="ctf-service" data-edge-label="训练编排" data-edge-key="5" data-edge-id="host-to-ctf">
+        <g data-detail="context" data-edge-from="pi-sidecar" data-edge-to="browser-bridge" data-edge-label="Playwright MCP · transient CDP" data-edge-key="5" data-edge-id="pi-to-coding-browser">
+          <rect x="923" y="196" width="154" height="14" rx="3" class="c-mask"/>
+          <text x="1000" y="206" class="t-security" font-size="8" text-anchor="middle">Playwright MCP · transient CDP</text>
+        </g>
+        <g data-detail="context" data-edge-from="go-host" data-edge-to="ctf-service" data-edge-label="训练编排" data-edge-key="6" data-edge-id="host-to-ctf">
           <rect x="700.8" y="386" width="48.4" height="14" rx="3" class="c-mask"/>
           <text x="725" y="396" class="t-backend" font-size="8" text-anchor="middle">训练编排</text>
         </g>
-        <g data-detail="context" data-edge-from="ctf-service" data-edge-to="browser-bridge" data-edge-label="配对与同步" data-edge-key="6" data-edge-id="ctf-to-browser">
+        <g data-detail="context" data-edge-from="ctf-service" data-edge-to="browser-bridge" data-edge-label="配对与同步" data-edge-key="7" data-edge-id="ctf-to-browser">
           <rect x="971" y="276" width="58" height="14" rx="3" class="c-mask"/>
           <text x="1000" y="286" class="t-security" font-size="8" text-anchor="middle">配对与同步</text>
         </g>
-        <g data-detail="context" data-edge-from="browser-bridge" data-edge-to="ctf-platforms" data-edge-label="读取 / 提交" data-edge-key="7" data-edge-id="browser-to-platform">
+        <g data-detail="context" data-edge-from="browser-bridge" data-edge-to="ctf-platforms" data-edge-label="读取 / 提交" data-edge-key="8" data-edge-id="browser-to-platform">
           <rect x="1228.6" y="276" width="62.8" height="14" rx="3" class="c-mask"/>
           <text x="1260" y="286" class="t-messagebus" font-size="8" text-anchor="middle">读取 / 提交</text>
         </g>
-        <g data-detail="context" data-edge-from="ctf-platforms" data-edge-to="browser-bridge" data-edge-label="Judge 回执" data-edge-key="8" data-edge-id="platform-to-browser">
+        <g data-detail="context" data-edge-from="ctf-platforms" data-edge-to="browser-bridge" data-edge-label="Judge 回执" data-edge-key="9" data-edge-id="platform-to-browser">
           <rect x="1231" y="436" width="58" height="14" rx="3" class="c-mask"/>
           <text x="1260" y="446" class="t-backend" font-size="8" text-anchor="middle">Judge 回执</text>
         </g>
-        <g data-detail="context" data-edge-from="ctf-service" data-edge-to="evidence-runtime" data-edge-label="事实 / 候选 / 回执" data-edge-key="9" data-edge-id="ctf-to-runtime">
+        <g data-detail="context" data-edge-from="ctf-service" data-edge-to="evidence-runtime" data-edge-label="事实 / 候选 / 回执" data-edge-key="10" data-edge-id="ctf-to-runtime">
           <rect x="881.8" y="438" width="96.39999999999999" height="14" rx="3" class="c-mask"/>
           <text x="930" y="448" class="t-backend" font-size="8" text-anchor="middle">事实 / 候选 / 回执</text>
         </g>
-        <g data-detail="context" data-edge-from="evidence-runtime" data-edge-to="local-state" data-edge-label="append + artifact" data-edge-key="10" data-edge-id="runtime-to-state">
+        <g data-detail="context" data-edge-from="evidence-runtime" data-edge-to="local-state" data-edge-label="append + artifact" data-edge-key="11" data-edge-id="runtime-to-state">
           <rect x="954.2" y="490" width="91.6" height="14" rx="3" class="c-mask"/>
           <text x="1000" y="500" class="t-backend" font-size="8" text-anchor="middle">append + artifact</text>
         </g>
-        <g data-detail="context" data-edge-from="go-host" data-edge-to="local-state" data-edge-label="配置 / Catalog / 会话" data-edge-key="11" data-edge-id="host-to-state">
+        <g data-detail="context" data-edge-from="go-host" data-edge-to="local-state" data-edge-label="配置 / Catalog / 会话" data-edge-key="12" data-edge-id="host-to-state">
           <rect x="739.6" y="690" width="110.8" height="14" rx="3" class="c-mask"/>
           <text x="795" y="700" class="t-messagebus" font-size="8" text-anchor="middle">配置 / Catalog / 会话</text>
         </g>
-        <g data-detail="context" data-edge-from="nyu-eval" data-edge-to="local-state" data-edge-label="只读输入 / 报告输出" data-edge-key="12" data-edge-id="eval-to-state">
+        <g data-detail="context" data-edge-from="nyu-eval" data-edge-to="local-state" data-edge-label="只读输入 / 报告输出" data-edge-key="13" data-edge-id="eval-to-state">
           <rect x="1209.4" y="602" width="101.2" height="14" rx="3" class="c-mask"/>
           <text x="1260" y="612" class="t-messagebus" font-size="8" text-anchor="middle">只读输入 / 报告输出</text>
         </g>
@@ -5015,7 +5020,7 @@
         </div>
         <ul>
           <li>&bull; Pi 提供通用 Agent Loop，MilkSU 不重造会话、上下文和工具循环</li>
-          <li>&bull; 向 Codex 对齐项目、执行、Git、权限、上下文、产物和自动化能力</li>
+          <li>&bull; 向 Codex 对齐项目、执行、Git、权限、上下文、产物和显式启用的隔离浏览器</li>
         </ul>
       </div>
 

@@ -15,6 +15,9 @@ const piLspVersion = '0.29.0'
 const piGoalVersion = '0.43.0'
 const piBackgroundTasksVersion = '0.1.10'
 const piMcpAdapterVersion = '2.17.0'
+const playwrightMcpVersion = '0.0.78'
+const playwrightVersion = '1.62.0-alpha-1783623505000'
+const playwrightSocketRoot = '/private/tmp/milksu-playwright'
 const systemOcrVersion = '1.1.0'
 const systemOcrNativePackages = {
   'darwin/arm64': '@napi-rs/system-ocr-darwin-arm64',
@@ -157,6 +160,45 @@ async function buildSidecar(platform) {
     )
   }
   const systemOcrOutputRoot = join(output, 'node_modules', '@napi-rs')
+  const playwrightPackages = [
+    {
+      name: '@playwright/mcp',
+      version: playwrightMcpVersion,
+      source: join(repositoryRoot, 'node_modules', '@playwright', 'mcp'),
+      output: join(output, 'node_modules', '@playwright', 'mcp'),
+      licenseFile: 'playwright-mcp-Apache-2.0.txt',
+    },
+    {
+      name: 'playwright',
+      version: playwrightVersion,
+      source: join(repositoryRoot, 'node_modules', 'playwright'),
+      output: join(output, 'node_modules', 'playwright'),
+      licenseFile: 'playwright-Apache-2.0.txt',
+    },
+    {
+      name: 'playwright-core',
+      version: playwrightVersion,
+      source: join(repositoryRoot, 'node_modules', 'playwright-core'),
+      output: join(output, 'node_modules', 'playwright-core'),
+      licenseFile: 'playwright-core-Apache-2.0.txt',
+    },
+  ]
+  for (const packageInfo of playwrightPackages) {
+    if (!await exists(packageInfo.source)) {
+      throw new Error(`Playwright package is missing: ${packageInfo.name}@${packageInfo.version}`)
+    }
+    const packageDocument = JSON.parse(
+      await readFile(join(packageInfo.source, 'package.json'), 'utf8'),
+    )
+    if (
+      packageDocument.version !== packageInfo.version
+      || packageDocument.license !== 'Apache-2.0'
+    ) {
+      throw new Error(
+        `Playwright package mismatch: expected ${packageInfo.name}@${packageInfo.version} Apache-2.0`,
+      )
+    }
+  }
   const { stdout: checkedOutArchifyCommit } = await execFileAsync(
     'git',
     ['-C', join(repositoryRoot, 'third_party', 'archify'), 'rev-parse', 'HEAD'],
@@ -169,8 +211,20 @@ async function buildSidecar(platform) {
 
   await rm(archifyOutput, { recursive: true, force: true })
   await rm(systemOcrOutputRoot, { recursive: true, force: true })
+  await Promise.all(
+    playwrightPackages.map(packageInfo => rm(
+      packageInfo.output,
+      { recursive: true, force: true },
+    )),
+  )
   await mkdir(dirname(archifyOutput), { recursive: true, mode: 0o700 })
   await mkdir(systemOcrOutputRoot, { recursive: true, mode: 0o700 })
+  await Promise.all(
+    playwrightPackages.map(packageInfo => mkdir(
+      dirname(packageInfo.output),
+      { recursive: true, mode: 0o700 },
+    )),
+  )
   await mkdir(licenseOutput, { recursive: true, mode: 0o700 })
   await cp(archifySource, archifyOutput, { recursive: true })
   await Promise.all([
@@ -196,12 +250,21 @@ async function buildSidecar(platform) {
       join(systemOcrSource, 'LICENSE'),
       join(licenseOutput, 'napi-rs-system-ocr-MIT.txt'),
     ),
+    ...playwrightPackages.map(packageInfo => copyFile(
+      join(packageInfo.source, 'LICENSE'),
+      join(licenseOutput, packageInfo.licenseFile),
+    )),
     cp(systemOcrSource, join(systemOcrOutputRoot, 'system-ocr'), { recursive: true }),
     cp(
       systemOcrNativeSource,
       join(systemOcrOutputRoot, systemOcrNativePackage.split('/')[1]),
       { recursive: true },
     ),
+    ...playwrightPackages.map(packageInfo => cp(
+      packageInfo.source,
+      packageInfo.output,
+      { recursive: true },
+    )),
     writeFile(join(output, 'package.json'), `${JSON.stringify({
       name: '@earendil-works/pi-coding-agent',
       version: piVersion,
@@ -271,6 +334,17 @@ async function buildSidecar(platform) {
         licenseFile: 'THIRD_PARTY-LICENSES/pi-mcp-adapter-MIT.txt',
         scope: 'coding-opt-in',
       },
+      playwrightMcp: {
+        package: '@playwright/mcp',
+        version: playwrightMcpVersion,
+        license: 'Apache-2.0',
+        licenseFile: 'THIRD_PARTY-LICENSES/playwright-mcp-Apache-2.0.txt',
+        scope: 'coding-browser-opt-in',
+        dependencies: {
+          playwright: playwrightVersion,
+          'playwright-core': playwrightVersion,
+        },
+      },
       localOcr: {
         package: '@napi-rs/system-ocr',
         version: systemOcrVersion,
@@ -298,6 +372,9 @@ async function smokeSidecar(platform) {
     join(output, 'THIRD_PARTY-LICENSES', 'pi-better-background-tasks-MIT.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'pi-mcp-adapter-MIT.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'napi-rs-system-ocr-MIT.txt'),
+    join(output, 'THIRD_PARTY-LICENSES', 'playwright-mcp-Apache-2.0.txt'),
+    join(output, 'THIRD_PARTY-LICENSES', 'playwright-Apache-2.0.txt'),
+    join(output, 'THIRD_PARTY-LICENSES', 'playwright-core-Apache-2.0.txt'),
     join(output, 'skills', 'archify', 'LICENSE'),
   ]) {
     if (!await exists(licensePath)) {
@@ -323,11 +400,31 @@ async function smokeSidecar(platform) {
     ...runtimeArguments,
     '--allow-addons',
     '--allow-child-process',
+    `--allow-fs-write=${playwrightSocketRoot}`,
     '--allow-fs-read=/bin/bash',
     '--allow-fs-read=/bin/sh',
     '--allow-fs-read=/usr/bin/env',
     '--allow-fs-read=/usr/bin/sandbox-exec',
   ]
+  const playwrightCli = join(
+    output,
+    'node_modules',
+    '@playwright',
+    'mcp',
+    'cli.js',
+  )
+  const playwrightVersionRun = await runWithInput(
+    node,
+    [...runtimeArguments, playwrightCli, '--version'],
+    '',
+    { cwd: workspace, env: { ...process.env, HOME: workspace } },
+  )
+  if (!playwrightVersionRun.stdout.includes(playwrightMcpVersion)) {
+    throw new Error(
+      `packaged Playwright MCP did not load: `
+      + `${playwrightVersionRun.stdout}${playwrightVersionRun.stderr}`,
+    )
+  }
   const ocrLoad = await runWithInput(
     node,
     [
@@ -501,6 +598,49 @@ async function smokeSidecar(platform) {
     || mcpResponses.some(value => value.type === 'error')
   ) {
     throw new Error(`unexpected packaged MCP response: ${mcpRun.stdout}`)
+  }
+  const codingBrowserRun = await runWithInput(
+    node,
+    [...chatRuntimeArguments, join(output, 'chat-bridge.cjs')],
+    [
+      JSON.stringify({
+        action: 'create_session',
+        conversationId: 'packaged-coding-browser',
+        executionMode: 'go',
+        approvalPolicy: 'workspace-auto',
+        codingBrowser: {
+          sessionId: 'browser_12345678-abcd-4567-8901-123456789abc',
+          cdpEndpoint: 'http://127.0.0.1:43127',
+        },
+      }),
+      '{"action":"destroy_session","conversationId":"packaged-coding-browser"}',
+      '',
+    ].join('\n'),
+    { cwd: workspace, env: { ...process.env, HOME: workspace } },
+  )
+  const codingBrowserResponses = codingBrowserRun.stdout
+    .trim()
+    .split('\n')
+    .map(line => JSON.parse(line))
+  await rm(
+    join(playwrightSocketRoot, '123456789abc'),
+    { recursive: true, force: true },
+  )
+  const codingBrowserReady = codingBrowserResponses.find(value => value.type === 'ready')
+  if (
+    !codingBrowserReady?.tools?.includes('mcp')
+    || !codingBrowserReady?.extensions?.includes('pi-mcp-adapter')
+    || !codingBrowserReady.capabilities?.some(
+      capability => capability.id === 'browser'
+        && capability.status === 'approval-required'
+        && capability.detail.includes('MilkSU 隔离浏览器'),
+    )
+    || !codingBrowserResponses.some(value => value.type === 'session_destroyed')
+    || codingBrowserResponses.some(value => value.type === 'error')
+  ) {
+    throw new Error(
+      `unexpected packaged Coding Browser response: ${codingBrowserRun.stdout}`,
+    )
   }
   const planRun = await runWithInput(
     node,

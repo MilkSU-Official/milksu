@@ -438,7 +438,7 @@ func TestSendMessageRejectsMissingKeyBeforeStartingSidecar(t *testing.T) {
 	defer supervisor.Close()
 
 	err := supervisor.SendMessage(
-		"session-1", "hello", "", "", "", "", nil, "", nil, config.DefaultSettings(),
+		"session-1", "hello", "", "", "", "", nil, "", nil, nil, config.DefaultSettings(),
 	)
 	if err == nil || !strings.Contains(err.Error(), "Settings > API Keys") {
 		t.Fatalf("expected actionable missing-key error, got %v", err)
@@ -477,6 +477,31 @@ func TestNormalizeCodingPolicyPreservesLegacyGoAndValidatesExplicitModes(t *test
 	ctfPolicy, err := normalizeCodingPolicy("unknown", "unknown", "solver")
 	if err != nil || ctfPolicy != (CodingPolicy{}) {
 		t.Fatalf("CTF session must ignore Coding policy fields: %#v, %v", ctfPolicy, err)
+	}
+}
+
+func TestNormalizeCodingBrowserDescriptorRequiresExactLoopbackEndpoint(t *testing.T) {
+	descriptor, err := normalizeCodingBrowserDescriptor(&CodingBrowserDescriptor{
+		SessionID:   "browser_123e4567-e89b-12d3-a456-426614174000",
+		CDPEndpoint: "http://127.0.0.1:43117",
+	})
+	if err != nil || descriptor.CDPEndpoint != "http://127.0.0.1:43117" {
+		t.Fatalf("expected valid descriptor, got %#v, %v", descriptor, err)
+	}
+	for _, endpoint := range []string{
+		"https://127.0.0.1:43117",
+		"http://localhost:43117",
+		"http://127.0.0.1:43117/json",
+		"http://127.0.0.1:43117?token=secret",
+		"http://user@127.0.0.1:43117",
+		"http://127.0.0.1:70000",
+	} {
+		if _, err := normalizeCodingBrowserDescriptor(&CodingBrowserDescriptor{
+			SessionID:   "browser_fixture",
+			CDPEndpoint: endpoint,
+		}); err == nil {
+			t.Fatalf("expected endpoint %q to be rejected", endpoint)
+		}
 	}
 }
 

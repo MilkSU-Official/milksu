@@ -25,14 +25,19 @@ The goal is not the raw number of installed packages. The acceptance metric is a
 | `milksu-workflow` | MilkSU source | Coding + CTF roles | Visible progress and role-specific execution guidance | First-party; `milksu_progress` has a bounded schema and no external effects |
 | `tt-a1i/archify` | `2.12.0` / `7b49d0b715fd4ba48116bcdecd1ba3789a279613` | Normal Coding only | Architecture, workflow, sequence, dataflow, and lifecycle diagrams | Pinned submodule; MIT; packaged commit check; CTF sessions must not load it |
 | `@narumitw/pi-lsp` | `0.29.0` | Normal Coding only | `lsp_diagnostics` and opt-in `lsp_fix` through installed language servers | Exact npm pin; MIT; MilkSU forces a reviewed Go/Vue/TypeScript config, ignores repository commands, and launches the real server with a non-secret environment; `write` defaults to false; servers are not yet bundled |
-| `@narumitw/pi-retry` | `0.31.0` | Normal Coding only | Classifies known transient provider failures for Pi's built-in bounded retry path | Exact npm pin; MIT; does not implement a second retry loop; the generic stalled-stream watchdog is disabled until slow-model regression is complete; CTF sessions keep MilkSU's recorder-owned retry semantics |
+| `@narumitw/pi-goal` | `0.43.0` | Normal Coding only | Pi-native goal lifecycle, alongside the desktop progress projection | Exact npm pin; MIT; CTF sessions keep MilkSU's recorder-owned progress and Judge semantics |
+| `pi-better-background-tasks` | `0.1.10` | Normal Coding only | Conversation-owned background processes, bounded logs and stop | Exact npm pin; MIT; visible lifecycle; CTF sessions must not load it |
+| `pi-mcp-adapter` | `2.17.0` | Normal Coding opt-in | Reviewed project MCP servers and first-party adapters | Exact npm pin; MIT; digest selection, sandbox, environment filtering and per-call desktop approval |
+| `@playwright/mcp` | `0.0.78` | Normal Coding, explicit Browser start | Browser snapshot, form interaction and page control in a dedicated Chrome Profile | Exact npm pin; Apache-2.0; Go-issued transient loopback descriptor; short private socket root; per-call desktop approval; no ambient Chrome login |
+| `@napi-rs/system-ocr` | `1.1.0` | Normal Coding attachments | Local text extraction for images when the selected model has no vision | Exact npm pin; MIT; local-only fallback and explicit degradation disclosure |
 
 The packaged Sidecar smoke test asserts both sides of the boundary. The
 `ready.extensions` list is derived from the tools and flags actually registered
 by the resource loader; it is not a hard-coded declaration:
 
-- a normal Coding session exposes Archify, `lsp_diagnostics`, `lsp_fix`, and the
-  `pi-retry` extension;
+- a normal Coding session exposes Archify, Goal, background tasks and the reviewed MCP Adapter;
+  LSP registration remains subject to its language-server limitation, and Playwright appears only
+  after the user explicitly starts the Coding Browser;
 - a CTF session exposes none of these external resources and continues to use
   MilkSU's dedicated CTF tools and recorder-owned retry semantics.
 

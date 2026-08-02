@@ -414,6 +414,11 @@ func (a *App) DeleteConversation(id string) error {
 	if a.codingTerminals != nil {
 		a.codingTerminals.CloseConversation(id)
 	}
+	if a.browserBridge != nil {
+		if err := a.browserBridge.StopCoding(id); err != nil {
+			return err
+		}
+	}
 	return a.conversations.Delete(id)
 }
 
@@ -584,6 +589,15 @@ func (a *App) SendMessage(
 	if err != nil {
 		return err
 	}
+	var codingBrowser *engine.CodingBrowserDescriptor
+	if sessionRole == "" && strings.TrimSpace(executionMode) != "plan" && a.browserBridge != nil {
+		if descriptor, enabled := a.browserBridge.CodingDescriptor(conversationID); enabled {
+			codingBrowser = &engine.CodingBrowserDescriptor{
+				SessionID:   descriptor.SessionID,
+				CDPEndpoint: descriptor.CDPEndpoint,
+			}
+		}
+	}
 	return a.engines.SendMessage(
 		conversationID,
 		prompt,
@@ -593,6 +607,7 @@ func (a *App) SendMessage(
 		approvalPolicy,
 		mcpServers,
 		mcpConfigDigest,
+		codingBrowser,
 		attachments,
 		settings,
 	)
