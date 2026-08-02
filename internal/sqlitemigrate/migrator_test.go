@@ -595,6 +595,246 @@ func TestMigrateWithPragmasRunsAfterGate(t *testing.T) {
 	})
 }
 
+func TestMigrateRollsBackLegacyTwoColumnUpgradeWhenFirstMigrationFails(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "app.db")
+
+	// An EMPTY legacy two-column schema_migrations (zero rows): the read-only
+	// gate sees no recorded versions, so the pending v1 is allowed to run.
+	seedTwoColumnHistory(t, path, nil)
+
+	migrations := []Migration{{Version: 1, Name: "v1_doomed", Up: func(ctx context.Context, tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, `CREATE TABLE doomed (id INTEGER PRIMARY KEY, payload TEXT NOT NULL)`); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO doomed(payload) VALUES ('x')`); err != nil {
+			return err
+		}
+		return errors.New("injected failure in v1")
+	}}}
+
+	migrator, err := Open(path, migrations)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	err = migrator.Migrate(ctx)
+	if err == nil {
+		t.Fatal("expected v1 failure, got nil")
+	}
+	if err := migrator.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("inspect sql.Open: %v", err)
+	}
+	defer db.Close()
+
+	// The ALTER ran inside the same transaction as v1 and must have been
+	// rolled back: the table keeps its ORIGINAL two-column shape.
+	columns, err := historyColumnNames(db)
+	if err != nil {
+		t.Fatalf("read schema_migrations columns: %v", err)
+	}
+	if want := []string{"version", "applied_at"}; !reflect.DeepEqual(columns, want) {
+		t.Errorf("schema_migrations columns = %v, want %v (ALTER must roll back)", columns, want)
+	}
+
+	// No business tables survived the failed run.
+	tables, err := listTables(db)
+	if err != nil {
+		t.Fatalf("list tables: %v", err)
+	}
+	if len(tables) != 1 || tables[0] != "schema_migrations" {
+		t.Errorf("tables = %v, want only [schema_migrations]", tables)
+	}
+
+	// And no records either.
+	var count int
+	if err := db.QueryRow(`SELECT count(*) FROM schema_migrations`).Scan(&count); err != nil {
+		t.Fatalf("count schema_migrations rows: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("schema_migrations has %d rows, want 0", count)
+	}
+}
+
+func TestMigrateRejectsMalformedHistoryShapeWithoutWrites(t *testing.T) {
+	ctx := context.Background()
+	noop := func(ctx context.Context, tx *sql.Tx) error { return nil }
+
+	cases := []struct {
+		name   string
+		create string
+	}{
+		{
+			name: "extra column",
+			create: `CREATE TABLE schema_migrations (
+				version INTEGER PRIMARY KEY,
+				applied_at TEXT NOT NULL,
+				extra TEXT NOT NULL
+			)`,
+		},
+		{
+			name: "wrong column order",
+			create: `CREATE TABLE schema_migrations (
+				name TEXT NOT NULL,
+				version INTEGER PRIMARY KEY,
+				applied_at TEXT NOT NULL
+			)`,
+		},
+		{
+			name: "missing applied_at",
+			create: `CREATE TABLE schema_migrations (
+				version INTEGER PRIMARY KEY,
+				name TEXT NOT NULL
+			)`,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "app.db")
+			seedTable(t, path, tc.create)
+			beforeHash := fileHash(t, path)
+
+			migrator, err := Open(path, []Migration{{1, "one", noop}})
+			if err != nil {
+				t.Fatalf("Open: %v", err)
+			}
+			err = migrator.Migrate(ctx)
+			if err == nil {
+				migrator.Close()
+				t.Fatal("expected corrupt-history error, got nil")
+			}
+			if !strings.Contains(err.Error(), "corrupt migration history") {
+				t.Errorf("error %q should be a clear corrupt-history error", err)
+			}
+			if err := migrator.Close(); err != nil {
+				t.Fatalf("Close: %v", err)
+			}
+
+			// The gate must reject without writing: file bytes unchanged and no
+			// -wal/-shm sidecars.
+			if afterHash := fileHash(t, path); beforeHash != afterHash {
+				t.Errorf("database file changed: hash before %s, after %s", beforeHash, afterHash)
+			}
+			assertNoWalShm(t, path)
+		})
+	}
+}
+
+func TestOpenRejectsInvalidPragmasBeforeFilesystemAccess(t *testing.T) {
+	noop := func(ctx context.Context, tx *sql.Tx) error { return nil }
+	cases := []struct {
+		name   string
+		pragma string
+	}{
+		{name: "not a pragma", pragma: "DROP TABLE x"},
+		{name: "second statement with embedded semicolon", pragma: "PRAGMA journal_mode = WAL; DROP TABLE x"},
+		{name: "embedded newline", pragma: "PRAGMA journal_mode = WAL\nDROP TABLE x"},
+		{name: "blank", pragma: "   "},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "db", "app.db")
+			migrator, err := Open(path, []Migration{{1, "v1", noop}}, WithPragmas([]string{tc.pragma}))
+			if err == nil {
+				migrator.Close()
+				t.Fatal("expected pragma validation error, got nil")
+			}
+			// Validation must happen before any filesystem touch: neither the
+			// directory nor the file may exist.
+			if _, statErr := os.Stat(path); !os.IsNotExist(statErr) {
+				t.Errorf("database file must not be created on pragma validation error (stat err: %v)", statErr)
+			}
+			if _, statErr := os.Stat(filepath.Dir(path)); !os.IsNotExist(statErr) {
+				t.Errorf("database directory must not be created on pragma validation error (stat err: %v)", statErr)
+			}
+		})
+	}
+}
+
+func TestOpenAcceptsNilPragmasAndNilOption(t *testing.T) {
+	ctx := context.Background()
+	noop := func(ctx context.Context, tx *sql.Tx) error { return nil }
+	path := filepath.Join(t.TempDir(), "app.db")
+	migrator, err := Open(path, []Migration{{1, "v1", noop}}, WithPragmas(nil), nil)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer migrator.Close()
+	if err := migrator.Migrate(ctx); err != nil {
+		t.Fatalf("Migrate: %v", err)
+	}
+	var count int
+	if err := migrator.DB().QueryRow(`SELECT count(*) FROM schema_migrations`).Scan(&count); err != nil {
+		t.Fatalf("count schema_migrations: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("schema_migrations rows = %d, want 1", count)
+	}
+}
+
+func TestOpenCopiesMigrationsAndPragmasSlices(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("mutating the migrations slice after Open does not affect Migrate", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "app.db")
+		noop := func(ctx context.Context, tx *sql.Tx) error { return nil }
+		migrations := []Migration{{Version: 1, Name: "original_name", Up: noop}}
+
+		migrator, err := Open(path, migrations)
+		if err != nil {
+			t.Fatalf("Open: %v", err)
+		}
+		defer migrator.Close()
+
+		// The caller mutates its input slice after Open; neither the recorded
+		// name nor the executed Up may change.
+		migrations[0].Name = "mutated_name"
+		migrations[0].Up = func(ctx context.Context, tx *sql.Tx) error {
+			return errors.New("mutated Up must not run")
+		}
+
+		if err := migrator.Migrate(ctx); err != nil {
+			t.Fatalf("Migrate: %v", err)
+		}
+		var name string
+		if err := migrator.DB().QueryRow(`SELECT name FROM schema_migrations WHERE version = 1`).Scan(&name); err != nil {
+			t.Fatalf("query recorded name: %v", err)
+		}
+		if name != "original_name" {
+			t.Errorf("recorded name = %q, want %q", name, "original_name")
+		}
+	})
+
+	t.Run("mutating the pragma slice after Open does not change applied behavior", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "app.db")
+		noop := func(ctx context.Context, tx *sql.Tx) error { return nil }
+		pragmas := []string{"PRAGMA journal_mode = WAL"}
+
+		migrator, err := Open(path, []Migration{{1, "v1", noop}}, WithPragmas(pragmas))
+		if err != nil {
+			t.Fatalf("Open: %v", err)
+		}
+		defer migrator.Close()
+
+		pragmas[0] = "PRAGMA journal_mode = DELETE"
+
+		if err := migrator.Migrate(ctx); err != nil {
+			t.Fatalf("Migrate: %v", err)
+		}
+		var mode string
+		if err := migrator.DB().QueryRow(`PRAGMA journal_mode`).Scan(&mode); err != nil {
+			t.Fatalf("read journal_mode: %v", err)
+		}
+		if !strings.EqualFold(mode, "wal") {
+			t.Errorf("journal_mode = %q, want wal (pragma slice mutation must not apply)", mode)
+		}
+	})
+}
+
 // assertRecordedHistory checks the recorded (version, name) pairs in
 // schema_migrations.
 func assertRecordedHistory(t *testing.T, db *sql.DB, wantVersions []int, wantNames []string) {
@@ -697,6 +937,50 @@ func seedDB(t *testing.T, path string, recorded []recordedMigration) {
 		if _, err := db.Exec(`INSERT INTO schema_migrations(version, name, applied_at) VALUES (?, ?, ?)`,
 			row.version, row.name, row.appliedAt); err != nil {
 			t.Fatalf("seed insert version %d: %v", row.version, err)
+		}
+	}
+}
+
+// seedTable creates a database file containing a table with the given DDL.
+func seedTable(t *testing.T, path string, ddl string) {
+	t.Helper()
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("seed sql.Open: %v", err)
+	}
+	defer db.Close()
+	if _, err := db.Exec(ddl); err != nil {
+		t.Fatalf("seed table: %v", err)
+	}
+}
+
+// historyColumnNames returns the ordered column names of schema_migrations.
+func historyColumnNames(db *sql.DB) ([]string, error) {
+	rows, err := db.Query(`PRAGMA table_info(schema_migrations)`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var names []string
+	for rows.Next() {
+		var cid int
+		var name, columnType string
+		var notNull, pk int
+		var dflt sql.NullString
+		if err := rows.Scan(&cid, &name, &columnType, &notNull, &dflt, &pk); err != nil {
+			return nil, err
+		}
+		names = append(names, name)
+	}
+	return names, rows.Err()
+}
+
+// assertNoWalShm fails if -wal or -shm sidecar files exist for path.
+func assertNoWalShm(t *testing.T, path string) {
+	t.Helper()
+	for _, suffix := range []string{"-wal", "-shm"} {
+		if _, err := os.Stat(path + suffix); !os.IsNotExist(err) {
+			t.Errorf("sidecar file %s exists after rejected migrate (stat err: %v)", path+suffix, err)
 		}
 	}
 }

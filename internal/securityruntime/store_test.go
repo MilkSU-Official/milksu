@@ -8,6 +8,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -363,6 +364,115 @@ func historyColumns(t *testing.T, db *sql.DB) map[string]bool {
 		t.Fatalf("iterate schema_migrations columns: %v", err)
 	}
 	return columns
+}
+
+func TestOpenEventStoreRejectsMalformedHistoryShapeWithoutWrites(t *testing.T) {
+	cases := []struct {
+		name   string
+		create string
+	}{
+		{
+			name: "extra column",
+			create: `CREATE TABLE schema_migrations (
+				version INTEGER PRIMARY KEY,
+				applied_at TEXT NOT NULL,
+				extra TEXT NOT NULL
+			)`,
+		},
+		{
+			name: "wrong column order",
+			create: `CREATE TABLE schema_migrations (
+				name TEXT NOT NULL,
+				version INTEGER PRIMARY KEY,
+				applied_at TEXT NOT NULL
+			)`,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "events.sqlite3")
+			seedTable(t, path, tc.create)
+			before := eventStoreFileHash(t, path)
+
+			store, err := OpenEventStore(path)
+			if err == nil {
+				store.Close()
+				t.Fatal("expected corrupt-history error, got nil")
+			}
+			if !strings.Contains(err.Error(), "corrupt migration history") {
+				t.Errorf("error %q should be a clear corrupt-history error", err)
+			}
+
+			// The gate must reject before any PRAGMA/ALTER/write: file bytes
+			// unchanged and no -wal/-shm sidecars.
+			after := eventStoreFileHash(t, path)
+			if before != after {
+				t.Errorf("database file changed: hash before %s, after %s", before, after)
+			}
+			assertNoSidecarFiles(t, path)
+		})
+	}
+}
+
+func TestEventStoreVersionSemanticsAreIndependent(t *testing.T) {
+	store, err := OpenEventStore(filepath.Join(t.TempDir(), "events.sqlite3"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	// (a) schema_migrations records the DATABASE MIGRATION version.
+	var dbVersion int
+	if err := store.db.QueryRow(`SELECT version FROM schema_migrations`).Scan(&dbVersion); err != nil {
+		t.Fatalf("query schema_migrations version: %v", err)
+	}
+	if dbVersion != SupportedEventStoreDatabaseVersion {
+		t.Errorf("schema_migrations version = %d, want SupportedEventStoreDatabaseVersion (%d)",
+			dbVersion, SupportedEventStoreDatabaseVersion)
+	}
+
+	// (b) An appended event carries the EVENT PAYLOAD schema version.
+	job := testJob("job_versions")
+	event, err := store.Append(context.Background(), EventDraft{
+		JobID: job.ID, Kind: EventJobCreated, Payload: jobCreatedPayload{Job: job},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if event.SchemaVersion != eventSchemaVersion {
+		t.Errorf("event SchemaVersion = %d, want eventSchemaVersion (%d)",
+			event.SchemaVersion, eventSchemaVersion)
+	}
+	var stored int
+	if err := store.db.QueryRow(`SELECT schema_version FROM events WHERE event_id = ?`, event.EventID).Scan(&stored); err != nil {
+		t.Fatalf("query events.schema_version: %v", err)
+	}
+	if stored != eventSchemaVersion {
+		t.Errorf("events.schema_version = %d, want eventSchemaVersion (%d)", stored, eventSchemaVersion)
+	}
+
+	// (c) Both constants are 1 today, but each is referenced independently
+	// (the migration record from SupportedEventStoreDatabaseVersion, appended
+	// events from eventSchemaVersion).
+	if SupportedEventStoreDatabaseVersion != 1 {
+		t.Errorf("SupportedEventStoreDatabaseVersion = %d, want 1", SupportedEventStoreDatabaseVersion)
+	}
+	if eventSchemaVersion != 1 {
+		t.Errorf("eventSchemaVersion = %d, want 1", eventSchemaVersion)
+	}
+}
+
+// seedTable creates a database file containing a table with the given DDL.
+func seedTable(t *testing.T, path string, ddl string) {
+	t.Helper()
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("seed sql.Open: %v", err)
+	}
+	defer db.Close()
+	if _, err := db.Exec(ddl); err != nil {
+		t.Fatalf("seed table: %v", err)
+	}
 }
 
 // seedLegacyEventStore creates an events table (v1 DDL) with both append-only

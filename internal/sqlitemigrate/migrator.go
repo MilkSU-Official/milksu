@@ -13,7 +13,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -51,6 +53,31 @@ func WithPragmas(pragmas []string) Option {
 	}
 }
 
+// validatePragmas enforces that every configured pragma is a single PRAGMA
+// statement: non-empty, trimmed, case-insensitively "PRAGMA"-prefixed, with no
+// embedded newlines and no second statement (a ';' is allowed only as a single
+// trailing terminator). Validation happens at Open time, before any filesystem
+// or database access.
+func validatePragmas(pragmas []string) error {
+	for i, pragma := range pragmas {
+		trimmed := strings.TrimSpace(pragma)
+		if trimmed == "" {
+			return fmt.Errorf("pragma %d: must be a non-empty PRAGMA statement", i+1)
+		}
+		if strings.ContainsAny(trimmed, "\n\r") {
+			return fmt.Errorf("pragma %d: must be a single statement, got an embedded newline in %q", i+1, trimmed)
+		}
+		body := strings.TrimSuffix(trimmed, ";")
+		if strings.Contains(body, ";") {
+			return fmt.Errorf("pragma %d: must be a single statement, got an embedded ';' in %q", i+1, trimmed)
+		}
+		if !strings.HasPrefix(strings.ToLower(body), "pragma ") && !strings.EqualFold(body, "pragma") {
+			return fmt.Errorf("pragma %d: %q is not a PRAGMA statement", i+1, body)
+		}
+	}
+	return nil
+}
+
 // Migrator applies a validated set of migrations to one SQLite database file.
 type Migrator struct {
 	db         *sql.DB
@@ -58,9 +85,10 @@ type Migrator struct {
 	pragmas    []string
 }
 
-// Open validates the migration definitions, applies the given options, then
-// creates the database file with restrictive permissions (mirroring
-// internal/securityruntime/store.go) and opens a single SQLite connection.
+// Open validates the migration definitions and any configured PRAGMAs,
+// applies the given options, then creates the database file with restrictive
+// permissions (mirroring internal/securityruntime/store.go) and opens a
+// single SQLite connection.
 //
 // Validation happens before any filesystem or database access: on error, no
 // directory is created and no file is touched.
@@ -71,8 +99,21 @@ func Open(path string, migrations []Migration, opts ...Option) (*Migrator, error
 
 	var options options
 	for _, opt := range opts {
+		if opt == nil {
+			continue
+		}
 		opt(&options)
 	}
+	if err := validatePragmas(options.pragmas); err != nil {
+		return nil, err
+	}
+
+	// Copy the migrations and pragmas into fresh slices so callers who mutate
+	// their input slices after Open cannot change this migrator's behavior.
+	migrationCopy := make([]Migration, len(migrations))
+	copy(migrationCopy, migrations)
+	pragmaCopy := make([]string, len(options.pragmas))
+	copy(pragmaCopy, options.pragmas)
 
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, fmt.Errorf("create database directory: %w", err)
@@ -95,7 +136,7 @@ func Open(path string, migrations []Migration, opts ...Option) (*Migrator, error
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
 
-	return &Migrator{db: db, migrations: migrations, pragmas: options.pragmas}, nil
+	return &Migrator{db: db, migrations: migrationCopy, pragmas: pragmaCopy}, nil
 }
 
 // validateMigrations enforces that versions are exactly 1..N in order, with no
@@ -130,16 +171,18 @@ func validateMigrations(migrations []Migration) error {
 
 // Migrate brings the database up to the target version (len(migrations)).
 //
-// The migration history is inspected read-only first; any inconsistency (a
-// database newer than the definitions, a non-positive, missing, or out-of-range
-// recorded version, or — for history tables that record names — a recorded name
-// that differs from the definition) rejects the run without modifying the
-// database. Once the gate passes, configured PRAGMAs run on the connection
-// outside any transaction, a legacy two-column history table is upgraded to the
-// current three-column shape in its own transaction, and pending migrations are
-// then applied in ascending order inside a single transaction together with the
-// schema_migrations table creation and its bookkeeping records, so any failure
-// rolls everything back.
+// The migration history is inspected read-only first; any inconsistency (an
+// unknown or malformed schema_migrations column layout, a database newer than
+// the definitions, a non-positive, missing, or out-of-range recorded version,
+// or — for history tables that record names — a recorded name that differs from
+// the definition) rejects the run without modifying the database. Once the gate
+// passes, configured PRAGMAs run on the connection outside any transaction, and
+// then a single transaction does everything: it upgrades a legacy two-column
+// history table to the current three-column shape (SQLite DDL is transactional,
+// so a failed run rolls the ALTER back), backfills recorded names, creates the
+// schema_migrations table if needed, runs each pending migration's Up, and
+// records its (version, name, applied_at) row — any failure rolls all of it
+// back.
 func (m *Migrator) Migrate(ctx context.Context) error {
 	target := len(m.migrations)
 
@@ -196,21 +239,45 @@ func (m *Migrator) Migrate(ctx context.Context) error {
 		}
 	}
 
-	// A legacy two-column history table (which predates name recording) is
-	// upgraded to the current three-column shape, with recorded names
-	// backfilled from the definitions, in its own atomic transaction before
-	// the main migration transaction runs.
-	if twoColumn {
-		if err := m.upgradeLegacyHistory(ctx, maxApplied); err != nil {
-			return err
-		}
-	}
-
 	tx, err := m.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin migration transaction: %w", err)
 	}
 	defer tx.Rollback()
+
+	// A legacy two-column history table (version, applied_at) is rebuilt into
+	// the canonical three-column shape (version, name, applied_at) inside this
+	// same transaction, with recorded names backfilled from the definitions.
+	// SQLite DDL is transactional, so any later failure rolls the rebuild
+	// back, leaving the original two-column shape intact. Rebuilding (rather
+	// than ADD COLUMN, which would append the name column last) keeps the
+	// canonical column order that the read-only shape preflight accepts on
+	// reopen.
+	if twoColumn {
+		if _, err := tx.ExecContext(ctx, `ALTER TABLE schema_migrations RENAME TO schema_migrations_legacy`); err != nil {
+			return fmt.Errorf("upgrade schema_migrations to record names: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, `CREATE TABLE schema_migrations (
+			version INTEGER PRIMARY KEY,
+			name TEXT NOT NULL,
+			applied_at TEXT NOT NULL
+		)`); err != nil {
+			return fmt.Errorf("upgrade schema_migrations to record names: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO schema_migrations(version, name, applied_at)
+			SELECT version, '', applied_at FROM schema_migrations_legacy`); err != nil {
+			return fmt.Errorf("upgrade schema_migrations to record names: %w", err)
+		}
+		for version := 1; version <= maxApplied; version++ {
+			if _, err := tx.ExecContext(ctx, `UPDATE schema_migrations SET name = ? WHERE version = ?`,
+				m.migrations[version-1].Name, version); err != nil {
+				return fmt.Errorf("backfill schema_migrations name for version %d: %w", version, err)
+			}
+		}
+		if _, err := tx.ExecContext(ctx, `DROP TABLE schema_migrations_legacy`); err != nil {
+			return fmt.Errorf("upgrade schema_migrations to record names: %w", err)
+		}
+	}
 
 	// Create the history table inside the same transaction as the pending
 	// migrations, so a failed run leaves the database completely untouched.
@@ -257,13 +324,13 @@ func (m *Migrator) readRecordedMigrations(ctx context.Context) (map[int]string, 
 		return nil, false, nil
 	}
 
-	hasName, err := m.historyHasNameColumn(ctx)
+	shape, err := m.inspectHistoryShape(ctx)
 	if err != nil {
 		return nil, false, err
 	}
 
 	recorded := make(map[int]string)
-	if hasName {
+	if shape == historyCurrentThreeColumn {
 		rows, err := m.db.QueryContext(ctx, `SELECT version, name FROM schema_migrations ORDER BY version`)
 		if err != nil {
 			return nil, false, fmt.Errorf("read schema_migrations: %w", err)
@@ -308,57 +375,55 @@ func (m *Migrator) readRecordedMigrations(ctx context.Context) (map[int]string, 
 	return recorded, true, nil
 }
 
-// historyHasNameColumn reports whether the schema_migrations table has a name
-// column (the current three-column shape) or is a legacy two-column table.
-func (m *Migrator) historyHasNameColumn(ctx context.Context) (bool, error) {
+// historyShape classifies the column layout of the schema_migrations table.
+type historyShape int
+
+const (
+	// historyAbsent means no schema_migrations table exists (a fresh database).
+	historyAbsent historyShape = iota
+	// historyLegacyTwoColumn is the legacy schema_migrations(version,
+	// applied_at) shape whose rows carry no names.
+	historyLegacyTwoColumn
+	// historyCurrentThreeColumn is the current schema_migrations(version,
+	// name, applied_at) shape.
+	historyCurrentThreeColumn
+)
+
+// inspectHistoryShape inspects the schema_migrations table via PRAGMA
+// table_info and classifies its column layout. The table is accepted only in
+// exactly the legacy two-column shape (version, applied_at) or the current
+// three-column shape (version, name, applied_at), in that order. Any other
+// layout — a missing or extra column, a wrong column order, or renamed columns
+// — is an unknown/malformed shape and is rejected as corrupt history. It is
+// strictly read-only.
+func (m *Migrator) inspectHistoryShape(ctx context.Context) (historyShape, error) {
 	rows, err := m.db.QueryContext(ctx, `PRAGMA table_info(schema_migrations)`)
 	if err != nil {
-		return false, fmt.Errorf("inspect schema_migrations shape: %w", err)
+		return historyAbsent, fmt.Errorf("inspect schema_migrations shape: %w", err)
 	}
 	defer rows.Close()
+	var columns []string
 	for rows.Next() {
 		var cid int
 		var name, columnType string
 		var notNull, pk int
 		var dflt sql.NullString
 		if err := rows.Scan(&cid, &name, &columnType, &notNull, &dflt, &pk); err != nil {
-			return false, fmt.Errorf("scan schema_migrations column: %w", err)
+			return historyAbsent, fmt.Errorf("scan schema_migrations column: %w", err)
 		}
-		if name == "name" {
-			return true, nil
-		}
+		columns = append(columns, name)
 	}
 	if err := rows.Err(); err != nil {
-		return false, fmt.Errorf("iterate schema_migrations columns: %w", err)
+		return historyAbsent, fmt.Errorf("iterate schema_migrations columns: %w", err)
 	}
-	return false, nil
-}
-
-// upgradeLegacyHistory converts a two-column schema_migrations(version,
-// applied_at) table into the current three-column shape and backfills each
-// recorded version's name from the migration definitions, in a single atomic
-// transaction. The read-only gate has already guaranteed that exactly the
-// versions 1..maxApplied are recorded and that each has a definition.
-func (m *Migrator) upgradeLegacyHistory(ctx context.Context, maxApplied int) error {
-	tx, err := m.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("begin schema_migrations upgrade: %w", err)
+	switch {
+	case reflect.DeepEqual(columns, []string{"version", "applied_at"}):
+		return historyLegacyTwoColumn, nil
+	case reflect.DeepEqual(columns, []string{"version", "name", "applied_at"}):
+		return historyCurrentThreeColumn, nil
+	default:
+		return historyAbsent, fmt.Errorf("corrupt migration history: schema_migrations has an unknown column layout %v, want exactly [version applied_at] or [version name applied_at]", columns)
 	}
-	defer tx.Rollback()
-
-	if _, err := tx.ExecContext(ctx, `ALTER TABLE schema_migrations ADD COLUMN name TEXT NOT NULL DEFAULT ''`); err != nil {
-		return fmt.Errorf("upgrade schema_migrations to record names: %w", err)
-	}
-	for version := 1; version <= maxApplied; version++ {
-		if _, err := tx.ExecContext(ctx, `UPDATE schema_migrations SET name = ? WHERE version = ?`,
-			m.migrations[version-1].Name, version); err != nil {
-			return fmt.Errorf("backfill schema_migrations name for version %d: %w", version, err)
-		}
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit schema_migrations upgrade: %w", err)
-	}
-	return nil
 }
 
 // DB returns the underlying database handle.

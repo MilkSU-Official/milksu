@@ -14,8 +14,17 @@ import (
 	"github.com/google/uuid"
 )
 
-// SupportedEventStoreDatabaseVersion is the event store schema version this
-// build supports (migration version 1 in internal/sqlitemigrate terms).
+// eventSchemaVersion is the EVENT PAYLOAD schema version, recorded in the
+// events.schema_version column and exposed as Event.SchemaVersion. It is
+// intentionally independent of SupportedEventStoreDatabaseVersion: it
+// describes the shape of event payloads, not the database migration level
+// recorded in schema_migrations.
+const eventSchemaVersion = 1
+
+// SupportedEventStoreDatabaseVersion is the DATABASE MIGRATION version this
+// build supports, recorded in schema_migrations (migration version 1 in
+// internal/sqlitemigrate terms). It is intentionally independent of
+// eventSchemaVersion.
 const SupportedEventStoreDatabaseVersion = 1
 
 type EventStore struct {
@@ -114,7 +123,7 @@ func (s *EventStore) Append(ctx context.Context, draft EventDraft) (Event, error
 		return Event{}, fmt.Errorf("allocate event sequence: %w", err)
 	}
 	event := Event{
-		SchemaVersion: SupportedEventStoreDatabaseVersion,
+		SchemaVersion: eventSchemaVersion,
 		EventID:       newID("evt"),
 		JobID:         draft.JobID,
 		AttemptID:     draft.AttemptID,
