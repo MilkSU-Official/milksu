@@ -239,6 +239,97 @@ func TestInspectDatabaseCompatibilityCorruptOrUnreadable(t *testing.T) {
 	})
 }
 
+func TestInspectDatabaseCompatibilityParentSymlinkEscape(t *testing.T) {
+	root := t.TempDir()
+	external := root + "-external"
+	if err := os.MkdirAll(external, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	externalDB := filepath.Join(external, "events.sqlite3")
+	seedMigrationHistory(t, externalDB, true, [][2]any{{1, "2024-01-01T00:00:00Z"}})
+	fixedTime := time.Date(2024, 2, 3, 4, 5, 6, 0, time.UTC)
+	if err := os.Chtimes(externalDB, fixedTime, fixedTime); err != nil {
+		t.Fatal(err)
+	}
+	beforeHash := fileSHA256(t, externalDB)
+
+	// root/runtime is a symlink pointing OUTSIDE the data root; the target
+	// directory holds a valid database that inspection must never open.
+	if err := os.Symlink(external, filepath.Join(root, "runtime")); err != nil {
+		t.Fatal(err)
+	}
+
+	results := InspectDatabaseCompatibility(context.Background(), root, []DatabaseDescriptor{
+		{LogicalName: "EventStore", RelativePath: "runtime/events.sqlite3", Supported: 1},
+	})
+	if len(results) != 1 {
+		t.Fatalf("result count = %d, want 1: %#v", len(results), results)
+	}
+	status := results[0]
+	if status.State != "corrupt" {
+		t.Fatalf("state = %q, want corrupt: %#v", status.State, status)
+	}
+	if status.Error == "" {
+		t.Fatal("expected a non-empty sanitized error for a symlinked parent directory")
+	}
+	if !strings.Contains(status.Error, "symbolic link") {
+		t.Fatalf("error must mention the symbolic link: %q", status.Error)
+	}
+	if strings.Contains(status.Error, root) || strings.Contains(status.Error, external) {
+		t.Fatalf("error leaked an absolute path: %q", status.Error)
+	}
+	if status.Current != nil {
+		t.Fatalf("current = %v, want nil for corrupt", status.Current)
+	}
+
+	if after := fileSHA256(t, externalDB); after != beforeHash {
+		t.Fatalf("external database content changed: %s -> %s", beforeHash, after)
+	}
+	info, err := os.Stat(externalDB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !info.ModTime().Equal(fixedTime) {
+		t.Fatalf("external database mtime changed: %v, want %v", info.ModTime(), fixedTime)
+	}
+	for _, sidecar := range []string{externalDB + "-wal", externalDB + "-shm"} {
+		if _, err := os.Lstat(sidecar); !os.IsNotExist(err) {
+			t.Fatalf("inspection created %s next to the external database: %v", sidecar, err)
+		}
+	}
+}
+
+func TestInspectDatabaseCompatibilityNegativeSupported(t *testing.T) {
+	root := t.TempDir()
+	results := InspectDatabaseCompatibility(context.Background(), root, []DatabaseDescriptor{
+		{LogicalName: "EventStore", RelativePath: "no-such-dir/db.sqlite3", Supported: -1},
+	})
+	if len(results) != 1 {
+		t.Fatalf("result count = %d, want 1: %#v", len(results), results)
+	}
+	status := results[0]
+	if status.State != "corrupt" {
+		t.Fatalf("state = %q, want corrupt: %#v", status.State, status)
+	}
+	if status.Error == "" {
+		t.Fatal("expected a non-empty sanitized error for a negative supported version")
+	}
+	if !strings.Contains(status.Error, "negative supported version") {
+		t.Fatalf("error must describe the negative supported version: %q", status.Error)
+	}
+	if status.Current != nil {
+		t.Fatalf("current = %v, want nil for corrupt", status.Current)
+	}
+	if status.Supported != nil {
+		t.Fatalf("supported = %v, want nil for negative supported", status.Supported)
+	}
+	// The guard must fire before any filesystem access: nothing is created
+	// and the missing parent directory is never even statted into existence.
+	if _, err := os.Lstat(filepath.Join(root, "no-such-dir")); !os.IsNotExist(err) {
+		t.Fatalf("parent directory was created by inspection: %v", err)
+	}
+}
+
 func TestInspectDatabaseCompatibilityRemainingNotOpened(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "ctf", "memory.sqlite3")

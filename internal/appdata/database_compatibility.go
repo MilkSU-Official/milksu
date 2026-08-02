@@ -67,6 +67,15 @@ func InspectDatabaseCompatibility(
 		if strings.EqualFold(filepath.Base(descriptor.RelativePath), "credentials.db") {
 			continue
 		}
+		if descriptor.Supported < 0 {
+			result = append(result, DatabaseCompatibilityStatus{
+				LogicalName:  descriptor.LogicalName,
+				RelativePath: filepath.ToSlash(descriptor.RelativePath),
+				State:        databaseStateCorrupt,
+				Error:        sanitizeDatabaseError("invalid database descriptor: negative supported version", root),
+			})
+			continue
+		}
 		if !safeDescriptorPath(descriptor.RelativePath) {
 			result = append(result, DatabaseCompatibilityStatus{
 				LogicalName:  descriptor.LogicalName,
@@ -113,23 +122,51 @@ func inspectDatabaseCompatibility(
 		RelativePath: filepath.ToSlash(descriptor.RelativePath),
 		Supported:    supportedDatabaseVersion(descriptor.Supported),
 	}
-	resolved := filepath.Join(root, descriptor.RelativePath)
-	info, err := os.Lstat(resolved)
-	if os.IsNotExist(err) {
-		status.State = databaseStateMissing
-		return status
+	// Walk component by component from the root down through
+	// descriptor.RelativePath so a symbolic link at ANY position (root,
+	// intermediate, or final) is rejected without ever resolving through it.
+	// The relative path has already passed safeDescriptorPath, so it is
+	// non-empty, relative, cleaned, and free of "..".
+	components := strings.Split(descriptor.RelativePath, "/")
+	walkPaths := make([]string, 0, len(components)+1)
+	accumulated := root
+	walkPaths = append(walkPaths, root)
+	for _, component := range components {
+		accumulated = filepath.Join(accumulated, component)
+		walkPaths = append(walkPaths, accumulated)
 	}
-	if err != nil {
-		status.State = databaseStateCorrupt
-		status.Error = sanitizeDatabaseError(err.Error(), root)
-		return status
+	for index, candidate := range walkPaths {
+		info, err := os.Lstat(candidate)
+		if os.IsNotExist(err) {
+			// First non-existent component: never create anything.
+			status.State = databaseStateMissing
+			return status
+		}
+		if err != nil {
+			status.State = databaseStateCorrupt
+			status.Error = sanitizeDatabaseError(err.Error(), root)
+			return status
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			status.State = databaseStateCorrupt
+			status.Error = sanitizeDatabaseError("database path contains a symbolic link", root)
+			return status
+		}
+		if index == len(walkPaths)-1 {
+			if !info.Mode().IsRegular() {
+				status.State = databaseStateCorrupt
+				status.Error = sanitizeDatabaseError("database path is not a regular file", root)
+				return status
+			}
+			break
+		}
+		if !info.IsDir() {
+			status.State = databaseStateCorrupt
+			status.Error = sanitizeDatabaseError("database path contains a non-directory component", root)
+			return status
+		}
 	}
-	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
-		status.State = databaseStateCorrupt
-		status.Error = sanitizeDatabaseError("database path is not a regular file", root)
-		return status
-	}
-	databaseURL := (&url.URL{Scheme: "file", Path: resolved}).String() + "?mode=ro"
+	databaseURL := (&url.URL{Scheme: "file", Path: accumulated}).String() + "?mode=ro"
 	database, err := sql.Open("sqlite", databaseURL)
 	if err != nil {
 		status.State = databaseStateCorrupt
