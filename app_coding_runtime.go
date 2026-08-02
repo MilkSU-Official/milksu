@@ -15,9 +15,18 @@ func (a *App) GetRuntimeStatus(conversationID string) engine.RuntimeStatus {
 }
 
 func (a *App) RefreshCodingBackgroundTasks(
-	conversationID string,
+	conversationID,
+	workspacePath,
+	executionMode,
+	approvalPolicy string,
 ) (engine.RuntimeStatus, error) {
-	status, err := a.engines.RefreshBackgroundTasks(conversationID)
+	status, err := a.engines.RefreshBackgroundTasks(
+		conversationID,
+		workspacePath,
+		executionMode,
+		approvalPolicy,
+		a.settings.GetResolved(),
+	)
 	if err != nil {
 		return engine.RuntimeStatus{}, err
 	}

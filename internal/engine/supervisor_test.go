@@ -166,6 +166,304 @@ func TestBackgroundTaskStatusIsScopedToConversation(t *testing.T) {
 	}
 }
 
+func TestRefreshBackgroundTasksRecoversRunningTasksWithoutModelTurn(t *testing.T) {
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	defer writer.Close()
+
+	workspace, err := resolveAgentWorkspace(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	supervisor := NewSupervisor(nil)
+	supervisor.process = &childProcess{
+		stdin:     writer,
+		workspace: workspace,
+	}
+	type refreshResult struct {
+		status RuntimeStatus
+		err    error
+	}
+	result := make(chan refreshResult, 1)
+	go func() {
+		status, refreshErr := supervisor.RefreshBackgroundTasks(
+			"session-recovery",
+			workspace,
+			"go",
+			"workspace-auto",
+			config.DefaultSettings(),
+		)
+		result <- refreshResult{status: status, err: refreshErr}
+	}()
+
+	commandReader := bufio.NewReader(reader)
+	readCommand := func() map[string]any {
+		t.Helper()
+		line, readErr := commandReader.ReadBytes('\n')
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		var command map[string]any
+		if unmarshalErr := json.Unmarshal(line, &command); unmarshalErr != nil {
+			t.Fatal(unmarshalErr)
+		}
+		return command
+	}
+	deliverTasks := func(command map[string]any, tasks []BackgroundTask) {
+		t.Helper()
+		requestID, _ := command["requestId"].(string)
+		if requestID == "" {
+			t.Fatalf("background control omitted request id: %#v", command)
+		}
+		event := normalizeBridgeEvent(bridgeEvent{
+			Type:      "background_task_controlled",
+			ID:        "session-recovery",
+			RequestID: requestID,
+			Tasks:     tasks,
+		})
+		supervisor.observeRuntimeEvent(event)
+		supervisor.emitEvent(event)
+	}
+
+	initialList := readCommand()
+	if initialList["action"] != "background_task_control" ||
+		initialList["control"] != "list" {
+		t.Fatalf("unexpected initial background query: %#v", initialList)
+	}
+	deliverTasks(initialList, []BackgroundTask{{
+		ID:        "bg_restart",
+		Kind:      "process",
+		Status:    "running",
+		StartedAt: 1000,
+		PID:       4321,
+	}})
+
+	recovery := readCommand()
+	if recovery["action"] != "create_session" ||
+		recovery["conversationId"] != "session-recovery" ||
+		recovery["executionMode"] != "go" ||
+		recovery["approvalPolicy"] != "workspace-auto" ||
+		recovery["recoveryPurpose"] != "background-tasks" {
+		t.Fatalf("unexpected background recovery command: %#v", recovery)
+	}
+	for _, forbidden := range []string{
+		"prompt",
+		"provider",
+		"model",
+		"mcpServers",
+		"mcpConfigDigest",
+		"codingBrowser",
+		"computerUse",
+		"attachments",
+	} {
+		if _, exists := recovery[forbidden]; exists {
+			t.Fatalf("background recovery unexpectedly restored %s: %#v", forbidden, recovery)
+		}
+	}
+	supervisor.emitEvent(normalizeBridgeEvent(bridgeEvent{
+		Type:    "ready",
+		ID:      "session-recovery",
+		Resumed: true,
+	}))
+
+	recoveredList := readCommand()
+	if recoveredList["action"] != "background_task_control" ||
+		recoveredList["control"] != "list" {
+		t.Fatalf("unexpected recovered background query: %#v", recoveredList)
+	}
+	deliverTasks(recoveredList, []BackgroundTask{{
+		ID:        "bg_restart",
+		Kind:      "process",
+		Status:    "running",
+		StartedAt: 1000,
+		PID:       4321,
+		LogPath:   "/runtime/bg_restart.log",
+		LogTail:   "server ready\n",
+	}})
+
+	select {
+	case refreshed := <-result:
+		if refreshed.err != nil {
+			t.Fatal(refreshed.err)
+		}
+		if !refreshed.status.Running ||
+			refreshed.status.SessionCount != 1 ||
+			len(refreshed.status.BackgroundTasks) != 1 ||
+			refreshed.status.BackgroundTasks[0].PID != 4321 ||
+			refreshed.status.BackgroundTasks[0].LogTail != "server ready\n" ||
+			refreshed.status.BackgroundRecovery == nil ||
+			refreshed.status.BackgroundRecovery.State != "recovered" {
+			t.Fatalf("unexpected recovered runtime status: %#v", refreshed.status)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("background recovery did not return")
+	}
+
+	go func() {
+		status, refreshErr := supervisor.RefreshBackgroundTasks(
+			"session-recovery",
+			workspace,
+			"go",
+			"workspace-auto",
+			config.DefaultSettings(),
+		)
+		result <- refreshResult{status: status, err: refreshErr}
+	}()
+	repeatedList := readCommand()
+	deliverTasks(repeatedList, []BackgroundTask{{
+		ID:        "bg_restart",
+		Kind:      "process",
+		Status:    "running",
+		StartedAt: 1000,
+		PID:       4321,
+	}})
+	attachedList := readCommand()
+	if attachedList["action"] != "background_task_control" ||
+		attachedList["control"] != "list" {
+		t.Fatalf("active recovery enqueued another session: %#v", attachedList)
+	}
+	deliverTasks(attachedList, []BackgroundTask{{
+		ID:        "bg_restart",
+		Kind:      "process",
+		Status:    "running",
+		StartedAt: 1000,
+		PID:       4321,
+	}})
+	select {
+	case refreshed := <-result:
+		if refreshed.err != nil {
+			t.Fatal(refreshed.err)
+		}
+		if refreshed.status.BackgroundRecovery == nil ||
+			refreshed.status.BackgroundRecovery.State != "attached" ||
+			refreshed.status.SessionCount != 1 {
+			t.Fatalf("unexpected attached runtime status: %#v", refreshed.status)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("attached background refresh did not return")
+	}
+
+	supervisor.mu.Lock()
+	supervisor.process = nil
+	supervisor.mu.Unlock()
+}
+
+func TestRefreshBackgroundTasksDoesNotCreateSessionWithoutRunningWork(t *testing.T) {
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	defer writer.Close()
+
+	workspace, err := resolveAgentWorkspace(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	supervisor := NewSupervisor(nil)
+	supervisor.process = &childProcess{
+		stdin:     writer,
+		workspace: workspace,
+	}
+	type refreshResult struct {
+		status RuntimeStatus
+		err    error
+	}
+	result := make(chan refreshResult, 1)
+	go func() {
+		status, refreshErr := supervisor.RefreshBackgroundTasks(
+			"session-empty",
+			workspace,
+			"plan",
+			"read-only",
+			config.DefaultSettings(),
+		)
+		result <- refreshResult{status: status, err: refreshErr}
+	}()
+
+	line, err := bufio.NewReader(reader).ReadBytes('\n')
+	if err != nil {
+		t.Fatal(err)
+	}
+	var command map[string]any
+	if err := json.Unmarshal(line, &command); err != nil {
+		t.Fatal(err)
+	}
+	requestID, _ := command["requestId"].(string)
+	if command["action"] != "background_task_control" ||
+		command["control"] != "list" ||
+		requestID == "" {
+		t.Fatalf("unexpected empty background query: %#v", command)
+	}
+	event := normalizeBridgeEvent(bridgeEvent{
+		Type:      "background_task_controlled",
+		ID:        "session-empty",
+		RequestID: requestID,
+		Tasks:     []BackgroundTask{},
+	})
+	supervisor.observeRuntimeEvent(event)
+	supervisor.emitEvent(event)
+
+	select {
+	case refreshed := <-result:
+		if refreshed.err != nil {
+			t.Fatal(refreshed.err)
+		}
+		if refreshed.status.SessionCount != 0 ||
+			len(refreshed.status.BackgroundTasks) != 0 {
+			t.Fatalf("empty refresh created a session: %#v", refreshed.status)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("empty background refresh did not return")
+	}
+
+	supervisor.mu.Lock()
+	supervisor.process = nil
+	supervisor.mu.Unlock()
+}
+
+func TestBackgroundRecoveryFailurePersistsUntilLateReady(t *testing.T) {
+	workspace, err := resolveAgentWorkspace(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	supervisor := NewSupervisor(nil)
+	supervisor.process = &childProcess{workspace: workspace}
+	supervisor.sessions["session-late-ready"] = struct{}{}
+	supervisor.recoveryFailures["session-late-ready"] = "recovery timed out"
+
+	recovered, err := supervisor.recoverBackgroundTaskSession(
+		"session-late-ready",
+		workspace,
+		CodingPolicy{
+			ExecutionMode:  "go",
+			ApprovalPolicy: "workspace-auto",
+		},
+	)
+	if err == nil || err.Error() != "recovery timed out" || recovered {
+		t.Fatalf("unexpected persisted recovery failure: recovered=%v err=%v", recovered, err)
+	}
+
+	supervisor.emitEvent(normalizeBridgeEvent(bridgeEvent{
+		Type: "ready",
+		ID:   "session-late-ready",
+	}))
+	recovered, err = supervisor.recoverBackgroundTaskSession(
+		"session-late-ready",
+		workspace,
+		CodingPolicy{
+			ExecutionMode:  "go",
+			ApprovalPolicy: "workspace-auto",
+		},
+	)
+	if err != nil || recovered {
+		t.Fatalf("late ready did not clear recovery failure: recovered=%v err=%v", recovered, err)
+	}
+}
+
 func TestStartBackgroundTaskSendsReviewedTerminalCommand(t *testing.T) {
 	reader, writer, err := os.Pipe()
 	if err != nil {

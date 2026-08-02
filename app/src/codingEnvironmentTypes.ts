@@ -69,6 +69,10 @@ export interface CodingRuntimeStatus {
   protocol: string
   workspace?: string
   backgroundTasks?: CodingBackgroundTask[]
+  backgroundRecovery?: {
+    state: 'recovered' | 'attached' | 'failed'
+    detail?: string
+  }
 }
 
 export type CodingTerminalStatus =

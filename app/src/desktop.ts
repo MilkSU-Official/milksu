@@ -113,6 +113,9 @@ interface WailsAppBindings {
   GetRuntimeStatus(conversationId: string): Promise<CodingRuntimeStatus>
   RefreshCodingBackgroundTasks(
     conversationId: string,
+    workspacePath: string,
+    executionMode: string,
+    approvalPolicy: string,
   ): Promise<CodingRuntimeStatus>
   StartCodingBackgroundTask(
     conversationId: string,
@@ -461,6 +464,9 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
       case 'refresh_coding_background_tasks':
         return app.RefreshCodingBackgroundTasks(
           args?.conversationId as string,
+          args?.workspacePath as string,
+          (args?.executionMode as string) ?? 'go',
+          (args?.approvalPolicy as string) ?? 'workspace-auto',
         ) as Promise<T>
       case 'start_coding_background_task':
         return app.StartCodingBackgroundTask(

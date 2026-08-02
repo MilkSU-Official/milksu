@@ -351,6 +351,7 @@ function startBridge({ bundlePath, workspace, agentDirectory, baseURL }) {
   const waiters = new Set()
   let stderr = ''
   let stdoutBuffer = ''
+  let backgroundRequestSequence = 0
 
   child.stderr.setEncoding('utf8')
   child.stderr.on('data', chunk => { stderr += chunk })
@@ -441,13 +442,28 @@ function startBridge({ bundlePath, workspace, agentDirectory, baseURL }) {
     return events.slice(start)
   }
 
+  async function backgroundTasks() {
+    const requestId = `delivery-bg-${++backgroundRequestSequence}`
+    command({
+      action: 'background_task_control',
+      conversationId,
+      requestId,
+      control: 'list',
+    })
+    return await waitFor(
+      event => event.type === 'background_task_controlled'
+        && event.id === conversationId
+        && event.requestId === requestId,
+    )
+  }
+
   async function stop() {
     if (child.exitCode !== null || child.signalCode !== null) return
     child.kill('SIGTERM')
     await once(child, 'close')
   }
 
-  return { child, events, createSession, prompt, stop }
+  return { child, events, createSession, prompt, backgroundTasks, stop }
 }
 
 async function snapshotFiles(root) {
@@ -579,13 +595,25 @@ async function main() {
       baseURL: provider.baseURL,
     })
     bridge = restarted
+    const providerRequestsBeforeRecovery = provider.requests.length
     const resumedReady = await restarted.createSession()
+    const recoveredBeforePrompt = await restarted.backgroundTasks()
     await writeFile(
       join(workspace, '.milksu', 'runtime', 'watch-ready'),
       'ready\n',
       { mode: 0o600 },
     )
-    await new Promise(resolvePromise => setTimeout(resolvePromise, 1_200))
+    let recoveredAfterMarker
+    const recoveryDeadline = Date.now() + 5_000
+    while (Date.now() < recoveryDeadline) {
+      recoveredAfterMarker = await restarted.backgroundTasks()
+      const watch = recoveredAfterMarker.tasks?.find(
+        task => task.name === 'delivery-watch',
+      )
+      if (watch?.status === 'succeeded') break
+      await new Promise(resolvePromise => setTimeout(resolvePromise, 200))
+    }
+    const providerRequestsAfterRecovery = provider.requests.length
     transcript.fixAfterRestart = await restarted.prompt(
       '我发现只有一项时还显示 items。修好并补回归测试，然后给我最终交付说明。',
     )
@@ -653,6 +681,12 @@ async function main() {
     const backgroundMetas = await backgroundTaskMetas(workspace)
     const backgroundTask = backgroundMetas.find(meta => meta.name === 'delivery-preview')
     const backgroundWatch = backgroundMetas.find(meta => meta.name === 'delivery-watch')
+    const projectedWatchBeforePrompt = recoveredBeforePrompt.tasks?.find(
+      task => task.name === 'delivery-watch',
+    )
+    const projectedWatchAfterMarker = recoveredAfterMarker?.tasks?.find(
+      task => task.name === 'delivery-watch',
+    )
 
     const checks = {
       buildAndTest: testOutput.includes('pass') && smokeOutput.includes('Mina: 2 open items'),
@@ -660,7 +694,15 @@ async function main() {
         plural === 'Mina: 2 open items\n- Fix login\n- Update docs'
         && singular === 'Mina: 1 open item\n- Fix login',
       diffScope: unexpectedChanges.length === 0,
-      restartRecovery: resumedReady.resumed === true,
+      restartRecovery:
+        resumedReady.resumed === true
+        && providerRequestsAfterRecovery === providerRequestsBeforeRecovery
+        && projectedWatchBeforePrompt?.status === 'running'
+        && projectedWatchBeforePrompt?.kind === 'watch'
+        && projectedWatchBeforePrompt?.command === 'test -f .milksu/runtime/watch-ready'
+        && typeof projectedWatchBeforePrompt?.logTail === 'string'
+        && projectedWatchAfterMarker?.status === 'succeeded'
+        && projectedWatchAfterMarker?.lastExitCode === 0,
       approval:
         !distBeforeApproval
         && distExists
@@ -775,6 +817,25 @@ async function main() {
               lastExitCode: backgroundWatch.lastExitCode,
             }
           : null,
+        restartRecovery: {
+          providerRequestsBeforeRecovery,
+          providerRequestsAfterRecovery,
+          beforePrompt: projectedWatchBeforePrompt
+            ? {
+                id: projectedWatchBeforePrompt.id,
+                kind: projectedWatchBeforePrompt.kind,
+                status: projectedWatchBeforePrompt.status,
+                logTailBytes: projectedWatchBeforePrompt.logTail?.length ?? 0,
+              }
+            : null,
+          afterMarker: projectedWatchAfterMarker
+            ? {
+                id: projectedWatchAfterMarker.id,
+                status: projectedWatchAfterMarker.status,
+                lastExitCode: projectedWatchAfterMarker.lastExitCode,
+              }
+            : null,
+        },
       },
       resources: readyResources,
       workspace: keepFixture ? workspace : '(temporary workspace removed)',

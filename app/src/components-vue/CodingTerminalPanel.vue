@@ -132,6 +132,7 @@ function upsertTerminal(session: CodingTerminalSession) {
 function renderTerminalSession(session: CodingTerminalSession) {
   if (!terminal) return
   terminal.reset()
+  terminal.clear()
   if (session.outputTrimmed) {
     terminal.write('\x1b[90m[更早的终端输出已省略]\x1b[0m\r\n')
   }
@@ -202,6 +203,7 @@ async function hydrateShellSessions() {
   pendingOutput.clear()
   if (!desktopRuntime) {
     terminal.reset()
+    terminal.clear()
     terminal.write(
       '\r\n\x1b[90m交互式 Shell 会在 MilkSU 桌面应用中启动。\x1b[0m\r\n',
     )
@@ -209,6 +211,7 @@ async function hydrateShellSessions() {
   }
   if (!props.conversationId || !props.workspacePath) {
     terminal.reset()
+    terminal.clear()
     terminal.write('\r\n\x1b[90m请先选择项目并建立 Coding 任务。\x1b[0m\r\n')
     return
   }
@@ -225,7 +228,13 @@ async function hydrateShellSessions() {
       selectedTerminalId.value = preferred.id
       renderTerminalSession(preferred)
     } else {
-      await startShell()
+      terminal.reset()
+      terminal.clear()
+      terminal.write(
+        '\r\n\x1b[90m没有当前 App 进程的 Shell。交互式 Shell 不跨 App 重启恢复；'
+        + '旧 PTY 已结束且不可重连。点击 + 新建 Shell，后台长任务请在“后台任务”中恢复。'
+        + '\x1b[0m\r\n',
+      )
     }
   } catch (reason) {
     shellError.value = reason instanceof Error
@@ -343,13 +352,18 @@ function fitShell() {
 }
 
 async function refreshTasks(silent = false) {
-  if (!props.conversationId || refreshing.value) return
+  if (!props.conversationId || !props.workspacePath || refreshing.value) return
   refreshing.value = true
   if (!silent) taskError.value = ''
   try {
     runtime.value = await invokeCommand<CodingRuntimeStatus>(
       'refresh_coding_background_tasks',
-      { conversationId: props.conversationId },
+      {
+        conversationId: props.conversationId,
+        workspacePath: props.workspacePath,
+        executionMode: props.executionMode,
+        approvalPolicy: props.approvalPolicy,
+      },
     )
   } catch (reason) {
     if (!silent) {
@@ -434,6 +448,7 @@ function startPolling() {
     !props.active
     || activeView.value !== 'tasks'
     || !props.conversationId
+    || !props.workspacePath
   ) return
   void refreshTasks()
   pollHandle = window.setInterval(() => void refreshTasks(true), 1500)
@@ -491,7 +506,14 @@ onMounted(async () => {
 })
 
 watch(
-  () => [props.active, activeView.value, props.conversationId] as const,
+  () => [
+    props.active,
+    activeView.value,
+    props.conversationId,
+    props.workspacePath,
+    props.executionMode,
+    props.approvalPolicy,
+  ] as const,
   () => {
     startPolling()
     if (activeView.value === 'shell') {
@@ -672,6 +694,21 @@ onBeforeUnmount(() => {
           class="mt-2 text-caption leading-5 text-amber-500"
         >
           Agent 后台任务需要 Go，以及“请求批准 / 替我审批 / 完全访问权限”之一。
+        </p>
+        <p
+          v-if="runtime?.backgroundRecovery?.state === 'recovered'
+            || runtime?.backgroundRecovery?.state === 'attached'"
+          class="mt-2 text-caption leading-5 text-primary"
+        >
+          {{ runtime.backgroundRecovery.state === 'recovered'
+            ? '已从磁盘恢复持久任务，并重新连接状态、日志和超时监控。'
+            : '持久任务的状态、日志和超时监控已连接。' }}
+        </p>
+        <p
+          v-else-if="runtime?.backgroundRecovery?.state === 'failed'"
+          class="mt-2 text-caption leading-5 text-amber-500"
+        >
+          已读取持久任务，但恢复监控失败：{{ runtime.backgroundRecovery.detail }}
         </p>
         <p v-if="taskError" class="mt-2 text-caption leading-5 text-destructive">
           {{ taskError }}

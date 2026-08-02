@@ -51,12 +51,18 @@ type Event struct {
 }
 
 type RuntimeStatus struct {
-	DefaultEngine   string           `json:"defaultEngine"`
-	Running         bool             `json:"running"`
-	SessionCount    int              `json:"sessionCount"`
-	Protocol        string           `json:"protocol"`
-	Workspace       string           `json:"workspace,omitempty"`
-	BackgroundTasks []BackgroundTask `json:"backgroundTasks,omitempty"`
+	DefaultEngine      string                  `json:"defaultEngine"`
+	Running            bool                    `json:"running"`
+	SessionCount       int                     `json:"sessionCount"`
+	Protocol           string                  `json:"protocol"`
+	Workspace          string                  `json:"workspace,omitempty"`
+	BackgroundTasks    []BackgroundTask        `json:"backgroundTasks,omitempty"`
+	BackgroundRecovery *BackgroundRecoveryInfo `json:"backgroundRecovery,omitempty"`
+}
+
+type BackgroundRecoveryInfo struct {
+	State  string `json:"state"`
+	Detail string `json:"detail,omitempty"`
 }
 
 type BackgroundTask struct {
@@ -162,6 +168,8 @@ type Supervisor struct {
 	sessions         map[string]struct{}
 	probeWaiters     map[string]chan Event
 	controlWaiters   map[string]chan Event
+	recoveryWaiters  map[string]map[chan Event]struct{}
+	recoveryFailures map[string]string
 	turnTimeout      time.Duration
 	turnTimers       map[string]*time.Timer
 	turnSequence     map[string]uint64
@@ -173,15 +181,17 @@ type Supervisor struct {
 
 func NewSupervisor(emit func(Event)) *Supervisor {
 	return &Supervisor{
-		sessions:        make(map[string]struct{}),
-		probeWaiters:    make(map[string]chan Event),
-		controlWaiters:  make(map[string]chan Event),
-		turnTimeout:     defaultTurnActivityTimeout,
-		turnTimers:      make(map[string]*time.Timer),
-		turnSequence:    make(map[string]uint64),
-		approvals:       make(map[string]int),
-		backgroundTasks: make(map[string][]BackgroundTask),
-		emit:            emit,
+		sessions:         make(map[string]struct{}),
+		probeWaiters:     make(map[string]chan Event),
+		controlWaiters:   make(map[string]chan Event),
+		recoveryWaiters:  make(map[string]map[chan Event]struct{}),
+		recoveryFailures: make(map[string]string),
+		turnTimeout:      defaultTurnActivityTimeout,
+		turnTimers:       make(map[string]*time.Timer),
+		turnSequence:     make(map[string]uint64),
+		approvals:        make(map[string]int),
+		backgroundTasks:  make(map[string][]BackgroundTask),
+		emit:             emit,
 	}
 }
 
@@ -524,23 +534,73 @@ func (s *Supervisor) StopBackgroundTask(
 }
 
 func (s *Supervisor) RefreshBackgroundTasks(
-	sessionID string,
+	sessionID,
+	workspacePath,
+	executionMode,
+	approvalPolicy string,
+	settings config.AppSettings,
 ) (RuntimeStatus, error) {
 	sessionID = strings.TrimSpace(sessionID)
 	if sessionID == "" {
 		return RuntimeStatus{}, fmt.Errorf("session id is required")
 	}
-	s.mu.Lock()
-	running := s.process != nil
-	s.mu.Unlock()
-	if !running {
-		return s.StatusForSession(sessionID), nil
+	codingPolicy, err := normalizeCodingPolicy(
+		executionMode,
+		approvalPolicy,
+		"",
+	)
+	if err != nil {
+		return RuntimeStatus{}, err
 	}
-	return s.sendBackgroundTaskControl(
+	workspace, err := resolveAgentWorkspace(workspacePath)
+	if err != nil {
+		return RuntimeStatus{}, err
+	}
+	s.mu.Lock()
+	err = s.ensureProcessLocked(settings, workspace)
+	s.mu.Unlock()
+	if err != nil {
+		return RuntimeStatus{}, err
+	}
+
+	status, err := s.sendBackgroundTaskControl(
 		sessionID,
 		"refresh background tasks",
 		map[string]any{"control": "list"},
 	)
+	if err != nil || !hasRunningBackgroundTask(status.BackgroundTasks) {
+		return status, err
+	}
+	recovered, recoveryErr := s.recoverBackgroundTaskSession(
+		sessionID,
+		workspace,
+		codingPolicy,
+	)
+	if recoveryErr != nil {
+		status.BackgroundRecovery = &BackgroundRecoveryInfo{
+			State:  "failed",
+			Detail: recoveryErr.Error(),
+		}
+		return status, nil
+	}
+	recoveredStatus, err := s.sendBackgroundTaskControl(
+		sessionID,
+		"refresh recovered background tasks",
+		map[string]any{"control": "list"},
+	)
+	if err != nil {
+		status.BackgroundRecovery = &BackgroundRecoveryInfo{
+			State:  "failed",
+			Detail: err.Error(),
+		}
+		return status, nil
+	}
+	recoveryState := "attached"
+	if recovered {
+		recoveryState = "recovered"
+	}
+	recoveredStatus.BackgroundRecovery = &BackgroundRecoveryInfo{State: recoveryState}
+	return recoveredStatus, nil
 }
 
 func (s *Supervisor) sendBackgroundTaskControl(
@@ -682,6 +742,7 @@ func (s *Supervisor) disposeSession(sessionID string, deletePersisted bool) {
 	}
 	s.stopTurnTimerLocked(sessionID)
 	delete(s.sessions, sessionID)
+	delete(s.recoveryFailures, sessionID)
 	delete(s.approvals, sessionID)
 	delete(s.backgroundTasks, sessionID)
 }
@@ -733,6 +794,7 @@ func (s *Supervisor) Close() {
 	process := s.process
 	s.process = nil
 	s.sessions = make(map[string]struct{})
+	s.recoveryFailures = make(map[string]string)
 	s.stopAllTurnTimersLocked()
 	s.approvals = make(map[string]int)
 	s.backgroundTasks = make(map[string][]BackgroundTask)
@@ -755,6 +817,7 @@ func (s *Supervisor) ensureProcessLocked(settings config.AppSettings, workspace 
 		previous := s.process
 		s.process = nil
 		s.sessions = make(map[string]struct{})
+		s.recoveryFailures = make(map[string]string)
 		s.stopAllTurnTimersLocked()
 		s.approvals = make(map[string]int)
 		s.backgroundTasks = make(map[string][]BackgroundTask)
@@ -832,6 +895,7 @@ func (s *Supervisor) readEvents(process *childProcess, stdout io.Reader) {
 	if s.process == process {
 		s.process = nil
 		s.sessions = make(map[string]struct{})
+		s.recoveryFailures = make(map[string]string)
 		s.stopAllTurnTimersLocked()
 		s.approvals = make(map[string]int)
 		s.backgroundTasks = make(map[string][]BackgroundTask)
@@ -972,8 +1036,46 @@ func (s *Supervisor) emitEvent(event Event) {
 	event.Timestamp = time.Now().UTC().Format(time.RFC3339Nano)
 	s.deliverProbeEvent(event)
 	s.deliverControlEvent(event)
+	s.deliverRecoveryEvent(event)
 	if s.emit != nil {
 		s.emit(event)
+	}
+}
+
+func (s *Supervisor) deliverRecoveryEvent(event Event) {
+	if event.Type != "session.ready" &&
+		event.Type != "engine.error" &&
+		event.Type != "session.destroyed" &&
+		event.Type != "engine.stopped" &&
+		event.Type != "engine.protocol_error" {
+		return
+	}
+	if event.SessionID != "" {
+		s.mu.Lock()
+		switch event.Type {
+		case "session.ready", "session.destroyed":
+			delete(s.recoveryFailures, event.SessionID)
+		}
+		s.mu.Unlock()
+	}
+	s.probeMu.Lock()
+	defer s.probeMu.Unlock()
+	if event.SessionID != "" {
+		for waiter := range s.recoveryWaiters[event.SessionID] {
+			select {
+			case waiter <- event:
+			default:
+			}
+		}
+		return
+	}
+	for _, waiters := range s.recoveryWaiters {
+		for waiter := range waiters {
+			select {
+			case waiter <- event:
+			default:
+			}
+		}
 	}
 }
 
