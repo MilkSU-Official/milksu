@@ -141,6 +141,15 @@ export interface CodingArchitecturePreview {
   sizeBytes?: number
 }
 
+export interface CodingArtifactPreview {
+  relativePath: string
+  kind: 'markdown' | 'html' | 'image'
+  mediaType: string
+  content?: string
+  dataUrl?: string
+  sizeBytes: number
+}
+
 export interface CodingBrowserPage {
   id: string
   title: string

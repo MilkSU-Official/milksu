@@ -33,6 +33,7 @@ import {
   Copy,
   ExternalLink,
   FileDiff,
+  FileImage,
   FilePenLine,
   FileText,
   Files,
@@ -56,6 +57,7 @@ import { invokeCommand } from '@/desktop'
 import ChatActivityGroup from '@/components-vue/ChatActivityGroup.vue'
 import ChatComposer from '@/components-vue/ChatComposer.vue'
 import ChatMessageItem from '@/components-vue/ChatMessageItem.vue'
+import CodingArtifactPreviewPanel from '@/components-vue/CodingArtifactPreviewPanel.vue'
 import CodingChangesPanel from '@/components-vue/CodingChangesPanel.vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import type {
@@ -145,9 +147,19 @@ const goalMode = ref(false)
 const scrollArea = ref<HTMLElement | null>(null)
 const workshopState = ref<CTFToolWorkshopState | null>(null)
 const environmentOpen = ref(!props.ctfSession)
-const contextPanel = ref<
-  'environment' | 'changes' | 'terminal' | 'architecture' | 'browser' | 'collaboration' | 'evidence'
->('environment')
+const contextPanelValues = [
+  'environment',
+  'changes',
+  'terminal',
+  'artifacts',
+  'architecture',
+  'browser',
+  'collaboration',
+  'evidence',
+] as const
+type ContextPanel = typeof contextPanelValues[number]
+const contextPanel = ref<ContextPanel>('environment')
+const artifactPanel = ref<InstanceType<typeof CodingArtifactPreviewPanel> | null>(null)
 const environmentLoading = ref(false)
 const environmentError = ref('')
 const architecturePreview = ref<CodingArchitecturePreview | null>(null)
@@ -363,6 +375,7 @@ const contextPanelTitle = computed(() => ({
   environment: props.ctfSession ? '解题环境' : '环境信息',
   changes: '变更',
   terminal: '终端',
+  artifacts: '产物',
   architecture: '架构图',
   browser: '浏览器',
   collaboration: 'Agent 协作',
@@ -734,6 +747,10 @@ async function refreshContextPanel() {
     await refreshArchitecturePreview()
     return
   }
+  if (contextPanel.value === 'artifacts') {
+    await artifactPanel.value?.refresh()
+    return
+  }
   if (contextPanel.value === 'browser') {
     await refreshBrowserPanel()
     return
@@ -742,8 +759,8 @@ async function refreshContextPanel() {
 }
 
 function changeContextPanel(value: string) {
-  if (!['environment', 'changes', 'terminal', 'architecture', 'browser', 'collaboration', 'evidence'].includes(value)) return
-  contextPanel.value = value as typeof contextPanel.value
+  if (!contextPanelValues.some(panel => panel === value)) return
+  contextPanel.value = value as ContextPanel
   environmentOpen.value = true
   void refreshContextPanel()
 }
@@ -814,7 +831,7 @@ watch(
 watch(contextPanel, panel => {
   if (panel === 'browser' && environmentOpen.value) void refreshBrowserPanel()
   if (panel === 'architecture' && environmentOpen.value) void refreshArchitecturePreview()
-  if (panel === 'changes' && environmentOpen.value) void refreshEnvironment()
+  if (['artifacts', 'changes'].includes(panel) && environmentOpen.value) void refreshEnvironment()
 })
 watch(
   () => [props.ctfSession, props.conversation?.ctfJobId, props.ctfRole, props.running] as const,
@@ -956,7 +973,7 @@ watch(
   <aside
     v-if="environmentOpen"
     class="context-sidebar flex shrink-0 flex-col border-l border-border bg-card/95 backdrop-blur"
-    :class="['architecture', 'changes', 'terminal'].includes(contextPanel)
+    :class="['architecture', 'artifacts', 'changes', 'terminal'].includes(contextPanel)
       ? 'w-[min(36rem,36vw)] min-w-[22rem]'
       : 'w-80'"
     :aria-label="contextPanelTitle"
@@ -974,6 +991,7 @@ watch(
           <Activity v-if="contextPanel === 'environment'" class="size-4 text-primary" />
           <FileDiff v-else-if="contextPanel === 'changes'" class="size-4 text-primary" />
           <Terminal v-else-if="contextPanel === 'terminal'" class="size-4 text-primary" />
+          <FileImage v-else-if="contextPanel === 'artifacts'" class="size-4 text-primary" />
           <Network v-else-if="contextPanel === 'architecture'" class="size-4 text-primary" />
           <Globe2 v-else-if="contextPanel === 'browser'" class="size-4 text-primary" />
           <Wrench v-else-if="contextPanel === 'collaboration'" class="size-4 text-primary" />
@@ -984,6 +1002,7 @@ watch(
           <SelectItem value="environment">{{ ctfSession ? '解题环境' : '环境信息' }}</SelectItem>
           <SelectItem v-if="!ctfSession" value="changes">变更</SelectItem>
           <SelectItem v-if="!ctfSession" value="terminal">终端</SelectItem>
+          <SelectItem v-if="!ctfSession" value="artifacts">产物</SelectItem>
           <SelectItem v-if="!ctfSession" value="architecture">架构图</SelectItem>
           <SelectItem value="browser">浏览器</SelectItem>
           <template v-if="ctfSession">
@@ -1401,6 +1420,14 @@ watch(
           :workspace-path="workspacePath"
           :execution-mode="effectiveExecutionMode"
           :approval-policy="effectiveApprovalPolicy"
+        />
+      </template>
+
+      <template v-else-if="contextPanel === 'artifacts'">
+        <CodingArtifactPreviewPanel
+          ref="artifactPanel"
+          :workspace-path="workspacePath"
+          :environment="codingEnvironment"
         />
       </template>
 

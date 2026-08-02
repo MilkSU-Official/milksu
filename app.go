@@ -686,6 +686,13 @@ func (a *App) GetCodingArchitecturePreview(
 	return codingenv.InspectArchitecturePreview(workspacePath, relativePath)
 }
 
+func (a *App) GetCodingArtifactPreview(
+	workspacePath,
+	relativePath string,
+) (codingenv.ArtifactPreview, error) {
+	return codingenv.InspectArtifactPreview(workspacePath, relativePath)
+}
+
 func (a *App) TestAgentModel() (engine.ModelProbeResult, error) {
 	result, err := a.engines.ProbeModel(a.settings.GetResolved())
 	if err != nil {

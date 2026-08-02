@@ -52,6 +52,7 @@ import type {
 import type { CTFTrainingPlatform } from './ctfPlatformTypes'
 import type {
   CodingArchitecturePreview,
+  CodingArtifactPreview,
   CodingBrowserStatus,
   CodingDiffSnapshot,
   CodingEnvironmentSnapshot,
@@ -167,6 +168,10 @@ interface WailsAppBindings {
     workspacePath: string,
     relativePath: string,
   ): Promise<CodingArchitecturePreview>
+  GetCodingArtifactPreview(
+    workspacePath: string,
+    relativePath: string,
+  ): Promise<CodingArtifactPreview>
   StartCodingBrowser(
     conversationId: string,
     initialUrl: string,
@@ -523,6 +528,11 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
           args?.workspacePath as string,
           args?.relativePath as string,
         ) as Promise<T>
+      case 'get_coding_artifact_preview':
+        return app.GetCodingArtifactPreview(
+          args?.workspacePath as string,
+          args?.relativePath as string,
+        ) as Promise<T>
       case 'start_coding_browser':
         return app.StartCodingBrowser(
           args?.conversationId as string,
@@ -836,6 +846,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
       } as T
     case 'get_coding_diff':
       throw new Error('Git Diff 只在 MilkSU 桌面运行时读取。')
+    case 'get_coding_artifact_preview':
+      throw new Error('工作区产物预览需要 MilkSU 桌面运行时。')
     case 'start_coding_browser':
     case 'stop_coding_browser':
       throw new Error('隔离 Coding 浏览器需要 MilkSU 桌面运行时。')
