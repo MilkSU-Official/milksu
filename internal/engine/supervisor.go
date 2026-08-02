@@ -25,6 +25,12 @@ const eventSchemaVersion = 1
 
 const defaultTurnActivityTimeout = 90 * time.Second
 
+// defaultCompactionTimeout bounds a manual context compaction end to end. It
+// deliberately exceeds the Sidecar-side cancellation bound so the Sidecar
+// always aborts the summarization call first; the Supervisor timeout only
+// reports that the control surface gave up.
+const defaultCompactionTimeout = 130 * time.Second
+
 type Event struct {
 	SchemaVersion   int                      `json:"schemaVersion"`
 	Engine          string                   `json:"engine"`
@@ -50,6 +56,8 @@ type Event struct {
 	BackgroundTasks []BackgroundTask         `json:"backgroundTasks,omitempty"`
 	Goal            *CodingGoalState         `json:"goal,omitempty"`
 	Resumed         bool                     `json:"resumed,omitempty"`
+	Aborted         bool                     `json:"aborted,omitempty"`
+	Compaction      *CompactionResult        `json:"compaction,omitempty"`
 }
 
 type RuntimeStatus struct {
@@ -98,6 +106,14 @@ type CodingGoalState struct {
 	TimeUsedSeconds     int64  `json:"timeUsedSeconds"`
 	AutomaticModelTurns int    `json:"automaticModelTurns"`
 	QueuedCount         int    `json:"queuedCount"`
+}
+
+// CompactionResult is the bounded projection of Pi's manual context
+// compaction outcome. The summary body stays inside the persisted Pi session;
+// only token accounting crosses the control surface.
+type CompactionResult struct {
+	TokensBefore         int64 `json:"tokensBefore"`
+	EstimatedTokensAfter int64 `json:"estimatedTokensAfter,omitempty"`
 }
 
 type ModelProbeResult struct {
@@ -169,6 +185,8 @@ type bridgeEvent struct {
 	Tasks          []BackgroundTask         `json:"tasks"`
 	Goal           *CodingGoalState         `json:"goal"`
 	Resumed        bool                     `json:"resumed"`
+	Aborted        bool                     `json:"aborted"`
+	Compaction     *CompactionResult        `json:"compaction"`
 }
 
 type childProcess struct {
@@ -731,6 +749,95 @@ func (s *Supervisor) RefreshBackgroundTasks(
 	return recoveredStatus, nil
 }
 
+// CompactSession requests a bounded manual Pi context compaction for the given
+// conversation and waits for the Sidecar receipt. The request is bound to the
+// current conversation (an in-memory Pi session must already exist) and never
+// restores Browser, MCP, Computer Use, or stale approvals: it carries no
+// capability descriptors and compaction does not touch the approval broker.
+// Sidecar process termination and timeouts are surfaced as explicit errors.
+func (s *Supervisor) CompactSession(sessionID string) (CompactionResult, error) {
+	return s.CompactSessionWithTimeout(sessionID, defaultCompactionTimeout)
+}
+
+func (s *Supervisor) CompactSessionWithTimeout(
+	sessionID string,
+	timeout time.Duration,
+) (CompactionResult, error) {
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return CompactionResult{}, fmt.Errorf("session id is required")
+	}
+	if timeout <= 0 {
+		return CompactionResult{}, fmt.Errorf("compaction timeout must be positive")
+	}
+	requestID := fmt.Sprintf("comp_%d", time.Now().UnixNano())
+	events := make(chan Event, 1)
+	s.probeMu.Lock()
+	s.controlWaiters[requestID] = events
+	s.probeMu.Unlock()
+	defer func() {
+		s.probeMu.Lock()
+		delete(s.controlWaiters, requestID)
+		s.probeMu.Unlock()
+	}()
+
+	s.mu.Lock()
+	if s.process == nil {
+		s.mu.Unlock()
+		return CompactionResult{}, fmt.Errorf("PI Sidecar is not running")
+	}
+	if _, exists := s.sessions[sessionID]; !exists {
+		s.mu.Unlock()
+		return CompactionResult{}, fmt.Errorf("PI session not found: %s", sessionID)
+	}
+	err := writeCommand(s.process.stdin, map[string]any{
+		"action":         "compact_session",
+		"conversationId": sessionID,
+		"requestId":      requestID,
+	})
+	s.mu.Unlock()
+	if err != nil {
+		return CompactionResult{}, fmt.Errorf("compact session: %w", err)
+	}
+
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	for {
+		select {
+		case event := <-events:
+			switch event.Type {
+			case "runtime.compaction_started":
+				// The native Pi lifecycle start is observable by the UI but is
+				// not the waiting control receipt.
+				continue
+			case "engine.stopped", "engine.protocol_error":
+				return CompactionResult{}, fmt.Errorf(
+					"context compaction stopped: %s",
+					probeFailureMessage(event),
+				)
+			}
+			if strings.TrimSpace(event.Error) != "" {
+				return CompactionResult{}, fmt.Errorf(
+					"context compaction failed: %s",
+					probeFailureMessage(event),
+				)
+			}
+			if event.Type != "runtime.compaction_completed" ||
+				event.Compaction == nil {
+				return CompactionResult{}, fmt.Errorf(
+					"context compaction ended without a result",
+				)
+			}
+			return *event.Compaction, nil
+		case <-timer.C:
+			return CompactionResult{}, fmt.Errorf(
+				"context compaction timed out after %s",
+				timeout.Round(time.Second),
+			)
+		}
+	}
+}
+
 func (s *Supervisor) sendBackgroundTaskControl(
 	sessionID,
 	label string,
@@ -1209,6 +1316,13 @@ func (s *Supervisor) deliverRecoveryEvent(event Event) {
 }
 
 func (s *Supervisor) deliverControlEvent(event Event) {
+	// Lifecycle starts are broadcast to the UI but must not occupy the
+	// single-result control channel. Fast failures such as "Nothing to compact"
+	// can emit start and end back-to-back; queueing the start would otherwise
+	// drop the terminal receipt.
+	if event.Type == "runtime.compaction_started" {
+		return
+	}
 	s.probeMu.Lock()
 	defer s.probeMu.Unlock()
 	if event.RequestID != "" {
@@ -1293,6 +1407,8 @@ func normalizeBridgeEvent(raw bridgeEvent) Event {
 		BackgroundTasks: raw.Tasks,
 		Goal:            raw.Goal,
 		Resumed:         raw.Resumed,
+		Aborted:         raw.Aborted,
+		Compaction:      raw.Compaction,
 	}
 	switch raw.Type {
 	case "ready":
@@ -1340,6 +1456,12 @@ func normalizeBridgeEvent(raw bridgeEvent) Event {
 		event.Type = "runtime.background_tasks"
 	case "background_task_controlled":
 		event.Type = "runtime.background_task_controlled"
+	case "compaction_start":
+		event.Type = "runtime.compaction_started"
+	case "compaction_end":
+		event.Type = "runtime.compaction_completed"
+		event.Error = raw.Error
+		event.Done = true
 	case "error":
 		event.Type = "engine.error"
 		event.Error = raw.Error

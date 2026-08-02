@@ -67,6 +67,14 @@ func (a *App) StopCodingBackgroundTask(
 	return a.enrichRuntimeStatus(status), nil
 }
 
+// CompactCodingSession is the thin Wails DTO for the Supervisor's waiting
+// manual Pi context compaction control surface.
+func (a *App) CompactCodingSession(
+	conversationID string,
+) (engine.CompactionResult, error) {
+	return a.engines.CompactSession(conversationID)
+}
+
 func (a *App) enrichRuntimeStatus(status engine.RuntimeStatus) engine.RuntimeStatus {
 	for index := range status.BackgroundTasks {
 		task := &status.BackgroundTasks[index]

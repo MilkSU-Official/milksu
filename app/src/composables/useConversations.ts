@@ -1,5 +1,13 @@
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { invokeCommand, listenEvent } from '@/desktop'
+import type { CodingCompactionResult } from '@/codingEnvironmentTypes'
+import {
+  applyCodingContinuityEvent,
+  codingCompactionErrorMessage,
+  createCodingContinuityState,
+  removeCodingContinuitySession,
+} from '@/codingContinuity'
+import type { CodingContinuityState } from '@/codingContinuity'
 import {
   DEFAULT_CODING_APPROVAL_POLICY,
   DEFAULT_CODING_EXECUTION_MODE,
@@ -119,6 +127,8 @@ interface AgentEvent {
   approved?: boolean
   reason?: string
   goal?: CodingGoalState
+  resumed?: boolean
+  aborted?: boolean
 }
 
 interface WorkspaceTask {
@@ -250,10 +260,26 @@ export function useConversations() {
   const pendingMCPServers = ref<string[]>([])
   const pendingMCPConfigDigest = ref('')
   const runningIds = ref(new Set<string>())
+  const continuity = ref<CodingContinuityState>(createCodingContinuityState())
   const active = computed(() => conversations.value.find(item => item.id === activeId.value) ?? null)
   const workspacePath = computed(() => active.value?.workspacePath ?? pendingWorkspacePath.value)
   const activeRunning = computed(() => (
     activeId.value ? runningIds.value.has(activeId.value) : false
+  ))
+  const activeResumed = computed(() => (
+    activeId.value ? continuity.value.resumed.has(activeId.value) : false
+  ))
+  const activeSessionReady = computed(() => (
+    activeId.value ? continuity.value.ready.has(activeId.value) : false
+  ))
+  const activeCompacting = computed(() => (
+    activeId.value ? continuity.value.compacting.has(activeId.value) : false
+  ))
+  const activeCompactedAt = computed(() => (
+    activeId.value ? continuity.value.compactedAt.get(activeId.value) : undefined
+  ))
+  const activeCompactionError = computed(() => (
+    activeId.value ? continuity.value.errors.get(activeId.value) : undefined
   ))
   const selectedModelMode = computed(() => active.value?.modelMode ?? pendingModelMode.value)
   const selectedModelProvider = computed(() => active.value?.modelProvider ?? pendingModelProvider.value)
@@ -304,6 +330,7 @@ export function useConversations() {
   async function remove(id: string) {
     await invokeCommand('delete_conversation', { id })
     conversations.value = conversations.value.filter(conversation => conversation.id !== id)
+    continuity.value = removeCodingContinuitySession(continuity.value, id)
     if (activeId.value === id) activeId.value = null
   }
 
@@ -548,6 +575,39 @@ export function useConversations() {
     runningIds.value = nextRunning
   }
 
+  async function compactContext() {
+    const conversationId = activeId.value
+    if (
+      !conversationId
+      || runningIds.value.has(conversationId)
+      || continuity.value.compacting.has(conversationId)
+    ) return
+    continuity.value = applyCodingContinuityEvent(
+      continuity.value,
+      conversationId,
+      { type: 'runtime.compaction_started' },
+    )
+    try {
+      await invokeCommand<CodingCompactionResult>('compact_coding_session', {
+        conversationId,
+      })
+      continuity.value = applyCodingContinuityEvent(
+        continuity.value,
+        conversationId,
+        { type: 'runtime.compaction_completed' },
+      )
+    } catch (reason) {
+      continuity.value = applyCodingContinuityEvent(
+        continuity.value,
+        conversationId,
+        {
+          type: 'runtime.compaction_completed',
+          error: codingCompactionErrorMessage(reason),
+        },
+      )
+    }
+  }
+
   async function controlGoal(action: 'resume' | 'clear') {
     const conversationId = activeId.value
     if (!conversationId || runningIds.value.has(conversationId)) return
@@ -653,9 +713,21 @@ export function useConversations() {
         approved,
         reason,
         goal,
+        resumed,
+        aborted,
       } = event.payload
       if (!sessionId && (type === 'engine.stopped' || type === 'engine.protocol_error')) {
         const affected = [...runningIds.value]
+        for (const compactingId of continuity.value.compacting) {
+          continuity.value = applyCodingContinuityEvent(
+            continuity.value,
+            compactingId,
+            {
+              type: 'runtime.compaction_completed',
+              error: 'Agent 进程已停止，本次整理已中断。',
+            },
+          )
+        }
         const message = type === 'engine.protocol_error'
           ? `Agent 通信异常：${agentErrorMessage(error)}`
           : `Agent 已停止${error ? `：${agentErrorMessage(error)}` : '。'}`
@@ -696,6 +768,11 @@ export function useConversations() {
         const last = messages.at(-1)
 
         if (type === 'session.ready' || type === 'session.policy_updated') {
+          continuity.value = applyCodingContinuityEvent(
+            continuity.value,
+            sessionId,
+            { type, resumed },
+          )
           return {
             ...conversation,
             agentTools: tools ?? conversation.agentTools,
@@ -840,6 +917,14 @@ export function useConversations() {
             status: 'done',
           })
         }
+        if (type === 'runtime.compaction_started' || type === 'runtime.compaction_completed') {
+          continuity.value = applyCodingContinuityEvent(
+            continuity.value,
+            sessionId,
+            { type, aborted, error: error ? codingCompactionErrorMessage(error) : '' },
+          )
+          return conversation
+        }
         return { ...conversation, messages }
       })
       scheduleSave(sessionId)
@@ -869,6 +954,7 @@ export function useConversations() {
     listen,
     send,
     abort,
+    compactContext,
     controlGoal,
     respondApproval,
     remove,
@@ -879,5 +965,10 @@ export function useConversations() {
     setCodingPolicy,
     setMCPSelection,
     startWorkspaceTask,
+    activeSessionReady,
+    activeResumed,
+    activeCompacting,
+    activeCompactedAt,
+    activeCompactionError,
   }
 }

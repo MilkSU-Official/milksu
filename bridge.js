@@ -55,6 +55,12 @@ import {
 } from "./bridge-mcp.js";
 import { disposeAgentSession } from "./bridge-session-lifecycle.js";
 import {
+  compactSession,
+  projectCompactionEvent,
+  trackCompaction,
+  waitForCompaction,
+} from "./bridge-compaction.js";
+import {
   codingCollaborationChanged,
   codingCollaborationToolName,
   formatSubagentApproval,
@@ -84,6 +90,8 @@ const sessionPolicies = new Map();
 const sessionPolicyControllers = new Map();
 const backgroundTaskControllers = new Map();
 const promptQueues = new Map();
+const compactionRuns = new Map();
+const compactionRequestIds = new Map();
 const abortedSessions = new Set();
 const input = createInterface({ input: process.stdin });
 let commandQueue = Promise.resolve();
@@ -608,6 +616,23 @@ function subscribeSession(conversationId, session, maxToolEventOutputBytes) {
   const toolStartedAt = new Map();
 
   session.subscribe((event) => {
+    if (
+      event.type === "compaction_start"
+      || event.type === "compaction_end"
+    ) {
+      const requestId = event.reason === "manual"
+        ? compactionRequestIds.get(conversationId)
+        : undefined;
+      const projected = projectCompactionEvent(event, requestId);
+      if (event.type === "compaction_end" && requestId) {
+        compactionRequestIds.delete(conversationId);
+      }
+      if (projected) {
+        emit(conversationId, projected.type, projected.data);
+      }
+      return;
+    }
+
     if (event.type === "agent_start") {
       emit(conversationId, "turn_started");
       return;
@@ -1099,6 +1124,10 @@ async function sendMessage(command) {
 
   const previous = promptQueues.get(conversationId) ?? Promise.resolve();
   const next = previous.then(async () => {
+    // A manual compaction in flight for this conversation must finish before
+    // the next prompt so Pi never runs a prompt against a session that is
+    // mid-compaction. Compaction is bounded, so this wait cannot hang forever.
+    await waitForCompaction(compactionRuns, conversationId);
     const attachmentRoot = process.env.MILKSU_CODING_ATTACHMENT_ROOT;
     const supportsImages = Array.isArray(session.model?.input)
       && session.model.input.includes("image");
@@ -1148,6 +1177,20 @@ async function destroySession(command) {
 
   const session = sessions.get(conversationId);
   const sessionFile = session?.sessionFile;
+  const compactionRequestId = compactionRequestIds.get(conversationId);
+  if (compactionRequestId) {
+    emit(conversationId, "compaction_end", {
+      requestId: compactionRequestId,
+      reason: "manual",
+      aborted: true,
+      error: "Coding session was destroyed during context compaction",
+    });
+    try {
+      session?.abortCompaction?.();
+    } catch {
+      // Disposal below still terminates the session.
+    }
+  }
   const backgroundController = backgroundTaskControllers.get(conversationId) ?? {
     sendUserMessage: async () => undefined,
   };
@@ -1160,6 +1203,8 @@ async function destroySession(command) {
     }
   }
   approvalBroker.cancelConversation(conversationId, "session destroyed");
+  compactionRuns.delete(conversationId);
+  compactionRequestIds.delete(conversationId);
   await disposeAgentSession(session);
   sessions.delete(conversationId);
   sessionPolicies.delete(conversationId);
@@ -1196,6 +1241,60 @@ function terminalCommandName(value, command) {
   if (explicit) return explicit.slice(0, 120);
   const firstLine = String(command ?? "").split(/\r?\n/, 1)[0].trim();
   return (firstLine || "终端命令").slice(0, 120);
+}
+
+async function compactSessionCommand(command) {
+  const conversationId = String(command.conversationId ?? "").trim();
+  const requestId = String(command.requestId ?? "").trim();
+  try {
+    if (!conversationId) throw new Error("conversationId is required");
+    if (!requestId) throw new Error("requestId is required");
+    if (compactionRuns.has(conversationId)) {
+      throw new Error("Coding session is already compacting");
+    }
+    const session = sessions.get(conversationId);
+    if (!session) {
+      throw new Error(`Coding session not found: ${conversationId}`);
+    }
+    const policy = sessionPolicies.get(conversationId);
+    if (policy?.ctf) {
+      throw new Error("CTF agent sessions cannot be compacted from the task UI");
+    }
+    compactionRequestIds.set(conversationId, requestId);
+    const run = (async () => {
+      try {
+        await compactSession(session);
+      } catch (error) {
+        // AgentSession.compact normally emits Pi's native compaction_end even
+        // on failure. Keep a fallback only for wrapper validation/runtime
+        // failures that happen before that native event.
+        if (compactionRequestIds.get(conversationId) === requestId) {
+          compactionRequestIds.delete(conversationId);
+          const message = describeError(error);
+          emit(conversationId, "compaction_end", {
+            requestId,
+            reason: "manual",
+            aborted: /cancelled|timed out|aborted/i.test(message),
+            error: message,
+          });
+        }
+      } finally {
+        if (compactionRequestIds.get(conversationId) === requestId) {
+          compactionRequestIds.delete(conversationId);
+        }
+      }
+    })();
+    await trackCompaction(compactionRuns, conversationId, run);
+  } catch (error) {
+    // Validation failures that happen before a run exists still surface as an
+    // explicit compaction_end so the Supervisor waiter never hangs.
+    emit(conversationId || null, "compaction_end", {
+      requestId,
+      reason: "manual",
+      aborted: false,
+      error: describeError(error),
+    });
+  }
 }
 
 async function controlBackgroundTask(command) {
@@ -1312,6 +1411,9 @@ async function handleCommand(command) {
     case "background_task_control":
       await controlBackgroundTask(command);
       break;
+    case "compact_session":
+      await compactSessionCommand(command);
+      break;
     case "destroy_session":
       await destroySession(command);
       break;
@@ -1349,6 +1451,10 @@ input.on("line", (line) => {
       return;
     }
   }
+  if (command.action === "compact_session") {
+    void compactSessionCommand(command);
+    return;
+  }
   commandQueue = commandQueue
     .then(() => handleCommand(command))
     .catch((error) => {
@@ -1359,6 +1465,8 @@ input.on("line", (line) => {
 
 async function disposeAllSessions() {
   approvalBroker.cancelAll("Sidecar stopped");
+  compactionRuns.clear();
+  compactionRequestIds.clear();
   await Promise.all(
     [...sessions.values()].map(session => disposeAgentSession(session)),
   );

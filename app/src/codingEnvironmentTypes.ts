@@ -110,6 +110,11 @@ export interface CodingRuntimeStatus {
   }
 }
 
+export interface CodingCompactionResult {
+  tokensBefore: number
+  estimatedTokensAfter?: number
+}
+
 export type CodingTerminalStatus =
   | 'running'
   | 'exited'

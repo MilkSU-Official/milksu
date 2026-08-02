@@ -55,6 +55,7 @@ import type {
   CodingArchitecturePreview,
   CodingArtifactPreview,
   CodingBrowserStatus,
+  CodingCompactionResult,
   CodingComputerUseStatus,
   CodingCollaborationStatus,
   CodingDiffSnapshot,
@@ -133,6 +134,9 @@ interface WailsAppBindings {
     conversationId: string,
     taskId: string,
   ): Promise<CodingRuntimeStatus>
+  CompactCodingSession(
+    conversationId: string,
+  ): Promise<CodingCompactionResult>
   ListCodingTerminals(
     conversationId: string,
   ): Promise<CodingTerminalSession[]>
@@ -525,6 +529,10 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.StopCodingBackgroundTask(
           args?.conversationId as string,
           args?.taskId as string,
+        ) as Promise<T>
+      case 'compact_coding_session':
+        return app.CompactCodingSession(
+          args?.conversationId as string,
         ) as Promise<T>
       case 'list_coding_terminals':
         return app.ListCodingTerminals(

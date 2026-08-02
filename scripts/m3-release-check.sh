@@ -33,7 +33,7 @@ done
 
 go test ./...
 go vet ./...
-node --test browserextension-background.test.js bridge-approval.test.js bridge-attachments.test.js bridge-background-process.test.js bridge-collaboration.test.js bridge-lsp.test.js bridge-mcp.test.js bridge-policy.test.js bridge-resource-policy.test.js bridge-vision.test.js computer-use-proxy.test.js pi-subagent-runner.test.cjs
+node --test browserextension-background.test.js bridge-approval.test.js bridge-attachments.test.js bridge-background-process.test.js bridge-collaboration.test.js bridge-compaction.test.js bridge-lsp.test.js bridge-mcp.test.js bridge-policy.test.js bridge-resource-policy.test.js bridge-vision.test.js computer-use-proxy.test.js pi-subagent-runner.test.cjs
 npm --prefix app test -- --run
 npm --prefix app run lint
 npm --prefix app run build
@@ -47,6 +47,7 @@ rg -q "GetCodingDiff" app/wailsjs/go/main/App.d.ts
 rg -q "GetCodingArchitecturePreview" app/wailsjs/go/main/App.d.ts
 rg -q "RespondToolApproval" app/wailsjs/go/main/App.d.ts
 rg -q "GetCodingComputerUseStatus" app/wailsjs/go/main/App.d.ts
+rg -q "CompactCodingSession" app/wailsjs/go/main/App.d.ts
 rg -q "RequestCodingComputerUsePermissions" app/wailsjs/go/main/App.d.ts
 rg -q "StartCodingComputerUse" app/wailsjs/go/main/App.d.ts
 rg -q "StopCodingComputerUse" app/wailsjs/go/main/App.d.ts

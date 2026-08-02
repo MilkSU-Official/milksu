@@ -48,6 +48,7 @@ import {
   PanelRightOpen,
   RefreshCw,
   Route,
+  Shrink,
   Sparkles,
   Target,
   Terminal,
@@ -116,6 +117,11 @@ const props = defineProps<{
   settings: AppSettings | null
   workspacePath: string
   running: boolean
+  sessionReady: boolean
+  resumed: boolean
+  compacting: boolean
+  compactedAt?: number
+  compactionError?: string
   ctfSession: boolean
   ctfMode?: 'coach' | 'copilot' | 'delegate'
   ctfRole?: 'solver' | 'tool-builder' | 'strategist'
@@ -141,6 +147,7 @@ const emit = defineEmits<{
   ]
   changeMcpServers: [servers: string[], configDigest: string]
   respondApproval: [requestId: string, approved: boolean]
+  compactContext: []
   controlGoal: [action: 'resume' | 'clear']
   openSettings: []
   returnCtf: []
@@ -250,6 +257,32 @@ const goalUsageLabel = computed(() => {
   const goal = activeGoal.value
   if (!goal?.tokenBudget) return ''
   return `${goal.tokensUsed.toLocaleString()} / ${goal.tokenBudget.toLocaleString()} tokens`
+})
+const continuityBadges = computed(() => {
+  const badges: string[] = []
+  if (props.compacting) {
+    badges.push('整理中')
+    return badges
+  }
+  if (!props.sessionReady) badges.push('待连接')
+  else if (props.resumed) badges.push('从持久会话恢复')
+  else if (!props.compactedAt) badges.push('新会话')
+  if (props.compactedAt) {
+    badges.push(`已整理 ${new Date(props.compactedAt).toLocaleTimeString()}`)
+  }
+  return badges
+})
+const continuityTitle = computed(() => {
+  if (props.compacting) {
+    return '正在把当前会话上下文压缩为结构化摘要；完成后继续对话即可';
+  }
+  if (props.resumed) {
+    return '本任务从持久化的 Pi 会话恢复，历史与已整理摘要仍在会话文件中';
+  }
+  if (!props.sessionReady) {
+    return '当前任务尚未连接 Pi 会话；发送消息后才能整理上下文';
+  }
+  return '本任务是新会话；长任务可手动整理上下文以控制成本';
 })
 const effectiveExecutionMode = computed(() => (
   normalizeCodingExecutionMode(props.executionMode)
@@ -1250,6 +1283,49 @@ watch(
               {{ goalMode ? '已设为目标' : '设为目标' }}
             </Button>
           </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            class="mt-2 w-full justify-between"
+            :disabled="!sessionReady || running || compacting"
+            :title="compacting
+              ? '正在整理上下文'
+              : (!sessionReady
+                ? '发送消息并连接 Pi 会话后才能整理上下文'
+                : '手动触发 Pi 原生上下文压缩；整理中请等待，运行中不可用')"
+            @click="$emit('compactContext')"
+          >
+            <span class="flex min-w-0 items-center gap-2">
+              <Shrink class="size-3.5 shrink-0" />
+              <span class="truncate">
+                {{ compacting ? '整理中…' : '整理上下文' }}
+              </span>
+            </span>
+            <LoaderCircle
+              v-if="compacting"
+              class="size-3.5 shrink-0 animate-spin text-primary"
+            />
+          </Button>
+          <div
+            class="mt-2 flex flex-wrap items-center gap-1.5"
+            :title="continuityTitle"
+          >
+            <span class="text-caption text-muted-foreground">连续性</span>
+            <Badge
+              v-for="badge in continuityBadges"
+              :key="badge"
+              variant="outline"
+            >
+              {{ badge }}
+            </Badge>
+          </div>
+          <p
+            v-if="compactionError"
+            class="mt-2 text-caption leading-5 text-destructive"
+          >
+            整理上下文失败：{{ compactionError }}
+          </p>
           <div
             v-if="activeGoal || goalMode"
             class="mt-3 rounded-lg bg-primary/[0.07] p-3"

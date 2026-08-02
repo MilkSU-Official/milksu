@@ -1420,3 +1420,349 @@ func TestSupervisorStoresTrimmedExplicitSidecarDirectory(t *testing.T) {
 		t.Fatalf("unexpected Sidecar directory: %q", supervisor.sidecarDirectory)
 	}
 }
+
+func TestNormalizeCompactionLifecycle(t *testing.T) {
+	started := normalizeBridgeEvent(bridgeEvent{
+		Type:      "compaction_start",
+		ID:        "session-compact",
+		RequestID: "comp-1",
+		Reason:    "manual",
+	})
+	if started.Type != "runtime.compaction_started" ||
+		started.RequestID != "comp-1" ||
+		started.Reason != "manual" ||
+		started.Done {
+		t.Fatalf("unexpected compaction start event: %#v", started)
+	}
+
+	completed := normalizeBridgeEvent(bridgeEvent{
+		Type:      "compaction_end",
+		ID:        "session-compact",
+		RequestID: "comp-1",
+		Reason:    "manual",
+		Aborted:   false,
+		Compaction: &CompactionResult{
+			TokensBefore:         5000,
+			EstimatedTokensAfter: 800,
+		},
+	})
+	if completed.Type != "runtime.compaction_completed" ||
+		completed.RequestID != "comp-1" ||
+		!completed.Done ||
+		completed.Compaction == nil ||
+		completed.Compaction.TokensBefore != 5000 ||
+		completed.Compaction.EstimatedTokensAfter != 800 {
+		t.Fatalf("unexpected compaction end event: %#v", completed)
+	}
+
+	failed := normalizeBridgeEvent(bridgeEvent{
+		Type:      "compaction_end",
+		ID:        "session-compact",
+		RequestID: "comp-1",
+		Aborted:   true,
+		Error:     "Compaction cancelled",
+	})
+	if failed.Type != "runtime.compaction_completed" ||
+		failed.Error != "Compaction cancelled" ||
+		!failed.Aborted ||
+		failed.Compaction != nil {
+		t.Fatalf("failed compaction must carry the error and no result: %#v", failed)
+	}
+}
+
+func TestCompactSessionWaitsForSidecarReceipt(t *testing.T) {
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	defer writer.Close()
+
+	supervisor := NewSupervisor(nil)
+	supervisor.process = &childProcess{
+		stdin:     writer,
+		workspace: "/workspace",
+	}
+	supervisor.sessions["session-compact"] = struct{}{}
+	type compactResult struct {
+		result CompactionResult
+		err    error
+	}
+	result := make(chan compactResult, 1)
+	go func() {
+		compacted, compactErr := supervisor.CompactSessionWithTimeout(
+			"session-compact",
+			time.Second,
+		)
+		result <- compactResult{result: compacted, err: compactErr}
+	}()
+
+	line, err := bufio.NewReader(reader).ReadBytes('\n')
+	if err != nil {
+		t.Fatal(err)
+	}
+	var command map[string]any
+	if err := json.Unmarshal(line, &command); err != nil {
+		t.Fatal(err)
+	}
+	requestID, _ := command["requestId"].(string)
+	if command["action"] != "compact_session" ||
+		command["conversationId"] != "session-compact" ||
+		requestID == "" {
+		t.Fatalf("unexpected compaction command: %#v", command)
+	}
+
+	supervisor.emitEvent(normalizeBridgeEvent(bridgeEvent{
+		Type:      "compaction_start",
+		ID:        "session-compact",
+		RequestID: requestID,
+		Reason:    "manual",
+	}))
+	select {
+	case compacted := <-result:
+		t.Fatalf(
+			"compaction start must not settle the waiting control: %#v",
+			compacted,
+		)
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	event := normalizeBridgeEvent(bridgeEvent{
+		Type:      "compaction_end",
+		ID:        "session-compact",
+		RequestID: requestID,
+		Reason:    "manual",
+		Compaction: &CompactionResult{
+			TokensBefore:         9000,
+			EstimatedTokensAfter: 1200,
+		},
+	})
+	supervisor.emitEvent(event)
+
+	select {
+	case compacted := <-result:
+		if compacted.err != nil {
+			t.Fatal(compacted.err)
+		}
+		if compacted.result.TokensBefore != 9000 ||
+			compacted.result.EstimatedTokensAfter != 1200 {
+			t.Fatalf("unexpected compaction result: %#v", compacted.result)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("compaction receipt was not delivered")
+	}
+
+	supervisor.mu.Lock()
+	supervisor.process = nil
+	supervisor.mu.Unlock()
+}
+
+func TestCompactSessionReportsFailureWithoutSuccess(t *testing.T) {
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	defer writer.Close()
+
+	supervisor := NewSupervisor(nil)
+	supervisor.process = &childProcess{
+		stdin:     writer,
+		workspace: "/workspace",
+	}
+	supervisor.sessions["session-compact"] = struct{}{}
+	result := make(chan error, 1)
+	go func() {
+		_, compactErr := supervisor.CompactSessionWithTimeout(
+			"session-compact",
+			time.Second,
+		)
+		result <- compactErr
+	}()
+
+	line, err := bufio.NewReader(reader).ReadBytes('\n')
+	if err != nil {
+		t.Fatal(err)
+	}
+	var command map[string]any
+	if err := json.Unmarshal(line, &command); err != nil {
+		t.Fatal(err)
+	}
+	requestID, _ := command["requestId"].(string)
+
+	event := normalizeBridgeEvent(bridgeEvent{
+		Type:      "compaction_end",
+		ID:        "session-compact",
+		RequestID: requestID,
+		Error:     "Error: Nothing to compact (session too small)",
+	})
+	supervisor.emitEvent(event)
+
+	select {
+	case compactErr := <-result:
+		if compactErr == nil ||
+			!strings.Contains(compactErr.Error(), "Nothing to compact") {
+			t.Fatalf("expected explicit compaction failure, got %v", compactErr)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("compaction failure receipt was not delivered")
+	}
+
+	supervisor.mu.Lock()
+	supervisor.process = nil
+	supervisor.mu.Unlock()
+}
+
+func TestCompactSessionTimesOut(t *testing.T) {
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	defer writer.Close()
+
+	supervisor := NewSupervisor(nil)
+	supervisor.process = &childProcess{
+		stdin:     writer,
+		workspace: "/workspace",
+	}
+	supervisor.sessions["session-compact"] = struct{}{}
+	_, compactErr := supervisor.CompactSessionWithTimeout(
+		"session-compact",
+		30*time.Millisecond,
+	)
+	if compactErr == nil ||
+		!strings.Contains(compactErr.Error(), "timed out") {
+		t.Fatalf("expected compaction timeout, got %v", compactErr)
+	}
+
+	supervisor.mu.Lock()
+	supervisor.process = nil
+	supervisor.mu.Unlock()
+}
+
+func TestCompactSessionDetectsProcessStop(t *testing.T) {
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	defer writer.Close()
+
+	supervisor := NewSupervisor(nil)
+	supervisor.process = &childProcess{
+		stdin:     writer,
+		workspace: "/workspace",
+	}
+	supervisor.sessions["session-compact"] = struct{}{}
+	result := make(chan error, 1)
+	go func() {
+		_, compactErr := supervisor.CompactSessionWithTimeout(
+			"session-compact",
+			time.Second,
+		)
+		result <- compactErr
+	}()
+
+	line, err := bufio.NewReader(reader).ReadBytes('\n')
+	if err != nil {
+		t.Fatal(err)
+	}
+	var command map[string]any
+	if err := json.Unmarshal(line, &command); err != nil {
+		t.Fatal(err)
+	}
+
+	supervisor.deliverControlEvent(Event{
+		Type:  "engine.stopped",
+		Error: "sidecar exited",
+	})
+
+	select {
+	case compactErr := <-result:
+		if compactErr == nil ||
+			!strings.Contains(compactErr.Error(), "stopped") ||
+			!strings.Contains(compactErr.Error(), "sidecar exited") {
+			t.Fatalf("expected diagnosable process-stop failure, got %v", compactErr)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("process-stop failure was not delivered")
+	}
+
+	supervisor.mu.Lock()
+	supervisor.process = nil
+	supervisor.mu.Unlock()
+}
+
+func TestCompactSessionRequiresBoundSession(t *testing.T) {
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	defer writer.Close()
+
+	supervisor := NewSupervisor(nil)
+	supervisor.process = &childProcess{
+		stdin:     writer,
+		workspace: "/workspace",
+	}
+	// No session in s.sessions: the request must be rejected without writing.
+	_, compactErr := supervisor.CompactSessionWithTimeout(
+		"session-unknown",
+		time.Second,
+	)
+	if compactErr == nil ||
+		!strings.Contains(compactErr.Error(), "session not found") {
+		t.Fatalf("expected bound-session rejection, got %v", compactErr)
+	}
+	// Nothing may reach the Sidecar for an unbound conversation. A blocking
+	// read would hang because nothing is ever written, so verify emptiness
+	// with a goroutine plus a short select window, then close the writer to
+	// unblock the reader.
+	read := make(chan struct{})
+	go func() {
+		_, _ = bufio.NewReader(reader).ReadBytes('\n')
+		close(read)
+	}()
+	select {
+	case <-read:
+		t.Fatal("compact request must not reach the Sidecar for an unbound conversation")
+	case <-time.After(100 * time.Millisecond):
+	}
+	_ = writer.Close()
+
+	supervisor.mu.Lock()
+	supervisor.process = nil
+	supervisor.mu.Unlock()
+}
+
+func TestCompactSessionValidation(t *testing.T) {
+	supervisor := NewSupervisor(nil)
+	defer supervisor.Close()
+	if _, err := supervisor.CompactSessionWithTimeout(
+		"",
+		time.Second,
+	); err == nil || !strings.Contains(err.Error(), "session id is required") {
+		t.Fatalf("expected empty session rejection, got %v", err)
+	}
+	supervisor.sessions["session-compact"] = struct{}{}
+	if _, err := supervisor.CompactSessionWithTimeout(
+		"session-compact",
+		0,
+	); err == nil || !strings.Contains(err.Error(), "timeout must be positive") {
+		t.Fatalf("expected timeout validation, got %v", err)
+	}
+}
+
+func TestCompactSessionRequiresRunningSidecar(t *testing.T) {
+	supervisor := NewSupervisor(nil)
+	defer supervisor.Close()
+	supervisor.sessions["session-compact"] = struct{}{}
+	if _, err := supervisor.CompactSessionWithTimeout(
+		"session-compact",
+		time.Second,
+	); err == nil || !strings.Contains(err.Error(), "PI Sidecar is not running") {
+		t.Fatalf("expected sidecar rejection, got %v", err)
+	}
+}
