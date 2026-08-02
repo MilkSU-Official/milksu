@@ -103,6 +103,7 @@ func TestPrepareAgentWorkspaceExportsVerifiedMaterialsAndPreservesNotes(t *testi
 		!containsString(manifest.Policy.AllowedTools, "ctf_decode") ||
 		!containsString(manifest.Policy.AllowedTools, "ctf_triage") ||
 		!containsString(manifest.Policy.AllowedTools, "ctf_inspect") ||
+		!containsString(manifest.Policy.AllowedTools, "ctf_request_endpoint") ||
 		!manifest.Policy.Execution.WorkspaceOnly ||
 		manifest.Policy.Execution.DefaultCommandTimeoutSeconds != 120 ||
 		manifest.Policy.Execution.MaxCommandTimeoutSeconds != 300 ||
@@ -128,6 +129,9 @@ func TestPrepareAgentWorkspaceExportsVerifiedMaterialsAndPreservesNotes(t *testi
 	if !strings.Contains(string(instructions), "Crypto 路由") ||
 		!strings.Contains(string(instructions), "协作契约：搭档") ||
 		!strings.Contains(string(instructions), "work/tool-requests/") ||
+		!strings.Contains(string(instructions), "Shell 不继承模型 API Key") ||
+		!strings.Contains(string(instructions), "始终由 macOS sandbox 关闭网络") ||
+		!strings.Contains(string(instructions), "ctf_request_endpoint") ||
 		!strings.Contains(string(instructions), "不要直接向 NSSCTF") {
 		t.Fatalf("workspace instructions are incomplete: %s", instructions)
 	}
@@ -261,31 +265,115 @@ func TestAgentCollaborationPoliciesChangeBehaviorAndBudget(t *testing.T) {
 }
 
 func TestAgentPolicyAddsOnlyExplicitlyScopedNetworkTools(t *testing.T) {
+	localGrant, err := securitypolicy.NewGrant(
+		"test:directory",
+		"test local policy",
+		[]securitypolicy.Target{{
+			Kind:  securitypolicy.TargetDirectory,
+			Value: t.TempDir(),
+		}},
+		time.Hour,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
 	local := agentCollaborationPolicyForChallenge("coach", ChallengeSource{
-		Scope: securitypolicy.ScopeGrant{
-			Targets: []securitypolicy.Target{{
-				Kind:  securitypolicy.TargetDirectory,
-				Value: "/tmp/fixture",
-			}},
-		},
-	})
+		Scope: localGrant,
+	}, nil)
 	if containsString(local.AllowedTools, "ctf_http") ||
-		containsString(local.AllowedTools, "ctf_socket") {
+		containsString(local.AllowedTools, "ctf_socket") ||
+		containsString(local.AllowedTools, "ctf_ssh") {
 		t.Fatalf("local-only challenge gained network tools: %#v", local.AllowedTools)
 	}
 
-	networked := agentCollaborationPolicyForChallenge("coach", ChallengeSource{
-		Scope: securitypolicy.ScopeGrant{
-			Targets: []securitypolicy.Target{
-				{Kind: securitypolicy.TargetOrigin, Value: "https://challenge.example"},
-				{Kind: securitypolicy.TargetSocket, Value: "challenge.example:31337"},
-			},
+	networkGrant, err := securitypolicy.NewGrant(
+		"test:network",
+		"test network policy",
+		[]securitypolicy.Target{
+			{Kind: securitypolicy.TargetOrigin, Value: "https://challenge.example"},
+			{Kind: securitypolicy.TargetSocket, Value: "challenge.example:31337"},
+			{Kind: securitypolicy.TargetSSH, Value: "challenge.example:22"},
 		},
-	})
+		time.Hour,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	networked := agentCollaborationPolicyForChallenge("coach", ChallengeSource{
+		Scope: networkGrant,
+	}, nil)
 	if !containsString(networked.AllowedTools, "ctf_http") ||
 		!containsString(networked.AllowedTools, "ctf_socket") ||
+		!containsString(networked.AllowedTools, "ctf_ssh") ||
 		containsString(networked.AllowedTools, "bash") {
 		t.Fatalf("scoped Coach tools are incorrect: %#v", networked.AllowedTools)
+	}
+	if !containsString(networked.AllowedTools, "ctf_request_endpoint") {
+		t.Fatalf("solver cannot propose a new Endpoint: %#v", networked.AllowedTools)
+	}
+}
+
+func TestPrepareAgentWorkspaceCarriesApprovedScopesWithoutOpeningShellNetwork(t *testing.T) {
+	sourceGrant, err := securitypolicy.NewGrant(
+		"test:offline",
+		"offline source",
+		[]securitypolicy.Target{{Kind: securitypolicy.TargetLab, Value: "offline-intake"}},
+		time.Hour,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	networkGrant, err := securitypolicy.NewGrant(
+		"ctf-endpoint:endpoint_fixture",
+		"read exact HTTP baseline",
+		[]securitypolicy.Target{{
+			Kind: securitypolicy.TargetOrigin, Value: "https://challenge.example.test:8443",
+		}},
+		time.Hour,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handoff, err := PrepareAgentWorkspace(
+		context.Background(),
+		filepath.Join(t.TempDir(), "workspaces"),
+		Projection{
+			Job: securityruntime.Job{ID: "job_network_scope", Title: "Endpoint fixture"},
+			Challenge: ChallengeView{
+				ID: "challenge_network_scope", Title: "Endpoint fixture",
+				Statement: "Use only the approved broker.", Category: "web",
+				CollaborationMode: "copilot",
+				Source:            ChallengeSource{Kind: "text", Scope: sourceGrant},
+			},
+			NetworkScopes: []securitypolicy.ScopeGrant{networkGrant},
+		},
+		workspaceArtifactReader{},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(handoff.WorkspacePath, "challenge.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest AgentWorkspaceManifest
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if manifest.SchemaVersion != "ctf-workspace.milksu.dev/v1alpha2" ||
+		len(manifest.NetworkScopes) != 1 ||
+		manifest.NetworkScopes[0].ID != networkGrant.ID ||
+		!containsString(manifest.Policy.AllowedTools, "ctf_http") ||
+		!containsString(manifest.Policy.AllowedTools, "bash") {
+		t.Fatalf("approved network Scope was not carried into the manifest: %+v", manifest)
+	}
+	instructions, err := os.ReadFile(filepath.Join(handoff.WorkspacePath, "AGENTS.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(instructions), "Shell 不继承模型 API Key") ||
+		!strings.Contains(string(instructions), "始终由 macOS sandbox 关闭网络") {
+		t.Fatalf("workspace instructions implied ambient Shell network: %s", instructions)
 	}
 }
 

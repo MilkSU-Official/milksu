@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"path/filepath"
 	"testing"
 	"time"
@@ -39,6 +40,51 @@ func TestCTFAgentSessionPreservesAssistantSummaryAcrossToolEvents(t *testing.T) 
 	}
 	if session.status != "running" || session.exitReason != "" {
 		t.Fatalf("tool event did not transition the run to running: %#v", session)
+	}
+}
+
+func TestEndpointRequestToolEventProjectsOnlyAValidatedPendingProposal(t *testing.T) {
+	valid := map[string]any{
+		"kind":        "ctf_endpoint_request",
+		"protocol":    "https",
+		"endpoint":    "https://challenge.example.test:8443",
+		"source":      "题目页面显示的实例入口",
+		"purpose":     "读取 HTTP 基线",
+		"requestedBy": "agent",
+		"status":      "pending_user_approval",
+	}
+	data, err := json.Marshal(valid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request, requested, err := endpointRequestFromToolEvent(engine.Event{
+		Type: "tool.completed", ToolName: "ctf_request_endpoint", Text: string(data),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !requested ||
+		request.Protocol != ctf.EndpointProtocolHTTPS ||
+		request.Endpoint != "https://challenge.example.test:8443" ||
+		request.Source != "题目页面显示的实例入口" ||
+		request.Purpose != "读取 HTTP 基线" {
+		t.Fatalf("valid request tool result was not projected: %+v requested=%t", request, requested)
+	}
+	for _, event := range []engine.Event{
+		{Type: "tool.started", ToolName: "ctf_request_endpoint", Text: string(data)},
+		{Type: "tool.completed", ToolName: "ctf_request_endpoint", Text: string(data), Error: "rejected"},
+		{Type: "tool.completed", ToolName: "read", Text: string(data)},
+	} {
+		if _, requested, err := endpointRequestFromToolEvent(event); err != nil || requested {
+			t.Fatalf("non-success Endpoint event created a request: event=%+v requested=%t err=%v", event, requested, err)
+		}
+	}
+	valid["requestedBy"] = "user"
+	data, _ = json.Marshal(valid)
+	if _, requested, err := endpointRequestFromToolEvent(engine.Event{
+		Type: "tool.completed", ToolName: "ctf_request_endpoint", Text: string(data),
+	}); err == nil || requested {
+		t.Fatalf("forged requester was accepted: requested=%t err=%v", requested, err)
 	}
 }
 

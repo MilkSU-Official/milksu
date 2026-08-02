@@ -15,6 +15,7 @@ const policies = {
     allowedTools: [
       'read', 'edit', 'write', 'grep', 'find', 'ls',
       'ctf_capabilities', 'ctf_decode', 'ctf_triage', 'ctf_inspect',
+      'ctf_request_endpoint',
     ],
     budget: { maxTurns: 48, maxWallMinutes: 60, maxWrongSubmissions: 2 },
   },
@@ -26,6 +27,7 @@ const policies = {
     allowedTools: [
       'read', 'bash', 'edit', 'write', 'grep', 'find', 'ls',
       'ctf_capabilities', 'ctf_decode', 'ctf_triage', 'ctf_inspect',
+      'ctf_request_endpoint',
     ],
     budget: { maxTurns: 36, maxWallMinutes: 50, maxWrongSubmissions: 3 },
   },
@@ -37,6 +39,7 @@ const policies = {
     allowedTools: [
       'read', 'bash', 'edit', 'write', 'grep', 'find', 'ls',
       'ctf_capabilities', 'ctf_decode', 'ctf_triage', 'ctf_inspect',
+      'ctf_request_endpoint',
     ],
     budget: { maxTurns: 24, maxWallMinutes: 45, maxWrongSubmissions: 3 },
   },
@@ -50,6 +53,7 @@ function previewPolicy(
   const allowedTools: string[] = [...policy.allowedTools]
   if (targets.some(target => target.kind === 'origin')) allowedTools.push('ctf_http')
   if (targets.some(target => target.kind === 'socket')) allowedTools.push('ctf_socket')
+  if (targets.some(target => target.kind === 'ssh')) allowedTools.push('ctf_ssh')
   return {
     mode,
     ...policy,
@@ -119,6 +123,8 @@ export function createPreviewCTFProjection(request: CTFChallengeRequest): CTFPro
     agentCandidates: [],
     submissions: [],
     judgeReceipts: [],
+    endpointRequests: [],
+    networkScopes: [],
     learning: [],
     humanOutcome: {
       goal: request.humanGoal || '完成这道题并复述关键证据。',

@@ -1175,7 +1175,7 @@ func (a *App) ArchiveCTFMemory(id, reason string) error {
 }
 
 func (a *App) PrepareCTFToolBuilderWorkspace(id string) (ctf.AgentWorkspaceHandoff, error) {
-	if _, err := a.ctfJobs.GetJob(a.commandContext(), id); err != nil {
+	if _, err := a.PrepareCTFAgentWorkspace(id); err != nil {
 		return ctf.AgentWorkspaceHandoff{}, err
 	}
 	workspacePath, err := ctf.AgentWorkspacePath(
@@ -1184,13 +1184,6 @@ func (a *App) PrepareCTFToolBuilderWorkspace(id string) (ctf.AgentWorkspaceHando
 	)
 	if err != nil {
 		return ctf.AgentWorkspaceHandoff{}, err
-	}
-	if _, err := os.Stat(filepath.Join(workspacePath, "challenge.json")); errors.Is(err, os.ErrNotExist) {
-		if _, prepareErr := a.PrepareCTFAgentWorkspace(id); prepareErr != nil {
-			return ctf.AgentWorkspaceHandoff{}, prepareErr
-		}
-	} else if err != nil {
-		return ctf.AgentWorkspaceHandoff{}, fmt.Errorf("inspect CTF Agent workspace: %w", err)
 	}
 	handoff, err := ctf.LoadAgentToolBuilderHandoff(workspacePath)
 	if err != nil {
@@ -1203,7 +1196,7 @@ func (a *App) PrepareCTFToolBuilderWorkspace(id string) (ctf.AgentWorkspaceHando
 }
 
 func (a *App) PrepareCTFStrategistWorkspace(id string) (ctf.AgentWorkspaceHandoff, error) {
-	if _, err := a.ctfJobs.GetJob(a.commandContext(), id); err != nil {
+	if _, err := a.PrepareCTFAgentWorkspace(id); err != nil {
 		return ctf.AgentWorkspaceHandoff{}, err
 	}
 	workspacePath, err := ctf.AgentWorkspacePath(
@@ -1212,13 +1205,6 @@ func (a *App) PrepareCTFStrategistWorkspace(id string) (ctf.AgentWorkspaceHandof
 	)
 	if err != nil {
 		return ctf.AgentWorkspaceHandoff{}, err
-	}
-	if _, err := os.Stat(filepath.Join(workspacePath, "challenge.json")); errors.Is(err, os.ErrNotExist) {
-		if _, prepareErr := a.PrepareCTFAgentWorkspace(id); prepareErr != nil {
-			return ctf.AgentWorkspaceHandoff{}, prepareErr
-		}
-	} else if err != nil {
-		return ctf.AgentWorkspaceHandoff{}, fmt.Errorf("inspect CTF Agent workspace: %w", err)
 	}
 	handoff, err := ctf.LoadAgentStrategistHandoff(workspacePath)
 	if err != nil {

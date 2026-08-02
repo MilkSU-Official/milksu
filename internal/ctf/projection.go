@@ -32,6 +32,10 @@ func Project(core securityruntime.JobProjection) (Projection, error) {
 	if !found {
 		return Projection{}, fmt.Errorf("job has no admitted challenge")
 	}
+	endpointRequests, networkScopes, err := projectEndpointAuthorization(core.RoleFacts)
+	if err != nil {
+		return Projection{}, err
+	}
 	learning := make([]LearningRecord, 0)
 	agentCandidates := make([]AgentCandidate, 0)
 	judgeReceipts := make([]ExternalJudgeReceipt, 0)
@@ -231,24 +235,27 @@ func Project(core securityruntime.JobProjection) (Projection, error) {
 			AgentPolicy: agentCollaborationPolicyForChallenge(
 				challenge.CollaborationMode,
 				challenge.Source,
+				networkScopes,
 			),
 			JudgeType: challenge.Judge.Type, JudgeVersion: challenge.Judge.Version,
 			AdmittedAt: challenge.AdmittedAt,
 		},
-		Attempts:        append([]securityruntime.Attempt{}, core.Attempts...),
-		Experiments:     experiments,
-		Artifacts:       append([]securityruntime.Artifact{}, core.Artifacts...),
-		Evidence:        append([]securityruntime.Evidence{}, core.Evidence...),
-		Evaluations:     append([]securityruntime.Evaluation{}, core.Evaluations...),
-		AgentRuns:       agentRuns,
-		AgentCandidates: agentCandidates,
-		Submissions:     submissions,
-		JudgeReceipts:   judgeReceipts,
-		Learning:        learning,
-		HumanOutcome:    humanOutcome,
-		Debrief:         debrief,
-		Outcome:         core.Outcome,
-		Events:          append([]securityruntime.Event{}, core.Events...),
+		Attempts:         append([]securityruntime.Attempt{}, core.Attempts...),
+		Experiments:      experiments,
+		Artifacts:        append([]securityruntime.Artifact{}, core.Artifacts...),
+		Evidence:         append([]securityruntime.Evidence{}, core.Evidence...),
+		Evaluations:      append([]securityruntime.Evaluation{}, core.Evaluations...),
+		AgentRuns:        agentRuns,
+		AgentCandidates:  agentCandidates,
+		Submissions:      submissions,
+		JudgeReceipts:    judgeReceipts,
+		EndpointRequests: endpointRequests,
+		NetworkScopes:    networkScopes,
+		Learning:         learning,
+		HumanOutcome:     humanOutcome,
+		Debrief:          debrief,
+		Outcome:          core.Outcome,
+		Events:           append([]securityruntime.Event{}, core.Events...),
 	}, nil
 }
 

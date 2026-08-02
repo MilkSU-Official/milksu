@@ -22,7 +22,6 @@ import {
   realpath,
   writeFile,
 } from "node:fs/promises";
-import { createConnection } from "node:net";
 import {
   basename,
   dirname,
@@ -42,13 +41,20 @@ import {
   codingCollaborationToolName,
   collaborationWorktreePaths,
 } from "./bridge-collaboration.js";
+import {
+  createCTFEndpointToolDefinitions,
+  ctfEndpointRequestToolName,
+  ctfNetworkToolNames,
+  ctfScopedNetworkToolNames,
+} from "./bridge-ctf-network.js";
 
 export {
   codingSessionToolNames,
   normalizeCodingPolicy,
 } from "./bridge-coding-policy.js";
+export { scopeAllowsNetwork } from "./bridge-ctf-network.js";
 
-const workspaceSchemaVersion = "ctf-workspace.milksu.dev/v1alpha1";
+const workspaceSchemaVersion = "ctf-workspace.milksu.dev/v1alpha2";
 const toolBuilderRole = "tool-builder";
 const strategistRole = "strategist";
 const codingToolNames = ["read", "bash", "edit", "write", "grep", "find", "ls"];
@@ -102,8 +108,11 @@ const ctfLocalToolNames = [
   "ctf_triage",
   "ctf_inspect",
 ];
-const ctfNetworkToolNames = ["ctf_http", "ctf_socket"];
-const ctfToolNames = [...ctfLocalToolNames, ...ctfNetworkToolNames];
+const ctfToolNames = [
+  ...ctfLocalToolNames,
+  ctfEndpointRequestToolName,
+  ...ctfNetworkToolNames,
+];
 const coachToolNames = [
   "read",
   "edit",
@@ -116,6 +125,7 @@ const coachToolNames = [
   "ctf_decode",
   "ctf_triage",
   "ctf_inspect",
+  ctfEndpointRequestToolName,
 ];
 const strategistToolNames = ["read", "write", "grep", "find", "ls", "milksu_progress"];
 const defaultExecution = {
@@ -222,28 +232,26 @@ function normalizeExecution(value) {
 
 function normalizeActiveTools(manifest) {
   const requested = manifest?.policy?.allowedTools;
-  const fallback = manifest?.policy?.mode === "coach" ? coachToolNames : ctfToolNames;
-  const values = Array.isArray(requested) && requested.length > 0 ? [...requested] : [...fallback];
+  const fallback = manifest?.policy?.mode === "coach"
+    ? coachToolNames
+    : [...ctfLocalToolNames, ctfEndpointRequestToolName];
+  let values = Array.isArray(requested) && requested.length > 0 ? [...requested] : [...fallback];
   if (!values.includes("milksu_progress")) values.push("milksu_progress");
   const reviewOnly = manifest?.policy?.mode === strategistRole;
+  const roleIsSolver = ![toolBuilderRole, strategistRole].includes(manifest?.policy?.mode);
   if (!reviewOnly && !values.includes("ctf_capabilities")) values.push("ctf_capabilities");
   if (!reviewOnly && !values.includes("ctf_decode")) values.push("ctf_decode");
-  const targets = Array.isArray(manifest?.source?.scope?.targets)
-    ? manifest.source.scope.targets
-    : [];
-  if (
-    ![toolBuilderRole, strategistRole].includes(manifest?.policy?.mode)
-    && targets.some(target => String(target?.kind) === "origin")
-    && !values.includes("ctf_http")
-  ) {
-    values.push("ctf_http");
+  if (roleIsSolver && !values.includes(ctfEndpointRequestToolName)) {
+    values.push(ctfEndpointRequestToolName);
   }
-  if (
-    ![toolBuilderRole, strategistRole].includes(manifest?.policy?.mode)
-    && targets.some(target => String(target?.kind) === "socket")
-    && !values.includes("ctf_socket")
-  ) {
-    values.push("ctf_socket");
+  const scopedNetworkTools = new Set(
+    roleIsSolver ? ctfScopedNetworkToolNames(manifest) : [],
+  );
+  values = values.filter(name => (
+    !ctfNetworkToolNames.includes(name) || scopedNetworkTools.has(name)
+  ));
+  for (const name of scopedNetworkTools) {
+    if (!values.includes(name)) values.push(name);
   }
   const allowed = new Set(ctfToolNames);
   const normalized = [...new Set(values.map(value => String(value).trim()).filter(Boolean))];
@@ -258,64 +266,6 @@ function normalizeActiveTools(manifest) {
     throw new Error("CTF Agent tool policy cannot be empty");
   }
   return activeTools;
-}
-
-function assertScopeActive(manifest) {
-  const scope = manifest?.source?.scope;
-  if (!scope || typeof scope !== "object") {
-    throw new Error("CTF network tool denied: the challenge has no user-granted scope");
-  }
-  if (scope.revokedAt) {
-    throw new Error("CTF network tool denied: the user-granted scope was revoked");
-  }
-  if (scope.expiresAt) {
-    const expiresAt = Date.parse(String(scope.expiresAt));
-    if (!Number.isFinite(expiresAt) || Date.now() >= expiresAt) {
-      throw new Error("CTF network tool denied: the user-granted scope expired");
-    }
-  }
-  return scope;
-}
-
-function authorizedOrigins(manifest) {
-  const scope = assertScopeActive(manifest);
-  const origins = new Set();
-  for (const target of Array.isArray(scope.targets) ? scope.targets : []) {
-    if (String(target?.kind) !== "origin") continue;
-    try {
-      const parsed = new URL(String(target.value));
-      if (
-        ["http:", "https:"].includes(parsed.protocol)
-        && parsed.username === ""
-        && parsed.password === ""
-      ) {
-        origins.add(parsed.origin);
-      }
-    } catch {
-      // Invalid targets are never admitted as an implicit authorization.
-    }
-  }
-  return origins;
-}
-
-function authorizedSockets(manifest) {
-  const scope = assertScopeActive(manifest);
-  return new Set(
-    (Array.isArray(scope.targets) ? scope.targets : [])
-      .filter(target => String(target?.kind) === "socket")
-      .map(target => String(target.value || "").trim())
-      .filter(Boolean),
-  );
-}
-
-export function scopeAllowsNetwork(manifest) {
-  // Managed Labs expose one exact loopback origin through ctf_http. Their
-  // general-purpose shell remains networkless so a challenge cannot turn an
-  // admitted lab identifier into ambient host, Docker, or internet access.
-  if (String(manifest?.source?.kind) === "local-lab") return false;
-  const targets = manifest?.source?.scope?.targets;
-  if (!Array.isArray(targets)) return false;
-  return targets.some(target => ["origin", "socket"].includes(String(target?.kind)));
 }
 
 function sandboxString(value) {
@@ -811,6 +761,15 @@ function printableRatio(data) {
   return Math.round((printable / data.length) * 1000) / 1000;
 }
 
+function boundedDecodedBody(data) {
+  const text = data.toString("utf8");
+  const replacementCount = [...text].filter(character => character === "\uFFFD").length;
+  const likelyText = replacementCount === 0 && printableRatio(data) >= 0.75;
+  return likelyText
+    ? { bodyEncoding: "utf8", body: text }
+    : { bodyEncoding: "base64", body: data.toString("base64") };
+}
+
 function encodingHints(data) {
   if (data.length === 0 || data.length > 256 * 1024) return [];
   const value = data.toString("utf8").trim();
@@ -1249,317 +1208,7 @@ function createCTFDecodeTool() {
         decodedBytes: decoded.length,
         sha256: createHash("sha256").update(decoded).digest("hex"),
         printableRatio: printableRatio(decoded),
-        ...boundedBody(decoded),
-      };
-      return {
-        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-        details: result,
-      };
-    },
-  });
-}
-
-const blockedHTTPHeaders = new Set([
-  "connection",
-  "content-length",
-  "host",
-  "proxy-authorization",
-  "proxy-connection",
-  "te",
-  "transfer-encoding",
-  "upgrade",
-]);
-
-function normalizeHTTPHeaders(value) {
-  if (value === undefined) return {};
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error("ctf_http headers must be an object");
-  }
-  const entries = Object.entries(value);
-  if (entries.length > 32) throw new Error("ctf_http accepts at most 32 request headers");
-  const headers = {};
-  for (const [rawName, rawValue] of entries) {
-    const name = String(rawName).trim();
-    const lower = name.toLowerCase();
-    const headerValue = String(rawValue);
-    if (
-      !/^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/.test(name)
-      || blockedHTTPHeaders.has(lower)
-      || /[\r\n]/.test(headerValue)
-      || headerValue.length > 8192
-    ) {
-      throw new Error(`ctf_http denied unsafe request header: ${name || "(empty)"}`);
-    }
-    headers[name] = headerValue;
-  }
-  return headers;
-}
-
-async function readBoundedResponse(response, maxBytes) {
-  if (!response.body) return { data: Buffer.alloc(0), truncated: false };
-  const reader = response.body.getReader();
-  const chunks = [];
-  let total = 0;
-  let truncated = false;
-  try {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      const remaining = maxBytes - total;
-      if (remaining <= 0) {
-        truncated = true;
-        await reader.cancel();
-        break;
-      }
-      const chunk = Buffer.from(value);
-      if (chunk.length > remaining) {
-        chunks.push(chunk.subarray(0, remaining));
-        total += remaining;
-        truncated = true;
-        await reader.cancel();
-        break;
-      }
-      chunks.push(chunk);
-      total += chunk.length;
-    }
-  } finally {
-    reader.releaseLock();
-  }
-  return { data: Buffer.concat(chunks, total), truncated };
-}
-
-function boundedBody(data, contentType = "") {
-  const text = data.toString("utf8");
-  const textualType = /(?:^text\/|json|xml|javascript|x-www-form-urlencoded)/i.test(contentType);
-  const replacementCount = [...text].filter(character => character === "\uFFFD").length;
-  const likelyText = textualType || (replacementCount === 0 && printableRatio(data) >= 0.75);
-  return likelyText
-    ? { bodyEncoding: "utf8", body: text }
-    : { bodyEncoding: "base64", body: data.toString("base64") };
-}
-
-function createCTFHTTPTool(manifest) {
-  return defineTool({
-    name: "ctf_http",
-    label: "Request authorized CTF origin",
-    description: "Send one bounded HTTP request only to an exact origin in challenge.json. "
-      + "Ambient browser cookies and model-provider credentials are never attached. Redirects "
-      + "are returned but not followed; inspect Location and call again only if it remains in scope.",
-    parameters: Type.Object({
-      url: Type.String({ maxLength: 4096 }),
-      method: Type.Optional(Type.Union([
-        Type.Literal("GET"),
-        Type.Literal("HEAD"),
-        Type.Literal("POST"),
-        Type.Literal("PUT"),
-        Type.Literal("PATCH"),
-        Type.Literal("DELETE"),
-        Type.Literal("OPTIONS"),
-      ])),
-      headers: Type.Optional(Type.Record(
-        Type.String({ maxLength: 128 }),
-        Type.String({ maxLength: 8192 }),
-      )),
-      body: Type.Optional(Type.String({ maxLength: 262144 })),
-      timeoutSeconds: Type.Optional(Type.Integer({ minimum: 1, maximum: 30 })),
-      maxResponseBytes: Type.Optional(Type.Integer({ minimum: 1024, maximum: 1048576 })),
-    }),
-    execute: async (_toolCallId, params) => {
-      const origins = authorizedOrigins(manifest);
-      let parsed;
-      try {
-        parsed = new URL(params.url);
-      } catch {
-        throw new Error("ctf_http requires an absolute http(s) URL");
-      }
-      if (
-        !["http:", "https:"].includes(parsed.protocol)
-        || parsed.username !== ""
-        || parsed.password !== ""
-        || !origins.has(parsed.origin)
-      ) {
-        throw new Error(`ctf_http denied URL outside the exact authorized origins: ${parsed.origin}`);
-      }
-      const method = params.method || "GET";
-      if (["GET", "HEAD"].includes(method) && params.body !== undefined) {
-        throw new Error(`${method} requests cannot include a body`);
-      }
-      const headers = normalizeHTTPHeaders(params.headers);
-      const body = params.body === undefined ? undefined : params.body;
-      const timeoutSeconds = params.timeoutSeconds || 15;
-      const maxResponseBytes = params.maxResponseBytes || 262144;
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), timeoutSeconds * 1000);
-      try {
-        const response = await fetch(parsed, {
-          method,
-          headers,
-          body,
-          redirect: "manual",
-          signal: controller.signal,
-        });
-        const bounded = await readBoundedResponse(response, maxResponseBytes);
-        const responseHeaders = {};
-        for (const [name, value] of response.headers.entries()) responseHeaders[name] = value;
-        const result = {
-          requestedUrl: parsed.toString(),
-          responseUrl: response.url,
-          method,
-          status: response.status,
-          statusText: response.statusText,
-          redirected: response.status >= 300 && response.status < 400,
-          headers: responseHeaders,
-          bytesReturned: bounded.data.length,
-          truncated: bounded.truncated,
-          ...boundedBody(bounded.data, response.headers.get("content-type") || ""),
-        };
-        return {
-          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-          details: result,
-        };
-      } catch (error) {
-        if (controller.signal.aborted) {
-          throw new Error(`ctf_http timed out after ${timeoutSeconds}s`);
-        }
-        throw error;
-      } finally {
-        clearTimeout(timeout);
-      }
-    },
-  });
-}
-
-function decodeSocketPayload(value, encoding) {
-  const input = value || "";
-  switch (encoding) {
-  case "hex":
-    if (input.length % 2 !== 0 || !/^[0-9a-f]*$/i.test(input)) {
-      throw new Error("ctf_socket hex payload must contain complete hexadecimal bytes");
-    }
-    return Buffer.from(input, "hex");
-  case "base64":
-    if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(input)) {
-      throw new Error("ctf_socket payload is not canonical base64");
-    }
-    return Buffer.from(input, "base64");
-  default:
-    return Buffer.from(input, "utf8");
-  }
-}
-
-function parseSocketTarget(target) {
-  let parsed;
-  try {
-    parsed = new URL(`tcp://${target}`);
-  } catch {
-    throw new Error("ctf_socket target must be an exact authorized host:port");
-  }
-  const port = Number(parsed.port);
-  if (!parsed.hostname || !Number.isInteger(port) || port < 1 || port > 65535) {
-    throw new Error("ctf_socket target must include a valid TCP port");
-  }
-  const host = parsed.hostname.startsWith("[") && parsed.hostname.endsWith("]")
-    ? parsed.hostname.slice(1, -1)
-    : parsed.hostname;
-  return { host, port };
-}
-
-function runSocketRequest(target, payload, timeoutSeconds, maxResponseBytes) {
-  const address = parseSocketTarget(target);
-  return new Promise((resolvePromise, rejectPromise) => {
-    const socket = createConnection(address);
-    const chunks = [];
-    let total = 0;
-    let settled = false;
-    let truncated = false;
-    let idleTimeout = false;
-    const finish = (error = undefined) => {
-      if (settled) return;
-      settled = true;
-      socket.destroy();
-      if (error) {
-        rejectPromise(error);
-        return;
-      }
-      resolvePromise({
-        data: Buffer.concat(chunks, total),
-        truncated,
-        idleTimeout,
-      });
-    };
-    socket.setTimeout(timeoutSeconds * 1000);
-    socket.on("connect", () => socket.end(payload));
-    socket.on("data", value => {
-      const chunk = Buffer.from(value);
-      const remaining = maxResponseBytes - total;
-      if (remaining <= 0) {
-        truncated = true;
-        finish();
-        return;
-      }
-      if (chunk.length > remaining) {
-        chunks.push(chunk.subarray(0, remaining));
-        total += remaining;
-        truncated = true;
-        finish();
-        return;
-      }
-      chunks.push(chunk);
-      total += chunk.length;
-    });
-    socket.on("end", () => finish());
-    socket.on("close", () => finish());
-    socket.on("timeout", () => {
-      if (total === 0) {
-        finish(new Error(`ctf_socket timed out after ${timeoutSeconds}s without a response`));
-        return;
-      }
-      idleTimeout = true;
-      finish();
-    });
-    socket.on("error", error => finish(error));
-  });
-}
-
-function createCTFSocketTool(manifest) {
-  return defineTool({
-    name: "ctf_socket",
-    label: "Talk to authorized CTF socket",
-    description: "Open one bounded TCP connection only to an exact host:port in challenge.json, "
-      + "send one payload, and return a bounded response. Use a workspace script for multi-step "
-      + "protocols after recording the protocol evidence.",
-    parameters: Type.Object({
-      target: Type.String({ maxLength: 512 }),
-      payload: Type.Optional(Type.String({ maxLength: 262144 })),
-      payloadEncoding: Type.Optional(Type.Union([
-        Type.Literal("utf8"),
-        Type.Literal("hex"),
-        Type.Literal("base64"),
-      ])),
-      timeoutSeconds: Type.Optional(Type.Integer({ minimum: 1, maximum: 30 })),
-      maxResponseBytes: Type.Optional(Type.Integer({ minimum: 1024, maximum: 262144 })),
-    }),
-    execute: async (_toolCallId, params) => {
-      const sockets = authorizedSockets(manifest);
-      const target = String(params.target || "").trim();
-      if (!sockets.has(target)) {
-        throw new Error(`ctf_socket denied target outside the exact authorized sockets: ${target}`);
-      }
-      const payload = decodeSocketPayload(params.payload, params.payloadEncoding || "utf8");
-      if (payload.length > 262144) throw new Error("ctf_socket payload exceeds 256 KiB");
-      const response = await runSocketRequest(
-        target,
-        payload,
-        params.timeoutSeconds || 10,
-        params.maxResponseBytes || 65536,
-      );
-      const result = {
-        target,
-        payloadBytes: payload.length,
-        bytesReturned: response.data.length,
-        truncated: response.truncated,
-        idleTimeout: response.idleTimeout,
-        ...boundedBody(response.data),
+        ...boundedDecodedBody(decoded),
       };
       return {
         content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
@@ -2151,15 +1800,14 @@ export async function createCTFToolDefinitions(
     createCTFDecodeTool(),
     createCTFTriageTool(root, ensure),
     createCTFInspectTool(root, ensure),
-    createCTFHTTPTool(manifest),
-    createCTFSocketTool(manifest),
+    ...createCTFEndpointToolDefinitions(manifest),
   ];
   if (!["coach", strategistRole].includes(manifest?.policy?.mode)) {
     const bash = createBashToolDefinition(root, {
       operations: createSandboxedBashOperations(
         root,
         execution,
-        !toolBuilder && !strategist && scopeAllowsNetwork(manifest),
+        false,
         roleProtectedEntries,
       ),
       exposeSessionEnvironment: false,
@@ -2310,6 +1958,12 @@ export async function loadSessionPolicy(
   }
   const manifest = JSON.parse(content);
   if (manifest?.schemaVersion !== workspaceSchemaVersion) {
+    if (String(manifest?.schemaVersion || "").startsWith("ctf-workspace.milksu.dev/")) {
+      throw new Error(
+        `Unsupported CTF workspace schema ${String(manifest.schemaVersion)}; `
+        + "rebuild the workspace in MilkSU before starting the Agent",
+      );
+    }
     return loadCodingSessionPolicy(workspace, codingPolicy);
   }
   const toolBuilder = sessionRole === toolBuilderRole;

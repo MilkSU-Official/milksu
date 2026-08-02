@@ -23,7 +23,7 @@ export interface CTFMaterialRequest {
 export type CTFCollaborationMode = 'coach' | 'copilot' | 'delegate'
 
 export interface CTFTarget {
-  kind: 'origin' | 'directory' | 'socket' | 'lab' | 'browser_tab'
+  kind: 'origin' | 'directory' | 'socket' | 'ssh' | 'lab' | 'browser_tab'
   value: string
 }
 
@@ -43,6 +43,32 @@ export interface CTFChallengeSource {
   kind: string
   uri?: string
   scope: CTFScopeGrant
+}
+
+export type CTFEndpointProtocol = 'http' | 'https' | 'tcp' | 'ssh'
+export type CTFEndpointRequester = 'user' | 'agent' | 'page'
+export type CTFEndpointRequestStatus = 'pending' | 'approved' | 'denied'
+
+export interface CTFEndpointRequestInput {
+  protocol: CTFEndpointProtocol
+  endpoint: string
+  source: string
+  purpose: string
+}
+
+export interface CTFEndpointRequest {
+  id: string
+  protocol: CTFEndpointProtocol
+  host: string
+  port: number
+  target: CTFTarget
+  source: string
+  purpose: string
+  requestedBy: CTFEndpointRequester
+  status: CTFEndpointRequestStatus
+  requestedAt: string
+  decidedAt?: string
+  scope?: CTFScopeGrant
 }
 
 export interface CTFChallengeRequest {
@@ -253,6 +279,8 @@ export interface CTFProjection {
   agentCandidates: CTFAgentCandidate[]
   submissions: CTFSubmission[]
   judgeReceipts: CTFJudgeReceipt[]
+  endpointRequests: CTFEndpointRequest[]
+  networkScopes: CTFScopeGrant[]
   learning: CTFLearningRecord[]
   humanOutcome: CTFHumanOutcome
   debrief: CTFDebrief

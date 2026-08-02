@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/url"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,6 +18,7 @@ const (
 	TargetOrigin     TargetKind = "origin"
 	TargetDirectory  TargetKind = "directory"
 	TargetSocket     TargetKind = "socket"
+	TargetSSH        TargetKind = "ssh"
 	TargetLab        TargetKind = "lab"
 	TargetBrowserTab TargetKind = "browser_tab"
 )
@@ -111,7 +113,25 @@ func NormalizeTarget(target Target) (Target, error) {
 		if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.User != nil {
 			return Target{}, fmt.Errorf("origin target must be an http(s) URL without credentials")
 		}
-		return Target{Kind: TargetOrigin, Value: parsed.Scheme + "://" + parsed.Host}, nil
+		host := strings.ToLower(strings.TrimSpace(parsed.Hostname()))
+		if host == "" {
+			return Target{}, fmt.Errorf("origin target must include a host")
+		}
+		authority := host
+		if strings.Contains(host, ":") {
+			authority = "[" + host + "]"
+		}
+		if port := parsed.Port(); port != "" {
+			portNumber, err := strconv.Atoi(port)
+			if err != nil || portNumber < 1 || portNumber > 65535 {
+				return Target{}, fmt.Errorf("origin target must include a valid port")
+			}
+			if (parsed.Scheme != "http" || portNumber != 80) &&
+				(parsed.Scheme != "https" || portNumber != 443) {
+				authority = net.JoinHostPort(host, strconv.Itoa(portNumber))
+			}
+		}
+		return Target{Kind: TargetOrigin, Value: parsed.Scheme + "://" + authority}, nil
 	case TargetDirectory:
 		if !filepath.IsAbs(value) {
 			return Target{}, fmt.Errorf("directory target must be an absolute user-selected path")
@@ -121,12 +141,17 @@ func NormalizeTarget(target Target) (Target, error) {
 			return Target{}, fmt.Errorf("filesystem root cannot be granted")
 		}
 		return Target{Kind: TargetDirectory, Value: cleaned}, nil
-	case TargetSocket:
+	case TargetSocket, TargetSSH:
 		host, port, err := net.SplitHostPort(value)
 		if err != nil || strings.TrimSpace(host) == "" || strings.TrimSpace(port) == "" {
-			return Target{}, fmt.Errorf("socket target must be an exact host:port")
+			return Target{}, fmt.Errorf("%s target must be an exact host:port", target.Kind)
 		}
-		return Target{Kind: TargetSocket, Value: net.JoinHostPort(host, port)}, nil
+		host = strings.ToLower(strings.TrimSpace(host))
+		portNumber, err := strconv.Atoi(port)
+		if err != nil || portNumber < 1 || portNumber > 65535 {
+			return Target{}, fmt.Errorf("%s target must include a valid port", target.Kind)
+		}
+		return Target{Kind: target.Kind, Value: net.JoinHostPort(host, strconv.Itoa(portNumber))}, nil
 	case TargetLab, TargetBrowserTab:
 		if strings.ContainsAny(value, "\x00\r\n") {
 			return Target{}, fmt.Errorf("target contains control characters")

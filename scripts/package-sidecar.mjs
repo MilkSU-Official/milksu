@@ -1973,8 +1973,20 @@ async function smokeSidecar(platform) {
   const ctfWorkspace = join(workspace, 'ctf-coach')
   await mkdir(join(ctfWorkspace, '.git'), { recursive: true, mode: 0o700 })
   await writeFile(join(ctfWorkspace, 'challenge.json'), `${JSON.stringify({
-    schemaVersion: 'ctf-workspace.milksu.dev/v1alpha1',
-    source: { scope: { targets: [{ kind: 'directory', value: 'workspace' }] } },
+    schemaVersion: 'ctf-workspace.milksu.dev/v1alpha2',
+    source: {
+      scope: {
+        id: 'scope_packaged_ctf_coach',
+        source: 'sidecar-smoke:offline',
+        purpose: 'packaged CTF Coach smoke',
+        targets: [{ kind: 'directory', value: 'workspace' }],
+        grantedBy: 'local-user',
+        createdAt: new Date(Date.now() - 60_000).toISOString(),
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+        revocable: true,
+      },
+    },
+    networkScopes: [],
     policy: {
       mode: 'coach',
       allowedTools: ctfRequestedTools,
@@ -2021,7 +2033,10 @@ async function smokeSidecar(platform) {
   )
   const ctfChatResponses = ctfChatRun.stdout.trim().split('\n').map(line => JSON.parse(line))
   const ctfReady = ctfChatResponses.find(value => value.type === 'ready')
-  const coachTools = ['read', 'edit', 'write', 'grep', 'find', 'ls', 'ctf_inspect']
+  const coachTools = [
+    'read', 'edit', 'write', 'grep', 'find', 'ls',
+    'ctf_inspect', 'ctf_request_endpoint',
+  ]
   if (
     !ctfReady
     || ctfReady.tools?.includes('bash')

@@ -463,6 +463,37 @@ function formatMcpApprovalInput(input, serverName) {
 
 function formatToolInput(toolName, args) {
   if (!args || typeof args !== "object") return "";
+  if (toolName === "ctf_request_endpoint") {
+    const protocol = String(args.protocol ?? "").trim().toLowerCase();
+    let endpoint = "";
+    if (["http", "https"].includes(protocol)) {
+      try {
+        endpoint = new URL(String(args.endpoint ?? "")).origin;
+      } catch {
+        endpoint = "[invalid endpoint omitted]";
+      }
+    } else {
+      const candidate = String(args.endpoint ?? "").trim();
+      try {
+        const parsed = new URL(`tcp://${candidate}`);
+        const port = Number(parsed.port);
+        endpoint = parsed.hostname
+          && Number.isInteger(port)
+          && port >= 1
+          && port <= 65535
+          && parsed.username === ""
+          && parsed.password === ""
+          && parsed.pathname === ""
+          && parsed.search === ""
+          && parsed.hash === ""
+          ? `${parsed.hostname}:${port}`
+          : "[invalid endpoint omitted]";
+      } catch {
+        endpoint = "[invalid endpoint omitted]";
+      }
+    }
+    return [protocol, endpoint].filter(Boolean).join(" · ");
+  }
   if (toolName === "bash" && typeof args.command === "string") {
     return `$ ${args.command}`;
   }

@@ -23,6 +23,8 @@ const (
 	FactLearningRecorded  = "learning.recorded"
 	FactAgentCandidate    = "agent.candidate"
 	FactJudgeReceipt      = "judge.receipt"
+	FactEndpointRequested = "endpoint.requested"
+	FactEndpointDecided   = "endpoint.decided"
 	maxMaterialBytes      = 32 * 1024 * 1024
 	maxTotalMaterialBytes = 96 * 1024 * 1024
 	maxExperiments        = 12
@@ -98,6 +100,53 @@ type ChallengeSource struct {
 	Kind  string                    `json:"kind"`
 	URI   string                    `json:"uri,omitempty"`
 	Scope securitypolicy.ScopeGrant `json:"scope"`
+}
+
+type EndpointProtocol string
+
+const (
+	EndpointProtocolHTTP  EndpointProtocol = "http"
+	EndpointProtocolHTTPS EndpointProtocol = "https"
+	EndpointProtocolTCP   EndpointProtocol = "tcp"
+	EndpointProtocolSSH   EndpointProtocol = "ssh"
+)
+
+type EndpointRequester string
+
+const (
+	EndpointRequesterUser  EndpointRequester = "user"
+	EndpointRequesterAgent EndpointRequester = "agent"
+	EndpointRequesterPage  EndpointRequester = "page"
+)
+
+type EndpointRequestStatus string
+
+const (
+	EndpointRequestPending  EndpointRequestStatus = "pending"
+	EndpointRequestApproved EndpointRequestStatus = "approved"
+	EndpointRequestDenied   EndpointRequestStatus = "denied"
+)
+
+type EndpointRequestInput struct {
+	Protocol EndpointProtocol `json:"protocol"`
+	Endpoint string           `json:"endpoint"`
+	Source   string           `json:"source"`
+	Purpose  string           `json:"purpose"`
+}
+
+type EndpointRequest struct {
+	ID          string                     `json:"id"`
+	Protocol    EndpointProtocol           `json:"protocol"`
+	Host        string                     `json:"host"`
+	Port        int                        `json:"port"`
+	Target      securitypolicy.Target      `json:"target"`
+	Source      string                     `json:"source"`
+	Purpose     string                     `json:"purpose"`
+	RequestedBy EndpointRequester          `json:"requestedBy"`
+	Status      EndpointRequestStatus      `json:"status"`
+	RequestedAt time.Time                  `json:"requestedAt"`
+	DecidedAt   *time.Time                 `json:"decidedAt,omitempty"`
+	Scope       *securitypolicy.ScopeGrant `json:"scope,omitempty"`
 }
 
 type Material struct {
@@ -299,23 +348,25 @@ type ArtifactPreview struct {
 }
 
 type Projection struct {
-	ContractVersion string                       `json:"contractVersion"`
-	Job             securityruntime.Job          `json:"job"`
-	Challenge       ChallengeView                `json:"challenge"`
-	Attempts        []securityruntime.Attempt    `json:"attempts"`
-	Experiments     []ExperimentView             `json:"experiments"`
-	Artifacts       []securityruntime.Artifact   `json:"artifacts"`
-	Evidence        []securityruntime.Evidence   `json:"evidence"`
-	Evaluations     []securityruntime.Evaluation `json:"evaluations"`
-	AgentRuns       []AgentRunView               `json:"agentRuns"`
-	AgentCandidates []AgentCandidate             `json:"agentCandidates"`
-	Submissions     []SubmissionView             `json:"submissions"`
-	JudgeReceipts   []ExternalJudgeReceipt       `json:"judgeReceipts"`
-	Learning        []LearningRecord             `json:"learning"`
-	HumanOutcome    HumanOutcomeView             `json:"humanOutcome"`
-	Debrief         DebriefView                  `json:"debrief"`
-	Outcome         *securityruntime.Outcome     `json:"outcome,omitempty"`
-	Events          []securityruntime.Event      `json:"events"`
+	ContractVersion  string                       `json:"contractVersion"`
+	Job              securityruntime.Job          `json:"job"`
+	Challenge        ChallengeView                `json:"challenge"`
+	Attempts         []securityruntime.Attempt    `json:"attempts"`
+	Experiments      []ExperimentView             `json:"experiments"`
+	Artifacts        []securityruntime.Artifact   `json:"artifacts"`
+	Evidence         []securityruntime.Evidence   `json:"evidence"`
+	Evaluations      []securityruntime.Evaluation `json:"evaluations"`
+	AgentRuns        []AgentRunView               `json:"agentRuns"`
+	AgentCandidates  []AgentCandidate             `json:"agentCandidates"`
+	Submissions      []SubmissionView             `json:"submissions"`
+	JudgeReceipts    []ExternalJudgeReceipt       `json:"judgeReceipts"`
+	EndpointRequests []EndpointRequest            `json:"endpointRequests"`
+	NetworkScopes    []securitypolicy.ScopeGrant  `json:"networkScopes"`
+	Learning         []LearningRecord             `json:"learning"`
+	HumanOutcome     HumanOutcomeView             `json:"humanOutcome"`
+	Debrief          DebriefView                  `json:"debrief"`
+	Outcome          *securityruntime.Outcome     `json:"outcome,omitempty"`
+	Events           []securityruntime.Event      `json:"events"`
 }
 
 type Summary struct {
@@ -486,14 +537,16 @@ func validateSource(
 		target = securitypolicy.Target{Kind: securitypolicy.TargetOrigin, Value: parsed.String()}
 	case "socket", "ssh":
 		value := rawURI
+		targetKind := securitypolicy.TargetSocket
 		if kind == "ssh" {
 			parsed, err := url.Parse(rawURI)
 			if err != nil || parsed.Scheme != "ssh" || parsed.Host == "" || parsed.User == nil || parsed.User.String() == "" || strings.Contains(parsed.User.String(), ":") {
 				return ChallengeSource{}, fmt.Errorf("SSH intake requires ssh://user@host:port without a password")
 			}
 			value = parsed.Host
+			targetKind = securitypolicy.TargetSSH
 		}
-		target = securitypolicy.Target{Kind: securitypolicy.TargetSocket, Value: value}
+		target = securitypolicy.Target{Kind: targetKind, Value: value}
 	case "local-lab":
 		target = securitypolicy.Target{Kind: securitypolicy.TargetLab, Value: rawURI}
 	default:

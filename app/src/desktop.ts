@@ -16,6 +16,7 @@ import type {
   CTFAgentReplay,
   CTFAgentWorkspaceHandoff,
   CTFChallengeRequest,
+  CTFEndpointRequestInput,
   CTFLearningRecordRequest,
   CTFMaterialRequest,
   CTFProjection,
@@ -254,6 +255,9 @@ interface WailsAppBindings {
   ListCTFJobs(): Promise<CTFSummary[]>
   GetCTFJob(id: string): Promise<CTFProjection>
   GetCTFArtifactPreview(id: string, artifactId: string): Promise<CTFArtifactPreview>
+  RequestCTFEndpoint(id: string, request: CTFEndpointRequestInput): Promise<CTFProjection>
+  ApproveCTFEndpoint(id: string, requestId: string): Promise<CTFProjection>
+  DenyCTFEndpoint(id: string, requestId: string): Promise<CTFProjection>
   PrepareCTFAgentWorkspace(id: string): Promise<CTFAgentWorkspaceHandoff>
   PrepareCTFToolBuilderWorkspace(id: string): Promise<CTFAgentWorkspaceHandoff>
   PrepareCTFStrategistWorkspace(id: string): Promise<CTFAgentWorkspaceHandoff>
@@ -736,6 +740,21 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.GetCTFArtifactPreview(
           args?.id as string,
           args?.artifactId as string,
+        ) as Promise<T>
+      case 'request_ctf_endpoint':
+        return app.RequestCTFEndpoint(
+          args?.id as string,
+          args?.request as CTFEndpointRequestInput,
+        ) as Promise<T>
+      case 'approve_ctf_endpoint':
+        return app.ApproveCTFEndpoint(
+          args?.id as string,
+          args?.requestId as string,
+        ) as Promise<T>
+      case 'deny_ctf_endpoint':
+        return app.DenyCTFEndpoint(
+          args?.id as string,
+          args?.requestId as string,
         ) as Promise<T>
       case 'prepare_ctf_agent_workspace':
         return app.PrepareCTFAgentWorkspace(args?.id as string) as Promise<T>
@@ -1308,6 +1327,9 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
     }
     case 'start_sample_ctf':
     case 'get_ctf_artifact_preview':
+    case 'request_ctf_endpoint':
+    case 'approve_ctf_endpoint':
+    case 'deny_ctf_endpoint':
     case 'prepare_ctf_agent_workspace':
     case 'get_ctf_agent_budget_status':
     case 'get_ctf_agent_replay':

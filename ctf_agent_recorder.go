@@ -270,6 +270,25 @@ func (r *ctfAgentRecorder) Record(ctx context.Context, event engine.Event) error
 	if noProgressReason != "" {
 		return fmt.Errorf("%w: %s", errCTFAgentLoopDetected, noProgressReason)
 	}
+	if handoff.Role == ctf.AgentWorkspaceRoleSolver {
+		request, requested, requestErr := endpointRequestFromToolEvent(event)
+		if requestErr != nil {
+			return requestErr
+		}
+		if requested {
+			if r.jobs == nil {
+				return fmt.Errorf("CTF endpoint request recorder is unavailable")
+			}
+			if _, requestErr := r.jobs.RequestDynamicEndpoint(
+				ctx,
+				handoff.JobID,
+				request,
+				ctf.EndpointRequesterAgent,
+			); requestErr != nil {
+				return requestErr
+			}
+		}
+	}
 	if !completed {
 		return nil
 	}
@@ -316,6 +335,39 @@ func (r *ctfAgentRecorder) Record(ctx context.Context, event engine.Event) error
 		explanation,
 	)
 	return err
+}
+
+func endpointRequestFromToolEvent(
+	event engine.Event,
+) (ctf.EndpointRequestInput, bool, error) {
+	if event.Type != "tool.completed" ||
+		event.ToolName != "ctf_request_endpoint" ||
+		strings.TrimSpace(event.Error) != "" {
+		return ctf.EndpointRequestInput{}, false, nil
+	}
+	var result struct {
+		Kind        string               `json:"kind"`
+		Protocol    ctf.EndpointProtocol `json:"protocol"`
+		Endpoint    string               `json:"endpoint"`
+		Source      string               `json:"source"`
+		Purpose     string               `json:"purpose"`
+		RequestedBy string               `json:"requestedBy"`
+		Status      string               `json:"status"`
+	}
+	if err := json.Unmarshal([]byte(event.Text), &result); err != nil ||
+		result.Kind != "ctf_endpoint_request" ||
+		result.RequestedBy != "agent" ||
+		result.Status != "pending_user_approval" {
+		return ctf.EndpointRequestInput{}, false, fmt.Errorf(
+			"CTF Agent returned an invalid Endpoint authorization request",
+		)
+	}
+	return ctf.EndpointRequestInput{
+		Protocol: result.Protocol,
+		Endpoint: result.Endpoint,
+		Source:   result.Source,
+		Purpose:  result.Purpose,
+	}, true, nil
 }
 
 func (s *ctfAgentSession) applyEvent(event engine.Event) string {

@@ -12,19 +12,36 @@ import {
   scopeAllowsNetwork,
 } from "./bridge-policy.js";
 
+let scopeFixtureID = 0;
+
+function grantedScope(targets, overrides = {}) {
+  scopeFixtureID += 1;
+  return {
+    id: `scope_fixture_${scopeFixtureID}`,
+    source: "test:fixture",
+    purpose: "CTF policy test",
+    targets,
+    grantedBy: "local-user",
+    createdAt: new Date(Date.now() - 60_000).toISOString(),
+    expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    revocable: true,
+    ...overrides,
+  };
+}
+
 function manifest(
   mode,
   allowedTools,
   execution = {},
   targets = [{ kind: "directory", value: "workspace" }],
+  networkScopes = [],
 ) {
   return {
-    schemaVersion: "ctf-workspace.milksu.dev/v1alpha1",
+    schemaVersion: "ctf-workspace.milksu.dev/v1alpha2",
     source: {
-      scope: {
-        targets,
-      },
+      scope: grantedScope(targets),
     },
+    networkScopes,
     policy: {
       mode,
       allowedTools,
@@ -843,6 +860,83 @@ test("CTF decode applies one strict transform and reports reproducible output fa
   );
 });
 
+test("CTF Endpoint request records a normalized proposal without changing Scope", async () => {
+  const value = manifest("copilot", ["read"]);
+  const workspace = await workspaceWithManifest(value);
+  const before = await readFile(join(workspace, "challenge.json"), "utf8");
+  const policy = await loadSessionPolicy(workspace);
+  assert.equal(policy.activeTools.includes("ctf_request_endpoint"), true);
+  assert.equal(policy.activeTools.includes("ctf_http"), false);
+  assert.equal(policy.activeTools.includes("ctf_socket"), false);
+  assert.equal(policy.activeTools.includes("ctf_ssh"), false);
+
+  const request = policy.customTools.find(tool => tool.name === "ctf_request_endpoint");
+  const response = await request.execute(
+    "request-endpoint",
+    {
+      protocol: "https",
+      endpoint: "https://Challenge.Example:8443",
+      source: "题目页面显示的实例入口",
+      purpose: "读取本题实例的 HTTP 基线",
+    },
+    undefined,
+    undefined,
+    {},
+  );
+  assert.deepEqual(JSON.parse(response.content[0].text), {
+    kind: "ctf_endpoint_request",
+    protocol: "https",
+    endpoint: "https://challenge.example:8443",
+    host: "challenge.example",
+    port: 8443,
+    targetKind: "origin",
+    source: "题目页面显示的实例入口",
+    purpose: "读取本题实例的 HTTP 基线",
+    requestedBy: "agent",
+    status: "pending_user_approval",
+  });
+  assert.equal(await readFile(join(workspace, "challenge.json"), "utf8"), before);
+  await assert.rejects(
+    request.execute(
+      "credentialed-endpoint",
+      {
+        protocol: "https",
+        endpoint: "https://user:secret@challenge.example/private?token=secret",
+        source: "untrusted page",
+        purpose: "unsafe",
+      },
+      undefined,
+      undefined,
+      {},
+    ),
+    /exact origin without credentials, path, query, or fragment/,
+  );
+});
+
+test("an approved dynamic Scope enables only its matching HTTP broker", async () => {
+  const origin = "https://dynamic.example.test:8443";
+  const value = manifest(
+    "copilot",
+    ["read", "ctf_request_endpoint"],
+    {},
+    [{ kind: "lab", value: "offline-intake" }],
+    [grantedScope(
+      [{ kind: "origin", value: origin }],
+      {
+        id: "scope_dynamic_http",
+        source: "ctf-endpoint:endpoint_http",
+        purpose: "HTTP baseline",
+      },
+    )],
+  );
+  const workspace = await workspaceWithManifest(value);
+  const policy = await loadSessionPolicy(workspace);
+  assert.equal(policy.activeTools.includes("ctf_http"), true);
+  assert.equal(policy.activeTools.includes("ctf_socket"), false);
+  assert.equal(policy.activeTools.includes("ctf_ssh"), false);
+  assert.equal(scopeAllowsNetwork(value), false);
+});
+
 test("CTF HTTP uses exact granted origins without ambient redirects", async () => {
   const server = createHTTPServer((request, response) => {
     const chunks = [];
@@ -919,6 +1013,39 @@ test("CTF HTTP uses exact granted origins without ambient redirects", async () =
   }
 });
 
+test("CTF HTTP never carries a response cookie into the next request", async () => {
+  const observedCookies = [];
+  const server = createHTTPServer((request, response) => {
+    observedCookies.push(request.headers.cookie || "");
+    response.writeHead(200, {
+      "content-type": "text/plain",
+      "set-cookie": "platform_session=must-not-be-inherited; Path=/",
+    });
+    response.end("ok");
+  });
+  const port = await listen(server);
+  try {
+    const origin = `http://127.0.0.1:${port}`;
+    const workspace = await workspaceWithManifest(
+      manifest("coach", ["read"], {}, [{ kind: "origin", value: origin }]),
+    );
+    const policy = await loadSessionPolicy(workspace);
+    const http = policy.customTools.find(tool => tool.name === "ctf_http");
+    for (const suffix of ["/first", "/second"]) {
+      await http.execute(
+        `cookie-${suffix}`,
+        { url: `${origin}${suffix}` },
+        undefined,
+        undefined,
+        {},
+      );
+    }
+    assert.deepEqual(observedCookies, ["", ""]);
+  } finally {
+    await close(server);
+  }
+});
+
 test("managed lab shell remains networkless while ctf_http keeps exact loopback access", async () => {
   const origin = "http://127.0.0.1:41234";
   const value = manifest(
@@ -937,6 +1064,50 @@ test("managed lab shell remains networkless while ctf_http keeps exact loopback 
   const policy = await loadSessionPolicy(workspace);
   assert.equal(policy.activeTools.includes("ctf_http"), true);
   assert.equal(policy.activeTools.includes("bash"), true);
+});
+
+test("approved CTF origin never gives the general Shell ambient network", {
+  skip: process.platform !== "darwin",
+}, async () => {
+  const server = createHTTPServer((_request, response) => {
+    response.writeHead(200, { "content-type": "text/plain" });
+    response.end("broker-only");
+  });
+  const port = await listen(server);
+  try {
+    const origin = `http://127.0.0.1:${port}`;
+    const workspace = await workspaceWithManifest(
+      manifest(
+        "copilot",
+        ["read", "bash"],
+        {},
+        [{ kind: "origin", value: origin }],
+      ),
+    );
+    const policy = await loadSessionPolicy(workspace);
+    const bash = policy.customTools.find(tool => tool.name === "bash");
+    const http = policy.customTools.find(tool => tool.name === "ctf_http");
+    await assert.rejects(
+      bash.execute(
+        "shell-network-denied",
+        { command: `/usr/bin/curl --silent --show-error --max-time 2 ${origin}/shell` },
+        undefined,
+        undefined,
+        {},
+      ),
+      /Operation not permitted|Could not connect|exited with code/,
+    );
+    const response = await http.execute(
+      "broker-network-allowed",
+      { url: `${origin}/broker` },
+      undefined,
+      undefined,
+      {},
+    );
+    assert.equal(JSON.parse(response.content[0].text).body, "broker-only");
+  } finally {
+    await close(server);
+  }
 });
 
 test("CTF socket exchanges one bounded payload only with an exact granted target", async () => {
@@ -978,6 +1149,52 @@ test("CTF socket exchanges one bounded payload only with an exact granted target
   }
 });
 
+test("CTF SSH grant exposes only a credentialless read-only banner probe", async () => {
+  let clientBytes = 0;
+  const server = createTCPServer(socket => {
+    socket.on("data", data => {
+      clientBytes += data.length;
+    });
+    socket.write("SSH-2.0-MilkSU_Fixture\r\n");
+  });
+  const port = await listen(server);
+  try {
+    const target = `127.0.0.1:${port}`;
+    const workspace = await workspaceWithManifest(
+      manifest("delegate", ["read"], {}, [{ kind: "ssh", value: target }]),
+    );
+    const policy = await loadSessionPolicy(workspace);
+    assert.equal(policy.activeTools.includes("ctf_ssh"), true);
+    assert.equal(policy.activeTools.includes("ctf_socket"), false);
+    const ssh = policy.customTools.find(tool => tool.name === "ctf_ssh");
+    const response = await ssh.execute(
+      "ssh-banner",
+      { target },
+      undefined,
+      undefined,
+      {},
+    );
+    const result = JSON.parse(response.content[0].text);
+    assert.equal(result.probe, "server-identification-only");
+    assert.equal(result.sentBytes, 0);
+    assert.equal(result.body, "SSH-2.0-MilkSU_Fixture\r\n");
+    assert.match(result.sha256, /^[0-9a-f]{64}$/);
+    assert.equal(clientBytes, 0);
+    await assert.rejects(
+      ssh.execute(
+        "ssh-outside",
+        { target: `127.0.0.1:${port + 1}` },
+        undefined,
+        undefined,
+        {},
+      ),
+      /outside the exact authorized SSH targets/,
+    );
+  } finally {
+    await close(server);
+  }
+});
+
 test("tool-builder role gets sandboxed bash without gaining candidate-file writes", async () => {
   const workspace = await workspaceWithManifest(
     manifest("coach", ["read", "edit", "write", "grep", "find", "ls"]),
@@ -1013,7 +1230,7 @@ test("tool-builder role gets sandboxed bash without gaining candidate-file write
   );
 });
 
-test("tool-builder never inherits solver HTTP or socket scope", async () => {
+test("tool-builder never inherits solver Endpoint request or network scope", async () => {
   const workspace = await workspaceWithManifest(
     manifest(
       "copilot",
@@ -1022,6 +1239,7 @@ test("tool-builder never inherits solver HTTP or socket scope", async () => {
       [
         { kind: "origin", value: "https://challenge.example" },
         { kind: "socket", value: "challenge.example:31337" },
+        { kind: "ssh", value: "challenge.example:22" },
       ],
     ),
   );
@@ -1029,8 +1247,12 @@ test("tool-builder never inherits solver HTTP or socket scope", async () => {
   assert.equal(policy.activeTools.includes("bash"), true);
   assert.equal(policy.activeTools.includes("ctf_http"), false);
   assert.equal(policy.activeTools.includes("ctf_socket"), false);
+  assert.equal(policy.activeTools.includes("ctf_ssh"), false);
+  assert.equal(policy.activeTools.includes("ctf_request_endpoint"), false);
   assert.equal(policy.customTools.some(tool => tool.name === "ctf_http"), false);
   assert.equal(policy.customTools.some(tool => tool.name === "ctf_socket"), false);
+  assert.equal(policy.customTools.some(tool => tool.name === "ctf_ssh"), false);
+  assert.equal(policy.customTools.some(tool => tool.name === "ctf_request_endpoint"), false);
 });
 
 test("strategist can write only its review and cannot execute or alter solver state", async () => {
@@ -1054,6 +1276,7 @@ test("strategist can write only its review and cannot execute or alter solver st
   );
   assert.equal(policy.customTools.some(tool => tool.name === "bash"), false);
   assert.equal(policy.customTools.some(tool => tool.name === "ctf_http"), false);
+  assert.equal(policy.customTools.some(tool => tool.name === "ctf_request_endpoint"), false);
 
   const write = policy.customTools.find(tool => tool.name === "write");
   await write.execute(
@@ -1118,6 +1341,54 @@ test("network tools reject an expired user scope before connecting", async () =>
       {},
     ),
     /scope expired/,
+  );
+});
+
+test("expired or revoked dynamic Scope is visible for denial but never usable", async () => {
+  for (const [label, override, expected] of [
+    ["expired", { expiresAt: "2000-01-01T00:00:00Z" }, /scope expired/],
+    ["revoked", { revokedAt: new Date().toISOString() }, /scope was revoked/],
+  ]) {
+    const target = "challenge.example.test:31337";
+    const value = manifest(
+      "delegate",
+      ["read", "ctf_request_endpoint"],
+      {},
+      [{ kind: "lab", value: "offline-intake" }],
+      [grantedScope(
+        [{ kind: "socket", value: target }],
+        {
+          id: `scope_dynamic_${label}`,
+          source: `ctf-endpoint:endpoint_${label}`,
+          purpose: `${label} TCP fixture`,
+          ...override,
+        },
+      )],
+    );
+    const workspace = await workspaceWithManifest(value);
+    const policy = await loadSessionPolicy(workspace);
+    assert.equal(policy.activeTools.includes("ctf_socket"), true);
+    const socket = policy.customTools.find(tool => tool.name === "ctf_socket");
+    await assert.rejects(
+      socket.execute(
+        `dynamic-${label}`,
+        { target, payload: "" },
+        undefined,
+        undefined,
+        {},
+      ),
+      expected,
+    );
+  }
+});
+
+test("obsolete CTF workspace schema fails closed instead of becoming a Coding session", async () => {
+  const value = manifest("delegate", ["read"]);
+  value.schemaVersion = "ctf-workspace.milksu.dev/v1alpha1";
+  const workspace = await workspaceWithManifest(value);
+  await assert.rejects(
+    loadSessionPolicy(workspace),
+    /Unsupported CTF workspace schema .*rebuild the workspace/,
   );
 });
 

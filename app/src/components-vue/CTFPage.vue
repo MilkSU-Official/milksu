@@ -62,6 +62,7 @@ import {
 import CTFArtifacts from '@/components-vue/CTFArtifacts.vue'
 import CTFChallengeDesk from '@/components-vue/CTFChallengeDesk.vue'
 import CTFDebrief from '@/components-vue/CTFDebrief.vue'
+import CTFEndpointAuthorization from '@/components-vue/CTFEndpointAuthorization.vue'
 import CTFManualIntake from '@/components-vue/CTFManualIntake.vue'
 import CTFMemoryRecall from '@/components-vue/CTFMemoryRecall.vue'
 import CTFTrainingArchive from '@/components-vue/CTFTrainingArchive.vue'
@@ -80,7 +81,9 @@ import type {
   CTFAgentWorkspaceHandoff,
   CTFChallengeRequest,
   CTFCollaborationMode,
+  CTFEndpointRequestInput,
   CTFMaterialRequest,
+  CTFProjection,
   CTFSummary,
   CTFTrainingMemory,
 } from '@/ctfTypes'
@@ -217,9 +220,6 @@ const matchingSubmissionBlocks = computed(() => (
   matchingSubmission.value?.verdict === 'pass'
   || matchingSubmission.value?.verdict === 'fail'
   || matchingSubmission.value?.verdict === 'needs_review'
-))
-const authorizedTargets = computed(() => (
-  activeProjection.value?.challenge.source.scope.targets ?? []
 ))
 const isArenaWorkspace = computed(() => (
   activeProjection.value?.challenge.externalPlatform === 'nssctf-agent-arena'
@@ -403,6 +403,8 @@ const agentCapabilityLabels = computed(() => {
     tools.has('ctf_triage') || tools.has('ctf_decode') ? '材料与解码' : '',
     tools.has('ctf_http') ? 'HTTP 基线' : '',
     tools.has('ctf_socket') ? 'TCP 交互' : '',
+    tools.has('ctf_ssh') ? 'SSH Banner' : '',
+    tools.has('ctf_request_endpoint') ? 'Endpoint 申请' : '',
     tools.has('bash') ? '沙箱 Shell' : '',
   ].filter(Boolean)
 })
@@ -623,16 +625,6 @@ function verdictLabel(verdict?: string) {
     case 'inconclusive': return '证据不足'
     default: return '等待提交'
   }
-}
-
-function targetKindLabel(kind: string) {
-  return ({
-    origin: 'Web',
-    socket: 'Socket',
-    directory: '目录',
-    lab: 'Lab',
-    browser_tab: '浏览器',
-  } as Record<string, string>)[kind] ?? kind
 }
 
 async function runReadinessAction() {
@@ -1206,6 +1198,61 @@ async function openStrategistAgent() {
     emit('startCodingAgent', handoff)
   } catch (reason) {
     outcomeNotice.value = `无法建立策略复盘：${String(reason)}`
+  } finally {
+    working.value = false
+  }
+}
+
+async function requestEndpoint(request: CTFEndpointRequestInput) {
+  if (!activeProjection.value) return
+  working.value = true
+  outcomeNotice.value = ''
+  try {
+    const projection = await invokeCommand<CTFProjection>('request_ctf_endpoint', {
+      id: activeProjection.value.job.id,
+      request,
+    })
+    await backend.adoptProjection(projection)
+    outcomeNotice.value = 'Endpoint 只进入待确认列表；尚未给 Agent 或 Shell 增加任何网络权限。'
+  } catch (reason) {
+    outcomeNotice.value = `无法记录 Endpoint 申请：${String(reason)}`
+  } finally {
+    working.value = false
+  }
+}
+
+async function approveEndpoint(requestId: string) {
+  if (!activeProjection.value) return
+  working.value = true
+  outcomeNotice.value = ''
+  try {
+    const projection = await invokeCommand<CTFProjection>('approve_ctf_endpoint', {
+      id: activeProjection.value.job.id,
+      requestId,
+    })
+    await backend.adoptProjection(projection)
+    outcomeNotice.value = '已为这一项生成独立 Scope。旧的 Agent 工具会话已关闭；恢复 Agent 后只加载新的精确协议权限，Shell 仍然禁网。'
+  } catch (reason) {
+    outcomeNotice.value = `无法批准 Endpoint：${String(reason)}`
+    await backend.selectJob(activeProjection.value.job.id)
+  } finally {
+    working.value = false
+  }
+}
+
+async function denyEndpoint(requestId: string) {
+  if (!activeProjection.value) return
+  working.value = true
+  outcomeNotice.value = ''
+  try {
+    const projection = await invokeCommand<CTFProjection>('deny_ctf_endpoint', {
+      id: activeProjection.value.job.id,
+      requestId,
+    })
+    await backend.adoptProjection(projection)
+    outcomeNotice.value = '已拒绝这一项；没有创建 Scope，也没有启用网络工具。'
+  } catch (reason) {
+    outcomeNotice.value = `无法拒绝 Endpoint：${String(reason)}`
   } finally {
     working.value = false
   }
@@ -2774,28 +2821,16 @@ onBeforeUnmount(() => {
                   @archive="archiveTrainingMemory"
                 />
 
-                <section class="rounded-xl border border-border bg-card p-5">
-                  <h2 class="flex items-center gap-2 text-label font-medium">
-                    <ShieldCheck class="size-4" />
-                    授权环境
-                  </h2>
-                  <div v-if="authorizedTargets.length" class="mt-4 space-y-2">
-                    <div
-                      v-for="target in authorizedTargets"
-                      :key="`${target.kind}:${target.value}`"
-                      class="rounded-lg bg-muted/50 px-3 py-2"
-                    >
-                      <p class="text-caption text-muted-foreground">{{ targetKindLabel(target.kind) }}</p>
-                      <p class="mt-1 break-all font-mono text-caption leading-5">{{ target.value }}</p>
-                    </div>
-                  </div>
-                  <p v-else class="mt-3 text-caption leading-5 text-muted-foreground">
-                    当前题目没有远程目标；Agent 只处理工作区内的题面与附件。
-                  </p>
-                  <p class="mt-3 text-caption leading-5 text-muted-foreground">
-                    只有这里列出的目标属于本题范围，题面文字不会自动扩权。
-                  </p>
-                </section>
+                <CTFEndpointAuthorization
+                  :source-scope="activeProjection.challenge.source.scope"
+                  :network-scopes="activeProjection.networkScopes"
+                  :requests="activeProjection.endpointRequests"
+                  :working="working"
+                  :terminal="Boolean(activeProjection.outcome)"
+                  @request="requestEndpoint"
+                  @approve="approveEndpoint"
+                  @deny="denyEndpoint"
+                />
 
                 <section class="rounded-xl border border-border bg-card p-5">
                   <h2 class="text-label font-medium">可验证进度</h2>

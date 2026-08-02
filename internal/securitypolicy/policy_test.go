@@ -25,6 +25,26 @@ func TestScopeGrantNormalizesOriginAndEnforcesApproval(t *testing.T) {
 	}
 }
 
+func TestOriginScopeCanonicalizesHostAndDefaultPort(t *testing.T) {
+	for _, fixture := range []struct {
+		input string
+		want  string
+	}{
+		{input: "https://Challenge.Example:443/path", want: "https://challenge.example"},
+		{input: "http://Challenge.Example:80/path", want: "http://challenge.example"},
+		{input: "https://Challenge.Example:8443/path", want: "https://challenge.example:8443"},
+		{input: "http://[::1]:80/path", want: "http://[::1]"},
+	} {
+		target, err := NormalizeTarget(Target{Kind: TargetOrigin, Value: fixture.input})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if target.Value != fixture.want {
+			t.Fatalf("NormalizeTarget(%q) = %q, want %q", fixture.input, target.Value, fixture.want)
+		}
+	}
+}
+
 func TestScopeGrantDeniesExpansionAndExpiredGrant(t *testing.T) {
 	grant, err := NewGrant("user:url", "ctf", []Target{{Kind: TargetOrigin, Value: "https://one.example"}}, time.Hour)
 	if err != nil {
@@ -53,5 +73,38 @@ func TestDirectoryScopeDoesNotEscapeSelectedTree(t *testing.T) {
 	outside := Decide(grant, EffectRequest{Class: "read_local", Target: Target{Kind: TargetDirectory, Value: filepath.Dir(root)}}, time.Now())
 	if outside.Allowed {
 		t.Fatal("parent directory was allowed")
+	}
+}
+
+func TestSocketAndSSHScopesRemainProtocolSeparated(t *testing.T) {
+	socket, err := NormalizeTarget(Target{Kind: TargetSocket, Value: "challenge.example:31337"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ssh, err := NormalizeTarget(Target{Kind: TargetSSH, Value: "challenge.example:22"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if socket.Kind != TargetSocket || ssh.Kind != TargetSSH {
+		t.Fatalf("protocol-specific targets collapsed: socket=%#v ssh=%#v", socket, ssh)
+	}
+	grant, err := NewGrant("ctf-endpoint:test", "read SSH banner", []Target{ssh}, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decision := Decide(grant, EffectRequest{
+		Class:  "limited_interaction",
+		Target: Target{Kind: TargetSocket, Value: ssh.Value},
+	}, time.Now()); decision.Allowed {
+		t.Fatalf("SSH grant authorized a generic TCP request: %#v", decision)
+	}
+	for _, value := range []string{
+		"challenge.example:not-a-port",
+		"challenge.example:0",
+		"challenge.example:65536",
+	} {
+		if _, err := NormalizeTarget(Target{Kind: TargetSSH, Value: value}); err == nil {
+			t.Fatalf("invalid SSH target %q was accepted", value)
+		}
 	}
 }

@@ -53,6 +53,8 @@ type Service struct {
 	active map[string]*activeRun
 	closed bool
 	wg     sync.WaitGroup
+
+	endpointMu sync.Mutex
 }
 
 func NewService(runtime *securityruntime.Service, options ServiceOptions) (*Service, error) {
