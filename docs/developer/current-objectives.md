@@ -5,6 +5,9 @@
 > 生效日期：2026-08-02
 >
 > 这是一份工作范围与验收顺序，不是发布说明，也不用于提前宣称能力完成。
+>
+> **持久目标入口：** 每次新会话、任务移交或上下文压缩后，必须先重新读取本文件和当前
+> 仓库状态。不得用对话摘要缩小这里记录的范围，也不得把部分 smoke 当作整体完成。
 
 ## 事实源与执行原则
 
@@ -63,92 +66,250 @@ MilkSU 自身。
 Vue + Go 纵切，运行测试与原生 App，预览产物，中途重启并恢复，最后审阅、提交、推送并
 经确认向 MilkSU 私有仓库创建 PR。
 
-## 2. 本地数据与 Memory 可信度
+## 其余目标审查与调整
 
-在继续积累真实训练轨迹前：
+除 Coding Agent 外，其余目标也需要调整。总体方向没问题，但目前把“产品完成条件、真实
+验收活动、内部研究、架构维护和正式发布”混在了一起。
 
-1. 为 Event、Credential、Memory、NSSCTF Catalog 和 CTFshow Catalog 建立各库独立、
-   编号、事务化、幂等的 SQLite migration；
-2. 旧数据库可无损升级，未来版本被旧 App 拒绝，失败迁移可回滚并有升级前备份；
-3. 训练证据记录 `actor = user / agent / shared / imported` 与
-   `assistance = none / hint / copilot / delegated`；
-4. Judge 正确性与用户贡献度分开；
-5. 模型总结、猜测或 Agent 代做不能自动写成用户能力事实；
-6. Memory 是可复用经验，Ability Profile 是用户能力证据，两者不能混为一个分数。
+总体收敛为四条主线：CTF 通用闭环、Memory 可信度、Runtime 评测、正式交付。架构拆分
+作为这些主线的工程约束，不单独追求“清债完成”。
 
-随后使用分层真实轨迹校准召回和推荐。第一轮以六赛道 × Coach/Copilot/Delegate ×
-至少两次为覆盖参考，而不是把任意固定次数当成能力完成证明。
+## 2. CTF 通用能力：保留，但改成六赛道验收
 
-## 3. CTF 通用能力
+当前代码实际定义了六个能力轴：Web、Pwn、Reverse、Crypto、Forensics、Misc，而不是
+五个；并且只有六个赛道都出现 Judge-verified 成功才会 Ready：
+`internal/nssctf/catalog.go:474`、`internal/nssctf/catalog.go:686`。
 
-通用 CTF 最小验收是六个独立赛道，而不是把 Misc 与 Forensics 合并：
+因此目标调整为：
 
-- Web；
-- Pwn；
-- Reverse；
-- Crypto；
-- Forensics；
-- Misc。
+- Web、Pwn、Reverse、Crypto、Forensics、Misc 各至少一个真实 Judge-verified 闭环；
+- Forensics 与 Misc 不再合并，否则和能力画像模型不一致；
+- 一题成功只是通用能力 smoke，不得描述为整体 CTF 成绩；
+- 为六题建立固定的回归清单，记录平台、题号、类别、材料类型和验收日期。
 
-每个赛道至少保留一条真实 Judge-verified 闭环，包括材料、轨迹、Checkpoint、候选、
-Judge、提示依赖、用户贡献、恢复和复盘证据。一题一赛道只表示 smoke 通过，不表示完整
-CTF 成绩。
+每题统一验收：
 
-协作验收嵌入真实题目：
+- 授权题面及材料；
+- Solver 轨迹和 Checkpoint；
+- 候选及依据；
+- 平台 Judge 回执；
+- 提示依赖和用户贡献；
+- 中断/恢复；
+- 复盘和训练证据。
 
-- 至少一题在自然卡关后由 Solver 请求 Coding Agent 工具，工具结果再交回 Solver；
-- 至少一题在重复失败后由独立 Strategist 复盘、重新规划并交回 Solver 验证。
+Tool Builder 与 Strategist 不要求每题都调用，改为两个跨赛道场景：
 
-在远程 Web/Pwn 扩样本前完成动态 Endpoint 确认与窄网络边界：
+- 至少一题自然卡关后，Solver 提交工具请求，Coding Agent 交付工具，Solver 使用结果
+  继续；
+- 至少一题在重复失败后，由 Strategist 使用独立会话复盘，提出不同路线，再交回 Solver
+  验证。
 
-- 页面或 Agent 发现的新目标只能提出申请，不能自动扩权；
-- HTTP、TCP、SSH 按精确目标逐条确认并生成不可变 Scope；
-- 通用 CTF Shell 默认无网络；
-- 存在一个授权目标不能等价为允许 Shell 访问整个网络；
-- 复杂协议经受控网络 broker/proxy 或单次批准的窄执行器。
+这两条是产品协作能力验收，不是额外 Agent 数量指标。
 
-## 4. Runtime Bench
+## 3. 动态 Endpoint 与网络边界：提升为 CTF P0
 
-评测拆为两个互不冒充的层次：
+这项必须在 Web/Pwn 真实扩样本之前完成。
 
-1. **Runtime Reliability Bench**：优先使用自建安全 fixture，验证多轮规划、文件、普通
-   开发命令、工具、恢复、压缩、成本、超时、取消和失败分类；
-2. **NYU CTF Outcome Bench**：六赛道真实闭环稳定后，才将正式 CTF Runtime 接到人工
-   准入的安全子集。
+当前精确的 `ctf_http` 和 `ctf_socket` 工具边界不错：HTTP 不跟随重定向，Socket 限制为
+精确 `host:port`。但只要题目存在 origin/socket，通用 CTF Shell 的 Seatbelt 就会开放
+整个网络，而不是只允许目标地址：`bridge-policy.js:330`。
 
-现有 one-shot 与两回合只读 safe-static 记录只描述为 Pi Runtime smoke，不是完整
-MilkSU CTF 成绩，不进入用户能力画像。
+因此真正的缺口不是“再显示一个 Endpoint 输入框”，而是：
 
-## 5. 架构约束
+- 页面或 Agent 发现的新 Endpoint 只能提出授权申请，不能自动加入 Scope；
+- UI 展示协议、域名/IP、端口、来源和用途；
+- 用户逐条确认后生成新的不可变 Scope；
+- HTTP、TCP、SSH 分开授权；
+- 动态 Endpoint 不自动继承平台 Cookie、Token 或浏览器会话；
+- 通用 Shell 默认继续无网络；
+- 复杂协议通过受控网络 broker/proxy，或每次明确批准的窄网络执行器；
+- 不能因为存在一个授权 Origin 就让任意 Shell 访问整个互联网。
 
-架构债不建立独立的“大重构里程碑”，采用触碰即拆分：
+动态 Endpoint 和精确网络执行器合成一个纵切，不分两轮做。
 
-- 做 Endpoint/Memory UI 时拆 `CTFPage.vue` 对应状态；
-- 修改网络、LSP 或 Computer Use 时拆 `bridge-policy.js` 对应策略；
-- 扩平台 Browser/Judge 时拆 `internal/browsercap/manager.go`；
-- 修改恢复语义前拆 CTF Runner / Recovery；
-- `app.go` 只保留 Wails 桌面 Facade 和 DTO 转换。
+## 4. Memory 与能力画像：保留并前置数据可信度
 
-必须持续保持：
+这是 MilkSU 的核心创新，必要性很高。但“积累数十次轨迹”不应是第一步，必须先修正数据
+模型，否则真实训练只会积累错误归因。
 
+当前问题是：
+
+- `TrainingSignal` 只有提示数和独立步骤数，没有步骤作者和协作贡献；
+- `realTrainingSignal` 直接把这些计入能力画像：`app.go:814`；
+- delegate 模式下 Agent 解题和用户独立解题仍可能落入同一成功信号；
+- Memory 的 Judge verification 能证明答案正确，但不能证明是谁完成了关键推理。
+
+目标拆成三层。
+
+### 第一层：证据归属
+
+- `actor = user / agent / shared / imported`；
+- `assistance = none / hint / copilot / delegated`；
+- 用户独立步骤只能来自显式用户操作或用户确认的结构化记录；
+- Agent 总结、推测和复盘文本不能自动变成用户能力事实；
+- Judge 正确性与用户贡献度必须是两个独立维度。
+
+### 第二层：画像与 Memory 分离
+
+- Memory 表示“过去题目中可复用的经验”；
+- Ability Profile 表示“有证据支持的用户能力”；
+- Agent 代做的成功可以形成 Agent Memory，但不能等价提升用户能力；
+- 提示依赖、独立完成和协作完成分别显示，不能压成一个模糊分数。
+
+### 第三层：校准活动
+
+第一轮采用 36 条分层样本：
+
+- 6 个赛道；
+- coach、copilot、delegate 三种协作方式；
+- 每个组合至少两条轨迹。
+
+36 不是神奇完成线，而是足以发现系统性误归因的第一轮矩阵。还要增加同知识点跨题召回
+和无关题负对照。
+
+验收指标包括：
+
+- 模型猜测写入用户能力事实的次数必须为 0；
+- delegate 成功不增加“独立完成”计数；
+- 推荐理由能链接到具体 Judge、提示、步骤和失败记录；
+- 当前题不召回自己的复盘；
+- 相关旧题优先于同类别但无关的旧题；
+- 删除/归档证据后推荐与画像同步变化。
+
+## 5. NYU Runtime Bench：拆成两个 Bench
+
+“完整 MilkSU Runtime 接 NYU 安全子集”有价值，但不是近期产品完成条件。它拆为：
+
+### Runtime Reliability Bench
+
+优先做，使用自建、安全、可复跑 fixture：
+
+- 多轮规划；
+- 文件读取；
+- 普通开发命令；
+- 工具调用；
+- Sidecar/App 重启；
+- 上下文压缩；
+- 超时与取消；
+- 成本和工具预算；
+- 失败分类。
+
+这是测 Harness，不需要借 NYU 题目，也不会产生虚假的 CTF 分数。
+
+### NYU CTF Outcome Bench
+
+等六赛道真实闭环稳定后再做：
+
+- 只采用人工准入的安全子集；
+- 复用正式 CTF Runtime、Evidence 和 Checkpoint，不能另造第二套 Runner；
+- 记录 admission、工具面、成本、超时和恢复；
+- 不运行未经审核的附件、服务或漏洞触发输入；
+- 报告继续明确区分 attempted、completed 和 solved。
+
+当前 safe-static 结果继续称为“Pi Runtime safe-static smoke”，不能称为完整 MilkSU CTF
+成绩：`docs/developer/nyu-ctf-bench-eval.md:116`。
+
+## 6. 架构债：保留，但不作为独立里程碑
+
+这些拆分确实必要，因为热点已经很大：
+
+- `CTFPage.vue`：3,021 行；
+- `internal/browsercap/manager.go`：1,951 行；
+- `bridge-policy.js`：2,417 行；
+- `app.go`：1,352 行；
+- `internal/ctf/service.go`：920 行。
+
+不停止产品开发进行一次大规模纯重构，调整为“触碰即拆分”：
+
+- 做 Endpoint/Memory UI 前拆 `CTFPage.vue` 对应区域；
+- 修改网络和 Computer Use 前拆 `bridge-policy.js`；
+- 扩平台 Judge/Browser 前拆 `internal/browsercap/manager.go`；
+- 修改恢复语义前拆 CTF Runner/Recovery；
+- `app.go` 只在相关纵切里继续把业务规则移到 Adapter/应用服务。
+
+持续约束：
+
+- Wails 只做桌面调用和 DTO；
 - 领域层不依赖 Wails；
-- Pi Runtime 不知道平台页面细节；
+- Pi Runtime 不知道 NSSCTF/CTFshow 页面细节；
 - 平台 Adapter 不决定学习成功或用户能力；
-- 新纵切不能继续给巨型文件增加新的职责。
+- 新功能不得继续给这些巨型文件增加新的职责。
 
-## 6. 本地交付
+## 7. 本地交付：拆成数据安全和正式发行两阶段
 
-数据安全、异常退出标记、脱敏日志和问题诊断属于开发期基础。Developer ID、hardened
-runtime、公证、stapling、签名升级包、升级失败回滚和全新 macOS 用户安装属于外部
-Beta/正式版发布门。
+### 数据安全，P0
 
-窗口和性能必须先定义支持矩阵与基线，再设置回归阈值；不使用“支持小窗口”或“优化包体”
-这样的无验收目标。
+编号式 SQLite Migration 必须保留，而且应在修改 Memory 归属模型之前完成。
 
-## 文档纪律
+当前只有 Event Store 有 `schema_migrations`；Memory、Credential、NSSCTF、CTFshow
+仍各自 `CREATE/ALTER`：`internal/securityruntime/store.go:54`、
+`internal/ctf/memory.go:95`。
 
-- 本文件是唯一当前执行顺序；
-- 状态文档只记录已验证事实，不维护第二份 backlog；
-- ADR、带日期 Review、Research 和设计稿保留历史语境，不自动成为当前任务；
-- 开发过程中只保留测试、轨迹、回执、Checkpoint 和必要 ADR；
-- 功能与真实验收完成后，再统一更新架构图、里程碑、状态和发布说明。
+验收覆盖：
+
+- 每个数据库独立编号；
+- 事务化、幂等；
+- 旧版本数据库直接升级；
+- 新版本数据库拒绝被旧 App 打开；
+- 迁移失败不留下半升级状态；
+- 迁移前安全备份；
+- 凭据不迁移到普通文件；
+- 恢复旧备份后仍能继续升级。
+
+诊断入口已经存在，应从“未完成”中删除：`app/src/components-vue/SettingsPage.vue:229`。
+剩余目标改为：
+
+- 持久化的上次启动/异常退出标记；
+- Sidecar、恢复、迁移和后台任务的脱敏日志；
+- 崩溃后下次启动提供恢复/诊断入口；
+- 不保存会话正文、工具原始输出或凭据。
+
+### 正式发行，Release Candidate 阶段
+
+Developer ID、公证、升级渠道很重要，但不阻塞当前功能迭代。现在默认允许 ad-hoc
+签名 `-`：`scripts/package-sidecar.mjs:1277`。
+
+只有准备外部 Beta/正式版时，将以下设为发布门禁：
+
+- Developer ID Application 签名；
+- hardened runtime 和 entitlements；
+- Apple notarization 与 stapling；
+- 签名升级包和升级源；
+- 旧版本 → 新版本迁移；
+- 升级失败回滚；
+- 全新 macOS 用户、无开发工具机器安装；
+- 离线/网络失败时的可理解降级。
+
+尺寸目标具体化。当前最低窗口是 `1080×680`：`main.go:23`。先定义支持矩阵，再做 QA，
+不使用模糊的“小窗口”。性能同样先记录启动时间、空闲内存、前端 chunk 和 App 体积基线，
+再设回归阈值。
+
+## 8. 文档：维持最后统一更新
+
+这一条不需要调整。
+
+开发过程中只保留：
+
+- 测试输出；
+- Judge 回执；
+- 轨迹和 Checkpoint；
+- 版本化验收记录；
+- 必要 ADR。
+
+不反复修改“已完成/当前成绩”声明。等六赛道、Memory 校准、自举 Coding Gate 和发行门禁
+实际通过后，再统一更新架构、里程碑、状态和发布说明。
+
+## 调整后的总体顺序
+
+1. Coding Agent 自举门槛。
+2. 统一 SQLite Migration。
+3. Memory 证据归属模型。
+4. 动态 Endpoint 确认与窄网络执行器。
+5. 六赛道真实 CTF 验收，其中包含一次 Tool Builder 和一次 Strategist 闭环。
+6. 使用真实轨迹完成 Memory/推荐校准。
+7. Runtime Reliability Bench。
+8. NYU 安全子集 Outcome Bench。
+9. 崩溃恢复、全新机器、签名、公证、升级和性能发布门禁。
+10. 最后统一更新文档。
+
+Labs 与 CVE 继续暂停，不进入上述任何完成条件。
