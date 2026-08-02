@@ -36,7 +36,7 @@ flowchart LR
 | --- | --- | --- |
 | Wails 本地桌面宿主 | **Implemented** | `main.go` 只绑定一个 `App`，静态资源来自 `app/dist`。 |
 | Vue 产品表面 | **Implemented / Partial** | `app/src/App.vue` 组合 CTF、CVE、Coding 与设置；统一安全 Markdown 已实现，原生长内容、窄窗口和多状态视觉仍需持续发布回归。 |
-| Pi 通用 Agent | **Verified core / Partial extensions** | `bridge.js` 使用 Pi SessionManager、工具事件和持久会话；Plan → Go 真实交付已验，Archify、隔离 Coding Browser 与 TypeScript/Vue/Go LSP 已完成原生专项验收；`lsp_fix` 仍 Partial。 |
+| Pi 通用 Agent | **Verified core / Partial extensions** | `bridge.js` 使用 Pi SessionManager、工具事件和持久会话；Plan → Go 真实交付已验，Archify、隔离 Coding Browser 与 TypeScript/Vue/Go LSP 已完成原生专项验收；`lsp_fix` 已复用上游 Pi LSP，并补工作区校验、统一 Diff、逐次审批和写后复核。Computer Use、多 Agent 等扩展仍 Partial / Planned。 |
 | CTF Runtime | **Implemented** | `internal/ctf` 将 Challenge、Agent Turn、Candidate、Judge Receipt、Debrief 投影到共享 Runtime。 |
 | 浏览器平台 Judge | **Implemented** | `internal/browsercap` 只接受明确配对页，NSSCTF/CTFshow 回执进入 Go Host。 |
 | Coding Browser | **Verified** | `internal/browsercap` 由右侧页面显式启停专用 Chrome；Go Host 向当前 Pi Session 注入瞬态 loopback 描述符，固定 Playwright MCP 在逐次桌面审批下完成真实页面 E2E。 |

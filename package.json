@@ -32,6 +32,7 @@
     "@narumitw/pi-lsp": "0.29.0",
     "@playwright/mcp": "0.0.78",
     "@vue/language-server": "3.3.9",
+    "diff": "8.0.4",
     "pi-better-background-tasks": "0.1.10",
     "pi-mcp-adapter": "2.17.0",
     "typebox": "1.1.38",

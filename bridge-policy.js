@@ -61,6 +61,7 @@ const codingWorkspaceAutoToolNames = [
   "bg_status",
   "milksu_progress",
   "lsp_diagnostics",
+  "lsp_fix",
   ...codingGoalToolNames,
 ];
 const codingArchitectureToolNames = [
@@ -102,6 +103,7 @@ const codingProductFixToolNames = [
   "ls",
   "milksu_progress",
   "lsp_diagnostics",
+  "lsp_fix",
   ...codingGoalToolNames,
 ];
 // A Coding session must construct the full reviewed tool catalog up front.

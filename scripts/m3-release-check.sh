@@ -20,7 +20,7 @@ done
 
 go test ./...
 go vet ./...
-node --test browserextension-background.test.js bridge-approval.test.js bridge-attachments.test.js bridge-background-process.test.js bridge-policy.test.js bridge-resource-policy.test.js bridge-vision.test.js
+node --test browserextension-background.test.js bridge-approval.test.js bridge-attachments.test.js bridge-background-process.test.js bridge-lsp.test.js bridge-policy.test.js bridge-resource-policy.test.js bridge-vision.test.js
 npm --prefix app test -- --run
 npm --prefix app run lint
 npm --prefix app run build

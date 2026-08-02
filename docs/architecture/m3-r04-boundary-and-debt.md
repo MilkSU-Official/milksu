@@ -26,7 +26,7 @@
 | CTF Trajectory / Debrief / Memory | **Implemented / Partial evidence** | Event Store 有真实轨迹和恢复事件，Memory Store 有 1 条综合；跨题型复用和错误记忆停用仍欠验收。 |
 | 全局 Rail `CTF → CVE → Coding` 与上下文侧栏 | **Verified for current native package** | 原生包已回归；一级/二级选中态明确，Coding 最近任务按仓库分组，CTF 角色会话不混入 Coding。 |
 | 全页面 Markdown 渲染 | **Implemented / Partial** | 统一安全渲染器与单测已存在；原生真实会话、长代码块和窄窗口仍需回归。 |
-| Archify / LSP / Goal / Background | **Mixed** | Archify 已在真实打包 App 一键生成固定产物、showcase 9/9 并右侧预览；固定 `pi-goal`、后台任务、LSP 与 CTF 隔离 Smoke 已有。TypeScript/Vue Server 与官方 `gopls v0.23.0` 已随 Sidecar 打包并完成原生诊断；`lsp_fix` 审批仍未完成；当前固定清单不再包含 `pi-retry`。 |
+| Archify / LSP / Goal / Background | **Mixed** | Archify 已在真实打包 App 一键生成固定产物、showcase 9/9 并右侧预览；固定 `pi-goal`、后台任务、LSP 与 CTF 隔离 Smoke 已有。TypeScript/Vue Server 与官方 `gopls v0.23.0` 已随 Sidecar 打包并完成原生诊断；TypeScript `lsp_fix` 已完成 Project Auto 自动应用、Ask 精确 Diff、批准/拒绝与写后复核；当前固定清单不再包含 `pi-retry`。 |
 | Coding Plan / Go 与权限策略 | **Implemented / Partial overall** | Codex 风格三档菜单、Project Auto 常规开发 Shell/Git/网络、显式 Full Access 和 Ask 单次工具审批已落地并有交付门禁；右侧终端页已在原生 App 验证交互式项目 PTY，并启停带 PID/端口/日志的后台服务；隔离 Coding Browser 已验证逐次审批；仍缺跨应用重启终端恢复和 Computer Use 授权。 |
 | Coding 日常产品动作与 Diff | **Verified for one real delivery chain** | 同一真实打包 App 会话已连续完成理解项目、失败测试、可信 Diff 审阅、最小修复、回归测试和总结；右侧文件级 Diff 页已接线；本地临时远端完成 stage、commit、push 与远端 HEAD 核对。仍欠多语言样本、逐块/行级反馈和托管平台 PR。 |
 | 架构文档 | **Verified snapshot** | 当前/目标/债务文档与 Archify 交互式 HTML 已生成；规格验证 9/9、0 error、0 warning。 |
@@ -83,7 +83,7 @@ flowchart LR
 
 1. 新用户能从 CTF 题库进入真实题目和 PI，不出现空按钮、重叠、被截断的下拉框或原始 Markdown。
 2. 已完成 NSSCTF Accepted、候选不明确恢复、报告脱敏和应用重启恢复回归。
-3. Archify、LSP、Goal、后台任务与 MCP 的真实状态逐项披露；Archify、审批、后台任务、TypeScript/Vue/Go LSP 与资源隔离已验，写修复缺口不能被加载 Smoke 冒充。
+3. Archify、LSP、Goal、后台任务与 MCP 的真实状态逐项披露；Archify、审批、后台任务、TypeScript/Vue/Go LSP 与资源隔离已验；写修复必须保留原生精确 Diff、批准/拒绝和文件未变竞态证据，不能被加载 Smoke 冒充。
 4. 当前架构快照、CTF/Coding 边界、Labs/CVE 设计和项目状态与代码一致，并标明
    `Implemented / Partial / Planned / Paused / Historical`。
 5. 本地备份恢复在任何 Store 打开前执行，二次验证 schema/哈希/路径与数据版本，保留凭据和
@@ -102,7 +102,7 @@ flowchart LR
 | --- | --- | --- | --- |
 | Markdown 原生状态未冻结 | `MarkdownContent.vue`、清洗策略与单测已存在 | 打包 App 的真实长代码块、表格或旧会话仍可能暴露布局问题 | 逐页验证真实会话、代码块、链接和超长内容；保留工具原始输出的等宽 `<pre>`。 |
 | 原生 UI 状态未冻结 | 浏览器预览无法覆盖 Wails Binding、原生标题栏和真实数据 | 浏览器看似正常，打包 App 仍可能重叠或无响应 | 用真实 Wails 包验 CTF/CVE/Coding/设置、下拉框、长文本和窄窗口。 |
-| LSP 写修复仍未完成 | TypeScript/Vue 与官方 `gopls v0.23.0` 已固定打包；真实 App 的 Go fixture 返回 `compiler.IncompatibleAssign @ 3:21` 且源文件未改，`lsp_fix` 仍被阻止 | 诊断可演示，但自动修复没有独立审批与可信 Diff | 为 `lsp_fix` 接独立审批与 Diff；重试继续依赖 Pi/Provider，不恢复已移除的临时自研循环。 |
+| LSP 写修复语言覆盖仍窄 | TypeScript/Vue 与官方 `gopls v0.23.0` 已固定打包；真实 App 的 TypeScript `source.organizeImports` 已验证 Project Auto 自动应用、Ask 精确 Diff、允许写入与拒绝不写入 | 已证明单文件 TypeScript 路径，但 Vue/Go、跨文件 Code Action 与大 Diff 仍缺样本 | 继续复用固定 Pi LSP 扩样本；MilkSU 只保留工作区、审批、Diff 与写后复核 Adapter，不恢复自研 LSP 或重试循环。 |
 | Coding 通用能力仍有自研膨胀风险 | 计划、权限、会话、审阅、子 Agent 都有成熟 Pi 候选 | Harness 胶水持续增长并偏离产品重点 | 执行 `pi-resource-whitelist.md` 的 reuse-first 与 custom-code disposition；禁止临时自造替代品。 |
 | CTF 真实题型覆盖不足 | 当前本机真实训练记录集中在静态编码/取证类；能力画像多数维度未校准 | 单一路径成功被误述为通用解题能力 | 固定 Web、Reverse、Crypto、Forensics 四类安全验收；每类保留 Judge、轨迹、提示依赖和恢复证据。 |
 | Computer Use 未接入 | 附件、项目 MCP、后台任务和隔离 Coding Browser 已接入；跨应用桌面操作仍明确显示 `未接入` | 用户可能把浏览器 MCP 与 Computer Use 混为一谈 | 保持独立入口、应用范围和授权；在真实打包回归前维持 Planned。 |

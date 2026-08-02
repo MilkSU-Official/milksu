@@ -22,6 +22,7 @@ const systemOcrVersion = '1.1.0'
 const typescriptLanguageServerVersion = '5.3.0'
 const vueLanguageServerVersion = '3.3.9'
 const typescriptVersion = '6.0.3'
+const diffVersion = '8.0.4'
 const goplsVersion = '0.23.0'
 const goplsSource = {
   module: 'golang.org/x/tools/gopls',
@@ -353,7 +354,16 @@ async function buildSidecar(platform) {
   const archifySource = join(repositoryRoot, 'third_party', 'archify', 'archify')
   const archifyOutput = join(output, 'skills', 'archify')
   const licenseOutput = join(output, 'THIRD_PARTY-LICENSES')
+  const diffSource = join(repositoryRoot, 'node_modules', 'diff')
   const archifyPackage = JSON.parse(await readFile(join(archifySource, 'package.json'), 'utf8'))
+  const diffPackage = JSON.parse(await readFile(join(diffSource, 'package.json'), 'utf8'))
+  if (
+    diffPackage.version !== diffVersion
+    || diffPackage.license !== 'BSD-3-Clause'
+    || !await exists(join(diffSource, 'LICENSE'))
+  ) {
+    throw new Error(`Diff package mismatch: expected diff@${diffVersion} BSD-3-Clause`)
+  }
   const systemOcrNativePackage = systemOcrNativePackages[platform]
   if (!systemOcrNativePackage) {
     throw new Error(`system OCR does not support Sidecar platform: ${platform}`)
@@ -489,6 +499,10 @@ async function buildSidecar(platform) {
     copyFile(
       join(repositoryRoot, 'third_party', 'licenses', 'narumitw-pi-extensions-MIT.txt'),
       join(licenseOutput, 'narumitw-pi-extensions-MIT.txt'),
+    ),
+    copyFile(
+      join(diffSource, 'LICENSE'),
+      join(licenseOutput, 'diff-BSD-3-Clause.txt'),
     ),
     copyFile(
       join(repositoryRoot, 'node_modules', 'pi-better-background-tasks', 'LICENSE'),
@@ -651,6 +665,15 @@ async function buildSidecar(platform) {
         scope: 'coding-attachments',
       },
     },
+    libraries: {
+      diff: {
+        package: 'diff',
+        version: diffVersion,
+        license: 'BSD-3-Clause',
+        licenseFile: 'THIRD_PARTY-LICENSES/diff-BSD-3-Clause.txt',
+        scope: 'reviewed-lsp-fix',
+      },
+    },
     esbuild: { version: '0.28.1' },
     bridges: {
       chat: { file: 'chat-bridge.cjs', sha256: await sha256(chatOutput) },
@@ -674,6 +697,7 @@ async function smokeSidecar(platform) {
     join(output, 'THIRD_PARTY-LICENSES', 'playwright-Apache-2.0.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'playwright-core-Apache-2.0.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'gopls-BSD-3-Clause.txt'),
+    join(output, 'THIRD_PARTY-LICENSES', 'diff-BSD-3-Clause.txt'),
     join(output, 'lsp-runtime', 'gopls'),
     join(output, 'lsp-runtime', 'node_modules', 'typescript-language-server', 'LICENSE'),
     join(output, 'lsp-runtime', 'node_modules', '@vue', 'language-server', 'LICENSE'),
@@ -846,6 +870,7 @@ async function smokeSidecar(platform) {
     'bg_task',
     'bg_status',
     'lsp_diagnostics',
+    'lsp_fix',
     'goal_complete',
     'goal_blocked',
   ]
@@ -853,7 +878,6 @@ async function smokeSidecar(platform) {
   if (
     !ready
     || !expectedTools.every(tool => ready.tools?.includes(tool))
-    || ready.tools?.includes('lsp_fix')
     || ready.executionMode !== 'go'
     || ready.approvalPolicy !== 'workspace-auto'
     || !ready.skills?.includes('archify')
@@ -1237,6 +1261,11 @@ async function installSidecar(platform, binaryPath) {
       destination,
       'THIRD_PARTY-LICENSES',
       'gopls-BSD-3-Clause.txt',
+    ),
+    join(
+      destination,
+      'THIRD_PARTY-LICENSES',
+      'diff-BSD-3-Clause.txt',
     ),
   ]) {
     if (!await exists(requiredPath)) {

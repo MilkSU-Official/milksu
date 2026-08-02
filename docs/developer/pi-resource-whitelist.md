@@ -24,7 +24,8 @@ The goal is not the raw number of installed packages. The acceptance metric is a
 | --- | --- | --- | --- | --- |
 | `milksu-workflow` | MilkSU source | Coding + CTF roles | Visible progress and role-specific execution guidance | First-party; `milksu_progress` has a bounded schema and no external effects |
 | `tt-a1i/archify` | `2.12.0` / `7b49d0b715fd4ba48116bcdecd1ba3789a279613` | Normal Coding only | Architecture, workflow, sequence, dataflow, and lifecycle diagrams | Pinned submodule; MIT; packaged commit check; CTF sessions must not load it |
-| `@narumitw/pi-lsp` | `0.29.0` | Normal Coding only | `lsp_diagnostics` and opt-in `lsp_fix` through reviewed language servers | Exact npm pin; MIT; MilkSU forces a reviewed Go/Vue/TypeScript config, ignores repository commands, and launches the real server with a non-secret environment; TypeScript `5.3.0`, Vue `3.3.9`, and TypeScript SDK `6.0.3` are bundled; `write` defaults to false |
+| `@narumitw/pi-lsp` | `0.29.0` | Normal Coding only | `lsp_diagnostics` and reviewed `lsp_fix` through fixed language servers | Exact npm pin; MIT; MilkSU forces a reviewed Go/Vue/TypeScript config, ignores repository commands, launches the real server with a non-secret environment, forces a dry-run before writes, validates the project path and hashes, shows a complete Diff in Ask, and verifies the applied text; TypeScript `5.3.0`, Vue `3.3.9`, and TypeScript SDK `6.0.3` are bundled |
+| `diff` | `8.0.4` | Normal Coding LSP adapter | Unified Diff generation for reviewed `lsp_fix` | Exact npm pin; BSD-3-Clause; only formats the upstream Pi LSP dry-run result; license copied into the Sidecar manifest |
 | `@narumitw/pi-goal` | `0.43.0` | Normal Coding only | Pi-native goal lifecycle, alongside the desktop progress projection | Exact npm pin; MIT; CTF sessions keep MilkSU's recorder-owned progress and Judge semantics |
 | `pi-better-background-tasks` | `0.1.10` | Normal Coding only | Conversation-owned background processes, bounded logs and stop | Exact npm pin; MIT; visible lifecycle; CTF sessions must not load it |
 | `pi-mcp-adapter` | `2.17.0` | Normal Coding opt-in | Reviewed project MCP servers and first-party adapters | Exact npm pin; MIT; digest selection, sandbox, environment filtering and per-call desktop approval |
@@ -41,14 +42,17 @@ by the resource loader; it is not a hard-coded declaration:
 - a CTF session exposes none of these external resources and continues to use
   MilkSU's dedicated CTF tools and recorder-owned retry semantics.
 
-`pi-lsp` remains **Partial**, because write-fix approval is not complete. MilkSU deliberately
+`pi-lsp` diagnostics and the reviewed TypeScript write-fix path are **Verified**. MilkSU deliberately
 overrides both repository and user LSP configuration with `PI_LSP_CONFIG`.
 The fixed commands run through `/usr/bin/env -i` and receive only `HOME`,
 `PATH`, `TMPDIR`, `LANG`, and `LC_ALL`; provider and relay credentials do not
 reach the language server. Clean macOS packages include reviewed TypeScript,
 Vue and Go servers in `milksu-sidecar/lsp-runtime`; the packaged-app fixtures returned
 `TS2322` at `1:14` and `compiler.IncompatibleAssign` at `3:21` without modifying
-their source files. `gopls v0.23.0` is built from the verified official module
+their source files. A packaged TypeScript fixture also verified `source.organizeImports`
+under Project Auto and Request Approval: the desktop showed the full unified Diff,
+approval applied the reviewed text, and rejection preserved the original SHA-256.
+`gopls v0.23.0` is built from the verified official module
 sum and commit, and its BSD-3-Clause license and binary SHA-256 are recorded in
 the Sidecar manifest.
 
@@ -77,7 +81,7 @@ Pi's official documentation states that Pi runs with the launching process's fil
 | Agent-side subtask orchestration | Do not build | Integrate `pi-sub-agent` after packaged-runtime and budget tests |
 | Session archive/query/handoff | Do not build | Evaluate Session Snap / Query / Handoff and adapt only desktop navigation/state |
 | Code review and semantic diff | Do not build from scratch | Evaluate Code Review / Tool Pills / `pi-sem`; MilkSU owns file/diff presentation in the right panel |
-| Architecture diagrams, LSP, retry | Keep pinned external resources | Keep the reviewed `gopls` package gate, finish `lsp_fix` approval, and avoid feature forks |
+| Architecture diagrams, LSP, retry | Keep pinned external resources | Keep the reviewed `gopls` package gate and thin LSP review adapter, expand language fixtures, and avoid feature forks |
 | CTF recorder, Judge, evidence, role handoff, learning memory | Keep MilkSU-owned | This remains the product's primary innovation surface |
 
 ## Update procedure

@@ -30,6 +30,7 @@ import {
   withBackgroundResumeAuthorization,
 } from "./bridge-background-authorization.js";
 import { createApprovalBroker } from "./bridge-approval.js";
+import { createReviewedLspExtension } from "./bridge-lsp.js";
 import {
   applyCodingResourcePolicy,
   describeLoadedExtensions,
@@ -78,7 +79,7 @@ const abortedSessions = new Set();
 const input = createInterface({ input: process.stdin });
 let commandQueue = Promise.resolve();
 const bridgeDirectory = dirname(fileURLToPath(import.meta.url));
-const approvalRequiredCodingTools = new Set(["bash", "edit", "write", "lsp_fix"]);
+const approvalRequiredCodingTools = new Set(["bash", "edit", "write"]);
 
 function emit(conversationId, type, data = {}) {
   process.stdout.write(`${JSON.stringify({ type, id: conversationId ?? null, ...data })}\n`);
@@ -277,13 +278,15 @@ function codingPolicyGuidance(policy) {
       + "commands, start background tools, and access the network inside the selected project. "
       + "The project sandbox blocks writes outside the project and access to local credential "
       + "directories; model-provider API keys are never passed to child processes. Browser/MCP, "
-      + "when selected for this task, remains behind per-call desktop approval. Computer Use and "
-      + `lsp_fix remain unavailable.${productActionGuidance}`;
+      + "when selected for this task, remains behind per-call desktop approval. LSP fixes are "
+      + "previewed and verified inside the project before apply. Computer Use remains unavailable."
+      + productActionGuidance;
   }
   if (policy.approvalPolicy === "ask") {
     return "Go mode is active with Request Approval. Read-only inspection runs directly. Before "
-      + "bash, edit, write, or another effectful Coding tool executes, MilkSU pauses the tool and "
-      + "shows its exact parameters in the desktop. Continue only after that one request is approved; "
+      + "bash, edit, write, or another effectful Coding tool executes, MilkSU pauses the tool. "
+      + "LSP fixes first compute and show the exact Diff; other tools show their exact parameters. "
+      + "Continue only after that one request is approved; "
       + "selected MCP calls use the same independent approval channel. A rejection is authoritative "
       + `and must not be bypassed with another tool.${productActionGuidance}`;
   }
@@ -646,7 +649,14 @@ function createMilkSUResourceLoader(
         getPolicy,
         registerPolicyController,
       ),
-      piLspExtension,
+      createReviewedLspExtension(
+        piLspExtension,
+        {
+          conversationId,
+          getPolicy,
+          approvalBroker,
+        },
+      ),
     );
     if (mcpConfig) {
       extensionFactories.push(createMcpAdapter({ config: mcpConfig }));

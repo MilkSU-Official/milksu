@@ -1,8 +1,8 @@
 # Coding Agent / Pi 扩展边界
 
 > 状态：Coding 核心交付链、桌面逐次审批、附件、会话隔离 PTY、后台任务、项目 MCP
-> 和隔离 Coding Browser **Verified / Implemented**；TypeScript/Vue/Go LSP 诊断
-> **Verified**，`lsp_fix` 与 Computer Use **Partial / Planned**。
+> 和隔离 Coding Browser **Verified / Implemented**；TypeScript/Vue/Go LSP 诊断与
+> TypeScript 经审阅写修复 **Verified**，Computer Use **Planned**。
 
 MilkSU 不重写通用 Coding Agent Loop。Pi 负责会话、模型、上下文、工具循环和扩展 API；
 MilkSU 负责桌面授权、固定资源白名单、工具可见性、事件桥、产品 UI，以及 CTF 专用的事实、
@@ -67,7 +67,7 @@ flowchart LR
 | `bash` | `Project Auto` 支持正常开发命令、Shell 组合、Git 和网络，但写入受 macOS 项目沙箱约束；`Full Access` 显式解除项目沙箱 | Coach/Strategist 无；Solver 模式按策略；Tool Builder 仅离线工作区 | Pi 工具 + `bridge-policy.js` |
 | `milksu_progress` | 是 | 是，附角色 Guidance | MilkSU first-party Extension |
 | Archify | 是 | **否** | 固定 Coding Skill |
-| `lsp_diagnostics` / `lsp_fix` | 诊断可用；`lsp_fix` 在三档策略中均阻止，等待独立审批协议 | **否** | 固定 Coding Extension + MilkSU 启动策略 |
+| `lsp_diagnostics` / `lsp_fix` | 诊断可用；`lsp_fix` 先只读计算并校验项目内目标、统一 Diff 与文件哈希。Ask 展示完整 Diff 后逐次批准；Project Auto / Full Access 在项目内自动应用并写后复核 | **否** | 固定 Coding Extension + MilkSU 审阅 Adapter |
 | Pi Goal | 是；与桌面目标状态并存 | **否**；CTF 使用自己的进度与 Judge 语义 | 固定 Coding Extension |
 | 项目终端 / 后台任务 | 是；用户直接操作的多会话 PTY 由 Go Host 承担，后台任务复用固定 Pi Extension；两者按 Conversation 隔离，展示生命周期、输出和停止动作 | **否** | `creack/pty + xterm.js` Host Adapter；固定 Coding Extension + MilkSU 状态投影 |
 | 项目 MCP | 用户从项目 `.mcp.json` 明确选择后启用，每次调用仍走桌面审批 | **否** | 固定 Coding Extension + MilkSU Sandbox |
@@ -91,9 +91,9 @@ JSONL Sidecar 传递。`bridge-policy.js` 每回合重新计算 allowlist，调�
 | --- | --- | --- |
 | `Plan` | 任意 | `read/grep/find/ls/milksu_progress/lsp_diagnostics`；明确移除 `bash/edit/write/lsp_fix`。 |
 | `Go` | `Read-only` | 与 Plan 相同，只允许分析和诊断。 |
-| `Go` | `Ask` | 读取类工具直接执行；`bash/edit/write`、后台任务及项目 MCP 等有副作用调用会暂停，等待桌面单次批准或拒绝。 |
-| `Go` | `Project Auto`（存储值 `workspace-auto`） | 项目内文件、Git、常规开发命令和网络自动执行；文件写入仍受项目沙箱约束。Agent HOME/TMP/Node wrapper 位于用户数据目录；旧项目中的 `.milksu` 仍受保护。 |
-| `Go` | `Full Access`（存储值 `full-auto`） | 用户显式选择后，终端以当前本机用户权限自动执行，可访问项目外文件和网络；Provider Key 仍从子进程环境移除。 |
+| `Go` | `Ask` | 读取类工具直接执行；`bash/edit/write`、后台任务及项目 MCP 等有副作用调用会暂停，等待桌面单次批准或拒绝；`lsp_fix` 在暂停前先计算并展示完整统一 Diff。 |
+| `Go` | `Project Auto`（存储值 `workspace-auto`） | 项目内文件、Git、常规开发命令和网络自动执行；文件写入仍受项目沙箱约束；`lsp_fix` 在项目内预览并校验后自动应用。Agent HOME/TMP/Node wrapper 位于用户数据目录；旧项目中的 `.milksu` 仍受保护。 |
+| `Go` | `Full Access`（存储值 `full-auto`） | 用户显式选择后，终端以当前本机用户权限自动执行，可访问项目外文件和网络；Provider Key 仍从子进程环境移除；LSP Fix 仍强制绑定当前项目。 |
 
 旧 Conversation 没有字段时迁移为 `Go + Project Auto`，保持 Coding Agent 可以直接交付
 代码。`Project Auto` 不再维护脆弱的命令白名单：Agent 可以使用真实研发所需的命令、
@@ -106,7 +106,7 @@ ID 暂停，桌面明确显示目标、参数和风险，并把一次性批准�
 项目 MCP 与 Coding Browser 都使用独立的逐次审批和沙箱，不会因为用户选择 `Project Auto`
 或 `Full Access` 就静默启用。Coding Browser 只能由用户从右侧页面显式启动，使用
 Conversation 隔离 Profile；Go Host 只向当前 Pi Session 注入瞬态 loopback 描述符，
-不把 CDP 地址写进前端、SQLite 或项目配置。Computer Use 与 `lsp_fix` 的完整产品入口
+不把 CDP 地址写进前端、SQLite 或项目配置。Computer Use 的完整产品入口
 仍未接入；Provider API Key 不进入模型上下文，也不传给 Bash 或 MCP 子进程；
 `Full Access` 能使用的只是当前登录用户本来可用的本地凭据和 SSH Agent。
 
@@ -133,7 +133,7 @@ flowchart TB
 | --- | --- | --- | --- |
 | Pi Coding Agent | `0.83.0` | `package.json`、`scripts/package-sidecar.mjs` | Sidecar 打包 / Smoke 已有 |
 | Archify | `2.12.0`，commit `7b49d0b…` | `third_party/archify`、`bridge.js`、Sidecar manifest、Composer 产品动作 | **Verified**：真实打包 App 一键生成固定 JSON/HTML、9/9、0 error、0 warning，并在右侧预览 |
-| `@narumitw/pi-lsp` | `0.29.0` | `bridge-resource-policy.js`、`bridge.js`、`package-lock.json`、Sidecar `lsp-runtime` | 项目命令覆盖和凭据继承已阻断；TypeScript `5.3.0`、Vue `3.3.9`、SDK `6.0.3` 与官方 `gopls 0.23.0` 固定随包；真实原生 fixture 分别返回 `TS2322 @ 1:14` 与 `compiler.IncompatibleAssign @ 3:21`；opt-in fix 待验 |
+| `@narumitw/pi-lsp` | `0.29.0` | `bridge-resource-policy.js`、`bridge-lsp.js`、`bridge.js`、`package-lock.json`、Sidecar `lsp-runtime` | 项目命令覆盖和凭据继承已阻断；TypeScript `5.3.0`、Vue `3.3.9`、SDK `6.0.3` 与官方 `gopls 0.23.0` 固定随包；真实原生 fixture 分别返回 `TS2322 @ 1:14` 与 `compiler.IncompatibleAssign @ 3:21`；TypeScript `source.organizeImports` 已验自动应用、精确 Diff、批准/拒绝和写后复核 |
 | `@narumitw/pi-goal` | `0.43.0` | `bridge-resource-policy.js`、`bridge.js`、`package-lock.json` | **Verified**：普通 Coding 固定加载，CTF 负向隔离；桌面目标仍以 `milksu_progress` 为事实源 |
 | `pi-better-background-tasks` | `0.1.10` | `bridge.js`、Sidecar manifest、会话级控制/运行时事件、右侧终端页 | **Verified**：真实原生会话运行短命令，并启动监听 `127.0.0.1:18876` 的任务；显示 PID/端口/有界日志后从桌面停止并确认端口关闭；不同 Conversation 的任务互相不可见，CTF 保持负向隔离 |
 | `@xterm/xterm` / `@xterm/addon-fit` | `6.0.0` / `0.11.0` | `CodingTerminalPanel.vue`、`third_party/licenses/xterm.js-MIT.txt` | **Verified**：真实原生 App 显示项目 Shell、实时输入输出和 resize；前端独立懒加载，不进入基础 ChatPage chunk |
@@ -183,8 +183,9 @@ flowchart TB
 1. **Archify**：在普通 Coding 会话点击一次“架构图”，自动读取仓库、选择系统架构图与
    固定输出目录、执行 9 项校验并在右侧预览；CTF 会话必须找不到该 Skill。
 2. **LSP**：TypeScript/Vue Server 与官方 `gopls v0.23.0` 已固定打包；固定小项目分别
-   返回 `TS2322 @ 1:14` 与 `compiler.IncompatibleAssign @ 3:21`，且源文件未修改；
-   `lsp_fix` 在独立审批协议完成前始终不可见。
+   返回 `TS2322 @ 1:14` 与 `compiler.IncompatibleAssign @ 3:21`；TypeScript
+   `source.organizeImports` 必须在 Project Auto 下自动应用并复核，Ask 必须先展示完整
+   Diff，允许后写入、拒绝后哈希不变；CTF 会话必须看不到 LSP。
 3. **固定资源门禁**：Goal、后台任务、项目 MCP、附件与 OCR 必须通过打包清单、
    SHA-256、普通 Coding 正向 Smoke 和 CTF 负向隔离；失败恢复保留在 MilkSU Supervisor，
    不重新引入未固定的 `pi-retry`。
@@ -197,5 +198,5 @@ flowchart TB
 
 当前正确说法是“核心插件已经固定并通过打包与隔离验收；右侧终端页已有会话隔离的项目
 PTY/stdin/实时输出/标签页，以及可停止的后台进程；右侧浏览器页已有显式启停、隔离
-Profile、逐次审批和真实页面交互；TypeScript/Vue/Go LSP 诊断已随包完成，跨应用重启恢复、
-`lsp_fix` 和 Computer Use 尚未完成”，不是“Coding Agent 插件体系已完成”。
+Profile、逐次审批和真实页面交互；TypeScript/Vue/Go LSP 诊断与 TypeScript 经审阅写修复
+已随包完成，跨应用重启恢复和 Computer Use 尚未完成”，不是“Coding Agent 插件体系已完成”。

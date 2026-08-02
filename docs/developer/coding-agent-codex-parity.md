@@ -54,7 +54,7 @@ MilkSU Coding 的北极星不是“能调用模型的聊天框”，而是让用
 | 读、搜、改、写文件 | `Verified`：Pi `read/edit/write/grep/find/ls` | 增加逐文件/逐块 diff 可视化和撤销 | P0 |
 | Shell 与测试 | `Verified`：`Project Auto` 支持常规开发命令、Shell 组合、Git 与网络并限制项目外写入；显式 `Full Access` 自动执行当前用户可运行的命令；Provider Key 不进入子进程；右侧“终端”包含多会话项目 PTY，支持 stdin、实时输出、resize、停止和退出状态；同页保留按 Conversation 隔离的后台任务、PID、端口和有界日志 | 增加跨应用重启终端恢复、复制/查找与更大输出压力样本 | P0 |
 | 上下文压缩与持久会话 | `Implemented`：复用 Pi Session | UI 显示压缩/恢复事件；建立长任务回归 | P1 |
-| LSP | `Verified diagnostics / Partial fix`：固定插件只用于 Coding；仓库配置被白名单覆盖；打包 TypeScript/Vue Server、SDK 与官方 `gopls v0.23.0`；原生包 fixture 返回 `TS2322 @ 1:14` 和 `compiler.IncompatibleAssign @ 3:21` 且源文件未改；语言服务器进程不继承模型凭据 | `lsp_fix` 必须走独立审批并展示 Diff | P0 |
+| LSP | `Verified diagnostics + reviewed fix`：固定插件只用于 Coding；仓库配置被白名单覆盖；打包 TypeScript/Vue Server、SDK 与官方 `gopls v0.23.0`；原生包 fixture 返回 `TS2322 @ 1:14` 和 `compiler.IncompatibleAssign @ 3:21`；`lsp_fix` 先通过上游工具只读计算，再由 MilkSU 校验工作区、统一 Diff 与文件哈希；Request Approval 先展示完整 Diff，Project Auto / Full Access 在项目内自动应用并复核结果，拒绝与竞态均不写文件；语言服务器进程不继承模型凭据 | 扩大不同语言、跨文件 Code Action 和超大 Diff 负向样本；不另造 LSP | P1 |
 | Retry | `Alternative`：当前固定清单不再加载 `pi-retry`，模型/Provider 的重试语义保持在 Pi 边界，MilkSU 只处理可见失败与恢复 | 用可控瞬态失败与慢首 Token fixture 验证现有 Pi/Provider 行为；不增加第二个自研重试循环 | P1 |
 | Architecture | `Verified`：真实打包 App 中一键“架构图”自动读取项目、固定输出 JSON/HTML、9/9、0 error、0 warning，并在右侧安全预览；Archify 固定 commit 且只用于 Coding | 后续补“仓库变化后更新图”的独立回归 | P1 |
 | 日常产品动作 | `Verified`：同一真实打包 App 会话已连续完成理解项目、运行测试、审阅变更、修复失败和生成总结；动作自动选择 Plan/Go 与权限，不向用户追问内部参数；测试先复现 `6 !== 4`，修复后 `3 passed / 0 failed` | 增加不同语言、较大仓库和中断恢复样本；保持每个结论均可追溯到工具或桌面 Git 证据 | P0 |
@@ -76,7 +76,7 @@ MilkSU Coding 的北极星不是“能调用模型的聊天框”，而是让用
 | Codex 工作流 | MilkSU 当前状态 | 差距与验收 | 优先级 |
 | --- | --- | --- | --- |
 | 工作区范围 | `Verified`：文件工具二次校验路径/符号链接；Project Auto 的 HOME/TMP/runtime 位于用户数据目录，不污染项目仓库；macOS 沙箱阻止项目外写入；旧 `.milksu` 目录继续受保护并从 Git 面板隐藏；Full Access 只能由用户显式选择 | 多根目录显式授权；为旧项目提供可审阅的遗留目录清理入口 | P0 |
-| 命令与网络审批 | `Verified / Partial coverage`：Plan/Go 与 Codex 风格 `请求批准 / 替我审批 / 完全访问权限` 已由后端真实执行；Ask 会暂停单次 `bash/edit/write` 或后台/MCP 副作用，桌面展示参数并等待批准/拒绝；Coding Browser 每次 MCP 工具调用同样单独批准 | Computer Use、托管平台 push/PR 等外部产品副作用继续保持独立批准并补原生负向样本 | P0 |
+| 命令与网络审批 | `Verified / Partial coverage`：Plan/Go 与 Codex 风格 `请求批准 / 替我审批 / 完全访问权限` 已由后端真实执行；Ask 会暂停单次 `bash/edit/write` 或后台/MCP 副作用，桌面展示参数并等待批准/拒绝；`lsp_fix` 会先计算并展示精确 Diff；Coding Browser 每次 MCP 工具调用同样单独批准 | Computer Use、托管平台 push/PR 等外部产品副作用继续保持独立批准并补原生负向样本 | P0 |
 | 环境信息 | `Verified`：工作区、Git、模型、固定扩展、工具、消息、工具记录、项目 MCP 和能力摘要集中在右侧；变更、终端、架构图和浏览器使用同一个右侧页面选择器，不再挤占 Composer | 补扩展版本、来源与更新状态 | P0 |
 | Local Environment / Actions | `Planned` | 项目级 setup 和常用命令；固定配置、可见输出、可停止 | P1 |
 | 集成终端 | `Verified / Partial persistence`：右侧独立“终端”页使用 `@xterm/xterm + creack/pty` 提供多会话项目 Shell，支持 stdin、实时输出、resize、停止、输出恢复与退出状态；原生 App 已验证 zsh 输入和项目 `pwd`。后台任务页继续复用固定 `pi-better-background-tasks`，展示 PID、端口、日志和停止动作 | 增加跨应用重启后的可恢复交互会话、终端重命名、复制/查找与 Windows/Linux Adapter | P1 |
@@ -111,7 +111,7 @@ MilkSU Coding 的北极星不是“能调用模型的聊天框”，而是让用
 - 现有七个 Pi Coding tools、会话恢复和停止保持回归通过；
 - 右侧环境信息不遮挡，工作区、Git、模型、插件、工具状态真实；
 - Markdown、代码块、表格和链接全局统一渲染；
-- Archify、TypeScript/Vue/Go LSP、Goal、后台任务与 MCP Adapter 在打包 Sidecar 中通过正向 smoke，CTF 会话通过负向隔离；仅 `lsp_fix` 仍明确显示 `Partial`；
+- Archify、TypeScript/Vue/Go LSP（含经审阅的 `lsp_fix`）、Goal、后台任务与 MCP Adapter 在打包 Sidecar 中通过正向 smoke，CTF 会话通过负向隔离；
 - 保持逐工具审批、附件输入、会话隔离 PTY/后台任务和文件级 Diff 回归；补终端跨应用重启恢复。
 
 ### C1：日常 Git 与权限闭环

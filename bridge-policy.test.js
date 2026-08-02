@@ -82,12 +82,13 @@ test("legacy Coding sessions preserve deliverable Go defaults without unrestrict
       "bg_status",
       "milksu_progress",
       "lsp_diagnostics",
+      "lsp_fix",
       "goal_complete",
       "goal_blocked",
     ],
   );
   assert.equal(policy.customTools.some(tool => tool.name === "bash"), true);
-  assert.equal(policy.activeTools.includes("lsp_fix"), false);
+  assert.equal(policy.activeTools.includes("lsp_fix"), true);
 });
 
 test("Plan and Read-only enforce a read-only tool allowlist", async () => {
@@ -128,7 +129,7 @@ test("Ask exposes effectful tools behind the desktop approval channel", async ()
   });
   const ask = normalizeCodingPolicy("go", "ask");
   assert.equal(ask.approvalChannelAvailable, true);
-  for (const gated of ["bash", "edit", "write"]) {
+  for (const gated of ["bash", "edit", "write", "lsp_fix"]) {
     assert.equal(policy.activeTools.includes(gated), true);
   }
   assert.equal(policy.activeTools.includes("bg_task"), true);
@@ -406,6 +407,7 @@ test("Daily Coding product actions get action-specific tool policies", async () 
     "ls",
     "milksu_progress",
     "lsp_diagnostics",
+    "lsp_fix",
     "goal_complete",
     "goal_blocked",
   ];
