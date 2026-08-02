@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/MilkSU-Official/milksu/internal/appdata"
+	"github.com/MilkSU-Official/milksu/internal/ctf"
 	"github.com/MilkSU-Official/milksu/internal/securityruntime"
 
 	_ "modernc.org/sqlite"
@@ -21,6 +22,12 @@ func TestDatabaseCompatDescriptors(t *testing.T) {
 			securityruntime.SupportedEventStoreDatabaseVersion,
 		)
 	}
+	if ctf.SupportedCTFMemoryDatabaseVersion != 1 {
+		t.Fatalf(
+			"SupportedCTFMemoryDatabaseVersion = %d, want 1",
+			ctf.SupportedCTFMemoryDatabaseVersion,
+		)
+	}
 	descriptors := databaseCompatDescriptors()
 	want := []appdata.DatabaseDescriptor{
 		{
@@ -31,7 +38,7 @@ func TestDatabaseCompatDescriptors(t *testing.T) {
 		{
 			LogicalName:  "CTF Memory",
 			RelativePath: "ctf/memory.sqlite3",
-			Supported:    0,
+			Supported:    ctf.SupportedCTFMemoryDatabaseVersion,
 		},
 		{
 			LogicalName:  "NSSCTF Catalog",
@@ -81,6 +88,16 @@ func TestGetLocalDataStatusIncludesDatabaseCompatibility(t *testing.T) {
 	if err := database.Close(); err != nil {
 		t.Fatal(err)
 	}
+	memoryStore, err := ctf.NewMemoryStore(
+		filepath.Join(dataDirectory, "ctf", "memory.sqlite3"),
+		filepath.Join(dataDirectory, "ctf", "memories"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := memoryStore.Close(); err != nil {
+		t.Fatal(err)
+	}
 
 	app := &App{dataDirectory: dataDirectory}
 	status, err := app.GetLocalDataStatus()
@@ -109,7 +126,25 @@ func TestGetLocalDataStatusIncludesDatabaseCompatibility(t *testing.T) {
 		)
 	}
 
-	for _, remaining := range status.Databases[1:] {
+	memory := status.Databases[1]
+	if memory.LogicalName != "CTF Memory" ||
+		memory.RelativePath != "ctf/memory.sqlite3" ||
+		memory.State != "compatible" {
+		t.Fatalf("unexpected CTF Memory status: %#v", memory)
+	}
+	if memory.Current == nil || *memory.Current != 1 {
+		t.Fatalf("CTF Memory current = %v, want 1", memory.Current)
+	}
+	if memory.Supported == nil ||
+		*memory.Supported != ctf.SupportedCTFMemoryDatabaseVersion {
+		t.Fatalf(
+			"CTF Memory supported = %v, want %d",
+			memory.Supported,
+			ctf.SupportedCTFMemoryDatabaseVersion,
+		)
+	}
+
+	for _, remaining := range status.Databases[2:] {
 		if remaining.State != "remaining" {
 			t.Fatalf(
 				"database %q state = %q, want remaining: %#v",

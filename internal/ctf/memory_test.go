@@ -1,8 +1,10 @@
 package ctf
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,7 +12,51 @@ import (
 	"time"
 
 	"github.com/MilkSU-Official/milksu/internal/securityruntime"
+	"github.com/MilkSU-Official/milksu/internal/sqlitemigrate"
 )
+
+func TestTrainingMemoryDatabaseUsesNumberedMigration(t *testing.T) {
+	root := t.TempDir()
+	databasePath := filepath.Join(root, "memory.sqlite3")
+	store, err := NewMemoryStore(
+		databasePath,
+		filepath.Join(root, "memories"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	var (
+		version   int
+		name      string
+		appliedAt string
+	)
+	if err := store.database.QueryRow(
+		`SELECT version, name, applied_at FROM schema_migrations`,
+	).Scan(&version, &name, &appliedAt); err != nil {
+		t.Fatalf("query CTF memory migration history: %v", err)
+	}
+	if version != SupportedCTFMemoryDatabaseVersion ||
+		name != ctfMemoryV1MigrationName ||
+		strings.TrimSpace(appliedAt) == "" {
+		t.Fatalf(
+			"migration history = (%d, %q, %q), want (%d, %q, non-empty)",
+			version,
+			name,
+			appliedAt,
+			SupportedCTFMemoryDatabaseVersion,
+			ctfMemoryV1MigrationName,
+		)
+	}
+	info, err := os.Stat(databasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("CTF memory database mode = %o, want 600", info.Mode().Perm())
+	}
+}
 
 func TestTrainingMemoryPersistsApprovedSynthesisWithoutCandidateSecrets(t *testing.T) {
 	root := t.TempDir()
@@ -299,6 +345,7 @@ INSERT INTO ctf_memories (
 		store.Close()
 		t.Fatalf("legacy memory retained unjustified authority: %#v", memories)
 	}
+	assertCTFMemoryV1History(t, store.database)
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -316,6 +363,220 @@ INSERT INTO ctf_memories (
 		recalled[0].Verification != TrainingMemoryLegacyUntyped ||
 		recalled[0].Confidence != 0.6 {
 		t.Fatalf("migrated legacy memory changed after reopen: memories=%#v err=%v", recalled, err)
+	}
+	assertCTFMemoryV1History(t, reopened.database)
+}
+
+func TestTrainingMemoryAdoptsCurrentPreMigratorRowsWithoutDowngrade(t *testing.T) {
+	root := t.TempDir()
+	databasePath := filepath.Join(root, "memory.sqlite3")
+	database, err := sql.Open("sqlite", databasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.Exec(`
+CREATE TABLE ctf_memories (
+	id TEXT PRIMARY KEY,
+	schema_version TEXT NOT NULL,
+	kind TEXT NOT NULL,
+	verification TEXT NOT NULL DEFAULT 'legacy-untyped',
+	title TEXT NOT NULL,
+	summary TEXT NOT NULL,
+	category TEXT NOT NULL,
+	tags_json TEXT NOT NULL,
+	source_job_id TEXT NOT NULL UNIQUE,
+	source_session_id TEXT,
+	evidence_refs_json TEXT NOT NULL,
+	confidence REAL NOT NULL,
+	path TEXT NOT NULL,
+	created_at TEXT NOT NULL,
+	updated_at TEXT NOT NULL,
+	archived_at TEXT,
+	archived_reason TEXT
+);
+INSERT INTO ctf_memories (
+	id, schema_version, kind, verification, title, summary, category, tags_json,
+	source_job_id, source_session_id, evidence_refs_json, confidence,
+	path, created_at, updated_at
+) VALUES (
+	'ctfmem_verified', 'ctf-memory.milksu.dev/v1alpha2', 'technique',
+	'judge-verified', '[crypto] verified', 'verified summary', 'crypto', '[]',
+	'job_verified', '', '["job:job_verified"]', 1.0,
+	'/tmp/verified-memory.md', '2026-07-31T00:00:00Z', '2026-07-31T00:00:00Z'
+)
+`); err != nil {
+		database.Close()
+		t.Fatal(err)
+	}
+	if err := database.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	store, err := NewMemoryStore(
+		databasePath,
+		filepath.Join(root, "memories"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	memories, err := store.Recall(context.Background(), "crypto", "", 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(memories) != 1 ||
+		memories[0].Verification != TrainingMemoryJudgeVerified ||
+		memories[0].Confidence != 1 {
+		t.Fatalf("current pre-migrator memory was downgraded: %#v", memories)
+	}
+	assertCTFMemoryV1History(t, store.database)
+}
+
+func TestTrainingMemoryRejectsNewerDatabaseWithoutMutation(t *testing.T) {
+	root := t.TempDir()
+	databasePath := filepath.Join(root, "memory.sqlite3")
+	database, err := sql.Open("sqlite", databasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.Exec(`
+CREATE TABLE schema_migrations (
+	version INTEGER PRIMARY KEY,
+	name TEXT NOT NULL,
+	applied_at TEXT NOT NULL
+);
+INSERT INTO schema_migrations(version, name, applied_at)
+VALUES
+	(1, 'create CTF memory store', '2026-01-01T00:00:00Z'),
+	(2, 'future memory schema', '2026-01-02T00:00:00Z');
+CREATE TABLE future_marker (
+	id INTEGER PRIMARY KEY,
+	value TEXT NOT NULL
+);
+INSERT INTO future_marker(value) VALUES ('must remain byte-for-byte unchanged');
+`); err != nil {
+		database.Close()
+		t.Fatal(err)
+	}
+	if err := database.Close(); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(databasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	store, err := NewMemoryStore(
+		databasePath,
+		filepath.Join(root, "memories"),
+	)
+	if store != nil {
+		store.Close()
+		t.Fatal("newer CTF memory database returned a store")
+	}
+	if !errors.Is(err, sqlitemigrate.ErrDatabaseTooNew) {
+		t.Fatalf("newer CTF memory database error = %v, want ErrDatabaseTooNew", err)
+	}
+	after, err := os.ReadFile(databasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(after, before) {
+		t.Fatal("newer CTF memory database bytes changed after rejection")
+	}
+	for _, suffix := range []string{"-wal", "-shm"} {
+		if _, statErr := os.Stat(databasePath + suffix); !os.IsNotExist(statErr) {
+			t.Fatalf("newer database rejection left %s sidecar: %v", suffix, statErr)
+		}
+	}
+}
+
+func TestTrainingMemoryMigrationFailureRollsBackLegacyUpgrade(t *testing.T) {
+	root := t.TempDir()
+	databasePath := filepath.Join(root, "memory.sqlite3")
+	database, err := sql.Open("sqlite", databasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.Exec(`
+CREATE TABLE ctf_memories (
+	id TEXT PRIMARY KEY,
+	schema_version TEXT NOT NULL,
+	kind TEXT NOT NULL,
+	title TEXT NOT NULL,
+	summary TEXT NOT NULL,
+	category TEXT NOT NULL,
+	tags_json TEXT NOT NULL,
+	source_job_id TEXT NOT NULL UNIQUE,
+	source_session_id TEXT,
+	evidence_refs_json TEXT NOT NULL,
+	confidence REAL NOT NULL,
+	path TEXT NOT NULL,
+	created_at TEXT NOT NULL,
+	updated_at TEXT NOT NULL,
+	archived_at TEXT,
+	archived_reason TEXT
+);
+INSERT INTO ctf_memories (
+	id, schema_version, kind, title, summary, category, tags_json,
+	source_job_id, source_session_id, evidence_refs_json, confidence,
+	path, created_at, updated_at
+) VALUES (
+	'ctfmem_rollback', 'ctf-memory.milksu.dev/v1alpha1', 'technique',
+	'[misc] rollback', 'rollback fixture', 'misc', '[]',
+	'job_rollback', '', '["job:job_rollback"]', 1.0,
+	'/tmp/rollback-memory.md', '2026-07-31T00:00:00Z', '2026-07-31T00:00:00Z'
+);
+CREATE TRIGGER reject_memory_update
+BEFORE UPDATE ON ctf_memories
+BEGIN
+	SELECT RAISE(ABORT, 'fixture rejects confidence update');
+END;
+`); err != nil {
+		database.Close()
+		t.Fatal(err)
+	}
+	if err := database.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	store, err := NewMemoryStore(
+		databasePath,
+		filepath.Join(root, "memories"),
+	)
+	if store != nil {
+		store.Close()
+		t.Fatal("failed CTF memory migration returned a store")
+	}
+	if err == nil || !strings.Contains(err.Error(), "fixture rejects confidence update") {
+		t.Fatalf("migration failure = %v, want fixture trigger rejection", err)
+	}
+
+	database, err = sql.Open("sqlite", databasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	if columns := ctfMemoryColumnNames(t, database); memoryColumnsContain(columns, "verification") {
+		t.Fatalf("failed migration left verification column behind: %v", columns)
+	}
+	var historyTables int
+	if err := database.QueryRow(
+		`SELECT count(*) FROM sqlite_master WHERE type='table' AND name='schema_migrations'`,
+	).Scan(&historyTables); err != nil {
+		t.Fatal(err)
+	}
+	if historyTables != 0 {
+		t.Fatalf("failed migration left %d schema_migrations tables, want 0", historyTables)
+	}
+	var confidence float64
+	if err := database.QueryRow(
+		`SELECT confidence FROM ctf_memories WHERE id='ctfmem_rollback'`,
+	).Scan(&confidence); err != nil {
+		t.Fatal(err)
+	}
+	if confidence != 1 {
+		t.Fatalf("failed migration changed legacy confidence to %v, want 1", confidence)
 	}
 }
 
@@ -427,4 +688,74 @@ func memoryFixtureProjection() Projection {
 			},
 		},
 	}
+}
+
+func assertCTFMemoryV1History(t *testing.T, database *sql.DB) {
+	t.Helper()
+	var (
+		version int
+		name    string
+		count   int
+	)
+	if err := database.QueryRow(
+		`SELECT count(*), min(version), min(name) FROM schema_migrations`,
+	).Scan(&count, &version, &name); err != nil {
+		t.Fatalf("query CTF memory migration history: %v", err)
+	}
+	if count != 1 ||
+		version != SupportedCTFMemoryDatabaseVersion ||
+		name != ctfMemoryV1MigrationName {
+		t.Fatalf(
+			"CTF memory migration history = count %d, version %d, name %q; want 1, %d, %q",
+			count,
+			version,
+			name,
+			SupportedCTFMemoryDatabaseVersion,
+			ctfMemoryV1MigrationName,
+		)
+	}
+}
+
+func ctfMemoryColumnNames(t *testing.T, database *sql.DB) []string {
+	t.Helper()
+	rows, err := database.Query(`PRAGMA table_info(ctf_memories)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var columns []string
+	for rows.Next() {
+		var (
+			position     int
+			name         string
+			columnType   string
+			notNull      int
+			defaultValue sql.NullString
+			primaryKey   int
+		)
+		if err := rows.Scan(
+			&position,
+			&name,
+			&columnType,
+			&notNull,
+			&defaultValue,
+			&primaryKey,
+		); err != nil {
+			t.Fatal(err)
+		}
+		columns = append(columns, name)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	return columns
+}
+
+func memoryColumnsContain(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }

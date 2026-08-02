@@ -12,11 +12,20 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MilkSU-Official/milksu/internal/sqlitemigrate"
 	"github.com/google/uuid"
-	_ "modernc.org/sqlite"
 )
 
-const TrainingMemorySchemaVersion = "ctf-memory.milksu.dev/v1alpha2"
+const (
+	TrainingMemorySchemaVersion = "ctf-memory.milksu.dev/v1alpha2"
+
+	// SupportedCTFMemoryDatabaseVersion is the numbered SQLite migration
+	// version recorded in schema_migrations. It is independent of
+	// TrainingMemorySchemaVersion, which describes serialized memory records.
+	SupportedCTFMemoryDatabaseVersion = 1
+
+	ctfMemoryV1MigrationName = "create CTF memory store"
+)
 
 type TrainingMemoryVerification string
 
@@ -76,26 +85,34 @@ func NewMemoryStore(databasePath, directory string) (*MemoryStore, error) {
 	if err := os.MkdirAll(directory, 0o700); err != nil {
 		return nil, fmt.Errorf("create CTF memory directory: %w", err)
 	}
-	database, err := sql.Open("sqlite", databasePath)
+	migrator, err := sqlitemigrate.Open(
+		databasePath,
+		[]sqlitemigrate.Migration{{
+			Version: 1,
+			Name:    ctfMemoryV1MigrationName,
+			Up:      ctfMemoryV1Up,
+		}},
+		sqlitemigrate.WithPragmas([]string{
+			"PRAGMA journal_mode = WAL",
+			"PRAGMA foreign_keys = ON",
+		}),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("open CTF memory database: %w", err)
 	}
-	store := &MemoryStore{database: database, directory: directory}
-	if err := store.migrate(); err != nil {
-		database.Close()
-		return nil, err
+	if err := migrator.Migrate(context.Background()); err != nil {
+		migrator.Close()
+		return nil, fmt.Errorf("migrate CTF memory database: %w", err)
 	}
-	if err := os.Chmod(databasePath, 0o600); err != nil {
-		database.Close()
-		return nil, fmt.Errorf("protect CTF memory database: %w", err)
-	}
-	return store, nil
+	return &MemoryStore{database: migrator.DB(), directory: directory}, nil
 }
 
-func (s *MemoryStore) migrate() error {
-	_, err := s.database.Exec(`
-PRAGMA journal_mode=WAL;
-PRAGMA foreign_keys=ON;
+// ctfMemoryV1Up creates the current memory schema and upgrades the one
+// pre-migrator legacy shape that lacked verification. The ALTER, conservative
+// confidence downgrade, indexes, and migration-history row all share the
+// transaction owned by sqlitemigrate.
+func ctfMemoryV1Up(ctx context.Context, tx *sql.Tx) error {
+	if _, err := tx.ExecContext(ctx, `
 CREATE TABLE IF NOT EXISTS ctf_memories (
 	id TEXT PRIMARY KEY,
 	schema_version TEXT NOT NULL,
@@ -114,21 +131,16 @@ CREATE TABLE IF NOT EXISTS ctf_memories (
 	updated_at TEXT NOT NULL,
 	archived_at TEXT,
 	archived_reason TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_ctf_memories_category
-	ON ctf_memories(category, archived_at, updated_at DESC);
-CREATE INDEX IF NOT EXISTS idx_ctf_memories_source
-	ON ctf_memories(source_job_id);
-`)
-	if err != nil {
-		return fmt.Errorf("migrate CTF memory database: %w", err)
+)`); err != nil {
+		return fmt.Errorf("create CTF memory table: %w", err)
 	}
-	addedVerification, err := ensureTrainingMemoryVerificationColumn(s.database)
+
+	addedVerification, err := ensureTrainingMemoryVerificationColumn(ctx, tx)
 	if err != nil {
-		return fmt.Errorf("migrate CTF memory verification: %w", err)
+		return fmt.Errorf("migrate CTF memory verification column: %w", err)
 	}
 	if addedVerification {
-		if _, err := s.database.Exec(`
+		if _, err := tx.ExecContext(ctx, `
 UPDATE ctf_memories
 SET verification = 'legacy-untyped',
 	confidence = CASE WHEN confidence > 0.6 THEN 0.6 ELSE confidence END
@@ -136,11 +148,25 @@ SET verification = 'legacy-untyped',
 			return fmt.Errorf("downgrade untyped legacy CTF memory confidence: %w", err)
 		}
 	}
+
+	for _, statement := range []string{
+		`CREATE INDEX IF NOT EXISTS idx_ctf_memories_category
+			ON ctf_memories(category, archived_at, updated_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_ctf_memories_source
+			ON ctf_memories(source_job_id)`,
+	} {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return fmt.Errorf("create CTF memory index: %w", err)
+		}
+	}
 	return nil
 }
 
-func ensureTrainingMemoryVerificationColumn(database *sql.DB) (bool, error) {
-	rows, err := database.Query(`PRAGMA table_info(ctf_memories)`)
+func ensureTrainingMemoryVerificationColumn(
+	ctx context.Context,
+	tx *sql.Tx,
+) (bool, error) {
+	rows, err := tx.QueryContext(ctx, `PRAGMA table_info(ctf_memories)`)
 	if err != nil {
 		return false, err
 	}
@@ -179,7 +205,7 @@ func ensureTrainingMemoryVerificationColumn(database *sql.DB) (bool, error) {
 	if found {
 		return false, nil
 	}
-	if _, err := database.Exec(`
+	if _, err := tx.ExecContext(ctx, `
 ALTER TABLE ctf_memories
 ADD COLUMN verification TEXT NOT NULL DEFAULT 'legacy-untyped'
 `); err != nil {
