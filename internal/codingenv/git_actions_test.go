@@ -2,6 +2,7 @@ package codingenv
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -147,6 +148,179 @@ func TestGitActionsRefuseUnsafeDiscardAndInvalidInputs(t *testing.T) {
 	}
 }
 
+func TestGitHunkActionsStageUnstageAndDiscardExactCurrentHunks(t *testing.T) {
+	requireGit(t)
+	workspace := initializedMultiHunkGitFixture(t)
+	file := filepath.Join(workspace, "multi.txt")
+	changed := strings.Join([]string{
+		"line 01",
+		"line 02 changed",
+		"line 03",
+		"line 04",
+		"line 05",
+		"line 06",
+		"line 07",
+		"line 08",
+		"line 09",
+		"line 10",
+		"line 11 changed",
+		"line 12",
+		"",
+	}, "\n")
+	if err := os.WriteFile(file, []byte(changed), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+
+	initial, err := InspectDiff(ctx, workspace, "multi.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	hunks := splitUnifiedDiffHunks(initial.WorkingTree)
+	if len(hunks) != 2 {
+		t.Fatalf("expected two working-tree hunks, got %d\n%s", len(hunks), initial.WorkingTree)
+	}
+
+	staged, err := ApplyGitHunkAction(
+		ctx,
+		workspace,
+		GitActionStageHunk,
+		"multi.txt",
+		hunks[0],
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if staged.Snapshot.Git.Staged != 1 || staged.Snapshot.Git.Modified != 1 {
+		t.Fatalf("expected staged and unstaged changes, got %#v", staged.Snapshot.Git)
+	}
+	afterStage, err := InspectDiff(ctx, workspace, "multi.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(splitUnifiedDiffHunks(afterStage.Staged)) != 1 {
+		t.Fatalf("expected one staged hunk\n%s", afterStage.Staged)
+	}
+	remaining := splitUnifiedDiffHunks(afterStage.WorkingTree)
+	if len(remaining) != 1 || !strings.Contains(remaining[0], "line 11 changed") {
+		t.Fatalf("expected the second hunk to remain unstaged\n%s", afterStage.WorkingTree)
+	}
+
+	if _, err := ApplyGitHunkAction(
+		ctx,
+		workspace,
+		GitActionDiscardHunk,
+		"multi.txt",
+		remaining[0],
+	); err != nil {
+		t.Fatal(err)
+	}
+	afterDiscard, err := InspectDiff(ctx, workspace, "multi.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if afterDiscard.WorkingTree != "" || !strings.Contains(afterDiscard.Staged, "line 02 changed") {
+		t.Fatalf("discard should preserve only the staged hunk: %#v", afterDiscard)
+	}
+
+	stagedHunks := splitUnifiedDiffHunks(afterDiscard.Staged)
+	if len(stagedHunks) != 1 {
+		t.Fatalf("expected one staged hunk, got %d", len(stagedHunks))
+	}
+	if _, err := ApplyGitHunkAction(
+		ctx,
+		workspace,
+		GitActionUnstageHunk,
+		"multi.txt",
+		stagedHunks[0],
+	); err != nil {
+		t.Fatal(err)
+	}
+	afterUnstage, err := InspectDiff(ctx, workspace, "multi.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if afterUnstage.Staged != "" || !strings.Contains(afterUnstage.WorkingTree, "line 02 changed") {
+		t.Fatalf("unstage should return the selected hunk to the working tree: %#v", afterUnstage)
+	}
+}
+
+func TestGitHunkActionsRejectStaleOrForeignPatch(t *testing.T) {
+	requireGit(t)
+	workspace := initializedMultiHunkGitFixture(t)
+	file := filepath.Join(workspace, "multi.txt")
+	if err := os.WriteFile(
+		file,
+		[]byte(strings.Replace(
+			string(mustReadFile(t, file)),
+			"line 02",
+			"line 02 changed",
+			1,
+		)),
+		0o600,
+	); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	diff, err := InspectDiff(ctx, workspace, "multi.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	hunks := splitUnifiedDiffHunks(diff.WorkingTree)
+	if len(hunks) != 1 {
+		t.Fatalf("expected one hunk, got %d", len(hunks))
+	}
+
+	foreign := strings.Replace(hunks[0], "a/multi.txt", "a/other.txt", 1)
+	if _, err := ApplyGitHunkAction(
+		ctx,
+		workspace,
+		GitActionStageHunk,
+		"multi.txt",
+		foreign,
+	); err == nil || !strings.Contains(err.Error(), "stale") {
+		t.Fatalf("expected foreign patch rejection, got %v", err)
+	}
+
+	if err := os.WriteFile(
+		file,
+		[]byte(strings.Replace(
+			string(mustReadFile(t, file)),
+			"line 03",
+			"line 03 changed after review",
+			1,
+		)),
+		0o600,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ApplyGitHunkAction(
+		ctx,
+		workspace,
+		GitActionStageHunk,
+		"multi.txt",
+		hunks[0],
+	); err == nil || !strings.Contains(err.Error(), "stale") {
+		t.Fatalf("expected stale patch rejection, got %v", err)
+	}
+}
+
+func TestSplitUnifiedDiffHunksRefusesAddedOrDeletedFiles(t *testing.T) {
+	added := strings.Join([]string{
+		"diff --git a/new.txt b/new.txt",
+		"new file mode 100644",
+		"--- /dev/null",
+		"+++ b/new.txt",
+		"@@ -0,0 +1 @@",
+		"+new",
+		"",
+	}, "\n")
+	if hunks := splitUnifiedDiffHunks(added); len(hunks) != 0 {
+		t.Fatalf("new files must use file-level Git actions, got %d hunks", len(hunks))
+	}
+}
+
 func initializedGitFixture(t *testing.T) string {
 	t.Helper()
 	workspace := t.TempDir()
@@ -159,6 +333,38 @@ func initializedGitFixture(t *testing.T) string {
 	runGitFixture(t, workspace, "add", "hello.txt")
 	runGitFixture(t, workspace, "commit", "-m", "fixture")
 	return workspace
+}
+
+func initializedMultiHunkGitFixture(t *testing.T) string {
+	t.Helper()
+	workspace := t.TempDir()
+	runGitFixture(t, workspace, "init")
+	runGitFixture(t, workspace, "config", "user.email", "fixture@example.test")
+	runGitFixture(t, workspace, "config", "user.name", "MilkSU Fixture")
+	lines := make([]string, 0, 13)
+	for index := 1; index <= 12; index++ {
+		lines = append(lines, fmt.Sprintf("line %02d", index))
+	}
+	lines = append(lines, "")
+	if err := os.WriteFile(
+		filepath.Join(workspace, "multi.txt"),
+		[]byte(strings.Join(lines, "\n")),
+		0o600,
+	); err != nil {
+		t.Fatal(err)
+	}
+	runGitFixture(t, workspace, "add", "multi.txt")
+	runGitFixture(t, workspace, "commit", "-m", "fixture")
+	return workspace
+}
+
+func mustReadFile(t *testing.T, path string) []byte {
+	t.Helper()
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return content
 }
 
 func requireGit(t *testing.T) {

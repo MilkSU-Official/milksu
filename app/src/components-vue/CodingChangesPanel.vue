@@ -17,12 +17,14 @@ import {
   Upload,
 } from 'lucide-vue-next'
 import { invokeCommand } from '@/desktop'
+import CodingDiffHunks from '@/components-vue/CodingDiffHunks.vue'
 import type {
   CodingDiffSnapshot,
   CodingEnvironmentSnapshot,
   CodingGitAction,
   CodingGitActionResult,
   CodingGitChange,
+  CodingGitHunkAction,
 } from '@/codingEnvironmentTypes'
 
 const props = defineProps<{
@@ -127,6 +129,47 @@ async function applyGitAction(
 
 async function commitStagedChanges() {
   await applyGitAction('commit', '', commitMessage.value)
+}
+
+async function applyGitHunkAction(action: CodingGitHunkAction, patch: string) {
+  const change = selectedChange.value
+  if (!props.workspacePath || !change || busy.value) return
+  if (
+    action === 'discard-hunk'
+    && !window.confirm(`撤销 ${change.path} 中选中的代码块？此操作无法从 MilkSU 恢复。`)
+  ) {
+    return
+  }
+  operation.value = `${action}:${change.path}`
+  operationMessage.value = ''
+  error.value = ''
+  try {
+    const result = await invokeCommand<CodingGitActionResult>(
+      'apply_coding_git_hunk_action',
+      {
+        workspacePath: props.workspacePath,
+        action,
+        relativePath: change.path,
+        patch,
+      },
+    )
+    operationMessage.value = result.message
+    const current = result.snapshot.git.changes?.find(
+      candidate => candidate.path === selectedPath.value,
+    )
+    if (current) await inspectDiff(current)
+    else {
+      selectedPath.value = ''
+      diff.value = null
+    }
+    emit('refresh')
+  } catch (reason) {
+    error.value = reason instanceof Error
+      ? reason.message
+      : '代码块操作失败。'
+  } finally {
+    operation.value = ''
+  }
 }
 
 watch(
@@ -315,11 +358,21 @@ watch(changes, current => {
           </p>
           <div v-if="diff.staged" class="mb-4">
             <p class="mb-1 text-caption font-medium text-muted-foreground">已暂存</p>
-            <pre class="max-h-[28rem] overflow-auto whitespace-pre font-mono text-[12px] leading-5">{{ diff.staged }}</pre>
+            <CodingDiffHunks
+              :diff="diff.staged"
+              source="staged"
+              :busy="busy"
+              @apply="applyGitHunkAction"
+            />
           </div>
           <div v-if="diff.workingTree">
             <p class="mb-1 text-caption font-medium text-muted-foreground">工作区</p>
-            <pre class="max-h-[28rem] overflow-auto whitespace-pre font-mono text-[12px] leading-5">{{ diff.workingTree }}</pre>
+            <CodingDiffHunks
+              :diff="diff.workingTree"
+              source="working-tree"
+              :busy="busy"
+              @apply="applyGitHunkAction"
+            />
           </div>
           <p
             v-if="!diff.staged && !diff.workingTree"

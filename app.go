@@ -662,6 +662,23 @@ func (a *App) ApplyCodingGitAction(
 	)
 }
 
+func (a *App) ApplyCodingGitHunkAction(
+	workspacePath,
+	action,
+	relativePath,
+	patch string,
+) (codingenv.GitActionResult, error) {
+	actionContext, cancel := context.WithTimeout(a.commandContext(), 15*time.Second)
+	defer cancel()
+	return codingenv.ApplyGitHunkAction(
+		actionContext,
+		workspacePath,
+		action,
+		relativePath,
+		patch,
+	)
+}
+
 func (a *App) GetCodingArchitecturePreview(
 	workspacePath,
 	relativePath string,

@@ -18,6 +18,9 @@ const (
 	GitActionDiscardWork = "discard-worktree"
 	GitActionCommit      = "commit"
 	GitActionPush        = "push"
+	GitActionStageHunk   = "stage-hunk"
+	GitActionUnstageHunk = "unstage-hunk"
+	GitActionDiscardHunk = "discard-hunk"
 )
 
 var gitURLUserInfoPattern = regexp.MustCompile(`([A-Za-z][A-Za-z0-9+.-]*://)[^/@\s]+@`)
@@ -116,6 +119,139 @@ func ApplyGitAction(
 		Message:  gitActionMessage(normalizedAction, snapshot),
 		Snapshot: snapshot,
 	}, nil
+}
+
+// ApplyGitHunkAction applies one exact hunk from the repository's current
+// canonical diff. The model and frontend cannot supply an arbitrary patch:
+// the requested patch must byte-match a hunk MilkSU just read for the selected
+// file and source (staged or working tree).
+func ApplyGitHunkAction(
+	ctx context.Context,
+	workspace,
+	action,
+	relativePath,
+	patch string,
+) (GitActionResult, error) {
+	resolved, err := resolveWorkspace(workspace)
+	if err != nil {
+		return GitActionResult{}, err
+	}
+	pathspec, err := resolveGitPathspec(resolved, relativePath)
+	if err != nil {
+		return GitActionResult{}, err
+	}
+	gitPath, err := exec.LookPath("git")
+	if err != nil {
+		return GitActionResult{}, errors.New("Git is not installed or unavailable")
+	}
+	if _, err := runGit(ctx, gitPath, resolved, "rev-parse", "--is-inside-work-tree"); err != nil {
+		return GitActionResult{}, errors.New("Coding workspace is not a Git repository")
+	}
+
+	normalizedAction := strings.TrimSpace(action)
+	diff, err := InspectDiff(ctx, resolved, pathspec)
+	if err != nil {
+		return GitActionResult{}, err
+	}
+	if diff.Truncated {
+		return GitActionResult{}, errors.New("diff is too large for safe hunk operations")
+	}
+
+	var source string
+	var arguments []string
+	switch normalizedAction {
+	case GitActionStageHunk:
+		source = diff.WorkingTree
+		arguments = []string{"apply", "--cached", "--whitespace=nowarn", "--recount", "-"}
+	case GitActionUnstageHunk:
+		source = diff.Staged
+		arguments = []string{"apply", "--cached", "--reverse", "--whitespace=nowarn", "--recount", "-"}
+	case GitActionDiscardHunk:
+		source = diff.WorkingTree
+		arguments = []string{"apply", "--reverse", "--whitespace=nowarn", "--recount", "-"}
+	default:
+		return GitActionResult{}, fmt.Errorf("unsupported Coding Git hunk action: %s", action)
+	}
+
+	canonicalPatch, ok := exactUnifiedDiffHunk(source, patch)
+	if !ok {
+		return GitActionResult{}, errors.New("selected hunk is stale or does not belong to the current file diff")
+	}
+	if err := runGitMutationWithInput(
+		ctx,
+		gitPath,
+		resolved,
+		gitHunkActionLabel(normalizedAction),
+		canonicalPatch,
+		arguments...,
+	); err != nil {
+		return GitActionResult{}, err
+	}
+
+	snapshot, err := Inspect(ctx, resolved)
+	if err != nil {
+		return GitActionResult{}, err
+	}
+	return GitActionResult{
+		Action:   normalizedAction,
+		Message:  gitActionMessage(normalizedAction, snapshot),
+		Snapshot: snapshot,
+	}, nil
+}
+
+func exactUnifiedDiffHunk(source, requested string) (string, bool) {
+	if requested == "" || len(requested) > maxDiffSectionBytes || strings.ContainsRune(requested, '\x00') {
+		return "", false
+	}
+	for _, hunk := range splitUnifiedDiffHunks(source) {
+		if hunk == requested {
+			return hunk, true
+		}
+	}
+	return "", false
+}
+
+func splitUnifiedDiffHunks(value string) []string {
+	if value == "" || strings.Contains(value, "…diff truncated by MilkSU") {
+		return nil
+	}
+	lines := strings.SplitAfter(value, "\n")
+	firstHunk := -1
+	for index, line := range lines {
+		if strings.HasPrefix(line, "@@ ") {
+			firstHunk = index
+			break
+		}
+	}
+	if firstHunk < 0 {
+		return nil
+	}
+	header := strings.Join(lines[:firstHunk], "")
+	if !strings.HasPrefix(header, "diff --git ") ||
+		!strings.Contains(header, "\n--- ") ||
+		!strings.Contains(header, "\n+++ ") ||
+		strings.Contains(header, "\n--- /dev/null") ||
+		strings.Contains(header, "\n+++ /dev/null") ||
+		strings.Contains(header, "\nnew file mode ") ||
+		strings.Contains(header, "\ndeleted file mode ") ||
+		strings.Contains(header, "\nrename from ") ||
+		strings.Contains(header, "\nrename to ") {
+		return nil
+	}
+
+	var hunks []string
+	start := firstHunk
+	for index := firstHunk + 1; index < len(lines); index++ {
+		if strings.HasPrefix(lines[index], "@@ ") {
+			hunks = append(hunks, header+strings.Join(lines[start:index], ""))
+			start = index
+		}
+	}
+	last := header + strings.Join(lines[start:], "")
+	if strings.TrimSpace(last) != strings.TrimSpace(header) {
+		hunks = append(hunks, last)
+	}
+	return hunks
 }
 
 func unstage(ctx context.Context, gitPath, workspace, pathspec string) error {
@@ -242,6 +378,47 @@ func runGitMutation(
 	return fmt.Errorf("%s failed: %s", label, detail)
 }
 
+func runGitMutationWithInput(
+	ctx context.Context,
+	gitPath,
+	workspace,
+	label,
+	input string,
+	arguments ...string,
+) error {
+	commandArguments := append(
+		[]string{"--no-optional-locks", "-C", workspace},
+		arguments...,
+	)
+	command := exec.CommandContext(ctx, gitPath, commandArguments...)
+	command.Stdin = strings.NewReader(input)
+	output, err := command.CombinedOutput()
+	if len(output) > maxGitOutputBytes {
+		return fmt.Errorf("%s failed: Git output exceeded %d bytes", label, maxGitOutputBytes)
+	}
+	if err == nil {
+		return nil
+	}
+	detail := sanitizedGitOutput(string(output))
+	if detail == "" {
+		detail = boundedProblem(err)
+	}
+	return fmt.Errorf("%s failed: %s", label, detail)
+}
+
+func gitHunkActionLabel(action string) string {
+	switch action {
+	case GitActionStageHunk:
+		return "stage selected hunk"
+	case GitActionUnstageHunk:
+		return "unstage selected hunk"
+	case GitActionDiscardHunk:
+		return "discard selected hunk"
+	default:
+		return "apply selected hunk"
+	}
+}
+
 func sanitizedGitOutput(value string) string {
 	output := strings.TrimSpace(strings.ReplaceAll(value, "\x00", ""))
 	output = gitURLUserInfoPattern.ReplaceAllString(output, "${1}***@")
@@ -270,6 +447,12 @@ func gitActionMessage(action string, snapshot Snapshot) string {
 		return "已创建提交"
 	case GitActionPush:
 		return "已推送 " + snapshot.Git.Branch
+	case GitActionStageHunk:
+		return "已暂存所选代码块"
+	case GitActionUnstageHunk:
+		return "已取消暂存所选代码块"
+	case GitActionDiscardHunk:
+		return "已撤销所选代码块"
 	default:
 		return "Git 操作已完成"
 	}

@@ -57,6 +57,7 @@ import type {
   CodingEnvironmentSnapshot,
   CodingGitAction,
   CodingGitActionResult,
+  CodingGitHunkAction,
   CodingMCPConfigSnapshot,
   CodingRuntimeStatus,
   CodingTerminalSession,
@@ -155,6 +156,12 @@ interface WailsAppBindings {
     action: CodingGitAction,
     relativePath: string,
     message: string,
+  ): Promise<CodingGitActionResult>
+  ApplyCodingGitHunkAction(
+    workspacePath: string,
+    action: CodingGitHunkAction,
+    relativePath: string,
+    patch: string,
   ): Promise<CodingGitActionResult>
   GetCodingArchitecturePreview(
     workspacePath: string,
@@ -503,6 +510,13 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
           args?.action as CodingGitAction,
           (args?.relativePath as string) ?? '',
           (args?.message as string) ?? '',
+        ) as Promise<T>
+      case 'apply_coding_git_hunk_action':
+        return app.ApplyCodingGitHunkAction(
+          args?.workspacePath as string,
+          args?.action as CodingGitHunkAction,
+          (args?.relativePath as string) ?? '',
+          (args?.patch as string) ?? '',
         ) as Promise<T>
       case 'get_coding_architecture_preview':
         return app.GetCodingArchitecturePreview(

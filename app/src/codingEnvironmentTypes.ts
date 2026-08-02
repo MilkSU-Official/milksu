@@ -123,8 +123,13 @@ export type CodingGitAction =
   | 'commit'
   | 'push'
 
+export type CodingGitHunkAction =
+  | 'stage-hunk'
+  | 'unstage-hunk'
+  | 'discard-hunk'
+
 export interface CodingGitActionResult {
-  action: CodingGitAction
+  action: CodingGitAction | CodingGitHunkAction
   message: string
   snapshot: CodingEnvironmentSnapshot
 }
