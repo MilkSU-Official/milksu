@@ -2,9 +2,19 @@ package securityruntime
 
 import (
 	"context"
+	"crypto/sha256"
+	"database/sql"
+	"encoding/hex"
+	"errors"
+	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
+
+	_ "modernc.org/sqlite"
+
+	"github.com/MilkSU-Official/milksu/internal/sqlitemigrate"
 )
 
 func TestEventStoreIsAppendOnlyAndSequencesConcurrentWrites(t *testing.T) {
@@ -131,6 +141,371 @@ func TestEventStoreRejectsMismatchedObjectReferences(t *testing.T) {
 	if len(events) != 2 {
 		t.Fatalf("invalid reference was persisted: %d events", len(events))
 	}
+}
+
+func TestOpenEventStoreFreshCreatesThreeColumnHistory(t *testing.T) {
+	store, err := OpenEventStore(filepath.Join(t.TempDir(), "events.sqlite3"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	var count int
+	if err := store.db.QueryRow(`SELECT count(*) FROM schema_migrations`).Scan(&count); err != nil {
+		t.Fatalf("count schema_migrations: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("schema_migrations rows = %d, want 1", count)
+	}
+	var version int
+	var name string
+	var appliedAt string
+	if err := store.db.QueryRow(`SELECT version, name, applied_at FROM schema_migrations`).Scan(&version, &name, &appliedAt); err != nil {
+		t.Fatalf("query schema_migrations: %v", err)
+	}
+	if version != 1 || name != "create events store" || appliedAt == "" {
+		t.Errorf("schema_migrations = (%d, %q, %q), want (1, %q, non-empty applied_at)",
+			version, name, appliedAt, "create events store")
+	}
+	if columns := historyColumns(t, store.db); !columns["name"] {
+		t.Errorf("schema_migrations lacks a name column: %v", columns)
+	}
+}
+
+func TestOpenEventStoreUpgradesLegacyDatabaseWithoutHistory(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "events.sqlite3")
+	seedLegacyEventStore(t, path)
+
+	store, err := OpenEventStore(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	events, err := store.Events(context.Background(), "job_legacy")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("legacy events = %d, want 1", len(events))
+	}
+	if events[0].EventID != "evt_legacy" || events[0].Sequence != 1 {
+		t.Errorf("legacy event = %+v", events[0])
+	}
+	assertAppendOnlyEnforced(t, store, "job_legacy")
+
+	// The migrator must have recorded version 1 with the v1 definition name.
+	var version int
+	var name string
+	if err := store.db.QueryRow(`SELECT version, name FROM schema_migrations`).Scan(&version, &name); err != nil {
+		t.Fatalf("query schema_migrations: %v", err)
+	}
+	if version != 1 || name != "create events store" {
+		t.Errorf("schema_migrations = (%d, %q), want (1, %q)", version, name, "create events store")
+	}
+}
+
+func TestOpenEventStoreUpgradesLegacyTwoColumnHistory(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "events.sqlite3")
+	seedLegacyTwoColumnEventStore(t, path, 1)
+
+	store, err := OpenEventStore(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	events, err := store.Events(context.Background(), "job_legacy")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("legacy events = %d, want 1", len(events))
+	}
+	assertAppendOnlyEnforced(t, store, "job_legacy")
+
+	// The two-column history table must have been upgraded to three columns
+	// with the version-1 name backfilled from the v1 definition.
+	if columns := historyColumns(t, store.db); !columns["name"] {
+		t.Errorf("schema_migrations was not upgraded to three columns: %v", columns)
+	}
+	var name string
+	if err := store.db.QueryRow(`SELECT name FROM schema_migrations WHERE version = 1`).Scan(&name); err != nil {
+		t.Fatalf("query backfilled name: %v", err)
+	}
+	if name != "create events store" {
+		t.Errorf("backfilled name = %q, want %q", name, "create events store")
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Reopening the upgraded database is idempotent and keeps the event.
+	reopened, err := OpenEventStore(path)
+	if err != nil {
+		t.Fatalf("reopen: %v", err)
+	}
+	defer reopened.Close()
+	events, err = reopened.Events(context.Background(), "job_legacy")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 1 {
+		t.Errorf("reopened legacy events = %d, want 1", len(events))
+	}
+}
+
+func TestOpenEventStoreRejectsTooNewTwoColumnHistoryWithoutWrites(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "events.sqlite3")
+	seedTwoColumnHistoryOnly(t, path, 2)
+	before := eventStoreFileHash(t, path)
+
+	store, err := OpenEventStore(path)
+	if err == nil {
+		store.Close()
+		t.Fatal("expected ErrDatabaseTooNew, got nil")
+	}
+	if !errors.Is(err, sqlitemigrate.ErrDatabaseTooNew) {
+		t.Errorf("error %v does not wrap sqlitemigrate.ErrDatabaseTooNew", err)
+	}
+
+	after := eventStoreFileHash(t, path)
+	if before != after {
+		t.Errorf("database file changed: hash before %s, after %s", before, after)
+	}
+	assertNoSidecarFiles(t, path)
+}
+
+func TestOpenEventStoreRejectsTooNewThreeColumnHistoryWithoutWrites(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "events.sqlite3")
+	seedThreeColumnHistoryOnly(t, path, 2)
+	before := eventStoreFileHash(t, path)
+
+	store, err := OpenEventStore(path)
+	if err == nil {
+		store.Close()
+		t.Fatal("expected ErrDatabaseTooNew, got nil")
+	}
+	if !errors.Is(err, sqlitemigrate.ErrDatabaseTooNew) {
+		t.Errorf("error %v does not wrap sqlitemigrate.ErrDatabaseTooNew", err)
+	}
+
+	after := eventStoreFileHash(t, path)
+	if before != after {
+		t.Errorf("database file changed: hash before %s, after %s", before, after)
+	}
+	assertNoSidecarFiles(t, path)
+}
+
+func TestOpenEventStoreReopenIsIdempotent(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "events.sqlite3")
+	store, err := OpenEventStore(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	job := testJob("job_reopen")
+	if _, err := store.Append(context.Background(), EventDraft{
+		JobID: job.ID, Kind: EventJobCreated, Payload: jobCreatedPayload{Job: job},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	reopened, err := OpenEventStore(path)
+	if err != nil {
+		t.Fatalf("reopen: %v", err)
+	}
+	defer reopened.Close()
+
+	events, err := reopened.Events(context.Background(), job.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("reopened events = %d, want 1", len(events))
+	}
+	assertAppendOnlyEnforced(t, reopened, job.ID)
+}
+
+// assertAppendOnlyEnforced checks that both append-only triggers still reject
+// UPDATE and DELETE on the events table.
+func assertAppendOnlyEnforced(t *testing.T, store *EventStore, jobID string) {
+	t.Helper()
+	if _, err := store.db.Exec(`UPDATE events SET kind = kind WHERE job_id = ?`, jobID); err == nil {
+		t.Fatal("append-only trigger allowed UPDATE")
+	}
+	if _, err := store.db.Exec(`DELETE FROM events WHERE job_id = ?`, jobID); err == nil {
+		t.Fatal("append-only trigger allowed DELETE")
+	}
+}
+
+// historyColumns returns the column names of the schema_migrations table.
+func historyColumns(t *testing.T, db *sql.DB) map[string]bool {
+	t.Helper()
+	rows, err := db.Query(`PRAGMA table_info(schema_migrations)`)
+	if err != nil {
+		t.Fatalf("PRAGMA table_info: %v", err)
+	}
+	defer rows.Close()
+	columns := make(map[string]bool)
+	for rows.Next() {
+		var cid int
+		var name, columnType string
+		var notNull, pk int
+		var dflt sql.NullString
+		if err := rows.Scan(&cid, &name, &columnType, &notNull, &dflt, &pk); err != nil {
+			t.Fatalf("scan schema_migrations column: %v", err)
+		}
+		columns[name] = true
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate schema_migrations columns: %v", err)
+	}
+	return columns
+}
+
+// seedLegacyEventStore creates an events table (v1 DDL) with both append-only
+// triggers and a single event row, but no schema_migrations table, using raw
+// SQL through database/sql. This mirrors what the event store wrote before it
+// recorded migration history.
+func seedLegacyEventStore(t *testing.T, path string) {
+	t.Helper()
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("seed sql.Open: %v", err)
+	}
+	defer db.Close()
+	execLegacyDDL(t, db)
+	insertLegacyEvent(t, db)
+}
+
+// seedLegacyTwoColumnEventStore creates the events table plus a legacy
+// two-column schema_migrations(version, applied_at) table recording the given
+// version, and a single event row.
+func seedLegacyTwoColumnEventStore(t *testing.T, path string, version int) {
+	t.Helper()
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("seed sql.Open: %v", err)
+	}
+	defer db.Close()
+	if _, err := db.Exec(`CREATE TABLE schema_migrations (
+		version INTEGER PRIMARY KEY,
+		applied_at TEXT NOT NULL
+	)`); err != nil {
+		t.Fatalf("seed create schema_migrations: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO schema_migrations(version, applied_at) VALUES (?, '2024-01-01T00:00:00Z')`, version); err != nil {
+		t.Fatalf("seed insert schema_migrations row: %v", err)
+	}
+	execLegacyDDL(t, db)
+	insertLegacyEvent(t, db)
+}
+
+// seedTwoColumnHistoryOnly creates only a legacy two-column schema_migrations
+// table recording the given version.
+func seedTwoColumnHistoryOnly(t *testing.T, path string, version int) {
+	t.Helper()
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("seed sql.Open: %v", err)
+	}
+	defer db.Close()
+	if _, err := db.Exec(`CREATE TABLE schema_migrations (
+		version INTEGER PRIMARY KEY,
+		applied_at TEXT NOT NULL
+	)`); err != nil {
+		t.Fatalf("seed create schema_migrations: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO schema_migrations(version, applied_at) VALUES (?, '2024-01-01T00:00:00Z')`, version); err != nil {
+		t.Fatalf("seed insert schema_migrations row: %v", err)
+	}
+}
+
+// seedThreeColumnHistoryOnly creates only a three-column schema_migrations
+// table recording the given version.
+func seedThreeColumnHistoryOnly(t *testing.T, path string, version int) {
+	t.Helper()
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("seed sql.Open: %v", err)
+	}
+	defer db.Close()
+	if _, err := db.Exec(`CREATE TABLE schema_migrations (
+		version INTEGER PRIMARY KEY,
+		name TEXT NOT NULL,
+		applied_at TEXT NOT NULL
+	)`); err != nil {
+		t.Fatalf("seed create schema_migrations: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO schema_migrations(version, name, applied_at) VALUES (?, 'future', '2024-01-01T00:00:00Z')`, version); err != nil {
+		t.Fatalf("seed insert schema_migrations row: %v", err)
+	}
+}
+
+// execLegacyDDL creates the v1 events objects without touching
+// schema_migrations.
+func execLegacyDDL(t *testing.T, db *sql.DB) {
+	t.Helper()
+	statements := []string{
+		`CREATE TABLE IF NOT EXISTS events (
+			event_id TEXT PRIMARY KEY,
+			job_id TEXT NOT NULL,
+			attempt_id TEXT NOT NULL DEFAULT '',
+			step_id TEXT NOT NULL DEFAULT '',
+			sequence INTEGER NOT NULL,
+			kind TEXT NOT NULL,
+			occurred_at TEXT NOT NULL,
+			payload TEXT NOT NULL CHECK (json_valid(payload)),
+			schema_version INTEGER NOT NULL,
+			UNIQUE(job_id, sequence)
+		)`,
+		`CREATE INDEX IF NOT EXISTS events_job_id_sequence ON events(job_id, sequence)`,
+		`CREATE TRIGGER IF NOT EXISTS events_append_only_update
+			BEFORE UPDATE ON events
+			BEGIN SELECT RAISE(ABORT, 'events are append-only'); END`,
+		`CREATE TRIGGER IF NOT EXISTS events_append_only_delete
+			BEFORE DELETE ON events
+			BEGIN SELECT RAISE(ABORT, 'events are append-only'); END`,
+	}
+	for _, statement := range statements {
+		if _, err := db.Exec(statement); err != nil {
+			t.Fatalf("seed DDL %q: %v", statement, err)
+		}
+	}
+}
+
+// insertLegacyEvent inserts one event row for job_legacy.
+func insertLegacyEvent(t *testing.T, db *sql.DB) {
+	t.Helper()
+	if _, err := db.Exec(`
+		INSERT INTO events(event_id, job_id, attempt_id, step_id, sequence, kind, occurred_at, payload, schema_version)
+		VALUES ('evt_legacy', 'job_legacy', '', '', 1, 'job.created', '2024-01-01T00:00:00Z', '{"job_id":"job_legacy"}', 1)
+	`); err != nil {
+		t.Fatalf("seed legacy event: %v", err)
+	}
+}
+
+// assertNoSidecarFiles fails if -wal or -shm sidecar files exist for path.
+func assertNoSidecarFiles(t *testing.T, path string) {
+	t.Helper()
+	for _, suffix := range []string{"-wal", "-shm"} {
+		if _, err := os.Stat(path + suffix); !os.IsNotExist(err) {
+			t.Errorf("sidecar file %s exists after rejected migrate (stat err: %v)", path+suffix, err)
+		}
+	}
+}
+
+// eventStoreFileHash returns the SHA-256 of the database file's contents.
+func eventStoreFileHash(t *testing.T, path string) string {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read file %s: %v", path, err)
+	}
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
 }
 
 func testJob(id string) Job {

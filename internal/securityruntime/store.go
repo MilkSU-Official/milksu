@@ -6,61 +6,51 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 	"sync"
 	"time"
 
+	"github.com/MilkSU-Official/milksu/internal/sqlitemigrate"
 	"github.com/google/uuid"
-	_ "modernc.org/sqlite"
 )
 
-const eventSchemaVersion = 1
+// SupportedEventStoreDatabaseVersion is the event store schema version this
+// build supports (migration version 1 in internal/sqlitemigrate terms).
+const SupportedEventStoreDatabaseVersion = 1
 
 type EventStore struct {
 	db *sql.DB
 	mu sync.Mutex
 }
 
+// OpenEventStore opens (creating if necessary) the event store database at
+// path and migrates it to the supported schema. The database file is created
+// with 0600 permissions inside a 0700 directory, a single connection is used,
+// and the connection PRAGMAs run on every open.
 func OpenEventStore(path string) (*EventStore, error) {
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return nil, fmt.Errorf("create event store directory: %w", err)
-	}
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
-	if err != nil {
-		return nil, fmt.Errorf("create event store: %w", err)
-	}
-	if err := file.Close(); err != nil {
-		return nil, fmt.Errorf("close event store file: %w", err)
-	}
-	if err := os.Chmod(path, 0o600); err != nil {
-		return nil, fmt.Errorf("tighten event store permissions: %w", err)
-	}
-
-	db, err := sql.Open("sqlite", path)
+	migrator, err := sqlitemigrate.Open(path, []sqlitemigrate.Migration{
+		{Version: 1, Name: "create events store", Up: v1Up},
+	}, sqlitemigrate.WithPragmas([]string{
+		"PRAGMA journal_mode = WAL",
+		"PRAGMA synchronous = FULL",
+		"PRAGMA foreign_keys = ON",
+		"PRAGMA busy_timeout = 5000",
+	}))
 	if err != nil {
 		return nil, fmt.Errorf("open event store: %w", err)
 	}
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-	store := &EventStore{db: db}
-	if err := store.migrate(context.Background()); err != nil {
-		db.Close()
-		return nil, err
+	if err := migrator.Migrate(context.Background()); err != nil {
+		migrator.Close()
+		return nil, fmt.Errorf("migrate event store: %w", err)
 	}
-	return store, nil
+	return &EventStore{db: migrator.DB()}, nil
 }
 
-func (s *EventStore) migrate(ctx context.Context) error {
+// v1Up creates the events table, its job/sequence index, and the append-only
+// triggers. It is idempotent (IF NOT EXISTS) so a legacy database that already
+// has these objects is upgraded in place.
+func v1Up(ctx context.Context, tx *sql.Tx) error {
 	statements := []string{
-		`PRAGMA journal_mode = WAL`,
-		`PRAGMA synchronous = FULL`,
-		`PRAGMA foreign_keys = ON`,
-		`PRAGMA busy_timeout = 5000`,
-		`CREATE TABLE IF NOT EXISTS schema_migrations (
-			version INTEGER PRIMARY KEY,
-			applied_at TEXT NOT NULL
-		)`,
 		`CREATE TABLE IF NOT EXISTS events (
 			event_id TEXT PRIMARY KEY,
 			job_id TEXT NOT NULL,
@@ -80,11 +70,10 @@ func (s *EventStore) migrate(ctx context.Context) error {
 		`CREATE TRIGGER IF NOT EXISTS events_append_only_delete
 			BEFORE DELETE ON events
 			BEGIN SELECT RAISE(ABORT, 'events are append-only'); END`,
-		`INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`,
 	}
 	for _, statement := range statements {
-		if _, err := s.db.ExecContext(ctx, statement); err != nil {
-			return fmt.Errorf("migrate event store: %w", err)
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -125,7 +114,7 @@ func (s *EventStore) Append(ctx context.Context, draft EventDraft) (Event, error
 		return Event{}, fmt.Errorf("allocate event sequence: %w", err)
 	}
 	event := Event{
-		SchemaVersion: eventSchemaVersion,
+		SchemaVersion: SupportedEventStoreDatabaseVersion,
 		EventID:       newID("evt"),
 		JobID:         draft.JobID,
 		AttemptID:     draft.AttemptID,

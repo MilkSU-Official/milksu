@@ -482,6 +482,194 @@ func TestMigrateRollsBackWhenFirstMigrationFails(t *testing.T) {
 	assertTableAbsent(t, db, "schema_migrations")
 }
 
+func TestMigrateUpgradesLegacyTwoColumnHistory(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "app.db")
+
+	seedTwoColumnHistory(t, path, []recordedTwoColumnMigration{
+		{version: 1, appliedAt: "2024-01-01T00:00:00Z"},
+	})
+	seedUsersTable(t, path)
+
+	var upCalls int
+	migrations := []Migration{
+		{Version: 1, Name: "v1_users", Up: func(ctx context.Context, tx *sql.Tx) error {
+			upCalls++
+			_, err := tx.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY)`)
+			return err
+		}},
+		{Version: 2, Name: "v2_posts", Up: func(ctx context.Context, tx *sql.Tx) error {
+			upCalls++
+			_, err := tx.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS posts (id INTEGER PRIMARY KEY)`)
+			return err
+		}},
+	}
+
+	migrator, err := Open(path, migrations)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if err := migrator.Migrate(ctx); err != nil {
+		t.Fatalf("Migrate: %v", err)
+	}
+	// v1 was already recorded, so only the pending v2 runs.
+	if upCalls != 1 {
+		t.Errorf("first run invoked Up %d times, want 1", upCalls)
+	}
+
+	// The two-column history table must have been upgraded to three columns
+	// with names backfilled from the definitions, and the pending migration
+	// must have run in the main transaction.
+	db := migrator.DB()
+	assertRecordedHistory(t, db, []int{1, 2}, []string{"v1_users", "v2_posts"})
+	assertRowCount(t, db, "users", 0)
+	assertRowCount(t, db, "posts", 0)
+	if err := migrator.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	// Reopening the upgraded database is idempotent: no upgrade, no Up runs.
+	upCalls = 0
+	reopened, err := Open(path, migrations)
+	if err != nil {
+		t.Fatalf("reopen Open: %v", err)
+	}
+	defer reopened.Close()
+	if err := reopened.Migrate(ctx); err != nil {
+		t.Fatalf("reopen Migrate: %v", err)
+	}
+	if upCalls != 0 {
+		t.Errorf("reopen invoked Up %d times, want 0", upCalls)
+	}
+	assertRecordedHistory(t, reopened.DB(), []int{1, 2}, []string{"v1_users", "v2_posts"})
+}
+
+func TestMigrateWithPragmasRunsAfterGate(t *testing.T) {
+	ctx := context.Background()
+	noop := func(ctx context.Context, tx *sql.Tx) error { return nil }
+
+	t.Run("applies pragmas after the gate passes", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "app.db")
+		migrator, err := Open(path, []Migration{{1, "v1", noop}},
+			WithPragmas([]string{"PRAGMA journal_mode = WAL"}))
+		if err != nil {
+			t.Fatalf("Open: %v", err)
+		}
+		defer migrator.Close()
+		if err := migrator.Migrate(ctx); err != nil {
+			t.Fatalf("Migrate: %v", err)
+		}
+		var mode string
+		if err := migrator.DB().QueryRow(`PRAGMA journal_mode`).Scan(&mode); err != nil {
+			t.Fatalf("read journal_mode: %v", err)
+		}
+		if !strings.EqualFold(mode, "wal") {
+			t.Errorf("journal_mode = %q, want wal", mode)
+		}
+	})
+
+	t.Run("does not apply pragmas when the gate rejects", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "app.db")
+		seedDB(t, path, []recordedMigration{{version: 2, name: "two", appliedAt: "2024-01-01T00:00:00Z"}})
+		beforeHash := fileHash(t, path)
+
+		migrator, err := Open(path, []Migration{{1, "one", noop}},
+			WithPragmas([]string{"PRAGMA journal_mode = WAL"}))
+		if err != nil {
+			t.Fatalf("Open: %v", err)
+		}
+		defer migrator.Close()
+
+		err = migrator.Migrate(ctx)
+		if err == nil {
+			t.Fatal("expected ErrDatabaseTooNew, got nil")
+		}
+		if !errors.Is(err, ErrDatabaseTooNew) {
+			t.Errorf("error %v does not wrap ErrDatabaseTooNew", err)
+		}
+		// journal_mode = WAL rewrites the database header, so an unchanged
+		// file proves the pragmas did not run before the gate rejected.
+		if afterHash := fileHash(t, path); beforeHash != afterHash {
+			t.Errorf("database file changed: hash before %s, after %s", beforeHash, afterHash)
+		}
+	})
+}
+
+// assertRecordedHistory checks the recorded (version, name) pairs in
+// schema_migrations.
+func assertRecordedHistory(t *testing.T, db *sql.DB, wantVersions []int, wantNames []string) {
+	t.Helper()
+	rows, err := db.Query(`SELECT version, name FROM schema_migrations ORDER BY version`)
+	if err != nil {
+		t.Fatalf("query schema_migrations: %v", err)
+	}
+	defer rows.Close()
+	var versions []int
+	var names []string
+	for rows.Next() {
+		var version int
+		var name string
+		if err := rows.Scan(&version, &name); err != nil {
+			t.Fatalf("scan schema_migrations row: %v", err)
+		}
+		versions = append(versions, version)
+		names = append(names, name)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate schema_migrations: %v", err)
+	}
+	if !reflect.DeepEqual(versions, wantVersions) {
+		t.Errorf("recorded versions = %v, want %v", versions, wantVersions)
+	}
+	if !reflect.DeepEqual(names, wantNames) {
+		t.Errorf("recorded names = %v, want %v", names, wantNames)
+	}
+}
+
+// seedUsersTable creates the v1 users table, simulating the effect of an
+// already-recorded v1 migration in a legacy database.
+func seedUsersTable(t *testing.T, path string) {
+	t.Helper()
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("seed users sql.Open: %v", err)
+	}
+	defer db.Close()
+	if _, err := db.Exec(`CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT NOT NULL)`); err != nil {
+		t.Fatalf("seed users table: %v", err)
+	}
+}
+
+// recordedTwoColumnMigration is a row used to seed a legacy two-column
+// schema_migrations table by hand.
+type recordedTwoColumnMigration struct {
+	version   int
+	appliedAt string
+}
+
+// seedTwoColumnHistory creates a legacy two-column schema_migrations table
+// with the given rows, using raw SQL through database/sql.
+func seedTwoColumnHistory(t *testing.T, path string, recorded []recordedTwoColumnMigration) {
+	t.Helper()
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("seed sql.Open: %v", err)
+	}
+	defer db.Close()
+	if _, err := db.Exec(`CREATE TABLE schema_migrations (
+		version INTEGER PRIMARY KEY,
+		applied_at TEXT NOT NULL
+	)`); err != nil {
+		t.Fatalf("seed create schema_migrations: %v", err)
+	}
+	for _, row := range recorded {
+		if _, err := db.Exec(`INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)`,
+			row.version, row.appliedAt); err != nil {
+			t.Fatalf("seed insert version %d: %v", row.version, err)
+		}
+	}
+}
+
 // recordedMigration is a row used to seed a schema_migrations table by hand.
 type recordedMigration struct {
 	version   int
