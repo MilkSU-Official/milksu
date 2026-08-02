@@ -10,10 +10,18 @@ import (
 	"strings"
 	"time"
 
-	_ "modernc.org/sqlite"
+	"github.com/MilkSU-Official/milksu/internal/sqlitemigrate"
 )
 
-const maxCatalogProblems = 10_000
+const (
+	maxCatalogProblems = 10_000
+
+	// SupportedCTFshowCatalogDatabaseVersion is the numbered SQLite migration
+	// version recorded in schema_migrations for the local CTFshow catalog.
+	SupportedCTFshowCatalogDatabaseVersion = 1
+
+	ctfshowCatalogV1MigrationName = "create CTFshow catalog"
+)
 
 type CatalogProblem struct {
 	PlatformID  int      `json:"platformId"`
@@ -45,16 +53,26 @@ func NewCatalogService(path string) (*CatalogService, error) {
 	if err := os.Chmod(directory, 0o700); err != nil {
 		return nil, fmt.Errorf("secure CTFshow catalog directory: %w", err)
 	}
-	db, err := sql.Open("sqlite", path)
+	migrator, err := sqlitemigrate.Open(
+		path,
+		[]sqlitemigrate.Migration{{
+			Version: 1,
+			Name:    ctfshowCatalogV1MigrationName,
+			Up:      ctfshowCatalogV1Up,
+		}},
+		sqlitemigrate.WithPragmas([]string{
+			"PRAGMA journal_mode = WAL",
+		}),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("open CTFshow catalog: %w", err)
 	}
-	db.SetMaxOpenConns(1)
-	service := &CatalogService{db: db, path: path}
-	if err := service.migrate(); err != nil {
-		_ = db.Close()
-		return nil, err
+	if err := migrator.Migrate(context.Background()); err != nil {
+		migrator.Close()
+		return nil, fmt.Errorf("migrate CTFshow catalog: %w", err)
 	}
+	db := migrator.DB()
+	service := &CatalogService{db: db, path: path}
 	if err := protectCatalogSQLiteFiles(path); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("secure CTFshow catalog: %w", err)
@@ -62,9 +80,12 @@ func NewCatalogService(path string) (*CatalogService, error) {
 	return service, nil
 }
 
-func (s *CatalogService) migrate() error {
+// ctfshowCatalogV1Up creates the current catalog schema and adopts the exact
+// pre-migrator shape without rewriting its rows. Unknown same-name tables or
+// indexes are rejected inside sqlitemigrate's transaction rather than being
+// mislabeled as a successful v1 upgrade.
+func ctfshowCatalogV1Up(ctx context.Context, tx *sql.Tx) error {
 	for _, statement := range []string{
-		`PRAGMA journal_mode = WAL`,
 		`CREATE TABLE IF NOT EXISTS catalog_meta (
 			key TEXT PRIMARY KEY,
 			value TEXT NOT NULL
@@ -79,12 +100,130 @@ func (s *CatalogService) migrate() error {
 			tags_json TEXT NOT NULL,
 			synced_at TEXT NOT NULL
 		)`,
-		`CREATE INDEX IF NOT EXISTS catalog_problems_category
-			ON catalog_problems(category, platform_id)`,
 	} {
-		if _, err := s.db.Exec(statement); err != nil {
-			return fmt.Errorf("migrate CTFshow catalog: %w", err)
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return fmt.Errorf("create CTFshow catalog schema: %w", err)
 		}
+	}
+
+	if err := requireCTFshowCatalogColumns(
+		ctx,
+		tx,
+		"catalog_meta",
+		[]string{"key", "value"},
+	); err != nil {
+		return err
+	}
+	if err := requireCTFshowCatalogColumns(
+		ctx,
+		tx,
+		"catalog_problems",
+		[]string{
+			"platform_id", "source_url", "title", "category", "points",
+			"solved_count", "tags_json", "synced_at",
+		},
+	); err != nil {
+		return err
+	}
+
+	if _, err := tx.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS
+		catalog_problems_category
+		ON catalog_problems(category, platform_id)`); err != nil {
+		return fmt.Errorf("create CTFshow catalog index: %w", err)
+	}
+	if err := requireCTFshowCatalogIndexColumns(
+		ctx,
+		tx,
+		"catalog_problems_category",
+		[]string{"category", "platform_id"},
+	); err != nil {
+		return err
+	}
+	return nil
+}
+
+func requireCTFshowCatalogColumns(
+	ctx context.Context,
+	tx *sql.Tx,
+	table string,
+	want []string,
+) error {
+	rows, err := tx.QueryContext(ctx, `PRAGMA table_info(`+table+`)`)
+	if err != nil {
+		return fmt.Errorf("inspect CTFshow %s columns: %w", table, err)
+	}
+	defer rows.Close()
+
+	got := make([]string, 0, len(want))
+	for rows.Next() {
+		var (
+			position     int
+			name         string
+			columnType   string
+			notNull      int
+			defaultValue sql.NullString
+			primaryKey   int
+		)
+		if err := rows.Scan(
+			&position,
+			&name,
+			&columnType,
+			&notNull,
+			&defaultValue,
+			&primaryKey,
+		); err != nil {
+			return fmt.Errorf("inspect CTFshow %s columns: %w", table, err)
+		}
+		got = append(got, name)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("inspect CTFshow %s columns: %w", table, err)
+	}
+	if strings.Join(got, "\x00") != strings.Join(want, "\x00") {
+		return fmt.Errorf(
+			"incompatible CTFshow %s columns: got %v, want %v",
+			table,
+			got,
+			want,
+		)
+	}
+	return nil
+}
+
+func requireCTFshowCatalogIndexColumns(
+	ctx context.Context,
+	tx *sql.Tx,
+	index string,
+	want []string,
+) error {
+	rows, err := tx.QueryContext(ctx, `PRAGMA index_info(`+index+`)`)
+	if err != nil {
+		return fmt.Errorf("inspect CTFshow %s index: %w", index, err)
+	}
+	defer rows.Close()
+
+	got := make([]string, 0, len(want))
+	for rows.Next() {
+		var (
+			position int
+			columnID int
+			name     string
+		)
+		if err := rows.Scan(&position, &columnID, &name); err != nil {
+			return fmt.Errorf("inspect CTFshow %s index: %w", index, err)
+		}
+		got = append(got, name)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("inspect CTFshow %s index: %w", index, err)
+	}
+	if strings.Join(got, "\x00") != strings.Join(want, "\x00") {
+		return fmt.Errorf(
+			"incompatible CTFshow %s index columns: got %v, want %v",
+			index,
+			got,
+			want,
+		)
 	}
 	return nil
 }

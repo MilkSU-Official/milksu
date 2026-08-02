@@ -10,6 +10,7 @@ import (
 
 	"github.com/MilkSU-Official/milksu/internal/appdata"
 	"github.com/MilkSU-Official/milksu/internal/ctf"
+	"github.com/MilkSU-Official/milksu/internal/ctfshow"
 	"github.com/MilkSU-Official/milksu/internal/nssctf"
 	"github.com/MilkSU-Official/milksu/internal/securityruntime"
 
@@ -35,6 +36,12 @@ func TestDatabaseCompatDescriptors(t *testing.T) {
 			nssctf.SupportedNSSCTFCatalogDatabaseVersion,
 		)
 	}
+	if ctfshow.SupportedCTFshowCatalogDatabaseVersion != 1 {
+		t.Fatalf(
+			"SupportedCTFshowCatalogDatabaseVersion = %d, want 1",
+			ctfshow.SupportedCTFshowCatalogDatabaseVersion,
+		)
+	}
 	descriptors := databaseCompatDescriptors()
 	want := []appdata.DatabaseDescriptor{
 		{
@@ -55,7 +62,7 @@ func TestDatabaseCompatDescriptors(t *testing.T) {
 		{
 			LogicalName:  "CTFshow Catalog",
 			RelativePath: "ctfshow/catalog.sqlite3",
-			Supported:    0,
+			Supported:    ctfshow.SupportedCTFshowCatalogDatabaseVersion,
 		},
 	}
 	if !reflect.DeepEqual(descriptors, want) {
@@ -113,6 +120,15 @@ func TestGetLocalDataStatusIncludesDatabaseCompatibility(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := nssctfCatalog.Close(); err != nil {
+		t.Fatal(err)
+	}
+	ctfshowCatalog, err := ctfshow.NewCatalogService(
+		filepath.Join(dataDirectory, "ctfshow", "catalog.sqlite3"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ctfshowCatalog.Close(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -179,21 +195,21 @@ func TestGetLocalDataStatusIncludesDatabaseCompatibility(t *testing.T) {
 		)
 	}
 
-	for _, remaining := range status.Databases[3:] {
-		if remaining.State != "remaining" {
-			t.Fatalf(
-				"database %q state = %q, want remaining: %#v",
-				remaining.LogicalName,
-				remaining.State,
-				remaining,
-			)
-		}
-		if remaining.Current != nil || remaining.Supported != nil {
-			t.Fatalf(
-				"database %q must report nil current/supported: %#v",
-				remaining.LogicalName,
-				remaining,
-			)
-		}
+	ctfshowStatus := status.Databases[3]
+	if ctfshowStatus.LogicalName != "CTFshow Catalog" ||
+		ctfshowStatus.RelativePath != "ctfshow/catalog.sqlite3" ||
+		ctfshowStatus.State != "compatible" {
+		t.Fatalf("unexpected CTFshow Catalog status: %#v", ctfshowStatus)
+	}
+	if ctfshowStatus.Current == nil || *ctfshowStatus.Current != 1 {
+		t.Fatalf("CTFshow Catalog current = %v, want 1", ctfshowStatus.Current)
+	}
+	if ctfshowStatus.Supported == nil ||
+		*ctfshowStatus.Supported != ctfshow.SupportedCTFshowCatalogDatabaseVersion {
+		t.Fatalf(
+			"CTFshow Catalog supported = %v, want %d",
+			ctfshowStatus.Supported,
+			ctfshow.SupportedCTFshowCatalogDatabaseVersion,
+		)
 	}
 }
