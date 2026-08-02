@@ -36,19 +36,21 @@ The packaged Sidecar smoke test asserts both sides of the boundary. The
 by the resource loader; it is not a hard-coded declaration:
 
 - a normal Coding session exposes Archify, Goal, background tasks and the reviewed MCP Adapter;
-  bundled TypeScript/Vue LSP diagnostics are available, Go diagnostics still require a reviewed
-  `gopls`, and Playwright appears only after the user explicitly starts the Coding Browser;
+  bundled TypeScript/Vue/Go LSP diagnostics are available, and Playwright appears only after the
+  user explicitly starts the Coding Browser;
 - a CTF session exposes none of these external resources and continues to use
   MilkSU's dedicated CTF tools and recorder-owned retry semantics.
 
-`pi-lsp` remains **Partial**, because Go and write-fix approval are not complete. MilkSU deliberately
+`pi-lsp` remains **Partial**, because write-fix approval is not complete. MilkSU deliberately
 overrides both repository and user LSP configuration with `PI_LSP_CONFIG`.
 The fixed commands run through `/usr/bin/env -i` and receive only `HOME`,
 `PATH`, `TMPDIR`, `LANG`, and `LC_ALL`; provider and relay credentials do not
-reach the language server. Clean macOS packages include reviewed TypeScript and
-Vue servers in `milksu-sidecar/lsp-runtime`; the packaged-app fixture returned
-`TS2322` at `1:14` without modifying the source file. Go projects still need a
-reviewed, packaged `gopls` before Go LSP can be described as clean-install ready.
+reach the language server. Clean macOS packages include reviewed TypeScript,
+Vue and Go servers in `milksu-sidecar/lsp-runtime`; the packaged-app fixtures returned
+`TS2322` at `1:14` and `compiler.IncompatibleAssign` at `3:21` without modifying
+their source files. `gopls v0.23.0` is built from the verified official module
+sum and commit, and its BSD-3-Clause license and binary SHA-256 are recorded in
+the Sidecar manifest.
 
 ## Reviewed but not active
 
@@ -75,7 +77,7 @@ Pi's official documentation states that Pi runs with the launching process's fil
 | Agent-side subtask orchestration | Do not build | Integrate `pi-sub-agent` after packaged-runtime and budget tests |
 | Session archive/query/handoff | Do not build | Evaluate Session Snap / Query / Handoff and adapt only desktop navigation/state |
 | Code review and semantic diff | Do not build from scratch | Evaluate Code Review / Tool Pills / `pi-sem`; MilkSU owns file/diff presentation in the right panel |
-| Architecture diagrams, LSP, retry | Keep pinned external resources | Package reviewed `gopls`, finish `lsp_fix` approval, and avoid feature forks |
+| Architecture diagrams, LSP, retry | Keep pinned external resources | Keep the reviewed `gopls` package gate, finish `lsp_fix` approval, and avoid feature forks |
 | CTF recorder, Judge, evidence, role handoff, learning memory | Keep MilkSU-owned | This remains the product's primary innovation surface |
 
 ## Update procedure

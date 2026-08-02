@@ -55,8 +55,8 @@ ADR、Review 和 Checkpoint 记录当时为什么这样决定，不会因为后�
 - 普通 Coding 会话已经在代码层接入固定版本 Archify、PI LSP、Goal、后台任务、MCP
   Adapter 和 Playwright MCP；Coding 核心的 Plan → Go、多轮修改、真实打包命令执行与
   独立复验已经 **Verified**。Archify 一键动作和隔离 Coding Browser 已在原生包完成
-  真实验收；TypeScript/Vue LSP 已随包并在原生 fixture 返回确定性诊断，Go LSP 与
-  `lsp_fix` 仍未完成，不能把局部语言验收宣称为插件体系全部完成。
+  真实验收；TypeScript/Vue/Go LSP 已随包并在原生 fixture 返回确定性诊断，
+  `lsp_fix` 仍未完成，不能把诊断验收宣称为插件体系全部完成。
 - Managed Labs 本轮已暂停。工作区里的 Lab Manager / WebGoat 实验不能进入 R0.4 发布声明，
   也不能作为 M3 完成条件。
 - NYU CTF Bench 的只读元数据、Admission、DeepSeek one-shot Runner、两回合 Pi 只读

@@ -32,6 +32,10 @@ test("reviewed LSP config ignores project commands and strips provider secrets",
     assert.equal(server.command.some(value => value.startsWith("HOME=/tmp/home")), true);
   }
   const root = dirname(fileURLToPath(import.meta.url));
+  assert.equal(
+    config.servers["milksu-go"].command.at(-1),
+    join(root, "gopls"),
+  );
   assert.deepEqual(config.servers["milksu-vue"].command.slice(-3), [
     process.execPath,
     join(root, "node_modules", "@vue", "language-server", "bin", "vue-language-server.js"),

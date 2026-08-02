@@ -22,6 +22,15 @@ const systemOcrVersion = '1.1.0'
 const typescriptLanguageServerVersion = '5.3.0'
 const vueLanguageServerVersion = '3.3.9'
 const typescriptVersion = '6.0.3'
+const goplsVersion = '0.23.0'
+const goplsSource = {
+  module: 'golang.org/x/tools/gopls',
+  moduleSum: 'h1:Dn6mf9WXu9iLnTftDDMb9wV0c6Se7PjzEMqP0LEe08Y=',
+  goModSum: 'h1:Ijg67bAdTicg9IINxII7MV+dQpHEXM4646WpNWVYBP0=',
+  originURL: 'https://go.googlesource.com/tools',
+  originHash: '014f87ff5c01915bc90f4f11a6bb8aea3e0edbd7',
+  originRef: `refs/tags/gopls/v${goplsVersion}`,
+}
 const lspRuntimeRootPackages = [
   {
     name: 'typescript-language-server',
@@ -180,6 +189,123 @@ async function officialNodeRuntime(platform) {
   return { binary: runtimeBinary, license: join(runtimeRoot, 'LICENSE'), archive }
 }
 
+async function officialGoplsRuntime(platform) {
+  const [goos, goarch] = platform.split('/')
+  if (goos !== 'darwin' || !['arm64', 'amd64'].includes(goarch)) {
+    throw new Error(`unsupported gopls platform: ${platform}`)
+  }
+  const cache = join(repositoryRoot, 'build', 'sidecar-cache', platform.replace('/', '-'))
+  const runtimeRoot = join(cache, `gopls-v${goplsVersion}`)
+  const runtimeBinary = join(runtimeRoot, 'gopls')
+  const runtimeLicense = join(runtimeRoot, 'LICENSE')
+  const metadataPath = join(runtimeRoot, 'build.json')
+  const { stdout: goVersionOutput } = await execFileAsync('go', ['version'])
+  const goVersion = goVersionOutput.trim()
+  const expectedMetadata = {
+    buildRecipe: 'go-build-trimpath-version-override-v1',
+    platform,
+    version: goplsVersion,
+    module: goplsSource.module,
+    moduleSum: goplsSource.moduleSum,
+    goModSum: goplsSource.goModSum,
+    originHash: goplsSource.originHash,
+    goVersion,
+  }
+
+  if (
+    await exists(runtimeBinary)
+    && await exists(runtimeLicense)
+    && await exists(metadataPath)
+  ) {
+    try {
+      const metadata = JSON.parse(await readFile(metadataPath, 'utf8'))
+      const metadataMatches = Object.entries(expectedMetadata).every(
+        ([key, value]) => metadata[key] === value,
+      )
+      if (
+        metadataMatches
+        && typeof metadata.binarySha256 === 'string'
+        && await sha256(runtimeBinary) === metadata.binarySha256
+      ) {
+        return {
+          binary: runtimeBinary,
+          license: runtimeLicense,
+          ...metadata,
+        }
+      }
+    } catch {
+      // Rebuild a corrupt or incomplete cache entry below.
+    }
+  }
+
+  const moduleReference = `${goplsSource.module}@v${goplsVersion}`
+  const { stdout: moduleDownloadOutput } = await execFileAsync(
+    'go',
+    ['mod', 'download', '-json', moduleReference],
+    {
+      cwd: repositoryRoot,
+      maxBuffer: 4 * 1024 * 1024,
+      timeout: 120_000,
+    },
+  )
+  const moduleDownload = JSON.parse(moduleDownloadOutput)
+  if (
+    moduleDownload.Path !== goplsSource.module
+    || moduleDownload.Version !== `v${goplsVersion}`
+    || moduleDownload.Sum !== goplsSource.moduleSum
+    || moduleDownload.GoModSum !== goplsSource.goModSum
+    || moduleDownload.Origin?.URL !== goplsSource.originURL
+    || moduleDownload.Origin?.Hash !== goplsSource.originHash
+    || moduleDownload.Origin?.Ref !== goplsSource.originRef
+    || typeof moduleDownload.Dir !== 'string'
+  ) {
+    throw new Error(`gopls source verification failed: ${moduleDownloadOutput}`)
+  }
+  const sourceLicense = join(moduleDownload.Dir, 'LICENSE')
+  if (!await exists(sourceLicense)) {
+    throw new Error(`gopls source is missing its BSD license: ${sourceLicense}`)
+  }
+
+  await rm(runtimeRoot, { recursive: true, force: true })
+  await mkdir(runtimeRoot, { recursive: true, mode: 0o700 })
+  await execFileAsync(
+    'go',
+    [
+      'build',
+      '-trimpath',
+      '-buildvcs=false',
+      '-mod=readonly',
+      `-ldflags=-X=main.version=v${goplsVersion}`,
+      '-o',
+      runtimeBinary,
+      '.',
+    ],
+    {
+      cwd: moduleDownload.Dir,
+      env: {
+        ...process.env,
+        GOOS: goos,
+        GOARCH: goarch,
+        CGO_ENABLED: '0',
+      },
+      maxBuffer: 8 * 1024 * 1024,
+      timeout: 300_000,
+    },
+  )
+  await copyFile(sourceLicense, runtimeLicense)
+  await chmod(runtimeBinary, 0o755)
+  const metadata = {
+    ...expectedMetadata,
+    binarySha256: await sha256(runtimeBinary),
+  }
+  await writeFile(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`, { mode: 0o600 })
+  return {
+    binary: runtimeBinary,
+    license: runtimeLicense,
+    ...metadata,
+  }
+}
+
 async function bundleBridge(entry, outfile) {
   await build({
     entryPoints: [join(repositoryRoot, entry)],
@@ -218,6 +344,7 @@ async function runWithInput(executable, argumentsList, input, options) {
 
 async function buildSidecar(platform) {
   const runtime = await officialNodeRuntime(platform)
+  const goplsRuntime = await officialGoplsRuntime(platform)
   const output = join(repositoryRoot, 'build', 'sidecar', platform.replace('/', '-'))
   await mkdir(output, { recursive: true, mode: 0o700 })
   const nodeOutput = join(output, 'node')
@@ -267,6 +394,7 @@ async function buildSidecar(platform) {
     },
   ]
   const lspRuntimeOutput = join(output, 'lsp-runtime')
+  const goplsOutput = join(lspRuntimeOutput, 'gopls')
   const lspRuntimePackages = await collectInstalledPackageClosure(
     lspRuntimeRootPackages.map(packageInfo => packageInfo.name),
   )
@@ -328,6 +456,10 @@ async function buildSidecar(platform) {
     )),
   )
   await mkdir(licenseOutput, { recursive: true, mode: 0o700 })
+  await rm(
+    join(licenseOutput, 'gopls-BSD-3-Clause.txt'),
+    { force: true },
+  )
   await cp(archifySource, archifyOutput, { recursive: true })
   for (const packageInfo of minimalPackageCopySet(lspRuntimePackages)) {
     const destination = join(
@@ -345,6 +477,11 @@ async function buildSidecar(platform) {
   await Promise.all([
     copyFile(runtime.binary, nodeOutput),
     copyFile(runtime.license, join(output, 'NODE-LICENSE')),
+    copyFile(goplsRuntime.binary, goplsOutput),
+    copyFile(
+      goplsRuntime.license,
+      join(licenseOutput, 'gopls-BSD-3-Clause.txt'),
+    ),
     copyFile(
       join(repositoryRoot, 'third_party', 'licenses', 'pi-MIT.txt'),
       join(licenseOutput, 'pi-MIT.txt'),
@@ -401,6 +538,7 @@ async function buildSidecar(platform) {
   ])
   await Promise.all([
     chmod(nodeOutput, 0o755),
+    chmod(goplsOutput, 0o755),
     chmod(chatOutput, 0o644),
     chmod(securityOutput, 0o644),
   ])
@@ -440,6 +578,18 @@ async function buildSidecar(platform) {
         runtime: {
           path: 'lsp-runtime',
           servers: {
+            go: {
+              package: goplsSource.module,
+              version: goplsVersion,
+              license: 'BSD-3-Clause',
+              licenseFile: 'THIRD_PARTY-LICENSES/gopls-BSD-3-Clause.txt',
+              path: 'lsp-runtime/gopls',
+              binarySha256: await sha256(goplsOutput),
+              sourceModuleSum: goplsSource.moduleSum,
+              sourceGoModSum: goplsSource.goModSum,
+              sourceCommit: goplsSource.originHash,
+              builtWith: goplsRuntime.goVersion,
+            },
             typescript: {
               package: 'typescript-language-server',
               version: typescriptLanguageServerVersion,
@@ -523,6 +673,8 @@ async function smokeSidecar(platform) {
     join(output, 'THIRD_PARTY-LICENSES', 'playwright-mcp-Apache-2.0.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'playwright-Apache-2.0.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'playwright-core-Apache-2.0.txt'),
+    join(output, 'THIRD_PARTY-LICENSES', 'gopls-BSD-3-Clause.txt'),
+    join(output, 'lsp-runtime', 'gopls'),
     join(output, 'lsp-runtime', 'node_modules', 'typescript-language-server', 'LICENSE'),
     join(output, 'lsp-runtime', 'node_modules', '@vue', 'language-server', 'LICENSE'),
     join(output, 'lsp-runtime', 'node_modules', 'typescript', 'LICENSE.txt'),
@@ -619,6 +771,26 @@ async function smokeSidecar(platform) {
         + `${versionRun.stdout}${versionRun.stderr}`,
       )
     }
+  }
+  const goplsVersionRun = await runWithInput(
+    join(output, 'lsp-runtime', 'gopls'),
+    ['version'],
+    '',
+    {
+      cwd: workspace,
+      env: {
+        HOME: workspace,
+        PATH: process.env.PATH ?? '/usr/bin:/bin',
+        TMPDIR: workspace,
+        LANG: process.env.LANG ?? 'en_US.UTF-8',
+      },
+    },
+  )
+  if (!goplsVersionRun.stdout.includes(`v${goplsVersion}`)) {
+    throw new Error(
+      `packaged gopls did not load: `
+      + `${goplsVersionRun.stdout}${goplsVersionRun.stderr}`,
+    )
   }
   const ocrLoad = await runWithInput(
     node,
@@ -1060,12 +1232,19 @@ async function installSidecar(platform, binaryPath) {
       'lib',
       'cli.mjs',
     ),
+    join(destination, 'lsp-runtime', 'gopls'),
+    join(
+      destination,
+      'THIRD_PARTY-LICENSES',
+      'gopls-BSD-3-Clause.txt',
+    ),
   ]) {
     if (!await exists(requiredPath)) {
-      throw new Error(`installed Sidecar is missing OCR runtime artifact: ${requiredPath}`)
+      throw new Error(`installed Sidecar is missing runtime artifact: ${requiredPath}`)
     }
   }
   await chmod(join(destination, 'node'), 0o755)
+  await chmod(join(destination, 'lsp-runtime', 'gopls'), 0o755)
   await execFileAsync('/usr/bin/codesign', [
     '--force',
     '--deep',

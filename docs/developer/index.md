@@ -36,6 +36,6 @@
 
 ## 当前实现边界
 
-M0、M1、M2-A 与 M3-A 已完成工程验证：Go/Wails 桌面宿主、Vue 3 + Memoh UI 控制面、Pi Sidecar、追加式 Event Store、Artifact Store、只读 Projection、独立 Evaluator 和中断恢复已经实跑。普通 Coding 会话加载经过审阅和固定版本的 MilkSU Workflow、Archify、PI LSP、PI Goal、后台任务与 opt-in MCP；TypeScript/Vue LSP 已固定随包并通过原生诊断，Go LSP 与写修复仍是 Partial。打包应用内的 Plan → Go、多轮修改、测试和人类纠错已经通过一次真实交付回归，CTF 会话通过负向 Smoke 保持资源隔离。Vuln Role 已增加固定本地 packet-parser 的 Target、Attack Surface、Hypothesis、静态 Root Cause、外部三次 ASan 日志一致性 Evaluation 和 Human Outcome 工作台。
+M0、M1、M2-A 与 M3-A 已完成工程验证：Go/Wails 桌面宿主、Vue 3 + Memoh UI 控制面、Pi Sidecar、追加式 Event Store、Artifact Store、只读 Projection、独立 Evaluator 和中断恢复已经实跑。普通 Coding 会话加载经过审阅和固定版本的 MilkSU Workflow、Archify、PI LSP、PI Goal、后台任务与 opt-in MCP；TypeScript/Vue/Go LSP 已固定随包并通过原生诊断，写修复仍是 Partial。打包应用内的 Plan → Go、多轮修改、测试和人类纠错已经通过一次真实交付回归，CTF 会话通过负向 Smoke 保持资源隔离。Vuln Role 已增加固定本地 packet-parser 的 Target、Attack Surface、Hypothesis、静态 Root Cause、外部三次 ASan 日志一致性 Evaluation 和 Human Outcome 工作台。
 
 这些仍不等于完整 M2/M3：Managed Labs、真正容器/VM 隔离和精确网络 allowlist 尚未发布；Vuln 也尚未由 MilkSU 自动生成、最小化或执行触发输入。当前一级入口为 `CTF / CVE / Coding`。CTF 已支持 NSSCTF/CTFshow 本地目录、完整分页、自定义题目 Intake、能力画像、可解释推荐、Coach/Copilot/Delegate、Arena、只绑定当前题目页的 Chrome bridge，以及 Challenge 到 PI 单题工作区的一键交接；P3879 已完成一次真实 `correct=true`、恢复和复盘闭环。用户确认的复盘会进入本机 SQLite + Markdown 训练记忆。CTF Sidecar 已限制工作区、命令时长和输出量，并在 macOS 使用 Seatbelt 约束本地命令，但这仍不是容器。多题型、CTFshow 账号回归、动态 Endpoint 确认和能力画像校准仍欠验证。CVE 情报仍是演示 Adapter；Labs 与真实 CVE 工作流均为 `Paused / Designed`。

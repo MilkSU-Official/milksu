@@ -29,6 +29,7 @@ const packagedTypeScriptLanguageServer = join(
   "lib",
   "cli.mjs",
 );
+const packagedGopls = join(installedLspRuntime, "gopls");
 
 const PASSTHROUGH_ENVIRONMENT_NAMES = [
   "HOME",
@@ -68,7 +69,7 @@ export function reviewedLspConfig(
     timeout: 20000,
     servers: {
       "milksu-go": {
-        command: [...commandPrefix, "gopls"],
+        command: [...commandPrefix, packagedGopls],
         extensions: [".go"],
       },
       "milksu-vue": {

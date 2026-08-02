@@ -54,7 +54,7 @@ MilkSU Coding 的北极星不是“能调用模型的聊天框”，而是让用
 | 读、搜、改、写文件 | `Verified`：Pi `read/edit/write/grep/find/ls` | 增加逐文件/逐块 diff 可视化和撤销 | P0 |
 | Shell 与测试 | `Verified`：`Project Auto` 支持常规开发命令、Shell 组合、Git 与网络并限制项目外写入；显式 `Full Access` 自动执行当前用户可运行的命令；Provider Key 不进入子进程；右侧“终端”包含多会话项目 PTY，支持 stdin、实时输出、resize、停止和退出状态；同页保留按 Conversation 隔离的后台任务、PID、端口和有界日志 | 增加跨应用重启终端恢复、复制/查找与更大输出压力样本 | P0 |
 | 上下文压缩与持久会话 | `Implemented`：复用 Pi Session | UI 显示压缩/恢复事件；建立长任务回归 | P1 |
-| LSP | `Verified TypeScript/Vue diagnostics / Partial Go+fix`：固定插件只用于 Coding；仓库配置被白名单覆盖；打包 TypeScript/Vue Server 与 SDK；原生包 fixture 返回 `TS2322 @ 1:14` 且源文件未改；语言服务器进程不继承模型凭据 | 打包审核过的 `gopls`；`lsp_fix` 必须走独立审批并展示 Diff | P0 |
+| LSP | `Verified diagnostics / Partial fix`：固定插件只用于 Coding；仓库配置被白名单覆盖；打包 TypeScript/Vue Server、SDK 与官方 `gopls v0.23.0`；原生包 fixture 返回 `TS2322 @ 1:14` 和 `compiler.IncompatibleAssign @ 3:21` 且源文件未改；语言服务器进程不继承模型凭据 | `lsp_fix` 必须走独立审批并展示 Diff | P0 |
 | Retry | `Alternative`：当前固定清单不再加载 `pi-retry`，模型/Provider 的重试语义保持在 Pi 边界，MilkSU 只处理可见失败与恢复 | 用可控瞬态失败与慢首 Token fixture 验证现有 Pi/Provider 行为；不增加第二个自研重试循环 | P1 |
 | Architecture | `Verified`：真实打包 App 中一键“架构图”自动读取项目、固定输出 JSON/HTML、9/9、0 error、0 warning，并在右侧安全预览；Archify 固定 commit 且只用于 Coding | 后续补“仓库变化后更新图”的独立回归 | P1 |
 | 日常产品动作 | `Verified`：同一真实打包 App 会话已连续完成理解项目、运行测试、审阅变更、修复失败和生成总结；动作自动选择 Plan/Go 与权限，不向用户追问内部参数；测试先复现 `6 !== 4`，修复后 `3 passed / 0 failed` | 增加不同语言、较大仓库和中断恢复样本；保持每个结论均可追溯到工具或桌面 Git 证据 | P0 |
@@ -111,7 +111,7 @@ MilkSU Coding 的北极星不是“能调用模型的聊天框”，而是让用
 - 现有七个 Pi Coding tools、会话恢复和停止保持回归通过；
 - 右侧环境信息不遮挡，工作区、Git、模型、插件、工具状态真实；
 - Markdown、代码块、表格和链接全局统一渲染；
-- Archify、TypeScript/Vue LSP、Goal、后台任务与 MCP Adapter 在打包 Sidecar 中通过正向 smoke，CTF 会话通过负向隔离；Go LSP 与 `lsp_fix` 仍明确显示 `Partial`；
+- Archify、TypeScript/Vue/Go LSP、Goal、后台任务与 MCP Adapter 在打包 Sidecar 中通过正向 smoke，CTF 会话通过负向隔离；仅 `lsp_fix` 仍明确显示 `Partial`；
 - 保持逐工具审批、附件输入、会话隔离 PTY/后台任务和文件级 Diff 回归；补终端跨应用重启恢复。
 
 ### C1：日常 Git 与权限闭环
