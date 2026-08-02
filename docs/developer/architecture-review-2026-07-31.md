@@ -8,7 +8,9 @@
 >
 > Scope: current `codex/authorized-learning-foundation` implementation, packaged Sidecar, local persistence, Vue desktop surface, NSSCTF / CTFshow adapters, permission-gated external platform facts, and CTF runtime.
 >
-> Companion diagrams: [system architecture](/architecture/milksu-system.architecture.html) and [CTF solve loop](/architecture/ctf-solve-loop.workflow.html).
+> Companion specifications: [system architecture](/architecture/milksu-system.architecture.json)
+> and [CTF solve loop](/architecture/ctf-solve-loop.workflow.json). Interactive HTML is generated
+> on demand and is not tracked by Git.
 
 ## Executive assessment
 

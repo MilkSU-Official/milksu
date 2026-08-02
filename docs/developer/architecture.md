@@ -20,14 +20,16 @@ MilkSU 是一个**一站式网络安全 AI 学习客户端**；它的技术核�
 
 ## 可交互架构视图
 
-- [MilkSU 当前系统架构](/architecture/generated/milksu-current-system.html)：R0.4 的 Coding 主链、
+- [MilkSU 当前系统架构规格](/architecture/generated/milksu-current-system.architecture.json)：R0.4 的 Coding 主链、
   CTF 证据闭环、持久化和 NYU safe-static Eval 边界。
-- [2026-07-31 M3 System Architecture 历史图](/architecture/milksu-system.architecture.html)：
+- [2026-07-31 M3 System Architecture 历史规格](/architecture/milksu-system.architecture.json)：
   保留当日桌面进程、PI Sidecar、CTF Runtime、Browser Bridge 和 Lab 实验边界，不代表当前发布状态。
-- [MilkSU CTF Solve Loop](/architecture/ctf-solve-loop.workflow.html)：从选题、读取材料、预算内解题，到候选闸门、权威 Judge 回执与训练复盘。
+- [MilkSU CTF Solve Loop 规格](/architecture/ctf-solve-loop.workflow.json)：从选题、读取材料、预算内解题，到候选闸门、权威 Judge 回执与训练复盘。
 
-这些图由固定版本 Archify 生成，JSON 规格与 HTML 产物都在仓库中。带日期的图是历史快照；
-无日期的“当前系统”图随事实审计更新。
+这些图由固定版本 Archify 生成。仓库只保存可审阅的 JSON 规格；交互式 HTML 由 Coding
+的“架构图”动作按需生成、校验并在右侧预览，不作为稳定文档入口，也不提交到 Git。
+需要保留视觉验收证据时只提交一张最终截图。带日期的规格是历史快照；无日期的“当前系统”
+规格随事实审计更新。
 
 ## 为什么需要重启
 

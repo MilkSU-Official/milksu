@@ -3,7 +3,7 @@
   "diagram_type": "architecture",
   "meta": {
     "title": "MilkSU M3 System Architecture · Historical",
-    "subtitle": "2026-07-31 snapshot · superseded for current status by architecture/generated/milksu-current-system.html",
+    "subtitle": "2026-07-31 snapshot · superseded for current status by architecture/generated/milksu-current-system.architecture.json",
     "output": "milksu-system.architecture.html",
     "animation": "none",
     "visual_preset": "signal-flow",

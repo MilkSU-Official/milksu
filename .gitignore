@@ -32,3 +32,9 @@ build/sidecar-smoke-non-git/
 build/sidecar-spike/
 build/test-results/
 docs/.vitepress/cache/
+
+# Archify previews are reproducible local artifacts. Keep the compact JSON
+# specifications in Git and generate HTML on demand.
+/docs/architecture/*.architecture.html
+/docs/architecture/*.workflow.html
+/docs/architecture/generated/*.html

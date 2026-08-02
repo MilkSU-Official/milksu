@@ -8,9 +8,9 @@
 
 这组文档用于回答当前实现与未来解冻设计：
 
-0. [Archify 交互式架构图](generated/milksu-current-system.html)：一张图查看 Coding 主链、
-   CTF 证据闭环、持久化和内部评测边界；对应的
-   [可审阅规格](generated/milksu-current-system.architecture.json) 可继续迭代。
+0. [Archify 当前架构规格](generated/milksu-current-system.architecture.json)：描述 Coding
+   主链、CTF 证据闭环、持久化和内部评测边界；交互式 HTML 由 Coding 的“架构图”动作
+   按需生成和预览，不提交到 Git。
 1. [当前系统与分层](current-system.md)：MilkSU 现在由哪些进程、容器和模块组成？
 2. [CTF 数据与时序](ctf-intake-agent-judge-memory.md)：一道题怎样从 Intake 进入 Agent、Judge 和训练记忆？
 3. [Coding Agent / Pi 扩展边界](coding-agent-pi-extension-boundary.md)：哪些能力复用 Pi，哪些能力属于 MilkSU，CTF 为什么不继承 Coding 插件？
