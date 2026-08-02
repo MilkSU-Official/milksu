@@ -382,13 +382,28 @@ function inferCatalogCategory(tags: string[]) {
 
 function defaultAbilityDimensions(): CTFAbilityDimension[] {
   return [
-    { key: 'web', label: 'Web', score: 20, confidence: 0, attempts: 0, solved: 0, judgeVerifiedSolved: 0, userConfirmedSolved: 0 },
-    { key: 'pwn', label: 'Pwn', score: 20, confidence: 0, attempts: 0, solved: 0, judgeVerifiedSolved: 0, userConfirmedSolved: 0 },
-    { key: 'reverse', label: 'Reverse', score: 20, confidence: 0, attempts: 0, solved: 0, judgeVerifiedSolved: 0, userConfirmedSolved: 0 },
-    { key: 'crypto', label: 'Crypto', score: 20, confidence: 0, attempts: 0, solved: 0, judgeVerifiedSolved: 0, userConfirmedSolved: 0 },
-    { key: 'forensics', label: '取证', score: 20, confidence: 0, attempts: 0, solved: 0, judgeVerifiedSolved: 0, userConfirmedSolved: 0 },
-    { key: 'misc', label: 'Misc', score: 20, confidence: 0, attempts: 0, solved: 0, judgeVerifiedSolved: 0, userConfirmedSolved: 0 },
-  ]
+    ['web', 'Web'],
+    ['pwn', 'Pwn'],
+    ['reverse', 'Reverse'],
+    ['crypto', 'Crypto'],
+    ['forensics', '取证'],
+    ['misc', 'Misc'],
+  ].map(([key, label]) => ({
+    key,
+    label,
+    score: 20,
+    confidence: 0,
+    attempts: 0,
+    profileAttempts: 0,
+    solved: 0,
+    judgeVerifiedSolved: 0,
+    userConfirmedSolved: 0,
+    independentSolved: 0,
+    hintAssistedSolved: 0,
+    copilotSolved: 0,
+    delegatedSolved: 0,
+    importedSolved: 0,
+  }))
 }
 
 function previewTrainingSeries(problems: NSSCTFCatalogProblem[]): NSSCTFTrainingSeries[] {

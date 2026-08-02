@@ -11,7 +11,7 @@ import (
 	"github.com/MilkSU-Official/milksu/internal/securityruntime"
 )
 
-const TrainingReportSchemaVersion = "ctf-training-report.milksu.dev/v1alpha1"
+const TrainingReportSchemaVersion = "ctf-training-report.milksu.dev/v1alpha2"
 
 type TrainingReportMaterial struct {
 	Name               string   `json:"name"`
@@ -77,6 +77,7 @@ type TrainingReport struct {
 	KeyObservations       []string                    `json:"keyObservations"`
 	FailureBranches       []string                    `json:"failureBranches"`
 	JudgeReceipts         []TrainingReportJudge       `json:"judgeReceipts"`
+	Contribution          TrainingContributionView    `json:"contribution"`
 	Stats                 TrainingReportStats         `json:"stats"`
 	LatestCandidateSHA256 string                      `json:"latestCandidateSha256,omitempty"`
 	Markdown              string                      `json:"markdown,omitempty"`
@@ -102,6 +103,15 @@ func BuildTrainingReport(
 	if replay.ConversationID != handoff.ConversationID {
 		return TrainingReport{}, fmt.Errorf("CTF training report replay does not match the Agent session")
 	}
+	contribution := projection.HumanOutcome.Contribution
+	if !validLearningActor(contribution.PrimaryActor) ||
+		!validLearningAssistance(contribution.Assistance) {
+		contribution = contributionForProjection(
+			projection.Challenge.CollaborationMode,
+			projection.Learning,
+			len(projection.AgentRuns) > 0 || len(projection.AgentCandidates) > 0,
+		)
+	}
 	report := TrainingReport{
 		SchemaVersion:     TrainingReportSchemaVersion,
 		GeneratedAt:       now.UTC(),
@@ -119,6 +129,7 @@ func BuildTrainingReport(
 		KeyObservations:   append([]string{}, projection.Debrief.KeyObservations...),
 		FailureBranches:   append([]string{}, projection.Debrief.FailureBranches...),
 		JudgeReceipts:     []TrainingReportJudge{},
+		Contribution:      contribution,
 		Stats: TrainingReportStats{
 			Attempts:         len(projection.Attempts),
 			Experiments:      len(projection.Experiments),
@@ -301,6 +312,8 @@ func renderTrainingReportMarkdown(report TrainingReport) string {
 	writeReportLine(&builder, "来源", report.SourceURI)
 	writeReportLine(&builder, "状态", report.Status)
 	writeReportLine(&builder, "独立 Judge 验证", map[bool]string{true: "已验证", false: "未验证"}[report.Verified])
+	writeReportLine(&builder, "主要贡献", learningActorLabel(report.Contribution.PrimaryActor))
+	writeReportLine(&builder, "协助方式", learningAssistanceLabel(report.Contribution.Assistance))
 	writeReportLine(&builder, "生成时间", report.GeneratedAt.Format(time.RFC3339))
 	if report.OutcomeSummary != "" {
 		builder.WriteString("\n## 结果\n\n")
@@ -320,7 +333,7 @@ func renderTrainingReportMarkdown(report TrainingReport) string {
 		{"证据", report.Stats.Evidence},
 		{"制品", report.Stats.Artifacts},
 		{"提示", report.Stats.Hints},
-		{"独立步骤", report.Stats.IndependentSteps},
+		{"有证据支持的用户独立步骤", report.Stats.IndependentSteps},
 		{"复盘", report.Stats.Reflections},
 		{"候选（仅记录数量与哈希）", report.Stats.Candidates},
 	} {

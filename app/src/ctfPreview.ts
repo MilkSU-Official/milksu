@@ -126,6 +126,20 @@ export function createPreviewCTFProjection(request: CTFChallengeRequest): CTFPro
       hintCount: 0,
       reflectionCount: 0,
       independentSteps: 0,
+      contribution: {
+        primaryActor: 'imported',
+        assistance: request.collaborationMode === 'coach'
+          ? 'none'
+          : request.collaborationMode === 'copilot'
+            ? 'copilot'
+            : 'delegated',
+        userRecords: 0,
+        agentRecords: 0,
+        sharedRecords: 0,
+        importedRecords: 0,
+        userIndependentSteps: 0,
+        userAssistedSteps: 0,
+      },
       summary: '训练已建立，等待第一条观察。',
     },
     debrief: {

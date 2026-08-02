@@ -54,7 +54,12 @@ func TestTrainingReportIsEvidenceBackedAndShareSafe(t *testing.T) {
 			RecordedAt: now,
 		}},
 		HumanOutcome: HumanOutcomeView{
-			HintCount: 1, IndependentSteps: 2, ReflectionCount: 1,
+			HintCount: 1, ReflectionCount: 1,
+			Contribution: TrainingContributionView{
+				PrimaryActor:      LearningActorShared,
+				Assistance:        LearningAssistanceCopilot,
+				UserAssistedSteps: 2,
+			},
 		},
 		Debrief: DebriefView{
 			KeyObservations: []string{"Recovered " + rawCandidate + " from the verified material."},
@@ -124,6 +129,8 @@ func TestTrainingReportIsEvidenceBackedAndShareSafe(t *testing.T) {
 		report.Stats.ToolCalls != 7 ||
 		len(report.Materials) != 1 ||
 		!strings.Contains(report.Markdown, "独立 Judge 验证：已验证") ||
+		!strings.Contains(report.Markdown, "主要贡献：用户与 Agent 共同完成") ||
+		!strings.Contains(report.Markdown, "协助方式：搭档协作") ||
 		report.ToolWorkshop == nil ||
 		report.ToolWorkshop.ToolCount != 1 ||
 		report.ToolWorkshop.BuilderToolCalls != 4 ||

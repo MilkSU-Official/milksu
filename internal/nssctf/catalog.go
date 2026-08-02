@@ -38,23 +38,32 @@ type AbilityDimension struct {
 	Score               int    `json:"score"`
 	Confidence          int    `json:"confidence"`
 	Attempts            int    `json:"attempts"`
+	ProfileAttempts     int    `json:"profileAttempts"`
 	Solved              int    `json:"solved"`
 	JudgeVerifiedSolved int    `json:"judgeVerifiedSolved"`
 	UserConfirmedSolved int    `json:"userConfirmedSolved"`
+	IndependentSolved   int    `json:"independentSolved"`
+	HintAssistedSolved  int    `json:"hintAssistedSolved"`
+	CopilotSolved       int    `json:"copilotSolved"`
+	DelegatedSolved     int    `json:"delegatedSolved"`
+	ImportedSolved      int    `json:"importedSolved"`
 }
 
 type TrainingSignal struct {
-	ProblemID        int
-	Platform         string
-	Category         string
-	Tags             []string
-	Difficulty       float64
-	State            string
-	Succeeded        bool
-	Attempts         int
-	Hints            int
-	IndependentSteps int
-	Verification     string
+	ProblemID         int
+	Platform          string
+	Category          string
+	Tags              []string
+	Difficulty        float64
+	State             string
+	Succeeded         bool
+	Attempts          int
+	Hints             int
+	IndependentSteps  int
+	UserAssistedSteps int
+	Verification      string
+	Actor             string
+	Assistance        string
 }
 
 const (
@@ -66,6 +75,16 @@ const (
 	TrainingVerificationPlatformJudge = "platform-judge"
 	TrainingVerificationUserConfirmed = "user-confirmed"
 	TrainingVerificationUnverified    = "unverified"
+
+	TrainingActorUser     = "user"
+	TrainingActorAgent    = "agent"
+	TrainingActorShared   = "shared"
+	TrainingActorImported = "imported"
+
+	TrainingAssistanceNone      = "none"
+	TrainingAssistanceHint      = "hint"
+	TrainingAssistanceCopilot   = "copilot"
+	TrainingAssistanceDelegated = "delegated"
 )
 
 type TrainingSourceSummary struct {
@@ -588,7 +607,7 @@ func (s *CatalogService) Dashboard(ctx context.Context, signals []TrainingSignal
 	calibratedDimensions := 0
 	for _, dimension := range dimensions {
 		overallConfidence += dimension.Confidence
-		if dimension.Attempts > 0 {
+		if dimension.ProfileAttempts > 0 {
 			overall += dimension.Score
 			calibratedDimensions++
 		}
@@ -905,10 +924,13 @@ func buildAbilityDimensions(signals []TrainingSignal, problems []CatalogProblem)
 		tagsByID[problem.PlatformID] = problem.Tags
 	}
 	type aggregate struct {
-		attempts, solved, hints, independent     int
-		judgeVerifiedSolved, userConfirmedSolved int
-		difficultySamples                        int
-		solvedDifficulty, weightedSolved         float64
+		attempts, profileAttempts, solved              int
+		hints, independent                             int
+		judgeVerifiedSolved, userConfirmedSolved       int
+		independentSolved, hintAssistedSolved          int
+		copilotSolved, delegatedSolved, importedSolved int
+		difficultySamples                              int
+		solvedDifficulty, weightedSolved               float64
 	}
 	values := make(map[string]*aggregate)
 	for _, axis := range abilityAxes {
@@ -926,29 +948,53 @@ func buildAbilityDimensions(signals []TrainingSignal, problems []CatalogProblem)
 		}
 		attempts := max(1, signal.Attempts)
 		value.attempts += attempts
-		value.hints += signal.Hints
-		value.independent += signal.IndependentSteps
+		contributionWeight := trainingContributionWeight(signal)
+		if contributionWeight > 0 {
+			value.profileAttempts += attempts
+			value.hints += max(0, signal.Hints)
+			value.independent += max(0, signal.IndependentSteps)
+		}
 		if signal.Succeeded {
 			value.solved++
+			switch {
+			case signal.Actor == TrainingActorUser &&
+				signal.Assistance == TrainingAssistanceNone &&
+				signal.IndependentSteps > 0:
+				value.independentSolved++
+			case signal.Actor == TrainingActorUser &&
+				signal.Assistance == TrainingAssistanceHint &&
+				signal.UserAssistedSteps > 0:
+				value.hintAssistedSolved++
+			case signal.Actor == TrainingActorShared &&
+				signal.Assistance == TrainingAssistanceCopilot &&
+				signal.UserAssistedSteps > 0:
+				value.copilotSolved++
+			case signal.Actor == TrainingActorAgent ||
+				(signal.Actor != TrainingActorImported &&
+					signal.Assistance == TrainingAssistanceDelegated):
+				value.delegatedSolved++
+			default:
+				value.importedSolved++
+			}
+			correctnessWeight := 0.6
 			switch signal.Verification {
 			case TrainingVerificationPlatformJudge:
 				value.judgeVerifiedSolved++
-				value.weightedSolved += 1
+				correctnessWeight = 1
 			case TrainingVerificationUserConfirmed:
 				value.userConfirmedSolved++
-				value.weightedSolved += 0.8
-			default:
-				// Older or imported records without typed Judge provenance can
-				// still contribute, but never at platform-receipt strength.
-				value.weightedSolved += 0.6
+				correctnessWeight = 0.8
 			}
-			difficulty := signal.Difficulty
-			if difficulty <= 0 {
-				difficulty = difficultyByID[signal.ProblemID]
-			}
-			if difficulty > 0 {
-				value.solvedDifficulty += difficulty
-				value.difficultySamples++
+			value.weightedSolved += correctnessWeight * contributionWeight
+			if contributionWeight > 0 {
+				difficulty := signal.Difficulty
+				if difficulty <= 0 {
+					difficulty = difficultyByID[signal.ProblemID]
+				}
+				if difficulty > 0 {
+					value.solvedDifficulty += difficulty * contributionWeight
+					value.difficultySamples++
+				}
 			}
 		}
 	}
@@ -956,8 +1002,8 @@ func buildAbilityDimensions(signals []TrainingSignal, problems []CatalogProblem)
 	for _, axis := range abilityAxes {
 		value := values[axis.Key]
 		score := 20
-		if value.attempts > 0 {
-			successRate := value.weightedSolved / float64(value.attempts)
+		if value.profileAttempts > 0 {
+			successRate := value.weightedSolved / float64(value.profileAttempts)
 			averageDifficulty := 0.0
 			if value.difficultySamples > 0 {
 				averageDifficulty = value.solvedDifficulty / float64(value.difficultySamples)
@@ -966,7 +1012,7 @@ func buildAbilityDimensions(signals []TrainingSignal, problems []CatalogProblem)
 				float64(value.independent+value.hints+2)
 			score = int(math.Round(
 				18 +
-					math.Min(18, math.Log1p(float64(value.attempts))*7) +
+					math.Min(18, math.Log1p(float64(value.profileAttempts))*7) +
 					successRate*30 +
 					math.Min(24, averageDifficulty/5*24) +
 					independence*10,
@@ -975,13 +1021,41 @@ func buildAbilityDimensions(signals []TrainingSignal, problems []CatalogProblem)
 		}
 		result = append(result, AbilityDimension{
 			Key: axis.Key, Label: axis.Label, Score: score,
-			Confidence: min(100, value.attempts*14),
-			Attempts:   value.attempts, Solved: value.solved,
+			Confidence:          min(100, value.profileAttempts*14),
+			Attempts:            value.attempts,
+			ProfileAttempts:     value.profileAttempts,
+			Solved:              value.solved,
 			JudgeVerifiedSolved: value.judgeVerifiedSolved,
 			UserConfirmedSolved: value.userConfirmedSolved,
+			IndependentSolved:   value.independentSolved,
+			HintAssistedSolved:  value.hintAssistedSolved,
+			CopilotSolved:       value.copilotSolved,
+			DelegatedSolved:     value.delegatedSolved,
+			ImportedSolved:      value.importedSolved,
 		})
 	}
 	return result
+}
+
+func trainingContributionWeight(signal TrainingSignal) float64 {
+	switch {
+	case signal.Actor == TrainingActorUser &&
+		signal.Assistance == TrainingAssistanceNone &&
+		signal.IndependentSteps > 0:
+		return 1
+	case signal.Actor == TrainingActorUser &&
+		signal.Assistance == TrainingAssistanceHint &&
+		signal.UserAssistedSteps > 0:
+		return 0.75
+	case signal.Actor == TrainingActorShared &&
+		signal.Assistance == TrainingAssistanceCopilot &&
+		signal.UserAssistedSteps > 0:
+		return 0.45
+	default:
+		// Agent-delegated and imported/unknown outcomes remain correctness
+		// evidence and reusable Memory, but never become user ability facts.
+		return 0
+	}
 }
 
 func buildRecommendations(

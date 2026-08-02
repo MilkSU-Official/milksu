@@ -45,9 +45,15 @@ export interface CTFAbilityDimension {
   score: number
   confidence: number
   attempts: number
+  profileAttempts: number
   solved: number
   judgeVerifiedSolved: number
   userConfirmedSolved: number
+  independentSolved: number
+  hintAssistedSolved: number
+  copilotSolved: number
+  delegatedSolved: number
+  importedSolved: number
 }
 
 export interface CTFTrainingSourceSummary {

@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	TrainingMemorySchemaVersion = "ctf-memory.milksu.dev/v1alpha2"
+	TrainingMemorySchemaVersion = "ctf-memory.milksu.dev/v1alpha3"
 
 	// SupportedCTFMemoryDatabaseVersion is the numbered SQLite migration
 	// version recorded in schema_migrations. It is independent of
@@ -48,6 +48,8 @@ type TrainingMemory struct {
 	SchemaVersion   string                     `json:"schemaVersion"`
 	Kind            string                     `json:"kind"`
 	Verification    TrainingMemoryVerification `json:"verification"`
+	Actor           LearningActor              `json:"actor"`
+	Assistance      LearningAssistance         `json:"assistance"`
 	Title           string                     `json:"title"`
 	Summary         string                     `json:"summary"`
 	Category        string                     `json:"category"`
@@ -233,9 +235,33 @@ func (s *MemoryStore) SaveFromProjection(
 	if projection.Debrief.Status == "" || projection.Debrief.Status == "in_progress" {
 		return TrainingMemory{}, fmt.Errorf("题目尚未结束；先取得 Judge 结果或结束本次尝试，再沉淀为记忆")
 	}
-	if projection.HumanOutcome.ReflectionCount == 0 {
+	normalizedLearning := make([]LearningRecord, 0, len(projection.Learning))
+	hasUserReflection := false
+	for _, record := range projection.Learning {
+		normalized, valid := normalizeLearningAttribution(
+			record,
+			projection.Challenge.CollaborationMode,
+		)
+		if !valid {
+			return TrainingMemory{}, fmt.Errorf("CTF memory source has invalid learning attribution")
+		}
+		normalizedLearning = append(normalizedLearning, normalized)
+		if normalized.Kind == "reflection" &&
+			normalized.Actor == LearningActorUser {
+			hasUserReflection = true
+		}
+	}
+	if !hasUserReflection {
 		return TrainingMemory{}, fmt.Errorf("先用自己的话完成一次复盘，再沉淀为记忆")
 	}
+	projection.Learning = normalizedLearning
+	contribution := contributionForProjection(
+		projection.Challenge.CollaborationMode,
+		projection.Learning,
+		len(projection.AgentRuns) > 0 || len(projection.AgentCandidates) > 0,
+	)
+	projection.HumanOutcome.Contribution = contribution
+	projection.HumanOutcome.IndependentSteps = contribution.UserIndependentSteps
 	now = now.UTC()
 	memoryID := ""
 	createdAt := now
@@ -294,6 +320,8 @@ func (s *MemoryStore) SaveFromProjection(
 		SchemaVersion:   TrainingMemorySchemaVersion,
 		Kind:            kind,
 		Verification:    verification,
+		Actor:           contribution.PrimaryActor,
+		Assistance:      contribution.Assistance,
 		Title:           title,
 		Summary:         truncateRunes(summary, 1200),
 		Category:        strings.ToLower(strings.TrimSpace(projection.Challenge.Category)),
@@ -505,7 +533,8 @@ func (s *MemoryStore) Archive(ctx context.Context, id, reason string, now time.T
 func WriteAgentMemoryContext(workspacePath string, memories []TrainingMemory) error {
 	var builder strings.Builder
 	builder.WriteString("# 可复用训练记忆\n\n")
-	builder.WriteString("这些是过去训练中由用户明确保存的结论缓存，不是当前题目的事实或最终答案。")
+	builder.WriteString("这些是过去训练中由用户明确保存的经验缓存，不是当前题目的事实或最终答案。")
+	builder.WriteString("每条记忆分别标注正确性证据和实际贡献归属；Agent 代做不会变成用户能力事实。")
 	builder.WriteString("使用前必须用当前题面、附件和实验重新验证；不要复制过去的 Flag 或秘密。\n")
 	if len(memories) == 0 {
 		builder.WriteString("\n当前没有匹配本题分类的已保存记忆。\n")
@@ -519,6 +548,10 @@ func WriteAgentMemoryContext(workspacePath string, memories []TrainingMemory) er
 			builder.WriteString(memory.Kind)
 			builder.WriteString("\n- 验证等级：")
 			builder.WriteString(trainingMemoryVerificationLabel(memory.Verification))
+			builder.WriteString("\n- 主要贡献：")
+			builder.WriteString(learningActorLabel(memory.Actor))
+			builder.WriteString("\n- 协助方式：")
+			builder.WriteString(learningAssistanceLabel(memory.Assistance))
 			builder.WriteString("\n- 置信度：")
 			builder.WriteString(fmt.Sprintf("%.2f", memory.Confidence))
 			builder.WriteString("\n- 标签：")
@@ -573,6 +606,11 @@ func scanTrainingMemory(scanner memoryScanner) (TrainingMemory, error) {
 	if err := json.Unmarshal([]byte(refsJSON), &memory.EvidenceRefs); err != nil {
 		return TrainingMemory{}, fmt.Errorf("decode CTF memory evidence refs: %w", err)
 	}
+	// Attribution remains a projection of the append-only source job during
+	// pre-release feature work. The existing memory table is intentionally
+	// unchanged until the final destructive schema consolidation.
+	memory.Actor = LearningActorImported
+	memory.Assistance = LearningAssistanceDelegated
 	memory.CreatedAt, _ = time.Parse(time.RFC3339Nano, createdAt)
 	memory.UpdatedAt, _ = time.Parse(time.RFC3339Nano, updatedAt)
 	if archivedAt != "" {
@@ -609,6 +647,32 @@ func trainingMemoryVerificationLabel(value TrainingMemoryVerification) string {
 	}
 }
 
+func learningActorLabel(value LearningActor) string {
+	switch value {
+	case LearningActorUser:
+		return "用户"
+	case LearningActorAgent:
+		return "Agent"
+	case LearningActorShared:
+		return "用户与 Agent 共同完成"
+	default:
+		return "旧记录或导入记录，贡献者不可追溯"
+	}
+}
+
+func learningAssistanceLabel(value LearningAssistance) string {
+	switch value {
+	case LearningAssistanceNone:
+		return "无协助"
+	case LearningAssistanceHint:
+		return "依赖提示"
+	case LearningAssistanceCopilot:
+		return "搭档协作"
+	default:
+		return "代理完成"
+	}
+}
+
 func renderTrainingMemory(
 	memory TrainingMemory,
 	projection Projection,
@@ -619,10 +683,14 @@ func renderTrainingMemory(
 	builder.WriteString(memory.Title)
 	builder.WriteString("\n\n")
 	builder.WriteString(memory.Summary)
-	builder.WriteString("\n\n## 可信度\n\n- 验证等级：")
+	builder.WriteString("\n\n## 正确性证据\n\n- 验证等级：")
 	builder.WriteString(trainingMemoryVerificationLabel(memory.Verification))
 	builder.WriteString("\n- 置信度：")
 	builder.WriteString(fmt.Sprintf("%.2f", memory.Confidence))
+	builder.WriteString("\n\n## 贡献归属\n\n- 主要贡献：")
+	builder.WriteString(learningActorLabel(memory.Actor))
+	builder.WriteString("\n- 协助方式：")
+	builder.WriteString(learningAssistanceLabel(memory.Assistance))
 	builder.WriteString("\n\n## 关键观察\n")
 	writeMemoryBullets(&builder, projection.Debrief.KeyObservations, redact)
 	builder.WriteString("\n## 已证伪或失败分支\n")
@@ -630,7 +698,8 @@ func renderTrainingMemory(
 	builder.WriteString("\n## 学习者复盘\n")
 	reflections := make([]string, 0, len(projection.Learning))
 	for _, record := range projection.Learning {
-		if record.Kind == "reflection" {
+		if record.Kind == "reflection" &&
+			record.Actor == LearningActorUser {
 			reflections = append(reflections, record.Content)
 		}
 	}

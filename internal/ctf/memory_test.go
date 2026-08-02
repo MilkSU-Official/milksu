@@ -82,6 +82,8 @@ func TestTrainingMemoryPersistsApprovedSynthesisWithoutCandidateSecrets(t *testi
 	}
 	if memory.Kind != "technique" ||
 		memory.Verification != TrainingMemoryJudgeVerified ||
+		memory.Actor != LearningActorUser ||
+		memory.Assistance != LearningAssistanceNone ||
 		memory.Confidence != 1 {
 		t.Fatalf("unexpected verified memory classification: %#v", memory)
 	}
@@ -148,6 +150,7 @@ func TestTrainingMemoryRequiresEvidenceAndCanBeArchived(t *testing.T) {
 	unreflected := memoryFixtureProjection()
 	unreflected.HumanOutcome.ReflectionCount = 0
 	unreflected.Debrief.ReflectionCount = 0
+	unreflected.Learning = nil
 	if _, err := store.SaveFromProjection(
 		context.Background(),
 		unreflected,
@@ -155,6 +158,22 @@ func TestTrainingMemoryRequiresEvidenceAndCanBeArchived(t *testing.T) {
 		time.Now(),
 	); err == nil || !strings.Contains(err.Error(), "完成一次复盘") {
 		t.Fatalf("unreflected training memory was accepted or returned an unclear error: %v", err)
+	}
+
+	agentReflected := memoryFixtureProjection()
+	for index := range agentReflected.Learning {
+		if agentReflected.Learning[index].Kind == "reflection" {
+			agentReflected.Learning[index].Actor = LearningActorAgent
+			agentReflected.Learning[index].Assistance = LearningAssistanceDelegated
+		}
+	}
+	if _, err := store.SaveFromProjection(
+		context.Background(),
+		agentReflected,
+		"",
+		time.Now(),
+	); err == nil || !strings.Contains(err.Error(), "用自己的话") {
+		t.Fatalf("agent-authored reflection unlocked learner memory: %v", err)
 	}
 
 	memory, err := store.SaveFromProjection(
@@ -658,10 +677,11 @@ func memoryFixtureProjection() Projection {
 	return Projection{
 		Job: securityruntime.Job{ID: "job_memory"},
 		Challenge: ChallengeView{
-			ID:              "challenge_memory",
-			Title:           "Endian parser",
-			Category:        "pwn",
-			KnowledgePoints: []string{"endianness", "length field"},
+			ID:                "challenge_memory",
+			Title:             "Endian parser",
+			Category:          "pwn",
+			CollaborationMode: "coach",
+			KnowledgePoints:   []string{"endianness", "length field"},
 		},
 		AgentCandidates: []AgentCandidate{{
 			Candidate: "NSSCTF{secret-candidate}",
@@ -669,10 +689,20 @@ func memoryFixtureProjection() Projection {
 		Submissions: []SubmissionView{{
 			Candidate: "NSSCTF{secret-candidate}",
 		}},
-		Learning: []LearningRecord{{
-			Kind:    "reflection",
-			Content: "下次我会先确认字节序，再推长度字段；不要保存 sk-abcdefghijklmnop。",
-		}},
+		Learning: []LearningRecord{
+			{
+				Kind:       "independent_step",
+				Actor:      LearningActorUser,
+				Assistance: LearningAssistanceNone,
+				Content:    "我先确认了字节序，再推导长度字段。",
+			},
+			{
+				Kind:       "reflection",
+				Actor:      LearningActorUser,
+				Assistance: LearningAssistanceNone,
+				Content:    "下次我会先确认字节序，再推长度字段；不要保存 sk-abcdefghijklmnop。",
+			},
+		},
 		HumanOutcome: HumanOutcomeView{
 			ReflectionCount: 1,
 			Summary:         "完成一次复盘。",

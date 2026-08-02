@@ -387,6 +387,8 @@ func TestCatalogSyncAndDashboard(t *testing.T) {
 		ProblemID: 101, Platform: "nssctf-web", Category: "Web", Succeeded: true,
 		Attempts: 1, IndependentSteps: 2,
 		Verification: TrainingVerificationPlatformJudge,
+		Actor:        TrainingActorUser,
+		Assistance:   TrainingAssistanceNone,
 	}})
 	if err != nil {
 		t.Fatalf("build dashboard: %v", err)
@@ -606,13 +608,17 @@ func TestCrossPlatformAbilityUsesTagsWithoutPollutingCatalogProgress(t *testing.
 	signals := []TrainingSignal{
 		{
 			ProblemID: 1, Platform: "nssctf-web", Category: "Web",
-			Succeeded: true, Attempts: 1,
+			Succeeded: true, Attempts: 1, IndependentSteps: 1,
 			Verification: TrainingVerificationPlatformJudge,
+			Actor:        TrainingActorUser,
+			Assistance:   TrainingAssistanceNone,
 		},
 		{
 			Platform: "ctfshow-web", Category: "Misc", Tags: []string{"pcap", "流量分析"},
 			Succeeded: true, Attempts: 1, IndependentSteps: 2,
 			Verification: TrainingVerificationUserConfirmed,
+			Actor:        TrainingActorUser,
+			Assistance:   TrainingAssistanceNone,
 		},
 	}
 	dimensions := buildAbilityDimensions(signals, problems)
@@ -660,25 +666,113 @@ func TestJudgeVerifiedSolveScoresHigherThanUserConfirmedSolve(t *testing.T) {
 		Difficulty: 3,
 	}}
 	verified := buildAbilityDimensions([]TrainingSignal{{
-		ProblemID:    1,
-		Platform:     "nssctf-web",
-		Category:     "Web",
-		Succeeded:    true,
-		Attempts:     1,
-		Verification: TrainingVerificationPlatformJudge,
+		ProblemID:        1,
+		Platform:         "nssctf-web",
+		Category:         "Web",
+		Succeeded:        true,
+		Attempts:         1,
+		IndependentSteps: 1,
+		Verification:     TrainingVerificationPlatformJudge,
+		Actor:            TrainingActorUser,
+		Assistance:       TrainingAssistanceNone,
 	}}, problems)[0]
 	confirmed := buildAbilityDimensions([]TrainingSignal{{
-		ProblemID:    1,
-		Platform:     "nssctf-web",
-		Category:     "Web",
-		Succeeded:    true,
-		Attempts:     1,
-		Verification: TrainingVerificationUserConfirmed,
+		ProblemID:        1,
+		Platform:         "nssctf-web",
+		Category:         "Web",
+		Succeeded:        true,
+		Attempts:         1,
+		IndependentSteps: 1,
+		Verification:     TrainingVerificationUserConfirmed,
+		Actor:            TrainingActorUser,
+		Assistance:       TrainingAssistanceNone,
 	}}, problems)[0]
 	if verified.Score <= confirmed.Score ||
 		verified.JudgeVerifiedSolved != 1 ||
 		confirmed.UserConfirmedSolved != 1 {
 		t.Fatalf("Judge provenance did not affect ability confidence: verified=%#v confirmed=%#v", verified, confirmed)
+	}
+}
+
+func TestAbilityProfileSeparatesCorrectnessFromContribution(t *testing.T) {
+	problems := []CatalogProblem{{
+		PlatformID: 1,
+		Category:   "Web",
+		Difficulty: 3,
+	}}
+	delegated := buildAbilityDimensions([]TrainingSignal{{
+		ProblemID:    1,
+		Category:     "Web",
+		Succeeded:    true,
+		Attempts:     1,
+		Verification: TrainingVerificationPlatformJudge,
+		Actor:        TrainingActorAgent,
+		Assistance:   TrainingAssistanceDelegated,
+	}}, problems)[0]
+	if delegated.JudgeVerifiedSolved != 1 ||
+		delegated.Solved != 1 ||
+		delegated.DelegatedSolved != 1 ||
+		delegated.IndependentSolved != 0 ||
+		delegated.ProfileAttempts != 0 ||
+		delegated.Confidence != 0 ||
+		delegated.Score != 20 {
+		t.Fatalf("delegate correctness changed the user ability profile: %+v", delegated)
+	}
+
+	inconsistentAgent := buildAbilityDimensions([]TrainingSignal{{
+		ProblemID:         1,
+		Category:          "Web",
+		Succeeded:         true,
+		Attempts:          1,
+		UserAssistedSteps: 1,
+		Actor:             TrainingActorAgent,
+		Assistance:        TrainingAssistanceCopilot,
+	}}, problems)[0]
+	if inconsistentAgent.CopilotSolved != 0 ||
+		inconsistentAgent.DelegatedSolved != 1 ||
+		inconsistentAgent.ProfileAttempts != 0 {
+		t.Fatalf("inconsistent Agent attribution became user copilot evidence: %+v", inconsistentAgent)
+	}
+
+	unprovenCoach := buildAbilityDimensions([]TrainingSignal{{
+		ProblemID:    1,
+		Category:     "Web",
+		Succeeded:    true,
+		Attempts:     1,
+		Verification: TrainingVerificationPlatformJudge,
+		Actor:        TrainingActorUser,
+		Assistance:   TrainingAssistanceNone,
+	}}, problems)[0]
+	if unprovenCoach.JudgeVerifiedSolved != 1 ||
+		unprovenCoach.ImportedSolved != 1 ||
+		unprovenCoach.ProfileAttempts != 0 {
+		t.Fatalf("mode selection without an explicit user step became ability evidence: %+v", unprovenCoach)
+	}
+}
+
+func TestAbilityProfileKeepsIndependentHintAndCopilotBucketsDistinct(t *testing.T) {
+	problems := []CatalogProblem{{PlatformID: 1, Category: "Crypto", Difficulty: 2}}
+	dimension := buildAbilityDimensions([]TrainingSignal{
+		{
+			ProblemID: 1, Category: "Crypto", Succeeded: true, Attempts: 1,
+			IndependentSteps: 1, Actor: TrainingActorUser, Assistance: TrainingAssistanceNone,
+		},
+		{
+			Category: "Crypto", Succeeded: true, Attempts: 1,
+			UserAssistedSteps: 1, Actor: TrainingActorUser, Assistance: TrainingAssistanceHint,
+		},
+		{
+			Category: "Crypto", Succeeded: true, Attempts: 1,
+			UserAssistedSteps: 1, Actor: TrainingActorShared, Assistance: TrainingAssistanceCopilot,
+		},
+	}, problems)[3]
+	if dimension.IndependentSolved != 1 ||
+		dimension.HintAssistedSolved != 1 ||
+		dimension.CopilotSolved != 1 ||
+		dimension.DelegatedSolved != 0 ||
+		dimension.ImportedSolved != 0 ||
+		dimension.ProfileAttempts != 3 {
+		t.Fatalf("ability contribution buckets were conflated: %+v", dimension)
 	}
 }
 
@@ -786,10 +880,17 @@ func TestUnknownCrossPlatformDifficultyDoesNotDiluteKnownSolveDifficulty(t *test
 	}}
 	knownOnly := buildAbilityDimensions([]TrainingSignal{{
 		ProblemID: 1, Category: "Web", Succeeded: true, Attempts: 1,
+		IndependentSteps: 1, Actor: TrainingActorUser, Assistance: TrainingAssistanceNone,
 	}}, problems)[0]
 	withUnknown := buildAbilityDimensions([]TrainingSignal{
-		{ProblemID: 1, Category: "Web", Succeeded: true, Attempts: 1},
-		{Platform: "hackthebox", Category: "Web", Succeeded: true, Attempts: 1},
+		{
+			ProblemID: 1, Category: "Web", Succeeded: true, Attempts: 1,
+			IndependentSteps: 1, Actor: TrainingActorUser, Assistance: TrainingAssistanceNone,
+		},
+		{
+			Platform: "hackthebox", Category: "Web", Succeeded: true, Attempts: 1,
+			IndependentSteps: 1, Actor: TrainingActorUser, Assistance: TrainingAssistanceNone,
+		},
 	}, problems)[0]
 	if withUnknown.Score < knownOnly.Score {
 		t.Fatalf(

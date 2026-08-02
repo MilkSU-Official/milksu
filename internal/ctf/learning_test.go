@@ -94,8 +94,25 @@ func TestCoachModeRecordsOneHintAndWaitsForLearner(t *testing.T) {
 	if len(projection.Learning) != 1 || projection.Learning[0].Kind != "hint" || projection.HumanOutcome.HintCount != 1 {
 		t.Fatalf("expected one projected hint, got learning=%+v humanOutcome=%+v", projection.Learning, projection.HumanOutcome)
 	}
+	if projection.Learning[0].Actor != LearningActorAgent ||
+		projection.Learning[0].Assistance != LearningAssistanceHint ||
+		projection.HumanOutcome.Contribution.PrimaryActor != LearningActorImported ||
+		projection.HumanOutcome.IndependentSteps != 0 {
+		t.Fatalf("agent hint was misattributed as learner ability: %+v", projection)
+	}
 	if projection.Challenge.Source.Kind != "url" || len(projection.Challenge.Source.Scope.Targets) != 1 || projection.Challenge.Source.Scope.Targets[0].Value != "https://ctf.example" {
 		t.Fatalf("expected an exact normalized source grant, got %+v", projection.Challenge.Source)
+	}
+
+	projection, err = service.RecordLearning(context.Background(), started.Job.ID, LearningRecordRequest{
+		Kind: "observation", Content: "The payload has an even number of hexadecimal digits.", Concept: "encoding",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if projection.HumanOutcome.ReflectionCount != 0 ||
+		projection.Learning[len(projection.Learning)-1].Actor != LearningActorUser {
+		t.Fatalf("live user observation was mistaken for a completed reflection: %+v", projection)
 	}
 
 	projection, err = service.RecordLearning(context.Background(), started.Job.ID, LearningRecordRequest{
@@ -106,6 +123,22 @@ func TestCoachModeRecordsOneHintAndWaitsForLearner(t *testing.T) {
 	}
 	if projection.HumanOutcome.ReflectionCount != 1 || projection.HumanOutcome.HintCount != 1 {
 		t.Fatalf("expected hint and reflection to remain independently projected, got %+v", projection.HumanOutcome)
+	}
+	if reflection := projection.Learning[len(projection.Learning)-1]; reflection.Actor != LearningActorUser ||
+		reflection.Assistance != LearningAssistanceHint {
+		t.Fatalf("user reflection lost the prior hint dependency: %+v", reflection)
+	}
+	projection, err = service.RecordLearning(context.Background(), started.Job.ID, LearningRecordRequest{
+		Kind: "independent_step", Content: "I decoded 41 as one byte and verified the output.", Concept: "encoding",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if projection.HumanOutcome.IndependentSteps != 0 ||
+		projection.HumanOutcome.Contribution.UserAssistedSteps != 1 ||
+		projection.HumanOutcome.Contribution.PrimaryActor != LearningActorUser ||
+		projection.HumanOutcome.Contribution.Assistance != LearningAssistanceHint {
+		t.Fatalf("hint-assisted user step was mislabeled as independent: %+v", projection.HumanOutcome)
 	}
 	coreProjection, err := core.GetJob(context.Background(), started.Job.ID)
 	if err != nil {
@@ -126,6 +159,10 @@ func TestCoachModeRecordsOneHintAndWaitsForLearner(t *testing.T) {
 	foundReflection := false
 	for _, record := range roleState.Learning {
 		if record.Kind == "reflection" && strings.Contains(record.Content, "one byte") {
+			if record.Actor != LearningActorUser ||
+				record.Assistance != LearningAssistanceHint {
+				t.Fatalf("Agent state lost learning attribution: %+v", record)
+			}
 			foundReflection = true
 		}
 	}
@@ -187,6 +224,51 @@ func TestExternalJudgeRequiresUserReviewBeforeSuccess(t *testing.T) {
 	}
 	if projection.Job.Status != securityruntime.JobSucceeded || projection.Outcome == nil || len(projection.Evaluations) != 2 || projection.Evaluations[1].Verdict != securityruntime.VerdictPass {
 		t.Fatalf("expected user-confirmed external success, got status=%s outcome=%+v evaluations=%+v", projection.Job.Status, projection.Outcome, projection.Evaluations)
+	}
+}
+
+func TestExternalTerminalObservationDoesNotBecomeUserAbility(t *testing.T) {
+	core, err := securityruntime.NewService(t.TempDir(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewService(core, ServiceOptions{Engine: submissionEngine{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = service.Close()
+		_ = core.Close()
+	})
+
+	started, err := service.StartChallenge(context.Background(), ChallengeRequest{
+		Title:             "External terminal attribution",
+		Statement:         "Record the authorized platform result.",
+		Category:          "misc",
+		CollaborationMode: "delegate",
+		ExternalPlatform:  "nssctf-web",
+		ExternalAttemptID: 42,
+		DeferAgent:        true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	finished, err := service.FinishExternalChallenge(
+		context.Background(),
+		started.Job.ID,
+		"Platform attempt expired.",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(finished.Learning) != 1 ||
+		finished.Learning[0].Kind != "judge_observation" ||
+		finished.Learning[0].Actor != LearningActorImported ||
+		finished.HumanOutcome.IndependentSteps != 0 ||
+		finished.HumanOutcome.Contribution.UserIndependentSteps != 0 ||
+		finished.HumanOutcome.Contribution.UserRecords != 0 ||
+		finished.HumanOutcome.Contribution.PrimaryActor != LearningActorImported {
+		t.Fatalf("platform terminal event became user ability evidence: %+v", finished)
 	}
 }
 

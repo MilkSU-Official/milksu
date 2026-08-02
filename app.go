@@ -907,6 +907,14 @@ func realTrainingSignal(projection ctf.Projection) (nssctf.TrainingSignal, bool)
 			}
 		}
 	}
+	actor := string(projection.HumanOutcome.Contribution.PrimaryActor)
+	assistance := string(projection.HumanOutcome.Contribution.Assistance)
+	if actor == "" || assistance == "" {
+		// A missing typed contribution is unknown evidence, not permission to
+		// infer user ability from the selected collaboration mode.
+		actor = nssctf.TrainingActorImported
+		assistance = nssctf.TrainingAssistanceDelegated
+	}
 	return nssctf.TrainingSignal{
 		ProblemID: problemID,
 		Platform:  platform,
@@ -916,10 +924,13 @@ func realTrainingSignal(projection ctf.Projection) (nssctf.TrainingSignal, bool)
 		Succeeded: succeeded,
 		// A persisted CTF job is one learner attempt. Runtime/PI restarts inside
 		// the job are execution details and must not lower the learner's solve rate.
-		Attempts:         1,
-		Hints:            projection.HumanOutcome.HintCount,
-		IndependentSteps: projection.HumanOutcome.IndependentSteps,
-		Verification:     verification,
+		Attempts:          1,
+		Hints:             projection.HumanOutcome.HintCount,
+		IndependentSteps:  projection.HumanOutcome.IndependentSteps,
+		UserAssistedSteps: projection.HumanOutcome.Contribution.UserAssistedSteps,
+		Verification:      verification,
+		Actor:             actor,
+		Assistance:        assistance,
 	}, true
 }
 
@@ -1040,6 +1051,7 @@ func (a *App) PrepareCTFAgentWorkspace(id string) (ctf.AgentWorkspaceHandoff, er
 		if recallErr != nil {
 			return ctf.AgentWorkspaceHandoff{}, recallErr
 		}
+		memories = a.attributeCTFMemories(memories)
 		if err := ctf.WriteAgentMemoryContext(handoff.WorkspacePath, memories); err != nil {
 			return ctf.AgentWorkspaceHandoff{}, err
 		}
@@ -1088,6 +1100,7 @@ func (a *App) SaveCTFTrainingMemory(id string) (ctf.TrainingMemory, error) {
 				5,
 			)
 			if recallErr == nil {
+				memories = a.attributeCTFMemories(memories)
 				_ = ctf.WriteAgentMemoryContext(workspacePath, memories)
 			}
 		}
@@ -1099,7 +1112,11 @@ func (a *App) ListCTFMemories(category, query string) ([]ctf.TrainingMemory, err
 	if a.ctfMemory == nil {
 		return nil, fmt.Errorf("CTF memory store is unavailable")
 	}
-	return a.ctfMemory.Recall(a.commandContext(), category, query, 20)
+	memories, err := a.ctfMemory.Recall(a.commandContext(), category, query, 20)
+	if err != nil {
+		return nil, err
+	}
+	return a.attributeCTFMemories(memories), nil
 }
 
 func (a *App) GetCTFMemoryContext(id string) ([]ctf.TrainingMemory, error) {
@@ -1110,7 +1127,7 @@ func (a *App) GetCTFMemoryContext(id string) ([]ctf.TrainingMemory, error) {
 	if err != nil {
 		return nil, err
 	}
-	return a.ctfMemory.RecallForChallenge(
+	memories, err := a.ctfMemory.RecallForChallenge(
 		a.commandContext(),
 		ctf.TrainingMemoryRecallContext{
 			Category:        projection.Challenge.Category,
@@ -1120,6 +1137,34 @@ func (a *App) GetCTFMemoryContext(id string) ([]ctf.TrainingMemory, error) {
 		},
 		5,
 	)
+	if err != nil {
+		return nil, err
+	}
+	return a.attributeCTFMemories(memories), nil
+}
+
+// attributeCTFMemories derives contributor metadata from the append-only
+// source projection. It deliberately leaves the existing pre-release memory
+// table unchanged; missing source evidence remains conservatively imported.
+func (a *App) attributeCTFMemories(memories []ctf.TrainingMemory) []ctf.TrainingMemory {
+	result := append([]ctf.TrainingMemory{}, memories...)
+	for index := range result {
+		projection, err := a.ctfJobs.GetJob(
+			a.commandContext(),
+			result[index].SourceJobID,
+		)
+		if err != nil {
+			continue
+		}
+		contribution := projection.HumanOutcome.Contribution
+		if contribution.PrimaryActor != "" {
+			result[index].Actor = contribution.PrimaryActor
+		}
+		if contribution.Assistance != "" {
+			result[index].Assistance = contribution.Assistance
+		}
+	}
+	return result
 }
 
 func (a *App) ArchiveCTFMemory(id, reason string) error {

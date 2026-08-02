@@ -221,9 +221,19 @@ func (s *Service) FinishExternalChallenge(ctx context.Context, jobID, summary st
 	if summary == "" {
 		summary = "外部平台已结束本次题目，未记录成功结果。"
 	}
-	if _, err := s.RecordLearning(ctx, jobID, LearningRecordRequest{
-		Kind: "independent_step", Content: summary, Concept: "外部平台终态",
-	}); err != nil {
+	projection, err := s.GetJob(ctx, jobID)
+	if err != nil {
+		return Projection{}, err
+	}
+	if _, err := s.recordAttributedLearning(
+		ctx,
+		projection,
+		LearningRecordRequest{
+			Kind: "judge_observation", Content: summary, Concept: "外部平台终态",
+		},
+		LearningActorImported,
+		assistanceForMode(challenge.CollaborationMode),
+	); err != nil {
 		return Projection{}, err
 	}
 	if err := s.runtime.DecideOutcome(ctx, securityruntime.EventScope{JobID: jobID}, securityruntime.Outcome{

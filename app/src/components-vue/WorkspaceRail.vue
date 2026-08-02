@@ -47,6 +47,22 @@ const abilitySourceText = computed(() => {
   }).join(' · ')
 })
 
+const contributionTotals = computed(() => (
+  (props.ctfDashboard?.dimensions ?? []).reduce((total, dimension) => ({
+    independent: total.independent + dimension.independentSolved,
+    hint: total.hint + dimension.hintAssistedSolved,
+    copilot: total.copilot + dimension.copilotSolved,
+    delegated: total.delegated + dimension.delegatedSolved,
+    imported: total.imported + dimension.importedSolved,
+  }), {
+    independent: 0,
+    hint: 0,
+    copilot: 0,
+    delegated: 0,
+    imported: 0,
+  })
+))
+
 function acceptanceStatusText(status: string) {
   if (status === 'judge-verified') return '已有平台 Judge 回执'
   if (status === 'user-confirmed') return '仅有用户确认，仍需 Judge 回执'
@@ -141,6 +157,25 @@ function acceptanceStatusText(status: string) {
                 </span>
               </div>
             </div>
+          </div>
+
+          <div class="mt-4 border-t border-border pt-4">
+            <p class="text-caption font-medium text-foreground">用户能力证据</p>
+            <div class="mt-2 grid grid-cols-3 gap-1.5 text-caption">
+              <span class="rounded-md bg-muted/45 px-2 py-1.5">
+                独立 {{ contributionTotals.independent }}
+              </span>
+              <span class="rounded-md bg-muted/45 px-2 py-1.5">
+                提示 {{ contributionTotals.hint }}
+              </span>
+              <span class="rounded-md bg-muted/45 px-2 py-1.5">
+                协作 {{ contributionTotals.copilot }}
+              </span>
+            </div>
+            <p class="mt-2 text-caption leading-5 text-muted-foreground">
+              Agent 代做 {{ contributionTotals.delegated }} · 未归属 {{ contributionTotals.imported }}；
+              两者保留正确性和 Memory，但不计入用户能力分。
+            </p>
           </div>
 
           <div class="mt-4 border-t border-border pt-4">

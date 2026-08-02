@@ -135,12 +135,14 @@ type ChallengeView struct {
 }
 
 type LearningRecord struct {
-	ID        string    `json:"id"`
-	Kind      string    `json:"kind"`
-	Content   string    `json:"content"`
-	Concept   string    `json:"concept,omitempty"`
-	Level     int       `json:"level,omitempty"`
-	CreatedAt time.Time `json:"createdAt"`
+	ID         string             `json:"id"`
+	Kind       string             `json:"kind"`
+	Actor      LearningActor      `json:"actor"`
+	Assistance LearningAssistance `json:"assistance"`
+	Content    string             `json:"content"`
+	Concept    string             `json:"concept,omitempty"`
+	Level      int                `json:"level,omitempty"`
+	CreatedAt  time.Time          `json:"createdAt"`
 }
 
 type LearningRecordRequest struct {
@@ -148,6 +150,38 @@ type LearningRecordRequest struct {
 	Content string `json:"content"`
 	Concept string `json:"concept"`
 	Level   int    `json:"level"`
+}
+
+type LearningActor string
+
+const (
+	LearningActorUser     LearningActor = "user"
+	LearningActorAgent    LearningActor = "agent"
+	LearningActorShared   LearningActor = "shared"
+	LearningActorImported LearningActor = "imported"
+)
+
+type LearningAssistance string
+
+const (
+	LearningAssistanceNone      LearningAssistance = "none"
+	LearningAssistanceHint      LearningAssistance = "hint"
+	LearningAssistanceCopilot   LearningAssistance = "copilot"
+	LearningAssistanceDelegated LearningAssistance = "delegated"
+)
+
+// TrainingContributionView is evidence attribution, not a correctness
+// verdict. Judge receipts and Outcome remain the independent source for
+// whether an answer was accepted.
+type TrainingContributionView struct {
+	PrimaryActor         LearningActor      `json:"primaryActor"`
+	Assistance           LearningAssistance `json:"assistance"`
+	UserRecords          int                `json:"userRecords"`
+	AgentRecords         int                `json:"agentRecords"`
+	SharedRecords        int                `json:"sharedRecords"`
+	ImportedRecords      int                `json:"importedRecords"`
+	UserIndependentSteps int                `json:"userIndependentSteps"`
+	UserAssistedSteps    int                `json:"userAssistedSteps"`
 }
 
 type ExternalJudgeReceiptRequest struct {
@@ -180,12 +214,13 @@ type AuthorityReceiptRequest struct {
 }
 
 type HumanOutcomeView struct {
-	Goal             string   `json:"goal"`
-	KnowledgePoints  []string `json:"knowledgePoints"`
-	HintCount        int      `json:"hintCount"`
-	ReflectionCount  int      `json:"reflectionCount"`
-	IndependentSteps int      `json:"independentSteps"`
-	Summary          string   `json:"summary"`
+	Goal             string                   `json:"goal"`
+	KnowledgePoints  []string                 `json:"knowledgePoints"`
+	HintCount        int                      `json:"hintCount"`
+	ReflectionCount  int                      `json:"reflectionCount"`
+	IndependentSteps int                      `json:"independentSteps"`
+	Contribution     TrainingContributionView `json:"contribution"`
+	Summary          string                   `json:"summary"`
 }
 
 type ExperimentView struct {

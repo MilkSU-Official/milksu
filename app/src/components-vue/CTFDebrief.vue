@@ -7,24 +7,36 @@ import {
   Check,
   Circle,
   FileCheck2,
+  Handshake,
   Lightbulb,
   Route,
   Sparkles,
+  UserRoundCheck,
   X,
 } from 'lucide-vue-next'
-import type { CTFDebrief } from '@/ctfTypes'
+import type {
+  CTFDebrief,
+  CTFHumanOutcome,
+  CTFLearningActor,
+  CTFLearningAssistance,
+} from '@/ctfTypes'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 
 const props = defineProps<{
   debrief: CTFDebrief
+  humanOutcome: CTFHumanOutcome
   submitting?: boolean
 }>()
 
 const emit = defineEmits<{
+  submitIndependentStep: [content: string]
   submitReflection: [content: string]
   saveMemory: []
 }>()
 
+const independentStep = ref('')
+const independentStepConfirmed = ref(false)
+const submittedAtStepCount = ref<number | null>(null)
 const reflection = ref('')
 const submittedAtCount = ref<number | null>(null)
 const canSaveMemory = computed(
@@ -47,6 +59,14 @@ function submit() {
   emit('submitReflection', content)
 }
 
+function submitIndependentStep() {
+  const content = independentStep.value.trim()
+  if (!content || !independentStepConfirmed.value) return
+  submittedAtStepCount.value = props.humanOutcome.contribution.userIndependentSteps
+    + props.humanOutcome.contribution.userAssistedSteps
+  emit('submitIndependentStep', content)
+}
+
 watch(
   () => props.debrief.reflectionCount,
   (count) => {
@@ -56,6 +76,36 @@ watch(
     }
   },
 )
+
+watch(
+  () => props.humanOutcome.contribution.userIndependentSteps
+    + props.humanOutcome.contribution.userAssistedSteps,
+  (count) => {
+    if (submittedAtStepCount.value !== null && count > submittedAtStepCount.value) {
+      independentStep.value = ''
+      independentStepConfirmed.value = false
+      submittedAtStepCount.value = null
+    }
+  },
+)
+
+function actorLabel(actor: CTFLearningActor) {
+  switch (actor) {
+    case 'user': return '用户'
+    case 'agent': return 'Agent'
+    case 'shared': return '用户与 Agent 共同完成'
+    default: return '尚无可归属证据'
+  }
+}
+
+function assistanceLabel(assistance: CTFLearningAssistance) {
+  switch (assistance) {
+    case 'none': return '无协助'
+    case 'hint': return '依赖提示'
+    case 'copilot': return '搭档协作'
+    default: return '代理完成'
+  }
+}
 
 function statusLabel(status: CTFDebrief['status']) {
   switch (status) {
@@ -105,13 +155,41 @@ function verdictLabel(verdict: string) {
         <p class="mt-1 font-mono text-control">{{ debrief.artifactCount }}</p>
       </div>
       <div class="rounded-lg bg-muted/50 px-3 py-2">
-        <p class="text-caption text-muted-foreground">独立步骤</p>
+        <p class="text-caption text-muted-foreground">用户独立步骤</p>
         <p class="mt-1 font-mono text-control">{{ debrief.independentSteps }}</p>
       </div>
       <div class="rounded-lg bg-muted/50 px-3 py-2">
         <p class="text-caption text-muted-foreground">提示</p>
         <p class="mt-1 font-mono text-control">{{ debrief.hintCount }}</p>
       </div>
+    </div>
+
+    <div class="mt-5 rounded-lg border border-border bg-muted/20 p-4">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p class="flex items-center gap-2 text-control font-medium">
+            <Handshake class="size-3.5" />
+            贡献归属
+          </p>
+          <p class="mt-1 text-caption leading-5 text-muted-foreground">
+            Judge 只证明答案是否正确；这里单独记录谁完成了关键步骤。
+          </p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <Badge variant="outline">
+            {{ actorLabel(humanOutcome.contribution.primaryActor) }}
+          </Badge>
+          <Badge variant="secondary">
+            {{ assistanceLabel(humanOutcome.contribution.assistance) }}
+          </Badge>
+        </div>
+      </div>
+      <p class="mt-3 text-caption leading-5 text-muted-foreground">
+        用户独立 {{ humanOutcome.contribution.userIndependentSteps }} 步 ·
+        用户在协助下 {{ humanOutcome.contribution.userAssistedSteps }} 步 ·
+        Agent 记录 {{ humanOutcome.contribution.agentRecords }} 条 ·
+        旧记录/导入 {{ humanOutcome.contribution.importedRecords }} 条
+      </p>
     </div>
 
     <div class="mt-6 grid gap-5 md:grid-cols-2">
@@ -212,6 +290,39 @@ function verdictLabel(verdict: string) {
         沉淀为可复用技法
       </Button>
     </div>
+
+    <form class="mt-6 border-t border-border pt-5" @submit.prevent="submitIndependentStep">
+      <p class="flex items-center gap-2 text-control font-medium">
+        <UserRoundCheck class="size-3.5" />
+        记录我实际完成的步骤
+      </p>
+      <p class="mt-1 text-caption leading-5 text-muted-foreground">
+        只写你亲自执行或推导的具体步骤。Agent 的总结、猜测或代做结果不能登记为你的独立能力。
+      </p>
+      <Textarea
+        v-model="independentStep"
+        class="mt-3"
+        placeholder="例如：我手动比较了两组响应长度，确认第四个字节会改变校验分支……"
+      />
+      <label class="mt-3 flex cursor-pointer items-start gap-2 text-caption leading-5 text-muted-foreground">
+        <input
+          v-model="independentStepConfirmed"
+          type="checkbox"
+          class="mt-0.5 size-4 rounded border-border accent-primary"
+        >
+        <span>我确认这是我实际完成的步骤，而不是 Agent 自动生成的描述。</span>
+      </label>
+      <Button
+        type="submit"
+        variant="outline"
+        class="mt-3"
+        :loading="submitting"
+        :disabled="!independentStep.trim() || !independentStepConfirmed"
+      >
+        <UserRoundCheck class="size-3.5" />
+        保存用户步骤
+      </Button>
+    </form>
 
     <form v-if="debrief.needsReflection" class="mt-6 border-t border-border pt-5" @submit.prevent="submit">
       <p class="flex items-center gap-2 text-control font-medium">

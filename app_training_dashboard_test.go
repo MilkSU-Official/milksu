@@ -51,10 +51,11 @@ func TestNSSCTFArenaSourceTargetsAcceptsOnlyExactRemoteEndpoints(t *testing.T) {
 func TestRealTrainingSignalPreservesPlatformEvidenceWithoutCountingRuntimeRestarts(t *testing.T) {
 	projection := ctf.Projection{
 		Challenge: ctf.ChallengeView{
-			Category:         "Web",
-			ExternalPlatform: "nssctf-web",
-			Source:           securityruntimeSource("url", "https://www.nssctf.cn/problem/316"),
-			KnowledgePoints:  []string{"SQL injection"},
+			Category:          "Web",
+			CollaborationMode: "coach",
+			ExternalPlatform:  "nssctf-web",
+			Source:            securityruntimeSource("url", "https://www.nssctf.cn/problem/316"),
+			KnowledgePoints:   []string{"SQL injection"},
 		},
 		Attempts: []securityruntime.Attempt{
 			{ID: "runtime_attempt_1"},
@@ -63,6 +64,11 @@ func TestRealTrainingSignalPreservesPlatformEvidenceWithoutCountingRuntimeRestar
 		HumanOutcome: ctf.HumanOutcomeView{
 			HintCount:        2,
 			IndependentSteps: 3,
+			Contribution: ctf.TrainingContributionView{
+				PrimaryActor:         ctf.LearningActorUser,
+				Assistance:           ctf.LearningAssistanceNone,
+				UserIndependentSteps: 3,
+			},
 		},
 		Outcome: &securityruntime.Outcome{Status: securityruntime.OutcomeSucceeded},
 		JudgeReceipts: []ctf.ExternalJudgeReceipt{{
@@ -81,11 +87,39 @@ func TestRealTrainingSignalPreservesPlatformEvidenceWithoutCountingRuntimeRestar
 		signal.Attempts != 1 ||
 		signal.Hints != 2 ||
 		signal.IndependentSteps != 3 ||
+		signal.Actor != nssctf.TrainingActorUser ||
+		signal.Assistance != nssctf.TrainingAssistanceNone ||
 		signal.Verification != nssctf.TrainingVerificationPlatformJudge ||
 		!signal.Succeeded ||
 		len(signal.Tags) != 1 ||
 		signal.Tags[0] != "SQL injection" {
 		t.Fatalf("unexpected real training signal: %#v", signal)
+	}
+}
+
+func TestRealTrainingSignalKeepsDelegateSuccessOutOfUserAbility(t *testing.T) {
+	signal, eligible := realTrainingSignal(ctf.Projection{
+		Challenge: ctf.ChallengeView{
+			Category:          "Pwn",
+			CollaborationMode: "delegate",
+			ExternalPlatform:  "ctfshow-web",
+			ExternalAttemptID: 91,
+		},
+		HumanOutcome: ctf.HumanOutcomeView{
+			Contribution: ctf.TrainingContributionView{
+				PrimaryActor: ctf.LearningActorAgent,
+				Assistance:   ctf.LearningAssistanceDelegated,
+			},
+		},
+		Outcome: &securityruntime.Outcome{Status: securityruntime.OutcomeSucceeded},
+	})
+	if !eligible ||
+		!signal.Succeeded ||
+		signal.Actor != nssctf.TrainingActorAgent ||
+		signal.Assistance != nssctf.TrainingAssistanceDelegated ||
+		signal.IndependentSteps != 0 ||
+		signal.UserAssistedSteps != 0 {
+		t.Fatalf("delegate success was converted into user ability evidence: %#v", signal)
 	}
 }
 

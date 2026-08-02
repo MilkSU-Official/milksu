@@ -169,19 +169,35 @@ export interface CTFJudgeReceipt {
 }
 
 export interface CTFLearningRecordRequest {
-  kind: 'hint' | 'reflection' | 'independent_step' | 'goal'
+  kind: 'hint' | 'reflection' | 'independent_step' | 'observation' | 'goal' | 'judge_observation'
   content: string
   concept?: string
   level?: number
 }
 
+export type CTFLearningActor = 'user' | 'agent' | 'shared' | 'imported'
+export type CTFLearningAssistance = 'none' | 'hint' | 'copilot' | 'delegated'
+
 export interface CTFLearningRecord {
   id: string
   kind: CTFLearningRecordRequest['kind']
+  actor: CTFLearningActor
+  assistance: CTFLearningAssistance
   content: string
   concept?: string
   level?: number
   createdAt: string
+}
+
+export interface CTFTrainingContribution {
+  primaryActor: CTFLearningActor
+  assistance: CTFLearningAssistance
+  userRecords: number
+  agentRecords: number
+  sharedRecords: number
+  importedRecords: number
+  userIndependentSteps: number
+  userAssistedSteps: number
 }
 
 export interface CTFHumanOutcome {
@@ -190,6 +206,7 @@ export interface CTFHumanOutcome {
   hintCount: number
   reflectionCount: number
   independentSteps: number
+  contribution: CTFTrainingContribution
   summary: string
 }
 
@@ -339,6 +356,8 @@ export interface CTFTrainingMemory {
   schemaVersion: string
   kind: 'technique' | 'failure-lesson'
   verification: 'judge-verified' | 'user-confirmed' | 'failure-observed' | 'legacy-untyped'
+  actor: CTFLearningActor
+  assistance: CTFLearningAssistance
   title: string
   summary: string
   category: string
@@ -445,6 +464,7 @@ export interface CTFTrainingReport {
   keyObservations: string[]
   failureBranches: string[]
   judgeReceipts: CTFTrainingReportJudge[]
+  contribution: CTFTrainingContribution
   stats: {
     attempts: number
     experiments: number

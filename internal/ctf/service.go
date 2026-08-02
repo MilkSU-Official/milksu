@@ -274,7 +274,7 @@ func (s *Service) CancelJob(ctx context.Context, jobID string) error {
 }
 
 func (s *Service) RecordLearning(ctx context.Context, jobID string, request LearningRecordRequest) (Projection, error) {
-	projection, err := s.runtime.GetJob(ctx, jobID)
+	projection, err := s.GetJob(ctx, jobID)
 	if err != nil {
 		return Projection{}, err
 	}
@@ -282,8 +282,38 @@ func (s *Service) RecordLearning(ctx context.Context, jobID string, request Lear
 		return Projection{}, fmt.Errorf("job is not a CTF challenge")
 	}
 	kind := strings.ToLower(strings.TrimSpace(request.Kind))
-	if kind != "hint" && kind != "reflection" && kind != "independent_step" && kind != "goal" {
+	assistance := userLearningAssistance(
+		projection.Challenge.CollaborationMode,
+		kind,
+		projection.Learning,
+	)
+	return s.recordAttributedLearning(
+		ctx,
+		projection,
+		request,
+		LearningActorUser,
+		assistance,
+	)
+}
+
+func (s *Service) recordAttributedLearning(
+	ctx context.Context,
+	projection Projection,
+	request LearningRecordRequest,
+	actor LearningActor,
+	assistance LearningAssistance,
+) (Projection, error) {
+	kind := strings.ToLower(strings.TrimSpace(request.Kind))
+	if kind != "hint" &&
+		kind != "reflection" &&
+		kind != "independent_step" &&
+		kind != "observation" &&
+		kind != "goal" &&
+		kind != "judge_observation" {
 		return Projection{}, fmt.Errorf("unsupported learning record kind")
+	}
+	if !validLearningActor(actor) || !validLearningAssistance(assistance) {
+		return Projection{}, fmt.Errorf("invalid learning record attribution")
 	}
 	content := strings.TrimSpace(request.Content)
 	if content == "" || len([]rune(content)) > 4000 {
@@ -294,7 +324,8 @@ func (s *Service) RecordLearning(ctx context.Context, jobID string, request Lear
 		return Projection{}, fmt.Errorf("learning concept or hint level is invalid")
 	}
 	record := LearningRecord{
-		ID: securityruntime.NewIdentifier("learning"), Kind: kind, Content: content,
+		ID: securityruntime.NewIdentifier("learning"), Kind: kind,
+		Actor: actor, Assistance: assistance, Content: content,
 		Concept: concept, Level: request.Level, CreatedAt: time.Now().UTC(),
 	}
 	data, err := json.Marshal(record)
@@ -305,10 +336,14 @@ func (s *Service) RecordLearning(ctx context.Context, jobID string, request Lear
 		ID: securityruntime.NewIdentifier("fact"), PackageID: PackageID, SchemaVersion: SchemaVersion,
 		Kind: FactLearningRecorded, Data: data,
 	}
-	if err := s.runtime.CommitRoleFact(ctx, securityruntime.EventScope{JobID: jobID}, fact); err != nil {
+	if err := s.runtime.CommitRoleFact(
+		ctx,
+		securityruntime.EventScope{JobID: projection.Job.ID},
+		fact,
+	); err != nil {
 		return Projection{}, err
 	}
-	return s.GetJob(ctx, jobID)
+	return s.GetJob(ctx, projection.Job.ID)
 }
 
 func (s *Service) Recover(ctx context.Context) error {
@@ -678,9 +713,19 @@ func (s *Service) recordAgentHint(jobID string, input json.RawMessage) error {
 	if err := json.Unmarshal(input, &value); err != nil {
 		return err
 	}
-	_, err := s.RecordLearning(context.Background(), jobID, LearningRecordRequest{
-		Kind: "hint", Content: value.Hint, Concept: value.Concept, Level: value.Level,
-	})
+	projection, err := s.GetJob(context.Background(), jobID)
+	if err != nil {
+		return err
+	}
+	_, err = s.recordAttributedLearning(
+		context.Background(),
+		projection,
+		LearningRecordRequest{
+			Kind: "hint", Content: value.Hint, Concept: value.Concept, Level: value.Level,
+		},
+		LearningActorAgent,
+		LearningAssistanceHint,
+	)
 	return err
 }
 

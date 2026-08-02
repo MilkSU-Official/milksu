@@ -116,6 +116,20 @@ function formatTime(value?: string) {
     second: '2-digit',
   }).format(new Date(value))
 }
+
+function actorLabel(actor: string) {
+  if (actor === 'user') return '用户完成'
+  if (actor === 'agent') return 'Agent 代做'
+  if (actor === 'shared') return '共同完成'
+  return '尚无可归属证据'
+}
+
+function assistanceLabel(assistance: string) {
+  if (assistance === 'none') return '无协助'
+  if (assistance === 'hint') return '依赖提示'
+  if (assistance === 'copilot') return '搭档协作'
+  return '代理完成'
+}
 </script>
 
 <template>
@@ -168,6 +182,12 @@ function formatTime(value?: string) {
           <Badge :variant="report.report.verified ? 'secondary' : 'outline'">
             {{ report.report.verified ? '平台已验证' : '尚未验证' }}
           </Badge>
+          <Badge variant="outline">
+            {{ actorLabel(report.report.contribution.primaryActor) }}
+          </Badge>
+          <Badge variant="outline">
+            {{ assistanceLabel(report.report.contribution.assistance) }}
+          </Badge>
         </div>
         <span class="text-caption text-muted-foreground">
           {{ new Date(report.report.generatedAt).toLocaleString() }}
@@ -188,7 +208,7 @@ function formatTime(value?: string) {
           <p class="mt-1 font-mono text-control">{{ report.report.stats.experiments }}</p>
         </div>
         <div class="rounded-md bg-background px-3 py-2">
-          <p class="text-caption text-muted-foreground">独立步骤</p>
+          <p class="text-caption text-muted-foreground">用户独立步骤</p>
           <p class="mt-1 font-mono text-control">{{ report.report.stats.independentSteps }}</p>
         </div>
       </div>

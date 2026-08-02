@@ -283,6 +283,19 @@ func TestNSSCTFPageToAcceptedTrainingReportSurvivesRestart(t *testing.T) {
 		t.Fatalf("authoritative NSSCTF Judge receipt did not close the loop: %#v", submitted.submission)
 	}
 
+	contributed, err := app.RecordCTFLearning(projection.Job.ID, ctf.LearningRecordRequest{
+		Kind:    "independent_step",
+		Content: "我核对了附件摘要并在配对页面确认提交目标。",
+		Concept: "NSSCTF 用户步骤",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if contributed.HumanOutcome.IndependentSteps != 0 ||
+		contributed.HumanOutcome.Contribution.UserAssistedSteps != 1 ||
+		contributed.HumanOutcome.Contribution.PrimaryActor != ctf.LearningActorShared {
+		t.Fatalf("copilot user step was not kept separate from independent work: %#v", contributed.HumanOutcome)
+	}
 	reflected, err := app.RecordCTFLearning(projection.Job.ID, ctf.LearningRecordRequest{
 		Kind:    "reflection",
 		Content: "先核对附件来源和摘要，再把证据支持的候选交给平台 Judge。",
@@ -298,7 +311,10 @@ func TestNSSCTFPageToAcceptedTrainingReportSurvivesRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if memory.Confidence != 1 || memory.SourceJobID != projection.Job.ID {
+	if memory.Confidence != 1 ||
+		memory.SourceJobID != projection.Job.ID ||
+		memory.Actor != ctf.LearningActorShared ||
+		memory.Assistance != ctf.LearningAssistanceCopilot {
 		t.Fatalf("accepted run did not produce a verified reusable memory: %#v", memory)
 	}
 	dashboard, err := app.GetNSSCTFTrainingDashboard()
@@ -313,7 +329,11 @@ func TestNSSCTFPageToAcceptedTrainingReportSurvivesRestart(t *testing.T) {
 	}
 	foundSolvedAxis := false
 	for _, dimension := range dashboard.Dimensions {
-		if dimension.Key == "misc" && dimension.Attempts == 1 && dimension.Solved == 1 {
+		if dimension.Key == "misc" &&
+			dimension.Attempts == 1 &&
+			dimension.Solved == 1 &&
+			dimension.CopilotSolved == 1 &&
+			dimension.IndependentSolved == 0 {
 			foundSolvedAxis = true
 		}
 	}
@@ -417,7 +437,9 @@ func TestNSSCTFPageToAcceptedTrainingReportSurvivesRestart(t *testing.T) {
 	}
 	if len(recoveredMemories) != 1 ||
 		recoveredMemories[0].SourceJobID != projection.Job.ID ||
-		recoveredMemories[0].Confidence != 1 {
+		recoveredMemories[0].Confidence != 1 ||
+		recoveredMemories[0].Actor != ctf.LearningActorShared ||
+		recoveredMemories[0].Assistance != ctf.LearningAssistanceCopilot {
 		t.Fatalf("restarted NSSCTF training lost its reusable memory: %#v", recoveredMemories)
 	}
 	recoveredDashboard, err := reopened.GetNSSCTFTrainingDashboard()

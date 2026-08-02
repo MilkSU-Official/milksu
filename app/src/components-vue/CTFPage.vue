@@ -63,6 +63,7 @@ import CTFArtifacts from '@/components-vue/CTFArtifacts.vue'
 import CTFChallengeDesk from '@/components-vue/CTFChallengeDesk.vue'
 import CTFDebrief from '@/components-vue/CTFDebrief.vue'
 import CTFManualIntake from '@/components-vue/CTFManualIntake.vue'
+import CTFMemoryRecall from '@/components-vue/CTFMemoryRecall.vue'
 import CTFTrainingArchive from '@/components-vue/CTFTrainingArchive.vue'
 import CTFTrajectory from '@/components-vue/CTFTrajectory.vue'
 import ManagedLabCatalog from '@/components-vue/ManagedLabCatalog.vue'
@@ -104,13 +105,6 @@ function formatCategory(value: string) {
     misc: 'Misc',
   }
   return labels[normalized] ?? value
-}
-
-function memoryVerificationLabel(memory: CTFTrainingMemory) {
-  if (memory.verification === 'judge-verified') return 'Judge 验证'
-  if (memory.verification === 'user-confirmed') return '用户确认'
-  if (memory.verification === 'failure-observed') return '失败观察'
-  return '旧记录 · 未分级'
 }
 
 const props = defineProps<{
@@ -1221,7 +1215,7 @@ async function sendObservation() {
   if (!activeProjection.value || !observation.value.trim()) return
   working.value = true
   const recorded = await backend.recordLearning(activeProjection.value.job.id, {
-    kind: 'reflection',
+    kind: 'observation',
     content: observation.value.trim(),
     concept: 'NSSCTF 平台观察',
   })
@@ -1241,6 +1235,22 @@ async function sendDebriefReflection(content: string) {
     concept: 'CTF 解题复盘',
   })
   if (recorded) outcomeNotice.value = '复盘已保存；现在可以沉淀为可复用技法。'
+  working.value = false
+}
+
+async function sendIndependentStep(content: string) {
+  if (!activeProjection.value || !content.trim()) return
+  working.value = true
+  const recorded = await backend.recordLearning(activeProjection.value.job.id, {
+    kind: 'independent_step',
+    content: content.trim(),
+    concept: '用户确认的解题步骤',
+  })
+  if (recorded) {
+    outcomeNotice.value = activeProjection.value?.humanOutcome.contribution.assistance === 'none'
+      ? '已记录为有明确用户证据的独立步骤。'
+      : '已记录用户实际完成的步骤，并保留本次协助方式。'
+  }
   working.value = false
 }
 
@@ -1406,7 +1416,7 @@ async function recordPlatformResult(accepted: boolean) {
           : `用户根据${externalJudgeLabel.value}确认 Rejected。`,
       )
     : await backend.recordLearning(activeProjection.value.job.id, {
-        kind: 'independent_step',
+        kind: 'judge_observation',
         content: accepted
           ? `${externalJudgeLabel.value}显示 Accepted。`
           : `${externalJudgeLabel.value}显示 Rejected。`,
@@ -2741,9 +2751,10 @@ onBeforeUnmount(() => {
                 />
 
                 <CTFDebrief
-                  v-if="activeProjection.experiments.length || activeProjection.outcome"
                   :debrief="activeProjection.debrief"
+                  :human-outcome="activeProjection.humanOutcome"
                   :submitting="working"
+                  @submit-independent-step="sendIndependentStep"
                   @submit-reflection="sendDebriefReflection"
                   @save-memory="saveTrainingMemory"
                 />
@@ -2757,69 +2768,11 @@ onBeforeUnmount(() => {
               </div>
 
               <div class="space-y-5">
-                <details class="group rounded-xl border border-border bg-card">
-                  <summary class="flex cursor-pointer list-none items-center gap-3 px-5 py-4">
-                    <span class="grid size-8 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground">
-                      <BrainCircuit class="size-4" />
-                    </span>
-                    <span class="min-w-0 flex-1">
-                      <span class="block text-label font-medium">解题记忆</span>
-                      <span class="block truncate text-caption text-muted-foreground">
-                        {{
-                          memoryLoading
-                            ? '正在匹配'
-                            : recalledMemories.length
-                              ? `${recalledMemories.length} 条待验证先验`
-                              : '没有匹配的旧题技法'
-                        }}
-                      </span>
-                    </span>
-                    <Badge v-if="recalledMemories.length" variant="outline">
-                      {{ recalledMemories.length }}
-                    </Badge>
-                  </summary>
-                  <div class="border-t border-border px-5 py-4">
-                    <p class="text-caption leading-5 text-muted-foreground">
-                      这些内容来自你明确保存的旧题复盘。Agent 必须用当前材料重新验证，原始证据优先。
-                    </p>
-                    <div v-if="recalledMemories.length" class="mt-3 space-y-3">
-                      <article
-                        v-for="memory in recalledMemories"
-                        :key="memory.id"
-                        class="rounded-lg bg-muted/40 p-3"
-                      >
-                        <div class="flex items-start gap-2">
-                          <div class="min-w-0 flex-1">
-                            <p class="line-clamp-1 text-control font-medium">{{ memory.title }}</p>
-                            <MarkdownContent
-                              class="mt-1 line-clamp-3 text-caption leading-5 text-muted-foreground"
-                              :content="memory.summary"
-                              compact
-                            />
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            title="停用这条综合记忆；不删除原始证据"
-                            :aria-label="`停用记忆：${memory.title}`"
-                            @click="archiveTrainingMemory(memory)"
-                          >
-                            <Archive class="size-3.5" />
-                          </Button>
-                        </div>
-                        <div class="mt-2 flex flex-wrap items-center gap-1.5">
-                          <Badge variant="outline">
-                            {{ memoryVerificationLabel(memory) }}
-                          </Badge>
-                          <Badge variant="outline">置信 {{ Math.round(memory.confidence * 100) }}%</Badge>
-                          <Badge v-for="tag in memory.tags.slice(0, 2)" :key="tag" variant="secondary">
-                            {{ tag }}
-                          </Badge>
-                        </div>
-                      </article>
-                    </div>
-                  </div>
-                </details>
+                <CTFMemoryRecall
+                  :memories="recalledMemories"
+                  :loading="memoryLoading"
+                  @archive="archiveTrainingMemory"
+                />
 
                 <section class="rounded-xl border border-border bg-card p-5">
                   <h2 class="flex items-center gap-2 text-label font-medium">

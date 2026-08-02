@@ -45,6 +45,13 @@ func Project(core securityruntime.JobProjection) (Projection, error) {
 			if err := json.Unmarshal(fact.Data, &record); err != nil || record.ID == "" || record.Kind == "" || record.Content == "" {
 				return Projection{}, fmt.Errorf("invalid CTF learning record")
 			}
+			record, valid := normalizeLearningAttribution(
+				record,
+				challenge.CollaborationMode,
+			)
+			if !valid {
+				return Projection{}, fmt.Errorf("invalid CTF learning attribution")
+			}
 			learning = append(learning, record)
 		case FactJudgeReceipt:
 			var receipt ExternalJudgeReceipt
@@ -186,18 +193,29 @@ func Project(core securityruntime.JobProjection) (Projection, error) {
 		Goal: challenge.HumanGoal, KnowledgePoints: append([]string{}, challenge.KnowledgePoints...),
 		Summary: "尚未记录学习复盘。",
 	}
+	humanOutcome.Contribution = contributionForProjection(
+		challenge.CollaborationMode,
+		learning,
+		len(agentRuns) > 0 || len(agentCandidates) > 0,
+	)
 	for _, record := range learning {
 		switch record.Kind {
 		case "hint":
 			humanOutcome.HintCount++
 		case "reflection":
-			humanOutcome.ReflectionCount++
-		case "independent_step":
-			humanOutcome.IndependentSteps++
+			if record.Actor == LearningActorUser {
+				humanOutcome.ReflectionCount++
+			}
 		}
 	}
+	humanOutcome.IndependentSteps = humanOutcome.Contribution.UserIndependentSteps
 	if humanOutcome.ReflectionCount > 0 {
-		humanOutcome.Summary = fmt.Sprintf("已完成 %d 次复盘，记录 %d 个独立步骤，使用 %d 条提示。", humanOutcome.ReflectionCount, humanOutcome.IndependentSteps, humanOutcome.HintCount)
+		humanOutcome.Summary = fmt.Sprintf(
+			"用户已完成 %d 次复盘；有证据支持的独立步骤 %d 个，使用 %d 条提示。",
+			humanOutcome.ReflectionCount,
+			humanOutcome.IndependentSteps,
+			humanOutcome.HintCount,
+		)
 	}
 	debrief := buildDebrief(core, challenge, experiments, submissions, humanOutcome)
 
