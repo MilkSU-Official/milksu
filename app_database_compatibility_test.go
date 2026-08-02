@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/MilkSU-Official/milksu/internal/appdata"
+	"github.com/MilkSU-Official/milksu/internal/config"
 	"github.com/MilkSU-Official/milksu/internal/ctf"
 	"github.com/MilkSU-Official/milksu/internal/ctfshow"
 	"github.com/MilkSU-Official/milksu/internal/nssctf"
@@ -18,6 +19,12 @@ import (
 )
 
 func TestDatabaseCompatDescriptors(t *testing.T) {
+	if config.SupportedCredentialsDatabaseVersion != 1 {
+		t.Fatalf(
+			"SupportedCredentialsDatabaseVersion = %d, want 1",
+			config.SupportedCredentialsDatabaseVersion,
+		)
+	}
 	if securityruntime.SupportedEventStoreDatabaseVersion != 1 {
 		t.Fatalf(
 			"SupportedEventStoreDatabaseVersion = %d, want 1",
