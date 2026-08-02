@@ -131,6 +131,25 @@ interface AgentEvent {
   aborted?: boolean
 }
 
+export function projectAgentTools(
+  eventType: string,
+  tools: string[] | undefined,
+  previous: string[] | undefined,
+  turnPolicyActive = false,
+) {
+  if (eventType === 'session.turn_policy' || turnPolicyActive) return []
+  return tools ?? previous
+}
+
+export function projectAgentTurnPolicy(
+  eventType: string,
+  previous: boolean,
+) {
+  if (eventType === 'session.turn_policy') return true
+  if (eventType === 'session.turn_policy_cleared') return false
+  return previous
+}
+
 interface WorkspaceTask {
   jobId: string
   conversationId: string
@@ -297,6 +316,7 @@ export function useConversations() {
     active.value?.mcpConfigDigest ?? pendingMCPConfigDigest.value
   ))
   const saveTimers = new Map<string, number>()
+  const activeTurnPolicies = new Set<string>()
   let disposeEvents: (() => void) | undefined
 
   function persist(conversation: Conversation) {
@@ -331,6 +351,7 @@ export function useConversations() {
     await invokeCommand('delete_conversation', { id })
     conversations.value = conversations.value.filter(conversation => conversation.id !== id)
     continuity.value = removeCodingContinuitySession(continuity.value, id)
+    activeTurnPolicies.delete(id)
     if (activeId.value === id) activeId.value = null
   }
 
@@ -717,6 +738,7 @@ export function useConversations() {
         aborted,
       } = event.payload
       if (!sessionId && (type === 'engine.stopped' || type === 'engine.protocol_error')) {
+        activeTurnPolicies.clear()
         const affected = [...runningIds.value]
         for (const compactingId of continuity.value.compacting) {
           continuity.value = applyCodingContinuityEvent(
@@ -767,15 +789,31 @@ export function useConversations() {
         const messages = [...conversation.messages]
         const last = messages.at(-1)
 
-        if (type === 'session.ready' || type === 'session.policy_updated') {
+        if (
+          type === 'session.ready'
+          || type === 'session.policy_updated'
+          || type === 'session.turn_policy'
+          || type === 'session.turn_policy_cleared'
+        ) {
           continuity.value = applyCodingContinuityEvent(
             continuity.value,
             sessionId,
             { type, resumed },
           )
+          const turnPolicyActive = projectAgentTurnPolicy(
+            type,
+            activeTurnPolicies.has(sessionId),
+          )
+          if (turnPolicyActive) activeTurnPolicies.add(sessionId)
+          else activeTurnPolicies.delete(sessionId)
           return {
             ...conversation,
-            agentTools: tools ?? conversation.agentTools,
+            agentTools: projectAgentTools(
+              type,
+              tools,
+              conversation.agentTools,
+              turnPolicyActive,
+            ),
             agentExtensions: extensions ?? conversation.agentExtensions,
             agentSkills: skills ?? conversation.agentSkills,
             executionMode: executionMode ?? conversation.executionMode,
@@ -933,6 +971,7 @@ export function useConversations() {
 
   onBeforeUnmount(() => {
     disposeEvents?.()
+    activeTurnPolicies.clear()
     for (const timer of saveTimers.values()) window.clearTimeout(timer)
     saveTimers.clear()
   })

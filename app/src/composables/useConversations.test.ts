@@ -1,7 +1,28 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeConversation } from '@/composables/useConversations'
+import {
+  normalizeConversation,
+  projectAgentTools,
+  projectAgentTurnPolicy,
+} from '@/composables/useConversations'
 
 describe('Coding approval conversation recovery', () => {
+  it('shows the no-tools contract and restores the reviewed tool set', () => {
+    const reviewed = ['read', 'grep']
+    let active = projectAgentTurnPolicy('session.turn_policy', false)
+    expect(active).toBe(true)
+    expect(projectAgentTools('session.turn_policy', undefined, reviewed, active)).toEqual([])
+    active = projectAgentTurnPolicy('session.ready', active)
+    expect(projectAgentTools('session.ready', reviewed, [], active)).toEqual([])
+    active = projectAgentTurnPolicy('session.turn_policy_cleared', active)
+    expect(active).toBe(false)
+    expect(projectAgentTools(
+      'session.turn_policy_cleared',
+      reviewed,
+      [],
+      active,
+    )).toEqual(reviewed)
+  })
+
   it('expires an approval that cannot survive an app or Sidecar restart', () => {
     const conversation = normalizeConversation({
       id: 'conversation-1',

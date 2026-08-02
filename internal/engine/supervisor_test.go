@@ -59,6 +59,30 @@ func TestNormalizePolicyStatus(t *testing.T) {
 	}
 }
 
+func TestNormalizePerTurnPolicyStatus(t *testing.T) {
+	applied := normalizeBridgeEvent(bridgeEvent{
+		Type:   "turn_policy",
+		ID:     "session-1",
+		Tools:  []string{},
+		Reason: "explicit_no_tools",
+	})
+	if applied.Type != "session.turn_policy" ||
+		applied.Reason != "explicit_no_tools" ||
+		len(applied.Tools) != 0 {
+		t.Fatalf("unexpected turn policy event: %#v", applied)
+	}
+
+	cleared := normalizeBridgeEvent(bridgeEvent{
+		Type:  "turn_policy_cleared",
+		ID:    "session-1",
+		Tools: []string{"read", "grep"},
+	})
+	if cleared.Type != "session.turn_policy_cleared" ||
+		len(cleared.Tools) != 2 {
+		t.Fatalf("unexpected cleared turn policy event: %#v", cleared)
+	}
+}
+
 func TestNormalizeGoalStateAndAutomaticTurnStart(t *testing.T) {
 	budget := int64(100000)
 	goal := &CodingGoalState{

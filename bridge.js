@@ -61,6 +61,17 @@ import {
   waitForCompaction,
 } from "./bridge-compaction.js";
 import {
+  codingTurnContractBlocksTool,
+  codingTurnContractContext,
+  codingTurnContractGuidance,
+  codingTurnContractMessageType,
+  codingTurnContractRequiresFreshnessGuard,
+  enforceCodingTurnContractMessage,
+  filterCodingTurnContractMessages,
+  parseExplicitCodingTurnContract,
+  withCodingTurnContract,
+} from "./bridge-turn-contract.js";
+import {
   codingCollaborationChanged,
   codingCollaborationToolName,
   formatSubagentApproval,
@@ -92,6 +103,7 @@ const backgroundTaskControllers = new Map();
 const promptQueues = new Map();
 const compactionRuns = new Map();
 const compactionRequestIds = new Map();
+const sessionTurnContracts = new Map();
 const abortedSessions = new Set();
 const input = createInterface({ input: process.stdin });
 let commandQueue = Promise.resolve();
@@ -329,15 +341,36 @@ function codingPolicyGuidance(policy) {
 function createCodingPermissionExtension(
   conversationId,
   getPolicy,
+  getTurnContract,
   registerController,
 ) {
   return (pi) => {
     registerController({
       setActiveTools: names => pi.setActiveTools(names),
     });
+    pi.on("context", async (event) => {
+      const messages = filterCodingTurnContractMessages(
+        event.messages,
+        getTurnContract(),
+      );
+      if (
+        messages.length === event.messages.length
+        && messages.every((message, index) => message === event.messages[index])
+      ) {
+        return undefined;
+      }
+      return { messages };
+    });
+
     pi.on("tool_call", async (event) => {
       const policy = getPolicy();
       if (!policy || policy.ctf) return undefined;
+      if (codingTurnContractBlocksTool(getTurnContract())) {
+        return {
+          block: true,
+          reason: "MilkSU blocked Agent tools for this explicitly no-tools turn",
+        };
+      }
       if (!policy.activeTools.includes(event.toolName)) {
         return {
           block: true,
@@ -433,12 +466,35 @@ function createCodingPermissionExtension(
       return undefined;
     });
 
+    pi.on("message_end", async (event) => {
+      const message = enforceCodingTurnContractMessage(
+        event.message,
+        getTurnContract(),
+      );
+      return message ? { message } : undefined;
+    });
+
     pi.on("before_agent_start", async (event) => {
       const guidance = codingPolicyGuidance(getPolicy());
-      if (!guidance) return undefined;
-      return {
-        systemPrompt: `${event.systemPrompt}\n\nMilkSU Coding permission policy:\n${guidance}`,
+      const turnGuidance = codingTurnContractGuidance(getTurnContract());
+      if (!guidance && !turnGuidance) return undefined;
+      const result = {
+        systemPrompt: `${event.systemPrompt}`
+          + (guidance ? `\n\nMilkSU Coding permission policy:\n${guidance}` : "")
+          + (turnGuidance ? `\n\nMilkSU per-turn contract:\n${turnGuidance}` : ""),
       };
+      if (turnGuidance) {
+        result.message = {
+          customType: codingTurnContractMessageType,
+          content: codingTurnContractContext(getTurnContract()),
+          display: false,
+          details: {
+            scope: "current-turn",
+            reason: getTurnContract()?.reason,
+          },
+        };
+      }
+      return result;
     });
   };
 }
@@ -659,6 +715,11 @@ function subscribeSession(conversationId, session, maxToolEventOutputBytes) {
     if (event.type === "message_update" && event.assistantMessageEvent) {
       const update = event.assistantMessageEvent;
       if (update.type === "text_delta") {
+        if (codingTurnContractRequiresFreshnessGuard(
+          sessionTurnContracts.get(conversationId),
+        )) {
+          return;
+        }
         assistantTextStreamed = true;
         emit(conversationId, "text_delta", { delta: update.delta });
       }
@@ -762,6 +823,7 @@ function createMilkSUResourceLoader(
       createCodingPermissionExtension(
         conversationId,
         getPolicy,
+        () => sessionTurnContracts.get(conversationId),
         registerPolicyController,
       ),
       createReviewedLspExtension(
@@ -1136,20 +1198,47 @@ async function sendMessage(command) {
       attachmentRoot,
       supportsImages,
     );
-    if (!supportsImages && auxiliaryVisionSelection.provider) {
+    const policy = sessionPolicies.get(conversationId);
+    const contract = policy?.ctf
+      ? undefined
+      : parseExplicitCodingTurnContract(command.prompt);
+    if (
+      !supportsImages
+      && contract?.toolAccess !== "none"
+      && auxiliaryVisionSelection.provider
+    ) {
       configureProviderEndpoint(session, auxiliaryVisionSelection.provider);
     }
-    const analyzed = supportsImages
+    const analyzed = supportsImages || contract?.toolAccess === "none"
       ? { context: "" }
       : await analyzeTextOnlyImages(prepared.attachments, {
-        session,
-        auxiliary: auxiliaryVisionSelection,
-      });
+          session,
+          auxiliary: auxiliaryVisionSelection,
+        });
     const prompt = `${command.prompt ?? ""}${prepared.context}${analyzed.context}`;
-    await session.prompt(
+    const controller = sessionPolicyControllers.get(conversationId);
+    if (contract && !controller) {
+      throw new Error("MilkSU Coding permission controller is unavailable");
+    }
+    await withCodingTurnContract({
+      contracts: sessionTurnContracts,
+      conversationId,
+      contract,
+      getActiveTools: () => session.getActiveToolNames(),
+      setActiveTools: tools => {
+        if (controller) controller.setActiveTools(tools);
+      },
+      onApplied: tools => emit(conversationId, "turn_policy", {
+        tools,
+        reason: contract?.reason,
+      }),
+      onRestored: tools => emit(conversationId, "turn_policy_cleared", {
+        tools,
+      }),
+    }, () => session.prompt(
       prompt,
       prepared.images.length ? { images: prepared.images } : undefined,
-    );
+    ));
   });
   promptQueues.set(conversationId, next.catch(() => undefined));
   try {
@@ -1205,6 +1294,7 @@ async function destroySession(command) {
   approvalBroker.cancelConversation(conversationId, "session destroyed");
   compactionRuns.delete(conversationId);
   compactionRequestIds.delete(conversationId);
+  sessionTurnContracts.delete(conversationId);
   await disposeAgentSession(session);
   sessions.delete(conversationId);
   sessionPolicies.delete(conversationId);
@@ -1467,6 +1557,7 @@ async function disposeAllSessions() {
   approvalBroker.cancelAll("Sidecar stopped");
   compactionRuns.clear();
   compactionRequestIds.clear();
+  sessionTurnContracts.clear();
   await Promise.all(
     [...sessions.values()].map(session => disposeAgentSession(session)),
   );

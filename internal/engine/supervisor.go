@@ -1415,6 +1415,10 @@ func normalizeBridgeEvent(raw bridgeEvent) Event {
 		event.Type = "session.ready"
 	case "policy_updated":
 		event.Type = "session.policy_updated"
+	case "turn_policy":
+		event.Type = "session.turn_policy"
+	case "turn_policy_cleared":
+		event.Type = "session.turn_policy_cleared"
 	case "model_selected":
 		event.Type = "session.model_selected"
 	case "turn_started":
