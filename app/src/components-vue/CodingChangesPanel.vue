@@ -3,11 +3,19 @@ import { computed, ref, watch } from 'vue'
 import {
   Badge,
   Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   Input,
+  Textarea,
 } from '@felinic/ui'
 import {
   FileDiff,
   GitCommitHorizontal,
+  GitPullRequestCreate,
   LoaderCircle,
   Minus,
   Plus,
@@ -25,6 +33,8 @@ import type {
   CodingGitActionResult,
   CodingGitChange,
   CodingGitHunkAction,
+  CodingPullRequestPreview,
+  CodingPullRequestPublishResult,
 } from '@/codingEnvironmentTypes'
 
 const props = defineProps<{
@@ -45,6 +55,13 @@ const error = ref('')
 const operation = ref('')
 const operationMessage = ref('')
 const commitMessage = ref('')
+const pullRequestDialogOpen = ref(false)
+const pullRequestLoading = ref(false)
+const pullRequestPreview = ref<CodingPullRequestPreview | null>(null)
+const pullRequestResult = ref<CodingPullRequestPublishResult | null>(null)
+const pullRequestTitle = ref('')
+const pullRequestBody = ref('')
+const pullRequestError = ref('')
 
 const git = computed(() => props.environment?.git)
 const changes = computed(() => git.value?.changes ?? [])
@@ -131,6 +148,72 @@ async function commitStagedChanges() {
   await applyGitAction('commit', '', commitMessage.value)
 }
 
+async function preparePullRequest() {
+  if (!props.workspacePath || busy.value || pullRequestLoading.value) return
+  pullRequestLoading.value = true
+  pullRequestError.value = ''
+  pullRequestResult.value = null
+  operationMessage.value = ''
+  error.value = ''
+  try {
+    const preview = await invokeCommand<CodingPullRequestPreview>(
+      'prepare_coding_pull_request',
+      { workspacePath: props.workspacePath },
+    )
+    pullRequestPreview.value = preview
+    pullRequestTitle.value = preview.suggestedTitle
+    pullRequestBody.value = ''
+    pullRequestDialogOpen.value = true
+  } catch (reason) {
+    pullRequestPreview.value = null
+    pullRequestError.value = reason instanceof Error
+      ? reason.message
+      : '无法准备 Pull Request。'
+    error.value = pullRequestError.value
+  } finally {
+    pullRequestLoading.value = false
+  }
+}
+
+async function publishPullRequest() {
+  const preview = pullRequestPreview.value
+  if (
+    !preview
+    || !props.workspacePath
+    || pullRequestLoading.value
+    || !pullRequestTitle.value.trim()
+  ) return
+  pullRequestLoading.value = true
+  pullRequestError.value = ''
+  try {
+    const result = await invokeCommand<CodingPullRequestPublishResult>(
+      'publish_coding_pull_request',
+      {
+        workspacePath: props.workspacePath,
+        confirmationToken: preview.confirmationToken,
+        title: pullRequestTitle.value,
+        body: pullRequestBody.value,
+      },
+    )
+    pullRequestResult.value = result
+    pullRequestPreview.value = null
+    operationMessage.value = result.verified
+      ? result.created
+        ? `已创建并验证草稿 PR #${result.number}`
+        : `当前分支已有已验证的草稿 PR #${result.number}`
+      : `草稿 PR #${result.number} 已创建，但读回验证未完成`
+  } catch (reason) {
+    pullRequestError.value = reason instanceof Error
+      ? reason.message
+      : '创建 Pull Request 失败。'
+    pullRequestPreview.value = null
+    pullRequestDialogOpen.value = false
+    error.value = pullRequestError.value
+  } finally {
+    pullRequestLoading.value = false
+  }
+}
+
 async function applyGitHunkAction(action: CodingGitHunkAction, patch: string) {
   const change = selectedChange.value
   if (!props.workspacePath || !change || busy.value) return
@@ -180,6 +263,25 @@ watch(
     error.value = ''
     operationMessage.value = ''
     commitMessage.value = ''
+    pullRequestDialogOpen.value = false
+    pullRequestPreview.value = null
+    pullRequestResult.value = null
+    pullRequestError.value = ''
+  },
+)
+
+watch(
+  () => [git.value?.branch, git.value?.head] as const,
+  (current, previous) => {
+    if (
+      current[0] !== previous?.[0]
+      || current[1] !== previous?.[1]
+    ) {
+      pullRequestDialogOpen.value = false
+      pullRequestPreview.value = null
+      pullRequestResult.value = null
+      pullRequestError.value = ''
+    }
   },
 )
 
@@ -434,6 +536,29 @@ watch(changes, current => {
             <Upload class="size-3.5" />
             推送<template v-if="git.ahead"> {{ git.ahead }}</template>
           </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            :disabled="
+              busy
+              || pullRequestLoading
+              || git.dirty
+              || !git.branch
+              || git.branch === 'detached'
+              || !git.upstream
+              || Boolean(git.ahead)
+              || Boolean(git.conflicts)
+            "
+            @click="preparePullRequest"
+          >
+            <LoaderCircle
+              v-if="pullRequestLoading && !pullRequestDialogOpen"
+              class="size-3.5 animate-spin"
+            />
+            <GitPullRequestCreate v-else class="size-3.5" />
+            准备 PR
+          </Button>
         </form>
         <p
           v-if="operationMessage"
@@ -443,5 +568,142 @@ watch(changes, current => {
         </p>
       </div>
     </template>
+
+    <Dialog v-model:open="pullRequestDialogOpen">
+      <DialogContent class="sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>发布 MilkSU 草稿 PR</DialogTitle>
+          <DialogDescription>
+            这是独立的托管平台写入确认。令牌只在当前 App 进程中保留五分钟，仓库状态变化后必须重新准备。
+          </DialogDescription>
+        </DialogHeader>
+
+        <template v-if="pullRequestResult">
+          <div class="space-y-3 text-body">
+            <div
+              class="rounded-lg border px-3 py-3"
+              :class="pullRequestResult.verified
+                ? 'border-primary/30 bg-primary/5'
+                : 'border-amber-500/30 bg-amber-500/5'"
+            >
+              <p
+                class="font-medium"
+                :class="pullRequestResult.verified ? 'text-primary' : 'text-amber-500'"
+              >
+                <template v-if="pullRequestResult.verified">
+                  {{ pullRequestResult.created ? '已创建并验证' : '已找到并验证现有' }}草稿 PR
+                  #{{ pullRequestResult.number }}
+                </template>
+                <template v-else>
+                  草稿 PR #{{ pullRequestResult.number }} 已创建，但读回验证未完成
+                </template>
+              </p>
+              <p class="mt-1 break-all font-mono text-caption text-muted-foreground">
+                {{ pullRequestResult.url }}
+              </p>
+              <p
+                v-if="pullRequestResult.problem"
+                class="mt-2 text-caption leading-5 text-amber-500"
+              >
+                {{ pullRequestResult.problem }}。请先在仓库中核对，不要重复创建。
+              </p>
+            </div>
+            <dl class="grid grid-cols-[7rem_minmax(0,1fr)] gap-x-3 gap-y-2 text-caption">
+              <dt class="text-muted-foreground">仓库</dt>
+              <dd class="font-mono">{{ pullRequestResult.repository }}</dd>
+              <dt class="text-muted-foreground">源分支</dt>
+              <dd class="break-all font-mono">{{ pullRequestResult.sourceBranch }}</dd>
+              <dt class="text-muted-foreground">目标分支</dt>
+              <dd class="break-all font-mono">{{ pullRequestResult.targetBranch }}</dd>
+              <dt class="text-muted-foreground">提交</dt>
+              <dd class="break-all font-mono">{{ pullRequestResult.headCommit }}</dd>
+            </dl>
+          </div>
+          <DialogFooter>
+            <Button type="button" @click="pullRequestDialogOpen = false">
+              完成
+            </Button>
+          </DialogFooter>
+        </template>
+
+        <template v-else-if="pullRequestPreview">
+          <div class="space-y-4">
+            <div class="rounded-lg border border-border bg-muted/30 px-3 py-3">
+              <dl class="grid grid-cols-[7rem_minmax(0,1fr)] gap-x-3 gap-y-2 text-caption">
+                <dt class="text-muted-foreground">仓库</dt>
+                <dd class="flex min-w-0 items-center gap-2 font-mono">
+                  <span class="truncate">{{ pullRequestPreview.repository }}</span>
+                  <Badge variant="outline">Private</Badge>
+                </dd>
+                <dt class="text-muted-foreground">远端</dt>
+                <dd class="font-mono">{{ pullRequestPreview.remote }}</dd>
+                <dt class="text-muted-foreground">源分支</dt>
+                <dd class="break-all font-mono">{{ pullRequestPreview.sourceBranch }}</dd>
+                <dt class="text-muted-foreground">目标分支</dt>
+                <dd class="break-all font-mono">{{ pullRequestPreview.targetBranch }}</dd>
+                <dt class="text-muted-foreground">提交</dt>
+                <dd class="break-all font-mono">{{ pullRequestPreview.headCommit }}</dd>
+              </dl>
+            </div>
+            <p
+              v-if="pullRequestPreview.existingNumber"
+              class="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-caption leading-5 text-primary"
+            >
+              当前分支已有匹配的草稿 PR #{{ pullRequestPreview.existingNumber }}。
+              确认后会使用并读回验证这个 PR，不会重复创建。
+            </p>
+
+            <template v-if="!pullRequestPreview.existingNumber">
+              <label class="block space-y-1.5 text-caption">
+                <span class="font-medium">标题</span>
+                <Input
+                  v-model="pullRequestTitle"
+                  size="sm"
+                  :disabled="pullRequestLoading"
+                  aria-label="Pull Request 标题"
+                />
+              </label>
+              <label class="block space-y-1.5 text-caption">
+                <span class="font-medium">说明</span>
+                <Textarea
+                  v-model="pullRequestBody"
+                  class="min-h-28 resize-y"
+                  :disabled="pullRequestLoading"
+                  placeholder="可选：说明改动、测试和验收结果"
+                  aria-label="Pull Request 说明"
+                />
+              </label>
+            </template>
+            <p class="text-caption leading-5 text-amber-500">
+              最终动作只会在 MilkSU-Official/milksu 创建草稿 PR；不会向 upstream 或引用的开源项目发布。
+            </p>
+            <p v-if="pullRequestError" class="text-caption leading-5 text-destructive">
+              {{ pullRequestError }}
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              :disabled="pullRequestLoading"
+              @click="pullRequestDialogOpen = false"
+            >
+              取消
+            </Button>
+            <Button
+              type="button"
+              :disabled="pullRequestLoading || !pullRequestTitle.trim()"
+              @click="publishPullRequest"
+            >
+              <LoaderCircle v-if="pullRequestLoading" class="size-3.5 animate-spin" />
+              <GitPullRequestCreate v-else class="size-3.5" />
+              {{ pullRequestPreview.existingNumber
+                ? '确认使用现有草稿 PR'
+                : '确认创建草稿 PR' }}
+            </Button>
+          </DialogFooter>
+        </template>
+      </DialogContent>
+    </Dialog>
   </section>
 </template>

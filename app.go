@@ -47,6 +47,7 @@ type App struct {
 	conversations   *conversation.Store
 	codingFiles     *codingattachment.Store
 	codingTerminals *codingterminal.Manager
+	codingPRs       *codingenv.PullRequestPublisher
 	computerUse     *computercap.Manager
 	engines         *engine.Supervisor
 	securityEngine  *engine.SecuritySupervisor
@@ -108,6 +109,7 @@ func NewApp() (*App, error) {
 		}
 	}
 	application.engines = engine.NewSupervisor(application.emitEngineEvent)
+	application.codingPRs = codingenv.NewPullRequestPublisher()
 	application.computerUse = computercap.New(computercap.Options{})
 	application.nssctf = nssctf.NewClient(nssctf.ClientOptions{})
 	application.nssctfCatalog, err = nssctf.NewCatalogService(
@@ -652,60 +654,6 @@ func (a *App) RespondToolApproval(
 	approved bool,
 ) error {
 	return a.engines.RespondToolApproval(conversationID, requestID, approved)
-}
-
-func (a *App) GetCodingEnvironment(workspacePath string) (codingenv.Snapshot, error) {
-	inspectContext, cancel := context.WithTimeout(a.commandContext(), 4*time.Second)
-	defer cancel()
-	return codingenv.Inspect(inspectContext, workspacePath)
-}
-
-func (a *App) GetCodingMCPConfig(workspacePath string) (codingenv.MCPConfigSnapshot, error) {
-	return codingenv.InspectMCPConfig(workspacePath)
-}
-
-func (a *App) GetCodingDiff(workspacePath, relativePath string) (codingenv.DiffSnapshot, error) {
-	inspectContext, cancel := context.WithTimeout(a.commandContext(), 4*time.Second)
-	defer cancel()
-	return codingenv.InspectDiff(inspectContext, workspacePath, relativePath)
-}
-
-func (a *App) ApplyCodingGitAction(
-	workspacePath,
-	action,
-	relativePath,
-	message string,
-) (codingenv.GitActionResult, error) {
-	timeout := 15 * time.Second
-	if action == codingenv.GitActionPush {
-		timeout = 2 * time.Minute
-	}
-	actionContext, cancel := context.WithTimeout(a.commandContext(), timeout)
-	defer cancel()
-	return codingenv.ApplyGitAction(
-		actionContext,
-		workspacePath,
-		action,
-		relativePath,
-		message,
-	)
-}
-
-func (a *App) ApplyCodingGitHunkAction(
-	workspacePath,
-	action,
-	relativePath,
-	patch string,
-) (codingenv.GitActionResult, error) {
-	actionContext, cancel := context.WithTimeout(a.commandContext(), 15*time.Second)
-	defer cancel()
-	return codingenv.ApplyGitHunkAction(
-		actionContext,
-		workspacePath,
-		action,
-		relativePath,
-		patch,
-	)
 }
 
 func (a *App) GetCodingArchitecturePreview(

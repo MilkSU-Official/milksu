@@ -138,6 +138,36 @@ export interface CodingGitActionResult {
   snapshot: CodingEnvironmentSnapshot
 }
 
+export interface CodingPullRequestPreview {
+  repository: string
+  repositoryUrl: string
+  private: boolean
+  remote: string
+  sourceBranch: string
+  headCommit: string
+  targetBranch: string
+  suggestedTitle: string
+  draft: boolean
+  existingNumber?: number
+  existingUrl?: string
+  confirmationToken: string
+  expiresAt: string
+}
+
+export interface CodingPullRequestPublishResult {
+  repository: string
+  sourceBranch: string
+  headCommit: string
+  targetBranch: string
+  number: number
+  url: string
+  state: string
+  draft: boolean
+  created: boolean
+  verified: boolean
+  problem?: string
+}
+
 export interface CodingArchitecturePreview {
   exists: boolean
   relativePath: string
