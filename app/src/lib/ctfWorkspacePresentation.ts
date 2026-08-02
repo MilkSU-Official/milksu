@@ -27,6 +27,11 @@ export interface CTFWorkspacePresentation {
   showEndpointAction: boolean
   showSubmissionAction: boolean
   showActionRail: boolean
+  showDebrief: boolean
+  showEvidenceSummary: boolean
+  showEndpointHistory: boolean
+  showReviewMain: boolean
+  showReviewSidebar: boolean
   hasReviewActivity: boolean
 }
 
@@ -44,13 +49,16 @@ export function deriveCTFWorkspacePresentation(
     || input.experimentCount > 0
     || input.evidenceCount > 0
   const showEndpointAction = !input.terminal && pendingEndpointCount > 0
+  const hasEndpointDecision = input.endpointRequestStatuses.some(
+    status => status !== 'pending',
+  )
   const showSubmissionAction = !input.terminal && (
     Boolean(input.candidate.trim())
     || input.agentCandidateCount > 0
     || input.platformReview
   )
-  const hasReviewActivity = showTrajectory
-    || input.artifactCount > 0
+  const showDebrief = input.terminal
+    || showTrajectory
     || input.agentCandidateCount > 0
     || input.submissionCount > 0
     || input.judgeReceiptCount > 0
@@ -59,7 +67,18 @@ export function deriveCTFWorkspacePresentation(
     || input.hintCount > 0
     || input.reflectionCount > 0
     || input.independentStepCount > 0
-    || input.terminal
+  const showEvidenceSummary = input.experimentCount > 0
+    || input.evidenceCount > 0
+    || input.artifactCount > 0
+    || input.judgeReceiptCount > 0
+    || input.evaluationCount > 0
+  const showEndpointHistory = hasEndpointDecision
+  const showReviewMain = showDebrief
+    || input.artifactCount > 0
+    || input.agentRunCount > 0
+    || input.agentCandidateCount > 0
+  const showReviewSidebar = showEvidenceSummary || showEndpointHistory
+  const hasReviewActivity = showReviewMain || showReviewSidebar
 
   return {
     pendingEndpointCount,
@@ -68,6 +87,11 @@ export function deriveCTFWorkspacePresentation(
     showEndpointAction,
     showSubmissionAction,
     showActionRail: showEndpointAction || showSubmissionAction,
+    showDebrief,
+    showEvidenceSummary,
+    showEndpointHistory,
+    showReviewMain,
+    showReviewSidebar,
     hasReviewActivity,
   }
 }

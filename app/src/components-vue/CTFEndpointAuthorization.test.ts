@@ -164,4 +164,61 @@ describe('CTFEndpointAuthorization', () => {
     expect(host.textContent).not.toContain('当前授权目标')
     expect(host.textContent).not.toContain('https://approved.example.test')
   })
+
+  it('renders Endpoint history read-only during review', async () => {
+    const requested: CTFEndpointRequestInput[] = []
+    const approved: string[] = []
+    const denied: string[] = []
+    const requests: CTFEndpointRequest[] = [
+      {
+        id: 'endpoint_approved',
+        protocol: 'http',
+        host: '127.0.0.1',
+        port: 65533,
+        target: { kind: 'origin', value: 'http://127.0.0.1:65533' },
+        source: 'Agent 从题面发现',
+        purpose: '读取题目 HTTP 基线',
+        requestedBy: 'agent',
+        status: 'approved',
+        requestedAt: '2026-08-03T00:10:00Z',
+      },
+      {
+        id: 'endpoint_pending',
+        protocol: 'tcp',
+        host: '127.0.0.1',
+        port: 31337,
+        target: { kind: 'socket', value: '127.0.0.1:31337' },
+        source: 'Agent 从附件发现',
+        purpose: '连接题目 TCP 服务',
+        requestedBy: 'agent',
+        status: 'pending',
+        requestedAt: '2026-08-03T00:20:00Z',
+      },
+    ]
+    const host = document.createElement('div')
+    document.body.append(host)
+    const app = createApp(CTFEndpointAuthorization, {
+      sourceScope: scope('scope_source', 'lab', 'offline-intake'),
+      networkScopes: [scope('scope_http', 'origin', 'http://127.0.0.1:65533')],
+      requests,
+      reviewOnly: true,
+      onRequest: (request: CTFEndpointRequestInput) => requested.push(request),
+      onApprove: (id: string) => approved.push(id),
+      onDeny: (id: string) => denied.push(id),
+    })
+    app.mount(host)
+    mountedApps.push(app)
+    await nextTick()
+
+    expect(host.textContent).toContain('Endpoint 授权记录')
+    expect(host.textContent).toContain('http://127.0.0.1:65533')
+    expect(host.textContent).toContain('已处理申请 1 项')
+    expect(host.textContent).not.toContain('127.0.0.1:31337')
+    expect(host.textContent).not.toContain('手动提出一个地址')
+    expect(host.textContent).not.toContain('仅批准此 Endpoint')
+    expect(host.textContent).not.toContain('拒绝')
+    expect(requested).toEqual([])
+    expect(approved).toEqual([])
+    expect(denied).toEqual([])
+  })
 })

@@ -2861,10 +2861,15 @@ onBeforeUnmount(() => {
 
               <div
                 v-else
-                class="grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,.65fr)]"
+                class="grid gap-5"
+                :class="workspacePresentation?.showReviewMain
+                  && (workspacePresentation.showReviewSidebar || memoryLoading || recalledMemories.length)
+                    ? 'lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,.65fr)]'
+                    : 'max-w-3xl'"
               >
-                <div class="space-y-5">
+                <div v-if="workspacePresentation?.showReviewMain" class="space-y-5">
                   <CTFDebrief
+                    v-if="workspacePresentation.showDebrief"
                     :debrief="activeProjection.debrief"
                     :human-outcome="activeProjection.humanOutcome"
                     :submitting="working"
@@ -2885,7 +2890,10 @@ onBeforeUnmount(() => {
                   />
                 </div>
 
-                <div class="space-y-5">
+                <div
+                  v-if="workspacePresentation?.showReviewSidebar || memoryLoading || recalledMemories.length"
+                  class="space-y-5"
+                >
                   <CTFMemoryRecall
                     v-if="memoryLoading || recalledMemories.length"
                     :memories="recalledMemories"
@@ -2893,7 +2901,10 @@ onBeforeUnmount(() => {
                     @archive="archiveTrainingMemory"
                   />
 
-                  <section class="rounded-xl border border-border bg-card p-5">
+                  <section
+                    v-if="workspacePresentation?.showEvidenceSummary"
+                    class="rounded-xl border border-border bg-card p-5"
+                  >
                     <h2 class="text-label font-medium">证据摘要</h2>
                     <dl class="mt-4 space-y-3 text-body">
                       <div class="flex items-center justify-between">
@@ -2922,7 +2933,7 @@ onBeforeUnmount(() => {
                   </section>
 
                   <details
-                    v-if="activeProjection.endpointRequests.length || activeProjection.networkScopes.length"
+                    v-if="workspacePresentation?.showEndpointHistory"
                     class="rounded-xl border border-border bg-card p-5"
                   >
                     <summary class="cursor-pointer text-label font-medium">Endpoint 与授权记录</summary>
@@ -2934,6 +2945,7 @@ onBeforeUnmount(() => {
                       :working="working"
                       :terminal="Boolean(activeProjection.outcome)"
                       embedded
+                      review-only
                       @request="requestEndpoint"
                       @approve="approveEndpoint"
                       @deny="denyEndpoint"

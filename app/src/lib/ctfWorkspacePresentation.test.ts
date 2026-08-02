@@ -38,6 +38,11 @@ describe('deriveCTFWorkspacePresentation', () => {
       showEndpointAction: false,
       showSubmissionAction: false,
       showActionRail: false,
+      showDebrief: false,
+      showEvidenceSummary: false,
+      showEndpointHistory: false,
+      showReviewMain: false,
+      showReviewSidebar: false,
       hasReviewActivity: false,
     })
   })
@@ -65,6 +70,34 @@ describe('deriveCTFWorkspacePresentation', () => {
     })
   })
 
+  it('keeps decided Endpoint records in review without reopening a solve action', () => {
+    expect(deriveCTFWorkspacePresentation(state({
+      endpointRequestStatuses: ['approved', 'denied'],
+    }))).toMatchObject({
+      pendingEndpointCount: 0,
+      showEndpointAction: false,
+      showActionRail: false,
+      showDebrief: false,
+      showEvidenceSummary: false,
+      showEndpointHistory: true,
+      showReviewMain: false,
+      showReviewSidebar: true,
+      hasReviewActivity: true,
+    })
+  })
+
+  it('does not treat a pending Endpoint alone as review history', () => {
+    expect(deriveCTFWorkspacePresentation(state({
+      endpointRequestStatuses: ['pending'],
+    }))).toMatchObject({
+      pendingEndpointCount: 1,
+      showEndpointAction: true,
+      showReviewMain: false,
+      showReviewSidebar: false,
+      hasReviewActivity: false,
+    })
+  })
+
   it('reveals trajectory, composer, and review after real solve activity', () => {
     expect(deriveCTFWorkspacePresentation(state({
       hasAgentRecoveryPoint: true,
@@ -75,6 +108,10 @@ describe('deriveCTFWorkspacePresentation', () => {
       showAgentComposer: true,
       showTrajectory: true,
       showActionRail: false,
+      showDebrief: true,
+      showEvidenceSummary: true,
+      showReviewMain: true,
+      showReviewSidebar: true,
       hasReviewActivity: true,
     })
   })

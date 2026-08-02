@@ -16,6 +16,7 @@ const props = defineProps<{
   working?: boolean
   terminal?: boolean
   pendingOnly?: boolean
+  reviewOnly?: boolean
   embedded?: boolean
 }>()
 
@@ -102,18 +103,32 @@ function submitRequest() {
       </span>
       <div class="min-w-0 flex-1">
         <h2 id="endpoint-authorization-title" class="text-label font-medium">
-          {{ pendingOnly ? '批准新的 Endpoint' : 'Endpoint 授权' }}
+          {{
+            pendingOnly
+              ? '批准新的 Endpoint'
+              : reviewOnly
+                ? 'Endpoint 授权记录'
+                : 'Endpoint 授权'
+          }}
         </h2>
         <p class="mt-1 text-caption leading-5 text-muted-foreground">
-          {{ pendingOnly
-            ? '这个地址仍只是一项申请。你批准后只生成一个协议、一个目标的 Scope；通用 Shell 仍然禁网。'
-            : '新地址只会进入待确认列表。批准一项只生成一个协议、一个目标的 Scope；通用 Shell 始终禁网。' }}
+          {{
+            pendingOnly
+              ? '这个地址仍只是一项申请。你批准后只生成一个协议、一个目标的 Scope；通用 Shell 仍然禁网。'
+              : reviewOnly
+                ? '这里只复核本题的准入 Scope 和已处理申请；新的地址必须回到解题流程逐条确认。'
+                : '新地址只会进入待确认列表。批准一项只生成一个协议、一个目标的 Scope；通用 Shell 始终禁网。'
+          }}
         </p>
       </div>
-      <Badge v-if="pending.length" variant="outline">{{ pending.length }} 待确认</Badge>
+      <Badge v-if="!reviewOnly && pending.length" variant="outline">{{ pending.length }} 待确认</Badge>
     </div>
 
-    <div v-if="pending.length" class="mt-4 space-y-3" aria-label="待确认 Endpoint">
+    <div
+      v-if="!reviewOnly && pending.length"
+      class="mt-4 space-y-3"
+      aria-label="待确认 Endpoint"
+    >
       <article
         v-for="request in pending"
         :key="request.id"
@@ -157,7 +172,7 @@ function submitRequest() {
     </div>
 
     <form
-      v-if="!pendingOnly"
+      v-if="!pendingOnly && !reviewOnly"
       class="mt-4 space-y-3 border-t border-border pt-4"
       @submit.prevent="submitRequest"
     >
@@ -235,7 +250,23 @@ function submitRequest() {
       </p>
     </div>
 
-    <details v-if="!pendingOnly && decided.length" class="mt-4 border-t border-border pt-3">
+    <div
+      v-if="reviewOnly && decided.length"
+      class="mt-4 border-t border-border pt-3"
+    >
+      <p class="text-caption font-medium">已处理申请 {{ decided.length }} 项</p>
+      <ul class="mt-2 space-y-1 text-caption text-muted-foreground">
+        <li v-for="request in decided" :key="request.id">
+          {{ protocolLabel(request.protocol) }} · {{ request.host }}:{{ request.port }} ·
+          {{ request.status === 'approved' ? '已批准' : '已拒绝' }}
+        </li>
+      </ul>
+    </div>
+
+    <details
+      v-else-if="!pendingOnly && decided.length"
+      class="mt-4 border-t border-border pt-3"
+    >
       <summary class="cursor-pointer text-caption text-muted-foreground">
         已处理申请 {{ decided.length }} 项
       </summary>
