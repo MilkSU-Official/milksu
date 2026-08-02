@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import {
   Alert,
   AlertDescription,
+  Badge,
   Button,
   Input,
   NativeSelect,
@@ -33,6 +34,8 @@ import {
 import { invokeCommand } from '@/desktop'
 import type {
   AppSettings,
+  DatabaseCompatibilityState,
+  DatabaseCompatibilityStatus,
   LocalDataBackupExport,
   LocalDataBackupRestore,
   LocalDataStatus,
@@ -67,6 +70,29 @@ const restoreScheduling = ref(false)
 const diagnosticExporting = ref(false)
 const localData = ref<LocalDataStatus | null>(null)
 const notice = ref<{ tone: 'ok' | 'error'; text: string } | null>(null)
+
+const databaseStateLabels: Record<DatabaseCompatibilityState, string> = {
+  compatible: '兼容',
+  missing: '尚未创建',
+  newer: '数据库较新',
+  corrupt: '损坏或不可读',
+  remaining: '尚未纳入迁移',
+}
+
+const databaseStateVariants: Record<DatabaseCompatibilityState, 'secondary' | 'destructive' | 'outline'> = {
+  compatible: 'secondary',
+  missing: 'outline',
+  newer: 'destructive',
+  corrupt: 'destructive',
+  remaining: 'outline',
+}
+
+function databaseVersionText(database: DatabaseCompatibilityStatus): string {
+  const parts: string[] = []
+  if (database.current !== undefined) parts.push(`v${database.current}`)
+  if (database.supported !== undefined) parts.push(`v${database.supported}`)
+  return parts.join(' / ')
+}
 
 function cloneSettings(value: AppSettings): AppSettings {
   return JSON.parse(JSON.stringify(value)) as AppSettings
@@ -393,6 +419,38 @@ async function save() {
                 诊断包只包含版本、运行状态、数据库健康检查和脱敏错误事件，便于排查启动与连接问题。
               </p>
             </SettingsRow>
+            <div v-if="localData?.databases?.length" class="mt-4 min-w-0">
+              <p class="text-control font-medium">数据库兼容性</p>
+              <ul class="mt-2 flex flex-col gap-3">
+                <li
+                  v-for="database in localData.databases"
+                  :key="database.logicalName"
+                  class="min-w-0"
+                >
+                  <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span class="min-w-0 text-control font-medium">{{ database.logicalName }}</span>
+                    <Badge :variant="databaseStateVariants[database.state]" class="min-w-0">
+                      {{ databaseStateLabels[database.state] }}
+                    </Badge>
+                    <span
+                      v-if="databaseVersionText(database)"
+                      class="min-w-0 text-caption text-muted-foreground"
+                    >
+                      {{ databaseVersionText(database) }}
+                    </span>
+                  </div>
+                  <p
+                    class="mt-0.5 break-all font-mono text-caption text-muted-foreground"
+                    :title="database.relativePath"
+                  >
+                    {{ database.relativePath }}
+                  </p>
+                  <p v-if="database.error" class="break-words text-caption text-destructive">
+                    {{ database.error }}
+                  </p>
+                </li>
+              </ul>
+            </div>
           </SettingsSection>
           <div class="mt-6 flex justify-end">
             <Button :loading="saving" @click="save">保存设置</Button>

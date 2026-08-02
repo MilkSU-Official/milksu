@@ -201,11 +201,23 @@ export interface ModelProbeResult {
   latencyMs: number
 }
 
+export type DatabaseCompatibilityState = 'compatible' | 'missing' | 'newer' | 'corrupt' | 'remaining'
+
+export interface DatabaseCompatibilityStatus {
+  logicalName: string
+  relativePath: string
+  current?: number
+  supported?: number
+  state: DatabaseCompatibilityState
+  error?: string
+}
+
 export interface LocalDataStatus {
   directory: string
   fileCount: number
   bytes: number
   lastModifiedAt?: string
+  databases?: DatabaseCompatibilityStatus[]
 }
 
 export interface LocalDataBackupExport {
