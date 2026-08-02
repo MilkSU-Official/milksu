@@ -430,11 +430,17 @@ func (m *Manager) Finish(
 	for index, worktree := range status.Worktrees {
 		expected := current.Worktrees[index]
 		if worktree.Available {
+			// Git refuses to remove a worktree containing an initialized
+			// submodule unless --force is supplied, even when both the
+			// worktree and every submodule are clean. Finish has already
+			// verified cleanliness and integration for every writer above,
+			// so force here only bypasses that Git transport restriction.
 			if _, err := m.git(
 				ctx,
 				current.Workspace,
 				"worktree",
 				"remove",
+				"--force",
 				worktree.Path,
 			); err != nil {
 				return Status{}, fmt.Errorf("remove %s worktree: %w", worktree.ID, err)
@@ -549,7 +555,8 @@ func (m *Manager) refreshLocked(ctx context.Context, current manifest) (Status, 
 			worktree.Path,
 			"status",
 			"--porcelain=v1",
-			"--untracked-files=normal",
+			"--untracked-files=all",
+			"--ignore-submodules=none",
 		)
 		ahead, aheadErr := m.gitCount(
 			ctx,

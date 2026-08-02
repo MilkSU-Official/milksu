@@ -99,6 +99,150 @@ func TestManagerCreatesRecoversAndSafelyFinishesIndependentWorktrees(t *testing.
 	}
 }
 
+func TestManagerSafelyFinishesWorktreeContainingSubmodule(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	repository := newRepository(t)
+	submodule := newRepository(t)
+	git(
+		t,
+		repository,
+		"-c",
+		"protocol.file.allow=always",
+		"submodule",
+		"add",
+		submodule,
+		"packages/ui",
+	)
+	git(t, repository, "commit", "-m", "add local UI submodule")
+
+	manager, err := New(filepath.Join(t.TempDir(), "collaboration"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, err := manager.Prepare(ctx, "submodule-writer", repository, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writer := status.Worktrees[0]
+	git(
+		t,
+		writer.Path,
+		"-c",
+		"protocol.file.allow=always",
+		"submodule",
+		"update",
+		"--init",
+	)
+	writerHead := commitFile(
+		t,
+		writer.Path,
+		"writer-change.txt",
+		"integrated writer change\n",
+	)
+	git(t, repository, "cherry-pick", writerHead)
+
+	integrated, err := manager.Get(ctx, "submodule-writer", repository)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !integrated.CanFinish || !integrated.Worktrees[0].Integrated {
+		t.Fatalf("expected integrated submodule worktree: %+v", integrated)
+	}
+	finished, err := manager.Finish(ctx, "submodule-writer", repository)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if finished.Active || finished.Phase != phaseCompleted {
+		t.Fatalf("unexpected finished state: %+v", finished)
+	}
+	if _, err := os.Stat(writer.Path); !os.IsNotExist(err) {
+		t.Fatalf("submodule worktree path still exists: %s", writer.Path)
+	}
+	if gitAllowFailure(
+		t,
+		repository,
+		"show-ref",
+		"--verify",
+		"--quiet",
+		"refs/heads/"+writer.Branch,
+	).success {
+		t.Fatalf("submodule worktree branch still exists: %s", writer.Branch)
+	}
+}
+
+func TestManagerRejectsDirtyInitializedSubmoduleBeforeForcedRemoval(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	repository := newRepository(t)
+	submodule := newRepository(t)
+	git(
+		t,
+		repository,
+		"-c",
+		"protocol.file.allow=always",
+		"submodule",
+		"add",
+		submodule,
+		"packages/ui",
+	)
+	git(t, repository, "commit", "-m", "add local UI submodule")
+
+	manager, err := New(filepath.Join(t.TempDir(), "collaboration"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, err := manager.Prepare(ctx, "dirty-submodule-writer", repository, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writer := status.Worktrees[0]
+	git(
+		t,
+		writer.Path,
+		"-c",
+		"protocol.file.allow=always",
+		"submodule",
+		"update",
+		"--init",
+	)
+	git(t, writer.Path, "config", "submodule.packages/ui.ignore", "all")
+	dirtyPath := filepath.Join(writer.Path, "packages", "ui", "local.txt")
+	if err := os.WriteFile(dirtyPath, []byte("must survive\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if ordinaryStatus := git(
+		t,
+		writer.Path,
+		"status",
+		"--porcelain=v1",
+	); ordinaryStatus != "" {
+		t.Fatalf(
+			"fixture did not hide the dirty submodule from ordinary status: %q",
+			ordinaryStatus,
+		)
+	}
+
+	refreshed, err := manager.Get(ctx, "dirty-submodule-writer", repository)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !refreshed.Worktrees[0].Dirty || refreshed.CanFinish {
+		t.Fatalf("dirty submodule was not detected: %+v", refreshed)
+	}
+	if _, err := manager.Finish(
+		ctx,
+		"dirty-submodule-writer",
+		repository,
+	); err == nil || !strings.Contains(err.Error(), "uncommitted changes") {
+		t.Fatalf("expected dirty submodule rejection, got %v", err)
+	}
+	if content, err := os.ReadFile(dirtyPath); err != nil ||
+		string(content) != "must survive\n" {
+		t.Fatalf("dirty submodule content was not preserved: %q err=%v", content, err)
+	}
+}
+
 func TestManagerRejectsDirtyBaseAndDirtyWriter(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
