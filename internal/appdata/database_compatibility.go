@@ -122,49 +122,15 @@ func inspectDatabaseCompatibility(
 		RelativePath: filepath.ToSlash(descriptor.RelativePath),
 		Supported:    supportedDatabaseVersion(descriptor.Supported),
 	}
-	// Walk component by component from the root down through
-	// descriptor.RelativePath so a symbolic link at ANY position (root,
-	// intermediate, or final) is rejected without ever resolving through it.
-	// The relative path has already passed safeDescriptorPath, so it is
-	// non-empty, relative, cleaned, and free of "..".
-	components := strings.Split(descriptor.RelativePath, "/")
-	walkPaths := make([]string, 0, len(components)+1)
-	accumulated := root
-	walkPaths = append(walkPaths, root)
-	for _, component := range components {
-		accumulated = filepath.Join(accumulated, component)
-		walkPaths = append(walkPaths, accumulated)
+	accumulated, missing, err := resolveDatabaseFile(root, descriptor.RelativePath)
+	if missing {
+		status.State = databaseStateMissing
+		return status
 	}
-	for index, candidate := range walkPaths {
-		info, err := os.Lstat(candidate)
-		if os.IsNotExist(err) {
-			// First non-existent component: never create anything.
-			status.State = databaseStateMissing
-			return status
-		}
-		if err != nil {
-			status.State = databaseStateCorrupt
-			status.Error = sanitizeDatabaseError(err.Error(), root)
-			return status
-		}
-		if info.Mode()&os.ModeSymlink != 0 {
-			status.State = databaseStateCorrupt
-			status.Error = sanitizeDatabaseError("database path contains a symbolic link", root)
-			return status
-		}
-		if index == len(walkPaths)-1 {
-			if !info.Mode().IsRegular() {
-				status.State = databaseStateCorrupt
-				status.Error = sanitizeDatabaseError("database path is not a regular file", root)
-				return status
-			}
-			break
-		}
-		if !info.IsDir() {
-			status.State = databaseStateCorrupt
-			status.Error = sanitizeDatabaseError("database path contains a non-directory component", root)
-			return status
-		}
+	if err != nil {
+		status.State = databaseStateCorrupt
+		status.Error = sanitizeDatabaseError(err.Error(), root)
+		return status
 	}
 	databaseURL := (&url.URL{Scheme: "file", Path: accumulated}).String() + "?mode=ro"
 	database, err := sql.Open("sqlite", databaseURL)
@@ -192,6 +158,48 @@ func inspectDatabaseCompatibility(
 	return status
 }
 
+// resolveDatabaseFile walks component by component from root down through a
+// safe descriptor path. A symbolic link at any position is rejected without
+// resolving through it. missing is true at the first absent component; the
+// function never creates anything.
+func resolveDatabaseFile(root, relativePath string) (path string, missing bool, err error) {
+	components := strings.Split(relativePath, "/")
+	walkPaths := make([]string, 0, len(components)+1)
+	accumulated := root
+	walkPaths = append(walkPaths, root)
+	for _, component := range components {
+		accumulated = filepath.Join(accumulated, component)
+		walkPaths = append(walkPaths, accumulated)
+	}
+	for index, candidate := range walkPaths {
+		info, statErr := os.Lstat(candidate)
+		if os.IsNotExist(statErr) {
+			return "", true, nil
+		}
+		if statErr != nil {
+			return "", false, statErr
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return "", false, fmt.Errorf("database path contains a symbolic link")
+		}
+		if index == len(walkPaths)-1 {
+			if !info.Mode().IsRegular() {
+				return "", false, fmt.Errorf("database path is not a regular file")
+			}
+			break
+		}
+		if !info.IsDir() {
+			return "", false, fmt.Errorf("database path contains a non-directory component")
+		}
+	}
+	return accumulated, false, nil
+}
+
+type migrationHistoryState struct {
+	Exists  bool
+	Current int
+}
+
 // readMigrationHistory validates the schema_migrations bookkeeping table and
 // returns the maximum recorded version. It accepts exactly the legacy
 // two-column shape (version, applied_at) or the current three-column shape
@@ -200,9 +208,25 @@ func inspectDatabaseCompatibility(
 // corrupt. It never reads any table other than schema_migrations. An empty
 // history table yields version 0.
 func readMigrationHistory(ctx context.Context, database *sql.DB) (int, error) {
+	state, err := inspectMigrationHistory(ctx, database)
+	if err != nil {
+		return 0, err
+	}
+	if !state.Exists {
+		return 0, fmt.Errorf("schema_migrations table is missing")
+	}
+	return state.Current, nil
+}
+
+// inspectMigrationHistory is the read-only primitive shared by compatibility
+// reporting and the pre-migration backup planner. Exists=false is a legitimate
+// pre-migrator state for the planner; readMigrationHistory deliberately keeps
+// treating it as "corrupt" in user-facing compatibility reports until the
+// owning database migrator validates and adopts the legacy business schema.
+func inspectMigrationHistory(ctx context.Context, database *sql.DB) (migrationHistoryState, error) {
 	rows, err := database.QueryContext(ctx, `PRAGMA table_info(schema_migrations)`)
 	if err != nil {
-		return 0, fmt.Errorf("inspect schema_migrations: %w", err)
+		return migrationHistoryState{}, fmt.Errorf("inspect schema_migrations: %w", err)
 	}
 	var columns []string
 	for rows.Next() {
@@ -211,57 +235,57 @@ func readMigrationHistory(ctx context.Context, database *sql.DB) (int, error) {
 		var defaultValue any
 		if err := rows.Scan(&cid, &name, &columnType, &notNull, &defaultValue, &primaryKey); err != nil {
 			rows.Close()
-			return 0, fmt.Errorf("read schema_migrations columns: %w", err)
+			return migrationHistoryState{}, fmt.Errorf("read schema_migrations columns: %w", err)
 		}
 		columns = append(columns, name)
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {
-		return 0, fmt.Errorf("iterate schema_migrations columns: %w", err)
+		return migrationHistoryState{}, fmt.Errorf("iterate schema_migrations columns: %w", err)
 	}
 	if len(columns) == 0 {
-		return 0, fmt.Errorf("schema_migrations table is missing")
+		return migrationHistoryState{Exists: false}, nil
 	}
 	if !slices.Equal(columns, []string{"version", "applied_at"}) &&
 		!slices.Equal(columns, []string{"version", "name", "applied_at"}) {
-		return 0, fmt.Errorf(
+		return migrationHistoryState{}, fmt.Errorf(
 			"corrupt migration history: schema_migrations has an unknown column layout, want exactly [version applied_at] or [version name applied_at]",
 		)
 	}
 
 	versionRows, err := database.QueryContext(ctx, `SELECT version FROM schema_migrations`)
 	if err != nil {
-		return 0, fmt.Errorf("read schema_migrations versions: %w", err)
+		return migrationHistoryState{}, fmt.Errorf("read schema_migrations versions: %w", err)
 	}
 	var versions []int
 	for versionRows.Next() {
 		var version int
 		if err := versionRows.Scan(&version); err != nil {
 			versionRows.Close()
-			return 0, fmt.Errorf("read schema_migrations version: %w", err)
+			return migrationHistoryState{}, fmt.Errorf("read schema_migrations version: %w", err)
 		}
 		versions = append(versions, version)
 	}
 	versionRows.Close()
 	if err := versionRows.Err(); err != nil {
-		return 0, fmt.Errorf("iterate schema_migrations versions: %w", err)
+		return migrationHistoryState{}, fmt.Errorf("iterate schema_migrations versions: %w", err)
 	}
 	slices.Sort(versions)
 	for index, version := range versions {
 		if version <= 0 {
-			return 0, fmt.Errorf("corrupt migration history: invalid version %d", version)
+			return migrationHistoryState{}, fmt.Errorf("corrupt migration history: invalid version %d", version)
 		}
 		if index > 0 && version == versions[index-1] {
-			return 0, fmt.Errorf("corrupt migration history: duplicate version %d", version)
+			return migrationHistoryState{}, fmt.Errorf("corrupt migration history: duplicate version %d", version)
 		}
 		if version != index+1 {
-			return 0, fmt.Errorf("corrupt migration history: missing version %d", index+1)
+			return migrationHistoryState{}, fmt.Errorf("corrupt migration history: missing version %d", index+1)
 		}
 	}
 	if len(versions) == 0 {
-		return 0, nil
+		return migrationHistoryState{Exists: true}, nil
 	}
-	return versions[len(versions)-1], nil
+	return migrationHistoryState{Exists: true, Current: versions[len(versions)-1]}, nil
 }
 
 // safeDescriptorPath reports whether relativePath is a safe slash-separated

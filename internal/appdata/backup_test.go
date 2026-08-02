@@ -112,6 +112,83 @@ func TestExportBackupRejectsDestinationInsideDataDirectory(t *testing.T) {
 	}
 }
 
+func TestExportBackupNeverFollowsSensitiveSymlinkPaths(t *testing.T) {
+	t.Run("settings file", func(t *testing.T) {
+		root := t.TempDir()
+		writeBackupFixture(
+			t,
+			filepath.Join(root, DataLayoutFile),
+			`{"schema":"milksu-data-layout/v1","version":1,"updatedAt":"2026-08-02T00:00:00Z"}`,
+		)
+		external := filepath.Join(t.TempDir(), "external-settings.json")
+		writeBackupFixture(
+			t,
+			external,
+			`{"providers":{"synthetic":{"api_key":"synthetic-never-read"}}}`,
+		)
+		before := fileSHA256(t, external)
+		if err := os.Symlink(external, filepath.Join(root, "settings.json")); err != nil {
+			t.Fatal(err)
+		}
+
+		destination := filepath.Join(t.TempDir(), "backup.zip")
+		if _, err := ExportBackup(context.Background(), root, destination); err != nil {
+			t.Fatal(err)
+		}
+		names, _ := readBackupArchive(t, destination)
+		if slices.Contains(names, "data/settings.json") {
+			t.Fatalf("backup followed symlinked settings: %#v", names)
+		}
+		if after := fileSHA256(t, external); after != before {
+			t.Fatalf("external settings changed: %s -> %s", before, after)
+		}
+	})
+
+	t.Run("database parent", func(t *testing.T) {
+		root := t.TempDir()
+		writeBackupFixture(
+			t,
+			filepath.Join(root, DataLayoutFile),
+			`{"schema":"milksu-data-layout/v1","version":1,"updatedAt":"2026-08-02T00:00:00Z"}`,
+		)
+		external := t.TempDir()
+		databasePath := filepath.Join(external, "memory.sqlite3")
+		createBackupDatabase(t, databasePath)
+		before := fileSHA256(t, databasePath)
+		if err := os.Symlink(external, filepath.Join(root, "ctf")); err != nil {
+			t.Fatal(err)
+		}
+
+		destination := filepath.Join(t.TempDir(), "backup.zip")
+		if _, err := ExportBackup(context.Background(), root, destination); err == nil ||
+			!strings.Contains(err.Error(), "symlink") {
+			t.Fatalf("expected symlink-parent rejection, got %v", err)
+		}
+		if _, err := os.Lstat(destination); !os.IsNotExist(err) {
+			t.Fatalf("rejected backup installed an archive: %v", err)
+		}
+		if after := fileSHA256(t, databasePath); after != before {
+			t.Fatalf("external database changed: %s -> %s", before, after)
+		}
+	})
+
+	t.Run("data root", func(t *testing.T) {
+		realRoot := t.TempDir()
+		link := filepath.Join(t.TempDir(), "linked-data")
+		if err := os.Symlink(realRoot, link); err != nil {
+			t.Fatal(err)
+		}
+		destination := filepath.Join(t.TempDir(), "backup.zip")
+		if _, err := ExportBackup(context.Background(), link, destination); err == nil ||
+			!strings.Contains(err.Error(), "symbolic link") {
+			t.Fatalf("expected symlink-root rejection, got %v", err)
+		}
+		if _, err := os.Lstat(destination); !os.IsNotExist(err) {
+			t.Fatalf("rejected backup installed an archive: %v", err)
+		}
+	})
+}
+
 func TestValidateBackupRejectsSensitiveAndTraversalPaths(t *testing.T) {
 	for name, archivePath := range map[string]string{
 		"sensitive": "data/credentials.db",

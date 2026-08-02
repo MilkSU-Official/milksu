@@ -350,6 +350,10 @@ func snapshotDatabases(ctx context.Context, root string) (databaseSnapshots, err
 	}
 	result := databaseSnapshots{directory: directory, files: make(map[string]string)}
 	for index, relativePath := range backupDatabases {
+		if err := rejectSymlinkParents(root, relativePath); err != nil {
+			os.RemoveAll(directory)
+			return databaseSnapshots{}, fmt.Errorf("inspect database %q: %w", relativePath, err)
+		}
 		source := filepath.Join(root, relativePath)
 		info, statErr := os.Lstat(source)
 		if errors.Is(statErr, os.ErrNotExist) {
@@ -391,6 +395,9 @@ func addBackupRoot(
 	seen map[string]struct{},
 	manifest *BackupManifest,
 ) error {
+	if err := rejectSymlinkParents(root, relativeRoot); err != nil {
+		return fmt.Errorf("inspect backup source %q: %w", relativeRoot, err)
+	}
 	source := filepath.Join(root, relativeRoot)
 	info, err := os.Lstat(source)
 	if errors.Is(err, os.ErrNotExist) {
@@ -498,10 +505,20 @@ func addSanitizedSettings(
 ) error {
 	const relativePath = "settings.json"
 	path := filepath.Join(root, relativePath)
-	data, err := os.ReadFile(path)
+	info, err := os.Lstat(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
 	}
+	if err != nil {
+		return fmt.Errorf("inspect settings for backup: %w", err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return nil
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("settings for backup must be a regular file")
+	}
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("read settings for backup: %w", err)
 	}
@@ -594,9 +611,12 @@ func secureRoot(root string) (string, error) {
 	if root == "." || !filepath.IsAbs(root) {
 		return "", fmt.Errorf("MilkSU data directory must be absolute")
 	}
-	info, err := os.Stat(root)
+	info, err := os.Lstat(root)
 	if err != nil {
 		return "", fmt.Errorf("inspect MilkSU data directory: %w", err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return "", fmt.Errorf("MilkSU data directory must not be a symbolic link")
 	}
 	if !info.IsDir() {
 		return "", fmt.Errorf("MilkSU data path is not a directory")

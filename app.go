@@ -75,6 +75,14 @@ func NewApp() (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("apply pending local data restore: %w", err)
 	}
+	migrationBackup, err := appdata.EnsurePreMigrationBackup(
+		context.Background(),
+		dataDirectory,
+		databaseCompatDescriptors(),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("prepare local database migrations: %w", err)
+	}
 	settings, err := config.NewStore()
 	if err != nil {
 		return nil, fmt.Errorf("create settings store: %w", err)
@@ -110,6 +118,11 @@ func NewApp() (*App, error) {
 	}
 	if restoreResult.RecoveredFirst {
 		application.diagnostics.Record("appdata", "warning", "interrupted local data restore recovered")
+	}
+	if migrationBackup.Created {
+		application.diagnostics.Record("appdata", "info", "pre-migration safety backup created")
+	} else if migrationBackup.Reused {
+		application.diagnostics.Record("appdata", "info", "existing pre-migration safety backup verified")
 	}
 	if managedLabsFeatureEnabled() {
 		application.managedLabs, err = labmanager.New(dataDirectory)
