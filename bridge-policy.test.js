@@ -108,6 +108,35 @@ test("legacy Coding sessions preserve deliverable Go defaults without unrestrict
   assert.equal(policy.activeTools.includes("lsp_fix"), true);
 });
 
+test("ImageGen is exposed only when its isolated Provider credential is configured", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "milksu-imagegen-policy-"));
+  const unavailable = await loadSessionPolicy(workspace, "", {
+    executionMode: "go",
+    approvalPolicy: "workspace-auto",
+    imageGenConfigured: false,
+  });
+  assert.equal(unavailable.activeTools.includes("milksu_imagegen"), false);
+  assert.equal(
+    unavailable.capabilities.find(value => value.id === "imagegen").status,
+    "unavailable",
+  );
+
+  const available = await loadSessionPolicy(workspace, "", {
+    executionMode: "go",
+    approvalPolicy: "full-auto",
+    imageGenConfigured: true,
+  });
+  assert.equal(available.activeTools.includes("milksu_imagegen"), true);
+  assert.equal(
+    available.capabilities.find(value => value.id === "imagegen").status,
+    "approval-required",
+  );
+  assert.match(
+    available.capabilities.find(value => value.id === "imagegen").detail,
+    /每次请求/,
+  );
+});
+
 test("Plan and Read-only enforce a read-only tool allowlist", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "milksu-coding-policy-"));
   for (const [executionMode, approvalPolicy] of [

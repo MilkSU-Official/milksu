@@ -33,6 +33,7 @@ const commandTools = new Set([
 ])
 const mutationTools = new Set(['edit', 'write', 'lsp_fix'])
 const searchTools = new Set(['find', 'grep', 'ls', 'read'])
+const imageGenTools = new Set(['milksu_imagegen'])
 
 function isApproval(message: Message) {
   return Boolean(message.approvalRequestId)
@@ -108,6 +109,8 @@ export function chatActivitySummary(messages: Message[]) {
 
   const architectureCount = entries.filter(entry => entry.toolName === 'milksu_archify').length
   if (architectureCount) return '处理架构图'
+  const imageGenCount = entryCount(entries, imageGenTools)
+  if (imageGenCount) return imageGenCount > 1 ? '处理了多张图片' : '生成或编辑了图片'
 
   const mutations = entryCount(entries, mutationTools)
   const commands = entryCount(entries, commandTools)
@@ -234,5 +237,16 @@ export function chatActivityEntrySummary(messageOrEntry: Message | ChatActivityE
   if (name === 'grep') return `搜索${suffix || '内容'}`
   if (name === 'milksu_progress') return '更新任务进度'
   if (name === 'milksu_archify') return '处理架构图'
+  if (name === 'milksu_imagegen') {
+    let outputPath = ''
+    if (isEntry && messageOrEntry.result?.content) {
+      try {
+        outputPath = String(JSON.parse(messageOrEntry.result.content)?.output?.path ?? '')
+      } catch {
+        // Fall back to the bounded tool-start summary.
+      }
+    }
+    return outputPath ? `交付图片 ${outputPath}` : subject || '处理图片'
+  }
   return subject ? `${message.toolName ?? '工具'} · ${subject}` : message.toolName ?? '使用工具'
 }

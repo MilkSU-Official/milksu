@@ -22,6 +22,7 @@ export const codingWorkspaceAutoToolNames = [
   "bg_task",
   "bg_status",
   "milksu_progress",
+  "milksu_imagegen",
   "lsp_diagnostics",
   "lsp_fix",
   ...codingGoalToolNames,
@@ -118,6 +119,14 @@ export function normalizeCodingPolicy(
           : approvalChannelAvailable
             ? "网络只能通过已展示并单次批准的命令使用。"
             : "当前模式禁止网络命令。",
+      },
+      {
+        id: "imagegen",
+        label: "ImageGen",
+        status: effectfulToolsAvailable ? "approval-required" : "blocked",
+        detail: effectfulToolsAvailable
+          ? "使用隔离的 OpenAI Provider Adapter；每次生成或参考图编辑都单独展示输入、输出、尺寸和费用后批准。"
+          : "Plan 与 Read-only 不提供付费 ImageGen 调用。",
       },
       {
         id: "credentials",

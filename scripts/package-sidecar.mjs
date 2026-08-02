@@ -1450,6 +1450,7 @@ async function smokeSidecar(platform) {
   if (response.protocol !== 'milksu-security-engine/v1alpha1' || response.inheritedTools?.length !== 0) {
     throw new Error(`unexpected packaged Security Sidecar response: ${securityRun.stdout}`)
   }
+  const imageGenSmokeCredential = 'package-smoke-imagegen-credential-never-log'
   const chatRun = await runWithInput(
     node,
     [...chatRuntimeArguments, join(output, 'chat-bridge.cjs')],
@@ -1458,7 +1459,14 @@ async function smokeSidecar(platform) {
       '{"action":"destroy_session","conversationId":"packaged-smoke"}',
       '',
     ].join('\n'),
-    { cwd: workspace, env: { ...process.env, HOME: workspace } },
+    {
+      cwd: workspace,
+      env: {
+        ...process.env,
+        HOME: workspace,
+        OPENAI_API_KEY: imageGenSmokeCredential,
+      },
+    },
   )
   const chatResponses = chatRun.stdout.trim().split('\n').map(line => JSON.parse(line))
   const ready = chatResponses.find(value => value.type === 'ready')
@@ -1475,6 +1483,7 @@ async function smokeSidecar(platform) {
     ...coreExpectedTools,
     'bg_task',
     'bg_status',
+    'milksu_imagegen',
     'lsp_diagnostics',
     'lsp_fix',
     'goal_complete',
@@ -1496,6 +1505,12 @@ async function smokeSidecar(platform) {
       capability => capability.id === 'computer-use'
         && capability.status === 'unavailable',
     )
+    || !ready.capabilities?.some(
+      capability => capability.id === 'imagegen'
+        && capability.status === 'approval-required',
+    )
+    || chatRun.stdout.includes(imageGenSmokeCredential)
+    || chatRun.stderr.includes(imageGenSmokeCredential)
     || !chatResponses.some(value => value.type === 'session_destroyed')
   ) {
     throw new Error(`unexpected packaged Chat Sidecar response: ${chatRun.stdout}`)

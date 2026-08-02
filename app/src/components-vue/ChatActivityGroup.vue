@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import {
   ChevronDown,
   FilePenLine,
+  Image,
   LoaderCircle,
   Search,
   Terminal,
@@ -26,6 +27,7 @@ const summaryIcon = computed(() => {
   const names = new Set(toolEntries.value.map(entry => entry.toolName))
   if (names.has('edit') || names.has('write') || names.has('lsp_fix')) return FilePenLine
   if (names.has('milksu_archify')) return Wrench
+  if (names.has('milksu_imagegen')) return Image
   if ([...names].some(name => ['read', 'ls', 'find', 'grep'].includes(name))) return Search
   return Terminal
 })
@@ -40,6 +42,7 @@ function entryIcon(entry: ChatActivityEntry) {
     || name === 'bg_status'
   ) return Terminal
   if (name === 'write' || name === 'edit') return FilePenLine
+  if (name === 'milksu_imagegen') return Image
   if (name === 'read' || name === 'ls' || name === 'find' || name === 'grep') return Search
   return Wrench
 }
@@ -53,6 +56,7 @@ function detailLabel(entry: ChatActivityEntry) {
   if (name === 'write' || name === 'edit') return '文件变更'
   if (name === 'ls' || name === 'find' || name === 'grep') return '检索结果'
   if (name === 'milksu_archify') return '架构图'
+  if (name === 'milksu_imagegen') return 'ImageGen 输入、输出、usage 与费用'
   return entry.request?.toolName ?? entry.result?.toolName ?? '工具详情'
 }
 

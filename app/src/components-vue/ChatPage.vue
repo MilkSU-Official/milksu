@@ -312,6 +312,10 @@ const codingCapabilities = computed(() => {
     : previewCodingCapabilities(
         effectiveExecutionMode.value,
         effectiveApprovalPolicy.value,
+        Boolean(
+          props.settings?.providers?.openai?.enabled
+          && props.settings.providers.openai.has_api_key,
+        ),
       )
   if (
     !computerUseReadyForCurrentTask.value

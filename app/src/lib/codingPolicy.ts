@@ -25,6 +25,7 @@ export function normalizeCodingApprovalPolicy(value: unknown): CodingApprovalPol
 export function previewCodingCapabilities(
   executionMode: CodingExecutionMode,
   approvalPolicy: CodingApprovalPolicy,
+  imageGenConfigured = false,
 ): CodingCapability[] {
   const workspaceAuto = executionMode === 'go' && approvalPolicy === 'workspace-auto'
   const fullAuto = executionMode === 'go' && approvalPolicy === 'full-auto'
@@ -72,6 +73,20 @@ export function previewCodingCapabilities(
         : ask
           ? '网络只能通过已展示并单次批准的命令使用。'
           : '当前模式禁止网络命令。',
+    },
+    {
+      id: 'imagegen',
+      label: 'ImageGen',
+      status: executionMode !== 'go' || approvalPolicy === 'read-only'
+        ? 'blocked'
+        : imageGenConfigured
+          ? 'approval-required'
+          : 'unavailable',
+      detail: executionMode !== 'go' || approvalPolicy === 'read-only'
+        ? '当前模式不提供付费 ImageGen 调用。'
+        : imageGenConfigured
+          ? '每次生成或参考图编辑都单独展示输入、输出、尺寸和费用后批准。'
+          : '需要先在设置中配置并启用 OpenAI；Provider Key 不会进入 Agent、终端或工具输出。',
     },
     {
       id: 'credentials',

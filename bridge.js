@@ -78,6 +78,10 @@ import {
   normalizeCodingCollaboration,
   validateSubagentInput,
 } from "./bridge-collaboration.js";
+import {
+  authorizeImageGenToolCall,
+  codingImageGenToolName,
+} from "./bridge-imagegen.js";
 
 const relayKey = process.env.MILKSU_RELAY_KEY;
 const relayUrl = process.env.MILKSU_RELAY_URL || "https://api.ciyuanliudong.com/v1";
@@ -378,6 +382,12 @@ function createCodingPermissionExtension(
           + `${policy.executionMode}/${policy.approvalPolicy}`,
         };
       }
+      const imageGenDecision = await authorizeImageGenToolCall({
+        conversationId,
+        event,
+        approvalBroker,
+      });
+      if (imageGenDecision) return imageGenDecision;
       if (event.toolName === codingCollaborationToolName) {
         try {
           validateSubagentInput(event.input, policy.codingCollaboration);
@@ -560,6 +570,15 @@ function formatToolInput(toolName, args) {
   }
   if (toolName === "bash" && typeof args.command === "string") {
     return `$ ${args.command}`;
+  }
+  if (toolName === codingImageGenToolName) {
+    const mode = args.mode === "edit" ? "编辑图片" : "生成图片";
+    return [
+      mode,
+      args.outputPath,
+      args.size || "1024x1024",
+      args.quality || "low",
+    ].map(value => String(value ?? "").trim()).filter(Boolean).join(" · ");
   }
   if (toolName === "bg_task") {
     const action = String(args.action ?? "").trim();
@@ -907,6 +926,7 @@ async function loadRuntimeSessionPolicy(cwd, command) {
     codingBrowser: selectedMcp.codingBrowser,
     computerUse: selectedMcp.computerUse,
     codingCollaboration,
+    imageGenConfigured: Boolean(String(process.env.OPENAI_API_KEY ?? "").trim()),
   });
   const effectiveSessionRole = policy.ctf
     ? command.sessionRole || "solver"
@@ -924,6 +944,7 @@ async function loadRuntimeSessionPolicy(cwd, command) {
       codingBrowser: selectedMcp.codingBrowser,
       computerUse: selectedMcp.computerUse,
       codingCollaboration,
+      imageGenConfigured: Boolean(String(process.env.OPENAI_API_KEY ?? "").trim()),
       readOnlyResourceRoots: codingResourceRoots,
     });
   }

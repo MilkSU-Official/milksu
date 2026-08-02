@@ -135,6 +135,27 @@ describe('activity labels', () => {
     )).toBe('接下来检查构建结果。')
   })
 
+  it('summarizes ImageGen as a delivered project asset', () => {
+    const entries = buildChatActivityEntries([
+      message('image-start', 'tool', '生成图片 · assets/hero.png · 1024x1024 · low', {
+        toolName: 'milksu_imagegen',
+        toolCallId: 'image-call',
+        status: 'running',
+      }),
+      message('image-result', 'tool', JSON.stringify({
+        status: 'completed',
+        output: { path: 'assets/hero.png' },
+      }), {
+        toolName: 'milksu_imagegen',
+        toolCallId: 'image-call',
+      }),
+    ])
+    expect(chatActivitySummary([
+      message('image-result', 'tool', '{}', { toolName: 'milksu_imagegen' }),
+    ])).toBe('生成或编辑了图片')
+    expect(chatActivityEntrySummary(entries[0]!)).toBe('交付图片 assets/hero.png')
+  })
+
   it('pairs tool start and result events into one expandable row', () => {
     const entries = buildChatActivityEntries([
       message('ls-start', 'tool', '{}', { toolName: 'ls', status: 'running' }),

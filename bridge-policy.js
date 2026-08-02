@@ -47,6 +47,10 @@ import {
   ctfNetworkToolNames,
   ctfScopedNetworkToolNames,
 } from "./bridge-ctf-network.js";
+import {
+  codingImageGenToolName,
+  createImageGenTool,
+} from "./bridge-imagegen.js";
 
 export {
   codingSessionToolNames,
@@ -1671,6 +1675,10 @@ async function createCodingToolDefinitions(
       },
     }),
     createArchifyTool(root, reviewedResourceRoots, productAction),
+    createImageGenTool(root, {
+      ensureRead: ensure,
+      ensureMutation,
+    }),
   ];
   const bash = definitions.find(tool => tool.name === "bash");
   bash.description += fullAccess
@@ -1859,7 +1867,11 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
     root,
     codingPolicy.productAction,
   );
-  const actionTools = codingProductActionTools(productAction, normalized.activeTools);
+  const imageGenConfigured = codingPolicy.imageGenConfigured === true;
+  const actionTools = codingProductActionTools(
+    productAction,
+    normalized.activeTools,
+  ).filter(tool => tool !== codingImageGenToolName || imageGenConfigured);
   const mcpAvailable = !productAction
     && mcpServers.length > 0
     && normalized.executionMode === "go"
@@ -1871,6 +1883,10 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
     && Boolean(codingCollaboration)
     && normalized.executionMode === "go"
     && normalized.approvalPolicy !== "read-only";
+  const imageGenAvailable = !productAction
+    && normalized.executionMode === "go"
+    && normalized.approvalPolicy !== "read-only"
+    && imageGenConfigured;
   const activeTools = [...new Set([
     ...actionTools,
     ...(mcpAvailable ? ["mcp"] : []),
@@ -1892,6 +1908,17 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
               ? "当前 Plan、只读或一键只读动作不会加载 MCP；切换到 Go 后可用。"
             : "项目 .mcp.json 中的服务器仅在本任务“能力”菜单勾选后加载。",
         }
+      : capability.id === "imagegen"
+        ? {
+            ...capability,
+            status: imageGenAvailable ? "approval-required" : "unavailable",
+            detail: imageGenAvailable
+              ? "OpenAI ImageGen Provider Adapter 已隔离凭据；每次请求都会展示模型、Endpoint、尺寸、质量、输出和费用后单独批准。"
+              : normalized.executionMode !== "go"
+                  || normalized.approvalPolicy === "read-only"
+                ? "当前 Plan 或只读策略不会加载付费 ImageGen。"
+                : "需要先在设置中配置并启用 OpenAI；Provider Key 不会进入 Agent、终端或工具输出。",
+          }
       : capability.id === "computer-use"
         ? {
             ...capability,
