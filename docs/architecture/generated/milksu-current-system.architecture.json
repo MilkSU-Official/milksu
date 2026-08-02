@@ -3,7 +3,7 @@
   "diagram_type": "architecture",
   "meta": {
     "title": "MilkSU 当前系统架构",
-    "subtitle": "R0.4 当前事实 · Pi Coding 基座、隔离 Coding Browser、CTF 证据闭环与安全静态开发者评测",
+    "subtitle": "R0.4 当前事实 · Pi Coding 基座、隔离 Coding Browser、CTF 证据闭环与安全静态双 Harness 评测",
     "output": "milksu-current-system.html",
     "animation": "trace",
     "visual_preset": "blueprint",
@@ -26,7 +26,7 @@
         "id": "eval-boundary",
         "label": "内部模型评测",
         "focus": ["nyu-eval", "local-state"],
-        "note": "NYU CTF Bench 只运行人工准入的静态单次推理与 Digest Judge；不执行挑战或模型输出。"
+        "note": "NYU CTF Bench 运行 one-shot 与两回合 Pi 只读基线；只做 Digest Judge，不执行挑战或模型输出。"
       }
     ]
   },
@@ -133,8 +133,8 @@
       "id": "nyu-eval",
       "type": "backend",
       "label": "NYU Safe-static Eval",
-      "sublabel": "One-shot Runner · Digest Judge · Report",
-      "tag": "developer-only · no tools",
+      "sublabel": "One-shot · Pi Read-only · Digest",
+      "tag": "developer-only · no effectful tools",
       "pos": [1290, 520],
       "size": [150, 76]
     }
@@ -340,7 +340,7 @@
       "title": "当前边界",
       "items": [
         "Managed Labs 已暂停，不计入当前 M3 交付",
-        "NYU CTF Bench 只做人工准入的无工具单次推理与 Digest Judge，不执行挑战"
+        "NYU 只做人工准入的 one-shot 与两回合 Pi 只读评测，不执行挑战或模型输出"
       ]
     }
   ]

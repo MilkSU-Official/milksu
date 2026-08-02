@@ -4498,10 +4498,10 @@
         <div class="pulse-dot"></div>
         <h1>MilkSU 当前系统架构</h1>
       </div>
-      <p class="subtitle">R0.4 当前事实 · Pi Coding 基座、隔离 Coding Browser、CTF 证据闭环与安全静态开发者评测</p>
+      <p class="subtitle">R0.4 当前事实 · Pi Coding 基座、隔离 Coding Browser、CTF 证据闭环与安全静态双 Harness 评测</p>
     </div>
 
-    <script id="archify-guided-views-data" type="application/json">[{"id":"coding-path","label":"Coding 主链","focus":["learner","vue-shell","go-host","pi-sidecar","coding-resources","browser-bridge","model-provider"],"note":"从桌面交互到 Pi 会话、固定资源、显式启用的隔离浏览器和模型 Provider。"},{"id":"ctf-path","label":"CTF 证据闭环","focus":["learner","vue-shell","go-host","ctf-service","browser-bridge","ctf-platforms","evidence-runtime","local-state"],"note":"候选答案必须经过平台 Judge 回执，才能进入证据和复盘。"},{"id":"eval-boundary","label":"内部模型评测","focus":["nyu-eval","local-state"],"note":"NYU CTF Bench 只运行人工准入的静态单次推理与 Digest Judge；不执行挑战或模型输出。"}]</script>
+    <script id="archify-guided-views-data" type="application/json">[{"id":"coding-path","label":"Coding 主链","focus":["learner","vue-shell","go-host","pi-sidecar","coding-resources","browser-bridge","model-provider"],"note":"从桌面交互到 Pi 会话、固定资源、显式启用的隔离浏览器和模型 Provider。"},{"id":"ctf-path","label":"CTF 证据闭环","focus":["learner","vue-shell","go-host","ctf-service","browser-bridge","ctf-platforms","evidence-runtime","local-state"],"note":"候选答案必须经过平台 Judge 回执，才能进入证据和复盘。"},{"id":"eval-boundary","label":"内部模型评测","focus":["nyu-eval","local-state"],"note":"NYU CTF Bench 运行 one-shot 与两回合 Pi 只读基线；只做 Digest Judge，不执行挑战或模型输出。"}]</script>
 
     <div class="guided-views no-print" id="guided-views" hidden aria-label="Guided diagram views">
       <button id="guided-view-prev" type="button" aria-label="Previous guided view" title="Previous guided view ([)">&#8592;</button>
@@ -4546,7 +4546,7 @@
     <div class="diagram-container" data-detail-level="read">
       <svg viewBox="0 0 1460 780" role="img" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="blueprint" data-quality-profile="showcase">
         <title id="archify-diagram-title">MilkSU 当前系统架构</title>
-        <desc id="archify-diagram-description">R0.4 当前事实 · Pi Coding 基座、隔离 Coding Browser、CTF 证据闭环与安全静态开发者评测</desc>
+        <desc id="archify-diagram-description">R0.4 当前事实 · Pi Coding 基座、隔离 Coding Browser、CTF 证据闭环与安全静态双 Harness 评测</desc>
         <!-- Definitions -->
         <defs>
           <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
@@ -4736,16 +4736,16 @@
         <text data-detail="fine" x="1135" y="588" class="t-database" font-size="7" text-anchor="middle">com.milksu.app</text>
         </g>
 
-        <g id="node-nyu-eval" data-node-id="nyu-eval" data-node-label="NYU Safe-static Eval" tabindex="0" role="button" aria-label="Focus NYU Safe-static Eval, One-shot Runner · Digest Judge · Report, Architecture component" aria-pressed="false" data-node-kind="backend" data-node-sublabel="One-shot Runner · Digest Judge · Report" data-node-tag="developer-only · no tools" data-node-context="Architecture component">
-          <title>NYU Safe-static Eval · One-shot Runner · Digest Judge · Report · Architecture component · developer-only · no tools</title>
+        <g id="node-nyu-eval" data-node-id="nyu-eval" data-node-label="NYU Safe-static Eval" tabindex="0" role="button" aria-label="Focus NYU Safe-static Eval, One-shot · Pi Read-only · Digest, Architecture component" aria-pressed="false" data-node-kind="backend" data-node-sublabel="One-shot · Pi Read-only · Digest" data-node-tag="developer-only · no effectful tools" data-node-context="Architecture component">
+          <title>NYU Safe-static Eval · One-shot · Pi Read-only · Digest · Architecture component · developer-only · no effectful tools</title>
           <rect x="1290" y="520" width="150" height="76" rx="6" class="c-mask"/>
           <rect x="1290" y="520" width="150" height="76" rx="6" class="c-backend" data-animate="node" style="--step:12" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(1296 526) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
           <text data-detail-anchor x="1365" y="556" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">NYU Safe-static Eval</text>
-        <text data-detail="context" x="1365" y="572" class="t-muted" font-size="9" text-anchor="middle">One-shot Runner · Digest Judge · Report</text>
-        <text data-detail="fine" x="1365" y="588" class="t-backend" font-size="7" text-anchor="middle">developer-only · no tools</text>
+        <text data-detail="context" x="1365" y="572" class="t-muted" font-size="9" text-anchor="middle">One-shot · Pi Read-only · Digest</text>
+        <text data-detail="fine" x="1365" y="588" class="t-backend" font-size="7" text-anchor="middle">developer-only · no effectful tools</text>
         </g>
 
         <!-- Connection labels -->
@@ -5042,7 +5042,7 @@
         </div>
         <ul>
           <li>&bull; Managed Labs 已暂停，不计入当前 M3 交付</li>
-          <li>&bull; NYU CTF Bench 只做人工准入的无工具单次推理与 Digest Judge，不执行挑战</li>
+          <li>&bull; NYU 只做人工准入的 one-shot 与两回合 Pi 只读评测，不执行挑战或模型输出</li>
         </ul>
       </div>
     </div>

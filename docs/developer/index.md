@@ -28,7 +28,7 @@
 22. [PI Resource Whitelist](/developer/pi-resource-whitelist)：记录 Coding Agent 可加载的固定版本 Skill/Extension，以及 CTF 隔离断言。
 23. [Coding Agent 与 Codex 能力对照](/developer/coding-agent-codex-parity)：按日常开发工作流追踪项目、执行、Git、权限、扩展与自动化的实现和验收差距。
 24. [CTF Agent 开源项目对照](/developer/research/2026-07-31-ctf-agent-landscape)：BoxPwnr、D-CIPHER、EnIGMA+、CAI 等框架与 MilkSU 底座取舍。
-25. [NYU CTF Bench 离线评测](/developer/nyu-ctf-bench-eval)：只导入固定版本的 benchmark 索引与任务目录，记录非权威运行摘要并生成可复现静态报告，不启动挑战或执行 Agent 输出。
+25. [NYU CTF Bench 离线评测](/developer/nyu-ctf-bench-eval)：只导入固定版本的 benchmark 索引与人工准入材料；提供 one-shot 与两回合 Pi 只读 Agent Runtime，生成可复现摘要报告，但不启动挑战或执行 Agent 输出。
 26. [授权安全学习与研究平台](/architecture/security-learning-and-research-platform)：CTF、Labs、CVE 与 Coding 怎样共享授权、证据、环境和学习底座。
 27. [CTF Labs 顶层与详细设计](/architecture/ctf-labs-design)：未来怎样提供一键启动、可重置、可判定的环境型训练。
 28. [CVE 研究工作台顶层与详细设计](/architecture/cve-research-workbench-design)：未来怎样支撑赏金猎人的情报、资产、研究、证据和披露日常。

@@ -30,6 +30,7 @@ The answer will be hashed, compared, discarded, and never executed.`
 
 const (
 	ExitRuntimeError           ExitReason = "runtime-error"
+	ExitRuntimeTimeout         ExitReason = "runtime-timeout"
 	ExitRuntimePolicyViolation ExitReason = "runtime-policy-violation"
 	ExitRuntimeToolFailure     ExitReason = "runtime-tool-failure"
 	ExitRuntimeRecoveryFailed  ExitReason = "runtime-recovery-failed"
@@ -253,7 +254,12 @@ func (runner AgentRuntimeRunner) Run(
 	record.Turns++
 	accumulateRuntimeTurn(&record, first, toolUsage)
 	if firstErr != nil {
-		finishRuntimeFailure(&record, ExitRuntimeError, startedAt, now)
+		finishRuntimeFailure(
+			&record,
+			classifyAgentRuntimeFailure(firstErr),
+			startedAt,
+			now,
+		)
 		record.ToolUsage = sortedRuntimeToolUsage(toolUsage)
 		return record, nil
 	}
@@ -300,7 +306,12 @@ func (runner AgentRuntimeRunner) Run(
 	accumulateRuntimeTurn(&record, second, toolUsage)
 	record.ToolUsage = sortedRuntimeToolUsage(toolUsage)
 	if secondErr != nil {
-		finishRuntimeFailure(&record, ExitRuntimeError, startedAt, now)
+		finishRuntimeFailure(
+			&record,
+			classifyAgentRuntimeFailure(secondErr),
+			startedAt,
+			now,
+		)
 		return record, nil
 	}
 	if reason := validateRuntimeTurn(second, true); reason != "" {
@@ -393,7 +404,8 @@ func (record AgentRuntimeRunRecord) Summary() (RunRecord, error) {
 			ToolCalls:        record.ToolCalls,
 			UsageMeasurement: record.UsageMeasurement,
 		},
-		Judge: judge,
+		ExitReason: string(record.ExitReason),
+		Judge:      judge,
 	}, nil
 }
 
@@ -533,7 +545,8 @@ func ValidateAgentRuntimeRunRecord(record AgentRuntimeRunRecord) error {
 		return errors.New("incomplete agent runtime run has an invalid terminal state")
 	}
 	switch record.ExitReason {
-	case ExitRuntimeError, ExitRuntimePolicyViolation, ExitRuntimeToolFailure,
+	case ExitRuntimeError, ExitRuntimeTimeout,
+		ExitRuntimePolicyViolation, ExitRuntimeToolFailure,
 		ExitRuntimeRecoveryFailed, ExitRuntimeInvalidResponse, ExitRuntimeBudgetExceeded:
 		return nil
 	default:
@@ -693,6 +706,13 @@ func newAgentRuntimeRecord(
 		UsageMeasurement: AgentRuntimeUsageMeasurement,
 		ToolUsage:        []AgentRuntimeToolUsage{},
 	}
+}
+
+func classifyAgentRuntimeFailure(err error) ExitReason {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return ExitRuntimeTimeout
+	}
+	return ExitRuntimeError
 }
 
 func finishRuntimeFailure(

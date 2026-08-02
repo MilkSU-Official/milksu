@@ -186,6 +186,19 @@ func NewSupervisorWithSidecarDirectory(
 	return supervisor
 }
 
+// SetTurnActivityTimeout configures the inactivity deadline used for turns
+// started after this call. Callers with a stricter end-to-end deadline should
+// set this before SendMessage so that their deadline remains authoritative.
+func (s *Supervisor) SetTurnActivityTimeout(timeout time.Duration) error {
+	if timeout <= 0 {
+		return fmt.Errorf("turn activity timeout must be positive")
+	}
+	s.mu.Lock()
+	s.turnTimeout = timeout
+	s.mu.Unlock()
+	return nil
+}
+
 func normalizeCodingPolicy(
 	executionMode,
 	approvalPolicy,

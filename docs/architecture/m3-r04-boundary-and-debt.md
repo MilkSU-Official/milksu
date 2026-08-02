@@ -30,7 +30,7 @@
 | Coding Plan / Go 与权限策略 | **Implemented / Partial overall** | Codex 风格三档菜单、Project Auto 常规开发 Shell/Git/网络、显式 Full Access 和 Ask 单次工具审批已落地并有交付门禁；右侧终端页已在原生 App 验证交互式项目 PTY，并启停带 PID/端口/日志的后台服务；隔离 Coding Browser 已验证逐次审批；仍缺跨应用重启终端恢复和 Computer Use 授权。 |
 | Coding 日常产品动作与 Diff | **Verified for one real delivery chain** | 同一真实打包 App 会话已连续完成理解项目、失败测试、可信 Diff 审阅、最小修复、回归测试和总结；右侧文件级 Diff 页已接线；本地临时远端完成 stage、commit、push 与远端 HEAD 核对。仍欠多语言样本、逐块/行级反馈和托管平台 PR。 |
 | 架构文档 | **Verified snapshot** | 当前/目标/债务文档与 Archify 交互式 HTML 已生成；规格验证 9/9、0 error、0 warning。 |
-| NYU CTF Bench | **Verified narrow safe-static baseline** | 固定 revision、人工 fail-closed 准入、单次无工具 Runner、Digest Judge 与 Report 已跑通；5 completed 中 3 solved，另有 1 个零调用阻断。无用户 UI，不代表真实 CTF Agent。 |
+| NYU CTF Bench | **Verified one-shot + read-only Agent Runtime baseline** | 固定 revision、人工 fail-closed 准入、one-shot Runner 与两回合 Pi Runtime 都已跑通。Agent Runtime 的 5 条记录为 2 solved、1 unsolved、1 无效 JSON、1 回合超时，并验证只读加载、强制重启、恢复证据与 Digest Judge。无用户 UI，不代表完整 CTF Agent。 |
 | Coding 附件 / 项目 MCP / 后台任务 | **Implemented / Verified by packaged gates** | 文件/图片附件、纯文本模型 OCR/视觉降级、项目 `.mcp.json` 选择与摘要固定、单次 MCP 审批和按 Conversation 隔离的后台任务生命周期已接线；仍需多进程压力、重启恢复和产物预览。 |
 | Coding Browser / Computer Use | **Verified Browser / Planned Computer Use** | Coding Browser 复用固定 Playwright MCP，必须从右侧显式启动专用 Chrome，每次调用单独批准；真实打包 App 已回读 `MILKSU-BROWSER-OK`。Computer Use 仍不能列入完成能力。 |
 | Managed Labs / Juice Shop / WebGoat / Vulhub | **Paused** | 本轮不发布、不验收、不出现在完成声明。 |
@@ -48,7 +48,7 @@ flowchart LR
         docs["架构与文档<br/>事实状态 · 债务 · 图"]
     end
 
-    eval["NYU safe-static<br/>窄基线已完成"]
+    eval["NYU safe-static<br/>one-shot + PI 只读基线"]
     release["R0.4 可演示冻结"]
 
     subgraph paused["Designed / Paused"]
@@ -62,8 +62,8 @@ flowchart LR
     cve -. "取得授权后" .-> foundation
 ```
 
-这张图描述优先级，不表示所有 Active 节点都已完成。`NYU safe-static` 只完成窄的开发者
-基线；Coding 和 CTF 的具体未完成项仍以下方债务表为准。
+这张图描述优先级，不表示所有 Active 节点都已完成。`NYU safe-static` 只完成 one-shot
+与两回合 Pi 只读开发者基线；Coding 和 CTF 的具体未完成项仍以下方债务表为准。
 
 ## R0.4 冻结门
 
@@ -88,8 +88,9 @@ flowchart LR
    `Implemented / Partial / Planned / Paused / Historical`。
 5. 本地备份恢复在任何 Store 打开前执行，二次验证 schema/哈希/路径与数据版本，保留凭据和
    配对令牌，失败可回滚且不会把旧 SQLite WAL 叠到恢复快照。
-6. NYU safe-static Runner 只消费人工审核的固定静态材料，记录模型、Harness、预算、退出原因、
-   token、成本和 Digest Judge 结果；不执行模型输出，也不把 benchmark 成绩写进用户能力画像。
+6. NYU safe-static Runner 只消费人工审核的固定静态材料；one-shot 记录 token/成本，
+   Agent Runtime 记录只读工具、强制重启、恢复和明确退出原因。两者都只做 Digest Judge，
+   不执行模型输出，也不把 benchmark 成绩写进用户能力画像。
 7. `go test ./...`、Bridge Policy、前端测试/构建、Sidecar Smoke、文档构建和原生 Wails
    打包全部通过后，才提交并 push。
 
@@ -166,7 +167,7 @@ flowchart LR
 - “完整 M0—M7 的 M3 已完成”；
 - “Managed Labs 已接入”；
 - “Coding 插件体系已稳定完成”；
-- “NYU CTF Bench 的 3/5 静态结果代表完整模型或 CTF Agent 能力”；
+- “NYU CTF Bench 的 3/5 one-shot 或 2/5 Agent Runtime 结果代表完整模型或 CTF Agent 能力”；
 - “CTF 已完成 Web / Pwn / Reverse / Crypto / Forensics 多题型验收”；
 - “Coding 已支持 Computer Use”（当前只支持隔离 Coding Browser；跨应用桌面控制仍未接入）；
 - “MilkSU Shell 已实现容器级隔离”。

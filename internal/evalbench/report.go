@@ -358,12 +358,19 @@ func accumulateExecution(summary *executionAccumulator, run RunRecord) {
 		summary.usageUnmeasuredRuns++
 		summary.usageMeasurements[measurement] = struct{}{}
 	}
+	exitReason := strings.TrimSpace(run.ExitReason)
 	if run.Execution == nil {
+		if exitReason != "" {
+			summary.exitReasons[exitReason]++
+		}
 		return
 	}
 	summary.providerCalls += run.Execution.ProviderCalls
 	summary.actualCostMicroUSD += run.Execution.ActualCostMicroUSD
-	summary.exitReasons[run.Execution.ExitReason]++
+	if exitReason == "" {
+		exitReason = run.Execution.ExitReason
+	}
+	summary.exitReasons[exitReason]++
 }
 
 func executionReport(summary executionAccumulator) ExecutionAggregate {

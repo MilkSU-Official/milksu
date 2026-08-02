@@ -150,6 +150,7 @@ Memory 不复制原始 Flag、API Key、Bearer Token 或 URL Secret。新题召�
 - 动态 endpoint 从题面发现后仍需要完整的用户确认 UI，文字本身不能自动扩大 Scope。
 - 宿主机 PI Shell 不是容器；macOS Seatbelt 也不是跨平台的精确网络隔离。
 - CTFshow 适配代码存在，但真实账号 E2E 需要持续作为发布回归保存。
-- NYU CTF Bench 已接入固定索引、fail-closed safe-static 单次 Runner、Digest Judge 和静态报告；
-  完整挑战 Runner、Agent 工具链与代表性真实成绩仍不存在。
+- NYU CTF Bench 已接入固定索引、fail-closed safe-static one-shot Runner、两回合 Pi
+  只读 Agent Runtime、Digest Judge 和静态报告；完整挑战 Runner、作用型 Agent 工具链与
+  代表性真实成绩仍不存在。
 - Managed Labs 已暂停，不属于本时序的可用入口或完成条件。

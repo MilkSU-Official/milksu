@@ -201,7 +201,10 @@ func TestReportCommandAggregatesSafeAgentRuntimeRecord(t *testing.T) {
 		report.Configurations[0].Harness.Name != "milksu-agent-runtime-safe-static" ||
 		report.Execution.UsageUnmeasuredRuns != 1 ||
 		len(report.Execution.UsageMeasurements) != 1 ||
-		report.Execution.UsageMeasurements[0] != evalbench.AgentRuntimeUsageMeasurement {
+		report.Execution.UsageMeasurements[0] != evalbench.AgentRuntimeUsageMeasurement ||
+		len(report.Execution.ExitReasons) != 1 ||
+		report.Execution.ExitReasons[0].Reason != string(evalbench.ExitCompletedSolved) ||
+		report.Execution.ExitReasons[0].Count != 1 {
 		t.Fatalf("unexpected agent runtime report: %#v", report)
 	}
 	if strings.Contains(output.String(), "MILK") {

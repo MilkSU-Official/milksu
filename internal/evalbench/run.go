@@ -83,6 +83,7 @@ type RunRecord struct {
 	StartedAt       time.Time            `json:"startedAt"`
 	FinishedAt      time.Time            `json:"finishedAt"`
 	Metrics         RunMetrics           `json:"metrics"`
+	ExitReason      string               `json:"exitReason,omitempty"`
 	Execution       *RunExecutionSummary `json:"execution,omitempty"`
 	Judge           *RunJudgeSummary     `json:"judge,omitempty"`
 }
@@ -161,9 +162,18 @@ func ValidateRunRecord(record RunRecord) error {
 		strings.ContainsAny(record.Metrics.UsageMeasurement, "\r\n") {
 		return errors.New("run usage measurement is invalid")
 	}
+	if record.ExitReason != "" &&
+		(len(record.ExitReason) > 100 ||
+			strings.ContainsAny(record.ExitReason, "\r\n")) {
+		return errors.New("run exit reason is invalid")
+	}
 	if record.Execution != nil {
 		if err := validateRunExecution(*record.Execution); err != nil {
 			return err
+		}
+		if record.ExitReason != "" &&
+			record.ExitReason != record.Execution.ExitReason {
+			return errors.New("run exit reason does not match execution summary")
 		}
 	}
 	switch record.Status {

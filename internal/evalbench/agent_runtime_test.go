@@ -120,6 +120,7 @@ func TestSafeAgentRuntimeE2EUsesReadOnlyToolsAndRecovers(t *testing.T) {
 		summary.Metrics.ToolCalls != 1 ||
 		summary.Metrics.InputTokens != 0 ||
 		summary.Metrics.UsageMeasurement != AgentRuntimeUsageMeasurement ||
+		summary.ExitReason != string(ExitCompletedSolved) ||
 		summary.Execution != nil {
 		t.Fatalf("unexpected runtime summary: %#v", summary)
 	}
@@ -253,23 +254,42 @@ func TestAgentRuntimeRequiresReadAndPersistedResumeEvidence(t *testing.T) {
 	}
 }
 
-func TestAgentRuntimeRecordsRuntimeFailureWithoutErrorText(t *testing.T) {
-	runtime := successfulFakeAgentRuntime()
-	runtime.errors = []error{errors.New("sensitive provider failure body")}
-	record, err := (AgentRuntimeRunner{
-		Runtime: runtime,
-		Now:     sequentialClock(),
-	}).Run(context.Background(), safeAgentRuntimeTestPlan())
-	if err != nil {
-		t.Fatal(err)
-	}
-	encoded, err := EncodeAgentRuntimeRunRecord(record)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if record.ExitReason != ExitRuntimeError ||
-		bytes.Contains(encoded, []byte("sensitive provider failure body")) {
-		t.Fatalf("runtime error leaked into record: %s", encoded)
+func TestAgentRuntimeClassifiesFailureWithoutErrorText(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		err    error
+		reason ExitReason
+	}{
+		{
+			name:   "runtime error",
+			err:    errors.New("sensitive provider failure body"),
+			reason: ExitRuntimeError,
+		},
+		{
+			name:   "turn timeout",
+			err:    context.DeadlineExceeded,
+			reason: ExitRuntimeTimeout,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			runtime := successfulFakeAgentRuntime()
+			runtime.errors = []error{test.err}
+			record, err := (AgentRuntimeRunner{
+				Runtime: runtime,
+				Now:     sequentialClock(),
+			}).Run(context.Background(), safeAgentRuntimeTestPlan())
+			if err != nil {
+				t.Fatal(err)
+			}
+			encoded, err := EncodeAgentRuntimeRunRecord(record)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if record.ExitReason != test.reason ||
+				bytes.Contains(encoded, []byte(test.err.Error())) {
+				t.Fatalf("runtime failure was not safely classified: %s", encoded)
+			}
+		})
 	}
 }
 

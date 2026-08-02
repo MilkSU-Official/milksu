@@ -772,7 +772,9 @@ func TestTurnActivityTimeoutEmitsRecoverableFailure(t *testing.T) {
 		events <- event
 	})
 	defer supervisor.Close()
-	supervisor.turnTimeout = 20 * time.Millisecond
+	if err := supervisor.SetTurnActivityTimeout(20 * time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
 	supervisor.mu.Lock()
 	supervisor.sessions["session-stalled"] = struct{}{}
 	supervisor.armTurnTimerLocked("session-stalled")
@@ -787,6 +789,17 @@ func TestTurnActivityTimeoutEmitsRecoverableFailure(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("stalled turn did not time out")
+	}
+}
+
+func TestSetTurnActivityTimeoutRejectsNonPositiveDuration(t *testing.T) {
+	supervisor := NewSupervisor(nil)
+	defer supervisor.Close()
+	if err := supervisor.SetTurnActivityTimeout(0); err == nil {
+		t.Fatal("zero turn activity timeout was accepted")
+	}
+	if supervisor.turnTimeout != defaultTurnActivityTimeout {
+		t.Fatalf("invalid timeout changed the default: %s", supervisor.turnTimeout)
 	}
 }
 

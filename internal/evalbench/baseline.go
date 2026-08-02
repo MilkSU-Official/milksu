@@ -307,6 +307,7 @@ func (record BaselineRunRecord) Summary() (RunRecord, error) {
 			InputTokens:  record.Usage.InputTokens,
 			OutputTokens: record.Usage.OutputTokens,
 		},
+		ExitReason: string(record.ExitReason),
 		Execution: &RunExecutionSummary{
 			ExitReason:         string(record.ExitReason),
 			ProviderCalls:      record.ProviderCalls,

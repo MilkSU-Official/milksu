@@ -42,7 +42,7 @@ flowchart LR
 | Coding Browser | **Verified** | `internal/browsercap` 由右侧页面显式启停专用 Chrome；Go Host 向当前 Pi Session 注入瞬态 loopback 描述符，固定 Playwright MCP 在逐次桌面审批下完成真实页面 E2E。 |
 | 本地持久化 | **Implemented** | `internal/appdata`、`internal/securityruntime`、Catalog、Conversation、Memory 和 Credential Store。 |
 | Managed Labs | **Paused** | 工作区存在实验代码，但已从当前交付范围移除，不是已发布系统能力。 |
-| NYU CTF Bench | **Verified narrow baseline** | `internal/evalbench` 与 `cmd/nyu-ctf-bench-run` 已有 fail-closed safe-static Runner、一次无工具 Provider 调用、Digest Judge 与确定性 Report；无产品 UI，也不代表真实 CTF Agent。 |
+| NYU CTF Bench | **Verified narrow developer baseline** | `internal/evalbench` 同时提供 one-shot Runner 与 `cmd/nyu-ctf-bench-agent-run` 两回合 Pi 只读 Runner；后者真实验证读取、强制重启、恢复、超时/格式失败分类和 Digest Judge。无产品 UI，也不代表完整 CTF Agent。 |
 
 ## C4 · Containers / Processes
 
@@ -152,24 +152,31 @@ flowchart TB
 
 ## 开发者评测边界
 
-NYU safe-static Runner 是仓库内的开发者 CLI，不是 `MilkSU.app` 用户流程，也不经过 Pi 工具循环：
+NYU safe-static 是仓库内的开发者 CLI，不是 `MilkSU.app` 用户流程。它有两个相互独立的
+Harness：one-shot 用于纯模型基线；Agent Runtime 复用真实 Pi 会话与只读工具，但不进入
+挑战执行链。
 
 ```mermaid
 flowchart LR
     reviewer["人工审核的静态任务<br/>固定 revision + Admission"]
-    runner["NYU safe-static Runner<br/>单次、无工具、无 Retry"]
+    oneshot["One-shot Runner<br/>单次、无工具"]
+    agent["Pi Agent Runtime<br/>只读加载 → 重启 → 恢复"]
     provider["DeepSeek Provider<br/>本地凭据"]
     judge["Digest Judge<br/>只比较规范化 SHA-256"]
-    report["开发者 Report<br/>token / cost / exit / result"]
+    report["开发者 Report<br/>usage 状态 / exit / result"]
     profile["用户能力画像"]
 
-    reviewer --> runner --> provider
-    provider --> runner --> judge --> report
+    reviewer --> oneshot --> provider
+    reviewer --> agent --> provider
+    provider --> oneshot --> judge
+    provider --> agent --> judge
+    judge --> report
     report -. "禁止写入" .-> profile
 ```
 
-完整 NYU challenge Runner、容器执行、Agent 工具调用和用户 UI 均不存在。这里的 “Runner”
-只指安全静态单次推理，不能被扩写成完整 benchmark 或 CTF Agent 成绩。
+Agent Runtime 只暴露 `Plan + read-only` 工具面，拒绝命令、写文件、网络与审批；输出只会
+被哈希比较，不会被执行或继续提交。完整 NYU challenge Runner、容器执行、作用型 Agent
+工具和用户 UI 均不存在。这些结果不能被扩写成完整 benchmark 或 CTF Agent 成绩。
 
 ## 依赖方向
 

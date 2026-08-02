@@ -32,6 +32,36 @@ func TestNewEngineRuntimeAtKeepsExplicitSidecarDirectoryAcrossRestart(t *testing
 	}
 }
 
+func TestTurnActivityTimeoutForContextKeepsRuntimeBudgetAuthoritative(t *testing.T) {
+	now := time.Date(2026, time.August, 2, 0, 0, 0, 0, time.UTC)
+	ctx, cancel := context.WithDeadline(
+		context.Background(),
+		now.Add(2*time.Minute),
+	)
+	defer cancel()
+
+	timeout, ok := turnActivityTimeoutForContext(ctx, now)
+	if !ok {
+		t.Fatal("deadline was not detected")
+	}
+	want := 2*time.Minute + runtimeTurnDeadlineGrace
+	if timeout != want {
+		t.Fatalf("unexpected supervisor timeout: got %s want %s", timeout, want)
+	}
+}
+
+func TestTurnActivityTimeoutForContextIgnoresMissingOrExpiredDeadline(t *testing.T) {
+	now := time.Date(2026, time.August, 2, 0, 0, 0, 0, time.UTC)
+	if timeout, ok := turnActivityTimeoutForContext(context.Background(), now); ok || timeout != 0 {
+		t.Fatalf("context without deadline produced %s", timeout)
+	}
+	ctx, cancel := context.WithDeadline(context.Background(), now.Add(-time.Second))
+	defer cancel()
+	if timeout, ok := turnActivityTimeoutForContext(ctx, now); ok || timeout != 0 {
+		t.Fatalf("expired context produced %s", timeout)
+	}
+}
+
 func TestWaitForTurnCollectsPolicyToolsAndFinalAssistantMessage(t *testing.T) {
 	events := make(chan engine.Event, 16)
 	events <- engine.Event{

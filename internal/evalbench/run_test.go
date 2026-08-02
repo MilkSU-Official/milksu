@@ -55,6 +55,24 @@ func TestRunRecordRequiresConsistentTerminalState(t *testing.T) {
 	}
 }
 
+func TestRunRecordRejectsConflictingExitReasons(t *testing.T) {
+	record := testRun("run-1", SplitDevelopment, "web-one", RunFailed, OutcomeUnknown)
+	record.ExitReason = "runtime-timeout"
+	record.Execution = &RunExecutionSummary{
+		ExitReason:         "runtime-error",
+		ProviderCalls:      0,
+		TimeoutMillis:      60_000,
+		MaxOutputTokens:    32,
+		PricingSchedule:    "fixture",
+		PricingSourceURL:   "https://example.com/pricing",
+		PricingCheckedDate: "2026-08-01",
+	}
+	if err := ValidateRunRecord(record); err == nil ||
+		!strings.Contains(err.Error(), "does not match") {
+		t.Fatalf("expected conflicting exit reason rejection, got %v", err)
+	}
+}
+
 func testRun(id string, split Split, taskID string, status RunStatus, outcome ReportedOutcome) RunRecord {
 	started := time.Date(2026, time.August, 1, 1, 2, 3, 0, time.UTC)
 	return RunRecord{

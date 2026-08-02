@@ -56,10 +56,11 @@ ADR、Review 和 Checkpoint 记录当时为什么这样决定，不会因为后�
   真实验收；LSP Server 仍未打包，不能仅凭插件已注册就宣称插件体系完成。
 - Managed Labs 本轮已暂停。工作区里的 Lab Manager / WebGoat 实验不能进入 R0.4 发布声明，
   也不能作为 M3 完成条件。
-- NYU CTF Bench 的只读元数据、Admission、DeepSeek 单回合安全静态 Runner 和摘要 Judge
-  是 **Implemented**；当前只有 6 个手选静态任务的内部基线，其中 5 次真实 Provider
-  调用、3 次摘要命中。它不是完整 NYU CTF Bench 成绩、不是 CTF Agent 工具链验收，也
-  不是面向用户的题库或评测服务。
+- NYU CTF Bench 的只读元数据、Admission、DeepSeek one-shot Runner、两回合 Pi 只读
+  Agent Runtime 和摘要 Judge 是 **Implemented / Verified for the narrow baseline**。
+  Agent Runtime 当前只有 5 个手选 static 样本：2 solved、1 unsolved、1 无效 JSON、
+  1 回合超时。它验证了只读加载、强制重启和恢复，但不是完整 NYU CTF Bench 成绩、
+  不是作用型 CTF Agent 工具链验收，也不是面向用户的题库或评测服务。
 - Coding Harness 遵循 **reuse-first**：Pi Core 或经审阅的社区扩展能负责的通用能力，
   MilkSU 不再写临时替代品；自研集中在桌面安全边界和 CTF 的 Evidence / Judge /
   Recovery / Memory。

@@ -32,7 +32,7 @@ MilkSU Security Harness 是默认运行方式，但“自己的 Harness”不等
 - NSSCTF/CTFshow 题库、自定义题目 Intake、显式候选与独立平台/本地 Judge；
 - Coding 的项目选择、持久会话、Plan/Go、Codex 风格三档权限、Project Auto 项目沙箱、
   显式 Full Access、停止与真实交付回归；
-- 开发者专用 NYU safe-static 单次推理与 Digest Judge；
+- 开发者专用 NYU safe-static one-shot 推理与两回合 Pi 只读 Agent Runtime；
 - Coach、Copilot、Delegate 三种协作方式的最小闭环；
 - 任务退出后可以恢复，事实不只存在于聊天上下文。
 

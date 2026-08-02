@@ -19,7 +19,8 @@ MilkSU 当前是一个 local-first 的授权安全学习与研究桌面工作台
   交互式项目 PTY 与可显示 PID、监听端口、有界日志并停止任务的后台任务页已接线；本地
   远端已完成 stage、commit、push 原生回归；会话隔离的 Coding Browser 已通过真实打包
   App 的 Playwright MCP 端到端验收，仍缺托管平台 PR、Computer Use 和跨应用重启终端恢复；
-- **NYU CTF Bench** 只有开发者专用 safe-static 单次 Runner 与 Digest Judge，不是完整
+- **NYU CTF Bench** 有开发者专用 one-shot Runner 与两回合 Pi 只读 Agent Runtime；
+  后者已验证读取、强制重启、恢复、超时/格式失败分类与 Digest Judge，但不是完整
   Challenge Runner，也不是用户训练能力；
 - **Labs** 与 **CVE Research** 已完成顶层/详细设计，但保持 `Paused / Designed`；
 - 当前发布检查点是 **R0.4**，不能写成“完整 M0—M7 的长期 M3 已完成”。
@@ -61,7 +62,7 @@ MilkSU 当前是一个 local-first 的授权安全学习与研究桌面工作台
 | Archify 一键产品动作 | 真实打包 App 一键生成固定 JSON/HTML，独立复验 9/9、0 error、0 warning，右侧预览成功。 |
 | 本地持久化 | 用户目录 SQLite、Workspace、Artifact、Conversation、Memory 和 Credential Store。 |
 | 安全备份恢复 | 设置页可导出一致 SQLite 快照并从备份恢复；恢复在 Store 打开前执行，拒绝未来版本/损坏哈希/路径穿越，保留凭据与配对，并生成可回滚快照。 |
-| NYU safe-static 基线 | 人工准入、一次无工具 Provider 调用、Digest Judge、成本/Token/退出原因报告。 |
+| NYU safe-static 基线 | 人工准入、one-shot 无工具调用，以及两回合 Pi 只读加载、强制重启、恢复与 Digest Judge；Agent Runtime 5 条真实记录的退出原因已进入统一报告。 |
 | 当前架构图 | Archify 规格与 HTML 通过 showcase 9/9、0 error、0 warning。 |
 
 ### Active / R0.4 当前工作
