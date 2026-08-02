@@ -48,8 +48,10 @@ ADR、Review 和 Checkpoint 记录当时为什么这样决定，不会因为后�
 
 - CTF 的产品内核已经成立：模型候选与权威 Judge 分离，事实进入追加式 Event Store，
   PI 轨迹和候选可以回流，用户复盘后才允许沉淀长期训练记忆。
-- 当前最大风险不是“底层完全缺失”，而是职责集中：`app.go`、`CTFPage.vue`、
-  `internal/browsercap/manager.go` 和 `internal/ctf/service.go` 都已经成为变更热点。
+- 当前最大风险不是“底层完全缺失”，而是职责集中：`app.go`、`CTFPage.vue` 和
+  `internal/browsercap/manager.go` 仍是主要变更热点。CTF Service 已在不改变公开契约的
+  前提下抽出 Submission/Judge、平台回执和 Coding Agent 交接；约 920 行的核心 Runner
+  仍需继续分离 Intake 与 Recovery。
 - 普通 Coding 会话已经在代码层接入固定版本 Archify、PI LSP、Goal、后台任务、MCP
   Adapter 和 Playwright MCP；Coding 核心的 Plan → Go、多轮修改、真实打包命令执行与
   独立复验已经 **Verified**。Archify 一键动作和隔离 Coding Browser 已在原生包完成

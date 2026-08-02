@@ -76,7 +76,7 @@ MilkSU 当前是一个 local-first 的授权安全学习与研究桌面工作台
 | P0 | CTF 多题型验收 | Web、Reverse、Crypto、Forensics 各保留 Judge、轨迹、提示依赖和恢复证据。 |
 | P1 | Coding Browser / Computer Use | Coding Browser 已复用固定 Playwright MCP 并完成原生 E2E；继续保持逐次批准和停止回归，Computer Use 仍需独立的应用范围、可见会话和授权入口。 |
 | P1 | CTF Memory / 能力画像校准 | 错误记忆可停用；跨题召回与六维变化能由真实训练样本解释。 |
-| P1 | 架构债拆分 | CTFshow、NSSCTF Web 与 Arena 桌面适配器已从 `app.go` 独立；继续保持 Wails/领域契约稳定，拆 `CTFPage.vue`、Browser Manager、CTF Service 和 Bridge Policy。 |
+| P1 | 架构债拆分 | CTFshow、NSSCTF Web 与 Arena 桌面适配器已从 `app.go` 独立；CTF Service 的 Submission/Judge、平台回执与 Coding Agent 交接也已按同包文件拆出。继续保持 Wails/领域契约稳定，拆 `CTFPage.vue`、Browser Manager、CTF 核心 Runner/Recovery 和 Bridge Policy。 |
 | P1 | SQLite 迁移与公开发行 | 可回滚备份恢复已完成；仍需统一编号迁移、Developer ID、公证和升级路径。 |
 
 ### Designed / Paused

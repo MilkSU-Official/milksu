@@ -114,7 +114,7 @@ flowchart LR
 | Wails God Facade | `app.go` 约 1,300 行；CTFshow、NSSCTF Web、NSSCTF Arena 已拆为同包平台适配器 | 保持公开 Binding 名称，继续把剩余 Training、Agent 与 Vuln 职责委托给窄 Facade。 |
 | CTF 巨型页面 | `CTFPage.vue` 约 3,000 行 | 按 Catalog、Challenge Workspace、Paired Judge、Agent Handoff、History 拆 composable 和 panel。 |
 | Browser Manager 混合职责 | `internal/browsercap/manager.go` 约 1,800 行 | Loopback Transport 与 NSSCTF/CTFshow Page Adapter 分离。 |
-| CTF Service 混合命令与 Runner | `internal/ctf/service.go` 约 1,700 行 | 保留领域契约，分 Intake、Agent Ingest、Submission/Judge、Recovery Application Service。 |
+| CTF Service 混合命令与 Runner | Submission/Judge 已拆到 `service_submission.go`、平台与托管 Lab 回执已拆到 `service_judge_receipts.go`、Coding Agent 交接已拆到 `service_coding_agent.go`；`service.go` 仍约 920 行 | 保持公开领域契约不变，继续从核心 Runner 中拆 Intake 与 Recovery Application Service。 |
 | Bridge Policy 规则集中 | `bridge-policy.js` 1,785 行 | 通用 Coding 行为优先替换为固定 Pi Package；剩余边界按普通 Coding、CTF common、Solver、Tool Builder、Strategist 拆契约。 |
 | SQLite 迁移不统一 | Event Store 有 migration；Credential/Memory/Catalog 各自建表 | 引入每库独立、编号、事务化迁移和升级前备份测试。 |
 | 明文 SQLite 凭据 | `credentials.db` 0600，但不加密 | 保持“不经 Wails/日志/报告返回”的约束；后续提供可选口令加密，不静默恢复 Keychain。 |
