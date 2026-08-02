@@ -603,6 +603,81 @@ test("Go Project Auto runs normal development commands but contains filesystem w
   );
 });
 
+test("Coding collaboration exposes subagent and lets only the main shell integrate registered worktrees", {
+  skip: process.platform !== "darwin",
+}, async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "milksu-coding-policy-"));
+  const collaborationRoot = await mkdtemp(join(tmpdir(), "milksu-collaboration-policy-"));
+  const worktree = join(collaborationRoot, "writer-1");
+  const outside = join(tmpdir(), `milksu-collaboration-outside-${Date.now()}.txt`);
+  await mkdir(worktree);
+  await writeFile(join(worktree, "agent-change.txt"), "candidate\n");
+  const policy = await loadSessionPolicy(workspace, "", {
+    executionMode: "go",
+    approvalPolicy: "workspace-auto",
+    codingCollaboration: {
+      schemaVersion: 1,
+      conversationId: "fixture",
+      workspace,
+      baseHead: "a".repeat(40),
+      worktrees: [{
+        id: "writer-1",
+        path: worktree,
+        branch: "codex/agent-fixture-writer-1",
+      }],
+    },
+  });
+  assert.equal(policy.activeTools.includes("subagent"), true);
+  assert.equal(
+    policy.capabilities.find(value => value.id === "collaboration").status,
+    "approval-required",
+  );
+
+  const read = policy.customTools.find(tool => tool.name === "read");
+  const inspected = await read.execute(
+    "inspect-writer",
+    { path: join(worktree, "agent-change.txt") },
+    undefined,
+    undefined,
+    {},
+  );
+  assert.match(inspected.content[0].text, /candidate/);
+
+  const bash = policy.customTools.find(tool => tool.name === "bash");
+  await bash.execute(
+    "main-agent-integration",
+    {
+      command: `printf reviewed > ${JSON.stringify(join(worktree, "reviewed.txt"))}`,
+    },
+    undefined,
+    undefined,
+    {},
+  );
+  assert.equal(await readFile(join(worktree, "reviewed.txt"), "utf8"), "reviewed");
+  await assert.rejects(
+    bash.execute(
+      "unregistered-worktree-write",
+      { command: `printf escaped > ${JSON.stringify(outside)}` },
+      undefined,
+      undefined,
+      {},
+    ),
+    /Operation not permitted|Permission denied|exited with code/,
+  );
+
+  const write = policy.customTools.find(tool => tool.name === "write");
+  await assert.rejects(
+    write.execute(
+      "file-tool-worktree-write",
+      { path: join(worktree, "blocked.txt"), content: "blocked" },
+      undefined,
+      undefined,
+      {},
+    ),
+    /denied path outside/,
+  );
+});
+
 test("Go Project Auto can run a reviewed Node CLI outside the project", {
   skip: process.platform !== "darwin",
 }, async () => {

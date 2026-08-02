@@ -23,6 +23,7 @@ import (
 	"github.com/MilkSU-Official/milksu/internal/appdata"
 	"github.com/MilkSU-Official/milksu/internal/browsercap"
 	"github.com/MilkSU-Official/milksu/internal/codingattachment"
+	"github.com/MilkSU-Official/milksu/internal/codingcollab"
 	"github.com/MilkSU-Official/milksu/internal/codingenv"
 	"github.com/MilkSU-Official/milksu/internal/codingterminal"
 	"github.com/MilkSU-Official/milksu/internal/computercap"
@@ -46,6 +47,7 @@ type App struct {
 	settings        *config.Store
 	conversations   *conversation.Store
 	codingFiles     *codingattachment.Store
+	codingCollab    *codingcollab.Manager
 	codingTerminals *codingterminal.Manager
 	codingPRs       *codingenv.PullRequestPublisher
 	computerUse     *computercap.Manager
@@ -87,6 +89,12 @@ func NewApp() (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create Coding attachment store: %w", err)
 	}
+	codingCollab, err := codingcollab.New(
+		filepath.Join(dataDirectory, "agent-home", "coding-collaboration"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create Coding collaboration manager: %w", err)
+	}
 
 	application := &App{
 		dataDirectory: dataDirectory,
@@ -94,6 +102,7 @@ func NewApp() (*App, error) {
 		settings:      settings,
 		conversations: conversations,
 		codingFiles:   codingFiles,
+		codingCollab:  codingCollab,
 	}
 	application.diagnostics.Record("app", "info", "application services initialized")
 	if restoreResult.Applied {
@@ -628,6 +637,43 @@ func (a *App) SendMessage(
 			}
 		}
 	}
+	var codingCollaboration *engine.CodingCollaborationDescriptor
+	if sessionRole == "" &&
+		strings.TrimSpace(executionMode) != "plan" &&
+		strings.TrimSpace(approvalPolicy) != "read-only" &&
+		a.codingCollab != nil {
+		descriptor, descriptorErr := a.codingCollab.Descriptor(
+			a.commandContext(),
+			conversationID,
+			workspacePath,
+		)
+		if descriptorErr != nil {
+			return descriptorErr
+		}
+		if descriptor != nil {
+			codingCollaboration = &engine.CodingCollaborationDescriptor{
+				SchemaVersion:  descriptor.SchemaVersion,
+				ConversationID: descriptor.ConversationID,
+				Workspace:      descriptor.Workspace,
+				BaseHead:       descriptor.BaseHead,
+				Worktrees: make(
+					[]engine.CodingCollaborationWorktree,
+					0,
+					len(descriptor.Worktrees),
+				),
+			}
+			for _, worktree := range descriptor.Worktrees {
+				codingCollaboration.Worktrees = append(
+					codingCollaboration.Worktrees,
+					engine.CodingCollaborationWorktree{
+						ID:     worktree.ID,
+						Path:   worktree.Path,
+						Branch: worktree.Branch,
+					},
+				)
+			}
+		}
+	}
 	return a.engines.SendMessage(
 		conversationID,
 		prompt,
@@ -639,6 +685,7 @@ func (a *App) SendMessage(
 		mcpConfigDigest,
 		codingBrowser,
 		computerUse,
+		codingCollaboration,
 		attachments,
 		settings,
 	)

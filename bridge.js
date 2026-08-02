@@ -19,6 +19,7 @@ import {
   stopTask as stopPiBackgroundTask,
 } from "pi-better-background-tasks/src/runtime.ts";
 import { createMcpAdapter } from "pi-mcp-adapter";
+import piSubAgentExtension from "pi-sub-agent/extensions/index.ts";
 import {
   codingSessionToolNames,
   loadSessionPolicy,
@@ -53,6 +54,13 @@ import {
   mcpSelectionChanged,
 } from "./bridge-mcp.js";
 import { disposeAgentSession } from "./bridge-session-lifecycle.js";
+import {
+  codingCollaborationChanged,
+  codingCollaborationToolName,
+  formatSubagentApproval,
+  normalizeCodingCollaboration,
+  validateSubagentInput,
+} from "./bridge-collaboration.js";
 
 const relayKey = process.env.MILKSU_RELAY_KEY;
 const relayUrl = process.env.MILKSU_RELAY_URL || "https://api.ciyuanliudong.com/v1";
@@ -261,10 +269,23 @@ function codingPolicyGuidance(policy) {
                 + "repository evidence, separate verified facts from inference, and report outcomes, "
                 + "validation, residual risks, and one next action. Do not edit files or run commands."
       : "";
+  const collaborationGuidance = policy.activeTools?.includes(
+    codingCollaborationToolName,
+  )
+    ? " Coding collaboration is active. Delegate only genuinely independent work. "
+      + "Read-only scout/planner/reviewer/security-auditor roles may inspect the main worktree. "
+      + "worker/docs-writer/refactorer/debugger/verifier must use one exact writer worktree shown here: "
+      + policy.codingCollaboration.worktrees.map(worktree => (
+        `${worktree.id}=${worktree.path} (${worktree.branch})`
+      )).join("; ")
+      + ". Writing subagents edit but cannot write Git metadata. After each returns, inspect its Diff, "
+      + "run appropriate checks, commit from that worktree, integrate into the main branch, resolve "
+      + "conflicts, and rerun final verification yourself. Never treat subagent output as proof."
+    : "";
   if (policy.executionMode === "plan") {
     return "Plan mode is active. Inspect, reason, and propose a concrete plan. "
       + "Do not claim that files, commands, or external systems were changed. "
-      + `bash, edit, write, and lsp_fix are unavailable.${productActionGuidance}`;
+      + `bash, edit, write, and lsp_fix are unavailable.${productActionGuidance}${collaborationGuidance}`;
   }
   if (policy.approvalPolicy === "full-auto") {
     return "Go mode is active with Full Access and automatic approval. You may use the terminal "
@@ -272,7 +293,7 @@ function codingPolicyGuidance(policy) {
       + "remain project-oriented, but terminal commands are not project-sandboxed. Model-provider "
       + "API keys are not passed to child processes. Act directly, keep changes scoped to the user "
       + "request, and verify destructive or externally visible actions before executing them. "
-      + `Selected MCP servers remain an independent per-call desktop approval boundary.${productActionGuidance}`;
+      + `Selected MCP servers remain an independent per-call desktop approval boundary.${productActionGuidance}${collaborationGuidance}`;
   }
   if (policy.approvalPolicy === "workspace-auto") {
     return "Go mode is active with Project Auto. You may edit files, use Git, run development "
@@ -282,7 +303,8 @@ function codingPolicyGuidance(policy) {
       + "when selected for this task, remains behind per-call desktop approval. LSP fixes are "
       + "previewed and verified inside the project before apply. Computer Use is never enabled by "
       + "Project Auto; only a user-started MilkSU-only session is available, with approval per call."
-      + productActionGuidance;
+      + productActionGuidance
+      + collaborationGuidance;
   }
   if (policy.approvalPolicy === "ask") {
     return "Go mode is active with Request Approval. Read-only inspection runs directly. Before "
@@ -290,10 +312,10 @@ function codingPolicyGuidance(policy) {
       + "LSP fixes first compute and show the exact Diff; other tools show their exact parameters. "
       + "Continue only after that one request is approved; "
       + "selected MCP calls use the same independent approval channel. A rejection is authoritative "
-      + `and must not be bypassed with another tool.${productActionGuidance}`;
+      + `and must not be bypassed with another tool.${productActionGuidance}${collaborationGuidance}`;
   }
   return "Go mode is active with Read-only. Inspect and explain, but do not claim any mutation or "
-    + `command execution; write and side-effect tools are unavailable.${productActionGuidance}`;
+    + `command execution; write and side-effect tools are unavailable.${productActionGuidance}${collaborationGuidance}`;
 }
 
 function createCodingPermissionExtension(
@@ -314,6 +336,31 @@ function createCodingPermissionExtension(
           reason: `MilkSU Coding policy blocked ${event.toolName}: `
           + `${policy.executionMode}/${policy.approvalPolicy}`,
         };
+      }
+      if (event.toolName === codingCollaborationToolName) {
+        try {
+          validateSubagentInput(event.input, policy.codingCollaboration);
+        } catch (error) {
+          return {
+            block: true,
+            reason: error instanceof Error ? error.message : String(error),
+          };
+        }
+        const approved = await approvalBroker.request({
+          conversationId,
+          toolName: codingCollaborationToolName,
+          content: formatSubagentApproval(
+            event.input,
+            policy.codingCollaboration,
+          ),
+          input: truncate(JSON.stringify(event.input ?? {}, null, 2), 16000),
+        });
+        if (!approved) {
+          return {
+            block: true,
+            reason: "MilkSU user denied subagent delegation",
+          };
+        }
       }
       const backgroundEffect = backgroundToolRequiresApproval(event.toolName, event.input);
       if (
@@ -589,6 +636,16 @@ function subscribeSession(conversationId, session, maxToolEventOutputBytes) {
       return;
     }
 
+    if (event.type === "tool_execution_update") {
+      // Progress is an activity heartbeat only. Child tool output stays inside Pi
+      // and is emitted once, through the bounded tool_execution_end projection.
+      emit(conversationId, "tool_call_progress", {
+        toolCallId: event.toolCallId,
+        toolName: event.toolName,
+      });
+      return;
+    }
+
     if (event.type === "tool_execution_end") {
       const startedAt = toolStartedAt.get(event.toolCallId);
       toolStartedAt.delete(event.toolCallId);
@@ -663,6 +720,9 @@ function createMilkSUResourceLoader(
     if (mcpConfig) {
       extensionFactories.push(createMcpAdapter({ config: mcpConfig }));
     }
+    if (getPolicy()?.codingCollaboration) {
+      extensionFactories.push(piSubAgentExtension);
+    }
   }
   return new DefaultResourceLoader({
     cwd,
@@ -697,6 +757,13 @@ function reviewedCodingResourceRoots(sessionRole = "") {
 
 async function loadRuntimeSessionPolicy(cwd, command) {
   const productAction = parseCodingProductAction(command.prompt);
+  const codingCollaboration = command.sessionRole
+    ? undefined
+    : normalizeCodingCollaboration(
+        command.codingCollaboration,
+        command.conversationId,
+        cwd,
+      );
   const selectedMcp = command.sessionRole
     ? {
         selected: [],
@@ -721,6 +788,7 @@ async function loadRuntimeSessionPolicy(cwd, command) {
     mcpConfigDigest: command.mcpConfigDigest,
     codingBrowser: selectedMcp.codingBrowser,
     computerUse: selectedMcp.computerUse,
+    codingCollaboration,
   });
   const effectiveSessionRole = policy.ctf
     ? command.sessionRole || "solver"
@@ -737,6 +805,7 @@ async function loadRuntimeSessionPolicy(cwd, command) {
       mcpConfigDigest: command.mcpConfigDigest,
       codingBrowser: selectedMcp.codingBrowser,
       computerUse: selectedMcp.computerUse,
+      codingCollaboration,
       readOnlyResourceRoots: codingResourceRoots,
     });
   }
@@ -746,6 +815,46 @@ async function loadRuntimeSessionPolicy(cwd, command) {
     codingSkillPaths,
     mcpConfig: selectedMcp.config,
   };
+}
+
+function configureSubagentRuntime(cwd, collaboration) {
+  if (!collaboration) return;
+  const launcher = join(bridgeDirectory, "pi-subagent-launcher.sh");
+  const runner = join(bridgeDirectory, "pi-subagent-runner.cjs");
+  const packagedCLI = join(bridgeDirectory, "pi-subagent-cli.cjs");
+  const developmentCLI = join(
+    bridgeDirectory,
+    "node_modules",
+    "@earendil-works",
+    "pi-coding-agent",
+    "dist",
+    "cli.js",
+  );
+  const packagedAgents = join(bridgeDirectory, "subagents", "agents");
+  const developmentAgents = join(
+    bridgeDirectory,
+    "node_modules",
+    "pi-sub-agent",
+    "extensions",
+    "agents",
+  );
+  const cli = existsSync(packagedCLI) ? packagedCLI : developmentCLI;
+  const agents = existsSync(packagedAgents) ? packagedAgents : developmentAgents;
+  for (const [label, path] of [
+    ["launcher", launcher],
+    ["runner", runner],
+    ["Pi CLI", cli],
+    ["agent prompts", agents],
+  ]) {
+    if (!existsSync(path)) {
+      throw new Error(`MilkSU subagent ${label} is unavailable: ${path}`);
+    }
+  }
+  process.env.MILKSU_PI_SUBAGENT_LAUNCHER = launcher;
+  process.env.MILKSU_PI_SUBAGENT_RUNNER = runner;
+  process.env.MILKSU_PI_SUBAGENT_CLI = cli;
+  process.env.MILKSU_PI_SUBAGENT_AGENTS_DIR = agents;
+  process.env.MILKSU_PI_SUBAGENT_BUNDLED_ONLY = "1";
 }
 
 async function createSession(command) {
@@ -766,6 +875,7 @@ async function createSession(command) {
   } = await loadRuntimeSessionPolicy(cwd, command);
   if (!effectiveSessionRole) {
     applyCodingResourcePolicy();
+    configureSubagentRuntime(cwd, sessionPolicy.codingCollaboration);
   }
   sessionPolicies.set(conversationId, sessionPolicy);
   if (mcpConfig) {
@@ -806,6 +916,9 @@ async function createSession(command) {
         ? sessionPolicy.activeTools
         : [
             ...codingSessionToolNames,
+            ...(sessionPolicy.codingCollaboration
+              ? [codingCollaborationToolName]
+              : []),
             ...(sessionPolicy.mcpServers?.length ? ["mcp"] : []),
           ],
       customTools: sessionPolicy.customTools,
@@ -892,6 +1005,9 @@ async function sendMessage(command) {
   const requestedMcpServers = command.sessionRole ? [] : command.mcpServers;
   const requestedCodingBrowser = command.sessionRole ? undefined : command.codingBrowser;
   const requestedComputerUse = command.sessionRole ? undefined : command.computerUse;
+  const requestedCodingCollaboration = command.sessionRole
+    ? undefined
+    : command.codingCollaboration;
   if (
     existing
     && previousPolicy
@@ -909,6 +1025,10 @@ async function sendMessage(command) {
       || computerUseSelectionChanged(
         previousPolicy.computerUse,
         requestedComputerUse,
+      )
+      || codingCollaborationChanged(
+        previousPolicy.codingCollaboration,
+        requestedCodingCollaboration,
       )
     )
   ) {

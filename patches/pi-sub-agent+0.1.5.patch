@@ -1,0 +1,187 @@
+diff --git a/node_modules/pi-sub-agent/extensions/index.ts b/node_modules/pi-sub-agent/extensions/index.ts
+index 84f2953..2a579c1 100644
+--- a/node_modules/pi-sub-agent/extensions/index.ts
++++ b/node_modules/pi-sub-agent/extensions/index.ts
+@@ -55,6 +55,13 @@ const BUNDLED_AGENT_SELECTION_GUIDANCE = [
+ ] as const;
+ const AGENT_NAME_DESCRIPTION = `Name of the agent to invoke. Bundled agents: ${BUNDLED_AGENT_NAMES}. Use these exact names for bundled agents; do not invent names such as default, general-purpose, security, or general.`;
+ const SUBAGENT_DEPTH_ENV = "PI_SUB_AGENT_DEPTH";
++const MILKSU_SUBAGENT_AGENT_ENV = "MILKSU_PI_SUBAGENT_AGENT";
++const MILKSU_SUBAGENT_LAUNCHER_ENV = "MILKSU_PI_SUBAGENT_LAUNCHER";
++const MILKSU_SUBAGENT_RUNNER_ENV = "MILKSU_PI_SUBAGENT_RUNNER";
++const MILKSU_SUBAGENT_AGENTS_DIR_ENV = "MILKSU_PI_SUBAGENT_AGENTS_DIR";
++const MILKSU_BUNDLED_ONLY_ENV = "MILKSU_PI_SUBAGENT_BUNDLED_ONLY";
++const MILKSU_SUBAGENT_HEARTBEAT_INTERVAL_MS = 30_000;
++const MILKSU_SUBAGENT_EXECUTION_LIMIT_MS = 10 * 60_000;
+ const MAX_SUBAGENT_DEPTH = 1;
+ 
+ interface UsageStats {
+@@ -218,6 +225,19 @@ function formatToolCall(
+ }
+ 
+ function getPiInvocation(args: string[]): { command: string; args: string[] } {
++	const milkSULauncher = process.env[MILKSU_SUBAGENT_LAUNCHER_ENV]?.trim();
++	const milkSURunner = process.env[MILKSU_SUBAGENT_RUNNER_ENV]?.trim();
++	if (
++		milkSULauncher
++		&& milkSURunner
++		&& fs.existsSync(milkSULauncher)
++		&& fs.existsSync(milkSURunner)
++	) {
++		return {
++			command: "/bin/sh",
++			args: [milkSULauncher, process.execPath, milkSURunner, ...args],
++		};
++	}
+ 	const currentScript = process.argv[1];
+ 	const isBunVirtualScript = currentScript?.startsWith("/$bunfs/root/");
+ 	if (currentScript && !isBunVirtualScript && fs.existsSync(currentScript)) {
+@@ -558,7 +578,18 @@ async function runSingleAgent(
+ 		return result;
+ 	}
+ 
+-	const args = ["--mode", "json", "-p", "--no-session"];
++	const args = [
++		"--mode",
++		"json",
++		"-p",
++		"--no-session",
++		"--no-extensions",
++		"--no-skills",
++		"--no-prompt-templates",
++		"--no-themes",
++		"--no-context-files",
++		"--no-approve",
++	];
+ 	const stdinPrompt = `Task: ${task}`;
+ 	const selectedModel = resolveAgentModel(agent, fallbackModel);
+ 	if (selectedModel) {
+@@ -576,6 +607,7 @@ async function runSingleAgent(
+ 	let tmpDir: string | null = null;
+ 	let tmpPromptPath: string | null = null;
+ 	let aborted = false;
++	let timedOut = false;
+ 	let abortListener: (() => void) | null = null;
+ 	const result: SingleResult = {
+ 		agent: agent.name,
+@@ -623,7 +655,11 @@ async function runSingleAgent(
+ 
+ 		const exit = await new Promise<{ code: number; signal: NodeJS.Signals | null }>((resolve) => {
+ 			const invocation = getPiInvocation(args);
+-			const childEnv = { ...process.env, [SUBAGENT_DEPTH_ENV]: String(childSubagentDepth) };
++			const childEnv = {
++				...process.env,
++				[SUBAGENT_DEPTH_ENV]: String(childSubagentDepth),
++				[MILKSU_SUBAGENT_AGENT_ENV]: agent.name,
++			};
+ 			const proc = spawn(invocation.command, invocation.args, {
+ 				cwd: childCwd,
+ 				env: childEnv,
+@@ -634,6 +670,25 @@ async function runSingleAgent(
+ 			let buffer = "";
+ 			let closed = false;
+ 			let killTimer: ReturnType<typeof setTimeout> | undefined;
++			let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
++			let executionTimer: ReturnType<typeof setTimeout> | undefined;
++			const stopHeartbeat = (): void => {
++				if (!heartbeatTimer) return;
++				clearInterval(heartbeatTimer);
++				heartbeatTimer = undefined;
++			};
++			const stopExecutionTimer = (): void => {
++				if (!executionTimer) return;
++				clearTimeout(executionTimer);
++				executionTimer = undefined;
++			};
++			if (onUpdate) {
++				emitUpdate();
++				heartbeatTimer = setInterval(
++					emitUpdate,
++					MILKSU_SUBAGENT_HEARTBEAT_INTERVAL_MS,
++				);
++			}
+ 			const parseLine = (line: string): void => {
+ 				const trimmed = line.trim();
+ 				if (!trimmed) return;
+@@ -683,14 +738,19 @@ async function runSingleAgent(
+ 			});
+ 			proc.stdin?.end(stdinPrompt);
+ 
+-			const abort = (): void => {
++			const abort = (reason: "signal" | "timeout" = "signal"): void => {
+ 				if (aborted) return;
+ 				aborted = true;
++				timedOut = reason === "timeout";
+ 				proc.kill("SIGTERM");
+ 				killTimer = setTimeout(() => {
+ 					if (!closed) proc.kill("SIGKILL");
+ 				}, 5000);
+ 			};
++			executionTimer = setTimeout(
++				() => abort("timeout"),
++				MILKSU_SUBAGENT_EXECUTION_LIMIT_MS,
++			);
+ 
+ 			if (signal) {
+ 				if (signal.aborted) {
+@@ -703,6 +763,8 @@ async function runSingleAgent(
+ 
+ 			proc.on("close", (code, signalName) => {
+ 				closed = true;
++				stopHeartbeat();
++				stopExecutionTimer();
+ 				if (killTimer) {
+ 					clearTimeout(killTimer);
+ 					killTimer = undefined;
+@@ -715,6 +777,8 @@ async function runSingleAgent(
+ 				resolve({ code: code ?? (signalName ? 1 : 0), signal: signalName });
+ 			});
+ 			proc.on("error", (error) => {
++				stopHeartbeat();
++				stopExecutionTimer();
+ 				const detail = error instanceof Error ? error.message : String(error);
+ 				const diagnostic = `Failed to start subagent process (${invocation.command}): ${detail}`;
+ 				result.stderr = result.stderr ? `${result.stderr}\n${diagnostic}` : diagnostic;
+@@ -731,7 +795,11 @@ async function runSingleAgent(
+ 			result.exitCode = 1;
+ 			result.errorMessage = "Subagent produced non-JSON stdout without any JSON messages.";
+ 		}
+-		if (aborted) {
++		if (timedOut) {
++			result.exitCode = 1;
++			result.stopReason = "timeout";
++			result.errorMessage = "Subagent exceeded the 10 minute execution limit.";
++		} else if (aborted) {
+ 			result.exitCode = 1;
+ 			result.stopReason = "aborted";
+ 			if (!result.errorMessage) {
+@@ -830,6 +898,7 @@ function isAgentThinkingLevel(value: string): value is AgentThinkingLevel {
+ }
+ 
+ export default function (pi: ExtensionAPI): void {
++	const bundledAgentsDir = process.env[MILKSU_SUBAGENT_AGENTS_DIR_ENV]?.trim() || join(extensionDir, "agents");
+ 	if (typeof pi.registerCommand === "function") pi.registerCommand("sub-agent-settings", {
+ 		description: "Configure sub-agent models and thinking effort",
+ 		handler: async (_args, ctx) => {
+@@ -838,7 +907,7 @@ export default function (pi: ExtensionAPI): void {
+ 				return;
+ 			}
+ 
+-			const discovery = discoverAgents(ctx.cwd, "user", join(extensionDir, "agents"));
++			const discovery = discoverAgents(ctx.cwd, "user", bundledAgentsDir);
+ 			const agents = discovery.agents.sort((a, b) => a.name.localeCompare(b.name));
+ 			if (agents.length === 0) {
+ 				ctx.ui.notify("No sub-agents found", "warning");
+@@ -1013,8 +1082,10 @@ export default function (pi: ExtensionAPI): void {
+ 			const parentThinkingLevel = typeof pi.getThinkingLevel === "function" ? pi.getThinkingLevel() : "off";
+ 			const parentThinkingSuffix = parentThinkingLevel && parentThinkingLevel !== "off" ? `:${parentThinkingLevel}` : "";
+ 			const parentModel = ctx.model ? `${ctx.model.provider}/${ctx.model.id}${parentThinkingSuffix}` : undefined;
+-			const discovery = discoverAgents(ctx.cwd, agentScope, join(extensionDir, "agents"));
+-			const agents = discovery.agents;
++			const discovery = discoverAgents(ctx.cwd, agentScope, bundledAgentsDir);
++			const agents = process.env[MILKSU_BUNDLED_ONLY_ENV] === "1"
++				? discovery.agents.filter((agent) => agent.source === "extension")
++				: discovery.agents;
+ 			const makeDetails = (mode: "single" | "parallel" | "chain") => (results: SingleResult[], error?: string): SubagentDetails => ({
+ 				mode,
+ 				agentScope,

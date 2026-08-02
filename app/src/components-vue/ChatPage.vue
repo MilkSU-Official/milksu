@@ -107,6 +107,9 @@ import { providerModelLabel } from '@/types'
 const CodingTerminalPanel = defineAsyncComponent(
   () => import('@/components-vue/CodingTerminalPanel.vue'),
 )
+const CodingCollaborationPanel = defineAsyncComponent(
+  () => import('@/components-vue/CodingCollaborationPanel.vue'),
+)
 
 const props = defineProps<{
   conversation: Conversation | null
@@ -161,6 +164,7 @@ const contextPanelValues = [
 type ContextPanel = typeof contextPanelValues[number]
 const contextPanel = ref<ContextPanel>('environment')
 const artifactPanel = ref<InstanceType<typeof CodingArtifactPreviewPanel> | null>(null)
+const collaborationPanel = ref<{ refresh: () => Promise<void> } | null>(null)
 const environmentLoading = ref(false)
 const environmentError = ref('')
 const architecturePreview = ref<CodingArchitecturePreview | null>(null)
@@ -342,8 +346,10 @@ const extensionLabel = (value: string) => (
         ? 'PI Goal'
         : value === 'pi-background-tasks'
           ? 'PI Background Tasks'
-          : value === 'pi-mcp-adapter'
+        : value === 'pi-mcp-adapter'
             ? 'PI MCP Adapter'
+            : value === 'pi-sub-agent'
+              ? 'PI Sub Agent'
         : value
 )
 const hasCredential = computed(() => {
@@ -862,6 +868,10 @@ async function refreshContextPanel() {
     await refreshBrowserPanel()
     return
   }
+  if (contextPanel.value === 'collaboration' && !props.ctfSession) {
+    await collaborationPanel.value?.refresh()
+    return
+  }
   await Promise.all([refreshEnvironment(), loadWorkshopState()])
 }
 
@@ -928,6 +938,13 @@ watch(() => props.conversation?.id, () => {
   codingBrowserStatus.value = null
   if (contextPanel.value === 'browser' && environmentOpen.value) {
     void refreshBrowserPanel()
+  }
+  if (
+    contextPanel.value === 'collaboration'
+    && !props.ctfSession
+    && environmentOpen.value
+  ) {
+    void collaborationPanel.value?.refresh()
   }
 })
 watch(
@@ -1080,7 +1097,7 @@ watch(
   <aside
     v-if="environmentOpen"
     class="context-sidebar flex shrink-0 flex-col border-l border-border bg-card/95 backdrop-blur"
-    :class="['architecture', 'artifacts', 'changes', 'terminal'].includes(contextPanel)
+    :class="['architecture', 'artifacts', 'changes', 'terminal', 'collaboration'].includes(contextPanel)
       ? 'w-[min(36rem,36vw)] min-w-[22rem]'
       : 'w-80'"
     :aria-label="contextPanelTitle"
@@ -1112,6 +1129,7 @@ watch(
           <SelectItem v-if="!ctfSession" value="artifacts">产物</SelectItem>
           <SelectItem v-if="!ctfSession" value="architecture">架构图</SelectItem>
           <SelectItem value="browser">{{ ctfSession ? '浏览器' : '浏览器与 App' }}</SelectItem>
+          <SelectItem v-if="!ctfSession" value="collaboration">Agent 协作</SelectItem>
           <template v-if="ctfSession">
             <SelectSeparator />
             <SelectItem value="collaboration">Agent 协作</SelectItem>
@@ -1847,6 +1865,15 @@ watch(
       </template>
 
       <template v-else-if="contextPanel === 'collaboration'">
+        <CodingCollaborationPanel
+          v-if="!ctfSession"
+          ref="collaborationPanel"
+          :conversation-id="conversation?.id"
+          :workspace-path="workspacePath"
+          :running="running"
+          :ensure-conversation="ensureConversation"
+        />
+        <template v-else>
         <section class="border-b border-border px-4 py-4">
           <p class="text-caption font-medium text-muted-foreground">当前角色</p>
           <div class="mt-3 grid gap-2">
@@ -1930,6 +1957,7 @@ watch(
             返回训练工作台
           </Button>
         </section>
+        </template>
       </template>
 
       <template v-else>

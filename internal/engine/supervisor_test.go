@@ -3,7 +3,9 @@ package engine
 import (
 	"bufio"
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -720,6 +722,93 @@ func TestSafeBaseEnvironmentDropsUnrelatedSecrets(t *testing.T) {
 	}
 }
 
+func TestNormalizeCodingCollaborationDescriptorBindsTaskWorkspaceAndWriter(t *testing.T) {
+	sessionID := "collaboration-session"
+	workspace, err := resolveAgentWorkspace(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := resolveAgentWorkspace(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	digest := sha256.Sum256([]byte(sessionID))
+	taskKey := fmt.Sprintf("%x", digest[:16])
+	writerPath := filepath.Join(root, taskKey, "writer-1")
+	if err := os.MkdirAll(writerPath, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	descriptor := &CodingCollaborationDescriptor{
+		SchemaVersion:  1,
+		ConversationID: sessionID,
+		Workspace:      workspace,
+		BaseHead:       strings.Repeat("a", 40),
+		Worktrees: []CodingCollaborationWorktree{{
+			ID:     "writer-1",
+			Path:   writerPath,
+			Branch: fmt.Sprintf("codex/agent-%s-writer-1", taskKey[:12]),
+		}},
+	}
+	normalized, err := normalizeCodingCollaborationDescriptor(
+		descriptor,
+		sessionID,
+		workspace,
+		root,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if normalized.Worktrees[0].Path != writerPath ||
+		normalized.Worktrees[0].Branch != descriptor.Worktrees[0].Branch {
+		t.Fatalf("unexpected normalized descriptor: %#v", normalized)
+	}
+
+	invalidTask := *descriptor
+	invalidTask.ConversationID = "another-session"
+	if _, err := normalizeCodingCollaborationDescriptor(
+		&invalidTask,
+		sessionID,
+		workspace,
+		root,
+	); err == nil {
+		t.Fatal("expected a descriptor from another task to be rejected")
+	}
+
+	invalidWorkspace := *descriptor
+	invalidWorkspace.Workspace = t.TempDir()
+	if _, err := normalizeCodingCollaborationDescriptor(
+		&invalidWorkspace,
+		sessionID,
+		workspace,
+		root,
+	); err == nil {
+		t.Fatal("expected a descriptor from another workspace to be rejected")
+	}
+
+	invalidWriter := *descriptor
+	invalidWriter.Worktrees = append([]CodingCollaborationWorktree(nil), descriptor.Worktrees...)
+	invalidWriter.Worktrees[0].Branch = "codex/agent-unregistered-writer-1"
+	if _, err := normalizeCodingCollaborationDescriptor(
+		&invalidWriter,
+		sessionID,
+		workspace,
+		root,
+	); err == nil {
+		t.Fatal("expected an unregistered writer branch to be rejected")
+	}
+
+	invalidBase := *descriptor
+	invalidBase.BaseHead = "not-a-git-object"
+	if _, err := normalizeCodingCollaborationDescriptor(
+		&invalidBase,
+		sessionID,
+		workspace,
+		root,
+	); err == nil {
+		t.Fatal("expected an invalid base commit to be rejected")
+	}
+}
+
 func TestValidateModelAccessRejectsMissingProviderKey(t *testing.T) {
 	t.Setenv("DEEPSEEK_API_KEY", "")
 	settings := config.DefaultSettings()
@@ -736,7 +825,7 @@ func TestSendMessageRejectsMissingKeyBeforeStartingSidecar(t *testing.T) {
 	defer supervisor.Close()
 
 	err := supervisor.SendMessage(
-		"session-1", "hello", "", "", "", "", nil, "", nil, nil, nil, config.DefaultSettings(),
+		"session-1", "hello", "", "", "", "", nil, "", nil, nil, nil, nil, config.DefaultSettings(),
 	)
 	if err == nil || !strings.Contains(err.Error(), "Settings > API Keys") {
 		t.Fatalf("expected actionable missing-key error, got %v", err)
@@ -1162,7 +1251,7 @@ func TestTurnActivityEventResetsThenSettledStopsTimeout(t *testing.T) {
 	time.Sleep(25 * time.Millisecond)
 	supervisor.observeTurnEvent(Event{
 		SessionID: "session-active",
-		Type:      "tool.completed",
+		Type:      "tool.progress",
 	})
 	time.Sleep(25 * time.Millisecond)
 	supervisor.observeTurnEvent(Event{
@@ -1174,6 +1263,25 @@ func TestTurnActivityEventResetsThenSettledStopsTimeout(t *testing.T) {
 	case event := <-events:
 		t.Fatalf("completed turn emitted a timeout: %#v", event)
 	default:
+	}
+}
+
+func TestNormalizeBridgeToolProgressDropsPartialContent(t *testing.T) {
+	event := normalizeBridgeEvent(bridgeEvent{
+		Type:       "tool_call_progress",
+		ID:         "session-active",
+		ToolName:   "subagent",
+		ToolCallID: "tool-1",
+		Content:    "child output must not cross the bridge",
+	})
+	if event.Type != "tool.progress" ||
+		event.SessionID != "session-active" ||
+		event.ToolName != "subagent" ||
+		event.ToolCallID != "tool-1" {
+		t.Fatalf("unexpected tool progress event: %#v", event)
+	}
+	if event.Text != "" || event.Error != "" || event.Done {
+		t.Fatalf("tool progress leaked content or settled the tool: %#v", event)
 	}
 }
 

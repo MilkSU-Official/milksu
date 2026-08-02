@@ -11,6 +11,7 @@ import {
   stat,
   writeFile,
 } from 'node:fs/promises'
+import { createServer as createHttpServer } from 'node:http'
 import { createConnection, createServer as createNetServer } from 'node:net'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -26,6 +27,8 @@ const piLspVersion = '0.29.0'
 const piGoalVersion = '0.43.0'
 const piBackgroundTasksVersion = '0.1.10'
 const piMcpAdapterVersion = '2.17.0'
+const piSubAgentVersion = '0.1.5'
+const piSubAgentIntegrity = 'sha512-ILgmYfAhP1nzpz7oLLN/lSFrwwigS0hfEKc8NppdkajCX2n2L5RVphG/cQnAWPlfKBXiOovqK8qNwksP1Y4pzw=='
 const playwrightMcpVersion = '0.0.78'
 const playwrightVersion = '1.62.0-alpha-1783623505000'
 const playwrightSocketRoot = '/private/tmp/milksu-playwright'
@@ -747,6 +750,18 @@ async function buildSidecar(platform) {
   const chatOutput = join(output, 'chat-bridge.cjs')
   const securityOutput = join(output, 'security-bridge.cjs')
   const computerUseProxyOutput = join(output, 'computer-use-proxy.cjs')
+  const piSubagentLauncherOutput = join(output, 'pi-subagent-launcher.sh')
+  const piSubagentRunnerOutput = join(output, 'pi-subagent-runner.cjs')
+  const piSubagentCliOutput = join(output, 'pi-subagent-cli.cjs')
+  const piSubagentThemeOutput = join(
+    output,
+    'dist',
+    'modes',
+    'interactive',
+    'theme',
+  )
+  const piSubagentSource = join(repositoryRoot, 'node_modules', 'pi-sub-agent')
+  const piSubagentAgentsOutput = join(output, 'subagents', 'agents')
   const cuaDriverOutput = join(output, 'cua-driver')
   const archifySource = join(repositoryRoot, 'third_party', 'archify', 'archify')
   const archifyOutput = join(output, 'skills', 'archify')
@@ -754,12 +769,30 @@ async function buildSidecar(platform) {
   const diffSource = join(repositoryRoot, 'node_modules', 'diff')
   const archifyPackage = JSON.parse(await readFile(join(archifySource, 'package.json'), 'utf8'))
   const diffPackage = JSON.parse(await readFile(join(diffSource, 'package.json'), 'utf8'))
+  const piSubagentPackage = JSON.parse(
+    await readFile(join(piSubagentSource, 'package.json'), 'utf8'),
+  )
+  const repositoryLock = JSON.parse(
+    await readFile(join(repositoryRoot, 'package-lock.json'), 'utf8'),
+  )
   if (
     diffPackage.version !== diffVersion
     || diffPackage.license !== 'BSD-3-Clause'
     || !await exists(join(diffSource, 'LICENSE'))
   ) {
     throw new Error(`Diff package mismatch: expected diff@${diffVersion} BSD-3-Clause`)
+  }
+  if (
+    piSubagentPackage.version !== piSubAgentVersion
+    || piSubagentPackage.license !== 'MIT'
+    || repositoryLock.packages?.['node_modules/pi-sub-agent']?.integrity
+      !== piSubAgentIntegrity
+    || !await exists(join(piSubagentSource, 'LICENSE'))
+  ) {
+    throw new Error(
+      `Pi subagent package mismatch: expected pi-sub-agent@${piSubAgentVersion} `
+      + `MIT with reviewed npm integrity`,
+    )
   }
   const systemOcrNativePackage = systemOcrNativePackages[platform]
   if (!systemOcrNativePackage) {
@@ -847,6 +880,7 @@ async function buildSidecar(platform) {
   await rm(archifyOutput, { recursive: true, force: true })
   await rm(systemOcrOutputRoot, { recursive: true, force: true })
   await rm(lspRuntimeOutput, { recursive: true, force: true })
+  await rm(join(output, 'subagents'), { recursive: true, force: true })
   await Promise.all(
     playwrightPackages.map(packageInfo => rm(
       packageInfo.output,
@@ -856,6 +890,8 @@ async function buildSidecar(platform) {
   await mkdir(dirname(archifyOutput), { recursive: true, mode: 0o700 })
   await mkdir(systemOcrOutputRoot, { recursive: true, mode: 0o700 })
   await mkdir(join(lspRuntimeOutput, 'node_modules'), { recursive: true, mode: 0o700 })
+  await mkdir(dirname(piSubagentAgentsOutput), { recursive: true, mode: 0o700 })
+  await mkdir(piSubagentThemeOutput, { recursive: true, mode: 0o700 })
   await Promise.all(
     playwrightPackages.map(packageInfo => mkdir(
       dirname(packageInfo.output),
@@ -915,6 +951,51 @@ async function buildSidecar(platform) {
       join(licenseOutput, 'pi-mcp-adapter-MIT.txt'),
     ),
     copyFile(
+      join(piSubagentSource, 'LICENSE'),
+      join(licenseOutput, 'pi-sub-agent-MIT.txt'),
+    ),
+    copyFile(
+      join(repositoryRoot, 'pi-subagent-launcher.sh'),
+      piSubagentLauncherOutput,
+    ),
+    copyFile(
+      join(repositoryRoot, 'pi-subagent-runner.cjs'),
+      piSubagentRunnerOutput,
+    ),
+    copyFile(
+      join(
+        repositoryRoot,
+        'node_modules',
+        '@earendil-works',
+        'pi-coding-agent',
+        'dist',
+        'modes',
+        'interactive',
+        'theme',
+        'dark.json',
+      ),
+      join(piSubagentThemeOutput, 'dark.json'),
+    ),
+    copyFile(
+      join(
+        repositoryRoot,
+        'node_modules',
+        '@earendil-works',
+        'pi-coding-agent',
+        'dist',
+        'modes',
+        'interactive',
+        'theme',
+        'light.json',
+      ),
+      join(piSubagentThemeOutput, 'light.json'),
+    ),
+    cp(
+      join(piSubagentSource, 'extensions', 'agents'),
+      piSubagentAgentsOutput,
+      { recursive: true },
+    ),
+    copyFile(
       join(systemOcrSource, 'LICENSE'),
       join(licenseOutput, 'napi-rs-system-ocr-MIT.txt'),
     ),
@@ -952,6 +1033,10 @@ async function buildSidecar(platform) {
     bundleBridge('bridge.js', chatOutput),
     bundleBridge('security-bridge.js', securityOutput),
     bundleBridge('computer-use-proxy.js', computerUseProxyOutput),
+    bundleBridge(
+      'node_modules/@earendil-works/pi-coding-agent/dist/cli.js',
+      piSubagentCliOutput,
+    ),
   ])
   await Promise.all([
     chmod(nodeOutput, 0o755),
@@ -960,6 +1045,9 @@ async function buildSidecar(platform) {
     chmod(chatOutput, 0o644),
     chmod(securityOutput, 0o644),
     chmod(computerUseProxyOutput, 0o644),
+    chmod(piSubagentLauncherOutput, 0o755),
+    chmod(piSubagentRunnerOutput, 0o644),
+    chmod(piSubagentCliOutput, 0o644),
   ])
 
   const manifest = {
@@ -1051,6 +1139,40 @@ async function buildSidecar(platform) {
         licenseFile: 'THIRD_PARTY-LICENSES/pi-mcp-adapter-MIT.txt',
         scope: 'coding-opt-in',
       },
+      piSubAgent: {
+        package: 'pi-sub-agent',
+        version: piSubAgentVersion,
+        npmIntegrity: piSubAgentIntegrity,
+        license: 'MIT',
+        licenseFile: 'THIRD_PARTY-LICENSES/pi-sub-agent-MIT.txt',
+        scope: 'coding-worktree-opt-in',
+        launcher: {
+          file: 'pi-subagent-launcher.sh',
+          sha256: await sha256(piSubagentLauncherOutput),
+        },
+        runner: {
+          file: 'pi-subagent-runner.cjs',
+          sha256: await sha256(piSubagentRunnerOutput),
+        },
+        cli: {
+          package: '@earendil-works/pi-coding-agent',
+          version: piVersion,
+          file: 'pi-subagent-cli.cjs',
+          sha256: await sha256(piSubagentCliOutput),
+          ambientDiscovery: false,
+          assets: {
+            darkTheme: {
+              file: 'dist/modes/interactive/theme/dark.json',
+              sha256: await sha256(join(piSubagentThemeOutput, 'dark.json')),
+            },
+            lightTheme: {
+              file: 'dist/modes/interactive/theme/light.json',
+              sha256: await sha256(join(piSubagentThemeOutput, 'light.json')),
+            },
+          },
+        },
+        agentsPath: 'subagents/agents',
+      },
       playwrightMcp: {
         package: '@playwright/mcp',
         version: playwrightMcpVersion,
@@ -1116,6 +1238,7 @@ async function smokeSidecar(platform) {
     join(output, 'THIRD_PARTY-LICENSES', 'narumitw-pi-extensions-MIT.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'pi-better-background-tasks-MIT.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'pi-mcp-adapter-MIT.txt'),
+    join(output, 'THIRD_PARTY-LICENSES', 'pi-sub-agent-MIT.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'napi-rs-system-ocr-MIT.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'playwright-mcp-Apache-2.0.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'playwright-Apache-2.0.txt'),
@@ -1124,6 +1247,12 @@ async function smokeSidecar(platform) {
     join(output, 'THIRD_PARTY-LICENSES', 'diff-BSD-3-Clause.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'cua-MIT.txt'),
     join(output, 'computer-use-proxy.cjs'),
+    join(output, 'pi-subagent-launcher.sh'),
+    join(output, 'pi-subagent-runner.cjs'),
+    join(output, 'pi-subagent-cli.cjs'),
+    join(output, 'dist', 'modes', 'interactive', 'theme', 'dark.json'),
+    join(output, 'dist', 'modes', 'interactive', 'theme', 'light.json'),
+    join(output, 'subagents', 'agents', 'worker.md'),
     join(output, 'cua-driver'),
     join(output, 'lsp-runtime', 'gopls'),
     join(output, 'lsp-runtime', 'node_modules', 'typescript-language-server', 'LICENSE'),
@@ -1362,6 +1491,7 @@ async function smokeSidecar(platform) {
     || !ready.extensions?.includes('pi-goal')
     || !ready.extensions?.includes('pi-background-tasks')
     || ready.tools?.includes('mcp')
+    || ready.tools?.includes('subagent')
     || !ready.capabilities?.some(
       capability => capability.id === 'computer-use'
         && capability.status === 'unavailable',
@@ -1369,6 +1499,203 @@ async function smokeSidecar(platform) {
     || !chatResponses.some(value => value.type === 'session_destroyed')
   ) {
     throw new Error(`unexpected packaged Chat Sidecar response: ${chatRun.stdout}`)
+  }
+  const collaborationConversation = 'packaged-collaboration'
+  const collaborationKey = createHash('sha256')
+    .update(collaborationConversation)
+    .digest('hex')
+    .slice(0, 32)
+  const collaborationRoot = join(workspace, 'collaboration-runtime')
+  const collaborationWorktree = join(
+    collaborationRoot,
+    collaborationKey,
+    'writer-1',
+  )
+  await mkdir(collaborationWorktree, { recursive: true, mode: 0o700 })
+  const collaborationBranch = `codex/agent-${collaborationKey.slice(0, 12)}-writer-1`
+  await writeFile(
+    join(collaborationRoot, collaborationKey, 'manifest.json'),
+    `${JSON.stringify({
+      schemaVersion: 1,
+      conversationId: collaborationConversation,
+      workspace,
+      baseBranch: 'main',
+      baseHead: 'a'.repeat(40),
+      phase: 'active',
+      worktrees: [{
+        id: 'writer-1',
+        path: collaborationWorktree,
+        branch: collaborationBranch,
+        baseHead: 'a'.repeat(40),
+      }],
+    }, null, 2)}\n`,
+    { mode: 0o600 },
+  )
+  const collaborationRun = await runWithInput(
+    node,
+    [...chatRuntimeArguments, join(output, 'chat-bridge.cjs')],
+    [
+      JSON.stringify({
+        action: 'create_session',
+        conversationId: collaborationConversation,
+        executionMode: 'go',
+        approvalPolicy: 'workspace-auto',
+        codingCollaboration: {
+          schemaVersion: 1,
+          conversationId: collaborationConversation,
+          workspace,
+          baseHead: 'a'.repeat(40),
+          worktrees: [{
+            id: 'writer-1',
+            path: collaborationWorktree,
+            branch: collaborationBranch,
+          }],
+        },
+      }),
+      JSON.stringify({
+        action: 'destroy_session',
+        conversationId: collaborationConversation,
+      }),
+      '',
+    ].join('\n'),
+    {
+      cwd: workspace,
+      env: {
+        ...process.env,
+        HOME: workspace,
+        MILKSU_CODING_COLLABORATION_ROOT: collaborationRoot,
+      },
+    },
+  )
+  const collaborationResponses = collaborationRun.stdout
+    .trim()
+    .split('\n')
+    .map(line => JSON.parse(line))
+  const collaborationReady = collaborationResponses.find(
+    value => value.type === 'ready',
+  )
+  if (
+    !collaborationReady?.tools?.includes('subagent')
+    || !collaborationReady?.extensions?.includes('pi-sub-agent')
+    || !collaborationReady.capabilities?.some(
+      capability => capability.id === 'collaboration'
+        && capability.status === 'approval-required',
+    )
+    || collaborationResponses.some(value => value.type === 'error')
+  ) {
+    throw new Error(
+      `unexpected packaged Coding collaboration response: `
+      + collaborationRun.stdout,
+    )
+  }
+  const subagentSmokePromptDirectory = join(
+    workspace,
+    'pi-subagent-package-smoke',
+  )
+  const subagentSmokePrompt = join(
+    subagentSmokePromptDirectory,
+    'prompt-worker.md',
+  )
+  await mkdir(subagentSmokePromptDirectory, {
+    recursive: true,
+    mode: 0o700,
+  })
+  await writeFile(
+    subagentSmokePrompt,
+    'You are the packaged MilkSU subagent smoke fixture.\n',
+    { mode: 0o600 },
+  )
+  const relaySentinel = 'package-smoke-sentinel-never-log'
+  const relaySmokeModel = 'milksu-package-smoke-model'
+  const relaySmokeReply = 'MILKSU-PACKAGED-SUBAGENT-OK'
+  const relaySmokeServer = createHttpServer((_request, response) => {
+    response.writeHead(200, {
+      'content-type': 'text/event-stream',
+      connection: 'keep-alive',
+    })
+    response.write(`data: ${JSON.stringify({
+      id: 'chatcmpl-milksu-smoke',
+      object: 'chat.completion.chunk',
+      created: 1,
+      model: relaySmokeModel,
+      choices: [{
+        index: 0,
+        delta: { role: 'assistant', content: relaySmokeReply },
+        finish_reason: null,
+      }],
+    })}\n\n`)
+    response.write(`data: ${JSON.stringify({
+      id: 'chatcmpl-milksu-smoke',
+      object: 'chat.completion.chunk',
+      created: 1,
+      model: relaySmokeModel,
+      choices: [{
+        index: 0,
+        delta: {},
+        finish_reason: 'stop',
+      }],
+    })}\n\n`)
+    response.end('data: [DONE]\n\n')
+  })
+  await new Promise((resolvePromise, rejectPromise) => {
+    relaySmokeServer.once('error', rejectPromise)
+    relaySmokeServer.listen(0, '127.0.0.1', resolvePromise)
+  })
+  let subagentRunnerRun
+  try {
+    const relayAddress = relaySmokeServer.address()
+    if (!relayAddress || typeof relayAddress === 'string') {
+      throw new Error('packaged subagent smoke relay did not bind a TCP port')
+    }
+    subagentRunnerRun = await runWithInput(
+      '/bin/sh',
+      [
+        join(output, 'pi-subagent-launcher.sh'),
+        node,
+        join(output, 'pi-subagent-runner.cjs'),
+        '--mode',
+        'json',
+        '-p',
+        '--no-extensions',
+        '--no-skills',
+        '--no-prompt-templates',
+        '--no-themes',
+        '--no-context-files',
+        '--no-approve',
+        '--no-session',
+        '--append-system-prompt',
+        subagentSmokePrompt,
+        '--model',
+        `milksu-relay/${relaySmokeModel}`,
+      ],
+      'Return only the packaged subagent smoke receipt.',
+      {
+        cwd: collaborationWorktree,
+        env: {
+          ...process.env,
+          HOME: workspace,
+          TMPDIR: workspace,
+          NODE_OPTIONS: '--permission',
+          MILKSU_PI_SUBAGENT_AGENT: 'worker',
+          MILKSU_CODING_COLLABORATION_ROOT: collaborationRoot,
+          MILKSU_PI_SUBAGENT_CLI: join(output, 'pi-subagent-cli.cjs'),
+          MILKSU_RELAY_KEY: relaySentinel,
+          MILKSU_RELAY_URL: `http://127.0.0.1:${relayAddress.port}/v1`,
+        },
+      },
+    )
+  } finally {
+    await new Promise(resolvePromise => relaySmokeServer.close(resolvePromise))
+  }
+  if (
+    !subagentRunnerRun.stdout.includes(relaySmokeReply)
+    || subagentRunnerRun.stdout.includes(relaySentinel)
+    || subagentRunnerRun.stderr.includes(relaySentinel)
+  ) {
+    throw new Error(
+      `packaged subagent runner did not load its isolated Relay model: `
+      + `${subagentRunnerRun.stdout}${subagentRunnerRun.stderr}`,
+    )
   }
   const backgroundTasksDirectory = join(workspace, 'background-control')
   const backgroundTaskId = 'bg_packaged_control'
@@ -1773,6 +2100,9 @@ async function installSidecar(platform, binaryPath) {
     'chat-bridge.cjs',
     'security-bridge.cjs',
     'computer-use-proxy.cjs',
+    'pi-subagent-launcher.sh',
+    'pi-subagent-runner.cjs',
+    'pi-subagent-cli.cjs',
     'cua-driver',
     'manifest.json',
     'package.json',
@@ -1782,6 +2112,8 @@ async function installSidecar(platform, binaryPath) {
   await mkdir(destination, { recursive: true, mode: 0o700 })
   await Promise.all(distributableFiles.map(file => copyFile(join(source, file), join(destination, file))))
   await cp(join(source, 'skills'), join(destination, 'skills'), { recursive: true })
+  await cp(join(source, 'subagents'), join(destination, 'subagents'), { recursive: true })
+  await cp(join(source, 'dist'), join(destination, 'dist'), { recursive: true })
   await cp(
     join(source, 'THIRD_PARTY-LICENSES'),
     join(destination, 'THIRD_PARTY-LICENSES'),

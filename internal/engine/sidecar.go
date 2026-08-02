@@ -27,8 +27,14 @@ func sidecarEnvironment(settings config.AppSettings) ([]string, error) {
 		return nil, err
 	}
 	attachmentRoot := filepath.Join(runtimeHome, "attachments")
-	if err := os.MkdirAll(attachmentRoot, 0o700); err != nil {
-		return nil, fmt.Errorf("create Coding attachment directory: %w", err)
+	collaborationRoot := filepath.Join(runtimeHome, "coding-collaboration")
+	for label, directory := range map[string]string{
+		"Coding attachment":    attachmentRoot,
+		"Coding collaboration": collaborationRoot,
+	} {
+		if err := os.MkdirAll(directory, 0o700); err != nil {
+			return nil, fmt.Errorf("create %s directory: %w", label, err)
+		}
 	}
 	userHome, err := os.UserHomeDir()
 	if err != nil {
@@ -46,6 +52,7 @@ func sidecarEnvironment(settings config.AppSettings) ([]string, error) {
 		"HOME="+runtimeHome,
 		"MILKSU_PI_AGENT_DIR="+filepath.Join(runtimeHome, "pi"),
 		"MILKSU_CODING_ATTACHMENT_ROOT="+attachmentRoot,
+		"MILKSU_CODING_COLLABORATION_ROOT="+collaborationRoot,
 		"MILKSU_VISION_CACHE="+filepath.Join(runtimeHome, "vision-cache.json"),
 		"MILKSU_USER_HOME="+userHome,
 	)
@@ -303,6 +310,18 @@ func sidecarRuntimeHome() (string, error) {
 		return "", fmt.Errorf("create Sidecar runtime home: %w", err)
 	}
 	return runtimeHome, nil
+}
+
+func codingCollaborationRoot() (string, error) {
+	runtimeHome, err := sidecarRuntimeHome()
+	if err != nil {
+		return "", err
+	}
+	root := filepath.Join(runtimeHome, "coding-collaboration")
+	if err := os.MkdirAll(root, 0o700); err != nil {
+		return "", fmt.Errorf("create Coding collaboration runtime directory: %w", err)
+	}
+	return root, nil
 }
 
 func resolveAgentWorkspace(value string) (string, error) {

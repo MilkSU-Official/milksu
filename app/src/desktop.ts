@@ -55,6 +55,7 @@ import type {
   CodingArtifactPreview,
   CodingBrowserStatus,
   CodingComputerUseStatus,
+  CodingCollaborationStatus,
   CodingDiffSnapshot,
   CodingEnvironmentSnapshot,
   CodingGitAction,
@@ -179,6 +180,19 @@ interface WailsAppBindings {
     title: string,
     body: string,
   ): Promise<CodingPullRequestPublishResult>
+  PrepareCodingCollaboration(
+    conversationId: string,
+    workspacePath: string,
+    writers: number,
+  ): Promise<CodingCollaborationStatus>
+  GetCodingCollaboration(
+    conversationId: string,
+    workspacePath: string,
+  ): Promise<CodingCollaborationStatus>
+  FinishCodingCollaboration(
+    conversationId: string,
+    workspacePath: string,
+  ): Promise<CodingCollaborationStatus>
   GetCodingArchitecturePreview(
     workspacePath: string,
     relativePath: string,
@@ -556,6 +570,22 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
           (args?.title as string) ?? '',
           (args?.body as string) ?? '',
         ) as Promise<T>
+      case 'prepare_coding_collaboration':
+        return app.PrepareCodingCollaboration(
+          args?.conversationId as string,
+          args?.workspacePath as string,
+          Number(args?.writers ?? 1),
+        ) as Promise<T>
+      case 'get_coding_collaboration':
+        return app.GetCodingCollaboration(
+          args?.conversationId as string,
+          args?.workspacePath as string,
+        ) as Promise<T>
+      case 'finish_coding_collaboration':
+        return app.FinishCodingCollaboration(
+          args?.conversationId as string,
+          args?.workspacePath as string,
+        ) as Promise<T>
       case 'get_coding_architecture_preview':
         return app.GetCodingArchitecturePreview(
           args?.workspacePath as string,
@@ -891,6 +921,20 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
       } as T
     case 'get_coding_diff':
       throw new Error('Git Diff 只在 MilkSU 桌面运行时读取。')
+    case 'prepare_coding_collaboration':
+    case 'finish_coding_collaboration':
+      throw new Error('Git worktree 协作需要 MilkSU 桌面运行时。')
+    case 'get_coding_collaboration':
+      return {
+        schemaVersion: 1,
+        conversationId: String(args?.conversationId ?? ''),
+        workspace: String(args?.workspacePath ?? ''),
+        phase: 'completed',
+        active: false,
+        canFinish: false,
+        worktrees: [],
+        problem: 'Git worktree 协作只在 MilkSU 桌面运行时可用。',
+      } as T
     case 'get_coding_artifact_preview':
       throw new Error('工作区产物预览需要 MilkSU 桌面运行时。')
     case 'start_coding_browser':

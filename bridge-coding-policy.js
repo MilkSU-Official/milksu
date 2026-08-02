@@ -139,6 +139,12 @@ export function normalizeCodingPolicy(
         status: "unavailable",
         detail: "只有用户显式启动应用范围会话后可用；所有调用仍逐次批准。",
       },
+      {
+        id: "collaboration",
+        label: "多 Agent 协作",
+        status: "unavailable",
+        detail: "只有用户显式准备独立 Git worktree 后可用；每次委托仍单独批准。",
+      },
     ],
   };
 }

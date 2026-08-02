@@ -38,6 +38,10 @@ import {
   codingSessionToolNames,
   normalizeCodingPolicy,
 } from "./bridge-coding-policy.js";
+import {
+  codingCollaborationToolName,
+  collaborationWorktreePaths,
+} from "./bridge-collaboration.js";
 
 export {
   codingSessionToolNames,
@@ -437,6 +441,7 @@ function createSandboxedBashOperations(
   extraProtectedEntries = [],
   includeCTFProtectedEntries = true,
   extraReadableRoots = [],
+  extraWritableRoots = [],
 ) {
   return {
     exec: async (command, cwd, options) => {
@@ -468,7 +473,7 @@ function createSandboxedBashOperations(
               extraProtectedEntries,
               includeCTFProtectedEntries,
               [...extraReadableRoots, runtimeBin],
-              [runtimeHome, runtimeTemporary],
+              [runtimeHome, runtimeTemporary, ...extraWritableRoots],
             ),
             "/bin/bash",
             "--noprofile",
@@ -1850,12 +1855,23 @@ async function createCodingToolDefinitions(
   resourceReadRoots = [],
   approvalPolicy = "workspace-auto",
   productAction = undefined,
+  codingCollaboration = undefined,
 ) {
   const root = await resolveReviewedWorkspace(workspace);
   const reviewedResourceRoots = [];
+  const collaborationPaths = [];
   for (const value of resourceReadRoots) {
     try {
       reviewedResourceRoots.push(await realpath(value));
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error;
+    }
+  }
+  for (const value of collaborationWorktreePaths(codingCollaboration)) {
+    try {
+      const reviewed = await realpath(value);
+      collaborationPaths.push(reviewed);
+      reviewedResourceRoots.push(reviewed);
     } catch (error) {
       if (error?.code !== "ENOENT") throw error;
     }
@@ -1928,6 +1944,7 @@ async function createCodingToolDefinitions(
         [],
         false,
         reviewedResourceRoots,
+        collaborationPaths,
       );
   const definitions = [
     createReadToolDefinition(root, { operations: readOperations }),
@@ -2189,6 +2206,7 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
         targetPid: Number(codingPolicy.computerUse.targetPid ?? 0),
       }
     : undefined;
+  const codingCollaboration = codingPolicy.codingCollaboration;
   const productAction = normalizedCodingProductAction(
     root,
     codingPolicy.productAction,
@@ -2201,9 +2219,15 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
   const browserAvailable = mcpAvailable
     && (Boolean(codingBrowser) || projectMcpServers.length > 0);
   const computerUseAvailable = mcpAvailable && Boolean(computerUse);
-  const activeTools = mcpAvailable
-    ? [...new Set([...actionTools, "mcp"])]
-    : actionTools;
+  const collaborationAvailable = !productAction
+    && Boolean(codingCollaboration)
+    && normalized.executionMode === "go"
+    && normalized.approvalPolicy !== "read-only";
+  const activeTools = [...new Set([
+    ...actionTools,
+    ...(mcpAvailable ? ["mcp"] : []),
+    ...(collaborationAvailable ? [codingCollaborationToolName] : []),
+  ])];
   const capabilities = normalized.capabilities.map(capability => (
     capability.id === "browser"
       ? {
@@ -2232,7 +2256,18 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
                 ? "当前 Plan、只读或产品动作不会加载 Computer Use；切换到普通 Go 后可用。"
                 : "仅在用户显式启动 MilkSU 应用范围会话后可用；Project Auto 不会自动启用。",
           }
-        : capability
+        : capability.id === "collaboration"
+          ? {
+              ...capability,
+              status: collaborationAvailable ? "approval-required" : "unavailable",
+              detail: collaborationAvailable
+                ? `${codingCollaboration.worktrees.length} 个写入槽已锁定独立 worktree；`
+                  + "每次子 Agent 委托都展示角色、任务和分支并单独批准。"
+                : codingCollaboration
+                  ? "当前 Plan、只读或一键产品动作不会加载多 Agent；切换到普通 Go 后可用。"
+                  : "只有用户显式准备独立 Git worktree 后可用；主 Agent 负责审阅、集成和验证。",
+            }
+          : capability
   ));
   return {
     ctf: false,
@@ -2246,12 +2281,14 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
     mcpConfigDigest: String(codingPolicy.mcpConfigDigest ?? "").trim(),
     codingBrowser,
     computerUse,
+    codingCollaboration,
     readOnlyResourceRoots: [...(codingPolicy.readOnlyResourceRoots || [])],
     customTools: await createCodingToolDefinitions(
       root,
       codingPolicy.readOnlyResourceRoots,
       normalized.approvalPolicy,
       productAction,
+      codingCollaboration,
     ),
     maxToolEventOutputBytes: 60000,
   };

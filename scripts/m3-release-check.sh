@@ -20,6 +20,10 @@ done
 for source_file in \
   computer-use-proxy.js \
   internal/computercap/session-policy.yaml \
+  pi-subagent-launcher.sh \
+  pi-subagent-runner.cjs \
+  patches/@earendil-works+pi-coding-agent+0.83.0.patch \
+  patches/pi-sub-agent+0.1.5.patch \
   third_party/licenses/cua-MIT.txt; do
   if ! git ls-files --error-unmatch "$source_file" >/dev/null 2>&1; then
     echo "Required Computer Use source is not tracked by Git: $source_file" >&2
@@ -29,7 +33,7 @@ done
 
 go test ./...
 go vet ./...
-node --test browserextension-background.test.js bridge-approval.test.js bridge-attachments.test.js bridge-background-process.test.js bridge-lsp.test.js bridge-mcp.test.js bridge-policy.test.js bridge-resource-policy.test.js bridge-vision.test.js computer-use-proxy.test.js
+node --test browserextension-background.test.js bridge-approval.test.js bridge-attachments.test.js bridge-background-process.test.js bridge-collaboration.test.js bridge-lsp.test.js bridge-mcp.test.js bridge-policy.test.js bridge-resource-policy.test.js bridge-vision.test.js computer-use-proxy.test.js pi-subagent-runner.test.cjs
 npm --prefix app test -- --run
 npm --prefix app run lint
 npm --prefix app run build
@@ -46,6 +50,9 @@ rg -q "GetCodingComputerUseStatus" app/wailsjs/go/main/App.d.ts
 rg -q "RequestCodingComputerUsePermissions" app/wailsjs/go/main/App.d.ts
 rg -q "StartCodingComputerUse" app/wailsjs/go/main/App.d.ts
 rg -q "StopCodingComputerUse" app/wailsjs/go/main/App.d.ts
+rg -q "PrepareCodingCollaboration" app/wailsjs/go/main/App.d.ts
+rg -q "GetCodingCollaboration" app/wailsjs/go/main/App.d.ts
+rg -q "FinishCodingCollaboration" app/wailsjs/go/main/App.d.ts
 rg -q "ChooseCodingAttachments" app/wailsjs/go/main/App.d.ts
 rg -q "GetLocalDataStatus" app/wailsjs/go/main/App.d.ts
 rg -q "ExportLocalDataBackup" app/wailsjs/go/main/App.d.ts
@@ -66,7 +73,7 @@ if [[ "$(uname -s)" == "Darwin" ]]; then
 fi
 
 mkdir -p app/dist
-: > app/dist/.gitkeep
+printf '\n' > app/dist/.gitkeep
 git diff --check
 
 echo "M3 engineering release checks passed."

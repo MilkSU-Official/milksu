@@ -87,6 +87,7 @@ test("loaded extension names come from registered tools", () => {
           extension(["goal_complete", "goal_blocked"]),
           extension(["bg_task", "bg_status"]),
           extension(["mcp"]),
+          extension(["subagent"]),
         ],
         errors: [{ path: "broken-extension", error: "failed to load" }],
       };
@@ -100,6 +101,7 @@ test("loaded extension names come from registered tools", () => {
       "pi-goal",
       "pi-background-tasks",
       "pi-mcp-adapter",
+      "pi-sub-agent",
     ],
     errors: [{ path: "broken-extension", error: "failed to load" }],
   });

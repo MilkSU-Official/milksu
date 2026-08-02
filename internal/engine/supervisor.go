@@ -2,7 +2,9 @@ package engine
 
 import (
 	"bufio"
+	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -128,6 +130,20 @@ type ComputerUseDescriptor struct {
 	TargetBundleID string `json:"targetBundleId"`
 	TargetName     string `json:"targetName"`
 	TargetPID      int    `json:"targetPid"`
+}
+
+type CodingCollaborationDescriptor struct {
+	SchemaVersion  int                           `json:"schemaVersion"`
+	ConversationID string                        `json:"conversationId"`
+	Workspace      string                        `json:"workspace"`
+	BaseHead       string                        `json:"baseHead"`
+	Worktrees      []CodingCollaborationWorktree `json:"worktrees"`
+}
+
+type CodingCollaborationWorktree struct {
+	ID     string `json:"id"`
+	Path   string `json:"path"`
+	Branch string `json:"branch"`
 }
 
 type bridgeEvent struct {
@@ -258,6 +274,7 @@ func (s *Supervisor) SendMessage(
 	mcpConfigDigest string,
 	codingBrowser *CodingBrowserDescriptor,
 	computerUse *ComputerUseDescriptor,
+	codingCollaboration *CodingCollaborationDescriptor,
 	attachments []codingattachment.Attachment,
 	settings config.AppSettings,
 ) error {
@@ -298,6 +315,24 @@ func (s *Supervisor) SendMessage(
 	if err != nil {
 		return err
 	}
+	collaborationRoot, err := codingCollaborationRoot()
+	if err != nil {
+		return err
+	}
+	codingCollaboration, err = normalizeCodingCollaborationDescriptor(
+		codingCollaboration,
+		sessionID,
+		workspace,
+		collaborationRoot,
+	)
+	if err != nil {
+		return err
+	}
+	if sessionRole != "" ||
+		codingPolicy.ExecutionMode != "go" ||
+		codingPolicy.ApprovalPolicy == "read-only" {
+		codingCollaboration = nil
+	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -324,12 +359,105 @@ func (s *Supervisor) SendMessage(
 	if computerUse != nil {
 		command["computerUse"] = computerUse
 	}
+	if codingCollaboration != nil {
+		command["codingCollaboration"] = codingCollaboration
+	}
 	if err := writeCommand(s.process.stdin, command); err != nil {
 		return fmt.Errorf("send engine message: %w", err)
 	}
 	s.sessions[sessionID] = struct{}{}
 	s.armTurnTimerLocked(sessionID)
 	return nil
+}
+
+func normalizeCodingCollaborationDescriptor(
+	descriptor *CodingCollaborationDescriptor,
+	sessionID,
+	workspace,
+	root string,
+) (*CodingCollaborationDescriptor, error) {
+	if descriptor == nil {
+		return nil, nil
+	}
+	if descriptor.SchemaVersion != 1 {
+		return nil, errors.New("invalid Coding collaboration schema version")
+	}
+	if strings.TrimSpace(descriptor.ConversationID) != strings.TrimSpace(sessionID) {
+		return nil, errors.New("Coding collaboration must belong to the current task")
+	}
+	resolvedWorkspace, err := resolveAgentWorkspace(descriptor.Workspace)
+	if err != nil || resolvedWorkspace != workspace {
+		return nil, errors.New("Coding collaboration must belong to the current workspace")
+	}
+	if !validGitObjectID(descriptor.BaseHead) {
+		return nil, errors.New("invalid Coding collaboration base commit")
+	}
+	resolvedRoot, err := filepath.Abs(root)
+	if err != nil {
+		return nil, fmt.Errorf("resolve Coding collaboration root: %w", err)
+	}
+	resolvedRoot, err = filepath.EvalSymlinks(resolvedRoot)
+	if err != nil {
+		return nil, fmt.Errorf("resolve Coding collaboration root links: %w", err)
+	}
+	if len(descriptor.Worktrees) < 1 || len(descriptor.Worktrees) > 2 {
+		return nil, errors.New("Coding collaboration requires one or two writer worktrees")
+	}
+	digest := sha256.Sum256([]byte(strings.TrimSpace(sessionID)))
+	taskKey := fmt.Sprintf("%x", digest[:16])
+	normalized := &CodingCollaborationDescriptor{
+		SchemaVersion:  1,
+		ConversationID: strings.TrimSpace(sessionID),
+		Workspace:      workspace,
+		BaseHead:       descriptor.BaseHead,
+		Worktrees: make(
+			[]CodingCollaborationWorktree,
+			0,
+			len(descriptor.Worktrees),
+		),
+	}
+	for index, worktree := range descriptor.Worktrees {
+		expectedID := fmt.Sprintf("writer-%d", index+1)
+		expectedBranch := fmt.Sprintf(
+			"codex/agent-%s-writer-%d",
+			taskKey[:12],
+			index+1,
+		)
+		expectedPath := filepath.Join(resolvedRoot, taskKey, expectedID)
+		resolvedPath, pathErr := resolveAgentWorkspace(worktree.Path)
+		if pathErr != nil ||
+			worktree.ID != expectedID ||
+			strings.TrimSpace(worktree.Branch) != expectedBranch ||
+			resolvedPath != expectedPath {
+			return nil, fmt.Errorf(
+				"invalid Coding collaboration boundary for %s",
+				expectedID,
+			)
+		}
+		normalized.Worktrees = append(
+			normalized.Worktrees,
+			CodingCollaborationWorktree{
+				ID:     expectedID,
+				Path:   expectedPath,
+				Branch: expectedBranch,
+			},
+		)
+	}
+	return normalized, nil
+}
+
+func validGitObjectID(value string) bool {
+	if len(value) != 40 && len(value) != 64 {
+		return false
+	}
+	for _, character := range value {
+		if character >= '0' && character <= '9' ||
+			character >= 'a' && character <= 'f' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func normalizeComputerUseDescriptor(
@@ -689,6 +817,7 @@ func (s *Supervisor) ProbeModel(settings config.AppSettings) (ModelProbeResult, 
 		nil,
 		nil,
 		nil,
+		nil,
 		settings,
 	); err != nil {
 		return ModelProbeResult{}, err
@@ -942,7 +1071,7 @@ func (s *Supervisor) observeTurnEvent(event Event) {
 			s.approvals[event.SessionID] == 0 {
 			s.armTurnTimerLocked(event.SessionID)
 		}
-	case "session.ready", "session.policy_updated", "session.model_selected", "assistant.delta", "assistant.segment_completed", "tool.started", "tool.completed":
+	case "session.ready", "session.policy_updated", "session.model_selected", "assistant.delta", "assistant.segment_completed", "tool.started", "tool.progress", "tool.completed":
 		if _, exists := s.turnTimers[event.SessionID]; exists &&
 			s.approvals[event.SessionID] == 0 {
 			s.armTurnTimerLocked(event.SessionID)
@@ -1190,6 +1319,9 @@ func normalizeBridgeEvent(raw bridgeEvent) Event {
 		event.Done = true
 	case "tool_call_start":
 		event.Type = "tool.started"
+	case "tool_call_progress":
+		event.Type = "tool.progress"
+		event.Text = ""
 	case "tool_call_end":
 		event.Type = "tool.completed"
 		event.Done = true

@@ -75,6 +75,7 @@ func (runtime *EngineRuntime) RunTurn(
 		nil,
 		nil,
 		nil,
+		nil,
 		settings,
 	); err != nil {
 		return evalbench.AgentRuntimeTurnResult{}, err
