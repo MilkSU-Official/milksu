@@ -50,10 +50,11 @@ var sensitiveBackupPaths = []string{
 }
 
 type DataStatus struct {
-	Directory      string `json:"directory"`
-	FileCount      int    `json:"fileCount"`
-	Bytes          int64  `json:"bytes"`
-	LastModifiedAt string `json:"lastModifiedAt,omitempty"`
+	Directory      string                        `json:"directory"`
+	FileCount      int                           `json:"fileCount"`
+	Bytes          int64                         `json:"bytes"`
+	LastModifiedAt string                        `json:"lastModifiedAt,omitempty"`
+	Databases      []DatabaseCompatibilityStatus `json:"databases,omitempty"`
 }
 
 type BackupFile struct {

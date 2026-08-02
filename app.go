@@ -267,7 +267,16 @@ func (a *App) GetSettings() config.AppSettings {
 }
 
 func (a *App) GetLocalDataStatus() (appdata.DataStatus, error) {
-	return appdata.Inspect(a.dataDirectory)
+	status, err := appdata.Inspect(a.dataDirectory)
+	if err != nil {
+		return appdata.DataStatus{}, err
+	}
+	status.Databases = appdata.InspectDatabaseCompatibility(
+		a.commandContext(),
+		a.dataDirectory,
+		databaseCompatDescriptors(),
+	)
+	return status, nil
 }
 
 func (a *App) ExportLocalDataBackup() (appdata.BackupExport, error) {
