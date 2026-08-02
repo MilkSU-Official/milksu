@@ -18,6 +18,27 @@
 5. 每个可交付纵切必须测试、审阅、提交并只推送到 MilkSU 自己的私有仓库。
 6. Provider API Key 不进入模型上下文、工具输出、日志、诊断包、迁移或文档。
 7. Labs 与 CVE Research 保持暂停，不作为当前完成条件。
+8. 从现在开始新增的代码不为尚未发布的临时设计增加迁移、双写或兼容分支，直接实现当前
+   干净模型。已经工作的旧代码和既有 schema 不在功能开发中途返工；确需调整时集中到全部
+   产品纵切完成后的最终收口，一次破坏性修改并重新执行完整回归。
+
+## Pre-release 破坏性演进原则
+
+MilkSU 当前没有需要承诺向后兼容的外部发行基线。后续开发固定遵守：
+
+1. **新代码现在就写干净。** 新增领域模型、DTO、事件和数据结构直接表达当前设计，不为
+   尚未发布的旧设想增加 fallback、双写、影子字段、临时 Adapter 或 Migration。
+2. **不在纵切中途为清债而清债。** 已经工作的旧代码和旧 schema 若不阻碍当前功能正确性，
+   继续保持回归，不打断 CTF、Memory、Runtime 和交付主线去做纯重构。
+3. **确需修改旧设计时先登记，最后集中破坏性收口。** 在全部产品纵切与真实验收完成后、
+   最终文档更新前，一次性删除不再需要的兼容代码、历史 schema 和过渡结构，不长期保留
+   两套设计。
+4. **开发数据不构成兼容承诺。** 最终收口可以要求显式重置 pre-release 本地数据；应用
+   不能擅自删除数据，也不能读取、迁移、导出或记录 Provider Credential。
+5. **收口不是只改代码。** 破坏性调整后必须从全新数据目录重新执行完整自动化、打包
+   Sidecar、原生 App、恢复、六赛道、Memory 校准、Bench 和发行回归；失败项修复后重跑。
+6. **最后才冻结和写文档。** 回归全部通过后再冻结首个外部 Beta schema/API baseline，
+   从该版本起维护正式向前 Migration 与兼容承诺，并统一更新架构、里程碑、状态和发布说明。
 
 ## 1. Coding Agent 自举底座
 
@@ -237,24 +258,22 @@ Tool Builder 与 Strategist 不要求每题都调用，改为两个跨赛道场�
 
 ## 7. 本地交付：拆成数据安全和正式发行两阶段
 
-### 数据安全，P0
+### Pre-release 最终数据收口
 
-编号式 SQLite Migration 必须保留，而且应在修改 Memory 归属模型之前完成。
+现有五个数据库的编号、事务、兼容检查与迁移前安全备份已经实现，功能纵切期间保持回归，
+不把移除这些旧实现当作当前优先事项。
 
-当前只有 Event Store 有 `schema_migrations`；Memory、Credential、NSSCTF、CTFshow
-仍各自 `CREATE/ALTER`：`internal/securityruntime/store.go:54`、
-`internal/ctf/memory.go:95`。
+从现在开始：
 
-验收覆盖：
-
-- 每个数据库独立编号；
-- 事务化、幂等；
-- 旧版本数据库直接升级；
-- 新版本数据库拒绝被旧 App 打开；
-- 迁移失败不留下半升级状态；
-- 迁移前安全备份；
-- 凭据不迁移到普通文件；
-- 恢复旧备份后仍能继续升级。
+- 新数据结构直接按当前领域模型设计，不为尚未发布的中间形态新增兼容层；
+- 若一个纵切必须修改既有 schema，先完成不依赖兼容技巧的领域语义和测试，不用保留旧
+  字段、影子表或双写来伪装完成；
+- 所有破坏性的旧代码与 schema 简化集中到产品目标完成后、最终文档更新前一次执行；
+- 最终收口允许显式重置 pre-release 开发数据，但不能自动删除本机数据，也不能读取、迁移
+  或导出 Credential；
+- 收口后从全新数据目录重跑完整自动化、原生 App、六赛道、Memory 校准、恢复和发行回归；
+- 首个外部 Beta 以收口后的结构冻结正式 baseline，从此才承诺编号式向前 Migration 和
+  版本升级兼容。
 
 诊断入口已经存在，应从“未完成”中删除：`app/src/components-vue/SettingsPage.vue:229`。
 剩余目标改为：
@@ -302,13 +321,13 @@ Developer ID、公证、升级渠道很重要，但不阻塞当前功能迭代�
 ## 调整后的总体顺序
 
 1. Coding Agent 自举门槛。
-2. 统一 SQLite Migration。
-3. Memory 证据归属模型。
-4. 动态 Endpoint 确认与窄网络执行器。
-5. 六赛道真实 CTF 验收，其中包含一次 Tool Builder 和一次 Strategist 闭环。
-6. 使用真实轨迹完成 Memory/推荐校准。
-7. Runtime Reliability Bench。
-8. NYU 安全子集 Outcome Bench。
+2. Memory 证据归属模型。
+3. 动态 Endpoint 确认与窄网络执行器。
+4. 六赛道真实 CTF 验收，其中包含一次 Tool Builder 和一次 Strategist 闭环。
+5. 使用真实轨迹完成 Memory/推荐校准。
+6. Runtime Reliability Bench。
+7. NYU 安全子集 Outcome Bench。
+8. 集中完成 pre-release 旧代码与 schema 的破坏性收口，并从全新数据目录完整回归。
 9. 崩溃恢复、全新机器、签名、公证、升级和性能发布门禁。
 10. 最后统一更新文档。
 
