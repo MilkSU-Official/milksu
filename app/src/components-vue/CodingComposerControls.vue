@@ -85,8 +85,8 @@ defineEmits<{
             class="size-3.5 shrink-0 text-warning"
           />
           <LockKeyhole v-else class="size-3.5 shrink-0" />
-          <span class="truncate">{{ approvalLabel }}</span>
-          <ChevronDown class="ml-auto size-3.5 shrink-0 text-muted-foreground" />
+          <span class="composer-permission__label truncate">{{ approvalLabel }}</span>
+          <ChevronDown class="composer-permission__chevron ml-auto size-3.5 shrink-0 text-muted-foreground" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
@@ -270,9 +270,10 @@ defineEmits<{
 }
 
 .composer-model {
-  width: min(18rem, 44%);
-  min-width: 10rem;
-  flex: 0 0 auto;
+  width: min(21rem, 100%);
+  min-width: 12rem;
+  flex: 1 1 16rem;
+  justify-self: end;
 }
 
 @container chat-main (max-width: 52rem) {
@@ -288,8 +289,28 @@ defineEmits<{
   }
 
   .composer-model {
-    min-width: 9rem;
-    width: min(14rem, 48%);
+    min-width: 10rem;
+    width: min(18rem, 100%);
+  }
+}
+
+@container chat-main (max-width: 36rem) {
+  .composer-permission {
+    width: 2.25rem;
+    min-width: 2.25rem;
+    flex: 0 0 2.25rem;
+    justify-content: center;
+    padding-inline: 0;
+  }
+
+  .composer-permission__label,
+  .composer-permission__chevron {
+    display: none;
+  }
+
+  .composer-model {
+    min-width: 0;
+    flex-basis: 10rem;
   }
 }
 </style>
