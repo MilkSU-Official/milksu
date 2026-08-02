@@ -169,6 +169,30 @@ export interface CodingBrowserStatus {
   pages?: CodingBrowserPage[]
 }
 
+export interface CodingComputerUsePermissions {
+  accessibility: boolean
+  screenRecording: boolean
+}
+
+export interface CodingComputerUseTarget {
+  name: string
+  bundleId: string
+  pid: number
+}
+
+export interface CodingComputerUseStatus {
+  available: boolean
+  enabled: boolean
+  conversationId?: string
+  sessionId?: string
+  phase: 'disabled' | 'starting' | 'ready' | 'stopping' | 'stopped' | 'failed' | 'unavailable' | string
+  startedAt?: string
+  driverVersion?: string
+  target: CodingComputerUseTarget
+  permissions: CodingComputerUsePermissions
+  problem?: string
+}
+
 export interface CodingMCPServerSummary {
   name: string
   transport: string

@@ -116,6 +116,14 @@ type CodingBrowserDescriptor struct {
 	CDPEndpoint string `json:"cdpEndpoint"`
 }
 
+type ComputerUseDescriptor struct {
+	SessionID      string `json:"sessionId"`
+	SocketPath     string `json:"socketPath"`
+	TargetBundleID string `json:"targetBundleId"`
+	TargetName     string `json:"targetName"`
+	TargetPID      int    `json:"targetPid"`
+}
+
 type bridgeEvent struct {
 	Type           string                   `json:"type"`
 	ID             string                   `json:"id"`
@@ -239,6 +247,7 @@ func (s *Supervisor) SendMessage(
 	mcpServers []string,
 	mcpConfigDigest string,
 	codingBrowser *CodingBrowserDescriptor,
+	computerUse *ComputerUseDescriptor,
 	attachments []codingattachment.Attachment,
 	settings config.AppSettings,
 ) error {
@@ -262,6 +271,15 @@ func (s *Supervisor) SendMessage(
 	}
 	if sessionRole != "" || codingPolicy.ExecutionMode != "go" {
 		codingBrowser = nil
+	}
+	computerUse, err = normalizeComputerUseDescriptor(computerUse)
+	if err != nil {
+		return err
+	}
+	if sessionRole != "" ||
+		codingPolicy.ExecutionMode != "go" ||
+		codingPolicy.ApprovalPolicy == "read-only" {
+		computerUse = nil
 	}
 	if err := validateModelAccess(settings); err != nil {
 		return err
@@ -293,12 +311,61 @@ func (s *Supervisor) SendMessage(
 	if codingBrowser != nil {
 		command["codingBrowser"] = codingBrowser
 	}
+	if computerUse != nil {
+		command["computerUse"] = computerUse
+	}
 	if err := writeCommand(s.process.stdin, command); err != nil {
 		return fmt.Errorf("send engine message: %w", err)
 	}
 	s.sessions[sessionID] = struct{}{}
 	s.armTurnTimerLocked(sessionID)
 	return nil
+}
+
+func normalizeComputerUseDescriptor(
+	descriptor *ComputerUseDescriptor,
+) (*ComputerUseDescriptor, error) {
+	if descriptor == nil {
+		return nil, nil
+	}
+	sessionID := strings.TrimSpace(descriptor.SessionID)
+	sessionSuffix := strings.TrimPrefix(sessionID, "computer_")
+	if sessionSuffix == sessionID ||
+		len(sessionSuffix) < 8 ||
+		len(sessionSuffix) > 128 {
+		return nil, fmt.Errorf("invalid Computer Use session id")
+	}
+	for _, character := range sessionSuffix {
+		if character >= 'a' && character <= 'z' ||
+			character >= 'A' && character <= 'Z' ||
+			character >= '0' && character <= '9' ||
+			character == '-' {
+			continue
+		}
+		return nil, fmt.Errorf("invalid Computer Use session id")
+	}
+	expectedSocket := filepath.Join(
+		"/private/tmp/milksu-computer-use",
+		sessionID,
+		"driver.sock",
+	)
+	if strings.TrimSpace(descriptor.SocketPath) != expectedSocket {
+		return nil, fmt.Errorf("invalid Computer Use socket path")
+	}
+	if strings.TrimSpace(descriptor.TargetBundleID) != "com.milksu.app" ||
+		strings.TrimSpace(descriptor.TargetName) != "MilkSU" {
+		return nil, fmt.Errorf("Computer Use target must be the MilkSU application")
+	}
+	if descriptor.TargetPID != os.Getpid() {
+		return nil, fmt.Errorf("Computer Use target PID must be the current MilkSU process")
+	}
+	return &ComputerUseDescriptor{
+		SessionID:      sessionID,
+		SocketPath:     expectedSocket,
+		TargetBundleID: "com.milksu.app",
+		TargetName:     "MilkSU",
+		TargetPID:      descriptor.TargetPID,
+	}, nil
 }
 
 func normalizeCodingBrowserDescriptor(
@@ -559,6 +626,7 @@ func (s *Supervisor) ProbeModel(settings config.AppSettings) (ModelProbeResult, 
 		"",
 		nil,
 		"",
+		nil,
 		nil,
 		nil,
 		settings,

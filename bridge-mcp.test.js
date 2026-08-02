@@ -7,12 +7,16 @@ import { tmpdir } from "node:os";
 import {
   codingBrowserMcpServerName,
   codingBrowserSelectionChanged,
+  computerUseMcpServerName,
+  computerUseSandboxProfile,
+  computerUseSelectionChanged,
   createFirstPartyPlaywrightMcpServer,
   ensureMcpMetadataCache,
   loadCodingMcpConfig,
   loadSelectedMcpConfig,
   mcpSelectionChanged,
   normalizeCodingBrowserDescriptor,
+  normalizeComputerUseDescriptor,
   normalizeSelectedMcpServers,
 } from "./bridge-mcp.js";
 
@@ -215,13 +219,62 @@ test("rejects non-loopback, ambiguous, and caller-controlled Coding Browser desc
 
 test("reserves the built-in Playwright server name from project MCP config", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "milksu-browser-mcp-"));
-  await assert.rejects(
-    loadSelectedMcpConfig(
-      workspace,
-      [codingBrowserMcpServerName],
-      "0".repeat(64),
-    ),
-    /reserved by MilkSU/,
+  for (const name of [codingBrowserMcpServerName, computerUseMcpServerName]) {
+    await assert.rejects(
+      loadSelectedMcpConfig(
+        workspace,
+        [name],
+        "0".repeat(64),
+      ),
+      /reserved by MilkSU/,
+    );
+  }
+});
+
+test("accepts only an exact immutable MilkSU Computer Use descriptor", () => {
+  const valid = {
+    sessionId: "computer_12345678",
+    socketPath:
+      "/private/tmp/milksu-computer-use/computer_12345678/driver.sock",
+    targetBundleId: "com.milksu.app",
+    targetName: "MilkSU",
+    targetPid: 4242,
+  };
+  assert.deepEqual(normalizeComputerUseDescriptor(valid), valid);
+  assert.equal(computerUseSelectionChanged(valid, { ...valid }), false);
+  assert.equal(
+    computerUseSelectionChanged(valid, { ...valid, targetPid: 4243 }),
+    true,
+  );
+  for (const descriptor of [
+    { ...valid, socketPath: "/tmp/cua.sock" },
+    { ...valid, targetBundleId: "com.apple.finder", targetName: "Finder" },
+    { ...valid, targetPid: 0 },
+    { ...valid, command: "/bin/sh" },
+  ]) {
+    assert.throws(
+      () => normalizeComputerUseDescriptor(descriptor),
+      /Computer Use|descriptor/,
+    );
+  }
+});
+
+test("Computer Use sandbox grants only one private Unix socket", () => {
+  const socketPath =
+    "/private/tmp/milksu-computer-use/computer_12345678/driver.sock";
+  const profile = computerUseSandboxProfile(
+    socketPath,
+    "/private/tmp/milksu-computer-use/computer_12345678",
+  );
+  assert.match(
+    profile,
+    /network-outbound \(remote unix-socket \(path-literal "\/private\/tmp\/milksu-computer-use\/computer_12345678\/driver\.sock"\)\)/,
+  );
+  assert.doesNotMatch(profile, /\(allow network\*\)/);
+  assert.doesNotMatch(profile, /network-inbound/);
+  assert.doesNotMatch(
+    profile,
+    /\(allow file-write\* \(subpath "\/private\/tmp\/milksu-computer-use\/computer_12345678"\)\)/,
   );
 });
 

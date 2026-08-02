@@ -63,6 +63,7 @@ import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import type {
   CodingArchitecturePreview,
   CodingBrowserStatus,
+  CodingComputerUseStatus,
   CodingDiffSnapshot,
   CodingEnvironmentSnapshot,
   CodingMCPConfigSnapshot,
@@ -170,6 +171,8 @@ const browserPanelError = ref('')
 const codingBrowserLoading = ref(false)
 const codingBrowserURL = ref('http://127.0.0.1:3000')
 const codingBrowserStatus = ref<CodingBrowserStatus | null>(null)
+const computerUseLoading = ref(false)
+const computerUseStatus = ref<CodingComputerUseStatus | null>(null)
 const nssctfBrowserStatus = ref<NSSCTFWebBridgeStatus | null>(null)
 const ctfshowBrowserStatus = ref<CTFShowCatalogStatus | null>(null)
 const codingEnvironment = ref<CodingEnvironmentSnapshot | null>(null)
@@ -250,14 +253,44 @@ const effectiveExecutionMode = computed(() => (
 const effectiveApprovalPolicy = computed(() => (
   normalizeCodingApprovalPolicy(props.approvalPolicy)
 ))
-const codingCapabilities = computed(() => (
-  props.conversation?.agentCapabilities?.length
+const computerUseOwnedByCurrentTask = computed(() => Boolean(
+  computerUseStatus.value?.conversationId
+  && computerUseStatus.value.conversationId === props.conversation?.id,
+))
+const computerUseReadyForCurrentTask = computed(() => Boolean(
+  computerUseStatus.value?.enabled
+  && computerUseOwnedByCurrentTask.value,
+))
+const computerUseAttachedToOtherTask = computed(() => Boolean(
+  computerUseStatus.value?.conversationId
+  && !computerUseOwnedByCurrentTask.value,
+))
+const computerUsePermissionsReady = computed(() => Boolean(
+  computerUseStatus.value?.permissions.accessibility
+  && computerUseStatus.value.permissions.screenRecording,
+))
+const codingCapabilities = computed(() => {
+  const capabilities = props.conversation?.agentCapabilities?.length
     ? props.conversation.agentCapabilities
     : previewCodingCapabilities(
         effectiveExecutionMode.value,
         effectiveApprovalPolicy.value,
       )
-))
+  if (
+    !computerUseReadyForCurrentTask.value
+    || effectiveExecutionMode.value !== 'go'
+    || effectiveApprovalPolicy.value === 'read-only'
+  ) {
+    return capabilities
+  }
+  return capabilities.map(capability => capability.id === 'computer-use'
+    ? {
+        ...capability,
+        status: 'approval-required' as const,
+        detail: '已锁定当前 MilkSU App；每次观察或操作都会单独请求批准。',
+      }
+    : capability)
+})
 const codingPolicyLabel = computed(() => {
   const mode = effectiveExecutionMode.value === 'plan' ? 'Plan' : 'Go'
   const approval = effectiveApprovalPolicy.value === 'read-only'
@@ -377,7 +410,7 @@ const contextPanelTitle = computed(() => ({
   terminal: '终端',
   artifacts: '产物',
   architecture: '架构图',
-  browser: '浏览器',
+  browser: props.ctfSession ? '浏览器' : '浏览器与 App',
   collaboration: 'Agent 协作',
   evidence: '证据与 Judge',
 })[contextPanel.value])
@@ -649,33 +682,47 @@ async function refreshBrowserPanel() {
   if (!props.ctfSession) {
     nssctfBrowserStatus.value = null
     ctfshowBrowserStatus.value = null
-    if (codingBrowserLoading.value) return
-    if (!props.conversation?.id) {
-      codingBrowserStatus.value = {
-        enabled: false,
-        conversationId: '',
-        phase: 'disabled',
-        pages: [],
-      }
-      return
-    }
+    if (codingBrowserLoading.value || computerUseLoading.value) return
     codingBrowserLoading.value = true
-    try {
-      codingBrowserStatus.value = await invokeCommand<CodingBrowserStatus>(
-        'get_coding_browser_status',
-        { conversationId: props.conversation.id },
-      )
+    computerUseLoading.value = true
+    const conversationID = props.conversation?.id
+    const [browser, computerUse] = await Promise.allSettled([
+      conversationID
+        ? invokeCommand<CodingBrowserStatus>(
+            'get_coding_browser_status',
+            { conversationId: conversationID },
+          )
+        : Promise.resolve<CodingBrowserStatus>({
+            enabled: false,
+            conversationId: '',
+            phase: 'disabled',
+            pages: [],
+          }),
+      invokeCommand<CodingComputerUseStatus>('get_coding_computer_use_status'),
+    ])
+    if (browser.status === 'fulfilled') {
+      codingBrowserStatus.value = browser.value
       if (codingBrowserStatus.value.initialUrl) {
         codingBrowserURL.value = codingBrowserStatus.value.initialUrl
       }
-    } catch (reason) {
+    } else {
       codingBrowserStatus.value = null
-      browserPanelError.value = reason instanceof Error
-        ? reason.message
+      browserPanelError.value = browser.reason instanceof Error
+        ? browser.reason.message
         : '暂时无法读取 Coding 浏览器状态。'
-    } finally {
-      codingBrowserLoading.value = false
     }
+    if (computerUse.status === 'fulfilled') {
+      computerUseStatus.value = computerUse.value
+    } else {
+      computerUseStatus.value = null
+      if (!browserPanelError.value) {
+        browserPanelError.value = computerUse.reason instanceof Error
+          ? computerUse.reason.message
+          : '暂时无法读取 Computer Use 状态。'
+      }
+    }
+    codingBrowserLoading.value = false
+    computerUseLoading.value = false
     return
   }
   environmentLoading.value = true
@@ -736,6 +783,66 @@ async function stopCodingBrowser() {
       : 'Coding 浏览器停止失败。'
   } finally {
     codingBrowserLoading.value = false
+  }
+}
+
+async function requestComputerUsePermissions() {
+  browserPanelError.value = ''
+  computerUseLoading.value = true
+  try {
+    computerUseStatus.value = await invokeCommand<CodingComputerUseStatus>(
+      'request_coding_computer_use_permissions',
+    )
+  } catch (reason) {
+    browserPanelError.value = reason instanceof Error
+      ? reason.message
+      : '无法请求 MilkSU 的系统权限。'
+  } finally {
+    computerUseLoading.value = false
+  }
+}
+
+async function startComputerUse() {
+  browserPanelError.value = ''
+  const workspaceName = props.workspacePath
+    .replace(/\/+$/, '')
+    .split('/')
+    .at(-1)
+  const conversationID = props.ensureConversation(
+    workspaceName ? `${workspaceName} · 原生验证` : 'MilkSU 原生验证',
+  )
+  computerUseLoading.value = true
+  try {
+    computerUseStatus.value = await invokeCommand<CodingComputerUseStatus>(
+      'start_coding_computer_use',
+      { conversationId: conversationID },
+    )
+  } catch (reason) {
+    browserPanelError.value = reason instanceof Error
+      ? reason.message
+      : 'Computer Use 可见会话启动失败。'
+  } finally {
+    computerUseLoading.value = false
+  }
+  await refreshBrowserPanel()
+}
+
+async function stopComputerUse() {
+  const conversationID = props.conversation?.id
+  if (!conversationID || !computerUseOwnedByCurrentTask.value) return
+  browserPanelError.value = ''
+  computerUseLoading.value = true
+  try {
+    computerUseStatus.value = await invokeCommand<CodingComputerUseStatus>(
+      'stop_coding_computer_use',
+      { conversationId: conversationID },
+    )
+  } catch (reason) {
+    browserPanelError.value = reason instanceof Error
+      ? reason.message
+      : 'Computer Use 可见会话停止失败。'
+  } finally {
+    computerUseLoading.value = false
   }
 }
 
@@ -1004,7 +1111,7 @@ watch(
           <SelectItem v-if="!ctfSession" value="terminal">终端</SelectItem>
           <SelectItem v-if="!ctfSession" value="artifacts">产物</SelectItem>
           <SelectItem v-if="!ctfSession" value="architecture">架构图</SelectItem>
-          <SelectItem value="browser">浏览器</SelectItem>
+          <SelectItem value="browser">{{ ctfSession ? '浏览器' : '浏览器与 App' }}</SelectItem>
           <template v-if="ctfSession">
             <SelectSeparator />
             <SelectItem value="collaboration">Agent 协作</SelectItem>
@@ -1560,6 +1667,101 @@ watch(
             </div>
             <p v-else class="mt-3 text-caption text-muted-foreground">
               Chrome 已启动，等待页面就绪。
+            </p>
+          </div>
+          <div class="mt-5 border-t border-border pt-5">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <p class="text-body font-medium">MilkSU 原生 App</p>
+                <p class="mt-1 text-caption leading-5 text-muted-foreground">
+                  可见会话固定为当前 MilkSU 进程；模型不能切换到桌面、其他 App 或其他 PID。
+                </p>
+              </div>
+              <span
+                class="mt-1 size-2 shrink-0 rounded-full"
+                :class="computerUseReadyForCurrentTask ? 'bg-primary' : 'bg-muted-foreground'"
+              />
+            </div>
+            <div class="mt-4 rounded-md bg-muted/45 px-3 py-3 text-caption">
+              <div class="flex items-center justify-between gap-3">
+                <span class="text-muted-foreground">应用范围</span>
+                <span class="font-medium text-foreground">
+                  {{ computerUseStatus?.target.name || 'MilkSU' }}
+                </span>
+              </div>
+              <p class="mt-1 break-all font-mono text-muted-foreground">
+                {{ computerUseStatus?.target.bundleId || 'com.milksu.app' }}
+                · PID {{ computerUseStatus?.target.pid || '—' }}
+              </p>
+              <div class="mt-3 flex flex-wrap gap-2">
+                <Badge
+                  :variant="computerUseStatus?.permissions.accessibility ? 'secondary' : 'outline'"
+                >
+                  辅助功能
+                  {{ computerUseStatus?.permissions.accessibility ? '已授权' : '未授权' }}
+                </Badge>
+                <Badge
+                  :variant="computerUseStatus?.permissions.screenRecording ? 'secondary' : 'outline'"
+                >
+                  屏幕录制
+                  {{ computerUseStatus?.permissions.screenRecording ? '已授权' : '未授权' }}
+                </Badge>
+              </div>
+            </div>
+            <p
+              v-if="computerUseStatus?.problem"
+              class="mt-3 text-caption leading-5 text-destructive"
+            >
+              {{ computerUseStatus.problem }}
+            </p>
+            <p
+              v-else-if="computerUseAttachedToOtherTask"
+              class="mt-3 text-caption leading-5 text-muted-foreground"
+            >
+              可见会话正由另一个 Coding 任务使用；请回到该任务停止后再切换。
+            </p>
+            <div class="mt-4 flex flex-wrap gap-2">
+              <Button
+                v-if="!computerUsePermissionsReady"
+                variant="outline"
+                size="sm"
+                :disabled="computerUseLoading || running"
+                @click="requestComputerUsePermissions"
+              >
+                <LoaderCircle v-if="computerUseLoading" class="size-3.5 animate-spin" />
+                <KeyRound v-else class="size-3.5" />
+                请求系统权限
+              </Button>
+              <Button
+                v-if="computerUseOwnedByCurrentTask"
+                variant="outline"
+                size="sm"
+                :disabled="computerUseLoading || running"
+                @click="stopComputerUse"
+              >
+                停止可见会话
+              </Button>
+              <Button
+                v-else
+                variant="brand"
+                size="sm"
+                :disabled="
+                  computerUseLoading
+                    || running
+                    || !computerUseStatus?.available
+                    || !computerUsePermissionsReady
+                    || Boolean(computerUseStatus?.conversationId)
+                "
+                @click="startComputerUse"
+              >
+                <LoaderCircle v-if="computerUseLoading" class="size-3.5 animate-spin" />
+                <Compass v-else class="size-3.5" />
+                启动可见会话
+              </Button>
+            </div>
+            <p class="mt-3 text-caption leading-5 text-muted-foreground">
+              项目自动不会启用 Computer Use；每次观察、点击、输入、按键或滚动都要单独批准。
+              Driver {{ computerUseStatus?.driverVersion || '0.14.2' }} · prerelease。
             </p>
           </div>
         </section>

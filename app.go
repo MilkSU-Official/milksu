@@ -25,6 +25,7 @@ import (
 	"github.com/MilkSU-Official/milksu/internal/codingattachment"
 	"github.com/MilkSU-Official/milksu/internal/codingenv"
 	"github.com/MilkSU-Official/milksu/internal/codingterminal"
+	"github.com/MilkSU-Official/milksu/internal/computercap"
 	"github.com/MilkSU-Official/milksu/internal/config"
 	"github.com/MilkSU-Official/milksu/internal/conversation"
 	"github.com/MilkSU-Official/milksu/internal/ctf"
@@ -46,6 +47,7 @@ type App struct {
 	conversations   *conversation.Store
 	codingFiles     *codingattachment.Store
 	codingTerminals *codingterminal.Manager
+	computerUse     *computercap.Manager
 	engines         *engine.Supervisor
 	securityEngine  *engine.SecuritySupervisor
 	nssctf          *nssctf.Client
@@ -106,6 +108,7 @@ func NewApp() (*App, error) {
 		}
 	}
 	application.engines = engine.NewSupervisor(application.emitEngineEvent)
+	application.computerUse = computercap.New(computercap.Options{})
 	application.nssctf = nssctf.NewClient(nssctf.ClientOptions{})
 	application.nssctfCatalog, err = nssctf.NewCatalogService(
 		filepath.Join(dataDirectory, "nssctf", "catalog.sqlite3"),
@@ -229,6 +232,9 @@ func (a *App) Shutdown(_ context.Context) {
 	a.securityEngine.Close()
 	_ = a.jobs.Close()
 	a.engines.Close()
+	if a.computerUse != nil {
+		a.computerUse.Close()
+	}
 	if a.codingTerminals != nil {
 		a.codingTerminals.Close()
 	}
@@ -419,6 +425,13 @@ func (a *App) DeleteConversation(id string) error {
 			return err
 		}
 	}
+	if a.computerUse != nil {
+		if a.computerUse.OwnsConversation(id) {
+			if _, err := a.computerUse.Stop(id); err != nil {
+				return err
+			}
+		}
+	}
 	return a.conversations.Delete(id)
 }
 
@@ -598,6 +611,21 @@ func (a *App) SendMessage(
 			}
 		}
 	}
+	var computerUse *engine.ComputerUseDescriptor
+	if sessionRole == "" &&
+		strings.TrimSpace(executionMode) != "plan" &&
+		strings.TrimSpace(approvalPolicy) != "read-only" &&
+		a.computerUse != nil {
+		if descriptor, enabled := a.computerUse.Descriptor(conversationID); enabled {
+			computerUse = &engine.ComputerUseDescriptor{
+				SessionID:      descriptor.SessionID,
+				SocketPath:     descriptor.SocketPath,
+				TargetBundleID: descriptor.TargetBundleID,
+				TargetName:     descriptor.TargetName,
+				TargetPID:      descriptor.TargetPID,
+			}
+		}
+	}
 	return a.engines.SendMessage(
 		conversationID,
 		prompt,
@@ -608,6 +636,7 @@ func (a *App) SendMessage(
 		mcpServers,
 		mcpConfigDigest,
 		codingBrowser,
+		computerUse,
 		attachments,
 		settings,
 	)

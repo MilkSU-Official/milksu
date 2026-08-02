@@ -7,6 +7,7 @@ import { sandboxProfile } from "./bridge-policy.js";
 const maxConfigBytes = 1 << 20;
 const maxSelectedServers = 16;
 export const codingBrowserMcpServerName = "milksu-playwright";
+export const computerUseMcpServerName = "milksu-computer-use";
 const bridgeDirectory = dirname(fileURLToPath(import.meta.url));
 const playwrightMcpCliPath = join(
   bridgeDirectory,
@@ -16,6 +17,9 @@ const playwrightMcpCliPath = join(
   "cli.js",
 );
 const playwrightSocketRoot = "/private/tmp/milksu-playwright";
+const computerUseSocketRoot = "/private/tmp/milksu-computer-use";
+const computerUseProxyPath = join(bridgeDirectory, "computer-use-proxy.cjs");
+const computerUseDriverPath = join(bridgeDirectory, "cua-driver");
 const safeChildEnvironmentNames = [
   "HOME",
   "PATH",
@@ -263,6 +267,157 @@ export function codingBrowserSelectionChanged(previous, next) {
     !== JSON.stringify(normalizeCodingBrowserDescriptor(next));
 }
 
+export function normalizeComputerUseDescriptor(value) {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("MilkSU Computer Use descriptor must be an object");
+  }
+  const fields = Object.keys(value).sort();
+  if (
+    fields.length !== 5
+    || fields[0] !== "sessionId"
+    || fields[1] !== "socketPath"
+    || fields[2] !== "targetBundleId"
+    || fields[3] !== "targetName"
+    || fields[4] !== "targetPid"
+  ) {
+    throw new Error(
+      "MilkSU Computer Use descriptor contains unsupported fields",
+    );
+  }
+  const sessionId = String(value.sessionId ?? "").trim();
+  if (!/^computer_[A-Za-z0-9-]{8,128}$/.test(sessionId)) {
+    throw new Error("MilkSU rejected an invalid Computer Use session id");
+  }
+  const socketPath = String(value.socketPath ?? "").trim();
+  const expectedSocket = join(computerUseSocketRoot, sessionId, "driver.sock");
+  if (socketPath !== expectedSocket) {
+    throw new Error("MilkSU rejected a Computer Use socket outside its private session");
+  }
+  const targetBundleId = String(value.targetBundleId ?? "").trim();
+  const targetName = String(value.targetName ?? "").trim();
+  if (targetBundleId !== "com.milksu.app" || targetName !== "MilkSU") {
+    throw new Error("MilkSU Computer Use is restricted to the MilkSU application");
+  }
+  const targetPid = Number(value.targetPid);
+  if (!Number.isSafeInteger(targetPid) || targetPid <= 1) {
+    throw new Error("MilkSU rejected an invalid Computer Use target PID");
+  }
+  return {
+    sessionId,
+    socketPath,
+    targetBundleId,
+    targetName,
+    targetPid,
+  };
+}
+
+export function computerUseSelectionChanged(previous, next) {
+  return JSON.stringify(normalizeComputerUseDescriptor(previous))
+    !== JSON.stringify(normalizeComputerUseDescriptor(next));
+}
+
+export function computerUseSandboxProfile(socketPath, runtimeRoot) {
+  const runtimeHome = join(runtimeRoot, "home");
+  const runtimeTemporary = join(runtimeRoot, "tmp");
+  const readableRoots = [
+    bridgeDirectory,
+    runtimeRoot,
+    "/System",
+    "/usr",
+    "/bin",
+    "/sbin",
+    "/Library",
+    "/private/var/select",
+  ];
+  const metadataOnlyRoots = ["/private", "/private/tmp"];
+  for (const root of readableRoots) {
+    let parent = dirname(root);
+    while (parent !== dirname(parent)) {
+      metadataOnlyRoots.push(parent);
+      parent = dirname(parent);
+    }
+  }
+  return [
+    "(version 1)",
+    '(import "system.sb")',
+    "(allow process*)",
+    "(allow sysctl-read)",
+    `(allow file-read-metadata ${[...new Set(metadataOnlyRoots)].map(path => (
+      `(literal ${JSON.stringify(path)})`
+    )).join(" ")})`,
+    `(allow file-read* ${readableRoots.map(path => (
+      `(subpath ${JSON.stringify(path)})`
+    )).join(" ")})`,
+    `(allow file-write* (subpath ${JSON.stringify(runtimeHome)}) `
+      + `(subpath ${JSON.stringify(runtimeTemporary)}))`,
+    `(allow network-outbound (remote unix-socket (path-literal ${JSON.stringify(socketPath)})))`,
+  ].join("\n");
+}
+
+export async function createFirstPartyComputerUseMcpServer(descriptor) {
+  const computerUse = normalizeComputerUseDescriptor(descriptor);
+  if (!computerUse) return undefined;
+  const [proxyMetadata, driverMetadata, socketMetadata] = await Promise.all([
+    lstat(computerUseProxyPath),
+    lstat(computerUseDriverPath),
+    lstat(computerUse.socketPath),
+  ]);
+  if (
+    proxyMetadata.isSymbolicLink()
+    || !proxyMetadata.isFile()
+    || driverMetadata.isSymbolicLink()
+    || !driverMetadata.isFile()
+    || socketMetadata.isSymbolicLink()
+    || !socketMetadata.isSocket()
+  ) {
+    throw new Error("MilkSU packaged Computer Use runtime is unavailable");
+  }
+  const runtimeRoot = dirname(computerUse.socketPath);
+  const runtimeHome = join(runtimeRoot, "home");
+  const runtimeTemporary = join(runtimeRoot, "tmp");
+  await Promise.all([
+    mkdir(runtimeHome, { recursive: true, mode: 0o700 }),
+    mkdir(runtimeTemporary, { recursive: true, mode: 0o700 }),
+  ]);
+  return {
+    computerUse,
+    server: {
+      command: "/usr/bin/sandbox-exec",
+      args: [
+        "-p",
+        computerUseSandboxProfile(computerUse.socketPath, runtimeRoot),
+        "/usr/bin/env",
+        "-i",
+        `HOME=${runtimeHome}`,
+        `TMPDIR=${runtimeTemporary}`,
+        "PATH=/usr/bin:/bin:/usr/sbin:/sbin",
+        "LANG=en_US.UTF-8",
+        "CUA_DRIVER_EMBEDDED=1",
+        "CUA_DRIVER_RS_TELEMETRY_ENABLED=false",
+        process.execPath,
+        computerUseProxyPath,
+        "--socket",
+        computerUse.socketPath,
+        "--session",
+        computerUse.sessionId,
+        "--target-name",
+        computerUse.targetName,
+        "--target-bundle-id",
+        computerUse.targetBundleId,
+        "--target-pid",
+        String(computerUse.targetPid),
+        "--driver",
+        computerUseDriverPath,
+      ],
+      env: {},
+      cwd: runtimeRoot,
+      lifecycle: "lazy",
+      directTools: false,
+    },
+  };
+}
+
 export async function createFirstPartyPlaywrightMcpServer(workspace, descriptor) {
   const browser = normalizeCodingBrowserDescriptor(descriptor);
   if (!browser) return undefined;
@@ -317,9 +472,14 @@ export async function loadSelectedMcpConfig(
   if (selected.length === 0) {
     return { selected, config: undefined };
   }
-  if (selected.includes(codingBrowserMcpServerName)) {
+  if (
+    selected.includes(codingBrowserMcpServerName)
+    || selected.includes(computerUseMcpServerName)
+  ) {
     throw new Error(
-      `MCP server name "${codingBrowserMcpServerName}" is reserved by MilkSU`,
+      `MCP server name "${selected.find(name => (
+        name === codingBrowserMcpServerName || name === computerUseMcpServerName
+      ))}" is reserved by MilkSU`,
     );
   }
 
@@ -379,6 +539,7 @@ export async function loadCodingMcpConfig(
   requestedServers,
   expectedDigest,
   codingBrowser,
+  computerUse,
 ) {
   const project = await loadSelectedMcpConfig(
     workspace,
@@ -386,22 +547,31 @@ export async function loadCodingMcpConfig(
     expectedDigest,
   );
   const builtIn = await createFirstPartyPlaywrightMcpServer(workspace, codingBrowser);
-  if (!builtIn) {
+  const builtInComputerUse = await createFirstPartyComputerUseMcpServer(computerUse);
+  if (!builtIn && !builtInComputerUse) {
     return {
       ...project,
       projectSelected: project.selected,
       codingBrowser: undefined,
+      computerUse: undefined,
     };
   }
+  const selected = [
+    ...project.selected,
+    ...(builtIn ? [codingBrowserMcpServerName] : []),
+    ...(builtInComputerUse ? [computerUseMcpServerName] : []),
+  ].sort((left, right) => left.localeCompare(right));
   return {
     projectSelected: project.selected,
-    selected: [...project.selected, codingBrowserMcpServerName].sort(
-      (left, right) => left.localeCompare(right),
-    ),
-    codingBrowser: builtIn.browser,
+    selected,
+    codingBrowser: builtIn?.browser,
+    computerUse: builtInComputerUse?.computerUse,
     config: adapterConfig({
       ...(project.config?.mcpServers ?? {}),
-      [codingBrowserMcpServerName]: builtIn.server,
+      ...(builtIn ? { [codingBrowserMcpServerName]: builtIn.server } : {}),
+      ...(builtInComputerUse
+        ? { [computerUseMcpServerName]: builtInComputerUse.server }
+        : {}),
     }),
   };
 }

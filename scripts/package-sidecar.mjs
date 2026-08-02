@@ -1,6 +1,17 @@
 import { createHash } from 'node:crypto'
 import { execFile, spawn } from 'node:child_process'
-import { chmod, copyFile, cp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import {
+  chmod,
+  copyFile,
+  cp,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises'
+import { createConnection, createServer as createNetServer } from 'node:net'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
@@ -18,6 +29,20 @@ const piMcpAdapterVersion = '2.17.0'
 const playwrightMcpVersion = '0.0.78'
 const playwrightVersion = '1.62.0-alpha-1783623505000'
 const playwrightSocketRoot = '/private/tmp/milksu-playwright'
+const cuaDriverVersion = '0.14.2'
+const cuaDriverTag = `cua-driver-rs-v${cuaDriverVersion}`
+const cuaDriverSourceCommit = 'ed9d5efcf5f261f4854bf2de0ba06a2b0b4419c4'
+const cuaDriverArchive = {
+  file: `cua-driver-rs-${cuaDriverVersion}-darwin-universal-binary.tar.gz`,
+  sha256: '31209b5f460aa7af69208b11718d45c5e8dc2c02fbdb2c95f34b46f5ec73a3a9',
+}
+const cuaDriverBinarySha256 = 'd691969c11ea5228604ff6e56d876045305bb9c25ea7efb4c2fb358c18c23ed2'
+const cuaSessionPolicyPath = join(
+  repositoryRoot,
+  'internal',
+  'computercap',
+  'session-policy.yaml',
+)
 const systemOcrVersion = '1.1.0'
 const typescriptLanguageServerVersion = '5.3.0'
 const vueLanguageServerVersion = '2.2.12'
@@ -190,6 +215,85 @@ async function officialNodeRuntime(platform) {
   return { binary: runtimeBinary, license: join(runtimeRoot, 'LICENSE'), archive }
 }
 
+async function officialCuaDriverRuntime(platform) {
+  const [goos, goarch] = platform.split('/')
+  if (goos !== 'darwin' || !['arm64', 'amd64'].includes(goarch)) {
+    throw new Error(`unsupported Cua Driver platform: ${platform}`)
+  }
+  const cache = join(
+    repositoryRoot,
+    'build',
+    'sidecar-cache',
+    `cua-driver-v${cuaDriverVersion}`,
+  )
+  const archivePath = join(cache, cuaDriverArchive.file)
+  const runtimeRoot = join(cache, 'runtime')
+  const runtimeBinary = join(runtimeRoot, 'cua-driver')
+  await mkdir(cache, { recursive: true, mode: 0o700 })
+
+  let archiveValid = await exists(archivePath)
+    && await sha256(archivePath) === cuaDriverArchive.sha256
+  if (!archiveValid) {
+    await download(
+      `https://github.com/trycua/cua/releases/download/${cuaDriverTag}/${cuaDriverArchive.file}`,
+      archivePath,
+    )
+    archiveValid = await sha256(archivePath) === cuaDriverArchive.sha256
+  }
+  if (!archiveValid) {
+    throw new Error(`official Cua Driver archive checksum mismatch: ${cuaDriverArchive.file}`)
+  }
+  if (
+    !await exists(runtimeBinary)
+    || await sha256(runtimeBinary) !== cuaDriverBinarySha256
+  ) {
+    await rm(runtimeRoot, { recursive: true, force: true })
+    await mkdir(runtimeRoot, { recursive: true, mode: 0o700 })
+    await execFileAsync('/usr/bin/tar', [
+      '-xzf',
+      archivePath,
+      '-C',
+      runtimeRoot,
+      'cua-driver',
+    ])
+  }
+  await chmod(runtimeBinary, 0o755)
+  if (await sha256(runtimeBinary) !== cuaDriverBinarySha256) {
+    throw new Error(`official Cua Driver binary checksum mismatch: ${runtimeBinary}`)
+  }
+  const { stdout: architectures } = await execFileAsync('/usr/bin/lipo', [
+    '-archs',
+    runtimeBinary,
+  ])
+  if (
+    !architectures.split(/\s+/).includes('arm64')
+    || !architectures.split(/\s+/).includes('x86_64')
+  ) {
+    throw new Error(`Cua Driver archive is not universal: ${architectures.trim()}`)
+  }
+  const { stdout: version } = await execFileAsync(runtimeBinary, ['--version'], {
+    env: {
+      HOME: runtimeRoot,
+      TMPDIR: runtimeRoot,
+      PATH: '/usr/bin:/bin:/usr/sbin:/sbin',
+      LANG: 'en_US.UTF-8',
+      CUA_DRIVER_RS_TELEMETRY_ENABLED: 'false',
+    },
+    timeout: 10_000,
+    maxBuffer: 1 << 20,
+  })
+  if (version.trim() !== `cua-driver ${cuaDriverVersion}`) {
+    throw new Error(`unexpected Cua Driver version: ${version.trim()}`)
+  }
+  return {
+    binary: runtimeBinary,
+    archive: cuaDriverArchive,
+    tag: cuaDriverTag,
+    sourceCommit: cuaDriverSourceCommit,
+    binarySha256: cuaDriverBinarySha256,
+  }
+}
+
 async function officialGoplsRuntime(platform) {
   const [goos, goarch] = platform.split('/')
   if (goos !== 'darwin' || !['arm64', 'amd64'].includes(goarch)) {
@@ -347,6 +451,147 @@ async function runWithInput(executable, argumentsList, input, options) {
   })
 }
 
+async function waitForUnixSocket(socketPath, child, timeoutMs = 10_000) {
+  const deadline = Date.now() + timeoutMs
+  return await new Promise((resolvePromise, rejectPromise) => {
+    let settled = false
+    const finish = (error) => {
+      if (settled) return
+      settled = true
+      child.off('exit', onExit)
+      if (error) rejectPromise(error)
+      else resolvePromise()
+    }
+    const onExit = (code, signal) => {
+      finish(new Error(
+        `Cua Driver stopped before opening its socket (code=${code}, signal=${signal})`,
+      ))
+    }
+    const tryConnect = () => {
+      if (settled) return
+      if (Date.now() >= deadline) {
+        finish(new Error(`timed out waiting for Cua Driver socket: ${socketPath}`))
+        return
+      }
+      const connection = createConnection(socketPath)
+      connection.once('connect', () => {
+        connection.end()
+        finish()
+      })
+      connection.once('error', () => {
+        connection.destroy()
+        setTimeout(tryConnect, 50)
+      })
+    }
+    child.once('exit', onExit)
+    tryConnect()
+  })
+}
+
+async function verifyPackagedCuaRuntime(output) {
+  const driver = join(output, 'cua-driver')
+  const runtimeRoot = '/private/tmp/milksu-computer-use'
+  await mkdir(runtimeRoot, { recursive: true, mode: 0o700 })
+  const directory = await mkdtemp(join(runtimeRoot, 'package-smoke-'))
+  const socketPath = join(directory, 'driver.sock')
+  const policyPath = join(directory, 'session-policy.yaml')
+  await copyFile(cuaSessionPolicyPath, policyPath)
+  await chmod(policyPath, 0o600)
+  let stderr = ''
+  const child = spawn(driver, [
+    'serve',
+    '--embedded',
+    '--host-bundle-id',
+    'com.milksu.app',
+    '--socket',
+    socketPath,
+    '--permission-mode',
+    'bounded',
+    '--session-policy',
+    policyPath,
+    '--approve-session-policy',
+    '--no-permissions-gate',
+  ], {
+    cwd: directory,
+    env: {
+      HOME: directory,
+      TMPDIR: directory,
+      PATH: '/usr/bin:/bin:/usr/sbin:/sbin',
+      LANG: 'en_US.UTF-8',
+      CUA_DRIVER_EMBEDDED: '1',
+      CUA_DRIVER_HOST_BUNDLE_ID: 'com.milksu.app',
+      CUA_DRIVER_PERMISSION_MODE: 'bounded',
+      CUA_DRIVER_RS_TELEMETRY_ENABLED: 'false',
+      CUA_LOG: 'warn',
+    },
+    stdio: ['ignore', 'ignore', 'pipe'],
+  })
+  child.stderr.setEncoding('utf8')
+  child.stderr.on('data', chunk => {
+    if (stderr.length < 8192) stderr += chunk.slice(0, 8192 - stderr.length)
+  })
+  try {
+    await waitForUnixSocket(socketPath, child)
+    const { stdout } = await execFileAsync(driver, ['status', '--socket', socketPath], {
+      cwd: directory,
+      env: {
+        HOME: directory,
+        TMPDIR: directory,
+        PATH: '/usr/bin:/bin:/usr/sbin:/sbin',
+        LANG: 'en_US.UTF-8',
+        CUA_DRIVER_RS_TELEMETRY_ENABLED: 'false',
+      },
+      timeout: 5_000,
+      maxBuffer: 1 << 20,
+    })
+    if (!/running|healthy/i.test(stdout)) {
+      throw new Error(`packaged Cua Driver status was unexpected: ${stdout}`)
+    }
+  } catch (error) {
+    throw new Error(
+      `packaged bounded Cua Driver failed: `
+      + `${error instanceof Error ? error.message : String(error)}${stderr ? `\n${stderr}` : ''}`,
+    )
+  } finally {
+    try {
+      await execFileAsync(driver, ['stop', '--socket', socketPath], {
+        cwd: directory,
+        env: {
+          HOME: directory,
+          TMPDIR: directory,
+          PATH: '/usr/bin:/bin:/usr/sbin:/sbin',
+          LANG: 'en_US.UTF-8',
+          CUA_DRIVER_RS_TELEMETRY_ENABLED: 'false',
+        },
+        timeout: 5_000,
+        maxBuffer: 1 << 20,
+      })
+    } catch {
+      child.kill('SIGTERM')
+    }
+    await new Promise(resolvePromise => {
+      if (child.exitCode !== null || child.signalCode !== null) {
+        resolvePromise()
+        return
+      }
+      const timeout = setTimeout(() => {
+        child.kill('SIGKILL')
+        resolvePromise()
+      }, 2_000)
+      child.once('exit', () => {
+        clearTimeout(timeout)
+        resolvePromise()
+      })
+    })
+    await rm(directory, { recursive: true, force: true })
+  }
+  return {
+    version: cuaDriverVersion,
+    policy: 'bounded',
+    targetBundleId: 'com.milksu.app',
+  }
+}
+
 async function verifyReviewedLspCodeActions({
   output,
   node,
@@ -494,12 +739,15 @@ async function verifyReviewedLspCodeActions({
 
 async function buildSidecar(platform) {
   const runtime = await officialNodeRuntime(platform)
+  const cuaRuntime = await officialCuaDriverRuntime(platform)
   const goplsRuntime = await officialGoplsRuntime(platform)
   const output = join(repositoryRoot, 'build', 'sidecar', platform.replace('/', '-'))
   await mkdir(output, { recursive: true, mode: 0o700 })
   const nodeOutput = join(output, 'node')
   const chatOutput = join(output, 'chat-bridge.cjs')
   const securityOutput = join(output, 'security-bridge.cjs')
+  const computerUseProxyOutput = join(output, 'computer-use-proxy.cjs')
+  const cuaDriverOutput = join(output, 'cua-driver')
   const archifySource = join(repositoryRoot, 'third_party', 'archify', 'archify')
   const archifyOutput = join(output, 'skills', 'archify')
   const licenseOutput = join(output, 'THIRD_PARTY-LICENSES')
@@ -636,6 +884,7 @@ async function buildSidecar(platform) {
   await Promise.all([
     copyFile(runtime.binary, nodeOutput),
     copyFile(runtime.license, join(output, 'NODE-LICENSE')),
+    copyFile(cuaRuntime.binary, cuaDriverOutput),
     copyFile(goplsRuntime.binary, goplsOutput),
     copyFile(
       goplsRuntime.license,
@@ -648,6 +897,10 @@ async function buildSidecar(platform) {
     copyFile(
       join(repositoryRoot, 'third_party', 'licenses', 'narumitw-pi-extensions-MIT.txt'),
       join(licenseOutput, 'narumitw-pi-extensions-MIT.txt'),
+    ),
+    copyFile(
+      join(repositoryRoot, 'third_party', 'licenses', 'cua-MIT.txt'),
+      join(licenseOutput, 'cua-MIT.txt'),
     ),
     copyFile(
       join(diffSource, 'LICENSE'),
@@ -698,12 +951,15 @@ async function buildSidecar(platform) {
     }, null, 2)}\n`, { mode: 0o600 }),
     bundleBridge('bridge.js', chatOutput),
     bundleBridge('security-bridge.js', securityOutput),
+    bundleBridge('computer-use-proxy.js', computerUseProxyOutput),
   ])
   await Promise.all([
     chmod(nodeOutput, 0o755),
+    chmod(cuaDriverOutput, 0o755),
     chmod(goplsOutput, 0o755),
     chmod(chatOutput, 0o644),
     chmod(securityOutput, 0o644),
+    chmod(computerUseProxyOutput, 0o644),
   ])
 
   const manifest = {
@@ -806,6 +1062,21 @@ async function buildSidecar(platform) {
           'playwright-core': playwrightVersion,
         },
       },
+      cuaDriver: {
+        package: 'trycua/cua',
+        version: cuaDriverVersion,
+        prerelease: true,
+        tag: cuaRuntime.tag,
+        sourceCommit: cuaRuntime.sourceCommit,
+        archive: cuaRuntime.archive.file,
+        archiveSha256: cuaRuntime.archive.sha256,
+        binarySha256: await sha256(cuaDriverOutput),
+        license: 'MIT',
+        licenseFile: 'THIRD_PARTY-LICENSES/cua-MIT.txt',
+        scope: 'coding-computer-use-opt-in',
+        targetBundleId: 'com.milksu.app',
+        proxy: 'computer-use-proxy.cjs',
+      },
       localOcr: {
         package: '@napi-rs/system-ocr',
         version: systemOcrVersion,
@@ -827,6 +1098,10 @@ async function buildSidecar(platform) {
     bridges: {
       chat: { file: 'chat-bridge.cjs', sha256: await sha256(chatOutput) },
       security: { file: 'security-bridge.cjs', sha256: await sha256(securityOutput) },
+      computerUse: {
+        file: 'computer-use-proxy.cjs',
+        sha256: await sha256(computerUseProxyOutput),
+      },
     },
   }
   await writeFile(join(output, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o600 })
@@ -847,6 +1122,9 @@ async function smokeSidecar(platform) {
     join(output, 'THIRD_PARTY-LICENSES', 'playwright-core-Apache-2.0.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'gopls-BSD-3-Clause.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'diff-BSD-3-Clause.txt'),
+    join(output, 'THIRD_PARTY-LICENSES', 'cua-MIT.txt'),
+    join(output, 'computer-use-proxy.cjs'),
+    join(output, 'cua-driver'),
     join(output, 'lsp-runtime', 'gopls'),
     join(output, 'lsp-runtime', 'node_modules', 'typescript-language-server', 'LICENSE'),
     join(output, 'lsp-runtime', 'node_modules', '@vue', 'language-server', 'LICENSE'),
@@ -857,6 +1135,7 @@ async function smokeSidecar(platform) {
       throw new Error(`packaged Sidecar is missing license file: ${licensePath}`)
     }
   }
+  const cuaRuntime = await verifyPackagedCuaRuntime(output)
   const node = join(output, 'node')
   const workspace = join(repositoryRoot, 'build', 'sidecar-smoke', platform.replace('/', '-'))
   await mkdir(workspace, { recursive: true, mode: 0o700 })
@@ -877,11 +1156,54 @@ async function smokeSidecar(platform) {
     '--allow-addons',
     '--allow-child-process',
     `--allow-fs-write=${playwrightSocketRoot}`,
+    '--allow-fs-read=/private/tmp/milksu-computer-use',
+    '--allow-fs-write=/private/tmp/milksu-computer-use',
     '--allow-fs-read=/bin/bash',
     '--allow-fs-read=/bin/sh',
     '--allow-fs-read=/usr/bin/env',
     '--allow-fs-read=/usr/bin/sandbox-exec',
   ]
+  const computerUseProxyRun = await runWithInput(
+    node,
+    [
+      ...chatRuntimeArguments,
+      join(output, 'computer-use-proxy.cjs'),
+      '--socket',
+      '/private/tmp/milksu-computer-use/computer_packaged-smoke/driver.sock',
+      '--session',
+      'computer_packaged-smoke',
+      '--target-name',
+      'MilkSU',
+      '--target-bundle-id',
+      'com.milksu.app',
+      '--target-pid',
+      String(process.pid),
+      '--driver',
+      join(output, 'cua-driver'),
+    ],
+    [
+      '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}',
+      '{"jsonrpc":"2.0","id":2,"method":"tools/list"}',
+      '',
+    ].join('\n'),
+    { cwd: workspace, env: { ...process.env, HOME: workspace, TMPDIR: workspace } },
+  )
+  const computerUseProxyResponses = computerUseProxyRun.stdout
+    .trim()
+    .split('\n')
+    .map(line => JSON.parse(line))
+  const computerUseTools = computerUseProxyResponses.find(value => value.id === 2)
+    ?.result
+    ?.tools
+  if (
+    computerUseTools?.length !== 1
+    || computerUseTools[0]?.name !== 'computer_use'
+  ) {
+    throw new Error(
+      `packaged Computer Use proxy exposed an unexpected surface: `
+      + computerUseProxyRun.stdout,
+    )
+  }
   const playwrightCli = join(
     output,
     'node_modules',
@@ -1039,6 +1361,11 @@ async function smokeSidecar(platform) {
     || !ready.extensions?.includes('pi-lsp')
     || !ready.extensions?.includes('pi-goal')
     || !ready.extensions?.includes('pi-background-tasks')
+    || ready.tools?.includes('mcp')
+    || !ready.capabilities?.some(
+      capability => capability.id === 'computer-use'
+        && capability.status === 'unavailable',
+    )
     || !chatResponses.some(value => value.type === 'session_destroyed')
   ) {
     throw new Error(`unexpected packaged Chat Sidecar response: ${chatRun.stdout}`)
@@ -1188,6 +1515,66 @@ async function smokeSidecar(platform) {
       `unexpected packaged Coding Browser response: ${codingBrowserRun.stdout}`,
     )
   }
+  const computerUseSessionId = 'computer_packaged-runtime'
+  const computerUseDirectory = join(
+    '/private/tmp/milksu-computer-use',
+    computerUseSessionId,
+  )
+  const computerUseSocketPath = join(computerUseDirectory, 'driver.sock')
+  await rm(computerUseDirectory, { recursive: true, force: true })
+  await mkdir(computerUseDirectory, { recursive: true, mode: 0o700 })
+  const computerUseSocket = createNetServer()
+  await new Promise((resolvePromise, rejectPromise) => {
+    computerUseSocket.once('error', rejectPromise)
+    computerUseSocket.listen(computerUseSocketPath, resolvePromise)
+  })
+  try {
+    const computerUseRun = await runWithInput(
+      node,
+      [...chatRuntimeArguments, join(output, 'chat-bridge.cjs')],
+      [
+        JSON.stringify({
+          action: 'create_session',
+          conversationId: 'packaged-computer-use',
+          executionMode: 'go',
+          approvalPolicy: 'workspace-auto',
+          computerUse: {
+            sessionId: computerUseSessionId,
+            socketPath: computerUseSocketPath,
+            targetBundleId: 'com.milksu.app',
+            targetName: 'MilkSU',
+            targetPid: process.pid,
+          },
+        }),
+        '{"action":"destroy_session","conversationId":"packaged-computer-use"}',
+        '',
+      ].join('\n'),
+      { cwd: workspace, env: { ...process.env, HOME: workspace } },
+    )
+    const computerUseResponses = computerUseRun.stdout
+      .trim()
+      .split('\n')
+      .map(line => JSON.parse(line))
+    const computerUseReady = computerUseResponses.find(value => value.type === 'ready')
+    if (
+      !computerUseReady?.tools?.includes('mcp')
+      || !computerUseReady?.extensions?.includes('pi-mcp-adapter')
+      || !computerUseReady.capabilities?.some(
+        capability => capability.id === 'computer-use'
+          && capability.status === 'approval-required'
+          && capability.detail.includes('模型不能改 PID、窗口或桌面范围'),
+      )
+      || !computerUseResponses.some(value => value.type === 'session_destroyed')
+      || computerUseResponses.some(value => value.type === 'error')
+    ) {
+      throw new Error(
+        `unexpected packaged Computer Use response: ${computerUseRun.stdout}`,
+      )
+    }
+  } finally {
+    await new Promise(resolvePromise => computerUseSocket.close(resolvePromise))
+    await rm(computerUseDirectory, { recursive: true, force: true })
+  }
   const planRun = await runWithInput(
     node,
     [...chatRuntimeArguments, join(output, 'chat-bridge.cjs')],
@@ -1287,7 +1674,19 @@ async function smokeSidecar(platform) {
     node,
     [...ctfRuntimeArguments, join(output, 'chat-bridge.cjs')],
     [
-      '{"action":"create_session","conversationId":"packaged-ctf-coach"}',
+      JSON.stringify({
+        action: 'create_session',
+        conversationId: 'packaged-ctf-coach',
+        sessionRole: 'solver',
+        computerUse: {
+          sessionId: 'computer_must-not-enter-ctf',
+          socketPath:
+            '/private/tmp/milksu-computer-use/computer_must-not-enter-ctf/driver.sock',
+          targetBundleId: 'com.milksu.app',
+          targetName: 'MilkSU',
+          targetPid: process.pid,
+        },
+      }),
       '{"action":"destroy_session","conversationId":"packaged-ctf-coach"}',
       '',
     ].join('\n'),
@@ -1355,6 +1754,7 @@ async function smokeSidecar(platform) {
     ...response,
     codingDeliveryScore: codingDelivery.score,
     lspCodeActions,
+    computerUse: cuaRuntime,
   })}\n`)
 }
 
@@ -1372,6 +1772,8 @@ async function installSidecar(platform, binaryPath) {
     'node',
     'chat-bridge.cjs',
     'security-bridge.cjs',
+    'computer-use-proxy.cjs',
+    'cua-driver',
     'manifest.json',
     'package.json',
     'NODE-LICENSE',
@@ -1423,18 +1825,33 @@ async function installSidecar(platform, binaryPath) {
       'THIRD_PARTY-LICENSES',
       'diff-BSD-3-Clause.txt',
     ),
+    join(
+      destination,
+      'THIRD_PARTY-LICENSES',
+      'cua-MIT.txt',
+    ),
+    join(destination, 'computer-use-proxy.cjs'),
+    join(destination, 'cua-driver'),
   ]) {
     if (!await exists(requiredPath)) {
       throw new Error(`installed Sidecar is missing runtime artifact: ${requiredPath}`)
     }
   }
   await chmod(join(destination, 'node'), 0o755)
+  await chmod(join(destination, 'cua-driver'), 0o755)
   await chmod(join(destination, 'lsp-runtime', 'gopls'), 0o755)
+  const codesignIdentity = process.env.MILKSU_CODESIGN_IDENTITY || '-'
+  await execFileAsync('/usr/bin/codesign', [
+    '--force',
+    '--sign',
+    codesignIdentity,
+    join(destination, 'cua-driver'),
+  ])
   await execFileAsync('/usr/bin/codesign', [
     '--force',
     '--deep',
     '--sign',
-    process.env.MILKSU_CODESIGN_IDENTITY || '-',
+    codesignIdentity,
     application,
   ])
   process.stdout.write(`Installed MilkSU Sidecar into ${destination}\n`)

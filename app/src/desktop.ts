@@ -54,6 +54,7 @@ import type {
   CodingArchitecturePreview,
   CodingArtifactPreview,
   CodingBrowserStatus,
+  CodingComputerUseStatus,
   CodingDiffSnapshot,
   CodingEnvironmentSnapshot,
   CodingGitAction,
@@ -178,6 +179,10 @@ interface WailsAppBindings {
   ): Promise<CodingBrowserStatus>
   GetCodingBrowserStatus(conversationId: string): Promise<CodingBrowserStatus>
   StopCodingBrowser(conversationId: string): Promise<CodingBrowserStatus>
+  GetCodingComputerUseStatus(): Promise<CodingComputerUseStatus>
+  RequestCodingComputerUsePermissions(): Promise<CodingComputerUseStatus>
+  StartCodingComputerUse(conversationId: string): Promise<CodingComputerUseStatus>
+  StopCodingComputerUse(conversationId: string): Promise<CodingComputerUseStatus>
   TestAgentModel(): Promise<ModelProbeResult>
   StartSampleCTF(): Promise<CTFProjection>
   ImportNSSCTFChallenge(rawURL: string): Promise<NSSCTFChallenge>
@@ -544,6 +549,18 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         ) as Promise<T>
       case 'stop_coding_browser':
         return app.StopCodingBrowser(
+          args?.conversationId as string,
+        ) as Promise<T>
+      case 'get_coding_computer_use_status':
+        return app.GetCodingComputerUseStatus() as Promise<T>
+      case 'request_coding_computer_use_permissions':
+        return app.RequestCodingComputerUsePermissions() as Promise<T>
+      case 'start_coding_computer_use':
+        return app.StartCodingComputerUse(
+          args?.conversationId as string,
+        ) as Promise<T>
+      case 'stop_coding_computer_use':
+        return app.StopCodingComputerUse(
           args?.conversationId as string,
         ) as Promise<T>
       case 'test_agent_model':

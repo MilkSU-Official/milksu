@@ -204,6 +204,66 @@ test("MCP is exposed only for an explicitly selected Coding task", async () => {
   }
 });
 
+test("Computer Use requires an explicit app-scoped session under every Go policy", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "milksu-computer-use-policy-"));
+  const computerUse = {
+    sessionId: "computer_12345678",
+    socketPath:
+      "/private/tmp/milksu-computer-use/computer_12345678/driver.sock",
+    targetBundleId: "com.milksu.app",
+    targetName: "MilkSU",
+    targetPid: 4242,
+  };
+  const automaticWithoutSession = await loadSessionPolicy(workspace, "", {
+    executionMode: "go",
+    approvalPolicy: "workspace-auto",
+  });
+  assert.equal(
+    automaticWithoutSession.capabilities.find(
+      value => value.id === "computer-use",
+    ).status,
+    "unavailable",
+  );
+  assert.equal(automaticWithoutSession.activeTools.includes("mcp"), false);
+
+  for (const approvalPolicy of ["ask", "workspace-auto", "full-auto"]) {
+    const enabled = await loadSessionPolicy(workspace, "", {
+      executionMode: "go",
+      approvalPolicy,
+      mcpServers: ["milksu-computer-use"],
+      projectMcpServers: [],
+      computerUse,
+    });
+    assert.equal(enabled.activeTools.includes("mcp"), true);
+    assert.deepEqual(enabled.computerUse, computerUse);
+    assert.equal(
+      enabled.capabilities.find(value => value.id === "computer-use").status,
+      "approval-required",
+    );
+    assert.match(
+      enabled.capabilities.find(value => value.id === "computer-use").detail,
+      /模型不能改 PID、窗口或桌面范围/,
+    );
+  }
+
+  for (const policyInput of [
+    { executionMode: "plan", approvalPolicy: "workspace-auto" },
+    { executionMode: "go", approvalPolicy: "read-only" },
+  ]) {
+    const gated = await loadSessionPolicy(workspace, "", {
+      ...policyInput,
+      mcpServers: ["milksu-computer-use"],
+      projectMcpServers: [],
+      computerUse,
+    });
+    assert.equal(gated.activeTools.includes("mcp"), false);
+    assert.equal(
+      gated.capabilities.find(value => value.id === "computer-use").status,
+      "unavailable",
+    );
+  }
+});
+
 test("Coding read/search tools can access reviewed resources but no other outside path", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "milksu-coding-policy-"));
   const resourceRoot = await mkdtemp(join(tmpdir(), "milksu-archify-resource-"));

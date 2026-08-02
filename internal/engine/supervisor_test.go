@@ -438,7 +438,7 @@ func TestSendMessageRejectsMissingKeyBeforeStartingSidecar(t *testing.T) {
 	defer supervisor.Close()
 
 	err := supervisor.SendMessage(
-		"session-1", "hello", "", "", "", "", nil, "", nil, nil, config.DefaultSettings(),
+		"session-1", "hello", "", "", "", "", nil, "", nil, nil, nil, config.DefaultSettings(),
 	)
 	if err == nil || !strings.Contains(err.Error(), "Settings > API Keys") {
 		t.Fatalf("expected actionable missing-key error, got %v", err)
@@ -505,6 +505,51 @@ func TestNormalizeCodingBrowserDescriptorRequiresExactLoopbackEndpoint(t *testin
 	}
 }
 
+func TestNormalizeComputerUseDescriptorLocksCurrentMilkSUProcess(t *testing.T) {
+	valid := &ComputerUseDescriptor{
+		SessionID:      "computer_12345678",
+		SocketPath:     "/private/tmp/milksu-computer-use/computer_12345678/driver.sock",
+		TargetBundleID: "com.milksu.app",
+		TargetName:     "MilkSU",
+		TargetPID:      os.Getpid(),
+	}
+	normalized, err := normalizeComputerUseDescriptor(valid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if *normalized != *valid {
+		t.Fatalf("unexpected Computer Use descriptor: %#v", normalized)
+	}
+	for _, descriptor := range []*ComputerUseDescriptor{
+		{SessionID: "computer_short"},
+		{
+			SessionID:      valid.SessionID,
+			SocketPath:     "/tmp/cua.sock",
+			TargetBundleID: valid.TargetBundleID,
+			TargetName:     valid.TargetName,
+			TargetPID:      valid.TargetPID,
+		},
+		{
+			SessionID:      valid.SessionID,
+			SocketPath:     valid.SocketPath,
+			TargetBundleID: "com.apple.finder",
+			TargetName:     "Finder",
+			TargetPID:      valid.TargetPID,
+		},
+		{
+			SessionID:      valid.SessionID,
+			SocketPath:     valid.SocketPath,
+			TargetBundleID: valid.TargetBundleID,
+			TargetName:     valid.TargetName,
+			TargetPID:      valid.TargetPID + 1,
+		},
+	} {
+		if _, err := normalizeComputerUseDescriptor(descriptor); err == nil {
+			t.Fatalf("expected invalid Computer Use descriptor to fail: %#v", descriptor)
+		}
+	}
+}
+
 func TestResolveAgentWorkspaceUsesExplicitDirectory(t *testing.T) {
 	directory := t.TempDir()
 	resolved, err := resolveAgentWorkspace(directory)
@@ -553,6 +598,8 @@ func TestCodingSidecarAllowsOnlyTheRequiredSystemShells(t *testing.T) {
 		"--allow-fs-read=/bin/sh",
 		"--allow-fs-read=/usr/bin/env",
 		"--allow-fs-read=/usr/bin/sandbox-exec",
+		"--allow-fs-read=/private/tmp/milksu-computer-use",
+		"--allow-fs-write=/private/tmp/milksu-computer-use",
 	} {
 		if !strings.Contains(arguments, expected) {
 			t.Fatalf("coding Sidecar is missing %q: %s", expected, arguments)

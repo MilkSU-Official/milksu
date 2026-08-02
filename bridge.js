@@ -47,6 +47,7 @@ import {
 } from "./bridge-goal-view.js";
 import {
   codingBrowserSelectionChanged,
+  computerUseSelectionChanged,
   ensureMcpMetadataCache,
   loadCodingMcpConfig,
   mcpSelectionChanged,
@@ -279,7 +280,8 @@ function codingPolicyGuidance(policy) {
       + "The project sandbox blocks writes outside the project and access to local credential "
       + "directories; model-provider API keys are never passed to child processes. Browser/MCP, "
       + "when selected for this task, remains behind per-call desktop approval. LSP fixes are "
-      + "previewed and verified inside the project before apply. Computer Use remains unavailable."
+      + "previewed and verified inside the project before apply. Computer Use is never enabled by "
+      + "Project Auto; only a user-started MilkSU-only session is available, with approval per call."
       + productActionGuidance;
   }
   if (policy.approvalPolicy === "ask") {
@@ -700,6 +702,7 @@ async function loadRuntimeSessionPolicy(cwd, command) {
         selected: [],
         projectSelected: [],
         codingBrowser: undefined,
+        computerUse: undefined,
         config: undefined,
       }
     : await loadCodingMcpConfig(
@@ -707,6 +710,7 @@ async function loadRuntimeSessionPolicy(cwd, command) {
         command.mcpServers,
         command.mcpConfigDigest,
         command.codingBrowser,
+        command.computerUse,
       );
   let policy = await loadSessionPolicy(cwd, command.sessionRole, {
     executionMode: command.executionMode,
@@ -716,6 +720,7 @@ async function loadRuntimeSessionPolicy(cwd, command) {
     projectMcpServers: selectedMcp.projectSelected,
     mcpConfigDigest: command.mcpConfigDigest,
     codingBrowser: selectedMcp.codingBrowser,
+    computerUse: selectedMcp.computerUse,
   });
   const effectiveSessionRole = policy.ctf
     ? command.sessionRole || "solver"
@@ -731,6 +736,7 @@ async function loadRuntimeSessionPolicy(cwd, command) {
       projectMcpServers: selectedMcp.projectSelected,
       mcpConfigDigest: command.mcpConfigDigest,
       codingBrowser: selectedMcp.codingBrowser,
+      computerUse: selectedMcp.computerUse,
       readOnlyResourceRoots: codingResourceRoots,
     });
   }
@@ -885,6 +891,7 @@ async function sendMessage(command) {
     !== JSON.stringify(requestedProductAction);
   const requestedMcpServers = command.sessionRole ? [] : command.mcpServers;
   const requestedCodingBrowser = command.sessionRole ? undefined : command.codingBrowser;
+  const requestedComputerUse = command.sessionRole ? undefined : command.computerUse;
   if (
     existing
     && previousPolicy
@@ -898,6 +905,10 @@ async function sendMessage(command) {
       || codingBrowserSelectionChanged(
         previousPolicy.codingBrowser,
         requestedCodingBrowser,
+      )
+      || computerUseSelectionChanged(
+        previousPolicy.computerUse,
+        requestedComputerUse,
       )
     )
   ) {

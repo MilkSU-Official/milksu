@@ -1,0 +1,185 @@
+package computercap
+
+import (
+	"context"
+	"fmt"
+	"net"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+)
+
+func TestComputerUseDriverHelper(t *testing.T) {
+	separator := -1
+	for index, value := range os.Args {
+		if value == "--" {
+			separator = index
+			break
+		}
+	}
+	if separator < 0 || separator+1 >= len(os.Args) {
+		return
+	}
+	arguments := os.Args[separator+1:]
+	if arguments[0] == "--version" {
+		fmt.Printf("cua-driver %s\n", DriverVersion)
+		return
+	}
+	if arguments[0] != "serve" {
+		os.Exit(64)
+	}
+	socketPath := ""
+	for index, value := range arguments {
+		if value == "--socket" && index+1 < len(arguments) {
+			socketPath = arguments[index+1]
+			break
+		}
+	}
+	if socketPath == "" {
+		os.Exit(64)
+	}
+	listener, err := net.Listen("unix", socketPath)
+	if err != nil {
+		os.Exit(70)
+	}
+	defer listener.Close()
+	for {
+		connection, err := listener.Accept()
+		if err != nil {
+			return
+		}
+		_ = connection.Close()
+	}
+}
+
+func helperCommand(_ string, arguments ...string) *exec.Cmd {
+	if len(arguments) == 1 && arguments[0] == "--version" {
+		return exec.Command("/bin/echo", "cua-driver "+DriverVersion)
+	}
+	values := []string{"-test.run=^TestComputerUseDriverHelper$", "--"}
+	values = append(values, arguments...)
+	return exec.Command(os.Args[0], values...)
+}
+
+func TestManagerStartsOneVisibleScopedSessionAndCleansIt(t *testing.T) {
+	manager := New(Options{
+		BinaryPath:      os.Args[0],
+		TargetPID:       4242,
+		GOOS:            "darwin",
+		PermissionProbe: func(bool) Permissions { return Permissions{true, true} },
+		CommandFactory:  helperCommand,
+		StartTimeout:    2 * time.Second,
+	})
+	defer manager.Close()
+
+	status, err := manager.Start(context.Background(), "conversation-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !status.Enabled ||
+		status.Phase != "ready" ||
+		status.ConversationID != "conversation-1" ||
+		status.Target.PID != 4242 ||
+		status.DriverVersion != DriverVersion {
+		t.Fatalf("unexpected ready status: %#v", status)
+	}
+	descriptor, enabled := manager.Descriptor("conversation-1")
+	if !enabled ||
+		descriptor.TargetBundleID != targetBundleID ||
+		descriptor.TargetName != targetName ||
+		descriptor.TargetPID != 4242 ||
+		descriptor.SocketPath != filepath.Join(
+			runtimeRoot,
+			descriptor.SessionID,
+			"driver.sock",
+		) {
+		t.Fatalf("unexpected descriptor: %#v, enabled=%v", descriptor, enabled)
+	}
+	if _, err := manager.Start(context.Background(), "conversation-2"); err == nil {
+		t.Fatal("expected a second task to be refused")
+	}
+	if _, err := manager.Stop("conversation-2"); err == nil {
+		t.Fatal("expected another task to be unable to stop the session")
+	}
+	if !manager.OwnsConversation("conversation-1") ||
+		manager.OwnsConversation("conversation-2") {
+		t.Fatal("session ownership was not conversation-scoped")
+	}
+
+	directory := filepath.Join(runtimeRoot, descriptor.SessionID)
+	stopped, err := manager.Stop("conversation-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stopped.Enabled || stopped.ConversationID != "" {
+		t.Fatalf("unexpected stopped status: %#v", stopped)
+	}
+	if _, err := os.Stat(directory); !os.IsNotExist(err) {
+		t.Fatalf("runtime directory was not removed: %v", err)
+	}
+	if _, enabled := manager.Descriptor("conversation-1"); enabled {
+		t.Fatal("stopped session still exposed a descriptor")
+	}
+	if manager.OwnsConversation("conversation-1") {
+		t.Fatal("stopped session retained conversation ownership")
+	}
+}
+
+func TestManagerNeverPromptsOrStartsImplicitly(t *testing.T) {
+	var prompts []bool
+	manager := New(Options{
+		BinaryPath: os.Args[0],
+		TargetPID:  4242,
+		GOOS:       "darwin",
+		PermissionProbe: func(prompt bool) Permissions {
+			prompts = append(prompts, prompt)
+			return Permissions{}
+		},
+		CommandFactory: helperCommand,
+	})
+	status := manager.Status()
+	if status.Enabled {
+		t.Fatal("status unexpectedly enabled Computer Use")
+	}
+	if len(prompts) != 1 || prompts[0] {
+		t.Fatalf("status prompted for a system grant: %#v", prompts)
+	}
+	if _, err := manager.Start(context.Background(), "conversation-1"); err == nil {
+		t.Fatal("expected missing grants to prevent startup")
+	}
+	for _, prompt := range prompts {
+		if prompt {
+			t.Fatalf("startup prompted implicitly: %#v", prompts)
+		}
+	}
+	manager.RequestPermissions()
+	if !prompts[len(prompts)-1] {
+		t.Fatalf("explicit permission request did not prompt: %#v", prompts)
+	}
+}
+
+func TestSessionManifestDeniesDesktopAndUnreviewedTools(t *testing.T) {
+	manifest := sessionManifest()
+	for _, expected := range []string{
+		"version: 2",
+		"mode: bounded",
+		"bundle_id: com.milksu.app",
+		"launch: false",
+		"- start_session",
+		"- get_window_state",
+		"- click",
+		"- type_text",
+		"- press_key",
+		"- scroll",
+		"- get_desktop_state",
+		"- launch_app",
+		"- escalate_session",
+	} {
+		if !strings.Contains(manifest, expected) {
+			t.Fatalf("bounded manifest is missing %q:\n%s", expected, manifest)
+		}
+	}
+}

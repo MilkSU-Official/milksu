@@ -33,37 +33,21 @@ import {
   sep,
 } from "node:path";
 import { Type } from "typebox";
+import {
+  codingGoalToolNames,
+  codingSessionToolNames,
+  normalizeCodingPolicy,
+} from "./bridge-coding-policy.js";
+
+export {
+  codingSessionToolNames,
+  normalizeCodingPolicy,
+} from "./bridge-coding-policy.js";
 
 const workspaceSchemaVersion = "ctf-workspace.milksu.dev/v1alpha1";
 const toolBuilderRole = "tool-builder";
 const strategistRole = "strategist";
 const codingToolNames = ["read", "bash", "edit", "write", "grep", "find", "ls"];
-const codingGoalToolNames = ["goal_complete", "goal_blocked"];
-const codingReadOnlyToolNames = [
-  "read",
-  "grep",
-  "find",
-  "ls",
-  "bg_status",
-  "milksu_progress",
-  "lsp_diagnostics",
-  ...codingGoalToolNames,
-];
-const codingWorkspaceAutoToolNames = [
-  "read",
-  "bash",
-  "edit",
-  "write",
-  "grep",
-  "find",
-  "ls",
-  "bg_task",
-  "bg_status",
-  "milksu_progress",
-  "lsp_diagnostics",
-  "lsp_fix",
-  ...codingGoalToolNames,
-];
 const codingArchitectureToolNames = [
   "read",
   "grep",
@@ -105,12 +89,6 @@ const codingProductFixToolNames = [
   "lsp_diagnostics",
   "lsp_fix",
   ...codingGoalToolNames,
-];
-// A Coding session must construct the full reviewed tool catalog up front.
-// Pi's setActiveTools() can narrow or restore tools that already exist, but it
-// cannot add definitions that were omitted when createAgentSession() ran.
-export const codingSessionToolNames = [
-  ...new Set([...codingWorkspaceAutoToolNames, "milksu_archify"]),
 ];
 const ctfLocalToolNames = [
   ...codingToolNames,
@@ -1635,115 +1613,6 @@ async function findWorkspaceFiles(workspace, start, pattern, limit) {
   return matches;
 }
 
-export function normalizeCodingPolicy(
-  executionMode = "go",
-  approvalPolicy = "workspace-auto",
-) {
-  const normalizedExecutionMode = executionMode === "go" ? "go" : "plan";
-  const normalizedApprovalPolicy = [
-    "read-only",
-    "ask",
-    "workspace-auto",
-    "full-auto",
-  ].includes(approvalPolicy)
-    ? approvalPolicy
-    : "read-only";
-  const effectfulToolsAvailable = normalizedExecutionMode === "go"
-    && ["ask", "workspace-auto", "full-auto"].includes(normalizedApprovalPolicy);
-  const workspaceWritesAllowed = normalizedExecutionMode === "go"
-    && ["workspace-auto", "full-auto"].includes(normalizedApprovalPolicy);
-  const fullAccess = normalizedExecutionMode === "go"
-    && normalizedApprovalPolicy === "full-auto";
-  const approvalChannelAvailable = normalizedExecutionMode === "go"
-    && normalizedApprovalPolicy === "ask";
-  const activeTools = effectfulToolsAvailable
-    ? codingWorkspaceAutoToolNames
-    : codingReadOnlyToolNames;
-
-  return {
-    executionMode: normalizedExecutionMode,
-    approvalPolicy: normalizedApprovalPolicy,
-    approvalChannelAvailable,
-    activeTools: [...activeTools],
-    capabilities: [
-      {
-        id: "workspace-read",
-        label: "工作区读取",
-        status: "allowed",
-        detail: fullAccess
-          ? "文件工具读取项目；终端可访问当前系统用户可读的路径。"
-          : "文件与终端读取限制在当前项目和系统开发工具。",
-      },
-      {
-        id: "workspace-write",
-        label: "工作区写入",
-        status: workspaceWritesAllowed
-          ? "allowed"
-          : normalizedApprovalPolicy === "ask" && normalizedExecutionMode === "go"
-            ? "approval-required"
-            : "blocked",
-        detail: fullAccess
-          ? "终端具有当前系统用户权限；文件工具仍以项目为默认边界。"
-          : workspaceWritesAllowed
-            ? "文件与命令写入限制在项目内；允许正常 Git 操作，文件工具保护 .milksu。"
-          : normalizedApprovalPolicy === "ask" && normalizedExecutionMode === "go"
-            ? "每次 edit / write 前暂停并在桌面展示参数；只有本次明确批准后执行。"
-            : "Plan 或 Read-only 策略禁止 edit / write。",
-      },
-      {
-        id: "command",
-        label: "命令执行",
-        status: workspaceWritesAllowed
-          ? "allowed"
-          : approvalChannelAvailable
-            ? "approval-required"
-            : "blocked",
-        detail: fullAccess
-          ? "命令自动执行，不受项目沙箱限制；模型 Provider Key 不传给子进程。"
-          : workspaceWritesAllowed
-            ? "项目沙箱内可运行开发命令和后台工具，支持网络。"
-          : approvalChannelAvailable
-            ? "每次 bash 调用前展示完整命令并等待批准；仍受项目沙箱约束。"
-            : "Plan 与 Read-only 不提供 bash。",
-      },
-      {
-        id: "network",
-        label: "网络",
-        status: workspaceWritesAllowed
-          ? "allowed"
-          : approvalChannelAvailable
-            ? "approval-required"
-            : "blocked",
-        detail: workspaceWritesAllowed
-          ? "允许开发命令访问网络。"
-          : approvalChannelAvailable
-            ? "网络只能通过已展示并单次批准的命令使用。"
-            : "当前模式禁止网络命令。",
-      },
-      {
-        id: "credentials",
-        label: "凭据",
-        status: fullAccess ? "allowed" : "blocked",
-        detail: fullAccess
-          ? "终端可使用当前系统用户的凭据；模型 Provider Key 仍不进入子进程。"
-          : "Provider Key 不进入模型上下文，项目自动也不能读取用户凭据目录。",
-      },
-      {
-        id: "browser",
-        label: "浏览器 / MCP",
-        status: "unavailable",
-        detail: "尚未接入 Coding Agent；未来接入仍需逐次显式批准。",
-      },
-      {
-        id: "computer-use",
-        label: "Computer Use",
-        status: "unavailable",
-        detail: "尚未接入 Coding Agent；不会由 Workspace Auto 隐式启用。",
-      },
-    ],
-  };
-}
-
 const codingArchitectureHeader = "[MilkSU product action: Generate architecture diagram]";
 const codingProductActionHeaders = new Map([
   ["[MilkSU product action: Understand project]", "understand"],
@@ -2309,6 +2178,17 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
         cdpEndpoint: String(codingPolicy.codingBrowser.cdpEndpoint ?? ""),
       }
     : undefined;
+  const computerUse = codingPolicy.computerUse
+    && typeof codingPolicy.computerUse === "object"
+    && !Array.isArray(codingPolicy.computerUse)
+    ? {
+        sessionId: String(codingPolicy.computerUse.sessionId ?? ""),
+        socketPath: String(codingPolicy.computerUse.socketPath ?? ""),
+        targetBundleId: String(codingPolicy.computerUse.targetBundleId ?? ""),
+        targetName: String(codingPolicy.computerUse.targetName ?? ""),
+        targetPid: Number(codingPolicy.computerUse.targetPid ?? 0),
+      }
+    : undefined;
   const productAction = normalizedCodingProductAction(
     root,
     codingPolicy.productAction,
@@ -2318,6 +2198,9 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
     && mcpServers.length > 0
     && normalized.executionMode === "go"
     && normalized.approvalPolicy !== "read-only";
+  const browserAvailable = mcpAvailable
+    && (Boolean(codingBrowser) || projectMcpServers.length > 0);
+  const computerUseAvailable = mcpAvailable && Boolean(computerUse);
   const activeTools = mcpAvailable
     ? [...new Set([...actionTools, "mcp"])]
     : actionTools;
@@ -2325,8 +2208,8 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
     capability.id === "browser"
       ? {
           ...capability,
-          status: mcpAvailable ? "approval-required" : "unavailable",
-          detail: mcpAvailable
+          status: browserAvailable ? "approval-required" : "unavailable",
+          detail: browserAvailable
             ? codingBrowser
               ? `MilkSU 隔离浏览器已为本任务启用`
                 + `${projectMcpServers.length ? `，另有 ${projectMcpServers.length} 个项目 MCP` : ""}；`
@@ -2337,7 +2220,19 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
               ? "当前 Plan、只读或一键只读动作不会加载 MCP；切换到 Go 后可用。"
             : "项目 .mcp.json 中的服务器仅在本任务“能力”菜单勾选后加载。",
         }
-      : capability
+      : capability.id === "computer-use"
+        ? {
+            ...capability,
+            status: computerUseAvailable ? "approval-required" : "unavailable",
+            detail: computerUseAvailable
+              ? `可见会话已锁定 ${computerUse.targetName} `
+                + `(${computerUse.targetBundleId})；模型不能改 PID、窗口或桌面范围，`
+                + "每次观察或操作都会单独请求批准。"
+              : computerUse
+                ? "当前 Plan、只读或产品动作不会加载 Computer Use；切换到普通 Go 后可用。"
+                : "仅在用户显式启动 MilkSU 应用范围会话后可用；Project Auto 不会自动启用。",
+          }
+        : capability
   ));
   return {
     ctf: false,
@@ -2350,6 +2245,7 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
     projectMcpServers,
     mcpConfigDigest: String(codingPolicy.mcpConfigDigest ?? "").trim(),
     codingBrowser,
+    computerUse,
     readOnlyResourceRoots: [...(codingPolicy.readOnlyResourceRoots || [])],
     customTools: await createCodingToolDefinitions(
       root,

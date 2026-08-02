@@ -17,10 +17,19 @@ for source_file in bridge*.js; do
     exit 1
   fi
 done
+for source_file in \
+  computer-use-proxy.js \
+  internal/computercap/session-policy.yaml \
+  third_party/licenses/cua-MIT.txt; do
+  if ! git ls-files --error-unmatch "$source_file" >/dev/null 2>&1; then
+    echo "Required Computer Use source is not tracked by Git: $source_file" >&2
+    exit 1
+  fi
+done
 
 go test ./...
 go vet ./...
-node --test browserextension-background.test.js bridge-approval.test.js bridge-attachments.test.js bridge-background-process.test.js bridge-lsp.test.js bridge-policy.test.js bridge-resource-policy.test.js bridge-vision.test.js
+node --test browserextension-background.test.js bridge-approval.test.js bridge-attachments.test.js bridge-background-process.test.js bridge-lsp.test.js bridge-mcp.test.js bridge-policy.test.js bridge-resource-policy.test.js bridge-vision.test.js computer-use-proxy.test.js
 npm --prefix app test -- --run
 npm --prefix app run lint
 npm --prefix app run build
@@ -33,6 +42,10 @@ rg -q "TestAgentModel" app/wailsjs/go/main/App.d.ts
 rg -q "GetCodingDiff" app/wailsjs/go/main/App.d.ts
 rg -q "GetCodingArchitecturePreview" app/wailsjs/go/main/App.d.ts
 rg -q "RespondToolApproval" app/wailsjs/go/main/App.d.ts
+rg -q "GetCodingComputerUseStatus" app/wailsjs/go/main/App.d.ts
+rg -q "RequestCodingComputerUsePermissions" app/wailsjs/go/main/App.d.ts
+rg -q "StartCodingComputerUse" app/wailsjs/go/main/App.d.ts
+rg -q "StopCodingComputerUse" app/wailsjs/go/main/App.d.ts
 rg -q "ChooseCodingAttachments" app/wailsjs/go/main/App.d.ts
 rg -q "GetLocalDataStatus" app/wailsjs/go/main/App.d.ts
 rg -q "ExportLocalDataBackup" app/wailsjs/go/main/App.d.ts
