@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
+import { dirname, join } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import {
   applyCodingResourcePolicy,
   describeLoadedExtensions,
@@ -29,6 +31,17 @@ test("reviewed LSP config ignores project commands and strips provider secrets",
     assert.equal(server.command[1], "-i");
     assert.equal(server.command.some(value => value.startsWith("HOME=/tmp/home")), true);
   }
+  const root = dirname(fileURLToPath(import.meta.url));
+  assert.deepEqual(config.servers["milksu-vue"].command.slice(-3), [
+    process.execPath,
+    join(root, "node_modules", "@vue", "language-server", "bin", "vue-language-server.js"),
+    "--stdio",
+  ]);
+  assert.deepEqual(config.servers["milksu-typescript"].command.slice(-3), [
+    process.execPath,
+    join(root, "node_modules", "typescript-language-server", "lib", "cli.mjs"),
+    "--stdio",
+  ]);
 });
 
 test("coding resource policy overrides ambient LSP configuration", () => {

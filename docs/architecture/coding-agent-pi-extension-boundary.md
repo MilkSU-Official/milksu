@@ -1,8 +1,8 @@
 # Coding Agent / Pi 扩展边界
 
 > 状态：Coding 核心交付链、桌面逐次审批、附件、会话隔离 PTY、后台任务、项目 MCP
-> 和隔离 Coding Browser **Verified / Implemented**；LSP 语言服务器与 Computer Use
-> **Partial / Planned**。
+> 和隔离 Coding Browser **Verified / Implemented**；TypeScript/Vue LSP 诊断
+> **Verified**，Go LSP、`lsp_fix` 与 Computer Use **Partial / Planned**。
 
 MilkSU 不重写通用 Coding Agent Loop。Pi 负责会话、模型、上下文、工具循环和扩展 API；
 MilkSU 负责桌面授权、固定资源白名单、工具可见性、事件桥、产品 UI，以及 CTF 专用的事实、
@@ -133,7 +133,7 @@ flowchart TB
 | --- | --- | --- | --- |
 | Pi Coding Agent | `0.83.0` | `package.json`、`scripts/package-sidecar.mjs` | Sidecar 打包 / Smoke 已有 |
 | Archify | `2.12.0`，commit `7b49d0b…` | `third_party/archify`、`bridge.js`、Sidecar manifest、Composer 产品动作 | **Verified**：真实打包 App 一键生成固定 JSON/HTML、9/9、0 error、0 warning，并在右侧预览 |
-| `@narumitw/pi-lsp` | `0.29.0` | `bridge-resource-policy.js`、`bridge.js`、`package-lock.json` | 项目命令覆盖和凭据继承已阻断；语言服务器尚未打包，真实诊断与 opt-in fix 待验 |
+| `@narumitw/pi-lsp` | `0.29.0` | `bridge-resource-policy.js`、`bridge.js`、`package-lock.json`、Sidecar `lsp-runtime` | 项目命令覆盖和凭据继承已阻断；TypeScript `5.3.0`、Vue `3.3.9` 与 SDK `6.0.3` 固定随包；真实原生 fixture 返回 `TS2322 @ 1:14`；Go 与 opt-in fix 待验 |
 | `@narumitw/pi-goal` | `0.43.0` | `bridge-resource-policy.js`、`bridge.js`、`package-lock.json` | **Verified**：普通 Coding 固定加载，CTF 负向隔离；桌面目标仍以 `milksu_progress` 为事实源 |
 | `pi-better-background-tasks` | `0.1.10` | `bridge.js`、Sidecar manifest、会话级控制/运行时事件、右侧终端页 | **Verified**：真实原生会话运行短命令，并启动监听 `127.0.0.1:18876` 的任务；显示 PID/端口/有界日志后从桌面停止并确认端口关闭；不同 Conversation 的任务互相不可见，CTF 保持负向隔离 |
 | `@xterm/xterm` / `@xterm/addon-fit` | `6.0.0` / `0.11.0` | `CodingTerminalPanel.vue`、`third_party/licenses/xterm.js-MIT.txt` | **Verified**：真实原生 App 显示项目 Shell、实时输入输出和 resize；前端独立懒加载，不进入基础 ChatPage chunk |
@@ -182,8 +182,8 @@ flowchart TB
 
 1. **Archify**：在普通 Coding 会话点击一次“架构图”，自动读取仓库、选择系统架构图与
    固定输出目录、执行 9 项校验并在右侧预览；CTF 会话必须找不到该 Skill。
-2. **LSP**：先打包审核过的 Go/Vue/TypeScript Server，再在固定小项目制造一个确定性诊断；
-   `lsp_diagnostics` 返回位置，`lsp_fix` 在独立审批协议完成前始终不可见。
+2. **LSP**：TypeScript/Vue Server 已固定打包，并在固定小项目返回 `TS2322 @ 1:14`；
+   后续打包审核过的 `gopls`，`lsp_fix` 在独立审批协议完成前始终不可见。
 3. **固定资源门禁**：Goal、后台任务、项目 MCP、附件与 OCR 必须通过打包清单、
    SHA-256、普通 Coding 正向 Smoke 和 CTF 负向隔离；失败恢复保留在 MilkSU Supervisor，
    不重新引入未固定的 `pi-retry`。
@@ -196,5 +196,5 @@ flowchart TB
 
 当前正确说法是“核心插件已经固定并通过打包与隔离验收；右侧终端页已有会话隔离的项目
 PTY/stdin/实时输出/标签页，以及可停止的后台进程；右侧浏览器页已有显式启停、隔离
-Profile、逐次审批和真实页面交互；跨应用重启恢复、LSP 语言服务器和 Computer Use
-尚未完成”，不是“Coding Agent 插件体系已完成”。
+Profile、逐次审批和真实页面交互；TypeScript/Vue LSP 诊断已随包完成，跨应用重启恢复、
+Go LSP、`lsp_fix` 和 Computer Use 尚未完成”，不是“Coding Agent 插件体系已完成”。

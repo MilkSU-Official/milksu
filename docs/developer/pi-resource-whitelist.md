@@ -24,7 +24,7 @@ The goal is not the raw number of installed packages. The acceptance metric is a
 | --- | --- | --- | --- | --- |
 | `milksu-workflow` | MilkSU source | Coding + CTF roles | Visible progress and role-specific execution guidance | First-party; `milksu_progress` has a bounded schema and no external effects |
 | `tt-a1i/archify` | `2.12.0` / `7b49d0b715fd4ba48116bcdecd1ba3789a279613` | Normal Coding only | Architecture, workflow, sequence, dataflow, and lifecycle diagrams | Pinned submodule; MIT; packaged commit check; CTF sessions must not load it |
-| `@narumitw/pi-lsp` | `0.29.0` | Normal Coding only | `lsp_diagnostics` and opt-in `lsp_fix` through installed language servers | Exact npm pin; MIT; MilkSU forces a reviewed Go/Vue/TypeScript config, ignores repository commands, and launches the real server with a non-secret environment; `write` defaults to false; servers are not yet bundled |
+| `@narumitw/pi-lsp` | `0.29.0` | Normal Coding only | `lsp_diagnostics` and opt-in `lsp_fix` through reviewed language servers | Exact npm pin; MIT; MilkSU forces a reviewed Go/Vue/TypeScript config, ignores repository commands, and launches the real server with a non-secret environment; TypeScript `5.3.0`, Vue `3.3.9`, and TypeScript SDK `6.0.3` are bundled; `write` defaults to false |
 | `@narumitw/pi-goal` | `0.43.0` | Normal Coding only | Pi-native goal lifecycle, alongside the desktop progress projection | Exact npm pin; MIT; CTF sessions keep MilkSU's recorder-owned progress and Judge semantics |
 | `pi-better-background-tasks` | `0.1.10` | Normal Coding only | Conversation-owned background processes, bounded logs and stop | Exact npm pin; MIT; visible lifecycle; CTF sessions must not load it |
 | `pi-mcp-adapter` | `2.17.0` | Normal Coding opt-in | Reviewed project MCP servers and first-party adapters | Exact npm pin; MIT; digest selection, sandbox, environment filtering and per-call desktop approval |
@@ -36,18 +36,19 @@ The packaged Sidecar smoke test asserts both sides of the boundary. The
 by the resource loader; it is not a hard-coded declaration:
 
 - a normal Coding session exposes Archify, Goal, background tasks and the reviewed MCP Adapter;
-  LSP registration remains subject to its language-server limitation, and Playwright appears only
-  after the user explicitly starts the Coding Browser;
+  bundled TypeScript/Vue LSP diagnostics are available, Go diagnostics still require a reviewed
+  `gopls`, and Playwright appears only after the user explicitly starts the Coding Browser;
 - a CTF session exposes none of these external resources and continues to use
   MilkSU's dedicated CTF tools and recorder-owned retry semantics.
 
-`pi-lsp` is currently **Partial**, not production-ready. MilkSU deliberately
+`pi-lsp` remains **Partial**, because Go and write-fix approval are not complete. MilkSU deliberately
 overrides both repository and user LSP configuration with `PI_LSP_CONFIG`.
 The fixed commands run through `/usr/bin/env -i` and receive only `HOME`,
 `PATH`, `TMPDIR`, `LANG`, and `LC_ALL`; provider and relay credentials do not
-reach the language server. A clean installation still needs `gopls`,
-`vue-language-server`, or `typescript-language-server` on `PATH`, and the UI
-must state that requirement until MilkSU packages reviewed binaries.
+reach the language server. Clean macOS packages include reviewed TypeScript and
+Vue servers in `milksu-sidecar/lsp-runtime`; the packaged-app fixture returned
+`TS2322` at `1:14` without modifying the source file. Go projects still need a
+reviewed, packaged `gopls` before Go LSP can be described as clean-install ready.
 
 ## Reviewed but not active
 
@@ -74,7 +75,7 @@ Pi's official documentation states that Pi runs with the launching process's fil
 | Agent-side subtask orchestration | Do not build | Integrate `pi-sub-agent` after packaged-runtime and budget tests |
 | Session archive/query/handoff | Do not build | Evaluate Session Snap / Query / Handoff and adapt only desktop navigation/state |
 | Code review and semantic diff | Do not build from scratch | Evaluate Code Review / Tool Pills / `pi-sem`; MilkSU owns file/diff presentation in the right panel |
-| Architecture diagrams, LSP, retry | Keep pinned external resources | Finish packaged real-world verification; avoid feature forks |
+| Architecture diagrams, LSP, retry | Keep pinned external resources | Package reviewed `gopls`, finish `lsp_fix` approval, and avoid feature forks |
 | CTF recorder, Judge, evidence, role handoff, learning memory | Keep MilkSU-owned | This remains the product's primary innovation surface |
 
 ## Update procedure

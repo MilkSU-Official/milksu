@@ -18,7 +18,8 @@ MilkSU 当前是一个 local-first 的授权安全学习与研究桌面工作台
   Git Adapter 的可信证据。逐工具审批、文件/图片附件、项目级 MCP 选择，以及会话隔离的
   交互式项目 PTY 与可显示 PID、监听端口、有界日志并停止任务的后台任务页已接线；本地
   远端已完成 stage、commit、push 原生回归；会话隔离的 Coding Browser 已通过真实打包
-  App 的 Playwright MCP 端到端验收，仍缺托管平台 PR、Computer Use 和跨应用重启终端恢复；
+  App 的 Playwright MCP 端到端验收；TypeScript/Vue LSP 已固定随包并在原生 fixture
+  返回确定性诊断，仍缺 `gopls`、`lsp_fix` 审批、托管平台 PR、Computer Use 和跨应用重启终端恢复；
 - **NYU CTF Bench** 有开发者专用 one-shot Runner 与两回合 Pi 只读 Agent Runtime；
   后者已验证读取、强制重启、恢复、超时/格式失败分类与 Digest Judge，但不是完整
   Challenge Runner，也不是用户训练能力；
@@ -57,7 +58,7 @@ MilkSU 当前是一个 local-first 的授权安全学习与研究桌面工作台
 | Coding Git 与项目终端 | 本地临时远端完成原生 stage、commit、push 与远端 HEAD 核对；右侧终端页在原生 App 中完成多会话 zsh PTY 输入与项目 `pwd`，后台任务完成 `127.0.0.1:18876` 服务启停并显示 PID、端口、日志和退出状态；两类会话均按 Conversation 隔离。 |
 | Coding Browser | 右侧“浏览器”页可显式启动/停止会话隔离的专用 Chrome；固定 `@playwright/mcp@0.0.78` 只接收 Go Host 提供的瞬态 loopback 描述符，不读取日常 Chrome Profile；真实打包 App 已完成页面读取、表单填写、点击和结果回读 `MILKSU-BROWSER-OK`，每次 MCP 工具调用均经过桌面批准。 |
 | Coding 运行时隔离 | Project Auto 的 HOME/TMP/Node wrapper 位于用户数据目录的稳定工作区哈希路径；用户仓库不再生成运行时 `.milksu`，旧目录不会被自动删除且从 Git 面板隐藏。 |
-| Coding 审批与扩展底座 | Request Approval 会暂停单次工具并由桌面批准/拒绝；固定 `pi-goal`、`pi-lsp`、后台任务和 opt-in MCP Adapter 已进入打包清单、正向 Smoke 与 CTF 负向隔离。 |
+| Coding 审批与扩展底座 | Request Approval 会暂停单次工具并由桌面批准/拒绝；固定 `pi-goal`、`pi-lsp`、后台任务和 opt-in MCP Adapter 已进入打包清单、正向 Smoke 与 CTF 负向隔离；TypeScript/Vue LSP 在原生 App 返回 `TS2322 @ 1:14` 且源文件未修改。 |
 | Coding 附件与文本视觉降级 | 文件/图片会复制到用户数据目录并随会话持久化；纯文本模型使用本地 OCR 或显式视觉路由，无法可靠识图时必须披露降级。 |
 | Archify 一键产品动作 | 真实打包 App 一键生成固定 JSON/HTML，独立复验 9/9、0 error、0 warning，右侧预览成功。 |
 | 本地持久化 | 用户目录 SQLite、Workspace、Artifact、Conversation、Memory 和 Credential Store。 |
@@ -72,6 +73,7 @@ MilkSU 当前是一个 local-first 的授权安全学习与研究桌面工作台
 | P0 | Coding 审批与外部副作用闭环 | 保持单次工具批准/拒绝回归；Git 发布、Browser、Computer Use 等外部副作用继续使用独立授权。 |
 | P0 | Coding Diff / Git 发布 | stage/commit/push 本地闭环已验收；继续补逐块/行级反馈、托管平台凭据路径和 PR 发布确认。 |
 | P0 | Coding 产物与视觉预览 | 在已实现附件输入之上补 HTML/Markdown/图片产物预览，并区分 OCR 文本与真正视觉理解。 |
+| P0 | Coding LSP 补全 | TypeScript/Vue 诊断已随包验收；继续打包审核过的 `gopls`，并让 `lsp_fix` 走独立审批和 Diff。 |
 | P0 | 原生 UI / Markdown 回归 | 长代码块、表格、旧会话、窄窗口、下拉框和右侧面板在打包 App 中不重叠、不截断。 |
 | P0 | CTF 多题型验收 | Web、Reverse、Crypto、Forensics 各保留 Judge、轨迹、提示依赖和恢复证据。 |
 | P1 | Coding Browser / Computer Use | Coding Browser 已复用固定 Playwright MCP 并完成原生 E2E；继续保持逐次批准和停止回归，Computer Use 仍需独立的应用范围、可见会话和授权入口。 |

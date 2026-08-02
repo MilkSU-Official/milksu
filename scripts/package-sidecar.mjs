@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { execFile, spawn } from 'node:child_process'
 import { chmod, copyFile, cp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { build } from 'esbuild'
@@ -19,6 +19,29 @@ const playwrightMcpVersion = '0.0.78'
 const playwrightVersion = '1.62.0-alpha-1783623505000'
 const playwrightSocketRoot = '/private/tmp/milksu-playwright'
 const systemOcrVersion = '1.1.0'
+const typescriptLanguageServerVersion = '5.3.0'
+const vueLanguageServerVersion = '3.3.9'
+const typescriptVersion = '6.0.3'
+const lspRuntimeRootPackages = [
+  {
+    name: 'typescript-language-server',
+    version: typescriptLanguageServerVersion,
+    license: 'Apache-2.0',
+    licenseFile: 'LICENSE',
+  },
+  {
+    name: '@vue/language-server',
+    version: vueLanguageServerVersion,
+    license: 'MIT',
+    licenseFile: 'LICENSE',
+  },
+  {
+    name: 'typescript',
+    version: typescriptVersion,
+    license: 'Apache-2.0',
+    licenseFile: 'LICENSE.txt',
+  },
+]
 const systemOcrNativePackages = {
   'darwin/arm64': '@napi-rs/system-ocr-darwin-arm64',
   'darwin/amd64': '@napi-rs/system-ocr-darwin-x64',
@@ -54,6 +77,66 @@ async function exists(path) {
   } catch {
     return false
   }
+}
+
+async function resolveInstalledPackage(packageName, fromDirectory, optional = false) {
+  let current = resolve(fromDirectory)
+  while (current === repositoryRoot || current.startsWith(`${repositoryRoot}/`)) {
+    const candidate = join(current, 'node_modules', ...packageName.split('/'))
+    if (await exists(join(candidate, 'package.json'))) return candidate
+    const parent = dirname(current)
+    if (parent === current) break
+    current = parent
+  }
+  if (optional) return ''
+  throw new Error(`installed package is missing: ${packageName}`)
+}
+
+async function collectInstalledPackageClosure(rootPackages) {
+  const rootNodeModules = join(repositoryRoot, 'node_modules')
+  const queue = rootPackages.map(name => ({
+    name,
+    fromDirectory: repositoryRoot,
+    optional: false,
+  }))
+  const visited = new Set()
+  const packages = []
+  while (queue.length > 0) {
+    const request = queue.shift()
+    const source = await resolveInstalledPackage(
+      request.name,
+      request.fromDirectory,
+      request.optional,
+    )
+    if (!source || visited.has(source)) continue
+    visited.add(source)
+    const document = JSON.parse(await readFile(join(source, 'package.json'), 'utf8'))
+    const relativePath = relative(rootNodeModules, source)
+    if (relativePath === '' || relativePath.startsWith('..')) {
+      throw new Error(`package resolved outside repository node_modules: ${request.name}`)
+    }
+    packages.push({
+      name: document.name,
+      version: document.version,
+      license: document.license,
+      source,
+      relativePath,
+    })
+    for (const name of Object.keys(document.dependencies ?? {})) {
+      queue.push({ name, fromDirectory: source, optional: false })
+    }
+    for (const name of Object.keys(document.optionalDependencies ?? {})) {
+      queue.push({ name, fromDirectory: source, optional: true })
+    }
+  }
+  return packages
+}
+
+function minimalPackageCopySet(packages) {
+  return packages.filter(packageInfo => !packages.some(other => (
+    other !== packageInfo
+    && packageInfo.source.startsWith(`${other.source}/node_modules/`)
+  )))
 }
 
 async function sha256(path) {
@@ -183,6 +266,23 @@ async function buildSidecar(platform) {
       licenseFile: 'playwright-core-Apache-2.0.txt',
     },
   ]
+  const lspRuntimeOutput = join(output, 'lsp-runtime')
+  const lspRuntimePackages = await collectInstalledPackageClosure(
+    lspRuntimeRootPackages.map(packageInfo => packageInfo.name),
+  )
+  for (const expected of lspRuntimeRootPackages) {
+    const source = await resolveInstalledPackage(expected.name, repositoryRoot)
+    const document = JSON.parse(await readFile(join(source, 'package.json'), 'utf8'))
+    if (document.version !== expected.version || document.license !== expected.license) {
+      throw new Error(
+        `LSP runtime package mismatch: expected `
+        + `${expected.name}@${expected.version} ${expected.license}`,
+      )
+    }
+    if (!await exists(join(source, expected.licenseFile))) {
+      throw new Error(`LSP runtime package is missing its license: ${expected.name}`)
+    }
+  }
   for (const packageInfo of playwrightPackages) {
     if (!await exists(packageInfo.source)) {
       throw new Error(`Playwright package is missing: ${packageInfo.name}@${packageInfo.version}`)
@@ -211,6 +311,7 @@ async function buildSidecar(platform) {
 
   await rm(archifyOutput, { recursive: true, force: true })
   await rm(systemOcrOutputRoot, { recursive: true, force: true })
+  await rm(lspRuntimeOutput, { recursive: true, force: true })
   await Promise.all(
     playwrightPackages.map(packageInfo => rm(
       packageInfo.output,
@@ -219,6 +320,7 @@ async function buildSidecar(platform) {
   )
   await mkdir(dirname(archifyOutput), { recursive: true, mode: 0o700 })
   await mkdir(systemOcrOutputRoot, { recursive: true, mode: 0o700 })
+  await mkdir(join(lspRuntimeOutput, 'node_modules'), { recursive: true, mode: 0o700 })
   await Promise.all(
     playwrightPackages.map(packageInfo => mkdir(
       dirname(packageInfo.output),
@@ -227,6 +329,19 @@ async function buildSidecar(platform) {
   )
   await mkdir(licenseOutput, { recursive: true, mode: 0o700 })
   await cp(archifySource, archifyOutput, { recursive: true })
+  for (const packageInfo of minimalPackageCopySet(lspRuntimePackages)) {
+    const destination = join(
+      lspRuntimeOutput,
+      'node_modules',
+      packageInfo.relativePath,
+    )
+    await mkdir(dirname(destination), { recursive: true, mode: 0o700 })
+    await cp(
+      packageInfo.source,
+      destination,
+      { recursive: true },
+    )
+  }
   await Promise.all([
     copyFile(runtime.binary, nodeOutput),
     copyFile(runtime.license, join(output, 'NODE-LICENSE')),
@@ -271,6 +386,16 @@ async function buildSidecar(platform) {
       type: 'commonjs',
       private: true,
     }, null, 2)}\n`, { mode: 0o600 }),
+    writeFile(join(lspRuntimeOutput, 'package.json'), `${JSON.stringify({
+      name: '@milksu/lsp-runtime',
+      private: true,
+      dependencies: Object.fromEntries(
+        lspRuntimeRootPackages.map(packageInfo => [
+          packageInfo.name,
+          packageInfo.version,
+        ]),
+      ),
+    }, null, 2)}\n`, { mode: 0o600 }),
     bundleBridge('bridge.js', chatOutput),
     bundleBridge('security-bridge.js', securityOutput),
   ])
@@ -312,6 +437,29 @@ async function buildSidecar(platform) {
         license: 'MIT',
         licenseFile: 'THIRD_PARTY-LICENSES/narumitw-pi-extensions-MIT.txt',
         scope: 'coding-only',
+        runtime: {
+          path: 'lsp-runtime',
+          servers: {
+            typescript: {
+              package: 'typescript-language-server',
+              version: typescriptLanguageServerVersion,
+              license: 'Apache-2.0',
+              licenseFile: 'lsp-runtime/node_modules/typescript-language-server/LICENSE',
+            },
+            vue: {
+              package: '@vue/language-server',
+              version: vueLanguageServerVersion,
+              license: 'MIT',
+              licenseFile: 'lsp-runtime/node_modules/@vue/language-server/LICENSE',
+            },
+          },
+          sdk: {
+            package: 'typescript',
+            version: typescriptVersion,
+            license: 'Apache-2.0',
+            licenseFile: 'lsp-runtime/node_modules/typescript/LICENSE.txt',
+          },
+        },
       },
       piGoal: {
         package: '@narumitw/pi-goal',
@@ -375,6 +523,9 @@ async function smokeSidecar(platform) {
     join(output, 'THIRD_PARTY-LICENSES', 'playwright-mcp-Apache-2.0.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'playwright-Apache-2.0.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'playwright-core-Apache-2.0.txt'),
+    join(output, 'lsp-runtime', 'node_modules', 'typescript-language-server', 'LICENSE'),
+    join(output, 'lsp-runtime', 'node_modules', '@vue', 'language-server', 'LICENSE'),
+    join(output, 'lsp-runtime', 'node_modules', 'typescript', 'LICENSE.txt'),
     join(output, 'skills', 'archify', 'LICENSE'),
   ]) {
     if (!await exists(licensePath)) {
@@ -424,6 +575,50 @@ async function smokeSidecar(platform) {
       `packaged Playwright MCP did not load: `
       + `${playwrightVersionRun.stdout}${playwrightVersionRun.stderr}`,
     )
+  }
+  const lspRuntimeCliChecks = [
+    {
+      name: 'TypeScript language server',
+      version: typescriptLanguageServerVersion,
+      path: join(
+        output,
+        'lsp-runtime',
+        'node_modules',
+        'typescript-language-server',
+        'lib',
+        'cli.mjs',
+      ),
+    },
+    {
+      name: 'Vue language server',
+      version: vueLanguageServerVersion,
+      path: join(
+        output,
+        'lsp-runtime',
+        'node_modules',
+        '@vue',
+        'language-server',
+        'bin',
+        'vue-language-server.js',
+      ),
+    },
+  ]
+  for (const check of lspRuntimeCliChecks) {
+    const versionRun = await runWithInput(
+      node,
+      [...runtimeArguments, check.path, '--version'],
+      '',
+      {
+        cwd: workspace,
+        env: { ...process.env, HOME: workspace, TMPDIR: workspace },
+      },
+    )
+    if (versionRun.stdout.trim() !== check.version) {
+      throw new Error(
+        `packaged ${check.name} did not load: `
+        + `${versionRun.stdout}${versionRun.stderr}`,
+      )
+    }
   }
   const ocrLoad = await runWithInput(
     node,
@@ -838,6 +1033,7 @@ async function installSidecar(platform, binaryPath) {
     join(destination, 'THIRD_PARTY-LICENSES'),
     { recursive: true },
   )
+  await cp(join(source, 'lsp-runtime'), join(destination, 'lsp-runtime'), { recursive: true })
   await cp(join(source, 'node_modules'), join(destination, 'node_modules'), { recursive: true })
   const installedOcrPackage = join(
     destination,
@@ -847,6 +1043,23 @@ async function installSidecar(platform, binaryPath) {
   for (const requiredPath of [
     join(destination, 'THIRD_PARTY-LICENSES', 'napi-rs-system-ocr-MIT.txt'),
     installedOcrPackage,
+    join(
+      destination,
+      'lsp-runtime',
+      'node_modules',
+      '@vue',
+      'language-server',
+      'bin',
+      'vue-language-server.js',
+    ),
+    join(
+      destination,
+      'lsp-runtime',
+      'node_modules',
+      'typescript-language-server',
+      'lib',
+      'cli.mjs',
+    ),
   ]) {
     if (!await exists(requiredPath)) {
       throw new Error(`installed Sidecar is missing OCR runtime artifact: ${requiredPath}`)

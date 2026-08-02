@@ -1,8 +1,34 @@
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
 const REVIEWED_LSP_SERVER_NAMES = [
   "milksu-go",
   "milksu-vue",
   "milksu-typescript",
 ];
+
+const sidecarDirectory = dirname(fileURLToPath(import.meta.url));
+const installedLspRuntime = existsSync(
+  join(sidecarDirectory, "lsp-runtime", "node_modules"),
+)
+  ? join(sidecarDirectory, "lsp-runtime")
+  : sidecarDirectory;
+const packagedVueLanguageServer = join(
+  installedLspRuntime,
+  "node_modules",
+  "@vue",
+  "language-server",
+  "bin",
+  "vue-language-server.js",
+);
+const packagedTypeScriptLanguageServer = join(
+  installedLspRuntime,
+  "node_modules",
+  "typescript-language-server",
+  "lib",
+  "cli.mjs",
+);
 
 const PASSTHROUGH_ENVIRONMENT_NAMES = [
   "HOME",
@@ -46,11 +72,21 @@ export function reviewedLspConfig(
         extensions: [".go"],
       },
       "milksu-vue": {
-        command: [...commandPrefix, "vue-language-server", "--stdio"],
+        command: [
+          ...commandPrefix,
+          process.execPath,
+          packagedVueLanguageServer,
+          "--stdio",
+        ],
         extensions: [".vue"],
       },
       "milksu-typescript": {
-        command: [...commandPrefix, "typescript-language-server", "--stdio"],
+        command: [
+          ...commandPrefix,
+          process.execPath,
+          packagedTypeScriptLanguageServer,
+          "--stdio",
+        ],
         extensions: [".ts", ".tsx", ".js", ".jsx", ".mts", ".cts", ".mjs", ".cjs"],
       },
     },
