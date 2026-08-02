@@ -108,17 +108,48 @@ describe('SettingsPage database compatibility', () => {
     ]) {
       expect(text).toContain(path)
     }
-    expect(text).toContain('v1 / v1')
+    expect(text).toContain('当前 v1 · 支持 v1')
+    expect(text).toContain('当前 v2 · 支持 v1')
+    expect(text).toContain('支持 v1')
+    expect(text).not.toContain('v1 / v1')
+    expect(text).not.toContain('当前 v1 / 支持 v1')
     expect(text).toContain('corrupt migration history: <data> schema_migrations')
     expect(text).not.toContain('credentials.db')
 
-    const compatItems = [...document.querySelectorAll('li')].filter(
-      li => li.textContent?.includes('EventStore'),
+    const relativePaths = [
+      'runtime/events.sqlite3',
+      'ctf/memory.sqlite3',
+      'nssctf/catalog.sqlite3',
+      'ctfshow/catalog.sqlite3',
+      'runtime/corrupt.sqlite3',
+    ]
+    const compatItems = [...document.querySelectorAll('li')].filter(li =>
+      relativePaths.some(path => li.textContent?.includes(path)),
     )
-    expect(compatItems.length).toBeGreaterThan(0)
+    expect(compatItems.length).toBeGreaterThanOrEqual(5)
     const compatMarkup = compatItems.map(item => item.outerHTML).join('')
-    expect(compatMarkup).toMatch(/min-w-0|flex-wrap|break-all|break-words/)
     expect(compatMarkup).not.toContain('凭据库')
+
+    for (const item of compatItems) {
+      expect(item.className).toContain('min-w-0')
+
+      const header = item.querySelector('div.flex-col')
+      expect(header).not.toBeNull()
+      expect((header as HTMLElement).className).toContain('flex-col')
+      expect((header as HTMLElement).className).toContain('sm:flex-row')
+
+      const pathParagraph = item.querySelector('p.break-all')
+      expect(pathParagraph).not.toBeNull()
+      expect((pathParagraph as HTMLElement).className).toContain('break-all')
+    }
+
+    const corruptItem = compatItems.find(item =>
+      item.textContent?.includes('runtime/corrupt.sqlite3'),
+    )
+    expect(corruptItem).toBeDefined()
+    const errorParagraph = corruptItem?.querySelector('p.break-words')
+    expect(errorParagraph).not.toBeNull()
+    expect((errorParagraph as HTMLElement).className).toContain('break-words')
   })
 
   it('databases omitted renders no compat list and keeps existing UI', async () => {

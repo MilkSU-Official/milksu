@@ -89,9 +89,9 @@ const databaseStateVariants: Record<DatabaseCompatibilityState, 'secondary' | 'd
 
 function databaseVersionText(database: DatabaseCompatibilityStatus): string {
   const parts: string[] = []
-  if (database.current !== undefined) parts.push(`v${database.current}`)
-  if (database.supported !== undefined) parts.push(`v${database.supported}`)
-  return parts.join(' / ')
+  if (database.current !== undefined) parts.push(`当前 v${database.current}`)
+  if (database.supported !== undefined) parts.push(`支持 v${database.supported}`)
+  return parts.join(' · ')
 }
 
 function cloneSettings(value: AppSettings): AppSettings {
@@ -424,10 +424,10 @@ async function save() {
               <ul class="mt-2 flex flex-col gap-3">
                 <li
                   v-for="database in localData.databases"
-                  :key="database.logicalName"
-                  class="min-w-0"
+                  :key="database.relativePath"
+                  class="min-w-0 rounded-lg border border-border p-3"
                 >
-                  <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <div class="flex min-w-0 flex-col items-start gap-y-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-2">
                     <span class="min-w-0 text-control font-medium">{{ database.logicalName }}</span>
                     <Badge :variant="databaseStateVariants[database.state]" class="min-w-0">
                       {{ databaseStateLabels[database.state] }}
