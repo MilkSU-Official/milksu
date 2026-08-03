@@ -38,14 +38,14 @@
 
 | 分组 | 细项数 | 当前分 | 完成度 |
 | --- | ---: | ---: | ---: |
-| Coding Agent 与高频替代能力 | 31 | 1,500 / 3,100 | **48%** |
+| Coding Agent 与高频替代能力 | 31 | 1,525 / 3,100 | **49%** |
 | CTF 通用闭环与网络边界 | 15 | 550 / 1,500 | **37%** |
 | Memory 与能力画像 | 11 | 475 / 1,100 | **43%** |
 | Runtime Reliability 与 NYU Bench | 10 | 700 / 1,000 | **70%** |
 | 架构约束 | 6 | 125 / 600 | **21%** |
 | 本地数据安全与正式交付 | 15 | 600 / 1,500 | **40%** |
 | 最终文档 | 2 | 75 / 200 | **38%** |
-| **整体** | **90** | **4,025 / 9,000** | **45%** |
+| **整体** | **90** | **4,050 / 9,000** | **45%** |
 
 此前约 58% 的估值按大块综合判断，分母中没有逐项展开真实验收、跨项目、六赛道、RC 和
 架构约束。第二轮证据复核又把没有原生 App 真实任务的 Vue/Go Code Action 从 75% 调到
@@ -59,16 +59,17 @@ Computer Use 工具截图的辅助视觉回路，因此新增 `COD-31`；随后�
 `COD-30` 从 0% 调到 25%；Memory 召回已补推荐原因和 Judge/提示/步骤/失败证据链接，将
 `MEM-08` 从 25% 调到 50%；本地交付基线已增加保守 pre-release 性能阈值和单机 support
 matrix entry，将 `DEL-09` 从 25% 调到 50%；六赛道回归清单已补机器可校验 manifest 和
-runbook，将 `CTF-12` 从 25% 调到 50%。45% 是当前细项口径的基线。后续只使用同一张表
-比较变化。
+runbook，将 `CTF-12` 从 25% 调到 50%；Project MCP 已通过正式 adapter config 实际调用
+allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 是当前细项口径的
+基线。后续只使用同一张表比较变化。
 
 ### 分值分布
 
 | 分值 | 细项数 | 解释 |
 | ---: | ---: | --- |
 | 100% | 8 | 行定义的精确门槛已经通过 |
-| 75% | 18 | 已有真实证据，仍缺完整矩阵或最终 Gate |
-| 50% | 33 | 工程实现和自动化存在，仍缺真实任务 |
+| 75% | 19 | 已有真实证据，仍缺完整矩阵或最终 Gate |
+| 50% | 32 | 工程实现和自动化存在，仍缺真实任务 |
 | 25% | 9 | 只有局部纵切、设计或基础设施 |
 | 0% | 22 | 未执行，或当前没有足够证据 |
 
@@ -119,7 +120,7 @@ runbook，将 `CTF-12` 从 25% 调到 50%。45% 是当前细项口径的基线�
 | COD-25 | 完整 “MilkSU develops MilkSU” Gate | 有多个局部自举任务 | 25% | 一次完整 Vue + Go、重启、交付、PR |
 | COD-26 | ImageGen 文生图、参考图编辑和项目资产 | 受控工具、UI、测试与打包存在 | 50% | 真实 Provider 生成 |
 | COD-27 | 打包 App 真实 ImageGen Provider 与预览 | Provider 尚未在 App 内配置 | 0% | 用户自行配置后执行，不接触 Key |
-| COD-28 | Project MCP 来源、版本、工具面与权限审阅 | Go/Vue/Bridge 实现和测试存在 | 50% | 实际 MCP 工具任务 |
+| COD-28 | Project MCP 来源、版本、工具面与权限审阅 | Go/Vue/Bridge 实现和测试存在；`npm run test:project-mcp` 通过正式 `loadCodingMcpConfig`、固定 `.mcp.json` digest、sandbox wrapper、`env -i` 私有 HOME/TMPDIR、`hostConfigDiscovery=off` 和 MCP SDK `listTools/callTool` 实际调用本地项目 `fixture_read` | 75% | 用户真实项目或高频 MCP 任务验收 |
 | COD-29 | 高频 Plugin 候选完成真实任务 | 尚未由使用频率选出候选 | 0% | 先收集重复工作流与替代失败 |
 | COD-30 | 代表任务成功率、接管、恢复、成本对照 | Coding delivery gate 已输出 `milksu-run-manifest/v1alpha1` 与 `milksu-agent-scoreboard/v1alpha1`，覆盖任务 ID、fixture digest、工具面、预算、人工介入、失败分类和未运行基线状态 | 25% | 从用户真实历史选择固定 20 项，运行 MilkSU 与裸 Codex/Pi 对照 |
 | COD-31 | Computer Use 工具截图接入纯文本模型的辅助视觉回路 | Bridge `tool_result` hook 为 `milksu-computer-use/computer_use` 截图追加受控视觉摘要；辅助视觉缓存不保存原图；64 项 Node 窄测试、Go、前端 lint/build 通过 | 50% | 打包 App 中用纯文本主模型和真实辅助视觉完成外部窗口定位验收 |
@@ -225,7 +226,7 @@ runbook，将 `CTF-12` 从 25% 调到 50%。45% 是当前细项口径的基线�
 | OBS-04 | Computer Use 的代码边界已存在，但 macOS Accessibility 和 Screen Recording 是独立系统权限 | 等用户参与，不由自动审批绕过 |
 | OBS-05 | safe-static 与 Reliability fixture 很强，但不等于六赛道或 NYU Outcome 成绩 | 分别由 CTF-06..11、RUN-10 保持未完成 |
 | OBS-06 | Vue/Go Code Action 使用正式打包 LSP，但当前证据来自 probe，不是原生 App 真实任务 | `COD-04` 在第二轮由 75% 校准为 50%，不修改产品 |
-| OBS-07 | Project MCP 的打包 smoke 只创建并销毁已加载 Adapter 的会话，没有实际调用 `fixture_read` | `COD-28` 保持 50%，候选任务不重复审阅 UI |
+| OBS-07 | Project MCP 已补本地项目 fixture 的实际 `fixture_read` 调用；仍不是用户真实项目或高频 MCP 任务 | `COD-28` 保持 75%，后续等真实任务再推进 |
 | OBS-08 | 六赛道动态覆盖矩阵和 6/6 判定已存在；版本化 manifest 和校验脚本已补，但五个非 Web 赛道仍未选定真实题目 | `CTF-12` 保持 50%，后续真题验收时补满固定题目与回执 |
 | OBS-09 | Memory 已自动验证当前题排除、相关旧题优先和无关题负对照 | `MEM-09` 从 25% 校准为 50%，仍缺真实轨迹 |
 | OBS-10 | Runtime 已能投影后台任务 PID、端口、日志并在 Sidecar 重启后恢复，缺口是完整 App 的用户可见长任务 | `RUN-08` 保持 25%，不重复实现 Sidecar 恢复 |
