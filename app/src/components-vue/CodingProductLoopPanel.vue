@@ -67,6 +67,7 @@ const emit = defineEmits<{
 }>()
 
 const copyNotice = ref('')
+const followupCopyNotice = ref('')
 
 const canAct = computed(() => (
   props.executionMode === 'go'
@@ -437,6 +438,31 @@ const mergeReadiness = computed(() => {
   }
 })
 
+const unfinishedAcceptanceItems = computed(() => (
+  acceptanceChecklist.value.filter(item => item.state !== 'done')
+))
+
+const followupPrompt = computed(() => {
+  const unfinished = unfinishedAcceptanceItems.value
+  const lines = [
+    '继续 MilkSU 产品闭环冲刺，只处理下列未完成验收项，不要重做已具备项。',
+    '',
+    `工作区：${props.workspacePath || '尚未选择'}`,
+    `权限：${executionModeLabel(props.executionMode)} / ${approvalPolicyLabel(props.approvalPolicy)}`,
+    `合并状态：${mergeReadiness.value.label}；${mergeReadiness.value.detail}`,
+    '',
+    '未完成验收项：',
+    ...(unfinished.length
+      ? unfinished.map(item => `- ${stateLabel(item.state)} ${item.label}：${item.detail}`)
+      : ['- 无；只做最终人工范围确认，不要扩大 scope。']),
+    '',
+    `下一步建议：${nextVerificationAction.value.label}；${nextVerificationAction.value.detail}`,
+    '',
+    '边界：不要读取或迁移 Provider/API Key；不要把窄测试、smoke 或 UI 架子写成完整产品成绩；真实 App、Computer Use、Browser、Git 和恢复证据要分开记录。',
+  ]
+  return lines.join('\n')
+})
+
 const handoffSummary = computed(() => {
   const git = props.environment?.git
   const lines = [
@@ -475,6 +501,17 @@ async function copyHandoffSummary() {
     copyNotice.value = '已复制'
   } catch {
     copyNotice.value = '复制失败，请手动选择摘要'
+  }
+}
+
+async function copyFollowupPrompt() {
+  followupCopyNotice.value = ''
+  try {
+    if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable')
+    await navigator.clipboard.writeText(followupPrompt.value)
+    followupCopyNotice.value = '已复制'
+  } catch {
+    followupCopyNotice.value = '复制失败，请手动选择 prompt'
   }
 }
 
@@ -527,6 +564,15 @@ function stateBadgeVariant(state: LoopState) {
         <Badge :variant="stateBadgeVariant(mergeReadiness.state)" class="shrink-0">
           {{ stateLabel(mergeReadiness.state) }}
         </Badge>
+      </div>
+      <div class="mt-3 flex items-center justify-between gap-2">
+        <span class="text-caption text-muted-foreground">
+          {{ followupCopyNotice || '复制一段只包含待补证明的下一轮 Agent prompt。' }}
+        </span>
+        <Button type="button" variant="outline" size="sm" @click="copyFollowupPrompt">
+          <Copy class="size-3.5" />
+          复制待补任务
+        </Button>
       </div>
     </div>
 

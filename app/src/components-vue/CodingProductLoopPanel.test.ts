@@ -283,6 +283,35 @@ describe('CodingProductLoopPanel', () => {
     expect(host.textContent).toContain('已复制')
   })
 
+  it('copies a focused follow-up prompt with only unfinished acceptance items', async () => {
+    const writeText = vi.fn(async () => undefined)
+    vi.stubGlobal('navigator', {
+      ...navigator,
+      clipboard: { writeText },
+    })
+    const { host } = await mountPanel()
+
+    const copyFollowup = [...host.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.includes('复制待补任务'))
+    copyFollowup?.click()
+    await Promise.resolve()
+    await nextTick()
+
+    expect(writeText).toHaveBeenCalledOnce()
+    const copied = String((writeText.mock.calls as unknown as Array<[string]>)[0]?.[0] ?? '')
+    expect(copied).toContain('继续 MilkSU 产品闭环冲刺')
+    expect(copied).toContain('只处理下列未完成验收项，不要重做已具备项')
+    expect(copied).toContain('合并状态：待补证明')
+    expect(copied).toContain('未完成验收项：')
+    expect(copied).toContain('进行中 3. 做一次用户可见验证')
+    expect(copied).toContain('待补 4. 验证失败/继续路径')
+    expect(copied).toContain('进行中 5. 收口 Git 交付')
+    expect(copied).not.toContain('1. 确认任务和仓库')
+    expect(copied).not.toContain('2. 核对自动化输出')
+    expect(copied).toContain('不要读取或迁移 Provider/API Key')
+    expect(host.textContent).toContain('已复制')
+  })
+
   it('opens the concrete validation and delivery panels from the checklist', async () => {
     const { host, onOpenPanel } = await mountPanel()
     const buttons = [...host.querySelectorAll<HTMLButtonElement>('button')]
