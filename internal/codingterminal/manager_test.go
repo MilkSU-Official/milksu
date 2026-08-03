@@ -106,6 +106,34 @@ func TestInteractiveTerminalCanBeStopped(t *testing.T) {
 	}
 }
 
+func TestManagerCloseEndsRunningTerminalsWithoutReconnect(t *testing.T) {
+	t.Setenv("SHELL", "/bin/sh")
+	t.Setenv("HOME", t.TempDir())
+	events := make(chan Event, 64)
+	manager := NewManager(func(event Event) {
+		events <- event
+	})
+
+	started, err := manager.Start("conversation-close", t.TempDir(), 80, 24)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manager.Close()
+	exited := waitForTerminalEvent(t, events, func(event Event) bool {
+		return event.Type == "terminal.exited" &&
+			event.TerminalID == started.ID
+	})
+	if exited.Session == nil ||
+		exited.Session.Status != StatusStopped ||
+		exited.Session.EndedAt == nil {
+		t.Fatalf("closed manager did not make the old PTY visibly stopped: %#v", exited)
+	}
+	if _, err := manager.Start("conversation-close", t.TempDir(), 80, 24); err == nil ||
+		!strings.Contains(err.Error(), "closed") {
+		t.Fatalf("closed manager unexpectedly started a reconnectable PTY: %v", err)
+	}
+}
+
 func TestTerminalEnvironmentKeepsDeveloperEnvironmentWithoutModelCredentials(t *testing.T) {
 	environment := terminalEnvironment([]string{
 		"PATH=/custom/bin",
