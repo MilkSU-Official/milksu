@@ -9,6 +9,7 @@ import {
 } from '@felinic/ui'
 import { Check, Circle, Flag, RotateCcw, Send } from 'lucide-vue-next'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
+import { redactProviderCredentials } from '@/lib/redaction'
 import type { CTFProjection } from '@/ctfTypes'
 
 const props = defineProps<{
@@ -67,6 +68,10 @@ const matchingSubmissionBlocks = computed(() => (
   || matchingSubmission.value?.verdict === 'fail'
   || matchingSubmission.value?.verdict === 'needs_review'
 ))
+
+function redacted(value: string) {
+  return redactProviderCredentials(value)
+}
 </script>
 
 <template>
@@ -111,7 +116,7 @@ const matchingSubmissionBlocks = computed(() => (
         </Badge>
       </div>
       <p class="mt-1 line-clamp-4 text-muted-foreground">
-        {{ activeAgentCandidate.explanation }}
+        {{ redacted(activeAgentCandidate.explanation) }}
       </p>
       <ul
         v-if="activeAgentCandidate.assessment.warnings.length"
@@ -123,7 +128,7 @@ const matchingSubmissionBlocks = computed(() => (
           class="flex items-start gap-1.5"
         >
           <Circle class="mt-1 size-2 shrink-0 fill-current" />
-          <span>{{ warning }}</span>
+          <span>{{ redacted(warning) }}</span>
         </li>
       </ul>
       <p class="mt-2 text-muted-foreground">
@@ -164,7 +169,7 @@ const matchingSubmissionBlocks = computed(() => (
       </div>
       <MarkdownContent
         class="mt-2 line-clamp-3 text-caption leading-5 text-muted-foreground"
-        :content="projection.judgeReceipts.at(-1)?.summary ?? ''"
+        :content="redacted(projection.judgeReceipts.at(-1)?.summary ?? '')"
         compact
       />
     </div>
@@ -173,7 +178,7 @@ const matchingSubmissionBlocks = computed(() => (
       v-if="platformReview && (!isWebWorkspace || projection.evaluations.at(-1)?.verdict === 'inconclusive')"
       class="mt-4 border-t border-border pt-4"
     >
-      <p class="text-caption font-medium">{{ externalJudgeLabel }}的结果是？</p>
+      <p class="text-caption font-medium">{{ redacted(externalJudgeLabel) }}的结果是？</p>
       <div class="mt-3 flex gap-2">
         <Button variant="outline" class="flex-1" @click="emit('recordPlatformResult', false)">
           <RotateCcw class="size-4" />

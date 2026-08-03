@@ -144,7 +144,7 @@ allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 
 | CTF-12 | 六题固定回归清单 | `ctf-six-track-regression-manifest.json` 固定六个赛道 slot、统一 requiredEvidence、跨赛道 Tool Builder/Strategist 协作项和 Web/P3879 既有 `correct=true` 证据引用；`npm run test:ctf-six-track-regression` 校验六轴顺序、缺失赛道不得伪造 `correct=true`、已验证赛道必须有权威 Judge 与完整证据 refs | 50% | 选定其余五赛道真实题目，补平台、题号、材料类型、验收日期和 Judge 回执 |
 | CTF-13 | Solver 卡关 → Coding Tool Builder → Solver | Tool Workshop 代码与测试存在 | 25% | 真实自然卡关闭环 |
 | CTF-14 | 重复失败 → 独立 Strategist → Solver | 角色与恢复基础存在 | 25% | 真实独立会话重规划闭环 |
-| CTF-15 | Evidence、候选、Judge、Checkpoint、恢复和复盘主链 | 主链代码、测试及一题真实记录 | 75% | 在其余五赛道重复验证 |
+| CTF-15 | Evidence、候选、Judge、Checkpoint、恢复和复盘主链 | 主链代码、测试及一题真实记录；`CTFSubmissionGate.test.ts` 覆盖 Agent 候选说明、格式 warning、Judge 回执 summary 和外部 Judge label 在提交/Judge UI 层脱敏 Provider Credential 形态，同时提交按钮行为不变 | 75% | 在其余五赛道重复验证 |
 
 ## Memory 与能力画像
 
@@ -196,7 +196,7 @@ allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 
 | DEL-02 | Pre-release 旧 schema 一次性破坏性收口 | 按契约明确后置 | 0% | 产品纵切完成后集中执行 |
 | DEL-03 | 上次启动/异常退出标记与恢复入口 | 打包 App lifecycle baseline 通过 | 75% | 真实异常退出人工验收 |
 | DEL-04 | Sidecar、恢复、迁移、后台任务脱敏诊断 | 诊断包、UI 和离线错误测试存在 | 75% | 真实故障包审阅 |
-| DEL-05 | 不保存正文、原始工具输出或 Credential | 多处边界测试存在；诊断包测试确认即使 `runtime/milksu.log` 含会话正文、原始工具输出和 Credential 形态，导出包也只包含脱敏 `diagnostics.json`，不复制日志文件；前端聊天错误、审批卡、CTF Endpoint 授权 UI、CTF 训练归档 UI、CTF Memory Recall UI、Coding 产物预览 UI 和 Coding 后台任务/Shell 错误共用 `redactProviderCredentials`，`redaction.test.ts`、`useConversations.test.ts`、`ChatMessageItem.test.ts`、`CTFEndpointAuthorization.test.ts`、`CTFTrainingArchive.test.ts`、`CTFMemoryRecall.test.ts`、`CodingArtifactPreviewPanel.test.ts` 与 `CodingTerminalPanel.test.ts` 覆盖 Bearer、`sk-*`、`sess-*`、`*_API_KEY`、URL query `api_key`、`x-api-key`、`api-key` 和 header `x-api-key` 形态，并覆盖后台任务名称、命令、日志和错误进入 UI 前统一脱敏，避免不同入口规则漂移 | 50% | 完整诊断与本地文件审计 |
+| DEL-05 | 不保存正文、原始工具输出或 Credential | 多处边界测试存在；诊断包测试确认即使 `runtime/milksu.log` 含会话正文、原始工具输出和 Credential 形态，导出包也只包含脱敏 `diagnostics.json`，不复制日志文件；前端聊天错误、审批卡、CTF Endpoint 授权 UI、CTF 提交/Judge UI、CTF 训练归档 UI、CTF Memory Recall UI、Coding 产物预览 UI 和 Coding 后台任务/Shell 错误共用 `redactProviderCredentials`，`redaction.test.ts`、`useConversations.test.ts`、`ChatMessageItem.test.ts`、`CTFEndpointAuthorization.test.ts`、`CTFSubmissionGate.test.ts`、`CTFTrainingArchive.test.ts`、`CTFMemoryRecall.test.ts`、`CodingArtifactPreviewPanel.test.ts` 与 `CodingTerminalPanel.test.ts` 覆盖 Bearer、`sk-*`、`sess-*`、`*_API_KEY`、URL query `api_key`、`x-api-key`、`api-key` 和 header `x-api-key` 形态，并覆盖后台任务名称、命令、日志和错误进入 UI 前统一脱敏，避免不同入口规则漂移 | 50% | 完整诊断与本地文件审计 |
 | DEL-06 | `1080×680` 最低窗口 | Browser 真实截图与布局审计 | 75% | 原生 App 全流程人工 QA |
 | DEL-07 | 启动时间基线 | 隔离 HOME 打包 App 已测 | 75% | 多次冷启动和目标机器矩阵 |
 | DEL-08 | RSS、前端 chunk、App/Sidecar 体积基线 | `local-delivery-baseline.md` | 75% | 多机器重复测量 |
