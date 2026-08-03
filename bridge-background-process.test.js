@@ -200,8 +200,11 @@ test("Full Access background tasks may leave the workspace without inheriting mo
   try {
     const input = {
       action: "spawn",
-      command: `test -z "$DEEPSEEK_API_KEY" && printf full > ${JSON.stringify(outside)}`,
+      command: `test -z "$DEEPSEEK_API_KEY" && test -z "$OPENAI_API_KEY" && printf full > ${JSON.stringify(outside)}`,
       cwd: workspace,
+      env: {
+        OPENAI_API_KEY: "model-supplied-secret",
+      },
     };
     const authorization = await prepareCodingBackgroundAuthorization(
       workspace,
