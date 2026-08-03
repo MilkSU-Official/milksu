@@ -89,7 +89,7 @@ describe('CodingComputerUsePanel', () => {
     const text = host.textContent ?? ''
 
     expect(text).toContain('Codex')
-    expect(text).toContain('未接入')
+    expect(text).toContain('可启动')
     expect(text).toContain('权限和窗口都已就绪')
     expect(text).toContain('才算正式接入当前 Coding 任务')
     expect(text).toContain('正式接入需要')
@@ -126,6 +126,23 @@ describe('CodingComputerUsePanel', () => {
     refresh?.click()
     await nextTick()
     expect(onRefresh).toHaveBeenCalledOnce()
+  })
+
+  it('distinguishes ready-to-start from missing target selection', async () => {
+    const { host } = await mountPanel({
+      status: status({ target: undefined }),
+      targets: [],
+      selectedTargetKey: '',
+    })
+    const text = host.textContent ?? ''
+
+    expect(text).toContain('待选择窗口')
+    expect(text).toContain('没有发现可选的可见窗口')
+    expect(text).not.toContain('未接入')
+    const start = [...host.querySelectorAll<HTMLButtonElement>('button')].find(
+      button => button.textContent?.includes('启动可见会话'),
+    )
+    expect(start?.disabled).toBe(true)
   })
 
   it('keeps start disabled when another task owns the visible Computer Use session', async () => {
@@ -195,6 +212,7 @@ describe('CodingComputerUsePanel', () => {
     })
 
     expect(missing.host.textContent).toContain('辅助功能 未授权')
+    expect(missing.host.textContent).toContain('缺系统权限')
     expect(missing.host.textContent).toContain('App 管理')
     expect(missing.host.textContent).toContain('点击未授权标签')
     expect(missing.host.textContent).toContain('勾选 MilkSU')

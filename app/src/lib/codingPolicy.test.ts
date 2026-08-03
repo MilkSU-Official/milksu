@@ -3,6 +3,7 @@ import {
   computerUseStartArgs,
   computerUseTargetKey,
   describeActiveComputerUseCapability,
+  describePendingComputerUseCapability,
   nextComputerUseTargetKey,
   normalizeCodingApprovalPolicy,
   normalizeCodingExecutionMode,
@@ -97,6 +98,48 @@ describe('Coding policy presentation', () => {
     const readOnly = describeActiveComputerUseCapability('go', 'read-only', target)
     expect(readOnly.status).toBe('blocked')
     expect(readOnly.detail).toContain('当前 Plan 或只读策略不会操作可见 App')
+  })
+
+  it('describes detected but not-yet-started Computer Use without calling it connected', () => {
+    const target = {
+      name: 'Codex',
+      bundleId: 'com.openai.codex',
+      pid: 4242,
+      windowId: 9001,
+      windowTitle: '已暂停的目标',
+    }
+
+    const readyToStart = describePendingComputerUseCapability('go', 'workspace-auto', target, {
+      available: true,
+      permissionsReady: true,
+    })
+    expect(readyToStart.status).toBe('approval-required')
+    expect(readyToStart.detail).toContain('已检测到 Codex')
+    expect(readyToStart.detail).toContain('启动可见会话')
+    expect(readyToStart.detail).toContain('才会锁定 Scope')
+    expect(readyToStart.detail).not.toContain('已锁定')
+
+    const missingPermissions = describePendingComputerUseCapability('go', 'workspace-auto', target, {
+      available: true,
+      permissionsReady: false,
+    })
+    expect(missingPermissions.status).toBe('unavailable')
+    expect(missingPermissions.detail).toContain('辅助功能与屏幕录制')
+    expect(missingPermissions.detail).toContain('App 管理权限不能替代')
+
+    const noWindow = describePendingComputerUseCapability('go', 'workspace-auto', null, {
+      available: true,
+      permissionsReady: true,
+    })
+    expect(noWindow.status).toBe('unavailable')
+    expect(noWindow.detail).toContain('打开目标 App 窗口')
+
+    const plan = describePendingComputerUseCapability('plan', 'workspace-auto', target, {
+      available: true,
+      permissionsReady: true,
+    })
+    expect(plan.status).toBe('blocked')
+    expect(plan.detail).toContain('当前 Plan 或只读策略不会操作可见 App')
   })
 
   it('starts Computer Use only for the user-selected PID and window pair', () => {

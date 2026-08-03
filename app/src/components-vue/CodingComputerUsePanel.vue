@@ -81,7 +81,17 @@ const connectionLabel = computed(() => {
   if (readyForCurrentTask.value) return '已接入当前任务'
   if (attachedToOtherTask.value) return '其他任务正在使用'
   if (!props.status?.available) return '不可用'
-  return '未接入'
+  if (!permissionsReady.value) return '缺系统权限'
+  if (!selectedTarget.value && !props.status?.target) return '待选择窗口'
+  return '可启动'
+})
+const connectionVariant = computed(() => {
+  if (readyForCurrentTask.value) return 'secondary'
+  if (attachedToOtherTask.value) return 'outline'
+  if (!props.status?.available) return 'outline'
+  if (!permissionsReady.value) return 'outline'
+  if (!selectedTarget.value && !props.status?.target) return 'outline'
+  return 'info'
 })
 
 function executionModeLabel(mode: CodingExecutionMode) {
@@ -180,7 +190,7 @@ const guidance = computed(() => {
     <div class="mt-4 rounded-md bg-muted/45 px-3 py-3 text-caption">
       <div class="mb-3 flex items-center justify-between gap-3">
         <span class="text-muted-foreground">接入状态</span>
-        <Badge :variant="readyForCurrentTask ? 'secondary' : 'outline'">
+        <Badge :variant="connectionVariant">
           {{ connectionLabel }}
         </Badge>
       </div>
@@ -210,19 +220,19 @@ const guidance = computed(() => {
       <div class="flex items-center justify-between gap-3">
         <span class="text-muted-foreground">锁定范围</span>
         <span class="font-medium text-foreground">
-          {{ status?.target.name || selectedTarget?.name || '未选择' }}
+          {{ status?.target?.name || selectedTarget?.name || '未选择' }}
         </span>
       </div>
       <p class="mt-1 break-all font-mono text-muted-foreground">
-        {{ status?.target.bundleId || selectedTarget?.bundleId || '—' }}
-        · PID {{ status?.target.pid || selectedTarget?.pid || '—' }}
-        · Window {{ status?.target.windowId || selectedTarget?.windowId || '—' }}
+        {{ status?.target?.bundleId || selectedTarget?.bundleId || '—' }}
+        · PID {{ status?.target?.pid || selectedTarget?.pid || '—' }}
+        · Window {{ status?.target?.windowId || selectedTarget?.windowId || '—' }}
       </p>
       <p
-        v-if="status?.target.windowTitle || selectedTarget?.windowTitle"
+        v-if="status?.target?.windowTitle || selectedTarget?.windowTitle"
         class="mt-1 truncate text-muted-foreground"
       >
-        {{ status?.target.windowTitle || selectedTarget?.windowTitle }}
+        {{ status?.target?.windowTitle || selectedTarget?.windowTitle }}
       </p>
       <div class="mt-3 flex flex-wrap gap-2">
         <button

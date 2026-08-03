@@ -93,6 +93,7 @@ import {
 import {
   computerUseStartArgs,
   describeActiveComputerUseCapability,
+  describePendingComputerUseCapability,
   nextComputerUseTargetKey,
   normalizeCodingApprovalPolicy,
   normalizeCodingExecutionMode,
@@ -317,23 +318,38 @@ const codingCapabilities = computed(() => {
           && props.settings.providers.openai.has_api_key,
         ),
       )
-  if (
-    !computerUseReadyForCurrentTask.value
-    || effectiveExecutionMode.value !== 'go'
-    || effectiveApprovalPolicy.value === 'read-only'
-  ) {
+  if (!computerUseStatus.value) {
     return capabilities
   }
   const target = computerUseStatus.value?.target
-  if (!target) return capabilities
+  const selectedTarget = selectedComputerUseTarget.value
+  const computerUseCapability = computerUseReadyForCurrentTask.value && target
+    ? describeActiveComputerUseCapability(
+        effectiveExecutionMode.value,
+        effectiveApprovalPolicy.value,
+        target,
+      )
+    : describePendingComputerUseCapability(
+        effectiveExecutionMode.value,
+        effectiveApprovalPolicy.value,
+        target ?? selectedTarget,
+        {
+          available: Boolean(computerUseStatus.value.available),
+          permissionsReady: Boolean(
+            computerUseStatus.value.permissions.accessibility
+            && computerUseStatus.value.permissions.screenRecording,
+          ),
+          attachedToOtherTask: Boolean(
+            computerUseStatus.value.conversationId
+            && !computerUseOwnedByCurrentTask.value,
+          ),
+          problem: computerUseStatus.value.problem,
+        },
+      )
   return capabilities.map(capability => capability.id === 'computer-use'
     ? {
         ...capability,
-        ...describeActiveComputerUseCapability(
-          effectiveExecutionMode.value,
-          effectiveApprovalPolicy.value,
-          target,
-        ),
+        ...computerUseCapability,
       }
     : capability)
 })

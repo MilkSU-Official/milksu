@@ -132,6 +132,54 @@ export function describeActiveComputerUseCapability(
   }
 }
 
+export function describePendingComputerUseCapability(
+  executionMode: CodingExecutionMode,
+  approvalPolicy: CodingApprovalPolicy,
+  target: CodingComputerUseTarget | null,
+  state: {
+    available: boolean
+    permissionsReady: boolean
+    attachedToOtherTask?: boolean
+    problem?: string
+  },
+): Pick<CodingCapability, 'status' | 'detail'> {
+  if (!state.available) {
+    return {
+      status: 'unavailable',
+      detail: state.problem || 'Computer Use 当前不可用；可先用 Browser 或产物预览验收。',
+    }
+  }
+  if (state.attachedToOtherTask) {
+    return {
+      status: 'unavailable',
+      detail: '可见 App 会话正由另一个 Coding 任务使用；先回到该任务停止后再切换。',
+    }
+  }
+  if (!state.permissionsReady) {
+    return {
+      status: 'unavailable',
+      detail: '需要先授权 macOS 辅助功能与屏幕录制；App 管理权限不能替代 Computer Use。',
+    }
+  }
+  if (!target) {
+    return {
+      status: 'unavailable',
+      detail: '系统权限已具备；打开目标 App 窗口后，在 Browser/App 面板选择可见窗口。',
+    }
+  }
+  const targetLabel = `${target.name} (${target.bundleId})，PID ${target.pid}，Window ${target.windowId}`
+  if (executionMode !== 'go' || approvalPolicy === 'read-only') {
+    return {
+      status: 'blocked',
+      detail: `已检测到 ${targetLabel}，但当前 Plan 或只读策略不会操作可见 App；切到 Go 后再启动会话。`,
+    }
+  }
+  return {
+    status: 'approval-required',
+    detail: `已检测到 ${targetLabel}；打开 Browser/App 面板点击“启动可见会话”后才会锁定 Scope 并按当前权限档操作。`,
+  }
+}
+
 export function computerUseTargetKey(target: Pick<CodingComputerUseTarget, 'pid' | 'windowId'>): string {
   return `${target.pid}:${target.windowId}`
 }

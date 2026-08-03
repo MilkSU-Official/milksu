@@ -481,3 +481,29 @@
 - 打包 App 中用户真实从 CTF 题目工作区切到 CVE、再切回 CTF 的肉眼验收；
 - 模块级 rail 最终语义是否需要同时提供“回题库 / 回最近 Agent 对话 / 回当前工作区”三种入口；
 - 六赛道真实 Judge 或新的 CTF 题目验收。
+
+## 2026-08-04 · Computer Use ready-state wording
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | 本批次提交 |
+| 窄测 | `npm run test -- --run src/components-vue/CodingComputerUsePanel.test.ts src/lib/codingPolicy.test.ts src/components-vue/CodingProductLoopPanel.test.ts` |
+| 窄测结果 | 3 files / 34 tests passed |
+| 前端构建 | `npm run build` |
+| 前端构建结果 | production build passed |
+
+覆盖范围：
+
+- Browser/App 面板中的 Computer Use 状态从单一“未接入”细分为不可用、缺系统权限、待选择窗口、
+  可启动、已接入当前任务、其他任务正在使用；
+- 当辅助功能和屏幕录制已授权且已选中可见窗口时，状态显示为“可启动”，但不会把它标成“已接入”；
+- 右侧能力列表在已经检测到 Computer Use 状态时使用同一口径：缺权限提示 macOS 辅助功能和屏幕录制，
+  有窗口但未启动时显示需要进入 Browser/App 面板点击“启动可见会话”；
+- 修复 `status` 存在但 `target` 为空时模板访问 `status.target.name` 导致渲染崩溃的问题；
+- 仍保留硬边界：启动前不会操作可见 App；Plan/只读下即使检测到窗口也显示不会操作。
+
+本次仍未证明：
+
+- 打包 App 中真实选择外部 App 窗口、启动 Computer Use、点击/输入并留下截图或可见操作证据；
+- macOS Accessibility / Screen Recording 系统设置在不同机器上的真实授权路径；
+- 其他任务占用时的原生 App 释放/切换体验。
