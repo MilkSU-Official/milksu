@@ -30,6 +30,7 @@ const ctfSection = ref<CTFWorkspaceSection>('catalog')
 const ctfResumeJobId = ref<string | null>(null)
 const lastCodingConversationId = ref<string | null>(null)
 const lastCTFConversationId = ref<string | null>(null)
+const activeVulnerabilityCodingConversationId = ref<string | null>(null)
 const settingsReturnTarget = ref<Exclude<Section, 'settings'>>('ctf')
 const settingsCategory = ref<'general' | 'apikeys'>('general')
 const settings = ref<AppSettings | null>(null)
@@ -70,6 +71,12 @@ const arenaReady = computed(() => Boolean(settings.value?.nssctf_arena?.has_toke
 const activeCTFConversation = computed(() => (
   Boolean(conversations.active.value?.ctfJobId)
 ))
+const activeVulnerabilityCodingConversation = computed(() => (
+  section.value === 'chat'
+  && Boolean(conversations.activeId.value)
+  && conversations.activeId.value === activeVulnerabilityCodingConversationId.value
+  && !activeCTFConversation.value
+))
 const sidebarSection = computed(() => (
   section.value === 'chat' && activeCTFConversation.value ? 'ctf' : section.value
 ))
@@ -94,6 +101,7 @@ function newConversation() {
   rememberActiveConversation()
   conversations.startNew()
   lastCodingConversationId.value = null
+  activeVulnerabilityCodingConversationId.value = null
   section.value = 'chat'
 }
 
@@ -152,6 +160,11 @@ function returnToCTFWorkspace() {
   section.value = 'ctf'
 }
 
+function returnToVulnerabilityWorkspace() {
+  rememberActiveConversation()
+  section.value = 'vuln'
+}
+
 async function chooseAgentWorkspace() {
   const workspacePath = await invokeCommand<string>('choose_agent_workspace')
   if (workspacePath) conversations.setWorkspace(workspacePath)
@@ -183,7 +196,12 @@ async function startVulnerabilityCodingTask(
     setSection: value => { section.value = value },
     send: conversations.send,
   })
-  if (accepted) recordHandoff?.(conversations.workspacePath.value)
+  if (conversations.activeId.value) {
+    activeVulnerabilityCodingConversationId.value = conversations.activeId.value
+  }
+  if (accepted) {
+    recordHandoff?.(conversations.workspacePath.value)
+  }
 }
 
 async function switchCTFAgent(role: 'solver' | 'tool-builder' | 'strategist') {
@@ -309,6 +327,7 @@ onMounted(async () => {
         :compacted-at="conversations.activeCompactedAt.value"
         :compaction-error="conversations.activeCompactionError.value"
         :ctf-session="activeCTFConversation"
+        :vulnerability-session="activeVulnerabilityCodingConversation"
         :ctf-mode="conversations.active.value?.ctfMode"
         :ctf-role="conversations.active.value?.ctfRole"
         :model-mode="conversations.selectedModelMode.value"
@@ -331,6 +350,7 @@ onMounted(async () => {
         @change-mcp-servers="conversations.setMCPSelection"
         @open-settings="openSettings('apikeys')"
         @return-ctf="returnToCTFWorkspace"
+        @return-vuln="returnToVulnerabilityWorkspace"
         @switch-ctf-agent="switchCTFAgent"
       />
     </div>

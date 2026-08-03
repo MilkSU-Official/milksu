@@ -25,4 +25,13 @@ describe('App workspace routing contract', () => {
     expect(appSource).toContain(':initial-job-id="ctfResumeJobId"')
     expect(appSource).toContain('@return-ctf="returnToCTFWorkspace"')
   })
+
+  it('keeps CVE-to-Coding handoffs returnable to the CVE workspace', () => {
+    expect(appSource).toContain('const activeVulnerabilityCodingConversationId = ref<string | null>(null)')
+    expect(appSource).toContain('const activeVulnerabilityCodingConversation = computed(() =>')
+    expect(appSource).toContain('activeVulnerabilityCodingConversationId.value = conversations.activeId.value')
+    expect(appSource).toContain(':vulnerability-session="activeVulnerabilityCodingConversation"')
+    expect(appSource).toContain('@return-vuln="returnToVulnerabilityWorkspace"')
+    expect(appSource).toContain("section.value = 'vuln'")
+  })
 })

@@ -137,6 +137,7 @@ const props = defineProps<{
   compactedAt?: number
   compactionError?: string
   ctfSession: boolean
+  vulnerabilitySession?: boolean
   ctfMode?: 'coach' | 'copilot' | 'delegate'
   ctfRole?: 'solver' | 'tool-builder' | 'strategist'
   modelMode?: 'auto' | 'manual'
@@ -165,6 +166,7 @@ const emit = defineEmits<{
   controlGoal: [action: 'resume' | 'clear']
   openSettings: []
   returnCtf: []
+  returnVuln: []
   switchCtfAgent: [role: 'solver' | 'tool-builder' | 'strategist']
 }>()
 
@@ -366,6 +368,7 @@ const codingPolicyLabel = computed(() => {
 })
 const topbarPresentation = computed(() => chatTopbarPresentation({
   ctfSession: props.ctfSession,
+  vulnerabilitySession: props.vulnerabilitySession,
   conversationTitle: props.conversation?.title,
   workspacePath: props.workspacePath,
   codingPolicyLabel: codingPolicyLabel.value,
@@ -1161,9 +1164,9 @@ watch(
       :title="topbarPresentation.title"
       :subtitle="topbarPresentation.subtitle"
     >
-      <template v-if="ctfSession" #badge>
+      <template v-if="ctfSession || vulnerabilitySession" #badge>
         <Badge variant="secondary" class="max-w-full truncate">
-          {{ ctfRoleLabel }}
+          {{ ctfSession ? ctfRoleLabel : 'CVE 接力' }}
         </Badge>
       </template>
       <template #actions>
@@ -1176,6 +1179,16 @@ watch(
         >
           <Flag class="size-4" />
           返回工作台
+        </Button>
+        <Button
+          v-if="vulnerabilitySession"
+          variant="ghost"
+          size="sm"
+          aria-label="返回 CVE 工作台"
+          @click="$emit('returnVuln')"
+        >
+          <ShieldCheck class="size-4" />
+          返回 CVE
         </Button>
         <Button
           variant="ghost"

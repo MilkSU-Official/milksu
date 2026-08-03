@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import WorkspaceTopBarTitle from '@/components-vue/WorkspaceTopBarTitle.vue'
 
 const props = defineProps<{
   module?: 'coding' | 'ctf' | 'cve'
@@ -20,12 +21,7 @@ const moduleKey = computed(() => props.module ?? props.title.trim().toLowerCase(
     <div class="flex min-w-0 items-center justify-between gap-4">
       <div class="min-w-0">
         <div class="flex min-w-0 items-center gap-2 overflow-hidden">
-          <h1
-            class="workspace-topbar__title truncate text-control font-medium tracking-[-0.01em]"
-            data-workspace-topbar-title
-          >
-            {{ title }}
-          </h1>
+          <WorkspaceTopBarTitle :title="title" />
           <slot name="badge" />
         </div>
         <p

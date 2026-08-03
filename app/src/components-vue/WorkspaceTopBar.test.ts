@@ -6,7 +6,9 @@ import chatPageSource from './ChatPage.vue?raw'
 import ctfPageSource from './CTFPage.vue?raw'
 import ctfWorkspaceHeaderSource from './CTFWorkspaceHeader.vue?raw'
 import vulnPageSource from './VulnPage.vue?raw'
+import workspaceTopBarSource from './WorkspaceTopBar.vue?raw'
 import WorkspaceTopBar from './WorkspaceTopBar.vue'
+import workspaceTopBarTitleSource from './WorkspaceTopBarTitle.vue?raw'
 
 const mountedApps: App[] = []
 
@@ -98,6 +100,11 @@ describe('WorkspaceTopBar', () => {
     expect(ctfPageSource).toContain('module="ctf"')
     expect(ctfWorkspaceHeaderSource).toContain('module="ctf"')
     expect(vulnPageSource).toContain('module="cve"')
+    expect(workspaceTopBarTitleSource).toContain('data-workspace-topbar-title')
+    expect(workspaceTopBarTitleSource).toContain('workspace-topbar__title truncate text-control')
+    expect(workspaceTopBarTitleSource).toContain('<h1')
+    expect(workspaceTopBarSource).toContain('<WorkspaceTopBarTitle :title="title" />')
+    expect(workspaceTopBarSource).not.toContain('<h1')
     expect(chatPageSource).not.toContain('<h1 class="mt-5 text-2xl')
   })
 

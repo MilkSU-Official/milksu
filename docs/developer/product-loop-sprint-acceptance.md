@@ -767,3 +767,56 @@
 - Docker/Compose 真实启动、停止和清理；
 - Agent 在本地隔离练习 Scope 内的观察、日志阅读和复盘；
 - 任一练习结果可代表真实资产验证。
+
+## 2026-08-04 · CVE handoff return path in Coding
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | 本批次提交 |
+| 目标流 | CVE → 建立研究任务 → 交给 Coding → Coding 顶栏显示 CVE 接力 → 返回 CVE |
+| 窄测 | `npm --prefix app test -- chatTopbar.test.ts AppRoutingContract.test.ts ChatPageRoutingContract.test.ts vulnerabilityCodingHandoff.test.ts` |
+| 窄测结果 | 4 files / 15 tests passed |
+| 前端构建 | `npm --prefix app run build` |
+| 构建结果 | production build passed |
+| Browser 验证 | Vite preview `http://127.0.0.1:4184/`；进入 CVE，执行“建立研究任务”和“交给 Coding”，再点“返回 CVE” |
+
+覆盖范围：
+
+- CVE handoff 成功创建/切到 Coding 对话后，App 记住当前 Coding conversation 来源于 CVE 工作台；
+- Coding 顶栏仍使用 `Coding` 模块标题，但显示 `CVE 接力` badge 和 subtitle 来源上下文；
+- Coding 顶栏新增“返回 CVE”按钮，回到 KeepAlive 中的 CVE 工作台；
+- Browser preview 中即使 Wails Agent runtime 不可用、消息发送失败，已创建的 CVE 接力 Coding 对话仍显示来源与返回入口；
+- 未把失败的 Browser preview handoff 记录成“已交接”，避免把 Agent 未启动误写成成功；
+- 顺手锁住 ChatPage raw contract，避免后续把 CVE handoff 当普通 Coding 对话吞掉。
+
+本次仍未证明：
+
+- 原生 App 中真实 Agent 启动成功后的 CVE → Coding → CVE 完整交互；
+- Coding Agent 完成 CVE 只读研究任务后把结论写回 CVE 笔记；
+- 跨 App 重启后 CVE 接力来源标记仍保留。
+
+## 2026-08-04 · Shared module topbar title contract
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | 本批次提交 |
+| 目标流 | 进入 CTF / CVE / Coding 一级菜单 → 最上方模块标题使用同一组件和同一字号 |
+| 窄测 | `npm --prefix app test -- WorkspaceTopBar.test.ts ChatPageRoutingContract.test.ts chatTopbar.test.ts AppRoutingContract.test.ts VulnPage.test.ts` |
+| 窄测结果 | 5 files / 20 tests passed |
+| 前端构建 | `npm --prefix app run build` |
+| 构建结果 | production build passed |
+| Browser 验证 | Vite preview `http://127.0.0.1:4185/`；依次进入 CTF、CVE、Coding 并读取 `[data-workspace-topbar-title]` 渲染样式 |
+
+覆盖范围：
+
+- 顶栏模块标题抽为 `WorkspaceTopBarTitle.vue`，由 `WorkspaceTopBar.vue` 统一调用；
+- CTF、CVE、Coding 顶栏继续只通过 `WorkspaceTopBar` 输出一级模块标题；
+- Browser preview 读取到三页标题均为 `H1`、`workspace-topbar__title`，渲染字号均为 `14px`、行高 `20px`、字重 `450`；
+- 顶栏 action 区同样继承 `WorkspaceTopBar` 的 `text-control` 控制字号，三页均为 `14px`；
+- Browser preview 无 relevant console error / warn，无 Vite overlay。
+
+本次仍未证明：
+
+- 页面内部二级标题、统计数字、卡片按钮和下拉菜单已经完成全局视觉系统收敛；
+- 打包原生 App 在不同窗口尺寸下的顶栏截屏回归；
+- CTF 解题态、CVE 详情态和 Coding 右侧栏所有子组件的细节字号完全一致。

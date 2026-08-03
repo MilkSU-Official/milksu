@@ -35,4 +35,17 @@ describe('chatTopbarPresentation', () => {
       subtitle: '新编码任务 · 临时工作区 · Go · 完全访问',
     })
   })
+
+  it('marks CVE handoff conversations as Coding tasks with CVE source context', () => {
+    expect(chatTopbarPresentation({
+      ctfSession: false,
+      vulnerabilitySession: true,
+      conversationTitle: 'CVE-2023-46604 研究接力',
+      workspacePath: '/Users/milksu/code/milksu',
+      codingPolicyLabel: 'Go · 项目自动',
+    })).toEqual({
+      title: 'Coding',
+      subtitle: 'CVE-2023-46604 研究接力 · CVE 接力 · /Users/milksu/code/milksu',
+    })
+  })
 })

@@ -1,5 +1,6 @@
 export interface ChatTopbarInput {
   ctfSession: boolean
+  vulnerabilitySession?: boolean
   conversationTitle?: string
   workspacePath?: string
   codingPolicyLabel: string
@@ -22,6 +23,6 @@ export function chatTopbarPresentation(input: ChatTopbarInput) {
 
   return {
     title: 'Coding',
-    subtitle: `${input.conversationTitle || '新编码任务'} · ${input.workspacePath || `临时工作区 · ${input.codingPolicyLabel}`}`,
+    subtitle: `${input.conversationTitle || '新编码任务'} · ${input.vulnerabilitySession ? 'CVE 接力 · ' : ''}${input.workspacePath || `临时工作区 · ${input.codingPolicyLabel}`}`,
   }
 }
