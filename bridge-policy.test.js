@@ -1047,13 +1047,17 @@ test("CTF HTTP uses exact granted origins without ambient redirects", async () =
   }
 });
 
-test("CTF HTTP never carries a response cookie into the next request", async () => {
-  const observedCookies = [];
+test("CTF HTTP never carries ambient cookie or auth state into the next request", async () => {
+  const observedCredentials = [];
   const server = createHTTPServer((request, response) => {
-    observedCookies.push(request.headers.cookie || "");
+    observedCredentials.push({
+      cookie: request.headers.cookie || "",
+      authorization: request.headers.authorization || "",
+    });
     response.writeHead(200, {
       "content-type": "text/plain",
       "set-cookie": "platform_session=must-not-be-inherited; Path=/",
+      "www-authenticate": "Bearer realm=\"ctf-fixture\"",
     });
     response.end("ok");
   });
@@ -1074,7 +1078,10 @@ test("CTF HTTP never carries a response cookie into the next request", async () 
         {},
       );
     }
-    assert.deepEqual(observedCookies, ["", ""]);
+    assert.deepEqual(observedCredentials, [
+      { cookie: "", authorization: "" },
+      { cookie: "", authorization: "" },
+    ]);
   } finally {
     await close(server);
   }
