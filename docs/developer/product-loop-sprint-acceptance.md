@@ -628,3 +628,30 @@
 - 打包 App 中真实 Diff/Hunk、stage、commit 和 push；
 - 真实托管平台 Draft PR 发布；
 - 浏览器预览能替代桌面运行时读取 Git 状态。
+
+## 2026-08-04 · Terminal and background-task browser-preview boundary
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | 本批次提交 |
+| 目标流 | Coding → 终端/测试 → 浏览器预览环境下说明真实 Shell/后台任务边界 |
+| 窄测 | `npm run test -- --run src/components-vue/CodingTerminalPanel.test.ts` |
+| 窄测结果 | 1 file / 3 tests passed |
+| 全量前端 | `npm run test && npm run build` |
+| 全量前端结果 | 47 files / 215 tests passed；production build passed |
+| Browser 验证 | Vite preview `http://127.0.0.1:4179/`；进入 Coding，点击 `终端/测试`，再切换 `后台任务` |
+
+覆盖范围：
+
+- 终端/测试面板在没有 MilkSU 桌面运行时时显示明确提示；
+- 浏览器预览中不刷新后台任务、不启动后台命令、不把空列表误呈现为真实 runtime 状态；
+- Shell 视图说明交互式 Shell 只会在 MilkSU 桌面应用中启动；
+- 后台任务视图说明真实命令、端口、日志和跨应用重启恢复必须在打包 App 中验收；
+- Browser preview 页面加载为 `MilkSU`，无 relevant console error / warn，无 Vite overlay；
+- 保留桌面运行时下恢复后的后台任务状态、PID、端口、日志 tail 和 Credential 脱敏测试覆盖。
+
+本次仍未证明：
+
+- 打包 App 中真实启动 Shell；
+- 打包 App 中真实后台任务、端口、日志和跨 App 重启恢复；
+- 真实长任务超时/取消后的完整用户验收。

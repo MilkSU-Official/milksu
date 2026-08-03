@@ -52,6 +52,7 @@ const props = defineProps<{
 }>()
 
 const desktopRuntime = hasDesktopRuntime()
+const desktopRuntimeNotice = '浏览器预览只能验证终端/后台任务面板文案和入口；真实 Shell、后台命令、端口、日志和重启恢复需要 MilkSU 桌面运行时。'
 const activeView = ref<'shell' | 'tasks'>('shell')
 const shellContainer = ref<HTMLElement | null>(null)
 const terminalSessions = ref<CodingTerminalSession[]>([])
@@ -357,7 +358,12 @@ function fitShell() {
 }
 
 async function refreshTasks(silent = false) {
-  if (!props.conversationId || !props.workspacePath || refreshing.value) return
+  if (
+    !desktopRuntime
+    || !props.conversationId
+    || !props.workspacePath
+    || refreshing.value
+  ) return
   refreshing.value = true
   if (!silent) taskError.value = ''
   try {
@@ -383,6 +389,7 @@ async function runCommand() {
   const value = command.value.trim()
   if (
     !value
+    || !desktopRuntime
     || !props.conversationId
     || !props.workspacePath
     || !commandAllowed.value
@@ -446,6 +453,7 @@ function startPolling() {
   if (
     !props.active
     || activeView.value !== 'tasks'
+    || !desktopRuntime
     || !props.conversationId
     || !props.workspacePath
   ) return
@@ -588,6 +596,13 @@ onBeforeUnmount(() => {
       </Button>
     </div>
 
+    <div
+      v-if="!desktopRuntime"
+      class="border-b border-amber-500/30 bg-amber-500/10 px-4 py-3 text-caption leading-5 text-amber-200"
+    >
+      {{ desktopRuntimeNotice }}
+    </div>
+
     <template v-if="activeView === 'shell'">
       <div class="flex shrink-0 items-center gap-2 border-b border-border px-4 py-2">
         <div class="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
@@ -648,7 +663,9 @@ onBeforeUnmount(() => {
           {{ shellError }}
         </p>
         <p class="shrink-0 border-t border-white/10 px-4 py-1.5 text-[11px] text-slate-500">
-          本机 Shell · 你键入的命令以当前 macOS 用户权限运行；Agent 自动执行仍受上方权限策略控制。
+          {{ desktopRuntime
+            ? '本机 Shell · 你键入的命令以当前 macOS 用户权限运行；Agent 自动执行仍受上方权限策略控制。'
+            : '浏览器预览 · 不启动 Shell，也不读取工作区终端历史。' }}
         </p>
       </div>
     </template>
@@ -674,14 +691,14 @@ onBeforeUnmount(() => {
             class="min-h-16 flex-1 resize-y font-mono text-caption"
             placeholder="输入需要持续运行的项目命令…"
             aria-label="后台任务命令"
-            :disabled="!workspacePath || !commandAllowed || starting"
+            :disabled="!desktopRuntime || !workspacePath || !commandAllowed || starting"
             @keydown.meta.enter.prevent="runCommand"
             @keydown.ctrl.enter.prevent="runCommand"
           />
           <Button
             type="submit"
             size="sm"
-            :disabled="!command.trim() || !workspacePath || !commandAllowed || starting"
+            :disabled="!command.trim() || !desktopRuntime || !workspacePath || !commandAllowed || starting"
           >
             <LoaderCircle v-if="starting" class="size-3.5 animate-spin" />
             <Play v-else class="size-3.5 fill-current" />
@@ -689,7 +706,13 @@ onBeforeUnmount(() => {
           </Button>
         </form>
         <p
-          v-if="!commandAllowed"
+          v-if="!desktopRuntime"
+          class="mt-2 text-caption leading-5 text-amber-500"
+        >
+          后台任务需要 MilkSU 桌面运行时；浏览器预览不会启动命令、读取日志或恢复长任务。
+        </p>
+        <p
+          v-else-if="!commandAllowed"
           class="mt-2 text-caption leading-5 text-amber-500"
         >
           Agent 后台任务需要 Go，以及“请求批准 / 替我审批 / 完全访问权限”之一。
@@ -805,7 +828,15 @@ onBeforeUnmount(() => {
           class="flex min-h-60 flex-col items-center justify-center text-center"
         >
           <TerminalIcon class="size-6 text-muted-foreground" />
-          <p class="mt-3 text-body font-medium">暂无后台任务</p>
+          <p class="mt-3 text-body font-medium">
+            {{ desktopRuntime ? '暂无后台任务' : '浏览器预览不能读取后台任务' }}
+          </p>
+          <p
+            v-if="!desktopRuntime"
+            class="mt-2 max-w-md text-caption leading-5 text-muted-foreground"
+          >
+            请在打包后的 MilkSU App 中验收真实命令、端口、日志和跨应用重启恢复。
+          </p>
         </div>
       </div>
     </template>

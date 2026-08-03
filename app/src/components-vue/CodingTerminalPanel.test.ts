@@ -6,6 +6,7 @@ import CodingTerminalPanel from './CodingTerminalPanel.vue'
 import type { CodingRuntimeStatus } from '@/codingEnvironmentTypes'
 
 const terminalWrites = vi.hoisted(() => [] as string[])
+const desktopRuntimeEnabled = vi.hoisted(() => ({ value: true }))
 
 class ResizeObserverStub {
   observe() {}
@@ -71,7 +72,7 @@ const invokeCommand = vi.fn(async (command: string, _args?: unknown) => {
 })
 
 vi.mock('@/desktop', () => ({
-  hasDesktopRuntime: () => true,
+  hasDesktopRuntime: () => desktopRuntimeEnabled.value,
   invokeCommand: (...args: unknown[]) => invokeCommand(...args as [string, unknown?]),
   listenEvent: vi.fn(async () => () => undefined),
 }))
@@ -88,6 +89,7 @@ afterEach(() => {
   for (const app of mountedApps.splice(0)) app.unmount()
   document.body.innerHTML = ''
   terminalWrites.length = 0
+  desktopRuntimeEnabled.value = true
   invokeCommand.mockClear()
 })
 
@@ -152,5 +154,33 @@ describe('CodingTerminalPanel', () => {
     expect(text).not.toContain('sk-bg-bearer-secret')
     expect(text).not.toContain('sk-command-secret')
     expect(text).toContain('仅显示日志末尾')
+  })
+
+  it('does not pretend browser preview can run or recover terminal tasks', async () => {
+    desktopRuntimeEnabled.value = false
+    const host = await mountPanel()
+
+    expect(invokeCommand).not.toHaveBeenCalledWith(
+      'list_coding_terminals',
+      expect.anything(),
+    )
+    expect(terminalWrites.join('')).toContain('交互式 Shell 会在 MilkSU 桌面应用中启动')
+
+    const taskTab = [...host.querySelectorAll('button')]
+      .find(button => button.textContent?.includes('后台任务'))
+    expect(taskTab).toBeDefined()
+    taskTab!.click()
+    await settle()
+
+    const text = host.textContent ?? ''
+    expect(text).toContain('浏览器预览只能验证终端/后台任务面板文案和入口')
+    expect(text).toContain('真实 Shell、后台命令、端口、日志和重启恢复需要 MilkSU 桌面运行时')
+    expect(text).toContain('浏览器预览不能读取后台任务')
+    expect(text).toContain('请在打包后的 MilkSU App 中验收真实命令、端口、日志和跨应用重启恢复')
+    expect(host.querySelector<HTMLTextAreaElement>('[aria-label="后台任务命令"]')?.disabled).toBe(true)
+    expect(invokeCommand).not.toHaveBeenCalledWith(
+      'refresh_coding_background_tasks',
+      expect.anything(),
+    )
   })
 })
