@@ -42,7 +42,7 @@ const gitState = computed<LoopState>(() => {
   const git = props.environment?.git
   if (!git?.isRepository) return 'blocked'
   if (git.conflicts > 0) return 'blocked'
-  if (git.dirty) return 'active'
+  if (git.dirty || git.ahead > 0) return 'active'
   return props.messageCount > 0 ? 'done' : 'pending'
 })
 
@@ -83,10 +83,14 @@ const items = computed(() => [
     label: 'Diff 与 Git 交付',
     state: gitState.value,
     detail: props.environment?.git.isRepository
-      ? props.environment.git.dirty
+      ? props.environment.git.conflicts > 0
+        ? `${props.environment.git.conflicts} 个冲突需要先解决，不能进入交付。`
+        : props.environment.git.dirty
         ? `${props.environment.git.changedFiles} 个文件待审阅/暂存/提交。`
+        : props.environment.git.ahead > 0
+          ? `本地领先 ${props.environment.git.ahead} 个提交，仍需 push 才能作为交付证据。`
         : props.messageCount > 0
-          ? '当前 Git 工作区干净；若已推送，可作为本轮交付证据。'
+          ? '当前 Git 工作区干净且没有待 push 提交，可作为本轮交付证据。'
           : 'Git 可用，等待实际任务产生变更。'
       : props.environment?.git.problem || '当前目录不是 Git 仓库。',
   },

@@ -126,7 +126,24 @@ describe('CodingProductLoopPanel', () => {
     })
 
     expect(host.textContent).toContain('Browser 已接入 · Computer Use 已接入')
-    expect(host.textContent).toContain('当前 Git 工作区干净')
+    expect(host.textContent).toContain('当前 Git 工作区干净且没有待 push 提交')
+  })
+
+  it('does not count committed-but-unpushed work as delivered', async () => {
+    const { host } = await mountPanel({
+      environment: {
+        ...cleanEnvironment,
+        git: {
+          ...cleanEnvironment.git,
+          ahead: 2,
+        },
+      },
+    })
+
+    expect(host.textContent).toContain('本地领先 2 个提交，仍需 push')
+    expect(host.textContent).toContain('进行中')
+    expect(host.querySelectorAll('[data-product-loop-state="active"]').length)
+      .toBeGreaterThanOrEqual(1)
   })
 
   it('opens the concrete validation and delivery panels from the checklist', async () => {
