@@ -9,10 +9,17 @@ const autoApprovedMcpServers = new Set([
   "milksu-computer-use",
 ]);
 const readOnlyMcpToolPattern = /(?:^|[_-])(?:describe|fetch|find|get|health|inspect|list|lookup|query|read|resolve|search|status|view)(?:[_-]|$)/iu;
+const hostedPublicationToolPattern = /(?:^|[_-])(?:create|merge|open|publish|submit)[_-](?:draft[_-])?(?:merge[_-]request|pull[_-]request|release)(?:[_-]|$)/iu;
 
 function normalizedApprovalPolicy(value) {
   const policy = String(value ?? "").trim();
   return approvalPolicies.has(policy) ? policy : "read-only";
+}
+
+function normalizedMcpToolName(value) {
+  return String(value ?? "")
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/gu, "$1_$2");
 }
 
 export function codingCollaborationRequiresApproval(approvalPolicy) {
@@ -25,23 +32,32 @@ export function codingMcpOperationRequiresApproval(
   selectedServer = "",
 ) {
   if (!input || typeof input !== "object") return false;
+  const action = String(input.action ?? "").trim();
+  const tool = normalizedMcpToolName(input.tool);
   const operation = Boolean(
-    input.tool
+    tool
     || input.connect
-    || ["auth-start", "auth-complete"].includes(String(input.action ?? "")),
+    || ["auth-start", "auth-complete"].includes(action),
   );
   if (!operation) return false;
+
+  // These effects remain an independent user decision under every permission
+  // tier. Full Access can widen local execution authority, but it must not turn
+  // an MCP OAuth grant or hosted publication into an ambient side effect.
+  if (
+    ["auth-start", "auth-complete"].includes(action)
+    || hostedPublicationToolPattern.test(tool)
+  ) {
+    return true;
+  }
 
   const policy = normalizedApprovalPolicy(approvalPolicy);
   if (policy === "full-auto") return false;
   if (policy === "workspace-auto") {
-    if (["auth-start", "auth-complete"].includes(String(input.action ?? ""))) {
-      return true;
-    }
     if (input.connect) return false;
     const server = String(selectedServer || input.server || "").trim();
     if (autoApprovedMcpServers.has(server)) return false;
-    return !readOnlyMcpToolPattern.test(String(input.tool ?? "").trim());
+    return !readOnlyMcpToolPattern.test(tool);
   }
   return true;
 }

@@ -342,7 +342,9 @@ function codingPolicyGuidance(policy) {
       + "remain project-oriented, but terminal commands are not project-sandboxed. Model-provider "
       + "API keys are not passed to child processes. Act directly, keep changes scoped to the user "
       + "request, and verify destructive or externally visible actions before executing them. "
-      + "Explicitly enabled Browser, Computer Use, MCP, and collaboration calls run automatically; "
+      + "Explicitly enabled Browser, Computer Use, routine MCP, and collaboration calls run "
+      + "automatically. MCP external account authorization and hosted PR, merge request, or release "
+      + "publication still pause for an independent user confirmation; "
       + `their fixed scope and hard safety guards still apply.${productActionGuidance}${collaborationGuidance}${browserGuidance}`;
   }
   if (policy.approvalPolicy === "workspace-auto") {

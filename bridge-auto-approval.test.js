@@ -50,7 +50,7 @@ test("Project Auto keeps external account authorization as a meaningful boundary
   );
 });
 
-test("Request Approval asks per operation while Full Access runs selected capabilities", () => {
+test("Request Approval asks per operation while Full Access runs routine selected capabilities", () => {
   const operation = {
     server: "milksu-playwright",
     tool: "browser_type",
@@ -67,6 +67,35 @@ test("Request Approval asks per operation while Full Access runs selected capabi
     codingMcpOperationRequiresApproval(
       { server: "github", action: "auth-start" },
       "full-auto",
+    ),
+    true,
+  );
+});
+
+test("every permission tier confirms hosted publication without blocking routine Full Access MCP", () => {
+  for (const approvalPolicy of ["ask", "workspace-auto", "full-auto"]) {
+    for (const tool of [
+      "create_pull_request",
+      "github_publish_draft_pull_request",
+      "githubCreatePullRequest",
+      "merge_merge_request",
+      "publish_release",
+    ]) {
+      assert.equal(
+        codingMcpOperationRequiresApproval(
+          { server: "github", tool, args: {} },
+          approvalPolicy,
+          "github",
+        ),
+        true,
+      );
+    }
+  }
+  assert.equal(
+    codingMcpOperationRequiresApproval(
+      { server: "project-tools", tool: "update_local_fixture", args: {} },
+      "full-auto",
+      "project-tools",
     ),
     false,
   );
