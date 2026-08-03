@@ -187,13 +187,13 @@ function statusVariant(status: VulnerabilityStatus) {
           </NativeSelectOption>
         </NativeSelect>
         <span class="ml-auto text-caption text-muted-foreground">
-          内置演示情报源 · rev {{ dashboard.sourceRevision.value }}
+          内置快照 · {{ dashboard.intelSources.length }} 源口径 · rev {{ dashboard.sourceRevision.value }}
         </span>
       </div>
       </template>
 
       <template #metrics>
-      <div class="grid gap-3 text-body sm:grid-cols-3">
+      <div class="grid gap-3 text-body sm:grid-cols-4">
         <div class="rounded-xl border border-border bg-card px-4 py-3">
           <p class="text-caption text-muted-foreground">关注中</p>
           <p class="mt-1 font-mono text-xl font-semibold">{{ dashboard.watched.value.length }}</p>
@@ -201,6 +201,10 @@ function statusVariant(status: VulnerabilityStatus) {
         <div class="rounded-xl border border-border bg-card px-4 py-3">
           <p class="text-caption text-muted-foreground">研究任务</p>
           <p class="mt-1 font-mono text-xl font-semibold">{{ dashboard.researchTasks.value.length }}</p>
+        </div>
+        <div class="rounded-xl border border-border bg-card px-4 py-3">
+          <p class="text-caption text-muted-foreground">情报源</p>
+          <p class="mt-1 font-mono text-xl font-semibold">{{ dashboard.intelSources.length }}</p>
         </div>
         <div class="rounded-xl border border-border bg-card px-4 py-3">
           <p class="text-caption text-muted-foreground">当前模式</p>
@@ -247,6 +251,47 @@ function statusVariant(status: VulnerabilityStatus) {
             </Button>
           </div>
         </form>
+        <section class="border-b border-border bg-card/35 px-6 py-5" aria-label="CVE 情报源接入状态">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 class="text-label font-medium">情报源接入状态</h2>
+              <p class="mt-1 text-caption leading-5 text-muted-foreground">
+                当前是可验收的学习/追踪骨架：区分内置快照、用户材料和待接入 Feed，不把排序信号当成 Judge。
+              </p>
+            </div>
+            <Badge variant="outline">非实时同步</Badge>
+          </div>
+          <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <article
+              v-for="source in dashboard.intelSources"
+              :key="source.id"
+              class="rounded-xl border border-border bg-background px-4 py-3"
+            >
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <p class="truncate text-body font-medium">{{ source.name }}</p>
+                  <p class="mt-1 line-clamp-2 text-caption leading-5 text-muted-foreground">{{ source.role }}</p>
+                </div>
+                <Badge
+                  :variant="source.currentState === '待接入'
+                    ? 'outline'
+                    : source.currentState === '用户材料'
+                      ? 'secondary'
+                      : 'info'"
+                  class="shrink-0"
+                >
+                  {{ source.currentState }}
+                </Badge>
+              </div>
+              <p class="mt-3 line-clamp-2 text-caption leading-5 text-muted-foreground">
+                {{ source.evidence }}
+              </p>
+              <p class="mt-2 line-clamp-2 text-caption leading-5 text-muted-foreground">
+                下一步：{{ source.nextStep }}
+              </p>
+            </article>
+          </div>
+        </section>
         <Table>
           <TableHeader class="sticky top-0 z-10 bg-background">
             <TableRow>
