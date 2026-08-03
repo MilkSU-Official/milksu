@@ -1,6 +1,7 @@
 import type { Message } from '@/types'
 
 const noActivityFailure = /(?:模型长时间没有产生文本或工具进展|produced no model or tool activity)/i
+const networkFailure = /(?:模型或 Agent 网络连接失败|ECONNREFUSED|ECONNRESET|ENOTFOUND|ETIMEDOUT|network is unreachable|connection refused|fetch failed|dial tcp)/i
 
 export function recoverableAgentFailureId(
   messages: Message[],
@@ -9,7 +10,9 @@ export function recoverableAgentFailureId(
   if (running) return ''
   const latest = [...messages].reverse().find(message => message.role !== 'tool')
   if (!latest || latest.role !== 'assistant') return ''
-  return noActivityFailure.test(latest.content) ? latest.id : ''
+  return noActivityFailure.test(latest.content) || networkFailure.test(latest.content)
+    ? latest.id
+    : ''
 }
 
 export function agentRecoveryPrompt(ctfSession: boolean) {
