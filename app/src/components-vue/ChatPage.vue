@@ -75,6 +75,7 @@ import type {
 } from '@/codingEnvironmentTypes'
 import type { CTFShowCatalogStatus } from '@/ctfshowTypes'
 import { buildChatTranscript } from '@/lib/chatActivity'
+import { chatTopbarPresentation } from '@/lib/chatTopbar'
 import {
   agentRecoveryPrompt,
   recoverableAgentFailureId,
@@ -342,6 +343,13 @@ const codingPolicyLabel = computed(() => {
         : '项目自动'
   return `${mode} · ${approval}`
 })
+const topbarPresentation = computed(() => chatTopbarPresentation({
+  ctfSession: props.ctfSession,
+  conversationTitle: props.conversation?.title,
+  workspacePath: props.workspacePath,
+  codingPolicyLabel: codingPolicyLabel.value,
+  ctfMode: props.ctfMode,
+}))
 const approvalMenuLabel = computed(() => (
   effectiveApprovalPolicy.value === 'full-auto'
     ? '完全访问'
@@ -1094,8 +1102,8 @@ watch(
   <section class="relative flex min-w-0 flex-1 overflow-hidden bg-surface-editor">
   <main class="chat-main flex min-w-0 flex-1 flex-col overflow-hidden bg-surface-editor">
     <WorkspaceTopBar
-      title="Coding"
-      :subtitle="`${conversation?.title ?? '新编码任务'} · ${workspacePath || `临时工作区 · ${codingPolicyLabel}`}`"
+      :title="topbarPresentation.title"
+      :subtitle="topbarPresentation.subtitle"
     >
       <template v-if="ctfSession" #badge>
         <Badge variant="secondary" class="max-w-full truncate">
@@ -1103,6 +1111,16 @@ watch(
         </Badge>
       </template>
       <template #actions>
+        <Button
+          v-if="ctfSession"
+          variant="ghost"
+          size="sm"
+          aria-label="返回 CTF 工作台"
+          @click="$emit('returnCtf')"
+        >
+          <Flag class="size-4" />
+          返回工作台
+        </Button>
         <Button
           variant="ghost"
           size="icon-sm"
@@ -1119,9 +1137,11 @@ watch(
     <div ref="scrollArea" class="min-h-0 flex-1 overflow-y-auto">
       <div v-if="!conversation?.messages.length" class="mx-auto flex min-h-full max-w-2xl flex-col justify-center px-8 py-16">
         <Bot class="size-6 text-muted-foreground" />
-        <h1 class="mt-5 text-2xl font-semibold tracking-[-0.035em]">Coding</h1>
+        <h1 class="mt-5 text-2xl font-semibold tracking-[-0.035em]">{{ topbarPresentation.title }}</h1>
         <p class="mt-2 max-w-lg text-body leading-6 text-muted-foreground">
-          选择项目并描述目标。MilkSU 使用 PI，并由当前执行模式和权限策略决定可用工具。
+          {{ ctfSession
+            ? '从 CTF 工作台启动 Agent 后，会在这里继续解题、工具协作和复盘。'
+            : '选择项目并描述目标。MilkSU 使用 PI，并由当前执行模式和权限策略决定可用工具。' }}
         </p>
         <div class="mt-6 grid grid-cols-3 gap-3">
           <div class="rounded-lg border border-border bg-card px-4 py-3">
