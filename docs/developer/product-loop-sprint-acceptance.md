@@ -194,3 +194,25 @@
 - 打包 App 中真实点击 CTF → CVE → CTF 后的视觉回归；
 - 一个长时间运行的 CTF Agent 在跨模块切换后的完整恢复；
 - CTF 题库滚动位置、筛选条件和所有子面板状态均永久保存。
+
+## 2026-08-04 · Product-loop recovery point action
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | `d23f7ff` |
+| 窄测 | `npm run test -- --run src/components-vue/CodingProductLoopPanel.test.ts src/components-vue/ChatPage.test.ts` |
+| 窄测结果 | 1 file / 14 tests passed；当前没有独立 `ChatPage.test.ts` 文件，命令实际覆盖 CodingProductLoopPanel |
+| 全量前端 | `npm run test && npm run build` |
+| 全量前端结果 | 46 files / 199 tests passed；production build passed |
+
+覆盖范围：
+
+- Coding 产品闭环卡在已经有可见验证证据、下一步轮到恢复/继续时显示“生成恢复点”；
+- “生成恢复点”复用现有 `compactContext`，由 ChatPage 透传到会话层；
+- running 或 compacting 时按钮禁用，避免重复触发整理。
+
+本次仍未证明：
+
+- 打包 App 中真实完成一次 context compaction；
+- compaction 后实际继续一次并证明不会重复已完成步骤；
+- App 重启后的长任务恢复。
