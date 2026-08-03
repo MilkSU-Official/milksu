@@ -90,6 +90,31 @@ test("writing agents require distinct registered worktrees", async () => {
   );
 });
 
+test("chained writing agents still require distinct writer worktrees", async () => {
+  const { descriptor, worktrees } = await fixture();
+  assert.throws(
+    () => validateSubagentInput({
+      chain: [
+        { agent: "worker", task: "implement", cwd: worktrees[0].path },
+        { agent: "verifier", task: "verify and patch", cwd: worktrees[0].path },
+      ],
+    }, descriptor),
+    /distinct writer worktrees/,
+  );
+
+  const accepted = validateSubagentInput({
+    chain: [
+      { agent: "worker", task: "implement", cwd: worktrees[0].path },
+      { agent: "verifier", task: "verify and patch", cwd: worktrees[1].path },
+    ],
+  }, descriptor);
+  assert.equal(accepted.mode, "chain");
+  assert.deepEqual(
+    accepted.tasks.map(value => value.cwd),
+    worktrees.map(value => value.path),
+  );
+});
+
 test("read-only roles can inspect main but project and unknown agents are rejected", async () => {
   const { descriptor, workspace } = await fixture(1);
   const accepted = validateSubagentInput({

@@ -169,7 +169,7 @@ export function validateSubagentInput(input, collaboration) {
   const worktreePaths = new Set(
     collaboration.worktrees.map(worktree => worktree.path),
   );
-  const effectfulParallelPaths = new Set();
+  const effectfulPaths = new Set();
   const tasks = values.map((entry, index) => {
     const agent = String(entry.agent ?? "").trim();
     const task = String(entry.task ?? "").trim();
@@ -193,13 +193,13 @@ export function validateSubagentInput(input, collaboration) {
     if (worktreeAgents.has(agent) && !worktreePaths.has(cwd)) {
       throw new Error(`Subagent ${agent} requires its own writer worktree`);
     }
-    if (mode === "parallel" && worktreeAgents.has(agent)) {
-      if (effectfulParallelPaths.has(cwd)) {
+    if (worktreeAgents.has(agent)) {
+      if (effectfulPaths.has(cwd)) {
         throw new Error(
-          "Parallel effectful subagents must use distinct writer worktrees",
+          "Effectful subagents must use distinct writer worktrees",
         );
       }
-      effectfulParallelPaths.add(cwd);
+      effectfulPaths.add(cwd);
     }
     return Object.freeze({
       agent,
