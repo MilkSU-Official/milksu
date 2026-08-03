@@ -61,6 +61,8 @@ async function mountPanel(props: Partial<InstanceType<typeof CodingComputerUsePa
     loading: false,
     running: false,
     ownedByCurrentTask: false,
+    executionMode: 'go',
+    approvalPolicy: 'workspace-auto',
     onStart,
     onStop,
     onRequestPermissions,
@@ -90,6 +92,15 @@ describe('CodingComputerUsePanel', () => {
     expect(text).toContain('未接入')
     expect(text).toContain('权限和窗口都已就绪')
     expect(text).toContain('才算正式接入当前 Coding 任务')
+    expect(text).toContain('正式接入需要')
+    expect(text).toContain('系统权限')
+    expect(text).toContain('辅助功能与屏幕录制已授权')
+    expect(text).toContain('窗口 Scope')
+    expect(text).toContain('会话锁定')
+    expect(text).toContain('点击“启动可见会话”后才算接入')
+    expect(text).toContain('审批体感')
+    expect(text).toContain('Go / 替我审批')
+    expect(text).toContain('普通观察、点击和输入会自动执行')
     expect(text).toContain('com.openai.codex')
     expect(text).toContain('PID 4242')
     expect(text).toContain('Window 9001')
@@ -134,6 +145,43 @@ describe('CodingComputerUsePanel', () => {
     start?.click()
     await nextTick()
     expect(onStart).not.toHaveBeenCalled()
+  })
+
+  it('explains the current approval mode after Computer Use is locked to this task', async () => {
+    const { host } = await mountPanel({
+      status: status({
+        conversationId: 'current-conversation',
+        enabled: true,
+      }),
+      ownedByCurrentTask: true,
+      approvalPolicy: 'full-auto',
+    })
+    const text = host.textContent ?? ''
+
+    expect(text).toContain('已接入当前任务')
+    expect(text).toContain('已锁定到当前 Coding 任务')
+    expect(text).toContain('Go / 完全访问')
+    expect(text).toContain('普通观察、点击和输入会自动执行')
+    expect(text).toContain('危险、越界或未锁定 Scope 的操作仍会停下')
+    expect(host.querySelectorAll('[data-computer-use-ready="true"]').length).toBe(4)
+  })
+
+  it('keeps Plan or read-only visible sessions non-operating', async () => {
+    const { host } = await mountPanel({
+      status: status({
+        conversationId: 'current-conversation',
+        enabled: true,
+      }),
+      ownedByCurrentTask: true,
+      executionMode: 'plan',
+      approvalPolicy: 'workspace-auto',
+    })
+    const text = host.textContent ?? ''
+
+    expect(text).toContain('Plan / 替我审批')
+    expect(text).toContain('当前模式不会操作可见 App')
+    expect(text).toContain('切到 Go + 替我审批/完全访问')
+    expect(host.querySelectorAll('[data-computer-use-ready="false"]').length).toBe(1)
   })
 
   it('distinguishes missing macOS permissions from unavailable Computer Use', async () => {

@@ -1900,6 +1900,8 @@ watch(
             :loading="computerUseLoading"
             :running="running"
             :owned-by-current-task="computerUseOwnedByCurrentTask"
+            :execution-mode="effectiveExecutionMode"
+            :approval-policy="effectiveApprovalPolicy"
             @request-permissions="requestComputerUsePermissions"
             @refresh="refreshBrowserPanel"
             @start="startComputerUse"

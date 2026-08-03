@@ -19,6 +19,7 @@ import type {
   CodingComputerUseStatus,
   CodingComputerUseTarget,
 } from '@/codingEnvironmentTypes'
+import type { CodingApprovalPolicy, CodingExecutionMode } from '@/types'
 import {
   computerUseTargetKey,
   selectedComputerUseTarget as resolveSelectedComputerUseTarget,
@@ -31,6 +32,8 @@ const props = defineProps<{
   loading: boolean
   running: boolean
   ownedByCurrentTask: boolean
+  executionMode: CodingExecutionMode
+  approvalPolicy: CodingApprovalPolicy
 }>()
 
 const emit = defineEmits<{
@@ -80,6 +83,63 @@ const connectionLabel = computed(() => {
   if (!props.status?.available) return '不可用'
   return '未接入'
 })
+
+function executionModeLabel(mode: CodingExecutionMode) {
+  return mode === 'plan' ? 'Plan' : 'Go'
+}
+
+function approvalPolicyLabel(policy: CodingApprovalPolicy) {
+  if (policy === 'full-auto') return '完全访问'
+  if (policy === 'workspace-auto') return '替我审批'
+  if (policy === 'ask') return '逐次审批'
+  return '只读'
+}
+
+const approvalLabel = computed(() => (
+  `${executionModeLabel(props.executionMode)} / ${approvalPolicyLabel(props.approvalPolicy)}`
+))
+
+const approvalGuidance = computed(() => {
+  if (props.executionMode !== 'go' || props.approvalPolicy === 'read-only') {
+    return '当前模式不会操作可见 App；切到 Go + 替我审批/完全访问后才会自动完成普通可见操作。'
+  }
+  if (props.approvalPolicy === 'ask') {
+    return '逐次审批会在观察、点击或输入前暂停确认，适合第一次验证高风险 GUI。'
+  }
+  return '普通观察、点击和输入会自动执行；危险、越界或未锁定 Scope 的操作仍会停下。'
+})
+
+const readinessItems = computed(() => [
+  {
+    label: '系统权限',
+    ready: permissionsReady.value,
+    detail: permissionsReady.value
+      ? '辅助功能与屏幕录制已授权'
+      : `缺少 ${missingPermissions.value.join('、') || '系统权限'}`,
+  },
+  {
+    label: '窗口 Scope',
+    ready: Boolean(props.status?.target || selectedTarget.value),
+    detail: props.status?.target || selectedTarget.value
+      ? `${props.status?.target.name || selectedTarget.value?.name} · PID ${props.status?.target.pid || selectedTarget.value?.pid} · Window ${props.status?.target.windowId || selectedTarget.value?.windowId}`
+      : '请选择当前可见 App / 窗口',
+  },
+  {
+    label: '会话锁定',
+    ready: readyForCurrentTask.value,
+    detail: readyForCurrentTask.value
+      ? '已锁定到当前 Coding 任务'
+      : attachedToOtherTask.value
+        ? '其他任务正在使用'
+        : '点击“启动可见会话”后才算接入',
+  },
+  {
+    label: '审批体感',
+    ready: props.executionMode === 'go' && props.approvalPolicy !== 'read-only',
+    detail: `${approvalLabel.value} · ${approvalGuidance.value}`,
+  },
+])
+
 const guidance = computed(() => {
   if (!props.status?.available) {
     return props.status?.problem || 'Computer Use 当前不可用。'
@@ -97,7 +157,7 @@ const guidance = computed(() => {
     return '请选择一个当前可见窗口，MilkSU 会把 Computer Use 锁定到这个 App / PID / Window。'
   }
   if (readyForCurrentTask.value) {
-    return 'Computer Use 已锁定到当前任务；替我审批与完全访问会自动执行普通可见操作，请求批准档才逐次确认。'
+    return `Computer Use 已锁定到当前任务；${approvalGuidance.value}`
   }
   return '权限和窗口都已就绪，点击“启动可见会话”后才算正式接入当前 Coding 任务。'
 })
@@ -196,6 +256,29 @@ const guidance = computed(() => {
           </Badge>
         </button>
       </div>
+      <div class="mt-4 rounded-lg border border-border bg-background/70 px-3 py-3" aria-label="Computer Use 接入清单">
+        <div class="flex items-center justify-between gap-3">
+          <p class="text-caption font-medium text-muted-foreground">正式接入需要</p>
+          <Badge :variant="readyForCurrentTask ? 'secondary' : 'outline'">
+            {{ readinessItems.filter(item => item.ready).length }}/{{ readinessItems.length }}
+          </Badge>
+        </div>
+        <div class="mt-3 space-y-2">
+          <div
+            v-for="item in readinessItems"
+            :key="item.label"
+            class="grid grid-cols-[6rem_1fr] gap-3 rounded-md bg-muted/25 px-2.5 py-2"
+            :data-computer-use-ready="item.ready ? 'true' : 'false'"
+          >
+            <span class="text-caption font-medium" :class="item.ready ? 'text-foreground' : 'text-muted-foreground'">
+              {{ item.label }}
+            </span>
+            <span class="min-w-0 text-caption leading-5 text-muted-foreground">
+              {{ item.detail }}
+            </span>
+          </div>
+        </div>
+      </div>
     </div>
     <p
       v-if="status?.problem"
@@ -253,7 +336,7 @@ const guidance = computed(() => {
       </Button>
     </div>
     <p class="mt-3 text-caption leading-5 text-muted-foreground">
-      可见会话必须由你显式启动；替我审批与完全访问会自动操作，请求批准档才逐次确认。
+      可见会话必须由你显式启动；{{ approvalGuidance }}
       Driver {{ status?.driverVersion || '0.14.2' }} · prerelease。
     </p>
   </div>
