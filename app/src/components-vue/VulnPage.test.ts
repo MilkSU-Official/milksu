@@ -102,6 +102,9 @@ describe('VulnPage', () => {
     expect(text).toContain('PHP-CGI Windows Argument Injection')
     expect(text).toContain('CVE-2023-27997')
     expect(text).toContain('Fortinet FortiOS SSL-VPN')
+    expect(text).toContain('闭环')
+    expect(text).toContain('待建立')
+    expect(text).toContain('有练习')
     expect(text).toContain('NVD')
     expect(text).toContain('CISA KEV')
     expect(text).toContain('FIRST EPSS')
@@ -163,6 +166,7 @@ describe('VulnPage', () => {
     expect(host.textContent).toContain('已建立')
     expect(host.textContent).toContain('当前研究焦点')
     expect(host.textContent).toContain('研究任务已建立')
+    expect(host.textContent).toContain('研究任务')
     expect(host.textContent).toContain('理解 PAN-OS 的影响范围、修复证据和学习要点')
     expect(host.textContent).toContain('Palo Alto Networks / PAN-OS')
     expect(host.textContent).toContain('下一步给 Agent 的明确任务')
@@ -304,6 +308,7 @@ describe('VulnPage', () => {
     await nextTick()
 
     expect(host.textContent).toContain('已确认计划')
+    expect(host.textContent).toContain('练习已确认')
     expect(host.textContent).toContain('1 已确认计划')
     expect(host.textContent).toContain('已确认本地练习计划，尚未启动容器')
     expect(host.textContent).toContain('下一步交给 Coding Agent')
@@ -369,6 +374,7 @@ describe('VulnPage', () => {
 
     expect(host.textContent).toContain('最近 Coding 接力')
     expect(host.textContent).toContain('已交接')
+    expect(host.textContent).toContain('已接力')
     expect(host.textContent).toContain('/Users/milksu/code/milksu')
   })
 })

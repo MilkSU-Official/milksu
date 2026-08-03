@@ -314,6 +314,7 @@ function statusVariant(status: VulnerabilityStatus) {
               <TableHead>漏洞</TableHead>
               <TableHead>CVSS</TableHead>
               <TableHead>状态</TableHead>
+              <TableHead>闭环</TableHead>
               <TableHead>资产</TableHead>
               <TableHead class="pr-6">更新</TableHead>
             </TableRow>
@@ -340,6 +341,17 @@ function statusVariant(status: VulnerabilityStatus) {
                 <Badge :variant="severityVariant(item.severity)" font="mono">{{ item.cvss.toFixed(1) }}</Badge>
               </TableCell>
               <TableCell><Badge :variant="statusVariant(item.status)">{{ item.status }}</Badge></TableCell>
+              <TableCell class="max-w-56">
+                <div class="flex flex-wrap gap-1.5" :aria-label="`${item.id} CVE 闭环状态`">
+                  <Badge
+                    v-for="badge in dashboard.loopBadgesFor(item.id)"
+                    :key="`${item.id}-${badge.label}`"
+                    :variant="badge.variant"
+                  >
+                    {{ badge.label }}
+                  </Badge>
+                </div>
+              </TableCell>
               <TableCell class="font-mono text-body">{{ item.assetCount }}</TableCell>
               <TableCell class="pr-6 text-caption text-muted-foreground">{{ item.updated }}</TableCell>
             </TableRow>
