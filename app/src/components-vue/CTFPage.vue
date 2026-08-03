@@ -1691,9 +1691,12 @@ onBeforeUnmount(() => {
       v-if="screen === 'workspace'"
       :challenge-title="activeProjection?.challenge.title"
       :source-uri="activeProjection?.challenge.source.uri"
+      :mode="workspaceMode"
+      :has-review-activity="Boolean(workspacePresentation?.hasReviewActivity)"
       @return-catalog="showSource"
       @open-source="openActiveChallenge"
       @open-settings="$emit('openSettings')"
+      @switch-mode="workspaceMode = $event"
     />
 
     <WorkspaceTopBar
