@@ -2,9 +2,9 @@
 
 > 状态：Active / Product-loop sprint with coverage ledger
 >
-> 产品代码快照：2026-08-03，`2f9d4ca`
+> 产品代码快照：2026-08-04，`b24319e`
 >
-> 最近证据复核：2026-08-03，`df6c806`
+> 最近证据复核：2026-08-04，`b24319e`
 >
 > 本文件不是发布说明。它把 `current-objectives.md` 的大项拆成可单独核对的细项，用于保持
 > 全局位置。2026-08-03 起，短期执行入口切到
@@ -112,8 +112,8 @@ allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 
 | COD-12 | 隔离 Browser 自动化与证据边界 | Browser integration 与 41 项窄测试通过 | 100% | — |
 | COD-13 | MilkSU 项目前端视觉 QA 真实纵切 | `frontend-visual-qa-acceptance.md` | 100% | — |
 | COD-14 | 用户授权的其他项目前端视觉 QA | 尚无项目与任务证据 | 0% | 用户提供一个授权前端项目 |
-| COD-15 | Computer Use 选择当前可见 App / 窗口并生成不可变 Scope | Go Host 枚举可见窗口，前端选择，动态 session policy，descriptor/proxy 锁定 bundle、PID、window；能力摘要已显示真实 App、bundle、PID 和 window，不再写死 MilkSU 自身；Bridge descriptor 拒绝带换行或控制字符的 App 名称，避免污染不可变 Scope 提示；`codingPolicy.test.ts` 覆盖 UI 启动参数只来自用户选定的 PID/window pair，不因同名 App、同 PID 多窗口或同 windowId 不同 PID 漂移，覆盖 ChatPage 刷新可见窗口列表时优先保持当前选择、否则回到已启用会话精确目标、最后才退到第一个窗口，并锁住 Plan/read-only 即使已有目标也不能展示为可操作；`CodingComputerUsePanel.test.ts` 覆盖右侧栏展示外部 App 的 bundle/PID/window、未接入原因、重新检测、权限就绪后才启动、其他任务占用禁用和正式接入说明；Go、Node、前端构建通过 | 50% | 打包 App 中完成真实外部 App 权限与窗口操作验收 |
-| COD-16 | Computer Use 一次性系统权限真实验收 | Accessibility 与 Screen Recording 未授权；UI 已说明 App 管理不能替代辅助功能/屏幕录制，提供请求系统权限和重新检测入口 | 0% | 用户在 macOS 完成授权并启动真实外部窗口会话 |
+| COD-15 | Computer Use 选择当前可见 App / 窗口并生成不可变 Scope | Go Host 枚举可见窗口，前端选择，动态 session policy，descriptor/proxy 锁定 bundle、PID、window；能力摘要已显示真实 App、bundle、PID 和 window，不再写死 MilkSU 自身；Bridge descriptor 拒绝带换行或控制字符的 App 名称，避免污染不可变 Scope 提示；`codingPolicy.test.ts` 覆盖 UI 启动参数只来自用户选定的 PID/window pair，不因同名 App、同 PID 多窗口或同 windowId 不同 PID 漂移，覆盖 ChatPage 刷新可见窗口列表时优先保持当前选择、否则回到已启用会话精确目标、最后才退到第一个窗口，并锁住 Plan/read-only 即使已有目标也不能展示为可操作；`CodingComputerUsePanel.test.ts` 覆盖右侧栏展示外部 App 的 bundle/PID/window、未接入原因、重新检测、权限就绪后才启动、其他任务占用禁用和正式接入说明；`1698e39` 在 Coding 产品闭环卡增加“Computer Use 快速接入”，Browser preview 验证点击后会打开“浏览器与 App”面板并显示 Computer Use 接入清单；Go、Node、前端构建通过 | 50% | 打包 App 中完成真实外部 App 权限与窗口操作验收 |
+| COD-16 | Computer Use 一次性系统权限真实验收 | Accessibility 与 Screen Recording 未授权；UI 已说明 App 管理不能替代辅助功能/屏幕录制，提供请求系统权限和重新检测入口；`1698e39` 增加从产品闭环卡直达权限/可见窗口接入面板的用户路径 | 0% | 用户在 macOS 完成授权并启动真实外部窗口会话 |
 | COD-17 | Pi 持久会话、Compaction 与连续性 | fixture、事件投影和既有真实任务；`codingContinuity.test.ts` 覆盖任务删除时同步清理 ready/resumed、compacting、compactedAt 和 compaction errors，避免删除后的幽灵恢复/压缩状态；`codingContinuityPresentation.test.ts` 覆盖待连接、恢复、新会话、整理中和已整理状态的用户可见徽章、说明和整理按钮禁用原因 | 75% | 完整 App 重启长上下文验收 |
 | COD-18 | 重启后后台任务、PID、端口、日志和长任务恢复 | Sidecar fixture 与部分打包任务存在；`CodingTerminalPanel.test.ts` 覆盖恢复后的用户可见状态，展示 recovered 提示、PID、端口和日志 tail；`bridge-background-view.test.js` 覆盖恢复投影把持久记录里的 `spawnPid` 映射为用户可见 PID，避免重启后进程号丢失；`desktop.test.ts` 锁住刷新、启动和停止后台任务时 conversation、workspace、命令、名称、executionMode 与 approvalPolicy 传给 Wails 的正式入口 | 50% | 跨 App 重启的真实长任务 |
 | COD-19 | 旧 PTY 明确结束且审批跨重启过期 | 自动化测试存在；`bridge-approval.test.js` 覆盖 App/Sidecar 审批通道关闭时多个会话的 pending approval 全部以拒绝过期，旧 requestId 不能在重启后继续批准；`manager_test.go` 覆盖 Manager 关闭会让运行中的旧 PTY 发出 stopped 事件，且关闭后的 Manager 不能再启动看似可重连的新 PTY；`CodingTerminalPanel.test.ts` 覆盖空 Shell 列表时 UI 明确提示交互式 Shell 不跨 App 重启恢复、旧 PTY 已结束且不可重连，并引导后台长任务在“后台任务”恢复；`agentRecovery.test.ts` 覆盖 Coding/CTF 继续提示会明确禁止复用重启前审批状态，并要求扩大权限、Endpoint、应用窗口或外部发布时重新做有意义确认 | 50% | 原生 App 真实重启负向验收 |
@@ -122,7 +122,7 @@ allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 
 | COD-22 | 经确认发布 MilkSU 私有 Draft PR | 尚无本轮真实发布回执 | 0% | 在最终自举 Gate 中执行 |
 | COD-23 | 多 Agent 独立 worktree、恢复和安全收尾 | Manager 与 Bridge 自动化存在；`bridge-collaboration.test.js` 覆盖并行和串行写入 Agent 都必须使用不同注册 writer worktree，Go Manager 覆盖恢复、集成后清理、脏 worktree/submodule 拒绝和中断准备安全收尾；`CodingCollaborationPanel.test.ts` 覆盖显式 2 writer 准备、集成后安全结束和中断准备后的有界清理；`desktop.test.ts` 覆盖 Wails adapter 会把 conversation、workspace 和 writer 数原样传给准备命令，省略 writer 数时默认为 1 | 50% | 真实有价值的协作任务 |
 | COD-24 | 多 Agent 在真实任务中证明并行有用 | 尚无成功率与成本证据 | 0% | 选择自然可并行的任务验收 |
-| COD-25 | 完整 “MilkSU develops MilkSU” Gate | 有多个局部自举任务 | 25% | 一次完整 Vue + Go、重启、交付、PR |
+| COD-25 | 完整 “MilkSU develops MilkSU” Gate | 有多个局部自举任务；产品闭环冲刺期间已补 TopBar 一致性、CVE→Coding handoff、Computer Use 快速接入、CTF/CVE 路由保留契约和多轮前端 test/build/Browser preview 证据 | 25% | 一次完整 Vue + Go、重启、交付、PR |
 | COD-26 | ImageGen 文生图、参考图编辑和项目资产 | 受控工具、UI、测试与打包存在；ImageGen 审批详情只保留允许字段，并会脱敏 `Bearer` / `sk-*` 形态，防止模型把 `apiKey` 或 `Authorization` 等额外字段塞进用户审批卡 | 50% | 真实 Provider 生成 |
 | COD-27 | 打包 App 真实 ImageGen Provider 与预览 | Provider 尚未在 App 内配置 | 0% | 用户自行配置后执行，不接触 Key |
 | COD-28 | Project MCP 来源、版本、工具面与权限审阅 | Go/Vue/Bridge 实现和测试存在；`npm run test:project-mcp` 通过正式 `loadCodingMcpConfig`、固定 `.mcp.json` digest、sandbox wrapper、`env -i` 私有 HOME/TMPDIR、`hostConfigDiscovery=off`、MCP SDK `listTools/callTool` 实际调用本地项目 `fixture_read`，并输出 `workspaceAutoApprovalRequired=false` 作为自动审批契约证据 | 75% | 用户真实项目或高频 MCP 任务验收 |
@@ -216,7 +216,7 @@ allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 
 
 | ID | 可判定细项 | 证据快照 | 当前 | 尚缺 |
 | --- | --- | --- | ---: | --- |
-| DOC-01 | 开发期只保留测试、回执、验收记录和 ADR | 当前验收文档遵守此规则 | 75% | 持续保持，不提前写完成声明 |
+| DOC-01 | 开发期只保留测试、回执、验收记录和 ADR | 当前验收文档遵守此规则；`product-loop-sprint-acceptance.md` 已记录 `d4df0f8`、`42c392d`、`1698e39`、`eefa729` 的窄测、全量前端和 Browser preview 证据，并明确未证明范围 | 75% | 持续保持，不提前写完成声明 |
 | DOC-02 | 最后统一更新架构、里程碑、状态和发布说明 | 按目标后置 | 0% | 所有产品与发行 Gate 通过后执行 |
 
 ## 横向观察记录
@@ -252,8 +252,8 @@ allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 
 | --- | --- | --- | --- | --- |
 | BUG-01 | GUI 任务在 Computer Use 未接入时没有停下并引导启用能力，而是用 Full Access Shell 研究目标 App 的截图、数据目录和内部 IPC | 2026-08-03 MilkSU 临时沙盒对话“找到那个 codex 那个 App…”；环境面板显示 `Computer Use：未接入`，轨迹随后尝试 Accessibility、截图、`goals_1.sqlite` 和 Electron IPC，外部调用最终为 `no-client-found`；2026-08-03 已接入 Coding policy guidance，未启用时要求停下并提示开启可见 Computer Use，会明确禁止 bash、截图目录、SQLite、Electron IPC、私有协议和网络逆向作为 UI 控制替代；启用时提示不可变 app/window Scope；2026-08-03 修复前端能力摘要仍写“当前 MilkSU App”的旧文案，改为展示真实 target name、bundle、PID 和 window，并用 `codingPolicy.test.ts` 锁住；2026-08-03 前端能力预览与 Bridge 会话策略均补充“不能用 Shell、截图目录、SQLite、IPC 或私有协议绕过可见会话 Scope”，并由 `codingPolicy.test.ts` 与 `bridge-policy.test.js` 锁住 | 浪费长时间上下文，绕开产品设计的可见应用 Scope，也让用户误以为 Computer Use 不可用 | 路由护栏与误导文案修复已落地；后续在打包 App 中做真实外部 App 操作验收，确认模型不再绕用 Shell/IPC |
 | BUG-02 | `m3:release-check` 在进入实际检查前要求 `internal/computercap/session-policy.yaml` 被 Git 跟踪，但当前文件不存在且未被跟踪 | 2026-08-04 执行 `npm run m3:release-check`，脚本输出 `Required Computer Use source is not tracked by Git: internal/computercap/session-policy.yaml`；随后补入 `internal/computercap/session-policy.yaml` 作为打包 Cua Driver smoke policy，运行时仍由 `internal/computercap/manager.go` 按用户选择的 App 动态生成 per-session policy；同批次补齐 `package-sidecar.mjs` smoke fixture 的 `targetWindowId`；重新执行完整 `npm run m3:release-check` 通过并输出 `M3 engineering release checks passed.` | 合并前总检查门禁已恢复 | 已关闭；后续只在新的 `m3:release-check` 失败时重新登记 |
-| BUG-03 | 从 CTF/CVE 回到 Coding 时，在没有 remembered Coding 会话的情况下可能恢复到会话数组里的第一个非 CTF 对话，而不是最近一次 Coding 对话 | 2026-08-04 用户反馈“从 CTF 切换到 CVE 后，再回去显示最顶部的对话，而不是最底部/最近的”；代码证据为 `selectCodingConversationId()` 回退分支使用 `conversations.find(nonCTF)`，依赖数组顺序；本批次已改为按 `createdAt` 选择最近非 CTF，并给 unordered conversations 增加 `workspaceSessionRouting.test.ts` 回归 | 模块切换打断用户的任务连续性，容易误以为解题或 Coding 会话丢失 | 自动化已修复；后续打包 App 中做真实模块切换验收 |
-| OBS-18 | CTF Agent 对话、CTF 工作台和 CVE 页面之间的返回语义仍需产品决策：点击 CTF 是回最近题目工作台、直接回 Solver 对话，还是提供二者入口 | 2026-08-04 用户反馈“CTF 进入解题会话后返回题库/切换 CVE 体验怪”；当前已有 `CTFWorkspaceHeader` 的“返回题库”和 `selectCTFResumePoint()` 恢复最近 job，但模块级 rail 仍只表达一级模块，不表达“回 Agent 对话 / 回工作台”二选一；本批次先把 CTF Agent 对话顶栏从 `Coding` 改为 `CTF`，并在同一 TopBar 动作区增加“返回工作台”入口，避免 CTF 会话看起来属于 Coding 模块 | 仍需决定模块级 rail 的最终返回语义，但 CTF 会话的模块标题和逃生入口已更清楚 | 已做最小体验修正；后续再决定是否加模块内恢复条、最近会话入口或保持工作台优先 |
+| BUG-03 | 从 CTF/CVE 回到 Coding 时，在没有 remembered Coding 会话的情况下可能恢复到会话数组里的第一个非 CTF 对话，而不是最近一次 Coding 对话 | 2026-08-04 用户反馈“从 CTF 切换到 CVE 后，再回去显示最顶部的对话，而不是最底部/最近的”；代码证据为 `selectCodingConversationId()` 回退分支使用 `conversations.find(nonCTF)`，依赖数组顺序；本批次已改为按 `createdAt` 选择最近非 CTF，并给 unordered conversations 增加 `workspaceSessionRouting.test.ts` 回归；`eefa729` 进一步锁住 CTF/CVE 页面 KeepAlive、Chat 不被误缓存和 CTF resume point 合约 | 模块切换打断用户的任务连续性，容易误以为解题或 Coding 会话丢失 | 自动化已修复；后续打包 App 中做真实模块切换验收 |
+| OBS-18 | CTF Agent 对话、CTF 工作台和 CVE 页面之间的返回语义仍需产品决策：点击 CTF 是回最近题目工作台、直接回 Solver 对话，还是提供二者入口 | 2026-08-04 用户反馈“CTF 进入解题会话后返回题库/切换 CVE 体验怪”；当前已有 `CTFWorkspaceHeader` 的“返回题库”和 `selectCTFResumePoint()` 恢复最近 job，但模块级 rail 仍只表达一级模块，不表达“回 Agent 对话 / 回工作台”二选一；本批次先把 CTF Agent 对话顶栏从 `Coding` 改为 `CTF`，并在同一 TopBar 动作区增加“返回工作台”入口，避免 CTF 会话看起来属于 Coding 模块；`eefa729` 用 App routing 契约锁住 CTF/Vuln KeepAlive 和 CTF resume point，避免一级菜单切换时直接丢工作台状态 | 仍需决定模块级 rail 的最终返回语义，但 CTF 会话的模块标题、逃生入口和顶层缓存契约已更清楚 | 已做最小体验修正；后续再决定是否加模块内恢复条、最近会话入口或保持工作台优先 |
 
 ## 共同评估后的执行入口
 
