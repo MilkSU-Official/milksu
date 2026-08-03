@@ -8,7 +8,7 @@ import { invokeCommand } from '@/desktop'
 import type { CTFAgentWorkspaceHandoff } from '@/ctfTypes'
 import type { VulnerabilityCodingTask } from '@/composables/useVulnerabilityDashboard'
 import { settingsReturnSection, type CTFWorkspaceSection } from '@/lib/workspaceNavigation'
-import { planVulnerabilityCodingHandoff } from '@/lib/vulnerabilityCodingHandoff'
+import { executeVulnerabilityCodingHandoff } from '@/lib/vulnerabilityCodingHandoff'
 import {
   rememberWorkspaceConversation,
   selectCodingConversationId,
@@ -170,14 +170,16 @@ async function startCTFAgent(handoff: CTFAgentWorkspaceHandoff) {
 }
 
 async function startVulnerabilityCodingTask(task: VulnerabilityCodingTask) {
-  rememberActiveConversation()
-  const handoff = planVulnerabilityCodingHandoff(task, conversations.workspacePath.value)
-  conversations.startNew()
-  if (handoff.workspacePath) conversations.setWorkspace(handoff.workspacePath)
-  conversations.ensureConversation(handoff.conversationTitle)
-  lastCodingConversationId.value = conversations.activeId.value
-  section.value = handoff.section
-  await conversations.send(handoff.prompt, handoff.visibleText)
+  await executeVulnerabilityCodingHandoff(task, conversations.workspacePath.value, {
+    rememberActiveConversation,
+    startNewConversation: conversations.startNew,
+    setWorkspace: conversations.setWorkspace,
+    ensureConversation: conversations.ensureConversation,
+    activeConversationId: () => conversations.activeId.value,
+    setLastCodingConversationId: id => { lastCodingConversationId.value = id },
+    setSection: value => { section.value = value },
+    send: conversations.send,
+  })
 }
 
 async function switchCTFAgent(role: 'solver' | 'tool-builder' | 'strategist') {
