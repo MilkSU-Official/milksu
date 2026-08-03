@@ -24,7 +24,7 @@ import {
   SearchCheck,
   Upload,
 } from 'lucide-vue-next'
-import { invokeCommand } from '@/desktop'
+import { hasDesktopRuntime, invokeCommand } from '@/desktop'
 import CodingDiffHunks from '@/components-vue/CodingDiffHunks.vue'
 import type {
   CodingDiffSnapshot,
@@ -63,6 +63,7 @@ const pullRequestTitle = ref('')
 const pullRequestBody = ref('')
 const pullRequestError = ref('')
 const deliveryCopyNotice = ref('')
+const desktopRuntime = hasDesktopRuntime()
 
 const git = computed(() => props.environment?.git)
 const changes = computed(() => git.value?.changes ?? [])
@@ -396,7 +397,9 @@ watch(changes, current => {
             <span class="ml-1 text-destructive">-{{ git.deletions }}</span>
           </p>
           <p v-else class="mt-1 text-caption text-muted-foreground">
-            {{ git?.problem || '当前目录不是 Git 仓库。' }}
+            {{ !desktopRuntime
+              ? '浏览器预览不能读取 Git 状态；请在 MilkSU 桌面 App 中验收真实 Diff、暂存、提交和推送。'
+              : git?.problem || '当前目录不是 Git 仓库。' }}
           </p>
         </div>
         <div class="flex shrink-0 items-center gap-1">
@@ -658,6 +661,37 @@ watch(changes, current => {
         </p>
       </div>
     </template>
+
+    <div
+      v-else
+      class="flex min-h-80 flex-1 flex-col items-center justify-center px-8 text-center"
+      aria-label="Git 交付运行时边界"
+    >
+      <FileDiff class="size-7 text-muted-foreground" />
+      <p class="mt-4 text-label font-medium">
+        {{ desktopRuntime ? '当前目录不可交付' : '浏览器预览不能读取 Git 状态' }}
+      </p>
+      <p class="mt-2 max-w-sm text-body leading-6 text-muted-foreground">
+        <template v-if="desktopRuntime">
+          {{ git?.problem || '请选择一个 Git 仓库，再审阅 Diff、暂存、提交和推送。' }}
+        </template>
+        <template v-else>
+          这里只能验证 Git 交付面板的文案和入口。真实 Diff/Hunk、stage、commit、push 和 PR
+          发布确认需要在打包后的 MilkSU App 中执行。
+        </template>
+      </p>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        class="mt-4"
+        :disabled="busy"
+        @click="emit('refresh')"
+      >
+        <RefreshCw class="size-3.5" />
+        重新读取 Git 状态
+      </Button>
+    </div>
 
     <Dialog v-model:open="pullRequestDialogOpen">
       <DialogContent class="sm:max-w-xl">

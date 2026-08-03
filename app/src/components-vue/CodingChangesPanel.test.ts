@@ -61,6 +61,39 @@ async function mountChangesPanel(environment: CodingEnvironmentSnapshot) {
 }
 
 describe('CodingChangesPanel Pull Request confirmation', () => {
+  it('explains browser-preview Git delivery limits without pretending the workspace was inspected', async () => {
+    const host = await mountChangesPanel(cleanEnvironment({
+      available: false,
+      isRepository: false,
+      problem: 'Git 状态只在 MilkSU 桌面运行时读取。',
+    }))
+
+    expect(host.textContent).toContain('浏览器预览不能读取 Git 状态')
+    expect(host.textContent).toContain('只能验证 Git 交付面板的文案和入口')
+    expect(host.textContent).toContain('真实 Diff/Hunk、stage、commit、push 和 PR')
+    expect(host.textContent).toContain('打包后的 MilkSU App')
+    expect(host.textContent).toContain('重新读取 Git 状态')
+    expect(host.textContent).not.toContain('Git 交付摘要')
+    expect(host.textContent).not.toContain('准备 PR')
+  })
+
+  it('keeps desktop-runtime non-repository problems distinct from browser preview', async () => {
+    ;(window as unknown as { go?: unknown }).go = {
+      main: {
+        App: {},
+      },
+    }
+    const host = await mountChangesPanel(cleanEnvironment({
+      available: true,
+      isRepository: false,
+      problem: '当前目录不是 Git 仓库。',
+    }))
+
+    expect(host.textContent).toContain('当前目录不可交付')
+    expect(host.textContent).toContain('当前目录不是 Git 仓库。')
+    expect(host.textContent).not.toContain('浏览器预览不能读取 Git 状态')
+  })
+
   it('renders and copies a bounded Git delivery summary', async () => {
     const writeText = vi.fn(async () => undefined)
     vi.stubGlobal('navigator', {

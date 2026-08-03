@@ -597,3 +597,31 @@
 - 打包 App 中真实读取 Markdown、HTML 和图片产物；
 - 原生 WebView 中 HTML sandbox/CSP 的负向验收；
 - Browser preview 能替代桌面运行时读取工作区文件。
+
+## 2026-08-04 · Git delivery browser-preview boundary
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | 本批次提交 |
+| 目标流 | Coding → Git 交付 → 浏览器预览环境下说明真实 Git 边界 |
+| 窄测 | `npm run test -- --run src/components-vue/CodingChangesPanel.test.ts src/components-vue/CodingProductLoopPanel.test.ts` |
+| 窄测结果 | 2 files / 26 tests passed |
+| 全量前端 | `npm run test && npm run build` |
+| 全量前端结果 | 47 files / 214 tests passed；production build passed |
+| Browser 验证 | Vite preview `http://127.0.0.1:4177/`；进入 Coding，点击 `Git 交付` |
+
+覆盖范围：
+
+- Git 交付面板在没有 MilkSU 桌面运行时时显示明确提示；
+- 浏览器预览中不再把“不能读取 Git 状态”误呈现成普通“当前目录不是 Git 仓库”；
+- 文案区分“浏览器预览只能验证面板文案和入口”与“打包 App 才能验收真实 Diff/Hunk、stage、commit、push 和 PR 发布确认”；
+- 桌面运行时但非 Git 仓库时仍显示真实目录问题，不混同为浏览器预览限制；
+- Browser preview 中 Coding → Git 交付 显示桌面运行时边界提示；
+- Browser preview 页面加载为 `MilkSU`，无 relevant console error / warn，无 Vite overlay；
+- 保留 PR 一次性确认、私有 MilkSU 仓库限制和 Git 交付摘要的原有测试覆盖。
+
+本次仍未证明：
+
+- 打包 App 中真实 Diff/Hunk、stage、commit 和 push；
+- 真实托管平台 Draft PR 发布；
+- 浏览器预览能替代桌面运行时读取 Git 状态。
