@@ -301,3 +301,26 @@
 - 打包 App 中用户真实按清单跑完整 “MilkSU develops MilkSU”；
 - Computer Use 对外部 App 的真实操作；
 - Artifact Preview / Browser / Git 全链路在同一原生会话里完成。
+
+## 2026-08-04 · CVE selected item continuity
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | `3a57d98` |
+| 窄测 | `npm run test -- --run src/composables/useVulnerabilityDashboard.test.ts src/components-vue/VulnPage.test.ts` |
+| 窄测结果 | 2 files / 12 tests passed |
+| 全量前端 | `npm run test && npm run build` |
+| 全量前端结果 | 46 files / 201 tests passed；production build passed |
+
+覆盖范围：
+
+- CVE 工作台会记住用户最后选中的 CVE；
+- 重新创建 dashboard 实例时恢复上次选中的 CVE，而不是总回到第一条；
+- 如果记住的 CVE 已不存在，则回退到当前列表第一条，避免详情区空白或状态漂移；
+- 不修改主 CVE 数据 schema，只增加独立 selected-id 本地状态。
+
+本次仍未证明：
+
+- 打包 App 中跨一级菜单切换、关闭窗口、重新打开后的真实视觉连续性；
+- 自定义 CVE 记录被删除后的完整 UI 流程；
+- CVE 研究任务、练习环境和 Coding 接力的真实质量。
