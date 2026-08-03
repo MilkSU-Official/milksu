@@ -801,7 +801,7 @@ function statusVariant(status: VulnerabilityStatus) {
             class="mt-2"
             @click="dashboard.advanceTask(dashboard.selected.value.id)"
           >
-            推进下一步
+            记录下一步
           </Button>
           <p class="mt-3 text-center text-caption leading-5 text-muted-foreground">
             建立任务后固化情报快照、受影响资产与证据边界。

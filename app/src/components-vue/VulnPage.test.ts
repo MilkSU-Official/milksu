@@ -153,11 +153,20 @@ describe('VulnPage', () => {
     expect(host.textContent).toContain('研究中')
 
     const advance = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
-      item.textContent?.includes('推进下一步'),
+      item.textContent?.includes('记录下一步'),
     )
     advance?.click()
     await nextTick()
     expect(host.textContent).toContain('阅读材料与补丁')
+    advance?.click()
+    await nextTick()
+    advance?.click()
+    await nextTick()
+    advance?.click()
+    await nextTick()
+    expect(host.textContent).toContain('修复与缓解证据')
+    expect(host.textContent).toContain('学习复盘')
+    expect(host.textContent).toContain('研究中')
   })
 
   it('lets the user add a local CVE tracking item beyond the built-in demo list', async () => {
