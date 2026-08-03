@@ -29,6 +29,24 @@ import type { VulnerabilitySeverity, VulnerabilityStatus } from '@/vulnerability
 defineEmits<{ openSettings: [] }>()
 const dashboard = useVulnerabilityDashboard()
 
+const sprintTasks = [
+  '让 Coding Agent 读取公告、补丁和版本清单，产出影响判断草稿',
+  '把用户确认的资产状态、学习笔记和参考材料固化为证据',
+  '在授权仓库内做静态补丁理解或依赖版本检查',
+]
+
+const learningPath = [
+  { label: '理解影响', detail: '看懂组件、受影响版本、利用成熟度和资产命中。' },
+  { label: '收集证据', detail: '保留公告、补丁、版本清单、用户确认和处置记录。' },
+  { label: '沉淀能力', detail: '把独立完成、提示依赖和 Agent 代做分开记录。' },
+]
+
+const safetyBoundaries = [
+  '不批量扫描或攻击外部目标',
+  '不自动运行 PoC、exploit 或漏洞触发输入',
+  '不把情报状态等同于漏洞已经验证',
+]
+
 function severityVariant(severity: VulnerabilitySeverity) {
   return severity === 'critical' ? 'destructive' : severity === 'high' ? 'warning' : 'info'
 }
@@ -84,6 +102,21 @@ function statusVariant(status: VulnerabilityStatus) {
         <span class="ml-auto text-caption text-muted-foreground">
           内置演示情报源 · rev {{ dashboard.sourceRevision.value }}
         </span>
+      </div>
+
+      <div class="mt-5 grid gap-3 text-body sm:grid-cols-3">
+        <div class="rounded-xl border border-border bg-card px-4 py-3">
+          <p class="text-caption text-muted-foreground">关注中</p>
+          <p class="mt-1 font-mono text-xl font-semibold">{{ dashboard.watched.value.length }}</p>
+        </div>
+        <div class="rounded-xl border border-border bg-card px-4 py-3">
+          <p class="text-caption text-muted-foreground">研究任务</p>
+          <p class="mt-1 font-mono text-xl font-semibold">{{ dashboard.researchTasks.value.length }}</p>
+        </div>
+        <div class="rounded-xl border border-border bg-card px-4 py-3">
+          <p class="text-caption text-muted-foreground">当前模式</p>
+          <p class="mt-1 font-medium">学习与追踪</p>
+        </div>
       </div>
     </header>
 
@@ -183,6 +216,25 @@ function statusVariant(status: VulnerabilityStatus) {
         </dl>
 
         <section class="border-b border-border px-6 py-5">
+          <h3 class="text-label font-medium">学习路径</h3>
+          <ol class="mt-3 space-y-3">
+            <li
+              v-for="(step, index) in learningPath"
+              :key="step.label"
+              class="grid grid-cols-[1.75rem_1fr] gap-3"
+            >
+              <span class="flex size-7 items-center justify-center rounded-full bg-muted font-mono text-caption">
+                {{ index + 1 }}
+              </span>
+              <span>
+                <span class="block text-body font-medium">{{ step.label }}</span>
+                <span class="mt-1 block text-caption leading-5 text-muted-foreground">{{ step.detail }}</span>
+              </span>
+            </li>
+          </ol>
+        </section>
+
+        <section class="border-b border-border px-6 py-5">
           <h3 class="text-label font-medium">受影响资产（{{ dashboard.selected.value.assets.length }}）</h3>
           <div class="mt-3 overflow-hidden rounded-lg border border-border">
             <div
@@ -198,6 +250,53 @@ function statusVariant(status: VulnerabilityStatus) {
               <Badge variant="outline">{{ asset.status }}</Badge>
             </div>
           </div>
+        </section>
+
+        <section class="border-b border-border px-6 py-5">
+          <h3 class="text-label font-medium">追踪时间线</h3>
+          <div class="mt-3 space-y-3">
+            <div
+              v-for="event in dashboard.selected.value.timeline"
+              :key="`${dashboard.selected.value.id}-${event.label}`"
+              class="flex gap-3"
+            >
+              <span
+                class="mt-1 size-2.5 rounded-full"
+                :class="event.state === 'done'
+                  ? 'bg-success'
+                  : event.state === 'active'
+                    ? 'bg-primary'
+                    : 'bg-muted-foreground/30'"
+              />
+              <span class="min-w-0">
+                <span class="block text-body font-medium">{{ event.label }}</span>
+                <span class="mt-0.5 block text-caption text-muted-foreground">{{ event.detail }}</span>
+              </span>
+            </div>
+          </div>
+        </section>
+
+        <section class="border-b border-border px-6 py-5">
+          <h3 class="text-label font-medium">Agent 可接手任务</h3>
+          <ul class="mt-3 space-y-2 text-body leading-5">
+            <li
+              v-for="task in sprintTasks"
+              :key="task"
+              class="rounded-lg border border-border bg-muted/30 px-3 py-2"
+            >
+              {{ task }}
+            </li>
+          </ul>
+        </section>
+
+        <section class="border-b border-border px-6 py-5">
+          <h3 class="text-label font-medium">安全边界</h3>
+          <ul class="mt-3 space-y-2 text-caption leading-5 text-muted-foreground">
+            <li v-for="boundary in safetyBoundaries" :key="boundary" class="flex gap-2">
+              <ShieldCheck class="mt-0.5 size-3.5 shrink-0" />
+              <span>{{ boundary }}</span>
+            </li>
+          </ul>
         </section>
 
         <section class="px-6 py-5">

@@ -1,13 +1,16 @@
 # 当前目标覆盖台账
 
-> 状态：Active / 广度优先功能覆盖与缺陷登记
+> 状态：Active / Product-loop sprint with coverage ledger
 >
 > 产品代码快照：2026-08-03，`2f9d4ca`
 >
 > 最近证据复核：2026-08-03，`df6c806`
 >
 > 本文件不是发布说明。它把 `current-objectives.md` 的大项拆成可单独核对的细项，用于保持
-> 全局位置、推进功能覆盖，并把非阻塞缺陷留到后续批量修复。
+> 全局位置。2026-08-03 起，短期执行入口切到
+> [产品闭环冲刺](./product-loop-sprint.md)：先跑通一个完整 UI/UX + Coding 产品闭环，并补齐
+> CVE 学习/追踪工作台骨架；Lab 只保留未来外部靶场辅助计划。本台账继续登记证据和缺口，
+> 避免冲刺 smoke 被误写成全量完成。
 
 ## 计分与工作规则
 
@@ -23,7 +26,8 @@
 
 规则：
 
-1. 第一轮只读盘点与共同评估已经完成；当前按 P0 → P1 → P2 做广度优先功能覆盖。
+1. 第一轮只读盘点与共同评估已经完成；当前短期执行入口是 `product-loop-sprint.md`，先跑通
+   完整产品闭环，再回到 P0 → P1 → P2 细项覆盖。
 2. 任何低于 100% 的行本身就是问题记录，行 ID 是稳定的问题编号。
 3. 尚未实现的必要能力先形成最小可用纵切；非阻塞 Bug 和细节登记 `BUG-*` / `OBS-*` 后
    继续同层下一项。
@@ -237,6 +241,7 @@ allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 
 | OBS-14 | `ChatPage.vue` 的 Computer Use UI 已抽为 `CodingComputerUsePanel.vue`，并有面板级测试覆盖外部 App/window 展示、启动按钮和其他任务占用禁用；`desktop.test.ts` 已锁住 `start_coding_computer_use` 会把用户选定的 `conversationId`、`targetPid`、`targetWindowId` 原样传给 Wails；ChatPage 刷新可见窗口列表的选择逻辑已抽为 `nextComputerUseTargetKey` 并测试，不因同名 App、同 PID 多窗口或同 windowId 不同 PID 漂移；仍缺整页 ChatPage 时序和打包 App 外部窗口真实验收 | 后续若建立 ChatPage 测试基架或做打包 App 外部窗口验收时补，不在当前批次深挖 |
 | OBS-15 | `workspace-auto` 对未知或项目 MCP 目前只自动放行 read-like 工具；对经过用户审阅并固定 Scope 的本地 Project MCP 写工具仍可能产生重复审批 | 先不现场放宽，避免没有工具面/Scope 证据时扩大权限；等真实高频 Project MCP 候选确定后，为已审阅本地工具增加更精确的自动审批契约 |
 | OBS-16 | 与裸 Pi Agent 相比，MilkSU 过去过早把大量精力投入权限、恢复、脱敏和文档边界，导致“能像裸 Harness 一样顺滑干活”的主链体感滞后 | 下一阶段优先真实可用闭环：Computer Use、Browser、Project MCP、Artifact Preview、ImageGen 和小型 MilkSU develops MilkSU；除 Key、Scope、私有远端、Judge/能力归因硬红线外，非阻塞细节先登记后修 |
+| OBS-17 | 当前用户明确要求产品 UI/UX 上有完整闭环；CVE 作为一级菜单不能只停在暂停文档，至少要有学习/追踪工作台骨架、状态、安全边界和后续 Coding Agent 可接手任务；Lab 暂不实现 | 见 `product-loop-sprint.md`；MilkSU 已有 CTF 模块，当前冲刺不新接 CTFd；CVE 只做学习/追踪，不做红队 Agent、批量打靶或自动 PoC；Lab 后置为 HTB/TryHackMe/pwn.college 等外部靶场辅助与进度追踪计划 |
 
 ## 暂存缺陷
 
@@ -249,8 +254,9 @@ allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 
 
 ## 共同评估后的执行入口
 
-用户第一轮评估已经写入 `current-objectives.md`，并于 2026-08-03 明确恢复产品开发。执行
-采用按优先级分层的广度优先覆盖，不按旧候选批次恢复，也不因单个非阻塞问题切回深度优先。
+用户第一轮评估已经写入 `current-objectives.md`，并于 2026-08-03 明确恢复产品开发；随后又
+确认切到产品闭环冲刺。短期先按 `product-loop-sprint.md` 跑通 UI/UX + Coding 产品闭环；
+回到全量目标时再按优先级分层覆盖，不按旧候选批次恢复，也不因单个非阻塞问题切回深度优先。
 
 ### 评估口径
 

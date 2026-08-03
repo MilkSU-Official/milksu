@@ -1,11 +1,12 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import ContextSidebar from '@/components-vue/ContextSidebar.vue'
 import WorkspaceRail from '@/components-vue/WorkspaceRail.vue'
 import type { CTFWorkspaceSection, WorkspaceSection } from '@/lib/workspaceNavigation'
 import type { NSSCTFTrainingDashboard } from '@/nssctfTrainingTypes'
 import type { Conversation } from '@/types'
 
-defineProps<{
+const props = defineProps<{
   activeSection: WorkspaceSection | 'settings'
   activeConversationId: string | null
   conversations: Conversation[]
@@ -21,17 +22,26 @@ defineEmits<{
   navigateCtf: [value: CTFWorkspaceSection]
   settings: []
 }>()
+
+const railSection = computed(() => (
+  props.activeSection === 'settings' ? 'ctf' : props.activeSection
+))
+const showContextSidebar = computed(() => railSection.value === 'chat')
 </script>
 
 <template>
-  <aside class="flex w-[18.5rem] shrink-0 border-r border-border bg-sidebar text-sidebar-foreground">
+  <aside
+    class="flex shrink-0 border-r border-border bg-sidebar text-sidebar-foreground"
+    :class="showContextSidebar ? 'w-[18.5rem]' : 'w-[4.75rem]'"
+  >
     <WorkspaceRail
-      :active-section="activeSection === 'settings' ? 'ctf' : activeSection"
+      :active-section="railSection"
       :ctf-dashboard="ctfDashboard"
       @navigate="$emit('navigate', $event)"
     />
     <ContextSidebar
-      :active-section="activeSection === 'settings' ? 'ctf' : activeSection"
+      v-if="showContextSidebar"
+      :active-section="railSection"
       :active-conversation-id="activeConversationId"
       :conversations="conversations"
       :ctf-section="ctfSection"

@@ -4,7 +4,7 @@
 >
 > 最后事实审计：2026-08-03
 >
-> 产品开发目标：Active / Breadth-first
+> 产品开发目标：Active / Product-loop sprint
 
 ## 事实优先级
 
@@ -17,8 +17,8 @@
 5. Target/Designed 文档；
 6. Evidence、Historical、Research 和 Design Snapshot。
 
-历史文档里的“下一步”“未完成”“M2/M3/R0.x”不构成当前任务。产品开发只按当前目标和
-覆盖台账中的 P0 → P1 → P2 广度顺序推进。
+历史文档里的“下一步”“未完成”“M2/M3/R0.x”不构成当前任务。产品开发先按当前目标中的
+product-loop sprint 收口；回到全量目标后再按覆盖台账中的 P0 → P1 → P2 广度顺序推进。
 
 ## 当前准确声明
 
@@ -37,7 +37,8 @@
   成绩。
 - 本地备份、恢复、脱敏诊断和单机交付基线已存在；Developer ID、公证、升级和新机器安装
   属于后期 Release Candidate。
-- Labs 与 CVE Research 为 `Paused / Designed`，不进入当前完成条件。
+- Lab 为 `Paused / Designed`，不进入当前完成条件。CVE 纵深研究后置，但一级菜单和
+  学习/追踪工作台骨架进入当前产品闭环冲刺。
 
 精确百分比、每项证据和缺口只在覆盖台账维护，其他文档不复制第二份动态进度表。
 
