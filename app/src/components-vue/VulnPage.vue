@@ -61,6 +61,8 @@ const researchSteps = [
 
 const showCustomForm = ref(false)
 const customFormError = ref('')
+const showAssetForm = ref(false)
+const assetFormError = ref('')
 const customForm = ref({
   id: '',
   title: '',
@@ -70,6 +72,11 @@ const customForm = ref({
   summary: '',
   referenceHref: '',
   learningGoal: '',
+})
+const assetForm = ref({
+  name: '',
+  address: '',
+  environment: '',
 })
 
 function addCustomTrackingItem() {
@@ -89,6 +96,17 @@ function addCustomTrackingItem() {
     }
   } catch (cause) {
     customFormError.value = cause instanceof Error ? cause.message : String(cause)
+  }
+}
+
+function addSelectedAssetRecord() {
+  assetFormError.value = ''
+  try {
+    dashboard.addAssetRecord(dashboard.selected.value.id, assetForm.value)
+    showAssetForm.value = false
+    assetForm.value = { name: '', address: '', environment: '' }
+  } catch (cause) {
+    assetFormError.value = cause instanceof Error ? cause.message : String(cause)
   }
 }
 
@@ -323,7 +341,37 @@ function statusVariant(status: VulnerabilityStatus) {
         </section>
 
         <section class="border-b border-border px-6 py-5">
-          <h3 class="text-label font-medium">受影响资产（{{ dashboard.selected.value.assets.length }}）</h3>
+          <div class="flex items-center justify-between gap-3">
+            <h3 class="text-label font-medium">受影响资产（{{ dashboard.selected.value.assets.length }}）</h3>
+            <Button
+              variant="outline"
+              size="sm"
+              @click="showAssetForm = !showAssetForm"
+            >
+              <Plus class="size-4" />
+              新增资产
+            </Button>
+          </div>
+          <form
+            v-if="showAssetForm"
+            class="mt-3 rounded-lg border border-border bg-muted/20 p-3"
+            @submit.prevent="addSelectedAssetRecord"
+          >
+            <div class="grid gap-2 sm:grid-cols-3">
+              <Input v-model="assetForm.name" placeholder="资产名称" />
+              <Input v-model="assetForm.address" placeholder="地址 / 仓库 / 服务" />
+              <Input v-model="assetForm.environment" placeholder="环境，例如生产 / 本地" />
+            </div>
+            <p v-if="assetFormError" class="mt-2 text-caption text-destructive">{{ assetFormError }}</p>
+            <div class="mt-3 flex items-center gap-2">
+              <Button type="submit" size="sm">
+                加入资产
+              </Button>
+              <Button type="button" variant="ghost" size="sm" @click="showAssetForm = false">
+                取消
+              </Button>
+            </div>
+          </form>
           <div class="mt-3 overflow-hidden rounded-lg border border-border">
             <div
               v-for="asset in dashboard.selected.value.assets"

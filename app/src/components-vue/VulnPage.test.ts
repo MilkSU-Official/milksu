@@ -148,4 +148,38 @@ describe('VulnPage', () => {
     expect(textareas.some(item => item.value.includes('只读版本检查'))).toBe(true)
     expect(textareas.some(item => item.value.includes('暂不运行 PoC'))).toBe(true)
   })
+
+  it('lets the user attach a local asset hit to a tracked CVE', async () => {
+    const host = await mountVulnPage()
+    const openAssetForm = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
+      item.textContent?.includes('新增资产'),
+    )
+    if (!openAssetForm) throw new Error('missing add asset button')
+    openAssetForm.click()
+    await nextTick()
+
+    const byPlaceholder = (text: string) => {
+      const input = [...host.querySelectorAll<HTMLInputElement>('input')].find(item =>
+        item.placeholder.includes(text),
+      )
+      if (!input) throw new Error(`missing input ${text}`)
+      return input
+    }
+    await setInput(byPlaceholder('资产名称'), 'vpn-prod-user-confirmed')
+    await setInput(byPlaceholder('地址 / 仓库 / 服务'), '10.88.0.12')
+    await setInput(byPlaceholder('环境'), '用户本地资产清单')
+
+    const submit = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
+      item.textContent?.includes('加入资产'),
+    )
+    if (!submit) throw new Error('missing submit asset button')
+    submit.click()
+    await nextTick()
+
+    expect(host.textContent).toContain('受影响资产（4）')
+    expect(host.textContent).toContain('vpn-prod-user-confirmed')
+    expect(host.textContent).toContain('10.88.0.12')
+    expect(host.textContent).toContain('用户本地资产清单')
+    expect(host.textContent).toContain('研究中')
+  })
 })
