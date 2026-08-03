@@ -765,6 +765,8 @@ async function buildSidecar(platform) {
   const cuaDriverOutput = join(output, 'cua-driver')
   const archifySource = join(repositoryRoot, 'third_party', 'archify', 'archify')
   const archifyOutput = join(output, 'skills', 'archify')
+  const frontendVisualQaSource = join(repositoryRoot, 'skills', 'frontend-visual-qa')
+  const frontendVisualQaOutput = join(output, 'skills', 'frontend-visual-qa')
   const licenseOutput = join(output, 'THIRD_PARTY-LICENSES')
   const diffSource = join(repositoryRoot, 'node_modules', 'diff')
   const archifyPackage = JSON.parse(await readFile(join(archifySource, 'package.json'), 'utf8'))
@@ -878,6 +880,7 @@ async function buildSidecar(platform) {
   }
 
   await rm(archifyOutput, { recursive: true, force: true })
+  await rm(frontendVisualQaOutput, { recursive: true, force: true })
   await rm(systemOcrOutputRoot, { recursive: true, force: true })
   await rm(lspRuntimeOutput, { recursive: true, force: true })
   await rm(join(output, 'subagents'), { recursive: true, force: true })
@@ -904,6 +907,7 @@ async function buildSidecar(platform) {
     { force: true },
   )
   await cp(archifySource, archifyOutput, { recursive: true })
+  await cp(frontendVisualQaSource, frontendVisualQaOutput, { recursive: true })
   for (const packageInfo of minimalPackageCopySet(lspRuntimePackages)) {
     const destination = join(
       lspRuntimeOutput,
@@ -1066,6 +1070,13 @@ async function buildSidecar(platform) {
       licenseFile: 'THIRD_PARTY-LICENSES/pi-MIT.txt',
     },
     skills: {
+      frontendVisualQa: {
+        package: '@milksu/frontend-visual-qa',
+        version: '1',
+        origin: 'first-party',
+        path: 'skills/frontend-visual-qa',
+        scope: 'coding-only',
+      },
       archify: {
         package: 'tt-a1i/archify',
         version: archifyPackage.version,
@@ -1259,6 +1270,8 @@ async function smokeSidecar(platform) {
     join(output, 'lsp-runtime', 'node_modules', '@vue', 'language-server', 'LICENSE'),
     join(output, 'lsp-runtime', 'node_modules', 'typescript', 'LICENSE.txt'),
     join(output, 'skills', 'archify', 'LICENSE'),
+    join(output, 'skills', 'frontend-visual-qa', 'SKILL.md'),
+    join(output, 'skills', 'frontend-visual-qa', 'agents', 'openai.yaml'),
   ]) {
     if (!await exists(licensePath)) {
       throw new Error(`packaged Sidecar is missing license file: ${licensePath}`)
@@ -1496,6 +1509,7 @@ async function smokeSidecar(platform) {
     || ready.executionMode !== 'go'
     || ready.approvalPolicy !== 'workspace-auto'
     || !ready.skills?.includes('archify')
+    || !ready.skills?.includes('frontend-visual-qa')
     || !ready.extensions?.includes('pi-lsp')
     || !ready.extensions?.includes('pi-goal')
     || !ready.extensions?.includes('pi-background-tasks')
@@ -2065,6 +2079,7 @@ async function smokeSidecar(platform) {
     || ctfReady.tools?.includes('lsp_diagnostics')
     || ctfReady.tools?.includes('lsp_fix')
     || ctfReady.skills?.includes('archify')
+    || ctfReady.skills?.includes('frontend-visual-qa')
     || ctfReady.extensions?.includes('pi-lsp')
     || ctfReady.extensions?.includes('pi-goal')
     || ctfReady.extensions?.includes('pi-mcp-adapter')

@@ -30,10 +30,17 @@ export function validateCommandSpec(specification) {
   }
 }
 
-function spawnArguments(specification, detached, stdio) {
+function reviewedLaunch(specification, trustedOutputPath = "") {
   validateCommandSpec(specification);
   const authorization = readBackgroundAuthorization(specification);
-  const launch = buildCodingBackgroundLaunch(specification, authorization);
+  return buildCodingBackgroundLaunch(
+    specification,
+    authorization,
+    trustedOutputPath,
+  );
+}
+
+function spawnLaunch(launch, detached, stdio) {
   return spawn(launch.file, launch.arguments, {
     cwd: launch.cwd,
     env: launch.environment,
@@ -43,11 +50,14 @@ function spawnArguments(specification, detached, stdio) {
 }
 
 export function spawnCommand(specification, logPath, detached) {
+  // Build and validate the launch before creating the log. The background
+  // extension owns this path; model input never does.
+  const launch = reviewedLaunch(specification, logPath);
   mkdirSync(dirname(logPath), { recursive: true, mode: 0o700 });
   const descriptor = openSync(logPath, "a", 0o600);
   let child;
   try {
-    child = spawnArguments(specification, detached, ["ignore", descriptor, descriptor]);
+    child = spawnLaunch(launch, detached, ["ignore", descriptor, descriptor]);
     writeSync(
       descriptor,
       `\n--- spawn ${new Date().toISOString()} pid=${child.pid ?? "unknown"} ---\n`,
@@ -67,7 +77,11 @@ export function spawnCommand(specification, logPath, detached) {
 
 export function runCommandOnce(specification, maxBufferBytes = 1024 * 1024) {
   const startedAt = Date.now();
-  const child = spawnArguments(specification, false, ["ignore", "pipe", "pipe"]);
+  const child = spawnLaunch(
+    reviewedLaunch(specification),
+    false,
+    ["ignore", "pipe", "pipe"],
+  );
   let stdout = "";
   let stderr = "";
   child.stdout?.on("data", chunk => {

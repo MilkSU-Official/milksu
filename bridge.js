@@ -92,6 +92,7 @@ import {
   authorizeImageGenToolCall,
   codingImageGenToolName,
 } from "./bridge-imagegen.js";
+import { reviewedCodingSkillPaths } from "./bridge-skills.js";
 
 const relayKey = process.env.MILKSU_RELAY_KEY;
 const relayUrl = process.env.MILKSU_RELAY_URL || "https://api.ciyuanliudong.com/v1";
@@ -923,19 +924,11 @@ function createMilkSUResourceLoader(
   });
 }
 
-function reviewedCodingSkillPaths(sessionRole = "") {
-  if (sessionRole) return [];
-  return [
-    join(bridgeDirectory, "skills", "archify"),
-    join(bridgeDirectory, "third_party", "archify", "archify"),
-  ].filter((path) => existsSync(join(path, "SKILL.md"))).slice(0, 1);
-}
-
 function reviewedCodingResourceRoots(sessionRole = "") {
   if (sessionRole) return [];
   const attachmentRoot = process.env.MILKSU_CODING_ATTACHMENT_ROOT;
   return [
-    ...reviewedCodingSkillPaths(sessionRole),
+    ...reviewedCodingSkillPaths(bridgeDirectory, sessionRole),
     attachmentRoot,
   ].filter((path) => path && existsSync(path));
 }
@@ -979,7 +972,10 @@ async function loadRuntimeSessionPolicy(cwd, command) {
   const effectiveSessionRole = policy.ctf
     ? command.sessionRole || "solver"
     : "";
-  const codingSkillPaths = reviewedCodingSkillPaths(effectiveSessionRole);
+  const codingSkillPaths = reviewedCodingSkillPaths(
+    bridgeDirectory,
+    effectiveSessionRole,
+  );
   const codingResourceRoots = reviewedCodingResourceRoots(effectiveSessionRole);
   if (!policy.ctf && codingResourceRoots.length) {
     policy = await loadSessionPolicy(cwd, command.sessionRole, {

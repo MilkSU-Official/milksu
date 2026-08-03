@@ -68,6 +68,22 @@ function within(root, target) {
     || (!path.startsWith(`..${sep}`) && path !== ".." && !path.startsWith("../"));
 }
 
+export async function resolveReviewedMcpWorkspace(
+  workspace,
+  canonicalize = realpath,
+) {
+  const requestedWorkspace = resolve(workspace);
+  const trustedWorkspace = String(process.env.MILKSU_AGENT_WORKSPACE ?? "").trim();
+  if (
+    trustedWorkspace
+    && requestedWorkspace === resolve(trustedWorkspace)
+    && requestedWorkspace === resolve(process.cwd())
+  ) {
+    return requestedWorkspace;
+  }
+  return canonicalize(workspace);
+}
+
 async function ensurePrivateDirectoryTree(root, segments, label) {
   let current = root;
   for (const segment of segments) {
@@ -457,7 +473,7 @@ export async function createFirstPartyComputerUseMcpServer(descriptor) {
 export async function createFirstPartyPlaywrightMcpServer(workspace, descriptor) {
   const browser = normalizeCodingBrowserDescriptor(descriptor);
   if (!browser) return undefined;
-  const root = await realpath(workspace);
+  const root = await resolveReviewedMcpWorkspace(workspace);
   const cliMetadata = await lstat(playwrightMcpCliPath);
   if (cliMetadata.isSymbolicLink() || !cliMetadata.isFile()) {
     throw new Error("MilkSU packaged Playwright MCP CLI is unavailable");
@@ -539,7 +555,7 @@ export async function loadSelectedMcpConfig(
     );
   }
 
-  const root = await realpath(workspace);
+  const root = await resolveReviewedMcpWorkspace(workspace);
   const configPath = resolve(root, ".mcp.json");
   if (!within(root, configPath)) {
     throw new Error("MilkSU rejected the project MCP config path");

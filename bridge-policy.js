@@ -568,9 +568,41 @@ export async function prepareCodingBackgroundAuthorization(
   };
 }
 
-export function buildCodingBackgroundLaunch(specification, authorization) {
+function reviewedBackgroundOutputPath(authorization, value) {
+  if (!value) return "";
+  const configuredRuntime = String(authorization.runtimeDirectory ?? "").trim();
+  if (!configuredRuntime) {
+    throw new Error(
+      "MilkSU denied a background process without a private runtime",
+    );
+  }
+  const runtimeDirectory = resolve(configuredRuntime);
+  const outputPath = resolve(value);
+  const path = relative(runtimeDirectory, outputPath);
+  if (
+    path === ""
+    || path === ".."
+    || path.startsWith(`..${sep}`)
+    || isAbsolute(path)
+  ) {
+    throw new Error(
+      "MilkSU denied a background process log outside its private runtime",
+    );
+  }
+  return outputPath;
+}
+
+export function buildCodingBackgroundLaunch(
+  specification,
+  authorization,
+  trustedOutputPath = "",
+) {
   const workspace = resolve(authorization.workspace);
   const cwd = resolve(specification.cwd || authorization.cwd);
+  const outputPath = reviewedBackgroundOutputPath(
+    authorization,
+    trustedOutputPath,
+  );
   if (cwd !== resolve(authorization.cwd)) {
     throw new Error("MilkSU denied a background process whose cwd changed after authorization");
   }
@@ -614,7 +646,7 @@ export function buildCodingBackgroundLaunch(specification, authorization) {
         [],
         false,
         [...authorization.readableRoots, runtimeBin],
-        [runtimeHome, runtimeTemporary],
+        [runtimeHome, runtimeTemporary, outputPath].filter(Boolean),
       ),
       command,
       ...argumentsList,

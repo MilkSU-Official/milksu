@@ -26,6 +26,7 @@ import {
   normalizeCodingBrowserDescriptor,
   normalizeComputerUseDescriptor,
   normalizeSelectedMcpServers,
+  resolveReviewedMcpWorkspace,
 } from "./bridge-mcp.js";
 
 test("loads only explicitly selected MCP servers and clears stdio inheritance", async () => {
@@ -126,6 +127,49 @@ test("normalizes task selections deterministically", () => {
   );
   assert.equal(mcpSelectionChanged(["alpha"], ["alpha"]), false);
   assert.equal(mcpSelectionChanged(["alpha"], ["zed"]), true);
+});
+
+test("reuses the exact Go-reviewed Sidecar workspace without a second realpath", async () => {
+  const previous = process.env.MILKSU_AGENT_WORKSPACE;
+  process.env.MILKSU_AGENT_WORKSPACE = process.cwd();
+  try {
+    const workspace = await resolveReviewedMcpWorkspace(
+      process.cwd(),
+      async () => {
+        throw new Error("canonicalizer must not run");
+      },
+    );
+    assert.equal(workspace, process.cwd());
+  } finally {
+    if (previous === undefined) {
+      delete process.env.MILKSU_AGENT_WORKSPACE;
+    } else {
+      process.env.MILKSU_AGENT_WORKSPACE = previous;
+    }
+  }
+});
+
+test("canonicalizes any MCP workspace not fixed by the Sidecar environment", async () => {
+  const previous = process.env.MILKSU_AGENT_WORKSPACE;
+  process.env.MILKSU_AGENT_WORKSPACE = join(process.cwd(), "different");
+  let requested = "";
+  try {
+    const workspace = await resolveReviewedMcpWorkspace(
+      process.cwd(),
+      async value => {
+        requested = value;
+        return "/canonical/workspace";
+      },
+    );
+    assert.equal(requested, process.cwd());
+    assert.equal(workspace, "/canonical/workspace");
+  } finally {
+    if (previous === undefined) {
+      delete process.env.MILKSU_AGENT_WORKSPACE;
+    } else {
+      process.env.MILKSU_AGENT_WORKSPACE = previous;
+    }
+  }
 });
 
 test("builds the first-party Playwright server from a strict loopback descriptor", async () => {

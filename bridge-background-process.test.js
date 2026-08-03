@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { access, mkdtemp, readFile } from "node:fs/promises";
+import { access, mkdtemp, readFile, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -110,6 +110,79 @@ test("Project Auto background tasks stay in the workspace and strip provider sec
     else process.env.MILKSU_WORKSPACE_RUNTIME = previousRuntime;
     if (previousKey === undefined) delete process.env.DEEPSEEK_API_KEY;
     else process.env.DEEPSEEK_API_KEY = previousKey;
+  }
+});
+
+test("Project Auto Node background tasks can inspect their private log descriptor", {
+  skip: process.platform !== "darwin",
+}, async () => {
+  const workspace = await realpath(
+    await mkdtemp(join(tmpdir(), "milksu-background-node-workspace-")),
+  );
+  const runtime = await realpath(
+    await mkdtemp(join(tmpdir(), "milksu-background-node-runtime-")),
+  );
+  const previousRuntime = process.env.MILKSU_WORKSPACE_RUNTIME;
+  process.env.MILKSU_WORKSPACE_RUNTIME = runtime;
+  try {
+    const input = {
+      action: "spawn",
+      command: "node --version > node-version.txt",
+      cwd: workspace,
+    };
+    const authorization = await prepareCodingBackgroundAuthorization(
+      workspace,
+      "workspace-auto",
+      input,
+    );
+    authorizeBackgroundToolInput(input, authorization);
+    const logPath = join(runtime, "background-tasks", "node", "output.log");
+    const spawned = spawnCommand(
+      { ...input, shell: true },
+      logPath,
+      true,
+    );
+    assert.deepEqual(await waitFor(spawned.child), { code: 0, signal: null });
+    assert.match(
+      await readFile(join(workspace, "node-version.txt"), "utf8"),
+      /^v\d+\.\d+\.\d+\s*$/u,
+    );
+    assert.match(await readFile(logPath, "utf8"), /exit .* code=0/u);
+  } finally {
+    if (previousRuntime === undefined) delete process.env.MILKSU_WORKSPACE_RUNTIME;
+    else process.env.MILKSU_WORKSPACE_RUNTIME = previousRuntime;
+  }
+});
+
+test("background task logs cannot escape the reviewed private runtime", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "milksu-background-log-workspace-"));
+  const runtime = await mkdtemp(join(tmpdir(), "milksu-background-log-runtime-"));
+  const outside = join(
+    await mkdtemp(join(tmpdir(), "milksu-background-log-outside-")),
+    "output.log",
+  );
+  const previousRuntime = process.env.MILKSU_WORKSPACE_RUNTIME;
+  process.env.MILKSU_WORKSPACE_RUNTIME = runtime;
+  try {
+    const input = {
+      action: "spawn",
+      command: "printf denied",
+      cwd: workspace,
+    };
+    const authorization = await prepareCodingBackgroundAuthorization(
+      workspace,
+      "workspace-auto",
+      input,
+    );
+    authorizeBackgroundToolInput(input, authorization);
+    assert.throws(
+      () => spawnCommand({ ...input, shell: true }, outside, true),
+      /log outside its private runtime/u,
+    );
+    await assert.rejects(access(outside), /ENOENT/u);
+  } finally {
+    if (previousRuntime === undefined) delete process.env.MILKSU_WORKSPACE_RUNTIME;
+    else process.env.MILKSU_WORKSPACE_RUNTIME = previousRuntime;
   }
 });
 
