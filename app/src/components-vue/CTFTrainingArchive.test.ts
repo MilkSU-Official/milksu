@@ -122,4 +122,68 @@ describe('CTFTrainingArchive', () => {
     expect(text).not.toContain('用户完成')
     expect(text).not.toContain('无协助')
   })
+
+  it('redacts Provider credentials from replay events and visible archive errors', async () => {
+    ;(window as unknown as { go?: unknown }).go = {
+      main: {
+        App: {
+          GetCTFAgentReplay: async () => ({
+            jobId: 'job_secret',
+            truncated: false,
+            metrics: {
+              turns: 1,
+              toolCalls: 1,
+              toolErrors: 1,
+            },
+            events: [{
+              sequence: 1,
+              timestamp: '2026-08-03T00:00:00Z',
+              type: 'error',
+              engine: 'pi',
+              error: 'provider failed OPENAI_API_KEY=sk-env-secret Bearer sk-bearer-secret https://provider.example.test/v1?api_key=sk-query-secret x-api-key: sk-header-secret',
+            }],
+          }),
+          GenerateCTFTrainingReport: async () => {
+            throw new Error('report failed api-key=sk-report-secret')
+          },
+        },
+      },
+    }
+
+    const host = document.createElement('div')
+    document.body.append(host)
+    const app = createApp(CTFTrainingArchive, {
+      jobId: 'job_secret',
+      replayAvailable: true,
+    })
+    app.mount(host)
+    mountedApps.push(app)
+    await nextTick()
+
+    const replay = [...host.querySelectorAll<HTMLButtonElement>('button')].find(
+      button => button.textContent?.includes('运行回放'),
+    )
+    replay?.click()
+    await settle()
+
+    let text = host.textContent ?? ''
+    expect(text).toContain('OPENAI_API_KEY=[credential redacted]')
+    expect(text).toContain('Bearer [credential redacted]')
+    expect(text).toContain('?api_key=[credential redacted]')
+    expect(text).toContain('x-api-key=[credential redacted]')
+    expect(text).not.toContain('sk-env-secret')
+    expect(text).not.toContain('sk-bearer-secret')
+    expect(text).not.toContain('sk-query-secret')
+    expect(text).not.toContain('sk-header-secret')
+
+    const generate = [...host.querySelectorAll<HTMLButtonElement>('button')].find(
+      button => button.textContent?.includes('生成报告'),
+    )
+    generate?.click()
+    await settle()
+
+    text = host.textContent ?? ''
+    expect(text).toContain('api_key=[credential redacted]')
+    expect(text).not.toContain('sk-report-secret')
+  })
 })

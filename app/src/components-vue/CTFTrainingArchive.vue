@@ -38,6 +38,32 @@ const visibleReplayEvents = computed(() => {
   return replayExpanded.value ? events.slice(-100) : events.slice(-6)
 })
 
+function redactReplayText(value: string) {
+  return value
+    .replace(
+      /\b[A-Z][A-Z0-9_]*API_KEY\s*=\s*[^\s"']+/g,
+      match => `${match.split('=')[0].trim()}=[credential redacted]`,
+    )
+    .replace(
+      /([?&])api[_-]?key=([^&#\s"']+)/gi,
+      '$1api_key=[credential redacted]',
+    )
+    .replace(
+      /(^|[\s,;])api[_-]?key\s*[:=]\s*[^\s"']+/gi,
+      '$1api_key=[credential redacted]',
+    )
+    .replace(
+      /(^|[\s,;])x-api-key\s*[:=]\s*[^\s"']+/gi,
+      '$1x-api-key=[credential redacted]',
+    )
+    .replace(/\bBearer\s+[^\s"']+/gi, 'Bearer [credential redacted]')
+    .replace(/\b(?:sk|sess)-[A-Za-z0-9_-]{8,}\b/g, '[credential redacted]')
+}
+
+function errorMessage(reason: unknown) {
+  return redactReplayText(reason instanceof Error ? reason.message : String(reason))
+}
+
 watch(() => props.jobId, () => {
   replay.value = null
   report.value = null
@@ -59,7 +85,7 @@ async function loadReplay() {
     replay.value = await invokeCommand<CTFAgentReplay>('get_ctf_agent_replay', { id: props.jobId })
     replayOpen.value = true
   } catch (reason) {
-    error.value = reason instanceof Error ? reason.message : String(reason)
+    error.value = errorMessage(reason)
   } finally {
     loadingReplay.value = false
   }
@@ -75,7 +101,7 @@ async function generateReport() {
     })
     notice.value = '安全报告已生成；候选 Flag 不会写入可分享内容。'
   } catch (reason) {
-    error.value = reason instanceof Error ? reason.message : String(reason)
+    error.value = errorMessage(reason)
   } finally {
     generatingReport.value = false
   }
@@ -88,7 +114,7 @@ async function copy(value: string, label: string) {
     await navigator.clipboard.writeText(value)
     notice.value = `${label}已复制。`
   } catch (reason) {
-    error.value = `复制失败：${reason instanceof Error ? reason.message : String(reason)}`
+    error.value = `复制失败：${errorMessage(reason)}`
   }
 }
 
@@ -105,7 +131,7 @@ function eventLabel(event: CTFAgentReplayEvent) {
 }
 
 function eventSummary(event: CTFAgentReplayEvent) {
-  return event.error || event.text || event.engine || '该事件没有附带文本。'
+  return redactReplayText(event.error || event.text || event.engine || '该事件没有附带文本。')
 }
 
 function formatTime(value?: string) {
