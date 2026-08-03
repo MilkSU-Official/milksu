@@ -15,6 +15,7 @@ func TestPrimaryNavigationUsesConciseProductNames(t *testing.T) {
 		"app/src/components-vue/CTFPage.vue",
 		"app/src/components-vue/ChatPage.vue",
 		"app/src/components-vue/VulnPage.vue",
+		"app/src/lib/chatTopbar.ts",
 	}
 	var source strings.Builder
 	for _, name := range files {
@@ -29,9 +30,10 @@ func TestPrimaryNavigationUsesConciseProductNames(t *testing.T) {
 		"label: 'CTF'",
 		"label: 'Coding'",
 		"label: 'CVE'",
-		">CTF</h1>",
-		">Coding</h1>",
-		">CVE</h1>",
+		`<WorkspaceTopBar`,
+		`title="CTF"`,
+		`title: 'Coding'`,
+		`title="CVE"`,
 	} {
 		if !strings.Contains(content, fragment) {
 			t.Fatalf("primary navigation does not expose %q", fragment)

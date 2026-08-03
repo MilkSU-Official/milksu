@@ -69,7 +69,14 @@ func TestCodingBrowserEvidenceRevealStaysInTheBrowserAdapter(t *testing.T) {
 		}
 	}
 	revealIndex := strings.Index(chatPage, "reveal_coding_browser_evidence")
-	revealBlock := chatPage[revealIndex:]
+	if revealIndex < 0 {
+		t.Fatal("ChatPage.vue does not invoke reveal_coding_browser_evidence")
+	}
+	revealEnd := strings.Index(chatPage[revealIndex:], "})")
+	if revealEnd < 0 {
+		t.Fatal("cannot isolate reveal_coding_browser_evidence command arguments")
+	}
+	revealBlock := chatPage[revealIndex : revealIndex+revealEnd]
 	if strings.Contains(revealBlock, "sessionId") || strings.Contains(revealBlock, "browser-evidence") {
 		t.Fatal("the reveal entry must not submit an evidence path or session id")
 	}
