@@ -8,16 +8,38 @@ import type {
   CodingEnvironmentSnapshot,
 } from '@/codingEnvironmentTypes'
 
-const htmlPreview: CodingArtifactPreview = {
-  relativePath: 'site/index.html',
-  kind: 'html',
-  mediaType: 'text/html; charset=utf-8',
-  content: '<main><h1>Agent report</h1><script>fetch("https://leak.invalid")</script></main>',
-  sizeBytes: 2048,
-}
-
 const invokeCommand = vi.fn(async (command: string, args?: unknown) => {
-  if (command === 'get_coding_artifact_preview') return htmlPreview
+  if (command === 'get_coding_artifact_preview') {
+    const relativePath = (args as { relativePath?: string } | undefined)?.relativePath
+    if (relativePath === 'docs/report.md') {
+      return {
+        relativePath,
+        kind: 'markdown',
+        mediaType: 'text/markdown; charset=utf-8',
+        content: '# Agent report\n\n- verified markdown',
+        sizeBytes: 35,
+      } satisfies CodingArtifactPreview
+    }
+    if (relativePath === 'site/index.html') {
+      return {
+        relativePath,
+        kind: 'html',
+        mediaType: 'text/html; charset=utf-8',
+        content: '<main><h1>Agent report</h1><script>fetch("https://leak.invalid")</script></main>',
+        sizeBytes: 2048,
+      } satisfies CodingArtifactPreview
+    }
+    if (relativePath === 'assets/result.png') {
+      return {
+        relativePath,
+        kind: 'image',
+        mediaType: 'image/png',
+        dataUrl: 'data:image/png;base64,iVBORw0KGgo=',
+        sizeBytes: 12,
+      } satisfies CodingArtifactPreview
+    }
+    throw new Error('artifact preview escapes the Coding workspace')
+  }
   throw new Error(`unexpected command ${command}: ${JSON.stringify(args)}`)
 })
 
@@ -114,5 +136,63 @@ describe('CodingArtifactPreviewPanel', () => {
     expect(iframe?.getAttribute('srcdoc')).toContain("default-src 'none'")
     expect(iframe?.getAttribute('srcdoc')).not.toContain('<script>')
     expect(iframe?.getAttribute('srcdoc')).toContain('Agent report')
+  })
+
+  it('renders Markdown and image previews from workspace-relative suggestions', async () => {
+    const host = await mountPanel()
+
+    const markdownSuggestion = [...host.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.includes('docs/report.md'))
+    markdownSuggestion!.click()
+    await settle()
+    expect(invokeCommand).toHaveBeenLastCalledWith(
+      'get_coding_artifact_preview',
+      {
+        workspacePath: '/Users/milksu/code/milksu',
+        relativePath: 'docs/report.md',
+      },
+    )
+    expect(host.textContent).toContain('Markdown')
+    expect(host.textContent).toContain('Agent report')
+    expect(host.textContent).toContain('verified markdown')
+
+    const imageSuggestion = [...host.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.includes('assets/result.png'))
+    imageSuggestion!.click()
+    await settle()
+    expect(invokeCommand).toHaveBeenLastCalledWith(
+      'get_coding_artifact_preview',
+      {
+        workspacePath: '/Users/milksu/code/milksu',
+        relativePath: 'assets/result.png',
+      },
+    )
+    const image = host.querySelector<HTMLImageElement>('img[alt="assets/result.png"]')
+    expect(host.textContent).toContain('图片')
+    expect(host.textContent).toContain('12 B')
+    expect(image?.src).toBe('data:image/png;base64,iVBORw0KGgo=')
+  })
+
+  it('surfaces backend path and media rejections without keeping a stale preview', async () => {
+    const host = await mountPanel()
+    const htmlSuggestion = [...host.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.includes('site/index.html'))
+    htmlSuggestion!.click()
+    await settle()
+    expect(host.textContent).toContain('site/index.html')
+
+    const input = host.querySelector<HTMLInputElement>(
+      'input[aria-label="工作区产物相对路径"]',
+    )
+    const form = host.querySelector('form')
+    if (!input || !form) throw new Error('missing artifact preview form')
+    input.value = '../outside.md'
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+    await settle()
+
+    expect(host.textContent).toContain('artifact preview escapes the Coding workspace')
+    expect(host.querySelector('iframe[title="Coding HTML 产物预览"]')).toBeNull()
+    expect(host.textContent).toContain('预览 Agent 交付的普通产物')
   })
 })
