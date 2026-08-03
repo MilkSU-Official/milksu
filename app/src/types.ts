@@ -245,6 +245,21 @@ export interface LocalDiagnosticExport {
   cancelled?: boolean
 }
 
+export type PreviousExitState = 'none' | 'clean' | 'abnormal'
+
+/**
+ * 启动/退出状态摘要：由桌面端在启动时读取上次 lifespan 标记后返回。
+ * 不含会话正文、工具输出或任何凭据，只有时间戳、退出分类、进程号与连续异常次数。
+ */
+export interface StartupRecoveryStatus {
+  previousExit: PreviousExitState
+  previousStartedAt?: string
+  lastCleanExitAt?: string
+  consecutiveAbnormalExits: number
+  previousPid?: number
+  startedAt: string
+}
+
 export const EMPTY_USAGE: UsageData = {
   input_tokens: null,
   output_tokens: null,

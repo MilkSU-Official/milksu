@@ -116,6 +116,7 @@ type DiagnosticInput struct {
 	AppVersion string             `json:"appVersion"`
 	Runtime    DiagnosticRuntime  `json:"runtime"`
 	Settings   DiagnosticSettings `json:"settings"`
+	Lifespan   LifespanStart      `json:"lifespan"`
 	Events     []DiagnosticEvent  `json:"events,omitempty"`
 }
 
@@ -142,6 +143,7 @@ type DiagnosticReport struct {
 	Data         DataStatus           `json:"data"`
 	Runtime      DiagnosticRuntime    `json:"runtime"`
 	Settings     DiagnosticSettings   `json:"settings"`
+	Lifespan     LifespanStart        `json:"lifespan"`
 	Databases    []DiagnosticDatabase `json:"databases"`
 	RecentEvents []DiagnosticEvent    `json:"recentEvents,omitempty"`
 	Privacy      []string             `json:"privacy"`
@@ -186,6 +188,7 @@ func ExportDiagnostics(
 		Data:         status,
 		Runtime:      input.Runtime,
 		Settings:     sanitizeDiagnosticSettings(input.Settings),
+		Lifespan:     sanitizeDiagnosticLifespan(input.Lifespan),
 		Databases:    inspectDiagnosticDatabases(ctx, root),
 		RecentEvents: sanitizeDiagnosticEvents(input.Events),
 		Privacy: []string{
@@ -318,6 +321,17 @@ func inspectDiagnosticDatabase(
 	}
 	result.QuickCheck = cleanDiagnosticLabel(quickCheck, "unknown")
 	return result
+}
+
+func sanitizeDiagnosticLifespan(lifespan LifespanStart) LifespanStart {
+	lifespan.PreviousExit = LifespanExit(cleanDiagnosticLabel(string(lifespan.PreviousExit), string(LifespanExitNone)))
+	lifespan.PreviousStartedAt = cleanDiagnosticLabel(lifespan.PreviousStartedAt, "")
+	lifespan.LastCleanExitAt = cleanDiagnosticLabel(lifespan.LastCleanExitAt, "")
+	lifespan.StartedAt = cleanDiagnosticLabel(lifespan.StartedAt, "")
+	if lifespan.ConsecutiveAbnormalExits < 0 {
+		lifespan.ConsecutiveAbnormalExits = 0
+	}
+	return lifespan
 }
 
 func sanitizeDiagnosticSettings(settings DiagnosticSettings) DiagnosticSettings {

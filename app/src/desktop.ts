@@ -8,6 +8,7 @@ import {
   type LocalDataStatus,
   type LocalDiagnosticExport,
   type ModelProbeResult,
+  type StartupRecoveryStatus,
 } from './types'
 import type {
   CTFArtifactPreview,
@@ -90,6 +91,7 @@ interface WailsAppBindings {
   ScheduleLocalDataRestore(): Promise<LocalDataBackupRestore>
   ExportLocalDiagnostics(): Promise<LocalDiagnosticExport>
   RevealLocalDataDirectory(): Promise<void>
+  GetStartupRecoveryStatus(): Promise<StartupRecoveryStatus>
   ListConversations(): Promise<unknown>
   SaveConversation(conversation: unknown): Promise<void>
   DeleteConversation(id: string): Promise<void>
@@ -472,6 +474,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.ExportLocalDiagnostics() as Promise<T>
       case 'reveal_local_data_directory':
         return app.RevealLocalDataDirectory() as Promise<T>
+      case 'get_startup_recovery_status':
+        return app.GetStartupRecoveryStatus() as Promise<T>
       case 'list_conversations':
         return app.ListConversations() as Promise<T>
       case 'save_conversation':
@@ -853,6 +857,12 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
     case 'export_local_diagnostics':
     case 'reveal_local_data_directory':
       throw new Error('本地数据管理需要 MilkSU 桌面运行时。')
+    case 'get_startup_recovery_status':
+      return {
+        previousExit: 'none',
+        consecutiveAbnormalExits: 0,
+        startedAt: new Date().toISOString(),
+      } as T
     case 'list_conversations':
       return readJson(CONVERSATIONS_KEY, []) as T
     case 'save_conversation': {

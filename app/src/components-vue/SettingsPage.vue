@@ -42,6 +42,8 @@ import type {
   LocalDiagnosticExport,
   ModelProbeResult,
   ModelSelection,
+  PreviousExitState,
+  StartupRecoveryStatus,
 } from '@/types'
 import {
   PROVIDERS,
@@ -69,6 +71,7 @@ const backupExporting = ref(false)
 const restoreScheduling = ref(false)
 const diagnosticExporting = ref(false)
 const localData = ref<LocalDataStatus | null>(null)
+const recoveryStatus = ref<StartupRecoveryStatus | null>(null)
 const notice = ref<{ tone: 'ok' | 'error'; text: string } | null>(null)
 
 const databaseStateLabels: Record<DatabaseCompatibilityState, string> = {
@@ -77,6 +80,18 @@ const databaseStateLabels: Record<DatabaseCompatibilityState, string> = {
   newer: '数据库较新',
   corrupt: '损坏或不可读',
   remaining: '尚未纳入迁移',
+}
+
+const previousExitLabels: Record<PreviousExitState, string> = {
+  none: '首次启动',
+  clean: '正常退出',
+  abnormal: '异常退出',
+}
+
+const previousExitVariants: Record<PreviousExitState, 'secondary' | 'destructive' | 'outline'> = {
+  none: 'outline',
+  clean: 'secondary',
+  abnormal: 'destructive',
 }
 
 const databaseStateVariants: Record<DatabaseCompatibilityState, 'secondary' | 'destructive' | 'outline'> = {
@@ -201,13 +216,44 @@ function formatBytes(value: number) {
 async function loadLocalData() {
   localDataLoading.value = true
   try {
-    localData.value = await invokeCommand<LocalDataStatus>('get_local_data_status')
+    const [status, recovery] = await Promise.all([
+      invokeCommand<LocalDataStatus>('get_local_data_status'),
+      invokeCommand<StartupRecoveryStatus>('get_startup_recovery_status').catch(() => null),
+    ])
+    localData.value = status
+    recoveryStatus.value = recovery
   } catch (reason) {
     notice.value = { tone: 'error', text: `无法读取本地数据状态：${String(reason)}` }
   } finally {
     localDataLoading.value = false
   }
 }
+
+function formatLocalTimestamp(value?: string) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleString('zh-CN', { hour12: false })
+}
+
+const recoveryDescription = computed(() => {
+  const status = recoveryStatus.value
+  if (!status) return ''
+  const parts: string[] = []
+  if (status.previousExit === 'abnormal' && status.previousStartedAt) {
+    parts.push(`上次启动于 ${formatLocalTimestamp(status.previousStartedAt)}`)
+  }
+  if (status.lastCleanExitAt) {
+    parts.push(`上次正常退出 ${formatLocalTimestamp(status.lastCleanExitAt)}`)
+  }
+  if (status.consecutiveAbnormalExits > 0) {
+    parts.push(`连续 ${status.consecutiveAbnormalExits} 次异常退出`)
+  }
+  if (status.previousExit === 'none') {
+    parts.push('尚无历史启动记录')
+  }
+  return parts.join(' · ')
+})
 
 async function revealLocalData() {
   try {
@@ -363,6 +409,15 @@ async function save() {
             </SettingsRow>
           </SettingsSection>
           <SettingsSection title="本地数据" class="mt-6">
+            <SettingsRow
+              v-if="recoveryStatus"
+              label="启动与退出状态"
+              :description="recoveryDescription || '异常退出时会在下次启动提供恢复与诊断入口'"
+            >
+              <Badge :variant="previousExitVariants[recoveryStatus.previousExit]">
+                {{ previousExitLabels[recoveryStatus.previousExit] }}
+              </Badge>
+            </SettingsRow>
             <SettingsRow
               stack="always"
               label="数据与备份"

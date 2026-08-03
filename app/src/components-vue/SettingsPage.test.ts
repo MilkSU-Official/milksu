@@ -33,6 +33,13 @@ async function mountSettingsPage(status: LocalDataStatus) {
     main: {
       App: {
         GetLocalDataStatus: async () => status,
+        GetStartupRecoveryStatus: async () => ({
+          previousExit: 'abnormal',
+          previousStartedAt: '2026-08-03T04:00:00Z',
+          consecutiveAbnormalExits: 2,
+          previousPid: 4242,
+          startedAt: '2026-08-03T05:00:00Z',
+        }),
       },
     },
   }
@@ -166,5 +173,18 @@ describe('SettingsPage database compatibility', () => {
     for (const existing of ['数据与备份', '打开数据目录', '导出安全备份', '从备份恢复', '导出诊断包']) {
       expect(text).toContain(existing)
     }
+  })
+
+  it('renders abnormal-exit recovery status from the desktop runtime', async () => {
+    await mountSettingsPage({
+      directory: 'MilkSU 用户数据目录',
+      fileCount: 0,
+      bytes: 0,
+    })
+    const text = document.body.textContent ?? ''
+    expect(text).toContain('启动与退出状态')
+    expect(text).toContain('异常退出')
+    expect(text).toContain('连续 2 次异常退出')
+    expect(text).toContain('上次启动于')
   })
 })

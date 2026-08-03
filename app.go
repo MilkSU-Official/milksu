@@ -64,6 +64,8 @@ type App struct {
 	ctfAgent        *ctfAgentRecorder
 	ctfMemory       *ctf.MemoryStore
 	vulnJobs        *vuln.Service
+	lifespanStart   appdata.LifespanStart
+	lifespanHandle  appdata.LifespanHandle
 }
 
 func NewApp() (*App, error) {
@@ -115,14 +117,18 @@ func NewApp() (*App, error) {
 	application.diagnostics.Record("app", "info", "application services initialized")
 	if restoreResult.Applied {
 		application.diagnostics.Record("appdata", "info", "pending local data restore applied")
+		_ = appdata.AppendEventLog(dataDirectory, appdata.PersistedRestoreApplied)
 	}
 	if restoreResult.RecoveredFirst {
 		application.diagnostics.Record("appdata", "warning", "interrupted local data restore recovered")
+		_ = appdata.AppendEventLog(dataDirectory, appdata.PersistedInterruptedRestoreRecovered)
 	}
 	if migrationBackup.Created {
 		application.diagnostics.Record("appdata", "info", "pre-migration safety backup created")
+		_ = appdata.AppendEventLog(dataDirectory, appdata.PersistedMigrationBackupCreated)
 	} else if migrationBackup.Reused {
 		application.diagnostics.Record("appdata", "info", "existing pre-migration safety backup verified")
+		_ = appdata.AppendEventLog(dataDirectory, appdata.PersistedMigrationBackupVerified)
 	}
 	if managedLabsFeatureEnabled() {
 		application.managedLabs, err = labmanager.New(dataDirectory)
@@ -226,25 +232,60 @@ func managedLabsFeatureEnabled() bool {
 
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
+	lifespanStart, lifespanHandle, lifespanErr := appdata.BeginLifespan(
+		a.dataDirectory,
+		os.Getpid(),
+	)
+	if lifespanErr != nil {
+		// A broken marker must not block the desktop app. The free-form error
+		// remains in memory; only the fixed classification is persisted.
+		a.diagnostics.Record("appdata", "error", "lifespan state unavailable")
+		a.lifespanStart = appdata.LifespanStart{
+			PreviousExit: appdata.LifespanExitNone,
+			StartedAt:    time.Now().UTC().Format(time.RFC3339Nano),
+		}
+		_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedLifespanUnavailable)
+	} else {
+		a.lifespanStart = lifespanStart
+		a.lifespanHandle = lifespanHandle
+		switch lifespanStart.PreviousExit {
+		case appdata.LifespanExitAbnormal:
+			a.diagnostics.Record("appdata", "warning", fmt.Sprintf(
+				"previous MilkSU run did not exit cleanly (started %s; consecutive abnormal exits: %d)",
+				lifespanStart.PreviousStartedAt,
+				lifespanStart.ConsecutiveAbnormalExits,
+			))
+			_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedPreviousExitAbnormal)
+		case appdata.LifespanExitNone:
+			a.diagnostics.Record("appdata", "info", "first MilkSU run: no previous lifespan record")
+		default:
+			a.diagnostics.Record("appdata", "info", "previous MilkSU run exited cleanly")
+		}
+	}
 	a.diagnostics.Record("app", "info", "desktop runtime started")
+	_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedAppInitialized)
+	_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedDesktopRuntimeStarted)
 	if a.managedLabs != nil {
 		reconcileContext, cancel := context.WithTimeout(ctx, managedLabReconcileTimeout)
 		if _, err := a.managedLabs.Reconcile(reconcileContext); err != nil {
-			a.diagnostics.Record("managed-labs", "error", err.Error())
+			a.diagnostics.Record("managed-labs", "error", "managed labs reconciliation failed")
 			wailsruntime.EventsEmit(ctx, "managed-lab-runtime-error", err.Error())
 		}
 		cancel()
 	}
 	if err := a.jobs.Recover(ctx); err != nil {
-		a.diagnostics.Record("runtime", "error", err.Error())
+		a.diagnostics.Record("runtime", "error", "runtime job recovery failed")
+		_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedRuntimeRecoveryFailed)
 		wailsruntime.EventsEmit(ctx, "job-runtime-error", err.Error())
 	}
 	if err := a.ctfJobs.Recover(ctx); err != nil {
-		a.diagnostics.Record("ctf", "error", err.Error())
+		a.diagnostics.Record("ctf", "error", "CTF job recovery failed")
+		_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedCTFRecoveryFailed)
 		wailsruntime.EventsEmit(ctx, "job-runtime-error", err.Error())
 	}
 	if err := a.vulnJobs.Recover(ctx); err != nil {
-		a.diagnostics.Record("vuln", "error", err.Error())
+		a.diagnostics.Record("vuln", "error", "vulnerability job recovery failed")
+		_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedVulnRecoveryFailed)
 		wailsruntime.EventsEmit(ctx, "job-runtime-error", err.Error())
 	}
 }
@@ -265,6 +306,15 @@ func (a *App) Shutdown(_ context.Context) {
 	a.browserBridge.Close()
 	_ = a.ctfshowCatalog.Close()
 	_ = a.nssctfCatalog.Close()
+	if a.lifespanHandle.Valid() {
+		if err := appdata.MarkCleanExit(a.dataDirectory, a.lifespanHandle); err != nil {
+			a.diagnostics.Record("appdata", "error", "mark clean exit failed")
+			_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedCleanExitMarkerFailed)
+		} else {
+			a.diagnostics.Record("app", "info", "desktop runtime exited cleanly")
+			_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedDesktopRuntimeExited)
+		}
+	}
 }
 
 func (a *App) showPrimaryWindow() {
@@ -277,6 +327,10 @@ func (a *App) showPrimaryWindow() {
 
 func (a *App) GetSettings() config.AppSettings {
 	return a.settings.Get()
+}
+
+func (a *App) GetStartupRecoveryStatus() appdata.LifespanStart {
+	return a.lifespanStart
 }
 
 func (a *App) GetLocalDataStatus() (appdata.DataStatus, error) {
@@ -399,7 +453,8 @@ func (a *App) ExportLocalDiagnostics() (appdata.DiagnosticExport, error) {
 				ConfiguredProvider: providers,
 				ArenaTokenPresent:  settings.NSSCTFArena != nil && settings.NSSCTFArena.HasToken,
 			},
-			Events: a.diagnostics.Snapshot(),
+			Lifespan: a.lifespanStart,
+			Events:   a.diagnostics.Snapshot(),
 		},
 	)
 }
@@ -1396,16 +1451,24 @@ func (a *App) CancelVulnJob(id string) error {
 
 func (a *App) emitEngineEvent(event engine.Event) {
 	if event.Error != "" {
-		a.diagnostics.Record("coding-engine", "error", event.Type+": "+event.Error)
+		a.diagnostics.Record("coding-engine", "error", "coding engine event failed")
 	} else if event.Type == "engine.started" || event.Type == "engine.stopped" {
 		a.diagnostics.Record("coding-engine", "info", event.Type)
+	}
+	switch event.Type {
+	case "engine.started":
+		_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedSidecarStarted)
+	case "engine.stopped":
+		_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedSidecarStopped)
+	case "engine.protocol_error":
+		_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedSidecarProtocolError)
 	}
 	if a.ctx != nil {
 		wailsruntime.EventsEmit(a.ctx, "engine-event", event)
 	}
 	if a.ctfAgent != nil {
 		if err := a.ctfAgent.Record(a.commandContext(), event); err != nil && a.ctx != nil {
-			a.diagnostics.Record("ctf-agent", "error", err.Error())
+			a.diagnostics.Record("ctf-agent", "error", "CTF Agent event recording failed")
 			if errors.Is(err, errCTFAgentLoopDetected) {
 				_ = a.engines.AbortMessage(event.SessionID)
 			}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/MilkSU-Official/milksu/internal/appdata"
 	"github.com/MilkSU-Official/milksu/internal/codingenv"
 	"github.com/MilkSU-Official/milksu/internal/engine"
 )
@@ -30,6 +31,17 @@ func (a *App) RefreshCodingBackgroundTasks(
 	if err != nil {
 		return engine.RuntimeStatus{}, err
 	}
+	if recovery := status.BackgroundRecovery; recovery != nil && recovery.State == "failed" {
+		a.diagnostics.Record(
+			"coding-engine",
+			"warning",
+			"background task recovery failed",
+		)
+		_ = appdata.AppendEventLog(
+			a.dataDirectory,
+			appdata.PersistedBackgroundRecoveryFailed,
+		)
+	}
 	return a.enrichRuntimeStatus(status), nil
 }
 
@@ -53,6 +65,8 @@ func (a *App) StartCodingBackgroundTask(
 	if err != nil {
 		return engine.RuntimeStatus{}, err
 	}
+	a.diagnostics.Record("coding-engine", "info", "background task started")
+	_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedBackgroundTaskStarted)
 	return a.enrichRuntimeStatus(status), nil
 }
 
@@ -64,6 +78,8 @@ func (a *App) StopCodingBackgroundTask(
 	if err != nil {
 		return engine.RuntimeStatus{}, err
 	}
+	a.diagnostics.Record("coding-engine", "info", "background task stopped")
+	_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedBackgroundTaskStopped)
 	return a.enrichRuntimeStatus(status), nil
 }
 

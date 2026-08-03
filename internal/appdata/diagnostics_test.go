@@ -66,6 +66,13 @@ func TestExportDiagnosticsReportsHealthWithoutCopyingSecrets(t *testing.T) {
 				ConfiguredProvider: []string{"deepseek", "deepseek"},
 				ArenaTokenPresent:  true,
 			},
+			Lifespan: LifespanStart{
+				PreviousExit:             LifespanExitAbnormal,
+				PreviousStartedAt:        "2026-08-03T04:00:00Z",
+				ConsecutiveAbnormalExits: 2,
+				PreviousPID:              4242,
+				StartedAt:                "2026-08-03T05:00:00Z",
+			},
 			Events: []DiagnosticEvent{{
 				Category: "engine",
 				Level:    "error",
@@ -101,6 +108,11 @@ func TestExportDiagnosticsReportsHealthWithoutCopyingSecrets(t *testing.T) {
 	if len(report.RecentEvents) != 1 ||
 		!strings.Contains(report.RecentEvents[0].Message, "[REDACTED]") {
 		t.Fatalf("diagnostic event was not redacted: %#v", report.RecentEvents)
+	}
+	if report.Lifespan.PreviousExit != LifespanExitAbnormal ||
+		report.Lifespan.ConsecutiveAbnormalExits != 2 ||
+		report.Lifespan.PreviousStartedAt != "2026-08-03T04:00:00Z" {
+		t.Fatalf("diagnostic lifespan summary was lost: %#v", report.Lifespan)
 	}
 	var credentialHealth, memoryHealth *DiagnosticDatabase
 	for index := range report.Databases {

@@ -56,6 +56,7 @@ rg -q "GetCodingCollaboration" app/wailsjs/go/main/App.d.ts
 rg -q "FinishCodingCollaboration" app/wailsjs/go/main/App.d.ts
 rg -q "ChooseCodingAttachments" app/wailsjs/go/main/App.d.ts
 rg -q "GetLocalDataStatus" app/wailsjs/go/main/App.d.ts
+rg -q "GetStartupRecoveryStatus" app/wailsjs/go/main/App.d.ts
 rg -q "ExportLocalDataBackup" app/wailsjs/go/main/App.d.ts
 rg -q "ExportLocalDiagnostics" app/wailsjs/go/main/App.d.ts
 rg -q "ListNSSCTFCatalog" app/wailsjs/go/main/App.d.ts
