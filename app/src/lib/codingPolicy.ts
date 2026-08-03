@@ -3,6 +3,7 @@ import type {
   CodingCapability,
   CodingExecutionMode,
 } from '@/types'
+import type { CodingComputerUseTarget } from '@/codingEnvironmentTypes'
 
 export const DEFAULT_CODING_EXECUTION_MODE: CodingExecutionMode = 'go'
 export const DEFAULT_CODING_APPROVAL_POLICY: CodingApprovalPolicy = 'workspace-auto'
@@ -109,4 +110,17 @@ export function previewCodingCapabilities(
       detail: '仅在用户显式选择可见 App / 窗口并启动会话后可用；调用跟随当前 Coding 权限档位。',
     },
   ]
+}
+
+export function describeActiveComputerUseCapability(
+  approvalPolicy: CodingApprovalPolicy,
+  target: CodingComputerUseTarget,
+): Pick<CodingCapability, 'status' | 'detail'> {
+  const targetLabel = `${target.name} (${target.bundleId})，PID ${target.pid}，Window ${target.windowId}`
+  return {
+    status: approvalPolicy === 'ask' ? 'approval-required' : 'allowed',
+    detail: approvalPolicy === 'ask'
+      ? `已锁定 ${targetLabel}；请求批准档会逐次确认观察和操作。`
+      : `已锁定 ${targetLabel}；当前权限档会自动执行观察和操作。`,
+  }
 }

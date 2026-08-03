@@ -85,6 +85,7 @@ import {
 } from '@/lib/codingProductActions'
 
 import {
+  describeActiveComputerUseCapability,
   normalizeCodingApprovalPolicy,
   normalizeCodingExecutionMode,
   previewCodingCapabilities,
@@ -336,15 +337,12 @@ const codingCapabilities = computed(() => {
   ) {
     return capabilities
   }
+  const target = computerUseStatus.value?.target
+  if (!target) return capabilities
   return capabilities.map(capability => capability.id === 'computer-use'
     ? {
         ...capability,
-        status: effectiveApprovalPolicy.value === 'ask'
-          ? 'approval-required' as const
-          : 'allowed' as const,
-        detail: effectiveApprovalPolicy.value === 'ask'
-          ? '已锁定当前 MilkSU App；请求批准档会逐次确认观察和操作。'
-          : '已锁定当前 MilkSU App；当前权限档会自动执行观察和操作。',
+        ...describeActiveComputerUseCapability(effectiveApprovalPolicy.value, target),
       }
     : capability)
 })

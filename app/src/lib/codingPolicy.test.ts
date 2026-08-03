@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  describeActiveComputerUseCapability,
   normalizeCodingApprovalPolicy,
   normalizeCodingExecutionMode,
   previewCodingCapabilities,
@@ -60,5 +61,27 @@ describe('Coding policy presentation', () => {
     const capabilities = previewCodingCapabilities('go', 'workspace-auto', false)
     expect(capabilities.find(item => item.id === 'imagegen')?.status).toBe('unavailable')
     expect(capabilities.find(item => item.id === 'imagegen')?.detail).toMatch(/配置并启用 OpenAI/)
+  })
+
+  it('describes the selected external Computer Use app and immutable window scope', () => {
+    const target = {
+      name: 'Codex',
+      bundleId: 'com.openai.codex',
+      pid: 4242,
+      windowId: 9001,
+      windowTitle: '已暂停的目标',
+    }
+
+    const auto = describeActiveComputerUseCapability('workspace-auto', target)
+    expect(auto.status).toBe('allowed')
+    expect(auto.detail).toContain('Codex')
+    expect(auto.detail).toContain('com.openai.codex')
+    expect(auto.detail).toContain('PID 4242')
+    expect(auto.detail).toContain('Window 9001')
+    expect(auto.detail).not.toContain('当前 MilkSU App')
+
+    const ask = describeActiveComputerUseCapability('ask', target)
+    expect(ask.status).toBe('approval-required')
+    expect(ask.detail).toContain('逐次确认观察和操作')
   })
 })
