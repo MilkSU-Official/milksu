@@ -327,8 +327,12 @@ const codingCapabilities = computed(() => {
   return capabilities.map(capability => capability.id === 'computer-use'
     ? {
         ...capability,
-        status: 'approval-required' as const,
-        detail: '已锁定当前 MilkSU App；每次观察或操作都会单独请求批准。',
+        status: effectiveApprovalPolicy.value === 'ask'
+          ? 'approval-required' as const
+          : 'allowed' as const,
+        detail: effectiveApprovalPolicy.value === 'ask'
+          ? '已锁定当前 MilkSU App；请求批准档会逐次确认观察和操作。'
+          : '已锁定当前 MilkSU App；当前权限档会自动执行观察和操作。',
       }
     : capability)
 })
@@ -426,6 +430,19 @@ const architecturePreviewSource = computed(() => {
     ? html.replace(/<head(\s[^>]*)?>/i, match => `${match}${csp}`)
     : `${csp}${html}`
 })
+const codingBrowserEvidencePath = computed(() => {
+  const sessionID = codingBrowserStatus.value?.sessionId?.trim()
+  return sessionID ? `.milksu/browser-evidence/${sessionID}` : ''
+})
+const codingBrowserApprovalDetail = computed(() => (
+  effectiveApprovalPolicy.value === 'ask'
+    ? '请求批准档会逐次确认浏览器调用。'
+    : effectiveApprovalPolicy.value === 'read-only'
+      ? '只读档不会把浏览器加载给 Agent。'
+      : effectiveApprovalPolicy.value === 'full-auto'
+        ? '完全访问会自动执行已启用的浏览器调用，固定会话边界和硬阻断仍然有效。'
+        : '替我审批会自动执行已启用的浏览器调用；扩大外部账户授权时仍会确认。'
+))
 const workspaceLocked = computed(() => Boolean(props.conversation?.messages.length))
 const activeModelLabel = computed(() => {
   if (effectiveModelMode.value === 'auto') return automaticModelLabel.value.replace(/^自动 · /, '')
@@ -1451,7 +1468,7 @@ watch(
                 </button>
               </div>
               <p class="mt-2 text-caption leading-5 text-muted-foreground">
-                只接入本任务勾选的服务器；连接、认证与工具调用仍逐次批准。
+                只接入本任务勾选的服务器；替我审批自动执行连接与只读调用，修改和外部账户授权仍确认。
               </p>
             </template>
           </div>
@@ -1742,7 +1759,7 @@ watch(
             </Button>
           </div>
           <p class="mt-3 text-caption leading-5 text-muted-foreground">
-            启用后，Agent 可在 Go 模式中使用浏览器；每次浏览器工具调用仍会单独请求批准。
+            启用后，Agent 可在 Go 模式中使用浏览器；{{ codingBrowserApprovalDetail }}
           </p>
           <div v-if="codingBrowserStatus?.enabled" class="mt-5 border-t border-border pt-4">
             <div class="flex items-center justify-between gap-3 text-caption">
@@ -1766,6 +1783,18 @@ watch(
             <p v-else class="mt-3 text-caption text-muted-foreground">
               Chrome 已启动，等待页面就绪。
             </p>
+            <div
+              v-if="codingBrowserEvidencePath"
+              class="mt-4 rounded-md border border-border bg-muted/35 px-3 py-3"
+            >
+              <p class="text-caption font-medium text-foreground">浏览器证据</p>
+              <p class="mt-1 break-all font-mono text-caption text-muted-foreground">
+                {{ codingBrowserEvidencePath }}
+              </p>
+              <p class="mt-2 text-caption leading-5 text-muted-foreground">
+                页面快照、Console、Network 和截图由 Agent 明确采集；显式证据文件只能写入此目录。
+              </p>
+            </div>
           </div>
           <div class="mt-5 border-t border-border pt-5">
             <div class="flex items-start justify-between gap-3">
@@ -1858,7 +1887,7 @@ watch(
               </Button>
             </div>
             <p class="mt-3 text-caption leading-5 text-muted-foreground">
-              项目自动不会启用 Computer Use；每次观察、点击、输入、按键或滚动都要单独批准。
+              可见会话必须由你显式启动；替我审批与完全访问会自动操作，请求批准档才逐次确认。
               Driver {{ computerUseStatus?.driverVersion || '0.14.2' }} · prerelease。
             </p>
           </div>

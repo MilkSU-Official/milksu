@@ -31,6 +31,10 @@ import {
   withBackgroundResumeAuthorization,
 } from "./bridge-background-authorization.js";
 import { createApprovalBroker } from "./bridge-approval.js";
+import {
+  codingCollaborationRequiresApproval,
+  codingMcpOperationRequiresApproval,
+} from "./bridge-auto-approval.js";
 import { createReviewedLspExtension } from "./bridge-lsp.js";
 import {
   applyCodingResourcePolicy,
@@ -53,6 +57,12 @@ import {
   loadCodingMcpConfig,
   mcpSelectionChanged,
 } from "./bridge-mcp.js";
+import {
+  codingBrowserEvidenceFileBlockReason,
+  codingBrowserEvidenceRelativePath,
+  codingBrowserToolBlockReason,
+  formatCodingBrowserApprovalInput,
+} from "./bridge-browser-policy.js";
 import { disposeAgentSession } from "./bridge-session-lifecycle.js";
 import {
   compactSession,
@@ -306,10 +316,24 @@ function codingPolicyGuidance(policy) {
       + "run appropriate checks, commit from that worktree, integrate into the main branch, resolve "
       + "conflicts, and rerun final verification yourself. Never treat subagent output as proof."
     : "";
+  const browserEvidencePath = codingBrowserEvidenceRelativePath(
+    policy.codingBrowser?.sessionId,
+  );
+  const browserGuidance = browserEvidencePath
+    ? " An isolated Coding Browser is active. It has a fresh MilkSU-owned profile and does not "
+      + "inherit the user's Chrome cookies, tokens, tabs, or login state. Use reviewed Playwright "
+      + "tools and accessibility snapshots; browser_run_code_unsafe is unavailable. Before "
+      + "concluding a page validation or regression task, inspect Console and failed Network "
+      + "requests and save their outputs plus a final screenshot with explicit workspace-relative "
+      + `filenames under ${browserEvidencePath}, for example ${browserEvidencePath}/final-page.png. `
+      + "MilkSU rejects explicit Browser evidence filenames outside that session directory. "
+      + "Report the checked page, failures, screenshot, and "
+      + "regression result instead of claiming success from page text alone."
+    : "";
   if (policy.executionMode === "plan") {
     return "Plan mode is active. Inspect, reason, and propose a concrete plan. "
       + "Do not claim that files, commands, or external systems were changed. "
-      + `bash, edit, write, and lsp_fix are unavailable.${productActionGuidance}${collaborationGuidance}`;
+      + `bash, edit, write, and lsp_fix are unavailable.${productActionGuidance}${collaborationGuidance}${browserGuidance}`;
   }
   if (policy.approvalPolicy === "full-auto") {
     return "Go mode is active with Full Access and automatic approval. You may use the terminal "
@@ -317,18 +341,21 @@ function codingPolicyGuidance(policy) {
       + "remain project-oriented, but terminal commands are not project-sandboxed. Model-provider "
       + "API keys are not passed to child processes. Act directly, keep changes scoped to the user "
       + "request, and verify destructive or externally visible actions before executing them. "
-      + `Selected MCP servers remain an independent per-call desktop approval boundary.${productActionGuidance}${collaborationGuidance}`;
+      + "Explicitly enabled Browser, Computer Use, MCP, and collaboration calls run automatically; "
+      + `their fixed scope and hard safety guards still apply.${productActionGuidance}${collaborationGuidance}${browserGuidance}`;
   }
   if (policy.approvalPolicy === "workspace-auto") {
     return "Go mode is active with Project Auto. You may edit files, use Git, run development "
       + "commands, start background tools, and access the network inside the selected project. "
       + "The project sandbox blocks writes outside the project and access to local credential "
-      + "directories; model-provider API keys are never passed to child processes. Browser/MCP, "
-      + "when selected for this task, remains behind per-call desktop approval. LSP fixes are "
-      + "previewed and verified inside the project before apply. Computer Use is never enabled by "
-      + "Project Auto; only a user-started MilkSU-only session is available, with approval per call."
+      + "directories; model-provider API keys are never passed to child processes. Explicitly "
+      + "enabled Browser and Computer Use calls, read-only selected MCP calls, and validated "
+      + "collaboration run automatically inside their fixed task scope; mutating project MCP calls "
+      + "and external account authorization still pause for confirmation. "
+      + "LSP fixes are previewed and verified inside the project before apply."
       + productActionGuidance
-      + collaborationGuidance;
+      + collaborationGuidance
+      + browserGuidance;
   }
   if (policy.approvalPolicy === "ask") {
     return "Go mode is active with Request Approval. Read-only inspection runs directly. Before "
@@ -336,10 +363,11 @@ function codingPolicyGuidance(policy) {
       + "LSP fixes first compute and show the exact Diff; other tools show their exact parameters. "
       + "Continue only after that one request is approved; "
       + "selected MCP calls use the same independent approval channel. A rejection is authoritative "
-      + `and must not be bypassed with another tool.${productActionGuidance}${collaborationGuidance}`;
+      + `and must not be bypassed with another tool.${productActionGuidance}${collaborationGuidance}`
+      + browserGuidance;
   }
   return "Go mode is active with Read-only. Inspect and explain, but do not claim any mutation or "
-    + `command execution; write and side-effect tools are unavailable.${productActionGuidance}${collaborationGuidance}`;
+    + `command execution; write and side-effect tools are unavailable.${productActionGuidance}${collaborationGuidance}${browserGuidance}`;
 }
 
 function createCodingPermissionExtension(
@@ -382,6 +410,24 @@ function createCodingPermissionExtension(
           + `${policy.executionMode}/${policy.approvalPolicy}`,
         };
       }
+      if (event.toolName === "mcp") {
+        const serverName = selectedMcpServer(policy, event.input);
+        const browserBlockReason = codingBrowserToolBlockReason(
+          event.input,
+          serverName,
+        );
+        const evidenceBlockReason = codingBrowserEvidenceFileBlockReason(
+          event.input,
+          serverName,
+          policy.codingBrowser?.sessionId,
+        );
+        if (browserBlockReason || evidenceBlockReason) {
+          return {
+            block: true,
+            reason: browserBlockReason || evidenceBlockReason,
+          };
+        }
+      }
       const imageGenDecision = await authorizeImageGenToolCall({
         conversationId,
         event,
@@ -397,20 +443,22 @@ function createCodingPermissionExtension(
             reason: error instanceof Error ? error.message : String(error),
           };
         }
-        const approved = await approvalBroker.request({
-          conversationId,
-          toolName: codingCollaborationToolName,
-          content: formatSubagentApproval(
-            event.input,
-            policy.codingCollaboration,
-          ),
-          input: truncate(JSON.stringify(event.input ?? {}, null, 2), 16000),
-        });
-        if (!approved) {
-          return {
-            block: true,
-            reason: "MilkSU user denied subagent delegation",
-          };
+        if (codingCollaborationRequiresApproval(policy.approvalPolicy)) {
+          const approved = await approvalBroker.request({
+            conversationId,
+            toolName: codingCollaborationToolName,
+            content: formatSubagentApproval(
+              event.input,
+              policy.codingCollaboration,
+            ),
+            input: truncate(JSON.stringify(event.input ?? {}, null, 2), 16000),
+          });
+          if (!approved) {
+            return {
+              block: true,
+              reason: "MilkSU user denied subagent delegation",
+            };
+          }
         }
       }
       const backgroundEffect = backgroundToolRequiresApproval(event.toolName, event.input);
@@ -449,7 +497,14 @@ function createCodingPermissionExtension(
           };
         }
       }
-      if (event.toolName === "mcp" && mcpOperationRequiresApproval(event.input)) {
+      if (
+        event.toolName === "mcp"
+        && codingMcpOperationRequiresApproval(
+          event.input,
+          policy.approvalPolicy,
+          selectedMcpServer(policy, event.input),
+        )
+      ) {
         const serverName = selectedMcpServer(policy, event.input);
         const approved = await approvalBroker.request({
           conversationId,
@@ -509,15 +564,6 @@ function createCodingPermissionExtension(
   };
 }
 
-function mcpOperationRequiresApproval(input) {
-  if (!input || typeof input !== "object") return false;
-  return Boolean(
-    input.tool
-    || input.connect
-    || ["auth-start", "auth-complete"].includes(String(input.action ?? "")),
-  );
-}
-
 function selectedMcpServer(policy, input) {
   const explicit = String(input?.server ?? input?.connect ?? "").trim();
   if (explicit) return explicit;
@@ -526,6 +572,8 @@ function selectedMcpServer(policy, input) {
 }
 
 function formatMcpApprovalInput(input, serverName) {
+  const browserApproval = formatCodingBrowserApprovalInput(input, serverName);
+  if (browserApproval) return browserApproval;
   const tool = String(input?.tool ?? "").trim();
   const action = String(input?.action ?? input?.connect ?? "").trim();
   return [

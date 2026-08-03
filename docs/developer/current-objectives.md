@@ -60,12 +60,23 @@ Coding Agent 才能继续迭代。
 - 跨文件 LSP Action 在不能完整审阅和原子应用时必须拒绝，不能部分写入；
 - 已完成的超大 Diff 拒绝边界保持回归。
 
+Coding 权限档位必须对所有能力入口保持同一语义，不能只对基础文件/终端工具生效：
+
+- **请求批准：** 普通写入、命令、Browser、Computer Use、MCP 和 Agent 委托逐次确认；
+- **替我审批：** 在用户已经显式启用且固定边界的任务范围内，自动执行普通文件、命令、
+  Browser、Computer Use、只读 MCP 和合规 Agent 委托，不用无意义审批打断用户；
+- **完全访问：** 自动执行已启用能力，但仍受 Provider Credential 隔离、禁止工具、路径
+  防逃逸等不可绕过的硬边界约束；
+- 付费 ImageGen、外部账户授权、扩大 Scope、托管平台发布和其他不可逆外部副作用仍属于
+  有意义的独立确认，不得借“替我审批”静默扩大授权。
+
 ### B2 · 自主验证
 
 - 预览工作区内普通 Markdown、HTML 和图片产物；
 - HTML 使用隔离渲染、严格 CSP、禁网、路径和大小限制；
-- Coding Browser 继续使用隔离 Profile 与逐次批准；
-- Computer Use 使用用户可见会话、明确应用范围和逐次授权，用于验证 MilkSU 原生 App；
+- Coding Browser 继续使用隔离 Profile，工具调用遵循统一 Coding 权限档位；
+- Computer Use 使用用户可见会话、明确应用范围，并遵循统一 Coding 权限档位，用于验证
+  MilkSU 原生 App；
 - Workspace Auto 不得隐式启用 Computer Use。
 
 ### B3 · 持续执行

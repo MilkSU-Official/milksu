@@ -1594,7 +1594,7 @@ async function smokeSidecar(platform) {
     || !collaborationReady?.extensions?.includes('pi-sub-agent')
     || !collaborationReady.capabilities?.some(
       capability => capability.id === 'collaboration'
-        && capability.status === 'approval-required',
+        && capability.status === 'allowed',
     )
     || collaborationResponses.some(value => value.type === 'error')
   ) {
@@ -1842,16 +1842,23 @@ async function smokeSidecar(platform) {
     { recursive: true, force: true },
   )
   const codingBrowserReady = codingBrowserResponses.find(value => value.type === 'ready')
+  const codingBrowserEvidenceDirectory = join(
+    workspace,
+    '.milksu',
+    'browser-evidence',
+    'browser_12345678-abcd-4567-8901-123456789abc',
+  )
   if (
     !codingBrowserReady?.tools?.includes('mcp')
     || !codingBrowserReady?.extensions?.includes('pi-mcp-adapter')
     || !codingBrowserReady.capabilities?.some(
       capability => capability.id === 'browser'
-        && capability.status === 'approval-required'
+        && capability.status === 'allowed'
         && capability.detail.includes('MilkSU 隔离浏览器'),
     )
     || !codingBrowserResponses.some(value => value.type === 'session_destroyed')
     || codingBrowserResponses.some(value => value.type === 'error')
+    || !(await exists(codingBrowserEvidenceDirectory))
   ) {
     throw new Error(
       `unexpected packaged Coding Browser response: ${codingBrowserRun.stdout}`,
@@ -1903,7 +1910,7 @@ async function smokeSidecar(platform) {
       || !computerUseReady?.extensions?.includes('pi-mcp-adapter')
       || !computerUseReady.capabilities?.some(
         capability => capability.id === 'computer-use'
-          && capability.status === 'approval-required'
+          && capability.status === 'allowed'
           && capability.detail.includes('模型不能改 PID、窗口或桌面范围'),
       )
       || !computerUseResponses.some(value => value.type === 'session_destroyed')

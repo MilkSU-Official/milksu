@@ -140,19 +140,19 @@ export function normalizeCodingPolicy(
         id: "browser",
         label: "浏览器 / MCP",
         status: "unavailable",
-        detail: "尚未接入 Coding Agent；未来接入仍需逐次显式批准。",
+        detail: "仅在任务显式选择后加载；审批行为跟随当前 Coding 权限档位。",
       },
       {
         id: "computer-use",
         label: "Computer Use",
         status: "unavailable",
-        detail: "只有用户显式启动应用范围会话后可用；所有调用仍逐次批准。",
+        detail: "只有用户显式启动应用范围会话后可用；调用跟随当前 Coding 权限档位。",
       },
       {
         id: "collaboration",
         label: "多 Agent 协作",
         status: "unavailable",
-        detail: "只有用户显式准备独立 Git worktree 后可用；每次委托仍单独批准。",
+        detail: "只有用户显式准备独立 Git worktree 后可用；委托跟随当前 Coding 权限档位。",
       },
     ],
   };

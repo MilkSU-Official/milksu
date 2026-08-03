@@ -100,13 +100,13 @@ export function previewCodingCapabilities(
       id: 'browser',
       label: '浏览器 / MCP',
       status: 'unavailable',
-      detail: '仅在任务显式选择后加载，所有调用仍逐次批准。',
+      detail: '仅在任务显式选择后加载；审批行为跟随当前 Coding 权限档位。',
     },
     {
       id: 'computer-use',
       label: 'Computer Use',
       status: 'unavailable',
-      detail: '仅在用户显式启动 MilkSU 应用范围会话后可用；项目自动不会启用。',
+      detail: '仅在用户显式启动 MilkSU 应用范围会话后可用；调用跟随当前 Coding 权限档位。',
     },
   ]
 }

@@ -1883,6 +1883,9 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
     && Boolean(codingCollaboration)
     && normalized.executionMode === "go"
     && normalized.approvalPolicy !== "read-only";
+  const automaticCapabilityApproval = ["workspace-auto", "full-auto"].includes(
+    normalized.approvalPolicy,
+  );
   const imageGenAvailable = !productAction
     && normalized.executionMode === "go"
     && normalized.approvalPolicy !== "read-only"
@@ -1896,14 +1899,20 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
     capability.id === "browser"
       ? {
           ...capability,
-          status: browserAvailable ? "approval-required" : "unavailable",
+          status: browserAvailable
+            ? automaticCapabilityApproval ? "allowed" : "approval-required"
+            : "unavailable",
           detail: browserAvailable
             ? codingBrowser
               ? `MilkSU 隔离浏览器已为本任务启用`
                 + `${projectMcpServers.length ? `，另有 ${projectMcpServers.length} 个项目 MCP` : ""}；`
-                + "每次连接或工具调用前都会在桌面请求批准。"
+                + (automaticCapabilityApproval
+                    ? "当前权限档会自动执行已选调用；固定会话边界和硬阻断保持有效。"
+                    : "当前请求批准档会逐次确认调用。")
               : `${mcpServers.length} 个 MCP 服务器已为本任务启用；`
-                + "每次外部连接或工具调用前都会在桌面请求批准。"
+                + (automaticCapabilityApproval
+                    ? "当前权限档会自动执行只读调用；替我审批仍会确认修改和外部账户授权。"
+                    : "当前请求批准档会逐次确认调用。")
             : mcpServers.length
               ? "当前 Plan、只读或一键只读动作不会加载 MCP；切换到 Go 后可用。"
             : "项目 .mcp.json 中的服务器仅在本任务“能力”菜单勾选后加载。",
@@ -1922,11 +1931,15 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
       : capability.id === "computer-use"
         ? {
             ...capability,
-            status: computerUseAvailable ? "approval-required" : "unavailable",
+            status: computerUseAvailable
+              ? automaticCapabilityApproval ? "allowed" : "approval-required"
+              : "unavailable",
             detail: computerUseAvailable
               ? `可见会话已锁定 ${computerUse.targetName} `
                 + `(${computerUse.targetBundleId})；模型不能改 PID、窗口或桌面范围，`
-                + "每次观察或操作都会单独请求批准。"
+                + (automaticCapabilityApproval
+                    ? "当前权限档会自动执行观察和操作。"
+                    : "当前请求批准档会逐次确认观察和操作。")
               : computerUse
                 ? "当前 Plan、只读或产品动作不会加载 Computer Use；切换到普通 Go 后可用。"
                 : "仅在用户显式启动 MilkSU 应用范围会话后可用；Project Auto 不会自动启用。",
@@ -1934,10 +1947,14 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
         : capability.id === "collaboration"
           ? {
               ...capability,
-              status: collaborationAvailable ? "approval-required" : "unavailable",
+              status: collaborationAvailable
+                ? automaticCapabilityApproval ? "allowed" : "approval-required"
+                : "unavailable",
               detail: collaborationAvailable
                 ? `${codingCollaboration.worktrees.length} 个写入槽已锁定独立 worktree；`
-                  + "每次子 Agent 委托都展示角色、任务和分支并单独批准。"
+                  + (automaticCapabilityApproval
+                      ? "当前权限档会自动执行通过边界校验的委托。"
+                      : "当前请求批准档会逐次展示角色、任务和分支。")
                 : codingCollaboration
                   ? "当前 Plan、只读或一键产品动作不会加载多 Agent；切换到普通 Go 后可用。"
                   : "只有用户显式准备独立 Git worktree 后可用；主 Agent 负责审阅、集成和验证。",

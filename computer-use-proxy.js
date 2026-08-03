@@ -37,7 +37,7 @@ export const computerUseTool = {
     "Observe or interact with the one visible MilkSU application window selected by the user. "
     + "The target PID, window, bundle id, window-only scope, and visible session are injected by "
     + "MilkSU and cannot be changed by the model. Observe before each action; one action consumes "
-    + "that snapshot. Every call requires a fresh desktop approval.",
+    + "that snapshot. MilkSU applies the active task's approval policy to each call.",
   inputSchema: {
     type: "object",
     additionalProperties: false,

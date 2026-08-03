@@ -219,7 +219,7 @@ watch(
             创建过程被中断；MilkSU 只会清理已记录且仍安全的临时 worktree，不会删除冲突的外部分支。
           </template>
           <template v-else>
-            每次委托都会再次展示 Agent、任务与目标分支，批准只对该次调用有效。
+            请求批准档会逐次确认委托；替我审批与完全访问会在已锁定的 worktree 范围内自动执行。
           </template>
         </p>
       </div>

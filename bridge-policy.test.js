@@ -210,7 +210,7 @@ test("MCP is exposed only for an explicitly selected Coding task", async () => {
   assert.deepEqual(enabled.mcpServers, ["browser"]);
   assert.equal(
     enabled.capabilities.find(value => value.id === "browser").status,
-    "approval-required",
+    "allowed",
   );
 
   const codingBrowser = {
@@ -227,6 +227,10 @@ test("MCP is exposed only for an explicitly selected Coding task", async () => {
   assert.equal(browserEnabled.activeTools.includes("mcp"), true);
   assert.deepEqual(browserEnabled.projectMcpServers, []);
   assert.deepEqual(browserEnabled.codingBrowser, codingBrowser);
+  assert.equal(
+    browserEnabled.capabilities.find(value => value.id === "browser").status,
+    "allowed",
+  );
   assert.match(
     browserEnabled.capabilities.find(value => value.id === "browser").detail,
     /MilkSU 隔离浏览器/,
@@ -284,7 +288,7 @@ test("Computer Use requires an explicit app-scoped session under every Go policy
     assert.deepEqual(enabled.computerUse, computerUse);
     assert.equal(
       enabled.capabilities.find(value => value.id === "computer-use").status,
-      "approval-required",
+      approvalPolicy === "ask" ? "approval-required" : "allowed",
     );
     assert.match(
       enabled.capabilities.find(value => value.id === "computer-use").detail,
@@ -676,7 +680,7 @@ test("Coding collaboration exposes subagent and lets only the main shell integra
   assert.equal(policy.activeTools.includes("subagent"), true);
   assert.equal(
     policy.capabilities.find(value => value.id === "collaboration").status,
-    "approval-required",
+    "allowed",
   );
 
   const read = policy.customTools.find(tool => tool.name === "read");

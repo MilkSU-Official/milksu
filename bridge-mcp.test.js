@@ -1,7 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, realpath, symlink, writeFile } from "node:fs/promises";
+import {
+  lstat,
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
@@ -138,10 +146,21 @@ test("builds the first-party Playwright server from a strict loopback descriptor
     builtIn.server.args.some(value => value.endsWith("/node_modules/@playwright/mcp/cli.js")),
   );
   assert.deepEqual(
-    builtIn.server.args.slice(-4),
+    builtIn.server.args.slice(-10),
     [
       "--cdp-endpoint",
       "http://127.0.0.1:43127",
+      "--output-dir",
+      join(
+        await realpath(workspace),
+        ".milksu",
+        "browser-evidence",
+        descriptor.sessionId,
+      ),
+      "--output-max-size",
+      String(16 << 20),
+      "--console-level=debug",
+      "--save-session",
       "--codegen=none",
       "--output-mode=stdout",
     ],
@@ -155,6 +174,10 @@ test("builds the first-party Playwright server from a strict loopback descriptor
   assert.deepEqual(builtIn.server.env, {});
   assert.equal(builtIn.server.lifecycle, "lazy");
   assert.equal(builtIn.server.directTools, false);
+  assert.deepEqual(
+    builtIn.server.excludeTools,
+    ["browser_run_code_unsafe"],
+  );
 });
 
 test("combines selected project MCP with the reserved Coding Browser server", async () => {
@@ -214,6 +237,48 @@ test("rejects non-loopback, ambiguous, and caller-controlled Coding Browser desc
       cdpEndpoint: "http://127.0.0.1:43128",
     }),
     true,
+  );
+});
+
+test("rejects symlinked Browser runtime and evidence directories before use", async () => {
+  const descriptor = {
+    sessionId: "browser_12345678-abcd-4567-8901-123456789abc",
+    cdpEndpoint: "http://127.0.0.1:43127",
+  };
+  const outsideRoot = await mkdtemp(join(tmpdir(), "milksu-browser-outside-"));
+
+  const linkedRuntimeWorkspace = await mkdtemp(
+    join(tmpdir(), "milksu-browser-runtime-link-"),
+  );
+  await symlink(outsideRoot, join(linkedRuntimeWorkspace, ".milksu"));
+  await assert.rejects(
+    createFirstPartyPlaywrightMcpServer(linkedRuntimeWorkspace, descriptor),
+    /symlinked or invalid Coding Browser runtime directory/,
+  );
+  await assert.rejects(
+    lstat(join(outsideRoot, "mcp-runtime")),
+    error => error?.code === "ENOENT",
+  );
+
+  const linkedEvidenceWorkspace = await mkdtemp(
+    join(tmpdir(), "milksu-browser-evidence-link-"),
+  );
+  await mkdir(
+    join(linkedEvidenceWorkspace, ".milksu", "browser-evidence"),
+    { recursive: true },
+  );
+  await symlink(
+    outsideRoot,
+    join(
+      linkedEvidenceWorkspace,
+      ".milksu",
+      "browser-evidence",
+      descriptor.sessionId,
+    ),
+  );
+  await assert.rejects(
+    createFirstPartyPlaywrightMcpServer(linkedEvidenceWorkspace, descriptor),
+    /symlinked or invalid Coding Browser evidence directory/,
   );
 });
 

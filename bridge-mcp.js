@@ -1,12 +1,24 @@
 import { createHash } from "node:crypto";
-import { lstat, mkdir, open, readFile, realpath } from "node:fs/promises";
+import {
+  chmod,
+  lstat,
+  mkdir,
+  open,
+  readFile,
+  realpath,
+} from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { sandboxProfile } from "./bridge-policy.js";
+import {
+  codingBrowserEvidenceRelativePath,
+  codingBrowserExcludedTools,
+  codingBrowserMcpServerName,
+} from "./bridge-browser-policy.js";
 
 const maxConfigBytes = 1 << 20;
 const maxSelectedServers = 16;
-export const codingBrowserMcpServerName = "milksu-playwright";
+export { codingBrowserMcpServerName };
 export const computerUseMcpServerName = "milksu-computer-use";
 const bridgeDirectory = dirname(fileURLToPath(import.meta.url));
 const playwrightMcpCliPath = join(
@@ -54,6 +66,30 @@ function within(root, target) {
   const path = relative(root, target);
   return path === ""
     || (!path.startsWith(`..${sep}`) && path !== ".." && !path.startsWith("../"));
+}
+
+async function ensurePrivateDirectoryTree(root, segments, label) {
+  let current = root;
+  for (const segment of segments) {
+    current = join(current, segment);
+    let metadata;
+    try {
+      metadata = await lstat(current);
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error;
+      try {
+        await mkdir(current, { mode: 0o700 });
+      } catch (mkdirError) {
+        if (mkdirError?.code !== "EEXIST") throw mkdirError;
+      }
+      metadata = await lstat(current);
+    }
+    if (metadata.isSymbolicLink() || !metadata.isDirectory()) {
+      throw new Error(`MilkSU rejected a symlinked or invalid ${label} directory`);
+    }
+    await chmod(current, 0o700);
+  }
+  return current;
 }
 
 export function normalizeSelectedMcpServers(value) {
@@ -426,7 +462,20 @@ export async function createFirstPartyPlaywrightMcpServer(workspace, descriptor)
   if (cliMetadata.isSymbolicLink() || !cliMetadata.isFile()) {
     throw new Error("MilkSU packaged Playwright MCP CLI is unavailable");
   }
-  const runtimeRoot = join(root, ".milksu", "mcp-runtime");
+  const runtimeRoot = await ensurePrivateDirectoryTree(
+    root,
+    [".milksu", "mcp-runtime"],
+    "Coding Browser runtime",
+  );
+  const evidenceRelativePath = codingBrowserEvidenceRelativePath(browser.sessionId);
+  if (!evidenceRelativePath) {
+    throw new Error("MilkSU rejected an invalid Coding Browser evidence path");
+  }
+  const evidenceRoot = await ensurePrivateDirectoryTree(
+    root,
+    evidenceRelativePath.split("/"),
+    "Coding Browser evidence",
+  );
   await Promise.all([
     mkdir(join(runtimeRoot, "home"), { recursive: true, mode: 0o700 }),
     mkdir(join(runtimeRoot, "tmp"), { recursive: true, mode: 0o700 }),
@@ -449,16 +498,23 @@ export async function createFirstPartyPlaywrightMcpServer(workspace, descriptor)
           playwrightMcpCliPath,
           "--cdp-endpoint",
           browser.cdpEndpoint,
+          "--output-dir",
+          evidenceRoot,
+          "--output-max-size",
+          String(16 << 20),
+          "--console-level=debug",
+          "--save-session",
           "--codegen=none",
           "--output-mode=stdout",
         ],
         env: {
           PWTEST_SOCKETS_DIR: socketRoot,
         },
+        excludeTools: codingBrowserExcludedTools,
       },
       codingBrowserMcpServerName,
       root,
-      { extraWritableRoots: [socketRoot] },
+      { extraWritableRoots: [socketRoot, evidenceRoot] },
     ),
   };
 }
