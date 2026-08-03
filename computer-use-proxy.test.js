@@ -13,13 +13,14 @@ const options = {
   socketPath:
     "/private/tmp/milksu-computer-use/computer_12345678/driver.sock",
   sessionId: "computer_12345678",
-  targetName: "MilkSU",
-  targetBundleId: "com.milksu.app",
+  targetName: "Codex",
+  targetBundleId: "com.openai.codex",
   targetPid: 4242,
+  targetWindowId: 42,
   driverPath: "/reviewed/cua-driver",
 };
 
-test("normalizes only the immutable MilkSU proxy descriptor", () => {
+test("normalizes only the immutable scoped proxy descriptor", () => {
   assert.deepEqual(
     normalizeComputerUseProxyOptions([
       "--socket",
@@ -30,6 +31,8 @@ test("normalizes only the immutable MilkSU proxy descriptor", () => {
       options.targetName,
       "--target-bundle-id",
       options.targetBundleId,
+      "--target-window-id",
+      String(options.targetWindowId),
       "--target-pid",
       String(options.targetPid),
       "--driver",
@@ -47,6 +50,8 @@ test("normalizes only the immutable MilkSU proxy descriptor", () => {
       options.targetName,
       "--target-bundle-id",
       options.targetBundleId,
+      "--target-window-id",
+      String(options.targetWindowId),
       "--target-pid",
       String(options.targetPid),
       "--driver",
@@ -58,9 +63,11 @@ test("normalizes only the immutable MilkSU proxy descriptor", () => {
       "--session",
       options.sessionId,
       "--target-name",
-      "Finder",
+      options.targetName,
       "--target-bundle-id",
-      "com.apple.finder",
+      "com.apple.finder/invalid",
+      "--target-window-id",
+      String(options.targetWindowId),
       "--target-pid",
       String(options.targetPid),
       "--driver",
@@ -100,7 +107,7 @@ test("rejects hidden scope fields and unrelated action parameters", () => {
   );
 });
 
-test("injects the selected MilkSU PID, visible window, session, and window scope", async () => {
+test("injects the selected app PID, exact visible window, session, and window scope", async () => {
   const calls = [];
   const executor = createComputerUseExecutor(options, async (name, args) => {
     calls.push({ name, args });
@@ -117,9 +124,9 @@ test("injects the selected MilkSU PID, visible window, session, and window scope
           {
             pid: options.targetPid,
             window_id: 42,
-            title: "MilkSU",
+            title: "Codex",
             is_on_screen: true,
-            z_index: 9,
+            z_index: 1,
           },
           {
             pid: 999,
@@ -175,7 +182,7 @@ test("injects the selected MilkSU PID, visible window, session, and window scope
       name: "get_window_state",
       args: {
         pid: options.targetPid,
-        window_id: 42,
+        window_id: options.targetWindowId,
         session: options.sessionId,
         include_screenshot: false,
         max_elements: 300,
@@ -193,7 +200,7 @@ test("injects the selected MilkSU PID, visible window, session, and window scope
       name: "click",
       args: {
         pid: options.targetPid,
-        window_id: 42,
+        window_id: options.targetWindowId,
         session: options.sessionId,
         scope: "window",
         delivery_mode: "background",
@@ -202,11 +209,11 @@ test("injects the selected MilkSU PID, visible window, session, and window scope
     },
   ]);
   assert.deepEqual(result.target, {
-    app: "MilkSU",
-    bundleId: "com.milksu.app",
+    app: "Codex",
+    bundleId: "com.openai.codex",
     pid: options.targetPid,
-    windowId: 42,
-    title: "MilkSU",
+    windowId: options.targetWindowId,
+    title: "Codex",
   });
   await executor.end();
   assert.deepEqual(calls.at(-1), {
@@ -287,6 +294,6 @@ test("exposes one MCP tool and preserves screenshots without writing files", asy
   );
   assert.equal(
     responses[2].result.structuredContent.target.bundleId,
-    "com.milksu.app",
+    options.targetBundleId,
   );
 });

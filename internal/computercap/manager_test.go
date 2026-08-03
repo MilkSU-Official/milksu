@@ -65,32 +65,54 @@ func helperCommand(_ string, arguments ...string) *exec.Cmd {
 }
 
 func TestManagerStartsOneVisibleScopedSessionAndCleansIt(t *testing.T) {
+	target := Target{
+		Name:        "Codex",
+		BundleID:    "com.openai.codex",
+		PID:         4242,
+		WindowID:    9001,
+		WindowTitle: "MilkSU task",
+	}
 	manager := New(Options{
 		BinaryPath:      os.Args[0],
 		TargetPID:       4242,
 		GOOS:            "darwin",
 		PermissionProbe: func(bool) Permissions { return Permissions{true, true} },
+		TargetProvider:  func() ([]Target, error) { return []Target{target}, nil },
 		CommandFactory:  helperCommand,
 		StartTimeout:    2 * time.Second,
 	})
 	defer manager.Close()
 
-	status, err := manager.Start(context.Background(), "conversation-1")
+	targets, err := manager.Targets()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(targets) != 1 || targets[0] != target {
+		t.Fatalf("unexpected target list: %#v", targets)
+	}
+	status, err := manager.Start(
+		context.Background(),
+		"conversation-1",
+		TargetSelection{PID: target.PID, WindowID: target.WindowID},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !status.Enabled ||
 		status.Phase != "ready" ||
 		status.ConversationID != "conversation-1" ||
-		status.Target.PID != 4242 ||
+		status.Target.PID != target.PID ||
+		status.Target.BundleID != target.BundleID ||
+		status.Target.WindowID != target.WindowID ||
 		status.DriverVersion != DriverVersion {
 		t.Fatalf("unexpected ready status: %#v", status)
 	}
 	descriptor, enabled := manager.Descriptor("conversation-1")
 	if !enabled ||
-		descriptor.TargetBundleID != targetBundleID ||
-		descriptor.TargetName != targetName ||
-		descriptor.TargetPID != 4242 ||
+		descriptor.TargetBundleID != target.BundleID ||
+		descriptor.TargetName != target.Name ||
+		descriptor.TargetPID != target.PID ||
+		descriptor.TargetWindowID != target.WindowID ||
 		descriptor.SocketPath != filepath.Join(
 			runtimeRoot,
 			descriptor.SessionID,
@@ -98,7 +120,11 @@ func TestManagerStartsOneVisibleScopedSessionAndCleansIt(t *testing.T) {
 		) {
 		t.Fatalf("unexpected descriptor: %#v, enabled=%v", descriptor, enabled)
 	}
-	if _, err := manager.Start(context.Background(), "conversation-2"); err == nil {
+	if _, err := manager.Start(
+		context.Background(),
+		"conversation-2",
+		TargetSelection{PID: target.PID, WindowID: target.WindowID},
+	); err == nil {
 		t.Fatal("expected a second task to be refused")
 	}
 	if _, err := manager.Stop("conversation-2"); err == nil {
@@ -147,7 +173,7 @@ func TestManagerNeverPromptsOrStartsImplicitly(t *testing.T) {
 	if len(prompts) != 1 || prompts[0] {
 		t.Fatalf("status prompted for a system grant: %#v", prompts)
 	}
-	if _, err := manager.Start(context.Background(), "conversation-1"); err == nil {
+	if _, err := manager.Start(context.Background(), "conversation-1", TargetSelection{}); err == nil {
 		t.Fatal("expected missing grants to prevent startup")
 	}
 	for _, prompt := range prompts {
@@ -162,11 +188,11 @@ func TestManagerNeverPromptsOrStartsImplicitly(t *testing.T) {
 }
 
 func TestSessionManifestDeniesDesktopAndUnreviewedTools(t *testing.T) {
-	manifest := sessionManifest()
+	manifest := sessionManifest("com.openai.codex")
 	for _, expected := range []string{
 		"version: 2",
 		"mode: bounded",
-		"bundle_id: com.milksu.app",
+		"bundle_id: com.openai.codex",
 		"launch: false",
 		"- start_session",
 		"- get_window_state",

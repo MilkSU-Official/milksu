@@ -1892,6 +1892,7 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
         targetBundleId: String(codingPolicy.computerUse.targetBundleId ?? ""),
         targetName: String(codingPolicy.computerUse.targetName ?? ""),
         targetPid: Number(codingPolicy.computerUse.targetPid ?? 0),
+        targetWindowId: Number(codingPolicy.computerUse.targetWindowId ?? 0),
       }
     : undefined;
   const codingCollaboration = codingPolicy.codingCollaboration;

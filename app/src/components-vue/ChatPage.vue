@@ -65,6 +65,7 @@ import type {
   CodingArchitecturePreview,
   CodingBrowserStatus,
   CodingComputerUseStatus,
+  CodingComputerUseTarget,
   CodingDiffSnapshot,
   CodingEnvironmentSnapshot,
   CodingMCPConfigSnapshot,
@@ -188,6 +189,8 @@ const codingBrowserEvidenceError = ref('')
 const codingBrowserEvidenceRevealed = ref(false)
 const computerUseLoading = ref(false)
 const computerUseStatus = ref<CodingComputerUseStatus | null>(null)
+const computerUseTargets = ref<CodingComputerUseTarget[]>([])
+const selectedComputerUseTargetKey = ref('')
 const nssctfBrowserStatus = ref<NSSCTFWebBridgeStatus | null>(null)
 const ctfshowBrowserStatus = ref<CTFShowCatalogStatus | null>(null)
 const codingEnvironment = ref<CodingEnvironmentSnapshot | null>(null)
@@ -309,6 +312,11 @@ const computerUseAttachedToOtherTask = computed(() => Boolean(
 const computerUsePermissionsReady = computed(() => Boolean(
   computerUseStatus.value?.permissions.accessibility
   && computerUseStatus.value.permissions.screenRecording,
+))
+const selectedComputerUseTarget = computed(() => (
+  computerUseTargets.value.find(target => (
+    `${target.pid}:${target.windowId}` === selectedComputerUseTargetKey.value
+  )) || null
 ))
 const codingCapabilities = computed(() => {
   const capabilities = props.conversation?.agentCapabilities?.length
@@ -751,7 +759,7 @@ async function refreshBrowserPanel() {
     codingBrowserLoading.value = true
     computerUseLoading.value = true
     const conversationID = props.conversation?.id
-    const [browser, computerUse] = await Promise.allSettled([
+    const [browser, computerUse, computerUseTargetsResult] = await Promise.allSettled([
       conversationID
         ? invokeCommand<CodingBrowserStatus>(
             'get_coding_browser_status',
@@ -764,6 +772,7 @@ async function refreshBrowserPanel() {
             pages: [],
           }),
       invokeCommand<CodingComputerUseStatus>('get_coding_computer_use_status'),
+      invokeCommand<CodingComputerUseTarget[]>('list_coding_computer_use_targets'),
     ])
     if (browser.status === 'fulfilled') {
       codingBrowserStatus.value = browser.value
@@ -784,6 +793,29 @@ async function refreshBrowserPanel() {
         browserPanelError.value = computerUse.reason instanceof Error
           ? computerUse.reason.message
           : '暂时无法读取 Computer Use 状态。'
+      }
+    }
+    if (computerUseTargetsResult.status === 'fulfilled') {
+      computerUseTargets.value = computerUseTargetsResult.value
+      const selectedStillVisible = computerUseTargets.value.some(target => (
+        `${target.pid}:${target.windowId}` === selectedComputerUseTargetKey.value
+      ))
+      if (!selectedStillVisible) {
+        const activeTarget = computerUseStatus.value?.target
+        const activeKey = activeTarget?.windowId
+          ? `${activeTarget.pid}:${activeTarget.windowId}`
+          : ''
+        const firstKey = computerUseTargets.value[0]
+          ? `${computerUseTargets.value[0].pid}:${computerUseTargets.value[0].windowId}`
+          : ''
+        selectedComputerUseTargetKey.value = activeKey || firstKey
+      }
+    } else {
+      computerUseTargets.value = []
+      if (!browserPanelError.value) {
+        browserPanelError.value = computerUseTargetsResult.reason instanceof Error
+          ? computerUseTargetsResult.reason.message
+          : '暂时无法读取可见 App 窗口。'
       }
     }
     codingBrowserLoading.value = false
@@ -899,18 +931,27 @@ async function requestComputerUsePermissions() {
 
 async function startComputerUse() {
   browserPanelError.value = ''
+  const target = selectedComputerUseTarget.value
+  if (!target) {
+    browserPanelError.value = '请先选择一个当前可见的 App 窗口。'
+    return
+  }
   const workspaceName = props.workspacePath
     .replace(/\/+$/, '')
     .split('/')
     .at(-1)
   const conversationID = props.ensureConversation(
-    workspaceName ? `${workspaceName} · 原生验证` : 'MilkSU 原生验证',
+    workspaceName ? `${workspaceName} · ${target.name}` : `${target.name} 可见会话`,
   )
   computerUseLoading.value = true
   try {
     computerUseStatus.value = await invokeCommand<CodingComputerUseStatus>(
       'start_coding_computer_use',
-      { conversationId: conversationID },
+      {
+        conversationId: conversationID,
+        targetPid: target.pid,
+        targetWindowId: target.windowId,
+      },
     )
   } catch (reason) {
     browserPanelError.value = reason instanceof Error
@@ -1860,9 +1901,9 @@ watch(
           <div class="mt-5 border-t border-border pt-5">
             <div class="flex items-start justify-between gap-3">
               <div>
-                <p class="text-body font-medium">MilkSU 原生 App</p>
+                <p class="text-body font-medium">可见 App 会话</p>
                 <p class="mt-1 text-caption leading-5 text-muted-foreground">
-                  可见会话固定为当前 MilkSU 进程；模型不能切换到桌面、其他 App 或其他 PID。
+                  选择一个当前可见窗口，启动后锁定为本任务的 App Scope。
                 </p>
               </div>
               <span
@@ -1871,15 +1912,45 @@ watch(
               />
             </div>
             <div class="mt-4 rounded-md bg-muted/45 px-3 py-3 text-caption">
+              <div
+                v-if="!computerUseOwnedByCurrentTask"
+                class="mb-3"
+              >
+                <Select
+                  v-model="selectedComputerUseTargetKey"
+                  :disabled="computerUseLoading || running || Boolean(computerUseStatus?.conversationId)"
+                >
+                  <SelectTrigger class="w-full">
+                    <SelectValue placeholder="选择可见 App 窗口" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem
+                      v-for="target in computerUseTargets"
+                      :key="`${target.pid}:${target.windowId}`"
+                      :value="`${target.pid}:${target.windowId}`"
+                    >
+                      {{ target.name }}
+                      <span v-if="target.windowTitle"> · {{ target.windowTitle }}</span>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <div class="flex items-center justify-between gap-3">
-                <span class="text-muted-foreground">应用范围</span>
+                <span class="text-muted-foreground">锁定范围</span>
                 <span class="font-medium text-foreground">
-                  {{ computerUseStatus?.target.name || 'MilkSU' }}
+                  {{ computerUseStatus?.target.name || selectedComputerUseTarget?.name || '未选择' }}
                 </span>
               </div>
               <p class="mt-1 break-all font-mono text-muted-foreground">
-                {{ computerUseStatus?.target.bundleId || 'com.milksu.app' }}
-                · PID {{ computerUseStatus?.target.pid || '—' }}
+                {{ computerUseStatus?.target.bundleId || selectedComputerUseTarget?.bundleId || '—' }}
+                · PID {{ computerUseStatus?.target.pid || selectedComputerUseTarget?.pid || '—' }}
+                · Window {{ computerUseStatus?.target.windowId || selectedComputerUseTarget?.windowId || '—' }}
+              </p>
+              <p
+                v-if="computerUseStatus?.target.windowTitle || selectedComputerUseTarget?.windowTitle"
+                class="mt-1 truncate text-muted-foreground"
+              >
+                {{ computerUseStatus?.target.windowTitle || selectedComputerUseTarget?.windowTitle }}
               </p>
               <div class="mt-3 flex flex-wrap gap-2">
                 <Badge
@@ -1938,6 +2009,7 @@ watch(
                     || running
                     || !computerUseStatus?.available
                     || !computerUsePermissionsReady
+                    || !selectedComputerUseTarget
                     || Boolean(computerUseStatus?.conversationId)
                 "
                 @click="startComputerUse"

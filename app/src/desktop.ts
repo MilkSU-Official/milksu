@@ -58,6 +58,7 @@ import type {
   CodingBrowserStatus,
   CodingCompactionResult,
   CodingComputerUseStatus,
+  CodingComputerUseTarget,
   CodingCollaborationStatus,
   CodingDiffSnapshot,
   CodingEnvironmentSnapshot,
@@ -215,9 +216,14 @@ interface WailsAppBindings {
   GetCodingBrowserStatus(conversationId: string): Promise<CodingBrowserStatus>
   StopCodingBrowser(conversationId: string): Promise<CodingBrowserStatus>
   RevealCodingBrowserEvidence(conversationId: string): Promise<void>
+  ListCodingComputerUseTargets(): Promise<CodingComputerUseTarget[]>
   GetCodingComputerUseStatus(): Promise<CodingComputerUseStatus>
   RequestCodingComputerUsePermissions(): Promise<CodingComputerUseStatus>
-  StartCodingComputerUse(conversationId: string): Promise<CodingComputerUseStatus>
+  StartCodingComputerUse(
+    conversationId: string,
+    targetPid: number,
+    targetWindowId: number,
+  ): Promise<CodingComputerUseStatus>
   StopCodingComputerUse(conversationId: string): Promise<CodingComputerUseStatus>
   TestAgentModel(): Promise<ModelProbeResult>
   StartSampleCTF(): Promise<CTFProjection>
@@ -647,11 +653,15 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         ) as Promise<T>
       case 'get_coding_computer_use_status':
         return app.GetCodingComputerUseStatus() as Promise<T>
+      case 'list_coding_computer_use_targets':
+        return app.ListCodingComputerUseTargets() as Promise<T>
       case 'request_coding_computer_use_permissions':
         return app.RequestCodingComputerUsePermissions() as Promise<T>
       case 'start_coding_computer_use':
         return app.StartCodingComputerUse(
           args?.conversationId as string,
+          args?.targetPid as number,
+          args?.targetWindowId as number,
         ) as Promise<T>
       case 'stop_coding_computer_use':
         return app.StopCodingComputerUse(

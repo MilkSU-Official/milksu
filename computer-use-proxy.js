@@ -142,6 +142,7 @@ export function normalizeComputerUseProxyOptions(argv = process.argv.slice(2)) {
   const sessionId = String(argument(argv, "session") ?? "").trim();
   const targetName = String(argument(argv, "target-name") ?? "").trim();
   const targetBundleId = String(argument(argv, "target-bundle-id") ?? "").trim();
+  const targetWindowId = Number(argument(argv, "target-window-id"));
   const targetPid = Number(argument(argv, "target-pid"));
   const driverPath = String(argument(argv, "driver") ?? "").trim();
   const expectedSocket = sessionId
@@ -156,11 +157,17 @@ export function normalizeComputerUseProxyOptions(argv = process.argv.slice(2)) {
   if (!/^computer_[A-Za-z0-9-]{8,128}$/.test(sessionId)) {
     throw new Error("MilkSU Computer Use proxy rejected the session id");
   }
-  if (targetName !== "MilkSU" || targetBundleId !== "com.milksu.app") {
-    throw new Error("MilkSU Computer Use proxy accepts only the MilkSU application scope");
+  if (!targetName || targetName.length > 120 || targetName.includes("\0")) {
+    throw new Error("MilkSU Computer Use proxy rejected the target name");
+  }
+  if (!/^[A-Za-z0-9.-]{1,256}$/.test(targetBundleId)) {
+    throw new Error("MilkSU Computer Use proxy rejected the target bundle id");
   }
   if (!Number.isSafeInteger(targetPid) || targetPid <= 1) {
     throw new Error("MilkSU Computer Use proxy rejected the target PID");
+  }
+  if (!Number.isSafeInteger(targetWindowId) || targetWindowId <= 0) {
+    throw new Error("MilkSU Computer Use proxy rejected the target window");
   }
   if (!driverPath || driverPath.includes("\0")) {
     throw new Error("MilkSU Computer Use proxy requires the reviewed driver binary");
@@ -170,6 +177,7 @@ export function normalizeComputerUseProxyOptions(argv = process.argv.slice(2)) {
     sessionId,
     targetName,
     targetBundleId,
+    targetWindowId,
     targetPid,
     driverPath,
   };
@@ -366,17 +374,17 @@ export function normalizeComputerUseInput(value) {
   };
 }
 
-function selectTargetWindow(result, targetPid) {
+function selectTargetWindow(result, targetPid, targetWindowId) {
   const windows = Array.isArray(result?.windows)
     ? result.windows.filter(window => Number(window?.pid) === targetPid)
     : [];
-  const visible = windows.filter(window => window?.is_on_screen !== false);
-  if (visible.length === 0) {
-    throw new Error("MilkSU Computer Use requires one visible MilkSU window");
+  const target = windows.find(window => (
+    Number(window?.window_id) === targetWindowId &&
+    window?.is_on_screen !== false
+  ));
+  if (!target) {
+    throw new Error("MilkSU Computer Use target window is no longer visible");
   }
-  const target = visible.sort((left, right) => (
-    Number(right?.z_index ?? 0) - Number(left?.z_index ?? 0)
-  ))[0];
   if (!Number.isSafeInteger(Number(target.window_id)) || Number(target.window_id) <= 0) {
     throw new Error("MilkSU Computer Use rejected an invalid target window");
   }
@@ -402,7 +410,7 @@ export function createComputerUseExecutor(options, runTool) {
       pid: options.targetPid,
       on_screen_only: true,
     });
-    return selectTargetWindow(result, options.targetPid);
+    return selectTargetWindow(result, options.targetPid, options.targetWindowId);
   }
 
   return {
@@ -432,7 +440,7 @@ export function createComputerUseExecutor(options, runTool) {
         case "click":
           if (observedWindowId !== Number(targetWindow.window_id)) {
             throw new Error(
-              "computer_use requires a fresh observe of the current MilkSU window before click",
+              "computer_use requires a fresh observe of the selected target window before click",
             );
           }
           observedWindowId = undefined;
@@ -447,7 +455,7 @@ export function createComputerUseExecutor(options, runTool) {
         case "type":
           if (observedWindowId !== Number(targetWindow.window_id)) {
             throw new Error(
-              "computer_use requires a fresh observe of the current MilkSU window before type",
+              "computer_use requires a fresh observe of the selected target window before type",
             );
           }
           observedWindowId = undefined;
@@ -464,7 +472,7 @@ export function createComputerUseExecutor(options, runTool) {
         case "key":
           if (observedWindowId !== Number(targetWindow.window_id)) {
             throw new Error(
-              "computer_use requires a fresh observe of the current MilkSU window before key",
+              "computer_use requires a fresh observe of the selected target window before key",
             );
           }
           observedWindowId = undefined;
@@ -481,7 +489,7 @@ export function createComputerUseExecutor(options, runTool) {
         case "scroll":
           if (observedWindowId !== Number(targetWindow.window_id)) {
             throw new Error(
-              "computer_use requires a fresh observe of the current MilkSU window before scroll",
+              "computer_use requires a fresh observe of the selected target window before scroll",
             );
           }
           observedWindowId = undefined;

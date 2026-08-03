@@ -34,8 +34,17 @@ func (a *App) RequestCodingComputerUsePermissions() computercap.Status {
 	return status
 }
 
+func (a *App) ListCodingComputerUseTargets() ([]computercap.Target, error) {
+	if a.computerUse == nil {
+		return nil, fmt.Errorf("Computer Use service is unavailable")
+	}
+	return a.computerUse.Targets()
+}
+
 func (a *App) StartCodingComputerUse(
 	conversationID string,
+	targetPID int,
+	targetWindowID int64,
 ) (computercap.Status, error) {
 	if a.computerUse == nil {
 		return computercap.Status{}, fmt.Errorf("Computer Use service is unavailable")
@@ -45,14 +54,18 @@ func (a *App) StartCodingComputerUse(
 		codingComputerUseStartTimeout,
 	)
 	defer cancel()
-	status, err := a.computerUse.Start(startContext, conversationID)
+	status, err := a.computerUse.Start(
+		startContext,
+		conversationID,
+		computercap.TargetSelection{PID: targetPID, WindowID: targetWindowID},
+	)
 	if err != nil {
 		return status, err
 	}
 	a.diagnostics.Record(
 		"computer-use",
 		"info",
-		"visible MilkSU-only Computer Use session started",
+		"visible scoped Computer Use session started",
 	)
 	return status, nil
 }

@@ -382,12 +382,13 @@ export function normalizeComputerUseDescriptor(value) {
   }
   const fields = Object.keys(value).sort();
   if (
-    fields.length !== 5
+    fields.length !== 6
     || fields[0] !== "sessionId"
     || fields[1] !== "socketPath"
     || fields[2] !== "targetBundleId"
     || fields[3] !== "targetName"
     || fields[4] !== "targetPid"
+    || fields[5] !== "targetWindowId"
   ) {
     throw new Error(
       "MilkSU Computer Use descriptor contains unsupported fields",
@@ -404,12 +405,19 @@ export function normalizeComputerUseDescriptor(value) {
   }
   const targetBundleId = String(value.targetBundleId ?? "").trim();
   const targetName = String(value.targetName ?? "").trim();
-  if (targetBundleId !== "com.milksu.app" || targetName !== "MilkSU") {
-    throw new Error("MilkSU Computer Use is restricted to the MilkSU application");
+  if (!/^[A-Za-z0-9.-]{1,256}$/.test(targetBundleId)) {
+    throw new Error("MilkSU rejected an invalid Computer Use bundle id");
+  }
+  if (!targetName || targetName.length > 120 || targetName.includes("\0")) {
+    throw new Error("MilkSU rejected an invalid Computer Use target name");
   }
   const targetPid = Number(value.targetPid);
   if (!Number.isSafeInteger(targetPid) || targetPid <= 1) {
     throw new Error("MilkSU rejected an invalid Computer Use target PID");
+  }
+  const targetWindowId = Number(value.targetWindowId);
+  if (!Number.isSafeInteger(targetWindowId) || targetWindowId <= 0) {
+    throw new Error("MilkSU rejected an invalid Computer Use target window");
   }
   return {
     sessionId,
@@ -417,6 +425,7 @@ export function normalizeComputerUseDescriptor(value) {
     targetBundleId,
     targetName,
     targetPid,
+    targetWindowId,
   };
 }
 
@@ -513,6 +522,8 @@ export async function createFirstPartyComputerUseMcpServer(descriptor) {
         computerUse.targetName,
         "--target-bundle-id",
         computerUse.targetBundleId,
+        "--target-window-id",
+        String(computerUse.targetWindowId),
         "--target-pid",
         String(computerUse.targetPid),
         "--driver",

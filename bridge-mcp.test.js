@@ -449,14 +449,15 @@ test("reserves the built-in Playwright server name from project MCP config", asy
   }
 });
 
-test("accepts only an exact immutable MilkSU Computer Use descriptor", () => {
+test("accepts only an exact immutable scoped Computer Use descriptor", () => {
   const valid = {
     sessionId: "computer_12345678",
     socketPath:
       "/private/tmp/milksu-computer-use/computer_12345678/driver.sock",
-    targetBundleId: "com.milksu.app",
-    targetName: "MilkSU",
+    targetBundleId: "com.openai.codex",
+    targetName: "Codex",
     targetPid: 4242,
+    targetWindowId: 9001,
   };
   assert.deepEqual(normalizeComputerUseDescriptor(valid), valid);
   assert.equal(computerUseSelectionChanged(valid, { ...valid }), false);
@@ -466,8 +467,9 @@ test("accepts only an exact immutable MilkSU Computer Use descriptor", () => {
   );
   for (const descriptor of [
     { ...valid, socketPath: "/tmp/cua.sock" },
-    { ...valid, targetBundleId: "com.apple.finder", targetName: "Finder" },
+    { ...valid, targetBundleId: "com.apple.finder/invalid", targetName: "Finder" },
     { ...valid, targetPid: 0 },
+    { ...valid, targetWindowId: 0 },
     { ...valid, command: "/bin/sh" },
   ]) {
     assert.throws(

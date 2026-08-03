@@ -252,6 +252,8 @@ export interface CodingComputerUseTarget {
   name: string
   bundleId: string
   pid: number
+  windowId: number
+  windowTitle?: string
 }
 
 export interface CodingComputerUseStatus {

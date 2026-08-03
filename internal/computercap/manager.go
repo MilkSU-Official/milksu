@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
-	_ "embed"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -20,14 +19,10 @@ import (
 )
 
 const (
-	DriverVersion  = "0.14.2"
-	targetName     = "MilkSU"
-	targetBundleID = "com.milksu.app"
-	runtimeRoot    = "/private/tmp/milksu-computer-use"
+	DriverVersion = "0.14.2"
+	hostBundleID  = "com.milksu.app"
+	runtimeRoot   = "/private/tmp/milksu-computer-use"
 )
-
-//go:embed session-policy.yaml
-var boundedSessionPolicy string
 
 type Permissions struct {
 	Accessibility   bool `json:"accessibility"`
@@ -39,9 +34,16 @@ func (value Permissions) Ready() bool {
 }
 
 type Target struct {
-	Name     string `json:"name"`
-	BundleID string `json:"bundleId"`
-	PID      int    `json:"pid"`
+	Name        string `json:"name"`
+	BundleID    string `json:"bundleId"`
+	PID         int    `json:"pid"`
+	WindowID    int64  `json:"windowId"`
+	WindowTitle string `json:"windowTitle,omitempty"`
+}
+
+type TargetSelection struct {
+	PID      int   `json:"pid"`
+	WindowID int64 `json:"windowId"`
 }
 
 type Status struct {
@@ -63,6 +65,7 @@ type Descriptor struct {
 	TargetBundleID string `json:"targetBundleId"`
 	TargetName     string `json:"targetName"`
 	TargetPID      int    `json:"targetPid"`
+	TargetWindowID int64  `json:"targetWindowId"`
 }
 
 type Options struct {
@@ -70,6 +73,7 @@ type Options struct {
 	TargetPID       int
 	GOOS            string
 	PermissionProbe func(prompt bool) Permissions
+	TargetProvider  func() ([]Target, error)
 	CommandFactory  func(name string, args ...string) *exec.Cmd
 	StartTimeout    time.Duration
 }
@@ -85,6 +89,7 @@ type session struct {
 	phase          string
 	problem        string
 	stopping       bool
+	target         Target
 }
 
 type Manager struct {
@@ -93,6 +98,7 @@ type Manager struct {
 	targetPID       int
 	goos            string
 	permissionProbe func(prompt bool) Permissions
+	targetProvider  func() ([]Target, error)
 	commandFactory  func(name string, args ...string) *exec.Cmd
 	startTimeout    time.Duration
 	active          *session
@@ -111,6 +117,10 @@ func New(options Options) *Manager {
 	if permissionProbe == nil {
 		permissionProbe = platformPermissions
 	}
+	targetProvider := options.TargetProvider
+	if targetProvider == nil {
+		targetProvider = platformTargets
+	}
 	commandFactory := options.CommandFactory
 	if commandFactory == nil {
 		commandFactory = exec.Command
@@ -124,6 +134,7 @@ func New(options Options) *Manager {
 		targetPID:       targetPID,
 		goos:            goos,
 		permissionProbe: permissionProbe,
+		targetProvider:  targetProvider,
 		commandFactory:  commandFactory,
 		startTimeout:    startTimeout,
 	}
@@ -141,7 +152,22 @@ func (manager *Manager) RequestPermissions() Status {
 	return manager.statusLocked(manager.permissionProbe(true))
 }
 
-func (manager *Manager) Start(ctx context.Context, conversationID string) (Status, error) {
+func (manager *Manager) Targets() ([]Target, error) {
+	if manager.goos != "darwin" {
+		return nil, fmt.Errorf("Computer Use is currently available only on macOS")
+	}
+	targets, err := manager.targetProvider()
+	if err != nil {
+		return nil, err
+	}
+	return filterValidTargets(targets), nil
+}
+
+func (manager *Manager) Start(
+	ctx context.Context,
+	conversationID string,
+	selection TargetSelection,
+) (Status, error) {
 	conversationID = strings.TrimSpace(conversationID)
 	if !validConversationID(conversationID) {
 		return Status{}, fmt.Errorf("invalid Coding conversation id")
@@ -171,6 +197,12 @@ func (manager *Manager) Start(ctx context.Context, conversationID string) (Statu
 			"请先明确授予 MilkSU 辅助功能与屏幕录制权限，再启动可见会话",
 		)
 	}
+	target, err := manager.resolveTargetLocked(selection)
+	if err != nil {
+		status := manager.statusLocked(permissions)
+		manager.mu.Unlock()
+		return status, err
+	}
 	binaryPath, err := manager.resolveBinaryLocked()
 	if err != nil {
 		status := manager.statusLocked(permissions)
@@ -193,7 +225,7 @@ func (manager *Manager) Start(ctx context.Context, conversationID string) (Statu
 		return Status{}, err
 	}
 	manifestPath := filepath.Join(directory, "session-policy.yaml")
-	if err := os.WriteFile(manifestPath, []byte(sessionManifest()), 0o600); err != nil {
+	if err := os.WriteFile(manifestPath, []byte(sessionManifest(target.BundleID)), 0o600); err != nil {
 		_ = cleanupRuntimeDirectory(directory)
 		manager.mu.Unlock()
 		return Status{}, fmt.Errorf("write Computer Use bounded policy: %w", err)
@@ -204,7 +236,7 @@ func (manager *Manager) Start(ctx context.Context, conversationID string) (Statu
 		"serve",
 		"--embedded",
 		"--host-bundle-id",
-		targetBundleID,
+		hostBundleID,
 		"--socket",
 		socketPath,
 		"--permission-mode",
@@ -231,6 +263,7 @@ func (manager *Manager) Start(ctx context.Context, conversationID string) (Statu
 		command:        command,
 		done:           make(chan error, 1),
 		phase:          "starting",
+		target:         target,
 	}
 	manager.active = active
 	go manager.wait(active)
@@ -303,9 +336,10 @@ func (manager *Manager) Descriptor(conversationID string) (Descriptor, bool) {
 	return Descriptor{
 		SessionID:      active.sessionID,
 		SocketPath:     active.socketPath,
-		TargetBundleID: targetBundleID,
-		TargetName:     targetName,
-		TargetPID:      manager.targetPID,
+		TargetBundleID: active.target.BundleID,
+		TargetName:     active.target.Name,
+		TargetPID:      active.target.PID,
+		TargetWindowID: active.target.WindowID,
 	}, true
 }
 
@@ -347,12 +381,8 @@ func (manager *Manager) statusLocked(permissions Permissions) Status {
 		Available:     manager.driverAvailableLocked(),
 		Phase:         "disabled",
 		DriverVersion: DriverVersion,
-		Target: Target{
-			Name:     targetName,
-			BundleID: targetBundleID,
-			PID:      manager.targetPID,
-		},
-		Permissions: permissions,
+		Target:        defaultTarget(manager.targetPID),
+		Permissions:   permissions,
 	}
 	if manager.goos != "darwin" {
 		status.Available = false
@@ -372,8 +402,25 @@ func (manager *Manager) statusLocked(permissions Permissions) Status {
 	status.SessionID = manager.active.sessionID
 	status.Phase = manager.active.phase
 	status.StartedAt = manager.active.startedAt.Format(time.RFC3339Nano)
+	status.Target = manager.active.target
 	status.Problem = manager.active.problem
 	return status
+}
+
+func (manager *Manager) resolveTargetLocked(selection TargetSelection) (Target, error) {
+	if selection.PID <= 1 || selection.WindowID <= 0 {
+		return Target{}, fmt.Errorf("请选择一个当前可见的 App 窗口")
+	}
+	targets, err := manager.targetProvider()
+	if err != nil {
+		return Target{}, fmt.Errorf("list visible Computer Use targets: %w", err)
+	}
+	for _, target := range filterValidTargets(targets) {
+		if target.PID == selection.PID && target.WindowID == selection.WindowID {
+			return target, nil
+		}
+	}
+	return Target{}, fmt.Errorf("选择的 App 窗口已不可见，请刷新后重新选择")
 }
 
 func (manager *Manager) resolveBinaryLocked() (string, error) {
@@ -467,8 +514,44 @@ func (manager *Manager) verifyBinaryLocked(binaryPath string) error {
 	return nil
 }
 
-func sessionManifest() string {
-	return boundedSessionPolicy
+func sessionManifest(bundleID string) string {
+	bundleID = strings.TrimSpace(bundleID)
+	if !validBundleID(bundleID) {
+		bundleID = hostBundleID
+	}
+	return fmt.Sprintf(`version: 2
+mode: bounded
+expires_after: 8h
+idle_timeout: 30m
+resources:
+  apps:
+    - bundle_id: %s
+      launch: false
+      windows: all
+      terminate: deny
+allow:
+  tools:
+    - check_permissions
+    - start_session
+    - get_session_state
+    - end_session
+    - list_windows
+    - get_window_state
+    - click
+    - type_text
+    - press_key
+    - scroll
+deny:
+  tools:
+    - get_desktop_state
+    - launch_app
+    - hotkey
+    - drag
+    - page
+    - browser_prepare
+    - escalate_session
+    - start_recording
+`, bundleID)
 }
 
 func driverEnvironment(directory string) []string {
@@ -478,7 +561,7 @@ func driverEnvironment(directory string) []string {
 		"PATH=/usr/bin:/bin:/usr/sbin:/sbin",
 		"LANG=en_US.UTF-8",
 		"CUA_DRIVER_EMBEDDED=1",
-		"CUA_DRIVER_HOST_BUNDLE_ID=" + targetBundleID,
+		"CUA_DRIVER_HOST_BUNDLE_ID=" + hostBundleID,
 		"CUA_DRIVER_PERMISSION_MODE=bounded",
 		"CUA_DRIVER_RS_TELEMETRY_ENABLED=false",
 		"CUA_LOG=warn",
@@ -490,6 +573,53 @@ func driverEnvironment(directory string) []string {
 		_ = os.MkdirAll(directory, 0o700)
 	}
 	return environment
+}
+
+func filterValidTargets(targets []Target) []Target {
+	filtered := make([]Target, 0, len(targets))
+	seen := map[string]bool{}
+	for _, target := range targets {
+		target.Name = strings.TrimSpace(target.Name)
+		target.BundleID = strings.TrimSpace(target.BundleID)
+		target.WindowTitle = strings.TrimSpace(target.WindowTitle)
+		if target.PID <= 1 ||
+			target.WindowID <= 0 ||
+			target.Name == "" ||
+			!validBundleID(target.BundleID) {
+			continue
+		}
+		key := fmt.Sprintf("%d/%d", target.PID, target.WindowID)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		filtered = append(filtered, target)
+	}
+	return filtered
+}
+
+func defaultTarget(pid int) Target {
+	if pid <= 1 {
+		pid = os.Getpid()
+	}
+	return Target{Name: "MilkSU", BundleID: hostBundleID, PID: pid}
+}
+
+func validBundleID(value string) bool {
+	if value == "" || len(value) > 256 {
+		return false
+	}
+	for _, character := range value {
+		if character >= 'a' && character <= 'z' ||
+			character >= 'A' && character <= 'Z' ||
+			character >= '0' && character <= '9' ||
+			character == '.' ||
+			character == '-' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func waitForSocket(ctx context.Context, path string, exited <-chan error) error {

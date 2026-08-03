@@ -260,9 +260,10 @@ test("Computer Use requires an explicit app-scoped session under every Go policy
     sessionId: "computer_12345678",
     socketPath:
       "/private/tmp/milksu-computer-use/computer_12345678/driver.sock",
-    targetBundleId: "com.milksu.app",
-    targetName: "MilkSU",
+    targetBundleId: "com.openai.codex",
+    targetName: "Codex",
     targetPid: 4242,
+    targetWindowId: 9001,
   };
   const automaticWithoutSession = await loadSessionPolicy(workspace, "", {
     executionMode: "go",

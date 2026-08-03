@@ -916,13 +916,14 @@ func TestNormalizeCodingBrowserDescriptorRequiresExactLoopbackEndpoint(t *testin
 	}
 }
 
-func TestNormalizeComputerUseDescriptorLocksCurrentMilkSUProcess(t *testing.T) {
+func TestNormalizeComputerUseDescriptorAcceptsExactVisibleTarget(t *testing.T) {
 	valid := &ComputerUseDescriptor{
 		SessionID:      "computer_12345678",
 		SocketPath:     "/private/tmp/milksu-computer-use/computer_12345678/driver.sock",
-		TargetBundleID: "com.milksu.app",
-		TargetName:     "MilkSU",
-		TargetPID:      os.Getpid(),
+		TargetBundleID: "com.openai.codex",
+		TargetName:     "Codex",
+		TargetPID:      os.Getpid() + 200,
+		TargetWindowID: 9001,
 	}
 	normalized, err := normalizeComputerUseDescriptor(valid)
 	if err != nil {
@@ -943,16 +944,26 @@ func TestNormalizeComputerUseDescriptorLocksCurrentMilkSUProcess(t *testing.T) {
 		{
 			SessionID:      valid.SessionID,
 			SocketPath:     valid.SocketPath,
-			TargetBundleID: "com.apple.finder",
+			TargetBundleID: "com.apple.finder/invalid",
 			TargetName:     "Finder",
 			TargetPID:      valid.TargetPID,
+			TargetWindowID: valid.TargetWindowID,
 		},
 		{
 			SessionID:      valid.SessionID,
 			SocketPath:     valid.SocketPath,
 			TargetBundleID: valid.TargetBundleID,
 			TargetName:     valid.TargetName,
-			TargetPID:      valid.TargetPID + 1,
+			TargetPID:      1,
+			TargetWindowID: valid.TargetWindowID,
+		},
+		{
+			SessionID:      valid.SessionID,
+			SocketPath:     valid.SocketPath,
+			TargetBundleID: valid.TargetBundleID,
+			TargetName:     valid.TargetName,
+			TargetPID:      valid.TargetPID,
+			TargetWindowID: 0,
 		},
 	} {
 		if _, err := normalizeComputerUseDescriptor(descriptor); err == nil {

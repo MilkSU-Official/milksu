@@ -711,6 +711,7 @@ func (a *App) SendMessage(
 				TargetBundleID: descriptor.TargetBundleID,
 				TargetName:     descriptor.TargetName,
 				TargetPID:      descriptor.TargetPID,
+				TargetWindowID: descriptor.TargetWindowID,
 			}
 		}
 	}

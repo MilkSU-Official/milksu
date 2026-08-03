@@ -162,6 +162,7 @@ type ComputerUseDescriptor struct {
 	TargetBundleID string `json:"targetBundleId"`
 	TargetName     string `json:"targetName"`
 	TargetPID      int    `json:"targetPid"`
+	TargetWindowID int64  `json:"targetWindowId"`
 }
 
 type CodingCollaborationDescriptor struct {
@@ -524,20 +525,45 @@ func normalizeComputerUseDescriptor(
 	if strings.TrimSpace(descriptor.SocketPath) != expectedSocket {
 		return nil, fmt.Errorf("invalid Computer Use socket path")
 	}
-	if strings.TrimSpace(descriptor.TargetBundleID) != "com.milksu.app" ||
-		strings.TrimSpace(descriptor.TargetName) != "MilkSU" {
-		return nil, fmt.Errorf("Computer Use target must be the MilkSU application")
+	targetBundleID := strings.TrimSpace(descriptor.TargetBundleID)
+	targetName := strings.TrimSpace(descriptor.TargetName)
+	if !validComputerUseBundleID(targetBundleID) {
+		return nil, fmt.Errorf("invalid Computer Use target bundle id")
 	}
-	if descriptor.TargetPID != os.Getpid() {
-		return nil, fmt.Errorf("Computer Use target PID must be the current MilkSU process")
+	if targetName == "" || len(targetName) > 120 || strings.ContainsRune(targetName, '\x00') {
+		return nil, fmt.Errorf("invalid Computer Use target name")
+	}
+	if descriptor.TargetPID <= 1 {
+		return nil, fmt.Errorf("invalid Computer Use target PID")
+	}
+	if descriptor.TargetWindowID <= 0 {
+		return nil, fmt.Errorf("invalid Computer Use target window")
 	}
 	return &ComputerUseDescriptor{
 		SessionID:      sessionID,
 		SocketPath:     expectedSocket,
-		TargetBundleID: "com.milksu.app",
-		TargetName:     "MilkSU",
+		TargetBundleID: targetBundleID,
+		TargetName:     targetName,
 		TargetPID:      descriptor.TargetPID,
+		TargetWindowID: descriptor.TargetWindowID,
 	}, nil
+}
+
+func validComputerUseBundleID(value string) bool {
+	if value == "" || len(value) > 256 {
+		return false
+	}
+	for _, character := range value {
+		if character >= 'a' && character <= 'z' ||
+			character >= 'A' && character <= 'Z' ||
+			character >= '0' && character <= '9' ||
+			character == '.' ||
+			character == '-' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func normalizeCodingBrowserDescriptor(
