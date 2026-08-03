@@ -1147,7 +1147,7 @@ watch(
     <div ref="scrollArea" class="min-h-0 flex-1 overflow-y-auto">
       <div v-if="!conversation?.messages.length" class="mx-auto flex min-h-full max-w-2xl flex-col justify-center px-8 py-16">
         <Bot class="size-6 text-muted-foreground" />
-        <h1 class="mt-5 text-2xl font-semibold tracking-[-0.035em]">{{ topbarPresentation.title }}</h1>
+        <h2 class="mt-5 text-body font-medium">{{ topbarPresentation.title }}</h2>
         <p class="mt-2 max-w-lg text-body leading-6 text-muted-foreground">
           {{ ctfSession
             ? '从 CTF 工作台启动 Agent 后，会在这里继续解题、工具协作和复盘。'

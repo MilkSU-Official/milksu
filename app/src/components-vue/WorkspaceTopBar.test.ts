@@ -2,6 +2,10 @@
 
 import { createApp, nextTick, type App } from 'vue'
 import { afterEach, describe, expect, it } from 'vitest'
+import chatPageSource from './ChatPage.vue?raw'
+import ctfPageSource from './CTFPage.vue?raw'
+import ctfWorkspaceHeaderSource from './CTFWorkspaceHeader.vue?raw'
+import vulnPageSource from './VulnPage.vue?raw'
 import WorkspaceTopBar from './WorkspaceTopBar.vue'
 
 const mountedApps: App[] = []
@@ -68,5 +72,23 @@ describe('WorkspaceTopBar', () => {
       expect(titleNode?.className).toContain('workspace-topbar__title')
       expect(titleNode?.className).not.toContain('text-control')
     }
+  })
+
+  it('keeps Coding, CTF, and CVE module headers on the shared WorkspaceTopBar component', () => {
+    const files = [
+      ['Coding', chatPageSource],
+      ['CTF catalog', ctfPageSource],
+      ['CTF session', ctfWorkspaceHeaderSource],
+      ['CVE', vulnPageSource],
+    ] as const
+
+    for (const [surface, source] of files) {
+      expect(source, `${surface} should import the shared module topbar`)
+        .toContain("import WorkspaceTopBar from '@/components-vue/WorkspaceTopBar.vue'")
+      expect(source, `${surface} should render the shared module topbar`)
+        .toContain('<WorkspaceTopBar')
+    }
+
+    expect(chatPageSource).not.toContain('<h1 class="mt-5 text-2xl')
   })
 })

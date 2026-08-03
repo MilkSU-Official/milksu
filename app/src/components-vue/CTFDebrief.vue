@@ -6,6 +6,7 @@ import {
   BrainCircuit,
   Check,
   Circle,
+  Copy,
   FileCheck2,
   Handshake,
   Lightbulb,
@@ -39,6 +40,7 @@ const independentStepConfirmed = ref(false)
 const submittedAtStepCount = ref<number | null>(null)
 const reflection = ref('')
 const submittedAtCount = ref<number | null>(null)
+const copyNotice = ref('')
 const canSaveMemory = computed(
   () => props.debrief.status !== 'in_progress' && props.debrief.reflectionCount > 0,
 )
@@ -51,6 +53,18 @@ const memoryHint = computed(() => {
   }
   return '保存后，同分类题会把这条经验作为待验证先验交给 Agent。'
 })
+const handoffSummary = computed(() => [
+  '# MilkSU CTF 复盘接力棒',
+  `- 状态：${statusLabel(props.debrief.status)}`,
+  `- Judge：${props.debrief.candidates.at(-1) ? verdictLabel(props.debrief.candidates.at(-1)?.verdict ?? '') : '未判定'}`,
+  `- 证据：${props.debrief.evidenceCount} 条；制品 ${props.debrief.artifactCount} 个；候选 ${props.debrief.candidates.length} 个`,
+  `- 贡献归属：${actorLabel(props.humanOutcome.contribution.primaryActor)}；${assistanceLabel(props.humanOutcome.contribution.assistance)}`,
+  `- 用户步骤：独立 ${props.humanOutcome.contribution.userIndependentSteps}；协助 ${props.humanOutcome.contribution.userAssistedSteps}`,
+  `- Agent/导入记录：Agent ${props.humanOutcome.contribution.agentRecords}；导入 ${props.humanOutcome.contribution.importedRecords}`,
+  `- 提示依赖：${props.debrief.hintCount}；复盘 ${props.debrief.reflectionCount}`,
+  `- 推荐下一步：${props.debrief.recommendedNextAction}`,
+  '- 边界：Judge 只证明答案是否正确；Agent 总结、代理完成和导入记录不能写成用户独立能力事实。',
+].join('\n'))
 
 function submit() {
   const content = reflection.value.trim()
@@ -65,6 +79,17 @@ function submitIndependentStep() {
   submittedAtStepCount.value = props.humanOutcome.contribution.userIndependentSteps
     + props.humanOutcome.contribution.userAssistedSteps
   emit('submitIndependentStep', content)
+}
+
+async function copyHandoffSummary() {
+  copyNotice.value = ''
+  try {
+    if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable')
+    await navigator.clipboard.writeText(handoffSummary.value)
+    copyNotice.value = '已复制'
+  } catch {
+    copyNotice.value = '复制失败，请手动选择摘要'
+  }
 }
 
 watch(
@@ -290,6 +315,22 @@ function verdictLabel(verdict: string) {
         沉淀为可复用技法
       </Button>
     </div>
+
+    <details class="mt-6 rounded-lg border border-border bg-muted/20 px-3 py-2">
+      <summary class="cursor-pointer text-caption font-medium text-muted-foreground">
+        复盘接力棒
+      </summary>
+      <pre class="mt-2 max-h-52 overflow-auto whitespace-pre-wrap break-words rounded-md bg-background px-3 py-2 font-mono text-caption leading-5">{{ handoffSummary }}</pre>
+      <div class="mt-2 flex items-center justify-between gap-2">
+        <span class="text-caption text-muted-foreground">
+          {{ copyNotice || '复制后可交给下一位 Agent；不等价于用户独立能力事实。' }}
+        </span>
+        <Button type="button" variant="outline" size="sm" @click="copyHandoffSummary">
+          <Copy class="size-3.5" />
+          复制复盘摘要
+        </Button>
+      </div>
+    </details>
 
     <form class="mt-6 border-t border-border pt-5" @submit.prevent="submitIndependentStep">
       <p class="flex items-center gap-2 text-control font-medium">
