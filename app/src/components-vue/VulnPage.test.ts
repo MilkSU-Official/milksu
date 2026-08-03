@@ -33,6 +33,12 @@ async function mountVulnPage() {
   return host
 }
 
+async function setInput(input: HTMLInputElement, value: string) {
+  input.value = value
+  input.dispatchEvent(new Event('input', { bubbles: true }))
+  await nextTick()
+}
+
 describe('VulnPage', () => {
   it('renders a CVE learning and tracking scaffold without red-team promises', async () => {
     const host = await mountVulnPage()
@@ -44,6 +50,7 @@ describe('VulnPage', () => {
     expect(text).toContain('学习与追踪')
     expect(text).toContain('学习路径')
     expect(text).toContain('Agent 可接手任务')
+    expect(text).toContain('研究任务工作区')
     expect(text).toContain('安全边界')
     expect(text).toContain('不批量扫描或攻击外部目标')
     expect(text).toContain('不自动运行 PoC、exploit 或漏洞触发输入')
@@ -63,6 +70,54 @@ describe('VulnPage', () => {
     await nextTick()
 
     expect(host.textContent).toContain('研究任务已建立')
+    expect(host.textContent).toContain('理解 PAN-OS 的影响范围、修复证据和学习要点')
+    expect(host.textContent).toContain('Palo Alto Networks / PAN-OS')
+    expect(host.textContent).toContain('固化情报快照')
+    expect(host.textContent).toContain('下一步交给 Coding Agent')
+    expect(host.textContent).toContain('不要运行 PoC、exploit 或外部扫描')
     expect(host.textContent).toContain('研究中')
+
+    const advance = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
+      item.textContent?.includes('推进下一步'),
+    )
+    advance?.click()
+    await nextTick()
+    expect(host.textContent).toContain('阅读材料与补丁')
+  })
+
+  it('lets the user add a local CVE tracking item beyond the built-in demo list', async () => {
+    const host = await mountVulnPage()
+    const add = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
+      item.textContent?.includes('新增追踪'),
+    )
+    if (!add) throw new Error('missing add tracking button')
+    add.click()
+    await nextTick()
+
+    const byPlaceholder = (text: string) => {
+      const input = [...host.querySelectorAll<HTMLInputElement>('input')].find(item =>
+        item.placeholder.includes(text),
+      )
+      if (!input) throw new Error(`missing input ${text}`)
+      return input
+    }
+    await setInput(byPlaceholder('CVE-2024-12345'), 'CVE-2026-42424')
+    await setInput(byPlaceholder('组件 / 产品'), 'MilkSU Sidecar')
+    await setInput(byPlaceholder('厂商 / 项目'), 'MilkSU')
+    await setInput(byPlaceholder('受影响版本范围'), 'pre-release local branch')
+    await setInput(byPlaceholder('漏洞标题'), '本地测试 CVE 学习追踪')
+    await setInput(byPlaceholder('公告、补丁'), 'https://example.test/advisory')
+    await setInput(byPlaceholder('这次想学会什么'), '确认补丁阅读和影响判断流程')
+
+    const submit = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
+      item.textContent?.includes('加入追踪'),
+    )
+    if (!submit) throw new Error('missing submit button')
+    submit.click()
+    await nextTick()
+
+    expect(host.textContent).toContain('CVE-2026-42424')
+    expect(host.textContent).toContain('本地测试 CVE 学习追踪')
+    expect(host.textContent).toContain('MilkSU')
   })
 })

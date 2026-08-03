@@ -1666,7 +1666,7 @@ onBeforeUnmount(() => {
       class="app-drag flex shrink-0 flex-col gap-3 border-b border-border bg-background px-6 py-4"
     >
       <div class="flex w-full items-center gap-3">
-        <h1 class="mr-2 shrink-0 text-xl font-semibold tracking-[-0.03em]">CTF</h1>
+        <h1 class="mr-2 shrink-0 text-2xl font-semibold tracking-[-0.035em]">CTF</h1>
         <Select v-if="ctfSection === 'catalog'" v-model="activeBank">
         <SelectTrigger
           class="app-no-drag min-w-48 shrink-0"

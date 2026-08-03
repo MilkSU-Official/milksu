@@ -1124,7 +1124,7 @@ watch(
     <div ref="scrollArea" class="min-h-0 flex-1 overflow-y-auto">
       <div v-if="!conversation?.messages.length" class="mx-auto flex min-h-full max-w-2xl flex-col justify-center px-8 py-16">
         <Bot class="size-6 text-muted-foreground" />
-        <h1 class="mt-5 text-3xl font-semibold tracking-[-0.04em]">Coding</h1>
+        <h1 class="mt-5 text-2xl font-semibold tracking-[-0.035em]">Coding</h1>
         <p class="mt-2 max-w-lg text-body leading-6 text-muted-foreground">
           选择项目并描述目标。MilkSU 使用 PI，并由当前执行模式和权限策略决定可用工具。
         </p>

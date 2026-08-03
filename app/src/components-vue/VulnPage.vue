@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import {
   Badge,
   Button,
@@ -14,7 +15,10 @@ import {
 } from '@felinic/ui'
 import {
   Bookmark,
+  ClipboardList,
   ExternalLink,
+  FileText,
+  Plus,
   RefreshCw,
   Search,
   Server,
@@ -46,6 +50,46 @@ const safetyBoundaries = [
   '不自动运行 PoC、exploit 或漏洞触发输入',
   '不把情报状态等同于漏洞已经验证',
 ]
+const researchSteps = [
+  { id: 'snapshot', label: '固化情报快照', detail: '保存 CVE、公告、版本范围、资产命中和当前状态。' },
+  { id: 'materials', label: '阅读材料与补丁', detail: '整理 NVD、厂商公告、补丁 Diff 和公开分析。' },
+  { id: 'impact', label: '影响检查', detail: '在授权仓库或资产清单中只读核对组件与版本证据。' },
+  { id: 'fix', label: '修复与缓解证据', detail: '记录升级版本、配置缓解、补丁或分流原因。' },
+  { id: 'reflection', label: '学习复盘', detail: '沉淀根因、判断方法、提示依赖和用户贡献。' },
+]
+
+const showCustomForm = ref(false)
+const customFormError = ref('')
+const customForm = ref({
+  id: '',
+  title: '',
+  vendor: '',
+  product: '',
+  affected: '',
+  summary: '',
+  referenceHref: '',
+  learningGoal: '',
+})
+
+function addCustomTrackingItem() {
+  customFormError.value = ''
+  try {
+    dashboard.addTrackingItem(customForm.value)
+    showCustomForm.value = false
+    customForm.value = {
+      id: '',
+      title: '',
+      vendor: '',
+      product: '',
+      affected: '',
+      summary: '',
+      referenceHref: '',
+      learningGoal: '',
+    }
+  } catch (cause) {
+    customFormError.value = cause instanceof Error ? cause.message : String(cause)
+  }
+}
 
 function severityVariant(severity: VulnerabilitySeverity) {
   return severity === 'critical' ? 'destructive' : severity === 'high' ? 'warning' : 'info'
@@ -68,6 +112,14 @@ function statusVariant(status: VulnerabilityStatus) {
           <p class="mt-1 text-body text-muted-foreground">追踪 CVE、资产命中与研究进度</p>
         </div>
         <div class="app-no-drag flex items-center gap-2">
+          <Button
+            :variant="showCustomForm ? 'outline' : 'default'"
+            size="sm"
+            @click="showCustomForm = !showCustomForm"
+          >
+            <Plus class="size-4" />
+            新增追踪
+          </Button>
           <Button
             :variant="dashboard.watchOnly.value ? 'outline' : 'ghost'"
             size="sm"
@@ -122,6 +174,41 @@ function statusVariant(status: VulnerabilityStatus) {
 
     <div class="grid min-h-0 flex-1 grid-cols-[minmax(560px,1.25fr)_minmax(360px,.75fr)] max-[1080px]:grid-cols-1">
       <section class="min-h-0 overflow-auto border-r border-border max-[1080px]:border-b max-[1080px]:border-r-0">
+        <form
+          v-if="showCustomForm"
+          class="border-b border-border bg-card/70 px-6 py-5"
+          @submit.prevent="addCustomTrackingItem"
+        >
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <h2 class="text-label font-medium">新增本地 CVE 追踪</h2>
+              <p class="mt-1 text-caption leading-5 text-muted-foreground">
+                不连接实时 Feed；先把你关心的 CVE、材料和学习目标存成本机追踪项。
+              </p>
+            </div>
+            <Badge variant="outline">本地</Badge>
+          </div>
+          <div class="mt-4 grid gap-3 sm:grid-cols-2">
+            <Input v-model="customForm.id" placeholder="CVE-2024-12345" />
+            <Input v-model="customForm.product" placeholder="组件 / 产品，例如 nginx" />
+            <Input v-model="customForm.vendor" placeholder="厂商 / 项目，例如 F5" />
+            <Input v-model="customForm.affected" placeholder="受影响版本范围" />
+            <Input v-model="customForm.title" class="sm:col-span-2" placeholder="漏洞标题或学习主题" />
+            <Input v-model="customForm.referenceHref" class="sm:col-span-2" placeholder="公告、补丁或学习材料 URL（可选）" />
+            <Input v-model="customForm.learningGoal" class="sm:col-span-2" placeholder="这次想学会什么 / 要确认什么" />
+            <Input v-model="customForm.summary" class="sm:col-span-2" placeholder="一句话背景（可选）" />
+          </div>
+          <p v-if="customFormError" class="mt-3 text-caption text-destructive">{{ customFormError }}</p>
+          <div class="mt-4 flex items-center gap-2">
+            <Button type="submit" size="sm">
+              <Plus class="size-4" />
+              加入追踪
+            </Button>
+            <Button type="button" variant="ghost" size="sm" @click="showCustomForm = false">
+              取消
+            </Button>
+          </div>
+        </form>
         <Table>
           <TableHeader class="sticky top-0 z-10 bg-background">
             <TableRow>
@@ -277,16 +364,68 @@ function statusVariant(status: VulnerabilityStatus) {
         </section>
 
         <section class="border-b border-border px-6 py-5">
-          <h3 class="text-label font-medium">Agent 可接手任务</h3>
-          <ul class="mt-3 space-y-2 text-body leading-5">
-            <li
-              v-for="task in sprintTasks"
-              :key="task"
-              class="rounded-lg border border-border bg-muted/30 px-3 py-2"
-            >
-              {{ task }}
-            </li>
-          </ul>
+          <div class="flex items-center justify-between gap-3">
+            <h3 class="text-label font-medium">研究任务工作区</h3>
+            <Badge v-if="dashboard.researchTaskFor.value" variant="info">已建立</Badge>
+            <Badge v-else variant="outline">未建立</Badge>
+          </div>
+          <div v-if="dashboard.researchTaskFor.value" class="mt-4 space-y-4">
+            <div class="rounded-xl border border-border bg-card px-4 py-3">
+              <p class="flex items-center gap-2 text-body font-medium">
+                <ClipboardList class="size-4 text-primary" />
+                {{ dashboard.researchTaskFor.value.title }}
+              </p>
+              <dl class="mt-3 grid gap-2 text-caption leading-5">
+                <div class="grid grid-cols-[4rem_1fr] gap-3">
+                  <dt class="text-muted-foreground">目标</dt>
+                  <dd>{{ dashboard.researchTaskFor.value.goal }}</dd>
+                </div>
+                <div class="grid grid-cols-[4rem_1fr] gap-3">
+                  <dt class="text-muted-foreground">Scope</dt>
+                  <dd>{{ dashboard.researchTaskFor.value.scope }}</dd>
+                </div>
+              </dl>
+            </div>
+            <div class="space-y-2">
+              <div
+                v-for="step in researchSteps"
+                :key="step.id"
+                class="rounded-lg border px-3 py-2"
+                :class="dashboard.researchTaskFor.value.completedSteps.includes(step.id)
+                  ? 'border-primary/25 bg-primary/5'
+                  : 'border-border bg-muted/20'"
+              >
+                <div class="flex items-center justify-between gap-3">
+                  <p class="text-body font-medium">{{ step.label }}</p>
+                  <Badge
+                    :variant="dashboard.researchTaskFor.value.completedSteps.includes(step.id) ? 'success' : 'outline'"
+                  >
+                    {{ dashboard.researchTaskFor.value.completedSteps.includes(step.id) ? '完成' : '待办' }}
+                  </Badge>
+                </div>
+                <p class="mt-1 text-caption leading-5 text-muted-foreground">{{ step.detail }}</p>
+              </div>
+            </div>
+            <div class="rounded-xl border border-border bg-muted/30 px-4 py-3">
+              <p class="flex items-center gap-2 text-caption font-medium text-muted-foreground">
+                <FileText class="size-4" />
+                下一步交给 Coding Agent
+              </p>
+              <p class="mt-2 text-body leading-6">{{ dashboard.researchTaskFor.value.nextPrompt }}</p>
+            </div>
+          </div>
+          <div v-else>
+            <p class="mt-3 text-caption font-medium text-muted-foreground">Agent 可接手任务</p>
+            <ul class="mt-2 space-y-2 text-body leading-5">
+              <li
+                v-for="task in sprintTasks"
+                :key="task"
+                class="rounded-lg border border-border bg-muted/30 px-3 py-2"
+              >
+                {{ task }}
+              </li>
+            </ul>
+          </div>
         </section>
 
         <section class="border-b border-border px-6 py-5">
@@ -305,19 +444,19 @@ function statusVariant(status: VulnerabilityStatus) {
             @click="dashboard.establishResearchTask(dashboard.selected.value.id)"
           >
             <ShieldCheck
-              v-if="dashboard.researchTasks.value.includes(dashboard.selected.value.id)"
+              v-if="dashboard.researchTaskFor.value"
               class="size-4"
             />
             <Workflow v-else class="size-4" />
-            {{ dashboard.researchTasks.value.includes(dashboard.selected.value.id) ? '研究任务已建立' : '建立研究任务' }}
+            {{ dashboard.researchTaskFor.value ? '研究任务已建立' : '建立研究任务' }}
           </Button>
           <Button
             variant="ghost"
             block
             class="mt-2"
-            @click="dashboard.advanceStatus(dashboard.selected.value.id)"
+            @click="dashboard.advanceTask(dashboard.selected.value.id)"
           >
-            推进研究状态
+            推进下一步
           </Button>
           <p class="mt-3 text-center text-caption leading-5 text-muted-foreground">
             建立任务后固化情报快照、受影响资产与证据边界。
