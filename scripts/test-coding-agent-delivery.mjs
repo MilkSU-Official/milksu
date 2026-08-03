@@ -35,6 +35,13 @@ const resultPath = join(
 )
 const conversationId = 'coding-delivery-fixture'
 const keepFixture = process.env.MILKSU_KEEP_CODING_FIXTURE === '1'
+const reliabilityBudgets = {
+  providerRequests: 30,
+  toolCalls: 24,
+  reportedTokens: 250_000,
+  elapsedMs: 60_000,
+  externalProviderCostUSD: 0,
+}
 
 const initialImplementation = `export function renderReport(input) {
   const openTitles = input.items
@@ -105,12 +112,24 @@ test('uses the singular noun for one open item', () => {
 })
 `
 
+const compactionContextFixture = Array.from(
+  { length: 2_400 },
+  (_, index) => (
+    `可靠性上下文 ${String(index + 1).padStart(4, '0')}：`
+    + '保留目标、约束、已完成工作、失败恢复、文件范围、测试结果和下一步。'
+  ),
+).join('\n')
+
 function tool(name, args) {
   return { type: 'tool', name, args }
 }
 
 function answer(text) {
   return { type: 'text', text }
+}
+
+function hang() {
+  return { type: 'hang' }
 }
 
 function responsePlan(stubSource) {
@@ -182,10 +201,36 @@ function responsePlan(stubSource) {
       '已修复单数文案并补回归测试。最终改动仅包含 src/report.js、src/cli.js、'
       + 'test/report.test.js 和已批准的 dist/report.txt；npm test 与 CLI smoke 均通过。',
     ),
+    answer(
+      'Goal：交付报告 CLI。约束：只修改工作区，已批准 dist/report.txt。'
+      + '已完成：实现、测试、失败恢复和重启恢复。下一步：核对最终 Diff 后交付。',
+    ),
+    answer(
+      '原始请求：修复单数文案并补测试。早期进展：已读取、编辑并运行 npm test。'
+      + '后续上下文：保留最终测试结果和交付说明。',
+    ),
+    hang(),
+    answer('取消已生效；同一 Session 可以继续响应，未执行任何工具。'),
   ]
 }
 
-function sendSSE(response, sequence, entry, requestBody) {
+function fixtureUsage(entry, requestBody) {
+  const promptTokens = Math.max(
+    10,
+    Math.ceil(JSON.stringify(requestBody.messages ?? []).length / 4),
+  )
+  if (entry.type === 'hang') return null
+  const completionTokens = entry.type === 'tool'
+    ? 2
+    : Math.max(4, Math.ceil(entry.text.length / 4))
+  return {
+    prompt_tokens: promptTokens,
+    completion_tokens: completionTokens,
+    total_tokens: promptTokens + completionTokens,
+  }
+}
+
+function sendSSE(response, sequence, entry, requestBody, usage) {
   response.writeHead(200, {
     'content-type': 'text/event-stream; charset=utf-8',
     'cache-control': 'no-cache',
@@ -196,6 +241,17 @@ function sendSSE(response, sequence, entry, requestBody) {
     object: 'chat.completion.chunk',
     created: 1,
     model: requestBody.model ?? 'kimi-k3',
+  }
+  if (entry.type === 'hang') {
+    response.write(`data: ${JSON.stringify({
+      ...base,
+      choices: [{
+        index: 0,
+        delta: { role: 'assistant' },
+        finish_reason: null,
+      }],
+    })}\n\n`)
+    return
   }
   if (entry.type === 'tool') {
     const available = new Set(
@@ -226,7 +282,7 @@ function sendSSE(response, sequence, entry, requestBody) {
     response.write(`data: ${JSON.stringify({
       ...base,
       choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }],
-      usage: { prompt_tokens: 10, completion_tokens: 2, total_tokens: 12 },
+      usage,
     })}\n\n`)
   } else {
     response.write(`data: ${JSON.stringify({
@@ -236,7 +292,7 @@ function sendSSE(response, sequence, entry, requestBody) {
         delta: { role: 'assistant', content: entry.text },
         finish_reason: 'stop',
       }],
-      usage: { prompt_tokens: 10, completion_tokens: 4, total_tokens: 14 },
+      usage,
     })}\n\n`)
   }
   response.end('data: [DONE]\n\n')
@@ -245,6 +301,7 @@ function sendSSE(response, sequence, entry, requestBody) {
 async function startFakeProvider(plan) {
   let requestCount = 0
   const requests = []
+  const openResponses = new Set()
   const server = createServer(async (request, response) => {
     try {
       if (request.method !== 'POST' || request.url !== '/v1/chat/completions') {
@@ -258,12 +315,18 @@ async function startFakeProvider(plan) {
       const entry = plan.shift()
       if (!entry) throw new Error('fake provider response plan is exhausted')
       requestCount++
+      const usage = fixtureUsage(entry, body)
       requests.push({
         sequence: requestCount,
-        entry: entry.type === 'tool' ? `tool:${entry.name}` : 'text',
+        entry: entry.type === 'tool' ? `tool:${entry.name}` : entry.type,
         messageCount: body.messages?.length ?? 0,
+        usage,
       })
-      sendSSE(response, requestCount, entry, body)
+      if (entry.type === 'hang') {
+        openResponses.add(response)
+        response.once('close', () => openResponses.delete(response))
+      }
+      sendSSE(response, requestCount, entry, body, usage)
     } catch (error) {
       response.writeHead(500, { 'content-type': 'application/json' })
       response.end(JSON.stringify({ error: { message: error.message } }))
@@ -277,6 +340,7 @@ async function startFakeProvider(plan) {
     requests,
     remaining: () => plan.length,
     close: async () => {
+      for (const response of openResponses) response.end()
       server.close()
       await once(server, 'close')
     },
@@ -352,6 +416,7 @@ function startBridge({ bundlePath, workspace, agentDirectory, baseURL }) {
   let stderr = ''
   let stdoutBuffer = ''
   let backgroundRequestSequence = 0
+  let compactionRequestSequence = 0
 
   child.stderr.setEncoding('utf8')
   child.stderr.on('data', chunk => { stderr += chunk })
@@ -418,7 +483,7 @@ function startBridge({ bundlePath, workspace, agentDirectory, baseURL }) {
     return ready
   }
 
-  async function prompt(text, {
+  function beginPrompt(text, {
     executionMode = 'go',
     approvalPolicy = 'workspace-auto',
   } = {}) {
@@ -432,14 +497,36 @@ function startBridge({ bundlePath, workspace, agentDirectory, baseURL }) {
       approvalPolicy,
       prompt: text,
     })
-    const done = await waitFor(
+    const done = waitFor(
       event => events.indexOf(event) >= start
         && event.id === conversationId
         && (event.type === 'message_done' || event.type === 'error'),
       30_000,
+    ).then(event => {
+      if (event.type === 'error') throw new Error(event.error)
+      return events.slice(start)
+    })
+    return { start, done }
+  }
+
+  async function prompt(text, options = {}) {
+    const pending = beginPrompt(text, options)
+    return await pending.done
+  }
+
+  async function abort() {
+    const start = events.length
+    command({
+      action: 'abort_session',
+      conversationId,
+    })
+    return await waitFor(
+      event => events.indexOf(event) >= start
+        && event.id === conversationId
+        && event.type === 'message_done'
+        && event.reason === 'aborted',
+      5_000,
     )
-    if (done.type === 'error') throw new Error(done.error)
-    return events.slice(start)
   }
 
   async function backgroundTasks() {
@@ -457,13 +544,40 @@ function startBridge({ bundlePath, workspace, agentDirectory, baseURL }) {
     )
   }
 
+  async function compact() {
+    const requestId = `delivery-compact-${++compactionRequestSequence}`
+    const start = events.length
+    command({
+      action: 'compact_session',
+      conversationId,
+      requestId,
+    })
+    return await waitFor(
+      event => events.indexOf(event) >= start
+        && event.type === 'compaction_end'
+        && event.id === conversationId
+        && event.requestId === requestId,
+      30_000,
+    )
+  }
+
   async function stop() {
     if (child.exitCode !== null || child.signalCode !== null) return
     child.kill('SIGTERM')
     await once(child, 'close')
   }
 
-  return { child, events, createSession, prompt, backgroundTasks, stop }
+  return {
+    child,
+    events,
+    createSession,
+    beginPrompt,
+    prompt,
+    abort,
+    backgroundTasks,
+    compact,
+    stop,
+  }
 }
 
 async function snapshotFiles(root) {
@@ -529,6 +643,7 @@ async function backgroundTaskMetas(workspace) {
 }
 
 async function main() {
+  const reliabilityStartedAt = Date.now()
   const temporaryBase = process.env.MILKSU_CODING_SIDECAR_NODE
     && process.platform === 'darwin'
     ? '/private/tmp'
@@ -615,7 +730,29 @@ async function main() {
     }
     const providerRequestsAfterRecovery = provider.requests.length
     transcript.fixAfterRestart = await restarted.prompt(
-      '我发现只有一项时还显示 items。修好并补回归测试，然后给我最终交付说明。',
+      '我发现只有一项时还显示 items。修好并补回归测试，然后给我最终交付说明。'
+      + '\n\n以下是用于验证正式 Pi 压缩路径的确定性、无执行内容上下文：\n'
+      + compactionContextFixture,
+    )
+    const compaction = await restarted.compact()
+    const providerRequestsBeforeCancellation = provider.requests.length
+    const cancellationStartedAt = Date.now()
+    const pendingCancellation = restarted.beginPrompt(
+      '这是取消路径回归：保持生成，直到用户取消。',
+    )
+    const cancellationRequestDeadline = Date.now() + 5_000
+    while (
+      provider.requests.length === providerRequestsBeforeCancellation
+      && Date.now() < cancellationRequestDeadline
+    ) {
+      await new Promise(resolvePromise => setTimeout(resolvePromise, 20))
+    }
+    const cancellationEvent = await restarted.abort()
+    const cancellationTranscript = await pendingCancellation.done
+    const cancellationLatencyMs = Date.now() - cancellationStartedAt
+    const providerRequestsAfterCancellation = provider.requests.length
+    transcript.afterCancellation = await restarted.prompt(
+      '取消完成后只确认会话仍可继续，不要调用工具。',
     )
     await new Promise(resolvePromise => setTimeout(resolvePromise, 1_200))
 
@@ -667,6 +804,10 @@ async function main() {
       .filter(event => event.type === 'message_done')
       .map(event => event.content)
       .join('\n')
+    const afterCancellationText = transcript.afterCancellation
+      .filter(event => event.type === 'message_done')
+      .map(event => event.content)
+      .join('\n')
     const readyResources = {
       extensions: initialReady.extensions ?? [],
       skills: initialReady.skills ?? [],
@@ -703,6 +844,15 @@ async function main() {
         && typeof projectedWatchBeforePrompt?.logTail === 'string'
         && projectedWatchAfterMarker?.status === 'succeeded'
         && projectedWatchAfterMarker?.lastExitCode === 0,
+      contextCompaction:
+        compaction?.aborted === false
+        && !compaction?.error
+        && Number.isFinite(compaction?.compaction?.tokensBefore)
+        && compaction.compaction.tokensBefore > 0
+        && Number.isFinite(compaction?.compaction?.estimatedTokensAfter)
+        && compaction.compaction.estimatedTokensAfter > 0
+        && compaction.compaction.estimatedTokensAfter
+          < compaction.compaction.tokensBefore,
       approval:
         !distBeforeApproval
         && distExists
@@ -757,6 +907,88 @@ async function main() {
         && /dist\/report\.txt/.test(finalText),
       providerPlanConsumed: provider.remaining() === 0,
     }
+    const reportedTokens = provider.requests.reduce(
+      (total, request) => total + (request.usage?.total_tokens ?? 0),
+      0,
+    )
+    const elapsedMs = Date.now() - reliabilityStartedAt
+    const allToolCalls = Object.values(transcript).flatMap(toolEvents)
+    const failureClasses = [
+      {
+        class: 'tool_execution_failed',
+        observed: implementationFailures.length > 0,
+        recovered: implementationSuccessAfterFailure,
+      },
+      {
+        class: 'background_process_timed_out',
+        observed: backgroundTask?.status === 'timed_out',
+        recovered: true,
+      },
+      {
+        class: 'turn_cancelled',
+        observed:
+          cancellationEvent?.reason === 'aborted'
+          && cancellationTranscript.some(
+            event => event.type === 'message_done' && event.reason === 'aborted',
+          ),
+        recovered:
+          /继续响应/.test(afterCancellationText)
+          && toolEvents(transcript.afterCancellation).length === 0,
+      },
+    ]
+    const reliabilityChecks = {
+      multiTurnPlanning: checks.workflowCoverage && checks.planToGo,
+      fileRead: understandTools.some(event => event.toolName === 'read'),
+      developmentCommand: implementTools.some(event => event.toolName === 'bash'),
+      toolInvocation: allToolCalls.length > 0,
+      sidecarRestart: checks.restartRecovery,
+      contextCompaction: checks.contextCompaction,
+      turnCancellation:
+        failureClasses.find(value => value.class === 'turn_cancelled')?.observed === true
+        && providerRequestsAfterCancellation === providerRequestsBeforeCancellation + 1
+        && provider.requests[providerRequestsBeforeCancellation]?.entry === 'hang'
+        && cancellationLatencyMs <= 5_000,
+      timeoutObserved:
+        failureClasses.find(
+          value => value.class === 'background_process_timed_out',
+        )?.observed === true,
+      failureClassification:
+        failureClasses.every(value => value.observed && value.recovered),
+      providerRequestBudget: provider.requests.length <= reliabilityBudgets.providerRequests,
+      toolCallBudget: allToolCalls.length <= reliabilityBudgets.toolCalls,
+      reportedTokenBudget: reportedTokens <= reliabilityBudgets.reportedTokens,
+      elapsedBudget: elapsedMs <= reliabilityBudgets.elapsedMs,
+      externalCostBudget: reliabilityBudgets.externalProviderCostUSD === 0,
+    }
+    const reliability = {
+      schemaVersion: 'milksu-runtime-reliability/v1alpha1',
+      passed: Object.values(reliabilityChecks).every(Boolean),
+      checks: reliabilityChecks,
+      budgets: {
+        providerRequests: {
+          actual: provider.requests.length,
+          limit: reliabilityBudgets.providerRequests,
+        },
+        toolCalls: {
+          actual: allToolCalls.length,
+          limit: reliabilityBudgets.toolCalls,
+        },
+        reportedTokens: {
+          actual: reportedTokens,
+          limit: reliabilityBudgets.reportedTokens,
+        },
+        elapsedMs: {
+          actual: elapsedMs,
+          limit: reliabilityBudgets.elapsedMs,
+        },
+        externalProviderCostUSD: {
+          actual: 0,
+          limit: reliabilityBudgets.externalProviderCostUSD,
+          measurement: 'deterministic local provider; no external request',
+        },
+      },
+      failures: failureClasses,
+    }
 
     const weights = {
       buildAndTest: 20,
@@ -777,13 +1009,16 @@ async function main() {
         && checks.workflowCoverage
         && checks.planToGo
         && checks.backgroundTaskLifecycle
+        && checks.contextCompaction
         && checks.finalDelivery
-        && checks.providerPlanConsumed,
+        && checks.providerPlanConsumed
+        && reliability.passed,
       checks,
       weights,
+      reliability,
       metrics: {
         providerRequests: provider.requests.length,
-        toolCalls: Object.values(transcript).flatMap(toolEvents).length,
+        toolCalls: allToolCalls.length,
         failedToolCalls: implementationFailures.length,
         failedToolSummaries: implementationFailures.map(event => ({
           toolName: event.toolName,
@@ -835,6 +1070,22 @@ async function main() {
                 lastExitCode: projectedWatchAfterMarker.lastExitCode,
               }
             : null,
+        },
+        contextCompaction: compaction
+          ? {
+              requestId: compaction.requestId,
+              aborted: compaction.aborted,
+              tokensBefore: compaction.compaction?.tokensBefore,
+              estimatedTokensAfter: compaction.compaction?.estimatedTokensAfter,
+              error: compaction.error,
+            }
+          : null,
+        cancellation: {
+          providerRequestsBefore: providerRequestsBeforeCancellation,
+          providerRequestsAfter: providerRequestsAfterCancellation,
+          providerRequestsAfterRecovery: provider.requests.length,
+          reason: cancellationEvent?.reason,
+          latencyMs: cancellationLatencyMs,
         },
       },
       resources: readyResources,
