@@ -72,6 +72,31 @@ test("Request Approval asks per operation while Full Access runs routine selecte
   );
 });
 
+test("selected Computer Use operations do not create meaningless approvals outside Ask", () => {
+  for (const toolCall of [
+    { server: "milksu-computer-use", tool: "computer_use", args: { action: "observe" } },
+    { server: "milksu-computer-use", tool: "computer_use", args: { action: "click", elementId: "button-1" } },
+    { server: "milksu-computer-use", tool: "computer_use", args: { action: "type", text: "continue" } },
+  ]) {
+    assert.equal(
+      codingMcpOperationRequiresApproval(toolCall, "workspace-auto", "milksu-computer-use"),
+      false,
+    );
+    assert.equal(
+      codingMcpOperationRequiresApproval(toolCall, "full-auto", "milksu-computer-use"),
+      false,
+    );
+    assert.equal(
+      codingMcpOperationRequiresApproval(toolCall, "ask", "milksu-computer-use"),
+      true,
+    );
+    assert.equal(
+      codingMcpOperationRequiresApproval(toolCall, "read-only", "milksu-computer-use"),
+      true,
+    );
+  }
+});
+
 test("every permission tier confirms hosted publication without blocking routine Full Access MCP", () => {
   for (const approvalPolicy of ["ask", "workspace-auto", "full-auto"]) {
     for (const tool of [
