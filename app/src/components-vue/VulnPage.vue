@@ -434,15 +434,15 @@ function statusVariant(status: VulnerabilityStatus) {
                 </p>
               </div>
               <Badge
-                :variant="dashboard.practiceSessionFor.value?.state === 'running'
+                :variant="dashboard.practiceSessionFor.value?.state === 'confirmed'
                   ? 'success'
                   : dashboard.practiceSessionFor.value?.state === 'stopped'
                     ? 'secondary'
                     : 'outline'"
               >
                 {{
-                  dashboard.practiceSessionFor.value?.state === 'running'
-                    ? '已确认'
+                  dashboard.practiceSessionFor.value?.state === 'confirmed'
+                    ? '已确认计划'
                     : dashboard.practiceSessionFor.value?.state === 'stopped'
                       ? '已停止'
                       : '待确认'
@@ -526,12 +526,12 @@ function statusVariant(status: VulnerabilityStatus) {
 
             <div class="mt-4 flex flex-wrap gap-2">
               <Button
-                v-if="dashboard.practiceSessionFor.value?.state !== 'running'"
+                v-if="dashboard.practiceSessionFor.value?.state !== 'confirmed'"
                 size="sm"
                 @click="dashboard.confirmPracticeEnvironment(dashboard.selected.value.id)"
               >
                 <Play class="size-4" />
-                确认本地练习
+                确认练习计划
               </Button>
               <Button
                 v-else

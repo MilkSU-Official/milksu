@@ -278,14 +278,14 @@ describe('VulnPage', () => {
     expect(host.textContent).toContain('练习成功只代表本地学习完成')
 
     const confirm = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
-      item.textContent?.includes('确认本地练习'),
+      item.textContent?.includes('确认练习计划'),
     )
     if (!confirm) throw new Error('missing confirm practice button')
     confirm.click()
     await nextTick()
 
-    expect(host.textContent).toContain('已确认')
-    expect(host.textContent).toContain('已确认本地练习计划')
+    expect(host.textContent).toContain('已确认计划')
+    expect(host.textContent).toContain('已确认本地练习计划，尚未启动容器')
     expect(host.textContent).toContain('下一步交给 Coding Agent')
     expect(host.textContent).toContain('不要自动拉取镜像、启动容器、运行 exploit 或访问外部目标')
 
@@ -316,7 +316,7 @@ describe('VulnPage', () => {
     await nextTick()
 
     const confirm = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
-      item.textContent?.includes('确认本地练习'),
+      item.textContent?.includes('确认练习计划'),
     )
     confirm?.click()
     await nextTick()
@@ -337,6 +337,7 @@ describe('VulnPage', () => {
     expect(tasks[0].prompt).toContain('OSV / GitHub Advisory：待接入')
     expect(tasks[0].prompt).toContain('Vulhub 练习目录：内置快照')
     expect(tasks[0].prompt).toContain('vulhub/activemq/CVE-2023-46604')
+    expect(tasks[0].prompt).toContain('当前练习状态：已确认计划，未启动容器')
     expect(tasks[0].prompt).toContain('不要自动拉取镜像、启动容器、运行 exploit 或访问外部目标')
     expect(tasks[0].prompt).toContain('不要把情报命中或练习结果写成真实资产已验证')
     expect(host.textContent).toContain('最近 Coding 接力')
