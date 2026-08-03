@@ -196,7 +196,7 @@ allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 
 | DEL-02 | Pre-release 旧 schema 一次性破坏性收口 | 按契约明确后置 | 0% | 产品纵切完成后集中执行 |
 | DEL-03 | 上次启动/异常退出标记与恢复入口 | 打包 App lifecycle baseline 通过 | 75% | 真实异常退出人工验收 |
 | DEL-04 | Sidecar、恢复、迁移、后台任务脱敏诊断 | 诊断包、UI 和离线错误测试存在 | 75% | 真实故障包审阅 |
-| DEL-05 | 不保存正文、原始工具输出或 Credential | 多处边界测试存在；诊断包测试确认即使 `runtime/milksu.log` 含会话正文、原始工具输出和 Credential 形态，导出包也只包含脱敏 `diagnostics.json`，不复制日志文件；`useConversations.test.ts` 覆盖前端 unexpected engine error 展示前会脱敏 Bearer、`sk-*` 和 `*_API_KEY` 形态 | 50% | 完整诊断与本地文件审计 |
+| DEL-05 | 不保存正文、原始工具输出或 Credential | 多处边界测试存在；诊断包测试确认即使 `runtime/milksu.log` 含会话正文、原始工具输出和 Credential 形态，导出包也只包含脱敏 `diagnostics.json`，不复制日志文件；`useConversations.test.ts` 覆盖前端 unexpected engine error 展示前会脱敏 Bearer、`sk-*`、`*_API_KEY`、URL query `api_key` 和 `x-api-key` 形态 | 50% | 完整诊断与本地文件审计 |
 | DEL-06 | `1080×680` 最低窗口 | Browser 真实截图与布局审计 | 75% | 原生 App 全流程人工 QA |
 | DEL-07 | 启动时间基线 | 隔离 HOME 打包 App 已测 | 75% | 多次冷启动和目标机器矩阵 |
 | DEL-08 | RSS、前端 chunk、App/Sidecar 体积基线 | `local-delivery-baseline.md` | 75% | 多机器重复测量 |
@@ -206,7 +206,7 @@ allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 
 | DEL-12 | Hardened Runtime 与 Entitlements | 尚无完成证据 | 0% | RC 配置和验收 |
 | DEL-13 | Apple notarization 与 stapling | 尚无完成证据 | 0% | RC 公证回执 |
 | DEL-14 | 签名升级、旧版升级与失败回滚 | 尚无完成证据 | 0% | RC 升级渠道和回滚 |
-| DEL-15 | 离线/网络失败的可理解降级 | synthetic 离线模型失败已验收；`useConversations.test.ts` 覆盖聊天运行时 Provider/Agent 网络连接失败会显示可恢复的中文降级说明，并提示工作区、审批和恢复点已保留 | 50% | 打包 App 多入口真实离线验收 |
+| DEL-15 | 离线/网络失败的可理解降级 | synthetic 离线模型失败已验收；`useConversations.test.ts` 覆盖聊天运行时 Provider/Agent 网络连接失败会显示可恢复的中文降级说明，并提示工作区、审批和恢复点已保留，同时不会把 URL query 或 header 里的 Provider Key 混入错误 UI | 50% | 打包 App 多入口真实离线验收 |
 
 ## 最终文档
 

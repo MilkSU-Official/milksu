@@ -259,8 +259,16 @@ function redactAgentErrorMessage(value: string) {
       match => `${match.split('=')[0].trim()}=[credential redacted]`,
     )
     .replace(
+      /([?&])api[_-]?key=([^&#\s"']+)/gi,
+      '$1api_key=[credential redacted]',
+    )
+    .replace(
       /(^|[\s,;])api[_-]?key\s*[:=]\s*[^\s"']+/gi,
       '$1api_key=[credential redacted]',
+    )
+    .replace(
+      /(^|[\s,;])x-api-key\s*[:=]\s*[^\s"']+/gi,
+      '$1x-api-key=[credential redacted]',
     )
     .replace(/\bBearer\s+[^\s"']+/gi, 'Bearer [credential redacted]')
     .replace(/\b(?:sk|sess)-[A-Za-z0-9_-]{8,}\b/g, '[credential redacted]')

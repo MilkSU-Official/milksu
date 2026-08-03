@@ -183,11 +183,15 @@ describe('Coding approval conversation recovery', () => {
 
   it('redacts provider credentials from unexpected engine errors', () => {
     const message = agentErrorMessage(
-      'Error: provider rejected Authorization Bearer sk-live-secret-token OPENAI_API_KEY=sk-other-secret',
+      'Error: provider rejected Authorization Bearer sk-live-secret-token OPENAI_API_KEY=sk-other-secret https://provider.example.test/v1?api_key=sk-query-secret&model=x x-api-key: sk-header-secret',
     )
     expect(message).toContain('Bearer [credential redacted]')
     expect(message).toContain('API_KEY=[credential redacted]')
+    expect(message).toContain('?api_key=[credential redacted]')
+    expect(message).toContain('x-api-key=[credential redacted]')
     expect(message).not.toContain('sk-live-secret-token')
     expect(message).not.toContain('sk-other-secret')
+    expect(message).not.toContain('sk-query-secret')
+    expect(message).not.toContain('sk-header-secret')
   })
 })
