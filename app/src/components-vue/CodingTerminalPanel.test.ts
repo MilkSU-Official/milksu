@@ -53,7 +53,7 @@ const runtimeStatus: CodingRuntimeStatus = {
     kind: 'process',
     status: 'running',
     startedAt: Date.now() - 12_000,
-    command: 'npm run dev',
+    command: 'OPENAI_API_KEY=sk-command-secret-123456789 npm run dev',
     cwd: '/Users/milksu/code/milksu/app',
     pid: 4321,
     ports: [1420, 5173],
@@ -141,7 +141,7 @@ describe('CodingTerminalPanel', () => {
     )
     const text = host.textContent ?? ''
     expect(text).toContain('已从磁盘恢复持久任务')
-    expect(text).toContain('npm run dev')
+    expect(text).toContain('OPENAI_API_KEY=[credential redacted] npm run dev')
     expect(text).toContain('PID 4321')
     expect(text).toContain(':1420')
     expect(text).toContain(':5173')
@@ -150,6 +150,7 @@ describe('CodingTerminalPanel', () => {
     expect(text).toContain('Bearer [credential redacted]')
     expect(text).not.toContain('sk-bg-secret')
     expect(text).not.toContain('sk-bg-bearer-secret')
+    expect(text).not.toContain('sk-command-secret')
     expect(text).toContain('仅显示日志末尾')
   })
 })

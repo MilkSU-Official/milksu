@@ -93,6 +93,10 @@ function taskLabel(task: CodingBackgroundTask): string {
   return task.name || task.command || task.id
 }
 
+function visibleTaskLabel(task: CodingBackgroundTask): string {
+  return redactProviderCredentials(taskLabel(task))
+}
+
 function taskStatusLabel(status: CodingBackgroundTask['status']): string {
   if (status === 'running') return '运行中'
   if (status === 'succeeded') return '已完成'
@@ -595,7 +599,7 @@ onBeforeUnmount(() => {
             :class="session.id === selectedTerminalId
               ? 'bg-secondary text-foreground'
               : 'text-muted-foreground hover:bg-muted hover:text-foreground'"
-            :title="`${session.shell} · PID ${session.pid ?? '—'}`"
+            :title="`${redactProviderCredentials(session.shell)} · PID ${session.pid ?? '—'}`"
             @click="selectTerminal(session.id)"
           >
             <span
@@ -731,8 +735,8 @@ onBeforeUnmount(() => {
                     : 'bg-muted-foreground'"
             />
             <span class="min-w-0 flex-1">
-              <span class="block truncate text-body font-medium" :title="taskLabel(task)">
-                {{ taskLabel(task) }}
+              <span class="block truncate text-body font-medium" :title="visibleTaskLabel(task)">
+                {{ visibleTaskLabel(task) }}
               </span>
               <span class="mt-0.5 block truncate text-caption text-muted-foreground">
                 {{ taskStatusLabel(task.status) }} · {{ taskElapsed(task) }}
@@ -750,7 +754,7 @@ onBeforeUnmount(() => {
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0 space-y-1">
                 <p v-if="task.command" class="break-words font-mono text-foreground">
-                  $ {{ task.command }}
+                  $ {{ visibleTaskText(task.command) }}
                 </p>
                 <p v-if="task.cwd" class="break-all text-muted-foreground">
                   {{ task.cwd }}
@@ -763,7 +767,7 @@ onBeforeUnmount(() => {
                 size="sm"
                 class="shrink-0"
                 :disabled="stopping.includes(task.id)"
-                :aria-label="`停止后台任务 ${taskLabel(task)}`"
+                :aria-label="`停止后台任务 ${visibleTaskLabel(task)}`"
                 @click="stopTask(task)"
               >
                 <LoaderCircle
