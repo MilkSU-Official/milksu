@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { nextTick, ref } from 'vue'
 import {
   Badge,
   Button,
@@ -79,6 +79,7 @@ const showCustomForm = ref(false)
 const customFormError = ref('')
 const showAssetForm = ref(false)
 const assetFormError = ref('')
+const researchWorkspace = ref<HTMLElement | null>(null)
 const customForm = ref({
   id: '',
   title: '',
@@ -129,6 +130,12 @@ function addSelectedAssetRecord() {
 function startSelectedCodingTask(task: VulnerabilityCodingTask) {
   dashboard.recordCodingHandoff(dashboard.selected.value.id, task, props.codingWorkspacePath ?? '')
   emit('startCodingTask', task)
+}
+
+async function establishOrFocusResearchTask() {
+  dashboard.establishResearchTask(dashboard.selected.value.id)
+  await nextTick()
+  researchWorkspace.value?.scrollIntoView({ block: 'start', behavior: 'smooth' })
 }
 
 function severityVariant(severity: VulnerabilitySeverity) {
@@ -661,7 +668,7 @@ function statusVariant(status: VulnerabilityStatus) {
           </div>
         </section>
 
-        <section class="border-b border-border px-6 py-5">
+        <section ref="researchWorkspace" class="border-b border-border px-6 py-5">
           <div class="flex items-center justify-between gap-3">
             <h3 class="text-label font-medium">研究任务工作区</h3>
             <Badge v-if="dashboard.researchTaskFor.value" variant="info">已建立</Badge>
@@ -789,14 +796,14 @@ function statusVariant(status: VulnerabilityStatus) {
         <section class="px-6 py-5">
           <Button
             block
-            @click="dashboard.establishResearchTask(dashboard.selected.value.id)"
+            @click="establishOrFocusResearchTask"
           >
             <ShieldCheck
               v-if="dashboard.researchTaskFor.value"
               class="size-4"
             />
             <Workflow v-else class="size-4" />
-            {{ dashboard.researchTaskFor.value ? '研究任务已建立' : '建立研究任务' }}
+            {{ dashboard.researchTaskFor.value ? '查看研究任务' : '建立研究任务' }}
           </Button>
           <Button
             variant="ghost"

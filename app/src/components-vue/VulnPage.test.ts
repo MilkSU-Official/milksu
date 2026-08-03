@@ -145,7 +145,8 @@ describe('VulnPage', () => {
     button.click()
     await nextTick()
 
-    expect(host.textContent).toContain('研究任务已建立')
+    expect(host.textContent).toContain('查看研究任务')
+    expect(host.textContent).toContain('已建立')
     expect(host.textContent).toContain('理解 PAN-OS 的影响范围、修复证据和学习要点')
     expect(host.textContent).toContain('Palo Alto Networks / PAN-OS')
     expect(host.textContent).toContain('固化情报快照')
