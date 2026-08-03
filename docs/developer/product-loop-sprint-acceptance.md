@@ -738,3 +738,32 @@
 - 原生 App 中真实触发一次用户中断后继续；
 - 原生 App 中真实触发上下文过长后继续；
 - 继续后的 Agent 不重复已完成步骤的完整人工验收。
+
+## 2026-08-04 · CVE Vulhub catalog match visibility
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | 本批次提交 |
+| 目标流 | CVE → 情报源状态 → Vulhub 练习目录匹配 → 选择 ActiveMQ |
+| 外部只读核对 | `git ls-remote https://github.com/vulhub/vulhub.git HEAD` → `aeaf65793f147f29bd50841ef77f4e9cad07ecc7`；GitHub tree 只读检查当前内置 CVE 中仅 `activemq/CVE-2023-46604` 匹配 |
+| 窄测 | `npm --prefix app test -- VulnPage.test.ts VulnerabilityLoopPanel.test.ts useVulnerabilityDashboard.test.ts` |
+| 窄测结果 | 3 files / 20 tests passed |
+| 前端构建 | `npm --prefix app run build` |
+| 构建结果 | production build passed |
+| Browser 验证 | Vite preview `http://127.0.0.1:4182/`；进入 CVE，先看默认 `CVE-2024-3400` 未匹配，再点击 `Apache ActiveMQ OpenWire RCE` |
+
+覆盖范围：
+
+- CVE 页面新增“Vulhub 练习目录匹配”只读状态卡；
+- 卡片显示固定快照 `aeaf657` 和完整 revision 证据；
+- 默认选中 `CVE-2024-3400` 时明确说明当前快照未匹配目录，可交给 Coding Agent 做只读 catalog import 复核或由用户手动绑定材料；
+- 选中 `CVE-2023-46604` 时显示已匹配 `vulhub/activemq/CVE-2023-46604`、目录、固定 revision 和启动前仍需确认 Docker/端口/网络/清理；
+- 页面文案继续明确：只做只读匹配和启动前计划；拉取镜像、启动容器、开放端口或发送漏洞触发输入仍需用户逐次确认；
+- Browser preview 页面加载为 `MilkSU`，点击 `CVE` 和 ActiveMQ 行后无 relevant console error / warn，无 Vite overlay。
+
+本次仍未证明：
+
+- 完整 Vulhub catalog import；
+- Docker/Compose 真实启动、停止和清理；
+- Agent 在本地隔离练习 Scope 内的观察、日志阅读和复盘；
+- 任一练习结果可代表真实资产验证。

@@ -318,6 +318,28 @@ function statusVariant(status: VulnerabilityStatus) {
               </p>
             </article>
           </div>
+          <div
+            class="mt-4 rounded-xl border border-border bg-background px-4 py-3"
+            aria-label="Vulhub 练习目录匹配状态"
+          >
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div class="min-w-0">
+                <p class="text-body font-medium">Vulhub 练习目录匹配</p>
+                <p class="mt-1 text-caption leading-5 text-muted-foreground">
+                  {{ dashboard.practiceCatalogSummary.value.detail }}
+                </p>
+              </div>
+              <Badge :variant="dashboard.practiceCatalogSummary.value.variant" class="shrink-0">
+                {{ dashboard.practiceCatalogSummary.value.label }}
+              </Badge>
+            </div>
+            <p class="mt-2 text-caption leading-5 text-muted-foreground">
+              固定快照：{{ dashboard.practiceCatalogRevision.value }}；{{ dashboard.practiceCatalogSummary.value.revision }}
+            </p>
+            <p class="mt-1 text-caption leading-5 text-muted-foreground">
+              这里只做只读匹配和启动前计划；拉取镜像、启动容器、开放端口或发送漏洞触发输入仍需用户逐次确认。
+            </p>
+          </div>
         </section>
         <Table>
           <TableHeader class="sticky top-0 z-10 bg-background">
