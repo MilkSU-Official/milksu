@@ -169,7 +169,10 @@ async function startCTFAgent(handoff: CTFAgentWorkspaceHandoff) {
   lastCTFConversationId.value = conversations.activeId.value
 }
 
-async function startVulnerabilityCodingTask(task: VulnerabilityCodingTask) {
+async function startVulnerabilityCodingTask(
+  task: VulnerabilityCodingTask,
+  recordHandoff?: (workspacePath: string) => void,
+) {
   await executeVulnerabilityCodingHandoff(task, conversations.workspacePath.value, {
     rememberActiveConversation,
     startNewConversation: conversations.startNew,
@@ -180,6 +183,7 @@ async function startVulnerabilityCodingTask(task: VulnerabilityCodingTask) {
     setSection: value => { section.value = value },
     send: conversations.send,
   })
+  recordHandoff?.(conversations.workspacePath.value)
 }
 
 async function switchCTFAgent(role: 'solver' | 'tool-builder' | 'strategist') {

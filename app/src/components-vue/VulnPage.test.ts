@@ -53,15 +53,20 @@ async function mountVulnPageWithCodingTaskSink() {
   const host = document.createElement('div')
   document.body.append(host)
   const tasks: Array<{ title: string; prompt: string; visibleText: string }> = []
+  const handoffRecorders: Array<(workspacePath: string) => void> = []
   const app = createApp(VulnPage, {
-    onStartCodingTask: (task: { title: string; prompt: string; visibleText: string }) => {
+    onStartCodingTask: (
+      task: { title: string; prompt: string; visibleText: string },
+      recordHandoff: (workspacePath: string) => void,
+    ) => {
       tasks.push(task)
+      handoffRecorders.push(recordHandoff)
     },
   })
   app.mount(host)
   mountedApps.push(app)
   await nextTick()
-  return { host, tasks }
+  return { host, tasks, handoffRecorders }
 }
 
 async function setInput(input: HTMLInputElement | HTMLTextAreaElement, value: string) {
@@ -322,7 +327,7 @@ describe('VulnPage', () => {
   })
 
   it('hands confirmed CVE practice context to Coding Agent as a safe task', async () => {
-    const { host, tasks } = await mountVulnPageWithCodingTaskSink()
+    const { host, tasks, handoffRecorders } = await mountVulnPageWithCodingTaskSink()
     const activeMqRow = [...host.querySelectorAll<HTMLTableRowElement>('tr')].find(item =>
       item.textContent?.includes('CVE-2023-46604'),
     )
@@ -344,6 +349,7 @@ describe('VulnPage', () => {
     await nextTick()
 
     expect(tasks).toHaveLength(1)
+    expect(handoffRecorders).toHaveLength(1)
     expect(tasks[0].title).toBe('CVE-2023-46604 研究接力')
     expect(tasks[0].visibleText).toContain('接手 CVE-2023-46604')
     expect(tasks[0].prompt).toContain('Apache ActiveMQ OpenWire RCE')
@@ -355,8 +361,14 @@ describe('VulnPage', () => {
     expect(tasks[0].prompt).toContain('当前练习状态：已确认计划，未启动容器')
     expect(tasks[0].prompt).toContain('不要自动拉取镜像、启动容器、运行 exploit 或访问外部目标')
     expect(tasks[0].prompt).toContain('不要把情报命中或练习结果写成真实资产已验证')
+    expect(host.textContent).not.toContain('最近 Coding 接力')
+    expect(host.textContent).not.toContain('已交接')
+
+    handoffRecorders[0](' /Users/milksu/code/milksu ')
+    await nextTick()
+
     expect(host.textContent).toContain('最近 Coding 接力')
     expect(host.textContent).toContain('已交接')
-    expect(host.textContent).toContain('临时工作区')
+    expect(host.textContent).toContain('/Users/milksu/code/milksu')
   })
 })

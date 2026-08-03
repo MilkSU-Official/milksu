@@ -46,7 +46,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   openSettings: []
   chooseCodingWorkspace: []
-  startCodingTask: [task: VulnerabilityCodingTask]
+  startCodingTask: [task: VulnerabilityCodingTask, recordHandoff: (workspacePath: string) => void]
 }>()
 const dashboard = useVulnerabilityDashboard()
 
@@ -128,8 +128,10 @@ function addSelectedAssetRecord() {
 }
 
 function startSelectedCodingTask(task: VulnerabilityCodingTask) {
-  dashboard.recordCodingHandoff(dashboard.selected.value.id, task, props.codingWorkspacePath ?? '')
-  emit('startCodingTask', task)
+  const cveId = dashboard.selected.value.id
+  emit('startCodingTask', task, workspacePath => {
+    dashboard.recordCodingHandoff(cveId, task, workspacePath)
+  })
 }
 
 async function establishOrFocusResearchTask() {
