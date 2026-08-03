@@ -85,7 +85,7 @@ const guidance = computed(() => {
     return props.status?.problem || 'Computer Use 当前不可用。'
   }
   if (missingPermissions.value.length) {
-    return `还需要授权 ${missingPermissions.value.join('、')}；“App 管理”不能替代这两项。点击“请求系统权限”后，若 macOS 打开系统设置，请勾选 MilkSU 并回到这里重新检测。`
+    return `还需要授权 ${missingPermissions.value.join('、')}；“App 管理”不能替代这两项。点击未授权标签或“请求系统权限”后，若 macOS 打开系统设置，请勾选 MilkSU 并回到这里重新检测。`
   }
   if (attachedToOtherTask.value) {
     return '可见会话正由另一个 Coding 任务使用；请回到该任务停止后再切换。'
@@ -165,18 +165,36 @@ const guidance = computed(() => {
         {{ status?.target.windowTitle || selectedTarget?.windowTitle }}
       </p>
       <div class="mt-3 flex flex-wrap gap-2">
-        <Badge
-          :variant="status?.permissions.accessibility ? 'secondary' : 'outline'"
+        <button
+          type="button"
+          class="rounded-full disabled:cursor-default"
+          :disabled="Boolean(status?.permissions.accessibility) || loading || running || !status?.available"
+          aria-label="请求辅助功能权限"
+          @click="emit('requestPermissions')"
         >
-          辅助功能
-          {{ status?.permissions.accessibility ? '已授权' : '未授权' }}
-        </Badge>
-        <Badge
-          :variant="status?.permissions.screenRecording ? 'secondary' : 'outline'"
+          <Badge
+            :variant="status?.permissions.accessibility ? 'secondary' : 'outline'"
+            :class="!status?.permissions.accessibility && status?.available ? 'cursor-pointer' : ''"
+          >
+            辅助功能
+            {{ status?.permissions.accessibility ? '已授权' : '未授权' }}
+          </Badge>
+        </button>
+        <button
+          type="button"
+          class="rounded-full disabled:cursor-default"
+          :disabled="Boolean(status?.permissions.screenRecording) || loading || running || !status?.available"
+          aria-label="请求屏幕录制权限"
+          @click="emit('requestPermissions')"
         >
-          屏幕录制
-          {{ status?.permissions.screenRecording ? '已授权' : '未授权' }}
-        </Badge>
+          <Badge
+            :variant="status?.permissions.screenRecording ? 'secondary' : 'outline'"
+            :class="!status?.permissions.screenRecording && status?.available ? 'cursor-pointer' : ''"
+          >
+            屏幕录制
+            {{ status?.permissions.screenRecording ? '已授权' : '未授权' }}
+          </Badge>
+        </button>
       </div>
     </div>
     <p

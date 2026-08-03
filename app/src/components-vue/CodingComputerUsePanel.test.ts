@@ -148,6 +148,7 @@ describe('CodingComputerUsePanel', () => {
 
     expect(missing.host.textContent).toContain('辅助功能 未授权')
     expect(missing.host.textContent).toContain('App 管理')
+    expect(missing.host.textContent).toContain('点击未授权标签')
     expect(missing.host.textContent).toContain('勾选 MilkSU')
     expect(missing.host.textContent).toContain('重新检测')
     const missingStart = [...missing.host.querySelectorAll<HTMLButtonElement>('button')].find(
@@ -161,6 +162,14 @@ describe('CodingComputerUsePanel', () => {
     request?.click()
     await nextTick()
     expect(missing.onRequestPermissions).toHaveBeenCalledOnce()
+
+    const permissionBadge = [...missing.host.querySelectorAll<HTMLButtonElement>('button')].find(
+      button => button.getAttribute('aria-label') === '请求辅助功能权限',
+    )
+    expect(permissionBadge?.disabled).toBe(false)
+    permissionBadge?.click()
+    await nextTick()
+    expect(missing.onRequestPermissions).toHaveBeenCalledTimes(2)
 
     const unavailable = await mountPanel({
       status: status({
