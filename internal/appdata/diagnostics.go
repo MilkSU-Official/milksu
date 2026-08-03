@@ -30,16 +30,16 @@ var diagnosticDatabasePaths = []string{
 
 var (
 	diagnosticCredentialPattern = regexp.MustCompile(
-		`(?i)\b(?:sk[-_]|nss_agent_)[a-z0-9._-]{8,}`,
+		`(?i)\b(?:sk[-_]|gsk_|aiza|nss_agent_)[a-z0-9._-]{8,}`,
 	)
 	diagnosticBearerPattern = regexp.MustCompile(
 		`(?i)(bearer\s+)[a-z0-9._~+/=-]{8,}`,
 	)
 	diagnosticAssignmentPattern = regexp.MustCompile(
-		`(?i)\b(api[_ -]?key|token|secret|password)\s*[:=]\s*[^\s,;]+`,
+		`(?i)\b(api[_ -]?key|key|token|secret|password)\s*[:=]\s*[^\s,;]+`,
 	)
 	diagnosticQueryPattern = regexp.MustCompile(
-		`(?i)([?&](?:api[_-]?key|token|secret|password)=)[^&#\s]+`,
+		`(?i)([?&](?:api[_-]?key|key|token|secret|password)=)[^&#\s]+`,
 	)
 )
 

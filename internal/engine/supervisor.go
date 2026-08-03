@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -30,6 +31,21 @@ const defaultTurnActivityTimeout = 90 * time.Second
 // always aborts the summarization call first; the Supervisor timeout only
 // reports that the control surface gave up.
 const defaultCompactionTimeout = 130 * time.Second
+
+var (
+	probeCredentialPattern = regexp.MustCompile(
+		`(?i)\b(?:sk[-_]|gsk_|aiza|nss_agent_)[a-z0-9._-]{8,}`,
+	)
+	probeBearerPattern = regexp.MustCompile(
+		`(?i)(bearer\s+)[a-z0-9._~+/=-]{8,}`,
+	)
+	probeAssignmentPattern = regexp.MustCompile(
+		`(?i)\b(api[_ -]?key|key|token|secret|password)\s*[:=]\s*[^\s,;]+`,
+	)
+	probeQueryPattern = regexp.MustCompile(
+		`(?i)([?&](?:api[_-]?key|key|token|secret|password)=)[^&#\s]+`,
+	)
+)
 
 type Event struct {
 	SchemaVersion   int                      `json:"schemaVersion"`
@@ -1376,12 +1392,17 @@ func probeFailureMessage(event Event) string {
 	if message == "" {
 		return event.Type
 	}
+	message = probeCredentialPattern.ReplaceAllString(message, "[REDACTED]")
+	message = probeBearerPattern.ReplaceAllString(message, "${1}[REDACTED]")
+	message = probeAssignmentPattern.ReplaceAllString(message, "${1}=[REDACTED]")
+	message = probeQueryPattern.ReplaceAllString(message, "${1}[REDACTED]")
 	if line, _, found := strings.Cut(message, "\n"); found {
 		message = line
 	}
 	message = strings.TrimSpace(strings.TrimPrefix(message, "Error:"))
-	if len(message) > 320 {
-		message = message[:320] + "..."
+	runes := []rune(message)
+	if len(runes) > 320 {
+		message = string(runes[:320]) + "..."
 	}
 	return message
 }

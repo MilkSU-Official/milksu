@@ -1357,6 +1357,31 @@ func TestProbeFailureMessageKeepsOnlyBoundedFirstLine(t *testing.T) {
 	}
 }
 
+func TestProbeFailureMessageRedactsCredentialsAndKeepsOfflineCause(t *testing.T) {
+	message := probeFailureMessage(Event{
+		Type: "engine.error",
+		Error: "Error: dial tcp 127.0.0.1:65533: connect: connection refused " +
+			"api_key=synthetic-secret-value Bearer synthetic-bearer-value " +
+			"https://provider.invalid/v1?key=synthetic-query-value\nat internal stack",
+	})
+	if !strings.Contains(message, "dial tcp 127.0.0.1:65533") ||
+		!strings.Contains(message, "connection refused") {
+		t.Fatalf("offline failure lost its actionable cause: %q", message)
+	}
+	for _, secret := range []string{
+		"synthetic-secret-value",
+		"synthetic-bearer-value",
+		"synthetic-query-value",
+	} {
+		if strings.Contains(message, secret) {
+			t.Fatalf("probe failure leaked a synthetic credential: %q", message)
+		}
+	}
+	if strings.Count(message, "[REDACTED]") != 3 {
+		t.Fatalf("unexpected probe redaction result: %q", message)
+	}
+}
+
 func TestValidateModelAccessRejectsEnabledRelayWithoutKey(t *testing.T) {
 	settings := config.DefaultSettings()
 	settings.Relay = &config.RelayConfig{Enabled: true}

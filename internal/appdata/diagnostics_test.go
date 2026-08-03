@@ -170,6 +170,24 @@ func TestDiagnosticRecorderBoundsAndRedactsEntries(t *testing.T) {
 	}
 }
 
+func TestDiagnosticRecorderRedactsProviderKeyShapes(t *testing.T) {
+	recorder := NewDiagnosticRecorder(8)
+	recorder.Record("engine", "error", "query https://provider.invalid/v1?key=synthetic-query-value")
+	recorder.Record("engine", "error", "provider gsk_syntheticcredentialvalue")
+	recorder.Record("engine", "error", "provider AIzaSyntheticCredentialValue")
+
+	events := recorder.Snapshot()
+	if len(events) != 3 {
+		t.Fatalf("event count = %d, want 3: %#v", len(events), events)
+	}
+	for _, event := range events {
+		if !strings.Contains(event.Message, "[REDACTED]") ||
+			strings.Contains(event.Message, "synthetic") {
+			t.Fatalf("provider credential shape was not redacted: %#v", event)
+		}
+	}
+}
+
 func TestExportDiagnosticsRejectsDestinationInsideDataRoot(t *testing.T) {
 	root := t.TempDir()
 	_, err := ExportDiagnostics(

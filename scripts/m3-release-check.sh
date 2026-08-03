@@ -47,6 +47,10 @@ node scripts/test-coding-agent-delivery.mjs
 npm run docs:build
 "$wails_bin" build
 
+if [[ "${MILKSU_APP_INTEGRATION:-0}" == "1" ]]; then
+  npm run test:local-delivery
+fi
+
 rg -q "TestAgentModel" app/wailsjs/go/main/App.d.ts
 rg -q "GetCodingDiff" app/wailsjs/go/main/App.d.ts
 rg -q "GetCodingArchitecturePreview" app/wailsjs/go/main/App.d.ts

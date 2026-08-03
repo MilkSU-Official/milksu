@@ -28,7 +28,17 @@ afterEach(() => {
   delete (window as unknown as { go?: unknown }).go
 })
 
-async function mountSettingsPage(status: LocalDataStatus) {
+interface MountSettingsOptions {
+  initialCategory?: 'general' | 'apikeys'
+  settings?: AppSettings
+  appMethods?: Record<string, (...args: unknown[]) => Promise<unknown>>
+}
+
+async function mountSettingsPage(
+  status: LocalDataStatus,
+  options: MountSettingsOptions = {},
+) {
+  const settings = options.settings ?? withAppSettingsDefaults({} as AppSettings)
   ;(window as unknown as { go?: unknown }).go = {
     main: {
       App: {
@@ -40,14 +50,15 @@ async function mountSettingsPage(status: LocalDataStatus) {
           previousPid: 4242,
           startedAt: '2026-08-03T05:00:00Z',
         }),
+        ...options.appMethods,
       },
     },
   }
   const host = document.createElement('div')
   document.body.append(host)
   const app = createApp(SettingsPage, {
-    settings: withAppSettingsDefaults({} as AppSettings),
-    initialCategory: 'general',
+    settings,
+    initialCategory: options.initialCategory ?? 'general',
   })
   app.mount(host)
   mountedApps.push(app)
@@ -186,5 +197,46 @@ describe('SettingsPage database compatibility', () => {
     expect(text).toContain('异常退出')
     expect(text).toContain('连续 2 次异常退出')
     expect(text).toContain('上次启动于')
+  })
+
+  it('keeps settings saved and explains an offline model verification failure', async () => {
+    const settings = withAppSettingsDefaults({} as AppSettings)
+    let saved = false
+    let probed = false
+    await mountSettingsPage({
+      directory: 'MilkSU 用户数据目录',
+      fileCount: 0,
+      bytes: 0,
+    }, {
+      initialCategory: 'apikeys',
+      settings,
+      appMethods: {
+        SaveSettingsCmd: async () => {
+          saved = true
+        },
+        GetSettings: async () => settings,
+        TestAgentModel: async () => {
+          probed = true
+          throw new Error(
+            'PI model verification failed: dial tcp 127.0.0.1:65533: connect: connection refused api_key=[REDACTED]',
+          )
+        },
+      },
+    })
+
+    const saveButton = [...document.querySelectorAll('button')]
+      .find(button => button.textContent?.includes('保存并验证'))
+    expect(saveButton).toBeDefined()
+    saveButton?.click()
+    for (let index = 0; index < 6; index += 1) await settle()
+
+    const text = document.body.textContent ?? ''
+    expect(saved).toBe(true)
+    expect(probed).toBe(true)
+    expect(text).toContain('凭据已保存，但 PI 模型验证失败')
+    expect(text).toContain('127.0.0.1:65533')
+    expect(text).toContain('connection refused')
+    expect(text).toContain('[REDACTED]')
+    expect(text).not.toContain('synthetic-secret-value')
   })
 })
