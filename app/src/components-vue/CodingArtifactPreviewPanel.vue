@@ -12,6 +12,7 @@ import {
 } from 'lucide-vue-next'
 import { invokeCommand } from '@/desktop'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
+import { redactProviderCredentials } from '@/lib/redaction'
 import {
   artifactKindLabel,
   buildArtifactHTMLDocument,
@@ -36,7 +37,7 @@ const error = ref('')
 const suggestions = computed(() => suggestedArtifactPaths(props.environment))
 const htmlSource = computed(() => (
   preview.value?.kind === 'html'
-    ? buildArtifactHTMLDocument(preview.value.content ?? '')
+    ? buildArtifactHTMLDocument(redactPreviewText(preview.value.content ?? ''))
     : ''
 ))
 
@@ -44,6 +45,10 @@ function formatBytes(value: number): string {
   if (value < 1024) return `${value} B`
   if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KiB`
   return `${(value / (1024 * 1024)).toFixed(1)} MiB`
+}
+
+function redactPreviewText(value: string) {
+  return redactProviderCredentials(value)
 }
 
 async function refresh() {
@@ -142,11 +147,11 @@ defineExpose({ refresh })
           variant="outline"
           size="sm"
           class="h-7 max-w-full font-mono text-caption"
-          :title="path"
+          :title="redactPreviewText(path)"
           :disabled="loading"
           @click="selectSuggestion(path)"
         >
-          <span class="truncate">{{ path }}</span>
+          <span class="truncate">{{ redactPreviewText(path) }}</span>
         </Button>
       </div>
       <p v-else class="mt-2 text-caption leading-5 text-muted-foreground">
@@ -164,8 +169,8 @@ defineExpose({ refresh })
 
     <template v-if="preview">
       <div class="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
-        <p class="min-w-0 truncate font-mono text-caption" :title="preview.relativePath">
-          {{ preview.relativePath }}
+        <p class="min-w-0 truncate font-mono text-caption" :title="redactPreviewText(preview.relativePath)">
+          {{ redactPreviewText(preview.relativePath) }}
         </p>
         <div class="flex shrink-0 items-center gap-2">
           <Badge variant="outline">{{ artifactKindLabel(preview.kind) }}</Badge>
@@ -179,7 +184,7 @@ defineExpose({ refresh })
         v-if="preview.kind === 'markdown'"
         class="min-h-0 flex-1 overflow-auto px-6 py-5"
       >
-        <MarkdownContent :content="preview.content ?? ''" />
+        <MarkdownContent :content="redactPreviewText(preview.content ?? '')" />
       </div>
 
       <iframe
@@ -196,7 +201,7 @@ defineExpose({ refresh })
       >
         <img
           :src="preview.dataUrl"
-          :alt="preview.relativePath"
+          :alt="redactPreviewText(preview.relativePath)"
           class="max-h-full max-w-full object-contain"
         >
       </div>
