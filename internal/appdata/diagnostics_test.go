@@ -144,6 +144,67 @@ func TestExportDiagnosticsReportsHealthWithoutCopyingSecrets(t *testing.T) {
 	}
 }
 
+func TestExportDiagnosticsDoesNotCopyRuntimeLogsOrRawToolOutput(t *testing.T) {
+	root := t.TempDir()
+	logPath := filepath.Join(root, "runtime", "milksu.log")
+	if err := os.MkdirAll(filepath.Dir(logPath), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	rawLog := strings.Join([]string{
+		"user session body must-not-enter-diagnostics",
+		"tool raw output api_key=raw-tool-secret",
+		"assistant reply Bearer raw-bearer-secret",
+	}, "\n")
+	if err := os.WriteFile(logPath, []byte(rawLog), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	destination := filepath.Join(t.TempDir(), "MilkSU-diagnostics.zip")
+	if _, err := ExportDiagnostics(
+		context.Background(),
+		root,
+		destination,
+		DiagnosticInput{
+			Events: []DiagnosticEvent{{
+				Category: "coding-engine",
+				Level:    "error",
+				Message:  "structured event token=structured-event-secret",
+			}},
+		},
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	archive, err := zip.OpenReader(destination)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer archive.Close()
+	if len(archive.File) != 1 || archive.File[0].Name != "diagnostics.json" {
+		names := make([]string, 0, len(archive.File))
+		for _, entry := range archive.File {
+			names = append(names, entry.Name)
+		}
+		t.Fatalf("diagnostic archive copied unexpected files: %#v", names)
+	}
+
+	payload := readDiagnosticArchiveBytes(t, destination)
+	for _, forbidden := range []string{
+		"must-not-enter-diagnostics",
+		"raw-tool-secret",
+		"raw-bearer-secret",
+		"structured-event-secret",
+		"milksu.log",
+	} {
+		if strings.Contains(payload, forbidden) {
+			t.Fatalf("diagnostic archive leaked %q: %s", forbidden, payload)
+		}
+	}
+	if !strings.Contains(payload, "[REDACTED]") {
+		t.Fatalf("structured diagnostic event was not redacted: %s", payload)
+	}
+}
+
 func TestDiagnosticRecorderBoundsAndRedactsEntries(t *testing.T) {
 	recorder := NewDiagnosticRecorder(2)
 	recorder.Record("engine", "error", "first sk-secretcredentialvalue")
