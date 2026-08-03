@@ -1364,6 +1364,7 @@ watch(
           :running="running"
           :resumed="resumed"
           :compacting="compacting"
+          :compacted-at="compactedAt"
           :compaction-error="compactionError"
           :execution-mode="effectiveExecutionMode"
           :approval-policy="effectiveApprovalPolicy"

@@ -35,6 +35,7 @@ const props = defineProps<{
   running: boolean
   resumed: boolean
   compacting: boolean
+  compactedAt?: number
   compactionError?: string
   executionMode: CodingExecutionMode
   approvalPolicy: CodingApprovalPolicy
@@ -118,6 +119,7 @@ const recoveryState = computed<LoopState>(() => {
   if (props.compactionError) return 'blocked'
   if (props.compacting) return 'active'
   if (props.resumed) return 'done'
+  if (props.compactedAt) return 'active'
   return props.messageCount > 0 ? 'pending' : 'pending'
 })
 
@@ -125,6 +127,7 @@ const recoveryDetail = computed(() => {
   if (props.compactionError) return `上下文压缩失败：${props.compactionError}`
   if (props.compacting) return '正在压缩上下文；完成后继续任务时应复用当前恢复点。'
   if (props.resumed) return '本会话已从恢复点继续；交付前确认没有重复已经完成的步骤。'
+  if (props.compactedAt) return `已生成上下文恢复点：${new Date(props.compactedAt).toLocaleString()}；还需实际继续一次来证明不会重复已完成步骤。`
   if (props.messageCount > 0) return '尚未触发中断/失败继续；若本轮要验收自举闭环，需要保留一次恢复证据。'
   return '开始任务后，失败、超时或上下文压缩应能从当前会话继续。'
 })

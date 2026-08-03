@@ -105,6 +105,7 @@ async function mountPanel(
     running: false,
     resumed: false,
     compacting: false,
+    compactedAt: undefined,
     compactionError: '',
     executionMode: 'go',
     approvalPolicy: 'workspace-auto',
@@ -398,6 +399,24 @@ describe('CodingProductLoopPanel', () => {
     expect(host.textContent).toContain('失败/继续')
     expect(host.textContent).toContain('本会话已从恢复点继续')
     expect(host.textContent).toContain('4/6')
+  })
+
+  it('shows a compacted context as a recovery point without pretending resume was proven', async () => {
+    const compactedAt = new Date('2026-08-04T08:30:00Z').getTime()
+    const { host } = await mountPanel({
+      compactedAt,
+      artifactPreviewEvidence: {
+        relativePath: 'docs/report.md',
+        kind: 'markdown',
+      },
+    })
+
+    expect(host.textContent).toContain('失败/继续')
+    expect(host.textContent).toContain('已生成上下文恢复点')
+    expect(host.textContent).toContain('还需实际继续一次来证明不会重复已完成步骤')
+    expect(host.textContent).toContain('进行中')
+    expect(host.textContent).toContain('下一步验收动作')
+    expect(host.textContent).toContain('收口 Git 交付')
   })
 
   it('surfaces compaction failure as a recovery blocker', async () => {
