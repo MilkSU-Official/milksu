@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { Badge, Button, Input, NativeSelect, NativeSelectOption } from '@felinic/ui'
 import { Check, Network, ShieldAlert, X } from 'lucide-vue-next'
+import { redactProviderCredentials } from '@/lib/redaction'
 import type {
   CTFEndpointProtocol,
   CTFEndpointRequest,
@@ -80,6 +81,10 @@ function requesterLabel(request: CTFEndpointRequest) {
   return '你提出'
 }
 
+function redacted(value: string | number) {
+  return redactProviderCredentials(String(value))
+}
+
 function submitRequest() {
   if (!formComplete.value || props.working || props.terminal) return
   emit('request', {
@@ -136,17 +141,17 @@ function submitRequest() {
       >
         <div class="flex flex-wrap items-center gap-2">
           <Badge variant="outline">{{ protocolLabel(request.protocol) }}</Badge>
-          <span class="font-mono text-caption">{{ request.host }}:{{ request.port }}</span>
+          <span class="font-mono text-caption">{{ redacted(request.host) }}:{{ redacted(request.port) }}</span>
           <span class="text-caption text-muted-foreground">{{ requesterLabel(request) }}</span>
         </div>
         <dl class="mt-3 space-y-2 text-caption leading-5">
           <div>
             <dt class="text-muted-foreground">来源</dt>
-            <dd>{{ request.source }}</dd>
+            <dd>{{ redacted(request.source) }}</dd>
           </div>
           <div>
             <dt class="text-muted-foreground">用途</dt>
-            <dd>{{ request.purpose }}</dd>
+            <dd>{{ redacted(request.purpose) }}</dd>
           </div>
         </dl>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -227,9 +232,9 @@ function submitRequest() {
           class="rounded-lg bg-muted/50 px-3 py-2"
         >
           <p class="text-caption text-muted-foreground">
-            {{ targetKindLabel(target.kind) }} · 题目准入
+            {{ targetKindLabel(redacted(target.kind)) }} · 题目准入
           </p>
-          <p class="mt-1 break-all font-mono text-caption leading-5">{{ target.value }}</p>
+          <p class="mt-1 break-all font-mono text-caption leading-5">{{ redacted(target.value) }}</p>
         </div>
         <template v-for="scope in networkScopes" :key="scope.id">
           <div
@@ -238,9 +243,9 @@ function submitRequest() {
             class="rounded-lg bg-muted/50 px-3 py-2"
           >
             <p class="text-caption text-muted-foreground">
-              {{ targetKindLabel(target.kind) }} · 单独批准
+              {{ targetKindLabel(redacted(target.kind)) }} · 单独批准
             </p>
-            <p class="mt-1 break-all font-mono text-caption leading-5">{{ target.value }}</p>
+            <p class="mt-1 break-all font-mono text-caption leading-5">{{ redacted(target.value) }}</p>
           </div>
         </template>
       </div>
@@ -257,7 +262,7 @@ function submitRequest() {
       <p class="text-caption font-medium">已处理申请 {{ decided.length }} 项</p>
       <ul class="mt-2 space-y-1 text-caption text-muted-foreground">
         <li v-for="request in decided" :key="request.id">
-          {{ protocolLabel(request.protocol) }} · {{ request.host }}:{{ request.port }} ·
+          {{ protocolLabel(request.protocol) }} · {{ redacted(request.host) }}:{{ redacted(request.port) }} ·
           {{ request.status === 'approved' ? '已批准' : '已拒绝' }}
         </li>
       </ul>
@@ -272,7 +277,7 @@ function submitRequest() {
       </summary>
       <ul class="mt-2 space-y-1 text-caption text-muted-foreground">
         <li v-for="request in decided" :key="request.id">
-          {{ protocolLabel(request.protocol) }} · {{ request.host }}:{{ request.port }} ·
+          {{ protocolLabel(request.protocol) }} · {{ redacted(request.host) }}:{{ redacted(request.port) }} ·
           {{ request.status === 'approved' ? '已批准' : '已拒绝' }}
         </li>
       </ul>

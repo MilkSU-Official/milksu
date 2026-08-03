@@ -221,4 +221,56 @@ describe('CTFEndpointAuthorization', () => {
     expect(approved).toEqual([])
     expect(denied).toEqual([])
   })
+
+  it('redacts provider credentials from Endpoint review surfaces without changing decisions', async () => {
+    const approved: string[] = []
+    const request: CTFEndpointRequest = {
+      id: 'endpoint_secret_pending',
+      protocol: 'https',
+      host: 'challenge.example.test',
+      port: 443,
+      target: { kind: 'origin', value: 'https://challenge.example.test' },
+      source: 'Agent note Bearer endpoint-token-12345',
+      purpose: 'check OPENAI_API_KEY=sk-endpoint-purpose12345',
+      requestedBy: 'agent',
+      status: 'pending',
+      requestedAt: '2026-08-03T00:20:00Z',
+    }
+    const host = document.createElement('div')
+    document.body.append(host)
+    const app = createApp(CTFEndpointAuthorization, {
+      sourceScope: scope(
+        'scope_source',
+        'origin',
+        'https://source.example.test/?api_key=sk-source-secret12345',
+      ),
+      networkScopes: [scope(
+        'scope_http',
+        'origin',
+        'https://approved.example.test/?x-api-key=sk-approved-secret12345',
+      )],
+      requests: [request],
+      onApprove: (id: string) => approved.push(id),
+    })
+    app.mount(host)
+    mountedApps.push(app)
+    await nextTick()
+
+    const text = host.textContent ?? ''
+    expect(text).toContain('Agent note Bearer [credential redacted]')
+    expect(text).toContain('check OPENAI_API_KEY=[credential redacted]')
+    expect(text).toContain('https://source.example.test/?api_key=[credential redacted]')
+    expect(text).toContain('https://approved.example.test/?x-api-key=[credential redacted]')
+    expect(text).not.toContain('endpoint-token-12345')
+    expect(text).not.toContain('sk-endpoint-purpose12345')
+    expect(text).not.toContain('sk-source-secret12345')
+    expect(text).not.toContain('sk-approved-secret12345')
+
+    const approve = [...host.querySelectorAll<HTMLButtonElement>('button')].find(
+      button => button.textContent?.includes('仅批准此 Endpoint'),
+    )
+    approve?.click()
+    await nextTick()
+    expect(approved).toEqual(['endpoint_secret_pending'])
+  })
 })

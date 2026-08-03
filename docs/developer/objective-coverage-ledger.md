@@ -130,7 +130,7 @@ allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 
 
 | ID | 可判定细项 | 证据快照 | 当前 | 尚缺 |
 | --- | --- | --- | ---: | --- |
-| CTF-01 | 动态 Endpoint 申请、逐条确认、不可变 Scope | 代码、UI、自动化和本机 HTTP 授权记录 | 75% | 真实远端 Web/Pwn 扩样本 |
+| CTF-01 | 动态 Endpoint 申请、逐条确认、不可变 Scope | 代码、UI、自动化和本机 HTTP 授权记录；`CTFEndpointAuthorization.test.ts` 覆盖 pending source/purpose、准入 Scope 和单独批准 Scope 的 Endpoint 授权展示会脱敏 Provider Credential 形态，同时 approve/deny 仍只提交原始 request ID | 75% | 真实远端 Web/Pwn 扩样本 |
 | CTF-02 | HTTP 精确 Origin broker、禁重定向 | 自动化与本机精确 Endpoint 验收 | 75% | 真实 Web 题网络证据 |
 | CTF-03 | TCP 与 SSH 分离的精确 `host:port` | 领域和策略自动化存在；`bridge-policy.test.js` 覆盖 SSH grant 只暴露 `ctf_ssh` 而不暴露 `ctf_socket`，即使模型传入 username/password/command 噪声字段也只读 Banner 且发送 0 字节 | 50% | 真实 Pwn TCP 与 SSH 各一次 |
 | CTF-04 | 通用 Shell 默认无网络且不因 Scope 广开 | 策略与负向测试存在 | 50% | 打包 App 真实拒绝证据 |
@@ -196,7 +196,7 @@ allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 
 | DEL-02 | Pre-release 旧 schema 一次性破坏性收口 | 按契约明确后置 | 0% | 产品纵切完成后集中执行 |
 | DEL-03 | 上次启动/异常退出标记与恢复入口 | 打包 App lifecycle baseline 通过 | 75% | 真实异常退出人工验收 |
 | DEL-04 | Sidecar、恢复、迁移、后台任务脱敏诊断 | 诊断包、UI 和离线错误测试存在 | 75% | 真实故障包审阅 |
-| DEL-05 | 不保存正文、原始工具输出或 Credential | 多处边界测试存在；诊断包测试确认即使 `runtime/milksu.log` 含会话正文、原始工具输出和 Credential 形态，导出包也只包含脱敏 `diagnostics.json`，不复制日志文件；前端聊天错误、审批卡、CTF 训练归档 UI、CTF Memory Recall UI、Coding 产物预览 UI 和 Coding 后台任务/Shell 错误共用 `redactProviderCredentials`，`redaction.test.ts`、`useConversations.test.ts`、`ChatMessageItem.test.ts`、`CTFTrainingArchive.test.ts`、`CTFMemoryRecall.test.ts`、`CodingArtifactPreviewPanel.test.ts` 与 `CodingTerminalPanel.test.ts` 覆盖 Bearer、`sk-*`、`sess-*`、`*_API_KEY`、URL query `api_key`、`api-key` 和 `x-api-key` 形态，并覆盖后台任务名称、命令、日志和错误进入 UI 前统一脱敏，避免不同入口规则漂移 | 50% | 完整诊断与本地文件审计 |
+| DEL-05 | 不保存正文、原始工具输出或 Credential | 多处边界测试存在；诊断包测试确认即使 `runtime/milksu.log` 含会话正文、原始工具输出和 Credential 形态，导出包也只包含脱敏 `diagnostics.json`，不复制日志文件；前端聊天错误、审批卡、CTF Endpoint 授权 UI、CTF 训练归档 UI、CTF Memory Recall UI、Coding 产物预览 UI 和 Coding 后台任务/Shell 错误共用 `redactProviderCredentials`，`redaction.test.ts`、`useConversations.test.ts`、`ChatMessageItem.test.ts`、`CTFEndpointAuthorization.test.ts`、`CTFTrainingArchive.test.ts`、`CTFMemoryRecall.test.ts`、`CodingArtifactPreviewPanel.test.ts` 与 `CodingTerminalPanel.test.ts` 覆盖 Bearer、`sk-*`、`sess-*`、`*_API_KEY`、URL query `api_key`、`x-api-key`、`api-key` 和 header `x-api-key` 形态，并覆盖后台任务名称、命令、日志和错误进入 UI 前统一脱敏，避免不同入口规则漂移 | 50% | 完整诊断与本地文件审计 |
 | DEL-06 | `1080×680` 最低窗口 | Browser 真实截图与布局审计 | 75% | 原生 App 全流程人工 QA |
 | DEL-07 | 启动时间基线 | 隔离 HOME 打包 App 已测 | 75% | 多次冷启动和目标机器矩阵 |
 | DEL-08 | RSS、前端 chunk、App/Sidecar 体积基线 | `local-delivery-baseline.md` | 75% | 多机器重复测量 |

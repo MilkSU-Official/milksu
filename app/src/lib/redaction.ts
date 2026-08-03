@@ -11,6 +11,10 @@ export function redactProviderCredentials(value: string) {
       `$1api_key=${CREDENTIAL_REDACTION}`,
     )
     .replace(
+      /([?&])x-api-key=([^&#\s"']+)/gi,
+      `$1x-api-key=${CREDENTIAL_REDACTION}`,
+    )
+    .replace(
       /(^|[\s,;])api[_-]?key\s*[:=]\s*[^\s"']+/gi,
       `$1api_key=${CREDENTIAL_REDACTION}`,
     )
