@@ -133,6 +133,35 @@ const completedCount = computed(() => (
   items.value.filter(item => item.state === 'done').length
 ))
 
+const verificationRecords = computed(() => [
+  {
+    label: '窄自动化',
+    state: props.toolMessageCount > 0 ? '已有记录' : '待运行',
+    detail: props.toolMessageCount > 0
+      ? `${props.toolMessageCount} 条工具记录；仍需在最终交付说明中列出实际命令。`
+      : '尚未看到测试/build 工具记录。',
+  },
+  {
+    label: '用户可见验证',
+    state: validationReady.value ? '已有入口' : '待补',
+    detail: validationReady.value
+      ? validationDetail.value
+      : '需要打开产物预览、Browser 或 Computer Use，保留用户可见证据。',
+  },
+  {
+    label: '真实 App 验收',
+    state: props.browserStatus?.enabled || props.computerUseStatus?.enabled ? '可执行' : '未证明',
+    detail: props.browserStatus?.enabled || props.computerUseStatus?.enabled
+      ? 'Browser/Computer Use 已接入；仍需实际截图、DOM、控制台或窗口操作证据。'
+      : '当前只有组件/构建证据；打包 App 或 Browser 真实验收尚未证明。',
+  },
+  {
+    label: 'Git 交付',
+    state: gitState.value === 'done' ? '可交付' : gitState.value === 'blocked' ? '阻塞' : '待收口',
+    detail: items.value.find(item => item.id === 'git')?.detail ?? '尚未读取 Git 状态。',
+  },
+])
+
 const handoffSummary = computed(() => {
   const git = props.environment?.git
   const lines = [
@@ -152,6 +181,8 @@ const handoffSummary = computed(() => {
             ? `本地领先 ${git.ahead} 个提交，待 push`
             : '工作区干净且无待 push 提交'
       : git?.problem || '不是 Git 仓库或尚未读取 Git 状态'}`,
+    '- 验收记录：',
+    ...verificationRecords.value.map(record => `  - ${record.label}：${record.state}；${record.detail}`),
     '- 下一步：补齐待补项后，再用 Diff/Hunk、测试/预览证据和 push 结果收口。',
   ]
   return lines.join('\n')
@@ -248,6 +279,25 @@ function stateBadgeVariant(state: LoopState) {
         Git 交付
       </Button>
     </div>
+
+    <details class="mt-3 rounded-lg border border-border bg-muted/20 px-3 py-2">
+      <summary class="cursor-pointer text-caption font-medium text-muted-foreground">
+        验收记录
+      </summary>
+      <div class="mt-2 space-y-2">
+        <div
+          v-for="record in verificationRecords"
+          :key="record.label"
+          class="rounded-md bg-background px-3 py-2"
+        >
+          <div class="flex items-center justify-between gap-3">
+            <p class="text-caption font-medium">{{ record.label }}</p>
+            <Badge variant="outline" class="shrink-0">{{ record.state }}</Badge>
+          </div>
+          <p class="mt-1 text-caption leading-5 text-muted-foreground">{{ record.detail }}</p>
+        </div>
+      </div>
+    </details>
 
     <details class="mt-3 rounded-lg border border-border bg-muted/20 px-3 py-2">
       <summary class="cursor-pointer text-caption font-medium text-muted-foreground">
