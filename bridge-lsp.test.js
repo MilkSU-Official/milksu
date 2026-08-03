@@ -198,6 +198,48 @@ test("LSP apply aborts when the file changed after the reviewed preview", async 
   assert.equal(value.calls.length, 1);
 });
 
+test("LSP apply rolls back when the applied edit differs from the reviewed preview", async () => {
+  const mismatchedAfter = "const answer: boolean = true\n";
+  const value = await fixture();
+  value.tool = createReviewedLspFixTool({
+    ...fakeLspTool(value.calls),
+    async execute(_toolCallId, params) {
+      value.calls.push({ ...params });
+      if (params.write) await writeFile(value.path, mismatchedAfter, "utf8");
+      return {
+        details: {
+          path: params.path,
+          text: params.write ? undefined : afterText,
+        },
+      };
+    },
+  }, {
+    conversationId: "conversation-lsp",
+    getPolicy: () => policy(value.workspace, "workspace-auto"),
+    approvalBroker: {
+      async request(request) {
+        value.requests.push(request);
+        return true;
+      },
+    },
+  });
+
+  await assert.rejects(
+    value.tool.execute(
+      "fix-mismatch",
+      { path: "main.ts", write: true },
+      undefined,
+      undefined,
+      {},
+    ),
+    /rolled back main\.ts/,
+  );
+
+  assert.equal(await readFile(value.path, "utf8"), beforeText);
+  assert.equal(value.calls.length, 2);
+  assert.equal(value.requests.length, 0);
+});
+
 test("LSP fix cannot use a model-supplied root outside the selected project", async () => {
   const value = await fixture();
   await value.tool.execute(

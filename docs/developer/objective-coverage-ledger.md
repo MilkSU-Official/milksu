@@ -98,7 +98,7 @@ allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 
 | COD-02 | Vue、Go、TypeScript 普通跨文件修改 | 代码路径、测试和真实任务均存在 | 75% | 同一打包 App 自举任务覆盖三者 |
 | COD-03 | 运行测试、构建、修复失败并复验 | deterministic delivery 与真实任务均有证据 | 75% | 最终打包 App 自举 Gate |
 | COD-04 | TypeScript、Vue、Go Code Action | TypeScript 有既有真实验收；Vue/Go 为打包探针和负向测试 | 50% | 原生 App 真实应用 Vue + Go Action |
-| COD-05 | 跨文件 Action 原子拒绝与超大 Diff 拒绝 | 自动化测试存在 | 50% | 打包 App 负向真实验收 |
+| COD-05 | 跨文件 Action 原子拒绝与超大 Diff 拒绝 | 自动化测试存在；`bridge-lsp.test.js` 覆盖超大 Diff 不请求审批、多文件/resource WorkspaceEdit 拒绝，以及 apply 阶段结果和已审阅 Diff 不一致时回滚原文 | 50% | 打包 App 负向真实验收 |
 | COD-06 | “请求批准”覆盖所有能力入口 | Bridge/UI 自动化存在 | 50% | Browser、Computer Use、MCP、委托组合验收 |
 | COD-07 | “替我审批”拦截无意义审批 | Browser 真实任务与策略测试存在 | 75% | Computer Use 与项目 MCP 真实任务 |
 | COD-08 | “完全访问”仍保持硬边界 | 策略测试存在；Full Access 对本地/已选普通 MCP 可自动执行，但 GitHub/Linear/Jira/Slack 等外部账户写入仍要求确认 | 50% | 打包 App 越界负向验收 |
