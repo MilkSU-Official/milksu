@@ -116,7 +116,7 @@ allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 
 | COD-20 | Diff、Hunk、stage、commit、push 日常闭环 | 代码、测试和历史真实验收完成 | 100% | — |
 | COD-21 | PR 预览、一次性确认和私有远端限制 | `pull_request_test.go` 覆盖一次性 token、过期、状态变化、私有 MilkSU 远端、窄 `gh pr create` 和读回验证；`CodingChangesPanel.test.ts` 覆盖 UI 先展示仓库/分支/提交/目标，再单独发布，不把内部 confirmation token 显示给用户，后端拒绝过期预览后清空旧确认，并在重新准备 PR 时清掉上一轮成功结果，避免旧外部写入状态与新预览混淆；`desktop.test.ts` 覆盖 Wails adapter 会把 workspace、confirmation token、title 和 body 原样传给发布命令，省略标题/正文时只传空字符串而不是 `undefined` | 50% | 真实托管平台 Draft PR |
 | COD-22 | 经确认发布 MilkSU 私有 Draft PR | 尚无本轮真实发布回执 | 0% | 在最终自举 Gate 中执行 |
-| COD-23 | 多 Agent 独立 worktree、恢复和安全收尾 | Manager 与 Bridge 自动化存在；`bridge-collaboration.test.js` 覆盖并行和串行写入 Agent 都必须使用不同注册 writer worktree，Go Manager 覆盖恢复、集成后清理、脏 worktree/submodule 拒绝和中断准备安全收尾 | 50% | 真实有价值的协作任务 |
+| COD-23 | 多 Agent 独立 worktree、恢复和安全收尾 | Manager 与 Bridge 自动化存在；`bridge-collaboration.test.js` 覆盖并行和串行写入 Agent 都必须使用不同注册 writer worktree，Go Manager 覆盖恢复、集成后清理、脏 worktree/submodule 拒绝和中断准备安全收尾；`CodingCollaborationPanel.test.ts` 覆盖显式 2 writer 准备、集成后安全结束和中断准备后的有界清理；`desktop.test.ts` 覆盖 Wails adapter 会把 conversation、workspace 和 writer 数原样传给准备命令，省略 writer 数时默认为 1 | 50% | 真实有价值的协作任务 |
 | COD-24 | 多 Agent 在真实任务中证明并行有用 | 尚无成功率与成本证据 | 0% | 选择自然可并行的任务验收 |
 | COD-25 | 完整 “MilkSU develops MilkSU” Gate | 有多个局部自举任务 | 25% | 一次完整 Vue + Go、重启、交付、PR |
 | COD-26 | ImageGen 文生图、参考图编辑和项目资产 | 受控工具、UI、测试与打包存在 | 50% | 真实 Provider 生成 |
