@@ -94,6 +94,7 @@ import {
   previewCodingCapabilities,
   selectedComputerUseTarget as resolveSelectedComputerUseTarget,
 } from '@/lib/codingPolicy'
+import { codingContinuityPresentation } from '@/lib/codingContinuityPresentation'
 import type {
   CTFAgentBudgetStatus,
   CTFAgentRunCheckpoint,
@@ -270,32 +271,13 @@ const goalUsageLabel = computed(() => {
   if (!goal?.tokenBudget) return ''
   return `${goal.tokensUsed.toLocaleString()} / ${goal.tokenBudget.toLocaleString()} tokens`
 })
-const continuityBadges = computed(() => {
-  const badges: string[] = []
-  if (props.compacting) {
-    badges.push('整理中')
-    return badges
-  }
-  if (!props.sessionReady) badges.push('待连接')
-  else if (props.resumed) badges.push('从持久会话恢复')
-  else if (!props.compactedAt) badges.push('新会话')
-  if (props.compactedAt) {
-    badges.push(`已整理 ${new Date(props.compactedAt).toLocaleTimeString()}`)
-  }
-  return badges
-})
-const continuityTitle = computed(() => {
-  if (props.compacting) {
-    return '正在把当前会话上下文压缩为结构化摘要；完成后继续对话即可';
-  }
-  if (props.resumed) {
-    return '本任务从持久化的 Pi 会话恢复，历史与已整理摘要仍在会话文件中';
-  }
-  if (!props.sessionReady) {
-    return '当前任务尚未连接 Pi 会话；发送消息后才能整理上下文';
-  }
-  return '本任务是新会话；长任务可手动整理上下文以控制成本';
-})
+const continuity = computed(() => codingContinuityPresentation({
+  sessionReady: props.sessionReady,
+  resumed: props.resumed,
+  compacting: props.compacting,
+  compactedAt: props.compactedAt,
+  running: props.running,
+}))
 const effectiveExecutionMode = computed(() => (
   normalizeCodingExecutionMode(props.executionMode)
 ))
@@ -1383,18 +1365,14 @@ watch(
             variant="outline"
             size="sm"
             class="mt-2 w-full justify-between"
-            :disabled="!sessionReady || running || compacting"
-            :title="compacting
-              ? '正在整理上下文'
-              : (!sessionReady
-                ? '发送消息并连接 Pi 会话后才能整理上下文'
-                : '手动触发 Pi 原生上下文压缩；整理中请等待，运行中不可用')"
+            :disabled="continuity.compactDisabled"
+            :title="continuity.compactTitle"
             @click="$emit('compactContext')"
           >
             <span class="flex min-w-0 items-center gap-2">
               <Shrink class="size-3.5 shrink-0" />
               <span class="truncate">
-                {{ compacting ? '整理中…' : '整理上下文' }}
+                {{ continuity.compactLabel }}
               </span>
             </span>
             <LoaderCircle
@@ -1404,11 +1382,11 @@ watch(
           </Button>
           <div
             class="mt-2 flex flex-wrap items-center gap-1.5"
-            :title="continuityTitle"
+            :title="continuity.title"
           >
             <span class="text-caption text-muted-foreground">连续性</span>
             <Badge
-              v-for="badge in continuityBadges"
+              v-for="badge in continuity.badges"
               :key="badge"
               variant="outline"
             >
