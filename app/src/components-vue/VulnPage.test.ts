@@ -33,9 +33,15 @@ async function mountVulnPage() {
   return host
 }
 
-async function setInput(input: HTMLInputElement, value: string) {
+async function setInput(input: HTMLInputElement | HTMLTextAreaElement, value: string) {
   input.value = value
   input.dispatchEvent(new Event('input', { bubbles: true }))
+  await nextTick()
+}
+
+async function unmountAll() {
+  for (const app of mountedApps.splice(0)) app.unmount()
+  document.body.innerHTML = ''
   await nextTick()
 }
 
@@ -119,5 +125,27 @@ describe('VulnPage', () => {
     expect(host.textContent).toContain('CVE-2026-42424')
     expect(host.textContent).toContain('本地测试 CVE 学习追踪')
     expect(host.textContent).toContain('MilkSU')
+  })
+
+  it('persists user-confirmed research notes for the selected CVE', async () => {
+    const host = await mountVulnPage()
+    const byLabel = (label: string) => {
+      const textarea = [...host.querySelectorAll<HTMLTextAreaElement>('textarea')].find(item =>
+        item.getAttribute('aria-label') === label,
+      )
+      if (!textarea) throw new Error(`missing textarea ${label}`)
+      return textarea
+    }
+
+    await setInput(byLabel('CVE 关键结论'), '确认影响范围后再交给 Coding Agent 做只读版本检查。')
+    await setInput(byLabel('CVE 学习笔记'), '已阅读公告，暂不运行 PoC，下一步核对依赖和补丁。')
+
+    expect(host.textContent).toContain('已记录')
+    await unmountAll()
+
+    const remounted = await mountVulnPage()
+    const textareas = [...remounted.querySelectorAll<HTMLTextAreaElement>('textarea')]
+    expect(textareas.some(item => item.value.includes('只读版本检查'))).toBe(true)
+    expect(textareas.some(item => item.value.includes('暂不运行 PoC'))).toBe(true)
   })
 })

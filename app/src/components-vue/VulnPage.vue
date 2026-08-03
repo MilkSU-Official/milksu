@@ -12,6 +12,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  Textarea,
 } from '@felinic/ui'
 import {
   Bookmark,
@@ -105,7 +106,7 @@ function statusVariant(status: VulnerabilityStatus) {
 
 <template>
   <main class="flex min-w-0 flex-1 flex-col bg-background">
-    <header class="app-drag border-b border-border px-7 py-5">
+    <header class="app-drag border-b border-border bg-background px-6 py-4">
       <div class="flex items-start justify-between gap-6">
         <div>
           <h1 class="text-2xl font-semibold tracking-[-0.035em]">CVE</h1>
@@ -137,7 +138,7 @@ function statusVariant(status: VulnerabilityStatus) {
         </div>
       </div>
 
-      <div class="app-no-drag mt-5 flex flex-wrap items-center gap-3">
+      <div class="app-no-drag mt-4 flex flex-wrap items-center gap-3">
         <label class="relative min-w-64 flex-1 max-w-md">
           <Search class="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input v-model="dashboard.query.value" class="pl-9" placeholder="搜索 CVE、产品或厂商" />
@@ -156,7 +157,7 @@ function statusVariant(status: VulnerabilityStatus) {
         </span>
       </div>
 
-      <div class="mt-5 grid gap-3 text-body sm:grid-cols-3">
+      <div class="mt-4 grid gap-3 text-body sm:grid-cols-3">
         <div class="rounded-xl border border-border bg-card px-4 py-3">
           <p class="text-caption text-muted-foreground">关注中</p>
           <p class="mt-1 font-mono text-xl font-semibold">{{ dashboard.watched.value.length }}</p>
@@ -426,6 +427,45 @@ function statusVariant(status: VulnerabilityStatus) {
               </li>
             </ul>
           </div>
+        </section>
+
+        <section class="border-b border-border px-6 py-5">
+          <div class="flex items-center justify-between gap-3">
+            <h3 class="text-label font-medium">研究笔记</h3>
+            <Badge
+              :variant="dashboard.researchNoteFor.value.notes || dashboard.researchNoteFor.value.keyFindings ? 'success' : 'outline'"
+            >
+              {{ dashboard.researchNoteFor.value.notes || dashboard.researchNoteFor.value.keyFindings ? '已记录' : '未记录' }}
+            </Badge>
+          </div>
+          <p class="mt-1 text-caption leading-5 text-muted-foreground">
+            只记录你确认过的材料、判断和学习收获；不要把 Agent 猜测当成事实。
+          </p>
+          <div class="mt-4 space-y-3">
+            <label class="block">
+              <span class="text-caption font-medium text-muted-foreground">关键结论</span>
+              <Textarea
+                :model-value="dashboard.researchNoteFor.value.keyFindings"
+                class="mt-2 min-h-20 resize-y"
+                placeholder="例如：当前版本范围需要先对照厂商补丁；本项目暂未发现受影响组件。"
+                aria-label="CVE 关键结论"
+                @update:model-value="value => dashboard.updateResearchNote(dashboard.selected.value.id, { keyFindings: String(value) })"
+              />
+            </label>
+            <label class="block">
+              <span class="text-caption font-medium text-muted-foreground">学习笔记</span>
+              <Textarea
+                :model-value="dashboard.researchNoteFor.value.notes"
+                class="mt-2 min-h-24 resize-y"
+                placeholder="记录公告阅读、补丁理解、影响判断、提示依赖和下一步要交给 Coding Agent 的事项…"
+                aria-label="CVE 学习笔记"
+                @update:model-value="value => dashboard.updateResearchNote(dashboard.selected.value.id, { notes: String(value) })"
+              />
+            </label>
+          </div>
+          <p class="mt-3 text-caption leading-5 text-muted-foreground">
+            {{ dashboard.researchNoteFor.value.updatedAt ? `最近保存：${new Date(dashboard.researchNoteFor.value.updatedAt).toLocaleString()}` : '填写后自动保存到本机。' }}
+          </p>
         </section>
 
         <section class="border-b border-border px-6 py-5">
