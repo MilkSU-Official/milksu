@@ -67,6 +67,17 @@ describe('agent recovery', () => {
     expect(prompt).toContain('notes.md')
     expect(prompt).toContain('最近一次已完成的工具结果')
     expect(prompt).toContain('不要重复')
+    expect(prompt).toContain('不要复用重启前的审批状态')
+    expect(prompt).toContain('Endpoint')
     expect(prompt).toContain('最小、可验证')
+  })
+
+  it('resumes Coding work without reusing stale approvals after restart', () => {
+    const prompt = agentRecoveryPrompt(false)
+    expect(prompt).toContain('当前工作区')
+    expect(prompt).toContain('不要重复')
+    expect(prompt).toContain('不要复用重启前的审批状态')
+    expect(prompt).toContain('应用窗口')
+    expect(prompt).toContain('外部发布')
   })
 })
