@@ -38,6 +38,12 @@ test("loads only explicitly selected MCP servers and clears stdio inheritance", 
         args: ["-y", "browser-mcp"],
         env: { FIXTURE_MODE: "1" },
         lifecycle: "eager",
+        includeTools: ["navigate"],
+        milksu: {
+          source: "npm:browser-mcp",
+          version: "1.2.3",
+          taskScope: "browser regression",
+        },
       },
       remote: {
         url: "https://example.test/mcp",
@@ -87,6 +93,12 @@ test("rejects symlinked configs and model-provider credential interpolation", as
       browser: {
         command: "npx",
         env: { TOKEN: "${DEEPSEEK_API_KEY}" },
+        includeTools: ["navigate"],
+        milksu: {
+          source: "npm:browser-mcp",
+          version: "1.2.3",
+          taskScope: "browser regression",
+        },
       },
     },
   });
@@ -106,6 +118,12 @@ test("rejects symlinked configs and model-provider credential interpolation", as
       remote: {
         url: "https://example.test/mcp",
         bearerTokenEnv: "SOME_AMBIENT_TOKEN",
+        includeTools: ["search"],
+        milksu: {
+          source: "https://example.test/mcp",
+          version: "2026.08.03",
+          taskScope: "remote search",
+        },
       },
     },
   });
@@ -231,6 +249,12 @@ test("combines selected project MCP with the reserved Coding Browser server", as
       fixture: {
         command: "/bin/sh",
         args: ["-c", "printf fixture-ready"],
+        includeTools: ["fixture_read"],
+        milksu: {
+          source: "fixture:local-shell",
+          version: "1.0.0",
+          taskScope: "packaged MCP smoke",
+        },
       },
     },
   });
@@ -251,6 +275,83 @@ test("combines selected project MCP with the reserved Coding Browser server", as
     ["fixture", codingBrowserMcpServerName].sort(),
   );
   assert.equal(loaded.config.settings.directTools, false);
+});
+
+test("requires fixed review metadata and a runtime-enforced tool allowlist", async () => {
+  for (const [name, definition, expected] of [
+    [
+      "missing-source",
+      {
+        command: "tool",
+        includeTools: ["read"],
+        milksu: { version: "1.0.0", taskScope: "read docs" },
+      },
+      /milksu\.source/,
+    ],
+    [
+      "floating-version",
+      {
+        command: "tool",
+        includeTools: ["read"],
+        milksu: {
+          source: "npm:tool",
+          version: "latest",
+          taskScope: "read docs",
+        },
+      },
+      /fixed milksu\.version/,
+    ],
+    [
+      "version-range",
+      {
+        command: "tool",
+        includeTools: ["read"],
+        milksu: {
+          source: "npm:tool",
+          version: "^1.2.3",
+          taskScope: "read docs",
+        },
+      },
+      /fixed milksu\.version/,
+    ],
+    [
+      "version-wildcard",
+      {
+        command: "tool",
+        includeTools: ["read"],
+        milksu: {
+          source: "npm:tool",
+          version: "1.2.x",
+          taskScope: "read docs",
+        },
+      },
+      /fixed milksu\.version/,
+    ],
+    [
+      "missing-tools",
+      {
+        command: "tool",
+        milksu: {
+          source: "npm:tool",
+          version: "1.0.0",
+          taskScope: "read docs",
+        },
+      },
+      /reviewed includeTools/,
+    ],
+  ]) {
+    const workspace = await mkdtemp(join(tmpdir(), "milksu-mcp-review-"));
+    const config = JSON.stringify({ mcpServers: { [name]: definition } });
+    await writeFile(join(workspace, ".mcp.json"), config);
+    await assert.rejects(
+      loadSelectedMcpConfig(
+        workspace,
+        [name],
+        createHash("sha256").update(config).digest("hex"),
+      ),
+      expected,
+    );
+  }
 });
 
 test("rejects non-loopback, ambiguous, and caller-controlled Coding Browser descriptors", () => {

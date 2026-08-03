@@ -270,6 +270,15 @@ export interface CodingComputerUseStatus {
 export interface CodingMCPServerSummary {
   name: string
   transport: string
+  source?: string
+  version?: string
+  taskScope?: string
+  tools: string[]
+  fileAccess: string
+  networkAccess: string
+  credentialAccess: string
+  reviewReady: boolean
+  reviewProblem?: string
 }
 
 export interface CodingMCPConfigSnapshot {

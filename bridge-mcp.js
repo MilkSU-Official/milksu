@@ -18,6 +18,7 @@ import {
 
 const maxConfigBytes = 1 << 20;
 const maxSelectedServers = 16;
+const maxReviewedTools = 64;
 export { codingBrowserMcpServerName };
 export const computerUseMcpServerName = "milksu-computer-use";
 const bridgeDirectory = dirname(fileURLToPath(import.meta.url));
@@ -249,18 +250,73 @@ function sanitizeServerDefinition(definition, serverName, workspace, options) {
   if (definition.disabled === true) {
     throw new Error(`MCP server "${serverName}" is disabled in .mcp.json`);
   }
-  if (definition.command) {
-    return sanitizeLocalDefinition(definition, serverName, workspace, options);
+  const { milksu: _reviewMetadata, ...runtimeDefinition } = definition;
+  if (runtimeDefinition.command) {
+    return sanitizeLocalDefinition(runtimeDefinition, serverName, workspace, options);
   }
-  if (definition.url) return sanitizeRemoteDefinition(definition, serverName);
-  if (definition.socket) {
+  if (runtimeDefinition.url) {
+    return sanitizeRemoteDefinition(runtimeDefinition, serverName);
+  }
+  if (runtimeDefinition.socket) {
     return {
-      ...definition,
+      ...runtimeDefinition,
       lifecycle: "lazy",
       directTools: false,
     };
   }
   throw new Error(`MCP server "${serverName}" has no command, URL, or socket`);
+}
+
+function reviewedProjectMcpDefinition(definition, serverName) {
+  if (!definition || typeof definition !== "object" || Array.isArray(definition)) {
+    throw new Error(`MCP server "${serverName}" must be an object`);
+  }
+  const source = definition.milksu?.source;
+  const version = definition.milksu?.version;
+  const taskScope = definition.milksu?.taskScope;
+  const validText = (value, limit) => (
+    typeof value === "string"
+    && value === value.trim()
+    && value.length > 0
+    && [...value].length <= limit
+    && !/[\u0000-\u001f\u007f]/u.test(value)
+  );
+  if (!validText(source, 160)) {
+    throw new Error(
+      `MCP server "${serverName}" must declare a bounded milksu.source`,
+    );
+  }
+  if (
+    !validText(version, 80)
+    || /[\s*^~<>=|,]/u.test(version)
+    || version.toLowerCase().split(/[._/-]/u).includes("x")
+    || ["latest", "next", "canary", "main", "master", "head"]
+      .includes(version.toLowerCase())
+  ) {
+    throw new Error(
+      `MCP server "${serverName}" must declare a fixed milksu.version`,
+    );
+  }
+  if (!validText(taskScope, 240)) {
+    throw new Error(
+      `MCP server "${serverName}" must declare a bounded milksu.taskScope`,
+    );
+  }
+  if (
+    !Array.isArray(definition.includeTools)
+    || definition.includeTools.length === 0
+    || definition.includeTools.length > maxReviewedTools
+    || definition.includeTools.some(value => !validText(value, 100))
+  ) {
+    throw new Error(
+      `MCP server "${serverName}" must declare 1-${maxReviewedTools} reviewed includeTools`,
+    );
+  }
+  return {
+    ...definition,
+    includeTools: [...new Set(definition.includeTools)]
+      .sort((left, right) => left.localeCompare(right)),
+  };
 }
 
 function adapterConfig(mcpServers) {
@@ -598,7 +654,11 @@ export async function loadSelectedMcpConfig(
     if (!Object.hasOwn(configured, name)) {
       throw new Error(`MCP server "${name}" is not present in .mcp.json`);
     }
-    mcpServers[name] = sanitizeServerDefinition(configured[name], name, root);
+    mcpServers[name] = sanitizeServerDefinition(
+      reviewedProjectMcpDefinition(configured[name], name),
+      name,
+      root,
+    );
   }
   return {
     selected,

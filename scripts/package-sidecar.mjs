@@ -1797,6 +1797,12 @@ async function smokeSidecar(platform) {
       fixture: {
         command: '/bin/sh',
         args: ['-c', 'printf fixture-ready'],
+        includeTools: ['fixture_read'],
+        milksu: {
+          source: 'fixture:local-shell',
+          version: '1.0.0',
+          taskScope: 'packaged MCP smoke',
+        },
       },
     },
   }, null, 2)}\n`

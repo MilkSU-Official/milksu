@@ -26,7 +26,6 @@ import {
 import {
   Activity,
   Bot,
-  Check,
   ChevronDown,
   CircleDot,
   Compass,
@@ -60,6 +59,7 @@ import ChatComposer from '@/components-vue/ChatComposer.vue'
 import ChatMessageItem from '@/components-vue/ChatMessageItem.vue'
 import CodingArtifactPreviewPanel from '@/components-vue/CodingArtifactPreviewPanel.vue'
 import CodingChangesPanel from '@/components-vue/CodingChangesPanel.vue'
+import CodingMCPReviewCard from '@/components-vue/CodingMCPReviewCard.vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import type {
   CodingArchitecturePreview,
@@ -573,8 +573,9 @@ async function refreshMCPConfig() {
   }
 }
 
-function toggleMCPServer(name: string) {
-  if (props.running || !mcpConfig.value?.digest) return
+function toggleMCPServer(server: CodingMCPConfigSnapshot['servers'][number]) {
+  if (props.running || !mcpConfig.value?.digest || !server.reviewReady) return
+  const name = server.name
   const selection = new Set(selectedMCPServers.value)
   if (selection.has(name)) selection.delete(name)
   else selection.add(name)
@@ -960,7 +961,11 @@ async function refreshContextPanel() {
     await collaborationPanel.value?.refresh()
     return
   }
-  await Promise.all([refreshEnvironment(), loadWorkshopState()])
+  await Promise.all([
+    refreshEnvironment(),
+    loadWorkshopState(),
+    ...(props.ctfSession ? [] : [refreshMCPConfig()]),
+  ])
 }
 
 function changeContextPanel(value: string) {
@@ -1484,28 +1489,19 @@ watch(
               当前项目没有可选择的 .mcp.json 服务器。
             </p>
             <template v-else>
-              <div class="mt-2 space-y-1">
-                <button
+              <div class="mt-2 space-y-2">
+                <CodingMCPReviewCard
                   v-for="server in mcpConfig.servers"
                   :key="server.name"
-                  type="button"
-                  class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-body transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
-                  :disabled="running"
-                  :aria-pressed="selectedMCPServers.includes(server.name)"
-                  @click="toggleMCPServer(server.name)"
-                >
-                  <span class="flex size-4 shrink-0 items-center justify-center rounded border border-border">
-                    <Check
-                      v-if="selectedMCPServers.includes(server.name)"
-                      class="size-3 text-primary"
-                    />
-                  </span>
-                  <span class="min-w-0 flex-1 truncate">{{ server.name }}</span>
-                  <Badge variant="outline">{{ server.transport }}</Badge>
-                </button>
+                  :server="server"
+                  :selected="selectedMCPServers.includes(server.name)"
+                  :running="running"
+                  @toggle="toggleMCPServer(server)"
+                />
               </div>
               <p class="mt-2 text-caption leading-5 text-muted-foreground">
-                只接入本任务勾选的服务器；替我审批自动执行连接与只读调用，修改和外部账户授权仍确认。
+                只接入来源、固定版本、工具白名单和权限面均已审阅的服务器；选择仅绑定当前任务。
+                替我审批自动执行连接与只读调用，修改和外部账户授权仍确认。
               </p>
             </template>
           </div>
