@@ -1010,3 +1010,28 @@
 - 已经接入真实 NVD、CISA KEV、EPSS、OSV、GHSA 或 Vulhub catalog import；
 - 真实网络失败、缓存哈希、Feed 日期和导入差异 UI；
 - Docker/Compose 练习环境的启动、停止、清理和原生 App 安全确认。
+
+## 2026-08-04 · CTF session return-to-catalog reassurance
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | 本批次提交 |
+| 目标流 | CTF 解题会话 → 顶部返回题库入口 → 用户知道返回题库不会结束当前会话 |
+| 窄测 | `npm --prefix app test -- CTFWorkspaceHeader.test.ts AppRoutingContract.test.ts workspaceSessionRouting.test.ts CTFPageNavigationContract.test.ts` |
+| 窄测结果 | 4 files / 13 tests passed |
+| 前端构建 | `npm --prefix app run build` |
+| 构建结果 | production build passed |
+| Browser 验证 | Vite preview `http://127.0.0.1:4193/`；进入默认 CTF 页面，确认页面非空、六赛道 smoke 可见、console 无 relevant error / warn |
+
+覆盖范围：
+
+- CTF 解题会话顶部 subtitle 从 `解题会话` 改为 `解题会话 · 返回题库不会结束当前会话`；
+- `CTFWorkspaceHeader.test.ts` 覆盖会话 header 渲染返回题库入口、题目 badge、打开题目、授权与模型，并显示“不结束当前会话”的说明；
+- 路由契约测试继续覆盖 CTF/CVE 被 `KeepAlive` 保留、Coding chat 不被缓存、CTF resume point 和最近 Coding 会话回退逻辑；
+- Browser preview 证明默认 CTF 题库桌面未被改坏，页面非空且无 console warn/error。
+
+本次仍未证明：
+
+- 原生 App 中已有真实 CTF job 时，用户点击返回题库再继续解题的完整可见流程；
+- 从 CTF 切到 CVE 再回 CTF 的真实 job scroll position、选中题和 Agent 输出完全恢复；
+- CTF 工作台整体信息架构已经完成简化。

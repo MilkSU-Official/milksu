@@ -42,6 +42,7 @@ describe('CTFWorkspaceHeader', () => {
 
     expect(host.textContent).toContain('返回题库')
     expect(host.textContent).toContain('解题会话')
+    expect(host.textContent).toContain('返回题库不会结束当前会话')
     expect(host.textContent).toContain('NSSCTF P3879')
     expect(host.textContent).toContain('打开题目')
     expect(host.textContent).toContain('授权与模型')

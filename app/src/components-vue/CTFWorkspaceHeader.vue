@@ -19,7 +19,7 @@ defineEmits<{
 </script>
 
 <template>
-  <WorkspaceTopBar module="ctf" title="CTF" subtitle="解题会话">
+  <WorkspaceTopBar module="ctf" title="CTF" subtitle="解题会话 · 返回题库不会结束当前会话">
     <template #badge>
       <Badge v-if="challengeTitle" variant="secondary" class="max-w-[18rem] truncate">
         {{ challengeTitle }}
