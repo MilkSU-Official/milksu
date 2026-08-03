@@ -19,6 +19,11 @@ type VerificationRecord = {
   panel?: LoopPanel
   actionLabel?: string
 }
+type AcceptanceChecklistItem = {
+  label: string
+  detail: string
+  state: LoopState
+}
 type ArtifactPreviewEvidence = {
   relativePath: string
   kind: 'markdown' | 'html' | 'image'
@@ -356,6 +361,47 @@ const nextVerificationAction = computed<{
   }
 })
 
+const acceptanceChecklist = computed<AcceptanceChecklistItem[]>(() => [
+  {
+    label: '1. 确认任务和仓库',
+    detail: props.workspacePath
+      ? `当前任务绑定到 ${props.workspacePath}`
+      : '还没有授权仓库；先选择项目目录。',
+    state: props.workspacePath ? 'done' : 'pending',
+  },
+  {
+    label: '2. 核对自动化输出',
+    detail: props.toolMessageCount > 0
+      ? `已有 ${props.toolMessageCount} 条工具记录；交付说明需要列出实际测试/build 命令。`
+      : '还没有测试或 build 工具记录。',
+    state: props.toolMessageCount > 0 ? 'done' : 'pending',
+  },
+  {
+    label: '3. 做一次用户可见验证',
+    detail: visibleValidationPerformed.value
+      ? validationDetail.value
+      : '打开产物预览、Browser 或 Computer Use，至少留下一个用户可见证据。',
+    state: visibleValidationPerformed.value ? 'done' : validationReady.value ? 'active' : 'pending',
+  },
+  {
+    label: '4. 验证失败/继续路径',
+    detail: recoveryDetail.value,
+    state: recoveryState.value,
+  },
+  {
+    label: '5. 收口 Git 交付',
+    detail: items.value.find(item => item.id === 'git')?.detail ?? '尚未读取 Git 状态。',
+    state: gitState.value,
+  },
+  {
+    label: '6. 复制接力棒',
+    detail: props.messageCount > 0
+      ? '复制摘要给下一轮 Agent 或用户验收记录，明确哪些已证明、哪些没证明。'
+      : '开始任务后再复制接力棒。',
+    state: props.messageCount > 0 ? 'done' : 'pending',
+  },
+])
+
 const handoffSummary = computed(() => {
   const git = props.environment?.git
   const lines = [
@@ -378,6 +424,8 @@ const handoffSummary = computed(() => {
       : git?.problem || '不是 Git 仓库或尚未读取 Git 状态'}`,
     '- 验收记录：',
     ...verificationRecords.value.map(record => `  - ${record.label}：${record.state}；${record.detail}`),
+    '- 用户验收清单：',
+    ...acceptanceChecklist.value.map(item => `  - ${stateLabel(item.state)} ${item.label}：${item.detail}`),
     `- 下一步：${nextVerificationAction.value.label}；${nextVerificationAction.value.detail}`,
   ]
   return lines.join('\n')
@@ -555,6 +603,28 @@ function stateBadgeVariant(state: LoopState) {
           <p class="mt-1 text-caption leading-5 text-muted-foreground">{{ record.detail }}</p>
         </div>
       </div>
+    </details>
+
+    <details class="mt-3 rounded-lg border border-border bg-muted/20 px-3 py-2" open>
+      <summary class="cursor-pointer text-caption font-medium text-muted-foreground">
+        用户验收清单
+      </summary>
+      <ol class="mt-2 space-y-2">
+        <li
+          v-for="item in acceptanceChecklist"
+          :key="item.label"
+          class="rounded-md bg-background px-3 py-2"
+          :data-acceptance-state="item.state"
+        >
+          <div class="flex items-center justify-between gap-3">
+            <p class="text-caption font-medium">{{ item.label }}</p>
+            <Badge :variant="stateBadgeVariant(item.state)" class="shrink-0">
+              {{ stateLabel(item.state) }}
+            </Badge>
+          </div>
+          <p class="mt-1 text-caption leading-5 text-muted-foreground">{{ item.detail }}</p>
+        </li>
+      </ol>
     </details>
 
     <details class="mt-3 rounded-lg border border-border bg-muted/20 px-3 py-2">
