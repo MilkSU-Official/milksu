@@ -17,6 +17,20 @@ describe('Coding continuity presentation', () => {
     expect(presentation.compactLabel).toBe('整理上下文')
   })
 
+  it('does not show a stale compaction timestamp before the Pi session reconnects', () => {
+    const presentation = codingContinuityPresentation({
+      sessionReady: false,
+      resumed: true,
+      compacting: false,
+      compactedAt: Date.now(),
+      running: false,
+    })
+
+    expect(presentation.badges).toEqual(['待连接'])
+    expect(presentation.title).toContain('尚未连接 Pi 会话')
+    expect(presentation.compactDisabled).toBe(true)
+  })
+
   it('distinguishes resumed Pi sessions from new sessions', () => {
     const resumed = codingContinuityPresentation({
       sessionReady: true,

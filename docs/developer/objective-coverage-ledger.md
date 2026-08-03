@@ -168,7 +168,7 @@ allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 
 | --- | --- | --- | ---: | --- |
 | RUN-01 | 多轮规划、文件、命令和工具 fixture | deterministic delivery Gate | 100% | — |
 | RUN-02 | Sidecar 重启恢复同一会话与后台 Watch | reliability 子报告 | 100% | — |
-| RUN-03 | 完整 App 重启恢复 | 部分真实任务和生命周期基础；`codingContinuityPresentation.test.ts` 锁住恢复后用户可见的连续性状态，不把未连接或失败整理误显示为可整理/已恢复 | 50% | 打包 App 长任务连续性 |
+| RUN-03 | 完整 App 重启恢复 | 部分真实任务和生命周期基础；`codingContinuityPresentation.test.ts` 锁住恢复后用户可见的连续性状态，不把未连接、运行中、整理中、失败整理或旧整理时间误显示为可整理/已恢复 | 50% | 打包 App 长任务连续性 |
 | RUN-04 | 正式 Pi Context Compaction | fixture 与专门测试通过 | 100% | — |
 | RUN-05 | 超时、取消和继续响应 | fixture 与专门测试通过 | 100% | — |
 | RUN-06 | Token、工具、时长和成本预算 | 固定预算报告存在 | 75% | 真实 Provider 成本核对 |
