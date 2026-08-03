@@ -12,6 +12,13 @@ import type { CodingApprovalPolicy, CodingExecutionMode } from '@/types'
 
 type LoopState = 'done' | 'active' | 'pending' | 'blocked'
 type LoopPanel = 'changes' | 'terminal' | 'artifacts' | 'browser'
+type VerificationRecord = {
+  label: string
+  state: string
+  detail: string
+  panel?: LoopPanel
+  actionLabel?: string
+}
 type ArtifactPreviewEvidence = {
   relativePath: string
   kind: 'markdown' | 'html' | 'image'
@@ -195,13 +202,15 @@ const completedCount = computed(() => (
   items.value.filter(item => item.state === 'done').length
 ))
 
-const computerUseVerificationRecord = computed(() => {
+const computerUseVerificationRecord = computed<VerificationRecord>(() => {
   const status = props.computerUseStatus
   if (!status) {
     return {
       label: 'Computer Use',
       state: '未检测',
       detail: '打开 Browser/App 面板检测系统权限、可见窗口和会话锁定状态。',
+      panel: 'browser',
+      actionLabel: '检测',
     }
   }
   if (!status.available) {
@@ -209,6 +218,8 @@ const computerUseVerificationRecord = computed(() => {
       label: 'Computer Use',
       state: '不可用',
       detail: status.problem || '当前运行环境不可用；可先用 Browser 或产物预览验收。',
+      panel: 'browser',
+      actionLabel: '查看',
     }
   }
   if (!status.permissions.accessibility || !status.permissions.screenRecording) {
@@ -220,6 +231,8 @@ const computerUseVerificationRecord = computed(() => {
       label: 'Computer Use',
       state: '待授权',
       detail: `缺少 ${missing}；打开 Browser/App 面板请求系统权限并重新检测。`,
+      panel: 'browser',
+      actionLabel: '授权',
     }
   }
   if (!status.enabled) {
@@ -227,6 +240,8 @@ const computerUseVerificationRecord = computed(() => {
       label: 'Computer Use',
       state: '待启动',
       detail: '系统权限已具备；打开 Browser/App 面板选择当前可见窗口并启动可见会话。',
+      panel: 'browser',
+      actionLabel: '启动',
     }
   }
   return {
@@ -238,7 +253,13 @@ const computerUseVerificationRecord = computed(() => {
   }
 })
 
-const verificationRecords = computed(() => [
+const computerUseQuickAction = computed(() => (
+  computerUseVerificationRecord.value.state === '已接入'
+    ? null
+    : computerUseVerificationRecord.value
+))
+
+const verificationRecords = computed<VerificationRecord[]>(() => [
   {
     label: '窄自动化',
     state: props.toolMessageCount > 0 ? '已有记录' : '待运行',
@@ -451,6 +472,33 @@ function stateBadgeVariant(state: LoopState) {
       </div>
     </div>
 
+    <div
+      v-if="computerUseQuickAction"
+      class="mt-3 rounded-lg border border-border bg-background px-3 py-3"
+      aria-label="Computer Use 快速接入"
+    >
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <div class="flex items-center gap-2">
+            <p class="text-caption font-medium text-muted-foreground">Computer Use 快速接入</p>
+            <Badge variant="outline">{{ computerUseQuickAction.state }}</Badge>
+          </div>
+          <p class="mt-1 text-caption leading-5 text-muted-foreground">
+            {{ computerUseQuickAction.detail }}
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          class="shrink-0"
+          @click="emit('openPanel', 'browser')"
+        >
+          {{ computerUseQuickAction.actionLabel || '打开' }}
+        </Button>
+      </div>
+    </div>
+
     <div class="mt-3 grid grid-cols-2 gap-2">
       <Button variant="outline" size="sm" class="justify-start" @click="emit('openPanel', 'terminal')">
         <Terminal class="size-3.5" />
@@ -462,7 +510,7 @@ function stateBadgeVariant(state: LoopState) {
       </Button>
       <Button variant="outline" size="sm" class="justify-start" @click="emit('openPanel', 'browser')">
         <Globe2 class="size-3.5" />
-        Browser/App
+        Browser / Computer Use
       </Button>
       <Button variant="outline" size="sm" class="justify-start" @click="emit('openPanel', 'changes')">
         <FileDiff v-if="environment?.git.dirty" class="size-3.5" />
@@ -483,7 +531,18 @@ function stateBadgeVariant(state: LoopState) {
         >
           <div class="flex items-center justify-between gap-3">
             <p class="text-caption font-medium">{{ record.label }}</p>
-            <Badge variant="outline" class="shrink-0">{{ record.state }}</Badge>
+            <div class="flex shrink-0 items-center gap-2">
+              <Button
+                v-if="record.panel"
+                type="button"
+                variant="ghost"
+                size="sm"
+                @click="emit('openPanel', record.panel)"
+              >
+                {{ record.actionLabel || '打开' }}
+              </Button>
+              <Badge variant="outline">{{ record.state }}</Badge>
+            </div>
           </div>
           <p class="mt-1 text-caption leading-5 text-muted-foreground">{{ record.detail }}</p>
         </div>

@@ -151,6 +151,7 @@ describe('CodingProductLoopPanel', () => {
     expect(text).toContain('Computer Use')
     expect(text).toContain('未检测')
     expect(text).toContain('打开 Browser/App 面板检测系统权限')
+    expect(text).toContain('Computer Use 快速接入')
     expect(text).toContain('Git 交付')
     expect(text).toContain('3/6')
     expect(text).toContain('下一步验收动作')
@@ -267,13 +268,27 @@ describe('CodingProductLoopPanel', () => {
     const buttons = [...host.querySelectorAll<HTMLButtonElement>('button')]
 
     buttons.find(button => button.textContent?.includes('产物预览'))?.click()
-    buttons.find(button => button.textContent?.includes('Browser/App'))?.click()
+    buttons.find(button => button.textContent?.includes('Browser / Computer Use'))?.click()
     buttons.find(button => button.textContent?.includes('Git 交付'))?.click()
     await nextTick()
 
     expect(onOpenPanel).toHaveBeenCalledWith('artifacts')
     expect(onOpenPanel).toHaveBeenCalledWith('browser')
     expect(onOpenPanel).toHaveBeenCalledWith('changes')
+  })
+
+  it('opens the Browser/App panel directly from the Computer Use quick connection card', async () => {
+    const { host, onOpenPanel } = await mountPanel()
+    const quickCard = host.querySelector<HTMLElement>('[aria-label="Computer Use 快速接入"]')
+    const open = [...(quickCard?.querySelectorAll<HTMLButtonElement>('button') ?? [])]
+      .find(button => button.textContent?.includes('检测'))
+
+    expect(quickCard?.textContent).toContain('未检测')
+    expect(quickCard?.textContent).toContain('打开 Browser/App 面板检测系统权限')
+    open?.click()
+    await nextTick()
+
+    expect(onOpenPanel).toHaveBeenCalledWith('browser')
   })
 
   it('opens the recommended next verification panel when available', async () => {
