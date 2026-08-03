@@ -16,8 +16,10 @@
    用户能力归因等硬红线外，细节 Bug、视觉问题和边界矩阵先登记。
 3. **不要扩大战线。** 已有 CTF 模块继续保留；CVE 本冲刺做可见学习/追踪骨架，不给红队式
    批量打靶能力；Lab 暂不做自建平台或本地靶场，只作为未来外部靶场辅助与进度追踪方向。
-4. **成熟项目只作长期候选。** pwn.college、HTB、TryHackMe 等只能作为
-   未来集成或 UX 参照；当前几个小时冲刺不直接接入平台账号、API、虚拟机后端或漏洞环境。
+4. **成熟项目只作长期候选。** pwn.college、HTB、TryHackMe 以及优秀开源
+   Security Skills / Harness 项目只能作为未来集成、能力来源或 UX 参照；当前几个小时冲刺不
+   直接接入平台账号、API、虚拟机后端、漏洞环境或第三方执行能力。开源 Skills 生态的长期接入
+   计划见[开源安全 Skills / Harness 生态接入调研与计划](/developer/research/2026-08-04-open-source-security-skills-ecosystem)。
 5. **每轮都留接力棒。** 交付时写清：已跑的命令、当前缺口、下一步用户验收动作、适合交给
    后续 Coding Agent 的任务。
 
@@ -107,6 +109,11 @@ MilkSU 不应在短期内自建 Lab 平台，否则会引入虚拟机后端、�
 | HTB / TryHackMe | 主流外部靶场与学习路径 | 最贴近用户想要的“辅助打靶与追踪进度” | 未来用 Browser/Computer Use + 手动回执/页面状态追踪，不自建后端 |
 | pwn.college / Dojo | 在线 hands-on 学习房间 | 可作为外部平台 Judge 与学习轨迹映射参考 | 未来只做外部页面辅助和进度记录，不自托管完整 Dojo |
 | Labtainers | 本地/课程型 Docker cyber lab 框架 | 内容丰富，但接入会引入安装、镜像、网络和课程导入复杂度 | 后置调研；不进入当前冲刺 |
+
+安全 Skills / Harness 生态也只作为长期能力来源，不进入当前冲刺执行面。详见
+[开源安全 Skills / Harness 生态接入调研与计划](/developer/research/2026-08-04-open-source-security-skills-ecosystem)；
+后续若接入，必须先经过只读导入、固定版本、许可证审查、Skill/MCP 安全扫描和 MilkSU
+Scope / Evidence / Judge / Memory 策略覆盖。
 
 ### CVE：先做学习与追踪，不做红队能力
 

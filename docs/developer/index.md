@@ -60,3 +60,5 @@ CVE 纵深研究也不进入本冲刺，但一级菜单需要有学习/追踪工
 近期专项调研：
 
 - [Wallbreaker Harness 静态调研与 MilkSU 对照](/developer/research/2026-08-03-wallbreaker-harness-review)
+- [开源安全 Skills / Harness 生态接入调研与计划](/developer/research/2026-08-04-open-source-security-skills-ecosystem)
+- [关于一个优秀 skills 包的接入调研和计划](/developer/research/关于一个优秀%20skills%20包的接入调研和计划)
