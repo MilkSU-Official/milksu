@@ -152,6 +152,8 @@ describe('CodingProductLoopPanel', () => {
     expect(text).toContain('打开 Browser/App 面板检测系统权限')
     expect(text).toContain('Git 交付')
     expect(text).toContain('3/6')
+    expect(text).toContain('下一步验收动作')
+    expect(text).toContain('验收恢复/继续')
     expect(host.querySelectorAll('[data-product-loop-state="active"]').length)
       .toBeGreaterThanOrEqual(1)
   })
@@ -245,6 +247,7 @@ describe('CodingProductLoopPanel', () => {
     expect(host.textContent).toContain('真实 App 验收：未证明')
     expect(host.textContent).toContain('恢复/继续：待补')
     expect(host.textContent).toContain('本地领先 1 个提交，待 push')
+    expect(host.textContent).toContain('下一步：验收恢复/继续')
 
     const copy = [...host.querySelectorAll<HTMLButtonElement>('button')]
       .find(button => button.textContent?.includes('复制接力棒'))
@@ -269,6 +272,21 @@ describe('CodingProductLoopPanel', () => {
     expect(onOpenPanel).toHaveBeenCalledWith('artifacts')
     expect(onOpenPanel).toHaveBeenCalledWith('browser')
     expect(onOpenPanel).toHaveBeenCalledWith('changes')
+  })
+
+  it('opens the recommended next verification panel when available', async () => {
+    const { host, onOpenPanel } = await mountPanel({
+      messageCount: 4,
+      toolMessageCount: 0,
+    })
+
+    expect(host.textContent).toContain('运行测试或构建')
+    const open = [...host.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.trim() === '打开')
+    open?.click()
+    await nextTick()
+
+    expect(onOpenPanel).toHaveBeenCalledWith('terminal')
   })
 
   it('marks resumed sessions as recovery evidence', async () => {

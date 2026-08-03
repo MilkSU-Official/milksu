@@ -230,6 +230,56 @@ const verificationRecords = computed(() => [
   },
 ])
 
+const nextVerificationAction = computed<{
+  label: string
+  detail: string
+  panel?: LoopPanel
+}>(() => {
+  if (!props.workspacePath) {
+    return {
+      label: '选择项目目录',
+      detail: '先把任务绑定到授权仓库，后续测试、预览和 Git 才有可靠边界。',
+    }
+  }
+  if (!props.messageCount) {
+    return {
+      label: '启动 Agent 任务',
+      detail: '用“直接完成”或输入框描述一个小产品任务，让闭环产生真实工具记录。',
+    }
+  }
+  if (props.toolMessageCount === 0) {
+    return {
+      label: '运行测试或构建',
+      detail: '还没有工具记录；优先让 Agent 执行窄测试或 build。',
+      panel: 'terminal',
+    }
+  }
+  if (!validationReady.value) {
+    return {
+      label: '补用户可见验证',
+      detail: '打开产物预览、Browser 或 Computer Use，保留 UI/产物证据。',
+      panel: artifactSuggestions.value.length ? 'artifacts' : 'browser',
+    }
+  }
+  if (recoveryState.value === 'pending') {
+    return {
+      label: '验收恢复/继续',
+      detail: '触发一次失败、超时或上下文压缩后的继续路径，确认不重复已完成步骤。',
+    }
+  }
+  if (gitState.value !== 'done') {
+    return {
+      label: '收口 Git 交付',
+      detail: items.value.find(item => item.id === 'git')?.detail ?? '打开变更面板完成审阅、暂存、提交和 push。',
+      panel: 'changes',
+    }
+  }
+  return {
+    label: '复制接力棒',
+    detail: '当前自动化、验证、恢复和 Git 状态已可汇总；复制摘要给下一轮验收或发布说明。',
+  }
+})
+
 const handoffSummary = computed(() => {
   const git = props.environment?.git
   const lines = [
@@ -252,7 +302,7 @@ const handoffSummary = computed(() => {
       : git?.problem || '不是 Git 仓库或尚未读取 Git 状态'}`,
     '- 验收记录：',
     ...verificationRecords.value.map(record => `  - ${record.label}：${record.state}；${record.detail}`),
-    '- 下一步：补齐待补项后，再用 Diff/Hunk、测试/预览证据和 push 结果收口。',
+    `- 下一步：${nextVerificationAction.value.label}；${nextVerificationAction.value.detail}`,
   ]
   return lines.join('\n')
 })
@@ -326,6 +376,28 @@ function stateBadgeVariant(state: LoopState) {
         <p class="mt-1 line-clamp-2 text-caption leading-5 text-muted-foreground">
           {{ item.detail }}
         </p>
+      </div>
+    </div>
+
+    <div class="mt-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-3">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <p class="text-caption font-medium text-muted-foreground">下一步验收动作</p>
+          <p class="mt-1 text-body font-medium">{{ nextVerificationAction.label }}</p>
+          <p class="mt-1 text-caption leading-5 text-muted-foreground">
+            {{ nextVerificationAction.detail }}
+          </p>
+        </div>
+        <Button
+          v-if="nextVerificationAction.panel"
+          type="button"
+          variant="outline"
+          size="sm"
+          class="shrink-0"
+          @click="emit('openPanel', nextVerificationAction.panel)"
+        >
+          打开
+        </Button>
       </div>
     </div>
 
