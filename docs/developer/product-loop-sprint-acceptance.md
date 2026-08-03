@@ -684,3 +684,31 @@
 - Docker/Compose 真实启动、停止、清理；
 - Agent 在本地隔离练习 Scope 内的真实观察、日志阅读和复盘质量；
 - 打包 App 中用户真实完成 CVE → Coding → 回 CVE 的完整视觉验收。
+
+## 2026-08-04 · Native App acceptance handoff card
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | 本批次提交 |
+| 目标流 | Coding → 产品闭环 → 打包 MilkSU App 验收接力 |
+| 窄测 | `npm --prefix app test -- CodingProductLoopPanel.test.ts` |
+| 窄测结果 | 1 file / 18 tests passed |
+| 前端构建 | `npm --prefix app run build` |
+| 构建结果 | production build passed |
+| Browser 验证 | Vite preview `http://127.0.0.1:4181/`；进入 Coding，检查产品闭环面板 |
+
+覆盖范围：
+
+- Coding 产品闭环面板新增“打包 MilkSU App 验收”接力卡；
+- 卡片明确区分 Browser preview、组件测试、smoke 与真实原生 App 验收；
+- 清单覆盖最新 `build/bin/MilkSU.app`、Coding/CTF/CVE 顶部一致性、CTF/CVE 二层侧栏隐藏、Go + 替我审批/完全访问、小任务执行、测试/build、产物预览、Git Diff/Hunk/stage/commit/push、Browser/Computer Use 证据、跨模块继续和未修问题登记；
+- 用户可以复制“原生 App 产品闭环验收”prompt 交给下一轮 Agent 或用户手动验收；
+- 接力棒摘要会包含原生 App 验收接力，避免后续把 Vite preview 当作合并前原生验收；
+- Browser preview 页面加载为 `MilkSU`，点击 `Coding` 后 DOM 中可见该卡片和复制入口，无 relevant console error / warn，无 Vite overlay。
+
+本次仍未证明：
+
+- 最新打包 App 中用户真实点击并复制该清单；
+- 原生 App 中完成一条完整 MilkSU develops MilkSU 小任务；
+- 外部 App Computer Use 真实窗口操作；
+- Git stage/commit/push 在同一原生 App 会话中完成。

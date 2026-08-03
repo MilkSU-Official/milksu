@@ -169,6 +169,13 @@ describe('CodingProductLoopPanel', () => {
     expect(text).toContain('未检测')
     expect(text).toContain('打开 Browser/App 面板检测系统权限')
     expect(text).toContain('Computer Use 快速接入')
+    expect(text).toContain('打包 MilkSU App 验收')
+    expect(text).toContain('待人工验证')
+    expect(text).toContain('build/bin/MilkSU.app')
+    expect(text).toContain('不把 Vite Browser preview 当作真实 App 验收')
+    expect(text).toContain('确认三大工作区入口')
+    expect(text).toContain('Git Diff/Hunk/stage/commit/push')
+    expect(text).toContain('Computer Use 外部窗口 Scope')
     expect(text).toContain('Git 交付')
     expect(text).toContain('3/6')
     expect(text).toContain('下一步验收动作')
@@ -264,6 +271,8 @@ describe('CodingProductLoopPanel', () => {
     expect(host.textContent).toContain('docs/report.md、preview/result.html')
     expect(host.textContent).toContain('验收记录：')
     expect(host.textContent).toContain('用户验收清单：')
+    expect(host.textContent).toContain('原生 App 验收接力：')
+    expect(host.textContent).toContain('打开最新打包 App')
     expect(host.textContent).toContain('进行中 3. 做一次用户可见验证')
     expect(host.textContent).toContain('合并状态：待补证明')
     expect(host.textContent).toContain('窄自动化：已有记录')
@@ -280,6 +289,32 @@ describe('CodingProductLoopPanel', () => {
 
     expect(writeText).toHaveBeenCalledOnce()
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('MilkSU Coding 接力棒'))
+    expect(host.textContent).toContain('已复制')
+  })
+
+  it('copies a native packaged App acceptance checklist for real validation', async () => {
+    const writeText = vi.fn(async () => undefined)
+    vi.stubGlobal('navigator', {
+      ...navigator,
+      clipboard: { writeText },
+    })
+    const { host } = await mountPanel()
+
+    const copyNative = [...host.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.includes('复制原生验收'))
+    copyNative?.click()
+    await Promise.resolve()
+    await nextTick()
+
+    expect(writeText).toHaveBeenCalledOnce()
+    const copied = String((writeText.mock.calls as unknown as Array<[string]>)[0]?.[0] ?? '')
+    expect(copied).toContain('继续 MilkSU 原生 App 产品闭环验收')
+    expect(copied).toContain('MilkSU.app')
+    expect(copied).toContain('不要把 Vite Browser preview、组件测试或 smoke 结果写成原生 App 通过')
+    expect(copied).toContain('Coding、CTF、CVE')
+    expect(copied).toContain('Computer Use 外部窗口 Scope')
+    expect(copied).toContain('Git Diff/Hunk/stage/commit/push')
+    expect(copied).toContain('不要读取、输出或迁移 Provider/API Key')
     expect(host.textContent).toContain('已复制')
   })
 

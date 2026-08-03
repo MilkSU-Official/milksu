@@ -68,6 +68,7 @@ const emit = defineEmits<{
 
 const copyNotice = ref('')
 const followupCopyNotice = ref('')
+const nativeAppCopyNotice = ref('')
 
 const canAct = computed(() => (
   props.executionMode === 'go'
@@ -442,6 +443,51 @@ const unfinishedAcceptanceItems = computed(() => (
   acceptanceChecklist.value.filter(item => item.state !== 'done')
 ))
 
+const nativeAppAcceptanceChecklist = computed(() => [
+  {
+    label: '打开最新打包 App',
+    detail: '从 build/bin/MilkSU.app 或当前打包产物启动，不把 Vite Browser preview 当作真实 App 验收。',
+  },
+  {
+    label: '确认三大工作区入口',
+    detail: '依次进入 Coding、CTF、CVE，核对顶部标题/按钮规格一致，并确认 CTF/CVE 不再出现只有一个选项的假二层侧栏。',
+  },
+  {
+    label: '跑一条小 Coding 任务',
+    detail: '选择当前仓库，使用 Go + 替我审批/完全访问完成小修改、测试/build、产物预览和 Git Diff/Hunk/stage/commit/push。',
+  },
+  {
+    label: '验证可见能力边界',
+    detail: '至少留下 Browser 截图/Console/Network 证据，或 Computer Use 外部窗口 Scope 与一次真实窗口操作证据。',
+  },
+  {
+    label: '验证跨模块继续',
+    detail: '从 CTF 或 CVE 切回 Coding 后，原会话、顶部位置、已选题/已选 CVE 和最近任务顺序不应丢失。',
+  },
+  {
+    label: '记录未修问题',
+    detail: '只登记阻塞或明显 UI/UX 问题；本轮不深挖无关细节，不读取/迁移 Provider/API Key。',
+  },
+])
+
+const nativeAppAcceptancePrompt = computed(() => {
+  const lines = [
+    '继续 MilkSU 原生 App 产品闭环验收。',
+    '',
+    `工作区：${props.workspacePath || '尚未选择'}`,
+    '',
+    '请用最新打包的 MilkSU.app 做真实验收，不要把 Vite Browser preview、组件测试或 smoke 结果写成原生 App 通过。',
+    '',
+    '验收清单：',
+    ...nativeAppAcceptanceChecklist.value.map((item, index) => `${index + 1}. ${item.label}：${item.detail}`),
+    '',
+    '通过标准：每一步都要留下可核对证据；发现 bug 先登记到覆盖台账，除非阻塞主闭环，否则不要现场深挖。',
+    '',
+    '安全边界：不要读取、输出或迁移 Provider/API Key；不要自动接入外部漏洞目标；CVE/CTF/Lab 的 UI 架子不得被描述成完整安全能力。',
+  ]
+  return lines.join('\n')
+})
+
 const followupPrompt = computed(() => {
   const unfinished = unfinishedAcceptanceItems.value
   const lines = [
@@ -487,6 +533,8 @@ const handoffSummary = computed(() => {
     ...verificationRecords.value.map(record => `  - ${record.label}：${record.state}；${record.detail}`),
     '- 用户验收清单：',
     ...acceptanceChecklist.value.map(item => `  - ${stateLabel(item.state)} ${item.label}：${item.detail}`),
+    '- 原生 App 验收接力：',
+    ...nativeAppAcceptanceChecklist.value.map(item => `  - ${item.label}：${item.detail}`),
     `- 合并状态：${mergeReadiness.value.label}；${mergeReadiness.value.detail}`,
     `- 下一步：${nextVerificationAction.value.label}；${nextVerificationAction.value.detail}`,
   ]
@@ -512,6 +560,17 @@ async function copyFollowupPrompt() {
     followupCopyNotice.value = '已复制'
   } catch {
     followupCopyNotice.value = '复制失败，请手动选择 prompt'
+  }
+}
+
+async function copyNativeAppAcceptancePrompt() {
+  nativeAppCopyNotice.value = ''
+  try {
+    if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable')
+    await navigator.clipboard.writeText(nativeAppAcceptancePrompt.value)
+    nativeAppCopyNotice.value = '已复制'
+  } catch {
+    nativeAppCopyNotice.value = '复制失败，请手动选择清单'
   }
 }
 
@@ -658,6 +717,46 @@ function stateBadgeVariant(state: LoopState) {
           {{ computerUseQuickAction.actionLabel || '打开' }}
         </Button>
       </div>
+    </div>
+
+    <div
+      class="mt-3 rounded-lg border border-border bg-background px-3 py-3"
+      aria-label="原生 App 验收接力"
+    >
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <div class="flex items-center gap-2">
+            <p class="text-caption font-medium text-muted-foreground">打包 MilkSU App 验收</p>
+            <Badge variant="outline">待人工验证</Badge>
+          </div>
+          <p class="mt-1 text-caption leading-5 text-muted-foreground">
+            Browser preview 只能证明前端入口；合并前还需要用原生 App 跑 Coding、CTF、CVE、Computer Use、恢复和 Git 的真实闭环。
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          class="shrink-0"
+          @click="copyNativeAppAcceptancePrompt"
+        >
+          <Copy class="size-3.5" />
+          复制原生验收
+        </Button>
+      </div>
+      <ol class="mt-3 space-y-2">
+        <li
+          v-for="item in nativeAppAcceptanceChecklist"
+          :key="item.label"
+          class="rounded-md bg-muted/30 px-3 py-2"
+        >
+          <p class="text-caption font-medium">{{ item.label }}</p>
+          <p class="mt-1 text-caption leading-5 text-muted-foreground">{{ item.detail }}</p>
+        </li>
+      </ol>
+      <p class="mt-2 text-caption text-muted-foreground">
+        {{ nativeAppCopyNotice || '复制后可直接交给用户或下一轮 Agent 做打包 App 验收。' }}
+      </p>
     </div>
 
     <div class="mt-3 grid grid-cols-2 gap-2">
