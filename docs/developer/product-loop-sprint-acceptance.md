@@ -930,3 +930,30 @@
 - Browser preview 中 CTF 详情标题的可见截图；预览题库为空，CTF 详情渲染由源码契约测试覆盖；
 - Coding 内部所有子面板标题也已经迁移到同一个详情标题组件；
 - 统计卡、Tabs、Textarea、表格行和深层按钮已经完成全局视觉收敛。
+
+## 2026-08-04 · CVE current-next-step action
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | 本批次提交 |
+| 目标流 | CVE → 选择 ActiveMQ CVE → 顶部“当前下一步”直接推进研究任务和练习计划 |
+| 窄测 | `npm --prefix app test -- VulnPage.test.ts useVulnerabilityDashboard.test.ts VulnerabilityLoopPanel.test.ts ChatPageRoutingContract.test.ts AppSidebar.test.ts` |
+| 窄测结果 | 5 files / 24 tests passed |
+| 前端构建 | `npm --prefix app run build` |
+| 构建结果 | production build passed |
+| Browser 验证 | Vite preview `http://127.0.0.1:4190/`；选择 `CVE-2023-46604`，点击 `执行当前 CVE 下一步` 两次 |
+
+覆盖范围：
+
+- CVE 顶部 metrics 的“当前下一步”不再只是文字状态卡，新增同尺寸 `size="sm"` 动作按钮；
+- 选中 `CVE-2023-46604` 后，顶部按钮从 `建立` 推进到 `确认`，再推进到 `交给 Coding`；
+- 点击 `建立` 会建立研究任务并定位到研究工作区；点击 `确认` 只确认本地练习启动前计划，不拉镜像、不启动容器、不运行漏洞触发输入；
+- Browser preview 最终状态显示 ActiveMQ 行已具备 `研究任务` 与 `练习已确认`，顶部显示 `当前下一步：交给 Coding`；
+- 修正 `ChatPageRoutingContract.test.ts` 的旧 topbar module 断言，使契约匹配当前 `ctf / cve / coding` 三态；
+- Browser preview 无 relevant console error / warn，无 Vite overlay。
+
+本次仍未证明：
+
+- 原生 App 中真实启动 Agent 并完成 CVE → Coding → CVE 的研究结果回写；
+- Vulhub 完整 catalog import、Docker/Compose 启动、停止和清理；
+- 任何 CVE 练习结果可代表真实资产已验证。

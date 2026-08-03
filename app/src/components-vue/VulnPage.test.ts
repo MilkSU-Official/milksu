@@ -203,6 +203,41 @@ describe('VulnPage', () => {
     expect(host.textContent).toContain('研究中')
   })
 
+  it('makes the top current-next-step card actionable for the selected CVE', async () => {
+    const host = await mountVulnPage()
+    const activeMqRow = [...host.querySelectorAll<HTMLTableRowElement>('tr')].find(item =>
+      item.textContent?.includes('CVE-2023-46604'),
+    )
+    if (!activeMqRow) throw new Error('missing ActiveMQ CVE row')
+    activeMqRow.click()
+    await nextTick()
+
+    const nextStep = () => {
+      const button = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
+        item.getAttribute('aria-label') === '执行当前 CVE 下一步',
+      )
+      if (!button) throw new Error('missing current next-step button')
+      return button
+    }
+
+    expect(host.textContent).toContain('当前下一步')
+    expect(host.textContent).toContain('建立研究任务')
+    expect(nextStep().textContent).toContain('建立')
+    nextStep().click()
+    await nextTick()
+
+    expect(host.textContent).toContain('研究任务已建立')
+    expect(host.textContent).toContain('确认练习计划')
+    expect(nextStep().textContent).toContain('确认')
+    nextStep().click()
+    await nextTick()
+
+    expect(host.textContent).toContain('已确认计划')
+    expect(host.textContent).toContain('1 已确认计划')
+    expect(host.textContent).toContain('交给 Coding')
+    expect(nextStep().textContent).toContain('交给 Coding')
+  })
+
   it('lets the user add a local CVE tracking item beyond the built-in demo list', async () => {
     const host = await mountVulnPage()
     const add = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import {
   Badge,
   Button,
@@ -80,7 +80,10 @@ const showCustomForm = ref(false)
 const customFormError = ref('')
 const showAssetForm = ref(false)
 const assetFormError = ref('')
+const loopWorkspace = ref<HTMLElement | null>(null)
+const practiceWorkspace = ref<HTMLElement | null>(null)
 const researchWorkspace = ref<HTMLElement | null>(null)
+const notesWorkspace = ref<HTMLElement | null>(null)
 const customForm = ref({
   id: '',
   title: '',
@@ -138,7 +141,43 @@ function startSelectedCodingTask(task: VulnerabilityCodingTask) {
 async function establishOrFocusResearchTask() {
   dashboard.establishResearchTask(dashboard.selected.value.id)
   await nextTick()
-  researchWorkspace.value?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+  researchWorkspace.value?.scrollIntoView?.({ block: 'start', behavior: 'smooth' })
+}
+
+async function scrollToWorkspace(target: HTMLElement | null) {
+  await nextTick()
+  target?.scrollIntoView?.({ block: 'start', behavior: 'smooth' })
+}
+
+const selectedNextActionCta = computed(() => {
+  const label = dashboard.selectedNextAction.value.label
+  if (label === '建立研究任务') return '建立'
+  if (label === '确认练习计划') return '确认'
+  if (label === '交给 Coding') return '交给 Coding'
+  if (label === '补用户笔记') return '去写笔记'
+  return '查看摘要'
+})
+
+async function runSelectedNextAction() {
+  const label = dashboard.selectedNextAction.value.label
+  if (label === '建立研究任务') {
+    await establishOrFocusResearchTask()
+    return
+  }
+  if (label === '确认练习计划') {
+    dashboard.confirmPracticeEnvironment(dashboard.selected.value.id)
+    await scrollToWorkspace(practiceWorkspace.value)
+    return
+  }
+  if (label === '交给 Coding' && dashboard.codingTaskForSelected.value) {
+    startSelectedCodingTask(dashboard.codingTaskForSelected.value)
+    return
+  }
+  if (label === '补用户笔记') {
+    await scrollToWorkspace(notesWorkspace.value)
+    return
+  }
+  await scrollToWorkspace(loopWorkspace.value)
 }
 
 function severityVariant(severity: VulnerabilitySeverity) {
@@ -237,6 +276,15 @@ function statusVariant(status: VulnerabilityStatus) {
           <p class="mt-0.5 line-clamp-2 text-caption leading-5 text-muted-foreground">
             {{ dashboard.selectedNextAction.value.detail }}
           </p>
+          <Button
+            class="mt-3 w-full"
+            variant="outline"
+            size="sm"
+            aria-label="执行当前 CVE 下一步"
+            @click="runSelectedNextAction"
+          >
+            {{ selectedNextActionCta }}
+          </Button>
         </div>
       </div>
       </template>
@@ -447,19 +495,21 @@ function statusVariant(status: VulnerabilityStatus) {
           </dd>
         </dl>
 
-        <VulnerabilityLoopPanel
-          :item="dashboard.selected.value"
-          :research-task="dashboard.researchTaskFor.value"
-          :research-note="dashboard.researchNoteFor.value"
-          :practice-environment="dashboard.practiceEnvironmentFor.value"
-          :practice-session="dashboard.practiceSessionFor.value"
-          :coding-handoff="dashboard.codingHandoffFor.value"
-          :coding-workspace-path="codingWorkspacePath"
-          :coding-task="dashboard.codingTaskForSelected.value"
-          @establish-task="dashboard.establishResearchTask(dashboard.selected.value.id)"
-          @confirm-practice="dashboard.confirmPracticeEnvironment(dashboard.selected.value.id)"
-          @start-coding-task="startSelectedCodingTask"
-        />
+        <div ref="loopWorkspace">
+          <VulnerabilityLoopPanel
+            :item="dashboard.selected.value"
+            :research-task="dashboard.researchTaskFor.value"
+            :research-note="dashboard.researchNoteFor.value"
+            :practice-environment="dashboard.practiceEnvironmentFor.value"
+            :practice-session="dashboard.practiceSessionFor.value"
+            :coding-handoff="dashboard.codingHandoffFor.value"
+            :coding-workspace-path="codingWorkspacePath"
+            :coding-task="dashboard.codingTaskForSelected.value"
+            @establish-task="establishOrFocusResearchTask"
+            @confirm-practice="dashboard.confirmPracticeEnvironment(dashboard.selected.value.id)"
+            @start-coding-task="startSelectedCodingTask"
+          />
+        </div>
 
         <section class="border-b border-border px-6 py-5">
           <h3 class="text-label font-medium">学习路径</h3>
@@ -480,7 +530,7 @@ function statusVariant(status: VulnerabilityStatus) {
           </ol>
         </section>
 
-        <section class="border-b border-border px-6 py-5">
+        <section ref="practiceWorkspace" class="border-b border-border px-6 py-5">
           <div class="flex items-center justify-between gap-3">
             <h3 class="text-label font-medium">隔离练习环境</h3>
             <Badge v-if="dashboard.practiceEnvironmentFor.value" variant="info">已匹配</Badge>
@@ -623,7 +673,7 @@ function statusVariant(status: VulnerabilityStatus) {
           </div>
         </section>
 
-        <section class="border-b border-border px-6 py-5">
+        <section ref="notesWorkspace" class="border-b border-border px-6 py-5">
           <div class="flex items-center justify-between gap-3">
             <h3 class="text-label font-medium">受影响资产（{{ dashboard.selected.value.assets.length }}）</h3>
             <Button
