@@ -2,9 +2,9 @@
 
 > 状态：Active / Product-loop sprint with coverage ledger
 >
-> 产品代码快照：2026-08-04，`18b50f0`
+> 产品代码快照：2026-08-04，`b15782f`
 >
-> 最近证据复核：2026-08-04，`18b50f0`
+> 最近证据复核：2026-08-04，`b15782f`
 >
 > 本文件不是发布说明。它把 `current-objectives.md` 的大项拆成可单独核对的细项，用于保持
 > 全局位置。2026-08-03 起，短期执行入口切到
@@ -216,7 +216,7 @@ allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 
 
 | ID | 可判定细项 | 证据快照 | 当前 | 尚缺 |
 | --- | --- | --- | ---: | --- |
-| DOC-01 | 开发期只保留测试、回执、验收记录和 ADR | 当前验收文档遵守此规则；`product-loop-sprint-acceptance.md` 已记录 `d4df0f8`、`42c392d`、`1698e39`、`eefa729`、`d23f7ff` 和 `18b50f0` 的窄测、全量前端、Browser preview、M3 release check 与未证明范围 | 75% | 持续保持，不提前写完成声明 |
+| DOC-01 | 开发期只保留测试、回执、验收记录和 ADR | 当前验收文档遵守此规则；`product-loop-sprint-acceptance.md` 已记录 `d4df0f8`、`42c392d`、`1698e39`、`eefa729`、`d23f7ff`、`18b50f0` 和 `b15782f` 的窄测、全量前端、Browser preview、M3 release check 与未证明范围 | 75% | 持续保持，不提前写完成声明 |
 | DOC-02 | 最后统一更新架构、里程碑、状态和发布说明 | 按目标后置 | 0% | 所有产品与发行 Gate 通过后执行 |
 
 ## 横向观察记录
@@ -241,7 +241,7 @@ allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 
 | OBS-14 | `ChatPage.vue` 的 Computer Use UI 已抽为 `CodingComputerUsePanel.vue`，并有面板级测试覆盖外部 App/window 展示、启动按钮和其他任务占用禁用；`desktop.test.ts` 已锁住 `start_coding_computer_use` 会把用户选定的 `conversationId`、`targetPid`、`targetWindowId` 原样传给 Wails；ChatPage 刷新可见窗口列表的选择逻辑已抽为 `nextComputerUseTargetKey` 并测试，不因同名 App、同 PID 多窗口或同 windowId 不同 PID 漂移；仍缺整页 ChatPage 时序和打包 App 外部窗口真实验收 | 后续若建立 ChatPage 测试基架或做打包 App 外部窗口验收时补，不在当前批次深挖 |
 | OBS-15 | `workspace-auto` 对未知或项目 MCP 目前只自动放行 read-like 工具；对经过用户审阅并固定 Scope 的本地 Project MCP 写工具仍可能产生重复审批 | 先不现场放宽，避免没有工具面/Scope 证据时扩大权限；等真实高频 Project MCP 候选确定后，为已审阅本地工具增加更精确的自动审批契约 |
 | OBS-16 | 与裸 Pi Agent 相比，MilkSU 过去过早把大量精力投入权限、恢复、脱敏和文档边界，导致“能像裸 Harness 一样顺滑干活”的主链体感滞后 | 下一阶段优先真实可用闭环：Computer Use、Browser、Project MCP、Artifact Preview、ImageGen 和小型 MilkSU develops MilkSU；除 Key、Scope、私有远端、Judge/能力归因硬红线外，非阻塞细节先登记后修 |
-| OBS-17 | 当前用户明确要求产品 UI/UX 上有完整闭环；CVE 作为一级菜单不能只停在暂停文档，至少要有学习/追踪工作台骨架、状态、安全边界和后续 Coding Agent 可接手任务；Lab 暂不实现 | 见 `product-loop-sprint.md`；MilkSU 已有 CTF 模块，当前冲刺不新接 CTFd；CVE 只做学习/追踪，不做红队 Agent、批量打靶或自动 PoC；Lab 后置为 HTB/TryHackMe/pwn.college 等外部靶场辅助与进度追踪计划 |
+| OBS-17 | 当前用户明确要求产品 UI/UX 上有完整闭环；CVE 作为一级菜单不能只停在暂停文档，至少要有学习/追踪工作台骨架、状态、安全边界和后续 Coding Agent 可接手任务；Lab 暂不实现 | 见 `product-loop-sprint.md`；MilkSU 已有 CTF 模块，当前冲刺不新接 CTFd；CVE 只做学习/追踪，不做红队 Agent、批量打靶或自动 PoC；`b15782f` 已让 CVE 列表直接展示研究任务、练习、接力和笔记闭环状态，减少用户必须点进详情才知道在研究什么的问题；Lab 后置为 HTB/TryHackMe/pwn.college 等外部靶场辅助与进度追踪计划 |
 
 ## 暂存缺陷
 

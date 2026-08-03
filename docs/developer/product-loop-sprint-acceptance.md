@@ -249,3 +249,30 @@
 - 外部 Beta / Developer ID / notarization / updater RC；
 - Computer Use 外部 App 真实操作验收；
 - CVE 研究任务的真实情报质量或练习环境可用性。
+
+## 2026-08-04 · CVE list loop status visibility
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | `b15782f` |
+| 窄测 | `npm run test -- --run src/components-vue/VulnPage.test.ts src/components-vue/VulnerabilityLoopPanel.test.ts src/lib/vulnerabilityCodingHandoff.test.ts` |
+| 窄测结果 | 3 files / 19 tests passed |
+| 全量前端 | `npm run test && npm run build` |
+| 全量前端结果 | 46 files / 199 tests passed；production build passed |
+
+覆盖范围：
+
+- CVE 列表新增“闭环”列；
+- 每条 CVE 直接展示现有本地状态投影：`待建立`、`有练习`、`研究任务`、`练习已确认`、
+  `练习已停止`、`已接力`、`有笔记`；
+- 状态来源复用现有 research task、practice session、Coding handoff 和用户笔记，不新增独立
+  状态机；
+- 自动化覆盖初始列表可见状态、建立研究任务后的状态、确认练习计划后的状态，以及 Coding
+  接力成功后列表/详情里的 `已接力`。
+
+本次仍未证明：
+
+- 打包 App 中用户真实从列表扫状态、点击详情、交给 Coding 的完整交互；
+- CVE 情报源实时同步；
+- Vulhub catalog import、Docker 拉起、停止和清理；
+- Agent 对 CVE 任务的实际研究质量。
