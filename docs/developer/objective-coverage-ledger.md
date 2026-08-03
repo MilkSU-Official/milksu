@@ -155,7 +155,7 @@ allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 
 | MEM-03 | 用户独立步骤只来自显式用户记录 | 自动化拒绝反思/导入冒充 | 50% | 打包 App 真实操作证据 |
 | MEM-04 | 模型猜测写入用户能力事实为 0 | 未知 actor fail closed 测试存在 | 50% | 36 条真实轨迹审计 |
 | MEM-05 | Judge 正确性与用户贡献度独立 | 服务与投影测试存在 | 50% | 真实题目回执核对 |
-| MEM-06 | Memory 与 Ability Profile 分离 | 数据结构和 UI 基础存在 | 50% | 用户侧可解释性验收 |
+| MEM-06 | Memory 与 Ability Profile 分离 | 数据结构和 UI 基础存在；`CTFMemoryRecall.test.ts` 覆盖旧题记忆同时展示正确性证据、贡献归属、推荐依据和证据链接，并确认 Agent 代做/代理记忆不会显示成“用户完成 · 无协助” | 50% | 用户侧可解释性验收 |
 | MEM-07 | delegate 成功不增加独立完成 | 自动化测试存在 | 50% | 真实 delegate 样本 |
 | MEM-08 | 推荐理由链接 Judge、提示、步骤和失败 | `RecallForChallenge` 返回结构化推荐原因和证据链接；保存记忆时写入 judge/hint/step/failure refs；Agent `MEMORY.md` 与前端记忆卡展示可核对证据；`go test ./internal/ctf`、`go test ./...`、前端 lint/build 通过 | 50% | 用真实题目轨迹完成端到端可点击证据验收 |
 | MEM-09 | 当前题排除、相关旧题优先、无关题负对照 | `RecallForChallenge` 与相关/无关/当前题自动化存在 | 50% | 跨真实题目的端到端召回对照 |
