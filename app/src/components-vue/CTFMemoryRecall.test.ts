@@ -166,4 +166,69 @@ describe('CTFMemoryRecall', () => {
     expect(text).toContain('Judge 回执 receipt_web_1')
     expect(text).not.toContain('不增加用户独立完成计数')
   })
+
+  it('redacts provider credentials from recalled legacy memory text and evidence', async () => {
+    const inspected: string[] = []
+    const host = document.createElement('div')
+    document.body.append(host)
+    const app = createApp(CTFMemoryRecall, {
+      memories: [memory({
+        id: 'memory-legacy-secret',
+        title: 'Legacy sk-title-secret12345',
+        summary: 'Old note leaked Bearer provider-token-12345 and OPENAI_API_KEY=sk-env-secret12345',
+        tags: ['api_key=sk-tag-secret12345', 'web'],
+        evidenceRefs: [
+          'judge:receipt_1',
+          'failure:sk-evidence-secret12345',
+        ],
+        recall: {
+          schemaVersion: 'ctf-training-memory-recall/v1alpha1',
+          score: 0.4,
+          reasons: ['历史导入记录'],
+          evidence: [
+            {
+              kind: 'judge',
+              id: 'receipt_1',
+              label: 'Judge 回执 receipt_1',
+            },
+            {
+              kind: 'failure',
+              id: 'sk-evidence-secret12345',
+              label: '失败分支 Bearer evidence-token-12345',
+            },
+          ],
+        },
+      })],
+      onArchive: () => {},
+      onInspectEvidence: (value: { kind: string, id: string, label: string }) => {
+        inspected.push(`${value.kind}:${value.id}:${value.label}`)
+      },
+    })
+    app.mount(host)
+    mountedApps.push(app)
+    await nextTick()
+
+    const text = host.textContent ?? ''
+    expect(text).toContain('[credential redacted]')
+    expect(text).not.toContain('sk-title-secret12345')
+    expect(text).not.toContain('provider-token-12345')
+    expect(text).not.toContain('sk-env-secret12345')
+    expect(text).not.toContain('sk-tag-secret12345')
+    expect(text).not.toContain('sk-evidence-secret12345')
+    expect(text).not.toContain('evidence-token-12345')
+
+    const archive = host.querySelector<HTMLButtonElement>(
+      'button[aria-label^="停用记忆："]',
+    )
+    expect(archive?.getAttribute('aria-label')).not.toContain('sk-title-secret12345')
+
+    const failureEvidence = host.querySelector<HTMLButtonElement>('[data-evidence-kind="failure"]')
+    expect(failureEvidence?.getAttribute('data-evidence-id')).toBe('[credential redacted]')
+    expect(failureEvidence?.getAttribute('title')).toBe('failure:[credential redacted]')
+    failureEvidence?.click()
+    await nextTick()
+    expect(inspected).toEqual([
+      'failure:[credential redacted]:失败分支 Bearer [credential redacted]',
+    ])
+  })
 })

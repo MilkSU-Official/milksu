@@ -155,7 +155,7 @@ allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 
 | MEM-03 | 用户独立步骤只来自显式用户记录 | 自动化拒绝反思/导入冒充 | 50% | 打包 App 真实操作证据 |
 | MEM-04 | 模型猜测写入用户能力事实为 0 | 未知 actor fail closed 测试存在 | 50% | 36 条真实轨迹审计 |
 | MEM-05 | Judge 正确性与用户贡献度独立 | 服务与投影测试存在 | 50% | 真实题目回执核对 |
-| MEM-06 | Memory 与 Ability Profile 分离 | 数据结构和 UI 基础存在；`CTFMemoryRecall.test.ts` 覆盖旧题记忆同时展示正确性证据、贡献归属、推荐依据和证据链接，并在卡片内区分“用户独立能力证据”“协作经验和 Memory”“Agent Memory”，确认 Agent 代做/代理记忆不会显示成“用户完成 · 无协助” | 50% | 用户侧可解释性验收 |
+| MEM-06 | Memory 与 Ability Profile 分离 | 数据结构和 UI 基础存在；`CTFMemoryRecall.test.ts` 覆盖旧题记忆同时展示正确性证据、贡献归属、推荐依据和证据链接，并在卡片内区分“用户独立能力证据”“协作经验和 Memory”“Agent Memory”，确认 Agent 代做/代理记忆不会显示成“用户完成 · 无协助”，且 legacy/imported 记忆文本和证据按钮会在 UI 层脱敏 Provider Credential 形态 | 50% | 用户侧可解释性验收 |
 | MEM-07 | delegate 成功不增加独立完成 | 自动化测试存在；`CTFMemoryRecall.test.ts` 覆盖 Agent/delegate 记忆显示“可作为 Agent Memory，不增加用户独立完成计数”；`CTFTrainingArchive.test.ts` 覆盖 delegate/agent 报告在训练归档页显示“Agent 代做”“代理完成”和“用户独立步骤 0”，且不会误显示“用户完成”或“无协助”；训练回放事件和错误 UI 会脱敏 Provider Key 形态，避免归档查看时把运行错误误当可保存能力证据或泄漏凭据 | 50% | 真实 delegate 样本 |
 | MEM-08 | 推荐理由链接 Judge、提示、步骤和失败 | `RecallForChallenge` 返回结构化推荐原因和证据链接；保存记忆时写入 judge/hint/step/failure refs；Agent `MEMORY.md` 与前端记忆卡展示可核对证据；`CTFMemoryRecall.test.ts` 覆盖结构化 recall evidence 会保留 `kind/id`，且缺少结构化 recall links 时回退展示底层 `evidenceRefs`；记忆证据项现在可聚焦/点击并向 CTF 页面发出 `inspectEvidence`，页面提示按当前题目证据、Judge 回执、提示和步骤记录重新核对，避免用户只能看到不可追溯的记忆摘要；`go test ./internal/ctf`、`go test ./...`、前端 lint/build 通过 | 50% | 用真实题目轨迹完成端到端可点击证据验收 |
 | MEM-09 | 当前题排除、相关旧题优先、无关题负对照 | `RecallForChallenge` 与相关/无关/当前题自动化存在 | 50% | 跨真实题目的端到端召回对照 |
@@ -196,7 +196,7 @@ allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 
 | DEL-02 | Pre-release 旧 schema 一次性破坏性收口 | 按契约明确后置 | 0% | 产品纵切完成后集中执行 |
 | DEL-03 | 上次启动/异常退出标记与恢复入口 | 打包 App lifecycle baseline 通过 | 75% | 真实异常退出人工验收 |
 | DEL-04 | Sidecar、恢复、迁移、后台任务脱敏诊断 | 诊断包、UI 和离线错误测试存在 | 75% | 真实故障包审阅 |
-| DEL-05 | 不保存正文、原始工具输出或 Credential | 多处边界测试存在；诊断包测试确认即使 `runtime/milksu.log` 含会话正文、原始工具输出和 Credential 形态，导出包也只包含脱敏 `diagnostics.json`，不复制日志文件；前端聊天错误、审批卡、CTF 训练归档 UI 和 Coding 后台任务/Shell 错误共用 `redactProviderCredentials`，`redaction.test.ts`、`useConversations.test.ts`、`ChatMessageItem.test.ts`、`CTFTrainingArchive.test.ts` 与 `CodingTerminalPanel.test.ts` 覆盖 Bearer、`sk-*`、`sess-*`、`*_API_KEY`、URL query `api_key`、`api-key` 和 `x-api-key` 形态，并覆盖后台任务名称、命令、日志和错误进入 UI 前统一脱敏，避免不同入口规则漂移 | 50% | 完整诊断与本地文件审计 |
+| DEL-05 | 不保存正文、原始工具输出或 Credential | 多处边界测试存在；诊断包测试确认即使 `runtime/milksu.log` 含会话正文、原始工具输出和 Credential 形态，导出包也只包含脱敏 `diagnostics.json`，不复制日志文件；前端聊天错误、审批卡、CTF 训练归档 UI、CTF Memory Recall UI 和 Coding 后台任务/Shell 错误共用 `redactProviderCredentials`，`redaction.test.ts`、`useConversations.test.ts`、`ChatMessageItem.test.ts`、`CTFTrainingArchive.test.ts`、`CTFMemoryRecall.test.ts` 与 `CodingTerminalPanel.test.ts` 覆盖 Bearer、`sk-*`、`sess-*`、`*_API_KEY`、URL query `api_key`、`api-key` 和 `x-api-key` 形态，并覆盖后台任务名称、命令、日志和错误进入 UI 前统一脱敏，避免不同入口规则漂移 | 50% | 完整诊断与本地文件审计 |
 | DEL-06 | `1080×680` 最低窗口 | Browser 真实截图与布局审计 | 75% | 原生 App 全流程人工 QA |
 | DEL-07 | 启动时间基线 | 隔离 HOME 打包 App 已测 | 75% | 多次冷启动和目标机器矩阵 |
 | DEL-08 | RSS、前端 chunk、App/Sidecar 体积基线 | `local-delivery-baseline.md` | 75% | 多机器重复测量 |

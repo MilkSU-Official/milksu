@@ -2,6 +2,7 @@
 import { Archive, BrainCircuit } from 'lucide-vue-next'
 import { Badge, Button } from '@felinic/ui'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
+import { redactProviderCredentials } from '@/lib/redaction'
 import type { CTFTrainingMemory, CTFTrainingMemoryEvidenceLink } from '@/ctfTypes'
 
 defineProps<{
@@ -64,6 +65,19 @@ function evidenceLinks(memory: CTFTrainingMemory) {
     ? memory.recall.evidence
     : memory.evidenceRefs.slice(0, 8).map(fallbackEvidence)
 }
+
+function redactMemoryText(value: string) {
+  return redactProviderCredentials(value)
+}
+
+function redactedEvidence(evidence: CTFTrainingMemoryEvidenceLink) {
+  return {
+    ...evidence,
+    kind: redactMemoryText(evidence.kind),
+    id: redactMemoryText(evidence.id),
+    label: redactMemoryText(evidence.label),
+  }
+}
 </script>
 
 <template>
@@ -102,10 +116,10 @@ function evidenceLinks(memory: CTFTrainingMemory) {
         >
           <div class="flex items-start gap-2">
             <div class="min-w-0 flex-1">
-              <p class="line-clamp-1 text-control font-medium">{{ memory.title }}</p>
+              <p class="line-clamp-1 text-control font-medium">{{ redactMemoryText(memory.title) }}</p>
               <MarkdownContent
                 class="mt-1 line-clamp-3 text-caption leading-5 text-muted-foreground"
-                :content="memory.summary"
+                :content="redactMemoryText(memory.summary)"
                 compact
               />
             </div>
@@ -113,7 +127,7 @@ function evidenceLinks(memory: CTFTrainingMemory) {
               variant="ghost"
               size="icon-sm"
               title="停用这条综合记忆；不删除原始证据"
-              :aria-label="`停用记忆：${memory.title}`"
+              :aria-label="`停用记忆：${redactMemoryText(memory.title)}`"
               @click="emit('archive', memory)"
             >
               <Archive class="size-3.5" />
@@ -128,7 +142,7 @@ function evidenceLinks(memory: CTFTrainingMemory) {
             </Badge>
             <Badge variant="outline">置信 {{ Math.round(memory.confidence * 100) }}%</Badge>
             <Badge v-for="tag in memory.tags.slice(0, 2)" :key="tag" variant="secondary">
-              {{ tag }}
+              {{ redactMemoryText(tag) }}
             </Badge>
           </div>
           <p class="mt-2 text-caption leading-5 text-muted-foreground">
@@ -148,12 +162,12 @@ function evidenceLinks(memory: CTFTrainingMemory) {
                 :key="`${evidence.kind}:${evidence.id}`"
                 type="button"
                 class="rounded-sm text-left underline decoration-dotted underline-offset-2 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                :title="`${evidence.kind}:${evidence.id}`"
-                :data-evidence-kind="evidence.kind"
-                :data-evidence-id="evidence.id"
-                @click="emit('inspectEvidence', evidence)"
+                :title="`${redactedEvidence(evidence).kind}:${redactedEvidence(evidence).id}`"
+                :data-evidence-kind="redactedEvidence(evidence).kind"
+                :data-evidence-id="redactedEvidence(evidence).id"
+                @click="emit('inspectEvidence', redactedEvidence(evidence))"
               >
-                <span v-if="index">；</span>{{ evidence.label }}
+                <span v-if="index">；</span>{{ redactedEvidence(evidence).label }}
               </button>
             </p>
           </div>
