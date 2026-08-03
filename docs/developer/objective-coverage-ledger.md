@@ -123,7 +123,7 @@ allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 
 | COD-27 | 打包 App 真实 ImageGen Provider 与预览 | Provider 尚未在 App 内配置 | 0% | 用户自行配置后执行，不接触 Key |
 | COD-28 | Project MCP 来源、版本、工具面与权限审阅 | Go/Vue/Bridge 实现和测试存在；`npm run test:project-mcp` 通过正式 `loadCodingMcpConfig`、固定 `.mcp.json` digest、sandbox wrapper、`env -i` 私有 HOME/TMPDIR、`hostConfigDiscovery=off` 和 MCP SDK `listTools/callTool` 实际调用本地项目 `fixture_read` | 75% | 用户真实项目或高频 MCP 任务验收 |
 | COD-29 | 高频 Plugin 候选完成真实任务 | 尚未由使用频率选出候选 | 0% | 先收集重复工作流与替代失败 |
-| COD-30 | 代表任务成功率、接管、恢复、成本对照 | Coding delivery gate 已输出 `milksu-run-manifest/v1alpha1` 与 `milksu-agent-scoreboard/v1alpha1`，覆盖任务 ID、fixture digest、工具面、预算、人工介入、失败分类和未运行基线状态 | 25% | 从用户真实历史选择固定 20 项，运行 MilkSU 与裸 Codex/Pi 对照 |
+| COD-30 | 代表任务成功率、接管、恢复、成本对照 | Coding delivery gate 已输出 `milksu-run-manifest/v1alpha1` 与 `milksu-agent-scoreboard/v1alpha1`，覆盖任务 ID、fixture digest、工具面、预算、人工介入、失败分类和未运行基线状态；共享 validator 已拒绝 `not-run` baseline 携带成绩、缺失败/介入证据、预算超限、隐私边界松动和 `passed=true` 但非满分等误报形态 | 25% | 从用户真实历史选择固定 20 项，运行 MilkSU 与裸 Codex/Pi 对照 |
 | COD-31 | Computer Use 工具截图接入纯文本模型的辅助视觉回路 | Bridge `tool_result` hook 为 `milksu-computer-use/computer_use` 截图追加受控视觉摘要；辅助视觉缓存不保存原图；64 项 Node 窄测试、Go、前端 lint/build 通过 | 50% | 打包 App 中用纯文本主模型和真实辅助视觉完成外部窗口定位验收 |
 
 ## CTF 通用闭环与网络边界

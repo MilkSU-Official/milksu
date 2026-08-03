@@ -54,7 +54,9 @@ Fixture 位于 `tests/fixtures/coding-agent-delivery/template`。脚本会：
 12. 汇总请求、工具、token、时长、外部费用预算和失败分类；
 13. 写入固定 `runManifest` 与 `scoreboard`，记录任务 ID、fixture digest、模型/Provider、
     工具面、预算、人工介入、失败分类和可对照基线状态；
-14. 运行独立 acceptance，写入 `build/test-results/coding-agent-delivery.json`。
+14. 用共享报告 validator 验证 `runManifest`、`scoreboard`、预算、隐私边界、失败分类、
+    人工介入和未运行基线没有误报；
+15. 运行独立 acceptance，写入 `build/test-results/coding-agent-delivery.json`。
 
 Fake provider 使用固定响应计划，不调用真实模型、不读取用户凭据，也不会访问外部网络。
 它验证的是 MilkSU/Pi 的 Tool Loop、文件与命令执行、会话恢复、可见错误和交互契约，不用于
@@ -122,6 +124,15 @@ Fixture Provider 只监听本机回环地址，因此外部 Provider 请求与�
   模型、执行模式序列、Plan 初始工具面、Go 后工具面、预算和隐私边界；
 - `milksu-agent-scoreboard/v1alpha1`：把 100 分评分、硬 Gate、人工批准/接管、失败分类、
   预算和对照基线状态拆开记录。
+
+`scripts/lib/coding-delivery-report.mjs` 是当前共享契约 validator。它允许失败报告保留负面
+证据，但会拒绝以下会导致后续代表任务对照失真的报告形态：
+
+- `not-run` baseline 携带 score、passed、solved 或 completedAt；
+- 缺失 tool failure、background timeout、turn cancelled 三类失败证据；
+- 人工批准、接管和越权拒绝计数字段缺失或不是非负整数；
+- 预算超限或隐私边界显示读取/写入 Provider Credential；
+- `passed=true` 但核心分不是 100。
 
 这吸收的是外部 Harness 调研里的“实验规格、固定基线、失败分类和计分板”经验，但不引入
 第二套 Runner，也不声称已经完成 20 个代表任务或裸 Codex/Pi 对照。当前 baseline 行明确标为

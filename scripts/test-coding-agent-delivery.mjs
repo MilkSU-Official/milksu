@@ -19,6 +19,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 import { build } from 'esbuild'
 
+import { assertValidCodingDeliveryReport } from './lib/coding-delivery-report.mjs'
+
 const execFileAsync = promisify(execFile)
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const fixtureRoot = join(
@@ -1214,6 +1216,7 @@ async function main() {
       resources: readyResources,
       workspace: keepFixture ? workspace : '(temporary workspace removed)',
     }
+    assertValidCodingDeliveryReport(report)
     await mkdir(dirname(resultPath), { recursive: true })
     await writeFile(resultPath, `${JSON.stringify(report, null, 2)}\n`, { mode: 0o600 })
     process.stdout.write(`${JSON.stringify(report, null, 2)}\n`)
