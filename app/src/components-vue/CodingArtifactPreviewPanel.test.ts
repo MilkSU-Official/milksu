@@ -173,7 +173,7 @@ describe('CodingArtifactPreviewPanel', () => {
     expect(image?.src).toBe('data:image/png;base64,iVBORw0KGgo=')
   })
 
-  it('surfaces backend path and media rejections without keeping a stale preview', async () => {
+  it('rejects unsafe or unsupported manual paths before calling the backend', async () => {
     const host = await mountPanel()
     const htmlSuggestion = [...host.querySelectorAll<HTMLButtonElement>('button')]
       .find(button => button.textContent?.includes('site/index.html'))
@@ -191,8 +191,17 @@ describe('CodingArtifactPreviewPanel', () => {
     form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
     await settle()
 
-    expect(host.textContent).toContain('artifact preview escapes the Coding workspace')
+    expect(invokeCommand).toHaveBeenCalledTimes(1)
+    expect(host.textContent).toContain('请输入工作区内支持的 Markdown、HTML、PNG、JPEG、GIF 或 WebP 相对路径')
     expect(host.querySelector('iframe[title="Coding HTML 产物预览"]')).toBeNull()
     expect(host.textContent).toContain('预览 Agent 交付的普通产物')
+
+    input.value = 'notes.txt'
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+    await settle()
+
+    expect(invokeCommand).toHaveBeenCalledTimes(1)
+    expect(host.textContent).toContain('请输入工作区内支持的 Markdown、HTML、PNG、JPEG、GIF 或 WebP 相对路径')
   })
 })

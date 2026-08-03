@@ -15,6 +15,7 @@ import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import {
   artifactKindLabel,
   buildArtifactHTMLDocument,
+  isPreviewableArtifactPath,
   suggestedArtifactPaths,
 } from '@/lib/codingArtifact'
 import type {
@@ -57,6 +58,11 @@ async function refresh() {
   if (!path) {
     preview.value = null
     error.value = '请输入工作区内的相对路径。'
+    return
+  }
+  if (!isPreviewableArtifactPath(path)) {
+    preview.value = null
+    error.value = '请输入工作区内支持的 Markdown、HTML、PNG、JPEG、GIF 或 WebP 相对路径。'
     return
   }
   loading.value = true
