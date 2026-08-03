@@ -124,3 +124,29 @@ export function describeActiveComputerUseCapability(
       : `已锁定 ${targetLabel}；当前权限档会自动执行观察和操作。`,
   }
 }
+
+export function computerUseTargetKey(target: Pick<CodingComputerUseTarget, 'pid' | 'windowId'>): string {
+  return `${target.pid}:${target.windowId}`
+}
+
+export function selectedComputerUseTarget(
+  targets: CodingComputerUseTarget[],
+  selectedKey: string,
+): CodingComputerUseTarget | null {
+  return targets.find(target => computerUseTargetKey(target) === selectedKey) ?? null
+}
+
+export function computerUseStartArgs(
+  conversationId: string,
+  target: CodingComputerUseTarget,
+): {
+  conversationId: string
+  targetPid: number
+  targetWindowId: number
+} {
+  return {
+    conversationId,
+    targetPid: target.pid,
+    targetWindowId: target.windowId,
+  }
+}

@@ -85,10 +85,13 @@ import {
 } from '@/lib/codingProductActions'
 
 import {
+  computerUseStartArgs,
+  computerUseTargetKey,
   describeActiveComputerUseCapability,
   normalizeCodingApprovalPolicy,
   normalizeCodingExecutionMode,
   previewCodingCapabilities,
+  selectedComputerUseTarget as resolveSelectedComputerUseTarget,
 } from '@/lib/codingPolicy'
 import type {
   CTFAgentBudgetStatus,
@@ -315,9 +318,10 @@ const computerUsePermissionsReady = computed(() => Boolean(
   && computerUseStatus.value.permissions.screenRecording,
 ))
 const selectedComputerUseTarget = computed(() => (
-  computerUseTargets.value.find(target => (
-    `${target.pid}:${target.windowId}` === selectedComputerUseTargetKey.value
-  )) || null
+  resolveSelectedComputerUseTarget(
+    computerUseTargets.value,
+    selectedComputerUseTargetKey.value,
+  )
 ))
 const codingCapabilities = computed(() => {
   const capabilities = props.conversation?.agentCapabilities?.length
@@ -796,15 +800,15 @@ async function refreshBrowserPanel() {
     if (computerUseTargetsResult.status === 'fulfilled') {
       computerUseTargets.value = computerUseTargetsResult.value
       const selectedStillVisible = computerUseTargets.value.some(target => (
-        `${target.pid}:${target.windowId}` === selectedComputerUseTargetKey.value
+        computerUseTargetKey(target) === selectedComputerUseTargetKey.value
       ))
       if (!selectedStillVisible) {
         const activeTarget = computerUseStatus.value?.target
         const activeKey = activeTarget?.windowId
-          ? `${activeTarget.pid}:${activeTarget.windowId}`
+          ? computerUseTargetKey(activeTarget)
           : ''
         const firstKey = computerUseTargets.value[0]
-          ? `${computerUseTargets.value[0].pid}:${computerUseTargets.value[0].windowId}`
+          ? computerUseTargetKey(computerUseTargets.value[0])
           : ''
         selectedComputerUseTargetKey.value = activeKey || firstKey
       }
@@ -945,11 +949,7 @@ async function startComputerUse() {
   try {
     computerUseStatus.value = await invokeCommand<CodingComputerUseStatus>(
       'start_coding_computer_use',
-      {
-        conversationId: conversationID,
-        targetPid: target.pid,
-        targetWindowId: target.windowId,
-      },
+      computerUseStartArgs(conversationID, target),
     )
   } catch (reason) {
     browserPanelError.value = reason instanceof Error
@@ -1924,8 +1924,8 @@ watch(
                   <SelectContent>
                     <SelectItem
                       v-for="target in computerUseTargets"
-                      :key="`${target.pid}:${target.windowId}`"
-                      :value="`${target.pid}:${target.windowId}`"
+                      :key="computerUseTargetKey(target)"
+                      :value="computerUseTargetKey(target)"
                     >
                       {{ target.name }}
                       <span v-if="target.windowTitle"> · {{ target.windowTitle }}</span>

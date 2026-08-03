@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
+  computerUseStartArgs,
+  computerUseTargetKey,
   describeActiveComputerUseCapability,
   normalizeCodingApprovalPolicy,
   normalizeCodingExecutionMode,
   previewCodingCapabilities,
+  selectedComputerUseTarget,
 } from '@/lib/codingPolicy'
 
 describe('Coding policy presentation', () => {
@@ -83,5 +86,42 @@ describe('Coding policy presentation', () => {
     const ask = describeActiveComputerUseCapability('ask', target)
     expect(ask.status).toBe('approval-required')
     expect(ask.detail).toContain('逐次确认观察和操作')
+  })
+
+  it('starts Computer Use only for the user-selected PID and window pair', () => {
+    const targets = [
+      {
+        name: 'Codex',
+        bundleId: 'com.openai.codex',
+        pid: 4242,
+        windowId: 9001,
+        windowTitle: '目标 A',
+      },
+      {
+        name: 'Codex',
+        bundleId: 'com.openai.codex',
+        pid: 4242,
+        windowId: 9002,
+        windowTitle: '目标 B',
+      },
+      {
+        name: 'MilkSU',
+        bundleId: 'dev.milksu.app',
+        pid: 5252,
+        windowId: 9001,
+        windowTitle: '同窗口号不同 PID',
+      },
+    ]
+
+    expect(computerUseTargetKey(targets[1])).toBe('4242:9002')
+    const selected = selectedComputerUseTarget(targets, '4242:9002')
+    expect(selected?.windowTitle).toBe('目标 B')
+    expect(selectedComputerUseTarget(targets, '5252:9002')).toBeNull()
+
+    expect(computerUseStartArgs('conversation-ui', targets[1])).toEqual({
+      conversationId: 'conversation-ui',
+      targetPid: 4242,
+      targetWindowId: 9002,
+    })
   })
 })
