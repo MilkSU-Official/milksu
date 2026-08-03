@@ -1,6 +1,7 @@
 import { createServer } from 'node:http'
 import { once } from 'node:events'
 import { spawn, execFile } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import {
   access,
   cp,
@@ -41,6 +42,23 @@ const reliabilityBudgets = {
   reportedTokens: 250_000,
   elapsedMs: 60_000,
   externalProviderCostUSD: 0,
+}
+const fixtureTaskSpec = {
+  schemaVersion: 'milksu-representative-task/v1alpha1',
+  id: 'coding-delivery/report-cli',
+  title: 'Deliver a small Node.js report CLI with recovery and approval checks',
+  cohort: 'runtime-reliability-smoke',
+  taskType: 'coding-delivery',
+  source: 'local deterministic fixture',
+  expectedChanges: [
+    'dist/report.txt',
+    'src/cli.js',
+    'src/report.js',
+    'test/report.test.js',
+  ],
+  userPrompts: 6,
+  requiresExternalNetwork: false,
+  requiresProviderCredential: false,
 }
 
 const initialImplementation = `export function renderReport(input) {
@@ -228,6 +246,31 @@ function fixtureUsage(entry, requestBody) {
     completion_tokens: completionTokens,
     total_tokens: promptTokens + completionTokens,
   }
+}
+
+function snapshotDigest(files) {
+  const hash = createHash('sha256')
+  for (const [path, content] of [...files.entries()].sort(([left], [right]) => (
+    left.localeCompare(right)
+  ))) {
+    hash.update(path)
+    hash.update('\0')
+    hash.update(content)
+    hash.update('\0')
+  }
+  return hash.digest('hex')
+}
+
+function booleanDimensionMap(weights, checks) {
+  return Object.fromEntries(
+    Object.entries(weights).map(([name, weight]) => [
+      name,
+      {
+        weight,
+        passed: Boolean(checks[name]),
+      },
+    ]),
+  )
 }
 
 function sendSSE(response, sequence, entry, requestBody, usage) {
@@ -1001,18 +1044,98 @@ async function main() {
     }
     const score = Object.entries(weights)
       .reduce((total, [name, weight]) => total + (checks[name] ? weight : 0), 0)
+    const hardGates = {
+      resourceBoundary: checks.resourceBoundary,
+      workflowCoverage: checks.workflowCoverage,
+      planToGo: checks.planToGo,
+      backgroundTaskLifecycle: checks.backgroundTaskLifecycle,
+      contextCompaction: checks.contextCompaction,
+      finalDelivery: checks.finalDelivery,
+      providerPlanConsumed: checks.providerPlanConsumed,
+      reliability: reliability.passed,
+    }
+    const runManifest = {
+      schemaVersion: 'milksu-run-manifest/v1alpha1',
+      task: {
+        ...fixtureTaskSpec,
+        fixtureDigestSHA256: snapshotDigest(before),
+      },
+      runtime: {
+        harness: 'MilkSU Coding Runtime',
+        bridge: 'current worktree bridge.js bundle',
+        provider: 'local OpenAI-compatible fake provider',
+        model: 'kimi-k3',
+        conversationId,
+        execution: [
+          { phase: 'understand', executionMode: 'plan', approvalPolicy: 'workspace-auto' },
+          { phase: 'implement', executionMode: 'go', approvalPolicy: 'workspace-auto' },
+          { phase: 'approval', executionMode: 'go', approvalPolicy: 'workspace-auto' },
+          { phase: 'restart-recovery', executionMode: 'go', approvalPolicy: 'workspace-auto' },
+          { phase: 'cancellation', executionMode: 'go', approvalPolicy: 'workspace-auto' },
+        ],
+      },
+      toolSurface: {
+        initialPlan: {
+          extensions: [...readyResources.extensions].sort(),
+          skills: [...readyResources.skills].sort(),
+          tools: [...readyResources.tools].sort(),
+        },
+        goAfterPolicyUpdate: {
+          approvalPolicy: modeSwitch?.approvalPolicy,
+          executionMode: modeSwitch?.executionMode,
+          tools: [...(modeSwitch?.tools ?? [])].sort(),
+        },
+      },
+      budgets: reliability.budgets,
+      privacy: {
+        providerCredentialsRead: false,
+        providerCredentialsWritten: false,
+        externalProviderRequests: 0,
+        externalProviderCostUSD: 0,
+      },
+    }
+    hardGates.runManifest =
+      /^[0-9a-f]{64}$/.test(runManifest.task.fixtureDigestSHA256)
+      && runManifest.toolSurface.initialPlan.tools.includes('read')
+      && ['bash', 'edit', 'write'].every(
+        name => runManifest.toolSurface.goAfterPolicyUpdate.tools.includes(name),
+      )
+      && runManifest.privacy.providerCredentialsRead === false
+      && runManifest.privacy.providerCredentialsWritten === false
+      && runManifest.privacy.externalProviderRequests === 0
+    const passed = score === 100 && Object.values(hardGates).every(Boolean)
+    const scoreboard = {
+      schemaVersion: 'milksu-agent-scoreboard/v1alpha1',
+      candidate: {
+        id: 'milksu-coding-runtime',
+        taskId: fixtureTaskSpec.id,
+        score,
+        passed,
+      },
+      dimensions: booleanDimensionMap(weights, checks),
+      hardGates,
+      interventions: {
+        approvalRequests: /批准/.test(approvalText) ? 1 : 0,
+        approvalGrants: distExists ? 1 : 0,
+        manualTakeovers: 0,
+        rejectedOverreachRequests: outsideText ? 1 : 0,
+      },
+      failures: failureClasses,
+      budgets: reliability.budgets,
+      comparisons: [
+        {
+          id: 'bare-codex-or-pi-baseline',
+          status: 'not-run',
+          reason: 'Representative baseline runs are tracked separately; this fixture reports MilkSU runtime only.',
+        },
+      ],
+    }
     const report = {
       schemaVersion: 'milksu-coding-delivery/v1alpha1',
       score,
-      passed: score === 100
-        && checks.resourceBoundary
-        && checks.workflowCoverage
-        && checks.planToGo
-        && checks.backgroundTaskLifecycle
-        && checks.contextCompaction
-        && checks.finalDelivery
-        && checks.providerPlanConsumed
-        && reliability.passed,
+      passed,
+      runManifest,
+      scoreboard,
       checks,
       weights,
       reliability,

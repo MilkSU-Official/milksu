@@ -52,7 +52,9 @@ Fixture 位于 `tests/fixtures/coding-agent-delivery/template`。脚本会：
 10. 注入超过正式阈值的确定性上下文，调用真实 Pi Compaction 并验证压缩前后 token；
 11. 让本地 Provider 保持一次生成，验证 `abort_session` 能取消正在运行的回合；
 12. 汇总请求、工具、token、时长、外部费用预算和失败分类；
-13. 运行独立 acceptance，写入 `build/test-results/coding-agent-delivery.json`。
+13. 写入固定 `runManifest` 与 `scoreboard`，记录任务 ID、fixture digest、模型/Provider、
+    工具面、预算、人工介入、失败分类和可对照基线状态；
+14. 运行独立 acceptance，写入 `build/test-results/coding-agent-delivery.json`。
 
 Fake provider 使用固定响应计划，不调用真实模型、不读取用户凭据，也不会访问外部网络。
 它验证的是 MilkSU/Pi 的 Tool Loop、文件与命令执行、会话恢复、可见错误和交互契约，不用于
@@ -111,6 +113,19 @@ Fixture Provider 只监听本机回环地址，因此外部 Provider 请求与�
 测试没有产生外部模型费用，不代表 MilkSU 已验证真实 Provider 的账单金额。上述 Gate 也只
 建立 Runtime Reliability 的第一条安全基线；完整 App 重启、真实长任务、真实 Provider
 成本和打包 App 恢复仍需单独验收。
+
+### Run Manifest 与 Scoreboard
+
+同一 JSON 还包含两层用于后续代表任务对照的结构：
+
+- `milksu-run-manifest/v1alpha1`：固定记录任务 ID、fixture 初始内容 SHA-256、Provider、
+  模型、执行模式序列、Plan 初始工具面、Go 后工具面、预算和隐私边界；
+- `milksu-agent-scoreboard/v1alpha1`：把 100 分评分、硬 Gate、人工批准/接管、失败分类、
+  预算和对照基线状态拆开记录。
+
+这吸收的是外部 Harness 调研里的“实验规格、固定基线、失败分类和计分板”经验，但不引入
+第二套 Runner，也不声称已经完成 20 个代表任务或裸 Codex/Pi 对照。当前 baseline 行明确标为
+`not-run`，后续真实对照必须复用同一字段，而不是只写口头结论。
 
 ## 真实 DeepSeek 手工/半自动 Runbook
 
