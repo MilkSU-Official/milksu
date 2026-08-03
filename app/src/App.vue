@@ -6,6 +6,7 @@ import { useConversations } from '@/composables/useConversations'
 import { useNSSCTFTraining } from '@/composables/useNSSCTFTraining'
 import { invokeCommand } from '@/desktop'
 import type { CTFAgentWorkspaceHandoff } from '@/ctfTypes'
+import type { VulnerabilityCodingTask } from '@/composables/useVulnerabilityDashboard'
 import type { CTFWorkspaceSection } from '@/lib/workspaceNavigation'
 import { withAppSettingsDefaults, type AppSettings, type CTFChatAction, type StartupRecoveryStatus } from '@/types'
 
@@ -114,6 +115,15 @@ async function startCTFAgent(handoff: CTFAgentWorkspaceHandoff) {
   await conversations.startWorkspaceTask(handoff)
 }
 
+async function startVulnerabilityCodingTask(task: VulnerabilityCodingTask) {
+  const existingWorkspacePath = conversations.workspacePath.value
+  conversations.startNew()
+  if (existingWorkspacePath) conversations.setWorkspace(existingWorkspacePath)
+  conversations.ensureConversation(task.title)
+  section.value = 'chat'
+  await conversations.send(task.prompt, task.visibleText)
+}
+
 async function switchCTFAgent(role: 'solver' | 'tool-builder' | 'strategist') {
   const conversation = conversations.active.value
   if (!conversation?.ctfJobId) return
@@ -214,6 +224,7 @@ onMounted(async () => {
         <VulnPage
           v-else-if="section === 'vuln'"
           @open-settings="openSettings('general')"
+          @start-coding-task="startVulnerabilityCodingTask"
         />
       </KeepAlive>
       <ChatPage

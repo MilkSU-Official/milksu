@@ -32,11 +32,15 @@ import {
 } from 'lucide-vue-next'
 import WorkspaceTopBar from '@/components-vue/WorkspaceTopBar.vue'
 import { useVulnerabilityDashboard } from '@/composables/useVulnerabilityDashboard'
+import type { VulnerabilityCodingTask } from '@/composables/useVulnerabilityDashboard'
 import type { VulnerabilitySeverity, VulnerabilityStatus } from '@/vulnerabilityIntel'
 
 defineOptions({ name: 'VulnPage' })
 
-defineEmits<{ openSettings: [] }>()
+defineEmits<{
+  openSettings: []
+  startCodingTask: [task: VulnerabilityCodingTask]
+}>()
 const dashboard = useVulnerabilityDashboard()
 
 const sprintTasks = [
@@ -431,7 +435,18 @@ function statusVariant(status: VulnerabilityStatus) {
               v-if="dashboard.practiceSessionFor.value"
               class="mt-4 rounded-lg border border-border bg-muted/20 px-3 py-3"
             >
-              <p class="text-caption font-medium text-muted-foreground">下一步交给 Coding Agent</p>
+              <div class="flex items-center justify-between gap-3">
+                <p class="text-caption font-medium text-muted-foreground">下一步交给 Coding Agent</p>
+                <Button
+                  v-if="dashboard.codingTaskForSelected.value"
+                  variant="outline"
+                  size="sm"
+                  @click="$emit('startCodingTask', dashboard.codingTaskForSelected.value)"
+                >
+                  <Workflow class="size-4" />
+                  交给 Coding
+                </Button>
+              </div>
               <p class="mt-2 text-body leading-6">{{ dashboard.practiceSessionFor.value.nextPrompt }}</p>
               <p class="mt-2 text-caption text-muted-foreground">
                 本地记录：{{ new Date(dashboard.practiceSessionFor.value.updatedAt).toLocaleString() }}
@@ -591,10 +606,21 @@ function statusVariant(status: VulnerabilityStatus) {
               </div>
             </div>
             <div class="rounded-xl border border-border bg-muted/30 px-4 py-3">
-              <p class="flex items-center gap-2 text-caption font-medium text-muted-foreground">
-                <FileText class="size-4" />
-                下一步交给 Coding Agent
-              </p>
+              <div class="flex items-center justify-between gap-3">
+                <p class="flex items-center gap-2 text-caption font-medium text-muted-foreground">
+                  <FileText class="size-4" />
+                  下一步交给 Coding Agent
+                </p>
+                <Button
+                  v-if="dashboard.codingTaskForSelected.value"
+                  variant="outline"
+                  size="sm"
+                  @click="$emit('startCodingTask', dashboard.codingTaskForSelected.value)"
+                >
+                  <Workflow class="size-4" />
+                  交给 Coding
+                </Button>
+              </div>
               <p class="mt-2 text-body leading-6">{{ dashboard.researchTaskFor.value.nextPrompt }}</p>
             </div>
           </div>

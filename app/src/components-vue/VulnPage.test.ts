@@ -33,6 +33,21 @@ async function mountVulnPage() {
   return host
 }
 
+async function mountVulnPageWithCodingTaskSink() {
+  const host = document.createElement('div')
+  document.body.append(host)
+  const tasks: Array<{ title: string; prompt: string; visibleText: string }> = []
+  const app = createApp(VulnPage, {
+    onStartCodingTask: (task: { title: string; prompt: string; visibleText: string }) => {
+      tasks.push(task)
+    },
+  })
+  app.mount(host)
+  mountedApps.push(app)
+  await nextTick()
+  return { host, tasks }
+}
+
 async function setInput(input: HTMLInputElement | HTMLTextAreaElement, value: string) {
   input.value = value
   input.dispatchEvent(new Event('input', { bubbles: true }))
@@ -225,5 +240,36 @@ describe('VulnPage', () => {
     clear.click()
     await nextTick()
     expect(host.textContent).toContain('待确认')
+  })
+
+  it('hands confirmed CVE practice context to Coding Agent as a safe task', async () => {
+    const { host, tasks } = await mountVulnPageWithCodingTaskSink()
+    const activeMqRow = [...host.querySelectorAll<HTMLTableRowElement>('tr')].find(item =>
+      item.textContent?.includes('CVE-2023-46604'),
+    )
+    if (!activeMqRow) throw new Error('missing ActiveMQ CVE row')
+    activeMqRow.click()
+    await nextTick()
+
+    const confirm = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
+      item.textContent?.includes('确认本地练习'),
+    )
+    confirm?.click()
+    await nextTick()
+
+    const handoff = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
+      item.textContent?.includes('交给 Coding'),
+    )
+    if (!handoff) throw new Error('missing Coding handoff button')
+    handoff.click()
+    await nextTick()
+
+    expect(tasks).toHaveLength(1)
+    expect(tasks[0].title).toBe('CVE-2023-46604 研究接力')
+    expect(tasks[0].visibleText).toContain('接手 CVE-2023-46604')
+    expect(tasks[0].prompt).toContain('Apache ActiveMQ OpenWire RCE')
+    expect(tasks[0].prompt).toContain('vulhub/activemq/CVE-2023-46604')
+    expect(tasks[0].prompt).toContain('不要自动拉取镜像、启动容器、运行 exploit 或访问外部目标')
+    expect(tasks[0].prompt).toContain('不要把情报命中或练习结果写成真实资产已验证')
   })
 })
