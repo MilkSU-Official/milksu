@@ -39,11 +39,11 @@ import type { VulnerabilitySeverity, VulnerabilityStatus } from '@/vulnerability
 
 defineOptions({ name: 'VulnPage' })
 
-defineProps<{
+const props = defineProps<{
   codingWorkspacePath?: string
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   openSettings: []
   chooseCodingWorkspace: []
   startCodingTask: [task: VulnerabilityCodingTask]
@@ -124,6 +124,11 @@ function addSelectedAssetRecord() {
   } catch (cause) {
     assetFormError.value = cause instanceof Error ? cause.message : String(cause)
   }
+}
+
+function startSelectedCodingTask(task: VulnerabilityCodingTask) {
+  dashboard.recordCodingHandoff(dashboard.selected.value.id, task, props.codingWorkspacePath ?? '')
+  emit('startCodingTask', task)
 }
 
 function severityVariant(severity: VulnerabilitySeverity) {
@@ -341,11 +346,12 @@ function statusVariant(status: VulnerabilityStatus) {
           :research-note="dashboard.researchNoteFor.value"
           :practice-environment="dashboard.practiceEnvironmentFor.value"
           :practice-session="dashboard.practiceSessionFor.value"
+          :coding-handoff="dashboard.codingHandoffFor.value"
           :coding-workspace-path="codingWorkspacePath"
           :coding-task="dashboard.codingTaskForSelected.value"
           @establish-task="dashboard.establishResearchTask(dashboard.selected.value.id)"
           @confirm-practice="dashboard.confirmPracticeEnvironment(dashboard.selected.value.id)"
-          @start-coding-task="$emit('startCodingTask', $event)"
+          @start-coding-task="startSelectedCodingTask"
         />
 
         <section class="border-b border-border px-6 py-5">
@@ -461,7 +467,7 @@ function statusVariant(status: VulnerabilityStatus) {
                   v-if="dashboard.codingTaskForSelected.value"
                   variant="outline"
                   size="sm"
-                  @click="$emit('startCodingTask', dashboard.codingTaskForSelected.value)"
+                  @click="startSelectedCodingTask(dashboard.codingTaskForSelected.value)"
                 >
                   <Workflow class="size-4" />
                   交给 Coding
@@ -660,7 +666,7 @@ function statusVariant(status: VulnerabilityStatus) {
                   v-if="dashboard.codingTaskForSelected.value"
                   variant="outline"
                   size="sm"
-                  @click="$emit('startCodingTask', dashboard.codingTaskForSelected.value)"
+                  @click="startSelectedCodingTask(dashboard.codingTaskForSelected.value)"
                 >
                   <Workflow class="size-4" />
                   交给 Coding

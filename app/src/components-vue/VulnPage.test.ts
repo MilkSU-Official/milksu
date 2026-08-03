@@ -315,5 +315,8 @@ describe('VulnPage', () => {
     expect(tasks[0].prompt).toContain('vulhub/activemq/CVE-2023-46604')
     expect(tasks[0].prompt).toContain('不要自动拉取镜像、启动容器、运行 exploit 或访问外部目标')
     expect(tasks[0].prompt).toContain('不要把情报命中或练习结果写成真实资产已验证')
+    expect(host.textContent).toContain('最近 Coding 接力')
+    expect(host.textContent).toContain('已交接')
+    expect(host.textContent).toContain('临时工作区')
   })
 })
