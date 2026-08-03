@@ -408,7 +408,11 @@ export function normalizeComputerUseDescriptor(value) {
   if (!/^[A-Za-z0-9.-]{1,256}$/.test(targetBundleId)) {
     throw new Error("MilkSU rejected an invalid Computer Use bundle id");
   }
-  if (!targetName || targetName.length > 120 || targetName.includes("\0")) {
+  if (
+    !targetName
+    || targetName.length > 120
+    || /[\u0000-\u001f\u007f]/u.test(targetName)
+  ) {
     throw new Error("MilkSU rejected an invalid Computer Use target name");
   }
   const targetPid = Number(value.targetPid);
