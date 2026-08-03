@@ -17,14 +17,22 @@ function conversation(overrides: Partial<Conversation>): Conversation {
 }
 
 describe('workspaceSessionRouting', () => {
-  const codingRecent = conversation({ id: 'coding-recent', title: '普通 Coding' })
+  const codingRecent = conversation({ id: 'coding-recent', title: '普通 Coding', createdAt: 30 })
   const ctfRecent = conversation({
     id: 'ctf-recent',
     title: 'CTF Solver',
+    createdAt: 40,
     ctfJobId: 'ctf-job-recent',
     ctfRole: 'solver',
   })
-  const codingOlder = conversation({ id: 'coding-older', title: '旧 Coding' })
+  const ctfOlder = conversation({
+    id: 'ctf-older',
+    title: 'Old CTF Solver',
+    createdAt: 20,
+    ctfJobId: 'ctf-job-older',
+    ctfRole: 'solver',
+  })
+  const codingOlder = conversation({ id: 'coding-older', title: '旧 Coding', createdAt: 10 })
 
   it('remembers Coding and CTF conversations independently', () => {
     const afterCoding = rememberWorkspaceConversation(codingOlder, {
@@ -44,7 +52,7 @@ describe('workspaceSessionRouting', () => {
   })
 
   it('restores Coding to the latest non-CTF conversation instead of reusing an active CTF Agent chat', () => {
-    const conversations = [ctfRecent, codingRecent, codingOlder]
+    const conversations = [codingOlder, ctfRecent, codingRecent]
 
     expect(selectCodingConversationId(conversations, 'ctf-recent', 'coding-older'))
       .toBe('coding-older')
@@ -53,9 +61,18 @@ describe('workspaceSessionRouting', () => {
   })
 
   it('restores CTF workspace resume points without replacing the active Coding conversation', () => {
-    const conversations = [codingRecent, ctfRecent]
+    const conversations = [codingRecent, ctfOlder, ctfRecent]
 
     expect(selectCTFResumePoint(conversations, 'coding-recent', 'ctf-recent')).toEqual({
+      conversationId: 'ctf-recent',
+      jobId: 'ctf-job-recent',
+    })
+  })
+
+  it('falls back to the newest CTF resume point when no remembered CTF chat exists', () => {
+    const conversations = [ctfOlder, codingRecent, ctfRecent]
+
+    expect(selectCTFResumePoint(conversations, 'coding-recent', null)).toEqual({
       conversationId: 'ctf-recent',
       jobId: 'ctf-job-recent',
     })

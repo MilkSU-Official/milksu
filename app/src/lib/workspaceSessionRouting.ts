@@ -9,6 +9,14 @@ export function isCTFConversation(conversation: Conversation | null | undefined)
   return Boolean(conversation?.ctfJobId)
 }
 
+function newestConversation(conversations: Conversation[]) {
+  return conversations.reduce<Conversation | null>((newest, conversation) => {
+    if (!newest) return conversation
+    if (conversation.createdAt > newest.createdAt) return conversation
+    return newest
+  }, null)
+}
+
 export function rememberWorkspaceConversation(
   conversation: Conversation | null | undefined,
   remembered: {
@@ -35,7 +43,7 @@ export function selectCodingConversationId(
   ))
   if (remembered) return remembered.id
 
-  return conversations.find(conversation => !isCTFConversation(conversation))?.id ?? null
+  return newestConversation(conversations.filter(conversation => !isCTFConversation(conversation)))?.id ?? null
 }
 
 export function selectCTFResumePoint(
@@ -48,7 +56,9 @@ export function selectCTFResumePoint(
   const remembered = conversations.find(conversation => (
     conversation.id === rememberedCTFConversationId && isCTFConversation(conversation)
   ))
-  const next = activeCTF ?? remembered ?? conversations.find(isCTFConversation)
+  const next = activeCTF
+    ?? remembered
+    ?? newestConversation(conversations.filter(isCTFConversation))
   return {
     conversationId: next?.id ?? null,
     jobId: next?.ctfJobId ?? null,
