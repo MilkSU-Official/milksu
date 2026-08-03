@@ -58,3 +58,7 @@ MilkSU 支持的 Chrome/Chromium 时会明确失败；默认 `m3:release-check` 
 
 “工具存在”“Skill 已加载”或只生成一张截图都不能算通过。至少要完成一次 MilkSU 前端纵切
 和一次用户授权的其他项目前端纵切，才能进入成功率对照。
+
+已完成的真实任务按次固化在
+[前端视觉 QA 真实任务验收记录](./frontend-visual-qa-acceptance.md)，当前只计入 MilkSU
+自身项目，不提前计入尚未执行的其他项目。
