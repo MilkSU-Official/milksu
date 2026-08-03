@@ -1094,21 +1094,7 @@ func (a *App) PrepareCTFAgentWorkspace(id string) (ctf.AgentWorkspaceHandoff, er
 		return ctf.AgentWorkspaceHandoff{}, err
 	}
 	if a.ctfMemory != nil {
-		memories, recallErr := a.ctfMemory.RecallForChallenge(
-			a.commandContext(),
-			ctf.TrainingMemoryRecallContext{
-				Category:        projection.Challenge.Category,
-				Title:           projection.Challenge.Title,
-				KnowledgePoints: projection.Challenge.KnowledgePoints,
-				SourceJobID:     projection.Job.ID,
-			},
-			5,
-		)
-		if recallErr != nil {
-			return ctf.AgentWorkspaceHandoff{}, recallErr
-		}
-		memories = a.attributeCTFMemories(memories)
-		if err := ctf.WriteAgentMemoryContext(handoff.WorkspacePath, memories); err != nil {
+		if _, err := a.refreshCTFMemoryContext(projection, true); err != nil {
 			return ctf.AgentWorkspaceHandoff{}, err
 		}
 	}
@@ -1139,27 +1125,8 @@ func (a *App) SaveCTFTrainingMemory(id string) (ctf.TrainingMemory, error) {
 	if err != nil {
 		return ctf.TrainingMemory{}, err
 	}
-	workspacePath, pathErr := ctf.AgentWorkspacePath(
-		filepath.Join(a.dataDirectory, "ctf-workspaces"),
-		id,
-	)
-	if pathErr == nil {
-		if _, statErr := os.Stat(filepath.Join(workspacePath, "challenge.json")); statErr == nil {
-			memories, recallErr := a.ctfMemory.RecallForChallenge(
-				a.commandContext(),
-				ctf.TrainingMemoryRecallContext{
-					Category:        projection.Challenge.Category,
-					Title:           projection.Challenge.Title,
-					KnowledgePoints: projection.Challenge.KnowledgePoints,
-					SourceJobID:     projection.Job.ID,
-				},
-				5,
-			)
-			if recallErr == nil {
-				memories = a.attributeCTFMemories(memories)
-				_ = ctf.WriteAgentMemoryContext(workspacePath, memories)
-			}
-		}
+	if _, refreshErr := a.refreshCTFMemoryContext(projection, false); refreshErr != nil {
+		return ctf.TrainingMemory{}, refreshErr
 	}
 	return memory, nil
 }
@@ -1183,6 +1150,16 @@ func (a *App) GetCTFMemoryContext(id string) ([]ctf.TrainingMemory, error) {
 	if err != nil {
 		return nil, err
 	}
+	return a.refreshCTFMemoryContext(projection, false)
+}
+
+func (a *App) refreshCTFMemoryContext(
+	projection ctf.Projection,
+	requireWorkspace bool,
+) ([]ctf.TrainingMemory, error) {
+	if a.ctfMemory == nil {
+		return nil, fmt.Errorf("CTF memory store is unavailable")
+	}
 	memories, err := a.ctfMemory.RecallForChallenge(
 		a.commandContext(),
 		ctf.TrainingMemoryRecallContext{
@@ -1196,7 +1173,27 @@ func (a *App) GetCTFMemoryContext(id string) ([]ctf.TrainingMemory, error) {
 	if err != nil {
 		return nil, err
 	}
-	return a.attributeCTFMemories(memories), nil
+	memories = a.attributeCTFMemories(memories)
+	workspacePath, pathErr := ctf.AgentWorkspacePath(
+		filepath.Join(a.dataDirectory, "ctf-workspaces"),
+		projection.Job.ID,
+	)
+	if pathErr != nil {
+		if requireWorkspace {
+			return nil, pathErr
+		}
+		return memories, nil
+	}
+	if _, statErr := os.Stat(filepath.Join(workspacePath, "challenge.json")); statErr != nil {
+		if requireWorkspace {
+			return nil, statErr
+		}
+		return memories, nil
+	}
+	if err := ctf.WriteAgentMemoryContext(workspacePath, memories); err != nil {
+		return nil, err
+	}
+	return memories, nil
 }
 
 // attributeCTFMemories derives contributor metadata from the append-only

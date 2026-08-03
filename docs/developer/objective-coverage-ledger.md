@@ -40,12 +40,12 @@
 | --- | ---: | ---: | ---: |
 | Coding Agent 与高频替代能力 | 31 | 1,525 / 3,100 | **49%** |
 | CTF 通用闭环与网络边界 | 15 | 550 / 1,500 | **37%** |
-| Memory 与能力画像 | 11 | 475 / 1,100 | **43%** |
+| Memory 与能力画像 | 11 | 500 / 1,100 | **45%** |
 | Runtime Reliability 与 NYU Bench | 10 | 700 / 1,000 | **70%** |
 | 架构约束 | 6 | 125 / 600 | **21%** |
 | 本地数据安全与正式交付 | 15 | 600 / 1,500 | **40%** |
 | 最终文档 | 2 | 75 / 200 | **38%** |
-| **整体** | **90** | **4,050 / 9,000** | **45%** |
+| **整体** | **90** | **4,075 / 9,000** | **45%** |
 
 此前约 58% 的估值按大块综合判断，分母中没有逐项展开真实验收、跨项目、六赛道、RC 和
 架构约束。第二轮证据复核又把没有原生 App 真实任务的 Vue/Go Code Action 从 75% 调到
@@ -61,7 +61,8 @@ Computer Use 工具截图的辅助视觉回路，因此新增 `COD-31`；随后�
 matrix entry，将 `DEL-09` 从 25% 调到 50%；六赛道回归清单已补机器可校验 manifest 和
 runbook，将 `CTF-12` 从 25% 调到 50%；Project MCP 已通过正式 adapter config 实际调用
 allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 是当前细项口径的
-基线。后续只使用同一张表比较变化。
+基线；归档 Memory 后推荐召回和 Agent `MEMORY.md` 已同步刷新，将 `MEM-10` 从 25% 调到
+50%。后续只使用同一张表比较变化。
 
 ### 分值分布
 
@@ -69,8 +70,8 @@ allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 
 | ---: | ---: | --- |
 | 100% | 8 | 行定义的精确门槛已经通过 |
 | 75% | 19 | 已有真实证据，仍缺完整矩阵或最终 Gate |
-| 50% | 32 | 工程实现和自动化存在，仍缺真实任务 |
-| 25% | 9 | 只有局部纵切、设计或基础设施 |
+| 50% | 33 | 工程实现和自动化存在，仍缺真实任务 |
+| 25% | 8 | 只有局部纵切、设计或基础设施 |
 | 0% | 22 | 未执行，或当前没有足够证据 |
 
 ### 0% / 25% 项的主要启动条件
@@ -158,7 +159,7 @@ allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 
 | MEM-07 | delegate 成功不增加独立完成 | 自动化测试存在 | 50% | 真实 delegate 样本 |
 | MEM-08 | 推荐理由链接 Judge、提示、步骤和失败 | `RecallForChallenge` 返回结构化推荐原因和证据链接；保存记忆时写入 judge/hint/step/failure refs；Agent `MEMORY.md` 与前端记忆卡展示可核对证据；`go test ./internal/ctf`、`go test ./...`、前端 lint/build 通过 | 50% | 用真实题目轨迹完成端到端可点击证据验收 |
 | MEM-09 | 当前题排除、相关旧题优先、无关题负对照 | `RecallForChallenge` 与相关/无关/当前题自动化存在 | 50% | 跨真实题目的端到端召回对照 |
-| MEM-10 | 删除/归档证据后画像与推荐同步 | 归档基础存在 | 25% | 端到端一致性验收 |
+| MEM-10 | 删除/归档证据后画像与推荐同步 | 归档后 `RecallForChallenge` 不再返回停用记忆，现有 `GetCTFMemoryContext` 会同步重写 Agent workspace `MEMORY.md`，同源 job 重新保存会清空 archive 状态并重新进入召回；`go test ./internal/ctf` 通过 | 50% | 打包 App 中完成可点击归档、推荐消失、Agent 上下文刷新和 Ability Profile 同步验收 |
 | MEM-11 | 36 条分层样本与跨题校准 | 尚未执行 | 0% | 6 赛道 × 3 模式 × 每组 2 条 |
 
 ## Runtime Reliability 与 NYU Bench
@@ -229,9 +230,10 @@ allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 
 | OBS-07 | Project MCP 已补本地项目 fixture 的实际 `fixture_read` 调用；仍不是用户真实项目或高频 MCP 任务 | `COD-28` 保持 75%，后续等真实任务再推进 |
 | OBS-08 | 六赛道动态覆盖矩阵和 6/6 判定已存在；版本化 manifest 和校验脚本已补，但五个非 Web 赛道仍未选定真实题目 | `CTF-12` 保持 50%，后续真题验收时补满固定题目与回执 |
 | OBS-09 | Memory 已自动验证当前题排除、相关旧题优先和无关题负对照 | `MEM-09` 从 25% 校准为 50%，仍缺真实轨迹 |
-| OBS-10 | Runtime 已能投影后台任务 PID、端口、日志并在 Sidecar 重启后恢复，缺口是完整 App 的用户可见长任务 | `RUN-08` 保持 25%，不重复实现 Sidecar 恢复 |
-| OBS-11 | 本地交付报告已有单机启动、RSS、chunk 和包体测量；pre-release 阈值和单机 support matrix entry 已补，但没有多机 RC 矩阵 | `DEL-09` 保持 50%，RC 阶段重复测量后再冻结正式阈值 |
-| OBS-12 | macOS “App 管理”权限不等于 Computer Use 所需 Accessibility；截图可用也不代表 AX 可用 | `COD-16` 仍需单独验收 Accessibility 与 Screen Recording |
+| OBS-10 | Memory 归档已经同步推荐召回和 Agent 上下文文件；Ability Profile 当前仍主要由训练信号/Judge 轨迹投影，不由 Memory 表直接驱动 | `MEM-10` 保持 50%，真实 App 归档和画像联动后再推进 |
+| OBS-11 | Runtime 已能投影后台任务 PID、端口、日志并在 Sidecar 重启后恢复，缺口是完整 App 的用户可见长任务 | `RUN-08` 保持 25%，不重复实现 Sidecar 恢复 |
+| OBS-12 | 本地交付报告已有单机启动、RSS、chunk 和包体测量；pre-release 阈值和单机 support matrix entry 已补，但没有多机 RC 矩阵 | `DEL-09` 保持 50%，RC 阶段重复测量后再冻结正式阈值 |
+| OBS-13 | macOS “App 管理”权限不等于 Computer Use 所需 Accessibility；截图可用也不代表 AX 可用 | `COD-16` 仍需单独验收 Accessibility 与 Screen Recording |
 
 ## 暂存缺陷
 

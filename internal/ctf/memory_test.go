@@ -714,6 +714,109 @@ func TestRecallForChallengeRanksRelevantMemoryAndExcludesCurrentJob(t *testing.T
 	}
 }
 
+func TestArchiveSynchronizesChallengeRecallAndAgentMemoryContext(t *testing.T) {
+	root := t.TempDir()
+	store, err := NewMemoryStore(
+		filepath.Join(root, "memory.sqlite3"),
+		filepath.Join(root, "memories"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	source := memoryFixtureProjection()
+	source.Job.ID = "job_archived_memory"
+	source.Challenge.Title = "Length-field archive"
+	source.Challenge.KnowledgePoints = []string{"length field", "endianness"}
+	memory, err := store.SaveFromProjection(
+		context.Background(),
+		source,
+		"ctf_archive_source",
+		time.Now().Add(-time.Hour),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	contextForSameTopic := TrainingMemoryRecallContext{
+		Category:        "pwn",
+		Title:           "Little-endian length field",
+		KnowledgePoints: []string{"length field"},
+		SourceJobID:     "job_current_archive_check",
+	}
+	beforeArchive, err := store.RecallForChallenge(
+		context.Background(),
+		contextForSameTopic,
+		5,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(beforeArchive) != 1 || beforeArchive[0].ID != memory.ID {
+		t.Fatalf("expected active memory before archive, got %#v", beforeArchive)
+	}
+
+	if err := store.Archive(
+		context.Background(),
+		memory.ID,
+		"用户停用过期技法",
+		time.Now(),
+	); err != nil {
+		t.Fatal(err)
+	}
+	afterArchive, err := store.RecallForChallenge(
+		context.Background(),
+		contextForSameTopic,
+		5,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(afterArchive) != 0 {
+		t.Fatalf("archived memory remained in challenge-aware recall: %#v", afterArchive)
+	}
+	workspace := t.TempDir()
+	if err := WriteAgentMemoryContext(workspace, afterArchive); err != nil {
+		t.Fatal(err)
+	}
+	contextData, err := os.ReadFile(filepath.Join(workspace, "MEMORY.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if contextText := string(contextData); !strings.Contains(contextText, "当前没有匹配本题分类的已保存记忆") ||
+		strings.Contains(contextText, "Length-field archive") {
+		t.Fatalf("agent memory context did not reflect archive state: %s", contextText)
+	}
+
+	updated := source
+	updated.Debrief.Summary = "重新复盘后确认该长度字段技法仍可复用。"
+	restored, err := store.SaveFromProjection(
+		context.Background(),
+		updated,
+		"ctf_archive_source_restored",
+		time.Now(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if restored.ID != memory.ID {
+		t.Fatalf("same source job created a second memory: %s != %s", restored.ID, memory.ID)
+	}
+	afterRestore, err := store.RecallForChallenge(
+		context.Background(),
+		contextForSameTopic,
+		5,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(afterRestore) != 1 || afterRestore[0].ID != memory.ID ||
+		!afterRestore[0].ArchivedAt.IsZero() ||
+		afterRestore[0].ArchivedReason != "" {
+		t.Fatalf("resaved source job did not restore active recall: %#v", afterRestore)
+	}
+}
+
 func memoryFixtureProjection() Projection {
 	return Projection{
 		Job: securityruntime.Job{ID: "job_memory"},
