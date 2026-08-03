@@ -374,6 +374,13 @@ const topbarPresentation = computed(() => chatTopbarPresentation({
   codingPolicyLabel: codingPolicyLabel.value,
   ctfMode: props.ctfMode,
 }))
+const topbarModule = computed(() => (
+  props.ctfSession
+    ? 'ctf'
+    : props.vulnerabilitySession
+      ? 'cve'
+      : 'coding'
+))
 const approvalMenuLabel = computed(() => (
   effectiveApprovalPolicy.value === 'full-auto'
     ? '完全访问'
@@ -1160,7 +1167,7 @@ watch(
   <section class="relative flex min-w-0 flex-1 overflow-hidden bg-surface-editor">
   <main class="chat-main flex min-w-0 flex-1 flex-col overflow-hidden bg-surface-editor">
     <WorkspaceTopBar
-      :module="ctfSession ? 'ctf' : 'coding'"
+      :module="topbarModule"
       :title="topbarPresentation.title"
       :subtitle="topbarPresentation.subtitle"
     >

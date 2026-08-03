@@ -879,3 +879,29 @@
 - 完整 “MilkSU develops MilkSU” Vue + Go 自举任务；
 - 外部 App Computer Use 真实操作；
 - Developer ID、公证、升级和外部 Beta 发行门禁。
+
+## 2026-08-04 · CTF visible six-track smoke and shared topbar recheck
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | 本批次提交 |
+| 目标流 | 进入 CTF / CVE / Coding 一级菜单 → 顶栏标题使用同一组件；进入 CTF 默认桌面 → 六赛道 Judge 状态可见且不夸大成绩 |
+| 窄测 | `npm --prefix app test -- CTFPageNavigationContract.test.ts WorkspaceTopBar.test.ts chatTopbar.test.ts` |
+| 窄测结果 | 3 files / 11 tests passed |
+| 前端构建 | `npm --prefix app run build` |
+| 构建结果 | production build passed |
+| Browser 验证 | Vite preview `http://127.0.0.1:4188/`；依次进入 CTF、CVE、Coding，读取 `[data-workspace-topbar-title]`；回到 CTF 读取 `aria-label="CTF 六赛道真实验收"` |
+
+覆盖范围：
+
+- CTF 默认题库桌面现在直接显示六赛道真实验收状态，而不是只藏在左侧能力 rail 或未渲染的 source 分支；
+- CTF 六赛道卡明确显示 `0/6 Judge`、缺失赛道和“一题成功只算赛道 smoke，不能描述为完整 CTF 成绩”；
+- CTF、CVE、Coding 三个一级菜单的顶栏标题都来自 `WorkspaceTopBarTitle`，DOM 均为 `[data-workspace-topbar-title]`，class 均为 `workspace-topbar__title truncate text-control font-medium tracking-[-0.01em]`；
+- CVE 接力会话的 topbar module 计算已补成 `ctf / cve / coding` 三态，避免后续按模块样式时把 CVE 来源误归为普通 Coding；
+- Browser preview 无 relevant console error / warn，无 Vite overlay。
+
+本次仍未证明：
+
+- 六赛道已经完成真实 Judge-verified；当前仍只有 smoke 状态展示；
+- 原生 App 中不同窗口尺寸下的顶栏视觉截图回归；
+- 页面内部所有二级标题、统计卡、Tabs、Textarea 和深层详情组件已经完全统一。

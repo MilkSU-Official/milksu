@@ -98,7 +98,10 @@ describe('WorkspaceTopBar', () => {
         .toContain('<WorkspaceTopBar')
     }
 
-    expect(chatPageSource).toContain(`:module="ctfSession ? 'ctf' : 'coding'"`)
+    expect(chatPageSource).toContain('const topbarModule = computed')
+    expect(chatPageSource).toContain(": props.vulnerabilitySession")
+    expect(chatPageSource).toContain("? 'cve'")
+    expect(chatPageSource).toContain(':module="topbarModule"')
     expect(ctfPageSource).toContain('module="ctf"')
     expect(ctfWorkspaceHeaderSource).toContain('module="ctf"')
     expect(vulnPageSource).toContain('module="cve"')

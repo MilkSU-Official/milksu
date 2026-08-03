@@ -113,6 +113,17 @@ const selectedRecommendationReason = computed(() => {
 const readiness = computed(() => (
   Number(props.modelVerified) + Number(props.catalogReady) + Number(props.judgeReady)
 ))
+const acceptance = computed(() => props.dashboard?.acceptance ?? null)
+const missingAcceptanceTracks = computed(() => (
+  acceptance.value?.tracks.filter(track => track.status !== 'judge-verified') ?? []
+))
+const acceptanceSummary = computed(() => {
+  const current = acceptance.value
+  if (!current) return '同步题库后显示六赛道真实验收状态。'
+  if (current.ready) return '六个赛道都有 Judge-verified 证据，可进入固定回归复核。'
+  const missing = missingAcceptanceTracks.value.map(track => track.label).join('、')
+  return `${current.judgeVerifiedTracks}/${current.requiredTracks} 个赛道已有 Judge-verified 证据；仍缺 ${missing || '待确认赛道'}。`
+})
 const nssctfNeedsMaterial = computed(() => Boolean(
   props.selectedNssctf?.hasAttachment
   && !props.selectedBrowserReady
@@ -204,6 +215,25 @@ function statusLabel(status: string) {
   if (status === 'completed') return '已完成'
   if (status === 'attempted') return '进行中'
   return '未开始'
+}
+
+function acceptanceStatusText(status: string) {
+  switch (status) {
+    case 'judge-verified':
+      return 'Judge 已验证'
+    case 'user-confirmed':
+      return '用户确认'
+    case 'attempted':
+      return '已尝试'
+    default:
+      return '缺证据'
+  }
+}
+
+function acceptanceStatusVariant(status: string) {
+  if (status === 'judge-verified') return 'success'
+  if (status === 'user-confirmed') return 'secondary'
+  return 'outline'
 }
 
 function difficultyLabel(difficulty: number) {
@@ -471,6 +501,41 @@ function runPrimaryAction() {
     </div>
 
     <aside ref="detailPane" class="challenge-detail min-h-0 overflow-y-auto bg-card" aria-live="polite">
+      <section
+        v-if="activeBank === 'nssctf' && acceptance"
+        class="border-b border-border bg-background/55 px-5 py-4"
+        aria-label="CTF 六赛道真实验收"
+      >
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-caption font-medium text-muted-foreground">六赛道真实验收</p>
+            <p class="mt-1 text-control font-medium">
+              {{ acceptance.ready ? 'Ready，可回归复核' : '仍是通用能力 smoke' }}
+            </p>
+            <p class="mt-1 text-caption leading-5 text-muted-foreground">
+              {{ acceptanceSummary }}
+            </p>
+          </div>
+          <Badge :variant="acceptance.ready ? 'success' : 'outline'" class="shrink-0">
+            {{ acceptance.judgeVerifiedTracks }}/{{ acceptance.requiredTracks }} Judge
+          </Badge>
+        </div>
+        <div class="mt-3 flex flex-wrap gap-2">
+          <Badge
+            v-for="track in acceptance.tracks"
+            :key="track.key"
+            :variant="acceptanceStatusVariant(track.status)"
+            class="gap-1"
+          >
+            <span>{{ track.label }}</span>
+            <span class="text-muted-foreground">{{ acceptanceStatusText(track.status) }}</span>
+          </Badge>
+        </div>
+        <p class="mt-3 text-caption leading-5 text-muted-foreground">
+          一题成功只算赛道 smoke，不能描述为完整 CTF 成绩；后续补缺失赛道的真实题目、材料、轨迹、Judge 回执、恢复和复盘证据。
+        </p>
+      </section>
+
       <template v-if="selectedNssctf && activeBank === 'nssctf'">
         <div class="p-7 lg:p-9">
           <div class="flex items-start justify-between gap-4">
