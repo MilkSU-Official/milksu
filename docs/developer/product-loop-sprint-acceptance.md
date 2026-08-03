@@ -957,3 +957,30 @@
 - 原生 App 中真实启动 Agent 并完成 CVE → Coding → CVE 的研究结果回写；
 - Vulhub 完整 catalog import、Docker/Compose 启动、停止和清理；
 - 任何 CVE 练习结果可代表真实资产已验证。
+
+## 2026-08-04 · Coding self-bootstrap task prompt
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | 本批次提交 |
+| 目标流 | Coding → 右侧产品闭环 → 复制一个低风险、用户可见、可交给下一轮 Agent 的小自举任务 |
+| 窄测 | `npm --prefix app test -- CodingProductLoopPanel.test.ts` |
+| 窄测结果 | 1 file / 19 tests passed |
+| 前端构建 | `npm --prefix app run build` |
+| 构建结果 | production build passed |
+| Browser 验证 | Vite preview `http://127.0.0.1:4191/`；进入 Coding，读取产品闭环卡和 console |
+
+覆盖范围：
+
+- Coding 产品闭环卡新增“推荐小自举任务”，不会自动启动 Agent，而是生成可复制的受限 prompt；
+- prompt 固定要求先读 git 状态、`product-loop-sprint.md` 和 `objective-coverage-ledger.md`，避免长上下文压缩后重复旧功能；
+- prompt 要求只选一个低风险、用户可见、几小时内能推进闭环的小切片，并把相邻非阻塞问题登记到覆盖台账；
+- prompt 固定要求运行相关窄测试、`npm --prefix app run build`、Browser preview 验证、`git diff --check`、commit 和 push；
+- prompt 明确继续禁止读取、输出或迁移 Provider/API Key，禁止把 smoke、UI 架子、Browser preview 或组件测试写成完整产品成绩；
+- Browser preview 中 Coding 页面非空，`推荐小自举任务`、`复制任务`、`不会自动启动 Agent` 均可见，console 无 relevant error / warn。
+
+本次仍未证明：
+
+- 下一轮 Agent 真的已经使用该 prompt 完成一次完整 MilkSU 自举任务；
+- 原生打包 App 中该复制动作的系统剪贴板权限和 UI 反馈；
+- 完整 Vue + Go、跨应用重启、PR 发布确认和外部 Computer Use 真实操作。

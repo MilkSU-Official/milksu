@@ -69,6 +69,7 @@ const emit = defineEmits<{
 const copyNotice = ref('')
 const followupCopyNotice = ref('')
 const nativeAppCopyNotice = ref('')
+const bootstrapTaskCopyNotice = ref('')
 
 const canAct = computed(() => (
   props.executionMode === 'go'
@@ -488,6 +489,26 @@ const nativeAppAcceptancePrompt = computed(() => {
   return lines.join('\n')
 })
 
+const bootstrapTaskPrompt = computed(() => {
+  const lines = [
+    '继续 MilkSU M3 产品闭环冲刺，选择一个小而真实的 MilkSU 自举任务并完成。',
+    '',
+    `工作区：${props.workspacePath || '先选择 /Users/milksu/code/milksu'}`,
+    `权限建议：Go + ${props.approvalPolicy === 'read-only' ? '替我审批或完全访问' : approvalPolicyLabel(props.approvalPolicy)}`,
+    '',
+    '任务要求：',
+    '1. 先读取当前 git 状态、product-loop-sprint.md、objective-coverage-ledger.md，不按旧对话重复已完成项。',
+    '2. 只选一个低风险、用户可见、能在几小时内推进产品闭环的小切片，例如 Coding 产物预览、Browser/Computer Use 入口、CVE 学习/追踪闭环、CTF 工作台清晰度或跨模块视觉一致性。',
+    '3. 如果发现相邻问题但不阻塞主闭环，只登记到覆盖台账，不要深挖。',
+    '4. 完成代码后运行相关窄测试和 npm --prefix app run build；如果是前端可见变化，再用 Browser preview 验证页面不空、无 Vite overlay、console 无相关 error/warn，并保留截图或 DOM 证据。',
+    '5. 更新 product-loop-sprint-acceptance.md，只写实际证明和仍未证明，不写最终完成声明。',
+    '6. git diff --check，通过后 commit 并 push 到 MilkSU 私有仓库当前分支。',
+    '',
+    '边界：不要读取、输出或迁移 Provider/API Key；不要接入外部漏洞目标；不要把 smoke、UI 架子、Browser preview 或组件测试写成完整产品成绩。',
+  ]
+  return lines.join('\n')
+})
+
 const followupPrompt = computed(() => {
   const unfinished = unfinishedAcceptanceItems.value
   const lines = [
@@ -571,6 +592,17 @@ async function copyNativeAppAcceptancePrompt() {
     nativeAppCopyNotice.value = '已复制'
   } catch {
     nativeAppCopyNotice.value = '复制失败，请手动选择清单'
+  }
+}
+
+async function copyBootstrapTaskPrompt() {
+  bootstrapTaskCopyNotice.value = ''
+  try {
+    if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable')
+    await navigator.clipboard.writeText(bootstrapTaskPrompt.value)
+    bootstrapTaskCopyNotice.value = '已复制'
+  } catch {
+    bootstrapTaskCopyNotice.value = '复制失败，请手动选择任务'
   }
 }
 
@@ -690,6 +722,36 @@ function stateBadgeVariant(state: LoopState) {
           {{ nextVerificationAction.actionLabel || '打开' }}
         </Button>
       </div>
+    </div>
+
+    <div
+      class="mt-3 rounded-lg border border-border bg-background px-3 py-3"
+      aria-label="推荐自举任务"
+    >
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <div class="flex items-center gap-2">
+            <p class="text-caption font-medium text-muted-foreground">推荐小自举任务</p>
+            <Badge variant="outline">可复制</Badge>
+          </div>
+          <p class="mt-1 text-caption leading-5 text-muted-foreground">
+            复制一段受限 prompt，让下一轮 Agent 选择一个低风险、用户可见的小切片，跑测试/build/Browser 验证并提交。
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          class="shrink-0"
+          @click="copyBootstrapTaskPrompt"
+        >
+          <Copy class="size-3.5" />
+          复制任务
+        </Button>
+      </div>
+      <p class="mt-2 text-caption text-muted-foreground">
+        {{ bootstrapTaskCopyNotice || '不会自动启动 Agent；复制后你可以按当前上下文决定是否发送。' }}
+      </p>
     </div>
 
     <div

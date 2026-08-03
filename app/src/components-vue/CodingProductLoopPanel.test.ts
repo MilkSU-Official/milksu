@@ -181,6 +181,9 @@ describe('CodingProductLoopPanel', () => {
     expect(text).toContain('下一步验收动作')
     expect(text).toContain('补用户可见验证')
     expect(text).toContain('已有可预览产物候选')
+    expect(text).toContain('推荐小自举任务')
+    expect(text).toContain('复制任务')
+    expect(text).toContain('不会自动启动 Agent')
     expect(host.querySelectorAll('[data-product-loop-state="active"]').length)
       .toBeGreaterThanOrEqual(1)
   })
@@ -315,6 +318,36 @@ describe('CodingProductLoopPanel', () => {
     expect(copied).toContain('Computer Use 外部窗口 Scope')
     expect(copied).toContain('Git Diff/Hunk/stage/commit/push')
     expect(copied).toContain('不要读取、输出或迁移 Provider/API Key')
+    expect(host.textContent).toContain('已复制')
+  })
+
+  it('copies a bounded self-bootstrap task prompt for the next Coding Agent', async () => {
+    const writeText = vi.fn(async () => undefined)
+    vi.stubGlobal('navigator', {
+      ...navigator,
+      clipboard: { writeText },
+    })
+    const { host } = await mountPanel()
+
+    const copyBootstrap = [...host.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.includes('复制任务'))
+    copyBootstrap?.click()
+    await Promise.resolve()
+    await nextTick()
+
+    expect(writeText).toHaveBeenCalledOnce()
+    const copied = String((writeText.mock.calls as unknown as Array<[string]>)[0]?.[0] ?? '')
+    expect(copied).toContain('继续 MilkSU M3 产品闭环冲刺')
+    expect(copied).toContain('工作区：/Users/milksu/code/milksu')
+    expect(copied).toContain('先读取当前 git 状态')
+    expect(copied).toContain('不按旧对话重复已完成项')
+    expect(copied).toContain('只选一个低风险、用户可见')
+    expect(copied).toContain('npm --prefix app run build')
+    expect(copied).toContain('Browser preview 验证页面不空')
+    expect(copied).toContain('git diff --check')
+    expect(copied).toContain('commit 并 push')
+    expect(copied).toContain('不要读取、输出或迁移 Provider/API Key')
+    expect(copied).toContain('不要把 smoke、UI 架子、Browser preview 或组件测试写成完整产品成绩')
     expect(host.textContent).toContain('已复制')
   })
 
