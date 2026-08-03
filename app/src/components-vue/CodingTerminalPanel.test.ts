@@ -5,6 +5,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import CodingTerminalPanel from './CodingTerminalPanel.vue'
 import type { CodingRuntimeStatus } from '@/codingEnvironmentTypes'
 
+const terminalWrites = vi.hoisted(() => [] as string[])
+
 class ResizeObserverStub {
   observe() {}
   unobserve() {}
@@ -23,7 +25,9 @@ vi.mock('@xterm/xterm', () => ({
     }
     reset() {}
     clear() {}
-    write() {}
+    write(data: string) {
+      terminalWrites.push(data)
+    }
     focus() {}
     dispose() {}
   },
@@ -82,6 +86,7 @@ async function settle() {
 afterEach(() => {
   for (const app of mountedApps.splice(0)) app.unmount()
   document.body.innerHTML = ''
+  terminalWrites.length = 0
   invokeCommand.mockClear()
 })
 
@@ -102,6 +107,19 @@ async function mountPanel() {
 }
 
 describe('CodingTerminalPanel', () => {
+  it('does not present old PTY sessions as reconnectable after restart', async () => {
+    await mountPanel()
+
+    expect(invokeCommand).toHaveBeenCalledWith(
+      'list_coding_terminals',
+      { conversationId: 'conversation-restart' },
+    )
+    const terminalText = terminalWrites.join('')
+    expect(terminalText).toContain('交互式 Shell 不跨 App 重启恢复')
+    expect(terminalText).toContain('旧 PTY 已结束且不可重连')
+    expect(terminalText).toContain('后台长任务请在“后台任务”中恢复')
+  })
+
   it('shows recovered background task status, process metadata, ports, and log tail', async () => {
     const host = await mountPanel()
     const taskTab = [...host.querySelectorAll('button')]
