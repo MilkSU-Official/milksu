@@ -8,8 +8,18 @@ const autoApprovedMcpServers = new Set([
   "milksu-playwright",
   "milksu-computer-use",
 ]);
+const hostedExternalMcpServers = new Set([
+  "atlassian",
+  "github",
+  "gitlab",
+  "jira",
+  "linear",
+  "notion",
+  "slack",
+]);
 const readOnlyMcpToolPattern = /(?:^|[_-])(?:describe|fetch|find|get|health|inspect|list|lookup|query|read|resolve|search|status|view)(?:[_-]|$)/iu;
 const hostedPublicationToolPattern = /(?:^|[_-])(?:create|merge|open|publish|submit)[_-](?:draft[_-])?(?:merge[_-]request|pull[_-]request|release)(?:[_-]|$)/iu;
+const externalAccountWriteToolPattern = /(?:^|[_-])(?:add|archive|assign|close|comment|create|delete|edit|invite|merge|move|open|post|publish|remove|reopen|resolve|send|submit|transition|unarchive|update|write)(?:[_-]|$)/iu;
 
 function normalizedApprovalPolicy(value) {
   const policy = String(value ?? "").trim();
@@ -47,6 +57,10 @@ export function codingMcpOperationRequiresApproval(
   if (
     ["auth-start", "auth-complete"].includes(action)
     || hostedPublicationToolPattern.test(tool)
+    || (
+      hostedExternalMcpServers.has(String(selectedServer || input.server || "").trim())
+      && externalAccountWriteToolPattern.test(tool)
+    )
   ) {
     return true;
   }

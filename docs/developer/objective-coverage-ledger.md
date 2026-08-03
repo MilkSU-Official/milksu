@@ -101,8 +101,8 @@ allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 
 | COD-05 | 跨文件 Action 原子拒绝与超大 Diff 拒绝 | 自动化测试存在 | 50% | 打包 App 负向真实验收 |
 | COD-06 | “请求批准”覆盖所有能力入口 | Bridge/UI 自动化存在 | 50% | Browser、Computer Use、MCP、委托组合验收 |
 | COD-07 | “替我审批”拦截无意义审批 | Browser 真实任务与策略测试存在 | 75% | Computer Use 与项目 MCP 真实任务 |
-| COD-08 | “完全访问”仍保持硬边界 | 策略测试存在 | 50% | 打包 App 越界负向验收 |
-| COD-09 | 付费、账户授权、扩大 Scope、发布仍独立确认 | ImageGen、MCP、Endpoint、PR 测试存在 | 75% | 真实 Provider 与托管发布确认 |
+| COD-08 | “完全访问”仍保持硬边界 | 策略测试存在；Full Access 对本地/已选普通 MCP 可自动执行，但 GitHub/Linear/Jira/Slack 等外部账户写入仍要求确认 | 50% | 打包 App 越界负向验收 |
+| COD-09 | 付费、账户授权、扩大 Scope、发布仍独立确认 | ImageGen、MCP、Endpoint、PR 测试存在；`bridge-auto-approval.test.js` 覆盖 OAuth、PR/Release 发布和托管外部账户写入在所有权限档下都不被自动批准 | 75% | 真实 Provider 与托管发布确认 |
 | COD-10 | Markdown、HTML、图片产物预览 | Go/Vue 实现与安全测试存在；前端建议列表只展示工作区相对路径内的 Markdown、HTML 与图片产物，不再建议绝对路径或 `..` 逃逸形态 | 50% | 打包 App 三种产物真实预览 |
 | COD-11 | HTML 隔离、CSP、禁网、路径与大小限制 | `artifact_preview_test.go` 等自动化；`codingArtifact.test.ts` 覆盖外部资源剥离、CSP 和不安全建议路径过滤 | 50% | 原生 WebView 负向验收 |
 | COD-12 | 隔离 Browser 自动化与证据边界 | Browser integration 与 41 项窄测试通过 | 100% | — |

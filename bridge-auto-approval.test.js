@@ -101,6 +101,49 @@ test("every permission tier confirms hosted publication without blocking routine
   );
 });
 
+test("Full Access still confirms hosted account writes while allowing hosted reads", () => {
+  for (const [server, tool] of [
+    ["github", "create_issue"],
+    ["github", "comment_pull_request"],
+    ["linear", "update_issue"],
+    ["jira", "transition_issue"],
+    ["slack", "send_message"],
+  ]) {
+    assert.equal(
+      codingMcpOperationRequiresApproval(
+        { server, tool, args: {} },
+        "full-auto",
+        server,
+      ),
+      true,
+    );
+  }
+
+  for (const [server, tool] of [
+    ["github", "get_issue"],
+    ["linear", "list_issues"],
+    ["jira", "search_issues"],
+  ]) {
+    assert.equal(
+      codingMcpOperationRequiresApproval(
+        { server, tool, args: {} },
+        "full-auto",
+        server,
+      ),
+      false,
+    );
+  }
+
+  assert.equal(
+    codingMcpOperationRequiresApproval(
+      { server: "project-tools", tool: "update_local_fixture", args: {} },
+      "full-auto",
+      "project-tools",
+    ),
+    false,
+  );
+});
+
 test("unknown or read-only policies never silently auto-approve operations", () => {
   const operation = { server: "fixture", tool: "mutate" };
   assert.equal(codingCollaborationRequiresApproval("read-only"), false);
