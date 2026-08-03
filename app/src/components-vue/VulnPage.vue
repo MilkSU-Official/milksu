@@ -32,6 +32,7 @@ import {
   Workflow,
 } from 'lucide-vue-next'
 import WorkspaceTopBar from '@/components-vue/WorkspaceTopBar.vue'
+import VulnerabilityLoopPanel from '@/components-vue/VulnerabilityLoopPanel.vue'
 import { useVulnerabilityDashboard } from '@/composables/useVulnerabilityDashboard'
 import type { VulnerabilityCodingTask } from '@/composables/useVulnerabilityDashboard'
 import type { VulnerabilitySeverity, VulnerabilityStatus } from '@/vulnerabilityIntel'
@@ -333,6 +334,19 @@ function statusVariant(status: VulnerabilityStatus) {
             </Button>
           </dd>
         </dl>
+
+        <VulnerabilityLoopPanel
+          :item="dashboard.selected.value"
+          :research-task="dashboard.researchTaskFor.value"
+          :research-note="dashboard.researchNoteFor.value"
+          :practice-environment="dashboard.practiceEnvironmentFor.value"
+          :practice-session="dashboard.practiceSessionFor.value"
+          :coding-workspace-path="codingWorkspacePath"
+          :coding-task="dashboard.codingTaskForSelected.value"
+          @establish-task="dashboard.establishResearchTask(dashboard.selected.value.id)"
+          @confirm-practice="dashboard.confirmPracticeEnvironment(dashboard.selected.value.id)"
+          @start-coding-task="$emit('startCodingTask', $event)"
+        />
 
         <section class="border-b border-border px-6 py-5">
           <h3 class="text-label font-medium">学习路径</h3>

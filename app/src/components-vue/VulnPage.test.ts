@@ -86,6 +86,8 @@ describe('VulnPage', () => {
     expect(text).toContain('当前模式')
     expect(text).toContain('学习与追踪')
     expect(text).toContain('学习路径')
+    expect(text).toContain('CVE 最小闭环')
+    expect(text).toContain('练习结果不等于真实资产已验证')
     expect(text).toContain('隔离练习环境')
     expect(text).toContain('Coding 接力范围')
     expect(text).toContain('Agent 可接手任务')
@@ -247,6 +249,7 @@ describe('VulnPage', () => {
     await nextTick()
 
     expect(host.textContent).toContain('Vulhub · Apache ActiveMQ OpenWire RCE')
+    expect(host.textContent).toContain('确认练习计划')
     expect(host.textContent).toContain('activemq/CVE-2023-46604')
     expect(host.textContent).toContain('61616/tcp · OpenWire')
     expect(host.textContent).toContain('默认只创建启动计划')
@@ -260,6 +263,7 @@ describe('VulnPage', () => {
     await nextTick()
 
     expect(host.textContent).toContain('已确认')
+    expect(host.textContent).toContain('已确认本地练习计划')
     expect(host.textContent).toContain('下一步交给 Coding Agent')
     expect(host.textContent).toContain('不要自动拉取镜像、启动容器、运行 exploit 或访问外部目标')
 
