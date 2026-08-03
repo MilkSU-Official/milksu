@@ -116,4 +116,48 @@ describe('CodingComputerUsePanel', () => {
     await nextTick()
     expect(onStart).not.toHaveBeenCalled()
   })
+
+  it('distinguishes missing macOS permissions from unavailable Computer Use', async () => {
+    const missing = await mountPanel({
+      status: status({
+        permissions: {
+          accessibility: false,
+          screenRecording: true,
+        },
+      }),
+    })
+
+    expect(missing.host.textContent).toContain('辅助功能 未授权')
+    expect(missing.host.textContent).toContain('App 管理')
+    const missingStart = [...missing.host.querySelectorAll<HTMLButtonElement>('button')].find(
+      button => button.textContent?.includes('启动可见会话'),
+    )
+    expect(missingStart?.disabled).toBe(true)
+    const request = [...missing.host.querySelectorAll<HTMLButtonElement>('button')].find(
+      button => button.textContent?.includes('请求系统权限'),
+    )
+    expect(request?.disabled).toBe(false)
+    request?.click()
+    await nextTick()
+    expect(missing.onRequestPermissions).toHaveBeenCalledOnce()
+
+    const unavailable = await mountPanel({
+      status: status({
+        available: false,
+        problem: 'Computer Use 当前仅支持 macOS。',
+        permissions: {
+          accessibility: false,
+          screenRecording: false,
+        },
+      }),
+    })
+    expect(unavailable.host.textContent).toContain('Computer Use 当前仅支持 macOS。')
+    const unavailableRequest = [...unavailable.host.querySelectorAll<HTMLButtonElement>('button')].find(
+      button => button.textContent?.includes('请求系统权限'),
+    )
+    expect(unavailableRequest?.disabled).toBe(true)
+    unavailableRequest?.click()
+    await nextTick()
+    expect(unavailable.onRequestPermissions).not.toHaveBeenCalled()
+  })
 })

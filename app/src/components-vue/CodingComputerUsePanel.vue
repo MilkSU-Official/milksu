@@ -145,6 +145,12 @@ const canStart = computed(() => Boolean(
       {{ status.problem }}
     </p>
     <p
+      v-else-if="!permissionsReady"
+      class="mt-3 text-caption leading-5 text-muted-foreground"
+    >
+      需要 macOS 辅助功能和屏幕录制权限；“App 管理”授权不能替代这两项。
+    </p>
+    <p
       v-else-if="attachedToOtherTask"
       class="mt-3 text-caption leading-5 text-muted-foreground"
     >
@@ -155,7 +161,7 @@ const canStart = computed(() => Boolean(
         v-if="!permissionsReady"
         variant="outline"
         size="sm"
-        :disabled="loading || running"
+        :disabled="loading || running || !status?.available"
         @click="emit('requestPermissions')"
       >
         <LoaderCircle v-if="loading" class="size-3.5 animate-spin" />
