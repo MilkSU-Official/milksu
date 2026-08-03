@@ -95,6 +95,7 @@ async function mountPanel(
   overrides: Partial<InstanceType<typeof CodingProductLoopPanel>['$props']> = {},
 ) {
   const onOpenPanel = vi.fn()
+  const onCompactContext = vi.fn()
   const host = document.createElement('div')
   document.body.append(host)
   const app = createApp(CodingProductLoopPanel, {
@@ -112,12 +113,13 @@ async function mountPanel(
     browserStatus: null,
     computerUseStatus: null,
     onOpenPanel,
+    onCompactContext,
     ...overrides,
   })
   app.mount(host)
   mountedApps.push(app)
   await nextTick()
-  return { host, onOpenPanel }
+  return { host, onOpenPanel, onCompactContext }
 }
 
 describe('CodingProductLoopPanel', () => {
@@ -326,8 +328,8 @@ describe('CodingProductLoopPanel', () => {
     expect(onOpenPanel).toHaveBeenCalledWith('artifacts')
   })
 
-  it('treats an opened artifact preview as visible validation evidence', async () => {
-    const { host } = await mountPanel({
+  it('treats an opened artifact preview as visible validation evidence and offers a recovery point action', async () => {
+    const { host, onCompactContext } = await mountPanel({
       artifactPreviewEvidence: {
         relativePath: 'preview/result.html',
         kind: 'html',
@@ -340,8 +342,16 @@ describe('CodingProductLoopPanel', () => {
     expect(host.textContent).toContain('已打开产物预览：preview/result.html')
     expect(host.textContent).toContain('下一步验收动作')
     expect(host.textContent).toContain('验收恢复/继续')
+    expect(host.textContent).toContain('生成恢复点')
     expect(host.textContent).toContain('可见验证：产物预览可检查 2 个')
     expect(host.textContent).toContain('已预览 HTML：preview/result.html')
+
+    const compact = [...host.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.includes('生成恢复点'))
+    compact?.click()
+    await nextTick()
+
+    expect(onCompactContext).toHaveBeenCalledOnce()
   })
 
   it('treats opened Browser evidence as visible validation evidence', async () => {

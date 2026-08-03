@@ -55,6 +55,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   openPanel: [panel: LoopPanel]
+  compactContext: []
 }>()
 
 const copyNotice = ref('')
@@ -303,6 +304,8 @@ const nextVerificationAction = computed<{
   label: string
   detail: string
   panel?: LoopPanel
+  action?: 'compact'
+  actionLabel?: string
 }>(() => {
   if (!props.workspacePath) {
     return {
@@ -335,7 +338,9 @@ const nextVerificationAction = computed<{
   if (recoveryState.value === 'pending') {
     return {
       label: '验收恢复/继续',
-      detail: '触发一次失败、超时或上下文压缩后的继续路径，确认不重复已完成步骤。',
+      detail: '先生成上下文恢复点；随后实际继续一次，确认不会重复已完成步骤。',
+      action: 'compact',
+      actionLabel: '生成恢复点',
     }
   }
   if (gitState.value !== 'done') {
@@ -460,14 +465,17 @@ function stateBadgeVariant(state: LoopState) {
           </p>
         </div>
         <Button
-          v-if="nextVerificationAction.panel"
+          v-if="nextVerificationAction.panel || nextVerificationAction.action"
           type="button"
           variant="outline"
           size="sm"
           class="shrink-0"
-          @click="emit('openPanel', nextVerificationAction.panel)"
+          :disabled="nextVerificationAction.action === 'compact' && (running || compacting)"
+          @click="nextVerificationAction.panel
+            ? emit('openPanel', nextVerificationAction.panel)
+            : emit('compactContext')"
         >
-          打开
+          {{ nextVerificationAction.actionLabel || '打开' }}
         </Button>
       </div>
     </div>

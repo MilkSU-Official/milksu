@@ -1374,6 +1374,7 @@ watch(
           :browser-evidence="browserEvidence"
           :computer-use-evidence="computerUseEvidence"
           @open-panel="changeContextPanel"
+          @compact-context="$emit('compactContext')"
         />
 
         <section v-if="!ctfSession" class="border-b border-border px-4 py-4">
