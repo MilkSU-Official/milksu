@@ -1,0 +1,218 @@
+{
+  "schema": "milksu-ctf-six-track-regression/v1alpha1",
+  "purpose": "Versioned acceptance skeleton for the six independent CTF tracks. This file records fixed evidence requirements and current slot status; it is not a solved scoreboard.",
+  "updatedAt": "2026-08-03",
+  "readyOnlyWhen": "all tracks have status=judge-verified with authoritative judge.correct=true receipts and complete evidence refs",
+  "requiredTracks": [
+    "web",
+    "pwn",
+    "reverse",
+    "crypto",
+    "forensics",
+    "misc"
+  ],
+  "requiredEvidence": [
+    "authorizedProblemStatement",
+    "materials",
+    "solverTrajectory",
+    "checkpoints",
+    "candidates",
+    "judgeReceipt",
+    "hintDependency",
+    "userContribution",
+    "interruptionRecovery",
+    "debrief",
+    "trainingEvidence"
+  ],
+  "crossTrackCollaborations": [
+    {
+      "key": "tool-builder",
+      "requiredOnce": true,
+      "status": "missing",
+      "description": "At least one naturally stuck Solver requests a tool, Coding Agent delivers it, and Solver uses the result to continue."
+    },
+    {
+      "key": "strategist",
+      "requiredOnce": true,
+      "status": "missing",
+      "description": "At least one repeatedly failing run is reviewed by an independent Strategist session that proposes a different route before Solver validation."
+    }
+  ],
+  "tracks": [
+    {
+      "key": "web",
+      "label": "Web",
+      "status": "judge-verified",
+      "selection": {
+        "platform": "NSSCTF",
+        "challengeId": "P3879",
+        "title": "P3879",
+        "category": "Web",
+        "materialTypes": [
+          "problem-page",
+          "browser-judge-receipt",
+          "trajectory",
+          "debrief"
+        ],
+        "acceptedAt": "2026-07-31"
+      },
+      "judge": {
+        "authority": "platform",
+        "platform": "NSSCTF",
+        "status": "accepted",
+        "correct": true,
+        "receiptReference": "docs/developer/adr/0009-nssctf-browser-judge-bridge.md",
+        "verifiedAt": "2026-07-31"
+      },
+      "evidenceRefs": {
+        "authorizedProblemStatement": "docs/developer/adr/0009-nssctf-browser-judge-bridge.md",
+        "materials": "docs/developer/architecture-review-2026-07-31.md",
+        "solverTrajectory": "docs/developer/architecture-review-2026-07-31.md",
+        "checkpoints": "docs/developer/architecture-review-2026-07-31.md",
+        "candidates": "docs/developer/adr/0009-nssctf-browser-judge-bridge.md",
+        "judgeReceipt": "docs/developer/adr/0009-nssctf-browser-judge-bridge.md",
+        "hintDependency": "docs/developer/architecture-review-2026-07-31.md",
+        "userContribution": "docs/developer/architecture-review-2026-07-31.md",
+        "interruptionRecovery": "docs/developer/architecture-review-2026-07-31.md",
+        "debrief": "docs/developer/architecture-review-2026-07-31.md",
+        "trainingEvidence": "docs/developer/document-status.md"
+      },
+      "notes": "Existing narrow Web proof only; it cannot be generalized to other tracks or to an overall CTF score."
+    },
+    {
+      "key": "pwn",
+      "label": "Pwn",
+      "status": "missing",
+      "selection": {
+        "platform": "",
+        "challengeId": "",
+        "title": "",
+        "category": "Pwn",
+        "materialTypes": [],
+        "acceptedAt": ""
+      },
+      "judge": {
+        "authority": "",
+        "platform": "",
+        "status": "",
+        "correct": null,
+        "receiptReference": "",
+        "verifiedAt": ""
+      },
+      "evidenceRefs": {},
+      "gaps": [
+        "Select an authorized real Pwn challenge.",
+        "Capture exact TCP/SSH scope evidence when applicable.",
+        "Record platform Judge receipt, recovery, debrief, and training evidence."
+      ]
+    },
+    {
+      "key": "reverse",
+      "label": "Reverse",
+      "status": "missing",
+      "selection": {
+        "platform": "",
+        "challengeId": "",
+        "title": "",
+        "category": "Reverse",
+        "materialTypes": [],
+        "acceptedAt": ""
+      },
+      "judge": {
+        "authority": "",
+        "platform": "",
+        "status": "",
+        "correct": null,
+        "receiptReference": "",
+        "verifiedAt": ""
+      },
+      "evidenceRefs": {},
+      "gaps": [
+        "Select an authorized real Reverse challenge.",
+        "Preserve binary/material metadata without unsafe execution claims.",
+        "Record platform Judge receipt, recovery, debrief, and training evidence."
+      ]
+    },
+    {
+      "key": "crypto",
+      "label": "Crypto",
+      "status": "missing",
+      "selection": {
+        "platform": "",
+        "challengeId": "",
+        "title": "",
+        "category": "Crypto",
+        "materialTypes": [],
+        "acceptedAt": ""
+      },
+      "judge": {
+        "authority": "",
+        "platform": "",
+        "status": "",
+        "correct": null,
+        "receiptReference": "",
+        "verifiedAt": ""
+      },
+      "evidenceRefs": {},
+      "gaps": [
+        "Select an authorized real Crypto challenge.",
+        "Preserve scripts, inputs, candidates, and reproducible derivation notes.",
+        "Record platform Judge receipt, recovery, debrief, and training evidence."
+      ]
+    },
+    {
+      "key": "forensics",
+      "label": "Forensics",
+      "status": "missing",
+      "selection": {
+        "platform": "",
+        "challengeId": "",
+        "title": "",
+        "category": "Forensics",
+        "materialTypes": [],
+        "acceptedAt": ""
+      },
+      "judge": {
+        "authority": "",
+        "platform": "",
+        "status": "",
+        "correct": null,
+        "receiptReference": "",
+        "verifiedAt": ""
+      },
+      "evidenceRefs": {},
+      "gaps": [
+        "Select an authorized real Forensics challenge.",
+        "Keep Forensics separate from Misc in the regression slot and ability profile.",
+        "Record platform Judge receipt, recovery, debrief, and training evidence."
+      ]
+    },
+    {
+      "key": "misc",
+      "label": "Misc",
+      "status": "missing",
+      "selection": {
+        "platform": "",
+        "challengeId": "",
+        "title": "",
+        "category": "Misc",
+        "materialTypes": [],
+        "acceptedAt": ""
+      },
+      "judge": {
+        "authority": "",
+        "platform": "",
+        "status": "",
+        "correct": null,
+        "receiptReference": "",
+        "verifiedAt": ""
+      },
+      "evidenceRefs": {},
+      "gaps": [
+        "Select an authorized real Misc challenge.",
+        "Keep Misc separate from Forensics in the regression slot and ability profile.",
+        "Record platform Judge receipt, recovery, debrief, and training evidence."
+      ]
+    }
+  ]
+}
