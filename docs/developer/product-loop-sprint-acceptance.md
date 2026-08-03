@@ -276,3 +276,28 @@
 - CVE 情报源实时同步；
 - Vulhub catalog import、Docker 拉起、停止和清理；
 - Agent 对 CVE 任务的实际研究质量。
+
+## 2026-08-04 · Coding product-loop user acceptance checklist
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | `bbcbdc1` |
+| 窄测 | `npm run test -- --run src/components-vue/CodingProductLoopPanel.test.ts` |
+| 窄测结果 | 1 file / 14 tests passed |
+| 全量前端 | `npm run test && npm run build` |
+| 全量前端结果 | 46 files / 199 tests passed；production build passed |
+
+覆盖范围：
+
+- Coding 产品闭环卡新增“用户验收清单”；
+- 清单按用户可执行顺序展示：确认任务和仓库、核对自动化输出、做一次用户可见验证、验证
+  失败/继续路径、收口 Git 交付、复制接力棒；
+- 每项复用现有 workspace、tool message、Artifact/Browser/Computer Use evidence、compaction
+  和 Git 状态，不新增独立完成状态；
+- 接力棒摘要同步包含“用户验收清单”，方便下一轮 Agent 或用户继续按同一口径验收。
+
+本次仍未证明：
+
+- 打包 App 中用户真实按清单跑完整 “MilkSU develops MilkSU”；
+- Computer Use 对外部 App 的真实操作；
+- Artifact Preview / Browser / Git 全链路在同一原生会话里完成。

@@ -2,9 +2,9 @@
 
 > 状态：Active / Product-loop sprint with coverage ledger
 >
-> 产品代码快照：2026-08-04，`b15782f`
+> 产品代码快照：2026-08-04，`bbcbdc1`
 >
-> 最近证据复核：2026-08-04，`b15782f`
+> 最近证据复核：2026-08-04，`bbcbdc1`
 >
 > 本文件不是发布说明。它把 `current-objectives.md` 的大项拆成可单独核对的细项，用于保持
 > 全局位置。2026-08-03 起，短期执行入口切到
@@ -122,7 +122,7 @@ allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 
 | COD-22 | 经确认发布 MilkSU 私有 Draft PR | 尚无本轮真实发布回执 | 0% | 在最终自举 Gate 中执行 |
 | COD-23 | 多 Agent 独立 worktree、恢复和安全收尾 | Manager 与 Bridge 自动化存在；`bridge-collaboration.test.js` 覆盖并行和串行写入 Agent 都必须使用不同注册 writer worktree，Go Manager 覆盖恢复、集成后清理、脏 worktree/submodule 拒绝和中断准备安全收尾；`CodingCollaborationPanel.test.ts` 覆盖显式 2 writer 准备、集成后安全结束和中断准备后的有界清理；`desktop.test.ts` 覆盖 Wails adapter 会把 conversation、workspace 和 writer 数原样传给准备命令，省略 writer 数时默认为 1 | 50% | 真实有价值的协作任务 |
 | COD-24 | 多 Agent 在真实任务中证明并行有用 | 尚无成功率与成本证据 | 0% | 选择自然可并行的任务验收 |
-| COD-25 | 完整 “MilkSU develops MilkSU” Gate | 有多个局部自举任务；产品闭环冲刺期间已补 TopBar 一致性、CVE→Coding handoff、Computer Use 快速接入、CTF/CVE 路由保留契约、产品闭环卡生成恢复点入口和多轮前端 test/build/Browser preview 证据 | 25% | 一次完整 Vue + Go、重启、交付、PR |
+| COD-25 | 完整 “MilkSU develops MilkSU” Gate | 有多个局部自举任务；产品闭环冲刺期间已补 TopBar 一致性、CVE→Coding handoff、Computer Use 快速接入、CTF/CVE 路由保留契约、产品闭环卡生成恢复点入口、用户验收清单和多轮前端 test/build/Browser preview 证据 | 25% | 一次完整 Vue + Go、重启、交付、PR |
 | COD-26 | ImageGen 文生图、参考图编辑和项目资产 | 受控工具、UI、测试与打包存在；ImageGen 审批详情只保留允许字段，并会脱敏 `Bearer` / `sk-*` 形态，防止模型把 `apiKey` 或 `Authorization` 等额外字段塞进用户审批卡 | 50% | 真实 Provider 生成 |
 | COD-27 | 打包 App 真实 ImageGen Provider 与预览 | Provider 尚未在 App 内配置 | 0% | 用户自行配置后执行，不接触 Key |
 | COD-28 | Project MCP 来源、版本、工具面与权限审阅 | Go/Vue/Bridge 实现和测试存在；`npm run test:project-mcp` 通过正式 `loadCodingMcpConfig`、固定 `.mcp.json` digest、sandbox wrapper、`env -i` 私有 HOME/TMPDIR、`hostConfigDiscovery=off`、MCP SDK `listTools/callTool` 实际调用本地项目 `fixture_read`，并输出 `workspaceAutoApprovalRequired=false` 作为自动审批契约证据 | 75% | 用户真实项目或高频 MCP 任务验收 |
@@ -216,7 +216,7 @@ allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 
 
 | ID | 可判定细项 | 证据快照 | 当前 | 尚缺 |
 | --- | --- | --- | ---: | --- |
-| DOC-01 | 开发期只保留测试、回执、验收记录和 ADR | 当前验收文档遵守此规则；`product-loop-sprint-acceptance.md` 已记录 `d4df0f8`、`42c392d`、`1698e39`、`eefa729`、`d23f7ff`、`18b50f0` 和 `b15782f` 的窄测、全量前端、Browser preview、M3 release check 与未证明范围 | 75% | 持续保持，不提前写完成声明 |
+| DOC-01 | 开发期只保留测试、回执、验收记录和 ADR | 当前验收文档遵守此规则；`product-loop-sprint-acceptance.md` 已记录 `d4df0f8`、`42c392d`、`1698e39`、`eefa729`、`d23f7ff`、`18b50f0`、`b15782f` 和 `bbcbdc1` 的窄测、全量前端、Browser preview、M3 release check 与未证明范围 | 75% | 持续保持，不提前写完成声明 |
 | DOC-02 | 最后统一更新架构、里程碑、状态和发布说明 | 按目标后置 | 0% | 所有产品与发行 Gate 通过后执行 |
 
 ## 横向观察记录
