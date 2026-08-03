@@ -63,6 +63,7 @@ type TrainingMemory struct {
 	UpdatedAt       time.Time                  `json:"updatedAt"`
 	ArchivedAt      time.Time                  `json:"archivedAt,omitempty"`
 	ArchivedReason  string                     `json:"archivedReason,omitempty"`
+	Recall          *TrainingMemoryRecall      `json:"recall,omitempty"`
 }
 
 type TrainingMemoryRecallContext struct {
@@ -70,6 +71,19 @@ type TrainingMemoryRecallContext struct {
 	Title           string
 	KnowledgePoints []string
 	SourceJobID     string
+}
+
+type TrainingMemoryRecall struct {
+	SchemaVersion string                       `json:"schemaVersion"`
+	Score         float64                      `json:"score"`
+	Reasons       []string                     `json:"reasons"`
+	Evidence      []TrainingMemoryEvidenceLink `json:"evidence"`
+}
+
+type TrainingMemoryEvidenceLink struct {
+	Kind  string `json:"kind"`
+	ID    string `json:"id"`
+	Label string `json:"label"`
 }
 
 type MemoryStore struct {
@@ -314,6 +328,26 @@ func (s *MemoryStore) SaveFromProjection(
 			evidenceRefs = append(evidenceRefs, "judge:"+redact(value))
 		}
 	}
+	for _, record := range projection.Learning {
+		switch record.Kind {
+		case "hint":
+			if value := learningRecordReference(record); value != "" {
+				evidenceRefs = append(evidenceRefs, "hint:"+redact(value))
+			}
+		case "independent_step":
+			if value := learningRecordReference(record); value != "" {
+				evidenceRefs = append(evidenceRefs, "step:"+redact(value))
+			}
+		}
+	}
+	for index, branch := range projection.Debrief.FailureBranches {
+		if value := strings.TrimSpace(redact(branch)); value != "" {
+			evidenceRefs = append(
+				evidenceRefs,
+				fmt.Sprintf("failure:%02d:%s", index+1, truncateRunes(value, 160)),
+			)
+		}
+	}
 	evidenceRefs = normalizeMemoryValues(evidenceRefs, 32, 240)
 	memory := TrainingMemory{
 		ID:              memoryID,
@@ -460,8 +494,9 @@ func (s *MemoryStore) RecallForChallenge(
 		append([]string{recall.Title}, recall.KnowledgePoints...),
 	)
 	type scoredMemory struct {
-		memory TrainingMemory
-		score  float64
+		memory  TrainingMemory
+		score   float64
+		reasons []string
 	}
 	scored := make([]scoredMemory, 0, len(candidates))
 	for _, memory := range candidates {
@@ -473,21 +508,31 @@ func (s *MemoryStore) RecallForChallenge(
 			" ",
 		))
 		score := memory.Confidence * 10
+		reasons := []string{
+			fmt.Sprintf("验证等级：%s", trainingMemoryVerificationLabel(memory.Verification)),
+		}
 		for _, keyword := range keywords {
 			if strings.Contains(haystack, keyword) {
 				score += 3
+				reasons = append(reasons, "匹配当前题关键词："+keyword)
 			}
 			for _, tag := range memory.Tags {
 				if strings.EqualFold(strings.TrimSpace(tag), keyword) {
 					score += 3
+					reasons = append(reasons, "匹配旧题标签："+tag)
 					break
 				}
 			}
 		}
 		if memory.Kind == "failure-lesson" {
 			score += 0.25
+			reasons = append(reasons, "包含失败分支，可用于避免重复走错路")
 		}
-		scored = append(scored, scoredMemory{memory: memory, score: score})
+		scored = append(scored, scoredMemory{
+			memory:  memory,
+			score:   score,
+			reasons: normalizeMemoryValues(reasons, 8, 120),
+		})
 	}
 	sort.SliceStable(scored, func(left, right int) bool {
 		if scored[left].score == scored[right].score {
@@ -500,7 +545,14 @@ func (s *MemoryStore) RecallForChallenge(
 	}
 	result := make([]TrainingMemory, 0, len(scored))
 	for _, item := range scored {
-		result = append(result, item.memory)
+		memory := item.memory
+		memory.Recall = &TrainingMemoryRecall{
+			SchemaVersion: "ctf-memory-recall.milksu.dev/v1alpha1",
+			Score:         item.score,
+			Reasons:       item.reasons,
+			Evidence:      trainingMemoryEvidenceLinks(memory.EvidenceRefs),
+		}
+		result = append(result, memory)
 	}
 	return result, nil
 }
@@ -558,6 +610,18 @@ func WriteAgentMemoryContext(workspacePath string, memories []TrainingMemory) er
 			builder.WriteString(strings.Join(memory.Tags, "、"))
 			builder.WriteString("\n- 来源：")
 			builder.WriteString(memory.SourceJobID)
+			if memory.Recall != nil && len(memory.Recall.Reasons) > 0 {
+				builder.WriteString("\n- 推荐原因：")
+				builder.WriteString(strings.Join(memory.Recall.Reasons, "；"))
+			}
+			if memory.Recall != nil && len(memory.Recall.Evidence) > 0 {
+				builder.WriteString("\n- 可核对证据：")
+				labels := make([]string, 0, len(memory.Recall.Evidence))
+				for _, evidence := range memory.Recall.Evidence {
+					labels = append(labels, evidence.Label)
+				}
+				builder.WriteString(strings.Join(labels, "；"))
+			}
 			builder.WriteString("\n")
 		}
 	}
@@ -566,6 +630,68 @@ func WriteAgentMemoryContext(workspacePath string, memories []TrainingMemory) er
 		[]byte(builder.String()),
 		0o600,
 	)
+}
+
+func learningRecordReference(record LearningRecord) string {
+	if value := strings.TrimSpace(record.ID); value != "" {
+		return value
+	}
+	if value := strings.TrimSpace(record.Concept); value != "" {
+		if record.Level > 0 {
+			return fmt.Sprintf("%s@level-%d", value, record.Level)
+		}
+		return value
+	}
+	return truncateRunes(strings.TrimSpace(record.Content), 120)
+}
+
+func trainingMemoryEvidenceLinks(refs []string) []TrainingMemoryEvidenceLink {
+	links := make([]TrainingMemoryEvidenceLink, 0, len(refs))
+	for _, ref := range refs {
+		kind, id, ok := strings.Cut(strings.TrimSpace(ref), ":")
+		if !ok {
+			continue
+		}
+		kind = strings.TrimSpace(kind)
+		id = strings.TrimSpace(id)
+		if kind == "" || id == "" {
+			continue
+		}
+		label := trainingMemoryEvidenceLabel(kind, id)
+		if label == "" {
+			continue
+		}
+		links = append(links, TrainingMemoryEvidenceLink{
+			Kind:  kind,
+			ID:    id,
+			Label: label,
+		})
+		if len(links) >= 12 {
+			break
+		}
+	}
+	return links
+}
+
+func trainingMemoryEvidenceLabel(kind, id string) string {
+	switch kind {
+	case "job":
+		return "原始训练任务 " + id
+	case "session":
+		return "Agent 会话 " + id
+	case "trajectory":
+		return "Solver 轨迹 " + id
+	case "judge":
+		return "Judge 回执 " + id
+	case "hint":
+		return "提示记录 " + id
+	case "step":
+		return "用户步骤 " + id
+	case "failure":
+		return "失败分支 " + id
+	default:
+		return ""
+	}
 }
 
 type memoryScanner interface {

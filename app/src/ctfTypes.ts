@@ -399,6 +399,20 @@ export interface CTFTrainingMemory {
   updatedAt: string
   archivedAt?: string
   archivedReason?: string
+  recall?: CTFTrainingMemoryRecall
+}
+
+export interface CTFTrainingMemoryRecall {
+  schemaVersion: string
+  score: number
+  reasons: string[]
+  evidence: CTFTrainingMemoryEvidenceLink[]
+}
+
+export interface CTFTrainingMemoryEvidenceLink {
+  kind: 'job' | 'session' | 'trajectory' | 'judge' | 'hint' | 'step' | 'failure' | string
+  id: string
+  label: string
 }
 
 export interface CTFAgentRunCheckpoint {

@@ -615,6 +615,23 @@ func TestRecallForChallengeRanksRelevantMemoryAndExcludesCurrentJob(t *testing.T
 	relevant.Challenge.Title = "Packet length parser"
 	relevant.Challenge.KnowledgePoints = []string{"endianness", "length field"}
 	relevant.Debrief.Status = "failed"
+	relevant.Learning = append(relevant.Learning, LearningRecord{
+		ID:         "learn_hint_width",
+		Kind:       "hint",
+		Actor:      LearningActorAgent,
+		Assistance: LearningAssistanceHint,
+		Content:    "先看长度字段宽度，再决定解析方式。",
+		Concept:    "length field",
+		Level:      1,
+	})
+	relevant.JudgeReceipts = []ExternalJudgeReceipt{{
+		ID:        "judge_memory",
+		Platform:  "nssctf",
+		Status:    "accepted",
+		Correct:   boolPointer(true),
+		Summary:   "Accepted",
+		Reference: "judge-receipt-memory",
+	}}
 	if _, err := store.SaveFromProjection(
 		context.Background(),
 		relevant,
@@ -654,6 +671,30 @@ func TestRecallForChallengeRanksRelevantMemoryAndExcludesCurrentJob(t *testing.T
 	if len(memories) != 2 || memories[0].SourceJobID != "job_relevant" {
 		t.Fatalf("challenge-aware recall did not rank relevant prior first: %#v", memories)
 	}
+	if memories[0].Recall == nil ||
+		memories[0].Recall.Score <= 0 ||
+		len(memories[0].Recall.Reasons) == 0 {
+		t.Fatalf("challenge-aware recall did not include a useful explanation: %#v", memories[0])
+	}
+	for _, want := range []string{"judge", "hint", "step", "failure"} {
+		if !recallEvidenceContains(memories[0].Recall.Evidence, want) {
+			t.Fatalf("challenge-aware recall evidence missing %q: %#v", want, memories[0].Recall.Evidence)
+		}
+	}
+	workspace := t.TempDir()
+	if err := WriteAgentMemoryContext(workspace, memories[:1]); err != nil {
+		t.Fatal(err)
+	}
+	contextData, err := os.ReadFile(filepath.Join(workspace, "MEMORY.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	contextText := string(contextData)
+	for _, want := range []string{"推荐原因", "Judge 回执", "提示记录", "用户步骤", "失败分支"} {
+		if !strings.Contains(contextText, want) {
+			t.Fatalf("agent memory context missing %q: %s", want, contextText)
+		}
+	}
 
 	excluded, err := store.RecallForChallenge(
 		context.Background(),
@@ -691,12 +732,14 @@ func memoryFixtureProjection() Projection {
 		}},
 		Learning: []LearningRecord{
 			{
+				ID:         "learn_step_endian",
 				Kind:       "independent_step",
 				Actor:      LearningActorUser,
 				Assistance: LearningAssistanceNone,
 				Content:    "我先确认了字节序，再推导长度字段。",
 			},
 			{
+				ID:         "learn_reflection_endian",
 				Kind:       "reflection",
 				Actor:      LearningActorUser,
 				Assistance: LearningAssistanceNone,
@@ -718,6 +761,19 @@ func memoryFixtureProjection() Projection {
 			},
 		},
 	}
+}
+
+func recallEvidenceContains(evidence []TrainingMemoryEvidenceLink, kind string) bool {
+	for _, item := range evidence {
+		if item.Kind == kind {
+			return true
+		}
+	}
+	return false
+}
+
+func boolPointer(value bool) *bool {
+	return &value
 }
 
 func assertCTFMemoryV1History(t *testing.T, database *sql.DB) {

@@ -100,6 +100,23 @@ function assistanceLabel(memory: CTFTrainingMemory) {
               {{ tag }}
             </Badge>
           </div>
+          <div
+            v-if="memory.recall?.reasons?.length || memory.recall?.evidence?.length"
+            class="mt-3 rounded-md border border-border bg-background/60 p-2 text-caption leading-5 text-muted-foreground"
+          >
+            <p v-if="memory.recall?.reasons?.length">
+              推荐依据：{{ memory.recall.reasons.slice(0, 2).join('；') }}
+            </p>
+            <p v-if="memory.recall?.evidence?.length" class="mt-1">
+              可核对证据：
+              <span
+                v-for="(evidence, index) in memory.recall.evidence.slice(0, 4)"
+                :key="`${evidence.kind}:${evidence.id}`"
+              >
+                <span v-if="index">；</span>{{ evidence.label }}
+              </span>
+            </p>
+          </div>
         </article>
       </div>
     </div>
