@@ -421,3 +421,34 @@
 - 新 prompt 被真实下一轮 MilkSU Agent 执行；
 - CVE 情报质量、Vulhub catalog import 或 Docker 练习启动；
 - 原生 App 中复制到剪贴板的真实交互。
+
+## 2026-08-04 · Latest focused-prompt M3 release check
+
+| 项目 | 记录 |
+| --- | --- |
+| Checked commit | `86ee5d9` |
+| 命令 | `npm run m3:release-check` |
+| 结果 | 通过，输出 `M3 engineering release checks passed.` |
+| 本地 App | `/Users/milksu/code/milksu/build/bin/MilkSU.app` |
+| 生成入口 | Wails build 输出 `Built '/Users/milksu/code/milksu/build/bin/MilkSU.app/Contents/MacOS/MilkSU'` |
+
+覆盖范围：
+
+- Go 全量测试；
+- Node policy / bridge / runtime 契约测试，162 项通过；
+- 前端 Vitest，46 files / 205 tests passed；
+- 前端 lint；
+- 前端 production build；
+- Sidecar smoke；
+- deterministic Coding delivery fixture，`score=100` 且 `passed=true`；
+- docs build；
+- Wails production build；
+- macOS self-sign 和 App 打包。
+
+本次只证明 `86ee5d9` 的工程 release check 和本机打包 App 产物成立。它不能外推为：
+
+- 完整 “MilkSU develops MilkSU” 自举成绩；
+- 用户在原生 App 中真实按 Coding 验收清单逐项完成；
+- 外部 App Computer Use 实操；
+- CVE 情报源实时同步、Vulhub catalog import 或 Docker 练习启动；
+- 托管平台 PR、Developer ID、公证、升级或 RC 发布门禁。
