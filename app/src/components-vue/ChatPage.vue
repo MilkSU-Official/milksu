@@ -59,6 +59,7 @@ import ChatComposer from '@/components-vue/ChatComposer.vue'
 import ChatMessageItem from '@/components-vue/ChatMessageItem.vue'
 import CodingArtifactPreviewPanel from '@/components-vue/CodingArtifactPreviewPanel.vue'
 import CodingChangesPanel from '@/components-vue/CodingChangesPanel.vue'
+import CodingComputerUsePanel from '@/components-vue/CodingComputerUsePanel.vue'
 import CodingMCPReviewCard from '@/components-vue/CodingMCPReviewCard.vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import type {
@@ -308,14 +309,6 @@ const computerUseOwnedByCurrentTask = computed(() => Boolean(
 const computerUseReadyForCurrentTask = computed(() => Boolean(
   computerUseStatus.value?.enabled
   && computerUseOwnedByCurrentTask.value,
-))
-const computerUseAttachedToOtherTask = computed(() => Boolean(
-  computerUseStatus.value?.conversationId
-  && !computerUseOwnedByCurrentTask.value,
-))
-const computerUsePermissionsReady = computed(() => Boolean(
-  computerUseStatus.value?.permissions.accessibility
-  && computerUseStatus.value.permissions.screenRecording,
 ))
 const selectedComputerUseTarget = computed(() => (
   resolveSelectedComputerUseTarget(
@@ -1896,132 +1889,17 @@ watch(
               </p>
             </div>
           </div>
-          <div class="mt-5 border-t border-border pt-5">
-            <div class="flex items-start justify-between gap-3">
-              <div>
-                <p class="text-body font-medium">可见 App 会话</p>
-                <p class="mt-1 text-caption leading-5 text-muted-foreground">
-                  选择一个当前可见窗口，启动后锁定为本任务的 App Scope。
-                </p>
-              </div>
-              <span
-                class="mt-1 size-2 shrink-0 rounded-full"
-                :class="computerUseReadyForCurrentTask ? 'bg-primary' : 'bg-muted-foreground'"
-              />
-            </div>
-            <div class="mt-4 rounded-md bg-muted/45 px-3 py-3 text-caption">
-              <div
-                v-if="!computerUseOwnedByCurrentTask"
-                class="mb-3"
-              >
-                <Select
-                  v-model="selectedComputerUseTargetKey"
-                  :disabled="computerUseLoading || running || Boolean(computerUseStatus?.conversationId)"
-                >
-                  <SelectTrigger class="w-full">
-                    <SelectValue placeholder="选择可见 App 窗口" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem
-                      v-for="target in computerUseTargets"
-                      :key="computerUseTargetKey(target)"
-                      :value="computerUseTargetKey(target)"
-                    >
-                      {{ target.name }}
-                      <span v-if="target.windowTitle"> · {{ target.windowTitle }}</span>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div class="flex items-center justify-between gap-3">
-                <span class="text-muted-foreground">锁定范围</span>
-                <span class="font-medium text-foreground">
-                  {{ computerUseStatus?.target.name || selectedComputerUseTarget?.name || '未选择' }}
-                </span>
-              </div>
-              <p class="mt-1 break-all font-mono text-muted-foreground">
-                {{ computerUseStatus?.target.bundleId || selectedComputerUseTarget?.bundleId || '—' }}
-                · PID {{ computerUseStatus?.target.pid || selectedComputerUseTarget?.pid || '—' }}
-                · Window {{ computerUseStatus?.target.windowId || selectedComputerUseTarget?.windowId || '—' }}
-              </p>
-              <p
-                v-if="computerUseStatus?.target.windowTitle || selectedComputerUseTarget?.windowTitle"
-                class="mt-1 truncate text-muted-foreground"
-              >
-                {{ computerUseStatus?.target.windowTitle || selectedComputerUseTarget?.windowTitle }}
-              </p>
-              <div class="mt-3 flex flex-wrap gap-2">
-                <Badge
-                  :variant="computerUseStatus?.permissions.accessibility ? 'secondary' : 'outline'"
-                >
-                  辅助功能
-                  {{ computerUseStatus?.permissions.accessibility ? '已授权' : '未授权' }}
-                </Badge>
-                <Badge
-                  :variant="computerUseStatus?.permissions.screenRecording ? 'secondary' : 'outline'"
-                >
-                  屏幕录制
-                  {{ computerUseStatus?.permissions.screenRecording ? '已授权' : '未授权' }}
-                </Badge>
-              </div>
-            </div>
-            <p
-              v-if="computerUseStatus?.problem"
-              class="mt-3 text-caption leading-5 text-destructive"
-            >
-              {{ computerUseStatus.problem }}
-            </p>
-            <p
-              v-else-if="computerUseAttachedToOtherTask"
-              class="mt-3 text-caption leading-5 text-muted-foreground"
-            >
-              可见会话正由另一个 Coding 任务使用；请回到该任务停止后再切换。
-            </p>
-            <div class="mt-4 flex flex-wrap gap-2">
-              <Button
-                v-if="!computerUsePermissionsReady"
-                variant="outline"
-                size="sm"
-                :disabled="computerUseLoading || running"
-                @click="requestComputerUsePermissions"
-              >
-                <LoaderCircle v-if="computerUseLoading" class="size-3.5 animate-spin" />
-                <KeyRound v-else class="size-3.5" />
-                请求系统权限
-              </Button>
-              <Button
-                v-if="computerUseOwnedByCurrentTask"
-                variant="outline"
-                size="sm"
-                :disabled="computerUseLoading || running"
-                @click="stopComputerUse"
-              >
-                停止可见会话
-              </Button>
-              <Button
-                v-else
-                variant="brand"
-                size="sm"
-                :disabled="
-                  computerUseLoading
-                    || running
-                    || !computerUseStatus?.available
-                    || !computerUsePermissionsReady
-                    || !selectedComputerUseTarget
-                    || Boolean(computerUseStatus?.conversationId)
-                "
-                @click="startComputerUse"
-              >
-                <LoaderCircle v-if="computerUseLoading" class="size-3.5 animate-spin" />
-                <Compass v-else class="size-3.5" />
-                启动可见会话
-              </Button>
-            </div>
-            <p class="mt-3 text-caption leading-5 text-muted-foreground">
-              可见会话必须由你显式启动；替我审批与完全访问会自动操作，请求批准档才逐次确认。
-              Driver {{ computerUseStatus?.driverVersion || '0.14.2' }} · prerelease。
-            </p>
-          </div>
+          <CodingComputerUsePanel
+            v-model:selected-target-key="selectedComputerUseTargetKey"
+            :status="computerUseStatus"
+            :targets="computerUseTargets"
+            :loading="computerUseLoading"
+            :running="running"
+            :owned-by-current-task="computerUseOwnedByCurrentTask"
+            @request-permissions="requestComputerUsePermissions"
+            @start="startComputerUse"
+            @stop="stopComputerUse"
+          />
         </section>
         <template v-else>
           <section class="border-b border-border px-4 py-4">
