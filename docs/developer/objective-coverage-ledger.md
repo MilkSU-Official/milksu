@@ -108,8 +108,8 @@ allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 
 | COD-12 | 隔离 Browser 自动化与证据边界 | Browser integration 与 41 项窄测试通过 | 100% | — |
 | COD-13 | MilkSU 项目前端视觉 QA 真实纵切 | `frontend-visual-qa-acceptance.md` | 100% | — |
 | COD-14 | 用户授权的其他项目前端视觉 QA | 尚无项目与任务证据 | 0% | 用户提供一个授权前端项目 |
-| COD-15 | Computer Use 选择当前可见 App / 窗口并生成不可变 Scope | Go Host 枚举可见窗口，前端选择，动态 session policy，descriptor/proxy 锁定 bundle、PID、window；能力摘要已显示真实 App、bundle、PID 和 window，不再写死 MilkSU 自身；Bridge descriptor 拒绝带换行或控制字符的 App 名称，避免污染不可变 Scope 提示；`codingPolicy.test.ts` 覆盖 UI 启动参数只来自用户选定的 PID/window pair，不因同名 App、同 PID 多窗口或同 windowId 不同 PID 漂移，覆盖 ChatPage 刷新可见窗口列表时优先保持当前选择、否则回到已启用会话精确目标、最后才退到第一个窗口，并锁住 Plan/read-only 即使已有目标也不能展示为可操作；`CodingComputerUsePanel.test.ts` 覆盖右侧栏展示外部 App 的 bundle/PID/window 且只有权限就绪、无其他任务占用时才发出启动事件；Go、Node、前端构建通过 | 50% | 打包 App 中完成真实外部 App 权限与窗口操作验收 |
-| COD-16 | Computer Use 一次性系统权限真实验收 | Accessibility 与 Screen Recording 未授权 | 0% | 用户在 macOS 完成授权 |
+| COD-15 | Computer Use 选择当前可见 App / 窗口并生成不可变 Scope | Go Host 枚举可见窗口，前端选择，动态 session policy，descriptor/proxy 锁定 bundle、PID、window；能力摘要已显示真实 App、bundle、PID 和 window，不再写死 MilkSU 自身；Bridge descriptor 拒绝带换行或控制字符的 App 名称，避免污染不可变 Scope 提示；`codingPolicy.test.ts` 覆盖 UI 启动参数只来自用户选定的 PID/window pair，不因同名 App、同 PID 多窗口或同 windowId 不同 PID 漂移，覆盖 ChatPage 刷新可见窗口列表时优先保持当前选择、否则回到已启用会话精确目标、最后才退到第一个窗口，并锁住 Plan/read-only 即使已有目标也不能展示为可操作；`CodingComputerUsePanel.test.ts` 覆盖右侧栏展示外部 App 的 bundle/PID/window、未接入原因、重新检测、权限就绪后才启动、其他任务占用禁用和正式接入说明；Go、Node、前端构建通过 | 50% | 打包 App 中完成真实外部 App 权限与窗口操作验收 |
+| COD-16 | Computer Use 一次性系统权限真实验收 | Accessibility 与 Screen Recording 未授权；UI 已说明 App 管理不能替代辅助功能/屏幕录制，提供请求系统权限和重新检测入口 | 0% | 用户在 macOS 完成授权并启动真实外部窗口会话 |
 | COD-17 | Pi 持久会话、Compaction 与连续性 | fixture、事件投影和既有真实任务；`codingContinuity.test.ts` 覆盖任务删除时同步清理 ready/resumed、compacting、compactedAt 和 compaction errors，避免删除后的幽灵恢复/压缩状态；`codingContinuityPresentation.test.ts` 覆盖待连接、恢复、新会话、整理中和已整理状态的用户可见徽章、说明和整理按钮禁用原因 | 75% | 完整 App 重启长上下文验收 |
 | COD-18 | 重启后后台任务、PID、端口、日志和长任务恢复 | Sidecar fixture 与部分打包任务存在；`CodingTerminalPanel.test.ts` 覆盖恢复后的用户可见状态，展示 recovered 提示、PID、端口和日志 tail；`bridge-background-view.test.js` 覆盖恢复投影把持久记录里的 `spawnPid` 映射为用户可见 PID，避免重启后进程号丢失；`desktop.test.ts` 锁住刷新、启动和停止后台任务时 conversation、workspace、命令、名称、executionMode 与 approvalPolicy 传给 Wails 的正式入口 | 50% | 跨 App 重启的真实长任务 |
 | COD-19 | 旧 PTY 明确结束且审批跨重启过期 | 自动化测试存在；`bridge-approval.test.js` 覆盖 App/Sidecar 审批通道关闭时多个会话的 pending approval 全部以拒绝过期，旧 requestId 不能在重启后继续批准；`manager_test.go` 覆盖 Manager 关闭会让运行中的旧 PTY 发出 stopped 事件，且关闭后的 Manager 不能再启动看似可重连的新 PTY；`CodingTerminalPanel.test.ts` 覆盖空 Shell 列表时 UI 明确提示交互式 Shell 不跨 App 重启恢复、旧 PTY 已结束且不可重连，并引导后台长任务在“后台任务”恢复；`agentRecovery.test.ts` 覆盖 Coding/CTF 继续提示会明确禁止复用重启前审批状态，并要求扩大权限、Endpoint、应用窗口或外部发布时重新做有意义确认 | 50% | 原生 App 真实重启负向验收 |
@@ -170,7 +170,7 @@ allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 
 | RUN-02 | Sidecar 重启恢复同一会话与后台 Watch | reliability 子报告 | 100% | — |
 | RUN-03 | 完整 App 重启恢复 | 部分真实任务和生命周期基础；`codingContinuityPresentation.test.ts` 锁住恢复后用户可见的连续性状态，不把未连接、运行中、整理中、失败整理或旧整理时间误显示为可整理/已恢复 | 50% | 打包 App 长任务连续性 |
 | RUN-04 | 正式 Pi Context Compaction | fixture 与专门测试通过 | 100% | — |
-| RUN-05 | 超时、取消和继续响应 | fixture 与专门测试通过；`agentRecovery.test.ts` 覆盖无活动超时和网络/连接类失败会显示继续入口，同时 API Key 缺失和模型不支持等配置错误不会误显示为可恢复；恢复提示会要求先核对断点和最近工具结果、不要重复已完成步骤，并明确不复用重启前审批状态 | 100% | — |
+| RUN-05 | 超时、取消和继续响应 | fixture 与专门测试通过；`agentRecovery.test.ts` 覆盖无活动超时和网络/连接类失败会显示继续入口，`dial tcp`、`context deadline exceeded`、`i/o timeout`、`TLS handshake timeout` 等网络超时都可恢复，同时 API Key 缺失和模型不支持等配置错误不会误显示为可恢复；恢复提示会要求先核对断点和最近工具结果、不要重复已完成步骤，并明确不复用重启前审批状态 | 100% | — |
 | RUN-06 | Token、工具、时长和成本预算 | 固定预算报告存在 | 75% | 真实 Provider 成本核对 |
 | RUN-07 | 失败分类与统一 Reliability 报告 | 三类失败和报告 Gate 已通过 | 100% | — |
 | RUN-08 | 打包 App 真实长任务恢复 | 只有局部任务证据；前端组件测试已锁住恢复后用户可见的任务状态、PID、端口和日志 tail；后台投影测试已锁住恢复记录的 `spawnPid` 不会在 UI 状态中丢失；桌面 adapter 测试已锁住后台任务 refresh/start/stop 的恢复与权限参数传递 | 25% | 用户可见的完整重启验收 |
@@ -236,6 +236,7 @@ allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 
 | OBS-13 | macOS “App 管理”权限不等于 Computer Use 所需 Accessibility；截图可用也不代表 AX 可用；`CodingComputerUsePanel.test.ts` 已覆盖缺辅助功能/屏幕录制时启动禁用、可请求系统权限，并在 Computer Use 不可用时禁用请求按钮 | `COD-16` 仍需单独真实验收 Accessibility 与 Screen Recording |
 | OBS-14 | `ChatPage.vue` 的 Computer Use UI 已抽为 `CodingComputerUsePanel.vue`，并有面板级测试覆盖外部 App/window 展示、启动按钮和其他任务占用禁用；`desktop.test.ts` 已锁住 `start_coding_computer_use` 会把用户选定的 `conversationId`、`targetPid`、`targetWindowId` 原样传给 Wails；ChatPage 刷新可见窗口列表的选择逻辑已抽为 `nextComputerUseTargetKey` 并测试，不因同名 App、同 PID 多窗口或同 windowId 不同 PID 漂移；仍缺整页 ChatPage 时序和打包 App 外部窗口真实验收 | 后续若建立 ChatPage 测试基架或做打包 App 外部窗口验收时补，不在当前批次深挖 |
 | OBS-15 | `workspace-auto` 对未知或项目 MCP 目前只自动放行 read-like 工具；对经过用户审阅并固定 Scope 的本地 Project MCP 写工具仍可能产生重复审批 | 先不现场放宽，避免没有工具面/Scope 证据时扩大权限；等真实高频 Project MCP 候选确定后，为已审阅本地工具增加更精确的自动审批契约 |
+| OBS-16 | 与裸 Pi Agent 相比，MilkSU 过去过早把大量精力投入权限、恢复、脱敏和文档边界，导致“能像裸 Harness 一样顺滑干活”的主链体感滞后 | 下一阶段优先真实可用闭环：Computer Use、Browser、Project MCP、Artifact Preview、ImageGen 和小型 MilkSU develops MilkSU；除 Key、Scope、私有远端、Judge/能力归因硬红线外，非阻塞细节先登记后修 |
 
 ## 暂存缺陷
 

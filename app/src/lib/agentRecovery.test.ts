@@ -53,6 +53,16 @@ describe('agent recovery', () => {
       message('english-network', 'assistant', 'Agent 运行失败：dial tcp 127.0.0.1:65533: connect: connection refused'),
     ], false)).toBe('english-network')
 
+    for (const content of [
+      'Agent 运行失败：context deadline exceeded',
+      'Agent 运行失败：read tcp 127.0.0.1:65533: i/o timeout',
+      'Agent 运行失败：net/http: TLS handshake timeout',
+    ]) {
+      expect(recoverableAgentFailureId([
+        message('timeout', 'assistant', content),
+      ], false)).toBe('timeout')
+    }
+
     expect(recoverableAgentFailureId([
       message('missing-key', 'assistant', '当前模型没有可用的 API Key，请在“授权与模型”中保存并验证。'),
     ], false)).toBe('')

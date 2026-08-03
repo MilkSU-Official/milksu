@@ -50,6 +50,7 @@ async function mountPanel(props: Partial<InstanceType<typeof CodingComputerUsePa
   const onStart = vi.fn()
   const onStop = vi.fn()
   const onRequestPermissions = vi.fn()
+  const onRefresh = vi.fn()
   const onUpdateSelectedTargetKey = vi.fn()
   const host = document.createElement('div')
   document.body.append(host)
@@ -63,6 +64,7 @@ async function mountPanel(props: Partial<InstanceType<typeof CodingComputerUsePa
     onStart,
     onStop,
     onRequestPermissions,
+    onRefresh,
     'onUpdate:selectedTargetKey': onUpdateSelectedTargetKey,
     ...props,
   })
@@ -74,6 +76,7 @@ async function mountPanel(props: Partial<InstanceType<typeof CodingComputerUsePa
     onStart,
     onStop,
     onRequestPermissions,
+    onRefresh,
     onUpdateSelectedTargetKey,
   }
 }
@@ -84,6 +87,9 @@ describe('CodingComputerUsePanel', () => {
     const text = host.textContent ?? ''
 
     expect(text).toContain('Codex')
+    expect(text).toContain('未接入')
+    expect(text).toContain('权限和窗口都已就绪')
+    expect(text).toContain('才算正式接入当前 Coding 任务')
     expect(text).toContain('com.openai.codex')
     expect(text).toContain('PID 4242')
     expect(text).toContain('Window 9001')
@@ -99,6 +105,18 @@ describe('CodingComputerUsePanel', () => {
     expect(onStart).toHaveBeenCalledOnce()
   })
 
+  it('lets users refresh detection when Computer Use is not connected yet', async () => {
+    const { host, onRefresh } = await mountPanel()
+    const refresh = [...host.querySelectorAll<HTMLButtonElement>('button')].find(
+      button => button.textContent?.includes('重新检测'),
+    )
+
+    expect(refresh?.disabled).toBe(false)
+    refresh?.click()
+    await nextTick()
+    expect(onRefresh).toHaveBeenCalledOnce()
+  })
+
   it('keeps start disabled when another task owns the visible Computer Use session', async () => {
     const { host, onStart } = await mountPanel({
       status: status({
@@ -108,6 +126,7 @@ describe('CodingComputerUsePanel', () => {
     })
 
     expect(host.textContent).toContain('可见会话正由另一个 Coding 任务使用')
+    expect(host.textContent).toContain('其他任务正在使用')
     const start = [...host.querySelectorAll<HTMLButtonElement>('button')].find(
       button => button.textContent?.includes('启动可见会话'),
     )
@@ -129,6 +148,8 @@ describe('CodingComputerUsePanel', () => {
 
     expect(missing.host.textContent).toContain('辅助功能 未授权')
     expect(missing.host.textContent).toContain('App 管理')
+    expect(missing.host.textContent).toContain('勾选 MilkSU')
+    expect(missing.host.textContent).toContain('重新检测')
     const missingStart = [...missing.host.querySelectorAll<HTMLButtonElement>('button')].find(
       button => button.textContent?.includes('启动可见会话'),
     )

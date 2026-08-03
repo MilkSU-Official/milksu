@@ -1,7 +1,7 @@
 import type { Message } from '@/types'
 
 const noActivityFailure = /(?:模型长时间没有产生文本或工具进展|produced no model or tool activity)/i
-const networkFailure = /(?:模型或 Agent 网络连接失败|ECONNREFUSED|ECONNRESET|ENOTFOUND|ETIMEDOUT|network is unreachable|connection refused|fetch failed|dial tcp)/i
+const networkFailure = /(?:模型或 Agent 网络连接失败|ECONNREFUSED|ECONNRESET|ENOTFOUND|ETIMEDOUT|network is unreachable|connection refused|fetch failed|dial tcp|context deadline exceeded|i\/o timeout|TLS handshake timeout)/i
 
 export function recoverableAgentFailureId(
   messages: Message[],

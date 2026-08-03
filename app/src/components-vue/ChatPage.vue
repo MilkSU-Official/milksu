@@ -1871,6 +1871,7 @@ watch(
             :running="running"
             :owned-by-current-task="computerUseOwnedByCurrentTask"
             @request-permissions="requestComputerUsePermissions"
+            @refresh="refreshBrowserPanel"
             @start="startComputerUse"
             @stop="stopComputerUse"
           />
