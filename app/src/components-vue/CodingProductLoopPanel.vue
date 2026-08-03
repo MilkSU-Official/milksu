@@ -35,6 +35,17 @@ const canAct = computed(() => (
   && props.approvalPolicy !== 'read-only'
 ))
 
+function executionModeLabel(mode: CodingExecutionMode) {
+  return mode === 'plan' ? 'Plan' : 'Go'
+}
+
+function approvalPolicyLabel(policy: CodingApprovalPolicy) {
+  if (policy === 'full-auto') return '完全访问'
+  if (policy === 'workspace-auto') return '替我审批'
+  if (policy === 'ask') return '逐次审批'
+  return '只读'
+}
+
 const validationReady = computed(() => (
   Boolean(props.browserStatus?.enabled)
   || Boolean(props.computerUseStatus?.enabled)
@@ -115,7 +126,7 @@ const handoffSummary = computed(() => {
   const lines = [
     '# MilkSU Coding 接力棒',
     `- 工作区：${props.workspacePath || '尚未选择'}`,
-    `- 权限：${props.executionMode} / ${props.approvalPolicy}`,
+    `- 权限：${executionModeLabel(props.executionMode)} / ${approvalPolicyLabel(props.approvalPolicy)}`,
     `- Agent：${props.running ? '执行中' : props.messageCount ? `已有 ${props.messageCount} 条消息、${props.toolMessageCount} 条工具记录` : '尚未启动'}`,
     `- 可见验证：${validationReady.value
       ? [

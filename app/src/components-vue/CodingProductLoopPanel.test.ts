@@ -90,6 +90,8 @@ describe('CodingProductLoopPanel', () => {
     expect(text).toContain('用户可见验证')
     expect(text).toContain('Diff 与 Git 交付')
     expect(text).toContain('3 个文件待审阅/暂存/提交')
+    expect(text).toContain('权限：Go / 替我审批')
+    expect(text).not.toContain('workspace-auto')
     expect(text).toContain('3/5')
     expect(host.querySelectorAll('[data-product-loop-state="active"]').length)
       .toBeGreaterThanOrEqual(1)
@@ -167,7 +169,8 @@ describe('CodingProductLoopPanel', () => {
     expect(host.textContent).toContain('接力棒摘要')
     expect(host.textContent).toContain('# MilkSU Coding 接力棒')
     expect(host.textContent).toContain('工作区：/Users/milksu/code/milksu')
-    expect(host.textContent).toContain('权限：go / full-auto')
+    expect(host.textContent).toContain('权限：Go / 完全访问')
+    expect(host.textContent).not.toContain('权限：go / full-auto')
     expect(host.textContent).toContain('可见验证：待补')
     expect(host.textContent).toContain('本地领先 1 个提交，待 push')
 
