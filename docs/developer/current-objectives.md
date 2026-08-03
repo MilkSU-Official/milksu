@@ -368,19 +368,27 @@ Developer ID、公证、升级渠道很重要，但不阻塞当前功能迭代�
 
 ## 调整后的总体顺序
 
-本次优先级调整发生时，动态 Endpoint 纵切已经在途。先把在途修改完成到可测试、可审阅、
-可提交的干净边界；这是保护工作区一致性的过渡安排，不改变 Coding 替代与自举是首要产品
-优先级。
+采用一个低风险冲刺周期，先完成安全、可自动化、可复跑、验收边界清楚的纵切，让用户尽快
+进入原生 App 的真实验收。调整只改变执行顺序，不降低任何完成条件，也不通过移动条目、
+文档更新、纯重构或单次 fixture 人为提高整体完成度。动态 Endpoint 纵切已经完成并保持
+回归。
 
-1. 完成已经在途的动态 Endpoint 确认与窄网络执行器纵切。
-2. 关闭 Coding Agent 真实自举门槛。
-3. 补齐 ImageGen、Browser、前端设计/视觉回归 Skill 和证据驱动的高频通用 Plugin。
-4. 六赛道真实 CTF 验收，其中包含一次 Tool Builder 和一次 Strategist 闭环。
-5. 使用真实轨迹完成 Memory/推荐校准；已落地的证据归属模型保持回归，不重复开发。
-6. Runtime Reliability Bench。
-7. NYU 安全子集 Outcome Bench。
-8. 集中完成 pre-release 旧代码与 schema 的破坏性收口，并从全新数据目录完整回归。
-9. 崩溃恢复、全新机器、签名、公证、升级和性能发布门禁。
-10. 最后统一更新文档。
+1. 收完 Browser、前端设计/视觉回归 Skill 和高频通用 Plugin 的剩余自动化回归；真实
+   成功率验收仍保留，不把“装上了”当作完成。
+2. 建立完整的 Runtime Reliability Bench，优先补安全 fixture、统一报告、失败分类、
+   超时/取消、成本/工具预算、Compaction 和重启恢复。
+3. 提前建立本地交付的低风险基线：启动时间、空闲内存、前端 chunk、App/Sidecar 体积、
+   `1080×680` 最低窗口、脱敏诊断和离线失败路径；正式门禁仍在 Release Candidate 阶段。
+4. 集中处理需要用户条件的 Coding 验收：真实 ImageGen Provider、Computer Use 一次性
+   系统权限和一个用户授权的其他项目，不让这些局部依赖阻塞前面三项。
+5. 关闭完整 “MilkSU develops MilkSU” 自举门槛，包括打包 App、Vue + Go 修改、测试、
+   预览、重启恢复、审阅、提交、推送和经确认发布到 MilkSU 私有仓库。
+6. 完成六赛道真实 CTF 验收，并用这些真实轨迹完成 Memory/推荐校准；其中包含一次 Tool
+   Builder 和一次 Strategist 闭环，证据归属模型保持回归，不重复开发。
+7. 六赛道稳定后运行 NYU 安全子集 Outcome Bench；继续明确区分 safe-static smoke 与
+   MilkSU CTF 成绩。
+8. 集中完成 pre-release 旧代码与 schema 的破坏性收口，从全新数据目录完整回归，再完成
+   全新机器、签名、公证、升级和性能发布门禁。
+9. 最后统一更新架构、里程碑、状态、验收结论和发布说明。
 
 Labs 与 CVE 继续暂停，不进入上述任何完成条件。
