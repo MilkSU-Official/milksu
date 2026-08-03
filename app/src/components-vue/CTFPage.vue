@@ -68,7 +68,7 @@ import CTFTrajectory from '@/components-vue/CTFTrajectory.vue'
 import CTFWorkspaceHeader from '@/components-vue/CTFWorkspaceHeader.vue'
 import ManagedLabCatalog from '@/components-vue/ManagedLabCatalog.vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
-import WorkspaceTopBar from '@/components-vue/WorkspaceTopBar.vue'
+import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
 import { useCTFTrainingPlatforms } from '@/composables/useCTFTrainingPlatforms'
 import { useCTFWorkspace } from '@/composables/useCTFWorkspace'
 import { useManagedLabs } from '@/composables/useManagedLabs'
@@ -1693,10 +1693,9 @@ onBeforeUnmount(() => {
       @switch-mode="workspaceMode = $event"
     />
 
-    <WorkspaceTopBar
+    <WorkspaceModuleTopBar
       module="ctf"
       v-else
-      title="CTF"
       :subtitle="ctfSection === 'catalog' ? '题库、解题入口与训练状态' : '靶场进度追踪'"
     >
       <template #actions>
@@ -1938,7 +1937,7 @@ onBeforeUnmount(() => {
         </Button>
       </div>
       </template>
-    </WorkspaceTopBar>
+    </WorkspaceModuleTopBar>
 
     <div
       ref="workspaceScrollArea"

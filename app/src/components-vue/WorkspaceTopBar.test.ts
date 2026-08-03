@@ -8,6 +8,7 @@ import ctfManualIntakeSource from './CTFManualIntake.vue?raw'
 import ctfPageSource from './CTFPage.vue?raw'
 import ctfWorkspaceHeaderSource from './CTFWorkspaceHeader.vue?raw'
 import vulnPageSource from './VulnPage.vue?raw'
+import workspaceModuleTopBarSource from './WorkspaceModuleTopBar.vue?raw'
 import workspaceTopBarSource from './WorkspaceTopBar.vue?raw'
 import WorkspaceTopBar from './WorkspaceTopBar.vue'
 import workspaceTopBarTitleSource from './WorkspaceTopBarTitle.vue?raw'
@@ -83,7 +84,7 @@ describe('WorkspaceTopBar', () => {
     }
   })
 
-  it('keeps Coding, CTF, and CVE module headers on the shared WorkspaceTopBar component', () => {
+  it('keeps Coding, CTF, and CVE module headers on the shared module topbar component', () => {
     const files = [
       ['Coding', chatPageSource],
       ['CTF catalog', ctfPageSource],
@@ -93,9 +94,9 @@ describe('WorkspaceTopBar', () => {
 
     for (const [surface, source] of files) {
       expect(source, `${surface} should import the shared module topbar`)
-        .toContain("import WorkspaceTopBar from '@/components-vue/WorkspaceTopBar.vue'")
+        .toContain("import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'")
       expect(source, `${surface} should render the shared module topbar`)
-        .toContain('<WorkspaceTopBar')
+        .toContain('<WorkspaceModuleTopBar')
     }
 
     expect(chatPageSource).toContain('const topbarModule = computed')
@@ -105,6 +106,11 @@ describe('WorkspaceTopBar', () => {
     expect(ctfPageSource).toContain('module="ctf"')
     expect(ctfWorkspaceHeaderSource).toContain('module="ctf"')
     expect(vulnPageSource).toContain('module="cve"')
+    expect(workspaceModuleTopBarSource).toContain("coding: 'Coding'")
+    expect(workspaceModuleTopBarSource).toContain("ctf: 'CTF'")
+    expect(workspaceModuleTopBarSource).toContain("cve: 'CVE'")
+    expect(workspaceModuleTopBarSource).toContain('<WorkspaceTopBar')
+    expect(workspaceModuleTopBarSource).toContain('data-workspace-module-topbar')
     expect(workspaceTopBarTitleSource).toContain('data-workspace-topbar-title')
     expect(workspaceTopBarTitleSource).toContain('workspace-topbar__title truncate text-control')
     expect(workspaceTopBarTitleSource).toContain('<h1')

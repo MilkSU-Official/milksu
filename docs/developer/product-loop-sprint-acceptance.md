@@ -1062,3 +1062,28 @@
 - 真实 NVD/KEV/EPSS/OSV/GHSA/Vulhub 导入器已经实现或通过网络失败回归；
 - 导入样本的 digest、缓存文件、日期和差异展示；
 - 任何 CVE 练习环境启动、停止、清理或真实资产验证。
+
+## 2026-08-04 · Shared module topbar for Coding / CTF / CVE
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | 本批次提交 |
+| 目标流 | CTF / CVE / Coding 一级菜单 → 同位置模块标题和顶部动作区使用同一组件 |
+| 窄测 | `npm --prefix app test -- WorkspaceTopBar.test.ts ChatPageRoutingContract.test.ts CTFWorkspaceHeader.test.ts VulnPage.test.ts CTFPageNavigationContract.test.ts` |
+| 窄测结果 | 5 files / 22 tests passed |
+| 前端构建 | `npm --prefix app run build` |
+| 构建结果 | production build passed |
+| Browser 验证 | 本批次未新增 Browser preview；组件契约和生产构建已覆盖。下一次打包 App 视觉 sweep 时复验三菜单真实截图。 |
+
+覆盖范围：
+
+- 新增 `WorkspaceModuleTopBar`，把 `coding / ctf / cve` 三个一级模块的标题映射集中到同一个组件；
+- Coding、CTF 题库、CTF 解题会话和 CVE 顶部导航条全部改为复用 `WorkspaceModuleTopBar`；
+- 底层仍由 `WorkspaceTopBarTitle` 渲染同一个 `H1 + workspace-topbar__title + text-control` 标题节点；
+- 测试锁住三大模块不再各自手写或传入模块标题，后续只能通过共享组件调整字号和顶栏结构。
+
+本次仍未证明：
+
+- 真实打包 App 中三个菜单截图的像素级对齐；
+- 顶栏以外的统计卡、表格、Tab、Textarea 和深层按钮已完全统一；
+- 不同窗口宽度下 CTF/CVE/Coding 顶栏动作区的换行和焦点顺序已经完成视觉 QA。

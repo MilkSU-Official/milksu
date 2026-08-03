@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Badge, Button } from '@felinic/ui'
 import { Archive, ArrowLeft, ExternalLink, Play, ShieldCheck } from 'lucide-vue-next'
-import WorkspaceTopBar from '@/components-vue/WorkspaceTopBar.vue'
+import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
 
 defineProps<{
   challengeTitle?: string
@@ -19,7 +19,7 @@ defineEmits<{
 </script>
 
 <template>
-  <WorkspaceTopBar module="ctf" title="CTF" subtitle="解题会话 · 返回题库不会结束当前会话">
+  <WorkspaceModuleTopBar module="ctf" subtitle="解题会话 · 返回题库不会结束当前会话">
     <template #badge>
       <Badge v-if="challengeTitle" variant="secondary" class="max-w-[18rem] truncate">
         {{ challengeTitle }}
@@ -56,5 +56,5 @@ defineEmits<{
         授权与模型
       </Button>
     </template>
-  </WorkspaceTopBar>
+  </WorkspaceModuleTopBar>
 </template>

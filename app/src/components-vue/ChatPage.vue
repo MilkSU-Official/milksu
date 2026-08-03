@@ -64,7 +64,7 @@ import CodingComputerUsePanel from '@/components-vue/CodingComputerUsePanel.vue'
 import CodingMCPReviewCard from '@/components-vue/CodingMCPReviewCard.vue'
 import CodingProductLoopPanel from '@/components-vue/CodingProductLoopPanel.vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
-import WorkspaceTopBar from '@/components-vue/WorkspaceTopBar.vue'
+import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
 import type {
   CodingArchitecturePreview,
   CodingArtifactPreview,
@@ -1166,9 +1166,8 @@ watch(
 <template>
   <section class="relative flex min-w-0 flex-1 overflow-hidden bg-surface-editor">
   <main class="chat-main flex min-w-0 flex-1 flex-col overflow-hidden bg-surface-editor">
-    <WorkspaceTopBar
+    <WorkspaceModuleTopBar
       :module="topbarModule"
-      :title="topbarPresentation.title"
       :subtitle="topbarPresentation.subtitle"
     >
       <template v-if="ctfSession || vulnerabilitySession" #badge>
@@ -1208,7 +1207,7 @@ watch(
           <PanelRightOpen v-else class="size-4" />
         </Button>
       </template>
-    </WorkspaceTopBar>
+    </WorkspaceModuleTopBar>
 
     <div ref="scrollArea" class="min-h-0 flex-1 overflow-y-auto">
       <div v-if="!conversation?.messages.length" class="mx-auto flex min-h-full max-w-2xl flex-col justify-center px-8 py-16">

@@ -32,7 +32,7 @@ import {
   Workflow,
 } from 'lucide-vue-next'
 import WorkspaceDetailTitle from '@/components-vue/WorkspaceDetailTitle.vue'
-import WorkspaceTopBar from '@/components-vue/WorkspaceTopBar.vue'
+import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
 import VulnerabilityLoopPanel from '@/components-vue/VulnerabilityLoopPanel.vue'
 import { useVulnerabilityDashboard } from '@/composables/useVulnerabilityDashboard'
 import type { VulnerabilityCodingTask } from '@/composables/useVulnerabilityDashboard'
@@ -222,7 +222,7 @@ function statusVariant(status: VulnerabilityStatus) {
 
 <template>
   <main class="flex min-w-0 flex-1 flex-col bg-background">
-    <WorkspaceTopBar module="cve" title="CVE" subtitle="追踪 CVE、资产命中与研究进度">
+    <WorkspaceModuleTopBar module="cve" subtitle="追踪 CVE、资产命中与研究进度">
       <template #actions>
         <Button
           :variant="showCustomForm ? 'outline' : 'default'"
@@ -316,7 +316,7 @@ function statusVariant(status: VulnerabilityStatus) {
         </div>
       </div>
       </template>
-    </WorkspaceTopBar>
+    </WorkspaceModuleTopBar>
 
     <div class="grid min-h-0 flex-1 grid-cols-[minmax(560px,1.25fr)_minmax(360px,.75fr)] max-[1080px]:grid-cols-1">
       <section class="min-h-0 overflow-auto border-r border-border max-[1080px]:border-b max-[1080px]:border-r-0">
