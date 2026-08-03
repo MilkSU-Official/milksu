@@ -107,6 +107,7 @@ describe('CodingChangesPanel Pull Request confirmation', () => {
     expect(document.body.textContent).toContain('codex/self-hosting')
     expect(document.body.textContent).toContain('0123456789abcdef0123456789abcdef01234567')
     expect(document.body.textContent).toContain('main')
+    expect(document.body.textContent).not.toContain('preview-token')
 
     const confirm = [...document.body.querySelectorAll('button')].find(
       button => button.textContent?.includes('确认创建草稿 PR'),
