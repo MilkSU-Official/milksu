@@ -39,6 +39,8 @@ describe('CTFWorkspaceHeader', () => {
     expect(host.textContent).toContain('NSSCTF P3879')
     expect(host.textContent).toContain('打开题目')
     expect(host.textContent).toContain('授权与模型')
+    expect(host.querySelector('[data-module-topbar]')).not.toBeNull()
+    expect(host.querySelector('[data-workspace-topbar-title]')?.className).toContain('text-control')
 
     host.querySelector<HTMLButtonElement>('[aria-label="返回 CTF 题库"]')?.click()
     host.querySelector<HTMLButtonElement>('[aria-label="打开当前 CTF 题目"]')?.click()

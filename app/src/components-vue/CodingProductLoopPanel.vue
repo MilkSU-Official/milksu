@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { Badge, Button } from '@felinic/ui'
-import { Check, CircleDot, FileDiff, FileImage, GitBranch, Globe2, Terminal } from 'lucide-vue-next'
+import { Check, CircleDot, Copy, FileDiff, FileImage, GitBranch, Globe2, Terminal } from 'lucide-vue-next'
 import type {
   CodingBrowserStatus,
   CodingComputerUseStatus,
@@ -27,6 +27,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   openPanel: [panel: LoopPanel]
 }>()
+
+const copyNotice = ref('')
 
 const canAct = computed(() => (
   props.executionMode === 'go'
@@ -108,6 +110,44 @@ const completedCount = computed(() => (
   items.value.filter(item => item.state === 'done').length
 ))
 
+const handoffSummary = computed(() => {
+  const git = props.environment?.git
+  const lines = [
+    '# MilkSU Coding 接力棒',
+    `- 工作区：${props.workspacePath || '尚未选择'}`,
+    `- 权限：${props.executionMode} / ${props.approvalPolicy}`,
+    `- Agent：${props.running ? '执行中' : props.messageCount ? `已有 ${props.messageCount} 条消息、${props.toolMessageCount} 条工具记录` : '尚未启动'}`,
+    `- 可见验证：${validationReady.value
+      ? [
+          props.browserStatus?.enabled ? 'Browser 已接入' : '',
+          props.computerUseStatus?.enabled ? 'Computer Use 已接入' : '',
+        ].filter(Boolean).join('；')
+      : '待补：产物预览、Browser 或 Computer Use'}`,
+    `- Git：${git?.isRepository
+      ? git.conflicts > 0
+        ? `${git.conflicts} 个冲突待解决`
+        : git.dirty
+          ? `${git.changedFiles} 个文件待审阅/暂存/提交`
+          : git.ahead > 0
+            ? `本地领先 ${git.ahead} 个提交，待 push`
+            : '工作区干净且无待 push 提交'
+      : git?.problem || '不是 Git 仓库或尚未读取 Git 状态'}`,
+    '- 下一步：补齐待补项后，再用 Diff/Hunk、测试/预览证据和 push 结果收口。',
+  ]
+  return lines.join('\n')
+})
+
+async function copyHandoffSummary() {
+  copyNotice.value = ''
+  try {
+    if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable')
+    await navigator.clipboard.writeText(handoffSummary.value)
+    copyNotice.value = '已复制'
+  } catch {
+    copyNotice.value = '复制失败，请手动选择摘要'
+  }
+}
+
 function stateLabel(state: LoopState) {
   if (state === 'done') return '已具备'
   if (state === 'active') return '进行中'
@@ -188,5 +228,21 @@ function stateBadgeVariant(state: LoopState) {
         Git 交付
       </Button>
     </div>
+
+    <details class="mt-3 rounded-lg border border-border bg-muted/20 px-3 py-2">
+      <summary class="cursor-pointer text-caption font-medium text-muted-foreground">
+        接力棒摘要
+      </summary>
+      <pre class="mt-2 max-h-52 overflow-auto whitespace-pre-wrap break-words rounded-md bg-background px-3 py-2 font-mono text-caption leading-5">{{ handoffSummary }}</pre>
+      <div class="mt-2 flex items-center justify-between gap-2">
+        <span class="text-caption text-muted-foreground">
+          {{ copyNotice || '复制后可直接交给下一位 Agent 或写入验收记录。' }}
+        </span>
+        <Button type="button" variant="outline" size="sm" @click="copyHandoffSummary">
+          <Copy class="size-3.5" />
+          复制接力棒
+        </Button>
+      </div>
+    </details>
   </section>
 </template>

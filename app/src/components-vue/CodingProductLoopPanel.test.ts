@@ -14,6 +14,7 @@ const mountedApps: App[] = []
 afterEach(() => {
   for (const app of mountedApps.splice(0)) app.unmount()
   document.body.innerHTML = ''
+  vi.unstubAllGlobals()
 })
 
 const dirtyEnvironment: CodingEnvironmentSnapshot = {
@@ -144,6 +145,41 @@ describe('CodingProductLoopPanel', () => {
     expect(host.textContent).toContain('进行中')
     expect(host.querySelectorAll('[data-product-loop-state="active"]').length)
       .toBeGreaterThanOrEqual(1)
+  })
+
+  it('renders and copies a handoff summary for the next Agent', async () => {
+    const writeText = vi.fn(async () => undefined)
+    vi.stubGlobal('navigator', {
+      ...navigator,
+      clipboard: { writeText },
+    })
+    const { host } = await mountPanel({
+      environment: {
+        ...cleanEnvironment,
+        git: {
+          ...cleanEnvironment.git,
+          ahead: 1,
+        },
+      },
+      approvalPolicy: 'full-auto',
+    })
+
+    expect(host.textContent).toContain('接力棒摘要')
+    expect(host.textContent).toContain('# MilkSU Coding 接力棒')
+    expect(host.textContent).toContain('工作区：/Users/milksu/code/milksu')
+    expect(host.textContent).toContain('权限：go / full-auto')
+    expect(host.textContent).toContain('可见验证：待补')
+    expect(host.textContent).toContain('本地领先 1 个提交，待 push')
+
+    const copy = [...host.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.includes('复制接力棒'))
+    copy?.click()
+    await Promise.resolve()
+    await nextTick()
+
+    expect(writeText).toHaveBeenCalledOnce()
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('MilkSU Coding 接力棒'))
+    expect(host.textContent).toContain('已复制')
   })
 
   it('opens the concrete validation and delivery panels from the checklist', async () => {

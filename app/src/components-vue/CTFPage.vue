@@ -1871,7 +1871,7 @@ onBeforeUnmount(() => {
         <span class="flex-1" />
         <Button
           variant="ghost"
-          size="icon"
+          size="icon-sm"
           class="app-no-drag"
           aria-label="授权与模型设置"
           @click="$emit('openSettings')"
@@ -1906,7 +1906,7 @@ onBeforeUnmount(() => {
         </NativeSelect>
         <Button
         variant="ghost"
-        size="icon"
+        size="icon-sm"
         class="app-no-drag"
         :loading="activeBank === 'nssctf' ? training.syncing.value : ctfshow.loading.value"
         aria-label="刷新当前题库"

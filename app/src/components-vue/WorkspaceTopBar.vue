@@ -8,6 +8,7 @@ defineProps<{
 <template>
   <header
     class="workspace-topbar app-drag border-b border-border bg-background px-6 py-3"
+    data-module-topbar
     data-workspace-topbar
   >
     <div class="flex min-w-0 items-center justify-between gap-4">
