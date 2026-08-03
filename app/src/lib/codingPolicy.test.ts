@@ -51,6 +51,8 @@ describe('Coding policy presentation', () => {
     }
     expect(capabilities.find(item => item.id === 'browser')?.status).toBe('unavailable')
     expect(capabilities.find(item => item.id === 'computer-use')?.status).toBe('unavailable')
+    expect(capabilities.find(item => item.id === 'computer-use')?.detail)
+      .toMatch(/可见 App \/ 窗口/)
     expect(capabilities.find(item => item.id === 'imagegen')?.status).toBe('approval-required')
   })
 

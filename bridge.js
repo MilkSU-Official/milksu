@@ -66,6 +66,7 @@ import {
   codingBrowserToolBlockReason,
   formatCodingBrowserApprovalInput,
 } from "./bridge-browser-policy.js";
+import { computerUseRoutingGuidance } from "./bridge-computer-use-routing.js";
 import { disposeAgentSession } from "./bridge-session-lifecycle.js";
 import {
   compactSession,
@@ -370,10 +371,11 @@ function codingPolicyGuidance(policy) {
       + "Report the checked page, failures, screenshot, and "
       + "regression result instead of claiming success from page text alone."
     : "";
+  const computerUseGuidance = computerUseRoutingGuidance(policy);
   if (policy.executionMode === "plan") {
     return "Plan mode is active. Inspect, reason, and propose a concrete plan. "
       + "Do not claim that files, commands, or external systems were changed. "
-      + `bash, edit, write, and lsp_fix are unavailable.${productActionGuidance}${collaborationGuidance}${browserGuidance}`;
+      + `bash, edit, write, and lsp_fix are unavailable.${productActionGuidance}${collaborationGuidance}${browserGuidance}${computerUseGuidance}`;
   }
   if (policy.approvalPolicy === "full-auto") {
     return "Go mode is active with Full Access and automatic approval. You may use the terminal "
@@ -384,7 +386,7 @@ function codingPolicyGuidance(policy) {
       + "Explicitly enabled Browser, Computer Use, routine MCP, and collaboration calls run "
       + "automatically. MCP external account authorization and hosted PR, merge request, or release "
       + "publication still pause for an independent user confirmation; "
-      + `their fixed scope and hard safety guards still apply.${productActionGuidance}${collaborationGuidance}${browserGuidance}`;
+      + `their fixed scope and hard safety guards still apply.${productActionGuidance}${collaborationGuidance}${browserGuidance}${computerUseGuidance}`;
   }
   if (policy.approvalPolicy === "workspace-auto") {
     return "Go mode is active with Project Auto. You may edit files, use Git, run development "
@@ -397,7 +399,8 @@ function codingPolicyGuidance(policy) {
       + "LSP fixes are previewed and verified inside the project before apply."
       + productActionGuidance
       + collaborationGuidance
-      + browserGuidance;
+      + browserGuidance
+      + computerUseGuidance;
   }
   if (policy.approvalPolicy === "ask") {
     return "Go mode is active with Request Approval. Read-only inspection runs directly. Before "
@@ -406,10 +409,11 @@ function codingPolicyGuidance(policy) {
       + "Continue only after that one request is approved; "
       + "selected MCP calls use the same independent approval channel. A rejection is authoritative "
       + `and must not be bypassed with another tool.${productActionGuidance}${collaborationGuidance}`
-      + browserGuidance;
+      + browserGuidance
+      + computerUseGuidance;
   }
   return "Go mode is active with Read-only. Inspect and explain, but do not claim any mutation or "
-    + `command execution; write and side-effect tools are unavailable.${productActionGuidance}${collaborationGuidance}${browserGuidance}`;
+    + `command execution; write and side-effect tools are unavailable.${productActionGuidance}${collaborationGuidance}${browserGuidance}${computerUseGuidance}`;
 }
 
 function createCodingPermissionExtension(

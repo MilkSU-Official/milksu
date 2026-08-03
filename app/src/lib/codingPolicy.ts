@@ -106,7 +106,7 @@ export function previewCodingCapabilities(
       id: 'computer-use',
       label: 'Computer Use',
       status: 'unavailable',
-      detail: '仅在用户显式启动 MilkSU 应用范围会话后可用；调用跟随当前 Coding 权限档位。',
+      detail: '仅在用户显式选择可见 App / 窗口并启动会话后可用；调用跟随当前 Coding 权限档位。',
     },
   ]
 }

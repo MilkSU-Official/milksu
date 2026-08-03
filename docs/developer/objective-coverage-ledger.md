@@ -53,8 +53,9 @@
 从 25% 校准到 50%。第四轮确认 Computer Use 仍硬编码 MilkSU 自身，且纯文本模型没有
 Computer Use 工具截图的辅助视觉回路，因此新增 `COD-31`；随后已补可见 App / 窗口选择、
 不可变 Scope 和窄测试，将 `COD-15` 提到 50%；工具截图辅助视觉摘要已接入 Bridge
-`tool_result` hook 并加缓存测试，将 `COD-31` 提到 50%。44% 是当前细项口径的基线。后续
-只使用同一张表比较变化。
+`tool_result` hook 并加缓存测试，将 `COD-31` 提到 50%；GUI 任务在 Computer Use 未启用时
+不得绕用 Shell/IPC/截图目录的路由护栏已接入 Coding policy guidance，记入 `BUG-01` 进展，
+但不折算为真实 App 验收。44% 是当前细项口径的基线。后续只使用同一张表比较变化。
 
 ### 分值分布
 
@@ -233,7 +234,7 @@ Computer Use 工具截图的辅助视觉回路，因此新增 `COD-31`；随后�
 
 | ID | 问题 | 复现与证据 | 影响 | 计划处理层 |
 | --- | --- | --- | --- | --- |
-| BUG-01 | GUI 任务在 Computer Use 未接入时没有停下并引导启用能力，而是用 Full Access Shell 研究目标 App 的截图、数据目录和内部 IPC | 2026-08-03 MilkSU 临时沙盒对话“找到那个 codex 那个 App…”；环境面板显示 `Computer Use：未接入`，轨迹随后尝试 Accessibility、截图、`goals_1.sqlite` 和 Electron IPC，外部调用最终为 `no-client-found` | 浪费长时间上下文，绕开产品设计的可见应用 Scope，也让用户误以为 Computer Use 不可用 | P0 Computer Use / Tool Routing 统一修复；先做能力路由，再做完整细节 |
+| BUG-01 | GUI 任务在 Computer Use 未接入时没有停下并引导启用能力，而是用 Full Access Shell 研究目标 App 的截图、数据目录和内部 IPC | 2026-08-03 MilkSU 临时沙盒对话“找到那个 codex 那个 App…”；环境面板显示 `Computer Use：未接入`，轨迹随后尝试 Accessibility、截图、`goals_1.sqlite` 和 Electron IPC，外部调用最终为 `no-client-found`；2026-08-03 已接入 Coding policy guidance，未启用时要求停下并提示开启可见 Computer Use，会明确禁止 bash、截图目录、SQLite、Electron IPC、私有协议和网络逆向作为 UI 控制替代；启用时提示不可变 app/window Scope | 浪费长时间上下文，绕开产品设计的可见应用 Scope，也让用户误以为 Computer Use 不可用 | 路由护栏已落地；后续在打包 App 中做真实外部 App 操作验收，确认模型不再绕用 Shell/IPC |
 
 ## 共同评估后的执行入口
 
