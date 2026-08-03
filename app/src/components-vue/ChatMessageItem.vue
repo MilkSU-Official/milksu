@@ -7,6 +7,7 @@ import {
   RotateCcw,
 } from 'lucide-vue-next'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
+import { redactProviderCredentials } from '@/lib/redaction'
 import type { Message } from '@/types'
 
 defineProps<{
@@ -23,6 +24,10 @@ function formatAttachmentSize(size: number) {
   if (size >= 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`
   if (size >= 1024) return `${(size / 1024).toFixed(1)} KB`
   return `${size} B`
+}
+
+function visibleApprovalText(value?: string) {
+  return value ? redactProviderCredentials(value) : ''
 }
 </script>
 
@@ -60,12 +65,12 @@ function formatAttachmentSize(size: number) {
       <pre
         v-if="message.content"
         class="mt-3 max-h-40 overflow-auto rounded-md bg-background/70 px-3 py-2 whitespace-pre-wrap break-words font-mono text-caption leading-5"
-      >{{ message.content }}</pre>
+      >{{ visibleApprovalText(message.content) }}</pre>
       <details v-if="message.approvalInput" class="mt-2">
         <summary class="cursor-pointer text-caption text-muted-foreground">
           查看完整参数
         </summary>
-        <pre class="mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words font-mono text-caption leading-5">{{ message.approvalInput }}</pre>
+        <pre class="mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words font-mono text-caption leading-5">{{ visibleApprovalText(message.approvalInput) }}</pre>
       </details>
       <div
         v-if="message.approvalState === 'pending' && message.approvalRequestId"
@@ -89,7 +94,7 @@ function formatAttachmentSize(size: number) {
         </Button>
       </div>
       <p v-else-if="message.approvalReason" class="mt-2 text-caption text-muted-foreground">
-        {{ message.approvalReason }}
+        {{ visibleApprovalText(message.approvalReason) }}
       </p>
     </div>
     <div
