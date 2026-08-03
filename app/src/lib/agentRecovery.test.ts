@@ -72,6 +72,24 @@ describe('agent recovery', () => {
     ], false)).toBe('')
   })
 
+  it('offers recovery after app, Sidecar, or protocol stops without reusing stale approvals', () => {
+    for (const content of [
+      'Agent 已停止：sidecar exited',
+      'Agent 通信异常：engine.protocol_error: lost framing',
+      'Agent 已停止。',
+      'Agent 进程已停止，本次整理已中断。',
+    ]) {
+      expect(recoverableAgentFailureId([
+        message('stopped', 'assistant', content),
+      ], false)).toBe('stopped')
+    }
+
+    expect(recoverableAgentFailureId([
+      message('stopped', 'assistant', 'Agent 已停止：sidecar exited'),
+      message('newer', 'user', '我改了目标'),
+    ], false)).toBe('')
+  })
+
   it('resumes CTF from persisted evidence without repeating completed work', () => {
     const prompt = agentRecoveryPrompt(true)
     expect(prompt).toContain('notes.md')

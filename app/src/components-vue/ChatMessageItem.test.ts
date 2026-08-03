@@ -12,20 +12,28 @@ afterEach(() => {
   document.body.innerHTML = ''
 })
 
-async function mountMessage(message: Message) {
+async function mountMessage(
+  message: Message,
+  props: Partial<InstanceType<typeof ChatMessageItem>['$props']> = {},
+) {
   const responses: Array<{ requestId: string, approved: boolean }> = []
+  let retried = false
   const host = document.createElement('div')
   document.body.append(host)
   const app = createApp(ChatMessageItem, {
     message,
+    ...props,
     onRespondApproval: (requestId: string, approved: boolean) => {
       responses.push({ requestId, approved })
+    },
+    onRetry: () => {
+      retried = true
     },
   })
   app.mount(host)
   mountedApps.push(app)
   await nextTick()
-  return { host, responses }
+  return { host, responses, retried: () => retried }
 }
 
 describe('ChatMessageItem', () => {
@@ -58,5 +66,39 @@ describe('ChatMessageItem', () => {
     allow?.click()
     await nextTick()
     expect(responses).toEqual([{ requestId: 'approval-redaction', approved: true }])
+  })
+
+  it('shows context-specific recovery hints for resumable failures', async () => {
+    const coding = await mountMessage({
+      id: 'message-recovery',
+      role: 'assistant',
+      content: 'Agent 已停止：sidecar exited',
+      timestamp: 1,
+      status: 'done',
+    }, {
+      recoverable: true,
+      recoveryContext: 'coding',
+    })
+
+    expect(coding.host.textContent).toContain('继续')
+    expect(coding.host.textContent).toContain('工作区、Git 状态、工具结果和验证面板')
+    const codingRetry = [...coding.host.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.includes('继续'))
+    codingRetry?.click()
+    await nextTick()
+    expect(coding.retried()).toBe(true)
+
+    const ctf = await mountMessage({
+      id: 'message-ctf-recovery',
+      role: 'assistant',
+      content: 'Agent 通信异常：engine.protocol_error',
+      timestamp: 1,
+      status: 'done',
+    }, {
+      recoverable: true,
+      recoveryContext: 'ctf',
+    })
+
+    expect(ctf.host.textContent).toContain('notes、证据、Judge 回执和工具结果')
   })
 })

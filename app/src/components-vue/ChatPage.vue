@@ -1165,6 +1165,7 @@ watch(
             v-else
             :message="item.message"
             :recoverable="item.message.id === recoverableFailureId"
+            :recovery-context="ctfSession ? 'ctf' : 'coding'"
             @respond-approval="(requestId, approved) => $emit('respondApproval', requestId, approved)"
             @retry="resumeAfterFailure"
           />

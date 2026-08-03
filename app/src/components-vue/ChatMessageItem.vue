@@ -10,9 +10,10 @@ import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import { redactProviderCredentials } from '@/lib/redaction'
 import type { Message } from '@/types'
 
-defineProps<{
+const props = defineProps<{
   message: Message
   recoverable?: boolean
+  recoveryContext?: 'coding' | 'ctf'
 }>()
 
 defineEmits<{
@@ -28,6 +29,12 @@ function formatAttachmentSize(size: number) {
 
 function visibleApprovalText(value?: string) {
   return value ? redactProviderCredentials(value) : ''
+}
+
+function recoveryHint() {
+  return props.recoveryContext === 'ctf'
+    ? '从已保留的 notes、证据、Judge 回执和工具结果继续'
+    : '从已保留的工作区、Git 状态、工具结果和验证面板继续'
 }
 </script>
 
@@ -137,7 +144,7 @@ function visibleApprovalText(value?: string) {
           继续
         </Button>
         <span class="text-caption text-muted-foreground">
-          从已保留的工作区、工具结果和证据继续
+          {{ recoveryHint() }}
         </span>
       </div>
     </div>
