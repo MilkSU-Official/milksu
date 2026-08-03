@@ -15,7 +15,7 @@ defineProps<{
       <div class="min-w-0">
         <div class="flex min-w-0 items-center gap-2 overflow-hidden">
           <h1
-            class="workspace-topbar__title truncate font-medium tracking-[-0.01em]"
+            class="workspace-topbar__title truncate text-control font-medium tracking-[-0.01em]"
             data-workspace-topbar-title
           >
             {{ title }}
@@ -38,7 +38,11 @@ defineProps<{
         <slot name="actions" />
       </div>
     </div>
-    <div v-if="$slots.filters" class="workspace-topbar__filters app-no-drag mt-3 text-control">
+    <div
+      v-if="$slots.filters"
+      class="workspace-topbar__filters app-no-drag mt-3 text-control"
+      data-workspace-topbar-filters
+    >
       <slot name="filters" />
     </div>
     <div v-if="$slots.metrics" class="workspace-topbar__metrics mt-3 text-body">
@@ -62,6 +66,16 @@ defineProps<{
 }
 
 .workspace-topbar__title {
+  font-size: var(--text-control, 0.875rem);
+  line-height: var(--text-control--line-height, 1.25rem);
+}
+
+.workspace-topbar__actions :deep([data-button][data-size="sm"]),
+.workspace-topbar__actions :deep([data-slot="select-trigger"][data-size="sm"]),
+.workspace-topbar__actions :deep([data-slot="native-select"][data-size="sm"]),
+.workspace-topbar__filters :deep([data-button][data-size="sm"]),
+.workspace-topbar__filters :deep([data-slot="select-trigger"][data-size="sm"]),
+.workspace-topbar__filters :deep([data-slot="native-select"][data-size="sm"]) {
   font-size: var(--text-control, 0.875rem);
   line-height: var(--text-control--line-height, 1.25rem);
 }

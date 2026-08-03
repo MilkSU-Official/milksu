@@ -62,6 +62,7 @@ const pullRequestResult = ref<CodingPullRequestPublishResult | null>(null)
 const pullRequestTitle = ref('')
 const pullRequestBody = ref('')
 const pullRequestError = ref('')
+const deliveryCopyNotice = ref('')
 
 const git = computed(() => props.environment?.git)
 const changes = computed(() => git.value?.changes ?? [])
@@ -96,6 +97,54 @@ function validatePullRequestPreview(preview: CodingPullRequestPreview) {
   }
   if (!preview.confirmationToken.trim()) {
     throw new Error('Pull Request 预览缺少一次性确认，请重新准备。')
+  }
+}
+
+const deliveryStateLabel = computed(() => {
+  if (!git.value?.isRepository) return '不可交付'
+  if (git.value.conflicts > 0) return '冲突待处理'
+  if (git.value.dirty) return '变更待提交'
+  if (git.value.ahead > 0) return '提交待推送'
+  return '已收口'
+})
+
+const deliverySummary = computed(() => {
+  const current = git.value
+  if (!current?.isRepository) {
+    return [
+      '# MilkSU Git 交付摘要',
+      `- 状态：不可交付`,
+      `- 原因：${current?.problem || '当前目录不是 Git 仓库'}`,
+    ].join('\n')
+  }
+  return [
+    '# MilkSU Git 交付摘要',
+    `- 状态：${deliveryStateLabel.value}`,
+    `- 工作区：${props.workspacePath || '未选择'}`,
+    `- 分支：${current.branch || 'detached'}`,
+    `- HEAD：${current.head || '未知'}`,
+    `- 上游：${current.upstream || '未设置'}`,
+    `- 同步：ahead ${current.ahead} / behind ${current.behind}`,
+    `- 变更：${current.changedFiles} 文件；暂存 ${current.staged}；修改 ${current.modified}；未跟踪 ${current.untracked}；冲突 ${current.conflicts}`,
+    `- Diff：+${current.additions} / -${current.deletions}`,
+    `- 下一步：${current.conflicts > 0
+      ? '先解决冲突'
+      : current.dirty
+        ? '审阅 Diff，暂存并提交'
+        : current.ahead > 0
+          ? 'push 到授权远端'
+          : '可作为本轮 Git 交付证据'}`,
+  ].join('\n')
+})
+
+async function copyDeliverySummary() {
+  deliveryCopyNotice.value = ''
+  try {
+    if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable')
+    await navigator.clipboard.writeText(deliverySummary.value)
+    deliveryCopyNotice.value = '已复制'
+  } catch {
+    deliveryCopyNotice.value = '复制失败，请手动选择摘要'
   }
 }
 
@@ -392,6 +441,21 @@ watch(changes, current => {
     </div>
 
     <template v-if="git?.isRepository">
+      <details class="border-b border-border bg-muted/20 px-4 py-3">
+        <summary class="cursor-pointer text-caption font-medium text-muted-foreground">
+          Git 交付摘要
+        </summary>
+        <pre class="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-md bg-background px-3 py-2 font-mono text-caption leading-5">{{ deliverySummary }}</pre>
+        <div class="mt-2 flex items-center justify-between gap-2">
+          <span class="text-caption text-muted-foreground">
+            {{ deliveryCopyNotice || '复制后可写入本轮验收记录或交给下一位 Agent。' }}
+          </span>
+          <Button type="button" variant="outline" size="sm" @click="copyDeliverySummary">
+            复制交付摘要
+          </Button>
+        </div>
+      </details>
+
       <div
         v-if="changes.length"
         class="border-b border-border px-3 py-3"

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { createApp, nextTick, type App } from 'vue'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import CodingChangesPanel from './CodingChangesPanel.vue'
 import type { CodingEnvironmentSnapshot } from '@/codingEnvironmentTypes'
 
@@ -17,9 +17,84 @@ afterEach(() => {
   for (const app of mountedApps.splice(0)) app.unmount()
   document.body.innerHTML = ''
   delete (window as unknown as { go?: unknown }).go
+  vi.unstubAllGlobals()
 })
 
+function cleanEnvironment(overrides: Partial<CodingEnvironmentSnapshot['git']> = {}): CodingEnvironmentSnapshot {
+  return {
+    workspace: '/workspace',
+    workspaceName: 'milksu',
+    capturedAt: '2026-08-02T12:00:00Z',
+    git: {
+      available: true,
+      isRepository: true,
+      branch: 'codex/self-hosting',
+      upstream: 'origin/codex/self-hosting',
+      head: '0123456789ab',
+      ahead: 0,
+      behind: 0,
+      changedFiles: 0,
+      staged: 0,
+      modified: 0,
+      untracked: 0,
+      conflicts: 0,
+      additions: 0,
+      deletions: 0,
+      dirty: false,
+      changes: [],
+      ...overrides,
+    },
+  }
+}
+
+async function mountChangesPanel(environment: CodingEnvironmentSnapshot) {
+  const host = document.createElement('div')
+  document.body.append(host)
+  const app = createApp(CodingChangesPanel, {
+    workspacePath: '/workspace',
+    environment,
+  })
+  app.mount(host)
+  mountedApps.push(app)
+  await nextTick()
+  return host
+}
+
 describe('CodingChangesPanel Pull Request confirmation', () => {
+  it('renders and copies a bounded Git delivery summary', async () => {
+    const writeText = vi.fn(async () => undefined)
+    vi.stubGlobal('navigator', {
+      ...navigator,
+      clipboard: { writeText },
+    })
+    const host = await mountChangesPanel(cleanEnvironment())
+
+    expect(host.textContent).toContain('Git 交付摘要')
+    expect(host.textContent).toContain('# MilkSU Git 交付摘要')
+    expect(host.textContent).toContain('状态：已收口')
+    expect(host.textContent).toContain('分支：codex/self-hosting')
+    expect(host.textContent).toContain('HEAD：0123456789ab')
+    expect(host.textContent).toContain('下一步：可作为本轮 Git 交付证据')
+
+    const copy = [...host.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.includes('复制交付摘要'))
+    copy?.click()
+    await settle()
+
+    expect(writeText).toHaveBeenCalledOnce()
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('MilkSU Git 交付摘要'))
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('状态：已收口'))
+    expect(host.textContent).toContain('已复制')
+  })
+
+  it('keeps committed-but-unpushed work visible in the delivery summary', async () => {
+    const host = await mountChangesPanel(cleanEnvironment({ ahead: 2 }))
+
+    expect(host.textContent).toContain('状态：提交待推送')
+    expect(host.textContent).toContain('同步：ahead 2 / behind 0')
+    expect(host.textContent).toContain('下一步：push 到授权远端')
+  })
+
   it('previews the immutable target before a separate publish call', async () => {
     const calls: string[] = []
     ;(window as unknown as { go?: unknown }).go = {
