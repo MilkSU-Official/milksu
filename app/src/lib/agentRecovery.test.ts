@@ -90,6 +90,30 @@ describe('agent recovery', () => {
     ], false)).toBe('')
   })
 
+  it('offers recovery for manual interruption, cancellation, and context-window exhaustion', () => {
+    for (const content of [
+      'Agent 运行失败：用户已中断，本轮工具和工作区状态已保留。',
+      'Agent 运行失败：context canceled',
+      'Agent 运行失败：operation was canceled',
+      'Agent 运行失败：aborted',
+      'Agent 运行失败：cancelled by user',
+      'Agent 运行失败：context_length_exceeded',
+      'Agent 运行失败：maximum context length exceeded',
+      'Agent 运行失败：token limit exceeded',
+      'Agent 运行失败：上下文窗口已满，请整理后继续。',
+      'Agent 运行失败：上下文过长，本回合已停止。',
+    ]) {
+      expect(recoverableAgentFailureId([
+        message('recoverable', 'assistant', content),
+      ], false)).toBe('recoverable')
+    }
+
+    expect(recoverableAgentFailureId([
+      message('recoverable', 'assistant', 'Agent 运行失败：cancelled by user'),
+      message('newer', 'user', '换一个任务'),
+    ], false)).toBe('')
+  })
+
   it('resumes CTF from persisted evidence without repeating completed work', () => {
     const prompt = agentRecoveryPrompt(true)
     expect(prompt).toContain('notes.md')
@@ -107,5 +131,7 @@ describe('agent recovery', () => {
     expect(prompt).toContain('不要复用重启前的审批状态')
     expect(prompt).toContain('应用窗口')
     expect(prompt).toContain('外部发布')
+    expect(prompt).toContain('超时、取消或上下文过长')
+    expect(prompt).toContain('压缩/概括已完成事实')
   })
 })

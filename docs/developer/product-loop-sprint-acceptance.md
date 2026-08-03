@@ -712,3 +712,29 @@
 - 原生 App 中完成一条完整 MilkSU develops MilkSU 小任务；
 - 外部 App Computer Use 真实窗口操作；
 - Git stage/commit/push 在同一原生 App 会话中完成。
+
+## 2026-08-04 · Recoverable interruption and context-limit detection
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | 本批次提交 |
+| 目标流 | Coding/CTF Agent failure → detect recoverable stop → show continue path |
+| 窄测 | `npm --prefix app test -- agentRecovery.test.ts useConversations.test.ts` |
+| 窄测结果 | 2 files / 14 tests passed |
+| 前端构建 | `npm --prefix app run build` |
+| 构建结果 | production build passed |
+
+覆盖范围：
+
+- `recoverableAgentFailureId()` 继续保留无活动、网络、Sidecar/protocol 停止识别；
+- 新增用户中断/取消、`aborted`、`context canceled`、`operation was canceled` 等可恢复停止识别；
+- 新增上下文窗口过长、`context_length_exceeded`、`maximum context length exceeded`、`token limit exceeded` 等可恢复停止识别；
+- 如果用户在失败后又发了新要求，不会把旧失败继续按钮误绑定到新任务；
+- Coding 恢复 prompt 明确说明超时、取消或上下文过长后应先压缩/概括已完成事实，再选择最小可验证下一步；
+- 不改变 API Key / 模型不支持等配置错误的不可恢复口径。
+
+本次仍未证明：
+
+- 原生 App 中真实触发一次用户中断后继续；
+- 原生 App 中真实触发上下文过长后继续；
+- 继续后的 Agent 不重复已完成步骤的完整人工验收。
