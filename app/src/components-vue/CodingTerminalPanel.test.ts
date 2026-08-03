@@ -58,8 +58,9 @@ const runtimeStatus: CodingRuntimeStatus = {
     pid: 4321,
     ports: [1420, 5173],
     logPath: '/runtime/bg-restart.log',
-    logTail: 'Vite ready on http://127.0.0.1:1420\n',
+    logTail: 'Vite ready on http://127.0.0.1:1420 OPENAI_API_KEY=sk-bg-secret-123456789\n',
     logTruncated: true,
+    error: 'last failure Bearer sk-bg-bearer-secret-123456789',
   }],
 }
 
@@ -145,6 +146,10 @@ describe('CodingTerminalPanel', () => {
     expect(text).toContain(':1420')
     expect(text).toContain(':5173')
     expect(text).toContain('Vite ready on http://127.0.0.1:1420')
+    expect(text).toContain('OPENAI_API_KEY=[credential redacted]')
+    expect(text).toContain('Bearer [credential redacted]')
+    expect(text).not.toContain('sk-bg-secret')
+    expect(text).not.toContain('sk-bg-bearer-secret')
     expect(text).toContain('仅显示日志末尾')
   })
 })

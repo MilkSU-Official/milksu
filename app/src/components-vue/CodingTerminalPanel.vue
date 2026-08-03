@@ -31,6 +31,7 @@ import {
   invokeCommand,
   listenEvent,
 } from '@/desktop'
+import { redactProviderCredentials } from '@/lib/redaction'
 import type {
   CodingBackgroundTask,
   CodingRuntimeStatus,
@@ -105,6 +106,14 @@ function terminalStatusLabel(status: CodingTerminalSession['status']): string {
   if (status === 'exited') return '已退出'
   if (status === 'stopped') return '已停止'
   return '失败'
+}
+
+function errorMessage(reason: unknown, fallback: string) {
+  return redactProviderCredentials(reason instanceof Error ? reason.message : fallback)
+}
+
+function visibleTaskText(value?: string) {
+  return value ? redactProviderCredentials(value) : ''
 }
 
 function taskElapsed(task: CodingBackgroundTask): string {
@@ -187,9 +196,7 @@ async function startShell() {
     selectedTerminalId.value = session.id
     renderTerminalSession(session)
   } catch (reason) {
-    shellError.value = reason instanceof Error
-      ? reason.message
-      : '无法启动项目 Shell。'
+    shellError.value = errorMessage(reason, '无法启动项目 Shell。')
   } finally {
     shellLoading.value = false
   }
@@ -237,9 +244,7 @@ async function hydrateShellSessions() {
       )
     }
   } catch (reason) {
-    shellError.value = reason instanceof Error
-      ? reason.message
-      : '无法读取项目 Shell。'
+    shellError.value = errorMessage(reason, '无法读取项目 Shell。')
   } finally {
     hydratingShell = false
     const buffered = pendingOutput.get(selectedTerminalId.value)
@@ -292,9 +297,7 @@ function writeShell(data: string) {
       data,
     }))
     .catch(reason => {
-      shellError.value = reason instanceof Error
-        ? reason.message
-        : '无法写入项目 Shell。'
+      shellError.value = errorMessage(reason, '无法写入项目 Shell。')
     })
 }
 
@@ -309,9 +312,7 @@ async function stopShell() {
       terminalId: session.id,
     })
   } catch (reason) {
-    shellError.value = reason instanceof Error
-      ? reason.message
-      : '无法停止项目 Shell。'
+    shellError.value = errorMessage(reason, '无法停止项目 Shell。')
   } finally {
     shellLoading.value = false
   }
@@ -367,9 +368,7 @@ async function refreshTasks(silent = false) {
     )
   } catch (reason) {
     if (!silent) {
-      taskError.value = reason instanceof Error
-        ? reason.message
-        : '无法读取后台任务。'
+      taskError.value = errorMessage(reason, '无法读取后台任务。')
     }
   } finally {
     refreshing.value = false
@@ -401,9 +400,7 @@ async function runCommand() {
     )
     command.value = ''
   } catch (reason) {
-    taskError.value = reason instanceof Error
-      ? reason.message
-      : '无法运行后台任务。'
+    taskError.value = errorMessage(reason, '无法运行后台任务。')
   } finally {
     starting.value = false
   }
@@ -426,9 +423,7 @@ async function stopTask(task: CodingBackgroundTask) {
       },
     )
   } catch (reason) {
-    taskError.value = reason instanceof Error
-      ? reason.message
-      : '无法停止后台任务。'
+    taskError.value = errorMessage(reason, '无法停止后台任务。')
     await refreshTasks(true)
   } finally {
     stopping.value = stopping.value.filter(id => id !== task.id)
@@ -788,7 +783,7 @@ onBeforeUnmount(() => {
             <pre
               v-if="task.logTail"
               class="max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-background/70 px-3 py-2 font-mono text-caption text-foreground"
-            >{{ task.logTail }}</pre>
+            >{{ visibleTaskText(task.logTail) }}</pre>
             <p v-if="task.logTruncated" class="text-muted-foreground">
               仅显示日志末尾。
             </p>
@@ -796,7 +791,7 @@ onBeforeUnmount(() => {
               退出码 {{ task.lastExitCode }}
             </p>
             <p v-if="task.error" class="break-words text-destructive">
-              {{ task.error }}
+              {{ visibleTaskText(task.error) }}
             </p>
           </div>
         </details>
