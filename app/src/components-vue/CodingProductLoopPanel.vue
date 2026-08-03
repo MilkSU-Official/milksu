@@ -133,6 +133,49 @@ const completedCount = computed(() => (
   items.value.filter(item => item.state === 'done').length
 ))
 
+const computerUseVerificationRecord = computed(() => {
+  const status = props.computerUseStatus
+  if (!status) {
+    return {
+      label: 'Computer Use',
+      state: '未检测',
+      detail: '打开 Browser/App 面板检测系统权限、可见窗口和会话锁定状态。',
+    }
+  }
+  if (!status.available) {
+    return {
+      label: 'Computer Use',
+      state: '不可用',
+      detail: status.problem || '当前运行环境不可用；可先用 Browser 或产物预览验收。',
+    }
+  }
+  if (!status.permissions.accessibility || !status.permissions.screenRecording) {
+    const missing = [
+      status.permissions.accessibility ? '' : '辅助功能',
+      status.permissions.screenRecording ? '' : '屏幕录制',
+    ].filter(Boolean).join('、')
+    return {
+      label: 'Computer Use',
+      state: '待授权',
+      detail: `缺少 ${missing}；打开 Browser/App 面板请求系统权限并重新检测。`,
+    }
+  }
+  if (!status.enabled) {
+    return {
+      label: 'Computer Use',
+      state: '待启动',
+      detail: '系统权限已具备；打开 Browser/App 面板选择当前可见窗口并启动可见会话。',
+    }
+  }
+  return {
+    label: 'Computer Use',
+    state: '已接入',
+    detail: status.target
+      ? `${status.target.name} · PID ${status.target.pid} · Window ${status.target.windowId}`
+      : '已接入当前任务；等待下一次可见 App 操作证据。',
+  }
+})
+
 const verificationRecords = computed(() => [
   {
     label: '窄自动化',
@@ -155,6 +198,7 @@ const verificationRecords = computed(() => [
       ? 'Browser/Computer Use 已接入；仍需实际截图、DOM、控制台或窗口操作证据。'
       : '当前只有组件/构建证据；打包 App 或 Browser 真实验收尚未证明。',
   },
+  computerUseVerificationRecord.value,
   {
     label: 'Git 交付',
     state: gitState.value === 'done' ? '可交付' : gitState.value === 'blocked' ? '阻塞' : '待收口',
