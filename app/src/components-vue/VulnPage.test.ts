@@ -318,6 +318,9 @@ describe('VulnPage', () => {
     expect(host.textContent).toContain('1 已确认计划')
     expect(host.textContent).toContain('已确认本地练习计划，尚未启动容器')
     expect(host.textContent).toContain('下一步交给 Coding Agent')
+    expect(host.textContent).toContain('本地练习启动前清单')
+    expect(host.textContent).toContain('复制启动前计划')
+    expect(host.textContent).toContain('必须逐项人工确认 Docker、端口、目录、网络边界和清理方式')
     expect(host.textContent).toContain('不要自动拉取镜像、启动容器、运行 exploit 或访问外部目标')
 
     const stop = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>

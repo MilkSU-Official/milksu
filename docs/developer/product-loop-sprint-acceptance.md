@@ -655,3 +655,32 @@
 - 打包 App 中真实启动 Shell；
 - 打包 App 中真实后台任务、端口、日志和跨 App 重启恢复；
 - 真实长任务超时/取消后的完整用户验收。
+
+## 2026-08-04 · CVE isolated practice launch-plan checklist
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | 本批次提交 |
+| 目标流 | CVE → ActiveMQ CVE → 建立研究任务 → 确认练习计划 → 查看/复制启动前清单 |
+| 窄测 | `npm run test -- --run src/components-vue/VulnerabilityLoopPanel.test.ts src/components-vue/VulnPage.test.ts src/composables/useVulnerabilityDashboard.test.ts src/lib/vulnerabilityCodingHandoff.test.ts` |
+| 窄测结果 | 4 files / 26 tests passed |
+| 全量前端 | `npm run test && npm run build` |
+| 全量前端结果 | 47 files / 216 tests passed；production build passed |
+| Browser 验证 | Vite preview `http://127.0.0.1:4180/`；进入 CVE，选择 `CVE-2023-46604`，连续执行“建立研究任务”和“确认练习计划” |
+
+覆盖范围：
+
+- CVE 最小闭环面板新增“本地练习启动前清单”；
+- 清单结构化展示来源/固定 revision、目录、端口、资源、网络边界、清理方式和当前状态；
+- “确认练习计划”后下一步会推进到“交给 Coding”，不再停在静态练习卡片；
+- 用户可以复制“启动前计划”，交给后续 Coding Agent 做只读 Docker/Compose 启动前检查；
+- 复制内容明确禁止自动拉取镜像、启动容器、开放端口、运行 PoC/exploit、发送漏洞触发输入或访问外部目标；
+- Browser preview 页面加载为 `MilkSU`，无 relevant console error / warn，无 Vite overlay；
+- 不新增 schema，不接外部 Feed，不启动 Docker，不运行 PoC/exploit。
+
+本次仍未证明：
+
+- Vulhub catalog import；
+- Docker/Compose 真实启动、停止、清理；
+- Agent 在本地隔离练习 Scope 内的真实观察、日志阅读和复盘质量；
+- 打包 App 中用户真实完成 CVE → Coding → 回 CVE 的完整视觉验收。
