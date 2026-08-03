@@ -228,7 +228,7 @@
 
 | ID | 问题 | 复现与证据 | 影响 | 计划处理层 |
 | --- | --- | --- | --- | --- |
-| — | 当前尚无从恢复开发后新增的已确认缺陷 | — | — | — |
+| BUG-01 | GUI 任务在 Computer Use 未接入时没有停下并引导启用能力，而是用 Full Access Shell 研究目标 App 的截图、数据目录和内部 IPC | 2026-08-03 MilkSU 临时沙盒对话“找到那个 codex 那个 App…”；环境面板显示 `Computer Use：未接入`，轨迹随后尝试 Accessibility、截图、`goals_1.sqlite` 和 Electron IPC，外部调用最终为 `no-client-found` | 浪费长时间上下文，绕开产品设计的可见应用 Scope，也让用户误以为 Computer Use 不可用 | P1 Computer Use / Tool Routing 统一修复；当前广度轮只登记 |
 
 ## 共同评估后的执行入口
 
