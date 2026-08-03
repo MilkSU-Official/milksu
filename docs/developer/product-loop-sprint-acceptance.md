@@ -373,3 +373,27 @@
 - 打包 App 中用户真实按 checklist 逐项点击并完成验收；
 - 生成恢复点后实际重启/继续；
 - Git stage/commit/push 在同一原生会话中由用户验收完成。
+
+## 2026-08-04 · Coding focused follow-up prompt
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | `b61749e` |
+| 窄测 | `npm run test -- --run src/components-vue/CodingProductLoopPanel.test.ts` |
+| 窄测结果 | 1 file / 17 tests passed |
+| 全量前端 | `npm run test && npm run build` |
+| 全量前端结果 | 46 files / 204 tests passed；production build passed |
+
+覆盖范围：
+
+- Coding 产品闭环卡新增“复制待补任务”；
+- 复制内容只包含未完成验收项、当前工作区、权限口径、合并状态和下一步建议；
+- 已具备项不会进入待补任务，避免后续 Agent 重做已经完成的仓库确认或自动化输出核对；
+- prompt 明确保留硬边界：不读取/迁移 Provider/API Key，不把 smoke/UI 架子写成完整成绩，
+  真实 App、Computer Use、Browser、Git 和恢复证据要分开记录。
+
+本次仍未证明：
+
+- 新 prompt 被真实下一轮 MilkSU Agent 执行；
+- 下一轮 Agent 能按 prompt 完成剩余验收；
+- 原生 App 中复制到剪贴板的真实交互。
