@@ -55,6 +55,7 @@ describe('VulnPage', () => {
     expect(text).toContain('当前模式')
     expect(text).toContain('学习与追踪')
     expect(text).toContain('学习路径')
+    expect(text).toContain('隔离练习环境')
     expect(text).toContain('Agent 可接手任务')
     expect(text).toContain('研究任务工作区')
     expect(text).toContain('安全边界')
@@ -181,5 +182,48 @@ describe('VulnPage', () => {
     expect(host.textContent).toContain('10.88.0.12')
     expect(host.textContent).toContain('用户本地资产清单')
     expect(host.textContent).toContain('研究中')
+  })
+
+  it('lets the user confirm a matched isolated practice environment without launching Docker', async () => {
+    const host = await mountVulnPage()
+    const activeMqRow = [...host.querySelectorAll<HTMLTableRowElement>('tr')].find(item =>
+      item.textContent?.includes('CVE-2023-46604'),
+    )
+    if (!activeMqRow) throw new Error('missing ActiveMQ CVE row')
+    activeMqRow.click()
+    await nextTick()
+
+    expect(host.textContent).toContain('Vulhub · Apache ActiveMQ OpenWire RCE')
+    expect(host.textContent).toContain('activemq/CVE-2023-46604')
+    expect(host.textContent).toContain('61616/tcp · OpenWire')
+    expect(host.textContent).toContain('默认只创建启动计划')
+    expect(host.textContent).toContain('练习成功只代表本地学习完成')
+
+    const confirm = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
+      item.textContent?.includes('确认本地练习'),
+    )
+    if (!confirm) throw new Error('missing confirm practice button')
+    confirm.click()
+    await nextTick()
+
+    expect(host.textContent).toContain('已确认')
+    expect(host.textContent).toContain('下一步交给 Coding Agent')
+    expect(host.textContent).toContain('不要自动拉取镜像、启动容器、运行 exploit 或访问外部目标')
+
+    const stop = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
+      item.textContent?.includes('标记停止'),
+    )
+    if (!stop) throw new Error('missing stop practice button')
+    stop.click()
+    await nextTick()
+    expect(host.textContent).toContain('已停止')
+
+    const clear = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
+      item.textContent?.includes('清除记录'),
+    )
+    if (!clear) throw new Error('missing clear practice button')
+    clear.click()
+    await nextTick()
+    expect(host.textContent).toContain('待确认')
   })
 })

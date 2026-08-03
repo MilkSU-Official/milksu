@@ -20,12 +20,14 @@ import {
   ExternalLink,
   FileText,
   Plus,
+  Play,
   RefreshCw,
   Search,
   Server,
   Settings,
   ShieldCheck,
   Star,
+  Square,
   Workflow,
 } from 'lucide-vue-next'
 import WorkspaceTopBar from '@/components-vue/WorkspaceTopBar.vue'
@@ -339,6 +341,138 @@ function statusVariant(status: VulnerabilityStatus) {
               </span>
             </li>
           </ol>
+        </section>
+
+        <section class="border-b border-border px-6 py-5">
+          <div class="flex items-center justify-between gap-3">
+            <h3 class="text-label font-medium">隔离练习环境</h3>
+            <Badge v-if="dashboard.practiceEnvironmentFor.value" variant="info">已匹配</Badge>
+            <Badge v-else variant="outline">未匹配</Badge>
+          </div>
+
+          <div v-if="dashboard.practiceEnvironmentFor.value" class="mt-4 rounded-xl border border-border bg-card px-4 py-4">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div class="min-w-0">
+                <p class="text-body font-medium">{{ dashboard.practiceEnvironmentFor.value.title }}</p>
+                <p class="mt-1 text-caption leading-5 text-muted-foreground">
+                  {{ dashboard.practiceEnvironmentFor.value.matchReason }}
+                </p>
+              </div>
+              <Badge
+                :variant="dashboard.practiceSessionFor.value?.state === 'running'
+                  ? 'success'
+                  : dashboard.practiceSessionFor.value?.state === 'stopped'
+                    ? 'secondary'
+                    : 'outline'"
+              >
+                {{
+                  dashboard.practiceSessionFor.value?.state === 'running'
+                    ? '已确认'
+                    : dashboard.practiceSessionFor.value?.state === 'stopped'
+                      ? '已停止'
+                      : '待确认'
+                }}
+              </Badge>
+            </div>
+
+            <dl class="mt-4 grid gap-2 text-caption leading-5">
+              <div class="grid grid-cols-[4.5rem_1fr] gap-3">
+                <dt class="text-muted-foreground">来源</dt>
+                <dd>
+                  <Button
+                    as="a"
+                    :href="dashboard.practiceEnvironmentFor.value.source.href"
+                    target="_blank"
+                    rel="noreferrer"
+                    variant="link"
+                    size="text"
+                  >
+                    {{ dashboard.practiceEnvironmentFor.value.source.label }} <ExternalLink class="size-3" />
+                  </Button>
+                  <span class="ml-2 text-muted-foreground">
+                    {{ dashboard.practiceEnvironmentFor.value.source.revision }}
+                  </span>
+                </dd>
+              </div>
+              <div class="grid grid-cols-[4.5rem_1fr] gap-3">
+                <dt class="text-muted-foreground">目录</dt>
+                <dd class="font-mono">{{ dashboard.practiceEnvironmentFor.value.directory }}</dd>
+              </div>
+              <div class="grid grid-cols-[4.5rem_1fr] gap-3">
+                <dt class="text-muted-foreground">端口</dt>
+                <dd>{{ dashboard.practiceEnvironmentFor.value.ports.join('；') }}</dd>
+              </div>
+              <div class="grid grid-cols-[4.5rem_1fr] gap-3">
+                <dt class="text-muted-foreground">资源</dt>
+                <dd>{{ dashboard.practiceEnvironmentFor.value.resources }}</dd>
+              </div>
+              <div class="grid grid-cols-[4.5rem_1fr] gap-3">
+                <dt class="text-muted-foreground">网络</dt>
+                <dd>{{ dashboard.practiceEnvironmentFor.value.network }}</dd>
+              </div>
+              <div class="grid grid-cols-[4.5rem_1fr] gap-3">
+                <dt class="text-muted-foreground">清理</dt>
+                <dd>{{ dashboard.practiceEnvironmentFor.value.cleanup }}</dd>
+              </div>
+            </dl>
+
+            <ul class="mt-4 space-y-2 rounded-lg bg-muted/30 px-3 py-3 text-caption leading-5 text-muted-foreground">
+              <li
+                v-for="rule in dashboard.practiceEnvironmentFor.value.safety"
+                :key="rule"
+                class="flex gap-2"
+              >
+                <ShieldCheck class="mt-0.5 size-3.5 shrink-0" />
+                <span>{{ rule }}</span>
+              </li>
+            </ul>
+
+            <div
+              v-if="dashboard.practiceSessionFor.value"
+              class="mt-4 rounded-lg border border-border bg-muted/20 px-3 py-3"
+            >
+              <p class="text-caption font-medium text-muted-foreground">下一步交给 Coding Agent</p>
+              <p class="mt-2 text-body leading-6">{{ dashboard.practiceSessionFor.value.nextPrompt }}</p>
+              <p class="mt-2 text-caption text-muted-foreground">
+                本地记录：{{ new Date(dashboard.practiceSessionFor.value.updatedAt).toLocaleString() }}
+              </p>
+            </div>
+
+            <div class="mt-4 flex flex-wrap gap-2">
+              <Button
+                v-if="dashboard.practiceSessionFor.value?.state !== 'running'"
+                size="sm"
+                @click="dashboard.confirmPracticeEnvironment(dashboard.selected.value.id)"
+              >
+                <Play class="size-4" />
+                确认本地练习
+              </Button>
+              <Button
+                v-else
+                variant="outline"
+                size="sm"
+                @click="dashboard.stopPracticeEnvironment(dashboard.selected.value.id)"
+              >
+                <Square class="size-4" />
+                标记停止
+              </Button>
+              <Button
+                v-if="dashboard.practiceSessionFor.value"
+                variant="ghost"
+                size="sm"
+                @click="dashboard.clearPracticeSession(dashboard.selected.value.id)"
+              >
+                清除记录
+              </Button>
+            </div>
+          </div>
+
+          <div v-else class="mt-4 rounded-xl border border-dashed border-border bg-muted/20 px-4 py-4">
+            <p class="text-body font-medium">暂未匹配到可直接练习的本地环境</p>
+            <p class="mt-1 text-caption leading-5 text-muted-foreground">
+              继续保留情报、资产和笔记；后续 Vulhub catalog import 或用户手动绑定环境后，在这里显示确认启动入口。
+            </p>
+          </div>
         </section>
 
         <section class="border-b border-border px-6 py-5">
