@@ -286,6 +286,80 @@ describe('CodingChangesPanel Pull Request confirmation', () => {
     expect(document.body.textContent).not.toContain('确认创建草稿 PR')
   })
 
+  it('rejects an unauthorized PR preview before showing confirmation', async () => {
+    const calls: string[] = []
+    ;(window as unknown as { go?: unknown }).go = {
+      main: {
+        App: {
+          PrepareCodingPullRequest: async () => {
+            calls.push('prepare')
+            return {
+              repository: 'openai/codex',
+              repositoryUrl: 'https://github.com/openai/codex',
+              private: false,
+              remote: 'origin',
+              sourceBranch: 'codex/self-hosting',
+              headCommit: '0123456789abcdef0123456789abcdef01234567',
+              targetBranch: 'main',
+              suggestedTitle: 'feat: self host',
+              draft: true,
+              confirmationToken: 'unauthorized-preview-token',
+              expiresAt: '2026-08-02T12:05:00Z',
+            }
+          },
+          PublishCodingPullRequest: async () => {
+            calls.push('publish')
+            throw new Error('publish should not be called')
+          },
+        },
+      },
+    }
+    const environment: CodingEnvironmentSnapshot = {
+      workspace: '/workspace',
+      workspaceName: 'milksu',
+      capturedAt: '2026-08-02T12:00:00Z',
+      git: {
+        available: true,
+        isRepository: true,
+        branch: 'codex/self-hosting',
+        upstream: 'origin/codex/self-hosting',
+        head: '0123456789ab',
+        ahead: 0,
+        behind: 0,
+        changedFiles: 0,
+        staged: 0,
+        modified: 0,
+        untracked: 0,
+        conflicts: 0,
+        additions: 0,
+        deletions: 0,
+        dirty: false,
+        changes: [],
+      },
+    }
+    const host = document.createElement('div')
+    document.body.append(host)
+    const app = createApp(CodingChangesPanel, {
+      workspacePath: '/workspace',
+      environment,
+    })
+    app.mount(host)
+    mountedApps.push(app)
+    await nextTick()
+
+    const prepare = [...host.querySelectorAll('button')].find(
+      button => button.textContent?.includes('准备 PR'),
+    )
+    prepare?.click()
+    await settle()
+
+    expect(calls).toEqual(['prepare'])
+    expect(document.body.textContent).toContain('Pull Request 发布只允许当前授权的 MilkSU 私有仓库')
+    expect(document.body.textContent).not.toContain('确认创建草稿 PR')
+    expect(document.body.textContent).not.toContain('unauthorized-preview-token')
+    expect(document.body.textContent).not.toContain('openai/codex')
+  })
+
   it('clears a previous PR result before showing a newly prepared preview', async () => {
     const calls: string[] = []
     let prepareCount = 0

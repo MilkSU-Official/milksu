@@ -69,6 +69,8 @@ const busy = computed(() => Boolean(props.running || operation.value))
 const selectedChange = computed(() => (
   changes.value.find(change => change.path === selectedPath.value)
 ))
+const authorizedPullRequestRepository = 'MilkSU-Official/milksu'
+const authorizedPullRequestRepositoryUrl = 'https://github.com/MilkSU-Official/milksu'
 
 function changeStatus(change: CodingGitChange): string {
   return `${change.indexStatus}${change.worktreeStatus}`
@@ -77,6 +79,24 @@ function changeStatus(change: CodingGitChange): string {
 function redactConfirmationToken(value: string, token?: string) {
   if (!token) return value
   return value.split(token).join('[confirmation token redacted]')
+}
+
+function validatePullRequestPreview(preview: CodingPullRequestPreview) {
+  if (
+    preview.repository !== authorizedPullRequestRepository
+    || preview.repositoryUrl !== authorizedPullRequestRepositoryUrl
+  ) {
+    throw new Error('Pull Request 发布只允许当前授权的 MilkSU 私有仓库。')
+  }
+  if (!preview.private) {
+    throw new Error('Pull Request 发布目标必须是当前授权的 MilkSU 私有仓库。')
+  }
+  if (!preview.remote.trim() || !preview.sourceBranch.trim() || !preview.targetBranch.trim() || !preview.headCommit.trim()) {
+    throw new Error('Pull Request 预览缺少仓库、分支或提交信息，请重新准备。')
+  }
+  if (!preview.confirmationToken.trim()) {
+    throw new Error('Pull Request 预览缺少一次性确认，请重新准备。')
+  }
 }
 
 async function inspectDiff(change: CodingGitChange) {
@@ -165,6 +185,7 @@ async function preparePullRequest() {
       'prepare_coding_pull_request',
       { workspacePath: props.workspacePath },
     )
+    validatePullRequestPreview(preview)
     pullRequestPreview.value = preview
     pullRequestTitle.value = preview.suggestedTitle
     pullRequestBody.value = ''
