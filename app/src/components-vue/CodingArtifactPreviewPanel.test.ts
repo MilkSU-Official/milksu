@@ -8,6 +8,7 @@ import type {
   CodingEnvironmentSnapshot,
 } from '@/codingEnvironmentTypes'
 
+const hasDesktopRuntime = vi.fn(() => true)
 const invokeCommand = vi.fn(async (command: string, args?: unknown) => {
   if (command === 'get_coding_artifact_preview') {
     const relativePath = (args as { relativePath?: string } | undefined)?.relativePath
@@ -44,6 +45,7 @@ const invokeCommand = vi.fn(async (command: string, args?: unknown) => {
 })
 
 vi.mock('@/desktop', () => ({
+  hasDesktopRuntime: () => hasDesktopRuntime(),
   invokeCommand: (...args: unknown[]) => invokeCommand(...args as [string, unknown?]),
 }))
 
@@ -59,6 +61,7 @@ afterEach(() => {
   for (const app of mountedApps.splice(0)) app.unmount()
   document.body.innerHTML = ''
   invokeCommand.mockClear()
+  hasDesktopRuntime.mockReturnValue(true)
 })
 
 const environment: CodingEnvironmentSnapshot = {
@@ -221,5 +224,24 @@ describe('CodingArtifactPreviewPanel', () => {
 
     expect(invokeCommand).toHaveBeenCalledTimes(1)
     expect(host.textContent).toContain('请输入工作区内支持的 Markdown、HTML、PNG、JPEG、GIF 或 WebP 相对路径')
+  })
+
+  it('explains browser-preview limitations without faking workspace artifact contents', async () => {
+    hasDesktopRuntime.mockReturnValue(false)
+    const { host, onPreviewed } = await mountPanel()
+
+    expect(host.textContent).toContain('当前是浏览器预览')
+    expect(host.textContent).toContain('真实读取工作区产物需要 MilkSU 桌面运行时')
+
+    const markdownSuggestion = [...host.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.includes('docs/report.md'))
+    markdownSuggestion?.click()
+    await settle()
+
+    expect(invokeCommand).not.toHaveBeenCalled()
+    expect(onPreviewed).not.toHaveBeenCalled()
+    expect(host.textContent).toContain('浏览器预览不能读取工作区文件')
+    expect(host.textContent).toContain('打包后的 MilkSU App')
+    expect(host.textContent).not.toContain('verified markdown')
   })
 })

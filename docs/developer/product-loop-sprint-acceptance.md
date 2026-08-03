@@ -570,3 +570,30 @@
 - Vulhub catalog import 或 Docker 练习启动；
 - Coding Agent 对 CVE 任务的实际研究质量；
 - 打包 App 中用户真实点击完整 CVE → Coding → 回 CVE 的视觉验收。
+
+## 2026-08-04 · Artifact preview browser-preview boundary
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | 本批次提交 |
+| 目标流 | Coding → 产物预览 → 浏览器预览环境下说明真实读取边界 |
+| 窄测 | `npm run test -- --run src/components-vue/CodingArtifactPreviewPanel.test.ts src/components-vue/CodingProductLoopPanel.test.ts` |
+| 窄测结果 | 2 files / 21 tests passed |
+| 全量前端 | `npm run test && npm run build` |
+| 全量前端结果 | 47 files / 212 tests passed；production build passed |
+| Browser 验证 | Vite preview `http://127.0.0.1:4176/`；进入 Coding，点击 `产物预览` |
+
+覆盖范围：
+
+- Artifact Preview 面板在没有 MilkSU 桌面运行时时显示明确提示；
+- 浏览器预览中点击 Markdown/HTML/图片候选不会伪造产物内容，也不会调用工作区读取命令；
+- 文案区分“浏览器预览只能验证面板文案和入口”与“打包 App 才能验收真实工作区产物”；
+- Browser preview 中 Coding → 产物预览 显示桌面运行时边界提示；
+- Browser preview 页面加载为 `MilkSU`，无 relevant console error / warn，无 Vite overlay；
+- 保留桌面运行时下 Markdown、HTML sandbox 和图片预览的原有测试覆盖。
+
+本次仍未证明：
+
+- 打包 App 中真实读取 Markdown、HTML 和图片产物；
+- 原生 WebView 中 HTML sandbox/CSP 的负向验收；
+- Browser preview 能替代桌面运行时读取工作区文件。

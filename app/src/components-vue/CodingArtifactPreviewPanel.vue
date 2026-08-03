@@ -10,7 +10,7 @@ import {
   LoaderCircle,
   Search,
 } from 'lucide-vue-next'
-import { invokeCommand } from '@/desktop'
+import { hasDesktopRuntime, invokeCommand } from '@/desktop'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import { redactProviderCredentials } from '@/lib/redaction'
 import {
@@ -37,6 +37,7 @@ const relativePath = ref('')
 const preview = ref<CodingArtifactPreview | null>(null)
 const loading = ref(false)
 const error = ref('')
+const desktopRuntime = hasDesktopRuntime()
 
 const suggestions = computed(() => suggestedArtifactPaths(props.environment))
 const htmlSource = computed(() => (
@@ -72,6 +73,11 @@ async function refresh() {
   if (!isPreviewableArtifactPath(path)) {
     preview.value = null
     error.value = '请输入工作区内支持的 Markdown、HTML、PNG、JPEG、GIF 或 WebP 相对路径。'
+    return
+  }
+  if (!desktopRuntime) {
+    preview.value = null
+    error.value = '浏览器预览不能读取工作区文件；请在打包后的 MilkSU App 中验收真实 Markdown、HTML 或图片产物。'
     return
   }
   loading.value = true
@@ -161,6 +167,12 @@ defineExpose({ refresh })
       </div>
       <p v-else class="mt-2 text-caption leading-5 text-muted-foreground">
         可输入任意工作区内的 Markdown、HTML、PNG、JPEG、GIF 或 WebP 相对路径。
+      </p>
+      <p
+        v-if="!desktopRuntime"
+        class="mt-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-caption leading-5 text-muted-foreground"
+      >
+        当前是浏览器预览，只能验证面板文案和入口；真实读取工作区产物需要 MilkSU 桌面运行时。
       </p>
     </form>
 

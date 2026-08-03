@@ -108,7 +108,7 @@ allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 
 | COD-07 | “替我审批”拦截无意义审批 | Browser 真实任务与策略测试存在；`bridge-auto-approval.test.js` 覆盖已选 Computer Use 的 observe/click/type 在 workspace-auto/full-auto 下不产生无意义审批，ask/read-only 仍逐次确认；`npm run test:project-mcp` 的实际 allowlisted `fixture_read` 调用确认 workspace-auto/full-auto 不产生无意义审批，ask/read-only 仍逐次确认 | 75% | Computer Use 与项目 MCP 真实任务 |
 | COD-08 | “完全访问”仍保持硬边界 | 策略测试存在；Full Access 对本地/已选普通 MCP 可自动执行，但 GitHub/Linear/Jira/Slack 等外部账户写入仍要求确认；`bridge-background-process.test.js` 覆盖 Full Access 后台任务即使离开工作区，也不会继承宿主 Provider Key 或模型显式传入的 `*_API_KEY` env | 50% | 打包 App 越界负向验收 |
 | COD-09 | 付费、账户授权、扩大 Scope、发布仍独立确认 | ImageGen、MCP、Endpoint、PR 测试存在；`bridge-auto-approval.test.js` 覆盖 OAuth、PR/Release 发布和托管外部账户写入在所有权限档下都不被自动批准 | 75% | 真实 Provider 与托管发布确认 |
-| COD-10 | Markdown、HTML、图片产物预览 | Go/Vue 实现与安全测试存在；前端建议列表只展示工作区相对路径内的 Markdown、HTML 与图片产物，不再建议绝对路径或 `..` 逃逸形态；`CodingArtifactPreviewPanel.test.ts` 覆盖用户可见的 Markdown/HTML/图片建议入口、三种产物渲染、手输不安全或不支持路径会在前端拦截且不调用后端、Markdown/HTML 产物内容以及建议/标题/图片 alt 在渲染层脱敏 Provider Credential 形态、失败后清空旧预览；`desktop.test.ts` 锁住桌面 adapter 会把 `workspacePath` 与 `relativePath` 原样传给 Wails `GetCodingArtifactPreview` | 50% | 打包 App 三种产物真实预览 |
+| COD-10 | Markdown、HTML、图片产物预览 | Go/Vue 实现与安全测试存在；前端建议列表只展示工作区相对路径内的 Markdown、HTML 与图片产物，不再建议绝对路径或 `..` 逃逸形态；`CodingArtifactPreviewPanel.test.ts` 覆盖用户可见的 Markdown/HTML/图片建议入口、三种产物渲染、手输不安全或不支持路径会在前端拦截且不调用后端、Markdown/HTML 产物内容以及建议/标题/图片 alt 在渲染层脱敏 Provider Credential 形态、失败后清空旧预览；`desktop.test.ts` 锁住桌面 adapter 会把 `workspacePath` 与 `relativePath` 原样传给 Wails `GetCodingArtifactPreview`；2026-08-04 补 browser-preview 边界提示，预览环境不会伪造工作区产物内容或调用读取命令，而是引导用打包 App 做真实验收 | 50% | 打包 App 三种产物真实预览 |
 | COD-11 | HTML 隔离、CSP、禁网、路径与大小限制 | `artifact_preview_test.go` 等自动化；`codingArtifact.test.ts` 覆盖外部资源剥离、CSP 和不安全建议路径过滤；`CodingArtifactPreviewPanel.test.ts` 覆盖 HTML 预览使用空 sandbox iframe、注入 `default-src 'none'` CSP，手输逃逸路径不会进入预览后端，并向用户显示无脚本/无网络说明 | 50% | 原生 WebView 负向验收 |
 | COD-12 | 隔离 Browser 自动化与证据边界 | Browser integration 与 41 项窄测试通过 | 100% | — |
 | COD-13 | MilkSU 项目前端视觉 QA 真实纵切 | `frontend-visual-qa-acceptance.md` | 100% | — |
@@ -217,7 +217,7 @@ allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 
 
 | ID | 可判定细项 | 证据快照 | 当前 | 尚缺 |
 | --- | --- | --- | ---: | --- |
-| DOC-01 | 开发期只保留测试、回执、验收记录和 ADR | 当前验收文档遵守此规则；`product-loop-sprint-acceptance.md` 已记录 `d4df0f8`、`42c392d`、`1698e39`、`eefa729`、`d23f7ff`、`18b50f0`、`b15782f`、`bbcbdc1`、`3a57d98`、`0393f85`、`c1af6d0`、`b61749e`、`498a515`、`86ee5d9`、`ac563ec`、`f7f579b` 和 `2da70e8` 的窄测、全量前端、Browser preview、M3 release check 与未证明范围 | 75% | 持续保持，不提前写完成声明 |
+| DOC-01 | 开发期只保留测试、回执、验收记录和 ADR | 当前验收文档遵守此规则；`product-loop-sprint-acceptance.md` 已记录 `d4df0f8`、`42c392d`、`1698e39`、`eefa729`、`d23f7ff`、`18b50f0`、`b15782f`、`bbcbdc1`、`3a57d98`、`0393f85`、`c1af6d0`、`b61749e`、`498a515`、`86ee5d9`、`ac563ec`、`f7f579b`、`2da70e8` 和 `ada1494` 的窄测、全量前端、Browser preview、M3 release check 与未证明范围 | 75% | 持续保持，不提前写完成声明 |
 | DOC-02 | 最后统一更新架构、里程碑、状态和发布说明 | 按目标后置 | 0% | 所有产品与发行 Gate 通过后执行 |
 
 ## 横向观察记录
