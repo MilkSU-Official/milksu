@@ -452,3 +452,32 @@
 - 外部 App Computer Use 实操；
 - CVE 情报源实时同步、Vulhub catalog import 或 Docker 练习启动；
 - 托管平台 PR、Developer ID、公证、升级或 RC 发布门禁。
+
+## 2026-08-04 · CTF catalog escape hatch
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | 本批次提交 |
+| 窄测 | `npm run test -- --run src/components-vue/CTFPageNavigationContract.test.ts src/components-vue/CTFWorkspaceHeader.test.ts src/components-vue/WorkspaceTopBar.test.ts src/AppRoutingContract.test.ts` |
+| 窄测结果 | 4 files / 11 tests passed |
+| CVE 相关回归 | `npm run test -- --run src/components-vue/VulnPage.test.ts src/components-vue/VulnerabilityLoopPanel.test.ts src/composables/useVulnerabilityDashboard.test.ts src/lib/vulnerabilityCodingHandoff.test.ts` |
+| CVE 相关结果 | 4 files / 24 tests passed |
+| 全量前端 | `npm run test && npm run build` |
+| 全量前端结果 | 47 files / 207 tests passed；production build passed |
+| 完整 M3 gate | `npm run m3:release-check` |
+| 完整 M3 gate 结果 | 通过，输出 `M3 engineering release checks passed.` |
+| 本地 App | `/Users/milksu/code/milksu/build/bin/MilkSU.app` |
+
+覆盖范围：
+
+- CTF 解题工作区顶部“返回题库”、正文“题库”、预算停止提示“返回题库”和空工作区“选择一道题”
+  统一走强返回路径；
+- 强返回会清理 NSSCTF 选中题、CTFshow 选中题、系列选择、本地附件错误和结果提示；
+- CTFshow 当前题库会刷新，NSSCTF 公开题库会重新加载第一页；
+- 契约测试锁定 CTF workspace header 仍使用共享 `WorkspaceTopBar`，同时返回动作不再退回半截题目详情。
+
+本次仍未证明：
+
+- 打包 App 中用户真实从 CTF 题目工作区切到 CVE、再切回 CTF 的肉眼验收；
+- 模块级 rail 最终语义是否需要同时提供“回题库 / 回最近 Agent 对话 / 回当前工作区”三种入口；
+- 六赛道真实 Judge 或新的 CTF 题目验收。

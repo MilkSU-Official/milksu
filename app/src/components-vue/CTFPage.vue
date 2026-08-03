@@ -797,14 +797,6 @@ watch(
   { immediate: true },
 )
 
-function showSource() {
-  screen.value = 'challenge'
-  selectedSeries.value = null
-  outcomeNotice.value = ''
-  if (activeBank.value === 'ctfshow') void ctfshow.refresh()
-  else void loadPublicCatalog(catalogPage.value)
-}
-
 async function scrollWorkspaceToLatest() {
   if (screen.value !== 'workspace' || workspaceMode.value !== 'solve') return
   await nextTick()
@@ -817,11 +809,13 @@ function showProblems() {
   source.value = 'public'
   selectedSeries.value = null
   selectedProblem.value = null
+  selectedCTFShowProblemID.value = null
   localMaterials.value = []
   attachmentError.value = ''
   screen.value = 'challenge'
   outcomeNotice.value = ''
-  void loadPublicCatalog(1)
+  if (activeBank.value === 'ctfshow') void ctfshow.refresh()
+  else void loadPublicCatalog(1)
 }
 
 async function syncCatalog() {
@@ -1693,7 +1687,7 @@ onBeforeUnmount(() => {
       :source-uri="activeProjection?.challenge.source.uri"
       :mode="workspaceMode"
       :has-review-activity="Boolean(workspacePresentation?.hasReviewActivity)"
-      @return-catalog="showSource"
+      @return-catalog="showProblems"
       @open-source="openActiveChallenge"
       @open-settings="$emit('openSettings')"
       @switch-mode="workspaceMode = $event"
@@ -2584,7 +2578,7 @@ onBeforeUnmount(() => {
 
         <section v-else-if="screen === 'workspace'" aria-labelledby="workspace-title">
           <div class="mb-6 flex items-center justify-between gap-4">
-            <Button variant="ghost" size="sm" @click="showSource">
+            <Button variant="ghost" size="sm" @click="showProblems">
               <ArrowLeft class="size-4" />
               题库
             </Button>
@@ -2840,7 +2834,7 @@ onBeforeUnmount(() => {
                     <Circle class="size-4" />
                     <AlertDescription class="flex flex-wrap items-center justify-between gap-3">
                       <span>{{ agentBudgetStopMessage }}</span>
-                      <Button variant="outline" size="sm" @click="showSource">
+                      <Button variant="outline" size="sm" @click="showProblems">
                         返回题库
                       </Button>
                     </AlertDescription>
@@ -3040,7 +3034,7 @@ onBeforeUnmount(() => {
             <template v-else>
               <Bot class="mx-auto size-6 text-muted-foreground" />
               <p class="mt-4 text-label font-medium">工作台还没有任务</p>
-              <Button class="mt-5" @click="showSource">选择一道题</Button>
+              <Button class="mt-5" @click="showProblems">选择一道题</Button>
             </template>
           </div>
         </section>
