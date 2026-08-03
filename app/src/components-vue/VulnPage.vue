@@ -202,7 +202,7 @@ function statusVariant(status: VulnerabilityStatus) {
       </template>
 
       <template #metrics>
-      <div class="grid gap-3 text-body sm:grid-cols-4">
+      <div class="grid gap-3 text-body sm:grid-cols-2 xl:grid-cols-5">
         <div class="rounded-xl border border-border bg-card px-4 py-3">
           <p class="text-caption text-muted-foreground">追踪条目</p>
           <p class="mt-1 font-mono text-xl font-semibold">{{ dashboard.trackedCount.value }}</p>
@@ -223,6 +223,18 @@ function statusVariant(status: VulnerabilityStatus) {
           <p class="mt-1 font-mono text-xl font-semibold">{{ dashboard.practiceEnvironmentCount.value }} 匹配</p>
           <p class="mt-0.5 text-caption text-muted-foreground">
             {{ dashboard.confirmedPracticeSessionCount.value }} 已确认计划
+          </p>
+        </div>
+        <div class="rounded-xl border border-border bg-card px-4 py-3">
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-caption text-muted-foreground">当前下一步</p>
+            <Badge :variant="dashboard.selectedNextAction.value.variant">
+              {{ dashboard.selected.value.id }}
+            </Badge>
+          </div>
+          <p class="mt-1 truncate text-body font-medium">{{ dashboard.selectedNextAction.value.label }}</p>
+          <p class="mt-0.5 line-clamp-2 text-caption leading-5 text-muted-foreground">
+            {{ dashboard.selectedNextAction.value.detail }}
           </p>
         </div>
       </div>

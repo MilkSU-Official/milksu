@@ -2,9 +2,10 @@
 
 > 状态：Active / Product-loop sprint with coverage ledger
 >
-> 产品代码快照：2026-08-04，`86ee5d9`
+> 最近已推送基线：2026-08-04，`2da70e8`
 >
-> 最近证据复核：2026-08-04，`86ee5d9`
+> 最近证据复核：2026-08-04，`2da70e8`；后续批次以本文件和
+> `product-loop-sprint-acceptance.md` 的提交记录为准
 >
 > 本文件不是发布说明。它把 `current-objectives.md` 的大项拆成可单独核对的细项，用于保持
 > 全局位置。2026-08-03 起，短期执行入口切到
@@ -122,7 +123,7 @@ allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 
 | COD-22 | 经确认发布 MilkSU 私有 Draft PR | 尚无本轮真实发布回执 | 0% | 在最终自举 Gate 中执行 |
 | COD-23 | 多 Agent 独立 worktree、恢复和安全收尾 | Manager 与 Bridge 自动化存在；`bridge-collaboration.test.js` 覆盖并行和串行写入 Agent 都必须使用不同注册 writer worktree，Go Manager 覆盖恢复、集成后清理、脏 worktree/submodule 拒绝和中断准备安全收尾；`CodingCollaborationPanel.test.ts` 覆盖显式 2 writer 准备、集成后安全结束和中断准备后的有界清理；`desktop.test.ts` 覆盖 Wails adapter 会把 conversation、workspace 和 writer 数原样传给准备命令，省略 writer 数时默认为 1 | 50% | 真实有价值的协作任务 |
 | COD-24 | 多 Agent 在真实任务中证明并行有用 | 尚无成功率与成本证据 | 0% | 选择自然可并行的任务验收 |
-| COD-25 | 完整 “MilkSU develops MilkSU” Gate | 有多个局部自举任务；产品闭环冲刺期间已补 TopBar 一致性、CVE→Coding handoff、Computer Use 快速接入、CTF/CVE 路由保留契约、产品闭环卡生成恢复点入口、用户验收清单、合并状态投影、清单行内操作入口、待补任务 prompt 和多轮前端 test/build/Browser preview 证据；`86ee5d9` 通过完整 `npm run m3:release-check` 并重新生成本机 `MilkSU.app` | 25% | 一次完整 Vue + Go、重启、交付、PR |
+| COD-25 | 完整 “MilkSU develops MilkSU” Gate | 有多个局部自举任务；产品闭环冲刺期间已补 TopBar 一致性、CVE→Coding handoff、Computer Use 快速接入、CTF/CVE 路由保留契约、产品闭环卡生成恢复点入口、用户验收清单、合并状态投影、清单行内操作入口、待补任务 prompt、CVE 当前下一步摘要和多轮前端 test/build/Browser preview 证据；`86ee5d9` 通过完整 `npm run m3:release-check` 并重新生成本机 `MilkSU.app` | 25% | 一次完整 Vue + Go、重启、交付、PR |
 | COD-26 | ImageGen 文生图、参考图编辑和项目资产 | 受控工具、UI、测试与打包存在；ImageGen 审批详情只保留允许字段，并会脱敏 `Bearer` / `sk-*` 形态，防止模型把 `apiKey` 或 `Authorization` 等额外字段塞进用户审批卡 | 50% | 真实 Provider 生成 |
 | COD-27 | 打包 App 真实 ImageGen Provider 与预览 | Provider 尚未在 App 内配置 | 0% | 用户自行配置后执行，不接触 Key |
 | COD-28 | Project MCP 来源、版本、工具面与权限审阅 | Go/Vue/Bridge 实现和测试存在；`npm run test:project-mcp` 通过正式 `loadCodingMcpConfig`、固定 `.mcp.json` digest、sandbox wrapper、`env -i` 私有 HOME/TMPDIR、`hostConfigDiscovery=off`、MCP SDK `listTools/callTool` 实际调用本地项目 `fixture_read`，并输出 `workspaceAutoApprovalRequired=false` 作为自动审批契约证据 | 75% | 用户真实项目或高频 MCP 任务验收 |
@@ -216,7 +217,7 @@ allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 
 
 | ID | 可判定细项 | 证据快照 | 当前 | 尚缺 |
 | --- | --- | --- | ---: | --- |
-| DOC-01 | 开发期只保留测试、回执、验收记录和 ADR | 当前验收文档遵守此规则；`product-loop-sprint-acceptance.md` 已记录 `d4df0f8`、`42c392d`、`1698e39`、`eefa729`、`d23f7ff`、`18b50f0`、`b15782f`、`bbcbdc1`、`3a57d98`、`0393f85`、`c1af6d0`、`b61749e`、`498a515` 和 `86ee5d9` 的窄测、全量前端、Browser preview、M3 release check 与未证明范围 | 75% | 持续保持，不提前写完成声明 |
+| DOC-01 | 开发期只保留测试、回执、验收记录和 ADR | 当前验收文档遵守此规则；`product-loop-sprint-acceptance.md` 已记录 `d4df0f8`、`42c392d`、`1698e39`、`eefa729`、`d23f7ff`、`18b50f0`、`b15782f`、`bbcbdc1`、`3a57d98`、`0393f85`、`c1af6d0`、`b61749e`、`498a515`、`86ee5d9`、`ac563ec`、`f7f579b` 和 `2da70e8` 的窄测、全量前端、Browser preview、M3 release check 与未证明范围 | 75% | 持续保持，不提前写完成声明 |
 | DOC-02 | 最后统一更新架构、里程碑、状态和发布说明 | 按目标后置 | 0% | 所有产品与发行 Gate 通过后执行 |
 
 ## 横向观察记录
@@ -241,7 +242,7 @@ allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 
 | OBS-14 | `ChatPage.vue` 的 Computer Use UI 已抽为 `CodingComputerUsePanel.vue`，并有面板级测试覆盖外部 App/window 展示、启动按钮和其他任务占用禁用；`desktop.test.ts` 已锁住 `start_coding_computer_use` 会把用户选定的 `conversationId`、`targetPid`、`targetWindowId` 原样传给 Wails；ChatPage 刷新可见窗口列表的选择逻辑已抽为 `nextComputerUseTargetKey` 并测试，不因同名 App、同 PID 多窗口或同 windowId 不同 PID 漂移；2026-08-04 能力列表已用 `describePendingComputerUseCapability()` 区分不可用、缺权限、待窗口、待启动和 Plan/只读阻止，不再把所有未启动状态统一显示成“未接入”；browser-preview adapter 已给 Computer Use 状态/权限/targets 命令提供友好 fallback，Browser 渲染检查确认不再出现 `Unsupported browser-preview command`；仍缺整页 ChatPage 时序和打包 App 外部窗口真实验收 | 后续若建立 ChatPage 测试基架或做打包 App 外部窗口验收时补，不在当前批次深挖 |
 | OBS-15 | `workspace-auto` 对未知或项目 MCP 目前只自动放行 read-like 工具；对经过用户审阅并固定 Scope 的本地 Project MCP 写工具仍可能产生重复审批 | 先不现场放宽，避免没有工具面/Scope 证据时扩大权限；等真实高频 Project MCP 候选确定后，为已审阅本地工具增加更精确的自动审批契约 |
 | OBS-16 | 与裸 Pi Agent 相比，MilkSU 过去过早把大量精力投入权限、恢复、脱敏和文档边界，导致“能像裸 Harness 一样顺滑干活”的主链体感滞后 | 下一阶段优先真实可用闭环：Computer Use、Browser、Project MCP、Artifact Preview、ImageGen 和小型 MilkSU develops MilkSU；除 Key、Scope、私有远端、Judge/能力归因硬红线外，非阻塞细节先登记后修 |
-| OBS-17 | 当前用户明确要求产品 UI/UX 上有完整闭环；CVE 作为一级菜单不能只停在暂停文档，至少要有学习/追踪工作台骨架、状态、安全边界和后续 Coding Agent 可接手任务；Lab 暂不实现 | 见 `product-loop-sprint.md`；MilkSU 已有 CTF 模块，当前冲刺不新接 CTFd；CVE 只做学习/追踪，不做红队 Agent、批量打靶或自动 PoC；`b15782f` 已让 CVE 列表直接展示研究任务、练习、接力和笔记闭环状态，减少用户必须点进详情才知道在研究什么的问题；`498a515` 补 CVE 待补任务 prompt，便于后续 Agent 只接未完成学习/追踪项；Lab 后置为 HTB/TryHackMe/pwn.college 等外部靶场辅助与进度追踪计划 |
+| OBS-17 | 当前用户明确要求产品 UI/UX 上有完整闭环；CVE 作为一级菜单不能只停在暂停文档，至少要有学习/追踪工作台骨架、状态、安全边界和后续 Coding Agent 可接手任务；Lab 暂不实现 | 见 `product-loop-sprint.md`；MilkSU 已有 CTF 模块，当前冲刺不新接 CTFd；CVE 只做学习/追踪，不做红队 Agent、批量打靶或自动 PoC；`b15782f` 已让 CVE 列表直接展示研究任务、练习、接力和笔记闭环状态，减少用户必须点进详情才知道在研究什么的问题；`498a515` 补 CVE 待补任务 prompt，便于后续 Agent 只接未完成学习/追踪项；2026-08-04 又在 CVE 顶部 metrics 增加当前选中 CVE 的下一步行动摘要，按本地证据递进到建立研究任务、确认练习计划、交给 Coding、补用户笔记或复制证据摘要；Lab 后置为 HTB/TryHackMe/pwn.college 等外部靶场辅助与进度追踪计划 |
 
 ## 暂存缺陷
 

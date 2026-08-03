@@ -541,3 +541,32 @@
 - 打包 App 中真实 Computer Use 外部窗口操作；
 - Browser preview 能替代 Wails runtime；预览只用于 UI 文案和入口检查；
 - 1420 端口旧 dev server 的生命周期管理。
+
+## 2026-08-04 · CVE selected next-action summary
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | 本批次提交 |
+| 目标流 | CVE → 选择或更新当前 CVE → 顶部直接显示下一步 |
+| 窄测 | `npm run test -- --run src/composables/useVulnerabilityDashboard.test.ts src/components-vue/VulnPage.test.ts src/components-vue/VulnerabilityLoopPanel.test.ts` |
+| 窄测结果 | 3 files / 18 tests passed |
+| 全量前端 | `npm run test && npm run build` |
+| 全量前端结果 | 47 files / 211 tests passed；production build passed |
+| Browser 验证 | Vite preview `http://127.0.0.1:4175/`；进入 CVE，选择 `CVE-2023-46604`，执行“建立研究任务” |
+
+覆盖范围：
+
+- CVE 顶部 metrics 新增“当前下一步”卡片；
+- 下一步不是固定文案，而是按当前选中 CVE 的本地闭环证据推导；
+- 状态递进覆盖：建立研究任务 → 确认练习计划 → 交给 Coding → 补用户笔记 → 复制证据摘要；
+- 初始 CVE 页面无需点开右侧所有区块，也能看到当前 CVE 卡在哪里；
+- Browser preview 中初始状态显示 `建立研究任务`，ActiveMQ 建立研究任务后推进到 `确认练习计划`；
+- Browser preview 页面加载为 `MilkSU`，无 relevant console error / warn，无 Vite overlay；
+- 不新增 schema，不接外部 Feed，不启动 Docker，不运行 PoC/exploit。
+
+本次仍未证明：
+
+- CVE 情报源实时同步；
+- Vulhub catalog import 或 Docker 练习启动；
+- Coding Agent 对 CVE 任务的实际研究质量；
+- 打包 App 中用户真实点击完整 CVE → Coding → 回 CVE 的视觉验收。
