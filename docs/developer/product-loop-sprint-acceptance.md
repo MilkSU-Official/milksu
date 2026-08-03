@@ -1035,3 +1035,30 @@
 - 原生 App 中已有真实 CTF job 时，用户点击返回题库再继续解题的完整可见流程；
 - 从 CTF 切到 CVE 再回 CTF 的真实 job scroll position、选中题和 Agent 输出完全恢复；
 - CTF 工作台整体信息架构已经完成简化。
+
+## 2026-08-04 · CVE read-only feed import handoff prompt
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | 本批次提交 |
+| 目标流 | CVE → 情报源接入状态 → 复制只读 Feed/Catalog 导入任务 |
+| 窄测 | `npm --prefix app test -- VulnPage.test.ts useVulnerabilityDashboard.test.ts` |
+| 窄测结果 | 2 files / 18 tests passed |
+| 前端构建 | `npm --prefix app run build` |
+| 构建结果 | production build passed |
+| Browser 验证 | Vite preview `http://127.0.0.1:4194/`；进入 CVE，读取 `CVE 情报导入接力` 卡 |
+
+覆盖范围：
+
+- CVE 情报导入接力卡新增 `复制导入任务` 按钮；
+- 复制内容把下一轮 Coding Agent 任务限定为只读 Feed/Catalog 导入纵切；
+- prompt 明确固定 NVD、CISA KEV、FIRST EPSS、OSV、GitHub Advisory 或 Vulhub catalog 的来源、样本日期、revision/digest、失败原因和缓存位置；
+- prompt 明确禁止拉起 Docker、开放端口、发送漏洞触发输入、访问未经授权目标、读取/输出/迁移 Provider/API Key；
+- UI 说明复制不会自动启动 Agent；
+- Browser preview 中 `复制导入任务`、`不会自动启动 Agent`、`只读 Feed 导入器` 和安全边界文案均可见，console 无 relevant error / warn。
+
+本次仍未证明：
+
+- 真实 NVD/KEV/EPSS/OSV/GHSA/Vulhub 导入器已经实现或通过网络失败回归；
+- 导入样本的 digest、缓存文件、日期和差异展示；
+- 任何 CVE 练习环境启动、停止、清理或真实资产验证。

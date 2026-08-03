@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { createApp, nextTick, type App } from 'vue'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import VulnPage from './VulnPage.vue'
 
 const mountedApps: App[] = []
@@ -101,6 +101,8 @@ describe('VulnPage', () => {
     expect(text).toContain('刷新不会联网拉取 Feed')
     expect(text).toContain('下一步可交给 Coding Agent')
     expect(text).toContain('只读 Feed 导入器')
+    expect(text).toContain('复制导入任务')
+    expect(text).toContain('不会自动启动 Agent')
     expect(text).toContain('不启动 Docker，不访问外部目标，不把情报命中写成验证')
     expect(text).toContain('CVE-2024-6387')
     expect(text).toContain('OpenSSH regreSSHion')
@@ -157,6 +159,37 @@ describe('VulnPage', () => {
     expect(host.textContent).toContain('本机复核 rev 2')
     expect(host.textContent).toContain('只更新本机视图状态')
     expect(host.textContent).toContain('不代表 NVD/KEV/EPSS/OSV 已实时同步')
+  })
+
+  it('copies a bounded read-only CVE feed import task for Coding Agent', async () => {
+    const writeText = vi.fn(async () => undefined)
+    vi.stubGlobal('navigator', {
+      ...navigator,
+      clipboard: { writeText },
+    })
+    const host = await mountVulnPage()
+    const copy = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
+      item.textContent?.includes('复制导入任务'),
+    )
+    if (!copy) throw new Error('missing feed import copy button')
+
+    copy.click()
+    await Promise.resolve()
+    await nextTick()
+
+    expect(writeText).toHaveBeenCalledOnce()
+    const copied = String((writeText.mock.calls as unknown as Array<[string]>)[0]?.[0] ?? '')
+    expect(copied).toContain('继续 MilkSU M3 产品闭环冲刺')
+    expect(copied).toContain('补 CVE 情报源的只读导入纵切')
+    expect(copied).toContain('NVD、CISA KEV、FIRST EPSS、OSV、GitHub Advisory 或 Vulhub catalog')
+    expect(copied).toContain('revision/digest')
+    expect(copied).toContain('不拉起 Docker')
+    expect(copied).toContain('不开放端口')
+    expect(copied).toContain('不发送漏洞触发输入')
+    expect(copied).toContain('不能把 EPSS/KEV/情报命中写成 Judge 或真实资产验证')
+    expect(copied).toContain('不要读取、输出或迁移 Provider/API Key')
+    expect(copied).toContain('commit 并 push')
+    expect(host.textContent).toContain('已复制')
   })
 
   it('shows the Coding workspace scope before handing CVE tasks to Coding', async () => {

@@ -80,6 +80,7 @@ const showCustomForm = ref(false)
 const customFormError = ref('')
 const showAssetForm = ref(false)
 const assetFormError = ref('')
+const feedImportCopyNotice = ref('')
 const loopWorkspace = ref<HTMLElement | null>(null)
 const practiceWorkspace = ref<HTMLElement | null>(null)
 const researchWorkspace = ref<HTMLElement | null>(null)
@@ -158,6 +159,22 @@ const selectedNextActionCta = computed(() => {
   return '查看摘要'
 })
 
+const feedImportPrompt = computed(() => [
+  '继续 MilkSU M3 产品闭环冲刺，补 CVE 情报源的只读导入纵切。',
+  '',
+  '目标：把 CVE 工作台从内置快照推进到可复核的只读 Feed/Catalog 导入计划或最小实现；不要做红队 Agent、批量打靶、自动 PoC 或外部目标攻击。',
+  '',
+  '范围建议：',
+  '1. 先读取当前 git 状态、product-loop-sprint.md、objective-coverage-ledger.md 和 CVE 相关代码。',
+  '2. 固定 NVD、CISA KEV、FIRST EPSS、OSV、GitHub Advisory 或 Vulhub catalog 的来源、样本日期、revision/digest、失败原因和缓存位置。',
+  '3. 如果实现代码，只做只读导入/解析/展示；不拉起 Docker、不开放端口、不发送漏洞触发输入、不访问未经授权目标。',
+  '4. UI 必须继续区分“内置快照 / 用户材料 / 待接入 Feed / 已导入样本”，不能把 EPSS/KEV/情报命中写成 Judge 或真实资产验证。',
+  '5. 相邻问题只登记到覆盖台账，不深挖；完成后跑相关窄测、npm --prefix app run build、Browser preview，并更新 product-loop-sprint-acceptance.md。',
+  '6. git diff --check，通过后 commit 并 push 当前 MilkSU 私有分支。',
+  '',
+  '边界：不要读取、输出或迁移 Provider/API Key；不要接入外部漏洞目标；不要把 UI 架子或 smoke 写成完整 CVE 能力。',
+].join('\n'))
+
 async function runSelectedNextAction() {
   const label = dashboard.selectedNextAction.value.label
   if (label === '建立研究任务') {
@@ -178,6 +195,17 @@ async function runSelectedNextAction() {
     return
   }
   await scrollToWorkspace(loopWorkspace.value)
+}
+
+async function copyFeedImportPrompt() {
+  feedImportCopyNotice.value = ''
+  try {
+    if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable')
+    await navigator.clipboard.writeText(feedImportPrompt.value)
+    feedImportCopyNotice.value = '已复制'
+  } catch {
+    feedImportCopyNotice.value = '复制失败，请手动选择导入计划'
+  }
 }
 
 function severityVariant(severity: VulnerabilitySeverity) {
@@ -351,8 +379,17 @@ function statusVariant(status: VulnerabilityStatus) {
                   做只读 Feed 导入器：固定 NVD / CISA KEV / EPSS / OSV / GHSA / Vulhub revision，
                   记录样本日期、来源哈希和失败原因；不启动 Docker，不访问外部目标，不把情报命中写成验证。
                 </p>
+                <p class="mt-2 text-caption text-muted-foreground">
+                  {{ feedImportCopyNotice || '不会自动启动 Agent；复制后可交给下一轮 Coding 任务。' }}
+                </p>
               </div>
-              <Badge variant="secondary">只读导入计划</Badge>
+              <div class="flex shrink-0 flex-col items-end gap-2">
+                <Badge variant="secondary">只读导入计划</Badge>
+                <Button type="button" variant="outline" size="sm" @click="copyFeedImportPrompt">
+                  <ClipboardList class="size-4" />
+                  复制导入任务
+                </Button>
+              </div>
             </div>
           </div>
           <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
