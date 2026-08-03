@@ -184,7 +184,7 @@ function statusVariant(status: VulnerabilityStatus) {
       <div class="flex flex-wrap items-center gap-3">
         <label class="relative min-w-64 flex-1 max-w-md">
           <Search class="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input v-model="dashboard.query.value" class="pl-9" placeholder="搜索 CVE、产品或厂商" />
+          <Input v-model="dashboard.query.value" size="sm" class="pl-9" placeholder="搜索 CVE、产品或厂商" />
         </label>
         <NativeSelect v-model="dashboard.severity.value" size="sm">
           <NativeSelectOption

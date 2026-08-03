@@ -73,9 +73,11 @@ defineProps<{
 .workspace-topbar__actions :deep([data-button][data-size="sm"]),
 .workspace-topbar__actions :deep([data-slot="select-trigger"][data-size="sm"]),
 .workspace-topbar__actions :deep([data-slot="native-select"][data-size="sm"]),
+.workspace-topbar__actions :deep([data-slot="input"][data-size="sm"]),
 .workspace-topbar__filters :deep([data-button][data-size="sm"]),
 .workspace-topbar__filters :deep([data-slot="select-trigger"][data-size="sm"]),
-.workspace-topbar__filters :deep([data-slot="native-select"][data-size="sm"]) {
+.workspace-topbar__filters :deep([data-slot="native-select"][data-size="sm"]),
+.workspace-topbar__filters :deep([data-slot="input"][data-size="sm"]) {
   font-size: var(--text-control, 0.875rem);
   line-height: var(--text-control--line-height, 1.25rem);
 }

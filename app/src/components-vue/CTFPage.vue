@@ -1716,13 +1716,14 @@ onBeforeUnmount(() => {
         </Button>
         <Select v-if="ctfSection === 'catalog'" v-model="activeBank">
         <SelectTrigger
+          size="sm"
           class="app-no-drag min-w-48 shrink-0"
           aria-label="选择训练平台"
         >
           <Library class="size-4 text-muted-foreground" />
           <SelectValue placeholder="选择训练平台">{{ activeSourceName }}</SelectValue>
         </SelectTrigger>
-        <SelectContent class="min-w-64">
+        <SelectContent size="sm" class="min-w-64">
           <SelectGroup>
             <SelectLabel>训练平台</SelectLabel>
             <SelectItem
@@ -1909,6 +1910,7 @@ onBeforeUnmount(() => {
         <FileSearch class="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           v-model="deskQuery"
+          size="sm"
           class="pl-9"
           placeholder="搜索题号或题名"
           aria-label="搜索题库"
@@ -1916,6 +1918,7 @@ onBeforeUnmount(() => {
         </label>
         <NativeSelect
         v-model="deskCategory"
+        size="sm"
         class="app-no-drag w-36"
         aria-label="按题型筛选"
       >

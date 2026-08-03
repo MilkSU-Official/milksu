@@ -93,4 +93,15 @@ describe('WorkspaceTopBar', () => {
 
     expect(chatPageSource).not.toContain('<h1 class="mt-5 text-2xl')
   })
+
+  it('keeps topbar controls on the shared compact size across CTF and CVE', () => {
+    expect(ctfPageSource).toContain('<SelectTrigger\n          size="sm"')
+    expect(ctfPageSource).toContain('<SelectContent size="sm"')
+    expect(ctfPageSource).toContain('v-model="deskQuery"\n          size="sm"')
+    expect(ctfPageSource).toContain('v-model="deskCategory"\n        size="sm"')
+    expect(vulnPageSource).toContain('v-model="dashboard.query.value" size="sm"')
+    expect(vulnPageSource).toContain('<NativeSelect v-model="dashboard.severity.value" size="sm">')
+    expect(chatPageSource).toContain('<SelectTrigger\n          size="sm"')
+    expect(chatPageSource).toContain('<SelectContent size="sm"')
+  })
 })
