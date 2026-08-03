@@ -7,7 +7,7 @@ import { useNSSCTFTraining } from '@/composables/useNSSCTFTraining'
 import { invokeCommand } from '@/desktop'
 import type { CTFAgentWorkspaceHandoff } from '@/ctfTypes'
 import type { VulnerabilityCodingTask } from '@/composables/useVulnerabilityDashboard'
-import type { CTFWorkspaceSection } from '@/lib/workspaceNavigation'
+import { settingsReturnSection, type CTFWorkspaceSection } from '@/lib/workspaceNavigation'
 import {
   rememberWorkspaceConversation,
   selectCodingConversationId,
@@ -29,6 +29,7 @@ const ctfSection = ref<CTFWorkspaceSection>('catalog')
 const ctfResumeJobId = ref<string | null>(null)
 const lastCodingConversationId = ref<string | null>(null)
 const lastCTFConversationId = ref<string | null>(null)
+const settingsReturnTarget = ref<Exclude<Section, 'settings'>>('ctf')
 const settingsCategory = ref<'general' | 'apikeys'>('general')
 const settings = ref<AppSettings | null>(null)
 const recoveryStatus = ref<StartupRecoveryStatus | null>(null)
@@ -78,6 +79,7 @@ async function loadSettings() {
 }
 
 function openSettings(category: 'general' | 'apikeys' = 'general') {
+  settingsReturnTarget.value = settingsReturnSection(section.value, settingsReturnTarget.value)
   settingsCategory.value = category
   section.value = 'settings'
 }
@@ -265,7 +267,7 @@ onMounted(async () => {
         v-if="section === 'settings'"
         :initial-category="settingsCategory"
         :settings="settings"
-        @close="async () => { await loadSettings(); section = 'ctf' }"
+        @close="async () => { await loadSettings(); section = settingsReturnTarget }"
         @settings-change="value => { settings = value }"
       />
       <KeepAlive include="CTFPage,VulnPage">

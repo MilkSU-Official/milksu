@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   CTF_CONTEXT_ITEMS,
+  settingsReturnSection,
   showsCodingHistory,
   WORKSPACE_RAIL_ITEMS,
   workspaceContextLabel,
@@ -26,5 +27,12 @@ describe('workspace navigation', () => {
     expect(workspaceContextLabel('ctf')).toBe('CTF')
     expect(workspaceContextLabel('vuln')).toBe('CVE')
     expect(workspaceContextLabel('chat')).toBe('Coding')
+  })
+
+  it('returns from settings to the module that opened it', () => {
+    expect(settingsReturnSection('ctf')).toBe('ctf')
+    expect(settingsReturnSection('vuln')).toBe('vuln')
+    expect(settingsReturnSection('chat')).toBe('chat')
+    expect(settingsReturnSection('settings', 'vuln')).toBe('vuln')
   })
 })

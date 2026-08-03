@@ -1,5 +1,6 @@
 export type WorkspaceSection = 'ctf' | 'vuln' | 'chat'
 export type CTFWorkspaceSection = 'catalog' | 'labs'
+export type AppSection = WorkspaceSection | 'settings'
 
 export const WORKSPACE_RAIL_ITEMS = [
   { id: 'ctf', label: 'CTF' },
@@ -23,4 +24,11 @@ export function showsCodingHistory(section: WorkspaceSection) {
 
 export function workspaceContextLabel(section: WorkspaceSection) {
   return WORKSPACE_RAIL_ITEMS.find(item => item.id === section)?.label ?? 'MilkSU'
+}
+
+export function settingsReturnSection(
+  currentSection: AppSection,
+  fallback: WorkspaceSection = 'ctf',
+): WorkspaceSection {
+  return currentSection === 'settings' ? fallback : currentSection
 }
