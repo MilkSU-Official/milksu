@@ -397,3 +397,27 @@
 - 新 prompt 被真实下一轮 MilkSU Agent 执行；
 - 下一轮 Agent 能按 prompt 完成剩余验收；
 - 原生 App 中复制到剪贴板的真实交互。
+
+## 2026-08-04 · CVE focused follow-up prompt
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | `498a515` |
+| 窄测 | `npm run test -- --run src/components-vue/VulnerabilityLoopPanel.test.ts src/components-vue/VulnPage.test.ts src/lib/vulnerabilityCodingHandoff.test.ts` |
+| 窄测结果 | 3 files / 20 tests passed |
+| 全量前端 | `npm run test && npm run build` |
+| 全量前端结果 | 46 files / 205 tests passed；production build passed |
+
+覆盖范围：
+
+- CVE 最小闭环面板新增“复制待补任务”；
+- prompt 只包含未完成 loop items、当前 CVE、授权项目状态、下一步建议和安全边界；
+- 已完成项不会进入待补任务，例如已具备的情报快照和已完成的 Coding 接力；
+- prompt 明确 CVE 模块只做学习/追踪、公告/补丁阅读、授权仓库只读影响检查和本地隔离练习计划；
+  不自动拉镜像、启动容器、运行 PoC/exploit、访问外部目标或把练习结果写成真实资产已验证。
+
+本次仍未证明：
+
+- 新 prompt 被真实下一轮 MilkSU Agent 执行；
+- CVE 情报质量、Vulhub catalog import 或 Docker 练习启动；
+- 原生 App 中复制到剪贴板的真实交互。
