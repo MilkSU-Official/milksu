@@ -61,6 +61,7 @@ import CodingArtifactPreviewPanel from '@/components-vue/CodingArtifactPreviewPa
 import CodingChangesPanel from '@/components-vue/CodingChangesPanel.vue'
 import CodingComputerUsePanel from '@/components-vue/CodingComputerUsePanel.vue'
 import CodingMCPReviewCard from '@/components-vue/CodingMCPReviewCard.vue'
+import CodingProductLoopPanel from '@/components-vue/CodingProductLoopPanel.vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import WorkspaceTopBar from '@/components-vue/WorkspaceTopBar.vue'
 import type {
@@ -1293,6 +1294,20 @@ watch(
             </div>
           </div>
         </section>
+
+        <CodingProductLoopPanel
+          v-if="!ctfSession"
+          :workspace-path="workspacePath"
+          :environment="codingEnvironment"
+          :message-count="messageCount"
+          :tool-message-count="toolMessageCount"
+          :running="running"
+          :execution-mode="effectiveExecutionMode"
+          :approval-policy="effectiveApprovalPolicy"
+          :browser-status="codingBrowserStatus"
+          :computer-use-status="computerUseStatus"
+          @open-panel="changeContextPanel"
+        />
 
         <section v-if="!ctfSession" class="border-b border-border px-4 py-4">
           <p class="text-caption font-medium text-muted-foreground">任务操作</p>
