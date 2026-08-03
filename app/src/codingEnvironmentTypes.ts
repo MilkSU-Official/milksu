@@ -264,7 +264,7 @@ export interface CodingComputerUseStatus {
   phase: 'disabled' | 'starting' | 'ready' | 'stopping' | 'stopped' | 'failed' | 'unavailable' | string
   startedAt?: string
   driverVersion?: string
-  target: CodingComputerUseTarget
+  target?: CodingComputerUseTarget
   permissions: CodingComputerUsePermissions
   problem?: string
 }

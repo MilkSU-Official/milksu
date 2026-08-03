@@ -51,6 +51,7 @@ const selectedKey = computed({
 const selectedTarget = computed(() => (
   resolveSelectedComputerUseTarget(props.targets, props.selectedTargetKey)
 ))
+const effectiveTarget = computed(() => props.status?.target ?? selectedTarget.value)
 const permissionsReady = computed(() => Boolean(
   props.status?.permissions.accessibility
   && props.status.permissions.screenRecording,
@@ -82,7 +83,7 @@ const connectionLabel = computed(() => {
   if (attachedToOtherTask.value) return '其他任务正在使用'
   if (!props.status?.available) return '不可用'
   if (!permissionsReady.value) return '缺系统权限'
-  if (!selectedTarget.value && !props.status?.target) return '待选择窗口'
+  if (!effectiveTarget.value) return '待选择窗口'
   return '可启动'
 })
 const connectionVariant = computed(() => {
@@ -90,7 +91,7 @@ const connectionVariant = computed(() => {
   if (attachedToOtherTask.value) return 'outline'
   if (!props.status?.available) return 'outline'
   if (!permissionsReady.value) return 'outline'
-  if (!selectedTarget.value && !props.status?.target) return 'outline'
+  if (!effectiveTarget.value) return 'outline'
   return 'info'
 })
 
@@ -129,9 +130,9 @@ const readinessItems = computed(() => [
   },
   {
     label: '窗口 Scope',
-    ready: Boolean(props.status?.target || selectedTarget.value),
-    detail: props.status?.target || selectedTarget.value
-      ? `${props.status?.target.name || selectedTarget.value?.name} · PID ${props.status?.target.pid || selectedTarget.value?.pid} · Window ${props.status?.target.windowId || selectedTarget.value?.windowId}`
+    ready: Boolean(effectiveTarget.value),
+    detail: effectiveTarget.value
+      ? `${effectiveTarget.value.name} · PID ${effectiveTarget.value.pid} · Window ${effectiveTarget.value.windowId}`
       : '请选择当前可见 App / 窗口',
   },
   {
@@ -160,10 +161,10 @@ const guidance = computed(() => {
   if (attachedToOtherTask.value) {
     return '可见会话正由另一个 Coding 任务使用；请回到该任务停止后再切换。'
   }
-  if (!props.targets.length) {
+  if (!props.targets.length && !props.status?.target) {
     return '没有发现可选的可见窗口；请打开目标 App 窗口，然后重新检测。'
   }
-  if (!selectedTarget.value && !props.status?.target) {
+  if (!effectiveTarget.value) {
     return '请选择一个当前可见窗口，MilkSU 会把 Computer Use 锁定到这个 App / PID / Window。'
   }
   if (readyForCurrentTask.value) {

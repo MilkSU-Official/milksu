@@ -507,3 +507,37 @@
 - 打包 App 中真实选择外部 App 窗口、启动 Computer Use、点击/输入并留下截图或可见操作证据；
 - macOS Accessibility / Screen Recording 系统设置在不同机器上的真实授权路径；
 - 其他任务占用时的原生 App 释放/切换体验。
+
+## 2026-08-04 · Browser preview Computer Use fallback
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | 本批次提交 |
+| 发现方式 | Browser 插件渲染检查 `http://127.0.0.1:1421/` |
+| 目标流 | app loads → Coding → Browser / Computer Use → Computer Use fallback renders |
+| 窄测 | `npm run test -- --run src/desktop.test.ts src/components-vue/CodingComputerUsePanel.test.ts src/lib/codingPolicy.test.ts` |
+| 窄测结果 | 3 files / 27 tests passed |
+| 前端构建 | `npm run build` |
+| 前端构建结果 | production build passed |
+| Browser 检查 | page identity `MilkSU`；非空；无 Vite overlay；console warn/error 为空；截图已采集；点击 `Coding` 和 `Browser / Computer Use` 后状态可见 |
+
+覆盖范围：
+
+- browser-preview adapter 现在支持 `get_coding_computer_use_status`、`request_coding_computer_use_permissions`
+  和 `list_coding_computer_use_targets` 的友好 fallback；
+- 普通浏览器预览中不再裸露 `Unsupported browser-preview command: get_coding_computer_use_status`；
+- 预览中明确显示 `Computer Use 需要 MilkSU 桌面运行时；浏览器预览只能验证 UI 文案和入口。`；
+- `start_coding_computer_use` / `stop_coding_computer_use` 在浏览器预览中仍失败关闭，并给出需要桌面运行时的中文错误；
+- `CodingComputerUseStatus.target` 改为可空，匹配不可用、缺权限、未选窗口等真实状态。
+
+额外观察：
+
+- 已存在的 `http://127.0.0.1:1420/` dev server 在本轮 Browser 初查时仍显示旧 Vite overlay，
+  但当前源码的 `npm run build` 通过；使用干净 `http://127.0.0.1:1421/` 复验无 overlay。
+  这更像本机旧 dev server/HMR 状态，不记为产品代码缺陷。
+
+本次仍未证明：
+
+- 打包 App 中真实 Computer Use 外部窗口操作；
+- Browser preview 能替代 Wails runtime；预览只用于 UI 文案和入口检查；
+- 1420 端口旧 dev server 的生命周期管理。

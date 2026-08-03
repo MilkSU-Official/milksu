@@ -1016,6 +1016,24 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         phase: 'disabled',
         pages: [],
       } as T
+    case 'get_coding_computer_use_status':
+    case 'request_coding_computer_use_permissions':
+      return {
+        available: false,
+        enabled: false,
+        phase: 'unavailable',
+        driverVersion: '0.14.2',
+        permissions: {
+          accessibility: false,
+          screenRecording: false,
+        },
+        problem: 'Computer Use 需要 MilkSU 桌面运行时；浏览器预览只能验证 UI 文案和入口。',
+      } as T
+    case 'list_coding_computer_use_targets':
+      return [] as T
+    case 'start_coding_computer_use':
+    case 'stop_coding_computer_use':
+      throw new Error('Computer Use 可见 App 会话需要 MilkSU 桌面运行时。')
     case 'list_ctf_jobs': {
       const projections = readJson<Record<string, CTFProjection>>(CTF_PROJECTIONS_KEY, {})
       return Object.values(projections)

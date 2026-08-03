@@ -365,4 +365,32 @@ describe('desktop command adapter', () => {
       9001,
     )
   })
+
+  it('shows a friendly browser-preview fallback for Computer Use commands', async () => {
+    await expect(invokeCommand('get_coding_computer_use_status')).resolves.toMatchObject({
+      available: false,
+      enabled: false,
+      phase: 'unavailable',
+      permissions: {
+        accessibility: false,
+        screenRecording: false,
+      },
+      problem: expect.stringContaining('MilkSU 桌面运行时'),
+    })
+
+    await expect(invokeCommand('request_coding_computer_use_permissions')).resolves.toMatchObject({
+      available: false,
+      enabled: false,
+      problem: expect.stringContaining('浏览器预览只能验证 UI 文案和入口'),
+    })
+    await expect(invokeCommand('list_coding_computer_use_targets')).resolves.toEqual([])
+    await expect(invokeCommand('start_coding_computer_use', {
+      conversationId: 'conversation-ui',
+      targetPid: 4242,
+      targetWindowId: 9001,
+    })).rejects.toThrow('Computer Use 可见 App 会话需要 MilkSU 桌面运行时')
+    await expect(invokeCommand('stop_coding_computer_use', {
+      conversationId: 'conversation-ui',
+    })).rejects.toThrow('Computer Use 可见 App 会话需要 MilkSU 桌面运行时')
+  })
 })
