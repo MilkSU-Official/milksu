@@ -71,3 +71,31 @@
 - Agent 实际完成 CVE 影响检查；
 - Docker/Vulhub 环境启动；
 - 外部目标扫描或红队能力。上述能力也不在当前冲刺完成条件内。
+
+## 2026-08-04 · CVE handoff completion semantics and latest App build
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | `55fd04f` |
+| 窄测 | `npm run test -- --run src/components-vue/VulnPage.test.ts src/lib/vulnerabilityCodingHandoff.test.ts` |
+| 窄测结果 | 2 files / 13 tests passed |
+| 全量前端 | `npm run test && npm run build` |
+| 全量前端结果 | 45 files / 193 tests passed；production build passed |
+| 完整门禁 | `npm run m3:release-check` |
+| 完整门禁结果 | 通过，输出 `M3 engineering release checks passed.` |
+| 本地 App | `/Users/milksu/code/milksu/build/bin/MilkSU.app` |
+| 生成入口 | Wails build 输出 `Built '/Users/milksu/code/milksu/build/bin/MilkSU.app/Contents/MacOS/MilkSU'` |
+
+覆盖范围：
+
+- CVE 页面点击“交给 Coding”后，不会在父级完成 Coding transition 前提前显示“最近 Coding 接力”；
+- 父级完成 Coding 会话创建、workspace 继承、切换到 Coding 和消息发送后，再回调 CVE 页面记录
+  handoff；
+- 记录中的 workspace 来自父级完成后的当前 Coding workspace；
+- 最新 HEAD 仍能通过 M3 工程门禁并重新生成本机可打开 App。
+
+本次仍未证明：
+
+- 用户在打包 App 里真实点击“交给 Coding”的视觉/交互验收；
+- Agent 对 CVE 任务的实际研究质量；
+- Computer Use 对外部 App 的真实可见操作。
