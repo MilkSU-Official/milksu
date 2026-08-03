@@ -173,7 +173,7 @@ async function startVulnerabilityCodingTask(
   task: VulnerabilityCodingTask,
   recordHandoff?: (workspacePath: string) => void,
 ) {
-  await executeVulnerabilityCodingHandoff(task, conversations.workspacePath.value, {
+  const accepted = await executeVulnerabilityCodingHandoff(task, conversations.workspacePath.value, {
     rememberActiveConversation,
     startNewConversation: conversations.startNew,
     setWorkspace: conversations.setWorkspace,
@@ -183,7 +183,7 @@ async function startVulnerabilityCodingTask(
     setSection: value => { section.value = value },
     send: conversations.send,
   })
-  recordHandoff?.(conversations.workspacePath.value)
+  if (accepted) recordHandoff?.(conversations.workspacePath.value)
 }
 
 async function switchCTFAgent(role: 'solver' | 'tool-builder' | 'strategist') {

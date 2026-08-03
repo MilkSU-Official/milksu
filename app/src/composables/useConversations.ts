@@ -569,7 +569,7 @@ export function useConversations() {
     attachments: CodingAttachment[] = [],
   ) {
     const prompt = text.trim()
-    if (!prompt) return
+    if (!prompt) return false
     const visiblePrompt = visibleText.trim() || prompt
     const message: Message = {
       id: crypto.randomUUID(),
@@ -623,6 +623,7 @@ export function useConversations() {
         mcpConfigDigest: conversation?.mcpConfigDigest ?? '',
         attachments,
       })
+      return true
     } catch (reason) {
       finishRun(conversationId)
       update(conversationId, conversation => ({
@@ -635,6 +636,7 @@ export function useConversations() {
           status: 'done',
         }],
       }))
+      return false
     }
   }
 
