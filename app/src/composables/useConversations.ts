@@ -252,14 +252,36 @@ export function normalizeConversation(raw: Record<string, unknown>): Conversatio
   }
 }
 
-function agentErrorMessage(value: unknown) {
+function redactAgentErrorMessage(value: string) {
+  return value
+    .replace(
+      /\b[A-Z][A-Z0-9_]*API_KEY\s*=\s*[^\s"']+/g,
+      match => `${match.split('=')[0].trim()}=[credential redacted]`,
+    )
+    .replace(
+      /(^|[\s,;])api[_-]?key\s*[:=]\s*[^\s"']+/gi,
+      '$1api_key=[credential redacted]',
+    )
+    .replace(/\bBearer\s+[^\s"']+/gi, 'Bearer [credential redacted]')
+    .replace(/\b(?:sk|sess)-[A-Za-z0-9_-]{8,}\b/g, '[credential redacted]')
+}
+
+export function agentErrorMessage(value: unknown) {
   const firstLine = String(value ?? 'Agent engine failed').split(/\r?\n/, 1)[0].trim()
-  const message = firstLine.replace(/^(?:Error:\s*)+/i, '').trim()
+  const message = redactAgentErrorMessage(
+    firstLine.replace(/^(?:Error:\s*)+/i, '').trim(),
+  )
   if (/no API key is configured|No API key for/i.test(message)) {
     return '当前模型没有可用的 API Key，请在“授权与模型”中保存并验证。'
   }
   if (/Model not found/i.test(message)) {
     return '当前模型不受 PI 运行时支持，请在“授权与模型”中更换模型并验证。'
+  }
+  if (
+    /ECONNREFUSED|ECONNRESET|ENOTFOUND|ETIMEDOUT|network is unreachable|connection refused|fetch failed|dial tcp/i
+      .test(message)
+  ) {
+    return '模型或 Agent 网络连接失败。请检查网络、Provider Base URL、本地代理或服务状态；工作区、审批和恢复点已保留，可以稍后继续。'
   }
   if (/produced no model or tool activity/i.test(message)) {
     return '模型长时间没有产生文本或工具进展，本回合已停止。工作区和证据都已保留，点击继续即可从断点恢复。'

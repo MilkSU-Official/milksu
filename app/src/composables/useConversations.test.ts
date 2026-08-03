@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  agentErrorMessage,
   normalizeConversation,
   projectAgentTools,
   projectAgentTurnPolicy,
@@ -170,5 +171,23 @@ describe('Coding approval conversation recovery', () => {
     )
     expect(finished.running.has('conversation-running')).toBe(false)
     expect(finished.aborting.has('conversation-running')).toBe(false)
+  })
+
+  it('turns provider network failures into a recoverable offline message', () => {
+    expect(agentErrorMessage(
+      'Error: dial tcp 127.0.0.1:65533: connect: connection refused api_key=sk-test-secret',
+    )).toBe(
+      '模型或 Agent 网络连接失败。请检查网络、Provider Base URL、本地代理或服务状态；工作区、审批和恢复点已保留，可以稍后继续。',
+    )
+  })
+
+  it('redacts provider credentials from unexpected engine errors', () => {
+    const message = agentErrorMessage(
+      'Error: provider rejected Authorization Bearer sk-live-secret-token OPENAI_API_KEY=sk-other-secret',
+    )
+    expect(message).toContain('Bearer [credential redacted]')
+    expect(message).toContain('API_KEY=[credential redacted]')
+    expect(message).not.toContain('sk-live-secret-token')
+    expect(message).not.toContain('sk-other-secret')
   })
 })
