@@ -1221,6 +1221,22 @@ test("CTF SSH grant exposes only a credentialless read-only banner probe", async
     assert.equal(result.body, "SSH-2.0-MilkSU_Fixture\r\n");
     assert.match(result.sha256, /^[0-9a-f]{64}$/);
     assert.equal(clientBytes, 0);
+    const noisy = await ssh.execute(
+      "ssh-ignored-credential-fields",
+      {
+        target,
+        username: "root",
+        password: "hunter2",
+        command: "id",
+      },
+      undefined,
+      undefined,
+      {},
+    );
+    const noisyResult = JSON.parse(noisy.content[0].text);
+    assert.equal(noisyResult.probe, "server-identification-only");
+    assert.equal(noisyResult.sentBytes, 0);
+    assert.equal(clientBytes, 0);
     await assert.rejects(
       ssh.execute(
         "ssh-outside",

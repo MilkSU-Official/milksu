@@ -132,7 +132,7 @@ allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 
 | --- | --- | --- | ---: | --- |
 | CTF-01 | 动态 Endpoint 申请、逐条确认、不可变 Scope | 代码、UI、自动化和本机 HTTP 授权记录 | 75% | 真实远端 Web/Pwn 扩样本 |
 | CTF-02 | HTTP 精确 Origin broker、禁重定向 | 自动化与本机精确 Endpoint 验收 | 75% | 真实 Web 题网络证据 |
-| CTF-03 | TCP 与 SSH 分离的精确 `host:port` | 领域和策略自动化存在 | 50% | 真实 Pwn TCP 与 SSH 各一次 |
+| CTF-03 | TCP 与 SSH 分离的精确 `host:port` | 领域和策略自动化存在；`bridge-policy.test.js` 覆盖 SSH grant 只暴露 `ctf_ssh` 而不暴露 `ctf_socket`，即使模型传入 username/password/command 噪声字段也只读 Banner 且发送 0 字节 | 50% | 真实 Pwn TCP 与 SSH 各一次 |
 | CTF-04 | 通用 Shell 默认无网络且不因 Scope 广开 | 策略与负向测试存在 | 50% | 打包 App 真实拒绝证据 |
 | CTF-05 | Endpoint 不继承 Cookie、Token 或浏览器会话 | 隔离设计和自动化存在；`bridge-policy.test.js` 覆盖 `ctf_http` 收到 `Set-Cookie` 与 `WWW-Authenticate` 后，后续请求仍不自动携带 Cookie 或 Authorization ambient state | 50% | 真实跨能力负向验收 |
 | CTF-06 | Web 真实 Judge-verified 完整闭环 | NSSCTF P3879 `correct=true` 记录 | 75% | 纳入固定六题回归清单 |
