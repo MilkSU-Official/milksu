@@ -40,5 +40,11 @@ describe('WorkspaceTopBar', () => {
     expect(host.querySelector('button')?.textContent).toBe('设置')
     expect(host.querySelector('input')?.getAttribute('placeholder')).toBe('搜索')
     expect(host.querySelector('.workspace-topbar')).not.toBeNull()
+
+    const title = host.querySelector('[data-workspace-topbar-title]')
+    expect(title?.tagName).toBe('H1')
+    expect(title?.className).toContain('text-control')
+    expect(host.querySelector('[data-workspace-topbar-subtitle]')?.className).toContain('text-caption')
+    expect(host.querySelector('[data-workspace-topbar-actions]')?.className).toContain('text-control')
   })
 })
