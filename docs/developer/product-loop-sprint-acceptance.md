@@ -99,3 +99,51 @@
 - 用户在打包 App 里真实点击“交给 Coding”的视觉/交互验收；
 - Agent 对 CVE 任务的实际研究质量；
 - Computer Use 对外部 App 的真实可见操作。
+
+## 2026-08-04 · Shared module topbar visual contract
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | `d4df0f8` |
+| 窄测 | `npm run test -- --run src/components-vue/WorkspaceTopBar.test.ts src/components-vue/CTFPage.test.ts src/components-vue/VulnPage.test.ts` |
+| 窄测结果 | 2 files / 12 tests passed；当前没有独立 `CTFPage.test.ts` 文件，命令实际覆盖 WorkspaceTopBar 与 VulnPage |
+| 全量前端 | `npm run test && npm run build` |
+| 全量前端结果 | 45 files / 194 tests passed；production build passed |
+| Browser 验证 | Vite preview `http://127.0.0.1:4173/`；依次进入 CTF / CVE / Coding |
+
+覆盖范围：
+
+- CTF、CVE、Coding 顶部标题都使用共享 `WorkspaceTopBar`；
+- 三个一级菜单的 `data-workspace-topbar-title` computed font-size 均为 `14px`，line-height 均为
+  `20px`；
+- CTF / CVE 顶栏的主要按钮、筛选 Select、搜索 Input 均落在 `sm` 或 `icon-sm` 尺寸；
+- Browser preview 页面加载为 `MilkSU`，无 relevant console error / warn。
+
+本次仍未证明：
+
+- 三个模块所有深层表单、表格、详情卡片的完整视觉统一；
+- 打包 Wails App 内的多窗口、多尺寸视觉回归；
+- 小窗口和移动宽度下的完整响应式验收。
+
+## 2026-08-04 · CVE handoff rejected-state semantics
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | `42c392d` |
+| 窄测 | `npm run test -- --run src/lib/vulnerabilityCodingHandoff.test.ts src/components-vue/VulnPage.test.ts src/components-vue/VulnerabilityLoopPanel.test.ts` |
+| 窄测结果 | 3 files / 19 tests passed |
+| 全量前端 | `npm run test && npm run build` |
+| 全量前端结果 | 45 files / 196 tests passed；production build passed |
+
+覆盖范围：
+
+- `conversations.send()` 现在在 Agent 消息启动成功时返回 `true`，空输入或启动失败时返回 `false`；
+- CVE → Coding handoff helper 把 `send=false` 或 `send` 抛错视为未接受；
+- App 只有在 handoff 被接受后才回调 CVE 页面记录“最近 Coding 接力”；
+- 失败时仍由 Coding 会话显示 `Agent 未启动：...`，但 CVE 页面不会把失败误记为“已交接”。
+
+本次仍未证明：
+
+- 打包 App 中真实模拟 Sidecar/Agent 启动失败后的 UI 视觉；
+- CVE 任务交给 Coding 后 Agent 实际研究质量；
+- Docker/Vulhub 练习启动链路。
