@@ -348,3 +348,28 @@
 - 打包 App 中真实跑完六项用户验收清单；
 - 完整 “MilkSU develops MilkSU” 自举任务；
 - PR 合并前人工范围确认、托管平台 PR 和外部 App Computer Use 实操。
+
+## 2026-08-04 · Coding checklist action links
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | `c1af6d0` |
+| 窄测 | `npm run test -- --run src/components-vue/CodingProductLoopPanel.test.ts` |
+| 窄测结果 | 1 file / 16 tests passed |
+| 全量前端 | `npm run test && npm run build` |
+| 全量前端结果 | 46 files / 203 tests passed；production build passed |
+
+覆盖范围：
+
+- Coding 产品闭环卡的“用户验收清单”未完成项现在带有直接操作按钮；
+- “核对自动化输出”打开终端/测试面板；
+- “做一次用户可见验证”按当前证据入口打开产物预览或 Browser/App；
+- “验证失败/继续路径”在待补时可直接生成恢复点；
+- “收口 Git 交付”打开变更面板；
+- 自动化覆盖从 checklist 行内按钮触发 `artifacts`、`changes` 和 `compactContext`。
+
+本次仍未证明：
+
+- 打包 App 中用户真实按 checklist 逐项点击并完成验收；
+- 生成恢复点后实际重启/继续；
+- Git stage/commit/push 在同一原生会话中由用户验收完成。
