@@ -19,6 +19,13 @@ type ArtifactPreviewEvidence = {
 type BrowserEvidence = {
   path: string
 }
+type ComputerUseEvidence = {
+  name: string
+  bundleId: string
+  pid: number
+  windowId: number
+  windowTitle?: string
+}
 
 const props = defineProps<{
   workspacePath: string
@@ -35,6 +42,7 @@ const props = defineProps<{
   computerUseStatus: CodingComputerUseStatus | null
   artifactPreviewEvidence?: ArtifactPreviewEvidence | null
   browserEvidence?: BrowserEvidence | null
+  computerUseEvidence?: ComputerUseEvidence | null
 }>()
 
 const emit = defineEmits<{
@@ -71,6 +79,7 @@ const validationReady = computed(() => (
 const visibleValidationPerformed = computed(() => (
   Boolean(props.artifactPreviewEvidence)
   || Boolean(props.browserEvidence)
+  || Boolean(props.computerUseEvidence)
   || Boolean(props.browserStatus?.enabled)
   || Boolean(props.computerUseStatus?.enabled)
 ))
@@ -85,6 +94,9 @@ const validationDetail = computed(() => {
       : '',
     props.browserEvidence
       ? `已打开浏览器证据：${props.browserEvidence.path}`
+      : '',
+    props.computerUseEvidence
+      ? `已锁定可见 App：${props.computerUseEvidence.name} · PID ${props.computerUseEvidence.pid} · Window ${props.computerUseEvidence.windowId}`
       : '',
     props.browserStatus?.enabled ? 'Browser 已接入' : '',
     props.computerUseStatus?.enabled ? 'Computer Use 已接入' : '',
@@ -240,7 +252,7 @@ const verificationRecords = computed(() => [
   },
   {
     label: '真实 App 验收',
-    state: props.artifactPreviewEvidence || props.browserEvidence
+    state: props.artifactPreviewEvidence || props.browserEvidence || props.computerUseEvidence
       ? '已有证据'
       : props.browserStatus?.enabled || props.computerUseStatus?.enabled
         ? '可执行'
@@ -249,9 +261,11 @@ const verificationRecords = computed(() => [
       ? `已打开产物预览：${props.artifactPreviewEvidence.relativePath}；若需要真实交互，再补 Browser 或 Computer Use。`
       : props.browserEvidence
         ? `已打开浏览器证据目录：${props.browserEvidence.path}；用于核对截图、Console、Network 或页面证据。`
-        : props.browserStatus?.enabled || props.computerUseStatus?.enabled
-          ? 'Browser/Computer Use 已接入；仍需实际截图、DOM、控制台或窗口操作证据。'
-          : '当前只有组件/构建证据；打包 App 或 Browser 真实验收尚未证明。',
+        : props.computerUseEvidence
+          ? `已锁定可见 App Scope：${props.computerUseEvidence.name} · ${props.computerUseEvidence.bundleId} · PID ${props.computerUseEvidence.pid} · Window ${props.computerUseEvidence.windowId}；这证明会话边界，不等于已完成 GUI 操作。`
+          : props.browserStatus?.enabled || props.computerUseStatus?.enabled
+            ? 'Browser/Computer Use 已接入；仍需实际截图、DOM、控制台或窗口操作证据。'
+            : '当前只有组件/构建证据；打包 App 或 Browser 真实验收尚未证明。',
   },
   computerUseVerificationRecord.value,
   {

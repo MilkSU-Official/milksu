@@ -353,6 +353,43 @@ describe('CodingProductLoopPanel', () => {
     expect(host.textContent).toContain('验收恢复/继续')
   })
 
+  it('treats a locked Computer Use visible session as scoped validation evidence', async () => {
+    const computerUseStatus: CodingComputerUseStatus = {
+      available: true,
+      enabled: true,
+      phase: 'ready',
+      target: {
+        name: 'Preview',
+        bundleId: 'com.example.preview',
+        pid: 123,
+        windowId: 456,
+        windowTitle: '视觉回归',
+      },
+      permissions: {
+        accessibility: true,
+        screenRecording: true,
+      },
+    }
+    const { host } = await mountPanel({
+      computerUseStatus,
+      computerUseEvidence: {
+        name: 'Preview',
+        bundleId: 'com.example.preview',
+        pid: 123,
+        windowId: 456,
+        windowTitle: '视觉回归',
+      },
+    })
+
+    expect(host.textContent).toContain('已锁定可见 App：Preview · PID 123 · Window 456')
+    expect(host.textContent).toContain('真实 App 验收')
+    expect(host.textContent).toContain('已有证据')
+    expect(host.textContent).toContain('已锁定可见 App Scope：Preview · com.example.preview · PID 123 · Window 456')
+    expect(host.textContent).toContain('这证明会话边界，不等于已完成 GUI 操作')
+    expect(host.textContent).toContain('下一步验收动作')
+    expect(host.textContent).toContain('验收恢复/继续')
+  })
+
   it('marks resumed sessions as recovery evidence', async () => {
     const { host } = await mountPanel({
       resumed: true,

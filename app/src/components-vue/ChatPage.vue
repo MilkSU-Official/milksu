@@ -200,6 +200,7 @@ const codingBrowserEvidenceError = ref('')
 const codingBrowserEvidenceRevealed = ref(false)
 const artifactPreviewEvidence = ref<{ relativePath: string; kind: CodingArtifactPreview['kind'] } | null>(null)
 const browserEvidence = ref<{ path: string } | null>(null)
+const computerUseEvidence = ref<{ name: string; bundleId: string; pid: number; windowId: number; windowTitle?: string } | null>(null)
 const computerUseLoading = ref(false)
 const computerUseStatus = ref<CodingComputerUseStatus | null>(null)
 const computerUseTargets = ref<CodingComputerUseTarget[]>([])
@@ -941,6 +942,15 @@ async function startComputerUse() {
       'start_coding_computer_use',
       computerUseStartArgs(conversationID, target),
     )
+    if (computerUseStatus.value.enabled && computerUseStatus.value.target) {
+      computerUseEvidence.value = {
+        name: computerUseStatus.value.target.name,
+        bundleId: computerUseStatus.value.target.bundleId,
+        pid: computerUseStatus.value.target.pid,
+        windowId: computerUseStatus.value.target.windowId,
+        windowTitle: computerUseStatus.value.target.windowTitle,
+      }
+    }
   } catch (reason) {
     browserPanelError.value = reason instanceof Error
       ? reason.message
@@ -961,6 +971,7 @@ async function stopComputerUse() {
       'stop_coding_computer_use',
       { conversationId: conversationID },
     )
+    computerUseEvidence.value = null
   } catch (reason) {
     browserPanelError.value = reason instanceof Error
       ? reason.message
@@ -1077,6 +1088,7 @@ watch(() => props.conversation?.id, () => {
   codingBrowserEvidenceRevealed.value = false
   artifactPreviewEvidence.value = null
   browserEvidence.value = null
+  computerUseEvidence.value = null
   void scrollChatToBottom()
   if (contextPanel.value === 'browser' && environmentOpen.value) {
     void refreshBrowserPanel()
@@ -1359,6 +1371,7 @@ watch(
           :computer-use-status="computerUseStatus"
           :artifact-preview-evidence="artifactPreviewEvidence"
           :browser-evidence="browserEvidence"
+          :computer-use-evidence="computerUseEvidence"
           @open-panel="changeContextPanel"
         />
 
