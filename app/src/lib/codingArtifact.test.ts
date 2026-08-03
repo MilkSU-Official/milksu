@@ -43,6 +43,40 @@ describe('Coding artifact previews', () => {
     expect(isPreviewableArtifactPath('diagram.svg')).toBe(false)
   })
 
+  it('does not suggest unsafe artifact paths even when the extension is supported', () => {
+    const environment = {
+      workspace: '/tmp/project',
+      workspaceName: 'project',
+      capturedAt: '2026-08-02T00:00:00Z',
+      git: {
+        available: true,
+        isRepository: true,
+        ahead: 0,
+        behind: 0,
+        changedFiles: 5,
+        staged: 0,
+        modified: 5,
+        untracked: 0,
+        conflicts: 0,
+        additions: 0,
+        deletions: 0,
+        dirty: true,
+        changes: [
+          { path: '../outside.md', indexStatus: ' ', worktreeStatus: 'M', staged: false, modified: true, untracked: false, conflict: false },
+          { path: '/tmp/outside.html', indexStatus: ' ', worktreeStatus: 'M', staged: false, modified: true, untracked: false, conflict: false },
+          { path: 'nested/../../outside.png', indexStatus: ' ', worktreeStatus: 'M', staged: false, modified: true, untracked: false, conflict: false },
+          { path: 'nested\\..\\outside.jpg', indexStatus: ' ', worktreeStatus: 'M', staged: false, modified: true, untracked: false, conflict: false },
+          { path: 'safe/result.webp', indexStatus: ' ', worktreeStatus: 'M', staged: false, modified: true, untracked: false, conflict: false },
+        ],
+      },
+    } satisfies CodingEnvironmentSnapshot
+
+    expect(suggestedArtifactPaths(environment)).toEqual(['safe/result.webp'])
+    expect(isPreviewableArtifactPath('../outside.md')).toBe(false)
+    expect(isPreviewableArtifactPath('/tmp/outside.html')).toBe(false)
+    expect(isPreviewableArtifactPath('nested\\..\\outside.jpg')).toBe(false)
+  })
+
   it('removes active content and all external resource attributes from HTML', () => {
     const output = buildArtifactHTMLDocument(`
       <!doctype html>

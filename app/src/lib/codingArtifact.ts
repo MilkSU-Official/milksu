@@ -31,7 +31,18 @@ const resourceAttributes = [
 ]
 
 export function isPreviewableArtifactPath(path: string): boolean {
-  const normalized = path.trim().toLowerCase()
+  const trimmed = path.trim()
+  if (
+    !trimmed
+    || trimmed.startsWith('/')
+    || trimmed.startsWith('\\')
+    || trimmed.includes('\0')
+  ) {
+    return false
+  }
+  const segments = trimmed.split(/[\\/]+/)
+  if (segments.some(segment => segment === '..')) return false
+  const normalized = trimmed.toLowerCase()
   const separator = normalized.lastIndexOf('.')
   return separator >= 0 && previewableExtensions.has(normalized.slice(separator))
 }
