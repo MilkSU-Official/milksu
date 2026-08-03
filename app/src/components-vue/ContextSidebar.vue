@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import {
   Button,
   Input,
@@ -41,11 +41,26 @@ defineEmits<{
 }>()
 
 const query = ref('')
+const conversationList = ref<HTMLElement | null>(null)
 const codingGroups = computed(() => groupCodingConversations(props.conversations, query.value))
 const contextLabel = computed(() => workspaceContextLabel(props.activeSection))
 const codingContext = computed(() => showsCodingHistory(props.activeSection))
 const ctfContext = computed(() => props.activeSection === 'ctf')
 const vulnContext = computed(() => props.activeSection === 'vuln')
+
+watch(
+  () => [props.activeConversationId, codingContext.value, codingGroups.value.length] as const,
+  async ([activeConversationId, isCodingContext]) => {
+    if (!activeConversationId || !isCodingContext) return
+    await nextTick()
+    const activeRow = conversationList.value
+      ?.querySelector<HTMLElement>('[data-active-conversation-row]')
+    if (typeof activeRow?.scrollIntoView === 'function') {
+      activeRow.scrollIntoView({ block: 'nearest' })
+    }
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
@@ -120,7 +135,7 @@ const vulnContext = computed(() => props.activeSection === 'vuln')
         </label>
       </div>
 
-      <div class="mt-3 min-h-0 flex-1 overflow-y-auto px-2">
+      <div ref="conversationList" class="mt-3 min-h-0 flex-1 overflow-y-auto px-2">
         <p class="px-3 py-2 text-caption font-medium text-muted-foreground">项目</p>
         <div v-if="codingGroups.length" class="space-y-1">
           <details
@@ -146,6 +161,7 @@ const vulnContext = computed(() => props.activeSection === 'vuln')
                 :key="conversation.id"
                 class="group flex items-center rounded-md"
                 :data-ui-selected="activeConversationId === conversation.id ? '' : undefined"
+                :data-active-conversation-row="activeConversationId === conversation.id ? '' : undefined"
               >
                 <Button
                   variant="ghost"

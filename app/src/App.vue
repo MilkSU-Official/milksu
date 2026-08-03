@@ -8,6 +8,11 @@ import { invokeCommand } from '@/desktop'
 import type { CTFAgentWorkspaceHandoff } from '@/ctfTypes'
 import type { VulnerabilityCodingTask } from '@/composables/useVulnerabilityDashboard'
 import type { CTFWorkspaceSection } from '@/lib/workspaceNavigation'
+import {
+  rememberWorkspaceConversation,
+  selectCodingConversationId,
+  selectCTFResumePoint,
+} from '@/lib/workspaceSessionRouting'
 import { withAppSettingsDefaults, type AppSettings, type CTFChatAction, type StartupRecoveryStatus } from '@/types'
 
 const ChatPage = defineAsyncComponent(() => import('@/components-vue/ChatPage.vue'))
@@ -22,6 +27,8 @@ const ctfTraining = useNSSCTFTraining()
 const section = ref<Section>('ctf')
 const ctfSection = ref<CTFWorkspaceSection>('catalog')
 const ctfResumeJobId = ref<string | null>(null)
+const lastCodingConversationId = ref<string | null>(null)
+const lastCTFConversationId = ref<string | null>(null)
 const settingsCategory = ref<'general' | 'apikeys'>('general')
 const settings = ref<AppSettings | null>(null)
 const recoveryStatus = ref<StartupRecoveryStatus | null>(null)
@@ -81,22 +88,64 @@ function openRecovery() {
 }
 
 function newConversation() {
+  rememberActiveConversation()
   conversations.startNew()
+  lastCodingConversationId.value = null
   section.value = 'chat'
 }
 
-function navigateSection(value: Section) {
-  if (value === 'ctf') {
-    ctfResumeJobId.value = conversations.active.value?.ctfJobId ?? null
+function rememberActiveConversation() {
+  const remembered = rememberWorkspaceConversation(conversations.active.value, {
+    codingConversationId: lastCodingConversationId.value,
+    ctfConversationId: lastCTFConversationId.value,
+  })
+  lastCodingConversationId.value = remembered.codingConversationId
+  lastCTFConversationId.value = remembered.ctfConversationId
+}
+
+function restoreCodingConversation() {
+  const nextId = selectCodingConversationId(
+    conversations.conversations.value,
+    conversations.activeId.value,
+    lastCodingConversationId.value,
+  )
+  if (nextId) {
+    conversations.activeId.value = nextId
+    lastCodingConversationId.value = nextId
+    return
   }
-  if (value === 'chat' && activeCTFConversation.value) {
-    conversations.startNew()
+  conversations.startNew()
+  lastCodingConversationId.value = null
+}
+
+function restoreCTFWorkspaceResumePoint() {
+  const next = selectCTFResumePoint(
+    conversations.conversations.value,
+    conversations.activeId.value,
+    lastCTFConversationId.value,
+  )
+  ctfResumeJobId.value = next.jobId
+  if (next.conversationId) lastCTFConversationId.value = next.conversationId
+}
+
+function navigateSection(value: Section) {
+  rememberActiveConversation()
+  if (value === 'ctf') {
+    restoreCTFWorkspaceResumePoint()
+    section.value = value
+    return
+  }
+  if (value === 'chat') {
+    restoreCodingConversation()
+    section.value = value
+    return
   }
   section.value = value
 }
 
 function returnToCTFWorkspace() {
-  ctfResumeJobId.value = conversations.active.value?.ctfJobId ?? null
+  rememberActiveConversation()
+  restoreCTFWorkspaceResumePoint()
   section.value = 'ctf'
 }
 
@@ -111,15 +160,19 @@ async function abortConversation() {
 }
 
 async function startCTFAgent(handoff: CTFAgentWorkspaceHandoff) {
+  rememberActiveConversation()
   section.value = 'chat'
   await conversations.startWorkspaceTask(handoff)
+  lastCTFConversationId.value = conversations.activeId.value
 }
 
 async function startVulnerabilityCodingTask(task: VulnerabilityCodingTask) {
+  rememberActiveConversation()
   const existingWorkspacePath = conversations.workspacePath.value
   conversations.startNew()
   if (existingWorkspacePath) conversations.setWorkspace(existingWorkspacePath)
   conversations.ensureConversation(task.title)
+  lastCodingConversationId.value = conversations.activeId.value
   section.value = 'chat'
   await conversations.send(task.prompt, task.visibleText)
 }
@@ -138,6 +191,7 @@ async function switchCTFAgent(role: 'solver' | 'tool-builder' | 'strategist') {
       id: conversation.ctfJobId,
     })
     await conversations.startWorkspaceTask(handoff)
+    lastCTFConversationId.value = conversations.activeId.value
   } catch (reason) {
     console.error('Failed to switch CTF Agent role', reason)
   }
@@ -197,7 +251,11 @@ onMounted(async () => {
         :ctf-section="ctfSection"
         @new="newConversation"
         @navigate="navigateSection"
-        @select-conversation="id => { conversations.activeId.value = id; section = 'chat' }"
+        @select-conversation="id => {
+          conversations.activeId.value = id
+          rememberActiveConversation()
+          section = 'chat'
+        }"
         @delete-conversation="conversations.remove"
         @navigate-ctf="ctfSection = $event"
         @settings="openSettings('general')"

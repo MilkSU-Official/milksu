@@ -56,5 +56,7 @@ describe('AppSidebar', () => {
     expect(coding.textContent).toContain('新建编码任务')
     expect(coding.textContent).toContain('milksu')
     expect(coding.textContent).toContain('实现产品闭环')
+    expect(coding.querySelector('[data-active-conversation-row]')?.textContent)
+      .toContain('实现产品闭环')
   })
 })
