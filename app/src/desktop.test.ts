@@ -9,6 +9,37 @@ afterEach(() => {
 })
 
 describe('desktop command adapter', () => {
+  it('passes Coding artifact preview scope to Wails unchanged', async () => {
+    const preview = {
+      relativePath: 'docs/demo.html',
+      kind: 'html',
+      mediaType: 'text/html; charset=utf-8',
+      sizeBytes: 128,
+      content: '<h1>Preview</h1>',
+    }
+    const getCodingArtifactPreview = vi.fn(async () => preview)
+    Object.defineProperty(window, 'go', {
+      configurable: true,
+      value: {
+        main: {
+          App: {
+            GetCodingArtifactPreview: getCodingArtifactPreview,
+          },
+        },
+      },
+    })
+
+    await expect(invokeCommand('get_coding_artifact_preview', {
+      workspacePath: '/workspace/milksu',
+      relativePath: 'docs/demo.html',
+    })).resolves.toBe(preview)
+
+    expect(getCodingArtifactPreview).toHaveBeenCalledWith(
+      '/workspace/milksu',
+      'docs/demo.html',
+    )
+  })
+
   it('passes Coding collaboration preparation details to Wails unchanged', async () => {
     const status = {
       schemaVersion: 1,
