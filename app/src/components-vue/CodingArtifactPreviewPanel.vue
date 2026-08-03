@@ -29,6 +29,10 @@ const props = defineProps<{
   environment: CodingEnvironmentSnapshot | null
 }>()
 
+const emit = defineEmits<{
+  previewed: [preview: CodingArtifactPreview]
+}>()
+
 const relativePath = ref('')
 const preview = ref<CodingArtifactPreview | null>(null)
 const loading = ref(false)
@@ -80,6 +84,7 @@ async function refresh() {
       },
     )
     relativePath.value = preview.value.relativePath
+    emit('previewed', preview.value)
   } catch (reason) {
     preview.value = null
     error.value = reason instanceof Error

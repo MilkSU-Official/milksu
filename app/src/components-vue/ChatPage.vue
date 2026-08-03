@@ -67,6 +67,7 @@ import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import WorkspaceTopBar from '@/components-vue/WorkspaceTopBar.vue'
 import type {
   CodingArchitecturePreview,
+  CodingArtifactPreview,
   CodingBrowserStatus,
   CodingComputerUseStatus,
   CodingComputerUseTarget,
@@ -197,6 +198,7 @@ const codingBrowserStatus = ref<CodingBrowserStatus | null>(null)
 const codingBrowserEvidenceLoading = ref(false)
 const codingBrowserEvidenceError = ref('')
 const codingBrowserEvidenceRevealed = ref(false)
+const artifactPreviewEvidence = ref<{ relativePath: string; kind: CodingArtifactPreview['kind'] } | null>(null)
 const computerUseLoading = ref(false)
 const computerUseStatus = ref<CodingComputerUseStatus | null>(null)
 const computerUseTargets = ref<CodingComputerUseTarget[]>([])
@@ -996,6 +998,13 @@ function changeContextPanel(value: string) {
   void refreshContextPanel()
 }
 
+function recordArtifactPreview(preview: CodingArtifactPreview) {
+  artifactPreviewEvidence.value = {
+    relativePath: preview.relativePath,
+    kind: preview.kind,
+  }
+}
+
 async function revealBrowserExtension() {
   browserPanelError.value = ''
   try {
@@ -1060,6 +1069,7 @@ watch(() => props.conversation?.id, () => {
   codingBrowserStatus.value = null
   codingBrowserEvidenceError.value = ''
   codingBrowserEvidenceRevealed.value = false
+  artifactPreviewEvidence.value = null
   void scrollChatToBottom()
   if (contextPanel.value === 'browser' && environmentOpen.value) {
     void refreshBrowserPanel()
@@ -1340,6 +1350,7 @@ watch(
           :approval-policy="effectiveApprovalPolicy"
           :browser-status="codingBrowserStatus"
           :computer-use-status="computerUseStatus"
+          :artifact-preview-evidence="artifactPreviewEvidence"
           @open-panel="changeContextPanel"
         />
 
@@ -1732,6 +1743,7 @@ watch(
           ref="artifactPanel"
           :workspace-path="workspacePath"
           :environment="codingEnvironment"
+          @previewed="recordArtifactPreview"
         />
       </template>
 

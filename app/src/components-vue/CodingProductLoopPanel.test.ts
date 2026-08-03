@@ -310,6 +310,24 @@ describe('CodingProductLoopPanel', () => {
     expect(onOpenPanel).toHaveBeenCalledWith('artifacts')
   })
 
+  it('treats an opened artifact preview as visible validation evidence', async () => {
+    const { host } = await mountPanel({
+      artifactPreviewEvidence: {
+        relativePath: 'preview/result.html',
+        kind: 'html',
+      },
+    })
+
+    expect(host.textContent).toContain('已预览 HTML：preview/result.html')
+    expect(host.textContent).toContain('真实 App 验收')
+    expect(host.textContent).toContain('已有证据')
+    expect(host.textContent).toContain('已打开产物预览：preview/result.html')
+    expect(host.textContent).toContain('下一步验收动作')
+    expect(host.textContent).toContain('验收恢复/继续')
+    expect(host.textContent).toContain('可见验证：产物预览可检查 2 个')
+    expect(host.textContent).toContain('已预览 HTML：preview/result.html')
+  })
+
   it('marks resumed sessions as recovery evidence', async () => {
     const { host } = await mountPanel({
       resumed: true,

@@ -88,22 +88,24 @@ const environment: CodingEnvironmentSnapshot = {
 }
 
 async function mountPanel(overrides: Record<string, unknown> = {}) {
+  const onPreviewed = vi.fn()
   const host = document.createElement('div')
   document.body.append(host)
   const app = createApp(CodingArtifactPreviewPanel, {
     workspacePath: '/Users/milksu/code/milksu',
     environment,
+    onPreviewed,
     ...overrides,
   })
   app.mount(host)
   mountedApps.push(app)
   await settle()
-  return host
+  return { host, onPreviewed }
 }
 
 describe('CodingArtifactPreviewPanel', () => {
   it('suggests safe changed artifacts and renders HTML through a sandboxed preview', async () => {
-    const host = await mountPanel()
+    const { host, onPreviewed } = await mountPanel()
     const text = host.textContent ?? ''
     expect(text).toContain('docs/report.md')
     expect(text).toContain('site/index.html')
@@ -138,10 +140,14 @@ describe('CodingArtifactPreviewPanel', () => {
     expect(iframe?.getAttribute('srcdoc')).toContain('Agent report')
     expect(iframe?.getAttribute('srcdoc')).toContain('Bearer [credential redacted]')
     expect(iframe?.getAttribute('srcdoc')).not.toContain('artifact-token-12345')
+    expect(onPreviewed).toHaveBeenCalledWith(expect.objectContaining({
+      relativePath: 'site/index.html',
+      kind: 'html',
+    }))
   })
 
   it('renders Markdown and image previews from workspace-relative suggestions', async () => {
-    const host = await mountPanel()
+    const { host, onPreviewed } = await mountPanel()
 
     const markdownSuggestion = [...host.querySelectorAll<HTMLButtonElement>('button')]
       .find(button => button.textContent?.includes('docs/report.md'))
@@ -159,6 +165,10 @@ describe('CodingArtifactPreviewPanel', () => {
     expect(host.textContent).toContain('verified markdown')
     expect(host.textContent).toContain('OPENAI_API_KEY=[credential redacted]')
     expect(host.textContent).not.toContain('sk-artifact-secret12345')
+    expect(onPreviewed).toHaveBeenLastCalledWith(expect.objectContaining({
+      relativePath: 'docs/report.md',
+      kind: 'markdown',
+    }))
 
     const imageSuggestion = [...host.querySelectorAll<HTMLButtonElement>('button')]
       .find(button => button.textContent?.includes('assets/result.png'))
@@ -175,10 +185,14 @@ describe('CodingArtifactPreviewPanel', () => {
     expect(host.textContent).toContain('图片')
     expect(host.textContent).toContain('12 B')
     expect(image?.src).toBe('data:image/png;base64,iVBORw0KGgo=')
+    expect(onPreviewed).toHaveBeenLastCalledWith(expect.objectContaining({
+      relativePath: 'assets/result.png',
+      kind: 'image',
+    }))
   })
 
   it('rejects unsafe or unsupported manual paths before calling the backend', async () => {
-    const host = await mountPanel()
+    const { host } = await mountPanel()
     const htmlSuggestion = [...host.querySelectorAll<HTMLButtonElement>('button')]
       .find(button => button.textContent?.includes('site/index.html'))
     htmlSuggestion!.click()
