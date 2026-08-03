@@ -41,7 +41,10 @@ import {
   describeLoadedExtensions,
 } from "./bridge-resource-policy.js";
 import { preparePromptAttachments } from "./bridge-attachments.js";
-import { analyzeTextOnlyImages } from "./bridge-vision.js";
+import {
+  analyzeTextOnlyImages,
+  analyzeTextOnlyToolImages,
+} from "./bridge-vision.js";
 import {
   backgroundTaskMetasForSession,
   projectBackgroundTaskMetas,
@@ -212,6 +215,42 @@ function extractToolResultContent(result) {
     .filter((item) => item.type === "text")
     .map((item) => item.text)
     .join("\n");
+}
+
+function isComputerUseMcpResult(event) {
+  if (event?.toolName !== "mcp") return false;
+  const inputServer = String(event.input?.server ?? event.input?.connect ?? "").trim();
+  const inputTool = String(event.input?.tool ?? "").trim();
+  const detailServer = String(event.details?.server ?? "").trim();
+  const detailTool = String(event.details?.tool ?? "").trim();
+  return (inputServer === "milksu-computer-use" || detailServer === "milksu-computer-use")
+    && (inputTool === "computer_use" || detailTool === "computer_use");
+}
+
+async function summarizeComputerUseToolImages(event, session) {
+  if (!isComputerUseMcpResult(event)) return undefined;
+  if (Array.isArray(session.model?.input) && session.model.input.includes("image")) {
+    return undefined;
+  }
+  const images = Array.isArray(event.content)
+    ? event.content.filter(block => block?.type === "image")
+    : [];
+  if (!images.length) return undefined;
+  if (auxiliaryVisionSelection.provider) {
+    configureProviderEndpoint(session, auxiliaryVisionSelection.provider);
+  }
+  const analyzed = await analyzeTextOnlyToolImages(images, {
+    session,
+    auxiliary: auxiliaryVisionSelection,
+    label: "Computer Use tool result",
+  });
+  if (!analyzed.context) return undefined;
+  return {
+    content: [
+      ...event.content,
+      { type: "text", text: analyzed.context },
+    ],
+  };
 }
 
 function truncate(value, limit = 60000) {
@@ -567,6 +606,33 @@ function createCodingPermissionExtension(
   };
 }
 
+function createComputerUseVisionResultExtension(getSession) {
+  return (pi) => {
+    pi.on("tool_result", async (event) => {
+      const session = getSession();
+      if (!session) return undefined;
+      try {
+        return await summarizeComputerUseToolImages(event, session);
+      } catch (error) {
+        if (!isComputerUseMcpResult(event) || !Array.isArray(event.content)) {
+          return undefined;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        return {
+          content: [
+            ...event.content,
+            {
+              type: "text",
+              text: "\n\n[MilkSU Computer Use visual evidence]\n"
+                + `auxiliary vision unavailable: ${message}`,
+            },
+          ],
+        };
+      }
+    });
+  };
+}
+
 function selectedMcpServer(policy, input) {
   const explicit = String(input?.server ?? input?.connect ?? "").trim();
   if (explicit) return explicit;
@@ -882,6 +948,7 @@ function createMilkSUResourceLoader(
   getPolicy,
   registerPolicyController,
   mcpConfig,
+  getSession,
 ) {
   // Skills and extensions may execute instructions supplied by third parties.
   // Keep Pi's ambient discovery disabled and load only MilkSU-reviewed resources.
@@ -904,6 +971,7 @@ function createMilkSUResourceLoader(
           approvalBroker,
         },
       ),
+      createComputerUseVisionResultExtension(getSession),
     );
     if (mcpConfig) {
       extensionFactories.push(createMcpAdapter({ config: mcpConfig }));
@@ -1066,6 +1134,7 @@ async function createSession(command) {
   if (mcpConfig) {
     await ensureMcpMetadataCache(agentDir);
   }
+  let session;
   const resourceLoader = createMilkSUResourceLoader(
     cwd,
     agentDir,
@@ -1076,6 +1145,7 @@ async function createSession(command) {
     () => sessionPolicies.get(conversationId),
     controller => sessionPolicyControllers.set(conversationId, controller),
     mcpConfig,
+    () => session,
   );
   // MilkSU performs its own explicit, reviewed resource loading. Mark the
   // project untrusted at Pi's package-manager layer so it does not walk parent
@@ -1086,7 +1156,6 @@ async function createSession(command) {
     resolveProjectTrust: async () => false,
   });
 
-  let session;
   try {
     ({ session } = await createAgentSession({
       cwd,

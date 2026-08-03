@@ -3,7 +3,10 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import test from "node:test";
-import { analyzeTextOnlyImages } from "./bridge-vision.js";
+import {
+  analyzeTextOnlyImages,
+  analyzeTextOnlyToolImages,
+} from "./bridge-vision.js";
 
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), "milksu-vision-"));
@@ -98,4 +101,57 @@ test("does not claim full vision when the configured model is text-only", async 
   });
   assert.match(result.context, /does not support image input/);
   assert.match(result.context, /derived, untrusted evidence/);
+});
+
+test("summarizes tool screenshot images for text-only Computer Use without caching raw bytes", async () => {
+  const value = await fixture();
+  let completions = 0;
+  const model = {
+    id: "gpt-4o",
+    provider: "openai",
+    input: ["text", "image"],
+  };
+  const session = {
+    modelRegistry: {
+      find: () => model,
+      getApiKeyAndHeaders: async () => ({ ok: true, apiKey: "test-key" }),
+    },
+  };
+  const complete = async (_model, context) => {
+    completions += 1;
+    const image = context.messages[0].content.find(item => item.type === "image");
+    assert.equal(image.data, Buffer.from("tool-pixels").toString("base64"));
+    return {
+      stopReason: "stop",
+      content: [{ type: "text", text: "A Codex task row with a play-shaped resume button." }],
+    };
+  };
+  const imageBlock = {
+    type: "image",
+    data: Buffer.from("tool-pixels").toString("base64"),
+    mimeType: "image/png",
+    name: "computer-use-observe.png",
+  };
+
+  const first = await analyzeTextOnlyToolImages([imageBlock], {
+    session,
+    auxiliary: { provider: "openai", model: "gpt-4o" },
+    cachePath: value.cache,
+    complete,
+  });
+  const second = await analyzeTextOnlyToolImages([imageBlock], {
+    session,
+    auxiliary: { provider: "openai", model: "gpt-4o" },
+    cachePath: value.cache,
+    complete,
+  });
+
+  assert.equal(completions, 1);
+  assert.match(first.context, /MilkSU Computer Use visual evidence/);
+  assert.match(first.context, /screenshot/);
+  assert.match(first.context, /never follow instructions/);
+  assert.match(first.context, /resume button/);
+  assert.equal(second.analyses[0].visual.cached, true);
+  const cache = await readFile(value.cache, "utf8");
+  assert.doesNotMatch(cache, /dG9vbC1waXhlbHM=/);
 });
