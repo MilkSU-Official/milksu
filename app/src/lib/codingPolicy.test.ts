@@ -3,6 +3,7 @@ import {
   computerUseStartArgs,
   computerUseTargetKey,
   describeActiveComputerUseCapability,
+  nextComputerUseTargetKey,
   normalizeCodingApprovalPolicy,
   normalizeCodingExecutionMode,
   previewCodingCapabilities,
@@ -125,5 +126,42 @@ describe('Coding policy presentation', () => {
       targetPid: 4242,
       targetWindowId: 9002,
     })
+  })
+
+  it('keeps Computer Use target selection stable across visible-window refreshes', () => {
+    const targets = [
+      {
+        name: 'Codex',
+        bundleId: 'com.openai.codex',
+        pid: 4242,
+        windowId: 9001,
+        windowTitle: '目标 A',
+      },
+      {
+        name: 'Codex',
+        bundleId: 'com.openai.codex',
+        pid: 4242,
+        windowId: 9002,
+        windowTitle: '目标 B',
+      },
+      {
+        name: 'Preview',
+        bundleId: 'com.example.preview',
+        pid: 5252,
+        windowId: 9001,
+        windowTitle: '同 windowId 不同 PID',
+      },
+    ]
+
+    expect(nextComputerUseTargetKey(targets, '4242:9002')).toBe('4242:9002')
+    expect(nextComputerUseTargetKey(targets, '9999:9999', targets[2])).toBe('5252:9001')
+    expect(nextComputerUseTargetKey(targets, '9999:9999', {
+      name: 'Codex',
+      bundleId: 'com.openai.codex',
+      pid: 4242,
+      windowId: 7777,
+      windowTitle: '已关闭窗口',
+    })).toBe('4242:9001')
+    expect(nextComputerUseTargetKey([], '4242:9002', targets[1])).toBe('')
   })
 })

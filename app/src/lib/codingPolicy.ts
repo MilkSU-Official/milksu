@@ -136,6 +136,18 @@ export function selectedComputerUseTarget(
   return targets.find(target => computerUseTargetKey(target) === selectedKey) ?? null
 }
 
+export function nextComputerUseTargetKey(
+  targets: CodingComputerUseTarget[],
+  selectedKey: string,
+  activeTarget?: CodingComputerUseTarget | null,
+): string {
+  if (selectedComputerUseTarget(targets, selectedKey)) return selectedKey
+  if (activeTarget && selectedComputerUseTarget(targets, computerUseTargetKey(activeTarget))) {
+    return computerUseTargetKey(activeTarget)
+  }
+  return targets[0] ? computerUseTargetKey(targets[0]) : ''
+}
+
 export function computerUseStartArgs(
   conversationId: string,
   target: CodingComputerUseTarget,

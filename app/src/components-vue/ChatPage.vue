@@ -87,8 +87,8 @@ import {
 
 import {
   computerUseStartArgs,
-  computerUseTargetKey,
   describeActiveComputerUseCapability,
+  nextComputerUseTargetKey,
   normalizeCodingApprovalPolicy,
   normalizeCodingExecutionMode,
   previewCodingCapabilities,
@@ -774,19 +774,11 @@ async function refreshBrowserPanel() {
     }
     if (computerUseTargetsResult.status === 'fulfilled') {
       computerUseTargets.value = computerUseTargetsResult.value
-      const selectedStillVisible = computerUseTargets.value.some(target => (
-        computerUseTargetKey(target) === selectedComputerUseTargetKey.value
-      ))
-      if (!selectedStillVisible) {
-        const activeTarget = computerUseStatus.value?.target
-        const activeKey = activeTarget?.windowId
-          ? computerUseTargetKey(activeTarget)
-          : ''
-        const firstKey = computerUseTargets.value[0]
-          ? computerUseTargetKey(computerUseTargets.value[0])
-          : ''
-        selectedComputerUseTargetKey.value = activeKey || firstKey
-      }
+      selectedComputerUseTargetKey.value = nextComputerUseTargetKey(
+        computerUseTargets.value,
+        selectedComputerUseTargetKey.value,
+        computerUseStatus.value?.target,
+      )
     } else {
       computerUseTargets.value = []
       if (!browserPanelError.value) {
