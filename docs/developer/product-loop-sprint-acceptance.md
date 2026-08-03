@@ -171,3 +171,26 @@
 - macOS 打包 App 中真实弹出系统辅助功能/屏幕录制授权；
 - Computer Use driver 对外部 App 的真实观察、点击或输入；
 - “替我审批”下无意义审批的端到端消除。
+
+## 2026-08-04 · CTF / CVE top-level workspace retention contract
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | `eefa729` |
+| 窄测 | `npm run test -- --run src/AppRoutingContract.test.ts src/lib/workspaceSessionRouting.test.ts src/components-vue/AppSidebar.test.ts` |
+| 窄测结果 | 3 files / 8 tests passed |
+| 全量前端 | `npm run test && npm run build` |
+| 全量前端结果 | 46 files / 199 tests passed；production build passed |
+
+覆盖范围：
+
+- App 顶层路由明确使用 `KeepAlive include="CTFPage,VulnPage"`；
+- CTF 和 CVE 主工作区在一级菜单切换时保留页面状态，Coding Chat 不被这个 KeepAlive 误缓存；
+- CTF Agent 聊天仍归属 CTF 侧栏 section；
+- 返回 CTF 时通过 `ctfResumeJobId` 恢复最近 CTF job，而不是用当前 Coding conversation 覆盖。
+
+本次仍未证明：
+
+- 打包 App 中真实点击 CTF → CVE → CTF 后的视觉回归；
+- 一个长时间运行的 CTF Agent 在跨模块切换后的完整恢复；
+- CTF 题库滚动位置、筛选条件和所有子面板状态均永久保存。
