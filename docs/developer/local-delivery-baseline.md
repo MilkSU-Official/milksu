@@ -5,8 +5,8 @@
 > 验收状态：pre-release 可复跑基线，不是 Release Candidate 门禁。
 >
 > 边界：记录打包 App 的启动、空闲内存、逻辑体积、窗口下限、无 Provider 首启和脱敏失败
-> 路径；
-> Developer ID、公证、升级、全新无开发工具机器和正式性能阈值仍在 RC 阶段验收。
+> 路径；同时设置保守 pre-release 回归阈值。Developer ID、公证、升级、全新无开发工具机器
+> 和正式 RC 性能承诺仍在 RC 阶段验收。
 >
 > 动态完成度与剩余缺口以[目标覆盖台账](./objective-coverage-ledger.md)为准。
 
@@ -24,6 +24,12 @@ npm run test:local-delivery
 MILKSU_APP_INTEGRATION=1 npm run m3:release-check
 ```
 
+只验证 pre-release 阈值报告结构，不启动 App：
+
+```bash
+MILKSU_LOCAL_DELIVERY_THRESHOLD_FIXTURE=1 node scripts/test-local-delivery-baseline.mjs
+```
+
 脚本使用打包后的 `build/bin/MilkSU.app`，不会启动第二套测试壳。它会：
 
 1. 拒绝在已有 MilkSU App 进程运行时继续，避免打断用户会话；
@@ -35,7 +41,8 @@ MILKSU_APP_INTEGRATION=1 npm run m3:release-check
 6. 发送 `SIGTERM`，验证 Wails `OnShutdown` 将同一运行标记改为 `clean`；
 7. 统计 App、打包 Sidecar、前端产物和最大文件的逻辑字节；
 8. 验证当前窗口仍为默认 `1440×900`、最低 `1080×680`；
-9. 写出忽略于 Git 的 `build/test-results/local-delivery-baseline.json`。
+9. 用保守阈值检查启动、RSS、App/Sidecar/frontend 体积、最大前端 chunk 和进程数；
+10. 写出忽略于 Git 的 `build/test-results/local-delivery-baseline.json`。
 
 测试只读取自己创建的 `lifespan.json`，不会读取临时或现有凭据库内容。首次启动没有
 Provider 配置，脚本也不触发模型请求；这证明 MilkSU 可以在无模型配置时打开和关闭，不
@@ -57,10 +64,25 @@ Provider 配置，脚本也不触发模型请求；这证明 MilkSU 可以在无
 | 运行进程数 | 1 |
 | 正常退出标记 | 5/5 `clean` |
 
-这些值受文件缓存、机器负载和构建方式影响，当前只用于发现明显回归，不设置正式失败阈值。
-启动指标是生命周期初始化标记，不等价于首屏完全可交互时间；空闲 RSS 只统计 MilkSU
-进程树，不包含 macOS 共享的 WebKit 系统进程。后续至少在发布目标机器矩阵上重复冷启动、
-热启动和首屏交互测量，再冻结 RC 上限。
+这些值受文件缓存、机器负载和构建方式影响。当前阈值只用于发现明显 pre-release 回归：
+
+| Gate | Pre-release 上限 |
+| --- | ---: |
+| 启动至正式 lifespan 标记 | 5,000 ms |
+| 启动后两秒 App 进程树 RSS | 192 MiB |
+| App 未压缩逻辑体积 | 450 MiB |
+| 打包 Sidecar 未压缩逻辑体积 | 400 MiB |
+| 前端 dist 未压缩逻辑体积 | 4 MiB |
+| 最大前端 JS/CSS chunk | 512 KiB |
+| App 进程树进程数 | 3 |
+
+这些不是正式发行承诺。启动指标是生命周期初始化标记，不等价于首屏完全可交互时间；空闲 RSS
+只统计 MilkSU 进程树，不包含 macOS 共享的 WebKit 系统进程。后续至少在发布目标机器矩阵上
+重复冷启动、热启动和首屏交互测量，再冻结 RC 上限。
+
+`local-delivery-baseline.json` 中的 `performanceThresholds` 还包含当前单机 support matrix
+entry。现在只有 Apple Silicon macOS 被标为 `measured-pre-release-baseline`；多机器、
+Intel/macOS 版本矩阵仍等待 RC 阶段重复实测。
 
 当前体积主要来自 Sidecar，而不是前端：
 
@@ -102,7 +124,7 @@ Provider 配置，脚本也不触发模型请求；这证明 MilkSU 可以在无
 
 ## 尚未完成
 
-- 多台支持机器的冷启动、空闲内存和 App/升级包下载体积阈值；
+- 多台支持机器的冷启动、空闲内存和 App/升级包下载体积 RC 阈值；
 - `1080×680` 及更多尺寸的原生 App 人工视觉与键盘回归；
 - 全新 macOS 用户、没有 Node/Go/Wails 等开发工具的安装验收；
 - Developer ID、hardened runtime、notarization、stapling；

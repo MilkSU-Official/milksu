@@ -21,6 +21,15 @@ const resultPath = join(resultsDirectory, 'local-delivery-baseline.json')
 const startupTimeoutMs = 30_000
 const idleSampleDelayMs = 2_000
 const shutdownTimeoutMs = 10_000
+const preReleaseThresholds = {
+  startupMarkerMs: 5_000,
+  idleRSSBytes: 192 * 1024 * 1024,
+  appLogicalBytes: 450 * 1024 * 1024,
+  sidecarLogicalBytes: 400 * 1024 * 1024,
+  frontendDistBytes: 4 * 1024 * 1024,
+  largestFrontendChunkBytes: 512 * 1024,
+  processCount: 3,
+}
 
 function assert(condition, message) {
   if (!condition) throw new Error(message)
@@ -139,7 +148,123 @@ function printableMiB(bytes) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MiB`
 }
 
+function measuredGate(actual, limit, unit = '') {
+  return {
+    actual,
+    limit,
+    unit,
+    passed: actual <= limit,
+  }
+}
+
+function supportMatrixEntry() {
+  return {
+    platform: platform(),
+    architecture: arch(),
+    osRelease: release(),
+    status: platform() === 'darwin' && arch() === 'arm64'
+      ? 'measured-pre-release-baseline'
+      : 'developer-host-only',
+    notes: 'Single-host pre-release measurement; RC support matrix still requires repeated target-machine runs.',
+  }
+}
+
+function performanceThresholdReport({
+  startupMarkerMs,
+  idleRSSBytes,
+  appLogicalBytes,
+  sidecarLogicalBytes,
+  frontendDistBytes,
+  largestFrontendChunkBytes,
+  processCount,
+}) {
+  const performanceThresholds = {
+    schema: 'milksu-local-delivery-thresholds/v1alpha1',
+    purpose: 'Conservative pre-release regression tripwires, not RC performance promises.',
+    supportMatrix: [supportMatrixEntry()],
+    gates: {
+      startupMarkerMs: measuredGate(
+        startupMarkerMs,
+        preReleaseThresholds.startupMarkerMs,
+        'ms',
+      ),
+      idleRSSBytes: measuredGate(
+        idleRSSBytes,
+        preReleaseThresholds.idleRSSBytes,
+        'bytes',
+      ),
+      appLogicalBytes: measuredGate(
+        appLogicalBytes,
+        preReleaseThresholds.appLogicalBytes,
+        'bytes',
+      ),
+      sidecarLogicalBytes: measuredGate(
+        sidecarLogicalBytes,
+        preReleaseThresholds.sidecarLogicalBytes,
+        'bytes',
+      ),
+      frontendDistBytes: measuredGate(
+        frontendDistBytes,
+        preReleaseThresholds.frontendDistBytes,
+        'bytes',
+      ),
+      largestFrontendChunkBytes: measuredGate(
+        largestFrontendChunkBytes,
+        preReleaseThresholds.largestFrontendChunkBytes,
+        'bytes',
+      ),
+      processCount: measuredGate(
+        processCount,
+        preReleaseThresholds.processCount,
+        'processes',
+      ),
+    },
+  }
+  return {
+    performanceThresholds,
+    passed: Object.values(performanceThresholds.gates).every(gate => gate.passed),
+  }
+}
+
+function runThresholdFixture() {
+  const passing = performanceThresholdReport({
+    startupMarkerMs: 950,
+    idleRSSBytes: 118 * 1024 * 1024,
+    appLogicalBytes: 350 * 1024 * 1024,
+    sidecarLogicalBytes: 330 * 1024 * 1024,
+    frontendDistBytes: 2 * 1024 * 1024,
+    largestFrontendChunkBytes: 390 * 1024,
+    processCount: 1,
+  })
+  const failing = performanceThresholdReport({
+    startupMarkerMs: preReleaseThresholds.startupMarkerMs + 1,
+    idleRSSBytes: preReleaseThresholds.idleRSSBytes,
+    appLogicalBytes: preReleaseThresholds.appLogicalBytes,
+    sidecarLogicalBytes: preReleaseThresholds.sidecarLogicalBytes,
+    frontendDistBytes: preReleaseThresholds.frontendDistBytes,
+    largestFrontendChunkBytes: preReleaseThresholds.largestFrontendChunkBytes,
+    processCount: preReleaseThresholds.processCount,
+  })
+  assert(passing.passed, 'threshold fixture expected the baseline-shaped sample to pass')
+  assert(!failing.passed, 'threshold fixture expected a startup regression to fail')
+  assert(
+    failing.performanceThresholds.gates.startupMarkerMs.passed === false,
+    'threshold fixture did not identify the failing startup gate',
+  )
+  console.log(JSON.stringify({
+    schema: passing.performanceThresholds.schema,
+    supportMatrixStatus: passing.performanceThresholds.supportMatrix[0].status,
+    passing: passing.passed,
+    failing: failing.passed,
+    failingGate: 'startupMarkerMs',
+  }))
+}
+
 async function main() {
+  if (process.env.MILKSU_LOCAL_DELIVERY_THRESHOLD_FIXTURE === '1') {
+    runThresholdFixture()
+    return
+  }
   assert(platform() === 'darwin', 'the packaged App baseline currently requires macOS')
   for (const required of [appExecutable, packagedSidecar, frontendDist]) {
     assert(await exists(required), `required build artifact is missing: ${required}`)
@@ -259,6 +384,21 @@ async function main() {
     const frontendChunks = frontendSize.largestFiles.filter(
       file => file.path.endsWith('.js') || file.path.endsWith('.css'),
     )
+    const largestFrontendChunkBytes = frontendChunks.reduce(
+      (largest, file) => Math.max(largest, file.bytes),
+      0,
+    )
+    const { performanceThresholds, passed: thresholdsPassed } = performanceThresholdReport({
+      startupMarkerMs,
+      idleRSSBytes: idleRSSKiB * 1024,
+      appLogicalBytes: appSize.bytes,
+      sidecarLogicalBytes: sidecarSize.bytes,
+      frontendDistBytes: frontendSize.bytes,
+      largestFrontendChunkBytes,
+      processCount: rows.length,
+    })
+    assert(thresholdsPassed, 'pre-release local delivery performance thresholds failed')
+
     const report = {
       schema: 'milksu-local-delivery-baseline/v1alpha1',
       measuredAt: new Date().toISOString(),
@@ -289,9 +429,11 @@ async function main() {
         largestChunks: frontendChunks,
       },
       window: windowBounds,
+      performanceThresholds,
       gates: {
         buildArtifactsPresent: true,
         startupWithin30Seconds: startupMarkerMs <= startupTimeoutMs,
+        preReleasePerformanceThresholds: thresholdsPassed,
         lifespanStartedAndExitedCleanly: true,
         minimumWindow1080x680: true,
         isolatedNoProviderFirstRun: true,

@@ -43,9 +43,9 @@
 | Memory 与能力画像 | 11 | 475 / 1,100 | **43%** |
 | Runtime Reliability 与 NYU Bench | 10 | 700 / 1,000 | **70%** |
 | 架构约束 | 6 | 125 / 600 | **21%** |
-| 本地数据安全与正式交付 | 15 | 575 / 1,500 | **38%** |
+| 本地数据安全与正式交付 | 15 | 600 / 1,500 | **40%** |
 | 最终文档 | 2 | 75 / 200 | **38%** |
-| **整体** | **90** | **3,975 / 9,000** | **44%** |
+| **整体** | **90** | **4,000 / 9,000** | **44%** |
 
 此前约 58% 的估值按大块综合判断，分母中没有逐项展开真实验收、跨项目、六赛道、RC 和
 架构约束。第二轮证据复核又把没有原生 App 真实任务的 Vue/Go Code Action 从 75% 调到
@@ -57,7 +57,9 @@ Computer Use 工具截图的辅助视觉回路，因此新增 `COD-31`；随后�
 不得绕用 Shell/IPC/截图目录的路由护栏已接入 Coding policy guidance，记入 `BUG-01` 进展，
 但不折算为真实 App 验收；Coding delivery gate 已补 `runManifest` 和 `scoreboard`，将
 `COD-30` 从 0% 调到 25%；Memory 召回已补推荐原因和 Judge/提示/步骤/失败证据链接，将
-`MEM-08` 从 25% 调到 50%。44% 是当前细项口径的基线。后续只使用同一张表比较变化。
+`MEM-08` 从 25% 调到 50%；本地交付基线已增加保守 pre-release 性能阈值和单机 support
+matrix entry，将 `DEL-09` 从 25% 调到 50%。44% 是当前细项口径的基线。后续只使用同一张表
+比较变化。
 
 ### 分值分布
 
@@ -65,8 +67,8 @@ Computer Use 工具截图的辅助视觉回路，因此新增 `COD-31`；随后�
 | ---: | ---: | --- |
 | 100% | 8 | 行定义的精确门槛已经通过 |
 | 75% | 18 | 已有真实证据，仍缺完整矩阵或最终 Gate |
-| 50% | 31 | 工程实现和自动化存在，仍缺真实任务 |
-| 25% | 11 | 只有局部纵切、设计或基础设施 |
+| 50% | 32 | 工程实现和自动化存在，仍缺真实任务 |
+| 25% | 10 | 只有局部纵切、设计或基础设施 |
 | 0% | 22 | 未执行，或当前没有足够证据 |
 
 ### 0% / 25% 项的主要启动条件
@@ -195,7 +197,7 @@ Computer Use 工具截图的辅助视觉回路，因此新增 `COD-31`；随后�
 | DEL-06 | `1080×680` 最低窗口 | Browser 真实截图与布局审计 | 75% | 原生 App 全流程人工 QA |
 | DEL-07 | 启动时间基线 | 隔离 HOME 打包 App 已测 | 75% | 多次冷启动和目标机器矩阵 |
 | DEL-08 | RSS、前端 chunk、App/Sidecar 体积基线 | `local-delivery-baseline.md` | 75% | 多机器重复测量 |
-| DEL-09 | 性能回归阈值与支持矩阵 | 只有单机基线 | 25% | 先定阈值，再纳入门禁 |
+| DEL-09 | 性能回归阈值与支持矩阵 | `test-local-delivery-baseline.mjs` 已加入 pre-release 启动、RSS、App/Sidecar/frontend 体积、最大 chunk 和进程数阈值；报告写出单机 support matrix entry；脚本语法检查与 threshold fixture 通过；真实 App baseline 因已有 MilkSU 进程未打断，待关闭后重跑 | 50% | 多台目标机器重复测量，冻结 RC 阈值和正式支持矩阵 |
 | DEL-10 | 全新 macOS、无开发工具安装 | 尚未执行 | 0% | Release Candidate 机器验收 |
 | DEL-11 | Developer ID Application 签名 | 当前仍允许 ad-hoc `-` | 0% | RC 签名身份与验证 |
 | DEL-12 | Hardened Runtime 与 Entitlements | 尚无完成证据 | 0% | RC 配置和验收 |
@@ -226,7 +228,7 @@ Computer Use 工具截图的辅助视觉回路，因此新增 `COD-31`；随后�
 | OBS-08 | 六赛道动态覆盖矩阵和 6/6 判定已存在，但没有固定、版本化的六题回归记录 | `CTF-12` 保持 25%，候选只补记录契约 |
 | OBS-09 | Memory 已自动验证当前题排除、相关旧题优先和无关题负对照 | `MEM-09` 从 25% 校准为 50%，仍缺真实轨迹 |
 | OBS-10 | Runtime 已能投影后台任务 PID、端口、日志并在 Sidecar 重启后恢复，缺口是完整 App 的用户可见长任务 | `RUN-08` 保持 25%，不重复实现 Sidecar 恢复 |
-| OBS-11 | 本地交付报告已有单机启动、RSS、chunk 和包体测量，但没有支持矩阵与回归阈值 | `DEL-09` 保持 25%，候选从现有数据起步 |
+| OBS-11 | 本地交付报告已有单机启动、RSS、chunk 和包体测量；pre-release 阈值和单机 support matrix entry 已补，但没有多机 RC 矩阵 | `DEL-09` 保持 50%，RC 阶段重复测量后再冻结正式阈值 |
 | OBS-12 | macOS “App 管理”权限不等于 Computer Use 所需 Accessibility；截图可用也不代表 AX 可用 | `COD-16` 仍需单独验收 Accessibility 与 Screen Recording |
 
 ## 暂存缺陷
