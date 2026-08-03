@@ -35,6 +35,19 @@ function assistanceLabel(memory: CTFTrainingMemory) {
   return '代理/未归属'
 }
 
+function abilityAttributionNotice(memory: CTFTrainingMemory) {
+  if (memory.actor === 'user' && memory.assistance === 'none') {
+    return '可作为用户独立完成能力证据。'
+  }
+  if (memory.actor === 'user' && memory.assistance === 'hint') {
+    return '可作为提示依赖能力证据，不计为独立完成。'
+  }
+  if (memory.actor === 'shared' || memory.assistance === 'copilot') {
+    return '可作为协作经验和 Memory，不等同于用户独立完成。'
+  }
+  return '可作为 Agent Memory，不增加用户独立完成计数。'
+}
+
 function fallbackEvidence(ref: string) {
   const separator = ref.indexOf(':')
   const kind = separator > 0 ? ref.slice(0, separator) : 'evidence'
@@ -118,6 +131,9 @@ function evidenceLinks(memory: CTFTrainingMemory) {
               {{ tag }}
             </Badge>
           </div>
+          <p class="mt-2 text-caption leading-5 text-muted-foreground">
+            {{ abilityAttributionNotice(memory) }}
+          </p>
           <div
             v-if="memory.recall?.reasons?.length || evidenceLinks(memory).length"
             class="mt-3 rounded-md border border-border bg-background/60 p-2 text-caption leading-5 text-muted-foreground"

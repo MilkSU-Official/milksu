@@ -66,6 +66,7 @@ describe('CTFMemoryRecall', () => {
     expect(text).toContain('正确性证据和贡献归属分别标记')
     expect(text).toContain('Judge 验证')
     expect(text).toContain('Agent 代做 · 代理/未归属')
+    expect(text).toContain('可作为 Agent Memory，不增加用户独立完成计数。')
     expect(text).toContain('推荐依据：同为栈偏移枚举；旧题失败分支相似')
     expect(text).toContain('Judge 回执 receipt_1')
     expect(text).toContain('失败分支 branch_1')
@@ -115,6 +116,7 @@ describe('CTFMemoryRecall', () => {
 
     const text = host.textContent ?? ''
     expect(text).toContain('共同完成 · 搭档协作')
+    expect(text).toContain('可作为协作经验和 Memory，不等同于用户独立完成。')
     expect(text).toContain('可核对证据：')
     expect(text).toContain('job:job_crypto_shared')
     expect(text).toContain('judge:receipt_crypto_1')
@@ -127,5 +129,41 @@ describe('CTFMemoryRecall', () => {
     judgeEvidence?.click()
     await nextTick()
     expect(inspected).toEqual(['judge:receipt_crypto_1'])
+  })
+
+  it('labels user independent memories as ability evidence without changing correctness evidence', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    const app = createApp(CTFMemoryRecall, {
+      memories: [memory({
+        id: 'memory-user-independent',
+        actor: 'user',
+        assistance: 'none',
+        summary: '用户独立完成 Web 参数枚举，并保留 Judge 回执。',
+        category: 'web',
+        tags: ['web', 'enumeration'],
+        evidenceRefs: ['judge:receipt_web_1', 'step:user_step_1'],
+        recall: {
+          schemaVersion: 'ctf-training-memory-recall/v1alpha1',
+          score: 0.9,
+          reasons: ['同为参数枚举'],
+          evidence: [
+            { kind: 'judge', id: 'receipt_web_1', label: 'Judge 回执 receipt_web_1' },
+            { kind: 'step', id: 'user_step_1', label: '用户步骤 user_step_1' },
+          ],
+        },
+      })],
+      onArchive: () => {},
+      onInspectEvidence: () => {},
+    })
+    app.mount(host)
+    mountedApps.push(app)
+    await nextTick()
+
+    const text = host.textContent ?? ''
+    expect(text).toContain('用户完成 · 无协助')
+    expect(text).toContain('可作为用户独立完成能力证据。')
+    expect(text).toContain('Judge 回执 receipt_web_1')
+    expect(text).not.toContain('不增加用户独立完成计数')
   })
 })
