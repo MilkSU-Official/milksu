@@ -1,56 +1,48 @@
-# MilkSU Desktop Host
+# MilkSU Desktop UI
 
-This directory contains the Vue desktop control plane. It provides a PI Coding Agent project workspace, conversation storage, settings, provider selection, streaming tool output, the guided CTF training flow, and CVE intelligence.
+This directory contains the Vue 3 + TypeScript product surface embedded by Wails.
 
-CTF and Vuln surfaces read committed projections from the Shared Security Runtime. They do not treat conversation text or model-authored UI state as domain truth.
+Current user workspaces are:
 
-`../bridge.js` is the PI Coding Agent sidecar adapter. It restores project-scoped PI sessions and exposes `read`, `bash`, `edit`, `write`, `grep`, `find`, and `ls`. The separate `../security-bridge.js` keeps those built-in tools disabled for the CTF harness.
+- **CTF**: catalogs, custom challenges, challenge detail, Agent workspace, Candidate/Judge, recovery and
+  debrief;
+- **Coding**: project-scoped Pi sessions, attachments, tools, terminal/background tasks, artifact preview,
+  Browser, Git, ImageGen and environment/capability views;
+- **CVE**: a paused demonstration/research surface, not a current live intelligence product;
+- **Settings**: provider configuration, local recovery, diagnostics and application controls.
+
+The Vue UI is not a domain fact source. CTF success, Evidence, recovery and learning facts come from Go
+projections. Provider credentials remain in the Go-owned credential store and are never returned through
+Wails bindings.
+
+## Runtime Connections
+
+- `../bridge.js`: normal Coding Pi session and reviewed resources;
+- `../security-bridge.js`: CTF-specific Pi session with Coding resources disabled;
+- `../bridge-policy.js`: tool policy transport and platform enforcement;
+- `../app.go`: Wails facade/composition root;
+- `../internal/`: application services, domains, persistence and platform adapters.
+
+Coding Browser, a user-paired platform browser and Computer Use are separate permission surfaces. They do
+not inherit one another's profile, Cookie, token, page session or application scope.
 
 ## Stack
 
-- Vue 3 + TypeScript + Vite + Tailwind CSS
-- `memohai/ui` as a pinned git submodule (`@felinic/ui`)
-- Memoh's default `data-color-scheme="memoh"` palette
-- Wails v2.13 with a Go host
-- Pi SDK through a supervised Node.js sidecar
-- Local settings and conversation persistence
+- Vue 3, TypeScript and Vite;
+- Tailwind CSS;
+- pinned `memohai/ui` sources mounted at `../packages/ui`;
+- Wails v2.13 with a Go host;
+- supervised, packaged Node/Pi Sidecars.
 
 ## Development
 
 ```bash
 npm install
 npm run dev
+npm run test
 npm run build
-npm run lint
-cd ..
-wails dev
 ```
 
-Browser preview stores settings and conversations in `localStorage`; sending messages still requires the native Wails bridge.
-
-## NSSCTF browser judge
-
-The native app installs the unpacked extension sources under its local app-data browser directory. In the guided training flow:
-
-1. import an NSSCTF problem ID or canonical problem URL;
-2. open the same problem in a logged-in Chrome tab;
-3. load the extension directory shown by MilkSU, paste the one-time pairing code, and connect that tab;
-4. submit a candidate from the Agent workspace.
-
-The extension cannot read the browser profile or send arbitrary page actions. It accepts only the fixed NSSCTF flag-submission command and returns an authoritative, rejected, ambiguous, or adapter-error receipt. Only an authoritative platform receipt can complete the CTF job.
-
-## Retained Structure
-
-```text
-src/
-  App.vue                 desktop host composition
-  components-vue/         Coding Agent, guided CTF, CVE and settings surfaces
-  composables/            conversation, CTF, NSSCTF and runtime state
-  desktop.ts              Wails IPC wrapper plus browser preview storage
-
-../app.go                 Wails L1 adapter
-../internal/config        compatible local settings store
-../internal/conversation  compatible conversation store
-../internal/engine        Sidecar supervision and normalized events
-../packages/ui            pinned memohai/ui submodule
-```
+Browser preview uses its own local state and does not prove native Wails behavior. Native bindings,
+packaged Sidecars, macOS permissions, restart recovery and final visual behavior require the repository's
+packaged-App validation.

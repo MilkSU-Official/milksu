@@ -1,9 +1,13 @@
 # Coding Browser 真实证据验收
 
-> 状态：可执行的本机 Chrome + 正式 Playwright MCP 集成验收。
+> 文档状态：**Evidence / Living Runbook**。
+>
+> 验收状态：可执行的本机 Chrome + 正式 Playwright MCP 集成验收。
 >
 > 边界：这是 Browser 与前端 QA 的自动化基线，不替代打包 MilkSU 中的真实用户任务成功率
 > 验收，也不代表 Computer Use 或用户登录态浏览器。
+>
+> 动态完成度与剩余缺口以[目标覆盖台账](./objective-coverage-ledger.md)为准。
 
 ## 自动化纵切
 

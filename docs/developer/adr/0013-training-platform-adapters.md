@@ -1,5 +1,8 @@
 # ADR-0013：CTF 赛事、题库与交互式靶场使用同一训练平台边界
 
+> 文档状态：**Historical ADR with paused Labs successor**。平台分类仍可参考，但 Labs
+> 当前暂停，正文不授权接入 HTB 或其他交互式靶场。
+>
 > 状态：Accepted
 >
 > 日期：2026-08-01

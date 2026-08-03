@@ -1,5 +1,8 @@
 # ADR-0011：NSSCTF 本地题库、能力画像与可解释推荐
 
+> 文档状态：**Historical ADR**。目录和推荐的原始决策保留；当前 Memory 归属与校准缺口见
+> [目标覆盖台账](/developer/objective-coverage-ledger)。
+>
 > 状态：Accepted for CTF-first M3 MVP（2026-07-31）
 
 ## 背景

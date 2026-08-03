@@ -3,7 +3,7 @@
   "diagram_type": "architecture",
   "meta": {
     "title": "MilkSU 当前系统架构",
-    "subtitle": "R0.4 当前事实 · Pi Coding 基座、隔离 Coding Browser、CTF 证据闭环与安全静态双 Harness 评测",
+    "subtitle": "2026-08-03 pre-release 事实快照 · Pi Coding 基座、隔离 Coding Browser、CTF 证据闭环与安全静态评测",
     "output": "milksu-current-system.html",
     "animation": "trace",
     "visual_preset": "blueprint",
@@ -339,7 +339,7 @@
       "dot": "amber",
       "title": "当前边界",
       "items": [
-        "Managed Labs 已暂停，不计入当前 M3 交付",
+        "Managed Labs 与 CVE Research 已暂停，不进入当前产品完成条件",
         "NYU 只做人工准入的 one-shot 与两回合 Pi 只读评测，不执行挑战或模型输出"
       ]
     }

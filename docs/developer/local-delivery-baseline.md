@@ -1,10 +1,14 @@
 # 本地交付基线
 
-> 状态：pre-release 可复跑基线，不是 Release Candidate 门禁。
+> 文档状态：**Evidence / Living Runbook**。
+>
+> 验收状态：pre-release 可复跑基线，不是 Release Candidate 门禁。
 >
 > 边界：记录打包 App 的启动、空闲内存、逻辑体积、窗口下限、无 Provider 首启和脱敏失败
 > 路径；
 > Developer ID、公证、升级、全新无开发工具机器和正式性能阈值仍在 RC 阶段验收。
+>
+> 动态完成度与剩余缺口以[目标覆盖台账](./objective-coverage-ledger.md)为准。
 
 ## 自动化入口
 

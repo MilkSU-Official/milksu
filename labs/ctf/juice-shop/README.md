@@ -1,5 +1,8 @@
 # OWASP Juice Shop 本地测试夹具
 
+> 状态：**Paused developer fixture**。不要因本脚本可运行而恢复 Labs 产品开发；当前范围
+> 以 `docs/developer/current-objectives.md` 为准。
+
 这是 MilkSU CTF Harness MVP 的第一个可重复靶场。它只监听
 `127.0.0.1`，独立 bridge 关闭 IP masquerade 以尽量避免容器主动访问外网；
 这不是虚拟机级安全边界。请不要把端口改为 `0.0.0.0`，也不要把这里的任务配置

@@ -1,8 +1,13 @@
 # Coding Agent / Pi 扩展边界
 
-> 状态：Coding 核心交付链、桌面逐次审批、附件、会话隔离 PTY、后台任务、项目 MCP
-> 和隔离 Coding Browser **Verified / Implemented**；TypeScript/Vue/Go LSP 诊断与
-> TypeScript 经审阅写修复 **Verified**，Computer Use **Planned**。
+> 文档状态：Current engineering contract
+>
+> 事实审计：2026-08-03
+>
+> Coding 核心交付、附件、PTY、后台任务、Git、Archify、隔离 Browser 和 LSP 已有真实或
+> 专项证据；Artifact Preview、ImageGen、Project MCP、Computer Use、PR、worktree 和恢复
+> 处于不同程度的 Implemented / Partial。逐项完成度只看
+> [目标覆盖台账](/developer/objective-coverage-ledger)。
 
 MilkSU 不重写通用 Coding Agent Loop。Pi 负责会话、模型、上下文、工具循环和扩展 API；
 MilkSU 负责桌面授权、固定资源白名单、工具可见性、事件桥、产品 UI，以及 CTF 专用的事实、
@@ -30,6 +35,7 @@ flowchart LR
         mcp["Project MCP Adapter<br/>2.17.0 · opt-in"]
         browserMcp["Playwright MCP<br/>0.0.78 · first-party opt-in"]
         ocr["Local OCR<br/>1.1.0"]
+        imagegen["Controlled ImageGen<br/>explicit paid action"]
     end
 
     provider["Model Provider"]
@@ -48,6 +54,7 @@ flowchart LR
     session --> mcp
     session --> browserMcp
     session --> ocr
+    session --> imagegen
     session --> provider
     coreTools --> project
     lsp --> project
@@ -63,15 +70,19 @@ flowchart LR
 | --- | --- | --- | --- |
 | Pi Session / Model / Tool Loop | 是 | 是 | Pi |
 | `read/grep/find/ls` | 所选项目范围 | MilkSU 单题工作区内按角色裁剪 | Pi 工具 + MilkSU Policy |
-| `edit/write` | `Go + Project Auto` 的文件工具限制在项目内；显式 `Full Access` 的终端继承当前用户权限 | 按 CTF Role 裁剪 | Pi 工具 + `bridge-policy.js` |
-| `bash` | `Project Auto` 支持正常开发命令、Shell 组合、Git 和网络，但写入受 macOS 项目沙箱约束；`Full Access` 显式解除项目沙箱 | Coach/Strategist 无；Solver 模式按策略；Tool Builder 仅离线工作区 | Pi 工具 + `bridge-policy.js` |
+| `edit/write` | `Go + 替我审批`（存储值 `workspace-auto`）的文件工具限制在项目内；显式 `完全访问` 的终端继承当前用户权限 | 按 CTF Role 裁剪 | Pi 工具 + `bridge-policy.js` |
+| `bash` | `替我审批` 支持正常开发命令、Shell 组合、Git 和网络，但写入受 macOS 项目沙箱约束；`完全访问` 显式解除项目沙箱 | Coach/Strategist 无；Solver 模式按策略；Tool Builder 仅离线工作区 | Pi 工具 + `bridge-policy.js` |
 | `milksu_progress` | 是 | 是，附角色 Guidance | MilkSU first-party Extension |
 | Archify | 是 | **否** | 固定 Coding Skill |
-| `lsp_diagnostics` / `lsp_fix` | 诊断可用；`lsp_fix` 先只读计算并校验项目内目标、统一 Diff 与文件哈希。Ask 展示完整 Diff 后逐次批准；Project Auto / Full Access 在项目内自动应用并写后复核 | **否** | 固定 Coding Extension + MilkSU 审阅 Adapter |
+| `lsp_diagnostics` / `lsp_fix` | 诊断可用；`lsp_fix` 先只读计算并校验项目内目标、统一 Diff 与文件哈希。请求批准展示完整 Diff；替我审批 / 完全访问在项目内自动应用并写后复核 | **否** | 固定 Coding Extension + MilkSU 审阅 Adapter |
 | Pi Goal | 是；与桌面目标状态并存 | **否**；CTF 使用自己的进度与 Judge 语义 | 固定 Coding Extension |
 | 项目终端 / 后台任务 | 是；用户直接操作的多会话 PTY 由 Go Host 承担，后台任务复用固定 Pi Extension；两者按 Conversation 隔离，展示生命周期、输出和停止动作 | **否** | `creack/pty + xterm.js` Host Adapter；固定 Coding Extension + MilkSU 状态投影 |
-| 项目 MCP | 用户从项目 `.mcp.json` 明确选择后启用，每次调用仍走桌面审批 | **否** | 固定 Coding Extension + MilkSU Sandbox |
-| Coding Browser | 用户从右侧浏览器页显式启动专用 Chrome；每次 Playwright MCP 调用走桌面审批 | **否** | 固定 Playwright MCP + Go Browser Manager + MilkSU Sandbox |
+| 项目 MCP | 用户从项目 `.mcp.json` 明确选择后启用；调用遵循当前权限档位，不能由 Agent 安装或扩大工具面 | **否** | 固定 Coding Extension + MilkSU Sandbox |
+| Coding Browser | 用户从右侧浏览器页显式启动专用 Chrome；工具调用遵循当前权限档位并保留页面、Console、Network 和截图证据 | **否** | 固定 Playwright MCP + Go Browser Manager + MilkSU Sandbox |
+| Artifact Preview | 工作区内 Markdown、HTML 和图片；HTML 使用隔离、CSP、禁网和大小限制 | **否** | Go Preview Policy + Vue right page |
+| ImageGen | 文生图和参考图编辑；用户明确发起付费动作，输出限制在项目资产范围并可预览 | **否** | 受控 Provider Adapter |
+| Computer Use | 用户可见的 macOS 会话与固定应用范围；调用遵循当前权限档位，Workspace Auto 不会隐式启用 | **否** | Go Host + Computer Use Adapter |
+| PR / worktree | PR 发布前展示仓库、分支、提交和目标；写入 Agent 使用独立 worktree | **否** | Go Git/Platform Adapter |
 | 文件 / 图片附件 | 是；复制到用户数据目录，纯文本模型可走本地 OCR 或已配置视觉模型 | 使用 CTF Material 管线，不复用 Coding 附件上下文 | MilkSU 附件桥 + 本地 OCR |
 | CTF 类型化工具 | 否 | 按 Role、Scope 和协作模式 | MilkSU CTF Harness |
 | 平台提交 | 否 | Agent 不能直接提交，只能写候选 | MilkSU Judge Gate |
@@ -92,23 +103,25 @@ JSONL Sidecar 传递。`bridge-policy.js` 每回合重新计算 allowlist，调�
 | `Plan` | 任意 | `read/grep/find/ls/milksu_progress/lsp_diagnostics`；明确移除 `bash/edit/write/lsp_fix`。 |
 | `Go` | `Read-only` | 与 Plan 相同，只允许分析和诊断。 |
 | `Go` | `Ask` | 读取类工具直接执行；`bash/edit/write`、后台任务及项目 MCP 等有副作用调用会暂停，等待桌面单次批准或拒绝；`lsp_fix` 在暂停前先计算并展示完整统一 Diff。 |
-| `Go` | `Project Auto`（存储值 `workspace-auto`） | 项目内文件、Git、常规开发命令和网络自动执行；文件写入仍受项目沙箱约束；`lsp_fix` 在项目内预览并校验后自动应用。Agent HOME/TMP/Node wrapper 位于用户数据目录；旧项目中的 `.milksu` 仍受保护。 |
-| `Go` | `Full Access`（存储值 `full-auto`） | 用户显式选择后，终端以当前本机用户权限自动执行，可访问项目外文件和网络；Provider Key 仍从子进程环境移除；LSP Fix 仍强制绑定当前项目。 |
+| `Go` | `替我审批`（存储值 `workspace-auto`） | 已启用且固定范围内的普通文件、命令、Browser、Computer Use、只读 MCP 和合规委托自动执行；文件写入仍受项目沙箱约束。 |
+| `Go` | `完全访问`（存储值 `full-auto`） | 用户显式选择后，已启用能力自动执行；Provider Key、禁止工具、付费/发布/扩 Scope 和不可逆外部动作等硬边界不随档位消失。 |
 
-旧 Conversation 没有字段时迁移为 `Go + Project Auto`，保持 Coding Agent 可以直接交付
-代码。`Project Auto` 不再维护脆弱的命令白名单：Agent 可以使用真实研发所需的命令、
+旧 Conversation 没有字段时使用已有的 `Go + workspace-auto` 读取语义，保持 Coding Agent
+可以直接交付代码。`替我审批` 不维护脆弱的命令白名单：Agent 可以使用真实研发所需的命令、
 Shell 运算符、Git 和网络；macOS `sandbox-exec` 仍把写入收口在项目内，并只为审阅过的
-打包资源开放只读路径。`Full Access` 必须由用户从 Composer 权限菜单明确选择，不能由
+打包资源开放只读路径。`完全访问` 必须由用户从 Composer 权限菜单明确选择，不能由
 模型、项目文件或旧会话自行升级。
 
 MilkSU 已在 Sidecar 与桌面之间实现 Approval Broker：需要审批的工具调用带上稳定请求
 ID 暂停，桌面明确显示目标、参数和风险，并把一次性批准或拒绝结果送回原调用。
-项目 MCP 与 Coding Browser 都使用独立的逐次审批和沙箱，不会因为用户选择 `Project Auto`
-或 `Full Access` 就静默启用。Coding Browser 只能由用户从右侧页面显式启动，使用
+项目 MCP、Coding Browser、Computer Use 和 ImageGen 都需要先显式启用相应能力面，不会因
+权限档位静默安装、登录账户或扩大 Scope；启用后的普通调用遵循当前权限档位，避免在“替我
+审批”和“完全访问”中制造无意义的逐次确认。Coding Browser 只能由用户从右侧页面显式
+启动，使用
 Conversation 隔离 Profile；Go Host 只向当前 Pi Session 注入瞬态 loopback 描述符，
-不把 CDP 地址写进前端、SQLite 或项目配置。Computer Use 的完整产品入口
-仍未接入；Provider API Key 不进入模型上下文，也不传给 Bash 或 MCP 子进程；
-`Full Access` 能使用的只是当前登录用户本来可用的本地凭据和 SSH Agent。
+不把 CDP 地址写进前端、SQLite 或项目配置。Computer Use 已有可见会话和应用范围主链，
+但 macOS Accessibility / Screen Recording 尚未完成真实验收。Provider API Key 不进入
+模型上下文，也不传给 Bash、MCP 或 Computer Use 子进程。
 
 ## 资源加载与供应链
 
@@ -120,7 +133,7 @@ flowchart TB
     bundle["Sidecar 打包清单 + SHA-256"]
     positive["Coding 正向 Smoke"]
     negative["CTF 隔离 Smoke"]
-    release["M3 / R0.4 Release Check"]
+    release["Current Release Check"]
 
     deny --> whitelist --> pin --> bundle
     bundle --> positive --> release
@@ -178,25 +191,18 @@ flowchart TB
 - 用户在右侧 PTY 中直接键入的命令以当前 macOS 用户权限运行；它不是 Agent 工具，也不受
   Plan/Go 自动执行策略伪装。Agent 自动命令仍走 Pi 与桌面审批，二者的权限语义不能混用。
 
-## R0.4 真实验收清单
+## 当前验收入口
 
-1. **Archify**：在普通 Coding 会话点击一次“架构图”，自动读取仓库、选择系统架构图与
-   固定输出目录、执行 9 项校验并在右侧预览；CTF 会话必须找不到该 Skill。
-2. **LSP**：TypeScript/Vue Server 与官方 `gopls v0.23.0` 已固定打包；固定小项目分别
-   返回 `TS2322 @ 1:14` 与 `compiler.IncompatibleAssign @ 3:21`；TypeScript
-   `source.organizeImports` 必须在 Project Auto 下自动应用并复核，Ask 必须先展示完整
-   Diff，允许后写入、拒绝后哈希不变；CTF 会话必须看不到 LSP。
-3. **固定资源门禁**：Goal、后台任务、项目 MCP、附件与 OCR 必须通过打包清单、
-   SHA-256、普通 Coding 正向 Smoke 和 CTF 负向隔离；失败恢复保留在 MilkSU Supervisor，
-   不重新引入未固定的 `pi-retry`。
-4. **权限可见性**：Composer 使用 Codex 风格三档菜单显示 `请求批准 / 替我审批 /
-   完全访问权限`，右侧环境信息只展示生效状态；Plan 负向测试、Project Auto 项目外写入
-   拒绝、Ask 单次审批和 Full Access 显式项目外写入回归同时通过。
-5. **CTF 隔离**：重复 Sidecar 负向 Smoke；CTF Session 不加载 Archify/LSP/Goal/
-   后台任务/项目 MCP，
-   Recorder 的回合预算、候选闸门和轨迹仍通过。
+本页不再维护第二份 R0.x 完成清单。精确状态使用覆盖台账的 `COD-01`–`COD-30` 与
+`RUN-03`、`RUN-08`：
 
-当前正确说法是“核心插件已经固定并通过打包与隔离验收；右侧终端页已有会话隔离的项目
-PTY/stdin/实时输出/标签页，以及可停止的后台进程；右侧浏览器页已有显式启停、隔离
-Profile、逐次审批和真实页面交互；TypeScript/Vue/Go LSP 诊断与 TypeScript 经审阅写修复
-已随包完成，跨应用重启恢复和 Computer Use 尚未完成”，不是“Coding Agent 插件体系已完成”。
+- Archify、隔离 Coding Browser、MilkSU 前端视觉 QA、Git 日常闭环等已完成项保持回归；
+- LSP、Artifact Preview、Project MCP、ImageGen、Computer Use、PR、worktree 和跨 App
+  恢复按各自真实验收缺口推进；
+- 最终结果是一次打包 MilkSU 的长时间 “MilkSU develops MilkSU”，不是插件数量或按钮
+  数量；
+- CTF Session 必须继续看不到 Archify、LSP、Goal、后台任务、项目 MCP、Coding Browser
+  和其他普通 Coding 资源。
+
+当前正确说法是“Coding 核心和多项扩展已有工程主链或窄验收，但完整长时间自举尚未通过”，
+不能写成“插件体系已完成”或“与 Codex 等价”。

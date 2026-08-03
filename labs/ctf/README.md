@@ -1,5 +1,8 @@
 # MilkSU 本地 CTF 靶场
 
+> 状态：**Paused developer fixtures**。当前目标不启动或扩展 Labs；本目录的脚本、候选调研
+> 和固定镜像只保留为历史/开发回归材料，不是 MilkSU 当前用户能力。
+
 这里存放可重复、可重置、只绑定本机回环地址的 CTF 测试夹具。它们用于验证
 MilkSU 的 CTF Role、Environment、Evidence 与 Evaluator，不是公网攻击目标清单。
 

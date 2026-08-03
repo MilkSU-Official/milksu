@@ -1,5 +1,8 @@
 # ADR-0009：NSSCTF 已登录页面桥接与平台 Judge 回执
 
+> 文档状态：**Historical ADR with verified narrow path**。P3879 回执仍是有效证据，但
+> 不能外推为六赛道或所有平台完成。
+>
 日期：2026-07-30
 状态：Accepted；NSSCTF P3879 `correct=true` 窄路径已于 2026-07-31 验收，CTFshow 与长期
 发布回归仍按当前状态文档跟踪。

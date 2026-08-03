@@ -1,7 +1,7 @@
 # 核心架构：可验证安全任务运行时
 
-> **状态：基础目标架构。核心原则仍有效；“当前实现”以
-> [2026-08-01 架构快照](/architecture/)为准，当前任务只以
+> **文档状态：Target architecture。核心原则仍有效；“当前实现”以
+> [当前架构快照](/architecture/)为准，当前任务只以
 > [当前开发目标](/developer/current-objectives)为执行契约。**
 >
 > 日期：2026-07-19
@@ -20,7 +20,7 @@ MilkSU 是一个**一站式网络安全 AI 学习客户端**；它的技术核�
 
 ## 可交互架构视图
 
-- [MilkSU 当前系统架构规格](/architecture/generated/milksu-current-system.architecture.json)：R0.4 的 Coding 主链、
+- [MilkSU 当前系统架构规格](/architecture/generated/milksu-current-system.architecture.json)：生成时的 Coding 主链、
   CTF 证据闭环、持久化和 NYU safe-static Eval 边界。
 - [2026-07-31 M3 System Architecture 历史规格](/architecture/milksu-system.architecture.json)：
   保留当日桌面进程、PI Sidecar、CTF Runtime、Browser Bridge 和 Lab 实验边界，不代表当前发布状态。

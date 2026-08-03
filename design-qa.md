@@ -1,5 +1,11 @@
 # Design QA — MilkSU Challenge Desk
 
+> 文档状态：**Historical design evidence collection**。
+>
+> 本文件按时间保留多轮截图比较和当时结论，不描述当前 UI 全貌，也不提供待办。当前产品
+> 目标与缺口见 `docs/developer/current-objectives.md` 和
+> `docs/developer/objective-coverage-ledger.md`。
+
 ## Comparison target
 
 - Source visual truth: `/Users/milksu/.codex/generated_images/019fb283-1d93-7370-8b5c-d6c943625596/call_lKiDWG1GDkFR9Atdc4JnezlV.png`

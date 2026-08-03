@@ -1,60 +1,78 @@
-# MilkSU
+# MilkSU Repository Guidance
 
-One-stop cybersecurity AI learning client with a verifiable security-learning runtime.
+## Start Here
 
-## Rules
+Before changing anything, read:
 
-- Communicate with the user in Chinese.
-- Do not use emoji in code, comments, docs, UI text, or commit messages.
-- Explain relevant Agent Harness concepts while developing; the repository also supports the user's interview and presentation preparation.
-- Before architecture or domain work, read these files in order:
-  1. `docs/developer/security-agent-boundary.md`
-  2. `docs/developer/architecture.md`
-  3. `docs/developer/role-packages.md`
-  4. `docs/developer/industry-baseline.md`
-  5. `docs/developer/adr/0001-agent-engine-and-desktop-boundary.md`
-  6. `docs/developer/adr/0002-runtime-facts-and-recovery.md`
-- The documentation home page is the compact architecture map. The developer documents above are the detailed source of truth.
-- Do not restore the removed unlimited-context Codex, fixed Task Type, model-written panel, generic sub-agent, in-repo Skill router, or red-team-only Engagement designs.
+1. `docs/developer/current-objectives.md`;
+2. `docs/developer/objective-coverage-ledger.md`;
+3. `docs/developer/document-status.md`;
+4. the current Git branch, HEAD and working tree.
 
-## Architecture Guardrails
+Product development is active under the breadth-first order in `current-objectives.md`. Build the minimum
+usable slice for missing P0/P1 capabilities before deepening one area. Record adjacent, non-blocking bugs
+and details in the coverage ledger instead of fixing them opportunistically. Fix immediately only when a
+problem blocks the breadth pass, threatens data/credentials/scope/private-remote boundaries, or invalidates
+the acceptance result.
 
-- L2 Role Packages define goals, durable state, Evidence, Evaluators, and Human Outcomes.
-- L3 Capability Packages expose reusable security techniques and deterministic tools.
-- L4 Shared Security Runtime owns Environment, Job, Attempt, Step, Action, Observation, Artifact, Evidence, Effect, Evaluation, Outcome, Trace, and Recovery.
-- L5 is an adaptable Agent Engine. MilkSU may embed or minimally fork a mature open-source Coding Agent core such as Pi or Codex instead of rebuilding generic planning, context, and tool-loop capabilities. The selected engine and model providers remain replaceable and must not define the security domain model.
-- L6 Agent Integrity is cross-cutting and risk-based. It is not a Red, Blue, CTF, or AppSec role.
-- The model may propose actions and conclusions; only committed observations, artifacts, and evaluators may establish facts or success.
+Do not use old milestones, ADR follow-ups, dated reviews, checkpoints, research notes or design audits as
+an implementation queue. `docs/developer/development-plan.md` does not exist and must not be recreated.
 
-The first implementation vertical is CTF, followed by Vulnerability Research. Both must support Coach, Copilot, and Delegate as a separate collaboration dimension.
+## Collaboration
 
-The local Juice Shop fixture is only a deterministic regression baseline. CTF domain code must not depend on Juice Shop, Docker, any single platform, or the existence of a platform API/CLI. M2 must normalize chat text, files, screenshots, explicitly selected local directories, browser pages, remote connections, and managed labs through one Challenge Intake. Browser and Computer Use are optional capabilities, not the CTF Agent or its only entry point; platform APIs are optional accelerators only.
+- Communicate with the user in Chinese unless they ask otherwise.
+- Do not use emoji in code, comments, documentation, UI text or commit messages.
+- Explain relevant Agent Harness concepts when they materially help product decisions or the user's
+  interview and presentation preparation.
 
-Product mission: MilkSU is a one-stop cybersecurity AI learning client where people and security agents work together in explicitly authorized CTF, vulnerability-research, and attack-defense training environments. It helps users complete real learning tasks while using verifiable experiments, evidence, and review to help them genuinely learn how those tasks are done. Domain Outcome and Human Outcome are equally explicit product outputs.
+## Current Product Boundary
 
-The public product is not a general internet scanner or autonomous pentesting service. Default/open-source capabilities must not provide arbitrary target lists, internet-range bulk scanning, credential spraying, stealth/evasion, or unapproved external attack workflows. Every external target must carry visible scope/provenance; external effects require policy checks, evidence, rate limits where applicable, and risk-based approval. Read `docs/developer/adr/0004-learning-product-and-release-boundary.md` before adding Browser, Shell, Network, Lab, or release functionality.
+MilkSU is a Go/Wails/Vue desktop app with supervised Pi Sidecars.
 
-## Current Code Boundary
+- Pi owns the generic model session, context compaction and tool loop.
+- MilkSU owns desktop authorization, workspace and credential boundaries, event projection and product UI.
+- The CTF domain owns Challenge, Evidence, Candidate, Judge Receipt, Recovery, Memory and learning facts.
+- Labs and CVE Research are paused designs, not current completion conditions.
+- NYU safe-static is a narrow developer evaluation, not a MilkSU CTF score.
 
-M1 is complete. The desktop host is Go/Wails/React; `internal/securityruntime` owns the append-only Event Store, Artifact Store, Projection, recovery semantics, narrow Engine/Capability/Environment/Evaluator boundaries, and their tests. React reads Go projections and may request start/cancel, but never writes runtime facts. `bridge.js` still serves compatible chat only; M2 must add a separate Pi AgentEngine Adapter rather than turn that bridge into the security domain model. Codex app-server remains comparison code and a possible External Agent Runtime, not the default product engine.
+Reuse pinned, reviewable Pi packages, Skills, MCP servers, platform CLIs and mature community components.
+Do not grow a second generic Coding Agent harness when an upstream component already owns the capability.
 
-Before adding a new core module, state its layer, contract, evaluator, evidence, effects, and baseline comparison in the relevant developer document. Do not add placeholder architecture merely to make the six layers look complete.
+## Non-Negotiable Boundaries
 
-Follow `docs/developer/development-plan.md` for implementation order and milestone acceptance criteria.
+- Never read, print, migrate or place Provider API keys in model context, tool output, logs, diagnostics,
+  documentation or ordinary files.
+- Never publish to referenced open-source repositories. GitHub writes are limited to the explicitly
+  authorized MilkSU private remote and still require the product's meaningful publish confirmation.
+- Full Access and automatic approval do not bypass paid actions, external-account authorization, Scope
+  expansion, path confinement or irreversible external effects.
+- Security actions against external targets require visible, exact authorization. Do not add arbitrary
+  target lists, internet-range scanning, credential spraying, stealth/evasion or unapproved attack flows.
+- Models may propose CTF candidates, but only an independent Judge or explicit authorized human result may
+  establish success.
+- Do not describe partial smoke tests as complete Coding, CTF, Memory, NYU or release results.
 
-## Development
+## Architecture Direction
 
-```bash
-npm run docs:dev
-npm run docs:build
+The target dependency direction is:
 
-cd app
-npm run dev
-npm run build
-npm run lint
-
-cd ..
-go test ./...
-wails dev
-wails build
+```text
+Vue -> Wails Facade -> Application Service -> Domain / Runtime -> Infrastructure Adapter
 ```
+
+Do not start a standalone architecture-cleanup milestone. When a selected product slice touches
+`CTFPage.vue`, `app.go`, `bridge-policy.js`, `internal/browsercap/manager.go` or CTF Runner/Recovery,
+avoid adding a new responsibility and extract the touched concern when practical.
+
+New pre-release code implements the clean current model directly. Do not add migration, dual-write,
+fallback or compatibility branches for abandoned pre-release designs. Existing working schema cleanup is
+deferred to one destructive pre-release consolidation after the product slices are stable.
+
+## Validation and Delivery
+
+- Use the canonical repository scripts instead of inventing parallel runners.
+- A capability is not complete because a button, package or fixture exists; retain one real-task result.
+- Preserve the user's unrelated working-tree changes.
+- Each selected vertical slice is reviewed, tested, committed and pushed only to MilkSU's private remote.
+- Development-time documentation records tests, receipts, checkpoints and necessary ADRs. Final architecture,
+  milestone, status and release claims are updated only during the final documentation closeout.

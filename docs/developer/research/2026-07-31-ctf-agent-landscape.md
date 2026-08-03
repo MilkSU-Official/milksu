@@ -1,6 +1,10 @@
 # CTF Agent 开源项目对照与 MilkSU 取舍
 
+> 文档状态：**Historical research snapshot**。不表示列出的项目已安装，也不安排当前任务；
+> 当前 reuse-first 决策见 [当前开发目标](/developer/current-objectives)。
+>
 > 调研日期：2026-07-31
+>
 > 范围：只阅读公开仓库、配置、Prompt 与实现；不把第三方 Agent 作为运行时依赖。
 
 ## 底座结论

@@ -1,5 +1,8 @@
 # CTF onboarding flow audit
 
+> Document status: **Historical design audit**. This captures the 2026-07-31 flow and is not
+> the current UI specification or backlog. See `/developer/current-objectives` for current work.
+
 Date: 2026-07-31
 
 ## Scope

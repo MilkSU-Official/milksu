@@ -1,5 +1,8 @@
 # MilkSU Labs 黑绿主题
 
+> 文档状态：**Historical design reference**。颜色和信息密度已经影响当前视觉，但截图、
+> 导航文案和页面骨架是 2026-07-31 快照；Labs 当前仍为 Paused，本文不安排产品开发。
+>
 > 参考：2026-07-31 从用户已登录的 HTB Labs `Machines` 与 `Challenges`
 > 页面读取的可见界面、计算样式和截图。MilkSU 只借用颜色层级与信息密度，
 > 不复制 HTB 标志、插画、文案或品牌组件。

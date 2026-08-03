@@ -1,7 +1,9 @@
 # CTF Intake → Agent → Judge → Memory
 
-> 状态：CTF 主链 **Implemented**；部分平台与原生 UI 回归仍属于发布门。本文不包含已暂停的
-> Managed Labs。
+> 文档状态：Current domain contract
+>
+> CTF 主链 **Implemented / Partial verification**；只有 Web 窄路径有真实 Judge 成功。
+> 六赛道、Memory 校准和用户体验缺口见覆盖台账。本文不包含已暂停的 Managed Labs。
 
 ## 数据模型
 

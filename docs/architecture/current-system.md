@@ -1,6 +1,11 @@
 # 当前系统与分层
 
-> 状态：当前代码快照。图中的状态以仓库证据为准，不代表所有模块都已通过 R0.4 发布门。
+> 文档状态：Current
+>
+> 事实审计：2026-08-03
+>
+> 本页描述当前结构，不安排任务。动态进度和缺口见
+> [目标覆盖台账](/developer/objective-coverage-ledger)。
 
 ## C4 · System Context
 
@@ -35,11 +40,15 @@ flowchart LR
 | 边界 | 状态 | 代码证据 |
 | --- | --- | --- |
 | Wails 本地桌面宿主 | **Implemented** | `main.go` 只绑定一个 `App`，静态资源来自 `app/dist`。 |
-| Vue 产品表面 | **Implemented / Partial** | `app/src/App.vue` 组合 CTF、CVE、Coding 与设置；统一安全 Markdown 已实现，原生长内容、窄窗口和多状态视觉仍需持续发布回归。 |
-| Pi 通用 Agent | **Verified core / Partial extensions** | `bridge.js` 使用 Pi SessionManager、工具事件和持久会话；Plan → Go 真实交付已验，Archify、隔离 Coding Browser 与 TypeScript/Vue/Go LSP 已完成原生专项验收；`lsp_fix` 已复用上游 Pi LSP，并补工作区校验、统一 Diff、逐次审批和写后复核。Computer Use、多 Agent 等扩展仍 Partial / Planned。 |
+| Vue 产品表面 | **Implemented / Partial** | `app/src/App.vue` 组合 CTF、Coding、暂停的 CVE 壳与设置；Coding 采用中央会话和右侧动态页面，CTF 默认解题模式与复盘模式分离。 |
+| Pi 通用 Agent | **Verified core / Partial extensions** | `bridge.js` 使用 Pi SessionManager、工具事件和持久会话；Plan/Go、权限档位、Archify、LSP、后台任务和 Compaction 已有真实或专项证据。完整长时间自举仍未通过。 |
 | CTF Runtime | **Implemented** | `internal/ctf` 将 Challenge、Agent Turn、Candidate、Judge Receipt、Debrief 投影到共享 Runtime。 |
 | 浏览器平台 Judge | **Implemented** | `internal/browsercap` 只接受明确配对页，NSSCTF/CTFshow 回执进入 Go Host。 |
 | Coding Browser | **Verified** | `internal/browsercap` 由右侧页面显式启停专用 Chrome；Go Host 向当前 Pi Session 注入瞬态 loopback 描述符，固定 Playwright MCP 在逐次桌面审批下完成真实页面 E2E。 |
+| Artifact Preview | **Implemented / tested** | Markdown、HTML 与图片使用工作区路径、类型、大小和 HTML 隔离策略；尚缺打包 App 的完整三类型人工回归。 |
+| ImageGen | **Implemented / unverified provider** | 文生图、参考图编辑、项目资产和付费确认主链已接入；未在打包 App 中使用用户自行配置的真实 Provider 验收。 |
+| Computer Use | **Implemented / unverified OS permission** | 可见会话、应用范围和统一权限策略已经接线；macOS Accessibility / Screen Recording 尚未真实授权验收。 |
+| Multi-Agent / worktree | **Implemented / unverified collaboration** | worktree 管理、恢复和安全收尾有自动化；尚无真实任务证明并行收益。 |
 | 本地持久化 | **Implemented** | `internal/appdata`、`internal/securityruntime`、Catalog、Conversation、Memory 和 Credential Store。 |
 | Managed Labs | **Paused** | 工作区存在实验代码，但已从当前交付范围移除，不是已发布系统能力。 |
 | NYU CTF Bench | **Verified narrow developer baseline** | `internal/evalbench` 同时提供 one-shot Runner 与 `cmd/nyu-ctf-bench-agent-run` 两回合 Pi 只读 Runner；后者真实验证读取、强制重启、恢复、超时/格式失败分类和 Digest Judge。无产品 UI，也不代表完整 CTF Agent。 |
@@ -59,7 +68,7 @@ flowchart TB
 
     subgraph webview["Wails WebView"]
         shell["Vue App Shell"]
-        rail["Workspace Rail<br/>CTF → CVE → Coding"]
+        rail["Workspace Rail<br/>CTF → Coding → CVE"]
         ctf_ui["CTF Workspace"]
         coding_ui["Coding Conversation"]
         cve_ui["CVE Workspace"]
@@ -69,7 +78,7 @@ flowchart TB
         supervisor["Go Engine Supervisor"]
         pi_session["Pi Session + Tool Loop"]
         policy["Session Tool Policy"]
-        resources["固定资源<br/>Workflow / Archify / LSP / Goal / MCP"]
+        resources["固定资源<br/>Workflow / Archify / LSP / Goal / MCP / ImageGen"]
         playwright["Playwright MCP<br/>explicit opt-in · per-call approval"]
     end
 
@@ -143,12 +152,12 @@ flowchart TB
 
 | 层 | 当前实现 | 判定 |
 | --- | --- | --- |
-| L1 Product Surface | Vue 3、`WorkspaceRail`、`ContextSidebar`、CTF/CVE/Coding 页面 | **Partial**：安全 Markdown 组件和测试已存在，原生多状态视觉回归尚未冻结。 |
+| L1 Product Surface | Vue 3、`WorkspaceRail`、`ContextSidebar`、CTF/Coding 页面和暂停的 CVE 壳 | **Partial**：主界面可用，原生多状态、真实 Provider 和系统权限仍需按台账验收。 |
 | L2 Application / Role Services | 单一 `App` 组合 `ctf.Service`、`vuln.Service`、Catalog、Memory | **Implemented but concentrated**：接口可用，Facade 未拆。 |
-| L3 Agent / Platform Adapters | Pi Supervisor、Security Supervisor、NSSCTF、CTFshow、Browser Bridge、Playwright MCP | **Implemented / Partial**：NSSCTF 主链和隔离 Coding Browser 已验，CTFshow 真实账号 E2E 仍需持续回归。 |
+| L3 Agent / Platform Adapters | Pi Supervisor、Security Supervisor、NSSCTF、CTFshow、Browser Bridge、Playwright MCP、ImageGen、Computer Use | **Implemented / Partial**：NSSCTF 主链和隔离 Coding Browser 已验，其余真实 Provider、系统权限和跨平台 E2E 仍按台账跟踪。 |
 | L4 Domain Contracts | CTF Challenge、RoleFact、AgentCandidate、JudgeReceipt、LearningRecord | **Implemented**。 |
 | L5 Evidence Runtime | 追加式 SQLite Event Store、Artifact SHA-256、Projection、Recover | **Implemented**。 |
-| L6 Integrity | Scope、CTF 工作区策略、预算、候选闸门、外部 Judge、资源白名单 | **Partial**：宿主 Shell 不是容器，动态网络精确内核 allowlist 未完成。 |
+| L6 Integrity | Scope、CTF 工作区策略、预算、候选闸门、外部 Judge、资源白名单、精确 Endpoint Broker | **Partial**：HTTP/TCP/SSH 使用精确 Scope，通用 CTF Shell 默认无网络；宿主执行仍不是容器，真实六赛道负向回归尚未完成。 |
 
 ## 开发者评测边界
 

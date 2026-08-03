@@ -1,5 +1,8 @@
 # ADR-0006：M3 产品控制面与比赛/CVE 工作流
 
+> 文档状态：**Historical ADR**。本页保留当时产品壳决策；CVE 当前暂停，当前导航、状态和
+> 缺口以后继文档为准。
+>
 > 状态：Accepted for M3 Product Shell（2026-07-30）
 
 ## 背景

@@ -1,5 +1,8 @@
 # ADR-0012：CTF 单题工作区、PI 解题交接与轨迹回流
 
+> 文档状态：**Historical ADR**。开源项目比较和 M3 取舍是 2026-07-31 快照；当前六赛道
+> 验收和 subagent 策略见[当前目标](/developer/current-objectives)。
+>
 > 状态：Accepted for M3 MVP（2026-07-31）
 
 ## 背景

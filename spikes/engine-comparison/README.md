@@ -1,5 +1,8 @@
 # M0 Agent Engine comparison
 
+> Historical spike. Pi is the current default engine. This directory is retained only for the original
+> comparison protocol and must not be used as a second product runtime or current task list.
+
 Both spikes receive the same read-only micro CTF and emit MilkSU-shaped JSONL events. They are comparison code, not two product runtimes.
 
 Safe protocol checks, which do not call a model:

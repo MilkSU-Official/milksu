@@ -1,5 +1,8 @@
 # ADR-0007：CTF Agent Harness 与 NSSCTF Agent Arena 真实评测轨道
 
+> 文档状态：**Historical ADR**。保留 Agent Arena 与真实 Judge 的决策来源，不把当时
+> “未完成”列表恢复为当前任务。
+>
 > 状态：Accepted for M3 CTF Harness Baseline（2026-07-30）
 
 ## 背景

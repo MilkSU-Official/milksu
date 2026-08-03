@@ -1,6 +1,7 @@
 # CTF Labs：顶层与详细设计
 
-> 状态：**Paused / Designed**。当前只保留设计，不启动环境、不接入真实平台、不计入 M3 完成声明。
+> 状态：**Paused / Designed**。当前只保留设计，不启动环境、不接入真实平台、不进入当前
+> 产品完成条件；恢复必须由[当前目标](/developer/current-objectives)重新授权。
 >
 > 产品位置：CTF 工作区的二级入口 `Labs`。
 

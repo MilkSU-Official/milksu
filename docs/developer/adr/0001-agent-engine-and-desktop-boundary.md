@@ -1,5 +1,8 @@
 # ADR-0001：Agent Engine 与桌面进程边界
 
+> 文档状态：**Historical ADR**。保留最初 Engine 选择及其后继修订，不描述当前进度或任务。
+> 当前实现见[当前系统与分层](/architecture/current-system)。
+>
 > 状态：Accepted for M0
 >
 > 日期：2026-07-19

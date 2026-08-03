@@ -51,9 +51,9 @@ reach the language server. Clean macOS packages include reviewed TypeScript,
 Vue and Go servers in `milksu-sidecar/lsp-runtime`; the packaged-app fixtures returned
 `TS2322` at `1:14` and `compiler.IncompatibleAssign` at `3:21` without modifying
 their source files. A packaged TypeScript fixture also verified `source.organizeImports`
-under Project Auto and Request Approval: the desktop showed the full unified Diff,
+under “替我审批” and “请求批准”: the desktop showed the full unified Diff,
 approval applied the reviewed text, and rejection preserved the original SHA-256.
-Packaged Vue and Go fixtures now verify the same action under Project Auto with exact
+Packaged Vue and Go fixtures now verify the same action under “替我审批” with exact
 before/after SHA-256 values and reviewed unified Diffs. Vue uses the official
 `@vue/language-server@2.2.12` non-Hybrid mode with MilkSU's fixed TypeScript SDK; this avoids
 requiring an ambient editor-owned tsserver plugin bridge. MilkSU's reviewed `pi-lsp` patch rejects
@@ -97,6 +97,7 @@ Pi's official documentation states that Pi runs with the launching process's fil
 2. Record session scope and whether the resource can read, write, execute, access the network, or load more resources.
 3. Keep ambient discovery disabled.
 4. Add a positive Coding smoke assertion and a negative CTF isolation assertion.
-5. Run the Sidecar smoke test and the M3 release check before publishing.
+5. Run the Sidecar smoke test and the full regression command
+   (`npm run m3:release-check`; the script name is retained for compatibility) before publishing.
 6. Copy the direct dependency license into `THIRD_PARTY-LICENSES` and record its path in the Sidecar manifest.
 7. Push only to a MilkSU-owned repository. Never open a PR or write to the upstream project.

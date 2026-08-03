@@ -1,5 +1,8 @@
 # OWASP WebGoat · SQL Injection Introduction
 
+> Status: **Paused developer fixture**. This pinned contract is not an enabled MilkSU product
+> capability and must not be used to resume Labs work.
+
 MilkSU bundles only a pinned launch contract for WebGoat `v2025.3`; the
 course itself remains inside the official WebGoat image.
 

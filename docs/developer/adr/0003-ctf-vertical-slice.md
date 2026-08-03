@@ -1,5 +1,8 @@
 # ADR-0003：M2-A CTF 纵切与 Pi Security Adapter
 
+> 文档状态：**Historical ADR**。本页记录最初窄 CTF 纵切，正文中的 React、M2 和“下一步”
+> 已被 Vue 产品、真实平台 Judge 与当前目标取代。
+>
 > 状态：Accepted for M2-A
 >
 > 日期：2026-07-20

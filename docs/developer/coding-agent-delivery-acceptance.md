@@ -1,9 +1,14 @@
 # Coding Agent 真实交付验收
 
-> 状态：可执行 deterministic fixture + 真实 DeepSeek 手工/半自动 Runbook。
+> 文档状态：**Evidence / Living Runbook**。
+>
+> 验收状态：可执行 deterministic fixture + 真实 DeepSeek 手工/半自动 Runbook。
 >
 > 目标：验证“连续、短、人类常见提示”能完成一个小项目，而不是只验证模型能回复一句话或
 > Sidecar 能注册工具；同时用同一条正式 Runtime 路径建立安全、可重复的可靠性基线。
+>
+> 本页只证明明确记录的场景；动态完成度与剩余缺口以
+> [目标覆盖台账](./objective-coverage-ledger.md)为准。
 
 ## 为什么需要独立交付验收
 

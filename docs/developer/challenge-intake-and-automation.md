@@ -1,8 +1,12 @@
 # Challenge Intake、Browser Use 与 Computer Use
 
-> 状态：**Implemented / Partial**。本地文字/附件/目录、URL/Socket/SSH 和显式 User Browser
-> Bridge 已接线；Managed Browser、普通 Coding Browser/MCP 与 Computer Use 仍是 Planned。
-> 本文中的第三方候选仍只是准入研究，不代表已安装。
+> 文档状态：**Historical research / Partially superseded**。
+>
+> 本页保留 2026-07-19 的候选调研和 Intake 原则，不描述当前能力状态，也不提供 backlog。
+> Coding Browser、Project MCP、Computer Use 和动态 Endpoint 的当前事实分别见
+> [Coding / Pi 扩展边界](/architecture/coding-agent-pi-extension-boundary)和
+> [目标覆盖台账](/developer/objective-coverage-ledger)。正文中的 M2/Planned/后续表述均为
+> 当时判断。
 >
 > 评审日期：2026-07-19
 

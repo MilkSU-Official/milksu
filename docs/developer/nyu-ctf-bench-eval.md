@@ -1,6 +1,11 @@
 # NYU CTF Bench：安全的离线评测元数据适配器
 
-> 状态：Metadata adapter + one-shot baseline + two-turn PI Agent Runtime baseline verified
+> 文档状态：**Evidence / Developer benchmark contract**。
+>
+> 验收状态：Metadata adapter + one-shot baseline + two-turn PI Agent Runtime baseline verified。
+>
+> 本页不是当前产品成绩或开发顺序；动态完成度与剩余缺口以
+> [目标覆盖台账](./objective-coverage-ledger.md)为准。
 >
 > MilkSU schema：`milksu.evalbench.* / v1alpha1`
 

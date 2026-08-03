@@ -1,8 +1,15 @@
 # 开源项目基线与架构启示
 
-> 状态：调研基线，不是依赖清单。项目必须经过源码阅读、实跑、许可证与供应链审查后，才能进入 ADR。
+> 文档状态：**Research catalog**，不是依赖清单、当前功能表或实施顺序。
+>
+> 项目必须经过源码阅读、实跑、许可证、供应链、权限面与真实任务审查后，才能进入正式
+> Adapter 决策；正文中的 star、版本和项目状态是当日快照。
 >
 > 更新：2026-07-19
+>
+> 后续专项调研：
+> [Wallbreaker Harness 静态调研与 MilkSU 对照](./research/2026-08-03-wallbreaker-harness-review.md)。
+> 该项目当前只作 `adapt` / `benchmark-only` 参考，不进入依赖或 External Worker。
 
 ## 为什么单独维护这份基线
 
