@@ -36,6 +36,44 @@ const dirtyEnvironment: CodingEnvironmentSnapshot = {
     additions: 10,
     deletions: 2,
     dirty: true,
+    changes: [
+      {
+        path: 'docs/report.md',
+        indexStatus: ' ',
+        worktreeStatus: 'M',
+        staged: false,
+        modified: true,
+        untracked: false,
+        conflict: false,
+      },
+      {
+        path: 'preview/result.html',
+        indexStatus: '?',
+        worktreeStatus: '?',
+        staged: false,
+        modified: false,
+        untracked: true,
+        conflict: false,
+      },
+      {
+        path: '../outside.png',
+        indexStatus: '?',
+        worktreeStatus: '?',
+        staged: false,
+        modified: false,
+        untracked: true,
+        conflict: false,
+      },
+      {
+        path: 'src/main.ts',
+        indexStatus: ' ',
+        worktreeStatus: 'M',
+        staged: false,
+        modified: true,
+        untracked: false,
+        conflict: false,
+      },
+    ],
   },
 }
 
@@ -88,6 +126,10 @@ describe('CodingProductLoopPanel', () => {
     expect(text).toContain('选择任务与仓库')
     expect(text).toContain('Agent 执行')
     expect(text).toContain('用户可见验证')
+    expect(text).toContain('产物预览可检查 2 个')
+    expect(text).toContain('docs/report.md')
+    expect(text).toContain('preview/result.html')
+    expect(text).not.toContain('../outside.png')
     expect(text).toContain('Diff 与 Git 交付')
     expect(text).toContain('3 个文件待审阅/暂存/提交')
     expect(text).toContain('权限：Go / 替我审批')
@@ -128,7 +170,9 @@ describe('CodingProductLoopPanel', () => {
       environment: cleanEnvironment,
     })
 
-    expect(host.textContent).toContain('Browser 已接入 · Computer Use 已接入')
+    expect(host.textContent).toContain('产物预览可检查 2 个')
+    expect(host.textContent).toContain('Browser 已接入')
+    expect(host.textContent).toContain('Computer Use 已接入')
     expect(host.textContent).toContain('当前 Git 工作区干净且没有待 push 提交')
   })
 
@@ -171,7 +215,8 @@ describe('CodingProductLoopPanel', () => {
     expect(host.textContent).toContain('工作区：/Users/milksu/code/milksu')
     expect(host.textContent).toContain('权限：Go / 完全访问')
     expect(host.textContent).not.toContain('权限：go / full-auto')
-    expect(host.textContent).toContain('可见验证：待补')
+    expect(host.textContent).toContain('可见验证：产物预览可检查 2 个')
+    expect(host.textContent).toContain('docs/report.md、preview/result.html')
     expect(host.textContent).toContain('本地领先 1 个提交，待 push')
 
     const copy = [...host.querySelectorAll<HTMLButtonElement>('button')]

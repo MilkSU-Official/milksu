@@ -7,6 +7,7 @@ import type {
   CodingComputerUseStatus,
   CodingEnvironmentSnapshot,
 } from '@/codingEnvironmentTypes'
+import { suggestedArtifactPaths } from '@/lib/codingArtifact'
 import type { CodingApprovalPolicy, CodingExecutionMode } from '@/types'
 
 type LoopState = 'done' | 'active' | 'pending' | 'blocked'
@@ -46,10 +47,26 @@ function approvalPolicyLabel(policy: CodingApprovalPolicy) {
   return '只读'
 }
 
+const artifactSuggestions = computed(() => suggestedArtifactPaths(props.environment))
+
 const validationReady = computed(() => (
-  Boolean(props.browserStatus?.enabled)
+  artifactSuggestions.value.length > 0
+  || Boolean(props.browserStatus?.enabled)
   || Boolean(props.computerUseStatus?.enabled)
 ))
+
+const validationDetail = computed(() => {
+  const channels = [
+    artifactSuggestions.value.length
+      ? `产物预览可检查 ${artifactSuggestions.value.length} 个：${artifactSuggestions.value.slice(0, 3).join('、')}`
+      : '',
+    props.browserStatus?.enabled ? 'Browser 已接入' : '',
+    props.computerUseStatus?.enabled ? 'Computer Use 已接入' : '',
+  ].filter(Boolean)
+  return channels.length
+    ? channels.join(' · ')
+    : '打开产物预览、Browser 或 Computer Use，保留真实 UI/产物证据。'
+})
 
 const gitState = computed<LoopState>(() => {
   const git = props.environment?.git
@@ -84,12 +101,7 @@ const items = computed(() => [
     id: 'validation',
     label: '用户可见验证',
     state: validationReady.value ? 'active' as const : props.toolMessageCount > 0 ? 'pending' as const : 'pending' as const,
-    detail: validationReady.value
-      ? [
-          props.browserStatus?.enabled ? 'Browser 已接入' : '',
-          props.computerUseStatus?.enabled ? 'Computer Use 已接入' : '',
-        ].filter(Boolean).join(' · ')
-      : '打开产物预览、Browser 或 Computer Use，保留真实 UI/产物证据。',
+    detail: validationDetail.value,
   },
   {
     id: 'git',
@@ -129,10 +141,7 @@ const handoffSummary = computed(() => {
     `- 权限：${executionModeLabel(props.executionMode)} / ${approvalPolicyLabel(props.approvalPolicy)}`,
     `- Agent：${props.running ? '执行中' : props.messageCount ? `已有 ${props.messageCount} 条消息、${props.toolMessageCount} 条工具记录` : '尚未启动'}`,
     `- 可见验证：${validationReady.value
-      ? [
-          props.browserStatus?.enabled ? 'Browser 已接入' : '',
-          props.computerUseStatus?.enabled ? 'Computer Use 已接入' : '',
-        ].filter(Boolean).join('；')
+      ? validationDetail.value.replaceAll(' · ', '；')
       : '待补：产物预览、Browser 或 Computer Use'}`,
     `- Git：${git?.isRepository
       ? git.conflicts > 0
