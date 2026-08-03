@@ -43,7 +43,7 @@ describe('WorkspaceTopBar', () => {
 
     const title = host.querySelector('[data-workspace-topbar-title]')
     expect(title?.tagName).toBe('H1')
-    expect(title?.className).toContain('text-control')
+    expect(title?.className).toContain('workspace-topbar__title')
     expect(host.querySelector('[data-workspace-topbar-subtitle]')?.className).toContain('text-caption')
     expect(host.querySelector('[data-workspace-topbar-actions]')?.className).toContain('text-control')
   })
@@ -66,7 +66,7 @@ describe('WorkspaceTopBar', () => {
       expect(titleNode?.tagName).toBe('H1')
       expect(titleNode?.textContent).toBe(title)
       expect(titleNode?.className).toContain('workspace-topbar__title')
-      expect(titleNode?.className).toContain('text-control')
+      expect(titleNode?.className).not.toContain('text-control')
     }
   })
 })

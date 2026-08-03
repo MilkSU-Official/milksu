@@ -15,7 +15,7 @@ defineProps<{
       <div class="min-w-0">
         <div class="flex min-w-0 items-center gap-2 overflow-hidden">
           <h1
-            class="workspace-topbar__title truncate text-control font-medium tracking-[-0.01em]"
+            class="workspace-topbar__title truncate font-medium tracking-[-0.01em]"
             data-workspace-topbar-title
           >
             {{ title }}
@@ -59,5 +59,10 @@ defineProps<{
 .workspace-topbar__title,
 .workspace-topbar__subtitle {
   margin: 0;
+}
+
+.workspace-topbar__title {
+  font-size: var(--text-control, 0.875rem);
+  line-height: var(--text-control--line-height, 1.25rem);
 }
 </style>
