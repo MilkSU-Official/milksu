@@ -212,7 +212,7 @@ function statusVariant(status: VulnerabilityStatus) {
           <Bookmark class="size-4" />
           我的关注
         </Button>
-        <Button variant="ghost" size="icon-sm" aria-label="刷新" @click="dashboard.refreshSources">
+        <Button variant="ghost" size="icon-sm" aria-label="刷新 CVE 本机快照" @click="dashboard.refreshSources">
           <RefreshCw class="size-4" />
         </Button>
         <Button variant="ghost" size="icon-sm" aria-label="设置" @click="$emit('openSettings')">
@@ -236,7 +236,7 @@ function statusVariant(status: VulnerabilityStatus) {
           </NativeSelectOption>
         </NativeSelect>
         <span class="ml-auto text-caption text-muted-foreground">
-          内置快照 · {{ dashboard.intelSources.length }} 源口径 · rev {{ dashboard.sourceRevision.value }}
+          {{ dashboard.sourceRefreshSummary.value.label }} · {{ dashboard.intelSources.length }} 源口径
         </span>
       </div>
       </template>
@@ -334,8 +334,26 @@ function statusVariant(status: VulnerabilityStatus) {
               <p class="mt-1 text-caption leading-5 text-muted-foreground">
                 当前是可验收的学习/追踪骨架：区分内置快照、用户材料和待接入 Feed，不把排序信号当成 Judge。
               </p>
+              <p class="mt-1 text-caption leading-5 text-muted-foreground">
+                {{ dashboard.sourceRefreshSummary.value.detail }}
+              </p>
             </div>
             <Badge variant="outline">非实时同步</Badge>
+          </div>
+          <div
+            class="mt-4 rounded-xl border border-border bg-background px-4 py-3"
+            aria-label="CVE 情报导入接力"
+          >
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p class="text-body font-medium">下一步可交给 Coding Agent</p>
+                <p class="mt-1 text-caption leading-5 text-muted-foreground">
+                  做只读 Feed 导入器：固定 NVD / CISA KEV / EPSS / OSV / GHSA / Vulhub revision，
+                  记录样本日期、来源哈希和失败原因；不启动 Docker，不访问外部目标，不把情报命中写成验证。
+                </p>
+              </div>
+              <Badge variant="secondary">只读导入计划</Badge>
+            </div>
           </div>
           <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             <article

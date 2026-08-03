@@ -97,6 +97,11 @@ describe('VulnPage', () => {
     expect(text).toContain('0 关注中')
     expect(text).toContain('6')
     expect(text).toContain('情报源接入状态')
+    expect(text).toContain('尚未复核')
+    expect(text).toContain('刷新不会联网拉取 Feed')
+    expect(text).toContain('下一步可交给 Coding Agent')
+    expect(text).toContain('只读 Feed 导入器')
+    expect(text).toContain('不启动 Docker，不访问外部目标，不把情报命中写成验证')
     expect(text).toContain('CVE-2024-6387')
     expect(text).toContain('OpenSSH regreSSHion')
     expect(text).toContain('CVE-2024-4577')
@@ -136,6 +141,22 @@ describe('VulnPage', () => {
     expect(text).toContain('不批量扫描或攻击外部目标')
     expect(text).toContain('不自动运行 PoC、exploit 或漏洞触发输入')
     expect(text).not.toContain('红队 Agent')
+  })
+
+  it('makes CVE source refresh explicit as local snapshot review', async () => {
+    const host = await mountVulnPage()
+    const refresh = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
+      item.getAttribute('aria-label') === '刷新 CVE 本机快照',
+    )
+    if (!refresh) throw new Error('missing local snapshot refresh button')
+
+    expect(host.textContent).toContain('尚未复核')
+    refresh.click()
+    await nextTick()
+
+    expect(host.textContent).toContain('本机复核 rev 2')
+    expect(host.textContent).toContain('只更新本机视图状态')
+    expect(host.textContent).toContain('不代表 NVD/KEV/EPSS/OSV 已实时同步')
   })
 
   it('shows the Coding workspace scope before handing CVE tasks to Coding', async () => {

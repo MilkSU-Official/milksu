@@ -984,3 +984,29 @@
 - 下一轮 Agent 真的已经使用该 prompt 完成一次完整 MilkSU 自举任务；
 - 原生打包 App 中该复制动作的系统剪贴板权限和 UI 反馈；
 - 完整 Vue + Go、跨应用重启、PR 发布确认和外部 Computer Use 真实操作。
+
+## 2026-08-04 · CVE local intel snapshot review
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | 本批次提交 |
+| 目标流 | CVE → 情报源接入状态 → 刷新本机快照 → 仍清楚区分内置快照、待接入 Feed 和只读导入计划 |
+| 窄测 | `npm --prefix app test -- VulnPage.test.ts useVulnerabilityDashboard.test.ts` |
+| 窄测结果 | 2 files / 17 tests passed |
+| 前端构建 | `npm --prefix app run build` |
+| 构建结果 | production build passed |
+| Browser 验证 | Vite preview `http://127.0.0.1:4192/`；进入 CVE，读取情报源区域，点击 `刷新 CVE 本机快照` |
+
+覆盖范围：
+
+- CVE 顶栏刷新按钮改为明确的 `刷新 CVE 本机快照`，不暗示已经接入实时 NVD/KEV/EPSS/OSV Feed；
+- 情报源区域显示 `尚未复核` / `本机复核 rev 2`，并明确刷新只更新本机视图状态，不代表外部源已实时同步；
+- 新增“下一步可交给 Coding Agent”的只读 Feed 导入计划，约束固定 NVD、CISA KEV、EPSS、OSV、GHSA、Vulhub revision、样本日期、来源哈希和失败原因；
+- 计划继续声明不启动 Docker、不访问外部目标、不把情报命中写成验证；
+- Browser preview 中 CVE 页面非空，刷新前后关键文案可见，console 无 relevant error / warn。
+
+本次仍未证明：
+
+- 已经接入真实 NVD、CISA KEV、EPSS、OSV、GHSA 或 Vulhub catalog import；
+- 真实网络失败、缓存哈希、Feed 日期和导入差异 UI；
+- Docker/Compose 练习环境的启动、停止、清理和原生 App 安全确认。
