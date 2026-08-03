@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onActivated, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from 'vue'
 import {
   ActionCard,
   Alert,
@@ -138,6 +138,7 @@ const publicCatalog = useNSSCTFCatalog()
 const ctfshow = useCTFShowCatalog()
 const managedLabs = useManagedLabs()
 const screen = ref<Screen>('challenge')
+const deactivatedFromWorkspace = ref(false)
 const workspaceMode = ref<WorkspaceMode>('solve')
 const ctfSection = computed(() => props.ctfSection)
 const workspaceScrollArea = ref<HTMLElement | null>(null)
@@ -1539,6 +1540,12 @@ async function resumeJob(id: string) {
   screen.value = 'workspace'
 }
 
+async function resumeInitialJobIfNeeded(id: string | null | undefined) {
+  if (!id) return
+  if (screen.value === 'workspace' && activeProjection.value?.job.id === id) return
+  await resumeJob(id)
+}
+
 let bridgeStatusTimer: number | undefined
 
 function refreshBridgePresence() {
@@ -1657,14 +1664,19 @@ onMounted(async () => {
     await managedLabs.refresh()
   }
   await bootstrapNSSCTFCatalog()
-  if (props.initialJobId) await resumeJob(props.initialJobId)
+  await resumeInitialJobIfNeeded(props.initialJobId)
   await selectDefaultDeskProblem()
   if (props.arenaReady) await arena.refresh()
   bridgeStatusTimer = window.setInterval(refreshBridgePresence, 2500)
 })
 
 onActivated(() => {
+  if (deactivatedFromWorkspace.value) void resumeInitialJobIfNeeded(props.initialJobId)
   void scrollWorkspaceToLatest()
+})
+
+onDeactivated(() => {
+  deactivatedFromWorkspace.value = screen.value === 'workspace'
 })
 
 onBeforeUnmount(() => {
@@ -1690,6 +1702,15 @@ onBeforeUnmount(() => {
       :subtitle="ctfSection === 'catalog' ? '题库、解题入口与训练状态' : '靶场进度追踪'"
     >
       <template #actions>
+        <Button
+          v-if="ctfSection === 'catalog' && activeProjection"
+          variant="outline"
+          size="sm"
+          @click="screen = 'workspace'"
+        >
+          <Target class="size-4" />
+          继续解题
+        </Button>
         <Select v-if="ctfSection === 'catalog'" v-model="activeBank">
         <SelectTrigger
           class="app-no-drag min-w-48 shrink-0"
