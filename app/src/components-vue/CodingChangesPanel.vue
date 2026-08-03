@@ -74,6 +74,11 @@ function changeStatus(change: CodingGitChange): string {
   return `${change.indexStatus}${change.worktreeStatus}`
 }
 
+function redactConfirmationToken(value: string, token?: string) {
+  if (!token) return value
+  return value.split(token).join('[confirmation token redacted]')
+}
+
 async function inspectDiff(change: CodingGitChange) {
   if (!props.workspacePath || loading.value) return
   selectedPath.value = change.path
@@ -203,9 +208,9 @@ async function publishPullRequest() {
         : `当前分支已有已验证的草稿 PR #${result.number}`
       : `草稿 PR #${result.number} 已创建，但读回验证未完成`
   } catch (reason) {
-    pullRequestError.value = reason instanceof Error
+    pullRequestError.value = redactConfirmationToken(reason instanceof Error
       ? reason.message
-      : '创建 Pull Request 失败。'
+      : '创建 Pull Request 失败。', preview.confirmationToken)
     pullRequestPreview.value = null
     pullRequestDialogOpen.value = false
     error.value = pullRequestError.value

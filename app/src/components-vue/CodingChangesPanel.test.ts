@@ -205,6 +205,87 @@ describe('CodingChangesPanel Pull Request confirmation', () => {
     expect(document.body.textContent).not.toContain('expired-token')
   })
 
+  it('redacts the one-time confirmation token from PR publication errors', async () => {
+    const calls: string[] = []
+    ;(window as unknown as { go?: unknown }).go = {
+      main: {
+        App: {
+          PrepareCodingPullRequest: async () => {
+            calls.push('prepare')
+            return {
+              repository: 'MilkSU-Official/milksu',
+              repositoryUrl: 'https://github.com/MilkSU-Official/milksu',
+              private: true,
+              remote: 'origin',
+              sourceBranch: 'codex/self-hosting',
+              headCommit: '0123456789abcdef0123456789abcdef01234567',
+              targetBranch: 'main',
+              suggestedTitle: 'feat: self host',
+              draft: true,
+              confirmationToken: 'preview-token-leaked-by-backend',
+              expiresAt: '2026-08-02T12:05:00Z',
+            }
+          },
+          PublishCodingPullRequest: async (
+            _workspace: string,
+            token: string,
+          ) => {
+            calls.push(`publish:${token}`)
+            throw new Error(`refused token ${token}; prepare again`)
+          },
+        },
+      },
+    }
+    const environment: CodingEnvironmentSnapshot = {
+      workspace: '/workspace',
+      workspaceName: 'milksu',
+      capturedAt: '2026-08-02T12:00:00Z',
+      git: {
+        available: true,
+        isRepository: true,
+        branch: 'codex/self-hosting',
+        upstream: 'origin/codex/self-hosting',
+        head: '0123456789ab',
+        ahead: 0,
+        behind: 0,
+        changedFiles: 0,
+        staged: 0,
+        modified: 0,
+        untracked: 0,
+        conflicts: 0,
+        additions: 0,
+        deletions: 0,
+        dirty: false,
+        changes: [],
+      },
+    }
+    const host = document.createElement('div')
+    document.body.append(host)
+    const app = createApp(CodingChangesPanel, {
+      workspacePath: '/workspace',
+      environment,
+    })
+    app.mount(host)
+    mountedApps.push(app)
+    await nextTick()
+
+    const prepare = [...host.querySelectorAll('button')].find(
+      button => button.textContent?.includes('准备 PR'),
+    )
+    prepare?.click()
+    await settle()
+    const confirm = [...document.body.querySelectorAll('button')].find(
+      button => button.textContent?.includes('确认创建草稿 PR'),
+    )
+    confirm?.click()
+    await settle()
+
+    expect(calls).toEqual(['prepare', 'publish:preview-token-leaked-by-backend'])
+    expect(document.body.textContent).toContain('refused token [confirmation token redacted]')
+    expect(document.body.textContent).not.toContain('preview-token-leaked-by-backend')
+    expect(document.body.textContent).not.toContain('确认创建草稿 PR')
+  })
+
   it('clears a previous PR result before showing a newly prepared preview', async () => {
     const calls: string[] = []
     let prepareCount = 0
