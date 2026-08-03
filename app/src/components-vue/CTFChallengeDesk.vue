@@ -25,6 +25,7 @@ import {
 } from 'lucide-vue-next'
 import CTFCollaborationModePicker from '@/components-vue/CTFCollaborationModePicker.vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
+import WorkspaceDetailTitle from '@/components-vue/WorkspaceDetailTitle.vue'
 import type { CTFCollaborationMode, CTFMaterialRequest } from '@/ctfTypes'
 import type { CTFShowCatalogProblem } from '@/ctfshowTypes'
 import type { NSSCTFChallenge } from '@/nssctfTypes'
@@ -541,7 +542,7 @@ function runPrimaryAction() {
           <div class="flex items-start justify-between gap-4">
             <div class="min-w-0">
               <p class="font-mono text-caption text-muted-foreground">NSSCTF · P{{ selectedNssctf.platformId }}</p>
-              <h2 class="mt-3 text-2xl font-semibold tracking-[-0.035em]">{{ selectedNssctf.title }}</h2>
+              <WorkspaceDetailTitle :title="selectedNssctf.title" />
             </div>
             <Button variant="ghost" size="icon-sm" aria-label="在 NSSCTF 打开" @click="emit('openProblem')">
               <ExternalLink class="size-4" />
@@ -694,7 +695,7 @@ function runPrimaryAction() {
       <template v-else-if="selectedCtfshow && activeBank === 'ctfshow'">
         <div class="p-7 lg:p-9">
           <p class="font-mono text-caption text-muted-foreground">CTFshow · #{{ selectedCtfshow.platformId }}</p>
-          <h2 class="mt-3 text-2xl font-semibold tracking-[-0.035em]">{{ selectedCtfshow.title }}</h2>
+          <WorkspaceDetailTitle :title="selectedCtfshow.title" />
           <div class="mt-5 flex flex-wrap items-center gap-3">
             <Badge variant="secondary">{{ selectedCtfshow.category }}</Badge>
             <span class="rounded-md bg-muted px-2 py-1 font-mono text-caption">

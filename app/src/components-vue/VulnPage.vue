@@ -31,6 +31,7 @@ import {
   Square,
   Workflow,
 } from 'lucide-vue-next'
+import WorkspaceDetailTitle from '@/components-vue/WorkspaceDetailTitle.vue'
 import WorkspaceTopBar from '@/components-vue/WorkspaceTopBar.vue'
 import VulnerabilityLoopPanel from '@/components-vue/VulnerabilityLoopPanel.vue'
 import { useVulnerabilityDashboard } from '@/composables/useVulnerabilityDashboard'
@@ -413,7 +414,7 @@ function statusVariant(status: VulnerabilityStatus) {
               {{ dashboard.watched.value.includes(dashboard.selected.value.id) ? '已关注' : '关注' }}
             </Button>
           </div>
-          <h2 class="mt-4 text-xl font-semibold leading-8 tracking-[-0.03em]">{{ dashboard.selected.value.title }}</h2>
+          <WorkspaceDetailTitle class="mt-4" :title="dashboard.selected.value.title" />
           <div class="mt-3 flex flex-wrap gap-2">
             <Badge :variant="severityVariant(dashboard.selected.value.severity)">
               {{ dashboard.selected.value.cvss.toFixed(1) }} CVSS

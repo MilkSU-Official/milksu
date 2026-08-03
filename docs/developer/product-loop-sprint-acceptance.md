@@ -905,3 +905,28 @@
 - 六赛道已经完成真实 Judge-verified；当前仍只有 smoke 状态展示；
 - 原生 App 中不同窗口尺寸下的顶栏视觉截图回归；
 - 页面内部所有二级标题、统计卡、Tabs、Textarea 和深层详情组件已经完全统一。
+
+## 2026-08-04 · Shared CTF/CVE detail title contract
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | 本批次提交 |
+| 目标流 | 打开 CTF / CVE 详情区 → 同层级详情主标题使用同一组件和同一视觉规格 |
+| 窄测 | `npm --prefix app test -- WorkspaceVisualContract.test.ts CTFPageNavigationContract.test.ts VulnPage.test.ts WorkspaceTopBar.test.ts` |
+| 窄测结果 | 4 files / 16 tests passed |
+| 前端构建 | `npm --prefix app run build` |
+| 构建结果 | production build passed |
+| Browser 验证 | Vite preview `http://127.0.0.1:4189/`；进入 CVE 详情，读取 `[data-workspace-detail-title]` |
+
+覆盖范围：
+
+- 新增 `WorkspaceDetailTitle.vue`，统一详情主标题为 `H2 + data-workspace-detail-title + text-2xl`；
+- NSSCTF 详情、CTFshow 详情和 CVE 详情均改用同一个组件，避免 CTF/CVE 在同层级标题上出现不同字号；
+- Browser preview 中 CVE 详情可见 `PAN-OS GlobalProtect Command Injection`，DOM 为 `H2`，class 包含 `workspace-detail-title mt-3 text-2xl font-semibold tracking-[-0.035em]`；
+- Browser preview 无 relevant console error / warn，无 Vite overlay。
+
+本次仍未证明：
+
+- Browser preview 中 CTF 详情标题的可见截图；预览题库为空，CTF 详情渲染由源码契约测试覆盖；
+- Coding 内部所有子面板标题也已经迁移到同一个详情标题组件；
+- 统计卡、Tabs、Textarea、表格行和深层按钮已经完成全局视觉收敛。
