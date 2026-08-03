@@ -4,6 +4,7 @@ import {
   defineAsyncComponent,
   markRaw,
   nextTick,
+  onMounted,
   ref,
   watch,
 } from 'vue'
@@ -1036,9 +1037,17 @@ function verifyDeliveredTool() {
   })
 }
 
-watch(() => props.conversation?.messages.length, async () => {
+async function scrollChatToBottom() {
   await nextTick()
   if (scrollArea.value) scrollArea.value.scrollTop = scrollArea.value.scrollHeight
+}
+
+onMounted(() => {
+  void scrollChatToBottom()
+})
+
+watch(() => props.conversation?.messages.length, () => {
+  void scrollChatToBottom()
 })
 watch(() => props.ctfSession, (current, previous) => {
   if (current !== previous) {
@@ -1051,6 +1060,7 @@ watch(() => props.conversation?.id, () => {
   codingBrowserStatus.value = null
   codingBrowserEvidenceError.value = ''
   codingBrowserEvidenceRevealed.value = false
+  void scrollChatToBottom()
   if (contextPanel.value === 'browser' && environmentOpen.value) {
     void refreshBrowserPanel()
   }
