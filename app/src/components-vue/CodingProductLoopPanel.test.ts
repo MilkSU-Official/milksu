@@ -153,7 +153,8 @@ describe('CodingProductLoopPanel', () => {
     expect(text).toContain('Git 交付')
     expect(text).toContain('3/6')
     expect(text).toContain('下一步验收动作')
-    expect(text).toContain('验收恢复/继续')
+    expect(text).toContain('补用户可见验证')
+    expect(text).toContain('已有可预览产物候选')
     expect(host.querySelectorAll('[data-product-loop-state="active"]').length)
       .toBeGreaterThanOrEqual(1)
   })
@@ -247,7 +248,7 @@ describe('CodingProductLoopPanel', () => {
     expect(host.textContent).toContain('真实 App 验收：未证明')
     expect(host.textContent).toContain('恢复/继续：待补')
     expect(host.textContent).toContain('本地领先 1 个提交，待 push')
-    expect(host.textContent).toContain('下一步：验收恢复/继续')
+    expect(host.textContent).toContain('下一步：补用户可见验证')
 
     const copy = [...host.querySelectorAll<HTMLButtonElement>('button')]
       .find(button => button.textContent?.includes('复制接力棒'))
@@ -278,6 +279,13 @@ describe('CodingProductLoopPanel', () => {
     const { host, onOpenPanel } = await mountPanel({
       messageCount: 4,
       toolMessageCount: 0,
+      environment: {
+        ...dirtyEnvironment,
+        git: {
+          ...dirtyEnvironment.git,
+          changes: [],
+        },
+      },
     })
 
     expect(host.textContent).toContain('运行测试或构建')
@@ -287,6 +295,19 @@ describe('CodingProductLoopPanel', () => {
     await nextTick()
 
     expect(onOpenPanel).toHaveBeenCalledWith('terminal')
+  })
+
+  it('does not skip visible validation just because previewable artifacts exist', async () => {
+    const { host, onOpenPanel } = await mountPanel()
+
+    expect(host.textContent).toContain('补用户可见验证')
+    expect(host.textContent).toContain('已有可预览产物候选')
+    const open = [...host.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.trim() === '打开')
+    open?.click()
+    await nextTick()
+
+    expect(onOpenPanel).toHaveBeenCalledWith('artifacts')
   })
 
   it('marks resumed sessions as recovery evidence', async () => {

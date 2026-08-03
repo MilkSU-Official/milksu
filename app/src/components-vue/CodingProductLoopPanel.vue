@@ -58,6 +58,11 @@ const validationReady = computed(() => (
   || Boolean(props.computerUseStatus?.enabled)
 ))
 
+const visibleValidationPerformed = computed(() => (
+  Boolean(props.browserStatus?.enabled)
+  || Boolean(props.computerUseStatus?.enabled)
+))
+
 const validationDetail = computed(() => {
   const channels = [
     artifactSuggestions.value.length
@@ -254,10 +259,12 @@ const nextVerificationAction = computed<{
       panel: 'terminal',
     }
   }
-  if (!validationReady.value) {
+  if (!visibleValidationPerformed.value) {
     return {
       label: '补用户可见验证',
-      detail: '打开产物预览、Browser 或 Computer Use，保留 UI/产物证据。',
+      detail: artifactSuggestions.value.length
+        ? '已有可预览产物候选；打开产物预览并保留 UI/产物证据。'
+        : '打开产物预览、Browser 或 Computer Use，保留 UI/产物证据。',
       panel: artifactSuggestions.value.length ? 'artifacts' : 'browser',
     }
   }
