@@ -14,6 +14,7 @@ import {
   normalizeCodingApprovalPolicy,
   normalizeCodingExecutionMode,
 } from '@/lib/codingPolicy'
+import { redactProviderCredentials } from '@/lib/redaction'
 import type {
   CodingApprovalPolicy,
   CodingAttachment,
@@ -252,31 +253,9 @@ export function normalizeConversation(raw: Record<string, unknown>): Conversatio
   }
 }
 
-function redactAgentErrorMessage(value: string) {
-  return value
-    .replace(
-      /\b[A-Z][A-Z0-9_]*API_KEY\s*=\s*[^\s"']+/g,
-      match => `${match.split('=')[0].trim()}=[credential redacted]`,
-    )
-    .replace(
-      /([?&])api[_-]?key=([^&#\s"']+)/gi,
-      '$1api_key=[credential redacted]',
-    )
-    .replace(
-      /(^|[\s,;])api[_-]?key\s*[:=]\s*[^\s"']+/gi,
-      '$1api_key=[credential redacted]',
-    )
-    .replace(
-      /(^|[\s,;])x-api-key\s*[:=]\s*[^\s"']+/gi,
-      '$1x-api-key=[credential redacted]',
-    )
-    .replace(/\bBearer\s+[^\s"']+/gi, 'Bearer [credential redacted]')
-    .replace(/\b(?:sk|sess)-[A-Za-z0-9_-]{8,}\b/g, '[credential redacted]')
-}
-
 export function agentErrorMessage(value: unknown) {
   const firstLine = String(value ?? 'Agent engine failed').split(/\r?\n/, 1)[0].trim()
-  const message = redactAgentErrorMessage(
+  const message = redactProviderCredentials(
     firstLine.replace(/^(?:Error:\s*)+/i, '').trim(),
   )
   if (/no API key is configured|No API key for/i.test(message)) {

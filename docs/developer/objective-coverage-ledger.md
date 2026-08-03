@@ -196,7 +196,7 @@ allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 
 | DEL-02 | Pre-release 旧 schema 一次性破坏性收口 | 按契约明确后置 | 0% | 产品纵切完成后集中执行 |
 | DEL-03 | 上次启动/异常退出标记与恢复入口 | 打包 App lifecycle baseline 通过 | 75% | 真实异常退出人工验收 |
 | DEL-04 | Sidecar、恢复、迁移、后台任务脱敏诊断 | 诊断包、UI 和离线错误测试存在 | 75% | 真实故障包审阅 |
-| DEL-05 | 不保存正文、原始工具输出或 Credential | 多处边界测试存在；诊断包测试确认即使 `runtime/milksu.log` 含会话正文、原始工具输出和 Credential 形态，导出包也只包含脱敏 `diagnostics.json`，不复制日志文件；`useConversations.test.ts` 覆盖前端 unexpected engine error 展示前会脱敏 Bearer、`sk-*`、`*_API_KEY`、URL query `api_key` 和 `x-api-key` 形态；`CTFTrainingArchive.test.ts` 覆盖训练回放事件、报告生成错误和复制错误进入 UI 前同样脱敏 Provider Key 形态 | 50% | 完整诊断与本地文件审计 |
+| DEL-05 | 不保存正文、原始工具输出或 Credential | 多处边界测试存在；诊断包测试确认即使 `runtime/milksu.log` 含会话正文、原始工具输出和 Credential 形态，导出包也只包含脱敏 `diagnostics.json`，不复制日志文件；前端聊天错误和 CTF 训练归档 UI 共用 `redactProviderCredentials`，`redaction.test.ts`、`useConversations.test.ts` 与 `CTFTrainingArchive.test.ts` 覆盖 Bearer、`sk-*`、`sess-*`、`*_API_KEY`、URL query `api_key`、`api-key` 和 `x-api-key` 形态，避免不同入口脱敏规则漂移 | 50% | 完整诊断与本地文件审计 |
 | DEL-06 | `1080×680` 最低窗口 | Browser 真实截图与布局审计 | 75% | 原生 App 全流程人工 QA |
 | DEL-07 | 启动时间基线 | 隔离 HOME 打包 App 已测 | 75% | 多次冷启动和目标机器矩阵 |
 | DEL-08 | RSS、前端 chunk、App/Sidecar 体积基线 | `local-delivery-baseline.md` | 75% | 多机器重复测量 |

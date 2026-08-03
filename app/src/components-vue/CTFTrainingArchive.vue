@@ -13,6 +13,7 @@ import {
 } from 'lucide-vue-next'
 import { invokeCommand } from '@/desktop'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
+import { redactProviderCredentials } from '@/lib/redaction'
 import type {
   CTFAgentReplay,
   CTFAgentReplayEvent,
@@ -38,30 +39,8 @@ const visibleReplayEvents = computed(() => {
   return replayExpanded.value ? events.slice(-100) : events.slice(-6)
 })
 
-function redactReplayText(value: string) {
-  return value
-    .replace(
-      /\b[A-Z][A-Z0-9_]*API_KEY\s*=\s*[^\s"']+/g,
-      match => `${match.split('=')[0].trim()}=[credential redacted]`,
-    )
-    .replace(
-      /([?&])api[_-]?key=([^&#\s"']+)/gi,
-      '$1api_key=[credential redacted]',
-    )
-    .replace(
-      /(^|[\s,;])api[_-]?key\s*[:=]\s*[^\s"']+/gi,
-      '$1api_key=[credential redacted]',
-    )
-    .replace(
-      /(^|[\s,;])x-api-key\s*[:=]\s*[^\s"']+/gi,
-      '$1x-api-key=[credential redacted]',
-    )
-    .replace(/\bBearer\s+[^\s"']+/gi, 'Bearer [credential redacted]')
-    .replace(/\b(?:sk|sess)-[A-Za-z0-9_-]{8,}\b/g, '[credential redacted]')
-}
-
 function errorMessage(reason: unknown) {
-  return redactReplayText(reason instanceof Error ? reason.message : String(reason))
+  return redactProviderCredentials(reason instanceof Error ? reason.message : String(reason))
 }
 
 watch(() => props.jobId, () => {
@@ -131,7 +110,7 @@ function eventLabel(event: CTFAgentReplayEvent) {
 }
 
 function eventSummary(event: CTFAgentReplayEvent) {
-  return redactReplayText(event.error || event.text || event.engine || '该事件没有附带文本。')
+  return redactProviderCredentials(event.error || event.text || event.engine || '该事件没有附带文本。')
 }
 
 function formatTime(value?: string) {
