@@ -87,6 +87,25 @@ export function formatImageGenApprovalInput(
   ].filter(Boolean).join("\n");
 }
 
+function redactReviewValue(value) {
+  return String(value ?? "")
+    .replace(/\bBearer\s+[^\s"']+/gi, "Bearer [credential redacted]")
+    .replace(/\bsk-[A-Za-z0-9_-]{8,}\b/g, "[credential redacted]");
+}
+
+function reviewableImageGenInput(input) {
+  return {
+    mode: input?.mode === "edit" ? "edit" : "generate",
+    prompt: redactReviewValue(input?.prompt),
+    outputPath: redactReviewValue(input?.outputPath),
+    ...(input?.referencePath
+      ? { referencePath: redactReviewValue(input.referencePath) }
+      : {}),
+    ...(input?.size ? { size: redactReviewValue(input.size) } : {}),
+    ...(input?.quality ? { quality: redactReviewValue(input.quality) } : {}),
+  };
+}
+
 export async function authorizeImageGenToolCall({
   conversationId,
   event,
@@ -97,7 +116,7 @@ export async function authorizeImageGenToolCall({
     conversationId,
     toolName: codingImageGenToolName,
     content: formatImageGenApprovalInput(event.input),
-    input: JSON.stringify(event.input ?? {}, null, 2).slice(0, 16_000),
+    input: JSON.stringify(reviewableImageGenInput(event.input), null, 2).slice(0, 16_000),
   });
   return approved
     ? undefined

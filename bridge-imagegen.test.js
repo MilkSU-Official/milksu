@@ -77,12 +77,15 @@ test("ImageGen approval shows the exact paid scope without any credential", () =
 
 test("ImageGen approval remains a separate boundary in every Coding mode", async () => {
   const requests = [];
+  const secret = "sk-approval-secret-imagegen";
   const event = {
     toolName: codingImageGenToolName,
     input: {
       mode: "generate",
-      prompt: "A blue circle",
+      prompt: `A blue circle with Bearer ${secret}`,
       outputPath: "assets/circle.png",
+      apiKey: secret,
+      headers: { Authorization: `Bearer ${secret}` },
     },
   };
   const approved = await authorizeImageGenToolCall({
@@ -100,6 +103,9 @@ test("ImageGen approval remains a separate boundary in every Coding mode", async
   assert.equal(requests[0].toolName, codingImageGenToolName);
   assert.match(requests[0].content, /预计输出费/);
   assert.match(requests[0].input, /A blue circle/);
+  assert.doesNotMatch(requests[0].input, new RegExp(secret));
+  assert.doesNotMatch(requests[0].input, /apiKey|Authorization/);
+  assert.match(requests[0].input, /\[credential redacted\]/);
 
   const denied = await authorizeImageGenToolCall({
     conversationId: "conversation-imagegen",
