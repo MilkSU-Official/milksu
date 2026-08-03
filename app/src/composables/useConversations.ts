@@ -267,6 +267,33 @@ function agentErrorMessage(value: unknown) {
   return message || 'Agent engine failed'
 }
 
+export function projectCodingAbortRequest(
+  running: ReadonlySet<string>,
+  aborting: ReadonlySet<string>,
+  id: string,
+) {
+  if (!running.has(id) || aborting.has(id)) {
+    return { running: new Set(running), aborting: new Set(aborting), accepted: false }
+  }
+  return {
+    running: new Set(running),
+    aborting: new Set(aborting).add(id),
+    accepted: true,
+  }
+}
+
+export function projectCodingRunFinished(
+  running: ReadonlySet<string>,
+  aborting: ReadonlySet<string>,
+  id: string,
+) {
+  const nextRunning = new Set(running)
+  nextRunning.delete(id)
+  const nextAborting = new Set(aborting)
+  nextAborting.delete(id)
+  return { running: nextRunning, aborting: nextAborting }
+}
+
 export function useConversations() {
   const conversations = ref<Conversation[]>([])
   const activeId = ref<string | null>(null)
@@ -279,11 +306,15 @@ export function useConversations() {
   const pendingMCPServers = ref<string[]>([])
   const pendingMCPConfigDigest = ref('')
   const runningIds = ref(new Set<string>())
+  const abortingIds = ref(new Set<string>())
   const continuity = ref<CodingContinuityState>(createCodingContinuityState())
   const active = computed(() => conversations.value.find(item => item.id === activeId.value) ?? null)
   const workspacePath = computed(() => active.value?.workspacePath ?? pendingWorkspacePath.value)
   const activeRunning = computed(() => (
     activeId.value ? runningIds.value.has(activeId.value) : false
+  ))
+  const activeAborting = computed(() => (
+    activeId.value ? abortingIds.value.has(activeId.value) : false
   ))
   const activeResumed = computed(() => (
     activeId.value ? continuity.value.resumed.has(activeId.value) : false
@@ -347,11 +378,22 @@ export function useConversations() {
     if (updated) persist(updated)
   }
 
+  function finishRun(id: string) {
+    const next = projectCodingRunFinished(
+      runningIds.value,
+      abortingIds.value,
+      id,
+    )
+    runningIds.value = next.running
+    abortingIds.value = next.aborting
+  }
+
   async function remove(id: string) {
     await invokeCommand('delete_conversation', { id })
     conversations.value = conversations.value.filter(conversation => conversation.id !== id)
     continuity.value = removeCodingContinuitySession(continuity.value, id)
     activeTurnPolicies.delete(id)
+    finishRun(id)
     if (activeId.value === id) activeId.value = null
   }
 
@@ -573,9 +615,7 @@ export function useConversations() {
         attachments,
       })
     } catch (reason) {
-      const nextRunning = new Set(runningIds.value)
-      nextRunning.delete(conversationId)
-      runningIds.value = nextRunning
+      finishRun(conversationId)
       update(conversationId, conversation => ({
         ...conversation,
         messages: [...conversation.messages, {
@@ -590,10 +630,33 @@ export function useConversations() {
   }
 
   async function abort(id: string) {
-    await invokeCommand('abort_message', { conversationId: id })
-    const nextRunning = new Set(runningIds.value)
-    nextRunning.delete(id)
-    runningIds.value = nextRunning
+    const requested = projectCodingAbortRequest(
+      runningIds.value,
+      abortingIds.value,
+      id,
+    )
+    if (!requested.accepted) return
+    runningIds.value = requested.running
+    abortingIds.value = requested.aborting
+    try {
+      // AbortMessage only submits the interrupt to the Sidecar. Keep the task
+      // visibly running until its terminal engine event proves Pi is idle.
+      await invokeCommand('abort_message', { conversationId: id })
+    } catch (reason) {
+      const nextAborting = new Set(abortingIds.value)
+      nextAborting.delete(id)
+      abortingIds.value = nextAborting
+      update(id, conversation => ({
+        ...conversation,
+        messages: [...conversation.messages, {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: `停止 Agent 失败：${agentErrorMessage(reason)}`,
+          timestamp: Date.now(),
+          status: 'done',
+        }],
+      }))
+    }
   }
 
   async function compactContext() {
@@ -652,9 +715,7 @@ export function useConversations() {
         attachments: [],
       })
     } catch (reason) {
-      const nextRunning = new Set(runningIds.value)
-      nextRunning.delete(conversationId)
-      runningIds.value = nextRunning
+      finishRun(conversationId)
       update(conversationId, current => ({
         ...current,
         messages: [...current.messages, {
@@ -780,6 +841,7 @@ export function useConversations() {
             : conversation
         ))
         runningIds.value = new Set()
+        abortingIds.value = new Set()
         for (const id of affected) scheduleSave(id)
         return
       }
@@ -893,16 +955,12 @@ export function useConversations() {
               status: 'done',
             })
           }
-          const nextRunning = new Set(runningIds.value)
-          nextRunning.delete(sessionId)
-          runningIds.value = nextRunning
+          finishRun(sessionId)
         } else if (type === 'assistant.settled') {
           if (last?.role === 'assistant' && last.status === 'running') {
             messages[messages.length - 1] = { ...last, status: 'done' }
           }
-          const nextRunning = new Set(runningIds.value)
-          nextRunning.delete(sessionId)
-          runningIds.value = nextRunning
+          finishRun(sessionId)
         } else if (type === 'tool.started' || type === 'tool.completed') {
           if (
             last?.role === 'tool'
@@ -934,9 +992,7 @@ export function useConversations() {
             })
           }
         } else if (type === 'engine.error') {
-          const nextRunning = new Set(runningIds.value)
-          nextRunning.delete(sessionId)
-          runningIds.value = nextRunning
+          finishRun(sessionId)
           for (let index = 0; index < messages.length; index++) {
             if (messages[index].approvalState === 'pending') {
               messages[index] = {
@@ -982,6 +1038,7 @@ export function useConversations() {
     active,
     workspacePath,
     activeRunning,
+    activeAborting,
     selectedModelMode,
     selectedModelProvider,
     selectedModelId,

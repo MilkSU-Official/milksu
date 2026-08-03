@@ -3,6 +3,8 @@ import {
   normalizeConversation,
   projectAgentTools,
   projectAgentTurnPolicy,
+  projectCodingAbortRequest,
+  projectCodingRunFinished,
 } from '@/composables/useConversations'
 
 describe('Coding approval conversation recovery', () => {
@@ -142,5 +144,31 @@ describe('Coding approval conversation recovery', () => {
     })
 
     expect(conversation.mcpServers).toEqual(['alpha', 'zeta'])
+  })
+
+  it('keeps a stopped task running until the terminal Pi event arrives', () => {
+    const requested = projectCodingAbortRequest(
+      new Set(['conversation-running']),
+      new Set(),
+      'conversation-running',
+    )
+    expect(requested.accepted).toBe(true)
+    expect(requested.running.has('conversation-running')).toBe(true)
+    expect(requested.aborting.has('conversation-running')).toBe(true)
+
+    const duplicate = projectCodingAbortRequest(
+      requested.running,
+      requested.aborting,
+      'conversation-running',
+    )
+    expect(duplicate.accepted).toBe(false)
+
+    const finished = projectCodingRunFinished(
+      requested.running,
+      requested.aborting,
+      'conversation-running',
+    )
+    expect(finished.running.has('conversation-running')).toBe(false)
+    expect(finished.aborting.has('conversation-running')).toBe(false)
   })
 })

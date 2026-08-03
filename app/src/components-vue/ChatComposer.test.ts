@@ -13,6 +13,7 @@ function mountComposer(overrides: Record<string, unknown> = {}) {
   let consumedGoals = 0
   const app = createApp(ChatComposer, {
     running: false,
+    aborting: false,
     ctfSession: false,
     goalMode: false,
     executionMode: 'go',
@@ -93,5 +94,33 @@ describe('ChatComposer', () => {
       .toContain('梳理题面')
     expect(host.querySelector('[aria-label="CTF 快捷协作"]')?.textContent)
       .toContain('重新规划')
+  })
+
+  it('allows one stop request and shows the pending acknowledgement state', async () => {
+    const stopped: unknown[][] = []
+    const running = mountComposer({
+      running: true,
+      onAbort: (...args: unknown[]) => stopped.push(args),
+    })
+    await nextTick()
+
+    const stop = running.host.querySelector<HTMLButtonElement>('[aria-label="停止 Agent"]')
+    expect(stop).not.toBeNull()
+    stop?.click()
+    expect(stopped).toEqual([[]])
+
+    const aborting = mountComposer({
+      running: true,
+      aborting: true,
+      onAbort: (...args: unknown[]) => stopped.push(args),
+    })
+    await nextTick()
+
+    const pending = aborting.host.querySelector<HTMLButtonElement>(
+      '[aria-label="正在停止 Agent"]',
+    )
+    expect(pending?.disabled).toBe(true)
+    pending?.click()
+    expect(stopped).toEqual([[]])
   })
 })

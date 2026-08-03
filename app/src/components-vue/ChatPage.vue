@@ -117,6 +117,7 @@ const props = defineProps<{
   settings: AppSettings | null
   workspacePath: string
   running: boolean
+  aborting: boolean
   sessionReady: boolean
   resumed: boolean
   compacting: boolean
@@ -1163,6 +1164,7 @@ watch(
 
     <ChatComposer
       :running="running"
+      :aborting="aborting"
       :ctf-session="ctfSession"
       :ctf-mode="ctfMode"
       :ctf-role="ctfRole"

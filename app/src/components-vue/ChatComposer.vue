@@ -6,6 +6,7 @@ import {
   Compass,
   FileText,
   Lightbulb,
+  LoaderCircle,
   Paperclip,
   Route,
   Square,
@@ -23,6 +24,7 @@ import type {
 
 const props = defineProps<{
   running: boolean
+  aborting: boolean
   ctfSession: boolean
   ctfMode?: 'coach' | 'copilot' | 'delegate'
   ctfRole?: 'solver' | 'tool-builder' | 'strategist'
@@ -232,10 +234,13 @@ function submit() {
             type="button"
             variant="destructive"
             size="icon"
-            aria-label="停止 Agent"
+            :disabled="aborting"
+            :aria-label="aborting ? '正在停止 Agent' : '停止 Agent'"
+            :title="aborting ? '正在等待 Agent 安全停止' : '停止当前 Agent 回合'"
             @click="$emit('abort')"
           >
-            <Square class="size-3.5 fill-current" />
+            <LoaderCircle v-if="aborting" class="size-3.5 animate-spin" />
+            <Square v-else class="size-3.5 fill-current" />
           </Button>
           <Button
             v-else
