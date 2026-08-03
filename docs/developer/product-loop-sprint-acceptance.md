@@ -324,3 +324,27 @@
 - 打包 App 中跨一级菜单切换、关闭窗口、重新打开后的真实视觉连续性；
 - 自定义 CVE 记录被删除后的完整 UI 流程；
 - CVE 研究任务、练习环境和 Coding 接力的真实质量。
+
+## 2026-08-04 · Coding merge readiness indicator
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | `0393f85` |
+| 窄测 | `npm run test -- --run src/components-vue/CodingProductLoopPanel.test.ts` |
+| 窄测结果 | 1 file / 15 tests passed |
+| 全量前端 | `npm run test && npm run build` |
+| 全量前端结果 | 46 files / 202 tests passed；production build passed |
+
+覆盖范围：
+
+- Coding 产品闭环卡顶部新增“合并状态”；
+- 状态只由现有用户验收清单投影：有阻塞项显示 `阻塞`，仍缺证明显示 `待补证明`，六项全
+  `已具备` 才显示 `合并就绪`；
+- `待补证明` 会列出还差哪些项，例如用户可见验证、失败/继续路径、Git 交付；
+- 接力棒摘要同步包含合并状态，避免下一轮 Agent 把局部测试通过误读成可合并。
+
+本次仍未证明：
+
+- 打包 App 中真实跑完六项用户验收清单；
+- 完整 “MilkSU develops MilkSU” 自举任务；
+- PR 合并前人工范围确认、托管平台 PR 和外部 App Computer Use 实操。
