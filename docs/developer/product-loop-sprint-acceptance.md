@@ -216,3 +216,36 @@
 - 打包 App 中真实完成一次 context compaction；
 - compaction 后实际继续一次并证明不会重复已完成步骤；
 - App 重启后的长任务恢复。
+
+## 2026-08-04 · Latest product-loop M3 release check
+
+| 项目 | 记录 |
+| --- | --- |
+| Checked commit | `18b50f0` |
+| 命令 | `npm run m3:release-check` |
+| 结果 | 通过，输出 `M3 engineering release checks passed.` |
+| 本地 App | `/Users/milksu/code/milksu/build/bin/MilkSU.app` |
+| 生成入口 | Wails build 输出 `Built '/Users/milksu/code/milksu/build/bin/MilkSU.app/Contents/MacOS/MilkSU'` |
+
+覆盖范围：
+
+- Go 全量测试；
+- Go vet；
+- Node policy / bridge / runtime 契约测试；
+- 前端 Vitest；
+- 前端 lint；
+- 前端 production build；
+- Sidecar smoke；
+- deterministic Coding delivery fixture；
+- docs build；
+- Wails production build；
+- macOS self-sign 和 `codesign --verify --deep --strict`。
+
+本次只证明 `18b50f0` 的工程 release check 和本机打包 App 产物成立。它不能外推为：
+
+- 完整 “MilkSU develops MilkSU” 自举成绩；
+- 六赛道 CTF 真实 Judge 成绩；
+- NYU Outcome Bench；
+- 外部 Beta / Developer ID / notarization / updater RC；
+- Computer Use 外部 App 真实操作验收；
+- CVE 研究任务的真实情报质量或练习环境可用性。
