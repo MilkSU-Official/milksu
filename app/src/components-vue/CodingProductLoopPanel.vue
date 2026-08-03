@@ -23,6 +23,9 @@ type AcceptanceChecklistItem = {
   label: string
   detail: string
   state: LoopState
+  panel?: LoopPanel
+  action?: 'compact'
+  actionLabel?: string
 }
 type ArtifactPreviewEvidence = {
   relativePath: string
@@ -375,6 +378,8 @@ const acceptanceChecklist = computed<AcceptanceChecklistItem[]>(() => [
       ? `已有 ${props.toolMessageCount} 条工具记录；交付说明需要列出实际测试/build 命令。`
       : '还没有测试或 build 工具记录。',
     state: props.toolMessageCount > 0 ? 'done' : 'pending',
+    panel: 'terminal',
+    actionLabel: '打开终端',
   },
   {
     label: '3. 做一次用户可见验证',
@@ -382,16 +387,22 @@ const acceptanceChecklist = computed<AcceptanceChecklistItem[]>(() => [
       ? validationDetail.value
       : '打开产物预览、Browser 或 Computer Use，至少留下一个用户可见证据。',
     state: visibleValidationPerformed.value ? 'done' : validationReady.value ? 'active' : 'pending',
+    panel: artifactSuggestions.value.length ? 'artifacts' : 'browser',
+    actionLabel: artifactSuggestions.value.length ? '打开预览' : '打开 Browser/App',
   },
   {
     label: '4. 验证失败/继续路径',
     detail: recoveryDetail.value,
     state: recoveryState.value,
+    action: recoveryState.value === 'pending' ? 'compact' : undefined,
+    actionLabel: recoveryState.value === 'pending' ? '生成恢复点' : undefined,
   },
   {
     label: '5. 收口 Git 交付',
     detail: items.value.find(item => item.id === 'git')?.detail ?? '尚未读取 Git 状态。',
     state: gitState.value,
+    panel: 'changes',
+    actionLabel: '打开变更',
   },
   {
     label: '6. 复制接力棒',
@@ -666,9 +677,21 @@ function stateBadgeVariant(state: LoopState) {
         >
           <div class="flex items-center justify-between gap-3">
             <p class="text-caption font-medium">{{ item.label }}</p>
-            <Badge :variant="stateBadgeVariant(item.state)" class="shrink-0">
-              {{ stateLabel(item.state) }}
-            </Badge>
+            <div class="flex shrink-0 items-center gap-2">
+              <Button
+                v-if="item.state !== 'done' && (item.panel || item.action)"
+                type="button"
+                variant="ghost"
+                size="sm"
+                :disabled="item.action === 'compact' && (running || compacting)"
+                @click="item.panel ? emit('openPanel', item.panel) : emit('compactContext')"
+              >
+                {{ item.actionLabel || '打开' }}
+              </Button>
+              <Badge :variant="stateBadgeVariant(item.state)" class="shrink-0">
+                {{ stateLabel(item.state) }}
+              </Badge>
+            </div>
           </div>
           <p class="mt-1 text-caption leading-5 text-muted-foreground">{{ item.detail }}</p>
         </li>

@@ -154,6 +154,9 @@ describe('CodingProductLoopPanel', () => {
     expect(text).toContain('4. 验证失败/继续路径')
     expect(text).toContain('5. 收口 Git 交付')
     expect(text).toContain('6. 复制接力棒')
+    expect(text).toContain('打开预览')
+    expect(text).toContain('生成恢复点')
+    expect(text).toContain('打开变更')
     expect(text).toContain('至少留下一个用户可见证据')
     expect(text).toContain('窄自动化')
     expect(text).toContain('已有记录')
@@ -291,6 +294,26 @@ describe('CodingProductLoopPanel', () => {
 
     expect(onOpenPanel).toHaveBeenCalledWith('artifacts')
     expect(onOpenPanel).toHaveBeenCalledWith('browser')
+    expect(onOpenPanel).toHaveBeenCalledWith('changes')
+  })
+
+  it('opens concrete panels directly from unfinished acceptance checklist items', async () => {
+    const { host, onOpenPanel, onCompactContext } = await mountPanel()
+    const checklist = [...host.querySelectorAll<HTMLElement>('[data-acceptance-state]')]
+
+    checklist.find(item => item.textContent?.includes('做一次用户可见验证'))
+      ?.querySelector<HTMLButtonElement>('button')
+      ?.click()
+    checklist.find(item => item.textContent?.includes('验证失败/继续路径'))
+      ?.querySelector<HTMLButtonElement>('button')
+      ?.click()
+    checklist.find(item => item.textContent?.includes('收口 Git 交付'))
+      ?.querySelector<HTMLButtonElement>('button')
+      ?.click()
+    await nextTick()
+
+    expect(onOpenPanel).toHaveBeenCalledWith('artifacts')
+    expect(onCompactContext).toHaveBeenCalledOnce()
     expect(onOpenPanel).toHaveBeenCalledWith('changes')
   })
 
