@@ -9,6 +9,145 @@ afterEach(() => {
 })
 
 describe('desktop command adapter', () => {
+  it('passes Coding background task refresh policy to Wails unchanged', async () => {
+    const status = {
+      defaultEngine: 'pi',
+      running: true,
+      sessionCount: 1,
+      protocol: 'pi',
+      backgroundTasks: [],
+    }
+    const refreshCodingBackgroundTasks = vi.fn(async () => status)
+    Object.defineProperty(window, 'go', {
+      configurable: true,
+      value: {
+        main: {
+          App: {
+            RefreshCodingBackgroundTasks: refreshCodingBackgroundTasks,
+          },
+        },
+      },
+    })
+
+    await expect(invokeCommand('refresh_coding_background_tasks', {
+      conversationId: 'conversation-bg',
+      workspacePath: '/workspace/milksu',
+      executionMode: 'go',
+      approvalPolicy: 'workspace-auto',
+    })).resolves.toBe(status)
+
+    expect(refreshCodingBackgroundTasks).toHaveBeenCalledWith(
+      'conversation-bg',
+      '/workspace/milksu',
+      'go',
+      'workspace-auto',
+    )
+  })
+
+  it('passes Coding background task start and stop details to Wails unchanged', async () => {
+    const status = {
+      defaultEngine: 'pi',
+      running: true,
+      sessionCount: 1,
+      protocol: 'pi',
+      backgroundTasks: [{
+        id: 'bg-dev',
+        kind: 'process',
+        status: 'running',
+        command: 'npm run dev',
+      }],
+    }
+    const startCodingBackgroundTask = vi.fn(async () => status)
+    const stopCodingBackgroundTask = vi.fn(async () => status)
+    Object.defineProperty(window, 'go', {
+      configurable: true,
+      value: {
+        main: {
+          App: {
+            StartCodingBackgroundTask: startCodingBackgroundTask,
+            StopCodingBackgroundTask: stopCodingBackgroundTask,
+          },
+        },
+      },
+    })
+
+    await expect(invokeCommand('start_coding_background_task', {
+      conversationId: 'conversation-bg',
+      workspacePath: '/workspace/milksu',
+      command: 'npm run dev',
+      name: 'dev server',
+      executionMode: 'go',
+      approvalPolicy: 'full-auto',
+    })).resolves.toBe(status)
+
+    expect(startCodingBackgroundTask).toHaveBeenCalledWith(
+      'conversation-bg',
+      '/workspace/milksu',
+      'npm run dev',
+      'dev server',
+      'go',
+      'full-auto',
+    )
+
+    await expect(invokeCommand('stop_coding_background_task', {
+      conversationId: 'conversation-bg',
+      taskId: 'bg-dev',
+    })).resolves.toBe(status)
+
+    expect(stopCodingBackgroundTask).toHaveBeenCalledWith(
+      'conversation-bg',
+      'bg-dev',
+    )
+  })
+
+  it('uses deliverable defaults for omitted Coding background task mode and policy', async () => {
+    const status = {
+      defaultEngine: 'pi',
+      running: true,
+      sessionCount: 1,
+      protocol: 'pi',
+      backgroundTasks: [],
+    }
+    const refreshCodingBackgroundTasks = vi.fn(async () => status)
+    const startCodingBackgroundTask = vi.fn(async () => status)
+    Object.defineProperty(window, 'go', {
+      configurable: true,
+      value: {
+        main: {
+          App: {
+            RefreshCodingBackgroundTasks: refreshCodingBackgroundTasks,
+            StartCodingBackgroundTask: startCodingBackgroundTask,
+          },
+        },
+      },
+    })
+
+    await invokeCommand('refresh_coding_background_tasks', {
+      conversationId: 'conversation-bg',
+      workspacePath: '/workspace/milksu',
+    })
+    await invokeCommand('start_coding_background_task', {
+      conversationId: 'conversation-bg',
+      workspacePath: '/workspace/milksu',
+      command: 'npm run dev',
+    })
+
+    expect(refreshCodingBackgroundTasks).toHaveBeenCalledWith(
+      'conversation-bg',
+      '/workspace/milksu',
+      'go',
+      'workspace-auto',
+    )
+    expect(startCodingBackgroundTask).toHaveBeenCalledWith(
+      'conversation-bg',
+      '/workspace/milksu',
+      'npm run dev',
+      '',
+      'go',
+      'workspace-auto',
+    )
+  })
+
   it('passes Coding artifact preview scope to Wails unchanged', async () => {
     const preview = {
       relativePath: 'docs/demo.html',
