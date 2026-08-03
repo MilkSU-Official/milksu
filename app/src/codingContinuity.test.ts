@@ -112,6 +112,16 @@ describe('Coding runtime continuity state', () => {
     )
     state = applyCodingContinuityEvent(
       state,
+      'conversation-a',
+      { type: 'runtime.compaction_started' },
+    )
+    state = applyCodingContinuityEvent(
+      state,
+      'conversation-a',
+      { type: 'runtime.compaction_completed', error: 'old compaction failure' },
+    )
+    state = applyCodingContinuityEvent(
+      state,
       'conversation-b',
       { type: 'session.ready', resumed: false },
     )
@@ -120,6 +130,10 @@ describe('Coding runtime continuity state', () => {
     state = removeCodingContinuitySession(state, 'conversation-a')
     expect(state.ready.has('conversation-a')).toBe(false)
     expect(state.resumed.has('conversation-a')).toBe(false)
+    expect(state.compacting.has('conversation-a')).toBe(false)
+    expect(state.compactedAt.has('conversation-a')).toBe(false)
+    expect(state.errors.has('conversation-a')).toBe(false)
+    expect(state.ready.has('conversation-b')).toBe(true)
   })
 
   it('translates compaction failures without leaking a stack trace', () => {
