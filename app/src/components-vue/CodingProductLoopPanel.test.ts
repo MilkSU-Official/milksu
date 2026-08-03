@@ -103,6 +103,9 @@ async function mountPanel(
     messageCount: 4,
     toolMessageCount: 2,
     running: false,
+    resumed: false,
+    compacting: false,
+    compactionError: '',
     executionMode: 'go',
     approvalPolicy: 'workspace-auto',
     browserStatus: null,
@@ -126,6 +129,8 @@ describe('CodingProductLoopPanel', () => {
     expect(text).toContain('选择任务与仓库')
     expect(text).toContain('Agent 执行')
     expect(text).toContain('用户可见验证')
+    expect(text).toContain('失败/继续')
+    expect(text).toContain('尚未触发中断/失败继续')
     expect(text).toContain('产物预览可检查 2 个')
     expect(text).toContain('docs/report.md')
     expect(text).toContain('preview/result.html')
@@ -146,7 +151,7 @@ describe('CodingProductLoopPanel', () => {
     expect(text).toContain('未检测')
     expect(text).toContain('打开 Browser/App 面板检测系统权限')
     expect(text).toContain('Git 交付')
-    expect(text).toContain('3/5')
+    expect(text).toContain('3/6')
     expect(host.querySelectorAll('[data-product-loop-state="active"]').length)
       .toBeGreaterThanOrEqual(1)
   })
@@ -238,6 +243,7 @@ describe('CodingProductLoopPanel', () => {
     expect(host.textContent).toContain('验收记录：')
     expect(host.textContent).toContain('窄自动化：已有记录')
     expect(host.textContent).toContain('真实 App 验收：未证明')
+    expect(host.textContent).toContain('恢复/继续：待补')
     expect(host.textContent).toContain('本地领先 1 个提交，待 push')
 
     const copy = [...host.querySelectorAll<HTMLButtonElement>('button')]
@@ -263,5 +269,25 @@ describe('CodingProductLoopPanel', () => {
     expect(onOpenPanel).toHaveBeenCalledWith('artifacts')
     expect(onOpenPanel).toHaveBeenCalledWith('browser')
     expect(onOpenPanel).toHaveBeenCalledWith('changes')
+  })
+
+  it('marks resumed sessions as recovery evidence', async () => {
+    const { host } = await mountPanel({
+      resumed: true,
+    })
+
+    expect(host.textContent).toContain('失败/继续')
+    expect(host.textContent).toContain('本会话已从恢复点继续')
+    expect(host.textContent).toContain('4/6')
+  })
+
+  it('surfaces compaction failure as a recovery blocker', async () => {
+    const { host } = await mountPanel({
+      compactionError: 'token budget exceeded',
+    })
+
+    expect(host.textContent).toContain('上下文压缩失败：token budget exceeded')
+    expect(host.querySelectorAll('[data-product-loop-state="blocked"]').length)
+      .toBeGreaterThanOrEqual(1)
   })
 })
