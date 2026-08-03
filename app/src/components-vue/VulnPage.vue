@@ -28,8 +28,11 @@ import {
   Star,
   Workflow,
 } from 'lucide-vue-next'
+import WorkspaceTopBar from '@/components-vue/WorkspaceTopBar.vue'
 import { useVulnerabilityDashboard } from '@/composables/useVulnerabilityDashboard'
 import type { VulnerabilitySeverity, VulnerabilityStatus } from '@/vulnerabilityIntel'
+
+defineOptions({ name: 'VulnPage' })
 
 defineEmits<{ openSettings: [] }>()
 const dashboard = useVulnerabilityDashboard()
@@ -124,39 +127,34 @@ function statusVariant(status: VulnerabilityStatus) {
 
 <template>
   <main class="flex min-w-0 flex-1 flex-col bg-background">
-    <header class="app-drag border-b border-border bg-background px-6 py-4">
-      <div class="flex items-start justify-between gap-6">
-        <div>
-          <h1 class="text-2xl font-semibold tracking-[-0.035em]">CVE</h1>
-          <p class="mt-1 text-body text-muted-foreground">追踪 CVE、资产命中与研究进度</p>
-        </div>
-        <div class="app-no-drag flex items-center gap-2">
-          <Button
-            :variant="showCustomForm ? 'outline' : 'default'"
-            size="sm"
-            @click="showCustomForm = !showCustomForm"
-          >
-            <Plus class="size-4" />
-            新增追踪
-          </Button>
-          <Button
-            :variant="dashboard.watchOnly.value ? 'outline' : 'ghost'"
-            size="sm"
-            @click="dashboard.watchOnly.value = !dashboard.watchOnly.value"
-          >
-            <Bookmark class="size-4" />
-            我的关注
-          </Button>
-          <Button variant="ghost" size="icon-sm" aria-label="刷新" @click="dashboard.refreshSources">
-            <RefreshCw class="size-4" />
-          </Button>
-          <Button variant="ghost" size="icon-sm" aria-label="设置" @click="$emit('openSettings')">
-            <Settings class="size-4" />
-          </Button>
-        </div>
-      </div>
+    <WorkspaceTopBar title="CVE" subtitle="追踪 CVE、资产命中与研究进度">
+      <template #actions>
+        <Button
+          :variant="showCustomForm ? 'outline' : 'default'"
+          size="sm"
+          @click="showCustomForm = !showCustomForm"
+        >
+          <Plus class="size-4" />
+          新增追踪
+        </Button>
+        <Button
+          :variant="dashboard.watchOnly.value ? 'outline' : 'ghost'"
+          size="sm"
+          @click="dashboard.watchOnly.value = !dashboard.watchOnly.value"
+        >
+          <Bookmark class="size-4" />
+          我的关注
+        </Button>
+        <Button variant="ghost" size="icon-sm" aria-label="刷新" @click="dashboard.refreshSources">
+          <RefreshCw class="size-4" />
+        </Button>
+        <Button variant="ghost" size="icon-sm" aria-label="设置" @click="$emit('openSettings')">
+          <Settings class="size-4" />
+        </Button>
+      </template>
 
-      <div class="app-no-drag mt-4 flex flex-wrap items-center gap-3">
+      <template #filters>
+      <div class="flex flex-wrap items-center gap-3">
         <label class="relative min-w-64 flex-1 max-w-md">
           <Search class="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input v-model="dashboard.query.value" class="pl-9" placeholder="搜索 CVE、产品或厂商" />
@@ -174,8 +172,10 @@ function statusVariant(status: VulnerabilityStatus) {
           内置演示情报源 · rev {{ dashboard.sourceRevision.value }}
         </span>
       </div>
+      </template>
 
-      <div class="mt-4 grid gap-3 text-body sm:grid-cols-3">
+      <template #metrics>
+      <div class="grid gap-3 text-body sm:grid-cols-3">
         <div class="rounded-xl border border-border bg-card px-4 py-3">
           <p class="text-caption text-muted-foreground">关注中</p>
           <p class="mt-1 font-mono text-xl font-semibold">{{ dashboard.watched.value.length }}</p>
@@ -189,7 +189,8 @@ function statusVariant(status: VulnerabilityStatus) {
           <p class="mt-1 font-medium">学习与追踪</p>
         </div>
       </div>
-    </header>
+      </template>
+    </WorkspaceTopBar>
 
     <div class="grid min-h-0 flex-1 grid-cols-[minmax(560px,1.25fr)_minmax(360px,.75fr)] max-[1080px]:grid-cols-1">
       <section class="min-h-0 overflow-auto border-r border-border max-[1080px]:border-b max-[1080px]:border-r-0">

@@ -1,0 +1,44 @@
+// @vitest-environment jsdom
+
+import { createApp, nextTick, type App } from 'vue'
+import { afterEach, describe, expect, it } from 'vitest'
+import WorkspaceTopBar from './WorkspaceTopBar.vue'
+
+const mountedApps: App[] = []
+
+afterEach(() => {
+  for (const app of mountedApps.splice(0)) app.unmount()
+  document.body.innerHTML = ''
+})
+
+async function mountTopBar() {
+  const host = document.createElement('div')
+  document.body.append(host)
+  const app = createApp({
+    components: { WorkspaceTopBar },
+    template: `
+      <WorkspaceTopBar title="CTF" subtitle="题库与解题会话">
+        <template #badge><span data-test="badge">解题中</span></template>
+        <template #actions><button type="button">设置</button></template>
+        <template #filters><input placeholder="搜索" /></template>
+      </WorkspaceTopBar>
+    `,
+  })
+  app.mount(host)
+  mountedApps.push(app)
+  await nextTick()
+  return host
+}
+
+describe('WorkspaceTopBar', () => {
+  it('standardizes module title, subtitle, actions, and filter slots', async () => {
+    const host = await mountTopBar()
+
+    expect(host.textContent).toContain('CTF')
+    expect(host.textContent).toContain('题库与解题会话')
+    expect(host.querySelector('[data-test="badge"]')?.textContent).toBe('解题中')
+    expect(host.querySelector('button')?.textContent).toBe('设置')
+    expect(host.querySelector('input')?.getAttribute('placeholder')).toBe('搜索')
+    expect(host.querySelector('.workspace-topbar')).not.toBeNull()
+  })
+})

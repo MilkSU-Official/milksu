@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onActivated, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   ActionCard,
   Alert,
@@ -65,8 +65,10 @@ import CTFMemoryRecall from '@/components-vue/CTFMemoryRecall.vue'
 import CTFSubmissionGate from '@/components-vue/CTFSubmissionGate.vue'
 import CTFTrainingArchive from '@/components-vue/CTFTrainingArchive.vue'
 import CTFTrajectory from '@/components-vue/CTFTrajectory.vue'
+import CTFWorkspaceHeader from '@/components-vue/CTFWorkspaceHeader.vue'
 import ManagedLabCatalog from '@/components-vue/ManagedLabCatalog.vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
+import WorkspaceTopBar from '@/components-vue/WorkspaceTopBar.vue'
 import { useCTFTrainingPlatforms } from '@/composables/useCTFTrainingPlatforms'
 import { useCTFWorkspace } from '@/composables/useCTFWorkspace'
 import { useManagedLabs } from '@/composables/useManagedLabs'
@@ -97,6 +99,8 @@ type Screen = 'source' | 'challenge' | 'workspace'
 type WorkspaceMode = 'solve' | 'review'
 type QuestionBank = Extract<CTFTrainingPlatform['id'], 'nssctf' | 'ctfshow'>
 type TrainingSource = CTFTrainingPlatform['id'] | 'custom'
+
+defineOptions({ name: 'CTFPage' })
 
 function formatCategory(value: string) {
   const normalized = value.trim().toLowerCase()
@@ -136,6 +140,7 @@ const managedLabs = useManagedLabs()
 const screen = ref<Screen>('challenge')
 const workspaceMode = ref<WorkspaceMode>('solve')
 const ctfSection = computed(() => props.ctfSection)
+const workspaceScrollArea = ref<HTMLElement | null>(null)
 const selectedLabId = ref('')
 const labNotice = ref('')
 const managedLabAccess = ref<ManagedLabAccess | null>(null)
@@ -771,6 +776,14 @@ watch(
 )
 
 watch(
+  () => [screen.value, workspaceMode.value, activeProjection.value?.job.id] as const,
+  () => {
+    void scrollWorkspaceToLatest()
+  },
+  { flush: 'post' },
+)
+
+watch(
   () => ({
     jobId: activeProjection.value?.job.id ?? '',
     candidate: activeProjection.value?.submissions.at(-1)?.candidate
@@ -789,6 +802,14 @@ function showSource() {
   outcomeNotice.value = ''
   if (activeBank.value === 'ctfshow') void ctfshow.refresh()
   else void loadPublicCatalog(catalogPage.value)
+}
+
+async function scrollWorkspaceToLatest() {
+  if (screen.value !== 'workspace' || workspaceMode.value !== 'solve') return
+  await nextTick()
+  const area = workspaceScrollArea.value
+  if (!area) return
+  area.scrollTop = area.scrollHeight
 }
 
 function showProblems() {
@@ -1642,6 +1663,10 @@ onMounted(async () => {
   bridgeStatusTimer = window.setInterval(refreshBridgePresence, 2500)
 })
 
+onActivated(() => {
+  void scrollWorkspaceToLatest()
+})
+
 onBeforeUnmount(() => {
   document.removeEventListener('pointerdown', closeHistoryMenuOnOutsidePointer)
   if (bridgeStatusTimer !== undefined) window.clearInterval(bridgeStatusTimer)
@@ -1650,23 +1675,21 @@ onBeforeUnmount(() => {
 
 <template>
   <main class="flex min-w-0 flex-1 flex-col bg-background">
-    <header
+    <CTFWorkspaceHeader
       v-if="screen === 'workspace'"
-      class="app-drag flex h-14 shrink-0 items-center justify-between border-b border-border bg-background px-6"
-    >
-      <p class="text-control font-medium">CTF</p>
-      <Button variant="ghost" size="sm" class="app-no-drag" @click="$emit('openSettings')">
-        <ShieldCheck class="size-4" />
-        授权与模型
-      </Button>
-    </header>
+      :challenge-title="activeProjection?.challenge.title"
+      :source-uri="activeProjection?.challenge.source.uri"
+      @return-catalog="showSource"
+      @open-source="openActiveChallenge"
+      @open-settings="$emit('openSettings')"
+    />
 
-    <header
+    <WorkspaceTopBar
       v-else
-      class="app-drag flex shrink-0 flex-col gap-3 border-b border-border bg-background px-6 py-4"
+      title="CTF"
+      :subtitle="ctfSection === 'catalog' ? '题库、解题入口与训练状态' : '靶场进度追踪'"
     >
-      <div class="flex w-full items-center gap-3">
-        <h1 class="mr-2 shrink-0 text-2xl font-semibold tracking-[-0.035em]">CTF</h1>
+      <template #actions>
         <Select v-if="ctfSection === 'catalog'" v-model="activeBank">
         <SelectTrigger
           class="app-no-drag min-w-48 shrink-0"
@@ -1855,8 +1878,9 @@ onBeforeUnmount(() => {
         >
           <ShieldCheck class="size-4" />
         </Button>
-      </div>
-      <div v-if="ctfSection === 'catalog' && activeQuestionBank" class="flex w-full items-center gap-3">
+      </template>
+      <template v-if="ctfSection === 'catalog' && activeQuestionBank" #filters>
+      <div class="flex w-full items-center gap-3">
         <label class="app-no-drag relative min-w-52 flex-1">
         <FileSearch class="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
@@ -1888,12 +1912,14 @@ onBeforeUnmount(() => {
         aria-label="刷新当前题库"
         @click="activeBank === 'nssctf' ? syncCatalog() : refreshCTFShow()"
       >
-        <RefreshCw class="size-4" />
+          <RefreshCw class="size-4" />
         </Button>
       </div>
-    </header>
+      </template>
+    </WorkspaceTopBar>
 
     <div
+      ref="workspaceScrollArea"
       class="min-h-0 flex-1"
       :class="screen === 'challenge' ? 'overflow-hidden' : 'overflow-y-auto px-6 py-9'"
     >
@@ -2533,7 +2559,7 @@ onBeforeUnmount(() => {
           <div class="mb-6 flex items-center justify-between gap-4">
             <Button variant="ghost" size="sm" @click="showSource">
               <ArrowLeft class="size-4" />
-              训练场
+              题库
             </Button>
             <Button variant="ghost" size="sm" :loading="backend.loading.value" @click="backend.loadJobs">
               <RefreshCw class="size-4" />

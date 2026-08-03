@@ -200,22 +200,24 @@ onMounted(async () => {
         @close="async () => { await loadSettings(); section = 'ctf' }"
         @settings-change="value => { settings = value }"
       />
-      <CTFPage
-        v-else-if="section === 'ctf'"
-        :model-ready="modelReady"
-        :model-verified="modelVerified"
-        :arena-ready="arenaReady"
-        :initial-job-id="ctfResumeJobId"
-        :ctf-section="ctfSection"
-        @open-settings="openSettings('apikeys')"
-        @start-coding-agent="startCTFAgent"
-      />
-      <VulnPage
-        v-else-if="section === 'vuln'"
-        @open-settings="openSettings('general')"
-      />
+      <KeepAlive include="CTFPage,VulnPage">
+        <CTFPage
+          v-if="section === 'ctf'"
+          :model-ready="modelReady"
+          :model-verified="modelVerified"
+          :arena-ready="arenaReady"
+          :initial-job-id="ctfResumeJobId"
+          :ctf-section="ctfSection"
+          @open-settings="openSettings('apikeys')"
+          @start-coding-agent="startCTFAgent"
+        />
+        <VulnPage
+          v-else-if="section === 'vuln'"
+          @open-settings="openSettings('general')"
+        />
+      </KeepAlive>
       <ChatPage
-        v-else
+        v-if="section === 'chat'"
         :conversation="conversations.active.value"
         :settings="settings"
         :workspace-path="conversations.workspacePath.value"

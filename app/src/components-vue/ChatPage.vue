@@ -62,6 +62,7 @@ import CodingChangesPanel from '@/components-vue/CodingChangesPanel.vue'
 import CodingComputerUsePanel from '@/components-vue/CodingComputerUsePanel.vue'
 import CodingMCPReviewCard from '@/components-vue/CodingMCPReviewCard.vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
+import WorkspaceTopBar from '@/components-vue/WorkspaceTopBar.vue'
 import type {
   CodingArchitecturePreview,
   CodingBrowserStatus,
@@ -1091,23 +1092,16 @@ watch(
 <template>
   <section class="relative flex min-w-0 flex-1 overflow-hidden bg-surface-editor">
   <main class="chat-main flex min-w-0 flex-1 flex-col overflow-hidden bg-surface-editor">
-    <header
-      class="chat-toolbar app-drag shrink-0"
-      :class="{ 'chat-toolbar--ctf': ctfSession }"
+    <WorkspaceTopBar
+      title="Coding"
+      :subtitle="`${conversation?.title ?? '新编码任务'} · ${workspacePath || `临时工作区 · ${codingPolicyLabel}`}`"
     >
-      <div class="chat-toolbar__summary min-w-0">
-        <div class="flex min-w-0 items-center gap-2 overflow-hidden">
-          <p class="truncate text-control font-medium">Coding</p>
-          <Badge v-if="ctfSession" variant="secondary" class="max-w-full truncate">
-            {{ ctfRoleLabel }}
-          </Badge>
-        </div>
-        <p class="truncate text-caption text-muted-foreground">
-          {{ conversation?.title ?? '新编码任务' }}
-          · {{ workspacePath || `临时工作区 · ${codingPolicyLabel}` }}
-        </p>
-      </div>
-      <div class="chat-toolbar__actions app-no-drag flex min-w-0 items-center gap-2">
+      <template v-if="ctfSession" #badge>
+        <Badge variant="secondary" class="max-w-full truncate">
+          {{ ctfRoleLabel }}
+        </Badge>
+      </template>
+      <template #actions>
         <Button
           variant="ghost"
           size="icon-sm"
@@ -1118,8 +1112,8 @@ watch(
           <PanelRightClose v-if="environmentOpen" class="size-4" />
           <PanelRightOpen v-else class="size-4" />
         </Button>
-      </div>
-    </header>
+      </template>
+    </WorkspaceTopBar>
 
     <div ref="scrollArea" class="min-h-0 flex-1 overflow-y-auto">
       <div v-if="!conversation?.messages.length" class="mx-auto flex min-h-full max-w-2xl flex-col justify-center px-8 py-16">
@@ -2097,34 +2091,6 @@ watch(
 .chat-main {
   container-name: chat-main;
   container-type: inline-size;
-}
-
-.chat-toolbar {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 0.75rem;
-  min-height: 3.5rem;
-  padding: 0.5rem 1.5rem;
-}
-
-.chat-toolbar__summary {
-  overflow: hidden;
-}
-
-.chat-toolbar__actions {
-  max-width: 100%;
-}
-
-.chat-toolbar--ctf {
-  grid-template-columns: minmax(0, 1fr);
-  align-items: stretch;
-  padding-inline: 1rem;
-}
-
-.chat-toolbar--ctf .chat-toolbar__actions {
-  flex-wrap: wrap;
-  justify-content: flex-start;
 }
 
 .coding-action-option {
