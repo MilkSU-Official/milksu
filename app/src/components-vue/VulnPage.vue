@@ -154,7 +154,7 @@ function statusVariant(status: VulnerabilityStatus) {
 
 <template>
   <main class="flex min-w-0 flex-1 flex-col bg-background">
-    <WorkspaceTopBar title="CVE" subtitle="追踪 CVE、资产命中与研究进度">
+    <WorkspaceTopBar module="cve" title="CVE" subtitle="追踪 CVE、资产命中与研究进度">
       <template #actions>
         <Button
           :variant="showCustomForm ? 'outline' : 'default'"

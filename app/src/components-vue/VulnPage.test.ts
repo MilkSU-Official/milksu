@@ -89,6 +89,7 @@ describe('VulnPage', () => {
     expect(text).toContain('CVE')
     expect(text).toContain('追踪 CVE、资产命中与研究进度')
     expect(host.querySelector('[data-module-topbar]')).not.toBeNull()
+    expect(host.querySelector('[data-module-topbar]')?.getAttribute('data-workspace-module')).toBe('cve')
     expect(host.querySelector('[data-workspace-topbar-title]')?.className).toContain('workspace-topbar__title')
     expect(text).toContain('情报源')
     expect(text).toContain('追踪条目')

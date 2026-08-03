@@ -1694,6 +1694,7 @@ onBeforeUnmount(() => {
     />
 
     <WorkspaceTopBar
+      module="ctf"
       v-else
       title="CTF"
       :subtitle="ctfSection === 'catalog' ? '题库、解题入口与训练状态' : '靶场进度追踪'"

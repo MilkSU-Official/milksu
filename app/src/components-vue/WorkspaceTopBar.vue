@@ -1,8 +1,13 @@
 <script setup lang="ts">
-defineProps<{
+import { computed } from 'vue'
+
+const props = defineProps<{
+  module?: 'coding' | 'ctf' | 'cve'
   title: string
   subtitle?: string
 }>()
+
+const moduleKey = computed(() => props.module ?? props.title.trim().toLowerCase())
 </script>
 
 <template>
@@ -10,6 +15,7 @@ defineProps<{
     class="workspace-topbar app-drag border-b border-border bg-background px-6 py-3"
     data-module-topbar
     data-workspace-topbar
+    :data-workspace-module="moduleKey"
   >
     <div class="flex min-w-0 items-center justify-between gap-4">
       <div class="min-w-0">
@@ -53,6 +59,11 @@ defineProps<{
 
 <style scoped>
 .workspace-topbar {
+  --module-topbar-title-size: var(--text-control, 0.875rem);
+  --module-topbar-title-line-height: var(--text-control--line-height, 1.25rem);
+  --module-topbar-control-size: var(--text-control, 0.875rem);
+  --module-topbar-control-line-height: var(--text-control--line-height, 1.25rem);
+
   min-height: 3.5rem;
 }
 
@@ -66,19 +77,21 @@ defineProps<{
 }
 
 .workspace-topbar__title {
-  font-size: var(--text-control, 0.875rem);
-  line-height: var(--text-control--line-height, 1.25rem);
+  font-size: var(--module-topbar-title-size);
+  line-height: var(--module-topbar-title-line-height);
 }
 
 .workspace-topbar__actions :deep([data-button][data-size="sm"]),
+.workspace-topbar__actions :deep([data-button][data-size="icon-sm"]),
 .workspace-topbar__actions :deep([data-slot="select-trigger"][data-size="sm"]),
 .workspace-topbar__actions :deep([data-slot="native-select"][data-size="sm"]),
 .workspace-topbar__actions :deep([data-slot="input"][data-size="sm"]),
 .workspace-topbar__filters :deep([data-button][data-size="sm"]),
+.workspace-topbar__filters :deep([data-button][data-size="icon-sm"]),
 .workspace-topbar__filters :deep([data-slot="select-trigger"][data-size="sm"]),
 .workspace-topbar__filters :deep([data-slot="native-select"][data-size="sm"]),
 .workspace-topbar__filters :deep([data-slot="input"][data-size="sm"]) {
-  font-size: var(--text-control, 0.875rem);
-  line-height: var(--text-control--line-height, 1.25rem);
+  font-size: var(--module-topbar-control-size);
+  line-height: var(--module-topbar-control-line-height);
 }
 </style>

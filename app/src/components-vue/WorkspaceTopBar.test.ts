@@ -44,6 +44,7 @@ describe('WorkspaceTopBar', () => {
     expect(host.querySelector('button')?.textContent).toBe('设置')
     expect(host.querySelector('input')?.getAttribute('placeholder')).toBe('搜索')
     expect(host.querySelector('.workspace-topbar')).not.toBeNull()
+    expect(host.querySelector('[data-workspace-module]')?.getAttribute('data-workspace-module')).toBe('ctf')
 
     const title = host.querySelector('[data-workspace-topbar-title]')
     expect(title?.tagName).toBe('H1')
@@ -59,6 +60,7 @@ describe('WorkspaceTopBar', () => {
       const host = document.createElement('div')
       document.body.append(host)
       const app = createApp(WorkspaceTopBar, {
+        module: title === 'Coding' ? 'coding' : title === 'CVE' ? 'cve' : 'ctf',
         title,
         subtitle: `${title} subtitle`,
       })
@@ -69,6 +71,7 @@ describe('WorkspaceTopBar', () => {
       const topbar = host.querySelector('[data-module-topbar]')
       const titleNode = host.querySelector('[data-workspace-topbar-title]')
       expect(topbar).not.toBeNull()
+      expect(topbar?.getAttribute('data-workspace-module')).toBe(title.toLowerCase())
       expect(titleNode?.tagName).toBe('H1')
       expect(titleNode?.textContent).toBe(title)
       expect(titleNode?.className).toContain('workspace-topbar__title')
@@ -91,6 +94,10 @@ describe('WorkspaceTopBar', () => {
         .toContain('<WorkspaceTopBar')
     }
 
+    expect(chatPageSource).toContain(`:module="ctfSession ? 'ctf' : 'coding'"`)
+    expect(ctfPageSource).toContain('module="ctf"')
+    expect(ctfWorkspaceHeaderSource).toContain('module="ctf"')
+    expect(vulnPageSource).toContain('module="cve"')
     expect(chatPageSource).not.toContain('<h1 class="mt-5 text-2xl')
   })
 

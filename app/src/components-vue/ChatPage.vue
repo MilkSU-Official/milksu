@@ -1157,6 +1157,7 @@ watch(
   <section class="relative flex min-w-0 flex-1 overflow-hidden bg-surface-editor">
   <main class="chat-main flex min-w-0 flex-1 flex-col overflow-hidden bg-surface-editor">
     <WorkspaceTopBar
+      :module="ctfSession ? 'ctf' : 'coding'"
       :title="topbarPresentation.title"
       :subtitle="topbarPresentation.subtitle"
     >

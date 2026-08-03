@@ -104,19 +104,22 @@
 
 | 项目 | 记录 |
 | --- | --- |
-| Commit | `d4df0f8` |
-| 窄测 | `npm run test -- --run src/components-vue/WorkspaceTopBar.test.ts src/components-vue/CTFPage.test.ts src/components-vue/VulnPage.test.ts` |
-| 窄测结果 | 2 files / 12 tests passed；当前没有独立 `CTFPage.test.ts` 文件，命令实际覆盖 WorkspaceTopBar 与 VulnPage |
+| Commit | `d4df0f8` + 2026-08-04 follow-up topbar module contract |
+| 窄测 | `npm run test -- --run src/components-vue/WorkspaceTopBar.test.ts src/components-vue/CTFWorkspaceHeader.test.ts src/components-vue/VulnPage.test.ts` |
+| 窄测结果 | 3 files / 15 tests passed |
 | 全量前端 | `npm run test && npm run build` |
-| 全量前端结果 | 45 files / 194 tests passed；production build passed |
-| Browser 验证 | Vite preview `http://127.0.0.1:4173/`；依次进入 CTF / CVE / Coding |
+| 全量前端结果 | 47 files / 214 tests passed；production build passed |
+| Browser 验证 | Vite dev preview `http://127.0.0.1:4178/`；依次进入 CTF / CVE / Coding |
 
 覆盖范围：
 
 - CTF、CVE、Coding 顶部标题都使用共享 `WorkspaceTopBar`；
+- CTF 题库、CTF 解题会话、CVE 和 Coding 都显式写入 `module="ctf" / "cve" / "coding"`
+  契约，DOM 暴露 `data-workspace-module`，避免后续页面换回私有标题栏；
 - 三个一级菜单的 `data-workspace-topbar-title` computed font-size 均为 `14px`，line-height 均为
   `20px`；
-- CTF / CVE 顶栏的主要按钮、筛选 Select、搜索 Input 均落在 `sm` 或 `icon-sm` 尺寸；
+- CTF / CVE / Coding 顶栏的主要按钮、筛选 Select、搜索 Input 均落在 `sm` 或 `icon-sm`
+  尺寸，并由 shared TopBar CSS 统一到 `14px / 20px`；
 - Browser preview 页面加载为 `MilkSU`，无 relevant console error / warn。
 
 本次仍未证明：

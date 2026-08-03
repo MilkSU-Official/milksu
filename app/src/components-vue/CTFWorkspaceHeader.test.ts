@@ -47,6 +47,7 @@ describe('CTFWorkspaceHeader', () => {
     expect(host.textContent).toContain('授权与模型')
     expect(host.textContent).not.toContain('查看复盘')
     expect(host.querySelector('[data-module-topbar]')).not.toBeNull()
+    expect(host.querySelector('[data-module-topbar]')?.getAttribute('data-workspace-module')).toBe('ctf')
     expect(host.querySelector('[data-workspace-topbar-title]')?.className).toContain('workspace-topbar__title')
 
     host.querySelector<HTMLButtonElement>('[aria-label="返回 CTF 题库"]')?.click()
