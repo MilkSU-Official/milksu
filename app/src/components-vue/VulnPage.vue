@@ -202,8 +202,11 @@ function statusVariant(status: VulnerabilityStatus) {
       <template #metrics>
       <div class="grid gap-3 text-body sm:grid-cols-4">
         <div class="rounded-xl border border-border bg-card px-4 py-3">
-          <p class="text-caption text-muted-foreground">关注中</p>
-          <p class="mt-1 font-mono text-xl font-semibold">{{ dashboard.watched.value.length }}</p>
+          <p class="text-caption text-muted-foreground">追踪条目</p>
+          <p class="mt-1 font-mono text-xl font-semibold">{{ dashboard.trackedCount.value }}</p>
+          <p class="mt-0.5 text-caption text-muted-foreground">
+            {{ dashboard.watched.value.length }} 关注中
+          </p>
         </div>
         <div class="rounded-xl border border-border bg-card px-4 py-3">
           <p class="text-caption text-muted-foreground">研究任务</p>
