@@ -38,6 +38,14 @@ function logPreview(meta, readTaskLog) {
   }
 }
 
+function processIdentifier(meta) {
+  if (Number.isSafeInteger(meta.pid) && meta.pid > 0) return meta.pid;
+  if (Number.isSafeInteger(meta.spawnPid) && meta.spawnPid > 0) {
+    return meta.spawnPid;
+  }
+  return undefined;
+}
+
 export function backgroundTaskMetasForSession(metas, sessionId) {
   const resolvedSession = String(sessionId ?? "").trim();
   if (!resolvedSession || !Array.isArray(metas)) return [];
@@ -67,7 +75,7 @@ export function projectBackgroundTaskMetas(
       endedAt: Number.isFinite(meta.endedAt) ? meta.endedAt : undefined,
       command: commandLabel(meta),
       cwd: boundedText(meta.cwd, 1200),
-      pid: Number.isSafeInteger(meta.pid) && meta.pid > 0 ? meta.pid : undefined,
+      pid: processIdentifier(meta),
       pgid: Number.isSafeInteger(meta.pgid) && meta.pgid > 0 ? meta.pgid : undefined,
       logPath: boundedText(meta.logPath, 1200),
       ...logPreview(meta, readTaskLog),

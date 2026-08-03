@@ -74,9 +74,25 @@ test("background task projection keeps active and recent Pi tasks without env va
   assert.match(tasks[0].logTail, /ready on/);
   assert.equal(tasks[0].logTruncated, true);
   assert.equal(tasks[1].kind, "watch");
+  assert.equal(tasks[1].pid, 12);
   assert.equal(tasks[1].lastExitCode, 0);
   assert.equal("env" in tasks[0], false);
   assert.equal(JSON.stringify(tasks).includes("must-not-leak"), false);
+});
+
+test("background task projection keeps recovered spawnPid visible as PID", () => {
+  const [task] = projectBackgroundTaskMetas([{
+    id: "recovered-watch",
+    kind: "command_watch",
+    status: "running",
+    startedAt: 1,
+    argv: ["npm", "run", "dev"],
+    cwd: "/workspace",
+    spawnPid: 9876,
+    pid: 0,
+  }], 2);
+
+  assert.equal(task.pid, 9876);
 });
 
 test("background task projection treats unreadable logs as optional", () => {
