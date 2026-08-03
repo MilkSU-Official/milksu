@@ -202,7 +202,7 @@ function sanitizeLocalDefinition(
   definition,
   serverName,
   workspace,
-  { extraWritableRoots = [] } = {},
+  { extraReadableRoots = [], extraWritableRoots = [] } = {},
 ) {
   const command = String(definition.command ?? "").trim();
   if (!command || command.includes("\0")) {
@@ -224,7 +224,7 @@ function sanitizeLocalDefinition(
         true,
         [],
         false,
-        [],
+        extraReadableRoots,
         [runtimeHome, runtimeTemporary, ...extraWritableRoots],
       ),
       "/usr/bin/env",
@@ -586,7 +586,10 @@ export async function createFirstPartyPlaywrightMcpServer(workspace, descriptor)
       },
       codingBrowserMcpServerName,
       root,
-      { extraWritableRoots: [socketRoot, evidenceRoot] },
+      {
+        extraReadableRoots: [bridgeDirectory],
+        extraWritableRoots: [socketRoot, evidenceRoot],
+      },
     ),
   };
 }

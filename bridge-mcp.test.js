@@ -10,8 +10,9 @@ import {
   symlink,
   writeFile,
 } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
+import { fileURLToPath } from "node:url";
 import {
   codingBrowserMcpServerName,
   codingBrowserSelectionChanged,
@@ -28,6 +29,8 @@ import {
   normalizeSelectedMcpServers,
   resolveReviewedMcpWorkspace,
 } from "./bridge-mcp.js";
+
+const repositoryRoot = dirname(fileURLToPath(import.meta.url));
 
 test("loads only explicitly selected MCP servers and clears stdio inheritance", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "milksu-mcp-"));
@@ -203,6 +206,11 @@ test("builds the first-party Playwright server from a strict loopback descriptor
   });
   assert.equal(builtIn.server.command, "/usr/bin/sandbox-exec");
   assert.equal(builtIn.server.cwd, await realpath(workspace));
+  assert.ok(
+    builtIn.server.args[1].includes(
+      `(subpath ${JSON.stringify(repositoryRoot)})`,
+    ),
+  );
   assert.ok(builtIn.server.args.includes(process.execPath));
   assert.ok(
     builtIn.server.args.some(value => value.endsWith("/node_modules/@playwright/mcp/cli.js")),

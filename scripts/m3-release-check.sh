@@ -31,7 +31,12 @@ for source_file in \
   fi
 done
 
-go test ./...
+if [[ "${MILKSU_BROWSER_INTEGRATION:-0}" == "1" ]]; then
+  MILKSU_BROWSER_INTEGRATION=0 go test ./...
+  go test ./internal/browsercap -run TestManagedBrowserRoundTrip -count=1
+else
+  go test ./...
+fi
 go vet ./...
 node --test ./*.test.js ./*.test.cjs
 npm --prefix app test -- --run
