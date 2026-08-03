@@ -100,7 +100,7 @@ allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 
 | COD-04 | TypeScript、Vue、Go Code Action | TypeScript 有既有真实验收；Vue/Go 为打包探针和负向测试 | 50% | 原生 App 真实应用 Vue + Go Action |
 | COD-05 | 跨文件 Action 原子拒绝与超大 Diff 拒绝 | 自动化测试存在；`bridge-lsp.test.js` 覆盖超大 Diff 不请求审批、多文件/resource WorkspaceEdit 拒绝，以及 apply 阶段结果和已审阅 Diff 不一致时回滚原文 | 50% | 打包 App 负向真实验收 |
 | COD-06 | “请求批准”覆盖所有能力入口 | Bridge/UI 自动化存在 | 50% | Browser、Computer Use、MCP、委托组合验收 |
-| COD-07 | “替我审批”拦截无意义审批 | Browser 真实任务与策略测试存在；`bridge-auto-approval.test.js` 覆盖已选 Computer Use 的 observe/click/type 在 workspace-auto/full-auto 下不产生无意义审批，ask/read-only 仍逐次确认 | 75% | Computer Use 与项目 MCP 真实任务 |
+| COD-07 | “替我审批”拦截无意义审批 | Browser 真实任务与策略测试存在；`bridge-auto-approval.test.js` 覆盖已选 Computer Use 的 observe/click/type 在 workspace-auto/full-auto 下不产生无意义审批，ask/read-only 仍逐次确认；`npm run test:project-mcp` 的实际 allowlisted `fixture_read` 调用确认 workspace-auto/full-auto 不产生无意义审批，ask/read-only 仍逐次确认 | 75% | Computer Use 与项目 MCP 真实任务 |
 | COD-08 | “完全访问”仍保持硬边界 | 策略测试存在；Full Access 对本地/已选普通 MCP 可自动执行，但 GitHub/Linear/Jira/Slack 等外部账户写入仍要求确认；`bridge-background-process.test.js` 覆盖 Full Access 后台任务即使离开工作区，也不会继承宿主 Provider Key 或模型显式传入的 `*_API_KEY` env | 50% | 打包 App 越界负向验收 |
 | COD-09 | 付费、账户授权、扩大 Scope、发布仍独立确认 | ImageGen、MCP、Endpoint、PR 测试存在；`bridge-auto-approval.test.js` 覆盖 OAuth、PR/Release 发布和托管外部账户写入在所有权限档下都不被自动批准 | 75% | 真实 Provider 与托管发布确认 |
 | COD-10 | Markdown、HTML、图片产物预览 | Go/Vue 实现与安全测试存在；前端建议列表只展示工作区相对路径内的 Markdown、HTML 与图片产物，不再建议绝对路径或 `..` 逃逸形态；`CodingArtifactPreviewPanel.test.ts` 覆盖用户可见的 Markdown/HTML/图片建议入口、三种产物渲染、后端拒绝错误展示和失败后清空旧预览 | 50% | 打包 App 三种产物真实预览 |
@@ -121,7 +121,7 @@ allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 
 | COD-25 | 完整 “MilkSU develops MilkSU” Gate | 有多个局部自举任务 | 25% | 一次完整 Vue + Go、重启、交付、PR |
 | COD-26 | ImageGen 文生图、参考图编辑和项目资产 | 受控工具、UI、测试与打包存在 | 50% | 真实 Provider 生成 |
 | COD-27 | 打包 App 真实 ImageGen Provider 与预览 | Provider 尚未在 App 内配置 | 0% | 用户自行配置后执行，不接触 Key |
-| COD-28 | Project MCP 来源、版本、工具面与权限审阅 | Go/Vue/Bridge 实现和测试存在；`npm run test:project-mcp` 通过正式 `loadCodingMcpConfig`、固定 `.mcp.json` digest、sandbox wrapper、`env -i` 私有 HOME/TMPDIR、`hostConfigDiscovery=off` 和 MCP SDK `listTools/callTool` 实际调用本地项目 `fixture_read` | 75% | 用户真实项目或高频 MCP 任务验收 |
+| COD-28 | Project MCP 来源、版本、工具面与权限审阅 | Go/Vue/Bridge 实现和测试存在；`npm run test:project-mcp` 通过正式 `loadCodingMcpConfig`、固定 `.mcp.json` digest、sandbox wrapper、`env -i` 私有 HOME/TMPDIR、`hostConfigDiscovery=off`、MCP SDK `listTools/callTool` 实际调用本地项目 `fixture_read`，并输出 `workspaceAutoApprovalRequired=false` 作为自动审批契约证据 | 75% | 用户真实项目或高频 MCP 任务验收 |
 | COD-29 | 高频 Plugin 候选完成真实任务 | 尚未由使用频率选出候选 | 0% | 先收集重复工作流与替代失败 |
 | COD-30 | 代表任务成功率、接管、恢复、成本对照 | Coding delivery gate 已输出 `milksu-run-manifest/v1alpha1` 与 `milksu-agent-scoreboard/v1alpha1`，覆盖任务 ID、fixture digest、工具面、预算、人工介入、失败分类和未运行基线状态；共享 validator 已拒绝 `not-run` baseline 携带成绩、缺失败/介入证据、预算超限、隐私边界松动和 `passed=true` 但非满分等误报形态 | 25% | 从用户真实历史选择固定 20 项，运行 MilkSU 与裸 Codex/Pi 对照 |
 | COD-31 | Computer Use 工具截图接入纯文本模型的辅助视觉回路 | Bridge `tool_result` hook 为 `milksu-computer-use/computer_use` 截图追加受控视觉摘要；辅助视觉缓存不保存原图；64 项 Node 窄测试、Go、前端 lint/build 通过 | 50% | 打包 App 中用纯文本主模型和真实辅助视觉完成外部窗口定位验收 |
