@@ -212,6 +212,7 @@ interface WailsAppBindings {
   ): Promise<CodingBrowserStatus>
   GetCodingBrowserStatus(conversationId: string): Promise<CodingBrowserStatus>
   StopCodingBrowser(conversationId: string): Promise<CodingBrowserStatus>
+  RevealCodingBrowserEvidence(conversationId: string): Promise<void>
   GetCodingComputerUseStatus(): Promise<CodingComputerUseStatus>
   RequestCodingComputerUsePermissions(): Promise<CodingComputerUseStatus>
   StartCodingComputerUse(conversationId: string): Promise<CodingComputerUseStatus>
@@ -636,6 +637,10 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.StopCodingBrowser(
           args?.conversationId as string,
         ) as Promise<T>
+      case 'reveal_coding_browser_evidence':
+        return app.RevealCodingBrowserEvidence(
+          args?.conversationId as string,
+        ) as Promise<T>
       case 'get_coding_computer_use_status':
         return app.GetCodingComputerUseStatus() as Promise<T>
       case 'request_coding_computer_use_permissions':
@@ -982,6 +987,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
     case 'start_coding_browser':
     case 'stop_coding_browser':
       throw new Error('隔离 Coding 浏览器需要 MilkSU 桌面运行时。')
+    case 'reveal_coding_browser_evidence':
+      throw new Error('在 Finder 中显示浏览器证据需要 MilkSU 桌面运行时。')
     case 'get_coding_browser_status':
       return {
         enabled: false,

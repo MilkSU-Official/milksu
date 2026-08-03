@@ -123,6 +123,24 @@ func (s *Store) List() ([]StoredConversation, error) {
 	return values, nil
 }
 
+func (s *Store) Get(id string) (StoredConversation, error) {
+	if !validID.MatchString(id) {
+		return StoredConversation{}, fmt.Errorf("invalid conversation id")
+	}
+	data, err := os.ReadFile(filepath.Join(s.directory, id+".json"))
+	if err != nil {
+		return StoredConversation{}, fmt.Errorf("read conversation: %w", err)
+	}
+	var value StoredConversation
+	if err := json.Unmarshal(data, &value); err != nil {
+		return StoredConversation{}, fmt.Errorf("decode conversation: %w", err)
+	}
+	if value.ID != id {
+		return StoredConversation{}, fmt.Errorf("conversation id does not match stored record")
+	}
+	return value, nil
+}
+
 func (s *Store) Save(value StoredConversation) error {
 	if !validID.MatchString(value.ID) {
 		return fmt.Errorf("invalid conversation id")

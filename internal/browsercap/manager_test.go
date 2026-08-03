@@ -58,6 +58,34 @@ func TestNormalizeCodingConversationIDRejectsUnsafeValues(t *testing.T) {
 	}
 }
 
+func TestCodingEvidenceSessionIDIsConversationBound(t *testing.T) {
+	manager, err := New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer manager.Close()
+	if _, err := manager.CodingEvidenceSessionID("conversation-1"); err == nil {
+		t.Fatal("expected a missing session to be rejected")
+	}
+	manager.sessions["browser_evidence_fixture"] = &managedSession{
+		public: Session{
+			ID:    "browser_evidence_fixture",
+			Phase: "ready",
+		},
+		conversationID: "conversation-1",
+	}
+	sessionID, err := manager.CodingEvidenceSessionID("conversation-1")
+	if err != nil {
+		t.Fatalf("read trusted session: %v", err)
+	}
+	if sessionID != "browser_evidence_fixture" {
+		t.Fatalf("unexpected session id %q", sessionID)
+	}
+	if _, err := manager.CodingEvidenceSessionID("conversation-2"); err == nil {
+		t.Fatal("evidence session must not leak across conversations")
+	}
+}
+
 func TestCurrentTabBridgeRequiresPairingAndPersistsExactPage(t *testing.T) {
 	manager, err := New(t.TempDir())
 	if err != nil {

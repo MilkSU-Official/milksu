@@ -182,6 +182,9 @@ const browserPanelError = ref('')
 const codingBrowserLoading = ref(false)
 const codingBrowserURL = ref('http://127.0.0.1:3000')
 const codingBrowserStatus = ref<CodingBrowserStatus | null>(null)
+const codingBrowserEvidenceLoading = ref(false)
+const codingBrowserEvidenceError = ref('')
+const codingBrowserEvidenceRevealed = ref(false)
 const computerUseLoading = ref(false)
 const computerUseStatus = ref<CodingComputerUseStatus | null>(null)
 const nssctfBrowserStatus = ref<NSSCTFWebBridgeStatus | null>(null)
@@ -818,6 +821,8 @@ async function startCodingBrowser() {
       'start_coding_browser',
       { conversationId: conversationID, initialUrl: initialURL },
     )
+    codingBrowserEvidenceError.value = ''
+    codingBrowserEvidenceRevealed.value = false
   } catch (reason) {
     browserPanelError.value = reason instanceof Error
       ? reason.message
@@ -837,12 +842,40 @@ async function stopCodingBrowser() {
       'stop_coding_browser',
       { conversationId: conversationID },
     )
+    codingBrowserEvidenceError.value = ''
+    codingBrowserEvidenceRevealed.value = false
   } catch (reason) {
     browserPanelError.value = reason instanceof Error
       ? reason.message
       : 'Coding 浏览器停止失败。'
   } finally {
     codingBrowserLoading.value = false
+  }
+}
+
+async function revealCodingBrowserEvidence() {
+  const conversationID = props.conversation?.id
+  if (!conversationID) {
+    codingBrowserEvidenceError.value = '当前会话尚未就绪，无法定位浏览器证据。'
+    return
+  }
+  // Only the trusted conversation id leaves the frontend: the backend derives
+  // the exact evidence directory from the live Coding Browser session and its
+  // trusted project or fixed temporary workspace.
+  codingBrowserEvidenceError.value = ''
+  codingBrowserEvidenceRevealed.value = false
+  codingBrowserEvidenceLoading.value = true
+  try {
+    await invokeCommand('reveal_coding_browser_evidence', {
+      conversationId: conversationID,
+    })
+    codingBrowserEvidenceRevealed.value = true
+  } catch (reason) {
+    codingBrowserEvidenceError.value = reason instanceof Error
+      ? reason.message
+      : '无法在 Finder 中显示浏览器证据。'
+  } finally {
+    codingBrowserEvidenceLoading.value = false
   }
 }
 
@@ -990,6 +1023,8 @@ watch(() => props.ctfSession, (current, previous) => {
 watch(() => props.conversation?.id, () => {
   goalMode.value = false
   codingBrowserStatus.value = null
+  codingBrowserEvidenceError.value = ''
+  codingBrowserEvidenceRevealed.value = false
   if (contextPanel.value === 'browser' && environmentOpen.value) {
     void refreshBrowserPanel()
   }
@@ -1787,12 +1822,40 @@ watch(
               v-if="codingBrowserEvidencePath"
               class="mt-4 rounded-md border border-border bg-muted/35 px-3 py-3"
             >
-              <p class="text-caption font-medium text-foreground">浏览器证据</p>
+              <div class="flex items-center justify-between gap-3">
+                <p class="text-caption font-medium text-foreground">浏览器证据</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  :disabled="codingBrowserEvidenceLoading"
+                  aria-label="在 Finder 中显示浏览器证据"
+                  @click="revealCodingBrowserEvidence"
+                >
+                  <LoaderCircle
+                    v-if="codingBrowserEvidenceLoading"
+                    class="size-3.5 animate-spin"
+                  />
+                  <FolderOpen v-else class="size-3.5" />
+                  在 Finder 中显示
+                </Button>
+              </div>
               <p class="mt-1 break-all font-mono text-caption text-muted-foreground">
                 {{ codingBrowserEvidencePath }}
               </p>
               <p class="mt-2 text-caption leading-5 text-muted-foreground">
                 页面快照、Console、Network 和截图由 Agent 明确采集；显式证据文件只能写入此目录。
+              </p>
+              <p
+                v-if="codingBrowserEvidenceError"
+                class="mt-2 text-caption text-destructive"
+              >
+                {{ codingBrowserEvidenceError }}
+              </p>
+              <p
+                v-else-if="codingBrowserEvidenceRevealed"
+                class="mt-2 text-caption text-foreground"
+              >
+                已在 Finder 中打开该目录。
               </p>
             </div>
           </div>

@@ -415,6 +415,22 @@ func (m *Manager) StopCoding(conversationID string) error {
 	return m.Stop(sessionID)
 }
 
+// CodingEvidenceSessionID returns the trusted live session id currently owned
+// by a Coding conversation, or an error when no isolated browser is active.
+// Evidence locations are derived only from this backend-owned value; callers
+// never receive an arbitrary session id from the frontend/model.
+func (m *Manager) CodingEvidenceSessionID(conversationID string) (string, error) {
+	conversationID, err := normalizeCodingConversationID(conversationID)
+	if err != nil {
+		return "", err
+	}
+	sessionID := m.codingSessionID(conversationID)
+	if sessionID == "" {
+		return "", fmt.Errorf("当前会话没有活跃的隔离 Coding 浏览器")
+	}
+	return sessionID, nil
+}
+
 func (m *Manager) codingSessionID(conversationID string) string {
 	m.mu.Lock()
 	defer m.mu.Unlock()

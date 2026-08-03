@@ -1,6 +1,8 @@
 package conversation
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 )
@@ -17,6 +19,44 @@ func TestConversationIDRejectsPaths(t *testing.T) {
 func TestConversationIDAcceptsUUID(t *testing.T) {
 	if !validID.MatchString("bb97144e-64b2-4bcc-a07f-4f5b3f9f8aa1") {
 		t.Fatal("expected UUID to be accepted")
+	}
+}
+
+func TestStoreGetReturnsTheSavedConversation(t *testing.T) {
+	store := &Store{directory: t.TempDir()}
+	if _, err := store.Get("conversation-1"); err == nil {
+		t.Fatal("expected a missing conversation to be rejected")
+	}
+	want := StoredConversation{
+		ID:            "conversation-1",
+		Title:         "浏览器证据",
+		CreatedAt:     42,
+		WorkspacePath: "/tmp/milksu-workspace",
+		Messages:      []StoredMessage{},
+	}
+	if err := store.Save(want); err != nil {
+		t.Fatalf("save conversation: %v", err)
+	}
+	got, err := store.Get("conversation-1")
+	if err != nil {
+		t.Fatalf("get conversation: %v", err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("conversation did not round-trip: %#v", got)
+	}
+}
+
+func TestStoreGetRejectsAMismatchedStoredConversation(t *testing.T) {
+	store := &Store{directory: t.TempDir()}
+	if err := os.WriteFile(
+		filepath.Join(store.directory, "conversation-1.json"),
+		[]byte(`{"id":"conversation-2","messages":[]}`),
+		0o600,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Get("conversation-1"); err == nil {
+		t.Fatal("expected a mismatched stored conversation to be rejected")
 	}
 }
 
