@@ -66,6 +66,8 @@ describe('CTFMemoryRecall', () => {
     expect(text).toContain('Judge 回执 receipt_1')
     expect(text).toContain('失败分支 branch_1')
     expect(text).not.toContain('用户完成 · 无协助')
+    expect(host.querySelector('[data-evidence-kind="judge"]')?.getAttribute('data-evidence-id'))
+      .toBe('receipt_1')
 
     const archive = host.querySelector<HTMLButtonElement>(
       'button[aria-label="停用记忆：栈偏移枚举策略"]',
@@ -74,5 +76,40 @@ describe('CTFMemoryRecall', () => {
     archive?.click()
     await nextTick()
     expect(archived).toEqual([delegatedMemory])
+  })
+
+  it('falls back to stored evidence references when recall links are absent', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    const app = createApp(CTFMemoryRecall, {
+      memories: [memory({
+        id: 'memory-fallback-evidence',
+        actor: 'shared',
+        assistance: 'copilot',
+        evidenceRefs: [
+          'job:job_crypto_shared',
+          'judge:receipt_crypto_1',
+          'hint:hint_used_1',
+          'step:user_step_1',
+          'failure:dead_branch_1',
+        ],
+        recall: undefined,
+      })],
+      onArchive: () => {},
+    })
+    app.mount(host)
+    mountedApps.push(app)
+    await nextTick()
+
+    const text = host.textContent ?? ''
+    expect(text).toContain('共同完成 · 搭档协作')
+    expect(text).toContain('可核对证据：')
+    expect(text).toContain('job:job_crypto_shared')
+    expect(text).toContain('judge:receipt_crypto_1')
+    expect(text).toContain('hint:hint_used_1')
+    expect(text).toContain('step:user_step_1')
+    expect(text).not.toContain('failure:dead_branch_1')
+    expect(host.querySelector('[data-evidence-kind="judge"]')?.getAttribute('title'))
+      .toBe('judge:receipt_crypto_1')
   })
 })

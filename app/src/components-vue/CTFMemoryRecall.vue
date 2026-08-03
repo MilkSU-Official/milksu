@@ -33,6 +33,23 @@ function assistanceLabel(memory: CTFTrainingMemory) {
   if (memory.assistance === 'copilot') return '搭档协作'
   return '代理/未归属'
 }
+
+function fallbackEvidence(ref: string) {
+  const separator = ref.indexOf(':')
+  const kind = separator > 0 ? ref.slice(0, separator) : 'evidence'
+  const id = separator > 0 ? ref.slice(separator + 1) : ref
+  return {
+    kind,
+    id,
+    label: ref,
+  }
+}
+
+function evidenceLinks(memory: CTFTrainingMemory) {
+  return memory.recall?.evidence?.length
+    ? memory.recall.evidence
+    : memory.evidenceRefs.slice(0, 8).map(fallbackEvidence)
+}
 </script>
 
 <template>
@@ -101,17 +118,20 @@ function assistanceLabel(memory: CTFTrainingMemory) {
             </Badge>
           </div>
           <div
-            v-if="memory.recall?.reasons?.length || memory.recall?.evidence?.length"
+            v-if="memory.recall?.reasons?.length || evidenceLinks(memory).length"
             class="mt-3 rounded-md border border-border bg-background/60 p-2 text-caption leading-5 text-muted-foreground"
           >
             <p v-if="memory.recall?.reasons?.length">
               推荐依据：{{ memory.recall.reasons.slice(0, 2).join('；') }}
             </p>
-            <p v-if="memory.recall?.evidence?.length" class="mt-1">
+            <p v-if="evidenceLinks(memory).length" class="mt-1">
               可核对证据：
               <span
-                v-for="(evidence, index) in memory.recall.evidence.slice(0, 4)"
+                v-for="(evidence, index) in evidenceLinks(memory).slice(0, 4)"
                 :key="`${evidence.kind}:${evidence.id}`"
+                :title="`${evidence.kind}:${evidence.id}`"
+                :data-evidence-kind="evidence.kind"
+                :data-evidence-id="evidence.id"
               >
                 <span v-if="index">；</span>{{ evidence.label }}
               </span>
