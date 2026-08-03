@@ -78,7 +78,7 @@ describe('Coding policy presentation', () => {
       windowTitle: '已暂停的目标',
     }
 
-    const auto = describeActiveComputerUseCapability('workspace-auto', target)
+    const auto = describeActiveComputerUseCapability('go', 'workspace-auto', target)
     expect(auto.status).toBe('allowed')
     expect(auto.detail).toContain('Codex')
     expect(auto.detail).toContain('com.openai.codex')
@@ -86,9 +86,17 @@ describe('Coding policy presentation', () => {
     expect(auto.detail).toContain('Window 9001')
     expect(auto.detail).not.toContain('当前 MilkSU App')
 
-    const ask = describeActiveComputerUseCapability('ask', target)
+    const ask = describeActiveComputerUseCapability('go', 'ask', target)
     expect(ask.status).toBe('approval-required')
     expect(ask.detail).toContain('逐次确认观察和操作')
+
+    const plan = describeActiveComputerUseCapability('plan', 'workspace-auto', target)
+    expect(plan.status).toBe('blocked')
+    expect(plan.detail).toContain('当前 Plan 或只读策略不会操作可见 App')
+
+    const readOnly = describeActiveComputerUseCapability('go', 'read-only', target)
+    expect(readOnly.status).toBe('blocked')
+    expect(readOnly.detail).toContain('当前 Plan 或只读策略不会操作可见 App')
   })
 
   it('starts Computer Use only for the user-selected PID and window pair', () => {

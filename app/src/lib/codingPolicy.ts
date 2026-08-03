@@ -113,10 +113,17 @@ export function previewCodingCapabilities(
 }
 
 export function describeActiveComputerUseCapability(
+  executionMode: CodingExecutionMode,
   approvalPolicy: CodingApprovalPolicy,
   target: CodingComputerUseTarget,
 ): Pick<CodingCapability, 'status' | 'detail'> {
   const targetLabel = `${target.name} (${target.bundleId})，PID ${target.pid}，Window ${target.windowId}`
+  if (executionMode !== 'go' || approvalPolicy === 'read-only') {
+    return {
+      status: 'blocked',
+      detail: `已锁定 ${targetLabel}；当前 Plan 或只读策略不会操作可见 App。切换到普通 Go 后才会按所选权限档执行。`,
+    }
+  }
   return {
     status: approvalPolicy === 'ask' ? 'approval-required' : 'allowed',
     detail: approvalPolicy === 'ask'

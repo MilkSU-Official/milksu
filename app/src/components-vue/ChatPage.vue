@@ -321,7 +321,11 @@ const codingCapabilities = computed(() => {
   return capabilities.map(capability => capability.id === 'computer-use'
     ? {
         ...capability,
-        ...describeActiveComputerUseCapability(effectiveApprovalPolicy.value, target),
+        ...describeActiveComputerUseCapability(
+          effectiveExecutionMode.value,
+          effectiveApprovalPolicy.value,
+          target,
+        ),
       }
     : capability)
 })
