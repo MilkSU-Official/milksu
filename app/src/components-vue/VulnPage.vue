@@ -207,8 +207,11 @@ function statusVariant(status: VulnerabilityStatus) {
           <p class="mt-1 font-mono text-xl font-semibold">{{ dashboard.intelSources.length }}</p>
         </div>
         <div class="rounded-xl border border-border bg-card px-4 py-3">
-          <p class="text-caption text-muted-foreground">当前模式</p>
-          <p class="mt-1 font-medium">学习与追踪</p>
+          <p class="text-caption text-muted-foreground">练习环境</p>
+          <p class="mt-1 font-mono text-xl font-semibold">{{ dashboard.practiceEnvironmentCount.value }} 匹配</p>
+          <p class="mt-0.5 text-caption text-muted-foreground">
+            {{ dashboard.confirmedPracticeSessionCount.value }} 已确认计划
+          </p>
         </div>
       </div>
       </template>
