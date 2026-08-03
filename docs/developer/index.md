@@ -6,7 +6,7 @@
 ## 先读这五份
 
 1. [当前开发目标](/developer/current-objectives)：唯一目标契约；当前按优先级做广度优先开发。
-2. [目标覆盖台账](/developer/objective-coverage-ledger)：89 个稳定细项、实现证据、真实验收
+2. [目标覆盖台账](/developer/objective-coverage-ledger)：90 个稳定细项、实现证据、真实验收
    和缺口。
 3. [文档与事实状态](/developer/document-status)：文档生命周期、当前准确声明和暂停范围。
 4. [当前系统与分层](/architecture/current-system)：当前进程、模块、数据和边界。

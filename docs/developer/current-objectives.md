@@ -55,6 +55,8 @@
 
 1. **P0 · 长时间自主开发。** 打包 MilkSU 在“替我审批”或“完全访问”下持续完成真实功能，
    自动构建、测试、预览、恢复和交付，普通已授权操作不以无意义审批反复打断用户。
+   Computer Use 必须能由用户选择一个当前可见的外部 App / 窗口作为不可变 Scope，并让
+   纯文本主模型通过辅助视觉理解工具截图；不能只硬编码操作 MilkSU 自身。
 2. **P1 · 成熟能力集成。** ImageGen、Browser、前端设计/视觉回归 Skill、Project MCP 和
    高频 Plugin 优先复用固定版本、可审阅的成熟组件，以真实任务证明可用，不扩大同类自研
    Harness。
@@ -137,8 +139,12 @@ Coding 权限档位必须对所有能力入口保持可理解的一致语义，�
 - 预览工作区内普通 Markdown、HTML 和图片产物；
 - HTML 使用隔离渲染、严格 CSP、禁网、路径和大小限制；
 - Coding Browser 继续使用隔离 Profile，工具调用遵循统一 Coding 权限档位；
-- Computer Use 使用用户可见会话、明确应用范围，并遵循统一 Coding 权限档位，用于验证
-  MilkSU 原生 App；
+- Computer Use 使用用户可见会话、明确应用范围，并遵循统一 Coding 权限档位。用户可以
+  选择当前可见的 App / 窗口，生成精确到 bundle、PID 和窗口的不可变 Scope；模型不能在
+  会话中切换到未确认的其他 App、桌面或窗口；
+- Computer Use 的观察优先使用 Accessibility 结构；当目标控件缺少可靠结构信息时，
+  纯文本主模型必须能通过受控辅助视觉读取工具返回的截图，再回到结构化元素或坐标操作，
+  不能退化成盲猜位置；
 - Workspace Auto 不得隐式启用 Computer Use。
 
 ### B3 · 持续执行

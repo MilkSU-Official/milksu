@@ -45,7 +45,7 @@ Labs 与 CVE Research 保持 `Paused / Designed`，不进入当前完成条件�
 先按以下顺序阅读，避免从历史 ADR 恢复旧计划：
 
 1. [当前开发目标](docs/developer/current-objectives.md)：唯一目标契约、优先级和广度执行规则。
-2. [目标覆盖台账](docs/developer/objective-coverage-ledger.md)：89 个细项的证据、缺口与统一计分。
+2. [目标覆盖台账](docs/developer/objective-coverage-ledger.md)：90 个细项的证据、缺口与统一计分。
 3. [文档与事实状态](docs/developer/document-status.md)：哪些文档是 Current、Target、Evidence、
    Historical、Research 或 Paused。
 4. [当前系统与分层](docs/architecture/current-system.md)：当前代码中的进程、模块和边界。

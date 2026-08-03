@@ -153,7 +153,7 @@ Chrome DevTools MCP 的优势是 DevTools 网络、Console、Trace 和性能分�
 3. 启动前设置 `CUA_DRIVER_RS_TELEMETRY_ENABLED=0`，写入持久 opt-out，并用默认拒绝的 egress policy 验证没有遥测请求。
 4. 禁用 `CUA_DRIVER_RS_MCP_HTTP_PORT`；只允许 stdio proxy + 每次运行创建的私有 Unix socket，父目录 `0700`、socket `0600`，任务结束即删除。
 5. MilkSU 只暴露 allowlist 后的窗口级 screenshot/AX/click/type 工具；`launch_app`、desktop capture、全局热键、录制和 scope escalation 分别审批。
-6. Computer Use 是 Coding 自举验收的一部分，用于原生 App 的可见验证；它不是 CTF / Labs 前置，并且在产品化前必须固定依赖版本、默认关闭遥测并完成独立安全审查。
+6. Computer Use 是 Coding 自举验收的一部分，用于用户明确选择的可见 App / 窗口验证；它不是 CTF / Labs 前置，并且在产品化前必须固定依赖版本、默认关闭遥测并完成独立安全审查。
 
 当前判断：**没有发现故意后门的直接证据，但不接受直接安装或默认运行；保留 Rust Driver 为有条件的后期候选。**
 

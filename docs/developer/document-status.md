@@ -23,8 +23,9 @@
 ## 当前准确声明
 
 - Coding 的工程底座已经覆盖普通修改、构建测试、LSP、Artifact 预览、隔离 Browser、
-  后台任务、Git、PR 预览、worktree、ImageGen 和 Project MCP 等能力；完整长时间自举、
-  跨 App 重启和私有 PR Gate 尚未通过。
+  后台任务、Git、PR 预览、worktree、ImageGen、Project MCP 和 Computer Use 自控基础；
+  Computer Use 跨 App / 窗口选择、工具截图辅助视觉、完整长时间自举、跨 App 重启和私有
+  PR Gate 尚未通过。
 - CTF 的 Intake、工作区、Evidence、候选、Judge、Checkpoint、恢复、复盘和 Memory 主链
   已存在；NSSCTF P3879 有一条真实 `correct=true`，但六赛道仍只有 Web 窄路径通过。
 - 动态 Endpoint 和精确 HTTP/TCP/SSH Scope 主链已落地，后续只在真实赛道中保持回归；

@@ -47,7 +47,7 @@ flowchart LR
 | Coding Browser | **Verified** | `internal/browsercap` 由右侧页面显式启停专用 Chrome；Go Host 向当前 Pi Session 注入瞬态 loopback 描述符，固定 Playwright MCP 在逐次桌面审批下完成真实页面 E2E。 |
 | Artifact Preview | **Implemented / tested** | Markdown、HTML 与图片使用工作区路径、类型、大小和 HTML 隔离策略；尚缺打包 App 的完整三类型人工回归。 |
 | ImageGen | **Implemented / unverified provider** | 文生图、参考图编辑、项目资产和付费确认主链已接入；未在打包 App 中使用用户自行配置的真实 Provider 验收。 |
-| Computer Use | **Implemented / unverified OS permission** | 可见会话、应用范围和统一权限策略已经接线；macOS Accessibility / Screen Recording 尚未真实授权验收。 |
+| Computer Use | **Partial / self-target only** | 当前代码只允许控制 `com.milksu.app` 当前 PID；macOS Accessibility / Screen Recording 尚未真实授权验收；用户选择外部可见 App / 窗口和工具截图辅助视觉仍未实现。 |
 | Multi-Agent / worktree | **Implemented / unverified collaboration** | worktree 管理、恢复和安全收尾有自动化；尚无真实任务证明并行收益。 |
 | 本地持久化 | **Implemented** | `internal/appdata`、`internal/securityruntime`、Catalog、Conversation、Memory 和 Credential Store。 |
 | Managed Labs | **Paused** | 工作区存在实验代码，但已从当前交付范围移除，不是已发布系统能力。 |
@@ -128,6 +128,8 @@ flowchart TB
 - Browser Bridge 是 loopback 本地桥，只处理用户明确配对的页面；Coding Browser 则由
   MilkSU 启动 Conversation 隔离的专用 Chrome。二者都不会把用户整个日常 Chrome Profile
   交给模型，且 Coding 的 CDP 描述符不会写入前端、SQLite 或项目配置。
+- Computer Use 当前仍只把 MilkSU 自身作为固定目标；跨 App 的用户选择、bundle / PID /
+  窗口不可变 Scope，以及纯文本模型读取工具截图的辅助视觉回路仍是当前 P0 缺口。
 - SQLite、工作区和制品均位于 `os.UserConfigDir()/com.milksu.app`，不写入应用包或源码目录。
 - `credentials.db` 依赖当前 OS 用户和文件权限，不提供静态加密；这是已知产品权衡。
 

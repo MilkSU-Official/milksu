@@ -81,7 +81,7 @@ flowchart LR
 | Coding Browser | 用户从右侧浏览器页显式启动专用 Chrome；工具调用遵循当前权限档位并保留页面、Console、Network 和截图证据 | **否** | 固定 Playwright MCP + Go Browser Manager + MilkSU Sandbox |
 | Artifact Preview | 工作区内 Markdown、HTML 和图片；HTML 使用隔离、CSP、禁网和大小限制 | **否** | Go Preview Policy + Vue right page |
 | ImageGen | 文生图和参考图编辑；用户明确发起付费动作，输出限制在项目资产范围并可预览 | **否** | 受控 Provider Adapter |
-| Computer Use | 用户可见的 macOS 会话与固定应用范围；调用遵循当前权限档位，Workspace Auto 不会隐式启用 | **否** | Go Host + Computer Use Adapter |
+| Computer Use | 用户选择当前可见 App / 窗口并锁定不可变 Scope；当前实现仍固定 MilkSU 自身，调用遵循当前权限档位，Workspace Auto 不会隐式启用 | **否** | Go Host + Computer Use Adapter |
 | PR / worktree | PR 发布前展示仓库、分支、提交和目标；写入 Agent 使用独立 worktree | **否** | Go Git/Platform Adapter |
 | 文件 / 图片附件 | 是；复制到用户数据目录，纯文本模型可走本地 OCR 或已配置视觉模型 | 使用 CTF Material 管线，不复用 Coding 附件上下文 | MilkSU 附件桥 + 本地 OCR |
 | CTF 类型化工具 | 否 | 按 Role、Scope 和协作模式 | MilkSU CTF Harness |
@@ -119,9 +119,10 @@ ID 暂停，桌面明确显示目标、参数和风险，并把一次性批准�
 审批”和“完全访问”中制造无意义的逐次确认。Coding Browser 只能由用户从右侧页面显式
 启动，使用
 Conversation 隔离 Profile；Go Host 只向当前 Pi Session 注入瞬态 loopback 描述符，
-不把 CDP 地址写进前端、SQLite 或项目配置。Computer Use 已有可见会话和应用范围主链，
-但 macOS Accessibility / Screen Recording 尚未完成真实验收。Provider API Key 不进入
-模型上下文，也不传给 Bash、MCP 或 Computer Use 子进程。
+不把 CDP 地址写进前端、SQLite 或项目配置。Computer Use 已有自控 MilkSU 的可见会话主链，
+但跨 App 的用户选择、bundle / PID / 窗口不可变 Scope、纯文本模型读取工具截图的辅助视觉
+回路，以及 macOS Accessibility / Screen Recording 真实验收仍未完成。Provider API Key
+不进入模型上下文，也不传给 Bash、MCP 或 Computer Use 子进程。
 
 ## 资源加载与供应链
 
