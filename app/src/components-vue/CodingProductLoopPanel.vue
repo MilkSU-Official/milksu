@@ -16,6 +16,9 @@ type ArtifactPreviewEvidence = {
   relativePath: string
   kind: 'markdown' | 'html' | 'image'
 }
+type BrowserEvidence = {
+  path: string
+}
 
 const props = defineProps<{
   workspacePath: string
@@ -31,6 +34,7 @@ const props = defineProps<{
   browserStatus: CodingBrowserStatus | null
   computerUseStatus: CodingComputerUseStatus | null
   artifactPreviewEvidence?: ArtifactPreviewEvidence | null
+  browserEvidence?: BrowserEvidence | null
 }>()
 
 const emit = defineEmits<{
@@ -66,6 +70,7 @@ const validationReady = computed(() => (
 
 const visibleValidationPerformed = computed(() => (
   Boolean(props.artifactPreviewEvidence)
+  || Boolean(props.browserEvidence)
   || Boolean(props.browserStatus?.enabled)
   || Boolean(props.computerUseStatus?.enabled)
 ))
@@ -77,6 +82,9 @@ const validationDetail = computed(() => {
       : '',
     props.artifactPreviewEvidence
       ? `已预览 ${artifactKindLabel(props.artifactPreviewEvidence.kind)}：${props.artifactPreviewEvidence.relativePath}`
+      : '',
+    props.browserEvidence
+      ? `已打开浏览器证据：${props.browserEvidence.path}`
       : '',
     props.browserStatus?.enabled ? 'Browser 已接入' : '',
     props.computerUseStatus?.enabled ? 'Computer Use 已接入' : '',
@@ -232,16 +240,18 @@ const verificationRecords = computed(() => [
   },
   {
     label: '真实 App 验收',
-    state: props.artifactPreviewEvidence
+    state: props.artifactPreviewEvidence || props.browserEvidence
       ? '已有证据'
       : props.browserStatus?.enabled || props.computerUseStatus?.enabled
         ? '可执行'
         : '未证明',
     detail: props.artifactPreviewEvidence
       ? `已打开产物预览：${props.artifactPreviewEvidence.relativePath}；若需要真实交互，再补 Browser 或 Computer Use。`
-      : props.browserStatus?.enabled || props.computerUseStatus?.enabled
-        ? 'Browser/Computer Use 已接入；仍需实际截图、DOM、控制台或窗口操作证据。'
-        : '当前只有组件/构建证据；打包 App 或 Browser 真实验收尚未证明。',
+      : props.browserEvidence
+        ? `已打开浏览器证据目录：${props.browserEvidence.path}；用于核对截图、Console、Network 或页面证据。`
+        : props.browserStatus?.enabled || props.computerUseStatus?.enabled
+          ? 'Browser/Computer Use 已接入；仍需实际截图、DOM、控制台或窗口操作证据。'
+          : '当前只有组件/构建证据；打包 App 或 Browser 真实验收尚未证明。',
   },
   computerUseVerificationRecord.value,
   {

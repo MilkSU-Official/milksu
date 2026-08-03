@@ -199,6 +199,7 @@ const codingBrowserEvidenceLoading = ref(false)
 const codingBrowserEvidenceError = ref('')
 const codingBrowserEvidenceRevealed = ref(false)
 const artifactPreviewEvidence = ref<{ relativePath: string; kind: CodingArtifactPreview['kind'] } | null>(null)
+const browserEvidence = ref<{ path: string } | null>(null)
 const computerUseLoading = ref(false)
 const computerUseStatus = ref<CodingComputerUseStatus | null>(null)
 const computerUseTargets = ref<CodingComputerUseTarget[]>([])
@@ -843,6 +844,7 @@ async function startCodingBrowser() {
     )
     codingBrowserEvidenceError.value = ''
     codingBrowserEvidenceRevealed.value = false
+    browserEvidence.value = null
   } catch (reason) {
     browserPanelError.value = reason instanceof Error
       ? reason.message
@@ -864,6 +866,7 @@ async function stopCodingBrowser() {
     )
     codingBrowserEvidenceError.value = ''
     codingBrowserEvidenceRevealed.value = false
+    browserEvidence.value = null
   } catch (reason) {
     browserPanelError.value = reason instanceof Error
       ? reason.message
@@ -890,6 +893,9 @@ async function revealCodingBrowserEvidence() {
       conversationId: conversationID,
     })
     codingBrowserEvidenceRevealed.value = true
+    browserEvidence.value = codingBrowserEvidencePath.value
+      ? { path: codingBrowserEvidencePath.value }
+      : null
   } catch (reason) {
     codingBrowserEvidenceError.value = reason instanceof Error
       ? reason.message
@@ -1070,6 +1076,7 @@ watch(() => props.conversation?.id, () => {
   codingBrowserEvidenceError.value = ''
   codingBrowserEvidenceRevealed.value = false
   artifactPreviewEvidence.value = null
+  browserEvidence.value = null
   void scrollChatToBottom()
   if (contextPanel.value === 'browser' && environmentOpen.value) {
     void refreshBrowserPanel()
@@ -1351,6 +1358,7 @@ watch(
           :browser-status="codingBrowserStatus"
           :computer-use-status="computerUseStatus"
           :artifact-preview-evidence="artifactPreviewEvidence"
+          :browser-evidence="browserEvidence"
           @open-panel="changeContextPanel"
         />
 
