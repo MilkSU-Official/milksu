@@ -85,6 +85,7 @@ import type {
   CTFProjection,
   CTFSummary,
   CTFTrainingMemory,
+  CTFTrainingMemoryEvidenceLink,
 } from '@/ctfTypes'
 import type { CTFTrainingPlatform } from '@/ctfPlatformTypes'
 import type { ManagedLabAccess } from '@/ctfLabTypes'
@@ -1371,6 +1372,10 @@ async function archiveTrainingMemory(memory: CTFTrainingMemory) {
   } finally {
     working.value = false
   }
+}
+
+function inspectTrainingMemoryEvidence(evidence: CTFTrainingMemoryEvidenceLink) {
+  outcomeNotice.value = `正在核对记忆证据 ${evidence.kind}:${evidence.id}。请以当前题目证据、Judge 回执、提示和步骤记录为准，不把旧题记忆直接当作用户能力事实。`
 }
 
 async function submitCandidate() {
@@ -2899,6 +2904,7 @@ onBeforeUnmount(() => {
                     :memories="recalledMemories"
                     :loading="memoryLoading"
                     @archive="archiveTrainingMemory"
+                    @inspect-evidence="inspectTrainingMemoryEvidence"
                   />
 
                   <section

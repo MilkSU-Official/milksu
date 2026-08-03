@@ -47,12 +47,16 @@ function memory(overrides: Partial<CTFTrainingMemory> = {}): CTFTrainingMemory {
 describe('CTFMemoryRecall', () => {
   it('separates correctness evidence from user ability attribution', async () => {
     const archived: CTFTrainingMemory[] = []
+    const inspected: string[] = []
     const delegatedMemory = memory()
     const host = document.createElement('div')
     document.body.append(host)
     const app = createApp(CTFMemoryRecall, {
       memories: [delegatedMemory],
       onArchive: (value: CTFTrainingMemory) => archived.push(value),
+      onInspectEvidence: (value: { kind: string, id: string }) => {
+        inspected.push(`${value.kind}:${value.id}`)
+      },
     })
     app.mount(host)
     mountedApps.push(app)
@@ -66,8 +70,12 @@ describe('CTFMemoryRecall', () => {
     expect(text).toContain('Judge 回执 receipt_1')
     expect(text).toContain('失败分支 branch_1')
     expect(text).not.toContain('用户完成 · 无协助')
-    expect(host.querySelector('[data-evidence-kind="judge"]')?.getAttribute('data-evidence-id'))
+    const judgeEvidence = host.querySelector<HTMLButtonElement>('[data-evidence-kind="judge"]')
+    expect(judgeEvidence?.getAttribute('data-evidence-id'))
       .toBe('receipt_1')
+    judgeEvidence?.click()
+    await nextTick()
+    expect(inspected).toEqual(['judge:receipt_1'])
 
     const archive = host.querySelector<HTMLButtonElement>(
       'button[aria-label="停用记忆：栈偏移枚举策略"]',
@@ -79,6 +87,7 @@ describe('CTFMemoryRecall', () => {
   })
 
   it('falls back to stored evidence references when recall links are absent', async () => {
+    const inspected: string[] = []
     const host = document.createElement('div')
     document.body.append(host)
     const app = createApp(CTFMemoryRecall, {
@@ -96,6 +105,9 @@ describe('CTFMemoryRecall', () => {
         recall: undefined,
       })],
       onArchive: () => {},
+      onInspectEvidence: (value: { kind: string, id: string }) => {
+        inspected.push(`${value.kind}:${value.id}`)
+      },
     })
     app.mount(host)
     mountedApps.push(app)
@@ -109,7 +121,11 @@ describe('CTFMemoryRecall', () => {
     expect(text).toContain('hint:hint_used_1')
     expect(text).toContain('step:user_step_1')
     expect(text).not.toContain('failure:dead_branch_1')
-    expect(host.querySelector('[data-evidence-kind="judge"]')?.getAttribute('title'))
+    const judgeEvidence = host.querySelector<HTMLButtonElement>('[data-evidence-kind="judge"]')
+    expect(judgeEvidence?.getAttribute('title'))
       .toBe('judge:receipt_crypto_1')
+    judgeEvidence?.click()
+    await nextTick()
+    expect(inspected).toEqual(['judge:receipt_crypto_1'])
   })
 })

@@ -2,7 +2,7 @@
 import { Archive, BrainCircuit } from 'lucide-vue-next'
 import { Badge, Button } from '@felinic/ui'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
-import type { CTFTrainingMemory } from '@/ctfTypes'
+import type { CTFTrainingMemory, CTFTrainingMemoryEvidenceLink } from '@/ctfTypes'
 
 defineProps<{
   memories: CTFTrainingMemory[]
@@ -11,6 +11,7 @@ defineProps<{
 
 const emit = defineEmits<{
   archive: [memory: CTFTrainingMemory]
+  inspectEvidence: [evidence: CTFTrainingMemoryEvidenceLink]
 }>()
 
 function verificationLabel(memory: CTFTrainingMemory) {
@@ -126,15 +127,18 @@ function evidenceLinks(memory: CTFTrainingMemory) {
             </p>
             <p v-if="evidenceLinks(memory).length" class="mt-1">
               可核对证据：
-              <span
+              <button
                 v-for="(evidence, index) in evidenceLinks(memory).slice(0, 4)"
                 :key="`${evidence.kind}:${evidence.id}`"
+                type="button"
+                class="rounded-sm text-left underline decoration-dotted underline-offset-2 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 :title="`${evidence.kind}:${evidence.id}`"
                 :data-evidence-kind="evidence.kind"
                 :data-evidence-id="evidence.id"
+                @click="emit('inspectEvidence', evidence)"
               >
                 <span v-if="index">；</span>{{ evidence.label }}
-              </span>
+              </button>
             </p>
           </div>
         </article>
