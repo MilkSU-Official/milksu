@@ -91,7 +91,8 @@ func TestSelectControlsDoNotVerticallyClipTheirLabels(t *testing.T) {
 		`[data-slot="native-select"],`,
 		`[data-slot="select-trigger"]`,
 		`padding-block: 0`,
-		`line-height: var(--text-body--line-height, 1rem)`,
+		`[data-slot="input"][data-size="sm"]`,
+		`line-height: var(--text-control--line-height, 1.25rem)`,
 	} {
 		if !strings.Contains(styleSource, expected) {
 			t.Fatalf("application select typography does not expose %q", expected)

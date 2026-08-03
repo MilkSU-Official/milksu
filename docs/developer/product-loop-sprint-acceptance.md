@@ -846,3 +846,36 @@
 - Settings、Lab 计划页和所有深层详情卡片已经完成同一视觉规格；
 - `Textarea`、Tabs、表格行高、统计卡和卡片按钮已经全局收敛；
 - 原生 App 中不同窗口尺寸下的完整视觉 QA。
+
+## 2026-08-04 · Latest HEAD M3 release check after UI sprint
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | `02cd736` + 本批次门禁契约修正 |
+| 命令 | `npm run m3:release-check` |
+| 首次结果 | 失败于 `TestSelectControlsDoNotVerticallyClipTheirLabels`，原因是 Go 契约仍期待旧 `text-body` 行高，和本轮 compact 控件统一到 `text-control` 的新规格不一致 |
+| 修正 | 更新 Go 侧样式契约，要求 `Input`、`NativeSelect`、`SelectTrigger` 的 compact 控件共享 `text-control` 行高 |
+| 重跑结果 | 通过，输出 `M3 engineering release checks passed.` |
+| 本地 App | `/Users/milksu/code/milksu/build/bin/MilkSU.app` |
+| 生成入口 | Wails build 输出 `Built '/Users/milksu/code/milksu/build/bin/MilkSU.app/Contents/MacOS/MilkSU' in 22.135s.` |
+
+覆盖范围：
+
+- Go 全量测试；
+- Node policy / bridge / runtime 契约测试：162 pass；
+- 前端 Vitest：49 files / 223 tests passed；
+- 前端 lint；
+- 前端 production build；
+- Sidecar packaged smoke；
+- deterministic Coding delivery fixture，输出 `milksu-coding-delivery/v1alpha1`，score 100，外部 Provider cost 0；
+- docs build；
+- Wails production build；
+- macOS self-sign；
+- 最新 HEAD 的本地 `MilkSU.app` 重新生成。
+
+本次仍未证明：
+
+- 用户在原生 App 中真实点击完成 CTF / CVE / Coding 跨模块验收；
+- 完整 “MilkSU develops MilkSU” Vue + Go 自举任务；
+- 外部 App Computer Use 真实操作；
+- Developer ID、公证、升级和外部 Beta 发行门禁。
