@@ -190,7 +190,7 @@ defineExpose({ open, resetAndClose })
         <div class="grid gap-4 sm:grid-cols-2">
           <label class="block">
             <span class="mb-2 block text-label font-medium">题型</span>
-            <NativeSelect v-model="category">
+            <NativeSelect v-model="category" size="sm">
               <NativeSelectOption value="web">Web</NativeSelectOption>
               <NativeSelectOption value="pwn">Pwn</NativeSelectOption>
               <NativeSelectOption value="reverse">Reverse</NativeSelectOption>
@@ -202,7 +202,7 @@ defineExpose({ open, resetAndClose })
 
           <label class="block">
             <span class="mb-2 block text-label font-medium">入口</span>
-            <NativeSelect v-model="sourceKind">
+            <NativeSelect v-model="sourceKind" size="sm">
               <NativeSelectOption value="text">题面 / 附件</NativeSelectOption>
               <NativeSelectOption value="url">Web URL</NativeSelectOption>
               <NativeSelectOption value="socket">TCP 服务</NativeSelectOption>

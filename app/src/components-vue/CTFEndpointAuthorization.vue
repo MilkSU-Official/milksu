@@ -185,7 +185,7 @@ function submitRequest() {
       <div class="grid gap-3 sm:grid-cols-[110px_minmax(0,1fr)]">
         <label class="space-y-1">
           <span class="text-caption text-muted-foreground">协议</span>
-          <NativeSelect v-model="protocol" aria-label="Endpoint 协议">
+          <NativeSelect v-model="protocol" size="sm" aria-label="Endpoint 协议">
             <NativeSelectOption value="http">HTTP</NativeSelectOption>
             <NativeSelectOption value="https">HTTPS</NativeSelectOption>
             <NativeSelectOption value="tcp">TCP</NativeSelectOption>
@@ -194,7 +194,7 @@ function submitRequest() {
         </label>
         <label class="space-y-1">
           <span class="text-caption text-muted-foreground">域名 / IP 与端口</span>
-          <Input v-model="endpoint" :placeholder="endpointPlaceholder" maxlength="4096" />
+          <Input v-model="endpoint" size="sm" :placeholder="endpointPlaceholder" maxlength="4096" />
         </label>
       </div>
       <label class="block space-y-1">

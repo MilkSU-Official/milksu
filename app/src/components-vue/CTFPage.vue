@@ -2001,6 +2001,7 @@ onBeforeUnmount(() => {
           <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
             <NativeSelect
               v-model="activeBank"
+              size="sm"
               aria-label="选择题库"
             >
               <NativeSelectOption
@@ -2128,8 +2129,8 @@ onBeforeUnmount(() => {
 
             <template v-else>
               <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_180px]">
-                <Input v-model="ctfshowQuery" placeholder="搜索题号、题名或标签" />
-                <NativeSelect v-model="ctfshowCategory" aria-label="题型">
+                <Input v-model="ctfshowQuery" size="sm" placeholder="搜索题号、题名或标签" />
+                <NativeSelect v-model="ctfshowCategory" size="sm" aria-label="题型">
                   <NativeSelectOption value="all">全部题型</NativeSelectOption>
                   <NativeSelectOption
                     v-for="category in ctfshowCategories"

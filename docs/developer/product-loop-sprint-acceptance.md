@@ -820,3 +820,29 @@
 - 页面内部二级标题、统计数字、卡片按钮和下拉菜单已经完成全局视觉系统收敛；
 - 打包原生 App 在不同窗口尺寸下的顶栏截屏回归；
 - CTF 解题态、CVE 详情态和 Coding 右侧栏所有子组件的细节字号完全一致。
+
+## 2026-08-04 · Compact form control visual contract
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | 本批次提交 |
+| 目标流 | CTF / CVE 主工作区里的同类搜索框、下拉和表单输入保持相同 compact 规格 |
+| 窄测 | `npm --prefix app test -- globalStyleContract.test.ts WorkspaceTopBar.test.ts CTFEndpointAuthorization.test.ts VulnPage.test.ts CTFPageNavigationContract.test.ts` |
+| 窄测结果 | 5 files / 20 tests passed |
+| 前端构建 | `npm --prefix app run build` |
+| 构建结果 | production build passed |
+| Browser 验证 | Vite preview `http://127.0.0.1:4186/`；进入 CVE，打开“新增追踪”，读取 Select/Input 的实际 computed style |
+
+覆盖范围：
+
+- `Input[data-size="sm"]`、`NativeSelect[data-size="sm"]` 和 `SelectTrigger[data-size="sm"]` 统一到同一 compact 字号与行高；
+- CTF 顶部题库切换、CTFshow 搜索/题型筛选、手动题目导入的题型/入口 Select、Endpoint 协议/地址控件显式使用 `size="sm"`；
+- CVE 新增追踪表单和资产表单的 Input 显式使用 `size="sm"`；
+- Browser preview 复验 CVE 表单 Select 与 Input 均为 `14px` 字号、`20px` 行高、`32px` 高度；
+- Browser preview 无 relevant console error / warn，无 Vite overlay。
+
+本次仍未证明：
+
+- Settings、Lab 计划页和所有深层详情卡片已经完成同一视觉规格；
+- `Textarea`、Tabs、表格行高、统计卡和卡片按钮已经全局收敛；
+- 原生 App 中不同窗口尺寸下的完整视觉 QA。

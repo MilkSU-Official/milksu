@@ -150,19 +150,22 @@ select {
 }
 
 [data-slot="native-select"][data-size="sm"],
-[data-slot="select-trigger"][data-size="sm"] {
-  font-size: var(--text-body, 0.75rem);
-  line-height: var(--text-body--line-height, 1rem);
+[data-slot="select-trigger"][data-size="sm"],
+[data-slot="input"][data-size="sm"] {
+  font-size: var(--text-control, 0.875rem);
+  line-height: var(--text-control--line-height, 1.25rem);
 }
 
 [data-slot="native-select"][data-size="default"],
-[data-slot="select-trigger"][data-size="default"] {
+[data-slot="select-trigger"][data-size="default"],
+[data-slot="input"][data-size="default"] {
   font-size: var(--text-label, 0.8125rem);
   line-height: var(--text-label--line-height, 1.125rem);
 }
 
 [data-slot="native-select"][data-size="lg"],
-[data-slot="select-trigger"][data-size="lg"] {
+[data-slot="select-trigger"][data-size="lg"],
+[data-slot="input"][data-size="lg"] {
   font-size: var(--text-control, 0.875rem);
   line-height: var(--text-control--line-height, 1.25rem);
 }

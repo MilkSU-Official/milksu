@@ -258,14 +258,14 @@ function statusVariant(status: VulnerabilityStatus) {
             <Badge variant="outline">本地</Badge>
           </div>
           <div class="mt-4 grid gap-3 sm:grid-cols-2">
-            <Input v-model="customForm.id" placeholder="CVE-2024-12345" />
-            <Input v-model="customForm.product" placeholder="组件 / 产品，例如 nginx" />
-            <Input v-model="customForm.vendor" placeholder="厂商 / 项目，例如 F5" />
-            <Input v-model="customForm.affected" placeholder="受影响版本范围" />
-            <Input v-model="customForm.title" class="sm:col-span-2" placeholder="漏洞标题或学习主题" />
-            <Input v-model="customForm.referenceHref" class="sm:col-span-2" placeholder="公告、补丁或学习材料 URL（可选）" />
-            <Input v-model="customForm.learningGoal" class="sm:col-span-2" placeholder="这次想学会什么 / 要确认什么" />
-            <Input v-model="customForm.summary" class="sm:col-span-2" placeholder="一句话背景（可选）" />
+            <Input v-model="customForm.id" size="sm" placeholder="CVE-2024-12345" />
+            <Input v-model="customForm.product" size="sm" placeholder="组件 / 产品，例如 nginx" />
+            <Input v-model="customForm.vendor" size="sm" placeholder="厂商 / 项目，例如 F5" />
+            <Input v-model="customForm.affected" size="sm" placeholder="受影响版本范围" />
+            <Input v-model="customForm.title" size="sm" class="sm:col-span-2" placeholder="漏洞标题或学习主题" />
+            <Input v-model="customForm.referenceHref" size="sm" class="sm:col-span-2" placeholder="公告、补丁或学习材料 URL（可选）" />
+            <Input v-model="customForm.learningGoal" size="sm" class="sm:col-span-2" placeholder="这次想学会什么 / 要确认什么" />
+            <Input v-model="customForm.summary" size="sm" class="sm:col-span-2" placeholder="一句话背景（可选）" />
           </div>
           <p v-if="customFormError" class="mt-3 text-caption text-destructive">{{ customFormError }}</p>
           <div class="mt-4 flex items-center gap-2">
@@ -640,9 +640,9 @@ function statusVariant(status: VulnerabilityStatus) {
             @submit.prevent="addSelectedAssetRecord"
           >
             <div class="grid gap-2 sm:grid-cols-3">
-              <Input v-model="assetForm.name" placeholder="资产名称" />
-              <Input v-model="assetForm.address" placeholder="地址 / 仓库 / 服务" />
-              <Input v-model="assetForm.environment" placeholder="环境，例如生产 / 本地" />
+              <Input v-model="assetForm.name" size="sm" placeholder="资产名称" />
+              <Input v-model="assetForm.address" size="sm" placeholder="地址 / 仓库 / 服务" />
+              <Input v-model="assetForm.environment" size="sm" placeholder="环境，例如生产 / 本地" />
             </div>
             <p v-if="assetFormError" class="mt-2 text-caption text-destructive">{{ assetFormError }}</p>
             <div class="mt-3 flex items-center gap-2">

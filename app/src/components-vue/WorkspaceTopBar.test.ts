@@ -3,6 +3,8 @@
 import { createApp, nextTick, type App } from 'vue'
 import { afterEach, describe, expect, it } from 'vitest'
 import chatPageSource from './ChatPage.vue?raw'
+import ctfEndpointAuthorizationSource from './CTFEndpointAuthorization.vue?raw'
+import ctfManualIntakeSource from './CTFManualIntake.vue?raw'
 import ctfPageSource from './CTFPage.vue?raw'
 import ctfWorkspaceHeaderSource from './CTFWorkspaceHeader.vue?raw'
 import vulnPageSource from './VulnPage.vue?raw'
@@ -113,8 +115,17 @@ describe('WorkspaceTopBar', () => {
     expect(ctfPageSource).toContain('<SelectContent size="sm"')
     expect(ctfPageSource).toContain('v-model="deskQuery"\n          size="sm"')
     expect(ctfPageSource).toContain('v-model="deskCategory"\n        size="sm"')
+    expect(ctfPageSource).toContain('v-model="activeBank"\n              size="sm"')
+    expect(ctfPageSource).toContain('v-model="ctfshowQuery" size="sm"')
+    expect(ctfPageSource).toContain('v-model="ctfshowCategory" size="sm"')
+    expect(ctfManualIntakeSource).toContain('v-model="category" size="sm"')
+    expect(ctfManualIntakeSource).toContain('v-model="sourceKind" size="sm"')
+    expect(ctfEndpointAuthorizationSource).toContain('v-model="protocol" size="sm"')
+    expect(ctfEndpointAuthorizationSource).toContain('v-model="endpoint" size="sm"')
     expect(vulnPageSource).toContain('v-model="dashboard.query.value" size="sm"')
     expect(vulnPageSource).toContain('<NativeSelect v-model="dashboard.severity.value" size="sm">')
+    expect(vulnPageSource).toContain('v-model="customForm.id" size="sm"')
+    expect(vulnPageSource).toContain('v-model="assetForm.name" size="sm"')
     expect(chatPageSource).toContain('<SelectTrigger\n          size="sm"')
     expect(chatPageSource).toContain('<SelectContent size="sm"')
   })
