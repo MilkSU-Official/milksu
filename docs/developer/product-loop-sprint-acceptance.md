@@ -147,3 +147,27 @@
 - 打包 App 中真实模拟 Sidecar/Agent 启动失败后的 UI 视觉；
 - CVE 任务交给 Coding 后 Agent 实际研究质量；
 - Docker/Vulhub 练习启动链路。
+
+## 2026-08-04 · Computer Use quick connection path
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | `1698e39` |
+| 窄测 | `npm run test -- --run src/components-vue/CodingProductLoopPanel.test.ts src/components-vue/CodingComputerUsePanel.test.ts` |
+| 窄测结果 | 2 files / 20 tests passed |
+| 全量前端 | `npm run test && npm run build` |
+| 全量前端结果 | 45 files / 197 tests passed；production build passed |
+| Browser 验证 | Vite preview `http://127.0.0.1:4173/`；进入 Coding，点击 Computer Use 快速接入 |
+
+覆盖范围：
+
+- Coding 产品闭环卡在 Computer Use 未检测、不可用、待授权或待启动时显示“Computer Use 快速接入”；
+- 快速接入按钮会打开右侧“浏览器与 App”面板；
+- “浏览器与 App”面板内可见 Computer Use 接入清单和“启动可见会话”；
+- Browser preview 页面加载为 `MilkSU`，点击快速接入后无 relevant console error / warn。
+
+本次仍未证明：
+
+- macOS 打包 App 中真实弹出系统辅助功能/屏幕录制授权；
+- Computer Use driver 对外部 App 的真实观察、点击或输入；
+- “替我审批”下无意义审批的端到端消除。
