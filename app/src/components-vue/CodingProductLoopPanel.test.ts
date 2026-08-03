@@ -129,6 +129,10 @@ describe('CodingProductLoopPanel', () => {
 
     expect(text).toContain('本轮产品闭环')
     expect(text).toContain('只展示当前证据')
+    expect(text).toContain('合并状态')
+    expect(text).toContain('待补证明')
+    expect(text).toContain('还差 3 项')
+    expect(text).toContain('做一次用户可见验证、验证失败/继续路径、收口 Git 交付')
     expect(text).toContain('选择任务与仓库')
     expect(text).toContain('Agent 执行')
     expect(text).toContain('用户可见验证')
@@ -258,6 +262,7 @@ describe('CodingProductLoopPanel', () => {
     expect(host.textContent).toContain('验收记录：')
     expect(host.textContent).toContain('用户验收清单：')
     expect(host.textContent).toContain('进行中 3. 做一次用户可见验证')
+    expect(host.textContent).toContain('合并状态：待补证明')
     expect(host.textContent).toContain('窄自动化：已有记录')
     expect(host.textContent).toContain('真实 App 验收：未证明')
     expect(host.textContent).toContain('恢复/继续：待补')
@@ -364,6 +369,22 @@ describe('CodingProductLoopPanel', () => {
     await nextTick()
 
     expect(onCompactContext).toHaveBeenCalledOnce()
+  })
+
+  it('marks the loop merge-ready only after validation, recovery, and Git are all done', async () => {
+    const { host } = await mountPanel({
+      environment: cleanEnvironment,
+      resumed: true,
+      artifactPreviewEvidence: {
+        relativePath: 'preview/result.html',
+        kind: 'html',
+      },
+    })
+
+    expect(host.textContent).toContain('合并状态')
+    expect(host.textContent).toContain('合并就绪')
+    expect(host.textContent).toContain('当前证据满足这张产品闭环验收清单')
+    expect(host.textContent).toContain('合并状态：合并就绪')
   })
 
   it('treats opened Browser evidence as visible validation evidence', async () => {
