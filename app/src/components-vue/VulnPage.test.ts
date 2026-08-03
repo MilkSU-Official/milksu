@@ -33,6 +33,22 @@ async function mountVulnPage() {
   return host
 }
 
+async function mountVulnPageWithWorkspace(path = '') {
+  const host = document.createElement('div')
+  document.body.append(host)
+  let chooseCount = 0
+  const app = createApp(VulnPage, {
+    codingWorkspacePath: path,
+    onChooseCodingWorkspace: () => {
+      chooseCount += 1
+    },
+  })
+  app.mount(host)
+  mountedApps.push(app)
+  await nextTick()
+  return { host, chooseCount: () => chooseCount }
+}
+
 async function mountVulnPageWithCodingTaskSink() {
   const host = document.createElement('div')
   document.body.append(host)
@@ -71,12 +87,34 @@ describe('VulnPage', () => {
     expect(text).toContain('学习与追踪')
     expect(text).toContain('学习路径')
     expect(text).toContain('隔离练习环境')
+    expect(text).toContain('Coding 接力范围')
     expect(text).toContain('Agent 可接手任务')
     expect(text).toContain('研究任务工作区')
     expect(text).toContain('安全边界')
     expect(text).toContain('不批量扫描或攻击外部目标')
     expect(text).toContain('不自动运行 PoC、exploit 或漏洞触发输入')
     expect(text).not.toContain('红队 Agent')
+  })
+
+  it('shows the Coding workspace scope before handing CVE tasks to Coding', async () => {
+    const empty = await mountVulnPageWithWorkspace()
+    expect(empty.host.textContent).toContain('临时工作区')
+    expect(empty.host.textContent).toContain('项目影响检查')
+    const choose = [...empty.host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
+      item.textContent?.includes('选择项目目录'),
+    )
+    if (!choose) throw new Error('missing choose workspace button')
+    choose.click()
+    await nextTick()
+    expect(empty.chooseCount()).toBe(1)
+
+    for (const app of mountedApps.splice(0)) app.unmount()
+    document.body.innerHTML = ''
+
+    const scoped = await mountVulnPageWithWorkspace('/Users/milksu/code/milksu')
+    expect(scoped.host.textContent).toContain('已选择项目')
+    expect(scoped.host.textContent).toContain('/Users/milksu/code/milksu')
+    expect(scoped.host.textContent).toContain('更换项目目录')
   })
 
   it('lets the user create a visible research tracking task', async () => {

@@ -19,6 +19,7 @@ import {
   ClipboardList,
   ExternalLink,
   FileText,
+  FolderOpen,
   Plus,
   Play,
   RefreshCw,
@@ -37,8 +38,13 @@ import type { VulnerabilitySeverity, VulnerabilityStatus } from '@/vulnerability
 
 defineOptions({ name: 'VulnPage' })
 
+defineProps<{
+  codingWorkspacePath?: string
+}>()
+
 defineEmits<{
   openSettings: []
+  chooseCodingWorkspace: []
   startCodingTask: [task: VulnerabilityCodingTask]
 }>()
 const dashboard = useVulnerabilityDashboard()
@@ -558,6 +564,31 @@ function statusVariant(status: VulnerabilityStatus) {
                 <span class="block text-body font-medium">{{ event.label }}</span>
                 <span class="mt-0.5 block text-caption text-muted-foreground">{{ event.detail }}</span>
               </span>
+            </div>
+          </div>
+        </section>
+
+        <section class="border-b border-border px-6 py-5">
+          <div class="flex items-center justify-between gap-3">
+            <h3 class="text-label font-medium">Coding 接力范围</h3>
+            <Badge :variant="codingWorkspacePath ? 'success' : 'outline'">
+              {{ codingWorkspacePath ? '已选择项目' : '临时工作区' }}
+            </Badge>
+          </div>
+          <div class="mt-3 rounded-xl border border-border bg-card px-4 py-3">
+            <p v-if="codingWorkspacePath" class="truncate font-mono text-caption text-muted-foreground">
+              {{ codingWorkspacePath }}
+            </p>
+            <p v-else class="text-caption leading-5 text-muted-foreground">
+              尚未选择授权项目；交给 Coding 后仍可先做公告阅读和启动前清单，但“项目影响检查”需要先选择目录。
+            </p>
+            <div class="mt-3 flex flex-wrap items-center gap-2">
+              <Button variant="outline" size="sm" @click="$emit('chooseCodingWorkspace')">
+                <FolderOpen class="size-4" />
+                {{ codingWorkspacePath ? '更换项目目录' : '选择项目目录' }}
+              </Button>
+              <Badge variant="outline">只读影响检查</Badge>
+              <Badge variant="outline">不读取凭据</Badge>
             </div>
           </div>
         </section>

@@ -223,7 +223,9 @@ onMounted(async () => {
         />
         <VulnPage
           v-else-if="section === 'vuln'"
+          :coding-workspace-path="conversations.workspacePath.value"
           @open-settings="openSettings('general')"
+          @choose-coding-workspace="chooseAgentWorkspace"
           @start-coding-task="startVulnerabilityCodingTask"
         />
       </KeepAlive>
