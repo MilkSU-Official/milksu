@@ -275,6 +275,12 @@ test("Computer Use requires an explicit app-scoped session under every Go policy
     ).status,
     "unavailable",
   );
+  assert.match(
+    automaticWithoutSession.capabilities.find(
+      value => value.id === "computer-use",
+    ).detail,
+    /不能用 Shell、截图目录、SQLite、IPC 或私有协议绕过/,
+  );
   assert.equal(automaticWithoutSession.activeTools.includes("mcp"), false);
 
   for (const approvalPolicy of ["ask", "workspace-auto", "full-auto"]) {

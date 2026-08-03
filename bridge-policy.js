@@ -1975,7 +1975,7 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
                     : "当前请求批准档会逐次确认观察和操作。")
               : computerUse
                 ? "当前 Plan、只读或产品动作不会加载 Computer Use；切换到普通 Go 后可用。"
-                : "仅在用户显式启动 MilkSU 应用范围会话后可用；Project Auto 不会自动启用。",
+                : "仅在用户显式选择可见 App / 窗口并启动会话后可用；需要操作 GUI 时必须先停下引导启用，不能用 Shell、截图目录、SQLite、IPC 或私有协议绕过可见会话 Scope。",
           }
         : capability.id === "collaboration"
           ? {

@@ -107,7 +107,7 @@ export function previewCodingCapabilities(
       id: 'computer-use',
       label: 'Computer Use',
       status: 'unavailable',
-      detail: '仅在用户显式选择可见 App / 窗口并启动会话后可用；调用跟随当前 Coding 权限档位。',
+      detail: '仅在用户显式选择可见 App / 窗口并启动会话后可用；需要操作 GUI 时必须先停下引导启用，不能用 Shell、截图目录、SQLite、IPC 或私有协议绕过可见会话 Scope。',
     },
   ]
 }
