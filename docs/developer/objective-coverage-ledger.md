@@ -68,8 +68,8 @@ runbook，将 `CTF-12` 从 25% 调到 50%；Project MCP 已通过正式 adapter 
 allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 是当前细项口径的
 基线；归档 Memory 后推荐召回和 Agent `MEMORY.md` 已同步刷新，将 `MEM-10` 从 25% 调到
 50%。Obelisk 形态 Session Index 已按用户新 P0 口径新增为 `COD-32`，当前 MilkSU 自己
-初始化 App data 下 `session-index/obelisk.sqlite`、索引 MilkSU 会话和工具调用并提供共享
-“相关历史”入口，暂计 50%；后续只使用同一张表比较变化。
+初始化 App data 下 `session-index/obelisk.sqlite`、索引 MilkSU 会话和工具调用、提供共享
+“相关历史”入口，并已通过打包 App isolated smoke 完成真实搜索，调到 75%；后续只使用同一张表比较变化。
 
 ### 分值分布
 
@@ -132,7 +132,7 @@ allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 
 | COD-29 | 高频 Plugin 候选完成真实任务 | 尚未由使用频率选出候选 | 0% | 先收集重复工作流与替代失败 |
 | COD-30 | 代表任务成功率、接管、恢复、成本对照 | Coding delivery gate 已输出 `milksu-run-manifest/v1alpha1` 与 `milksu-agent-scoreboard/v1alpha1`，覆盖任务 ID、fixture digest、工具面、预算、人工介入、失败分类和未运行基线状态；共享 validator 已拒绝 `not-run` baseline 携带成绩、缺失败/介入证据、预算超限、隐私边界松动和 `passed=true` 但非满分等误报形态 | 25% | 从用户真实历史选择固定 20 项，运行 MilkSU 与裸 Codex/Pi 对照 |
 | COD-31 | Computer Use 工具截图接入纯文本模型的辅助视觉回路 | Bridge `tool_result` hook 为 `milksu-computer-use/computer_use` 截图追加受控视觉摘要；辅助视觉缓存不保存原图；64 项 Node 窄测试、Go、前端 lint/build 通过 | 50% | 打包 App 中用纯文本主模型和真实辅助视觉完成外部窗口定位验收 |
-| COD-32 | Obelisk 形态 Session Index / 相关历史 | 2026-08-04 用户将 Obelisk 提为当前 P0，并明确不接受外部 CLI 安装/检测路径。本批次新增 `internal/sessionindex`，MilkSU 在 App data 下初始化 `session-index/obelisk.sqlite`，使用 Obelisk 兼容 sessions/messages/tool_calls/tool_results/subagents/workflows/memories/FTS schema；`RefreshMilkSUConversations` 把 MilkSU 本机 Coding/CTF/CVE 会话、工具调用、时间、工作区和来源写入索引并统一脱敏；App/Wails 暴露 `GetSessionIndexStatus`、`RefreshSessionIndex`、`SearchSessionHistory`，查询前刷新 MilkSU 自己的会话索引；前端新增 `SessionHistoryPanel`，在 Coding 右侧栏、CVE 详情和 CTF 复盘侧栏展示“相关历史”，UI 不显示“事实源/正式档案/历史线索”等原则文案；`go test ./internal/sessionindex`、`TestAppSessionIndexRefreshesMilkSUOwnedHistory`、`desktop.test.ts` 和 `SessionHistoryPanel.test.ts` 覆盖 schema、刷新、FTS/LIKE、脱敏、Wails adapter、浏览器预览空态和 UI 不泄露内部边界文案 | 50% | 打包 App 真实历史搜索；用户确认后转为 MilkSU Memory / CVE Note / Coding Handoff；Claude/Kimi/Codex/Pi 历史导入；上游 Obelisk 许可证/NOTICE/ADR 收口 |
+| COD-32 | Obelisk 形态 Session Index / 相关历史 | 2026-08-04 用户将 Obelisk 提为当前 P0，并明确不接受外部 CLI 安装/检测路径。本批次新增 `internal/sessionindex`，MilkSU 在 App data 下初始化 `session-index/obelisk.sqlite`，使用 Obelisk 兼容 sessions/messages/tool_calls/tool_results/subagents/workflows/memories/FTS schema；`RefreshMilkSUConversations` 把 MilkSU 本机 Coding/CTF/CVE 会话、工具调用、时间、工作区和来源写入索引并统一脱敏；App/Wails 暴露 `GetSessionIndexStatus`、`RefreshSessionIndex`、`SearchSessionHistory`，查询前刷新 MilkSU 自己的会话索引；前端新增 `SessionHistoryPanel`，在 Coding 右侧栏、CVE 详情和 CTF 复盘侧栏展示“相关历史”，UI 不显示“事实源/正式档案/历史线索”等原则文案；`go test ./internal/sessionindex`、`TestAppSessionIndexRefreshesMilkSUOwnedHistory`、`TestSessionIndexPackagedSmokeRunsAppSearch`、`desktop.test.ts` 和 `SessionHistoryPanel.test.ts` 覆盖 schema、刷新、FTS/LIKE、脱敏、Wails adapter、浏览器预览空态和 UI 不泄露内部边界文案；2026-08-05 `node scripts/test-local-delivery-baseline.mjs` 使用独立 `MILKSU_INSTANCE_ID` 和隔离 HOME 启动真实 `build/bin/MilkSU.app`，预置本地会话，App 进程内完成 `SearchSessionHistory` 并输出 `sessionIndexSmoke.resultCount=2`、`source=milksu-coding`、`toolCallCount=1`、`gates.sessionIndexPackagedSearch=true` | 75% | 用户确认后转为 MilkSU Memory / CVE Note / Coding Handoff；Claude/Kimi/Codex/Pi 历史导入；上游 Obelisk 许可证/NOTICE/ADR 收口 |
 
 ## CTF 通用闭环与网络边界
 
@@ -271,6 +271,7 @@ allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 
 | DONE-UI-02 | 左下角重复 Logo/全局锚点移除 | `89e7ea8 fix: remove duplicate rail anchor` 删除 WorkspaceRail 的下方 CTF 能力入口，`AppSidebar.test.ts` 锁住 CTF/CVE 不再出现“查看 CTF 能力” | 不再重复处理“双 Logo”；若未来新增全局锚点，必须先说明其唯一导航职责 |
 | DONE-CVE-01 | App facade 的真实 NVD 单 CVE 下载与原始快照持久化 | `app_vuln_live_test.go` 新增 `TestLiveAppFetchNVDCVEPersistsSnapshot`；默认跳过，显式 `MILKSU_LIVE_CVE_APP_SMOKE=1 go test . -run TestLiveAppFetchNVDCVEPersistsSnapshot -count=1 -v` 已真实访问 NVD `CVE-2024-3400`，验证 `retrievedAt`、App data 下 `vuln/feed-snapshots/nvd/*.json`、返回 body 与磁盘 body 一致、SHA-256 一致、文件权限 `0600` | 不再把 “CVE 真实 NVD 下载 + App 原始快照持久化” 视为未实现；仍未证明完整 CVE 研究结果回写、Vulhub/Docker 启动/停止、GHSA/OSV/KEV 全源矩阵或真实资产验证 |
 | DONE-OBELISK-01 | Obelisk 当前接入方向锁定为 MilkSU 内置核心能力 | `current-objectives.md` 与 `product-loop-sprint.md` 已把 Obelisk / Session Index 提为 P0；本批次实现从外部 `~/.obelisk` 只读探测改为 MilkSU 自己维护 `session-index/obelisk.sqlite`，且 `SessionHistoryPanel.test.ts` 锁住 UI 不显示“事实源/正式档案/历史线索”等边界说教文案 | 后续不得回退为“检测用户有没有安装 Obelisk CLI”或默认依赖 `~/.obelisk`；要扩展就继续内置索引器、导入器、用户确认转档案 |
+| DONE-OBELISK-02 | 打包 App 中完成 Session Index 真实搜索 smoke | `scripts/test-local-delivery-baseline.mjs` 现在用隔离 HOME 预置本地会话，并通过 `MILKSU_SESSION_INDEX_SMOKE_*` 让真实 `build/bin/MilkSU.app` 在 App 进程内刷新并搜索 Session Index；2026-08-05 实跑通过，报告显示 `sessionIndexSmoke.resultCount=2`、`source=milksu-coding`、`toolCallCount=1`、`gates.sessionIndexPackagedSearch=true`，且脚本断言结果不泄漏 fixture secret | 不再把“原生 App 能创建 session-index 并搜索相关历史”作为未完成项；后续只推进用户确认转档案、跨历史导入和许可证/NOTICE 收口 |
 
 ## 共同评估后的执行入口
 

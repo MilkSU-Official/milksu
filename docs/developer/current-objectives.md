@@ -294,6 +294,14 @@ Session Index 是 Coding Agent 自举体验的基础能力：Agent 需要能找�
 7. 单测覆盖 schema、FTS/LIKE 搜索、脱敏、缺索引空态和只读/写入边界；
 8. 原生 App 中完成一次真实搜索验收。
 
+2026-08-05 首轮状态：上述 1–8 已通过当前代码和打包 App smoke 证明。新增
+`MILKSU_SESSION_INDEX_SMOKE_*` 隔离验收路径后，`node scripts/test-local-delivery-baseline.mjs`
+会用隔离 HOME 启动真实 `build/bin/MilkSU.app`，预置一条本地会话，等待 App 进程内完成
+`SearchSessionHistory`，并断言 `session-index/obelisk.sqlite` 位于 App data、命中结果来自
+`milksu-coding`、工具事件计数存在、搜索片段脱敏且不泄漏 fixture secret。后续不要重复把
+“原生 App 中能搜索相关历史”当作缺口；下一步是用户确认后转 Memory / CVE Note /
+Coding Handoff，以及 Claude/Kimi/Codex/Pi 历史导入。
+
 ## 其余目标审查与调整
 
 除 Coding Agent 外，其余目标也需要调整。总体方向没问题，但目前把“产品完成条件、真实

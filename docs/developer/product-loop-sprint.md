@@ -47,9 +47,9 @@
 
 下一阶段真实门禁按顺序为：
 
-- Session Index：MilkSU 在自己的数据目录中初始化 Obelisk 形态的 session-index，索引至少
-  一条真实 MilkSU 会话或工具事件，并在 App 中完成一次“相关历史”搜索；结果必须脱敏，且
-  只能作为历史线索，不能自动写入 CTF/CVE/Coding 的正式档案；
+- Session Index：首轮原生闭环已通过；继续做“用户确认后沉淀为 Memory / CVE Note /
+  Coding Handoff”和跨历史导入。后续不得重复把“App data 初始化、索引 MilkSU 会话/工具事件、
+  打包 App 搜索、脱敏搜索结果”当作未完成；
 - Coding：在打包 App 中完成一个小 MilkSU 修改，跑真实测试/build，做真实 Browser 或
   Computer Use 验证，commit 并 push；
 - Computer Use：用户选择一个外部 App / 窗口，MilkSU 在该 Scope 内完成一次可见观察或操作，

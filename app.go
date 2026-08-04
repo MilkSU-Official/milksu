@@ -281,6 +281,7 @@ func (a *App) Startup(ctx context.Context) {
 	a.diagnostics.Record("app", "info", "desktop runtime started")
 	_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedAppInitialized)
 	_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedDesktopRuntimeStarted)
+	a.maybeRunSessionIndexSmoke()
 	if a.managedLabs != nil {
 		reconcileContext, cancel := context.WithTimeout(ctx, managedLabReconcileTimeout)
 		if _, err := a.managedLabs.Reconcile(reconcileContext); err != nil {

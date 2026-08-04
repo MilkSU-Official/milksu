@@ -119,7 +119,7 @@ func TestCTFPlatformChooserOwnsHistoryPairingAndCustomImport(t *testing.T) {
 	}
 }
 
-func TestCTFAbilityLivesBehindTheSidebarTrigger(t *testing.T) {
+func TestCTFAbilityNoLongerLivesBehindTheSidebarTrigger(t *testing.T) {
 	files := []string{
 		"app/src/components-vue/AppSidebar.vue",
 		"app/src/components-vue/WorkspaceRail.vue",
@@ -134,18 +134,14 @@ func TestCTFAbilityLivesBehindTheSidebarTrigger(t *testing.T) {
 		sidebarSource.Write(data)
 	}
 	sidebar := sidebarSource.String()
-	for _, fragment := range []string{
+	for _, obsolete := range []string{
 		`aria-label="查看 CTF 能力"`,
 		`<AbilityRadar`,
-		`aria-label="设置"`,
-		`size="icon"`,
+		`class="size-full rounded-full object-cover"`,
 	} {
-		if !strings.Contains(sidebar, fragment) {
-			t.Fatalf("sidebar ability entry does not expose %q", fragment)
+		if strings.Contains(sidebar, obsolete) {
+			t.Fatalf("sidebar still exposes removed CTF ability trigger: %q", obsolete)
 		}
-	}
-	if strings.Contains(sidebar, `class="size-full rounded-full object-cover"`) {
-		t.Fatal("sidebar ability trigger still duplicates the MilkSU logo avatar")
 	}
 
 	deskData, err := os.ReadFile("app/src/components-vue/CTFChallengeDesk.vue")

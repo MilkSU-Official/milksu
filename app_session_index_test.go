@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -79,5 +81,79 @@ func TestAppSessionIndexRefreshesMilkSUOwnedHistory(t *testing.T) {
 	}
 	if !strings.Contains(result.Snippet, "CVE-2024-3400") || !strings.Contains(result.Snippet, "[credential redacted]") {
 		t.Fatalf("unexpected search snippet: %q", result.Snippet)
+	}
+}
+
+func TestSessionIndexPackagedSmokeRunsAppSearch(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "appdata")
+	t.Setenv(appdata.DirectoryOverrideEnv, root)
+	t.Setenv(sessionIndexSmokeQueryEnv, "SessionIndexPackagedSmoke")
+	reportPath := filepath.Join(t.TempDir(), "session-index-smoke.json")
+	t.Setenv(sessionIndexSmokeResultEnv, reportPath)
+	dataDirectory, err := appdata.Ensure()
+	if err != nil {
+		t.Fatalf("Ensure() error = %v", err)
+	}
+	conversations, err := conversation.NewStore()
+	if err != nil {
+		t.Fatalf("conversation.NewStore() error = %v", err)
+	}
+	index, err := sessionindex.NewStore(filepath.Join(dataDirectory, "session-index", "obelisk.sqlite"))
+	if err != nil {
+		t.Fatalf("sessionindex.NewStore() error = %v", err)
+	}
+	toolName := "packaged_session_index_smoke"
+	if err := conversations.Save(conversation.StoredConversation{
+		ID:            "session-index-smoke",
+		Title:         "Session Index packaged smoke",
+		CreatedAt:     uint64(time.Date(2026, 8, 5, 0, 0, 0, 0, time.UTC).UnixMilli()),
+		WorkspacePath: "/Users/milksu/code/milksu",
+		ModelID:       "packaged-smoke",
+		Messages: []conversation.StoredMessage{{
+			ID:        "tool-1",
+			Role:      "tool",
+			Content:   "SessionIndexPackagedSmoke completed with OPENAI_API_KEY=package-smoke-session-index-secret-never-log",
+			Timestamp: uint64(time.Date(2026, 8, 5, 0, 0, 2, 0, time.UTC).UnixMilli()),
+			ToolName:  &toolName,
+		}},
+	}); err != nil {
+		t.Fatalf("save conversation: %v", err)
+	}
+
+	application := &App{
+		dataDirectory: dataDirectory,
+		diagnostics:   appdata.NewDiagnosticRecorder(32),
+		conversations: conversations,
+		sessionIndex:  index,
+	}
+	application.maybeRunSessionIndexSmoke()
+
+	payload, err := os.ReadFile(reportPath)
+	if err != nil {
+		t.Fatalf("read smoke report: %v", err)
+	}
+	if strings.Contains(string(payload), "package-smoke-session-index-secret-never-log") {
+		t.Fatalf("smoke report leaked the fixture secret: %s", payload)
+	}
+	var report sessionIndexSmokeReport
+	if err := json.Unmarshal(payload, &report); err != nil {
+		t.Fatalf("decode smoke report: %v", err)
+	}
+	if report.Schema != "milksu-session-index-packaged-smoke/v1" || report.Error != "" {
+		t.Fatalf("unexpected smoke report: %#v", report)
+	}
+	if report.ResultCount != 1 || report.FirstResult == nil || report.FirstResult.Source != "milksu-coding" {
+		t.Fatalf("smoke report did not include the Coding search result: %#v", report)
+	}
+	if !strings.Contains(report.FirstResult.Snippet, "SessionIndexPackagedSmoke") ||
+		!strings.Contains(report.FirstResult.Snippet, "[credential redacted]") {
+		t.Fatalf("unexpected smoke snippet: %q", report.FirstResult.Snippet)
+	}
+	info, err := os.Stat(reportPath)
+	if err != nil {
+		t.Fatalf("stat smoke report: %v", err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("smoke report mode = %o, want 0600", info.Mode().Perm())
 	}
 }
