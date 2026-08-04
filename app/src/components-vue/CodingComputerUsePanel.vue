@@ -19,6 +19,7 @@ import type {
   CodingComputerUseStatus,
   CodingComputerUseTarget,
 } from '@/codingEnvironmentTypes'
+import type { ComputerUseOperationEvidence } from '@/lib/codingComputerUseEvidence'
 import type { CodingApprovalPolicy, CodingExecutionMode } from '@/types'
 import {
   computerUseTargetKey,
@@ -34,6 +35,7 @@ const props = defineProps<{
   ownedByCurrentTask: boolean
   executionMode: CodingExecutionMode
   approvalPolicy: CodingApprovalPolicy
+  operationEvidence?: ComputerUseOperationEvidence | null
 }>()
 
 const emit = defineEmits<{
@@ -52,6 +54,21 @@ const selectedTarget = computed(() => (
   resolveSelectedComputerUseTarget(props.targets, props.selectedTargetKey)
 ))
 const effectiveTarget = computed(() => props.status?.target ?? selectedTarget.value)
+const matchingOperationEvidence = computed(() => {
+  const target = effectiveTarget.value
+  const evidence = props.operationEvidence
+  if (!target || !evidence) return null
+  return evidence.bundleId === target.bundleId
+    && evidence.pid === target.pid
+    && evidence.windowId === target.windowId
+    ? evidence
+    : null
+})
+const operationScopeMismatch = computed(() => Boolean(
+  props.operationEvidence
+  && effectiveTarget.value
+  && !matchingOperationEvidence.value,
+))
 const permissionsReady = computed(() => Boolean(
   props.status?.permissions.accessibility
   && props.status.permissions.screenRecording,
@@ -149,6 +166,15 @@ const readinessItems = computed(() => [
     ready: props.executionMode === 'go' && props.approvalPolicy !== 'read-only',
     detail: `${approvalLabel.value} · ${approvalGuidance.value}`,
   },
+  {
+    label: '真实操作',
+    ready: Boolean(matchingOperationEvidence.value),
+    detail: matchingOperationEvidence.value
+      ? `${matchingOperationEvidence.value.action} · ${matchingOperationEvidence.value.targetName} · PID ${matchingOperationEvidence.value.pid} · Window ${matchingOperationEvidence.value.windowId}`
+      : operationScopeMismatch.value
+        ? '最近一次 Computer Use 操作来自另一个窗口，不计入当前 Scope 验收。'
+        : '已锁定后仍需一次 observe / click / type / key / scroll 工具结果作为真实操作证据。',
+  },
 ])
 
 const guidance = computed(() => {
@@ -184,7 +210,9 @@ const primarySetupAction = computed<{
     return {
       label: '已接入当前任务',
       detail: effectiveTarget.value
-        ? `已锁定 ${effectiveTarget.value.name} · PID ${effectiveTarget.value.pid} · Window ${effectiveTarget.value.windowId}`
+        ? matchingOperationEvidence.value
+          ? `最近真实操作：${matchingOperationEvidence.value.summary}`
+          : `已锁定 ${effectiveTarget.value.name} · PID ${effectiveTarget.value.pid} · Window ${effectiveTarget.value.windowId}；下一步需要 Agent 对该窗口执行一次可见操作并保留工具结果。`
         : '已锁定当前 Coding 任务。',
       action: 'stop',
       variant: 'outline',
@@ -340,7 +368,7 @@ function runPrimarySetupAction() {
       </div>
       <div class="mt-4 rounded-lg border border-border bg-background/70 px-3 py-3" aria-label="Computer Use 接入清单">
         <div class="flex items-center justify-between gap-3">
-          <p class="text-caption font-medium text-muted-foreground">正式接入需要</p>
+          <p class="text-caption font-medium text-muted-foreground">正式接入/验收需要</p>
           <Badge :variant="readyForCurrentTask ? 'secondary' : 'outline'">
             {{ readinessItems.filter(item => item.ready).length }}/{{ readinessItems.length }}
           </Badge>
@@ -359,6 +387,33 @@ function runPrimarySetupAction() {
               {{ item.detail }}
             </span>
           </div>
+        </div>
+      </div>
+      <div class="mt-3 rounded-lg border border-border bg-background/70 px-3 py-3" aria-label="Computer Use 真实操作证据">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-caption font-medium text-muted-foreground">真实操作证据</p>
+            <p v-if="matchingOperationEvidence" class="mt-1 text-body font-medium">
+              {{ matchingOperationEvidence.summary }}
+            </p>
+            <p v-else class="mt-1 text-body font-medium">
+              {{ operationScopeMismatch ? 'Scope 不匹配' : '等待真实操作' }}
+            </p>
+            <p class="mt-1 text-caption leading-5 text-muted-foreground">
+              <template v-if="matchingOperationEvidence">
+                来自已完成的 computer_use 工具结果；只有 action、bundle、PID 和 Window 与当前 Scope 全部一致才计入。
+              </template>
+              <template v-else-if="operationScopeMismatch">
+                最近一次操作属于 {{ operationEvidence?.targetName }} · {{ operationEvidence?.bundleId }} · PID {{ operationEvidence?.pid }} · Window {{ operationEvidence?.windowId }}，不会冒充当前窗口验收。
+              </template>
+              <template v-else>
+                仅锁定 Scope 还不算真实 GUI 验收；需要 Agent 使用 computer_use 对此窗口完成 observe、click、type、key 或 scroll。
+              </template>
+            </p>
+          </div>
+          <Badge :variant="matchingOperationEvidence ? 'secondary' : 'outline'" class="shrink-0">
+            {{ matchingOperationEvidence ? '已操作' : operationScopeMismatch ? '不计入' : '待操作' }}
+          </Badge>
         </div>
       </div>
       <div class="mt-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-3" aria-label="Computer Use 下一步">

@@ -92,7 +92,7 @@ describe('CodingComputerUsePanel', () => {
     expect(text).toContain('可启动')
     expect(text).toContain('权限和窗口都已就绪')
     expect(text).toContain('才算正式接入当前 Coding 任务')
-    expect(text).toContain('正式接入需要')
+    expect(text).toContain('正式接入/验收需要')
     expect(text).toContain('下一步')
     expect(text).toContain('系统权限')
     expect(text).toContain('辅助功能与屏幕录制已授权')
@@ -100,6 +100,8 @@ describe('CodingComputerUsePanel', () => {
     expect(text).toContain('会话锁定')
     expect(text).toContain('点击“启动可见会话”后才算接入')
     expect(text).toContain('审批体感')
+    expect(text).toContain('真实操作')
+    expect(text).toContain('仍需一次 observe / click / type / key / scroll 工具结果')
     expect(text).toContain('Go / 替我审批')
     expect(text).toContain('普通观察、点击和输入会自动执行')
     expect(text).toContain('Codex 将被锁定为当前任务 Scope')
@@ -186,6 +188,67 @@ describe('CodingComputerUsePanel', () => {
     expect(host.querySelectorAll('[data-computer-use-ready="true"]').length).toBe(4)
   })
 
+  it('shows matching Computer Use operation evidence as real external app validation', async () => {
+    const { host } = await mountPanel({
+      status: status({
+        conversationId: 'current-conversation',
+        enabled: true,
+        target: targets[1],
+      }),
+      selectedTargetKey: '5252:9002',
+      ownedByCurrentTask: true,
+      operationEvidence: {
+        action: 'click',
+        targetName: 'Preview',
+        bundleId: 'com.example.preview',
+        pid: 5252,
+        windowId: 9002,
+        windowTitle: '视觉回归',
+        durationMs: 54,
+        summary: 'click · Preview · com.example.preview · PID 5252 · Window 9002 · 视觉回归',
+      },
+    })
+    const text = host.textContent ?? ''
+
+    expect(text).toContain('真实操作证据')
+    expect(text).toContain('click · Preview · com.example.preview · PID 5252 · Window 9002 · 视觉回归')
+    expect(text).toContain('来自已完成的 computer_use 工具结果')
+    expect(text).toContain('action、bundle、PID 和 Window 与当前 Scope 全部一致')
+    expect(text).toContain('已操作')
+    expect(text).toContain('最近真实操作')
+    expect(text).not.toContain('等待真实操作')
+    expect(host.querySelectorAll('[data-computer-use-ready="true"]').length).toBe(5)
+  })
+
+  it('does not count Computer Use operation evidence from a different window scope', async () => {
+    const { host } = await mountPanel({
+      status: status({
+        conversationId: 'current-conversation',
+        enabled: true,
+        target: targets[0],
+      }),
+      ownedByCurrentTask: true,
+      operationEvidence: {
+        action: 'click',
+        targetName: 'Preview',
+        bundleId: 'com.example.preview',
+        pid: 5252,
+        windowId: 9002,
+        windowTitle: '视觉回归',
+        durationMs: 54,
+        summary: 'click · Preview · com.example.preview · PID 5252 · Window 9002 · 视觉回归',
+      },
+    })
+    const text = host.textContent ?? ''
+
+    expect(text).toContain('Scope 不匹配')
+    expect(text).toContain('最近一次 Computer Use 操作来自另一个窗口，不计入当前 Scope 验收')
+    expect(text).toContain('Preview · com.example.preview · PID 5252 · Window 9002')
+    expect(text).toContain('不计入')
+    expect(text).not.toContain('已操作')
+    expect(host.querySelectorAll('[data-computer-use-ready="true"]').length).toBe(4)
+  })
+
   it('keeps Plan or read-only visible sessions non-operating', async () => {
     const { host } = await mountPanel({
       status: status({
@@ -201,7 +264,7 @@ describe('CodingComputerUsePanel', () => {
     expect(text).toContain('Plan / 替我审批')
     expect(text).toContain('当前模式不会操作可见 App')
     expect(text).toContain('切到 Go + 替我审批/完全访问')
-    expect(host.querySelectorAll('[data-computer-use-ready="false"]').length).toBe(1)
+    expect(host.querySelectorAll('[data-computer-use-ready="false"]').length).toBe(2)
   })
 
   it('distinguishes missing macOS permissions from unavailable Computer Use', async () => {

@@ -2007,6 +2007,7 @@ watch(
             :owned-by-current-task="computerUseOwnedByCurrentTask"
             :execution-mode="effectiveExecutionMode"
             :approval-policy="effectiveApprovalPolicy"
+            :operation-evidence="computerUseOperationEvidence"
             @request-permissions="requestComputerUsePermissions"
             @refresh="refreshBrowserPanel"
             @start="startComputerUse"
