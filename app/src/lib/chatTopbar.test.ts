@@ -36,7 +36,7 @@ describe('chatTopbarPresentation', () => {
     })
   })
 
-  it('marks CVE handoff conversations as Coding tasks with CVE source context', () => {
+  it('labels CVE handoff conversations with the CVE module title', () => {
     expect(chatTopbarPresentation({
       ctfSession: false,
       vulnerabilitySession: true,
@@ -44,8 +44,19 @@ describe('chatTopbarPresentation', () => {
       workspacePath: '/Users/milksu/code/milksu',
       codingPolicyLabel: 'Go · 项目自动',
     })).toEqual({
-      title: 'Coding',
-      subtitle: 'CVE-2023-46604 研究接力 · CVE 接力 · /Users/milksu/code/milksu',
+      title: 'CVE',
+      subtitle: 'CVE-2023-46604 研究接力 · /Users/milksu/code/milksu',
+    })
+  })
+
+  it('keeps empty CVE handoff tasks explicit about temporary workspace policy', () => {
+    expect(chatTopbarPresentation({
+      ctfSession: false,
+      vulnerabilitySession: true,
+      codingPolicyLabel: 'Go · 项目自动',
+    })).toEqual({
+      title: 'CVE',
+      subtitle: 'CVE 接力 · 临时工作区 · Go · 项目自动',
     })
   })
 })

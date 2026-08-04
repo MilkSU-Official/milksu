@@ -21,8 +21,15 @@ export function chatTopbarPresentation(input: ChatTopbarInput) {
     }
   }
 
+  if (input.vulnerabilitySession) {
+    return {
+      title: 'CVE',
+      subtitle: `${input.conversationTitle || 'CVE 接力'} · ${input.workspacePath || `临时工作区 · ${input.codingPolicyLabel}`}`,
+    }
+  }
+
   return {
     title: 'Coding',
-    subtitle: `${input.conversationTitle || '新编码任务'} · ${input.vulnerabilitySession ? 'CVE 接力 · ' : ''}${input.workspacePath || `临时工作区 · ${input.codingPolicyLabel}`}`,
+    subtitle: `${input.conversationTitle || '新编码任务'} · ${input.workspacePath || `临时工作区 · ${input.codingPolicyLabel}`}`,
   }
 }

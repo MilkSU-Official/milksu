@@ -75,6 +75,9 @@ describe('CodingChangesPanel Pull Request confirmation', () => {
     expect(host.querySelector('[aria-label="Git 交付下一步"]')).not.toBeNull()
     expect(host.textContent).toContain('打开桌面 App 验收 Git')
     expect(host.textContent).toContain('重新读取 Git 状态')
+    expect(host.textContent).toContain('PR 发布验收')
+    expect(host.textContent).toContain('Push 只证明 Git 远端同步')
+    expect(host.textContent).toContain('复制 PR 验收')
     expect(host.textContent).not.toContain('Git 交付摘要')
     expect(host.textContent).not.toContain('准备 PR')
   })
@@ -111,6 +114,10 @@ describe('CodingChangesPanel Pull Request confirmation', () => {
     expect(host.textContent).toContain('分支：codex/self-hosting')
     expect(host.textContent).toContain('HEAD：0123456789ab')
     expect(host.textContent).toContain('下一步：可作为本轮 Git 交付证据')
+    expect(host.textContent).toContain('PR 发布验收')
+    expect(host.textContent).toContain('单独确认')
+    expect(host.textContent).toContain('Push 只证明 Git 远端同步')
+    expect(host.textContent).toContain('复制 PR 验收')
 
     const copy = [...host.querySelectorAll<HTMLButtonElement>('button')]
       .find(button => button.textContent?.includes('复制交付摘要'))
@@ -120,6 +127,35 @@ describe('CodingChangesPanel Pull Request confirmation', () => {
     expect(writeText).toHaveBeenCalledOnce()
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('MilkSU Git 交付摘要'))
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('状态：已收口'))
+    expect(host.textContent).toContain('已复制')
+  })
+
+  it('copies a PR publication acceptance checklist without claiming push is enough', async () => {
+    const writeText = vi.fn(async () => undefined)
+    vi.stubGlobal('navigator', {
+      ...navigator,
+      clipboard: { writeText },
+    })
+    const host = await mountChangesPanel(cleanEnvironment())
+
+    const copy = [...host.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.includes('复制 PR 验收'))
+    copy?.click()
+    await settle()
+
+    expect(writeText).toHaveBeenCalledOnce()
+    const copied = String((writeText.mock.calls as unknown as Array<[string]>)[0]?.[0] ?? '')
+    expect(copied).toContain('继续 MilkSU Git / PR 交付验收')
+    expect(copied).toContain('Git 状态：已收口')
+    expect(copied).toContain('分支：codex/self-hosting')
+    expect(copied).toContain('点击“准备 PR”')
+    expect(copied).toContain('MilkSU-Official/milksu 私有仓库')
+    expect(copied).toContain('一次性确认 token 不能出现在 UI、日志、错误或复制文本里')
+    expect(copied).toContain('不得向引用的开源项目')
+    expect(copied).toContain('创建后读回 PR number、URL、state、draft')
+    expect(copied).toContain('不要把 push 当成 PR 已发布')
+    expect(copied).toContain('不要读取、输出或迁移 Provider/API Key')
+    expect(copied).not.toContain('preview-token')
     expect(host.textContent).toContain('已复制')
   })
 

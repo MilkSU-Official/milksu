@@ -1504,3 +1504,63 @@
 - 原生 App 中 Computer Use 对外部 App 的真实可见操作；
 - 真实托管平台 Draft PR 创建；
 - 六赛道 CTF、NYU Outcome、Developer ID / notarization / updater RC。
+
+## 2026-08-04 · PR publication acceptance handoff
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | 本批次提交 |
+| 目标流 | Coding → Git 交付 → 明确 push 与托管平台 PR 发布是两步，并复制 PR 验收清单 |
+| 窄测 | `npm --prefix app test -- CodingChangesPanel.test.ts CodingProductLoopPanel.test.ts` |
+| 窄测结果 | 2 files / 32 tests passed |
+| 前端构建 | `npm --prefix app run build` |
+| 前端构建结果 | production build passed |
+| Lint | `npm --prefix app run lint` |
+| Lint 结果 | passed |
+| Browser 插件路径 | Browser runtime 成功连接本地预览 `http://127.0.0.1:4206/` |
+| 渲染结果 | Coding → `Git 交付` 可见浏览器预览 Git runtime 边界、`PR 发布验收`、`单独确认`、`复制 PR 验收` 和 `Push 只证明 Git 远端同步`；页面标题 `MilkSU`；无 Vite/framework overlay；console warn/error 为空 |
+| 截图 | `/tmp/milksu-pr-acceptance-card-qa.png` |
+
+覆盖范围：
+
+- Git 交付面板新增“PR 发布验收”接力卡；
+- 浏览器预览、非仓库和真实仓库状态下都能看到 PR 是单独托管平台写入确认；
+- 复制的验收清单要求先确认干净工作区和已 push，再预览 MilkSU 私有仓库、分支、目标分支和 HEAD commit；
+- 验收清单明确一次性 confirmation token 不能进入 UI、日志、错误或复制文本；
+- 验收清单明确不得向引用的开源项目、upstream 或非 MilkSU 私有仓库发布；
+- 仍保留现有真实 PR 预览/确认/读回代码路径，不自动创建 PR。
+
+本次仍未证明：
+
+- 原生 App 中真实准备、确认、创建或复用 GitHub Draft PR；
+- GitHub 读回验证在真实托管平台中的稳定性；
+- 多 remote、已有 PR、过期 preview、无 upstream 等真实仓库场景的人工体验。
+
+## 2026-08-04 · Unified CTF / CVE / Coding module topbar titles
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | 本批次提交 |
+| 目标流 | 左侧菜单切换 CTF → CVE → Coding → 顶部导航标题始终由同一组件渲染，并保持相同字号与行高 |
+| 窄测 | `npm --prefix app test -- WorkspaceTopBar.test.ts ChatPageRoutingContract.test.ts chatTopbar.test.ts CodingChangesPanel.test.ts CodingProductLoopPanel.test.ts` |
+| 窄测结果 | 5 files / 43 tests passed |
+| 前端构建 | `npm --prefix app run build` |
+| 前端构建结果 | production build passed |
+| Lint | `npm --prefix app run lint` |
+| Lint 结果 | passed |
+| Browser 插件路径 | Browser runtime 成功连接本地预览 `http://127.0.0.1:4206/` |
+| 渲染结果 | CTF、CVE、Coding 顶部标题均为 `[data-workspace-topbar-title]` H1，class 均为 `workspace-topbar__title truncate text-control font-medium tracking-[-0.01em]`，计算字号均为 `14px`、行高均为 `20px`；页面标题 `MilkSU`；无 Vite/framework overlay；console warn/error 为空 |
+| 截图 | `/tmp/milksu-module-topbar-unified-qa.png` |
+
+覆盖范围：
+
+- `WorkspaceModuleTopBar` 继续作为 CTF、CVE、Coding 三个一级模块顶部标题入口；
+- CVE 接力会话的 `chatTopbarPresentation` 语义标题从 `Coding` 收敛为 `CVE`，避免后续 Agent 或空状态标题继续混淆；
+- 真实浏览器预览中依次点击 CTF、CVE、Coding，验证同一位置的标题标签、class、字号和行高一致；
+- 这条只处理模块顶部导航标题一致性，不扩大到所有页面内部大标题。
+
+本次仍未证明：
+
+- 原生打包 App 在不同窗口尺寸下的完整视觉一致性；
+- CTF 工作区内部题目标题、CVE 详情标题、Coding 空状态标题等页面内容区标题层级是否需要进一步统一；
+- 所有下拉、按钮、Badge 等“用户看起来相同”的组件是否已经完成全局样式收敛。

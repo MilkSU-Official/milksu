@@ -63,6 +63,7 @@ const pullRequestTitle = ref('')
 const pullRequestBody = ref('')
 const pullRequestError = ref('')
 const deliveryCopyNotice = ref('')
+const pullRequestAcceptanceCopyNotice = ref('')
 const desktopRuntime = hasDesktopRuntime()
 
 const git = computed(() => props.environment?.git)
@@ -211,6 +212,29 @@ const deliverySummary = computed(() => {
   ].join('\n')
 })
 
+const pullRequestAcceptancePrompt = computed(() => {
+  const current = git.value
+  const lines = [
+    '继续 MilkSU Git / PR 交付验收。',
+    '',
+    `工作区：${props.workspacePath || '未选择'}`,
+    `Git 状态：${deliveryStateLabel.value}`,
+    current?.isRepository
+      ? `分支：${current.branch || 'detached'}；上游：${current.upstream || '未设置'}；HEAD：${current.head || '未知'}；ahead ${current.ahead} / behind ${current.behind}`
+      : `不可交付：${current?.problem || '当前目录不是 Git 仓库'}`,
+    '',
+    '验收清单：',
+    '1. 先确认工作区干净、当前分支已 push 到授权远端，且没有未暂存/已暂存/冲突变更。',
+    '2. 点击“准备 PR”，只允许预览 MilkSU-Official/milksu 私有仓库、当前分支、目标分支和 HEAD commit。',
+    '3. 在确认弹窗里核对仓库、远端、源分支、目标分支和提交；一次性确认 token 不能出现在 UI、日志、错误或复制文本里。',
+    '4. 只有用户确认后才创建或复用草稿 PR；不得向引用的开源项目、upstream 或非 MilkSU 私有仓库发布。',
+    '5. 创建后读回 PR number、URL、state、draft、source branch、target branch 和 head commit；读回失败时不要重复创建，先让用户核对。',
+    '',
+    '边界：不要读取、输出或迁移 Provider/API Key；不要把 push 当成 PR 已发布；不要把预览态写成托管平台写入成功。',
+  ]
+  return lines.join('\n')
+})
+
 async function copyDeliverySummary() {
   deliveryCopyNotice.value = ''
   try {
@@ -219,6 +243,17 @@ async function copyDeliverySummary() {
     deliveryCopyNotice.value = '已复制'
   } catch {
     deliveryCopyNotice.value = '复制失败，请手动选择摘要'
+  }
+}
+
+async function copyPullRequestAcceptancePrompt() {
+  pullRequestAcceptanceCopyNotice.value = ''
+  try {
+    if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable')
+    await navigator.clipboard.writeText(pullRequestAcceptancePrompt.value)
+    pullRequestAcceptanceCopyNotice.value = '已复制'
+  } catch {
+    pullRequestAcceptanceCopyNotice.value = '复制失败，请手动选择 PR 验收清单'
   }
 }
 
@@ -579,6 +614,35 @@ watch(changes, current => {
       </details>
 
       <div
+        class="border-b border-border bg-background px-4 py-3"
+        aria-label="PR 发布验收接力"
+      >
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <div class="flex items-center gap-2">
+              <p class="text-caption font-medium text-muted-foreground">PR 发布验收</p>
+              <Badge variant="outline">单独确认</Badge>
+            </div>
+            <p class="mt-1 text-caption leading-5 text-muted-foreground">
+              Push 只证明 Git 远端同步；草稿 PR 是托管平台写入，必须先预览 MilkSU 私有仓库、分支和 HEAD，再由用户确认。
+            </p>
+            <p class="mt-2 text-caption text-muted-foreground">
+              {{ pullRequestAcceptanceCopyNotice || '复制后可交给下一轮 Agent 或用户按清单完成 PR 验收。' }}
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            class="shrink-0"
+            @click="copyPullRequestAcceptancePrompt"
+          >
+            复制 PR 验收
+          </Button>
+        </div>
+      </div>
+
+      <div
         v-if="changes.length"
         class="border-b border-border px-3 py-3"
       >
@@ -809,6 +873,34 @@ watch(changes, current => {
             ? '选择一个 Git 仓库后，MilkSU 才能读取 Diff、暂存、提交、推送和 PR 状态。'
             : '浏览器预览只能看入口；真实 Git 交付必须在打包后的 MilkSU App 中完成。' }}
         </p>
+      </div>
+      <div
+        class="mt-3 w-full max-w-sm rounded-lg border border-border bg-background px-3 py-3 text-left"
+        aria-label="PR 发布验收接力"
+      >
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <div class="flex items-center gap-2">
+              <p class="text-caption font-medium text-muted-foreground">PR 发布验收</p>
+              <Badge variant="outline">单独确认</Badge>
+            </div>
+            <p class="mt-1 text-caption leading-5 text-muted-foreground">
+              Push 只证明 Git 远端同步；草稿 PR 是托管平台写入，必须先预览 MilkSU 私有仓库、分支和 HEAD，再由用户确认。
+            </p>
+            <p class="mt-2 text-caption text-muted-foreground">
+              {{ pullRequestAcceptanceCopyNotice || '复制后可交给下一轮 Agent 或用户按清单完成 PR 验收。' }}
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            class="shrink-0"
+            @click="copyPullRequestAcceptancePrompt"
+          >
+            复制 PR 验收
+          </Button>
+        </div>
       </div>
       <Button
         type="button"
