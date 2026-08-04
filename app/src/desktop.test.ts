@@ -423,6 +423,52 @@ describe('desktop command adapter', () => {
     )
   })
 
+  it('routes Coding artifact preview WebView smoke only through Wails', async () => {
+    const request = {
+      enabled: true,
+      workspace: '/workspace/milksu',
+      relativePath: 'reports/dangerous.html',
+    }
+    const getRequest = vi.fn(async () => request)
+    const complete = vi.fn(async () => undefined)
+    Object.defineProperty(window, 'go', {
+      configurable: true,
+      value: {
+        main: {
+          App: {
+            GetCodingArtifactPreviewWebViewSmokeRequest: getRequest,
+            CompleteCodingArtifactPreviewWebViewSmoke: complete,
+          },
+        },
+      },
+    })
+
+    await expect(invokeCommand('get_coding_artifact_preview_webview_smoke_request'))
+      .resolves.toBe(request)
+    await expect(invokeCommand('complete_coding_artifact_preview_webview_smoke', {
+      report: {
+        workspace: '/workspace/milksu',
+        relativePath: 'reports/dangerous.html',
+        gates: { iframeSandboxPresent: true },
+      },
+    })).resolves.toBeUndefined()
+
+    expect(getRequest).toHaveBeenCalledOnce()
+    expect(complete).toHaveBeenCalledWith({
+      workspace: '/workspace/milksu',
+      relativePath: 'reports/dangerous.html',
+      gates: { iframeSandboxPresent: true },
+    })
+  })
+
+  it('does not pretend browser preview can run the WebView artifact smoke', async () => {
+    await expect(invokeCommand('get_coding_artifact_preview_webview_smoke_request'))
+      .resolves.toEqual({ enabled: false })
+    await expect(invokeCommand('complete_coding_artifact_preview_webview_smoke', {
+      report: {},
+    })).rejects.toThrow('MilkSU 桌面运行时')
+  })
+
   it('passes Coding collaboration preparation details to Wails unchanged', async () => {
     const status = {
       schemaVersion: 1,

@@ -4,6 +4,7 @@ import AppSidebar from '@/components-vue/AppSidebar.vue'
 import StartupRecoveryBanner from '@/components-vue/StartupRecoveryBanner.vue'
 import { useConversations } from '@/composables/useConversations'
 import { invokeCommand } from '@/desktop'
+import { runCodingArtifactPreviewWebViewSmoke } from '@/lib/codingArtifactWebViewSmoke'
 import type { CTFAgentWorkspaceHandoff } from '@/ctfTypes'
 import type { VulnerabilityCodingTask } from '@/composables/useVulnerabilityDashboard'
 import { settingsReturnSection, type CTFWorkspaceSection } from '@/lib/workspaceNavigation'
@@ -250,6 +251,7 @@ function changeModel(mode: 'auto' | 'manual', provider?: string, model?: string)
 onMounted(async () => {
   await Promise.all([loadSettings(), conversations.load()])
   await conversations.listen()
+  void runCodingArtifactPreviewWebViewSmoke()
   try {
     recoveryStatus.value = await invokeCommand<StartupRecoveryStatus>('get_startup_recovery_status')
   } catch {

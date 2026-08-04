@@ -119,6 +119,7 @@ function createMockConversations() {
 }
 
 vi.mock('@/desktop', () => ({
+  hasDesktopRuntime: () => false,
   invokeCommand: vi.fn(async (command: string) => {
     if (command === 'get_settings') {
       return {

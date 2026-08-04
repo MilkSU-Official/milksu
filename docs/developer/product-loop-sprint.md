@@ -63,7 +63,9 @@
 - Artifact Preview：packaged App facade 已能从隔离 workspace 真实读取 Markdown、HTML、PNG，
   并拒绝 workspace escape、伪装 PNG 和 SVG；真实打包 MilkSU UI 已通过目录选择器绑定
   隔离 workspace，并在 Coding → 产物中手动打开 Markdown、HTML 和 PNG，开发者验收详情
-  记录为用户可见验证；下一步只补 HTML WebView sandbox 的原生负向；
+  记录为用户可见验证；真实打包 MilkSU WebView smoke 已验证危险 HTML 经过同一脱敏/清洗链路、
+  空 sandbox iframe、`default-src/connect-src/script-src 'none'` CSP、父窗口未被脚本改写且无
+  外部资源属性残留。后续 Artifact Preview 不再作为当前阻塞缺口，只在真实用户产物中扩样；
 - Computer Use：packaged proxy → Cua Driver → 外部 Calculator 精确窗口的 live smoke 已通过；
   packaged MilkSU App facade 的 list/start/status/descriptor/stop live smoke 也已通过；真实
   MilkSU UI 已在 Coding → 浏览器与 App 中选择 Calculator 并启动/停止可见会话；同一隔离
