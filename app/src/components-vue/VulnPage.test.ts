@@ -479,6 +479,57 @@ describe('VulnPage', () => {
     expect(textareas.some(item => item.value.includes('暂不运行 PoC'))).toBe(true)
   })
 
+  it('imports user-confirmed Coding conclusions back into CVE research notes', async () => {
+    const { host, tasks, handoffRecorders } = await mountVulnPageWithCodingTaskSink()
+    const activeMqRow = [...host.querySelectorAll<HTMLTableRowElement>('tr')].find(item =>
+      item.textContent?.includes('CVE-2023-46604'),
+    )
+    if (!activeMqRow) throw new Error('missing ActiveMQ CVE row')
+    activeMqRow.click()
+    await nextTick()
+
+    const handoff = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
+      item.textContent?.includes('交给 Coding'),
+    )
+    if (!handoff) throw new Error('missing Coding handoff button')
+    handoff.click()
+    await nextTick()
+    expect(tasks).toHaveLength(1)
+    handoffRecorders[0]('/Users/milksu/code/milksu')
+    await nextTick()
+
+    const openImport = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
+      item.textContent?.includes('导入 Coding 结论'),
+    )
+    if (!openImport) throw new Error('missing Coding conclusion import button')
+    openImport.click()
+    await nextTick()
+
+    expect(host.textContent).toContain('粘贴 Coding Agent 完成后的摘要')
+    expect(host.textContent).toContain('不自动提升用户能力画像')
+    const input = host.querySelector<HTMLTextAreaElement>('textarea[aria-label="Coding 结论回写"]')
+    if (!input) throw new Error('missing Coding conclusion textarea')
+    await setInput(input, [
+      '已核对 Apache advisory 和补丁版本范围。',
+      '授权仓库只读检查：未发现 ActiveMQ 依赖。',
+      '仍需用户确认生产 mq-orders-prod 版本。',
+    ].join('\n'))
+
+    const submit = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
+      item.textContent?.includes('导入到笔记'),
+    )
+    if (!submit) throw new Error('missing Coding conclusion submit')
+    submit.click()
+    await nextTick()
+
+    expect(host.textContent).toContain('已导入到研究笔记')
+    expect(host.textContent).toContain('复制证据摘要')
+    const textareas = [...host.querySelectorAll<HTMLTextAreaElement>('textarea')]
+    expect(textareas.some(item => item.value.includes('已核对 Apache advisory 和补丁版本范围。'))).toBe(true)
+    expect(textareas.some(item => item.value.includes('Coding 结论回写（用户粘贴/确认）'))).toBe(true)
+    expect(textareas.some(item => item.value.includes('未发现 ActiveMQ 依赖'))).toBe(true)
+  })
+
   it('lets the user attach a local asset hit to a tracked CVE', async () => {
     const host = await mountVulnPage()
     const openAssetForm = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>

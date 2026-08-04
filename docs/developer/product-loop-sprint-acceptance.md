@@ -5,6 +5,30 @@
 本文件只记录当前冲刺期间已经执行过的可复核验收动作，避免后续 Agent 把口头进展误当成
 已完成声明。最终架构、里程碑、状态页和发布说明仍按 `product-loop-sprint.md` 后置统一更新。
 
+## 2026-08-04 · CVE Coding conclusion write-back
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | 本批次提交（见 Git log） |
+| 窄测 | `npm --prefix app test -- VulnPage.test.ts useVulnerabilityDashboard.test.ts VulnerabilityLoopPanel.test.ts vulnerabilityCodingHandoff.test.ts` |
+| 窄测结果 | 4 files / 37 tests passed |
+| Build | `npm --prefix app run build` |
+| Build 结果 | production build passed |
+
+覆盖范围：
+
+- CVE 研究笔记区新增“导入 Coding 结论”；
+- 用户可以把 Coding Agent 完成后的摘要、材料链接或只读影响检查结论粘贴回当前 CVE；
+- 导入结果同时写入“关键结论”和“学习笔记”，并标注为“用户粘贴/确认”的 Coding 结论回写；
+- 下一步状态可从“补用户笔记”推进到“复制证据摘要”，让 CVE → Coding → CVE 的学习闭环可见；
+- UI 明确该入口不自动提升用户能力画像，避免 Agent 输出直接变成用户能力事实。
+
+本次仍未证明：
+
+- Coding Agent 真实完成 CVE 影响检查后的自动回写；
+- Memory / Ability Profile 对该笔记的端到端归因校准；
+- 打包 App 中用户真实完成 CVE → Coding → CVE 回写的视觉验收。
+
 ## 2026-08-04 · CVE local practice catalog import
 
 | 项目 | 记录 |

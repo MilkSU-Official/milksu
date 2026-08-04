@@ -90,6 +90,10 @@ const practiceImportError = ref('')
 const lastImportedPracticeIds = ref<string[]>([])
 const showAssetForm = ref(false)
 const assetFormError = ref('')
+const showCodingConclusionForm = ref(false)
+const codingConclusionText = ref('')
+const codingConclusionError = ref('')
+const codingConclusionNotice = ref('')
 const feedImportCopyNotice = ref('')
 const loopWorkspace = ref<HTMLElement | null>(null)
 const practiceWorkspace = ref<HTMLElement | null>(null)
@@ -190,6 +194,36 @@ function undoLastPracticeImport() {
     ? `已撤销本次导入的 ${removed} 个本地练习环境匹配`
     : '没有可撤销的本地练习环境匹配'
   lastImportedPracticeIds.value = []
+}
+
+function importCodingConclusion() {
+  codingConclusionError.value = ''
+  codingConclusionNotice.value = ''
+  const raw = codingConclusionText.value.trim()
+  if (!raw) {
+    codingConclusionError.value = '请先粘贴已经由用户核对过的 Coding 结论。'
+    return
+  }
+  const summary = raw
+    .split(/\r?\n/)
+    .map(line => line.replace(/^[-*#\s]+/, '').trim())
+    .find(Boolean)
+    ?.slice(0, 240)
+    || '已导入 Coding 研究结论，待继续核对。'
+  const existing = dashboard.researchNoteFor.value
+  const stamp = new Date().toLocaleString()
+  dashboard.updateResearchNote(dashboard.selected.value.id, {
+    keyFindings: existing.keyFindings.trim()
+      ? `${existing.keyFindings.trim()}\n${summary}`
+      : summary,
+    notes: [
+      existing.notes.trim(),
+      `[${stamp}] Coding 结论回写（用户粘贴/确认）：\n${raw}`,
+    ].filter(Boolean).join('\n\n'),
+  })
+  codingConclusionText.value = ''
+  showCodingConclusionForm.value = false
+  codingConclusionNotice.value = '已导入到研究笔记；请保留可核对材料链接，避免把 Agent 推测当成事实。'
 }
 
 function startSelectedCodingTask(task: VulnerabilityCodingTask) {
@@ -1086,14 +1120,52 @@ function statusVariant(status: VulnerabilityStatus) {
         <section class="border-b border-border px-6 py-5">
           <div class="flex items-center justify-between gap-3">
             <h3 class="text-label font-medium">研究笔记</h3>
-            <Badge
-              :variant="dashboard.researchNoteFor.value.notes || dashboard.researchNoteFor.value.keyFindings ? 'success' : 'outline'"
-            >
-              {{ dashboard.researchNoteFor.value.notes || dashboard.researchNoteFor.value.keyFindings ? '已记录' : '未记录' }}
-            </Badge>
+            <div class="flex items-center gap-2">
+              <Badge
+                :variant="dashboard.researchNoteFor.value.notes || dashboard.researchNoteFor.value.keyFindings ? 'success' : 'outline'"
+              >
+                {{ dashboard.researchNoteFor.value.notes || dashboard.researchNoteFor.value.keyFindings ? '已记录' : '未记录' }}
+              </Badge>
+              <Button
+                variant="outline"
+                size="sm"
+                @click="showCodingConclusionForm = !showCodingConclusionForm"
+              >
+                <ClipboardList class="size-4" />
+                导入 Coding 结论
+              </Button>
+            </div>
           </div>
           <p class="mt-1 text-caption leading-5 text-muted-foreground">
             只记录你确认过的材料、判断和学习收获；不要把 Agent 猜测当成事实。
+          </p>
+          <form
+            v-if="showCodingConclusionForm"
+            class="mt-4 rounded-lg border border-border bg-muted/20 p-3"
+            aria-label="导入 Coding 研究结论"
+            @submit.prevent="importCodingConclusion"
+          >
+            <p class="text-caption leading-5 text-muted-foreground">
+              粘贴 Coding Agent 完成后的摘要、材料链接或影响检查结论；这里仅作为用户确认后的学习笔记，不自动提升用户能力画像。
+            </p>
+            <Textarea
+              v-model="codingConclusionText"
+              class="mt-3 min-h-28 resize-y"
+              aria-label="Coding 结论回写"
+              placeholder="例如：已核对厂商公告和补丁，当前授权仓库未发现受影响组件；仍需用户确认生产资产版本。"
+            />
+            <p v-if="codingConclusionError" class="mt-2 text-caption text-destructive">{{ codingConclusionError }}</p>
+            <div class="mt-3 flex items-center gap-2">
+              <Button type="submit" size="sm">
+                导入到笔记
+              </Button>
+              <Button type="button" variant="ghost" size="sm" @click="showCodingConclusionForm = false">
+                取消
+              </Button>
+            </div>
+          </form>
+          <p v-if="codingConclusionNotice" class="mt-3 text-caption text-primary">
+            {{ codingConclusionNotice }}
           </p>
           <div class="mt-4 space-y-3">
             <label class="block">
