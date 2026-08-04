@@ -52,6 +52,7 @@ const computerUsePackagedSmokeTarget = {
   pidOffset: 200,
   windowId: 9001,
 }
+const stableCodesignRequired = boolEnv(process.env.MILKSU_REQUIRE_STABLE_CODESIGN)
 const systemOcrVersion = '1.1.0'
 const typescriptLanguageServerVersion = '5.3.0'
 const vueLanguageServerVersion = '2.2.12'
@@ -107,6 +108,20 @@ function argument(name, fallback = undefined) {
   if (inline) return inline.slice(prefix.length)
   const index = process.argv.indexOf(`--${name}`)
   return index >= 0 ? process.argv[index + 1] : fallback
+}
+
+function boolEnv(value) {
+  return ['1', 'true', 'yes', 'on'].includes(String(value ?? '').trim().toLowerCase())
+}
+
+function resolveCodesignIdentity() {
+  const identity = (process.env.MILKSU_CODESIGN_IDENTITY || '-').trim() || '-'
+  if (stableCodesignRequired && identity === '-') {
+    throw new Error(
+      'MILKSU_REQUIRE_STABLE_CODESIGN=1 requires MILKSU_CODESIGN_IDENTITY, for example "Developer ID Application: ...".',
+    )
+  }
+  return identity
 }
 
 function currentPlatform() {
@@ -186,6 +201,36 @@ function minimalPackageCopySet(packages) {
 async function sha256(path) {
   const data = await readFile(path)
   return createHash('sha256').update(data).digest('hex')
+}
+
+async function inspectCodesign(path) {
+  const { stdout, stderr } = await execFileAsync('/usr/bin/codesign', [
+    '-dv',
+    '--verbose=4',
+    path,
+  ])
+  const fields = new Map()
+  for (const rawLine of `${stdout}\n${stderr}`.split('\n')) {
+    const line = rawLine.trim()
+    const separator = line.indexOf('=')
+    if (separator <= 0) continue
+    fields.set(line.slice(0, separator), line.slice(separator + 1))
+  }
+  return {
+    identifier: fields.get('Identifier') || '',
+    signature: fields.get('Signature') || '',
+    teamIdentifier: fields.get('TeamIdentifier') || '',
+  }
+}
+
+function assertStableCodesign(path, details) {
+  const signature = details.signature.trim().toLowerCase()
+  const teamIdentifier = details.teamIdentifier.trim().toLowerCase()
+  if (signature === 'adhoc' || !teamIdentifier || teamIdentifier === 'not set') {
+    throw new Error(
+      `stable codesign required for ${path}, got Signature=${details.signature || 'unknown'} TeamIdentifier=${details.teamIdentifier || 'unknown'}`,
+    )
+  }
 }
 
 async function download(url, destination) {
@@ -2162,6 +2207,7 @@ async function smokeSidecar(platform) {
 
 async function installSidecar(platform, binaryPath) {
   if (!binaryPath) throw new Error('--bin is required for Sidecar installation')
+  const codesignIdentity = resolveCodesignIdentity()
   const source = await buildSidecar(platform)
   const absoluteBinary = resolve(repositoryRoot, binaryPath)
   if (!absoluteBinary.includes('.app/Contents/MacOS/')) {
@@ -2247,7 +2293,6 @@ async function installSidecar(platform, binaryPath) {
   await chmod(join(destination, 'node'), 0o755)
   await chmod(join(destination, 'cua-driver'), 0o755)
   await chmod(join(destination, 'lsp-runtime', 'gopls'), 0o755)
-  const codesignIdentity = process.env.MILKSU_CODESIGN_IDENTITY || '-'
   await execFileAsync('/usr/bin/codesign', [
     '--force',
     '--sign',
@@ -2261,6 +2306,13 @@ async function installSidecar(platform, binaryPath) {
     codesignIdentity,
     application,
   ])
+  const signing = await inspectCodesign(application)
+  if (stableCodesignRequired) {
+    assertStableCodesign(application, signing)
+  }
+  process.stdout.write(
+    `MilkSU app signing: Identifier=${signing.identifier || 'unknown'} Signature=${signing.signature || 'unknown'} TeamIdentifier=${signing.teamIdentifier || 'unknown'}\n`,
+  )
   process.stdout.write(`Installed MilkSU Sidecar into ${destination}\n`)
 }
 
