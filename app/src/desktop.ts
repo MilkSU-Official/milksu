@@ -105,6 +105,49 @@ export interface VulnerabilityFeedDownload {
   snapshotSizeBytes?: number
 }
 
+export interface VulnerabilityPracticeRequest {
+  cveId: string
+  environmentId: string
+  directory: string
+  sourceRevision?: string
+  projectName?: string
+  cleanupVolumes?: boolean
+}
+
+export interface VulnerabilityPracticeContainer {
+  name?: string
+  service?: string
+  state?: string
+  health?: string
+}
+
+export interface VulnerabilityPracticeRun {
+  schema: string
+  action: string
+  state: string
+  cveId: string
+  environmentId: string
+  directory: string
+  composeFile: string
+  projectName: string
+  sourceRevision?: string
+  observedAt: string
+  evidencePath?: string
+  composeSha256?: string
+  containerCount: number
+  containers?: VulnerabilityPracticeContainer[]
+  gates: {
+    dockerAvailable: boolean
+    composeFileValidated: boolean
+    started: boolean
+    statusObserved: boolean
+    stopped: boolean
+    noCredentialLeak: boolean
+  }
+  limitations?: string[]
+  error?: string
+}
+
 interface WailsAppBindings {
   GetSettings(): Promise<AppSettings>
   SaveSettingsCmd(settings: AppSettings): Promise<void>
@@ -332,6 +375,10 @@ interface WailsAppBindings {
   FetchFIRSTEPSS(cveId: string): Promise<VulnerabilityFeedDownload>
   FetchVulhubPracticeCatalog(): Promise<VulnerabilityFeedDownload>
   RevealVulnerabilityFeedSnapshot(snapshotPath: string): Promise<void>
+  ChooseVulnerabilityPracticeDirectory(): Promise<string>
+  StartVulnerabilityPractice(request: VulnerabilityPracticeRequest): Promise<VulnerabilityPracticeRun>
+  GetVulnerabilityPracticeStatus(request: VulnerabilityPracticeRequest): Promise<VulnerabilityPracticeRun>
+  StopVulnerabilityPractice(request: VulnerabilityPracticeRequest): Promise<VulnerabilityPracticeRun>
   SubmitVulnReproduction(id: string, request: VulnReproductionRequest): Promise<VulnProjection>
   RecordVulnLearning(id: string, request: VulnLearningRecordRequest): Promise<VulnProjection>
   CancelVulnJob(id: string): Promise<void>
@@ -1083,6 +1130,14 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.FetchVulhubPracticeCatalog() as Promise<T>
       case 'reveal_vulnerability_feed_snapshot':
         return app.RevealVulnerabilityFeedSnapshot(args?.snapshotPath as string) as Promise<T>
+      case 'choose_vulnerability_practice_directory':
+        return app.ChooseVulnerabilityPracticeDirectory() as Promise<T>
+      case 'start_vulnerability_practice':
+        return app.StartVulnerabilityPractice(args?.request as VulnerabilityPracticeRequest) as Promise<T>
+      case 'get_vulnerability_practice_status':
+        return app.GetVulnerabilityPracticeStatus(args?.request as VulnerabilityPracticeRequest) as Promise<T>
+      case 'stop_vulnerability_practice':
+        return app.StopVulnerabilityPractice(args?.request as VulnerabilityPracticeRequest) as Promise<T>
       case 'submit_vuln_reproduction':
         return app.SubmitVulnReproduction(args?.id as string, args?.request as VulnReproductionRequest) as Promise<T>
       case 'record_vuln_learning':
@@ -1367,6 +1422,11 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
       return await fetchVulhubPracticeCatalogInBrowser() as T
     case 'reveal_vulnerability_feed_snapshot':
       throw new Error('在 Finder 中显示 CVE Feed 快照需要 MilkSU 桌面运行时。')
+    case 'choose_vulnerability_practice_directory':
+    case 'start_vulnerability_practice':
+    case 'get_vulnerability_practice_status':
+    case 'stop_vulnerability_practice':
+      throw new Error('CVE 本地练习环境生命周期需要 MilkSU 桌面运行时。')
     case 'import_nssctf_challenge': {
       const normalized = normalizeNSSCTFProblemURL(args?.url as string)
       const response = await fetch(`/nssctf-api/problem/v2/${normalized.id}/`, {

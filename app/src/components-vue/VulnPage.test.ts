@@ -710,7 +710,8 @@ describe('VulnPage', () => {
     expect(host.textContent).toContain('已确认计划')
     expect(host.textContent).toContain('1 已确认计划')
     expect(host.textContent).toContain('交给 Coding')
-    expect(nextStep().textContent).toContain('交给 Coding')
+    expect(host.textContent).toContain('选择本地目录')
+    expect(nextStep().textContent).toContain('选择目录')
   })
 
   it('lets the user add a local CVE tracking item beyond the built-in demo list', async () => {
@@ -1022,7 +1023,7 @@ describe('VulnPage', () => {
     expect(host.textContent).toContain('研究中')
   })
 
-  it('lets the user confirm a matched isolated practice environment without launching Docker', async () => {
+  it('lets the user confirm a matched isolated practice environment before selecting a local directory', async () => {
     const host = await mountVulnPage()
     const activeMqRow = [...host.querySelectorAll<HTMLTableRowElement>('tr')].find(item =>
       item.textContent?.includes('CVE-2023-46604'),
@@ -1053,19 +1054,18 @@ describe('VulnPage', () => {
     expect(host.textContent).toContain('练习已确认')
     expect(host.textContent).toContain('1 已确认计划')
     expect(host.textContent).toContain('已确认本地练习计划，尚未启动容器')
+    expect(host.textContent).toContain('选择本地目录')
     expect(host.textContent).toContain('下一步交给 Coding Agent')
     expect(host.textContent).toContain('本地练习启动前清单')
     expect(host.textContent).toContain('复制启动前计划')
     expect(host.textContent).toContain('必须逐项人工确认 Docker、端口、目录、网络边界和清理方式')
     expect(host.textContent).toContain('不要自动拉取镜像、启动容器、运行 exploit 或访问外部目标')
 
-    const stop = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
-      item.textContent?.includes('标记停止'),
+    const chooseDirectory = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
+      item.textContent?.includes('选择本地目录'),
     )
-    if (!stop) throw new Error('missing stop practice button')
-    stop.click()
-    await nextTick()
-    expect(host.textContent).toContain('已停止')
+    if (!chooseDirectory) throw new Error('missing choose practice directory button')
+    expect(host.textContent).not.toContain('停止并清理')
 
     const clear = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
       item.textContent?.includes('清除记录'),

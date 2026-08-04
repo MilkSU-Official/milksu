@@ -29,6 +29,7 @@
     "test:startup-recovery-live": "node scripts/test-packaged-startup-recovery-live.mjs",
     "test:vuln-feed-matrix-live": "node scripts/test-packaged-vuln-feed-matrix-live.mjs",
     "test:vuln-feed-live": "node scripts/test-packaged-vuln-feed-live.mjs",
+    "test:vuln-practice-live": "node scripts/test-packaged-vuln-practice-live.mjs",
     "m3:release-check": "bash scripts/m3-release-check.sh",
     "test:security-bridge": "printf '%s\\n' '{\"action\":\"protocol_info\",\"requestId\":\"protocol-test\"}' | node security-bridge.js",
     "spike:pi:protocol": "node spikes/engine-comparison/pi-spike.mjs --protocol-only",

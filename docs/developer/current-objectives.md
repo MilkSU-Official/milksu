@@ -123,8 +123,11 @@
    说成只有 mock 数据或只有单 NVD；CVE 设置页主同步入口已升级为 NVD、FIRST EPSS、CISA KEV
    和 Vulhub 四源矩阵，并保留逐源成功/失败状态；同日真实打包 MilkSU UI 已点击该设置入口，
    对 `CVE-2024-3400` 完成 4/4 来源同步，并在隔离 App data 下落盘 NVD、FIRST EPSS、
-   CISA KEV 与 Vulhub snapshot。仍未完成 Docker 练习环境启动/停止、完整研究结果回写和
-   资产验证。
+   CISA KEV 与 Vulhub snapshot。同日 packaged CVE practice live smoke 已证明真实打包
+   App 能对用户选定的本地 Docker Compose 目录完成启动、状态观察、停止和清理，报告
+   `build/test-results/vuln-practice-live.json`；该 smoke 使用 benign 本地 fixture，只验证
+   生命周期管线，不运行 exploit、漏洞触发输入或外部目标流量。仍未完成真实 Vulhub 用户目录
+   的 UI 手动验收、完整研究结果回写、GHSA/OSV 和资产验证。
 3. **P0 · 长时间自主开发。** 打包 MilkSU 在“替我审批”或“完全访问”下持续完成真实功能，
    自动构建、测试、预览、恢复和交付，普通已授权操作不以无意义审批反复打断用户。
    Computer Use 必须能由用户选择一个当前可见的外部 App / 窗口作为不可变 Scope，并让

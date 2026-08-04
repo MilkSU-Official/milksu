@@ -286,6 +286,7 @@ func (a *App) Startup(ctx context.Context) {
 	a.maybeRunExternalSessionImportSmoke()
 	a.maybeRunVulnerabilityFeedSmoke()
 	a.maybeRunVulnerabilityFeedMatrixSmoke()
+	a.maybeRunVulnerabilityPracticeSmoke()
 	a.maybeRunCodingArtifactPreviewSmoke()
 	a.maybeRunCodingGitDeliverySmoke()
 	a.maybeRunCodingBackgroundRecoverySmoke()
@@ -1521,6 +1522,44 @@ func (a *App) FetchVulhubPracticeCatalog() (vuln.FeedSnapshotDownload, error) {
 	return a.fetchAndPersistVulnerabilityFeed(func(ctx context.Context) (vuln.FeedSnapshotDownload, error) {
 		return vuln.FetchVulhubPracticeCatalog(ctx, nil)
 	})
+}
+
+func (a *App) ChooseVulnerabilityPracticeDirectory() (string, error) {
+	if a.ctx == nil {
+		return "", fmt.Errorf("desktop runtime is not ready")
+	}
+	return wailsruntime.OpenDirectoryDialog(a.ctx, wailsruntime.OpenDialogOptions{
+		Title: "选择 CVE 本地练习 Docker Compose 目录",
+	})
+}
+
+func (a *App) StartVulnerabilityPractice(request vuln.PracticeRequest) (vuln.PracticeRun, error) {
+	run, err := vuln.StartPracticeEnvironment(a.commandContext(), a.dataDirectory, request)
+	if err != nil {
+		a.diagnostics.Record("vuln-practice", "error", "start vulnerability practice failed")
+		return run, err
+	}
+	a.diagnostics.Record("vuln-practice", "info", "vulnerability practice started")
+	return run, nil
+}
+
+func (a *App) GetVulnerabilityPracticeStatus(request vuln.PracticeRequest) (vuln.PracticeRun, error) {
+	run, err := vuln.GetPracticeEnvironmentStatus(a.commandContext(), a.dataDirectory, request)
+	if err != nil {
+		a.diagnostics.Record("vuln-practice", "error", "inspect vulnerability practice failed")
+		return run, err
+	}
+	return run, nil
+}
+
+func (a *App) StopVulnerabilityPractice(request vuln.PracticeRequest) (vuln.PracticeRun, error) {
+	run, err := vuln.StopPracticeEnvironment(a.commandContext(), a.dataDirectory, request)
+	if err != nil {
+		a.diagnostics.Record("vuln-practice", "error", "stop vulnerability practice failed")
+		return run, err
+	}
+	a.diagnostics.Record("vuln-practice", "info", "vulnerability practice stopped")
+	return run, nil
 }
 
 func (a *App) RevealVulnerabilityFeedSnapshot(snapshotPath string) error {

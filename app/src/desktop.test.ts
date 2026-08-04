@@ -143,6 +143,72 @@ describe('desktop command adapter', () => {
     })).rejects.toThrow('MilkSU 桌面运行时')
   })
 
+  it('passes CVE practice directory selection and lifecycle to Wails', async () => {
+    const request = {
+      cveId: 'CVE-2023-46604',
+      environmentId: 'vulhub-cve-2023-46604',
+      directory: '/Users/example/vulhub/activemq/CVE-2023-46604',
+      sourceRevision: 'vulhub master abc123',
+      cleanupVolumes: true,
+    }
+    const run = {
+      schema: 'milksu-vuln-practice-run/v1',
+      action: 'start',
+      state: 'running',
+      cveId: request.cveId,
+      environmentId: request.environmentId,
+      directory: request.directory,
+      composeFile: `${request.directory}/docker-compose.yml`,
+      projectName: 'milksu-cve-2023-46604-abcd',
+      observedAt: '2026-08-05T08:00:00Z',
+      evidencePath: '/Users/example/Library/Application Support/MilkSU/vuln/practice-runs/cve-2023-46604/start.json',
+      containerCount: 1,
+      gates: {
+        dockerAvailable: true,
+        composeFileValidated: true,
+        started: true,
+        statusObserved: true,
+        stopped: false,
+        noCredentialLeak: true,
+      },
+    }
+    const chooseVulnerabilityPracticeDirectory = vi.fn(async () => request.directory)
+    const startVulnerabilityPractice = vi.fn(async () => run)
+    const getVulnerabilityPracticeStatus = vi.fn(async () => ({ ...run, action: 'status' }))
+    const stopVulnerabilityPractice = vi.fn(async () => ({ ...run, action: 'stop', state: 'stopped' }))
+    Object.defineProperty(window, 'go', {
+      configurable: true,
+      value: {
+        main: {
+          App: {
+            ChooseVulnerabilityPracticeDirectory: chooseVulnerabilityPracticeDirectory,
+            StartVulnerabilityPractice: startVulnerabilityPractice,
+            GetVulnerabilityPracticeStatus: getVulnerabilityPracticeStatus,
+            StopVulnerabilityPractice: stopVulnerabilityPractice,
+          },
+        },
+      },
+    })
+
+    await expect(invokeCommand('choose_vulnerability_practice_directory')).resolves.toBe(request.directory)
+    await expect(invokeCommand('start_vulnerability_practice', { request })).resolves.toBe(run)
+    await expect(invokeCommand('get_vulnerability_practice_status', { request })).resolves.toMatchObject({ action: 'status' })
+    await expect(invokeCommand('stop_vulnerability_practice', { request })).resolves.toMatchObject({ state: 'stopped' })
+    expect(startVulnerabilityPractice).toHaveBeenCalledWith(request)
+    expect(getVulnerabilityPracticeStatus).toHaveBeenCalledWith(request)
+    expect(stopVulnerabilityPractice).toHaveBeenCalledWith(request)
+  })
+
+  it('does not pretend browser preview can start CVE practice containers', async () => {
+    await expect(invokeCommand('start_vulnerability_practice', {
+      request: {
+        cveId: 'CVE-2023-46604',
+        environmentId: 'vulhub-cve-2023-46604',
+        directory: '/tmp/vulhub/activemq/CVE-2023-46604',
+      },
+    })).rejects.toThrow('MilkSU 桌面运行时')
+  })
+
   it('passes Session Index status, refresh, and history search to Wails', async () => {
     const status = {
       available: true,

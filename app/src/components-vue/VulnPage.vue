@@ -225,6 +225,10 @@ const selectedNextActionCta = computed(() => {
   const label = dashboard.selectedNextAction.value.label
   if (label === '建立研究任务') return '建立'
   if (label === '确认练习计划') return '确认'
+  if (label === '选择本地目录') return '选择目录'
+  if (label === '启动本地练习') return '启动'
+  if (label === '启动中') return '查看状态'
+  if (label === '观察/停止练习') return '查看状态'
   if (label === '交给 Coding') return '交给 Coding'
   if (label === '补用户笔记') return '去写笔记'
   return '查看摘要'
@@ -241,6 +245,20 @@ async function runSelectedNextAction() {
     await scrollToWorkspace(practiceWorkspace.value)
     return
   }
+  if (label === '选择本地目录') {
+    await chooseSelectedPracticeDirectory()
+    await scrollToWorkspace(practiceWorkspace.value)
+    return
+  }
+  if (label === '启动本地练习') {
+    await startSelectedPracticeRuntime()
+    await scrollToWorkspace(practiceWorkspace.value)
+    return
+  }
+  if (label === '启动中' || label === '观察/停止练习') {
+    await scrollToWorkspace(practiceWorkspace.value)
+    return
+  }
   if (label === '交给 Coding' && dashboard.codingTaskForSelected.value) {
     startSelectedCodingTask(dashboard.codingTaskForSelected.value)
     return
@@ -250,6 +268,49 @@ async function runSelectedNextAction() {
     return
   }
   await scrollToWorkspace(loopWorkspace.value)
+}
+
+const selectedPracticeState = computed(() => dashboard.practiceSessionFor.value?.state ?? 'unconfirmed')
+const selectedPracticeBadge = computed(() => {
+  const state = selectedPracticeState.value
+  if (state === 'running') return { label: '运行中', variant: 'success' as const }
+  if (state === 'starting') return { label: '启动中', variant: 'info' as const }
+  if (state === 'failed') return { label: '启动失败', variant: 'destructive' as const }
+  if (state === 'confirmed') return { label: '已确认计划', variant: 'success' as const }
+  if (state === 'stopped') return { label: '已停止', variant: 'secondary' as const }
+  return { label: '待确认', variant: 'outline' as const }
+})
+
+async function chooseSelectedPracticeDirectory() {
+  try {
+    await dashboard.choosePracticeDirectory(dashboard.selected.value.id)
+  } catch {
+    // The composable keeps the user-facing error; the button remains available for retry.
+  }
+}
+
+async function startSelectedPracticeRuntime() {
+  try {
+    await dashboard.startPracticeRuntime(dashboard.selected.value.id)
+  } catch {
+    // The composable keeps the user-facing error; do not hide the failed state.
+  }
+}
+
+async function refreshSelectedPracticeRuntime() {
+  try {
+    await dashboard.refreshPracticeRuntime(dashboard.selected.value.id)
+  } catch {
+    // The composable keeps the user-facing error.
+  }
+}
+
+async function stopSelectedPracticeRuntime() {
+  try {
+    await dashboard.stopPracticeRuntime(dashboard.selected.value.id, true)
+  } catch {
+    // The composable keeps the user-facing error.
+  }
 }
 
 function severityVariant(severity: VulnerabilitySeverity) {
@@ -565,20 +626,8 @@ function statusVariant(status: VulnerabilityStatus) {
                   {{ dashboard.practiceEnvironmentFor.value.matchReason }}
                 </p>
               </div>
-              <Badge
-                :variant="dashboard.practiceSessionFor.value?.state === 'confirmed'
-                  ? 'success'
-                  : dashboard.practiceSessionFor.value?.state === 'stopped'
-                    ? 'secondary'
-                    : 'outline'"
-              >
-                {{
-                  dashboard.practiceSessionFor.value?.state === 'confirmed'
-                    ? '已确认计划'
-                    : dashboard.practiceSessionFor.value?.state === 'stopped'
-                      ? '已停止'
-                      : '待确认'
-                }}
+              <Badge :variant="selectedPracticeBadge.variant">
+                {{ selectedPracticeBadge.label }}
               </Badge>
             </div>
 
@@ -651,14 +700,43 @@ function statusVariant(status: VulnerabilityStatus) {
                 </Button>
               </div>
               <p class="mt-2 text-body leading-6">{{ dashboard.practiceSessionFor.value.nextPrompt }}</p>
-              <p class="mt-2 text-caption text-muted-foreground">
-                本地记录：{{ new Date(dashboard.practiceSessionFor.value.updatedAt).toLocaleString() }}
+              <dl class="mt-3 grid gap-1.5 text-caption leading-5">
+                <div class="grid grid-cols-[5.5rem_1fr] gap-3">
+                  <dt class="text-muted-foreground">本地目录</dt>
+                  <dd class="break-all font-mono">
+                    {{ dashboard.practiceSessionFor.value.localDirectory || '未选择' }}
+                  </dd>
+                </div>
+                <div
+                  v-if="dashboard.practiceSessionFor.value.projectName"
+                  class="grid grid-cols-[5.5rem_1fr] gap-3"
+                >
+                  <dt class="text-muted-foreground">Compose</dt>
+                  <dd class="break-all font-mono">{{ dashboard.practiceSessionFor.value.projectName }}</dd>
+                </div>
+                <div
+                  v-if="dashboard.practiceSessionFor.value.evidencePath"
+                  class="grid grid-cols-[5.5rem_1fr] gap-3"
+                >
+                  <dt class="text-muted-foreground">证据</dt>
+                  <dd class="break-all font-mono">{{ dashboard.practiceSessionFor.value.evidencePath }}</dd>
+                </div>
+                <div class="grid grid-cols-[5.5rem_1fr] gap-3">
+                  <dt class="text-muted-foreground">更新时间</dt>
+                  <dd>{{ new Date(dashboard.practiceSessionFor.value.updatedAt).toLocaleString() }}</dd>
+                </div>
+              </dl>
+              <p
+                v-if="dashboard.practiceSessionFor.value.lastError || dashboard.practiceRuntimeError.value"
+                class="mt-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-caption leading-5 text-destructive"
+              >
+                {{ dashboard.practiceSessionFor.value.lastError || dashboard.practiceRuntimeError.value }}
               </p>
             </div>
 
             <div class="mt-4 flex flex-wrap gap-2">
               <Button
-                v-if="dashboard.practiceSessionFor.value?.state !== 'confirmed'"
+                v-if="!dashboard.practiceSessionFor.value"
                 size="sm"
                 @click="dashboard.confirmPracticeEnvironment(dashboard.selected.value.id)"
               >
@@ -666,13 +744,42 @@ function statusVariant(status: VulnerabilityStatus) {
                 确认练习计划
               </Button>
               <Button
-                v-else
+                v-if="dashboard.practiceSessionFor.value && !dashboard.practiceSessionFor.value.localDirectory"
                 variant="outline"
                 size="sm"
-                @click="dashboard.stopPracticeEnvironment(dashboard.selected.value.id)"
+                :disabled="dashboard.practiceRuntimeBusy.value"
+                @click="chooseSelectedPracticeDirectory"
+              >
+                <FolderOpen class="size-4" />
+                选择本地目录
+              </Button>
+              <Button
+                v-if="dashboard.practiceSessionFor.value?.localDirectory && selectedPracticeState !== 'running'"
+                size="sm"
+                :disabled="dashboard.practiceRuntimeBusy.value || selectedPracticeState === 'starting'"
+                @click="startSelectedPracticeRuntime"
+              >
+                <Play class="size-4" />
+                启动本地练习
+              </Button>
+              <Button
+                v-if="selectedPracticeState === 'running'"
+                variant="outline"
+                size="sm"
+                :disabled="dashboard.practiceRuntimeBusy.value"
+                @click="refreshSelectedPracticeRuntime"
+              >
+                刷新状态
+              </Button>
+              <Button
+                v-if="selectedPracticeState === 'running'"
+                variant="outline"
+                size="sm"
+                :disabled="dashboard.practiceRuntimeBusy.value"
+                @click="stopSelectedPracticeRuntime"
               >
                 <Square class="size-4" />
-                标记停止
+                停止并清理
               </Button>
               <Button
                 v-if="dashboard.practiceSessionFor.value"
