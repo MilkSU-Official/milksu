@@ -94,11 +94,15 @@ const showCodingConclusionForm = ref(false)
 const codingConclusionText = ref('')
 const codingConclusionError = ref('')
 const codingConclusionNotice = ref('')
-const feedImportCopyNotice = ref('')
 const loopWorkspace = ref<HTMLElement | null>(null)
 const practiceWorkspace = ref<HTMLElement | null>(null)
 const researchWorkspace = ref<HTMLElement | null>(null)
 const notesWorkspace = ref<HTMLElement | null>(null)
+const feedForm = ref({
+  sourceName: '',
+  sourceUrl: '',
+  retrievedAt: '',
+})
 const customForm = ref({
   id: '',
   title: '',
@@ -150,14 +154,16 @@ function importLocalIntelJSON() {
   importError.value = ''
   importNotice.value = ''
   lastImportedIds.value = []
-  const result = dashboard.importTrackingJSON(importText.value)
-  if (result.errors.length && !result.imported) {
+  const result = dashboard.importFeedSnapshotJSON(importText.value, feedForm.value)
+  if (result.errors.length && !result.imported && !result.updated) {
     importError.value = result.errors.join('；')
     return
   }
   lastImportedIds.value = result.importedIds
-  importNotice.value = `已导入 ${result.imported} 条本地 CVE 追踪`
-    + (result.skipped ? `，跳过 ${result.skipped} 条已存在记录` : '')
+  const sourceLabel = /feed|catalog/i.test(result.sourceName) ? result.sourceName : `${result.sourceName} Feed`
+  importNotice.value = `已导入 ${sourceLabel} 快照：新增 ${result.imported}、更新 ${result.updated}`
+    + (result.skipped ? `，跳过 ${result.skipped}` : '')
+    + `；${result.format}，${result.itemCount} 条，${result.cacheState} ${result.digest}`
     + (result.errors.length ? `；${result.errors.length} 条格式需人工处理` : '')
   importText.value = ''
   showImportForm.value = false
@@ -166,8 +172,8 @@ function importLocalIntelJSON() {
 function undoLastImport() {
   const removed = dashboard.removeLocalTrackingItems(lastImportedIds.value)
   importNotice.value = removed
-    ? `已撤销本次导入的 ${removed} 条本地 CVE 追踪`
-    : '没有可撤销的本地导入记录'
+    ? `已撤销本次新增的 ${removed} 条 CVE；Feed 快照元数据仍作为缓存证据保留`
+    : '没有可撤销的新增 CVE；已更新的内置条目需要通过下一次 Feed 导入覆盖'
   lastImportedIds.value = []
 }
 
@@ -253,22 +259,6 @@ const selectedNextActionCta = computed(() => {
   return '查看摘要'
 })
 
-const feedImportPrompt = computed(() => [
-  '继续 MilkSU M3 产品闭环冲刺，补 CVE 情报源的只读导入纵切。',
-  '',
-  '目标：把 CVE 工作台从内置快照推进到可复核的只读 Feed/Catalog 导入计划或最小实现；不要做红队 Agent、批量打靶、自动 PoC 或外部目标攻击。',
-  '',
-  '范围建议：',
-  '1. 先读取当前 git 状态、product-loop-sprint.md、objective-coverage-ledger.md 和 CVE 相关代码。',
-  '2. 固定 NVD、CISA KEV、FIRST EPSS、OSV、GitHub Advisory 或 Vulhub catalog 的来源、样本日期、revision/digest、失败原因和缓存位置。',
-  '3. 如果实现代码，只做只读导入/解析/展示；不拉起 Docker、不开放端口、不发送漏洞触发输入、不访问未经授权目标。',
-  '4. UI 必须继续区分“内置快照 / 用户材料 / 待接入 Feed / 已导入样本”，不能把 EPSS/KEV/情报命中写成 Judge 或真实资产验证。',
-  '5. 相邻问题只登记到覆盖台账，不深挖；完成后跑相关窄测、npm --prefix app run build、Browser preview，并更新 product-loop-sprint-acceptance.md。',
-  '6. git diff --check，通过后 commit 并 push 当前 MilkSU 私有分支。',
-  '',
-  '边界：不要读取、输出或迁移 Provider/API Key；不要接入外部漏洞目标；不要把 UI 架子或 smoke 写成完整 CVE 能力。',
-].join('\n'))
-
 async function runSelectedNextAction() {
   const label = dashboard.selectedNextAction.value.label
   if (label === '建立研究任务') {
@@ -291,17 +281,6 @@ async function runSelectedNextAction() {
   await scrollToWorkspace(loopWorkspace.value)
 }
 
-async function copyFeedImportPrompt() {
-  feedImportCopyNotice.value = ''
-  try {
-    if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable')
-    await navigator.clipboard.writeText(feedImportPrompt.value)
-    feedImportCopyNotice.value = '已复制'
-  } catch {
-    feedImportCopyNotice.value = '复制失败，请手动选择导入计划'
-  }
-}
-
 function severityVariant(severity: VulnerabilitySeverity) {
   return severity === 'critical' ? 'destructive' : severity === 'high' ? 'warning' : 'info'
 }
@@ -311,6 +290,10 @@ function statusVariant(status: VulnerabilityStatus) {
   if (status === '研究中') return 'info'
   if (status === '待复现') return 'warning'
   return 'secondary'
+}
+
+function isHttpUrl(value: string) {
+  return /^https?:\/\//i.test(value)
 }
 </script>
 
@@ -332,7 +315,7 @@ function statusVariant(status: VulnerabilityStatus) {
           @click="showImportForm = !showImportForm"
         >
           <ClipboardList class="size-4" />
-          导入 JSON
+          导入 Feed
         </Button>
         <Button
           :variant="showPracticeImportForm ? 'outline' : 'ghost'"
@@ -350,7 +333,7 @@ function statusVariant(status: VulnerabilityStatus) {
           <Bookmark class="size-4" />
           我的关注
         </Button>
-        <Button variant="ghost" size="icon-sm" aria-label="刷新 CVE 本机快照" @click="dashboard.refreshSources">
+        <Button variant="ghost" size="icon-sm" aria-label="复核 CVE 缓存状态" @click="dashboard.refreshSources">
           <RefreshCw class="size-4" />
         </Button>
         <Button variant="ghost" size="icon-sm" aria-label="设置" @click="$emit('openSettings')">
@@ -374,7 +357,7 @@ function statusVariant(status: VulnerabilityStatus) {
           </NativeSelectOption>
         </NativeSelect>
         <span class="ml-auto text-caption text-muted-foreground">
-          {{ dashboard.sourceRefreshSummary.value.label }} · {{ dashboard.intelSources.length }} 源口径
+          {{ dashboard.sourceRefreshSummary.value.label }} · {{ dashboard.sourceSnapshots.value.length }} 个缓存
         </span>
       </div>
       </template>
@@ -468,33 +451,43 @@ function statusVariant(status: VulnerabilityStatus) {
         <form
           v-if="showImportForm"
           class="border-b border-border bg-card/70 px-6 py-5"
-          aria-label="导入本地 CVE JSON"
+          aria-label="导入 CVE Feed 快照"
           @submit.prevent="importLocalIntelJSON"
         >
           <div class="flex items-start justify-between gap-4">
             <div>
-              <h2 class="text-label font-medium">导入本地 CVE JSON</h2>
+              <h2 class="text-label font-medium">导入 CVE Feed 快照</h2>
               <p class="mt-1 text-caption leading-5 text-muted-foreground">
-                粘贴 NVD/OSV/GHSA 摘要或你整理的数组；只解析成本机追踪项，不联网同步、不启动 Docker、不运行 PoC。
+                粘贴 NVD 2.0、CISA KEV Catalog 或你整理的 CVE Feed；保存来源、获取时间和缓存摘要，不联网同步、不启动 Docker、不运行 PoC。
               </p>
             </div>
-            <Badge variant="outline">只读导入</Badge>
+            <Badge variant="outline">只读 Feed</Badge>
+          </div>
+          <div class="mt-4 grid gap-3 sm:grid-cols-[12rem_1fr]">
+            <Input v-model="feedForm.sourceName" size="sm" placeholder="来源名称，例如 CISA KEV / NVD" />
+            <Input v-model="feedForm.sourceUrl" size="sm" placeholder="来源 URL 或本地材料位置" />
+            <Input
+              v-model="feedForm.retrievedAt"
+              size="sm"
+              class="sm:col-span-2"
+              placeholder="获取时间，可留空使用 Feed timestamp 或当前时间"
+            />
           </div>
           <Textarea
             v-model="importText"
             class="mt-4 min-h-32 font-mono text-caption"
-            aria-label="本地 CVE JSON"
-            placeholder='[{"id":"CVE-2026-42424","title":"Example issue","vendor":"Example","product":"demo","affected":"1.x","summary":"本地学习追踪摘要","references":[{"label":"Advisory","href":"https://example.test/advisory"}]}]'
+            aria-label="CVE Feed JSON"
+            placeholder='{"title":"CISA Known Exploited Vulnerabilities Catalog","dateReleased":"2026-08-04","vulnerabilities":[{"cveID":"CVE-2024-3400","vendorProject":"Palo Alto Networks","product":"PAN-OS","vulnerabilityName":"PAN-OS GlobalProtect Command Injection","dateAdded":"2024-04-12","shortDescription":"Command injection in PAN-OS GlobalProtect.","requiredAction":"Apply mitigations per vendor instructions.","dueDate":"2024-04-19","knownRansomwareCampaignUse":"Known"}]}'
           />
           <p class="mt-2 text-caption leading-5 text-muted-foreground">
-            支持对象、数组，或包含 items / vulnerabilities / cves / results 的对象；重复 CVE 会跳过并保留现有记录。
+            支持 NVD vulnerabilities[].cve、CISA KEV vulnerabilities[].cveID、对象数组，或包含 items / cves / results 的对象；重复 CVE 会更新来源证据，不把 KEV/EPSS 当成 Judge。
           </p>
           <p v-if="importError" class="mt-3 text-caption text-destructive">{{ importError }}</p>
           <p v-if="importNotice" class="mt-3 text-caption text-primary">{{ importNotice }}</p>
           <div class="mt-4 flex items-center gap-2">
             <Button type="submit" size="sm">
               <ClipboardList class="size-4" />
-              导入为本地追踪
+              导入 Feed 快照
             </Button>
             <Button type="button" variant="ghost" size="sm" @click="showImportForm = false">
               取消
@@ -551,7 +544,7 @@ function statusVariant(status: VulnerabilityStatus) {
             size="sm"
             @click="undoLastImport"
           >
-            撤销本次导入
+            撤销新增 CVE
           </Button>
         </div>
         <div
@@ -576,35 +569,46 @@ function statusVariant(status: VulnerabilityStatus) {
             <div>
               <h2 class="text-label font-medium">情报源接入状态</h2>
               <p class="mt-1 text-caption leading-5 text-muted-foreground">
-                当前是可验收的学习/追踪骨架：区分内置快照、用户材料和待接入 Feed，不把排序信号当成 Judge。
+                当前支持只读 Feed 快照导入：区分内置快照、用户材料、缓存 Feed 和待接入源，不把排序信号当成 Judge。
               </p>
               <p class="mt-1 text-caption leading-5 text-muted-foreground">
                 {{ dashboard.sourceRefreshSummary.value.detail }}
               </p>
             </div>
-            <Badge variant="outline">非实时同步</Badge>
+            <Badge :variant="dashboard.sourceSnapshots.value.length ? 'info' : 'outline'">
+              {{ dashboard.sourceSnapshots.value.length ? '已缓存 Feed' : '未导入 Feed' }}
+            </Badge>
           </div>
           <div
             class="mt-4 rounded-xl border border-border bg-background px-4 py-3"
-            aria-label="CVE 情报导入接力"
+            aria-label="CVE Feed 缓存状态"
           >
             <div class="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <p class="text-body font-medium">下一步可交给 Coding Agent</p>
+                <p class="text-body font-medium">Feed 缓存状态</p>
                 <p class="mt-1 text-caption leading-5 text-muted-foreground">
-                  做只读 Feed 导入器：固定 NVD / CISA KEV / EPSS / OSV / GHSA / Vulhub revision，
-                  记录样本日期、来源哈希和失败原因；不启动 Docker，不访问外部目标，不把情报命中写成验证。
-                </p>
-                <p class="mt-2 text-caption text-muted-foreground">
-                  {{ feedImportCopyNotice || '不会自动启动 Agent；复制后可交给下一轮 Coding 任务。' }}
+                  {{ dashboard.sourceSnapshots.value.length
+                    ? '已保存来源、获取时间、格式、条目数和摘要；缓存只保留元数据与解析后的 CVE 事实。'
+                    : '尚未导入真实 Feed 快照；可以从 CISA KEV / NVD 等公开源下载 JSON 后粘贴导入。' }}
                 </p>
               </div>
-              <div class="flex shrink-0 flex-col items-end gap-2">
-                <Badge variant="secondary">只读导入计划</Badge>
-                <Button type="button" variant="outline" size="sm" @click="copyFeedImportPrompt">
-                  <ClipboardList class="size-4" />
-                  复制导入任务
-                </Button>
+              <Badge variant="secondary">{{ dashboard.sourceSnapshots.value.length }} 个快照</Badge>
+            </div>
+            <div v-if="dashboard.sourceSnapshots.value.length" class="mt-3 space-y-2">
+              <div
+                v-for="snapshot in dashboard.sourceSnapshots.value.slice(0, 3)"
+                :key="snapshot.id"
+                class="rounded-lg border border-border bg-muted/20 px-3 py-2 text-caption leading-5"
+              >
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <span class="font-medium">{{ snapshot.sourceName }} · {{ snapshot.format }}</span>
+                  <Badge variant="outline">{{ snapshot.cacheState }}</Badge>
+                </div>
+                <p class="mt-1 text-muted-foreground">
+                  获取 {{ new Date(snapshot.retrievedAt).toLocaleString() }}；导入 {{ new Date(snapshot.importedAt).toLocaleString() }}；
+                  {{ snapshot.itemCount }} 条，新增 {{ snapshot.importedIds.length }}、更新 {{ snapshot.updatedIds.length }}、跳过 {{ snapshot.skipped }}。
+                </p>
+                <p class="mt-1 font-mono text-muted-foreground">{{ snapshot.digest }}</p>
               </div>
             </div>
           </div>
@@ -765,6 +769,47 @@ function statusVariant(status: VulnerabilityStatus) {
             </Button>
           </dd>
         </dl>
+
+        <section
+          v-if="dashboard.selectedSourceEvidence.value.length"
+          class="border-b border-border px-6 py-5"
+          aria-label="CVE 来源证据"
+        >
+          <div class="flex items-center justify-between gap-3">
+            <h3 class="text-label font-medium">来源证据</h3>
+            <Badge variant="info">{{ dashboard.selectedSourceEvidence.value.length }} 条</Badge>
+          </div>
+          <div class="mt-3 space-y-2">
+            <article
+              v-for="evidence in dashboard.selectedSourceEvidence.value"
+              :key="`${evidence.sourceId}-${evidence.digest}`"
+              class="rounded-lg border border-border bg-card px-3 py-3 text-caption leading-5"
+            >
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <p class="text-body font-medium">{{ evidence.sourceName }} · {{ evidence.format }}</p>
+                <Badge variant="outline">{{ evidence.cacheState }}</Badge>
+              </div>
+              <p class="mt-1 text-muted-foreground">
+                获取 {{ new Date(evidence.retrievedAt).toLocaleString() }}；导入 {{ new Date(evidence.importedAt).toLocaleString() }}
+                <template v-if="evidence.publishedAt">；发布时间 {{ evidence.publishedAt }}</template>
+                <template v-if="evidence.lastModifiedAt">；更新时间 {{ evidence.lastModifiedAt }}</template>
+              </p>
+              <p class="mt-1 font-mono text-muted-foreground">{{ evidence.digest }}</p>
+              <Button
+                v-if="isHttpUrl(evidence.sourceUrl)"
+                as="a"
+                :href="evidence.sourceUrl"
+                target="_blank"
+                rel="noreferrer"
+                variant="link"
+                size="text"
+                class="mt-1"
+              >
+                查看来源 <ExternalLink class="size-3" />
+              </Button>
+            </article>
+          </div>
+        </section>
 
         <div ref="loopWorkspace">
           <VulnerabilityLoopPanel

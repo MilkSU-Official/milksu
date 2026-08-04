@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { createApp, nextTick, type App } from 'vue'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import VulnPage from './VulnPage.vue'
 
 const mountedApps: App[] = []
@@ -88,7 +88,7 @@ describe('VulnPage', () => {
 
     expect(text).toContain('CVE')
     expect(text).toContain('追踪 CVE、资产命中与研究进度')
-    expect(text).toContain('导入 JSON')
+    expect(text).toContain('导入 Feed')
     expect(text).toContain('导入练习')
     expect(host.querySelector('[data-module-topbar]')).not.toBeNull()
     expect(host.querySelector('[data-module-topbar]')?.getAttribute('data-workspace-module')).toBe('cve')
@@ -101,11 +101,10 @@ describe('VulnPage', () => {
     expect(text).toContain('情报源接入状态')
     expect(text).toContain('尚未复核')
     expect(text).toContain('刷新不会联网拉取 Feed')
-    expect(text).toContain('下一步可交给 Coding Agent')
-    expect(text).toContain('只读 Feed 导入器')
-    expect(text).toContain('复制导入任务')
-    expect(text).toContain('不会自动启动 Agent')
-    expect(text).toContain('不启动 Docker，不访问外部目标，不把情报命中写成验证')
+    expect(text).toContain('Feed 缓存状态')
+    expect(text).toContain('尚未导入真实 Feed 快照')
+    expect(text).toContain('0 个快照')
+    expect(text).toContain('未导入 Feed')
     expect(text).toContain('CVE-2024-6387')
     expect(text).toContain('OpenSSH regreSSHion')
     expect(text).toContain('CVE-2024-4577')
@@ -120,7 +119,7 @@ describe('VulnPage', () => {
     expect(text).toContain('FIRST EPSS')
     expect(text).toContain('OSV / GitHub Advisory')
     expect(text).toContain('Vulhub 练习目录')
-    expect(text).toContain('非实时同步')
+    expect(text).toContain('缓存 Feed')
     expect(text).toContain('不把排序信号当成 Judge')
     expect(text).toContain('待接入')
     expect(text).toContain('Vulhub 练习目录匹配')
@@ -150,7 +149,7 @@ describe('VulnPage', () => {
   it('makes CVE source refresh explicit as local snapshot review', async () => {
     const host = await mountVulnPage()
     const refresh = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
-      item.getAttribute('aria-label') === '刷新 CVE 本机快照',
+      item.getAttribute('aria-label') === '复核 CVE 缓存状态',
     )
     if (!refresh) throw new Error('missing local snapshot refresh button')
 
@@ -159,39 +158,70 @@ describe('VulnPage', () => {
     await nextTick()
 
     expect(host.textContent).toContain('本机复核 rev 2')
-    expect(host.textContent).toContain('只更新本机视图状态')
+    expect(host.textContent).toContain('只更新本机缓存视图')
     expect(host.textContent).toContain('不代表 NVD/KEV/EPSS/OSV 已实时同步')
   })
 
-  it('copies a bounded read-only CVE feed import task for Coding Agent', async () => {
-    const writeText = vi.fn(async () => undefined)
-    vi.stubGlobal('navigator', {
-      ...navigator,
-      clipboard: { writeText },
-    })
+  it('imports a CISA KEV feed snapshot and shows source evidence in the selected CVE', async () => {
     const host = await mountVulnPage()
-    const copy = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
-      item.textContent?.includes('复制导入任务'),
+    const openImport = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
+      item.textContent?.includes('导入 Feed'),
     )
-    if (!copy) throw new Error('missing feed import copy button')
-
-    copy.click()
-    await Promise.resolve()
+    if (!openImport) throw new Error('missing feed import button')
+    openImport.click()
     await nextTick()
 
-    expect(writeText).toHaveBeenCalledOnce()
-    const copied = String((writeText.mock.calls as unknown as Array<[string]>)[0]?.[0] ?? '')
-    expect(copied).toContain('继续 MilkSU M3 产品闭环冲刺')
-    expect(copied).toContain('补 CVE 情报源的只读导入纵切')
-    expect(copied).toContain('NVD、CISA KEV、FIRST EPSS、OSV、GitHub Advisory 或 Vulhub catalog')
-    expect(copied).toContain('revision/digest')
-    expect(copied).toContain('不拉起 Docker')
-    expect(copied).toContain('不开放端口')
-    expect(copied).toContain('不发送漏洞触发输入')
-    expect(copied).toContain('不能把 EPSS/KEV/情报命中写成 Judge 或真实资产验证')
-    expect(copied).toContain('不要读取、输出或迁移 Provider/API Key')
-    expect(copied).toContain('commit 并 push')
-    expect(host.textContent).toContain('已复制')
+    expect(host.textContent).toContain('导入 CVE Feed 快照')
+    expect(host.textContent).toContain('保存来源、获取时间和缓存摘要')
+    const input = host.querySelector<HTMLTextAreaElement>('textarea[aria-label="CVE Feed JSON"]')
+    if (!input) throw new Error('missing feed textarea')
+    await setInput(input, JSON.stringify({
+      title: 'CISA Known Exploited Vulnerabilities Catalog',
+      dateReleased: '2026-08-04T00:00:00Z',
+      vulnerabilities: [
+        {
+          cveID: 'CVE-2024-3400',
+          vendorProject: 'Palo Alto Networks',
+          product: 'PAN-OS',
+          vulnerabilityName: 'PAN-OS GlobalProtect Command Injection',
+          dateAdded: '2024-04-12',
+          shortDescription: 'Command injection in PAN-OS GlobalProtect.',
+          dueDate: '2024-04-19',
+          knownRansomwareCampaignUse: 'Known',
+          notes: 'https://security.paloaltonetworks.com/CVE-2024-3400',
+        },
+        {
+          cveID: 'CVE-2026-42424',
+          vendorProject: 'Example Project',
+          product: 'example-gateway',
+          vulnerabilityName: 'Example Gateway unsafe parser',
+          dateAdded: '2026-08-03',
+          shortDescription: 'Example KEV-shaped item used to verify feed import.',
+          dueDate: '2026-08-24',
+        },
+      ],
+    }))
+
+    const submit = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
+      item.textContent?.includes('导入 Feed 快照'),
+    )
+    if (!submit) throw new Error('missing feed import submit')
+    submit.click()
+    await nextTick()
+
+    expect(host.textContent).toContain('已导入 CISA KEV Feed 快照：新增 1、更新 1')
+    expect(host.textContent).toContain('CISA KEV Catalog')
+    expect(host.textContent).toContain('已缓存元数据 fnv1a-')
+    expect(host.textContent).toContain('已导入 CISA KEV')
+    expect(host.textContent).toContain('1 个快照')
+    expect(host.textContent).toContain('新增 1、更新 1、跳过 0')
+    expect(host.textContent).toContain('CVE-2026-42424')
+    expect(host.textContent).toContain('Example Gateway unsafe parser')
+    expect(host.textContent).toContain('来源证据')
+    expect(host.textContent).toContain('CISA KEV · CISA KEV Catalog')
+    expect(host.textContent).toContain('已缓存元数据')
+    expect(host.textContent).toContain('查看来源')
+    expect(host.textContent).toContain('不等于本地 Judge')
   })
 
   it('shows the Coding workspace scope before handing CVE tasks to Coding', async () => {
@@ -330,20 +360,20 @@ describe('VulnPage', () => {
     expect(host.textContent).toContain('MilkSU')
   })
 
-  it('imports pasted local CVE JSON into visible tracking rows without syncing live feeds', async () => {
+  it('imports pasted generic CVE Feed JSON into visible tracking rows with cache metadata', async () => {
     const host = await mountVulnPage()
     const openImport = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
-      item.textContent?.includes('导入 JSON'),
+      item.textContent?.includes('导入 Feed'),
     )
     if (!openImport) throw new Error('missing import button')
     openImport.click()
     await nextTick()
 
-    expect(host.textContent).toContain('导入本地 CVE JSON')
+    expect(host.textContent).toContain('导入 CVE Feed 快照')
     expect(host.textContent).toContain('不联网同步、不启动 Docker、不运行 PoC')
 
-    const input = host.querySelector<HTMLTextAreaElement>('textarea[aria-label="本地 CVE JSON"]')
-    if (!input) throw new Error('missing local CVE JSON textarea')
+    const input = host.querySelector<HTMLTextAreaElement>('textarea[aria-label="CVE Feed JSON"]')
+    if (!input) throw new Error('missing CVE Feed textarea')
     await setInput(input, JSON.stringify({
       items: [
         {
@@ -359,7 +389,7 @@ describe('VulnPage', () => {
     }))
 
     const submit = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
-      item.textContent?.includes('导入为本地追踪'),
+      item.textContent?.includes('导入 Feed 快照'),
     )
     if (!submit) throw new Error('missing import submit')
     submit.click()
@@ -369,19 +399,20 @@ describe('VulnPage', () => {
     expect(host.textContent).toContain('CVE-2026-42424')
     expect(host.textContent).toContain('用户导入的依赖风险')
     expect(host.textContent).toContain('本地样本，只用于学习追踪。')
-    expect(host.textContent).toContain('已导入 1 条本地 CVE 追踪')
-    expect(host.textContent).toContain('撤销本次导入')
-    expect(host.textContent).toContain('尚未复核')
-    expect(host.textContent).toContain('刷新不会联网拉取 Feed')
+    expect(host.textContent).toContain('已导入 用户 Feed 快照：新增 1、更新 0')
+    expect(host.textContent).toContain('Generic CVE JSON')
+    expect(host.textContent).toContain('已缓存元数据 fnv1a-')
+    expect(host.textContent).toContain('撤销新增 CVE')
+    expect(host.textContent).toContain('来源证据')
 
     const undo = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
-      item.textContent?.includes('撤销本次导入'),
+      item.textContent?.includes('撤销新增 CVE'),
     )
     if (!undo) throw new Error('missing undo import button')
     undo.click()
     await nextTick()
 
-    expect(host.textContent).toContain('已撤销本次导入的 1 条本地 CVE 追踪')
+    expect(host.textContent).toContain('已撤销本次新增的 1 条 CVE')
     expect(host.textContent).not.toContain('CVE-2026-42424')
     expect(host.textContent).not.toContain('用户导入的依赖风险')
     expect(host.textContent).toContain('7')
