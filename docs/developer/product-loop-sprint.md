@@ -56,7 +56,8 @@
 - Coding：在打包 App 中完成一个小 MilkSU 修改，跑真实测试/build，做真实 Browser 或
   Computer Use 验证，commit 并 push；
 - Computer Use：packaged proxy → Cua Driver → 外部 Calculator 精确窗口的 live smoke 已通过；
-  下一步只补 MilkSU UI 内用户选择/启动会话、重启后权限检测一致性，以及主模型消费截图完成真实任务；
+  packaged MilkSU App facade 的 list/start/status/descriptor/stop live smoke 也已通过；下一步只补
+  用户在 MilkSU UI 内点击选择/启动会话、重启后权限检测一致性，以及主模型消费截图完成真实任务；
 - CVE：packaged App 进程内 NVD 单 CVE 导入 live smoke 已通过，已保存来源、获取时间、
   snapshot 哈希/大小和选中 CVE 的事实变化；下一步只补 UI 内 Feed 导入状态、Vulhub/Docker
   启停/清理或更完整源矩阵，不能再说“只有四条 mock 数据”。2026-08-05 Browser 已验证

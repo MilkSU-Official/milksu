@@ -43,14 +43,14 @@
 
 | 分组 | 细项数 | 当前分 | 完成度 |
 | --- | ---: | ---: | ---: |
-| Coding Agent 与高频替代能力 | 32 | 1,650 / 3,200 | **52%** |
+| Coding Agent 与高频替代能力 | 32 | 1,675 / 3,200 | **52%** |
 | CTF 通用闭环与网络边界 | 15 | 550 / 1,500 | **37%** |
 | Memory 与能力画像 | 11 | 500 / 1,100 | **45%** |
 | Runtime Reliability 与 NYU Bench | 10 | 700 / 1,000 | **70%** |
 | 架构约束 | 6 | 125 / 600 | **21%** |
 | 本地数据安全与正式交付 | 15 | 600 / 1,500 | **40%** |
 | 最终文档 | 2 | 75 / 200 | **38%** |
-| **整体** | **91** | **4,200 / 9,100** | **46%** |
+| **整体** | **91** | **4,225 / 9,100** | **46%** |
 
 此前约 58% 的估值按大块综合判断，分母中没有逐项展开真实验收、跨项目、六赛道、RC 和
 架构约束。第二轮证据复核又把没有原生 App 真实任务的 Vue/Go Code Action 从 75% 调到
@@ -72,15 +72,19 @@ allowlisted 本地项目 fixture 工具，将 `COD-28` 从 50% 调到 75%。45% 
 “相关历史”入口，并已通过打包 App isolated smoke 完成真实搜索，调到 75%；2026-08-05 又
 补 packaged Computer Use live smoke：真实 `build/bin/MilkSU.app` 内的 sidecar node、
 `computer-use-proxy.cjs` 和 `cua-driver` 对外部 Calculator 窗口完成 observe → click 1 →
-observe，保存 JSON 与前后截图证据，将 `COD-15` 调到 75%、`COD-16` 调到 50%。后续只使用同一张表比较变化。
+observe，保存 JSON 与前后截图证据，将 `COD-15` 调到 75%、`COD-16` 调到 50%；随后又补
+packaged App facade live smoke，真实 `MilkSU.app` 进程通过 `ListCodingComputerUseTargets`
+→ `StartCodingComputerUse` → `GetCodingComputerUseStatus` → descriptor → `StopCodingComputerUse`
+启动并停止外部 Calculator 精确 PID/window 会话，报告 `build/test-results/computer-use-app-live.json`，
+将 `COD-16` 调到 75%。后续只使用同一张表比较变化。
 
 ### 分值分布
 
 | 分值 | 细项数 | 解释 |
 | ---: | ---: | --- |
 | 100% | 8 | 行定义的精确门槛已经通过 |
-| 75% | 19 | 已有真实证据，仍缺完整矩阵或最终 Gate |
-| 50% | 34 | 工程实现和自动化存在，仍缺真实任务 |
+| 75% | 20 | 已有真实证据，仍缺完整矩阵或最终 Gate |
+| 50% | 33 | 工程实现和自动化存在，仍缺真实任务 |
 | 25% | 8 | 只有局部纵切、设计或基础设施 |
 | 0% | 22 | 未执行，或当前没有足够证据 |
 
@@ -118,8 +122,8 @@ observe，保存 JSON 与前后截图证据，将 `COD-15` 调到 75%、`COD-16`
 | COD-12 | 隔离 Browser 自动化与证据边界 | Browser integration 与 41 项窄测试通过 | 100% | — |
 | COD-13 | MilkSU 项目前端视觉 QA 真实纵切 | `frontend-visual-qa-acceptance.md` | 100% | — |
 | COD-14 | 用户授权的其他项目前端视觉 QA | 尚无项目与任务证据 | 0% | 用户提供一个授权前端项目 |
-| COD-15 | Computer Use 选择当前可见 App / 窗口并生成不可变 Scope | Go Host 枚举可见窗口，前端选择，动态 session policy，descriptor/proxy 锁定 bundle、PID、window；能力摘要已显示真实 App、bundle、PID 和 window，不再写死 MilkSU 自身；Bridge descriptor 拒绝带换行或控制字符的 App 名称，避免污染不可变 Scope 提示；`codingPolicy.test.ts` 覆盖 UI 启动参数只来自用户选定的 PID/window pair，不因同名 App、同 PID 多窗口或同 windowId 不同 PID 漂移，覆盖 ChatPage 刷新可见窗口列表时优先保持当前选择、否则回到已启用会话精确目标、最后才退到第一个窗口，并锁住 Plan/read-only 即使已有目标也不能展示为可操作；`CodingComputerUsePanel.test.ts` 覆盖右侧栏展示外部 App 的 bundle/PID/window、重新检测、权限就绪后显示“可启动”而不是“未接入”、启动前仍不标成“已接入”、其他任务占用禁用、缺窗口显示“待选择窗口”和正式接入说明；`codingPolicy.test.ts` 覆盖能力列表中检测到窗口但未启动时提示进入 Browser/App 面板点击“启动可见会话”，不误写成已锁定；`desktop.test.ts` 覆盖 browser-preview 下 Computer Use 状态返回友好桌面运行时 fallback，不再裸露 unsupported command；Browser 渲染检查已在干净 `127.0.0.1:1421` 点击 Coding → Browser/App 并看到 fallback 文案；`1698e39` 在 Coding 产品闭环卡增加“Computer Use 快速接入”，Browser preview 验证点击后会打开“浏览器与 App”面板并显示 Computer Use 接入清单；2026-08-05 packaged live smoke 用真实 `build/bin/MilkSU.app` sidecar node + `computer-use-proxy.cjs` + `cua-driver`，在外部 Calculator 精确 bundle/PID/window Scope 内完成 observe → click 1 → observe，并保存 JSON 与前后截图；Go、Node、前端构建通过 | 75% | MilkSU UI 内由用户选择/启动外部 App 会话，并由主模型消费截图完成真实任务 |
-| COD-16 | Computer Use 一次性系统权限真实验收 | UI 已说明 App 管理不能替代辅助功能/屏幕录制，提供请求系统权限和重新检测入口；`1698e39` 增加从产品闭环卡直达权限/可见窗口接入面板的用户路径；2026-08-04 又把缺系统权限、待选择窗口、可启动和已接入分开展示，避免用户把“App 管理”或“已检测到窗口”误解成 Computer Use 已完成接入；2026-08-05 在用户已授权系统权限并放行本机拦截后，packaged live smoke 成功读取外部 Calculator 窗口截图并执行点击，证明权限可支撑真实外部窗口操作 | 50% | MilkSU 设置面板重新检测、重启后状态一致性、以及通过 UI 启动真实外部窗口会话 |
+| COD-15 | Computer Use 选择当前可见 App / 窗口并生成不可变 Scope | Go Host 枚举可见窗口，前端选择，动态 session policy，descriptor/proxy 锁定 bundle、PID、window；能力摘要已显示真实 App、bundle、PID 和 window，不再写死 MilkSU 自身；Bridge descriptor 拒绝带换行或控制字符的 App 名称，避免污染不可变 Scope 提示；`codingPolicy.test.ts` 覆盖 UI 启动参数只来自用户选定的 PID/window pair，不因同名 App、同 PID 多窗口或同 windowId 不同 PID 漂移，覆盖 ChatPage 刷新可见窗口列表时优先保持当前选择、否则回到已启用会话精确目标、最后才退到第一个窗口，并锁住 Plan/read-only 即使已有目标也不能展示为可操作；`CodingComputerUsePanel.test.ts` 覆盖右侧栏展示外部 App 的 bundle/PID/window、重新检测、权限就绪后显示“可启动”而不是“未接入”、启动前仍不标成“已接入”、其他任务占用禁用、缺窗口显示“待选择窗口”和正式接入说明；`codingPolicy.test.ts` 覆盖能力列表中检测到窗口但未启动时提示进入 Browser/App 面板点击“启动可见会话”，不误写成已锁定；`desktop.test.ts` 覆盖 browser-preview 下 Computer Use 状态返回友好桌面运行时 fallback，不再裸露 unsupported command；Browser 渲染检查已在干净 `127.0.0.1:1421` 点击 Coding → Browser/App 并看到 fallback 文案；`1698e39` 在 Coding 产品闭环卡增加“Computer Use 快速接入”，Browser preview 验证点击后会打开“浏览器与 App”面板并显示 Computer Use 接入清单；2026-08-05 packaged proxy live smoke 用真实 `build/bin/MilkSU.app` sidecar node + `computer-use-proxy.cjs` + `cua-driver`，在外部 Calculator 精确 bundle/PID/window Scope 内完成 observe → click 1 → observe，并保存 JSON 与前后截图；packaged App facade live smoke 又用真实 `MilkSU.app` 进程列出外部 Calculator、按精确 PID/window 启动 session、验证 descriptor socket、再停止并清空 session；Go、Node、前端构建通过 | 75% | MilkSU UI 内由用户点击选择/启动外部 App 会话，并由主模型消费截图完成真实任务 |
+| COD-16 | Computer Use 一次性系统权限真实验收 | UI 已说明 App 管理不能替代辅助功能/屏幕录制，提供请求系统权限和重新检测入口；`1698e39` 增加从产品闭环卡直达权限/可见窗口接入面板的用户路径；2026-08-04 又把缺系统权限、待选择窗口、可启动和已接入分开展示，避免用户把“App 管理”或“已检测到窗口”误解成 Computer Use 已完成接入；2026-08-05 在用户已授权系统权限并放行本机拦截后，packaged proxy live smoke 成功读取外部 Calculator 窗口截图并执行点击；随后 `MILKSU_COMPUTER_USE_APP_LIVE_SMOKE=1 npm run test:computer-use-app-live` 用真实 `MilkSU.app` App facade 完成 list/start/status/descriptor/stop，报告保存到 `build/test-results/computer-use-app-live.json`，证明权限可支撑 App 层启动外部窗口会话 | 75% | MilkSU 设置面板重新检测、重启后状态一致性、以及通过 UI 点击启动真实外部窗口会话 |
 | COD-17 | Pi 持久会话、Compaction 与连续性 | fixture、事件投影和既有真实任务；`codingContinuity.test.ts` 覆盖任务删除时同步清理 ready/resumed、compacting、compactedAt 和 compaction errors，避免删除后的幽灵恢复/压缩状态；`codingContinuityPresentation.test.ts` 覆盖待连接、恢复、新会话、整理中和已整理状态的用户可见徽章、说明和整理按钮禁用原因；`agentRecovery.test.ts` 覆盖用户中断/取消、`context canceled`、`aborted`、上下文窗口过长、`context_length_exceeded` 和 token limit 等停止会被识别为可继续，同时用户发出新要求后不复用旧失败继续入口 | 75% | 完整 App 重启长上下文验收 |
 | COD-18 | 重启后后台任务、PID、端口、日志和长任务恢复 | Sidecar fixture 与部分打包任务存在；`CodingTerminalPanel.test.ts` 覆盖恢复后的用户可见状态，展示 recovered 提示、PID、端口和日志 tail，并覆盖 browser-preview 下不会刷新/启动后台任务或把空列表伪装成真实 runtime；`bridge-background-view.test.js` 覆盖恢复投影把持久记录里的 `spawnPid` 映射为用户可见 PID，避免重启后进程号丢失；`desktop.test.ts` 锁住刷新、启动和停止后台任务时 conversation、workspace、命令、名称、executionMode 与 approvalPolicy 传给 Wails 的正式入口；2026-08-04 Browser preview 验证 Coding → 终端/测试 → 后台任务会明确提示真实命令、端口、日志和跨应用重启恢复必须在打包 App 中验收 | 50% | 跨 App 重启的真实长任务 |
 | COD-19 | 旧 PTY 明确结束且审批跨重启过期 | 自动化测试存在；`bridge-approval.test.js` 覆盖 App/Sidecar 审批通道关闭时多个会话的 pending approval 全部以拒绝过期，旧 requestId 不能在重启后继续批准；`manager_test.go` 覆盖 Manager 关闭会让运行中的旧 PTY 发出 stopped 事件，且关闭后的 Manager 不能再启动看似可重连的新 PTY；`CodingTerminalPanel.test.ts` 覆盖空 Shell 列表时 UI 明确提示交互式 Shell 不跨 App 重启恢复、旧 PTY 已结束且不可重连，并引导后台长任务在“后台任务”恢复；browser-preview 下 Shell 视图明确只验证入口且不读取终端历史；`agentRecovery.test.ts` 覆盖 Coding/CTF 继续提示会明确禁止复用重启前审批状态，并要求扩大权限、Endpoint、应用窗口或外部发布时重新做有意义确认 | 50% | 原生 App 真实重启负向验收 |
@@ -277,6 +281,7 @@ observe，保存 JSON 与前后截图证据，将 `COD-15` 调到 75%、`COD-16`
 | DONE-CVE-01 | App facade 与打包 App 的真实 NVD 单 CVE 下载、事实提取和原始快照持久化 | `app_vuln_live_test.go` 新增 `TestLiveAppFetchNVDCVEPersistsSnapshot`；默认跳过，显式 `MILKSU_LIVE_CVE_APP_SMOKE=1 go test . -run TestLiveAppFetchNVDCVEPersistsSnapshot -count=1 -v` 已真实访问 NVD `CVE-2024-3400`，验证 `retrievedAt`、App data 下 `vuln/feed-snapshots/nvd/*.json`、返回 body 与磁盘 body 一致、SHA-256 一致、文件权限 `0600`；2026-08-05 新增 `scripts/test-packaged-vuln-feed-live.mjs`，显式 `MILKSU_VULN_FEED_LIVE_SMOKE=1 npm run test:vuln-feed-live` 使用真实 `build/bin/MilkSU.app` 隔离进程拉取 NVD `CVE-2024-3400`，报告保存到 `build/test-results/vuln-feed-live.json`，snapshot 证据复制到 `build/test-results/vuln-feed-live-snapshot.json`，结果包含 `retrievedAt=2026-08-04T18:31:12Z`、`severity=CRITICAL`、`baseScore=10`、snapshot `sha256=ef863c16857bec109adf9b6006910468a94ea2791f4a4f51a218073712531b79`，且报告不包含原始 feed body | 不再把 “CVE 真实 NVD 下载、选中 CVE facts、来源时间和 App data snapshot” 视为未实现，也不要说 CVE 只有四条 mock；仍未证明完整 CVE 研究结果回写、Vulhub/Docker 启动/停止、GHSA/OSV/KEV 全源矩阵或真实资产验证 |
 | DONE-CVE-02 | CVE 首页不再默认铺开情报源、导入和缓存维护台 | `VulnPage.vue` 默认只展示搜索、追踪列表、当前下一步、详情、练习/研究/资产/笔记闭环；Feed/NVD/EPSS/KEV/Vulhub 同步、导入和缓存证据集中到 `VulnerabilityIntelSettingsPanel.vue`；`VulnPage.test.ts` 覆盖默认首页不出现 `同步 NVD`、`同步 EPSS`、`导入 Feed`、`Feed 缓存状态`，点击统一设置后才出现这些维护项；2026-08-05 Browser 在 `http://127.0.0.1:1420/` 验证 CVE 首页无维护台、设置页包含同步/导入/缓存、关闭后回到列表与详情，Console 无 error/warn | 不再重复把“把 CVE 情报源/导入/缓存按钮塞进设置”作为未完成；后续只处理设置页内部密度、真实 Feed 源矩阵或练习环境生命周期 |
 | DONE-CU-01 | 打包 Computer Use proxy 能在外部 App 精确窗口 Scope 内执行可见点击 | `scripts/test-packaged-computer-use-live.mjs` 新增 gated live smoke；2026-08-05 显式 `MILKSU_COMPUTER_USE_LIVE_SMOKE=1` 运行真实 `build/bin/MilkSU.app` sidecar node、`computer-use-proxy.cjs` 与 `cua-driver`，对 `com.apple.calculator` PID/window 完成 observe → click 1 → observe，报告保存到 `build/test-results/computer-use-live.json`，前后截图保存到 `build/test-results/computer-use-live-reset.png` 与 `build/test-results/computer-use-live-after.png`；after 截图显示 Calculator 显示区为 `1` | 不再把“packaged Computer Use proxy 是否能操作外部 App”当作未完成；剩余缺口是 MilkSU UI 内用户选择/启动会话、重启后权限检测一致性、主模型消费截图完成真实任务 |
+| DONE-CU-02 | 打包 MilkSU App facade 能启动并停止外部 App 精确会话 | `app_coding_computer_use_smoke.go` 新增只在 `MILKSU_COMPUTER_USE_APP_SMOKE_RESULT` 存在时运行的 App 内部 smoke；`scripts/test-packaged-computer-use-app-live.mjs` 新增 gated live smoke；2026-08-05 显式 `MILKSU_COMPUTER_USE_APP_LIVE_SMOKE=1 npm run test:computer-use-app-live` 会自动打开 Calculator，并让真实 `build/bin/MilkSU.app` 进程完成 `ListCodingComputerUseTargets` → `StartCodingComputerUse` → `GetCodingComputerUseStatus` → descriptor socket 检查 → `StopCodingComputerUse`，报告保存到 `build/test-results/computer-use-app-live.json`，目标为 `com.apple.calculator` PID `85601` window `61879` | 不再把“Wails/App facade 是否能把用户选定外部 App 变成可用 Computer Use descriptor”作为未完成；剩余缺口是用户在 UI 面板里真实点击启动、重启后检测一致性、以及主模型拿截图完成任务 |
 | DONE-CTF-01 | CTF 工作台跨模块恢复浏览器烟测 | 2026-08-05 在 `http://127.0.0.1:1432/` 的真实渲染界面点击 CTF P382/gift_F12 工作台 → CVE → Coding → CTF，返回后仍显示 NSSCTF 列表、P382 详情、CTF rail 高亮，Console 无 error/warn | 不再把“CTF 一级菜单切回后空白/跳错模块”作为待修；剩余只登记打包原生 App + 运行中 Agent job 的继续验收 |
 | DONE-OBELISK-01 | Obelisk 当前接入方向锁定为 MilkSU 内置核心能力 | `current-objectives.md` 与 `product-loop-sprint.md` 已把 Obelisk / Session Index 提为 P0；本批次实现从外部 `~/.obelisk` 只读探测改为 MilkSU 自己维护 `session-index/obelisk.sqlite`，且 `SessionHistoryPanel.test.ts` 锁住 UI 不显示“事实源/正式档案/历史线索”等边界说教文案 | 后续不得回退为“检测用户有没有安装 Obelisk CLI”或默认依赖 `~/.obelisk`；要扩展就继续内置索引器、导入器、用户确认转档案 |
 | DONE-OBELISK-02 | 打包 App 中完成 Session Index 真实搜索 smoke | `scripts/test-local-delivery-baseline.mjs` 现在用隔离 HOME 预置本地会话，并通过 `MILKSU_SESSION_INDEX_SMOKE_*` 让真实 `build/bin/MilkSU.app` 在 App 进程内刷新并搜索 Session Index；2026-08-05 实跑通过，报告显示 `sessionIndexSmoke.resultCount=2`、`source=milksu-coding`、`toolCallCount=1`、`gates.sessionIndexPackagedSearch=true`，且脚本断言结果不泄漏 fixture secret | 不再把“原生 App 能创建 session-index 并搜索相关历史”作为未完成项；后续只推进用户确认转档案、跨历史导入和许可证/NOTICE 收口 |
