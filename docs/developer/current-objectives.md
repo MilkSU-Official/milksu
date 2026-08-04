@@ -120,8 +120,10 @@
    纯文本主模型通过辅助视觉理解工具截图；不能只硬编码操作 MilkSU 自身。2026-08-05
    packaged live smoke 已证明打包 proxy / Cua Driver 能在外部 Calculator 精确窗口 Scope
    内完成可见点击；同日真实 MilkSU 打包 UI 已完成 Coding → 浏览器与 App → 选择 Calculator
-   → 启动可见会话 → 状态变为已接入当前任务 → 停止会话。后续不再重复验证 UI 内选择/启动，
-   继续补重启后状态一致性和模型消费截图的闭环。
+   → 启动可见会话 → 状态变为已接入当前任务 → 停止会话；随后又用同一隔离 App data
+   重启真实 MilkSU，确认任务保留但旧 Calculator Scope 不会幽灵恢复为已接入，并用
+   Computer Use 对 Calculator 完成 `2+3=5` 的真实点击操作。后续不再重复验证 UI 内
+   选择/启动或重启清理，只补主模型消费截图完成真实 GUI 任务的闭环。
 4. **P1 · 成熟能力集成。** ImageGen、Browser、前端设计/视觉回归 Skill、Project MCP、
    高频 Plugin 以及经用户明确选定的成熟开源能力，优先复用固定版本、可审阅的成熟组件。
    Obelisk / Session Index 是当前 P0 例外，不再按“长期候选”后置。

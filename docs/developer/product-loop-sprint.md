@@ -60,8 +60,9 @@
   WebView sandbox 的原生负向；
 - Computer Use：packaged proxy → Cua Driver → 外部 Calculator 精确窗口的 live smoke 已通过；
   packaged MilkSU App facade 的 list/start/status/descriptor/stop live smoke 也已通过；真实
-  MilkSU UI 已在 Coding → 浏览器与 App 中选择 Calculator 并启动/停止可见会话；下一步只补
-  重启后权限检测一致性，以及主模型消费截图完成真实任务；
+  MilkSU UI 已在 Coding → 浏览器与 App 中选择 Calculator 并启动/停止可见会话；同一隔离
+  App data 重启后任务保留但旧 Calculator Scope 不会继续显示为已接入，且外部 Calculator
+  已由 Computer Use 完成 `2+3=5` 真实点击操作；下一步只补主模型消费截图完成真实任务；
 - CVE：packaged App 进程内 NVD 单 CVE 导入 live smoke 已通过，已保存来源、获取时间、
   snapshot 哈希/大小和选中 CVE 的事实变化；packaged App 多源矩阵 smoke 已通过，能为
   `CVE-2023-46604` 同步 NVD、FIRST EPSS、CISA KEV 和 Vulhub 练习目录，保留四份 snapshot，
