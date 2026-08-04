@@ -1288,3 +1288,37 @@
 - 用户在原生 App 中真实点击 CTF → CVE → Coding 后，Coding 会话排序、回到底部和来源返回入口都符合预期；
 - 三个模块所有深层卡片、表格、Tabs、Textarea、下拉菜单和按钮已经完成完整视觉系统收敛；
 - 外部 App Computer Use、CVE 真实情报源、Vulhub/Docker 练习启动、Git stage/commit/push 和完整 MilkSU 自举任务。
+
+## 2026-08-04 · CTF Agent return surface and chat latest-message continuity
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | 本批次提交 |
+| 目标流 | CTF Agent 对话 → 切到 CVE/Coding → 再点 CTF → 回到上次 CTF Agent；换会话/来源后聊天滚到最新消息 |
+| 窄测 | `npm --prefix app test -- AppRoutingContract.test.ts ChatPageRoutingContract.test.ts` |
+| 窄测结果 | 2 files / 5 tests passed |
+| 全量前端 | `npm --prefix app test` |
+| 全量前端结果 | 50 files / 240 tests passed |
+| 前端构建 | `npm --prefix app run build` |
+| 前端构建结果 | production build passed |
+| Browser 插件路径 | in-app browser 与 Chrome extension 均对 `http://127.0.0.1:4198/` 返回 `net::ERR_BLOCKED_BY_CLIENT`，未作为产品代码缺陷 |
+| 渲染 fallback | 使用系统 Chrome 可执行文件 + Playwright headless，访问 `http://127.0.0.1:4199/` |
+| 渲染结果 | 页面标题 `MilkSU`；无 Vite/framework overlay；console warn/error 为空；CTF/CVE/Coding 顶栏均为 `14px / 20px`；CTF 六赛道状态、CVE 当前下一步、Coding 产品闭环均可见 |
+| 截图 | `/tmp/milksu-route-continuity-qa.png` |
+
+覆盖范围：
+
+- App 现在记住 CTF 上次返回表面：从 CTF Agent 对话离开后，左侧再点 CTF 会优先恢复该 Agent
+  对话，而不是直接落回工作台/题库；
+- CTF Agent 顶栏“返回题库”仍然显式切回 CTF 工作台，并把返回表面重置为 workspace；
+- 手动从历史中选中 CTF Agent 对话也会把 CTF 返回表面记为 agent；
+- ChatPage 在 conversation id、消息数量、CTF 来源态或 CVE 接力来源态变化时都会滚到最新消息；
+- 滚动到底部会在 `nextTick` 后再等一帧，降低 DOM 高度尚未稳定时滚早导致停在顶部/旧位置的风险；
+- Browser 插件路径阻塞已记录，未用它冒充成功；渲染 QA 使用无登录态的系统 Chrome headless fallback。
+
+本次仍未证明：
+
+- 原生打包 App 中真实 CTF Agent 正在运行时切到 CVE/Coding 再回来，是否完整保留运行态、日志和右侧栏选择；
+- 原生 App 中真实长聊天、图片/产物消息加载后的最终滚动位置；
+- CTF 题库筛选、滚动位置和工作台/Agent 双入口是否已经达到最终 UX；
+- Computer Use、Git 交付和完整 MilkSU 自举任务。

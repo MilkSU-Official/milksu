@@ -22,6 +22,7 @@ const SettingsPage = defineAsyncComponent(() => import('@/components-vue/Setting
 const VulnPage = defineAsyncComponent(() => import('@/components-vue/VulnPage.vue'))
 
 type Section = 'chat' | 'ctf' | 'vuln' | 'settings'
+type CTFReturnSurface = 'workspace' | 'agent'
 
 const conversations = useConversations()
 const ctfTraining = useNSSCTFTraining()
@@ -30,6 +31,7 @@ const ctfSection = ref<CTFWorkspaceSection>('catalog')
 const ctfResumeJobId = ref<string | null>(null)
 const lastCodingConversationId = ref<string | null>(null)
 const lastCTFConversationId = ref<string | null>(null)
+const lastCTFReturnSurface = ref<CTFReturnSurface>('workspace')
 const activeVulnerabilityCodingConversationId = ref<string | null>(null)
 const settingsReturnTarget = ref<Exclude<Section, 'settings'>>('ctf')
 const settingsCategory = ref<'general' | 'apikeys'>('general')
@@ -112,6 +114,9 @@ function rememberActiveConversation() {
   })
   lastCodingConversationId.value = remembered.codingConversationId
   lastCTFConversationId.value = remembered.ctfConversationId
+  if (section.value === 'chat' && activeCTFConversation.value) {
+    lastCTFReturnSurface.value = 'agent'
+  }
 }
 
 function restoreCodingConversation() {
@@ -139,10 +144,25 @@ function restoreCTFWorkspaceResumePoint() {
   if (next.conversationId) lastCTFConversationId.value = next.conversationId
 }
 
+function restoreCTFAgentConversation() {
+  if (!lastCTFConversationId.value) return false
+  const remembered = conversations.conversations.value.find(conversation => (
+    conversation.id === lastCTFConversationId.value
+    && Boolean(conversation.ctfJobId)
+  ))
+  if (!remembered) return false
+  conversations.activeId.value = remembered.id
+  ctfResumeJobId.value = remembered.ctfJobId ?? null
+  section.value = 'chat'
+  return true
+}
+
 function navigateSection(value: Section) {
   rememberActiveConversation()
   if (value === 'ctf') {
+    if (lastCTFReturnSurface.value === 'agent' && restoreCTFAgentConversation()) return
     restoreCTFWorkspaceResumePoint()
+    lastCTFReturnSurface.value = 'workspace'
     section.value = value
     return
   }
@@ -157,6 +177,7 @@ function navigateSection(value: Section) {
 function returnToCTFWorkspace() {
   rememberActiveConversation()
   restoreCTFWorkspaceResumePoint()
+  lastCTFReturnSurface.value = 'workspace'
   section.value = 'ctf'
 }
 
@@ -180,6 +201,7 @@ async function startCTFAgent(handoff: CTFAgentWorkspaceHandoff) {
   section.value = 'chat'
   await conversations.startWorkspaceTask(handoff)
   lastCTFConversationId.value = conversations.activeId.value
+  lastCTFReturnSurface.value = 'agent'
 }
 
 async function startVulnerabilityCodingTask(
@@ -219,6 +241,7 @@ async function switchCTFAgent(role: 'solver' | 'tool-builder' | 'strategist') {
     })
     await conversations.startWorkspaceTask(handoff)
     lastCTFConversationId.value = conversations.activeId.value
+    lastCTFReturnSurface.value = 'agent'
   } catch (reason) {
     console.error('Failed to switch CTF Agent role', reason)
   }
@@ -281,6 +304,7 @@ onMounted(async () => {
         @select-conversation="id => {
           conversations.activeId.value = id
           rememberActiveConversation()
+          if (conversations.active.value?.ctfJobId) lastCTFReturnSurface = 'agent'
           section = 'chat'
         }"
         @delete-conversation="conversations.remove"

@@ -13,4 +13,13 @@ describe('ChatPage routing contract', () => {
     expect(chatPageSource).toContain("@click=\"$emit('returnVuln')\"")
     expect(chatPageSource).toContain(':module="topbarModule"')
   })
+
+  it('scrolls to the latest message when route context or conversation changes', () => {
+    expect(chatPageSource).toContain("window.requestAnimationFrame")
+    expect(chatPageSource).toContain('props.conversation?.id')
+    expect(chatPageSource).toContain('props.conversation?.messages.length ?? 0')
+    expect(chatPageSource).toContain('props.ctfSession')
+    expect(chatPageSource).toContain('props.vulnerabilitySession')
+    expect(chatPageSource).toContain('scrollArea.value.scrollTop = scrollArea.value.scrollHeight')
+  })
 })

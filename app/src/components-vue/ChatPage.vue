@@ -1091,7 +1091,12 @@ function verifyDeliveredTool() {
 
 async function scrollChatToBottom() {
   await nextTick()
-  if (scrollArea.value) scrollArea.value.scrollTop = scrollArea.value.scrollHeight
+  if (!scrollArea.value) return
+  scrollArea.value.scrollTop = scrollArea.value.scrollHeight
+  if (typeof window !== 'undefined' && 'requestAnimationFrame' in window) {
+    await new Promise<void>(resolve => window.requestAnimationFrame(() => resolve()))
+    if (scrollArea.value) scrollArea.value.scrollTop = scrollArea.value.scrollHeight
+  }
 }
 
 onMounted(() => {
@@ -1127,6 +1132,17 @@ watch(() => props.conversation?.id, () => {
     void collaborationPanel.value?.refresh()
   }
 })
+watch(
+  () => [
+    props.conversation?.id,
+    props.conversation?.messages.length ?? 0,
+    props.ctfSession,
+    props.vulnerabilitySession,
+  ] as const,
+  () => {
+    void scrollChatToBottom()
+  },
+)
 watch(
   () => [props.ctfSession, props.workspacePath] as const,
   () => void refreshMCPConfig(),

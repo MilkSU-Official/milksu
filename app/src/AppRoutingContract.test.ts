@@ -19,6 +19,12 @@ describe('App workspace routing contract', () => {
 
   it('restores CTF by resume point and returns CTF Agent chats to the CTF sidebar section', () => {
     expect(appSource).toContain("section.value === 'chat' && activeCTFConversation.value ? 'ctf' : section.value")
+    expect(appSource).toContain("type CTFReturnSurface = 'workspace' | 'agent'")
+    expect(appSource).toContain("const lastCTFReturnSurface = ref<CTFReturnSurface>('workspace')")
+    expect(appSource).toContain("if (lastCTFReturnSurface.value === 'agent' && restoreCTFAgentConversation()) return")
+    expect(appSource).toContain('function restoreCTFAgentConversation()')
+    expect(appSource).toContain("lastCTFReturnSurface.value = 'agent'")
+    expect(appSource).toContain("lastCTFReturnSurface.value = 'workspace'")
     expect(appSource).toContain('restoreCTFWorkspaceResumePoint()')
     expect(appSource).toContain('ctfResumeJobId.value = next.jobId')
     expect(appSource).toContain('if (next.conversationId) lastCTFConversationId.value = next.conversationId')
