@@ -89,6 +89,84 @@ const runningTasks = computed(() => (
 const commandAllowed = computed(() => (
   props.executionMode === 'go' && props.approvalPolicy !== 'read-only'
 ))
+const terminalNextStep = computed<{
+  label: string
+  detail: string
+  cta: string
+  action: 'start-shell' | 'switch-tasks' | 'refresh-tasks' | 'run-task' | 'none'
+  disabled: boolean
+}>(() => {
+  if (!desktopRuntime) {
+    return {
+      label: '打开桌面 App 验收终端',
+      detail: '浏览器预览只能看入口；真实 Shell、后台命令、端口、日志和重启恢复必须在 MilkSU 桌面运行时完成。',
+      cta: '桌面 App 中验收',
+      action: 'none',
+      disabled: true,
+    }
+  }
+  if (!props.workspacePath || !props.conversationId) {
+    return {
+      label: '先选择项目并建立任务',
+      detail: '终端和后台任务都绑定到当前 Coding 项目与会话。',
+      cta: '等待项目',
+      action: 'none',
+      disabled: true,
+    }
+  }
+  if (activeView.value === 'shell') {
+    if (runningShells.value.length) {
+      return {
+        label: '使用当前项目 Shell',
+        detail: `${runningShells.value.length} 个 Shell 正在运行；短命令可直接在 Shell 中交互，长任务请切到后台任务。`,
+        cta: '查看后台任务',
+        action: 'switch-tasks',
+        disabled: false,
+      }
+    }
+    return {
+      label: '新建项目 Shell',
+      detail: '交互式 Shell 只在当前 App 进程内可用；跨 App 重启恢复请使用后台任务。',
+      cta: '新建 Shell',
+      action: 'start-shell',
+      disabled: shellLoading.value || runningShells.value.length >= 4,
+    }
+  }
+  if (!commandAllowed.value) {
+    return {
+      label: '切到 Go 并允许命令',
+      detail: '后台任务需要 Go，以及请求批准、替我审批或完全访问权限之一。',
+      cta: '当前不可运行',
+      action: 'none',
+      disabled: true,
+    }
+  }
+  if (runningTasks.value.length) {
+    return {
+      label: '查看运行中的后台任务',
+      detail: `${runningTasks.value.length} 个任务正在运行；展开任务查看端口、日志和状态，必要时停止。`,
+      cta: '刷新状态',
+      action: 'refresh-tasks',
+      disabled: refreshing.value,
+    }
+  }
+  if (tasks.value.length) {
+    return {
+      label: '复核最近后台任务结果',
+      detail: '已有任务记录；查看日志、退出码和失败原因后，再决定是否重新运行。',
+      cta: '刷新状态',
+      action: 'refresh-tasks',
+      disabled: refreshing.value,
+    }
+  }
+  return {
+    label: '运行后台任务',
+    detail: '输入持续运行的项目命令，例如 dev server、watch test 或长构建；日志和端口会成为验收证据。',
+    cta: '等待命令',
+    action: 'run-task',
+    disabled: !command.value.trim() || starting.value,
+  }
+})
 
 function taskLabel(task: CodingBackgroundTask): string {
   return task.name || task.command || task.id
@@ -417,6 +495,26 @@ async function runCommand() {
   }
 }
 
+function runTerminalNextStep() {
+  if (terminalNextStep.value.disabled) return
+  if (terminalNextStep.value.action === 'start-shell') {
+    void startShell()
+    return
+  }
+  if (terminalNextStep.value.action === 'switch-tasks') {
+    activeView.value = 'tasks'
+    startPolling()
+    return
+  }
+  if (terminalNextStep.value.action === 'refresh-tasks') {
+    void refreshTasks()
+    return
+  }
+  if (terminalNextStep.value.action === 'run-task') {
+    void runCommand()
+  }
+}
+
 async function stopTask(task: CodingBackgroundTask) {
   if (
     task.status !== 'running'
@@ -601,6 +699,29 @@ onBeforeUnmount(() => {
       class="border-b border-amber-500/30 bg-amber-500/10 px-4 py-3 text-caption leading-5 text-amber-200"
     >
       {{ desktopRuntimeNotice }}
+    </div>
+
+    <div class="border-b border-border bg-primary/5 px-4 py-3" aria-label="终端与后台任务下一步">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <p class="text-caption font-medium text-muted-foreground">下一步</p>
+          <p class="mt-1 text-body font-medium">{{ terminalNextStep.label }}</p>
+          <p class="mt-1 text-caption leading-5 text-muted-foreground">
+            {{ terminalNextStep.detail }}
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          class="shrink-0"
+          :disabled="terminalNextStep.disabled"
+          aria-label="执行终端与后台任务下一步"
+          @click="runTerminalNextStep"
+        >
+          {{ terminalNextStep.cta }}
+        </Button>
+      </div>
     </div>
 
     <template v-if="activeView === 'shell'">

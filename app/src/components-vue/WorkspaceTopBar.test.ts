@@ -8,6 +8,7 @@ import ctfManualIntakeSource from './CTFManualIntake.vue?raw'
 import ctfPageSource from './CTFPage.vue?raw'
 import ctfWorkspaceHeaderSource from './CTFWorkspaceHeader.vue?raw'
 import vulnPageSource from './VulnPage.vue?raw'
+import WorkspaceModuleTopBar from './WorkspaceModuleTopBar.vue'
 import workspaceModuleTopBarSource from './WorkspaceModuleTopBar.vue?raw'
 import workspaceTopBarSource from './WorkspaceTopBar.vue?raw'
 import WorkspaceTopBar from './WorkspaceTopBar.vue'
@@ -39,6 +40,23 @@ async function mountTopBar() {
   return host
 }
 
+async function mountModuleTopBar(module: 'coding' | 'ctf' | 'cve') {
+  const host = document.createElement('div')
+  document.body.append(host)
+  const app = createApp({
+    components: { WorkspaceModuleTopBar },
+    template: `
+      <WorkspaceModuleTopBar module="${module}" subtitle="${module} subtitle">
+        <template #actions><button type="button">Action</button></template>
+      </WorkspaceModuleTopBar>
+    `,
+  })
+  app.mount(host)
+  mountedApps.push(app)
+  await nextTick()
+  return host
+}
+
 describe('WorkspaceTopBar', () => {
   it('standardizes module title, subtitle, actions, and filter slots', async () => {
     const host = await mountTopBar()
@@ -61,27 +79,33 @@ describe('WorkspaceTopBar', () => {
   })
 
   it('uses the same module title element and font class for Coding, CTF, and CVE', async () => {
-    for (const title of ['Coding', 'CTF', 'CVE']) {
-      const host = document.createElement('div')
-      document.body.append(host)
-      const app = createApp(WorkspaceTopBar, {
-        module: title === 'Coding' ? 'coding' : title === 'CVE' ? 'cve' : 'ctf',
-        title,
-        subtitle: `${title} subtitle`,
-      })
-      app.mount(host)
-      mountedApps.push(app)
-      await nextTick()
+    const modules = [
+      ['coding', 'Coding'],
+      ['ctf', 'CTF'],
+      ['cve', 'CVE'],
+    ] as const
+    const titleClasses = new Set<string>()
+    const actionClasses = new Set<string>()
 
+    for (const [module, title] of modules) {
+      const host = await mountModuleTopBar(module)
       const topbar = host.querySelector('[data-module-topbar]')
       const titleNode = host.querySelector('[data-workspace-topbar-title]')
       expect(topbar).not.toBeNull()
-      expect(topbar?.getAttribute('data-workspace-module')).toBe(title.toLowerCase())
+      expect(topbar?.getAttribute('data-workspace-module')).toBe(module)
       expect(titleNode?.tagName).toBe('H1')
       expect(titleNode?.textContent).toBe(title)
       expect(titleNode?.className).toContain('workspace-topbar__title')
       expect(titleNode?.className).toContain('text-control')
+      expect(host.querySelector('[data-workspace-topbar-actions]')?.className).toContain('text-control')
+      titleClasses.add(titleNode?.className ?? '')
+      actionClasses.add(host.querySelector('[data-workspace-topbar-actions]')?.className ?? '')
     }
+
+    expect(titleClasses.size).toBe(1)
+    expect(actionClasses.size).toBe(1)
+    expect(workspaceTopBarSource).toContain('--module-topbar-title-size')
+    expect(workspaceTopBarSource).toContain('--module-topbar-control-size')
   })
 
   it('keeps Coding, CTF, and CVE module headers on the shared module topbar component', () => {

@@ -1417,3 +1417,34 @@
 - 原生 WebView 中 HTML sandbox/CSP 的负向验收；
 - 图片大文件、动图、长 Markdown 和复杂 HTML 的视觉 QA；
 - 完整 MilkSU develops MilkSU 自举任务。
+
+## 2026-08-04 · Terminal/background-task next-step CTA and shared topbar contract
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | 本批次提交 |
+| 目标流 | Coding → 终端/测试 → 直接看到 Shell / 后台任务的当前下一步；CTF / CVE / Coding 顶栏标题保持同一组件和字号 |
+| 窄测 | `npm --prefix app test -- WorkspaceTopBar.test.ts CodingTerminalPanel.test.ts CodingProductLoopPanel.test.ts` |
+| 窄测结果 | 3 files / 27 tests passed |
+| 前端构建 | `npm --prefix app run build` |
+| 前端构建结果 | production build passed |
+| Lint | `npm --prefix app run lint` |
+| Lint 结果 | passed |
+| Browser 插件路径 | Browser runtime 成功连接本地预览 `http://127.0.0.1:4204/` |
+| 渲染结果 | CTF / CVE / Coding 顶栏均为共享 `WorkspaceModuleTopBar` 渲染的 `H1`，标题字号 `14px`、行高 `20px`，动作区字号 `14px`；Coding → `终端/测试` 可见 `终端与后台任务下一步`、`桌面 App 中验收` 和后台任务浏览器预览边界 |
+| 截图 | `/tmp/milksu-module-topbar-qa.png`, `/tmp/milksu-terminal-next-step-qa.png` |
+
+覆盖范围：
+
+- `WorkspaceTopBar.test.ts` 现在真实 mount `WorkspaceModuleTopBar` 的 `coding`、`ctf`、`cve` 三种模块，不只做源码字符串检查；
+- 三个一级工作区顶栏标题都通过同一个 `WorkspaceTopBarTitle` 组件输出 `H1`，并保持相同 title class、动作区 class、字号变量；
+- 终端/测试面板新增默认可见的“终端与后台任务下一步”卡；
+- Shell 视图会引导新建项目 Shell 或切到后台任务；后台任务视图会引导刷新运行中任务、复核最近结果或运行长任务；
+- 浏览器预览态不会启动 Shell、不会读取后台任务，也不会伪造端口/日志/重启恢复，只提示必须在 MilkSU 桌面运行时验收。
+
+本次仍未证明：
+
+- 原生 App 中真实启动交互式 Shell；
+- 原生 App 中真实后台任务端口、日志、停止、重启后恢复；
+- 长任务超时、取消、失败分类和跨应用重启恢复的人工体验；
+- CTF/CVE/Coding 顶栏在所有小窗口尺寸、极长 subtitle、极多 action 时的最终视觉 QA。
