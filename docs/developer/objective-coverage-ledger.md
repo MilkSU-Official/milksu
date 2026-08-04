@@ -43,14 +43,14 @@
 
 | 分组 | 细项数 | 当前分 | 完成度 |
 | --- | ---: | ---: | ---: |
-| Coding Agent 与高频替代能力 | 32 | 1,675 / 3,200 | **52%** |
+| Coding Agent 与高频替代能力 | 32 | 1,700 / 3,200 | **53%** |
 | CTF 通用闭环与网络边界 | 15 | 550 / 1,500 | **37%** |
 | Memory 与能力画像 | 11 | 500 / 1,100 | **45%** |
 | Runtime Reliability 与 NYU Bench | 10 | 700 / 1,000 | **70%** |
 | 架构约束 | 6 | 125 / 600 | **21%** |
 | 本地数据安全与正式交付 | 15 | 600 / 1,500 | **40%** |
 | 最终文档 | 2 | 75 / 200 | **38%** |
-| **整体** | **91** | **4,225 / 9,100** | **46%** |
+| **整体** | **91** | **4,250 / 9,100** | **47%** |
 
 此前约 58% 的估值按大块综合判断，分母中没有逐项展开真实验收、跨项目、六赛道、RC 和
 架构约束。第二轮证据复核又把没有原生 App 真实任务的 Vue/Go Code Action 从 75% 调到
@@ -76,15 +76,17 @@ observe，保存 JSON 与前后截图证据，将 `COD-15` 调到 75%、`COD-16`
 packaged App facade live smoke，真实 `MilkSU.app` 进程通过 `ListCodingComputerUseTargets`
 → `StartCodingComputerUse` → `GetCodingComputerUseStatus` → descriptor → `StopCodingComputerUse`
 启动并停止外部 Calculator 精确 PID/window 会话，报告 `build/test-results/computer-use-app-live.json`，
-将 `COD-16` 调到 75%。后续只使用同一张表比较变化。
+将 `COD-16` 调到 75%；打包 App artifact preview live smoke 用真实 `MilkSU.app` 进程从隔离
+workspace 读取 Markdown、HTML、PNG，并拒绝 workspace escape、伪装 PNG 和 SVG，报告
+`build/test-results/artifact-preview-live.json`，将 `COD-10` 调到 75%。后续只使用同一张表比较变化。
 
 ### 分值分布
 
 | 分值 | 细项数 | 解释 |
 | ---: | ---: | --- |
 | 100% | 8 | 行定义的精确门槛已经通过 |
-| 75% | 20 | 已有真实证据，仍缺完整矩阵或最终 Gate |
-| 50% | 33 | 工程实现和自动化存在，仍缺真实任务 |
+| 75% | 21 | 已有真实证据，仍缺完整矩阵或最终 Gate |
+| 50% | 32 | 工程实现和自动化存在，仍缺真实任务 |
 | 25% | 8 | 只有局部纵切、设计或基础设施 |
 | 0% | 22 | 未执行，或当前没有足够证据 |
 
@@ -117,7 +119,7 @@ packaged App facade live smoke，真实 `MilkSU.app` 进程通过 `ListCodingCom
 | COD-07 | “替我审批”拦截无意义审批 | Browser 真实任务与策略测试存在；`bridge-auto-approval.test.js` 覆盖已选 Computer Use 的 observe/click/type 在 workspace-auto/full-auto 下不产生无意义审批，ask/read-only 仍逐次确认；`npm run test:project-mcp` 的实际 allowlisted `fixture_read` 调用确认 workspace-auto/full-auto 不产生无意义审批，ask/read-only 仍逐次确认 | 75% | Computer Use 与项目 MCP 真实任务 |
 | COD-08 | “完全访问”仍保持硬边界 | 策略测试存在；Full Access 对本地/已选普通 MCP 可自动执行，但 GitHub/Linear/Jira/Slack 等外部账户写入仍要求确认；`bridge-background-process.test.js` 覆盖 Full Access 后台任务即使离开工作区，也不会继承宿主 Provider Key 或模型显式传入的 `*_API_KEY` env | 50% | 打包 App 越界负向验收 |
 | COD-09 | 付费、账户授权、扩大 Scope、发布仍独立确认 | ImageGen、MCP、Endpoint、PR 测试存在；`bridge-auto-approval.test.js` 覆盖 OAuth、PR/Release 发布和托管外部账户写入在所有权限档下都不被自动批准 | 75% | 真实 Provider 与托管发布确认 |
-| COD-10 | Markdown、HTML、图片产物预览 | Go/Vue 实现与安全测试存在；前端建议列表只展示工作区相对路径内的 Markdown、HTML 与图片产物，不再建议绝对路径或 `..` 逃逸形态；`CodingArtifactPreviewPanel.test.ts` 覆盖用户可见的 Markdown/HTML/图片建议入口、三种产物渲染、手输不安全或不支持路径会在前端拦截且不调用后端、Markdown/HTML 产物内容以及建议/标题/图片 alt 在渲染层脱敏 Provider Credential 形态、失败后清空旧预览；`desktop.test.ts` 锁住桌面 adapter 会把 `workspacePath` 与 `relativePath` 原样传给 Wails `GetCodingArtifactPreview`；2026-08-04 补 browser-preview 边界提示，预览环境不会伪造工作区产物内容或调用读取命令，而是引导用打包 App 做真实验收 | 50% | 打包 App 三种产物真实预览 |
+| COD-10 | Markdown、HTML、图片产物预览 | Go/Vue 实现与安全测试存在；前端建议列表只展示工作区相对路径内的 Markdown、HTML 与图片产物，不再建议绝对路径或 `..` 逃逸形态；`CodingArtifactPreviewPanel.test.ts` 覆盖用户可见的 Markdown/HTML/图片建议入口、三种产物渲染、手输不安全或不支持路径会在前端拦截且不调用后端、Markdown/HTML 产物内容以及建议/标题/图片 alt 在渲染层脱敏 Provider Credential 形态、失败后清空旧预览；`desktop.test.ts` 锁住桌面 adapter 会把 `workspacePath` 与 `relativePath` 原样传给 Wails `GetCodingArtifactPreview`；2026-08-04 补 browser-preview 边界提示，预览环境不会伪造工作区产物内容或调用读取命令，而是引导用打包 App 做真实验收；2026-08-05 `MILKSU_ARTIFACT_PREVIEW_LIVE_SMOKE=1 npm run test:artifact-preview-live` 用真实 `build/bin/MilkSU.app` 从隔离 workspace 读取 Markdown、HTML、PNG，并拒绝 workspace escape、伪装 PNG 和 SVG，报告保存到 `build/test-results/artifact-preview-live.json` | 75% | 原生 UI 中由用户打开三类预览并进入 Coding 验收证据 |
 | COD-11 | HTML 隔离、CSP、禁网、路径与大小限制 | `artifact_preview_test.go` 等自动化；`codingArtifact.test.ts` 覆盖外部资源剥离、CSP 和不安全建议路径过滤；`CodingArtifactPreviewPanel.test.ts` 覆盖 HTML 预览使用空 sandbox iframe、注入 `default-src 'none'` CSP，手输逃逸路径不会进入预览后端，并向用户显示无脚本/无网络说明 | 50% | 原生 WebView 负向验收 |
 | COD-12 | 隔离 Browser 自动化与证据边界 | Browser integration 与 41 项窄测试通过 | 100% | — |
 | COD-13 | MilkSU 项目前端视觉 QA 真实纵切 | `frontend-visual-qa-acceptance.md` | 100% | — |
@@ -278,6 +280,7 @@ packaged App facade live smoke，真实 `MilkSU.app` 进程通过 `ListCodingCom
 | DONE-UI-02 | 左下角重复 Logo/全局锚点移除 | `89e7ea8 fix: remove duplicate rail anchor` 删除 WorkspaceRail 的下方 CTF 能力入口，`AppSidebar.test.ts` 锁住 CTF/CVE 不再出现“查看 CTF 能力” | 不再重复处理“双 Logo”；若未来新增全局锚点，必须先说明其唯一导航职责 |
 | DONE-UI-03 | Coding 右栏开发者验收与快捷按钮不再默认压迫普通用户 | `CodingProductLoopPanel.vue` 已把产品闭环后台放进默认折叠的 `details[aria-label="Coding 开发者验收后台"]`；快捷按钮使用 `min-w-0 max-w-full overflow-hidden` 和 label `truncate`，`CodingProductLoopPanel.test.ts` 锁住 CSS 契约；2026-08-05 Browser 在 `http://127.0.0.1:1420/` 右栏约 319px 宽度展开验证，`终端/测试`、`产物预览`、`Browser / Computer Use`、`Git 交付` 四个按钮均未越界，Console 无 error/warn | 不再重复修“Browser / Computer Use 和 Git 交付按钮文字叠在一起”；若新截图显示其他宽度/语言下溢出，作为 UI sweep 新证据处理 |
 | DONE-M3-01 | 当前代码基线完整工程门禁通过 | 2026-08-05 在 `72049da` 执行 `npm run m3:release-check`，覆盖 Go test/vet、Node tests、前端 Vitest/lint/build、Sidecar smoke、Coding delivery fixture、docs build、Wails build、ad-hoc codesign 验证和 `check-macos-signing.mjs`，最终输出 `M3 engineering release checks passed.` 并生成 `/Users/milksu/code/milksu/build/bin/MilkSU.app` | 不再重复质疑“当前 HEAD 能否编译/打包”；但这不等价于 COD-25 的完整自举任务、Developer ID 签名、公证、升级或外部 Beta 门禁 |
+| DONE-COD-01 | 打包 App facade 能读取 Coding 的 Markdown、HTML 和图片产物预览 | `app_coding_artifact_preview_smoke.go` 新增只在 `MILKSU_CODING_ARTIFACT_PREVIEW_SMOKE_RESULT` 存在时运行的 App 内部 smoke；`scripts/test-packaged-artifact-preview-live.mjs` 新增 gated live smoke；2026-08-05 显式 `MILKSU_ARTIFACT_PREVIEW_LIVE_SMOKE=1 npm run test:artifact-preview-live` 使用真实 `build/bin/MilkSU.app` 进程从隔离 workspace 读取 `reports/summary.md`、`reports/result.html`、`images/screenshot.png`，并拒绝 `../outside.md`、伪装 PNG 和 SVG；报告保存到 `build/test-results/artifact-preview-live.json` | 不再把“打包 App 是否能读取三类 Coding 产物预览”作为未完成；剩余缺口是原生 UI 中由用户打开预览并记录为 Coding 验收证据，以及 HTML WebView sandbox 的原生负向 |
 | DONE-CVE-01 | App facade 与打包 App 的真实 NVD 单 CVE 下载、事实提取和原始快照持久化 | `app_vuln_live_test.go` 新增 `TestLiveAppFetchNVDCVEPersistsSnapshot`；默认跳过，显式 `MILKSU_LIVE_CVE_APP_SMOKE=1 go test . -run TestLiveAppFetchNVDCVEPersistsSnapshot -count=1 -v` 已真实访问 NVD `CVE-2024-3400`，验证 `retrievedAt`、App data 下 `vuln/feed-snapshots/nvd/*.json`、返回 body 与磁盘 body 一致、SHA-256 一致、文件权限 `0600`；2026-08-05 新增 `scripts/test-packaged-vuln-feed-live.mjs`，显式 `MILKSU_VULN_FEED_LIVE_SMOKE=1 npm run test:vuln-feed-live` 使用真实 `build/bin/MilkSU.app` 隔离进程拉取 NVD `CVE-2024-3400`，报告保存到 `build/test-results/vuln-feed-live.json`，snapshot 证据复制到 `build/test-results/vuln-feed-live-snapshot.json`，结果包含 `retrievedAt=2026-08-04T18:31:12Z`、`severity=CRITICAL`、`baseScore=10`、snapshot `sha256=ef863c16857bec109adf9b6006910468a94ea2791f4a4f51a218073712531b79`，且报告不包含原始 feed body | 不再把 “CVE 真实 NVD 下载、选中 CVE facts、来源时间和 App data snapshot” 视为未实现，也不要说 CVE 只有四条 mock；仍未证明完整 CVE 研究结果回写、Vulhub/Docker 启动/停止、GHSA/OSV/KEV 全源矩阵或真实资产验证 |
 | DONE-CVE-02 | CVE 首页不再默认铺开情报源、导入和缓存维护台 | `VulnPage.vue` 默认只展示搜索、追踪列表、当前下一步、详情、练习/研究/资产/笔记闭环；Feed/NVD/EPSS/KEV/Vulhub 同步、导入和缓存证据集中到 `VulnerabilityIntelSettingsPanel.vue`；`VulnPage.test.ts` 覆盖默认首页不出现 `同步 NVD`、`同步 EPSS`、`导入 Feed`、`Feed 缓存状态`，点击统一设置后才出现这些维护项；2026-08-05 Browser 在 `http://127.0.0.1:1420/` 验证 CVE 首页无维护台、设置页包含同步/导入/缓存、关闭后回到列表与详情，Console 无 error/warn | 不再重复把“把 CVE 情报源/导入/缓存按钮塞进设置”作为未完成；后续只处理设置页内部密度、真实 Feed 源矩阵或练习环境生命周期 |
 | DONE-CU-01 | 打包 Computer Use proxy 能在外部 App 精确窗口 Scope 内执行可见点击 | `scripts/test-packaged-computer-use-live.mjs` 新增 gated live smoke；2026-08-05 显式 `MILKSU_COMPUTER_USE_LIVE_SMOKE=1` 运行真实 `build/bin/MilkSU.app` sidecar node、`computer-use-proxy.cjs` 与 `cua-driver`，对 `com.apple.calculator` PID/window 完成 observe → click 1 → observe，报告保存到 `build/test-results/computer-use-live.json`，前后截图保存到 `build/test-results/computer-use-live-reset.png` 与 `build/test-results/computer-use-live-after.png`；after 截图显示 Calculator 显示区为 `1` | 不再把“packaged Computer Use proxy 是否能操作外部 App”当作未完成；剩余缺口是 MilkSU UI 内用户选择/启动会话、重启后权限检测一致性、主模型消费截图完成真实任务 |

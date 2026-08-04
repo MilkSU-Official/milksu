@@ -55,6 +55,9 @@
   打包 App 搜索、脱敏搜索结果”当作未完成；
 - Coding：在打包 App 中完成一个小 MilkSU 修改，跑真实测试/build，做真实 Browser 或
   Computer Use 验证，commit 并 push；
+- Artifact Preview：packaged App facade 已能从隔离 workspace 真实读取 Markdown、HTML、PNG，
+  并拒绝 workspace escape、伪装 PNG 和 SVG；下一步只补原生 UI 手动打开预览，以及 HTML
+  WebView sandbox 的原生负向；
 - Computer Use：packaged proxy → Cua Driver → 外部 Calculator 精确窗口的 live smoke 已通过；
   packaged MilkSU App facade 的 list/start/status/descriptor/stop live smoke 也已通过；下一步只补
   用户在 MilkSU UI 内点击选择/启动会话、重启后权限检测一致性，以及主模型消费截图完成真实任务；
