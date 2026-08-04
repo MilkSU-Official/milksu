@@ -1322,3 +1322,36 @@
 - 原生 App 中真实长聊天、图片/产物消息加载后的最终滚动位置；
 - CTF 题库筛选、滚动位置和工作台/Agent 双入口是否已经达到最终 UX；
 - Computer Use、Git 交付和完整 MilkSU 自举任务。
+
+## 2026-08-04 · Computer Use next-step CTA
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | 本批次提交 |
+| 目标流 | Coding → Browser / Computer Use → 看到当前应做的唯一下一步 |
+| 窄测 | `npm --prefix app test -- CodingComputerUsePanel.test.ts CodingProductLoopPanel.test.ts` |
+| 窄测结果 | 2 files / 27 tests passed |
+| 前端构建 | `npm --prefix app run build` |
+| 前端构建结果 | production build passed |
+| Lint | `npm --prefix app run lint` |
+| Lint 结果 | passed |
+| 渲染 fallback | 使用系统 Chrome 可执行文件 + Playwright headless，访问 `http://127.0.0.1:4200/` |
+| 渲染结果 | Coding → `Browser / Computer Use` 可见 `下一步`、`重新检测 Computer Use`、桌面运行时边界提示；页面标题 `MilkSU`；无 Vite/framework overlay；console warn/error 为空 |
+| 截图 | `/tmp/milksu-computer-use-next-step-qa.png` |
+
+覆盖范围：
+
+- Computer Use 面板新增高亮“下一步”区；
+- 不可用时主 CTA 是“重新检测 Computer Use”，并说明浏览器预览只能验证 UI 文案和入口；
+- 缺系统权限时主 CTA 是“打开系统权限设置”，说明缺少辅助功能/屏幕录制，并提示授权后重新检测；
+- 缺窗口时主 CTA 是“重新检测可见窗口”，提示先打开目标 App；
+- 权限和窗口都具备时主 CTA 是“启动可见会话”，并显示即将锁定的 App / PID / Window Scope；
+- 已接入当前任务时主 CTA 显示“已接入当前任务”，并保留停止入口；
+- 底部原有重新检测、请求系统权限、启动/停止按钮保留，避免改变运行时权限模型。
+
+本次仍未证明：
+
+- 原生 App 中点击“打开系统权限设置”后 macOS 是否稳定跳到正确系统授权页；
+- 原生 App 中真实选择外部 App 窗口、启动 Computer Use、观察/点击/输入并留下截图证据；
+- 多任务占用时释放/切换 Computer Use 会话的完整体验；
+- Computer Use 对任意外部 App 的定位质量；本次只改善入口和下一步可理解性。

@@ -93,6 +93,7 @@ describe('CodingComputerUsePanel', () => {
     expect(text).toContain('权限和窗口都已就绪')
     expect(text).toContain('才算正式接入当前 Coding 任务')
     expect(text).toContain('正式接入需要')
+    expect(text).toContain('下一步')
     expect(text).toContain('系统权限')
     expect(text).toContain('辅助功能与屏幕录制已授权')
     expect(text).toContain('窗口 Scope')
@@ -101,6 +102,7 @@ describe('CodingComputerUsePanel', () => {
     expect(text).toContain('审批体感')
     expect(text).toContain('Go / 替我审批')
     expect(text).toContain('普通观察、点击和输入会自动执行')
+    expect(text).toContain('Codex 将被锁定为当前任务 Scope')
     expect(text).toContain('com.openai.codex')
     expect(text).toContain('PID 4242')
     expect(text).toContain('Window 9001')
@@ -138,6 +140,7 @@ describe('CodingComputerUsePanel', () => {
 
     expect(text).toContain('待选择窗口')
     expect(text).toContain('没有发现可选的可见窗口')
+    expect(text).toContain('重新检测可见窗口')
     expect(text).not.toContain('未接入')
     const start = [...host.querySelectorAll<HTMLButtonElement>('button')].find(
       button => button.textContent?.includes('启动可见会话'),
@@ -215,6 +218,8 @@ describe('CodingComputerUsePanel', () => {
     expect(missing.host.textContent).toContain('缺系统权限')
     expect(missing.host.textContent).toContain('App 管理')
     expect(missing.host.textContent).toContain('点击未授权标签')
+    expect(missing.host.textContent).toContain('打开系统权限设置')
+    expect(missing.host.textContent).toContain('授权后回到这里重新检测')
     expect(missing.host.textContent).toContain('勾选 MilkSU')
     expect(missing.host.textContent).toContain('重新检测')
     const missingStart = [...missing.host.querySelectorAll<HTMLButtonElement>('button')].find(
@@ -248,6 +253,7 @@ describe('CodingComputerUsePanel', () => {
       }),
     })
     expect(unavailable.host.textContent).toContain('Computer Use 当前仅支持 macOS。')
+    expect(unavailable.host.textContent).toContain('重新检测 Computer Use')
     const unavailableRequest = [...unavailable.host.querySelectorAll<HTMLButtonElement>('button')].find(
       button => button.textContent?.includes('请求系统权限'),
     )

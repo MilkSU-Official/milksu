@@ -172,6 +172,77 @@ const guidance = computed(() => {
   }
   return '权限和窗口都已就绪，点击“启动可见会话”后才算正式接入当前 Coding 任务。'
 })
+
+const primarySetupAction = computed<{
+  label: string
+  detail: string
+  action: 'refresh' | 'permissions' | 'start' | 'stop' | 'none'
+  variant: 'default' | 'outline' | 'brand'
+  disabled: boolean
+}>(() => {
+  if (readyForCurrentTask.value) {
+    return {
+      label: '已接入当前任务',
+      detail: effectiveTarget.value
+        ? `已锁定 ${effectiveTarget.value.name} · PID ${effectiveTarget.value.pid} · Window ${effectiveTarget.value.windowId}`
+        : '已锁定当前 Coding 任务。',
+      action: 'stop',
+      variant: 'outline',
+      disabled: props.loading || props.running,
+    }
+  }
+  if (!props.status?.available) {
+    return {
+      label: '重新检测 Computer Use',
+      detail: props.status?.problem || '当前运行时未报告可用；重新检测不会操作任何 App。',
+      action: 'refresh',
+      variant: 'outline',
+      disabled: props.loading || props.running,
+    }
+  }
+  if (!permissionsReady.value) {
+    return {
+      label: '打开系统权限设置',
+      detail: `缺少 ${missingPermissions.value.join('、') || '系统权限'}；授权后回到这里重新检测。`,
+      action: 'permissions',
+      variant: 'default',
+      disabled: props.loading || props.running,
+    }
+  }
+  if (attachedToOtherTask.value) {
+    return {
+      label: '等待其他任务释放',
+      detail: '当前可见会话已经被另一个 Coding 任务占用。',
+      action: 'none',
+      variant: 'outline',
+      disabled: true,
+    }
+  }
+  if (!effectiveTarget.value) {
+    return {
+      label: '重新检测可见窗口',
+      detail: '打开目标 App 窗口后重新检测，再选择要锁定的 App / PID / Window。',
+      action: 'refresh',
+      variant: 'outline',
+      disabled: props.loading || props.running,
+    }
+  }
+  return {
+    label: '启动可见会话',
+    detail: `${effectiveTarget.value.name} 将被锁定为当前任务 Scope；${approvalGuidance.value}`,
+    action: 'start',
+    variant: 'brand',
+    disabled: !canStart.value,
+  }
+})
+
+function runPrimarySetupAction() {
+  if (primarySetupAction.value.disabled) return
+  if (primarySetupAction.value.action === 'refresh') emit('refresh')
+  if (primarySetupAction.value.action === 'permissions') emit('requestPermissions')
+  if (primarySetupAction.value.action === 'start') emit('start')
+  if (primarySetupAction.value.action === 'stop') emit('stop')
+}
 </script>
 
 <template>
@@ -288,6 +359,27 @@ const guidance = computed(() => {
               {{ item.detail }}
             </span>
           </div>
+        </div>
+      </div>
+      <div class="mt-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-3" aria-label="Computer Use 下一步">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-caption font-medium text-muted-foreground">下一步</p>
+            <p class="mt-1 text-body font-medium">{{ primarySetupAction.label }}</p>
+            <p class="mt-1 text-caption leading-5 text-muted-foreground">
+              {{ primarySetupAction.detail }}
+            </p>
+          </div>
+          <Button
+            :variant="primarySetupAction.variant"
+            size="sm"
+            class="shrink-0"
+            :disabled="primarySetupAction.disabled"
+            aria-label="执行 Computer Use 下一步"
+            @click="runPrimarySetupAction"
+          >
+            {{ primarySetupAction.label }}
+          </Button>
         </div>
       </div>
     </div>
