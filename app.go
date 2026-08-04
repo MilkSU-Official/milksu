@@ -1459,6 +1459,20 @@ func (a *App) FetchVulhubPracticeCatalog() (vuln.FeedSnapshotDownload, error) {
 	})
 }
 
+func (a *App) RevealVulnerabilityFeedSnapshot(snapshotPath string) error {
+	if a.ctx == nil {
+		return fmt.Errorf("desktop runtime is not ready")
+	}
+	if runtime.GOOS != "darwin" {
+		return fmt.Errorf("reveal vulnerability feed snapshot is currently supported on macOS")
+	}
+	resolved, err := vuln.ResolveFeedSnapshotPath(a.dataDirectory, snapshotPath)
+	if err != nil {
+		return err
+	}
+	return vuln.RevealFeedSnapshotInFinder(resolved, vuln.MacOSFinderReveal)
+}
+
 func (a *App) fetchAndPersistVulnerabilityFeed(
 	fetch func(context.Context) (vuln.FeedSnapshotDownload, error),
 ) (vuln.FeedSnapshotDownload, error) {

@@ -317,6 +317,7 @@ interface WailsAppBindings {
   FetchNVDCVE(cveId: string): Promise<VulnerabilityFeedDownload>
   FetchFIRSTEPSS(cveId: string): Promise<VulnerabilityFeedDownload>
   FetchVulhubPracticeCatalog(): Promise<VulnerabilityFeedDownload>
+  RevealVulnerabilityFeedSnapshot(snapshotPath: string): Promise<void>
   SubmitVulnReproduction(id: string, request: VulnReproductionRequest): Promise<VulnProjection>
   RecordVulnLearning(id: string, request: VulnLearningRecordRequest): Promise<VulnProjection>
   CancelVulnJob(id: string): Promise<void>
@@ -1052,6 +1053,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.FetchFIRSTEPSS(args?.cveId as string) as Promise<T>
       case 'fetch_vulhub_practice_catalog':
         return app.FetchVulhubPracticeCatalog() as Promise<T>
+      case 'reveal_vulnerability_feed_snapshot':
+        return app.RevealVulnerabilityFeedSnapshot(args?.snapshotPath as string) as Promise<T>
       case 'submit_vuln_reproduction':
         return app.SubmitVulnReproduction(args?.id as string, args?.request as VulnReproductionRequest) as Promise<T>
       case 'record_vuln_learning':
@@ -1287,6 +1290,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
       return await fetchFIRSTEPSSInBrowser(args?.cveId) as T
     case 'fetch_vulhub_practice_catalog':
       return await fetchVulhubPracticeCatalogInBrowser() as T
+    case 'reveal_vulnerability_feed_snapshot':
+      throw new Error('在 Finder 中显示 CVE Feed 快照需要 MilkSU 桌面运行时。')
     case 'import_nssctf_challenge': {
       const normalized = normalizeNSSCTFProblemURL(args?.url as string)
       const response = await fetch(`/nssctf-api/problem/v2/${normalized.id}/`, {

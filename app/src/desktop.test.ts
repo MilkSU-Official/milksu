@@ -115,6 +115,34 @@ describe('desktop command adapter', () => {
     expect(fetchVulhubPracticeCatalog).toHaveBeenCalledTimes(1)
   })
 
+  it('passes CVE feed snapshot reveal to Wails with the exact backend-validated path', async () => {
+    const revealVulnerabilityFeedSnapshot = vi.fn(async () => undefined)
+    Object.defineProperty(window, 'go', {
+      configurable: true,
+      value: {
+        main: {
+          App: {
+            RevealVulnerabilityFeedSnapshot: revealVulnerabilityFeedSnapshot,
+          },
+        },
+      },
+    })
+
+    await expect(invokeCommand('reveal_vulnerability_feed_snapshot', {
+      snapshotPath: '/Users/example/Library/Application Support/MilkSU/vuln/feed-snapshots/nvd/20260804T070000Z-abcd.json',
+    })).resolves.toBeUndefined()
+    expect(revealVulnerabilityFeedSnapshot).toHaveBeenCalledOnce()
+    expect(revealVulnerabilityFeedSnapshot).toHaveBeenCalledWith(
+      '/Users/example/Library/Application Support/MilkSU/vuln/feed-snapshots/nvd/20260804T070000Z-abcd.json',
+    )
+  })
+
+  it('does not pretend browser preview can reveal CVE feed snapshots in Finder', async () => {
+    await expect(invokeCommand('reveal_vulnerability_feed_snapshot', {
+      snapshotPath: '/tmp/feed.json',
+    })).rejects.toThrow('MilkSU 桌面运行时')
+  })
+
   it('passes Coding background task refresh policy to Wails unchanged', async () => {
     const status = {
       defaultEngine: 'pi',
