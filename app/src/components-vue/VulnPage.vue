@@ -186,6 +186,22 @@ async function syncCisaKevFeed() {
   }
 }
 
+async function syncVulhubPracticeCatalog() {
+  practiceImportError.value = ''
+  practiceImportNotice.value = ''
+  lastImportedPracticeIds.value = []
+  try {
+    const result = await dashboard.syncVulhubPracticeCatalog()
+    lastImportedPracticeIds.value = result.importedIds
+    practiceImportNotice.value = `已同步 Vulhub catalog：新增 ${result.imported}、跳过 ${result.skipped}`
+      + `；获取 ${new Date(result.retrievedAt).toLocaleString()}，${result.itemCount} 个候选，缓存 ${result.digest}`
+      + (result.errors.length ? `；${result.errors.length} 条需人工处理` : '')
+  } catch (cause) {
+    practiceImportError.value = dashboard.practiceCatalogSyncError.value
+      || (cause instanceof Error ? cause.message : String(cause))
+  }
+}
+
 function undoLastImport() {
   const removed = dashboard.removeLocalTrackingItems(lastImportedIds.value)
   importNotice.value = removed
@@ -359,6 +375,16 @@ function isHttpUrl(value: string) {
         >
           <RefreshCw class="size-4" :class="dashboard.sourceSyncing.value ? 'animate-spin' : ''" />
           同步 KEV
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-label="同步 Vulhub 练习目录"
+          :loading="dashboard.practiceCatalogSyncing.value"
+          @click="syncVulhubPracticeCatalog"
+        >
+          <RefreshCw class="size-4" :class="dashboard.practiceCatalogSyncing.value ? 'animate-spin' : ''" />
+          同步 Vulhub
         </Button>
         <Button variant="ghost" size="icon-sm" aria-label="设置" @click="$emit('openSettings')">
           <Settings class="size-4" />
@@ -588,12 +614,20 @@ function isHttpUrl(value: string) {
             撤销本次导入
           </Button>
         </div>
+        <div
+          v-if="practiceImportError && !showPracticeImportForm"
+          class="border-b border-border bg-card/70 px-6 py-3"
+          role="alert"
+          aria-label="CVE 练习 Catalog 同步失败"
+        >
+          <p class="text-caption text-destructive">{{ practiceImportError }}</p>
+        </div>
         <section class="border-b border-border bg-card/35 px-6 py-5" aria-label="CVE 情报源接入状态">
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 class="text-label font-medium">情报源接入状态</h2>
               <p class="mt-1 text-caption leading-5 text-muted-foreground">
-                当前支持 CISA KEV 公开只读同步与手动 Feed 快照导入；区分内置快照、用户材料、缓存 Feed 和待接入源，不把排序信号当成 Judge。
+                当前支持 CISA KEV 公开只读同步、Vulhub 练习目录同步与手动 Feed 快照导入；区分内置快照、用户材料、缓存 Feed 和练习候选，不把排序信号当成 Judge。
               </p>
               <p class="mt-1 text-caption leading-5 text-muted-foreground">
                 {{ dashboard.sourceRefreshSummary.value.detail }}

@@ -1439,6 +1439,10 @@ func (a *App) FetchCISAKEVFeed() (vuln.FeedSnapshotDownload, error) {
 	return vuln.FetchCISAKEVFeed(a.commandContext(), nil)
 }
 
+func (a *App) FetchVulhubPracticeCatalog() (vuln.FeedSnapshotDownload, error) {
+	return vuln.FetchVulhubPracticeCatalog(a.commandContext(), nil)
+}
+
 func (a *App) SubmitVulnReproduction(id string, request vuln.ReproductionRequest) (vuln.Projection, error) {
 	return a.vulnJobs.SubmitReproductionEvidence(a.commandContext(), id, request)
 }

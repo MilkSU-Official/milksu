@@ -35,6 +35,32 @@ describe('desktop command adapter', () => {
     expect(fetchCISAKEVFeed).toHaveBeenCalledTimes(1)
   })
 
+  it('passes Vulhub practice catalog sync to the Wails read-only fetcher', async () => {
+    const catalog = {
+      sourceName: 'Vulhub Practice Catalog',
+      sourceUrl: 'https://github.com/vulhub/vulhub',
+      retrievedAt: '2026-08-04T06:00:00Z',
+      lastModified: '2026-08-04T06:00:00Z',
+      httpStatus: 200,
+      contentType: 'application/json',
+      body: '{"items":[]}',
+    }
+    const fetchVulhubPracticeCatalog = vi.fn(async () => catalog)
+    Object.defineProperty(window, 'go', {
+      configurable: true,
+      value: {
+        main: {
+          App: {
+            FetchVulhubPracticeCatalog: fetchVulhubPracticeCatalog,
+          },
+        },
+      },
+    })
+
+    await expect(invokeCommand('fetch_vulhub_practice_catalog')).resolves.toBe(catalog)
+    expect(fetchVulhubPracticeCatalog).toHaveBeenCalledTimes(1)
+  })
+
   it('passes Coding background task refresh policy to Wails unchanged', async () => {
     const status = {
       defaultEngine: 'pi',

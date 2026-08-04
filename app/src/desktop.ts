@@ -311,6 +311,7 @@ interface WailsAppBindings {
   ListVulnJobs(): Promise<VulnSummary[]>
   GetVulnJob(id: string): Promise<VulnProjection>
   FetchCISAKEVFeed(): Promise<VulnerabilityFeedDownload>
+  FetchVulhubPracticeCatalog(): Promise<VulnerabilityFeedDownload>
   SubmitVulnReproduction(id: string, request: VulnReproductionRequest): Promise<VulnProjection>
   RecordVulnLearning(id: string, request: VulnLearningRecordRequest): Promise<VulnProjection>
   CancelVulnJob(id: string): Promise<void>
@@ -331,6 +332,8 @@ const VULN_PROJECTIONS_KEY = 'milksu.dev.vuln-projections'
 const CTF_PROJECTIONS_KEY = 'milksu.dev.ctf-projections'
 const NSSCTF_CATALOG_KEY = 'milksu.dev.nssctf-catalog'
 const CISA_KEV_FEED_URL = 'https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json'
+const VULHUB_REPO_API_URL = 'https://api.github.com/repos/vulhub/vulhub'
+const VULHUB_REPO_WEB_URL = 'https://github.com/vulhub/vulhub'
 
 const DEFAULT_SETTINGS: AppSettings = {
   active_provider: 'deepseek',
@@ -417,6 +420,112 @@ async function fetchCISAKEVFeedInBrowser(): Promise<VulnerabilityFeedDownload> {
     httpStatus: response.status,
     contentType: response.headers.get('content-type') || '',
     body: await response.text(),
+  }
+}
+
+function pathDirectory(path: string) {
+  return path
+    .replace(/\/docker-compose\.ya?ml$/i, '')
+    .replace(/\/compose\.ya?ml$/i, '')
+}
+
+function githubTreePath(path: string) {
+  return path.split('/').map(part => encodeURIComponent(part)).join('/')
+}
+
+function buildVulhubPracticeCatalogBody(tree: {
+  sha?: string
+  truncated?: boolean
+  tree?: Array<{ path?: string; type?: string }>
+}, commitSHA: string, retrievedAt: string) {
+  if (tree.truncated) {
+    throw new Error('Vulhub catalog GitHub tree response was truncated')
+  }
+  const composeDirs = new Set<string>()
+  for (const entry of tree.tree ?? []) {
+    if (entry.type !== 'blob' || !entry.path) continue
+    if (!/\/(?:docker-)?compose\.ya?ml$/i.test(entry.path)) continue
+    const directory = pathDirectory(entry.path)
+    if (directory && directory !== entry.path) composeDirs.add(directory)
+  }
+  const shortSHA = commitSHA.slice(0, 12) || 'unknown'
+  const revision = `vulhub/vulhub master ${shortSHA} · GitHub tree ${tree.sha || 'unknown'} · ${retrievedAt}`
+  const items = [...composeDirs]
+    .flatMap(directory => {
+      const matches = directory.match(/CVE-\d{4}-\d{4,}/ig) ?? []
+      return matches.map(cveId => {
+        const normalizedCveId = cveId.toUpperCase()
+        const component = directory.split('/')[0] || 'Vulhub'
+        return {
+          cveId: normalizedCveId,
+          title: `Vulhub · ${component} · ${normalizedCveId} Docker Compose`,
+          directory,
+          sourceLabel: `vulhub/${directory}`,
+          sourceHref: `${VULHUB_REPO_WEB_URL}/tree/${encodeURIComponent(commitSHA)}/${githubTreePath(directory)}`,
+          revision,
+          ports: ['待确认端口（需读取 docker-compose.yml）'],
+          resources: '待确认镜像缓存、CPU、内存和磁盘占用；启动前由用户确认。',
+          network: '默认仅允许本机 loopback；不继承平台 Cookie、Token、浏览器会话或 Provider Credential。',
+          cleanup: '停止 compose project，清理临时容器/卷；保留用户笔记和学习证据。',
+          safety: [
+            '只读 GitHub catalog 同步只绑定目录，不拉取镜像、不启动容器。',
+            '开放端口、运行触发输入或访问外部目标都需要用户逐次确认。',
+            '练习成功只代表本地学习完成，不证明任何真实资产可被利用。',
+          ],
+          matchReason: `GitHub 只读目录树发现 ${directory} 含 Docker Compose 与 ${normalizedCveId}；仅作为本地隔离练习候选。`,
+          environmentId: `vulhub-${normalizedCveId.toLowerCase()}`,
+        }
+      })
+    })
+    .sort((left, right) =>
+      left.cveId === right.cveId
+        ? left.directory.localeCompare(right.directory)
+        : left.cveId.localeCompare(right.cveId),
+    )
+  return JSON.stringify({
+    sourceName: 'Vulhub Practice Catalog',
+    sourceUrl: VULHUB_REPO_WEB_URL,
+    retrievedAt,
+    revision,
+    commit: commitSHA,
+    itemCount: items.length,
+    items,
+  }, null, 2)
+}
+
+async function fetchVulhubPracticeCatalogInBrowser(): Promise<VulnerabilityFeedDownload> {
+  const branchResponse = await fetch(`${VULHUB_REPO_API_URL}/branches/master`, {
+    headers: { Accept: 'application/vnd.github+json' },
+    cache: 'no-store',
+  })
+  if (!branchResponse.ok) {
+    throw new Error(`Vulhub branch returned HTTP ${branchResponse.status}`)
+  }
+  const branch = await branchResponse.json() as { commit?: { sha?: string } }
+  const commitSHA = branch.commit?.sha?.trim()
+  if (!commitSHA) {
+    throw new Error('Vulhub branch response did not include commit sha')
+  }
+  const treeResponse = await fetch(`${VULHUB_REPO_API_URL}/git/trees/${encodeURIComponent(commitSHA)}?recursive=1`, {
+    headers: { Accept: 'application/vnd.github+json' },
+    cache: 'no-store',
+  })
+  if (!treeResponse.ok) {
+    throw new Error(`Vulhub tree returned HTTP ${treeResponse.status}`)
+  }
+  const retrievedAt = treeResponse.headers.get('last-modified')
+    || treeResponse.headers.get('date')
+    || branchResponse.headers.get('last-modified')
+    || branchResponse.headers.get('date')
+    || new Date().toISOString()
+  return {
+    sourceName: 'Vulhub Practice Catalog',
+    sourceUrl: VULHUB_REPO_WEB_URL,
+    retrievedAt,
+    lastModified: treeResponse.headers.get('last-modified') || branchResponse.headers.get('last-modified') || '',
+    httpStatus: treeResponse.status,
+    contentType: treeResponse.headers.get('content-type') || '',
+    body: buildVulhubPracticeCatalogBody(await treeResponse.json(), commitSHA, retrievedAt),
   }
 }
 
@@ -874,6 +983,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.GetVulnJob(args?.id as string) as Promise<T>
       case 'fetch_cisa_kev_feed':
         return app.FetchCISAKEVFeed() as Promise<T>
+      case 'fetch_vulhub_practice_catalog':
+        return app.FetchVulhubPracticeCatalog() as Promise<T>
       case 'submit_vuln_reproduction':
         return app.SubmitVulnReproduction(args?.id as string, args?.request as VulnReproductionRequest) as Promise<T>
       case 'record_vuln_learning':
@@ -1103,6 +1214,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
     }
     case 'fetch_cisa_kev_feed':
       return await fetchCISAKEVFeedInBrowser() as T
+    case 'fetch_vulhub_practice_catalog':
+      return await fetchVulhubPracticeCatalogInBrowser() as T
     case 'import_nssctf_challenge': {
       const normalized = normalizeNSSCTFProblemURL(args?.url as string)
       const response = await fetch(`/nssctf-api/problem/v2/${normalized.id}/`, {

@@ -83,6 +83,13 @@ async function unmountAll() {
   await nextTick()
 }
 
+async function flushAsyncUpdates() {
+  for (let index = 0; index < 6; index += 1) {
+    await Promise.resolve()
+    await nextTick()
+  }
+}
+
 describe('VulnPage', () => {
   it('renders a CVE learning and tracking scaffold without red-team promises', async () => {
     const host = await mountVulnPage()
@@ -193,6 +200,56 @@ describe('VulnPage', () => {
     expect(host.textContent).toContain('CVE-2026-42424')
     expect(host.textContent).toContain('Example Gateway unsafe parser')
     expect(host.textContent).toContain('来源证据')
+  })
+
+  it('syncs the Vulhub practice catalog through the desktop adapter into a visible practice match', async () => {
+    const fetchVulhubPracticeCatalog = vi.fn(async () => ({
+      sourceName: 'Vulhub Practice Catalog',
+      sourceUrl: 'https://github.com/vulhub/vulhub',
+      retrievedAt: '2026-08-04T06:00:00Z',
+      lastModified: '2026-08-04T06:00:00Z',
+      httpStatus: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        sourceName: 'Vulhub Practice Catalog',
+        sourceUrl: 'https://github.com/vulhub/vulhub',
+        retrievedAt: '2026-08-04T06:00:00Z',
+        revision: 'vulhub/vulhub master abc123 · GitHub tree tree-sha',
+        items: [{
+          cveId: 'CVE-2024-3400',
+          title: 'Vulhub · pan-os · CVE-2024-3400 Docker Compose',
+          directory: 'pan-os/CVE-2024-3400',
+          sourceLabel: 'vulhub/pan-os/CVE-2024-3400',
+          sourceHref: 'https://github.com/vulhub/vulhub/tree/abc123/pan-os/CVE-2024-3400',
+          revision: 'vulhub/vulhub master abc123 · GitHub tree tree-sha',
+          ports: ['待确认端口（需读取 docker-compose.yml）'],
+          network: '默认仅允许本机 loopback。',
+          safety: ['只读 catalog 同步只绑定目录，不启动容器。'],
+        }],
+      }),
+    }))
+    Object.defineProperty(window, 'go', {
+      configurable: true,
+      value: { main: { App: { FetchVulhubPracticeCatalog: fetchVulhubPracticeCatalog } } },
+    })
+    const host = await mountVulnPage()
+    const sync = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
+      item.getAttribute('aria-label') === '同步 Vulhub 练习目录',
+    )
+    if (!sync) throw new Error('missing Vulhub sync button')
+
+    expect(host.textContent).toContain('未匹配练习环境')
+    sync.click()
+    await flushAsyncUpdates()
+
+    expect(fetchVulhubPracticeCatalog).toHaveBeenCalledTimes(1)
+    expect(host.textContent).toContain('已同步 Vulhub catalog：新增 1、跳过 0')
+    expect(host.textContent).toContain('1 个候选，缓存 fnv1a-')
+    expect(host.textContent).toContain('已匹配练习环境')
+    expect(host.textContent).toContain('vulhub/pan-os/CVE-2024-3400')
+    expect(host.textContent).toContain('启动前仍需用户确认 Docker、端口、网络和清理边界')
+    expect(host.textContent).toContain('只读匹配和启动前计划')
+    expect(host.textContent).not.toContain('已启动容器')
   })
 
   it('imports a CISA KEV feed snapshot and shows source evidence in the selected CVE', async () => {
