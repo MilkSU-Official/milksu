@@ -1,27 +1,18 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import {
-  Button,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@felinic/ui'
+import { Button } from '@felinic/ui'
 import {
   Bug,
   Code2,
   Flag,
 } from 'lucide-vue-next'
-import AbilityRadar from '@/components-vue/AbilityRadar.vue'
 import milksuAppIcon from '@/assets/milksu-app-icon.png'
 import {
   WORKSPACE_RAIL_ITEMS,
   type WorkspaceSection,
 } from '@/lib/workspaceNavigation'
-import type { NSSCTFTrainingDashboard } from '@/nssctfTrainingTypes'
 
 const props = defineProps<{
   activeSection: WorkspaceSection
-  ctfDashboard: NSSCTFTrainingDashboard | null
 }>()
 
 defineEmits<{
@@ -33,42 +24,6 @@ const icons = {
   vuln: Bug,
   chat: Code2,
 } as const
-
-const abilitySourceText = computed(() => {
-  const sources = props.ctfDashboard?.sources ?? []
-  if (!sources.length) return '完成第一道真实平台题后开始校准'
-  return sources.map((source) => {
-    const evidence = source.judgeVerifiedSolved
-      ? `平台回执 ${source.judgeVerifiedSolved}`
-      : source.userConfirmedSolved
-        ? `人工确认 ${source.userConfirmedSolved}`
-        : '暂无成功回执'
-    return `${source.label} ${source.solved}/${source.attempts} · ${evidence}`
-  }).join(' · ')
-})
-
-const contributionTotals = computed(() => (
-  (props.ctfDashboard?.dimensions ?? []).reduce((total, dimension) => ({
-    independent: total.independent + dimension.independentSolved,
-    hint: total.hint + dimension.hintAssistedSolved,
-    copilot: total.copilot + dimension.copilotSolved,
-    delegated: total.delegated + dimension.delegatedSolved,
-    imported: total.imported + dimension.importedSolved,
-  }), {
-    independent: 0,
-    hint: 0,
-    copilot: 0,
-    delegated: 0,
-    imported: 0,
-  })
-))
-
-function acceptanceStatusText(status: string) {
-  if (status === 'judge-verified') return '已有平台 Judge 回执'
-  if (status === 'user-confirmed') return '仅有用户确认，仍需 Judge 回执'
-  if (status === 'attempted') return '已有尝试，尚未完成'
-  return '尚无真实训练记录'
-}
 </script>
 
 <template>
@@ -102,115 +57,6 @@ function acceptanceStatusText(status: string) {
     </nav>
 
     <div class="flex-1" />
-
-    <div class="app-no-drag flex justify-center border-t border-border py-3">
-      <Popover>
-        <PopoverTrigger as-child>
-          <button
-            type="button"
-            class="group relative grid size-10 place-items-center rounded-full border border-border bg-muted/35 text-muted-foreground transition-colors hover:border-brand hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            aria-label="查看 CTF 能力"
-          >
-            <Flag class="size-4" />
-          </button>
-        </PopoverTrigger>
-        <PopoverContent
-          side="right"
-          align="end"
-          :side-offset="12"
-          class="w-[540px] max-w-[calc(100vw-5rem)] p-5"
-          aria-label="CTF 能力"
-        >
-          <div class="flex items-center gap-3">
-            <div class="grid size-12 shrink-0 place-items-center rounded-full border border-border bg-muted/35 text-muted-foreground">
-              <Flag class="size-5" />
-            </div>
-            <div>
-              <p class="text-caption text-muted-foreground">综合分</p>
-              <p class="font-mono text-3xl font-semibold leading-none">
-                {{ ctfDashboard?.overallConfidence ? ctfDashboard.overallScore : '—' }}
-              </p>
-            </div>
-            <div class="ml-auto text-right text-caption text-muted-foreground">
-              <p>真实训练 {{ ctfDashboard?.realAttemptCount ?? 0 }}</p>
-              <p class="mt-1">已完成 {{ ctfDashboard?.realSolvedCount ?? 0 }}</p>
-              <p class="mt-1">平台回执 {{ ctfDashboard?.judgeVerifiedSolvedCount ?? 0 }}</p>
-            </div>
-          </div>
-
-          <div class="mt-5 grid grid-cols-[minmax(280px,1fr)_minmax(150px,.55fr)] items-center gap-6 border-t border-border pt-5">
-            <AbilityRadar
-              class="mx-auto w-full max-w-[300px]"
-              :dimensions="ctfDashboard?.dimensions ?? []"
-            />
-            <div class="space-y-2.5 border-l border-border pl-5 text-label">
-              <div
-                v-for="dimension in ctfDashboard?.dimensions ?? []"
-                :key="dimension.key"
-                class="flex items-center justify-between gap-4"
-              >
-                <span class="text-muted-foreground">{{ dimension.label }}</span>
-                <span class="font-mono text-foreground">
-                  {{ dimension.confidence ? dimension.score : '—' }}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div class="mt-4 border-t border-border pt-4">
-            <p class="text-caption font-medium text-foreground">用户能力证据</p>
-            <div class="mt-2 grid grid-cols-3 gap-1.5 text-caption">
-              <span class="rounded-md bg-muted/45 px-2 py-1.5">
-                独立 {{ contributionTotals.independent }}
-              </span>
-              <span class="rounded-md bg-muted/45 px-2 py-1.5">
-                提示 {{ contributionTotals.hint }}
-              </span>
-              <span class="rounded-md bg-muted/45 px-2 py-1.5">
-                协作 {{ contributionTotals.copilot }}
-              </span>
-            </div>
-            <p class="mt-2 text-caption leading-5 text-muted-foreground">
-              Agent 代做 {{ contributionTotals.delegated }} · 未归属 {{ contributionTotals.imported }}；
-              两者保留正确性和 Memory，但不计入用户能力分。
-            </p>
-          </div>
-
-          <div class="mt-4 border-t border-border pt-4">
-            <div class="flex items-center justify-between gap-3 text-caption">
-              <span class="font-medium text-foreground">多题型真实验收</span>
-              <span class="font-mono text-muted-foreground">
-                {{ ctfDashboard?.acceptance?.judgeVerifiedTracks ?? 0 }}/{{ ctfDashboard?.acceptance?.requiredTracks ?? 6 }}
-              </span>
-            </div>
-            <div class="mt-2.5 grid grid-cols-3 gap-1.5">
-              <span
-                v-for="track in ctfDashboard?.acceptance?.tracks ?? []"
-                :key="track.key"
-                class="flex min-w-0 items-center gap-1.5 rounded-md bg-muted/45 px-2 py-1.5 text-caption"
-                :title="acceptanceStatusText(track.status)"
-              >
-                <span
-                  class="size-1.5 shrink-0 rounded-full"
-                  :class="track.status === 'judge-verified'
-                    ? 'bg-primary'
-                    : track.status === 'user-confirmed'
-                      ? 'bg-amber-400'
-                      : track.status === 'attempted'
-                        ? 'bg-muted-foreground'
-                        : 'border border-muted-foreground/60'"
-                />
-                <span class="truncate">{{ track.label }}</span>
-              </span>
-            </div>
-          </div>
-
-          <p class="mt-4 truncate border-t border-border pt-4 text-caption text-muted-foreground">
-            {{ abilitySourceText }}
-          </p>
-        </PopoverContent>
-      </Popover>
-    </div>
   </div>
 </template>
 

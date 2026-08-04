@@ -36,7 +36,6 @@ const showContextSidebar = computed(() => railSection.value === 'chat')
   >
     <WorkspaceRail
       :active-section="railSection"
-      :ctf-dashboard="ctfDashboard"
       @navigate="$emit('navigate', $event)"
     />
     <ContextSidebar
