@@ -25,8 +25,11 @@ describe('CTFPage navigation contract', () => {
   })
 
   it('shows the six-track Judge acceptance state without overstating CTF readiness', () => {
+    expect(ctfChallengeDeskSource).toContain('<details')
     expect(ctfChallengeDeskSource).toContain('aria-label="CTF 六赛道真实验收"')
     expect(ctfChallengeDeskSource).toContain('六赛道真实验收')
+    expect(ctfChallengeDeskSource).toContain('展开查看缺失赛道')
+    expect(ctfChallengeDeskSource).toContain('默认解题界面只保留题面、Agent/实验和当前授权/提交')
     expect(ctfChallengeDeskSource).toContain('仍是通用能力 smoke')
     expect(ctfChallengeDeskSource).toContain('acceptance.judgeVerifiedTracks')
     expect(ctfChallengeDeskSource).toContain('acceptance.requiredTracks')

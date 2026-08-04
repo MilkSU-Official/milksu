@@ -502,40 +502,48 @@ function runPrimaryAction() {
     </div>
 
     <aside ref="detailPane" class="challenge-detail min-h-0 overflow-y-auto bg-card" aria-live="polite">
-      <section
+      <details
         v-if="activeBank === 'nssctf' && acceptance"
-        class="border-b border-border bg-background/55 px-5 py-4"
+        class="border-b border-border bg-background/55 px-5 py-3"
         aria-label="CTF 六赛道真实验收"
       >
-        <div class="flex flex-wrap items-start justify-between gap-3">
-          <div class="min-w-0">
-            <p class="text-caption font-medium text-muted-foreground">六赛道真实验收</p>
-            <p class="mt-1 text-control font-medium">
-              {{ acceptance.ready ? 'Ready，可回归复核' : '仍是通用能力 smoke' }}
-            </p>
-            <p class="mt-1 text-caption leading-5 text-muted-foreground">
-              {{ acceptanceSummary }}
-            </p>
+        <summary class="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
+          <div class="min-w-0 flex items-center gap-2">
+            <p class="text-control font-medium">六赛道真实验收</p>
+            <Badge variant="outline">
+              {{ acceptance.ready ? 'Ready' : '通用能力 smoke' }}
+            </Badge>
           </div>
           <Badge :variant="acceptance.ready ? 'success' : 'outline'" class="shrink-0">
             {{ acceptance.judgeVerifiedTracks }}/{{ acceptance.requiredTracks }} Judge
           </Badge>
+          <span class="basis-full text-caption text-muted-foreground">
+            展开查看缺失赛道；默认解题界面只保留题面、Agent/实验和当前授权/提交。
+          </span>
+        </summary>
+        <div class="mt-3 border-t border-border pt-3">
+          <p class="text-control font-medium">
+            {{ acceptance.ready ? 'Ready，可回归复核' : '仍是通用能力 smoke' }}
+          </p>
+          <p class="mt-1 text-caption leading-5 text-muted-foreground">
+            {{ acceptanceSummary }}
+          </p>
+          <div class="mt-3 flex flex-wrap gap-2">
+            <Badge
+              v-for="track in acceptance.tracks"
+              :key="track.key"
+              :variant="acceptanceStatusVariant(track.status)"
+              class="gap-1"
+            >
+              <span>{{ track.label }}</span>
+              <span class="text-muted-foreground">{{ acceptanceStatusText(track.status) }}</span>
+            </Badge>
+          </div>
+          <p class="mt-3 text-caption leading-5 text-muted-foreground">
+            一题成功只算赛道 smoke，不能描述为完整 CTF 成绩；后续补缺失赛道的真实题目、材料、轨迹、Judge 回执、恢复和复盘证据。
+          </p>
         </div>
-        <div class="mt-3 flex flex-wrap gap-2">
-          <Badge
-            v-for="track in acceptance.tracks"
-            :key="track.key"
-            :variant="acceptanceStatusVariant(track.status)"
-            class="gap-1"
-          >
-            <span>{{ track.label }}</span>
-            <span class="text-muted-foreground">{{ acceptanceStatusText(track.status) }}</span>
-          </Badge>
-        </div>
-        <p class="mt-3 text-caption leading-5 text-muted-foreground">
-          一题成功只算赛道 smoke，不能描述为完整 CTF 成绩；后续补缺失赛道的真实题目、材料、轨迹、Judge 回执、恢复和复盘证据。
-        </p>
-      </section>
+      </details>
 
       <template v-if="selectedNssctf && activeBank === 'nssctf'">
         <div class="p-7 lg:p-9">

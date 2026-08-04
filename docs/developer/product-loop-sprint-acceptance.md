@@ -5,6 +5,29 @@
 本文件只记录当前冲刺期间已经执行过的可复核验收动作，避免后续 Agent 把口头进展误当成
 已完成声明。最终架构、里程碑、状态页和发布说明仍按 `product-loop-sprint.md` 后置统一更新。
 
+## 2026-08-04 · CTF default desk declutter
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | 本批次提交（见 Git log） |
+| 窄测 | `npm --prefix app test -- CTFPageNavigationContract.test.ts CTFWorkspaceHeader.test.ts WorkspaceTopBar.test.ts` |
+| 窄测结果 | 3 files / 10 tests passed |
+| Build | `npm --prefix app run build` |
+| Build 结果 | production build passed |
+
+覆盖范围：
+
+- CTF 默认题库桌面的“六赛道真实验收”从大块常驻卡片改为默认折叠状态条；
+- 用户仍能看到 `0/6 Judge` 或 Ready 状态，也能展开查看缺失赛道；
+- 折叠说明明确默认解题界面只保留题面、Agent/实验和当前授权/提交，避免把内部 Evidence/Judge/Memory 模型当默认信息架构；
+- 仍保留“一题成功只算赛道 smoke，不能描述为完整 CTF 成绩”的文案和测试契约。
+
+本次仍未证明：
+
+- CTF 工作台整体信息架构已经完成重做；
+- 真实 CTF job 中所有零值面板都已渐进展示；
+- 打包 App 中用户实际进入 CTF 题库、解题会话和复盘模式后的视觉 QA。
+
 ## 2026-08-04 · CVE Coding conclusion write-back
 
 | 项目 | 记录 |
