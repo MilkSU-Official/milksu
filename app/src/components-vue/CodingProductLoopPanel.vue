@@ -281,11 +281,15 @@ const verificationRecords = computed<VerificationRecord[]>(() => [
   },
   {
     label: '真实 App 验收',
-    state: props.artifactPreviewEvidence || props.browserEvidence || props.computerUseEvidence
-      ? '已有证据'
-      : props.browserStatus?.enabled || props.computerUseStatus?.enabled
-        ? '可执行'
-        : '未证明',
+    state: props.artifactPreviewEvidence
+      ? '已验证'
+      : props.browserEvidence
+        ? '待核对'
+        : props.computerUseEvidence
+          ? '待操作'
+          : props.browserStatus?.enabled || props.computerUseStatus?.enabled
+            ? '可执行'
+            : '未证明',
     detail: props.artifactPreviewEvidence
       ? `已打开产物预览：${props.artifactPreviewEvidence.relativePath}；若需要真实交互，再补 Browser 或 Computer Use。`
       : props.browserEvidence
@@ -521,72 +525,6 @@ function stateBadgeVariant(state: LoopState) {
           {{ stateLabel(mergeReadiness.state) }}
         </Badge>
       </div>
-      <div
-        v-if="unfinishedAcceptanceItems.length"
-        class="mt-3 space-y-1.5"
-        aria-label="Coding 待补证明"
-      >
-        <div
-          v-for="item in unfinishedAcceptanceItems"
-          :key="`missing-${item.label}`"
-          class="flex items-start justify-between gap-3 rounded-md bg-background px-3 py-2"
-          :data-missing-acceptance-state="item.state"
-        >
-          <div class="min-w-0">
-            <p class="text-caption font-medium">{{ item.label }}</p>
-            <p class="mt-0.5 line-clamp-2 text-caption leading-5 text-muted-foreground">
-              {{ item.detail }}
-            </p>
-          </div>
-          <div class="flex shrink-0 items-center gap-2">
-            <Button
-              v-if="item.panel || item.action"
-              type="button"
-              variant="ghost"
-              size="sm"
-              :disabled="item.action === 'compact' && (running || compacting)"
-              @click="item.panel ? emit('openPanel', item.panel) : emit('compactContext')"
-            >
-              {{ item.actionLabel || '打开' }}
-            </Button>
-            <Badge :variant="stateBadgeVariant(item.state)">
-              {{ stateLabel(item.state) }}
-            </Badge>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="mt-3 space-y-2">
-      <div
-        v-for="item in items"
-        :key="item.id"
-        class="rounded-lg border border-border bg-background px-3 py-2"
-        :data-product-loop-state="item.state"
-      >
-        <div class="flex items-center gap-2">
-          <Check
-            v-if="item.state === 'done'"
-            class="size-3.5 shrink-0 text-primary"
-          />
-          <CircleDot
-            v-else
-            class="size-3.5 shrink-0"
-            :class="item.state === 'active'
-              ? 'text-primary'
-              : item.state === 'blocked'
-                ? 'text-destructive'
-                : 'text-muted-foreground'"
-          />
-          <p class="min-w-0 flex-1 truncate text-body font-medium">{{ item.label }}</p>
-          <Badge :variant="stateBadgeVariant(item.state)" class="shrink-0">
-            {{ stateLabel(item.state) }}
-          </Badge>
-        </div>
-        <p class="mt-1 line-clamp-2 text-caption leading-5 text-muted-foreground">
-          {{ item.detail }}
-        </p>
-      </div>
     </div>
 
     <div class="mt-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-3">
@@ -661,11 +599,81 @@ function stateBadgeVariant(state: LoopState) {
       </Button>
     </div>
 
-    <details class="mt-3 rounded-lg border border-border bg-muted/20 px-3 py-2">
+    <details class="mt-3 rounded-lg border border-border bg-muted/20 px-3 py-2" aria-label="Coding 开发者验收详情">
       <summary class="cursor-pointer text-caption font-medium text-muted-foreground">
-        验收记录
+        开发者验收详情
       </summary>
-      <div class="mt-2 space-y-2">
+      <div
+        v-if="unfinishedAcceptanceItems.length"
+        class="mt-3 space-y-1.5"
+        aria-label="Coding 待补证明"
+      >
+        <p class="text-caption font-medium text-muted-foreground">待补证明</p>
+        <div
+          v-for="item in unfinishedAcceptanceItems"
+          :key="`missing-${item.label}`"
+          class="flex items-start justify-between gap-3 rounded-md bg-background px-3 py-2"
+          :data-missing-acceptance-state="item.state"
+        >
+          <div class="min-w-0">
+            <p class="text-caption font-medium">{{ item.label }}</p>
+            <p class="mt-0.5 line-clamp-2 text-caption leading-5 text-muted-foreground">
+              {{ item.detail }}
+            </p>
+          </div>
+          <div class="flex shrink-0 items-center gap-2">
+            <Button
+              v-if="item.panel || item.action"
+              type="button"
+              variant="ghost"
+              size="sm"
+              :disabled="item.action === 'compact' && (running || compacting)"
+              @click="item.panel ? emit('openPanel', item.panel) : emit('compactContext')"
+            >
+              {{ item.actionLabel || '打开' }}
+            </Button>
+            <Badge :variant="stateBadgeVariant(item.state)">
+              {{ stateLabel(item.state) }}
+            </Badge>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-3 space-y-2">
+        <p class="text-caption font-medium text-muted-foreground">闭环步骤</p>
+        <div
+          v-for="item in items"
+          :key="item.id"
+          class="rounded-lg border border-border bg-background px-3 py-2"
+          :data-product-loop-state="item.state"
+        >
+          <div class="flex items-center gap-2">
+            <Check
+              v-if="item.state === 'done'"
+              class="size-3.5 shrink-0 text-primary"
+            />
+            <CircleDot
+              v-else
+              class="size-3.5 shrink-0"
+              :class="item.state === 'active'
+                ? 'text-primary'
+                : item.state === 'blocked'
+                  ? 'text-destructive'
+                  : 'text-muted-foreground'"
+            />
+            <p class="min-w-0 flex-1 truncate text-body font-medium">{{ item.label }}</p>
+            <Badge :variant="stateBadgeVariant(item.state)" class="shrink-0">
+              {{ stateLabel(item.state) }}
+            </Badge>
+          </div>
+          <p class="mt-1 line-clamp-2 text-caption leading-5 text-muted-foreground">
+            {{ item.detail }}
+          </p>
+        </div>
+      </div>
+
+      <div class="mt-3 space-y-2">
+        <p class="text-caption font-medium text-muted-foreground">验收记录</p>
         <div
           v-for="record in verificationRecords"
           :key="record.label"
@@ -689,13 +697,10 @@ function stateBadgeVariant(state: LoopState) {
           <p class="mt-1 text-caption leading-5 text-muted-foreground">{{ record.detail }}</p>
         </div>
       </div>
-    </details>
 
-    <details class="mt-3 rounded-lg border border-border bg-muted/20 px-3 py-2">
-      <summary class="cursor-pointer text-caption font-medium text-muted-foreground">
-        用户验收清单
-      </summary>
-      <ol class="mt-2 space-y-2">
+      <div class="mt-3">
+        <p class="text-caption font-medium text-muted-foreground">用户验收清单</p>
+        <ol class="mt-2 space-y-2">
         <li
           v-for="item in acceptanceChecklist"
           :key="item.label"
@@ -722,13 +727,10 @@ function stateBadgeVariant(state: LoopState) {
           </div>
           <p class="mt-1 text-caption leading-5 text-muted-foreground">{{ item.detail }}</p>
         </li>
-      </ol>
-    </details>
+        </ol>
+      </div>
 
-    <details class="mt-3 rounded-lg border border-border bg-muted/20 px-3 py-2">
-      <summary class="cursor-pointer text-caption font-medium text-muted-foreground">
-        接力棒摘要
-      </summary>
+      <p class="mt-3 text-caption font-medium text-muted-foreground">接力棒摘要</p>
       <pre class="mt-2 max-h-52 overflow-auto whitespace-pre-wrap break-words rounded-md bg-background px-3 py-2 font-mono text-caption leading-5">{{ handoffSummary }}</pre>
       <div class="mt-2 flex items-center justify-between gap-2">
         <span class="text-caption text-muted-foreground">

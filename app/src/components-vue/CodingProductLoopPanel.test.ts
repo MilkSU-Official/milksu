@@ -131,6 +131,9 @@ describe('CodingProductLoopPanel', () => {
     expect(text).toContain('只展示当前证据')
     expect(text).toContain('合并状态')
     expect(text).toContain('待补证明')
+    const developerDetails = host.querySelector<HTMLDetailsElement>('[aria-label="Coding 开发者验收详情"]')
+    expect(developerDetails).not.toBeNull()
+    expect(developerDetails?.hasAttribute('open')).toBe(false)
     expect(text).toContain('还差 4 项')
     expect(text).toContain('核对自动化输出、做一次用户可见验证、验证失败/继续路径、收口 Git 交付')
     expect(host.querySelector('[aria-label="Coding 待补证明"]')).not.toBeNull()
@@ -418,7 +421,7 @@ describe('CodingProductLoopPanel', () => {
 
     expect(host.textContent).toContain('已预览 HTML：preview/result.html')
     expect(host.textContent).toContain('真实 App 验收')
-    expect(host.textContent).toContain('已有证据')
+    expect(host.textContent).toContain('已验证')
     expect(host.textContent).toContain('已打开产物预览：preview/result.html')
     expect(host.querySelector('[data-acceptance-state="done"]')?.textContent)
       .toContain('确认任务和仓库')
@@ -473,7 +476,7 @@ describe('CodingProductLoopPanel', () => {
 
     expect(host.textContent).toContain('浏览器证据目录已打开：.milksu/browser-evidence/browser-session')
     expect(host.textContent).toContain('真实 App 验收')
-    expect(host.textContent).toContain('已有证据')
+    expect(host.textContent).toContain('待核对')
     expect(host.textContent).toContain('目录存在不等于已完成页面验证')
     expect(host.textContent).toContain('核对截图、DOM、Console 或 Network 记录')
     expect(host.textContent).toContain('下一步验收动作')
@@ -512,7 +515,7 @@ describe('CodingProductLoopPanel', () => {
 
     expect(host.textContent).toContain('Computer Use Scope 已锁定：Preview · PID 123 · Window 456')
     expect(host.textContent).toContain('真实 App 验收')
-    expect(host.textContent).toContain('已有证据')
+    expect(host.textContent).toContain('待操作')
     expect(host.textContent).toContain('已锁定可见 App Scope：Preview · com.example.preview · PID 123 · Window 456')
     expect(host.textContent).toContain('这证明会话边界，不等于已完成 GUI 操作')
     expect(host.textContent).toContain('仍需一次真实窗口操作证据')
