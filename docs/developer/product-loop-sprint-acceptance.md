@@ -1448,3 +1448,33 @@
 - 原生 App 中真实后台任务端口、日志、停止、重启后恢复；
 - 长任务超时、取消、失败分类和跨应用重启恢复的人工体验；
 - CTF/CVE/Coding 顶栏在所有小窗口尺寸、极长 subtitle、极多 action 时的最终视觉 QA。
+
+## 2026-08-04 · Broad-first issue ledger handoff
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | 本批次提交 |
+| 目标流 | Coding → 产品闭环卡 → 发现非阻塞问题时复制 BUG/OBS 登记格式，而不是现场深挖 |
+| 窄测 | `npm --prefix app test -- CodingProductLoopPanel.test.ts` |
+| 窄测结果 | 1 file / 21 tests passed |
+| 前端构建 | `npm --prefix app run build` |
+| 前端构建结果 | production build passed |
+| Lint | `npm --prefix app run lint` |
+| Lint 结果 | passed |
+| Browser 插件路径 | Browser runtime 成功连接本地预览 `http://127.0.0.1:4205/` |
+| 渲染结果 | Coding 页面可见 `未修问题登记`、`广度优先`、`复制登记格式` 和“只有硬红线或阻塞主闭环才立即修”；页面标题 `MilkSU`；无 Vite/framework overlay；console warn/error 为空 |
+| 截图 | `/tmp/milksu-issue-ledger-card-qa.png` |
+
+覆盖范围：
+
+- Coding 产品闭环卡新增“未修问题登记”区；
+- 复制内容给出稳定 `BUG-* / OBS-*` 表格格式，包含问题、复现与证据、影响和计划处理层；
+- 复制内容明确分类规则：证据不足先 `OBS-*`，确认产品缺陷再 `BUG-*`；
+- 复制内容继续保留硬红线：Provider/API Key、workspace/Scope、Computer Use 可见会话、私有远端和 smoke/完整成绩区分；
+- 这让当前冲刺的“发现问题先登记，后续批量修”成为用户可见工作流，而不是只写在目标文档里。
+
+本次仍未证明：
+
+- 原生 App 中点击复制后的系统剪贴板体验；
+- 后续 Agent 是否会把实际新问题稳定写入 `objective-coverage-ledger.md`；
+- 已登记问题的批量评估和修复优先级排序。

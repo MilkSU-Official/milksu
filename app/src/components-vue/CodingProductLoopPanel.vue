@@ -70,6 +70,7 @@ const copyNotice = ref('')
 const followupCopyNotice = ref('')
 const nativeAppCopyNotice = ref('')
 const bootstrapTaskCopyNotice = ref('')
+const issueLedgerCopyNotice = ref('')
 
 const canAct = computed(() => (
   props.executionMode === 'go'
@@ -471,6 +472,29 @@ const nativeAppAcceptanceChecklist = computed(() => [
   },
 ])
 
+const issueLedgerTemplate = computed(() => {
+  const lines = [
+    '把本轮发现的问题登记到 MilkSU 覆盖台账，不要现场深挖非阻塞细节。',
+    '',
+    `工作区：${props.workspacePath || '尚未选择'}`,
+    `当前闭环状态：${mergeReadiness.value.label}；${mergeReadiness.value.detail}`,
+    '',
+    '登记格式：',
+    '| ID | 问题 | 复现与证据 | 影响 | 计划处理层 |',
+    '| --- | --- | --- | --- | --- |',
+    '| OBS-待分配 | 一句话描述观察到的问题 | 入口、操作步骤、截图/DOM/命令/日志证据位置；若证据不足先写“待复核” | 用户影响或开发影响 | 立即修 / 当前冲刺后批量修 / 后期收口 |',
+    '',
+    '分类规则：',
+    '- 没有稳定复现或只是体验疑问：先登记 OBS-*；',
+    '- 已确认产品缺陷且有复现证据：登记 BUG-*；',
+    '- 只有阻断当前闭环、可能损坏数据、泄漏 Credential、突破 workspace/Scope/私有远端边界或让验收/Judge 失真的问题才立即修；',
+    '- 其他视觉细节、偶发失败和边界矩阵先登记，等一轮功能覆盖后批量处理。',
+    '',
+    '边界：不要读取、输出或迁移 Provider/API Key；不要用 Shell/IPC/截图目录绕过 Computer Use；不要把 Browser preview、组件测试或 UI 架子写成完整产品成绩。',
+  ]
+  return lines.join('\n')
+})
+
 const nativeAppAcceptancePrompt = computed(() => {
   const lines = [
     '继续 MilkSU 原生 App 产品闭环验收。',
@@ -592,6 +616,17 @@ async function copyNativeAppAcceptancePrompt() {
     nativeAppCopyNotice.value = '已复制'
   } catch {
     nativeAppCopyNotice.value = '复制失败，请手动选择清单'
+  }
+}
+
+async function copyIssueLedgerTemplate() {
+  issueLedgerCopyNotice.value = ''
+  try {
+    if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable')
+    await navigator.clipboard.writeText(issueLedgerTemplate.value)
+    issueLedgerCopyNotice.value = '已复制'
+  } catch {
+    issueLedgerCopyNotice.value = '复制失败，请手动选择登记格式'
   }
 }
 
@@ -852,6 +887,36 @@ function stateBadgeVariant(state: LoopState) {
       </ol>
       <p class="mt-2 text-caption text-muted-foreground">
         {{ nativeAppCopyNotice || '复制后可直接交给用户或下一轮 Agent 做打包 App 验收。' }}
+      </p>
+    </div>
+
+    <div
+      class="mt-3 rounded-lg border border-border bg-background px-3 py-3"
+      aria-label="未修问题登记"
+    >
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <div class="flex items-center gap-2">
+            <p class="text-caption font-medium text-muted-foreground">未修问题登记</p>
+            <Badge variant="outline">广度优先</Badge>
+          </div>
+          <p class="mt-1 text-caption leading-5 text-muted-foreground">
+            发现 UI/UX、偶发失败或边界细节时，先按 BUG/OBS 模板登记到覆盖台账；只有硬红线或阻塞主闭环才立即修。
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          class="shrink-0"
+          @click="copyIssueLedgerTemplate"
+        >
+          <Copy class="size-3.5" />
+          复制登记格式
+        </Button>
+      </div>
+      <p class="mt-2 text-caption text-muted-foreground">
+        {{ issueLedgerCopyNotice || '复制后可贴到 objective-coverage-ledger.md 或交给下一轮 Agent 归档。' }}
       </p>
     </div>
 

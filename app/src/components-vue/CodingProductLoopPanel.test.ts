@@ -174,6 +174,10 @@ describe('CodingProductLoopPanel', () => {
     expect(text).toContain('待人工验证')
     expect(text).toContain('build/bin/MilkSU.app')
     expect(text).toContain('不把 Vite Browser preview 当作真实 App 验收')
+    expect(text).toContain('未修问题登记')
+    expect(text).toContain('广度优先')
+    expect(text).toContain('只有硬红线或阻塞主闭环才立即修')
+    expect(text).toContain('复制登记格式')
     expect(text).toContain('确认三大工作区入口')
     expect(text).toContain('Git Diff/Hunk/stage/commit/push')
     expect(text).toContain('Computer Use 外部窗口 Scope')
@@ -328,6 +332,34 @@ describe('CodingProductLoopPanel', () => {
     expect(copied).toContain('Computer Use 外部窗口 Scope')
     expect(copied).toContain('Git Diff/Hunk/stage/commit/push')
     expect(copied).toContain('不要读取、输出或迁移 Provider/API Key')
+    expect(host.textContent).toContain('已复制')
+  })
+
+  it('copies a stable BUG/OBS issue ledger template without expanding scope', async () => {
+    const writeText = vi.fn(async () => undefined)
+    vi.stubGlobal('navigator', {
+      ...navigator,
+      clipboard: { writeText },
+    })
+    const { host } = await mountPanel()
+
+    const copyIssue = [...host.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.includes('复制登记格式'))
+    copyIssue?.click()
+    await Promise.resolve()
+    await nextTick()
+
+    expect(writeText).toHaveBeenCalledOnce()
+    const copied = String((writeText.mock.calls as unknown as Array<[string]>)[0]?.[0] ?? '')
+    expect(copied).toContain('把本轮发现的问题登记到 MilkSU 覆盖台账')
+    expect(copied).toContain('当前闭环状态：待补证明')
+    expect(copied).toContain('| ID | 问题 | 复现与证据 | 影响 | 计划处理层 |')
+    expect(copied).toContain('OBS-待分配')
+    expect(copied).toContain('登记 BUG-*')
+    expect(copied).toContain('只有阻断当前闭环')
+    expect(copied).toContain('泄漏 Credential')
+    expect(copied).toContain('不要读取、输出或迁移 Provider/API Key')
+    expect(copied).toContain('不要用 Shell/IPC/截图目录绕过 Computer Use')
     expect(host.textContent).toContain('已复制')
   })
 
