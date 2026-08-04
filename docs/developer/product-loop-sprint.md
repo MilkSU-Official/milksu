@@ -47,7 +47,7 @@
 
 下一阶段真实门禁按顺序为：
 
-- 当前代码基线：2026-08-05 在 `72049da` 完整执行 `npm run m3:release-check` 通过，并重新
+- 当前代码基线：2026-08-05 在 `962e74f` 完整执行 `npm run m3:release-check` 通过，并重新
   生成 `/Users/milksu/code/milksu/build/bin/MilkSU.app`；这只证明当前工程门禁和打包可用，
   不把它误算成完整自举、Developer ID、公证、升级或外部 Beta 完成；
 - Session Index：首轮原生闭环已通过；继续做“用户确认后沉淀为 Memory / CVE Note /
