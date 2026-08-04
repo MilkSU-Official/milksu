@@ -136,8 +136,11 @@
    Computer Use 对 Calculator 完成 `2+3=5` 的真实点击操作；同日 packaged Coding bridge
    live smoke 已用真实打包 sidecar、真实 Calculator 截图和确定性本地 Provider 证明
    “纯文本主模型 observe → 辅助视觉读截图 → 主模型消费视觉证据后 click → 截图变化”
-   的工程闭环。后续不再重复验证 UI 内选择/启动、重启清理或工程链路，只补真实外部
-   Provider 下的模型质量与原生 UI 人工验收。
+   的工程闭环。2026-08-05 packaged Coding background recovery live smoke 又用真实打包
+   `MilkSU.app` 证明后台任务可在 App 退出后继续运行，并在同一 App data 重启后恢复同一
+   task/PID、显示 log tail/heartbeat、再由 App facade 停止。后续不再重复验证 UI 内
+   Computer Use 选择/启动、重启清理、工程链路或 deterministic 后台恢复 smoke，只补真实
+   外部 Provider 下的模型质量、原生 UI 人工验收和用户手动长任务恢复。
 4. **P1 · 成熟能力集成。** ImageGen、Browser、前端设计/视觉回归 Skill、Project MCP、
    高频 Plugin 以及经用户明确选定的成熟开源能力，优先复用固定版本、可审阅的成熟组件。
    Obelisk / Session Index 是当前 P0 例外，不再按“长期候选”后置。
@@ -231,7 +234,8 @@ Coding 权限档位必须对所有能力入口保持可理解的一致语义，�
 ### B3 · 持续执行
 
 - Pi 持久会话、上下文压缩、失败恢复和结构化移交不重复已经完成的工作；
-- 原生 App 重启后核对后台任务、PID、端口、日志和长任务状态；
+- 原生 App 重启后核对后台任务、PID、端口、日志和长任务状态；2026-08-05 已完成真实打包
+  App deterministic 后台任务恢复 smoke，剩余是用户在 UI 内手动启动真实长任务后的恢复验收；
 - 旧 PTY 可以明确结束，但不能伪装为可重连；
 - 已失效的审批跨重启自动过期。
 
@@ -454,7 +458,8 @@ Memory 是 MilkSU 的核心差异，但当前不把完整归属矩阵、36 条�
 
 Runtime 当前只优先补直接支撑 P0 自主工作的缺口：
 
-- 完整 App 重启后恢复用户可见的会话和长任务；
+- 完整 App 重启后恢复用户可见的会话和长任务；deterministic packaged 后台任务恢复已过，
+  后续只补 UI 手动长任务和更多真实任务扩样；
 - 核对后台任务、PID、端口、日志和最终状态；
 - Context Compaction 后不重复已经完成的工作；
 - 超时、取消和恢复能继续响应；
@@ -592,7 +597,9 @@ Developer ID、公证、升级渠道很重要，但不阻塞当前功能迭代�
    CTF 保持现有主链可理解，Lab 只保留长期外部靶场辅助/进度追踪计划，不进入实现。
 1. **P0 · 自主工作主线。** 在打包 MilkSU 中使用“替我审批”或“完全访问”完成真实功能，
    覆盖修改、构建、测试、产物预览、Context Compaction、完整 App 重启、长任务恢复、
-   Git 交付和必要的发布确认，以无意义审批次数、人工接管次数和交付结果验收。
+   Git 交付和必要的发布确认，以无意义审批次数、人工接管次数和交付结果验收。后台任务
+   deterministic packaged recovery smoke 已闭环，不再重复；下一步只认 UI 手动长任务和
+   MilkSU 源码真实小纵切。
 2. **P1 · 成熟能力扩面。** 集成并真实验收 ImageGen、Project MCP、Browser、前端设计/
    视觉回归 Skill；Plugin 由用户真实高频历史和替代失败证据选择，不按数量堆积。
 3. **P1 · CTF 六赛道广度验收。** 不同 subagent 分别执行授权赛道，主 Agent 统一核对

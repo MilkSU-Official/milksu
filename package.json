@@ -23,6 +23,7 @@
     "test:computer-use-live": "node scripts/test-packaged-computer-use-live.mjs",
     "test:computer-use-app-live": "node scripts/test-packaged-computer-use-app-live.mjs",
     "test:computer-use-agent-vision-live": "node scripts/test-packaged-computer-use-agent-vision-live.mjs",
+    "test:coding-background-recovery-live": "node scripts/test-packaged-coding-background-recovery-live.mjs",
     "test:coding-self-bootstrap-live": "node scripts/test-packaged-coding-self-bootstrap-live.mjs",
     "test:ctf-recovery-live": "node scripts/test-packaged-ctf-recovery-live.mjs",
     "test:startup-recovery-live": "node scripts/test-packaged-startup-recovery-live.mjs",

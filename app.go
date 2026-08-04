@@ -288,6 +288,7 @@ func (a *App) Startup(ctx context.Context) {
 	a.maybeRunVulnerabilityFeedMatrixSmoke()
 	a.maybeRunCodingArtifactPreviewSmoke()
 	a.maybeRunCodingGitDeliverySmoke()
+	a.maybeRunCodingBackgroundRecoverySmoke()
 	a.maybeRunComputerUseAppSmoke()
 	if a.managedLabs != nil {
 		reconcileContext, cancel := context.WithTimeout(ctx, managedLabReconcileTimeout)

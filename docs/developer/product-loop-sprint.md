@@ -64,6 +64,12 @@
 - Coding：已有确定性自举式 fixture 覆盖相关历史、修改、测试、恢复和打包 App Git
   stage/commit/push；下一步才是在 MilkSU 源码中完成一个小 Vue + Go 修改，跑真实
   test/build，做 Browser 或 Computer Use 验证，最后进入真实私有远端交付/PR 确认；
+- Background Tasks：2026-08-05 `MILKSU_CODING_BACKGROUND_RECOVERY_LIVE_SMOKE=1`
+  使用真实打包 `MilkSU.app` 证明 Coding 后台任务可在 App 退出后继续运行，并在同一
+  App data 重启后恢复同一 task/PID、显示 log tail/heartbeat、再由 App facade 停止；报告
+  `build/test-results/coding-background-recovery-live.json`。后续不得重复把 deterministic
+  packaged recovery smoke 当成待做；剩余是用户在 UI 内手动启动真实长任务、重启后查看恢复
+  状态，以及交互式 PTY 不可重连的负向验收；
 - Artifact Preview：packaged App facade 已能从隔离 workspace 真实读取 Markdown、HTML、PNG，
   并拒绝 workspace escape、伪装 PNG 和 SVG；真实打包 MilkSU UI 已通过目录选择器绑定
   隔离 workspace，并在 Coding → 产物中手动打开 Markdown、HTML 和 PNG，开发者验收详情
@@ -94,7 +100,7 @@
 - Startup Recovery：2026-08-05 `MILKSU_STARTUP_RECOVERY_LIVE_SMOKE=1`
   使用真实打包 `MilkSU.app` 证明 running marker 经 `SIGKILL` 后会在同一 App data 重启时被
   识别为 abnormal，且 App 自己正常退出后写回 clean；后续不再重复验证生命周期 marker，
-  后台长任务恢复仍归 `RUN-08`；
+  后台长任务恢复已由上方 Background Tasks 单独跟踪；
 - UI：减少默认工作台噪音，把内部验收模型移到折叠区域或开发者视图。
   2026-08-05 Browser 验证 Coding 右栏开发者验收默认折叠，展开后四个快捷按钮在窄右栏不叠字。
 

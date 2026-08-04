@@ -43,14 +43,14 @@
 
 | 分组 | 细项数 | 当前分 | 完成度 |
 | --- | ---: | ---: | ---: |
-| Coding Agent 与高频替代能力 | 32 | 1,740 / 3,200 | **54%** |
-| CTF 通用闭环与网络边界 | 15 | 575 / 1,500 | **38%** |
+| Coding Agent 与高频替代能力 | 32 | 1,900 / 3,200 | **59%** |
+| CTF 通用闭环与网络边界 | 15 | 560 / 1,500 | **37%** |
 | Memory 与能力画像 | 11 | 500 / 1,100 | **45%** |
-| Runtime Reliability 与 NYU Bench | 10 | 700 / 1,000 | **70%** |
+| Runtime Reliability 与 NYU Bench | 10 | 750 / 1,000 | **75%** |
 | 架构约束 | 6 | 125 / 600 | **21%** |
 | 本地数据安全与正式交付 | 15 | 625 / 1,500 | **42%** |
 | 最终文档 | 2 | 75 / 200 | **38%** |
-| **整体** | **91** | **4,340 / 9,100** | **48%** |
+| **整体** | **91** | **4,535 / 9,100** | **50%** |
 
 此前约 58% 的估值按大块综合判断，分母中没有逐项展开真实验收、跨项目、六赛道、RC 和
 架构约束。第二轮证据复核又把没有原生 App 真实任务的 Vue/Go Code Action 从 75% 调到
@@ -99,7 +99,11 @@ Coding delivery 修改/测试/恢复和打包 App Git stage/commit/push 串成�
 将 `COD-25` 从 30% 调到 45%；这仍不是 MilkSU 源码 Vue+Go/真实 Provider/托管 PR Gate。
 同日 `MILKSU_STARTUP_RECOVERY_LIVE_SMOKE=1 npm run test:startup-recovery-live` 用真实打包
 App 完成 running marker → `SIGKILL` 异常退出 → 同一 App data 重启识别 abnormal → 自动正常
-退出写回 clean，将 `DEL-03` 从 75% 调到 100%。
+退出写回 clean，将 `DEL-03` 从 75% 调到 100%。同日
+`MILKSU_CODING_BACKGROUND_RECOVERY_LIVE_SMOKE=1 npm run test:coding-background-recovery-live`
+用真实打包 App 完成 Coding 后台任务启动、App 退出、同一 PID 跨 App 重启恢复和停止，报告
+`build/test-results/coding-background-recovery-live.json`，将 `COD-18` 从 50% 调到 75%、
+`RUN-08` 从 25% 调到 75%。
 后续只使用同一张表比较变化。
 
 ### 分值分布
@@ -107,21 +111,25 @@ App 完成 running marker → `SIGKILL` 异常退出 → 同一 App data 重启�
 | 分值 | 细项数 | 解释 |
 | ---: | ---: | --- |
 | 100% | 9 | 行定义的精确门槛已经通过 |
+| 95% | 2 | 阻塞门槛已清，只保留扩样或外部收口 |
+| 90% | 2 | 真实 UI/原生验收已过，仍留少量矩阵扩样 |
+| 85% | 2 | 真实负向或恢复验收已过，仍留跨平台/跨赛道扩样 |
 | 75% | 20 | 已有真实证据，仍缺完整矩阵或最终 Gate |
-| 50% | 32 | 工程实现和自动化存在，仍缺真实任务 |
-| 25% | 8 | 只有局部纵切、设计或基础设施 |
-| 0% | 22 | 未执行，或当前没有足够证据 |
+| 50% | 28 | 工程实现和自动化存在，仍缺真实任务 |
+| 45% | 1 | 有一次隔离自举式交付，但距离完整源码自举仍远 |
+| 25% | 6 | 只有局部纵切、设计或基础设施 |
+| 0% | 21 | 未执行，或当前没有足够证据 |
 
 ### 0% / 25% 项的主要启动条件
 
-这 34 项最容易被“为什么还不做”混淆，先按主要启动条件分类。分类不改变完成条件。
+这 27 项最容易被“为什么还不做”混淆，先按主要启动条件分类。分类不改变完成条件。
 
 | 启动条件 | 数量 | 项目 |
 | --- | ---: | --- |
-| 用户提供本机条件或真实历史 | 6 | `COD-14`、`COD-16`、`COD-27`、`COD-29`、`COD-30`、`RUN-08` |
-| 用户确认托管发布 | 2 | `COD-22`、`COD-25` |
-| 授权真题、外部 Judge 或其轨迹 | 10 | `CTF-07`–`CTF-14`、`MEM-11`、`RUN-10` |
-| 主 Agent 可独立准备 | 4 | `COD-24`、`MEM-08`、`MEM-10`、`DEL-09` |
+| 用户提供本机条件或真实历史 | 4 | `COD-14`、`COD-27`、`COD-29`、`COD-30` |
+| 用户确认托管发布 | 1 | `COD-22` |
+| 授权真题、外部 Judge 或其轨迹 | 9 | `CTF-07`–`CTF-11`、`CTF-13`、`CTF-14`、`MEM-11`、`RUN-10` |
+| 主 Agent 可独立准备 | 1 | `COD-24` |
 | 触碰相关纵切时持续执行 | 5 | `ARC-01`–`ARC-05` |
 | 产品完成后的最终/RC 收口 | 7 | `DEL-02`、`DEL-10`–`DEL-14`、`DOC-02` |
 
@@ -149,7 +157,7 @@ App 完成 running marker → `SIGKILL` 异常退出 → 同一 App data 重启�
 | COD-15 | Computer Use 选择当前可见 App / 窗口并生成不可变 Scope | Go Host 枚举可见窗口，前端选择，动态 session policy，descriptor/proxy 锁定 bundle、PID、window；能力摘要已显示真实 App、bundle、PID 和 window，不再写死 MilkSU 自身；Bridge descriptor 拒绝带换行或控制字符的 App 名称，避免污染不可变 Scope 提示；`codingPolicy.test.ts` 覆盖 UI 启动参数只来自用户选定的 PID/window pair，不因同名 App、同 PID 多窗口或同 windowId 不同 PID 漂移，覆盖 ChatPage 刷新可见窗口列表时优先保持当前选择、否则回到已启用会话精确目标、最后才退到第一个窗口，并锁住 Plan/read-only 即使已有目标也不能展示为可操作；`CodingComputerUsePanel.test.ts` 覆盖右侧栏展示外部 App 的 bundle/PID/window、重新检测、权限就绪后显示“可启动”而不是“未接入”、启动前仍不标成“已接入”、其他任务占用禁用、缺窗口显示“待选择窗口”和正式接入说明；`codingPolicy.test.ts` 覆盖能力列表中检测到窗口但未启动时提示进入 Browser/App 面板点击“启动可见会话”，不误写成已锁定；`desktop.test.ts` 覆盖 browser-preview 下 Computer Use 状态返回友好桌面运行时 fallback，不再裸露 unsupported command；Browser 渲染检查已在干净 `127.0.0.1:1421` 点击 Coding → Browser/App 并看到 fallback 文案；`1698e39` 在 Coding 产品闭环卡增加“Computer Use 快速接入”，Browser preview 验证点击后会打开“浏览器与 App”面板并显示 Computer Use 接入清单；2026-08-05 packaged proxy live smoke 用真实 `build/bin/MilkSU.app` sidecar node + `computer-use-proxy.cjs` + `cua-driver`，在外部 Calculator 精确 bundle/PID/window Scope 内完成 observe → click 1 → observe，并保存 JSON 与前后截图；packaged App facade live smoke 又用真实 `MilkSU.app` 进程列出外部 Calculator、按精确 PID/window 启动 session、验证 descriptor socket、再停止并清空 session；同日真实打包 MilkSU UI 使用隔离 App data 启动，在 Coding → 浏览器与 App 中选择 `计算器 · 计算器`，点击 `启动可见会话` 后状态变为 `已接入当前任务`，显示 `com.apple.calculator · PID 85601 · Window 61879`，再从 UI 点击停止回到 `可启动`；随后同一隔离 App data 重启 MilkSU，确认任务保留但旧 Calculator Scope 不会幽灵恢复为已接入，并用 Computer Use 对外部 Calculator 完成 `2+3=5` 真实点击；证据保存到 `build/test-results/computer-use-ui-live.json`、`build/test-results/computer-use-ui-live-after-start.png`、`build/test-results/computer-use-restart-live.json`、`build/test-results/computer-use-restart-live-calculator-operation.png` 和 `build/test-results/computer-use-restart-live-after-restart.png`；Go、Node、前端/Wails 构建通过 | 90% | 更多外部 App/权限矩阵扩样；真实外部 Provider 模型质量由 COD-31 跟踪 |
 | COD-16 | Computer Use 一次性系统权限真实验收 | UI 已说明 App 管理不能替代辅助功能/屏幕录制，提供请求系统权限和重新检测入口；`1698e39` 增加从产品闭环卡直达权限/可见窗口接入面板的用户路径；2026-08-04 又把缺系统权限、待选择窗口、可启动和已接入分开展示，避免用户把“App 管理”或“已检测到窗口”误解成 Computer Use 已完成接入；2026-08-05 在用户已授权系统权限并放行本机拦截后，packaged proxy live smoke 成功读取外部 Calculator 窗口截图并执行点击；随后 `MILKSU_COMPUTER_USE_APP_LIVE_SMOKE=1 npm run test:computer-use-app-live` 用真实 `MilkSU.app` App facade 完成 list/start/status/descriptor/stop，报告保存到 `build/test-results/computer-use-app-live.json`，证明权限可支撑 App 层启动外部窗口会话；同日真实 MilkSU UI 点击验收显示辅助功能/屏幕录制按钮均 disabled 且状态可启动，说明当前授权支撑 UI 内外部窗口会话启动；随后同一隔离 App data 重启 MilkSU，按钮仍可读、会话回到 `可启动`，没有把旧 Calculator PID/window 当作仍授权会话 | 90% | MilkSU 设置面板重新检测 |
 | COD-17 | Pi 持久会话、Compaction 与连续性 | fixture、事件投影和既有真实任务；`codingContinuity.test.ts` 覆盖任务删除时同步清理 ready/resumed、compacting、compactedAt 和 compaction errors，避免删除后的幽灵恢复/压缩状态；`codingContinuityPresentation.test.ts` 覆盖待连接、恢复、新会话、整理中和已整理状态的用户可见徽章、说明和整理按钮禁用原因；`agentRecovery.test.ts` 覆盖用户中断/取消、`context canceled`、`aborted`、上下文窗口过长、`context_length_exceeded` 和 token limit 等停止会被识别为可继续，同时用户发出新要求后不复用旧失败继续入口 | 75% | 完整 App 重启长上下文验收 |
-| COD-18 | 重启后后台任务、PID、端口、日志和长任务恢复 | Sidecar fixture 与部分打包任务存在；`CodingTerminalPanel.test.ts` 覆盖恢复后的用户可见状态，展示 recovered 提示、PID、端口和日志 tail，并覆盖 browser-preview 下不会刷新/启动后台任务或把空列表伪装成真实 runtime；`bridge-background-view.test.js` 覆盖恢复投影把持久记录里的 `spawnPid` 映射为用户可见 PID，避免重启后进程号丢失；`desktop.test.ts` 锁住刷新、启动和停止后台任务时 conversation、workspace、命令、名称、executionMode 与 approvalPolicy 传给 Wails 的正式入口；2026-08-04 Browser preview 验证 Coding → 终端/测试 → 后台任务会明确提示真实命令、端口、日志和跨应用重启恢复必须在打包 App 中验收 | 50% | 跨 App 重启的真实长任务 |
+| COD-18 | 重启后后台任务、PID、端口、日志和长任务恢复 | Sidecar fixture 与部分打包任务存在；`CodingTerminalPanel.test.ts` 覆盖恢复后的用户可见状态，展示 recovered 提示、PID、端口和日志 tail，并覆盖 browser-preview 下不会刷新/启动后台任务或把空列表伪装成真实 runtime；`bridge-background-view.test.js` 覆盖恢复投影把持久记录里的 `spawnPid` 映射为用户可见 PID，避免重启后进程号丢失；`desktop.test.ts` 锁住刷新、启动和停止后台任务时 conversation、workspace、命令、名称、executionMode 与 approvalPolicy 传给 Wails 的正式入口；2026-08-04 Browser preview 验证 Coding → 终端/测试 → 后台任务会明确提示真实命令、端口、日志和跨应用重启恢复必须在打包 App 中验收；2026-08-05 `MILKSU_CODING_BACKGROUND_RECOVERY_LIVE_SMOKE=1 npm run test:coding-background-recovery-live` 使用真实 `build/bin/MilkSU.app` 和隔离 App data 启动 `sh bg-worker.sh` 后台任务，App 正常退出后任务 PID `70927` 继续写 heartbeat，第二次启动恢复同一 task/PID 并停止，报告保存到 `build/test-results/coding-background-recovery-live.json` | 75% | 用户在 UI 内手动启动真实长任务、重启后查看恢复状态；交互式 PTY 仍按 `COD-19` 负向处理 |
 | COD-19 | 旧 PTY 明确结束且审批跨重启过期 | 自动化测试存在；`bridge-approval.test.js` 覆盖 App/Sidecar 审批通道关闭时多个会话的 pending approval 全部以拒绝过期，旧 requestId 不能在重启后继续批准；`manager_test.go` 覆盖 Manager 关闭会让运行中的旧 PTY 发出 stopped 事件，且关闭后的 Manager 不能再启动看似可重连的新 PTY；`CodingTerminalPanel.test.ts` 覆盖空 Shell 列表时 UI 明确提示交互式 Shell 不跨 App 重启恢复、旧 PTY 已结束且不可重连，并引导后台长任务在“后台任务”恢复；browser-preview 下 Shell 视图明确只验证入口且不读取终端历史；`agentRecovery.test.ts` 覆盖 Coding/CTF 继续提示会明确禁止复用重启前审批状态，并要求扩大权限、Endpoint、应用窗口或外部发布时重新做有意义确认 | 50% | 原生 App 真实重启负向验收 |
 | COD-20 | Diff、Hunk、stage、commit、push 日常闭环 | 代码、测试和历史真实验收完成；2026-08-04 补 browser-preview Git 交付边界提示，预览环境不再把“不能读取 Git 状态”误呈现成普通非 Git 仓库，并明确真实 Diff/Hunk、stage、commit、push 和 PR 确认需要打包 App | 100% | — |
 | COD-21 | PR 预览、一次性确认和私有远端限制 | `pull_request_test.go` 覆盖一次性 token、过期、状态变化、私有 MilkSU 远端、窄 `gh pr create` 和读回验证；`CodingChangesPanel.test.ts` 覆盖 UI 先展示仓库/分支/提交/目标，再单独发布，不把内部 confirmation token 显示给用户，后端拒绝过期预览或错误文本回显 token 后清空旧确认并脱敏 token，异常 preview 若指向非 MilkSU 私有仓库则不会进入确认态或调用发布，并在重新准备 PR 时清掉上一轮成功结果，避免旧外部写入状态与新预览混淆；`desktop.test.ts` 覆盖 Wails adapter 会把 workspace、confirmation token、title 和 body 原样传给发布命令，省略标题/正文时只传空字符串而不是 `undefined` | 50% | 真实托管平台 Draft PR |
@@ -212,7 +220,7 @@ App 完成 running marker → `SIGKILL` 异常退出 → 同一 App data 重启�
 | RUN-05 | 超时、取消和继续响应 | fixture 与专门测试通过；`agentRecovery.test.ts` 覆盖无活动超时和网络/连接类失败会显示继续入口，`dial tcp`、`context deadline exceeded`、`i/o timeout`、`TLS handshake timeout` 等网络超时都可恢复，同时 API Key 缺失和模型不支持等配置错误不会误显示为可恢复；恢复提示会要求先核对断点和最近工具结果、不要重复已完成步骤，并明确不复用重启前审批状态 | 100% | — |
 | RUN-06 | Token、工具、时长和成本预算 | 固定预算报告存在 | 75% | 真实 Provider 成本核对 |
 | RUN-07 | 失败分类与统一 Reliability 报告 | 三类失败和报告 Gate 已通过 | 100% | — |
-| RUN-08 | 打包 App 真实长任务恢复 | 只有局部任务证据；前端组件测试已锁住恢复后用户可见的任务状态、PID、端口和日志 tail；后台投影测试已锁住恢复记录的 `spawnPid` 不会在 UI 状态中丢失；桌面 adapter 测试已锁住后台任务 refresh/start/stop 的恢复与权限参数传递 | 25% | 用户可见的完整重启验收 |
+| RUN-08 | 打包 App 真实长任务恢复 | 前端组件测试已锁住恢复后用户可见的任务状态、PID、端口和日志 tail；后台投影测试已锁住恢复记录的 `spawnPid` 不会在 UI 状态中丢失；桌面 adapter 测试已锁住后台任务 refresh/start/stop 的恢复与权限参数传递；2026-08-05 packaged live smoke 使用真实 `build/bin/MilkSU.app`：第一次启动在隔离 workspace 运行后台 `sh bg-worker.sh` 并写出 log tail/heartbeat，App 退出后 heartbeat 继续增长，第二次启动识别 `backgroundRecovery.state=recovered`、恢复同一 PID 并停止任务；报告 `build/test-results/coding-background-recovery-live.json` 的 `taskSurvivedAppQuit`、`packagedAppRecoveredBackgroundTaskAfterRestart`、`recoveredSamePid`、`recoveredTaskStopped` 和 `noProviderCredentialLeak` 均为 true | 75% | 用户可见 UI 手动验收真实长任务；不覆盖交互式 PTY |
 | RUN-09 | NYU 安全准入与 safe-static smoke | one-shot 和两回合只读记录 | 50% | 仍不能称完整 Outcome |
 | RUN-10 | NYU CTF Outcome Bench | 尚未在六赛道稳定后执行 | 0% | 人工准入子集与正式 Runtime |
 
@@ -270,7 +278,7 @@ App 完成 running marker → `SIGKILL` 异常退出 → 同一 App data 重启�
 | OBS-08 | 六赛道动态覆盖矩阵和 6/6 判定已存在；版本化 manifest 和校验脚本已补，但五个非 Web 赛道仍未选定真实题目 | `CTF-12` 保持 50%，后续真题验收时补满固定题目与回执 |
 | OBS-09 | Memory 已自动验证当前题排除、相关旧题优先和无关题负对照 | `MEM-09` 从 25% 校准为 50%，仍缺真实轨迹 |
 | OBS-10 | Memory 归档已经同步推荐召回和 Agent 上下文文件；Ability Profile 当前仍主要由训练信号/Judge 轨迹投影，不由 Memory 表直接驱动 | `MEM-10` 保持 50%，真实 App 归档和画像联动后再推进 |
-| OBS-11 | Runtime 已能投影后台任务 PID、端口、日志并在 Sidecar 重启后恢复，缺口是完整 App 的用户可见长任务 | `RUN-08` 保持 25%，不重复实现 Sidecar 恢复 |
+| OBS-11 | Runtime 已能投影后台任务 PID、端口、日志并在 Sidecar 重启后恢复；2026-08-05 又通过真实打包 App 后台恢复 smoke，缺口缩小为用户在 UI 内手动启动/查看恢复状态 | `RUN-08` 已到 75%，不再重复实现 Sidecar 恢复或 packaged deterministic smoke；下一步只做用户可见 UI 长任务验收 |
 | OBS-12 | 本地交付报告已有单机启动、RSS、chunk 和包体测量；pre-release 阈值和单机 support matrix entry 已补，但没有多机 RC 矩阵 | `DEL-09` 保持 50%，RC 阶段重复测量后再冻结正式阈值 |
 | OBS-13 | 打包 App 已能用隔离数据目录和隔离单实例锁启动第二个 MilkSU 进程，但 Computer Use 当前按 bundle/path 取到前台既有 MilkSU 窗口，无法精确选择同 bundle 的隔离 QA 窗口 | 不计入 `COD-15`/`COD-16` 完成；后续修复批次需要让 Computer Use/窗口选择能稳定绑定 bundle + PID + window |
 | OBS-13 | macOS “App 管理”权限不等于 Computer Use 所需 Accessibility；截图可用也不代表 AX 可用；`CodingComputerUsePanel.test.ts` 已覆盖缺辅助功能/屏幕录制时启动禁用、可请求系统权限，并在 Computer Use 不可用时禁用请求按钮；2026-08-04 面板状态已区分缺系统权限、待选择窗口、可启动和已接入当前任务 | `COD-16` 仍需单独真实验收 Accessibility 与 Screen Recording |
@@ -305,6 +313,7 @@ App 完成 running marker → `SIGKILL` 异常退出 → 同一 App data 重启�
 | DONE-UI-03 | Coding 右栏开发者验收与快捷按钮不再默认压迫普通用户 | `CodingProductLoopPanel.vue` 已把产品闭环后台放进默认折叠的 `details[aria-label="Coding 开发者验收后台"]`；快捷按钮使用 `min-w-0 max-w-full overflow-hidden` 和 label `truncate`，`CodingProductLoopPanel.test.ts` 锁住 CSS 契约；2026-08-05 Browser 在 `http://127.0.0.1:1420/` 右栏约 319px 宽度展开验证，`终端/测试`、`产物预览`、`Browser / Computer Use`、`Git 交付` 四个按钮均未越界，Console 无 error/warn | 不再重复修“Browser / Computer Use 和 Git 交付按钮文字叠在一起”；若新截图显示其他宽度/语言下溢出，作为 UI sweep 新证据处理 |
 | DONE-M3-01 | 当前代码基线完整工程门禁通过 | 2026-08-05 在 `962e74f` 执行 `npm run m3:release-check`，覆盖 Go test/vet、Node tests、前端 Vitest/lint/build、Sidecar smoke、Coding delivery fixture、docs build、Wails build、ad-hoc codesign 验证和 `check-macos-signing.mjs`，最终输出 `M3 engineering release checks passed.` 并生成 `/Users/milksu/code/milksu/build/bin/MilkSU.app` | 不再重复质疑“当前 HEAD 能否编译/打包”；但这不等价于 COD-25 的完整自举任务、Developer ID 签名、公证、升级或外部 Beta 门禁 |
 | DONE-DEL-01 | 打包 App 能检测上次异常退出并在正常退出后清回 clean marker | `app_startup_recovery_smoke.go` 新增只在 `MILKSU_STARTUP_RECOVERY_SMOKE_RESULT` 存在时运行的 App 内部 smoke，`scripts/test-packaged-startup-recovery-live.mjs` 新增 gated live smoke；2026-08-05 显式 `MILKSU_STARTUP_RECOVERY_LIVE_SMOKE=1 npm run test:startup-recovery-live` 使用真实 `build/bin/MilkSU.app` 和隔离 App data，第一次启动留下 `lastExit=running` 后 `SIGKILL`，第二次启动报告 `previousExit=abnormal`、上次 PID 和连续异常次数，再由 App 自己优雅退出并把 marker 写回 `lastExit=clean`；SettingsPage 同步展示上次 PID、本次启动时间和连续异常次数 | 不再把“持久化上次启动/异常退出标记”或“打包 App 是否能识别异常退出并清理 clean marker”作为未完成；这不等价于后台长任务恢复，`RUN-08` 仍单独跟踪 |
+| DONE-RUN-01 | 打包 App 能恢复跨 App 重启仍在运行的 Coding 后台任务并停止它 | `app_coding_background_recovery_smoke.go` 新增只在 `MILKSU_CODING_BACKGROUND_RECOVERY_SMOKE_RESULT` 存在时运行的 App 内部 smoke；`scripts/test-packaged-coding-background-recovery-live.mjs` 新增 gated live smoke；2026-08-05 显式 `MILKSU_CODING_BACKGROUND_RECOVERY_LIVE_SMOKE=1 npm run test:coding-background-recovery-live` 使用真实 `build/bin/MilkSU.app` 和隔离 App data：首次启动 `sh bg-worker.sh` 后台任务并观测 log tail/heartbeat，App 退出后 heartbeat 继续增长；第二次启动恢复同一 task/PID，再由 App facade 停止任务；报告保存到 `build/test-results/coding-background-recovery-live.json`，start/recover 子报告保存到 `build/test-results/coding-background-recovery-live-start.json` 和 `build/test-results/coding-background-recovery-live-recover.json` | 不再把“打包 App deterministic 后台任务能否跨 App 重启恢复并停止”作为未完成；剩余是 UI 手动长任务验收和交互式 PTY 负向，不重复跑同一 smoke |
 | DONE-COD-01 | 打包 App facade 能读取 Coding 的 Markdown、HTML 和图片产物预览 | `app_coding_artifact_preview_smoke.go` 新增只在 `MILKSU_CODING_ARTIFACT_PREVIEW_SMOKE_RESULT` 存在时运行的 App 内部 smoke；`scripts/test-packaged-artifact-preview-live.mjs` 新增 gated live smoke；2026-08-05 显式 `MILKSU_ARTIFACT_PREVIEW_LIVE_SMOKE=1 npm run test:artifact-preview-live` 使用真实 `build/bin/MilkSU.app` 进程从隔离 workspace 读取 `reports/summary.md`、`reports/result.html`、`images/screenshot.png`，并拒绝 `../outside.md`、伪装 PNG 和 SVG；报告保存到 `build/test-results/artifact-preview-live.json` | 不再把“打包 App 是否能读取三类 Coding 产物预览”作为未完成；原生 UI 手动打开由 `DONE-COD-02` 关闭，WebView 负向由 `DONE-COD-03` 关闭 |
 | DONE-COD-02 | 真实打包 MilkSU UI 手动打开 Markdown、HTML 和图片产物预览 | 2026-08-05 用真实 `/Users/milksu/code/milksu/build/bin/MilkSU.app` 和隔离 `MILKSU_APPDATA_DIR=/tmp/milksu-artifact-ui-live.w7igPl/app-data` 启动 App；通过 Computer Use 点击 Coding → 选择项目目录，使用系统 `OpenDirectoryDialog` 的“前往文件夹”绑定 `/private/tmp/milksu-artifact-ui-live.w7igPl/workspace`；在右栏 `产物` 面板手动输入并预览 `reports/summary.md`、`reports/result.html` 和 `images/screenshot.png`；Markdown 显示标题 `MilkSU artifact preview live fixture` 和列表，HTML 在 `about:srcdoc` iframe 中显示标题 `MilkSU HTML artifact preview` 与正文，图片显示 `images/screenshot.png`；开发者验收详情显示 `用户可见验证：已预览 图片：images/screenshot.png` 和 `真实 App 验收：已打开产物预览：images/screenshot.png`；报告保存到 `build/test-results/artifact-ui-preview-live.json`，截图保存到 `build/test-results/artifact-ui-preview-live-markdown.png`、`artifact-ui-preview-live-html.png`、`artifact-ui-preview-live-image.png` 和 `artifact-ui-preview-live-loop-evidence.png` | 不再把“原生 UI 中能否由用户手动打开三类 Coding 产物预览并进入验收证据”作为未完成；HTML WebView sandbox/CSP/禁网负向由 `DONE-COD-03` 关闭 |
 | DONE-COD-03 | 真实打包 MilkSU WebView 的危险 HTML 产物负向验收 | `app_coding_artifact_preview_webview_smoke.go` 只在 `MILKSU_CODING_ARTIFACT_PREVIEW_WEBVIEW_SMOKE_RESULT` 存在时开启 smoke-only 桥接；`codingArtifactWebViewSmoke.ts` 在 Wails WebView 中调用真实 `get_coding_artifact_preview` 读取 `reports/dangerous.html`，复用产物面板同一脱敏、HTML 清洗和 `sandbox=""` iframe 链路；2026-08-05 重新 `wails build` 后显式 `MILKSU_ARTIFACT_PREVIEW_LIVE_SMOKE=1 npm run test:artifact-preview-live` 通过，`build/test-results/artifact-preview-webview-live.json` 证明 backend HTML read、空 sandbox、无 allow-scripts、无 executable elements、无外部资源属性、`default-src/connect-src/script-src 'none'` CSP、credential redaction 和 parent window 未被改写全部为 true | 不再把“HTML WebView sandbox/CSP/禁网原生负向”作为未完成；后续只按真实用户 HTML 样本扩样 |
