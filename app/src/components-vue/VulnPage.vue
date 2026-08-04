@@ -25,7 +25,6 @@ import {
   RefreshCw,
   Search,
   Server,
-  Settings,
   ShieldCheck,
   Star,
   Square,
@@ -33,6 +32,7 @@ import {
 } from 'lucide-vue-next'
 import WorkspaceDetailTitle from '@/components-vue/WorkspaceDetailTitle.vue'
 import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
+import WorkspaceSettingsButton from '@/components-vue/WorkspaceSettingsButton.vue'
 import VulnerabilityLoopPanel from '@/components-vue/VulnerabilityLoopPanel.vue'
 import { useVulnerabilityDashboard } from '@/composables/useVulnerabilityDashboard'
 import type { VulnerabilityCodingTask } from '@/composables/useVulnerabilityDashboard'
@@ -78,6 +78,7 @@ const researchSteps = [
 
 const showCustomForm = ref(false)
 const customFormError = ref('')
+const showIntelSettings = ref(false)
 const showImportForm = ref(false)
 const showPracticeImportForm = ref(false)
 const importText = ref('')
@@ -360,22 +361,6 @@ function isHttpUrl(value: string) {
           新增追踪
         </Button>
         <Button
-          :variant="showImportForm ? 'outline' : 'ghost'"
-          size="sm"
-          @click="showImportForm = !showImportForm"
-        >
-          <ClipboardList class="size-4" />
-          导入 Feed
-        </Button>
-        <Button
-          :variant="showPracticeImportForm ? 'outline' : 'ghost'"
-          size="sm"
-          @click="showPracticeImportForm = !showPracticeImportForm"
-        >
-          <Play class="size-4" />
-          导入练习
-        </Button>
-        <Button
           :variant="dashboard.watchOnly.value ? 'outline' : 'ghost'"
           size="sm"
           @click="dashboard.watchOnly.value = !dashboard.watchOnly.value"
@@ -383,39 +368,11 @@ function isHttpUrl(value: string) {
           <Bookmark class="size-4" />
           我的关注
         </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          aria-label="同步当前 CVE 的 NVD 2.0"
-          :loading="dashboard.sourceSyncing.value"
-          @click="syncSelectedNvdCve"
-        >
-          <RefreshCw class="size-4" :class="dashboard.sourceSyncing.value ? 'animate-spin' : ''" />
-          同步 NVD
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          aria-label="同步 CISA KEV Feed"
-          :loading="dashboard.sourceSyncing.value"
-          @click="syncCisaKevFeed"
-        >
-          <RefreshCw class="size-4" :class="dashboard.sourceSyncing.value ? 'animate-spin' : ''" />
-          同步 KEV
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          aria-label="同步 Vulhub 练习目录"
-          :loading="dashboard.practiceCatalogSyncing.value"
-          @click="syncVulhubPracticeCatalog"
-        >
-          <RefreshCw class="size-4" :class="dashboard.practiceCatalogSyncing.value ? 'animate-spin' : ''" />
-          同步 Vulhub
-        </Button>
-        <Button variant="ghost" size="icon-sm" aria-label="设置" @click="$emit('openSettings')">
-          <Settings class="size-4" />
-        </Button>
+        <WorkspaceSettingsButton
+          label="打开设置"
+          :active="showIntelSettings"
+          @click="showIntelSettings = !showIntelSettings"
+        />
       </template>
 
       <template #filters>
@@ -433,14 +390,11 @@ function isHttpUrl(value: string) {
             {{ filter.label }}
           </NativeSelectOption>
         </NativeSelect>
-        <span class="ml-auto text-caption text-muted-foreground">
-          {{ dashboard.sourceRefreshSummary.value.label }} · {{ dashboard.sourceSnapshots.value.length }} 个缓存
-        </span>
       </div>
       </template>
 
       <template #metrics>
-      <div class="grid gap-3 text-body sm:grid-cols-2 xl:grid-cols-5">
+      <div class="grid gap-3 text-body sm:grid-cols-2 xl:grid-cols-4">
         <div class="rounded-xl border border-border bg-card px-4 py-3">
           <p class="text-caption text-muted-foreground">追踪条目</p>
           <p class="mt-1 font-mono text-xl font-semibold">{{ dashboard.trackedCount.value }}</p>
@@ -451,10 +405,6 @@ function isHttpUrl(value: string) {
         <div class="rounded-xl border border-border bg-card px-4 py-3">
           <p class="text-caption text-muted-foreground">研究任务</p>
           <p class="mt-1 font-mono text-xl font-semibold">{{ dashboard.researchTasks.value.length }}</p>
-        </div>
-        <div class="rounded-xl border border-border bg-card px-4 py-3">
-          <p class="text-caption text-muted-foreground">情报源</p>
-          <p class="mt-1 font-mono text-xl font-semibold">{{ dashboard.intelSources.length }}</p>
         </div>
         <div class="rounded-xl border border-border bg-card px-4 py-3">
           <p class="text-caption text-muted-foreground">练习环境</p>
@@ -487,6 +437,290 @@ function isHttpUrl(value: string) {
       </div>
       </template>
     </WorkspaceModuleTopBar>
+
+    <section
+      v-if="showIntelSettings"
+      class="border-b border-border bg-card/45 px-6 py-5"
+      aria-label="CVE 情报源设置"
+    >
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div class="min-w-0">
+          <h2 class="text-label font-medium">情报源设置</h2>
+          <p class="mt-1 max-w-3xl text-caption leading-5 text-muted-foreground">
+            管理 NVD 单 CVE 精确同步、CISA KEV 公开只读同步、Vulhub 练习目录同步与手动 Feed 快照导入；这些只作为学习和追踪证据，不等于 Judge 或真实资产验证。
+          </p>
+          <p class="mt-1 text-caption leading-5 text-muted-foreground">
+            {{ dashboard.sourceRefreshSummary.value.detail }}
+          </p>
+        </div>
+        <div class="flex shrink-0 flex-wrap justify-end gap-2">
+          <Button
+            :variant="showImportForm ? 'outline' : 'ghost'"
+            size="sm"
+            @click="showImportForm = !showImportForm"
+          >
+            <ClipboardList class="size-4" />
+            导入 Feed
+          </Button>
+          <Button
+            :variant="showPracticeImportForm ? 'outline' : 'ghost'"
+            size="sm"
+            @click="showPracticeImportForm = !showPracticeImportForm"
+          >
+            <Play class="size-4" />
+            导入练习
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label="同步当前 CVE 的 NVD 2.0"
+            :loading="dashboard.sourceSyncing.value"
+            @click="syncSelectedNvdCve"
+          >
+            <RefreshCw class="size-4" :class="dashboard.sourceSyncing.value ? 'animate-spin' : ''" />
+            同步 NVD
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label="同步 CISA KEV Feed"
+            :loading="dashboard.sourceSyncing.value"
+            @click="syncCisaKevFeed"
+          >
+            <RefreshCw class="size-4" :class="dashboard.sourceSyncing.value ? 'animate-spin' : ''" />
+            同步 KEV
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label="同步 Vulhub 练习目录"
+            :loading="dashboard.practiceCatalogSyncing.value"
+            @click="syncVulhubPracticeCatalog"
+          >
+            <RefreshCw class="size-4" :class="dashboard.practiceCatalogSyncing.value ? 'animate-spin' : ''" />
+            同步 Vulhub
+          </Button>
+          <Button variant="ghost" size="sm" @click="showIntelSettings = false">
+            关闭
+          </Button>
+        </div>
+      </div>
+
+      <form
+        v-if="showImportForm"
+        class="mt-4 rounded-xl border border-border bg-background px-4 py-4"
+        aria-label="导入 CVE Feed 快照"
+        @submit.prevent="importLocalIntelJSON"
+      >
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <h3 class="text-body font-medium">导入 CVE Feed 快照</h3>
+            <p class="mt-1 text-caption leading-5 text-muted-foreground">
+              粘贴 NVD 2.0、CISA KEV Catalog 或你整理的 CVE Feed；保存来源、获取时间和缓存摘要，不联网同步、不启动 Docker、不运行 PoC。
+            </p>
+          </div>
+          <Badge variant="outline">只读 Feed</Badge>
+        </div>
+        <div class="mt-4 grid gap-3 sm:grid-cols-[12rem_1fr]">
+          <Input v-model="feedForm.sourceName" size="sm" placeholder="来源名称，例如 CISA KEV / NVD" />
+          <Input v-model="feedForm.sourceUrl" size="sm" placeholder="来源 URL 或本地材料位置" />
+          <Input
+            v-model="feedForm.retrievedAt"
+            size="sm"
+            class="sm:col-span-2"
+            placeholder="获取时间，可留空使用 Feed timestamp 或当前时间"
+          />
+        </div>
+        <Textarea
+          v-model="importText"
+          class="mt-4 min-h-32 font-mono text-caption"
+          aria-label="CVE Feed JSON"
+          placeholder='{"title":"CISA Known Exploited Vulnerabilities Catalog","dateReleased":"2026-08-04","vulnerabilities":[{"cveID":"CVE-2024-3400","vendorProject":"Palo Alto Networks","product":"PAN-OS","vulnerabilityName":"PAN-OS GlobalProtect Command Injection","dateAdded":"2024-04-12","shortDescription":"Command injection in PAN-OS GlobalProtect.","requiredAction":"Apply mitigations per vendor instructions.","dueDate":"2024-04-19","knownRansomwareCampaignUse":"Known"}]}'
+        />
+        <p class="mt-2 text-caption leading-5 text-muted-foreground">
+          支持 NVD vulnerabilities[].cve、CISA KEV vulnerabilities[].cveID、对象数组，或包含 items / cves / results 的对象；重复 CVE 会更新来源证据，不把 KEV/EPSS 当成 Judge。
+        </p>
+        <p v-if="importError" class="mt-3 text-caption text-destructive">{{ importError }}</p>
+        <p v-if="importNotice" class="mt-3 text-caption text-primary">{{ importNotice }}</p>
+        <div class="mt-4 flex items-center gap-2">
+          <Button type="submit" size="sm">
+            <ClipboardList class="size-4" />
+            导入 Feed 快照
+          </Button>
+          <Button type="button" variant="ghost" size="sm" @click="showImportForm = false">
+            取消
+          </Button>
+        </div>
+      </form>
+
+      <form
+        v-if="showPracticeImportForm"
+        class="mt-4 rounded-xl border border-border bg-background px-4 py-4"
+        aria-label="导入本地 CVE 练习 Catalog JSON"
+        @submit.prevent="importPracticeCatalogJSON"
+      >
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <h3 class="text-body font-medium">导入本地练习 Catalog</h3>
+            <p class="mt-1 text-caption leading-5 text-muted-foreground">
+              粘贴 Vulhub 或你整理的 CVE → Docker Compose 目录映射；只绑定启动前计划，不拉镜像、不启动容器、不运行触发输入。
+            </p>
+          </div>
+          <Badge variant="outline">只读练习匹配</Badge>
+        </div>
+        <Textarea
+          v-model="practiceImportText"
+          class="mt-4 min-h-32 font-mono text-caption"
+          aria-label="本地 CVE 练习 Catalog JSON"
+          placeholder='[{"cveId":"CVE-2024-3400","title":"Vulhub · PAN-OS CVE-2024-3400","directory":"pan-os/CVE-2024-3400","sourceHref":"https://github.com/example/catalog/tree/main/pan-os/CVE-2024-3400","revision":"catalog commit abc123","ports":["8080/tcp · local lab"],"network":"仅本机 loopback"}]'
+        />
+        <p class="mt-2 text-caption leading-5 text-muted-foreground">
+          支持对象、数组，或包含 items / vulnerabilities / cves / results 的对象；CVE 必须已在追踪列表中，重复匹配会跳过。
+        </p>
+        <p v-if="practiceImportError" class="mt-3 text-caption text-destructive">{{ practiceImportError }}</p>
+        <p v-if="practiceImportNotice" class="mt-3 text-caption text-primary">{{ practiceImportNotice }}</p>
+        <div class="mt-4 flex items-center gap-2">
+          <Button type="submit" size="sm">
+            <Play class="size-4" />
+            导入练习匹配
+          </Button>
+          <Button type="button" variant="ghost" size="sm" @click="showPracticeImportForm = false">
+            取消
+          </Button>
+        </div>
+      </form>
+
+      <div
+        v-if="importNotice && !showImportForm"
+        class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-background px-4 py-3"
+        role="status"
+        aria-label="CVE 导入结果"
+      >
+        <p class="text-caption text-primary">{{ importNotice }}</p>
+        <Button
+          v-if="lastImportedIds.length"
+          type="button"
+          variant="outline"
+          size="sm"
+          @click="undoLastImport"
+        >
+          撤销新增 CVE
+        </Button>
+      </div>
+      <div
+        v-if="practiceImportNotice && !showPracticeImportForm"
+        class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-background px-4 py-3"
+        role="status"
+        aria-label="CVE 练习 Catalog 导入结果"
+      >
+        <p class="text-caption text-primary">{{ practiceImportNotice }}</p>
+        <Button
+          v-if="lastImportedPracticeIds.length"
+          type="button"
+          variant="outline"
+          size="sm"
+          @click="undoLastPracticeImport"
+        >
+          撤销本次导入
+        </Button>
+      </div>
+      <div
+        v-if="practiceImportError && !showPracticeImportForm"
+        class="mt-4 rounded-xl border border-border bg-background px-4 py-3"
+        role="alert"
+        aria-label="CVE 练习 Catalog 同步失败"
+      >
+        <p class="text-caption text-destructive">{{ practiceImportError }}</p>
+      </div>
+
+      <div
+        class="mt-4 rounded-xl border border-border bg-background px-4 py-3"
+        aria-label="CVE Feed 缓存状态"
+      >
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p class="text-body font-medium">Feed 缓存状态</p>
+            <p class="mt-1 text-caption leading-5 text-muted-foreground">
+              {{ dashboard.sourceSnapshots.value.length
+                ? '已保存来源、获取时间、格式、条目数和摘要；缓存只保留元数据与解析后的 CVE 事实。'
+                : '尚未导入真实 Feed 快照；可以从 CISA KEV / NVD 等公开源下载 JSON 后粘贴导入。' }}
+            </p>
+          </div>
+          <Badge variant="secondary">{{ dashboard.sourceSnapshots.value.length }} 个快照</Badge>
+        </div>
+        <div v-if="dashboard.sourceSnapshots.value.length" class="mt-3 space-y-2">
+          <div
+            v-for="snapshot in dashboard.sourceSnapshots.value.slice(0, 3)"
+            :key="snapshot.id"
+            class="rounded-lg border border-border bg-muted/20 px-3 py-2 text-caption leading-5"
+          >
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <span class="font-medium">{{ snapshot.sourceName }} · {{ snapshot.format }}</span>
+              <Badge variant="outline">{{ snapshot.cacheState }}</Badge>
+            </div>
+            <p class="mt-1 text-muted-foreground">
+              获取 {{ new Date(snapshot.retrievedAt).toLocaleString() }}；导入 {{ new Date(snapshot.importedAt).toLocaleString() }}；
+              {{ snapshot.itemCount }} 条，新增 {{ snapshot.importedIds.length }}、更新 {{ snapshot.updatedIds.length }}、跳过 {{ snapshot.skipped }}。
+            </p>
+            <p class="mt-1 font-mono text-muted-foreground">{{ snapshot.digest }}</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <article
+          v-for="source in dashboard.intelSources"
+          :key="source.id"
+          class="rounded-xl border border-border bg-background px-4 py-3"
+        >
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <p class="truncate text-body font-medium">{{ source.name }}</p>
+              <p class="mt-1 line-clamp-2 text-caption leading-5 text-muted-foreground">{{ source.role }}</p>
+            </div>
+            <Badge
+              :variant="source.currentState === '待接入'
+                ? 'outline'
+                : source.currentState === '用户材料'
+                  ? 'secondary'
+                  : 'info'"
+              class="shrink-0"
+            >
+              {{ source.currentState }}
+            </Badge>
+          </div>
+          <p class="mt-3 line-clamp-2 text-caption leading-5 text-muted-foreground">
+            {{ source.evidence }}
+          </p>
+          <p class="mt-2 line-clamp-2 text-caption leading-5 text-muted-foreground">
+            下一步：{{ source.nextStep }}
+          </p>
+        </article>
+      </div>
+
+      <div
+        class="mt-4 rounded-xl border border-border bg-background px-4 py-3"
+        aria-label="Vulhub 练习目录匹配状态"
+      >
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-body font-medium">Vulhub 练习目录匹配</p>
+            <p class="mt-1 text-caption leading-5 text-muted-foreground">
+              {{ dashboard.practiceCatalogSummary.value.detail }}
+            </p>
+          </div>
+          <Badge :variant="dashboard.practiceCatalogSummary.value.variant" class="shrink-0">
+            {{ dashboard.practiceCatalogSummary.value.label }}
+          </Badge>
+        </div>
+        <p class="mt-2 text-caption leading-5 text-muted-foreground">
+          固定快照：{{ dashboard.practiceCatalogRevision.value }}；{{ dashboard.practiceCatalogSummary.value.revision }}
+        </p>
+        <p class="mt-1 text-caption leading-5 text-muted-foreground">
+          这里只做只读匹配和启动前计划；拉取镜像、启动容器、开放端口或发送漏洞触发输入仍需用户逐次确认。
+        </p>
+      </div>
+    </section>
 
     <div class="grid min-h-0 flex-1 grid-cols-[minmax(560px,1.25fr)_minmax(360px,.75fr)] max-[1080px]:grid-cols-1">
       <section class="min-h-0 overflow-auto border-r border-border max-[1080px]:border-b max-[1080px]:border-r-0">
@@ -525,231 +759,6 @@ function isHttpUrl(value: string) {
             </Button>
           </div>
         </form>
-        <form
-          v-if="showImportForm"
-          class="border-b border-border bg-card/70 px-6 py-5"
-          aria-label="导入 CVE Feed 快照"
-          @submit.prevent="importLocalIntelJSON"
-        >
-          <div class="flex items-start justify-between gap-4">
-            <div>
-              <h2 class="text-label font-medium">导入 CVE Feed 快照</h2>
-              <p class="mt-1 text-caption leading-5 text-muted-foreground">
-                粘贴 NVD 2.0、CISA KEV Catalog 或你整理的 CVE Feed；保存来源、获取时间和缓存摘要，不联网同步、不启动 Docker、不运行 PoC。
-              </p>
-            </div>
-            <Badge variant="outline">只读 Feed</Badge>
-          </div>
-          <div class="mt-4 grid gap-3 sm:grid-cols-[12rem_1fr]">
-            <Input v-model="feedForm.sourceName" size="sm" placeholder="来源名称，例如 CISA KEV / NVD" />
-            <Input v-model="feedForm.sourceUrl" size="sm" placeholder="来源 URL 或本地材料位置" />
-            <Input
-              v-model="feedForm.retrievedAt"
-              size="sm"
-              class="sm:col-span-2"
-              placeholder="获取时间，可留空使用 Feed timestamp 或当前时间"
-            />
-          </div>
-          <Textarea
-            v-model="importText"
-            class="mt-4 min-h-32 font-mono text-caption"
-            aria-label="CVE Feed JSON"
-            placeholder='{"title":"CISA Known Exploited Vulnerabilities Catalog","dateReleased":"2026-08-04","vulnerabilities":[{"cveID":"CVE-2024-3400","vendorProject":"Palo Alto Networks","product":"PAN-OS","vulnerabilityName":"PAN-OS GlobalProtect Command Injection","dateAdded":"2024-04-12","shortDescription":"Command injection in PAN-OS GlobalProtect.","requiredAction":"Apply mitigations per vendor instructions.","dueDate":"2024-04-19","knownRansomwareCampaignUse":"Known"}]}'
-          />
-          <p class="mt-2 text-caption leading-5 text-muted-foreground">
-            支持 NVD vulnerabilities[].cve、CISA KEV vulnerabilities[].cveID、对象数组，或包含 items / cves / results 的对象；重复 CVE 会更新来源证据，不把 KEV/EPSS 当成 Judge。
-          </p>
-          <p v-if="importError" class="mt-3 text-caption text-destructive">{{ importError }}</p>
-          <p v-if="importNotice" class="mt-3 text-caption text-primary">{{ importNotice }}</p>
-          <div class="mt-4 flex items-center gap-2">
-            <Button type="submit" size="sm">
-              <ClipboardList class="size-4" />
-              导入 Feed 快照
-            </Button>
-            <Button type="button" variant="ghost" size="sm" @click="showImportForm = false">
-              取消
-            </Button>
-          </div>
-        </form>
-        <form
-          v-if="showPracticeImportForm"
-          class="border-b border-border bg-card/70 px-6 py-5"
-          aria-label="导入本地 CVE 练习 Catalog JSON"
-          @submit.prevent="importPracticeCatalogJSON"
-        >
-          <div class="flex items-start justify-between gap-4">
-            <div>
-              <h2 class="text-label font-medium">导入本地练习 Catalog</h2>
-              <p class="mt-1 text-caption leading-5 text-muted-foreground">
-                粘贴 Vulhub 或你整理的 CVE → Docker Compose 目录映射；只绑定启动前计划，不拉镜像、不启动容器、不运行触发输入。
-              </p>
-            </div>
-            <Badge variant="outline">只读练习匹配</Badge>
-          </div>
-          <Textarea
-            v-model="practiceImportText"
-            class="mt-4 min-h-32 font-mono text-caption"
-            aria-label="本地 CVE 练习 Catalog JSON"
-            placeholder='[{"cveId":"CVE-2024-3400","title":"Vulhub · PAN-OS CVE-2024-3400","directory":"pan-os/CVE-2024-3400","sourceHref":"https://github.com/example/catalog/tree/main/pan-os/CVE-2024-3400","revision":"catalog commit abc123","ports":["8080/tcp · local lab"],"network":"仅本机 loopback"}]'
-          />
-          <p class="mt-2 text-caption leading-5 text-muted-foreground">
-            支持对象、数组，或包含 items / vulnerabilities / cves / results 的对象；CVE 必须已在追踪列表中，重复匹配会跳过。
-          </p>
-          <p v-if="practiceImportError" class="mt-3 text-caption text-destructive">{{ practiceImportError }}</p>
-          <p v-if="practiceImportNotice" class="mt-3 text-caption text-primary">{{ practiceImportNotice }}</p>
-          <div class="mt-4 flex items-center gap-2">
-            <Button type="submit" size="sm">
-              <Play class="size-4" />
-              导入练习匹配
-            </Button>
-            <Button type="button" variant="ghost" size="sm" @click="showPracticeImportForm = false">
-              取消
-            </Button>
-          </div>
-        </form>
-        <div
-          v-if="importNotice && !showImportForm"
-          class="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-card/70 px-6 py-3"
-          role="status"
-          aria-label="CVE 导入结果"
-        >
-          <p class="text-caption text-primary">{{ importNotice }}</p>
-          <Button
-            v-if="lastImportedIds.length"
-            type="button"
-            variant="outline"
-            size="sm"
-            @click="undoLastImport"
-          >
-            撤销新增 CVE
-          </Button>
-        </div>
-        <div
-          v-if="practiceImportNotice && !showPracticeImportForm"
-          class="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-card/70 px-6 py-3"
-          role="status"
-          aria-label="CVE 练习 Catalog 导入结果"
-        >
-          <p class="text-caption text-primary">{{ practiceImportNotice }}</p>
-          <Button
-            v-if="lastImportedPracticeIds.length"
-            type="button"
-            variant="outline"
-            size="sm"
-            @click="undoLastPracticeImport"
-          >
-            撤销本次导入
-          </Button>
-        </div>
-        <div
-          v-if="practiceImportError && !showPracticeImportForm"
-          class="border-b border-border bg-card/70 px-6 py-3"
-          role="alert"
-          aria-label="CVE 练习 Catalog 同步失败"
-        >
-          <p class="text-caption text-destructive">{{ practiceImportError }}</p>
-        </div>
-        <section class="border-b border-border bg-card/35 px-6 py-5" aria-label="CVE 情报源接入状态">
-          <div class="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h2 class="text-label font-medium">情报源接入状态</h2>
-              <p class="mt-1 text-caption leading-5 text-muted-foreground">
-                当前支持 NVD 单 CVE 精确同步、CISA KEV 公开只读同步、Vulhub 练习目录同步与手动 Feed 快照导入；区分内置快照、用户材料、缓存 Feed 和练习候选，不把排序信号当成 Judge。
-              </p>
-              <p class="mt-1 text-caption leading-5 text-muted-foreground">
-                {{ dashboard.sourceRefreshSummary.value.detail }}
-              </p>
-            </div>
-            <Badge :variant="dashboard.sourceSnapshots.value.length ? 'info' : 'outline'">
-              {{ dashboard.sourceSnapshots.value.length ? '已缓存 Feed' : '未导入 Feed' }}
-            </Badge>
-          </div>
-          <div
-            class="mt-4 rounded-xl border border-border bg-background px-4 py-3"
-            aria-label="CVE Feed 缓存状态"
-          >
-            <div class="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p class="text-body font-medium">Feed 缓存状态</p>
-                <p class="mt-1 text-caption leading-5 text-muted-foreground">
-                  {{ dashboard.sourceSnapshots.value.length
-                    ? '已保存来源、获取时间、格式、条目数和摘要；缓存只保留元数据与解析后的 CVE 事实。'
-                    : '尚未导入真实 Feed 快照；可以从 CISA KEV / NVD 等公开源下载 JSON 后粘贴导入。' }}
-                </p>
-              </div>
-              <Badge variant="secondary">{{ dashboard.sourceSnapshots.value.length }} 个快照</Badge>
-            </div>
-            <div v-if="dashboard.sourceSnapshots.value.length" class="mt-3 space-y-2">
-              <div
-                v-for="snapshot in dashboard.sourceSnapshots.value.slice(0, 3)"
-                :key="snapshot.id"
-                class="rounded-lg border border-border bg-muted/20 px-3 py-2 text-caption leading-5"
-              >
-                <div class="flex flex-wrap items-center justify-between gap-2">
-                  <span class="font-medium">{{ snapshot.sourceName }} · {{ snapshot.format }}</span>
-                  <Badge variant="outline">{{ snapshot.cacheState }}</Badge>
-                </div>
-                <p class="mt-1 text-muted-foreground">
-                  获取 {{ new Date(snapshot.retrievedAt).toLocaleString() }}；导入 {{ new Date(snapshot.importedAt).toLocaleString() }}；
-                  {{ snapshot.itemCount }} 条，新增 {{ snapshot.importedIds.length }}、更新 {{ snapshot.updatedIds.length }}、跳过 {{ snapshot.skipped }}。
-                </p>
-                <p class="mt-1 font-mono text-muted-foreground">{{ snapshot.digest }}</p>
-              </div>
-            </div>
-          </div>
-          <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            <article
-              v-for="source in dashboard.intelSources"
-              :key="source.id"
-              class="rounded-xl border border-border bg-background px-4 py-3"
-            >
-              <div class="flex items-start justify-between gap-3">
-                <div class="min-w-0">
-                  <p class="truncate text-body font-medium">{{ source.name }}</p>
-                  <p class="mt-1 line-clamp-2 text-caption leading-5 text-muted-foreground">{{ source.role }}</p>
-                </div>
-                <Badge
-                  :variant="source.currentState === '待接入'
-                    ? 'outline'
-                    : source.currentState === '用户材料'
-                      ? 'secondary'
-                      : 'info'"
-                  class="shrink-0"
-                >
-                  {{ source.currentState }}
-                </Badge>
-              </div>
-              <p class="mt-3 line-clamp-2 text-caption leading-5 text-muted-foreground">
-                {{ source.evidence }}
-              </p>
-              <p class="mt-2 line-clamp-2 text-caption leading-5 text-muted-foreground">
-                下一步：{{ source.nextStep }}
-              </p>
-            </article>
-          </div>
-          <div
-            class="mt-4 rounded-xl border border-border bg-background px-4 py-3"
-            aria-label="Vulhub 练习目录匹配状态"
-          >
-            <div class="flex flex-wrap items-start justify-between gap-3">
-              <div class="min-w-0">
-                <p class="text-body font-medium">Vulhub 练习目录匹配</p>
-                <p class="mt-1 text-caption leading-5 text-muted-foreground">
-                  {{ dashboard.practiceCatalogSummary.value.detail }}
-                </p>
-              </div>
-              <Badge :variant="dashboard.practiceCatalogSummary.value.variant" class="shrink-0">
-                {{ dashboard.practiceCatalogSummary.value.label }}
-              </Badge>
-            </div>
-            <p class="mt-2 text-caption leading-5 text-muted-foreground">
-              固定快照：{{ dashboard.practiceCatalogRevision.value }}；{{ dashboard.practiceCatalogSummary.value.revision }}
-            </p>
-            <p class="mt-1 text-caption leading-5 text-muted-foreground">
-              这里只做只读匹配和启动前计划；拉取镜像、启动容器、开放端口或发送漏洞触发输入仍需用户逐次确认。
-            </p>
-          </div>
-        </section>
         <Table>
           <TableHeader class="sticky top-0 z-10 bg-background">
             <TableRow>

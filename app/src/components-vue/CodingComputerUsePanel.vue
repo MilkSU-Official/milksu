@@ -53,7 +53,10 @@ const selectedKey = computed({
 const selectedTarget = computed(() => (
   resolveSelectedComputerUseTarget(props.targets, props.selectedTargetKey)
 ))
-const effectiveTarget = computed(() => props.status?.target ?? selectedTarget.value)
+const sessionTarget = computed(() => (
+  props.status?.conversationId ? props.status.target : null
+))
+const effectiveTarget = computed(() => sessionTarget.value ?? selectedTarget.value)
 const matchingOperationEvidence = computed(() => {
   const target = effectiveTarget.value
   const evidence = props.operationEvidence
@@ -182,7 +185,7 @@ const guidance = computed(() => {
     return props.status?.problem || 'Computer Use 当前不可用。'
   }
   if (missingPermissions.value.length) {
-    return `还需要授权 ${missingPermissions.value.join('、')}；“App 管理”不能替代这两项。点击未授权标签或“请求系统权限”后，若 macOS 打开系统设置，请勾选 MilkSU 并回到这里重新检测。`
+    return `${missingPermissions.value.join('、')} 缺少或尚未对当前构建生效；“App 管理”不能替代这两项。开发期 ad-hoc 重签后，macOS 可能显示 MilkSU 已勾选但探针仍返回未授权；请打开对应设置页核对，或使用稳定 Apple 签名后重新检测。`
   }
   if (attachedToOtherTask.value) {
     return '可见会话正由另一个 Coding 任务使用；请回到该任务停止后再切换。'
@@ -231,7 +234,7 @@ const primarySetupAction = computed<{
   if (!permissionsReady.value) {
     return {
       label: '打开系统权限设置',
-      detail: `缺少 ${missingPermissions.value.join('、') || '系统权限'}；授权后回到这里重新检测。`,
+      detail: `${missingPermissions.value.join('、') || '系统权限'} 缺少或未对当前构建生效；打开设置页核对后回到这里重新检测。`,
       action: 'permissions',
       variant: 'default',
       disabled: props.loading || props.running,
@@ -318,21 +321,23 @@ function runPrimarySetupAction() {
         </Select>
       </div>
       <div class="flex items-center justify-between gap-3">
-        <span class="text-muted-foreground">锁定范围</span>
+        <span class="text-muted-foreground">
+          {{ status?.conversationId ? '锁定范围' : '目标窗口' }}
+        </span>
         <span class="font-medium text-foreground">
-          {{ status?.target?.name || selectedTarget?.name || '未选择' }}
+          {{ effectiveTarget?.name || '未选择' }}
         </span>
       </div>
       <p class="mt-1 break-all font-mono text-muted-foreground">
-        {{ status?.target?.bundleId || selectedTarget?.bundleId || '—' }}
-        · PID {{ status?.target?.pid || selectedTarget?.pid || '—' }}
-        · Window {{ status?.target?.windowId || selectedTarget?.windowId || '—' }}
+        {{ effectiveTarget?.bundleId || '—' }}
+        · PID {{ effectiveTarget?.pid || '—' }}
+        · Window {{ effectiveTarget?.windowId || '—' }}
       </p>
       <p
-        v-if="status?.target?.windowTitle || selectedTarget?.windowTitle"
+        v-if="effectiveTarget?.windowTitle"
         class="mt-1 truncate text-muted-foreground"
       >
-        {{ status?.target?.windowTitle || selectedTarget?.windowTitle }}
+        {{ effectiveTarget.windowTitle }}
       </p>
       <div class="mt-3 flex flex-wrap gap-2">
         <button

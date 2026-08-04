@@ -73,6 +73,7 @@ type Options struct {
 	TargetPID       int
 	GOOS            string
 	PermissionProbe func(prompt bool) Permissions
+	PermissionOpen  func(Permissions)
 	TargetProvider  func() ([]Target, error)
 	CommandFactory  func(name string, args ...string) *exec.Cmd
 	StartTimeout    time.Duration
@@ -98,6 +99,7 @@ type Manager struct {
 	targetPID       int
 	goos            string
 	permissionProbe func(prompt bool) Permissions
+	permissionOpen  func(Permissions)
 	targetProvider  func() ([]Target, error)
 	commandFactory  func(name string, args ...string) *exec.Cmd
 	startTimeout    time.Duration
@@ -117,6 +119,10 @@ func New(options Options) *Manager {
 	if permissionProbe == nil {
 		permissionProbe = platformPermissions
 	}
+	permissionOpen := options.PermissionOpen
+	if permissionOpen == nil {
+		permissionOpen = platformRequestPermissions
+	}
 	targetProvider := options.TargetProvider
 	if targetProvider == nil {
 		targetProvider = platformTargets
@@ -134,6 +140,7 @@ func New(options Options) *Manager {
 		targetPID:       targetPID,
 		goos:            goos,
 		permissionProbe: permissionProbe,
+		permissionOpen:  permissionOpen,
 		targetProvider:  targetProvider,
 		commandFactory:  commandFactory,
 		startTimeout:    startTimeout,
@@ -148,8 +155,15 @@ func (manager *Manager) Status() Status {
 
 func (manager *Manager) RequestPermissions() Status {
 	manager.mu.Lock()
-	defer manager.mu.Unlock()
-	return manager.statusLocked(manager.permissionProbe(true))
+	permissions := manager.permissionProbe(false)
+	status := manager.statusLocked(permissions)
+	permissionOpen := manager.permissionOpen
+	goos := manager.goos
+	manager.mu.Unlock()
+	if !permissions.Ready() && goos == "darwin" {
+		permissionOpen(permissions)
+	}
+	return status
 }
 
 func (manager *Manager) Targets() ([]Target, error) {

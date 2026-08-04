@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { Badge, Button } from '@felinic/ui'
-import { Archive, ArrowLeft, ExternalLink, Play, ShieldCheck } from 'lucide-vue-next'
+import { Archive, ArrowLeft, ExternalLink, Play } from 'lucide-vue-next'
 import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
+import WorkspaceSettingsButton from '@/components-vue/WorkspaceSettingsButton.vue'
 
 defineProps<{
   challengeTitle?: string
@@ -51,10 +52,7 @@ defineEmits<{
         <ExternalLink class="size-4" />
         打开题目
       </Button>
-      <Button variant="ghost" size="sm" aria-label="打开 CTF 授权与模型设置" @click="$emit('openSettings')">
-        <ShieldCheck class="size-4" />
-        授权与模型
-      </Button>
+      <WorkspaceSettingsButton label="打开设置" @click="$emit('openSettings')" />
     </template>
   </WorkspaceModuleTopBar>
 </template>

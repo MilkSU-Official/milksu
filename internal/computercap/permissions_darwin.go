@@ -37,10 +37,19 @@ static bool milksu_screen_recording(bool prompt) {
 }
 */
 import "C"
+import "os/exec"
 
 func platformPermissions(prompt bool) Permissions {
 	return Permissions{
 		Accessibility:   bool(C.milksu_ax_trusted(C.bool(prompt))),
 		ScreenRecording: bool(C.milksu_screen_recording(C.bool(prompt))),
 	}
+}
+
+func platformRequestPermissions(permissions Permissions) {
+	url := "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+	if permissions.Accessibility && !permissions.ScreenRecording {
+		url = "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
+	}
+	_ = exec.Command("/usr/bin/open", url).Start()
 }

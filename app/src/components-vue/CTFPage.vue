@@ -69,6 +69,7 @@ import CTFWorkspaceHeader from '@/components-vue/CTFWorkspaceHeader.vue'
 import ManagedLabCatalog from '@/components-vue/ManagedLabCatalog.vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
+import WorkspaceSettingsButton from '@/components-vue/WorkspaceSettingsButton.vue'
 import { useCTFTrainingPlatforms } from '@/composables/useCTFTrainingPlatforms'
 import { useCTFWorkspace } from '@/composables/useCTFWorkspace'
 import { useManagedLabs } from '@/composables/useManagedLabs'
@@ -1888,15 +1889,7 @@ onBeforeUnmount(() => {
         </div>
         </details>
         <span class="flex-1" />
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          class="app-no-drag"
-          aria-label="授权与模型设置"
-          @click="$emit('openSettings')"
-        >
-          <ShieldCheck class="size-4" />
-        </Button>
+        <WorkspaceSettingsButton class="app-no-drag" label="打开设置" @click="$emit('openSettings')" />
       </template>
       <template v-if="ctfSection === 'catalog' && activeQuestionBank" #filters>
       <div class="flex w-full items-center gap-3">

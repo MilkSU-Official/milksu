@@ -5,3 +5,5 @@ package computercap
 func platformPermissions(bool) Permissions {
 	return Permissions{}
 }
+
+func platformRequestPermissions(Permissions) {}

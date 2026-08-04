@@ -589,23 +589,23 @@ function stateBadgeVariant(state: LoopState) {
       </div>
     </div>
 
-    <div class="mt-3 grid grid-cols-2 gap-2">
-      <Button variant="outline" size="sm" class="justify-start" @click="emit('openPanel', 'terminal')">
-        <Terminal class="size-3.5" />
-        终端/测试
+    <div class="mt-3 grid grid-cols-[repeat(auto-fit,minmax(12.5rem,1fr))] gap-2">
+      <Button variant="outline" size="sm" class="min-w-0 justify-start" @click="emit('openPanel', 'terminal')">
+        <Terminal class="size-3.5 shrink-0" />
+        <span class="min-w-0 truncate">终端/测试</span>
       </Button>
-      <Button variant="outline" size="sm" class="justify-start" @click="emit('openPanel', 'artifacts')">
-        <FileImage class="size-3.5" />
-        产物预览
+      <Button variant="outline" size="sm" class="min-w-0 justify-start" @click="emit('openPanel', 'artifacts')">
+        <FileImage class="size-3.5 shrink-0" />
+        <span class="min-w-0 truncate">产物预览</span>
       </Button>
-      <Button variant="outline" size="sm" class="justify-start" @click="emit('openPanel', 'browser')">
-        <Globe2 class="size-3.5" />
-        Browser / Computer Use
+      <Button variant="outline" size="sm" class="min-w-0 justify-start" @click="emit('openPanel', 'browser')">
+        <Globe2 class="size-3.5 shrink-0" />
+        <span class="min-w-0 truncate">Browser / Computer Use</span>
       </Button>
-      <Button variant="outline" size="sm" class="justify-start" @click="emit('openPanel', 'changes')">
-        <FileDiff v-if="environment?.git.dirty" class="size-3.5" />
-        <GitBranch v-else class="size-3.5" />
-        Git 交付
+      <Button variant="outline" size="sm" class="min-w-0 justify-start" @click="emit('openPanel', 'changes')">
+        <FileDiff v-if="environment?.git.dirty" class="size-3.5 shrink-0" />
+        <GitBranch v-else class="size-3.5 shrink-0" />
+        <span class="min-w-0 truncate">Git 交付</span>
       </Button>
     </div>
 

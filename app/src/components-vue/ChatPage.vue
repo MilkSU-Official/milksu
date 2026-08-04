@@ -65,6 +65,7 @@ import CodingMCPReviewCard from '@/components-vue/CodingMCPReviewCard.vue'
 import CodingProductLoopPanel from '@/components-vue/CodingProductLoopPanel.vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
+import WorkspaceSettingsButton from '@/components-vue/WorkspaceSettingsButton.vue'
 import type {
   CodingArchitecturePreview,
   CodingArtifactPreview,
@@ -826,7 +827,7 @@ async function refreshBrowserPanel() {
       selectedComputerUseTargetKey.value = nextComputerUseTargetKey(
         computerUseTargets.value,
         selectedComputerUseTargetKey.value,
-        computerUseStatus.value?.target,
+        computerUseStatus.value?.conversationId ? computerUseStatus.value.target : null,
       )
     } else {
       computerUseTargets.value = []
@@ -1226,6 +1227,7 @@ watch(
           <PanelRightClose v-if="environmentOpen" class="size-4" />
           <PanelRightOpen v-else class="size-4" />
         </Button>
+        <WorkspaceSettingsButton label="打开设置" @click="$emit('openSettings')" />
       </template>
     </WorkspaceModuleTopBar>
 

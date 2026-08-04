@@ -215,4 +215,25 @@ describe('Coding policy presentation', () => {
     })).toBe('4242:9001')
     expect(nextComputerUseTargetKey([], '4242:9002', targets[1])).toBe('')
   })
+
+  it('prefers a non-MilkSU window when no visible Computer Use session is active yet', () => {
+    const targets = [
+      {
+        name: 'MilkSU',
+        bundleId: 'com.milksu.app',
+        pid: 1111,
+        windowId: 2222,
+        windowTitle: 'Window',
+      },
+      {
+        name: 'TextEdit',
+        bundleId: 'com.apple.TextEdit',
+        pid: 3333,
+        windowId: 4444,
+        windowTitle: 'Untitled',
+      },
+    ]
+
+    expect(nextComputerUseTargetKey(targets, '')).toBe('3333:4444')
+  })
 })

@@ -90,6 +90,15 @@ async function flushAsyncUpdates() {
   }
 }
 
+async function openIntelSettings(host: HTMLElement) {
+  const settings = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
+    item.getAttribute('aria-label') === '打开设置',
+  )
+  if (!settings) throw new Error('missing CVE intel settings button')
+  settings.click()
+  await nextTick()
+}
+
 describe('VulnPage', () => {
   it('renders a CVE learning and tracking scaffold without red-team promises', async () => {
     const host = await mountVulnPage()
@@ -97,24 +106,16 @@ describe('VulnPage', () => {
 
     expect(text).toContain('CVE')
     expect(text).toContain('追踪 CVE、资产命中与研究进度')
-    expect(text).toContain('导入 Feed')
-    expect(text).toContain('导入练习')
+    expect(host.querySelector('[aria-label="打开设置"]')).not.toBeNull()
     expect(host.querySelector('[data-module-topbar]')).not.toBeNull()
     expect(host.querySelector('[data-module-topbar]')?.getAttribute('data-workspace-module')).toBe('cve')
     expect(host.querySelector('[data-workspace-topbar-title]')?.className).toContain('workspace-topbar__title')
-    expect(text).toContain('情报源')
     expect(text).toContain('追踪条目')
     expect(text).toContain('7')
     expect(text).toContain('0 关注中')
-    expect(text).toContain('6')
-    expect(text).toContain('情报源接入状态')
-    expect(text).toContain('尚未同步')
-    expect(text).toContain('可同步 CISA KEV 公开只读 JSON')
-    expect(text).toContain('当前 CVE 精确同步 NVD 2.0')
-    expect(text).toContain('Feed 缓存状态')
-    expect(text).toContain('尚未导入真实 Feed 快照')
-    expect(text).toContain('0 个快照')
-    expect(text).toContain('未导入 Feed')
+    expect(text).not.toContain('情报源接入状态')
+    expect(text).not.toContain('Feed 缓存状态')
+    expect(text).not.toContain('尚未导入真实 Feed 快照')
     expect(text).toContain('CVE-2024-6387')
     expect(text).toContain('OpenSSH regreSSHion')
     expect(text).toContain('CVE-2024-4577')
@@ -124,19 +125,7 @@ describe('VulnPage', () => {
     expect(text).toContain('闭环')
     expect(text).toContain('待建立')
     expect(text).toContain('有练习')
-    expect(text).toContain('NVD')
     expect(text).toContain('CISA KEV')
-    expect(text).toContain('FIRST EPSS')
-    expect(text).toContain('OSV / GitHub Advisory')
-    expect(text).toContain('Vulhub 练习目录')
-    expect(text).toContain('缓存 Feed')
-    expect(text).toContain('不把排序信号当成 Judge')
-    expect(text).toContain('待接入')
-    expect(text).toContain('Vulhub 练习目录匹配')
-    expect(text).toContain('未匹配练习环境')
-    expect(text).toContain('固定快照：aeaf657')
-    expect(text).toContain('CVE-2024-3400 在当前只读 Vulhub 快照中没有匹配目录')
-    expect(text).toContain('拉取镜像、启动容器、开放端口或发送漏洞触发输入仍需用户逐次确认')
     expect(text).toContain('练习环境')
     expect(text).toContain('1 匹配')
     expect(text).toContain('0 已确认计划')
@@ -154,6 +143,22 @@ describe('VulnPage', () => {
     expect(text).toContain('不批量扫描或攻击外部目标')
     expect(text).toContain('不自动运行 PoC、exploit 或漏洞触发输入')
     expect(text).not.toContain('红队 Agent')
+  })
+
+  it('keeps CVE feed controls in the intel settings panel instead of the default homepage', async () => {
+    const host = await mountVulnPage()
+
+    expect(host.textContent).not.toContain('同步 NVD')
+    expect(host.textContent).not.toContain('导入 Feed')
+    await openIntelSettings(host)
+
+    expect(host.textContent).toContain('情报源设置')
+    expect(host.textContent).toContain('同步 NVD')
+    expect(host.textContent).toContain('同步 KEV')
+    expect(host.textContent).toContain('同步 Vulhub')
+    expect(host.textContent).toContain('导入 Feed')
+    expect(host.textContent).toContain('Feed 缓存状态')
+    expect(host.textContent).toContain('Vulhub 练习目录匹配')
   })
 
   it('syncs the selected CVE from NVD through the desktop adapter into visible evidence', async () => {
@@ -194,6 +199,7 @@ describe('VulnPage', () => {
       value: { main: { App: { FetchNVDCVE: fetchNVDCVE } } },
     })
     const host = await mountVulnPage()
+    await openIntelSettings(host)
     const sync = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
       item.getAttribute('aria-label') === '同步当前 CVE 的 NVD 2.0',
     )
@@ -207,7 +213,6 @@ describe('VulnPage', () => {
     expect(fetchNVDCVE).toHaveBeenCalledWith('CVE-2024-3400')
     expect(host.textContent).toContain('已同步 NVD：CVE-2024-3400 新增 0、更新 1')
     expect(host.textContent).toContain('NVD JSON 2.0')
-    expect(host.textContent).toContain('已导入 NVD')
     expect(host.textContent).toContain('1 个快照')
     expect(host.textContent).toContain('来源证据')
     expect(host.textContent).toContain('NVD · NVD JSON 2.0')
@@ -243,12 +248,14 @@ describe('VulnPage', () => {
       value: { main: { App: { FetchCISAKEVFeed: fetchCISAKEVFeed } } },
     })
     const host = await mountVulnPage()
+    await openIntelSettings(host)
     const sync = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
       item.getAttribute('aria-label') === '同步 CISA KEV Feed',
     )
     if (!sync) throw new Error('missing KEV sync button')
 
-    expect(host.textContent).toContain('尚未同步')
+    expect(host.textContent).toContain('Feed 缓存状态')
+    expect(host.textContent).toContain('0 个快照')
     sync.click()
     await Promise.resolve()
     await Promise.resolve()
@@ -256,7 +263,7 @@ describe('VulnPage', () => {
     await nextTick()
 
     expect(fetchCISAKEVFeed).toHaveBeenCalledTimes(1)
-    expect(host.textContent).toContain('已导入 CISA KEV')
+    expect(host.textContent).toContain('CISA KEV · CISA KEV Catalog')
     expect(host.textContent).toContain('CISA KEV Catalog，1 条，新增 1、更新 0')
     expect(host.textContent).toContain('CVE-2026-42424')
     expect(host.textContent).toContain('Example Gateway unsafe parser')
@@ -294,6 +301,7 @@ describe('VulnPage', () => {
       value: { main: { App: { FetchVulhubPracticeCatalog: fetchVulhubPracticeCatalog } } },
     })
     const host = await mountVulnPage()
+    await openIntelSettings(host)
     const sync = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
       item.getAttribute('aria-label') === '同步 Vulhub 练习目录',
     )
@@ -315,6 +323,7 @@ describe('VulnPage', () => {
 
   it('imports a CISA KEV feed snapshot and shows source evidence in the selected CVE', async () => {
     const host = await mountVulnPage()
+    await openIntelSettings(host)
     const openImport = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
       item.textContent?.includes('导入 Feed'),
     )
@@ -513,6 +522,7 @@ describe('VulnPage', () => {
 
   it('imports pasted generic CVE Feed JSON into visible tracking rows with cache metadata', async () => {
     const host = await mountVulnPage()
+    await openIntelSettings(host)
     const openImport = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
       item.textContent?.includes('导入 Feed'),
     )
@@ -571,8 +581,9 @@ describe('VulnPage', () => {
 
   it('imports pasted local practice catalog JSON into matched CVE practice plans without launching Docker', async () => {
     const host = await mountVulnPage()
-    expect(host.textContent).toContain('未匹配练习环境')
+    expect(host.textContent).toContain('未匹配')
     expect(host.textContent).toContain('1 匹配')
+    await openIntelSettings(host)
 
     const openImport = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
       item.textContent?.includes('导入练习'),
@@ -610,7 +621,7 @@ describe('VulnPage', () => {
 
     expect(host.textContent).toContain('已导入 1 个本地练习环境匹配')
     expect(host.textContent).toContain('2 匹配')
-    expect(host.textContent).toContain('已匹配练习环境')
+    expect(host.textContent).toContain('隔离练习环境已匹配')
     expect(host.textContent).toContain('Local PAN-OS lab plan')
     expect(host.textContent).toContain('pan-os/CVE-2024-3400')
     expect(host.textContent).toContain('local catalog abc123')
@@ -756,8 +767,9 @@ describe('VulnPage', () => {
     await nextTick()
 
     expect(host.textContent).toContain('Vulhub · Apache ActiveMQ OpenWire RCE')
-    expect(host.textContent).toContain('已匹配练习环境')
-    expect(host.textContent).toContain('vulhub/activemq/CVE-2023-46604 · activemq/CVE-2023-46604')
+    expect(host.textContent).toContain('隔离练习环境已匹配')
+    expect(host.textContent).toContain('vulhub/activemq/CVE-2023-46604')
+    expect(host.textContent).toContain('目录activemq/CVE-2023-46604')
     expect(host.textContent).toContain('vulhub/vulhub HEAD aeaf65793f147f29bd50841ef77f4e9cad07ecc7')
     expect(host.textContent).toContain('确认练习计划')
     expect(host.textContent).toContain('activemq/CVE-2023-46604')

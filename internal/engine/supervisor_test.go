@@ -860,6 +860,107 @@ func TestSendMessageRejectsMissingKeyBeforeStartingSidecar(t *testing.T) {
 	}
 }
 
+func TestSendMessageIncludesComputerUseDescriptorOnlyForInteractiveCoding(t *testing.T) {
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	defer writer.Close()
+
+	workspace, err := resolveAgentWorkspace(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	supervisor := NewSupervisor(nil)
+	supervisor.process = &childProcess{
+		stdin:     writer,
+		workspace: workspace,
+	}
+	defer func() {
+		supervisor.mu.Lock()
+		supervisor.stopAllTurnTimersLocked()
+		supervisor.process = nil
+		supervisor.sessions = make(map[string]struct{})
+		supervisor.mu.Unlock()
+	}()
+
+	readCommand := func() map[string]any {
+		t.Helper()
+		line, err := bufio.NewReader(reader).ReadBytes('\n')
+		if err != nil {
+			t.Fatal(err)
+		}
+		var command map[string]any
+		if err := json.Unmarshal(line, &command); err != nil {
+			t.Fatal(err)
+		}
+		return command
+	}
+	descriptor := &ComputerUseDescriptor{
+		SessionID:      "computer_external42",
+		SocketPath:     "/private/tmp/milksu-computer-use/computer_external42/driver.sock",
+		TargetBundleID: "com.apple.TextEdit",
+		TargetName:     "TextEdit",
+		TargetPID:      os.Getpid() + 200,
+		TargetWindowID: 9001,
+	}
+	settings := routedSettings()
+
+	if err := supervisor.SendMessage(
+		"coding-computer", "observe TextEdit", workspace, "", "go", "workspace-auto", nil, "",
+		nil, descriptor, nil, nil, settings,
+	); err != nil {
+		t.Fatal(err)
+	}
+	command := readCommand()
+	computerUse, ok := command["computerUse"].(map[string]any)
+	if !ok {
+		t.Fatalf("interactive Coding command omitted Computer Use descriptor: %#v", command)
+	}
+	if command["action"] != "send_message" ||
+		command["conversationId"] != "coding-computer" ||
+		computerUse["targetBundleId"] != "com.apple.TextEdit" ||
+		computerUse["targetName"] != "TextEdit" ||
+		int(computerUse["targetPid"].(float64)) != descriptor.TargetPID ||
+		int64(computerUse["targetWindowId"].(float64)) != descriptor.TargetWindowID {
+		t.Fatalf("unexpected Computer Use command: %#v", command)
+	}
+
+	for _, blocked := range []struct {
+		name           string
+		sessionRole    string
+		executionMode  string
+		approvalPolicy string
+	}{
+		{name: "plan", executionMode: "plan", approvalPolicy: "workspace-auto"},
+		{name: "read-only", executionMode: "go", approvalPolicy: "read-only"},
+		{name: "ctf", sessionRole: "solver", executionMode: "go", approvalPolicy: "workspace-auto"},
+	} {
+		if err := supervisor.SendMessage(
+			"coding-computer-"+blocked.name,
+			"do not load desktop controls",
+			workspace,
+			blocked.sessionRole,
+			blocked.executionMode,
+			blocked.approvalPolicy,
+			nil,
+			"",
+			nil,
+			descriptor,
+			nil,
+			nil,
+			settings,
+		); err != nil {
+			t.Fatal(err)
+		}
+		command := readCommand()
+		if _, exists := command["computerUse"]; exists {
+			t.Fatalf("%s command unexpectedly loaded Computer Use: %#v", blocked.name, command)
+		}
+	}
+}
+
 func TestNormalizeCodingPolicyPreservesLegacyGoAndValidatesExplicitModes(t *testing.T) {
 	legacy, err := normalizeCodingPolicy("", "", "")
 	if err != nil {

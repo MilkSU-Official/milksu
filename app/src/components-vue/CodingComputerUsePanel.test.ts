@@ -120,6 +120,34 @@ describe('CodingComputerUsePanel', () => {
     expect(onStart).toHaveBeenCalledOnce()
   })
 
+  it('does not show the default MilkSU target as a locked scope before the session starts', async () => {
+    const { host } = await mountPanel({
+      status: status({
+        target: {
+          name: 'MilkSU',
+          bundleId: 'com.milksu.app',
+          pid: 1111,
+          windowId: 2222,
+          windowTitle: 'Window',
+        },
+        permissions: {
+          accessibility: false,
+          screenRecording: false,
+        },
+      }),
+      selectedTargetKey: '5252:9002',
+    })
+    const text = host.textContent ?? ''
+
+    expect(text).toContain('缺系统权限')
+    expect(text).toContain('目标窗口')
+    expect(text).toContain('Preview')
+    expect(text).toContain('com.example.preview')
+    expect(text).toContain('PID 5252')
+    expect(text).toContain('Window 9002')
+    expect(text).not.toContain('com.milksu.app · PID 1111')
+  })
+
   it('lets users refresh detection when Computer Use is not connected yet', async () => {
     const { host, onRefresh } = await mountPanel()
     const refresh = [...host.querySelectorAll<HTMLButtonElement>('button')].find(
@@ -280,10 +308,10 @@ describe('CodingComputerUsePanel', () => {
     expect(missing.host.textContent).toContain('辅助功能 未授权')
     expect(missing.host.textContent).toContain('缺系统权限')
     expect(missing.host.textContent).toContain('App 管理')
-    expect(missing.host.textContent).toContain('点击未授权标签')
     expect(missing.host.textContent).toContain('打开系统权限设置')
-    expect(missing.host.textContent).toContain('授权后回到这里重新检测')
-    expect(missing.host.textContent).toContain('勾选 MilkSU')
+    expect(missing.host.textContent).toContain('缺少或尚未对当前构建生效')
+    expect(missing.host.textContent).toContain('ad-hoc 重签')
+    expect(missing.host.textContent).toContain('稳定 Apple 签名')
     expect(missing.host.textContent).toContain('重新检测')
     const missingStart = [...missing.host.querySelectorAll<HTMLButtonElement>('button')].find(
       button => button.textContent?.includes('启动可见会话'),

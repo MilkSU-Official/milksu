@@ -108,10 +108,10 @@ function acceptanceStatusText(status: string) {
         <PopoverTrigger as-child>
           <button
             type="button"
-            class="group relative grid size-10 place-items-center overflow-hidden rounded-full border border-border bg-white transition-colors hover:border-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            class="group relative grid size-10 place-items-center rounded-full border border-border bg-muted/35 text-muted-foreground transition-colors hover:border-brand hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             aria-label="查看 CTF 能力"
           >
-            <img :src="milksuAppIcon" alt="" class="size-full rounded-full object-cover">
+            <Flag class="size-4" />
           </button>
         </PopoverTrigger>
         <PopoverContent
@@ -122,11 +122,9 @@ function acceptanceStatusText(status: string) {
           aria-label="CTF 能力"
         >
           <div class="flex items-center gap-3">
-            <img
-              :src="milksuAppIcon"
-              alt="MilkSU"
-              class="size-12 shrink-0 rounded-full border border-border bg-white object-cover"
-            >
+            <div class="grid size-12 shrink-0 place-items-center rounded-full border border-border bg-muted/35 text-muted-foreground">
+              <Flag class="size-5" />
+            </div>
             <div>
               <p class="text-caption text-muted-foreground">综合分</p>
               <p class="font-mono text-3xl font-semibold leading-none">

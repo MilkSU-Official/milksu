@@ -200,7 +200,17 @@ export function nextComputerUseTargetKey(
   if (activeTarget && selectedComputerUseTarget(targets, computerUseTargetKey(activeTarget))) {
     return computerUseTargetKey(activeTarget)
   }
-  return targets[0] ? computerUseTargetKey(targets[0]) : ''
+  const firstExternalTarget = targets.find(target => !isMilkSUTarget(target))
+  return firstExternalTarget
+    ? computerUseTargetKey(firstExternalTarget)
+    : targets[0]
+      ? computerUseTargetKey(targets[0])
+      : ''
+}
+
+function isMilkSUTarget(target: Pick<CodingComputerUseTarget, 'name' | 'bundleId'>): boolean {
+  return target.name.trim().toLowerCase() === 'milksu'
+    || target.bundleId.trim().toLowerCase().includes('milksu')
 }
 
 export function computerUseStartArgs(

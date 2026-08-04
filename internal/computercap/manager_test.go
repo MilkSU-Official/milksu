@@ -154,8 +154,9 @@ func TestManagerStartsOneVisibleScopedSessionAndCleansIt(t *testing.T) {
 	}
 }
 
-func TestManagerNeverPromptsOrStartsImplicitly(t *testing.T) {
+func TestManagerNeverPromptsAndOpensSettingsOnExplicitRequest(t *testing.T) {
 	var prompts []bool
+	var opened []Permissions
 	manager := New(Options{
 		BinaryPath: os.Args[0],
 		TargetPID:  4242,
@@ -163,6 +164,9 @@ func TestManagerNeverPromptsOrStartsImplicitly(t *testing.T) {
 		PermissionProbe: func(prompt bool) Permissions {
 			prompts = append(prompts, prompt)
 			return Permissions{}
+		},
+		PermissionOpen: func(permissions Permissions) {
+			opened = append(opened, permissions)
 		},
 		CommandFactory: helperCommand,
 	})
@@ -182,8 +186,13 @@ func TestManagerNeverPromptsOrStartsImplicitly(t *testing.T) {
 		}
 	}
 	manager.RequestPermissions()
-	if !prompts[len(prompts)-1] {
-		t.Fatalf("explicit permission request did not prompt: %#v", prompts)
+	for _, prompt := range prompts {
+		if prompt {
+			t.Fatalf("explicit permission request should not trigger a repeat TCC prompt: %#v", prompts)
+		}
+	}
+	if len(opened) != 1 {
+		t.Fatalf("explicit permission request should open settings once: %#v", opened)
 	}
 }
 
