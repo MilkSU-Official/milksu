@@ -89,6 +89,7 @@ import {
   codingReviewPrompt,
   type CodingProductActionKind,
 } from '@/lib/codingProductActions'
+import { extractLatestComputerUseOperationEvidence } from '@/lib/codingComputerUseEvidence'
 
 import {
   computerUseStartArgs,
@@ -487,6 +488,9 @@ const activeModelLabel = computed(() => {
 const messageCount = computed(() => props.conversation?.messages.length ?? 0)
 const toolMessageCount = computed(() => (
   props.conversation?.messages.filter(message => message.role === 'tool').length ?? 0
+))
+const computerUseOperationEvidence = computed(() => (
+  extractLatestComputerUseOperationEvidence(props.conversation?.messages ?? [])
 ))
 const chatTranscript = computed(() => (
   buildChatTranscript(props.conversation?.messages ?? [], props.running)
@@ -1425,6 +1429,7 @@ watch(
           :artifact-preview-evidence="artifactPreviewEvidence"
           :browser-evidence="browserEvidence"
           :computer-use-evidence="computerUseEvidence"
+          :computer-use-operation-evidence="computerUseOperationEvidence"
           @open-panel="changeContextPanel"
           @compact-context="$emit('compactContext')"
         />

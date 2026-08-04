@@ -525,6 +525,31 @@ describe('CodingProductLoopPanel', () => {
       .not.toContain('做一次用户可见验证')
   })
 
+  it('treats a completed Computer Use operation envelope as visible App validation', async () => {
+    const { host } = await mountPanel({
+      computerUseOperationEvidence: {
+        action: 'click',
+        targetName: 'TextEdit',
+        bundleId: 'com.apple.TextEdit',
+        pid: 789,
+        windowId: 321,
+        windowTitle: 'Untitled',
+        durationMs: 54,
+        summary: 'click · TextEdit · com.apple.TextEdit · PID 789 · Window 321 · Untitled',
+      },
+    })
+
+    expect(host.textContent).toContain('Computer Use 已执行：click · TextEdit')
+    expect(host.textContent).toContain('真实 App 验收')
+    expect(host.textContent).toContain('已验证')
+    expect(host.textContent).toContain('已完成 Computer Use click：TextEdit · com.apple.TextEdit · PID 789 · Window 321')
+    expect([...host.querySelectorAll('[data-acceptance-state="done"]')]
+      .some(item => item.textContent?.includes('做一次用户可见验证')))
+      .toBe(true)
+    expect(host.textContent).toContain('下一步验收动作')
+    expect(host.textContent).toContain('验收恢复/继续')
+  })
+
   it('marks resumed sessions as recovery evidence', async () => {
     const { host } = await mountPanel({
       resumed: true,
