@@ -246,11 +246,17 @@ const recoveryDescription = computed(() => {
   if (status.lastCleanExitAt) {
     parts.push(`上次正常退出 ${formatLocalTimestamp(status.lastCleanExitAt)}`)
   }
+  if (status.previousPid) {
+    parts.push(`上次进程 ${status.previousPid}`)
+  }
   if (status.consecutiveAbnormalExits > 0) {
     parts.push(`连续 ${status.consecutiveAbnormalExits} 次异常退出`)
   }
   if (status.previousExit === 'none') {
     parts.push('尚无历史启动记录')
+  }
+  if (status.startedAt) {
+    parts.push(`本次启动 ${formatLocalTimestamp(status.startedAt)}`)
   }
   return parts.join(' · ')
 })

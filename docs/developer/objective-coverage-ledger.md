@@ -48,9 +48,9 @@
 | Memory 与能力画像 | 11 | 500 / 1,100 | **45%** |
 | Runtime Reliability 与 NYU Bench | 10 | 700 / 1,000 | **70%** |
 | 架构约束 | 6 | 125 / 600 | **21%** |
-| 本地数据安全与正式交付 | 15 | 600 / 1,500 | **40%** |
+| 本地数据安全与正式交付 | 15 | 625 / 1,500 | **42%** |
 | 最终文档 | 2 | 75 / 200 | **38%** |
-| **整体** | **91** | **4,315 / 9,100** | **47%** |
+| **整体** | **91** | **4,340 / 9,100** | **48%** |
 
 此前约 58% 的估值按大块综合判断，分母中没有逐项展开真实验收、跨项目、六赛道、RC 和
 架构约束。第二轮证据复核又把没有原生 App 真实任务的 Vue/Go Code Action 从 75% 调到
@@ -97,14 +97,17 @@ Calculator 也由 Computer Use 完成 `2+3=5` 真实点击，将 `COD-15` 和 `C
 `MILKSU_CODING_SELF_BOOTSTRAP_LIVE_SMOKE=1` 又把外部历史导入/搜索、用户确认相关历史、
 Coding delivery 修改/测试/恢复和打包 App Git stage/commit/push 串成一次隔离自举式交付，
 将 `COD-25` 从 30% 调到 45%；这仍不是 MilkSU 源码 Vue+Go/真实 Provider/托管 PR Gate。
+同日 `MILKSU_STARTUP_RECOVERY_LIVE_SMOKE=1 npm run test:startup-recovery-live` 用真实打包
+App 完成 running marker → `SIGKILL` 异常退出 → 同一 App data 重启识别 abnormal → 自动正常
+退出写回 clean，将 `DEL-03` 从 75% 调到 100%。
 后续只使用同一张表比较变化。
 
 ### 分值分布
 
 | 分值 | 细项数 | 解释 |
 | ---: | ---: | --- |
-| 100% | 8 | 行定义的精确门槛已经通过 |
-| 75% | 21 | 已有真实证据，仍缺完整矩阵或最终 Gate |
+| 100% | 9 | 行定义的精确门槛已经通过 |
+| 75% | 20 | 已有真实证据，仍缺完整矩阵或最终 Gate |
 | 50% | 32 | 工程实现和自动化存在，仍缺真实任务 |
 | 25% | 8 | 只有局部纵切、设计或基础设施 |
 | 0% | 22 | 未执行，或当前没有足够证据 |
@@ -230,7 +233,7 @@ Coding delivery 修改/测试/恢复和打包 App Git stage/commit/push 串成�
 | --- | --- | --- | ---: | --- |
 | DEL-01 | 五库编号迁移、事务、兼容检查与安全备份 | 代码、自动化和设置入口存在 | 75% | 最终结构收口后全新目录回归 |
 | DEL-02 | Pre-release 旧 schema 一次性破坏性收口 | 按契约明确后置 | 0% | 产品纵切完成后集中执行 |
-| DEL-03 | 上次启动/异常退出标记与恢复入口 | 打包 App lifecycle baseline 通过 | 75% | 真实异常退出人工验收 |
+| DEL-03 | 上次启动/异常退出标记与恢复入口 | `appdata.Lifespan` 已持久化 running/clean/abnormal 标记，设置页展示上次启动时间、上次 PID、本次启动时间和连续异常次数；2026-08-05 显式 `MILKSU_STARTUP_RECOVERY_LIVE_SMOKE=1 npm run test:startup-recovery-live` 使用真实 `build/bin/MilkSU.app` 与隔离 App data：首次启动留下 running marker 后 `SIGKILL`，第二次启动报告 `previousExit=abnormal`、`previousPid` 匹配被杀掉的首次进程、`consecutiveAbnormalExits=1`，随后 App 自己正常退出并把 `lifespan.json` 写回 `lastExit=clean`、`consecutiveAbnormalExits=0`；报告保存到 `build/test-results/startup-recovery-live.json` 和 `build/test-results/startup-recovery-live-app-report.json`，且不含会话正文、工具输出或 Credential 形态 | 100% | — |
 | DEL-04 | Sidecar、恢复、迁移、后台任务脱敏诊断 | 诊断包、UI 和离线错误测试存在 | 75% | 真实故障包审阅 |
 | DEL-05 | 不保存正文、原始工具输出或 Credential | 多处边界测试存在；诊断包测试确认即使 `runtime/milksu.log` 含会话正文、原始工具输出和 Credential 形态，导出包也只包含脱敏 `diagnostics.json`，不复制日志文件；前端聊天错误、审批卡、CTF Endpoint 授权 UI、CTF 提交/Judge UI、CTF 训练归档 UI、CTF Memory Recall UI、Coding 产物预览 UI 和 Coding 后台任务/Shell 错误共用 `redactProviderCredentials`，`redaction.test.ts`、`useConversations.test.ts`、`ChatMessageItem.test.ts`、`CTFEndpointAuthorization.test.ts`、`CTFSubmissionGate.test.ts`、`CTFTrainingArchive.test.ts`、`CTFMemoryRecall.test.ts`、`CodingArtifactPreviewPanel.test.ts` 与 `CodingTerminalPanel.test.ts` 覆盖 Bearer、`sk-*`、`sess-*`、`*_API_KEY`、URL query `api_key`、`x-api-key`、`api-key` 和 header `x-api-key` 形态，并覆盖后台任务名称、命令、日志和错误进入 UI 前统一脱敏，避免不同入口规则漂移 | 50% | 完整诊断与本地文件审计 |
 | DEL-06 | `1080×680` 最低窗口 | Browser 真实截图与布局审计 | 75% | 原生 App 全流程人工 QA |
@@ -301,6 +304,7 @@ Coding delivery 修改/测试/恢复和打包 App Git stage/commit/push 串成�
 | DONE-UI-02 | 左下角重复 Logo/全局锚点移除 | `89e7ea8 fix: remove duplicate rail anchor` 删除 WorkspaceRail 的下方 CTF 能力入口，`AppSidebar.test.ts` 锁住 CTF/CVE 不再出现“查看 CTF 能力” | 不再重复处理“双 Logo”；若未来新增全局锚点，必须先说明其唯一导航职责 |
 | DONE-UI-03 | Coding 右栏开发者验收与快捷按钮不再默认压迫普通用户 | `CodingProductLoopPanel.vue` 已把产品闭环后台放进默认折叠的 `details[aria-label="Coding 开发者验收后台"]`；快捷按钮使用 `min-w-0 max-w-full overflow-hidden` 和 label `truncate`，`CodingProductLoopPanel.test.ts` 锁住 CSS 契约；2026-08-05 Browser 在 `http://127.0.0.1:1420/` 右栏约 319px 宽度展开验证，`终端/测试`、`产物预览`、`Browser / Computer Use`、`Git 交付` 四个按钮均未越界，Console 无 error/warn | 不再重复修“Browser / Computer Use 和 Git 交付按钮文字叠在一起”；若新截图显示其他宽度/语言下溢出，作为 UI sweep 新证据处理 |
 | DONE-M3-01 | 当前代码基线完整工程门禁通过 | 2026-08-05 在 `962e74f` 执行 `npm run m3:release-check`，覆盖 Go test/vet、Node tests、前端 Vitest/lint/build、Sidecar smoke、Coding delivery fixture、docs build、Wails build、ad-hoc codesign 验证和 `check-macos-signing.mjs`，最终输出 `M3 engineering release checks passed.` 并生成 `/Users/milksu/code/milksu/build/bin/MilkSU.app` | 不再重复质疑“当前 HEAD 能否编译/打包”；但这不等价于 COD-25 的完整自举任务、Developer ID 签名、公证、升级或外部 Beta 门禁 |
+| DONE-DEL-01 | 打包 App 能检测上次异常退出并在正常退出后清回 clean marker | `app_startup_recovery_smoke.go` 新增只在 `MILKSU_STARTUP_RECOVERY_SMOKE_RESULT` 存在时运行的 App 内部 smoke，`scripts/test-packaged-startup-recovery-live.mjs` 新增 gated live smoke；2026-08-05 显式 `MILKSU_STARTUP_RECOVERY_LIVE_SMOKE=1 npm run test:startup-recovery-live` 使用真实 `build/bin/MilkSU.app` 和隔离 App data，第一次启动留下 `lastExit=running` 后 `SIGKILL`，第二次启动报告 `previousExit=abnormal`、上次 PID 和连续异常次数，再由 App 自己优雅退出并把 marker 写回 `lastExit=clean`；SettingsPage 同步展示上次 PID、本次启动时间和连续异常次数 | 不再把“持久化上次启动/异常退出标记”或“打包 App 是否能识别异常退出并清理 clean marker”作为未完成；这不等价于后台长任务恢复，`RUN-08` 仍单独跟踪 |
 | DONE-COD-01 | 打包 App facade 能读取 Coding 的 Markdown、HTML 和图片产物预览 | `app_coding_artifact_preview_smoke.go` 新增只在 `MILKSU_CODING_ARTIFACT_PREVIEW_SMOKE_RESULT` 存在时运行的 App 内部 smoke；`scripts/test-packaged-artifact-preview-live.mjs` 新增 gated live smoke；2026-08-05 显式 `MILKSU_ARTIFACT_PREVIEW_LIVE_SMOKE=1 npm run test:artifact-preview-live` 使用真实 `build/bin/MilkSU.app` 进程从隔离 workspace 读取 `reports/summary.md`、`reports/result.html`、`images/screenshot.png`，并拒绝 `../outside.md`、伪装 PNG 和 SVG；报告保存到 `build/test-results/artifact-preview-live.json` | 不再把“打包 App 是否能读取三类 Coding 产物预览”作为未完成；原生 UI 手动打开由 `DONE-COD-02` 关闭，WebView 负向由 `DONE-COD-03` 关闭 |
 | DONE-COD-02 | 真实打包 MilkSU UI 手动打开 Markdown、HTML 和图片产物预览 | 2026-08-05 用真实 `/Users/milksu/code/milksu/build/bin/MilkSU.app` 和隔离 `MILKSU_APPDATA_DIR=/tmp/milksu-artifact-ui-live.w7igPl/app-data` 启动 App；通过 Computer Use 点击 Coding → 选择项目目录，使用系统 `OpenDirectoryDialog` 的“前往文件夹”绑定 `/private/tmp/milksu-artifact-ui-live.w7igPl/workspace`；在右栏 `产物` 面板手动输入并预览 `reports/summary.md`、`reports/result.html` 和 `images/screenshot.png`；Markdown 显示标题 `MilkSU artifact preview live fixture` 和列表，HTML 在 `about:srcdoc` iframe 中显示标题 `MilkSU HTML artifact preview` 与正文，图片显示 `images/screenshot.png`；开发者验收详情显示 `用户可见验证：已预览 图片：images/screenshot.png` 和 `真实 App 验收：已打开产物预览：images/screenshot.png`；报告保存到 `build/test-results/artifact-ui-preview-live.json`，截图保存到 `build/test-results/artifact-ui-preview-live-markdown.png`、`artifact-ui-preview-live-html.png`、`artifact-ui-preview-live-image.png` 和 `artifact-ui-preview-live-loop-evidence.png` | 不再把“原生 UI 中能否由用户手动打开三类 Coding 产物预览并进入验收证据”作为未完成；HTML WebView sandbox/CSP/禁网负向由 `DONE-COD-03` 关闭 |
 | DONE-COD-03 | 真实打包 MilkSU WebView 的危险 HTML 产物负向验收 | `app_coding_artifact_preview_webview_smoke.go` 只在 `MILKSU_CODING_ARTIFACT_PREVIEW_WEBVIEW_SMOKE_RESULT` 存在时开启 smoke-only 桥接；`codingArtifactWebViewSmoke.ts` 在 Wails WebView 中调用真实 `get_coding_artifact_preview` 读取 `reports/dangerous.html`，复用产物面板同一脱敏、HTML 清洗和 `sandbox=""` iframe 链路；2026-08-05 重新 `wails build` 后显式 `MILKSU_ARTIFACT_PREVIEW_LIVE_SMOKE=1 npm run test:artifact-preview-live` 通过，`build/test-results/artifact-preview-webview-live.json` 证明 backend HTML read、空 sandbox、无 allow-scripts、无 executable elements、无外部资源属性、`default-src/connect-src/script-src 'none'` CSP、credential redaction 和 parent window 未被改写全部为 true | 不再把“HTML WebView sandbox/CSP/禁网原生负向”作为未完成；后续只按真实用户 HTML 样本扩样 |

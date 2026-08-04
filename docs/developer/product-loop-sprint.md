@@ -91,6 +91,10 @@
   Console 无 error/warn；2026-08-05 打包 `MilkSU.app` 的 CTF recovery live smoke 已证明
   同一 App data 重启后 CTF job、Agent workspace、checkpoint、progress 与 replay 可恢复；
   剩余是 Solver/Judge/六赛道真实解题，不再重复做 packaged persistence smoke；
+- Startup Recovery：2026-08-05 `MILKSU_STARTUP_RECOVERY_LIVE_SMOKE=1`
+  使用真实打包 `MilkSU.app` 证明 running marker 经 `SIGKILL` 后会在同一 App data 重启时被
+  识别为 abnormal，且 App 自己正常退出后写回 clean；后续不再重复验证生命周期 marker，
+  后台长任务恢复仍归 `RUN-08`；
 - UI：减少默认工作台噪音，把内部验收模型移到折叠区域或开发者视图。
   2026-08-05 Browser 验证 Coding 右栏开发者验收默认折叠，展开后四个快捷按钮在窄右栏不叠字。
 

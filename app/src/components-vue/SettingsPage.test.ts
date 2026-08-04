@@ -197,6 +197,8 @@ describe('SettingsPage database compatibility', () => {
     expect(text).toContain('异常退出')
     expect(text).toContain('连续 2 次异常退出')
     expect(text).toContain('上次启动于')
+    expect(text).toContain('上次进程 4242')
+    expect(text).toContain('本次启动')
   })
 
   it('keeps settings saved and explains an offline model verification failure', async () => {

@@ -535,11 +535,16 @@ NYU Outcome 属于后期研究和对照，不是近期产品完成条件。等�
   版本升级兼容。
 
 诊断入口已经存在，应从“未完成”中删除：`app/src/components-vue/SettingsPage.vue:229`。
+2026-08-05 已用真实打包 `MilkSU.app` 完成启动恢复 marker 验收：同一隔离 App data 中，
+首次启动留下 `lastExit=running` 后被 `SIGKILL`，第二次启动报告 `previousExit=abnormal`、
+上次 PID 和连续异常次数，随后 App 自己正常退出并写回 `lastExit=clean`；证据见
+`build/test-results/startup-recovery-live.json`。后续不再把“持久化上次启动/异常退出标记”
+或“下次启动能识别异常退出并清回 clean marker”作为未完成。
+
 剩余目标改为：
 
-- 持久化的上次启动/异常退出标记；
 - Sidecar、恢复、迁移和后台任务的脱敏日志；
-- 崩溃后下次启动提供恢复/诊断入口；
+- 崩溃后下次启动的用户可见恢复/诊断操作链路扩样；
 - 不保存会话正文、工具原始输出或凭据。
 
 ### 正式发行，Release Candidate 阶段

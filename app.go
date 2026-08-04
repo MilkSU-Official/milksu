@@ -281,6 +281,7 @@ func (a *App) Startup(ctx context.Context) {
 	a.diagnostics.Record("app", "info", "desktop runtime started")
 	_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedAppInitialized)
 	_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedDesktopRuntimeStarted)
+	a.maybeRunStartupRecoverySmoke()
 	a.maybeRunSessionIndexSmoke()
 	a.maybeRunExternalSessionImportSmoke()
 	a.maybeRunVulnerabilityFeedSmoke()
