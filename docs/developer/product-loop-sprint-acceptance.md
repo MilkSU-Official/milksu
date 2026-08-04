@@ -5,6 +5,28 @@
 本文件只记录当前冲刺期间已经执行过的可复核验收动作，避免后续 Agent 把口头进展误当成
 已完成声明。最终架构、里程碑、状态页和发布说明仍按 `product-loop-sprint.md` 后置统一更新。
 
+## 2026-08-04 · Coding recent activity routing
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | 本批次提交（见 Git log） |
+| 窄测 | `npm --prefix app test -- workspaceSessionRouting.test.ts codingConversationGroups.test.ts AppSidebar.test.ts ChatPageRoutingContract.test.ts` |
+| 窄测结果 | 4 files / 12 tests passed |
+
+覆盖范围：
+
+- Coding 会话列表和项目分组不再只按创建时间排序，而是优先按最后一条消息的 `timestamp`
+  判断最近活动；
+- 从 CTF/CVE 返回 Coding 时，如果没有明确 remembered Coding 会话，回退选择也按最近活动
+  Coding 会话，而不是依赖存储数组里的第一个非 CTF 对话；
+- CTF 会话仍被排除在 Coding 恢复与 Coding 历史分组外，避免解题 Agent 对话抢占 Coding 入口。
+
+本次仍未证明：
+
+- 打包 App 中真实点击 CTF → CVE → Coding 后的视觉验收；
+- 用户所说“最顶部/最底部”是否还包含聊天滚动位置问题；当前代码已有 conversation id 和
+  message count 的滚到底部 watcher，如复现仍存在，应作为新的 UI bug 登记。
+
 ## 2026-08-04 · M3 engineering release check
 
 | 项目 | 记录 |

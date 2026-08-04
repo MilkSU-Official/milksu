@@ -9,10 +9,20 @@ export function isCTFConversation(conversation: Conversation | null | undefined)
   return Boolean(conversation?.ctfJobId)
 }
 
+export function conversationActivityAt(conversation: Conversation) {
+  return conversation.messages.reduce(
+    (latest, message) => Math.max(latest, message.timestamp),
+    conversation.createdAt,
+  )
+}
+
 function newestConversation(conversations: Conversation[]) {
   return conversations.reduce<Conversation | null>((newest, conversation) => {
     if (!newest) return conversation
-    if (conversation.createdAt > newest.createdAt) return conversation
+    const activity = conversationActivityAt(conversation)
+    const newestActivity = conversationActivityAt(newest)
+    if (activity > newestActivity) return conversation
+    if (activity === newestActivity && conversation.createdAt > newest.createdAt) return conversation
     return newest
   }, null)
 }

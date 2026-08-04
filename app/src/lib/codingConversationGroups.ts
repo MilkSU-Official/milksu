@@ -1,4 +1,5 @@
 import type { Conversation } from '@/types'
+import { conversationActivityAt } from '@/lib/workspaceSessionRouting'
 
 export interface CodingConversationGroup {
   key: string
@@ -21,7 +22,11 @@ function workspaceName(path: string) {
 }
 
 function newestFirst(left: Conversation, right: Conversation) {
-  return right.createdAt - left.createdAt || left.title.localeCompare(right.title)
+  return (
+    conversationActivityAt(right) - conversationActivityAt(left)
+    || right.createdAt - left.createdAt
+    || left.title.localeCompare(right.title)
+  )
 }
 
 export function groupCodingConversations(
@@ -42,10 +47,10 @@ export function groupCodingConversations(
       path,
       temporary: !path,
       conversations: [],
-      lastActiveAt: conversation.createdAt,
+      lastActiveAt: conversationActivityAt(conversation),
     }
     group.conversations.push(conversation)
-    group.lastActiveAt = Math.max(group.lastActiveAt, conversation.createdAt)
+    group.lastActiveAt = Math.max(group.lastActiveAt, conversationActivityAt(conversation))
     groups.set(key, group)
   }
 

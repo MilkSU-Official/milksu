@@ -60,6 +60,38 @@ describe('workspaceSessionRouting', () => {
       .toBe('coding-recent')
   })
 
+  it('falls back to the last active Coding conversation rather than the newest created row', () => {
+    const conversations = [
+      conversation({
+        id: 'coding-created-newer',
+        title: '顶部新建但未继续',
+        createdAt: 200,
+        messages: [],
+      }),
+      conversation({
+        id: 'coding-active-older',
+        title: '底部最近继续的任务',
+        createdAt: 100,
+        messages: [
+          { id: 'message-1', role: 'user', content: '继续这里', timestamp: 500 },
+        ],
+      }),
+      conversation({
+        id: 'ctf-active',
+        title: 'CTF Solver',
+        createdAt: 300,
+        ctfJobId: 'job',
+        ctfRole: 'solver',
+        messages: [
+          { id: 'message-2', role: 'assistant', content: 'CTF still open', timestamp: 600 },
+        ],
+      }),
+    ]
+
+    expect(selectCodingConversationId(conversations, 'ctf-active', null))
+      .toBe('coding-active-older')
+  })
+
   it('restores CTF workspace resume points without replacing the active Coding conversation', () => {
     const conversations = [codingRecent, ctfOlder, ctfRecent]
 

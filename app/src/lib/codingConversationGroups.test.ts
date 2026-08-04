@@ -64,4 +64,30 @@ describe('Coding conversation groups', () => {
       path: null,
     })
   })
+
+  it('orders tasks and projects by last message activity instead of creation time only', () => {
+    const groups = groupCodingConversations([
+      conversation('milk-new-created', '顶部新建', 500, {
+        workspacePath: '/Users/milksu/code/milksu',
+        messages: [],
+      }),
+      conversation('milk-older-active', '底部继续', 100, {
+        workspacePath: '/Users/milksu/code/milksu',
+        messages: [
+          { id: 'message-1', role: 'assistant', content: '最新进展', timestamp: 900 },
+        ],
+      }),
+      conversation('other-active', '另一个项目', 200, {
+        workspacePath: '/Users/milksu/code/other',
+        messages: [
+          { id: 'message-2', role: 'user', content: '稍早继续', timestamp: 800 },
+        ],
+      }),
+    ])
+
+    expect(groups.map(group => group.name)).toEqual(['milksu', 'other'])
+    expect(groups[0].lastActiveAt).toBe(900)
+    expect(groups[0].conversations.map(item => item.id))
+      .toEqual(['milk-older-active', 'milk-new-created'])
+  })
 })
