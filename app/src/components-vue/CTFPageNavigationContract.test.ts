@@ -37,4 +37,14 @@ describe('CTFPage navigation contract', () => {
     expect(ctfChallengeDeskSource).toContain('一题成功只算赛道 smoke，不能描述为完整 CTF 成绩')
     expect(ctfChallengeDeskSource).toContain('真实题目、材料、轨迹、Judge 回执、恢复和复盘证据')
   })
+
+  it('quotes confirmed related history into the debrief draft instead of saving CTF memory directly', () => {
+    expect(ctfPageSource).toContain('quoteSessionHistoryToDebrief')
+    expect(ctfPageSource).toContain('confirm-action-label="引用到复盘"')
+    expect(ctfPageSource).toContain('@confirm-result="quoteSessionHistoryToDebrief"')
+    expect(ctfPageSource).toContain(':reflection-seed="historyReflectionSeed"')
+    expect(ctfPageSource).toContain('redactProviderCredentials(value)')
+    expect(ctfPageSource).toContain('保存复盘后才可沉淀为记忆')
+    expect(ctfPageSource).not.toContain("quoteSessionHistoryToDebrief(result); saveTrainingMemory")
+  })
 })

@@ -80,6 +80,7 @@ import { useNSSCTFCatalog, useNSSCTFTraining } from '@/composables/useNSSCTFTrai
 import { invokeCommand } from '@/desktop'
 import { shouldBootstrapNSSCTFCatalog } from '@/lib/ctfCatalogBootstrap'
 import { deriveCTFWorkspacePresentation } from '@/lib/ctfWorkspacePresentation'
+import { redactProviderCredentials } from '@/lib/redaction'
 import type {
   CTFAgentWorkspaceHandoff,
   CTFChallengeRequest,
@@ -96,6 +97,7 @@ import type { ManagedLabAccess } from '@/ctfLabTypes'
 import type { CTFWorkspaceSection } from '@/lib/workspaceNavigation'
 import type { NSSCTFChallenge } from '@/nssctfTypes'
 import type { NSSCTFRecommendation, NSSCTFTrainingSeries } from '@/nssctfTrainingTypes'
+import type { SessionHistorySearchResult } from '@/sessionIndexTypes'
 
 type Screen = 'source' | 'challenge' | 'workspace'
 type WorkspaceMode = 'solve' | 'review'
@@ -194,6 +196,7 @@ const ctfshowPage = ref(1)
 const ctfshowPageSize = 20
 const historyExpanded = ref(false)
 const recalledMemories = ref<CTFTrainingMemory[]>([])
+const historyReflectionSeed = ref('')
 const memoryLoading = ref(false)
 const historyMenu = ref<HTMLDetailsElement | null>(null)
 const bridgeMenu = ref<HTMLDetailsElement | null>(null)
@@ -1320,6 +1323,34 @@ async function sendDebriefReflection(content: string) {
   })
   if (recorded) outcomeNotice.value = '复盘已保存；现在可以沉淀为可复用技法。'
   working.value = false
+}
+
+function sessionHistorySourceLabel(source = '') {
+  if (source === 'milksu-ctf') return 'CTF'
+  if (source === 'milksu-cve') return 'CVE'
+  if (source === 'milksu-coding') return 'Coding'
+  return source || '历史'
+}
+
+function trimHistoryField(value = '', maxLength = 600) {
+  const redacted = redactProviderCredentials(value).trim()
+  if (redacted.length <= maxLength) return redacted
+  return `${redacted.slice(0, maxLength)}…`
+}
+
+function quoteSessionHistoryToDebrief(result: SessionHistorySearchResult) {
+  const lines = [
+    '参考这条相关历史做复盘：',
+    `- 会话：${trimHistoryField(result.sessionName, 160)}`,
+    `- 来源：${sessionHistorySourceLabel(result.source)}`,
+    result.timestamp ? `- 时间：${new Date(result.timestamp).toLocaleString()}` : '',
+    result.skill ? `- 工具：${trimHistoryField(result.skill, 160)}` : '',
+    `- 摘要：${trimHistoryField(result.snippet)}`,
+    '',
+    '请只写入你能用本题证据重新核对的经验；不要把历史总结直接当成本题结论。',
+  ].filter(line => line !== '')
+  historyReflectionSeed.value = lines.join('\n')
+  outcomeNotice.value = '已引用到复盘草稿；保存复盘后才可沉淀为记忆。'
 }
 
 async function sendIndependentStep(content: string) {
@@ -2920,6 +2951,7 @@ onBeforeUnmount(() => {
                     :debrief="activeProjection.debrief"
                     :human-outcome="activeProjection.humanOutcome"
                     :submitting="working"
+                    :reflection-seed="historyReflectionSeed"
                     @submit-independent-step="sendIndependentStep"
                     @submit-reflection="sendDebriefReflection"
                     @save-memory="saveTrainingMemory"
@@ -2953,6 +2985,8 @@ onBeforeUnmount(() => {
                     module="ctf"
                     compact
                     :default-query="activeProjection.challenge.title"
+                    confirm-action-label="引用到复盘"
+                    @confirm-result="quoteSessionHistoryToDebrief"
                   />
 
                   <section
