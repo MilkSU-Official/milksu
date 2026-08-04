@@ -1478,3 +1478,29 @@
 - 原生 App 中点击复制后的系统剪贴板体验；
 - 后续 Agent 是否会把实际新问题稳定写入 `objective-coverage-ledger.md`；
 - 已登记问题的批量评估和修复优先级排序。
+
+## 2026-08-04 · Latest M3 release check after product-loop cards
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | `58a99a4` |
+| 命令 | `npm run m3:release-check` |
+| 结果 | 通过，输出 `M3 engineering release checks passed.` |
+| 前端全量 | 50 files / 242 tests passed |
+| Node policy / bridge / runtime | 162 tests passed |
+| Coding delivery fixture | score 100；external Provider cost 0；deterministic local provider |
+| 本地 App | `/Users/milksu/code/milksu/build/bin/MilkSU.app` |
+| 生成入口 | Wails 输出 `Built '/Users/milksu/code/milksu/build/bin/MilkSU.app/Contents/MacOS/MilkSU' in 24.285s.` |
+
+覆盖范围：
+
+- 最新 Coding 产品闭环卡、未修问题登记卡、终端/后台任务下一步、共享顶栏契约和前端构建均纳入完整 M3 工程门禁；
+- Go 测试、Go vet、Node policy / bridge / runtime 契约、前端 Vitest、lint、production build、Sidecar smoke、Coding delivery fixture、docs build、Wails production build、macOS self-sign 均通过；
+- 最新本机可打开 App 产物已经重新生成到 `build/bin/MilkSU.app`。
+
+本次仍未证明：
+
+- 用户在原生 App 中真实完成完整 “MilkSU develops MilkSU” Vue + Go 自举任务；
+- 原生 App 中 Computer Use 对外部 App 的真实可见操作；
+- 真实托管平台 Draft PR 创建；
+- 六赛道 CTF、NYU Outcome、Developer ID / notarization / updater RC。
