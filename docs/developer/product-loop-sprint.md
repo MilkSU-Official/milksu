@@ -59,11 +59,13 @@
   下一步只补 MilkSU UI 内用户选择/启动会话、重启后权限检测一致性，以及主模型消费截图完成真实任务；
 - CVE：packaged App 进程内 NVD 单 CVE 导入 live smoke 已通过，已保存来源、获取时间、
   snapshot 哈希/大小和选中 CVE 的事实变化；下一步只补 UI 内 Feed 导入状态、Vulhub/Docker
-  启停/清理或更完整源矩阵，不能再说“只有四条 mock 数据”；
+  启停/清理或更完整源矩阵，不能再说“只有四条 mock 数据”。2026-08-05 Browser 已验证
+  CVE 首页默认不铺 Feed/NVD/EPSS/KEV/Vulhub/缓存维护台，点击统一设置后才进入情报源设置；
 - CTF：从题库进入解题会话，切到 CVE/Coding 再返回，题库/会话/最近位置不丢失；Browser
   真实渲染烟测已证明 `CTF(P382)` → `CVE` → `Coding` → `CTF` 后仍回到 P382 工作台且
   Console 无 error/warn；下一步只补打包原生 App + 运行中 Agent job 的继续验收；
 - UI：减少默认工作台噪音，把内部验收模型移到折叠区域或开发者视图。
+  2026-08-05 Browser 验证 Coding 右栏开发者验收默认折叠，展开后四个快捷按钮在窄右栏不叠字。
 
 ## 几小时内的主闭环
 
