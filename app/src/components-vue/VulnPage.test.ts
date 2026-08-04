@@ -151,9 +151,12 @@ describe('VulnPage', () => {
     expect(host.textContent).not.toContain('同步 NVD')
     expect(host.textContent).not.toContain('同步 EPSS')
     expect(host.textContent).not.toContain('导入 Feed')
+    expect(host.textContent).toContain('当前下一步')
     await openIntelSettings(host)
 
     expect(host.textContent).toContain('情报源设置')
+    expect(host.textContent).not.toContain('当前下一步')
+    expect(host.textContent).toContain('同步当前 CVE')
     expect(host.textContent).toContain('同步 NVD')
     expect(host.textContent).toContain('同步 EPSS')
     expect(host.textContent).toContain('同步 KEV')
@@ -272,6 +275,59 @@ describe('VulnPage', () => {
     expect(host.textContent).toContain('来源证据')
     expect(host.textContent).toContain('FIRST EPSS · FIRST EPSS API')
     expect(host.textContent).toContain('feed-snapshots/first-epss')
+    expect(host.textContent).not.toContain('Judge verified')
+  })
+
+  it('keeps successful current-CVE intel when one public source times out', async () => {
+    const fetchNVDCVE = vi.fn(async () => {
+      throw new Error('NVD upstream timeout after 20s')
+    })
+    const fetchFIRSTEPSS = vi.fn(async () => ({
+      sourceName: 'FIRST EPSS',
+      sourceUrl: 'https://api.first.org/data/v1/epss?cve=CVE-2024-3400',
+      retrievedAt: '2026-08-04T08:00:00Z',
+      lastModified: '',
+      httpStatus: 200,
+      contentType: 'application/json',
+      snapshotPath: '/Users/example/Library/Application Support/MilkSU/vuln/feed-snapshots/first-epss/20260804T080000Z-efgh.json',
+      snapshotSha256: 'efgh'.repeat(16),
+      snapshotSizeBytes: 240,
+      body: JSON.stringify({
+        status: 'OK',
+        data: [{
+          cve: 'CVE-2024-3400',
+          epss: '0.932410000',
+          percentile: '0.997200000',
+          date: '2026-08-04',
+        }],
+      }),
+    }))
+    Object.defineProperty(window, 'go', {
+      configurable: true,
+      value: { main: { App: { FetchNVDCVE: fetchNVDCVE, FetchFIRSTEPSS: fetchFIRSTEPSS } } },
+    })
+    const host = await mountVulnPage()
+    await openIntelSettings(host)
+    const sync = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
+      item.getAttribute('aria-label') === '同步当前 CVE 的 NVD 和 FIRST EPSS',
+    )
+    if (!sync) throw new Error('missing current CVE intel sync button')
+
+    sync.click()
+    await flushAsyncUpdates()
+
+    expect(fetchNVDCVE).toHaveBeenCalledTimes(1)
+    expect(fetchFIRSTEPSS).toHaveBeenCalledTimes(1)
+    expect(host.textContent).toContain('当前 CVE 情报同步完成：1/2 个来源成功')
+    expect(host.textContent).toContain('NVD 同步失败：NVD upstream timeout after 20s')
+    expect(host.textContent).toContain('逐源同步结果')
+    expect(host.textContent).toContain('NVD')
+    expect(host.textContent).toContain('FIRST EPSS')
+    expect(host.textContent).toContain('失败')
+    expect(host.textContent).toContain('成功')
+    expect(host.textContent).toContain('来源证据')
+    expect(host.textContent).toContain('FIRST EPSS · FIRST EPSS API')
+    expect(host.textContent).toContain('93.2%')
     expect(host.textContent).not.toContain('Judge verified')
   })
 
@@ -674,7 +730,6 @@ describe('VulnPage', () => {
     await nextTick()
 
     expect(host.textContent).toContain('已导入 1 个本地练习环境匹配')
-    expect(host.textContent).toContain('2 匹配')
     expect(host.textContent).toContain('隔离练习环境已匹配')
     expect(host.textContent).toContain('Local PAN-OS lab plan')
     expect(host.textContent).toContain('pan-os/CVE-2024-3400')
@@ -700,8 +755,15 @@ describe('VulnPage', () => {
     await nextTick()
 
     expect(host.textContent).toContain('已撤销本次导入的 1 个本地练习环境匹配')
+    const closeAfterUndo = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
+      item.textContent?.includes('关闭'),
+    )
+    if (!closeAfterUndo) throw new Error('missing close settings after undo button')
+    closeAfterUndo.click()
+    await nextTick()
+
     expect(host.textContent).toContain('1 匹配')
-    expect(host.textContent).toContain('未匹配练习环境')
+    expect(host.textContent).toContain('暂未匹配到可直接练习的本地环境')
   })
 
   it('persists user-confirmed research notes for the selected CVE', async () => {
