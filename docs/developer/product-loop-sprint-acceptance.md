@@ -1355,3 +1355,34 @@
 - 原生 App 中真实选择外部 App 窗口、启动 Computer Use、观察/点击/输入并留下截图证据；
 - 多任务占用时释放/切换 Computer Use 会话的完整体验；
 - Computer Use 对任意外部 App 的定位质量；本次只改善入口和下一步可理解性。
+
+## 2026-08-04 · Git delivery next-step CTA
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | 本批次提交 |
+| 目标流 | Coding → Git 交付 → 直接看到当前交付下一步 |
+| 窄测 | `npm --prefix app test -- CodingChangesPanel.test.ts CodingProductLoopPanel.test.ts` |
+| 窄测结果 | 2 files / 30 tests passed |
+| 前端构建 | `npm --prefix app run build` |
+| 前端构建结果 | production build passed |
+| Lint | `npm --prefix app run lint` |
+| Lint 结果 | passed |
+| 渲染 fallback | 使用系统 Chrome 可执行文件 + Playwright headless，访问 `http://127.0.0.1:4202/` |
+| 渲染结果 | Coding → `Git 交付` 可见浏览器预览运行时边界、`下一步`、`打开桌面 App 验收 Git`、`重新读取 Git 状态`；页面标题 `MilkSU`；无 Vite/framework overlay；console warn/error 为空 |
+| 截图 | `/tmp/milksu-git-next-step-qa.png` |
+
+覆盖范围：
+
+- Git 交付面板在仓库状态可读时新增默认可见的“Git 交付下一步”卡；
+- 下一步由现有 Git 状态派生：冲突 → Agent 审阅；未暂存变更 → 全部暂存；已暂存但无提交说明 → 等待提交说明；ahead → 推送；干净同步 → 准备 PR；
+- 不自动提交空 message，不跳过 PR 一次性确认，不改变 Pull Request 只能发布到 MilkSU 私有仓库的边界；
+- 浏览器预览/非仓库状态也显示同一层级的下一步卡，明确真实 Diff/Hunk、stage、commit、push 和 PR 仍必须在 MilkSU 桌面 App 中验收；
+- 原有 Git 交付摘要、逐文件 Diff、逐 Hunk 操作、commit/push/PR 按钮保留。
+
+本次仍未证明：
+
+- 原生 App 中真实读取当前仓库 Diff、逐 Hunk 暂存/撤销/丢弃、commit 和 push；
+- 真实托管平台 Draft PR 准备、一次性确认、创建和读回验证；
+- Git 下一步卡在大型 dirty worktree、冲突、多 remote 和 detached HEAD 下的完整 UX；
+- 完整 MilkSU develops MilkSU 自举任务。

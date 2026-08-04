@@ -72,6 +72,8 @@ describe('CodingChangesPanel Pull Request confirmation', () => {
     expect(host.textContent).toContain('只能验证 Git 交付面板的文案和入口')
     expect(host.textContent).toContain('真实 Diff/Hunk、stage、commit、push 和 PR')
     expect(host.textContent).toContain('打包后的 MilkSU App')
+    expect(host.querySelector('[aria-label="Git 交付下一步"]')).not.toBeNull()
+    expect(host.textContent).toContain('打开桌面 App 验收 Git')
     expect(host.textContent).toContain('重新读取 Git 状态')
     expect(host.textContent).not.toContain('Git 交付摘要')
     expect(host.textContent).not.toContain('准备 PR')
@@ -91,6 +93,7 @@ describe('CodingChangesPanel Pull Request confirmation', () => {
 
     expect(host.textContent).toContain('当前目录不可交付')
     expect(host.textContent).toContain('当前目录不是 Git 仓库。')
+    expect(host.textContent).toContain('选择 Git 仓库')
     expect(host.textContent).not.toContain('浏览器预览不能读取 Git 状态')
   })
 
@@ -126,6 +129,65 @@ describe('CodingChangesPanel Pull Request confirmation', () => {
     expect(host.textContent).toContain('状态：提交待推送')
     expect(host.textContent).toContain('同步：ahead 2 / behind 0')
     expect(host.textContent).toContain('下一步：push 到授权远端')
+  })
+
+  it('surfaces the current Git delivery next step without expanding the summary', async () => {
+    const dirty = await mountChangesPanel(cleanEnvironment({
+      dirty: true,
+      changedFiles: 2,
+      modified: 2,
+      additions: 12,
+      deletions: 3,
+      changes: [
+        {
+          path: 'app/src/App.vue',
+          indexStatus: ' ',
+          worktreeStatus: 'M',
+          staged: false,
+          modified: true,
+          untracked: false,
+          conflict: false,
+        },
+      ],
+    }))
+
+    expect(dirty.querySelector('[aria-label="Git 交付下一步"]')).not.toBeNull()
+    expect(dirty.textContent).toContain('审阅 Diff 并暂存')
+    expect(dirty.textContent).toContain('2 个文件有变更')
+    expect(dirty.textContent).toContain('全部暂存')
+
+    const staged = await mountChangesPanel(cleanEnvironment({
+      dirty: true,
+      staged: 1,
+      changedFiles: 1,
+      additions: 4,
+      deletions: 1,
+      changes: [
+        {
+          path: 'docs/developer/product-loop-sprint.md',
+          indexStatus: 'M',
+          worktreeStatus: ' ',
+          staged: true,
+          modified: false,
+          untracked: false,
+          conflict: false,
+        },
+      ],
+    }))
+
+    expect(staged.textContent).toContain('提交已暂存变更')
+    expect(staged.textContent).toContain('请先填写提交说明')
+    expect(staged.textContent).toContain('等待提交说明')
+
+    const pushed = await mountChangesPanel(cleanEnvironment({ ahead: 2 }))
+    expect(pushed.textContent).toContain('推送当前分支')
+    expect(pushed.textContent).toContain('ahead 2')
+    expect(pushed.textContent).toContain('推送 2')
+
+    const clean = await mountChangesPanel(cleanEnvironment())
+    expect(clean.textContent).toContain('准备草稿 PR')
+    expect(clean.textContent).toContain('工作区干净且已同步')
+    expect(clean.textContent).toContain('一次性确认')
   })
 
   it('previews the immutable target before a separate publish call', async () => {

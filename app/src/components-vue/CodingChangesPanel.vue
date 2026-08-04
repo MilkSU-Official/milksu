@@ -109,6 +109,79 @@ const deliveryStateLabel = computed(() => {
   return '已收口'
 })
 
+const gitNextStep = computed<{
+  label: string
+  detail: string
+  action: 'review' | 'stage-all' | 'commit' | 'push' | 'prepare-pr' | 'none'
+  cta: string
+  disabled: boolean
+}>(() => {
+  const current = git.value
+  if (!current?.isRepository) {
+    return {
+      label: '选择 Git 仓库',
+      detail: current?.problem || '当前目录不是 Git 仓库，无法审阅 Diff、暂存、提交或推送。',
+      action: 'none',
+      cta: '不可交付',
+      disabled: true,
+    }
+  }
+  if (current.conflicts > 0) {
+    return {
+      label: '先处理冲突',
+      detail: `${current.conflicts} 个冲突文件需要人工或 Agent 审阅；不要直接提交。`,
+      action: 'review',
+      cta: 'Agent 审阅',
+      disabled: busy.value,
+    }
+  }
+  if (current.dirty && current.staged === 0) {
+    return {
+      label: '审阅 Diff 并暂存',
+      detail: `${current.changedFiles} 个文件有变更；先看 Diff，再暂存准备提交。`,
+      action: 'stage-all',
+      cta: '全部暂存',
+      disabled: busy.value || !current.changedFiles,
+    }
+  }
+  if (current.staged > 0) {
+    return {
+      label: '提交已暂存变更',
+      detail: commitMessage.value.trim()
+        ? `${current.staged} 个文件已暂存，将使用下方提交说明创建 commit。`
+        : `${current.staged} 个文件已暂存；请先填写提交说明。`,
+      action: 'commit',
+      cta: commitMessage.value.trim() ? '提交' : '等待提交说明',
+      disabled: busy.value || !commitMessage.value.trim(),
+    }
+  }
+  if (current.ahead > 0) {
+    return {
+      label: '推送当前分支',
+      detail: `${current.branch || '当前分支'} ahead ${current.ahead}；推送到授权远端后才能准备 PR。`,
+      action: 'push',
+      cta: `推送 ${current.ahead}`,
+      disabled: busy.value || !current.branch || current.branch === 'detached',
+    }
+  }
+  if (!current.upstream) {
+    return {
+      label: '设置上游后再 PR',
+      detail: '当前分支没有 upstream；先推送并设置授权远端，再准备 PR。',
+      action: 'push',
+      cta: '推送分支',
+      disabled: busy.value || !current.branch || current.branch === 'detached',
+    }
+  }
+  return {
+    label: '准备草稿 PR',
+    detail: '工作区干净且已同步；下一步是预览 MilkSU 私有仓库草稿 PR，并进行一次性确认。',
+    action: 'prepare-pr',
+    cta: '准备 PR',
+    disabled: busy.value || pullRequestLoading.value || !current.branch || current.branch === 'detached',
+  }
+})
+
 const deliverySummary = computed(() => {
   const current = git.value
   if (!current?.isRepository) {
@@ -146,6 +219,29 @@ async function copyDeliverySummary() {
     deliveryCopyNotice.value = '已复制'
   } catch {
     deliveryCopyNotice.value = '复制失败，请手动选择摘要'
+  }
+}
+
+async function runGitNextStep() {
+  if (gitNextStep.value.disabled) return
+  if (gitNextStep.value.action === 'review') {
+    emit('review')
+    return
+  }
+  if (gitNextStep.value.action === 'stage-all') {
+    await applyGitAction('stage-all')
+    return
+  }
+  if (gitNextStep.value.action === 'commit') {
+    await commitStagedChanges()
+    return
+  }
+  if (gitNextStep.value.action === 'push') {
+    await applyGitAction('push')
+    return
+  }
+  if (gitNextStep.value.action === 'prepare-pr') {
+    await preparePullRequest()
   }
 }
 
@@ -444,6 +540,29 @@ watch(changes, current => {
     </div>
 
     <template v-if="git?.isRepository">
+      <div class="border-b border-border bg-primary/5 px-4 py-3" aria-label="Git 交付下一步">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-caption font-medium text-muted-foreground">下一步</p>
+            <p class="mt-1 text-body font-medium">{{ gitNextStep.label }}</p>
+            <p class="mt-1 text-caption leading-5 text-muted-foreground">
+              {{ gitNextStep.detail }}
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            class="shrink-0"
+            :disabled="gitNextStep.disabled"
+            aria-label="执行 Git 交付下一步"
+            @click="runGitNextStep"
+          >
+            {{ gitNextStep.cta }}
+          </Button>
+        </div>
+      </div>
+
       <details class="border-b border-border bg-muted/20 px-4 py-3">
         <summary class="cursor-pointer text-caption font-medium text-muted-foreground">
           Git 交付摘要
@@ -680,6 +799,17 @@ watch(changes, current => {
           发布确认需要在打包后的 MilkSU App 中执行。
         </template>
       </p>
+      <div class="mt-4 w-full max-w-sm rounded-lg border border-primary/20 bg-primary/5 px-3 py-3 text-left" aria-label="Git 交付下一步">
+        <p class="text-caption font-medium text-muted-foreground">下一步</p>
+        <p class="mt-1 text-body font-medium">
+          {{ desktopRuntime ? '选择 Git 仓库' : '打开桌面 App 验收 Git' }}
+        </p>
+        <p class="mt-1 text-caption leading-5 text-muted-foreground">
+          {{ desktopRuntime
+            ? '选择一个 Git 仓库后，MilkSU 才能读取 Diff、暂存、提交、推送和 PR 状态。'
+            : '浏览器预览只能看入口；真实 Git 交付必须在打包后的 MilkSU App 中完成。' }}
+        </p>
+      </div>
       <Button
         type="button"
         variant="outline"
