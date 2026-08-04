@@ -1386,3 +1386,34 @@
 - 真实托管平台 Draft PR 准备、一次性确认、创建和读回验证；
 - Git 下一步卡在大型 dirty worktree、冲突、多 remote 和 detached HEAD 下的完整 UX；
 - 完整 MilkSU develops MilkSU 自举任务。
+
+## 2026-08-04 · Artifact preview next-step CTA
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | 本批次提交 |
+| 目标流 | Coding → 产物预览 → 直接看到如何形成用户可见证据 |
+| 窄测 | `npm --prefix app test -- CodingArtifactPreviewPanel.test.ts CodingProductLoopPanel.test.ts` |
+| 窄测结果 | 2 files / 24 tests passed |
+| 前端构建 | `npm --prefix app run build` |
+| 前端构建结果 | production build passed |
+| Lint | `npm --prefix app run lint` |
+| Lint 结果 | passed |
+| 渲染 fallback | 使用系统 Chrome 可执行文件 + Playwright headless，访问 `http://127.0.0.1:4203/` |
+| 渲染结果 | Coding → `产物预览` 可见 `下一步`、`打开桌面 App 验收产物`、桌面运行时边界提示；页面标题 `MilkSU`；无 Vite/framework overlay；console warn/error 为空 |
+| 截图 | `/tmp/milksu-artifact-next-step-qa.png` |
+
+覆盖范围：
+
+- 产物预览面板新增默认可见的“下一步”卡；
+- 浏览器预览态明确提示只能验证入口，真实 Markdown、HTML 和图片读取必须在 MilkSU 桌面运行时完成；
+- 有候选产物时下一步引导预览第一个安全候选；
+- 已打开预览后下一步说明可把当前 Markdown/HTML/图片作为用户可见证据，并提示如需真实交互再补 Browser 或 Computer Use；
+- 保留工作区相对路径校验、HTML 无脚本/无网络 sandbox、Provider Credential 文本脱敏和不伪造工作区文件内容的边界。
+
+本次仍未证明：
+
+- 原生 App 中真实读取 Markdown、HTML 和图片产物；
+- 原生 WebView 中 HTML sandbox/CSP 的负向验收；
+- 图片大文件、动图、长 Markdown 和复杂 HTML 的视觉 QA；
+- 完整 MilkSU develops MilkSU 自举任务。

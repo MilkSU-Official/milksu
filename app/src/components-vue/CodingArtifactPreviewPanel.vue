@@ -45,6 +45,43 @@ const htmlSource = computed(() => (
     ? buildArtifactHTMLDocument(redactPreviewText(preview.value.content ?? ''))
     : ''
 ))
+const artifactNextStep = computed<{
+  label: string
+  detail: string
+  cta: string
+  disabled: boolean
+}>(() => {
+  if (!desktopRuntime) {
+    return {
+      label: '打开桌面 App 验收产物',
+      detail: '浏览器预览只能验证入口；真实 Markdown、HTML 和图片读取必须在 MilkSU 桌面运行时完成。',
+      cta: '桌面 App 中验收',
+      disabled: true,
+    }
+  }
+  if (preview.value) {
+    return {
+      label: '把当前预览作为用户可见证据',
+      detail: `${artifactKindLabel(preview.value.kind)} · ${preview.value.relativePath} · ${formatBytes(preview.value.sizeBytes)}。如需真实交互，再补 Browser 或 Computer Use 证据。`,
+      cta: '重新预览',
+      disabled: loading.value,
+    }
+  }
+  if (suggestions.value.length) {
+    return {
+      label: '预览第一个候选产物',
+      detail: `${suggestions.value.length} 个可预览候选；先打开 ${suggestions.value[0]}，再决定是否需要 Browser/Computer Use。`,
+      cta: '预览候选',
+      disabled: loading.value,
+    }
+  }
+  return {
+    label: '输入产物相对路径',
+    detail: '支持工作区内 Markdown、HTML、PNG、JPEG、GIF 或 WebP；没有产物候选时请手动填路径。',
+    cta: '等待路径',
+    disabled: true,
+  }
+})
 
 function formatBytes(value: number): string {
   if (value < 1024) return `${value} B`
@@ -104,6 +141,16 @@ async function refresh() {
 function selectSuggestion(path: string) {
   relativePath.value = path
   void refresh()
+}
+
+function runArtifactNextStep() {
+  if (artifactNextStep.value.disabled) return
+  if (preview.value || relativePath.value.trim()) {
+    void refresh()
+    return
+  }
+  const first = suggestions.value[0]
+  if (first) selectSuggestion(first)
 }
 
 watch(
@@ -174,6 +221,28 @@ defineExpose({ refresh })
       >
         当前是浏览器预览，只能验证面板文案和入口；真实读取工作区产物需要 MilkSU 桌面运行时。
       </p>
+      <div class="mt-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-3" aria-label="产物预览下一步">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-caption font-medium text-muted-foreground">下一步</p>
+            <p class="mt-1 text-body font-medium">{{ artifactNextStep.label }}</p>
+            <p class="mt-1 text-caption leading-5 text-muted-foreground">
+              {{ artifactNextStep.detail }}
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            class="shrink-0"
+            :disabled="artifactNextStep.disabled"
+            aria-label="执行产物预览下一步"
+            @click="runArtifactNextStep"
+          >
+            {{ artifactNextStep.cta }}
+          </Button>
+        </div>
+      </div>
     </form>
 
     <p

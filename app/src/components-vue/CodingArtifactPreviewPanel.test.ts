@@ -114,6 +114,10 @@ describe('CodingArtifactPreviewPanel', () => {
     expect(text).toContain('site/index.html')
     expect(text).toContain('assets/result.png')
     expect(text).not.toContain('../outside.html')
+    expect(text).toContain('下一步')
+    expect(text).toContain('预览第一个候选产物')
+    expect(text).toContain('3 个可预览候选')
+    expect(text).toContain('预览候选')
     expect(text).toContain('HTML 会移除活动内容')
     expect(text).toContain('无脚本、无网络')
 
@@ -133,6 +137,8 @@ describe('CodingArtifactPreviewPanel', () => {
     expect(host.textContent).toContain('site/index.html')
     expect(host.textContent).toContain('HTML')
     expect(host.textContent).toContain('2.0 KiB')
+    expect(host.textContent).toContain('把当前预览作为用户可见证据')
+    expect(host.textContent).toContain('如需真实交互，再补 Browser 或 Computer Use 证据')
     const iframe = host.querySelector<HTMLIFrameElement>(
       'iframe[title="Coding HTML 产物预览"]',
     )
@@ -232,6 +238,8 @@ describe('CodingArtifactPreviewPanel', () => {
 
     expect(host.textContent).toContain('当前是浏览器预览')
     expect(host.textContent).toContain('真实读取工作区产物需要 MilkSU 桌面运行时')
+    expect(host.textContent).toContain('打开桌面 App 验收产物')
+    expect(host.textContent).toContain('桌面 App 中验收')
 
     const markdownSuggestion = [...host.querySelectorAll<HTMLButtonElement>('button')]
       .find(button => button.textContent?.includes('docs/report.md'))
