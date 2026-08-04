@@ -1257,3 +1257,34 @@
 - 原生 App 中绑定真实工作区后，短列表的真实状态与右侧面板完全同步；
 - 短列表已经覆盖所有未来 Coding 能力项；
 - 这等同于完整 MilkSU develops MilkSU Gate；它只是让下一步缺口更可见。
+
+## 2026-08-04 · Root navigation contract and latest M3 App build
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | 本批次提交 |
+| 目标流 | CTF / CVE / Coding 一级菜单和 CTF 解题会话 → 顶部标题走同一共享组件 |
+| 初次完整门禁 | `npm run m3:release-check` |
+| 初次结果 | 失败于 `TestPrimaryNavigationUsesConciseProductNames`，原因是根 Go 契约仍查找旧 `<WorkspaceTopBar` 标记 |
+| 修正 | 根契约改为要求 CTF、CVE、Coding 和 CTF 解题头部都 import/render `WorkspaceModuleTopBar`，标题由共享 module label 表和 `WorkspaceTopBarTitle` 输出 |
+| 窄测 | `go test .` |
+| 窄测结果 | passed |
+| 完整门禁 | `npm run m3:release-check` |
+| 完整门禁结果 | 通过，输出 `M3 engineering release checks passed.` |
+| 本地 App | `/Users/milksu/code/milksu/build/bin/MilkSU.app` |
+| 生成入口 | Wails build 输出 `Built '/Users/milksu/code/milksu/build/bin/MilkSU.app/Contents/MacOS/MilkSU' in 21.855s.` |
+
+覆盖范围：
+
+- 根 Go 契约现在不再只靠页面局部字符串判断，而是锁定 `WorkspaceModuleTopBar` 作为 CTF、CVE、Coding 的模块顶栏入口；
+- `WorkspaceModuleTopBar` 统一输出 `Coding`、`CTF`、`CVE` 三个一级标题；
+- `WorkspaceTopBarTitle` 继续作为唯一顶栏标题节点，暴露 `data-workspace-topbar-title`；
+- 顶栏标题字号继续由 `--module-topbar-title-size` 控制，顶栏 actions / filters 里的 `sm` 控件继续由同一 TopBar CSS 收敛；
+- 最新 HEAD 已重新生成本地 `MilkSU.app`。
+
+本次仍未证明：
+
+- 用户在原生 App 中真实点击 CTF → CVE → CTF 后，CTF 解题会话、题库筛选和滚动位置都符合预期；
+- 用户在原生 App 中真实点击 CTF → CVE → Coding 后，Coding 会话排序、回到底部和来源返回入口都符合预期；
+- 三个模块所有深层卡片、表格、Tabs、Textarea、下拉菜单和按钮已经完成完整视觉系统收敛；
+- 外部 App Computer Use、CVE 真实情报源、Vulhub/Docker 练习启动、Git stage/commit/push 和完整 MilkSU 自举任务。

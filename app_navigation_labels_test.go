@@ -13,8 +13,12 @@ func TestPrimaryNavigationUsesConciseProductNames(t *testing.T) {
 		"app/src/components-vue/ContextSidebar.vue",
 		"app/src/lib/workspaceNavigation.ts",
 		"app/src/components-vue/CTFPage.vue",
+		"app/src/components-vue/CTFWorkspaceHeader.vue",
 		"app/src/components-vue/ChatPage.vue",
 		"app/src/components-vue/VulnPage.vue",
+		"app/src/components-vue/WorkspaceModuleTopBar.vue",
+		"app/src/components-vue/WorkspaceTopBar.vue",
+		"app/src/components-vue/WorkspaceTopBarTitle.vue",
 		"app/src/lib/chatTopbar.ts",
 	}
 	var source strings.Builder
@@ -30,13 +34,36 @@ func TestPrimaryNavigationUsesConciseProductNames(t *testing.T) {
 		"label: 'CTF'",
 		"label: 'Coding'",
 		"label: 'CVE'",
-		`<WorkspaceTopBar`,
-		`title="CTF"`,
+		`<WorkspaceModuleTopBar`,
+		`coding: 'Coding'`,
+		`ctf: 'CTF'`,
+		`cve: 'CVE'`,
+		`data-workspace-topbar-title`,
+		`font-size: var(--module-topbar-title-size)`,
 		`title: 'Coding'`,
-		`title="CVE"`,
 	} {
 		if !strings.Contains(content, fragment) {
 			t.Fatalf("primary navigation does not expose %q", fragment)
+		}
+	}
+	for _, page := range []string{
+		"app/src/components-vue/CTFPage.vue",
+		"app/src/components-vue/CTFWorkspaceHeader.vue",
+		"app/src/components-vue/ChatPage.vue",
+		"app/src/components-vue/VulnPage.vue",
+	} {
+		data, err := os.ReadFile(page)
+		if err != nil {
+			t.Fatal(err)
+		}
+		pageSource := string(data)
+		for _, fragment := range []string{
+			`import WorkspaceModuleTopBar`,
+			`<WorkspaceModuleTopBar`,
+		} {
+			if !strings.Contains(pageSource, fragment) {
+				t.Fatalf("%s does not render the shared module top bar: %q", page, fragment)
+			}
 		}
 	}
 	for _, obsolete := range []string{
