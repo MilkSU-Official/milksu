@@ -98,6 +98,12 @@ const signingDiagnostic = computed(() => {
   }
   return `${signingIdentityLabel.value}；${signing.problem || 'macOS 可能无法稳定复用辅助功能/屏幕录制授权。'}`
 })
+const signingUnstable = computed(() => Boolean(
+  signingStatus.value && !signingStatus.value.stableIdentity,
+))
+const permissionProbeMayBeStale = computed(() => Boolean(
+  signingUnstable.value && !permissionsReady.value,
+))
 const readyForCurrentTask = computed(() => Boolean(
   props.status?.enabled
   && props.ownedByCurrentTask,
@@ -208,6 +214,9 @@ const guidance = computed(() => {
   }
   if (missingPermissions.value.length) {
     const signingHint = signingDiagnostic.value || '开发期 ad-hoc 重签后，macOS 可能显示 MilkSU 已勾选但探针仍返回未授权；请使用稳定 Apple 签名后重新检测。'
+    if (permissionProbeMayBeStale.value) {
+      return `${missingPermissions.value.join('、')} 缺少或尚未对当前构建生效；“App 管理”不能替代这两项。${signingHint} 如果系统设置里已经勾选 MilkSU，不要反复授权；请先退出并重新打开当前 App，或换用 Developer ID 签名版后再重新检测。首次授权时再打开系统权限设置。`
+    }
     return `${missingPermissions.value.join('、')} 缺少或尚未对当前构建生效；“App 管理”不能替代这两项。${signingHint}`
   }
   if (attachedToOtherTask.value) {
@@ -255,6 +264,15 @@ const primarySetupAction = computed<{
     }
   }
   if (!permissionsReady.value) {
+    if (permissionProbeMayBeStale.value) {
+      return {
+        label: '重新检测当前构建',
+        detail: `${missingPermissions.value.join('、') || '系统权限'} 未对当前构建生效；${signingDiagnostic.value || '当前构建身份不稳定。'} 如果系统设置已勾选，不要重复打开授权，请先重启当前 App 或使用 Developer ID 签名版后再检测。首次授权可用下方“打开系统权限设置”。`,
+        action: 'refresh',
+        variant: 'outline',
+        disabled: props.loading || props.running,
+      }
+    }
     return {
       label: '打开系统权限设置',
       detail: `${missingPermissions.value.join('、') || '系统权限'} 缺少或未对当前构建生效；${signingDiagnostic.value || '打开设置页核对后回到这里重新检测。'}`,
@@ -504,7 +522,7 @@ function runPrimarySetupAction() {
       >
         <LoaderCircle v-if="loading" class="size-3.5 animate-spin" />
         <KeyRound v-else class="size-3.5" />
-        请求系统权限
+        打开系统权限设置
       </Button>
       <Button
         v-if="ownedByCurrentTask"

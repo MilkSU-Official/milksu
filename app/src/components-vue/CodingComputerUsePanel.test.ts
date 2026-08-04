@@ -318,7 +318,7 @@ describe('CodingComputerUsePanel', () => {
     )
     expect(missingStart?.disabled).toBe(true)
     const request = [...missing.host.querySelectorAll<HTMLButtonElement>('button')].find(
-      button => button.textContent?.includes('请求系统权限'),
+      button => button.textContent?.includes('打开系统权限设置'),
     )
     expect(request?.disabled).toBe(false)
     request?.click()
@@ -346,7 +346,7 @@ describe('CodingComputerUsePanel', () => {
     expect(unavailable.host.textContent).toContain('Computer Use 当前仅支持 macOS。')
     expect(unavailable.host.textContent).toContain('重新检测 Computer Use')
     const unavailableRequest = [...unavailable.host.querySelectorAll<HTMLButtonElement>('button')].find(
-      button => button.textContent?.includes('请求系统权限'),
+      button => button.textContent?.includes('打开系统权限设置'),
     )
     expect(unavailableRequest?.disabled).toBe(true)
     unavailableRequest?.click()
@@ -377,5 +377,43 @@ describe('CodingComputerUsePanel', () => {
     expect(text).toContain('Developer ID')
     expect(text).toContain('TCC 探针')
     expect(text).toContain('系统设置里显示已勾选')
+  })
+
+  it('does not make repeated macOS permission approval the primary action for unstable ad-hoc builds', async () => {
+    const { host, onRefresh, onRequestPermissions } = await mountPanel({
+      status: status({
+        permissions: {
+          accessibility: false,
+          screenRecording: false,
+        },
+        signing: {
+          bundleId: 'com.milksu.app',
+          executablePath: '/Applications/MilkSU.app',
+          signature: 'adhoc',
+          teamIdentifier: 'not set',
+          stableIdentity: false,
+          problem: '当前构建不是稳定 Developer ID 签名；系统设置里显示已勾选时，TCC 探针仍可能对当前二进制返回未授权。',
+        },
+      }),
+    })
+    const text = host.textContent ?? ''
+
+    expect(text).toContain('重新检测当前构建')
+    expect(text).toContain('不要反复授权')
+    expect(text).toContain('重启当前 App')
+    expect(text).toContain('Developer ID 签名版')
+    expect(text).toContain('首次授权可用下方“打开系统权限设置”')
+
+    const primary = host.querySelector<HTMLButtonElement>('button[aria-label="执行 Computer Use 下一步"]')
+    expect(primary?.textContent).toContain('重新检测当前构建')
+    primary?.click()
+    await nextTick()
+    expect(onRefresh).toHaveBeenCalledOnce()
+    expect(onRequestPermissions).not.toHaveBeenCalled()
+
+    const secondaryPermissionAction = [...host.querySelectorAll<HTMLButtonElement>('button')].find(
+      button => button.textContent?.includes('打开系统权限设置'),
+    )
+    expect(secondaryPermissionAction?.disabled).toBe(false)
   })
 })
