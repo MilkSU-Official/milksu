@@ -1087,3 +1087,30 @@
 - 真实打包 App 中三个菜单截图的像素级对齐；
 - 顶栏以外的统计卡、表格、Tab、Textarea 和深层按钮已完全统一；
 - 不同窗口宽度下 CTF/CVE/Coding 顶栏动作区的换行和焦点顺序已经完成视觉 QA。
+
+## 2026-08-04 · CVE local JSON intel import
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | 本批次提交 |
+| 目标流 | CVE → 导入 JSON → 粘贴本地 CVE 情报样本 → 成为可见追踪条目 |
+| 窄测 | `npm --prefix app test -- VulnPage.test.ts useVulnerabilityDashboard.test.ts WorkspaceTopBar.test.ts` |
+| 窄测结果 | 3 files / 24 tests passed |
+| 前端构建 | `npm --prefix app run build` |
+| 构建结果 | production build passed |
+| Browser 验证 | Vite preview `http://127.0.0.1:4195/`；进入 CVE，点击 `导入 JSON`，粘贴本地 JSON，导入后追踪条目从 7 变 8，`CVE-2026-55555` 和标题可见，console 无 warn/error |
+
+覆盖范围：
+
+- CVE 顶栏新增 `导入 JSON`，让用户能把本地整理的 CVE 情报样本直接变成追踪条目；
+- 支持粘贴对象、数组，或包含 `items` / `vulnerabilities` / `cves` / `results` 的对象；
+- 支持常见字段 `id` / `cveId` / `cve`、`title`、`vendor`、`product`、`affected`、`summary/details` 和 `references.href/url`；
+- 重复 CVE 会跳过并保留现有记录，格式错误会给出本地错误，不会把失败样本写入状态；
+- 导入后仍显示 `尚未复核` 和 `刷新不会联网拉取 Feed`，避免把本地粘贴误呈现为实时 Feed 同步。
+
+本次仍未证明：
+
+- 真实 NVD、CISA KEV、EPSS、OSV、GitHub Advisory 或 Vulhub catalog 的联网导入、缓存和 digest；
+- 大文件导入、字段冲突合并、导入预览/撤销和差异视图；
+- 原生 App 内从文件选择器导入 JSON/CSV；
+- 任何 Docker/Compose 练习环境启动或真实资产验证。

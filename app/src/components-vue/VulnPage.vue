@@ -78,6 +78,10 @@ const researchSteps = [
 
 const showCustomForm = ref(false)
 const customFormError = ref('')
+const showImportForm = ref(false)
+const importText = ref('')
+const importNotice = ref('')
+const importError = ref('')
 const showAssetForm = ref(false)
 const assetFormError = ref('')
 const feedImportCopyNotice = ref('')
@@ -130,6 +134,21 @@ function addSelectedAssetRecord() {
   } catch (cause) {
     assetFormError.value = cause instanceof Error ? cause.message : String(cause)
   }
+}
+
+function importLocalIntelJSON() {
+  importError.value = ''
+  importNotice.value = ''
+  const result = dashboard.importTrackingJSON(importText.value)
+  if (result.errors.length && !result.imported) {
+    importError.value = result.errors.join('；')
+    return
+  }
+  importNotice.value = `已导入 ${result.imported} 条本地 CVE 追踪`
+    + (result.skipped ? `，跳过 ${result.skipped} 条已存在记录` : '')
+    + (result.errors.length ? `；${result.errors.length} 条格式需人工处理` : '')
+  importText.value = ''
+  showImportForm.value = false
 }
 
 function startSelectedCodingTask(task: VulnerabilityCodingTask) {
@@ -231,6 +250,14 @@ function statusVariant(status: VulnerabilityStatus) {
         >
           <Plus class="size-4" />
           新增追踪
+        </Button>
+        <Button
+          :variant="showImportForm ? 'outline' : 'ghost'"
+          size="sm"
+          @click="showImportForm = !showImportForm"
+        >
+          <ClipboardList class="size-4" />
+          导入 JSON
         </Button>
         <Button
           :variant="dashboard.watchOnly.value ? 'outline' : 'ghost'"
@@ -351,6 +378,42 @@ function statusVariant(status: VulnerabilityStatus) {
               加入追踪
             </Button>
             <Button type="button" variant="ghost" size="sm" @click="showCustomForm = false">
+              取消
+            </Button>
+          </div>
+        </form>
+        <form
+          v-if="showImportForm"
+          class="border-b border-border bg-card/70 px-6 py-5"
+          aria-label="导入本地 CVE JSON"
+          @submit.prevent="importLocalIntelJSON"
+        >
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <h2 class="text-label font-medium">导入本地 CVE JSON</h2>
+              <p class="mt-1 text-caption leading-5 text-muted-foreground">
+                粘贴 NVD/OSV/GHSA 摘要或你整理的数组；只解析成本机追踪项，不联网同步、不启动 Docker、不运行 PoC。
+              </p>
+            </div>
+            <Badge variant="outline">只读导入</Badge>
+          </div>
+          <Textarea
+            v-model="importText"
+            class="mt-4 min-h-32 font-mono text-caption"
+            aria-label="本地 CVE JSON"
+            placeholder='[{"id":"CVE-2026-42424","title":"Example issue","vendor":"Example","product":"demo","affected":"1.x","summary":"本地学习追踪摘要","references":[{"label":"Advisory","href":"https://example.test/advisory"}]}]'
+          />
+          <p class="mt-2 text-caption leading-5 text-muted-foreground">
+            支持对象、数组，或包含 items / vulnerabilities / cves / results 的对象；重复 CVE 会跳过并保留现有记录。
+          </p>
+          <p v-if="importError" class="mt-3 text-caption text-destructive">{{ importError }}</p>
+          <p v-if="importNotice" class="mt-3 text-caption text-primary">{{ importNotice }}</p>
+          <div class="mt-4 flex items-center gap-2">
+            <Button type="submit" size="sm">
+              <ClipboardList class="size-4" />
+              导入为本地追踪
+            </Button>
+            <Button type="button" variant="ghost" size="sm" @click="showImportForm = false">
               取消
             </Button>
           </div>

@@ -88,6 +88,7 @@ describe('VulnPage', () => {
 
     expect(text).toContain('CVE')
     expect(text).toContain('追踪 CVE、资产命中与研究进度')
+    expect(text).toContain('导入 JSON')
     expect(host.querySelector('[data-module-topbar]')).not.toBeNull()
     expect(host.querySelector('[data-module-topbar]')?.getAttribute('data-workspace-module')).toBe('cve')
     expect(host.querySelector('[data-workspace-topbar-title]')?.className).toContain('workspace-topbar__title')
@@ -326,6 +327,49 @@ describe('VulnPage', () => {
     expect(host.textContent).toContain('CVE-2026-42424')
     expect(host.textContent).toContain('本地测试 CVE 学习追踪')
     expect(host.textContent).toContain('MilkSU')
+  })
+
+  it('imports pasted local CVE JSON into visible tracking rows without syncing live feeds', async () => {
+    const host = await mountVulnPage()
+    const openImport = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
+      item.textContent?.includes('导入 JSON'),
+    )
+    if (!openImport) throw new Error('missing import button')
+    openImport.click()
+    await nextTick()
+
+    expect(host.textContent).toContain('导入本地 CVE JSON')
+    expect(host.textContent).toContain('不联网同步、不启动 Docker、不运行 PoC')
+
+    const input = host.querySelector<HTMLTextAreaElement>('textarea[aria-label="本地 CVE JSON"]')
+    if (!input) throw new Error('missing local CVE JSON textarea')
+    await setInput(input, JSON.stringify({
+      items: [
+        {
+          cveId: 'CVE-2026-42424',
+          title: '用户导入的依赖风险',
+          vendor: 'MilkSU',
+          product: 'sidecar fixture',
+          affected: 'pre-release',
+          details: '本地样本，只用于学习追踪。',
+          references: [{ href: 'https://example.test/local-cve' }],
+        },
+      ],
+    }))
+
+    const submit = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
+      item.textContent?.includes('导入为本地追踪'),
+    )
+    if (!submit) throw new Error('missing import submit')
+    submit.click()
+    await nextTick()
+
+    expect(host.textContent).toContain('8')
+    expect(host.textContent).toContain('CVE-2026-42424')
+    expect(host.textContent).toContain('用户导入的依赖风险')
+    expect(host.textContent).toContain('本地样本，只用于学习追踪。')
+    expect(host.textContent).toContain('尚未复核')
+    expect(host.textContent).toContain('刷新不会联网拉取 Feed')
   })
 
   it('persists user-confirmed research notes for the selected CVE', async () => {
