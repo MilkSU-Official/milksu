@@ -358,14 +358,72 @@ describe('VulnPage', () => {
         }],
       }),
     }))
+    const fetchCISAKEVFeed = vi.fn(async () => ({
+      sourceName: 'CISA KEV',
+      sourceUrl: 'https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json',
+      retrievedAt: '2026-08-04T08:01:00Z',
+      lastModified: '2026-08-04T08:01:00Z',
+      httpStatus: 200,
+      contentType: 'application/json',
+      snapshotPath: '/Users/example/Library/Application Support/MilkSU/vuln/feed-snapshots/cisa-kev/20260804T080100Z-kev.json',
+      snapshotSha256: 'abcd'.repeat(16),
+      snapshotSizeBytes: 512,
+      body: JSON.stringify({
+        title: 'CISA Known Exploited Vulnerabilities Catalog',
+        vulnerabilities: [{
+          cveID: 'CVE-2024-3400',
+          vendorProject: 'Palo Alto Networks',
+          product: 'PAN-OS',
+          vulnerabilityName: 'PAN-OS GlobalProtect Command Injection',
+          dateAdded: '2024-04-12',
+          shortDescription: 'Command injection vulnerability in PAN-OS GlobalProtect.',
+          dueDate: '2024-04-19',
+          knownRansomwareCampaignUse: 'Known',
+        }],
+      }),
+    }))
+    const fetchVulhubPracticeCatalog = vi.fn(async () => ({
+      sourceName: 'Vulhub Practice Catalog',
+      sourceUrl: 'https://github.com/vulhub/vulhub',
+      retrievedAt: '2026-08-04T08:02:00Z',
+      lastModified: '2026-08-04T08:02:00Z',
+      httpStatus: 200,
+      contentType: 'application/json',
+      snapshotPath: '/Users/example/Library/Application Support/MilkSU/vuln/feed-snapshots/vulhub-practice-catalog/20260804T080200Z-vulhub.json',
+      snapshotSha256: 'dcba'.repeat(16),
+      snapshotSizeBytes: 640,
+      body: JSON.stringify({
+        sourceName: 'Vulhub Practice Catalog',
+        items: [{
+          cveId: 'CVE-2024-3400',
+          title: 'Vulhub · pan-os · CVE-2024-3400 Docker Compose',
+          directory: 'pan-os/CVE-2024-3400',
+          sourceLabel: 'vulhub/pan-os/CVE-2024-3400',
+          sourceHref: 'https://github.com/vulhub/vulhub/tree/abc123/pan-os/CVE-2024-3400',
+          revision: 'vulhub/vulhub master abc123 · GitHub tree tree-sha',
+          ports: ['待确认端口（需读取 docker-compose.yml）'],
+          network: '默认仅允许本机 loopback。',
+          safety: ['只读 catalog 同步只绑定目录，不启动容器。'],
+        }],
+      }),
+    }))
     Object.defineProperty(window, 'go', {
       configurable: true,
-      value: { main: { App: { FetchNVDCVE: fetchNVDCVE, FetchFIRSTEPSS: fetchFIRSTEPSS } } },
+      value: {
+        main: {
+          App: {
+            FetchNVDCVE: fetchNVDCVE,
+            FetchFIRSTEPSS: fetchFIRSTEPSS,
+            FetchCISAKEVFeed: fetchCISAKEVFeed,
+            FetchVulhubPracticeCatalog: fetchVulhubPracticeCatalog,
+          },
+        },
+      },
     })
     const host = await mountVulnPage()
     await openIntelSettings(host)
     const sync = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
-      item.getAttribute('aria-label') === '同步当前 CVE 的 NVD 和 FIRST EPSS',
+      item.getAttribute('aria-label') === '同步当前 CVE 的 NVD、FIRST EPSS、CISA KEV 和 Vulhub',
     )
     if (!sync) throw new Error('missing current CVE intel sync button')
 
@@ -374,15 +432,20 @@ describe('VulnPage', () => {
 
     expect(fetchNVDCVE).toHaveBeenCalledTimes(1)
     expect(fetchFIRSTEPSS).toHaveBeenCalledTimes(1)
-    expect(host.textContent).toContain('当前 CVE 情报同步完成：1/2 个来源成功')
+    expect(fetchCISAKEVFeed).toHaveBeenCalledTimes(1)
+    expect(fetchVulhubPracticeCatalog).toHaveBeenCalledTimes(1)
+    expect(host.textContent).toContain('当前 CVE 情报矩阵同步完成：3/4 个来源成功')
     expect(host.textContent).toContain('NVD 同步失败：NVD upstream timeout after 20s')
     expect(host.textContent).toContain('逐源同步结果')
     expect(host.textContent).toContain('NVD')
     expect(host.textContent).toContain('FIRST EPSS')
+    expect(host.textContent).toContain('CISA KEV')
+    expect(host.textContent).toContain('Vulhub')
     expect(host.textContent).toContain('失败')
     expect(host.textContent).toContain('成功')
     expect(host.textContent).toContain('来源证据')
     expect(host.textContent).toContain('FIRST EPSS · FIRST EPSS API')
+    expect(host.textContent).toContain('当前 CVE 已匹配 pan-os/CVE-2024-3400')
     expect(host.textContent).toContain('93.2%')
     expect(host.textContent).not.toContain('Judge verified')
   })

@@ -111,8 +111,9 @@
    持久化 snapshot，并提取来源时间与选中 CVE facts；同日 packaged CVE feed matrix smoke
    已证明打包 App 进程能为 `CVE-2023-46604` 同步 NVD、FIRST EPSS、CISA KEV 和 Vulhub
    练习目录，保留四份来源 snapshot，并匹配到 `activemq/CVE-2023-46604`。后续不再把 CVE
-   说成只有 mock 数据或只有单 NVD；仍未完成 Docker 练习环境启动/停止、完整研究结果回写
-   和资产验证。
+   说成只有 mock 数据或只有单 NVD；CVE 设置页主同步入口已升级为 NVD、FIRST EPSS、CISA KEV
+   和 Vulhub 四源矩阵，并保留逐源成功/失败状态。仍未完成 Docker 练习环境启动/停止、完整
+   研究结果回写和资产验证。
 3. **P0 · 长时间自主开发。** 打包 MilkSU 在“替我审批”或“完全访问”下持续完成真实功能，
    自动构建、测试、预览、恢复和交付，普通已授权操作不以无意义审批反复打断用户。
    Computer Use 必须能由用户选择一个当前可见的外部 App / 窗口作为不可变 Scope，并让
