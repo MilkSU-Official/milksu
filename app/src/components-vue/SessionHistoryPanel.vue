@@ -3,7 +3,9 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { Badge, Button, Input } from '@felinic/ui'
 import { History, LoaderCircle, RefreshCw, Search } from 'lucide-vue-next'
 import { hasDesktopRuntime, invokeCommand } from '@/desktop'
+import { redactProviderCredentials } from '@/lib/redaction'
 import type {
+  SessionHistorySearchResult,
   SessionHistorySearchResponse,
   SessionIndexRefreshResult,
   SessionIndexStatus,
@@ -15,10 +17,16 @@ const props = withDefaults(defineProps<{
   module: 'coding' | 'ctf' | 'cve'
   defaultQuery?: string
   compact?: boolean
+  confirmActionLabel?: string
 }>(), {
   defaultQuery: '',
   compact: false,
+  confirmActionLabel: '',
 })
+
+const emit = defineEmits<{
+  confirmResult: [result: SessionHistorySearchResult]
+}>()
 
 const desktopRuntime = hasDesktopRuntime()
 const query = ref('')
@@ -53,6 +61,10 @@ function sourceLabel(source = '') {
   if (source === 'milksu-coding') return 'Coding'
   if (source === 'milksu') return 'MilkSU'
   return source || '历史'
+}
+
+function redacted(value?: string) {
+  return redactProviderCredentials(value || '')
 }
 
 function formatTime(value?: string) {
@@ -205,18 +217,28 @@ defineExpose({
         <div class="flex min-w-0 items-center gap-2">
           <Badge variant="secondary">{{ sourceLabel(result.source) }}</Badge>
           <p class="min-w-0 flex-1 truncate text-body font-medium">
-            {{ result.sessionName }}
+            {{ redacted(result.sessionName) }}
           </p>
           <span class="shrink-0 text-caption text-muted-foreground">
             {{ formatTime(result.timestamp) }}
           </span>
         </div>
         <p class="mt-2 line-clamp-4 text-caption leading-5 text-muted-foreground">
-          {{ result.snippet }}
+          {{ redacted(result.snippet) }}
         </p>
         <p v-if="result.skill" class="mt-2 truncate font-mono text-caption text-muted-foreground">
-          {{ result.skill }}
+          {{ redacted(result.skill) }}
         </p>
+        <div v-if="confirmActionLabel" class="mt-3 flex justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            @click="emit('confirmResult', result)"
+          >
+            {{ confirmActionLabel }}
+          </Button>
+        </div>
       </article>
     </div>
 

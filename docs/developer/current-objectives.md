@@ -99,7 +99,9 @@
    相关历史能力接进来，再继续其他目标。MilkSU 必须自己初始化和维护本地 session-index，
    不要求用户安装 Obelisk，不默认读取 `~/.obelisk`。首个闭环是：索引一条真实 MilkSU
    会话或工具事件 → App/Wails 可查询状态和结果 → 前端共享入口展示相关历史 → 搜索结果脱敏
-   → 用户确认后才能沉淀为 MilkSU Memory、CVE Note 或 Coding Handoff。
+   → 用户确认后才能沉淀为 MilkSU Memory、CVE Note 或 Coding Handoff。2026-08-05 已补
+   CVE 页面“相关历史 → 记入笔记”的显式确认路径；剩余沉淀路径优先做 Coding Handoff 和
+   CTF Memory。
 2. **P0 · 当前冲刺：完整产品闭环。** Session Index 首轮闭环通过后，继续让 MilkSU 像裸
    Pi Agent 一样顺滑完成一个真实产品任务，并在 MilkSU 自己的产品壳里走完修改、测试、
    预览/验证、恢复和 Git 交付。详见 [产品闭环冲刺](./product-loop-sprint.md)。

@@ -90,6 +90,60 @@ async function flushAsyncUpdates() {
   }
 }
 
+function installSessionHistoryRuntime() {
+  const status = {
+    available: true,
+    mode: 'milksu-obelisk-core',
+    indexPath: '/tmp/milksu/session-index/obelisk.sqlite',
+    checkedAt: '2026-08-05T02:45:00Z',
+    readOnly: true,
+    sessionCount: 1,
+    messageCount: 1,
+    toolCallCount: 1,
+    memoryCount: 0,
+    sources: [{ source: 'milksu-cve', count: 1 }],
+  }
+  ;(window as unknown as {
+    go?: {
+      main?: {
+        App?: {
+          GetSessionIndexStatus: () => Promise<typeof status>
+          SearchSessionHistory: (request: unknown) => Promise<unknown>
+          RefreshSessionIndex: () => Promise<unknown>
+        }
+      }
+    }
+  }).go = {
+    main: {
+      App: {
+        GetSessionIndexStatus: vi.fn(async () => status),
+        SearchSessionHistory: vi.fn(async request => ({
+          query: (request as { query?: string }).query ?? '',
+          searchedAt: '2026-08-05T02:46:00Z',
+          status,
+          results: [{
+            messageUuid: 'milksu:cve-history:assistant-1',
+            sessionId: 'milksu:cve-history',
+            sessionName: 'CVE-2024-3400 研究回顾',
+            source: 'milksu-cve',
+            timestamp: '2026-08-05T02:40:00Z',
+            snippet: 'NVD 同步后确认 CVSS 10.0；OPENAI_API_KEY=sk-history-secret12345',
+            skill: 'fetch_nvd_cve',
+          }],
+        })),
+        RefreshSessionIndex: vi.fn(async () => ({
+          indexedAt: '2026-08-05T02:46:00Z',
+          indexPath: status.indexPath,
+          source: 'milksu',
+          sessionCount: 1,
+          messageCount: 1,
+          toolCallCount: 1,
+        })),
+      },
+    },
+  }
+}
+
 async function openIntelSettings(host: HTMLElement) {
   const settings = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
     item.getAttribute('aria-label') === '打开设置',
@@ -788,6 +842,36 @@ describe('VulnPage', () => {
     const textareas = [...remounted.querySelectorAll<HTMLTextAreaElement>('textarea')]
     expect(textareas.some(item => item.value.includes('只读版本检查'))).toBe(true)
     expect(textareas.some(item => item.value.includes('暂不运行 PoC'))).toBe(true)
+  })
+
+  it('records a user-confirmed related-history result into the current CVE note', async () => {
+    installSessionHistoryRuntime()
+    const host = await mountVulnPage()
+    await flushAsyncUpdates()
+
+    expect(host.textContent).toContain('CVE-2024-3400 研究回顾')
+    expect(host.textContent).toContain('OPENAI_API_KEY=[credential redacted]')
+    expect(host.textContent).not.toContain('sk-history-secret12345')
+
+    const beforeTextareas = [...host.querySelectorAll<HTMLTextAreaElement>('textarea')]
+    expect(beforeTextareas.some(item => item.value.includes('相关历史（用户确认）'))).toBe(false)
+
+    const record = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
+      item.textContent?.includes('记入笔记'),
+    )
+    if (!record) throw new Error('missing related-history note action')
+    record.click()
+    await nextTick()
+
+    expect(host.textContent).toContain('已记入当前 CVE 笔记')
+    const afterTextareas = [...host.querySelectorAll<HTMLTextAreaElement>('textarea')]
+    const noteValues = afterTextareas.map(item => item.value).join('\n')
+    expect(noteValues).toContain('相关历史（用户确认）')
+    expect(noteValues).toContain('会话：CVE-2024-3400 研究回顾')
+    expect(noteValues).toContain('来源：CVE')
+    expect(noteValues).toContain('摘要：NVD 同步后确认 CVSS 10.0')
+    expect(noteValues).toContain('OPENAI_API_KEY=[credential redacted]')
+    expect(noteValues).not.toContain('sk-history-secret12345')
   })
 
   it('imports user-confirmed Coding conclusions back into CVE research notes', async () => {

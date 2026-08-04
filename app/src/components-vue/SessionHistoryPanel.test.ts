@@ -49,8 +49,8 @@ const invokeCommand = vi.fn(async (command: string, args?: unknown) => {
         sessionName: 'CVE-2024-3400 接力',
         source: 'milksu-cve',
         timestamp: '2026-08-04T09:20:00Z',
-        snippet: 'NVD CVE-2024-3400 同步完成；OPENAI_API_KEY=[credential redacted]',
-        skill: 'fetch_nvd_cve',
+        snippet: 'NVD CVE-2024-3400 同步完成；OPENAI_API_KEY=sk-history-secret12345',
+        skill: 'fetch_nvd_cve Bearer session-history-token-12345',
       }],
       factBoundary: 'internal-only fact boundary',
     }
@@ -112,7 +112,9 @@ describe('SessionHistoryPanel', () => {
     expect(text).toContain('CVE-2024-3400 接力')
     expect(text).toContain('NVD CVE-2024-3400 同步完成')
     expect(text).toContain('OPENAI_API_KEY=[credential redacted]')
-    expect(text).toContain('fetch_nvd_cve')
+    expect(text).toContain('fetch_nvd_cve Bearer [credential redacted]')
+    expect(text).not.toContain('sk-history-secret12345')
+    expect(text).not.toContain('session-history-token-12345')
     expect(text).not.toContain('事实源')
     expect(text).not.toContain('正式档案')
     expect(text).not.toContain('历史线索')
@@ -124,6 +126,30 @@ describe('SessionHistoryPanel', () => {
         module: 'cve',
         limit: 6,
       },
+    })
+  })
+
+  it('emits an explicit confirmation before a result can be reused by a module', async () => {
+    const confirmed: unknown[] = []
+    const host = await mountPanel({
+      confirmActionLabel: '记入笔记',
+      onConfirmResult: (result: unknown) => confirmed.push(result),
+    })
+
+    expect(host.textContent).toContain('记入笔记')
+    const action = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
+      item.textContent?.includes('记入笔记'),
+    )
+    if (!action) throw new Error('missing confirm history action')
+
+    expect(confirmed).toHaveLength(0)
+    action.click()
+    await settle()
+
+    expect(confirmed).toHaveLength(1)
+    expect(confirmed[0]).toMatchObject({
+      messageUuid: 'milksu:cve-1:assistant-1',
+      sessionName: 'CVE-2024-3400 接力',
     })
   })
 

@@ -36,7 +36,9 @@ import SessionHistoryPanel from '@/components-vue/SessionHistoryPanel.vue'
 import VulnerabilityIntelSettingsPanel from '@/components-vue/VulnerabilityIntelSettingsPanel.vue'
 import VulnerabilityLoopPanel from '@/components-vue/VulnerabilityLoopPanel.vue'
 import { useVulnerabilityDashboard } from '@/composables/useVulnerabilityDashboard'
+import { redactProviderCredentials } from '@/lib/redaction'
 import type { VulnerabilityCodingTask } from '@/composables/useVulnerabilityDashboard'
+import type { SessionHistorySearchResult } from '@/sessionIndexTypes'
 import type { VulnerabilitySeverity, VulnerabilityStatus } from '@/vulnerabilityIntel'
 
 defineOptions({ name: 'VulnPage' })
@@ -86,6 +88,7 @@ const showCodingConclusionForm = ref(false)
 const codingConclusionText = ref('')
 const codingConclusionError = ref('')
 const codingConclusionNotice = ref('')
+const historyNoteNotice = ref('')
 const loopWorkspace = ref<HTMLElement | null>(null)
 const practiceWorkspace = ref<HTMLElement | null>(null)
 const researchWorkspace = ref<HTMLElement | null>(null)
@@ -165,6 +168,39 @@ function importCodingConclusion() {
   codingConclusionText.value = ''
   showCodingConclusionForm.value = false
   codingConclusionNotice.value = '已导入到研究笔记；请保留可核对材料链接，避免把 Agent 推测当成事实。'
+}
+
+function sessionHistorySourceLabel(source = '') {
+  if (source === 'milksu-ctf') return 'CTF'
+  if (source === 'milksu-cve') return 'CVE'
+  if (source === 'milksu-coding') return 'Coding'
+  return source || '历史'
+}
+
+function trimHistoryField(value = '', maxLength = 600) {
+  const redacted = redactProviderCredentials(value).trim()
+  if (redacted.length <= maxLength) return redacted
+  return `${redacted.slice(0, maxLength)}…`
+}
+
+function recordSessionHistoryAsNote(result: SessionHistorySearchResult) {
+  const existing = dashboard.researchNoteFor.value
+  const stamp = new Date().toLocaleString()
+  const lines = [
+    `- 会话：${trimHistoryField(result.sessionName, 160)}`,
+    `- 来源：${sessionHistorySourceLabel(result.source)}`,
+    result.timestamp ? `- 时间：${new Date(result.timestamp).toLocaleString()}` : '',
+    result.skill ? `- 工具：${trimHistoryField(result.skill, 160)}` : '',
+    `- 摘要：${trimHistoryField(result.snippet)}`,
+  ].filter(Boolean)
+
+  dashboard.updateResearchNote(dashboard.selected.value.id, {
+    notes: [
+      existing.notes.trim(),
+      `[${stamp}] 相关历史（用户确认）：\n${lines.join('\n')}`,
+    ].filter(Boolean).join('\n\n'),
+  })
+  historyNoteNotice.value = '已记入当前 CVE 笔记。'
 }
 
 function startSelectedCodingTask(task: VulnerabilityCodingTask) {
@@ -510,6 +546,8 @@ function statusVariant(status: VulnerabilityStatus) {
           module="cve"
           compact
           :default-query="dashboard.selected.value.id"
+          confirm-action-label="记入笔记"
+          @confirm-result="recordSessionHistoryAsNote"
         />
 
         <section ref="practiceWorkspace" class="border-b border-border px-6 py-5">
@@ -877,6 +915,9 @@ function statusVariant(status: VulnerabilityStatus) {
           </form>
           <p v-if="codingConclusionNotice" class="mt-3 text-caption text-primary">
             {{ codingConclusionNotice }}
+          </p>
+          <p v-if="historyNoteNotice" class="mt-3 text-caption text-primary">
+            {{ historyNoteNotice }}
           </p>
           <div class="mt-4 space-y-3">
             <label class="block">
