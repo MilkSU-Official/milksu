@@ -226,9 +226,6 @@ function statusVariant(status: VulnerabilityStatus) {
   return 'secondary'
 }
 
-function isHttpUrl(value: string) {
-  return /^https?:\/\//i.test(value)
-}
 </script>
 
 <template>
@@ -323,11 +320,15 @@ function isHttpUrl(value: string) {
 
     <VulnerabilityIntelSettingsPanel
       v-if="showIntelSettings"
+      class="min-h-0 flex-1 overflow-y-auto"
       :dashboard="dashboard"
       @close="showIntelSettings = false"
     />
 
-    <div class="grid min-h-0 flex-1 grid-cols-[minmax(560px,1.25fr)_minmax(360px,.75fr)] max-[1080px]:grid-cols-1">
+    <div
+      v-else
+      class="grid min-h-0 flex-1 grid-cols-[minmax(560px,1.25fr)_minmax(360px,.75fr)] max-[1080px]:grid-cols-1"
+    >
       <section class="min-h-0 overflow-auto border-r border-border max-[1080px]:border-b max-[1080px]:border-r-0">
         <form
           v-if="showCustomForm"
@@ -468,59 +469,6 @@ function isHttpUrl(value: string) {
             </Button>
           </dd>
         </dl>
-
-        <section
-          v-if="dashboard.selectedSourceEvidence.value.length"
-          class="border-b border-border px-6 py-5"
-          aria-label="CVE 来源证据"
-        >
-          <div class="flex items-center justify-between gap-3">
-            <h3 class="text-label font-medium">来源证据</h3>
-            <Badge variant="info">{{ dashboard.selectedSourceEvidence.value.length }} 条</Badge>
-          </div>
-          <div class="mt-3 space-y-2">
-            <article
-              v-for="evidence in dashboard.selectedSourceEvidence.value"
-              :key="`${evidence.sourceId}-${evidence.digest}`"
-              class="rounded-lg border border-border bg-card px-3 py-3 text-caption leading-5"
-            >
-              <div class="flex flex-wrap items-center justify-between gap-2">
-                <p class="text-body font-medium">{{ evidence.sourceName }} · {{ evidence.format }}</p>
-                <Badge variant="outline">{{ evidence.cacheState }}</Badge>
-              </div>
-              <p class="mt-1 text-muted-foreground">
-                获取 {{ new Date(evidence.retrievedAt).toLocaleString() }}；导入 {{ new Date(evidence.importedAt).toLocaleString() }}
-                <template v-if="evidence.publishedAt">；发布时间 {{ evidence.publishedAt }}</template>
-                <template v-if="evidence.lastModifiedAt">；更新时间 {{ evidence.lastModifiedAt }}</template>
-              </p>
-              <p class="mt-1 font-mono text-muted-foreground">{{ evidence.digest }}</p>
-              <p
-                v-if="evidence.snapshotPath"
-                class="mt-1 break-all font-mono text-muted-foreground"
-              >
-                原始快照 {{ evidence.snapshotSizeBytes ?? 0 }} bytes · {{ evidence.snapshotPath }}
-              </p>
-              <p
-                v-if="evidence.snapshotSha256"
-                class="mt-1 break-all font-mono text-muted-foreground"
-              >
-                sha256 {{ evidence.snapshotSha256 }}
-              </p>
-              <Button
-                v-if="isHttpUrl(evidence.sourceUrl)"
-                as="a"
-                :href="evidence.sourceUrl"
-                target="_blank"
-                rel="noreferrer"
-                variant="link"
-                size="text"
-                class="mt-1"
-              >
-                查看来源 <ExternalLink class="size-3" />
-              </Button>
-            </article>
-          </div>
-        </section>
 
         <div ref="loopWorkspace">
           <VulnerabilityLoopPanel

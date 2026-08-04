@@ -156,6 +156,8 @@ describe('VulnPage', () => {
 
     expect(host.textContent).toContain('情报源设置')
     expect(host.textContent).not.toContain('当前下一步')
+    expect(host.textContent).not.toContain('OpenSSH regreSSHion')
+    expect(host.textContent).not.toContain('CVE 最小闭环')
     expect(host.textContent).toContain('同步当前 CVE')
     expect(host.textContent).toContain('同步 NVD')
     expect(host.textContent).toContain('同步 EPSS')

@@ -328,6 +328,20 @@ describe('CodingProductLoopPanel', () => {
     expect(onOpenPanel).toHaveBeenCalledWith('changes')
   })
 
+  it('keeps quick panel buttons from overflowing narrow sidebars', async () => {
+    const { host } = await mountPanel()
+    const buttons = [...host.querySelectorAll<HTMLButtonElement>('[data-coding-loop-panel-button]')]
+
+    expect(buttons).toHaveLength(4)
+    expect(buttons.map(button => button.textContent?.trim())).toContain('Browser / Computer Use')
+    for (const button of buttons) {
+      expect(button.className).toContain('min-w-0')
+      expect(button.className).toContain('max-w-full')
+      expect(button.className).toContain('overflow-hidden')
+      expect(button.querySelector('[data-coding-loop-panel-button-label]')?.className).toContain('truncate')
+    }
+  })
+
   it('opens concrete panels directly from unfinished acceptance checklist items', async () => {
     const { host, onOpenPanel, onCompactContext } = await mountPanel()
     const checklist = [...host.querySelectorAll<HTMLElement>('[data-acceptance-state]')]
