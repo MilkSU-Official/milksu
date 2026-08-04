@@ -95,6 +95,7 @@ import {
   type CodingProductActionKind,
 } from '@/lib/codingProductActions'
 import { extractLatestComputerUseOperationEvidence } from '@/lib/codingComputerUseEvidence'
+import { redactProviderCredentials } from '@/lib/redaction'
 
 import {
   computerUseStartArgs,
@@ -123,6 +124,7 @@ import type {
 } from '@/types'
 import type { NSSCTFWebBridgeStatus } from '@/nssctfWebTypes'
 import { providerModelLabel } from '@/types'
+import type { SessionHistorySearchResult } from '@/sessionIndexTypes'
 
 const CodingTerminalPanel = defineAsyncComponent(
   () => import('@/components-vue/CodingTerminalPanel.vue'),
@@ -177,6 +179,7 @@ const emit = defineEmits<{
 }>()
 
 const goalMode = ref(false)
+const composer = ref<{ appendDraftText: (text: string) => void } | null>(null)
 const scrollArea = ref<HTMLElement | null>(null)
 const workshopState = ref<CTFToolWorkshopState | null>(null)
 const environmentOpen = ref(!props.ctfSession)
@@ -526,6 +529,7 @@ const historyDefaultQuery = computed(() => {
   if (props.ctfSession) return props.conversation?.title || 'Judge correct=true'
   return props.conversation?.title || workspaceName.value
 })
+const historyDraftNotice = ref('')
 const codingActionIcons = {
   understand: Compass,
   test: Terminal,
@@ -562,6 +566,36 @@ function sendComposerMessage(
 ) {
   goalMode.value = false
   emit('send', prompt, visibleText, attachments)
+}
+
+function sessionHistorySourceLabel(source = '') {
+  if (source === 'milksu-ctf') return 'CTF'
+  if (source === 'milksu-cve') return 'CVE'
+  if (source === 'milksu-coding') return 'Coding'
+  return source || '历史'
+}
+
+function trimHistoryField(value = '', maxLength = 600) {
+  const redacted = redactProviderCredentials(value).trim()
+  if (redacted.length <= maxLength) return redacted
+  return `${redacted.slice(0, maxLength)}…`
+}
+
+async function quoteSessionHistoryToComposer(result: SessionHistorySearchResult) {
+  if (props.ctfSession) return
+  const lines = [
+    '参考这条相关历史继续当前任务：',
+    `- 会话：${trimHistoryField(result.sessionName, 160)}`,
+    `- 来源：${sessionHistorySourceLabel(result.source)}`,
+    result.timestamp ? `- 时间：${new Date(result.timestamp).toLocaleString()}` : '',
+    result.skill ? `- 工具：${trimHistoryField(result.skill, 160)}` : '',
+    `- 摘要：${trimHistoryField(result.snippet)}`,
+    '',
+    '请先核对当前仓库和本轮会话里的证据，再决定是否采用。',
+  ].filter(line => line !== '')
+  composer.value?.appendDraftText(lines.join('\n'))
+  historyDraftNotice.value = '已引用到输入框。'
+  await nextTick()
 }
 
 function resumeAfterFailure() {
@@ -1313,6 +1347,7 @@ watch(
     </div>
 
     <ChatComposer
+      ref="composer"
       :running="running"
       :aborting="aborting"
       :ctf-session="ctfSession"
@@ -1615,7 +1650,12 @@ watch(
           :module="topbarModule"
           :default-query="historyDefaultQuery"
           compact
+          confirm-action-label="引用到输入"
+          @confirm-result="quoteSessionHistoryToComposer"
         />
+        <p v-if="historyDraftNotice" class="border-b border-border px-4 pb-4 text-caption text-primary">
+          {{ historyDraftNotice }}
+        </p>
 
         <template v-if="!ctfSession">
         <section class="border-b border-border px-4 py-4">
@@ -2231,7 +2271,12 @@ watch(
           ref="historyPanel"
           :module="topbarModule"
           :default-query="historyDefaultQuery"
+          :confirm-action-label="ctfSession ? '' : '引用到输入'"
+          @confirm-result="quoteSessionHistoryToComposer"
         />
+        <p v-if="historyDraftNotice" class="px-4 py-3 text-caption text-primary">
+          {{ historyDraftNotice }}
+        </p>
       </template>
 
       <template v-else>

@@ -22,4 +22,16 @@ describe('ChatPage routing contract', () => {
     expect(chatPageSource).toContain('props.vulnerabilitySession')
     expect(chatPageSource).toContain('scrollArea.value.scrollTop = scrollArea.value.scrollHeight')
   })
+
+  it('quotes confirmed related history into the Coding composer draft without auto-sending it', () => {
+    expect(chatPageSource).toContain('const composer = ref<{ appendDraftText')
+    expect(chatPageSource).toContain('quoteSessionHistoryToComposer')
+    expect(chatPageSource).toContain('confirm-action-label="引用到输入"')
+    expect(chatPageSource).toContain('@confirm-result="quoteSessionHistoryToComposer"')
+    expect(chatPageSource).toContain("composer.value?.appendDraftText")
+    expect(chatPageSource).toContain('redactProviderCredentials(value)')
+    expect(chatPageSource).toContain('trimHistoryField(result.snippet)')
+    expect(chatPageSource).toContain('已引用到输入框')
+    expect(chatPageSource).not.toContain("emit('send', lines.join")
+  })
 })

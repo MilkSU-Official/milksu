@@ -28,10 +28,11 @@ function mountComposer(overrides: Record<string, unknown> = {}) {
     },
     ...overrides,
   })
-  app.mount(host)
+  const vm = app.mount(host) as unknown as { appendDraftText: (text: string) => void }
   mountedApps.push(app)
   return {
     host,
+    vm,
     sent,
     consumedGoals: () => consumedGoals,
   }
@@ -76,6 +77,26 @@ describe('ChatComposer', () => {
       ['/goal 完成发布回归', '完成发布回归', []],
     ])
     expect(result.consumedGoals()).toBe(1)
+  })
+
+  it('lets a parent append confirmed context into the draft before sending', async () => {
+    const result = mountComposer()
+    await nextTick()
+
+    result.vm.appendDraftText('参考相关历史：CVE 同步失败曾由缓存过期导致。')
+    await nextTick()
+
+    const textarea = result.host.querySelector<HTMLTextAreaElement>('[aria-label="消息"]')
+    expect(textarea?.value).toContain('参考相关历史')
+
+    result.host.querySelector('form')?.dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true }),
+    )
+    await nextTick()
+
+    expect(result.sent).toEqual([
+      ['参考相关历史：CVE 同步失败曾由缓存过期导致。', '参考相关历史：CVE 同步失败曾由缓存过期导致。', []],
+    ])
   })
 
   it('keeps CTF collaboration actions without leaking Coding controls', async () => {

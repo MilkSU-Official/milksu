@@ -146,6 +146,18 @@ function submit() {
   emit('send', prompt, text, attachments)
   emit('consumeGoal')
 }
+
+function appendDraftText(text: string) {
+  const normalized = text.trim()
+  if (!normalized || props.running) return
+  draft.value = draft.value.trim()
+    ? `${draft.value.trim()}\n\n${normalized}`
+    : normalized
+}
+
+defineExpose({
+  appendDraftText,
+})
 </script>
 
 <template>
