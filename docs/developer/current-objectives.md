@@ -106,6 +106,8 @@
 2. **P0 · 当前冲刺：完整产品闭环。** Session Index 首轮闭环通过后，继续让 MilkSU 像裸
    Pi Agent 一样顺滑完成一个真实产品任务，并在 MilkSU 自己的产品壳里走完修改、测试、
    预览/验证、恢复和 Git 交付。详见 [产品闭环冲刺](./product-loop-sprint.md)。
+   2026-08-05 真实打包 MilkSU UI 已通过目录选择器绑定隔离 workspace，并在 Coding →
+   产物中手动打开 Markdown、HTML 和 PNG 预览，开发者验收详情记录为用户可见验证。
    同时补齐 CVE 情报追踪、资产关联与可练习环境的最小可见骨架，让它作为一级菜单不再像空模块。
    2026-08-05 packaged CVE feed live smoke 已证明打包 App 进程能真实拉取 NVD 单 CVE、
    持久化 snapshot，并提取来源时间与选中 CVE facts；同日 packaged CVE feed matrix smoke
