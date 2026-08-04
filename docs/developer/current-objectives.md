@@ -130,8 +130,11 @@
    内完成可见点击；同日真实 MilkSU 打包 UI 已完成 Coding → 浏览器与 App → 选择 Calculator
    → 启动可见会话 → 状态变为已接入当前任务 → 停止会话；随后又用同一隔离 App data
    重启真实 MilkSU，确认任务保留但旧 Calculator Scope 不会幽灵恢复为已接入，并用
-   Computer Use 对 Calculator 完成 `2+3=5` 的真实点击操作。后续不再重复验证 UI 内
-   选择/启动或重启清理，只补主模型消费截图完成真实 GUI 任务的闭环。
+   Computer Use 对 Calculator 完成 `2+3=5` 的真实点击操作；同日 packaged Coding bridge
+   live smoke 已用真实打包 sidecar、真实 Calculator 截图和确定性本地 Provider 证明
+   “纯文本主模型 observe → 辅助视觉读截图 → 主模型消费视觉证据后 click → 截图变化”
+   的工程闭环。后续不再重复验证 UI 内选择/启动、重启清理或工程链路，只补真实外部
+   Provider 下的模型质量与原生 UI 人工验收。
 4. **P1 · 成熟能力集成。** ImageGen、Browser、前端设计/视觉回归 Skill、Project MCP、
    高频 Plugin 以及经用户明确选定的成熟开源能力，优先复用固定版本、可审阅的成熟组件。
    Obelisk / Session Index 是当前 P0 例外，不再按“长期候选”后置。

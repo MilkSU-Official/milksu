@@ -75,6 +75,7 @@ test("Request Approval asks per operation while Full Access runs routine selecte
 test("selected Computer Use operations do not create meaningless approvals outside Ask", () => {
   for (const toolCall of [
     { server: "milksu-computer-use", tool: "computer_use", args: { action: "observe" } },
+    { server: "milksu-computer-use", tool: "milksu_computer_use_computer_use", args: { action: "observe" } },
     { server: "milksu-computer-use", tool: "computer_use", args: { action: "click", elementId: "button-1" } },
     { server: "milksu-computer-use", tool: "computer_use", args: { action: "type", text: "continue" } },
   ]) {

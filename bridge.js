@@ -66,7 +66,10 @@ import {
   codingBrowserToolBlockReason,
   formatCodingBrowserApprovalInput,
 } from "./bridge-browser-policy.js";
-import { computerUseRoutingGuidance } from "./bridge-computer-use-routing.js";
+import {
+  computerUseRoutingGuidance,
+  isComputerUseMcpToolName,
+} from "./bridge-computer-use-routing.js";
 import { disposeAgentSession } from "./bridge-session-lifecycle.js";
 import {
   compactSession,
@@ -225,7 +228,7 @@ function isComputerUseMcpResult(event) {
   const detailServer = String(event.details?.server ?? "").trim();
   const detailTool = String(event.details?.tool ?? "").trim();
   return (inputServer === "milksu-computer-use" || detailServer === "milksu-computer-use")
-    && (inputTool === "computer_use" || detailTool === "computer_use");
+    && (isComputerUseMcpToolName(inputTool) || isComputerUseMcpToolName(detailTool));
 }
 
 async function summarizeComputerUseToolImages(event, session) {

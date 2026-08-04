@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { computerUseRoutingGuidance } from "./bridge-computer-use-routing.js";
+import {
+  computerUseMcpToolName,
+  computerUseRoutingGuidance,
+  isComputerUseMcpToolName,
+} from "./bridge-computer-use-routing.js";
 
 test("blocks shell and private protocol workarounds when Computer Use is unavailable", () => {
   const guidance = computerUseRoutingGuidance({
@@ -31,6 +35,13 @@ test("describes the immutable selected app/window when Computer Use is active", 
   assert.match(guidance, /com\.openai\.codex/);
   assert.match(guidance, /PID 4242/);
   assert.match(guidance, /window 9001/);
-  assert.match(guidance, /Use the computer_use tool/);
+  assert.match(guidance, new RegExp(`tool ${computerUseMcpToolName}`));
   assert.match(guidance, /do not switch to another app/);
+});
+
+test("recognizes raw and adapter-prefixed Computer Use MCP tool names", () => {
+  assert.equal(isComputerUseMcpToolName("computer_use"), true);
+  assert.equal(isComputerUseMcpToolName("milksu_computer_use_computer_use"), true);
+  assert.equal(isComputerUseMcpToolName("milksu-computer-use-computer-use"), true);
+  assert.equal(isComputerUseMcpToolName("browser_click"), false);
 });

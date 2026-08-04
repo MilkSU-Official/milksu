@@ -87,6 +87,51 @@ test("uses a configured auxiliary vision model and caches its description", asyn
   assert.equal(second.analyses[0].visual.cached, true);
 });
 
+test("uses the current Pi modelRuntime API for auxiliary vision", async () => {
+  const value = await fixture();
+  let completions = 0;
+  const model = {
+    id: "gpt-4o",
+    provider: "openai",
+    input: ["text", "image"],
+  };
+  const session = {
+    modelRuntime: {
+      getModel: (provider, id) => (
+        provider === "openai" && id === "gpt-4o" ? model : undefined
+      ),
+      getAuth: async () => ({
+        auth: { apiKey: "test-key", headers: undefined },
+        env: undefined,
+      }),
+    },
+  };
+  const complete = async (_model, context, auth) => {
+    completions += 1;
+    assert.equal(auth.apiKey, "test-key");
+    const image = context.messages[0].content.find(item => item.type === "image");
+    assert.equal(image.mimeType, "image/png");
+    return {
+      stopReason: "stop",
+      content: [{ type: "text", text: "A Calculator window with a visible 1 button." }],
+    };
+  };
+
+  const result = await analyzeTextOnlyToolImages([{
+    type: "image",
+    data: Buffer.from("pixels").toString("base64"),
+    mimeType: "image/png",
+  }], {
+    session,
+    auxiliary: { provider: "openai", model: "gpt-4o" },
+    cachePath: value.cache,
+    complete,
+  });
+
+  assert.equal(completions, 1);
+  assert.match(result.context, /Calculator window/);
+});
+
 test("does not claim full vision when the configured model is text-only", async () => {
   const value = await fixture();
   const result = await analyzeTextOnlyImages([value.attachment], {
