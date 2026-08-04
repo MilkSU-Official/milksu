@@ -52,8 +52,8 @@
   打包 App 搜索、脱敏搜索结果”当作未完成；
 - Coding：在打包 App 中完成一个小 MilkSU 修改，跑真实测试/build，做真实 Browser 或
   Computer Use 验证，commit 并 push；
-- Computer Use：用户选择一个外部 App / 窗口，MilkSU 在该 Scope 内完成一次可见观察或操作，
-  并留下可核对证据；
+- Computer Use：packaged proxy → Cua Driver → 外部 Calculator 精确窗口的 live smoke 已通过；
+  下一步只补 MilkSU UI 内用户选择/启动会话、重启后权限检测一致性，以及主模型消费截图完成真实任务；
 - CVE：导入一个真实情报源快照或本地 JSON Feed，保存来源、获取时间、缓存状态和选中 CVE
   的事实变化；练习环境只在能启动/停止/清理时才称为可用；
 - CTF：从题库进入解题会话，切到 CVE/Coding 再返回，题库/会话/最近位置不丢失；该项需要

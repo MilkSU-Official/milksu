@@ -10,6 +10,9 @@ package computercap
 #import <Foundation/Foundation.h>
 #include <stdlib.h>
 
+static const CGFloat milksu_minimum_target_window_width = 120.0;
+static const CGFloat milksu_minimum_target_window_height = 80.0;
+
 char* milksu_computer_use_targets_json(void) {
 	@autoreleasepool {
 		CFArrayRef windowList = CGWindowListCopyWindowInfo(
@@ -28,7 +31,15 @@ char* milksu_computer_use_targets_json(void) {
 			NSNumber *pid = window[(id)kCGWindowOwnerPID];
 			NSNumber *windowID = window[(id)kCGWindowNumber];
 			NSString *owner = window[(id)kCGWindowOwnerName];
+			NSDictionary *bounds = window[(id)kCGWindowBounds];
+			CGRect rect = CGRectZero;
 			if (pid == nil || windowID == nil || [pid intValue] <= 1 || [windowID longLongValue] <= 0) {
+				continue;
+			}
+			if (bounds == nil || !CGRectMakeWithDictionaryRepresentation((__bridge CFDictionaryRef)bounds, &rect)) {
+				continue;
+			}
+			if (rect.size.width < milksu_minimum_target_window_width || rect.size.height < milksu_minimum_target_window_height) {
 				continue;
 			}
 			NSRunningApplication *app = [NSRunningApplication runningApplicationWithProcessIdentifier:[pid intValue]];

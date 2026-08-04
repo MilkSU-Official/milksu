@@ -18,6 +18,7 @@
     "test:coding-delivery-report": "node --test tests/scripts/coding-delivery-report.test.mjs",
     "test:ctf-six-track-regression": "node scripts/validate-ctf-six-track-regression.mjs",
     "test:project-mcp": "node scripts/test-project-mcp-fixture.mjs",
+    "test:computer-use-live": "node scripts/test-packaged-computer-use-live.mjs",
     "m3:release-check": "bash scripts/m3-release-check.sh",
     "test:security-bridge": "printf '%s\\n' '{\"action\":\"protocol_info\",\"requestId\":\"protocol-test\"}' | node security-bridge.js",
     "spike:pi:protocol": "node spikes/engine-comparison/pi-spike.mjs --protocol-only",

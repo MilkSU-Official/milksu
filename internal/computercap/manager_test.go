@@ -252,3 +252,23 @@ func TestSessionManifestDeniesDesktopAndUnreviewedTools(t *testing.T) {
 		}
 	}
 }
+
+func TestDarwinTargetDiscoveryRejectsTinyOverlayWindows(t *testing.T) {
+	source, err := os.ReadFile(filepath.Join("targets_darwin.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(source)
+	for _, expected := range []string{
+		"milksu_minimum_target_window_width",
+		"milksu_minimum_target_window_height",
+		"kCGWindowBounds",
+		"CGRectMakeWithDictionaryRepresentation",
+		"rect.size.width < milksu_minimum_target_window_width",
+		"rect.size.height < milksu_minimum_target_window_height",
+	} {
+		if !strings.Contains(text, expected) {
+			t.Fatalf("darwin target discovery no longer filters tiny overlay windows: missing %q", expected)
+		}
+	}
+}
