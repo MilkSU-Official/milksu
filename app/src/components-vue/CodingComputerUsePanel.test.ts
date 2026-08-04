@@ -353,4 +353,29 @@ describe('CodingComputerUsePanel', () => {
     await nextTick()
     expect(unavailable.onRequestPermissions).not.toHaveBeenCalled()
   })
+
+  it('shows signing diagnostics when macOS permission probes disagree with Settings', async () => {
+    const { host } = await mountPanel({
+      status: status({
+        permissions: {
+          accessibility: false,
+          screenRecording: true,
+        },
+        signing: {
+          bundleId: 'com.milksu.app',
+          executablePath: '/Applications/MilkSU.app',
+          signature: 'adhoc',
+          teamIdentifier: 'not set',
+          stableIdentity: false,
+          problem: '当前构建不是稳定 Developer ID 签名；系统设置里显示已勾选时，TCC 探针仍可能对当前二进制返回未授权。',
+        },
+      }),
+    })
+    const text = host.textContent ?? ''
+
+    expect(text).toContain('当前构建身份：ad-hoc · Team 未设置')
+    expect(text).toContain('Developer ID')
+    expect(text).toContain('TCC 探针')
+    expect(text).toContain('系统设置里显示已勾选')
+  })
 })

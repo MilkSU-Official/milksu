@@ -196,6 +196,40 @@ func TestManagerNeverPromptsAndOpensSettingsOnExplicitRequest(t *testing.T) {
 	}
 }
 
+func TestManagerReportsSigningDiagnostics(t *testing.T) {
+	manager := New(Options{
+		BinaryPath: os.Args[0],
+		TargetPID:  4242,
+		GOOS:       "darwin",
+		PermissionProbe: func(bool) Permissions {
+			return Permissions{Accessibility: false, ScreenRecording: true}
+		},
+		SigningProbe: func() SigningStatus {
+			return SigningStatus{
+				BundleID:       hostBundleID,
+				ExecutablePath: "/Applications/MilkSU.app",
+				Signature:      "adhoc",
+				TeamIdentifier: "not set",
+				StableIdentity: false,
+				Problem:        "当前构建不是稳定 Developer ID 签名",
+			}
+		},
+		CommandFactory: helperCommand,
+	})
+
+	status := manager.Status()
+	if status.Signing.BundleID != hostBundleID ||
+		status.Signing.ExecutablePath != "/Applications/MilkSU.app" ||
+		status.Signing.Signature != "adhoc" ||
+		status.Signing.TeamIdentifier != "not set" ||
+		status.Signing.StableIdentity {
+		t.Fatalf("unexpected signing diagnostics: %#v", status.Signing)
+	}
+	if !strings.Contains(status.Signing.Problem, "Developer ID") {
+		t.Fatalf("missing signing problem detail: %#v", status.Signing)
+	}
+}
+
 func TestSessionManifestDeniesDesktopAndUnreviewedTools(t *testing.T) {
 	manifest := sessionManifest("com.openai.codex")
 	for _, expected := range []string{

@@ -33,6 +33,15 @@ func (value Permissions) Ready() bool {
 	return value.Accessibility && value.ScreenRecording
 }
 
+type SigningStatus struct {
+	BundleID       string `json:"bundleId"`
+	ExecutablePath string `json:"executablePath,omitempty"`
+	Signature      string `json:"signature,omitempty"`
+	TeamIdentifier string `json:"teamIdentifier,omitempty"`
+	StableIdentity bool   `json:"stableIdentity"`
+	Problem        string `json:"problem,omitempty"`
+}
+
 type Target struct {
 	Name        string `json:"name"`
 	BundleID    string `json:"bundleId"`
@@ -47,16 +56,17 @@ type TargetSelection struct {
 }
 
 type Status struct {
-	Available      bool        `json:"available"`
-	Enabled        bool        `json:"enabled"`
-	ConversationID string      `json:"conversationId,omitempty"`
-	SessionID      string      `json:"sessionId,omitempty"`
-	Phase          string      `json:"phase"`
-	StartedAt      string      `json:"startedAt,omitempty"`
-	DriverVersion  string      `json:"driverVersion,omitempty"`
-	Target         Target      `json:"target"`
-	Permissions    Permissions `json:"permissions"`
-	Problem        string      `json:"problem,omitempty"`
+	Available      bool          `json:"available"`
+	Enabled        bool          `json:"enabled"`
+	ConversationID string        `json:"conversationId,omitempty"`
+	SessionID      string        `json:"sessionId,omitempty"`
+	Phase          string        `json:"phase"`
+	StartedAt      string        `json:"startedAt,omitempty"`
+	DriverVersion  string        `json:"driverVersion,omitempty"`
+	Target         Target        `json:"target"`
+	Permissions    Permissions   `json:"permissions"`
+	Signing        SigningStatus `json:"signing"`
+	Problem        string        `json:"problem,omitempty"`
 }
 
 type Descriptor struct {
@@ -74,6 +84,7 @@ type Options struct {
 	GOOS            string
 	PermissionProbe func(prompt bool) Permissions
 	PermissionOpen  func(Permissions)
+	SigningProbe    func() SigningStatus
 	TargetProvider  func() ([]Target, error)
 	CommandFactory  func(name string, args ...string) *exec.Cmd
 	StartTimeout    time.Duration
@@ -100,6 +111,7 @@ type Manager struct {
 	goos            string
 	permissionProbe func(prompt bool) Permissions
 	permissionOpen  func(Permissions)
+	signingProbe    func() SigningStatus
 	targetProvider  func() ([]Target, error)
 	commandFactory  func(name string, args ...string) *exec.Cmd
 	startTimeout    time.Duration
@@ -123,6 +135,10 @@ func New(options Options) *Manager {
 	if permissionOpen == nil {
 		permissionOpen = platformRequestPermissions
 	}
+	signingProbe := options.SigningProbe
+	if signingProbe == nil {
+		signingProbe = platformSigningStatus
+	}
 	targetProvider := options.TargetProvider
 	if targetProvider == nil {
 		targetProvider = platformTargets
@@ -141,6 +157,7 @@ func New(options Options) *Manager {
 		goos:            goos,
 		permissionProbe: permissionProbe,
 		permissionOpen:  permissionOpen,
+		signingProbe:    signingProbe,
 		targetProvider:  targetProvider,
 		commandFactory:  commandFactory,
 		startTimeout:    startTimeout,
@@ -397,6 +414,7 @@ func (manager *Manager) statusLocked(permissions Permissions) Status {
 		DriverVersion: DriverVersion,
 		Target:        defaultTarget(manager.targetPID),
 		Permissions:   permissions,
+		Signing:       manager.signingProbe(),
 	}
 	if manager.goos != "darwin" {
 		status.Available = false

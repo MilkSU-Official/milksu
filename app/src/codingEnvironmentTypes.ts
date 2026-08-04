@@ -248,6 +248,15 @@ export interface CodingComputerUsePermissions {
   screenRecording: boolean
 }
 
+export interface CodingComputerUseSigning {
+  bundleId: string
+  executablePath?: string
+  signature?: string
+  teamIdentifier?: string
+  stableIdentity: boolean
+  problem?: string
+}
+
 export interface CodingComputerUseTarget {
   name: string
   bundleId: string
@@ -266,6 +275,7 @@ export interface CodingComputerUseStatus {
   driverVersion?: string
   target?: CodingComputerUseTarget
   permissions: CodingComputerUsePermissions
+  signing?: CodingComputerUseSigning
   problem?: string
 }
 

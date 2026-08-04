@@ -76,6 +76,28 @@ const permissionsReady = computed(() => Boolean(
   props.status?.permissions.accessibility
   && props.status.permissions.screenRecording,
 ))
+const signingStatus = computed(() => props.status?.signing ?? null)
+const signingIdentityLabel = computed(() => {
+  const signing = signingStatus.value
+  if (!signing) return '当前构建身份：未检测'
+  const signature = signing.signature === 'adhoc'
+    ? 'ad-hoc'
+    : signing.signature === 'signed'
+      ? '已签名'
+      : signing.signature || '未知签名'
+  const team = signing.teamIdentifier && signing.teamIdentifier !== 'not set'
+    ? signing.teamIdentifier
+    : '未设置'
+  return `当前构建身份：${signature} · Team ${team}`
+})
+const signingDiagnostic = computed(() => {
+  const signing = signingStatus.value
+  if (!signing) return ''
+  if (signing.stableIdentity) {
+    return `${signingIdentityLabel.value}，权限应绑定到稳定 App 身份。`
+  }
+  return `${signingIdentityLabel.value}；${signing.problem || 'macOS 可能无法稳定复用辅助功能/屏幕录制授权。'}`
+})
 const readyForCurrentTask = computed(() => Boolean(
   props.status?.enabled
   && props.ownedByCurrentTask,
@@ -145,8 +167,8 @@ const readinessItems = computed(() => [
     label: '系统权限',
     ready: permissionsReady.value,
     detail: permissionsReady.value
-      ? '辅助功能与屏幕录制已授权'
-      : `缺少 ${missingPermissions.value.join('、') || '系统权限'}`,
+      ? `辅助功能与屏幕录制已授权；${signingIdentityLabel.value}`
+      : `缺少 ${missingPermissions.value.join('、') || '系统权限'}；${signingIdentityLabel.value}`,
   },
   {
     label: '窗口 Scope',
@@ -185,7 +207,8 @@ const guidance = computed(() => {
     return props.status?.problem || 'Computer Use 当前不可用。'
   }
   if (missingPermissions.value.length) {
-    return `${missingPermissions.value.join('、')} 缺少或尚未对当前构建生效；“App 管理”不能替代这两项。开发期 ad-hoc 重签后，macOS 可能显示 MilkSU 已勾选但探针仍返回未授权；请打开对应设置页核对，或使用稳定 Apple 签名后重新检测。`
+    const signingHint = signingDiagnostic.value || '开发期 ad-hoc 重签后，macOS 可能显示 MilkSU 已勾选但探针仍返回未授权；请使用稳定 Apple 签名后重新检测。'
+    return `${missingPermissions.value.join('、')} 缺少或尚未对当前构建生效；“App 管理”不能替代这两项。${signingHint}`
   }
   if (attachedToOtherTask.value) {
     return '可见会话正由另一个 Coding 任务使用；请回到该任务停止后再切换。'
@@ -234,7 +257,7 @@ const primarySetupAction = computed<{
   if (!permissionsReady.value) {
     return {
       label: '打开系统权限设置',
-      detail: `${missingPermissions.value.join('、') || '系统权限'} 缺少或未对当前构建生效；打开设置页核对后回到这里重新检测。`,
+      detail: `${missingPermissions.value.join('、') || '系统权限'} 缺少或未对当前构建生效；${signingDiagnostic.value || '打开设置页核对后回到这里重新检测。'}`,
       action: 'permissions',
       variant: 'default',
       disabled: props.loading || props.running,
@@ -371,6 +394,12 @@ function runPrimarySetupAction() {
           </Badge>
         </button>
       </div>
+      <p
+        v-if="signingDiagnostic"
+        class="mt-3 break-all text-caption leading-5 text-muted-foreground"
+      >
+        {{ signingDiagnostic }}
+      </p>
       <div class="mt-4 rounded-lg border border-border bg-background/70 px-3 py-3" aria-label="Computer Use 接入清单">
         <div class="flex items-center justify-between gap-3">
           <p class="text-caption font-medium text-muted-foreground">正式接入/验收需要</p>
