@@ -81,6 +81,10 @@ rg -q "sourceTargets" app/wailsjs/go/models.ts
 
 if [[ "$(uname -s)" == "Darwin" ]]; then
   codesign --verify --deep --strict build/bin/MilkSU.app
+  node scripts/check-macos-signing.mjs --app build/bin/MilkSU.app
+  if [[ "${MILKSU_REQUIRE_STABLE_CODESIGN:-0}" == "1" ]]; then
+    node scripts/check-macos-signing.mjs --app build/bin/MilkSU.app --require-stable
+  fi
 fi
 
 mkdir -p app/dist

@@ -226,7 +226,7 @@ const guidance = computed(() => {
   if (missingPermissions.value.length) {
     const signingHint = signingDiagnostic.value || '开发期 ad-hoc 重签后，macOS 可能显示 MilkSU 已勾选但探针仍返回未授权；请使用稳定 Apple 签名后重新检测。'
     if (permissionProbeMayBeStale.value) {
-      return `${missingPermissions.value.join('、')} 缺少或尚未对当前构建生效；“App 管理”不能替代这两项。${signingHint} 如果系统设置里已经勾选 MilkSU，不要反复授权；请先退出并重新打开当前 App，或换用 Developer ID 签名版后再重新检测。首次授权时再打开系统权限设置。`
+      return `${missingPermissions.value.join('、')} 缺少或尚未对当前构建生效；“App 管理”不能替代这两项。${signingHint} 如果系统设置里已经勾选 MilkSU，不要反复授权；请先退出并重新打开当前 App，或换用 Developer ID 签名版后再重新检测。首次授权也建议先换稳定签名版，再打开系统权限设置。`
     }
     return `${missingPermissions.value.join('、')} 缺少或尚未对当前构建生效；“App 管理”不能替代这两项。${signingHint}`
   }
