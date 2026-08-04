@@ -1,6 +1,6 @@
 import type { Message } from '@/types'
 
-export type ComputerUseOperationAction = 'observe' | 'click' | 'type' | 'key' | 'scroll'
+export type ComputerUseOperationAction = 'click' | 'type' | 'key' | 'scroll'
 
 export interface ComputerUseOperationEvidence {
   action: ComputerUseOperationAction
@@ -14,12 +14,20 @@ export interface ComputerUseOperationEvidence {
 }
 
 const COMPUTER_USE_ACTIONS = new Set<ComputerUseOperationAction>([
-  'observe',
   'click',
   'type',
   'key',
   'scroll',
 ])
+
+const COMPUTER_USE_ACTION_ALIASES: Record<string, ComputerUseOperationAction> = {
+  click: 'click',
+  type: 'type',
+  type_text: 'type',
+  key: 'key',
+  press_key: 'key',
+  scroll: 'scroll',
+}
 
 function isComputerUseToolName(value: string | undefined) {
   const normalized = String(value ?? '').toLowerCase()
@@ -79,14 +87,23 @@ function numberField(record: Record<string, unknown>, ...names: string[]) {
   return 0
 }
 
+function operationAction(record: Record<string, unknown>): ComputerUseOperationAction | null {
+  const explicitAction = stringField(record, 'action').toLowerCase()
+  const driverTool = stringField(record, 'driverTool', 'driver_tool', 'tool').toLowerCase()
+  const normalized = COMPUTER_USE_ACTION_ALIASES[explicitAction]
+    ?? COMPUTER_USE_ACTION_ALIASES[driverTool]
+    ?? null
+  return normalized && COMPUTER_USE_ACTIONS.has(normalized) ? normalized : null
+}
+
 function operationFromEnvelope(
   envelope: unknown,
   durationMs: number | undefined,
 ): ComputerUseOperationEvidence | null {
   if (!envelope || typeof envelope !== 'object') return null
   const record = envelope as Record<string, unknown>
-  const action = stringField(record, 'action') as ComputerUseOperationAction
-  if (!COMPUTER_USE_ACTIONS.has(action)) return null
+  const action = operationAction(record)
+  if (!action) return null
 
   const target = record.target
   if (!target || typeof target !== 'object') return null

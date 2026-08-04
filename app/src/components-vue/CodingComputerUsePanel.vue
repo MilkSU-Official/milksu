@@ -215,7 +215,7 @@ const readinessItems = computed(() => [
       ? `${matchingOperationEvidence.value.action} · ${matchingOperationEvidence.value.targetName} · PID ${matchingOperationEvidence.value.pid} · Window ${matchingOperationEvidence.value.windowId}`
       : operationScopeMismatch.value
         ? '最近一次 Computer Use 操作来自另一个窗口，不计入当前 Scope 验收。'
-        : '已锁定后仍需一次 observe / click / type / key / scroll 工具结果作为真实操作证据。',
+        : '已锁定后仍需一次 click / type / key / scroll 工具结果作为真实操作证据；observe 只证明看见窗口。',
   },
 ])
 
@@ -470,7 +470,7 @@ function runPrimarySetupAction() {
                 最近一次操作属于 {{ operationEvidence?.targetName }} · {{ operationEvidence?.bundleId }} · PID {{ operationEvidence?.pid }} · Window {{ operationEvidence?.windowId }}，不会冒充当前窗口验收。
               </template>
               <template v-else>
-                仅锁定 Scope 还不算真实 GUI 验收；需要 Agent 使用 computer_use 对此窗口完成 observe、click、type、key 或 scroll。
+                仅锁定 Scope 还不算真实 GUI 验收；需要 Agent 使用 computer_use 对此窗口完成 click、type、key 或 scroll。observe 只算可见观察，不算操作完成。
               </template>
             </p>
           </div>

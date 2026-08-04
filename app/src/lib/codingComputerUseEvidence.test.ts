@@ -93,4 +93,58 @@ describe('codingComputerUseEvidence', () => {
       }),
     ])).toBeNull()
   })
+
+  it('does not count observe-only window reads as external app operation evidence', () => {
+    expect(extractLatestComputerUseOperationEvidence([
+      toolMessage({
+        content: JSON.stringify({
+          action: 'observe',
+          driverTool: 'get_window_state',
+          target: {
+            app: 'Preview',
+            bundleId: 'com.example.preview',
+            pid: 123,
+            windowId: 456,
+          },
+          output: { elements: [{ role: 'button', label: '确定' }] },
+        }),
+      }),
+      toolMessage({
+        content: JSON.stringify({
+          driverTool: 'list_windows',
+          target: {
+            app: 'Preview',
+            bundleId: 'com.example.preview',
+            pid: 123,
+            windowId: 456,
+          },
+        }),
+      }),
+    ])).toBeNull()
+  })
+
+  it('normalizes driver tool names for real click, typing, key and scroll operations', () => {
+    for (const [driverTool, expectedAction] of [
+      ['click', 'click'],
+      ['type_text', 'type'],
+      ['press_key', 'key'],
+      ['scroll', 'scroll'],
+    ] as const) {
+      const evidence = extractLatestComputerUseOperationEvidence([
+        toolMessage({
+          content: JSON.stringify({
+            driverTool,
+            target: {
+              app: 'TextEdit',
+              bundleId: 'com.apple.TextEdit',
+              pid: 789,
+              windowId: 321,
+            },
+          }),
+        }),
+      ])
+      expect(evidence?.action).toBe(expectedAction)
+      expect(evidence?.summary).toContain(`${expectedAction} · TextEdit`)
+    }
+  })
 })
