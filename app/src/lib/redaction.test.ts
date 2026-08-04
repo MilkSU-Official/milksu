@@ -31,4 +31,34 @@ describe('redactProviderCredentials', () => {
     expect(message).not.toContain('sk-header-secret')
     expect(message).not.toContain('sess-runtime-secret')
   })
+
+  it('is idempotent when already-redacted values pass through another UI layer', () => {
+    const once = [
+      'OPENAI_API_KEY=[credential redacted]',
+      'Authorization: Bearer [credential redacted]',
+      'https://provider.example.test/v1?api_key=[credential redacted]&model=x',
+      'https://provider.example.test/v1?x-api-key=[credential redacted]&model=x',
+      'api-key=[credential redacted]',
+      'x-api-key: [credential redacted]',
+    ].join(' ')
+
+    const redacted = redactProviderCredentials(once)
+    expect(redactProviderCredentials(redacted)).toBe(redacted)
+    expect(redacted).not.toContain('redacted] redacted]')
+    expect(redacted).not.toContain('redacted]&model=x redacted]')
+  })
+
+  it('collapses previously-expanded redaction markers from historical snippets', () => {
+    const polluted = [
+      'OPENAI_API_KEY=[credential redacted] redacted] redacted]',
+      'https://provider.example.test/v1?api_key=[credential redacted]&model=x redacted]',
+    ].join(' ')
+
+    const redacted = redactProviderCredentials(polluted)
+    expect(redacted).toContain('OPENAI_API_KEY=[credential redacted]')
+    expect(redacted).toContain('?api_key=[credential redacted]&model=x')
+    expect(redacted).not.toContain('redacted] redacted]')
+    expect(redacted).not.toContain('redacted]&model=x redacted]')
+    expect(redactProviderCredentials(redacted)).toBe(redacted)
+  })
 })

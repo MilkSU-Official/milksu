@@ -698,15 +698,19 @@ func boolToInt(value bool) int {
 }
 
 var credentialPatterns = []*regexp.Regexp{
-	regexp.MustCompile(`(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{10,}`),
+	regexp.MustCompile(`(?i)\bBearer\s+(?:\[credential redacted\]|[A-Za-z0-9._~+/=-]{10,})`),
 	regexp.MustCompile(`\bsk-[A-Za-z0-9_-]{10,}\b`),
 	regexp.MustCompile(`\bsess-[A-Za-z0-9_-]{10,}\b`),
-	regexp.MustCompile(`(?i)\b(?:OPENAI|KIMI|MOONSHOT|ANTHROPIC|DEEPSEEK|GEMINI|DASHSCOPE|VOLCENGINE)?_?API_KEY\s*[:=]\s*["']?[^"'\s,;]+`),
-	regexp.MustCompile(`(?i)([?&](?:api_key|apikey|access_token|token|secret|key)=)[^&#\s]+`),
-	regexp.MustCompile(`(?i)\b(x-api-key|api-key|authorization)\s*[:=]\s*["']?[^"'\s,;]+`),
+	regexp.MustCompile(`(?i)\b(?:OPENAI|KIMI|MOONSHOT|ANTHROPIC|DEEPSEEK|GEMINI|DASHSCOPE|VOLCENGINE)?_?API_KEY\s*[:=]\s*["']?(?:\[credential redacted\]|[^"'\s,;]+)`),
+	regexp.MustCompile(`(?i)([?&](?:api_key|apikey|access_token|token|secret|key)=)(?:\[credential redacted\]|[^&#\s]+)`),
+	regexp.MustCompile(`(?i)\b(x-api-key|api-key|authorization)\s*[:=]\s*["']?(?:\[credential redacted\]|[^"'\s,;]+)`),
 }
 
+var repeatedCredentialMarker = regexp.MustCompile(`(?i)\[credential redacted\](?:\s+redacted\])+`)
+var queryCredentialMarkerSuffix = regexp.MustCompile(`(?i)((?:[?&](?:api_key|apikey|access_token|token|secret|key|x-api-key)=\[credential redacted\](?:[&#][^"'<>\]\s]*)?))(?:\s+redacted\])+`)
+
 func RedactSnippet(value string) string {
+	value = normalizeRedactedCredentialMarkers(value)
 	for _, pattern := range credentialPatterns {
 		value = pattern.ReplaceAllStringFunc(value, func(match string) string {
 			if strings.Contains(match, "?") || strings.Contains(match, "&") {
@@ -726,7 +730,18 @@ func RedactSnippet(value string) string {
 			return "[credential redacted]"
 		})
 	}
-	return value
+	return normalizeRedactedCredentialMarkers(value)
+}
+
+func normalizeRedactedCredentialMarkers(value string) string {
+	for {
+		next := repeatedCredentialMarker.ReplaceAllString(value, "[credential redacted]")
+		next = queryCredentialMarkerSuffix.ReplaceAllString(next, "$1")
+		if next == value {
+			return next
+		}
+		value = next
+	}
 }
 
 var schemaStatements = []string{

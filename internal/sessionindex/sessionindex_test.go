@@ -203,6 +203,52 @@ func TestSearchFindsMilkSUIndexedHistory(t *testing.T) {
 	}
 }
 
+func TestRedactSnippetIsIdempotentForAlreadyRedactedValues(t *testing.T) {
+	once := strings.Join([]string{
+		"OPENAI_API_KEY=[credential redacted]",
+		"Authorization: Bearer [credential redacted]",
+		"https://provider.example.test/v1?api_key=[credential redacted]&model=x",
+		"https://provider.example.test/v1?x-api-key=[credential redacted]&model=x",
+		"api-key=[credential redacted]",
+		"x-api-key: [credential redacted]",
+	}, " ")
+
+	redacted := RedactSnippet(once)
+	if got := RedactSnippet(redacted); got != redacted {
+		t.Fatalf("RedactSnippet() second pass = %q, want idempotent %q", got, redacted)
+	}
+	if strings.Contains(redacted, "redacted] redacted]") {
+		t.Fatalf("RedactSnippet() repeated the redaction marker: %q", redacted)
+	}
+	if strings.Contains(redacted, "redacted]&model=x redacted]") {
+		t.Fatalf("RedactSnippet() repeated the query redaction marker: %q", redacted)
+	}
+}
+
+func TestRedactSnippetCollapsesPreviouslyExpandedMarkers(t *testing.T) {
+	polluted := strings.Join([]string{
+		"OPENAI_API_KEY=[credential redacted] redacted] redacted]",
+		"https://provider.example.test/v1?api_key=[credential redacted]&model=x redacted]",
+	}, " ")
+
+	redacted := RedactSnippet(polluted)
+	if !strings.Contains(redacted, "OPENAI_API_KEY=[credential redacted]") {
+		t.Fatalf("RedactSnippet() removed redaction marker context: %q", redacted)
+	}
+	if !strings.Contains(redacted, "?api_key=[credential redacted]&model=x") {
+		t.Fatalf("RedactSnippet() removed query context: %q", redacted)
+	}
+	if strings.Contains(redacted, "redacted] redacted]") {
+		t.Fatalf("RedactSnippet() kept expanded redaction markers: %q", redacted)
+	}
+	if strings.Contains(redacted, "redacted]&model=x redacted]") {
+		t.Fatalf("RedactSnippet() kept expanded query redaction marker: %q", redacted)
+	}
+	if got := RedactSnippet(redacted); got != redacted {
+		t.Fatalf("RedactSnippet() second pass = %q, want idempotent %q", got, redacted)
+	}
+}
+
 func TestSearchFallsBackWhenFTSIsUnavailable(t *testing.T) {
 	path := createObeliskFixtureWithoutFTS(t)
 	store := Store{Path: path, Now: fixedNow}
