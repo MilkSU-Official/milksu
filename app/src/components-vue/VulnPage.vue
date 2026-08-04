@@ -204,6 +204,23 @@ async function syncSelectedNvdCve() {
   }
 }
 
+async function syncSelectedFirstEPSS() {
+  importError.value = ''
+  importNotice.value = ''
+  lastImportedIds.value = []
+  try {
+    const result = await dashboard.syncSelectedFirstEPSS()
+    lastImportedIds.value = result.importedIds
+    importNotice.value = `已同步 FIRST EPSS：${dashboard.selected.value.id} 新增 ${result.imported}、更新 ${result.updated}`
+      + (result.skipped ? `，跳过 ${result.skipped}` : '')
+      + `；${result.format}，获取 ${new Date(result.retrievedAt).toLocaleString()}，${result.itemCount} 条，${result.cacheState} ${result.digest}`
+      + (result.errors.length ? `；${result.errors.length} 条格式需人工处理` : '')
+  } catch (cause) {
+    importError.value = dashboard.sourceSyncError.value
+      || (cause instanceof Error ? cause.message : String(cause))
+  }
+}
+
 async function syncVulhubPracticeCatalog() {
   practiceImportError.value = ''
   practiceImportNotice.value = ''
@@ -447,7 +464,7 @@ function isHttpUrl(value: string) {
         <div class="min-w-0">
           <h2 class="text-label font-medium">情报源设置</h2>
           <p class="mt-1 max-w-3xl text-caption leading-5 text-muted-foreground">
-            管理 NVD 单 CVE 精确同步、CISA KEV 公开只读同步、Vulhub 练习目录同步与手动 Feed 快照导入；这些只作为学习和追踪证据，不等于 Judge 或真实资产验证。
+            管理 NVD 单 CVE 精确同步、FIRST EPSS 当前 CVE 概率同步、CISA KEV 公开只读同步、Vulhub 练习目录同步与手动 Feed 快照导入；这些只作为学习和追踪证据，不等于 Judge 或真实资产验证。
           </p>
           <p class="mt-1 text-caption leading-5 text-muted-foreground">
             {{ dashboard.sourceRefreshSummary.value.detail }}
@@ -479,6 +496,16 @@ function isHttpUrl(value: string) {
           >
             <RefreshCw class="size-4" :class="dashboard.sourceSyncing.value ? 'animate-spin' : ''" />
             同步 NVD
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label="同步当前 CVE 的 FIRST EPSS"
+            :loading="dashboard.sourceSyncing.value"
+            @click="syncSelectedFirstEPSS"
+          >
+            <RefreshCw class="size-4" :class="dashboard.sourceSyncing.value ? 'animate-spin' : ''" />
+            同步 EPSS
           </Button>
           <Button
             variant="ghost"

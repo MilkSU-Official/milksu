@@ -315,6 +315,7 @@ interface WailsAppBindings {
   GetVulnJob(id: string): Promise<VulnProjection>
   FetchCISAKEVFeed(): Promise<VulnerabilityFeedDownload>
   FetchNVDCVE(cveId: string): Promise<VulnerabilityFeedDownload>
+  FetchFIRSTEPSS(cveId: string): Promise<VulnerabilityFeedDownload>
   FetchVulhubPracticeCatalog(): Promise<VulnerabilityFeedDownload>
   SubmitVulnReproduction(id: string, request: VulnReproductionRequest): Promise<VulnProjection>
   RecordVulnLearning(id: string, request: VulnLearningRecordRequest): Promise<VulnProjection>
@@ -337,6 +338,7 @@ const CTF_PROJECTIONS_KEY = 'milksu.dev.ctf-projections'
 const NSSCTF_CATALOG_KEY = 'milksu.dev.nssctf-catalog'
 const CISA_KEV_FEED_URL = 'https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json'
 const NVD_CVE_API_URL = 'https://services.nvd.nist.gov/rest/json/cves/2.0'
+const FIRST_EPSS_API_URL = 'https://api.first.org/data/v1/epss'
 const VULHUB_REPO_API_URL = 'https://api.github.com/repos/vulhub/vulhub'
 const VULHUB_REPO_WEB_URL = 'https://github.com/vulhub/vulhub'
 
@@ -428,16 +430,16 @@ async function fetchCISAKEVFeedInBrowser(): Promise<VulnerabilityFeedDownload> {
   }
 }
 
-function normalizeNvdCveId(cveId: unknown) {
+function normalizeFeedCveId(cveId: unknown, sourceName: string) {
   const normalized = String(cveId ?? '').trim().toUpperCase()
   if (!/^CVE-\d{4}-\d{4,}$/.test(normalized)) {
-    throw new Error('NVD CVE sync requires a CVE-YYYY-NNNN id')
+    throw new Error(`${sourceName} sync requires a CVE-YYYY-NNNN id`)
   }
   return normalized
 }
 
 async function fetchNVDCVEInBrowser(cveId: unknown): Promise<VulnerabilityFeedDownload> {
-  const normalized = normalizeNvdCveId(cveId)
+  const normalized = normalizeFeedCveId(cveId, 'NVD CVE')
   const url = new URL(NVD_CVE_API_URL)
   url.searchParams.set('cveId', normalized)
   const response = await fetch(url.toString(), {
@@ -449,6 +451,30 @@ async function fetchNVDCVEInBrowser(cveId: unknown): Promise<VulnerabilityFeedDo
   }
   return {
     sourceName: 'NVD',
+    sourceUrl: url.toString(),
+    retrievedAt: response.headers.get('last-modified')
+      || response.headers.get('date')
+      || new Date().toISOString(),
+    lastModified: response.headers.get('last-modified') || '',
+    httpStatus: response.status,
+    contentType: response.headers.get('content-type') || '',
+    body: await response.text(),
+  }
+}
+
+async function fetchFIRSTEPSSInBrowser(cveId: unknown): Promise<VulnerabilityFeedDownload> {
+  const normalized = normalizeFeedCveId(cveId, 'FIRST EPSS')
+  const url = new URL(FIRST_EPSS_API_URL)
+  url.searchParams.set('cve', normalized)
+  const response = await fetch(url.toString(), {
+    headers: { Accept: 'application/json' },
+    cache: 'no-store',
+  })
+  if (!response.ok) {
+    throw new Error(`FIRST EPSS returned HTTP ${response.status}`)
+  }
+  return {
+    sourceName: 'FIRST EPSS',
     sourceUrl: url.toString(),
     retrievedAt: response.headers.get('last-modified')
       || response.headers.get('date')
@@ -1022,6 +1048,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.FetchCISAKEVFeed() as Promise<T>
       case 'fetch_nvd_cve':
         return app.FetchNVDCVE(args?.cveId as string) as Promise<T>
+      case 'fetch_first_epss':
+        return app.FetchFIRSTEPSS(args?.cveId as string) as Promise<T>
       case 'fetch_vulhub_practice_catalog':
         return app.FetchVulhubPracticeCatalog() as Promise<T>
       case 'submit_vuln_reproduction':
@@ -1255,6 +1283,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
       return await fetchCISAKEVFeedInBrowser() as T
     case 'fetch_nvd_cve':
       return await fetchNVDCVEInBrowser(args?.cveId) as T
+    case 'fetch_first_epss':
+      return await fetchFIRSTEPSSInBrowser(args?.cveId) as T
     case 'fetch_vulhub_practice_catalog':
       return await fetchVulhubPracticeCatalogInBrowser() as T
     case 'import_nssctf_challenge': {

@@ -55,6 +55,13 @@ func TestFetchFeedSnapshotRejectsNonJSON(t *testing.T) {
 	}
 }
 
+func TestFetchFeedSnapshotRejectsNonHTTPURL(t *testing.T) {
+	_, err := FetchFeedSnapshot(context.Background(), nil, "local", "file:///etc/hosts")
+	if err == nil || !strings.Contains(err.Error(), `unsupported URL scheme "file"`) {
+		t.Fatalf("expected unsupported scheme error, got %v", err)
+	}
+}
+
 func TestFetchNVDCVEBuildsExactQueryAndKeepsTiming(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if request.URL.Path != "/rest/json/cves/2.0" {
@@ -98,6 +105,54 @@ func TestFetchNVDCVEBuildsExactQueryAndKeepsTiming(t *testing.T) {
 
 func TestFetchNVDCVERejectsInvalidCVEID(t *testing.T) {
 	_, err := FetchNVDCVEFrom(context.Background(), nil, NVDCVEAPIURL, "2024-3400")
+	if err == nil || !strings.Contains(err.Error(), "invalid CVE id") {
+		t.Fatalf("expected invalid CVE id error, got %v", err)
+	}
+}
+
+func TestFetchFIRSTEPSSBuildsExactQueryAndKeepsTiming(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/data/v1/epss" {
+			t.Fatalf("path = %q", request.URL.Path)
+		}
+		if request.URL.Query().Get("cve") != "CVE-2024-3400" {
+			t.Fatalf("cve query = %q", request.URL.Query().Get("cve"))
+		}
+		if request.Header.Get("Accept") != "application/json" {
+			t.Fatalf("missing JSON accept header")
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		writer.Header().Set("Date", "Tue, 04 Aug 2026 08:00:00 GMT")
+		writer.WriteHeader(http.StatusOK)
+		_, _ = writer.Write([]byte(`{"status":"OK","data":[{"cve":"CVE-2024-3400","epss":"0.932410000","percentile":"0.997200000","date":"2026-08-04"}]}`))
+	}))
+	defer server.Close()
+
+	download, err := FetchFIRSTEPSSFrom(
+		context.Background(),
+		server.Client(),
+		server.URL+"/data/v1/epss",
+		" cve-2024-3400 ",
+	)
+	if err != nil {
+		t.Fatalf("FetchFIRSTEPSSFrom() error = %v", err)
+	}
+	if download.SourceName != FIRSTEPSSFeedName {
+		t.Fatalf("SourceName = %q", download.SourceName)
+	}
+	if !strings.Contains(download.SourceURL, "cve=CVE-2024-3400") {
+		t.Fatalf("SourceURL missing exact CVE query: %q", download.SourceURL)
+	}
+	if download.RetrievedAt != "2026-08-04T08:00:00Z" {
+		t.Fatalf("RetrievedAt = %q", download.RetrievedAt)
+	}
+	if !strings.Contains(download.Body, "0.932410000") {
+		t.Fatalf("Body = %q", download.Body)
+	}
+}
+
+func TestFetchFIRSTEPSSRejectsInvalidCVEID(t *testing.T) {
+	_, err := FetchFIRSTEPSSFrom(context.Background(), nil, FIRSTEPSSAPIURL, "2024-3400")
 	if err == nil || !strings.Contains(err.Error(), "invalid CVE id") {
 		t.Fatalf("expected invalid CVE id error, got %v", err)
 	}

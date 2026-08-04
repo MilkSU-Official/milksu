@@ -62,6 +62,33 @@ describe('desktop command adapter', () => {
     expect(fetchNVDCVE).toHaveBeenCalledWith('CVE-2024-3400')
   })
 
+  it('passes selected FIRST EPSS sync to the Wails read-only fetcher', async () => {
+    const feed = {
+      sourceName: 'FIRST EPSS',
+      sourceUrl: 'https://api.first.org/data/v1/epss?cve=CVE-2024-3400',
+      retrievedAt: '2026-08-04T08:00:00Z',
+      lastModified: '',
+      httpStatus: 200,
+      contentType: 'application/json',
+      body: '{"data":[{"cve":"CVE-2024-3400","epss":"0.932410000","percentile":"0.997200000","date":"2026-08-04"}]}',
+    }
+    const fetchFIRSTEPSS = vi.fn(async () => feed)
+    Object.defineProperty(window, 'go', {
+      configurable: true,
+      value: {
+        main: {
+          App: {
+            FetchFIRSTEPSS: fetchFIRSTEPSS,
+          },
+        },
+      },
+    })
+
+    await expect(invokeCommand('fetch_first_epss', { cveId: 'CVE-2024-3400' })).resolves.toBe(feed)
+    expect(fetchFIRSTEPSS).toHaveBeenCalledTimes(1)
+    expect(fetchFIRSTEPSS).toHaveBeenCalledWith('CVE-2024-3400')
+  })
+
   it('passes Vulhub practice catalog sync to the Wails read-only fetcher', async () => {
     const catalog = {
       sourceName: 'Vulhub Practice Catalog',

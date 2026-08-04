@@ -11,9 +11,11 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -23,6 +25,8 @@ const (
 	CISAKEVFeedURL        = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 	NVDCVEFeedName        = "NVD"
 	NVDCVEAPIURL          = "https://services.nvd.nist.gov/rest/json/cves/2.0"
+	FIRSTEPSSFeedName     = "FIRST EPSS"
+	FIRSTEPSSAPIURL       = "https://api.first.org/data/v1/epss"
 	VulhubPracticeCatalog = "Vulhub Practice Catalog"
 	VulhubRepoAPIURL      = "https://api.github.com/repos/vulhub/vulhub"
 	VulhubRepoWebURL      = "https://github.com/vulhub/vulhub"
@@ -59,6 +63,10 @@ func FetchNVDCVE(ctx context.Context, client *http.Client, cveID string) (FeedSn
 	return FetchNVDCVEFrom(ctx, client, NVDCVEAPIURL, cveID)
 }
 
+func FetchFIRSTEPSS(ctx context.Context, client *http.Client, cveID string) (FeedSnapshotDownload, error) {
+	return FetchFIRSTEPSSFrom(ctx, client, FIRSTEPSSAPIURL, cveID)
+}
+
 func FetchNVDCVEFrom(
 	ctx context.Context,
 	client *http.Client,
@@ -80,6 +88,29 @@ func FetchNVDCVEFrom(
 	query.Set("cveId", normalizedID)
 	parsed.RawQuery = query.Encode()
 	return FetchFeedSnapshot(ctx, client, NVDCVEFeedName, parsed.String())
+}
+
+func FetchFIRSTEPSSFrom(
+	ctx context.Context,
+	client *http.Client,
+	apiURL string,
+	cveID string,
+) (FeedSnapshotDownload, error) {
+	normalizedID := strings.ToUpper(strings.TrimSpace(cveID))
+	if !cveIDPattern.MatchString(normalizedID) {
+		return FeedSnapshotDownload{}, fmt.Errorf("fetch FIRST EPSS: invalid CVE id")
+	}
+	parsed, err := url.Parse(strings.TrimSpace(apiURL))
+	if err != nil {
+		return FeedSnapshotDownload{}, fmt.Errorf("fetch FIRST EPSS: invalid API URL: %w", err)
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return FeedSnapshotDownload{}, fmt.Errorf("fetch FIRST EPSS: unsupported API URL scheme %q", parsed.Scheme)
+	}
+	query := parsed.Query()
+	query.Set("cve", normalizedID)
+	parsed.RawQuery = query.Encode()
+	return FetchFeedSnapshot(ctx, client, FIRSTEPSSFeedName, parsed.String())
 }
 
 func FetchVulhubPracticeCatalog(ctx context.Context, client *http.Client) (FeedSnapshotDownload, error) {
@@ -153,9 +184,21 @@ func FetchFeedSnapshot(
 	sourceName string,
 	sourceURL string,
 ) (FeedSnapshotDownload, error) {
+	usesDefaultClient := client == nil
 	if client == nil {
 		client = &http.Client{Timeout: 20 * time.Second}
 	}
+	parsedURL, err := url.Parse(strings.TrimSpace(sourceURL))
+	if err != nil {
+		return FeedSnapshotDownload{}, fmt.Errorf("create vulnerability feed request: invalid URL: %w", err)
+	}
+	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+		return FeedSnapshotDownload{}, fmt.Errorf("create vulnerability feed request: unsupported URL scheme %q", parsedURL.Scheme)
+	}
+	if parsedURL.Host == "" {
+		return FeedSnapshotDownload{}, fmt.Errorf("create vulnerability feed request: URL host is required")
+	}
+	sourceURL = parsedURL.String()
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, sourceURL, nil)
 	if err != nil {
 		return FeedSnapshotDownload{}, fmt.Errorf("create vulnerability feed request: %w", err)
@@ -165,6 +208,13 @@ func FetchFeedSnapshot(
 
 	response, err := client.Do(request)
 	if err != nil {
+		if usesDefaultClient {
+			if fallback, fallbackErr := fetchFeedSnapshotWithCurl(ctx, sourceName, sourceURL); fallbackErr == nil {
+				return fallback, nil
+			} else {
+				return FeedSnapshotDownload{}, fmt.Errorf("fetch vulnerability feed: %w; curl fallback: %v", err, fallbackErr)
+			}
+		}
 		return FeedSnapshotDownload{}, fmt.Errorf("fetch vulnerability feed: %w", err)
 	}
 	defer response.Body.Close()
@@ -196,6 +246,99 @@ func FetchFeedSnapshot(
 		ContentType:  contentType,
 		Body:         string(body),
 	}, nil
+}
+
+func fetchFeedSnapshotWithCurl(
+	ctx context.Context,
+	sourceName string,
+	sourceURL string,
+) (FeedSnapshotDownload, error) {
+	if _, err := exec.LookPath("/usr/bin/curl"); err != nil {
+		return FeedSnapshotDownload{}, fmt.Errorf("curl fallback unavailable: %w", err)
+	}
+	headerFile, err := os.CreateTemp("", "milksu-vuln-feed-headers-*.txt")
+	if err != nil {
+		return FeedSnapshotDownload{}, fmt.Errorf("create curl header capture: %w", err)
+	}
+	headerPath := headerFile.Name()
+	_ = headerFile.Close()
+	defer func() { _ = os.Remove(headerPath) }()
+
+	command := exec.CommandContext(ctx, "/usr/bin/curl",
+		"--fail",
+		"--location",
+		"--silent",
+		"--show-error",
+		"--proto", "=http,https",
+		"--max-time", "60",
+		"--connect-timeout", "20",
+		"--max-filesize", strconv.Itoa(maxFeedBytes),
+		"--dump-header", headerPath,
+		"--header", "Accept: application/json",
+		"--header", "User-Agent: MilkSU-CVE-Learning/0.1",
+		sourceURL,
+	)
+	body, err := command.Output()
+	if err != nil {
+		return FeedSnapshotDownload{}, fmt.Errorf("curl public JSON feed request failed: %w", err)
+	}
+	if len(body) > maxFeedBytes {
+		return FeedSnapshotDownload{}, fmt.Errorf("curl public JSON feed payload exceeds %d bytes", maxFeedBytes)
+	}
+	headerBytes, err := os.ReadFile(headerPath)
+	if err != nil {
+		return FeedSnapshotDownload{}, fmt.Errorf("read curl header capture: %w", err)
+	}
+	status, header := parseCurlHeaderCapture(string(headerBytes))
+	contentType := header.Get("Content-Type")
+	if status != 0 && (status < 200 || status >= 300) {
+		return FeedSnapshotDownload{}, fmt.Errorf("curl public JSON feed returned HTTP %d", status)
+	}
+	if mediaType, _, err := mime.ParseMediaType(contentType); err == nil {
+		if !strings.Contains(strings.ToLower(mediaType), "json") {
+			return FeedSnapshotDownload{}, fmt.Errorf("curl public JSON feed: unexpected content type %q", contentType)
+		}
+	}
+	return FeedSnapshotDownload{
+		SourceName:   sourceName,
+		SourceURL:    sourceURL,
+		RetrievedAt:  retrievedAtFromHeaders(header),
+		LastModified: header.Get("Last-Modified"),
+		HTTPStatus:   status,
+		ContentType:  contentType,
+		Body:         string(body),
+	}, nil
+}
+
+func parseCurlHeaderCapture(raw string) (int, http.Header) {
+	header := http.Header{}
+	status := 0
+	blocks := regexp.MustCompile(`\r?\n\r?\n`).Split(raw, -1)
+	for index := len(blocks) - 1; index >= 0; index-- {
+		block := strings.TrimSpace(blocks[index])
+		if block == "" {
+			continue
+		}
+		lines := regexp.MustCompile(`\r?\n`).Split(block, -1)
+		if len(lines) == 0 || !strings.HasPrefix(strings.ToUpper(lines[0]), "HTTP/") {
+			continue
+		}
+		fields := strings.Fields(lines[0])
+		if len(fields) >= 2 {
+			if parsed, err := strconv.Atoi(fields[1]); err == nil {
+				status = parsed
+			}
+		}
+		for _, line := range lines[1:] {
+			name, value, ok := strings.Cut(line, ":")
+			if !ok {
+				continue
+			}
+			header.Add(strings.TrimSpace(name), strings.TrimSpace(value))
+		}
+		break
+	}
+	return status, header
 }
 
 // PersistFeedSnapshot stores the exact public JSON payload under MilkSU's app

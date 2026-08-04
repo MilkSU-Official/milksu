@@ -1447,6 +1447,12 @@ func (a *App) FetchNVDCVE(cveID string) (vuln.FeedSnapshotDownload, error) {
 	})
 }
 
+func (a *App) FetchFIRSTEPSS(cveID string) (vuln.FeedSnapshotDownload, error) {
+	return a.fetchAndPersistVulnerabilityFeed(func(ctx context.Context) (vuln.FeedSnapshotDownload, error) {
+		return vuln.FetchFIRSTEPSS(ctx, nil, cveID)
+	})
+}
+
 func (a *App) FetchVulhubPracticeCatalog() (vuln.FeedSnapshotDownload, error) {
 	return a.fetchAndPersistVulnerabilityFeed(func(ctx context.Context) (vuln.FeedSnapshotDownload, error) {
 		return vuln.FetchVulhubPracticeCatalog(ctx, nil)

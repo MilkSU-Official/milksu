@@ -149,11 +149,13 @@ describe('VulnPage', () => {
     const host = await mountVulnPage()
 
     expect(host.textContent).not.toContain('同步 NVD')
+    expect(host.textContent).not.toContain('同步 EPSS')
     expect(host.textContent).not.toContain('导入 Feed')
     await openIntelSettings(host)
 
     expect(host.textContent).toContain('情报源设置')
     expect(host.textContent).toContain('同步 NVD')
+    expect(host.textContent).toContain('同步 EPSS')
     expect(host.textContent).toContain('同步 KEV')
     expect(host.textContent).toContain('同步 Vulhub')
     expect(host.textContent).toContain('导入 Feed')
@@ -224,6 +226,53 @@ describe('VulnPage', () => {
     expect(host.textContent).toContain('sha256')
     expect(host.textContent).toContain('Command injection vulnerability in PAN-OS GlobalProtect.')
     expect(host.textContent).toContain('10.0 CVSS')
+  })
+
+  it('syncs FIRST EPSS through the desktop adapter into visible priority evidence', async () => {
+    const fetchFIRSTEPSS = vi.fn(async () => ({
+      sourceName: 'FIRST EPSS',
+      sourceUrl: 'https://api.first.org/data/v1/epss?cve=CVE-2024-3400',
+      retrievedAt: '2026-08-04T08:00:00Z',
+      lastModified: '',
+      httpStatus: 200,
+      contentType: 'application/json',
+      snapshotPath: '/Users/example/Library/Application Support/MilkSU/vuln/feed-snapshots/first-epss/20260804T080000Z-efgh.json',
+      snapshotSha256: 'efgh'.repeat(16),
+      snapshotSizeBytes: 240,
+      body: JSON.stringify({
+        status: 'OK',
+        data: [{
+          cve: 'CVE-2024-3400',
+          epss: '0.932410000',
+          percentile: '0.997200000',
+          date: '2026-08-04',
+        }],
+      }),
+    }))
+    Object.defineProperty(window, 'go', {
+      configurable: true,
+      value: { main: { App: { FetchFIRSTEPSS: fetchFIRSTEPSS } } },
+    })
+    const host = await mountVulnPage()
+    await openIntelSettings(host)
+    const sync = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
+      item.getAttribute('aria-label') === '同步当前 CVE 的 FIRST EPSS',
+    )
+    if (!sync) throw new Error('missing EPSS sync button')
+
+    sync.click()
+    await flushAsyncUpdates()
+
+    expect(fetchFIRSTEPSS).toHaveBeenCalledTimes(1)
+    expect(fetchFIRSTEPSS).toHaveBeenCalledWith('CVE-2024-3400')
+    expect(host.textContent).toContain('已同步 FIRST EPSS：CVE-2024-3400 新增 0、更新 1')
+    expect(host.textContent).toContain('FIRST EPSS API')
+    expect(host.textContent).toContain('93.2%')
+    expect(host.textContent).toContain('优先级信号')
+    expect(host.textContent).toContain('来源证据')
+    expect(host.textContent).toContain('FIRST EPSS · FIRST EPSS API')
+    expect(host.textContent).toContain('feed-snapshots/first-epss')
+    expect(host.textContent).not.toContain('Judge verified')
   })
 
   it('syncs the CISA KEV feed through the desktop adapter into visible evidence', async () => {
