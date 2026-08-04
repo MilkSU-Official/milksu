@@ -3,14 +3,12 @@ import { computed } from 'vue'
 import ContextSidebar from '@/components-vue/ContextSidebar.vue'
 import WorkspaceRail from '@/components-vue/WorkspaceRail.vue'
 import type { CTFWorkspaceSection, WorkspaceSection } from '@/lib/workspaceNavigation'
-import type { NSSCTFTrainingDashboard } from '@/nssctfTrainingTypes'
 import type { Conversation } from '@/types'
 
 const props = defineProps<{
   activeSection: WorkspaceSection | 'settings'
   activeConversationId: string | null
   conversations: Conversation[]
-  ctfDashboard: NSSCTFTrainingDashboard | null
   ctfSection: CTFWorkspaceSection
 }>()
 
@@ -20,7 +18,6 @@ defineEmits<{
   selectConversation: [id: string]
   deleteConversation: [id: string]
   navigateCtf: [value: CTFWorkspaceSection]
-  settings: []
 }>()
 
 const railSection = computed(() => (
@@ -48,7 +45,6 @@ const showContextSidebar = computed(() => railSection.value === 'chat')
       @select-conversation="$emit('selectConversation', $event)"
       @delete-conversation="$emit('deleteConversation', $event)"
       @navigate-ctf="$emit('navigateCtf', $event)"
-      @settings="$emit('settings')"
     />
   </aside>
 </template>

@@ -3,7 +3,6 @@ import { computed, defineAsyncComponent, onMounted, ref } from 'vue'
 import AppSidebar from '@/components-vue/AppSidebar.vue'
 import StartupRecoveryBanner from '@/components-vue/StartupRecoveryBanner.vue'
 import { useConversations } from '@/composables/useConversations'
-import { useNSSCTFTraining } from '@/composables/useNSSCTFTraining'
 import { invokeCommand } from '@/desktop'
 import type { CTFAgentWorkspaceHandoff } from '@/ctfTypes'
 import type { VulnerabilityCodingTask } from '@/composables/useVulnerabilityDashboard'
@@ -24,7 +23,6 @@ const VulnPage = defineAsyncComponent(() => import('@/components-vue/VulnPage.vu
 type Section = 'chat' | 'ctf' | 'vuln' | 'settings'
 
 const conversations = useConversations()
-const ctfTraining = useNSSCTFTraining()
 const section = ref<Section>('ctf')
 const ctfSection = ref<CTFWorkspaceSection>('catalog')
 const ctfResumeJobId = ref<string | null>(null)
@@ -274,7 +272,6 @@ onMounted(async () => {
         :active-section="sidebarSection"
         :active-conversation-id="conversations.activeId.value"
         :conversations="conversations.conversations.value"
-        :ctf-dashboard="ctfTraining.dashboard.value"
         :ctf-section="ctfSection"
         @new="newConversation"
         @navigate="navigateSection"
@@ -285,7 +282,6 @@ onMounted(async () => {
         }"
         @delete-conversation="conversations.remove"
         @navigate-ctf="ctfSection = $event"
-        @settings="openSettings('general')"
       />
 
       <SettingsPage

@@ -12,7 +12,6 @@ import {
   MessageSquarePlus,
   Radar,
   Search,
-  Settings,
   Trash2,
 } from 'lucide-vue-next'
 import { groupCodingConversations } from '@/lib/codingConversationGroups'
@@ -37,7 +36,6 @@ defineEmits<{
   selectConversation: [id: string]
   deleteConversation: [id: string]
   navigateCtf: [value: CTFWorkspaceSection]
-  settings: []
 }>()
 
 const query = ref('')
@@ -191,17 +189,6 @@ watch(
     </div>
     <div v-else class="flex-1" />
 
-    <div class="app-no-drag flex h-[4.0625rem] items-center justify-end border-t border-border px-3">
-      <Button
-        variant="ghost"
-        size="icon"
-        aria-label="设置"
-        title="设置"
-        @click="$emit('settings')"
-      >
-        <Settings class="size-4" />
-      </Button>
-    </div>
   </div>
 </template>
 
