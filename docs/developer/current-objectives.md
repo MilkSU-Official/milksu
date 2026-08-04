@@ -108,7 +108,11 @@
    预览/验证、恢复和 Git 交付。详见 [产品闭环冲刺](./product-loop-sprint.md)。
    同时补齐 CVE 情报追踪、资产关联与可练习环境的最小可见骨架，让它作为一级菜单不再像空模块。
    2026-08-05 packaged CVE feed live smoke 已证明打包 App 进程能真实拉取 NVD 单 CVE、
-   持久化 snapshot，并提取来源时间与选中 CVE facts；后续不再把 CVE 说成只有 mock 数据。
+   持久化 snapshot，并提取来源时间与选中 CVE facts；同日 packaged CVE feed matrix smoke
+   已证明打包 App 进程能为 `CVE-2023-46604` 同步 NVD、FIRST EPSS、CISA KEV 和 Vulhub
+   练习目录，保留四份来源 snapshot，并匹配到 `activemq/CVE-2023-46604`。后续不再把 CVE
+   说成只有 mock 数据或只有单 NVD；仍未完成 Docker 练习环境启动/停止、完整研究结果回写
+   和资产验证。
 3. **P0 · 长时间自主开发。** 打包 MilkSU 在“替我审批”或“完全访问”下持续完成真实功能，
    自动构建、测试、预览、恢复和交付，普通已授权操作不以无意义审批反复打断用户。
    Computer Use 必须能由用户选择一个当前可见的外部 App / 窗口作为不可变 Scope，并让

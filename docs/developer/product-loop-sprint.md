@@ -62,8 +62,10 @@
   packaged MilkSU App facade 的 list/start/status/descriptor/stop live smoke 也已通过；下一步只补
   用户在 MilkSU UI 内点击选择/启动会话、重启后权限检测一致性，以及主模型消费截图完成真实任务；
 - CVE：packaged App 进程内 NVD 单 CVE 导入 live smoke 已通过，已保存来源、获取时间、
-  snapshot 哈希/大小和选中 CVE 的事实变化；下一步只补 UI 内 Feed 导入状态、Vulhub/Docker
-  启停/清理或更完整源矩阵，不能再说“只有四条 mock 数据”。2026-08-05 Browser 已验证
+  snapshot 哈希/大小和选中 CVE 的事实变化；packaged App 多源矩阵 smoke 已通过，能为
+  `CVE-2023-46604` 同步 NVD、FIRST EPSS、CISA KEV 和 Vulhub 练习目录，保留四份 snapshot，
+  并匹配到 `activemq/CVE-2023-46604`。下一步只补 UI 内多源同步状态、Vulhub/Docker
+  启停/清理、GHSA/OSV 或完整研究回写，不能再说“只有四条 mock 数据”。2026-08-05 Browser 已验证
   CVE 首页默认不铺 Feed/NVD/EPSS/KEV/Vulhub/缓存维护台，点击统一设置后才进入情报源设置；
 - CTF：从题库进入解题会话，切到 CVE/Coding 再返回，题库/会话/最近位置不丢失；Browser
   真实渲染烟测已证明 `CTF(P382)` → `CVE` → `Coding` → `CTF` 后仍回到 P382 工作台且

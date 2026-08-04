@@ -21,6 +21,7 @@
     "test:project-mcp": "node scripts/test-project-mcp-fixture.mjs",
     "test:computer-use-live": "node scripts/test-packaged-computer-use-live.mjs",
     "test:computer-use-app-live": "node scripts/test-packaged-computer-use-app-live.mjs",
+    "test:vuln-feed-matrix-live": "node scripts/test-packaged-vuln-feed-matrix-live.mjs",
     "test:vuln-feed-live": "node scripts/test-packaged-vuln-feed-live.mjs",
     "m3:release-check": "bash scripts/m3-release-check.sh",
     "test:security-bridge": "printf '%s\\n' '{\"action\":\"protocol_info\",\"requestId\":\"protocol-test\"}' | node security-bridge.js",

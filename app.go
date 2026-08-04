@@ -283,6 +283,7 @@ func (a *App) Startup(ctx context.Context) {
 	_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedDesktopRuntimeStarted)
 	a.maybeRunSessionIndexSmoke()
 	a.maybeRunVulnerabilityFeedSmoke()
+	a.maybeRunVulnerabilityFeedMatrixSmoke()
 	a.maybeRunCodingArtifactPreviewSmoke()
 	a.maybeRunComputerUseAppSmoke()
 	if a.managedLabs != nil {
