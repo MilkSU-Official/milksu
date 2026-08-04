@@ -89,6 +89,7 @@ describe('VulnPage', () => {
     expect(text).toContain('CVE')
     expect(text).toContain('追踪 CVE、资产命中与研究进度')
     expect(text).toContain('导入 JSON')
+    expect(text).toContain('导入练习')
     expect(host.querySelector('[data-module-topbar]')).not.toBeNull()
     expect(host.querySelector('[data-module-topbar]')?.getAttribute('data-workspace-module')).toBe('cve')
     expect(host.querySelector('[data-workspace-topbar-title]')?.className).toContain('workspace-topbar__title')
@@ -384,6 +385,76 @@ describe('VulnPage', () => {
     expect(host.textContent).not.toContain('CVE-2026-42424')
     expect(host.textContent).not.toContain('用户导入的依赖风险')
     expect(host.textContent).toContain('7')
+  })
+
+  it('imports pasted local practice catalog JSON into matched CVE practice plans without launching Docker', async () => {
+    const host = await mountVulnPage()
+    expect(host.textContent).toContain('未匹配练习环境')
+    expect(host.textContent).toContain('1 匹配')
+
+    const openImport = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
+      item.textContent?.includes('导入练习'),
+    )
+    if (!openImport) throw new Error('missing practice import button')
+    openImport.click()
+    await nextTick()
+
+    expect(host.textContent).toContain('导入本地练习 Catalog')
+    expect(host.textContent).toContain('只绑定启动前计划')
+    expect(host.textContent).toContain('不拉镜像、不启动容器、不运行触发输入')
+
+    const input = host.querySelector<HTMLTextAreaElement>('textarea[aria-label="本地 CVE 练习 Catalog JSON"]')
+    if (!input) throw new Error('missing local practice catalog textarea')
+    await setInput(input, JSON.stringify({
+      items: [
+        {
+          cveId: 'CVE-2024-3400',
+          title: 'Local PAN-OS lab plan',
+          directory: 'pan-os/CVE-2024-3400',
+          sourceHref: 'https://example.test/catalog/pan-os/CVE-2024-3400',
+          revision: 'local catalog abc123',
+          ports: ['8080/tcp · local lab'],
+          network: '仅允许 127.0.0.1 访问。',
+        },
+      ],
+    }))
+
+    const submit = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
+      item.textContent?.includes('导入练习匹配'),
+    )
+    if (!submit) throw new Error('missing practice import submit')
+    submit.click()
+    await nextTick()
+
+    expect(host.textContent).toContain('已导入 1 个本地练习环境匹配')
+    expect(host.textContent).toContain('2 匹配')
+    expect(host.textContent).toContain('已匹配练习环境')
+    expect(host.textContent).toContain('Local PAN-OS lab plan')
+    expect(host.textContent).toContain('pan-os/CVE-2024-3400')
+    expect(host.textContent).toContain('local catalog abc123')
+    expect(host.textContent).toContain('确认练习计划')
+    expect(host.textContent).toContain('练习成功只代表本地学习完成')
+
+    const confirm = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
+      item.textContent?.includes('确认练习计划'),
+    )
+    if (!confirm) throw new Error('missing imported practice confirm button')
+    confirm.click()
+    await nextTick()
+
+    expect(host.textContent).toContain('已确认计划')
+    expect(host.textContent).toContain('不要自动拉取镜像、启动容器、运行 exploit 或访问外部目标')
+
+    const undo = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
+      item.textContent?.includes('撤销本次导入'),
+    )
+    if (!undo) throw new Error('missing practice undo button')
+    undo.click()
+    await nextTick()
+
+    expect(host.textContent).toContain('已撤销本次导入的 1 个本地练习环境匹配')
+    expect(host.textContent).toContain('1 匹配')
+    expect(host.textContent).toContain('未匹配练习环境')
   })
 
   it('persists user-confirmed research notes for the selected CVE', async () => {

@@ -5,6 +5,30 @@
 本文件只记录当前冲刺期间已经执行过的可复核验收动作，避免后续 Agent 把口头进展误当成
 已完成声明。最终架构、里程碑、状态页和发布说明仍按 `product-loop-sprint.md` 后置统一更新。
 
+## 2026-08-04 · CVE local practice catalog import
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | 本批次提交（见 Git log） |
+| 窄测 | `npm --prefix app test -- useVulnerabilityDashboard.test.ts VulnPage.test.ts VulnerabilityLoopPanel.test.ts vulnerabilityCodingHandoff.test.ts` |
+| 窄测结果 | 4 files / 36 tests passed |
+| Build | `npm --prefix app run build` |
+| Build 结果 | production build passed |
+
+覆盖范围：
+
+- CVE 顶栏新增“导入练习”入口；
+- 用户可以粘贴本地只读 practice catalog JSON，把已追踪 CVE 绑定到 Docker Compose 练习目录；
+- 导入后练习环境计数、当前 CVE 详情、“确认练习计划”和 Coding 接力 prompt 都能立刻使用该匹配；
+- 撤销本次练习导入会同时清掉对应本地 practice session，避免旧启动计划悬挂；
+- 导入路径不联网、不拉镜像、不启动容器、不开放端口、不运行 PoC/exploit/漏洞触发输入，也不会把练习匹配写成真实资产验证。
+
+本次仍未证明：
+
+- Vulhub 官方 catalog 的真实拉取、固定 revision 扫描和许可证/供应链审查；
+- Docker Compose 启动器、停止/清理器或端口 broker；
+- 打包 App 中用户真实粘贴大型 catalog 后的性能和交互验收。
+
 ## 2026-08-04 · Coding recent activity routing
 
 | 项目 | 记录 |

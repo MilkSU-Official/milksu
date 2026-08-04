@@ -79,10 +79,15 @@ const researchSteps = [
 const showCustomForm = ref(false)
 const customFormError = ref('')
 const showImportForm = ref(false)
+const showPracticeImportForm = ref(false)
 const importText = ref('')
 const importNotice = ref('')
 const importError = ref('')
 const lastImportedIds = ref<string[]>([])
+const practiceImportText = ref('')
+const practiceImportNotice = ref('')
+const practiceImportError = ref('')
+const lastImportedPracticeIds = ref<string[]>([])
 const showAssetForm = ref(false)
 const assetFormError = ref('')
 const feedImportCopyNotice = ref('')
@@ -160,6 +165,31 @@ function undoLastImport() {
     ? `已撤销本次导入的 ${removed} 条本地 CVE 追踪`
     : '没有可撤销的本地导入记录'
   lastImportedIds.value = []
+}
+
+function importPracticeCatalogJSON() {
+  practiceImportError.value = ''
+  practiceImportNotice.value = ''
+  lastImportedPracticeIds.value = []
+  const result = dashboard.importPracticeCatalogJSON(practiceImportText.value)
+  if (result.errors.length && !result.imported) {
+    practiceImportError.value = result.errors.join('；')
+    return
+  }
+  lastImportedPracticeIds.value = result.importedIds
+  practiceImportNotice.value = `已导入 ${result.imported} 个本地练习环境匹配`
+    + (result.skipped ? `，跳过 ${result.skipped} 个已存在匹配` : '')
+    + (result.errors.length ? `；${result.errors.length} 条需人工处理` : '')
+  practiceImportText.value = ''
+  showPracticeImportForm.value = false
+}
+
+function undoLastPracticeImport() {
+  const removed = dashboard.removeLocalPracticeEnvironments(lastImportedPracticeIds.value)
+  practiceImportNotice.value = removed
+    ? `已撤销本次导入的 ${removed} 个本地练习环境匹配`
+    : '没有可撤销的本地练习环境匹配'
+  lastImportedPracticeIds.value = []
 }
 
 function startSelectedCodingTask(task: VulnerabilityCodingTask) {
@@ -269,6 +299,14 @@ function statusVariant(status: VulnerabilityStatus) {
         >
           <ClipboardList class="size-4" />
           导入 JSON
+        </Button>
+        <Button
+          :variant="showPracticeImportForm ? 'outline' : 'ghost'"
+          size="sm"
+          @click="showPracticeImportForm = !showPracticeImportForm"
+        >
+          <Play class="size-4" />
+          导入练习
         </Button>
         <Button
           :variant="dashboard.watchOnly.value ? 'outline' : 'ghost'"
@@ -429,6 +467,42 @@ function statusVariant(status: VulnerabilityStatus) {
             </Button>
           </div>
         </form>
+        <form
+          v-if="showPracticeImportForm"
+          class="border-b border-border bg-card/70 px-6 py-5"
+          aria-label="导入本地 CVE 练习 Catalog JSON"
+          @submit.prevent="importPracticeCatalogJSON"
+        >
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <h2 class="text-label font-medium">导入本地练习 Catalog</h2>
+              <p class="mt-1 text-caption leading-5 text-muted-foreground">
+                粘贴 Vulhub 或你整理的 CVE → Docker Compose 目录映射；只绑定启动前计划，不拉镜像、不启动容器、不运行触发输入。
+              </p>
+            </div>
+            <Badge variant="outline">只读练习匹配</Badge>
+          </div>
+          <Textarea
+            v-model="practiceImportText"
+            class="mt-4 min-h-32 font-mono text-caption"
+            aria-label="本地 CVE 练习 Catalog JSON"
+            placeholder='[{"cveId":"CVE-2024-3400","title":"Vulhub · PAN-OS CVE-2024-3400","directory":"pan-os/CVE-2024-3400","sourceHref":"https://github.com/example/catalog/tree/main/pan-os/CVE-2024-3400","revision":"catalog commit abc123","ports":["8080/tcp · local lab"],"network":"仅本机 loopback"}]'
+          />
+          <p class="mt-2 text-caption leading-5 text-muted-foreground">
+            支持对象、数组，或包含 items / vulnerabilities / cves / results 的对象；CVE 必须已在追踪列表中，重复匹配会跳过。
+          </p>
+          <p v-if="practiceImportError" class="mt-3 text-caption text-destructive">{{ practiceImportError }}</p>
+          <p v-if="practiceImportNotice" class="mt-3 text-caption text-primary">{{ practiceImportNotice }}</p>
+          <div class="mt-4 flex items-center gap-2">
+            <Button type="submit" size="sm">
+              <Play class="size-4" />
+              导入练习匹配
+            </Button>
+            <Button type="button" variant="ghost" size="sm" @click="showPracticeImportForm = false">
+              取消
+            </Button>
+          </div>
+        </form>
         <div
           v-if="importNotice && !showImportForm"
           class="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-card/70 px-6 py-3"
@@ -442,6 +516,23 @@ function statusVariant(status: VulnerabilityStatus) {
             variant="outline"
             size="sm"
             @click="undoLastImport"
+          >
+            撤销本次导入
+          </Button>
+        </div>
+        <div
+          v-if="practiceImportNotice && !showPracticeImportForm"
+          class="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-card/70 px-6 py-3"
+          role="status"
+          aria-label="CVE 练习 Catalog 导入结果"
+        >
+          <p class="text-caption text-primary">{{ practiceImportNotice }}</p>
+          <Button
+            v-if="lastImportedPracticeIds.length"
+            type="button"
+            variant="outline"
+            size="sm"
+            @click="undoLastPracticeImport"
           >
             撤销本次导入
           </Button>
