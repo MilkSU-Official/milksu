@@ -131,11 +131,12 @@ describe('CodingProductLoopPanel', () => {
     expect(text).toContain('只展示当前证据')
     expect(text).toContain('合并状态')
     expect(text).toContain('待补证明')
-    expect(text).toContain('还差 3 项')
-    expect(text).toContain('做一次用户可见验证、验证失败/继续路径、收口 Git 交付')
+    expect(text).toContain('还差 4 项')
+    expect(text).toContain('核对自动化输出、做一次用户可见验证、验证失败/继续路径、收口 Git 交付')
     expect(host.querySelector('[aria-label="Coding 待补证明"]')).not.toBeNull()
     expect(text).toContain('选择任务与仓库')
     expect(text).toContain('Agent 执行')
+    expect(text).toContain('消息存在不等于任务已经完成')
     expect(text).toContain('用户可见验证')
     expect(text).toContain('失败/继续')
     expect(text).toContain('尚未触发中断/失败继续')
@@ -151,16 +152,16 @@ describe('CodingProductLoopPanel', () => {
     expect(text).toContain('用户验收清单')
     expect(text).toContain('1. 确认任务和仓库')
     expect(text).toContain('2. 核对自动化输出')
+    expect(text).toContain('不能把任意工具消息算作自动化完成')
     expect(text).toContain('3. 做一次用户可见验证')
     expect(text).toContain('4. 验证失败/继续路径')
     expect(text).toContain('5. 收口 Git 交付')
-    expect(text).toContain('6. 复制接力棒')
     expect(text).toContain('打开预览')
     expect(text).toContain('生成恢复点')
     expect(text).toContain('打开变更')
     expect(text).toContain('至少留下一个用户可见证据')
     expect(text).toContain('窄自动化')
-    expect(text).toContain('已有记录')
+    expect(text).toContain('待核对')
     expect(text).toContain('2 条工具记录')
     expect(text).toContain('用户可见验证')
     expect(text).toContain('真实 App 验收')
@@ -170,28 +171,20 @@ describe('CodingProductLoopPanel', () => {
     expect(text).toContain('未检测')
     expect(text).toContain('打开 Browser/App 面板检测系统权限')
     expect(text).toContain('Computer Use 快速接入')
-    expect(text).toContain('打包 MilkSU App 验收')
-    expect(text).toContain('待人工验证')
-    expect(text).toContain('build/bin/MilkSU.app')
-    expect(text).toContain('不把 Vite Browser preview 当作真实 App 验收')
-    expect(text).toContain('未修问题登记')
-    expect(text).toContain('广度优先')
-    expect(text).toContain('只有硬红线或阻塞主闭环才立即修')
-    expect(text).toContain('复制登记格式')
-    expect(text).toContain('确认三大工作区入口')
-    expect(text).toContain('Git Diff/Hunk/stage/commit/push')
-    expect(text).toContain('Computer Use 外部窗口 Scope')
+    expect(text).not.toContain('推荐小自举任务')
+    expect(text).not.toContain('打包 MilkSU App 验收')
+    expect(text).not.toContain('未修问题登记')
+    expect(text).not.toContain('复制登记格式')
     expect(text).toContain('Git 交付')
-    expect(text).toContain('3/6')
+    expect(text).toContain('1/6')
     expect(text).toContain('下一步验收动作')
     expect(text).toContain('补用户可见验证')
     expect(text).toContain('已有可预览产物候选')
-    expect(text).toContain('推荐小自举任务')
-    expect(text).toContain('复制任务')
-    expect(text).toContain('不会自动启动 Agent')
     expect(host.querySelectorAll('[data-product-loop-state="active"]').length)
       .toBeGreaterThanOrEqual(1)
-    expect(host.querySelectorAll('[data-missing-acceptance-state]').length).toBe(3)
+    expect(host.querySelectorAll('[data-missing-acceptance-state]').length).toBe(4)
+    expect(host.querySelector('[aria-label="Coding 待补证明"]')?.textContent)
+      .toContain('2. 核对自动化输出')
     expect(host.querySelector('[aria-label="Coding 待补证明"]')?.textContent)
       .toContain('3. 做一次用户可见验证')
     expect(host.querySelector('[aria-label="Coding 待补证明"]')?.textContent)
@@ -288,11 +281,9 @@ describe('CodingProductLoopPanel', () => {
     expect(host.textContent).toContain('docs/report.md、preview/result.html')
     expect(host.textContent).toContain('验收记录：')
     expect(host.textContent).toContain('用户验收清单：')
-    expect(host.textContent).toContain('原生 App 验收接力：')
-    expect(host.textContent).toContain('打开最新打包 App')
     expect(host.textContent).toContain('进行中 3. 做一次用户可见验证')
     expect(host.textContent).toContain('合并状态：待补证明')
-    expect(host.textContent).toContain('窄自动化：已有记录')
+    expect(host.textContent).toContain('窄自动化：待核对')
     expect(host.textContent).toContain('真实 App 验收：未证明')
     expect(host.textContent).toContain('恢复/继续：待补')
     expect(host.textContent).toContain('本地领先 1 个提交，待 push')
@@ -306,119 +297,6 @@ describe('CodingProductLoopPanel', () => {
 
     expect(writeText).toHaveBeenCalledOnce()
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('MilkSU Coding 接力棒'))
-    expect(host.textContent).toContain('已复制')
-  })
-
-  it('copies a native packaged App acceptance checklist for real validation', async () => {
-    const writeText = vi.fn(async () => undefined)
-    vi.stubGlobal('navigator', {
-      ...navigator,
-      clipboard: { writeText },
-    })
-    const { host } = await mountPanel()
-
-    const copyNative = [...host.querySelectorAll<HTMLButtonElement>('button')]
-      .find(button => button.textContent?.includes('复制原生验收'))
-    copyNative?.click()
-    await Promise.resolve()
-    await nextTick()
-
-    expect(writeText).toHaveBeenCalledOnce()
-    const copied = String((writeText.mock.calls as unknown as Array<[string]>)[0]?.[0] ?? '')
-    expect(copied).toContain('继续 MilkSU 原生 App 产品闭环验收')
-    expect(copied).toContain('MilkSU.app')
-    expect(copied).toContain('不要把 Vite Browser preview、组件测试或 smoke 结果写成原生 App 通过')
-    expect(copied).toContain('Coding、CTF、CVE')
-    expect(copied).toContain('Computer Use 外部窗口 Scope')
-    expect(copied).toContain('Git Diff/Hunk/stage/commit/push')
-    expect(copied).toContain('不要读取、输出或迁移 Provider/API Key')
-    expect(host.textContent).toContain('已复制')
-  })
-
-  it('copies a stable BUG/OBS issue ledger template without expanding scope', async () => {
-    const writeText = vi.fn(async () => undefined)
-    vi.stubGlobal('navigator', {
-      ...navigator,
-      clipboard: { writeText },
-    })
-    const { host } = await mountPanel()
-
-    const copyIssue = [...host.querySelectorAll<HTMLButtonElement>('button')]
-      .find(button => button.textContent?.includes('复制登记格式'))
-    copyIssue?.click()
-    await Promise.resolve()
-    await nextTick()
-
-    expect(writeText).toHaveBeenCalledOnce()
-    const copied = String((writeText.mock.calls as unknown as Array<[string]>)[0]?.[0] ?? '')
-    expect(copied).toContain('把本轮发现的问题登记到 MilkSU 覆盖台账')
-    expect(copied).toContain('当前闭环状态：待补证明')
-    expect(copied).toContain('| ID | 问题 | 复现与证据 | 影响 | 计划处理层 |')
-    expect(copied).toContain('OBS-待分配')
-    expect(copied).toContain('登记 BUG-*')
-    expect(copied).toContain('只有阻断当前闭环')
-    expect(copied).toContain('泄漏 Credential')
-    expect(copied).toContain('不要读取、输出或迁移 Provider/API Key')
-    expect(copied).toContain('不要用 Shell/IPC/截图目录绕过 Computer Use')
-    expect(host.textContent).toContain('已复制')
-  })
-
-  it('copies a bounded self-bootstrap task prompt for the next Coding Agent', async () => {
-    const writeText = vi.fn(async () => undefined)
-    vi.stubGlobal('navigator', {
-      ...navigator,
-      clipboard: { writeText },
-    })
-    const { host } = await mountPanel()
-
-    const copyBootstrap = [...host.querySelectorAll<HTMLButtonElement>('button')]
-      .find(button => button.textContent?.includes('复制任务'))
-    copyBootstrap?.click()
-    await Promise.resolve()
-    await nextTick()
-
-    expect(writeText).toHaveBeenCalledOnce()
-    const copied = String((writeText.mock.calls as unknown as Array<[string]>)[0]?.[0] ?? '')
-    expect(copied).toContain('继续 MilkSU M3 产品闭环冲刺')
-    expect(copied).toContain('工作区：/Users/milksu/code/milksu')
-    expect(copied).toContain('先读取当前 git 状态')
-    expect(copied).toContain('不按旧对话重复已完成项')
-    expect(copied).toContain('只选一个低风险、用户可见')
-    expect(copied).toContain('npm --prefix app run build')
-    expect(copied).toContain('Browser preview 验证页面不空')
-    expect(copied).toContain('git diff --check')
-    expect(copied).toContain('commit 并 push')
-    expect(copied).toContain('不要读取、输出或迁移 Provider/API Key')
-    expect(copied).toContain('不要把 smoke、UI 架子、Browser preview 或组件测试写成完整产品成绩')
-    expect(host.textContent).toContain('已复制')
-  })
-
-  it('copies a focused follow-up prompt with only unfinished acceptance items', async () => {
-    const writeText = vi.fn(async () => undefined)
-    vi.stubGlobal('navigator', {
-      ...navigator,
-      clipboard: { writeText },
-    })
-    const { host } = await mountPanel()
-
-    const copyFollowup = [...host.querySelectorAll<HTMLButtonElement>('button')]
-      .find(button => button.textContent?.includes('复制待补任务'))
-    copyFollowup?.click()
-    await Promise.resolve()
-    await nextTick()
-
-    expect(writeText).toHaveBeenCalledOnce()
-    const copied = String((writeText.mock.calls as unknown as Array<[string]>)[0]?.[0] ?? '')
-    expect(copied).toContain('继续 MilkSU 产品闭环冲刺')
-    expect(copied).toContain('只处理下列未完成验收项，不要重做已具备项')
-    expect(copied).toContain('合并状态：待补证明')
-    expect(copied).toContain('未完成验收项：')
-    expect(copied).toContain('进行中 3. 做一次用户可见验证')
-    expect(copied).toContain('待补 4. 验证失败/继续路径')
-    expect(copied).toContain('进行中 5. 收口 Git 交付')
-    expect(copied).not.toContain('1. 确认任务和仓库')
-    expect(copied).not.toContain('2. 核对自动化输出')
-    expect(copied).toContain('不要读取或迁移 Provider/API Key')
     expect(host.textContent).toContain('已复制')
   })
 
@@ -460,7 +338,10 @@ describe('CodingProductLoopPanel', () => {
     const { host, onOpenPanel, onCompactContext } = await mountPanel()
     const missing = [...host.querySelectorAll<HTMLElement>('[data-missing-acceptance-state]')]
 
-    expect(missing).toHaveLength(3)
+    expect(missing).toHaveLength(4)
+    missing.find(item => item.textContent?.includes('核对自动化输出'))
+      ?.querySelector<HTMLButtonElement>('button')
+      ?.click()
     missing.find(item => item.textContent?.includes('做一次用户可见验证'))
       ?.querySelector<HTMLButtonElement>('button')
       ?.click()
@@ -472,6 +353,7 @@ describe('CodingProductLoopPanel', () => {
       ?.click()
     await nextTick()
 
+    expect(onOpenPanel).toHaveBeenCalledWith('terminal')
     expect(onOpenPanel).toHaveBeenCalledWith('artifacts')
     expect(onCompactContext).toHaveBeenCalledOnce()
     expect(onOpenPanel).toHaveBeenCalledWith('changes')
@@ -554,7 +436,7 @@ describe('CodingProductLoopPanel', () => {
     expect(onCompactContext).toHaveBeenCalledOnce()
   })
 
-  it('marks the loop merge-ready only after validation, recovery, and Git are all done', async () => {
+  it('does not mark the loop merge-ready from clean Git plus messages alone', async () => {
     const { host } = await mountPanel({
       environment: cleanEnvironment,
       resumed: true,
@@ -565,12 +447,15 @@ describe('CodingProductLoopPanel', () => {
     })
 
     expect(host.textContent).toContain('合并状态')
-    expect(host.textContent).toContain('合并就绪')
-    expect(host.textContent).toContain('当前证据满足这张产品闭环验收清单')
-    expect(host.textContent).toContain('合并状态：合并就绪')
+    expect(host.textContent).toContain('待补证明')
+    expect(host.textContent).toContain('核对自动化输出')
+    expect(host.textContent).toContain('收口 Git 交付')
+    expect(host.textContent).toContain('仍未证明本轮实际产生、提交并推送过变更')
+    expect(host.textContent).not.toContain('合并就绪')
+    expect(host.textContent).not.toContain('当前证据满足这张产品闭环验收清单')
   })
 
-  it('treats opened Browser evidence as visible validation evidence', async () => {
+  it('does not treat a revealed Browser evidence directory as completed validation', async () => {
     const browserStatus: CodingBrowserStatus = {
       enabled: true,
       conversationId: 'conversation',
@@ -586,16 +471,18 @@ describe('CodingProductLoopPanel', () => {
       },
     })
 
-    expect(host.textContent).toContain('已打开浏览器证据：.milksu/browser-evidence/browser-session')
+    expect(host.textContent).toContain('浏览器证据目录已打开：.milksu/browser-evidence/browser-session')
     expect(host.textContent).toContain('真实 App 验收')
     expect(host.textContent).toContain('已有证据')
-    expect(host.textContent).toContain('已打开浏览器证据目录：.milksu/browser-evidence/browser-session')
-    expect(host.textContent).toContain('截图、Console、Network 或页面证据')
+    expect(host.textContent).toContain('目录存在不等于已完成页面验证')
+    expect(host.textContent).toContain('核对截图、DOM、Console 或 Network 记录')
     expect(host.textContent).toContain('下一步验收动作')
-    expect(host.textContent).toContain('验收恢复/继续')
+    expect(host.textContent).toContain('补用户可见验证')
+    expect(host.querySelector('[data-acceptance-state="done"]')?.textContent)
+      .not.toContain('做一次用户可见验证')
   })
 
-  it('treats a locked Computer Use visible session as scoped validation evidence', async () => {
+  it('does not treat a locked Computer Use scope as completed GUI validation', async () => {
     const computerUseStatus: CodingComputerUseStatus = {
       available: true,
       enabled: true,
@@ -623,13 +510,16 @@ describe('CodingProductLoopPanel', () => {
       },
     })
 
-    expect(host.textContent).toContain('已锁定可见 App：Preview · PID 123 · Window 456')
+    expect(host.textContent).toContain('Computer Use Scope 已锁定：Preview · PID 123 · Window 456')
     expect(host.textContent).toContain('真实 App 验收')
     expect(host.textContent).toContain('已有证据')
     expect(host.textContent).toContain('已锁定可见 App Scope：Preview · com.example.preview · PID 123 · Window 456')
     expect(host.textContent).toContain('这证明会话边界，不等于已完成 GUI 操作')
+    expect(host.textContent).toContain('仍需一次真实窗口操作证据')
     expect(host.textContent).toContain('下一步验收动作')
-    expect(host.textContent).toContain('验收恢复/继续')
+    expect(host.textContent).toContain('补用户可见验证')
+    expect(host.querySelector('[data-acceptance-state="done"]')?.textContent)
+      .not.toContain('做一次用户可见验证')
   })
 
   it('marks resumed sessions as recovery evidence', async () => {
@@ -639,7 +529,7 @@ describe('CodingProductLoopPanel', () => {
 
     expect(host.textContent).toContain('失败/继续')
     expect(host.textContent).toContain('本会话已从恢复点继续')
-    expect(host.textContent).toContain('4/6')
+    expect(host.textContent).toContain('2/6')
   })
 
   it('shows a compacted context as a recovery point without pretending resume was proven', async () => {

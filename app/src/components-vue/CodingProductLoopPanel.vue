@@ -67,10 +67,6 @@ const emit = defineEmits<{
 }>()
 
 const copyNotice = ref('')
-const followupCopyNotice = ref('')
-const nativeAppCopyNotice = ref('')
-const bootstrapTaskCopyNotice = ref('')
-const issueLedgerCopyNotice = ref('')
 
 const canAct = computed(() => (
   props.executionMode === 'go'
@@ -99,10 +95,6 @@ const validationReady = computed(() => (
 
 const visibleValidationPerformed = computed(() => (
   Boolean(props.artifactPreviewEvidence)
-  || Boolean(props.browserEvidence)
-  || Boolean(props.computerUseEvidence)
-  || Boolean(props.browserStatus?.enabled)
-  || Boolean(props.computerUseStatus?.enabled)
 ))
 
 const validationDetail = computed(() => {
@@ -114,10 +106,10 @@ const validationDetail = computed(() => {
       ? `已预览 ${artifactKindLabel(props.artifactPreviewEvidence.kind)}：${props.artifactPreviewEvidence.relativePath}`
       : '',
     props.browserEvidence
-      ? `已打开浏览器证据：${props.browserEvidence.path}`
+      ? `浏览器证据目录已打开：${props.browserEvidence.path}；仍需核对截图、DOM、Console 或 Network 记录`
       : '',
     props.computerUseEvidence
-      ? `已锁定可见 App：${props.computerUseEvidence.name} · PID ${props.computerUseEvidence.pid} · Window ${props.computerUseEvidence.windowId}`
+      ? `Computer Use Scope 已锁定：${props.computerUseEvidence.name} · PID ${props.computerUseEvidence.pid} · Window ${props.computerUseEvidence.windowId}；仍需一次真实窗口操作证据`
       : '',
     props.browserStatus?.enabled ? 'Browser 已接入' : '',
     props.computerUseStatus?.enabled ? 'Computer Use 已接入' : '',
@@ -132,7 +124,7 @@ const gitState = computed<LoopState>(() => {
   if (!git?.isRepository) return 'blocked'
   if (git.conflicts > 0) return 'blocked'
   if (git.dirty || git.ahead > 0) return 'active'
-  return props.messageCount > 0 ? 'done' : 'pending'
+  return props.messageCount > 0 ? 'active' : 'pending'
 })
 
 const recoveryState = computed<LoopState>(() => {
@@ -164,11 +156,11 @@ const items = computed(() => [
   {
     id: 'agent',
     label: 'Agent 执行',
-    state: props.running ? 'active' as const : props.messageCount > 0 ? 'done' as const : 'pending' as const,
+    state: props.running ? 'active' as const : props.messageCount > 0 ? 'active' as const : 'pending' as const,
     detail: props.running
       ? 'Agent 正在执行；完成后继续查看验证与 Git。'
       : props.messageCount > 0
-        ? `已有 ${props.messageCount} 条消息、${props.toolMessageCount} 条工具记录。`
+        ? `已有 ${props.messageCount} 条消息、${props.toolMessageCount} 条工具记录；消息存在不等于任务已经完成。`
         : canAct.value
           ? '可用“直接完成”或输入任务启动。'
           : '当前权限不适合自动修改；切到 Go + 替我审批/完全访问后再跑闭环。',
@@ -197,16 +189,16 @@ const items = computed(() => [
         : props.environment.git.ahead > 0
           ? `本地领先 ${props.environment.git.ahead} 个提交，仍需 push 才能作为交付证据。`
         : props.messageCount > 0
-          ? '当前 Git 工作区干净且没有待 push 提交，可作为本轮交付证据。'
+          ? '当前 Git 工作区干净且没有待 push 提交；仍未证明本轮实际产生、提交并推送过变更。'
           : 'Git 可用，等待实际任务产生变更。'
       : props.environment?.git.problem || '当前目录不是 Git 仓库。',
   },
   {
     id: 'handoff',
     label: '接力棒',
-    state: props.messageCount > 0 ? 'done' as const : 'pending' as const,
+    state: props.messageCount > 0 ? 'active' as const : 'pending' as const,
     detail: props.messageCount > 0
-      ? '下一位 Agent 可从当前会话、右侧验证面板和 Git 状态继续。'
+      ? '已有可接续上下文；接力摘要只是移交材料，不能计为产品能力完成。'
       : '开始任务后，记录测试命令、产物位置、真实验收和剩余缺口。',
   },
 ])
@@ -275,9 +267,9 @@ const computerUseQuickAction = computed(() => (
 const verificationRecords = computed<VerificationRecord[]>(() => [
   {
     label: '窄自动化',
-    state: props.toolMessageCount > 0 ? '已有记录' : '待运行',
+    state: props.toolMessageCount > 0 ? '待核对' : '待运行',
     detail: props.toolMessageCount > 0
-      ? `${props.toolMessageCount} 条工具记录；仍需在最终交付说明中列出实际命令。`
+      ? `${props.toolMessageCount} 条工具记录；这只证明有工具活动，仍需核对其中是否包含真实测试或 build 命令。`
       : '尚未看到测试/build 工具记录。',
   },
   {
@@ -297,7 +289,7 @@ const verificationRecords = computed<VerificationRecord[]>(() => [
     detail: props.artifactPreviewEvidence
       ? `已打开产物预览：${props.artifactPreviewEvidence.relativePath}；若需要真实交互，再补 Browser 或 Computer Use。`
       : props.browserEvidence
-        ? `已打开浏览器证据目录：${props.browserEvidence.path}；用于核对截图、Console、Network 或页面证据。`
+        ? `浏览器证据目录已打开：${props.browserEvidence.path}；目录存在不等于已完成页面验证，需要核对截图、DOM、Console 或 Network 记录。`
         : props.computerUseEvidence
           ? `已锁定可见 App Scope：${props.computerUseEvidence.name} · ${props.computerUseEvidence.bundleId} · PID ${props.computerUseEvidence.pid} · Window ${props.computerUseEvidence.windowId}；这证明会话边界，不等于已完成 GUI 操作。`
           : props.browserStatus?.enabled || props.computerUseStatus?.enabled
@@ -379,9 +371,9 @@ const acceptanceChecklist = computed<AcceptanceChecklistItem[]>(() => [
   {
     label: '2. 核对自动化输出',
     detail: props.toolMessageCount > 0
-      ? `已有 ${props.toolMessageCount} 条工具记录；交付说明需要列出实际测试/build 命令。`
+      ? `已有 ${props.toolMessageCount} 条工具记录；必须核对其中是否包含真实测试/build 命令，不能把任意工具消息算作自动化完成。`
       : '还没有测试或 build 工具记录。',
-    state: props.toolMessageCount > 0 ? 'done' : 'pending',
+    state: props.toolMessageCount > 0 ? 'active' : 'pending',
     panel: 'terminal',
     actionLabel: '打开终端',
   },
@@ -407,13 +399,6 @@ const acceptanceChecklist = computed<AcceptanceChecklistItem[]>(() => [
     state: gitState.value,
     panel: 'changes',
     actionLabel: '打开变更',
-  },
-  {
-    label: '6. 复制接力棒',
-    detail: props.messageCount > 0
-      ? '复制摘要给下一轮 Agent 或用户验收记录，明确哪些已证明、哪些没证明。'
-      : '开始任务后再复制接力棒。',
-    state: props.messageCount > 0 ? 'done' : 'pending',
   },
 ])
 
@@ -445,115 +430,6 @@ const unfinishedAcceptanceItems = computed(() => (
   acceptanceChecklist.value.filter(item => item.state !== 'done')
 ))
 
-const nativeAppAcceptanceChecklist = computed(() => [
-  {
-    label: '打开最新打包 App',
-    detail: '从 build/bin/MilkSU.app 或当前打包产物启动，不把 Vite Browser preview 当作真实 App 验收。',
-  },
-  {
-    label: '确认三大工作区入口',
-    detail: '依次进入 Coding、CTF、CVE，核对顶部标题/按钮规格一致，并确认 CTF/CVE 不再出现只有一个选项的假二层侧栏。',
-  },
-  {
-    label: '跑一条小 Coding 任务',
-    detail: '选择当前仓库，使用 Go + 替我审批/完全访问完成小修改、测试/build、产物预览和 Git Diff/Hunk/stage/commit/push。',
-  },
-  {
-    label: '验证可见能力边界',
-    detail: '至少留下 Browser 截图/Console/Network 证据，或 Computer Use 外部窗口 Scope 与一次真实窗口操作证据。',
-  },
-  {
-    label: '验证跨模块继续',
-    detail: '从 CTF 或 CVE 切回 Coding 后，原会话、顶部位置、已选题/已选 CVE 和最近任务顺序不应丢失。',
-  },
-  {
-    label: '记录未修问题',
-    detail: '只登记阻塞或明显 UI/UX 问题；本轮不深挖无关细节，不读取/迁移 Provider/API Key。',
-  },
-])
-
-const issueLedgerTemplate = computed(() => {
-  const lines = [
-    '把本轮发现的问题登记到 MilkSU 覆盖台账，不要现场深挖非阻塞细节。',
-    '',
-    `工作区：${props.workspacePath || '尚未选择'}`,
-    `当前闭环状态：${mergeReadiness.value.label}；${mergeReadiness.value.detail}`,
-    '',
-    '登记格式：',
-    '| ID | 问题 | 复现与证据 | 影响 | 计划处理层 |',
-    '| --- | --- | --- | --- | --- |',
-    '| OBS-待分配 | 一句话描述观察到的问题 | 入口、操作步骤、截图/DOM/命令/日志证据位置；若证据不足先写“待复核” | 用户影响或开发影响 | 立即修 / 当前冲刺后批量修 / 后期收口 |',
-    '',
-    '分类规则：',
-    '- 没有稳定复现或只是体验疑问：先登记 OBS-*；',
-    '- 已确认产品缺陷且有复现证据：登记 BUG-*；',
-    '- 只有阻断当前闭环、可能损坏数据、泄漏 Credential、突破 workspace/Scope/私有远端边界或让验收/Judge 失真的问题才立即修；',
-    '- 其他视觉细节、偶发失败和边界矩阵先登记，等一轮功能覆盖后批量处理。',
-    '',
-    '边界：不要读取、输出或迁移 Provider/API Key；不要用 Shell/IPC/截图目录绕过 Computer Use；不要把 Browser preview、组件测试或 UI 架子写成完整产品成绩。',
-  ]
-  return lines.join('\n')
-})
-
-const nativeAppAcceptancePrompt = computed(() => {
-  const lines = [
-    '继续 MilkSU 原生 App 产品闭环验收。',
-    '',
-    `工作区：${props.workspacePath || '尚未选择'}`,
-    '',
-    '请用最新打包的 MilkSU.app 做真实验收，不要把 Vite Browser preview、组件测试或 smoke 结果写成原生 App 通过。',
-    '',
-    '验收清单：',
-    ...nativeAppAcceptanceChecklist.value.map((item, index) => `${index + 1}. ${item.label}：${item.detail}`),
-    '',
-    '通过标准：每一步都要留下可核对证据；发现 bug 先登记到覆盖台账，除非阻塞主闭环，否则不要现场深挖。',
-    '',
-    '安全边界：不要读取、输出或迁移 Provider/API Key；不要自动接入外部漏洞目标；CVE/CTF/Lab 的 UI 架子不得被描述成完整安全能力。',
-  ]
-  return lines.join('\n')
-})
-
-const bootstrapTaskPrompt = computed(() => {
-  const lines = [
-    '继续 MilkSU M3 产品闭环冲刺，选择一个小而真实的 MilkSU 自举任务并完成。',
-    '',
-    `工作区：${props.workspacePath || '先选择 /Users/milksu/code/milksu'}`,
-    `权限建议：Go + ${props.approvalPolicy === 'read-only' ? '替我审批或完全访问' : approvalPolicyLabel(props.approvalPolicy)}`,
-    '',
-    '任务要求：',
-    '1. 先读取当前 git 状态、product-loop-sprint.md、objective-coverage-ledger.md，不按旧对话重复已完成项。',
-    '2. 只选一个低风险、用户可见、能在几小时内推进产品闭环的小切片，例如 Coding 产物预览、Browser/Computer Use 入口、CVE 学习/追踪闭环、CTF 工作台清晰度或跨模块视觉一致性。',
-    '3. 如果发现相邻问题但不阻塞主闭环，只登记到覆盖台账，不要深挖。',
-    '4. 完成代码后运行相关窄测试和 npm --prefix app run build；如果是前端可见变化，再用 Browser preview 验证页面不空、无 Vite overlay、console 无相关 error/warn，并保留截图或 DOM 证据。',
-    '5. 更新 product-loop-sprint-acceptance.md，只写实际证明和仍未证明，不写最终完成声明。',
-    '6. git diff --check，通过后 commit 并 push 到 MilkSU 私有仓库当前分支。',
-    '',
-    '边界：不要读取、输出或迁移 Provider/API Key；不要接入外部漏洞目标；不要把 smoke、UI 架子、Browser preview 或组件测试写成完整产品成绩。',
-  ]
-  return lines.join('\n')
-})
-
-const followupPrompt = computed(() => {
-  const unfinished = unfinishedAcceptanceItems.value
-  const lines = [
-    '继续 MilkSU 产品闭环冲刺，只处理下列未完成验收项，不要重做已具备项。',
-    '',
-    `工作区：${props.workspacePath || '尚未选择'}`,
-    `权限：${executionModeLabel(props.executionMode)} / ${approvalPolicyLabel(props.approvalPolicy)}`,
-    `合并状态：${mergeReadiness.value.label}；${mergeReadiness.value.detail}`,
-    '',
-    '未完成验收项：',
-    ...(unfinished.length
-      ? unfinished.map(item => `- ${stateLabel(item.state)} ${item.label}：${item.detail}`)
-      : ['- 无；只做最终人工范围确认，不要扩大 scope。']),
-    '',
-    `下一步建议：${nextVerificationAction.value.label}；${nextVerificationAction.value.detail}`,
-    '',
-    '边界：不要读取或迁移 Provider/API Key；不要把窄测试、smoke 或 UI 架子写成完整产品成绩；真实 App、Computer Use、Browser、Git 和恢复证据要分开记录。',
-  ]
-  return lines.join('\n')
-})
-
 const handoffSummary = computed(() => {
   const git = props.environment?.git
   const lines = [
@@ -578,8 +454,6 @@ const handoffSummary = computed(() => {
     ...verificationRecords.value.map(record => `  - ${record.label}：${record.state}；${record.detail}`),
     '- 用户验收清单：',
     ...acceptanceChecklist.value.map(item => `  - ${stateLabel(item.state)} ${item.label}：${item.detail}`),
-    '- 原生 App 验收接力：',
-    ...nativeAppAcceptanceChecklist.value.map(item => `  - ${item.label}：${item.detail}`),
     `- 合并状态：${mergeReadiness.value.label}；${mergeReadiness.value.detail}`,
     `- 下一步：${nextVerificationAction.value.label}；${nextVerificationAction.value.detail}`,
   ]
@@ -594,50 +468,6 @@ async function copyHandoffSummary() {
     copyNotice.value = '已复制'
   } catch {
     copyNotice.value = '复制失败，请手动选择摘要'
-  }
-}
-
-async function copyFollowupPrompt() {
-  followupCopyNotice.value = ''
-  try {
-    if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable')
-    await navigator.clipboard.writeText(followupPrompt.value)
-    followupCopyNotice.value = '已复制'
-  } catch {
-    followupCopyNotice.value = '复制失败，请手动选择 prompt'
-  }
-}
-
-async function copyNativeAppAcceptancePrompt() {
-  nativeAppCopyNotice.value = ''
-  try {
-    if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable')
-    await navigator.clipboard.writeText(nativeAppAcceptancePrompt.value)
-    nativeAppCopyNotice.value = '已复制'
-  } catch {
-    nativeAppCopyNotice.value = '复制失败，请手动选择清单'
-  }
-}
-
-async function copyIssueLedgerTemplate() {
-  issueLedgerCopyNotice.value = ''
-  try {
-    if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable')
-    await navigator.clipboard.writeText(issueLedgerTemplate.value)
-    issueLedgerCopyNotice.value = '已复制'
-  } catch {
-    issueLedgerCopyNotice.value = '复制失败，请手动选择登记格式'
-  }
-}
-
-async function copyBootstrapTaskPrompt() {
-  bootstrapTaskCopyNotice.value = ''
-  try {
-    if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable')
-    await navigator.clipboard.writeText(bootstrapTaskPrompt.value)
-    bootstrapTaskCopyNotice.value = '已复制'
-  } catch {
-    bootstrapTaskCopyNotice.value = '复制失败，请手动选择任务'
   }
 }
 
@@ -725,15 +555,6 @@ function stateBadgeVariant(state: LoopState) {
           </div>
         </div>
       </div>
-      <div class="mt-3 flex items-center justify-between gap-2">
-        <span class="text-caption text-muted-foreground">
-          {{ followupCopyNotice || '复制一段只包含待补证明的下一轮 Agent prompt。' }}
-        </span>
-        <Button type="button" variant="outline" size="sm" @click="copyFollowupPrompt">
-          <Copy class="size-3.5" />
-          复制待补任务
-        </Button>
-      </div>
     </div>
 
     <div class="mt-3 space-y-2">
@@ -794,36 +615,6 @@ function stateBadgeVariant(state: LoopState) {
     </div>
 
     <div
-      class="mt-3 rounded-lg border border-border bg-background px-3 py-3"
-      aria-label="推荐自举任务"
-    >
-      <div class="flex items-start justify-between gap-3">
-        <div class="min-w-0">
-          <div class="flex items-center gap-2">
-            <p class="text-caption font-medium text-muted-foreground">推荐小自举任务</p>
-            <Badge variant="outline">可复制</Badge>
-          </div>
-          <p class="mt-1 text-caption leading-5 text-muted-foreground">
-            复制一段受限 prompt，让下一轮 Agent 选择一个低风险、用户可见的小切片，跑测试/build/Browser 验证并提交。
-          </p>
-        </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          class="shrink-0"
-          @click="copyBootstrapTaskPrompt"
-        >
-          <Copy class="size-3.5" />
-          复制任务
-        </Button>
-      </div>
-      <p class="mt-2 text-caption text-muted-foreground">
-        {{ bootstrapTaskCopyNotice || '不会自动启动 Agent；复制后你可以按当前上下文决定是否发送。' }}
-      </p>
-    </div>
-
-    <div
       v-if="computerUseQuickAction"
       class="mt-3 rounded-lg border border-border bg-background px-3 py-3"
       aria-label="Computer Use 快速接入"
@@ -848,76 +639,6 @@ function stateBadgeVariant(state: LoopState) {
           {{ computerUseQuickAction.actionLabel || '打开' }}
         </Button>
       </div>
-    </div>
-
-    <div
-      class="mt-3 rounded-lg border border-border bg-background px-3 py-3"
-      aria-label="原生 App 验收接力"
-    >
-      <div class="flex items-start justify-between gap-3">
-        <div class="min-w-0">
-          <div class="flex items-center gap-2">
-            <p class="text-caption font-medium text-muted-foreground">打包 MilkSU App 验收</p>
-            <Badge variant="outline">待人工验证</Badge>
-          </div>
-          <p class="mt-1 text-caption leading-5 text-muted-foreground">
-            Browser preview 只能证明前端入口；合并前还需要用原生 App 跑 Coding、CTF、CVE、Computer Use、恢复和 Git 的真实闭环。
-          </p>
-        </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          class="shrink-0"
-          @click="copyNativeAppAcceptancePrompt"
-        >
-          <Copy class="size-3.5" />
-          复制原生验收
-        </Button>
-      </div>
-      <ol class="mt-3 space-y-2">
-        <li
-          v-for="item in nativeAppAcceptanceChecklist"
-          :key="item.label"
-          class="rounded-md bg-muted/30 px-3 py-2"
-        >
-          <p class="text-caption font-medium">{{ item.label }}</p>
-          <p class="mt-1 text-caption leading-5 text-muted-foreground">{{ item.detail }}</p>
-        </li>
-      </ol>
-      <p class="mt-2 text-caption text-muted-foreground">
-        {{ nativeAppCopyNotice || '复制后可直接交给用户或下一轮 Agent 做打包 App 验收。' }}
-      </p>
-    </div>
-
-    <div
-      class="mt-3 rounded-lg border border-border bg-background px-3 py-3"
-      aria-label="未修问题登记"
-    >
-      <div class="flex items-start justify-between gap-3">
-        <div class="min-w-0">
-          <div class="flex items-center gap-2">
-            <p class="text-caption font-medium text-muted-foreground">未修问题登记</p>
-            <Badge variant="outline">广度优先</Badge>
-          </div>
-          <p class="mt-1 text-caption leading-5 text-muted-foreground">
-            发现 UI/UX、偶发失败或边界细节时，先按 BUG/OBS 模板登记到覆盖台账；只有硬红线或阻塞主闭环才立即修。
-          </p>
-        </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          class="shrink-0"
-          @click="copyIssueLedgerTemplate"
-        >
-          <Copy class="size-3.5" />
-          复制登记格式
-        </Button>
-      </div>
-      <p class="mt-2 text-caption text-muted-foreground">
-        {{ issueLedgerCopyNotice || '复制后可贴到 objective-coverage-ledger.md 或交给下一轮 Agent 归档。' }}
-      </p>
     </div>
 
     <div class="mt-3 grid grid-cols-2 gap-2">
@@ -970,7 +691,7 @@ function stateBadgeVariant(state: LoopState) {
       </div>
     </details>
 
-    <details class="mt-3 rounded-lg border border-border bg-muted/20 px-3 py-2" open>
+    <details class="mt-3 rounded-lg border border-border bg-muted/20 px-3 py-2">
       <summary class="cursor-pointer text-caption font-medium text-muted-foreground">
         用户验收清单
       </summary>
