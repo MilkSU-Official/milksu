@@ -92,6 +92,9 @@ export interface VulnerabilityFeedDownload {
   httpStatus: number
   contentType: string
   body: string
+  snapshotPath?: string
+  snapshotSha256?: string
+  snapshotSizeBytes?: number
 }
 
 interface WailsAppBindings {

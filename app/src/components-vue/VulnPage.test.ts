@@ -169,6 +169,9 @@ describe('VulnPage', () => {
       lastModified: '2026-08-04T07:00:00Z',
       httpStatus: 200,
       contentType: 'application/json',
+      snapshotPath: '/Users/example/Library/Application Support/MilkSU/vuln/feed-snapshots/nvd/20260804T070000Z-abcd.json',
+      snapshotSha256: 'abcd'.repeat(16),
+      snapshotSizeBytes: 1024,
       body: JSON.stringify({
         resultsPerPage: 1,
         startIndex: 0,
@@ -216,7 +219,9 @@ describe('VulnPage', () => {
     expect(host.textContent).toContain('1 个快照')
     expect(host.textContent).toContain('来源证据')
     expect(host.textContent).toContain('NVD · NVD JSON 2.0')
-    expect(host.textContent).toContain('已缓存元数据')
+    expect(host.textContent).toContain('已缓存原始快照')
+    expect(host.textContent).toContain('feed-snapshots/nvd')
+    expect(host.textContent).toContain('sha256')
     expect(host.textContent).toContain('Command injection vulnerability in PAN-OS GlobalProtect.')
     expect(host.textContent).toContain('10.0 CVSS')
   })
@@ -313,7 +318,7 @@ describe('VulnPage', () => {
 
     expect(fetchVulhubPracticeCatalog).toHaveBeenCalledTimes(1)
     expect(host.textContent).toContain('已同步 Vulhub catalog：新增 1、跳过 0')
-    expect(host.textContent).toContain('1 个候选，缓存 fnv1a-')
+    expect(host.textContent).toContain('1 个候选，已缓存元数据 fnv1a-')
     expect(host.textContent).toContain('已匹配练习环境')
     expect(host.textContent).toContain('vulhub/pan-os/CVE-2024-3400')
     expect(host.textContent).toContain('启动前仍需用户确认 Docker、端口、网络和清理边界')

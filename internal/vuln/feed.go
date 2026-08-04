@@ -2,12 +2,16 @@ package vuln
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"mime"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -35,13 +39,16 @@ var (
 // It carries raw JSON plus source timing so the frontend can parse, cache, and
 // attribute records without treating the feed as a Judge or exploit signal.
 type FeedSnapshotDownload struct {
-	SourceName   string `json:"sourceName"`
-	SourceURL    string `json:"sourceUrl"`
-	RetrievedAt  string `json:"retrievedAt"`
-	LastModified string `json:"lastModified"`
-	HTTPStatus   int    `json:"httpStatus"`
-	ContentType  string `json:"contentType"`
-	Body         string `json:"body"`
+	SourceName        string `json:"sourceName"`
+	SourceURL         string `json:"sourceUrl"`
+	RetrievedAt       string `json:"retrievedAt"`
+	LastModified      string `json:"lastModified"`
+	HTTPStatus        int    `json:"httpStatus"`
+	ContentType       string `json:"contentType"`
+	Body              string `json:"body"`
+	SnapshotPath      string `json:"snapshotPath,omitempty"`
+	SnapshotSHA256    string `json:"snapshotSha256,omitempty"`
+	SnapshotSizeBytes int64  `json:"snapshotSizeBytes,omitempty"`
 }
 
 func FetchCISAKEVFeed(ctx context.Context, client *http.Client) (FeedSnapshotDownload, error) {
@@ -189,6 +196,76 @@ func FetchFeedSnapshot(
 		ContentType:  contentType,
 		Body:         string(body),
 	}, nil
+}
+
+// PersistFeedSnapshot stores the exact public JSON payload under MilkSU's app
+// data directory and annotates the download with an auditable path, SHA-256 and
+// byte size. Feed bodies are public vulnerability intelligence; Provider
+// credentials and user session data must never be passed through this path.
+func PersistFeedSnapshot(root string, download FeedSnapshotDownload) (FeedSnapshotDownload, error) {
+	root = strings.TrimSpace(root)
+	if root == "" {
+		return FeedSnapshotDownload{}, fmt.Errorf("persist vulnerability feed snapshot: data directory is required")
+	}
+	body := []byte(download.Body)
+	if len(body) == 0 {
+		return FeedSnapshotDownload{}, fmt.Errorf("persist vulnerability feed snapshot: body is empty")
+	}
+	sum := sha256.Sum256(body)
+	digest := hex.EncodeToString(sum[:])
+	sourceSlug := feedSnapshotSourceSlug(download.SourceName)
+	timestamp := feedSnapshotTimestamp(download.RetrievedAt, download.LastModified)
+	directory := filepath.Join(root, "vuln", "feed-snapshots", sourceSlug)
+	if err := os.MkdirAll(directory, 0o700); err != nil {
+		return FeedSnapshotDownload{}, fmt.Errorf("create vulnerability feed snapshot directory: %w", err)
+	}
+	path := filepath.Join(directory, fmt.Sprintf("%s-%s.json", timestamp, digest[:16]))
+	tmpPath := path + ".tmp"
+	if err := os.WriteFile(tmpPath, body, 0o600); err != nil {
+		return FeedSnapshotDownload{}, fmt.Errorf("write vulnerability feed snapshot: %w", err)
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		_ = os.Remove(tmpPath)
+		return FeedSnapshotDownload{}, fmt.Errorf("commit vulnerability feed snapshot: %w", err)
+	}
+	download.SnapshotPath = path
+	download.SnapshotSHA256 = digest
+	download.SnapshotSizeBytes = int64(len(body))
+	return download, nil
+}
+
+func feedSnapshotSourceSlug(sourceName string) string {
+	slug := strings.ToLower(strings.TrimSpace(sourceName))
+	slug = regexp.MustCompile(`[^a-z0-9]+`).ReplaceAllString(slug, "-")
+	slug = strings.Trim(slug, "-")
+	if slug == "" {
+		return "feed"
+	}
+	return slug
+}
+
+func feedSnapshotTimestamp(values ...string) string {
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if parsed, err := time.Parse(time.RFC3339, value); err == nil {
+			return parsed.UTC().Format("20060102T150405Z")
+		}
+		if parsed, err := http.ParseTime(value); err == nil {
+			return parsed.UTC().Format("20060102T150405Z")
+		}
+		safe := regexp.MustCompile(`[^0-9A-Za-z]+`).ReplaceAllString(value, "-")
+		safe = strings.Trim(safe, "-")
+		if safe != "" {
+			if len(safe) > 32 {
+				return safe[:32]
+			}
+			return safe
+		}
+	}
+	return time.Now().UTC().Format("20060102T150405Z")
 }
 
 type vulhubBranchResponse struct {

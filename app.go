@@ -1436,15 +1436,37 @@ func (a *App) GetVulnJob(id string) (vuln.Projection, error) {
 }
 
 func (a *App) FetchCISAKEVFeed() (vuln.FeedSnapshotDownload, error) {
-	return vuln.FetchCISAKEVFeed(a.commandContext(), nil)
+	return a.fetchAndPersistVulnerabilityFeed(func(ctx context.Context) (vuln.FeedSnapshotDownload, error) {
+		return vuln.FetchCISAKEVFeed(ctx, nil)
+	})
 }
 
 func (a *App) FetchNVDCVE(cveID string) (vuln.FeedSnapshotDownload, error) {
-	return vuln.FetchNVDCVE(a.commandContext(), nil, cveID)
+	return a.fetchAndPersistVulnerabilityFeed(func(ctx context.Context) (vuln.FeedSnapshotDownload, error) {
+		return vuln.FetchNVDCVE(ctx, nil, cveID)
+	})
 }
 
 func (a *App) FetchVulhubPracticeCatalog() (vuln.FeedSnapshotDownload, error) {
-	return vuln.FetchVulhubPracticeCatalog(a.commandContext(), nil)
+	return a.fetchAndPersistVulnerabilityFeed(func(ctx context.Context) (vuln.FeedSnapshotDownload, error) {
+		return vuln.FetchVulhubPracticeCatalog(ctx, nil)
+	})
+}
+
+func (a *App) fetchAndPersistVulnerabilityFeed(
+	fetch func(context.Context) (vuln.FeedSnapshotDownload, error),
+) (vuln.FeedSnapshotDownload, error) {
+	download, err := fetch(a.commandContext())
+	if err != nil {
+		return vuln.FeedSnapshotDownload{}, err
+	}
+	persisted, err := vuln.PersistFeedSnapshot(a.dataDirectory, download)
+	if err != nil {
+		a.diagnostics.Record("vuln-feed", "error", "persist vulnerability feed snapshot failed")
+		return vuln.FeedSnapshotDownload{}, err
+	}
+	a.diagnostics.Record("vuln-feed", "info", "vulnerability feed snapshot persisted")
+	return persisted, nil
 }
 
 func (a *App) SubmitVulnReproduction(id string, request vuln.ReproductionRequest) (vuln.Projection, error) {

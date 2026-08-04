@@ -212,7 +212,7 @@ async function syncVulhubPracticeCatalog() {
     const result = await dashboard.syncVulhubPracticeCatalog()
     lastImportedPracticeIds.value = result.importedIds
     practiceImportNotice.value = `已同步 Vulhub catalog：新增 ${result.imported}、跳过 ${result.skipped}`
-      + `；获取 ${new Date(result.retrievedAt).toLocaleString()}，${result.itemCount} 个候选，缓存 ${result.digest}`
+      + `；获取 ${new Date(result.retrievedAt).toLocaleString()}，${result.itemCount} 个候选，${result.cacheState} ${result.digest}`
       + (result.errors.length ? `；${result.errors.length} 条需人工处理` : '')
   } catch (cause) {
     practiceImportError.value = dashboard.practiceCatalogSyncError.value
@@ -642,7 +642,7 @@ function isHttpUrl(value: string) {
             <p class="text-body font-medium">Feed 缓存状态</p>
             <p class="mt-1 text-caption leading-5 text-muted-foreground">
               {{ dashboard.sourceSnapshots.value.length
-                ? '已保存来源、获取时间、格式、条目数和摘要；缓存只保留元数据与解析后的 CVE 事实。'
+                ? '已保存来源、获取时间、格式、条目数和摘要；Wails 同步会额外保存公开 Feed 的原始 JSON 快照。'
                 : '尚未导入真实 Feed 快照；可以从 CISA KEV / NVD 等公开源下载 JSON 后粘贴导入。' }}
             </p>
           </div>
@@ -663,6 +663,18 @@ function isHttpUrl(value: string) {
               {{ snapshot.itemCount }} 条，新增 {{ snapshot.importedIds.length }}、更新 {{ snapshot.updatedIds.length }}、跳过 {{ snapshot.skipped }}。
             </p>
             <p class="mt-1 font-mono text-muted-foreground">{{ snapshot.digest }}</p>
+            <p
+              v-if="snapshot.snapshotPath"
+              class="mt-1 break-all font-mono text-muted-foreground"
+            >
+              原始快照 {{ snapshot.snapshotSizeBytes ?? 0 }} bytes · {{ snapshot.snapshotPath }}
+            </p>
+            <p
+              v-if="snapshot.snapshotSha256"
+              class="mt-1 break-all font-mono text-muted-foreground"
+            >
+              sha256 {{ snapshot.snapshotSha256 }}
+            </p>
           </div>
         </div>
       </div>
@@ -889,6 +901,18 @@ function isHttpUrl(value: string) {
                 <template v-if="evidence.lastModifiedAt">；更新时间 {{ evidence.lastModifiedAt }}</template>
               </p>
               <p class="mt-1 font-mono text-muted-foreground">{{ evidence.digest }}</p>
+              <p
+                v-if="evidence.snapshotPath"
+                class="mt-1 break-all font-mono text-muted-foreground"
+              >
+                原始快照 {{ evidence.snapshotSizeBytes ?? 0 }} bytes · {{ evidence.snapshotPath }}
+              </p>
+              <p
+                v-if="evidence.snapshotSha256"
+                class="mt-1 break-all font-mono text-muted-foreground"
+              >
+                sha256 {{ evidence.snapshotSha256 }}
+              </p>
               <Button
                 v-if="isHttpUrl(evidence.sourceUrl)"
                 as="a"
