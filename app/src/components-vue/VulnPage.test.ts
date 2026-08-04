@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { createApp, nextTick, type App } from 'vue'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import VulnPage from './VulnPage.vue'
 
 const mountedApps: App[] = []
@@ -21,6 +21,8 @@ afterEach(() => {
   for (const app of mountedApps.splice(0)) app.unmount()
   document.body.innerHTML = ''
   storage.clear()
+  vi.restoreAllMocks()
+  Reflect.deleteProperty(window, 'go')
 })
 
 async function mountVulnPage() {
@@ -99,8 +101,8 @@ describe('VulnPage', () => {
     expect(text).toContain('0 关注中')
     expect(text).toContain('6')
     expect(text).toContain('情报源接入状态')
-    expect(text).toContain('尚未复核')
-    expect(text).toContain('刷新不会联网拉取 Feed')
+    expect(text).toContain('尚未同步')
+    expect(text).toContain('可同步 CISA KEV 公开只读 JSON')
     expect(text).toContain('Feed 缓存状态')
     expect(text).toContain('尚未导入真实 Feed 快照')
     expect(text).toContain('0 个快照')
@@ -146,20 +148,51 @@ describe('VulnPage', () => {
     expect(text).not.toContain('红队 Agent')
   })
 
-  it('makes CVE source refresh explicit as local snapshot review', async () => {
+  it('syncs the CISA KEV feed through the desktop adapter into visible evidence', async () => {
+    const fetchCISAKEVFeed = vi.fn(async () => ({
+      sourceName: 'CISA KEV',
+      sourceUrl: 'https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json',
+      retrievedAt: '2026-08-04T01:02:03Z',
+      lastModified: '2026-08-04T01:02:03Z',
+      httpStatus: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        title: 'CISA Known Exploited Vulnerabilities Catalog',
+        dateReleased: '2026-08-04T00:00:00Z',
+        vulnerabilities: [{
+          cveID: 'CVE-2026-42424',
+          vendorProject: 'Example Project',
+          product: 'example-gateway',
+          vulnerabilityName: 'Example Gateway unsafe parser',
+          dateAdded: '2026-08-03',
+          shortDescription: 'Example KEV-shaped item used to verify feed sync.',
+          dueDate: '2026-08-24',
+        }],
+      }),
+    }))
+    Object.defineProperty(window, 'go', {
+      configurable: true,
+      value: { main: { App: { FetchCISAKEVFeed: fetchCISAKEVFeed } } },
+    })
     const host = await mountVulnPage()
-    const refresh = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
-      item.getAttribute('aria-label') === '复核 CVE 缓存状态',
+    const sync = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
+      item.getAttribute('aria-label') === '同步 CISA KEV Feed',
     )
-    if (!refresh) throw new Error('missing local snapshot refresh button')
+    if (!sync) throw new Error('missing KEV sync button')
 
-    expect(host.textContent).toContain('尚未复核')
-    refresh.click()
+    expect(host.textContent).toContain('尚未同步')
+    sync.click()
+    await Promise.resolve()
+    await Promise.resolve()
+    await nextTick()
     await nextTick()
 
-    expect(host.textContent).toContain('本机复核 rev 2')
-    expect(host.textContent).toContain('只更新本机缓存视图')
-    expect(host.textContent).toContain('不代表 NVD/KEV/EPSS/OSV 已实时同步')
+    expect(fetchCISAKEVFeed).toHaveBeenCalledTimes(1)
+    expect(host.textContent).toContain('已导入 CISA KEV')
+    expect(host.textContent).toContain('CISA KEV Catalog，1 条，新增 1、更新 0')
+    expect(host.textContent).toContain('CVE-2026-42424')
+    expect(host.textContent).toContain('Example Gateway unsafe parser')
+    expect(host.textContent).toContain('来源证据')
   })
 
   it('imports a CISA KEV feed snapshot and shows source evidence in the selected CVE', async () => {

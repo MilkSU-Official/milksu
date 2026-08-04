@@ -84,6 +84,16 @@ type CommandArgs = Record<string, unknown>
 type UnlistenFn = () => void
 type EventEnvelope<T> = { payload: T }
 
+export interface VulnerabilityFeedDownload {
+  sourceName: string
+  sourceUrl: string
+  retrievedAt: string
+  lastModified: string
+  httpStatus: number
+  contentType: string
+  body: string
+}
+
 interface WailsAppBindings {
   GetSettings(): Promise<AppSettings>
   SaveSettingsCmd(settings: AppSettings): Promise<void>
@@ -300,6 +310,7 @@ interface WailsAppBindings {
   StartPacketParserResearch(): Promise<VulnProjection>
   ListVulnJobs(): Promise<VulnSummary[]>
   GetVulnJob(id: string): Promise<VulnProjection>
+  FetchCISAKEVFeed(): Promise<VulnerabilityFeedDownload>
   SubmitVulnReproduction(id: string, request: VulnReproductionRequest): Promise<VulnProjection>
   RecordVulnLearning(id: string, request: VulnLearningRecordRequest): Promise<VulnProjection>
   CancelVulnJob(id: string): Promise<void>
@@ -319,6 +330,7 @@ const CONVERSATIONS_KEY = 'milksu.dev.conversations'
 const VULN_PROJECTIONS_KEY = 'milksu.dev.vuln-projections'
 const CTF_PROJECTIONS_KEY = 'milksu.dev.ctf-projections'
 const NSSCTF_CATALOG_KEY = 'milksu.dev.nssctf-catalog'
+const CISA_KEV_FEED_URL = 'https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json'
 
 const DEFAULT_SETTINGS: AppSettings = {
   active_provider: 'deepseek',
@@ -384,6 +396,27 @@ function writeJson(key: string, value: unknown) {
     window.localStorage.setItem(key, JSON.stringify(value))
   } catch {
     // Browser preview persistence is best-effort only.
+  }
+}
+
+async function fetchCISAKEVFeedInBrowser(): Promise<VulnerabilityFeedDownload> {
+  const response = await fetch(CISA_KEV_FEED_URL, {
+    headers: { Accept: 'application/json' },
+    cache: 'no-store',
+  })
+  if (!response.ok) {
+    throw new Error(`CISA KEV Feed returned HTTP ${response.status}`)
+  }
+  return {
+    sourceName: 'CISA KEV',
+    sourceUrl: CISA_KEV_FEED_URL,
+    retrievedAt: response.headers.get('last-modified')
+      || response.headers.get('date')
+      || new Date().toISOString(),
+    lastModified: response.headers.get('last-modified') || '',
+    httpStatus: response.status,
+    contentType: response.headers.get('content-type') || '',
+    body: await response.text(),
   }
 }
 
@@ -839,6 +872,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.ListVulnJobs() as Promise<T>
       case 'get_vuln_job':
         return app.GetVulnJob(args?.id as string) as Promise<T>
+      case 'fetch_cisa_kev_feed':
+        return app.FetchCISAKEVFeed() as Promise<T>
       case 'submit_vuln_reproduction':
         return app.SubmitVulnReproduction(args?.id as string, args?.request as VulnReproductionRequest) as Promise<T>
       case 'record_vuln_learning':
@@ -1066,6 +1101,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
       writeJson(VULN_PROJECTIONS_KEY, { ...projections, [projection.job.id]: projection })
       return projection as T
     }
+    case 'fetch_cisa_kev_feed':
+      return await fetchCISAKEVFeedInBrowser() as T
     case 'import_nssctf_challenge': {
       const normalized = normalizeNSSCTFProblemURL(args?.url as string)
       const response = await fetch(`/nssctf-api/problem/v2/${normalized.id}/`, {

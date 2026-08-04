@@ -1435,6 +1435,10 @@ func (a *App) GetVulnJob(id string) (vuln.Projection, error) {
 	return a.vulnJobs.GetJob(a.commandContext(), id)
 }
 
+func (a *App) FetchCISAKEVFeed() (vuln.FeedSnapshotDownload, error) {
+	return vuln.FetchCISAKEVFeed(a.commandContext(), nil)
+}
+
 func (a *App) SubmitVulnReproduction(id string, request vuln.ReproductionRequest) (vuln.Projection, error) {
 	return a.vulnJobs.SubmitReproductionEvidence(a.commandContext(), id, request)
 }

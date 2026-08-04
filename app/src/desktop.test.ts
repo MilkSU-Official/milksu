@@ -9,6 +9,32 @@ afterEach(() => {
 })
 
 describe('desktop command adapter', () => {
+  it('passes CISA KEV feed sync to the Wails read-only fetcher', async () => {
+    const feed = {
+      sourceName: 'CISA KEV',
+      sourceUrl: 'https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json',
+      retrievedAt: '2026-08-04T01:02:03Z',
+      lastModified: '2026-08-04T01:02:03Z',
+      httpStatus: 200,
+      contentType: 'application/json',
+      body: '{"vulnerabilities":[]}',
+    }
+    const fetchCISAKEVFeed = vi.fn(async () => feed)
+    Object.defineProperty(window, 'go', {
+      configurable: true,
+      value: {
+        main: {
+          App: {
+            FetchCISAKEVFeed: fetchCISAKEVFeed,
+          },
+        },
+      },
+    })
+
+    await expect(invokeCommand('fetch_cisa_kev_feed')).resolves.toBe(feed)
+    expect(fetchCISAKEVFeed).toHaveBeenCalledTimes(1)
+  })
+
   it('passes Coding background task refresh policy to Wails unchanged', async () => {
     const status = {
       defaultEngine: 'pi',
