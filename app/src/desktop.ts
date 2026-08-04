@@ -80,6 +80,8 @@ import type {
 } from './ctfLabTypes'
 import { createPreviewCTFProjection, summarizePreviewCTF } from './ctfPreview'
 import type {
+  ExternalSessionHistoryImportRequest,
+  ExternalSessionHistoryImportResult,
   SessionHistorySearchRequest,
   SessionHistorySearchResponse,
   SessionIndexRefreshResult,
@@ -115,6 +117,7 @@ interface WailsAppBindings {
   GetSessionIndexStatus(): Promise<SessionIndexStatus>
   RefreshSessionIndex(): Promise<SessionIndexRefreshResult>
   SearchSessionHistory(request: SessionHistorySearchRequest): Promise<SessionHistorySearchResponse>
+  ImportExternalSessionHistory(request: ExternalSessionHistoryImportRequest): Promise<ExternalSessionHistoryImportResult>
   ListConversations(): Promise<unknown>
   SaveConversation(conversation: unknown): Promise<void>
   DeleteConversation(id: string): Promise<void>
@@ -703,6 +706,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.RefreshSessionIndex() as Promise<T>
       case 'search_session_history':
         return app.SearchSessionHistory(args?.request as SessionHistorySearchRequest) as Promise<T>
+      case 'import_external_session_history':
+        return app.ImportExternalSessionHistory(args?.request as ExternalSessionHistoryImportRequest) as Promise<T>
       case 'list_conversations':
         return app.ListConversations() as Promise<T>
       case 'save_conversation':
@@ -1145,6 +1150,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         },
         results: [],
       } as T
+    case 'import_external_session_history':
+      throw new Error('请在 MilkSU 桌面应用中导入外部历史。')
     case 'list_conversations':
       return readJson(CONVERSATIONS_KEY, []) as T
     case 'save_conversation': {

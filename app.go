@@ -282,6 +282,7 @@ func (a *App) Startup(ctx context.Context) {
 	_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedAppInitialized)
 	_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedDesktopRuntimeStarted)
 	a.maybeRunSessionIndexSmoke()
+	a.maybeRunExternalSessionImportSmoke()
 	a.maybeRunVulnerabilityFeedSmoke()
 	a.maybeRunVulnerabilityFeedMatrixSmoke()
 	a.maybeRunCodingArtifactPreviewSmoke()
@@ -522,6 +523,13 @@ func (a *App) SearchSessionHistory(request sessionindex.SearchRequest) (sessioni
 		return sessionindex.SearchResponse{}, err
 	}
 	return a.sessionIndex.Search(a.commandContext(), request)
+}
+
+func (a *App) ImportExternalSessionHistory(request sessionindex.ExternalImportRequest) (sessionindex.ExternalImportResult, error) {
+	if a.sessionIndex == nil {
+		return sessionindex.ExternalImportResult{}, fmt.Errorf("session index is not ready")
+	}
+	return a.sessionIndex.ImportExternalJSONL(a.commandContext(), request)
 }
 
 func (a *App) SaveSettingsCmd(settings config.AppSettings) error {

@@ -52,10 +52,12 @@
   不把它误算成完整自举、Developer ID、公证、升级或外部 Beta 完成；
 - Session Index：首轮原生闭环已通过；CVE Note、Coding 输入、CTF 复盘草稿的用户确认路径
   已接入，且真实打包 MilkSU UI 已证明引用历史进入 Coding prompt 后会被 Agent 回复消费。
-  `OBS-21` 重复脱敏显示已用真实打包 App 回归关闭。继续做跨历史导入、许可证/NOTICE/ADR
+  `OBS-21` 重复脱敏显示已用真实打包 App 回归关闭；显式 JSONL 跨历史导入已支持
+  `codex / claude / kimi / pi` 来源，并用真实打包 App 完成 Codex fixture import/search/redaction
+  smoke。继续做真实用户历史目录选择、Claude/Kimi/Pi 扩样、许可证/NOTICE/ADR
   和“使用相关历史完成一次自举交付”。后续不得重复把
   “App data 初始化、索引 MilkSU 会话/工具事件、打包 App 搜索、脱敏搜索结果、手动引用进入
-  输入、Agent 能读到引用历史或 OBS-21 重复脱敏显示”当作未完成；
+  输入、Agent 能读到引用历史、OBS-21 重复脱敏显示或显式 JSONL 外部历史导入”当作未完成；
 - Coding：在打包 App 中完成一个小 MilkSU 修改，跑真实测试/build，做真实 Browser 或
   Computer Use 验证，commit 并 push；
 - Artifact Preview：packaged App facade 已能从隔离 workspace 真实读取 Markdown、HTML、PNG，

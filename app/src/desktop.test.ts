@@ -180,6 +180,16 @@ describe('desktop command adapter', () => {
     const getSessionIndexStatus = vi.fn(async () => status)
     const refreshSessionIndex = vi.fn(async () => refresh)
     const searchSessionHistory = vi.fn(async () => searchResponse)
+    const importExternalSessionHistory = vi.fn(async () => ({
+      importedAt: '2026-08-04T09:33:00Z',
+      indexPath: status.indexPath,
+      source: 'codex',
+      path: '/tmp/codex-history.jsonl',
+      sessionCount: 1,
+      messageCount: 2,
+      toolCallCount: 1,
+      skippedLineCount: 0,
+    }))
     Object.defineProperty(window, 'go', {
       configurable: true,
       value: {
@@ -188,6 +198,7 @@ describe('desktop command adapter', () => {
             GetSessionIndexStatus: getSessionIndexStatus,
             RefreshSessionIndex: refreshSessionIndex,
             SearchSessionHistory: searchSessionHistory,
+            ImportExternalSessionHistory: importExternalSessionHistory,
           },
         },
       },
@@ -198,12 +209,30 @@ describe('desktop command adapter', () => {
     await expect(invokeCommand('search_session_history', {
       request: { query: 'Computer Use', module: 'coding', limit: 4 },
     })).resolves.toBe(searchResponse)
+    await expect(invokeCommand('import_external_session_history', {
+      request: {
+        source: 'codex',
+        path: '/tmp/codex-history.jsonl',
+        project: 'milksu',
+        projectPath: '/Users/milksu/code/milksu',
+      },
+    })).resolves.toMatchObject({
+      source: 'codex',
+      sessionCount: 1,
+      messageCount: 2,
+    })
     expect(getSessionIndexStatus).toHaveBeenCalledOnce()
     expect(refreshSessionIndex).toHaveBeenCalledOnce()
     expect(searchSessionHistory).toHaveBeenCalledWith({
       query: 'Computer Use',
       module: 'coding',
       limit: 4,
+    })
+    expect(importExternalSessionHistory).toHaveBeenCalledWith({
+      source: 'codex',
+      path: '/tmp/codex-history.jsonl',
+      project: 'milksu',
+      projectPath: '/Users/milksu/code/milksu',
     })
   })
 
@@ -219,6 +248,9 @@ describe('desktop command adapter', () => {
       query: 'CVE-2024-3400',
       results: [],
     })
+    await expect(invokeCommand('import_external_session_history', {
+      request: { source: 'codex', path: '/tmp/codex-history.jsonl' },
+    })).rejects.toThrow('请在 MilkSU 桌面应用中导入外部历史。')
   })
 
   it('passes Coding background task refresh policy to Wails unchanged', async () => {
