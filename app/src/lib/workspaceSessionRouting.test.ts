@@ -109,4 +109,33 @@ describe('workspaceSessionRouting', () => {
       jobId: 'ctf-job-recent',
     })
   })
+
+  it('falls back to the last active CTF resume point rather than the newest created row', () => {
+    const conversations = [
+      conversation({
+        id: 'ctf-created-newer',
+        title: '顶部新建但未继续的 CTF',
+        createdAt: 300,
+        ctfJobId: 'ctf-job-created-newer',
+        ctfRole: 'solver',
+        messages: [],
+      }),
+      conversation({
+        id: 'ctf-active-older',
+        title: '底部最近继续的 CTF',
+        createdAt: 100,
+        ctfJobId: 'ctf-job-active-older',
+        ctfRole: 'solver',
+        messages: [
+          { id: 'message-3', role: 'assistant', content: '继续这里', timestamp: 700 },
+        ],
+      }),
+      codingRecent,
+    ]
+
+    expect(selectCTFResumePoint(conversations, 'coding-recent', null)).toEqual({
+      conversationId: 'ctf-active-older',
+      jobId: 'ctf-job-active-older',
+    })
+  })
 })
