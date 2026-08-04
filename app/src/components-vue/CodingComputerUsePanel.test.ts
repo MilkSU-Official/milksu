@@ -402,7 +402,9 @@ describe('CodingComputerUsePanel', () => {
     expect(text).toContain('不要反复授权')
     expect(text).toContain('重启当前 App')
     expect(text).toContain('Developer ID 签名版')
-    expect(text).toContain('首次授权可用下方“打开系统权限设置”')
+    expect(text).toContain('首次授权也建议先换稳定签名版')
+    expect(text).toContain('待稳定签名复检')
+    expect(text).toContain('先稳定签名再复检')
 
     const primary = host.querySelector<HTMLButtonElement>('button[aria-label="执行 Computer Use 下一步"]')
     expect(primary?.textContent).toContain('重新检测当前构建')
@@ -414,6 +416,14 @@ describe('CodingComputerUsePanel', () => {
     const secondaryPermissionAction = [...host.querySelectorAll<HTMLButtonElement>('button')].find(
       button => button.textContent?.includes('打开系统权限设置'),
     )
-    expect(secondaryPermissionAction?.disabled).toBe(false)
+    expect(secondaryPermissionAction).toBeUndefined()
+    const blockedPermissionAction = host.querySelector<HTMLButtonElement>(
+      'button[aria-label="系统权限等待稳定签名后复检"]',
+    )
+    expect(blockedPermissionAction?.disabled).toBe(true)
+    const accessibilityBadge = host.querySelector<HTMLButtonElement>('button[aria-label="请求辅助功能权限"]')
+    accessibilityBadge?.click()
+    await nextTick()
+    expect(onRequestPermissions).not.toHaveBeenCalled()
   })
 })

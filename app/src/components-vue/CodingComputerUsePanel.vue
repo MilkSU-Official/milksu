@@ -104,6 +104,17 @@ const signingUnstable = computed(() => Boolean(
 const permissionProbeMayBeStale = computed(() => Boolean(
   signingUnstable.value && !permissionsReady.value,
 ))
+const permissionReapprovalBlocked = computed(() => Boolean(
+  permissionProbeMayBeStale.value && props.status?.available,
+))
+const accessibilityPermissionLabel = computed(() => {
+  if (props.status?.permissions.accessibility) return '已授权'
+  return permissionReapprovalBlocked.value ? '待稳定签名复检' : '未授权'
+})
+const screenRecordingPermissionLabel = computed(() => {
+  if (props.status?.permissions.screenRecording) return '已授权'
+  return permissionReapprovalBlocked.value ? '待稳定签名复检' : '未授权'
+})
 const readyForCurrentTask = computed(() => Boolean(
   props.status?.enabled
   && props.ownedByCurrentTask,
@@ -267,7 +278,7 @@ const primarySetupAction = computed<{
     if (permissionProbeMayBeStale.value) {
       return {
         label: '重新检测当前构建',
-        detail: `${missingPermissions.value.join('、') || '系统权限'} 未对当前构建生效；${signingDiagnostic.value || '当前构建身份不稳定。'} 如果系统设置已勾选，不要重复打开授权，请先重启当前 App 或使用 Developer ID 签名版后再检测。首次授权可用下方“打开系统权限设置”。`,
+        detail: `${missingPermissions.value.join('、') || '系统权限'} 未对当前构建生效；${signingDiagnostic.value || '当前构建身份不稳定。'} 如果系统设置已勾选，不要重复打开授权，请先重启当前 App 或使用 Developer ID 签名版后再检测。首次授权也建议先换稳定签名版，再打开系统权限设置。`,
         action: 'refresh',
         variant: 'outline',
         disabled: props.loading || props.running,
@@ -384,31 +395,31 @@ function runPrimarySetupAction() {
         <button
           type="button"
           class="rounded-full disabled:cursor-default"
-          :disabled="Boolean(status?.permissions.accessibility) || loading || running || !status?.available"
+          :disabled="Boolean(status?.permissions.accessibility) || permissionReapprovalBlocked || loading || running || !status?.available"
           aria-label="请求辅助功能权限"
           @click="emit('requestPermissions')"
         >
           <Badge
             :variant="status?.permissions.accessibility ? 'secondary' : 'outline'"
-            :class="!status?.permissions.accessibility && status?.available ? 'cursor-pointer' : ''"
+            :class="!status?.permissions.accessibility && status?.available && !permissionReapprovalBlocked ? 'cursor-pointer' : ''"
           >
             辅助功能
-            {{ status?.permissions.accessibility ? '已授权' : '未授权' }}
+            {{ accessibilityPermissionLabel }}
           </Badge>
         </button>
         <button
           type="button"
           class="rounded-full disabled:cursor-default"
-          :disabled="Boolean(status?.permissions.screenRecording) || loading || running || !status?.available"
+          :disabled="Boolean(status?.permissions.screenRecording) || permissionReapprovalBlocked || loading || running || !status?.available"
           aria-label="请求屏幕录制权限"
           @click="emit('requestPermissions')"
         >
           <Badge
             :variant="status?.permissions.screenRecording ? 'secondary' : 'outline'"
-            :class="!status?.permissions.screenRecording && status?.available ? 'cursor-pointer' : ''"
+            :class="!status?.permissions.screenRecording && status?.available && !permissionReapprovalBlocked ? 'cursor-pointer' : ''"
           >
             屏幕录制
-            {{ status?.permissions.screenRecording ? '已授权' : '未授权' }}
+            {{ screenRecordingPermissionLabel }}
           </Badge>
         </button>
       </div>
@@ -514,7 +525,7 @@ function runPrimarySetupAction() {
         重新检测
       </Button>
       <Button
-        v-if="!permissionsReady"
+        v-if="!permissionsReady && !permissionReapprovalBlocked"
         variant="outline"
         size="sm"
         :disabled="loading || running || !status?.available"
@@ -523,6 +534,16 @@ function runPrimarySetupAction() {
         <LoaderCircle v-if="loading" class="size-3.5 animate-spin" />
         <KeyRound v-else class="size-3.5" />
         打开系统权限设置
+      </Button>
+      <Button
+        v-else-if="permissionReapprovalBlocked"
+        variant="outline"
+        size="sm"
+        disabled
+        aria-label="系统权限等待稳定签名后复检"
+      >
+        <KeyRound class="size-3.5" />
+        先稳定签名再复检
       </Button>
       <Button
         v-if="ownedByCurrentTask"

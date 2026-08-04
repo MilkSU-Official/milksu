@@ -286,17 +286,24 @@ const computerUseVerificationRecord = computed<VerificationRecord>(() => {
       actionLabel: '启动',
     }
   }
+  if (props.computerUseOperationEvidence) {
+    return {
+      label: 'Computer Use',
+      state: '已操作',
+      detail: `已完成 ${props.computerUseOperationEvidence.action}：${props.computerUseOperationEvidence.targetName} · PID ${props.computerUseOperationEvidence.pid} · Window ${props.computerUseOperationEvidence.windowId}`,
+    }
+  }
   return {
     label: 'Computer Use',
-    state: '已接入',
+    state: '待操作',
     detail: status.target
-      ? `${status.target.name} · PID ${status.target.pid} · Window ${status.target.windowId}`
-      : '已接入当前任务；等待下一次可见 App 操作证据。',
+      ? `已锁定 ${status.target.name} · PID ${status.target.pid} · Window ${status.target.windowId}；等待真实 observe/click/type/key/scroll 工具结果。`
+      : '已锁定当前任务；等待下一次可见 App 操作证据。',
   }
 })
 
 const computerUseQuickAction = computed(() => (
-  computerUseVerificationRecord.value.state === '已接入'
+  computerUseVerificationRecord.value.state === '已操作'
     ? null
     : computerUseVerificationRecord.value
 ))

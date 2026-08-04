@@ -48,6 +48,7 @@ import {
   PanelRightOpen,
   RefreshCw,
   Route,
+  ShieldCheck,
   Shrink,
   Sparkles,
   Target,

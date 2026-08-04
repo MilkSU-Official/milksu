@@ -246,6 +246,8 @@ describe('CodingProductLoopPanel', () => {
     expect(host.textContent).toContain('仍需实际截图、DOM、控制台或窗口操作证据')
     expect(host.textContent).toContain('Computer Use')
     expect(host.textContent).toContain('已接入')
+    expect(host.textContent).toContain('待操作')
+    expect(host.textContent).toContain('等待真实 observe/click/type/key/scroll 工具结果')
     expect(host.textContent).toContain('Preview · PID 123 · Window 456')
     expect(host.textContent).toContain('当前 Git 工作区干净且没有待 push 提交')
   })
