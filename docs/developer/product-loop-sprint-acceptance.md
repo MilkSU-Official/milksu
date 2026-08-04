@@ -1114,3 +1114,28 @@
 - 大文件导入、字段冲突合并、导入预览/撤销和差异视图；
 - 原生 App 内从文件选择器导入 JSON/CSV；
 - 任何 Docker/Compose 练习环境启动或真实资产验证。
+
+## 2026-08-04 · CVE local JSON import undo
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | 本批次提交 |
+| 目标流 | CVE → 导入 JSON → 看到导入结果 → 撤销本次导入 |
+| 窄测 | `npm --prefix app test -- VulnPage.test.ts useVulnerabilityDashboard.test.ts` |
+| 窄测结果 | 2 files / 21 tests passed |
+| 前端构建 | `npm --prefix app run build` |
+| 构建结果 | production build passed |
+| Browser 验证 | Vite preview `http://127.0.0.1:4196/`；进入 CVE，导入 `CVE-2026-66666` 后结果条和 `撤销本次导入` 可见，撤销后记录消失、追踪条目回到 7，console 无 warn/error |
+
+覆盖范围：
+
+- CVE JSON 导入结果从隐藏在表单内的短提示改为表单收起后仍可见的结果条；
+- 导入返回 `importedIds`，页面只允许撤销本次新增的本地追踪项；
+- 撤销会清理该批本地 CVE 的状态、资产、研究任务、笔记、练习计划和 Coding 接力记录；
+- 重复内置 CVE 仍只跳过，不会被撤销误删。
+
+本次仍未证明：
+
+- 完整导入预览、字段级差异、逐项勾选和历史批次回滚；
+- 大文件导入性能和原生文件选择器导入；
+- 真实 Feed cache/digest 或任何漏洞验证能力。

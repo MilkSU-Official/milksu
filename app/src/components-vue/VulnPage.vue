@@ -82,6 +82,7 @@ const showImportForm = ref(false)
 const importText = ref('')
 const importNotice = ref('')
 const importError = ref('')
+const lastImportedIds = ref<string[]>([])
 const showAssetForm = ref(false)
 const assetFormError = ref('')
 const feedImportCopyNotice = ref('')
@@ -139,16 +140,26 @@ function addSelectedAssetRecord() {
 function importLocalIntelJSON() {
   importError.value = ''
   importNotice.value = ''
+  lastImportedIds.value = []
   const result = dashboard.importTrackingJSON(importText.value)
   if (result.errors.length && !result.imported) {
     importError.value = result.errors.join('；')
     return
   }
+  lastImportedIds.value = result.importedIds
   importNotice.value = `已导入 ${result.imported} 条本地 CVE 追踪`
     + (result.skipped ? `，跳过 ${result.skipped} 条已存在记录` : '')
     + (result.errors.length ? `；${result.errors.length} 条格式需人工处理` : '')
   importText.value = ''
   showImportForm.value = false
+}
+
+function undoLastImport() {
+  const removed = dashboard.removeLocalTrackingItems(lastImportedIds.value)
+  importNotice.value = removed
+    ? `已撤销本次导入的 ${removed} 条本地 CVE 追踪`
+    : '没有可撤销的本地导入记录'
+  lastImportedIds.value = []
 }
 
 function startSelectedCodingTask(task: VulnerabilityCodingTask) {
@@ -418,6 +429,23 @@ function statusVariant(status: VulnerabilityStatus) {
             </Button>
           </div>
         </form>
+        <div
+          v-if="importNotice && !showImportForm"
+          class="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-card/70 px-6 py-3"
+          role="status"
+          aria-label="CVE 导入结果"
+        >
+          <p class="text-caption text-primary">{{ importNotice }}</p>
+          <Button
+            v-if="lastImportedIds.length"
+            type="button"
+            variant="outline"
+            size="sm"
+            @click="undoLastImport"
+          >
+            撤销本次导入
+          </Button>
+        </div>
         <section class="border-b border-border bg-card/35 px-6 py-5" aria-label="CVE 情报源接入状态">
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div>

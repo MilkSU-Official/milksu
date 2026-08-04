@@ -368,8 +368,22 @@ describe('VulnPage', () => {
     expect(host.textContent).toContain('CVE-2026-42424')
     expect(host.textContent).toContain('用户导入的依赖风险')
     expect(host.textContent).toContain('本地样本，只用于学习追踪。')
+    expect(host.textContent).toContain('已导入 1 条本地 CVE 追踪')
+    expect(host.textContent).toContain('撤销本次导入')
     expect(host.textContent).toContain('尚未复核')
     expect(host.textContent).toContain('刷新不会联网拉取 Feed')
+
+    const undo = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
+      item.textContent?.includes('撤销本次导入'),
+    )
+    if (!undo) throw new Error('missing undo import button')
+    undo.click()
+    await nextTick()
+
+    expect(host.textContent).toContain('已撤销本次导入的 1 条本地 CVE 追踪')
+    expect(host.textContent).not.toContain('CVE-2026-42424')
+    expect(host.textContent).not.toContain('用户导入的依赖风险')
+    expect(host.textContent).toContain('7')
   })
 
   it('persists user-confirmed research notes for the selected CVE', async () => {
