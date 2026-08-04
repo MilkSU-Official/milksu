@@ -1139,3 +1139,28 @@
 - 完整导入预览、字段级差异、逐项勾选和历史批次回滚；
 - 大文件导入性能和原生文件选择器导入；
 - 真实 Feed cache/digest 或任何漏洞验证能力。
+
+## 2026-08-04 · Coding missing-proof shortlist
+
+| 项目 | 记录 |
+| --- | --- |
+| Commit | 本批次提交 |
+| 目标流 | Coding → 产品闭环卡 → 合并状态下直接看到待补证明项 |
+| 窄测 | `npm --prefix app test -- CodingProductLoopPanel.test.ts` |
+| 窄测结果 | 1 file / 20 tests passed |
+| 前端构建 | `npm --prefix app run build` |
+| 构建结果 | production build passed |
+| Browser 验证 | Vite preview `http://127.0.0.1:4197/`；进入 Coding，`本轮产品闭环` 和 `Coding 待补证明` 区域可见，短列表列出当前缺口，console 无 warn/error |
+
+覆盖范围：
+
+- 合并状态卡下方新增短的 `Coding 待补证明` 区域，不需要用户从长验收清单里拼当前缺口；
+- 只列 `acceptanceChecklist` 中尚未完成的项，已具备项不会重复显示；
+- 每个待补项保留状态 Badge，并在有具体面板/恢复动作时提供直接入口；
+- 组件测试覆盖短列表、未完成项过滤，以及从短列表打开产物预览、生成恢复点、打开变更面板。
+
+本次仍未证明：
+
+- 原生 App 中绑定真实工作区后，短列表的真实状态与右侧面板完全同步；
+- 短列表已经覆盖所有未来 Coding 能力项；
+- 这等同于完整 MilkSU develops MilkSU Gate；它只是让下一步缺口更可见。

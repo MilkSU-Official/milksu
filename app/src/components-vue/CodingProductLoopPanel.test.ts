@@ -133,6 +133,7 @@ describe('CodingProductLoopPanel', () => {
     expect(text).toContain('待补证明')
     expect(text).toContain('还差 3 项')
     expect(text).toContain('做一次用户可见验证、验证失败/继续路径、收口 Git 交付')
+    expect(host.querySelector('[aria-label="Coding 待补证明"]')).not.toBeNull()
     expect(text).toContain('选择任务与仓库')
     expect(text).toContain('Agent 执行')
     expect(text).toContain('用户可见验证')
@@ -186,6 +187,15 @@ describe('CodingProductLoopPanel', () => {
     expect(text).toContain('不会自动启动 Agent')
     expect(host.querySelectorAll('[data-product-loop-state="active"]').length)
       .toBeGreaterThanOrEqual(1)
+    expect(host.querySelectorAll('[data-missing-acceptance-state]').length).toBe(3)
+    expect(host.querySelector('[aria-label="Coding 待补证明"]')?.textContent)
+      .toContain('3. 做一次用户可见验证')
+    expect(host.querySelector('[aria-label="Coding 待补证明"]')?.textContent)
+      .toContain('4. 验证失败/继续路径')
+    expect(host.querySelector('[aria-label="Coding 待补证明"]')?.textContent)
+      .toContain('5. 收口 Git 交付')
+    expect(host.querySelector('[aria-label="Coding 待补证明"]')?.textContent)
+      .not.toContain('1. 确认任务和仓库')
   })
 
   it('recognizes visible Browser or Computer Use validation as in progress', async () => {
@@ -405,6 +415,27 @@ describe('CodingProductLoopPanel', () => {
       ?.querySelector<HTMLButtonElement>('button')
       ?.click()
     checklist.find(item => item.textContent?.includes('收口 Git 交付'))
+      ?.querySelector<HTMLButtonElement>('button')
+      ?.click()
+    await nextTick()
+
+    expect(onOpenPanel).toHaveBeenCalledWith('artifacts')
+    expect(onCompactContext).toHaveBeenCalledOnce()
+    expect(onOpenPanel).toHaveBeenCalledWith('changes')
+  })
+
+  it('opens concrete panels directly from the short missing-proof list', async () => {
+    const { host, onOpenPanel, onCompactContext } = await mountPanel()
+    const missing = [...host.querySelectorAll<HTMLElement>('[data-missing-acceptance-state]')]
+
+    expect(missing).toHaveLength(3)
+    missing.find(item => item.textContent?.includes('做一次用户可见验证'))
+      ?.querySelector<HTMLButtonElement>('button')
+      ?.click()
+    missing.find(item => item.textContent?.includes('验证失败/继续路径'))
+      ?.querySelector<HTMLButtonElement>('button')
+      ?.click()
+    missing.find(item => item.textContent?.includes('收口 Git 交付'))
       ?.querySelector<HTMLButtonElement>('button')
       ?.click()
     await nextTick()

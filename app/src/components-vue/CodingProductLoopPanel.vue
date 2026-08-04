@@ -656,6 +656,40 @@ function stateBadgeVariant(state: LoopState) {
           {{ stateLabel(mergeReadiness.state) }}
         </Badge>
       </div>
+      <div
+        v-if="unfinishedAcceptanceItems.length"
+        class="mt-3 space-y-1.5"
+        aria-label="Coding 待补证明"
+      >
+        <div
+          v-for="item in unfinishedAcceptanceItems"
+          :key="`missing-${item.label}`"
+          class="flex items-start justify-between gap-3 rounded-md bg-background px-3 py-2"
+          :data-missing-acceptance-state="item.state"
+        >
+          <div class="min-w-0">
+            <p class="text-caption font-medium">{{ item.label }}</p>
+            <p class="mt-0.5 line-clamp-2 text-caption leading-5 text-muted-foreground">
+              {{ item.detail }}
+            </p>
+          </div>
+          <div class="flex shrink-0 items-center gap-2">
+            <Button
+              v-if="item.panel || item.action"
+              type="button"
+              variant="ghost"
+              size="sm"
+              :disabled="item.action === 'compact' && (running || compacting)"
+              @click="item.panel ? emit('openPanel', item.panel) : emit('compactContext')"
+            >
+              {{ item.actionLabel || '打开' }}
+            </Button>
+            <Badge :variant="stateBadgeVariant(item.state)">
+              {{ stateLabel(item.state) }}
+            </Badge>
+          </div>
+        </div>
+      </div>
       <div class="mt-3 flex items-center justify-between gap-2">
         <span class="text-caption text-muted-foreground">
           {{ followupCopyNotice || '复制一段只包含待补证明的下一轮 Agent prompt。' }}
