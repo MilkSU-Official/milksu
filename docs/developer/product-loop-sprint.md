@@ -67,9 +67,11 @@
   snapshot 哈希/大小和选中 CVE 的事实变化；packaged App 多源矩阵 smoke 已通过，能为
   `CVE-2023-46604` 同步 NVD、FIRST EPSS、CISA KEV 和 Vulhub 练习目录，保留四份 snapshot，
   并匹配到 `activemq/CVE-2023-46604`。CVE 设置页“同步当前 CVE”已升级为四源矩阵，
-  保留逐源成功/失败状态，并在 Browser 预览中验证入口收敛在设置页。下一步只补
-  Vulhub/Docker 启停/清理、GHSA/OSV 或完整研究回写，不能再说“只有四条 mock 数据”。2026-08-05 Browser 已验证
-  CVE 首页默认不铺 Feed/NVD/EPSS/KEV/Vulhub/缓存维护台，点击统一设置后才进入情报源设置；
+  保留逐源成功/失败状态，并在 Browser 预览中验证入口收敛在设置页。2026-08-05 真实
+  打包 MilkSU UI 已从 CVE 设置页点击“四源同步”，对 `CVE-2024-3400` 显示 4/4 来源成功，
+  并在隔离 App data 下落盘 NVD、FIRST EPSS、CISA KEV 与 Vulhub snapshot；下一步只补
+  Vulhub/Docker 启停/清理、GHSA/OSV 或完整研究回写，不能再说“只有四条 mock 数据”。
+  同日 Browser 已验证 CVE 首页默认不铺 Feed/NVD/EPSS/KEV/Vulhub/缓存维护台，点击统一设置后才进入情报源设置；
 - CTF：从题库进入解题会话，切到 CVE/Coding 再返回，题库/会话/最近位置不丢失；Browser
   真实渲染烟测已证明 `CTF(P382)` → `CVE` → `Coding` → `CTF` 后仍回到 P382 工作台且
   Console 无 error/warn；下一步只补打包原生 App + 运行中 Agent job 的继续验收；
