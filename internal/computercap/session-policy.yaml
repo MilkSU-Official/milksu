@@ -1,10 +1,12 @@
+# Package smoke fixture. Real sessions write a per-target policy from the
+# user-selected visible App/window in manager.go.
 version: 2
 mode: bounded
 expires_after: 8h
 idle_timeout: 30m
 resources:
   apps:
-    - bundle_id: com.milksu.app
+    - bundle_id: com.example.preview
       launch: false
       windows: all
       terminate: deny

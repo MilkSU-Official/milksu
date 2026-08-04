@@ -78,6 +78,12 @@ test("normalizes only the immutable scoped proxy descriptor", () => {
   }
 });
 
+test("describes a user-selected external app scope instead of MilkSU self-only scope", () => {
+  assert.match(computerUseTool.description, /visible App window selected by the user/);
+  assert.doesNotMatch(computerUseTool.description, /MilkSU application window/);
+  assert.match(computerUseTool.description, /PID, window, bundle id/);
+});
+
 test("rejects hidden scope fields and unrelated action parameters", () => {
   for (const value of [
     { action: "observe", pid: 999 },

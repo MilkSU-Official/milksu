@@ -34,7 +34,7 @@ const allowedInputFields = new Set([
 export const computerUseTool = {
   name: "computer_use",
   description:
-    "Observe or interact with the one visible MilkSU application window selected by the user. "
+    "Observe or interact with the one visible App window selected by the user in MilkSU. "
     + "The target PID, window, bundle id, window-only scope, and visible session are injected by "
     + "MilkSU and cannot be changed by the model. Observe before each action; one action consumes "
     + "that snapshot. MilkSU applies the active task's approval policy to each call.",

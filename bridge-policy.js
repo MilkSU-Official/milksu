@@ -1905,13 +1905,13 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
     productAction,
     normalized.activeTools,
   ).filter(tool => tool !== codingImageGenToolName || imageGenConfigured);
-  const mcpAvailable = !productAction
-    && mcpServers.length > 0
+  const interactiveMcpAllowed = !productAction
     && normalized.executionMode === "go"
     && normalized.approvalPolicy !== "read-only";
-  const browserAvailable = mcpAvailable
+  const projectMcpAvailable = interactiveMcpAllowed && mcpServers.length > 0;
+  const browserAvailable = interactiveMcpAllowed
     && (Boolean(codingBrowser) || projectMcpServers.length > 0);
-  const computerUseAvailable = mcpAvailable && Boolean(computerUse);
+  const computerUseAvailable = interactiveMcpAllowed && Boolean(computerUse);
   const collaborationAvailable = !productAction
     && Boolean(codingCollaboration)
     && normalized.executionMode === "go"
@@ -1925,7 +1925,7 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
     && imageGenConfigured;
   const activeTools = [...new Set([
     ...actionTools,
-    ...(mcpAvailable ? ["mcp"] : []),
+    ...(projectMcpAvailable || browserAvailable || computerUseAvailable ? ["mcp"] : []),
     ...(collaborationAvailable ? [codingCollaborationToolName] : []),
   ])];
   const capabilities = normalized.capabilities.map(capability => (

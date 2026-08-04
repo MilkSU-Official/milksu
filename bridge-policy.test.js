@@ -287,11 +287,12 @@ test("Computer Use requires an explicit app-scoped session under every Go policy
     const enabled = await loadSessionPolicy(workspace, "", {
       executionMode: "go",
       approvalPolicy,
-      mcpServers: ["milksu-computer-use"],
       projectMcpServers: [],
       computerUse,
     });
     assert.equal(enabled.activeTools.includes("mcp"), true);
+    assert.deepEqual(enabled.mcpServers, []);
+    assert.deepEqual(enabled.projectMcpServers, []);
     assert.deepEqual(enabled.computerUse, computerUse);
     assert.equal(
       enabled.capabilities.find(value => value.id === "computer-use").status,
@@ -301,6 +302,10 @@ test("Computer Use requires an explicit app-scoped session under every Go policy
       enabled.capabilities.find(value => value.id === "computer-use").detail,
       /模型不能改 PID、窗口或桌面范围/,
     );
+    assert.match(
+      enabled.capabilities.find(value => value.id === "computer-use").detail,
+      /Codex \(com\.openai\.codex\)/,
+    );
   }
 
   for (const policyInput of [
@@ -309,7 +314,6 @@ test("Computer Use requires an explicit app-scoped session under every Go policy
   ]) {
     const gated = await loadSessionPolicy(workspace, "", {
       ...policyInput,
-      mcpServers: ["milksu-computer-use"],
       projectMcpServers: [],
       computerUse,
     });

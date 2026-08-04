@@ -46,6 +46,12 @@ const cuaSessionPolicyPath = join(
   'computercap',
   'session-policy.yaml',
 )
+const computerUsePackagedSmokeTarget = {
+  name: 'External Preview Fixture',
+  bundleId: 'com.example.preview',
+  pidOffset: 200,
+  windowId: 9001,
+}
 const systemOcrVersion = '1.1.0'
 const typescriptLanguageServerVersion = '5.3.0'
 const vueLanguageServerVersion = '2.2.12'
@@ -591,7 +597,7 @@ async function verifyPackagedCuaRuntime(output) {
   return {
     version: cuaDriverVersion,
     policy: 'bounded',
-    targetBundleId: 'com.milksu.app',
+    targetBundleId: 'runtime-selected-visible-app',
   }
 }
 
@@ -1207,7 +1213,7 @@ async function buildSidecar(platform) {
         license: 'MIT',
         licenseFile: 'THIRD_PARTY-LICENSES/cua-MIT.txt',
         scope: 'coding-computer-use-opt-in',
-        targetBundleId: 'com.milksu.app',
+        targetScope: 'runtime-selected-visible-app-window',
         proxy: 'computer-use-proxy.cjs',
       },
       localOcr: {
@@ -1315,13 +1321,13 @@ async function smokeSidecar(platform) {
       '--session',
       'computer_packaged-smoke',
       '--target-name',
-      'MilkSU',
+      computerUsePackagedSmokeTarget.name,
       '--target-bundle-id',
-      'com.milksu.app',
+      computerUsePackagedSmokeTarget.bundleId,
       '--target-pid',
-      String(process.pid),
+      String(process.pid + computerUsePackagedSmokeTarget.pidOffset),
       '--target-window-id',
-      '1',
+      String(computerUsePackagedSmokeTarget.windowId),
       '--driver',
       join(output, 'cua-driver'),
     ],
@@ -1342,6 +1348,8 @@ async function smokeSidecar(platform) {
   if (
     computerUseTools?.length !== 1
     || computerUseTools[0]?.name !== 'computer_use'
+    || !computerUseTools[0]?.description?.includes('visible App window selected by the user')
+    || computerUseTools[0]?.description?.includes('MilkSU application window')
   ) {
     throw new Error(
       `packaged Computer Use proxy exposed an unexpected surface: `
@@ -1912,10 +1920,10 @@ async function smokeSidecar(platform) {
           computerUse: {
             sessionId: computerUseSessionId,
             socketPath: computerUseSocketPath,
-            targetBundleId: 'com.milksu.app',
-            targetName: 'MilkSU',
-            targetPid: process.pid,
-            targetWindowId: 1,
+            targetBundleId: computerUsePackagedSmokeTarget.bundleId,
+            targetName: computerUsePackagedSmokeTarget.name,
+            targetPid: process.pid + computerUsePackagedSmokeTarget.pidOffset,
+            targetWindowId: computerUsePackagedSmokeTarget.windowId,
           },
         }),
         '{"action":"destroy_session","conversationId":"packaged-computer-use"}',
@@ -1935,6 +1943,11 @@ async function smokeSidecar(platform) {
         capability => capability.id === 'computer-use'
           && capability.status === 'allowed'
           && capability.detail.includes('模型不能改 PID、窗口或桌面范围'),
+      )
+      || !computerUseReady.capabilities?.some(
+        capability => capability.id === 'computer-use'
+          && capability.detail.includes(computerUsePackagedSmokeTarget.name)
+          && capability.detail.includes(computerUsePackagedSmokeTarget.bundleId),
       )
       || !computerUseResponses.some(value => value.type === 'session_destroyed')
       || computerUseResponses.some(value => value.type === 'error')
@@ -2066,10 +2079,10 @@ async function smokeSidecar(platform) {
           sessionId: 'computer_must-not-enter-ctf',
           socketPath:
             '/private/tmp/milksu-computer-use/computer_must-not-enter-ctf/driver.sock',
-          targetBundleId: 'com.milksu.app',
-          targetName: 'MilkSU',
-          targetPid: process.pid,
-          targetWindowId: 1,
+          targetBundleId: computerUsePackagedSmokeTarget.bundleId,
+          targetName: computerUsePackagedSmokeTarget.name,
+          targetPid: process.pid + computerUsePackagedSmokeTarget.pidOffset,
+          targetWindowId: computerUsePackagedSmokeTarget.windowId,
         },
       }),
       '{"action":"destroy_session","conversationId":"packaged-ctf-coach"}',
