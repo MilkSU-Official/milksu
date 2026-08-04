@@ -26,6 +26,14 @@
 8. 从现在开始新增的代码不为尚未发布的临时设计增加迁移、双写或兼容分支，直接实现当前
    干净模型。已经工作的旧代码和既有 schema 不在功能开发中途返工；确需调整时集中到全部
    产品纵切完成后的最终收口，一次破坏性修改并重新执行完整回归。
+9. Obelisk 形态的 Session Index / 相关历史进入当前 P0。它不是外部可选插件，也不要求用户
+   手动安装 Obelisk CLI；MilkSU 直接内置兼容 Obelisk 思路的会话索引、初始化器和检索入口。
+   默认索引归 MilkSU 数据目录管理，例如 `session-index/obelisk.sqlite`；`~/.obelisk/obelisk.sqlite`
+   只能作为未来导入/兼容来源，不能作为产品默认依赖。
+10. Session Index 用来提升 Agent 的长期工作记忆和用户体验：召回历史会话、工具调用、失败
+    路径、交接记录、项目上下文和人工确认记忆。它提供“相关历史线索”，但不能自动变成 CTF
+    Judge、CVE 情报事实、用户能力画像、Git 交付证明或安全结论；进入正式档案必须经过 MilkSU
+    对应模块的证据、测试、回执或用户确认。
 
 ## 当前冲刺执行规则
 
@@ -87,25 +95,30 @@
 
 当前优先级以用户第一轮共同评估为准：
 
-1. **P0 · 当前冲刺：完整产品闭环。** 先让 MilkSU 像裸 Pi Agent 一样顺滑完成一个真实产品
-   任务，并在 MilkSU 自己的产品壳里走完修改、测试、预览/验证、恢复和 Git 交付。详见
-   [产品闭环冲刺](./product-loop-sprint.md)。
+1. **P0 · Obelisk 形态 Session Index / Agent 长期记忆。** 当前先把跨 Coding、CTF、CVE 的
+   相关历史能力接进来，再继续其他目标。MilkSU 必须自己初始化和维护本地 session-index，
+   不要求用户安装 Obelisk，不默认读取 `~/.obelisk`。首个闭环是：索引一条真实 MilkSU
+   会话或工具事件 → App/Wails 可查询状态和结果 → 前端共享入口展示相关历史 → 搜索结果脱敏
+   → 用户确认后才能沉淀为 MilkSU Memory、CVE Note 或 Coding Handoff。
+2. **P0 · 当前冲刺：完整产品闭环。** Session Index 首轮闭环通过后，继续让 MilkSU 像裸
+   Pi Agent 一样顺滑完成一个真实产品任务，并在 MilkSU 自己的产品壳里走完修改、测试、
+   预览/验证、恢复和 Git 交付。详见 [产品闭环冲刺](./product-loop-sprint.md)。
    同时补齐 CVE 情报追踪、资产关联与可练习环境的最小可见骨架，让它作为一级菜单不再像空模块。
-2. **P0 · 长时间自主开发。** 打包 MilkSU 在“替我审批”或“完全访问”下持续完成真实功能，
+3. **P0 · 长时间自主开发。** 打包 MilkSU 在“替我审批”或“完全访问”下持续完成真实功能，
    自动构建、测试、预览、恢复和交付，普通已授权操作不以无意义审批反复打断用户。
    Computer Use 必须能由用户选择一个当前可见的外部 App / 窗口作为不可变 Scope，并让
    纯文本主模型通过辅助视觉理解工具截图；不能只硬编码操作 MilkSU 自身。
-3. **P1 · 成熟能力集成。** ImageGen、Browser、前端设计/视觉回归 Skill、Project MCP 和
-   高频 Plugin 优先复用固定版本、可审阅的成熟组件，以真实任务证明可用，不扩大同类自研
-   Harness。
-4. **P1 · CTF 广度验收。** 六个赛道作为独立验收线运行；允许不同 subagent 分赛道执行，
+4. **P1 · 成熟能力集成。** ImageGen、Browser、前端设计/视觉回归 Skill、Project MCP、
+   高频 Plugin 以及经用户明确选定的成熟开源能力，优先复用固定版本、可审阅的成熟组件。
+   Obelisk / Session Index 是当前 P0 例外，不再按“长期候选”后置。
+5. **P1 · CTF 广度验收。** 六个赛道作为独立验收线运行；允许不同 subagent 分赛道执行，
    主 Agent 负责授权边界、证据审阅、问题去重和最终汇总。发现问题先登记，不在单题中无限
    深挖修复。
-5. **P2 · Memory 用户体验。** 先保证推荐理由可追溯、Memory 与能力画像对用户可理解、
+6. **P2 · Memory 用户体验。** 先保证推荐理由可追溯、Memory 与能力画像对用户可理解、
    删除或归档后的结果一致；36 条完整校准矩阵和精细统计后置。
-6. **持续约束。** 架构不做独立清债冲刺，但相关纵切不得继续给热点文件增加新职责；测试、
+7. **持续约束。** 架构不做独立清债冲刺，但相关纵切不得继续给热点文件增加新职责；测试、
    Judge 回执、Checkpoint 和必要 ADR 随任务保留。
-7. **后期。** 完整“请求批准”组合矩阵、NYU Outcome Bench、pre-release 破坏性收口、
+8. **后期。** 完整“请求批准”组合矩阵、NYU Outcome Bench、pre-release 破坏性收口、
    Developer ID、Hardened Runtime、公证、升级、新机器矩阵和最终发布文档后置。
 
 “先功能、后细节”不取消少量不可绕过的不变量：
@@ -242,6 +255,44 @@ Vue + Go 纵切，运行测试与原生 App，预览产物，中途重启并恢�
 一个真实任务验收。高频替代能力以实际任务成功率为准：同时保留 MilkSU 自举任务和其他
 授权项目任务，记录完成结果、人工接管次数、恢复、耗时、模型/工具成本和失败分类。安装了
 Skill、出现了按钮或通过单次 fixture 都不能单独证明已经替代。
+
+### B7 · Obelisk 形态 Session Index 与相关历史
+
+Session Index 是 Coding Agent 自举体验的基础能力：Agent 需要能找回过去的项目讨论、失败
+原因、工具输出摘要、用户偏好、任务移交和跨模块学习记录，而不是每次压缩或重启后从零开始。
+
+当前目标不是做一个“检测用户有没有安装 Obelisk”的中间方案，而是把 Obelisk 已验证过的会话
+索引形态内化到 MilkSU：
+
+- MilkSU 自己在本机 App data 下初始化和维护 `session-index/obelisk.sqlite` 或等价兼容 schema；
+- 不要求用户安装 Obelisk CLI，不把 `~/.obelisk/obelisk.sqlite` 作为默认产品路径；
+- 首期先索引 MilkSU 自己产生的 Coding、CTF、CVE 会话、工具调用、任务移交、失败摘要和
+  人工确认记忆；
+- Session Index 必须覆盖主 Agent、侧边 Agent、CTF Solver、Tool Builder、Strategist 和
+  Coding Agent 的会话/工具/移交记录；目标不是单一搜索框，而是让不同 Agent 能在权限边界内
+  找回彼此已完成的结论、失败路径和交接上下文；
+- 后续再扩展导入 Claude、Kimi、Codex、Pi 等历史，不阻塞首期闭环；
+- 搜索结果必须脱敏 Provider Credential、Token、Cookie、私有 URL secret 和工具原始敏感输出；
+- 搜索结果在 UI 中统一称为“相关历史”；不要在界面里写“事实源”“正式档案”“历史线索”等
+  边界说教文案，可信边界留在内部规则、测试和开发文档中；
+- 首期 UI 以“相关历史”为轻量入口，优先支持查看来源、保存为 Memory / CVE Note /
+  Coding Handoff、生成接力任务，不把完整内部索引后台摊到默认工作区；
+- 用户明确确认后，相关历史才能转化为 MilkSU Memory、CVE Note、Coding Handoff 或任务计划；
+- CTF Judge、CVE source snapshot、Coding 测试/commit/screenshot、Ability Profile 仍由 MilkSU
+  对应模块决定；
+- 若复制、改造或深度派生 Obelisk 源码，必须在发布前完成许可证/授权记录；用户已提供上游
+  作者授权线索，但工程实现仍应保留 NOTICE/ADR 和可审计来源。
+
+首期验收门槛：
+
+1. 全新数据目录启动后能自动创建 session-index；
+2. 至少一条真实 MilkSU 会话或工具事件进入索引；
+3. App/Wails 暴露索引状态和搜索；
+4. Coding、CTF、CVE 至少共享一个轻量“相关历史”入口；
+5. 搜索返回来源、模块、时间、会话、片段和脱敏状态；
+6. 缺少历史时显示可理解空态，而不是要求用户安装 Obelisk；
+7. 单测覆盖 schema、FTS/LIKE 搜索、脱敏、缺索引空态和只读/写入边界；
+8. 原生 App 中完成一次真实搜索验收。
 
 ## 其余目标审查与调整
 

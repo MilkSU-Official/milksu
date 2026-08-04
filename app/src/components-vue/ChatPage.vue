@@ -41,6 +41,7 @@ import {
   FolderOpen,
   GitBranch,
   Globe2,
+  History,
   KeyRound,
   LoaderCircle,
   Network,
@@ -64,6 +65,7 @@ import CodingChangesPanel from '@/components-vue/CodingChangesPanel.vue'
 import CodingComputerUsePanel from '@/components-vue/CodingComputerUsePanel.vue'
 import CodingMCPReviewCard from '@/components-vue/CodingMCPReviewCard.vue'
 import CodingProductLoopPanel from '@/components-vue/CodingProductLoopPanel.vue'
+import SessionHistoryPanel from '@/components-vue/SessionHistoryPanel.vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
 import WorkspaceSettingsButton from '@/components-vue/WorkspaceSettingsButton.vue'
@@ -186,12 +188,14 @@ const contextPanelValues = [
   'architecture',
   'browser',
   'collaboration',
+  'history',
   'evidence',
 ] as const
 type ContextPanel = typeof contextPanelValues[number]
 const contextPanel = ref<ContextPanel>('environment')
 const artifactPanel = ref<InstanceType<typeof CodingArtifactPreviewPanel> | null>(null)
 const collaborationPanel = ref<{ refresh: () => Promise<void> } | null>(null)
+const historyPanel = ref<{ refresh: () => Promise<void> } | null>(null)
 const environmentLoading = ref(false)
 const environmentError = ref('')
 const architecturePreview = ref<CodingArchitecturePreview | null>(null)
@@ -514,8 +518,14 @@ const contextPanelTitle = computed(() => ({
   architecture: '架构图',
   browser: props.ctfSession ? '浏览器' : '浏览器与 App',
   collaboration: 'Agent 协作',
+  history: '相关历史',
   evidence: '证据与 Judge',
 })[contextPanel.value])
+const historyDefaultQuery = computed(() => {
+  if (props.vulnerabilitySession) return props.conversation?.title || 'CVE'
+  if (props.ctfSession) return props.conversation?.title || 'Judge correct=true'
+  return props.conversation?.title || workspaceName.value
+})
 const codingActionIcons = {
   understand: Compass,
   test: Terminal,
@@ -1035,6 +1045,10 @@ async function refreshContextPanel() {
     await collaborationPanel.value?.refresh()
     return
   }
+  if (contextPanel.value === 'history') {
+    await historyPanel.value?.refresh()
+    return
+  }
   await Promise.all([
     refreshEnvironment(),
     loadWorkshopState(),
@@ -1346,6 +1360,7 @@ watch(
           <Network v-else-if="contextPanel === 'architecture'" class="size-4 text-primary" />
           <Globe2 v-else-if="contextPanel === 'browser'" class="size-4 text-primary" />
           <Wrench v-else-if="contextPanel === 'collaboration'" class="size-4 text-primary" />
+          <History v-else-if="contextPanel === 'history'" class="size-4 text-primary" />
           <CircleDot v-else class="size-4 text-primary" />
           <SelectValue />
         </SelectTrigger>
@@ -1357,6 +1372,7 @@ watch(
           <SelectItem v-if="!ctfSession" value="architecture">架构图</SelectItem>
           <SelectItem value="browser">{{ ctfSession ? '浏览器' : '浏览器与 App' }}</SelectItem>
           <SelectItem v-if="!ctfSession" value="collaboration">Agent 协作</SelectItem>
+          <SelectItem value="history">相关历史</SelectItem>
           <template v-if="ctfSession">
             <SelectSeparator />
             <SelectItem value="collaboration">Agent 协作</SelectItem>
@@ -1593,6 +1609,13 @@ watch(
             </div>
           </div>
         </section>
+
+        <SessionHistoryPanel
+          v-if="!ctfSession"
+          :module="topbarModule"
+          :default-query="historyDefaultQuery"
+          compact
+        />
 
         <template v-if="!ctfSession">
         <section class="border-b border-border px-4 py-4">
@@ -2201,6 +2224,14 @@ watch(
           </Button>
         </section>
         </template>
+      </template>
+
+      <template v-else-if="contextPanel === 'history'">
+        <SessionHistoryPanel
+          ref="historyPanel"
+          :module="topbarModule"
+          :default-query="historyDefaultQuery"
+        />
       </template>
 
       <template v-else>

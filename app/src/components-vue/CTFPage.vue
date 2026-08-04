@@ -68,6 +68,7 @@ import CTFTrajectory from '@/components-vue/CTFTrajectory.vue'
 import CTFWorkspaceHeader from '@/components-vue/CTFWorkspaceHeader.vue'
 import ManagedLabCatalog from '@/components-vue/ManagedLabCatalog.vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
+import SessionHistoryPanel from '@/components-vue/SessionHistoryPanel.vue'
 import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
 import WorkspaceSettingsButton from '@/components-vue/WorkspaceSettingsButton.vue'
 import { useCTFTrainingPlatforms } from '@/composables/useCTFTrainingPlatforms'
@@ -2946,6 +2947,12 @@ onBeforeUnmount(() => {
                     :loading="memoryLoading"
                     @archive="archiveTrainingMemory"
                     @inspect-evidence="inspectTrainingMemoryEvidence"
+                  />
+
+                  <SessionHistoryPanel
+                    module="ctf"
+                    compact
+                    :default-query="activeProjection.challenge.title"
                   />
 
                   <section

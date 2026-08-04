@@ -143,6 +143,84 @@ describe('desktop command adapter', () => {
     })).rejects.toThrow('MilkSU 桌面运行时')
   })
 
+  it('passes Session Index status, refresh, and history search to Wails', async () => {
+    const status = {
+      available: true,
+      mode: 'milksu-obelisk-core',
+      indexPath: '/Users/example/Library/Application Support/com.milksu.app/session-index/obelisk.sqlite',
+      checkedAt: '2026-08-04T09:30:00Z',
+      readOnly: true,
+      sessionCount: 2,
+      messageCount: 5,
+      toolCallCount: 1,
+      memoryCount: 0,
+      sources: [{ source: 'milksu-coding', count: 2 }],
+    }
+    const refresh = {
+      indexedAt: '2026-08-04T09:31:00Z',
+      indexPath: status.indexPath,
+      source: 'milksu',
+      sessionCount: 2,
+      messageCount: 5,
+      toolCallCount: 1,
+    }
+    const searchResponse = {
+      query: 'Computer Use',
+      searchedAt: '2026-08-04T09:32:00Z',
+      status,
+      results: [{
+        messageUuid: 'milksu:conversation:message',
+        sessionId: 'milksu:conversation',
+        sessionName: 'Computer Use validation',
+        source: 'milksu-coding',
+        timestamp: '2026-08-04T09:20:00Z',
+        snippet: 'Computer Use 外部 App 点击已验证',
+      }],
+    }
+    const getSessionIndexStatus = vi.fn(async () => status)
+    const refreshSessionIndex = vi.fn(async () => refresh)
+    const searchSessionHistory = vi.fn(async () => searchResponse)
+    Object.defineProperty(window, 'go', {
+      configurable: true,
+      value: {
+        main: {
+          App: {
+            GetSessionIndexStatus: getSessionIndexStatus,
+            RefreshSessionIndex: refreshSessionIndex,
+            SearchSessionHistory: searchSessionHistory,
+          },
+        },
+      },
+    })
+
+    await expect(invokeCommand('get_session_index_status')).resolves.toBe(status)
+    await expect(invokeCommand('refresh_session_index')).resolves.toBe(refresh)
+    await expect(invokeCommand('search_session_history', {
+      request: { query: 'Computer Use', module: 'coding', limit: 4 },
+    })).resolves.toBe(searchResponse)
+    expect(getSessionIndexStatus).toHaveBeenCalledOnce()
+    expect(refreshSessionIndex).toHaveBeenCalledOnce()
+    expect(searchSessionHistory).toHaveBeenCalledWith({
+      query: 'Computer Use',
+      module: 'coding',
+      limit: 4,
+    })
+  })
+
+  it('does not ask browser preview users to install Obelisk for Session Index commands', async () => {
+    await expect(invokeCommand('get_session_index_status')).resolves.toMatchObject({
+      available: false,
+      mode: 'browser-preview',
+      reason: '打包 App 中会自动维护本机历史。',
+    })
+    await expect(invokeCommand('search_session_history', {
+      request: { query: 'CVE-2024-3400', module: 'cve' },
+    })).resolves.toMatchObject({
+      query: 'CVE-2024-3400',
+      results: [],
+    })
+  })
+
   it('passes Coding background task refresh policy to Wails unchanged', async () => {
     const status = {
       defaultEngine: 'pi',

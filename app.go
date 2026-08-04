@@ -35,6 +35,7 @@ import (
 	"github.com/MilkSU-Official/milksu/internal/labmanager"
 	"github.com/MilkSU-Official/milksu/internal/nssctf"
 	"github.com/MilkSU-Official/milksu/internal/securityruntime"
+	"github.com/MilkSU-Official/milksu/internal/sessionindex"
 	"github.com/MilkSU-Official/milksu/internal/vuln"
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -64,6 +65,7 @@ type App struct {
 	ctfAgent        *ctfAgentRecorder
 	ctfMemory       *ctf.MemoryStore
 	vulnJobs        *vuln.Service
+	sessionIndex    *sessionindex.Store
 	lifespanStart   appdata.LifespanStart
 	lifespanHandle  appdata.LifespanHandle
 }
@@ -223,6 +225,20 @@ func NewApp() (*App, error) {
 	application.codingTerminals = codingterminal.NewManager(
 		application.emitCodingTerminalEvent,
 	)
+	application.sessionIndex, err = sessionindex.NewStore(
+		filepath.Join(dataDirectory, "session-index", "obelisk.sqlite"),
+	)
+	if err != nil {
+		_ = application.vulnJobs.Close()
+		_ = application.ctfMemory.Close()
+		_ = application.ctfJobs.Close()
+		_ = application.jobs.Close()
+		application.securityEngine.Close()
+		application.browserBridge.Close()
+		application.ctfshowCatalog.Close()
+		application.nssctfCatalog.Close()
+		return nil, fmt.Errorf("create session index: %w", err)
+	}
 	return application, nil
 }
 
@@ -470,6 +486,37 @@ func (a *App) RevealLocalDataDirectory() error {
 		return fmt.Errorf("open local data directory: %w", err)
 	}
 	return nil
+}
+
+func (a *App) GetSessionIndexStatus() (sessionindex.Status, error) {
+	if a.sessionIndex == nil {
+		return sessionindex.Status{}, fmt.Errorf("session index is not ready")
+	}
+	if _, err := a.RefreshSessionIndex(); err != nil {
+		return sessionindex.Status{}, err
+	}
+	return a.sessionIndex.Status(a.commandContext())
+}
+
+func (a *App) RefreshSessionIndex() (sessionindex.RefreshResult, error) {
+	if a.sessionIndex == nil {
+		return sessionindex.RefreshResult{}, fmt.Errorf("session index is not ready")
+	}
+	conversations, err := a.conversations.List()
+	if err != nil {
+		return sessionindex.RefreshResult{}, err
+	}
+	return a.sessionIndex.RefreshMilkSUConversations(a.commandContext(), conversations)
+}
+
+func (a *App) SearchSessionHistory(request sessionindex.SearchRequest) (sessionindex.SearchResponse, error) {
+	if a.sessionIndex == nil {
+		return sessionindex.SearchResponse{}, fmt.Errorf("session index is not ready")
+	}
+	if _, err := a.RefreshSessionIndex(); err != nil {
+		return sessionindex.SearchResponse{}, err
+	}
+	return a.sessionIndex.Search(a.commandContext(), request)
 }
 
 func (a *App) SaveSettingsCmd(settings config.AppSettings) error {

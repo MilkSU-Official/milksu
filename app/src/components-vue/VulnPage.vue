@@ -32,6 +32,7 @@ import {
 import WorkspaceDetailTitle from '@/components-vue/WorkspaceDetailTitle.vue'
 import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
 import WorkspaceSettingsButton from '@/components-vue/WorkspaceSettingsButton.vue'
+import SessionHistoryPanel from '@/components-vue/SessionHistoryPanel.vue'
 import VulnerabilityIntelSettingsPanel from '@/components-vue/VulnerabilityIntelSettingsPanel.vue'
 import VulnerabilityLoopPanel from '@/components-vue/VulnerabilityLoopPanel.vue'
 import { useVulnerabilityDashboard } from '@/composables/useVulnerabilityDashboard'
@@ -504,6 +505,12 @@ function statusVariant(status: VulnerabilityStatus) {
             </li>
           </ol>
         </section>
+
+        <SessionHistoryPanel
+          module="cve"
+          compact
+          :default-query="dashboard.selected.value.id"
+        />
 
         <section ref="practiceWorkspace" class="border-b border-border px-6 py-5">
           <div class="flex items-center justify-between gap-3">

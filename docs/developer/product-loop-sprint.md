@@ -17,10 +17,12 @@
    用户能力归因等硬红线外，细节 Bug、视觉问题和边界矩阵先登记。
 3. **不要扩大战线。** 已有 CTF 模块继续保留；CVE 本冲刺做可见学习/追踪骨架，不给红队式
    批量打靶能力；Lab 暂不做自建平台或本地靶场，只作为未来外部靶场辅助与进度追踪方向。
-4. **成熟项目只作长期候选。** pwn.college、HTB、TryHackMe 以及优秀开源
-   Security Skills / Harness 项目只能作为未来集成、能力来源或 UX 参照；当前几个小时冲刺不
-   直接接入平台账号、API、虚拟机后端、漏洞环境或第三方执行能力。开源 Skills 生态的长期接入
-   计划见[开源安全 Skills / Harness 生态接入调研与计划](/developer/research/2026-08-04-open-source-security-skills-ecosystem)。
+4. **成熟项目默认只作长期候选，但 Obelisk / Session Index 是当前 P0 例外。** pwn.college、
+   HTB、TryHackMe 以及优秀开源 Security Skills / Harness 项目仍只作为未来集成、能力来源或
+   UX 参照；当前几个小时冲刺不直接接入平台账号、API、虚拟机后端、漏洞环境或第三方执行能力。
+   Obelisk 方向已经由用户明确选定为当前内置长期记忆能力，目标是 MilkSU 自己维护兼容的
+   session-index，而不是要求用户安装外部 Obelisk。开源 Skills 生态的长期接入计划见
+   [开源安全 Skills / Harness 生态接入调研与计划](/developer/research/2026-08-04-open-source-security-skills-ecosystem)。
 5. **每轮都留接力棒。** 交付时写清：已跑的命令、当前缺口、下一步用户验收动作、适合交给
    后续 Coding Agent 的任务。
 
@@ -45,6 +47,9 @@
 
 下一阶段真实门禁按顺序为：
 
+- Session Index：MilkSU 在自己的数据目录中初始化 Obelisk 形态的 session-index，索引至少
+  一条真实 MilkSU 会话或工具事件，并在 App 中完成一次“相关历史”搜索；结果必须脱敏，且
+  只能作为历史线索，不能自动写入 CTF/CVE/Coding 的正式档案；
 - Coding：在打包 App 中完成一个小 MilkSU 修改，跑真实测试/build，做真实 Browser 或
   Computer Use 验证，commit 并 push；
 - Computer Use：用户选择一个外部 App / 窗口，MilkSU 在该 Scope 内完成一次可见观察或操作，

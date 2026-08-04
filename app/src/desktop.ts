@@ -79,6 +79,12 @@ import type {
   ManagedLabTrainingWorkspace,
 } from './ctfLabTypes'
 import { createPreviewCTFProjection, summarizePreviewCTF } from './ctfPreview'
+import type {
+  SessionHistorySearchRequest,
+  SessionHistorySearchResponse,
+  SessionIndexRefreshResult,
+  SessionIndexStatus,
+} from './sessionIndexTypes'
 
 type CommandArgs = Record<string, unknown>
 type UnlistenFn = () => void
@@ -106,6 +112,9 @@ interface WailsAppBindings {
   ExportLocalDiagnostics(): Promise<LocalDiagnosticExport>
   RevealLocalDataDirectory(): Promise<void>
   GetStartupRecoveryStatus(): Promise<StartupRecoveryStatus>
+  GetSessionIndexStatus(): Promise<SessionIndexStatus>
+  RefreshSessionIndex(): Promise<SessionIndexRefreshResult>
+  SearchSessionHistory(request: SessionHistorySearchRequest): Promise<SessionHistorySearchResponse>
   ListConversations(): Promise<unknown>
   SaveConversation(conversation: unknown): Promise<void>
   DeleteConversation(id: string): Promise<void>
@@ -688,6 +697,12 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.RevealLocalDataDirectory() as Promise<T>
       case 'get_startup_recovery_status':
         return app.GetStartupRecoveryStatus() as Promise<T>
+      case 'get_session_index_status':
+        return app.GetSessionIndexStatus() as Promise<T>
+      case 'refresh_session_index':
+        return app.RefreshSessionIndex() as Promise<T>
+      case 'search_session_history':
+        return app.SearchSessionHistory(args?.request as SessionHistorySearchRequest) as Promise<T>
       case 'list_conversations':
         return app.ListConversations() as Promise<T>
       case 'save_conversation':
@@ -1088,6 +1103,47 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         previousExit: 'none',
         consecutiveAbnormalExits: 0,
         startedAt: new Date().toISOString(),
+      } as T
+    case 'get_session_index_status':
+      return {
+        available: false,
+        mode: 'browser-preview',
+        indexPath: '',
+        checkedAt: new Date().toISOString(),
+        readOnly: true,
+        reason: '打包 App 中会自动维护本机历史。',
+        sessionCount: 0,
+        messageCount: 0,
+        toolCallCount: 0,
+        memoryCount: 0,
+        sources: [],
+      } as T
+    case 'refresh_session_index':
+      return {
+        indexedAt: new Date().toISOString(),
+        indexPath: '',
+        source: 'browser-preview',
+        sessionCount: 0,
+        messageCount: 0,
+        toolCallCount: 0,
+      } as T
+    case 'search_session_history':
+      return {
+        query: String((args?.request as SessionHistorySearchRequest | undefined)?.query ?? ''),
+        searchedAt: new Date().toISOString(),
+        status: {
+          available: false,
+          mode: 'browser-preview',
+          indexPath: '',
+          checkedAt: new Date().toISOString(),
+          readOnly: true,
+          sessionCount: 0,
+          messageCount: 0,
+          toolCallCount: 0,
+          memoryCount: 0,
+          sources: [],
+        },
+        results: [],
       } as T
     case 'list_conversations':
       return readJson(CONVERSATIONS_KEY, []) as T
