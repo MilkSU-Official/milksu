@@ -501,7 +501,23 @@ function stateBadgeVariant(state: LoopState) {
 </script>
 
 <template>
-  <section class="border-b border-border px-4 py-4" aria-label="Coding 产品闭环">
+  <section class="border-b border-border" aria-label="Coding 开发者验收">
+    <details aria-label="Coding 开发者验收后台">
+      <summary
+        class="flex cursor-pointer list-none items-start justify-between gap-3 px-4 py-4 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <span class="min-w-0">
+          <span class="block text-caption font-medium text-muted-foreground">开发者验收</span>
+          <span class="mt-1 block truncate text-caption leading-5 text-muted-foreground">
+            产品闭环门禁、待补证明和接力证据默认折叠；普通任务入口保持在下方。
+          </span>
+        </span>
+        <Badge variant="outline" class="shrink-0">
+          {{ completedCount }}/{{ items.length }}
+        </Badge>
+      </summary>
+
+      <div class="px-4 pb-4 pt-1">
     <div class="flex items-start justify-between gap-3">
       <div>
         <p class="text-caption font-medium text-muted-foreground">本轮产品闭环</p>
@@ -750,6 +766,8 @@ function stateBadgeVariant(state: LoopState) {
           <Copy class="size-3.5" />
           复制接力棒
         </Button>
+      </div>
+    </details>
       </div>
     </details>
   </section>

@@ -126,7 +126,16 @@ describe('CodingProductLoopPanel', () => {
   it('shows product-loop evidence without treating dirty Git as delivered', async () => {
     const { host } = await mountPanel()
     const text = host.textContent ?? ''
+    const developerGate = host.querySelector<HTMLDetailsElement>('[aria-label="Coding 开发者验收后台"]')
+    const developerSummary = developerGate?.querySelector('summary')
 
+    expect(host.querySelector('[aria-label="Coding 开发者验收"]')).not.toBeNull()
+    expect(developerGate).not.toBeNull()
+    expect(developerGate?.hasAttribute('open')).toBe(false)
+    expect(developerSummary?.textContent).toContain('开发者验收')
+    expect(developerSummary?.textContent).toContain('默认折叠')
+    expect(developerSummary?.textContent).toContain('普通任务入口保持在下方')
+    expect(developerGate?.querySelector('[aria-label="Coding 合并状态"]')).not.toBeNull()
     expect(text).toContain('本轮产品闭环')
     expect(text).toContain('只展示当前证据')
     expect(text).toContain('合并状态')
