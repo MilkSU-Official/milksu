@@ -282,6 +282,7 @@ func (a *App) Startup(ctx context.Context) {
 	_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedAppInitialized)
 	_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedDesktopRuntimeStarted)
 	a.maybeRunSessionIndexSmoke()
+	a.maybeRunVulnerabilityFeedSmoke()
 	if a.managedLabs != nil {
 		reconcileContext, cancel := context.WithTimeout(ctx, managedLabReconcileTimeout)
 		if _, err := a.managedLabs.Reconcile(reconcileContext); err != nil {
