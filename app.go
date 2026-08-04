@@ -305,6 +305,7 @@ func (a *App) Startup(ctx context.Context) {
 		_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedCTFRecoveryFailed)
 		wailsruntime.EventsEmit(ctx, "job-runtime-error", err.Error())
 	}
+	a.maybeRunCTFRecoverySmoke()
 	if err := a.vulnJobs.Recover(ctx); err != nil {
 		a.diagnostics.Record("vuln", "error", "vulnerability job recovery failed")
 		_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedVulnRecoveryFailed)

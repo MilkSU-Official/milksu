@@ -84,7 +84,9 @@
   同日 Browser 已验证 CVE 首页默认不铺 Feed/NVD/EPSS/KEV/Vulhub/缓存维护台，点击统一设置后才进入情报源设置；
 - CTF：从题库进入解题会话，切到 CVE/Coding 再返回，题库/会话/最近位置不丢失；Browser
   真实渲染烟测已证明 `CTF(P382)` → `CVE` → `Coding` → `CTF` 后仍回到 P382 工作台且
-  Console 无 error/warn；下一步只补打包原生 App + 运行中 Agent job 的继续验收；
+  Console 无 error/warn；2026-08-05 打包 `MilkSU.app` 的 CTF recovery live smoke 已证明
+  同一 App data 重启后 CTF job、Agent workspace、checkpoint、progress 与 replay 可恢复；
+  剩余是 Solver/Judge/六赛道真实解题，不再重复做 packaged persistence smoke；
 - UI：减少默认工作台噪音，把内部验收模型移到折叠区域或开发者视图。
   2026-08-05 Browser 验证 Coding 右栏开发者验收默认折叠，展开后四个快捷按钮在窄右栏不叠字。
 

@@ -380,6 +380,11 @@ Tool Builder 与 Strategist 不要求每题都调用，改为两个跨赛道场�
 六赛道不是普通单元测试。外部平台、动态服务或本机权限不足时，应保留恢复点并明确标记
 未验收，不能用模型自评代替平台 Judge。
 
+2026-08-05 已用真实打包 `MilkSU.app` 和隔离 App data 完成 CTF recovery live smoke：
+同一 CTF job 的 Agent workspace、running checkpoint、progress 与 replay 可跨 App 重启恢复，
+证据在 `build/test-results/ctf-recovery-live.json`。这只关闭 packaged persistence 缺口，
+不能计为 Solver、平台 Judge、漏洞触发输入或六赛道 solved。
+
 ## 3. 动态 Endpoint 与网络边界：保持回归并接受真实赛道检验
 
 动态 Endpoint 申请、不可变 Scope、HTTP 精确 Origin、TCP/SSH 精确 `host:port` 和通用 Shell
