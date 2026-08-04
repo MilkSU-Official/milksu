@@ -30,14 +30,15 @@ const fixtureRoot = join(
   'coding-agent-delivery',
   'template',
 )
-const resultPath = join(
-  repositoryRoot,
-  'build',
-  'test-results',
-  'coding-agent-delivery.json',
+const resultPath = resolve(
+  process.env.MILKSU_CODING_DELIVERY_RESULT
+    || join(repositoryRoot, 'build', 'test-results', 'coding-agent-delivery.json'),
 )
 const conversationId = 'coding-delivery-fixture'
 const keepFixture = process.env.MILKSU_KEEP_CODING_FIXTURE === '1'
+const gitFixtureEnabled = process.env.MILKSU_CODING_DELIVERY_GIT_REPO === '1'
+const historyContext = String(process.env.MILKSU_CODING_DELIVERY_HISTORY_CONTEXT || '').trim()
+const historyToken = String(process.env.MILKSU_CODING_DELIVERY_HISTORY_TOKEN || '').trim()
 const reliabilityBudgets = {
   providerRequests: 30,
   toolCalls: 24,
@@ -140,6 +141,11 @@ const compactionContextFixture = Array.from(
   ),
 ).join('\n')
 
+function historyContextSuffix() {
+  if (!historyContext) return ''
+  return `\n\n用户确认的相关历史：\n${historyContext}`
+}
+
 function tool(name, args) {
   return { type: 'tool', name, args }
 }
@@ -219,7 +225,8 @@ function responsePlan(stubSource) {
     tool('bash', { command: 'npm test' }),
     answer(
       '已修复单数文案并补回归测试。最终改动仅包含 src/report.js、src/cli.js、'
-      + 'test/report.test.js 和已批准的 dist/report.txt；npm test 与 CLI smoke 均通过。',
+      + 'test/report.test.js 和已批准的 dist/report.txt；npm test 与 CLI smoke 均通过。'
+      + (historyToken ? ` 相关历史引用：${historyToken}。` : ''),
     ),
     answer(
       'Goal：交付报告 CLI。约束：只修改工作区，已批准 dist/report.txt。'
@@ -361,10 +368,17 @@ async function startFakeProvider(plan) {
       if (!entry) throw new Error('fake provider response plan is exhausted')
       requestCount++
       const usage = fixtureUsage(entry, body)
+      const serializedMessages = JSON.stringify(body.messages ?? [])
       requests.push({
         sequence: requestCount,
         entry: entry.type === 'tool' ? `tool:${entry.name}` : entry.type,
         messageCount: body.messages?.length ?? 0,
+        promptIncludesHistoryContext: historyContext
+          ? serializedMessages.includes(historyContext)
+          : false,
+        promptIncludesHistoryToken: historyToken
+          ? serializedMessages.includes(historyToken)
+          : false,
         usage,
       })
       if (entry.type === 'hang') {
@@ -664,6 +678,32 @@ async function exists(path) {
   }
 }
 
+async function runGit(args, options = {}) {
+  return execFileAsync('git', args, {
+    ...options,
+    maxBuffer: 1024 * 1024,
+  })
+}
+
+async function setupGitRepository(workspace, temporaryRoot) {
+  const remote = join(temporaryRoot, 'origin.git')
+  await runGit(['init', '--bare', remote])
+  await runGit(['init'], { cwd: workspace })
+  await runGit(['checkout', '-B', 'main'], { cwd: workspace })
+  await runGit(['config', 'user.name', 'MilkSU Coding Delivery Smoke'], { cwd: workspace })
+  await runGit(['config', 'user.email', 'milksu-coding-delivery-smoke@example.invalid'], {
+    cwd: workspace,
+  })
+  await runGit(['add', '--', '.'], { cwd: workspace })
+  await runGit(['commit', '-m', 'test: seed coding delivery fixture'], { cwd: workspace })
+  await runGit(['remote', 'add', 'origin', remote], { cwd: workspace })
+  await runGit(['push', '-u', 'origin', 'main'], { cwd: workspace })
+  return {
+    remote,
+    branch: 'main',
+  }
+}
+
 async function backgroundTaskMetas(workspace) {
   const taskDirectory = join(
     workspace,
@@ -698,7 +738,12 @@ async function main() {
   const agentDirectory = join(workspace, '.milksu', 'agent')
   const bundlePath = join(temporaryRoot, 'sidecar', 'chat-bridge.cjs')
   await cp(fixtureRoot, workspace, { recursive: true })
-  await mkdir(join(workspace, '.git'), { recursive: true })
+  const gitFixture = gitFixtureEnabled
+    ? await setupGitRepository(workspace, temporaryRoot)
+    : null
+  if (!gitFixtureEnabled) {
+    await mkdir(join(workspace, '.git'), { recursive: true })
+  }
   await mkdir(agentDirectory, { recursive: true })
   await mkdir(join(workspace, '.milksu', 'runtime', 'tmp'), { recursive: true })
   await mkdir(
@@ -733,7 +778,8 @@ async function main() {
     )
     const afterUnderstand = await snapshotFiles(workspace)
     transcript.implement = await bridge.prompt(
-      '需求在 attachment/request.json。请实现可交付 CLI，运行测试和 smoke；遇到问题就修好。',
+      '需求在 attachment/request.json。请实现可交付 CLI，运行测试和 smoke；遇到问题就修好。'
+      + historyContextSuffix(),
     )
     transcript.askApproval = await bridge.prompt(
       '请生成 dist/report.txt，但按仓库规则在写之前先问我。',
@@ -950,6 +996,12 @@ async function main() {
         /src\/report\.js/.test(finalText)
         && /npm test/.test(finalText)
         && /dist\/report\.txt/.test(finalText),
+      relatedHistory:
+        !historyContext
+        || (
+          (!historyToken || provider.requests.some(request => request.promptIncludesHistoryToken))
+          && (!historyToken || finalText.includes(historyToken))
+        ),
       providerPlanConsumed: provider.remaining() === 0,
     }
     const reportedTokens = provider.requests.reduce(
@@ -1053,6 +1105,7 @@ async function main() {
       backgroundTaskLifecycle: checks.backgroundTaskLifecycle,
       contextCompaction: checks.contextCompaction,
       finalDelivery: checks.finalDelivery,
+      relatedHistory: checks.relatedHistory,
       providerPlanConsumed: checks.providerPlanConsumed,
       reliability: reliability.passed,
     }
@@ -1075,6 +1128,10 @@ async function main() {
           { phase: 'restart-recovery', executionMode: 'go', approvalPolicy: 'workspace-auto' },
           { phase: 'cancellation', executionMode: 'go', approvalPolicy: 'workspace-auto' },
         ],
+      },
+      sessionHistory: {
+        confirmedRelatedHistoryProvided: Boolean(historyContext),
+        token: historyToken || '',
       },
       toolSurface: {
         initialPlan: {
@@ -1143,6 +1200,12 @@ async function main() {
       reliability,
       metrics: {
         providerRequests: provider.requests.length,
+        providerRequestsWithHistoryContext: provider.requests.filter(
+          request => request.promptIncludesHistoryContext,
+        ).length,
+        providerRequestsWithHistoryToken: provider.requests.filter(
+          request => request.promptIncludesHistoryToken,
+        ).length,
         toolCalls: allToolCalls.length,
         failedToolCalls: implementationFailures.length,
         failedToolSummaries: implementationFailures.map(event => ({
@@ -1214,6 +1277,7 @@ async function main() {
         },
       },
       resources: readyResources,
+      gitFixture,
       workspace: keepFixture ? workspace : '(temporary workspace removed)',
     }
     assertValidCodingDeliveryReport(report)

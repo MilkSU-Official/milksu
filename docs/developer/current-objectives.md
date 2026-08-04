@@ -105,8 +105,11 @@
    进入 Coding prompt 后，Agent 回复会引用对应历史会话和搜索 token；`OBS-21` 的重复
    `[credential redacted]` 显示已用打包 App 回归关闭；显式 JSONL 跨历史导入已支持
    `codex / claude / kimi / pi` 来源，并用真实打包 App 完成 Codex fixture 导入、搜索和脱敏
-   smoke。剩余优先做真实用户历史目录选择、Claude/Kimi/Pi 扩样、许可证/NOTICE/ADR 收口，
-   以及在完整 Coding 自举任务中证明 Agent 使用相关历史完成交付。
+   smoke；同日 `MILKSU_CODING_SELF_BOOTSTRAP_LIVE_SMOKE=1` 已证明打包 App 导入/搜索
+   外部历史、相关历史进入 Coding delivery prompt、Agent 完成实际修改/测试/恢复，并由
+   真实打包 App Git facade stage/commit/push 到隔离 bare remote。剩余优先做真实用户历史
+   目录选择、Claude/Kimi/Pi 扩样、许可证/NOTICE/ADR 收口；完整 MilkSU 源码自举仍按
+   COD-25 继续，不用再单独证明“相关历史能参与一次交付”。
 2. **P0 · 当前冲刺：完整产品闭环。** Session Index 首轮闭环通过后，继续让 MilkSU 像裸
    Pi Agent 一样顺滑完成一个真实产品任务，并在 MilkSU 自己的产品壳里走完修改、测试、
    预览/验证、恢复和 Git 交付。详见 [产品闭环冲刺](./product-loop-sprint.md)。

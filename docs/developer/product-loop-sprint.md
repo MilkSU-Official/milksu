@@ -54,12 +54,16 @@
   已接入，且真实打包 MilkSU UI 已证明引用历史进入 Coding prompt 后会被 Agent 回复消费。
   `OBS-21` 重复脱敏显示已用真实打包 App 回归关闭；显式 JSONL 跨历史导入已支持
   `codex / claude / kimi / pi` 来源，并用真实打包 App 完成 Codex fixture import/search/redaction
-  smoke。继续做真实用户历史目录选择、Claude/Kimi/Pi 扩样、许可证/NOTICE/ADR
-  和“使用相关历史完成一次自举交付”。后续不得重复把
+  smoke。2026-08-05 又用 `MILKSU_CODING_SELF_BOOTSTRAP_LIVE_SMOKE=1`
+  把打包 App 外部历史导入/搜索、用户确认相关历史进入 Coding delivery prompt、实际修改/测试、
+  再由真实打包 App Git facade stage/commit/push 到隔离 bare remote 串成一次自举式交付。
+  继续做真实用户历史目录选择、Claude/Kimi/Pi 扩样和许可证/NOTICE/ADR；后续不得重复把
   “App data 初始化、索引 MilkSU 会话/工具事件、打包 App 搜索、脱敏搜索结果、手动引用进入
-  输入、Agent 能读到引用历史、OBS-21 重复脱敏显示或显式 JSONL 外部历史导入”当作未完成；
-- Coding：在打包 App 中完成一个小 MilkSU 修改，跑真实测试/build，做真实 Browser 或
-  Computer Use 验证，commit 并 push；
+  输入、Agent 能读到引用历史、相关历史参与一次自举式交付、OBS-21 重复脱敏显示或显式
+  JSONL 外部历史导入”当作未完成；
+- Coding：已有确定性自举式 fixture 覆盖相关历史、修改、测试、恢复和打包 App Git
+  stage/commit/push；下一步才是在 MilkSU 源码中完成一个小 Vue + Go 修改，跑真实
+  test/build，做 Browser 或 Computer Use 验证，最后进入真实私有远端交付/PR 确认；
 - Artifact Preview：packaged App facade 已能从隔离 workspace 真实读取 Markdown、HTML、PNG，
   并拒绝 workspace escape、伪装 PNG 和 SVG；真实打包 MilkSU UI 已通过目录选择器绑定
   隔离 workspace，并在 Coding → 产物中手动打开 Markdown、HTML 和 PNG，开发者验收详情
