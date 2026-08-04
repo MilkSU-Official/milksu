@@ -101,8 +101,9 @@
    会话或工具事件 → App/Wails 可查询状态和结果 → 前端共享入口展示相关历史 → 搜索结果脱敏
    → 用户确认后才能沉淀为 MilkSU Memory、CVE Note 或 Coding Handoff。2026-08-05 已补
    CVE 页面“相关历史 → 记入笔记”、Coding Chat“相关历史 → 引用到输入”和 CTF 复盘
-   “相关历史 → 引用到复盘”的显式确认路径；剩余优先做历史导入、许可证/NOTICE/ADR 收口，
-   以及在完整 Coding 自举任务中证明 Agent 实际消费相关历史。
+   “相关历史 → 引用到复盘”的显式确认路径；同日真实打包 MilkSU UI 进一步证明用户确认引用
+   进入 Coding prompt 后，Agent 回复会引用对应历史会话和搜索 token。剩余优先做历史导入、
+   许可证/NOTICE/ADR 收口，以及在完整 Coding 自举任务中证明 Agent 使用相关历史完成交付。
 2. **P0 · 当前冲刺：完整产品闭环。** Session Index 首轮闭环通过后，继续让 MilkSU 像裸
    Pi Agent 一样顺滑完成一个真实产品任务，并在 MilkSU 自己的产品壳里走完修改、测试、
    预览/验证、恢复和 Git 交付。详见 [产品闭环冲刺](./product-loop-sprint.md)。

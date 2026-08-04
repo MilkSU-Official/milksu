@@ -50,9 +50,11 @@
 - 当前代码基线：2026-08-05 在 `962e74f` 完整执行 `npm run m3:release-check` 通过，并重新
   生成 `/Users/milksu/code/milksu/build/bin/MilkSU.app`；这只证明当前工程门禁和打包可用，
   不把它误算成完整自举、Developer ID、公证、升级或外部 Beta 完成；
-- Session Index：首轮原生闭环已通过；继续做“用户确认后沉淀为 Memory / CVE Note /
-  Coding Handoff”和跨历史导入。后续不得重复把“App data 初始化、索引 MilkSU 会话/工具事件、
-  打包 App 搜索、脱敏搜索结果”当作未完成；
+- Session Index：首轮原生闭环已通过；CVE Note、Coding 输入、CTF 复盘草稿的用户确认路径
+  已接入，且真实打包 MilkSU UI 已证明引用历史进入 Coding prompt 后会被 Agent 回复消费。
+  继续做跨历史导入、许可证/NOTICE/ADR 和“使用相关历史完成一次自举交付”。后续不得重复把
+  “App data 初始化、索引 MilkSU 会话/工具事件、打包 App 搜索、脱敏搜索结果、手动引用进入
+  输入或 Agent 能读到引用历史”当作未完成；
 - Coding：在打包 App 中完成一个小 MilkSU 修改，跑真实测试/build，做真实 Browser 或
   Computer Use 验证，commit 并 push；
 - Artifact Preview：packaged App facade 已能从隔离 workspace 真实读取 Markdown、HTML、PNG，
