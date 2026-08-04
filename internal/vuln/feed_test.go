@@ -55,6 +55,54 @@ func TestFetchFeedSnapshotRejectsNonJSON(t *testing.T) {
 	}
 }
 
+func TestFetchNVDCVEBuildsExactQueryAndKeepsTiming(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/rest/json/cves/2.0" {
+			t.Fatalf("path = %q", request.URL.Path)
+		}
+		if request.URL.Query().Get("cveId") != "CVE-2024-3400" {
+			t.Fatalf("cveId query = %q", request.URL.Query().Get("cveId"))
+		}
+		if request.Header.Get("Accept") != "application/json" {
+			t.Fatalf("missing JSON accept header")
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		writer.Header().Set("Last-Modified", "Tue, 04 Aug 2026 07:00:00 GMT")
+		writer.WriteHeader(http.StatusOK)
+		_, _ = writer.Write([]byte(`{"vulnerabilities":[{"cve":{"id":"CVE-2024-3400"}}]}`))
+	}))
+	defer server.Close()
+
+	download, err := FetchNVDCVEFrom(
+		context.Background(),
+		server.Client(),
+		server.URL+"/rest/json/cves/2.0",
+		" cve-2024-3400 ",
+	)
+	if err != nil {
+		t.Fatalf("FetchNVDCVEFrom() error = %v", err)
+	}
+	if download.SourceName != NVDCVEFeedName {
+		t.Fatalf("SourceName = %q", download.SourceName)
+	}
+	if !strings.Contains(download.SourceURL, "cveId=CVE-2024-3400") {
+		t.Fatalf("SourceURL missing exact CVE query: %q", download.SourceURL)
+	}
+	if download.RetrievedAt != "2026-08-04T07:00:00Z" {
+		t.Fatalf("RetrievedAt = %q", download.RetrievedAt)
+	}
+	if !strings.Contains(download.Body, "CVE-2024-3400") {
+		t.Fatalf("Body = %q", download.Body)
+	}
+}
+
+func TestFetchNVDCVERejectsInvalidCVEID(t *testing.T) {
+	_, err := FetchNVDCVEFrom(context.Background(), nil, NVDCVEAPIURL, "2024-3400")
+	if err == nil || !strings.Contains(err.Error(), "invalid CVE id") {
+		t.Fatalf("expected invalid CVE id error, got %v", err)
+	}
+}
+
 func TestFetchVulhubPracticeCatalogBuildsCVEComposeMatches(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if request.Header.Get("Accept") != "application/vnd.github+json" {

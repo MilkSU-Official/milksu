@@ -1439,6 +1439,10 @@ func (a *App) FetchCISAKEVFeed() (vuln.FeedSnapshotDownload, error) {
 	return vuln.FetchCISAKEVFeed(a.commandContext(), nil)
 }
 
+func (a *App) FetchNVDCVE(cveID string) (vuln.FeedSnapshotDownload, error) {
+	return vuln.FetchNVDCVE(a.commandContext(), nil, cveID)
+}
+
 func (a *App) FetchVulhubPracticeCatalog() (vuln.FeedSnapshotDownload, error) {
 	return vuln.FetchVulhubPracticeCatalog(a.commandContext(), nil)
 }

@@ -35,6 +35,33 @@ describe('desktop command adapter', () => {
     expect(fetchCISAKEVFeed).toHaveBeenCalledTimes(1)
   })
 
+  it('passes selected NVD CVE sync to the Wails read-only fetcher', async () => {
+    const feed = {
+      sourceName: 'NVD',
+      sourceUrl: 'https://services.nvd.nist.gov/rest/json/cves/2.0?cveId=CVE-2024-3400',
+      retrievedAt: '2026-08-04T07:00:00Z',
+      lastModified: '2026-08-04T07:00:00Z',
+      httpStatus: 200,
+      contentType: 'application/json',
+      body: '{"vulnerabilities":[{"cve":{"id":"CVE-2024-3400"}}]}',
+    }
+    const fetchNVDCVE = vi.fn(async () => feed)
+    Object.defineProperty(window, 'go', {
+      configurable: true,
+      value: {
+        main: {
+          App: {
+            FetchNVDCVE: fetchNVDCVE,
+          },
+        },
+      },
+    })
+
+    await expect(invokeCommand('fetch_nvd_cve', { cveId: 'CVE-2024-3400' })).resolves.toBe(feed)
+    expect(fetchNVDCVE).toHaveBeenCalledTimes(1)
+    expect(fetchNVDCVE).toHaveBeenCalledWith('CVE-2024-3400')
+  })
+
   it('passes Vulhub practice catalog sync to the Wails read-only fetcher', async () => {
     const catalog = {
       sourceName: 'Vulhub Practice Catalog',

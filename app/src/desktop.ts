@@ -311,6 +311,7 @@ interface WailsAppBindings {
   ListVulnJobs(): Promise<VulnSummary[]>
   GetVulnJob(id: string): Promise<VulnProjection>
   FetchCISAKEVFeed(): Promise<VulnerabilityFeedDownload>
+  FetchNVDCVE(cveId: string): Promise<VulnerabilityFeedDownload>
   FetchVulhubPracticeCatalog(): Promise<VulnerabilityFeedDownload>
   SubmitVulnReproduction(id: string, request: VulnReproductionRequest): Promise<VulnProjection>
   RecordVulnLearning(id: string, request: VulnLearningRecordRequest): Promise<VulnProjection>
@@ -332,6 +333,7 @@ const VULN_PROJECTIONS_KEY = 'milksu.dev.vuln-projections'
 const CTF_PROJECTIONS_KEY = 'milksu.dev.ctf-projections'
 const NSSCTF_CATALOG_KEY = 'milksu.dev.nssctf-catalog'
 const CISA_KEV_FEED_URL = 'https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json'
+const NVD_CVE_API_URL = 'https://services.nvd.nist.gov/rest/json/cves/2.0'
 const VULHUB_REPO_API_URL = 'https://api.github.com/repos/vulhub/vulhub'
 const VULHUB_REPO_WEB_URL = 'https://github.com/vulhub/vulhub'
 
@@ -413,6 +415,38 @@ async function fetchCISAKEVFeedInBrowser(): Promise<VulnerabilityFeedDownload> {
   return {
     sourceName: 'CISA KEV',
     sourceUrl: CISA_KEV_FEED_URL,
+    retrievedAt: response.headers.get('last-modified')
+      || response.headers.get('date')
+      || new Date().toISOString(),
+    lastModified: response.headers.get('last-modified') || '',
+    httpStatus: response.status,
+    contentType: response.headers.get('content-type') || '',
+    body: await response.text(),
+  }
+}
+
+function normalizeNvdCveId(cveId: unknown) {
+  const normalized = String(cveId ?? '').trim().toUpperCase()
+  if (!/^CVE-\d{4}-\d{4,}$/.test(normalized)) {
+    throw new Error('NVD CVE sync requires a CVE-YYYY-NNNN id')
+  }
+  return normalized
+}
+
+async function fetchNVDCVEInBrowser(cveId: unknown): Promise<VulnerabilityFeedDownload> {
+  const normalized = normalizeNvdCveId(cveId)
+  const url = new URL(NVD_CVE_API_URL)
+  url.searchParams.set('cveId', normalized)
+  const response = await fetch(url.toString(), {
+    headers: { Accept: 'application/json' },
+    cache: 'no-store',
+  })
+  if (!response.ok) {
+    throw new Error(`NVD CVE returned HTTP ${response.status}`)
+  }
+  return {
+    sourceName: 'NVD',
+    sourceUrl: url.toString(),
     retrievedAt: response.headers.get('last-modified')
       || response.headers.get('date')
       || new Date().toISOString(),
@@ -983,6 +1017,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.GetVulnJob(args?.id as string) as Promise<T>
       case 'fetch_cisa_kev_feed':
         return app.FetchCISAKEVFeed() as Promise<T>
+      case 'fetch_nvd_cve':
+        return app.FetchNVDCVE(args?.cveId as string) as Promise<T>
       case 'fetch_vulhub_practice_catalog':
         return app.FetchVulhubPracticeCatalog() as Promise<T>
       case 'submit_vuln_reproduction':
@@ -1214,6 +1250,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
     }
     case 'fetch_cisa_kev_feed':
       return await fetchCISAKEVFeedInBrowser() as T
+    case 'fetch_nvd_cve':
+      return await fetchNVDCVEInBrowser(args?.cveId) as T
     case 'fetch_vulhub_practice_catalog':
       return await fetchVulhubPracticeCatalogInBrowser() as T
     case 'import_nssctf_challenge': {

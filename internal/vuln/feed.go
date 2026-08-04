@@ -17,6 +17,8 @@ import (
 const (
 	CISAKEVFeedName       = "CISA KEV"
 	CISAKEVFeedURL        = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
+	NVDCVEFeedName        = "NVD"
+	NVDCVEAPIURL          = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 	VulhubPracticeCatalog = "Vulhub Practice Catalog"
 	VulhubRepoAPIURL      = "https://api.github.com/repos/vulhub/vulhub"
 	VulhubRepoWebURL      = "https://github.com/vulhub/vulhub"
@@ -24,7 +26,10 @@ const (
 	maxFeedBytes          = 12 << 20
 )
 
-var cvePathPattern = regexp.MustCompile(`(?i)CVE-\d{4}-\d{4,}`)
+var (
+	cveIDPattern   = regexp.MustCompile(`^CVE-\d{4}-\d{4,}$`)
+	cvePathPattern = regexp.MustCompile(`(?i)CVE-\d{4}-\d{4,}`)
+)
 
 // FeedSnapshotDownload is a read-only vulnerability intelligence payload.
 // It carries raw JSON plus source timing so the frontend can parse, cache, and
@@ -41,6 +46,33 @@ type FeedSnapshotDownload struct {
 
 func FetchCISAKEVFeed(ctx context.Context, client *http.Client) (FeedSnapshotDownload, error) {
 	return FetchFeedSnapshot(ctx, client, CISAKEVFeedName, CISAKEVFeedURL)
+}
+
+func FetchNVDCVE(ctx context.Context, client *http.Client, cveID string) (FeedSnapshotDownload, error) {
+	return FetchNVDCVEFrom(ctx, client, NVDCVEAPIURL, cveID)
+}
+
+func FetchNVDCVEFrom(
+	ctx context.Context,
+	client *http.Client,
+	apiURL string,
+	cveID string,
+) (FeedSnapshotDownload, error) {
+	normalizedID := strings.ToUpper(strings.TrimSpace(cveID))
+	if !cveIDPattern.MatchString(normalizedID) {
+		return FeedSnapshotDownload{}, fmt.Errorf("fetch NVD CVE: invalid CVE id")
+	}
+	parsed, err := url.Parse(strings.TrimSpace(apiURL))
+	if err != nil {
+		return FeedSnapshotDownload{}, fmt.Errorf("fetch NVD CVE: invalid API URL: %w", err)
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return FeedSnapshotDownload{}, fmt.Errorf("fetch NVD CVE: unsupported API URL scheme %q", parsed.Scheme)
+	}
+	query := parsed.Query()
+	query.Set("cveId", normalizedID)
+	parsed.RawQuery = query.Encode()
+	return FetchFeedSnapshot(ctx, client, NVDCVEFeedName, parsed.String())
 }
 
 func FetchVulhubPracticeCatalog(ctx context.Context, client *http.Client) (FeedSnapshotDownload, error) {

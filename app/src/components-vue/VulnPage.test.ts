@@ -110,6 +110,7 @@ describe('VulnPage', () => {
     expect(text).toContain('情报源接入状态')
     expect(text).toContain('尚未同步')
     expect(text).toContain('可同步 CISA KEV 公开只读 JSON')
+    expect(text).toContain('当前 CVE 精确同步 NVD 2.0')
     expect(text).toContain('Feed 缓存状态')
     expect(text).toContain('尚未导入真实 Feed 快照')
     expect(text).toContain('0 个快照')
@@ -153,6 +154,66 @@ describe('VulnPage', () => {
     expect(text).toContain('不批量扫描或攻击外部目标')
     expect(text).toContain('不自动运行 PoC、exploit 或漏洞触发输入')
     expect(text).not.toContain('红队 Agent')
+  })
+
+  it('syncs the selected CVE from NVD through the desktop adapter into visible evidence', async () => {
+    const fetchNVDCVE = vi.fn(async () => ({
+      sourceName: 'NVD',
+      sourceUrl: 'https://services.nvd.nist.gov/rest/json/cves/2.0?cveId=CVE-2024-3400',
+      retrievedAt: '2026-08-04T07:00:00Z',
+      lastModified: '2026-08-04T07:00:00Z',
+      httpStatus: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        resultsPerPage: 1,
+        startIndex: 0,
+        totalResults: 1,
+        format: 'NVD_CVE',
+        version: '2.0',
+        timestamp: '2026-08-04T07:00:00.000',
+        vulnerabilities: [{
+          cve: {
+            id: 'CVE-2024-3400',
+            sourceIdentifier: 'security@example.com',
+            published: '2024-04-12T00:15:07.403',
+            lastModified: '2026-08-04T07:00:00.000',
+            descriptions: [{ lang: 'en', value: 'Command injection vulnerability in PAN-OS GlobalProtect.' }],
+            metrics: { cvssMetricV31: [{ cvssData: { baseScore: 10.0 } }] },
+            references: {
+              referenceData: [{
+                url: 'https://nvd.nist.gov/vuln/detail/CVE-2024-3400',
+                source: 'NVD',
+              }],
+            },
+          },
+        }],
+      }),
+    }))
+    Object.defineProperty(window, 'go', {
+      configurable: true,
+      value: { main: { App: { FetchNVDCVE: fetchNVDCVE } } },
+    })
+    const host = await mountVulnPage()
+    const sync = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
+      item.getAttribute('aria-label') === '同步当前 CVE 的 NVD 2.0',
+    )
+    if (!sync) throw new Error('missing NVD sync button')
+
+    expect(host.textContent).toContain('CVE-2024-3400')
+    sync.click()
+    await flushAsyncUpdates()
+
+    expect(fetchNVDCVE).toHaveBeenCalledTimes(1)
+    expect(fetchNVDCVE).toHaveBeenCalledWith('CVE-2024-3400')
+    expect(host.textContent).toContain('已同步 NVD：CVE-2024-3400 新增 0、更新 1')
+    expect(host.textContent).toContain('NVD JSON 2.0')
+    expect(host.textContent).toContain('已导入 NVD')
+    expect(host.textContent).toContain('1 个快照')
+    expect(host.textContent).toContain('来源证据')
+    expect(host.textContent).toContain('NVD · NVD JSON 2.0')
+    expect(host.textContent).toContain('已缓存元数据')
+    expect(host.textContent).toContain('Command injection vulnerability in PAN-OS GlobalProtect.')
+    expect(host.textContent).toContain('10.0 CVSS')
   })
 
   it('syncs the CISA KEV feed through the desktop adapter into visible evidence', async () => {

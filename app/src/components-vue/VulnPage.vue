@@ -186,6 +186,23 @@ async function syncCisaKevFeed() {
   }
 }
 
+async function syncSelectedNvdCve() {
+  importError.value = ''
+  importNotice.value = ''
+  lastImportedIds.value = []
+  try {
+    const result = await dashboard.syncSelectedNvdCve()
+    lastImportedIds.value = result.importedIds
+    importNotice.value = `已同步 NVD：${dashboard.selected.value.id} 新增 ${result.imported}、更新 ${result.updated}`
+      + (result.skipped ? `，跳过 ${result.skipped}` : '')
+      + `；${result.format}，获取 ${new Date(result.retrievedAt).toLocaleString()}，${result.itemCount} 条，${result.cacheState} ${result.digest}`
+      + (result.errors.length ? `；${result.errors.length} 条格式需人工处理` : '')
+  } catch (cause) {
+    importError.value = dashboard.sourceSyncError.value
+      || (cause instanceof Error ? cause.message : String(cause))
+  }
+}
+
 async function syncVulhubPracticeCatalog() {
   practiceImportError.value = ''
   practiceImportNotice.value = ''
@@ -365,6 +382,16 @@ function isHttpUrl(value: string) {
         >
           <Bookmark class="size-4" />
           我的关注
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-label="同步当前 CVE 的 NVD 2.0"
+          :loading="dashboard.sourceSyncing.value"
+          @click="syncSelectedNvdCve"
+        >
+          <RefreshCw class="size-4" :class="dashboard.sourceSyncing.value ? 'animate-spin' : ''" />
+          同步 NVD
         </Button>
         <Button
           variant="ghost"
@@ -627,7 +654,7 @@ function isHttpUrl(value: string) {
             <div>
               <h2 class="text-label font-medium">情报源接入状态</h2>
               <p class="mt-1 text-caption leading-5 text-muted-foreground">
-                当前支持 CISA KEV 公开只读同步、Vulhub 练习目录同步与手动 Feed 快照导入；区分内置快照、用户材料、缓存 Feed 和练习候选，不把排序信号当成 Judge。
+                当前支持 NVD 单 CVE 精确同步、CISA KEV 公开只读同步、Vulhub 练习目录同步与手动 Feed 快照导入；区分内置快照、用户材料、缓存 Feed 和练习候选，不把排序信号当成 Judge。
               </p>
               <p class="mt-1 text-caption leading-5 text-muted-foreground">
                 {{ dashboard.sourceRefreshSummary.value.detail }}
