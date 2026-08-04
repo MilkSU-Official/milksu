@@ -226,8 +226,66 @@ describe('CodingChangesPanel Pull Request confirmation', () => {
     expect(clean.textContent).toContain('一次性确认')
   })
 
+  it('emits Git delivery evidence after a real push action succeeds', async () => {
+    const onDeliveryEvidence = vi.fn()
+    const onRefresh = vi.fn()
+    const pushedSnapshot = cleanEnvironment({
+      head: 'pushed-head',
+      ahead: 0,
+    })
+    ;(window as unknown as { go?: unknown }).go = {
+      main: {
+        App: {
+          ApplyCodingGitAction: async (
+            workspace: string,
+            action: string,
+            relativePath: string,
+            message: string,
+          ) => {
+            expect(workspace).toBe('/workspace')
+            expect(action).toBe('push')
+            expect(relativePath).toBe('')
+            expect(message).toBe('')
+            return {
+              action: 'push',
+              message: 'pushed codex/self-hosting',
+              snapshot: pushedSnapshot,
+            }
+          },
+        },
+      },
+    }
+    const host = document.createElement('div')
+    document.body.append(host)
+    const app = createApp(CodingChangesPanel, {
+      workspacePath: '/workspace',
+      environment: cleanEnvironment({ ahead: 1 }),
+      onDeliveryEvidence,
+      onRefresh,
+    })
+    app.mount(host)
+    mountedApps.push(app)
+    await nextTick()
+
+    const push = host.querySelector<HTMLButtonElement>('button[aria-label="执行 Git 交付下一步"]')
+    expect(push?.textContent).toContain('推送 1')
+    push?.click()
+    await settle()
+
+    expect(onDeliveryEvidence).toHaveBeenCalledOnce()
+    expect(onDeliveryEvidence).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'push',
+      branch: 'codex/self-hosting',
+      upstream: 'origin/codex/self-hosting',
+      head: 'pushed-head',
+      message: 'pushed codex/self-hosting',
+    }))
+    expect(onRefresh).toHaveBeenCalledOnce()
+  })
+
   it('previews the immutable target before a separate publish call', async () => {
     const calls: string[] = []
+    const onDeliveryEvidence = vi.fn()
     ;(window as unknown as { go?: unknown }).go = {
       main: {
         App: {
@@ -296,6 +354,7 @@ describe('CodingChangesPanel Pull Request confirmation', () => {
     const app = createApp(CodingChangesPanel, {
       workspacePath: '/workspace',
       environment,
+      onDeliveryEvidence,
     })
     app.mount(host)
     mountedApps.push(app)
@@ -325,6 +384,19 @@ describe('CodingChangesPanel Pull Request confirmation', () => {
 
     expect(calls).toEqual(['prepare', 'publish:preview-token'])
     expect(document.body.textContent).toContain('已创建并验证草稿 PR #42')
+    expect(onDeliveryEvidence).toHaveBeenCalledOnce()
+    expect(onDeliveryEvidence).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'pull-request',
+      branch: 'codex/self-hosting',
+      head: '0123456789abcdef0123456789abcdef01234567',
+      message: '已创建并验证草稿 PR #42',
+      pullRequest: expect.objectContaining({
+        number: 42,
+        url: 'https://github.com/MilkSU-Official/milksu/pull/42',
+        verified: true,
+        created: true,
+      }),
+    }))
   })
 
   it('clears the one-time preview when the backend rejects an expired publication', async () => {

@@ -467,6 +467,58 @@ describe('CodingProductLoopPanel', () => {
     expect(host.textContent).not.toContain('当前证据满足这张产品闭环验收清单')
   })
 
+  it('marks Git delivery done only after matching push evidence and a synced clean workspace', async () => {
+    const { host } = await mountPanel({
+      environment: cleanEnvironment,
+      resumed: true,
+      artifactPreviewEvidence: {
+        relativePath: 'preview/result.html',
+        kind: 'html',
+      },
+      gitDeliveryEvidence: {
+        action: 'push',
+        branch: 'codex/authorized-learning-foundation',
+        upstream: 'origin/codex/authorized-learning-foundation',
+        head: 'abc1234',
+        capturedAt: '2026-08-04T10:00:00Z',
+        message: 'pushed codex/authorized-learning-foundation',
+      },
+    })
+
+    expect(host.textContent).toContain('已推送当前 HEAD abc1234')
+    expect(host.textContent).toContain('工作区干净且没有待 push 提交')
+    expect([...host.querySelectorAll('[data-acceptance-state="done"]')]
+      .some(item => item.textContent?.includes('5. 收口 Git 交付')))
+      .toBe(true)
+    expect(host.textContent).toContain('Git 交付')
+    expect(host.textContent).toContain('可交付')
+  })
+
+  it('does not reuse stale Git delivery evidence for a different HEAD', async () => {
+    const { host } = await mountPanel({
+      environment: cleanEnvironment,
+      resumed: true,
+      artifactPreviewEvidence: {
+        relativePath: 'preview/result.html',
+        kind: 'html',
+      },
+      gitDeliveryEvidence: {
+        action: 'push',
+        branch: 'codex/authorized-learning-foundation',
+        upstream: 'origin/codex/authorized-learning-foundation',
+        head: 'old9999',
+        capturedAt: '2026-08-04T10:00:00Z',
+        message: 'pushed old head',
+      },
+    })
+
+    expect(host.textContent).toContain('最近一次 Git 交付证据不匹配当前分支或 HEAD')
+    expect([...host.querySelectorAll('[data-acceptance-state="done"]')]
+      .some(item => item.textContent?.includes('5. 收口 Git 交付')))
+      .toBe(false)
+    expect(host.textContent).not.toContain('合并就绪')
+  })
+
   it('does not treat a revealed Browser evidence directory as completed validation', async () => {
     const browserStatus: CodingBrowserStatus = {
       enabled: true,

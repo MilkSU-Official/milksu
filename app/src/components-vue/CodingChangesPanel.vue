@@ -32,6 +32,7 @@ import type {
   CodingGitAction,
   CodingGitActionResult,
   CodingGitChange,
+  CodingGitDeliveryEvidence,
   CodingGitHunkAction,
   CodingPullRequestPreview,
   CodingPullRequestPublishResult,
@@ -46,6 +47,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   review: []
   refresh: []
+  deliveryEvidence: [evidence: CodingGitDeliveryEvidence]
 }>()
 
 const selectedPath = ref('')
@@ -100,6 +102,24 @@ function validatePullRequestPreview(preview: CodingPullRequestPreview) {
   if (!preview.confirmationToken.trim()) {
     throw new Error('Pull Request 预览缺少一次性确认，请重新准备。')
   }
+}
+
+function emitGitDeliveryEvidence(
+  action: CodingGitDeliveryEvidence['action'],
+  snapshot: CodingEnvironmentSnapshot,
+  message: string,
+  pullRequest?: CodingGitDeliveryEvidence['pullRequest'],
+) {
+  const git = snapshot.git
+  emit('deliveryEvidence', {
+    action,
+    branch: git.branch,
+    upstream: git.upstream,
+    head: git.head,
+    capturedAt: snapshot.capturedAt || new Date().toISOString(),
+    message,
+    pullRequest,
+  })
 }
 
 const deliveryStateLabel = computed(() => {
@@ -329,6 +349,9 @@ async function applyGitAction(
       },
     )
     operationMessage.value = result.message
+    if (action === 'commit' || action === 'push') {
+      emitGitDeliveryEvidence(action, result.snapshot, result.message)
+    }
     if (action === 'commit') commitMessage.value = ''
     if (selectedPath.value) {
       const current = result.snapshot.git.changes?.find(
@@ -409,6 +432,19 @@ async function publishPullRequest() {
         ? `已创建并验证草稿 PR #${result.number}`
         : `当前分支已有已验证的草稿 PR #${result.number}`
       : `草稿 PR #${result.number} 已创建，但读回验证未完成`
+    emit('deliveryEvidence', {
+      action: 'pull-request',
+      branch: result.sourceBranch,
+      head: result.headCommit,
+      capturedAt: new Date().toISOString(),
+      message: operationMessage.value,
+      pullRequest: {
+        number: result.number,
+        url: result.url,
+        verified: result.verified,
+        created: result.created,
+      },
+    })
   } catch (reason) {
     pullRequestError.value = redactConfirmationToken(reason instanceof Error
       ? reason.message

@@ -6,6 +6,7 @@ import type {
   CodingBrowserStatus,
   CodingComputerUseStatus,
   CodingEnvironmentSnapshot,
+  CodingGitDeliveryEvidence,
 } from '@/codingEnvironmentTypes'
 import { artifactKindLabel, suggestedArtifactPaths } from '@/lib/codingArtifact'
 import type { ComputerUseOperationEvidence } from '@/lib/codingComputerUseEvidence'
@@ -61,6 +62,7 @@ const props = defineProps<{
   browserEvidence?: BrowserEvidence | null
   computerUseEvidence?: ComputerUseEvidence | null
   computerUseOperationEvidence?: ComputerUseOperationEvidence | null
+  gitDeliveryEvidence?: CodingGitDeliveryEvidence | null
 }>()
 
 const emit = defineEmits<{
@@ -100,6 +102,24 @@ const visibleValidationPerformed = computed(() => (
   || Boolean(props.computerUseOperationEvidence)
 ))
 
+const matchingGitDeliveryEvidence = computed(() => {
+  const git = props.environment?.git
+  const evidence = props.gitDeliveryEvidence
+  if (!git?.isRepository || !evidence) return null
+  if (git.head && evidence.head && git.head !== evidence.head) return null
+  if (git.branch && evidence.branch && git.branch !== evidence.branch) return null
+  return evidence
+})
+
+const gitDeliveryDone = computed(() => {
+  const git = props.environment?.git
+  const evidence = matchingGitDeliveryEvidence.value
+  if (!git?.isRepository || !evidence) return false
+  if (git.dirty || git.ahead > 0 || git.behind > 0 || git.conflicts > 0) return false
+  return evidence.action === 'push'
+    || (evidence.action === 'pull-request' && Boolean(evidence.pullRequest?.verified))
+})
+
 const validationDetail = computed(() => {
   const channels = [
     artifactSuggestions.value.length
@@ -129,7 +149,8 @@ const gitState = computed<LoopState>(() => {
   const git = props.environment?.git
   if (!git?.isRepository) return 'blocked'
   if (git.conflicts > 0) return 'blocked'
-  if (git.dirty || git.ahead > 0) return 'active'
+  if (git.dirty || git.ahead > 0 || git.behind > 0) return 'active'
+  if (gitDeliveryDone.value) return 'done'
   return props.messageCount > 0 ? 'active' : 'pending'
 })
 
@@ -194,6 +215,16 @@ const items = computed(() => [
         ? `${props.environment.git.changedFiles} 个文件待审阅/暂存/提交。`
         : props.environment.git.ahead > 0
           ? `本地领先 ${props.environment.git.ahead} 个提交，仍需 push 才能作为交付证据。`
+        : props.environment.git.behind > 0
+          ? `远端领先 ${props.environment.git.behind} 个提交；先同步或确认目标分支后再交付。`
+        : gitDeliveryDone.value && matchingGitDeliveryEvidence.value
+          ? matchingGitDeliveryEvidence.value.action === 'pull-request'
+            ? `已读回验证草稿 PR #${matchingGitDeliveryEvidence.value.pullRequest?.number}，HEAD ${props.environment.git.head || '未知'} 与当前工作区一致。`
+            : `已推送当前 HEAD ${props.environment.git.head || '未知'}；工作区干净且没有待 push 提交。`
+        : matchingGitDeliveryEvidence.value?.action === 'commit'
+          ? `已创建 commit ${props.environment.git.head || matchingGitDeliveryEvidence.value.head || '未知'}；仍需 push 或 PR 读回验证。`
+        : props.gitDeliveryEvidence
+          ? '最近一次 Git 交付证据不匹配当前分支或 HEAD；请重新读取状态并完成 push/PR。'
         : props.messageCount > 0
           ? '当前 Git 工作区干净且没有待 push 提交；仍未证明本轮实际产生、提交并推送过变更。'
           : 'Git 可用，等待实际任务产生变更。'
@@ -462,7 +493,13 @@ const handoffSummary = computed(() => {
           ? `${git.changedFiles} 个文件待审阅/暂存/提交`
           : git.ahead > 0
             ? `本地领先 ${git.ahead} 个提交，待 push`
-            : '工作区干净且无待 push 提交'
+            : git.behind > 0
+              ? `远端领先 ${git.behind} 个提交，待同步或确认`
+              : gitDeliveryDone.value
+                ? matchingGitDeliveryEvidence.value?.action === 'pull-request'
+                  ? `PR #${matchingGitDeliveryEvidence.value.pullRequest?.number} 已读回验证`
+                  : '当前 HEAD 已 push，工作区干净且无待 push 提交'
+                : '工作区干净且无待 push 提交；缺少本轮 push/PR 证据'
       : git?.problem || '不是 Git 仓库或尚未读取 Git 状态'}`,
     '- 验收记录：',
     ...verificationRecords.value.map(record => `  - ${record.label}：${record.state}；${record.detail}`),

@@ -74,6 +74,7 @@ import type {
   CodingComputerUseTarget,
   CodingDiffSnapshot,
   CodingEnvironmentSnapshot,
+  CodingGitDeliveryEvidence,
   CodingMCPConfigSnapshot,
 } from '@/codingEnvironmentTypes'
 import type { CTFShowCatalogStatus } from '@/ctfshowTypes'
@@ -210,6 +211,7 @@ const computerUseLoading = ref(false)
 const computerUseStatus = ref<CodingComputerUseStatus | null>(null)
 const computerUseTargets = ref<CodingComputerUseTarget[]>([])
 const selectedComputerUseTargetKey = ref('')
+const gitDeliveryEvidence = ref<CodingGitDeliveryEvidence | null>(null)
 const nssctfBrowserStatus = ref<NSSCTFWebBridgeStatus | null>(null)
 const ctfshowBrowserStatus = ref<CTFShowCatalogStatus | null>(null)
 const codingEnvironment = ref<CodingEnvironmentSnapshot | null>(null)
@@ -1053,6 +1055,10 @@ function recordArtifactPreview(preview: CodingArtifactPreview) {
   }
 }
 
+function recordGitDeliveryEvidence(evidence: CodingGitDeliveryEvidence) {
+  gitDeliveryEvidence.value = evidence
+}
+
 async function revealBrowserExtension() {
   browserPanelError.value = ''
   try {
@@ -1125,6 +1131,7 @@ watch(() => props.conversation?.id, () => {
   artifactPreviewEvidence.value = null
   browserEvidence.value = null
   computerUseEvidence.value = null
+  gitDeliveryEvidence.value = null
   void scrollChatToBottom()
   if (contextPanel.value === 'browser' && environmentOpen.value) {
     void refreshBrowserPanel()
@@ -1432,6 +1439,7 @@ watch(
           :browser-evidence="browserEvidence"
           :computer-use-evidence="computerUseEvidence"
           :computer-use-operation-evidence="computerUseOperationEvidence"
+          :git-delivery-evidence="gitDeliveryEvidence"
           @open-panel="changeContextPanel"
           @compact-context="$emit('compactContext')"
         />
@@ -1807,6 +1815,7 @@ watch(
           :running="running"
           @review="runCodingProductAction('review')"
           @refresh="refreshEnvironment"
+          @delivery-evidence="recordGitDeliveryEvidence"
         />
       </template>
 

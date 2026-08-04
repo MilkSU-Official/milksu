@@ -37,6 +37,21 @@ export interface CodingEnvironmentSnapshot {
   git: CodingGitStatus
 }
 
+export interface CodingGitDeliveryEvidence {
+  action: 'commit' | 'push' | 'pull-request'
+  branch?: string
+  upstream?: string
+  head?: string
+  capturedAt: string
+  message: string
+  pullRequest?: {
+    number: number
+    url: string
+    verified: boolean
+    created: boolean
+  }
+}
+
 export type CodingCollaborationPhase =
   | 'preparing'
   | 'active'
