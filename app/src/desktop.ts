@@ -31,6 +31,7 @@ import type {
   VulnProjection,
   VulnReproductionRequest,
   VulnSummary,
+  VulnTrackingWorkspaceRequest,
 } from './vulnTypes'
 import { challengeFromNSSCTFAPI, normalizeNSSCTFProblemURL, type NSSCTFChallenge } from './nssctfTypes'
 import { createDemoVulnProjection, summarizeDemoVuln } from './vulnDemo'
@@ -368,6 +369,7 @@ interface WailsAppBindings {
     summary: string,
   ): Promise<CTFProjection>
   StartPacketParserResearch(): Promise<VulnProjection>
+  EnsureVulnTrackingWorkspace(request: VulnTrackingWorkspaceRequest): Promise<VulnProjection>
   ListVulnJobs(): Promise<VulnSummary[]>
   GetVulnJob(id: string): Promise<VulnProjection>
   FetchCISAKEVFeed(): Promise<VulnerabilityFeedDownload>
@@ -452,6 +454,62 @@ function withoutCredentials(settings: AppSettings): AppSettings {
 
 function getWailsApp() {
   return window.go?.main?.App
+}
+
+function createTrackingVulnProjection(request: VulnTrackingWorkspaceRequest, id: string = crypto.randomUUID()): VulnProjection {
+  const now = new Date().toISOString()
+  const cveId = String(request.cveId || 'CVE-0000-0000').trim().toUpperCase()
+  const title = String(request.title || `${cveId} vulnerability learning`).trim()
+  const projection = createDemoVulnProjection(false, id)
+  return {
+    ...projection,
+    job: {
+      ...projection.job,
+      id,
+      title: `${cveId} · tracking`,
+      status: 'queued',
+      createdAt: now,
+      updatedAt: now,
+    },
+    target: {
+      ...projection.target,
+      id: `target-${id}`,
+      name: cveId,
+      version: 'tracking',
+      component: title,
+      fixture: 'cve-tracking',
+      admittedAt: now,
+      scope: {
+        ...projection.target.scope,
+        id: `scope-${id}`,
+        source: 'user-confirmed:cve-tracking',
+        purpose: 'authorized CVE learning note tracking',
+        targets: [{
+          kind: request.referenceHref ? 'origin' : 'lab',
+          value: request.referenceHref || `cve-tracking:${cveId}`,
+        }],
+        createdAt: now,
+        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60_000).toISOString(),
+      },
+    },
+    attackSurface: undefined,
+    hypotheses: [],
+    experiments: [],
+    rootCause: undefined,
+    artifacts: [],
+    evidence: [],
+    evaluations: [],
+    learning: [],
+    humanOutcome: {
+      goal: `记录 ${cveId} 的用户确认学习结论和研究复盘。`,
+      reflectionCount: 0,
+      independentSteps: 0,
+      variantCount: 0,
+      summary: '尚未记录学习复盘。',
+    },
+    outcome: undefined,
+    events: [],
+  }
 }
 
 export function hasDesktopRuntime(): boolean {
@@ -1168,6 +1226,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         ) as Promise<T>
       case 'start_packet_parser_research':
         return app.StartPacketParserResearch() as Promise<T>
+      case 'ensure_vuln_tracking_workspace':
+        return app.EnsureVulnTrackingWorkspace(args?.request as VulnTrackingWorkspaceRequest) as Promise<T>
       case 'list_vuln_jobs':
         return app.ListVulnJobs() as Promise<T>
       case 'get_vuln_job':
@@ -1465,6 +1525,19 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
     case 'start_packet_parser_research': {
       const projection = createDemoVulnProjection(false)
       const projections = readJson<Record<string, VulnProjection>>(VULN_PROJECTIONS_KEY, {})
+      writeJson(VULN_PROJECTIONS_KEY, { ...projections, [projection.job.id]: projection })
+      return projection as T
+    }
+    case 'ensure_vuln_tracking_workspace': {
+      const request = args?.request as VulnTrackingWorkspaceRequest
+      const cveId = String(request?.cveId || '').trim().toUpperCase()
+      const projections = readJson<Record<string, VulnProjection>>(VULN_PROJECTIONS_KEY, {})
+      const existing = Object.values(projections).find(projection =>
+        projection.target.fixture === 'cve-tracking' &&
+        projection.target.name.toUpperCase() === cveId,
+      )
+      if (existing) return existing as T
+      const projection = createTrackingVulnProjection(request)
       writeJson(VULN_PROJECTIONS_KEY, { ...projections, [projection.job.id]: projection })
       return projection as T
     }

@@ -38,6 +38,60 @@ func TestPacketParserFixtureCreatesRecoverableResearchWorkspace(t *testing.T) {
 	}
 }
 
+func TestCVETrackingWorkspaceRecordsUserConfirmedLearning(t *testing.T) {
+	runtime, err := securityruntime.NewService(t.TempDir(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = runtime.Close() })
+	service, err := NewService(runtime)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	projection, err := service.EnsureCVETrackingWorkspace(context.Background(), TrackingWorkspaceRequest{
+		CVEID:         " cve-2023-46604 ",
+		Title:         "Apache ActiveMQ OpenWire RCE",
+		Summary:       "User-confirmed advisory reading and dependency impact notes.",
+		ReferenceHref: "https://nvd.nist.gov/vuln/detail/CVE-2023-46604",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if projection.Target.Name != "CVE-2023-46604" || projection.Target.Fixture != "cve-tracking" {
+		t.Fatalf("unexpected tracking target: %+v", projection.Target)
+	}
+	if projection.Target.Scope.Targets[0].Kind != "origin" ||
+		projection.Target.Scope.Targets[0].Value != "https://nvd.nist.gov" {
+		t.Fatalf("reference scope was not normalized to origin: %+v", projection.Target.Scope.Targets)
+	}
+
+	projection, err = service.RecordLearning(context.Background(), projection.Job.ID, LearningRecordRequest{
+		Kind:    "reflection",
+		Content: "用户确认：公告和补丁版本已核对，当前只记录学习结论，不声明真实资产已验证。",
+		Concept: "CVE-2023-46604",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(projection.Learning) != 1 ||
+		projection.Learning[0].Kind != "reflection" ||
+		projection.HumanOutcome.ReflectionCount != 1 {
+		t.Fatalf("learning record was not projected: %+v", projection)
+	}
+
+	reused, err := service.EnsureCVETrackingWorkspace(context.Background(), TrackingWorkspaceRequest{
+		CVEID: "CVE-2023-46604",
+		Title: "Duplicate request",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reused.Job.ID != projection.Job.ID || len(reused.Learning) != 1 {
+		t.Fatalf("tracking workspace was not reused: first=%s reused=%s learning=%d", projection.Job.ID, reused.Job.ID, len(reused.Learning))
+	}
+}
+
 func TestExternalThreeRunEvidenceIsEvaluatorBacked(t *testing.T) {
 	runtime, err := securityruntime.NewService(t.TempDir(), nil)
 	if err != nil {

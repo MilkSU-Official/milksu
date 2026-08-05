@@ -1031,9 +1031,11 @@ describe('VulnPage', () => {
     )
     if (!submit) throw new Error('missing Coding conclusion submit')
     submit.click()
-    await nextTick()
+    await flushAsyncUpdates()
 
     expect(host.textContent).toContain('已导入到研究笔记')
+    expect(host.textContent).toContain('正式研究档案')
+    expect(host.textContent).toContain('1 条学习记录')
     expect(host.textContent).toContain('复制证据摘要')
     const textareas = [...host.querySelectorAll<HTMLTextAreaElement>('textarea')]
     expect(textareas.some(item => item.value.includes('已核对 Apache advisory 和补丁版本范围。'))).toBe(true)

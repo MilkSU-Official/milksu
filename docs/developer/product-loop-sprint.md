@@ -93,8 +93,11 @@
   并在隔离 App data 下落盘 NVD、FIRST EPSS、CISA KEV 与 Vulhub snapshot；packaged
   CVE practice live smoke 已通过，真实打包 App 能对本地 Docker Compose 目录完成
   start/status/stop/cleanup，并确认无测试容器残留；该 smoke 使用 benign fixture，不运行
-  exploit 或漏洞触发输入。下一步只补真实 Vulhub 用户目录的 UI 手动验收、完整
-  研究回写，不能再说“只有四条 mock 数据”或“Docker 生命周期没有打包 App 证据”。
+  exploit 或漏洞触发输入；packaged CVE learning writeback live smoke 已通过，真实打包 App
+  能创建/复用 `cve-tracking` 研究档案，把用户确认的 Coding 结论写成 `learning.recorded`
+  并从 projection 恢复读取。下一步只补真实 Vulhub 用户目录的 UI 手动验收、导入 Coding
+  结论的原生 UI 人工点击验收和资产验证，不能再说“只有四条 mock 数据”“Docker 生命周期没有
+  打包 App 证据”或“CVE 研究结论只能留在 localStorage”。
   同日 Browser 已验证 CVE 首页默认不铺 Feed/NVD/EPSS/KEV/Vulhub/缓存维护台，点击统一设置后才进入情报源设置；
 - CTF：从题库进入解题会话，切到 CVE/Coding 再返回，题库/会话/最近位置不丢失；Browser
   真实渲染烟测已证明 `CTF(P382)` → `CVE` → `Coding` → `CTF` 后仍回到 P382 工作台且

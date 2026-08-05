@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -193,6 +194,94 @@ func (s *Service) StartPacketParserFixture(ctx context.Context) (Projection, err
 		return Projection{}, err
 	}
 	if err := s.runtime.RecordEnvironment(ctx, attemptScope, lease, false); err != nil {
+		return Projection{}, err
+	}
+	return s.GetJob(ctx, job.ID)
+}
+
+func (s *Service) EnsureCVETrackingWorkspace(ctx context.Context, request TrackingWorkspaceRequest) (Projection, error) {
+	if err := s.checkOpen(); err != nil {
+		return Projection{}, err
+	}
+	cveID := strings.ToUpper(strings.TrimSpace(request.CVEID))
+	if !cveIDPattern.MatchString(cveID) {
+		return Projection{}, fmt.Errorf("CVE tracking workspace requires a CVE-YYYY-NNNN id")
+	}
+	title := strings.TrimSpace(request.Title)
+	if title == "" {
+		title = cveID + " vulnerability learning"
+	}
+	if len([]rune(title)) > 180 {
+		return Projection{}, fmt.Errorf("CVE tracking title must stay within 180 characters")
+	}
+	summary := strings.TrimSpace(request.Summary)
+	if len([]rune(summary)) > 1200 {
+		return Projection{}, fmt.Errorf("CVE tracking summary must stay within 1200 characters")
+	}
+	referenceHref := strings.TrimSpace(request.ReferenceHref)
+	if referenceHref != "" {
+		parsed, err := url.Parse(referenceHref)
+		if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.User != nil {
+			return Projection{}, fmt.Errorf("CVE tracking reference must be an http(s) URL without credentials")
+		}
+	}
+
+	values, err := s.runtime.ListJobs(ctx)
+	if err != nil {
+		return Projection{}, err
+	}
+	for _, value := range values {
+		if value.Role != PackageID {
+			continue
+		}
+		projection, projectionErr := s.GetJob(ctx, value.ID)
+		if projectionErr != nil {
+			return Projection{}, projectionErr
+		}
+		if strings.EqualFold(projection.Target.Name, cveID) && projection.Target.Fixture == "cve-tracking" {
+			return projection, nil
+		}
+	}
+
+	now := time.Now().UTC()
+	job := securityruntime.Job{
+		ID: securityruntime.NewIdentifier("job"), Title: cveID + " · tracking",
+		Role: PackageID, CollaborationMode: "copilot", Status: securityruntime.JobQueued,
+		CreatedAt: now, UpdatedAt: now,
+	}
+	if err := s.runtime.CreateJob(ctx, job); err != nil {
+		return Projection{}, err
+	}
+	scopeTarget := securitypolicy.Target{Kind: securitypolicy.TargetLab, Value: "cve-tracking:" + cveID}
+	if referenceHref != "" {
+		scopeTarget = securitypolicy.Target{Kind: securitypolicy.TargetOrigin, Value: referenceHref}
+	}
+	scopeTarget, err = securitypolicy.NormalizeTarget(scopeTarget)
+	if err != nil {
+		return Projection{}, err
+	}
+	grant, err := securitypolicy.NewGrant(
+		"user-confirmed:cve-tracking",
+		"authorized CVE learning note tracking",
+		[]securitypolicy.Target{scopeTarget},
+		30*24*time.Hour,
+	)
+	if err != nil {
+		return Projection{}, err
+	}
+	target := Target{
+		ID: securityruntime.NewIdentifier("target"), Name: cveID, Version: "tracking",
+		Component: title, Fixture: "cve-tracking", CollaborationMode: "copilot",
+		Scope: grant, AdmittedAt: now,
+	}
+	if summary != "" {
+		target.Component = title + " · " + firstLine(summary, 160)
+	}
+	targetFact, err := marshalRoleFact(FactTargetAdmitted, target, nil, nil)
+	if err != nil {
+		return Projection{}, err
+	}
+	if err := s.runtime.CommitRoleFact(ctx, securityruntime.EventScope{JobID: job.ID}, targetFact); err != nil {
 		return Projection{}, err
 	}
 	return s.GetJob(ctx, job.ID)
@@ -553,6 +642,24 @@ func targetFromProjection(core securityruntime.JobProjection) (Target, error) {
 		return target, nil
 	}
 	return Target{}, fmt.Errorf("vulnerability target fact is missing")
+}
+
+func firstLine(value string, maxRunes int) string {
+	value = strings.TrimSpace(value)
+	if value == "" || maxRunes <= 0 {
+		return ""
+	}
+	for _, delimiter := range []string{"\r\n", "\n", "\r"} {
+		if before, _, ok := strings.Cut(value, delimiter); ok {
+			value = strings.TrimSpace(before)
+			break
+		}
+	}
+	runes := []rune(value)
+	if len(runes) <= maxRunes {
+		return value
+	}
+	return string(runes[:maxRunes]) + "…"
 }
 
 func latestHypothesis(core securityruntime.JobProjection) (Hypothesis, error) {

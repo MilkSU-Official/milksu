@@ -106,6 +106,13 @@ export interface VulnLearningRecordRequest {
   concept?: string
 }
 
+export interface VulnTrackingWorkspaceRequest {
+  cveId: string
+  title: string
+  summary?: string
+  referenceHref?: string
+}
+
 export interface VulnLearningRecord {
   id: string
   kind: VulnLearningRecordRequest['kind']

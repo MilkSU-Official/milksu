@@ -286,6 +286,7 @@ func (a *App) Startup(ctx context.Context) {
 	a.maybeRunExternalSessionImportSmoke()
 	a.maybeRunVulnerabilityFeedSmoke()
 	a.maybeRunVulnerabilityFeedMatrixSmoke()
+	a.maybeRunVulnerabilityLearningWritebackSmoke()
 	a.maybeRunVulnerabilityPracticeSmoke()
 	a.maybeRunCodingArtifactPreviewSmoke()
 	a.maybeRunCodingGitDeliverySmoke()
@@ -1490,6 +1491,10 @@ func (a *App) RecordCTFExternalVerdict(
 
 func (a *App) StartPacketParserResearch() (vuln.Projection, error) {
 	return a.vulnJobs.StartPacketParserFixture(a.commandContext())
+}
+
+func (a *App) EnsureVulnTrackingWorkspace(request vuln.TrackingWorkspaceRequest) (vuln.Projection, error) {
+	return a.vulnJobs.EnsureCVETrackingWorkspace(a.commandContext(), request)
 }
 
 func (a *App) ListVulnJobs() ([]vuln.Summary, error) {

@@ -143,6 +143,43 @@ describe('desktop command adapter', () => {
     expect(fetchGitHubAdvisories).toHaveBeenCalledWith('CVE-2023-46604')
   })
 
+  it('passes CVE tracking workspace creation to the Wails research facade', async () => {
+    const projection = {
+      contractVersion: 'vuln.milksu.dev/v1alpha1',
+      job: { id: 'job-cve', title: 'CVE-2023-46604 · tracking', role: 'vuln.research', collaborationMode: 'copilot', status: 'queued', createdAt: '2026-08-05T00:00:00Z', updatedAt: '2026-08-05T00:00:00Z' },
+      target: { id: 'target-cve', name: 'CVE-2023-46604', version: 'tracking', component: 'ActiveMQ', fixture: 'cve-tracking', collaborationMode: 'copilot', scope: { id: 'scope-cve', source: 'user-confirmed:cve-tracking', purpose: 'authorized CVE learning note tracking', targets: [{ kind: 'lab', value: 'cve-tracking:CVE-2023-46604' }], grantedBy: 'local-user', createdAt: '2026-08-05T00:00:00Z', expiresAt: '2026-09-04T00:00:00Z', revocable: true }, sourceArtifactId: '', readmeArtifactId: '', admittedAt: '2026-08-05T00:00:00Z' },
+      hypotheses: [],
+      experiments: [],
+      artifacts: [],
+      evidence: [],
+      evaluations: [],
+      learning: [],
+      humanOutcome: { goal: 'record learning', reflectionCount: 0, independentSteps: 0, variantCount: 0, summary: '尚未记录学习复盘。' },
+      events: [],
+    }
+    const ensureVulnTrackingWorkspace = vi.fn(async () => projection)
+    Object.defineProperty(window, 'go', {
+      configurable: true,
+      value: {
+        main: {
+          App: {
+            EnsureVulnTrackingWorkspace: ensureVulnTrackingWorkspace,
+          },
+        },
+      },
+    })
+    const request = {
+      cveId: 'CVE-2023-46604',
+      title: 'Apache ActiveMQ OpenWire RCE',
+      summary: 'User-confirmed research note.',
+      referenceHref: 'https://nvd.nist.gov/vuln/detail/CVE-2023-46604',
+    }
+
+    await expect(invokeCommand('ensure_vuln_tracking_workspace', { request })).resolves.toBe(projection)
+    expect(ensureVulnTrackingWorkspace).toHaveBeenCalledTimes(1)
+    expect(ensureVulnTrackingWorkspace).toHaveBeenCalledWith(request)
+  })
+
   it('passes Vulhub practice catalog sync to the Wails read-only fetcher', async () => {
     const catalog = {
       sourceName: 'Vulhub Practice Catalog',

@@ -36,10 +36,12 @@ import SessionHistoryPanel from '@/components-vue/SessionHistoryPanel.vue'
 import VulnerabilityIntelSettingsPanel from '@/components-vue/VulnerabilityIntelSettingsPanel.vue'
 import VulnerabilityLoopPanel from '@/components-vue/VulnerabilityLoopPanel.vue'
 import { useVulnerabilityDashboard } from '@/composables/useVulnerabilityDashboard'
+import { invokeCommand } from '@/desktop'
 import { redactProviderCredentials } from '@/lib/redaction'
 import type { VulnerabilityCodingTask } from '@/composables/useVulnerabilityDashboard'
 import type { SessionHistorySearchResult } from '@/sessionIndexTypes'
 import type { VulnerabilitySeverity, VulnerabilityStatus } from '@/vulnerabilityIntel'
+import type { VulnProjection } from '@/vulnTypes'
 
 defineOptions({ name: 'VulnPage' })
 
@@ -88,6 +90,7 @@ const showCodingConclusionForm = ref(false)
 const codingConclusionText = ref('')
 const codingConclusionError = ref('')
 const codingConclusionNotice = ref('')
+const codingConclusionWritebackBusy = ref(false)
 const historyNoteNotice = ref('')
 const loopWorkspace = ref<HTMLElement | null>(null)
 const practiceWorkspace = ref<HTMLElement | null>(null)
@@ -140,7 +143,7 @@ function addSelectedAssetRecord() {
   }
 }
 
-function importCodingConclusion() {
+async function importCodingConclusion() {
   codingConclusionError.value = ''
   codingConclusionNotice.value = ''
   const raw = codingConclusionText.value.trim()
@@ -156,7 +159,8 @@ function importCodingConclusion() {
     || '已导入 Coding 研究结论，待继续核对。'
   const existing = dashboard.researchNoteFor.value
   const stamp = new Date().toLocaleString()
-  dashboard.updateResearchNote(dashboard.selected.value.id, {
+  const selected = dashboard.selected.value
+  dashboard.updateResearchNote(selected.id, {
     keyFindings: existing.keyFindings.trim()
       ? `${existing.keyFindings.trim()}\n${summary}`
       : summary,
@@ -167,7 +171,32 @@ function importCodingConclusion() {
   })
   codingConclusionText.value = ''
   showCodingConclusionForm.value = false
-  codingConclusionNotice.value = '已导入到研究笔记；请保留可核对材料链接，避免把 Agent 推测当成事实。'
+  codingConclusionWritebackBusy.value = true
+  try {
+    const workspace = await invokeCommand<VulnProjection>('ensure_vuln_tracking_workspace', {
+      request: {
+        cveId: selected.id,
+        title: selected.title,
+        summary: selected.summary,
+        referenceHref: selected.references[0]?.href || '',
+      },
+    })
+    const projection = await invokeCommand<VulnProjection>('record_vuln_learning', {
+      id: workspace.job.id,
+      request: {
+        kind: 'reflection',
+        content: raw,
+        concept: selected.id,
+      },
+    })
+    dashboard.markResearchNoteWorkspace(selected.id, projection.job.id, projection.learning.length)
+    codingConclusionNotice.value = `已导入到研究笔记，并写入正式研究档案 ${projection.job.id}（${projection.learning.length} 条学习记录）。`
+  } catch (cause) {
+    codingConclusionError.value = `已保存到本机研究笔记；正式研究档案写入失败：${cause instanceof Error ? cause.message : String(cause)}`
+    codingConclusionNotice.value = '已导入到研究笔记；请保留可核对材料链接，避免把 Agent 推测当成事实。'
+  } finally {
+    codingConclusionWritebackBusy.value = false
+  }
 }
 
 function sessionHistorySourceLabel(source = '') {
@@ -1012,10 +1041,10 @@ function statusVariant(status: VulnerabilityStatus) {
             />
             <p v-if="codingConclusionError" class="mt-2 text-caption text-destructive">{{ codingConclusionError }}</p>
             <div class="mt-3 flex items-center gap-2">
-              <Button type="submit" size="sm">
+              <Button type="submit" size="sm" :loading="codingConclusionWritebackBusy">
                 导入到笔记
               </Button>
-              <Button type="button" variant="ghost" size="sm" @click="showCodingConclusionForm = false">
+              <Button type="button" variant="ghost" size="sm" :disabled="codingConclusionWritebackBusy" @click="showCodingConclusionForm = false">
                 取消
               </Button>
             </div>
@@ -1025,6 +1054,16 @@ function statusVariant(status: VulnerabilityStatus) {
           </p>
           <p v-if="historyNoteNotice" class="mt-3 text-caption text-primary">
             {{ historyNoteNotice }}
+          </p>
+          <p
+            v-if="dashboard.researchNoteFor.value.workspaceJobId"
+            class="mt-3 text-caption leading-5 text-muted-foreground"
+          >
+            正式研究档案：{{ dashboard.researchNoteFor.value.workspaceJobId }}
+            · {{ dashboard.researchNoteFor.value.workspaceLearningCount ?? 0 }} 条学习记录
+            <span v-if="dashboard.researchNoteFor.value.workspaceSyncedAt">
+              · {{ new Date(dashboard.researchNoteFor.value.workspaceSyncedAt).toLocaleString() }}
+            </span>
           </p>
           <div class="mt-4 space-y-3">
             <label class="block">

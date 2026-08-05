@@ -118,6 +118,13 @@ type LearningRecordRequest struct {
 	Concept string `json:"concept"`
 }
 
+type TrackingWorkspaceRequest struct {
+	CVEID         string `json:"cveId"`
+	Title         string `json:"title"`
+	Summary       string `json:"summary"`
+	ReferenceHref string `json:"referenceHref"`
+}
+
 type LearningRecord struct {
 	ID        string    `json:"id"`
 	Kind      string    `json:"kind"`
