@@ -1,20 +1,26 @@
 # 安全 Agent 与通用 Agent 的能力边界
 
-> **当前架构目标与最高优先级设计依据。** MilkSU 的产品定位、领域拆分和核心边界以本文为准；六层架构与 Role Package 文档负责把本文转成实现边界，不能反过来覆盖本文。旧的 Roadmap、Sprint、固定 Task Type 和 Security Kernel 设计已经从仓库删除。
+> **基础产品边界。** MilkSU 的产品定位、领域拆分和核心安全不变量以本文为准；当前实现、
+> 任务和发布状态以[文档与任务状态登记](/developer/document-status)和
+> [架构快照](/architecture/)为准。旧的 Roadmap、Sprint、固定 Task Type 和 Security Kernel
+> 设计已经从仓库删除。
 >
-> 状态：当前主线（其中关于差异化的产品假设仍需用固定任务集验证）
+> 状态：Foundational / Active constraints（差异化假设仍需固定任务集验证）
 >
 > 日期：2026-07-16；目标 Runtime 于 2026-07-19 按本文边界完成架构重启
 
 ## 文档优先级
 
-当 MilkSU 文档发生冲突时，按下面的顺序处理：
+当 MilkSU 文档发生冲突时，先区分“产品不变量”和“当前事实”：
 
-1. **本文**决定“为什么做、哪些概念不能混、什么值得进入核心”。
-2. `docs/developer/architecture.md` 决定“目标系统怎样分层和交换数据”。
-3. `docs/developer/role-packages.md` 决定“CTF 与 Vuln 怎样工作、怎样与人协作”。
-4. `docs/developer/industry-baseline.md` 决定“怎样研究和分类候选开源项目”。
-如果实现与前四项冲突，不应为了迁就现状修改目标。要么删除冲突实现，要么先写清新的契约和证据，再实现。只有新的研究、任务数据或 benchmark 证据推翻本文假设时，才更新本文本身，并在提交说明中写明原因。
+1. [文档与任务状态登记](/developer/document-status)和[当前架构快照](/architecture/)
+   决定现在实现了什么、暂停什么；
+2. **本文**决定为什么做、哪些概念不能混、什么值得进入核心；
+3. `docs/developer/architecture.md` 与 `role-packages.md` 决定目标系统怎样分层和交换数据；
+4. ADR、Checkpoint、带日期 Review 只说明当时为什么这样决定。
+
+如果实现与产品不变量冲突，不应为了迁就现状修改目标；如果只是完成状态变化，则更新 Current
+文档，不反向改写历史 ADR。
 
 ## 建议怎么读
 

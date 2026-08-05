@@ -1,0 +1,34 @@
+# Package smoke fixture. Real sessions write a per-target policy from the
+# user-selected visible App/window in manager.go.
+version: 2
+mode: bounded
+expires_after: 8h
+idle_timeout: 30m
+resources:
+  apps:
+    - bundle_id: com.example.preview
+      launch: false
+      windows: all
+      terminate: deny
+allow:
+  tools:
+    - check_permissions
+    - start_session
+    - get_session_state
+    - end_session
+    - list_windows
+    - get_window_state
+    - click
+    - type_text
+    - press_key
+    - scroll
+deny:
+  tools:
+    - get_desktop_state
+    - launch_app
+    - hotkey
+    - drag
+    - page
+    - browser_prepare
+    - escalate_session
+    - start_recording

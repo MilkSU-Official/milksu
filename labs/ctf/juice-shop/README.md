@@ -1,5 +1,8 @@
 # OWASP Juice Shop 本地测试夹具
 
+> 状态：**Paused developer fixture**。不要因本脚本可运行而恢复 Labs 产品开发；当前范围
+> 以 `docs/developer/current-objectives.md` 为准。
+
 这是 MilkSU CTF Harness MVP 的第一个可重复靶场。它只监听
 `127.0.0.1`，独立 bridge 关闭 IP masquerade 以尽量避免容器主动访问外网；
 这不是虚拟机级安全边界。请不要把端口改为 `0.0.0.0`，也不要把这里的任务配置
@@ -34,15 +37,17 @@ cd labs/ctf/juice-shop
 ./lab.sh status
 ```
 
-浏览器目标始终是 <http://127.0.0.1:3000>。停止（保留状态）、完全重置和查看日志：
+浏览器目标始终是 <http://127.0.0.1:3000>。停止（保留状态）、完全重置、彻底清理和查看日志：
 
 ```bash
 ./lab.sh stop
 ./lab.sh reset
+./lab.sh clean
 ./lab.sh logs
 ```
 
-`reset` 会移除容器及其本地挑战状态，再从同一固定镜像建立干净环境。
+`reset` 会移除容器及其本地挑战状态，再从同一固定镜像建立干净环境；
+`clean` 会移除容器、网络和本地卷，但保留已下载的固定镜像供下次启动。
 
 ## MVP 判题
 

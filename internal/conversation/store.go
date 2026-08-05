@@ -14,19 +14,71 @@ import (
 var validID = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
 
 type StoredMessage struct {
-	ID        string  `json:"id"`
-	Role      string  `json:"role"`
-	Content   string  `json:"content"`
-	Timestamp uint64  `json:"timestamp"`
-	ToolName  *string `json:"toolName,omitempty"`
-	Status    *string `json:"status,omitempty"`
+	ID                string             `json:"id"`
+	Role              string             `json:"role"`
+	Content           string             `json:"content"`
+	Timestamp         uint64             `json:"timestamp"`
+	ToolName          *string            `json:"toolName,omitempty"`
+	ToolCallID        *string            `json:"toolCallId,omitempty"`
+	DurationMS        *int64             `json:"durationMs,omitempty"`
+	Status            *string            `json:"status,omitempty"`
+	ApprovalRequestID *string            `json:"approvalRequestId,omitempty"`
+	ApprovalInput     *string            `json:"approvalInput,omitempty"`
+	ApprovalState     *string            `json:"approvalState,omitempty"`
+	ApprovalReason    *string            `json:"approvalReason,omitempty"`
+	Attachments       []StoredAttachment `json:"attachments,omitempty"`
+}
+
+type StoredAttachment struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	MediaType string `json:"mediaType"`
+	Size      int64  `json:"size"`
+	SHA256    string `json:"sha256"`
+}
+
+type StoredCapability struct {
+	ID     string `json:"id"`
+	Label  string `json:"label"`
+	Status string `json:"status"`
+	Detail string `json:"detail"`
+}
+
+type StoredGoal struct {
+	ID                  string `json:"id"`
+	Text                string `json:"text"`
+	Status              string `json:"status"`
+	StartedAt           int64  `json:"startedAt"`
+	UpdatedAt           int64  `json:"updatedAt"`
+	Iteration           int    `json:"iteration"`
+	TokenBudget         *int64 `json:"tokenBudget,omitempty"`
+	TokensUsed          int64  `json:"tokensUsed"`
+	TimeUsedSeconds     int64  `json:"timeUsedSeconds"`
+	AutomaticModelTurns int    `json:"automaticModelTurns"`
+	QueuedCount         int    `json:"queuedCount"`
 }
 
 type StoredConversation struct {
-	ID        string          `json:"id"`
-	Title     string          `json:"title"`
-	CreatedAt uint64          `json:"createdAt"`
-	Messages  []StoredMessage `json:"messages"`
+	ID                string             `json:"id"`
+	Title             string             `json:"title"`
+	CreatedAt         uint64             `json:"createdAt"`
+	WorkspacePath     string             `json:"workspacePath,omitempty"`
+	ModelMode         string             `json:"modelMode,omitempty"`
+	ModelProvider     string             `json:"modelProvider,omitempty"`
+	ModelID           string             `json:"modelId,omitempty"`
+	ExecutionMode     string             `json:"executionMode,omitempty"`
+	ApprovalPolicy    string             `json:"approvalPolicy,omitempty"`
+	MCPServers        []string           `json:"mcpServers,omitempty"`
+	MCPConfigDigest   string             `json:"mcpConfigDigest,omitempty"`
+	AgentTools        []string           `json:"agentTools,omitempty"`
+	AgentExtensions   []string           `json:"agentExtensions,omitempty"`
+	AgentSkills       []string           `json:"agentSkills,omitempty"`
+	AgentCapabilities []StoredCapability `json:"agentCapabilities,omitempty"`
+	AgentGoal         *StoredGoal        `json:"agentGoal,omitempty"`
+	CTFJobID          string             `json:"ctfJobId,omitempty"`
+	CTFMode           string             `json:"ctfMode,omitempty"`
+	CTFRole           string             `json:"ctfRole,omitempty"`
+	Messages          []StoredMessage    `json:"messages"`
 }
 
 type Store struct {
@@ -69,6 +121,24 @@ func (s *Store) List() ([]StoredConversation, error) {
 		return values[i].CreatedAt > values[j].CreatedAt
 	})
 	return values, nil
+}
+
+func (s *Store) Get(id string) (StoredConversation, error) {
+	if !validID.MatchString(id) {
+		return StoredConversation{}, fmt.Errorf("invalid conversation id")
+	}
+	data, err := os.ReadFile(filepath.Join(s.directory, id+".json"))
+	if err != nil {
+		return StoredConversation{}, fmt.Errorf("read conversation: %w", err)
+	}
+	var value StoredConversation
+	if err := json.Unmarshal(data, &value); err != nil {
+		return StoredConversation{}, fmt.Errorf("decode conversation: %w", err)
+	}
+	if value.ID != id {
+		return StoredConversation{}, fmt.Errorf("conversation id does not match stored record")
+	}
+	return value, nil
 }
 
 func (s *Store) Save(value StoredConversation) error {

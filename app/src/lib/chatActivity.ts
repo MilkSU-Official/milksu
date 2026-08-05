@@ -1,0 +1,252 @@
+import type { Message } from '@/types'
+
+export interface ChatMessageBlock {
+  kind: 'message'
+  id: string
+  message: Message
+}
+
+export interface ChatActivityBlock {
+  kind: 'activity'
+  id: string
+  messages: Message[]
+  running: boolean
+}
+
+export interface ChatActivityEntry {
+  id: string
+  toolName: string
+  request?: Message
+  result?: Message
+  durationMs?: number
+  running: boolean
+}
+
+export type ChatTranscriptBlock = ChatMessageBlock | ChatActivityBlock
+
+const commandTools = new Set([
+  'bash',
+  'background',
+  'background_output',
+  'bg_task',
+  'bg_status',
+])
+const mutationTools = new Set(['edit', 'write', 'lsp_fix'])
+const searchTools = new Set(['find', 'grep', 'ls', 'read'])
+const imageGenTools = new Set(['milksu_imagegen'])
+
+function isApproval(message: Message) {
+  return Boolean(message.approvalRequestId)
+}
+
+function messageBlock(message: Message): ChatMessageBlock {
+  return {
+    kind: 'message',
+    id: `message:${message.id}`,
+    message,
+  }
+}
+
+function activityBlock(messages: Message[], running: boolean): ChatActivityBlock {
+  return {
+    kind: 'activity',
+    id: `activity:${messages[0]?.id ?? 'empty'}:${messages.at(-1)?.id ?? 'empty'}`,
+    messages,
+    running,
+  }
+}
+
+function flushToolSegment(
+  blocks: ChatTranscriptBlock[],
+  segment: Message[],
+  conversationRunning: boolean,
+) {
+  if (!segment.length) return
+  blocks.push(activityBlock(
+    segment,
+    conversationRunning && segment.some(message => message.status === 'running'),
+  ))
+}
+
+export function buildChatTranscript(
+  messages: Message[],
+  conversationRunning: boolean,
+): ChatTranscriptBlock[] {
+  const blocks: ChatTranscriptBlock[] = []
+  let toolSegment: Message[] = []
+
+  const flush = () => {
+    flushToolSegment(blocks, toolSegment, conversationRunning)
+    toolSegment = []
+  }
+
+  for (const message of messages) {
+    if (message.role === 'tool' && !isApproval(message)) {
+      toolSegment.push(message)
+      continue
+    }
+
+    flush()
+    if (message.role === 'assistant' && !message.content.trim()) {
+      continue
+    }
+    if (message.role === 'user' || message.role === 'assistant' || isApproval(message)) {
+      blocks.push(messageBlock(message))
+    }
+  }
+  flush()
+
+  return blocks
+}
+
+function entryCount(entries: ChatActivityEntry[], tools: Set<string>) {
+  return entries.filter(entry => tools.has(entry.toolName)).length
+}
+
+export function chatActivitySummary(messages: Message[]) {
+  const entries = buildChatActivityEntries(messages)
+  if (!entries.length) return '正在思考'
+
+  const architectureCount = entries.filter(entry => entry.toolName === 'milksu_archify').length
+  if (architectureCount) return '处理架构图'
+  const imageGenCount = entryCount(entries, imageGenTools)
+  if (imageGenCount) return imageGenCount > 1 ? '处理了多张图片' : '生成或编辑了图片'
+
+  const mutations = entryCount(entries, mutationTools)
+  const commands = entryCount(entries, commandTools)
+  const searches = entryCount(entries, searchTools)
+  const parts: string[] = []
+
+  if (mutations) parts.push('编辑了文件')
+  if (commands) parts.push(commands > 1 ? '运行了多个命令' : '运行了命令')
+  if (!parts.length && searches) parts.push('读取并检索了项目')
+  if (!parts.length) {
+    parts.push(entries.length > 1 ? '使用了多个工具' : `使用了 ${entries[0]?.toolName ?? '工具'}`)
+  }
+
+  return parts.join('')
+}
+
+export function buildChatActivityEntries(messages: Message[]): ChatActivityEntry[] {
+  const entries: ChatActivityEntry[] = []
+  const pendingByCallID = new Map<string, ChatActivityEntry>()
+  const pendingByToolName = new Map<string, ChatActivityEntry[]>()
+
+  for (const message of messages) {
+    if (message.role !== 'tool') continue
+    const toolName = String(message.toolName ?? 'tool').toLowerCase()
+
+    if (message.status === 'running') {
+      const entry: ChatActivityEntry = {
+        id: `tool:${message.id}`,
+        toolName,
+        request: message,
+        running: true,
+      }
+      entries.push(entry)
+      if (message.toolCallId) {
+        pendingByCallID.set(message.toolCallId, entry)
+      }
+      const queue = pendingByToolName.get(toolName) ?? []
+      queue.push(entry)
+      pendingByToolName.set(toolName, queue)
+      continue
+    }
+
+    const queue = pendingByToolName.get(toolName)
+    const requestEntry = message.toolCallId
+      ? pendingByCallID.get(message.toolCallId)
+      : queue?.[0]
+    if (requestEntry) {
+      if (requestEntry.request?.toolCallId) {
+        pendingByCallID.delete(requestEntry.request.toolCallId)
+      }
+      const queueIndex = queue?.indexOf(requestEntry) ?? -1
+      if (queue && queueIndex >= 0) queue.splice(queueIndex, 1)
+      requestEntry.result = message
+      requestEntry.durationMs = message.durationMs
+      requestEntry.running = false
+      continue
+    }
+
+    entries.push({
+      id: `tool:${message.id}`,
+      toolName,
+      result: message,
+      durationMs: message.durationMs,
+      running: false,
+    })
+  }
+
+  return entries
+}
+
+function compactLine(value: string, limit = 112) {
+  const line = value
+    .split(/\r?\n/)
+    .map(part => part.trim())
+    .find(Boolean)
+    ?.replace(/^[-*#>\s]+/, '')
+    .replace(/`/g, '')
+    ?? ''
+  if (line.length <= limit) return line
+  return `${line.slice(0, Math.max(0, limit - 1)).trimEnd()}…`
+}
+
+function usefulToolSubject(value: string) {
+  const subject = compactLine(value)
+  if (!subject || subject === '{}' || subject === '[]') return ''
+  if (/^[{[]/.test(subject)) return ''
+  return subject
+}
+
+function isChatActivityEntry(value: Message | ChatActivityEntry): value is ChatActivityEntry {
+  return 'request' in value || 'result' in value
+}
+
+export function chatActivityEntrySummary(messageOrEntry: Message | ChatActivityEntry) {
+  const isEntry = isChatActivityEntry(messageOrEntry)
+  const message: Message | undefined = isEntry
+    ? messageOrEntry.request ?? messageOrEntry.result
+    : messageOrEntry
+  if (!message) return '使用工具'
+
+  const firstLine = compactLine(message.content)
+  if (message.role === 'assistant') return firstLine || '整理下一步'
+
+  const name = isEntry
+    ? messageOrEntry.toolName
+    : String(message.toolName ?? 'tool').toLowerCase()
+  const writtenPath = name === 'write'
+    ? message.content.match(/Successfully wrote \d+ bytes to ([^\r\n]+)/)?.[1]
+    : undefined
+  const subject = writtenPath ?? usefulToolSubject(message.content)
+  const suffix = subject ? ` ${subject}` : ''
+  if (name === 'bash') {
+    return subject && (!isEntry || subject.startsWith('$'))
+      ? `运行 ${subject}`
+      : '运行命令'
+  }
+  if (name === 'background' || name === 'bg_task') return `管理后台任务${suffix}`
+  if (name === 'background_output' || name === 'bg_status') return `检查后台任务${suffix}`
+  if (name === 'read') return `读取${suffix || '文件'}`
+  if (name === 'write') return `写入${suffix || '文件'}`
+  if (name === 'edit') return `编辑${suffix || '文件'}`
+  if (name === 'ls') return `查看${suffix || '目录'}`
+  if (name === 'find') return `查找${suffix || '文件'}`
+  if (name === 'grep') return `搜索${suffix || '内容'}`
+  if (name === 'milksu_progress') return '更新任务进度'
+  if (name === 'milksu_archify') return '处理架构图'
+  if (name === 'milksu_imagegen') {
+    let outputPath = ''
+    if (isEntry && messageOrEntry.result?.content) {
+      try {
+        outputPath = String(JSON.parse(messageOrEntry.result.content)?.output?.path ?? '')
+      } catch {
+        // Fall back to the bounded tool-start summary.
+      }
+    }
+    return outputPath ? `交付图片 ${outputPath}` : subject || '处理图片'
+  }
+  return subject ? `${message.toolName ?? '工具'} · ${subject}` : message.toolName ?? '使用工具'
+}

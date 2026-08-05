@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MilkSU Coding Browser Fixture</title>
+  </head>
+  <body>
+    <main>
+      <h1>MilkSU Coding Browser</h1>
+      <label>
+        Project
+        <input id="project" value="unverified" />
+      </label>
+      <button id="verify" type="button">Verify</button>
+      <output id="result">pending</output>
+      <p id="evidence">Console and Network evidence pending</p>
+    </main>
+    <script>
+      document.querySelector('#verify').addEventListener('click', () => {
+        const verified = document.querySelector('#project').value === 'MilkSU'
+        document.querySelector('#result').textContent = verified
+          ? 'MILKSU-BROWSER-OK'
+          : 'invalid'
+        if (!verified) return
+
+        console.error('MILKSU-BROWSER-EXPECTED-CONSOLE-ERROR')
+        fetch('http://127.0.0.1:1/milksu-expected-network-failure')
+          .catch(() => {
+            document.querySelector('#evidence').textContent =
+              'MILKSU-BROWSER-EXPECTED-NETWORK-FAILURE'
+          })
+      })
+    </script>
+  </body>
+</html>

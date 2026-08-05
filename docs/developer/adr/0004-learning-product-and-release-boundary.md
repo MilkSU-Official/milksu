@@ -1,5 +1,8 @@
 # ADR-0004：学习产品、能力与开源发布边界
 
+> 文档状态：**Historical ADR with active invariants**。授权、Evidence、风险分级和发布边界
+> 仍有效；里程碑和实现状态以[当前目标](/developer/current-objectives)为准。
+>
 > 状态：已接受，M2 后续与 M3 前置约束
 >
 > 日期：2026-07-20

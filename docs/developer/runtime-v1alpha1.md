@@ -1,6 +1,10 @@
 # Runtime v1alpha1：M1 可恢复任务契约
 
-> 状态：M1 实现契约
+> 文档状态：**Historical implementation contract**。
+>
+> 本页冻结 M1 当时的最小契约，不描述当前产品表面或任务顺序。当前 Runtime 事实见
+> [当前系统与分层](/architecture/current-system)，当前缺口见
+> [目标覆盖台账](/developer/objective-coverage-ledger)。
 >
 > 日期：2026-07-19
 

@@ -15,32 +15,75 @@ export default defineConfig({
 
     nav: [
       { text: '开发者文档', link: '/developer/' },
+      { text: '架构快照', link: '/architecture/' },
       { text: 'Wiki', link: '/wiki/' },
     ],
 
     sidebar: {
       '/developer/': [
         {
-          text: '开始',
+          text: '当前事实与目标',
           items: [
             { text: '开发者文档', link: '/developer/' },
-            { text: '开发计划（当前主线）', link: '/developer/development-plan' },
+            { text: '当前开发目标（Paused）', link: '/developer/current-objectives' },
+            { text: '目标覆盖台账', link: '/developer/objective-coverage-ledger' },
+            { text: '目标共同评估工作簿', link: '/developer/objective-review-workbook' },
+            { text: '文档与事实状态', link: '/developer/document-status' },
+            { text: '当前系统与分层', link: '/architecture/current-system' },
           ],
         },
         {
-          text: '核心架构',
+          text: '稳定工程契约',
           items: [
-            { text: '能力边界（当前主线）', link: '/developer/security-agent-boundary' },
-            { text: '六层运行时架构', link: '/developer/architecture' },
-            { text: 'Runtime v1alpha1 · M1 契约', link: '/developer/runtime-v1alpha1' },
-            { text: 'ADR-0001 · Engine 与桌面边界', link: '/developer/adr/0001-agent-engine-and-desktop-boundary' },
-            { text: 'ADR-0002 · Runtime 事实与恢复', link: '/developer/adr/0002-runtime-facts-and-recovery' },
-            { text: 'ADR-0003 · CTF 纵切与 Pi Adapter', link: '/developer/adr/0003-ctf-vertical-slice' },
-            { text: 'ADR-0004 · 学习产品与发布边界', link: '/developer/adr/0004-learning-product-and-release-boundary' },
-            { text: '题目接入与自动操作', link: '/developer/challenge-intake-and-automation' },
-            { text: '靶场与环境管理', link: '/developer/lab-management' },
+            { text: 'Coding / Pi 扩展边界', link: '/architecture/coding-agent-pi-extension-boundary' },
+            { text: 'CTF Intake / Judge / Memory', link: '/architecture/ctf-intake-agent-judge-memory' },
+            { text: 'PI Resource Whitelist', link: '/developer/pi-resource-whitelist' },
+            { text: '安全 Agent 能力边界', link: '/developer/security-agent-boundary' },
+            { text: '可验证安全任务运行时', link: '/developer/architecture' },
             { text: 'Role Packages', link: '/developer/role-packages' },
-            { text: '开源项目坐标', link: '/developer/industry-baseline' },
+          ],
+        },
+        {
+          text: '验收证据',
+          items: [
+            { text: 'Coding Agent 交付', link: '/developer/coding-agent-delivery-acceptance' },
+            { text: 'Coding Browser', link: '/developer/coding-browser-acceptance' },
+            { text: '前端视觉 QA', link: '/developer/frontend-visual-qa-acceptance' },
+            { text: '本地交付基线', link: '/developer/local-delivery-baseline' },
+            { text: 'NYU safe-static 边界', link: '/developer/nyu-ctf-bench-eval' },
+          ],
+        },
+        {
+          text: '研究与历史（非计划）',
+          collapsed: true,
+          items: [
+            {
+              text: 'Wallbreaker Harness 调研',
+              link: '/developer/research/2026-08-03-wallbreaker-harness-review',
+            },
+            { text: '开源项目基线', link: '/developer/industry-baseline' },
+            { text: '题目接入研究', link: '/developer/challenge-intake-and-automation' },
+            { text: 'Runtime v1alpha1 历史契约', link: '/developer/runtime-v1alpha1' },
+          ],
+        },
+      ],
+
+      '/architecture/': [
+        {
+          text: '当前事实',
+          items: [
+            { text: '架构快照索引', link: '/architecture/' },
+            { text: '当前系统与分层', link: '/architecture/current-system' },
+            { text: 'CTF Intake / Judge / Memory', link: '/architecture/ctf-intake-agent-judge-memory' },
+            { text: 'Coding / Pi 扩展边界', link: '/architecture/coding-agent-pi-extension-boundary' },
+          ],
+        },
+        {
+          text: '未来设计（未发布）',
+          items: [
+            { text: '安全学习与研究平台', link: '/architecture/security-learning-and-research-platform' },
+            { text: 'CTF Labs 设计', link: '/architecture/ctf-labs-design' },
+            { text: 'CVE 研究工作台设计', link: '/architecture/cve-research-workbench-design' },
           ],
         },
       ],

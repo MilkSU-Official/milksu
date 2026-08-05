@@ -1,0 +1,34 @@
+export type WorkspaceSection = 'ctf' | 'vuln' | 'chat'
+export type CTFWorkspaceSection = 'catalog' | 'labs'
+export type AppSection = WorkspaceSection | 'settings'
+
+export const WORKSPACE_RAIL_ITEMS = [
+  { id: 'ctf', label: 'CTF' },
+  { id: 'vuln', label: 'CVE' },
+  { id: 'chat', label: 'Coding' },
+] as const satisfies ReadonlyArray<{
+  id: WorkspaceSection
+  label: string
+}>
+
+export const CTF_CONTEXT_ITEMS = [
+  { id: 'catalog', label: '题库' },
+] as const satisfies ReadonlyArray<{
+  id: CTFWorkspaceSection
+  label: string
+}>
+
+export function showsCodingHistory(section: WorkspaceSection) {
+  return section === 'chat'
+}
+
+export function workspaceContextLabel(section: WorkspaceSection) {
+  return WORKSPACE_RAIL_ITEMS.find(item => item.id === section)?.label ?? 'MilkSU'
+}
+
+export function settingsReturnSection(
+  currentSection: AppSection,
+  fallback: WorkspaceSection = 'ctf',
+): WorkspaceSection {
+  return currentSection === 'settings' ? fallback : currentSection
+}

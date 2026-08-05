@@ -1,108 +1,82 @@
 # MilkSU
 
-MilkSU 是一个**一站式网络安全 AI 学习客户端**。它让人与安全 Agent 在明确授权的 CTF、漏洞研究和攻防训练环境中共同提出假设、执行实验、验证证据并复盘方法；它不把“自动扫描任意互联网目标”作为产品能力或开源目标。
+MilkSU 是一个 macOS-first 的本地 AI 学习与开发客户端，当前产品主线是：
 
-底层仍是一个由用户拥有的、可验证的 Security Agent Harness 与桌面控制面：MilkSU 不从零重写模型调用、上下文压缩和通用工具循环，而是选择 Pi、Codex CLI 开源核心等成熟 Coding Agent Engine 作为可改造基座，再自己实现安全学习任务的假设、实验、证据、副作用、判分、恢复和教学闭环。直接运行完整 Codex/Claude Code CLI 仍只是可选兼容方式。
+- **Coding Agent**：以固定版本 Pi 为通用 Agent 基座，在用户授权的项目中持续修改、构建、
+  测试、预览、恢复并交付代码；
+- **CTF**：把题面、材料、Agent 轨迹、候选、平台 Judge、恢复、复盘和训练证据连成可验证
+  的学习闭环。
 
-## 产品使命
+MilkSU 不从零重写通用模型调用、Tool Loop、Compaction、LSP、Browser 或 ImageGen。
+通用能力优先复用成熟组件；自研重点是桌面权限边界，以及 CTF 的 Evidence、Judge、
+Recovery、Memory、教学和 Agent 协作。
 
-**MilkSU 是一个人与安全 Agent 共同工作的网络安全研究与训练环境。它既帮助用户在授权环境中完成更多真实学习任务，也通过可验证的实验、证据和复盘，让用户真正掌握完成这些任务的方法。**
+> 当前仍是 pre-release 开发版本，不是正式签名、公证或可自动升级的发行包。
+>
+> 产品开发目标已于 2026-08-03 恢复，当前短期节奏切到
+> [产品闭环冲刺](docs/developer/product-loop-sprint.md)：先跑通 UI/UX、Coding 产品闭环和
+> CVE 学习/追踪工作台骨架；非阻塞 Bug 和细节先登记、后批量修复。当前进度和未完成项只以
+> [目标覆盖台账](docs/developer/objective-coverage-ledger.md)为准。
 
-第一阶段只开发两个学习场景：**CTF** 与 **Vulnerability Research（Vuln）**；以后再扩展红队、蓝队等攻防学习。它们不是聊天页里的几个按钮，而是独立、可验证、可教学的 Role Package 闭环。
+## 当前事实
 
-文档站首页是一屏架构总图，也是当前设计基准。完整论证按以下顺序阅读：
+| 领域 | 可以准确声称 | 仍不能声称 |
+| --- | --- | --- |
+| Coding | Plan/Go、三档权限、项目工具、附件、本地 OCR、LSP、Artifact 预览、隔离 Browser、后台任务、Diff/Hunk、Git、PR 预览、worktree、ImageGen 和 Project MCP 均已有不同程度的工程主链或验收证据 | 尚未通过一次完整、长时间、跨 App 重启并最终发布私有 PR 的 “MilkSU develops MilkSU” Gate；不能称为 Codex 等价产品 |
+| CTF | NSSCTF/CTFshow 目录、自定义题、单题工作区、Coach/Copilot/Delegate、Evidence、候选、Judge、Checkpoint、恢复、复盘和 Memory 主链已存在；NSSCTF P3879 有一条真实 `correct=true` 记录 | 只有 Web 窄路径有真实 Judge 成功，不能称为六赛道通用 CTF 成绩 |
+| CVE | 一级菜单和内置情报追踪页存在，本冲刺定位为学习/追踪工作台：关注、研究任务、资产命中、学习路径、证据边界和后续 Agent 接手任务 | 不是红队 Agent、批量扫描器、自动 PoC 复现器或披露平台；纵深研究和真实外部同步后置 |
+| Memory | 用户/Agent/协作/导入和提示依赖的归属模型、当前题排除及相关/无关召回测试已经存在 | 尚未完成真实 36 条分层轨迹、跨题推荐和用户能力画像校准 |
+| Runtime | 多轮工具 fixture、Sidecar 恢复、Compaction、超时/取消、预算和失败分类已有可复跑报告 | 完整 App 的用户可见长任务恢复仍未通过；NYU safe-static 只是开发者 smoke，不是 MilkSU CTF Outcome |
+| 发行 | 本地备份、恢复、脱敏诊断、最低窗口和单机性能基线已存在 | Developer ID、Hardened Runtime、公证、升级、新机器和正式支持矩阵尚未进入 RC 验收 |
 
-1. [安全 Agent 与通用 Agent 的能力边界](docs/developer/security-agent-boundary.md)
-2. [六层运行时架构](docs/developer/architecture.md)
-3. [CTF / Vuln Role Packages](docs/developer/role-packages.md)
-4. [靶场与环境管理](docs/developer/lab-management.md)
-5. [开源项目坐标](docs/developer/industry-baseline.md)
-6. [开发计划](docs/developer/development-plan.md)
-7. [ADR-0001：Agent Engine 与桌面进程边界](docs/developer/adr/0001-agent-engine-and-desktop-boundary.md)
-8. [Runtime v1alpha1：M1 可恢复任务契约](docs/developer/runtime-v1alpha1.md)
-9. [ADR-0002：Runtime 事实、存储与恢复边界](docs/developer/adr/0002-runtime-facts-and-recovery.md)
-10. [ADR-0003：M2-A CTF 纵切与 Pi Security Adapter](docs/developer/adr/0003-ctf-vertical-slice.md)
-11. [ADR-0004：学习产品、能力与开源发布边界](docs/developer/adr/0004-learning-product-and-release-boundary.md)
+Lab 纵深闭环仍保持 `Paused / Designed`，不进入当前真实完成条件。CVE 纵深研究后置，但
+一级菜单需要有可理解的学习/追踪骨架。实验代码和历史设计不能被描述为当前用户能力。
 
-## 三个不能混淆的问题
+## 稳定边界
 
-- **Agent Security**：保护 Agent、凭据、数据和工具边界，是所有高权限 Agent 都可能需要的横切能力。
-- **Role Package**：定义安全任务的目标、长期状态、证据与独立判分方式，回答“怎样才算赢”。
-- **Capability Package**：提供 Binary、Web、Network、Mobile、Forensics、Fuzz 等可复用工具箱。
+- 模型候选不等于成功；CTF 成功由平台 Judge 或其他独立 Evaluator 决定。
+- Provider Credential 不进入模型上下文、前端、普通文件、日志、诊断包或迁移。
+- “替我审批”和“完全访问”优先减少普通任务中的无意义中断，但不会绕过付费、外部账户、
+  扩大 Scope、托管发布、路径边界或不可逆操作。
+- 只允许向用户明确授权的 MilkSU 私有远端发布，不向引用的开源项目创建 PR。
+- 新代码直接实现当前干净模型；pre-release 旧 schema 和过渡结构在产品稳定后集中做一次
+  破坏性收口，不在功能纵切中途维护临时兼容层。
 
-Role 与 Capability 可以自由组合。二进制逆向不是某个角色的别名；读取不可信内容也不是安全任务 Agent 的专属定义。
+## 文档入口
 
-## 六层架构
+先按以下顺序阅读，避免从历史 ADR 恢复旧计划：
 
-```text
-L1  Desktop Surface      macOS first / Windows later
-L2  Role Packages        Red / Blue / CTF / AppSec / Malware / Vuln
-L3  Capability Packages  Binary / Web / Net / Mobile / Forensics / Fuzz
-L4  Security Runtime     Environment / Evidence / Effect / Evaluator / Recovery
-L5  Agent Engine         Pi / Codex Core / Model APIs / External Runtimes
-L6  Agent Integrity      Scope / Provenance / Sandbox / Credential / Supply Chain
-```
+1. [当前开发目标](docs/developer/current-objectives.md)：唯一目标契约、优先级和广度执行规则。
+2. [目标覆盖台账](docs/developer/objective-coverage-ledger.md)：90 个细项的证据、缺口与统一计分。
+3. [文档与事实状态](docs/developer/document-status.md)：哪些文档是 Current、Target、Evidence、
+   Historical、Research 或 Paused。
+4. [当前系统与分层](docs/architecture/current-system.md)：当前代码中的进程、模块和边界。
+5. [目标共同评估工作簿](docs/developer/objective-review-workbook.md)：用户与主 Agent 的目标讨论区，
+   不构成开发授权。
 
-L2 定义角色闭环，L5 提供可改造的通用 Agent Engine，L6 横切保护整条执行链。MilkSU Security Harness 是 L2–L6 的组合，不等于从 API 重写 L5。模型和底层 Engine 可以演进，但角色状态、真实环境、可引用证据、外部判分器和可恢复轨迹不会自动出现。
-
-## 重新开始的边界
-
-早期围绕“无限上下文 Codex”、固定 `taskType`、模型直写安全面板、通用子代理、仓库内 Skill 路由和红队 Engagement 数据模型的实现已经删除。它们没有经过开源项目基线和可验证任务闭环的检验，不再作为历史兼容层保留。
-
-仓库目前包含：
-
-- 文档站与已经确定的架构认知；
-- Go / Wails / React 桌面宿主；
-- 通用聊天、会话存储、模型配置与流式工具输出；
-- 一个进程隔离的 Pi SDK Sidecar 和版本化结构化事件边界；
-- Pi 与 Codex app-server 使用同一微型 CTF 的 M0 Spike。Pi 是默认可改造 Engine，Codex 暂作对照与未来兼容运行时。
-- Go 实现的 M1 Shared Security Runtime：追加式 SQLite 事件、内容寻址 Artifact、只读 Projection、独立 Evaluator、取消和中断恢复；
-- 一个由 Fake Engine、Fake Capability、Fake Environment 与 Fake Evaluator 构成的确定性桌面闭环，用来验证 Harness 而不是冒充 CTF Solver。
-- M2-A 的单题 CTF 纵切：真实 Pi/DeepSeek 提议受控动作，Go 执行材料读取与确定性解码，独立本地 Judge 判 Flag，React 面板展示实验、证据与复盘；
-- 独立于通用聊天的 `security-bridge.js`。它关闭 Pi 内建 Coding Tools 与用户级扩展，只向模型暴露三种 CTF 提议工具。
-
-M1 与 M2-A 已完成工程验证。M2 整体仍未完成：当前只接受粘贴题面与小型本地附件，只支持 Delegate、离线 Artifact Workspace 和已知答案的本地 Judge；没有任意 Shell、浏览器、网站提交、自动 Lab、截图理解或比赛级长期学习。进入下一个大模块前需要用户确认，不能把内置 Hex 题的成功误写成“CTF MVP 已完成”。之后仍以 Vulnerability Research 检验公共抽象；在这两个场景成立之前，不并行开发 Red、Blue、AppSec 或 Malware Role。
-
-当前 macOS 构建已经把固定版本、固定哈希的官方 Node LTS 与两份 Pi Bridge bundle 放入 App Resources，Provider/Relay 密钥也已迁移到 macOS Keychain；生成的 `.app` 可以脱离源码树和系统 Node 运行。开发包目前仍是 ad-hoc 签名，尚未完成 Developer ID、公证、SBOM 与外部能力审批，因此不要把 `build/bin/MilkSU.app` 当成正式公开发行包。
-
-## 开源与使用边界
-
-MilkSU 的默认开源版本面向 CTF 平台、项目自带靶场、用户本地实验环境和用户有权研究的目标。默认产品不提供任意目标清单、互联网网段批量扫描、凭据喷洒、隐蔽规避或无确认的外部攻击流水线；带外部副作用的动作必须绑定可见范围、保存证据并经过风险分级审批。
-
-“学习工具”描述的是产品目的和默认能力，不构成对具体使用行为的免责。公开发布、托管服务和高风险能力包必须分别评审；详细决策见 [ADR-0004](docs/developer/adr/0004-learning-product-and-release-boundary.md)。
-
-## 核心验收原则
-
-任何新模块都必须回答：
-
-1. 它属于哪一层，是否错误地把 Role、Capability、Worker 或 Agent Integrity 混在一起？
-2. 它保存了什么不可由模型自报的事实？
-3. 谁独立判断成功，Evidence 怎样引用，Effect 怎样恢复或清理？
-4. 在相同模型、工具、环境和预算下，它是否优于最小通用 Agent 基线？
-
-如果一个模块只是一段 Prompt、固定流程、工具薄封装或泛化 Planner，它默认不进入 MilkSU 核心。
+`docs/developer/adr/`、带日期的 Review、Checkpoint、设计审计和 Spike 都是历史决策或证据，
+不是当前 backlog。发生冲突时，以代码、测试、原生 App、真实回执、当前目标和覆盖台账为准。
 
 ## 开发
 
 ```bash
-# 文档站
+# 安装根依赖并构建文档
 npm install
-npm run docs:dev
+npm run docs:build
 
-# 桌面 UI 浏览器预览
-cd app
-npm install
-npm run dev
+# Vue 浏览器开发预览
+npm --prefix app install
+npm --prefix app run dev
 
-# Wails 桌面端（先固定安装一次 CLI）
-go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
-wails dev
-
-# 自动验证与打包
+# Go 与前端自动测试
 go test ./...
+npm --prefix app run test
 npm --prefix app run build
-# 下载并校验固定的官方 Node LTS，打包 Pi Bridges 并跑脱离源码树测试
+
+# 固定 Sidecar 资源、打包与完整回归
 npm run sidecar:smoke
-# pre/post build hooks 会把 Sidecar 安装到 .app/Contents/Resources
 wails build
+npm run m3:release-check
 ```
+
+具体命令和环境要求以 `package.json`、`app/package.json`、`wails.json` 和当前 CI/脚本为准。

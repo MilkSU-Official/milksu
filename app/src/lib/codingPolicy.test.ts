@@ -1,0 +1,239 @@
+import { describe, expect, it } from 'vitest'
+import {
+  computerUseStartArgs,
+  computerUseTargetKey,
+  describeActiveComputerUseCapability,
+  describePendingComputerUseCapability,
+  nextComputerUseTargetKey,
+  normalizeCodingApprovalPolicy,
+  normalizeCodingExecutionMode,
+  previewCodingCapabilities,
+  selectedComputerUseTarget,
+} from '@/lib/codingPolicy'
+
+describe('Coding policy presentation', () => {
+  it('preserves deliverable legacy defaults', () => {
+    expect(normalizeCodingExecutionMode(undefined)).toBe('go')
+    expect(normalizeCodingApprovalPolicy(undefined)).toBe('workspace-auto')
+  })
+
+  it('shows Plan and Read-only as non-mutating', () => {
+    for (const [mode, approval] of [
+      ['plan', 'workspace-auto'],
+      ['go', 'read-only'],
+    ] as const) {
+      const capabilities = previewCodingCapabilities(mode, approval)
+      expect(capabilities.find(item => item.id === 'command')?.status).toBe('blocked')
+      expect(capabilities.find(item => item.id === 'workspace-write')?.status)
+        .not.toBe('allowed')
+    }
+  })
+
+  it('shows Ask as a real per-tool approval mode', () => {
+    const capabilities = previewCodingCapabilities('go', 'ask', true)
+    for (const id of ['workspace-write', 'command', 'network']) {
+      expect(capabilities.find(item => item.id === id)?.status).toBe('approval-required')
+    }
+    expect(capabilities.find(item => item.id === 'credentials')?.status).toBe('blocked')
+    expect(capabilities.find(item => item.id === 'imagegen')?.status)
+      .toBe('approval-required')
+  })
+
+  it('keeps Project Auto useful without granting local credentials or UI control', () => {
+    const capabilities = previewCodingCapabilities('go', 'workspace-auto')
+    expect(capabilities.find(item => item.id === 'workspace-write')?.status).toBe('allowed')
+    expect(capabilities.find(item => item.id === 'command')?.status).toBe('allowed')
+    expect(capabilities.find(item => item.id === 'network')?.status).toBe('allowed')
+    for (const id of ['credentials', 'browser', 'computer-use', 'imagegen']) {
+      expect(capabilities.find(item => item.id === id)?.status).not.toBe('allowed')
+    }
+  })
+
+  it('presents Full Access as an explicit higher-authority option', () => {
+    expect(normalizeCodingApprovalPolicy('full-auto')).toBe('full-auto')
+    const capabilities = previewCodingCapabilities('go', 'full-auto', true)
+    for (const id of ['workspace-write', 'command', 'network', 'credentials']) {
+      expect(capabilities.find(item => item.id === id)?.status).toBe('allowed')
+    }
+    expect(capabilities.find(item => item.id === 'browser')?.status).toBe('unavailable')
+    expect(capabilities.find(item => item.id === 'computer-use')?.status).toBe('unavailable')
+    expect(capabilities.find(item => item.id === 'computer-use')?.detail)
+      .toMatch(/可见 App \/ 窗口/)
+    expect(capabilities.find(item => item.id === 'computer-use')?.detail)
+      .toMatch(/不能用 Shell、截图目录、SQLite、IPC 或私有协议绕过/)
+    expect(capabilities.find(item => item.id === 'imagegen')?.status).toBe('approval-required')
+  })
+
+  it('does not advertise ImageGen when OpenAI is not configured', () => {
+    const capabilities = previewCodingCapabilities('go', 'workspace-auto', false)
+    expect(capabilities.find(item => item.id === 'imagegen')?.status).toBe('unavailable')
+    expect(capabilities.find(item => item.id === 'imagegen')?.detail).toMatch(/配置并启用 OpenAI/)
+  })
+
+  it('describes the selected external Computer Use app and immutable window scope', () => {
+    const target = {
+      name: 'Codex',
+      bundleId: 'com.openai.codex',
+      pid: 4242,
+      windowId: 9001,
+      windowTitle: '已暂停的目标',
+    }
+
+    const auto = describeActiveComputerUseCapability('go', 'workspace-auto', target)
+    expect(auto.status).toBe('allowed')
+    expect(auto.detail).toContain('Codex')
+    expect(auto.detail).toContain('com.openai.codex')
+    expect(auto.detail).toContain('PID 4242')
+    expect(auto.detail).toContain('Window 9001')
+    expect(auto.detail).not.toContain('当前 MilkSU App')
+
+    const ask = describeActiveComputerUseCapability('go', 'ask', target)
+    expect(ask.status).toBe('approval-required')
+    expect(ask.detail).toContain('逐次确认观察和操作')
+
+    const plan = describeActiveComputerUseCapability('plan', 'workspace-auto', target)
+    expect(plan.status).toBe('blocked')
+    expect(plan.detail).toContain('当前 Plan 或只读策略不会操作可见 App')
+
+    const readOnly = describeActiveComputerUseCapability('go', 'read-only', target)
+    expect(readOnly.status).toBe('blocked')
+    expect(readOnly.detail).toContain('当前 Plan 或只读策略不会操作可见 App')
+  })
+
+  it('describes detected but not-yet-started Computer Use without calling it connected', () => {
+    const target = {
+      name: 'Codex',
+      bundleId: 'com.openai.codex',
+      pid: 4242,
+      windowId: 9001,
+      windowTitle: '已暂停的目标',
+    }
+
+    const readyToStart = describePendingComputerUseCapability('go', 'workspace-auto', target, {
+      available: true,
+      permissionsReady: true,
+    })
+    expect(readyToStart.status).toBe('approval-required')
+    expect(readyToStart.detail).toContain('已检测到 Codex')
+    expect(readyToStart.detail).toContain('启动可见会话')
+    expect(readyToStart.detail).toContain('才会锁定 Scope')
+    expect(readyToStart.detail).not.toContain('已锁定')
+
+    const missingPermissions = describePendingComputerUseCapability('go', 'workspace-auto', target, {
+      available: true,
+      permissionsReady: false,
+    })
+    expect(missingPermissions.status).toBe('unavailable')
+    expect(missingPermissions.detail).toContain('辅助功能与屏幕录制')
+    expect(missingPermissions.detail).toContain('App 管理权限不能替代')
+
+    const noWindow = describePendingComputerUseCapability('go', 'workspace-auto', null, {
+      available: true,
+      permissionsReady: true,
+    })
+    expect(noWindow.status).toBe('unavailable')
+    expect(noWindow.detail).toContain('打开目标 App 窗口')
+
+    const plan = describePendingComputerUseCapability('plan', 'workspace-auto', target, {
+      available: true,
+      permissionsReady: true,
+    })
+    expect(plan.status).toBe('blocked')
+    expect(plan.detail).toContain('当前 Plan 或只读策略不会操作可见 App')
+  })
+
+  it('starts Computer Use only for the user-selected PID and window pair', () => {
+    const targets = [
+      {
+        name: 'Codex',
+        bundleId: 'com.openai.codex',
+        pid: 4242,
+        windowId: 9001,
+        windowTitle: '目标 A',
+      },
+      {
+        name: 'Codex',
+        bundleId: 'com.openai.codex',
+        pid: 4242,
+        windowId: 9002,
+        windowTitle: '目标 B',
+      },
+      {
+        name: 'MilkSU',
+        bundleId: 'dev.milksu.app',
+        pid: 5252,
+        windowId: 9001,
+        windowTitle: '同窗口号不同 PID',
+      },
+    ]
+
+    expect(computerUseTargetKey(targets[1])).toBe('4242:9002')
+    const selected = selectedComputerUseTarget(targets, '4242:9002')
+    expect(selected?.windowTitle).toBe('目标 B')
+    expect(selectedComputerUseTarget(targets, '5252:9002')).toBeNull()
+
+    expect(computerUseStartArgs('conversation-ui', targets[1])).toEqual({
+      conversationId: 'conversation-ui',
+      targetPid: 4242,
+      targetWindowId: 9002,
+    })
+  })
+
+  it('keeps Computer Use target selection stable across visible-window refreshes', () => {
+    const targets = [
+      {
+        name: 'Codex',
+        bundleId: 'com.openai.codex',
+        pid: 4242,
+        windowId: 9001,
+        windowTitle: '目标 A',
+      },
+      {
+        name: 'Codex',
+        bundleId: 'com.openai.codex',
+        pid: 4242,
+        windowId: 9002,
+        windowTitle: '目标 B',
+      },
+      {
+        name: 'Preview',
+        bundleId: 'com.example.preview',
+        pid: 5252,
+        windowId: 9001,
+        windowTitle: '同 windowId 不同 PID',
+      },
+    ]
+
+    expect(nextComputerUseTargetKey(targets, '4242:9002')).toBe('4242:9002')
+    expect(nextComputerUseTargetKey(targets, '9999:9999', targets[2])).toBe('5252:9001')
+    expect(nextComputerUseTargetKey(targets, '9999:9999', {
+      name: 'Codex',
+      bundleId: 'com.openai.codex',
+      pid: 4242,
+      windowId: 7777,
+      windowTitle: '已关闭窗口',
+    })).toBe('4242:9001')
+    expect(nextComputerUseTargetKey([], '4242:9002', targets[1])).toBe('')
+  })
+
+  it('prefers a non-MilkSU window when no visible Computer Use session is active yet', () => {
+    const targets = [
+      {
+        name: 'MilkSU',
+        bundleId: 'com.milksu.app',
+        pid: 1111,
+        windowId: 2222,
+        windowTitle: 'Window',
+      },
+      {
+        name: 'TextEdit',
+        bundleId: 'com.apple.TextEdit',
+        pid: 3333,
+        windowId: 4444,
+        windowTitle: 'Untitled',
+      },
+    ]
+
+    expect(nextComputerUseTargetKey(targets, '')).toBe('3333:4444')
+  })
+})

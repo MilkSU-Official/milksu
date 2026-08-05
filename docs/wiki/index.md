@@ -10,4 +10,7 @@ Wiki 用树形词条解释文档中反复出现的概念。它不决定产品目
 
 ## 为什么只保留这棵树
 
-当前还没有稳定用户产品，因此暂不维护用户指南、进度页或旧实现说明。Wiki 只解释反复使用的概念；具体设计仍由开发者文档决定。
+MilkSU 当前仍是 pre-release，尚未形成对外稳定发行基线，因此 Wiki 暂不承担用户指南或
+进度页职责。它只解释反复使用的概念；当前事实、目标和完成度分别由
+[文档状态登记](/developer/document-status)、[当前目标](/developer/current-objectives)和
+[目标覆盖台账](/developer/objective-coverage-ledger)决定。

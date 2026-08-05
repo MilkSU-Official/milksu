@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "MilkSU Current Tab Bridge",
+  "version": "0.6.1",
+  "description": "Connects an explicitly selected CTF tab to the local MilkSU training harness.",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": [
+    "http://127.0.0.1/*",
+    "https://www.nssctf.cn/problem/*",
+    "https://ctf.show/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Connect this CTF page to MilkSU",
+    "default_popup": "popup.html"
+  }
+}

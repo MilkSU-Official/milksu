@@ -1,44 +1,48 @@
-# MilkSU Desktop Host
+# MilkSU Desktop UI
 
-This directory contains the reusable desktop shell retained during the architecture restart. It provides conversation storage, settings, provider selection, streaming messages, and generic tool-output UI.
+This directory contains the Vue 3 + TypeScript product surface embedded by Wails.
 
-It intentionally has no built-in Pentest, CTF, Recon, Reverse, Engagement, or Role state. Future CTF and Vuln panels must read committed projections from the Shared Security Runtime; they must not treat a conversation or model-authored panel update as domain truth.
+Current user workspaces are:
 
-`../bridge.js` is the M0 Pi sidecar adapter. It emits MilkSU-shaped structured events but is not yet the final L5 `AgentEngine v1alpha1` contract.
+- **CTF**: catalogs, custom challenges, challenge detail, Agent workspace, Candidate/Judge, recovery and
+  debrief;
+- **Coding**: project-scoped Pi sessions, attachments, tools, terminal/background tasks, artifact preview,
+  Browser, Git, ImageGen and environment/capability views;
+- **CVE**: a paused demonstration/research surface, not a current live intelligence product;
+- **Settings**: provider configuration, local recovery, diagnostics and application controls.
+
+The Vue UI is not a domain fact source. CTF success, Evidence, recovery and learning facts come from Go
+projections. Provider credentials remain in the Go-owned credential store and are never returned through
+Wails bindings.
+
+## Runtime Connections
+
+- `../bridge.js`: normal Coding Pi session and reviewed resources;
+- `../security-bridge.js`: CTF-specific Pi session with Coding resources disabled;
+- `../bridge-policy.js`: tool policy transport and platform enforcement;
+- `../app.go`: Wails facade/composition root;
+- `../internal/`: application services, domains, persistence and platform adapters.
+
+Coding Browser, a user-paired platform browser and Computer Use are separate permission surfaces. They do
+not inherit one another's profile, Cookie, token, page session or application scope.
 
 ## Stack
 
-- React + TypeScript + Vite + Tailwind CSS
-- Wails v2.13 with a Go host
-- Pi SDK through a supervised Node.js sidecar
-- Local settings and conversation persistence
+- Vue 3, TypeScript and Vite;
+- Tailwind CSS;
+- pinned `memohai/ui` sources mounted at `../packages/ui`;
+- Wails v2.13 with a Go host;
+- supervised, packaged Node/Pi Sidecars.
 
 ## Development
 
 ```bash
 npm install
 npm run dev
+npm run test
 npm run build
-npm run lint
-cd ..
-wails dev
 ```
 
-Browser preview stores settings and conversations in `localStorage`; sending messages still requires the native Wails bridge.
-
-## Retained Structure
-
-```text
-src/
-  App.tsx                 generic host composition
-  components/ChatView    conversation and tool output
-  components/Sidebar     conversation navigation
-  components/Settings    model and provider configuration
-  hooks/                  conversation persistence and streamed events
-  desktop.ts              Wails IPC wrapper plus browser preview storage
-
-../app.go                 Wails L1 adapter
-../internal/config        compatible local settings store
-../internal/conversation  compatible conversation store
-../internal/engine        Sidecar supervision and normalized events
-```
+Browser preview uses its own local state and does not prove native Wails behavior. Native bindings,
+packaged Sidecars, macOS permissions, restart recovery and final visual behavior require the repository's
+packaged-App validation.

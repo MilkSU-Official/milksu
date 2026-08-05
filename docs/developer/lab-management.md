@@ -1,6 +1,8 @@
 # 靶场与环境管理
 
-> 状态：M1 冻结 `LabPackage v1alpha1` 最小字段；Compose/OCI Provider 留到 M2 实跑
+> 状态：**Historical / Superseded**。Labs 当前保持 `Paused / Designed`，后继设计见
+> [CTF Labs 顶层与详细设计](/architecture/ctf-labs-design)；本页只保留早期
+> `LabPackage v1alpha1` 决策。
 >
 > 日期：2026-07-19
 
@@ -89,10 +91,12 @@ SubmissionJudge
 | --- | --- | --- |
 | [CTFd/ctfcli](https://docs.ctfd.io/docs/management/ctfcli/challenges/) | `challenge.yml` 包含名称、类别、Flag、Hint、文件和部分部署字段 | 写 Source Adapter；不把仍为 `0.1` 的格式当通用标准 |
 | [kCTF](https://google.github.io/kctf/introduction.html) | Kubernetes Challenge、健康检查、重部署和 nsjail 隔离 | 学习硬化与大规模运行；本地 MVP 不引入 Kubernetes |
-| [pwn.college Dojo](https://github.com/pwncollege/dojo/blob/master/docs/challenge.md) | 每用户 Challenge、动态 Flag、启动/重启和教学组织 | 学习 CTF 长期训练、每人实例与 Flag 隔离 |
+| [pwn.college Dojo](https://github.com/pwncollege/dojo/blob/master/docs/challenge.md) | 每用户 Challenge、动态 Flag、启动/重启和教学组织 | 已有成熟引导体验；不接入 MilkSU 普通用户题库 |
 | [BoxPwnr](https://github.com/0ca/BoxPwnr/tree/main/src/boxpwnr/platforms) | 平台初始化、清理、目标列表、Flag 验证和多种 Executor | 学习 Platform/Executor/Solver 边界与 benchmark |
-| [Vulhub](https://github.com/vulhub/vulhub) | 大量 CVE 目录和 Compose 环境 | 作为待审查的 Vuln 环境语料库，不直接信任执行 |
-| [OWASP Juice Shop](https://github.com/juice-shop/juice-shop) | arm64/amd64 镜像、自重置应用、挑战、Hint 和 CTF Flag | 首批 Web/Vuln/教学集成候选 |
+| [Vulhub](https://github.com/vulhub/vulhub) | 大量 CVE 目录和 Compose 环境 | 首批规模化靶场来源；只接 MilkSU 白名单固定版本，不直接执行任意上游目录 |
+| [OWASP Juice Shop](https://github.com/juice-shop/juice-shop) | arm64/amd64 镜像、自重置应用、挑战、Hint 和 CTF Flag | M3 收口后第一间用户可见的一键 Web 靶场 |
+| [OWASP WebGoat](https://github.com/WebGoat/WebGoat) | 按漏洞主题组织的引导式 Web 课程与本地环境 | Juice Shop 后的引导式 Web 学习房间 |
+| [NYU CTF Bench](https://github.com/NYU-LLM-CTF/NYU_CTF_Bench) | 55 道 development、200 道 test，覆盖六类 CTF 且多数可执行 | 仅用于开发者模型/Harness 基准，不进入普通用户题库 |
 | [Amazon CTF-Dojo](https://github.com/amazon-science/CTF-Dojo) | 将公开 CTF Artifact 转成可执行环境 | 学习批量导入与修复；模型生成的 Compose 必须再验证 |
 
 共同执行底座已经存在：[OCI Image/Runtime](https://specs.opencontainers.org/) 负责镜像和容器规范，[Compose Specification](https://compose-spec.io/) 负责多服务、网络、卷和健康检查。它们不理解 Challenge、学习目标、Evidence 或 Judge，这部分才由 MilkSU 补上。
@@ -198,8 +202,10 @@ type EnvironmentProvider interface {
 
 1. `LabPackage v1alpha1 + ComposeProvider + OCIProvider + Flag/HTTP Judge`。
 2. 接入已经固定版本并在 Apple Silicon 实跑的 OWASP Juice Shop CTF fixture（`labs/ctf/juice-shop`），做到一键启动、重置、判题和清理。
-3. 接入 Juice Shop，验证 Web/Vuln/教学、自重置与 Apple Silicon。
-4. 增加经过白名单审查的 Vulhub Source Adapter。
-5. 再研究 ctfcli importer、VMProvider 与远端 kCTF Provider。
+3. 把 Juice Shop 生命周期接入 CTF 用户界面，验证 Web/Vuln/教学、自重置与 Apple Silicon。
+4. 接入 WebGoat，补引导式 Web 学习房间。
+5. 增加经过白名单审查的 Vulhub Source Adapter。
+6. 在开发者模式接入 NYU CTF Bench development/test 隔离和量化报告。
+7. 再研究 ctfcli importer、VMProvider 与远端 kCTF Provider。
 
 这个顺序会根据本地 CTF 靶场选型实跑结果调整。任何第三方项目进入默认集成前，仍须经过许可证、供应链、架构、离线性和 Judge 审查。

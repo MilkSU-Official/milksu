@@ -27,7 +27,7 @@ func (j *Judge) Name() string    { return judgeName }
 func (j *Judge) Version() string { return judgeVersion }
 
 func (j *Judge) Evaluate(ctx context.Context, challenge Challenge, artifact securityruntime.Artifact) (securityruntime.EvaluationDecision, error) {
-	if challenge.Judge.Type != "flag.sha256" || challenge.Judge.Version != judgeVersion {
+	if challenge.Judge.Version != judgeVersion {
 		return securityruntime.EvaluationDecision{}, fmt.Errorf("unsupported CTF judge %s@%s", challenge.Judge.Type, challenge.Judge.Version)
 	}
 	data, err := j.runtime.ReadArtifact(ctx, artifact)
@@ -35,6 +35,18 @@ func (j *Judge) Evaluate(ctx context.Context, challenge Challenge, artifact secu
 		return securityruntime.EvaluationDecision{}, fmt.Errorf("read candidate artifact: %w", err)
 	}
 	candidate := strings.TrimSpace(string(data))
+	if challenge.Judge.Type == "external.manual" {
+		if candidate == "" {
+			return securityruntime.EvaluationDecision{}, fmt.Errorf("external judge candidate is empty")
+		}
+		return securityruntime.EvaluationDecision{
+			Verdict: securityruntime.VerdictNeedsReview, Score: 0.5,
+			Summary: "候选 Flag 已保存；等待外部平台适配器或用户记录权威 Judge 回执，MilkSU 不会替平台伪造成功。",
+		}, nil
+	}
+	if challenge.Judge.Type != "flag.sha256" {
+		return securityruntime.EvaluationDecision{}, fmt.Errorf("unsupported CTF judge %s@%s", challenge.Judge.Type, challenge.Judge.Version)
+	}
 	digest := sha256.Sum256([]byte(candidate))
 	if hex.EncodeToString(digest[:]) != challenge.Judge.ExpectedFlagSHA256 {
 		return securityruntime.EvaluationDecision{

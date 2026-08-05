@@ -5,10 +5,17 @@ dist/
 *.js.map
 *.d.ts.map
 !bridge.js
+!bridge-*.js
+!computer-use-proxy*.js
 !security-bridge.js
+!browserextension/background.js
+!browserextension/popup.js
+!tests/fixtures/coding-agent-delivery/template/src/*.js
+!tests/fixtures/coding-agent-delivery/template/test/*.js
 .DS_Store
 .claude/
 auth.json
+.milksu/
 
 # Desktop build output
 app/node_modules/
@@ -23,5 +30,13 @@ build/bin/
 build/sidecar/
 build/sidecar-cache/
 build/sidecar-smoke/
+build/sidecar-smoke-non-git/
 build/sidecar-spike/
+build/test-results/
 docs/.vitepress/cache/
+
+# Archify previews are reproducible local artifacts. Keep the compact JSON
+# specifications in Git and generate HTML on demand.
+/docs/architecture/*.architecture.html
+/docs/architecture/*.workflow.html
+/docs/architecture/generated/*.html

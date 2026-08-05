@@ -1,0 +1,370 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "MilkSU M3 System Architecture · Historical",
+    "subtitle": "2026-07-31 snapshot · superseded for current status by architecture/generated/milksu-current-system.architecture.json",
+    "output": "milksu-system.architecture.html",
+    "animation": "none",
+    "visual_preset": "signal-flow",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/MilkSU-Official/milksu",
+      "revision": "ae4966ec396ee9126df5d3808526391c3c305040"
+    },
+    "views": [
+      {
+        "id": "training-path",
+        "label": "CTF training path",
+        "focus": ["learner", "vue_ui", "wails_app", "ctf_runtime", "pi_sidecar", "tool_policy", "local_state"],
+        "note": "Follow one training turn from the learner to the constrained PI runtime and durable evidence."
+      },
+      {
+        "id": "judge-path",
+        "label": "Authoritative Judge",
+        "focus": ["ctf_runtime", "platform_adapters", "browser_extension", "ctf_platforms", "local_state"],
+        "note": "Platform adapters keep submission authority outside the model and persist Judge receipts as evidence."
+      },
+      {
+        "id": "execution-boundary",
+        "label": "Execution boundary",
+        "focus": ["pi_sidecar", "tool_policy", "lab_manager", "legacy_security"],
+        "note": "Separate the default PI loop, CTF tool policy, optional Docker labs, and the legacy typed runner."
+      }
+    ],
+    "viewBox": [1400, 840]
+  },
+  "components": [
+    {
+      "id": "learner",
+      "type": "external",
+      "label": "Learner",
+      "sublabel": "Chooses, guides, approves",
+      "pos": [20, 335],
+      "size": [135, 64]
+    },
+    {
+      "id": "vue_ui",
+      "type": "frontend",
+      "label": "Vue Desktop UI",
+      "sublabel": "CTF / Coding / CVE",
+      "tag": "Memoh UI",
+      "pos": [230, 335],
+      "size": [150, 70],
+      "sources": [
+        {
+          "path": "app/src/App.vue",
+          "label": "Application shell"
+        },
+        {
+          "path": "app/src/components-vue/CTFPage.vue",
+          "label": "CTF workspace"
+        }
+      ]
+    },
+    {
+      "id": "wails_app",
+      "type": "backend",
+      "label": "Wails App Facade",
+      "sublabel": "Desktop commands + orchestration",
+      "pos": [440, 335],
+      "size": [165, 70],
+      "sources": [
+        {
+          "path": "app.go",
+          "label": "Application facade"
+        },
+        {
+          "path": "main.go",
+          "label": "Process composition"
+        }
+      ]
+    },
+    {
+      "id": "ctf_runtime",
+      "type": "backend",
+      "label": "CTF Runtime",
+      "sublabel": "Workspace, trajectory, Judge gate",
+      "tag": "internal/ctf",
+      "pos": [670, 335],
+      "size": [180, 76],
+      "sources": [
+        {
+          "path": "internal/ctf/service.go",
+          "label": "Job service"
+        },
+        {
+          "path": "internal/ctf/workspace.go",
+          "label": "Agent workspace"
+        },
+        {
+          "path": "ctf_agent_recorder.go",
+          "label": "Trajectory recorder"
+        }
+      ]
+    },
+    {
+      "id": "pi_sidecar",
+      "type": "backend",
+      "label": "PI Coding Sidecar",
+      "sublabel": "Agent loop + curated Skills",
+      "tag": "Node 24",
+      "pos": [920, 185],
+      "size": [175, 72],
+      "sources": [
+        {
+          "path": "bridge.js",
+          "label": "PI session bridge"
+        },
+        {
+          "path": "internal/engine/supervisor.go",
+          "label": "Process supervisor"
+        }
+      ]
+    },
+    {
+      "id": "tool_policy",
+      "type": "security",
+      "label": "CTF Tool Policy",
+      "sublabel": "Scope, budgets, sandbox",
+      "tag": "deny by default",
+      "pos": [1140, 185],
+      "size": [160, 72],
+      "sources": [
+        {
+          "path": "bridge-policy.js",
+          "label": "Tool enforcement"
+        },
+        {
+          "path": "internal/ctf/agent_budget.go",
+          "label": "Run budgets"
+        }
+      ]
+    },
+    {
+      "id": "local_state",
+      "type": "database",
+      "label": "Local Durable State",
+      "sublabel": "SQLite + workspaces + artifacts",
+      "tag": "user data directory",
+      "pos": [920, 485],
+      "size": [175, 76],
+      "sources": [
+        {
+          "path": "internal/appdata/directory.go",
+          "label": "Data root"
+        },
+        {
+          "path": "internal/config/secret_store_sqlite.go",
+          "label": "Credential store"
+        },
+        {
+          "path": "internal/conversation/store.go",
+          "label": "Conversation store"
+        }
+      ]
+    },
+    {
+      "id": "platform_adapters",
+      "type": "backend",
+      "label": "Platform Adapters",
+      "sublabel": "NSSCTF / CTFshow / restricted facts",
+      "tag": "authoritative receipts",
+      "pos": [920, 335],
+      "size": [175, 76],
+      "sources": [
+        {
+          "path": "internal/nssctf/client.go",
+          "label": "NSSCTF"
+        },
+        {
+          "path": "internal/ctfshow/catalog.go",
+          "label": "CTFshow"
+        }
+      ]
+    },
+    {
+      "id": "browser_extension",
+      "type": "security",
+      "label": "Browser Bridge",
+      "sublabel": "User-authenticated tab",
+      "tag": "explicit pairing",
+      "pos": [1160, 335],
+      "size": [160, 72],
+      "sources": [
+        {
+          "path": "browserextension/background.js",
+          "label": "Page adapter"
+        },
+        {
+          "path": "internal/browsercap/manager.go",
+          "label": "Local bridge"
+        }
+      ]
+    },
+    {
+      "id": "ctf_platforms",
+      "type": "external",
+      "label": "CTF Platforms",
+      "sublabel": "Catalog, instance, Judge",
+      "pos": [1160, 485],
+      "size": [160, 68]
+    },
+    {
+      "id": "lab_manager",
+      "type": "cloud",
+      "label": "Local Lab Manager",
+      "sublabel": "Docker challenge sandbox",
+      "tag": "optional",
+      "pos": [670, 630],
+      "size": [180, 70],
+      "sources": [
+        {
+          "path": "internal/labmanager/manager.go",
+          "label": "Container lifecycle"
+        }
+      ]
+    },
+    {
+      "id": "legacy_security",
+      "type": "backend",
+      "label": "Typed Security Runner",
+      "sublabel": "Fixtures + regression baseline",
+      "tag": "legacy comparator",
+      "pos": [440, 630],
+      "size": [165, 70],
+      "sources": [
+        {
+          "path": "security-bridge.js",
+          "label": "Typed bridge"
+        },
+        {
+          "path": "internal/engine/security_supervisor.go",
+          "label": "Legacy supervisor"
+        }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "MilkSU Desktop Process",
+      "wraps": ["vue_ui", "wails_app", "ctf_runtime", "local_state", "platform_adapters", "lab_manager", "legacy_security"],
+      "pad": 26
+    },
+    {
+      "kind": "security-group",
+      "label": "Constrained Agent Runtime",
+      "wraps": ["pi_sidecar", "tool_policy"],
+      "pad": 22
+    },
+    {
+      "kind": "security-group",
+      "label": "User Browser Session",
+      "wraps": ["browser_extension"],
+      "pad": 18
+    }
+  ],
+  "connections": [
+    {
+      "id": "learner_to_ui",
+      "from": "learner",
+      "to": "vue_ui",
+      "variant": "emphasis"
+    },
+    {
+      "id": "ui_to_app",
+      "from": "vue_ui",
+      "to": "wails_app",
+      "label": "Wails RPC",
+      "variant": "emphasis"
+    },
+    {
+      "id": "app_to_runtime",
+      "from": "wails_app",
+      "to": "ctf_runtime",
+      "variant": "emphasis"
+    },
+    {
+      "id": "runtime_to_pi",
+      "from": "ctf_runtime",
+      "to": "pi_sidecar",
+      "label": "prompt + workspace",
+      "variant": "emphasis"
+    },
+    {
+      "id": "pi_to_policy",
+      "from": "pi_sidecar",
+      "to": "tool_policy",
+      "variant": "security"
+    },
+    {
+      "id": "runtime_to_state",
+      "from": "ctf_runtime",
+      "to": "local_state",
+      "label": "trajectory + evidence"
+    },
+    {
+      "id": "runtime_to_platform",
+      "from": "ctf_runtime",
+      "to": "platform_adapters"
+    },
+    {
+      "id": "platform_to_browser",
+      "from": "platform_adapters",
+      "to": "browser_extension",
+      "variant": "security"
+    },
+    {
+      "id": "browser_to_platforms",
+      "from": "browser_extension",
+      "to": "ctf_platforms",
+      "variant": "security"
+    },
+    {
+      "id": "adapter_to_platforms",
+      "from": "platform_adapters",
+      "to": "ctf_platforms",
+      "label": "paired browser / public API",
+      "variant": "dashed"
+    },
+    {
+      "id": "runtime_to_lab",
+      "from": "ctf_runtime",
+      "to": "lab_manager",
+      "variant": "dashed"
+    },
+    {
+      "id": "app_to_legacy",
+      "from": "wails_app",
+      "to": "legacy_security",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Product boundary",
+      "items": [
+        "The learner controls platform spend and submission",
+        "Only an authoritative Judge can mark a solve"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Agent boundary",
+      "items": [
+        "PI supplies the general coding loop",
+        "MilkSU owns CTF scope, budgets, trajectory, and learning"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Local-first boundary",
+      "items": [
+        "Credentials and evidence stay under the user data directory",
+        "Browser sessions are paired explicitly and never handed to the model"
+      ]
+    }
+  ]
+}

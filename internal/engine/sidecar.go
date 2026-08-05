@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"os/exec"
@@ -19,7 +21,25 @@ type sidecarRuntime struct {
 	packaged bool
 }
 
-func sidecarEnvironment(settings config.AppSettings, workspace string) []string {
+func sidecarEnvironment(settings config.AppSettings) ([]string, error) {
+	runtimeHome, err := sidecarRuntimeHome()
+	if err != nil {
+		return nil, err
+	}
+	attachmentRoot := filepath.Join(runtimeHome, "attachments")
+	collaborationRoot := filepath.Join(runtimeHome, "coding-collaboration")
+	for label, directory := range map[string]string{
+		"Coding attachment":    attachmentRoot,
+		"Coding collaboration": collaborationRoot,
+	} {
+		if err := os.MkdirAll(directory, 0o700); err != nil {
+			return nil, fmt.Errorf("create %s directory: %w", label, err)
+		}
+	}
+	userHome, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("resolve local user home: %w", err)
+	}
 	environment := engineEnvironment(settings)
 	filtered := environment[:0]
 	for _, entry := range environment {
@@ -27,15 +47,71 @@ func sidecarEnvironment(settings config.AppSettings, workspace string) []string 
 			filtered = append(filtered, entry)
 		}
 	}
-	return append(filtered, "HOME="+workspace)
+	environment = append(
+		filtered,
+		"HOME="+runtimeHome,
+		"MILKSU_PI_AGENT_DIR="+filepath.Join(runtimeHome, "pi"),
+		"MILKSU_CODING_ATTACHMENT_ROOT="+attachmentRoot,
+		"MILKSU_CODING_COLLABORATION_ROOT="+collaborationRoot,
+		"MILKSU_VISION_CACHE="+filepath.Join(runtimeHome, "vision-cache.json"),
+		"MILKSU_USER_HOME="+userHome,
+	)
+	if vision := settings.ModelRouting.Vision; vision != nil {
+		environment = append(
+			environment,
+			"MILKSU_VISION_PROVIDER="+strings.TrimSpace(vision.Provider),
+			"MILKSU_VISION_MODEL="+strings.TrimSpace(vision.Model),
+		)
+	}
+	if socket := strings.TrimSpace(os.Getenv("SSH_AUTH_SOCK")); socket != "" {
+		environment = append(environment, "MILKSU_USER_SSH_AUTH_SOCK="+socket)
+	}
+	return environment, nil
 }
 
 func newSidecarCommand(packagedBridge, sourceBridge string) (*exec.Cmd, error) {
-	runtime, err := resolveSidecarRuntime(packagedBridge, sourceBridge)
+	workspace, err := sidecarWorkspace()
 	if err != nil {
 		return nil, err
 	}
-	workspace, err := sidecarWorkspace()
+	return newSidecarCommandAt(packagedBridge, sourceBridge, workspace, false)
+}
+
+func newSidecarCommandAt(
+	packagedBridge,
+	sourceBridge,
+	workspace string,
+	allowChildProcess bool,
+) (*exec.Cmd, error) {
+	return newSidecarCommandAtWithDirectory(
+		packagedBridge,
+		sourceBridge,
+		workspace,
+		allowChildProcess,
+		"",
+	)
+}
+
+func newSidecarCommandAtWithDirectory(
+	packagedBridge,
+	sourceBridge,
+	workspace string,
+	allowChildProcess bool,
+	sidecarDirectory string,
+) (*exec.Cmd, error) {
+	runtime, err := resolveSidecarRuntimeWithDirectory(
+		packagedBridge,
+		sourceBridge,
+		sidecarDirectory,
+	)
+	if err != nil {
+		return nil, err
+	}
+	workspace, err = resolveAgentWorkspace(workspace)
+	if err != nil {
+		return nil, err
+	}
+	runtimeHome, err := sidecarRuntimeHome()
 	if err != nil {
 		return nil, err
 	}
@@ -43,20 +119,130 @@ func newSidecarCommand(packagedBridge, sourceBridge string) (*exec.Cmd, error) {
 	arguments := []string{runtime.bridge}
 	if runtime.packaged {
 		sidecarDirectory := filepath.Dir(runtime.bridge)
+		playwrightSocketDirectory := filepath.Join("/private/tmp", "milksu-playwright")
+		computerUseRuntimeDirectory := filepath.Join(
+			"/private/tmp",
+			"milksu-computer-use",
+		)
 		arguments = []string{
 			"--permission",
+			"--allow-addons",
 			"--allow-fs-read=" + sidecarDirectory,
 			"--allow-fs-read=" + workspace,
+			"--allow-fs-read=" + runtimeHome,
 			"--allow-fs-write=" + workspace,
-			runtime.bridge,
+			"--allow-fs-write=" + runtimeHome,
+			"--allow-fs-write=" + playwrightSocketDirectory,
+			"--allow-fs-read=" + computerUseRuntimeDirectory,
+			"--allow-fs-write=" + computerUseRuntimeDirectory,
 		}
+		if allowChildProcess {
+			arguments = append(
+				arguments,
+				"--allow-child-process",
+				"--allow-fs-read=/bin/bash",
+				"--allow-fs-read=/bin/sh",
+				"--allow-fs-read=/usr/bin/env",
+				"--allow-fs-read=/usr/bin/sandbox-exec",
+			)
+		}
+		arguments = append(arguments, runtime.bridge)
 	}
 	command := exec.Command(runtime.node, arguments...)
 	command.Dir = workspace
 	return command, nil
 }
 
+func withWorkspaceTemporaryDirectory(environment []string, workspace string) ([]string, error) {
+	runtimeHome, err := sidecarRuntimeHome()
+	if err != nil {
+		return nil, err
+	}
+	runtimeDirectory, err := workspaceRuntimeDirectory(runtimeHome, workspace)
+	if err != nil {
+		return nil, err
+	}
+	temporaryDirectory := filepath.Join(runtimeDirectory, "tmp")
+	backgroundTasksDirectory := filepath.Join(runtimeDirectory, "background-tasks")
+	for _, directory := range []string{
+		filepath.Join(runtimeDirectory, "home"),
+		temporaryDirectory,
+		filepath.Join(runtimeDirectory, "runtime-bin"),
+		backgroundTasksDirectory,
+	} {
+		if err := os.MkdirAll(directory, 0o700); err != nil {
+			return nil, fmt.Errorf("create Sidecar workspace runtime directory: %w", err)
+		}
+	}
+	filtered := environment[:0]
+	for _, entry := range environment {
+		if !strings.HasPrefix(entry, "TMPDIR=") &&
+			!strings.HasPrefix(entry, "MILKSU_WORKSPACE_RUNTIME=") &&
+			!strings.HasPrefix(entry, "MILKSU_BACKGROUND_TASKS_DIR=") &&
+			!strings.HasPrefix(entry, "MILKSU_AGENT_WORKSPACE=") {
+			filtered = append(filtered, entry)
+		}
+	}
+	return append(
+		filtered,
+		"TMPDIR="+temporaryDirectory,
+		"MILKSU_WORKSPACE_RUNTIME="+runtimeDirectory,
+		"MILKSU_BACKGROUND_TASKS_DIR="+backgroundTasksDirectory,
+		"MILKSU_AGENT_WORKSPACE="+workspace,
+	), nil
+}
+
+func workspaceRuntimeDirectory(runtimeHome, workspace string) (string, error) {
+	resolved, err := resolveAgentWorkspace(workspace)
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256([]byte(resolved))
+	key := hex.EncodeToString(sum[:12])
+	return filepath.Join(runtimeHome, "workspaces", key), nil
+}
+
+func withSidecarRuntimePath(environment []string, nodeBinary string) []string {
+	runtimeDirectory := filepath.Dir(nodeBinary)
+	pathValue := ""
+	filtered := environment[:0]
+	for _, entry := range environment {
+		if strings.HasPrefix(entry, "PATH=") {
+			pathValue = strings.TrimPrefix(entry, "PATH=")
+			continue
+		}
+		filtered = append(filtered, entry)
+	}
+	if pathValue == "" {
+		pathValue = os.Getenv("PATH")
+	}
+	if pathValue == "" {
+		return append(filtered, "PATH="+runtimeDirectory)
+	}
+	return append(
+		filtered,
+		"PATH="+runtimeDirectory+string(os.PathListSeparator)+pathValue,
+	)
+}
+
 func resolveSidecarRuntime(packagedBridge, sourceBridge string) (sidecarRuntime, error) {
+	return resolveSidecarRuntimeWithDirectory(packagedBridge, sourceBridge, "")
+}
+
+func resolveSidecarRuntimeWithDirectory(
+	packagedBridge,
+	sourceBridge,
+	sidecarDirectory string,
+) (sidecarRuntime, error) {
+	if directory := strings.TrimSpace(sidecarDirectory); directory != "" {
+		if runtime, ok := packagedRuntimeAt(directory, packagedBridge); ok {
+			return runtime, nil
+		}
+		return sidecarRuntime{}, fmt.Errorf(
+			"selected Sidecar directory does not contain a complete runtime: %s",
+			directory,
+		)
+	}
 	if override := os.Getenv("MILKSU_SIDECAR_DIR"); override != "" {
 		if runtime, ok := packagedRuntimeAt(override, packagedBridge); ok {
 			return runtime, nil
@@ -112,4 +298,51 @@ func sidecarWorkspace() (string, error) {
 		return "", fmt.Errorf("create Sidecar discovery boundary: %w", err)
 	}
 	return workspace, nil
+}
+
+func sidecarRuntimeHome() (string, error) {
+	directory, err := appdata.Ensure()
+	if err != nil {
+		return "", err
+	}
+	runtimeHome := filepath.Join(directory, "agent-home")
+	if err := os.MkdirAll(runtimeHome, 0o700); err != nil {
+		return "", fmt.Errorf("create Sidecar runtime home: %w", err)
+	}
+	return runtimeHome, nil
+}
+
+func codingCollaborationRoot() (string, error) {
+	runtimeHome, err := sidecarRuntimeHome()
+	if err != nil {
+		return "", err
+	}
+	root := filepath.Join(runtimeHome, "coding-collaboration")
+	if err := os.MkdirAll(root, 0o700); err != nil {
+		return "", fmt.Errorf("create Coding collaboration runtime directory: %w", err)
+	}
+	return root, nil
+}
+
+func resolveAgentWorkspace(value string) (string, error) {
+	workspace := strings.TrimSpace(value)
+	if workspace == "" {
+		return sidecarWorkspace()
+	}
+	absolute, err := filepath.Abs(workspace)
+	if err != nil {
+		return "", fmt.Errorf("resolve Agent workspace: %w", err)
+	}
+	resolved, err := filepath.EvalSymlinks(absolute)
+	if err != nil {
+		return "", fmt.Errorf("resolve Agent workspace links: %w", err)
+	}
+	info, err := os.Stat(resolved)
+	if err != nil {
+		return "", fmt.Errorf("open Agent workspace: %w", err)
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("Agent workspace is not a directory: %s", resolved)
+	}
+	return filepath.Clean(resolved), nil
 }

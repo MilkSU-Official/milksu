@@ -1,23 +1,64 @@
 # 开发者文档
 
-这里仅保存 MilkSU 当前有效的产品认知、目标架构和集成研究。首页是总地图；左侧文档树负责逐层展开。
+这里按“当前事实 → 目标 → 证据 → 历史原因”组织文档，不再把旧 M0/M1/M2/M3 里程碑排成
+当前实施顺序。
 
-## 推荐阅读路径
+## 先读这五份
 
-1. [开发计划](/developer/development-plan)：当前实现顺序与每个里程碑的完成标志。
-2. [安全 Agent 与通用 Agent 的能力边界](/developer/security-agent-boundary)：先分清 Agent Security、Agent for Security、Role 与 Capability。
-3. [六层运行时架构](/developer/architecture)：把主线转成可实现的对象、分层和执行约束。
-4. [Runtime v1alpha1](/developer/runtime-v1alpha1)：M1 怎样保存事实、判分、取消并从中断恢复。
-5. [ADR-0001：Agent Engine 与桌面进程边界](/developer/adr/0001-agent-engine-and-desktop-boundary)：M0 为什么选择 Go/Wails/React + Pi Sidecar，并把 Codex 留作对照。
-6. [ADR-0002：Runtime 事实、存储与恢复边界](/developer/adr/0002-runtime-facts-and-recovery)：M1 为什么选择追加事件、内容寻址 Artifact、新 Attempt 恢复和只读桌面 Adapter。
-7. [ADR-0003：M2-A CTF 纵切与 Pi Security Adapter](/developer/adr/0003-ctf-vertical-slice)：真实模型怎样只能提议三种类型化动作，并由 Go Runtime 与独立 Judge 掌握事实和成功条件。
-8. [ADR-0004：学习产品、能力与开源发布边界](/developer/adr/0004-learning-product-and-release-boundary)：为什么“学习工具”必须落实为默认能力、授权、审批与分级发布，而不是免责文案。
-9. [靶场与环境管理](/developer/lab-management)：怎样自动导入、启动、重置、判题和清理本地 CTF/Vuln 环境。
-10. [Challenge Intake、Browser Use 与 Computer Use](/developer/challenge-intake-and-automation)：怎样接受聊天、文件、截图、目录与任意网站，并安全复用浏览器/桌面项目。
-11. [Role Packages](/developer/role-packages)：说明首批 CTF 与 Vulnerability Research 角色，以及人类学习 Outcome。
-12. [开源项目坐标](/developer/industry-baseline)：决定一个项目应该接入、委派、学习、只做 benchmark，还是拒绝。
-## 当前实现边界
+1. [当前开发目标](/developer/current-objectives)：唯一目标契约；当前切到产品闭环冲刺。
+2. [产品闭环冲刺](/developer/product-loop-sprint)：短期执行入口；先跑通 UI/UX、Coding
+   产品闭环和 CVE 学习/追踪工作台骨架；Lab 只保留未来外部靶场辅助计划。
+3. [目标覆盖台账](/developer/objective-coverage-ledger)：90 个稳定细项、实现证据、真实验收
+   和缺口。
+4. [文档与事实状态](/developer/document-status)：文档生命周期、当前准确声明和暂停范围。
+5. [当前系统与分层](/architecture/current-system)：当前进程、模块、数据和边界。
+6. [目标共同评估工作簿](/developer/objective-review-workbook)：用户与主 Agent 的讨论区，
+   不自动授权开发。
 
-M0、M1 与 M2-A 已完成工程验证：Go/Wails/React 桌面宿主、Pi Sidecar、追加式 Event Store、Artifact Store、只读 Projection、独立 Evaluator和中断恢复已经实跑；真实 Pi/DeepSeek 也已在桌面通过 CTF 类型化动作与本地 Judge 解完内置 Hex 题。
+## 当前有效的工程契约
 
-这仍只是离线单题纵切，不等于 M2 可玩 MVP：Browser、Shell、自动 Lab、在线网站、截图/目录接入、Coach/Copilot 与长期学习尚未实现。下一个大模块必须先和用户确认；完成完整 CTF MVP 后，再用 Vuln MVP 检验公共抽象。两个 Role 从首个 MVP 起就有独立面板，具体 UI/UX 随实跑逐步确定。
+- [Coding Agent / Pi 扩展边界](/architecture/coding-agent-pi-extension-boundary)
+- [CTF Intake → Agent → Judge → Memory](/architecture/ctf-intake-agent-judge-memory)
+- [PI Resource Whitelist](/developer/pi-resource-whitelist)
+- [安全 Agent 与通用 Agent 的能力边界](/developer/security-agent-boundary)
+- [核心架构：可验证安全任务运行时](/developer/architecture)
+- [Security Role Packages](/developer/role-packages)
+
+这些文档描述稳定边界，不单独安排开发顺序；发生实现状态冲突时回到覆盖台账。
+
+## 可复跑验收与证据
+
+- [Coding Agent 交付验收](/developer/coding-agent-delivery-acceptance)
+- [Coding Browser 验收](/developer/coding-browser-acceptance)
+- [前端视觉 QA 验收](/developer/frontend-visual-qa-acceptance)
+- [本地交付基线](/developer/local-delivery-baseline)
+- [NYU CTF Bench 安全边界](/developer/nyu-ctf-bench-eval)
+
+证据文档只证明记录中明确写出的范围；不能外推为整个产品完成。
+
+## 暂停或未来设计
+
+- [产品闭环冲刺](/developer/product-loop-sprint)
+- [授权安全学习与研究平台](/architecture/security-learning-and-research-platform)
+- [CTF Labs 设计](/architecture/ctf-labs-design)
+- [CVE 研究工作台设计](/architecture/cve-research-workbench-design)
+
+Lab 纵深闭环仍暂停，只保留外部 HTB/TryHackMe/pwn.college 辅助与进度追踪的未来计划。
+CVE 纵深研究也不进入本冲刺，但一级菜单需要有学习/追踪工作台骨架和后续 Agent 可接手清单。
+设计存在不表示真实目标已经启用。
+
+## 历史与研究
+
+`developer/adr/*`、`developer/checkpoints/*`、带日期的 Review、`developer/research/*`、
+`design/audits/*` 和根目录 `design-qa.md` 记录当时的决策、调研或验收快照。它们保留原因和
+证据，但不是 backlog；顶部的 Historical/Research/Evidence 标识优先于正文中的旧
+“下一步”或“未完成”列表。
+
+选择外部项目时参考[开源项目基线](/developer/industry-baseline)，但项目写进调研表不等于
+进入依赖。正式接入仍需要许可证、供应链、权限面和真实任务验收。
+
+近期专项调研：
+
+- [Wallbreaker Harness 静态调研与 MilkSU 对照](/developer/research/2026-08-03-wallbreaker-harness-review)
+- [开源安全 Skills / Harness 生态接入调研与计划](/developer/research/2026-08-04-open-source-security-skills-ecosystem)
+- [关于一个优秀 skills 包的接入调研和计划](/developer/research/关于一个优秀%20skills%20包的接入调研和计划)

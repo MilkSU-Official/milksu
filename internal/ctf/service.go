@@ -1,6 +1,7 @@
 package ctf
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
@@ -8,9 +9,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"mime"
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/MilkSU-Official/milksu/internal/securityruntime"
 )
@@ -19,6 +22,8 @@ var (
 	errUserCancelled = errors.New("CTF job cancelled by user")
 	errAppShutdown   = errors.New("application shutdown")
 )
+
+const maxArtifactPreviewBytes = 128 * 1024
 
 type ServiceOptions struct {
 	Engine      securityruntime.AgentEngine
@@ -48,6 +53,8 @@ type Service struct {
 	active map[string]*activeRun
 	closed bool
 	wg     sync.WaitGroup
+
+	endpointMu sync.Mutex
 }
 
 func NewService(runtime *securityruntime.Service, options ServiceOptions) (*Service, error) {
@@ -95,13 +102,18 @@ func (s *Service) StartChallenge(ctx context.Context, request ChallengeRequest) 
 		Statement:         admitted.statement,
 		Category:          admitted.category,
 		CollaborationMode: admitted.collaborationMode,
+		ExternalPlatform:  admitted.externalPlatform,
+		ExternalAttemptID: admitted.externalAttemptID,
+		TrackName:         admitted.trackName,
+		HumanGoal:         admitted.humanGoal,
+		Source:            admitted.source,
 		KnowledgePoints:   append([]string{}, admitted.knowledgePoints...),
 		Materials:         []Material{},
-		Judge: JudgeSpec{
-			Type: "flag.sha256", Version: s.judge.Version(),
-			ExpectedFlagSHA256: hashFlag(admitted.expectedFlag),
-		},
-		AdmittedAt: now,
+		Judge:             JudgeSpec{Type: "external.manual", Version: s.judge.Version()},
+		AdmittedAt:        now,
+	}
+	if admitted.expectedFlag != "" {
+		challenge.Judge = JudgeSpec{Type: "flag.sha256", Version: s.judge.Version(), ExpectedFlagSHA256: hashFlag(admitted.expectedFlag)}
 	}
 	artifactIDs := make([]string, 0, len(admitted.materials))
 	for _, material := range admitted.materials {
@@ -126,8 +138,10 @@ func (s *Service) StartChallenge(ctx context.Context, request ChallengeRequest) 
 	if err := s.runtime.CommitRoleFact(ctx, securityruntime.EventScope{JobID: job.ID}, fact); err != nil {
 		return Projection{}, err
 	}
-	if err := s.startRunner(job.ID); err != nil {
-		return Projection{}, err
+	if !admitted.deferAgent {
+		if err := s.startRunner(job.ID); err != nil {
+			return Projection{}, err
+		}
 	}
 	return s.GetJob(ctx, job.ID)
 }
@@ -140,6 +154,9 @@ func (s *Service) StartSampleChallenge(ctx context.Context) (Projection, error) 
 		Statement:         "附件是一段十六进制文本。请检查材料、恢复原文，并把得到的 Flag 交给本地判题器。",
 		Category:          "misc",
 		CollaborationMode: "delegate",
+		TrackName:         "CTF 基础训练",
+		HumanGoal:         "理解十六进制编码，并能用证据向 Judge 说明答案来源。",
+		SourceKind:        "file",
 		ExpectedFlag:      expected,
 		KnowledgePoints:   []string{"十六进制编码", "证据驱动的逐步验证", "模型与判题器职责分离"},
 		Materials: []MaterialRequest{{
@@ -156,6 +173,62 @@ func (s *Service) GetJob(ctx context.Context, jobID string) (Projection, error) 
 		return Projection{}, err
 	}
 	return Project(core)
+}
+
+func (s *Service) GetArtifactPreview(ctx context.Context, jobID, artifactID string) (ArtifactPreview, error) {
+	projection, err := s.GetJob(ctx, jobID)
+	if err != nil {
+		return ArtifactPreview{}, err
+	}
+	var artifact *securityruntime.Artifact
+	for index := range projection.Artifacts {
+		if projection.Artifacts[index].ID == artifactID {
+			artifact = &projection.Artifacts[index]
+			break
+		}
+	}
+	if artifact == nil {
+		return ArtifactPreview{}, fmt.Errorf("artifact does not belong to CTF job")
+	}
+	data, err := s.runtime.ReadArtifact(ctx, *artifact)
+	if err != nil {
+		return ArtifactPreview{}, err
+	}
+	return buildArtifactPreview(*artifact, data), nil
+}
+
+func buildArtifactPreview(artifact securityruntime.Artifact, data []byte) ArtifactPreview {
+	result := ArtifactPreview{Artifact: artifact}
+	mediaType, _, err := mime.ParseMediaType(artifact.MediaType)
+	if err != nil || !isTextPreviewMediaType(mediaType) {
+		result.Reason = "仅展示元数据；二进制制品不会在 MilkSU 内渲染或执行。"
+		return result
+	}
+	if !utf8.Valid(data) {
+		result.Reason = "制品声明为文本，但内容不是有效 UTF-8；为避免误解，仅展示元数据。"
+		return result
+	}
+	preview := data
+	if len(preview) > maxArtifactPreviewBytes {
+		preview = preview[:maxArtifactPreviewBytes]
+		for len(preview) > 0 && !utf8.Valid(preview) {
+			preview = preview[:len(preview)-1]
+		}
+		result.Truncated = true
+	}
+	result.Previewable = true
+	result.Content = string(bytes.ToValidUTF8(preview, []byte("\uFFFD")))
+	return result
+}
+
+func isTextPreviewMediaType(mediaType string) bool {
+	mediaType = strings.ToLower(strings.TrimSpace(mediaType))
+	return strings.HasPrefix(mediaType, "text/") ||
+		mediaType == "application/json" ||
+		mediaType == "application/x-ndjson" ||
+		mediaType == "application/xml" ||
+		strings.HasSuffix(mediaType, "+json") ||
+		strings.HasSuffix(mediaType, "+xml")
 }
 
 func (s *Service) ListJobs(ctx context.Context) ([]Summary, error) {
@@ -202,6 +275,79 @@ func (s *Service) CancelJob(ctx context.Context, jobID string) error {
 	return s.finishCancellation(jobID, stateFromProjection(projection))
 }
 
+func (s *Service) RecordLearning(ctx context.Context, jobID string, request LearningRecordRequest) (Projection, error) {
+	projection, err := s.GetJob(ctx, jobID)
+	if err != nil {
+		return Projection{}, err
+	}
+	if projection.Job.Role != PackageID {
+		return Projection{}, fmt.Errorf("job is not a CTF challenge")
+	}
+	kind := strings.ToLower(strings.TrimSpace(request.Kind))
+	assistance := userLearningAssistance(
+		projection.Challenge.CollaborationMode,
+		kind,
+		projection.Learning,
+	)
+	return s.recordAttributedLearning(
+		ctx,
+		projection,
+		request,
+		LearningActorUser,
+		assistance,
+	)
+}
+
+func (s *Service) recordAttributedLearning(
+	ctx context.Context,
+	projection Projection,
+	request LearningRecordRequest,
+	actor LearningActor,
+	assistance LearningAssistance,
+) (Projection, error) {
+	kind := strings.ToLower(strings.TrimSpace(request.Kind))
+	if kind != "hint" &&
+		kind != "reflection" &&
+		kind != "independent_step" &&
+		kind != "observation" &&
+		kind != "goal" &&
+		kind != "judge_observation" {
+		return Projection{}, fmt.Errorf("unsupported learning record kind")
+	}
+	if !validLearningActor(actor) || !validLearningAssistance(assistance) {
+		return Projection{}, fmt.Errorf("invalid learning record attribution")
+	}
+	content := strings.TrimSpace(request.Content)
+	if content == "" || len([]rune(content)) > 4000 {
+		return Projection{}, fmt.Errorf("learning record content is required and must be at most 4000 characters")
+	}
+	concept := strings.TrimSpace(request.Concept)
+	if len([]rune(concept)) > 160 || request.Level < 0 || request.Level > 3 {
+		return Projection{}, fmt.Errorf("learning concept or hint level is invalid")
+	}
+	record := LearningRecord{
+		ID: securityruntime.NewIdentifier("learning"), Kind: kind,
+		Actor: actor, Assistance: assistance, Content: content,
+		Concept: concept, Level: request.Level, CreatedAt: time.Now().UTC(),
+	}
+	data, err := json.Marshal(record)
+	if err != nil {
+		return Projection{}, err
+	}
+	fact := securityruntime.RoleFact{
+		ID: securityruntime.NewIdentifier("fact"), PackageID: PackageID, SchemaVersion: SchemaVersion,
+		Kind: FactLearningRecorded, Data: data,
+	}
+	if err := s.runtime.CommitRoleFact(
+		ctx,
+		securityruntime.EventScope{JobID: projection.Job.ID},
+		fact,
+	); err != nil {
+		return Projection{}, err
+	}
+	return s.GetJob(ctx, projection.Job.ID)
+}
+
 func (s *Service) Recover(ctx context.Context) error {
 	values, err := s.runtime.ListJobs(ctx)
 	if err != nil {
@@ -216,6 +362,24 @@ func (s *Service) Recover(ctx context.Context) error {
 			return projectionErr
 		}
 		if projection.Terminal() {
+			continue
+		}
+		// A queued Job with no Attempt is intentionally deferred (for example,
+		// the user built a browser workspace before configuring a model). It is
+		// not interrupted work and must wait for an explicit ContinueJob call.
+		if projection.Job.Status == securityruntime.JobQueued && len(projection.Attempts) == 0 {
+			continue
+		}
+		if challenge, challengeErr := challengeFromProjection(projection); challengeErr == nil && challenge.Judge.Type == "external.manual" && len(projection.Evaluations) > 0 && projection.Evaluations[len(projection.Evaluations)-1].Verdict == securityruntime.VerdictNeedsReview {
+			continue
+		}
+		if challenge, challengeErr := challengeFromProjection(projection); challengeErr == nil && challenge.CollaborationMode == "coach" && len(projection.Attempts) > 0 && projection.Attempts[len(projection.Attempts)-1].Status == securityruntime.AttemptCompleted {
+			continue
+		}
+		if challenge, challengeErr := challengeFromProjection(projection); challengeErr == nil &&
+			challenge.Source.Kind == "local-lab" &&
+			len(projection.Attempts) > 0 &&
+			projection.Attempts[len(projection.Attempts)-1].Status == securityruntime.AttemptCompleted {
 			continue
 		}
 		if projection.Outcome != nil {
@@ -364,6 +528,13 @@ func (s *Service) runJob(ctx context.Context, jobID string) (state runState, res
 		if proposal.Capability != CapabilityName {
 			return state, fmt.Errorf("engine proposed unavailable capability %q", proposal.Capability)
 		}
+		if challenge.CollaborationMode == "coach" &&
+			proposal.Name != "ctf.inspect_material" &&
+			proposal.Name != "ctf.decode_hex" &&
+			proposal.Name != "ctf.decode_text" &&
+			proposal.Name != "ctf.coach_hint" {
+			return state, fmt.Errorf("coach mode denied solution/submission action %q", proposal.Name)
+		}
 		proposal.Rationale = strings.TrimSpace(proposal.Rationale)
 		if proposal.Rationale == "" || len([]rune(proposal.Rationale)) > 2000 {
 			return state, fmt.Errorf("engine proposal requires a rationale of at most 2000 characters")
@@ -465,6 +636,21 @@ func (s *Service) runJob(ctx context.Context, jobID string) (state runState, res
 		}); err != nil {
 			return state, err
 		}
+		if action.Name == "ctf.coach_hint" {
+			if err := s.recordAgentHint(jobID, action.Input); err != nil {
+				return state, err
+			}
+			if challenge.CollaborationMode == "coach" {
+				if err := s.runtime.FinishAttempt(ctx, jobID, attempt.ID, securityruntime.AttemptCompleted, "coach returned one graded hint and waits for the learner"); err != nil {
+					return state, err
+				}
+				if err := s.releaseEnvironment(jobID, attempt.ID, lease); err != nil {
+					return state, err
+				}
+				state.lease = nil
+				return state, nil
+			}
+		}
 		state.action = nil
 		state.step = nil
 
@@ -488,6 +674,16 @@ func (s *Service) runJob(ctx context.Context, jobID string) (state runState, res
 			return state, err
 		}
 		if decision.Verdict != securityruntime.VerdictPass {
+			if decision.Verdict == securityruntime.VerdictNeedsReview {
+				if err := s.runtime.FinishAttempt(ctx, jobID, attempt.ID, securityruntime.AttemptCompleted, decision.Summary); err != nil {
+					return state, err
+				}
+				if err := s.releaseEnvironment(jobID, attempt.ID, lease); err != nil {
+					return state, err
+				}
+				state.lease = nil
+				return state, nil
+			}
 			continue
 		}
 		outcome := securityruntime.Outcome{
@@ -508,6 +704,31 @@ func (s *Service) runJob(ctx context.Context, jobID string) (state runState, res
 		}
 		return state, nil
 	}
+}
+
+func (s *Service) recordAgentHint(jobID string, input json.RawMessage) error {
+	var value struct {
+		Hint    string `json:"hint"`
+		Concept string `json:"concept"`
+		Level   int    `json:"level"`
+	}
+	if err := json.Unmarshal(input, &value); err != nil {
+		return err
+	}
+	projection, err := s.GetJob(context.Background(), jobID)
+	if err != nil {
+		return err
+	}
+	_, err = s.recordAttributedLearning(
+		context.Background(),
+		projection,
+		LearningRecordRequest{
+			Kind: "hint", Content: value.Hint, Concept: value.Concept, Level: value.Level,
+		},
+		LearningActorAgent,
+		LearningAssistanceHint,
+	)
+	return err
 }
 
 func (s *Service) finishBudgetExhausted(jobID string, attempt securityruntime.Attempt, lease securityruntime.EnvironmentLease) error {

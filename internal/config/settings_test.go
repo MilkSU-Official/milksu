@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 type fakeSecretStore map[string]string
@@ -31,6 +32,15 @@ func (s fakeSecretStore) Delete(account string) error {
 	return nil
 }
 
+type failingSetSecretStore struct {
+	fakeSecretStore
+	err error
+}
+
+func (s failingSetSecretStore) Set(string, string) error {
+	return s.err
+}
+
 func TestWithDefaults(t *testing.T) {
 	settings := withDefaults(AppSettings{})
 	if settings.ActiveProvider != "deepseek" || settings.ActiveModel != "deepseek-v4-flash" {
@@ -44,10 +54,36 @@ func TestWithDefaults(t *testing.T) {
 func TestCloneDoesNotShareMaps(t *testing.T) {
 	original := DefaultSettings()
 	original.Providers["openai"] = ProviderConfig{APIKey: "secret", Enabled: true}
+	original.ModelRouting.Vision = &ModelSelection{Provider: "openai", Model: "gpt-4o"}
 	copied := clone(original)
 	delete(copied.Providers, "openai")
+	copied.ModelRouting.Vision.Model = "gpt-4.1"
 	if _, exists := original.Providers["openai"]; !exists {
 		t.Fatal("clone modified original provider map")
+	}
+	if original.ModelRouting.Vision.Model != "gpt-4o" {
+		t.Fatal("clone modified original vision model selection")
+	}
+}
+
+func TestWithDefaultsSanitizesVisionModelSelection(t *testing.T) {
+	settings := withDefaults(AppSettings{
+		ModelRouting: ModelRoutingConfig{
+			Vision: &ModelSelection{Provider: " openai ", Model: " gpt-4o "},
+		},
+	})
+	if settings.ModelRouting.Vision == nil ||
+		settings.ModelRouting.Vision.Provider != "openai" ||
+		settings.ModelRouting.Vision.Model != "gpt-4o" {
+		t.Fatalf("unexpected vision selection: %#v", settings.ModelRouting.Vision)
+	}
+	settings = withDefaults(AppSettings{
+		ModelRouting: ModelRoutingConfig{
+			Vision: &ModelSelection{Provider: "openai"},
+		},
+	})
+	if settings.ModelRouting.Vision != nil {
+		t.Fatalf("incomplete vision selection must be removed: %#v", settings.ModelRouting.Vision)
 	}
 }
 
@@ -61,6 +97,7 @@ func TestStoreKeepsSecretsOutOfSettingsAndPublicBoundary(t *testing.T) {
 	settings := DefaultSettings()
 	settings.Providers["deepseek"] = ProviderConfig{APIKey: "provider-secret", Enabled: true}
 	settings.Relay = &RelayConfig{Enabled: true, URL: "https://relay.example", Key: "relay-secret"}
+	settings.NSSCTFArena = &NSSCTFArenaConfig{Token: "nss_agent_arena-secret"}
 	if err := store.Save(settings); err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +106,9 @@ func TestStoreKeepsSecretsOutOfSettingsAndPublicBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(data), "provider-secret") || strings.Contains(string(data), "relay-secret") {
+	if strings.Contains(string(data), "provider-secret") ||
+		strings.Contains(string(data), "relay-secret") ||
+		strings.Contains(string(data), "arena-secret") {
 		t.Fatalf("settings file contains a credential: %s", data)
 	}
 	public := store.Get()
@@ -79,9 +118,183 @@ func TestStoreKeepsSecretsOutOfSettingsAndPublicBoundary(t *testing.T) {
 	if public.Relay.Key != "" || !public.Relay.HasKey {
 		t.Fatalf("public relay settings leaked or lost credential status: %#v", public.Relay)
 	}
+	if public.NSSCTFArena.Token != "" || !public.NSSCTFArena.HasToken {
+		t.Fatalf("public NSSCTF Arena settings leaked or lost token status: %#v", public.NSSCTFArena)
+	}
 	resolved := store.GetResolved()
-	if resolved.Providers["deepseek"].APIKey != "provider-secret" || resolved.Relay.Key != "relay-secret" {
+	if resolved.Providers["deepseek"].APIKey != "provider-secret" ||
+		resolved.Relay.Key != "relay-secret" ||
+		resolved.NSSCTFArena.Token != "nss_agent_arena-secret" {
 		t.Fatal("engine settings did not resolve stored credentials")
+	}
+}
+
+func TestStorePersistsAndInvalidatesModelVerification(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	store, err := newStore(path, fakeSecretStore{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	settings := DefaultSettings()
+	settings.Providers["deepseek"] = ProviderConfig{APIKey: "provider-secret", Enabled: true}
+	if err := store.Save(settings); err != nil {
+		t.Fatal(err)
+	}
+	verifiedAt := time.Date(2026, 7, 31, 4, 30, 0, 0, time.UTC)
+	if err := store.RecordModelVerification("deepseek", "deepseek-v4-flash", verifiedAt); err != nil {
+		t.Fatal(err)
+	}
+	verification := store.Get().ModelVerified
+	if verification == nil ||
+		verification.Provider != "deepseek" ||
+		verification.Model != "deepseek-v4-flash" ||
+		verification.VerifiedAt != "2026-07-31T04:30:00Z" {
+		t.Fatalf("unexpected model verification: %#v", verification)
+	}
+
+	reloaded, err := newStore(path, store.secretStore)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.Get().ModelVerified == nil {
+		t.Fatal("model verification did not survive restart")
+	}
+
+	changed := reloaded.Get()
+	changed.ActiveModel = "deepseek-v4-pro"
+	if err := reloaded.Save(changed); err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.Get().ModelVerified != nil {
+		t.Fatal("changing the active model must invalidate prior verification")
+	}
+}
+
+func TestStoreValidatesBaseURLAndInvalidatesVerificationWhenItChanges(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	store, err := newStore(path, fakeSecretStore{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstURL := "https://api.deepseek.com"
+	settings := DefaultSettings()
+	settings.Providers["deepseek"] = ProviderConfig{
+		APIKey:  "provider-secret",
+		BaseURL: &firstURL,
+		Enabled: true,
+	}
+	if err := store.Save(settings); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RecordModelVerification("deepseek", "deepseek-v4-flash", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+
+	changed := store.Get()
+	secondURL := "https://gateway.example.test/v1"
+	provider := changed.Providers["deepseek"]
+	provider.BaseURL = &secondURL
+	changed.Providers["deepseek"] = provider
+	if err := store.Save(changed); err != nil {
+		t.Fatal(err)
+	}
+	if store.Get().ModelVerified != nil {
+		t.Fatal("changing the active provider Base URL must invalidate prior verification")
+	}
+
+	invalid := store.Get()
+	badURL := "file:///tmp/provider"
+	provider = invalid.Providers["deepseek"]
+	provider.BaseURL = &badURL
+	invalid.Providers["deepseek"] = provider
+	if err := store.Save(invalid); err == nil || !strings.Contains(err.Error(), "must use http or https") {
+		t.Fatalf("expected invalid provider Base URL rejection, got %v", err)
+	}
+}
+
+func TestStoreRejectsVerificationForInactiveModel(t *testing.T) {
+	store, err := newStore(filepath.Join(t.TempDir(), "settings.json"), fakeSecretStore{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = store.RecordModelVerification("openai", "gpt-4.1", time.Now())
+	if err == nil || !strings.Contains(err.Error(), "no longer matches active model") {
+		t.Fatalf("expected inactive-model verification rejection, got %v", err)
+	}
+}
+
+func TestStoreKeepsCredentialInSessionWhenKeychainWriteFails(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	store, err := newStore(path, failingSetSecretStore{
+		fakeSecretStore: fakeSecretStore{},
+		err:             errors.New("keychain locked"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	settings := DefaultSettings()
+	settings.Providers["deepseek"] = ProviderConfig{APIKey: "session-secret", Enabled: true}
+
+	err = store.Save(settings)
+	if err == nil || !strings.Contains(err.Error(), "keychain locked") {
+		t.Fatalf("expected actionable persistence error, got %v", err)
+	}
+	public := store.Get().Providers["deepseek"]
+	if !public.HasAPIKey || !public.SessionOnly || public.APIKey != "" {
+		t.Fatalf("unexpected public session credential state: %#v", public)
+	}
+	if resolved := store.GetResolved().Providers["deepseek"].APIKey; resolved != "session-secret" {
+		t.Fatal("session credential is unavailable to the local engine")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "session-secret") || strings.Contains(string(data), "session_only") {
+		t.Fatalf("session credential metadata leaked to disk: %s", data)
+	}
+
+	reloaded, err := newStore(path, fakeSecretStore{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.Get().Providers["deepseek"].HasAPIKey {
+		t.Fatal("session-only credential survived a simulated restart")
+	}
+}
+
+func TestStoreSkipsPersistentSecretStoreForExplicitSessionCredential(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	store, err := newStore(path, failingSetSecretStore{
+		fakeSecretStore: fakeSecretStore{},
+		err:             errors.New("persistent store must not be called"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	settings := DefaultSettings()
+	settings.Providers["deepseek"] = ProviderConfig{
+		APIKey:      "session-secret",
+		Enabled:     true,
+		SessionOnly: true,
+	}
+
+	if err := store.Save(settings); err != nil {
+		t.Fatalf("explicit session credential unexpectedly touched persistent storage: %v", err)
+	}
+	public := store.Get().Providers["deepseek"]
+	if !public.HasAPIKey || !public.SessionOnly || public.APIKey != "" {
+		t.Fatalf("unexpected public session credential state: %#v", public)
+	}
+	if resolved := store.GetResolved().Providers["deepseek"].APIKey; resolved != "session-secret" {
+		t.Fatal("explicit session credential is unavailable to the local engine")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "session-secret") || strings.Contains(string(data), "session_only") {
+		t.Fatalf("session credential metadata leaked to disk: %s", data)
 	}
 }
 
@@ -136,5 +349,34 @@ func TestStoreRemovesCredentialOnlyWhenExplicitlyRequested(t *testing.T) {
 	}
 	if store.Get().Providers["openai"].HasAPIKey {
 		t.Fatal("removed credential still appears configured")
+	}
+}
+
+func TestStoreNormalizesAndExplicitlyRemovesArenaToken(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	secrets := fakeSecretStore{}
+	store, err := newStore(path, secrets)
+	if err != nil {
+		t.Fatal(err)
+	}
+	settings := DefaultSettings()
+	settings.NSSCTFArena = &NSSCTFArenaConfig{Token: "  nss_agent_arena-secret  "}
+	if err := store.Save(settings); err != nil {
+		t.Fatal(err)
+	}
+	if resolved := store.GetResolved().NSSCTFArena.Token; resolved != "nss_agent_arena-secret" {
+		t.Fatalf("Arena token was not normalized: %q", resolved)
+	}
+
+	public := store.Get()
+	public.NSSCTFArena.RemoveToken = true
+	if err := store.Save(public); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := secrets.Get(nssctfArenaSecretAccount); !errors.Is(err, errSecretNotFound) {
+		t.Fatalf("Arena token still exists: %v", err)
+	}
+	if store.Get().NSSCTFArena.HasToken {
+		t.Fatal("removed Arena token still appears configured")
 	}
 }

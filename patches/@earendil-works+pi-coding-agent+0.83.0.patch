@@ -1,0 +1,80 @@
+diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/core/tools/bash.js b/node_modules/@earendil-works/pi-coding-agent/dist/core/tools/bash.js
+index 8028dbf..d03c84b 100644
+--- a/node_modules/@earendil-works/pi-coding-agent/dist/core/tools/bash.js
++++ b/node_modules/@earendil-works/pi-coding-agent/dist/core/tools/bash.js
+@@ -51,7 +51,19 @@ export function createLocalBashOperations(options) {
+                 throw new Error(`Working directory does not exist: ${cwd}\nCannot execute bash commands.`);
+             }
+             const commandFromStdin = shellConfig.commandTransport === "stdin";
+-            const child = spawn(shellConfig.shell, commandFromStdin ? shellConfig.args : [...shellConfig.args, command], {
++            const denySubagentNetwork = process.platform === "darwin"
++                && process.env.MILKSU_PI_SUBAGENT_RUNTIME === "1";
++            const shellArguments = commandFromStdin
++                ? shellConfig.args
++                : [...shellConfig.args, command];
++            const child = spawn(denySubagentNetwork ? "/usr/bin/sandbox-exec" : shellConfig.shell, denySubagentNetwork
++                ? [
++                    "-p",
++                    "(version 1)\n(allow default)\n(deny network*)",
++                    shellConfig.shell,
++                    ...shellArguments,
++                ]
++                : shellArguments, {
+                 cwd,
+                 detached: process.platform !== "win32",
+                 env: env ?? getShellEnv(),
+diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/core/trust-manager.js b/node_modules/@earendil-works/pi-coding-agent/dist/core/trust-manager.js
+index 17af938..c9cf3d5 100644
+--- a/node_modules/@earendil-works/pi-coding-agent/dist/core/trust-manager.js
++++ b/node_modules/@earendil-works/pi-coding-agent/dist/core/trust-manager.js
+@@ -147,6 +147,9 @@ function withTrustFileLock(path, fn) {
+  * trusted user resource and is ignored here, even when cwd is $HOME.
+  */
+ export function hasTrustRequiringProjectResources(cwd) {
++    if (process.env.MILKSU_PI_NO_PROJECT_RESOURCE_DISCOVERY === "1") {
++        return false;
++    }
+     const homeDir = canonicalizePath(resolvePath(process.env.HOME || homedir()));
+     const userAgentsSkillsDir = join(homeDir, ".agents", "skills");
+     let currentDir = canonicalizePath(resolvePath(cwd));
+diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/utils/shell.js b/node_modules/@earendil-works/pi-coding-agent/dist/utils/shell.js
+index 68e7e51..9e3caa4 100644
+--- a/node_modules/@earendil-works/pi-coding-agent/dist/utils/shell.js
++++ b/node_modules/@earendil-works/pi-coding-agent/dist/utils/shell.js
+@@ -107,10 +107,35 @@ export function getShellEnv() {
+     const pathEntries = currentPath.split(delimiter).filter(Boolean);
+     const hasBinDir = pathEntries.includes(binDir);
+     const updatedPath = hasBinDir ? currentPath : [binDir, currentPath].filter(Boolean).join(delimiter);
+-    return {
++    const environment = {
+         ...process.env,
+         [pathKey]: updatedPath,
+     };
++    if (process.env.MILKSU_PI_SUBAGENT_RUNTIME === "1") {
++        for (const name of [
++            "ANTHROPIC_API_KEY",
++            "ANTHROPIC_BASE_URL",
++            "DEEPSEEK_API_KEY",
++            "DEEPSEEK_BASE_URL",
++            "GEMINI_API_KEY",
++            "GOOGLE_API_KEY",
++            "GOOGLE_BASE_URL",
++            "GROQ_API_KEY",
++            "GROQ_BASE_URL",
++            "KOURICHAT_API_KEY",
++            "KOURICHAT_BASE_URL",
++            "MILKSU_RELAY_KEY",
++            "MILKSU_RELAY_URL",
++            "MISTRAL_API_KEY",
++            "MISTRAL_BASE_URL",
++            "OPENAI_API_KEY",
++            "OPENAI_BASE_URL",
++            "MILKSU_PI_SUBAGENT_RUNTIME",
++        ]) {
++            delete environment[name];
++        }
++    }
++    return environment;
+ }
+ /**
+  * Sanitize binary output for display/storage.
