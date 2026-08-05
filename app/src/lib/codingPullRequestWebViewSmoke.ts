@@ -158,7 +158,7 @@ export async function runCodingPullRequestWebViewSmoke(options: CodingPullReques
     await openChangesPanel()
     const changesPanelText = await waitFor('Git changes panel', () => {
       const text = visibleText()
-      return text.includes('准备 PR') && text.includes('提交说明') ? text : null
+      return text.includes('准备 PR') && (text.includes('推送') || text.includes('PR 发布')) ? text : null
     })
 
     const prepare = await waitFor('prepare PR button', () => findButton('准备 PR'))

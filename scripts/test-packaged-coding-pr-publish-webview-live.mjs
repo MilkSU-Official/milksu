@@ -179,8 +179,8 @@ async function main() {
   })
   try {
     const appReport = await waitForReport(rawReportPath, app)
-    assertAppReport(appReport, head, appDataDirectory)
     await fs.copyFile(rawReportPath, appReportPath)
+    assertAppReport(appReport, head, appDataDirectory)
 
     app.child.kill('SIGTERM')
     let exit = await waitForExit(app.child, shutdownTimeoutMs)
