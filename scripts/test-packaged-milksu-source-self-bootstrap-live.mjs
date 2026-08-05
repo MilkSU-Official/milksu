@@ -30,6 +30,18 @@ const shutdownTimeoutMs = 10_000
 
 const sourceFile = 'scripts/lib/milksu-source-self-bootstrap-smoke.mjs'
 const testFile = 'tests/scripts/milksu-source-self-bootstrap-smoke.test.mjs'
+const goSourceFile = 'internal/sourcebootstrap/smoke.go'
+const goTestFile = 'internal/sourcebootstrap/smoke_test.go'
+const frontendSourceFile = 'app/src/lib/sourceSelfBootstrapSmoke.ts'
+const frontendTestFile = 'app/src/lib/sourceSelfBootstrapSmoke.test.ts'
+const expectedChangedPaths = [
+  sourceFile,
+  testFile,
+  goSourceFile,
+  goTestFile,
+  frontendSourceFile,
+  frontendTestFile,
+].sort()
 const sourceContent = `export function summarizeSourceSelfBootstrap(task) {
   const moduleName = String(task?.module || 'unknown').trim() || 'unknown'
   const changedPaths = Array.isArray(task?.changedPaths) ? task.changedPaths : []
@@ -53,14 +65,100 @@ test('summarizes a MilkSU source self-bootstrap task', () => {
     changedPaths: [
       'scripts/lib/milksu-source-self-bootstrap-smoke.mjs',
       'tests/scripts/milksu-source-self-bootstrap-smoke.test.mjs',
+      'internal/sourcebootstrap/smoke.go',
+      'internal/sourcebootstrap/smoke_test.go',
+      'app/src/lib/sourceSelfBootstrapSmoke.ts',
+      'app/src/lib/sourceSelfBootstrapSmoke.test.ts',
     ],
-    tests: ['node --test tests/scripts/milksu-source-self-bootstrap-smoke.test.mjs'],
+    tests: [
+      'node --test tests/scripts/milksu-source-self-bootstrap-smoke.test.mjs',
+      'go test ./internal/sourcebootstrap',
+      'npm --prefix app run test -- --run src/lib/sourceSelfBootstrapSmoke.test.ts',
+    ],
   })
   assert.deepEqual(actual, {
     module: 'Coding',
-    changedPathCount: 2,
-    testCount: 1,
-    summary: 'Coding: 2 changed paths / 1 test',
+    changedPathCount: 6,
+    testCount: 3,
+    summary: 'Coding: 6 changed paths / 3 tests',
+  })
+})
+`
+const goSourceContent = `package sourcebootstrap
+
+import "fmt"
+
+type Evidence struct {
+\tModule       string
+\tChangedPaths int
+\tTests        int
+}
+
+func Summary(e Evidence) string {
+\tmodule := e.Module
+\tif module == "" {
+\t\tmodule = "unknown"
+\t}
+\treturn fmt.Sprintf("%s: %d changed paths / %d tests", module, e.ChangedPaths, e.Tests)
+}
+`
+const goTestContent = `package sourcebootstrap
+
+import "testing"
+
+func TestSummary(t *testing.T) {
+\tgot := Summary(Evidence{Module: "Coding", ChangedPaths: 6, Tests: 3})
+\twant := "Coding: 6 changed paths / 3 tests"
+\tif got != want {
+\t\tt.Fatalf("Summary() = %q, want %q", got, want)
+\t}
+}
+`
+const frontendSourceContent = `export interface SourceSelfBootstrapTask {
+  module?: string
+  changedPaths?: string[]
+  tests?: string[]
+}
+
+export function summarizeSourceSelfBootstrap(task: SourceSelfBootstrapTask) {
+  const moduleName = task.module?.trim() || 'unknown'
+  const changedPathCount = task.changedPaths?.length ?? 0
+  const testCount = task.tests?.length ?? 0
+  return {
+    module: moduleName,
+    changedPathCount,
+    testCount,
+    summary: \`\${moduleName}: \${changedPathCount} changed path\${changedPathCount === 1 ? '' : 's'} / \${testCount} test\${testCount === 1 ? '' : 's'}\`,
+  }
+}
+`
+const frontendTestContent = `import { describe, expect, it } from 'vitest'
+
+import { summarizeSourceSelfBootstrap } from './sourceSelfBootstrapSmoke'
+
+describe('summarizeSourceSelfBootstrap', () => {
+  it('summarizes a MilkSU source self-bootstrap task', () => {
+    expect(summarizeSourceSelfBootstrap({
+      module: 'Coding',
+      changedPaths: [
+        'scripts/lib/milksu-source-self-bootstrap-smoke.mjs',
+        'tests/scripts/milksu-source-self-bootstrap-smoke.test.mjs',
+        'internal/sourcebootstrap/smoke.go',
+        'internal/sourcebootstrap/smoke_test.go',
+        'app/src/lib/sourceSelfBootstrapSmoke.ts',
+        'app/src/lib/sourceSelfBootstrapSmoke.test.ts',
+      ],
+      tests: [
+        'node --test tests/scripts/milksu-source-self-bootstrap-smoke.test.mjs',
+        'go test ./internal/sourcebootstrap',
+        'npm --prefix app run test -- --run src/lib/sourceSelfBootstrapSmoke.test.ts',
+      ],
+    })).toEqual({
+      module: 'Coding',
+      changedPathCount: 6,
+      testCount: 3,
+      summary: 'Coding: 6 changed paths / 3 tests',
+    })
   })
 })
 `
@@ -266,6 +364,8 @@ function startBridge({ bundlePath, workspace, agentDirectory, baseURL }) {
         `--allow-fs-read=${dirname(executable)}`,
         `--allow-fs-read=${workspace}`,
         `--allow-fs-read=${agentDirectory}`,
+        `--allow-fs-read=${join(repositoryRoot, 'node_modules')}`,
+        `--allow-fs-read=${join(repositoryRoot, 'app', 'node_modules')}`,
         `--allow-fs-write=${workspace}`,
         `--allow-fs-write=${agentDirectory}`,
         '--allow-child-process',
@@ -403,6 +503,29 @@ async function prepareSourceClone(root) {
   return { workspace, remote }
 }
 
+async function prepareWorkspaceDependencies(workspace) {
+  const excludes = [
+    '/node_modules',
+    '/app/node_modules',
+  ]
+  const excludePath = join(workspace, '.git', 'info', 'exclude')
+  const existingExclude = await fs.readFile(excludePath, 'utf8')
+  const missingExcludes = excludes.filter(entry => !existingExclude.includes(entry))
+  if (missingExcludes.length > 0) {
+    await fs.appendFile(excludePath, `\n${missingExcludes.join('\n')}\n`)
+  }
+
+  const links = [
+    [join(repositoryRoot, 'node_modules'), join(workspace, 'node_modules')],
+    [join(repositoryRoot, 'app', 'node_modules'), join(workspace, 'app', 'node_modules')],
+  ]
+  for (const [target, link] of links) {
+    assert(await exists(target), `missing dependency directory for source clone smoke: ${target}`)
+    if (await exists(link)) continue
+    await fs.symlink(target, link, 'dir')
+  }
+}
+
 async function workspaceDigest(workspace) {
   const files = [
     'go.mod',
@@ -514,6 +637,7 @@ async function main() {
   try {
     const activeWorktreeStatusBefore = await runGit(['-C', repositoryRoot, 'status', '--porcelain=v1'])
     const { workspace, remote } = await prepareSourceClone(root)
+    await prepareWorkspaceDependencies(workspace)
     const sourceRevision = await runGit(['-C', workspace, 'rev-parse', 'HEAD'])
     const digest = await workspaceDigest(workspace)
     const agentDirectory = join(workspace, '.milksu', 'agent')
@@ -529,8 +653,14 @@ async function main() {
       tool('read', { path: 'app/src/App.vue' }),
       tool('write', { path: sourceFile, content: sourceContent }),
       tool('write', { path: testFile, content: testContent }),
+      tool('write', { path: goSourceFile, content: goSourceContent }),
+      tool('write', { path: goTestFile, content: goTestContent }),
+      tool('write', { path: frontendSourceFile, content: frontendSourceContent }),
+      tool('write', { path: frontendTestFile, content: frontendTestContent }),
       tool('bash', { command: `node --test ${testFile}` }),
-      answer('已在真实 MilkSU 源码副本中新增自举摘要工具和 node:test 回归，并通过测试。'),
+      tool('bash', { command: `go test ./internal/sourcebootstrap` }),
+      tool('bash', { command: `npm --prefix app run test -- --run src/lib/sourceSelfBootstrapSmoke.test.ts` }),
+      answer('已在真实 MilkSU 源码副本中新增 Node、Go 和前端 TS/Vitest 自举回归，并通过三条测试。'),
     ])
     bridge = startBridge({
       bundlePath,
@@ -542,9 +672,11 @@ async function main() {
     const transcript = await bridge.prompt(
       [
         '在这个 MilkSU 源码仓库里完成一个小型真实自举任务。',
-        `新增 ${sourceFile} 和 ${testFile}。`,
+        `新增 ${sourceFile}、${testFile}、${goSourceFile}、${goTestFile}、${frontendSourceFile} 和 ${frontendTestFile}。`,
         `运行 node --test ${testFile}。`,
-        '只修改这两个文件，不提交 Git。',
+        '运行 go test ./internal/sourcebootstrap。',
+        '运行 npm --prefix app run test -- --run src/lib/sourceSelfBootstrapSmoke.test.ts。',
+        '只修改这六个文件，不提交 Git。',
       ].join('\n'),
     )
     await bridge.stop()
@@ -554,18 +686,32 @@ async function main() {
     await provider.close()
     provider = null
 
-    const changed = (await runGit(['-C', workspace, 'status', '--porcelain=v1']))
+    const changed = (await runGit(['-C', workspace, 'status', '--porcelain=v1', '--untracked-files=all']))
       .split('\n')
       .map(line => line.trim())
       .filter(Boolean)
       .map(line => line.slice(3))
       .sort()
-    assert(JSON.stringify(changed) === JSON.stringify([sourceFile, testFile].sort()), `unexpected source changes: ${changed.join(', ')}`)
+    assert(JSON.stringify(changed) === JSON.stringify(expectedChangedPaths), `unexpected source changes: ${changed.join(', ')}`)
     const { stdout: verificationOutput } = await execFileAsync('node', ['--test', testFile], {
       cwd: workspace,
       maxBuffer: 4 * 1024 * 1024,
     })
     assert(verificationOutput.includes('pass 1'), 'independent node:test did not pass')
+    const { stdout: goTestOutput } = await execFileAsync('go', ['test', './internal/sourcebootstrap'], {
+      cwd: workspace,
+      maxBuffer: 4 * 1024 * 1024,
+    })
+    assert(goTestOutput.includes('ok'), 'independent Go test did not pass')
+    const { stdout: frontendTestOutput } = await execFileAsync(
+      'npm',
+      ['--prefix', 'app', 'run', 'test', '--', '--run', 'src/lib/sourceSelfBootstrapSmoke.test.ts'],
+      {
+        cwd: workspace,
+        maxBuffer: 8 * 1024 * 1024,
+      },
+    )
+    assert(frontendTestOutput.includes('sourceSelfBootstrapSmoke.test.ts'), 'independent Vitest did not run the source self-bootstrap test')
 
     const gitSmoke = await runPackagedGitSmoke(root, workspace)
     assertGitSmoke(gitSmoke.appReport)
@@ -618,9 +764,23 @@ async function main() {
         finalMessage: finalMessages.map(event => event.content).join('\n').slice(0, 500),
       },
       tests: {
-        command: `node --test ${testFile}`,
-        passed: true,
-        stdoutBytes: Buffer.byteLength(verificationOutput),
+        commands: [
+          {
+            command: `node --test ${testFile}`,
+            passed: true,
+            stdoutBytes: Buffer.byteLength(verificationOutput),
+          },
+          {
+            command: 'go test ./internal/sourcebootstrap',
+            passed: true,
+            stdoutBytes: Buffer.byteLength(goTestOutput),
+          },
+          {
+            command: 'npm --prefix app run test -- --run src/lib/sourceSelfBootstrapSmoke.test.ts',
+            passed: true,
+            stdoutBytes: Buffer.byteLength(frontendTestOutput),
+          },
+        ],
       },
       git: {
         packagedAppFacade: {
@@ -637,7 +797,11 @@ async function main() {
       gates: {
         usedRealMilkSUSourceClone: true,
         codingRuntimeEditedSource: changed.includes(sourceFile) && changed.includes(testFile),
+        codingRuntimeEditedGoSource: changed.includes(goSourceFile) && changed.includes(goTestFile),
+        codingRuntimeEditedFrontendSource: changed.includes(frontendSourceFile) && changed.includes(frontendTestFile),
         codingRuntimeRanNarrowTest: true,
+        codingRuntimeRanGoTest: true,
+        codingRuntimeRanFrontendTest: true,
         packagedAppCommittedAndPushed: true,
         isolatedRemoteOnly: true,
         activeWorktreeUntouched,
