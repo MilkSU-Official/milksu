@@ -25,17 +25,21 @@ func TestVulnerabilityFeedMatrixSmokeRequiresEverySourceAndPracticeMatch(t *test
 	if report.Schema != "milksu-vuln-feed-matrix-packaged-smoke/v1" ||
 		report.Error != "" ||
 		report.CVEID != "CVE-2023-46604" ||
-		len(report.Downloads) != 4 {
+		len(report.Downloads) != 6 {
 		t.Fatalf("unexpected matrix report: %#v", report)
 	}
 	if !report.Gates.FetchedNVD ||
 		!report.Gates.FetchedFIRSTEPSS ||
+		!report.Gates.FetchedOSV ||
+		!report.Gates.FetchedGitHubAdvisory ||
 		!report.Gates.FetchedCISAKEV ||
 		!report.Gates.FetchedVulhub ||
 		!report.Gates.SourceTimingPresent ||
 		!report.Gates.SnapshotsPersisted ||
 		!report.Gates.SelectedCVEInNVD ||
 		!report.Gates.SelectedCVEInFIRSTEPSS ||
+		!report.Gates.SelectedCVEInOSV ||
+		!report.Gates.SelectedCVEInGitHubAdvisory ||
 		!report.Gates.SelectedCVEInCISAKEV ||
 		!report.Gates.SelectedCVEHasVulhubPractice ||
 		!report.Gates.RawFeedBodiesOmitted {
@@ -46,6 +50,10 @@ func TestVulnerabilityFeedMatrixSmokeRequiresEverySourceAndPracticeMatch(t *test
 		report.NVD.BaseScore != 10 ||
 		!report.EPSS.Present ||
 		report.EPSS.EPSS != "0.932410000" ||
+		!report.OSV.Present ||
+		!strings.Contains(report.OSV.Package, "activemq") ||
+		!report.GitHubAdvisory.Present ||
+		report.GitHubAdvisory.GHSAID != "GHSA-crg9-44h2-xw35" ||
 		!report.CISAKEV.Present ||
 		!strings.Contains(report.CISAKEV.VulnerabilityName, "ActiveMQ") ||
 		!report.Vulhub.Present ||
@@ -122,6 +130,22 @@ func vulnerabilityFeedMatrixFixtureFetchers(
 				vuln.FIRSTEPSSFeedName,
 				vuln.FIRSTEPSSAPIURL+"?cve="+cveID,
 				`{"status":"OK","data":[{"cve":"CVE-2023-46604","epss":"0.932410000","percentile":"0.997200000","date":"2026-08-04"}]}`,
+			), nil
+		},
+		FetchOSV: func(cveID string) (vuln.FeedSnapshotDownload, error) {
+			return vulnerabilityFeedMatrixDownload(
+				dataDirectory,
+				vuln.OSVCVEFeedName,
+				vuln.OSVCVEAPIURL+"/"+cveID,
+				`{"schema_version":"1.7.3","id":"CVE-2023-46604","aliases":["GHSA-crg9-44h2-xw35"],"summary":"Apache ActiveMQ OpenWire RCE","published":"2023-10-25T00:00:00Z","modified":"2026-08-04T09:00:00Z","affected":[{"package":{"ecosystem":"Maven","name":"org.apache.activemq:activemq-client"}}]}`,
+			), nil
+		},
+		FetchGitHubAdvisory: func(cveID string) (vuln.FeedSnapshotDownload, error) {
+			return vulnerabilityFeedMatrixDownload(
+				dataDirectory,
+				vuln.GitHubAdvisoriesName,
+				vuln.GitHubAdvisoriesAPIURL+"?cve_id="+cveID+"&per_page=10",
+				`[{"ghsa_id":"GHSA-crg9-44h2-xw35","cve_id":"CVE-2023-46604","severity":"critical","published_at":"2023-10-27T00:00:00Z","updated_at":"2026-08-04T10:00:00Z","html_url":"https://github.com/advisories/GHSA-crg9-44h2-xw35","vulnerabilities":[{"package":{"ecosystem":"maven","name":"org.apache.activemq:activemq-client"}}]}]`,
 			), nil
 		},
 		FetchCISAKEV: func() (vuln.FeedSnapshotDownload, error) {

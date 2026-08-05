@@ -158,6 +158,103 @@ func TestFetchFIRSTEPSSRejectsInvalidCVEID(t *testing.T) {
 	}
 }
 
+func TestFetchOSVCVEBuildsExactPathAndKeepsTiming(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/v1/vulns/CVE-2023-46604" {
+			t.Fatalf("path = %q", request.URL.Path)
+		}
+		if request.Header.Get("Accept") != "application/json" {
+			t.Fatalf("missing JSON accept header")
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		writer.Header().Set("Date", "Tue, 04 Aug 2026 09:00:00 GMT")
+		writer.WriteHeader(http.StatusOK)
+		_, _ = writer.Write([]byte(`{"schema_version":"1.7.3","id":"CVE-2023-46604","aliases":["GHSA-crg9-44h2-xw35"],"summary":"ActiveMQ OpenWire RCE"}`))
+	}))
+	defer server.Close()
+
+	download, err := FetchOSVCVEFrom(
+		context.Background(),
+		server.Client(),
+		server.URL+"/v1/vulns",
+		" cve-2023-46604 ",
+	)
+	if err != nil {
+		t.Fatalf("FetchOSVCVEFrom() error = %v", err)
+	}
+	if download.SourceName != OSVCVEFeedName {
+		t.Fatalf("SourceName = %q", download.SourceName)
+	}
+	if !strings.HasSuffix(download.SourceURL, "/v1/vulns/CVE-2023-46604") {
+		t.Fatalf("SourceURL missing exact CVE path: %q", download.SourceURL)
+	}
+	if download.RetrievedAt != "2026-08-04T09:00:00Z" {
+		t.Fatalf("RetrievedAt = %q", download.RetrievedAt)
+	}
+	if !strings.Contains(download.Body, "GHSA-crg9-44h2-xw35") {
+		t.Fatalf("Body = %q", download.Body)
+	}
+}
+
+func TestFetchOSVCVERejectsInvalidCVEID(t *testing.T) {
+	_, err := FetchOSVCVEFrom(context.Background(), nil, OSVCVEAPIURL, "GHSA-crg9-44h2-xw35")
+	if err == nil || !strings.Contains(err.Error(), "invalid CVE id") {
+		t.Fatalf("expected invalid CVE id error, got %v", err)
+	}
+}
+
+func TestFetchGitHubAdvisoriesBuildsExactQueryAndKeepsTiming(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/advisories" {
+			t.Fatalf("path = %q", request.URL.Path)
+		}
+		if request.URL.Query().Get("cve_id") != "CVE-2023-46604" {
+			t.Fatalf("cve_id query = %q", request.URL.Query().Get("cve_id"))
+		}
+		if request.URL.Query().Get("per_page") != "10" {
+			t.Fatalf("per_page query = %q", request.URL.Query().Get("per_page"))
+		}
+		if request.Header.Get("Accept") != "application/json" {
+			t.Fatalf("missing JSON accept header")
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		writer.Header().Set("Last-Modified", "Tue, 04 Aug 2026 10:00:00 GMT")
+		writer.WriteHeader(http.StatusOK)
+		_, _ = writer.Write([]byte(`[{"ghsa_id":"GHSA-crg9-44h2-xw35","cve_id":"CVE-2023-46604","severity":"critical"}]`))
+	}))
+	defer server.Close()
+
+	download, err := FetchGitHubAdvisoriesFrom(
+		context.Background(),
+		server.Client(),
+		server.URL+"/advisories",
+		" cve-2023-46604 ",
+	)
+	if err != nil {
+		t.Fatalf("FetchGitHubAdvisoriesFrom() error = %v", err)
+	}
+	if download.SourceName != GitHubAdvisoriesName {
+		t.Fatalf("SourceName = %q", download.SourceName)
+	}
+	if !strings.Contains(download.SourceURL, "cve_id=CVE-2023-46604") ||
+		!strings.Contains(download.SourceURL, "per_page=10") {
+		t.Fatalf("SourceURL missing exact query: %q", download.SourceURL)
+	}
+	if download.RetrievedAt != "2026-08-04T10:00:00Z" {
+		t.Fatalf("RetrievedAt = %q", download.RetrievedAt)
+	}
+	if !strings.Contains(download.Body, "GHSA-crg9-44h2-xw35") {
+		t.Fatalf("Body = %q", download.Body)
+	}
+}
+
+func TestFetchGitHubAdvisoriesRejectsInvalidCVEID(t *testing.T) {
+	_, err := FetchGitHubAdvisoriesFrom(context.Background(), nil, GitHubAdvisoriesAPIURL, "2023-46604")
+	if err == nil || !strings.Contains(err.Error(), "invalid CVE id") {
+		t.Fatalf("expected invalid CVE id error, got %v", err)
+	}
+}
+
 func TestFetchVulhubPracticeCatalogBuildsCVEComposeMatches(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if request.Header.Get("Accept") != "application/vnd.github+json" {

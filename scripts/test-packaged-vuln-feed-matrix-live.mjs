@@ -127,12 +127,14 @@ function assertAppReport(report, appDataDirectory) {
   assert(!report.error, `CVE feed matrix smoke failed: ${report.error}`)
   assert(report.cveId === cveID, `CVE feed matrix cveId changed: ${report.cveId}`)
   assert(report.dataDirectory === appDataDirectory, `CVE feed matrix used unexpected data directory: ${report.dataDirectory}`)
-  assert(Array.isArray(report.downloads) && report.downloads.length === 4, 'CVE feed matrix did not return four source downloads')
-  for (const source of ['NVD', 'FIRST EPSS', 'CISA KEV', 'Vulhub Practice Catalog']) {
+  assert(Array.isArray(report.downloads) && report.downloads.length === 6, 'CVE feed matrix did not return six source downloads')
+  for (const source of ['NVD', 'FIRST EPSS', 'OSV', 'GitHub Advisory Database', 'CISA KEV', 'Vulhub Practice Catalog']) {
     bySource(report, source)
   }
   assert(report.nvd?.present === true && report.nvd?.id === cveID, 'NVD selected CVE fact missing')
   assert(report.epss?.present === true && report.epss?.cve === cveID, 'FIRST EPSS selected CVE fact missing')
+  assert(report.osv?.present === true, 'OSV selected CVE fact missing')
+  assert(report.githubAdvisory?.present === true && report.githubAdvisory?.cveId === cveID, 'GitHub Advisory selected CVE fact missing')
   assert(report.cisaKev?.present === true && report.cisaKev?.cveId === cveID, 'CISA KEV selected CVE fact missing')
   assert(
     report.vulhub?.present === true &&
@@ -230,6 +232,8 @@ async function main() {
         downloads: appReport.downloads,
         nvd: appReport.nvd,
         epss: appReport.epss,
+        osv: appReport.osv,
+        githubAdvisory: appReport.githubAdvisory,
         cisaKev: appReport.cisaKev,
         vulhub: appReport.vulhub,
         gates: appReport.gates,
@@ -238,17 +242,19 @@ async function main() {
       gates: {
         packagedAppFetchedNVD: true,
         packagedAppFetchedFIRSTEPSS: true,
+        packagedAppFetchedOSV: true,
+        packagedAppFetchedGitHubAdvisory: true,
         packagedAppFetchedCISAKEV: true,
         packagedAppFetchedVulhub: true,
         selectedCVEHasPracticeCandidate: true,
-        snapshotsCopiedForEvidence: snapshotEvidence.length === 4,
+        snapshotsCopiedForEvidence: snapshotEvidence.length === 6,
         rawFeedBodiesOmittedFromReport: true,
       },
     }
     await fs.writeFile(resultPath, `${JSON.stringify(report, null, 2)}\n`, { mode: 0o600 })
     console.log('MilkSU packaged CVE feed matrix live smoke passed.')
     console.log(`  CVE: ${cveID}`)
-    console.log('  sources: NVD + FIRST EPSS + CISA KEV + Vulhub')
+    console.log('  sources: NVD + FIRST EPSS + OSV + GitHub Advisory + CISA KEV + Vulhub')
     console.log(`  Vulhub: ${appReport.vulhub.firstMatch.directory}`)
     console.log(`  snapshots: ${snapshotEvidence.length}`)
     console.log(`  report: ${relative(repositoryRoot, resultPath)}`)

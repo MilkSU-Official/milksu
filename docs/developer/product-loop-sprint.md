@@ -85,14 +85,15 @@
   前后截图变化；下一步只补真实外部 Provider 与原生 UI 人工验收；
 - CVE：packaged App 进程内 NVD 单 CVE 导入 live smoke 已通过，已保存来源、获取时间、
   snapshot 哈希/大小和选中 CVE 的事实变化；packaged App 多源矩阵 smoke 已通过，能为
-  `CVE-2023-46604` 同步 NVD、FIRST EPSS、CISA KEV 和 Vulhub 练习目录，保留四份 snapshot，
-  并匹配到 `activemq/CVE-2023-46604`。CVE 设置页“同步当前 CVE”已升级为四源矩阵，
+  `CVE-2023-46604` 同步 NVD、FIRST EPSS、OSV、GitHub Advisory、CISA KEV 和 Vulhub
+  练习目录，保留六份 snapshot，并匹配到 `activemq/CVE-2023-46604`。
+  CVE 设置页“同步当前 CVE”已升级为六源矩阵，
   保留逐源成功/失败状态，并在 Browser 预览中验证入口收敛在设置页。2026-08-05 真实
-  打包 MilkSU UI 已从 CVE 设置页点击“四源同步”，对 `CVE-2024-3400` 显示 4/4 来源成功，
+  打包 MilkSU UI 已从 CVE 设置页完成此前旧矩阵验收，对 `CVE-2024-3400` 显示 4/4 来源成功，
   并在隔离 App data 下落盘 NVD、FIRST EPSS、CISA KEV 与 Vulhub snapshot；packaged
   CVE practice live smoke 已通过，真实打包 App 能对本地 Docker Compose 目录完成
   start/status/stop/cleanup，并确认无测试容器残留；该 smoke 使用 benign fixture，不运行
-  exploit 或漏洞触发输入。下一步只补真实 Vulhub 用户目录的 UI 手动验收、GHSA/OSV 或完整
+  exploit 或漏洞触发输入。下一步只补真实 Vulhub 用户目录的 UI 手动验收、完整
   研究回写，不能再说“只有四条 mock 数据”或“Docker 生命周期没有打包 App 证据”。
   同日 Browser 已验证 CVE 首页默认不铺 Feed/NVD/EPSS/KEV/Vulhub/缓存维护台，点击统一设置后才进入情报源设置；
 - CTF：从题库进入解题会话，切到 CVE/Coding 再返回，题库/会话/最近位置不丢失；Browser

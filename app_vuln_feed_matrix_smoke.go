@@ -18,28 +18,34 @@ const (
 )
 
 type vulnerabilityFeedMatrixSmokeReport struct {
-	Schema        string                                    `json:"schema"`
-	RanAt         string                                    `json:"ranAt"`
-	CVEID         string                                    `json:"cveId"`
-	DataDirectory string                                    `json:"dataDirectory"`
-	Downloads     []vulnerabilityFeedSmokeDownload          `json:"downloads"`
-	NVD           vulnerabilityFeedSmokeCVEFact             `json:"nvd"`
-	EPSS          vulnerabilityFeedMatrixEPSSFact           `json:"epss"`
-	CISAKEV       vulnerabilityFeedMatrixCISAKEVFact        `json:"cisaKev"`
-	Vulhub        vulnerabilityFeedMatrixVulhubPracticeFact `json:"vulhub"`
-	Gates         vulnerabilityFeedMatrixSmokeGates         `json:"gates"`
-	Error         string                                    `json:"error,omitempty"`
+	Schema         string                                    `json:"schema"`
+	RanAt          string                                    `json:"ranAt"`
+	CVEID          string                                    `json:"cveId"`
+	DataDirectory  string                                    `json:"dataDirectory"`
+	Downloads      []vulnerabilityFeedSmokeDownload          `json:"downloads"`
+	NVD            vulnerabilityFeedSmokeCVEFact             `json:"nvd"`
+	EPSS           vulnerabilityFeedMatrixEPSSFact           `json:"epss"`
+	OSV            vulnerabilityFeedMatrixOSVFact            `json:"osv"`
+	GitHubAdvisory vulnerabilityFeedMatrixGitHubAdvisoryFact `json:"githubAdvisory"`
+	CISAKEV        vulnerabilityFeedMatrixCISAKEVFact        `json:"cisaKev"`
+	Vulhub         vulnerabilityFeedMatrixVulhubPracticeFact `json:"vulhub"`
+	Gates          vulnerabilityFeedMatrixSmokeGates         `json:"gates"`
+	Error          string                                    `json:"error,omitempty"`
 }
 
 type vulnerabilityFeedMatrixSmokeGates struct {
 	FetchedNVD                   bool `json:"fetchedNvd"`
 	FetchedFIRSTEPSS             bool `json:"fetchedFirstEpss"`
+	FetchedOSV                   bool `json:"fetchedOsv"`
+	FetchedGitHubAdvisory        bool `json:"fetchedGithubAdvisory"`
 	FetchedCISAKEV               bool `json:"fetchedCisaKev"`
 	FetchedVulhub                bool `json:"fetchedVulhub"`
 	SourceTimingPresent          bool `json:"sourceTimingPresent"`
 	SnapshotsPersisted           bool `json:"snapshotsPersisted"`
 	SelectedCVEInNVD             bool `json:"selectedCveInNvd"`
 	SelectedCVEInFIRSTEPSS       bool `json:"selectedCveInFirstEpss"`
+	SelectedCVEInOSV             bool `json:"selectedCveInOsv"`
+	SelectedCVEInGitHubAdvisory  bool `json:"selectedCveInGithubAdvisory"`
 	SelectedCVEInCISAKEV         bool `json:"selectedCveInCisaKev"`
 	SelectedCVEHasVulhubPractice bool `json:"selectedCveHasVulhubPractice"`
 	RawFeedBodiesOmitted         bool `json:"rawFeedBodiesOmitted"`
@@ -51,6 +57,27 @@ type vulnerabilityFeedMatrixEPSSFact struct {
 	EPSS       string `json:"epss,omitempty"`
 	Percentile string `json:"percentile,omitempty"`
 	Date       string `json:"date,omitempty"`
+}
+
+type vulnerabilityFeedMatrixOSVFact struct {
+	Present   bool     `json:"present"`
+	ID        string   `json:"id,omitempty"`
+	Aliases   []string `json:"aliases,omitempty"`
+	Summary   string   `json:"summary,omitempty"`
+	Published string   `json:"published,omitempty"`
+	Modified  string   `json:"modified,omitempty"`
+	Package   string   `json:"package,omitempty"`
+}
+
+type vulnerabilityFeedMatrixGitHubAdvisoryFact struct {
+	Present     bool   `json:"present"`
+	GHSAID      string `json:"ghsaId,omitempty"`
+	CVEID       string `json:"cveId,omitempty"`
+	Severity    string `json:"severity,omitempty"`
+	PublishedAt string `json:"publishedAt,omitempty"`
+	UpdatedAt   string `json:"updatedAt,omitempty"`
+	Package     string `json:"package,omitempty"`
+	HTMLURL     string `json:"htmlUrl,omitempty"`
 }
 
 type vulnerabilityFeedMatrixCISAKEVFact struct {
@@ -81,10 +108,12 @@ type vulnerabilityFeedMatrixVulhubPracticeItem struct {
 }
 
 type vulnerabilityFeedMatrixFetchers struct {
-	FetchNVD     func(string) (vuln.FeedSnapshotDownload, error)
-	FetchEPSS    func(string) (vuln.FeedSnapshotDownload, error)
-	FetchCISAKEV func() (vuln.FeedSnapshotDownload, error)
-	FetchVulhub  func() (vuln.FeedSnapshotDownload, error)
+	FetchNVD            func(string) (vuln.FeedSnapshotDownload, error)
+	FetchEPSS           func(string) (vuln.FeedSnapshotDownload, error)
+	FetchOSV            func(string) (vuln.FeedSnapshotDownload, error)
+	FetchGitHubAdvisory func(string) (vuln.FeedSnapshotDownload, error)
+	FetchCISAKEV        func() (vuln.FeedSnapshotDownload, error)
+	FetchVulhub         func() (vuln.FeedSnapshotDownload, error)
 }
 
 func (a *App) maybeRunVulnerabilityFeedMatrixSmoke() {
@@ -97,10 +126,12 @@ func (a *App) maybeRunVulnerabilityFeedMatrixSmoke() {
 		cveID = defaultVulnerabilityFeedMatrixSmokeCVE
 	}
 	report := a.buildVulnerabilityFeedMatrixSmokeReport(cveID, vulnerabilityFeedMatrixFetchers{
-		FetchNVD:     a.FetchNVDCVE,
-		FetchEPSS:    a.FetchFIRSTEPSS,
-		FetchCISAKEV: a.FetchCISAKEVFeed,
-		FetchVulhub:  a.FetchVulhubPracticeCatalog,
+		FetchNVD:            a.FetchNVDCVE,
+		FetchEPSS:           a.FetchFIRSTEPSS,
+		FetchOSV:            a.FetchOSVCVE,
+		FetchGitHubAdvisory: a.FetchGitHubAdvisories,
+		FetchCISAKEV:        a.FetchCISAKEVFeed,
+		FetchVulhub:         a.FetchVulhubPracticeCatalog,
 	})
 	if err := writeVulnerabilityFeedMatrixSmokeReport(resultPath, report); err != nil {
 		a.diagnostics.Record("vuln-feed", "error", "packaged matrix smoke report failed")
@@ -141,6 +172,26 @@ func (a *App) buildVulnerabilityFeedMatrixSmokeReport(
 	}
 	report.EPSS = extractFIRSTEPSSFeedFact(epss.Body, report.CVEID)
 
+	osv, ok := appendVulnerabilityFeedMatrixDownload(
+		&report,
+		vuln.OSVCVEFeedName,
+		func() (vuln.FeedSnapshotDownload, error) { return fetchers.FetchOSV(report.CVEID) },
+	)
+	if !ok {
+		return report
+	}
+	report.OSV = extractOSVFeedFact(osv.Body, report.CVEID)
+
+	githubAdvisory, ok := appendVulnerabilityFeedMatrixDownload(
+		&report,
+		vuln.GitHubAdvisoriesName,
+		func() (vuln.FeedSnapshotDownload, error) { return fetchers.FetchGitHubAdvisory(report.CVEID) },
+	)
+	if !ok {
+		return report
+	}
+	report.GitHubAdvisory = extractGitHubAdvisoryFeedFact(githubAdvisory.Body, report.CVEID)
+
 	cisa, ok := appendVulnerabilityFeedMatrixDownload(
 		&report,
 		vuln.CISAKEVFeedName,
@@ -163,12 +214,16 @@ func (a *App) buildVulnerabilityFeedMatrixSmokeReport(
 	report.Gates = buildVulnerabilityFeedMatrixGates(report)
 	if !report.Gates.FetchedNVD ||
 		!report.Gates.FetchedFIRSTEPSS ||
+		!report.Gates.FetchedOSV ||
+		!report.Gates.FetchedGitHubAdvisory ||
 		!report.Gates.FetchedCISAKEV ||
 		!report.Gates.FetchedVulhub ||
 		!report.Gates.SourceTimingPresent ||
 		!report.Gates.SnapshotsPersisted ||
 		!report.Gates.SelectedCVEInNVD ||
 		!report.Gates.SelectedCVEInFIRSTEPSS ||
+		!report.Gates.SelectedCVEInOSV ||
+		!report.Gates.SelectedCVEInGitHubAdvisory ||
 		!report.Gates.SelectedCVEInCISAKEV ||
 		!report.Gates.SelectedCVEHasVulhubPractice {
 		report.Error = "CVE feed matrix smoke did not prove every source and practice match gate"
@@ -219,6 +274,8 @@ func buildVulnerabilityFeedMatrixGates(
 	gates := vulnerabilityFeedMatrixSmokeGates{
 		SelectedCVEInNVD:             report.NVD.Present,
 		SelectedCVEInFIRSTEPSS:       report.EPSS.Present,
+		SelectedCVEInOSV:             report.OSV.Present,
+		SelectedCVEInGitHubAdvisory:  report.GitHubAdvisory.Present,
 		SelectedCVEInCISAKEV:         report.CISAKEV.Present,
 		SelectedCVEHasVulhubPractice: report.Vulhub.Present,
 		RawFeedBodiesOmitted:         true,
@@ -238,6 +295,10 @@ func buildVulnerabilityFeedMatrixGates(
 			gates.FetchedNVD = sourceOK && timingOK && snapshotOK
 		case vuln.FIRSTEPSSFeedName:
 			gates.FetchedFIRSTEPSS = sourceOK && timingOK && snapshotOK
+		case vuln.OSVCVEFeedName:
+			gates.FetchedOSV = sourceOK && timingOK && snapshotOK
+		case vuln.GitHubAdvisoriesName:
+			gates.FetchedGitHubAdvisory = sourceOK && timingOK && snapshotOK
 		case vuln.CISAKEVFeedName:
 			gates.FetchedCISAKEV = sourceOK && timingOK && snapshotOK
 		case vuln.VulhubPracticeCatalog:
@@ -247,6 +308,8 @@ func buildVulnerabilityFeedMatrixGates(
 	gates.SourceTimingPresent =
 		gates.FetchedNVD &&
 			gates.FetchedFIRSTEPSS &&
+			gates.FetchedOSV &&
+			gates.FetchedGitHubAdvisory &&
 			gates.FetchedCISAKEV &&
 			gates.FetchedVulhub
 	gates.SnapshotsPersisted = gates.SourceTimingPresent
@@ -278,6 +341,104 @@ func extractFIRSTEPSSFeedFact(body string, cveID string) vulnerabilityFeedMatrix
 		}
 	}
 	return vulnerabilityFeedMatrixEPSSFact{}
+}
+
+func extractOSVFeedFact(body string, cveID string) vulnerabilityFeedMatrixOSVFact {
+	var payload struct {
+		ID        string   `json:"id"`
+		Aliases   []string `json:"aliases"`
+		Summary   string   `json:"summary"`
+		Published string   `json:"published"`
+		Modified  string   `json:"modified"`
+		Affected  []struct {
+			Package struct {
+				Ecosystem string `json:"ecosystem"`
+				Name      string `json:"name"`
+			} `json:"package"`
+		} `json:"affected"`
+	}
+	if err := json.Unmarshal([]byte(body), &payload); err != nil {
+		return vulnerabilityFeedMatrixOSVFact{}
+	}
+	present := strings.EqualFold(payload.ID, cveID)
+	for _, alias := range payload.Aliases {
+		if strings.EqualFold(alias, cveID) {
+			present = true
+			break
+		}
+	}
+	if !present {
+		return vulnerabilityFeedMatrixOSVFact{}
+	}
+	packageName := ""
+	for _, affected := range payload.Affected {
+		if affected.Package.Name == "" {
+			continue
+		}
+		if affected.Package.Ecosystem != "" {
+			packageName = affected.Package.Ecosystem + ":" + affected.Package.Name
+		} else {
+			packageName = affected.Package.Name
+		}
+		break
+	}
+	return vulnerabilityFeedMatrixOSVFact{
+		Present:   true,
+		ID:        payload.ID,
+		Aliases:   payload.Aliases,
+		Summary:   payload.Summary,
+		Published: payload.Published,
+		Modified:  payload.Modified,
+		Package:   packageName,
+	}
+}
+
+func extractGitHubAdvisoryFeedFact(body string, cveID string) vulnerabilityFeedMatrixGitHubAdvisoryFact {
+	var payload []struct {
+		GHSAID          string `json:"ghsa_id"`
+		CVEID           string `json:"cve_id"`
+		Severity        string `json:"severity"`
+		PublishedAt     string `json:"published_at"`
+		UpdatedAt       string `json:"updated_at"`
+		HTMLURL         string `json:"html_url"`
+		Vulnerabilities []struct {
+			Package struct {
+				Ecosystem string `json:"ecosystem"`
+				Name      string `json:"name"`
+			} `json:"package"`
+		} `json:"vulnerabilities"`
+	}
+	if err := json.Unmarshal([]byte(body), &payload); err != nil {
+		return vulnerabilityFeedMatrixGitHubAdvisoryFact{}
+	}
+	for _, item := range payload {
+		if !strings.EqualFold(item.CVEID, cveID) {
+			continue
+		}
+		packageName := ""
+		for _, vulnerability := range item.Vulnerabilities {
+			if vulnerability.Package.Name == "" {
+				continue
+			}
+			if vulnerability.Package.Ecosystem != "" {
+				packageName = vulnerability.Package.Ecosystem + ":" + vulnerability.Package.Name
+			} else {
+				packageName = vulnerability.Package.Name
+			}
+			break
+		}
+		return vulnerabilityFeedMatrixGitHubAdvisoryFact{
+			Present:     true,
+			GHSAID:      item.GHSAID,
+			CVEID:       strings.ToUpper(item.CVEID),
+			Severity:    item.Severity,
+			PublishedAt: item.PublishedAt,
+			UpdatedAt:   item.UpdatedAt,
+			Package:     packageName,
+			HTMLURL:     item.HTMLURL,
+		}
+	}
+	return vulnerabilityFeedMatrixGitHubAdvisoryFact{}
 }
 
 func extractCISAKEVFeedFact(body string, cveID string) vulnerabilityFeedMatrixCISAKEVFact {

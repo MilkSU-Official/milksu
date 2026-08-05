@@ -21,17 +21,21 @@ import (
 )
 
 const (
-	CISAKEVFeedName       = "CISA KEV"
-	CISAKEVFeedURL        = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
-	NVDCVEFeedName        = "NVD"
-	NVDCVEAPIURL          = "https://services.nvd.nist.gov/rest/json/cves/2.0"
-	FIRSTEPSSFeedName     = "FIRST EPSS"
-	FIRSTEPSSAPIURL       = "https://api.first.org/data/v1/epss"
-	VulhubPracticeCatalog = "Vulhub Practice Catalog"
-	VulhubRepoAPIURL      = "https://api.github.com/repos/vulhub/vulhub"
-	VulhubRepoWebURL      = "https://github.com/vulhub/vulhub"
-	vulhubDefaultBranch   = "master"
-	maxFeedBytes          = 12 << 20
+	CISAKEVFeedName        = "CISA KEV"
+	CISAKEVFeedURL         = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
+	NVDCVEFeedName         = "NVD"
+	NVDCVEAPIURL           = "https://services.nvd.nist.gov/rest/json/cves/2.0"
+	FIRSTEPSSFeedName      = "FIRST EPSS"
+	FIRSTEPSSAPIURL        = "https://api.first.org/data/v1/epss"
+	OSVCVEFeedName         = "OSV"
+	OSVCVEAPIURL           = "https://api.osv.dev/v1/vulns"
+	GitHubAdvisoriesName   = "GitHub Advisory Database"
+	GitHubAdvisoriesAPIURL = "https://api.github.com/advisories"
+	VulhubPracticeCatalog  = "Vulhub Practice Catalog"
+	VulhubRepoAPIURL       = "https://api.github.com/repos/vulhub/vulhub"
+	VulhubRepoWebURL       = "https://github.com/vulhub/vulhub"
+	vulhubDefaultBranch    = "master"
+	maxFeedBytes           = 12 << 20
 )
 
 var (
@@ -65,6 +69,14 @@ func FetchNVDCVE(ctx context.Context, client *http.Client, cveID string) (FeedSn
 
 func FetchFIRSTEPSS(ctx context.Context, client *http.Client, cveID string) (FeedSnapshotDownload, error) {
 	return FetchFIRSTEPSSFrom(ctx, client, FIRSTEPSSAPIURL, cveID)
+}
+
+func FetchOSVCVE(ctx context.Context, client *http.Client, cveID string) (FeedSnapshotDownload, error) {
+	return FetchOSVCVEFrom(ctx, client, OSVCVEAPIURL, cveID)
+}
+
+func FetchGitHubAdvisories(ctx context.Context, client *http.Client, cveID string) (FeedSnapshotDownload, error) {
+	return FetchGitHubAdvisoriesFrom(ctx, client, GitHubAdvisoriesAPIURL, cveID)
 }
 
 func FetchNVDCVEFrom(
@@ -113,6 +125,51 @@ func FetchFIRSTEPSSFrom(
 	return FetchFeedSnapshot(ctx, client, FIRSTEPSSFeedName, parsed.String())
 }
 
+func FetchOSVCVEFrom(
+	ctx context.Context,
+	client *http.Client,
+	apiURL string,
+	cveID string,
+) (FeedSnapshotDownload, error) {
+	normalizedID := strings.ToUpper(strings.TrimSpace(cveID))
+	if !cveIDPattern.MatchString(normalizedID) {
+		return FeedSnapshotDownload{}, fmt.Errorf("fetch OSV CVE: invalid CVE id")
+	}
+	parsed, err := url.Parse(strings.TrimSpace(apiURL))
+	if err != nil {
+		return FeedSnapshotDownload{}, fmt.Errorf("fetch OSV CVE: invalid API URL: %w", err)
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return FeedSnapshotDownload{}, fmt.Errorf("fetch OSV CVE: unsupported API URL scheme %q", parsed.Scheme)
+	}
+	parsed.Path = strings.TrimRight(parsed.Path, "/") + "/" + url.PathEscape(normalizedID)
+	return FetchFeedSnapshot(ctx, client, OSVCVEFeedName, parsed.String())
+}
+
+func FetchGitHubAdvisoriesFrom(
+	ctx context.Context,
+	client *http.Client,
+	apiURL string,
+	cveID string,
+) (FeedSnapshotDownload, error) {
+	normalizedID := strings.ToUpper(strings.TrimSpace(cveID))
+	if !cveIDPattern.MatchString(normalizedID) {
+		return FeedSnapshotDownload{}, fmt.Errorf("fetch GitHub advisories: invalid CVE id")
+	}
+	parsed, err := url.Parse(strings.TrimSpace(apiURL))
+	if err != nil {
+		return FeedSnapshotDownload{}, fmt.Errorf("fetch GitHub advisories: invalid API URL: %w", err)
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return FeedSnapshotDownload{}, fmt.Errorf("fetch GitHub advisories: unsupported API URL scheme %q", parsed.Scheme)
+	}
+	query := parsed.Query()
+	query.Set("cve_id", normalizedID)
+	query.Set("per_page", "10")
+	parsed.RawQuery = query.Encode()
+	return FetchFeedSnapshot(ctx, client, GitHubAdvisoriesName, parsed.String())
+}
+
 func FetchVulhubPracticeCatalog(ctx context.Context, client *http.Client) (FeedSnapshotDownload, error) {
 	return FetchVulhubPracticeCatalogFrom(
 		ctx,
@@ -130,9 +187,6 @@ func FetchVulhubPracticeCatalogFrom(
 	repoWebURL string,
 	branchName string,
 ) (FeedSnapshotDownload, error) {
-	if client == nil {
-		client = &http.Client{Timeout: 20 * time.Second}
-	}
 	repoAPIURL = strings.TrimRight(repoAPIURL, "/")
 	repoWebURL = strings.TrimRight(repoWebURL, "/")
 	if branchName == "" {
@@ -199,6 +253,14 @@ func FetchFeedSnapshot(
 		return FeedSnapshotDownload{}, fmt.Errorf("create vulnerability feed request: URL host is required")
 	}
 	sourceURL = parsedURL.String()
+	var curlFallbackErr error
+	if usesDefaultClient {
+		if fallback, err := fetchFeedSnapshotWithCurl(ctx, sourceName, sourceURL); err == nil {
+			return fallback, nil
+		} else {
+			curlFallbackErr = err
+		}
+	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, sourceURL, nil)
 	if err != nil {
 		return FeedSnapshotDownload{}, fmt.Errorf("create vulnerability feed request: %w", err)
@@ -209,10 +271,8 @@ func FetchFeedSnapshot(
 	response, err := client.Do(request)
 	if err != nil {
 		if usesDefaultClient {
-			if fallback, fallbackErr := fetchFeedSnapshotWithCurl(ctx, sourceName, sourceURL); fallbackErr == nil {
-				return fallback, nil
-			} else {
-				return FeedSnapshotDownload{}, fmt.Errorf("fetch vulnerability feed: %w; curl fallback: %v", err, fallbackErr)
+			if curlFallbackErr != nil {
+				return FeedSnapshotDownload{}, fmt.Errorf("fetch vulnerability feed: %w; curl fallback: %v", err, curlFallbackErr)
 			}
 		}
 		return FeedSnapshotDownload{}, fmt.Errorf("fetch vulnerability feed: %w", err)
@@ -458,6 +518,27 @@ func fetchGitHubJSON[T any](
 	sourceURL string,
 ) (T, http.Header, error) {
 	var zero T
+	usesDefaultClient := client == nil
+	if client == nil {
+		client = &http.Client{Timeout: 20 * time.Second}
+	}
+	if usesDefaultClient {
+		download, err := fetchFeedSnapshotWithCurl(ctx, "GitHub JSON", sourceURL)
+		if err == nil {
+			var decoded T
+			if decodeErr := json.Unmarshal([]byte(download.Body), &decoded); decodeErr != nil {
+				return zero, nil, fmt.Errorf("decode GitHub JSON: %w", decodeErr)
+			}
+			header := http.Header{}
+			if download.ContentType != "" {
+				header.Set("Content-Type", download.ContentType)
+			}
+			if download.LastModified != "" {
+				header.Set("Last-Modified", download.LastModified)
+			}
+			return decoded, header, nil
+		}
+	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, sourceURL, nil)
 	if err != nil {
 		return zero, nil, fmt.Errorf("create GitHub request: %w", err)

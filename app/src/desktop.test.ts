@@ -89,6 +89,60 @@ describe('desktop command adapter', () => {
     expect(fetchFIRSTEPSS).toHaveBeenCalledWith('CVE-2024-3400')
   })
 
+  it('passes selected OSV CVE sync to the Wails read-only fetcher', async () => {
+    const feed = {
+      sourceName: 'OSV',
+      sourceUrl: 'https://api.osv.dev/v1/vulns/CVE-2023-46604',
+      retrievedAt: '2026-08-04T09:00:00Z',
+      lastModified: '',
+      httpStatus: 200,
+      contentType: 'application/json',
+      body: '{"schema_version":"1.7.3","id":"CVE-2023-46604"}',
+    }
+    const fetchOSVCVE = vi.fn(async () => feed)
+    Object.defineProperty(window, 'go', {
+      configurable: true,
+      value: {
+        main: {
+          App: {
+            FetchOSVCVE: fetchOSVCVE,
+          },
+        },
+      },
+    })
+
+    await expect(invokeCommand('fetch_osv_cve', { cveId: 'CVE-2023-46604' })).resolves.toBe(feed)
+    expect(fetchOSVCVE).toHaveBeenCalledTimes(1)
+    expect(fetchOSVCVE).toHaveBeenCalledWith('CVE-2023-46604')
+  })
+
+  it('passes selected GitHub Advisory sync to the Wails read-only fetcher', async () => {
+    const feed = {
+      sourceName: 'GitHub Advisory Database',
+      sourceUrl: 'https://api.github.com/advisories?cve_id=CVE-2023-46604&per_page=10',
+      retrievedAt: '2026-08-04T10:00:00Z',
+      lastModified: '',
+      httpStatus: 200,
+      contentType: 'application/json',
+      body: '[{"ghsa_id":"GHSA-crg9-44h2-xw35","cve_id":"CVE-2023-46604"}]',
+    }
+    const fetchGitHubAdvisories = vi.fn(async () => feed)
+    Object.defineProperty(window, 'go', {
+      configurable: true,
+      value: {
+        main: {
+          App: {
+            FetchGitHubAdvisories: fetchGitHubAdvisories,
+          },
+        },
+      },
+    })
+
+    await expect(invokeCommand('fetch_github_advisories', { cveId: 'CVE-2023-46604' })).resolves.toBe(feed)
+    expect(fetchGitHubAdvisories).toHaveBeenCalledTimes(1)
+    expect(fetchGitHubAdvisories).toHaveBeenCalledWith('CVE-2023-46604')
+  })
+
   it('passes Vulhub practice catalog sync to the Wails read-only fetcher', async () => {
     const catalog = {
       sourceName: 'Vulhub Practice Catalog',

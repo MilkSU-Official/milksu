@@ -358,6 +358,52 @@ describe('VulnPage', () => {
         }],
       }),
     }))
+    const fetchOSVCVE = vi.fn(async () => ({
+      sourceName: 'OSV',
+      sourceUrl: 'https://api.osv.dev/v1/vulns/CVE-2024-3400',
+      retrievedAt: '2026-08-04T08:00:30Z',
+      lastModified: '',
+      httpStatus: 200,
+      contentType: 'application/json',
+      snapshotPath: '/Users/example/Library/Application Support/MilkSU/vuln/feed-snapshots/osv/20260804T080030Z-osv.json',
+      snapshotSha256: '1111'.repeat(16),
+      snapshotSizeBytes: 520,
+      body: JSON.stringify({
+        schema_version: '1.7.3',
+        id: 'CVE-2024-3400',
+        aliases: ['GHSA-example'],
+        summary: 'PAN-OS GlobalProtect command injection advisory.',
+        modified: '2026-08-04T08:00:30Z',
+        database_specific: { severity: 'CRITICAL' },
+        affected: [{
+          package: { ecosystem: 'PAN-OS', name: 'globalprotect' },
+        }],
+      }),
+    }))
+    const fetchGitHubAdvisories = vi.fn(async () => ({
+      sourceName: 'GitHub Advisory Database',
+      sourceUrl: 'https://api.github.com/advisories?cve_id=CVE-2024-3400&per_page=10',
+      retrievedAt: '2026-08-04T08:00:45Z',
+      lastModified: '',
+      httpStatus: 200,
+      contentType: 'application/json',
+      snapshotPath: '/Users/example/Library/Application Support/MilkSU/vuln/feed-snapshots/github-advisory-database/20260804T080045Z-ghsa.json',
+      snapshotSha256: '2222'.repeat(16),
+      snapshotSizeBytes: 580,
+      body: JSON.stringify([{
+        ghsa_id: 'GHSA-example',
+        cve_id: 'CVE-2024-3400',
+        summary: 'PAN-OS GlobalProtect command injection advisory.',
+        severity: 'critical',
+        updated_at: '2026-08-04T08:00:45Z',
+        html_url: 'https://github.com/advisories/GHSA-example',
+        cvss: { score: 10 },
+        vulnerabilities: [{
+          package: { ecosystem: 'PAN-OS', name: 'globalprotect' },
+          vulnerable_version_range: '< fixed',
+        }],
+      }]),
+    }))
     const fetchCISAKEVFeed = vi.fn(async () => ({
       sourceName: 'CISA KEV',
       sourceUrl: 'https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json',
@@ -414,6 +460,8 @@ describe('VulnPage', () => {
           App: {
             FetchNVDCVE: fetchNVDCVE,
             FetchFIRSTEPSS: fetchFIRSTEPSS,
+            FetchOSVCVE: fetchOSVCVE,
+            FetchGitHubAdvisories: fetchGitHubAdvisories,
             FetchCISAKEVFeed: fetchCISAKEVFeed,
             FetchVulhubPracticeCatalog: fetchVulhubPracticeCatalog,
           },
@@ -423,7 +471,7 @@ describe('VulnPage', () => {
     const host = await mountVulnPage()
     await openIntelSettings(host)
     const sync = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
-      item.getAttribute('aria-label') === '同步当前 CVE 的 NVD、FIRST EPSS、CISA KEV 和 Vulhub',
+      item.getAttribute('aria-label') === '同步当前 CVE 的 NVD、FIRST EPSS、OSV、GitHub Advisory、CISA KEV 和 Vulhub',
     )
     if (!sync) throw new Error('missing current CVE intel sync button')
 
@@ -432,13 +480,17 @@ describe('VulnPage', () => {
 
     expect(fetchNVDCVE).toHaveBeenCalledTimes(1)
     expect(fetchFIRSTEPSS).toHaveBeenCalledTimes(1)
+    expect(fetchOSVCVE).toHaveBeenCalledTimes(1)
+    expect(fetchGitHubAdvisories).toHaveBeenCalledTimes(1)
     expect(fetchCISAKEVFeed).toHaveBeenCalledTimes(1)
     expect(fetchVulhubPracticeCatalog).toHaveBeenCalledTimes(1)
-    expect(host.textContent).toContain('当前 CVE 情报矩阵同步完成：3/4 个来源成功')
+    expect(host.textContent).toContain('当前 CVE 情报矩阵同步完成：5/6 个来源成功')
     expect(host.textContent).toContain('NVD 同步失败：NVD upstream timeout after 20s')
     expect(host.textContent).toContain('逐源同步结果')
     expect(host.textContent).toContain('NVD')
     expect(host.textContent).toContain('FIRST EPSS')
+    expect(host.textContent).toContain('OSV')
+    expect(host.textContent).toContain('GitHub Advisory')
     expect(host.textContent).toContain('CISA KEV')
     expect(host.textContent).toContain('Vulhub')
     expect(host.textContent).toContain('失败')
@@ -1105,7 +1157,7 @@ describe('VulnPage', () => {
     expect(tasks[0].prompt).toContain('Apache ActiveMQ OpenWire RCE')
     expect(tasks[0].prompt).toContain('情报源接入状态')
     expect(tasks[0].prompt).toContain('NVD：内置快照')
-    expect(tasks[0].prompt).toContain('OSV / GitHub Advisory：待接入')
+    expect(tasks[0].prompt).toContain('OSV / GitHub Advisory：已接入')
     expect(tasks[0].prompt).toContain('Vulhub 练习目录：内置快照')
     expect(tasks[0].prompt).toContain('vulhub/activemq/CVE-2023-46604')
     expect(tasks[0].prompt).toContain('当前练习状态：已确认计划，未启动容器')

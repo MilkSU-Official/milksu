@@ -373,6 +373,8 @@ interface WailsAppBindings {
   FetchCISAKEVFeed(): Promise<VulnerabilityFeedDownload>
   FetchNVDCVE(cveId: string): Promise<VulnerabilityFeedDownload>
   FetchFIRSTEPSS(cveId: string): Promise<VulnerabilityFeedDownload>
+  FetchOSVCVE(cveId: string): Promise<VulnerabilityFeedDownload>
+  FetchGitHubAdvisories(cveId: string): Promise<VulnerabilityFeedDownload>
   FetchVulhubPracticeCatalog(): Promise<VulnerabilityFeedDownload>
   RevealVulnerabilityFeedSnapshot(snapshotPath: string): Promise<void>
   ChooseVulnerabilityPracticeDirectory(): Promise<string>
@@ -401,6 +403,8 @@ const NSSCTF_CATALOG_KEY = 'milksu.dev.nssctf-catalog'
 const CISA_KEV_FEED_URL = 'https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json'
 const NVD_CVE_API_URL = 'https://services.nvd.nist.gov/rest/json/cves/2.0'
 const FIRST_EPSS_API_URL = 'https://api.first.org/data/v1/epss'
+const OSV_CVE_API_URL = 'https://api.osv.dev/v1/vulns'
+const GITHUB_ADVISORIES_API_URL = 'https://api.github.com/advisories'
 const VULHUB_REPO_API_URL = 'https://api.github.com/repos/vulhub/vulhub'
 const VULHUB_REPO_WEB_URL = 'https://github.com/vulhub/vulhub'
 
@@ -537,6 +541,54 @@ async function fetchFIRSTEPSSInBrowser(cveId: unknown): Promise<VulnerabilityFee
   }
   return {
     sourceName: 'FIRST EPSS',
+    sourceUrl: url.toString(),
+    retrievedAt: response.headers.get('last-modified')
+      || response.headers.get('date')
+      || new Date().toISOString(),
+    lastModified: response.headers.get('last-modified') || '',
+    httpStatus: response.status,
+    contentType: response.headers.get('content-type') || '',
+    body: await response.text(),
+  }
+}
+
+async function fetchOSVCVEInBrowser(cveId: unknown): Promise<VulnerabilityFeedDownload> {
+  const normalized = normalizeFeedCveId(cveId, 'OSV')
+  const sourceUrl = `${OSV_CVE_API_URL}/${encodeURIComponent(normalized)}`
+  const response = await fetch(sourceUrl, {
+    headers: { Accept: 'application/json' },
+    cache: 'no-store',
+  })
+  if (!response.ok) {
+    throw new Error(`OSV returned HTTP ${response.status}`)
+  }
+  return {
+    sourceName: 'OSV',
+    sourceUrl,
+    retrievedAt: response.headers.get('last-modified')
+      || response.headers.get('date')
+      || new Date().toISOString(),
+    lastModified: response.headers.get('last-modified') || '',
+    httpStatus: response.status,
+    contentType: response.headers.get('content-type') || '',
+    body: await response.text(),
+  }
+}
+
+async function fetchGitHubAdvisoriesInBrowser(cveId: unknown): Promise<VulnerabilityFeedDownload> {
+  const normalized = normalizeFeedCveId(cveId, 'GitHub Advisory')
+  const url = new URL(GITHUB_ADVISORIES_API_URL)
+  url.searchParams.set('cve_id', normalized)
+  url.searchParams.set('per_page', '10')
+  const response = await fetch(url.toString(), {
+    headers: { Accept: 'application/vnd.github+json' },
+    cache: 'no-store',
+  })
+  if (!response.ok) {
+    throw new Error(`GitHub Advisory returned HTTP ${response.status}`)
+  }
+  return {
+    sourceName: 'GitHub Advisory Database',
     sourceUrl: url.toString(),
     retrievedAt: response.headers.get('last-modified')
       || response.headers.get('date')
@@ -1126,6 +1178,10 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.FetchNVDCVE(args?.cveId as string) as Promise<T>
       case 'fetch_first_epss':
         return app.FetchFIRSTEPSS(args?.cveId as string) as Promise<T>
+      case 'fetch_osv_cve':
+        return app.FetchOSVCVE(args?.cveId as string) as Promise<T>
+      case 'fetch_github_advisories':
+        return app.FetchGitHubAdvisories(args?.cveId as string) as Promise<T>
       case 'fetch_vulhub_practice_catalog':
         return app.FetchVulhubPracticeCatalog() as Promise<T>
       case 'reveal_vulnerability_feed_snapshot':
@@ -1418,6 +1474,10 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
       return await fetchNVDCVEInBrowser(args?.cveId) as T
     case 'fetch_first_epss':
       return await fetchFIRSTEPSSInBrowser(args?.cveId) as T
+    case 'fetch_osv_cve':
+      return await fetchOSVCVEInBrowser(args?.cveId) as T
+    case 'fetch_github_advisories':
+      return await fetchGitHubAdvisoriesInBrowser(args?.cveId) as T
     case 'fetch_vulhub_practice_catalog':
       return await fetchVulhubPracticeCatalogInBrowser() as T
     case 'reveal_vulnerability_feed_snapshot':
