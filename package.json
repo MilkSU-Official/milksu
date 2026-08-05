@@ -33,6 +33,7 @@
     "test:vuln-learning-writeback-webview-live": "node scripts/test-packaged-vuln-learning-writeback-webview-live.mjs",
     "test:vuln-asset-verification-webview-live": "node scripts/test-packaged-vuln-asset-verification-webview-live.mjs",
     "test:vuln-practice-live": "node scripts/test-packaged-vuln-practice-live.mjs",
+    "test:vuln-practice-directory-webview-live": "node scripts/test-packaged-vuln-practice-directory-webview-live.mjs",
     "m3:release-check": "bash scripts/m3-release-check.sh",
     "test:security-bridge": "printf '%s\\n' '{\"action\":\"protocol_info\",\"requestId\":\"protocol-test\"}' | node security-bridge.js",
     "spike:pi:protocol": "node spikes/engine-comparison/pi-spike.mjs --protocol-only",

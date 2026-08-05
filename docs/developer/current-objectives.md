@@ -134,8 +134,12 @@
    WebView live smoke 已证明真实打包 App WebView 能进入 CVE 工作台、选中 `CVE-2023-46604`、
    通过 UI 打开并提交“导入 Coding 结论”，再读回正式研究档案和 1 条学习记录。同日 packaged
    CVE asset verification WebView live smoke 已证明真实打包 App WebView 能从 CVE UI 新增
-   用户确认资产，并写入 Go `asset_verification.recorded` 正式档案。仍未完成真实 Vulhub 用户
-   目录的 UI 手动验收；如需的话再做人工/Computer Use 点击复核，但不再把资产验证 UI 写回当缺口。
+   用户确认资产，并写入 Go `asset_verification.recorded` 正式档案。同日 packaged CVE
+   practice directory WebView live smoke 已证明真实打包 App WebView 能选中 `CVE-2023-46604`、
+   确认练习计划，并绑定来自 `github.com/vulhub/vulhub` commit `aeaf65793f147f29bd50841ef77f4e9cad07ecc7`
+   的 `activemq/CVE-2023-46604` 用户目录；该 smoke 只验证目录绑定和启动入口可见，不启动 Docker、
+   exploit 或漏洞触发输入。后续如需可做人工/Computer Use 点击复核，但不再把真实 Vulhub 用户
+   目录 UI 绑定当作当前缺口。
 3. **P0 · 长时间自主开发。** 打包 MilkSU 在“替我审批”或“完全访问”下持续完成真实功能，
    自动构建、测试、预览、恢复和交付，普通已授权操作不以无意义审批反复打断用户。
    Computer Use 必须能由用户选择一个当前可见的外部 App / 窗口作为不可变 Scope，并让

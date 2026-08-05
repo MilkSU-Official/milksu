@@ -7,6 +7,7 @@ import { invokeCommand } from '@/desktop'
 import { runCodingArtifactPreviewWebViewSmoke } from '@/lib/codingArtifactWebViewSmoke'
 import { runVulnerabilityAssetVerificationWebViewSmoke } from '@/lib/vulnerabilityAssetVerificationWebViewSmoke'
 import { runVulnerabilityLearningWritebackWebViewSmoke } from '@/lib/vulnerabilityLearningWritebackWebViewSmoke'
+import { runVulnerabilityPracticeDirectoryWebViewSmoke } from '@/lib/vulnerabilityPracticeDirectoryWebViewSmoke'
 import type { CTFAgentWorkspaceHandoff } from '@/ctfTypes'
 import type { VulnerabilityCodingTask } from '@/composables/useVulnerabilityDashboard'
 import { settingsReturnSection, type CTFWorkspaceSection } from '@/lib/workspaceNavigation'
@@ -263,6 +264,14 @@ onMounted(async () => {
     },
   })
   void runVulnerabilityAssetVerificationWebViewSmoke({
+    openVulnerabilityWorkspace: async () => {
+      rememberActiveConversation()
+      section.value = 'vuln'
+      await nextTick()
+      await nextTick()
+    },
+  })
+  void runVulnerabilityPracticeDirectoryWebViewSmoke({
     openVulnerabilityWorkspace: async () => {
       rememberActiveConversation()
       section.value = 'vuln'

@@ -705,6 +705,44 @@ describe('desktop command adapter', () => {
     })
   })
 
+  it('routes CVE practice directory WebView smoke only through Wails', async () => {
+    const request = {
+      enabled: true,
+      cveId: 'CVE-2023-46604',
+      directoryBasename: 'CVE-2023-46604',
+    }
+    const getRequest = vi.fn(async () => request)
+    const complete = vi.fn(async () => undefined)
+    Object.defineProperty(window, 'go', {
+      configurable: true,
+      value: {
+        main: {
+          App: {
+            GetVulnerabilityPracticeDirectoryWebViewSmokeRequest: getRequest,
+            CompleteVulnerabilityPracticeDirectoryWebViewSmoke: complete,
+          },
+        },
+      },
+    })
+
+    await expect(invokeCommand('get_vulnerability_practice_directory_webview_smoke_request'))
+      .resolves.toBe(request)
+    await expect(invokeCommand('complete_vulnerability_practice_directory_webview_smoke', {
+      report: {
+        cveId: 'CVE-2023-46604',
+        directoryBasename: 'CVE-2023-46604',
+        gates: { vulhubDirectoryVisible: true },
+      },
+    })).resolves.toBeUndefined()
+
+    expect(getRequest).toHaveBeenCalledOnce()
+    expect(complete).toHaveBeenCalledWith({
+      cveId: 'CVE-2023-46604',
+      directoryBasename: 'CVE-2023-46604',
+      gates: { vulhubDirectoryVisible: true },
+    })
+  })
+
   it('does not pretend browser preview can run the CVE learning writeback WebView smoke', async () => {
     await expect(invokeCommand('get_vulnerability_learning_writeback_webview_smoke_request'))
       .resolves.toEqual({ enabled: false })

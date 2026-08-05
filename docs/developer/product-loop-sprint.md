@@ -99,8 +99,11 @@
   真实打包 App WebView 会自动进入 CVE 工作台、选中 `CVE-2023-46604`、通过 UI 打开并提交
   “导入 Coding 结论”，再读回正式研究档案和 1 条学习记录；同日 packaged CVE asset
   verification WebView live smoke 已通过，真实打包 App WebView 能从 CVE UI 新增用户确认
-  资产，写入 `asset_verification.recorded` 并读回 1 条正式资产验证。下一步只补真实 Vulhub
-  用户目录的 UI 手动验收；如需的话再做人工/Computer Use 点击复核。不能再说“只有四条
+  资产，写入 `asset_verification.recorded` 并读回 1 条正式资产验证。同日 packaged CVE
+  practice directory WebView live smoke 已通过，真实打包 App WebView 能选中 `CVE-2023-46604`、
+  确认练习计划，并绑定来自 Vulhub 当前 commit 的 `activemq/CVE-2023-46604` 用户目录；
+  该 smoke 不启动 Docker、exploit 或漏洞触发输入。如需可再做人工/Computer Use 点击复核，
+  但不再把真实 Vulhub 用户目录 UI 绑定当缺口。不能再说“只有四条
   mock 数据”“Docker 生命周期没有打包 App 证据”“CVE 研究结论只能留在 localStorage”或
   “导入 Coding 结论/资产验证没有打包 App UI 链路证据”。
   同日 Browser 已验证 CVE 首页默认不铺 Feed/NVD/EPSS/KEV/Vulhub/缓存维护台，点击统一设置后才进入情报源设置；

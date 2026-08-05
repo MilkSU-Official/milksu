@@ -285,6 +285,8 @@ interface WailsAppBindings {
   CompleteVulnerabilityLearningWritebackWebViewSmoke(report: Record<string, unknown>): Promise<void>
   GetVulnerabilityAssetVerificationWebViewSmokeRequest(): Promise<Record<string, unknown>>
   CompleteVulnerabilityAssetVerificationWebViewSmoke(report: Record<string, unknown>): Promise<void>
+  GetVulnerabilityPracticeDirectoryWebViewSmokeRequest(): Promise<Record<string, unknown>>
+  CompleteVulnerabilityPracticeDirectoryWebViewSmoke(report: Record<string, unknown>): Promise<void>
   StartCodingBrowser(
     conversationId: string,
     initialUrl: string,
@@ -1044,6 +1046,12 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.CompleteVulnerabilityAssetVerificationWebViewSmoke(
           (args?.report as Record<string, unknown>) ?? {},
         ) as Promise<T>
+      case 'get_vulnerability_practice_directory_webview_smoke_request':
+        return app.GetVulnerabilityPracticeDirectoryWebViewSmokeRequest() as Promise<T>
+      case 'complete_vulnerability_practice_directory_webview_smoke':
+        return app.CompleteVulnerabilityPracticeDirectoryWebViewSmoke(
+          (args?.report as Record<string, unknown>) ?? {},
+        ) as Promise<T>
       case 'start_coding_browser':
         return app.StartCodingBrowser(
           args?.conversationId as string,
@@ -1495,6 +1503,10 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
       return { enabled: false } as T
     case 'complete_vulnerability_asset_verification_webview_smoke':
       throw new Error('CVE 资产验证 WebView smoke 只在 MilkSU 桌面运行时可用。')
+    case 'get_vulnerability_practice_directory_webview_smoke_request':
+      return { enabled: false } as T
+    case 'complete_vulnerability_practice_directory_webview_smoke':
+      throw new Error('CVE 练习目录 WebView smoke 只在 MilkSU 桌面运行时可用。')
     case 'start_coding_browser':
     case 'stop_coding_browser':
       throw new Error('隔离 Coding 浏览器需要 MilkSU 桌面运行时。')

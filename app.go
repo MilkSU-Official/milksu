@@ -1552,6 +1552,9 @@ func (a *App) FetchVulhubPracticeCatalog() (vuln.FeedSnapshotDownload, error) {
 }
 
 func (a *App) ChooseVulnerabilityPracticeDirectory() (string, error) {
+	if directory, ok, err := vulnerabilityPracticeDirectoryWebViewSmokeDirectoryOverride(); ok || err != nil {
+		return directory, err
+	}
 	if a.ctx == nil {
 		return "", fmt.Errorf("desktop runtime is not ready")
 	}
