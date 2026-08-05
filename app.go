@@ -291,6 +291,7 @@ func (a *App) Startup(ctx context.Context) {
 	a.maybeRunCodingArtifactPreviewSmoke()
 	a.maybeRunCodingGitDeliverySmoke()
 	a.maybeRunCodingPullRequestSmoke()
+	a.maybeRunCodingPullRequestCreateSmoke()
 	a.maybeRunCodingBackgroundRecoverySmoke()
 	a.maybeRunComputerUseAppSmoke()
 	if a.managedLabs != nil {

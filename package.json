@@ -29,6 +29,7 @@
     "test:github-pr-status-live": "node scripts/test-github-pr-status-live.mjs",
     "test:coding-pr-publish-live": "node scripts/test-packaged-coding-pr-publish-live.mjs",
     "test:coding-pr-publish-webview-live": "node scripts/test-packaged-coding-pr-publish-webview-live.mjs",
+    "test:coding-pr-create-live": "node scripts/test-packaged-coding-pr-create-live.mjs",
     "test:ctf-recovery-live": "node scripts/test-packaged-ctf-recovery-live.mjs",
     "test:startup-recovery-live": "node scripts/test-packaged-startup-recovery-live.mjs",
     "test:vuln-feed-matrix-live": "node scripts/test-packaged-vuln-feed-matrix-live.mjs",
