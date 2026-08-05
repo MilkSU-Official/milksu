@@ -33,6 +33,10 @@ import {
 } from 'lucide-vue-next'
 import { invokeCommand } from '@/desktop'
 import type {
+  CodingComputerUseStatus,
+  CodingComputerUseSigning,
+} from '@/codingEnvironmentTypes'
+import type {
   AppSettings,
   DatabaseCompatibilityState,
   DatabaseCompatibilityStatus,
@@ -67,10 +71,13 @@ const working = ref<AppSettings | null>(null)
 const saving = ref(false)
 const verifying = ref(false)
 const localDataLoading = ref(false)
+const computerUseLoading = ref(false)
+const computerUseRequesting = ref(false)
 const backupExporting = ref(false)
 const restoreScheduling = ref(false)
 const diagnosticExporting = ref(false)
 const localData = ref<LocalDataStatus | null>(null)
+const computerUseStatus = ref<CodingComputerUseStatus | null>(null)
 const recoveryStatus = ref<StartupRecoveryStatus | null>(null)
 const notice = ref<{ tone: 'ok' | 'error'; text: string } | null>(null)
 
@@ -122,6 +129,7 @@ watch(() => props.settings, value => {
 watch(() => props.initialCategory, value => { category.value = value })
 onMounted(() => {
   void loadLocalData()
+  void refreshComputerUseStatus({ silent: true })
 })
 
 const provider = computed(() => (
@@ -260,6 +268,94 @@ const recoveryDescription = computed(() => {
   }
   return parts.join(' · ')
 })
+
+const computerUsePermissionsReady = computed(() => Boolean(
+  computerUseStatus.value?.permissions.accessibility
+  && computerUseStatus.value.permissions.screenRecording,
+))
+const computerUseMissingPermissions = computed(() => {
+  const missing: string[] = []
+  if (!computerUseStatus.value?.permissions.accessibility) missing.push('辅助功能')
+  if (!computerUseStatus.value?.permissions.screenRecording) missing.push('屏幕录制')
+  return missing
+})
+const computerUseSigning = computed<CodingComputerUseSigning | null>(() => (
+  computerUseStatus.value?.signing ?? null
+))
+const computerUseSigningLabel = computed(() => {
+  const signing = computerUseSigning.value
+  if (!signing) return '当前构建身份：未检测'
+  const signature = signing.signature === 'adhoc'
+    ? 'ad-hoc'
+    : signing.signature === 'signed'
+      ? '已签名'
+      : signing.signature || '未知签名'
+  const team = signing.teamIdentifier && signing.teamIdentifier !== 'not set'
+    ? signing.teamIdentifier
+    : '未设置'
+  return `当前构建身份：${signature} · Team ${team}`
+})
+const computerUseSigningDiagnostic = computed(() => {
+  const signing = computerUseSigning.value
+  if (!signing) return ''
+  if (signing.stableIdentity) return '权限会绑定到稳定 App 身份。'
+  return signing.problem || '当前构建身份不稳定，macOS 可能无法稳定复用辅助功能/屏幕录制授权。'
+})
+const computerUseReapprovalBlocked = computed(() => Boolean(
+  computerUseSigning.value
+  && !computerUseSigning.value.stableIdentity
+  && computerUseStatus.value?.available
+  && !computerUsePermissionsReady.value,
+))
+const computerUsePermissionSummary = computed(() => {
+  const status = computerUseStatus.value
+  if (!status) return '尚未检测 Computer Use 权限。'
+  if (!status.available) return status.problem || 'Computer Use 当前不可用。'
+  if (computerUsePermissionsReady.value) return '辅助功能与屏幕录制已授权。'
+  const missing = computerUseMissingPermissions.value.join('、') || '系统权限'
+  if (computerUseReapprovalBlocked.value) {
+    return `${missing} 未对当前构建生效；如果系统设置里已经勾选 MilkSU，不要反复授权，请先重启当前 App 或使用稳定签名版后重新检测。`
+  }
+  return `${missing} 缺少或未对当前构建生效；App 管理权限不能替代 Computer Use。`
+})
+const computerUsePermissionBadge = computed(() => {
+  if (!computerUseStatus.value) return { label: '未检测', variant: 'outline' as const }
+  if (!computerUseStatus.value.available) return { label: '不可用', variant: 'destructive' as const }
+  if (computerUsePermissionsReady.value) return { label: '已授权', variant: 'secondary' as const }
+  return { label: '需处理', variant: 'outline' as const }
+})
+
+async function refreshComputerUseStatus(options: { silent?: boolean } = {}) {
+  computerUseLoading.value = true
+  try {
+    computerUseStatus.value = await invokeCommand<CodingComputerUseStatus>('get_coding_computer_use_status')
+    if (!options.silent) {
+      notice.value = { tone: 'ok', text: 'Computer Use 权限状态已重新检测；未操作任何外部 App。' }
+    }
+  } catch (reason) {
+    computerUseStatus.value = null
+    if (!options.silent) {
+      notice.value = { tone: 'error', text: `无法重新检测 Computer Use：${String(reason)}` }
+    }
+  } finally {
+    computerUseLoading.value = false
+  }
+}
+
+async function requestComputerUsePermissions() {
+  if (computerUseReapprovalBlocked.value) return
+  computerUseRequesting.value = true
+  try {
+    computerUseStatus.value = await invokeCommand<CodingComputerUseStatus>(
+      'request_coding_computer_use_permissions',
+    )
+    notice.value = { tone: 'ok', text: '已打开系统权限设置；完成后回到 MilkSU 点击“重新检测”。' }
+  } catch (reason) {
+    notice.value = { tone: 'error', text: `无法打开 Computer Use 系统权限设置：${String(reason)}` }
+  } finally {
+    computerUseRequesting.value = false
+  }
+}
 
 async function revealLocalData() {
   try {
@@ -412,6 +508,59 @@ async function save() {
             </SettingsRow>
             <SettingsRow label="本地优先" description="会话与研究记录保留在本机，凭据不写入设置文件">
               <ShieldCheck class="size-4 text-muted-foreground" />
+            </SettingsRow>
+          </SettingsSection>
+          <SettingsSection title="Computer Use" class="mt-6">
+            <SettingsRow
+              stack="always"
+              label="系统权限"
+              :description="computerUsePermissionSummary"
+            >
+              <div class="flex flex-wrap items-center gap-2">
+                <Badge :variant="computerUsePermissionBadge.variant">
+                  {{ computerUsePermissionBadge.label }}
+                </Badge>
+                <Badge variant="outline">
+                  辅助功能 {{ computerUseStatus?.permissions.accessibility ? '已授权' : '未授权' }}
+                </Badge>
+                <Badge variant="outline">
+                  屏幕录制 {{ computerUseStatus?.permissions.screenRecording ? '已授权' : '未授权' }}
+                </Badge>
+              </div>
+              <p class="mt-3 break-all text-caption leading-5 text-muted-foreground">
+                {{ computerUseSigningLabel }}<template v-if="computerUseSigningDiagnostic">；{{ computerUseSigningDiagnostic }}</template>
+              </p>
+              <div class="mt-3 flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  :loading="computerUseLoading"
+                  @click="refreshComputerUseStatus()"
+                >
+                  <RotateCcw class="size-3.5" />
+                  重新检测
+                </Button>
+                <Button
+                  v-if="computerUseStatus && !computerUsePermissionsReady && !computerUseReapprovalBlocked"
+                  variant="outline"
+                  size="sm"
+                  :loading="computerUseRequesting"
+                  :disabled="!computerUseStatus.available"
+                  @click="requestComputerUsePermissions"
+                >
+                  <KeyRound class="size-3.5" />
+                  打开系统权限设置
+                </Button>
+                <Button
+                  v-else-if="computerUseReapprovalBlocked"
+                  variant="outline"
+                  size="sm"
+                  disabled
+                >
+                  <KeyRound class="size-3.5" />
+                  先稳定签名再复检
+                </Button>
+              </div>
             </SettingsRow>
           </SettingsSection>
           <SettingsSection title="本地数据" class="mt-6">

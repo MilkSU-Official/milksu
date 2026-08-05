@@ -93,7 +93,9 @@
   App data 重启后任务保留但旧 Calculator Scope 不会继续显示为已接入，且外部 Calculator
   已由 Computer Use 完成 `2+3=5` 真实点击操作；packaged Coding bridge live smoke 又证明
   纯文本主模型能先 observe 真实 Calculator 截图，收到辅助视觉摘要后再发起 click，并验证
-  前后截图变化；下一步只补真实外部 Provider 与原生 UI 人工验收；
+  前后截图变化；Settings 页面已接入 Computer Use 权限/签名诊断和只读重新检测，packaged
+  Settings WebView live smoke 证明真实打包 App 可打开设置页、点击重新检测并读回当前授权状态；
+  下一步只补真实外部 Provider 与原生 UI 人工验收；
 - CVE：packaged App 进程内 NVD 单 CVE 导入 live smoke 已通过，已保存来源、获取时间、
   snapshot 哈希/大小和选中 CVE 的事实变化；packaged App 多源矩阵 smoke 已通过，能为
   `CVE-2023-46604` 同步 NVD、FIRST EPSS、OSV、GitHub Advisory、CISA KEV 和 Vulhub

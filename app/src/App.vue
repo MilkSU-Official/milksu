@@ -6,6 +6,7 @@ import { useConversations } from '@/composables/useConversations'
 import { invokeCommand } from '@/desktop'
 import { runCodingArtifactPreviewWebViewSmoke } from '@/lib/codingArtifactWebViewSmoke'
 import { runCodingPullRequestWebViewSmoke } from '@/lib/codingPullRequestWebViewSmoke'
+import { runSettingsComputerUseWebViewSmoke } from '@/lib/settingsComputerUseWebViewSmoke'
 import { runVulnerabilityAssetVerificationWebViewSmoke } from '@/lib/vulnerabilityAssetVerificationWebViewSmoke'
 import { runVulnerabilityLearningWritebackWebViewSmoke } from '@/lib/vulnerabilityLearningWritebackWebViewSmoke'
 import { runVulnerabilityPracticeDirectoryWebViewSmoke } from '@/lib/vulnerabilityPracticeDirectoryWebViewSmoke'
@@ -262,6 +263,15 @@ onMounted(async () => {
       restoreCodingConversation()
       if (workspacePath) conversations.setWorkspace(workspacePath)
       section.value = 'chat'
+      await nextTick()
+      await nextTick()
+    },
+  })
+  void runSettingsComputerUseWebViewSmoke({
+    openSettings: async () => {
+      settingsReturnTarget.value = settingsReturnSection(section.value, settingsReturnTarget.value)
+      settingsCategory.value = 'general'
+      section.value = 'settings'
       await nextTick()
       await nextTick()
     },

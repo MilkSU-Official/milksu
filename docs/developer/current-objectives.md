@@ -163,12 +163,14 @@
    重启真实 MilkSU，确认任务保留但旧 Calculator Scope 不会幽灵恢复为已接入，并用
    Computer Use 对 Calculator 完成 `2+3=5` 的真实点击操作；同日 packaged Coding bridge
    live smoke 已用真实打包 sidecar、真实 Calculator 截图和确定性本地 Provider 证明
-   “纯文本主模型 observe → 辅助视觉读截图 → 主模型消费视觉证据后 click → 截图变化”
-   的工程闭环。2026-08-05 packaged Coding background recovery live smoke 又用真实打包
-   `MilkSU.app` 证明后台任务可在 App 退出后继续运行，并在同一 App data 重启后恢复同一
-   task/PID、显示 log tail/heartbeat、再由 App facade 停止。后续不再重复验证 UI 内
-   Computer Use 选择/启动、重启清理、工程链路或 deterministic 后台恢复 smoke，只补真实
-   外部 Provider 下的模型质量、原生 UI 人工验收和用户手动长任务恢复。
+	   “纯文本主模型 observe → 辅助视觉读截图 → 主模型消费视觉证据后 click → 截图变化”
+	   的工程闭环。2026-08-05 packaged Coding background recovery live smoke 又用真实打包
+	   `MilkSU.app` 证明后台任务可在 App 退出后继续运行，并在同一 App data 重启后恢复同一
+	   task/PID、显示 log tail/heartbeat、再由 App facade 停止。同日 Settings 页面已接入
+	   Computer Use 权限/签名诊断和只读“重新检测”，真实打包 App WebView smoke 证明设置页可打开、
+	   展示权限状态、点击重新检测并读回当前 `accessibility=true / screenRecording=true`；后续不再重复验证 UI 内
+	   Computer Use 选择/启动、重启清理、设置页重新检测、工程链路或 deterministic 后台恢复 smoke，只补真实
+	   外部 Provider 下的模型质量、原生 UI 人工验收和用户手动长任务恢复。
 4. **P1 · 成熟能力集成。** ImageGen、Browser、前端设计/视觉回归 Skill、Project MCP、
    高频 Plugin 以及经用户明确选定的成熟开源能力，优先复用固定版本、可审阅的成熟组件。
    Obelisk / Session Index 是当前 P0 例外，不再按“长期候选”后置。

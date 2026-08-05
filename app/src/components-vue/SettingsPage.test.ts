@@ -3,6 +3,7 @@
 import { createApp, nextTick, type App } from 'vue'
 import { afterEach, describe, expect, it } from 'vitest'
 import SettingsPage from './SettingsPage.vue'
+import type { CodingComputerUseStatus } from '@/codingEnvironmentTypes'
 import { withAppSettingsDefaults, type AppSettings, type LocalDataStatus } from '@/types'
 
 // jsdom does not implement ResizeObserver; @felinic/ui components (e.g. the
@@ -39,6 +40,22 @@ async function mountSettingsPage(
   options: MountSettingsOptions = {},
 ) {
   const settings = options.settings ?? withAppSettingsDefaults({} as AppSettings)
+  const defaultComputerUseStatus: CodingComputerUseStatus = {
+    available: true,
+    enabled: false,
+    phase: 'disabled',
+    permissions: {
+      accessibility: true,
+      screenRecording: true,
+    },
+    signing: {
+      bundleId: 'com.milksu.app',
+      executablePath: '/Applications/MilkSU.app',
+      signature: 'signed',
+      teamIdentifier: 'MILKSUDEV',
+      stableIdentity: true,
+    },
+  }
   ;(window as unknown as { go?: unknown }).go = {
     main: {
       App: {
@@ -50,6 +67,7 @@ async function mountSettingsPage(
           previousPid: 4242,
           startedAt: '2026-08-03T05:00:00Z',
         }),
+        GetCodingComputerUseStatus: async () => defaultComputerUseStatus,
         ...options.appMethods,
       },
     },
@@ -199,6 +217,111 @@ describe('SettingsPage database compatibility', () => {
     expect(text).toContain('上次启动于')
     expect(text).toContain('上次进程 4242')
     expect(text).toContain('本次启动')
+  })
+
+  it('rechecks Computer Use permissions from Settings without opening system grants', async () => {
+    let checks = 0
+    let permissionRequests = 0
+    await mountSettingsPage({
+      directory: 'MilkSU 用户数据目录',
+      fileCount: 0,
+      bytes: 0,
+    }, {
+      appMethods: {
+        GetCodingComputerUseStatus: async () => {
+          checks += 1
+          return {
+            available: true,
+            enabled: false,
+            phase: 'disabled',
+            permissions: {
+              accessibility: checks >= 2,
+              screenRecording: true,
+            },
+            signing: {
+              bundleId: 'com.milksu.app',
+              executablePath: '/Applications/MilkSU.app',
+              signature: 'signed',
+              teamIdentifier: 'MILKSUDEV',
+              stableIdentity: true,
+            },
+          } satisfies CodingComputerUseStatus
+        },
+        RequestCodingComputerUsePermissions: async () => {
+          permissionRequests += 1
+          throw new Error('should not open system settings during readonly refresh')
+        },
+      },
+    })
+
+    expect(checks).toBe(1)
+    let text = document.body.textContent ?? ''
+    expect(text).toContain('Computer Use')
+    expect(text).toContain('辅助功能 未授权')
+    expect(text).toContain('屏幕录制 已授权')
+    expect(text).toContain('打开系统权限设置')
+
+    const refresh = [...document.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.includes('重新检测'))
+    expect(refresh).toBeDefined()
+    refresh?.click()
+    for (let index = 0; index < 4; index += 1) await settle()
+
+    expect(checks).toBe(2)
+    expect(permissionRequests).toBe(0)
+    text = document.body.textContent ?? ''
+    expect(text).toContain('Computer Use 权限状态已重新检测')
+    expect(text).toContain('辅助功能 已授权')
+    expect(text).toContain('屏幕录制 已授权')
+    expect(text).toContain('已授权')
+  })
+
+  it('does not encourage repeated Computer Use permission prompts for unstable builds', async () => {
+    let permissionRequests = 0
+    await mountSettingsPage({
+      directory: 'MilkSU 用户数据目录',
+      fileCount: 0,
+      bytes: 0,
+    }, {
+      appMethods: {
+        GetCodingComputerUseStatus: async () => ({
+          available: true,
+          enabled: false,
+          phase: 'disabled',
+          permissions: {
+            accessibility: false,
+            screenRecording: false,
+          },
+          signing: {
+            bundleId: 'com.milksu.app',
+            executablePath: '/Applications/MilkSU.app',
+            signature: 'adhoc',
+            teamIdentifier: 'not set',
+            stableIdentity: false,
+            problem: '当前构建不是稳定 Developer ID 签名；系统设置里显示已勾选时，TCC 探针仍可能对当前二进制返回未授权。',
+          },
+        }) satisfies CodingComputerUseStatus,
+        RequestCodingComputerUsePermissions: async () => {
+          permissionRequests += 1
+          throw new Error('should not prompt again for unstable signing')
+        },
+      },
+    })
+
+    const text = document.body.textContent ?? ''
+    expect(text).toContain('系统权限')
+    expect(text).toContain('先稳定签名再复检')
+    expect(text).toContain('不要反复授权')
+    expect(text).toContain('当前构建身份：ad-hoc · Team 未设置')
+    expect(text).toContain('Developer ID')
+    expect(text).not.toContain('打开系统权限设置')
+
+    const blocked = [...document.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.includes('先稳定签名再复检'))
+    expect(blocked?.disabled).toBe(true)
+    blocked?.click()
+    for (let index = 0; index < 2; index += 1) await settle()
+    expect(permissionRequests).toBe(0)
   })
 
   it('keeps settings saved and explains an offline model verification failure', async () => {
