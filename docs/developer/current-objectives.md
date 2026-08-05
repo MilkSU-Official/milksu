@@ -112,7 +112,9 @@
    MilkSU 源码隔离 clone 中新增真实 Node 脚本/测试、Go 源码/测试和前端 TS/Vitest 文件，
    运行 `node --test`、`go test ./internal/sourcebootstrap` 与
    `npm --prefix app run test -- --run src/lib/sourceSelfBootstrapSmoke.test.ts`，再由真实
-   打包 App Git facade commit/push 到隔离 bare remote。剩余优先做真实用户历史
+   打包 App Git facade commit/push 到隔离 bare remote。同日 GitHub PR status live smoke
+   已只读验证当前分支、本地 HEAD、origin HEAD 与 MilkSU 私有 Draft PR #1 head 对齐；这不等于
+   App 内 PR 发布流完成。剩余优先做真实用户历史
    目录选择、Claude/Kimi/Pi 扩样、许可证/NOTICE/ADR 收口；完整 MilkSU 源码自举仍按
    COD-25 继续，不用再单独证明“相关历史能参与一次交付”。
 2. **P0 · 当前冲刺：完整产品闭环。** Session Index 首轮闭环通过后，继续让 MilkSU 像裸
