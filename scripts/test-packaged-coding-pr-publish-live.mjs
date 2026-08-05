@@ -79,7 +79,7 @@ function spawnPackagedApp({ fixtureHome, fixtureTemp, appDataDirectory, workspac
   const child = spawn(appExecutable, [], {
     cwd: fixtureHome,
     env: {
-      HOME: fixtureHome,
+      HOME: process.env.HOME || fixtureHome,
       TMPDIR: fixtureTemp,
       PATH: process.env.PATH || '/usr/bin:/bin:/usr/sbin:/sbin',
       LANG: 'en_US.UTF-8',
