@@ -1497,6 +1497,16 @@ func (a *App) EnsureVulnTrackingWorkspace(request vuln.TrackingWorkspaceRequest)
 	return a.vulnJobs.EnsureCVETrackingWorkspace(a.commandContext(), request)
 }
 
+func (a *App) GetVulnerabilityLearningWritebackWebViewSmokeRequest() vulnerabilityLearningWritebackWebViewSmokeRequest {
+	return a.vulnerabilityLearningWritebackWebViewSmokeRequest()
+}
+
+func (a *App) CompleteVulnerabilityLearningWritebackWebViewSmoke(
+	report vulnerabilityLearningWritebackWebViewSmokeReport,
+) error {
+	return a.completeVulnerabilityLearningWritebackWebViewSmoke(report)
+}
+
 func (a *App) ListVulnJobs() ([]vuln.Summary, error) {
 	return a.vulnJobs.ListJobs(a.commandContext())
 }

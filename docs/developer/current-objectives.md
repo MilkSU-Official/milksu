@@ -130,8 +130,10 @@
    生命周期管线，不运行 exploit、漏洞触发输入或外部目标流量。同日 packaged CVE learning
    writeback live smoke 已证明真实打包 App 能创建/复用 `cve-tracking` 研究档案，将用户确认
    的 Coding 结论写入 Go `learning.recorded` 事件并从 projection 恢复读取；前端导入 Coding
-   结论入口会同步展示正式研究档案 ID 和学习记录数。仍未完成真实 Vulhub 用户目录的 UI 手动
-   验收、导入 Coding 结论的原生 UI 人工点击验收和资产验证。
+   结论入口会同步展示正式研究档案 ID 和学习记录数。同日 packaged CVE learning writeback
+   WebView live smoke 已证明真实打包 App WebView 能进入 CVE 工作台、选中 `CVE-2023-46604`、
+   通过 UI 打开并提交“导入 Coding 结论”，再读回正式研究档案和 1 条学习记录。仍未完成真实
+   Vulhub 用户目录的 UI 手动验收、如需时的人工/Computer Use 点击复核，以及资产验证。
 3. **P0 · 长时间自主开发。** 打包 MilkSU 在“替我审批”或“完全访问”下持续完成真实功能，
    自动构建、测试、预览、恢复和交付，普通已授权操作不以无意义审批反复打断用户。
    Computer Use 必须能由用户选择一个当前可见的外部 App / 窗口作为不可变 Scope，并让

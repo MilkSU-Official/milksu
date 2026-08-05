@@ -626,6 +626,52 @@ describe('desktop command adapter', () => {
     })).rejects.toThrow('MilkSU 桌面运行时')
   })
 
+  it('routes CVE learning writeback WebView smoke only through Wails', async () => {
+    const request = {
+      enabled: true,
+      cveId: 'CVE-2023-46604',
+      conclusion: 'User-confirmed UI smoke note.',
+    }
+    const getRequest = vi.fn(async () => request)
+    const complete = vi.fn(async () => undefined)
+    Object.defineProperty(window, 'go', {
+      configurable: true,
+      value: {
+        main: {
+          App: {
+            GetVulnerabilityLearningWritebackWebViewSmokeRequest: getRequest,
+            CompleteVulnerabilityLearningWritebackWebViewSmoke: complete,
+          },
+        },
+      },
+    })
+
+    await expect(invokeCommand('get_vulnerability_learning_writeback_webview_smoke_request'))
+      .resolves.toBe(request)
+    await expect(invokeCommand('complete_vulnerability_learning_writeback_webview_smoke', {
+      report: {
+        cveId: 'CVE-2023-46604',
+        workspaceJobId: 'job_smoke',
+        gates: { learningProjected: true },
+      },
+    })).resolves.toBeUndefined()
+
+    expect(getRequest).toHaveBeenCalledOnce()
+    expect(complete).toHaveBeenCalledWith({
+      cveId: 'CVE-2023-46604',
+      workspaceJobId: 'job_smoke',
+      gates: { learningProjected: true },
+    })
+  })
+
+  it('does not pretend browser preview can run the CVE learning writeback WebView smoke', async () => {
+    await expect(invokeCommand('get_vulnerability_learning_writeback_webview_smoke_request'))
+      .resolves.toEqual({ enabled: false })
+    await expect(invokeCommand('complete_vulnerability_learning_writeback_webview_smoke', {
+      report: {},
+    })).rejects.toThrow('MilkSU 桌面运行时')
+  })
+
   it('passes Coding collaboration preparation details to Wails unchanged', async () => {
     const status = {
       schemaVersion: 1,

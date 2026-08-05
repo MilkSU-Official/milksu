@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onMounted, ref } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onMounted, ref } from 'vue'
 import AppSidebar from '@/components-vue/AppSidebar.vue'
 import StartupRecoveryBanner from '@/components-vue/StartupRecoveryBanner.vue'
 import { useConversations } from '@/composables/useConversations'
 import { invokeCommand } from '@/desktop'
 import { runCodingArtifactPreviewWebViewSmoke } from '@/lib/codingArtifactWebViewSmoke'
+import { runVulnerabilityLearningWritebackWebViewSmoke } from '@/lib/vulnerabilityLearningWritebackWebViewSmoke'
 import type { CTFAgentWorkspaceHandoff } from '@/ctfTypes'
 import type { VulnerabilityCodingTask } from '@/composables/useVulnerabilityDashboard'
 import { settingsReturnSection, type CTFWorkspaceSection } from '@/lib/workspaceNavigation'
@@ -252,6 +253,14 @@ onMounted(async () => {
   await Promise.all([loadSettings(), conversations.load()])
   await conversations.listen()
   void runCodingArtifactPreviewWebViewSmoke()
+  void runVulnerabilityLearningWritebackWebViewSmoke({
+    openVulnerabilityWorkspace: async () => {
+      rememberActiveConversation()
+      section.value = 'vuln'
+      await nextTick()
+      await nextTick()
+    },
+  })
   try {
     recoveryStatus.value = await invokeCommand<StartupRecoveryStatus>('get_startup_recovery_status')
   } catch {

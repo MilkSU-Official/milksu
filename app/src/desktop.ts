@@ -280,6 +280,8 @@ interface WailsAppBindings {
   ): Promise<CodingArtifactPreview>
   GetCodingArtifactPreviewWebViewSmokeRequest(): Promise<Record<string, unknown>>
   CompleteCodingArtifactPreviewWebViewSmoke(report: Record<string, unknown>): Promise<void>
+  GetVulnerabilityLearningWritebackWebViewSmokeRequest(): Promise<Record<string, unknown>>
+  CompleteVulnerabilityLearningWritebackWebViewSmoke(report: Record<string, unknown>): Promise<void>
   StartCodingBrowser(
     conversationId: string,
     initialUrl: string,
@@ -1025,6 +1027,12 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.CompleteCodingArtifactPreviewWebViewSmoke(
           (args?.report as Record<string, unknown>) ?? {},
         ) as Promise<T>
+      case 'get_vulnerability_learning_writeback_webview_smoke_request':
+        return app.GetVulnerabilityLearningWritebackWebViewSmokeRequest() as Promise<T>
+      case 'complete_vulnerability_learning_writeback_webview_smoke':
+        return app.CompleteVulnerabilityLearningWritebackWebViewSmoke(
+          (args?.report as Record<string, unknown>) ?? {},
+        ) as Promise<T>
       case 'start_coding_browser':
         return app.StartCodingBrowser(
           args?.conversationId as string,
@@ -1466,6 +1474,10 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
       return { enabled: false } as T
     case 'complete_coding_artifact_preview_webview_smoke':
       throw new Error('HTML 产物 WebView smoke 只在 MilkSU 桌面运行时可用。')
+    case 'get_vulnerability_learning_writeback_webview_smoke_request':
+      return { enabled: false } as T
+    case 'complete_vulnerability_learning_writeback_webview_smoke':
+      throw new Error('CVE 研究写回 WebView smoke 只在 MilkSU 桌面运行时可用。')
     case 'start_coding_browser':
     case 'stop_coding_browser':
       throw new Error('隔离 Coding 浏览器需要 MilkSU 桌面运行时。')
