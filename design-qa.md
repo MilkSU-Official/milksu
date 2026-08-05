@@ -3,8 +3,7 @@
 > 文档状态：**Historical design evidence collection**。
 >
 > 本文件按时间保留多轮截图比较和当时结论，不描述当前 UI 全貌，也不提供待办。当前产品
-> 目标与缺口见 `docs/developer/current-objectives.md` 和
-> `docs/developer/objective-coverage-ledger.md`。
+> 目标与缺口见 `docs/developer/current-objectives.md`，实现事实以当前代码、测试和 Git 历史为准。
 
 ## Comparison target
 

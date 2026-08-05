@@ -5,7 +5,7 @@
 > 目的：把当前能力安全地保存到 GitHub，让下一次任务可以从明确边界继续，而不是从未记录的工作区恢复意图。
 >
 > 当前任务不得从本检查点恢复；后继事实见
-> [目标覆盖台账](/developer/objective-coverage-ledger)。
+> [当前开发目标](/developer/current-objectives)、代码、测试和 Git 历史。
 
 ## 本检查点冻结了什么
 

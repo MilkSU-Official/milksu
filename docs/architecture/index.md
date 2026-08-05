@@ -4,9 +4,8 @@
 >
 > 审阅日期：2026-08-05
 >
-> 范围：`main` 合并基线 `108e0e3`。实现进度和任务只以
-> [目标覆盖台账](/developer/objective-coverage-ledger)与
-> [当前开发目标](/developer/current-objectives)为准。
+> 范围：`main` 合并基线 `108e0e3`。实现进度和任务以
+> [当前开发目标](/developer/current-objectives)、当前代码、测试和真实验收为准。
 
 这组文档用于回答当前实现与未来解冻设计：
 
@@ -17,7 +16,7 @@
 2. [CTF 数据与时序](ctf-intake-agent-judge-memory.md)：一道题怎样从 Intake 进入 Agent、Judge 和训练记忆？
 3. [Coding Agent / Pi 扩展边界](coding-agent-pi-extension-boundary.md)：哪些能力复用 Pi，哪些能力属于 MilkSU，CTF 为什么不继承 Coding 插件？
 4. [当前开发目标](/developer/current-objectives)：唯一目标契约；M3 product-loop 已合并，后续
-   从目标和覆盖台账选择有界批次。
+   从目标、代码和测试事实选择有界批次。
 5. [授权安全学习与研究平台](security-learning-and-research-platform.md)：CTF、Labs、CVE、
    Coding 怎样共享证据、授权、环境与学习底座？
 6. [CTF Labs 顶层与详细设计](ctf-labs-design.md)：未来怎样提供一键启动、可重置、
@@ -41,10 +40,9 @@
 当不同年代的文档出现冲突时，按以下顺序判断：
 
 1. `developer/current-objectives.md` 的当前任务与完成门槛；
-2. `developer/objective-coverage-ledger.md` 的逐项证据和缺口；
-3. 本目录的 `current-system.md` 与代码、测试、原生 App 的实现事实；
-4. `Planned / Paused` 详细设计；
-5. ADR 与带日期的 Architecture Review / Checkpoint。
+2. 本目录的 `current-system.md` 与代码、测试、原生 App 的实现事实；
+3. `Planned / Paused` 详细设计；
+4. ADR 与带日期的 Architecture Review / Checkpoint。
 
 ADR、Review 和 Checkpoint 记录当时为什么这样决定，不会因为后续实现而改写历史；它们必须
 通过 `Historical`、`Superseded` 或后继链接避免被误读成当前状态。

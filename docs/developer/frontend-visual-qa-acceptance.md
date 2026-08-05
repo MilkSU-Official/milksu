@@ -7,7 +7,7 @@
 > 边界：本记录只固化一次已经完成的真实 MilkSU 任务，不把 Skill 已加载、自动化 fixture
 > 或单张截图当作整体完成，也不代表 Computer Use、用户登录态浏览器或其他项目已经验收。
 >
-> 动态完成度与剩余缺口以[目标覆盖台账](./objective-coverage-ledger.md)为准。
+> 当前完成度与剩余缺口以代码、测试、Git 历史和[当前开发目标](./current-objectives.md)为准。
 
 ## 验收对象
 

@@ -8,7 +8,7 @@
 > 路径；同时设置保守 pre-release 回归阈值。Developer ID、公证、升级、全新无开发工具机器
 > 和正式 RC 性能承诺仍在 RC 阶段验收。
 >
-> 动态完成度与剩余缺口以[目标覆盖台账](./objective-coverage-ledger.md)为准。
+> 当前完成度与剩余缺口以代码、测试、Git 历史和[当前开发目标](./current-objectives.md)为准。
 
 ## 自动化入口
 

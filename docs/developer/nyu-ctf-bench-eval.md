@@ -4,8 +4,8 @@
 >
 > 验收状态：Metadata adapter + one-shot baseline + two-turn PI Agent Runtime baseline verified。
 >
-> 本页不是当前产品成绩或开发顺序；动态完成度与剩余缺口以
-> [目标覆盖台账](./objective-coverage-ledger.md)为准。
+> 本页不是当前产品成绩或开发顺序；当前适用范围与剩余缺口以
+> [当前开发目标](./current-objectives.md)、代码、测试和 Git 历史为准。
 >
 > MilkSU schema：`milksu.evalbench.* / v1alpha1`
 

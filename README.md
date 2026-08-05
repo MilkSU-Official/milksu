@@ -15,10 +15,9 @@ Recovery、Memory、教学和 Agent 协作。
 >
 > 2026-08-05，M3 product-loop PR #1 已 squash merge 到 `main`，合并后基线为
 > `108e0e3`。当前进度和未完成项只以
-> [当前开发目标](docs/developer/current-objectives.md)与
-> [目标覆盖台账](docs/developer/objective-coverage-ledger.md)为准；
-> [产品闭环冲刺](docs/developer/product-loop-sprint.md)现在是已完成冲刺的证据和后续节奏
-> 参考，不表示同一 PR 仍未合并。
+> [当前开发目标](docs/developer/current-objectives.md)、当前代码、测试和 Git 历史为准；
+> [产品闭环冲刺摘要](docs/developer/product-loop-sprint.md)只记录已完成冲刺的关键结论，
+> 不表示同一 PR 仍未合并。
 
 ## 当前事实
 
@@ -49,16 +48,15 @@ CVE 纵深研究、真实漏洞复现、外部资产实验和披露流程仍后�
 
 先按以下顺序阅读，避免从历史 ADR 恢复旧计划：
 
-1. [当前开发目标](docs/developer/current-objectives.md)：唯一目标契约、优先级和广度执行规则。
-2. [目标覆盖台账](docs/developer/objective-coverage-ledger.md)：90 个细项的证据、缺口与统一计分。
-3. [文档与事实状态](docs/developer/document-status.md)：哪些文档是 Current、Target、Evidence、
+1. [当前开发目标](docs/developer/current-objectives.md)：唯一目标契约、优先级和执行规则。
+2. [文档与事实状态](docs/developer/document-status.md)：哪些文档是 Current、Target、Evidence、
    Historical、Research 或 Paused。
-4. [当前系统与分层](docs/architecture/current-system.md)：当前代码中的进程、模块和边界。
-5. [目标共同评估工作簿](docs/developer/objective-review-workbook.md)：用户与主 Agent 的目标讨论区，
-   不构成开发授权。
+3. [当前系统与分层](docs/architecture/current-system.md)：当前代码中的进程、模块和边界。
+4. [架构快照索引](docs/architecture/index.md)：长期设计、暂停范围和证据入口。
 
-`docs/developer/adr/`、带日期的 Review、Checkpoint、设计审计和 Spike 都是历史决策或证据，
-不是当前 backlog。发生冲突时，以代码、测试、原生 App、真实回执、当前目标和覆盖台账为准。
+`objective-coverage-ledger.md`、`objective-review-workbook.md`、`docs/developer/adr/`、
+带日期的 Review、Checkpoint、设计审计和 Spike 都是历史决策或证据，
+不是当前 backlog。发生冲突时，以代码、测试、原生 App、真实回执和当前目标为准。
 
 ## 开发
 

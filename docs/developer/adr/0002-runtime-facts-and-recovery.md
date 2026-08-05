@@ -1,7 +1,7 @@
 # ADR-0002：Runtime 事实、存储与恢复边界
 
 > 文档状态：**Historical ADR**。正文中的 M1/M2 和后续项是当时边界，不是当前 backlog。
-> 当前 Runtime 缺口见[目标覆盖台账](/developer/objective-coverage-ledger)。
+> 当前 Runtime 缺口见[当前目标](/developer/current-objectives)、代码、测试和 Git 历史。
 >
 > 状态：Accepted for M1
 >

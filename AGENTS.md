@@ -5,15 +5,16 @@
 Before changing anything, read:
 
 1. `docs/developer/current-objectives.md`;
-2. `docs/developer/objective-coverage-ledger.md`;
-3. `docs/developer/document-status.md`;
+2. `docs/developer/document-status.md`;
+3. `docs/architecture/current-system.md`;
 4. the current Git branch, HEAD and working tree.
 
 M3 product-loop work was squash merged to `main` on 2026-08-05. Continue from
-`current-objectives.md` and `objective-coverage-ledger.md` rather than reopening the merged PR or old
-sprint gaps. Build the next bounded slice, record adjacent non-blocking bugs and details in the coverage
-ledger instead of fixing them opportunistically, and fix immediately only when a problem blocks the selected
-slice, threatens data/credentials/scope/private-remote boundaries, or invalidates the acceptance result.
+`current-objectives.md`, current code, tests and Git history rather than reopening the merged PR, retired
+ledgers or old sprint gaps. Build the next bounded slice, record adjacent non-blocking bugs near the relevant
+code or current target notes instead of fixing them opportunistically, and fix immediately only when a problem
+blocks the selected slice, threatens data/credentials/scope/private-remote boundaries, or invalidates the
+acceptance result.
 
 Do not use old milestones, ADR follow-ups, dated reviews, checkpoints, research notes or design audits as
 an implementation queue. `docs/developer/development-plan.md` does not exist and must not be recreated.

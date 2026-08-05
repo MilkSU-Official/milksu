@@ -4,8 +4,8 @@
 >
 > 事实审计：2026-08-05，`main` 合并基线 `108e0e3`
 >
-> 本页描述当前结构，不安排任务。动态进度和缺口见
-> [目标覆盖台账](/developer/objective-coverage-ledger)。
+> 本页描述当前结构，不安排任务。动态进度和缺口以
+> [当前开发目标](/developer/current-objectives)、代码、测试和真实验收为准。
 
 ## C4 · System Context
 

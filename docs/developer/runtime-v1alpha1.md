@@ -3,8 +3,7 @@
 > 文档状态：**Historical implementation contract**。
 >
 > 本页冻结 M1 当时的最小契约，不描述当前产品表面或任务顺序。当前 Runtime 事实见
-> [当前系统与分层](/architecture/current-system)，当前缺口见
-> [目标覆盖台账](/developer/objective-coverage-ledger)。
+> [当前系统与分层](/architecture/current-system)、代码、测试和 Git 历史。
 >
 > 日期：2026-07-19
 

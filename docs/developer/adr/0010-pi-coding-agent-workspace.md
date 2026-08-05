@@ -1,7 +1,7 @@
 # ADR-0010：PI Coding Agent 工作区
 
 > 文档状态：**Historical ADR**。保留 Coding 工作区建立原因；当前权限、能力与自举缺口见
-> [Coding / Pi 扩展边界](/architecture/coding-agent-pi-extension-boundary)和覆盖台账。
+> [Coding / Pi 扩展边界](/architecture/coding-agent-pi-extension-boundary)、代码、测试和 Git 历史。
 >
 > 状态：Accepted（2026-07-31）
 

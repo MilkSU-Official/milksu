@@ -1,7 +1,7 @@
 # ADR-0015：纯文本模型的视觉输入适配与证据边界
 
 > 文档状态：**Historical ADR with active evidence boundary**。本地 OCR 和视觉降级原则仍
-> 有效；ImageGen、Browser 与 Computer Use 的当前状态见覆盖台账。
+> 有效；ImageGen、Browser 与 Computer Use 的当前状态见代码、测试、Git 历史和当前目标。
 >
 > 状态：Accepted for M3（2026-08-01）
 

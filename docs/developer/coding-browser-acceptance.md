@@ -7,7 +7,7 @@
 > 边界：这是 Browser 与前端 QA 的自动化基线，不替代打包 MilkSU 中的真实用户任务成功率
 > 验收，也不代表 Computer Use 或用户登录态浏览器。
 >
-> 动态完成度与剩余缺口以[目标覆盖台账](./objective-coverage-ledger.md)为准。
+> 当前完成度与剩余缺口以代码、测试、Git 历史和[当前开发目标](./current-objectives.md)为准。
 
 ## 自动化纵切
 

@@ -7,8 +7,8 @@
 > Coding 核心交付、附件、PTY、后台任务、Git、Archify、隔离 Browser 和 LSP 已有真实或
 > 专项证据；Artifact Preview、Project MCP、Computer Use 外部 App slice、PR 发布确认、
 > Session Index、worktree 和恢复处于不同程度的 Verified / Implemented / Partial。ImageGen
-> 仍缺真实 Provider 扩样。逐项完成度只看
-> [目标覆盖台账](/developer/objective-coverage-ledger)。
+> 仍缺真实 Provider 扩样。当前完成度以代码、测试、Git 历史和
+> [当前开发目标](/developer/current-objectives)为准。
 
 MilkSU 不重写通用 Coding Agent Loop。Pi 负责会话、模型、上下文、工具循环和扩展 API；
 MilkSU 负责桌面授权、固定资源白名单、工具可见性、事件桥、产品 UI，以及 CTF 专用的事实、
@@ -195,8 +195,8 @@ flowchart TB
 
 ## 当前验收入口
 
-本页不再维护第二份 R0.x 完成清单。精确状态使用覆盖台账的 `COD-01`–`COD-30` 与
-`RUN-03`、`RUN-08`：
+本页不再维护第二份 R0.x 完成清单。精确状态以当前代码、测试、Git 历史、原生 App 验收和
+[当前目标](/developer/current-objectives)为准：
 
 - Archify、隔离 Coding Browser、MilkSU 前端视觉 QA、Git 日常闭环等已完成项保持回归；
 - LSP、Artifact Preview、Project MCP、ImageGen、Computer Use、PR、worktree 和跨 App
