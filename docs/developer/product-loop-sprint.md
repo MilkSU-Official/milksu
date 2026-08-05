@@ -78,9 +78,14 @@
 - Background Tasks：2026-08-05 `MILKSU_CODING_BACKGROUND_RECOVERY_LIVE_SMOKE=1`
   使用真实打包 `MilkSU.app` 证明 Coding 后台任务可在 App 退出后继续运行，并在同一
   App data 重启后恢复同一 task/PID、显示 log tail/heartbeat、再由 App facade 停止；报告
-  `build/test-results/coding-background-recovery-live.json`。后续不得重复把 deterministic
-  packaged recovery smoke 当成待做；剩余是用户在 UI 内手动启动真实长任务、重启后查看恢复
-  状态，以及交互式 PTY 不可重连的负向验收；
+  `build/test-results/coding-background-recovery-live.json`。同日
+  `MILKSU_CODING_BACKGROUND_WEBVIEW_RECOVERY_LIVE_SMOKE=1 npm run test:coding-background-webview-recovery-live`
+  使用真实打包 WebView 打开 Coding → 终端 → 后台任务，输入并运行 `sh bg-ui-worker.sh`，
+  App 退出后 heartbeat 继续增长，重启后 UI 显示恢复提示、同一 PID、日志 marker，并通过
+  可见“停止”按钮结束任务；报告
+  `build/test-results/coding-background-webview-recovery-live.json`。后续不得重复把 deterministic
+  packaged recovery smoke 或 WebView UI recovery smoke 当成待做；交互式 PTY 不可重连仍按
+  `COD-19` 负向验收；
 - Artifact Preview：packaged App facade 已能从隔离 workspace 真实读取 Markdown、HTML、PNG，
   并拒绝 workspace escape、伪装 PNG 和 SVG；真实打包 MilkSU UI 已通过目录选择器绑定
   隔离 workspace，并在 Coding → 产物中手动打开 Markdown、HTML 和 PNG，开发者验收详情

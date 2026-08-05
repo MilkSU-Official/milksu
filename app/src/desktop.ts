@@ -281,6 +281,8 @@ interface WailsAppBindings {
   ): Promise<CodingArtifactPreview>
   GetCodingArtifactPreviewWebViewSmokeRequest(): Promise<Record<string, unknown>>
   CompleteCodingArtifactPreviewWebViewSmoke(report: Record<string, unknown>): Promise<void>
+  GetCodingBackgroundRecoveryWebViewSmokeRequest(): Promise<Record<string, unknown>>
+  CompleteCodingBackgroundRecoveryWebViewSmoke(report: Record<string, unknown>): Promise<void>
   GetCodingPullRequestWebViewSmokeRequest(): Promise<Record<string, unknown>>
   CompleteCodingPullRequestWebViewSmoke(report: Record<string, unknown>): Promise<void>
   GetSettingsComputerUseWebViewSmokeRequest(): Promise<Record<string, unknown>>
@@ -1036,6 +1038,12 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.GetCodingArtifactPreviewWebViewSmokeRequest() as Promise<T>
       case 'complete_coding_artifact_preview_webview_smoke':
         return app.CompleteCodingArtifactPreviewWebViewSmoke(
+          (args?.report as Record<string, unknown>) ?? {},
+        ) as Promise<T>
+      case 'get_coding_background_recovery_webview_smoke_request':
+        return app.GetCodingBackgroundRecoveryWebViewSmokeRequest() as Promise<T>
+      case 'complete_coding_background_recovery_webview_smoke':
+        return app.CompleteCodingBackgroundRecoveryWebViewSmoke(
           (args?.report as Record<string, unknown>) ?? {},
         ) as Promise<T>
       case 'get_coding_pull_request_webview_smoke_request':

@@ -5,6 +5,7 @@ import StartupRecoveryBanner from '@/components-vue/StartupRecoveryBanner.vue'
 import { useConversations } from '@/composables/useConversations'
 import { invokeCommand } from '@/desktop'
 import { runCodingArtifactPreviewWebViewSmoke } from '@/lib/codingArtifactWebViewSmoke'
+import { runCodingBackgroundRecoveryWebViewSmoke } from '@/lib/codingBackgroundRecoveryWebViewSmoke'
 import { runCodingPullRequestWebViewSmoke } from '@/lib/codingPullRequestWebViewSmoke'
 import { runSettingsComputerUseWebViewSmoke } from '@/lib/settingsComputerUseWebViewSmoke'
 import { runVulnerabilityAssetVerificationWebViewSmoke } from '@/lib/vulnerabilityAssetVerificationWebViewSmoke'
@@ -262,6 +263,17 @@ onMounted(async () => {
       rememberActiveConversation()
       restoreCodingConversation()
       if (workspacePath) conversations.setWorkspace(workspacePath)
+      section.value = 'chat'
+      await nextTick()
+      await nextTick()
+    },
+  })
+  void runCodingBackgroundRecoveryWebViewSmoke({
+    openCodingWorkspace: async workspacePath => {
+      rememberActiveConversation()
+      restoreCodingConversation()
+      if (workspacePath) conversations.setWorkspace(workspacePath)
+      conversations.ensureConversation('Coding background recovery smoke')
       section.value = 'chat'
       await nextTick()
       await nextTick()

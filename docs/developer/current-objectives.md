@@ -265,7 +265,8 @@ Coding 权限档位必须对所有能力入口保持可理解的一致语义，�
 
 - Pi 持久会话、上下文压缩、失败恢复和结构化移交不重复已经完成的工作；
 - 原生 App 重启后核对后台任务、PID、端口、日志和长任务状态；2026-08-05 已完成真实打包
-  App deterministic 后台任务恢复 smoke，剩余是用户在 UI 内手动启动真实长任务后的恢复验收；
+  App deterministic 后台任务恢复 smoke，以及打包 WebView UI 内启动长任务、重启后查看恢复
+  提示/日志/PID 并停止的真实验收；交互式 PTY 不伪装可重连仍由负向项单独跟踪；
 - 旧 PTY 可以明确结束，但不能伪装为可重连；
 - 已失效的审批跨重启自动过期。
 
@@ -488,8 +489,8 @@ Memory 是 MilkSU 的核心差异，但当前不把完整归属矩阵、36 条�
 
 Runtime 当前只优先补直接支撑 P0 自主工作的缺口：
 
-- 完整 App 重启后恢复用户可见的会话和长任务；deterministic packaged 后台任务恢复已过，
-  后续只补 UI 手动长任务和更多真实任务扩样；
+- 完整 App 重启后恢复用户可见的会话和长任务；deterministic packaged 后台任务恢复和
+  打包 WebView UI 长任务恢复均已过，后续只做更多真实任务扩样；
 - 核对后台任务、PID、端口、日志和最终状态；
 - Context Compaction 后不重复已经完成的工作；
 - 超时、取消和恢复能继续响应；
@@ -628,8 +629,8 @@ Developer ID、公证、升级渠道很重要，但不阻塞当前功能迭代�
 1. **P0 · 自主工作主线。** 在打包 MilkSU 中使用“替我审批”或“完全访问”完成真实功能，
    覆盖修改、构建、测试、产物预览、Context Compaction、完整 App 重启、长任务恢复、
    Git 交付和必要的发布确认，以无意义审批次数、人工接管次数和交付结果验收。后台任务
-   deterministic packaged recovery smoke 已闭环，不再重复；下一步只认 UI 手动长任务和
-   MilkSU 源码真实小纵切。
+   deterministic packaged recovery smoke 与 WebView UI recovery smoke 均已闭环，不再重复；
+   下一步只认 MilkSU 源码真实小纵切或真实项目长任务扩样。
 2. **P1 · 成熟能力扩面。** 集成并真实验收 ImageGen、Project MCP、Browser、前端设计/
    视觉回归 Skill；Plugin 由用户真实高频历史和替代失败证据选择，不按数量堆积。
 3. **P1 · CTF 六赛道广度验收。** 不同 subagent 分别执行授权赛道，主 Agent 统一核对
