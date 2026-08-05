@@ -81,7 +81,7 @@ function spawnPackagedApp({ fixtureHome, fixtureTemp, appDataDirectory, workspac
     env: {
       HOME: fixtureHome,
       TMPDIR: fixtureTemp,
-      PATH: '/usr/bin:/bin:/usr/sbin:/sbin',
+      PATH: process.env.PATH || '/usr/bin:/bin:/usr/sbin:/sbin',
       LANG: 'en_US.UTF-8',
       LC_ALL: 'en_US.UTF-8',
       MILKSU_APPDATA_DIR: appDataDirectory,
@@ -166,6 +166,7 @@ async function main() {
   assert(platform() === 'darwin', 'packaged Coding PR publish live smoke requires macOS')
   assert(arch() === 'arm64', 'packaged Coding PR publish live smoke expects darwin/arm64 App build')
   assert(await exists(appExecutable), `missing packaged artifact: ${appExecutable}`)
+  await execText('gh', ['--version'])
   const status = await git(['status', '--porcelain=v1'])
   assert(status === '', 'Coding PR publish live smoke requires a clean committed worktree')
   const branch = await git(['branch', '--show-current'])
