@@ -290,6 +290,7 @@ func (a *App) Startup(ctx context.Context) {
 	a.maybeRunVulnerabilityPracticeSmoke()
 	a.maybeRunCodingArtifactPreviewSmoke()
 	a.maybeRunCodingGitDeliverySmoke()
+	a.maybeRunCodingPullRequestSmoke()
 	a.maybeRunCodingBackgroundRecoverySmoke()
 	a.maybeRunComputerUseAppSmoke()
 	if a.managedLabs != nil {
