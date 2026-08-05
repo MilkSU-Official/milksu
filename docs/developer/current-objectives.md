@@ -117,8 +117,10 @@
    App 内 PR 发布流完成。同日 packaged Coding PR publish live smoke 已补打包 App facade
    prepare → 一次性 token → publish → 复用已有 Draft PR → readback verified 的真实链路；随后
    packaged Coding PR publish WebView live smoke 已证明真实打包 App WebView 能从 Coding 变更面板
-   点击“准备 PR”与“确认使用现有草稿 PR”，复用并验证 MilkSU 私有 Draft PR #1；这仍不是新分支
-   新建 PR。剩余优先做真实用户历史
+   点击“准备 PR”与“确认使用现有草稿 PR”，复用并验证 MilkSU 私有 Draft PR #1；同日
+   `MILKSU_CODING_PR_CREATE_LIVE_SMOKE=1 npm run test:coding-pr-create-live` 已让真实打包
+   App 在 MilkSU 私有仓库临时分支上创建 Draft PR、读回验证、消费一次性 token，并由 launcher
+   关闭 PR 与删除临时分支。后续不得再把“新分支真实创建 PR”列为当前缺口。剩余优先做真实用户历史
    目录选择、Claude/Kimi/Pi 扩样、许可证/NOTICE/ADR 收口；完整 MilkSU 源码自举仍按
    COD-25 继续，不用再单独证明“相关历史能参与一次交付”。
 2. **P0 · 当前冲刺：完整产品闭环。** Session Index 首轮闭环通过后，继续让 MilkSU 像裸

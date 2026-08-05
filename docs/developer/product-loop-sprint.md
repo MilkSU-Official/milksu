@@ -72,8 +72,9 @@
   gate，证明本地 HEAD、origin HEAD 和 PR head 一致；打包 App facade 已跑通
   prepare → 一次性 token → publish → 复用已有 Draft PR → readback verified；真实打包 App
   WebView 已从 Coding 变更面板点击“准备 PR”与“确认使用现有草稿 PR”，复用并验证同一
-  MilkSU 私有 Draft PR #1。下一步才升级为真实外部 Provider 质量、Browser 或 Computer Use
-  验证，或新分支真实创建 PR；
+  MilkSU 私有 Draft PR #1；真实打包 App facade 已在临时新分支上创建 MilkSU 私有 Draft PR、
+  读回验证并自动关闭清理。下一步才升级为真实外部 Provider 质量、Browser 或 Computer Use
+  验证，或当前主工作区自改交付；
 - Background Tasks：2026-08-05 `MILKSU_CODING_BACKGROUND_RECOVERY_LIVE_SMOKE=1`
   使用真实打包 `MilkSU.app` 证明 Coding 后台任务可在 App 退出后继续运行，并在同一
   App data 重启后恢复同一 task/PID、显示 log tail/heartbeat、再由 App facade 停止；报告
