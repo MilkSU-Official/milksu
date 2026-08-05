@@ -2,8 +2,8 @@
 
 > 文档状态：当前唯一目标契约
 >
-> 执行状态：**Active / Product-loop sprint**；2026-08-03 经用户确认从广度优先覆盖调整为
-> 先跑通完整产品闭环
+> 执行状态：**Active / Post-M3 product-loop merge**；2026-08-05，M3 product-loop PR #1
+> 已 squash merge 到 `main`，合并基线 `108e0e3`。后续从本文件和覆盖台账选择有界批次。
 >
 > 生效日期：2026-08-03
 >
@@ -20,8 +20,8 @@
 4. MilkSU 自研集中在 CTF Evidence、Judge、Memory、教学和 Agent 协作。
 5. 每个可交付纵切必须测试、审阅、提交并只推送到 MilkSU 自己的私有仓库。
 6. Provider API Key 不进入模型上下文、工具输出、日志、诊断包、迁移或文档。
-7. Lab 纵深闭环保持暂停，不作为当前真实完成条件；CVE 作为一级主菜单必须在当前冲刺中
-   形成情报追踪、资产关联与可练习环境的最小闭环，但不做红队式批量打靶、自动 PoC 复现
+7. Lab 纵深闭环保持暂停，不作为当前真实完成条件；CVE 作为一级主菜单已形成情报追踪、资产
+   关联与可练习环境的学习/追踪 MVP，后续继续扩样，但不做红队式批量打靶、自动 PoC 复现
    或披露流程。
 8. 从现在开始新增的代码不为尚未发布的临时设计增加迁移、双写或兼容分支，直接实现当前
    干净模型。已经工作的旧代码和既有 schema 不在功能开发中途返工；确需调整时集中到全部
@@ -35,28 +35,29 @@
     Judge、CVE 情报事实、用户能力画像、Git 交付证明或安全结论；进入正式档案必须经过 MilkSU
     对应模块的证据、测试、回执或用户确认。
 
-## 当前冲刺执行规则
+## M3 product-loop 冲刺结果与后续执行规则
 
 [当前目标覆盖台账](./objective-coverage-ledger.md) 已完成第一轮全局拆分和共同评估。2026-08-03
 用户确认后，短期执行节奏从“广度优先补覆盖”调整为
-[产品闭环冲刺](./product-loop-sprint.md)：
+[产品闭环冲刺](./product-loop-sprint.md)。该冲刺已于 2026-08-05 随 PR #1 合并到 `main`；
+以下规则保留为后续批次的节奏约束，不能把同一冲刺或 PR #1 当作未完成继续跑：
 
 1. 先用 MilkSU 自己的 Coding Agent 能力，在数小时内跑通一个完整、可由用户验收的产品闭环：
    规划 → 修改 → 构建/测试 → 预览/Browser 或 Computer Use 验证 → 恢复/继续 → Git 交付。
-2. 当前冲刺少做防御性编程；除 Provider Credential、工作区/Scope、私有远端、Judge 正确性和
+2. 后续批次少做防御性编程；除 Provider Credential、工作区/Scope、私有远端、Judge 正确性和
    用户能力归因等硬红线外，非阻塞 Bug、视觉细节和边界问题先登记，不现场深挖。
-3. CTF 与 CVE 都需要有用户可见、可继续迭代的产品入口和状态；CVE 当前做情报追踪 +
+3. CTF 与 CVE 都需要有用户可见、可继续迭代的产品入口和状态；CVE 已做情报追踪 +
    可练习环境骨架，展示情报、资产命中、学习路径、隔离练习环境、安全边界和后续 Agent
    可接手任务，不做漏洞纵深。
    Lab 暂不实现，只保留 HTB / TryHackMe / pwn.college 等外部靶场辅助与进度追踪的长期计划。
-   NYU、发行门禁等不在本冲刺展开复杂矩阵。
+   NYU、发行门禁等不在后续短批次中默认展开复杂矩阵。
 4. 每个冲刺批次必须留下可继续的恢复点、测试命令、产物位置和下一步清单，方便后续 Coding
    Agent 接手完善。
 5. CTF、CVE 和 Coding 是同一级主工作区；同一位置、同一语义的标题、顶部说明、操作按钮、
    状态 Badge、筛选控件和空态密度必须保持一致。用户看起来是同一种功能的组件，例如下拉、
    Select、主按钮、次按钮、Icon Button、Tab、Badge、搜索框和表格操作，必须复用同一种视觉
-   规格，不能在不同页面各自出现多套字号、高度、圆角、间距或图标尺寸。当前冲刺不做全量
-   视觉重构，但后续触碰这些页面顶部区域和基础控件时必须检查跨模块一致性。
+   规格，不能在不同页面各自出现多套字号、高度、圆角、间距或图标尺寸。后续短批次不默认做
+   全量视觉重构，但触碰这些页面顶部区域和基础控件时必须检查跨模块一致性。
 6. 2026-08-04 起停止“软性元工作循环”：不再把新增状态卡、复制 Prompt、文字测试、验收文档
    章节或微提交当作产品推进。真实完成只能由实际能力证明，例如真实测试/build、真实
    Browser 证据、真实 Computer Use 外部窗口操作、真实 Feed 导入、真实 commit/push 或真实
@@ -67,6 +68,9 @@
    移入开发者视图。
 8. 修完并验收过的问题必须及时登记到覆盖台账或对应冲刺文档；后续 Agent 不应把同一件事反复
    当成新任务处理。只有出现新的用户复现、测试失败或代码回归证据，才重新打开已闭环问题。
+9. 文档清理采用两阶段：当前先修正会误导执行的过时口径；等这些入口文档准确后，再单独做
+   一轮压缩与合并，把冗余的过程讨论、重复验收表述和过长 sprint 记录归档成短入口 +
+   Evidence 索引，避免长期把考古材料当 backlog。
 
 长期目标仍按本文件和台账保留；以下规则仅用于后续从全量目标中挑选与衡量工作，不能把冲刺
 闭环 smoke 宣称为全产品完成：
@@ -113,19 +117,22 @@
    运行 `node --test`、`go test ./internal/sourcebootstrap` 与
    `npm --prefix app run test -- --run src/lib/sourceSelfBootstrapSmoke.test.ts`，再由真实
    打包 App Git facade commit/push 到隔离 bare remote。同日 GitHub PR status live smoke
-   已只读验证当前分支、本地 HEAD、origin HEAD 与 MilkSU 私有 Draft PR #1 head 对齐；这不等于
+   已只读验证合并前分支、本地 HEAD、origin HEAD 与 MilkSU 私有 Draft PR #1 head 对齐；这不等于
    App 内 PR 发布流完成。同日 packaged Coding PR publish live smoke 已补打包 App facade
    prepare → 一次性 token → publish → 复用已有 Draft PR → readback verified 的真实链路；随后
    packaged Coding PR publish WebView live smoke 已证明真实打包 App WebView 能从 Coding 变更面板
    点击“准备 PR”与“确认使用现有草稿 PR”，复用并验证 MilkSU 私有 Draft PR #1；同日
    `MILKSU_CODING_PR_CREATE_LIVE_SMOKE=1 npm run test:coding-pr-create-live` 已让真实打包
    App 在 MilkSU 私有仓库临时分支上创建 Draft PR、读回验证、消费一次性 token，并由 launcher
-   关闭 PR 与删除临时分支。后续不得再把“新分支真实创建 PR”列为当前缺口。剩余优先做真实用户历史
+   关闭 PR 与删除临时分支。PR #1 已在 2026-08-05 合并；后续不得再把“新分支真实创建 PR”
+   列为当前缺口。剩余优先做真实用户历史
    目录选择、Claude/Kimi/Pi 扩样、许可证/NOTICE/ADR 收口；完整 MilkSU 源码自举仍按
    COD-25 继续，不用再单独证明“相关历史能参与一次交付”。
-2. **P0 · 当前冲刺：完整产品闭环。** Session Index 首轮闭环通过后，继续让 MilkSU 像裸
+2. **P0 · M3 product-loop 已合并，后续完整产品闭环扩样。** Session Index 首轮闭环通过后，
+   继续让 MilkSU 像裸
    Pi Agent 一样顺滑完成一个真实产品任务，并在 MilkSU 自己的产品壳里走完修改、测试、
-   预览/验证、恢复和 Git 交付。详见 [产品闭环冲刺](./product-loop-sprint.md)。
+   预览/验证、恢复和 Git 交付。M3 冲刺证据详见
+   [产品闭环冲刺](./product-loop-sprint.md)，但该文档不再表示打开中的 PR 任务。
    2026-08-05 真实打包 MilkSU UI 已通过目录选择器绑定隔离 workspace，并在 Coding →
    产物中手动打开 Markdown、HTML 和 PNG 预览，开发者验收详情记录为用户可见验证。
    同时补齐 CVE 情报追踪、资产关联与可练习环境的最小可见骨架，让它作为一级菜单不再像空模块。
@@ -623,9 +630,10 @@ Developer ID、公证、升级渠道很重要，但不阻塞当前功能迭代�
 以下是优先级队列，不是授权开发的固定流水线。每次只从最高可执行层选择一个有界批次；
 发现相邻问题先登记，不自动扩大范围。
 
-0. **当前冲刺 · 完整产品闭环。** 先按 [product-loop-sprint.md](./product-loop-sprint.md)
-   跑通一个可演示、可恢复、可交付的真实 Coding 产品任务；CVE 做到学习/追踪工作台骨架，
-   CTF 保持现有主链可理解，Lab 只保留长期外部靶场辅助/进度追踪计划，不进入实现。
+0. **M3 product-loop 已合并，后续产品闭环扩样。** [product-loop-sprint.md](./product-loop-sprint.md)
+   记录了已合并冲刺的证据与节奏；后续不要把它当作打开中的同一任务。下一批继续围绕可演示、
+   可恢复、可交付的真实 Coding 产品任务扩样；CVE 在学习/追踪 MVP 上扩展真实样本，CTF 保持
+   现有主链可理解，Lab 只保留长期外部靶场辅助/进度追踪计划，不进入实现。
 1. **P0 · 自主工作主线。** 在打包 MilkSU 中使用“替我审批”或“完全访问”完成真实功能，
    覆盖修改、构建、测试、产物预览、Context Compaction、完整 App 重启、长任务恢复、
    Git 交付和必要的发布确认，以无意义审批次数、人工接管次数和交付结果验收。后台任务

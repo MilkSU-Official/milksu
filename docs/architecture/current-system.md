@@ -2,7 +2,7 @@
 
 > 文档状态：Current
 >
-> 事实审计：2026-08-03
+> 事实审计：2026-08-05，`main` 合并基线 `108e0e3`
 >
 > 本页描述当前结构，不安排任务。动态进度和缺口见
 > [目标覆盖台账](/developer/objective-coverage-ledger)。
@@ -40,17 +40,18 @@ flowchart LR
 | 边界 | 状态 | 代码证据 |
 | --- | --- | --- |
 | Wails 本地桌面宿主 | **Implemented** | `main.go` 只绑定一个 `App`，静态资源来自 `app/dist`。 |
-| Vue 产品表面 | **Implemented / Partial** | `app/src/App.vue` 组合 CTF、Coding、暂停的 CVE 壳与设置；Coding 采用中央会话和右侧动态页面，CTF 默认解题模式与复盘模式分离。 |
-| Pi 通用 Agent | **Verified core / Partial extensions** | `bridge.js` 使用 Pi SessionManager、工具事件和持久会话；Plan/Go、权限档位、Archify、LSP、后台任务和 Compaction 已有真实或专项证据。完整长时间自举仍未通过。 |
+| Vue 产品表面 | **Implemented / Partial** | `app/src/App.vue` 组合 CTF、Coding、CVE 工作区与设置；Coding 采用中央会话和右侧动态页面，CTF 默认解题模式与复盘模式分离，CVE 已有学习/追踪与练习入口。 |
+| Pi 通用 Agent | **Verified core / Partial extensions** | `bridge.js` 使用 Pi SessionManager、工具事件和持久会话；Plan/Go、权限档位、Archify、LSP、后台任务、Session Index、PR 交付和 Compaction 已有真实或专项证据。真实外部 Provider 质量与长期主工作区自举仍未完成。 |
 | CTF Runtime | **Implemented** | `internal/ctf` 将 Challenge、Agent Turn、Candidate、Judge Receipt、Debrief 投影到共享 Runtime。 |
 | 浏览器平台 Judge | **Implemented** | `internal/browsercap` 只接受明确配对页，NSSCTF/CTFshow 回执进入 Go Host。 |
 | Coding Browser | **Verified** | `internal/browsercap` 由右侧页面显式启停专用 Chrome；Go Host 向当前 Pi Session 注入瞬态 loopback 描述符，固定 Playwright MCP 在逐次桌面审批下完成真实页面 E2E。 |
-| Artifact Preview | **Implemented / tested** | Markdown、HTML 与图片使用工作区路径、类型、大小和 HTML 隔离策略；尚缺打包 App 的完整三类型人工回归。 |
+| Artifact Preview | **Verified / expandable** | Markdown、HTML 与图片使用工作区路径、类型、大小和 HTML 隔离策略；打包 App facade、真实 WebView 负向和原生 UI 三类型手动预览均已有证据，后续只做真实项目扩样。 |
 | ImageGen | **Implemented / unverified provider** | 文生图、参考图编辑、项目资产和付费确认主链已接入；未在打包 App 中使用用户自行配置的真实 Provider 验收。 |
-| Computer Use | **Partial / self-target only** | 当前代码只允许控制 `com.milksu.app` 当前 PID；macOS Accessibility / Screen Recording 尚未真实授权验收；用户选择外部可见 App / 窗口和工具截图辅助视觉仍未实现。 |
+| Computer Use | **Verified slice / expandable** | 已支持用户选择外部可见 App、PID 与 Window 的不可变 Scope；打包 App facade、WebView 启停、真实 Calculator observe/click 和工具截图辅助视觉已有证据。剩余是更广外部 App 矩阵、真实 Provider 质量和系统权限异常路径扩样。 |
 | Multi-Agent / worktree | **Implemented / unverified collaboration** | worktree 管理、恢复和安全收尾有自动化；尚无真实任务证明并行收益。 |
 | 本地持久化 | **Implemented** | `internal/appdata`、`internal/securityruntime`、Catalog、Conversation、Memory 和 Credential Store。 |
-| Managed Labs | **Paused** | 工作区存在实验代码，但已从当前交付范围移除，不是已发布系统能力。 |
+| Managed Labs | **Paused** | 工作区存在实验代码，但已从当前交付范围移除，不是已发布系统能力；长期方向是辅助外部靶场学习与进度追踪，不自建通用 Lab 平台。 |
+| CVE Learning / Tracking | **Implemented / Partial** | CVE 一级工作区已接入多源只读情报同步、来源快照、Vulhub 练习目录匹配、本地 Docker Compose 练习生命周期、资产验证、学习写回和 Coding 接力；CVE 纵深研究、真实漏洞复现、外部资产实验和披露流程后置。 |
 | NYU CTF Bench | **Verified narrow developer baseline** | `internal/evalbench` 同时提供 one-shot Runner 与 `cmd/nyu-ctf-bench-agent-run` 两回合 Pi 只读 Runner；后者真实验证读取、强制重启、恢复、超时/格式失败分类和 Digest Judge。无产品 UI，也不代表完整 CTF Agent。 |
 
 ## C4 · Containers / Processes
@@ -128,8 +129,8 @@ flowchart TB
 - Browser Bridge 是 loopback 本地桥，只处理用户明确配对的页面；Coding Browser 则由
   MilkSU 启动 Conversation 隔离的专用 Chrome。二者都不会把用户整个日常 Chrome Profile
   交给模型，且 Coding 的 CDP 描述符不会写入前端、SQLite 或项目配置。
-- Computer Use 当前仍只把 MilkSU 自身作为固定目标；跨 App 的用户选择、bundle / PID /
-  窗口不可变 Scope，以及纯文本模型读取工具截图的辅助视觉回路仍是当前 P0 缺口。
+- Computer Use 已不再固定为 MilkSU 自身；当前实现按用户选择的外部 App、PID 和窗口建立
+  不可变 Scope，并保留工具截图辅助视觉证据。后续按真实 App/模型/权限失败矩阵扩样。
 - SQLite、工作区和制品均位于 `os.UserConfigDir()/com.milksu.app`，不写入应用包或源码目录。
 - `credentials.db` 依赖当前 OS 用户和文件权限，不提供静态加密；这是已知产品权衡。
 
@@ -154,9 +155,9 @@ flowchart TB
 
 | 层 | 当前实现 | 判定 |
 | --- | --- | --- |
-| L1 Product Surface | Vue 3、`WorkspaceRail`、`ContextSidebar`、CTF/Coding 页面和暂停的 CVE 壳 | **Partial**：主界面可用，原生多状态、真实 Provider 和系统权限仍需按台账验收。 |
+| L1 Product Surface | Vue 3、`WorkspaceRail`、`ContextSidebar`、CTF/Coding/CVE 页面与设置 | **Partial**：主界面可用，CVE 学习/追踪 MVP 和多项原生 smoke 已存在；真实 Provider、更多系统权限路径和发行 UI 矩阵仍需按台账验收。 |
 | L2 Application / Role Services | 单一 `App` 组合 `ctf.Service`、`vuln.Service`、Catalog、Memory | **Implemented but concentrated**：接口可用，Facade 未拆。 |
-| L3 Agent / Platform Adapters | Pi Supervisor、Security Supervisor、NSSCTF、CTFshow、Browser Bridge、Playwright MCP、ImageGen、Computer Use | **Implemented / Partial**：NSSCTF 主链和隔离 Coding Browser 已验，其余真实 Provider、系统权限和跨平台 E2E 仍按台账跟踪。 |
+| L3 Agent / Platform Adapters | Pi Supervisor、Security Supervisor、NSSCTF、CTFshow、Browser Bridge、Playwright MCP、ImageGen、Computer Use、Session Index | **Implemented / Partial**：NSSCTF 主链、隔离 Coding Browser、Computer Use 外部 App slice、Session Index 和 PR 交付已有验收；其余真实 Provider、系统权限失败路径和跨平台 E2E 仍按台账跟踪。 |
 | L4 Domain Contracts | CTF Challenge、RoleFact、AgentCandidate、JudgeReceipt、LearningRecord | **Implemented**。 |
 | L5 Evidence Runtime | 追加式 SQLite Event Store、Artifact SHA-256、Projection、Recover | **Implemented**。 |
 | L6 Integrity | Scope、CTF 工作区策略、预算、候选闸门、外部 Judge、资源白名单、精确 Endpoint Broker | **Partial**：HTTP/TCP/SSH 使用精确 Scope，通用 CTF Shell 默认无网络；宿主执行仍不是容器，真实六赛道负向回归尚未完成。 |

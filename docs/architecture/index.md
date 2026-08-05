@@ -2,9 +2,9 @@
 
 > 文档状态：Current
 >
-> 审阅日期：2026-08-03
+> 审阅日期：2026-08-05
 >
-> 范围：当前 `codex/authorized-learning-foundation` 分支。实现进度和任务只以
+> 范围：`main` 合并基线 `108e0e3`。实现进度和任务只以
 > [目标覆盖台账](/developer/objective-coverage-ledger)与
 > [当前开发目标](/developer/current-objectives)为准。
 
@@ -16,7 +16,8 @@
 1. [当前系统与分层](current-system.md)：MilkSU 现在由哪些进程、容器和模块组成？
 2. [CTF 数据与时序](ctf-intake-agent-judge-memory.md)：一道题怎样从 Intake 进入 Agent、Judge 和训练记忆？
 3. [Coding Agent / Pi 扩展边界](coding-agent-pi-extension-boundary.md)：哪些能力复用 Pi，哪些能力属于 MilkSU，CTF 为什么不继承 Coding 插件？
-4. [当前开发目标](/developer/current-objectives)：唯一目标契约；当前执行状态为广度优先开发。
+4. [当前开发目标](/developer/current-objectives)：唯一目标契约；M3 product-loop 已合并，后续
+   从目标和覆盖台账选择有界批次。
 5. [授权安全学习与研究平台](security-learning-and-research-platform.md)：CTF、Labs、CVE、
    Coding 怎样共享证据、授权、环境与学习底座？
 6. [CTF Labs 顶层与详细设计](ctf-labs-design.md)：未来怎样提供一键启动、可重置、
@@ -52,15 +53,18 @@ ADR、Review 和 Checkpoint 记录当时为什么这样决定，不会因为后�
 
 - CTF 的产品内核已经成立：模型候选与权威 Judge 分离，事实进入追加式 Event Store，
   PI 轨迹和候选可以回流，用户复盘后才允许沉淀长期训练记忆。
-- 当前最大产品风险不是底层完全缺失，而是零散能力尚未在一次长时间打包 App 自举任务中
-  共同证明可用。架构热点继续登记，但不启动独立清债冲刺。
+- M3 product-loop 已证明多条打包 App 纵切可用，包括 Session Index、Artifact Preview、
+  Computer Use 外部 App、后台任务恢复、CVE 多源同步/练习/写回和私有 PR 交付确认。当前最大
+  产品风险不再是底层完全缺失，而是真实外部 Provider 质量、长期主工作区自举、六赛道 CTF、
+  Memory 校准和发行门禁尚未形成完整矩阵。架构热点继续登记，但不启动独立清债冲刺。
 - 普通 Coding 会话已经在代码层接入固定版本 Archify、PI LSP、Goal、后台任务、MCP
   Adapter 和 Playwright MCP；Coding 核心的 Plan → Go、多轮修改、真实打包命令执行与
   独立复验已经 **Verified**。Archify 一键动作和隔离 Coding Browser 已在原生包完成
   真实验收；TypeScript/Vue/Go LSP 已随包并在原生 fixture 返回确定性诊断，
   `lsp_fix` 已完成预览、精确 Diff、批准/自动应用与写后哈希复核；Artifact 预览、
-  ImageGen、Computer Use、PR 和 worktree 也已有不同程度的工程主链。完整 App 的长任务
-  恢复、真实 Provider/系统权限和最终自举 Gate 仍未完成，不能把这些写成整体替代成功。
+  ImageGen、Computer Use、PR、Session Index 和 worktree 也已有不同程度的工程主链或真实
+  打包验收。真实外部 Provider/更广系统权限矩阵和最终长期自举 Gate 仍未完成，不能把这些
+  写成整体替代成功。
 - Managed Labs 当前暂停。工作区里的 Lab Manager / WebGoat 实验不能进入当前产品声明。
 - NYU CTF Bench 的只读元数据、Admission、DeepSeek one-shot Runner、两回合 Pi 只读
   Agent Runtime 和摘要 Judge 是 **Implemented / Verified for the narrow baseline**。

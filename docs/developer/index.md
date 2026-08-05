@@ -5,13 +5,14 @@
 
 ## 先读这五份
 
-1. [当前开发目标](/developer/current-objectives)：唯一目标契约；当前切到产品闭环冲刺。
-2. [产品闭环冲刺](/developer/product-loop-sprint)：短期执行入口；先跑通 UI/UX、Coding
-   产品闭环和 CVE 学习/追踪工作台骨架；Lab 只保留未来外部靶场辅助计划。
-3. [目标覆盖台账](/developer/objective-coverage-ledger)：90 个稳定细项、实现证据、真实验收
-   和缺口。
-4. [文档与事实状态](/developer/document-status)：文档生命周期、当前准确声明和暂停范围。
-5. [当前系统与分层](/architecture/current-system)：当前进程、模块、数据和边界。
+1. [当前开发目标](/developer/current-objectives)：唯一目标契约；M3 product-loop 合并后的
+   后续批次从这里和覆盖台账选择。
+2. [目标覆盖台账](/developer/objective-coverage-ledger)：稳定细项、实现证据、真实验收
+   和缺口；不要从旧冲刺文案重复打开已闭环项。
+3. [文档与事实状态](/developer/document-status)：文档生命周期、当前准确声明和暂停范围。
+4. [当前系统与分层](/architecture/current-system)：当前进程、模块、数据和边界。
+5. [产品闭环冲刺](/developer/product-loop-sprint)：已完成冲刺的证据与节奏参考，不是打开中的
+   PR 任务。
 6. [目标共同评估工作簿](/developer/objective-review-workbook)：用户与主 Agent 的讨论区，
    不自动授权开发。
 
@@ -36,16 +37,16 @@
 
 证据文档只证明记录中明确写出的范围；不能外推为整个产品完成。
 
-## 暂停或未来设计
+## 已完成冲刺、暂停或未来设计
 
-- [产品闭环冲刺](/developer/product-loop-sprint)
+- [产品闭环冲刺](/developer/product-loop-sprint)：2026-08-05 已随 PR #1 合并到 `main`。
 - [授权安全学习与研究平台](/architecture/security-learning-and-research-platform)
 - [CTF Labs 设计](/architecture/ctf-labs-design)
 - [CVE 研究工作台设计](/architecture/cve-research-workbench-design)
 
 Lab 纵深闭环仍暂停，只保留外部 HTB/TryHackMe/pwn.college 辅助与进度追踪的未来计划。
-CVE 纵深研究也不进入本冲刺，但一级菜单需要有学习/追踪工作台骨架和后续 Agent 可接手清单。
-设计存在不表示真实目标已经启用。
+CVE 已有学习/追踪 MVP；纵深研究、外部资产实验、漏洞复现和披露闭环仍后置。设计存在不表示
+真实目标已经启用。
 
 ## 历史与研究
 

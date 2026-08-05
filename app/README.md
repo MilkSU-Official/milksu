@@ -8,7 +8,8 @@ Current user workspaces are:
   debrief;
 - **Coding**: project-scoped Pi sessions, attachments, tools, terminal/background tasks, artifact preview,
   Browser, Git, ImageGen and environment/capability views;
-- **CVE**: a paused demonstration/research surface, not a current live intelligence product;
+- **CVE**: a learning/tracking workspace with real read-only intelligence sync, source snapshots,
+  research notes, asset verification, practice-environment handoff and Coding handoff paths;
 - **Settings**: provider configuration, local recovery, diagnostics and application controls.
 
 The Vue UI is not a domain fact source. CTF success, Evidence, recovery and learning facts come from Go

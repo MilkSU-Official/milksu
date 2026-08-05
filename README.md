@@ -13,24 +13,27 @@ Recovery、Memory、教学和 Agent 协作。
 
 > 当前仍是 pre-release 开发版本，不是正式签名、公证或可自动升级的发行包。
 >
-> 产品开发目标已于 2026-08-03 恢复，当前短期节奏切到
-> [产品闭环冲刺](docs/developer/product-loop-sprint.md)：先跑通 UI/UX、Coding 产品闭环和
-> CVE 学习/追踪工作台骨架；非阻塞 Bug 和细节先登记、后批量修复。当前进度和未完成项只以
-> [目标覆盖台账](docs/developer/objective-coverage-ledger.md)为准。
+> 2026-08-05，M3 product-loop PR #1 已 squash merge 到 `main`，合并后基线为
+> `108e0e3`。当前进度和未完成项只以
+> [当前开发目标](docs/developer/current-objectives.md)与
+> [目标覆盖台账](docs/developer/objective-coverage-ledger.md)为准；
+> [产品闭环冲刺](docs/developer/product-loop-sprint.md)现在是已完成冲刺的证据和后续节奏
+> 参考，不表示同一 PR 仍未合并。
 
 ## 当前事实
 
 | 领域 | 可以准确声称 | 仍不能声称 |
 | --- | --- | --- |
-| Coding | Plan/Go、三档权限、项目工具、附件、本地 OCR、LSP、Artifact 预览、隔离 Browser、后台任务、Diff/Hunk、Git、PR 预览、worktree、ImageGen 和 Project MCP 均已有不同程度的工程主链或验收证据 | 尚未通过一次完整、长时间、跨 App 重启并最终发布私有 PR 的 “MilkSU develops MilkSU” Gate；不能称为 Codex 等价产品 |
+| Coding | Plan/Go、三档权限、项目工具、附件、本地 OCR、LSP、Artifact 预览、隔离 Browser、后台任务、Diff/Hunk、Git、PR 预览/发布确认、worktree、ImageGen、Project MCP、Session Index 和 Computer Use 外部 App 纵切均已有不同程度的工程主链或真实打包验收证据 | 仍不能称为 Codex 等价产品；真实外部 Provider 质量、长期主工作区自改、自主合并发布、完整审批矩阵和发行门禁仍未完成 |
 | CTF | NSSCTF/CTFshow 目录、自定义题、单题工作区、Coach/Copilot/Delegate、Evidence、候选、Judge、Checkpoint、恢复、复盘和 Memory 主链已存在；NSSCTF P3879 有一条真实 `correct=true` 记录 | 只有 Web 窄路径有真实 Judge 成功，不能称为六赛道通用 CTF 成绩 |
-| CVE | 一级菜单和内置情报追踪页存在，本冲刺定位为学习/追踪工作台：关注、研究任务、资产命中、学习路径、证据边界和后续 Agent 接手任务 | 不是红队 Agent、批量扫描器、自动 PoC 复现器或披露平台；纵深研究和真实外部同步后置 |
+| CVE | 一级菜单已从 mock 骨架推进为学习/追踪 MVP：NVD、FIRST EPSS、OSV、GitHub Advisory、CISA KEV 与 Vulhub 练习目录同步，来源快照、研究档案、资产验证、学习写回、本地 Docker Compose 练习生命周期和 Coding 接力均已有真实或窄验收 | 不是红队 Agent、批量扫描器、自动 PoC 复现器或披露平台；真实 Vulhub 漏洞复现、外部资产研究和披露闭环后置 |
 | Memory | 用户/Agent/协作/导入和提示依赖的归属模型、当前题排除及相关/无关召回测试已经存在 | 尚未完成真实 36 条分层轨迹、跨题推荐和用户能力画像校准 |
-| Runtime | 多轮工具 fixture、Sidecar 恢复、Compaction、超时/取消、预算和失败分类已有可复跑报告 | 完整 App 的用户可见长任务恢复仍未通过；NYU safe-static 只是开发者 smoke，不是 MilkSU CTF Outcome |
+| Runtime | 多轮工具 fixture、Sidecar 恢复、Compaction、超时/取消、预算、失败分类、异常退出标记和打包 App/WebView 后台长任务恢复已有可复跑报告 | NYU safe-static 只是开发者 smoke，不是 MilkSU CTF Outcome；交互式 PTY 重连、更多真实长任务和发行级恢复矩阵仍未完成 |
 | 发行 | 本地备份、恢复、脱敏诊断、最低窗口和单机性能基线已存在 | Developer ID、Hardened Runtime、公证、升级、新机器和正式支持矩阵尚未进入 RC 验收 |
 
-Lab 纵深闭环仍保持 `Paused / Designed`，不进入当前真实完成条件。CVE 纵深研究后置，但
-一级菜单需要有可理解的学习/追踪骨架。实验代码和历史设计不能被描述为当前用户能力。
+Lab 纵深闭环仍保持 `Paused / Designed`，不进入当前真实完成条件。CVE 已有学习/追踪 MVP；
+CVE 纵深研究、真实漏洞复现、外部资产实验和披露流程仍后置。实验代码和历史设计不能被描述为
+当前用户能力。
 
 ## 稳定边界
 

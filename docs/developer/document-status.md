@@ -2,9 +2,9 @@
 
 > 状态：Current / Living
 >
-> 最后事实审计：2026-08-03
+> 最后事实审计：2026-08-05
 >
-> 产品开发目标：Active / Product-loop sprint
+> 产品开发目标：Post-M3 product-loop merge；下一批次从当前目标和覆盖台账选择
 
 ## 事实优先级
 
@@ -17,28 +17,30 @@
 5. Target/Designed 文档；
 6. Evidence、Historical、Research 和 Design Snapshot。
 
-历史文档里的“下一步”“未完成”“M2/M3/R0.x”不构成当前任务。产品开发先按当前目标中的
-product-loop sprint 收口；回到全量目标后再按覆盖台账中的 P0 → P1 → P2 广度顺序推进。
+历史文档里的“下一步”“未完成”“M2/M3/R0.x”不构成当前任务。M3 product-loop PR #1 已于
+2026-08-05 squash merge 到 `main`；`product-loop-sprint.md` 现在是已完成冲刺证据和后续节奏
+参考，不再表示同一 PR 仍未合并。后续工作从当前目标和覆盖台账中选择有界批次。
 
 ## 当前准确声明
 
 - Coding 的工程底座已经覆盖普通修改、构建测试、LSP、Artifact 预览、隔离 Browser、
-  后台任务、Git、PR 预览、worktree、ImageGen、Project MCP 和 Computer Use 自控基础；
-  Computer Use 跨 App / 窗口选择、工具截图辅助视觉、完整长时间自举、跨 App 重启和私有
-  PR Gate 尚未通过。
+  后台任务、Git、PR 预览/发布确认、worktree、ImageGen、Project MCP、Session Index 和
+  Computer Use 外部 App/窗口纵切；真实外部 Provider 质量、长期主工作区自改、自主合并发布、
+  完整审批矩阵和发行门禁仍未通过。
 - CTF 的 Intake、工作区、Evidence、候选、Judge、Checkpoint、恢复、复盘和 Memory 主链
   已存在；NSSCTF P3879 有一条真实 `correct=true`，但六赛道仍只有 Web 窄路径通过。
 - 动态 Endpoint 和精确 HTTP/TCP/SSH Scope 主链已落地，后续只在真实赛道中保持回归；
   不能恢复旧的 Endpoint 开发计划。
 - Memory 已有归属模型和相关/无关/当前题召回自动化，尚缺真实轨迹校准和用户可解释闭环。
-- Runtime Reliability fixture 已覆盖多轮工具、Sidecar 恢复、Compaction、超时/取消、预算
-  和失败分类；完整 App 用户可见长任务恢复仍未通过。
+- Runtime Reliability fixture 已覆盖多轮工具、Sidecar 恢复、Compaction、超时/取消、预算、
+  失败分类、异常退出标记和打包 App/WebView 后台长任务恢复；交互式 PTY 重连、更多真实长任务
+  和发行级恢复矩阵仍未通过。
 - NYU one-shot 与两回合只读 Runtime 只是 safe-static 开发者 smoke，不是完整 MilkSU CTF
   成绩。
 - 本地备份、恢复、脱敏诊断和单机交付基线已存在；Developer ID、公证、升级和新机器安装
   属于后期 Release Candidate。
-- Lab 为 `Paused / Designed`，不进入当前完成条件。CVE 纵深研究后置，但一级菜单和
-  学习/追踪工作台骨架进入当前产品闭环冲刺。
+- Lab 为 `Paused / Designed`，不进入当前完成条件。CVE 已有学习/追踪 MVP；CVE 纵深研究、
+  真实漏洞复现、外部资产实验和披露流程仍后置。
 
 精确百分比、每项证据和缺口只在覆盖台账维护，其他文档不复制第二份动态进度表。
 
@@ -49,7 +51,8 @@ product-loop sprint 收口；回到全量目标后再按覆盖台账中的 P0 �
 | **Current** | 当前事实、目标、计分和资源边界 | `current-objectives.md`、`objective-coverage-ledger.md`、本页、`current-system.md`、`pi-resource-whitelist.md` |
 | **Target** | 稳定领域和架构原则，不表示全部实现 | `developer/architecture.md`、`security-agent-boundary.md`、`role-packages.md` |
 | **Evidence** | 可复跑 Runbook 或一次真实验收记录 | `*-acceptance.md`、`local-delivery-baseline.md`、`nyu-ctf-bench-eval.md` |
-| **Paused / Designed** | 已冻结的未来产品设计 | `ctf-labs-design.md`、`cve-research-workbench-design.md`、`security-learning-and-research-platform.md` |
+| **Long-term Design / Partially Implemented** | 长期产品设计，部分被当前 MVP 覆盖 | `cve-research-workbench-design.md`、`security-learning-and-research-platform.md` |
+| **Paused / Designed** | 已冻结的未来产品设计 | `ctf-labs-design.md` |
 | **Historical** | 当时的 ADR、Checkpoint、Review、Spike 和迁移原因 | `developer/adr/*`、`developer/checkpoints/*`、带日期 Review、`spikes/*` |
 | **Research** | 外部项目、许可证和方案输入 | `developer/research/*`、`industry-baseline.md`；包括 Wallbreaker 静态对照 |
 | **Design Snapshot** | 某次视觉参考、审计和验收证据 | `design/audits/*`、`design-qa.md`、`docs/design/*` |
@@ -65,3 +68,5 @@ product-loop sprint 收口；回到全量目标后再按覆盖台账中的 P0 �
 6. 外部或 vendored 文档不替 MilkSU 改写；
 7. 开发过程中只更新测试、回执、Checkpoint 和必要 ADR；最终发布声明在所有 Gate 通过后
    统一更新。
+8. 文档压缩单独成批处理：先保证 Current/入口文档不误导执行，再把冗余过程记录合并为短入口
+   和 Evidence 索引；不要在功能修复中顺手大规模搬迁历史证据。

@@ -2,11 +2,12 @@
 
 > 文档状态：Current engineering contract
 >
-> 事实审计：2026-08-03
+> 事实审计：2026-08-05
 >
 > Coding 核心交付、附件、PTY、后台任务、Git、Archify、隔离 Browser 和 LSP 已有真实或
-> 专项证据；Artifact Preview、ImageGen、Project MCP、Computer Use、PR、worktree 和恢复
-> 处于不同程度的 Implemented / Partial。逐项完成度只看
+> 专项证据；Artifact Preview、Project MCP、Computer Use 外部 App slice、PR 发布确认、
+> Session Index、worktree 和恢复处于不同程度的 Verified / Implemented / Partial。ImageGen
+> 仍缺真实 Provider 扩样。逐项完成度只看
 > [目标覆盖台账](/developer/objective-coverage-ledger)。
 
 MilkSU 不重写通用 Coding Agent Loop。Pi 负责会话、模型、上下文、工具循环和扩展 API；

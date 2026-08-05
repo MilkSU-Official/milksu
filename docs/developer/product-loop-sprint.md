@@ -1,15 +1,15 @@
 # 产品闭环冲刺
 
-> 状态：Active / Short-term sprint
+> 状态：Completed / Merged to main
 >
-> 生效日期：2026-08-03；2026-08-04 收缩 Lab/CVE 短期范围
+> 生效日期：2026-08-03；2026-08-04 收缩 Lab/CVE 短期范围；2026-08-05 随 PR #1
+> squash merge 到 `main`，合并基线 `108e0e3`
 >
-> 目的：用 MilkSU 自己的 Agent 能力，在数小时内跑通一个能被用户真实体验的产品闭环。当前
-> 冲刺不追求把每条安全、CTF、Lab、发行边界做到完整，只要求 UI/UX 上核心 Coding 产品闭环
-> 能跑，并让 CVE 作为一级菜单具备“情报追踪 + 可练习环境”的最小闭环；Lab 暂不做自建平台或
-> 通用靶场后端。
+> 目的：记录 M3 product-loop 冲刺采用过的执行节奏、已闭环范围和后续可复用门槛。本文不再
+> 表示同一冲刺或 PR 仍在进行；下一批开发从 `current-objectives.md` 和
+> `objective-coverage-ledger.md` 选择。
 
-## 当前冲刺原则
+## 本冲刺采用的原则
 
 1. **先跑通流程。** 优先让用户看到并使用：选择任务 → Agent 执行 → 产物/页面验证 →
    失败继续 → Git 交付。
@@ -45,9 +45,9 @@
 5. **下一阶段只做会消耗真实缺口的纵切。** 如果一个改动不能让下面任一真实门禁更接近完成，
    就先不做。
 
-下一阶段真实门禁按顺序为：
+本冲刺收口时的真实门禁和后续复用规则为：
 
-- 当前代码基线：2026-08-05 在 `962e74f` 完整执行 `npm run m3:release-check` 通过，并重新
+- 当前代码基线：2026-08-05 在 `108e0e3` 完整执行 `npm run m3:release-check` 通过，并重新
   生成 `/Users/milksu/code/milksu/build/bin/MilkSU.app`；这只证明当前工程门禁和打包可用，
   不把它误算成完整自举、Developer ID、公证、升级或外部 Beta 完成；
 - Session Index：首轮原生闭环已通过；CVE Note、Coding 输入、CTF 复盘草稿的用户确认路径
@@ -68,13 +68,14 @@
   JSONL 外部历史导入”当作未完成；
 - Coding：已有确定性自举式 fixture 覆盖相关历史、修改、测试、恢复和打包 App Git
   stage/commit/push，也已有真实 MilkSU 源码隔离 clone 的 Node + Go + 前端 TS/Vitest
-  联动 edit/test/packaged Git 交付预演；当前分支已有真实 GitHub 私有 Draft PR 对齐只读
-  gate，证明本地 HEAD、origin HEAD 和 PR head 一致；打包 App facade 已跑通
+  联动 edit/test/packaged Git 交付预演；合并前分支已有真实 GitHub 私有 Draft PR 对齐只读
+  gate，证明当时本地 HEAD、origin HEAD 和 PR head 一致；打包 App facade 已跑通
   prepare → 一次性 token → publish → 复用已有 Draft PR → readback verified；真实打包 App
   WebView 已从 Coding 变更面板点击“准备 PR”与“确认使用现有草稿 PR”，复用并验证同一
   MilkSU 私有 Draft PR #1；真实打包 App facade 已在临时新分支上创建 MilkSU 私有 Draft PR、
-  读回验证并自动关闭清理。下一步才升级为真实外部 Provider 质量、Browser 或 Computer Use
-  验证，或当前主工作区自改交付；
+  读回验证并自动关闭清理。PR #1 已在 2026-08-05 squash merge 到 `main`，不得再把
+  “当前分支 Draft PR #1 仍待合并”作为打开任务；下一步才升级为真实外部 Provider 质量、
+  Browser 或 Computer Use 验证，或当前主工作区自改交付；
 - Background Tasks：2026-08-05 `MILKSU_CODING_BACKGROUND_RECOVERY_LIVE_SMOKE=1`
   使用真实打包 `MilkSU.app` 证明 Coding 后台任务可在 App 退出后继续运行，并在同一
   App data 重启后恢复同一 task/PID、显示 log tail/heartbeat、再由 App facade 停止；报告
@@ -137,9 +138,9 @@
 - UI：减少默认工作台噪音，把内部验收模型移到折叠区域或开发者视图。
   2026-08-05 Browser 验证 Coding 右栏开发者验收默认折叠，展开后四个快捷按钮在窄右栏不叠字。
 
-## 几小时内的主闭环
+## 本冲刺已完成的主闭环
 
-当前首要闭环是 Coding 产品闭环，同时补齐 CVE 的一级菜单体验；不是 CTF/CVE/Lab 纵深：
+本冲刺的主闭环是 Coding 产品闭环，同时补齐 CVE 的一级菜单体验；不是 CTF/CVE/Lab 纵深：
 
 1. 在 MilkSU 中选择当前仓库和一个小产品任务；
 2. 使用“替我审批”或“完全访问”让 Agent 完成修改；
@@ -149,14 +150,14 @@
 6. 通过 Diff/Hunk、stage、commit、push 完成交付；
 7. 保留验收记录，明确哪些是真实 App 验收，哪些只是窄自动化。
 
-本闭环通过后，才能说 MilkSU 正在接近“替代用户日常 Codex 工作流”。不能把它外推为完整
-CTF、CVE、Lab 或发行成绩。
+本闭环已作为 M3 product-loop 合并证据的一部分通过。它只能说明 MilkSU 正在接近“替代用户
+日常 Codex 工作流”，不能外推为完整 CTF、CVE、Lab 或发行成绩。
 
 ## UI/UX 产品地图最低要求
 
-短期内，用户打开 MilkSU 应能看出每个主模块的用途和状态：
+后续短期内，用户打开 MilkSU 应能看出每个主模块的用途和状态：
 
-| 模块 | 当前冲刺最低要求 | 不在当前冲刺深挖 |
+| 模块 | 本冲刺最低要求 | 本冲刺未深挖 |
 | --- | --- | --- |
 | Coding | 能跑一条端到端产品任务；Browser、Computer Use、Artifact Preview、Git 交付在 UI 上可见 | 完整审批组合矩阵、全部 LSP/Code Action 真实矩阵 |
 | CTF | 有解题模式/复盘模式、题目入口、Endpoint 授权、Evidence/Judge/Memory 状态；六赛道计划清楚 | 立即补齐 6/6 真实 Judge |
@@ -181,7 +182,7 @@ CTF、CVE 和 Coding 是同一级主工作区，不能像三个不同应用拼�
 - 如果某个模块暂时没有对应功能，宁可隐藏或用同尺寸空态，不用不同字号/不同风格硬凑。
 
 这是全局产品约束。后续触碰 CTF、CVE 或 Coding 顶部区域时，必须顺手检查同层级视觉一致性；
-但当前冲刺不因此开启全量视觉重构。
+但本冲刺不因此开启全量视觉重构。
 
 ### 左侧导航口径
 
@@ -233,9 +234,9 @@ MilkSU 不应在短期内自建 Lab 平台，否则会引入虚拟机后端、�
 | --- | --- | --- | --- |
 | HTB / TryHackMe | 主流外部靶场与学习路径 | 最贴近用户想要的“辅助打靶与追踪进度” | 未来用 Browser/Computer Use + 手动回执/页面状态追踪，不自建后端 |
 | pwn.college / Dojo | 在线 hands-on 学习房间 | 可作为外部平台 Judge 与学习轨迹映射参考 | 未来只做外部页面辅助和进度记录，不自托管完整 Dojo |
-| Labtainers | 本地/课程型 Docker cyber lab 框架 | 内容丰富，但接入会引入安装、镜像、网络和课程导入复杂度 | 后置调研；不进入当前冲刺 |
+| Labtainers | 本地/课程型 Docker cyber lab 框架 | 内容丰富，但接入会引入安装、镜像、网络和课程导入复杂度 | 后置调研；未进入本冲刺 |
 
-安全 Skills / Harness 生态也只作为长期能力来源，不进入当前冲刺执行面。详见
+安全 Skills / Harness 生态也只作为长期能力来源，未进入本冲刺执行面。详见
 [开源安全 Skills / Harness 生态接入调研与计划](/developer/research/2026-08-04-open-source-security-skills-ecosystem)；
 后续若接入，必须先经过只读导入、固定版本、许可证审查、Skill/MCP 安全扫描和 MilkSU
 Scope / Evidence / Judge / Memory 策略覆盖。
@@ -244,8 +245,8 @@ Scope / Evidence / Judge / Memory 策略覆盖。
 
 CVE 模块当前和长期都先定位为学习与追踪，不是批量打靶或自动攻击。它不应重新发明 CVE
 数据库，而应复用成熟情报源，在 MilkSU 里做学习、资产关联、练习编排、证据和能力画像。
-当前冲刺至少需要让用户能看出它可以追踪一个 CVE、找到对应练习环境，并把后续工作交给
-Coding Agent 继续：
+M3 product-loop 已让用户能看出它可以追踪一个 CVE、找到对应练习环境，并把后续工作交给
+Coding Agent 继续；后续继续扩展真实样本：
 
 - 记录 CVE ID、组件、版本、材料链接、补丁、学习状态和用户笔记；
 - 从 NVD、CISA KEV、FIRST EPSS、OSV、GitHub Advisory Database 和厂商公告等成熟源形成
@@ -275,19 +276,17 @@ CVE 情报源聚合 → CVE 详情 → 资产/项目影响记录 → 匹配练�
 
 ## 暂停但保留入口的范围
 
-- Lab 不进入当前冲刺实现目标；
-- CVE 进入当前冲刺的情报追踪与本地练习骨架目标，但不提供红队 Agent 或批量攻击能力；
+- Lab 不进入当前实现目标；
+- CVE 已进入当前产品作为情报追踪与本地练习 MVP，但不提供红队 Agent 或批量攻击能力；
 - 不运行未经审核的漏洞触发输入、附件、服务或 exploit；
 - 不把 UI 架子描述成真实安全研究能力；
 - 不把开源项目写进候选表等价为已经成为依赖；
 - 真实接入前仍需许可证、供应链、架构、离线/网络、资源、Docker 安全和 Judge/学习证据审查。
 
-## 下一步执行队列
+## 合并后的下一步执行队列
 
-1. 收尾当前 Computer Use 接入提示、恢复超时识别和 CTF/CVE 二层侧栏隐藏；
-2. 选择一个小 MilkSU 产品任务，跑完整 Coding 产品闭环；
-3. 用 Browser 或 Computer Use 做一次用户可见验证；如果本机权限阻塞，就保留恢复点并改用
-   Browser / Artifact Preview 验证；
-4. 通过 Git Diff → stage → commit → push 完成交付；
-5. CVE 保留情报追踪 + 可练习环境骨架并记录后续 Agent 可接手任务；Lab 后置记录外部靶场辅助/进度追踪计划；
-6. 把新发现问题登记到覆盖台账，不在当前冲刺深挖。
+1. 不再重复打开本冲刺已闭环的状态卡、提示卡、PR #1、Computer Use 基础接入、CVE 多源同步
+   和后台任务恢复问题；除非有新的用户复现或测试失败。
+2. 下一批从 `current-objectives.md` 和覆盖台账选择一个有界真实闭环，例如真实外部 Provider
+   自举质量、真实项目 Browser/Computer Use 扩样、CTF 六赛道、Memory 校准或发行门禁。
+3. 继续把新发现问题登记到覆盖台账，不把一个非阻塞问题拖成深度优先循环。

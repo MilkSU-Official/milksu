@@ -1,7 +1,8 @@
 # 授权安全学习与研究平台：顶层设计
 
-> 文档状态：**Paused / Designed**。本文只定义未来架构和产品边界，不表示 Labs、真实 CVE
-> 工作流或 Red/Blue/AppSec/Malware 已进入当前计划。
+> 文档状态：**Long-term Design / Partially Implemented**。本文定义长期架构和产品边界。
+> CTF、Coding 和 CVE 学习/追踪已有当前实现；Labs、CVE 纵深研究、外部资产实验、披露闭环
+> 以及 Red/Blue/AppSec/Malware 独立角色包仍不表示已进入当前计划。
 >
 > 设计日期：2026-08-01
 
