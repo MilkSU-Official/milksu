@@ -19,6 +19,7 @@ func Project(core securityruntime.JobProjection) (Projection, error) {
 	var rootCause *RootCause
 	hypotheses := make([]Hypothesis, 0)
 	learning := make([]LearningRecord, 0)
+	assetVerifications := make([]AssetVerification, 0)
 	for _, fact := range core.RoleFacts {
 		if fact.PackageID != PackageID || fact.SchemaVersion != SchemaVersion {
 			continue
@@ -71,6 +72,12 @@ func Project(core securityruntime.JobProjection) (Projection, error) {
 				return Projection{}, fmt.Errorf("invalid vulnerability learning fact")
 			}
 			learning = append(learning, value)
+		case FactAssetVerificationRecorded:
+			var value AssetVerification
+			if err := json.Unmarshal(fact.Data, &value); err != nil || value.ID == "" || value.Status == "" {
+				return Projection{}, fmt.Errorf("invalid vulnerability asset verification fact")
+			}
+			assetVerifications = append(assetVerifications, value)
 		}
 	}
 	if target.ID == "" {
@@ -131,21 +138,22 @@ func Project(core securityruntime.JobProjection) (Projection, error) {
 	}
 
 	return Projection{
-		ContractVersion: SchemaVersion,
-		Job:             core.Job,
-		Target:          target,
-		AttackSurface:   attackSurface,
-		Hypotheses:      hypotheses,
-		Experiments:     experiments,
-		Reproduction:    reproduction,
-		RootCause:       rootCause,
-		Artifacts:       append([]securityruntime.Artifact{}, core.Artifacts...),
-		Evidence:        append([]securityruntime.Evidence{}, core.Evidence...),
-		Evaluations:     append([]securityruntime.Evaluation{}, core.Evaluations...),
-		Learning:        learning,
-		HumanOutcome:    humanOutcome,
-		Outcome:         core.Outcome,
-		Events:          append([]securityruntime.Event{}, core.Events...),
+		ContractVersion:    SchemaVersion,
+		Job:                core.Job,
+		Target:             target,
+		AttackSurface:      attackSurface,
+		Hypotheses:         hypotheses,
+		Experiments:        experiments,
+		Reproduction:       reproduction,
+		RootCause:          rootCause,
+		Artifacts:          append([]securityruntime.Artifact{}, core.Artifacts...),
+		Evidence:           append([]securityruntime.Evidence{}, core.Evidence...),
+		Evaluations:        append([]securityruntime.Evaluation{}, core.Evaluations...),
+		Learning:           learning,
+		AssetVerifications: assetVerifications,
+		HumanOutcome:       humanOutcome,
+		Outcome:            core.Outcome,
+		Events:             append([]securityruntime.Event{}, core.Events...),
 	}, nil
 }
 

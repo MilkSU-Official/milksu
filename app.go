@@ -1627,6 +1627,10 @@ func (a *App) RecordVulnLearning(id string, request vuln.LearningRecordRequest) 
 	return a.vulnJobs.RecordLearning(a.commandContext(), id, request)
 }
 
+func (a *App) RecordVulnAssetVerification(id string, request vuln.AssetVerificationRequest) (vuln.Projection, error) {
+	return a.vulnJobs.RecordAssetVerification(a.commandContext(), id, request)
+}
+
 func (a *App) CancelVulnJob(id string) error {
 	return a.vulnJobs.CancelJob(a.commandContext(), id)
 }

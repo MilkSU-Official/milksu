@@ -77,6 +77,7 @@ rg -q "GetCTFMemoryContext" app/wailsjs/go/main/App.d.ts
 rg -q "GenerateCTFTrainingReport" app/wailsjs/go/main/App.d.ts
 rg -q "EnsureVulnTrackingWorkspace" app/wailsjs/go/main/App.d.ts
 rg -q "GetVulnerabilityLearningWritebackWebViewSmokeRequest" app/wailsjs/go/main/App.d.ts
+rg -q "GetVulnerabilityAssetVerificationWebViewSmokeRequest" app/wailsjs/go/main/App.d.ts
 rg -q "OpenChromeExtensionManager" app/wailsjs/go/main/App.d.ts
 rg -q "RevealBrowserExtension" app/wailsjs/go/main/App.d.ts
 rg -q "sourceTargets" app/wailsjs/go/models.ts

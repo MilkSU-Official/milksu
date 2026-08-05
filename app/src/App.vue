@@ -5,6 +5,7 @@ import StartupRecoveryBanner from '@/components-vue/StartupRecoveryBanner.vue'
 import { useConversations } from '@/composables/useConversations'
 import { invokeCommand } from '@/desktop'
 import { runCodingArtifactPreviewWebViewSmoke } from '@/lib/codingArtifactWebViewSmoke'
+import { runVulnerabilityAssetVerificationWebViewSmoke } from '@/lib/vulnerabilityAssetVerificationWebViewSmoke'
 import { runVulnerabilityLearningWritebackWebViewSmoke } from '@/lib/vulnerabilityLearningWritebackWebViewSmoke'
 import type { CTFAgentWorkspaceHandoff } from '@/ctfTypes'
 import type { VulnerabilityCodingTask } from '@/composables/useVulnerabilityDashboard'
@@ -254,6 +255,14 @@ onMounted(async () => {
   await conversations.listen()
   void runCodingArtifactPreviewWebViewSmoke()
   void runVulnerabilityLearningWritebackWebViewSmoke({
+    openVulnerabilityWorkspace: async () => {
+      rememberActiveConversation()
+      section.value = 'vuln'
+      await nextTick()
+      await nextTick()
+    },
+  })
+  void runVulnerabilityAssetVerificationWebViewSmoke({
     openVulnerabilityWorkspace: async () => {
       rememberActiveConversation()
       section.value = 'vuln'

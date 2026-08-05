@@ -27,6 +27,7 @@ import type {
   CTFTrainingMemory,
 } from './ctfTypes'
 import type {
+  VulnAssetVerificationRequest,
   VulnLearningRecordRequest,
   VulnProjection,
   VulnReproductionRequest,
@@ -282,6 +283,8 @@ interface WailsAppBindings {
   CompleteCodingArtifactPreviewWebViewSmoke(report: Record<string, unknown>): Promise<void>
   GetVulnerabilityLearningWritebackWebViewSmokeRequest(): Promise<Record<string, unknown>>
   CompleteVulnerabilityLearningWritebackWebViewSmoke(report: Record<string, unknown>): Promise<void>
+  GetVulnerabilityAssetVerificationWebViewSmokeRequest(): Promise<Record<string, unknown>>
+  CompleteVulnerabilityAssetVerificationWebViewSmoke(report: Record<string, unknown>): Promise<void>
   StartCodingBrowser(
     conversationId: string,
     initialUrl: string,
@@ -387,6 +390,7 @@ interface WailsAppBindings {
   StopVulnerabilityPractice(request: VulnerabilityPracticeRequest): Promise<VulnerabilityPracticeRun>
   SubmitVulnReproduction(id: string, request: VulnReproductionRequest): Promise<VulnProjection>
   RecordVulnLearning(id: string, request: VulnLearningRecordRequest): Promise<VulnProjection>
+  RecordVulnAssetVerification(id: string, request: VulnAssetVerificationRequest): Promise<VulnProjection>
   CancelVulnJob(id: string): Promise<void>
 }
 
@@ -502,6 +506,7 @@ function createTrackingVulnProjection(request: VulnTrackingWorkspaceRequest, id:
     evidence: [],
     evaluations: [],
     learning: [],
+    assetVerifications: [],
     humanOutcome: {
       goal: `记录 ${cveId} 的用户确认学习结论和研究复盘。`,
       reflectionCount: 0,
@@ -1033,6 +1038,12 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.CompleteVulnerabilityLearningWritebackWebViewSmoke(
           (args?.report as Record<string, unknown>) ?? {},
         ) as Promise<T>
+      case 'get_vulnerability_asset_verification_webview_smoke_request':
+        return app.GetVulnerabilityAssetVerificationWebViewSmokeRequest() as Promise<T>
+      case 'complete_vulnerability_asset_verification_webview_smoke':
+        return app.CompleteVulnerabilityAssetVerificationWebViewSmoke(
+          (args?.report as Record<string, unknown>) ?? {},
+        ) as Promise<T>
       case 'start_coding_browser':
         return app.StartCodingBrowser(
           args?.conversationId as string,
@@ -1266,6 +1277,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.SubmitVulnReproduction(args?.id as string, args?.request as VulnReproductionRequest) as Promise<T>
       case 'record_vuln_learning':
         return app.RecordVulnLearning(args?.id as string, args?.request as VulnLearningRecordRequest) as Promise<T>
+      case 'record_vuln_asset_verification':
+        return app.RecordVulnAssetVerification(args?.id as string, args?.request as VulnAssetVerificationRequest) as Promise<T>
       case 'cancel_vuln_job':
         return app.CancelVulnJob(args?.id as string) as Promise<T>
       default:
@@ -1478,6 +1491,10 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
       return { enabled: false } as T
     case 'complete_vulnerability_learning_writeback_webview_smoke':
       throw new Error('CVE 研究写回 WebView smoke 只在 MilkSU 桌面运行时可用。')
+    case 'get_vulnerability_asset_verification_webview_smoke_request':
+      return { enabled: false } as T
+    case 'complete_vulnerability_asset_verification_webview_smoke':
+      throw new Error('CVE 资产验证 WebView smoke 只在 MilkSU 桌面运行时可用。')
     case 'start_coding_browser':
     case 'stop_coding_browser':
       throw new Error('隔离 Coding 浏览器需要 MilkSU 桌面运行时。')
@@ -1867,6 +1884,27 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
           independentSteps: projection.humanOutcome.independentSteps + (request.kind === 'independent_step' ? 1 : 0),
           variantCount: projection.humanOutcome.variantCount + (request.kind === 'variant' ? 1 : 0),
         },
+      }
+      writeJson(VULN_PROJECTIONS_KEY, { ...projections, [id]: updated })
+      return updated as T
+    }
+    case 'record_vuln_asset_verification': {
+      const id = args?.id as string
+      const request = args?.request as VulnAssetVerificationRequest
+      const projections = readJson<Record<string, VulnProjection>>(VULN_PROJECTIONS_KEY, {})
+      const projection = projections[id]
+      if (!projection) throw new Error('Vulnerability research workspace not found.')
+      const updated: VulnProjection = {
+        ...projection,
+        assetVerifications: [...(projection.assetVerifications ?? []), {
+          id: crypto.randomUUID(),
+          name: request.name,
+          address: request.address,
+          environment: request.environment,
+          status: request.status ?? 'needs_review',
+          summary: request.summary,
+          recordedAt: new Date().toISOString(),
+        }],
       }
       writeJson(VULN_PROJECTIONS_KEY, { ...projections, [id]: updated })
       return updated as T

@@ -97,10 +97,12 @@
   能创建/复用 `cve-tracking` 研究档案，把用户确认的 Coding 结论写成 `learning.recorded`
   并从 projection 恢复读取；同日 packaged CVE learning writeback WebView live smoke 已通过，
   真实打包 App WebView 会自动进入 CVE 工作台、选中 `CVE-2023-46604`、通过 UI 打开并提交
-  “导入 Coding 结论”，再读回正式研究档案和 1 条学习记录。下一步只补真实 Vulhub 用户目录的
-  UI 手动验收、如需的话再做人工/Computer Use 点击复核，以及资产验证；不能再说“只有四条
+  “导入 Coding 结论”，再读回正式研究档案和 1 条学习记录；同日 packaged CVE asset
+  verification WebView live smoke 已通过，真实打包 App WebView 能从 CVE UI 新增用户确认
+  资产，写入 `asset_verification.recorded` 并读回 1 条正式资产验证。下一步只补真实 Vulhub
+  用户目录的 UI 手动验收；如需的话再做人工/Computer Use 点击复核。不能再说“只有四条
   mock 数据”“Docker 生命周期没有打包 App 证据”“CVE 研究结论只能留在 localStorage”或
-  “导入 Coding 结论没有打包 App UI 链路证据”。
+  “导入 Coding 结论/资产验证没有打包 App UI 链路证据”。
   同日 Browser 已验证 CVE 首页默认不铺 Feed/NVD/EPSS/KEV/Vulhub/缓存维护台，点击统一设置后才进入情报源设置；
 - CTF：从题库进入解题会话，切到 CVE/Coding 再返回，题库/会话/最近位置不丢失；Browser
   真实渲染烟测已证明 `CTF(P382)` → `CVE` → `Coding` → `CTF` 后仍回到 P382 工作台且

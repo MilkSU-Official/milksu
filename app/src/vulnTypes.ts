@@ -106,6 +106,14 @@ export interface VulnLearningRecordRequest {
   concept?: string
 }
 
+export interface VulnAssetVerificationRequest {
+  name: string
+  address: string
+  environment: string
+  status?: 'needs_review' | 'affected' | 'not_affected' | 'mitigated'
+  summary?: string
+}
+
 export interface VulnTrackingWorkspaceRequest {
   cveId: string
   title: string
@@ -119,6 +127,16 @@ export interface VulnLearningRecord {
   content: string
   concept?: string
   createdAt: string
+}
+
+export interface VulnAssetVerification {
+  id: string
+  name: string
+  address: string
+  environment: string
+  status: VulnAssetVerificationRequest['status']
+  summary?: string
+  recordedAt: string
 }
 
 export interface VulnHumanOutcome {
@@ -153,6 +171,7 @@ export interface VulnProjection {
   evidence: EvidenceRecord[]
   evaluations: EvaluationRecord[]
   learning: VulnLearningRecord[]
+  assetVerifications: VulnAssetVerification[]
   humanOutcome: VulnHumanOutcome
   outcome?: OutcomeRecord
   events: RuntimeEvent[]

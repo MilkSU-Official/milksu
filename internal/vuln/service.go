@@ -482,6 +482,37 @@ func (s *Service) RecordLearning(ctx context.Context, jobID string, request Lear
 	return s.GetJob(ctx, jobID)
 }
 
+func (s *Service) RecordAssetVerification(ctx context.Context, jobID string, request AssetVerificationRequest) (Projection, error) {
+	core, err := s.runtime.GetJob(ctx, jobID)
+	if err != nil {
+		return Projection{}, err
+	}
+	if core.Job.Role != PackageID {
+		return Projection{}, fmt.Errorf("job is not a vulnerability research workspace")
+	}
+	normalized, err := normalizeAssetVerificationRequest(request)
+	if err != nil {
+		return Projection{}, err
+	}
+	record := AssetVerification{
+		ID:          securityruntime.NewIdentifier("asset"),
+		Name:        normalized.Name,
+		Address:     normalized.Address,
+		Environment: normalized.Environment,
+		Status:      normalized.Status,
+		Summary:     normalized.Summary,
+		RecordedAt:  time.Now().UTC(),
+	}
+	fact, err := marshalRoleFact(FactAssetVerificationRecorded, record, nil, nil)
+	if err != nil {
+		return Projection{}, err
+	}
+	if err := s.runtime.CommitRoleFact(ctx, securityruntime.EventScope{JobID: jobID}, fact); err != nil {
+		return Projection{}, err
+	}
+	return s.GetJob(ctx, jobID)
+}
+
 func (s *Service) ListJobs(ctx context.Context) ([]Summary, error) {
 	values, err := s.runtime.ListJobs(ctx)
 	if err != nil {

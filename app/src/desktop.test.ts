@@ -154,6 +154,7 @@ describe('desktop command adapter', () => {
       evidence: [],
       evaluations: [],
       learning: [],
+      assetVerifications: [],
       humanOutcome: { goal: 'record learning', reflectionCount: 0, independentSteps: 0, variantCount: 0, summary: '尚未记录学习复盘。' },
       events: [],
     }
@@ -661,6 +662,46 @@ describe('desktop command adapter', () => {
       cveId: 'CVE-2023-46604',
       workspaceJobId: 'job_smoke',
       gates: { learningProjected: true },
+    })
+  })
+
+  it('routes CVE asset verification WebView smoke only through Wails', async () => {
+    const request = {
+      enabled: true,
+      cveId: 'CVE-2023-46604',
+      assetName: 'packaged-smoke-asset',
+      address: 'tcp://127.0.0.1:61616',
+      environment: 'isolated-local',
+    }
+    const getRequest = vi.fn(async () => request)
+    const complete = vi.fn(async () => undefined)
+    Object.defineProperty(window, 'go', {
+      configurable: true,
+      value: {
+        main: {
+          App: {
+            GetVulnerabilityAssetVerificationWebViewSmokeRequest: getRequest,
+            CompleteVulnerabilityAssetVerificationWebViewSmoke: complete,
+          },
+        },
+      },
+    })
+
+    await expect(invokeCommand('get_vulnerability_asset_verification_webview_smoke_request'))
+      .resolves.toBe(request)
+    await expect(invokeCommand('complete_vulnerability_asset_verification_webview_smoke', {
+      report: {
+        cveId: 'CVE-2023-46604',
+        workspaceJobId: 'job_smoke',
+        gates: { assetProjected: true },
+      },
+    })).resolves.toBeUndefined()
+
+    expect(getRequest).toHaveBeenCalledOnce()
+    expect(complete).toHaveBeenCalledWith({
+      cveId: 'CVE-2023-46604',
+      workspaceJobId: 'job_smoke',
+      gates: { assetProjected: true },
     })
   })
 

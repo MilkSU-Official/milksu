@@ -86,6 +86,8 @@ const customFormError = ref('')
 const showIntelSettings = ref(false)
 const showAssetForm = ref(false)
 const assetFormError = ref('')
+const assetFormNotice = ref('')
+const assetWritebackBusy = ref(false)
 const showCodingConclusionForm = ref(false)
 const codingConclusionText = ref('')
 const codingConclusionError = ref('')
@@ -132,14 +134,48 @@ function addCustomTrackingItem() {
   }
 }
 
-function addSelectedAssetRecord() {
+async function addSelectedAssetRecord() {
   assetFormError.value = ''
+  assetFormNotice.value = ''
+  const selected = dashboard.selected.value
+  const input = {
+    name: assetForm.value.name.trim(),
+    address: redactProviderCredentials(assetForm.value.address).trim(),
+    environment: assetForm.value.environment.trim(),
+  }
   try {
-    dashboard.addAssetRecord(dashboard.selected.value.id, assetForm.value)
+    dashboard.addAssetRecord(selected.id, input)
     showAssetForm.value = false
     assetForm.value = { name: '', address: '', environment: '' }
   } catch (cause) {
     assetFormError.value = cause instanceof Error ? cause.message : String(cause)
+    return
+  }
+  assetWritebackBusy.value = true
+  try {
+    const workspace = await invokeCommand<VulnProjection>('ensure_vuln_tracking_workspace', {
+      request: {
+        cveId: selected.id,
+        title: selected.title,
+        summary: selected.summary,
+        referenceHref: selected.references[0]?.href || '',
+      },
+    })
+    const projection = await invokeCommand<VulnProjection>('record_vuln_asset_verification', {
+      id: workspace.job.id,
+      request: {
+        name: input.name || input.address,
+        address: input.address || 'unspecified',
+        environment: input.environment || 'unspecified',
+        status: 'needs_review',
+        summary: '用户确认该资产进入影响检查；本记录不声明已复现或可被利用。',
+      },
+    })
+    assetFormNotice.value = `已加入资产，并写入正式研究档案 ${projection.job.id}（${projection.assetVerifications.length} 条资产验证）。`
+  } catch (cause) {
+    assetFormError.value = `已保存到本机资产列表；正式研究档案写入失败：${cause instanceof Error ? cause.message : String(cause)}`
+  } finally {
+    assetWritebackBusy.value = false
   }
 }
 
@@ -847,20 +883,21 @@ function statusVariant(status: VulnerabilityStatus) {
             @submit.prevent="addSelectedAssetRecord"
           >
             <div class="grid gap-2 sm:grid-cols-3">
-              <Input v-model="assetForm.name" size="sm" placeholder="资产名称" />
-              <Input v-model="assetForm.address" size="sm" placeholder="地址 / 仓库 / 服务" />
-              <Input v-model="assetForm.environment" size="sm" placeholder="环境，例如生产 / 本地" />
+              <Input v-model="assetForm.name" size="sm" aria-label="CVE 资产名称" placeholder="资产名称" />
+              <Input v-model="assetForm.address" size="sm" aria-label="CVE 资产地址" placeholder="地址 / 仓库 / 服务" />
+              <Input v-model="assetForm.environment" size="sm" aria-label="CVE 资产环境" placeholder="环境，例如生产 / 本地" />
             </div>
             <p v-if="assetFormError" class="mt-2 text-caption text-destructive">{{ assetFormError }}</p>
             <div class="mt-3 flex items-center gap-2">
-              <Button type="submit" size="sm">
-                加入资产
+              <Button type="submit" size="sm" :disabled="assetWritebackBusy">
+                {{ assetWritebackBusy ? '写入中…' : '加入资产' }}
               </Button>
               <Button type="button" variant="ghost" size="sm" @click="showAssetForm = false">
                 取消
               </Button>
             </div>
           </form>
+          <p v-if="assetFormNotice" class="mt-3 text-caption text-success">{{ assetFormNotice }}</p>
           <div class="mt-3 overflow-hidden rounded-lg border border-border">
             <div
               v-for="asset in dashboard.selected.value.assets"

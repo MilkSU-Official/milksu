@@ -92,6 +92,44 @@ func TestCVETrackingWorkspaceRecordsUserConfirmedLearning(t *testing.T) {
 	}
 }
 
+func TestCVETrackingWorkspaceRecordsAssetVerification(t *testing.T) {
+	runtime, err := securityruntime.NewService(t.TempDir(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = runtime.Close() })
+	service, err := NewService(runtime)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	projection, err := service.EnsureCVETrackingWorkspace(context.Background(), TrackingWorkspaceRequest{
+		CVEID: "CVE-2023-46604",
+		Title: "Apache ActiveMQ OpenWire RCE",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	projection, err = service.RecordAssetVerification(context.Background(), projection.Job.ID, AssetVerificationRequest{
+		Name:        "staging activemq broker",
+		Address:     "tcp://127.0.0.1:61616",
+		Environment: "staging",
+		Status:      "needs_review",
+		Summary:     "用户确认该资产进入影响检查；尚未声明已复现或可被利用。",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(projection.AssetVerifications) != 1 {
+		t.Fatalf("asset verification was not projected: %+v", projection.AssetVerifications)
+	}
+	record := projection.AssetVerifications[0]
+	if record.Name != "staging activemq broker" || record.Address != "tcp://127.0.0.1:61616" ||
+		record.Environment != "staging" || record.Status != "needs_review" {
+		t.Fatalf("unexpected asset verification: %+v", record)
+	}
+}
+
 func TestExternalThreeRunEvidenceIsEvaluatorBacked(t *testing.T) {
 	runtime, err := securityruntime.NewService(t.TempDir(), nil)
 	if err != nil {

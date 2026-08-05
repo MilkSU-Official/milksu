@@ -218,6 +218,7 @@ export function createDemoVulnProjection(complete = false, id: string = crypto.r
       concept: 'bounds checking',
       createdAt: updatedAt,
     }] : [],
+    assetVerifications: [],
     humanOutcome: {
       goal: '能解释长度字段为什么越过目标缓冲区，并独立完成一个变体实验。',
       reflectionCount: complete ? 1 : 0,

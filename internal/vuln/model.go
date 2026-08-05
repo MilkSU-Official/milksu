@@ -15,12 +15,13 @@ const (
 	PackageID     = "vuln.research"
 	SchemaVersion = "vuln.milksu.dev/v1alpha1"
 
-	FactTargetAdmitted        = "target.admitted"
-	FactAttackSurfaceRecorded = "attack_surface.recorded"
-	FactHypothesisRecorded    = "hypothesis.recorded"
-	FactReproductionRecorded  = "reproduction.recorded"
-	FactRootCauseRecorded     = "root_cause.recorded"
-	FactLearningRecorded      = "learning.recorded"
+	FactTargetAdmitted            = "target.admitted"
+	FactAttackSurfaceRecorded     = "attack_surface.recorded"
+	FactHypothesisRecorded        = "hypothesis.recorded"
+	FactReproductionRecorded      = "reproduction.recorded"
+	FactRootCauseRecorded         = "root_cause.recorded"
+	FactLearningRecorded          = "learning.recorded"
+	FactAssetVerificationRecorded = "asset_verification.recorded"
 )
 
 var sha256Pattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
@@ -118,6 +119,14 @@ type LearningRecordRequest struct {
 	Concept string `json:"concept"`
 }
 
+type AssetVerificationRequest struct {
+	Name        string `json:"name"`
+	Address     string `json:"address"`
+	Environment string `json:"environment"`
+	Status      string `json:"status"`
+	Summary     string `json:"summary"`
+}
+
 type TrackingWorkspaceRequest struct {
 	CVEID         string `json:"cveId"`
 	Title         string `json:"title"`
@@ -131,6 +140,16 @@ type LearningRecord struct {
 	Content   string    `json:"content"`
 	Concept   string    `json:"concept,omitempty"`
 	CreatedAt time.Time `json:"createdAt"`
+}
+
+type AssetVerification struct {
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	Address     string    `json:"address"`
+	Environment string    `json:"environment"`
+	Status      string    `json:"status"`
+	Summary     string    `json:"summary,omitempty"`
+	RecordedAt  time.Time `json:"recordedAt"`
 }
 
 type HumanOutcomeView struct {
@@ -153,21 +172,22 @@ type ExperimentView struct {
 }
 
 type Projection struct {
-	ContractVersion string                       `json:"contractVersion"`
-	Job             securityruntime.Job          `json:"job"`
-	Target          Target                       `json:"target"`
-	AttackSurface   *AttackSurface               `json:"attackSurface,omitempty"`
-	Hypotheses      []Hypothesis                 `json:"hypotheses"`
-	Experiments     []ExperimentView             `json:"experiments"`
-	Reproduction    *Reproduction                `json:"reproduction,omitempty"`
-	RootCause       *RootCause                   `json:"rootCause,omitempty"`
-	Artifacts       []securityruntime.Artifact   `json:"artifacts"`
-	Evidence        []securityruntime.Evidence   `json:"evidence"`
-	Evaluations     []securityruntime.Evaluation `json:"evaluations"`
-	Learning        []LearningRecord             `json:"learning"`
-	HumanOutcome    HumanOutcomeView             `json:"humanOutcome"`
-	Outcome         *securityruntime.Outcome     `json:"outcome,omitempty"`
-	Events          []securityruntime.Event      `json:"events"`
+	ContractVersion    string                       `json:"contractVersion"`
+	Job                securityruntime.Job          `json:"job"`
+	Target             Target                       `json:"target"`
+	AttackSurface      *AttackSurface               `json:"attackSurface,omitempty"`
+	Hypotheses         []Hypothesis                 `json:"hypotheses"`
+	Experiments        []ExperimentView             `json:"experiments"`
+	Reproduction       *Reproduction                `json:"reproduction,omitempty"`
+	RootCause          *RootCause                   `json:"rootCause,omitempty"`
+	Artifacts          []securityruntime.Artifact   `json:"artifacts"`
+	Evidence           []securityruntime.Evidence   `json:"evidence"`
+	Evaluations        []securityruntime.Evaluation `json:"evaluations"`
+	Learning           []LearningRecord             `json:"learning"`
+	AssetVerifications []AssetVerification          `json:"assetVerifications"`
+	HumanOutcome       HumanOutcomeView             `json:"humanOutcome"`
+	Outcome            *securityruntime.Outcome     `json:"outcome,omitempty"`
+	Events             []securityruntime.Event      `json:"events"`
 }
 
 type Summary struct {
@@ -220,6 +240,43 @@ func validateReproductionRequest(request ReproductionRequest) error {
 		return fmt.Errorf("a concise clean-process attestation is required")
 	}
 	return nil
+}
+
+func normalizeAssetVerificationRequest(request AssetVerificationRequest) (AssetVerificationRequest, error) {
+	normalized := AssetVerificationRequest{
+		Name:        strings.TrimSpace(request.Name),
+		Address:     strings.TrimSpace(request.Address),
+		Environment: strings.TrimSpace(request.Environment),
+		Status:      strings.ToLower(strings.TrimSpace(request.Status)),
+		Summary:     strings.TrimSpace(request.Summary),
+	}
+	if normalized.Name == "" && normalized.Address == "" {
+		return AssetVerificationRequest{}, fmt.Errorf("asset name or address is required")
+	}
+	if normalized.Name == "" {
+		normalized.Name = normalized.Address
+	}
+	if normalized.Address == "" {
+		normalized.Address = "unspecified"
+	}
+	if normalized.Environment == "" {
+		normalized.Environment = "unspecified"
+	}
+	if normalized.Status == "" {
+		normalized.Status = "needs_review"
+	}
+	switch normalized.Status {
+	case "needs_review", "affected", "not_affected", "mitigated":
+	default:
+		return AssetVerificationRequest{}, fmt.Errorf("unsupported asset verification status")
+	}
+	if len([]rune(normalized.Name)) > 240 ||
+		len([]rune(normalized.Address)) > 320 ||
+		len([]rune(normalized.Environment)) > 160 ||
+		len([]rune(normalized.Summary)) > 1200 {
+		return AssetVerificationRequest{}, fmt.Errorf("asset verification record exceeds local archive limits")
+	}
+	return normalized, nil
 }
 
 func marshalRoleFact(kind string, value any, artifactIDs, evidenceIDs []string) (securityruntime.RoleFact, error) {
