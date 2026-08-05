@@ -259,8 +259,8 @@ onMounted(async () => {
   void runCodingPullRequestWebViewSmoke({
     openCodingWorkspace: async workspacePath => {
       rememberActiveConversation()
-      if (workspacePath) conversations.setWorkspace(workspacePath)
       restoreCodingConversation()
+      if (workspacePath) conversations.setWorkspace(workspacePath)
       section.value = 'chat'
       await nextTick()
       await nextTick()
