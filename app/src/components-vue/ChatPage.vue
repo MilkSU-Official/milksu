@@ -4,6 +4,7 @@ import {
   defineAsyncComponent,
   markRaw,
   nextTick,
+  onBeforeUnmount,
   onMounted,
   ref,
   watch,
@@ -1097,6 +1098,12 @@ function changeContextPanel(value: string) {
   void refreshContextPanel()
 }
 
+function handleCodingSmokeOpenPanel(event: Event) {
+  const panel = (event as CustomEvent<{ panel?: string }>).detail?.panel
+  if (!panel || props.ctfSession) return
+  changeContextPanel(panel)
+}
+
 function recordArtifactPreview(preview: CodingArtifactPreview) {
   artifactPreviewEvidence.value = {
     relativePath: preview.relativePath,
@@ -1160,7 +1167,12 @@ async function scrollChatToBottom() {
 }
 
 onMounted(() => {
+  window.addEventListener('milksu:coding-smoke-open-panel', handleCodingSmokeOpenPanel as EventListener)
   void scrollChatToBottom()
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('milksu:coding-smoke-open-panel', handleCodingSmokeOpenPanel as EventListener)
 })
 
 watch(() => props.conversation?.messages.length, () => {

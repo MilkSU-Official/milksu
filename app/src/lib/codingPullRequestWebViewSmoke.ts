@@ -99,6 +99,10 @@ async function openChangesPanel() {
   clickElement(trigger)
   const option = await waitFor('changes panel option', () => findSelectOption('变更'))
   clickElement(option)
+  await new Promise(resolve => setTimeout(resolve, 800))
+  if (!visibleText().includes('准备 PR')) {
+    window.dispatchEvent(new CustomEvent('milksu:coding-smoke-open-panel', { detail: { panel: 'changes' } }))
+  }
   await waitFor('changes panel content', () => (
     visibleText().includes('准备 PR') ? visibleText() : null
   ))
