@@ -107,7 +107,10 @@
    `codex / claude / kimi / pi` 来源，并用真实打包 App 完成 Codex fixture 导入、搜索和脱敏
    smoke；同日 `MILKSU_CODING_SELF_BOOTSTRAP_LIVE_SMOKE=1` 已证明打包 App 导入/搜索
    外部历史、相关历史进入 Coding delivery prompt、Agent 完成实际修改/测试/恢复，并由
-   真实打包 App Git facade stage/commit/push 到隔离 bare remote。剩余优先做真实用户历史
+   真实打包 App Git facade stage/commit/push 到隔离 bare remote。同日
+   `MILKSU_MILKSU_SOURCE_SELF_BOOTSTRAP_LIVE_SMOKE=1` 已证明 Coding runtime 能在真实
+   MilkSU 源码隔离 clone 中新增真实脚本/测试、运行 `node --test`，再由真实打包 App
+   Git facade commit/push 到隔离 bare remote。剩余优先做真实用户历史
    目录选择、Claude/Kimi/Pi 扩样、许可证/NOTICE/ADR 收口；完整 MilkSU 源码自举仍按
    COD-25 继续，不用再单独证明“相关历史能参与一次交付”。
 2. **P0 · 当前冲刺：完整产品闭环。** Session Index 首轮闭环通过后，继续让 MilkSU 像裸

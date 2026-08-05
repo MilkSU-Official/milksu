@@ -57,13 +57,17 @@
   smoke。2026-08-05 又用 `MILKSU_CODING_SELF_BOOTSTRAP_LIVE_SMOKE=1`
   把打包 App 外部历史导入/搜索、用户确认相关历史进入 Coding delivery prompt、实际修改/测试、
   再由真实打包 App Git facade stage/commit/push 到隔离 bare remote 串成一次自举式交付。
+  同日 `MILKSU_MILKSU_SOURCE_SELF_BOOTSTRAP_LIVE_SMOKE=1` 已进一步使用真实 MilkSU 源码
+  隔离 clone，让 Coding runtime 新增真实脚本/测试、运行 `node --test`，再由真实打包 App
+  Git facade commit/push 到隔离 bare remote。
   继续做真实用户历史目录选择、Claude/Kimi/Pi 扩样和许可证/NOTICE/ADR；后续不得重复把
   “App data 初始化、索引 MilkSU 会话/工具事件、打包 App 搜索、脱敏搜索结果、手动引用进入
   输入、Agent 能读到引用历史、相关历史参与一次自举式交付、OBS-21 重复脱敏显示或显式
   JSONL 外部历史导入”当作未完成；
 - Coding：已有确定性自举式 fixture 覆盖相关历史、修改、测试、恢复和打包 App Git
-  stage/commit/push；下一步才是在 MilkSU 源码中完成一个小 Vue + Go 修改，跑真实
-  test/build，做 Browser 或 Computer Use 验证，最后进入真实私有远端交付/PR 确认；
+  stage/commit/push，也已有真实 MilkSU 源码隔离 clone 的 edit/test/packaged Git 交付预演；
+  下一步才升级为真实 Vue + Go 联动、真实外部 Provider 质量、Browser 或 Computer Use 验证，
+  最后进入真实私有远端交付/PR 确认；
 - Background Tasks：2026-08-05 `MILKSU_CODING_BACKGROUND_RECOVERY_LIVE_SMOKE=1`
   使用真实打包 `MilkSU.app` 证明 Coding 后台任务可在 App 退出后继续运行，并在同一
   App data 重启后恢复同一 task/PID、显示 log tail/heartbeat、再由 App facade 停止；报告
