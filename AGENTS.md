@@ -19,6 +19,22 @@ acceptance result.
 Do not use old milestones, ADR follow-ups, dated reviews, checkpoints, research notes or design audits as
 an implementation queue. `docs/developer/development-plan.md` does not exist and must not be recreated.
 
+## Product Code Admission
+
+Read `docs/developer/product-code-admission.md` at these decision points:
+
+- before designing a new product capability, public Wails API, persisted state, Sidecar resource or
+  feature flag;
+- before implementing Agent Harness behavior, compatibility/migration logic, experimental product
+  surfaces or a capability already owned by Pi or another reviewed upstream component;
+- before adding smoke, fixture, benchmark, browser-preview or release-acceptance infrastructure;
+- during review and delivery closeout when deciding whether an implemented but unverified capability
+  should remain in the production dependency graph.
+
+Apply its four gates: design admission, development boundary, test/acceptance separation and
+review/retention. Small fixes and documentation-only work do not require rereading it unless they change
+one of those decisions.
+
 ## Collaboration
 
 - Communicate with the user in Chinese unless they ask otherwise.
@@ -74,6 +90,8 @@ deferred to one destructive pre-release consolidation after the product slices a
 ## Validation and Delivery
 
 - Use the canonical repository scripts instead of inventing parallel runners.
+- Keep smoke, fixtures, benchmarks and acceptance coordinators outside production startup, Wails bindings
+  and Vue entrypoints as required by `docs/developer/product-code-admission.md`.
 - A capability is not complete because a button, package or fixture exists; retain one real-task result.
 - Preserve the user's unrelated working-tree changes.
 - Each selected vertical slice is reviewed, tested, committed and pushed only to MilkSU's private remote.
