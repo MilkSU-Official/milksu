@@ -243,9 +243,9 @@ describe('VulnPage', () => {
     expect(host.textContent).not.toContain('当前下一步')
     expect(host.textContent).not.toContain('OpenSSH regreSSHion')
     expect(host.textContent).not.toContain('CVE 最小闭环')
-    expect(host.textContent).toContain('同步当前 CVE')
-    expect(host.textContent).toContain('同步 NVD')
-    expect(host.textContent).toContain('同步 EPSS')
+    expect(host.textContent).not.toContain('同步当前 CVE')
+    expect(host.textContent).not.toContain('当前 CVE 来源证据')
+    expect(host.textContent).toContain('同步公开源')
     expect(host.textContent).toContain('同步 KEV')
     expect(host.textContent).toContain('同步 Vulhub')
     expect(host.textContent).toContain('导入 Feed')
@@ -293,9 +293,10 @@ describe('VulnPage', () => {
       configurable: true,
       value: { main: { App: { FetchNVDCVE: fetchNVDCVE } } },
     })
-    const { host } = useIntelSettingsPanelHarness()
+    const host = await mountVulnPage()
+    await openCveResearch(host)
     const sync = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
-      item.getAttribute('aria-label') === '同步当前 CVE 的 NVD 2.0',
+      item.getAttribute('aria-label') === '同步此 CVE 的 NVD 2.0',
     )
     if (!sync) throw new Error('missing NVD sync button')
 
@@ -305,10 +306,9 @@ describe('VulnPage', () => {
 
     expect(fetchNVDCVE).toHaveBeenCalledTimes(1)
     expect(fetchNVDCVE).toHaveBeenCalledWith('CVE-2024-3400')
-    expect(host.textContent).toContain('已同步 NVD：CVE-2024-3400 新增 0、更新 1')
+    expect(host.textContent).toContain('已同步 NVD：新增 0、更新 1')
     expect(host.textContent).toContain('NVD JSON 2.0')
-    expect(host.textContent).toContain('1 个快照')
-    expect(host.textContent).toContain('来源证据')
+    expect(host.textContent).toContain('情报证据')
     expect(host.textContent).toContain('NVD · NVD JSON 2.0')
     expect(host.textContent).toContain('已缓存原始快照')
     expect(host.textContent).toContain('feed-snapshots/nvd')
@@ -342,9 +342,10 @@ describe('VulnPage', () => {
       configurable: true,
       value: { main: { App: { FetchFIRSTEPSS: fetchFIRSTEPSS } } },
     })
-    const { host } = useIntelSettingsPanelHarness()
+    const host = await mountVulnPage()
+    await openCveResearch(host)
     const sync = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
-      item.getAttribute('aria-label') === '同步当前 CVE 的 FIRST EPSS',
+      item.getAttribute('aria-label') === '同步此 CVE 的 FIRST EPSS',
     )
     if (!sync) throw new Error('missing EPSS sync button')
 
@@ -353,11 +354,11 @@ describe('VulnPage', () => {
 
     expect(fetchFIRSTEPSS).toHaveBeenCalledTimes(1)
     expect(fetchFIRSTEPSS).toHaveBeenCalledWith('CVE-2024-3400')
-    expect(host.textContent).toContain('已同步 FIRST EPSS：CVE-2024-3400 新增 0、更新 1')
+    expect(host.textContent).toContain('已同步 FIRST EPSS：新增 0、更新 1')
     expect(host.textContent).toContain('FIRST EPSS API')
     expect(host.textContent).toContain('93.2%')
     expect(host.textContent).toContain('优先级信号')
-    expect(host.textContent).toContain('来源证据')
+    expect(host.textContent).toContain('情报证据')
     expect(host.textContent).toContain('FIRST EPSS · FIRST EPSS API')
     expect(host.textContent).toContain('feed-snapshots/first-epss')
     expect(host.textContent).not.toContain('Judge verified')
@@ -497,9 +498,10 @@ describe('VulnPage', () => {
         },
       },
     })
-    const { host } = useIntelSettingsPanelHarness()
+    const host = await mountVulnPage()
+    await openCveResearch(host)
     const sync = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
-      item.getAttribute('aria-label') === '同步当前 CVE 的 NVD、FIRST EPSS、OSV、GitHub Advisory、CISA KEV 和 Vulhub',
+      item.getAttribute('aria-label') === '同步此 CVE 的 NVD、FIRST EPSS、OSV、GitHub Advisory 和 CISA KEV',
     )
     if (!sync) throw new Error('missing current CVE intel sync button')
 
@@ -511,21 +513,17 @@ describe('VulnPage', () => {
     expect(fetchOSVCVE).toHaveBeenCalledTimes(1)
     expect(fetchGitHubAdvisories).toHaveBeenCalledTimes(1)
     expect(fetchCISAKEVFeed).toHaveBeenCalledTimes(1)
-    expect(fetchVulhubPracticeCatalog).toHaveBeenCalledTimes(1)
-    expect(host.textContent).toContain('当前 CVE 情报矩阵同步完成：5/6 个来源成功')
+    expect(fetchVulhubPracticeCatalog).not.toHaveBeenCalled()
+    expect(host.textContent).toContain('此 CVE 情报同步完成：4/5 个来源成功')
     expect(host.textContent).toContain('NVD 同步失败：NVD upstream timeout after 20s')
-    expect(host.textContent).toContain('逐源同步结果')
+    expect(host.textContent).toContain('情报证据')
     expect(host.textContent).toContain('NVD')
     expect(host.textContent).toContain('FIRST EPSS')
     expect(host.textContent).toContain('OSV')
     expect(host.textContent).toContain('GitHub Advisory')
     expect(host.textContent).toContain('CISA KEV')
-    expect(host.textContent).toContain('Vulhub')
     expect(host.textContent).toContain('失败')
-    expect(host.textContent).toContain('成功')
-    expect(host.textContent).toContain('来源证据')
     expect(host.textContent).toContain('FIRST EPSS · FIRST EPSS API')
-    expect(host.textContent).toContain('当前 CVE 已匹配 pan-os/CVE-2024-3400')
     expect(host.textContent).toContain('93.2%')
     expect(host.textContent).not.toContain('Judge verified')
   })
@@ -556,7 +554,7 @@ describe('VulnPage', () => {
       configurable: true,
       value: { main: { App: { FetchCISAKEVFeed: fetchCISAKEVFeed } } },
     })
-    const { host } = useIntelSettingsPanelHarness()
+    const { host, dashboard } = useIntelSettingsPanelHarness()
     const sync = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
       item.getAttribute('aria-label') === '同步 CISA KEV Feed',
     )
@@ -573,9 +571,10 @@ describe('VulnPage', () => {
     expect(fetchCISAKEVFeed).toHaveBeenCalledTimes(1)
     expect(host.textContent).toContain('CISA KEV · CISA KEV Catalog')
     expect(host.textContent).toContain('CISA KEV Catalog，1 条，新增 1、更新 0')
-    expect(host.textContent).toContain('CVE-2026-42424')
-    expect(host.textContent).toContain('Example Gateway unsafe parser')
-    expect(host.textContent).toContain('来源证据')
+    expect(host.textContent).toContain('Feed 缓存状态')
+    expect(host.textContent).not.toContain('当前 CVE 来源证据')
+    expect(dashboard.trackedCount.value).toBe(8)
+    expect(dashboard.sourceSnapshots.value[0]?.importedIds).toContain('CVE-2026-42424')
   })
 
   it('syncs the Vulhub practice catalog through the desktop adapter into a visible practice match', async () => {
@@ -614,22 +613,21 @@ describe('VulnPage', () => {
     )
     if (!sync) throw new Error('missing Vulhub sync button')
 
-    expect(host.textContent).toContain('未匹配练习环境')
+    expect(host.textContent).toContain('1 个练习匹配')
     sync.click()
     await flushAsyncUpdates()
 
     expect(fetchVulhubPracticeCatalog).toHaveBeenCalledTimes(1)
     expect(host.textContent).toContain('已同步 Vulhub catalog：新增 1、跳过 0')
     expect(host.textContent).toContain('1 个候选，已缓存元数据 fnv1a-')
-    expect(host.textContent).toContain('已匹配练习环境')
-    expect(host.textContent).toContain('vulhub/pan-os/CVE-2024-3400')
-    expect(host.textContent).toContain('启动前仍需用户确认 Docker、端口、网络和清理边界')
+    expect(host.textContent).toContain('2 个练习匹配')
+    expect(host.textContent).toContain('已有目录')
     expect(host.textContent).toContain('只读匹配和启动前计划')
     expect(host.textContent).not.toContain('已启动容器')
   })
 
-  it('imports a CISA KEV feed snapshot and shows source evidence in the selected CVE', async () => {
-    const { host } = useIntelSettingsPanelHarness()
+  it('imports a CISA KEV feed snapshot and updates global source metadata', async () => {
+    const { host, dashboard } = useIntelSettingsPanelHarness()
     const openImport = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
       item.textContent?.includes('导入 Feed'),
     )
@@ -681,13 +679,12 @@ describe('VulnPage', () => {
     expect(host.textContent).toContain('已导入 CISA KEV')
     expect(host.textContent).toContain('1 个快照')
     expect(host.textContent).toContain('新增 1、更新 1、跳过 0')
-    expect(host.textContent).toContain('CVE-2026-42424')
-    expect(host.textContent).toContain('Example Gateway unsafe parser')
-    expect(host.textContent).toContain('来源证据')
+    expect(host.textContent).not.toContain('当前 CVE 来源证据')
     expect(host.textContent).toContain('CISA KEV · CISA KEV Catalog')
     expect(host.textContent).toContain('已缓存元数据')
-    expect(host.textContent).toContain('查看来源')
-    expect(host.textContent).toContain('不等于本地 Judge')
+    expect(dashboard.trackedCount.value).toBe(8)
+    expect(dashboard.sourceSnapshots.value[0]?.importedIds).toContain('CVE-2026-42424')
+    expect(dashboard.sourceSnapshots.value[0]?.updatedIds).toContain('CVE-2024-3400')
   })
 
   it('shows the Coding workspace scope before handing CVE tasks to Coding', async () => {
@@ -823,8 +820,8 @@ describe('VulnPage', () => {
     expect(host.textContent).toContain('MilkSU')
   })
 
-  it('imports pasted generic CVE Feed JSON into visible tracking rows with cache metadata', async () => {
-    const { host } = useIntelSettingsPanelHarness()
+  it('imports pasted generic CVE Feed JSON into tracking data with cache metadata', async () => {
+    const { host, dashboard } = useIntelSettingsPanelHarness()
     const openImport = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
       item.textContent?.includes('导入 Feed'),
     )
@@ -858,13 +855,13 @@ describe('VulnPage', () => {
     submit.click()
     await nextTick()
 
-    expect(host.textContent).toContain('CVE-2026-42424')
-    expect(host.textContent).toContain('用户导入的依赖风险')
+    expect(dashboard.trackedCount.value).toBe(8)
+    expect(dashboard.sourceSnapshots.value[0]?.importedIds).toContain('CVE-2026-42424')
     expect(host.textContent).toContain('已导入 用户 Feed 快照：新增 1、更新 0')
     expect(host.textContent).toContain('Generic CVE JSON')
     expect(host.textContent).toContain('已缓存元数据 fnv1a-')
     expect(host.textContent).toContain('撤销新增 CVE')
-    expect(host.textContent).toContain('来源证据')
+    expect(host.textContent).not.toContain('当前 CVE 来源证据')
 
     const undo = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
       item.textContent?.includes('撤销新增 CVE'),
@@ -874,12 +871,12 @@ describe('VulnPage', () => {
     await nextTick()
 
     expect(host.textContent).toContain('已撤销本次新增的 1 条 CVE')
-    expect(host.textContent).not.toContain('CVE-2026-42424')
+    expect(dashboard.trackedCount.value).toBe(7)
     expect(host.textContent).not.toContain('用户导入的依赖风险')
   })
 
-  it('imports pasted local practice catalog JSON into matched CVE practice plans without launching Docker', async () => {
-    const { host } = useIntelSettingsPanelHarness()
+  it('imports pasted local practice catalog JSON into global practice matching data without launching Docker', async () => {
+    const { host, dashboard } = useIntelSettingsPanelHarness()
 
     const openImport = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
       item.textContent?.includes('导入练习'),
@@ -916,22 +913,12 @@ describe('VulnPage', () => {
     await nextTick()
 
     expect(host.textContent).toContain('已导入 1 个本地练习环境匹配')
-    expect(host.textContent).toContain('隔离练习环境已匹配')
-    expect(host.textContent).toContain('Local PAN-OS lab plan')
-    expect(host.textContent).toContain('pan-os/CVE-2024-3400')
-    expect(host.textContent).toContain('local catalog abc123')
-    expect(host.textContent).toContain('确认练习计划')
-    expect(host.textContent).toContain('练习成功只代表本地学习完成')
-
-    const confirm = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
-      item.textContent?.includes('确认练习计划'),
-    )
-    if (!confirm) throw new Error('missing imported practice confirm button')
-    confirm.click()
-    await nextTick()
-
-    expect(host.textContent).toContain('已确认计划')
-    expect(host.textContent).toContain('不要自动拉取镜像、启动容器、运行 exploit 或访问外部目标')
+    expect(host.textContent).toContain('2 个练习匹配')
+    expect(host.textContent).toContain('已有目录')
+    expect(host.textContent).not.toContain('确认练习计划')
+    expect(dashboard.practiceEnvironmentCount.value).toBe(2)
+    expect(dashboard.practiceEnvironmentFor.value?.title).toContain('Local PAN-OS lab plan')
+    expect(dashboard.practiceEnvironmentFor.value?.directory).toBe('pan-os/CVE-2024-3400')
 
     const undo = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
       item.textContent?.includes('撤销本次导入'),
@@ -941,6 +928,7 @@ describe('VulnPage', () => {
     await nextTick()
 
     expect(host.textContent).toContain('已撤销本次导入的 1 个本地练习环境匹配')
+    expect(dashboard.practiceEnvironmentCount.value).toBe(1)
   })
 
   it('persists user-confirmed research notes for the selected CVE', async () => {

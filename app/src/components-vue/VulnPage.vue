@@ -23,6 +23,7 @@ import {
   FolderOpen,
   Plus,
   Play,
+  RefreshCw,
   Search,
   Server,
   ShieldCheck,
@@ -94,6 +95,9 @@ const codingConclusionError = ref('')
 const codingConclusionNotice = ref('')
 const codingConclusionWritebackBusy = ref(false)
 const historyNoteNotice = ref('')
+const selectedIntelNotice = ref('')
+const selectedIntelError = ref('')
+const selectedIntelSyncing = ref('')
 const loopWorkspace = ref<HTMLElement | null>(null)
 const practiceWorkspace = ref<HTMLElement | null>(null)
 const researchWorkspace = ref<HTMLElement | null>(null)
@@ -127,6 +131,15 @@ watch(
   () => props.navigationEpoch,
   () => {
     cveView.value = 'list'
+  },
+)
+
+watch(
+  () => dashboard.selected.value.id,
+  () => {
+    selectedIntelNotice.value = ''
+    selectedIntelError.value = ''
+    selectedIntelSyncing.value = ''
   },
 )
 
@@ -282,6 +295,83 @@ function recordSessionHistoryAsNote(result: SessionHistorySearchResult) {
     ].filter(Boolean).join('\n\n'),
   })
   historyNoteNotice.value = '已记入当前 CVE 笔记。'
+}
+
+type SelectedIntelSyncResult = Awaited<ReturnType<VulnerabilityDashboard['syncSelectedNvdCve']>>
+
+function formatSelectedIntelNotice(sourceName: string, result: SelectedIntelSyncResult) {
+  return `已同步 ${sourceName}：新增 ${result.imported}、更新 ${result.updated}`
+    + (result.skipped ? `，跳过 ${result.skipped}` : '')
+    + `；${result.format}，${result.itemCount} 条，${result.cacheState} ${result.digest}`
+    + (result.errors.length ? `；${result.errors.length} 条格式需人工处理` : '')
+}
+
+async function syncSelectedIntelSource(
+  sourceName: string,
+  runner: () => Promise<SelectedIntelSyncResult>,
+) {
+  selectedIntelError.value = ''
+  selectedIntelNotice.value = ''
+  selectedIntelSyncing.value = sourceName
+  try {
+    selectedIntelNotice.value = formatSelectedIntelNotice(sourceName, await runner())
+  } catch (cause) {
+    selectedIntelError.value = cause instanceof Error ? cause.message : String(cause)
+  } finally {
+    selectedIntelSyncing.value = ''
+  }
+}
+
+async function syncSelectedNvdCve() {
+  await syncSelectedIntelSource('NVD', () => dashboard.syncSelectedNvdCve())
+}
+
+async function syncSelectedFirstEPSS() {
+  await syncSelectedIntelSource('FIRST EPSS', () => dashboard.syncSelectedFirstEPSS())
+}
+
+async function syncSelectedOsvCve() {
+  await syncSelectedIntelSource('OSV', () => dashboard.syncSelectedOsvCve())
+}
+
+async function syncSelectedGitHubAdvisories() {
+  await syncSelectedIntelSource('GitHub Advisory', () => dashboard.syncSelectedGitHubAdvisories())
+}
+
+async function syncSelectedCisaKevFeed() {
+  await syncSelectedIntelSource('CISA KEV', () => dashboard.syncCisaKevFeed())
+}
+
+async function syncSelectedCveIntel() {
+  selectedIntelError.value = ''
+  selectedIntelNotice.value = ''
+  selectedIntelSyncing.value = 'all'
+  const sources = [
+    { name: 'NVD', run: () => dashboard.syncSelectedNvdCve() },
+    { name: 'FIRST EPSS', run: () => dashboard.syncSelectedFirstEPSS() },
+    { name: 'OSV', run: () => dashboard.syncSelectedOsvCve() },
+    { name: 'GitHub Advisory', run: () => dashboard.syncSelectedGitHubAdvisories() },
+    { name: 'CISA KEV', run: () => dashboard.syncCisaKevFeed() },
+  ]
+  const results = await Promise.allSettled(sources.map(source => source.run()))
+  const failures: string[] = []
+  let successCount = 0
+  for (const [index, settled] of results.entries()) {
+    const sourceName = sources[index].name
+    if (settled.status === 'fulfilled') {
+      successCount += 1
+    } else {
+      failures.push(`${sourceName} 同步失败：${settled.reason instanceof Error ? settled.reason.message : String(settled.reason)}`)
+    }
+  }
+  selectedIntelNotice.value = `此 CVE 情报同步完成：${successCount}/${sources.length} 个来源成功`
+    + (failures.length ? `；${failures.length} 个来源失败，已保留可用证据。` : '。')
+  selectedIntelError.value = failures.join('；')
+  selectedIntelSyncing.value = ''
+}
+
+function isHttpUrl(value: string) {
+  return /^https?:\/\//i.test(value)
 }
 
 function startSelectedCodingTask(task: VulnerabilityCodingTask) {
@@ -689,6 +779,130 @@ function statusVariant(status: VulnerabilityStatus) {
             </Button>
           </div>
         </div>
+
+        <section class="mt-5 rounded-xl border border-border bg-background px-5 py-4" aria-label="当前 CVE 情报证据">
+          <div class="flex flex-wrap items-start justify-between gap-4">
+            <div class="min-w-0">
+              <div class="flex flex-wrap items-center gap-2">
+                <h3 class="text-label font-medium">情报证据</h3>
+                <Badge variant="info">{{ dashboard.selectedSourceEvidence.value.length }} 条</Badge>
+              </div>
+              <p class="mt-1 text-caption leading-5 text-muted-foreground">
+                同步和查看 {{ dashboard.selected.value.id }} 的来源快照；情报证据不等于本地验证结果。
+              </p>
+            </div>
+            <div class="flex flex-wrap justify-start gap-2 md:justify-end">
+              <Button
+                size="sm"
+                aria-label="同步此 CVE 的 NVD、FIRST EPSS、OSV、GitHub Advisory 和 CISA KEV"
+                :loading="selectedIntelSyncing === 'all'"
+                :disabled="Boolean(selectedIntelSyncing)"
+                @click="syncSelectedCveIntel"
+              >
+                <RefreshCw class="size-4" :class="selectedIntelSyncing === 'all' ? 'animate-spin' : ''" />
+                同步全部
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                aria-label="同步此 CVE 的 NVD 2.0"
+                :loading="selectedIntelSyncing === 'NVD'"
+                :disabled="Boolean(selectedIntelSyncing)"
+                @click="syncSelectedNvdCve"
+              >
+                <RefreshCw class="size-4" :class="selectedIntelSyncing === 'NVD' ? 'animate-spin' : ''" />
+                NVD
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                aria-label="同步此 CVE 的 FIRST EPSS"
+                :loading="selectedIntelSyncing === 'FIRST EPSS'"
+                :disabled="Boolean(selectedIntelSyncing)"
+                @click="syncSelectedFirstEPSS"
+              >
+                <RefreshCw class="size-4" :class="selectedIntelSyncing === 'FIRST EPSS' ? 'animate-spin' : ''" />
+                EPSS
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                aria-label="同步此 CVE 的 OSV"
+                :loading="selectedIntelSyncing === 'OSV'"
+                :disabled="Boolean(selectedIntelSyncing)"
+                @click="syncSelectedOsvCve"
+              >
+                <RefreshCw class="size-4" :class="selectedIntelSyncing === 'OSV' ? 'animate-spin' : ''" />
+                OSV
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                aria-label="同步此 CVE 的 GitHub Advisory"
+                :loading="selectedIntelSyncing === 'GitHub Advisory'"
+                :disabled="Boolean(selectedIntelSyncing)"
+                @click="syncSelectedGitHubAdvisories"
+              >
+                <RefreshCw class="size-4" :class="selectedIntelSyncing === 'GitHub Advisory' ? 'animate-spin' : ''" />
+                GHSA
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                aria-label="同步 CISA KEV Feed 并匹配此 CVE"
+                :loading="selectedIntelSyncing === 'CISA KEV'"
+                :disabled="Boolean(selectedIntelSyncing)"
+                @click="syncSelectedCisaKevFeed"
+              >
+                <RefreshCw class="size-4" :class="selectedIntelSyncing === 'CISA KEV' ? 'animate-spin' : ''" />
+                KEV
+              </Button>
+            </div>
+          </div>
+          <p v-if="selectedIntelNotice" class="mt-3 text-caption text-primary">{{ selectedIntelNotice }}</p>
+          <p v-if="selectedIntelError" class="mt-3 text-caption text-destructive">{{ selectedIntelError }}</p>
+          <div v-if="dashboard.selectedSourceEvidence.value.length" class="mt-3 grid gap-2 lg:grid-cols-2">
+            <article
+              v-for="evidence in dashboard.selectedSourceEvidence.value.slice(0, 4)"
+              :key="`${evidence.sourceId}-${evidence.digest}`"
+              class="rounded-lg border border-border bg-muted/20 px-3 py-3 text-caption leading-5"
+            >
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <p class="text-body font-medium">{{ evidence.sourceName }} · {{ evidence.format }}</p>
+                <Badge variant="outline">{{ evidence.cacheState }}</Badge>
+              </div>
+              <p class="mt-1 text-muted-foreground">
+                获取 {{ new Date(evidence.retrievedAt).toLocaleString() }}；导入 {{ new Date(evidence.importedAt).toLocaleString() }}
+                <template v-if="evidence.publishedAt">；发布时间 {{ evidence.publishedAt }}</template>
+                <template v-if="evidence.lastModifiedAt">；更新时间 {{ evidence.lastModifiedAt }}</template>
+              </p>
+              <p class="mt-1 font-mono text-muted-foreground">{{ evidence.digest }}</p>
+              <p v-if="evidence.snapshotPath" class="mt-1 break-all font-mono text-muted-foreground">
+                原始快照 {{ evidence.snapshotSizeBytes ?? 0 }} bytes · {{ evidence.snapshotPath }}
+              </p>
+              <p v-if="evidence.snapshotSha256" class="mt-1 break-all font-mono text-muted-foreground">
+                sha256 {{ evidence.snapshotSha256 }}
+              </p>
+              <Button
+                v-if="isHttpUrl(evidence.sourceUrl)"
+                as="a"
+                :href="evidence.sourceUrl"
+                target="_blank"
+                rel="noreferrer"
+                variant="link"
+                size="text"
+                class="mt-1"
+              >
+                查看来源 <ExternalLink class="size-3" />
+              </Button>
+            </article>
+          </div>
+          <div v-else class="mt-3 rounded-lg border border-dashed border-border bg-muted/20 px-3 py-3">
+            <p class="text-caption leading-5 text-muted-foreground">
+              暂无该 CVE 的来源快照；可先同步一个公开源，或在设置中导入 Feed。
+            </p>
+          </div>
+        </section>
 
         <div ref="loopWorkspace" class="mt-5">
           <VulnerabilityLoopPanel
