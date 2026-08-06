@@ -146,10 +146,19 @@ function installSessionHistoryRuntime() {
 
 async function openIntelSettings(host: HTMLElement) {
   const settings = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
-    item.getAttribute('aria-label') === '打开设置',
+    item.getAttribute('aria-label') === '配置 CVE 情报源',
   )
   if (!settings) throw new Error('missing CVE intel settings button')
   settings.click()
+  await nextTick()
+}
+
+async function openCveResearch(host: HTMLElement, cveId = 'CVE-2024-3400') {
+  const row = [...host.querySelectorAll<HTMLTableRowElement>('tr')].find(item =>
+    item.textContent?.includes(cveId),
+  )
+  if (!row) throw new Error(`missing ${cveId} CVE row`)
+  row.click()
   await nextTick()
 }
 
@@ -160,7 +169,7 @@ describe('VulnPage', () => {
 
     expect(text).toContain('CVE')
     expect(text).toContain('追踪 CVE、资产命中与研究进度')
-    expect(host.querySelector('[aria-label="打开设置"]')).not.toBeNull()
+    expect(host.querySelector('[aria-label="配置 CVE 情报源"]')).not.toBeNull()
     expect(host.querySelector('[data-module-topbar]')).not.toBeNull()
     expect(host.querySelector('[data-module-topbar]')?.getAttribute('data-workspace-module')).toBe('cve')
     expect(host.querySelector('[data-workspace-topbar-title]')?.className).toContain('workspace-topbar__title')
@@ -179,24 +188,41 @@ describe('VulnPage', () => {
     expect(text).toContain('闭环')
     expect(text).toContain('待建立')
     expect(text).toContain('有练习')
-    expect(text).toContain('CISA KEV')
     expect(text).toContain('练习环境')
     expect(text).toContain('1 匹配')
     expect(text).toContain('0 已确认计划')
     expect(text).toContain('当前下一步')
     expect(text).toContain('建立研究任务')
     expect(text).toContain('CVE-2024-3400 还没有固定目标、Scope 和安全边界。')
-    expect(text).toContain('学习路径')
-    expect(text).toContain('CVE 最小闭环')
-    expect(text).toContain('练习结果不等于真实资产已验证')
-    expect(text).toContain('隔离练习环境')
-    expect(text).toContain('Coding 接力范围')
-    expect(text).toContain('Agent 可接手任务')
-    expect(text).toContain('研究任务工作区')
-    expect(text).toContain('安全边界')
-    expect(text).toContain('不批量扫描或攻击外部目标')
-    expect(text).toContain('不自动运行 PoC、exploit 或漏洞触发输入')
+    expect(text).not.toContain('学习路径')
+    expect(text).not.toContain('CVE 最小闭环')
+    expect(text).not.toContain('隔离练习环境')
+    expect(text).not.toContain('研究任务工作区')
+
+    await openCveResearch(host)
+    const researchText = host.textContent ?? ''
+    expect(researchText).toContain('单个 CVE 研究台')
+    expect(researchText).toContain('返回列表')
+    expect(researchText).toContain('CISA KEV')
+    expect(researchText).toContain('学习路径')
+    expect(researchText).toContain('CVE 最小闭环')
+    expect(researchText).toContain('练习结果不等于真实资产已验证')
+    expect(researchText).toContain('隔离练习环境')
+    expect(researchText).toContain('Coding 接力范围')
+    expect(researchText).toContain('Agent 可接手任务')
+    expect(researchText).toContain('研究任务工作区')
+    expect(researchText).toContain('安全边界')
+    expect(researchText).toContain('不批量扫描或攻击外部目标')
+    expect(researchText).toContain('不自动运行 PoC、exploit 或漏洞触发输入')
     expect(text).not.toContain('红队 Agent')
+
+    const back = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
+      item.textContent?.includes('返回列表'),
+    )
+    if (!back) throw new Error('missing CVE list return button')
+    back.click()
+    await nextTick()
+    expect(host.textContent).toContain('追踪 CVE、资产命中与研究进度')
   })
 
   it('keeps CVE feed controls in the intel settings panel instead of the default homepage', async () => {
@@ -667,6 +693,7 @@ describe('VulnPage', () => {
 
   it('shows the Coding workspace scope before handing CVE tasks to Coding', async () => {
     const empty = await mountVulnPageWithWorkspace()
+    await openCveResearch(empty.host)
     expect(empty.host.textContent).toContain('临时工作区')
     expect(empty.host.textContent).toContain('项目影响检查')
     const choose = [...empty.host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
@@ -681,6 +708,7 @@ describe('VulnPage', () => {
     document.body.innerHTML = ''
 
     const scoped = await mountVulnPageWithWorkspace('/Users/milksu/code/milksu')
+    await openCveResearch(scoped.host)
     expect(scoped.host.textContent).toContain('已选择项目')
     expect(scoped.host.textContent).toContain('/Users/milksu/code/milksu')
     expect(scoped.host.textContent).toContain('更换项目目录')
@@ -689,14 +717,14 @@ describe('VulnPage', () => {
   it('lets the user create a visible research tracking task', async () => {
     const host = await mountVulnPage()
     const button = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
-      item.textContent?.includes('建立研究任务'),
+      item.getAttribute('aria-label') === '执行当前 CVE 下一步',
     )
     if (!button) throw new Error('missing research task button')
 
     expect(host.textContent).toContain('研究任务')
     expect(host.textContent).toContain('0')
     button.click()
-    await nextTick()
+    await flushAsyncUpdates()
 
     expect(host.textContent).toContain('查看研究任务')
     expect(host.textContent).toContain('已建立')
@@ -731,13 +759,8 @@ describe('VulnPage', () => {
   })
 
   it('makes the top current-next-step card actionable for the selected CVE', async () => {
+    storage.set('milksu.vulnerability-dashboard.selected-id.v1', 'CVE-2023-46604')
     const host = await mountVulnPage()
-    const activeMqRow = [...host.querySelectorAll<HTMLTableRowElement>('tr')].find(item =>
-      item.textContent?.includes('CVE-2023-46604'),
-    )
-    if (!activeMqRow) throw new Error('missing ActiveMQ CVE row')
-    activeMqRow.click()
-    await nextTick()
 
     const nextStep = () => {
       const button = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
@@ -751,16 +774,15 @@ describe('VulnPage', () => {
     expect(host.textContent).toContain('建立研究任务')
     expect(nextStep().textContent).toContain('建立')
     nextStep().click()
-    await nextTick()
+    await flushAsyncUpdates()
 
     expect(host.textContent).toContain('研究任务已建立')
     expect(host.textContent).toContain('确认练习计划')
     expect(nextStep().textContent).toContain('确认')
     nextStep().click()
-    await nextTick()
+    await flushAsyncUpdates()
 
     expect(host.textContent).toContain('已确认计划')
-    expect(host.textContent).toContain('1 已确认计划')
     expect(host.textContent).toContain('交给 Coding')
     expect(host.textContent).toContain('选择本地目录')
     expect(nextStep().textContent).toContain('选择目录')
@@ -863,7 +885,6 @@ describe('VulnPage', () => {
 
   it('imports pasted local practice catalog JSON into matched CVE practice plans without launching Docker', async () => {
     const host = await mountVulnPage()
-    expect(host.textContent).toContain('未匹配')
     expect(host.textContent).toContain('1 匹配')
     await openIntelSettings(host)
 
@@ -935,11 +956,13 @@ describe('VulnPage', () => {
     await nextTick()
 
     expect(host.textContent).toContain('1 匹配')
+    await openCveResearch(host)
     expect(host.textContent).toContain('暂未匹配到可直接练习的本地环境')
   })
 
   it('persists user-confirmed research notes for the selected CVE', async () => {
     const host = await mountVulnPage()
+    await openCveResearch(host)
     const byLabel = (label: string) => {
       const textarea = [...host.querySelectorAll<HTMLTextAreaElement>('textarea')].find(item =>
         item.getAttribute('aria-label') === label,
@@ -955,6 +978,7 @@ describe('VulnPage', () => {
     await unmountAll()
 
     const remounted = await mountVulnPage()
+    await openCveResearch(remounted)
     const textareas = [...remounted.querySelectorAll<HTMLTextAreaElement>('textarea')]
     expect(textareas.some(item => item.value.includes('只读版本检查'))).toBe(true)
     expect(textareas.some(item => item.value.includes('暂不运行 PoC'))).toBe(true)
@@ -963,6 +987,7 @@ describe('VulnPage', () => {
   it('records a user-confirmed related-history result into the current CVE note', async () => {
     installSessionHistoryRuntime()
     const host = await mountVulnPage()
+    await openCveResearch(host)
     await flushAsyncUpdates()
 
     expect(host.textContent).toContain('CVE-2024-3400 研究回顾')
@@ -1045,6 +1070,7 @@ describe('VulnPage', () => {
 
   it('lets the user attach a local asset hit to a tracked CVE', async () => {
     const host = await mountVulnPage()
+    await openCveResearch(host)
     const openAssetForm = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
       item.textContent?.includes('新增资产'),
     )
@@ -1105,8 +1131,6 @@ describe('VulnPage', () => {
     await nextTick()
 
     expect(host.textContent).toContain('已确认计划')
-    expect(host.textContent).toContain('练习已确认')
-    expect(host.textContent).toContain('1 已确认计划')
     expect(host.textContent).toContain('已确认本地练习计划，尚未启动容器')
     expect(host.textContent).toContain('选择本地目录')
     expect(host.textContent).toContain('下一步交给 Coding Agent')
@@ -1173,7 +1197,6 @@ describe('VulnPage', () => {
 
     expect(host.textContent).toContain('最近 Coding 接力')
     expect(host.textContent).toContain('已交接')
-    expect(host.textContent).toContain('已接力')
     expect(host.textContent).toContain('/Users/milksu/code/milksu')
   })
 })

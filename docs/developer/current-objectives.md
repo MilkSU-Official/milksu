@@ -39,7 +39,7 @@
 | P1 | CTF 六赛道 | Web、Pwn、Reverse、Crypto、Forensics、Misc 各至少一题 Judge-verified；每题留材料、轨迹、候选、Judge、恢复、复盘和提示依赖。 |
 | P1 | Memory 可信度 | 区分 user / agent / shared / imported 与 none / hint / copilot / delegated；Agent 代做不能提升用户独立能力。 |
 | P1 | Runtime Reliability | 用自建安全 fixture 验证多轮、文件读取、命令、工具、重启、压缩、取消、预算、失败分类。 |
-| P2 | 本地交付与发行 | 崩溃恢复、诊断、全新机器、Developer ID 签名 `.app`、DMG、公证、stapling、升级、性能和尺寸矩阵进入 RC 阶段再做；其中稳定 Developer ID 签名会影响 macOS TCC / Computer Use 授权复检，应先于外部分发验收补齐。 |
+| P2 | 本地交付与发行 | 崩溃恢复、诊断、全新机器、Developer ID 签名 `.app`、DMG、公证、stapling、升级、性能和尺寸矩阵进入 RC 阶段再做；其中稳定 Developer ID 签名会影响 macOS TCC / Computer Use 授权复检，应先于外部分发验收补齐。DMG 发布工作流参考同开发者 FiberGuard 的两阶段签名/公证流程：先生成 Developer ID 签名 `.app`，再生成签名 DMG，提交 notarization，最终 staple、`codesign` 与 `spctl` 校验；不得读取或迁移本机签名私钥、证书密码或 Personal Vault。 |
 | 持续约束 | 架构与 UI | 触碰即拆热点文件；不新开纯清债里程碑。文档继续压缩为短入口 + Evidence 索引。 |
 
 ## 不要重复打开的已闭环项

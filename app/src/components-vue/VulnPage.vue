@@ -15,6 +15,7 @@ import {
   Textarea,
 } from '@felinic/ui'
 import {
+  ArrowLeft,
   Bookmark,
   ClipboardList,
   ExternalLink,
@@ -31,11 +32,10 @@ import {
 } from 'lucide-vue-next'
 import WorkspaceDetailTitle from '@/components-vue/WorkspaceDetailTitle.vue'
 import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
-import WorkspaceSettingsButton from '@/components-vue/WorkspaceSettingsButton.vue'
 import SessionHistoryPanel from '@/components-vue/SessionHistoryPanel.vue'
 import VulnerabilityIntelSettingsPanel from '@/components-vue/VulnerabilityIntelSettingsPanel.vue'
 import VulnerabilityLoopPanel from '@/components-vue/VulnerabilityLoopPanel.vue'
-import { useVulnerabilityDashboard } from '@/composables/useVulnerabilityDashboard'
+import { useVulnerabilityDashboard, type VulnerabilityDashboard } from '@/composables/useVulnerabilityDashboard'
 import { invokeCommand } from '@/desktop'
 import { redactProviderCredentials } from '@/lib/redaction'
 import type { VulnerabilityCodingTask } from '@/composables/useVulnerabilityDashboard'
@@ -46,6 +46,7 @@ import type { VulnProjection } from '@/vulnTypes'
 defineOptions({ name: 'VulnPage' })
 
 const props = defineProps<{
+  dashboard?: VulnerabilityDashboard
   codingWorkspacePath?: string
 }>()
 
@@ -54,7 +55,7 @@ const emit = defineEmits<{
   chooseCodingWorkspace: []
   startCodingTask: [task: VulnerabilityCodingTask, recordHandoff: (workspacePath: string) => void]
 }>()
-const dashboard = useVulnerabilityDashboard()
+const dashboard = props.dashboard ?? useVulnerabilityDashboard()
 
 const sprintTasks = [
   '让 Coding Agent 读取公告、补丁和版本清单，产出影响判断草稿',
@@ -84,6 +85,7 @@ const researchSteps = [
 const showCustomForm = ref(false)
 const customFormError = ref('')
 const showIntelSettings = ref(false)
+const cveView = ref<'list' | 'research'>('list')
 const showAssetForm = ref(false)
 const assetFormError = ref('')
 const assetFormNotice = ref('')
@@ -113,6 +115,22 @@ const assetForm = ref({
   address: '',
   environment: '',
 })
+
+function openCveResearch(id: string) {
+  dashboard.selectedId.value = id
+  showIntelSettings.value = false
+  cveView.value = 'research'
+}
+
+function returnToCveList() {
+  cveView.value = 'list'
+  showIntelSettings.value = false
+}
+
+function openCveSettings() {
+  showIntelSettings.value = true
+  emit('openSettings')
+}
 
 function addCustomTrackingItem() {
   customFormError.value = ''
@@ -286,6 +304,14 @@ async function scrollToWorkspace(target: HTMLElement | null) {
   target?.scrollIntoView?.({ block: 'start', behavior: 'smooth' })
 }
 
+async function ensureResearchView() {
+  if (cveView.value !== 'research') {
+    cveView.value = 'research'
+    showIntelSettings.value = false
+    await nextTick()
+  }
+}
+
 const selectedNextActionCta = computed(() => {
   const label = dashboard.selectedNextAction.value.label
   if (label === '建立研究任务') return '建立'
@@ -300,6 +326,7 @@ const selectedNextActionCta = computed(() => {
 })
 
 async function runSelectedNextAction() {
+  await ensureResearchView()
   const label = dashboard.selectedNextAction.value.label
   if (label === '建立研究任务') {
     await establishOrFocusResearchTask()
@@ -393,9 +420,23 @@ function statusVariant(status: VulnerabilityStatus) {
 
 <template>
   <main class="flex min-w-0 flex-1 flex-col bg-background">
-    <WorkspaceModuleTopBar module="cve" subtitle="追踪 CVE、资产命中与研究进度">
+    <WorkspaceModuleTopBar
+      module="cve"
+      :subtitle="cveView === 'list' ? '追踪 CVE、资产命中与研究进度' : '单个 CVE 研究台 · 情报、练习、资产与学习证据'"
+    >
       <template #actions>
         <Button
+          v-if="cveView === 'research'"
+          variant="ghost"
+          size="sm"
+          aria-label="返回 CVE 列表"
+          @click="returnToCveList"
+        >
+          <ArrowLeft class="size-4" />
+          返回列表
+        </Button>
+        <Button
+          v-if="cveView === 'list'"
           :variant="showCustomForm ? 'outline' : 'default'"
           size="sm"
           @click="showCustomForm = !showCustomForm"
@@ -404,6 +445,7 @@ function statusVariant(status: VulnerabilityStatus) {
           新增追踪
         </Button>
         <Button
+          v-if="cveView === 'list'"
           :variant="dashboard.watchOnly.value ? 'outline' : 'ghost'"
           size="sm"
           @click="dashboard.watchOnly.value = !dashboard.watchOnly.value"
@@ -411,14 +453,18 @@ function statusVariant(status: VulnerabilityStatus) {
           <Bookmark class="size-4" />
           我的关注
         </Button>
-        <WorkspaceSettingsButton
-          label="打开设置"
-          :active="showIntelSettings"
-          @click="showIntelSettings = !showIntelSettings"
-        />
+        <Button
+          variant="outline"
+          size="sm"
+          aria-label="配置 CVE 情报源"
+          @click="openCveSettings"
+        >
+          <Server class="size-4" />
+          情报源
+        </Button>
       </template>
 
-      <template #filters>
+      <template v-if="cveView === 'list'" #filters>
       <div class="flex flex-wrap items-center gap-3">
         <label class="relative min-w-64 flex-1 max-w-md">
           <Search class="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -436,7 +482,7 @@ function statusVariant(status: VulnerabilityStatus) {
       </div>
       </template>
 
-      <template #metrics>
+      <template v-if="cveView === 'list'" #metrics>
       <div v-if="!showIntelSettings" class="grid gap-3 text-body sm:grid-cols-2 xl:grid-cols-4">
         <div class="rounded-xl border border-border bg-card px-4 py-3">
           <p class="text-caption text-muted-foreground">追踪条目</p>
@@ -488,11 +534,11 @@ function statusVariant(status: VulnerabilityStatus) {
       @close="showIntelSettings = false"
     />
 
-    <div
-      v-else
-      class="grid min-h-0 flex-1 grid-cols-[minmax(560px,1.25fr)_minmax(360px,.75fr)] max-[1080px]:grid-cols-1"
+    <section
+      v-else-if="cveView === 'list'"
+      class="min-h-0 flex-1 overflow-auto"
+      aria-label="CVE 追踪列表"
     >
-      <section class="min-h-0 overflow-auto border-r border-border max-[1080px]:border-b max-[1080px]:border-r-0">
         <form
           v-if="showCustomForm"
           class="border-b border-border bg-card/70 px-6 py-5"
@@ -546,7 +592,7 @@ function statusVariant(status: VulnerabilityStatus) {
               :key="item.id"
               class="cursor-pointer"
               :data-state="item.id === dashboard.selectedId.value ? 'selected' : undefined"
-              @click="dashboard.selectedId.value = item.id"
+              @click="openCveResearch(item.id)"
             >
               <TableCell class="pl-6 font-mono text-body">
                 <span class="flex items-center gap-2">
@@ -581,43 +627,73 @@ function statusVariant(status: VulnerabilityStatus) {
         <div v-if="!dashboard.filtered.value.length" class="px-6 py-16 text-center text-body text-muted-foreground">
           没有匹配的漏洞情报
         </div>
-      </section>
+    </section>
 
-      <aside v-if="dashboard.selected.value" class="min-h-0 overflow-y-auto">
-        <div class="px-6 py-6">
-          <div class="flex items-center gap-2">
-            <Badge variant="outline" font="mono">{{ dashboard.selected.value.id }}</Badge>
-            <Button
-              variant="ghost"
-              size="sm"
-              class="ml-auto"
-              @click="dashboard.toggleWatch(dashboard.selected.value.id)"
-            >
-              <Star
-                class="size-4"
-                :class="dashboard.watched.value.includes(dashboard.selected.value.id) ? 'fill-current' : ''"
-              />
-              {{ dashboard.watched.value.includes(dashboard.selected.value.id) ? '已关注' : '关注' }}
-            </Button>
+    <section
+      v-else-if="dashboard.selected.value"
+      class="min-h-0 flex-1 overflow-y-auto"
+      aria-label="单个 CVE 研究台"
+    >
+      <div class="mx-auto w-full max-w-7xl px-6 py-6">
+        <div class="rounded-2xl border border-border bg-card px-5 py-5">
+          <div class="flex flex-wrap items-start justify-between gap-4">
+            <div class="min-w-0 flex-1">
+              <div class="flex flex-wrap items-center gap-2">
+                <Badge variant="outline" font="mono">{{ dashboard.selected.value.id }}</Badge>
+                <Badge :variant="severityVariant(dashboard.selected.value.severity)">
+                  {{ dashboard.selected.value.cvss.toFixed(1) }} CVSS
+                </Badge>
+                <Badge variant="secondary">{{ dashboard.selected.value.epss.toFixed(1) }}% EPSS</Badge>
+                <Badge v-if="dashboard.selected.value.kev" variant="destructive">CISA KEV</Badge>
+                <Badge :variant="statusVariant(dashboard.selected.value.status)">{{ dashboard.selected.value.status }}</Badge>
+              </div>
+              <WorkspaceDetailTitle class="mt-4" :title="dashboard.selected.value.title" />
+              <p class="mt-3 max-w-5xl text-body leading-6 text-muted-foreground">{{ dashboard.selected.value.summary }}</p>
+            </div>
+            <div class="flex shrink-0 flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                @click="dashboard.toggleWatch(dashboard.selected.value.id)"
+              >
+                <Star
+                  class="size-4"
+                  :class="dashboard.watched.value.includes(dashboard.selected.value.id) ? 'fill-current' : ''"
+                />
+                {{ dashboard.watched.value.includes(dashboard.selected.value.id) ? '已关注' : '关注' }}
+              </Button>
+              <Button size="sm" aria-label="执行当前 CVE 下一步" @click="runSelectedNextAction">
+                {{ selectedNextActionCta }}
+              </Button>
+            </div>
           </div>
-          <WorkspaceDetailTitle class="mt-4" :title="dashboard.selected.value.title" />
-          <div class="mt-3 flex flex-wrap gap-2">
-            <Badge :variant="severityVariant(dashboard.selected.value.severity)">
-              {{ dashboard.selected.value.cvss.toFixed(1) }} CVSS
-            </Badge>
-            <Badge v-if="dashboard.selected.value.kev" variant="destructive">CISA KEV</Badge>
-            <Badge :variant="statusVariant(dashboard.selected.value.status)">{{ dashboard.selected.value.status }}</Badge>
-          </div>
-          <p class="mt-4 text-body leading-6 text-muted-foreground">{{ dashboard.selected.value.summary }}</p>
         </div>
 
-        <dl class="grid grid-cols-[92px_1fr] gap-x-4 gap-y-3 border-y border-border px-6 py-5 text-body">
-          <dt class="text-muted-foreground">受影响范围</dt>
-          <dd class="leading-5">{{ dashboard.selected.value.affected }}</dd>
-          <dt class="text-muted-foreground">利用成熟度</dt>
-          <dd>{{ dashboard.selected.value.maturity }}</dd>
-          <dt class="text-muted-foreground">参考链接</dt>
-          <dd class="flex flex-wrap gap-2">
+        <div class="mt-5 grid gap-4 lg:grid-cols-3">
+          <article class="rounded-xl border border-border bg-background px-4 py-4">
+            <p class="text-caption text-muted-foreground">受影响范围</p>
+            <p class="mt-2 text-body leading-6">{{ dashboard.selected.value.affected }}</p>
+          </article>
+          <article class="rounded-xl border border-border bg-background px-4 py-4">
+            <p class="text-caption text-muted-foreground">利用成熟度</p>
+            <p class="mt-2 text-body leading-6">{{ dashboard.selected.value.maturity }}</p>
+          </article>
+          <article class="rounded-xl border border-border bg-background px-4 py-4">
+            <p class="text-caption text-muted-foreground">当前下一步</p>
+            <div class="mt-2 flex flex-wrap items-center gap-2">
+              <Badge :variant="dashboard.selectedNextAction.value.variant">
+                {{ dashboard.selectedNextAction.value.label }}
+              </Badge>
+              <span class="text-caption leading-5 text-muted-foreground">
+                {{ dashboard.selectedNextAction.value.detail }}
+              </span>
+            </div>
+          </article>
+        </div>
+
+        <div class="mt-5 rounded-xl border border-border bg-background px-4 py-4">
+          <p class="text-label font-medium">参考链接</p>
+          <div class="mt-3 flex flex-wrap gap-2">
             <Button
               v-for="reference in dashboard.selected.value.references"
               :key="reference.href"
@@ -625,15 +701,15 @@ function statusVariant(status: VulnerabilityStatus) {
               :href="reference.href"
               target="_blank"
               rel="noreferrer"
-              variant="link"
-              size="text"
+              variant="outline"
+              size="sm"
             >
               {{ reference.label }} <ExternalLink class="size-3" />
             </Button>
-          </dd>
-        </dl>
+          </div>
+        </div>
 
-        <div ref="loopWorkspace">
+        <div ref="loopWorkspace" class="mt-5">
           <VulnerabilityLoopPanel
             :item="dashboard.selected.value"
             :research-task="dashboard.researchTaskFor.value"
@@ -649,7 +725,7 @@ function statusVariant(status: VulnerabilityStatus) {
           />
         </div>
 
-        <section class="border-b border-border px-6 py-5">
+        <section class="mt-5 rounded-xl border border-border bg-background px-5 py-5">
           <h3 class="text-label font-medium">学习路径</h3>
           <ol class="mt-3 space-y-3">
             <li
@@ -865,7 +941,7 @@ function statusVariant(status: VulnerabilityStatus) {
           </div>
         </section>
 
-        <section ref="notesWorkspace" class="border-b border-border px-6 py-5">
+        <section ref="notesWorkspace" class="mt-5 rounded-xl border border-border bg-background px-5 py-5">
           <div class="flex items-center justify-between gap-3">
             <h3 class="text-label font-medium">受影响资产（{{ dashboard.selected.value.assets.length }}）</h3>
             <Button
@@ -914,7 +990,7 @@ function statusVariant(status: VulnerabilityStatus) {
           </div>
         </section>
 
-        <section class="border-b border-border px-6 py-5">
+        <section class="mt-5 rounded-xl border border-border bg-background px-5 py-5">
           <h3 class="text-label font-medium">追踪时间线</h3>
           <div class="mt-3 space-y-3">
             <div
@@ -938,7 +1014,7 @@ function statusVariant(status: VulnerabilityStatus) {
           </div>
         </section>
 
-        <section class="border-b border-border px-6 py-5">
+        <section class="mt-5 rounded-xl border border-border bg-background px-5 py-5">
           <div class="flex items-center justify-between gap-3">
             <h3 class="text-label font-medium">Coding 接力范围</h3>
             <Badge :variant="codingWorkspacePath ? 'success' : 'outline'">
@@ -963,7 +1039,7 @@ function statusVariant(status: VulnerabilityStatus) {
           </div>
         </section>
 
-        <section ref="researchWorkspace" class="border-b border-border px-6 py-5">
+        <section ref="researchWorkspace" class="mt-5 rounded-xl border border-border bg-background px-5 py-5">
           <div class="flex items-center justify-between gap-3">
             <h3 class="text-label font-medium">研究任务工作区</h3>
             <Badge v-if="dashboard.researchTaskFor.value" variant="info">已建立</Badge>
@@ -1039,7 +1115,7 @@ function statusVariant(status: VulnerabilityStatus) {
           </div>
         </section>
 
-        <section class="border-b border-border px-6 py-5">
+        <section class="mt-5 rounded-xl border border-border bg-background px-5 py-5">
           <div class="flex items-center justify-between gap-3">
             <h3 class="text-label font-medium">研究笔记</h3>
             <div class="flex items-center gap-2">
@@ -1129,7 +1205,7 @@ function statusVariant(status: VulnerabilityStatus) {
           </p>
         </section>
 
-        <section class="border-b border-border px-6 py-5">
+        <section class="mt-5 rounded-xl border border-border bg-background px-5 py-5">
           <h3 class="text-label font-medium">安全边界</h3>
           <ul class="mt-3 space-y-2 text-caption leading-5 text-muted-foreground">
             <li v-for="boundary in safetyBoundaries" :key="boundary" class="flex gap-2">
@@ -1139,7 +1215,7 @@ function statusVariant(status: VulnerabilityStatus) {
           </ul>
         </section>
 
-        <section class="px-6 py-5">
+        <section class="mt-5 rounded-xl border border-border bg-background px-5 py-5">
           <Button
             block
             @click="establishOrFocusResearchTask"
@@ -1163,7 +1239,7 @@ function statusVariant(status: VulnerabilityStatus) {
             建立任务后固化情报快照、受影响资产与证据边界。
           </p>
         </section>
-      </aside>
-    </div>
+      </div>
+    </section>
   </main>
 </template>

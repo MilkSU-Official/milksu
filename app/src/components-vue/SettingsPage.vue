@@ -55,10 +55,15 @@ import {
   providerModelLabel,
   withAppSettingsDefaults,
 } from '@/types'
+import VulnerabilityIntelSettingsPanel from '@/components-vue/VulnerabilityIntelSettingsPanel.vue'
+import { useVulnerabilityDashboard, type VulnerabilityDashboard } from '@/composables/useVulnerabilityDashboard'
+
+type SettingsCategory = 'general' | 'apikeys' | 'cve'
 
 const props = defineProps<{
   settings: AppSettings | null
-  initialCategory: 'general' | 'apikeys'
+  initialCategory: SettingsCategory
+  vulnerabilityDashboard?: VulnerabilityDashboard
 }>()
 
 const emit = defineEmits<{
@@ -67,6 +72,7 @@ const emit = defineEmits<{
 }>()
 
 const category = ref(props.initialCategory)
+const dashboard = props.vulnerabilityDashboard ?? useVulnerabilityDashboard()
 const working = ref<AppSettings | null>(null)
 const saving = ref(false)
 const verifying = ref(false)
@@ -489,6 +495,7 @@ async function save() {
           :items="[
             { value: 'general', label: '通用' },
             { value: 'apikeys', label: '模型与凭据' },
+            { value: 'cve', label: 'CVE' },
           ]"
         />
 
@@ -667,7 +674,7 @@ async function save() {
           </div>
         </template>
 
-        <template v-else-if="working">
+        <template v-else-if="working && category === 'apikeys'">
           <SettingsSection title="模型编排">
             <SettingsRow
               label="默认方式"
@@ -922,6 +929,13 @@ async function save() {
               {{ verifying ? '正在验证 PI' : '保存并验证' }}
             </Button>
           </div>
+        </template>
+
+        <template v-else-if="category === 'cve'">
+          <VulnerabilityIntelSettingsPanel
+            :dashboard="dashboard"
+            @close="category = 'general'"
+          />
         </template>
       </div>
     </div>

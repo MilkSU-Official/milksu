@@ -12,7 +12,7 @@ import { runVulnerabilityAssetVerificationWebViewSmoke } from '@/lib/vulnerabili
 import { runVulnerabilityLearningWritebackWebViewSmoke } from '@/lib/vulnerabilityLearningWritebackWebViewSmoke'
 import { runVulnerabilityPracticeDirectoryWebViewSmoke } from '@/lib/vulnerabilityPracticeDirectoryWebViewSmoke'
 import type { CTFAgentWorkspaceHandoff } from '@/ctfTypes'
-import type { VulnerabilityCodingTask } from '@/composables/useVulnerabilityDashboard'
+import { useVulnerabilityDashboard, type VulnerabilityCodingTask } from '@/composables/useVulnerabilityDashboard'
 import { settingsReturnSection, type CTFWorkspaceSection } from '@/lib/workspaceNavigation'
 import { executeVulnerabilityCodingHandoff } from '@/lib/vulnerabilityCodingHandoff'
 import {
@@ -30,6 +30,7 @@ const VulnPage = defineAsyncComponent(() => import('@/components-vue/VulnPage.vu
 type Section = 'chat' | 'ctf' | 'vuln' | 'settings'
 
 const conversations = useConversations()
+const vulnerabilityDashboard = useVulnerabilityDashboard()
 const section = ref<Section>('ctf')
 const ctfSection = ref<CTFWorkspaceSection>('catalog')
 const ctfResumeJobId = ref<string | null>(null)
@@ -37,7 +38,7 @@ const lastCodingConversationId = ref<string | null>(null)
 const lastCTFConversationId = ref<string | null>(null)
 const activeVulnerabilityCodingConversationId = ref<string | null>(null)
 const settingsReturnTarget = ref<Exclude<Section, 'settings'>>('ctf')
-const settingsCategory = ref<'general' | 'apikeys'>('general')
+const settingsCategory = ref<'general' | 'apikeys' | 'cve'>('general')
 const settings = ref<AppSettings | null>(null)
 const recoveryStatus = ref<StartupRecoveryStatus | null>(null)
 const recoveryDismissed = ref(false)
@@ -91,7 +92,7 @@ async function loadSettings() {
   settings.value = withAppSettingsDefaults(value)
 }
 
-function openSettings(category: 'general' | 'apikeys' = 'general') {
+function openSettings(category: 'general' | 'apikeys' | 'cve' = 'general') {
   settingsReturnTarget.value = settingsReturnSection(section.value, settingsReturnTarget.value)
   settingsCategory.value = category
   section.value = 'settings'
@@ -350,6 +351,7 @@ onMounted(async () => {
         v-if="section === 'settings'"
         :initial-category="settingsCategory"
         :settings="settings"
+        :vulnerability-dashboard="vulnerabilityDashboard"
         @close="async () => { await loadSettings(); section = settingsReturnTarget }"
         @settings-change="value => { settings = value }"
       />
@@ -366,8 +368,9 @@ onMounted(async () => {
         />
         <VulnPage
           v-else-if="section === 'vuln'"
+          :dashboard="vulnerabilityDashboard"
           :coding-workspace-path="conversations.workspacePath.value"
-          @open-settings="openSettings('general')"
+          @open-settings="openSettings('cve')"
           @choose-coding-workspace="chooseAgentWorkspace"
           @start-coding-task="startVulnerabilityCodingTask"
         />
