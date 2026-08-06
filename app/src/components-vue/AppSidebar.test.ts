@@ -70,6 +70,14 @@ describe('AppSidebar', () => {
     expect(coding.querySelector('[aria-label="设置"]')).not.toBeNull()
   })
 
+  it('uses rail-local selection styling instead of inherited button hover borders', async () => {
+    const host = await mountSidebar('ctf')
+    const activeButton = host.querySelector<HTMLButtonElement>('[aria-label="CTF"]')
+    expect(activeButton?.className).toContain('workspace-rail-item')
+    expect(activeButton?.className).toContain('workspace-rail-active')
+    expect(activeButton?.getAttribute('data-ui-selected')).toBe('')
+  })
+
   it('keeps the theme switch in the global rail and emits a single toggle action', async () => {
     const onToggleTheme = vi.fn()
     const dark = await mountSidebar('ctf', [], 'dark', onToggleTheme)

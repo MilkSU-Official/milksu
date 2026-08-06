@@ -59,7 +59,7 @@
 - TypeScript/Vue/Go LSP 和 TypeScript Code Action；
 - Git Diff/Hunk、stage、commit、push、PR 预览与经确认发布；
 - CTF/CVE/Coding 顶栏视觉规格统一；全局设置固定在左下 rail；重复 Logo 已移除；头像能力画像入口已恢复；
-- 全局夜间/日间主题切换、左下 rail 纯图标入口和本机持久化；
+- 全局夜间/日间主题切换、左下 rail 纯图标入口和本机持久化；rail 选中/悬浮状态只用稳定填充与左侧品牌条，不随 hover 改边框颜色；
 - Computer Use 外部 App/窗口 Scope、Settings 权限检测、工具截图辅助视觉；
 - Artifact Preview 的 Markdown/HTML/PNG 打包 App 验收；
 - 后台任务打包 App/WebView 跨重启恢复；

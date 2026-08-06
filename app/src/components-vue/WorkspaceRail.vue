@@ -181,6 +181,12 @@ function openSettings() {
   letter-spacing: var(--text-caption--letter-spacing);
 }
 
+.workspace-rail-item,
+.workspace-rail-control {
+  --border-hairline: transparent;
+  --selected-border: transparent;
+}
+
 .workspace-rail-active {
   color: var(--brand);
 }
