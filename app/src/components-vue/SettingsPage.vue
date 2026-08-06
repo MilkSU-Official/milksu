@@ -487,7 +487,7 @@ async function save() {
     </header>
 
     <div class="min-h-0 flex-1 overflow-y-auto px-6 py-8">
-      <div class="mx-auto max-w-2xl">
+      <div :class="category === 'cve' ? 'mx-auto w-full max-w-6xl' : 'mx-auto max-w-2xl'">
         <SegmentedControl
           v-model="category"
           class="mb-7 w-fit"
