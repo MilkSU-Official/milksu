@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import ContextSidebar from '@/components-vue/ContextSidebar.vue'
 import WorkspaceRail from '@/components-vue/WorkspaceRail.vue'
+import type { ThemeMode } from '@/lib/themeMode'
 import type { CTFWorkspaceSection, WorkspaceSection } from '@/lib/workspaceNavigation'
 import type { Conversation } from '@/types'
 
@@ -10,12 +11,14 @@ const props = defineProps<{
   activeConversationId: string | null
   conversations: Conversation[]
   ctfSection: CTFWorkspaceSection
+  themeMode: ThemeMode
 }>()
 
 defineEmits<{
   new: []
   navigate: [value: WorkspaceSection]
   settings: []
+  toggleTheme: []
   selectConversation: [id: string]
   deleteConversation: [id: string]
   navigateCtf: [value: CTFWorkspaceSection]
@@ -32,8 +35,10 @@ const showContextSidebar = computed(() => railSection.value === 'chat')
   >
     <WorkspaceRail
       :active-section="railSection"
+      :theme-mode="themeMode"
       @navigate="$emit('navigate', $event)"
       @settings="$emit('settings')"
+      @toggle-theme="$emit('toggleTheme')"
     />
     <ContextSidebar
       v-if="showContextSidebar"

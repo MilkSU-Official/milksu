@@ -106,6 +106,100 @@
   --chat-user-bubble-fg: #e5ffaf;
 }
 
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --background: #f4f6f1;
+  --background-chrome: #eef3ea;
+  --foreground: #17201b;
+  --card: #ffffff;
+  --card-foreground: #17201b;
+  --popover: #ffffff;
+  --popover-foreground: #17201b;
+  --secondary: #e8eee2;
+  --secondary-foreground: #17201b;
+  --muted: #edf2e7;
+  --muted-foreground: #657569;
+  --accent: #e7f1dd;
+  --accent-foreground: #17201b;
+  --border: #d9e2d2;
+  --border-soft: color-mix(in oklab, var(--border) 70%, transparent);
+  --border-hairline: #c6d3bd;
+  --border-menu: #c6d3bd;
+  --border-menu-elevated: #b9c9ae;
+  --input: #c4d1ba;
+  --ring: #5f9800;
+  --sidebar: #eef3ea;
+  --sidebar-foreground: #17201b;
+  --sidebar-border: #d7e1d0;
+  --sidebar-accent: var(--overlay-hover);
+  --sidebar-accent-foreground: #17201b;
+  --scrollbar-thumb: rgb(101 117 105 / 0.28);
+  --scrollbar-thumb-hover: rgb(95 152 0 / 0.42);
+
+  --primary: var(--brand);
+  --primary-foreground: var(--brand-foreground);
+  --brand: #5f9800;
+  --brand-foreground: #ffffff;
+  --brand-soft: rgb(125 219 0 / 0.18);
+  --brand-border: rgb(95 152 0 / 0.36);
+  --brand-hover: #4f8000;
+  --sidebar-primary: var(--brand);
+  --sidebar-primary-foreground: var(--brand-foreground);
+  --sidebar-ring: var(--brand);
+  --btn-primary: #7ddb00;
+  --btn-primary-hover: #6fc700;
+  --btn-primary-active: #5f9800;
+
+  --overlay-hover-light: rgb(23 32 27 / 0.045);
+  --overlay-hover: rgb(23 32 27 / 0.075);
+  --overlay-hover-strong: rgb(23 32 27 / 0.115);
+  --overlay-active: rgb(95 152 0 / 0.145);
+  --overlay-active-strong: rgb(95 152 0 / 0.2);
+  --action-card-hover: rgb(23 32 27 / 0.045);
+  --action-card-active: rgb(95 152 0 / 0.1);
+  --segment-track: #e1e9da;
+  --segment-thumb: #f8faf5;
+
+  --success: #5f9800;
+  --success-foreground: #426b00;
+  --success-solid-foreground: #ffffff;
+  --success-soft: rgb(95 152 0 / 0.13);
+  --success-border: rgb(95 152 0 / 0.32);
+  --warning: #b87900;
+  --warning-foreground: #8b5a00;
+  --warning-solid-foreground: #ffffff;
+  --warning-soft: rgb(184 121 0 / 0.12);
+  --warning-border: rgb(184 121 0 / 0.3);
+  --info: #2f6fa7;
+  --info-foreground: #24547f;
+  --info-soft: rgb(47 111 167 / 0.12);
+  --info-border: rgb(47 111 167 / 0.28);
+  --destructive: #c2413a;
+  --destructive-foreground: #ffffff;
+  --destructive-soft: rgb(194 65 58 / 0.1);
+  --destructive-border: rgb(194 65 58 / 0.3);
+
+  --chart-1: var(--brand);
+  --chart-2: #2f6fa7;
+  --chart-3: #7b55c7;
+  --chart-4: #b87900;
+  --chart-5: #c2413a;
+
+  --tooltip: #17201b;
+  --tooltip-foreground: #ffffff;
+  --terminal-background: #f8faf5;
+  --terminal-foreground: #17201b;
+  --terminal-cursor: var(--brand);
+  --terminal-selection: rgb(125 219 0 / 0.24);
+
+  --surface-editor: var(--background);
+  --surface-chrome: var(--background-chrome);
+  --surface-composer: #ffffff;
+  --chat-user-bubble: #e1f3c7;
+  --chat-user-bubble-fg: #244000;
+}
+
 @theme inline {
   --color-surface-editor: var(--surface-editor);
   --color-surface-chrome: var(--surface-chrome);

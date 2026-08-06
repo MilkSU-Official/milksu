@@ -13,6 +13,13 @@ import { runVulnerabilityLearningWritebackWebViewSmoke } from '@/lib/vulnerabili
 import { runVulnerabilityPracticeDirectoryWebViewSmoke } from '@/lib/vulnerabilityPracticeDirectoryWebViewSmoke'
 import type { CTFAgentWorkspaceHandoff } from '@/ctfTypes'
 import { useVulnerabilityDashboard, type VulnerabilityCodingTask } from '@/composables/useVulnerabilityDashboard'
+import {
+  applyThemeMode,
+  nextThemeMode,
+  readThemeMode,
+  writeThemeMode,
+  type ThemeMode,
+} from '@/lib/themeMode'
 import { settingsReturnSection, type CTFWorkspaceSection } from '@/lib/workspaceNavigation'
 import { executeVulnerabilityCodingHandoff } from '@/lib/vulnerabilityCodingHandoff'
 import {
@@ -43,6 +50,9 @@ const settingsCategory = ref<'general' | 'apikeys' | 'cve'>('general')
 const settings = ref<AppSettings | null>(null)
 const recoveryStatus = ref<StartupRecoveryStatus | null>(null)
 const recoveryDismissed = ref(false)
+const themeMode = ref<ThemeMode>(readThemeMode())
+
+applyThemeMode(themeMode.value)
 
 const defaultTaskModel = computed(() => {
   if (!settings.value) return null
@@ -249,7 +259,14 @@ function changeModel(mode: 'auto' | 'manual', provider?: string, model?: string)
   conversations.setModelSelection(mode, provider, model)
 }
 
+function toggleThemeMode() {
+  themeMode.value = nextThemeMode(themeMode.value)
+  applyThemeMode(themeMode.value)
+  writeThemeMode(themeMode.value)
+}
+
 onMounted(async () => {
+  applyThemeMode(themeMode.value)
   await Promise.all([loadSettings(), conversations.load()])
   await conversations.listen()
   void runCodingArtifactPreviewWebViewSmoke()
@@ -329,9 +346,11 @@ onMounted(async () => {
         :active-conversation-id="conversations.activeId.value"
         :conversations="conversations.conversations.value"
         :ctf-section="ctfSection"
+        :theme-mode="themeMode"
         @new="newConversation"
         @navigate="navigateSection"
         @settings="openSettings('general')"
+        @toggle-theme="toggleThemeMode"
         @select-conversation="id => {
           conversations.activeId.value = id
           rememberActiveConversation()

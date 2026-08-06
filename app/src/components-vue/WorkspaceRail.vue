@@ -5,12 +5,15 @@ import {
   Bug,
   Code2,
   Flag,
+  Moon,
   Settings,
+  Sun,
   X,
 } from 'lucide-vue-next'
 import milksuAppIcon from '@/assets/milksu-app-icon.png'
 import AbilityRadar from '@/components-vue/AbilityRadar.vue'
 import { useNSSCTFTraining } from '@/composables/useNSSCTFTraining'
+import type { ThemeMode } from '@/lib/themeMode'
 import {
   WORKSPACE_RAIL_ITEMS,
   type WorkspaceSection,
@@ -18,11 +21,13 @@ import {
 
 const props = defineProps<{
   activeSection: WorkspaceSection | 'settings'
+  themeMode: ThemeMode
 }>()
 
 const emit = defineEmits<{
   navigate: [value: WorkspaceSection]
   settings: []
+  toggleTheme: []
 }>()
 
 const icons = {
@@ -38,6 +43,15 @@ const abilityLoading = training.loading
 const abilityError = training.error
 const abilityDimensions = computed(() => training.dashboard.value?.dimensions ?? [])
 const acceptance = computed(() => training.dashboard.value?.acceptance)
+const themeToggleLabel = computed(() => (
+  props.themeMode === 'dark' ? '切换到日间模式' : '切换到夜间模式'
+))
+const themeToggleText = computed(() => (
+  props.themeMode === 'dark' ? '日间' : '夜间'
+))
+const ThemeToggleIcon = computed(() => (
+  props.themeMode === 'dark' ? Sun : Moon
+))
 
 async function toggleAbilityProfile() {
   abilityOpen.value = !abilityOpen.value
@@ -137,7 +151,18 @@ function openSettings() {
 
     <div class="flex-1" />
 
-    <div class="app-no-drag border-t border-border p-2">
+    <div class="app-no-drag space-y-1.5 border-t border-border p-2">
+      <Button
+        variant="ghost"
+        class="workspace-rail-item relative h-auto min-h-12 w-full flex-col gap-0.5 px-1 py-1.5"
+        :aria-label="themeToggleLabel"
+        :title="themeToggleLabel"
+        @click="emit('toggleTheme')"
+      >
+        <component :is="ThemeToggleIcon" class="size-4" />
+        <span>{{ themeToggleText }}</span>
+      </Button>
+
       <Button
         :variant="activeSection === 'settings' ? 'secondary' : 'ghost'"
         class="workspace-rail-item relative h-auto min-h-12 w-full flex-col gap-0.5 px-1 py-1.5"

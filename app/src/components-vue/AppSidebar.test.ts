@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 
 import { createApp, nextTick, type App } from 'vue'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import AppSidebar from './AppSidebar.vue'
+import type { ThemeMode } from '@/lib/themeMode'
 import type { Conversation } from '@/types'
 
 const mountedApps: App[] = []
@@ -15,6 +16,8 @@ afterEach(() => {
 async function mountSidebar(
   activeSection: 'ctf' | 'vuln' | 'chat',
   conversations: Conversation[] = [],
+  themeMode: ThemeMode = 'dark',
+  onToggleTheme = vi.fn(),
 ) {
   const host = document.createElement('div')
   document.body.append(host)
@@ -23,6 +26,8 @@ async function mountSidebar(
     activeConversationId: conversations[0]?.id ?? null,
     conversations,
     ctfSection: 'catalog',
+    themeMode,
+    onToggleTheme,
   })
   app.mount(host)
   mountedApps.push(app)
@@ -63,5 +68,19 @@ describe('AppSidebar', () => {
     expect(coding.querySelector('[data-active-conversation-row]')?.textContent)
       .toContain('实现产品闭环')
     expect(coding.querySelector('[aria-label="设置"]')).not.toBeNull()
+  })
+
+  it('keeps the theme switch in the global rail and emits a single toggle action', async () => {
+    const onToggleTheme = vi.fn()
+    const dark = await mountSidebar('ctf', [], 'dark', onToggleTheme)
+    const dayButton = dark.querySelector<HTMLButtonElement>('[aria-label="切换到日间模式"]')
+    expect(dayButton?.textContent).toContain('日间')
+    dayButton?.click()
+    await nextTick()
+    expect(onToggleTheme).toHaveBeenCalledOnce()
+
+    const light = await mountSidebar('ctf', [], 'light')
+    const nightButton = light.querySelector<HTMLButtonElement>('[aria-label="切换到夜间模式"]')
+    expect(nightButton?.textContent).toContain('夜间')
   })
 })

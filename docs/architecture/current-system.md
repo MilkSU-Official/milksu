@@ -40,7 +40,7 @@ flowchart LR
 | 边界 | 状态 | 代码证据 |
 | --- | --- | --- |
 | Wails 本地桌面宿主 | **Implemented** | `main.go` 只绑定一个 `App`，静态资源来自 `app/dist`。 |
-| Vue 产品表面 | **Implemented / Partial** | `app/src/App.vue` 组合 CTF、Coding、CVE 工作区与设置；Coding 采用中央会话和右侧动态页面，CTF 默认解题模式与复盘模式分离，CVE 已有学习/追踪与练习入口。 |
+| Vue 产品表面 | **Implemented / Partial** | `app/src/App.vue` 组合 CTF、Coding、CVE 工作区与设置；左侧 rail 提供全局工作区、能力画像、设置和夜间/日间主题切换；Coding 采用中央会话和右侧动态页面，CTF 默认解题模式与复盘模式分离，CVE 已有学习/追踪与练习入口。 |
 | Pi 通用 Agent | **Verified core / Partial extensions** | `bridge.js` 使用 Pi SessionManager、工具事件和持久会话；Plan/Go、权限档位、Archify、LSP、后台任务、Session Index、PR 交付和 Compaction 已有真实或专项证据。模型选择已收敛为单默认模型；TokenFlux 作为一等中转站注册，fast/deep 按角色路由和 Kimi/KouriChat 产品入口已移除。真实外部 Provider 质量与长期主工作区自举仍未完成。 |
 | CTF Runtime | **Implemented** | `internal/ctf` 将 Challenge、Agent Turn、Candidate、Judge Receipt、Debrief 投影到共享 Runtime。 |
 | 浏览器平台 Judge | **Implemented** | `internal/browsercap` 只接受明确配对页，NSSCTF/CTFshow 回执进入 Go Host。 |
@@ -155,7 +155,7 @@ flowchart TB
 
 | 层 | 当前实现 | 判定 |
 | --- | --- | --- |
-| L1 Product Surface | Vue 3、`WorkspaceRail`、`ContextSidebar`、CTF/Coding/CVE 页面与设置 | **Partial**：主界面可用，CVE 学习/追踪 MVP 和多项原生 smoke 已存在；真实 Provider、更多系统权限路径和发行 UI 矩阵仍需按台账验收。 |
+| L1 Product Surface | Vue 3、`WorkspaceRail`、`ContextSidebar`、CTF/Coding/CVE 页面与设置 | **Partial**：主界面可用，左下全局 rail 已支持主题切换和本机持久化；CVE 学习/追踪 MVP 和多项原生 smoke 已存在；真实 Provider、更多系统权限路径和发行 UI 矩阵仍需按台账验收。 |
 | L2 Application / Role Services | 单一 `App` 组合 `ctf.Service`、`vuln.Service`、Catalog、Memory | **Implemented but concentrated**：接口可用，Facade 未拆。 |
 | L3 Agent / Platform Adapters | Pi Supervisor、Security Supervisor、NSSCTF、CTFshow、Browser Bridge、Playwright MCP、ImageGen、Computer Use、Session Index | **Implemented / Partial**：NSSCTF 主链、隔离 Coding Browser、Computer Use 外部 App slice、Session Index 和 PR 交付已有验收；其余真实 Provider、系统权限失败路径和跨平台 E2E 仍按台账跟踪。 |
 | L4 Domain Contracts | CTF Challenge、RoleFact、AgentCandidate、JudgeReceipt、LearningRecord | **Implemented**。 |

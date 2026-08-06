@@ -17,7 +17,7 @@
 6. 自动审批要减少无意义打断，但不能绕过付费、外部账户、Scope 扩大、路径边界、托管发布或不可逆操作。
 7. CTF、CVE、Coding 是同级主工作区；同一位置、同一语义的标题、按钮、下拉、Badge、搜索框和表格操作必须使用同一视觉规格。全局设置固定在左下 rail；各页页头不再放通用齿轮，缺凭据或模块配置类 CTA 应跳到全局设置对应分类。
 8. 发现非阻塞问题先稳定记录复现条件和影响，避免深度优先陷进去；只有数据/Credential/Scope/私有远端/Judge/验收失真类问题立即修。
-9. 左下角日间模式按钮与主题切换暂列 UI TODO；实现前必须先确定浅色主题配色、组件状态和关键页面原型，并与用户交互确认细节效果后再写代码。
+9. 左下角主题切换已有可试用版：夜间为灰绿色安全工作台，日间为浅灰绿“白天实验室”；按钮固定在全局 rail 设置上方，并持久化到本机。后续只在 UI 巡检中扩样和调色，不要把它当未接入功能重复开发。
 10. 每次 UI 巡检或视觉修复完成后，必须同步更新能防回归的测试与相关当前文档；不要只靠截图或口头确认记忆问题已经修过。
 11. 模型与凭据设置保持普通用户入口：一个默认模型、一个模型来源、一个凭据区。默认日常模型是 DeepSeek V4 Flash；TokenFlux/词元流动是一等中转站入口；当前不保留 fast/deep 按角色模型路由，也不接 Kimi/KouriChat 产品入口。旧 pre-release `model_routing` 记录不迁移，后续真有需求再重新设计按需路由。
 
@@ -30,6 +30,7 @@
 - CTF 主链已有题库、自定义题、工作区、Evidence、候选、Judge、Checkpoint、恢复、复盘和 Memory；真实 Judge 成功仍只有窄 Web 路径。
 - Runtime 已有 Sidecar 恢复、Compaction、异常退出标记、后台长任务打包 App/WebView 恢复、预算和失败分类。
 - 模型与凭据设置已收敛为一个默认模型、一个模型来源和一个凭据区；DeepSeek V4 Flash 是默认日常模型，TokenFlux 是一等中转站入口，fast/deep 按角色模型路由和 Kimi/KouriChat 产品入口已移除。
+- 全局主题已有夜间/日间两态：左下 rail 主题按钮切换并本地持久化；日间色板采用浅灰绿背景、白色卡片、橄榄绿重点色，保持 CTF/CVE/Coding/设置同一语义 token。
 - Labs 纵深闭环暂停；CVE 纵深研究、真实漏洞复现、外部资产实验和披露流程后置。
 - NYU safe-static 只能叫 Pi Runtime safe-static smoke，不能叫 MilkSU 完整 CTF 成绩。
 
@@ -44,7 +45,7 @@
 | P1 | Memory 可信度 | 区分 user / agent / shared / imported 与 none / hint / copilot / delegated；Agent 代做不能提升用户独立能力。 |
 | P1 | Runtime Reliability | 用自建安全 fixture 验证多轮、文件读取、命令、工具、重启、压缩、取消、预算、失败分类。 |
 | P2 | 本地交付与发行 | 崩溃恢复、诊断、全新机器、Developer ID 签名 `.app`、DMG、公证、stapling、升级、性能和尺寸矩阵进入 RC 阶段再做；其中稳定 Developer ID 签名会影响 macOS TCC / Computer Use 授权复检，应先于外部分发验收补齐。DMG 发布工作流参考同开发者 FiberGuard 的两阶段签名/公证流程：先生成 Developer ID 签名 `.app`，再生成签名 DMG，提交 notarization，最终 staple、`codesign` 与 `spctl` 校验；不得读取或迁移本机签名私钥、证书密码或 Personal Vault。 |
-| 持续约束 | 架构与 UI | 触碰即拆热点文件；不新开纯清债里程碑。UI 巡检后同步测试和当前文档；日间模式先做配色/原型并经用户确认。文档继续压缩为短入口 + Evidence 索引。 |
+| 持续约束 | 架构与 UI | 触碰即拆热点文件；不新开纯清债里程碑。UI 巡检后同步测试和当前文档；主题、标题、按钮、下拉、Badge、搜索框和表格操作继续走统一 token 与组件规格。文档继续压缩为短入口 + Evidence 索引。 |
 
 ## 不要重复打开的已闭环项
 
@@ -58,6 +59,7 @@
 - TypeScript/Vue/Go LSP 和 TypeScript Code Action；
 - Git Diff/Hunk、stage、commit、push、PR 预览与经确认发布；
 - CTF/CVE/Coding 顶栏视觉规格统一；全局设置固定在左下 rail；重复 Logo 已移除；头像能力画像入口已恢复；
+- 全局夜间/日间主题切换、左下 rail 入口和本机持久化；
 - Computer Use 外部 App/窗口 Scope、Settings 权限检测、工具截图辅助视觉；
 - Artifact Preview 的 Markdown/HTML/PNG 打包 App 验收；
 - 后台任务打包 App/WebView 跨重启恢复；
