@@ -59,6 +59,7 @@ describe('AppSidebar', () => {
     expect(coding.textContent).toContain('新建编码任务')
     expect(coding.textContent).toContain('milksu')
     expect(coding.textContent).toContain('实现产品闭环')
+    expect(coding.querySelector('aside > div:last-child > header')).toBeNull()
     expect(coding.querySelector('[data-active-conversation-row]')?.textContent)
       .toContain('实现产品闭环')
     expect(coding.querySelector('[aria-label="设置"]')).not.toBeNull()

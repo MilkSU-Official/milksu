@@ -18,7 +18,6 @@ import { groupCodingConversations } from '@/lib/codingConversationGroups'
 import {
   CTF_CONTEXT_ITEMS,
   showsCodingHistory,
-  workspaceContextLabel,
   type CTFWorkspaceSection,
   type WorkspaceSection,
 } from '@/lib/workspaceNavigation'
@@ -41,7 +40,6 @@ defineEmits<{
 const query = ref('')
 const conversationList = ref<HTMLElement | null>(null)
 const codingGroups = computed(() => groupCodingConversations(props.conversations, query.value))
-const contextLabel = computed(() => workspaceContextLabel(props.activeSection))
 const codingContext = computed(() => showsCodingHistory(props.activeSection))
 const ctfContext = computed(() => props.activeSection === 'ctf')
 const vulnContext = computed(() => props.activeSection === 'vuln')
@@ -63,11 +61,6 @@ watch(
 
 <template>
   <div class="app-drag flex min-w-0 flex-1 flex-col bg-sidebar text-sidebar-foreground">
-    <header class="flex h-[4.75rem] flex-col justify-center border-b border-border px-4">
-      <p class="text-label font-semibold tracking-[-0.02em]">MilkSU</p>
-      <p class="mt-0.5 text-caption text-muted-foreground">{{ contextLabel }}</p>
-    </header>
-
     <nav
       v-if="ctfContext"
       class="app-no-drag flex flex-1 flex-col gap-1 p-3"
