@@ -276,6 +276,11 @@ function sandboxString(value) {
   return JSON.stringify(value);
 }
 
+const networkSystemReadableRoots = [
+  "/private/etc/ssl",
+  "/etc/ssl",
+];
+
 export function sandboxProfile(
   workspace,
   allowNetwork,
@@ -289,6 +294,7 @@ export function sandboxProfile(
     dirname(process.execPath),
     ...extraReadableRoots,
     ...extraWritableRoots,
+    ...(allowNetwork ? networkSystemReadableRoots : []),
     "/System",
     "/usr",
     "/bin",

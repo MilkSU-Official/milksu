@@ -5,6 +5,7 @@ export interface CodingConversationGroup {
   key: string
   name: string
   path: string | null
+  paths: string[]
   temporary: boolean
   conversations: Conversation[]
   lastActiveAt: number
@@ -13,12 +14,21 @@ export interface CodingConversationGroup {
 const TEMPORARY_GROUP_KEY = 'temporary'
 
 function normalizeWorkspacePath(value?: string) {
-  const normalized = value?.trim().replace(/[\\/]+$/, '')
+  const normalized = value
+    ?.trim()
+    .replaceAll('\\', '/')
+    .replace(/^\/private\/(tmp|var)\//, '/$1/')
+    .replace(/[\\/]+$/, '')
   return normalized || null
 }
 
 function workspaceName(path: string) {
   return path.split(/[\\/]/).filter(Boolean).at(-1) ?? path
+}
+
+function workspaceGroupKey(path: string | null) {
+  if (!path) return TEMPORARY_GROUP_KEY
+  return `workspace-name:${workspaceName(path).toLocaleLowerCase()}`
 }
 
 function newestFirst(left: Conversation, right: Conversation) {
@@ -40,14 +50,20 @@ export function groupCodingConversations(
     if (conversation.ctfJobId) continue
 
     const path = normalizeWorkspacePath(conversation.workspacePath)
-    const key = path ? `workspace:${path}` : TEMPORARY_GROUP_KEY
+    const key = workspaceGroupKey(path)
     const group = groups.get(key) ?? {
       key,
       name: path ? workspaceName(path) : '临时沙盒',
       path,
+      paths: path ? [path] : [],
       temporary: !path,
       conversations: [],
       lastActiveAt: conversationActivityAt(conversation),
+    }
+    if (path && !group.paths.includes(path)) {
+      group.paths.push(path)
+      group.paths.sort((left, right) => left.localeCompare(right))
+      group.path = group.paths.length === 1 ? group.paths[0] : null
     }
     group.conversations.push(conversation)
     group.lastActiveAt = Math.max(group.lastActiveAt, conversationActivityAt(conversation))
@@ -59,7 +75,7 @@ export function groupCodingConversations(
       group.conversations.sort(newestFirst)
       if (!normalizedQuery) return group
 
-      const groupMatches = [group.name, group.path ?? '']
+      const groupMatches = [group.name, group.path ?? '', ...group.paths]
         .some(value => value.toLocaleLowerCase().includes(normalizedQuery))
       if (groupMatches) return group
 

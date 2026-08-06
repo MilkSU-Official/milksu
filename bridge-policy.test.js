@@ -9,6 +9,7 @@ import {
   loadSessionPolicy,
   normalizeCodingPolicy,
   parseCodingProductAction,
+  sandboxProfile,
   scopeAllowsNetwork,
 } from "./bridge-policy.js";
 
@@ -1159,6 +1160,17 @@ test("approved CTF origin never gives the general Shell ambient network", {
   } finally {
     await close(server);
   }
+});
+
+test("Coding network sandbox permits public system TLS configuration only when network is allowed", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "milksu-coding-tls-policy-"));
+  const networkProfile = sandboxProfile(workspace, true, [], false);
+  assert.match(networkProfile, /subpath "\/private\/etc\/ssl"/);
+  assert.match(networkProfile, /allow network\*/);
+
+  const offlineProfile = sandboxProfile(workspace, false, [], false);
+  assert.doesNotMatch(offlineProfile, /subpath "\/private\/etc\/ssl"/);
+  assert.doesNotMatch(offlineProfile, /allow network\*/);
 });
 
 test("CTF socket exchanges one bounded payload only with an exact granted target", async () => {

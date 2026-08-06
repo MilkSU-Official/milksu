@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/MilkSU-Official/milksu/internal/appdata"
@@ -33,5 +35,26 @@ func TestSingleInstanceUniqueIDRejectsUnsafeSuffix(t *testing.T) {
 				t.Fatalf("singleInstanceUniqueID() = %q, want default %q", got, appdata.BundleIdentifier)
 			}
 		})
+	}
+}
+
+func TestNormalizeAgentWorkspaceSelectionCanonicalizesDirectories(t *testing.T) {
+	target := t.TempDir()
+	parent := t.TempDir()
+	link := filepath.Join(parent, "milksu-link")
+	if err := os.Symlink(target, link); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+
+	resolved, err := normalizeAgentWorkspaceSelection(link + string(os.PathSeparator))
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected, err := filepath.EvalSymlinks(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resolved != filepath.Clean(expected) {
+		t.Fatalf("normalizeAgentWorkspaceSelection() = %q, want %q", resolved, expected)
 	}
 }

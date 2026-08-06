@@ -144,7 +144,7 @@ watch(
           >
             <summary
               class="coding-project-row flex cursor-pointer list-none items-center gap-2 rounded-md px-3 py-1.5 font-medium hover:bg-accent/50"
-              :title="group.path ?? '未绑定仓库的临时编码任务'"
+              :title="group.paths.length ? group.paths.join('\n') : '未绑定仓库的临时编码任务'"
             >
               <ChevronRight class="coding-project-chevron size-3.5 shrink-0 text-muted-foreground" />
               <Folder class="size-4 shrink-0 text-muted-foreground" />

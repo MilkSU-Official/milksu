@@ -51,6 +51,7 @@ const emit = defineEmits<{
 const draft = ref('')
 const pendingAttachments = ref<CodingAttachment[]>([])
 const attachmentError = ref('')
+const composing = ref(false)
 
 const ctfActionOptions = computed(() => {
   const mode = props.ctfMode ?? 'copilot'
@@ -147,6 +148,12 @@ function submit() {
   emit('consumeGoal')
 }
 
+function handleEnterKey(event: KeyboardEvent) {
+  if (event.isComposing || composing.value || event.keyCode === 229) return
+  event.preventDefault()
+  submit()
+}
+
 function appendDraftText(text: string) {
   const normalized = text.trim()
   if (!normalized || props.running) return
@@ -239,7 +246,9 @@ defineExpose({
             v-model="draft"
             class="chat-composer__input max-h-40 min-h-11 flex-1 resize-none border-0 bg-transparent py-[0.875rem] shadow-none focus-visible:ring-0"
             aria-label="消息"
-            @keydown.enter.exact.prevent="submit"
+            @compositionstart="composing = true"
+            @compositionend="composing = false"
+            @keydown.enter.exact="handleEnterKey"
           />
           <Button
             v-if="running"

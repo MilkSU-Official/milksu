@@ -99,6 +99,38 @@ describe('ChatComposer', () => {
     ])
   })
 
+  it('does not submit Enter while the user is confirming IME composition', async () => {
+    const result = mountComposer()
+    await nextTick()
+
+    const textarea = result.host.querySelector<HTMLTextAreaElement>('[aria-label="消息"]')
+    expect(textarea).not.toBeNull()
+    if (!textarea) return
+    textarea.value = 'milksu'
+    textarea.dispatchEvent(new Event('input', { bubbles: true }))
+    textarea.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }))
+    textarea.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Enter',
+      bubbles: true,
+      cancelable: true,
+      isComposing: true,
+    }))
+    await nextTick()
+
+    expect(result.sent).toEqual([])
+    expect(textarea.value).toBe('milksu')
+
+    textarea.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }))
+    textarea.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Enter',
+      bubbles: true,
+      cancelable: true,
+    }))
+    await nextTick()
+
+    expect(result.sent).toEqual([['milksu', 'milksu', []]])
+  })
+
   it('keeps CTF collaboration actions without leaking Coding controls', async () => {
     const { host } = mountComposer({
       ctfSession: true,

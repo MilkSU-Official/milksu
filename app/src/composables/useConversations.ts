@@ -69,6 +69,35 @@ function normalizeMCPServers(value: unknown): string[] | undefined {
   return servers.length ? servers : undefined
 }
 
+function workspaceName(workspacePath: string) {
+  return workspacePath.replace(/[\\/]+$/, '').split(/[\\/]/).filter(Boolean).at(-1) || 'workspace'
+}
+
+function shouldPreservePromptPrefix(prompt: string) {
+  const value = prompt.trimStart()
+  return value.startsWith('/') || value.startsWith('[MilkSU ')
+}
+
+export function promptWithCodingWorkspaceContext(
+  prompt: string,
+  conversation: Conversation | null | undefined,
+) {
+  const workspacePath = conversation?.workspacePath?.trim()
+  if (!workspacePath || conversation?.ctfJobId || shouldPreservePromptPrefix(prompt)) {
+    return prompt
+  }
+  return [
+    'MilkSU Coding runtime context:',
+    `- The user selected this project workspace: ${workspaceName(workspacePath)}`,
+    `- Absolute workspace path: ${workspacePath}`,
+    '- Treat this as the current project. Inspect project files before asking what the project is.',
+    '- Do not infer Provider credentials from the workspace and do not expose secrets.',
+    '',
+    'User request:',
+    prompt,
+  ].join('\n')
+}
+
 const goalStatuses = new Set<CodingGoalState['status']>([
   'active',
   'paused',
@@ -612,7 +641,7 @@ export function useConversations() {
       const conversation = conversations.value.find(item => item.id === conversationId)
       await invokeCommand('send_message', {
         conversationId,
-        prompt,
+        prompt: promptWithCodingWorkspaceContext(prompt, conversation),
         workspacePath: conversation?.workspacePath ?? '',
         modelMode: conversation?.modelMode ?? '',
         modelProvider: conversation?.modelProvider ?? '',

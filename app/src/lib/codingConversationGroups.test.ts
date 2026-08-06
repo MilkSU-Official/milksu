@@ -62,7 +62,37 @@ describe('Coding conversation groups', () => {
       key: 'temporary',
       name: '临时沙盒',
       path: null,
+      paths: [],
     })
+  })
+
+  it('collapses historical path variants with the same project name into one visible project', () => {
+    const groups = groupCodingConversations([
+      conversation('main', '当前任务', 30, {
+        workspacePath: '/Users/milksu/code/milksu',
+      }),
+      conversation('symlinked', '历史任务', 20, {
+        workspacePath: '/Volumes/dev/milksu/',
+      }),
+      conversation('tmp', '本机临时任务', 10, {
+        workspacePath: '/private/tmp/milksu',
+      }),
+    ])
+
+    expect(groups).toHaveLength(1)
+    expect(groups[0].name).toBe('milksu')
+    expect(groups[0].path).toBeNull()
+    expect(groups[0].paths).toHaveLength(3)
+    expect(groups[0].paths).toEqual(expect.arrayContaining([
+      '/Users/milksu/code/milksu',
+      '/Volumes/dev/milksu',
+      '/tmp/milksu',
+    ]))
+    expect(groups[0].conversations.map(item => item.id)).toEqual([
+      'main',
+      'symlinked',
+      'tmp',
+    ])
   })
 
   it('orders tasks and projects by last message activity instead of creation time only', () => {

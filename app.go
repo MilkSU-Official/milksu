@@ -595,9 +595,32 @@ func (a *App) ChooseAgentWorkspace() (string, error) {
 	if a.ctx == nil {
 		return "", fmt.Errorf("desktop runtime is not ready")
 	}
-	return wailsruntime.OpenDirectoryDialog(a.ctx, wailsruntime.OpenDialogOptions{
+	selected, err := wailsruntime.OpenDirectoryDialog(a.ctx, wailsruntime.OpenDialogOptions{
 		Title: "选择 Coding Agent 项目目录",
 	})
+	if err != nil || strings.TrimSpace(selected) == "" {
+		return selected, err
+	}
+	return normalizeAgentWorkspaceSelection(selected)
+}
+
+func normalizeAgentWorkspaceSelection(value string) (string, error) {
+	absolute, err := filepath.Abs(strings.TrimSpace(value))
+	if err != nil {
+		return "", fmt.Errorf("resolve Coding Agent project directory: %w", err)
+	}
+	resolved, err := filepath.EvalSymlinks(absolute)
+	if err != nil {
+		return "", fmt.Errorf("resolve Coding Agent project links: %w", err)
+	}
+	info, err := os.Stat(resolved)
+	if err != nil {
+		return "", fmt.Errorf("open Coding Agent project directory: %w", err)
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("Coding Agent project must be a directory: %s", resolved)
+	}
+	return filepath.Clean(resolved), nil
 }
 
 func (a *App) ChooseCTFMaterials() ([]ctf.MaterialRequest, error) {
