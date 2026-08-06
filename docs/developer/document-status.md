@@ -39,7 +39,7 @@
   TokenFlux 是一等中转站入口，旧 fast/deep 按角色路由与 Kimi/KouriChat 产品入口不再作为
   当前系统能力维护。
 - UI 基线已包含全局 rail 主题切换：夜间灰绿色安全工作台与日间浅灰绿实验室共享同一语义
-  token，状态持久化到本机；后续视觉调整仍需同步测试与当前文档。
+  token，左下主题和设置入口使用纯图标控制，状态持久化到本机；后续视觉调整仍需同步测试与当前文档。
 - NYU one-shot 与两回合只读 Runtime 只是 safe-static 开发者 smoke，不是完整 MilkSU CTF
   成绩。
 - 本地备份、恢复、脱敏诊断和单机交付基线已存在；Developer ID、公证、升级和新机器安装

@@ -46,9 +46,6 @@ const acceptance = computed(() => training.dashboard.value?.acceptance)
 const themeToggleLabel = computed(() => (
   props.themeMode === 'dark' ? '切换到日间模式' : '切换到夜间模式'
 ))
-const themeToggleText = computed(() => (
-  props.themeMode === 'dark' ? '日间' : '夜间'
-))
 const ThemeToggleIcon = computed(() => (
   props.themeMode === 'dark' ? Sun : Moon
 ))
@@ -154,18 +151,17 @@ function openSettings() {
     <div class="app-no-drag space-y-1.5 border-t border-border p-2">
       <Button
         variant="ghost"
-        class="workspace-rail-item relative h-auto min-h-12 w-full flex-col gap-0.5 px-1 py-1.5"
+        class="workspace-rail-control relative h-12 w-full"
         :aria-label="themeToggleLabel"
         :title="themeToggleLabel"
         @click="emit('toggleTheme')"
       >
         <component :is="ThemeToggleIcon" class="size-4" />
-        <span>{{ themeToggleText }}</span>
       </Button>
 
       <Button
         :variant="activeSection === 'settings' ? 'secondary' : 'ghost'"
-        class="workspace-rail-item relative h-auto min-h-12 w-full flex-col gap-0.5 px-1 py-1.5"
+        class="workspace-rail-control relative h-12 w-full"
         :class="activeSection === 'settings' ? 'workspace-rail-active' : ''"
         aria-label="设置"
         title="设置"
@@ -173,7 +169,6 @@ function openSettings() {
         @click="openSettings"
       >
         <Settings class="size-4" />
-        <span>设置</span>
       </Button>
     </div>
   </div>
@@ -188,6 +183,15 @@ function openSettings() {
 
 .workspace-rail-active {
   color: var(--brand);
+}
+
+.workspace-rail-control {
+  color: var(--muted-foreground);
+}
+
+.workspace-rail-control:hover,
+.workspace-rail-control:focus-visible {
+  color: var(--foreground);
 }
 
 .workspace-rail-active::after {
