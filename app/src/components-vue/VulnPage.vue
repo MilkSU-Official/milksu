@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import {
   Badge,
   Button,
@@ -33,7 +33,6 @@ import {
 import WorkspaceDetailTitle from '@/components-vue/WorkspaceDetailTitle.vue'
 import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
 import SessionHistoryPanel from '@/components-vue/SessionHistoryPanel.vue'
-import VulnerabilityIntelSettingsPanel from '@/components-vue/VulnerabilityIntelSettingsPanel.vue'
 import VulnerabilityLoopPanel from '@/components-vue/VulnerabilityLoopPanel.vue'
 import { useVulnerabilityDashboard, type VulnerabilityDashboard } from '@/composables/useVulnerabilityDashboard'
 import { invokeCommand } from '@/desktop'
@@ -48,10 +47,10 @@ defineOptions({ name: 'VulnPage' })
 const props = defineProps<{
   dashboard?: VulnerabilityDashboard
   codingWorkspacePath?: string
+  navigationEpoch?: number
 }>()
 
 const emit = defineEmits<{
-  openSettings: []
   chooseCodingWorkspace: []
   startCodingTask: [task: VulnerabilityCodingTask, recordHandoff: (workspacePath: string) => void]
 }>()
@@ -84,7 +83,6 @@ const researchSteps = [
 
 const showCustomForm = ref(false)
 const customFormError = ref('')
-const showIntelSettings = ref(false)
 const cveView = ref<'list' | 'research'>('list')
 const showAssetForm = ref(false)
 const assetFormError = ref('')
@@ -118,19 +116,19 @@ const assetForm = ref({
 
 function openCveResearch(id: string) {
   dashboard.selectedId.value = id
-  showIntelSettings.value = false
   cveView.value = 'research'
 }
 
 function returnToCveList() {
   cveView.value = 'list'
-  showIntelSettings.value = false
 }
 
-function openCveSettings() {
-  showIntelSettings.value = true
-  emit('openSettings')
-}
+watch(
+  () => props.navigationEpoch,
+  () => {
+    cveView.value = 'list'
+  },
+)
 
 function addCustomTrackingItem() {
   customFormError.value = ''
@@ -307,7 +305,6 @@ async function scrollToWorkspace(target: HTMLElement | null) {
 async function ensureResearchView() {
   if (cveView.value !== 'research') {
     cveView.value = 'research'
-    showIntelSettings.value = false
     await nextTick()
   }
 }
@@ -424,17 +421,17 @@ function statusVariant(status: VulnerabilityStatus) {
       module="cve"
       :subtitle="cveView === 'list' ? '追踪 CVE、资产命中与研究进度' : '单个 CVE 研究台 · 情报、练习、资产与学习证据'"
     >
-      <template #actions>
+      <template v-if="cveView === 'research'" #leading>
         <Button
-          v-if="cveView === 'research'"
           variant="ghost"
-          size="sm"
+          size="icon-sm"
           aria-label="返回 CVE 列表"
           @click="returnToCveList"
         >
           <ArrowLeft class="size-4" />
-          返回列表
         </Button>
+      </template>
+      <template #actions>
         <Button
           v-if="cveView === 'list'"
           :variant="showCustomForm ? 'outline' : 'default'"
@@ -452,15 +449,6 @@ function statusVariant(status: VulnerabilityStatus) {
         >
           <Bookmark class="size-4" />
           我的关注
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          aria-label="配置 CVE 情报源"
-          @click="openCveSettings"
-        >
-          <Server class="size-4" />
-          情报源
         </Button>
       </template>
 
@@ -483,7 +471,7 @@ function statusVariant(status: VulnerabilityStatus) {
       </template>
 
       <template v-if="cveView === 'list'" #metrics>
-      <div v-if="!showIntelSettings" class="grid gap-3 text-body sm:grid-cols-2 xl:grid-cols-4">
+      <div class="grid gap-3 text-body sm:grid-cols-2 xl:grid-cols-4">
         <div class="rounded-xl border border-border bg-card px-4 py-3">
           <p class="text-caption text-muted-foreground">追踪条目</p>
           <p class="mt-1 font-mono text-xl font-semibold">{{ dashboard.trackedCount.value }}</p>
@@ -527,15 +515,8 @@ function statusVariant(status: VulnerabilityStatus) {
       </template>
     </WorkspaceModuleTopBar>
 
-    <VulnerabilityIntelSettingsPanel
-      v-if="showIntelSettings"
-      class="min-h-0 flex-1 overflow-y-auto"
-      :dashboard="dashboard"
-      @close="showIntelSettings = false"
-    />
-
     <section
-      v-else-if="cveView === 'list'"
+      v-if="cveView === 'list'"
       class="min-h-0 flex-1 overflow-auto"
       aria-label="CVE 追踪列表"
     >

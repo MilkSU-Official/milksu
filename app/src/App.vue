@@ -34,6 +34,7 @@ const vulnerabilityDashboard = useVulnerabilityDashboard()
 const section = ref<Section>('ctf')
 const ctfSection = ref<CTFWorkspaceSection>('catalog')
 const ctfResumeJobId = ref<string | null>(null)
+const vulnNavigationEpoch = ref(0)
 const lastCodingConversationId = ref<string | null>(null)
 const lastCTFConversationId = ref<string | null>(null)
 const activeVulnerabilityCodingConversationId = ref<string | null>(null)
@@ -156,6 +157,9 @@ function navigateSection(value: Section) {
     restoreCodingConversation()
     section.value = value
     return
+  }
+  if (value === 'vuln') {
+    vulnNavigationEpoch.value += 1
   }
   section.value = value
 }
@@ -370,7 +374,7 @@ onMounted(async () => {
           v-else-if="section === 'vuln'"
           :dashboard="vulnerabilityDashboard"
           :coding-workspace-path="conversations.workspacePath.value"
-          @open-settings="openSettings('cve')"
+          :navigation-epoch="vulnNavigationEpoch"
           @choose-coding-workspace="chooseAgentWorkspace"
           @start-coding-task="startVulnerabilityCodingTask"
         />

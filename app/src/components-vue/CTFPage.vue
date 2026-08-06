@@ -601,7 +601,7 @@ const dailyMission = computed(() => {
       eyebrow: '继续上次训练',
       title: resumableJob.value.title,
       meta: `${resumableJob.value.category} · ${jobSummaryLabel(resumableJob.value)}`,
-      action: '继续解题',
+      action: '历史恢复',
     }
   }
   const recommendation = training.dashboard.value?.recommendations[0]
@@ -1730,56 +1730,6 @@ onBeforeUnmount(() => {
       :subtitle="ctfSection === 'catalog' ? '题库、解题入口与训练状态' : '靶场进度追踪'"
     >
       <template #actions>
-        <Button
-          v-if="ctfSection === 'catalog' && activeProjection"
-          variant="outline"
-          size="sm"
-          @click="screen = 'workspace'"
-        >
-          <Target class="size-4" />
-          继续解题
-        </Button>
-        <Select v-if="ctfSection === 'catalog'" v-model="activeBank">
-        <SelectTrigger
-          size="sm"
-          class="app-no-drag min-w-48 shrink-0"
-          aria-label="选择训练平台"
-        >
-          <Library class="size-4 text-muted-foreground" />
-          <SelectValue placeholder="选择训练平台">{{ activeSourceName }}</SelectValue>
-        </SelectTrigger>
-        <SelectContent size="sm" class="min-w-64">
-          <SelectGroup>
-            <SelectLabel>训练平台</SelectLabel>
-            <SelectItem
-              v-for="platform in visibleTrainingPlatforms"
-              :key="platform.id"
-              :value="platform.id"
-            >
-              <span class="flex min-w-44 items-center justify-between gap-4">
-                <span>{{ platform.name }}</span>
-                <span class="text-caption text-muted-foreground">
-                  {{ platform.status === 'ready'
-                    ? '可用'
-                    : platform.status === 'planned'
-                      ? '接入中'
-                      : '受限' }}
-                </span>
-              </span>
-            </SelectItem>
-          </SelectGroup>
-          <SelectSeparator />
-          <SelectGroup>
-            <SelectLabel>本地</SelectLabel>
-            <SelectItem value="custom">
-              <span class="flex min-w-44 items-center justify-between gap-4">
-                <span>自定义题目</span>
-                <span class="text-caption text-muted-foreground">本地工作区</span>
-              </span>
-            </SelectItem>
-          </SelectGroup>
-        </SelectContent>
-        </Select>
         <details
         v-if="ctfSection === 'catalog' && backend.jobs.value.length"
         ref="historyMenu"
@@ -1804,7 +1754,7 @@ onBeforeUnmount(() => {
           data-state="open"
           data-side="bottom"
           :class="[menuContentClass, menuViewportClass]"
-          class="absolute left-0 top-[calc(100%+4px)] max-h-[min(480px,calc(100vh-7rem))] w-[min(420px,calc(100vw-2rem))] overflow-y-auto"
+          class="absolute right-0 top-[calc(100%+4px)] max-h-[min(480px,calc(100vh-7rem))] w-[min(420px,calc(100vw-2rem))] overflow-y-auto"
           role="menu"
           aria-label="训练历史"
         >
@@ -1846,8 +1796,76 @@ onBeforeUnmount(() => {
           </button>
         </div>
         </details>
+      </template>
+      <template v-if="ctfSection === 'catalog' && activeQuestionBank" #filters>
+      <div class="flex w-full flex-wrap items-center gap-3">
+        <Select v-model="activeBank">
+        <SelectTrigger
+          size="sm"
+          class="app-no-drag min-w-44 shrink-0"
+          aria-label="选择训练平台"
+        >
+          <Library class="size-4 text-muted-foreground" />
+          <SelectValue placeholder="选择训练平台">{{ activeSourceName }}</SelectValue>
+        </SelectTrigger>
+        <SelectContent size="sm" class="min-w-64">
+          <SelectGroup>
+            <SelectLabel>训练平台</SelectLabel>
+            <SelectItem
+              v-for="platform in visibleTrainingPlatforms"
+              :key="platform.id"
+              :value="platform.id"
+            >
+              <span class="flex min-w-44 items-center justify-between gap-4">
+                <span>{{ platform.name }}</span>
+                <span class="text-caption text-muted-foreground">
+                  {{ platform.status === 'ready'
+                    ? '可用'
+                    : platform.status === 'planned'
+                      ? '接入中'
+                      : '受限' }}
+                </span>
+              </span>
+            </SelectItem>
+          </SelectGroup>
+          <SelectSeparator />
+          <SelectGroup>
+            <SelectLabel>本地</SelectLabel>
+            <SelectItem value="custom">
+              <span class="flex min-w-44 items-center justify-between gap-4">
+                <span>自定义题目</span>
+                <span class="text-caption text-muted-foreground">本地工作区</span>
+              </span>
+            </SelectItem>
+          </SelectGroup>
+        </SelectContent>
+        </Select>
+        <label class="app-no-drag relative min-w-52 flex-1">
+        <FileSearch class="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          v-model="deskQuery"
+          size="sm"
+          class="pl-9"
+          placeholder="搜索题号或题名"
+          aria-label="搜索题库"
+        />
+        </label>
+        <NativeSelect
+        v-model="deskCategory"
+        size="sm"
+        class="app-no-drag w-36"
+        aria-label="按题型筛选"
+      >
+        <NativeSelectOption value="all">全部分类</NativeSelectOption>
+        <NativeSelectOption
+          v-for="category in deskCategories"
+          :key="category"
+          :value="category"
+        >
+          {{ category }}
+        </NativeSelectOption>
+        </NativeSelect>
         <details
-        v-if="ctfSection === 'catalog' && activeQuestionBank"
         ref="bridgeMenu"
         class="app-no-drag relative shrink-0"
         @keydown.esc.stop.prevent="closeBridgeMenu"
@@ -1871,7 +1889,7 @@ onBeforeUnmount(() => {
           data-state="open"
           data-side="bottom"
           :class="[menuContentClass, menuViewportClass]"
-          class="absolute left-0 top-[calc(100%+4px)] w-[min(360px,calc(100vw-2rem))] p-3"
+          class="absolute right-0 top-[calc(100%+4px)] w-[min(360px,calc(100vw-2rem))] p-3"
           aria-label="浏览器连接"
         >
           <p class="text-control font-medium">连接 MilkSU 浏览器扩展</p>
@@ -1918,35 +1936,6 @@ onBeforeUnmount(() => {
           </p>
         </div>
         </details>
-        <span class="flex-1" />
-      </template>
-      <template v-if="ctfSection === 'catalog' && activeQuestionBank" #filters>
-      <div class="flex w-full items-center gap-3">
-        <label class="app-no-drag relative min-w-52 flex-1">
-        <FileSearch class="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          v-model="deskQuery"
-          size="sm"
-          class="pl-9"
-          placeholder="搜索题号或题名"
-          aria-label="搜索题库"
-        />
-        </label>
-        <NativeSelect
-        v-model="deskCategory"
-        size="sm"
-        class="app-no-drag w-36"
-        aria-label="按题型筛选"
-      >
-        <NativeSelectOption value="all">全部分类</NativeSelectOption>
-        <NativeSelectOption
-          v-for="category in deskCategories"
-          :key="category"
-          :value="category"
-        >
-          {{ category }}
-        </NativeSelectOption>
-        </NativeSelect>
         <Button
         variant="ghost"
         size="icon-sm"
@@ -2272,6 +2261,7 @@ onBeforeUnmount(() => {
                 </h2>
                 <div class="mt-4 flex flex-wrap items-center gap-3">
                   <Button
+                    v-if="dailyMission.kind !== 'resume'"
                     variant="brand"
                     size="lg"
                     :loading="working || training.syncing.value"
@@ -2281,6 +2271,13 @@ onBeforeUnmount(() => {
                     {{ dailyMission.action }}
                     <ArrowRight class="size-4" />
                   </Button>
+                  <span
+                    v-else
+                    class="inline-flex items-center gap-2 rounded-full border border-border bg-muted/40 px-3 py-1.5 text-caption text-muted-foreground"
+                  >
+                    <Clock3 class="size-4" />
+                    从右上角历史恢复
+                  </span>
                   <span class="text-caption text-muted-foreground">{{ dailyMission.meta }}</span>
                 </div>
               </div>

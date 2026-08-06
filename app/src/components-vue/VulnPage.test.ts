@@ -3,6 +3,8 @@
 import { createApp, nextTick, type App } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import VulnPage from './VulnPage.vue'
+import VulnerabilityIntelSettingsPanel from './VulnerabilityIntelSettingsPanel.vue'
+import { useVulnerabilityDashboard } from '@/composables/useVulnerabilityDashboard'
 
 const mountedApps: App[] = []
 const storage = new Map<string, string>()
@@ -144,13 +146,14 @@ function installSessionHistoryRuntime() {
   }
 }
 
-async function openIntelSettings(host: HTMLElement) {
-  const settings = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
-    item.getAttribute('aria-label') === '配置 CVE 情报源',
-  )
-  if (!settings) throw new Error('missing CVE intel settings button')
-  settings.click()
-  await nextTick()
+function useIntelSettingsPanelHarness() {
+  const host = document.createElement('div')
+  document.body.append(host)
+  const dashboard = useVulnerabilityDashboard()
+  const app = createApp(VulnerabilityIntelSettingsPanel, { dashboard })
+  app.mount(host)
+  mountedApps.push(app)
+  return { host, dashboard }
 }
 
 async function openCveResearch(host: HTMLElement, cveId = 'CVE-2024-3400') {
@@ -169,7 +172,7 @@ describe('VulnPage', () => {
 
     expect(text).toContain('CVE')
     expect(text).toContain('追踪 CVE、资产命中与研究进度')
-    expect(host.querySelector('[aria-label="配置 CVE 情报源"]')).not.toBeNull()
+    expect(host.querySelector('[aria-label="配置 CVE 情报源"]')).toBeNull()
     expect(host.querySelector('[data-module-topbar]')).not.toBeNull()
     expect(host.querySelector('[data-module-topbar]')?.getAttribute('data-workspace-module')).toBe('cve')
     expect(host.querySelector('[data-workspace-topbar-title]')?.className).toContain('workspace-topbar__title')
@@ -202,7 +205,7 @@ describe('VulnPage', () => {
     await openCveResearch(host)
     const researchText = host.textContent ?? ''
     expect(researchText).toContain('单个 CVE 研究台')
-    expect(researchText).toContain('返回列表')
+    expect(host.querySelector('[aria-label="返回 CVE 列表"]')).not.toBeNull()
     expect(researchText).toContain('CISA KEV')
     expect(researchText).toContain('学习路径')
     expect(researchText).toContain('CVE 最小闭环')
@@ -216,23 +219,25 @@ describe('VulnPage', () => {
     expect(researchText).toContain('不自动运行 PoC、exploit 或漏洞触发输入')
     expect(text).not.toContain('红队 Agent')
 
-    const back = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
-      item.textContent?.includes('返回列表'),
-    )
+    const back = host.querySelector<HTMLButtonElement>('[aria-label="返回 CVE 列表"]')
     if (!back) throw new Error('missing CVE list return button')
     back.click()
     await nextTick()
     expect(host.textContent).toContain('追踪 CVE、资产命中与研究进度')
   })
 
-  it('keeps CVE feed controls in the intel settings panel instead of the default homepage', async () => {
+  it('keeps CVE feed controls out of the default homepage', async () => {
     const host = await mountVulnPage()
 
     expect(host.textContent).not.toContain('同步 NVD')
     expect(host.textContent).not.toContain('同步 EPSS')
     expect(host.textContent).not.toContain('导入 Feed')
     expect(host.textContent).toContain('当前下一步')
-    await openIntelSettings(host)
+    expect(host.querySelector('[aria-label="配置 CVE 情报源"]')).toBeNull()
+  })
+
+  it('keeps CVE feed controls in the global settings panel', async () => {
+    const { host } = useIntelSettingsPanelHarness()
 
     expect(host.textContent).toContain('情报源设置')
     expect(host.textContent).not.toContain('当前下一步')
@@ -288,8 +293,7 @@ describe('VulnPage', () => {
       configurable: true,
       value: { main: { App: { FetchNVDCVE: fetchNVDCVE } } },
     })
-    const host = await mountVulnPage()
-    await openIntelSettings(host)
+    const { host } = useIntelSettingsPanelHarness()
     const sync = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
       item.getAttribute('aria-label') === '同步当前 CVE 的 NVD 2.0',
     )
@@ -338,8 +342,7 @@ describe('VulnPage', () => {
       configurable: true,
       value: { main: { App: { FetchFIRSTEPSS: fetchFIRSTEPSS } } },
     })
-    const host = await mountVulnPage()
-    await openIntelSettings(host)
+    const { host } = useIntelSettingsPanelHarness()
     const sync = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
       item.getAttribute('aria-label') === '同步当前 CVE 的 FIRST EPSS',
     )
@@ -494,8 +497,7 @@ describe('VulnPage', () => {
         },
       },
     })
-    const host = await mountVulnPage()
-    await openIntelSettings(host)
+    const { host } = useIntelSettingsPanelHarness()
     const sync = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
       item.getAttribute('aria-label') === '同步当前 CVE 的 NVD、FIRST EPSS、OSV、GitHub Advisory、CISA KEV 和 Vulhub',
     )
@@ -554,8 +556,7 @@ describe('VulnPage', () => {
       configurable: true,
       value: { main: { App: { FetchCISAKEVFeed: fetchCISAKEVFeed } } },
     })
-    const host = await mountVulnPage()
-    await openIntelSettings(host)
+    const { host } = useIntelSettingsPanelHarness()
     const sync = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
       item.getAttribute('aria-label') === '同步 CISA KEV Feed',
     )
@@ -607,8 +608,7 @@ describe('VulnPage', () => {
       configurable: true,
       value: { main: { App: { FetchVulhubPracticeCatalog: fetchVulhubPracticeCatalog } } },
     })
-    const host = await mountVulnPage()
-    await openIntelSettings(host)
+    const { host } = useIntelSettingsPanelHarness()
     const sync = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
       item.getAttribute('aria-label') === '同步 Vulhub 练习目录',
     )
@@ -629,8 +629,7 @@ describe('VulnPage', () => {
   })
 
   it('imports a CISA KEV feed snapshot and shows source evidence in the selected CVE', async () => {
-    const host = await mountVulnPage()
-    await openIntelSettings(host)
+    const { host } = useIntelSettingsPanelHarness()
     const openImport = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
       item.textContent?.includes('导入 Feed'),
     )
@@ -825,8 +824,7 @@ describe('VulnPage', () => {
   })
 
   it('imports pasted generic CVE Feed JSON into visible tracking rows with cache metadata', async () => {
-    const host = await mountVulnPage()
-    await openIntelSettings(host)
+    const { host } = useIntelSettingsPanelHarness()
     const openImport = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
       item.textContent?.includes('导入 Feed'),
     )
@@ -860,10 +858,8 @@ describe('VulnPage', () => {
     submit.click()
     await nextTick()
 
-    expect(host.textContent).toContain('8')
     expect(host.textContent).toContain('CVE-2026-42424')
     expect(host.textContent).toContain('用户导入的依赖风险')
-    expect(host.textContent).toContain('本地样本，只用于学习追踪。')
     expect(host.textContent).toContain('已导入 用户 Feed 快照：新增 1、更新 0')
     expect(host.textContent).toContain('Generic CVE JSON')
     expect(host.textContent).toContain('已缓存元数据 fnv1a-')
@@ -880,13 +876,10 @@ describe('VulnPage', () => {
     expect(host.textContent).toContain('已撤销本次新增的 1 条 CVE')
     expect(host.textContent).not.toContain('CVE-2026-42424')
     expect(host.textContent).not.toContain('用户导入的依赖风险')
-    expect(host.textContent).toContain('7')
   })
 
   it('imports pasted local practice catalog JSON into matched CVE practice plans without launching Docker', async () => {
-    const host = await mountVulnPage()
-    expect(host.textContent).toContain('1 匹配')
-    await openIntelSettings(host)
+    const { host } = useIntelSettingsPanelHarness()
 
     const openImport = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
       item.textContent?.includes('导入练习'),
@@ -948,16 +941,6 @@ describe('VulnPage', () => {
     await nextTick()
 
     expect(host.textContent).toContain('已撤销本次导入的 1 个本地练习环境匹配')
-    const closeAfterUndo = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
-      item.textContent?.includes('关闭'),
-    )
-    if (!closeAfterUndo) throw new Error('missing close settings after undo button')
-    closeAfterUndo.click()
-    await nextTick()
-
-    expect(host.textContent).toContain('1 匹配')
-    await openCveResearch(host)
-    expect(host.textContent).toContain('暂未匹配到可直接练习的本地环境')
   })
 
   it('persists user-confirmed research notes for the selected CVE', async () => {

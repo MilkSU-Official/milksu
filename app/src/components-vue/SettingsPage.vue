@@ -932,10 +932,7 @@ async function save() {
         </template>
 
         <template v-else-if="category === 'cve'">
-          <VulnerabilityIntelSettingsPanel
-            :dashboard="dashboard"
-            @close="category = 'general'"
-          />
+          <VulnerabilityIntelSettingsPanel :dashboard="dashboard" />
         </template>
       </div>
     </div>

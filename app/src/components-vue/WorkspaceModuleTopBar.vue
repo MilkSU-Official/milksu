@@ -21,6 +21,9 @@ const title = computed(() => ({
     :subtitle="subtitle"
     data-workspace-module-topbar
   >
+    <template v-if="$slots.leading" #leading>
+      <slot name="leading" />
+    </template>
     <template v-if="$slots.badge" #badge>
       <slot name="badge" />
     </template>

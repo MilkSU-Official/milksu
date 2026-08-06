@@ -19,7 +19,11 @@ const moduleKey = computed(() => props.module ?? props.title.trim().toLowerCase(
     :data-workspace-module="moduleKey"
   >
     <div class="flex min-w-0 items-center justify-between gap-4">
-      <div class="min-w-0">
+      <div class="flex min-w-0 items-start gap-2">
+        <div v-if="$slots.leading" class="workspace-topbar__leading app-no-drag shrink-0">
+          <slot name="leading" />
+        </div>
+        <div class="min-w-0">
         <div class="flex min-w-0 items-center gap-2 overflow-hidden">
           <WorkspaceTopBarTitle :title="title" />
           <slot name="badge" />
@@ -31,6 +35,7 @@ const moduleKey = computed(() => props.module ?? props.title.trim().toLowerCase(
         >
           {{ subtitle }}
         </p>
+        </div>
       </div>
       <div
         v-if="$slots.actions"

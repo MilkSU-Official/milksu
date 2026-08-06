@@ -19,16 +19,17 @@ defineEmits<{
 
 <template>
   <WorkspaceModuleTopBar module="ctf" subtitle="解题会话 · 返回题库不会结束当前会话">
+    <template #leading>
+      <Button variant="ghost" size="icon-sm" aria-label="返回 CTF 题库" @click="$emit('returnCatalog')">
+        <ArrowLeft class="size-4" />
+      </Button>
+    </template>
     <template #badge>
       <Badge v-if="challengeTitle" variant="secondary" class="max-w-[18rem] truncate">
         {{ challengeTitle }}
       </Badge>
     </template>
     <template #actions>
-      <Button variant="ghost" size="sm" aria-label="返回 CTF 题库" @click="$emit('returnCatalog')">
-        <ArrowLeft class="size-4" />
-        返回题库
-      </Button>
       <Button
         v-if="hasReviewActivity"
         variant="outline"
