@@ -138,10 +138,6 @@ vi.mock('@/desktop', () => ({
           key: '',
           has_key: false,
         },
-        model_routing: {
-          default_mode: 'manual',
-          fast: { provider: 'openai', model: 'gpt-test' },
-        },
         model_verification: null,
         nssctf_arena: {
           token: '',

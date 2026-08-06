@@ -905,7 +905,7 @@ func TestSendMessageIncludesComputerUseDescriptorOnlyForInteractiveCoding(t *tes
 		TargetPID:      os.Getpid() + 200,
 		TargetWindowID: 9001,
 	}
-	settings := routedSettings()
+	settings := modelSelectionSettings()
 
 	if err := supervisor.SendMessage(
 		"coding-computer", "observe TextEdit", workspace, "", "go", "workspace-auto", nil, "",
@@ -1293,7 +1293,7 @@ func TestEngineEnvironmentIncludesTokenFluxProvider(t *testing.T) {
 func TestSidecarEnvironmentIncludesConfiguredVisionRoute(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
 	settings := config.DefaultSettings()
-	settings.ModelRouting.Vision = &config.ModelSelection{
+	settings.VisionModel = &config.ModelSelection{
 		Provider: "openai",
 		Model:    "gpt-4o",
 	}

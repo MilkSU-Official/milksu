@@ -104,8 +104,6 @@ import { reviewedCodingSkillPaths } from "./bridge-skills.js";
 const relayKey = process.env.MILKSU_RELAY_KEY;
 const relayUrl = process.env.MILKSU_RELAY_URL || "https://api.ciyuanliudong.com/v1";
 const relayEnabled = process.env.MILKSU_RELAY_ENABLED === "1" && Boolean(relayKey);
-const kouriKey = process.env.KOURICHAT_API_KEY;
-const kouriUrl = process.env.KOURICHAT_BASE_URL || "https://api.kourichat.com/v1";
 const tokenfluxKey = process.env.TOKENFLUX_API_KEY;
 const tokenfluxUrl = process.env.TOKENFLUX_BASE_URL || "https://tokenflux.ai/v1";
 const providerBaseUrls = {
@@ -884,28 +882,7 @@ function registerTokenFluxProvider(session, model) {
 }
 
 function configureRuntimeModel(session, provider, model) {
-  if (provider === "kourichat") {
-    session.modelRuntime.registerProvider("kourichat", {
-      name: "KouriChat",
-      baseUrl: kouriUrl,
-      apiKey: kouriKey,
-      api: "openai-completions",
-      models: [{
-        id: model,
-        name: model === "kimi-k3" ? "Kimi K3" : model,
-        reasoning: false,
-        input: ["text"],
-        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-        contextWindow: 128000,
-        maxTokens: 32768,
-        compat: {
-          supportsDeveloperRole: false,
-          supportsReasoningEffort: false,
-          maxTokensField: "max_tokens",
-        },
-      }],
-    });
-  } else if (provider === "tokenflux") {
+  if (provider === "tokenflux") {
     registerTokenFluxProvider(session, model);
   } else if (providerBaseUrls[provider]) {
     session.modelRuntime.registerProvider(provider, {
@@ -916,10 +893,6 @@ function configureRuntimeModel(session, provider, model) {
 }
 
 function configureProviderEndpoint(session, provider) {
-  if (provider === "kourichat") {
-    configureRuntimeModel(session, provider, "kimi-k3");
-    return;
-  }
   if (provider === "tokenflux") {
     registerTokenFluxProvider(session);
     return;

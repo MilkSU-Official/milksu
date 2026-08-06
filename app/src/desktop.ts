@@ -1,5 +1,4 @@
 import {
-  DEFAULT_MODEL_ROUTING,
   withAppSettingsDefaults,
   type AppSettings,
   type CodingAttachment,
@@ -427,7 +426,6 @@ const VULHUB_REPO_WEB_URL = 'https://github.com/vulhub/vulhub'
 const DEFAULT_SETTINGS: AppSettings = {
   active_provider: 'deepseek',
   active_model: 'deepseek-v4-flash',
-  model_routing: DEFAULT_MODEL_ROUTING,
   providers: {},
 }
 

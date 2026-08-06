@@ -1538,7 +1538,6 @@ func providerAPIKeyEnvironment(provider string) (string, bool) {
 		"anthropic": "ANTHROPIC_API_KEY",
 		"openai":    "OPENAI_API_KEY",
 		"deepseek":  "DEEPSEEK_API_KEY",
-		"kourichat": "KOURICHAT_API_KEY",
 		"tokenflux": "TOKENFLUX_API_KEY",
 		"google":    "GEMINI_API_KEY",
 		"mistral":   "MISTRAL_API_KEY",

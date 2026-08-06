@@ -56,7 +56,7 @@ func sidecarEnvironment(settings config.AppSettings) ([]string, error) {
 		"MILKSU_VISION_CACHE="+filepath.Join(runtimeHome, "vision-cache.json"),
 		"MILKSU_USER_HOME="+userHome,
 	)
-	if vision := settings.ModelRouting.Vision; vision != nil {
+	if vision := settings.VisionModel; vision != nil {
 		environment = append(
 			environment,
 			"MILKSU_VISION_PROVIDER="+strings.TrimSpace(vision.Provider),

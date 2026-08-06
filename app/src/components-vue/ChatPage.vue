@@ -230,22 +230,13 @@ const ctfCheckpoint = ref<CTFAgentRunCheckpoint | null>(null)
 const ctfProjection = ref<CTFProjection | null>(null)
 const automaticModel = computed(() => {
   if (!props.settings) return null
-  const preferred = props.ctfRole === 'strategist'
-    ? props.settings.model_routing.deep
-    : props.settings.model_routing.fast
-  const fast = props.settings.model_routing.fast
-  const active = {
+  return {
     provider: props.settings.active_provider,
     model: props.settings.active_model,
   }
-  return [preferred, fast, active].find(selection => {
-    if (props.settings?.relay?.enabled && props.settings.relay.has_key) return true
-    const configured = props.settings?.providers[selection.provider]
-    return Boolean(configured?.enabled && configured.has_api_key)
-  }) ?? preferred
 })
 const effectiveModelMode = computed(() => (
-  props.modelMode ?? props.settings?.model_routing.default_mode ?? 'auto'
+  props.modelMode ?? 'auto'
 ))
 const currentModelKey = computed(() => {
   if (!props.settings) return ''
@@ -256,9 +247,8 @@ const currentModelKey = computed(() => {
 })
 const automaticModelLabel = computed(() => {
   const selection = automaticModel.value
-  if (!selection) return '自动编排'
-  const task = props.ctfRole === 'strategist' ? '深度策略' : '快速执行'
-  return `自动 · ${providerModelLabel(selection.provider, selection.model)} · ${task}`
+  if (!selection) return '自动'
+  return `自动 · ${providerModelLabel(selection.provider, selection.model)}`
 })
 const activeExtensions = computed(() => (
   props.conversation?.agentExtensions ?? []

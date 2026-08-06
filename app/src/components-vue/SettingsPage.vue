@@ -45,7 +45,6 @@ import type {
   LocalDataStatus,
   LocalDiagnosticExport,
   ModelProbeResult,
-  ModelSelection,
   PreviousExitState,
   StartupRecoveryStatus,
 } from '@/types'
@@ -144,13 +143,9 @@ const provider = computed(() => (
 const providerInfo = computed(() => (
   PROVIDERS.find(item => item.id === working.value?.active_provider)
 ))
-const modelOptions = PROVIDERS.flatMap(item => item.models.map(model => ({
-  key: `${item.id}:${model}`,
-  provider: item.id,
-  model,
-  kind: item.kind,
-  label: providerModelLabel(item.id, model),
-})))
+const activeProviderModels = computed(() => (
+  providerInfo.value?.models ?? []
+))
 const visionModelOptions = PROVIDERS.flatMap(item => item.visionModels.map(model => ({
   key: `${item.id}:${model}`,
   provider: item.id,
@@ -165,34 +160,24 @@ const visionProviderGroups = PROVIDER_GROUPS
   }))
   .filter(group => group.options.length)
 
-function routeKey(selection: ModelSelection) {
+function routeKey(selection: { provider: string; model: string }) {
   return `${selection.provider}:${selection.model}`
 }
 
-function setRoute(kind: 'fast' | 'deep', value: string) {
-  if (!working.value) return
-  const [routeProvider, routeModel] = value.split(':')
-  if (!routeProvider || !routeModel) return
-  working.value.model_routing[kind] = {
-    provider: routeProvider,
-    model: routeModel,
-  }
-}
-
 function visionRouteKey() {
-  const vision = working.value?.model_routing.vision
+  const vision = working.value?.vision_model
   return vision ? routeKey(vision) : 'local-ocr'
 }
 
 function setVisionRoute(value: string) {
   if (!working.value) return
   if (value === 'local-ocr') {
-    working.value.model_routing.vision = undefined
+    working.value.vision_model = undefined
     return
   }
   const [routeProvider, routeModel] = value.split(':')
   if (!routeProvider || !routeModel) return
-  working.value.model_routing.vision = {
+  working.value.vision_model = {
     provider: routeProvider,
     model: routeModel,
   }
@@ -675,143 +660,9 @@ async function save() {
         </template>
 
         <template v-else-if="working && category === 'apikeys'">
-          <SettingsSection title="模型编排">
+          <SettingsSection title="模型与凭据">
             <SettingsRow
-              label="默认方式"
-              description="自动模式会按任务选模型；每个对话仍可在顶部手动覆盖"
-            >
-              <SegmentedControl
-                v-model="working.model_routing.default_mode"
-                :items="[
-                  { value: 'auto', label: '自动' },
-                  { value: 'manual', label: '固定' },
-                ]"
-              />
-            </SettingsRow>
-            <SettingsRow
-              v-if="working.model_routing.default_mode === 'auto'"
-              label="快速执行"
-              description="普通 Coding、CTF 解题和工具迭代"
-            >
-              <Select
-                :model-value="routeKey(working.model_routing.fast)"
-                @update:model-value="value => setRoute('fast', String(value ?? ''))"
-              >
-                <SelectTrigger
-                  size="sm"
-                  class="min-w-64"
-                  aria-label="快速执行模型"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent size="sm" align="end" :align-offset="0" class="min-w-80">
-                  <template
-                    v-for="(group, groupIndex) in PROVIDER_GROUPS"
-                    :key="`fast:${group.kind}`"
-                  >
-                    <SelectSeparator v-if="groupIndex > 0" />
-                    <SelectGroup>
-                      <SelectLabel>{{ group.label }}</SelectLabel>
-                      <SelectItem
-                        v-for="option in modelOptions.filter(item => item.kind === group.kind)"
-                        :key="`fast:${option.key}`"
-                        :value="option.key"
-                      >
-                        {{ option.label }}
-                      </SelectItem>
-                    </SelectGroup>
-                  </template>
-                </SelectContent>
-              </Select>
-            </SettingsRow>
-            <SettingsRow
-              v-if="working.model_routing.default_mode === 'auto'"
-              label="深度策略"
-              description="策略 Agent、卡关复盘与复杂路线评审"
-            >
-              <Select
-                :model-value="routeKey(working.model_routing.deep)"
-                @update:model-value="value => setRoute('deep', String(value ?? ''))"
-              >
-                <SelectTrigger
-                  size="sm"
-                  class="min-w-64"
-                  aria-label="深度策略模型"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent size="sm" align="end" :align-offset="0" class="min-w-80">
-                  <template
-                    v-for="(group, groupIndex) in PROVIDER_GROUPS"
-                    :key="`deep:${group.kind}`"
-                  >
-                    <SelectSeparator v-if="groupIndex > 0" />
-                    <SelectGroup>
-                      <SelectLabel>{{ group.label }}</SelectLabel>
-                      <SelectItem
-                        v-for="option in modelOptions.filter(item => item.kind === group.kind)"
-                        :key="`deep:${option.key}`"
-                        :value="option.key"
-                      >
-                        {{ option.label }}
-                      </SelectItem>
-                    </SelectGroup>
-                  </template>
-                </SelectContent>
-              </Select>
-            </SettingsRow>
-            <SettingsRow
-              v-else
-              label="固定模型"
-              description="所有 Coding 与 CTF Agent 默认使用当前凭据区选中的模型"
-            >
-              <span class="text-caption text-muted-foreground">
-                {{ providerModelLabel(working.active_provider, working.active_model) }}
-              </span>
-            </SettingsRow>
-            <SettingsRow
-              label="图片理解"
-              description="DeepSeek 等纯文本模型会先在本机 OCR；选定视觉模型后，图表、布局和界面图片会自动交给它补充理解"
-            >
-              <Select
-                :model-value="visionRouteKey()"
-                @update:model-value="value => setVisionRoute(String(value ?? 'local-ocr'))"
-              >
-                <SelectTrigger
-                  size="sm"
-                  class="min-w-64"
-                  aria-label="图片理解模型"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent size="sm" align="end" :align-offset="0" class="min-w-80">
-                  <SelectItem value="local-ocr">
-                    仅本地 OCR · 图片不发送给其他模型
-                  </SelectItem>
-                  <template
-                    v-for="group in visionProviderGroups"
-                    :key="`vision:${group.kind}`"
-                  >
-                    <SelectSeparator />
-                    <SelectGroup>
-                      <SelectLabel>{{ group.label }}视觉模型</SelectLabel>
-                      <SelectItem
-                        v-for="option in group.options"
-                        :key="`vision:${option.key}`"
-                        :value="option.key"
-                      >
-                        {{ option.label }}
-                      </SelectItem>
-                    </SelectGroup>
-                  </template>
-                </SelectContent>
-              </Select>
-            </SettingsRow>
-          </SettingsSection>
-
-          <SettingsSection title="模型凭据" class="mt-6">
-            <SettingsRow
-              label="提供商"
+              label="模型来源"
               :description="providerInfo
                 ? `${providerInfo.kind === 'relay' ? '中转站' : '原厂'} · ${providerInfo.summary}`
                 : '选择要配置和验证的模型服务'"
@@ -823,7 +674,7 @@ async function save() {
                 <SelectTrigger
                   size="sm"
                   class="min-w-40"
-                  aria-label="提供商"
+                  aria-label="模型来源"
                 >
                   <SelectValue />
                 </SelectTrigger>
@@ -847,15 +698,18 @@ async function save() {
                 </SelectContent>
               </Select>
             </SettingsRow>
-            <SettingsRow label="模型">
+            <SettingsRow
+              label="默认模型"
+              description="Coding、CTF、CVE Agent 默认共用这一个模型；默认建议 DeepSeek V4 Flash，Grok 等中转模型可从 TokenFlux 选择"
+            >
               <NativeSelect
                 v-model="working.active_model"
                 size="sm"
                 class="min-w-56"
-                aria-label="模型"
+                aria-label="默认模型"
               >
                 <NativeSelectOption
-                  v-for="model in PROVIDERS.find(item => item.id === working?.active_provider)?.models ?? []"
+                  v-for="model in activeProviderModels"
                   :key="model"
                   :value="model"
                 >
@@ -898,6 +752,47 @@ async function save() {
             </SettingsRow>
           </SettingsSection>
 
+          <SettingsSection title="图片理解" class="mt-6">
+            <SettingsRow
+              label="视觉模型"
+              description="默认只走本地 OCR；需要理解图表、布局和界面图片时再选择一个视觉模型"
+            >
+              <Select
+                :model-value="visionRouteKey()"
+                @update:model-value="value => setVisionRoute(String(value ?? 'local-ocr'))"
+              >
+                <SelectTrigger
+                  size="sm"
+                  class="min-w-64"
+                  aria-label="图片理解模型"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent size="sm" align="end" :align-offset="0" class="min-w-80">
+                  <SelectItem value="local-ocr">
+                    仅本地 OCR · 图片不发送给其他模型
+                  </SelectItem>
+                  <template
+                    v-for="group in visionProviderGroups"
+                    :key="`vision:${group.kind}`"
+                  >
+                    <SelectSeparator />
+                    <SelectGroup>
+                      <SelectLabel>{{ group.label }}视觉模型</SelectLabel>
+                      <SelectItem
+                        v-for="option in group.options"
+                        :key="`vision:${option.key}`"
+                        :value="option.key"
+                      >
+                        {{ option.label }}
+                      </SelectItem>
+                    </SelectGroup>
+                  </template>
+                </SelectContent>
+              </Select>
+            </SettingsRow>
+          </SettingsSection>
+
           <SettingsSection title="NSSCTF Agent Arena" class="mt-6">
             <SettingsRow
               stack="always"
@@ -923,7 +818,7 @@ async function save() {
           <div class="mt-6 flex items-center justify-between gap-4">
             <p class="flex items-center gap-2 text-caption text-muted-foreground">
               <KeyRound class="size-3.5" />
-              凭据写入本机 SQLite；保存后立即重启 Agent 会话引擎
+              凭据写入本机 SQLite；保存后立即重启 Agent 会话引擎，所有 Agent 默认共用同一个模型
             </p>
             <Button :loading="saving || verifying" @click="save">
               {{ verifying ? '正在验证 PI' : '保存并验证' }}

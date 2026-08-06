@@ -364,4 +364,55 @@ describe('SettingsPage database compatibility', () => {
     expect(text).toContain('[REDACTED]')
     expect(text).not.toContain('synthetic-secret-value')
   })
+
+  it('keeps model settings on one daily model route and includes TokenFlux without Kimi in the normal UI', async () => {
+    let savedSettings: unknown = null
+    const settings = withAppSettingsDefaults({
+      active_provider: 'tokenflux',
+      active_model: 'x-ai/grok-4.3',
+      providers: {},
+    } as AppSettings)
+    await mountSettingsPage({
+      directory: 'MilkSU 用户数据目录',
+      fileCount: 0,
+      bytes: 0,
+    }, {
+      initialCategory: 'apikeys',
+      settings,
+      appMethods: {
+        SaveSettingsCmd: async (value: unknown) => {
+          savedSettings = value as AppSettings
+        },
+        GetSettings: async () => savedSettings ?? settings,
+        TestAgentModel: async () => ({
+          provider: 'tokenflux',
+          model: 'x-ai/grok-4.3',
+          ready: true,
+          latencyMs: 42,
+        }),
+      },
+    })
+
+    const text = document.body.textContent ?? ''
+    expect(text).toContain('模型与凭据')
+    expect(text).toContain('默认模型')
+    expect(text).toContain('词元流动')
+    expect(text).toContain('x-ai/grok-4.3')
+    expect(text).not.toContain('快速执行')
+    expect(text).not.toContain('深度策略')
+    expect(text).not.toContain('KouriChat')
+    expect(text).not.toContain('kimi-k3')
+
+    const saveButton = [...document.querySelectorAll('button')]
+      .find(button => button.textContent?.includes('保存并验证'))
+    expect(saveButton).toBeDefined()
+    saveButton?.click()
+    for (let index = 0; index < 6; index += 1) await settle()
+
+    expect(savedSettings).not.toBeNull()
+    const persisted = savedSettings as AppSettings
+    expect(persisted.active_provider).toBe('tokenflux')
+    expect(persisted.active_model).toBe('x-ai/grok-4.3')
+    expect('model_routing' in persisted).toBe(false)
+  })
 })

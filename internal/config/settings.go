@@ -56,18 +56,11 @@ type ModelSelection struct {
 	Model    string `json:"model"`
 }
 
-type ModelRoutingConfig struct {
-	DefaultMode string          `json:"default_mode"`
-	Fast        ModelSelection  `json:"fast"`
-	Deep        ModelSelection  `json:"deep"`
-	Vision      *ModelSelection `json:"vision,omitempty"`
-}
-
 type AppSettings struct {
 	ActiveProvider string                    `json:"active_provider"`
 	ActiveModel    string                    `json:"active_model"`
+	VisionModel    *ModelSelection           `json:"vision_model,omitempty"`
 	ModelVerified  *ModelVerification        `json:"model_verification,omitempty"`
-	ModelRouting   ModelRoutingConfig        `json:"model_routing"`
 	Relay          *RelayConfig              `json:"relay,omitempty"`
 	NSSCTFArena    *NSSCTFArenaConfig        `json:"nssctf_arena,omitempty"`
 	Locale         *string                   `json:"locale,omitempty"`
@@ -78,18 +71,7 @@ func DefaultSettings() AppSettings {
 	return AppSettings{
 		ActiveProvider: "deepseek",
 		ActiveModel:    "deepseek-v4-flash",
-		ModelRouting: ModelRoutingConfig{
-			DefaultMode: "auto",
-			Fast: ModelSelection{
-				Provider: "deepseek",
-				Model:    "deepseek-v4-flash",
-			},
-			Deep: ModelSelection{
-				Provider: "kourichat",
-				Model:    "kimi-k3",
-			},
-		},
-		Providers: make(map[string]ProviderConfig),
+		Providers:      make(map[string]ProviderConfig),
 	}
 }
 
@@ -483,22 +465,13 @@ func withDefaults(value AppSettings) AppSettings {
 	if value.ActiveModel == "" {
 		value.ActiveModel = defaults.ActiveModel
 	}
-	if value.ModelRouting.DefaultMode != "manual" {
-		value.ModelRouting.DefaultMode = defaults.ModelRouting.DefaultMode
-	}
-	if value.ModelRouting.Fast.Provider == "" || value.ModelRouting.Fast.Model == "" {
-		value.ModelRouting.Fast = defaults.ModelRouting.Fast
-	}
-	if value.ModelRouting.Deep.Provider == "" || value.ModelRouting.Deep.Model == "" {
-		value.ModelRouting.Deep = defaults.ModelRouting.Deep
-	}
-	if value.ModelRouting.Vision != nil {
-		provider := strings.TrimSpace(value.ModelRouting.Vision.Provider)
-		model := strings.TrimSpace(value.ModelRouting.Vision.Model)
+	if value.VisionModel != nil {
+		provider := strings.TrimSpace(value.VisionModel.Provider)
+		model := strings.TrimSpace(value.VisionModel.Model)
 		if provider == "" || model == "" {
-			value.ModelRouting.Vision = nil
+			value.VisionModel = nil
 		} else {
-			value.ModelRouting.Vision = &ModelSelection{
+			value.VisionModel = &ModelSelection{
 				Provider: provider,
 				Model:    model,
 			}
@@ -529,9 +502,9 @@ func clone(value AppSettings) AppSettings {
 		copy.Locale = &locale
 	}
 	copy.ModelVerified = cloneModelVerification(value.ModelVerified)
-	if value.ModelRouting.Vision != nil {
-		vision := *value.ModelRouting.Vision
-		copy.ModelRouting.Vision = &vision
+	if value.VisionModel != nil {
+		vision := *value.VisionModel
+		copy.VisionModel = &vision
 	}
 	return copy
 }

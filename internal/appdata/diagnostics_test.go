@@ -61,7 +61,6 @@ func TestExportDiagnosticsReportsHealthWithoutCopyingSecrets(t *testing.T) {
 			Settings: DiagnosticSettings{
 				ActiveProvider:     "deepseek",
 				ActiveModel:        "deepseek-v4-flash",
-				DefaultMode:        "auto",
 				ModelVerified:      true,
 				ConfiguredProvider: []string{"deepseek", "deepseek"},
 				ArenaTokenPresent:  true,

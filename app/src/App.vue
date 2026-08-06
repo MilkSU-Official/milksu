@@ -46,16 +46,6 @@ const recoveryDismissed = ref(false)
 
 const defaultTaskModel = computed(() => {
   if (!settings.value) return null
-  if (settings.value.model_routing.default_mode === 'manual') {
-    return {
-      provider: settings.value.active_provider,
-      model: settings.value.active_model,
-    }
-  }
-  const preferred = settings.value.model_routing.fast
-  const configured = settings.value.providers[preferred.provider]
-  if (settings.value.relay?.enabled && settings.value.relay.has_key) return preferred
-  if (configured?.enabled && configured.has_api_key) return preferred
   return {
     provider: settings.value.active_provider,
     model: settings.value.active_model,

@@ -127,17 +127,10 @@ export interface ModelSelection {
   model: string
 }
 
-export interface ModelRoutingConfig {
-  default_mode: 'auto' | 'manual'
-  fast: ModelSelection
-  deep: ModelSelection
-  vision?: ModelSelection
-}
-
 export interface AppSettings {
   active_provider: string
   active_model: string
-  model_routing: ModelRoutingConfig
+  vision_model?: ModelSelection
   model_verification?: ModelVerification
   relay?: RelayConfig
   nssctf_arena?: NSSCTFArenaConfig
@@ -145,36 +138,27 @@ export interface AppSettings {
   providers: Record<string, ProviderConfig>
 }
 
-export const DEFAULT_MODEL_ROUTING: ModelRoutingConfig = {
-  default_mode: 'auto',
-  fast: { provider: 'deepseek', model: 'deepseek-v4-flash' },
-  deep: { provider: 'kourichat', model: 'kimi-k3' },
+export const PRIMARY_MODEL_SELECTION: ModelSelection = {
+  provider: 'deepseek',
+  model: 'deepseek-v4-flash',
 }
 
 export function withAppSettingsDefaults(value: AppSettings): AppSettings {
   const legacy = value as AppSettings & {
-    model_routing?: Partial<ModelRoutingConfig>
     providers?: Record<string, ProviderConfig>
   }
-  const routing = legacy.model_routing
-  const fast = routing?.fast
-  const deep = routing?.deep
+  const activeProvider = selectableProvider(value.active_provider)
+    ? value.active_provider
+    : PRIMARY_MODEL_SELECTION.provider
+  const activeInfo = providerByID(activeProvider)
+  const activeModel = activeInfo?.models.includes(value.active_model)
+    ? value.active_model
+    : activeInfo?.models[0] ?? PRIMARY_MODEL_SELECTION.model
   return {
     ...value,
-    active_provider: value.active_provider || 'deepseek',
-    active_model: value.active_model || 'deepseek-v4-flash',
-    model_routing: {
-      default_mode: routing?.default_mode === 'manual' ? 'manual' : 'auto',
-      fast: fast?.provider && fast.model
-        ? fast
-        : { ...DEFAULT_MODEL_ROUTING.fast },
-      deep: deep?.provider && deep.model
-        ? deep
-        : { ...DEFAULT_MODEL_ROUTING.deep },
-      vision: routing?.vision?.provider && routing.vision.model
-        ? routing.vision
-        : undefined,
-    },
+    active_provider: activeProvider,
+    active_model: activeModel,
+    vision_model: selectableVisionSelection(value.vision_model) ?? undefined,
     providers: legacy.providers ?? {},
   }
 }
@@ -297,18 +281,7 @@ export const PROVIDERS: ProviderInfo[] = [
     envKey: 'DEEPSEEK_API_KEY',
     placeholder: 'sk-...',
     defaultBaseUrl: 'https://api.deepseek.com',
-    summary: '快速执行、代码迭代与连续工具调用',
-  },
-  {
-    id: 'kourichat',
-    name: 'KouriChat',
-    kind: 'relay',
-    models: ['kimi-k3'],
-    visionModels: [],
-    envKey: 'KOURICHAT_API_KEY',
-    placeholder: 'sk-...',
-    defaultBaseUrl: 'https://api.kourichat.com/v1',
-    summary: 'Kimi K3 · 深度策略、卡关复盘与复杂推理',
+    summary: '默认日常模型，适合代码迭代、CTF/CVE 辅助和连续工具调用',
   },
   {
     id: 'tokenflux',
@@ -390,10 +363,28 @@ export const PROVIDER_GROUPS = [
   },
 ]
 
+function providerByID(id: string) {
+  return PROVIDERS.find(provider => provider.id === id)
+}
+
+function selectableProvider(id: string) {
+  const provider = providerByID(id)
+  return Boolean(provider)
+}
+
+function selectableVisionSelection(selection?: Partial<ModelSelection>) {
+  if (!selection?.provider || !selection.model) return null
+  const provider = providerByID(selection.provider)
+  if (!provider || !provider.visionModels.includes(selection.model)) return null
+  return {
+    provider: selection.provider,
+    model: selection.model,
+  }
+}
+
 export function providerModelLabel(provider: string, model: string) {
   const info = PROVIDERS.find(item => item.id === provider)
   const displayModel = ({
-    'kimi-k3': 'Kimi K3',
     'deepseek-v4-flash': 'DeepSeek V4 Flash',
     'x-ai/grok-4.3': 'Grok 4.3',
     'x-ai/grok-4.5': 'Grok 4.5',

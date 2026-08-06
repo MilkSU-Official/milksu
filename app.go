@@ -477,7 +477,6 @@ func (a *App) ExportLocalDiagnostics() (appdata.DiagnosticExport, error) {
 			Settings: appdata.DiagnosticSettings{
 				ActiveProvider:     settings.ActiveProvider,
 				ActiveModel:        settings.ActiveModel,
-				DefaultMode:        settings.ModelRouting.DefaultMode,
 				RelayEnabled:       settings.Relay != nil && settings.Relay.Enabled,
 				ModelVerified:      settings.ModelVerified != nil,
 				ConfiguredProvider: providers,

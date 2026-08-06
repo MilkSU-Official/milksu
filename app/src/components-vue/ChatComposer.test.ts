@@ -20,7 +20,7 @@ function mountComposer(overrides: Record<string, unknown> = {}) {
     approvalPolicy: 'workspace-auto',
     approvalLabel: '替我审批',
     modelKey: 'auto',
-    automaticModelLabel: '自动 · DeepSeek · DeepSeek V4 Flash · 快速执行',
+    automaticModelLabel: '自动 · DeepSeek · DeepSeek V4 Flash',
     compactModelLabel: 'V4 Flash',
     onSend: (...args: unknown[]) => sent.push(args),
     onConsumeGoal: () => {

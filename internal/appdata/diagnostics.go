@@ -105,7 +105,6 @@ type DiagnosticRuntime struct {
 type DiagnosticSettings struct {
 	ActiveProvider     string   `json:"activeProvider"`
 	ActiveModel        string   `json:"activeModel"`
-	DefaultMode        string   `json:"defaultMode"`
 	RelayEnabled       bool     `json:"relayEnabled"`
 	ModelVerified      bool     `json:"modelVerified"`
 	ConfiguredProvider []string `json:"configuredProviders"`
@@ -337,7 +336,6 @@ func sanitizeDiagnosticLifespan(lifespan LifespanStart) LifespanStart {
 func sanitizeDiagnosticSettings(settings DiagnosticSettings) DiagnosticSettings {
 	settings.ActiveProvider = cleanDiagnosticLabel(settings.ActiveProvider, "unknown")
 	settings.ActiveModel = cleanDiagnosticLabel(settings.ActiveModel, "unknown")
-	settings.DefaultMode = cleanDiagnosticLabel(settings.DefaultMode, "unknown")
 	providers := make([]string, 0, len(settings.ConfiguredProvider))
 	for _, provider := range settings.ConfiguredProvider {
 		provider = cleanDiagnosticLabel(provider, "")
