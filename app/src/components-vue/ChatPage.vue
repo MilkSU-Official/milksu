@@ -69,7 +69,6 @@ import CodingProductLoopPanel from '@/components-vue/CodingProductLoopPanel.vue'
 import SessionHistoryPanel from '@/components-vue/SessionHistoryPanel.vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
-import WorkspaceSettingsButton from '@/components-vue/WorkspaceSettingsButton.vue'
 import type {
   CodingArchitecturePreview,
   CodingArtifactPreview,
@@ -1295,7 +1294,6 @@ watch(
           <PanelRightClose v-if="environmentOpen" class="size-4" />
           <PanelRightOpen v-else class="size-4" />
         </Button>
-        <WorkspaceSettingsButton label="打开设置" @click="$emit('openSettings')" />
       </template>
     </WorkspaceModuleTopBar>
 

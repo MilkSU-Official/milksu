@@ -15,14 +15,13 @@ const props = defineProps<{
 defineEmits<{
   new: []
   navigate: [value: WorkspaceSection]
+  settings: []
   selectConversation: [id: string]
   deleteConversation: [id: string]
   navigateCtf: [value: CTFWorkspaceSection]
 }>()
 
-const railSection = computed(() => (
-  props.activeSection === 'settings' ? 'ctf' : props.activeSection
-))
+const railSection = computed(() => props.activeSection)
 const showContextSidebar = computed(() => railSection.value === 'chat')
 </script>
 
@@ -34,10 +33,11 @@ const showContextSidebar = computed(() => railSection.value === 'chat')
     <WorkspaceRail
       :active-section="railSection"
       @navigate="$emit('navigate', $event)"
+      @settings="$emit('settings')"
     />
     <ContextSidebar
       v-if="showContextSidebar"
-      :active-section="railSection"
+      active-section="chat"
       :active-conversation-id="activeConversationId"
       :conversations="conversations"
       :ctf-section="ctfSection"

@@ -2,7 +2,6 @@
 import { Badge, Button } from '@felinic/ui'
 import { Archive, ArrowLeft, ExternalLink, Play } from 'lucide-vue-next'
 import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
-import WorkspaceSettingsButton from '@/components-vue/WorkspaceSettingsButton.vue'
 
 defineProps<{
   challengeTitle?: string
@@ -14,7 +13,6 @@ defineProps<{
 defineEmits<{
   returnCatalog: []
   openSource: []
-  openSettings: []
   switchMode: [mode: 'solve' | 'review']
 }>()
 </script>
@@ -52,7 +50,6 @@ defineEmits<{
         <ExternalLink class="size-4" />
         打开题目
       </Button>
-      <WorkspaceSettingsButton label="打开设置" @click="$emit('openSettings')" />
     </template>
   </WorkspaceModuleTopBar>
 </template>

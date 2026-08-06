@@ -330,13 +330,13 @@ onMounted(async () => {
     />
     <div class="flex min-h-0 flex-1">
       <AppSidebar
-        v-if="section !== 'settings'"
         :active-section="sidebarSection"
         :active-conversation-id="conversations.activeId.value"
         :conversations="conversations.conversations.value"
         :ctf-section="ctfSection"
         @new="newConversation"
         @navigate="navigateSection"
+        @settings="openSettings('general')"
         @select-conversation="id => {
           conversations.activeId.value = id
           rememberActiveConversation()

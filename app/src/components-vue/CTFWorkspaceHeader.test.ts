@@ -24,7 +24,6 @@ async function mountHeader(props: {
     ...props,
     onReturnCatalog: () => events.push('returnCatalog'),
     onOpenSource: () => events.push('openSource'),
-    onOpenSettings: () => events.push('openSettings'),
     onSwitchMode: (mode: string) => events.push(`switchMode:${mode}`),
   })
   app.mount(host)
@@ -45,7 +44,7 @@ describe('CTFWorkspaceHeader', () => {
     expect(host.textContent).toContain('返回题库不会结束当前会话')
     expect(host.textContent).toContain('NSSCTF P3879')
     expect(host.textContent).toContain('打开题目')
-    expect(host.querySelector('[aria-label="打开设置"]')).not.toBeNull()
+    expect(host.querySelector('[aria-label="打开设置"]')).toBeNull()
     expect(host.textContent).not.toContain('查看复盘')
     expect(host.querySelector('[data-module-topbar]')).not.toBeNull()
     expect(host.querySelector('[data-module-topbar]')?.getAttribute('data-workspace-module')).toBe('ctf')
@@ -53,9 +52,8 @@ describe('CTFWorkspaceHeader', () => {
 
     host.querySelector<HTMLButtonElement>('[aria-label="返回 CTF 题库"]')?.click()
     host.querySelector<HTMLButtonElement>('[aria-label="打开当前 CTF 题目"]')?.click()
-    host.querySelector<HTMLButtonElement>('[aria-label="打开设置"]')?.click()
 
-    expect(events).toEqual(['returnCatalog', 'openSource', 'openSettings'])
+    expect(events).toEqual(['returnCatalog', 'openSource'])
   })
 
   it('surfaces solve and review as top-level session modes when evidence exists', async () => {

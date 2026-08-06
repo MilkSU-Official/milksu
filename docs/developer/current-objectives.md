@@ -15,7 +15,7 @@
 4. Provider API Key 不进入模型上下文、工具输出、日志、诊断包、迁移或文档。
 5. 只向 MilkSU 私有远端提交/推送/开 PR，不向引用的开源项目创建 PR。
 6. 自动审批要减少无意义打断，但不能绕过付费、外部账户、Scope 扩大、路径边界、托管发布或不可逆操作。
-7. CTF、CVE、Coding 是同级主工作区；同一位置、同一语义的标题、按钮、下拉、Badge、搜索框和表格操作必须使用同一视觉规格。
+7. CTF、CVE、Coding 是同级主工作区；同一位置、同一语义的标题、按钮、下拉、Badge、搜索框和表格操作必须使用同一视觉规格。全局设置固定在左下 rail；各页页头不再放通用齿轮，缺凭据或模块配置类 CTA 应跳到全局设置对应分类。
 8. 发现非阻塞问题先稳定记录复现条件和影响，避免深度优先陷进去；只有数据/Credential/Scope/私有远端/Judge/验收失真类问题立即修。
 
 ## 当前合并后事实
@@ -39,7 +39,7 @@
 | P1 | CTF 六赛道 | Web、Pwn、Reverse、Crypto、Forensics、Misc 各至少一题 Judge-verified；每题留材料、轨迹、候选、Judge、恢复、复盘和提示依赖。 |
 | P1 | Memory 可信度 | 区分 user / agent / shared / imported 与 none / hint / copilot / delegated；Agent 代做不能提升用户独立能力。 |
 | P1 | Runtime Reliability | 用自建安全 fixture 验证多轮、文件读取、命令、工具、重启、压缩、取消、预算、失败分类。 |
-| P2 | 本地交付与发行 | 崩溃恢复、诊断、全新机器、Developer ID、公证、升级、性能和尺寸矩阵进入 RC 阶段再做。 |
+| P2 | 本地交付与发行 | 崩溃恢复、诊断、全新机器、Developer ID 签名 `.app`、DMG、公证、stapling、升级、性能和尺寸矩阵进入 RC 阶段再做；其中稳定 Developer ID 签名会影响 macOS TCC / Computer Use 授权复检，应先于外部分发验收补齐。 |
 | 持续约束 | 架构与 UI | 触碰即拆热点文件；不新开纯清债里程碑。文档继续压缩为短入口 + Evidence 索引。 |
 
 ## 不要重复打开的已闭环项
@@ -53,7 +53,7 @@
 - Coding Browser 基础隔离、Playwright MCP、Browser 证据目录；
 - TypeScript/Vue/Go LSP 和 TypeScript Code Action；
 - Git Diff/Hunk、stage、commit、push、PR 预览与经确认发布；
-- CTF/CVE/Coding 顶栏和设置入口统一、重复 Logo/左下角设置移除；
+- CTF/CVE/Coding 顶栏视觉规格统一；全局设置固定在左下 rail；重复 Logo 已移除；头像能力画像入口已恢复；
 - Computer Use 外部 App/窗口 Scope、Settings 权限检测、工具截图辅助视觉；
 - Artifact Preview 的 Markdown/HTML/PNG 打包 App 验收；
 - 后台任务打包 App/WebView 跨重启恢复；
