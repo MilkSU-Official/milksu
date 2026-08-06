@@ -311,6 +311,27 @@ export const PROVIDERS: ProviderInfo[] = [
     summary: 'Kimi K3 · 深度策略、卡关复盘与复杂推理',
   },
   {
+    id: 'tokenflux',
+    name: 'TokenFlux',
+    kind: 'relay',
+    models: [
+      'x-ai/grok-4.3',
+      'x-ai/grok-4.5',
+      'x-ai/grok-build-0.1',
+      'openai/gpt-5.6-sol',
+      'openai/gpt-5.2-codex',
+      'anthropic/claude-sonnet-4.6',
+      'deepseek/deepseek-v4-flash',
+      'google/gemini-3.1-pro-preview',
+      'qwen/qwen3-coder-plus',
+    ],
+    visionModels: ['openai/gpt-4o', 'openai/gpt-4.1', 'google/gemini-3.1-flash-image'],
+    envKey: 'TOKENFLUX_API_KEY',
+    placeholder: 'tf_... 或 TokenFlux API Key',
+    defaultBaseUrl: 'https://tokenflux.ai/v1',
+    summary: '词元流动 · Grok、Claude、OpenAI、DeepSeek 等统一网关',
+  },
+  {
     id: 'anthropic',
     name: 'Anthropic',
     kind: 'official',
@@ -371,10 +392,21 @@ export const PROVIDER_GROUPS = [
 
 export function providerModelLabel(provider: string, model: string) {
   const info = PROVIDERS.find(item => item.id === provider)
-  const displayModel = model === 'kimi-k3'
-    ? 'Kimi K3'
-    : model === 'deepseek-v4-flash'
-      ? 'DeepSeek V4 Flash'
-      : model
+  const displayModel = ({
+    'kimi-k3': 'Kimi K3',
+    'deepseek-v4-flash': 'DeepSeek V4 Flash',
+    'x-ai/grok-4.3': 'Grok 4.3',
+    'x-ai/grok-4.5': 'Grok 4.5',
+    'x-ai/grok-build-0.1': 'Grok Build 0.1',
+    'openai/gpt-5.6-sol': 'GPT-5.6 Sol',
+    'openai/gpt-5.2-codex': 'GPT-5.2 Codex',
+    'openai/gpt-4o': 'GPT-4o',
+    'openai/gpt-4.1': 'GPT-4.1',
+    'anthropic/claude-sonnet-4.6': 'Claude Sonnet 4.6',
+    'deepseek/deepseek-v4-flash': 'DeepSeek V4 Flash',
+    'google/gemini-3.1-pro-preview': 'Gemini 3.1 Pro Preview',
+    'google/gemini-3.1-flash-image': 'Gemini 3.1 Flash Image',
+    'qwen/qwen3-coder-plus': 'Qwen3 Coder Plus',
+  } as Record<string, string>)[model] ?? model
   return `${info?.name ?? provider} · ${displayModel}`
 }

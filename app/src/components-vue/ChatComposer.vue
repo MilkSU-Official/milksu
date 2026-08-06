@@ -52,6 +52,7 @@ const draft = ref('')
 const pendingAttachments = ref<CodingAttachment[]>([])
 const attachmentError = ref('')
 const composing = ref(false)
+const compositionJustEnded = ref(false)
 
 const ctfActionOptions = computed(() => {
   const mode = props.ctfMode ?? 'copilot'
@@ -149,9 +150,22 @@ function submit() {
 }
 
 function handleEnterKey(event: KeyboardEvent) {
-  if (event.isComposing || composing.value || event.keyCode === 229) return
+  if (
+    event.isComposing
+    || composing.value
+    || compositionJustEnded.value
+    || event.keyCode === 229
+  ) return
   event.preventDefault()
   submit()
+}
+
+function handleCompositionEnd() {
+  composing.value = false
+  compositionJustEnded.value = true
+  window.setTimeout(() => {
+    compositionJustEnded.value = false
+  }, 0)
 }
 
 function appendDraftText(text: string) {
@@ -170,21 +184,6 @@ defineExpose({
 <template>
   <div class="chat-composer shrink-0 bg-surface-editor px-5 pb-4 pt-2">
     <div class="mx-auto max-w-3xl">
-      <CodingComposerControls
-        :running="running"
-        :ctf-session="ctfSession"
-        :execution-mode="executionMode"
-        :approval-policy="approvalPolicy"
-        :approval-label="approvalLabel"
-        :model-key="modelKey"
-        :automatic-model-label="automaticModelLabel"
-        :compact-model-label="compactModelLabel"
-        @change-execution-mode="$emit('changeExecutionMode', $event)"
-        @change-approval-policy="$emit('changeApprovalPolicy', $event)"
-        @change-model="$emit('changeModel', $event)"
-        @show-permissions="$emit('showPermissions')"
-      />
-
       <div
         v-if="ctfSession && ctfRole === 'solver'"
         class="mb-2 flex flex-wrap items-center gap-2 px-1"
@@ -229,50 +228,69 @@ defineExpose({
             </button>
           </span>
         </div>
-        <div class="flex items-end gap-2">
+        <Textarea
+          v-model="draft"
+          class="chat-composer__input max-h-44 min-h-24 resize-none border-0 bg-transparent px-1 pb-2 pt-1.5 shadow-none focus-visible:ring-0"
+          aria-label="消息"
+          :placeholder="goalMode ? '写下一个可持续目标，MilkSU 会持续推进并保留恢复点' : ctfSession ? '告诉 Agent 你的观察、假设或下一步想法' : '描述你想让 MilkSU 完成的任务'"
+          @compositionstart="composing = true"
+          @compositionend="handleCompositionEnd"
+          @keydown.enter.exact="handleEnterKey"
+        />
+        <div class="chat-composer__toolbar flex min-w-0 flex-wrap items-center justify-between gap-2">
+          <div class="flex min-w-0 items-center gap-1.5">
+            <Button
+              v-if="!ctfSession"
+              type="button"
+              variant="ghost"
+              size="icon"
+              :disabled="running"
+              aria-label="添加文件或图片"
+              title="添加文件或图片；文件会安全复制到 MilkSU 用户数据目录"
+              @click="chooseCodingAttachments"
+            >
+              <Paperclip class="size-4" />
+            </Button>
+          </div>
+          <div class="flex min-w-0 flex-1 items-center justify-end gap-1.5">
+            <CodingComposerControls
+              :running="running"
+              :ctf-session="ctfSession"
+              :execution-mode="executionMode"
+              :approval-policy="approvalPolicy"
+              :approval-label="approvalLabel"
+              :model-key="modelKey"
+              :automatic-model-label="automaticModelLabel"
+              :compact-model-label="compactModelLabel"
+              @change-execution-mode="$emit('changeExecutionMode', $event)"
+              @change-approval-policy="$emit('changeApprovalPolicy', $event)"
+              @change-model="$emit('changeModel', $event)"
+              @show-permissions="$emit('showPermissions')"
+            />
           <Button
-            v-if="!ctfSession"
-            type="button"
-            variant="ghost"
-            size="icon"
-            :disabled="running"
-            aria-label="添加文件或图片"
-            title="添加文件或图片；文件会安全复制到 MilkSU 用户数据目录"
-            @click="chooseCodingAttachments"
-          >
-            <Paperclip class="size-4" />
-          </Button>
-          <Textarea
-            v-model="draft"
-            class="chat-composer__input max-h-40 min-h-11 flex-1 resize-none border-0 bg-transparent py-[0.875rem] shadow-none focus-visible:ring-0"
-            aria-label="消息"
-            @compositionstart="composing = true"
-            @compositionend="composing = false"
-            @keydown.enter.exact="handleEnterKey"
-          />
-          <Button
-            v-if="running"
-            type="button"
-            variant="destructive"
-            size="icon"
-            :disabled="aborting"
-            :aria-label="aborting ? '正在停止 Agent' : '停止 Agent'"
-            :title="aborting ? '正在等待 Agent 安全停止' : '停止当前 Agent 回合'"
-            @click="$emit('abort')"
-          >
-            <LoaderCircle v-if="aborting" class="size-3.5 animate-spin" />
-            <Square v-else class="size-3.5 fill-current" />
-          </Button>
-          <Button
-            v-else
-            type="submit"
-            variant="brand"
-            size="icon"
-            :disabled="!draft.trim() && !pendingAttachments.length"
-            aria-label="发送"
-          >
-            <ArrowUp class="size-4" />
-          </Button>
+              v-if="running"
+              type="button"
+              variant="destructive"
+              size="icon"
+              :disabled="aborting"
+              :aria-label="aborting ? '正在停止 Agent' : '停止 Agent'"
+              :title="aborting ? '正在等待 Agent 安全停止' : '停止当前 Agent 回合'"
+              @click="$emit('abort')"
+            >
+              <LoaderCircle v-if="aborting" class="size-3.5 animate-spin" />
+              <Square v-else class="size-3.5 fill-current" />
+            </Button>
+            <Button
+              v-else
+              type="submit"
+              variant="brand"
+              size="icon"
+              :disabled="!draft.trim() && !pendingAttachments.length"
+              aria-label="发送"
+            >
+              <ArrowUp class="size-4" />
+            </Button>
+          </div>
         </div>
       </form>
       <p v-if="attachmentError" class="px-2 pt-1.5 text-caption text-destructive">
@@ -290,21 +308,22 @@ defineExpose({
 
 .chat-composer__island {
   border: 1px solid var(--border);
-  border-radius: 1rem;
+  border-radius: 1.35rem;
   background: var(--card);
-  padding: 0.5rem 0.55rem 0.5rem 0.8rem;
+  padding: 0.8rem;
   box-shadow:
     0 14px 34px rgb(0 0 0 / 18%),
     0 2px 8px rgb(0 0 0 / 10%);
+}
+
+.chat-composer__toolbar {
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  padding-top: 0.55rem;
 }
 
 .chat-composer__input {
   font-size: var(--text-body);
   line-height: var(--text-body--line-height);
   letter-spacing: var(--text-body--letter-spacing);
-}
-
-:deep(.chat-composer__input::placeholder) {
-  color: transparent;
 }
 </style>

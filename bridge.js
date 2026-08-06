@@ -106,6 +106,8 @@ const relayUrl = process.env.MILKSU_RELAY_URL || "https://api.ciyuanliudong.com/
 const relayEnabled = process.env.MILKSU_RELAY_ENABLED === "1" && Boolean(relayKey);
 const kouriKey = process.env.KOURICHAT_API_KEY;
 const kouriUrl = process.env.KOURICHAT_BASE_URL || "https://api.kourichat.com/v1";
+const tokenfluxKey = process.env.TOKENFLUX_API_KEY;
+const tokenfluxUrl = process.env.TOKENFLUX_BASE_URL || "https://tokenflux.ai/v1";
 const providerBaseUrls = {
   anthropic: process.env.ANTHROPIC_BASE_URL,
   openai: process.env.OPENAI_BASE_URL,
@@ -113,6 +115,92 @@ const providerBaseUrls = {
   google: process.env.GOOGLE_BASE_URL,
   groq: process.env.GROQ_BASE_URL,
 };
+const tokenfluxModelCatalog = [
+  {
+    id: "x-ai/grok-4.3",
+    name: "Grok 4.3",
+    contextWindow: 1_000_000,
+    maxTokens: 32_768,
+    input: ["text"],
+  },
+  {
+    id: "x-ai/grok-4.5",
+    name: "Grok 4.5",
+    contextWindow: 500_000,
+    maxTokens: 32_768,
+    input: ["text"],
+  },
+  {
+    id: "x-ai/grok-build-0.1",
+    name: "Grok Build 0.1",
+    contextWindow: 256_000,
+    maxTokens: 32_768,
+    input: ["text"],
+  },
+  {
+    id: "openai/gpt-5.6-sol",
+    name: "GPT-5.6 Sol",
+    contextWindow: 1_050_000,
+    maxTokens: 32_768,
+    input: ["text"],
+  },
+  {
+    id: "openai/gpt-5.2-codex",
+    name: "GPT-5.2 Codex",
+    contextWindow: 400_000,
+    maxTokens: 32_768,
+    input: ["text"],
+  },
+  {
+    id: "openai/gpt-4o",
+    name: "GPT-4o",
+    contextWindow: 128_000,
+    maxTokens: 16_384,
+    input: ["text", "image"],
+  },
+  {
+    id: "openai/gpt-4.1",
+    name: "GPT-4.1",
+    contextWindow: 1_047_576,
+    maxTokens: 32_768,
+    input: ["text", "image"],
+  },
+  {
+    id: "anthropic/claude-sonnet-4.6",
+    name: "Claude Sonnet 4.6",
+    contextWindow: 1_000_000,
+    maxTokens: 32_768,
+    input: ["text"],
+  },
+  {
+    id: "deepseek/deepseek-v4-flash",
+    name: "DeepSeek V4 Flash",
+    contextWindow: 1_048_576,
+    maxTokens: 32_768,
+    input: ["text"],
+  },
+  {
+    id: "google/gemini-3.1-pro-preview",
+    name: "Gemini 3.1 Pro Preview",
+    contextWindow: 1_048_576,
+    maxTokens: 32_768,
+    input: ["text"],
+  },
+  {
+    id: "google/gemini-3.1-flash-image",
+    name: "Gemini 3.1 Flash Image",
+    contextWindow: 131_072,
+    maxTokens: 16_384,
+    input: ["text", "image"],
+  },
+  {
+    id: "qwen/qwen3-coder-plus",
+    name: "Qwen3 Coder Plus",
+    contextWindow: 1_000_000,
+    maxTokens: 32_768,
+    input: ["text"],
+  },
+];
 const auxiliaryVisionSelection = {
   provider: String(process.env.MILKSU_VISION_PROVIDER ?? "").trim(),
   model: String(process.env.MILKSU_VISION_MODEL ?? "").trim(),
@@ -757,6 +845,44 @@ function configureRelayModel(session, provider, model) {
   return { provider: "milksu-relay", model };
 }
 
+function tokenfluxModelMetadata(model) {
+  const registered = tokenfluxModelCatalog.find(item => item.id === model);
+  return registered ?? {
+    id: model,
+    name: model,
+    contextWindow: 128_000,
+    maxTokens: 16_384,
+    input: ["text"],
+  };
+}
+
+function registerTokenFluxProvider(session, model) {
+  const catalog = [...tokenfluxModelCatalog];
+  if (model && !catalog.some(item => item.id === model)) {
+    catalog.push(tokenfluxModelMetadata(model));
+  }
+  session.modelRuntime.registerProvider("tokenflux", {
+    name: "TokenFlux",
+    baseUrl: tokenfluxUrl,
+    apiKey: tokenfluxKey,
+    api: "openai-completions",
+    models: catalog.map(item => ({
+      id: item.id,
+      name: item.name,
+      reasoning: false,
+      input: item.input,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      contextWindow: item.contextWindow,
+      maxTokens: item.maxTokens,
+      compat: {
+        supportsDeveloperRole: false,
+        supportsReasoningEffort: false,
+        maxTokensField: "max_tokens",
+      },
+    })),
+  });
+}
+
 function configureRuntimeModel(session, provider, model) {
   if (provider === "kourichat") {
     session.modelRuntime.registerProvider("kourichat", {
@@ -779,6 +905,8 @@ function configureRuntimeModel(session, provider, model) {
         },
       }],
     });
+  } else if (provider === "tokenflux") {
+    registerTokenFluxProvider(session, model);
   } else if (providerBaseUrls[provider]) {
     session.modelRuntime.registerProvider(provider, {
       baseUrl: providerBaseUrls[provider],
@@ -790,6 +918,10 @@ function configureRuntimeModel(session, provider, model) {
 function configureProviderEndpoint(session, provider) {
   if (provider === "kourichat") {
     configureRuntimeModel(session, provider, "kimi-k3");
+    return;
+  }
+  if (provider === "tokenflux") {
+    registerTokenFluxProvider(session);
     return;
   }
   if (providerBaseUrls[provider]) {

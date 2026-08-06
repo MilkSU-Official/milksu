@@ -44,7 +44,7 @@ afterEach(() => {
 })
 
 describe('ChatComposer', () => {
-  it('keeps only mode, permission, and model controls above a Coding message', async () => {
+  it('keeps only mode, permission, and model controls in the Coding composer', async () => {
     const { host } = mountComposer()
     await nextTick()
 
@@ -52,7 +52,8 @@ describe('ChatComposer', () => {
     expect(host.querySelectorAll('[aria-label="Coding 权限策略"]')).toHaveLength(1)
     expect(host.querySelectorAll('[aria-label="选择本任务模型"]')).toHaveLength(1)
     expect(host.querySelector('[aria-label="添加文件或图片"]')).not.toBeNull()
-    expect(host.querySelector('[aria-label="消息"]')?.getAttribute('placeholder') ?? '').toBe('')
+    expect(host.querySelector('[aria-label="消息"]')?.getAttribute('placeholder') ?? '')
+      .toBe('描述你想让 MilkSU 完成的任务')
     expect(host.textContent).not.toContain('架构图')
     expect(host.textContent).not.toContain('能力')
     expect(host.textContent).not.toContain('目标')
@@ -121,6 +122,15 @@ describe('ChatComposer', () => {
     expect(textarea.value).toBe('milksu')
 
     textarea.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }))
+    textarea.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Enter',
+      bubbles: true,
+      cancelable: true,
+    }))
+    await nextTick()
+
+    expect(result.sent).toEqual([])
+    await new Promise(resolve => window.setTimeout(resolve, 0))
     textarea.dispatchEvent(new KeyboardEvent('keydown', {
       key: 'Enter',
       bubbles: true,

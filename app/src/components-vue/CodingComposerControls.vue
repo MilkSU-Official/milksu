@@ -49,7 +49,7 @@ defineEmits<{
 </script>
 
 <template>
-  <div class="composer-controls app-no-drag mb-2 flex min-w-0 items-center gap-1.5 px-1">
+  <div class="composer-controls app-no-drag flex min-w-0 items-center gap-1.5">
     <Select
       v-if="!ctfSession"
       :model-value="executionMode"
@@ -58,7 +58,7 @@ defineEmits<{
     >
       <SelectTrigger
         size="sm"
-        class="composer-control w-16 border-0 bg-transparent shadow-none"
+        class="composer-control w-16 rounded-full border-0 bg-transparent shadow-none"
         aria-label="Coding 执行模式"
         title="Plan 只分析和规划；Go 按右侧权限策略使用工具。"
       >
@@ -75,7 +75,7 @@ defineEmits<{
         <Button
           variant="ghost"
           size="sm"
-          class="composer-control composer-permission justify-start"
+          class="composer-control composer-permission justify-start rounded-full"
           :class="{ 'composer-permission--full': approvalPolicy === 'full-auto' }"
           :disabled="running"
           aria-label="Coding 权限策略"
@@ -165,7 +165,7 @@ defineEmits<{
     >
       <SelectTrigger
         size="sm"
-        class="composer-control composer-model ml-auto min-w-0 border-0 bg-transparent shadow-none"
+        class="composer-control composer-model min-w-0 rounded-full border-0 bg-transparent shadow-none"
         aria-label="选择本任务模型"
         :title="modelKey === 'auto'
           ? 'MilkSU 按任务角色自动选择模型；你可以仅为当前对话覆盖'
@@ -210,6 +210,10 @@ defineEmits<{
   line-height: var(--text-body--line-height, 1rem);
 }
 
+.composer-controls {
+  flex: 0 1 auto;
+}
+
 .composer-control[data-slot='select-trigger'] {
   font-size: var(--text-body, 0.75rem) !important;
   line-height: var(--text-body--line-height, 1rem) !important;
@@ -221,9 +225,9 @@ defineEmits<{
 }
 
 .composer-permission {
-  width: 8rem;
-  min-width: 6.5rem;
-  flex: 0 1 8rem;
+  width: 7.5rem;
+  min-width: 6rem;
+  flex: 0 1 7.5rem;
 }
 
 .approval-option {
@@ -270,9 +274,9 @@ defineEmits<{
 }
 
 .composer-model {
-  width: min(21rem, 100%);
-  min-width: 12rem;
-  flex: 1 1 16rem;
+  width: min(14rem, 100%);
+  min-width: 9rem;
+  flex: 1 1 12rem;
   justify-self: end;
 }
 

@@ -1264,6 +1264,32 @@ func TestEngineEnvironmentIncludesEditableProviderBaseURL(t *testing.T) {
 	}
 }
 
+func TestEngineEnvironmentIncludesTokenFluxProvider(t *testing.T) {
+	baseURL := "https://tokenflux.ai/v1"
+	settings := config.DefaultSettings()
+	settings.ActiveProvider = "tokenflux"
+	settings.ActiveModel = "x-ai/grok-4.3"
+	settings.Providers["tokenflux"] = config.ProviderConfig{
+		APIKey:  "tokenflux-provider-secret",
+		BaseURL: &baseURL,
+		Enabled: true,
+	}
+
+	if err := validateModelAccess(settings); err != nil {
+		t.Fatalf("expected TokenFlux provider to pass validation, got %v", err)
+	}
+
+	environment := engineEnvironment(settings)
+	for _, expected := range []string{
+		"TOKENFLUX_API_KEY=tokenflux-provider-secret",
+		"TOKENFLUX_BASE_URL=https://tokenflux.ai/v1",
+	} {
+		if !containsEnvironmentEntry(environment, expected) {
+			t.Fatalf("expected %q in %#v", expected, environment)
+		}
+	}
+}
+
 func TestSidecarEnvironmentIncludesConfiguredVisionRoute(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
 	settings := config.DefaultSettings()
