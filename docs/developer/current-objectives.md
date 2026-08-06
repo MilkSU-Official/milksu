@@ -2,7 +2,7 @@
 
 > 文档状态：Current / Canonical target contract
 >
-> 最后收口：2026-08-05
+> 最后收口：2026-08-06
 >
 > 本页只回答“现在按什么目标继续做”。实现事实以当前代码、测试、Git 历史和原生 App 验收为准。
 > 旧覆盖台账和流水验收已压缩为历史摘要，不再作为当前执行入口。
@@ -29,6 +29,7 @@
 - CVE 已有学习/追踪 MVP：多源只读情报同步、来源快照、Vulhub 练习目录匹配、本地 Docker Compose 练习生命周期、资产验证、学习写回和 Coding 接力。
 - CTF 主链已有题库、自定义题、工作区、Evidence、候选、Judge、Checkpoint、恢复、复盘和 Memory；真实 Judge 成功仍只有窄 Web 路径。
 - Runtime 已有 Sidecar 恢复、Compaction、异常退出标记、后台长任务打包 App/WebView 恢复、预算和失败分类。
+- 模型与凭据设置已收敛为一个默认模型、一个模型来源和一个凭据区；DeepSeek V4 Flash 是默认日常模型，TokenFlux 是一等中转站入口，fast/deep 按角色模型路由和 Kimi/KouriChat 产品入口已移除。
 - Labs 纵深闭环暂停；CVE 纵深研究、真实漏洞复现、外部资产实验和披露流程后置。
 - NYU safe-static 只能叫 Pi Runtime safe-static smoke，不能叫 MilkSU 完整 CTF 成绩。
 
@@ -62,6 +63,7 @@
 - 后台任务打包 App/WebView 跨重启恢复；
 - CVE 多源同步、真实 snapshot、本地练习生命周期、学习写回、资产验证；
 - Session Index 基础索引、相关历史展示、用户确认写入 CVE Note / Coding 输入 / CTF 复盘；
+- 模型与凭据页普通入口简化、TokenFlux 中转站接入、Kimi/KouriChat 产品入口移除、fast/deep 按角色模型路由删除；
 - M3 product-loop PR #1 合并。
 
 ## CTF 完成线

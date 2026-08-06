@@ -2,7 +2,7 @@
 
 > 状态：Current / Living
 >
-> 最后事实审计：2026-08-05
+> 最后事实审计：2026-08-06
 >
 > 产品开发目标：Post-M3 product-loop merge；下一批次从当前目标、代码和测试事实选择
 
@@ -35,6 +35,9 @@
 - Runtime Reliability fixture 已覆盖多轮工具、Sidecar 恢复、Compaction、超时/取消、预算、
   失败分类、异常退出标记和打包 App/WebView 后台长任务恢复；交互式 PTY 重连、更多真实长任务
   和发行级恢复矩阵仍未通过。
+- 模型与凭据设置已经从多路由编排收敛为单默认模型；DeepSeek V4 Flash 是默认日常模型，
+  TokenFlux 是一等中转站入口，旧 fast/deep 按角色路由与 Kimi/KouriChat 产品入口不再作为
+  当前系统能力维护。
 - NYU one-shot 与两回合只读 Runtime 只是 safe-static 开发者 smoke，不是完整 MilkSU CTF
   成绩。
 - 本地备份、恢复、脱敏诊断和单机交付基线已存在；Developer ID、公证、升级和新机器安装

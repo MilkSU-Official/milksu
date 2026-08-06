@@ -2,7 +2,7 @@
 
 > 文档状态：Current
 >
-> 事实审计：2026-08-05，`main` 合并基线 `108e0e3`
+> 事实审计：2026-08-06，`main` 当前基线 `833c376`
 >
 > 本页描述当前结构，不安排任务。动态进度和缺口以
 > [当前开发目标](/developer/current-objectives)、代码、测试和真实验收为准。
@@ -12,7 +12,7 @@
 ```mermaid
 flowchart LR
     learner["学习者<br/>选择题目、指导 Agent、批准提交、完成复盘"]
-    model["模型 Provider API<br/>DeepSeek / 其他已配置 Provider"]
+    model["模型 Provider API<br/>DeepSeek / TokenFlux / 其他已配置 Provider"]
     platform["CTF 平台<br/>NSSCTF / CTFshow"]
     browser["用户明确配对的浏览器标签页<br/>MilkSU Browser Bridge"]
     coding_browser["会话隔离的专用 Chrome<br/>Coding Browser"]
@@ -41,7 +41,7 @@ flowchart LR
 | --- | --- | --- |
 | Wails 本地桌面宿主 | **Implemented** | `main.go` 只绑定一个 `App`，静态资源来自 `app/dist`。 |
 | Vue 产品表面 | **Implemented / Partial** | `app/src/App.vue` 组合 CTF、Coding、CVE 工作区与设置；Coding 采用中央会话和右侧动态页面，CTF 默认解题模式与复盘模式分离，CVE 已有学习/追踪与练习入口。 |
-| Pi 通用 Agent | **Verified core / Partial extensions** | `bridge.js` 使用 Pi SessionManager、工具事件和持久会话；Plan/Go、权限档位、Archify、LSP、后台任务、Session Index、PR 交付和 Compaction 已有真实或专项证据。真实外部 Provider 质量与长期主工作区自举仍未完成。 |
+| Pi 通用 Agent | **Verified core / Partial extensions** | `bridge.js` 使用 Pi SessionManager、工具事件和持久会话；Plan/Go、权限档位、Archify、LSP、后台任务、Session Index、PR 交付和 Compaction 已有真实或专项证据。模型选择已收敛为单默认模型；TokenFlux 作为一等中转站注册，fast/deep 按角色路由和 Kimi/KouriChat 产品入口已移除。真实外部 Provider 质量与长期主工作区自举仍未完成。 |
 | CTF Runtime | **Implemented** | `internal/ctf` 将 Challenge、Agent Turn、Candidate、Judge Receipt、Debrief 投影到共享 Runtime。 |
 | 浏览器平台 Judge | **Implemented** | `internal/browsercap` 只接受明确配对页，NSSCTF/CTFshow 回执进入 Go Host。 |
 | Coding Browser | **Verified** | `internal/browsercap` 由右侧页面显式启停专用 Chrome；Go Host 向当前 Pi Session 注入瞬态 loopback 描述符，固定 Playwright MCP 在逐次桌面审批下完成真实页面 E2E。 |
