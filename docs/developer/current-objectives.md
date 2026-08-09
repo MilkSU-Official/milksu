@@ -31,6 +31,7 @@
 - Runtime 已有 Sidecar 恢复、Compaction、异常退出标记、后台长任务打包 App/WebView 恢复、预算和失败分类。
 - 模型与凭据设置已收敛为一个默认模型、一个模型来源和一个凭据区；DeepSeek V4 Flash 是默认日常模型，TokenFlux 是一等中转站入口，fast/deep 按角色模型路由和 Kimi/KouriChat 产品入口已移除。
 - Coding、CTF 和 sub-agent Sidecar 共用当前 Provider 注册；worktree、恢复和上游 Pi sub-agent 能力保留，MilkSU 不另造通用 Agent 调度框架。
+- 注册 writer worktree 现与主 Agent 文件/终端工具使用同一写入边界；显式准备协作时，MilkSU 会为仓库内已有且被 Git 忽略的 Node 依赖建立只读共享视图，不复制依赖、不弄脏 writer。打包 App 已完成一次 `write` 加文档构建的有界自举验证，长期自主交付和合并发布仍未完成。
 - WebView 不再维护 localStorage 假后端；没有 Wails Runtime 时命令直接失败，浏览器预览只验证静态布局和明确的不可用状态。
 - CVE 资产验证与学习记录以 Vuln Runtime 为唯一正式来源；localStorage 只保留明确标记的未提交草稿、筛选和选中项。
 - CTF Memory 直接持久化 actor / assistance 归因，旧的 pre-release 无归因数据库不迁移。
@@ -42,7 +43,7 @@
 
 | 优先级 | 主线 | 下一步只认什么完成 |
 | --- | --- | --- |
-| P0 | Coding 自举质量 | 在真实打包 MilkSU 中完成一个更自然的 MilkSU 或用户项目任务：理解、修改、测试、预览/Computer Use 或 Browser 验证、恢复、Git 交付；重点看真实外部 Provider 质量和人工接管次数。 |
+| P0 | Coding 自举质量 | 已通过一次有界的 writer 文档写入与依赖复用构建验证；下一步在真实打包 MilkSU 中完成更自然的 MilkSU 或用户项目任务：理解、修改、测试、预览/Computer Use 或 Browser 验证、恢复、Git 交付，并记录人工接管次数。 |
 | P0 | Session Index / Obelisk 形态长期记忆 | 继续内置 MilkSU 自有历史索引，不退回“检测用户是否安装 Obelisk CLI”；外部 Codex/Claude/Kimi/Pi 导入在有明确文件选择、确认和产品调用者前不进入发行图。 |
 | P0 | CVE 学习/追踪扩样 | 用更多真实 CVE 验证多源同步、练习目录、研究档案、资产验证和学习写回；仍不做外部攻击、自动 PoC 或披露。 |
 | P1 | CTF 六赛道 | Web、Pwn、Reverse、Crypto、Forensics、Misc 各至少一题 Judge-verified；每题留材料、轨迹、候选、Judge、恢复、复盘和提示依赖。 |
@@ -72,6 +73,7 @@
 - 模型与凭据页普通入口简化、TokenFlux 中转站接入、Kimi/KouriChat 产品入口移除、fast/deep 按角色模型路由删除；
 - 浏览器预览假后端、Managed Labs 发行代码、无调用者的外部会话导入和孤儿 Wails/UI 入口清理；
 - CTF Memory actor / assistance 跨重启保持一致；旧无归因 pre-release 数据不迁移；
+- 注册 worktree 的文件工具写入边界与只读 Node 依赖复用；
 - packet-parser 纵深复现 fixture 不进入 Wails 或产品 Runtime 启动，只保留开发者测试用途；
 - M3 product-loop PR #1 合并。
 
