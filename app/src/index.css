@@ -8,6 +8,17 @@
   color-scheme: dark;
 
   /*
+   * The upstream UI kit is tuned around a 360-weight Inter baseline. That
+   * reads too lightly in WKWebView, especially for Chinese fallback glyphs.
+   * Keep the shared typeface and semantic roles, but use the conventional
+   * 400/500/600/700 ladder for the MilkSU desktop surface.
+   */
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /*
    * MilkSU "Labs" theme.
    *
    * The base palette is sampled from the authenticated HTB Labs Machines and
@@ -221,8 +232,9 @@ body {
   overflow: hidden;
   background: var(--surface-editor);
   color: var(--foreground);
+  font-weight: var(--font-weight-normal);
   text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
+  -webkit-font-smoothing: auto;
 }
 
 button,
@@ -266,6 +278,19 @@ select {
 
 button {
   -webkit-app-region: no-drag;
+}
+
+/*
+ * Keep button copy one rung below reading text. The shared Button component
+ * uses the 14px control token by default; MilkSU's dense desktop layout reads
+ * more evenly at the 13px label rung while retaining the existing heights and
+ * hit targets.
+ */
+[data-button] {
+  font-size: var(--text-label);
+  line-height: var(--text-label--line-height);
+  letter-spacing: var(--text-label--letter-spacing);
+  font-weight: var(--font-weight-medium);
 }
 
 .app-drag {

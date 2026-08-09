@@ -106,7 +106,7 @@ function recoveryHint() {
     </div>
     <div
       v-else
-      class="break-words text-label leading-7"
+      class="break-words text-control leading-7"
       :class="message.role === 'user' ? 'rounded-xl bg-chat-user-bubble px-4 py-3 text-chat-user-bubble-fg' : ''"
     >
       <div
