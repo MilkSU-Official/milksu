@@ -176,9 +176,9 @@ function openSettings() {
 
 <style scoped>
 .workspace-rail-item {
-  font-size: 0.625rem;
-  line-height: 0.875rem;
-  letter-spacing: var(--text-caption--letter-spacing);
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+  letter-spacing: var(--text-body--letter-spacing);
 }
 
 .workspace-rail-item,

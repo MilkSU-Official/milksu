@@ -13,9 +13,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock3,
-  Copy,
   ExternalLink,
-  FolderOpen,
   LoaderCircle,
   Paperclip,
   Play,
@@ -59,9 +57,6 @@ const props = withDefaults(defineProps<{
   catalogReady: boolean
   judgeReady: boolean
   hasActiveTraining: boolean
-  browserExtensionReady: boolean
-  pairingCode: string
-  browserSetupBusy: boolean
 }>(), {
   nssctfProblems: () => [],
   ctfshowProblems: () => [],
@@ -90,9 +85,8 @@ const emit = defineEmits<{
   openCtfshow: []
   syncNssctf: []
   refreshJudge: []
-  prepareBrowserExtension: []
-  copyPairingCode: []
   openSettings: []
+  openBrowserSettings: []
   'update:collaborationMode': [value: CTFCollaborationMode]
 }>()
 
@@ -608,46 +602,20 @@ function runPrimaryAction() {
                 <div class="min-w-0">
                   <p class="text-control font-medium">连接 NSSCTF Judge</p>
                   <p class="mt-1 text-caption leading-5 text-muted-foreground">
-                    首次连接按顺序完成；以后只需在题目页点击 MilkSU。
+                    首次使用先在浏览器设置中安装并配对扩展；以后只需在题目页点击 MilkSU。
                   </p>
                 </div>
               </div>
-              <ol class="mt-3 grid gap-2 sm:grid-cols-3" aria-label="连接 NSSCTF Judge 的步骤">
-                <li class="rounded-md border border-warning-border bg-background/80 p-2">
-                  <span class="mb-2 block font-mono text-caption text-muted-foreground">1 · 安装</span>
-                  <Button
-                    block
-                    variant="outline"
-                    size="sm"
-                    :loading="browserSetupBusy"
-                    :disabled="!browserExtensionReady"
-                    @click="emit('prepareBrowserExtension')"
-                  >
-                    <FolderOpen class="size-4" />
-                    本地扩展
-                  </Button>
-                </li>
-                <li class="rounded-md border border-warning-border bg-background/80 p-2">
-                  <span class="mb-2 block font-mono text-caption text-muted-foreground">2 · 配对</span>
-                  <Button
-                    block
-                    variant="default"
-                    size="sm"
-                    :disabled="!pairingCode"
-                    @click="emit('copyPairingCode')"
-                  >
-                    <Copy class="size-4" />
-                    复制配对码
-                  </Button>
-                </li>
-                <li class="rounded-md border border-warning-border bg-background/80 p-2">
-                  <span class="mb-2 block font-mono text-caption text-muted-foreground">3 · 连接</span>
-                  <Button block variant="outline" size="sm" @click="emit('openProblem')">
-                    <ExternalLink class="size-4" />
-                    打开 P{{ selectedNssctf.platformId }}
-                  </Button>
-                </li>
-              </ol>
+              <div class="mt-3 flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" @click="emit('openBrowserSettings')">
+                  <Cable class="size-4" />
+                  前往浏览器设置
+                </Button>
+                <Button variant="outline" size="sm" @click="emit('openProblem')">
+                  <ExternalLink class="size-4" />
+                  打开 P{{ selectedNssctf.platformId }}
+                </Button>
+              </div>
               <p
                 v-if="selectedNssctf.hasAttachment"
                 class="mt-3 flex items-center gap-2 text-caption text-muted-foreground"
@@ -809,13 +777,13 @@ function runPrimaryAction() {
         </span>
         <div class="ml-auto flex items-center gap-2">
           <Button
-            v-if="activeBank === 'nssctf' && !judgeReady && pairingCode"
+            v-if="activeBank === 'nssctf' && !judgeReady"
             variant="outline"
             size="sm"
-            @click="emit('copyPairingCode')"
+            @click="emit('openBrowserSettings')"
           >
-            <Copy class="size-4" />
-            配对码
+            <Cable class="size-4" />
+            浏览器设置
           </Button>
           <Button
             variant="brand"

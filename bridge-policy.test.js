@@ -237,6 +237,23 @@ test("MCP is exposed only for an explicitly selected Coding task", async () => {
     /MilkSU 隔离浏览器/,
   );
 
+  const browserUse = {
+    sessionId: "browser_user-12345678-abcd-4567-8901-123456789abc",
+  };
+  const userBrowserEnabled = await loadSessionPolicy(workspace, "", {
+    executionMode: "go",
+    approvalPolicy: "workspace-auto",
+    mcpServers: ["milksu-playwright-user"],
+    projectMcpServers: [],
+    browserUse,
+  });
+  assert.deepEqual(userBrowserEnabled.browserUse, browserUse);
+  assert.equal(userBrowserEnabled.activeTools.includes("mcp"), true);
+  assert.match(
+    userBrowserEnabled.capabilities.find(value => value.id === "browser").detail,
+    /Playwright MCP 官方扩展/,
+  );
+
   for (const policyInput of [
     { executionMode: "plan", approvalPolicy: "workspace-auto" },
     { executionMode: "go", approvalPolicy: "read-only" },

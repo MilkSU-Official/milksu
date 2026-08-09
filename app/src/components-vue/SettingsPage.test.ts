@@ -30,7 +30,7 @@ afterEach(() => {
 })
 
 interface MountSettingsOptions {
-  initialCategory?: 'general' | 'apikeys'
+  initialCategory?: 'general' | 'apikeys' | 'browser'
   settings?: AppSettings
   appMethods?: Record<string, (...args: unknown[]) => Promise<unknown>>
 }
@@ -68,6 +68,16 @@ async function mountSettingsPage(
           startedAt: '2026-08-03T05:00:00Z',
         }),
         GetCodingComputerUseStatus: async () => defaultComputerUseStatus,
+        GetNSSCTFWebBridgeStatus: async () => ({
+          bridge: {
+            endpoint: 'ws://127.0.0.1:43123',
+            pairingCode: 'copy-only-test-code',
+            extensionPath: '/Applications/MilkSU.app/Contents/Resources/browserextension',
+            active: true,
+            connected: false,
+          },
+          pages: [],
+        }),
         ...options.appMethods,
       },
     },
@@ -227,6 +237,7 @@ describe('SettingsPage database compatibility', () => {
       fileCount: 0,
       bytes: 0,
     }, {
+      initialCategory: 'browser',
       appMethods: {
         GetCodingComputerUseStatus: async () => {
           checks += 1
@@ -283,6 +294,7 @@ describe('SettingsPage database compatibility', () => {
       fileCount: 0,
       bytes: 0,
     }, {
+      initialCategory: 'browser',
       appMethods: {
         GetCodingComputerUseStatus: async () => ({
           available: true,
@@ -309,7 +321,7 @@ describe('SettingsPage database compatibility', () => {
     })
 
     const text = document.body.textContent ?? ''
-    expect(text).toContain('系统权限')
+    expect(text).toContain('外部 App 权限')
     expect(text).toContain('先稳定签名再复检')
     expect(text).toContain('不要反复授权')
     expect(text).toContain('当前构建身份：ad-hoc · Team 未设置')

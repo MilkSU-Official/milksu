@@ -68,6 +68,15 @@ describe('AppSidebar', () => {
     expect(coding.querySelector('[data-active-conversation-row]')?.textContent)
       .toContain('实现产品闭环')
     expect(coding.querySelector('[aria-label="设置"]')).not.toBeNull()
+    const codingHeading = [...coding.querySelectorAll('h2')]
+      .find(node => node.textContent === 'Coding')
+    const newTask = [...coding.querySelectorAll('button')]
+      .find(node => node.textContent?.includes('新建编码任务'))
+    expect(codingHeading).not.toBeUndefined()
+    expect(newTask).not.toBeUndefined()
+    expect(Boolean(codingHeading && newTask && (
+      codingHeading.compareDocumentPosition(newTask) & Node.DOCUMENT_POSITION_FOLLOWING
+    ))).toBe(true)
   })
 
   it('uses rail-local selection styling instead of inherited button hover borders', async () => {

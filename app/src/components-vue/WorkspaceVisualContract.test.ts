@@ -5,6 +5,7 @@ import chatMessageItemSource from './ChatMessageItem.vue?raw'
 import contextSidebarSource from './ContextSidebar.vue?raw'
 import vulnPageSource from './VulnPage.vue?raw'
 import workspaceDetailTitleSource from './WorkspaceDetailTitle.vue?raw'
+import workspaceRailSource from './WorkspaceRail.vue?raw'
 
 describe('Workspace visual contract', () => {
   it('uses one shared detail title component for CTF and CVE detail panes', () => {
@@ -23,11 +24,14 @@ describe('Workspace visual contract', () => {
 
   it('raises Coding reading surfaces and aligns its compact controls', () => {
     expect(contextSidebarSource).toContain('font-size: var(--text-label)')
-    expect(contextSidebarSource).toContain('font-size: var(--text-body)')
-    expect(contextSidebarSource).toContain('line-height: var(--text-body--line-height)')
-    expect(contextSidebarSource).toContain('px-3 py-2 text-body font-medium text-muted-foreground')
+    expect(contextSidebarSource).toContain('font-size: var(--text-control)')
+    expect(contextSidebarSource).toContain('line-height: var(--text-control--line-height)')
+    expect(contextSidebarSource).toContain('<h2 class="mb-2 px-0.5 text-control font-semibold">Coding</h2>')
+    expect(contextSidebarSource).toContain('px-3 py-2 text-label font-medium text-muted-foreground')
     expect(chatMessageItemSource).toContain('class="break-words text-control leading-7"')
     expect(chatComposerSource).toContain('font-size: var(--text-label)')
     expect(chatComposerSource).toContain('line-height: var(--text-label--line-height)')
+    expect(workspaceRailSource).toContain('font-size: var(--text-body)')
+    expect(workspaceRailSource).toContain('line-height: var(--text-body--line-height)')
   })
 })

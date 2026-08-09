@@ -6,6 +6,7 @@ import {
   projectAgentTurnPolicy,
   projectCodingAbortRequest,
   projectCodingRunFinished,
+  turnMCPServers,
 } from '@/composables/useConversations'
 
 describe('Coding approval conversation recovery', () => {
@@ -145,6 +146,15 @@ describe('Coding approval conversation recovery', () => {
     })
 
     expect(conversation.mcpServers).toEqual(['alpha', 'zeta'])
+  })
+
+  it('adds Browser Use only to the current turn MCP selection', () => {
+    expect(turnMCPServers(['fixture'], 'browser-use')).toEqual([
+      'fixture',
+      'milksu-playwright-user',
+    ])
+    expect(turnMCPServers(['fixture'], 'computer-use')).toEqual(['fixture'])
+    expect(turnMCPServers(undefined)).toEqual([])
   })
 
   it('keeps a stopped task running until the terminal Pi event arrives', () => {

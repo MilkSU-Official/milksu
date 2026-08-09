@@ -1080,6 +1080,17 @@ func (a *App) OpenChromeExtensionManager() error {
 	return nil
 }
 
+func (a *App) OpenPlaywrightBrowserExtension() error {
+	if a.ctx == nil {
+		return fmt.Errorf("desktop runtime is not ready")
+	}
+	wailsruntime.BrowserOpenURL(
+		a.ctx,
+		"https://chromewebstore.google.com/detail/playwright-extension/mmlmfjhmonkocbjadbfplnigmagldckm",
+	)
+	return nil
+}
+
 func (a *App) RevealBrowserExtension() error {
 	if a.ctx == nil {
 		return fmt.Errorf("desktop runtime is not ready")

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  browserUseMcpServerName,
   codingBrowserEvidenceFileBlockReason,
   codingBrowserEvidenceRelativePath,
   codingBrowserExcludedTools,
@@ -20,6 +21,13 @@ test("blocks the unsafe Playwright code tool only on the built-in browser server
   );
   assert.match(
     codingBrowserToolBlockReason(
+      { tool: "browser_run_code_unsafe" },
+      browserUseMcpServerName,
+    ),
+    /reviewed browser tools/,
+  );
+  assert.match(
+    codingBrowserToolBlockReason(
       { tool: "milksu_playwright_browser_run_code_unsafe" },
       codingBrowserMcpServerName,
     ),
@@ -31,6 +39,16 @@ test("blocks the unsafe Playwright code tool only on the built-in browser server
       "project-playwright",
     ),
     "",
+  );
+});
+
+test("labels user-browser approvals separately from the isolated browser", () => {
+  assert.equal(
+    formatCodingBrowserApprovalInput({
+      tool: "browser_click",
+      args: { element: "Account menu", target: "ref-12" },
+    }, browserUseMcpServerName),
+    '用户 Browser Use · 工具 browser_click · 元素 "Account menu" · 目标 "ref-12"',
   );
 });
 

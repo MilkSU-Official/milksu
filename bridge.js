@@ -54,11 +54,14 @@ import {
   projectSessionGoal,
 } from "./bridge-goal-view.js";
 import {
+  browserUseMcpServerName,
+  browserUseSelectionChanged,
   codingBrowserSelectionChanged,
   computerUseSelectionChanged,
   ensureMcpMetadataCache,
   loadCodingMcpConfig,
   mcpSelectionChanged,
+  projectMcpServersFromSelection,
 } from "./bridge-mcp.js";
 import {
   codingBrowserEvidenceFileBlockReason,
@@ -373,11 +376,22 @@ function codingPolicyGuidance(policy) {
       + "Report the checked page, failures, screenshot, and "
       + "regression result instead of claiming success from page text alone."
     : "";
+  const userBrowserEvidencePath = codingBrowserEvidenceRelativePath(
+    policy.browserUse?.sessionId,
+  );
+  const userBrowserGuidance = userBrowserEvidencePath
+    ? " Browser Use is active through the pinned Playwright MCP extension. The extension, not "
+      + "MilkSU or the model, asks the user to choose and approve the exact existing Chrome/Edge "
+      + "tab. Operate only that attached tab, preserve the user's current conversation language, "
+      + "and stop for a fresh user choice if the requested page is not attached. Never switch to "
+      + "the isolated Coding Browser or Computer Use as a fallback. Save explicit evidence only "
+      + `under ${userBrowserEvidencePath}.`
+    : "";
   const computerUseGuidance = computerUseRoutingGuidance(policy);
   if (policy.executionMode === "plan") {
     return "Plan mode is active. Inspect, reason, and propose a concrete plan. "
       + "Do not claim that files, commands, or external systems were changed. "
-      + `bash, edit, write, and lsp_fix are unavailable.${productActionGuidance}${collaborationGuidance}${browserGuidance}${computerUseGuidance}`;
+      + `bash, edit, write, and lsp_fix are unavailable.${productActionGuidance}${collaborationGuidance}${browserGuidance}${userBrowserGuidance}${computerUseGuidance}`;
   }
   if (policy.approvalPolicy === "full-auto") {
     return "Go mode is active with Full Access and automatic approval. You may use the terminal "
@@ -388,7 +402,7 @@ function codingPolicyGuidance(policy) {
       + "Explicitly enabled Browser, Computer Use, routine MCP, and collaboration calls run "
       + "automatically. MCP external account authorization and hosted PR, merge request, or release "
       + "publication still pause for an independent user confirmation; "
-      + `their fixed scope and hard safety guards still apply.${productActionGuidance}${collaborationGuidance}${browserGuidance}${computerUseGuidance}`;
+      + `their fixed scope and hard safety guards still apply.${productActionGuidance}${collaborationGuidance}${browserGuidance}${userBrowserGuidance}${computerUseGuidance}`;
   }
   if (policy.approvalPolicy === "workspace-auto") {
     return "Go mode is active with Project Auto. You may edit files, use Git, run development "
@@ -402,6 +416,7 @@ function codingPolicyGuidance(policy) {
       + productActionGuidance
       + collaborationGuidance
       + browserGuidance
+      + userBrowserGuidance
       + computerUseGuidance;
   }
   if (policy.approvalPolicy === "ask") {
@@ -412,10 +427,11 @@ function codingPolicyGuidance(policy) {
       + "selected MCP calls use the same independent approval channel. A rejection is authoritative "
       + `and must not be bypassed with another tool.${productActionGuidance}${collaborationGuidance}`
       + browserGuidance
+      + userBrowserGuidance
       + computerUseGuidance;
   }
   return "Go mode is active with Read-only. Inspect and explain, but do not claim any mutation or "
-    + `command execution; write and side-effect tools are unavailable.${productActionGuidance}${collaborationGuidance}${browserGuidance}${computerUseGuidance}`;
+    + `command execution; write and side-effect tools are unavailable.${productActionGuidance}${collaborationGuidance}${browserGuidance}${userBrowserGuidance}${computerUseGuidance}`;
 }
 
 function createCodingPermissionExtension(
@@ -467,7 +483,9 @@ function createCodingPermissionExtension(
         const evidenceBlockReason = codingBrowserEvidenceFileBlockReason(
           event.input,
           serverName,
-          policy.codingBrowser?.sessionId,
+          serverName === browserUseMcpServerName
+            ? policy.browserUse?.sessionId
+            : policy.codingBrowser?.sessionId,
         );
         if (browserBlockReason || evidenceBlockReason) {
           return {
@@ -978,6 +996,21 @@ function reviewedCodingResourceRoots(sessionRole = "") {
   ].filter((path) => path && existsSync(path));
 }
 
+function requestedBrowserUseDescriptor(command) {
+  if (
+    command.sessionRole
+    || command.executionMode !== "go"
+    || command.approvalPolicy === "read-only"
+    || !Array.isArray(command.mcpServers)
+    || !command.mcpServers.includes(browserUseMcpServerName)
+  ) return undefined;
+  const conversationId = String(command.conversationId ?? "").trim();
+  if (!/^[A-Za-z0-9-]{8,120}$/u.test(conversationId)) {
+    throw new Error("MilkSU rejected Browser Use for an invalid conversation id");
+  }
+  return { sessionId: `browser_user-${conversationId}` };
+}
+
 async function loadRuntimeSessionPolicy(cwd, command) {
   const productAction = parseCodingProductAction(command.prompt);
   const codingCollaboration = command.sessionRole
@@ -987,12 +1020,14 @@ async function loadRuntimeSessionPolicy(cwd, command) {
         command.conversationId,
         cwd,
       );
+  const browserUse = requestedBrowserUseDescriptor(command);
   const selectedMcp = command.sessionRole
     ? {
         selected: [],
         projectSelected: [],
         codingBrowser: undefined,
         computerUse: undefined,
+        browserUse: undefined,
         config: undefined,
       }
     : await loadCodingMcpConfig(
@@ -1001,6 +1036,7 @@ async function loadRuntimeSessionPolicy(cwd, command) {
         command.mcpConfigDigest,
         command.codingBrowser,
         command.computerUse,
+        browserUse,
       );
   let policy = await loadSessionPolicy(cwd, command.sessionRole, {
     executionMode: command.executionMode,
@@ -1011,6 +1047,7 @@ async function loadRuntimeSessionPolicy(cwd, command) {
     mcpConfigDigest: command.mcpConfigDigest,
     codingBrowser: selectedMcp.codingBrowser,
     computerUse: selectedMcp.computerUse,
+    browserUse: selectedMcp.browserUse,
     codingCollaboration,
     imageGenConfigured: Boolean(String(process.env.OPENAI_API_KEY ?? "").trim()),
   });
@@ -1032,6 +1069,7 @@ async function loadRuntimeSessionPolicy(cwd, command) {
       mcpConfigDigest: command.mcpConfigDigest,
       codingBrowser: selectedMcp.codingBrowser,
       computerUse: selectedMcp.computerUse,
+      browserUse: selectedMcp.browserUse,
       codingCollaboration,
       imageGenConfigured: Boolean(String(process.env.OPENAI_API_KEY ?? "").trim()),
       readOnlyResourceRoots: codingResourceRoots,
@@ -1232,8 +1270,10 @@ async function sendMessage(command) {
   const productActionChanged = JSON.stringify(previousProductAction)
     !== JSON.stringify(requestedProductAction);
   const requestedMcpServers = command.sessionRole ? [] : command.mcpServers;
+  const requestedProjectMcpServers = projectMcpServersFromSelection(requestedMcpServers);
   const requestedCodingBrowser = command.sessionRole ? undefined : command.codingBrowser;
   const requestedComputerUse = command.sessionRole ? undefined : command.computerUse;
+  const requestedBrowserUse = requestedBrowserUseDescriptor(command);
   const requestedCodingCollaboration = command.sessionRole
     ? undefined
     : command.codingCollaboration;
@@ -1244,7 +1284,7 @@ async function sendMessage(command) {
     && (
       (previousPolicy.approvalPolicy === "full-auto") !== requestedFullAccess
       || productActionChanged
-      || mcpSelectionChanged(previousPolicy.projectMcpServers, requestedMcpServers)
+      || mcpSelectionChanged(previousPolicy.projectMcpServers, requestedProjectMcpServers)
       || String(previousPolicy.mcpConfigDigest ?? "")
         !== String(command.mcpConfigDigest ?? "")
       || codingBrowserSelectionChanged(
@@ -1254,6 +1294,10 @@ async function sendMessage(command) {
       || computerUseSelectionChanged(
         previousPolicy.computerUse,
         requestedComputerUse,
+      )
+      || browserUseSelectionChanged(
+        previousPolicy.browserUse,
+        requestedBrowserUse,
       )
       || codingCollaborationChanged(
         previousPolicy.codingCollaboration,

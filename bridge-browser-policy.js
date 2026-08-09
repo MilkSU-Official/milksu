@@ -1,9 +1,22 @@
 import { posix } from "node:path";
 
 export const codingBrowserMcpServerName = "milksu-playwright";
+export const browserUseMcpServerName = "milksu-playwright-user";
 export const codingBrowserExcludedTools = Object.freeze([
   "browser_run_code_unsafe",
 ]);
+
+function firstPartyBrowserServer(serverName) {
+  const normalized = String(serverName ?? "").trim();
+  return normalized === codingBrowserMcpServerName
+    || normalized === browserUseMcpServerName;
+}
+
+function browserSurfaceLabel(serverName) {
+  return String(serverName ?? "").trim() === browserUseMcpServerName
+    ? "用户 Browser Use"
+    : "隔离 Coding Browser";
+}
 
 const maxApprovalValueCharacters = 240;
 
@@ -73,7 +86,7 @@ export function codingBrowserEvidenceRelativePath(sessionId) {
 }
 
 export function codingBrowserToolBlockReason(input, serverName) {
-  if (String(serverName ?? "").trim() !== codingBrowserMcpServerName) return "";
+  if (!firstPartyBrowserServer(serverName)) return "";
   const tool = baseToolName(input?.tool);
   if (codingBrowserExcludedTools.includes(tool)) {
     return "MilkSU blocked browser_run_code_unsafe because it executes arbitrary "
@@ -83,7 +96,7 @@ export function codingBrowserToolBlockReason(input, serverName) {
 }
 
 export function codingBrowserEvidenceFileBlockReason(input, serverName, sessionId) {
-  if (String(serverName ?? "").trim() !== codingBrowserMcpServerName) return "";
+  if (!firstPartyBrowserServer(serverName)) return "";
   const filename = String(parseMcpArguments(input).filename ?? "").trim();
   if (!filename) return "";
   const evidencePath = codingBrowserEvidenceRelativePath(sessionId);
@@ -112,11 +125,11 @@ export function codingBrowserEvidenceFileBlockReason(input, serverName, sessionI
 }
 
 export function formatCodingBrowserApprovalInput(input, serverName) {
-  if (String(serverName ?? "").trim() !== codingBrowserMcpServerName) return "";
+  if (!firstPartyBrowserServer(serverName)) return "";
   const tool = baseToolName(input?.tool);
   const action = bounded(input?.action ?? input?.connect);
   const args = parseMcpArguments(input);
-  const details = ["隔离 Coding Browser"];
+  const details = [browserSurfaceLabel(serverName)];
 
   if (tool) details.push(`工具 ${tool}`);
   else if (action) details.push(`操作 ${action}`);

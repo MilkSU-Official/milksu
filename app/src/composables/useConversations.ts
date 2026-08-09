@@ -25,6 +25,19 @@ import type {
   Message,
 } from '@/types'
 
+const BROWSER_USE_MCP_SERVER = 'milksu-playwright-user'
+type ComposerScopeToken = 'browser-use' | 'computer-use'
+
+export function turnMCPServers(
+  selected: string[] | undefined,
+  scopeToken?: ComposerScopeToken,
+) {
+  return [
+    ...(selected ?? []),
+    ...(scopeToken === 'browser-use' ? [BROWSER_USE_MCP_SERVER] : []),
+  ]
+}
+
 function normalizeAttachments(value: unknown): CodingAttachment[] | undefined {
   if (!Array.isArray(value)) return undefined
   const attachments = value.flatMap(item => {
@@ -567,6 +580,7 @@ export function useConversations() {
     text: string,
     visibleText = text,
     attachments: CodingAttachment[] = [],
+    scopeToken?: ComposerScopeToken,
   ) {
     const prompt = text.trim()
     if (!prompt) return false
@@ -610,6 +624,7 @@ export function useConversations() {
     runningIds.value = new Set(runningIds.value).add(conversationId)
     try {
       const conversation = conversations.value.find(item => item.id === conversationId)
+      const requestedMCPServers = turnMCPServers(conversation?.mcpServers, scopeToken)
       await invokeCommand('send_message', {
         conversationId,
         prompt,
@@ -619,7 +634,7 @@ export function useConversations() {
         modelId: conversation?.modelId ?? '',
         executionMode: conversation?.executionMode ?? DEFAULT_CODING_EXECUTION_MODE,
         approvalPolicy: conversation?.approvalPolicy ?? DEFAULT_CODING_APPROVAL_POLICY,
-        mcpServers: conversation?.mcpServers ?? [],
+        mcpServers: requestedMCPServers,
         mcpConfigDigest: conversation?.mcpConfigDigest ?? '',
         attachments,
       })

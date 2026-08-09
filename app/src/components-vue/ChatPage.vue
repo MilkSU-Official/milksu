@@ -31,8 +31,6 @@ import {
   ChevronDown,
   CircleDot,
   Compass,
-  Copy,
-  ExternalLink,
   FileDiff,
   FileImage,
   FilePenLine,
@@ -45,6 +43,7 @@ import {
   History,
   KeyRound,
   LoaderCircle,
+  MousePointer2,
   Network,
   PanelRightClose,
   PanelRightOpen,
@@ -78,7 +77,6 @@ import type {
   CodingGitDeliveryEvidence,
   CodingMCPConfigSnapshot,
 } from '@/codingEnvironmentTypes'
-import type { CTFShowCatalogStatus } from '@/ctfshowTypes'
 import { buildChatTranscript } from '@/lib/chatActivity'
 import { chatTopbarPresentation } from '@/lib/chatTopbar'
 import {
@@ -99,6 +97,7 @@ import {
   computerUseStartArgs,
   describeActiveComputerUseCapability,
   describePendingComputerUseCapability,
+  isUserBrowserTarget,
   nextComputerUseTargetKey,
   normalizeCodingApprovalPolicy,
   normalizeCodingExecutionMode,
@@ -120,7 +119,6 @@ import type {
   Conversation,
   CTFChatAction,
 } from '@/types'
-import type { NSSCTFWebBridgeStatus } from '@/nssctfWebTypes'
 import { providerModelLabel } from '@/types'
 import type { SessionHistorySearchResult } from '@/sessionIndexTypes'
 
@@ -157,7 +155,12 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  send: [text: string, visibleText?: string, attachments?: CodingAttachment[]]
+  send: [
+    text: string,
+    visibleText?: string,
+    attachments?: CodingAttachment[],
+    scopeToken?: 'browser-use' | 'computer-use',
+  ]
   ctfAction: [action: CTFChatAction]
   abort: []
   chooseWorkspace: []
@@ -169,6 +172,7 @@ const emit = defineEmits<{
   changeMcpServers: [servers: string[], configDigest: string]
   respondApproval: [requestId: string, approved: boolean]
   compactContext: []
+  newConversation: []
   controlGoal: [action: 'pause' | 'resume' | 'clear']
   openSettings: []
   returnCtf: []
@@ -188,6 +192,8 @@ const contextPanelValues = [
   'artifacts',
   'architecture',
   'browser',
+  'browser-use',
+  'computer-use',
   'collaboration',
   'history',
   'evidence',
@@ -218,8 +224,6 @@ const computerUseStatus = ref<CodingComputerUseStatus | null>(null)
 const computerUseTargets = ref<CodingComputerUseTarget[]>([])
 const selectedComputerUseTargetKey = ref('')
 const gitDeliveryEvidence = ref<CodingGitDeliveryEvidence | null>(null)
-const nssctfBrowserStatus = ref<NSSCTFWebBridgeStatus | null>(null)
-const ctfshowBrowserStatus = ref<CTFShowCatalogStatus | null>(null)
 const codingEnvironment = ref<CodingEnvironmentSnapshot | null>(null)
 const mcpConfig = ref<CodingMCPConfigSnapshot | null>(null)
 const mcpConfigLoading = ref(false)
@@ -289,9 +293,28 @@ const computerUseReadyForCurrentTask = computed(() => Boolean(
   computerUseStatus.value?.enabled
   && computerUseOwnedByCurrentTask.value,
 ))
+const scopedComputerUseTargets = computed(() => (
+  computerUseTargets.value.filter(target => !isUserBrowserTarget(target))
+))
+const activeComputerUseTargetMatchesScope = computed(() => {
+  const target = computerUseStatus.value?.target
+  if (!target) return true
+  return !isUserBrowserTarget(target)
+})
+const browserUseReadyForCurrentTask = computed(() => Boolean(
+  !props.ctfSession
+  && props.workspacePath
+  && effectiveExecutionMode.value === 'go'
+  && effectiveApprovalPolicy.value !== 'read-only',
+))
+const externalAppUseReadyForCurrentTask = computed(() => Boolean(
+  computerUseReadyForCurrentTask.value
+  && computerUseStatus.value?.target
+  && !isUserBrowserTarget(computerUseStatus.value.target),
+))
 const selectedComputerUseTarget = computed(() => (
   resolveSelectedComputerUseTarget(
-    computerUseTargets.value,
+    scopedComputerUseTargets.value,
     selectedComputerUseTargetKey.value,
   )
 ))
@@ -493,11 +516,16 @@ const contextPanelTitle = computed(() => ({
   terminal: '终端',
   artifacts: '产物',
   architecture: '架构图',
-  browser: props.ctfSession ? '浏览器' : '浏览器与 App',
+  browser: '沙箱浏览器',
+  'browser-use': 'Browser Use',
+  'computer-use': 'Computer Use',
   collaboration: props.ctfSession ? 'Agent 协作' : '隔离 worktree',
   history: '相关历史',
   evidence: '证据与 Judge',
 })[contextPanel.value])
+const transientComputerUsePanel = computed(() => (
+  contextPanel.value === 'browser-use' || contextPanel.value === 'computer-use'
+))
 const historyDefaultQuery = computed(() => {
   if (props.vulnerabilitySession) return props.conversation?.title || 'CVE'
   if (props.ctfSession) return props.conversation?.title || 'Judge correct=true'
@@ -537,9 +565,23 @@ function sendComposerMessage(
   prompt: string,
   visibleText?: string,
   attachments?: CodingAttachment[],
+  scopeToken?: 'browser-use' | 'computer-use',
 ) {
   goalMode.value = false
-  emit('send', prompt, visibleText, attachments)
+  if (scopeToken === 'browser-use' && !browserUseReadyForCurrentTask.value) {
+    showBrowserUseScope()
+    return
+  }
+  if (scopeToken === 'computer-use' && !externalAppUseReadyForCurrentTask.value) {
+    void showComputerUseScope()
+    return
+  }
+  const scopedPrompt = scopeToken === 'browser-use'
+    ? `本轮通过 Playwright MCP 官方扩展请求连接真实用户浏览器；首次调用时等我在 Chrome/Edge 里选择并批准准确标签页。只操作扩展返回的标签页，不要改用沙箱浏览器或 Computer Use。\n\n${prompt}`
+    : scopeToken === 'computer-use'
+      ? `本轮使用已锁定的可见 App 窗口完成请求；若尚未接入准确窗口，先停下让我选择。\n\n${prompt}`
+      : prompt
+  emit('send', scopedPrompt, visibleText, attachments, scopeToken)
 }
 
 function controlComposerGoal(action: 'pause' | 'resume' | 'clear') {
@@ -653,6 +695,73 @@ function toggleMCPServer(server: CodingMCPConfigSnapshot['servers'][number]) {
 function showCodingPermissions() {
   contextPanel.value = 'environment'
   environmentOpen.value = true
+}
+
+function toggleManualContextSidebar() {
+  if (environmentOpen.value) {
+    environmentOpen.value = false
+    return
+  }
+  contextPanel.value = 'browser'
+  environmentOpen.value = true
+}
+
+function showBrowserUseScope() {
+  contextPanel.value = 'browser-use'
+  environmentOpen.value = true
+}
+
+async function showComputerUseScope() {
+  contextPanel.value = 'computer-use'
+  environmentOpen.value = true
+  await refreshBrowserPanel()
+  selectedComputerUseTargetKey.value = nextComputerUseTargetKey(
+    scopedComputerUseTargets.value,
+    selectedComputerUseTargetKey.value,
+    computerUseStatus.value?.conversationId ? computerUseStatus.value.target : null,
+  )
+}
+
+async function openPlaywrightBrowserExtension() {
+  browserPanelError.value = ''
+  try {
+    await invokeCommand('open_playwright_browser_extension')
+  } catch (reason) {
+    browserPanelError.value = reason instanceof Error
+      ? reason.message
+      : '无法打开 Playwright MCP 官方扩展页面。'
+  }
+}
+
+function runSlashCommand(command: string) {
+  if (command === 'new') {
+    emit('newConversation')
+    return
+  }
+  if (command === 'compact') {
+    emit('compactContext')
+    return
+  }
+  if (command === 'review') {
+    void runCodingProductAction('review')
+    return
+  }
+  if (command === 'browser-use') {
+    showBrowserUseScope()
+    return
+  }
+  if (command === 'computer-use') {
+    void showComputerUseScope()
+    return
+  }
+
+  const panel = ({
+    status: 'environment',
+    diff: 'changes',
+    worktree: 'collaboration',
+    mcp: 'environment',
+  } as const)[command as 'status' | 'diff' | 'worktree' | 'mcp']
+  if (panel) changeContextPanel(panel)
 }
 
 function generateArchitecture() {
@@ -808,79 +917,63 @@ async function refreshEnvironment() {
 
 async function refreshBrowserPanel() {
   browserPanelError.value = ''
-  if (!props.ctfSession) {
-    nssctfBrowserStatus.value = null
-    ctfshowBrowserStatus.value = null
-    if (codingBrowserLoading.value || computerUseLoading.value) return
-    codingBrowserLoading.value = true
-    computerUseLoading.value = true
-    const conversationID = props.conversation?.id
-    const [browser, computerUse, computerUseTargetsResult] = await Promise.allSettled([
-      conversationID
-        ? invokeCommand<CodingBrowserStatus>(
-            'get_coding_browser_status',
-            { conversationId: conversationID },
-          )
-        : Promise.resolve<CodingBrowserStatus>({
-            enabled: false,
-            conversationId: '',
-            phase: 'disabled',
-            pages: [],
-          }),
-      invokeCommand<CodingComputerUseStatus>('get_coding_computer_use_status'),
-      invokeCommand<CodingComputerUseTarget[]>('list_coding_computer_use_targets'),
-    ])
-    if (browser.status === 'fulfilled') {
-      codingBrowserStatus.value = browser.value
-      if (codingBrowserStatus.value.initialUrl) {
-        codingBrowserURL.value = codingBrowserStatus.value.initialUrl
-      }
-    } else {
-      codingBrowserStatus.value = null
-      browserPanelError.value = browser.reason instanceof Error
-        ? browser.reason.message
-        : '暂时无法读取 Coding 浏览器状态。'
-    }
-    if (computerUse.status === 'fulfilled') {
-      computerUseStatus.value = computerUse.value
-    } else {
-      computerUseStatus.value = null
-      if (!browserPanelError.value) {
-        browserPanelError.value = computerUse.reason instanceof Error
-          ? computerUse.reason.message
-          : '暂时无法读取 Computer Use 状态。'
-      }
-    }
-    if (computerUseTargetsResult.status === 'fulfilled') {
-      computerUseTargets.value = computerUseTargetsResult.value
-      selectedComputerUseTargetKey.value = nextComputerUseTargetKey(
-        computerUseTargets.value,
-        selectedComputerUseTargetKey.value,
-        computerUseStatus.value?.conversationId ? computerUseStatus.value.target : null,
-      )
-    } else {
-      computerUseTargets.value = []
-      if (!browserPanelError.value) {
-        browserPanelError.value = computerUseTargetsResult.reason instanceof Error
-          ? computerUseTargetsResult.reason.message
-          : '暂时无法读取可见 App 窗口。'
-      }
-    }
-    codingBrowserLoading.value = false
-    computerUseLoading.value = false
-    return
-  }
-  environmentLoading.value = true
-  const [nssctf, ctfshow] = await Promise.allSettled([
-    invokeCommand<NSSCTFWebBridgeStatus>('get_nssctf_web_bridge_status'),
-    invokeCommand<CTFShowCatalogStatus>('get_ctfshow_catalog_status'),
+  if (codingBrowserLoading.value || computerUseLoading.value) return
+  codingBrowserLoading.value = true
+  computerUseLoading.value = true
+  const conversationID = props.conversation?.id
+  const [browser, computerUse, computerUseTargetsResult] = await Promise.allSettled([
+    conversationID
+      ? invokeCommand<CodingBrowserStatus>(
+          'get_coding_browser_status',
+          { conversationId: conversationID },
+        )
+      : Promise.resolve<CodingBrowserStatus>({
+          enabled: false,
+          conversationId: '',
+          phase: 'disabled',
+          pages: [],
+        }),
+    invokeCommand<CodingComputerUseStatus>('get_coding_computer_use_status'),
+    invokeCommand<CodingComputerUseTarget[]>('list_coding_computer_use_targets'),
   ])
-  nssctfBrowserStatus.value = nssctf.status === 'fulfilled' ? nssctf.value : null
-  ctfshowBrowserStatus.value = ctfshow.status === 'fulfilled' ? ctfshow.value : null
-  if (nssctf.status === 'rejected' && ctfshow.status === 'rejected') {
-    browserPanelError.value = '暂时无法读取浏览器连接。'
+  if (browser.status === 'fulfilled') {
+    codingBrowserStatus.value = browser.value
+    if (codingBrowserStatus.value.initialUrl) {
+      codingBrowserURL.value = codingBrowserStatus.value.initialUrl
+    }
+  } else {
+    codingBrowserStatus.value = null
+    browserPanelError.value = browser.reason instanceof Error
+      ? browser.reason.message
+      : '暂时无法读取 Coding 浏览器状态。'
   }
-  environmentLoading.value = false
+  if (computerUse.status === 'fulfilled') {
+    computerUseStatus.value = computerUse.value
+  } else {
+    computerUseStatus.value = null
+    if (!browserPanelError.value) {
+      browserPanelError.value = computerUse.reason instanceof Error
+        ? computerUse.reason.message
+        : '暂时无法读取 Computer Use 状态。'
+    }
+  }
+  if (computerUseTargetsResult.status === 'fulfilled') {
+    computerUseTargets.value = computerUseTargetsResult.value
+    selectedComputerUseTargetKey.value = nextComputerUseTargetKey(
+      scopedComputerUseTargets.value,
+      selectedComputerUseTargetKey.value,
+      computerUseStatus.value?.conversationId ? computerUseStatus.value.target : null,
+    )
+  } else {
+    computerUseTargets.value = []
+    if (!browserPanelError.value) {
+      browserPanelError.value = computerUseTargetsResult.reason instanceof Error
+        ? computerUseTargetsResult.reason.message
+        : '暂时无法读取可见 App 窗口。'
+    }
+  }
+  codingBrowserLoading.value = false
+  computerUseLoading.value = false
 }
 
 async function startCodingBrowser() {
@@ -1053,7 +1146,7 @@ async function refreshContextPanel() {
     await artifactPanel.value?.refresh()
     return
   }
-  if (contextPanel.value === 'browser') {
+  if (['browser', 'computer-use'].includes(contextPanel.value)) {
     await refreshBrowserPanel()
     return
   }
@@ -1094,33 +1187,6 @@ function recordArtifactPreview(preview: CodingArtifactPreview) {
 
 function recordGitDeliveryEvidence(evidence: CodingGitDeliveryEvidence) {
   gitDeliveryEvidence.value = evidence
-}
-
-async function revealBrowserExtension() {
-  browserPanelError.value = ''
-  try {
-    await invokeCommand('reveal_browser_extension')
-  } catch (reason) {
-    browserPanelError.value = reason instanceof Error ? reason.message : String(reason)
-  }
-}
-
-async function copyPairingCode(value: string) {
-  if (!value) return
-  try {
-    await navigator.clipboard.writeText(value)
-  } catch {
-    browserPanelError.value = '复制失败，请回到训练工作台手动复制配对码。'
-  }
-}
-
-async function openSharedBrowserPage(url: string) {
-  if (!url) return
-  try {
-    await invokeCommand('open_ctf_source_url', { url })
-  } catch (reason) {
-    browserPanelError.value = reason instanceof Error ? reason.message : String(reason)
-  }
 }
 
 function requestTool() {
@@ -1175,7 +1241,7 @@ watch(() => props.conversation?.id, () => {
   computerUseEvidence.value = null
   gitDeliveryEvidence.value = null
   void scrollChatToBottom()
-  if (contextPanel.value === 'browser' && environmentOpen.value) {
+  if (['browser', 'browser-use', 'computer-use'].includes(contextPanel.value) && environmentOpen.value) {
     void refreshBrowserPanel()
   }
   if (
@@ -1203,7 +1269,9 @@ watch(
   { immediate: true },
 )
 watch(contextPanel, panel => {
-  if (panel === 'browser' && environmentOpen.value) void refreshBrowserPanel()
+  if (['browser', 'browser-use', 'computer-use'].includes(panel) && environmentOpen.value) {
+    void refreshBrowserPanel()
+  }
   if (panel === 'architecture' && environmentOpen.value) void refreshArchitecturePreview()
   if (['artifacts', 'changes'].includes(panel) && environmentOpen.value) void refreshEnvironment()
 })
@@ -1238,6 +1306,7 @@ watch(
   <main class="chat-main flex min-w-0 flex-1 flex-col overflow-hidden bg-surface-editor">
     <WorkspaceModuleTopBar
       :module="topbarModule"
+      :title="topbarPresentation.title"
       :subtitle="topbarPresentation.subtitle"
     >
       <template v-if="ctfSession || vulnerabilitySession" #badge>
@@ -1271,7 +1340,7 @@ watch(
           size="icon-sm"
           :aria-label="environmentOpen ? '关闭右侧栏' : '打开右侧栏'"
           :title="environmentOpen ? '关闭右侧栏' : '打开右侧栏'"
-          @click="environmentOpen = !environmentOpen"
+          @click="toggleManualContextSidebar"
         >
           <PanelRightClose v-if="environmentOpen" class="size-4" />
           <PanelRightOpen v-else class="size-4" />
@@ -1354,6 +1423,10 @@ watch(
       :model-key="currentModelKey"
       :automatic-model-label="automaticModelLabel"
       :compact-model-label="compactModelLabel"
+      :compact-disabled="continuity.compactDisabled"
+      :workspace-ready="Boolean(workspacePath)"
+      :browser-use-ready="browserUseReadyForCurrentTask"
+      :computer-use-ready="externalAppUseReadyForCurrentTask"
       @send="sendComposerMessage"
       @ctf-action="$emit('ctfAction', $event)"
       @abort="$emit('abort')"
@@ -1363,6 +1436,7 @@ watch(
       @show-permissions="showCodingPermissions"
       @consume-goal="goalMode = false"
       @start-goal="goalMode = true"
+      @run-slash-command="runSlashCommand"
       @control-goal="controlComposerGoal"
     />
   </main>
@@ -1376,6 +1450,7 @@ watch(
   >
     <header class="app-drag flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
       <Select
+        v-if="!transientComputerUsePanel"
         :model-value="contextPanel"
         @update:model-value="value => changeContextPanel(String(value ?? ''))"
       >
@@ -1401,7 +1476,7 @@ watch(
           <SelectItem v-if="!ctfSession" value="terminal">终端</SelectItem>
           <SelectItem v-if="!ctfSession" value="artifacts">产物</SelectItem>
           <SelectItem v-if="!ctfSession" value="architecture">架构图</SelectItem>
-          <SelectItem value="browser">{{ ctfSession ? '浏览器' : '浏览器与 App' }}</SelectItem>
+          <SelectItem value="browser">沙箱浏览器</SelectItem>
           <SelectItem v-if="!ctfSession" value="collaboration">隔离 worktree</SelectItem>
           <SelectItem value="history">相关历史</SelectItem>
           <template v-if="ctfSession">
@@ -1411,9 +1486,14 @@ watch(
           </template>
         </SelectContent>
       </Select>
+      <div v-else class="app-no-drag flex min-w-0 items-center gap-2 text-control font-medium">
+        <Globe2 v-if="contextPanel === 'browser-use'" class="size-4 shrink-0 text-primary" />
+        <MousePointer2 v-else class="size-4 shrink-0 text-primary" />
+        <span class="truncate">{{ contextPanelTitle }}</span>
+      </div>
       <div class="app-no-drag flex items-center gap-1">
         <Button
-          v-if="contextPanel !== 'terminal'"
+          v-if="contextPanel !== 'terminal' && contextPanel !== 'browser-use'"
           variant="ghost"
           size="icon-sm"
           :disabled="environmentLoading || architecturePreviewLoading"
@@ -1872,7 +1952,7 @@ watch(
         <div v-if="browserPanelError" class="border-b border-border px-4 py-3 text-caption text-destructive">
           {{ browserPanelError }}
         </div>
-        <section v-if="!ctfSession" class="px-4 py-5">
+        <section class="px-4 py-5">
           <div class="flex items-start justify-between gap-3">
             <div>
               <p class="text-body font-medium">隔离 Coding 浏览器</p>
@@ -1981,13 +2061,56 @@ watch(
               </p>
             </div>
           </div>
+        </section>
+      </template>
+
+      <template v-else-if="contextPanel === 'browser-use'">
+        <div v-if="browserPanelError" class="border-b border-border px-4 py-3 text-caption text-destructive">
+          {{ browserPanelError }}
+        </div>
+        <section class="px-4 py-5">
+          <div class="rounded-xl border border-border bg-muted/25 p-4">
+            <div class="flex items-start gap-3">
+              <Globe2 class="mt-0.5 size-5 shrink-0 text-primary" />
+              <div>
+                <p class="text-body font-medium">真实用户浏览器</p>
+                <p class="mt-1 text-caption leading-5 text-muted-foreground">
+                  使用项目已固定的 Playwright MCP 官方扩展，不复用 MilkSU 的 CTF Bridge，也不走桌面坐标点击。
+                </p>
+              </div>
+            </div>
+            <ol class="mt-4 space-y-2 text-caption leading-5 text-muted-foreground">
+              <li>1. 保留输入框里的 /browser-use 状态并发送任务。</li>
+              <li>2. 首次调用时，Chrome/Edge 会显示官方连接页。</li>
+              <li>3. 由你选择并批准准确标签页；Agent 只能操作该连接返回的页面。</li>
+            </ol>
+            <Button
+              variant="outline"
+              size="sm"
+              class="mt-4"
+              @click="openPlaywrightBrowserExtension"
+            >
+              <ExternalLink class="size-3.5" />
+              安装 Playwright 官方扩展
+            </Button>
+          </div>
+        </section>
+      </template>
+
+      <template v-else-if="contextPanel === 'computer-use'">
+        <div v-if="browserPanelError" class="border-b border-border px-4 py-3 text-caption text-destructive">
+          {{ browserPanelError }}
+        </div>
+        <section class="px-4 py-5">
           <CodingComputerUsePanel
             v-model:selected-target-key="selectedComputerUseTargetKey"
+            standalone
             :status="computerUseStatus"
-            :targets="computerUseTargets"
+            :targets="scopedComputerUseTargets"
             :loading="computerUseLoading"
             :running="running"
             :owned-by-current-task="computerUseOwnedByCurrentTask"
+            :active-target-matches-scope="activeComputerUseTargetMatchesScope"
             :execution-mode="effectiveExecutionMode"
             :approval-policy="effectiveApprovalPolicy"
             :operation-evidence="computerUseOperationEvidence"
@@ -1997,85 +2120,6 @@ watch(
             @stop="stopComputerUse"
           />
         </section>
-        <template v-else>
-          <section class="border-b border-border px-4 py-4">
-            <div class="flex items-center justify-between gap-3">
-              <div>
-                <p class="text-body font-medium">MilkSU Chrome Bridge</p>
-                <p class="mt-1 text-caption text-muted-foreground">
-                  {{
-                    nssctfBrowserStatus?.bridge.connected || ctfshowBrowserStatus?.bridge.connected
-                      ? '扩展已连接'
-                      : '等待扩展连接'
-                  }}
-                </p>
-              </div>
-              <span
-                class="size-2 rounded-full"
-                :class="nssctfBrowserStatus?.bridge.connected || ctfshowBrowserStatus?.bridge.connected
-                  ? 'bg-primary'
-                  : 'bg-muted-foreground'"
-              />
-            </div>
-            <div class="mt-4 flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" @click="revealBrowserExtension">
-                查看扩展
-              </Button>
-              <Button
-                v-if="nssctfBrowserStatus?.bridge.pairingCode"
-                variant="ghost"
-                size="sm"
-                @click="copyPairingCode(nssctfBrowserStatus.bridge.pairingCode)"
-              >
-                <Copy class="size-3.5" />
-                复制配对码
-              </Button>
-            </div>
-          </section>
-          <section class="border-b border-border px-4 py-4">
-            <p class="text-caption font-medium text-muted-foreground">
-              NSSCTF · {{ nssctfBrowserStatus?.pages.length ?? 0 }} 个页面
-            </p>
-            <div v-if="nssctfBrowserStatus?.pages.length" class="mt-3 space-y-2">
-              <button
-                v-for="page in nssctfBrowserStatus.pages"
-                :key="page.id"
-                type="button"
-                class="flex w-full items-start gap-2 rounded-md px-2 py-2 text-left hover:bg-muted"
-                @click="openSharedBrowserPage(page.url)"
-              >
-                <Globe2 class="mt-0.5 size-4 shrink-0 text-primary" />
-                <span class="min-w-0 flex-1">
-                  <span class="block truncate text-body">{{ page.title }}</span>
-                  <span class="mt-0.5 block truncate text-caption text-muted-foreground">
-                    P{{ page.nssctf.problemId }} · {{ page.connected ? '已连接' : '已断开' }}
-                  </span>
-                </span>
-                <ExternalLink class="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
-              </button>
-            </div>
-            <p v-else class="mt-3 text-caption text-muted-foreground">没有共享的 NSSCTF 页面。</p>
-          </section>
-          <section class="px-4 py-4">
-            <p class="text-caption font-medium text-muted-foreground">
-              CTFshow · {{ ctfshowBrowserStatus?.pages.length ?? 0 }} 个页面
-            </p>
-            <div v-if="ctfshowBrowserStatus?.pages.length" class="mt-3 space-y-2">
-              <button
-                v-for="page in ctfshowBrowserStatus.pages"
-                :key="page.id"
-                type="button"
-                class="flex w-full items-start gap-2 rounded-md px-2 py-2 text-left hover:bg-muted"
-                @click="openSharedBrowserPage(page.url)"
-              >
-                <Globe2 class="mt-0.5 size-4 shrink-0 text-primary" />
-                <span class="min-w-0 flex-1 truncate text-body">{{ page.title }}</span>
-                <ExternalLink class="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
-              </button>
-            </div>
-            <p v-else class="mt-3 text-caption text-muted-foreground">没有共享的 CTFshow 页面。</p>
-          </section>
-        </template>
       </template>
 
       <template v-else-if="contextPanel === 'collaboration'">

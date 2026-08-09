@@ -284,6 +284,7 @@ interface WailsAppBindings {
   OpenNSSCTFChallenge(rawURL: string): Promise<void>
   OpenCTFSourceURL(rawURL: string): Promise<void>
   OpenChromeExtensionManager(): Promise<void>
+  OpenPlaywrightBrowserExtension(): Promise<void>
   RevealBrowserExtension(): Promise<void>
   GetCTFShowCatalogStatus(): Promise<CTFShowCatalogStatus>
   OpenCTFShowChallenges(rawURL: string): Promise<void>
@@ -597,6 +598,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.OpenCTFSourceURL(args?.url as string) as Promise<T>
       case 'open_chrome_extension_manager':
         return app.OpenChromeExtensionManager() as Promise<T>
+      case 'open_playwright_browser_extension':
+        return app.OpenPlaywrightBrowserExtension() as Promise<T>
       case 'reveal_browser_extension':
         return app.RevealBrowserExtension() as Promise<T>
       case 'get_ctfshow_catalog_status':

@@ -4,20 +4,22 @@ import WorkspaceTopBar from '@/components-vue/WorkspaceTopBar.vue'
 
 const props = defineProps<{
   module: 'coding' | 'ctf' | 'cve'
+  title?: string
   subtitle?: string
 }>()
 
-const title = computed(() => ({
+const fallbackTitle = computed(() => ({
   coding: 'Coding',
   ctf: 'CTF',
   cve: 'CVE',
 })[props.module])
+const resolvedTitle = computed(() => props.title?.trim() || fallbackTitle.value)
 </script>
 
 <template>
   <WorkspaceTopBar
     :module="module"
-    :title="title"
+    :title="resolvedTitle"
     :subtitle="subtitle"
     data-workspace-module-topbar
   >

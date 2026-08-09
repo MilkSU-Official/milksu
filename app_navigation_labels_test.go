@@ -40,7 +40,8 @@ func TestPrimaryNavigationUsesConciseProductNames(t *testing.T) {
 		`cve: 'CVE'`,
 		`data-workspace-topbar-title`,
 		`font-size: var(--module-topbar-title-size)`,
-		`title: 'Coding'`,
+		`<h2 class="mb-2 px-0.5 text-control font-semibold">Coding</h2>`,
+		`title: input.conversationTitle || '新编码任务'`,
 	} {
 		if !strings.Contains(content, fragment) {
 			t.Fatalf("primary navigation does not expose %q", fragment)
@@ -87,8 +88,8 @@ func TestCTFPlatformChooserOwnsHistoryPairingAndCustomImport(t *testing.T) {
 		`aria-label="选择训练平台"`,
 		`<SelectItem value="custom">`,
 		`aria-label="训练历史"`,
-		`aria-label="浏览器连接"`,
-		`复制配对码`,
+		`aria-label="浏览器连接设置"`,
+		`$emit('openSettings', 'browser')`,
 		`新建自定义题目`,
 		`只会在 MilkSU 建立本地工作区，不会上传到任何 CTF 网站`,
 	} {
@@ -277,8 +278,8 @@ func TestBrowserExtensionRejectsEmptyPairingCodeClearly(t *testing.T) {
 	source := string(data)
 	for _, fragment := range []string{
 		`if (!raw)`,
-		`请先从 MilkSU CTF 的“连接浏览器”复制并粘贴配对码`,
-		`配对码无效，请回到 MilkSU CTF 重新复制`,
+		`请先从 MilkSU 的“设置 → 浏览器与控制”复制并粘贴配对码`,
+		`配对码无效，请回到 MilkSU 的浏览器设置重新复制`,
 	} {
 		if !strings.Contains(source, fragment) {
 			t.Fatalf("browser extension pairing flow does not expose %q", fragment)

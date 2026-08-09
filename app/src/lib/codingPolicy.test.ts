@@ -4,6 +4,7 @@ import {
   computerUseTargetKey,
   describeActiveComputerUseCapability,
   describePendingComputerUseCapability,
+  isUserBrowserTarget,
   nextComputerUseTargetKey,
   normalizeCodingApprovalPolicy,
   normalizeCodingExecutionMode,
@@ -235,5 +236,12 @@ describe('Coding policy presentation', () => {
     ]
 
     expect(nextComputerUseTargetKey(targets, '')).toBe('3333:4444')
+  })
+
+  it('separates browser windows from external App scopes without substring guesses', () => {
+    expect(isUserBrowserTarget({ name: 'Google Chrome', bundleId: 'com.google.Chrome' })).toBe(true)
+    expect(isUserBrowserTarget({ name: 'Arc', bundleId: 'company.thebrowser.Browser' })).toBe(true)
+    expect(isUserBrowserTarget({ name: 'Archive Utility', bundleId: 'com.apple.archiveutility' })).toBe(false)
+    expect(isUserBrowserTarget({ name: 'Chromium Notes', bundleId: 'com.example.notes' })).toBe(false)
   })
 })

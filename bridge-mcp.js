@@ -11,6 +11,7 @@ import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { sandboxProfile } from "./bridge-policy.js";
 import {
+  browserUseMcpServerName,
   codingBrowserEvidenceRelativePath,
   codingBrowserExcludedTools,
   codingBrowserMcpServerName,
@@ -20,6 +21,7 @@ const maxConfigBytes = 1 << 20;
 const maxSelectedServers = 16;
 const maxReviewedTools = 64;
 export { codingBrowserMcpServerName };
+export { browserUseMcpServerName };
 export const computerUseMcpServerName = "milksu-computer-use";
 const bridgeDirectory = dirname(fileURLToPath(import.meta.url));
 const playwrightMcpCliPath = join(
@@ -33,6 +35,10 @@ const playwrightSocketRoot = "/private/tmp/milksu-playwright";
 const computerUseSocketRoot = "/private/tmp/milksu-computer-use";
 const computerUseProxyPath = join(bridgeDirectory, "computer-use-proxy.cjs");
 const computerUseDriverPath = join(bridgeDirectory, "cua-driver");
+const browserUseExecutableCandidates = [
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+];
 const safeChildEnvironmentNames = [
   "HOME",
   "PATH",
@@ -121,6 +127,21 @@ export function normalizeSelectedMcpServers(value) {
     }
   }
   return selected.sort((left, right) => left.localeCompare(right));
+}
+
+export function projectMcpServersFromSelection(value) {
+  const candidates = Array.isArray(value)
+    ? value.filter(name => ![
+        codingBrowserMcpServerName,
+        browserUseMcpServerName,
+        computerUseMcpServerName,
+      ].includes(String(name).trim()))
+    : value;
+  return normalizeSelectedMcpServers(candidates).filter(name => ![
+    codingBrowserMcpServerName,
+    browserUseMcpServerName,
+    computerUseMcpServerName,
+  ].includes(name));
 }
 
 function interpolateSafeEnvironment(value, label) {
@@ -375,6 +396,27 @@ export function codingBrowserSelectionChanged(previous, next) {
     !== JSON.stringify(normalizeCodingBrowserDescriptor(next));
 }
 
+export function normalizeBrowserUseDescriptor(value) {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("MilkSU Browser Use descriptor must be an object");
+  }
+  const fields = Object.keys(value).sort();
+  if (fields.length !== 1 || fields[0] !== "sessionId") {
+    throw new Error("MilkSU Browser Use descriptor may contain only sessionId");
+  }
+  const sessionId = String(value.sessionId ?? "").trim();
+  if (!/^browser_user-[A-Za-z0-9-]{8,128}$/.test(sessionId)) {
+    throw new Error("MilkSU rejected an invalid Browser Use session id");
+  }
+  return { sessionId };
+}
+
+export function browserUseSelectionChanged(previous, next) {
+  return JSON.stringify(normalizeBrowserUseDescriptor(previous))
+    !== JSON.stringify(normalizeBrowserUseDescriptor(next));
+}
+
 export function normalizeComputerUseDescriptor(value) {
   if (value === undefined || value === null) return undefined;
   if (typeof value !== "object" || Array.isArray(value)) {
@@ -609,6 +651,82 @@ export async function createFirstPartyPlaywrightMcpServer(workspace, descriptor)
   };
 }
 
+async function resolveBrowserUseExecutable() {
+  for (const candidate of browserUseExecutableCandidates) {
+    try {
+      const metadata = await lstat(candidate);
+      if (!metadata.isSymbolicLink() && metadata.isFile()) return candidate;
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error;
+    }
+  }
+  throw new Error(
+    "MilkSU Browser Use requires Google Chrome or Microsoft Edge on macOS",
+  );
+}
+
+export async function createFirstPartyBrowserUseMcpServer(
+  workspace,
+  descriptor,
+  options = {},
+) {
+  const browserUse = normalizeBrowserUseDescriptor(descriptor);
+  if (!browserUse) return undefined;
+  const root = await resolveReviewedMcpWorkspace(workspace);
+  const cliMetadata = await lstat(playwrightMcpCliPath);
+  if (cliMetadata.isSymbolicLink() || !cliMetadata.isFile()) {
+    throw new Error("MilkSU packaged Playwright MCP CLI is unavailable");
+  }
+  const executablePath = options.executablePath || await resolveBrowserUseExecutable();
+  const executableMetadata = await lstat(executablePath);
+  if (executableMetadata.isSymbolicLink() || !executableMetadata.isFile()) {
+    throw new Error("MilkSU rejected an invalid Browser Use executable");
+  }
+  const runtimeRoot = await ensurePrivateDirectoryTree(
+    root,
+    [".milksu", "mcp-runtime"],
+    "Browser Use runtime",
+  );
+  const evidenceRelativePath = codingBrowserEvidenceRelativePath(browserUse.sessionId);
+  if (!evidenceRelativePath) {
+    throw new Error("MilkSU rejected an invalid Browser Use evidence path");
+  }
+  const evidenceRoot = await ensurePrivateDirectoryTree(
+    root,
+    evidenceRelativePath.split("/"),
+    "Browser Use evidence",
+  );
+  return {
+    browserUse,
+    server: sanitizeServerDefinition(
+      {
+        command: process.execPath,
+        args: [
+          playwrightMcpCliPath,
+          "--extension",
+          "--executable-path",
+          executablePath,
+          "--output-dir",
+          evidenceRoot,
+          "--output-max-size",
+          String(16 << 20),
+          "--console-level=debug",
+          "--save-session",
+          "--codegen=none",
+          "--output-mode=stdout",
+        ],
+        excludeTools: codingBrowserExcludedTools,
+      },
+      browserUseMcpServerName,
+      root,
+      {
+        extraReadableRoots: [bridgeDirectory, executablePath],
+        extraWritableRoots: [evidenceRoot],
+      },
+    ),
+  };
+}
+
 export async function loadSelectedMcpConfig(
   workspace,
   requestedServers,
@@ -620,11 +738,14 @@ export async function loadSelectedMcpConfig(
   }
   if (
     selected.includes(codingBrowserMcpServerName)
+    || selected.includes(browserUseMcpServerName)
     || selected.includes(computerUseMcpServerName)
   ) {
     throw new Error(
       `MCP server name "${selected.find(name => (
-        name === codingBrowserMcpServerName || name === computerUseMcpServerName
+        name === codingBrowserMcpServerName
+          || name === browserUseMcpServerName
+          || name === computerUseMcpServerName
       ))}" is reserved by MilkSU`,
     );
   }
@@ -690,25 +811,29 @@ export async function loadCodingMcpConfig(
   expectedDigest,
   codingBrowser,
   computerUse,
+  browserUse,
 ) {
   const project = await loadSelectedMcpConfig(
     workspace,
-    requestedServers,
+    projectMcpServersFromSelection(requestedServers),
     expectedDigest,
   );
   const builtIn = await createFirstPartyPlaywrightMcpServer(workspace, codingBrowser);
   const builtInComputerUse = await createFirstPartyComputerUseMcpServer(computerUse);
-  if (!builtIn && !builtInComputerUse) {
+  const builtInBrowserUse = await createFirstPartyBrowserUseMcpServer(workspace, browserUse);
+  if (!builtIn && !builtInComputerUse && !builtInBrowserUse) {
     return {
       ...project,
       projectSelected: project.selected,
       codingBrowser: undefined,
       computerUse: undefined,
+      browserUse: undefined,
     };
   }
   const selected = [
     ...project.selected,
     ...(builtIn ? [codingBrowserMcpServerName] : []),
+    ...(builtInBrowserUse ? [browserUseMcpServerName] : []),
     ...(builtInComputerUse ? [computerUseMcpServerName] : []),
   ].sort((left, right) => left.localeCompare(right));
   return {
@@ -716,9 +841,13 @@ export async function loadCodingMcpConfig(
     selected,
     codingBrowser: builtIn?.browser,
     computerUse: builtInComputerUse?.computerUse,
+    browserUse: builtInBrowserUse?.browserUse,
     config: adapterConfig({
       ...(project.config?.mcpServers ?? {}),
       ...(builtIn ? { [codingBrowserMcpServerName]: builtIn.server } : {}),
+      ...(builtInBrowserUse
+        ? { [browserUseMcpServerName]: builtInBrowserUse.server }
+        : {}),
       ...(builtInComputerUse
         ? { [computerUseMcpServerName]: builtInComputerUse.server }
         : {}),

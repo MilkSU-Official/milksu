@@ -29,7 +29,7 @@ export function chatTopbarPresentation(input: ChatTopbarInput) {
   }
 
   return {
-    title: 'Coding',
-    subtitle: `${input.conversationTitle || '新编码任务'} · ${input.workspacePath || `临时工作区 · ${input.codingPolicyLabel}`}`,
+    title: input.conversationTitle || '新编码任务',
+    subtitle: input.workspacePath || `临时工作区 · ${input.codingPolicyLabel}`,
   }
 }

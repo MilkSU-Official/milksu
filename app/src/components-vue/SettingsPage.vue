@@ -23,8 +23,11 @@ import {
 import {
   AlertCircle,
   ArrowLeft,
+  Cable,
   Check,
+  Copy,
   Download,
+  ExternalLink,
   FileWarning,
   FolderOpen,
   KeyRound,
@@ -36,6 +39,7 @@ import type {
   CodingComputerUseStatus,
   CodingComputerUseSigning,
 } from '@/codingEnvironmentTypes'
+import type { NSSCTFWebBridgeStatus } from '@/nssctfWebTypes'
 import type {
   AppSettings,
   DatabaseCompatibilityState,
@@ -57,7 +61,7 @@ import {
 import VulnerabilityIntelSettingsPanel from '@/components-vue/VulnerabilityIntelSettingsPanel.vue'
 import { useVulnerabilityDashboard, type VulnerabilityDashboard } from '@/composables/useVulnerabilityDashboard'
 
-type SettingsCategory = 'general' | 'apikeys' | 'cve'
+type SettingsCategory = 'general' | 'apikeys' | 'browser' | 'cve'
 
 const props = defineProps<{
   settings: AppSettings | null
@@ -78,11 +82,15 @@ const verifying = ref(false)
 const localDataLoading = ref(false)
 const computerUseLoading = ref(false)
 const computerUseRequesting = ref(false)
+const browserBridgeLoading = ref(false)
+const browserSetupBusy = ref(false)
+const browserUseOpening = ref(false)
 const backupExporting = ref(false)
 const restoreScheduling = ref(false)
 const diagnosticExporting = ref(false)
 const localData = ref<LocalDataStatus | null>(null)
 const computerUseStatus = ref<CodingComputerUseStatus | null>(null)
+const browserBridgeStatus = ref<NSSCTFWebBridgeStatus | null>(null)
 const recoveryStatus = ref<StartupRecoveryStatus | null>(null)
 const notice = ref<{ tone: 'ok' | 'error'; text: string } | null>(null)
 
@@ -135,6 +143,7 @@ watch(() => props.initialCategory, value => { category.value = value })
 onMounted(() => {
   void loadLocalData()
   void refreshComputerUseStatus({ silent: true })
+  void refreshBrowserBridgeStatus({ silent: true })
 })
 
 const provider = computed(() => (
@@ -316,6 +325,69 @@ const computerUsePermissionBadge = computed(() => {
   return { label: '需处理', variant: 'outline' as const }
 })
 
+const browserBridgeConnected = computed(() => Boolean(browserBridgeStatus.value?.bridge.connected))
+const browserPairingReady = computed(() => Boolean(browserBridgeStatus.value?.bridge.pairingCode))
+const browserExtensionReady = computed(() => Boolean(browserBridgeStatus.value?.bridge.extensionPath))
+
+async function refreshBrowserBridgeStatus(options: { silent?: boolean } = {}) {
+  browserBridgeLoading.value = true
+  try {
+    browserBridgeStatus.value = await invokeCommand<NSSCTFWebBridgeStatus>('get_nssctf_web_bridge_status')
+    if (!options.silent) {
+      notice.value = { tone: 'ok', text: '浏览器 Bridge 状态已重新检测。' }
+    }
+  } catch (reason) {
+    browserBridgeStatus.value = null
+    if (!options.silent) {
+      notice.value = { tone: 'error', text: `无法检测浏览器 Bridge：${String(reason)}` }
+    }
+  } finally {
+    browserBridgeLoading.value = false
+  }
+}
+
+async function prepareBrowserExtension() {
+  browserSetupBusy.value = true
+  try {
+    await invokeCommand('open_chrome_extension_manager')
+    await invokeCommand('reveal_browser_extension')
+    notice.value = {
+      tone: 'ok',
+      text: 'Chrome 扩展页和 MilkSU 扩展目录已打开；加载后回到这里复制配对码。',
+    }
+  } catch (reason) {
+    notice.value = { tone: 'error', text: `无法打开浏览器扩展安装入口：${String(reason)}` }
+  } finally {
+    browserSetupBusy.value = false
+  }
+}
+
+async function openPlaywrightBrowserExtension() {
+  browserUseOpening.value = true
+  try {
+    await invokeCommand('open_playwright_browser_extension')
+    notice.value = {
+      tone: 'ok',
+      text: '已在浏览器打开 Playwright MCP 官方扩展页面。',
+    }
+  } catch (reason) {
+    notice.value = { tone: 'error', text: `无法打开 Playwright MCP 官方扩展：${String(reason)}` }
+  } finally {
+    browserUseOpening.value = false
+  }
+}
+
+async function copyBrowserPairingCode() {
+  const pairingCode = browserBridgeStatus.value?.bridge.pairingCode
+  if (!pairingCode) return
+  try {
+    await navigator.clipboard.writeText(pairingCode)
+    notice.value = { tone: 'ok', text: '本机浏览器配对码已复制。' }
+  } catch (reason) {
+    notice.value = { tone: 'error', text: `无法复制浏览器配对码：${String(reason)}` }
+  }
+}
+
 async function refreshComputerUseStatus(options: { silent?: boolean } = {}) {
   computerUseLoading.value = true
   try {
@@ -480,6 +552,7 @@ async function save() {
           :items="[
             { value: 'general', label: '通用' },
             { value: 'apikeys', label: '模型与凭据' },
+            { value: 'browser', label: '浏览器与控制' },
             { value: 'cve', label: 'CVE' },
           ]"
         />
@@ -500,59 +573,6 @@ async function save() {
             </SettingsRow>
             <SettingsRow label="本地优先" description="会话与研究记录保留在本机，凭据不写入设置文件">
               <ShieldCheck class="size-4 text-muted-foreground" />
-            </SettingsRow>
-          </SettingsSection>
-          <SettingsSection title="Computer Use" class="mt-6">
-            <SettingsRow
-              stack="always"
-              label="系统权限"
-              :description="computerUsePermissionSummary"
-            >
-              <div class="flex flex-wrap items-center gap-2">
-                <Badge :variant="computerUsePermissionBadge.variant">
-                  {{ computerUsePermissionBadge.label }}
-                </Badge>
-                <Badge variant="outline">
-                  辅助功能 {{ computerUseStatus?.permissions.accessibility ? '已授权' : '未授权' }}
-                </Badge>
-                <Badge variant="outline">
-                  屏幕录制 {{ computerUseStatus?.permissions.screenRecording ? '已授权' : '未授权' }}
-                </Badge>
-              </div>
-              <p class="mt-3 break-all text-caption leading-5 text-muted-foreground">
-                {{ computerUseSigningLabel }}<template v-if="computerUseSigningDiagnostic">；{{ computerUseSigningDiagnostic }}</template>
-              </p>
-              <div class="mt-3 flex flex-wrap gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  :loading="computerUseLoading"
-                  @click="refreshComputerUseStatus()"
-                >
-                  <RotateCcw class="size-3.5" />
-                  重新检测
-                </Button>
-                <Button
-                  v-if="computerUseStatus && !computerUsePermissionsReady && !computerUseReapprovalBlocked"
-                  variant="outline"
-                  size="sm"
-                  :loading="computerUseRequesting"
-                  :disabled="!computerUseStatus.available"
-                  @click="requestComputerUsePermissions"
-                >
-                  <KeyRound class="size-3.5" />
-                  打开系统权限设置
-                </Button>
-                <Button
-                  v-else-if="computerUseReapprovalBlocked"
-                  variant="outline"
-                  size="sm"
-                  disabled
-                >
-                  <KeyRound class="size-3.5" />
-                  先稳定签名再复检
-                </Button>
-              </div>
             </SettingsRow>
           </SettingsSection>
           <SettingsSection title="本地数据" class="mt-6">
@@ -657,6 +677,138 @@ async function save() {
           <div class="mt-6 flex justify-end">
             <Button :loading="saving" @click="save">保存设置</Button>
           </div>
+        </template>
+
+        <template v-else-if="working && category === 'browser'">
+          <SettingsSection title="Browser Use（真实用户浏览器）">
+            <SettingsRow
+              stack="always"
+              label="Playwright MCP 官方扩展"
+              description="用于 /browser-use；连接现有 Chrome/Edge，并由你在官方连接页选择准确标签页"
+            >
+              <p class="text-caption leading-5 text-muted-foreground">
+                MilkSU 直接复用项目已固定的 Playwright MCP，不保存扩展 Token，也不会把这个入口降级成截图坐标点击。每次新连接仍由浏览器扩展显示可见的标签页授权。
+              </p>
+              <div class="mt-3 flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  :loading="browserUseOpening"
+                  @click="openPlaywrightBrowserExtension"
+                >
+                  <ExternalLink class="size-3.5" />
+                  安装官方扩展
+                </Button>
+              </div>
+            </SettingsRow>
+          </SettingsSection>
+
+          <SettingsSection title="CTF 平台 Bridge" class="mt-6">
+            <SettingsRow
+              stack="always"
+              label="MilkSU 本地扩展连接"
+              description="只负责 NSSCTF / CTFshow 的题面、附件和 Judge；不承担通用 Browser Use"
+            >
+              <div class="flex flex-wrap items-center gap-2">
+                <Badge :variant="browserBridgeConnected ? 'secondary' : 'outline'">
+                  {{ browserBridgeConnected ? '已连接' : '等待连接' }}
+                </Badge>
+                <Badge variant="outline">
+                  扩展 {{ browserExtensionReady ? '已就绪' : '未就绪' }}
+                </Badge>
+                <Badge variant="outline">
+                  配对码 {{ browserPairingReady ? '已就绪' : '未就绪' }}
+                </Badge>
+              </div>
+              <p class="mt-3 text-caption leading-5 text-muted-foreground">
+                安装扩展后，在要授权的浏览器页面点击 MilkSU 并粘贴配对码。配对码仅复制到剪贴板，不在界面显示明文。
+              </p>
+              <div class="mt-3 flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  :loading="browserSetupBusy"
+                  :disabled="!browserExtensionReady"
+                  @click="prepareBrowserExtension"
+                >
+                  <FolderOpen class="size-3.5" />
+                  安装本地扩展
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  :disabled="!browserPairingReady"
+                  @click="copyBrowserPairingCode"
+                >
+                  <Copy class="size-3.5" />
+                  复制配对码
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  :loading="browserBridgeLoading"
+                  @click="refreshBrowserBridgeStatus()"
+                >
+                  <Cable class="size-3.5" />
+                  检测连接
+                </Button>
+              </div>
+            </SettingsRow>
+          </SettingsSection>
+
+          <SettingsSection title="Computer Use" class="mt-6">
+            <SettingsRow
+              stack="always"
+              label="外部 App 权限"
+              :description="computerUsePermissionSummary"
+            >
+              <div class="flex flex-wrap items-center gap-2">
+                <Badge :variant="computerUsePermissionBadge.variant">
+                  {{ computerUsePermissionBadge.label }}
+                </Badge>
+                <Badge variant="outline">
+                  辅助功能 {{ computerUseStatus?.permissions.accessibility ? '已授权' : '未授权' }}
+                </Badge>
+                <Badge variant="outline">
+                  屏幕录制 {{ computerUseStatus?.permissions.screenRecording ? '已授权' : '未授权' }}
+                </Badge>
+              </div>
+              <p class="mt-3 break-all text-caption leading-5 text-muted-foreground">
+                {{ computerUseSigningLabel }}<template v-if="computerUseSigningDiagnostic">；{{ computerUseSigningDiagnostic }}</template>
+              </p>
+              <div class="mt-3 flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  :loading="computerUseLoading"
+                  @click="refreshComputerUseStatus()"
+                >
+                  <RotateCcw class="size-3.5" />
+                  重新检测
+                </Button>
+                <Button
+                  v-if="computerUseStatus && !computerUsePermissionsReady && !computerUseReapprovalBlocked"
+                  variant="outline"
+                  size="sm"
+                  :loading="computerUseRequesting"
+                  :disabled="!computerUseStatus.available"
+                  @click="requestComputerUsePermissions"
+                >
+                  <KeyRound class="size-3.5" />
+                  打开系统权限设置
+                </Button>
+                <Button
+                  v-else-if="computerUseReapprovalBlocked"
+                  variant="outline"
+                  size="sm"
+                  disabled
+                >
+                  <KeyRound class="size-3.5" />
+                  先稳定签名再复检
+                </Button>
+              </div>
+            </SettingsRow>
+          </SettingsSection>
         </template>
 
         <template v-else-if="working && category === 'apikeys'">

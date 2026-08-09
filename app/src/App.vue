@@ -39,7 +39,7 @@ const lastCodingConversationId = ref<string | null>(null)
 const lastCTFConversationId = ref<string | null>(null)
 const activeVulnerabilityCodingConversationId = ref<string | null>(null)
 const settingsReturnTarget = ref<Exclude<Section, 'settings'>>('ctf')
-const settingsCategory = ref<'general' | 'apikeys' | 'cve'>('general')
+const settingsCategory = ref<'general' | 'apikeys' | 'browser' | 'cve'>('general')
 const settings = ref<AppSettings | null>(null)
 const recoveryStatus = ref<StartupRecoveryStatus | null>(null)
 const recoveryDismissed = ref(false)
@@ -86,7 +86,7 @@ async function loadSettings() {
   settings.value = withAppSettingsDefaults(value)
 }
 
-function openSettings(category: 'general' | 'apikeys' | 'cve' = 'general') {
+function openSettings(category: 'general' | 'apikeys' | 'browser' | 'cve' = 'general') {
   settingsReturnTarget.value = settingsReturnSection(section.value, settingsReturnTarget.value)
   settingsCategory.value = category
   section.value = 'settings'
@@ -314,7 +314,7 @@ onMounted(async () => {
           :arena-ready="arenaReady"
           :initial-job-id="ctfResumeJobId"
           :ctf-section="ctfSection"
-          @open-settings="openSettings('apikeys')"
+          @open-settings="category => openSettings(category ?? 'apikeys')"
           @start-coding-agent="startCTFAgent"
         />
         <VulnPage
@@ -354,6 +354,7 @@ onMounted(async () => {
         @ctf-action="runCTFChatAction"
         @abort="abortConversation"
         @compact-context="conversations.compactContext"
+        @new-conversation="newConversation"
         @control-goal="conversations.controlGoal"
         @respond-approval="conversations.respondApproval"
         @choose-workspace="chooseAgentWorkspace"

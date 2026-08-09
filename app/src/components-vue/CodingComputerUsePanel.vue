@@ -26,7 +26,7 @@ import {
   selectedComputerUseTarget as resolveSelectedComputerUseTarget,
 } from '@/lib/codingPolicy'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   status: CodingComputerUseStatus | null
   targets: CodingComputerUseTarget[]
   selectedTargetKey: string
@@ -36,7 +36,12 @@ const props = defineProps<{
   executionMode: CodingExecutionMode
   approvalPolicy: CodingApprovalPolicy
   operationEvidence?: ComputerUseOperationEvidence | null
-}>()
+  standalone?: boolean
+  activeTargetMatchesScope?: boolean
+}>(), {
+  standalone: false,
+  activeTargetMatchesScope: true,
+})
 
 const emit = defineEmits<{
   'update:selectedTargetKey': [value: string]
@@ -117,7 +122,8 @@ const screenRecordingPermissionLabel = computed(() => {
 })
 const readyForCurrentTask = computed(() => Boolean(
   props.status?.enabled
-  && props.ownedByCurrentTask,
+  && props.ownedByCurrentTask
+  && props.activeTargetMatchesScope !== false,
 ))
 const attachedToOtherTask = computed(() => Boolean(
   props.status?.conversationId
@@ -139,6 +145,7 @@ const missingPermissions = computed(() => {
 })
 const connectionLabel = computed(() => {
   if (readyForCurrentTask.value) return '已接入当前任务'
+  if (props.ownedByCurrentTask && props.activeTargetMatchesScope === false) return '已接入其他 Scope'
   if (attachedToOtherTask.value) return '其他任务正在使用'
   if (!props.status?.available) return '不可用'
   if (!permissionsReady.value) return '缺系统权限'
@@ -189,9 +196,11 @@ const readinessItems = computed(() => [
   },
   {
     label: '窗口 Scope',
-    ready: Boolean(effectiveTarget.value),
+    ready: Boolean(effectiveTarget.value) && props.activeTargetMatchesScope !== false,
     detail: effectiveTarget.value
-      ? `${effectiveTarget.value.name} · PID ${effectiveTarget.value.pid} · Window ${effectiveTarget.value.windowId}`
+      ? props.activeTargetMatchesScope === false
+        ? `${effectiveTarget.value.name} 不属于当前 Computer Use 外部 App Scope`
+        : `${effectiveTarget.value.name} · PID ${effectiveTarget.value.pid} · Window ${effectiveTarget.value.windowId}`
       : '请选择当前可见 App / 窗口',
   },
   {
@@ -233,6 +242,9 @@ const guidance = computed(() => {
   if (attachedToOtherTask.value) {
     return '可见会话正由另一个 Coding 任务使用；请回到该任务停止后再切换。'
   }
+  if (props.ownedByCurrentTask && props.activeTargetMatchesScope === false) {
+    return `当前任务锁定的是 ${effectiveTarget.value?.name || '另一个窗口'}，不属于 Computer Use 外部 App Scope；先停止当前 Scope，再选择正确窗口。`
+  }
   if (!props.targets.length && !props.status?.target) {
     return '没有发现可选的可见窗口；请打开目标 App 窗口，然后重新检测。'
   }
@@ -252,6 +264,15 @@ const primarySetupAction = computed<{
   variant: 'default' | 'outline' | 'brand'
   disabled: boolean
 }>(() => {
+  if (props.status?.enabled && props.ownedByCurrentTask && props.activeTargetMatchesScope === false) {
+    return {
+      label: '停止当前其他 Scope',
+      detail: `${effectiveTarget.value?.name || '当前窗口'} 不属于 Computer Use 外部 App Scope，停止后才能重新选择。`,
+      action: 'stop',
+      variant: 'outline',
+      disabled: props.loading || props.running,
+    }
+  }
   if (readyForCurrentTask.value) {
     return {
       label: '已接入当前任务',
@@ -329,12 +350,12 @@ function runPrimarySetupAction() {
 </script>
 
 <template>
-  <div class="mt-5 border-t border-border pt-5">
+  <div :class="standalone ? '' : 'mt-5 border-t border-border pt-5'">
     <div class="flex items-start justify-between gap-3">
       <div>
         <p class="text-body font-medium">可见 App 会话</p>
         <p class="mt-1 text-caption leading-5 text-muted-foreground">
-          选择一个当前可见窗口，启动后锁定为本任务的 App Scope。
+          选择一个当前可见窗口，启动后锁定为本轮 Computer Use Scope。
         </p>
       </div>
       <span

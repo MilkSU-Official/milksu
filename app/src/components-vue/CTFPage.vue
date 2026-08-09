@@ -37,13 +37,11 @@ import {
   ChevronLeft,
   ChevronRight,
   Circle,
-  Copy,
   Clock3,
   ExternalLink,
   FilePlus2,
   FileSearch,
   Flag,
-  FolderOpen,
   KeyRound,
   Library,
   LoaderCircle,
@@ -124,7 +122,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  openSettings: []
+  openSettings: [category?: 'apikeys' | 'browser']
   startCodingAgent: [handoff: CTFAgentWorkspaceHandoff]
 }>()
 
@@ -172,7 +170,6 @@ const catalogBootstrapAttempted = ref(false)
 const attachmentError = ref('')
 const localMaterials = ref<CTFMaterialRequest[]>([])
 const working = ref(false)
-const browserSetupBusy = ref(false)
 const seriesQuery = ref('')
 const seriesCategory = ref('all')
 const seriesStatus = ref<'all' | 'new' | 'attempted' | 'completed'>('all')
@@ -190,7 +187,6 @@ const recalledMemories = ref<CTFTrainingMemory[]>([])
 const historyReflectionSeed = ref('')
 const memoryLoading = ref(false)
 const historyMenu = ref<HTMLDetailsElement | null>(null)
-const bridgeMenu = ref<HTMLDetailsElement | null>(null)
 const manualIntake = ref<InstanceType<typeof CTFManualIntake> | null>(null)
 let catalogSearchTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -251,7 +247,6 @@ const browserBridge = computed(() => (
   webBridge.status.value?.bridge ?? ctfshow.status.value?.bridge ?? null
 ))
 const browserBridgeConnected = computed(() => Boolean(browserBridge.value?.connected))
-const browserPairingCode = computed(() => browserBridge.value?.pairingCode ?? '')
 const selectedCatalogReady = computed(() => (
   activeBank.value === 'nssctf'
     ? Boolean(training.dashboard.value?.catalogTotal)
@@ -889,22 +884,13 @@ async function startManualChallenge(request: CTFChallengeRequest) {
 
 function closeHistoryMenuOnOutsidePointer(event: PointerEvent) {
   if (!(event.target instanceof Node)) return
-  for (const menu of [historyMenu.value, bridgeMenu.value]) {
+  for (const menu of [historyMenu.value]) {
     if (menu?.open && !menu.contains(event.target)) menu.open = false
   }
 }
 
 function closeHistoryMenu() {
   if (historyMenu.value) historyMenu.value.open = false
-}
-
-function closeBridgeMenu() {
-  if (bridgeMenu.value) bridgeMenu.value.open = false
-}
-
-async function copyBrowserPairingCode() {
-  await copyBridgeValue(browserPairingCode.value, '配对码')
-  closeBridgeMenu()
 }
 
 async function resumeFromHistory(id: string) {
@@ -1034,42 +1020,6 @@ async function goDeskPage(page: number) {
   if (nextPage === deskPage.value) return
   if (activeBank.value === 'ctfshow') ctfshowPage.value = nextPage
   else await loadPublicCatalog(nextPage)
-}
-
-async function copyBridgeValue(value: string, label: string) {
-  if (!value) return
-  attachmentError.value = ''
-  try {
-    await navigator.clipboard.writeText(value)
-    outcomeNotice.value = `${label}已复制。`
-  } catch (reason) {
-    attachmentError.value = reason instanceof Error ? reason.message : String(reason)
-  }
-}
-
-async function prepareBrowserExtension() {
-  browserSetupBusy.value = true
-  attachmentError.value = ''
-  try {
-    let pairingCodeCopied = false
-    if (browserPairingCode.value) {
-      try {
-        await navigator.clipboard.writeText(browserPairingCode.value)
-        pairingCodeCopied = true
-      } catch {
-        // Installation remains usable; the adjacent copy action is the fallback.
-      }
-    }
-    await invokeCommand('open_chrome_extension_manager')
-    await invokeCommand('reveal_browser_extension')
-    outcomeNotice.value = pairingCodeCopied
-      ? 'Chrome 扩展页和安装目录已打开，配对码也已复制。加载扩展后，在题目页点击 MilkSU 并粘贴。'
-      : 'Chrome 扩展页和安装目录已打开。加载扩展后，回到这里复制配对码。'
-  } catch (reason) {
-    attachmentError.value = reason instanceof Error ? reason.message : String(reason)
-  } finally {
-    browserSetupBusy.value = false
-  }
 }
 
 async function chooseLocalMaterials() {
@@ -1738,18 +1688,12 @@ onBeforeUnmount(() => {
           {{ category }}
         </NativeSelectOption>
         </NativeSelect>
-        <details
-        ref="bridgeMenu"
-        class="app-no-drag relative shrink-0"
-        @keydown.esc.stop.prevent="closeBridgeMenu"
-      >
-        <summary
-          data-button=""
-          data-variant="outline"
-          data-size="sm"
-          :class="buttonVariants({ variant: 'outline', size: 'sm' })"
-          class="list-none [&::-webkit-details-marker]:hidden"
-          aria-label="连接浏览器"
+        <Button
+          variant="outline"
+          size="sm"
+          class="app-no-drag shrink-0"
+          aria-label="浏览器连接设置"
+          @click="$emit('openSettings', 'browser')"
         >
           <Cable class="size-4" />
           {{ browserBridgeConnected ? '浏览器已连接' : '连接浏览器' }}
@@ -1757,58 +1701,7 @@ onBeforeUnmount(() => {
             class="size-2.5"
             :class="browserBridgeConnected ? 'fill-primary text-primary' : 'fill-muted-foreground text-muted-foreground'"
           />
-        </summary>
-        <div
-          data-state="open"
-          data-side="bottom"
-          :class="[menuContentClass, menuViewportClass]"
-          class="absolute right-0 top-[calc(100%+4px)] w-[min(360px,calc(100vw-2rem))] p-3"
-          aria-label="浏览器连接"
-        >
-          <p class="text-control font-medium">连接 MilkSU 浏览器扩展</p>
-          <p class="mt-1 text-caption leading-5 text-muted-foreground">
-            第一次使用：安装扩展，复制下方配对码，再到 NSSCTF 或 CTFshow 页面点击 MilkSU 扩展并粘贴。
-          </p>
-          <div
-            v-if="browserPairingCode"
-            class="mt-3 rounded-md border border-border bg-background px-3 py-2"
-          >
-            <div class="flex items-center justify-between gap-3">
-              <span class="text-caption font-medium">本机配对码已就绪</span>
-              <span class="text-caption text-muted-foreground">仅连接本机 MilkSU</span>
-            </div>
-            <p class="mt-1 text-caption leading-5 text-muted-foreground">
-              为避免被截图或辅助功能意外读取，此处不显示明文；请用下方按钮复制。
-            </p>
-          </div>
-          <p v-else class="mt-3 text-caption text-muted-foreground">
-            正在启动本机 Bridge，稍后会在这里显示配对码。
-          </p>
-          <div class="mt-3 grid gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              :loading="browserSetupBusy"
-              @click="prepareBrowserExtension"
-            >
-              <FolderOpen class="size-4" />
-              安装本地扩展
-            </Button>
-            <Button
-              variant="default"
-              size="sm"
-              :disabled="!browserPairingCode"
-              @click="copyBrowserPairingCode"
-            >
-              <Copy class="size-4" />
-              复制配对码
-            </Button>
-          </div>
-          <p class="mt-3 text-caption" :class="browserBridgeConnected ? 'text-primary' : 'text-muted-foreground'">
-            {{ browserBridgeConnected ? '扩展已与本机 MilkSU 建立连接' : '等待首次配对' }}
-          </p>
-        </div>
-        </details>
+        </Button>
         <Button
         variant="ghost"
         size="icon-sm"
@@ -1984,11 +1877,10 @@ onBeforeUnmount(() => {
               <Button
                 class="mt-4"
                 variant="outline"
-                :disabled="!ctfshow.status.value?.bridge.pairingCode"
-                @click="copyBridgeValue(ctfshow.status.value?.bridge.pairingCode ?? '', '配对码')"
+                @click="$emit('openSettings', 'browser')"
               >
-                <Copy class="size-4" />
-                复制配对码
+                <Cable class="size-4" />
+                前往浏览器设置
               </Button>
             </div>
 
@@ -2429,9 +2321,6 @@ onBeforeUnmount(() => {
           :catalog-ready="selectedCatalogReady"
           :judge-ready="selectedJudgeReady"
           :has-active-training="Boolean(selectedActiveJob)"
-          :browser-extension-ready="Boolean(webBridge.status.value?.bridge.extensionPath)"
-          :pairing-code="webBridge.status.value?.bridge.pairingCode ?? ''"
-          :browser-setup-busy="browserSetupBusy"
           @select-nssctf="chooseCatalogProblem"
           @select-ctfshow="previewCTFShowProblem"
           @previous-page="previousDeskPage"
@@ -2441,12 +2330,11 @@ onBeforeUnmount(() => {
           @choose-local-materials="chooseLocalMaterials"
           @start-ctfshow="chooseCTFShowProblem"
           @open-problem="openProblem"
-          @prepare-browser-extension="prepareBrowserExtension"
-          @copy-pairing-code="copyBridgeValue(webBridge.status.value?.bridge.pairingCode ?? '', '配对码')"
           @open-ctfshow="ctfshow.open()"
           @sync-nssctf="syncCatalog"
           @refresh-judge="activeBank === 'ctfshow' ? ctfshow.open() : webBridge.refresh()"
           @open-settings="$emit('openSettings')"
+          @open-browser-settings="$emit('openSettings', 'browser')"
           @update:collaboration-mode="collaborationMode = $event"
         />
 
@@ -2550,25 +2438,16 @@ onBeforeUnmount(() => {
                 <div v-else>
                   <p class="text-control font-medium">连接当前 NSSCTF 题目</p>
                   <p class="mt-1 text-caption leading-5 text-muted-foreground">
-                    安装扩展，复制本机配对码，再到题目页点击 MilkSU；不必返回训练场。
+                    在浏览器设置中安装并配对扩展，再到题目页点击 MilkSU；不必返回训练场。
                   </p>
                   <div class="mt-3 flex flex-wrap gap-2">
                     <Button
                       variant="outline"
                       size="sm"
-                      :loading="browserSetupBusy"
-                      @click="prepareBrowserExtension"
+                      @click="$emit('openSettings', 'browser')"
                     >
-                      <FolderOpen class="size-4" />
-                      安装扩展
-                    </Button>
-                    <Button
-                      size="sm"
-                      :disabled="!browserPairingCode"
-                      @click="copyBridgeValue(browserPairingCode, '配对码')"
-                    >
-                      <Copy class="size-4" />
-                      复制配对码
+                      <Cable class="size-4" />
+                      前往浏览器设置
                     </Button>
                     <Button variant="ghost" size="sm" :loading="webBridge.loading.value" @click="webBridge.refresh">
                       <RefreshCw class="size-4" />

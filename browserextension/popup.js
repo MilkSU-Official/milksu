@@ -36,7 +36,7 @@ async function refreshBridgeStatus() {
 function decodePairingCode(value) {
   const raw = value.trim();
   if (!raw) {
-    throw new Error('请先从 MilkSU CTF 的“连接浏览器”复制并粘贴配对码');
+    throw new Error('请先从 MilkSU 的“设置 → 浏览器与控制”复制并粘贴配对码');
   }
   try {
     const normalized = raw.replace(/-/g, '+').replace(/_/g, '/');
@@ -48,7 +48,7 @@ function decodePairingCode(value) {
     }
     return decoded;
   } catch {
-    throw new Error('配对码无效，请回到 MilkSU CTF 重新复制');
+    throw new Error('配对码无效，请回到 MilkSU 的浏览器设置重新复制');
   }
 }
 

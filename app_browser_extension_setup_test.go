@@ -29,25 +29,26 @@ func TestBrowserExtensionSetupIsExposedToTheDesktopTrainingFlow(t *testing.T) {
 	assertSourceContains(
 		"app/src/desktop.ts",
 		"OpenChromeExtensionManager(): Promise<void>",
+		"OpenPlaywrightBrowserExtension(): Promise<void>",
 		"RevealBrowserExtension(): Promise<void>",
 		"open_chrome_extension_manager",
+		"open_playwright_browser_extension",
 		"reveal_browser_extension",
 	)
 	assertSourceContains(
-		"app/src/components-vue/CTFPage.vue",
-		"@prepare-browser-extension=\"prepareBrowserExtension\"",
-		"@copy-pairing-code=\"copyBridgeValue(",
-		"本机配对码已就绪",
-		"此处不显示明文",
-		"配对码也已复制",
-		"在题目页点击 MilkSU 并粘贴",
+		"app/src/components-vue/SettingsPage.vue",
+		"prepareBrowserExtension",
+		"copyBrowserPairingCode",
+		"本机浏览器配对码已复制",
+		"不在界面显示明文",
+		"浏览器与控制",
+		"Playwright MCP 官方扩展",
 	)
 	assertSourceContains(
 		"app/src/components-vue/CTFChallengeDesk.vue",
 		"连接 NSSCTF Judge",
-		"连接 NSSCTF Judge 的步骤",
-		"本地扩展",
-		"复制配对码",
+		"前往浏览器设置",
+		"emit('openBrowserSettings')",
 		"打开 P{{ selectedNssctf.platformId }}",
 	)
 	assertSourceContains(
@@ -64,7 +65,7 @@ func TestBrowserExtensionSetupIsExposedToTheDesktopTrainingFlow(t *testing.T) {
 		"browserextension/popup.html",
 		"MilkSU Bridge",
 		"首次配对或更换 MilkSU",
-		"配对码在 MilkSU 的 CTF 顶栏“连接浏览器”里",
+		"配对码在 MilkSU 的“设置 → 浏览器与控制”里",
 	)
 	assertSourceContains(
 		"browserextension/popup.js",
@@ -106,8 +107,7 @@ func TestBrowserExtensionSessionRefreshKeepsAHealthyBridgeOpen(t *testing.T) {
 
 func TestBrowserPairingCodeIsCopyOnlyInTheDesktopUI(t *testing.T) {
 	for _, path := range []string{
-		"app/src/components-vue/CTFPage.vue",
-		"app/src/components-vue/CTFChallengeDesk.vue",
+		"app/src/components-vue/SettingsPage.vue",
 	} {
 		data, err := os.ReadFile(path)
 		if err != nil {

@@ -217,6 +217,29 @@ describe('CodingComputerUsePanel', () => {
     expect(host.querySelectorAll('[data-computer-use-ready="true"]').length).toBe(4)
   })
 
+  it('blocks Computer Use when the active session belongs to a browser scope', async () => {
+    const { host, onStop } = await mountPanel({
+      status: status({
+        conversationId: 'current-conversation',
+        enabled: true,
+      }),
+      ownedByCurrentTask: true,
+      activeTargetMatchesScope: false,
+    })
+    const text = host.textContent ?? ''
+
+    expect(text).toContain('已接入其他 Scope')
+    expect(text).toContain('不属于当前 Computer Use 外部 App Scope')
+    expect(text).not.toContain('已接入当前任务')
+    const stop = [...host.querySelectorAll<HTMLButtonElement>('button')].find(
+      button => button.textContent?.includes('停止当前其他 Scope'),
+    )
+    expect(stop?.disabled).toBe(false)
+    stop?.click()
+    await nextTick()
+    expect(onStop).toHaveBeenCalledOnce()
+  })
+
   it('shows matching Computer Use operation evidence as real external app validation', async () => {
     const { host } = await mountPanel({
       status: status({

@@ -104,6 +104,7 @@ watch(
 
     <div v-else-if="codingContext" class="app-no-drag flex min-h-0 flex-1 flex-col pt-4">
       <div class="px-3">
+        <h2 class="mb-2 px-0.5 text-control font-semibold">Coding</h2>
         <Button
           variant="outline"
           size="sm"
@@ -127,7 +128,7 @@ watch(
       </div>
 
       <div ref="conversationList" class="mt-3 min-h-0 flex-1 overflow-y-auto px-2">
-        <p class="px-3 py-2 text-body font-medium text-muted-foreground">项目</p>
+        <p class="px-3 py-2 text-label font-medium text-muted-foreground">项目</p>
         <div v-if="codingGroups.length" class="space-y-1">
           <details
             v-for="group in codingGroups"
@@ -142,7 +143,7 @@ watch(
               <ChevronRight class="coding-project-chevron size-3.5 shrink-0 text-muted-foreground" />
               <Folder class="size-4 shrink-0 text-muted-foreground" />
               <span class="min-w-0 flex-1 truncate">{{ group.name }}</span>
-              <span class="text-caption font-normal tabular-nums text-muted-foreground">
+              <span class="coding-project-count font-normal tabular-nums text-muted-foreground">
                 {{ group.conversations.length }}
               </span>
             </summary>
@@ -193,9 +194,15 @@ watch(
 }
 
 .coding-project-row {
-  font-size: var(--text-body);
-  line-height: var(--text-body--line-height);
-  letter-spacing: var(--text-body--letter-spacing);
+  font-size: var(--text-control);
+  line-height: var(--text-control--line-height);
+  letter-spacing: var(--text-control--letter-spacing);
+}
+
+.coding-project-count {
+  font-size: var(--text-control);
+  line-height: var(--text-control--line-height);
+  letter-spacing: var(--text-control--letter-spacing);
 }
 
 .coding-project-group[open] > summary .coding-project-chevron {

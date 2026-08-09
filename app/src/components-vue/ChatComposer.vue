@@ -1,16 +1,27 @@
 <script setup lang="ts">
 import { computed, markRaw, nextTick, ref, watch } from 'vue'
-import { Button, Textarea } from '@felinic/ui'
+import { Button } from '@felinic/ui'
 import {
+  Activity,
   ArrowUp,
+  Bot,
   Compass,
+  FileDiff,
   FileText,
+  GitBranch,
+  Globe2,
   Lightbulb,
   LoaderCircle,
+  MessageSquarePlus,
+  MousePointer2,
   Paperclip,
   Pause,
   Play,
+  Plug,
   Route,
+  ScanSearch,
+  ShieldCheck,
+  Shrink,
   Square,
   StickyNote,
   Target,
@@ -33,6 +44,8 @@ interface ComposerGitSummary {
   deletions: number
 }
 
+type ComposerScopeToken = 'browser-use' | 'computer-use'
+
 const props = defineProps<{
   running: boolean
   aborting: boolean
@@ -48,10 +61,19 @@ const props = defineProps<{
   modelKey: string
   automaticModelLabel: string
   compactModelLabel: string
+  compactDisabled?: boolean
+  workspaceReady?: boolean
+  browserUseReady?: boolean
+  computerUseReady?: boolean
 }>()
 
 const emit = defineEmits<{
-  send: [text: string, visibleText?: string, attachments?: CodingAttachment[]]
+  send: [
+    text: string,
+    visibleText?: string,
+    attachments?: CodingAttachment[],
+    scopeToken?: ComposerScopeToken,
+  ]
   ctfAction: [action: CTFChatAction]
   abort: []
   changeExecutionMode: [value: string]
@@ -60,43 +82,153 @@ const emit = defineEmits<{
   showPermissions: []
   consumeGoal: []
   startGoal: []
+  runSlashCommand: [command: string]
   controlGoal: [action: 'pause' | 'resume' | 'clear']
 }>()
 
 const draft = ref('')
 const composerFrame = ref<HTMLElement | null>(null)
+const messageEditor = ref<HTMLElement | null>(null)
 const pendingAttachments = ref<CodingAttachment[]>([])
 const attachmentError = ref('')
 const composing = ref(false)
 const compositionJustEnded = ref(false)
 const slashMenuDismissed = ref(false)
-
-const slashQuery = computed(() => {
-  if (props.ctfSession || props.goalMode) return null
-  if (!draft.value.startsWith('/') || /\s/u.test(draft.value)) return null
-  return draft.value.slice(1).toLocaleLowerCase()
-})
+const activeSlashCommandIndex = ref(0)
+const slashQuery = ref<string | null>(null)
+const slashQueryRange = ref<Range | null>(null)
+const scopeToken = ref<ComposerScopeToken | null>(null)
 const hasUnfinishedGoal = computed(() => Boolean(
   props.goal && props.goal.status !== 'complete',
 ))
+
+const slashCommandCatalog = [
+  {
+    id: 'goal',
+    label: '目标',
+    description: '设置一个持续追踪的目标',
+    keywords: ['target'],
+    icon: markRaw(Target),
+  },
+  {
+    id: 'new',
+    label: '新任务',
+    description: '开始一个新的编码会话',
+    keywords: ['clear', '新建'],
+    icon: markRaw(MessageSquarePlus),
+  },
+  {
+    id: 'plan',
+    label: '计划模式',
+    description: '只分析和规划，不修改文件',
+    keywords: ['mode', '规划'],
+    icon: markRaw(Lightbulb),
+  },
+  {
+    id: 'compact',
+    label: '整理上下文',
+    description: '使用 Pi 压缩当前会话上下文',
+    keywords: ['context', '上下文', 'summarize'],
+    icon: markRaw(Shrink),
+  },
+  {
+    id: 'model',
+    label: '模型',
+    description: '打开当前任务的模型选择',
+    keywords: ['provider', '模型'],
+    icon: markRaw(Bot),
+  },
+  {
+    id: 'permissions',
+    label: '权限',
+    description: '打开审批与访问范围选择',
+    keywords: ['approve', 'approval', '权限'],
+    icon: markRaw(ShieldCheck),
+  },
+  {
+    id: 'status',
+    label: '状态',
+    description: '查看会话、Git 和运行环境',
+    keywords: ['session', 'environment', '状态'],
+    icon: markRaw(Activity),
+  },
+  {
+    id: 'diff',
+    label: '变更',
+    description: '查看当前工作区的文件改动',
+    keywords: ['changes', '变更'],
+    icon: markRaw(FileDiff),
+  },
+  {
+    id: 'review',
+    label: '审阅',
+    description: '让 Agent 审阅当前工作区变更',
+    keywords: ['diff', 'code-review', '审查'],
+    icon: markRaw(ScanSearch),
+  },
+  {
+    id: 'worktree',
+    label: 'Worktree',
+    description: '打开隔离 worktree 与交付面板',
+    keywords: ['branch', 'git', '分支'],
+    icon: markRaw(GitBranch),
+  },
+  {
+    id: 'mcp',
+    label: 'MCP',
+    description: '查看当前项目的 MCP 服务',
+    keywords: ['tools', '工具'],
+    icon: markRaw(Plug),
+  },
+  {
+    id: 'browser-use',
+    label: 'Browser Use',
+    description: '把一个用户浏览器窗口加入本轮输入',
+    keywords: ['chrome', 'safari', '浏览器'],
+    icon: markRaw(Globe2),
+  },
+  {
+    id: 'computer-use',
+    label: 'Computer Use',
+    description: '把一个外部 App 窗口加入本轮输入',
+    keywords: ['app', '窗口', '电脑'],
+    icon: markRaw(MousePointer2),
+  },
+] as const
+
+function slashCommandDisabled(id: typeof slashCommandCatalog[number]['id']) {
+  if (id === 'goal') return props.running || hasUnfinishedGoal.value
+  if (id === 'compact') return props.running || props.compactDisabled
+  if (id === 'new' || id === 'plan' || id === 'model' || id === 'permissions') {
+    return props.running
+  }
+  if (id === 'review') return props.running || !props.workspaceReady
+  if (['diff', 'worktree', 'mcp'].includes(id)) return !props.workspaceReady
+  return false
+}
+
 const slashCommands = computed(() => {
   const query = slashQuery.value
   if (query === null) return []
-  return [{
-    id: 'goal',
-    label: '目标',
-    description: hasUnfinishedGoal.value
+  return slashCommandCatalog.map(command => ({
+    ...command,
+    description: command.id === 'goal' && hasUnfinishedGoal.value
       ? '当前已有持续目标'
-      : '设置要持续追求的目标',
-    disabled: props.running || hasUnfinishedGoal.value,
-  }].filter(command => (
+      : command.description,
+    disabled: slashCommandDisabled(command.id),
+  })).filter(command => (
     !query
     || command.id.includes(query)
     || command.label.toLocaleLowerCase().includes(query)
+    || command.keywords.some(keyword => keyword.toLocaleLowerCase().includes(query))
   ))
 })
 const slashMenuOpen = computed(() => (
   !slashMenuDismissed.value && slashCommands.value.length > 0
+))
+const activeSlashCommand = computed(() => (
+  slashCommands.value[activeSlashCommandIndex.value]
+  ?? slashCommands.value[0]
 ))
 const goalStatusLabel = computed(() => {
   const status = props.goal?.status
@@ -208,7 +340,198 @@ function removeCodingAttachment(attachment: CodingAttachment) {
   ))
 }
 
+function editorNodeText(node: Node): string {
+  if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? ''
+  if (!(node instanceof HTMLElement)) return ''
+  if (node.dataset.composerScopeToken) return '\uFFFC'
+  if (node.tagName === 'BR') return '\n'
+  const text = [...node.childNodes].map(editorNodeText).join('')
+  return ['DIV', 'P'].includes(node.tagName) ? `${text}\n` : text
+}
+
+function readComposerText() {
+  const editor = messageEditor.value
+  if (!editor) return draft.value
+  return [...editor.childNodes]
+    .map(editorNodeText)
+    .join('')
+    .replace(/\s*\uFFFC\s*/gu, ' ')
+    .replace(/\u00a0/gu, ' ')
+    .replace(/\n{3,}/gu, '\n\n')
+    .replace(/\n$/u, '')
+}
+
+function setCaretAfter(node: Node) {
+  const selection = window.getSelection()
+  if (!selection) return
+  const range = document.createRange()
+  range.setStartAfter(node)
+  range.collapse(true)
+  selection.removeAllRanges()
+  selection.addRange(range)
+}
+
+function detectSlashQuery() {
+  slashQuery.value = null
+  slashQueryRange.value = null
+  if (props.ctfSession || props.goalMode) return
+  const editor = messageEditor.value
+  if (!editor) return
+
+  const selection = window.getSelection()
+  let textNode: Node | null = selection?.focusNode ?? null
+  let offset = selection?.focusOffset ?? 0
+  if (
+    !textNode
+    || textNode.nodeType !== Node.TEXT_NODE
+    || !editor.contains(textNode)
+  ) {
+    textNode = [...editor.childNodes].reverse().find(node => node.nodeType === Node.TEXT_NODE) ?? null
+    offset = textNode?.textContent?.length ?? 0
+  }
+  if (!textNode || textNode.nodeType !== Node.TEXT_NODE) return
+
+  const prefix = (textNode.textContent ?? '').slice(0, offset)
+  const match = prefix.match(/(?:^|\s)\/([\p{L}\p{N}-]*)$/u)
+  if (!match) return
+  const query = match[1] ?? ''
+  const range = document.createRange()
+  range.setStart(textNode, offset - query.length - 1)
+  range.setEnd(textNode, offset)
+  slashQuery.value = query.toLocaleLowerCase()
+  slashQueryRange.value = range
+}
+
+function syncComposerInput() {
+  draft.value = readComposerText()
+  const token = messageEditor.value?.querySelector<HTMLElement>('[data-composer-scope-token]')
+  const tokenValue = token?.dataset.composerScopeToken
+  scopeToken.value = tokenValue === 'browser-use' || tokenValue === 'computer-use'
+    ? tokenValue
+    : null
+  if (composing.value) return
+  slashMenuDismissed.value = false
+  detectSlashQuery()
+}
+
+function removeSlashQueryText() {
+  const range = slashQueryRange.value
+  if (range) {
+    range.deleteContents()
+    const anchor = document.createTextNode('')
+    range.insertNode(anchor)
+    setCaretAfter(anchor)
+  }
+  slashQuery.value = null
+  slashQueryRange.value = null
+  draft.value = readComposerText()
+}
+
+function removeScopeToken(refocus = true) {
+  const editor = messageEditor.value
+  const token = editor?.querySelector<HTMLElement>('[data-composer-scope-token]')
+  if (token) {
+    const next = token.nextSibling
+    token.remove()
+    if (next?.nodeType === Node.TEXT_NODE && next.textContent?.startsWith('\u00a0')) {
+      next.textContent = next.textContent.slice(1)
+    }
+  }
+  scopeToken.value = null
+  draft.value = readComposerText()
+  if (refocus) focusMessageInput()
+}
+
+function insertScopeToken(value: ComposerScopeToken) {
+  const editor = messageEditor.value
+  if (!editor) return
+  removeScopeToken(false)
+
+  const range = slashQueryRange.value ?? document.createRange()
+  if (!slashQueryRange.value) {
+    range.selectNodeContents(editor)
+    range.collapse(false)
+  }
+  range.deleteContents()
+
+  const token = document.createElement('span')
+  token.className = 'chat-composer__inline-token'
+  token.dataset.composerScopeToken = value
+  token.contentEditable = 'false'
+  token.setAttribute('role', 'group')
+  token.setAttribute('aria-label', value === 'browser-use' ? 'Browser Use 已加入' : 'Computer Use 已加入')
+
+  const label = document.createElement('span')
+  label.textContent = `/${value}`
+  token.append(label)
+
+  const remove = document.createElement('button')
+  remove.type = 'button'
+  remove.className = 'chat-composer__inline-token-remove'
+  remove.setAttribute('aria-label', `移除 /${value}`)
+  remove.textContent = '×'
+  remove.addEventListener('mousedown', event => event.preventDefault())
+  remove.addEventListener('click', () => removeScopeToken())
+  token.append(remove)
+
+  const spacer = document.createTextNode('\u00a0')
+  range.insertNode(spacer)
+  range.insertNode(token)
+  setCaretAfter(spacer)
+
+  scopeToken.value = value
+  slashQuery.value = null
+  slashQueryRange.value = null
+  draft.value = readComposerText()
+  emit('runSlashCommand', value)
+}
+
+function clearComposerInput() {
+  if (messageEditor.value) messageEditor.value.replaceChildren()
+  draft.value = ''
+  slashQuery.value = null
+  slashQueryRange.value = null
+  scopeToken.value = null
+}
+
+function handleComposerPaste(event: ClipboardEvent) {
+  const editor = messageEditor.value
+  const text = event.clipboardData?.getData('text/plain') ?? ''
+  if (!editor || !text) return
+  event.preventDefault()
+  const selection = window.getSelection()
+  const range = selection?.rangeCount ? selection.getRangeAt(0) : document.createRange()
+  if (!editor.contains(range.commonAncestorContainer)) {
+    range.selectNodeContents(editor)
+    range.collapse(false)
+  }
+  range.deleteContents()
+  const node = document.createTextNode(text)
+  range.insertNode(node)
+  setCaretAfter(node)
+  syncComposerInput()
+}
+
+function handleComposerDrop(event: DragEvent) {
+  const editor = messageEditor.value
+  const text = event.dataTransfer?.getData('text/plain') ?? ''
+  event.preventDefault()
+  if (!editor || !text) return
+  const range = document.caretRangeFromPoint?.(event.clientX, event.clientY)
+    ?? document.createRange()
+  if (!editor.contains(range.commonAncestorContainer)) {
+    range.selectNodeContents(editor)
+    range.collapse(false)
+  }
+  range.deleteContents()
+  const node = document.createTextNode(text)
+  range.insertNode(node)
+  setCaretAfter(node)
+  syncComposerInput()
+}
+
 function submit() {
+  draft.value = readComposerText()
   const attachments = [...pendingAttachments.value]
   const text = draft.value.trim()
     || (attachments.length ? '请检查这些附件并完成我接下来需要处理的任务。' : '')
@@ -216,35 +539,95 @@ function submit() {
   const prompt = !props.ctfSession && props.goalMode
     ? `/goal ${text}`
     : text
-  draft.value = ''
+  const activeScopeToken = scopeToken.value ?? undefined
+  const scopeReady = activeScopeToken === 'browser-use'
+    ? props.browserUseReady
+    : activeScopeToken === 'computer-use'
+      ? props.computerUseReady
+      : true
+  if (!scopeReady && activeScopeToken) {
+    attachmentError.value = activeScopeToken === 'browser-use'
+      ? 'Browser Use 需要已选择项目，并使用可调用工具的 Go 权限；当前输入不会被清空。'
+      : '请先在右栏锁定一个外部 App 窗口；当前输入不会被清空。'
+    emit('runSlashCommand', activeScopeToken)
+    return
+  }
+  clearComposerInput()
   pendingAttachments.value = []
   attachmentError.value = ''
-  emit('send', prompt, text, attachments)
+  if (activeScopeToken) emit('send', prompt, text, attachments, activeScopeToken)
+  else emit('send', prompt, text, attachments)
   emit('consumeGoal')
 }
 
 function focusMessageInput() {
   void nextTick(() => {
-    composerFrame.value?.querySelector<HTMLTextAreaElement>('textarea')?.focus()
+    messageEditor.value?.focus()
   })
 }
 
-function chooseGoalCommand() {
-  const command = slashCommands.value[0]
+function openComposerChooser(ariaLabel: string) {
+  void nextTick(() => {
+    composerFrame.value
+      ?.querySelector<HTMLButtonElement>(`[aria-label="${ariaLabel}"]`)
+      ?.click()
+  })
+}
+
+function chooseSlashCommand(command = activeSlashCommand.value) {
   if (!command || command.disabled) return
-  draft.value = ''
   slashMenuDismissed.value = false
-  emit('startGoal')
+  activeSlashCommandIndex.value = 0
+
+  if (command.id === 'browser-use' || command.id === 'computer-use') {
+    insertScopeToken(command.id)
+    return
+  }
+
+  removeSlashQueryText()
+
+  if (command.id === 'model') {
+    openComposerChooser('选择本任务模型')
+    return
+  }
+  if (command.id === 'permissions') {
+    openComposerChooser('Coding 权限策略')
+    return
+  }
+
+  if (command.id === 'goal') {
+    removeScopeToken(false)
+    emit('startGoal')
+  }
+  else if (command.id === 'plan') emit('changeExecutionMode', 'plan')
+  else emit('runSlashCommand', command.id)
+
   focusMessageInput()
+}
+
+function moveSlashCommandSelection(direction: 1 | -1) {
+  const commands = slashCommands.value
+  if (!commands.length) return
+  let index = activeSlashCommandIndex.value
+  for (let attempts = 0; attempts < commands.length; attempts += 1) {
+    index = (index + direction + commands.length) % commands.length
+    if (!commands[index]?.disabled) {
+      activeSlashCommandIndex.value = index
+      return
+    }
+  }
 }
 
 function handleComposerKeyDown(event: KeyboardEvent) {
   if (
     event.isComposing
     || composing.value
-    || compositionJustEnded.value
     || event.keyCode === 229
   ) return
+  if (compositionJustEnded.value) {
+    if (event.key === 'Enter') event.preventDefault()
+    return
+  }
 
   if (slashMenuOpen.value) {
     if (event.key === 'Escape') {
@@ -254,6 +637,8 @@ function handleComposerKeyDown(event: KeyboardEvent) {
     }
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault()
+      const direction = event.key === 'ArrowDown' ? 1 : -1
+      moveSlashCommandSelection(direction)
       return
     }
     if (
@@ -264,7 +649,7 @@ function handleComposerKeyDown(event: KeyboardEvent) {
       && !event.metaKey
     ) {
       event.preventDefault()
-      chooseGoalCommand()
+      chooseSlashCommand()
       return
     }
   }
@@ -283,6 +668,7 @@ function handleComposerKeyDown(event: KeyboardEvent) {
 function handleCompositionEnd() {
   composing.value = false
   compositionJustEnded.value = true
+  syncComposerInput()
   window.setTimeout(() => {
     compositionJustEnded.value = false
   }, 0)
@@ -291,13 +677,34 @@ function handleCompositionEnd() {
 function appendDraftText(text: string) {
   const normalized = text.trim()
   if (!normalized || props.running) return
-  draft.value = draft.value.trim()
-    ? `${draft.value.trim()}\n\n${normalized}`
-    : normalized
+  const editor = messageEditor.value
+  if (!editor) return
+  if (readComposerText().trim() || scopeToken.value) {
+    editor.append(document.createElement('br'), document.createElement('br'))
+  }
+  const textNode = document.createTextNode(normalized)
+  editor.append(textNode)
+  setCaretAfter(textNode)
+  syncComposerInput()
 }
 
 watch(draft, () => {
   slashMenuDismissed.value = false
+  activeSlashCommandIndex.value = 0
+})
+
+watch(slashCommands, commands => {
+  if (!commands.length) {
+    activeSlashCommandIndex.value = 0
+    return
+  }
+  if (
+    activeSlashCommandIndex.value >= commands.length
+    || commands[activeSlashCommandIndex.value]?.disabled
+  ) {
+    const firstEnabled = commands.findIndex(command => !command.disabled)
+    activeSlashCommandIndex.value = firstEnabled >= 0 ? firstEnabled : 0
+  }
 })
 
 defineExpose({
@@ -336,22 +743,29 @@ defineExpose({
         aria-label="斜杠命令"
       >
         <button
-          v-for="command in slashCommands"
+          v-for="(command, index) in slashCommands"
           :id="`coding-slash-command-${command.id}`"
           :key="command.id"
           type="button"
           class="chat-composer__command-option"
-          :class="{ 'opacity-50': command.disabled }"
+          :class="{
+            'chat-composer__command-option--active': index === activeSlashCommandIndex,
+            'opacity-50': command.disabled,
+          }"
           role="option"
-          aria-selected="true"
+          :aria-selected="index === activeSlashCommandIndex"
           :aria-disabled="command.disabled"
           :disabled="command.disabled"
           @mousedown.prevent
-          @click="chooseGoalCommand"
+          @mouseenter="activeSlashCommandIndex = index"
+          @click="chooseSlashCommand(command)"
         >
-          <Target class="size-4 shrink-0" />
+          <component :is="command.icon" class="size-4 shrink-0" />
           <span class="min-w-0 text-left">
-            <span class="block text-body font-medium">{{ command.label }}</span>
+            <span class="block text-body font-medium">
+              <span class="font-mono">/{{ command.id }}</span>
+              <span class="ml-2 text-muted-foreground">{{ command.label }}</span>
+            </span>
             <span class="mt-0.5 block text-caption text-muted-foreground">
               {{ command.description }}
             </span>
@@ -485,18 +899,28 @@ defineExpose({
             </button>
           </span>
         </div>
-        <Textarea
-          v-model="draft"
+        <div
+          ref="messageEditor"
           class="chat-composer__input max-h-44 min-h-24 resize-none border-0 bg-transparent px-1 pb-2 pt-1.5 shadow-none focus-visible:ring-0"
+          contenteditable="true"
+          role="textbox"
           aria-label="消息"
+          aria-multiline="true"
           aria-autocomplete="list"
           :aria-controls="slashMenuOpen ? 'coding-slash-command-menu' : undefined"
           :aria-expanded="slashMenuOpen"
-          :aria-activedescendant="slashMenuOpen ? 'coding-slash-command-goal' : undefined"
-          :placeholder="goalMode ? '写下一个可持续目标，MilkSU 会持续推进并保留恢复点' : ctfSession ? '告诉 Agent 你的观察、假设或下一步想法' : '描述你想让 MilkSU 完成的任务'"
+          :aria-activedescendant="slashMenuOpen && activeSlashCommand
+            ? `coding-slash-command-${activeSlashCommand.id}`
+            : undefined"
+          :data-placeholder="goalMode ? '写下一个可持续目标，MilkSU 会持续推进并保留恢复点' : ctfSession ? '告诉 Agent 你的观察、假设或下一步想法' : '描述你想让 MilkSU 完成的任务'"
           @compositionstart="composing = true"
           @compositionend="handleCompositionEnd"
           @keydown="handleComposerKeyDown"
+          @input="syncComposerInput"
+          @keyup="detectSlashQuery"
+          @click="detectSlashQuery"
+          @paste="handleComposerPaste"
+          @drop="handleComposerDrop"
         />
         <div class="chat-composer__toolbar flex min-w-0 flex-wrap items-center justify-between gap-2">
           <div class="flex min-w-0 items-center gap-1.5">
@@ -576,8 +1000,10 @@ defineExpose({
   bottom: calc(100% + 0.65rem);
   left: 0;
   z-index: 10;
-  width: min(25rem, calc(100vw - 3rem));
-  overflow: hidden;
+  width: min(30rem, calc(100vw - 3rem));
+  max-height: min(30rem, calc(100vh - 14rem));
+  overflow-x: hidden;
+  overflow-y: auto;
   border: 1px solid var(--border);
   border-radius: 1rem;
   background: color-mix(in srgb, var(--card) 96%, transparent);
@@ -600,7 +1026,8 @@ defineExpose({
 }
 
 .chat-composer__command-option:not(:disabled):hover,
-.chat-composer__command-option:not(:disabled):focus-visible {
+.chat-composer__command-option:not(:disabled):focus-visible,
+.chat-composer__command-option--active:not(:disabled) {
   background: var(--muted);
 }
 
@@ -664,8 +1091,53 @@ defineExpose({
 }
 
 .chat-composer__input {
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  outline: none;
   font-size: var(--text-label);
   line-height: var(--text-label--line-height);
   letter-spacing: var(--text-label--letter-spacing);
+}
+
+.chat-composer__input:empty::before {
+  color: var(--muted-foreground);
+  content: attr(data-placeholder);
+  pointer-events: none;
+}
+
+.chat-composer__input :deep(.chat-composer__inline-token) {
+  display: inline-flex;
+  min-height: 1.65rem;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--primary) 36%, var(--border));
+  border-radius: 0.55rem;
+  background: color-mix(in srgb, var(--primary) 11%, var(--card));
+  padding: 0.1rem 0.25rem 0.1rem 0.45rem;
+  color: var(--foreground);
+  font-family: "SFMono-Regular", "Cascadia Code", "Liberation Mono", monospace;
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+  vertical-align: baseline;
+}
+
+.chat-composer__input :deep(.chat-composer__inline-token-remove) {
+  display: inline-grid;
+  width: 1.2rem;
+  height: 1.2rem;
+  cursor: pointer;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted-foreground);
+  font: inherit;
+  line-height: 1;
+}
+
+.chat-composer__input :deep(.chat-composer__inline-token-remove:hover) {
+  background: var(--btn-ghost-hover);
+  color: var(--foreground);
 }
 </style>

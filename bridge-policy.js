@@ -1941,6 +1941,14 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
         cdpEndpoint: String(codingPolicy.codingBrowser.cdpEndpoint ?? ""),
       }
     : undefined;
+  const browserUse = codingPolicy.browserUse
+    && typeof codingPolicy.browserUse === "object"
+    && !Array.isArray(codingPolicy.browserUse)
+    && /^browser_user-[A-Za-z0-9-]{8,128}$/u.test(
+      String(codingPolicy.browserUse.sessionId ?? ""),
+    )
+    ? { sessionId: String(codingPolicy.browserUse.sessionId) }
+    : undefined;
   const computerUse = codingPolicy.computerUse
     && typeof codingPolicy.computerUse === "object"
     && !Array.isArray(codingPolicy.computerUse)
@@ -1968,7 +1976,7 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
     && normalized.approvalPolicy !== "read-only";
   const projectMcpAvailable = interactiveMcpAllowed && mcpServers.length > 0;
   const browserAvailable = interactiveMcpAllowed
-    && (Boolean(codingBrowser) || projectMcpServers.length > 0);
+    && (Boolean(codingBrowser) || Boolean(browserUse) || projectMcpServers.length > 0);
   const computerUseAvailable = interactiveMcpAllowed && Boolean(computerUse);
   const collaborationAvailable = !productAction
     && Boolean(codingCollaboration)
@@ -1994,7 +2002,10 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
             ? automaticCapabilityApproval ? "allowed" : "approval-required"
             : "unavailable",
           detail: browserAvailable
-            ? codingBrowser
+            ? browserUse
+              ? "Playwright MCP 官方扩展已为本轮 Browser Use 启用；用户仍需在 Chrome/Edge "
+                + "连接页选择并批准准确标签页，模型不能跳过选择或改用其他浏览器能力。"
+              : codingBrowser
               ? `MilkSU 隔离浏览器已为本任务启用`
                 + `${projectMcpServers.length ? `，另有 ${projectMcpServers.length} 个项目 MCP` : ""}；`
                 + (automaticCapabilityApproval
@@ -2063,6 +2074,7 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
     projectMcpServers,
     mcpConfigDigest: String(codingPolicy.mcpConfigDigest ?? "").trim(),
     codingBrowser,
+    browserUse,
     computerUse,
     codingCollaboration,
     readOnlyResourceRoots: [...(codingPolicy.readOnlyResourceRoots || [])],

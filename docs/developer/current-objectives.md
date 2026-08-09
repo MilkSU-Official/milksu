@@ -23,6 +23,7 @@
 11. 模型与凭据保持普通入口：一个默认模型、一个模型来源、一个凭据区。默认日常模型 DeepSeek V4 Flash；TokenFlux 是一等中转站；不保留 fast/deep 角色路由，不接 Kimi/KouriChat 产品入口。
 12. Coding 自举默认由外部 reviewer 操作真实打包 MilkSU：给略带模糊的人类需求，让 MilkSU 在隔离 worktree 内理解、修改和验证；reviewer 只查轨迹、diff、测试和边界，并通过产品 UI 要求返工。除非链路阻塞、安全/Scope 问题或用户明确要求，reviewer 不直接改功能代码。
 13. 上游优先：平台/Pi → 固定可审阅 Skill/MCP/插件/CLI → 许可证兼容的最小上游机制 → 最小自有实现。一会话一个结果契约，除阻塞和安全外不靠连续微提示收口。
+14. Coding Agent 的成熟机制要反哺 CTF/CVE：通用会话、浏览器、worktree、恢复和审阅优先复用上游；Challenge/Evidence/Judge、漏洞研究事实、领域采集与安全验证工作流由 MilkSU 持有。不能把“上游优先”误写成不发展自己的安全领域能力。
 
 ## 当前事实
 
@@ -34,6 +35,9 @@
 - **真实 Grok 自举小纵切已跑通一段**：自然提示 → 注册 writer 只改三份 Current 文档 → reviewer 指出事实错误 → 同会话完成返工。**尚未覆盖**功能代码修改、测试、恢复和 Git 交付；不要写成自举完全未开始。
 - **实测缺口**：Goal/输入框上方的 Git 变更摘要看不到 writer worktree 的三文件改动；变更投影仍偏主工作区视角，不足以审阅隔离执行结果。
 - Computer Use：用户选择外部可见 App/PID/Window 的不可变 Scope、打包 App 启停、Calculator observe/click、text-only 主模型下的工具截图辅助视觉已有切片。Browser 与 Computer Use 仍是分离权限面。
+- Composer `/` 已覆盖 Goal、Pi 会话动作、模型/权限、状态/Diff/Review、worktree、MCP、Browser Use 与 Computer Use；Browser/Computer 以可删除的内联状态加入当前输入，不会因选择命令直接发送。
+- 浏览器三面已分责：右栏“沙箱浏览器”管理会话隔离的专用 Chrome；`/browser-use` 复用固定版 Playwright MCP 官方扩展，由用户在真实 Chrome/Edge 选择准确标签页；`/computer-use` 只列外部原生 App，浏览器窗口不进入该 Scope。NSSCTF/CTFshow 的 MilkSU 扩展继续作为领域 Bridge，不承担通用浏览器控制。
+- 右栏沙箱浏览器当前仍是独立 Chrome 窗口 + CDP/Playwright，并非内嵌 Chromium。目标形态是右栏可直接交互的 Chromium View；不得用截图坐标层、iframe 或普通外部 Chrome 窗口冒充完成。
 - 模型与凭据：单默认模型 + 单来源 + 单凭据区；DeepSeek V4 Flash 默认日常；TokenFlux 一等中转；Coding / CTF / sub-agent 共用当前 Provider 注册。
 - CVE：学习/追踪 MVP 可用（多源同步、练习目录、本地 Compose 生命周期、资产验证、学习写回、Coding 接力）；正式事实只来自 Vuln Runtime。
 - CTF：题库、工作区、Evidence、候选、Judge、Checkpoint、恢复、复盘、Memory 主链存在；真实 Judge 成功仍只有窄 Web 路径。
@@ -50,13 +54,15 @@
 | P0 | Session Index | 继续内置 MilkSU 自有历史索引；外部会话导入在有明确文件选择、确认和产品调用者前不进发行图。 |
 | P0 | CVE 学习/追踪扩样 | 更多真实 CVE 验证同步、练习、研究档案、资产验证和学习写回；不做外部攻击、自动 PoC 或披露。 |
 | P1 | Computer Use 扩样 | Calculator 之外再加 1–2 个真实 App/窗口、权限拒绝路径；稳定 Developer ID 后复检 TCC。不与 Browser 强行合并权限。 |
+| P1 | 内嵌沙箱浏览器 | macOS ARM64 先用官方 CEF 二进制/示例做有界原型：右栏原生 Chromium View、独立 profile、用户直接交互、Agent 共用同一会话/CDP；同时通过 CEF helper/framework/resources、签名与打包验收。先验证最小 NSView/Wails 适配，不以换掉整个 Wails 壳或引入第二套 GUI 框架开局。 |
+| P1 | MilkSU Beta 自举 | 稳定版只从源码构建并启动另一份 `MilkSU Beta`；使用不同产品名、图标标记、Bundle ID、数据目录与 TCC 身份，再由稳定版 Computer Use 操作 Beta。禁止稳定版控制自己或让两份 App 共享状态/权限。 |
 | P1 | CTF 六赛道 | Web / Pwn / Reverse / Crypto / Forensics / Misc 各至少一题 Judge-verified，并保留完整证据包。 |
 | P1 | Memory 可信度 | 区分 user / agent / shared / imported 与 none / hint / copilot / delegated；Agent 代做不能抬高用户独立能力。 |
 | P1 | Runtime Reliability | 自建安全 fixture：多轮、文件、命令、工具、重启、压缩、取消、预算、失败分类。 |
 | P2 | 本地交付与发行 | RC 再做崩溃恢复、诊断、全新机器、Developer ID `.app`、DMG、公证、stapling、升级、性能和尺寸；Developer ID 先于外部分发与 Computer Use TCC 复检。不读取或迁移本机签名私钥/证书密码/Personal Vault。 |
 | 持续 | 架构与 UI | 触碰即拆热点文件；不新开纯清债里程碑。UI 巡检后同步测试与当前文档。 |
 
-推荐顺序：先会话自动 worktree（含 writer 变更投影）→ 再把真实 Grok 自举从文档小纵切扩到功能代码/测试/恢复/Git 交付 → 并行 Computer Use 扩样 → 自举稳定后再加重 CTF / Memory / 发行 RC。不恢复 `development-plan.md`，不把已删除 live smoke 嵌回产品启动链。
+推荐顺序：先会话自动 worktree（含 writer 变更投影）→ 用稳定版构建/操作隔离的 MilkSU Beta，把真实 Grok 自举从文档小纵切扩到功能代码/测试/恢复/Git 交付 → 并行做内嵌沙箱浏览器原型和 Computer Use 扩样 → 将验证过的 Scope/证据/恢复机制迁入 CTF/CVE 领域纵切 → 最后加重 Memory / 发行 RC。不恢复 `development-plan.md`，不把已删除 live smoke 嵌回产品启动链。
 
 ## 不要重复打开
 

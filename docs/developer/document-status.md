@@ -37,13 +37,19 @@
   Goal/Composer 投影。
 - Computer Use 有 Calculator Scope 的 observe/click 切片与工具截图辅助视觉；Browser 与
   Computer Use 仍分离。更广 App 矩阵、权限失败路径、Developer ID / TCC 复检未完成。
+- Composer `/` 以可删除内联状态启用 Browser/Computer；通用 Browser Use 复用固定版 Playwright
+  MCP 官方扩展并由用户选择真实标签页，Computer Use 排除浏览器。MilkSU CTF 扩展仍负责
+  NSSCTF/CTFshow 领域采集与 Judge，不被通用上游替代。
+- 右栏沙箱浏览器仍是 MilkSU 隔离 profile 的独立 Chrome，不是内嵌 Chromium。CEF 原生 View 与
+  独立身份 `MilkSU Beta` 自举属于下一条有界纵切，尚未完成。
 - 完整自然任务自举（功能代码/测试/恢复/Git 交付）、人工接管账本、自主合并发布和发行门禁仍未通过。
 - 模型与凭据：单默认模型；DeepSeek V4 Flash 日常默认；TokenFlux 一等中转；Coding/CTF/sub-agent
   共用 Provider 注册。
 - CTF 主链存在；真实 Judge 成功仍只有窄 Web 路径。Memory actor/assistance 已持久化；尚缺真实
   轨迹校准。Runtime Reliability fixture 已有；发行级恢复矩阵未过。
 - CVE 正式事实只来自 Vuln Runtime；WebView 无假后端；Session Index 只索引 MilkSU 自有历史。
-- UI：rail 主题/设置、Coding Goal 在 Composer `/`、字重与字号层级已收敛。
+- UI：rail 主题/设置、Coding Goal 与常用 Agent 动作在 Composer `/`、字重与字号层级已收敛；
+  浏览器 Bridge 与 Computer Use 系统配置集中到“设置 → 浏览器与控制”。
 - Labs 暂停；CVE 纵深/复现/披露后置；NYU safe-static 不是完整 CTF 成绩；Developer ID/公证属 RC。
 
 Current 入口只保留事实与下一条完成线。历史 smoke、已删脚本路径和流水验收见 Evidence /

@@ -14,6 +14,24 @@ vi.mock('@/desktop', () => ({
 
 const mountedApps: App[] = []
 
+function composerEditor(host: HTMLElement) {
+  const editor = host.querySelector<HTMLElement>('[aria-label="消息"]')
+  if (!editor) throw new Error('missing message editor')
+  return editor
+}
+
+function setComposerText(editor: HTMLElement, text: string) {
+  const node = document.createTextNode(text)
+  editor.replaceChildren(node)
+  const range = document.createRange()
+  range.setStart(node, text.length)
+  range.collapse(true)
+  const selection = window.getSelection()
+  selection?.removeAllRanges()
+  selection?.addRange(range)
+  editor.dispatchEvent(new Event('input', { bubbles: true }))
+}
+
 const activeGoal: CodingGoalState = {
   id: 'goal-1',
   text: '让 MilkSU 完成一次可审查的自举迭代',
@@ -40,18 +58,23 @@ function conversation(goal?: CodingGoalState): Conversation {
 function mountPage(options: {
   goal?: CodingGoalState
   running?: boolean
+  workspacePath?: string
+  sessionReady?: boolean
 } = {}) {
   const host = document.createElement('div')
   document.body.append(host)
   const controlledGoals: string[] = []
   let aborts = 0
+  let newConversations = 0
+  let compactions = 0
+  const sent: unknown[][] = []
   const app = createApp(ChatPage, {
     conversation: conversation(options.goal),
     settings: null,
-    workspacePath: '',
+    workspacePath: options.workspacePath ?? '',
     running: options.running ?? false,
     aborting: false,
-    sessionReady: false,
+    sessionReady: options.sessionReady ?? false,
     resumed: false,
     compacting: false,
     ctfSession: false,
@@ -60,6 +83,15 @@ function mountPage(options: {
     onAbort: () => {
       aborts += 1
     },
+    onNewConversation: () => {
+      newConversations += 1
+    },
+    onCompactContext: () => {
+      compactions += 1
+    },
+    onSend: (...args: unknown[]) => {
+      sent.push(args)
+    },
   })
   app.mount(host)
   mountedApps.push(app)
@@ -67,6 +99,9 @@ function mountPage(options: {
     host,
     controlledGoals,
     aborts: () => aborts,
+    newConversations: () => newConversations,
+    compactions: () => compactions,
+    sent,
   }
 }
 
@@ -80,12 +115,13 @@ describe('ChatPage Goal interaction', () => {
     const result = mountPage()
     await nextTick()
 
+    expect(result.host.querySelector('[data-workspace-topbar-title]')?.textContent)
+      .toBe('Goal interaction')
+
     expect(result.host.querySelector('[aria-label="环境信息"]')?.textContent)
       .not.toContain('设为目标')
-    const textarea = result.host.querySelector<HTMLTextAreaElement>('[aria-label="消息"]')
-    if (!textarea) throw new Error('missing message textarea')
-    textarea.value = '/'
-    textarea.dispatchEvent(new Event('input', { bubbles: true }))
+    const textarea = composerEditor(result.host)
+    setComposerText(textarea, '/')
     await nextTick()
     expect(result.host.querySelector('[aria-label="斜杠命令"]')).not.toBeNull()
 
@@ -96,10 +132,44 @@ describe('ChatPage Goal interaction', () => {
     }))
     await nextTick()
 
-    expect(textarea.placeholder).toContain('写下一个可持续目标')
+    expect(textarea.getAttribute('data-placeholder')).toContain('写下一个可持续目标')
     expect(document.activeElement).toBe(textarea)
     expect(result.host.querySelector('[aria-label="持续目标"]')?.textContent)
       .toContain('下一条消息会成为持续目标')
+  })
+
+  it('routes slash commands to existing Coding surfaces and parent actions', async () => {
+    const panels = mountPage({ workspacePath: '/tmp/milksu', sessionReady: true })
+    await nextTick()
+    const textarea = composerEditor(panels.host)
+
+    setComposerText(textarea, '/worktree')
+    await nextTick()
+    textarea.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Enter',
+      bubbles: true,
+      cancelable: true,
+    }))
+    await nextTick()
+    expect(panels.host.querySelector('[aria-label="隔离 worktree"]')).not.toBeNull()
+
+    setComposerText(textarea, '/new')
+    await nextTick()
+    textarea.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Enter',
+      bubbles: true,
+      cancelable: true,
+    }))
+    expect(panels.newConversations()).toBe(1)
+
+    setComposerText(textarea, '/compact')
+    await nextTick()
+    textarea.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Enter',
+      bubbles: true,
+      cancelable: true,
+    }))
+    expect(panels.compactions()).toBe(1)
   })
 
   it('uses interruption to pause a running Goal and Pi commands when it is idle', async () => {
@@ -117,5 +187,60 @@ describe('ChatPage Goal interaction', () => {
     paused.host.querySelector<HTMLButtonElement>('[aria-label="继续目标"]')?.click()
     paused.host.querySelector<HTMLButtonElement>('[aria-label="清除当前目标"]')?.click()
     expect(paused.controlledGoals).toEqual(['resume', 'clear'])
+  })
+
+  it('keeps Browser Use inline until send and requests the upstream extension capability', async () => {
+    const result = mountPage({ workspacePath: '/tmp/milksu', sessionReady: true })
+    await nextTick()
+    const editor = composerEditor(result.host)
+    setComposerText(editor, '/browser-use')
+    await nextTick()
+    editor.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Enter',
+      bubbles: true,
+      cancelable: true,
+    }))
+    await nextTick()
+
+    expect(editor.querySelector('[data-composer-scope-token="browser-use"]')).not.toBeNull()
+    expect(result.sent).toEqual([])
+    expect(result.host.querySelector('[aria-label="Browser Use"]')).not.toBeNull()
+
+    editor.append(document.createTextNode('检查我当前打开的页面'))
+    editor.dispatchEvent(new Event('input', { bubbles: true }))
+    result.host.querySelector('form')?.dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true }),
+    )
+    await nextTick()
+
+    expect(result.sent).toHaveLength(1)
+    expect(result.sent[0]?.[0]).toContain('Playwright MCP 官方扩展')
+    expect(result.sent[0]?.[1]).toBe('检查我当前打开的页面')
+    expect(result.sent[0]?.[3]).toBe('browser-use')
+    expect(editor.textContent).toBe('')
+  })
+
+  it('keeps transient Computer Use out of the manually reopened sidebar', async () => {
+    const result = mountPage({ workspacePath: '/tmp/milksu', sessionReady: true })
+    await nextTick()
+    const editor = composerEditor(result.host)
+    setComposerText(editor, '/computer-use')
+    await nextTick()
+    editor.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Enter',
+      bubbles: true,
+      cancelable: true,
+    }))
+    await nextTick()
+
+    expect(result.host.querySelector('[aria-label="Computer Use"]')).not.toBeNull()
+    editor.querySelector<HTMLButtonElement>('[aria-label="移除 /computer-use"]')?.click()
+    result.host.querySelector<HTMLButtonElement>('[aria-label="关闭右侧栏"]')?.click()
+    await nextTick()
+    result.host.querySelector<HTMLButtonElement>('[aria-label="打开右侧栏"]')?.click()
+    await nextTick()
+
+    expect(result.host.querySelector('[aria-label="沙箱浏览器"]')).not.toBeNull()
+    expect(result.host.querySelector('[aria-label="Computer Use"]')).toBeNull()
   })
 })

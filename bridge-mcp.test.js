@@ -14,19 +14,24 @@ import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import {
+  browserUseMcpServerName,
+  browserUseSelectionChanged,
   codingBrowserMcpServerName,
   codingBrowserSelectionChanged,
   computerUseMcpServerName,
   computerUseSandboxProfile,
   computerUseSelectionChanged,
   createFirstPartyPlaywrightMcpServer,
+  createFirstPartyBrowserUseMcpServer,
   ensureMcpMetadataCache,
   loadCodingMcpConfig,
   loadSelectedMcpConfig,
   mcpSelectionChanged,
   normalizeCodingBrowserDescriptor,
+  normalizeBrowserUseDescriptor,
   normalizeComputerUseDescriptor,
   normalizeSelectedMcpServers,
+  projectMcpServersFromSelection,
   resolveReviewedMcpWorkspace,
 } from "./bridge-mcp.js";
 
@@ -250,6 +255,49 @@ test("builds the first-party Playwright server from a strict loopback descriptor
   );
 });
 
+test("builds Browser Use from the pinned Playwright extension mode", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "milksu-browser-use-mcp-"));
+  const descriptor = {
+    sessionId: "browser_user-12345678-abcd-4567-8901-123456789abc",
+  };
+  const builtIn = await createFirstPartyBrowserUseMcpServer(
+    workspace,
+    descriptor,
+    { executablePath: process.execPath },
+  );
+  assert.deepEqual(builtIn.browserUse, descriptor);
+  assert.equal(builtIn.server.command, "/usr/bin/sandbox-exec");
+  assert.ok(builtIn.server.args.includes("--extension"));
+  assert.ok(builtIn.server.args.includes("--executable-path"));
+  assert.ok(builtIn.server.args.includes(process.execPath));
+  assert.ok(builtIn.server.args.includes(join(
+    await realpath(workspace),
+    ".milksu",
+    "browser-evidence",
+    descriptor.sessionId,
+  )));
+  assert.deepEqual(builtIn.server.excludeTools, ["browser_run_code_unsafe"]);
+  assert.equal(builtIn.server.lifecycle, "lazy");
+});
+
+test("keeps the Browser Use sentinel out of project MCP selection", () => {
+  assert.deepEqual(
+    projectMcpServersFromSelection(["fixture", browserUseMcpServerName]),
+    ["fixture"],
+  );
+  const valid = { sessionId: "browser_user-12345678" };
+  assert.deepEqual(normalizeBrowserUseDescriptor(valid), valid);
+  assert.equal(browserUseSelectionChanged(valid, { ...valid }), false);
+  assert.equal(
+    browserUseSelectionChanged(valid, { sessionId: "browser_user-87654321" }),
+    true,
+  );
+  assert.throws(
+    () => normalizeBrowserUseDescriptor({ sessionId: "browser_short" }),
+    /invalid Browser Use session id/,
+  );
+});
+
 test("combines selected project MCP with the reserved Coding Browser server", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "milksu-browser-mcp-"));
   const config = JSON.stringify({
@@ -437,7 +485,11 @@ test("rejects symlinked Browser runtime and evidence directories before use", as
 
 test("reserves the built-in Playwright server name from project MCP config", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "milksu-browser-mcp-"));
-  for (const name of [codingBrowserMcpServerName, computerUseMcpServerName]) {
+  for (const name of [
+    codingBrowserMcpServerName,
+    browserUseMcpServerName,
+    computerUseMcpServerName,
+  ]) {
     await assert.rejects(
       loadSelectedMcpConfig(
         workspace,

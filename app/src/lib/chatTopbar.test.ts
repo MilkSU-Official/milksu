@@ -2,15 +2,15 @@ import { describe, expect, it } from 'vitest'
 import { chatTopbarPresentation } from './chatTopbar'
 
 describe('chatTopbarPresentation', () => {
-  it('keeps normal Coding conversations under the Coding module title', () => {
+  it('uses the current Coding conversation as the chat title', () => {
     expect(chatTopbarPresentation({
       ctfSession: false,
       conversationTitle: '修复导航',
       workspacePath: '/Users/milksu/code/milksu',
       codingPolicyLabel: 'Go · 项目自动',
     })).toEqual({
-      title: 'Coding',
-      subtitle: '修复导航 · /Users/milksu/code/milksu',
+      title: '修复导航',
+      subtitle: '/Users/milksu/code/milksu',
     })
   })
 
@@ -31,8 +31,8 @@ describe('chatTopbarPresentation', () => {
       ctfSession: false,
       codingPolicyLabel: 'Go · 完全访问',
     })).toEqual({
-      title: 'Coding',
-      subtitle: '新编码任务 · 临时工作区 · Go · 完全访问',
+      title: '新编码任务',
+      subtitle: '临时工作区 · Go · 完全访问',
     })
   })
 

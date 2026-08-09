@@ -8,6 +8,24 @@ import type { CodingGoalState } from '@/types'
 
 const mountedApps: App[] = []
 
+function composerEditor(host: HTMLElement) {
+  const editor = host.querySelector<HTMLElement>('[aria-label="消息"]')
+  if (!editor) throw new Error('missing message editor')
+  return editor
+}
+
+function setComposerText(editor: HTMLElement, text: string) {
+  const node = document.createTextNode(text)
+  editor.replaceChildren(node)
+  const range = document.createRange()
+  range.setStart(node, text.length)
+  range.collapse(true)
+  const selection = window.getSelection()
+  selection?.removeAllRanges()
+  selection?.addRange(range)
+  editor.dispatchEvent(new Event('input', { bubbles: true }))
+}
+
 function mountComposer(overrides: Record<string, unknown> = {}) {
   const host = document.createElement('div')
   document.body.append(host)
@@ -15,6 +33,8 @@ function mountComposer(overrides: Record<string, unknown> = {}) {
   let consumedGoals = 0
   let startedGoals = 0
   const controlledGoals: string[] = []
+  const executionModes: string[] = []
+  const slashCommandActions: string[] = []
   const app = createApp(ChatComposer, {
     running: false,
     aborting: false,
@@ -36,6 +56,12 @@ function mountComposer(overrides: Record<string, unknown> = {}) {
     onControlGoal: (action: string) => {
       controlledGoals.push(action)
     },
+    onChangeExecutionMode: (mode: string) => {
+      executionModes.push(mode)
+    },
+    onRunSlashCommand: (command: string) => {
+      slashCommandActions.push(command)
+    },
     ...overrides,
   })
   const vm = app.mount(host) as unknown as { appendDraftText: (text: string) => void }
@@ -47,6 +73,8 @@ function mountComposer(overrides: Record<string, unknown> = {}) {
     consumedGoals: () => consumedGoals,
     startedGoals: () => startedGoals,
     controlledGoals,
+    executionModes,
+    slashCommandActions,
   }
 }
 
@@ -78,7 +106,7 @@ describe('ChatComposer', () => {
     expect(host.querySelectorAll('[aria-label="Coding 权限策略"]')).toHaveLength(1)
     expect(host.querySelectorAll('[aria-label="选择本任务模型"]')).toHaveLength(1)
     expect(host.querySelector('[aria-label="添加文件或图片"]')).not.toBeNull()
-    expect(host.querySelector('[aria-label="消息"]')?.getAttribute('placeholder') ?? '')
+    expect(host.querySelector('[aria-label="消息"]')?.getAttribute('data-placeholder') ?? '')
       .toBe('描述你想让 MilkSU 完成的任务')
     expect(host.querySelector('[aria-label="消息"]')?.hasAttribute('aria-controls')).toBe(false)
     expect(host.textContent).not.toContain('架构图')
@@ -115,11 +143,8 @@ describe('ChatComposer', () => {
     const result = mountComposer({ goalMode: true })
     await nextTick()
 
-    const textarea = result.host.querySelector<HTMLTextAreaElement>('[aria-label="消息"]')
-    expect(textarea).not.toBeNull()
-    if (!textarea) return
-    textarea.value = '完成发布回归'
-    textarea.dispatchEvent(new Event('input', { bubbles: true }))
+    const textarea = composerEditor(result.host)
+    setComposerText(textarea, '完成发布回归')
     await nextTick()
     result.host.querySelector('form')?.dispatchEvent(
       new Event('submit', { bubbles: true, cancelable: true }),
@@ -136,11 +161,8 @@ describe('ChatComposer', () => {
     const result = mountComposer()
     await nextTick()
 
-    const textarea = result.host.querySelector<HTMLTextAreaElement>('[aria-label="消息"]')
-    expect(textarea).not.toBeNull()
-    if (!textarea) return
-    textarea.value = '/'
-    textarea.dispatchEvent(new Event('input', { bubbles: true }))
+    const textarea = composerEditor(result.host)
+    setComposerText(textarea, '/')
     await nextTick()
 
     const menu = result.host.querySelector('[role="listbox"][aria-label="斜杠命令"]')
@@ -149,7 +171,7 @@ describe('ChatComposer', () => {
     )
     expect(menu).not.toBeNull()
     expect(goal?.textContent).toContain('目标')
-    expect(goal?.textContent).toContain('设置要持续追求的目标')
+    expect(goal?.textContent).toContain('设置一个持续追踪的目标')
     expect(goal?.getAttribute('aria-selected')).toBe('true')
     expect(textarea.getAttribute('aria-expanded')).toBe('true')
     expect(textarea.getAttribute('aria-controls')).toBe('coding-slash-command-menu')
@@ -164,18 +186,173 @@ describe('ChatComposer', () => {
 
     expect(result.startedGoals()).toBe(1)
     expect(result.sent).toEqual([])
-    expect(textarea.value).toBe('')
+    expect(textarea.textContent).toBe('')
     expect(textarea.getAttribute('aria-expanded')).toBe('false')
     expect(textarea.hasAttribute('aria-controls')).toBe(false)
+  })
+
+  it('offers common Coding Agent commands as thin actions over current product capabilities', async () => {
+    const result = mountComposer({ workspaceReady: true })
+    await nextTick()
+    const textarea = composerEditor(result.host)
+    setComposerText(textarea, '/')
+    await nextTick()
+
+    const commandIds = [...result.host.querySelectorAll('[role="option"]')]
+      .map(option => option.id.replace('coding-slash-command-', ''))
+    expect(commandIds).toEqual([
+      'goal',
+      'new',
+      'plan',
+      'compact',
+      'model',
+      'permissions',
+      'status',
+      'diff',
+      'review',
+      'worktree',
+      'mcp',
+      'browser-use',
+      'computer-use',
+    ])
+
+    textarea.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'ArrowDown',
+      bubbles: true,
+      cancelable: true,
+    }))
+    textarea.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'ArrowDown',
+      bubbles: true,
+      cancelable: true,
+    }))
+    textarea.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Enter',
+      bubbles: true,
+      cancelable: true,
+    }))
+    await nextTick()
+
+    expect(result.executionModes).toEqual(['plan'])
+    expect(result.slashCommandActions).toEqual([])
+    expect(textarea.textContent).toBe('')
+  })
+
+  it('filters slash commands and emits an existing product action instead of sending command text', async () => {
+    const result = mountComposer({ workspaceReady: true })
+    await nextTick()
+    const textarea = composerEditor(result.host)
+    setComposerText(textarea, '/worktree')
+    await nextTick()
+
+    const options = result.host.querySelectorAll('[role="option"]')
+    expect(options).toHaveLength(1)
+    expect(options[0]?.id).toBe('coding-slash-command-worktree')
+
+    textarea.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Enter',
+      bubbles: true,
+      cancelable: true,
+    }))
+    await nextTick()
+
+    expect(result.slashCommandActions).toEqual(['worktree'])
+    expect(result.sent).toEqual([])
+  })
+
+  it('turns Browser Use and Computer Use into removable inline input state', async () => {
+    const result = mountComposer({ workspaceReady: true, browserUseReady: true })
+    await nextTick()
+    const editor = composerEditor(result.host)
+    setComposerText(editor, '请帮我 /browser-use')
+    await nextTick()
+
+    editor.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Enter',
+      bubbles: true,
+      cancelable: true,
+    }))
+    await nextTick()
+
+    const token = editor.querySelector<HTMLElement>('[data-composer-scope-token="browser-use"]')
+    expect(token).not.toBeNull()
+    expect(token?.textContent).toContain('/browser-use')
+    expect(result.slashCommandActions).toEqual(['browser-use'])
+    expect(result.sent).toEqual([])
+
+    editor.append(document.createTextNode('看看这个页面'))
+    editor.dispatchEvent(new Event('input', { bubbles: true }))
+    result.host.querySelector('form')?.dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true }),
+    )
+    await nextTick()
+
+    expect(result.sent).toEqual([
+      ['请帮我 看看这个页面', '请帮我 看看这个页面', [], 'browser-use'],
+    ])
+    expect(editor.querySelector('[data-composer-scope-token]')).toBeNull()
+
+    setComposerText(editor, '/computer-use')
+    await nextTick()
+    editor.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Enter',
+      bubbles: true,
+      cancelable: true,
+    }))
+    await nextTick()
+    const remove = editor.querySelector<HTMLButtonElement>('[aria-label="移除 /computer-use"]')
+    expect(remove).not.toBeNull()
+    remove?.click()
+    await nextTick()
+    expect(editor.querySelector('[data-composer-scope-token]')).toBeNull()
+  })
+
+  it('does not send an unlocked Scope and clears stale Scope after keyboard deletion', async () => {
+    const blocked = mountComposer({ workspaceReady: true })
+    await nextTick()
+    const blockedEditor = composerEditor(blocked.host)
+    setComposerText(blockedEditor, '/browser-use')
+    blockedEditor.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Enter',
+      bubbles: true,
+      cancelable: true,
+    }))
+    await nextTick()
+    blockedEditor.append(document.createTextNode('检查这个页面'))
+    blockedEditor.dispatchEvent(new Event('input', { bubbles: true }))
+    blocked.host.querySelector('form')?.dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true }),
+    )
+    await nextTick()
+    expect(blocked.sent).toEqual([])
+    expect(blockedEditor.textContent).toContain('检查这个页面')
+    expect(blocked.host.textContent).toContain('Browser Use 需要已选择项目')
+
+    const deleted = mountComposer({ workspaceReady: true, browserUseReady: true })
+    await nextTick()
+    const deletedEditor = composerEditor(deleted.host)
+    setComposerText(deletedEditor, '/browser-use')
+    deletedEditor.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Enter',
+      bubbles: true,
+      cancelable: true,
+    }))
+    await nextTick()
+    deletedEditor.querySelector('[data-composer-scope-token]')?.remove()
+    deletedEditor.append(document.createTextNode('普通消息'))
+    deletedEditor.dispatchEvent(new Event('input', { bubbles: true }))
+    deleted.host.querySelector('form')?.dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true }),
+    )
+    await nextTick()
+    expect(deleted.sent).toEqual([['普通消息', '普通消息', []]])
   })
 
   it('dismisses the slash menu with Escape and disables a second active goal', async () => {
     const dismissed = mountComposer()
     await nextTick()
-    const textarea = dismissed.host.querySelector<HTMLTextAreaElement>('[aria-label="消息"]')
-    if (!textarea) throw new Error('missing message textarea')
-    textarea.value = '/'
-    textarea.dispatchEvent(new Event('input', { bubbles: true }))
+    const textarea = composerEditor(dismissed.host)
+    setComposerText(textarea, '/')
     await nextTick()
     textarea.dispatchEvent(new KeyboardEvent('keydown', {
       key: 'Escape',
@@ -184,14 +361,12 @@ describe('ChatComposer', () => {
     }))
     await nextTick()
     expect(dismissed.host.querySelector('[role="listbox"]')).toBeNull()
-    expect(textarea.value).toBe('/')
+    expect(textarea.textContent).toBe('/')
 
     const existing = mountComposer({ goal: activeGoal })
     await nextTick()
-    const existingTextarea = existing.host.querySelector<HTMLTextAreaElement>('[aria-label="消息"]')
-    if (!existingTextarea) throw new Error('missing active-goal textarea')
-    existingTextarea.value = '/'
-    existingTextarea.dispatchEvent(new Event('input', { bubbles: true }))
+    const existingTextarea = composerEditor(existing.host)
+    setComposerText(existingTextarea, '/')
     await nextTick()
     const disabledGoal = existing.host.querySelector<HTMLButtonElement>(
       '#coding-slash-command-goal',
@@ -241,8 +416,8 @@ describe('ChatComposer', () => {
     result.vm.appendDraftText('参考相关历史：CVE 同步失败曾由缓存过期导致。')
     await nextTick()
 
-    const textarea = result.host.querySelector<HTMLTextAreaElement>('[aria-label="消息"]')
-    expect(textarea?.value).toContain('参考相关历史')
+    const textarea = composerEditor(result.host)
+    expect(textarea.textContent).toContain('参考相关历史')
 
     result.host.querySelector('form')?.dispatchEvent(
       new Event('submit', { bubbles: true, cancelable: true }),
@@ -258,11 +433,8 @@ describe('ChatComposer', () => {
     const result = mountComposer()
     await nextTick()
 
-    const textarea = result.host.querySelector<HTMLTextAreaElement>('[aria-label="消息"]')
-    expect(textarea).not.toBeNull()
-    if (!textarea) return
-    textarea.value = 'milksu'
-    textarea.dispatchEvent(new Event('input', { bubbles: true }))
+    const textarea = composerEditor(result.host)
+    setComposerText(textarea, 'milksu')
     textarea.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }))
     textarea.dispatchEvent(new KeyboardEvent('keydown', {
       key: 'Enter',
@@ -273,7 +445,7 @@ describe('ChatComposer', () => {
     await nextTick()
 
     expect(result.sent).toEqual([])
-    expect(textarea.value).toBe('milksu')
+    expect(textarea.textContent).toBe('milksu')
 
     textarea.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }))
     textarea.dispatchEvent(new KeyboardEvent('keydown', {
@@ -307,10 +479,8 @@ describe('ChatComposer', () => {
     expect(host.querySelector('[aria-label="Coding 权限策略"]')).toBeNull()
     expect(host.querySelector('[aria-label="选择本任务模型"]')).not.toBeNull()
     expect(host.querySelector('[aria-label="添加文件或图片"]')).toBeNull()
-    const textarea = host.querySelector<HTMLTextAreaElement>('[aria-label="消息"]')
-    if (!textarea) throw new Error('missing CTF textarea')
-    textarea.value = '/'
-    textarea.dispatchEvent(new Event('input', { bubbles: true }))
+    const textarea = composerEditor(host)
+    setComposerText(textarea, '/')
     await nextTick()
     expect(host.querySelector('[aria-label="斜杠命令"]')).toBeNull()
     expect(host.querySelector('[aria-label="CTF 快捷协作"]')?.textContent)

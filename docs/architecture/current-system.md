@@ -14,8 +14,9 @@ flowchart LR
     learner["学习者<br/>选择题目、指导 Agent、批准提交、完成复盘"]
     model["模型 Provider API<br/>DeepSeek / TokenFlux / 其他已配置 Provider"]
     platform["CTF 平台<br/>NSSCTF / CTFshow"]
-    browser["用户明确配对的浏览器标签页<br/>MilkSU Browser Bridge"]
-    coding_browser["会话隔离的专用 Chrome<br/>Coding Browser"]
+    browser["用户明确批准的真实标签页<br/>Playwright MCP Extension"]
+    platform_browser["CTF 平台标签页<br/>MilkSU Domain Bridge"]
+    coding_browser["会话隔离的专用 Chrome<br/>Coding Browser · 尚未内嵌"]
 
     subgraph milksu["MilkSU 本地桌面系统"]
         desktop["Wails 桌面应用<br/>Vue UI + Go Host"]
@@ -30,9 +31,10 @@ flowchart LR
     desktop --> runtime
     runtime --> local
     desktop <--> browser
+    desktop <--> platform_browser
     desktop --> coding_browser
     pi <--> coding_browser
-    browser <--> platform
+    platform_browser <--> platform
     pi -. "候选，不是成功事实" .-> runtime
     platform -. "权威 Judge 回执" .-> runtime
 ```
@@ -44,7 +46,8 @@ flowchart LR
 | Pi 通用 Agent | **Verified core / Partial extensions** | `bridge.js` 使用 Pi SessionManager、工具事件和持久会话；Plan/Go、权限档位、Archify、LSP、后台任务、Session Index、PR 交付和 Compaction 已有真实或专项证据。模型选择已收敛为单默认模型；Coding、CTF 和 sub-agent Sidecar 共用当前 Provider 注册，TokenFlux 是一等中转站，KouriChat 分支已移除。TokenFlux `grok-4.5` 打包 App 真看图已通过；真实 Grok 文档小纵切已跑通，功能代码/测试/恢复/Git 交付仍未覆盖。 |
 | CTF Runtime | **Implemented** | `internal/ctf` 将 Challenge、Agent Turn、Candidate、Judge Receipt、Debrief 投影到共享 Runtime。 |
 | 浏览器平台 Judge | **Implemented** | `internal/browsercap` 只接受明确配对页，NSSCTF/CTFshow 回执进入 Go Host。 |
-| Coding Browser | **Verified** | `internal/browsercap` 由右侧页面显式启停专用 Chrome；Go Host 向当前 Pi Session 注入瞬态 loopback 描述符，固定 Playwright MCP 在逐次桌面审批下完成真实页面 E2E。 |
+| Browser Use | **Implemented / needs packaged acceptance** | Composer 可删除的 `/browser-use` 状态只为本轮加载固定版 `@playwright/mcp --extension`；用户在官方 Chrome/Edge 连接页选择准确标签页，MilkSU 不另造通用浏览器控制协议。 |
+| Coding Browser | **Verified backend / embedded UI pending** | `internal/browsercap` 由右侧页面显式启停独立 profile 的专用 Chrome；Go Host 向当前 Pi Session 注入瞬态 loopback 描述符，固定 Playwright MCP 已完成真实页面 E2E。当前仍是外部 Chrome 窗口，不得宣称右栏已内嵌 Chromium。 |
 | Artifact Preview | **Verified / expandable** | Markdown、HTML 与图片使用工作区路径、类型、大小和 HTML 隔离策略；打包 App facade、真实 WebView 负向和原生 UI 三类型手动预览均已有证据，后续只做真实项目扩样。 |
 | ImageGen | **Implemented / unverified provider** | 文生图、参考图编辑、项目资产和付费确认主链已接入；未在打包 App 中使用用户自行配置的真实 Provider 验收。 |
 | Computer Use | **Verified slice / expandable** | 用户选择外部可见 App、PID 与 Window 的不可变 Scope；打包 App facade、WebView 启停、Calculator observe/click 和工具截图辅助视觉已有证据。Browser 与 Computer Use 仍分离。剩余更广 App 矩阵、权限失败路径和 Developer ID / TCC 复检。 |
@@ -135,8 +138,12 @@ flowchart TB
 - Browser Bridge 是 loopback 本地桥，只处理用户明确配对的页面；Coding Browser 则由
   MilkSU 启动 Conversation 隔离的专用 Chrome。二者都不会把用户整个日常 Chrome Profile
   交给模型，且 Coding 的 CDP 描述符不会写入前端、SQLite 或项目配置。
+- 通用 `/browser-use` 不复用上述 CTF Bridge：它加载固定版 Playwright MCP extension mode，
+  由上游扩展显示标签页选择/批准并返回准确页面。CTF Bridge 继续拥有 NSSCTF/CTFshow 领域采集、
+  附件和 Judge；这是“复用通用基础设施、保留安全领域能力”的边界。
 - Computer Use 已不再固定为 MilkSU 自身；当前实现按用户选择的外部 App、PID 和窗口建立
-  不可变 Scope，并保留工具截图辅助视觉证据。后续按真实 App/模型/权限失败矩阵扩样。
+  不可变 Scope，并保留工具截图辅助视觉证据；浏览器窗口从候选中排除。后续按真实 App/模型/
+  权限失败矩阵扩样。
 - SQLite、工作区和制品均位于 `os.UserConfigDir()/com.milksu.app`，不写入应用包或源码目录。
 - `credentials.db` 依赖当前 OS 用户和文件权限，不提供静态加密；这是已知产品权衡。
 
