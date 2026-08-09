@@ -99,6 +99,74 @@ func TestManagerCreatesRecoversAndSafelyFinishesIndependentWorktrees(t *testing.
 	}
 }
 
+func TestManagerSharesIgnoredTrackedPackageDependenciesWithoutDirtyingWriter(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	repository := newRepository(t)
+	for _, path := range []string{
+		filepath.Join(repository, "node_modules", "vitepress"),
+		filepath.Join(repository, "app", "node_modules", "vite"),
+	} {
+		if err := os.MkdirAll(path, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for path, content := range map[string]string{
+		".gitignore":       "node_modules/\napp/node_modules/\n",
+		"package.json":     "{\"private\":true}\n",
+		"app/package.json": "{\"private\":true}\n",
+	} {
+		absolutePath := filepath.Join(repository, path)
+		if err := os.MkdirAll(filepath.Dir(absolutePath), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(absolutePath, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	git(t, repository, "add", ".gitignore", "package.json", "app/package.json")
+	git(t, repository, "commit", "-m", "add Node packages")
+
+	manager, err := New(filepath.Join(t.TempDir(), "collaboration"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, err := manager.Prepare(ctx, "shared-dependencies", repository, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writer := status.Worktrees[0]
+	for _, dependency := range []string{"node_modules", filepath.Join("app", "node_modules")} {
+		view := filepath.Join(writer.Path, dependency)
+		info, err := os.Lstat(view)
+		if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+			t.Fatalf("shared dependency is not a managed directory: %s info=%v err=%v", view, info, err)
+		}
+		entries, err := os.ReadDir(filepath.Join(repository, dependency))
+		if err != nil || len(entries) != 1 {
+			t.Fatalf("read dependency fixture: entries=%v err=%v", entries, err)
+		}
+		resolved, err := filepath.EvalSymlinks(filepath.Join(view, entries[0].Name()))
+		if err != nil || resolved != filepath.Join(repository, dependency, entries[0].Name()) {
+			t.Fatalf("unexpected shared dependency target: %s err=%v", resolved, err)
+		}
+	}
+	refreshed, err := manager.Get(ctx, "shared-dependencies", repository)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if refreshed.Worktrees[0].Dirty || !refreshed.CanFinish {
+		t.Fatalf("shared dependencies dirtied the writer: %+v", refreshed.Worktrees[0])
+	}
+	current, found, err := manager.load("shared-dependencies")
+	if err != nil || !found {
+		t.Fatalf("load collaboration manifest: found=%v err=%v", found, err)
+	}
+	if strings.Join(current.SharedDependencies, ",") != "app/node_modules,node_modules" {
+		t.Fatalf("unexpected shared dependencies: %v", current.SharedDependencies)
+	}
+}
+
 func TestManagerSafelyFinishesWorktreeContainingSubmodule(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
