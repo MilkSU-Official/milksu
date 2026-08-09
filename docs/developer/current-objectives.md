@@ -67,6 +67,7 @@
 - Git Diff/Hunk、stage、commit、push、PR 预览与经确认发布；
 - CTF/CVE/Coding 顶栏视觉规格统一；全局设置固定在左下 rail；重复 Logo 已移除；头像能力画像入口已恢复；
 - 全局夜间/日间主题切换、左下 rail 纯图标入口和本机持久化；rail 选中/悬浮状态只用稳定填充与左侧品牌条，不随 hover 改边框颜色；
+- 全局正文采用 400/500/600/700 标准字重阶梯和系统字形平滑，改善 WKWebView 中 Inter/PingFang 的偏细观感；Coding 左侧任务树和中央会话各提升一个语义字号层级；共享 Button 文字统一收紧到 `text-label`（13px）和 medium（500），且保留原高度和点击热区，左上新建任务与全局按钮字号一致；
 - Computer Use 外部 App/窗口 Scope、Settings 权限检测、工具截图辅助视觉；
 - Artifact Preview 的 Markdown/HTML/PNG 打包 App 验收；
 - 后台任务打包 App/WebView 跨重启恢复；

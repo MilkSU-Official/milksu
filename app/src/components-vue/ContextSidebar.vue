@@ -127,7 +127,7 @@ watch(
       </div>
 
       <div ref="conversationList" class="mt-3 min-h-0 flex-1 overflow-y-auto px-2">
-        <p class="px-3 py-2 text-caption font-medium text-muted-foreground">项目</p>
+        <p class="px-3 py-2 text-body font-medium text-muted-foreground">项目</p>
         <div v-if="codingGroups.length" class="space-y-1">
           <details
             v-for="group in codingGroups"
@@ -186,11 +186,16 @@ watch(
 </template>
 
 <style scoped>
-.coding-sidebar-control,
+.coding-sidebar-control {
+  font-size: var(--text-label);
+  line-height: var(--text-label--line-height);
+  letter-spacing: var(--text-label--letter-spacing);
+}
+
 .coding-project-row {
-  font-size: var(--text-caption);
-  line-height: var(--text-caption--line-height);
-  letter-spacing: var(--text-caption--letter-spacing);
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+  letter-spacing: var(--text-body--letter-spacing);
 }
 
 .coding-project-group[open] > summary .coding-project-chevron {
