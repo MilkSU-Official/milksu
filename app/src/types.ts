@@ -288,9 +288,8 @@ export const PROVIDERS: ProviderInfo[] = [
     name: 'TokenFlux',
     kind: 'relay',
     models: [
-      'x-ai/grok-4.3',
-      'x-ai/grok-4.5',
-      'x-ai/grok-build-0.1',
+      'grok-4.5',
+      'grok-4.3',
       'openai/gpt-5.6-sol',
       'openai/gpt-5.2-codex',
       'anthropic/claude-sonnet-4.6',
@@ -298,10 +297,10 @@ export const PROVIDERS: ProviderInfo[] = [
       'google/gemini-3.1-pro-preview',
       'qwen/qwen3-coder-plus',
     ],
-    visionModels: ['openai/gpt-4o', 'openai/gpt-4.1', 'google/gemini-3.1-flash-image'],
+    visionModels: ['grok-4.5', 'openai/gpt-4o', 'openai/gpt-4.1', 'google/gemini-3.1-flash-image'],
     envKey: 'TOKENFLUX_API_KEY',
     placeholder: 'tf_... 或 TokenFlux API Key',
-    defaultBaseUrl: 'https://tokenflux.ai/v1',
+    defaultBaseUrl: 'https://tokenflux.dev/v1',
     summary: '词元流动 · Grok、Claude、OpenAI、DeepSeek 等统一网关',
   },
   {
@@ -386,9 +385,8 @@ export function providerModelLabel(provider: string, model: string) {
   const info = PROVIDERS.find(item => item.id === provider)
   const displayModel = ({
     'deepseek-v4-flash': 'DeepSeek V4 Flash',
-    'x-ai/grok-4.3': 'Grok 4.3',
-    'x-ai/grok-4.5': 'Grok 4.5',
-    'x-ai/grok-build-0.1': 'Grok Build 0.1',
+    'grok-4.3': 'Grok 4.3',
+    'grok-4.5': 'Grok 4.5',
     'openai/gpt-5.6-sol': 'GPT-5.6 Sol',
     'openai/gpt-5.2-codex': 'GPT-5.2 Codex',
     'openai/gpt-4o': 'GPT-4o',

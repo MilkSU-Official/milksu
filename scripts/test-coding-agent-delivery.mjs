@@ -40,7 +40,7 @@ const gitFixtureEnabled = process.env.MILKSU_CODING_DELIVERY_GIT_REPO === '1'
 const historyContext = String(process.env.MILKSU_CODING_DELIVERY_HISTORY_CONTEXT || '').trim()
 const historyToken = String(process.env.MILKSU_CODING_DELIVERY_HISTORY_TOKEN || '').trim()
 const fixtureProvider = 'tokenflux'
-const fixtureModel = 'x-ai/grok-4.3'
+const fixtureModel = 'grok-4.3'
 const reliabilityBudgets = {
   providerRequests: 30,
   toolCalls: 24,

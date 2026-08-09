@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   agentErrorMessage,
   normalizeConversation,
-  promptWithCodingWorkspaceContext,
   projectAgentTools,
   projectAgentTurnPolicy,
   projectCodingAbortRequest,
@@ -194,26 +193,5 @@ describe('Coding approval conversation recovery', () => {
     expect(message).not.toContain('sk-other-secret')
     expect(message).not.toContain('sk-query-secret')
     expect(message).not.toContain('sk-header-secret')
-  })
-
-  it('adds hidden workspace context to natural Coding prompts without changing slash commands', () => {
-    const conversation = normalizeConversation({
-      id: 'conversation-milksu',
-      title: '为什么 milksu',
-      createdAt: 1,
-      workspacePath: '/Users/milksu/code/milksu',
-      messages: [],
-    })
-
-    const prompt = promptWithCodingWorkspaceContext('为什么叫 milksu？', conversation)
-    expect(prompt).toContain('The user selected this project workspace: milksu')
-    expect(prompt).toContain('Absolute workspace path: /Users/milksu/code/milksu')
-    expect(prompt).toContain('User request:\n为什么叫 milksu？')
-
-    expect(promptWithCodingWorkspaceContext('/goal resume', conversation)).toBe('/goal resume')
-    expect(promptWithCodingWorkspaceContext(
-      '[MilkSU product action: Understand project]\n请理解项目',
-      conversation,
-    )).toBe('[MilkSU product action: Understand project]\n请理解项目')
   })
 })

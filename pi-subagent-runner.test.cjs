@@ -224,7 +224,7 @@ test("runner configures TokenFlux and rejects the removed KouriChat provider", (
   const path = writeRuntimeModelConfig(
     agentDirectory,
     ["--model", "tokenflux/deepseek/deepseek-v4-flash"],
-    { TOKENFLUX_BASE_URL: "https://tokenflux.ai/v1" },
+    { TOKENFLUX_BASE_URL: "https://tokenflux.dev/v1" },
   );
   const config = JSON.parse(readFileSync(path, "utf8"));
   assert.equal(config.providers.tokenflux.apiKey, "$TOKENFLUX_API_KEY");

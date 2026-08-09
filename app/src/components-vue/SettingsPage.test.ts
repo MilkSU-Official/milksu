@@ -369,7 +369,7 @@ describe('SettingsPage database compatibility', () => {
     let savedSettings: unknown = null
     const settings = withAppSettingsDefaults({
       active_provider: 'tokenflux',
-      active_model: 'x-ai/grok-4.3',
+      active_model: 'grok-4.3',
       providers: {},
     } as AppSettings)
     await mountSettingsPage({
@@ -386,7 +386,7 @@ describe('SettingsPage database compatibility', () => {
         GetSettings: async () => savedSettings ?? settings,
         TestAgentModel: async () => ({
           provider: 'tokenflux',
-          model: 'x-ai/grok-4.3',
+          model: 'grok-4.3',
           ready: true,
           latencyMs: 42,
         }),
@@ -397,7 +397,7 @@ describe('SettingsPage database compatibility', () => {
     expect(text).toContain('模型与凭据')
     expect(text).toContain('默认模型')
     expect(text).toContain('词元流动')
-    expect(text).toContain('x-ai/grok-4.3')
+    expect(text).toContain('grok-4.3')
     expect(text).not.toContain('快速执行')
     expect(text).not.toContain('深度策略')
     expect(text).not.toContain('KouriChat')
@@ -412,7 +412,7 @@ describe('SettingsPage database compatibility', () => {
     expect(savedSettings).not.toBeNull()
     const persisted = savedSettings as AppSettings
     expect(persisted.active_provider).toBe('tokenflux')
-    expect(persisted.active_model).toBe('x-ai/grok-4.3')
+    expect(persisted.active_model).toBe('grok-4.3')
     expect('model_routing' in persisted).toBe(false)
   })
 })

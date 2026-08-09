@@ -39,12 +39,12 @@ func TestResolveTaskModelHonorsManualOverride(t *testing.T) {
 		"solver",
 		ModelModeManual,
 		"tokenflux",
-		"x-ai/grok-4.3",
+		"grok-4.3",
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if resolved.ActiveProvider != "tokenflux" || resolved.ActiveModel != "x-ai/grok-4.3" {
+	if resolved.ActiveProvider != "tokenflux" || resolved.ActiveModel != "grok-4.3" {
 		t.Fatalf("unexpected manual route: %#v", resolved)
 	}
 }

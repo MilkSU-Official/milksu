@@ -13,18 +13,31 @@ describe('model provider catalog', () => {
 
     expect(tokenflux).toBeDefined()
     expect(tokenflux?.kind).toBe('relay')
-    expect(tokenflux?.defaultBaseUrl).toBe('https://tokenflux.ai/v1')
+    expect(tokenflux?.defaultBaseUrl).toBe('https://tokenflux.dev/v1')
     expect(tokenflux?.envKey).toBe('TOKENFLUX_API_KEY')
     expect(tokenflux?.models).toEqual(expect.arrayContaining([
-      'x-ai/grok-4.3',
-      'x-ai/grok-4.5',
-      'x-ai/grok-build-0.1',
+      'grok-4.3',
+      'grok-4.5',
       'anthropic/claude-sonnet-4.6',
       'deepseek/deepseek-v4-flash',
     ]))
-    expect(tokenflux?.visionModels).toContain('openai/gpt-4o')
-    expect(providerModelLabel('tokenflux', 'x-ai/grok-4.3'))
+    expect(tokenflux?.visionModels).toEqual(expect.arrayContaining([
+      'grok-4.5',
+      'openai/gpt-4o',
+    ]))
+    expect(providerModelLabel('tokenflux', 'grok-4.3'))
       .toBe('TokenFlux · Grok 4.3')
+  })
+
+  it('keeps Supergrok grok-4.5 first, image-capable, and drops the retired grok-build-0.1', () => {
+    const tokenflux = PROVIDERS.find(provider => provider.id === 'tokenflux')
+    const tokenfluxModels = tokenflux?.models ?? []
+
+    expect(tokenfluxModels).not.toContain('grok-build-0.1')
+    expect(tokenfluxModels.indexOf('grok-4.5')).toBeGreaterThanOrEqual(0)
+    expect(tokenfluxModels.indexOf('grok-4.5'))
+      .toBeLessThan(tokenfluxModels.indexOf('grok-4.3'))
+    expect(tokenflux?.visionModels).toContain('grok-4.5')
   })
 
   it('keeps normal model pickers focused on the single daily model path', () => {

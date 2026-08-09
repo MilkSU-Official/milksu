@@ -1265,10 +1265,10 @@ func TestEngineEnvironmentIncludesEditableProviderBaseURL(t *testing.T) {
 }
 
 func TestEngineEnvironmentIncludesTokenFluxProvider(t *testing.T) {
-	baseURL := "https://tokenflux.ai/v1"
+	baseURL := "https://tokenflux.dev/v1"
 	settings := config.DefaultSettings()
 	settings.ActiveProvider = "tokenflux"
-	settings.ActiveModel = "x-ai/grok-4.3"
+	settings.ActiveModel = "grok-4.3"
 	settings.Providers["tokenflux"] = config.ProviderConfig{
 		APIKey:  "tokenflux-provider-secret",
 		BaseURL: &baseURL,
@@ -1282,7 +1282,7 @@ func TestEngineEnvironmentIncludesTokenFluxProvider(t *testing.T) {
 	environment := engineEnvironment(settings)
 	for _, expected := range []string{
 		"TOKENFLUX_API_KEY=tokenflux-provider-secret",
-		"TOKENFLUX_BASE_URL=https://tokenflux.ai/v1",
+		"TOKENFLUX_BASE_URL=https://tokenflux.dev/v1",
 	} {
 		if !containsEnvironmentEntry(environment, expected) {
 			t.Fatalf("expected %q in %#v", expected, environment)

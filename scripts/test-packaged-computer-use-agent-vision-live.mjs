@@ -33,7 +33,7 @@ const targetName = 'Calculator'
 const computerUseMcpToolName = 'milksu_computer_use_computer_use'
 const startupTimeoutMs = 45_000
 const fixtureProvider = 'tokenflux'
-const fixtureModel = 'x-ai/grok-4.3'
+const fixtureModel = 'grok-4.3'
 
 function assert(condition, message) {
   if (!condition) throw new Error(message)

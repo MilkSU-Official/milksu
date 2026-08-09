@@ -303,10 +303,15 @@ function createMilkSUWorkflowExtension(sessionRole) {
           : sessionRole === "solver"
             ? "Advance one falsifiable CTF hypothesis at a time and preserve commands, observations, and conclusions for the learner."
             : "For non-trivial work, inspect before editing, keep a short plan, make scoped changes, and verify the result.";
+      // Keep tool protocol English. User-visible progress/answers follow the
+      // current conversation language already present in Pi session context;
+      // English tool descriptions or results must not switch that language.
       return {
         systemPrompt: `${event.systemPrompt}\n\nMilkSU Workflow extension:\n${roleGuidance}\n`
           + "Use milksu_progress for multi-step Coding tasks when the plan is created or materially changes. "
-          + "Do not use it for a single obvious action. Keep at most one step in_progress.",
+          + "Do not use it for a single obvious action. Keep at most one step in_progress.\n"
+          + "User-visible progress and answers continue in the current conversation language. "
+          + "English tool protocol, schemas, paths, commands, or tool results must not switch that language.",
       };
     });
   };

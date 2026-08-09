@@ -35,14 +35,13 @@ const providerRuntime = Object.freeze({
     api: "openai-completions",
     apiKey: "TOKENFLUX_API_KEY",
     baseUrl: "TOKENFLUX_BASE_URL",
-    defaultBaseUrl: "https://tokenflux.ai/v1",
+    defaultBaseUrl: "https://tokenflux.dev/v1",
   },
 });
 
 const tokenfluxModelCatalog = Object.freeze([
-  ["x-ai/grok-4.3", "Grok 4.3", 1_000_000, 32_768, ["text"]],
-  ["x-ai/grok-4.5", "Grok 4.5", 500_000, 32_768, ["text"]],
-  ["x-ai/grok-build-0.1", "Grok Build 0.1", 256_000, 32_768, ["text"]],
+  ["grok-4.5", "Grok 4.5", 500_000, 32_768, ["text", "image"]],
+  ["grok-4.3", "Grok 4.3", 1_000_000, 32_768, ["text"]],
   ["openai/gpt-5.6-sol", "GPT-5.6 Sol", 1_050_000, 32_768, ["text"]],
   ["openai/gpt-5.2-codex", "GPT-5.2 Codex", 400_000, 32_768, ["text"]],
   ["openai/gpt-4o", "GPT-4o", 128_000, 16_384, ["text", "image"]],
