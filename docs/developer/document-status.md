@@ -47,12 +47,12 @@
   共用 Provider 注册。
 - CTF 主链存在；真实 Judge 成功仍只有窄 Web 路径。Memory actor/assistance 已持久化；尚缺真实
   轨迹校准。Runtime Reliability fixture 已有；发行级恢复矩阵未过。
-- CVE 正式事实只来自 Vuln Runtime；WebView 无假后端；Session Index 只索引 MilkSU 自有历史。相关历史已提供列表与瞬态关系图，二者共用模块/项目/时间过滤；节点可回到来源会话，引用必须由用户明确点击，不新增图数据库或 Memory 事实源。
+- CVE 正式事实只来自 Vuln Runtime；WebView 无假后端；Session Index 只索引 MilkSU 自有历史。相关历史列表仍由用户明确确认后引用；完整图谱则按需让当前 Pi/Provider 在无工具静默回合中，把有界的会话、Memory 摘要和正式 Evidence 摘要归纳成人类语义图。图节点必须可回溯来源，关系标为模型推断；不读目标文档、不新增图数据库、不写 Memory、不回填 Agent。
 - UI：rail 主题/设置、Coding Goal 与常用 Agent 动作在 Composer `/`；“+”统一提供附件、Goal、Plan、沙箱浏览器、Browser/Computer Scope、已审核 Pi Skills 与项目 MCP，Skill/Scope 先作为可删除状态加入输入且选择不直接发送；菜单四组、删除、面板跳转与 Plan → Go 恢复已通过原生 App 可见验收。Goal/Git 摘要统一为圆角胶囊，字重与字号层级已收敛；
   浏览器 Bridge 与 Computer Use 系统配置集中到“设置 → 浏览器与控制”。
 - 安全工具 MCP 是下一阶段 Coding 常规能力，不是当前发行能力：候选为 IDA Pro/idalib、Burp、radare2、Ghidra 与 Semgrep；
   必须先通过固定版本、最小权限、真实任务和拒绝路径，是否进入 CTF/CVE 由用户监督的领域纵切决定。
-- 相关历史关系图 MVP 已在重新打包的 macOS App 通过真实本机历史、列表/图谱一致过滤、节点来源回跳、显式引用、缩放/适配与深浅主题验收；`@antv/g6@5.1.1` 仅在完整图谱视图懒加载。
+- 相关历史人类语义图已在重新打包的 macOS App 用 TokenFlux `grok-4.5` 通过 `Computer Use`（10 节点/11 关系）与 `MCP`（11 节点/12 关系）真实归纳、来源详情/回跳和主聊天不受污染验收；`@antv/g6@5.1.1` 仅在完整图谱视图懒加载，列表与紧凑侧栏不会触发模型调用。
 - Labs 暂停；CVE 纵深/复现/披露后置；NYU safe-static 不是完整 CTF 成绩；Developer ID/公证属 RC。
 
 Current 入口只保留事实与下一条完成线。历史 smoke、已删脚本路径和流水验收见 Evidence /

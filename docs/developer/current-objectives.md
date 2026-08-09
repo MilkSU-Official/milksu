@@ -35,7 +35,7 @@
 - **真实 Grok 自举小纵切已跑通一段**：自然提示 → 注册 writer 只改三份 Current 文档 → reviewer 指出事实错误 → 同会话完成返工。**尚未覆盖**功能代码修改、测试、恢复和 Git 交付；不要写成自举完全未开始。
 - **实测缺口**：Goal/输入框上方的 Git 变更摘要看不到 writer worktree 的三文件改动；变更投影仍偏主工作区视角，不足以审阅隔离执行结果。
 - Computer Use：用户选择外部可见 App/PID/Window 的不可变 Scope、打包 App 启停、Calculator observe/click、text-only 主模型下的工具截图辅助视觉已有切片。Browser 与 Computer Use 仍是分离权限面。
-- Session Index / 相关历史：MilkSU 自有 `obelisk.sqlite` 已索引本机 Coding、CTF、CVE 会话，支持 FTS/LIKE 搜索、Credential 遮蔽和用户确认后引用到当前输入；相关历史同时提供列表与瞬态关系图 Projection，并以同一模块/项目/时间条件过滤。图节点可回到来源会话，引用仍需用户明确点击；不新增图数据库、关系表或自动上下文注入。CTF Memory 继续属于独立领域事实，不与历史索引混写。
+- Session Index / 相关历史：MilkSU 自有 `obelisk.sqlite` 已索引本机 Coding、CTF、CVE 会话，支持 FTS/LIKE 搜索、Credential 遮蔽和用户确认后引用到当前输入。完整图谱改为**按需生成的人类语义图**：当前 Pi/Provider 在无工具静默回合中，把有界的 user/assistant 历史、Obelisk Memory 摘要和正式 Evidence 摘要归纳成主题、决策、问题、能力、里程碑、证据和洞见；工具消息不进入材料，节点必须回溯真实来源，关系明确是模型推断。图谱不读取目标文档、不写 Memory、不自动进入 Agent 上下文，也没有“引用到输入”动作。CTF Memory 继续属于独立领域事实，不与历史索引混写。
 - Composer `/` 已覆盖 Goal、Plan、Pi 会话动作、模型/权限、状态/Diff/Review、worktree、MCP、Browser Use 与 Computer Use；Go 是未开启 Plan 时的默认状态，不再单设 `/go`。输入框左下“+”是统一的当前任务能力入口：附件、Goal、Plan、沙箱浏览器、Browser Use、Computer Use、运行时投影的已审核 Pi Skills（当前固定 frontend-visual-qa / archify）和项目 MCP。Skill 直接复用 Pi `/skill:name` 展开，Browser/Computer 与 Skill 都先成为可删除的内联状态，不会因选择而直接发送；沙箱浏览器和项目 MCP 只打开已有管理面。Plan/Go 不再占一个常驻下拉，审批位于左侧，模型位于右侧。该菜单四组、Scope/Skill 删除、Browser/MCP 面板跳转和 Plan → Go 恢复已在重新打包的原生 App 中可见验收。
 - 浏览器三面已分责：右栏“沙箱浏览器”管理会话隔离的专用 Chrome；`/browser-use` 复用固定版 Playwright MCP 官方扩展，由用户在真实 Chrome/Edge 选择准确标签页；`/computer-use` 只列外部原生 App，浏览器窗口不进入该 Scope。NSSCTF/CTFshow 的 MilkSU 扩展继续作为领域 Bridge，不承担通用浏览器控制。
 - 右栏沙箱浏览器当前仍是独立 Chrome 窗口 + CDP/Playwright，并非内嵌 Chromium。目标形态是右栏可直接交互的 Chromium View；不得用截图坐标层、iframe 或普通外部 Chrome 窗口冒充完成。
@@ -65,13 +65,14 @@
 
 推荐顺序：先会话自动 worktree（含 writer 变更投影）→ 用稳定版构建/操作隔离的 MilkSU Beta，把真实 Grok 自举从文档小纵切扩到功能代码/测试/恢复/Git 交付 → 并行推进安全工具 MCP 常规能力、内嵌沙箱浏览器原型和 Computer Use 扩样 → 最后加重 Memory / 发行 RC。安全工具是否进入 CTF/CVE 以及后续 CTF 领域扩样，由用户监督的独立纵切决定，不列为当前自动推进目标。不恢复 `development-plan.md`，不把已删除 live smoke 嵌回产品启动链。
 
-### 已完成纵切：相关历史关系图 MVP
+### 已完成纵切：相关历史人类语义图
 
-- **实现**：固定 `@antv/g6@5.1.1`，只在完整“相关历史”切换到图谱时懒加载；关系从现有 Session Index 与正式 CTF/CVE 档案即时派生，不新增图表、图数据库或第二份持久化事实。
-- **模型**：节点限于 project、session、goal、ctf、cve、model、tool、skill、evidence、artifact；边限于 contains、uses、calls、loads、focuses、mentions、derived-from。普通 message 不成为节点，Credential 在 Projection 与 UI 两层遮蔽。
-- **交互**：列表与图谱共用模块/项目/时间过滤；图谱支持拖动、缩放、适应视图、节点详情、来源会话回跳和明确点击后引用。紧凑侧栏保持列表，不加载 G6。
-- **验收**：Go Projection/Facade、Vue/desktop/routing 测试覆盖遮蔽、空索引、删除刷新、节点/边上限、筛选一致性、来源回跳与显式引用；生产构建和重新打包的 macOS App 已通过深浅主题、真实本机历史、缩放/适配与来源回跳验收。
-- **边界**：这仍是历史导航 Projection，不建立 Judge、CVE 来源、Memory 或用户能力事实，不自动把检索结果放进 Agent 上下文。后续只按大样本可读性扩样，不重开基础 MVP。
+- **实现**：固定 `@antv/g6@5.1.1` 仍只在完整“相关历史”切换图谱时懒加载；点击后才用当前 Pi/Provider 运行一次静默的 no-tools、Plan/read-only 归纳，不再保留确定性工具关系图或双路径 fallback。临时会话事件不进入产品会话流，完成后销毁且不持久化图谱。
+- **材料**：最多 24 条脱敏来源；conversation 只取可见 user/assistant 文本并按会话限额，另可取 Obelisk Memory 摘要和有模块/时间归属的正式安全 Evidence。工具调用、工具结果和目标文档不作为图谱材料；项目筛选时无法证明项目归属的正式档案宁可省略。
+- **模型与校验**：节点限于 topic、decision、milestone、capability、problem、evidence、insight；边限于 depends_on、enables、blocks、supports、validates、evolves_to、contrasts_with。模型输出经 JSON、枚举、数量、端点和 Source ID 校验；无真实来源的节点丢弃，Credential 在索引、Projection 与 UI 再遮蔽。
+- **交互**：语义簇、重要度、状态和有向关系服务于人类阅读；支持拖动、缩放、适应视图、节点关系解释、来源摘要和来源会话回跳。列表仍可经用户确认引用，图谱本身不提供引用或回填。紧凑侧栏只保留列表，不加载 G6，也不耗模型额度。
+- **真实验收**：重新打包并签名校验的 macOS App 使用 TokenFlux `grok-4.5` 生成 `Computer Use` 图（10 节点/11 关系）和 `MCP` 图（11 节点/12 关系）；前者归纳 Calculator 窄切片、会话接通缺口、Browser 分离、Compaction 边界和安全运行时，后者归纳 Playwright MCP、local fixture、socket 路径和会话恢复边界。两图均无 Bash 工具中心；点击节点可见语义理由、真实会话来源并回跳，主聊天无临时生成消息。
+- **边界**：这是给人看的瞬态历史认知图，不是新的 Agent Memory、目标解析器或执行知识图谱；关系只代表模型归纳，不建立 Judge、CVE 来源、Memory 或用户能力事实。
 
 ### 安全工具 MCP 常规能力队列
 
@@ -106,7 +107,7 @@
 - 顶栏视觉统一、全局 rail 设置/主题/能力画像、字重与 Coding 字号层级、共享 Button label 规格。
 - Computer Use 外部 App Scope、权限检测、工具截图辅助视觉；Artifact Preview；后台任务跨重启恢复。
 - CVE 多源同步/练习生命周期/学习写回/资产验证；Session Index 基础索引与确认写入。
-- 相关历史关系图 MVP：瞬态 Projection、同条件列表/图谱、Credential 遮蔽、来源回跳与显式引用。
+- 相关历史人类语义图：Pi 无工具静默归纳、有界 Memory/会话/Evidence 摘要、Credential 遮蔽、来源回跳；图谱不引用、不回填 Agent。
 - 模型与凭据普通入口、TokenFlux、移除 Kimi/KouriChat 与 fast/deep 路由。
 - 假后端与无调用者外部导入清理；CTF Memory actor/assistance 持久化；worktree 写入边界与 `.worktreeinclude`/submodule。
 - TokenFlux `grok-4.5` 打包 App 真看图（中文 UI 识别、无工具调用）。

@@ -7,7 +7,6 @@ import SessionHistoryGraph from './SessionHistoryGraph.vue'
 
 const g6 = vi.hoisted(() => {
   const instances: MockGraph[] = []
-
   class MockGraph {
     options: Record<string, unknown>
     destroyed = false
@@ -17,24 +16,18 @@ const g6 = vi.hoisted(() => {
     zoomBy = vi.fn(async () => {})
     resize = vi.fn()
     setElementState = vi.fn(async () => {})
-    destroy = vi.fn(() => {
-      this.destroyed = true
-    })
-
+    destroy = vi.fn(() => { this.destroyed = true })
     constructor(options: Record<string, unknown>) {
       this.options = options
       instances.push(this)
     }
-
     on(event: string, handler: (event: { target: { id: string } }) => void) {
       this.handlers.set(event, handler)
     }
-
     trigger(event: string, id: string) {
       this.handlers.get(event)?.({ target: { id } })
     }
   }
-
   return { instances, MockGraph }
 })
 
@@ -44,61 +37,45 @@ vi.mock('@antv/g6', () => ({
 }))
 
 const mountedApps: App[] = []
-
 const response: SessionHistoryGraphResponse = {
-  generatedAt: '2026-08-09T12:00:00Z',
+  generatedAt: '2026-08-10T12:00:00Z',
+  title: 'MilkSU 自举能力脉络',
+  summary: '以隔离执行、Computer Use 验收和人类监督形成闭环。',
+  provider: 'tokenflux',
+  model: 'grok-4.5',
   status: {
-    available: true,
-    mode: 'milksu-obelisk-core',
-    indexPath: '/tmp/obelisk.sqlite',
-    checkedAt: '2026-08-09T12:00:00Z',
-    readOnly: true,
-    sessionCount: 1,
-    messageCount: 4,
-    toolCallCount: 1,
-    memoryCount: 0,
-    sources: [],
+    available: true, mode: 'milksu-obelisk-core', indexPath: '/tmp/obelisk.sqlite',
+    checkedAt: '2026-08-10T12:00:00Z', readOnly: true, sessionCount: 3,
+    messageCount: 12, toolCallCount: 4, memoryCount: 1, sources: [],
   },
-  nodes: [
-    {
-      id: 'session:one',
-      type: 'session',
-      label: 'CVE-2024-3400 调研 OPENAI_API_KEY=sk-history-secret12345',
-      detail: 'Coding · MilkSU',
-      module: 'coding',
-      project: 'MilkSU',
-      timestamp: '2026-08-09T11:30:00Z',
-      quote: '继续 CVE-2024-3400 调研 Bearer session-history-token-12345',
-      sources: [{
-        sessionId: 'milksu:conversation-1',
-        conversationId: 'conversation-1',
-        messageUuid: 'milksu:conversation-1:message-1',
-        sessionName: 'CVE 调研 Bearer session-history-token-12345',
-        timestamp: '2026-08-09T11:30:00Z',
-      }],
-    },
-    {
-      id: 'tool:read',
-      type: 'tool',
-      label: 'read',
-      module: 'coding',
-      project: 'MilkSU',
-      quote: 'read',
-      sources: [{
-        sessionId: 'milksu:conversation-1',
-        conversationId: 'conversation-1',
-        sessionName: 'CVE 调研',
-      }],
-    },
+  clusters: [
+    { id: 'boundary', label: '安全边界' },
+    { id: 'validation', label: '验收闭环' },
   ],
-  edges: [{
-    id: 'edge:one',
-    source: 'session:one',
-    target: 'tool:read',
-    type: 'calls',
+  nodes: [{
+    id: 'semantic-1', type: 'capability', label: '双 App 自举',
+    summary: '正式 App 驱动隔离的 MilkSU Beta。', cluster: 'boundary', importance: 5,
+    status: 'planned', inferred: true,
+    sources: [{
+      kind: 'conversation', sessionId: 'milksu:s1', conversationId: 's1', messageUuid: 'm1',
+      sessionName: '自举设计 Bearer source-secret-12345', timestamp: '2026-08-10T11:00:00Z',
+      excerpt: '正式 App 与 Beta 使用不同 Bundle ID；OPENAI_API_KEY=sk-source-secret12345',
+    }],
+  }, {
+    id: 'semantic-2', type: 'evidence', label: 'Computer Use 可见验收',
+    summary: '通过真实界面交互证明能力。', cluster: 'validation', importance: 4,
+    status: 'current', inferred: true,
+    sources: [{
+      kind: 'formal-evidence', sessionName: '验收回执', timestamp: '2026-08-10T11:30:00Z',
+      excerpt: '已观察并点击 Beta 窗口。',
+    }],
   }],
-  projects: ['MilkSU'],
-  truncated: false,
+  edges: [{
+    id: 'relation-1', source: 'semantic-2', target: 'semantic-1', type: 'validates',
+    rationale: '可见交互验证自举闭环', confidence: 0.86, inferred: true,
+  }],
+  projects: ['milksu'], truncated: false,
+  factBoundary: '仅供人阅读',
 }
 
 async function settle() {
@@ -108,20 +85,14 @@ async function settle() {
   await Promise.resolve()
 }
 
-async function mountGraph(
-  nextResponse: SessionHistoryGraphResponse | null = response,
-  props: Record<string, unknown> = {},
-) {
+async function mountGraph(nextResponse: SessionHistoryGraphResponse | null = response, props: Record<string, unknown> = {}) {
   const host = document.createElement('div')
   document.body.append(host)
-  const app = createApp(SessionHistoryGraph, {
-    response: nextResponse,
-    ...props,
-  })
+  const app = createApp(SessionHistoryGraph, { response: nextResponse, ...props })
   app.mount(host)
   mountedApps.push(app)
   await settle()
-  return { app, host }
+  return host
 }
 
 afterEach(() => {
@@ -132,108 +103,90 @@ afterEach(() => {
 })
 
 describe('SessionHistoryGraph', () => {
-  it('uses bounded built-in G6 layout and behaviors without continuous animation', async () => {
-    const { host } = await mountGraph()
+  it('renders a bounded human semantic graph with cards and semantic relations', async () => {
+    const host = await mountGraph()
     const instance = g6.instances[0]
-    expect(instance).toBeDefined()
     expect(instance.options).toMatchObject({
       animation: false,
-      zoomRange: [0.25, 3],
-      layout: {
-        type: 'antv-dagre',
-        rankdir: 'LR',
-        animation: false,
-      },
+      zoomRange: [0.35, 2.5],
+      layout: { type: 'antv-dagre', rankdir: 'LR', animation: false },
       behaviors: ['drag-canvas', 'zoom-canvas', 'drag-element'],
-      node: { animation: false },
-      edge: { animation: false },
+      node: { type: 'rect', animation: false },
+      edge: { type: 'cubic-horizontal', animation: false },
     })
-    expect(instance.render).toHaveBeenCalledOnce()
-    expect(instance.fitView).toHaveBeenCalledWith(
-      { when: 'always', direction: 'both' },
-      false,
-    )
-
-    const data = instance.options.data as { nodes: Array<{ style: { labelText: string } }> }
-    expect(data.nodes[0].style.labelText).not.toContain('sk-history-secret12345')
-    expect(JSON.stringify(instance.options)).not.toContain('sk-history-secret12345')
-    expect(JSON.stringify(instance.options)).not.toContain('session-history-token-12345')
-    expect(host.textContent).toContain('2 节点')
-    expect(host.textContent).toContain('1 关系')
-    expect(host.textContent).toContain('关系：调用')
+    const data = instance.options.data as {
+      nodes: Array<{ style: { size: number[]; labelText: string } }>
+      edges: Array<{ style: { labelText: string } }>
+    }
+    expect(data.nodes[0].style.size[0]).toBeGreaterThan(150)
+    expect(data.edges[0].style.labelText).toBe('验证')
+    expect(host.textContent).toContain('模型语义归纳')
+    expect(host.textContent).toContain('MilkSU 自举能力脉络')
+    expect(host.textContent).toContain('tokenflux · grok-4.5')
+    expect(host.textContent).toContain('仅供人阅读')
+    expect(JSON.stringify(instance.options)).not.toContain('bash')
   })
 
-  it('selects a node, opens its source, and only quotes after explicit confirmation', async () => {
+  it('opens traceable human sources and redacts credentials without feeding the model', async () => {
     const opened: string[] = []
-    const confirmed: unknown[] = []
-    const { host } = await mountGraph(response, {
-      confirmActionLabel: '引用到输入',
-      onOpenSession: (id: string) => opened.push(id),
-      onConfirmNode: (node: unknown) => confirmed.push(node),
-    })
+    const host = await mountGraph(response, { onOpenSession: (id: string) => opened.push(id) })
     const instance = g6.instances[0]
-
-    expect(confirmed).toHaveLength(0)
-    instance.trigger('node:click', 'session:one')
+    instance.trigger('node:click', 'semantic-1')
     await settle()
 
-    const text = host.textContent ?? ''
-    expect(text).toContain('CVE-2024-3400 调研 OPENAI_API_KEY=[credential redacted]')
-    expect(text).toContain('CVE 调研 Bearer [credential redacted]')
-    expect(text).not.toContain('sk-history-secret12345')
-    expect(text).not.toContain('session-history-token-12345')
-    expect(instance.setElementState).toHaveBeenCalledWith('session:one', 'selected', false)
+    expect(host.textContent).toContain('双 App 自举')
+    expect(host.textContent).toContain('正式 App 驱动隔离的 MilkSU Beta')
+    expect(host.textContent).toContain('OPENAI_API_KEY=[credential redacted]')
+    expect(host.textContent).toContain('Bearer [credential redacted]')
+    expect(host.textContent).not.toContain('sk-source-secret12345')
+    expect(host.textContent).not.toContain('source-secret-12345')
+    expect(host.textContent).not.toContain('确认引用')
 
-    const source = host.querySelector<HTMLButtonElement>('button[aria-label^="回到来源会话"]')
-    source?.click()
+    host.querySelector<HTMLButtonElement>('button[aria-label^="回到来源会话"]')?.click()
     await settle()
-    expect(opened).toEqual(['conversation-1'])
-
-    const confirm = [...host.querySelectorAll<HTMLButtonElement>('button')]
-      .find(button => button.textContent?.includes('引用到输入'))
-    expect(confirm).toBeDefined()
-    expect(confirmed).toHaveLength(0)
-    confirm?.click()
-    await settle()
-
-    expect(confirmed).toHaveLength(1)
-    expect(confirmed[0]).toMatchObject({
-      id: 'session:one',
-      quote: '继续 CVE-2024-3400 调研 Bearer [credential redacted]',
-    })
+    expect(opened).toEqual(['s1'])
   })
 
-  it('exposes zoom and fit controls and reports truncated or empty projections', async () => {
-    const { host } = await mountGraph({ ...response, truncated: true })
-    const instance = g6.instances[0]
-
-    host.querySelector<HTMLButtonElement>('button[aria-label="缩小关系图"]')?.click()
-    host.querySelector<HTMLButtonElement>('button[aria-label="放大关系图"]')?.click()
-    host.querySelector<HTMLButtonElement>('button[aria-label="适应关系图视图"]')?.click()
+  it('shows semantic rationale when a connected node is selected', async () => {
+    const host = await mountGraph()
+    g6.instances[0].trigger('node:click', 'semantic-2')
     await settle()
+    expect(host.textContent).toContain('验证 双 App 自举')
+    expect(host.textContent).toContain('可见交互验证自举闭环')
+    expect(host.textContent).toContain('正式证据')
+  })
 
+  it('supports regenerate, zoom and fit controls', async () => {
+    const regenerated: number[] = []
+    const host = await mountGraph(response, { onRegenerate: () => regenerated.push(1) })
+    const instance = g6.instances[0]
+    host.querySelector<HTMLButtonElement>('button[aria-label="重新生成语义图谱"]')?.click()
+    host.querySelector<HTMLButtonElement>('button[aria-label="缩小语义图谱"]')?.click()
+    host.querySelector<HTMLButtonElement>('button[aria-label="放大语义图谱"]')?.click()
+    host.querySelector<HTMLButtonElement>('button[aria-label="适应语义图谱视图"]')?.click()
+    await settle()
+    expect(regenerated).toHaveLength(1)
     expect(instance.zoomBy).toHaveBeenNthCalledWith(1, 0.8, false)
     expect(instance.zoomBy).toHaveBeenNthCalledWith(2, 1.25, false)
-    expect(instance.fitView).toHaveBeenLastCalledWith(
-      { when: 'always', direction: 'both' },
-      false,
-    )
-    expect(host.textContent).toContain('已按上限截断')
-    expect(host.textContent).toContain('只显示最相关的一部分')
+    expect(instance.fitView).toHaveBeenLastCalledWith({ when: 'always', direction: 'both' }, false)
+  })
+
+  it('shows generation and empty states without constructing G6', async () => {
+    let host = await mountGraph(null, { loading: true })
+    expect(host.textContent).toContain('正在归纳历史脉络')
+    expect(g6.instances).toHaveLength(0)
 
     mountedApps.pop()?.unmount()
     document.body.innerHTML = ''
-    g6.instances.splice(0)
-    const empty = await mountGraph({ ...response, nodes: [], edges: [], truncated: false })
-    expect(empty.host.textContent).toContain('没有可关联的历史')
+    host = await mountGraph({ ...response, nodes: [], edges: [] })
+    expect(host.textContent).toContain('没有足够的历史记忆')
     expect(g6.instances).toHaveLength(0)
   })
 
-  it('recreates the graph with the active light or dark application theme', async () => {
+  it('recreates the graph for the active application theme', async () => {
     document.documentElement.dataset.theme = 'light'
     await mountGraph()
     expect(g6.instances[0].options.theme).toBe('light')
-
     document.documentElement.dataset.theme = 'dark'
     await settle()
     expect(g6.instances).toHaveLength(2)

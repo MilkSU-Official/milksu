@@ -62,25 +62,29 @@ export interface SessionHistorySearchResponse {
 }
 
 export type SessionHistoryGraphNodeType =
-  | 'project'
-  | 'session'
-  | 'goal'
-  | 'ctf'
-  | 'cve'
-  | 'model'
-  | 'tool'
-  | 'skill'
+  | 'topic'
+  | 'decision'
+  | 'milestone'
+  | 'capability'
+  | 'problem'
   | 'evidence'
-  | 'artifact'
+  | 'insight'
+
+export type SessionHistoryGraphNodeStatus =
+  | 'current'
+  | 'complete'
+  | 'planned'
+  | 'blocked'
+  | 'uncertain'
 
 export type SessionHistoryGraphEdgeType =
-  | 'contains'
-  | 'uses'
-  | 'calls'
-  | 'loads'
-  | 'focuses'
-  | 'mentions'
-  | 'derived-from'
+  | 'depends_on'
+  | 'enables'
+  | 'blocks'
+  | 'supports'
+  | 'validates'
+  | 'evolves_to'
+  | 'contrasts_with'
 
 export interface SessionHistoryGraphRequest {
   query?: string
@@ -88,28 +92,34 @@ export interface SessionHistoryGraphRequest {
   module?: 'coding' | 'ctf' | 'cve'
   since?: string
   until?: string
-  maxNodes?: number
-  maxEdges?: number
 }
 
 export interface SessionHistoryGraphSource {
-  sessionId: string
+  kind: 'memory' | 'conversation' | 'formal-evidence'
+  sessionId?: string
   conversationId?: string
   messageUuid?: string
   sessionName: string
+  module?: string
+  project?: string
   timestamp?: string
+  excerpt: string
+}
+
+export interface SessionHistoryGraphCluster {
+  id: string
+  label: string
 }
 
 export interface SessionHistoryGraphNode {
   id: string
   type: SessionHistoryGraphNodeType
   label: string
-  detail?: string
-  module?: string
-  project?: string
-  timestamp?: string
-  archiveId?: string
-  quote?: string
+  summary: string
+  cluster: string
+  importance: number
+  status: SessionHistoryGraphNodeStatus
+  inferred: boolean
   sources: SessionHistoryGraphSource[]
 }
 
@@ -118,11 +128,19 @@ export interface SessionHistoryGraphEdge {
   source: string
   target: string
   type: SessionHistoryGraphEdgeType
+  rationale: string
+  confidence: number
+  inferred: boolean
 }
 
 export interface SessionHistoryGraphResponse {
   generatedAt: string
+  title: string
+  summary: string
+  provider?: string
+  model?: string
   status: SessionIndexStatus
+  clusters: SessionHistoryGraphCluster[]
   nodes: SessionHistoryGraphNode[]
   edges: SessionHistoryGraphEdge[]
   projects: string[]

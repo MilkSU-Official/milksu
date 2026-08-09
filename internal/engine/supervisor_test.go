@@ -860,6 +860,86 @@ func TestSendMessageRejectsMissingKeyBeforeStartingSidecar(t *testing.T) {
 	}
 }
 
+func TestGenerateTextUsesSilentToolFreePiTurn(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	defer writer.Close()
+
+	workspace, err := resolveAgentWorkspace("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	publicEvents := make(chan Event, 4)
+	supervisor := NewSupervisor(func(event Event) { publicEvents <- event })
+	supervisor.process = &childProcess{stdin: writer, workspace: workspace}
+	defer func() {
+		supervisor.mu.Lock()
+		supervisor.stopAllTurnTimersLocked()
+		supervisor.process = nil
+		supervisor.sessions = make(map[string]struct{})
+		supervisor.mu.Unlock()
+	}()
+
+	type generationResult struct {
+		value TextGenerationResult
+		err   error
+	}
+	result := make(chan generationResult, 1)
+	go func() {
+		value, generationErr := supervisor.GenerateText("return semantic JSON", modelSelectionSettings())
+		result <- generationResult{value: value, err: generationErr}
+	}()
+
+	line, err := bufio.NewReader(reader).ReadBytes('\n')
+	if err != nil {
+		t.Fatal(err)
+	}
+	var command map[string]any
+	if err := json.Unmarshal(line, &command); err != nil {
+		t.Fatal(err)
+	}
+	sessionID, _ := command["conversationId"].(string)
+	prompt, _ := command["prompt"].(string)
+	if command["action"] != "send_message" ||
+		command["executionMode"] != "plan" ||
+		command["approvalPolicy"] != "read-only" ||
+		!strings.HasPrefix(sessionID, "milksu_text_projection_") ||
+		!strings.HasPrefix(prompt, "Do not call any Agent tools.") {
+		t.Fatalf("unexpected text projection command: %#v", command)
+	}
+
+	supervisor.emitEvent(Event{SessionID: sessionID, Type: "assistant.delta", Text: `{"title":"`})
+	supervisor.emitEvent(Event{SessionID: sessionID, Type: "assistant.completed", Text: `{"title":"semantic"}`})
+	select {
+	case generated := <-result:
+		if generated.err != nil {
+			t.Fatal(generated.err)
+		}
+		if generated.value.Text != `{"title":"semantic"}` || generated.value.Model == "" {
+			t.Fatalf("result = %#v", generated.value)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("GenerateText did not complete")
+	}
+	select {
+	case event := <-publicEvents:
+		t.Fatalf("silent projection event leaked to product stream: %#v", event)
+	default:
+	}
+	// The Sidecar acknowledges destruction asynchronously, after GenerateText
+	// has removed its waiter. Projection lifecycle events must remain private.
+	supervisor.emitEvent(Event{SessionID: sessionID, Type: "session.destroyed"})
+	select {
+	case event := <-publicEvents:
+		t.Fatalf("delayed projection cleanup leaked to product stream: %#v", event)
+	default:
+	}
+}
+
 func TestSendMessageIncludesComputerUseDescriptorOnlyForInteractiveCoding(t *testing.T) {
 	reader, writer, err := os.Pipe()
 	if err != nil {

@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Badge, Button } from '@felinic/ui'
-import { ExternalLink, Focus, LoaderCircle, Minus, Plus, Quote } from 'lucide-vue-next'
+import { ExternalLink, LoaderCircle, Minus, Plus, RefreshCw, Scan, Sparkles } from 'lucide-vue-next'
 import { Graph, NodeEvent, type GraphOptions } from '@antv/g6'
 import { redactProviderCredentials } from '@/lib/redaction'
 import type {
   SessionHistoryGraphEdge,
   SessionHistoryGraphNode,
+  SessionHistoryGraphNodeStatus,
   SessionHistoryGraphNodeType,
   SessionHistoryGraphResponse,
 } from '@/sessionIndexTypes'
@@ -16,15 +17,13 @@ defineOptions({ name: 'SessionHistoryGraph' })
 const props = withDefaults(defineProps<{
   response: SessionHistoryGraphResponse | null
   loading?: boolean
-  confirmActionLabel?: string
 }>(), {
   loading: false,
-  confirmActionLabel: '确认引用',
 })
 
 const emit = defineEmits<{
   openSession: [conversationId: string]
-  confirmNode: [node: SessionHistoryGraphNode]
+  regenerate: []
 }>()
 
 const graphContainer = ref<HTMLElement | null>(null)
@@ -39,54 +38,41 @@ let themeObserver: MutationObserver | null = null
 let renderGeneration = 0
 
 const nodeTypeLabels: Record<SessionHistoryGraphNodeType, string> = {
-  project: '项目',
-  session: '会话',
-  goal: '目标',
-  ctf: 'CTF',
-  cve: 'CVE',
-  model: '模型',
-  tool: '工具',
-  skill: 'Skill',
+  topic: '主题',
+  decision: '决策',
+  milestone: '里程碑',
+  capability: '能力',
+  problem: '问题',
   evidence: '证据',
-  artifact: '制品',
+  insight: '洞见',
+}
+
+const nodeStatusLabels: Record<SessionHistoryGraphNodeStatus, string> = {
+  current: '当前',
+  complete: '已完成',
+  planned: '计划中',
+  blocked: '受阻',
+  uncertain: '待确认',
 }
 
 const edgeTypeLabels: Record<SessionHistoryGraphEdge['type'], string> = {
-  contains: '包含',
-  uses: '使用',
-  calls: '调用',
-  loads: '加载',
-  focuses: '聚焦',
-  mentions: '提及',
-  'derived-from': '派生自',
+  depends_on: '依赖',
+  enables: '促成',
+  blocks: '阻碍',
+  supports: '支持',
+  validates: '验证',
+  evolves_to: '演进为',
+  contrasts_with: '对照',
 }
 
-const nodeColors: Record<'light' | 'dark', Record<SessionHistoryGraphNodeType, string>> = {
-  dark: {
-    project: '#6aa9ff',
-    session: '#9fef00',
-    goal: '#f6c344',
-    ctf: '#c494ff',
-    cve: '#ff7b73',
-    model: '#66d9b7',
-    tool: '#69c7dc',
-    skill: '#ef91c5',
-    evidence: '#ffd979',
-    artifact: '#9bc5ff',
-  },
-  light: {
-    project: '#2f6fa7',
-    session: '#5f9800',
-    goal: '#b87900',
-    ctf: '#7b55c7',
-    cve: '#c2413a',
-    model: '#247a63',
-    tool: '#287a8d',
-    skill: '#a64279',
-    evidence: '#8b5a00',
-    artifact: '#486ab3',
-  },
-}
+const clusterPalette = [
+  { dark: '#8fd14f', light: '#4c8618' },
+  { dark: '#6eb7ff', light: '#2f6fa7' },
+  { dark: '#d49cff', light: '#7c50b7' },
+  { dark: '#ffb86b', light: '#a85d14' },
+  { dark: '#63d5c1', light: '#247a68' },
+  { dark: '#ff8d91', light: '#ad4147' },
+]
 
 function redacted(value?: string) {
   return redactProviderCredentials(value || '')
@@ -96,13 +82,12 @@ function safeNode(node: SessionHistoryGraphNode): SessionHistoryGraphNode {
   return {
     ...node,
     label: redacted(node.label),
-    detail: redacted(node.detail),
-    project: redacted(node.project),
-    archiveId: redacted(node.archiveId),
-    quote: redacted(node.quote),
+    summary: redacted(node.summary),
     sources: node.sources.map(source => ({
       ...source,
       sessionName: redacted(source.sessionName),
+      project: redacted(source.project),
+      excerpt: redacted(source.excerpt),
     })),
   }
 }
@@ -111,19 +96,28 @@ const nodes = computed(() => (props.response?.nodes ?? []).map(safeNode))
 const nodeIDs = computed(() => new Set(nodes.value.map(node => node.id)))
 const edges = computed(() => (props.response?.edges ?? []).filter(edge => (
   nodeIDs.value.has(edge.source) && nodeIDs.value.has(edge.target)
-)))
+)).map(edge => ({ ...edge, rationale: redacted(edge.rationale) })))
 const selectedNode = computed(() => (
   nodes.value.find(node => node.id === selectedNodeID.value) ?? null
 ))
-const visibleNodeTypes = computed(() => {
-  const types = new Set(nodes.value.map(node => node.type))
-  return (Object.keys(nodeTypeLabels) as SessionHistoryGraphNodeType[])
-    .filter(type => types.has(type))
+const selectedRelations = computed(() => {
+  if (!selectedNode.value) return []
+  const labelByID = new Map(nodes.value.map(node => [node.id, node.label]))
+  return edges.value.filter(edge => (
+    edge.source === selectedNode.value?.id || edge.target === selectedNode.value?.id
+  )).map(edge => ({
+    ...edge,
+    otherLabel: labelByID.get(edge.source === selectedNode.value?.id ? edge.target : edge.source) || '',
+    outgoing: edge.source === selectedNode.value?.id,
+  }))
 })
-const visibleEdgeTypes = computed(() => {
-  const types = new Set(edges.value.map(edge => edge.type))
-  return (Object.keys(edgeTypeLabels) as SessionHistoryGraphEdge['type'][])
-    .filter(type => types.has(type))
+const clusterByID = computed(() => new Map((props.response?.clusters ?? []).map((cluster, index) => [
+  cluster.id,
+  { ...cluster, color: clusterPalette[index % clusterPalette.length][themeMode.value] },
+])))
+const visibleClusters = computed(() => {
+  const ids = new Set(nodes.value.map(node => node.cluster))
+  return [...clusterByID.value.values()].filter(cluster => ids.has(cluster.id))
 })
 
 function readThemeMode(): 'light' | 'dark' {
@@ -131,17 +125,16 @@ function readThemeMode(): 'light' | 'dark' {
 }
 
 function cssColor(name: string, fallback: string) {
-  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
-  return value || fallback
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback
 }
 
-function nodeColor(type: SessionHistoryGraphNodeType) {
-  return nodeColors[themeMode.value][type]
+function clusterColor(clusterID: string) {
+  return clusterByID.value.get(clusterID)?.color || clusterPalette[0][themeMode.value]
 }
 
 function shortenLabel(label: string) {
   const normalized = label.replace(/\s+/g, ' ').trim()
-  return normalized.length > 28 ? `${normalized.slice(0, 27)}…` : normalized
+  return normalized.length > 20 ? `${normalized.slice(0, 19)}…` : normalized
 }
 
 function formatTime(value?: string) {
@@ -149,97 +142,97 @@ function formatTime(value?: string) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return new Intl.DateTimeFormat('zh-CN', {
-    year: 'numeric',
-    month: 'numeric',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
+    month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit',
   }).format(date)
 }
 
 function graphData(): NonNullable<GraphOptions['data']> {
   const foreground = cssColor('--foreground', themeMode.value === 'dark' ? '#f4f4f4' : '#17201b')
-  const border = cssColor('--border-hairline', themeMode.value === 'dark' ? '#344158' : '#c6d3bd')
+  const card = cssColor('--card', themeMode.value === 'dark' ? '#151f2e' : '#ffffff')
   const edgeStroke = cssColor('--muted-foreground', themeMode.value === 'dark' ? '#8799b5' : '#657569')
-  const showEdgeLabels = edges.value.length <= 60
+  const showEdgeLabels = edges.value.length <= 18
 
   return {
-    nodes: nodes.value.map(node => ({
-      id: node.id,
-      data: { kind: node.type },
-      style: {
-        size: node.type === 'session' || node.type === 'project' ? 32 : 25,
-        fill: nodeColor(node.type),
-        stroke: border,
-        lineWidth: 2,
-        labelText: shortenLabel(node.label),
-        labelFill: foreground,
-        labelFontSize: 11,
-        labelFontWeight: node.type === 'session' ? 600 : 500,
-        labelPlacement: 'bottom' as const,
-        labelOffsetY: 4,
-        labelMaxWidth: 132,
-        labelWordWrap: true,
-      },
-    })),
+    nodes: nodes.value.map(node => {
+      const color = clusterColor(node.cluster)
+      const width = 118 + node.importance * 10
+      const height = 44 + Math.min(node.importance, 3) * 3
+      return {
+        id: node.id,
+        data: { kind: node.type, cluster: node.cluster },
+        style: {
+          size: [width, height],
+          radius: 14,
+          fill: card,
+          fillOpacity: themeMode.value === 'dark' ? 0.94 : 0.98,
+          stroke: color,
+          lineWidth: node.importance >= 4 ? 2.4 : 1.5,
+          shadowColor: color,
+          shadowBlur: node.importance >= 4 ? 16 : 7,
+          shadowOffsetX: 0,
+          shadowOffsetY: 2,
+          labelText: shortenLabel(node.label),
+          labelFill: foreground,
+          labelFontSize: node.importance >= 4 ? 12 : 11,
+          labelFontWeight: node.importance >= 4 ? 650 : 550,
+          labelMaxWidth: width - 20,
+          labelWordWrap: true,
+        },
+      }
+    }),
     edges: edges.value.map(edge => ({
       id: edge.id,
       source: edge.source,
       target: edge.target,
       data: { kind: edge.type },
       style: {
-        stroke: edgeStroke,
-        strokeOpacity: 0.58,
-        lineWidth: 1,
+        stroke: edge.type === 'blocks' ? '#ef7777' : edgeStroke,
+        strokeOpacity: 0.38 + Math.max(0, Math.min(1, edge.confidence)) * 0.38,
+        lineWidth: 1 + Math.max(0, Math.min(1, edge.confidence)),
         endArrow: true,
         labelText: showEdgeLabels ? edgeTypeLabels[edge.type] : '',
         labelFill: edgeStroke,
         labelFontSize: 9,
         labelBackground: true,
-        labelBackgroundFill: cssColor('--card', themeMode.value === 'dark' ? '#151f2e' : '#ffffff'),
-        labelBackgroundFillOpacity: 0.82,
-        labelPadding: [1, 3],
+        labelBackgroundFill: card,
+        labelBackgroundFillOpacity: 0.9,
+        labelPadding: [2, 4],
       },
     })),
   }
 }
 
 function graphOptions(container: HTMLElement): GraphOptions {
-  const foreground = cssColor('--foreground', themeMode.value === 'dark' ? '#f4f4f4' : '#17201b')
   const selectedStroke = cssColor('--primary', themeMode.value === 'dark' ? '#9fef00' : '#5f9800')
   return {
     container,
     data: graphData(),
     animation: false,
     theme: themeMode.value,
-    zoomRange: [0.25, 3],
+    zoomRange: [0.35, 2.5],
     layout: {
       type: 'antv-dagre',
       rankdir: 'LR',
-      nodesep: 34,
-      ranksep: 72,
+      nodesep: 28,
+      ranksep: 58,
       animation: false,
     },
     behaviors: ['drag-canvas', 'zoom-canvas', 'drag-element'],
     node: {
-      type: 'circle',
+      type: 'rect',
       animation: false,
       state: {
         selected: {
           halo: true,
-          haloLineWidth: 10,
+          haloLineWidth: 12,
           haloStroke: selectedStroke,
-          haloStrokeOpacity: 0.24,
+          haloStrokeOpacity: 0.18,
           lineWidth: 3,
           stroke: selectedStroke,
-          labelFill: foreground,
-          labelFontWeight: 600,
         },
       },
     },
-    edge: {
-      animation: false,
-    },
+    edge: { type: 'cubic-horizontal', animation: false },
   }
 }
 
@@ -271,13 +264,11 @@ async function renderGraph() {
     destroyGraph()
     return
   }
-
   observeGraphContainer(container)
   const generation = ++renderGeneration
   if (graph && !graph.destroyed) graph.destroy()
   graph = null
   renderError.value = ''
-
   try {
     const nextGraph = new Graph(graphOptions(container))
     graph = nextGraph
@@ -288,9 +279,6 @@ async function renderGraph() {
     await nextGraph.render()
     if (generation !== renderGeneration || nextGraph.destroyed) return
     await nextGraph.fitView({ when: 'always', direction: 'both' }, false)
-    if (selectedNodeID.value && nodeIDs.value.has(selectedNodeID.value)) {
-      await nextGraph.setElementState(selectedNodeID.value, 'selected', false)
-    }
   } catch (cause) {
     if (generation !== renderGeneration) return
     renderError.value = cause instanceof Error ? cause.message : String(cause)
@@ -306,223 +294,144 @@ async function selectNode(id: string) {
   await graph.setElementState(id, 'selected', false)
 }
 
-function zoomBy(ratio: number) {
-  if (graph && !graph.destroyed) void graph.zoomBy(ratio, false)
+async function zoom(factor: number) {
+  if (graph && !graph.destroyed) await graph.zoomBy(factor, false)
 }
 
-function fitView() {
+async function fitGraph() {
   if (graph && !graph.destroyed) {
-    void graph.fitView({ when: 'always', direction: 'both' }, false)
+    await graph.fitView({ when: 'always', direction: 'both' }, false)
   }
 }
 
-function openSource(conversationID?: string) {
-  if (conversationID) emit('openSession', conversationID)
-}
+watch(() => props.response, () => {
+  selectedNodeID.value = ''
+  void nextTick(renderGraph)
+}, { deep: true })
+watch(() => props.loading, () => void nextTick(renderGraph))
 
-function confirmSelection() {
-  if (selectedNode.value?.quote?.trim()) emit('confirmNode', selectedNode.value)
-}
-
-watch(
-  () => [props.response, props.loading] as const,
-  async () => {
-    if (selectedNodeID.value && !nodeIDs.value.has(selectedNodeID.value)) selectedNodeID.value = ''
-    await nextTick()
-    await renderGraph()
-  },
-  { deep: true },
-)
-
-onMounted(async () => {
+onMounted(() => {
   themeMode.value = readThemeMode()
-  if (typeof MutationObserver !== 'undefined') {
-    themeObserver = new MutationObserver(() => {
-      const nextTheme = readThemeMode()
-      if (nextTheme === themeMode.value) return
-      themeMode.value = nextTheme
-      void renderGraph()
-    })
-    themeObserver.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['data-theme'],
-    })
-  }
-  await nextTick()
-  await renderGraph()
+  themeObserver = new MutationObserver(() => {
+    const next = readThemeMode()
+    if (next === themeMode.value) return
+    themeMode.value = next
+    void nextTick(renderGraph)
+  })
+  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+  void nextTick(renderGraph)
 })
 
 onBeforeUnmount(() => {
   resizeObserver?.disconnect()
-  observedContainer = null
   themeObserver?.disconnect()
   destroyGraph()
 })
 </script>
 
 <template>
-  <section class="history-graph mt-4" data-session-history-graph>
-    <div class="flex flex-wrap items-center justify-between gap-2">
-      <div class="flex flex-wrap items-center gap-2 text-caption text-muted-foreground">
-        <span>{{ nodes.length }} 节点</span>
-        <span aria-hidden="true">·</span>
-        <span>{{ edges.length }} 关系</span>
-        <Badge v-if="response?.truncated" variant="warning">已按上限截断</Badge>
-      </div>
-      <div class="flex items-center gap-1">
-        <Button type="button" variant="ghost" size="icon-sm" :disabled="loading || nodes.length === 0" aria-label="缩小关系图" @click="zoomBy(0.8)">
-          <Minus class="size-3.5" />
-        </Button>
-        <Button type="button" variant="ghost" size="icon-sm" :disabled="loading || nodes.length === 0" aria-label="放大关系图" @click="zoomBy(1.25)">
-          <Plus class="size-3.5" />
-        </Button>
-        <Button type="button" variant="ghost" size="icon-sm" :disabled="loading || nodes.length === 0" aria-label="适应关系图视图" @click="fitView">
-          <Focus class="size-3.5" />
-        </Button>
-      </div>
+  <section class="mt-4 space-y-3" data-session-history-graph>
+    <div v-if="loading" class="flex min-h-64 flex-col items-center justify-center rounded-2xl border border-border bg-card/70 text-center">
+      <span class="relative mb-3 flex size-11 items-center justify-center rounded-2xl border border-primary/25 bg-primary/8">
+        <Sparkles class="size-5 text-primary" />
+        <LoaderCircle class="absolute -right-1 -top-1 size-4 animate-spin text-primary" />
+      </span>
+      <p class="text-body font-medium">正在归纳历史脉络</p>
+      <p class="mt-1 max-w-64 text-caption leading-5 text-muted-foreground">模型正在把记忆整理成主题、决策与证据关系</p>
     </div>
 
-    <div v-if="response?.truncated" class="mt-2 rounded-lg border border-warning-border bg-warning-soft px-3 py-2 text-caption leading-5 text-warning-foreground">
-      当前关系较多，只显示最相关的一部分。可用项目、模块或时间筛选缩小范围。
-    </div>
-
-    <div v-if="loading" class="mt-3 flex min-h-72 items-center justify-center gap-2 rounded-xl border border-border bg-card text-caption text-muted-foreground">
-      <LoaderCircle class="size-4 animate-spin" />
-      正在生成关系图
-    </div>
-
-    <div v-else-if="renderError" class="mt-3 rounded-xl border border-destructive-border bg-destructive-soft px-4 py-5 text-caption leading-5 text-destructive">
-      关系图渲染失败：{{ renderError }}
-    </div>
-
-    <div v-else-if="nodes.length === 0" class="mt-3 flex min-h-72 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card px-6 text-center">
-      <p class="text-body font-medium">没有可关联的历史</p>
-      <p class="mt-1 max-w-sm text-caption leading-5 text-muted-foreground">
-        调整搜索或筛选条件，或刷新索引后再试。
-      </p>
-    </div>
-
-    <div v-else class="history-graph__layout mt-3">
-      <div class="min-w-0 overflow-hidden rounded-xl border border-border bg-card">
-        <div
-          ref="graphContainer"
-          class="history-graph__canvas"
-          role="img"
-          :aria-label="`相关历史关系图，共 ${nodes.length} 个节点、${edges.length} 条关系`"
-        />
-        <div class="border-t border-border px-3 py-2">
-          <div class="flex flex-wrap gap-x-3 gap-y-1.5">
-            <span
-              v-for="type in visibleNodeTypes"
-              :key="type"
-              class="inline-flex items-center gap-1.5 text-caption text-muted-foreground"
-            >
-              <span class="size-2 rounded-full" :style="{ backgroundColor: nodeColor(type) }" aria-hidden="true" />
-              {{ nodeTypeLabels[type] }}
-            </span>
+    <template v-else-if="response">
+      <header class="rounded-2xl border border-border bg-gradient-to-br from-card to-muted/35 px-4 py-4">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <div class="flex items-center gap-2 text-caption text-primary">
+              <Sparkles class="size-3.5" />
+              <span>模型语义归纳</span>
+            </div>
+            <h4 class="mt-1.5 text-body font-semibold leading-6">{{ redacted(response.title) }}</h4>
+            <p class="mt-1 text-caption leading-5 text-muted-foreground">{{ redacted(response.summary) }}</p>
           </div>
-          <p v-if="visibleEdgeTypes.length" class="mt-1.5 text-caption leading-5 text-muted-foreground">
-            关系：{{ visibleEdgeTypes.map(type => edgeTypeLabels[type]).join(' · ') }}
-          </p>
+          <Button type="button" variant="ghost" size="icon-sm" aria-label="重新生成语义图谱" @click="emit('regenerate')">
+            <RefreshCw class="size-3.5" />
+          </Button>
+        </div>
+        <div class="mt-3 flex flex-wrap items-center gap-1.5 text-caption text-muted-foreground">
+          <Badge variant="outline">{{ nodes.length }} 节点</Badge>
+          <Badge variant="outline">{{ edges.length }} 关系</Badge>
+          <span v-if="response.model">{{ redacted(response.provider) }} · {{ redacted(response.model) }}</span>
+          <span class="ml-auto">{{ formatTime(response.generatedAt) }}</span>
+        </div>
+      </header>
+
+      <div v-if="nodes.length" class="overflow-hidden rounded-2xl border border-border bg-card">
+        <div class="flex min-h-9 flex-wrap items-center gap-x-3 gap-y-1 border-b border-border px-3 py-2">
+          <span v-for="cluster in visibleClusters" :key="cluster.id" class="inline-flex items-center gap-1.5 text-caption text-muted-foreground">
+            <i class="size-2 rounded-full" :style="{ backgroundColor: cluster.color }" />
+            {{ redacted(cluster.label) }}
+          </span>
+          <div class="ml-auto flex items-center gap-0.5">
+            <Button type="button" variant="ghost" size="icon-sm" aria-label="缩小语义图谱" @click="zoom(0.8)"><Minus class="size-3.5" /></Button>
+            <Button type="button" variant="ghost" size="icon-sm" aria-label="放大语义图谱" @click="zoom(1.25)"><Plus class="size-3.5" /></Button>
+            <Button type="button" variant="ghost" size="icon-sm" aria-label="适应语义图谱视图" @click="fitGraph"><Scan class="size-3.5" /></Button>
+          </div>
+        </div>
+        <div class="semantic-graph-surface relative h-[26rem] overflow-hidden">
+          <div ref="graphContainer" class="absolute inset-0" role="img" :aria-label="`${response.title}语义图谱`" />
+          <p v-if="renderError" class="absolute inset-x-4 bottom-3 rounded-lg bg-destructive/10 px-3 py-2 text-caption text-destructive">图谱渲染失败：{{ renderError }}</p>
         </div>
       </div>
 
-      <aside class="history-graph__detail rounded-xl border border-border bg-card p-4" aria-live="polite">
-        <template v-if="selectedNode">
-          <div class="flex items-start justify-between gap-3">
-            <div class="min-w-0">
-              <Badge variant="secondary">{{ nodeTypeLabels[selectedNode.type] }}</Badge>
-              <h4 class="mt-2 break-words text-body font-medium">{{ selectedNode.label }}</h4>
-            </div>
-            <span class="mt-1 size-2.5 shrink-0 rounded-full" :style="{ backgroundColor: nodeColor(selectedNode.type) }" aria-hidden="true" />
+      <div v-else class="rounded-2xl border border-dashed border-border px-4 py-10 text-center">
+        <p class="text-body font-medium">没有足够的历史记忆</p>
+        <p class="mt-1 text-caption text-muted-foreground">换一个主题或扩大时间范围后再生成。</p>
+      </div>
+
+      <article v-if="selectedNode" class="rounded-2xl border border-border bg-card px-4 py-4">
+        <div class="flex flex-wrap items-center gap-2">
+          <Badge variant="secondary">{{ nodeTypeLabels[selectedNode.type] }}</Badge>
+          <Badge variant="outline">{{ nodeStatusLabels[selectedNode.status] }}</Badge>
+          <span class="text-caption text-muted-foreground">重要度 {{ selectedNode.importance }}/5</span>
+        </div>
+        <h5 class="mt-2 text-body font-semibold">{{ selectedNode.label }}</h5>
+        <p class="mt-1 text-caption leading-5 text-muted-foreground">{{ selectedNode.summary }}</p>
+
+        <div v-if="selectedRelations.length" class="mt-4 space-y-2">
+          <p class="text-caption font-medium text-muted-foreground">语义关系</p>
+          <div v-for="relation in selectedRelations" :key="relation.id" class="rounded-xl bg-muted/45 px-3 py-2 text-caption leading-5">
+            <span class="font-medium">{{ relation.outgoing ? edgeTypeLabels[relation.type] : `被${edgeTypeLabels[relation.type]}` }} {{ relation.otherLabel }}</span>
+            <span v-if="relation.rationale" class="text-muted-foreground"> · {{ relation.rationale }}</span>
           </div>
+        </div>
 
-          <p v-if="selectedNode.detail" class="mt-2 break-words text-caption leading-5 text-muted-foreground">
-            {{ selectedNode.detail }}
-          </p>
-          <dl class="mt-3 space-y-1.5 text-caption">
-            <div v-if="selectedNode.module" class="flex gap-2">
-              <dt class="w-12 shrink-0 text-muted-foreground">模块</dt>
-              <dd class="break-all">{{ selectedNode.module }}</dd>
+        <div class="mt-4 space-y-2">
+          <p class="text-caption font-medium text-muted-foreground">历史来源</p>
+          <div v-for="(source, index) in selectedNode.sources" :key="`${source.messageUuid || source.sessionId}-${index}`" class="rounded-xl border border-border px-3 py-3">
+            <div class="flex items-center gap-2">
+              <Badge variant="outline">{{ source.kind === 'formal-evidence' ? '正式证据' : source.kind === 'memory' ? '记忆' : '会话' }}</Badge>
+              <span class="min-w-0 flex-1 truncate text-caption font-medium">{{ source.sessionName }}</span>
+              <span class="text-caption text-muted-foreground">{{ formatTime(source.timestamp) }}</span>
+              <Button v-if="source.conversationId" type="button" variant="ghost" size="icon-sm" :aria-label="`回到来源会话 ${source.sessionName}`" @click="emit('openSession', source.conversationId)">
+                <ExternalLink class="size-3.5" />
+              </Button>
             </div>
-            <div v-if="selectedNode.project" class="flex gap-2">
-              <dt class="w-12 shrink-0 text-muted-foreground">项目</dt>
-              <dd class="break-all">{{ selectedNode.project }}</dd>
-            </div>
-            <div v-if="selectedNode.timestamp" class="flex gap-2">
-              <dt class="w-12 shrink-0 text-muted-foreground">时间</dt>
-              <dd>{{ formatTime(selectedNode.timestamp) }}</dd>
-            </div>
-          </dl>
-
-          <div v-if="selectedNode.sources.length" class="mt-4 border-t border-border pt-3">
-            <p class="text-caption font-medium text-muted-foreground">来源会话</p>
-            <div class="mt-2 space-y-2">
-              <button
-                v-for="source in selectedNode.sources"
-                :key="`${source.sessionId}:${source.messageUuid || ''}`"
-                type="button"
-                class="flex w-full items-center gap-2 rounded-lg border border-border px-2.5 py-2 text-left text-caption transition-colors hover:bg-muted disabled:cursor-default disabled:opacity-70"
-                :disabled="!source.conversationId"
-                :aria-label="source.conversationId ? `回到来源会话：${source.sessionName}` : undefined"
-                @click="openSource(source.conversationId)"
-              >
-                <span class="min-w-0 flex-1 truncate">{{ source.sessionName }}</span>
-                <ExternalLink v-if="source.conversationId" class="size-3.5 shrink-0 text-muted-foreground" />
-              </button>
-            </div>
+            <p class="mt-2 text-caption leading-5 text-muted-foreground">{{ source.excerpt }}</p>
           </div>
+        </div>
+      </article>
 
-          <Button
-            v-if="confirmActionLabel && selectedNode.quote?.trim()"
-            type="button"
-            variant="outline"
-            size="sm"
-            class="mt-4 w-full"
-            @click="confirmSelection"
-          >
-            <Quote class="size-3.5" />
-            {{ confirmActionLabel }}
-          </Button>
-        </template>
-        <template v-else>
-          <p class="text-body font-medium">节点详情</p>
-          <p class="mt-1 text-caption leading-5 text-muted-foreground">
-            选择一个节点查看来源。拖动节点或画布整理视图，滚轮可缩放。
-          </p>
-        </template>
-      </aside>
-    </div>
+      <p class="px-1 text-caption leading-5 text-muted-foreground">图中节点和关系是模型对历史记忆的语义归纳，仅供人阅读；点击节点可核对来源。</p>
+      <p v-if="response.truncated" class="px-1 text-caption text-muted-foreground">历史材料已按安全上限截断，本图优先保留最相关内容。</p>
+    </template>
   </section>
 </template>
 
 <style scoped>
-.history-graph {
-  container-type: inline-size;
-}
-
-.history-graph__layout {
-  display: grid;
-  gap: 0.75rem;
-}
-
-.history-graph__canvas {
-  width: 100%;
-  min-height: 23rem;
-  background:
-    radial-gradient(circle at center, color-mix(in srgb, var(--primary) 7%, transparent), transparent 58%),
-    var(--card);
-}
-
-@container (min-width: 48rem) {
-  .history-graph__layout {
-    grid-template-columns: minmax(0, 1fr) 17rem;
-    align-items: stretch;
-  }
-
-  .history-graph__detail {
-    max-height: 28rem;
-    overflow-y: auto;
-  }
+.semantic-graph-surface {
+  background-image:
+    radial-gradient(circle at 18% 18%, color-mix(in srgb, var(--primary) 10%, transparent) 0, transparent 31%),
+    radial-gradient(circle at 82% 76%, color-mix(in srgb, #6eb7ff 9%, transparent) 0, transparent 34%),
+    linear-gradient(color-mix(in srgb, var(--border) 28%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--border) 28%, transparent) 1px, transparent 1px);
+  background-size: auto, auto, 24px 24px, 24px 24px;
 }
 </style>

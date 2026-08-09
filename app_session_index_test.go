@@ -81,30 +81,26 @@ func TestAppSessionIndexRefreshesMilkSUOwnedHistory(t *testing.T) {
 		t.Fatalf("unexpected search snippet: %q", result.Snippet)
 	}
 
-	graph, err := application.GetSessionHistoryGraph(sessionindex.GraphRequest{
-		Query:    "CVE-2024-3400",
-		Module:   "cve",
-		MaxNodes: 20,
-		MaxEdges: 30,
-	})
+	graphContext, err := index.BuildGraphContext(application.commandContext(), sessionindex.GraphRequest{
+		Query:  "CVE-2024-3400",
+		Module: "cve",
+	}, sessionindex.GraphInput{})
 	if err != nil {
-		t.Fatalf("GetSessionHistoryGraph() error = %v", err)
+		t.Fatalf("BuildGraphContext() error = %v", err)
 	}
-	if len(graph.Nodes) == 0 {
-		t.Fatalf("GetSessionHistoryGraph() returned no nodes: %#v", graph)
+	if len(graphContext.Seeds) == 0 {
+		t.Fatalf("BuildGraphContext() returned no seeds: %#v", graphContext)
 	}
 	foundSource := false
-	for _, node := range graph.Nodes {
-		if strings.Contains(node.Detail, "sk-app-session-index-secret") || strings.Contains(node.Quote, "sk-app-session-index-secret") {
-			t.Fatalf("history graph leaked credential: %#v", node)
+	for _, seed := range graphContext.Seeds {
+		if strings.Contains(seed.Excerpt, "sk-app-session-index-secret") {
+			t.Fatalf("history graph context leaked credential: %#v", seed)
 		}
-		for _, source := range node.Sources {
-			if source.ConversationID == "cve-handoff" {
-				foundSource = true
-			}
+		if seed.Source.ConversationID == "cve-handoff" {
+			foundSource = true
 		}
 	}
 	if !foundSource {
-		t.Fatalf("history graph did not retain source conversation: %#v", graph.Nodes)
+		t.Fatalf("history graph context did not retain source conversation: %#v", graphContext.Seeds)
 	}
 }

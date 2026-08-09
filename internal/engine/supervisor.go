@@ -218,6 +218,7 @@ type Supervisor struct {
 	process          *childProcess
 	sessions         map[string]struct{}
 	probeWaiters     map[string]chan Event
+	silentSessions   map[string]struct{}
 	controlWaiters   map[string]chan Event
 	recoveryWaiters  map[string]map[chan Event]struct{}
 	recoveryFailures map[string]string
@@ -234,6 +235,7 @@ func NewSupervisor(emit func(Event)) *Supervisor {
 	return &Supervisor{
 		sessions:         make(map[string]struct{}),
 		probeWaiters:     make(map[string]chan Event),
+		silentSessions:   make(map[string]struct{}),
 		controlWaiters:   make(map[string]chan Event),
 		recoveryWaiters:  make(map[string]map[chan Event]struct{}),
 		recoveryFailures: make(map[string]string),
@@ -244,6 +246,12 @@ func NewSupervisor(emit func(Event)) *Supervisor {
 		backgroundTasks:  make(map[string][]BackgroundTask),
 		emit:             emit,
 	}
+}
+
+type TextGenerationResult struct {
+	Provider string
+	Model    string
+	Text     string
 }
 
 func NewSupervisorWithSidecarDirectory(
@@ -998,6 +1006,109 @@ func (s *Supervisor) ProbeModel(settings config.AppSettings) (ModelProbeResult, 
 	}
 }
 
+// GenerateText runs one bounded, tool-free Pi turn without exposing its
+// internal lifecycle events to the product conversation stream. It reuses the
+// active Provider and Pi session implementation; callers remain responsible
+// for validating any structured output before presenting it as a projection.
+func (s *Supervisor) GenerateText(prompt string, settings config.AppSettings) (TextGenerationResult, error) {
+	if err := validateModelAccess(settings); err != nil {
+		return TextGenerationResult{}, err
+	}
+	prompt = strings.TrimSpace(prompt)
+	if prompt == "" {
+		return TextGenerationResult{}, fmt.Errorf("generation prompt is required")
+	}
+	if len([]rune(prompt)) > 48_000 {
+		return TextGenerationResult{}, fmt.Errorf("generation prompt exceeds 48000 characters")
+	}
+
+	sessionID := fmt.Sprintf("milksu_text_projection_%d", time.Now().UnixNano())
+	events := make(chan Event, 64)
+	s.probeMu.Lock()
+	s.probeWaiters[sessionID] = events
+	s.silentSessions[sessionID] = struct{}{}
+	s.probeMu.Unlock()
+	defer func() {
+		s.DestroySession(sessionID)
+		s.probeMu.Lock()
+		delete(s.probeWaiters, sessionID)
+		delete(s.silentSessions, sessionID)
+		s.probeMu.Unlock()
+	}()
+
+	// The explicit directive is enforced by bridge-turn-contract.js, which
+	// removes all active tools for this turn. Plan/read-only is a second boundary.
+	prompt = "Do not call any Agent tools. Return only the requested text.\n\n" + prompt
+	s.mu.Lock()
+	workspace := ""
+	if s.process != nil {
+		workspace = s.process.workspace
+	}
+	s.mu.Unlock()
+	if err := s.SendMessage(
+		sessionID,
+		prompt,
+		workspace,
+		"",
+		"plan",
+		"read-only",
+		nil,
+		"",
+		nil,
+		nil,
+		nil,
+		nil,
+		settings,
+	); err != nil {
+		return TextGenerationResult{}, err
+	}
+
+	const maximumOutputBytes = 128 * 1024
+	var deltas strings.Builder
+	timer := time.NewTimer(90 * time.Second)
+	defer timer.Stop()
+	for {
+		select {
+		case event := <-events:
+			switch event.Type {
+			case "assistant.delta":
+				if deltas.Len()+len(event.Text) > maximumOutputBytes {
+					_ = s.AbortMessage(sessionID)
+					return TextGenerationResult{}, fmt.Errorf("Pi text projection exceeded %d bytes", maximumOutputBytes)
+				}
+				deltas.WriteString(event.Text)
+			case "assistant.completed":
+				text := strings.TrimSpace(event.Text)
+				if text == "" {
+					text = strings.TrimSpace(deltas.String())
+				}
+				if text == "" {
+					return TextGenerationResult{}, fmt.Errorf("Pi text projection returned empty output")
+				}
+				if len(text) > maximumOutputBytes {
+					return TextGenerationResult{}, fmt.Errorf("Pi text projection exceeded %d bytes", maximumOutputBytes)
+				}
+				return TextGenerationResult{
+					Provider: strings.TrimSpace(settings.ActiveProvider),
+					Model:    strings.TrimSpace(settings.ActiveModel),
+					Text:     text,
+				}, nil
+			case "tool.started", "tool.progress", "tool.completed", "approval.requested":
+				_ = s.AbortMessage(sessionID)
+				return TextGenerationResult{}, fmt.Errorf("Pi text projection violated its tool-free contract")
+			case "engine.error", "engine.stopped", "engine.protocol_error":
+				return TextGenerationResult{}, fmt.Errorf(
+					"Pi text projection failed: %s",
+					probeFailureMessage(event),
+				)
+			}
+		case <-timer.C:
+			_ = s.AbortMessage(sessionID)
+			return TextGenerationResult{}, fmt.Errorf("Pi text projection timed out after 90 seconds")
+		}
+	}
+}
+
 func (s *Supervisor) DestroySession(sessionID string) {
 	s.disposeSession(sessionID, true)
 }
@@ -1315,7 +1426,11 @@ func (s *Supervisor) emitEvent(event Event) {
 	s.deliverProbeEvent(event)
 	s.deliverControlEvent(event)
 	s.deliverRecoveryEvent(event)
-	if s.emit != nil {
+	s.probeMu.Lock()
+	_, silent := s.silentSessions[event.SessionID]
+	s.probeMu.Unlock()
+	silent = silent || strings.HasPrefix(event.SessionID, "milksu_text_projection_")
+	if !silent && s.emit != nil {
 		s.emit(event)
 	}
 }

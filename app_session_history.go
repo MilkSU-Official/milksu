@@ -45,21 +45,37 @@ func (a *App) GetSessionHistoryGraph(request sessionindex.GraphRequest) (session
 	if a.sessionIndex == nil {
 		return sessionindex.GraphResponse{}, fmt.Errorf("session index is not ready")
 	}
-	conversations, err := a.conversations.List()
-	if err != nil {
-		return sessionindex.GraphResponse{}, err
-	}
-	if _, err := a.sessionIndex.RefreshMilkSUConversations(a.commandContext(), conversations); err != nil {
+	if _, err := a.RefreshSessionIndex(); err != nil {
 		return sessionindex.GraphResponse{}, err
 	}
 	archives, err := a.sessionHistoryArchives()
 	if err != nil {
 		return sessionindex.GraphResponse{}, err
 	}
-	return a.sessionIndex.Graph(a.commandContext(), request, sessionindex.GraphInput{
-		Conversations: conversations,
-		Archives:      archives,
+	graphContext, err := a.sessionIndex.BuildGraphContext(a.commandContext(), request, sessionindex.GraphInput{
+		Archives: archives,
 	})
+	if err != nil {
+		return sessionindex.GraphResponse{}, err
+	}
+	if len(graphContext.Seeds) == 0 {
+		return sessionindex.EmptyGraphResponse(graphContext, time.Now()), nil
+	}
+	prompt, err := sessionindex.SemanticGraphPrompt(graphContext)
+	if err != nil {
+		return sessionindex.GraphResponse{}, err
+	}
+	generated, err := a.engines.GenerateText(prompt, a.settings.GetResolved())
+	if err != nil {
+		return sessionindex.GraphResponse{}, err
+	}
+	return sessionindex.ProjectSemanticGraph(
+		generated.Text,
+		graphContext,
+		generated.Provider,
+		generated.Model,
+		time.Now(),
+	)
 }
 
 func (a *App) sessionHistoryArchives() ([]sessionindex.GraphArchive, error) {

@@ -21,7 +21,6 @@ import {
 import { hasDesktopRuntime, invokeCommand } from '@/desktop'
 import { redactProviderCredentials } from '@/lib/redaction'
 import type {
-  SessionHistoryGraphNode,
   SessionHistoryGraphResponse,
   SessionHistorySearchRequest,
   SessionHistorySearchResult,
@@ -81,14 +80,20 @@ const statusLine = computed(() => {
   if (!desktopRuntime) return '打包 App 中可查看本机历史'
   if (!status.value) return '准备索引'
   if (!status.value.available) return status.value.reason || '索引准备中'
-  return `${status.value.sessionCount} 会话 · ${status.value.messageCount} 消息 · ${status.value.toolCallCount} 工具调用`
+  const memory = status.value.memoryCount ? ` · ${status.value.memoryCount} 条记忆` : ''
+  return `${status.value.sessionCount} 会话 · ${status.value.messageCount} 消息${memory}`
 })
 const since = computed(() => {
   const days = { all: 0, '7d': 7, '30d': 30, '90d': 90 }[timeRange.value]
   if (!days) return ''
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()
 })
-const projects = computed(() => graphResponse.value?.projects ?? [])
+const projects = computed(() => [...new Set([
+  ...(graphResponse.value?.projects ?? []),
+  ...(response.value?.results
+    .map(result => result.project)
+    .filter((value): value is string => Boolean(value)) ?? []),
+])].sort((left, right) => String(left).localeCompare(String(right))))
 
 function sourceLabel(source = '') {
   if (source === 'milksu-ctf') return 'CTF'
@@ -183,8 +188,6 @@ async function loadGraph() {
       request: {
         query: query.value.trim(),
         ...filters(),
-        maxNodes: 120,
-        maxEdges: 200,
       },
     })
     status.value = graphResponse.value.status
@@ -197,7 +200,8 @@ async function loadGraph() {
 
 async function applyFilters(nextQuery = query.value) {
   await runSearch(nextQuery)
-  await loadGraph()
+  graphResponse.value = null
+  if (viewMode.value === 'graph') await loadGraph()
 }
 
 async function refreshIndex() {
@@ -214,23 +218,17 @@ async function refreshIndex() {
   }
 }
 
-function confirmGraphNode(node: SessionHistoryGraphNode) {
-  const source = node.sources[0]
-  emit('confirmResult', {
-    messageUuid: source?.messageUuid || node.id,
-    sessionId: source?.sessionId || '',
-    sessionName: source?.sessionName || node.label,
-    project: node.project,
-    source: node.module ? `milksu-${node.module}` : 'milksu',
-    timestamp: source?.timestamp || node.timestamp,
-    snippet: node.quote || node.detail || node.label,
-  })
+function changeViewMode(next: 'list' | 'graph') {
+  viewMode.value = next
+  if (next === 'graph' && !graphResponse.value && !graphLoading.value) {
+    void loadGraph()
+  }
 }
 
 onMounted(async () => {
   query.value = props.defaultQuery.trim() || suggestedQueries.value[0]
   await loadStatus()
-  await applyFilters(query.value)
+  await runSearch(query.value)
 })
 
 watch(() => props.defaultQuery, value => {
@@ -271,7 +269,7 @@ defineExpose({ refresh: refreshIndex })
           size="sm"
           :variant="viewMode === 'list' ? 'secondary' : 'ghost'"
           aria-label="列表视图"
-          @click="viewMode = 'list'"
+          @click="changeViewMode('list')"
         >
           <List class="size-3.5" />列表
         </Button>
@@ -280,7 +278,7 @@ defineExpose({ refresh: refreshIndex })
           size="sm"
           :variant="viewMode === 'graph' ? 'secondary' : 'ghost'"
           aria-label="图谱视图"
-          @click="viewMode = 'graph'"
+          @click="changeViewMode('graph')"
         >
           <GitFork class="size-3.5" />图谱
         </Button>
@@ -352,9 +350,8 @@ defineExpose({ refresh: refreshIndex })
       v-else-if="!compact && viewMode === 'graph'"
       :response="graphResponse"
       :loading="graphLoading"
-      :confirm-action-label="confirmActionLabel"
       @open-session="emit('openSession', $event)"
-      @confirm-node="confirmGraphNode"
+      @regenerate="loadGraph"
     />
 
     <div v-else-if="response?.results.length" class="mt-4 space-y-3">
