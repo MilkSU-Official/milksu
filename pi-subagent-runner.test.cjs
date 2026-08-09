@@ -210,6 +210,29 @@ test("runner configures Relay by environment reference without persisting its ke
   );
 });
 
+test("runner configures TokenFlux and rejects the removed KouriChat provider", () => {
+  const agentDirectory = join(mkdtempSync(join(tmpdir(), "milksu-models-")), "agent");
+  const path = writeRuntimeModelConfig(
+    agentDirectory,
+    ["--model", "tokenflux/deepseek/deepseek-v4-flash"],
+    { TOKENFLUX_BASE_URL: "https://tokenflux.ai/v1" },
+  );
+  const config = JSON.parse(readFileSync(path, "utf8"));
+  assert.equal(config.providers.tokenflux.apiKey, "$TOKENFLUX_API_KEY");
+  assert.equal(
+    config.providers.tokenflux.models[0].id,
+    "deepseek/deepseek-v4-flash",
+  );
+  assert.equal(
+    writeRuntimeModelConfig(
+      agentDirectory,
+      ["--model", "kourichat/kimi-k3"],
+      { KOURICHAT_BASE_URL: "https://api.kourichat.com/v1" },
+    ),
+    undefined,
+  );
+});
+
 test("Pi subagent shell drops provider credentials without changing ordinary Pi", async () => {
   const providerName = "OPENAI_API_KEY";
   const markerName = "MILKSU_PI_SUBAGENT_RUNTIME";

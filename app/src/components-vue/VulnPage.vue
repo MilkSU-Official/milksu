@@ -36,7 +36,7 @@ import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
 import SessionHistoryPanel from '@/components-vue/SessionHistoryPanel.vue'
 import VulnerabilityLoopPanel from '@/components-vue/VulnerabilityLoopPanel.vue'
 import { useVulnerabilityDashboard, type VulnerabilityDashboard } from '@/composables/useVulnerabilityDashboard'
-import { invokeCommand } from '@/desktop'
+import { hasDesktopRuntime, invokeCommand } from '@/desktop'
 import { redactProviderCredentials } from '@/lib/redaction'
 import type { VulnerabilityCodingTask } from '@/composables/useVulnerabilityDashboard'
 import type { SessionHistorySearchResult } from '@/sessionIndexTypes'
@@ -94,6 +94,10 @@ const codingConclusionText = ref('')
 const codingConclusionError = ref('')
 const codingConclusionNotice = ref('')
 const codingConclusionWritebackBusy = ref(false)
+const researchDraftWritebackBusy = ref(false)
+const researchDraftError = ref('')
+const researchDraftNotice = ref('')
+const archiveLoadError = ref('')
 const historyNoteNotice = ref('')
 const selectedIntelNotice = ref('')
 const selectedIntelError = ref('')
@@ -118,9 +122,30 @@ const assetForm = ref({
   environment: '',
 })
 
-function openCveResearch(id: string) {
+async function ensureSelectedRuntimeProjection() {
+  const selected = dashboard.selected.value
+  const projection = await invokeCommand<VulnProjection>('ensure_vuln_tracking_workspace', {
+    request: {
+      cveId: selected.id,
+      title: selected.title,
+      summary: selected.summary,
+      referenceHref: selected.references[0]?.href || '',
+    },
+  })
+  dashboard.setRuntimeProjection(selected.id, projection)
+  return projection
+}
+
+async function openCveResearch(id: string) {
   dashboard.selectedId.value = id
   cveView.value = 'research'
+  archiveLoadError.value = ''
+  if (!hasDesktopRuntime()) return
+  try {
+    await ensureSelectedRuntimeProjection()
+  } catch (cause) {
+    archiveLoadError.value = cause instanceof Error ? cause.message : String(cause)
+  }
 }
 
 function returnToCveList() {
@@ -172,24 +197,13 @@ async function addSelectedAssetRecord() {
     address: redactProviderCredentials(assetForm.value.address).trim(),
     environment: assetForm.value.environment.trim(),
   }
-  try {
-    dashboard.addAssetRecord(selected.id, input)
-    showAssetForm.value = false
-    assetForm.value = { name: '', address: '', environment: '' }
-  } catch (cause) {
-    assetFormError.value = cause instanceof Error ? cause.message : String(cause)
+  if (!input.name && !input.address) {
+    assetFormError.value = '至少填写资产名称或地址。'
     return
   }
   assetWritebackBusy.value = true
   try {
-    const workspace = await invokeCommand<VulnProjection>('ensure_vuln_tracking_workspace', {
-      request: {
-        cveId: selected.id,
-        title: selected.title,
-        summary: selected.summary,
-        referenceHref: selected.references[0]?.href || '',
-      },
-    })
+    const workspace = await ensureSelectedRuntimeProjection()
     const projection = await invokeCommand<VulnProjection>('record_vuln_asset_verification', {
       id: workspace.job.id,
       request: {
@@ -200,9 +214,12 @@ async function addSelectedAssetRecord() {
         summary: '用户确认该资产进入影响检查；本记录不声明已复现或可被利用。',
       },
     })
-    assetFormNotice.value = `已加入资产，并写入正式研究档案 ${projection.job.id}（${projection.assetVerifications.length} 条资产验证）。`
+    dashboard.setRuntimeProjection(selected.id, projection)
+    showAssetForm.value = false
+    assetForm.value = { name: '', address: '', environment: '' }
+    assetFormNotice.value = `已写入正式研究档案 ${projection.job.id}（${projection.assetVerifications.length} 条资产验证）。`
   } catch (cause) {
-    assetFormError.value = `已保存到本机资产列表；正式研究档案写入失败：${cause instanceof Error ? cause.message : String(cause)}`
+    assetFormError.value = `资产未保存：${cause instanceof Error ? cause.message : String(cause)}`
   } finally {
     assetWritebackBusy.value = false
   }
@@ -216,36 +233,10 @@ async function importCodingConclusion() {
     codingConclusionError.value = '请先粘贴已经由用户核对过的 Coding 结论。'
     return
   }
-  const summary = raw
-    .split(/\r?\n/)
-    .map(line => line.replace(/^[-*#\s]+/, '').trim())
-    .find(Boolean)
-    ?.slice(0, 240)
-    || '已导入 Coding 研究结论，待继续核对。'
-  const existing = dashboard.researchNoteFor.value
-  const stamp = new Date().toLocaleString()
   const selected = dashboard.selected.value
-  dashboard.updateResearchNote(selected.id, {
-    keyFindings: existing.keyFindings.trim()
-      ? `${existing.keyFindings.trim()}\n${summary}`
-      : summary,
-    notes: [
-      existing.notes.trim(),
-      `[${stamp}] Coding 结论回写（用户粘贴/确认）：\n${raw}`,
-    ].filter(Boolean).join('\n\n'),
-  })
-  codingConclusionText.value = ''
-  showCodingConclusionForm.value = false
   codingConclusionWritebackBusy.value = true
   try {
-    const workspace = await invokeCommand<VulnProjection>('ensure_vuln_tracking_workspace', {
-      request: {
-        cveId: selected.id,
-        title: selected.title,
-        summary: selected.summary,
-        referenceHref: selected.references[0]?.href || '',
-      },
-    })
+    const workspace = await ensureSelectedRuntimeProjection()
     const projection = await invokeCommand<VulnProjection>('record_vuln_learning', {
       id: workspace.job.id,
       request: {
@@ -254,13 +245,44 @@ async function importCodingConclusion() {
         concept: selected.id,
       },
     })
-    dashboard.markResearchNoteWorkspace(selected.id, projection.job.id, projection.learning.length)
-    codingConclusionNotice.value = `已导入到研究笔记，并写入正式研究档案 ${projection.job.id}（${projection.learning.length} 条学习记录）。`
+    dashboard.setRuntimeProjection(selected.id, projection)
+    codingConclusionText.value = ''
+    showCodingConclusionForm.value = false
+    codingConclusionNotice.value = `已写入正式研究档案 ${projection.job.id}（${projection.learning.length} 条学习记录）。`
   } catch (cause) {
-    codingConclusionError.value = `已保存到本机研究笔记；正式研究档案写入失败：${cause instanceof Error ? cause.message : String(cause)}`
-    codingConclusionNotice.value = '已导入到研究笔记；请保留可核对材料链接，避免把 Agent 推测当成事实。'
+    codingConclusionError.value = `结论未保存：${cause instanceof Error ? cause.message : String(cause)}`
   } finally {
     codingConclusionWritebackBusy.value = false
+  }
+}
+
+async function submitResearchDraft() {
+  researchDraftError.value = ''
+  researchDraftNotice.value = ''
+  const selected = dashboard.selected.value
+  const draft = dashboard.researchNoteFor.value
+  const content = [
+    draft.keyFindings.trim() ? `关键结论：\n${draft.keyFindings.trim()}` : '',
+    draft.notes.trim() ? `学习笔记：\n${draft.notes.trim()}` : '',
+  ].filter(Boolean).join('\n\n')
+  if (!content) {
+    researchDraftError.value = '请先填写要提交的关键结论或学习笔记。'
+    return
+  }
+  researchDraftWritebackBusy.value = true
+  try {
+    const workspace = await ensureSelectedRuntimeProjection()
+    const projection = await invokeCommand<VulnProjection>('record_vuln_learning', {
+      id: workspace.job.id,
+      request: { kind: 'reflection', content, concept: selected.id },
+    })
+    dashboard.setRuntimeProjection(selected.id, projection)
+    dashboard.updateResearchNote(selected.id, { keyFindings: '', notes: '' })
+    researchDraftNotice.value = `已提交到正式研究档案 ${projection.job.id}。`
+  } catch (cause) {
+    researchDraftError.value = `草稿未提交：${cause instanceof Error ? cause.message : String(cause)}`
+  } finally {
+    researchDraftWritebackBusy.value = false
   }
 }
 
@@ -1137,6 +1159,9 @@ function statusVariant(status: VulnerabilityStatus) {
         </section>
 
         <section ref="notesWorkspace" class="mt-5 rounded-xl border border-border bg-background px-5 py-5">
+          <p v-if="archiveLoadError" class="mb-3 text-caption text-destructive">
+            正式研究档案读取失败：{{ archiveLoadError }}
+          </p>
           <div class="flex items-center justify-between gap-3">
             <h3 class="text-label font-medium">受影响资产（{{ dashboard.selected.value.assets.length }}）</h3>
             <Button
@@ -1317,7 +1342,7 @@ function statusVariant(status: VulnerabilityStatus) {
               <Badge
                 :variant="dashboard.researchNoteFor.value.notes || dashboard.researchNoteFor.value.keyFindings ? 'success' : 'outline'"
               >
-                {{ dashboard.researchNoteFor.value.notes || dashboard.researchNoteFor.value.keyFindings ? '已记录' : '未记录' }}
+                {{ dashboard.researchNoteFor.value.notes || dashboard.researchNoteFor.value.keyFindings ? '有未提交草稿' : '无草稿' }}
               </Badge>
               <Button
                 variant="outline"
@@ -1339,7 +1364,7 @@ function statusVariant(status: VulnerabilityStatus) {
             @submit.prevent="importCodingConclusion"
           >
             <p class="text-caption leading-5 text-muted-foreground">
-              粘贴 Coding Agent 完成后的摘要、材料链接或影响检查结论；这里仅作为用户确认后的学习笔记，不自动提升用户能力画像。
+              粘贴 Coding Agent 完成后的摘要、材料链接或影响检查结论；用户确认后直接写入 Runtime 正式学习记录，不自动提升用户能力画像。
             </p>
             <Textarea
               v-model="codingConclusionText"
@@ -1350,7 +1375,7 @@ function statusVariant(status: VulnerabilityStatus) {
             <p v-if="codingConclusionError" class="mt-2 text-caption text-destructive">{{ codingConclusionError }}</p>
             <div class="mt-3 flex items-center gap-2">
               <Button type="submit" size="sm" :loading="codingConclusionWritebackBusy">
-                导入到笔记
+                写入正式档案
               </Button>
               <Button type="button" variant="ghost" size="sm" :disabled="codingConclusionWritebackBusy" @click="showCodingConclusionForm = false">
                 取消
@@ -1364,18 +1389,29 @@ function statusVariant(status: VulnerabilityStatus) {
             {{ historyNoteNotice }}
           </p>
           <p
-            v-if="dashboard.researchNoteFor.value.workspaceJobId"
+            v-if="dashboard.runtimeProjectionFor.value"
             class="mt-3 text-caption leading-5 text-muted-foreground"
           >
-            正式研究档案：{{ dashboard.researchNoteFor.value.workspaceJobId }}
-            · {{ dashboard.researchNoteFor.value.workspaceLearningCount ?? 0 }} 条学习记录
-            <span v-if="dashboard.researchNoteFor.value.workspaceSyncedAt">
-              · {{ new Date(dashboard.researchNoteFor.value.workspaceSyncedAt).toLocaleString() }}
-            </span>
+            正式研究档案：{{ dashboard.runtimeProjectionFor.value.job.id }}
+            · {{ dashboard.runtimeProjectionFor.value.learning.length }} 条学习记录
+            · {{ dashboard.runtimeProjectionFor.value.assetVerifications.length }} 条资产验证
           </p>
+          <div
+            v-if="dashboard.runtimeProjectionFor.value?.learning.length"
+            class="mt-3 space-y-2 rounded-lg border border-border bg-muted/20 p-3"
+          >
+            <p class="text-caption font-medium text-muted-foreground">正式学习记录</p>
+            <p
+              v-for="record in dashboard.runtimeProjectionFor.value.learning"
+              :key="record.id"
+              class="whitespace-pre-wrap text-caption leading-5"
+            >
+              {{ record.content }}
+            </p>
+          </div>
           <div class="mt-4 space-y-3">
             <label class="block">
-              <span class="text-caption font-medium text-muted-foreground">关键结论</span>
+              <span class="text-caption font-medium text-muted-foreground">关键结论草稿</span>
               <Textarea
                 :model-value="dashboard.researchNoteFor.value.keyFindings"
                 class="mt-2 min-h-20 resize-y"
@@ -1385,7 +1421,7 @@ function statusVariant(status: VulnerabilityStatus) {
               />
             </label>
             <label class="block">
-              <span class="text-caption font-medium text-muted-foreground">学习笔记</span>
+              <span class="text-caption font-medium text-muted-foreground">学习笔记草稿</span>
               <Textarea
                 :model-value="dashboard.researchNoteFor.value.notes"
                 class="mt-2 min-h-24 resize-y"
@@ -1395,8 +1431,18 @@ function statusVariant(status: VulnerabilityStatus) {
               />
             </label>
           </div>
+          <p v-if="researchDraftError" class="mt-3 text-caption text-destructive">{{ researchDraftError }}</p>
+          <p v-if="researchDraftNotice" class="mt-3 text-caption text-success">{{ researchDraftNotice }}</p>
+          <Button
+            class="mt-3"
+            size="sm"
+            :loading="researchDraftWritebackBusy"
+            @click="submitResearchDraft"
+          >
+            提交草稿到正式档案
+          </Button>
           <p class="mt-3 text-caption leading-5 text-muted-foreground">
-            {{ dashboard.researchNoteFor.value.updatedAt ? `最近保存：${new Date(dashboard.researchNoteFor.value.updatedAt).toLocaleString()}` : '填写后自动保存到本机。' }}
+            {{ dashboard.researchNoteFor.value.updatedAt ? `本机草稿最近保存：${new Date(dashboard.researchNoteFor.value.updatedAt).toLocaleString()}` : '输入只作为未提交草稿保存在本机；正式结论以 Runtime 档案为准。' }}
           </p>
         </section>
 

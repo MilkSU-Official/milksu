@@ -63,7 +63,7 @@ ADR、Review 和 Checkpoint 记录当时为什么这样决定，不会因为后�
   ImageGen、Computer Use、PR、Session Index 和 worktree 也已有不同程度的工程主链或真实
   打包验收。真实外部 Provider/更广系统权限矩阵和最终长期自举 Gate 仍未完成，不能把这些
   写成整体替代成功。
-- Managed Labs 当前暂停。工作区里的 Lab Manager / WebGoat 实验不能进入当前产品声明。
+- Managed Labs 当前暂停，生产代码、Wails 入口和打包资源已移除；长期设计不能进入当前产品声明。
 - NYU CTF Bench 的只读元数据、Admission、DeepSeek one-shot Runner、两回合 Pi 只读
   Agent Runtime 和摘要 Judge 是 **Implemented / Verified for the narrow baseline**。
   Agent Runtime 当前只有 5 个手选 static 样本：2 solved、1 unsolved、1 无效 JSON、

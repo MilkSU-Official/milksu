@@ -2,7 +2,7 @@
 
 > 状态：Current / Living
 >
-> 最后事实审计：2026-08-06
+> 最后事实审计：2026-08-09
 >
 > 产品开发目标：Post-M3 product-loop merge；下一批次从当前目标、代码和测试事实选择
 
@@ -31,13 +31,16 @@
   已存在；NSSCTF P3879 有一条真实 `correct=true`，但六赛道仍只有 Web 窄路径通过。
 - 动态 Endpoint 和精确 HTTP/TCP/SSH Scope 主链已落地，后续只在真实赛道中保持回归；
   不能恢复旧的 Endpoint 开发计划。
-- Memory 已有归属模型和相关/无关/当前题召回自动化，尚缺真实轨迹校准和用户可解释闭环。
+- Memory 已有归属模型和相关/无关/当前题召回自动化；actor / assistance 现已直接持久化并跨重启保持一致，旧无归因 pre-release 数据不迁移。尚缺真实轨迹校准和用户可解释闭环。
 - Runtime Reliability fixture 已覆盖多轮工具、Sidecar 恢复、Compaction、超时/取消、预算、
   失败分类、异常退出标记和打包 App/WebView 后台长任务恢复；交互式 PTY 重连、更多真实长任务
   和发行级恢复矩阵仍未通过。
 - 模型与凭据设置已经从多路由编排收敛为单默认模型；DeepSeek V4 Flash 是默认日常模型，
   TokenFlux 是一等中转站入口，旧 fast/deep 按角色路由与 Kimi/KouriChat 产品入口不再作为
-  当前系统能力维护。
+  当前系统能力维护；Coding、CTF 和 sub-agent Sidecar 共用同一份当前 Provider 注册。
+- CVE 正式资产验证和学习记录只来自 Vuln Runtime；localStorage 只保存未提交草稿和纯 UI 偏好。
+- WebView 已撤出假桌面后端；无 Wails Runtime 时命令直接失败。Session Index 只索引 MilkSU 自有历史，
+  无产品调用者的多格式外部会话导入已撤出发行图。
 - UI 基线已包含全局 rail 主题切换：夜间灰绿色安全工作台与日间浅灰绿实验室共享同一语义
   token，左下主题和设置入口使用纯图标控制，rail 悬浮不改变边框颜色，状态持久化到本机；
   后续视觉调整仍需同步测试与当前文档。
@@ -45,7 +48,7 @@
   成绩。
 - 本地备份、恢复、脱敏诊断和单机交付基线已存在；Developer ID、公证、升级和新机器安装
   属于后期 Release Candidate。
-- Lab 为 `Paused / Designed`，不进入当前完成条件。CVE 已有学习/追踪 MVP；CVE 纵深研究、
+- Lab 为 `Paused / Designed`，生产代码、Wails 入口和打包资源均已移除，不进入当前完成条件。CVE 已有学习/追踪 MVP；CVE 纵深研究、
   真实漏洞复现、外部资产实验和披露流程仍后置。
 
 不再维护动态百分比台账；实现进展以当前代码、测试、Git 历史和真实验收为准。

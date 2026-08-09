@@ -11,11 +11,9 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -238,7 +236,6 @@ func FetchFeedSnapshot(
 	sourceName string,
 	sourceURL string,
 ) (FeedSnapshotDownload, error) {
-	usesDefaultClient := client == nil
 	if client == nil {
 		client = &http.Client{Timeout: 20 * time.Second}
 	}
@@ -253,14 +250,6 @@ func FetchFeedSnapshot(
 		return FeedSnapshotDownload{}, fmt.Errorf("create vulnerability feed request: URL host is required")
 	}
 	sourceURL = parsedURL.String()
-	var curlFallbackErr error
-	if usesDefaultClient {
-		if fallback, err := fetchFeedSnapshotWithCurl(ctx, sourceName, sourceURL); err == nil {
-			return fallback, nil
-		} else {
-			curlFallbackErr = err
-		}
-	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, sourceURL, nil)
 	if err != nil {
 		return FeedSnapshotDownload{}, fmt.Errorf("create vulnerability feed request: %w", err)
@@ -270,11 +259,6 @@ func FetchFeedSnapshot(
 
 	response, err := client.Do(request)
 	if err != nil {
-		if usesDefaultClient {
-			if curlFallbackErr != nil {
-				return FeedSnapshotDownload{}, fmt.Errorf("fetch vulnerability feed: %w; curl fallback: %v", err, curlFallbackErr)
-			}
-		}
 		return FeedSnapshotDownload{}, fmt.Errorf("fetch vulnerability feed: %w", err)
 	}
 	defer response.Body.Close()
@@ -306,99 +290,6 @@ func FetchFeedSnapshot(
 		ContentType:  contentType,
 		Body:         string(body),
 	}, nil
-}
-
-func fetchFeedSnapshotWithCurl(
-	ctx context.Context,
-	sourceName string,
-	sourceURL string,
-) (FeedSnapshotDownload, error) {
-	if _, err := exec.LookPath("/usr/bin/curl"); err != nil {
-		return FeedSnapshotDownload{}, fmt.Errorf("curl fallback unavailable: %w", err)
-	}
-	headerFile, err := os.CreateTemp("", "milksu-vuln-feed-headers-*.txt")
-	if err != nil {
-		return FeedSnapshotDownload{}, fmt.Errorf("create curl header capture: %w", err)
-	}
-	headerPath := headerFile.Name()
-	_ = headerFile.Close()
-	defer func() { _ = os.Remove(headerPath) }()
-
-	command := exec.CommandContext(ctx, "/usr/bin/curl",
-		"--fail",
-		"--location",
-		"--silent",
-		"--show-error",
-		"--proto", "=http,https",
-		"--max-time", "60",
-		"--connect-timeout", "20",
-		"--max-filesize", strconv.Itoa(maxFeedBytes),
-		"--dump-header", headerPath,
-		"--header", "Accept: application/json",
-		"--header", "User-Agent: MilkSU-CVE-Learning/0.1",
-		sourceURL,
-	)
-	body, err := command.Output()
-	if err != nil {
-		return FeedSnapshotDownload{}, fmt.Errorf("curl public JSON feed request failed: %w", err)
-	}
-	if len(body) > maxFeedBytes {
-		return FeedSnapshotDownload{}, fmt.Errorf("curl public JSON feed payload exceeds %d bytes", maxFeedBytes)
-	}
-	headerBytes, err := os.ReadFile(headerPath)
-	if err != nil {
-		return FeedSnapshotDownload{}, fmt.Errorf("read curl header capture: %w", err)
-	}
-	status, header := parseCurlHeaderCapture(string(headerBytes))
-	contentType := header.Get("Content-Type")
-	if status != 0 && (status < 200 || status >= 300) {
-		return FeedSnapshotDownload{}, fmt.Errorf("curl public JSON feed returned HTTP %d", status)
-	}
-	if mediaType, _, err := mime.ParseMediaType(contentType); err == nil {
-		if !strings.Contains(strings.ToLower(mediaType), "json") {
-			return FeedSnapshotDownload{}, fmt.Errorf("curl public JSON feed: unexpected content type %q", contentType)
-		}
-	}
-	return FeedSnapshotDownload{
-		SourceName:   sourceName,
-		SourceURL:    sourceURL,
-		RetrievedAt:  retrievedAtFromHeaders(header),
-		LastModified: header.Get("Last-Modified"),
-		HTTPStatus:   status,
-		ContentType:  contentType,
-		Body:         string(body),
-	}, nil
-}
-
-func parseCurlHeaderCapture(raw string) (int, http.Header) {
-	header := http.Header{}
-	status := 0
-	blocks := regexp.MustCompile(`\r?\n\r?\n`).Split(raw, -1)
-	for index := len(blocks) - 1; index >= 0; index-- {
-		block := strings.TrimSpace(blocks[index])
-		if block == "" {
-			continue
-		}
-		lines := regexp.MustCompile(`\r?\n`).Split(block, -1)
-		if len(lines) == 0 || !strings.HasPrefix(strings.ToUpper(lines[0]), "HTTP/") {
-			continue
-		}
-		fields := strings.Fields(lines[0])
-		if len(fields) >= 2 {
-			if parsed, err := strconv.Atoi(fields[1]); err == nil {
-				status = parsed
-			}
-		}
-		for _, line := range lines[1:] {
-			name, value, ok := strings.Cut(line, ":")
-			if !ok {
-				continue
-			}
-			header.Add(strings.TrimSpace(name), strings.TrimSpace(value))
-		}
-		break
-	}
-	return status, header
 }
 
 // PersistFeedSnapshot stores the exact public JSON payload under MilkSU's app
@@ -518,27 +409,14 @@ func fetchGitHubJSON[T any](
 	sourceURL string,
 ) (T, http.Header, error) {
 	var zero T
-	usesDefaultClient := client == nil
 	if client == nil {
 		client = &http.Client{Timeout: 20 * time.Second}
 	}
-	if usesDefaultClient {
-		download, err := fetchFeedSnapshotWithCurl(ctx, "GitHub JSON", sourceURL)
-		if err == nil {
-			var decoded T
-			if decodeErr := json.Unmarshal([]byte(download.Body), &decoded); decodeErr != nil {
-				return zero, nil, fmt.Errorf("decode GitHub JSON: %w", decodeErr)
-			}
-			header := http.Header{}
-			if download.ContentType != "" {
-				header.Set("Content-Type", download.ContentType)
-			}
-			if download.LastModified != "" {
-				header.Set("Last-Modified", download.LastModified)
-			}
-			return decoded, header, nil
-		}
+	parsedURL, err := url.Parse(strings.TrimSpace(sourceURL))
+	if err != nil || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") || parsedURL.Host == "" {
+		return zero, nil, fmt.Errorf("create GitHub request: invalid http(s) URL")
 	}
+	sourceURL = parsedURL.String()
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, sourceURL, nil)
 	if err != nil {
 		return zero, nil, fmt.Errorf("create GitHub request: %w", err)
@@ -553,6 +431,11 @@ func fetchGitHubJSON[T any](
 	defer response.Body.Close()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return zero, response.Header, fmt.Errorf("fetch GitHub JSON: unexpected HTTP %d", response.StatusCode)
+	}
+	contentType := response.Header.Get("Content-Type")
+	if mediaType, _, parseErr := mime.ParseMediaType(contentType); parseErr == nil &&
+		!strings.Contains(strings.ToLower(mediaType), "json") {
+		return zero, response.Header, fmt.Errorf("fetch GitHub JSON: unexpected content type %q", contentType)
 	}
 	limited := io.LimitReader(response.Body, maxFeedBytes+1)
 	body, err := io.ReadAll(limited)

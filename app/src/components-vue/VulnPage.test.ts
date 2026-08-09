@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import VulnPage from './VulnPage.vue'
 import VulnerabilityIntelSettingsPanel from './VulnerabilityIntelSettingsPanel.vue'
 import { useVulnerabilityDashboard } from '@/composables/useVulnerabilityDashboard'
+import type { VulnProjection } from '@/vulnTypes'
 
 const mountedApps: App[] = []
 const storage = new Map<string, string>()
@@ -141,6 +142,112 @@ function installSessionHistoryRuntime() {
           messageCount: 1,
           toolCallCount: 1,
         })),
+      },
+    },
+  }
+}
+
+function createVulnProjection(cveId: string, title = cveId): VulnProjection {
+  const now = '2026-08-09T04:30:00Z'
+  return {
+    contractVersion: 'vuln.milksu.dev/v1alpha1',
+    job: {
+      id: `vuln-${cveId.toLowerCase()}`,
+      title,
+      role: 'vulnerability-researcher',
+      collaborationMode: 'supervised',
+      status: 'running',
+      createdAt: now,
+      updatedAt: now,
+    },
+    target: {
+      id: cveId,
+      name: title,
+      version: '',
+      component: '',
+      fixture: '',
+      collaborationMode: 'supervised',
+      scope: {
+        id: `scope-${cveId.toLowerCase()}`,
+        source: 'user',
+        purpose: 'test projection',
+        targets: [],
+        grantedBy: 'user',
+        createdAt: now,
+        expiresAt: '',
+        revocable: true,
+      },
+      sourceArtifactId: '',
+      readmeArtifactId: '',
+      admittedAt: now,
+    },
+    hypotheses: [],
+    experiments: [],
+    artifacts: [],
+    evidence: [],
+    evaluations: [],
+    learning: [],
+    assetVerifications: [],
+    humanOutcome: {
+      goal: '',
+      reflectionCount: 0,
+      independentSteps: 0,
+      variantCount: 0,
+      summary: '',
+    },
+    events: [],
+  }
+}
+
+function installVulnRuntime() {
+  let projection = createVulnProjection('CVE-2024-3400')
+  ;(window as unknown as { go?: { main?: { App?: Record<string, unknown> } } }).go = {
+    main: {
+      App: {
+        EnsureVulnTrackingWorkspace: vi.fn(async (request: { cveId: string; title: string }) => {
+          if (projection.target.id !== request.cveId) {
+            projection = createVulnProjection(request.cveId, request.title)
+          }
+          return projection
+        }),
+        RecordVulnLearning: vi.fn(async (_id: string, request: {
+          kind: 'reflection' | 'independent_step' | 'variant'
+          content: string
+          concept?: string
+        }) => {
+          projection = {
+            ...projection,
+            learning: [...projection.learning, {
+              id: `learning-${projection.learning.length + 1}`,
+              kind: request.kind,
+              content: request.content,
+              concept: request.concept,
+              createdAt: '2026-08-09T04:31:00Z',
+            }],
+          }
+          return projection
+        }),
+        RecordVulnAssetVerification: vi.fn(async (_id: string, request: {
+          name: string
+          address: string
+          environment: string
+          status?: 'needs_review' | 'affected' | 'not_affected' | 'mitigated'
+          summary?: string
+        }) => {
+          projection = {
+            ...projection,
+            assetVerifications: [...projection.assetVerifications, {
+              id: `asset-${projection.assetVerifications.length + 1}`,
+              name: request.name,
+              address: request.address,
+              environment: request.environment,
+              status: request.status ?? 'needs_review',
+              summary: request.summary,
+              recordedAt: '2026-08-09T04:31:00Z',
+            }],
+          }
+          return projection
+        }),
       },
     },
   }
@@ -931,7 +1038,7 @@ describe('VulnPage', () => {
     expect(dashboard.practiceEnvironmentCount.value).toBe(1)
   })
 
-  it('persists user-confirmed research notes for the selected CVE', async () => {
+  it('persists explicitly unsubmitted research drafts for the selected CVE', async () => {
     const host = await mountVulnPage()
     await openCveResearch(host)
     const byLabel = (label: string) => {
@@ -945,7 +1052,7 @@ describe('VulnPage', () => {
     await setInput(byLabel('CVE 关键结论'), '确认影响范围后再交给 Coding Agent 做只读版本检查。')
     await setInput(byLabel('CVE 学习笔记'), '已阅读公告，暂不运行 PoC，下一步核对依赖和补丁。')
 
-    expect(host.textContent).toContain('已记录')
+    expect(host.textContent).toContain('有未提交草稿')
     await unmountAll()
 
     const remounted = await mountVulnPage()
@@ -987,6 +1094,7 @@ describe('VulnPage', () => {
   })
 
   it('imports user-confirmed Coding conclusions back into CVE research notes', async () => {
+    installVulnRuntime()
     const { host, tasks, handoffRecorders } = await mountVulnPageWithCodingTaskSink()
     const activeMqRow = [...host.querySelectorAll<HTMLTableRowElement>('tr')].find(item =>
       item.textContent?.includes('CVE-2023-46604'),
@@ -1023,23 +1131,23 @@ describe('VulnPage', () => {
     ].join('\n'))
 
     const submit = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
-      item.textContent?.includes('导入到笔记'),
+      item.textContent?.includes('写入正式档案'),
     )
     if (!submit) throw new Error('missing Coding conclusion submit')
     submit.click()
     await flushAsyncUpdates()
 
-    expect(host.textContent).toContain('已导入到研究笔记')
+    expect(host.textContent).toContain('已写入正式研究档案')
     expect(host.textContent).toContain('正式研究档案')
     expect(host.textContent).toContain('1 条学习记录')
     expect(host.textContent).toContain('复制证据摘要')
-    const textareas = [...host.querySelectorAll<HTMLTextAreaElement>('textarea')]
-    expect(textareas.some(item => item.value.includes('已核对 Apache advisory 和补丁版本范围。'))).toBe(true)
-    expect(textareas.some(item => item.value.includes('Coding 结论回写（用户粘贴/确认）'))).toBe(true)
-    expect(textareas.some(item => item.value.includes('未发现 ActiveMQ 依赖'))).toBe(true)
+    expect(host.textContent).toContain('正式学习记录')
+    expect(host.textContent).toContain('已核对 Apache advisory 和补丁版本范围。')
+    expect(host.textContent).toContain('未发现 ActiveMQ 依赖')
   })
 
   it('lets the user attach a local asset hit to a tracked CVE', async () => {
+    installVulnRuntime()
     const host = await mountVulnPage()
     await openCveResearch(host)
     const openAssetForm = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
@@ -1065,12 +1173,13 @@ describe('VulnPage', () => {
     )
     if (!submit) throw new Error('missing submit asset button')
     submit.click()
-    await nextTick()
+    await flushAsyncUpdates()
 
     expect(host.textContent).toContain('受影响资产（4）')
     expect(host.textContent).toContain('vpn-prod-user-confirmed')
     expect(host.textContent).toContain('10.88.0.12')
     expect(host.textContent).toContain('用户本地资产清单')
+    expect(host.textContent).toContain('已写入正式研究档案')
     expect(host.textContent).toContain('研究中')
   })
 

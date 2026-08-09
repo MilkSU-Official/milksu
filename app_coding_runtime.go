@@ -9,12 +9,6 @@ import (
 	"github.com/MilkSU-Official/milksu/internal/engine"
 )
 
-func (a *App) GetRuntimeStatus(conversationID string) engine.RuntimeStatus {
-	return a.enrichRuntimeStatus(
-		a.engines.StatusForSession(conversationID),
-	)
-}
-
 func (a *App) RefreshCodingBackgroundTasks(
 	conversationID,
 	workspacePath,

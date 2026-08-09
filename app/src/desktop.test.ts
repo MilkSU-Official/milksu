@@ -229,10 +229,10 @@ describe('desktop command adapter', () => {
     )
   })
 
-  it('does not pretend browser preview can reveal CVE feed snapshots in Finder', async () => {
+  it('rejects product commands when the desktop runtime is absent', async () => {
     await expect(invokeCommand('reveal_vulnerability_feed_snapshot', {
       snapshotPath: '/tmp/feed.json',
-    })).rejects.toThrow('MilkSU 桌面运行时')
+    })).rejects.toThrow('MilkSU desktop runtime is unavailable')
   })
 
   it('passes CVE practice directory selection and lifecycle to Wails', async () => {
@@ -291,16 +291,6 @@ describe('desktop command adapter', () => {
     expect(stopVulnerabilityPractice).toHaveBeenCalledWith(request)
   })
 
-  it('does not pretend browser preview can start CVE practice containers', async () => {
-    await expect(invokeCommand('start_vulnerability_practice', {
-      request: {
-        cveId: 'CVE-2023-46604',
-        environmentId: 'vulhub-cve-2023-46604',
-        directory: '/tmp/vulhub/activemq/CVE-2023-46604',
-      },
-    })).rejects.toThrow('MilkSU 桌面运行时')
-  })
-
   it('passes Session Index status, refresh, and history search to Wails', async () => {
     const status = {
       available: true,
@@ -338,16 +328,6 @@ describe('desktop command adapter', () => {
     const getSessionIndexStatus = vi.fn(async () => status)
     const refreshSessionIndex = vi.fn(async () => refresh)
     const searchSessionHistory = vi.fn(async () => searchResponse)
-    const importExternalSessionHistory = vi.fn(async () => ({
-      importedAt: '2026-08-04T09:33:00Z',
-      indexPath: status.indexPath,
-      source: 'codex',
-      path: '/tmp/codex-history.jsonl',
-      sessionCount: 1,
-      messageCount: 2,
-      toolCallCount: 1,
-      skippedLineCount: 0,
-    }))
     Object.defineProperty(window, 'go', {
       configurable: true,
       value: {
@@ -356,7 +336,6 @@ describe('desktop command adapter', () => {
             GetSessionIndexStatus: getSessionIndexStatus,
             RefreshSessionIndex: refreshSessionIndex,
             SearchSessionHistory: searchSessionHistory,
-            ImportExternalSessionHistory: importExternalSessionHistory,
           },
         },
       },
@@ -367,18 +346,6 @@ describe('desktop command adapter', () => {
     await expect(invokeCommand('search_session_history', {
       request: { query: 'Computer Use', module: 'coding', limit: 4 },
     })).resolves.toBe(searchResponse)
-    await expect(invokeCommand('import_external_session_history', {
-      request: {
-        source: 'codex',
-        path: '/tmp/codex-history.jsonl',
-        project: 'milksu',
-        projectPath: '/Users/milksu/code/milksu',
-      },
-    })).resolves.toMatchObject({
-      source: 'codex',
-      sessionCount: 1,
-      messageCount: 2,
-    })
     expect(getSessionIndexStatus).toHaveBeenCalledOnce()
     expect(refreshSessionIndex).toHaveBeenCalledOnce()
     expect(searchSessionHistory).toHaveBeenCalledWith({
@@ -386,29 +353,6 @@ describe('desktop command adapter', () => {
       module: 'coding',
       limit: 4,
     })
-    expect(importExternalSessionHistory).toHaveBeenCalledWith({
-      source: 'codex',
-      path: '/tmp/codex-history.jsonl',
-      project: 'milksu',
-      projectPath: '/Users/milksu/code/milksu',
-    })
-  })
-
-  it('does not ask browser preview users to install Obelisk for Session Index commands', async () => {
-    await expect(invokeCommand('get_session_index_status')).resolves.toMatchObject({
-      available: false,
-      mode: 'browser-preview',
-      reason: '打包 App 中会自动维护本机历史。',
-    })
-    await expect(invokeCommand('search_session_history', {
-      request: { query: 'CVE-2024-3400', module: 'cve' },
-    })).resolves.toMatchObject({
-      query: 'CVE-2024-3400',
-      results: [],
-    })
-    await expect(invokeCommand('import_external_session_history', {
-      request: { source: 'codex', path: '/tmp/codex-history.jsonl' },
-    })).rejects.toThrow('请在 MilkSU 桌面应用中导入外部历史。')
   })
 
   it('passes Coding background task refresh policy to Wails unchanged', async () => {
@@ -579,176 +523,6 @@ describe('desktop command adapter', () => {
       '/workspace/milksu',
       'docs/demo.html',
     )
-  })
-
-  it('routes Coding artifact preview WebView smoke only through Wails', async () => {
-    const request = {
-      enabled: true,
-      workspace: '/workspace/milksu',
-      relativePath: 'reports/dangerous.html',
-    }
-    const getRequest = vi.fn(async () => request)
-    const complete = vi.fn(async () => undefined)
-    Object.defineProperty(window, 'go', {
-      configurable: true,
-      value: {
-        main: {
-          App: {
-            GetCodingArtifactPreviewWebViewSmokeRequest: getRequest,
-            CompleteCodingArtifactPreviewWebViewSmoke: complete,
-          },
-        },
-      },
-    })
-
-    await expect(invokeCommand('get_coding_artifact_preview_webview_smoke_request'))
-      .resolves.toBe(request)
-    await expect(invokeCommand('complete_coding_artifact_preview_webview_smoke', {
-      report: {
-        workspace: '/workspace/milksu',
-        relativePath: 'reports/dangerous.html',
-        gates: { iframeSandboxPresent: true },
-      },
-    })).resolves.toBeUndefined()
-
-    expect(getRequest).toHaveBeenCalledOnce()
-    expect(complete).toHaveBeenCalledWith({
-      workspace: '/workspace/milksu',
-      relativePath: 'reports/dangerous.html',
-      gates: { iframeSandboxPresent: true },
-    })
-  })
-
-  it('does not pretend browser preview can run the WebView artifact smoke', async () => {
-    await expect(invokeCommand('get_coding_artifact_preview_webview_smoke_request'))
-      .resolves.toEqual({ enabled: false })
-    await expect(invokeCommand('complete_coding_artifact_preview_webview_smoke', {
-      report: {},
-    })).rejects.toThrow('MilkSU 桌面运行时')
-  })
-
-  it('routes CVE learning writeback WebView smoke only through Wails', async () => {
-    const request = {
-      enabled: true,
-      cveId: 'CVE-2023-46604',
-      conclusion: 'User-confirmed UI smoke note.',
-    }
-    const getRequest = vi.fn(async () => request)
-    const complete = vi.fn(async () => undefined)
-    Object.defineProperty(window, 'go', {
-      configurable: true,
-      value: {
-        main: {
-          App: {
-            GetVulnerabilityLearningWritebackWebViewSmokeRequest: getRequest,
-            CompleteVulnerabilityLearningWritebackWebViewSmoke: complete,
-          },
-        },
-      },
-    })
-
-    await expect(invokeCommand('get_vulnerability_learning_writeback_webview_smoke_request'))
-      .resolves.toBe(request)
-    await expect(invokeCommand('complete_vulnerability_learning_writeback_webview_smoke', {
-      report: {
-        cveId: 'CVE-2023-46604',
-        workspaceJobId: 'job_smoke',
-        gates: { learningProjected: true },
-      },
-    })).resolves.toBeUndefined()
-
-    expect(getRequest).toHaveBeenCalledOnce()
-    expect(complete).toHaveBeenCalledWith({
-      cveId: 'CVE-2023-46604',
-      workspaceJobId: 'job_smoke',
-      gates: { learningProjected: true },
-    })
-  })
-
-  it('routes CVE asset verification WebView smoke only through Wails', async () => {
-    const request = {
-      enabled: true,
-      cveId: 'CVE-2023-46604',
-      assetName: 'packaged-smoke-asset',
-      address: 'tcp://127.0.0.1:61616',
-      environment: 'isolated-local',
-    }
-    const getRequest = vi.fn(async () => request)
-    const complete = vi.fn(async () => undefined)
-    Object.defineProperty(window, 'go', {
-      configurable: true,
-      value: {
-        main: {
-          App: {
-            GetVulnerabilityAssetVerificationWebViewSmokeRequest: getRequest,
-            CompleteVulnerabilityAssetVerificationWebViewSmoke: complete,
-          },
-        },
-      },
-    })
-
-    await expect(invokeCommand('get_vulnerability_asset_verification_webview_smoke_request'))
-      .resolves.toBe(request)
-    await expect(invokeCommand('complete_vulnerability_asset_verification_webview_smoke', {
-      report: {
-        cveId: 'CVE-2023-46604',
-        workspaceJobId: 'job_smoke',
-        gates: { assetProjected: true },
-      },
-    })).resolves.toBeUndefined()
-
-    expect(getRequest).toHaveBeenCalledOnce()
-    expect(complete).toHaveBeenCalledWith({
-      cveId: 'CVE-2023-46604',
-      workspaceJobId: 'job_smoke',
-      gates: { assetProjected: true },
-    })
-  })
-
-  it('routes CVE practice directory WebView smoke only through Wails', async () => {
-    const request = {
-      enabled: true,
-      cveId: 'CVE-2023-46604',
-      directoryBasename: 'CVE-2023-46604',
-    }
-    const getRequest = vi.fn(async () => request)
-    const complete = vi.fn(async () => undefined)
-    Object.defineProperty(window, 'go', {
-      configurable: true,
-      value: {
-        main: {
-          App: {
-            GetVulnerabilityPracticeDirectoryWebViewSmokeRequest: getRequest,
-            CompleteVulnerabilityPracticeDirectoryWebViewSmoke: complete,
-          },
-        },
-      },
-    })
-
-    await expect(invokeCommand('get_vulnerability_practice_directory_webview_smoke_request'))
-      .resolves.toBe(request)
-    await expect(invokeCommand('complete_vulnerability_practice_directory_webview_smoke', {
-      report: {
-        cveId: 'CVE-2023-46604',
-        directoryBasename: 'CVE-2023-46604',
-        gates: { vulhubDirectoryVisible: true },
-      },
-    })).resolves.toBeUndefined()
-
-    expect(getRequest).toHaveBeenCalledOnce()
-    expect(complete).toHaveBeenCalledWith({
-      cveId: 'CVE-2023-46604',
-      directoryBasename: 'CVE-2023-46604',
-      gates: { vulhubDirectoryVisible: true },
-    })
-  })
-
-  it('does not pretend browser preview can run the CVE learning writeback WebView smoke', async () => {
-    await expect(invokeCommand('get_vulnerability_learning_writeback_webview_smoke_request'))
-      .resolves.toEqual({ enabled: false })
-    await expect(invokeCommand('complete_vulnerability_learning_writeback_webview_smoke', {
-      report: {},
-    })).rejects.toThrow('MilkSU 桌面运行时')
   })
 
   it('passes Coding collaboration preparation details to Wails unchanged', async () => {
@@ -938,31 +712,4 @@ describe('desktop command adapter', () => {
     )
   })
 
-  it('shows a friendly browser-preview fallback for Computer Use commands', async () => {
-    await expect(invokeCommand('get_coding_computer_use_status')).resolves.toMatchObject({
-      available: false,
-      enabled: false,
-      phase: 'unavailable',
-      permissions: {
-        accessibility: false,
-        screenRecording: false,
-      },
-      problem: expect.stringContaining('MilkSU 桌面运行时'),
-    })
-
-    await expect(invokeCommand('request_coding_computer_use_permissions')).resolves.toMatchObject({
-      available: false,
-      enabled: false,
-      problem: expect.stringContaining('浏览器预览只能验证 UI 文案和入口'),
-    })
-    await expect(invokeCommand('list_coding_computer_use_targets')).resolves.toEqual([])
-    await expect(invokeCommand('start_coding_computer_use', {
-      conversationId: 'conversation-ui',
-      targetPid: 4242,
-      targetWindowId: 9001,
-    })).rejects.toThrow('Computer Use 可见 App 会话需要 MilkSU 桌面运行时')
-    await expect(invokeCommand('stop_coding_computer_use', {
-      conversationId: 'conversation-ui',
-    })).rejects.toThrow('Computer Use 可见 App 会话需要 MilkSU 桌面运行时')
-  })
 })

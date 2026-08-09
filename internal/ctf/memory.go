@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	TrainingMemorySchemaVersion = "ctf-memory.milksu.dev/v1alpha3"
+	TrainingMemorySchemaVersion = "ctf-memory.milksu.dev/v1alpha4"
 
 	// SupportedCTFMemoryDatabaseVersion is the numbered SQLite migration
 	// version recorded in schema_migrations. It is independent of
@@ -116,17 +116,23 @@ func NewMemoryStore(databasePath, directory string) (*MemoryStore, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open CTF memory database: %w", err)
 	}
+	if err := requireCurrentTrainingMemorySchema(context.Background(), migrator.DB()); err != nil {
+		migrator.Close()
+		return nil, err
+	}
 	if err := migrator.Migrate(context.Background()); err != nil {
 		migrator.Close()
 		return nil, fmt.Errorf("migrate CTF memory database: %w", err)
 	}
+	if err := requireCurrentTrainingMemorySchema(context.Background(), migrator.DB()); err != nil {
+		migrator.Close()
+		return nil, err
+	}
 	return &MemoryStore{database: migrator.DB(), directory: directory}, nil
 }
 
-// ctfMemoryV1Up creates the current memory schema and upgrades the one
-// pre-migrator legacy shape that lacked verification. The ALTER, conservative
-// confidence downgrade, indexes, and migration-history row all share the
-// transaction owned by sqlitemigrate.
+// ctfMemoryV1Up creates the complete current schema. Pre-release databases
+// without durable attribution are deliberately rejected instead of migrated.
 func ctfMemoryV1Up(ctx context.Context, tx *sql.Tx) error {
 	if _, err := tx.ExecContext(ctx, `
 CREATE TABLE IF NOT EXISTS ctf_memories (
@@ -134,6 +140,8 @@ CREATE TABLE IF NOT EXISTS ctf_memories (
 	schema_version TEXT NOT NULL,
 	kind TEXT NOT NULL,
 	verification TEXT NOT NULL DEFAULT 'legacy-untyped',
+	actor TEXT NOT NULL,
+	assistance TEXT NOT NULL,
 	title TEXT NOT NULL,
 	summary TEXT NOT NULL,
 	category TEXT NOT NULL,
@@ -151,20 +159,6 @@ CREATE TABLE IF NOT EXISTS ctf_memories (
 		return fmt.Errorf("create CTF memory table: %w", err)
 	}
 
-	addedVerification, err := ensureTrainingMemoryVerificationColumn(ctx, tx)
-	if err != nil {
-		return fmt.Errorf("migrate CTF memory verification column: %w", err)
-	}
-	if addedVerification {
-		if _, err := tx.ExecContext(ctx, `
-UPDATE ctf_memories
-SET verification = 'legacy-untyped',
-	confidence = CASE WHEN confidence > 0.6 THEN 0.6 ELSE confidence END
-`); err != nil {
-			return fmt.Errorf("downgrade untyped legacy CTF memory confidence: %w", err)
-		}
-	}
-
 	for _, statement := range []string{
 		`CREATE INDEX IF NOT EXISTS idx_ctf_memories_category
 			ON ctf_memories(category, archived_at, updated_at DESC)`,
@@ -178,15 +172,13 @@ SET verification = 'legacy-untyped',
 	return nil
 }
 
-func ensureTrainingMemoryVerificationColumn(
-	ctx context.Context,
-	tx *sql.Tx,
-) (bool, error) {
-	rows, err := tx.QueryContext(ctx, `PRAGMA table_info(ctf_memories)`)
+func requireCurrentTrainingMemorySchema(ctx context.Context, database *sql.DB) error {
+	rows, err := database.QueryContext(ctx, `PRAGMA table_info(ctf_memories)`)
 	if err != nil {
-		return false, err
+		return fmt.Errorf("inspect CTF memory schema: %w", err)
 	}
-	found := false
+	defer rows.Close()
+	found := make(map[string]bool)
 	for rows.Next() {
 		var (
 			position     int
@@ -204,30 +196,25 @@ func ensureTrainingMemoryVerificationColumn(
 			&defaultValue,
 			&primaryKey,
 		); err != nil {
-			rows.Close()
-			return false, err
+			return fmt.Errorf("inspect CTF memory schema: %w", err)
 		}
-		if name == "verification" {
-			found = true
-		}
+		found[name] = true
 	}
 	if err := rows.Err(); err != nil {
-		rows.Close()
-		return false, err
+		return fmt.Errorf("inspect CTF memory schema: %w", err)
 	}
-	if err := rows.Close(); err != nil {
-		return false, err
+	if len(found) == 0 {
+		return nil
 	}
-	if found {
-		return false, nil
+	for _, required := range []string{"verification", "actor", "assistance"} {
+		if !found[required] {
+			return fmt.Errorf(
+				"incompatible pre-release CTF memory database: missing %s; old memory data is not migrated",
+				required,
+			)
+		}
 	}
-	if _, err := tx.ExecContext(ctx, `
-ALTER TABLE ctf_memories
-ADD COLUMN verification TEXT NOT NULL DEFAULT 'legacy-untyped'
-`); err != nil {
-		return false, err
-	}
-	return true, nil
+	return nil
 }
 
 func (s *MemoryStore) Close() error {
@@ -377,14 +364,16 @@ func (s *MemoryStore) SaveFromProjection(
 	_, err = s.database.ExecContext(
 		ctx,
 		`INSERT INTO ctf_memories (
-			id, schema_version, kind, verification, title, summary, category, tags_json,
+			id, schema_version, kind, verification, actor, assistance, title, summary, category, tags_json,
 			source_job_id, source_session_id, evidence_refs_json, confidence,
 			path, created_at, updated_at, archived_at, archived_reason
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)
 		ON CONFLICT(source_job_id) DO UPDATE SET
 			schema_version=excluded.schema_version,
 			kind=excluded.kind,
 			verification=excluded.verification,
+			actor=excluded.actor,
+			assistance=excluded.assistance,
 			title=excluded.title,
 			summary=excluded.summary,
 			category=excluded.category,
@@ -400,6 +389,8 @@ func (s *MemoryStore) SaveFromProjection(
 		memory.SchemaVersion,
 		memory.Kind,
 		memory.Verification,
+		memory.Actor,
+		memory.Assistance,
 		memory.Title,
 		memory.Summary,
 		memory.Category,
@@ -438,7 +429,7 @@ func (s *MemoryStore) Recall(
 	}
 	rows, err := s.database.QueryContext(
 		ctx,
-		`SELECT id, schema_version, kind, verification, title, summary, category, tags_json,
+		`SELECT id, schema_version, kind, verification, actor, assistance, title, summary, category, tags_json,
 			source_job_id, COALESCE(source_session_id, ''), evidence_refs_json,
 			confidence, path, created_at, updated_at,
 			COALESCE(archived_at, ''), COALESCE(archived_reason, '')
@@ -710,6 +701,8 @@ func scanTrainingMemory(scanner memoryScanner) (TrainingMemory, error) {
 		&memory.SchemaVersion,
 		&memory.Kind,
 		&memory.Verification,
+		&memory.Actor,
+		&memory.Assistance,
 		&memory.Title,
 		&memory.Summary,
 		&memory.Category,
@@ -732,11 +725,9 @@ func scanTrainingMemory(scanner memoryScanner) (TrainingMemory, error) {
 	if err := json.Unmarshal([]byte(refsJSON), &memory.EvidenceRefs); err != nil {
 		return TrainingMemory{}, fmt.Errorf("decode CTF memory evidence refs: %w", err)
 	}
-	// Attribution remains a projection of the append-only source job during
-	// pre-release feature work. The existing memory table is intentionally
-	// unchanged until the final destructive schema consolidation.
-	memory.Actor = LearningActorImported
-	memory.Assistance = LearningAssistanceDelegated
+	if !validLearningActor(memory.Actor) || !validLearningAssistance(memory.Assistance) {
+		return TrainingMemory{}, fmt.Errorf("CTF memory has invalid learning attribution")
+	}
 	memory.CreatedAt, _ = time.Parse(time.RFC3339Nano, createdAt)
 	memory.UpdatedAt, _ = time.Parse(time.RFC3339Nano, updatedAt)
 	if archivedAt != "" {
