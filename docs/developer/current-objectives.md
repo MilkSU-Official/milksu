@@ -56,16 +56,15 @@
 | P0 | CVE 学习/追踪扩样 | 更多真实 CVE 验证同步、练习、研究档案、资产验证和学习写回；不做外部攻击、自动 PoC 或披露。 |
 | P1 | Computer Use 扩样 | Calculator 之外再加 1–2 个真实 App/窗口、权限拒绝路径；稳定 Developer ID 后复检 TCC。不与 Browser 强行合并权限。 |
 | P1 | 相关历史关系图 | 在现有 Session Index 上增加“列表 / 图谱”视图；优先固定并审阅 MIT 许可、仍在维护的 AntV G6，只从现有 sessions/messages/tool_calls 与正式档案即时派生项目、会话、Goal、CVE/CTF、模型、工具、Skill、Evidence/Artifact 的确定关系。节点可追溯原会话并保留确认后引用；不引入图数据库、向量数据库、第二份持久化状态、LLM 事实关系或 Obelisk AGPL 源码。只认打包 App 中的交互、遮蔽、过滤、来源回跳和构建/测试结果。 |
-| P1 | 安全 MCP 试点 | 在 Coding 中先接入并验收一批固定版本、可审阅的安全工具 MCP；先通过只读分析、Scope、凭据、工具清单、重启与证据回执，再决定是否晋升到 CTF/CVE。设置页负责安装/启用/健康检查，Composer “+”只选择已经通过审阅的服务。 |
+| P1 | 安全工具 MCP 常规能力 | 先在 Coding Agent 中接入 IDA Pro/idalib、Burp Suite、radare2、Ghidra、Semgrep 等固定版本、可审阅的安全工具 MCP，形成普通的安装、启用、健康检查、版本/Schema 审阅、Scope、审批与证据回执能力，而不是一次性 smoke。设置页管理已审阅服务，Composer “+”只选择已启用服务；是否进入 CTF/CVE 由后续用户监督的领域纵切单独决定。 |
 | P1 | 内嵌沙箱浏览器 | macOS ARM64 先用官方 CEF 二进制/示例做有界原型：右栏原生 Chromium View、独立 profile、用户直接交互、Agent 共用同一会话/CDP；同时通过 CEF helper/framework/resources、签名与打包验收。先验证最小 NSView/Wails 适配，不以换掉整个 Wails 壳或引入第二套 GUI 框架开局。 |
 | P1 | MilkSU Beta 自举 | 稳定版只从源码构建并启动另一份 `MilkSU Beta`；使用不同产品名、图标标记、Bundle ID、数据目录与 TCC 身份，再由稳定版 Computer Use 操作 Beta。禁止稳定版控制自己或让两份 App 共享状态/权限。 |
-| P1 | CTF 六赛道 | Web / Pwn / Reverse / Crypto / Forensics / Misc 各至少一题 Judge-verified，并保留完整证据包。 |
 | P1 | Memory 可信度 | 区分 user / agent / shared / imported 与 none / hint / copilot / delegated；Agent 代做不能抬高用户独立能力。 |
 | P1 | Runtime Reliability | 自建安全 fixture：多轮、文件、命令、工具、重启、压缩、取消、预算、失败分类。 |
 | P2 | 本地交付与发行 | RC 再做崩溃恢复、诊断、全新机器、Developer ID `.app`、DMG、公证、stapling、升级、性能和尺寸；Developer ID 先于外部分发与 Computer Use TCC 复检。不读取或迁移本机签名私钥/证书密码/Personal Vault。 |
 | 持续 | 架构与 UI | 触碰即拆热点文件；不新开纯清债里程碑。UI 巡检后同步测试与当前文档。 |
 
-推荐顺序：先会话自动 worktree（含 writer 变更投影）→ 用稳定版构建/操作隔离的 MilkSU Beta，把真实 Grok 自举从文档小纵切扩到功能代码/测试/恢复/Git 交付 → 并行做内嵌沙箱浏览器原型和 Computer Use 扩样 → 将验证过的 Scope/证据/恢复机制迁入 CTF/CVE 领域纵切 → 最后加重 Memory / 发行 RC。不恢复 `development-plan.md`，不把已删除 live smoke 嵌回产品启动链。
+推荐顺序：先会话自动 worktree（含 writer 变更投影）→ 用稳定版构建/操作隔离的 MilkSU Beta，把真实 Grok 自举从文档小纵切扩到功能代码/测试/恢复/Git 交付 → 并行推进安全工具 MCP 常规能力、内嵌沙箱浏览器原型和 Computer Use 扩样 → 最后加重 Memory / 发行 RC。安全工具是否进入 CTF/CVE 以及后续 CTF 领域扩样，由用户监督的独立纵切决定，不列为当前自动推进目标。不恢复 `development-plan.md`，不把已删除 live smoke 嵌回产品启动链。
 
 ### 可独立夜间纵切：相关历史关系图 MVP
 
@@ -77,10 +76,11 @@
 - **事实边界**：图谱只是历史导航 Projection，不建立 Judge、CVE 来源或用户能力事实；不让模型自动写关系，不把搜索结果自动放进 Agent 上下文，不填充当前无正式写入链路的通用 `memories` 表。
 - **完成证据**：Go Projection 单测、Vue 组件测试、Credential 遮蔽/空索引/删除刷新/节点上限回归、生产构建，以及打包 App 中列表与图谱一致过滤、节点来源回跳和深浅主题截图。依赖下载或同一命令连续失败两次后不得原样空转，应继续完成可独立验证部分并准确记录阻塞。
 
-### 安全 MCP 候选队列
+### 安全工具 MCP 常规能力队列
 
-这不是默认安装清单。每项先在 Coding 用受控样本完成真实任务，再进入 CTF/CVE；未经审阅的
-社区 Server 只作为研究输入，不进入发行依赖图。
+这是 Coding Agent 的常规能力接入队列，但不是默认捆绑或自动启用清单。每项先在 Coding 用受控
+样本完成真实任务，通过审阅后才进入可安装/启用目录；是否进入 CTF/CVE 由用户后续单独决定。
+未经审阅的社区 Server 只作为研究输入，不进入发行依赖图。
 
 1. **IDA Pro / idalib**：优先评估 [mrexodia/ida-pro-mcp](https://github.com/mrexodia/ida-pro-mcp) 当前的
    Codex Plugin + `idalib` MCP 路径，不接它准备弃用的旧 GUI MCP。验收一个 crackme：函数/交叉引用读取、
@@ -117,10 +117,9 @@
 
 ## 领域完成线（摘要）
 
-- **CTF**：六赛道各至少一题真实 Judge-verified；证据含题面、轨迹、候选、Judge、提示依赖、恢复、复盘/Memory。Tool Builder / Strategist 至少各一次跨赛道自然闭环。
 - **CVE**：只做学习/追踪。可扩多源缓存与练习闭环；后置未授权外部目标、批量扫描、自动 PoC、披露自动提交。
 - **Memory**：可复用经验 ≠ 用户能力画像；用户独立能力只能来自显式用户操作或确认记录；推荐须能链到 Judge/提示/失败/确认材料。
-- **Bench**：先自建 Runtime Reliability；NYU Outcome 后置到六赛道稳定后的安全子集；safe-static 不是完整 CTF 成绩。
+- **Bench**：先自建 Runtime Reliability；NYU Outcome 后置到核心产品闭环稳定后的安全子集；safe-static 不是完整 CTF 成绩。
 
 ## 架构和文档规则
 
