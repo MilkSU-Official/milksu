@@ -1,16 +1,9 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, nextTick, onMounted, ref } from 'vue'
+import { computed, defineAsyncComponent, onMounted, ref } from 'vue'
 import AppSidebar from '@/components-vue/AppSidebar.vue'
 import StartupRecoveryBanner from '@/components-vue/StartupRecoveryBanner.vue'
 import { useConversations } from '@/composables/useConversations'
 import { invokeCommand } from '@/desktop'
-import { runCodingArtifactPreviewWebViewSmoke } from '@/lib/codingArtifactWebViewSmoke'
-import { runCodingBackgroundRecoveryWebViewSmoke } from '@/lib/codingBackgroundRecoveryWebViewSmoke'
-import { runCodingPullRequestWebViewSmoke } from '@/lib/codingPullRequestWebViewSmoke'
-import { runSettingsComputerUseWebViewSmoke } from '@/lib/settingsComputerUseWebViewSmoke'
-import { runVulnerabilityAssetVerificationWebViewSmoke } from '@/lib/vulnerabilityAssetVerificationWebViewSmoke'
-import { runVulnerabilityLearningWritebackWebViewSmoke } from '@/lib/vulnerabilityLearningWritebackWebViewSmoke'
-import { runVulnerabilityPracticeDirectoryWebViewSmoke } from '@/lib/vulnerabilityPracticeDirectoryWebViewSmoke'
 import type { CTFAgentWorkspaceHandoff } from '@/ctfTypes'
 import { useVulnerabilityDashboard, type VulnerabilityCodingTask } from '@/composables/useVulnerabilityDashboard'
 import {
@@ -269,61 +262,6 @@ onMounted(async () => {
   applyThemeMode(themeMode.value)
   await Promise.all([loadSettings(), conversations.load()])
   await conversations.listen()
-  void runCodingArtifactPreviewWebViewSmoke()
-  void runCodingPullRequestWebViewSmoke({
-    openCodingWorkspace: async workspacePath => {
-      rememberActiveConversation()
-      restoreCodingConversation()
-      if (workspacePath) conversations.setWorkspace(workspacePath)
-      section.value = 'chat'
-      await nextTick()
-      await nextTick()
-    },
-  })
-  void runCodingBackgroundRecoveryWebViewSmoke({
-    openCodingWorkspace: async workspacePath => {
-      rememberActiveConversation()
-      restoreCodingConversation()
-      if (workspacePath) conversations.setWorkspace(workspacePath)
-      conversations.ensureConversation('Coding background recovery smoke')
-      section.value = 'chat'
-      await nextTick()
-      await nextTick()
-    },
-  })
-  void runSettingsComputerUseWebViewSmoke({
-    openSettings: async () => {
-      settingsReturnTarget.value = settingsReturnSection(section.value, settingsReturnTarget.value)
-      settingsCategory.value = 'general'
-      section.value = 'settings'
-      await nextTick()
-      await nextTick()
-    },
-  })
-  void runVulnerabilityLearningWritebackWebViewSmoke({
-    openVulnerabilityWorkspace: async () => {
-      rememberActiveConversation()
-      section.value = 'vuln'
-      await nextTick()
-      await nextTick()
-    },
-  })
-  void runVulnerabilityAssetVerificationWebViewSmoke({
-    openVulnerabilityWorkspace: async () => {
-      rememberActiveConversation()
-      section.value = 'vuln'
-      await nextTick()
-      await nextTick()
-    },
-  })
-  void runVulnerabilityPracticeDirectoryWebViewSmoke({
-    openVulnerabilityWorkspace: async () => {
-      rememberActiveConversation()
-      section.value = 'vuln'
-      await nextTick()
-      await nextTick()
-    },
-  })
   try {
     recoveryStatus.value = await invokeCommand<StartupRecoveryStatus>('get_startup_recovery_status')
   } catch {

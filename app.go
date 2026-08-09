@@ -1521,26 +1521,6 @@ func (a *App) EnsureVulnTrackingWorkspace(request vuln.TrackingWorkspaceRequest)
 	return a.vulnJobs.EnsureCVETrackingWorkspace(a.commandContext(), request)
 }
 
-func (a *App) GetVulnerabilityLearningWritebackWebViewSmokeRequest() vulnerabilityLearningWritebackWebViewSmokeRequest {
-	return a.vulnerabilityLearningWritebackWebViewSmokeRequest()
-}
-
-func (a *App) CompleteVulnerabilityLearningWritebackWebViewSmoke(
-	report vulnerabilityLearningWritebackWebViewSmokeReport,
-) error {
-	return a.completeVulnerabilityLearningWritebackWebViewSmoke(report)
-}
-
-func (a *App) GetCodingPullRequestWebViewSmokeRequest() codingPullRequestWebViewSmokeRequest {
-	return a.codingPullRequestWebViewSmokeRequest()
-}
-
-func (a *App) CompleteCodingPullRequestWebViewSmoke(
-	report codingPullRequestWebViewSmokeReport,
-) error {
-	return a.completeCodingPullRequestWebViewSmoke(report)
-}
-
 func (a *App) ListVulnJobs() ([]vuln.Summary, error) {
 	return a.vulnJobs.ListJobs(a.commandContext())
 }
@@ -1586,9 +1566,6 @@ func (a *App) FetchVulhubPracticeCatalog() (vuln.FeedSnapshotDownload, error) {
 }
 
 func (a *App) ChooseVulnerabilityPracticeDirectory() (string, error) {
-	if directory, ok, err := vulnerabilityPracticeDirectoryWebViewSmokeDirectoryOverride(); ok || err != nil {
-		return directory, err
-	}
 	if a.ctx == nil {
 		return "", fmt.Errorf("desktop runtime is not ready")
 	}

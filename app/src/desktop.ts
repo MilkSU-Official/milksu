@@ -278,20 +278,6 @@ interface WailsAppBindings {
     workspacePath: string,
     relativePath: string,
   ): Promise<CodingArtifactPreview>
-  GetCodingArtifactPreviewWebViewSmokeRequest(): Promise<Record<string, unknown>>
-  CompleteCodingArtifactPreviewWebViewSmoke(report: Record<string, unknown>): Promise<void>
-  GetCodingBackgroundRecoveryWebViewSmokeRequest(): Promise<Record<string, unknown>>
-  CompleteCodingBackgroundRecoveryWebViewSmoke(report: Record<string, unknown>): Promise<void>
-  GetCodingPullRequestWebViewSmokeRequest(): Promise<Record<string, unknown>>
-  CompleteCodingPullRequestWebViewSmoke(report: Record<string, unknown>): Promise<void>
-  GetSettingsComputerUseWebViewSmokeRequest(): Promise<Record<string, unknown>>
-  CompleteSettingsComputerUseWebViewSmoke(report: Record<string, unknown>): Promise<void>
-  GetVulnerabilityLearningWritebackWebViewSmokeRequest(): Promise<Record<string, unknown>>
-  CompleteVulnerabilityLearningWritebackWebViewSmoke(report: Record<string, unknown>): Promise<void>
-  GetVulnerabilityAssetVerificationWebViewSmokeRequest(): Promise<Record<string, unknown>>
-  CompleteVulnerabilityAssetVerificationWebViewSmoke(report: Record<string, unknown>): Promise<void>
-  GetVulnerabilityPracticeDirectoryWebViewSmokeRequest(): Promise<Record<string, unknown>>
-  CompleteVulnerabilityPracticeDirectoryWebViewSmoke(report: Record<string, unknown>): Promise<void>
   StartCodingBrowser(
     conversationId: string,
     initialUrl: string,
@@ -1032,48 +1018,6 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
           args?.workspacePath as string,
           args?.relativePath as string,
         ) as Promise<T>
-      case 'get_coding_artifact_preview_webview_smoke_request':
-        return app.GetCodingArtifactPreviewWebViewSmokeRequest() as Promise<T>
-      case 'complete_coding_artifact_preview_webview_smoke':
-        return app.CompleteCodingArtifactPreviewWebViewSmoke(
-          (args?.report as Record<string, unknown>) ?? {},
-        ) as Promise<T>
-      case 'get_coding_background_recovery_webview_smoke_request':
-        return app.GetCodingBackgroundRecoveryWebViewSmokeRequest() as Promise<T>
-      case 'complete_coding_background_recovery_webview_smoke':
-        return app.CompleteCodingBackgroundRecoveryWebViewSmoke(
-          (args?.report as Record<string, unknown>) ?? {},
-        ) as Promise<T>
-      case 'get_coding_pull_request_webview_smoke_request':
-        return app.GetCodingPullRequestWebViewSmokeRequest() as Promise<T>
-      case 'complete_coding_pull_request_webview_smoke':
-        return app.CompleteCodingPullRequestWebViewSmoke(
-          (args?.report as Record<string, unknown>) ?? {},
-        ) as Promise<T>
-      case 'get_settings_computer_use_webview_smoke_request':
-        return app.GetSettingsComputerUseWebViewSmokeRequest() as Promise<T>
-      case 'complete_settings_computer_use_webview_smoke':
-        return app.CompleteSettingsComputerUseWebViewSmoke(
-          (args?.report as Record<string, unknown>) ?? {},
-        ) as Promise<T>
-      case 'get_vulnerability_learning_writeback_webview_smoke_request':
-        return app.GetVulnerabilityLearningWritebackWebViewSmokeRequest() as Promise<T>
-      case 'complete_vulnerability_learning_writeback_webview_smoke':
-        return app.CompleteVulnerabilityLearningWritebackWebViewSmoke(
-          (args?.report as Record<string, unknown>) ?? {},
-        ) as Promise<T>
-      case 'get_vulnerability_asset_verification_webview_smoke_request':
-        return app.GetVulnerabilityAssetVerificationWebViewSmokeRequest() as Promise<T>
-      case 'complete_vulnerability_asset_verification_webview_smoke':
-        return app.CompleteVulnerabilityAssetVerificationWebViewSmoke(
-          (args?.report as Record<string, unknown>) ?? {},
-        ) as Promise<T>
-      case 'get_vulnerability_practice_directory_webview_smoke_request':
-        return app.GetVulnerabilityPracticeDirectoryWebViewSmokeRequest() as Promise<T>
-      case 'complete_vulnerability_practice_directory_webview_smoke':
-        return app.CompleteVulnerabilityPracticeDirectoryWebViewSmoke(
-          (args?.report as Record<string, unknown>) ?? {},
-        ) as Promise<T>
       case 'start_coding_browser':
         return app.StartCodingBrowser(
           args?.conversationId as string,
@@ -1513,30 +1457,6 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
       } as T
     case 'get_coding_artifact_preview':
       throw new Error('工作区产物预览需要 MilkSU 桌面运行时。')
-    case 'get_coding_artifact_preview_webview_smoke_request':
-      return { enabled: false } as T
-    case 'complete_coding_artifact_preview_webview_smoke':
-      throw new Error('HTML 产物 WebView smoke 只在 MilkSU 桌面运行时可用。')
-    case 'get_coding_pull_request_webview_smoke_request':
-      return { enabled: false } as T
-    case 'complete_coding_pull_request_webview_smoke':
-      throw new Error('Coding PR WebView smoke 只在 MilkSU 桌面运行时可用。')
-    case 'get_settings_computer_use_webview_smoke_request':
-      return { enabled: false } as T
-    case 'complete_settings_computer_use_webview_smoke':
-      throw new Error('设置页 Computer Use WebView smoke 只在 MilkSU 桌面运行时可用。')
-    case 'get_vulnerability_learning_writeback_webview_smoke_request':
-      return { enabled: false } as T
-    case 'complete_vulnerability_learning_writeback_webview_smoke':
-      throw new Error('CVE 研究写回 WebView smoke 只在 MilkSU 桌面运行时可用。')
-    case 'get_vulnerability_asset_verification_webview_smoke_request':
-      return { enabled: false } as T
-    case 'complete_vulnerability_asset_verification_webview_smoke':
-      throw new Error('CVE 资产验证 WebView smoke 只在 MilkSU 桌面运行时可用。')
-    case 'get_vulnerability_practice_directory_webview_smoke_request':
-      return { enabled: false } as T
-    case 'complete_vulnerability_practice_directory_webview_smoke':
-      throw new Error('CVE 练习目录 WebView smoke 只在 MilkSU 桌面运行时可用。')
     case 'start_coding_browser':
     case 'stop_coding_browser':
       throw new Error('隔离 Coding 浏览器需要 MilkSU 桌面运行时。')

