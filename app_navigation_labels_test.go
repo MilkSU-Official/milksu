@@ -219,14 +219,13 @@ func TestCTFPrimaryActionOpensTheAgentAfterWorkspaceCreation(t *testing.T) {
 	}
 }
 
-func TestCodingComposerKeepsOnlyMessageContextControls(t *testing.T) {
+func TestCodingComposerKeepsOnlyPersistentMessageContextControls(t *testing.T) {
 	data, err := os.ReadFile("app/src/components-vue/CodingComposerControls.vue")
 	if err != nil {
 		t.Fatal(err)
 	}
 	source := string(data)
 	for _, expected := range []string{
-		`aria-label="Coding 执行模式"`,
 		`aria-label="Coding 权限策略"`,
 		`aria-label="选择本任务模型"`,
 		`class="composer-control composer-model`,
@@ -234,6 +233,25 @@ func TestCodingComposerKeepsOnlyMessageContextControls(t *testing.T) {
 	} {
 		if !strings.Contains(source, expected) {
 			t.Fatalf("Coding composer does not preserve the essential send-context control %q", expected)
+		}
+	}
+	if strings.Contains(source, `aria-label="Coding 执行模式"`) {
+		t.Fatal("Coding composer keeps a redundant persistent Plan/Go selector")
+	}
+
+	composerData, err := os.ReadFile("app/src/components-vue/ChatComposer.vue")
+	if err != nil {
+		t.Fatal(err)
+	}
+	composer := string(composerData)
+	for _, expected := range []string{
+		`aria-label="添加内容与工具"`,
+		`计划模式`,
+		`退出计划模式`,
+		`Computer Use`,
+	} {
+		if !strings.Contains(composer, expected) {
+			t.Fatalf("Coding composer plus menu does not expose %q", expected)
 		}
 	}
 	for _, duplicate := range []string{

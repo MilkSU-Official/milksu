@@ -35,14 +35,14 @@
 - **真实 Grok 自举小纵切已跑通一段**：自然提示 → 注册 writer 只改三份 Current 文档 → reviewer 指出事实错误 → 同会话完成返工。**尚未覆盖**功能代码修改、测试、恢复和 Git 交付；不要写成自举完全未开始。
 - **实测缺口**：Goal/输入框上方的 Git 变更摘要看不到 writer worktree 的三文件改动；变更投影仍偏主工作区视角，不足以审阅隔离执行结果。
 - Computer Use：用户选择外部可见 App/PID/Window 的不可变 Scope、打包 App 启停、Calculator observe/click、text-only 主模型下的工具截图辅助视觉已有切片。Browser 与 Computer Use 仍是分离权限面。
-- Composer `/` 已覆盖 Goal、Pi 会话动作、模型/权限、状态/Diff/Review、worktree、MCP、Browser Use 与 Computer Use；Browser/Computer 以可删除的内联状态加入当前输入，不会因选择命令直接发送。
+- Composer `/` 已覆盖 Goal、Plan、Pi 会话动作、模型/权限、状态/Diff/Review、worktree、MCP、Browser Use 与 Computer Use；Go 是未开启 Plan 时的默认状态，不再单设 `/go`。不熟悉 `/` 的用户也可从输入框左下“+”进入附件、计划模式、固定 Archify Skill、项目 MCP 和 Computer Use，并在同一入口退出 Plan。Plan/Go 不再占一个常驻下拉，审批位于左侧，模型位于右侧；Browser/Computer 以可删除的内联状态加入当前输入，不会因选择命令直接发送。
 - 浏览器三面已分责：右栏“沙箱浏览器”管理会话隔离的专用 Chrome；`/browser-use` 复用固定版 Playwright MCP 官方扩展，由用户在真实 Chrome/Edge 选择准确标签页；`/computer-use` 只列外部原生 App，浏览器窗口不进入该 Scope。NSSCTF/CTFshow 的 MilkSU 扩展继续作为领域 Bridge，不承担通用浏览器控制。
 - 右栏沙箱浏览器当前仍是独立 Chrome 窗口 + CDP/Playwright，并非内嵌 Chromium。目标形态是右栏可直接交互的 Chromium View；不得用截图坐标层、iframe 或普通外部 Chrome 窗口冒充完成。
 - 模型与凭据：单默认模型 + 单来源 + 单凭据区；DeepSeek V4 Flash 默认日常；TokenFlux 一等中转；Coding / CTF / sub-agent 共用当前 Provider 注册。
 - CVE：学习/追踪 MVP 可用（多源同步、练习目录、本地 Compose 生命周期、资产验证、学习写回、Coding 接力）；正式事实只来自 Vuln Runtime。
 - CTF：题库、工作区、Evidence、候选、Judge、Checkpoint、恢复、复盘、Memory 主链存在；真实 Judge 成功仍只有窄 Web 路径。
 - Runtime：Sidecar 恢复、Compaction、异常退出标记、后台长任务打包 App/WebView 恢复、预算和失败分类已有。
-- UI：全局 rail 主题、设置、能力画像；Coding Goal 从 Composer `/` 进入，状态与 Git 摘要在输入框上方。WebView 无假后端。
+- UI：全局 rail 主题、设置、能力画像；Coding Goal 从 Composer `/` 进入，Goal 与 Git 摘要使用一致的圆角胶囊并位于输入框上方。WebView 无假后端。
 - 暂停/后置：Labs；CVE 纵深研究、真实漏洞复现、外部资产实验、披露；NYU safe-static 只是开发者 smoke，不是完整 CTF 成绩。
 
 ## 下一条完成线

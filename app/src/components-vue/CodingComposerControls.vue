@@ -23,16 +23,12 @@ import {
   ShieldAlert,
   ShieldCheck,
 } from 'lucide-vue-next'
-import type {
-  CodingApprovalPolicy,
-  CodingExecutionMode,
-} from '@/types'
+import type { CodingApprovalPolicy } from '@/types'
 import { PROVIDER_GROUPS, providerModelLabel } from '@/types'
 
 defineProps<{
   running: boolean
   ctfSession: boolean
-  executionMode: CodingExecutionMode
   approvalPolicy: CodingApprovalPolicy
   approvalLabel: string
   modelKey: string
@@ -41,7 +37,6 @@ defineProps<{
 }>()
 
 defineEmits<{
-  changeExecutionMode: [value: string]
   changeApprovalPolicy: [value: string]
   changeModel: [value: string]
   showPermissions: []
@@ -49,115 +44,99 @@ defineEmits<{
 </script>
 
 <template>
-  <div class="composer-controls app-no-drag flex min-w-0 items-center gap-1.5">
-    <Select
-      v-if="!ctfSession"
-      :model-value="executionMode"
-      :disabled="running"
-      @update:model-value="value => $emit('changeExecutionMode', String(value ?? ''))"
-    >
-      <SelectTrigger
-        size="sm"
-        class="composer-control composer-mode rounded-full border-0 bg-transparent shadow-none"
-        aria-label="Coding 执行模式"
-        title="Plan 只分析和规划；Go 按右侧权限策略使用工具。"
-      >
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent size="sm" align="start">
-        <SelectItem value="plan">Plan</SelectItem>
-        <SelectItem value="go">Go</SelectItem>
-      </SelectContent>
-    </Select>
+  <div class="composer-controls app-no-drag flex min-w-0 flex-1 items-center justify-between gap-2">
+    <div class="flex min-w-0 items-center gap-1.5">
+      <slot name="leading" />
 
-    <DropdownMenu v-if="!ctfSession">
-      <DropdownMenuTrigger as-child>
-        <Button
-          variant="ghost"
-          size="sm"
-          class="composer-control composer-permission justify-start rounded-full"
-          :class="{ 'composer-permission--full': approvalPolicy === 'full-auto' }"
-          :disabled="running"
-          aria-label="Coding 权限策略"
-          :title="approvalLabel"
-        >
-          <ShieldAlert
-            v-if="approvalPolicy === 'full-auto'"
-            class="size-3.5 shrink-0 text-warning"
-          />
-          <LockKeyhole v-else class="size-3.5 shrink-0" />
-          <span class="composer-permission__label">{{ approvalLabel }}</span>
-          <ChevronDown class="composer-permission__chevron size-3.5 shrink-0 text-muted-foreground opacity-50" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="start"
-        :side-offset="8"
-        class="w-[25rem] max-w-[calc(100vw-2rem)] p-0"
-      >
-        <div class="flex items-center justify-between gap-4 px-4 pb-2 pt-3">
-          <p class="text-label font-medium text-muted-foreground">
-            应如何批准 MilkSU 操作？
-          </p>
-          <button
-            type="button"
-            class="shrink-0 text-label font-medium text-muted-foreground underline underline-offset-4 hover:text-foreground"
-            @click.stop="$emit('showPermissions')"
+      <DropdownMenu v-if="!ctfSession">
+        <DropdownMenuTrigger as-child>
+          <Button
+            variant="ghost"
+            size="sm"
+            class="composer-control composer-permission justify-start rounded-full"
+            :class="{ 'composer-permission--full': approvalPolicy === 'full-auto' }"
+            :disabled="running"
+            aria-label="Coding 权限策略"
+            :title="approvalLabel"
           >
-            了解更多
-          </button>
-        </div>
-        <DropdownMenuItem
-          class="approval-option"
-          @select="$emit('changeApprovalPolicy', 'ask')"
+            <ShieldAlert
+              v-if="approvalPolicy === 'full-auto'"
+              class="size-3.5 shrink-0 text-warning"
+            />
+            <LockKeyhole v-else class="size-3.5 shrink-0" />
+            <span class="composer-permission__label">{{ approvalLabel }}</span>
+            <ChevronDown class="composer-permission__chevron size-3.5 shrink-0 text-muted-foreground opacity-50" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="start"
+          :side-offset="8"
+          class="w-[25rem] max-w-[calc(100vw-2rem)] p-0"
         >
-          <Hand class="approval-option__icon" />
-          <div class="min-w-0 flex-1">
-            <p class="approval-option__title">请求批准</p>
-            <p class="approval-option__description">
-              编辑文件、运行命令或使用互联网前始终询问
+          <div class="flex items-center justify-between gap-4 px-4 pb-2 pt-3">
+            <p class="text-label font-medium text-muted-foreground">
+              应如何批准 MilkSU 操作？
             </p>
+            <button
+              type="button"
+              class="shrink-0 text-label font-medium text-muted-foreground underline underline-offset-4 hover:text-foreground"
+              @click.stop="$emit('showPermissions')"
+            >
+              了解更多
+            </button>
           </div>
-          <Check
-            v-if="approvalPolicy === 'ask' || approvalPolicy === 'read-only'"
-            class="approval-option__check"
-          />
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          class="approval-option"
-          @select="$emit('changeApprovalPolicy', 'workspace-auto')"
-        >
-          <ShieldCheck class="approval-option__icon" />
-          <div class="min-w-0 flex-1">
-            <p class="approval-option__title">替我审批</p>
-            <p class="approval-option__description">
-              项目内自动执行；越过项目边界或高风险操作时拦截
-            </p>
-          </div>
-          <Check
-            v-if="approvalPolicy === 'workspace-auto'"
-            class="approval-option__check"
-          />
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          class="approval-option approval-option--full"
-          @select="$emit('changeApprovalPolicy', 'full-auto')"
-        >
-          <ShieldAlert class="approval-option__icon" />
-          <div class="min-w-0 flex-1">
-            <p class="approval-option__title">完全访问权限</p>
-            <p class="approval-option__description">
-              可不受限制地访问互联网和当前用户可访问的任何文件
-            </p>
-          </div>
-          <Check
-            v-if="approvalPolicy === 'full-auto'"
-            class="approval-option__check"
-          />
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+          <DropdownMenuItem
+            class="approval-option"
+            @select="$emit('changeApprovalPolicy', 'ask')"
+          >
+            <Hand class="approval-option__icon" />
+            <div class="min-w-0 flex-1">
+              <p class="approval-option__title">请求批准</p>
+              <p class="approval-option__description">
+                编辑文件、运行命令或使用互联网前始终询问
+              </p>
+            </div>
+            <Check
+              v-if="approvalPolicy === 'ask' || approvalPolicy === 'read-only'"
+              class="approval-option__check"
+            />
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            class="approval-option"
+            @select="$emit('changeApprovalPolicy', 'workspace-auto')"
+          >
+            <ShieldCheck class="approval-option__icon" />
+            <div class="min-w-0 flex-1">
+              <p class="approval-option__title">替我审批</p>
+              <p class="approval-option__description">
+                项目内自动执行；越过项目边界或高风险操作时拦截
+              </p>
+            </div>
+            <Check
+              v-if="approvalPolicy === 'workspace-auto'"
+              class="approval-option__check"
+            />
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            class="approval-option approval-option--full"
+            @select="$emit('changeApprovalPolicy', 'full-auto')"
+          >
+            <ShieldAlert class="approval-option__icon" />
+            <div class="min-w-0 flex-1">
+              <p class="approval-option__title">完全访问权限</p>
+              <p class="approval-option__description">
+                可不受限制地访问互联网和当前用户可访问的任何文件
+              </p>
+            </div>
+            <Check
+              v-if="approvalPolicy === 'full-auto'"
+              class="approval-option__check"
+            />
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
 
     <Select
       :model-value="modelKey"
@@ -207,14 +186,14 @@ defineEmits<{
 
 <style scoped>
 .composer-controls {
-  flex: 0 1 auto;
+  flex: 1 1 auto;
 }
 
 /*
- * Mode / permission / model share one pill language:
+ * Permission / model share one pill language:
  * transparent at rest, the same soft fill on hover and while open.
  * SelectTrigger normally uses --ui-hover + field hairline; ghost Button uses
- * a ::before shell with --btn-ghost-hover. Normalize both here so the three
+ * a ::before shell with --btn-ghost-hover. Normalize both here so the two
  * composer choosers do not flash different hover chips.
  */
 .composer-control {
@@ -252,14 +231,6 @@ defineEmits<{
 .composer-control[data-button][data-variant='ghost'][data-state='open']::before,
 .composer-control[data-button][data-variant='ghost'][aria-expanded='true']::before {
   background-color: var(--btn-ghost-hover);
-}
-
-.composer-mode {
-  width: 4.25rem;
-  min-width: 4.25rem;
-  flex: 0 0 4.25rem;
-  justify-content: space-between;
-  padding-inline: 0.65rem;
 }
 
 .composer-permission {

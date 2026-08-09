@@ -31,6 +31,8 @@ describe('Workspace visual contract', () => {
     expect(chatMessageItemSource).toContain('class="break-words text-control leading-7"')
     expect(chatComposerSource).toContain('font-size: var(--text-label)')
     expect(chatComposerSource).toContain('line-height: var(--text-label--line-height)')
+    expect(chatComposerSource).toContain('class="chat-composer__goal-panel"')
+    expect(chatComposerSource).toContain('border-radius: 9999px;')
     expect(workspaceRailSource).toContain('font-size: var(--text-body)')
     expect(workspaceRailSource).toContain('line-height: var(--text-body--line-height)')
   })

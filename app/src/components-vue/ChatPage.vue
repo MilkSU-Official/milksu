@@ -746,6 +746,10 @@ function runSlashCommand(command: string) {
     void runCodingProductAction('review')
     return
   }
+  if (command === 'architecture') {
+    generateArchitecture()
+    return
+  }
   if (command === 'browser-use') {
     showBrowserUseScope()
     return

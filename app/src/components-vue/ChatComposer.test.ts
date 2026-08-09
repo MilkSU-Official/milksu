@@ -98,14 +98,14 @@ afterEach(() => {
 })
 
 describe('ChatComposer', () => {
-  it('keeps only mode, permission, and model controls in the Coding composer', async () => {
+  it('keeps permission and model visible while moving task additions behind one plus menu', async () => {
     const { host } = mountComposer()
     await nextTick()
 
-    expect(host.querySelectorAll('[aria-label="Coding 执行模式"]')).toHaveLength(1)
+    expect(host.querySelectorAll('[aria-label="Coding 执行模式"]')).toHaveLength(0)
     expect(host.querySelectorAll('[aria-label="Coding 权限策略"]')).toHaveLength(1)
     expect(host.querySelectorAll('[aria-label="选择本任务模型"]')).toHaveLength(1)
-    expect(host.querySelector('[aria-label="添加文件或图片"]')).not.toBeNull()
+    expect(host.querySelector('[aria-label="添加内容与工具"]')).not.toBeNull()
     expect(host.querySelector('[aria-label="消息"]')?.getAttribute('data-placeholder') ?? '')
       .toBe('描述你想让 MilkSU 完成的任务')
     expect(host.querySelector('[aria-label="消息"]')?.hasAttribute('aria-controls')).toBe(false)
@@ -114,15 +114,12 @@ describe('ChatComposer', () => {
     expect(host.textContent).not.toContain('目标')
   })
 
-  it('keeps the three bottom choosers on one hover language and shows full approval labels', async () => {
+  it('keeps the two bottom choosers on one hover language and shows full approval labels', async () => {
     const { host } = mountComposer()
     await nextTick()
 
-    const mode = host.querySelector('[aria-label="Coding 执行模式"]')
     const permission = host.querySelector('[aria-label="Coding 权限策略"]')
     const model = host.querySelector('[aria-label="选择本任务模型"]')
-    expect(mode?.className).toContain('composer-control')
-    expect(mode?.className).toContain('composer-mode')
     expect(permission?.className).toContain('composer-control')
     expect(permission?.className).toContain('composer-permission')
     expect(model?.className).toContain('composer-control')
@@ -136,6 +133,8 @@ describe('ChatComposer', () => {
     expect(composerControlsSource).toContain('.composer-permission__label')
     expect(composerControlsSource).toContain('overflow: visible')
     expect(composerControlsSource).toContain('width: auto;')
+    expect(composerControlsSource).not.toContain('aria-label="Coding 执行模式"')
+    expect(composerControlsSource).not.toMatch(/\.composer-mode\s*\{/)
     expect(composerControlsSource).not.toMatch(/(?:^|\n)\.composer-permission \{[\s\S]*?\n\s*width: 7\.5rem;/)
   })
 
@@ -236,6 +235,36 @@ describe('ChatComposer', () => {
     expect(result.executionModes).toEqual(['plan'])
     expect(result.slashCommandActions).toEqual([])
     expect(textarea.textContent).toBe('')
+
+  })
+
+  it('exposes attachments, planning, a fixed Skill, MCP, and Computer Use from plus', async () => {
+    const result = mountComposer({ workspaceReady: true })
+    await nextTick()
+
+    result.host.querySelector<HTMLButtonElement>('[aria-label="添加内容与工具"]')?.click()
+    await nextTick()
+    expect(document.body.textContent).toContain('文件或图片')
+    expect(document.body.textContent).toContain('计划模式')
+    expect(document.body.textContent).toContain('Archify Skill')
+    expect(document.body.textContent).toContain('项目 MCP')
+    expect(document.body.textContent).toContain('Computer Use')
+
+    const planItem = [...document.querySelectorAll<HTMLDivElement>('[role="menuitem"]')]
+      .find(item => item.textContent?.includes('计划模式'))
+    planItem?.click()
+    await nextTick()
+    expect(result.executionModes).toEqual(['plan'])
+
+    result.host.querySelector<HTMLButtonElement>('[aria-label="添加内容与工具"]')?.click()
+    await nextTick()
+    const computerUseItem = [...document.querySelectorAll<HTMLDivElement>('[role="menuitem"]')]
+      .find(item => item.textContent?.includes('Computer Use'))
+    computerUseItem?.click()
+    await nextTick()
+    expect(composerEditor(result.host).querySelector('[data-composer-scope-token="computer-use"]'))
+      .not.toBeNull()
+    expect(result.slashCommandActions).toEqual(['computer-use'])
   })
 
   it('filters slash commands and emits an existing product action instead of sending command text', async () => {

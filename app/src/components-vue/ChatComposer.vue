@@ -1,10 +1,19 @@
 <script setup lang="ts">
 import { computed, markRaw, nextTick, ref, watch } from 'vue'
-import { Button } from '@felinic/ui'
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@felinic/ui'
 import {
   Activity,
   ArrowUp,
   Bot,
+  Check,
   Compass,
   FileDiff,
   FileText,
@@ -17,6 +26,7 @@ import {
   Paperclip,
   Pause,
   Play,
+  Plus,
   Plug,
   Route,
   ScanSearch,
@@ -210,7 +220,7 @@ function slashCommandDisabled(id: typeof slashCommandCatalog[number]['id']) {
 const slashCommands = computed(() => {
   const query = slashQuery.value
   if (query === null) return []
-  return slashCommandCatalog.map(command => ({
+  const commands = slashCommandCatalog.map(command => ({
     ...command,
     description: command.id === 'goal' && hasUnfinishedGoal.value
       ? '当前已有持续目标'
@@ -222,6 +232,10 @@ const slashCommands = computed(() => {
     || command.label.toLocaleLowerCase().includes(query)
     || command.keywords.some(keyword => keyword.toLocaleLowerCase().includes(query))
   ))
+  if (query) {
+    commands.sort((left, right) => Number(right.id === query) - Number(left.id === query))
+  }
+  return commands
 })
 const slashMenuOpen = computed(() => (
   !slashMenuDismissed.value && slashCommands.value.length > 0
@@ -605,6 +619,20 @@ function chooseSlashCommand(command = activeSlashCommand.value) {
   focusMessageInput()
 }
 
+function togglePlanningMode() {
+  emit('changeExecutionMode', props.executionMode === 'plan' ? 'go' : 'plan')
+  focusMessageInput()
+}
+
+function runComposerShortcut(command: 'architecture' | 'mcp') {
+  emit('runSlashCommand', command)
+  focusMessageInput()
+}
+
+function addComputerUseScope() {
+  insertScopeToken('computer-use')
+}
+
 function moveSlashCommandSelection(direction: 1 | -1) {
   const commands = slashCommands.value
   if (!commands.length) return
@@ -807,22 +835,18 @@ defineExpose({
           aria-label="持续目标"
         >
           <Target class="size-4 shrink-0 text-primary" />
-          <div class="min-w-0 flex-1">
-            <div class="flex min-w-0 items-center gap-2">
-              <span class="shrink-0 text-caption font-medium text-primary">
-                {{ goal ? goalStatusLabel : '正在设置' }}
-              </span>
-              <span
-                v-if="goalUsageLabel"
-                class="truncate text-caption text-muted-foreground"
-              >
-                {{ goalUsageLabel }}
-              </span>
-            </div>
-            <p class="mt-0.5 max-w-[34rem] truncate text-body" :title="goal?.text">
-              {{ goal?.text || '下一条消息会成为持续目标。' }}
-            </p>
-          </div>
+          <span class="shrink-0 text-caption font-medium text-primary">
+            {{ goal ? goalStatusLabel : '正在设置' }}
+          </span>
+          <span class="min-w-0 flex-1 truncate text-body" :title="goal?.text">
+            {{ goal?.text || '下一条消息会成为持续目标。' }}
+          </span>
+          <span
+            v-if="goalUsageLabel"
+            class="hidden shrink-0 text-caption text-muted-foreground sm:inline"
+          >
+            {{ goalUsageLabel }}
+          </span>
           <div class="flex shrink-0 items-center gap-1">
             <Button
               v-if="goal?.status === 'active'"
@@ -922,36 +946,98 @@ defineExpose({
           @paste="handleComposerPaste"
           @drop="handleComposerDrop"
         />
-        <div class="chat-composer__toolbar flex min-w-0 flex-wrap items-center justify-between gap-2">
-          <div class="flex min-w-0 items-center gap-1.5">
-            <Button
-              v-if="!ctfSession"
-              type="button"
-              variant="ghost"
-              size="icon"
-              :disabled="running"
-              aria-label="添加文件或图片"
-              title="添加文件或图片；文件会安全复制到 MilkSU 用户数据目录"
-              @click="chooseCodingAttachments"
-            >
-              <Paperclip class="size-4" />
-            </Button>
-          </div>
-          <div class="flex min-w-0 flex-1 items-center justify-end gap-1.5">
-            <CodingComposerControls
-              :running="running"
-              :ctf-session="ctfSession"
-              :execution-mode="executionMode"
-              :approval-policy="approvalPolicy"
-              :approval-label="approvalLabel"
-              :model-key="modelKey"
-              :automatic-model-label="automaticModelLabel"
-              :compact-model-label="compactModelLabel"
-              @change-execution-mode="$emit('changeExecutionMode', $event)"
-              @change-approval-policy="$emit('changeApprovalPolicy', $event)"
-              @change-model="$emit('changeModel', $event)"
-              @show-permissions="$emit('showPermissions')"
-            />
+        <div class="chat-composer__toolbar flex min-w-0 items-center gap-1.5">
+          <CodingComposerControls
+            :running="running"
+            :ctf-session="ctfSession"
+            :approval-policy="approvalPolicy"
+            :approval-label="approvalLabel"
+            :model-key="modelKey"
+            :automatic-model-label="automaticModelLabel"
+            :compact-model-label="compactModelLabel"
+            @change-approval-policy="$emit('changeApprovalPolicy', $event)"
+            @change-model="$emit('changeModel', $event)"
+            @show-permissions="$emit('showPermissions')"
+          >
+            <template v-if="!ctfSession" #leading>
+              <DropdownMenu>
+                <DropdownMenuTrigger as-child>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    :disabled="running"
+                    aria-label="添加内容与工具"
+                    title="添加附件、工作方式或交互范围"
+                  >
+                    <Plus class="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="start"
+                  :side-offset="8"
+                  class="w-[22rem] max-w-[calc(100vw-2rem)] p-1"
+                >
+                  <DropdownMenuLabel class="px-3 pb-1.5 pt-2 text-caption">
+                    添加到当前任务
+                  </DropdownMenuLabel>
+                  <DropdownMenuItem class="composer-add-option" @select="chooseCodingAttachments">
+                    <Paperclip class="size-4 shrink-0" />
+                    <span class="min-w-0 flex-1">
+                      <span class="block text-label font-medium">文件或图片</span>
+                      <span class="block text-caption text-muted-foreground">复制到 MilkSU 用户数据目录</span>
+                    </span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem class="composer-add-option" @select="togglePlanningMode">
+                    <Lightbulb class="size-4 shrink-0" />
+                    <span class="min-w-0 flex-1">
+                      <span class="block text-label font-medium">
+                        {{ executionMode === 'plan' ? '退出计划模式' : '计划模式' }}
+                      </span>
+                      <span class="block text-caption text-muted-foreground">
+                        {{ executionMode === 'plan' ? '恢复使用当前授权工具' : '只分析和规划，不修改文件' }}
+                      </span>
+                    </span>
+                    <Check v-if="executionMode === 'plan'" class="size-4 shrink-0 text-primary" />
+                  </DropdownMenuItem>
+                  <DropdownMenuLabel class="px-3 pb-1.5 pt-2 text-caption">
+                    技能与工具
+                  </DropdownMenuLabel>
+                  <DropdownMenuItem
+                    class="composer-add-option"
+                    :disabled="!workspaceReady"
+                    @select="runComposerShortcut('architecture')"
+                  >
+                    <Route class="size-4 shrink-0" />
+                    <span class="min-w-0 flex-1">
+                      <span class="block text-label font-medium">生成架构图</span>
+                      <span class="block text-caption text-muted-foreground">使用固定的 Archify Skill</span>
+                    </span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    class="composer-add-option"
+                    :disabled="!workspaceReady"
+                    @select="runComposerShortcut('mcp')"
+                  >
+                    <Plug class="size-4 shrink-0" />
+                    <span class="min-w-0 flex-1">
+                      <span class="block text-label font-medium">项目 MCP</span>
+                      <span class="block text-caption text-muted-foreground">查看并选择已审核的项目服务</span>
+                    </span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem class="composer-add-option" @select="addComputerUseScope">
+                    <MousePointer2 class="size-4 shrink-0" />
+                    <span class="min-w-0 flex-1">
+                      <span class="block text-label font-medium">Computer Use</span>
+                      <span class="block text-caption text-muted-foreground">选择一个外部 App 窗口加入本轮输入</span>
+                    </span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </template>
+          </CodingComposerControls>
           <Button
               v-if="running"
               type="button"
@@ -975,7 +1061,6 @@ defineExpose({
             >
               <ArrowUp class="size-4" />
             </Button>
-          </div>
         </div>
       </form>
       <p v-if="attachmentError" class="px-2 pt-1.5 text-caption text-destructive">
@@ -1065,14 +1150,23 @@ defineExpose({
 }
 
 .chat-composer__goal-panel {
-  display: flex;
-  min-width: min(18rem, 100%);
-  max-width: 100%;
-  flex: 1 1 18rem;
+  display: inline-flex;
+  min-width: 0;
+  min-height: 2.25rem;
+  max-width: min(36rem, 100%);
+  flex: 0 1 auto;
   align-items: center;
-  gap: 0.65rem;
-  border-radius: 1rem;
-  padding: 0.45rem 0.55rem 0.45rem 0.75rem;
+  gap: 0.45rem;
+  border-radius: 9999px;
+  padding: 0.35rem 0.4rem 0.35rem 0.75rem;
+}
+
+.composer-add-option {
+  display: flex;
+  min-height: 3.5rem;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.55rem 0.75rem;
 }
 
 .chat-composer__island {
