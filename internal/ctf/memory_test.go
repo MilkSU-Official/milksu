@@ -301,7 +301,7 @@ func TestTrainingMemoryVerificationTracksEvidenceAuthority(t *testing.T) {
 	}
 }
 
-func TestTrainingMemoryMigratesLegacyRowsConservatively(t *testing.T) {
+func TestTrainingMemoryRejectsPreAttributionRowsWithoutMutation(t *testing.T) {
 	root := t.TempDir()
 	databasePath := filepath.Join(root, "memory.sqlite3")
 	legacy, err := sql.Open("sqlite", databasePath)
@@ -346,47 +346,31 @@ INSERT INTO ctf_memories (
 		t.Fatal(err)
 	}
 
+	before, err := os.ReadFile(databasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
 	store, err := NewMemoryStore(
 		databasePath,
 		filepath.Join(root, "memories"),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	memories, err := store.Recall(context.Background(), "misc", "", 5)
-	if err != nil {
+	if store != nil {
 		store.Close()
-		t.Fatal(err)
+		t.Fatal("incompatible pre-release memory database returned a store")
 	}
-	if len(memories) != 1 ||
-		memories[0].Verification != TrainingMemoryLegacyUntyped ||
-		memories[0].Confidence != 0.6 {
-		store.Close()
-		t.Fatalf("legacy memory retained unjustified authority: %#v", memories)
+	if err == nil || !strings.Contains(err.Error(), "incompatible pre-release CTF memory database") {
+		t.Fatalf("incompatible memory error = %v", err)
 	}
-	assertCTFMemoryV1History(t, store.database)
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	reopened, err := NewMemoryStore(
-		databasePath,
-		filepath.Join(root, "memories"),
-	)
+	after, err := os.ReadFile(databasePath)
 	if err != nil {
-		t.Fatalf("verification migration was not idempotent: %v", err)
+		t.Fatal(err)
 	}
-	defer reopened.Close()
-	recalled, err := reopened.Recall(context.Background(), "misc", "", 5)
-	if err != nil || len(recalled) != 1 ||
-		recalled[0].Verification != TrainingMemoryLegacyUntyped ||
-		recalled[0].Confidence != 0.6 {
-		t.Fatalf("migrated legacy memory changed after reopen: memories=%#v err=%v", recalled, err)
+	if !bytes.Equal(after, before) {
+		t.Fatal("incompatible memory database bytes changed during rejection")
 	}
-	assertCTFMemoryV1History(t, reopened.database)
 }
 
-func TestTrainingMemoryAdoptsCurrentPreMigratorRowsWithoutDowngrade(t *testing.T) {
+func TestTrainingMemoryRejectsRowsWithoutDurableAttribution(t *testing.T) {
 	root := t.TempDir()
 	databasePath := filepath.Join(root, "memory.sqlite3")
 	database, err := sql.Open("sqlite", databasePath)
@@ -435,20 +419,13 @@ INSERT INTO ctf_memories (
 		databasePath,
 		filepath.Join(root, "memories"),
 	)
-	if err != nil {
-		t.Fatal(err)
+	if store != nil {
+		store.Close()
+		t.Fatal("pre-attribution memory database returned a store")
 	}
-	defer store.Close()
-	memories, err := store.Recall(context.Background(), "crypto", "", 5)
-	if err != nil {
-		t.Fatal(err)
+	if err == nil || !strings.Contains(err.Error(), "missing actor") {
+		t.Fatalf("pre-attribution memory error = %v", err)
 	}
-	if len(memories) != 1 ||
-		memories[0].Verification != TrainingMemoryJudgeVerified ||
-		memories[0].Confidence != 1 {
-		t.Fatalf("current pre-migrator memory was downgraded: %#v", memories)
-	}
-	assertCTFMemoryV1History(t, store.database)
 }
 
 func TestTrainingMemoryRejectsNewerDatabaseWithoutMutation(t *testing.T) {
@@ -507,95 +484,6 @@ INSERT INTO future_marker(value) VALUES ('must remain byte-for-byte unchanged');
 		if _, statErr := os.Stat(databasePath + suffix); !os.IsNotExist(statErr) {
 			t.Fatalf("newer database rejection left %s sidecar: %v", suffix, statErr)
 		}
-	}
-}
-
-func TestTrainingMemoryMigrationFailureRollsBackLegacyUpgrade(t *testing.T) {
-	root := t.TempDir()
-	databasePath := filepath.Join(root, "memory.sqlite3")
-	database, err := sql.Open("sqlite", databasePath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := database.Exec(`
-CREATE TABLE ctf_memories (
-	id TEXT PRIMARY KEY,
-	schema_version TEXT NOT NULL,
-	kind TEXT NOT NULL,
-	title TEXT NOT NULL,
-	summary TEXT NOT NULL,
-	category TEXT NOT NULL,
-	tags_json TEXT NOT NULL,
-	source_job_id TEXT NOT NULL UNIQUE,
-	source_session_id TEXT,
-	evidence_refs_json TEXT NOT NULL,
-	confidence REAL NOT NULL,
-	path TEXT NOT NULL,
-	created_at TEXT NOT NULL,
-	updated_at TEXT NOT NULL,
-	archived_at TEXT,
-	archived_reason TEXT
-);
-INSERT INTO ctf_memories (
-	id, schema_version, kind, title, summary, category, tags_json,
-	source_job_id, source_session_id, evidence_refs_json, confidence,
-	path, created_at, updated_at
-) VALUES (
-	'ctfmem_rollback', 'ctf-memory.milksu.dev/v1alpha1', 'technique',
-	'[misc] rollback', 'rollback fixture', 'misc', '[]',
-	'job_rollback', '', '["job:job_rollback"]', 1.0,
-	'/tmp/rollback-memory.md', '2026-07-31T00:00:00Z', '2026-07-31T00:00:00Z'
-);
-CREATE TRIGGER reject_memory_update
-BEFORE UPDATE ON ctf_memories
-BEGIN
-	SELECT RAISE(ABORT, 'fixture rejects confidence update');
-END;
-`); err != nil {
-		database.Close()
-		t.Fatal(err)
-	}
-	if err := database.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	store, err := NewMemoryStore(
-		databasePath,
-		filepath.Join(root, "memories"),
-	)
-	if store != nil {
-		store.Close()
-		t.Fatal("failed CTF memory migration returned a store")
-	}
-	if err == nil || !strings.Contains(err.Error(), "fixture rejects confidence update") {
-		t.Fatalf("migration failure = %v, want fixture trigger rejection", err)
-	}
-
-	database, err = sql.Open("sqlite", databasePath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer database.Close()
-	if columns := ctfMemoryColumnNames(t, database); memoryColumnsContain(columns, "verification") {
-		t.Fatalf("failed migration left verification column behind: %v", columns)
-	}
-	var historyTables int
-	if err := database.QueryRow(
-		`SELECT count(*) FROM sqlite_master WHERE type='table' AND name='schema_migrations'`,
-	).Scan(&historyTables); err != nil {
-		t.Fatal(err)
-	}
-	if historyTables != 0 {
-		t.Fatalf("failed migration left %d schema_migrations tables, want 0", historyTables)
-	}
-	var confidence float64
-	if err := database.QueryRow(
-		`SELECT confidence FROM ctf_memories WHERE id='ctfmem_rollback'`,
-	).Scan(&confidence); err != nil {
-		t.Fatal(err)
-	}
-	if confidence != 1 {
-		t.Fatalf("failed migration changed legacy confidence to %v, want 1", confidence)
 	}
 }
 

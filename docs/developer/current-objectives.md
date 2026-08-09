@@ -2,7 +2,7 @@
 
 > 文档状态：Current / Canonical target contract
 >
-> 最后收口：2026-08-06
+> 最后收口：2026-08-09
 >
 > 本页只回答“现在按什么目标继续做”。实现事实以当前代码、测试、Git 历史和原生 App 验收为准。
 > 旧覆盖台账和流水验收已压缩为历史摘要，不再作为当前执行入口。
@@ -30,6 +30,10 @@
 - CTF 主链已有题库、自定义题、工作区、Evidence、候选、Judge、Checkpoint、恢复、复盘和 Memory；真实 Judge 成功仍只有窄 Web 路径。
 - Runtime 已有 Sidecar 恢复、Compaction、异常退出标记、后台长任务打包 App/WebView 恢复、预算和失败分类。
 - 模型与凭据设置已收敛为一个默认模型、一个模型来源和一个凭据区；DeepSeek V4 Flash 是默认日常模型，TokenFlux 是一等中转站入口，fast/deep 按角色模型路由和 Kimi/KouriChat 产品入口已移除。
+- Coding、CTF 和 sub-agent Sidecar 共用当前 Provider 注册；worktree、恢复和上游 Pi sub-agent 能力保留，MilkSU 不另造通用 Agent 调度框架。
+- WebView 不再维护 localStorage 假后端；没有 Wails Runtime 时命令直接失败，浏览器预览只验证静态布局和明确的不可用状态。
+- CVE 资产验证与学习记录以 Vuln Runtime 为唯一正式来源；localStorage 只保留明确标记的未提交草稿、筛选和选中项。
+- CTF Memory 直接持久化 actor / assistance 归因，旧的 pre-release 无归因数据库不迁移。
 - 全局主题已有夜间/日间两态：左下 rail 主题按钮切换并本地持久化；日间色板采用浅灰绿背景、白色卡片、橄榄绿重点色，保持 CTF/CVE/Coding/设置同一语义 token。
 - Labs 纵深闭环暂停；CVE 纵深研究、真实漏洞复现、外部资产实验和披露流程后置。
 - NYU safe-static 只能叫 Pi Runtime safe-static smoke，不能叫 MilkSU 完整 CTF 成绩。
@@ -39,7 +43,7 @@
 | 优先级 | 主线 | 下一步只认什么完成 |
 | --- | --- | --- |
 | P0 | Coding 自举质量 | 在真实打包 MilkSU 中完成一个更自然的 MilkSU 或用户项目任务：理解、修改、测试、预览/Computer Use 或 Browser 验证、恢复、Git 交付；重点看真实外部 Provider 质量和人工接管次数。 |
-| P0 | Session Index / Obelisk 形态长期记忆 | 继续内置，不退回“检测用户是否安装 Obelisk CLI”；扩展真实用户历史目录、Claude/Kimi/Pi 样本、许可证/NOTICE/ADR。 |
+| P0 | Session Index / Obelisk 形态长期记忆 | 继续内置 MilkSU 自有历史索引，不退回“检测用户是否安装 Obelisk CLI”；外部 Codex/Claude/Kimi/Pi 导入在有明确文件选择、确认和产品调用者前不进入发行图。 |
 | P0 | CVE 学习/追踪扩样 | 用更多真实 CVE 验证多源同步、练习目录、研究档案、资产验证和学习写回；仍不做外部攻击、自动 PoC 或披露。 |
 | P1 | CTF 六赛道 | Web、Pwn、Reverse、Crypto、Forensics、Misc 各至少一题 Judge-verified；每题留材料、轨迹、候选、Judge、恢复、复盘和提示依赖。 |
 | P1 | Memory 可信度 | 区分 user / agent / shared / imported 与 none / hint / copilot / delegated；Agent 代做不能提升用户独立能力。 |
@@ -66,6 +70,9 @@
 - CVE 多源同步、真实 snapshot、本地练习生命周期、学习写回、资产验证；
 - Session Index 基础索引、相关历史展示、用户确认写入 CVE Note / Coding 输入 / CTF 复盘；
 - 模型与凭据页普通入口简化、TokenFlux 中转站接入、Kimi/KouriChat 产品入口移除、fast/deep 按角色模型路由删除；
+- 浏览器预览假后端、Managed Labs 发行代码、无调用者的外部会话导入和孤儿 Wails/UI 入口清理；
+- CTF Memory actor / assistance 跨重启保持一致；旧无归因 pre-release 数据不迁移；
+- packet-parser 纵深复现 fixture 不进入 Wails 或产品 Runtime 启动，只保留开发者测试用途；
 - M3 product-loop PR #1 合并。
 
 ## CTF 完成线

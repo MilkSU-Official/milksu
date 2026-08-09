@@ -32,7 +32,6 @@ import (
 	"github.com/MilkSU-Official/milksu/internal/ctf"
 	"github.com/MilkSU-Official/milksu/internal/ctfshow"
 	"github.com/MilkSU-Official/milksu/internal/engine"
-	"github.com/MilkSU-Official/milksu/internal/labmanager"
 	"github.com/MilkSU-Official/milksu/internal/nssctf"
 	"github.com/MilkSU-Official/milksu/internal/securityruntime"
 	"github.com/MilkSU-Official/milksu/internal/sessionindex"
@@ -59,7 +58,6 @@ type App struct {
 	ctfshowCatalog  *ctfshow.CatalogService
 	nssctfArena     *nssctf.ArenaClient
 	browserBridge   *browsercap.Manager
-	managedLabs     *labmanager.Manager
 	jobs            *securityruntime.Service
 	ctfJobs         *ctf.Service
 	ctfAgent        *ctfAgentRecorder
@@ -131,12 +129,6 @@ func NewApp() (*App, error) {
 	} else if migrationBackup.Reused {
 		application.diagnostics.Record("appdata", "info", "existing pre-migration safety backup verified")
 		_ = appdata.AppendEventLog(dataDirectory, appdata.PersistedMigrationBackupVerified)
-	}
-	if managedLabsFeatureEnabled() {
-		application.managedLabs, err = labmanager.New(dataDirectory)
-		if err != nil {
-			return nil, fmt.Errorf("create managed lab service: %w", err)
-		}
 	}
 	application.engines = engine.NewSupervisor(application.emitEngineEvent)
 	application.codingPRs = codingenv.NewPullRequestPublisher()
@@ -242,10 +234,6 @@ func NewApp() (*App, error) {
 	return application, nil
 }
 
-func managedLabsFeatureEnabled() bool {
-	return strings.TrimSpace(os.Getenv("MILKSU_ENABLE_MANAGED_LABS")) == "1"
-}
-
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
 	lifespanStart, lifespanHandle, lifespanErr := appdata.BeginLifespan(
@@ -281,14 +269,6 @@ func (a *App) Startup(ctx context.Context) {
 	a.diagnostics.Record("app", "info", "desktop runtime started")
 	_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedAppInitialized)
 	_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedDesktopRuntimeStarted)
-	if a.managedLabs != nil {
-		reconcileContext, cancel := context.WithTimeout(ctx, managedLabReconcileTimeout)
-		if _, err := a.managedLabs.Reconcile(reconcileContext); err != nil {
-			a.diagnostics.Record("managed-labs", "error", "managed labs reconciliation failed")
-			wailsruntime.EventsEmit(ctx, "managed-lab-runtime-error", err.Error())
-		}
-		cancel()
-	}
 	if err := a.jobs.Recover(ctx); err != nil {
 		a.diagnostics.Record("runtime", "error", "runtime job recovery failed")
 		_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedRuntimeRecoveryFailed)
@@ -516,13 +496,6 @@ func (a *App) SearchSessionHistory(request sessionindex.SearchRequest) (sessioni
 		return sessionindex.SearchResponse{}, err
 	}
 	return a.sessionIndex.Search(a.commandContext(), request)
-}
-
-func (a *App) ImportExternalSessionHistory(request sessionindex.ExternalImportRequest) (sessionindex.ExternalImportResult, error) {
-	if a.sessionIndex == nil {
-		return sessionindex.ExternalImportResult{}, fmt.Errorf("session index is not ready")
-	}
-	return a.sessionIndex.ImportExternalJSONL(a.commandContext(), request)
 }
 
 func (a *App) SaveSettingsCmd(settings config.AppSettings) error {
@@ -886,10 +859,6 @@ func (a *App) TestAgentModel() (engine.ModelProbeResult, error) {
 	return result, nil
 }
 
-func (a *App) StartSampleCTF() (ctf.Projection, error) {
-	return a.ctfJobs.StartSampleChallenge(a.commandContext())
-}
-
 func (a *App) ImportNSSCTFChallenge(rawURL string) (nssctf.Challenge, error) {
 	return a.nssctf.ImportChallenge(a.commandContext(), rawURL)
 }
@@ -1207,17 +1176,6 @@ func (a *App) SaveCTFTrainingMemory(id string) (ctf.TrainingMemory, error) {
 	return memory, nil
 }
 
-func (a *App) ListCTFMemories(category, query string) ([]ctf.TrainingMemory, error) {
-	if a.ctfMemory == nil {
-		return nil, fmt.Errorf("CTF memory store is unavailable")
-	}
-	memories, err := a.ctfMemory.Recall(a.commandContext(), category, query, 20)
-	if err != nil {
-		return nil, err
-	}
-	return a.attributeCTFMemories(memories), nil
-}
-
 func (a *App) GetCTFMemoryContext(id string) ([]ctf.TrainingMemory, error) {
 	if a.ctfMemory == nil {
 		return nil, fmt.Errorf("CTF memory store is unavailable")
@@ -1499,10 +1457,6 @@ func (a *App) RecordCTFExternalVerdict(
 	)
 }
 
-func (a *App) StartPacketParserResearch() (vuln.Projection, error) {
-	return a.vulnJobs.StartPacketParserFixture(a.commandContext())
-}
-
 func (a *App) EnsureVulnTrackingWorkspace(request vuln.TrackingWorkspaceRequest) (vuln.Projection, error) {
 	return a.vulnJobs.EnsureCVETrackingWorkspace(a.commandContext(), request)
 }
@@ -1617,10 +1571,6 @@ func (a *App) fetchAndPersistVulnerabilityFeed(
 	}
 	a.diagnostics.Record("vuln-feed", "info", "vulnerability feed snapshot persisted")
 	return persisted, nil
-}
-
-func (a *App) SubmitVulnReproduction(id string, request vuln.ReproductionRequest) (vuln.Projection, error) {
-	return a.vulnJobs.SubmitReproductionEvidence(a.commandContext(), id, request)
 }
 
 func (a *App) RecordVulnLearning(id string, request vuln.LearningRecordRequest) (vuln.Projection, error) {

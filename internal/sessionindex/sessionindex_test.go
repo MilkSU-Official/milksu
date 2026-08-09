@@ -203,102 +203,6 @@ func TestSearchFindsMilkSUIndexedHistory(t *testing.T) {
 	}
 }
 
-func TestImportExternalJSONLIndexesToolHistoryAndRedactsSecrets(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "session-index", "obelisk.sqlite")
-	store, err := NewStore(path)
-	if err != nil {
-		t.Fatalf("NewStore() error = %v", err)
-	}
-	store.Now = fixedNow
-	historyPath := filepath.Join(t.TempDir(), "codex-history.jsonl")
-	writeLines(t, historyPath, []string{
-		`{"session_id":"codex-a","title":"Codex self boot","timestamp":"2026-08-05T01:00:00Z","role":"user","content":[{"type":"input_text","text":"Find the Computer Use screenshot route; OPENAI_API_KEY=sk-external-history-secret12345"}],"cwd":"/Users/milksu/code/milksu","model":"gpt-5"}`,
-		`{"session_id":"codex-a","timestamp":"2026-08-05T01:02:00Z","type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Computer Use screenshot route is in the bridge policy."},{"type":"tool_use","name":"computer_use.observe","input":{"target":"Calculator","api_key":"sk-tool-input-secret12345"}}]},"cwd":"/Users/milksu/code/milksu"}`,
-		`{"sessionId":"codex-b","title":"CVE handoff","timestamp":1785901380000,"role":"assistant","content":"CVE-2023-46604 Vulhub mapping found with Bearer imported-token-secret12345","project_path":"/Users/milksu/code/milksu"}`,
-		`not json`,
-	})
-
-	result, err := store.ImportExternalJSONL(context.Background(), ExternalImportRequest{
-		Source:      "codex",
-		Path:        historyPath,
-		Project:     "milksu",
-		ProjectPath: "/Users/milksu/code/milksu",
-	})
-	if err != nil {
-		t.Fatalf("ImportExternalJSONL() error = %v", err)
-	}
-	if result.SessionCount != 2 || result.MessageCount != 3 || result.ToolCallCount != 1 || result.SkippedLineCount != 1 {
-		t.Fatalf("unexpected import result: %#v", result)
-	}
-	if result.Source != "codex" || result.Path != historyPath {
-		t.Fatalf("unexpected import metadata: %#v", result)
-	}
-
-	status, err := store.Status(context.Background())
-	if err != nil {
-		t.Fatalf("Status() error = %v", err)
-	}
-	if sources := sourceMap(status.Sources); sources["codex"] != 2 {
-		t.Fatalf("unexpected sources after import: %#v", status.Sources)
-	}
-
-	response, err := store.Search(context.Background(), SearchRequest{
-		Query:  "Computer Use screenshot",
-		Source: "codex",
-		Limit:  4,
-	})
-	if err != nil {
-		t.Fatalf("Search() error = %v", err)
-	}
-	if len(response.Results) == 0 {
-		t.Fatalf("Search() returned no imported history")
-	}
-	if !strings.HasPrefix(response.Results[0].SessionID, "external:codex:") {
-		t.Fatalf("unexpected external session id: %#v", response.Results[0])
-	}
-	if strings.Contains(response.Results[0].Snippet, "sk-external-history-secret") {
-		t.Fatalf("search result leaked credential: %q", response.Results[0].Snippet)
-	}
-
-	db, err := sql.Open("sqlite", path)
-	if err != nil {
-		t.Fatalf("open session index: %v", err)
-	}
-	defer db.Close()
-	var indexedText string
-	if err := db.QueryRow(`SELECT group_concat(text || char(10) || COALESCE(input_json, ''), char(10)) FROM messages LEFT JOIN tool_calls ON tool_calls.message_uuid = messages.uuid`).Scan(&indexedText); err != nil {
-		t.Fatalf("read indexed text: %v", err)
-	}
-	for _, leaked := range []string{"sk-external-history-secret", "sk-tool-input-secret", "imported-token-secret"} {
-		if strings.Contains(indexedText, leaked) {
-			t.Fatalf("external import leaked credential %q in %q", leaked, indexedText)
-		}
-	}
-	if strings.Contains(indexedText, "redacted] redacted]") {
-		t.Fatalf("external import repeated redaction marker: %q", indexedText)
-	}
-
-	second, err := store.ImportExternalJSONL(context.Background(), ExternalImportRequest{
-		Source:      "codex",
-		Path:        historyPath,
-		Project:     "milksu",
-		ProjectPath: "/Users/milksu/code/milksu",
-	})
-	if err != nil {
-		t.Fatalf("ImportExternalJSONL() second pass error = %v", err)
-	}
-	if second.SessionCount != result.SessionCount || second.MessageCount != result.MessageCount || second.ToolCallCount != result.ToolCallCount {
-		t.Fatalf("second import changed counts: %#v -> %#v", result, second)
-	}
-	status, err = store.Status(context.Background())
-	if err != nil {
-		t.Fatalf("Status() after second import error = %v", err)
-	}
-	if status.SessionCount != 2 || status.MessageCount != 3 || status.ToolCallCount != 1 {
-		t.Fatalf("second import created duplicates: %#v", status)
-	}
-}
-
 func TestRedactSnippetIsIdempotentForAlreadyRedactedValues(t *testing.T) {
 	once := strings.Join([]string{
 		"OPENAI_API_KEY=[credential redacted]",
@@ -451,14 +355,6 @@ func fixtureExec(t *testing.T, db *sql.DB, statement string) {
 	t.Helper()
 	if _, err := db.Exec(statement); err != nil {
 		t.Fatalf("exec fixture insert: %v", err)
-	}
-}
-
-func writeLines(t *testing.T, path string, lines []string) {
-	t.Helper()
-	data := strings.Join(lines, "\n") + "\n"
-	if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
-		t.Fatalf("write fixture jsonl: %v", err)
 	}
 }
 

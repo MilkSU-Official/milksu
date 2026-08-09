@@ -20,6 +20,7 @@ const {
   relative,
   sep,
 } = require("node:path");
+const { providerRuntimeFor } = require("./current-provider-runtime.cjs");
 
 const readOnlyAgents = new Set([
   "planner",
@@ -45,45 +46,6 @@ const requiredIsolationFlags = [
 ];
 const maxManifestBytes = 64 * 1024;
 const maxPromptBytes = 128 * 1024;
-const providerRuntime = Object.freeze({
-  anthropic: {
-    api: "anthropic-messages",
-    apiKey: "ANTHROPIC_API_KEY",
-    baseUrl: "ANTHROPIC_BASE_URL",
-  },
-  deepseek: {
-    api: "openai-completions",
-    apiKey: "DEEPSEEK_API_KEY",
-    baseUrl: "DEEPSEEK_BASE_URL",
-  },
-  google: {
-    api: "google-generative-ai",
-    apiKey: "GEMINI_API_KEY",
-    baseUrl: "GOOGLE_BASE_URL",
-  },
-  groq: {
-    api: "openai-completions",
-    apiKey: "GROQ_API_KEY",
-    baseUrl: "GROQ_BASE_URL",
-  },
-  kourichat: {
-    api: "openai-completions",
-    apiKey: "KOURICHAT_API_KEY",
-    baseUrl: "KOURICHAT_BASE_URL",
-    defaultBaseUrl: "https://api.kourichat.com/v1",
-  },
-  mistral: {
-    api: "openai-completions",
-    apiKey: "MISTRAL_API_KEY",
-    baseUrl: "MISTRAL_BASE_URL",
-  },
-  openai: {
-    api: "openai-completions",
-    apiKey: "OPENAI_API_KEY",
-    baseUrl: "OPENAI_BASE_URL",
-  },
-});
-
 function quoted(value) {
   return JSON.stringify(value);
 }
@@ -366,14 +328,13 @@ function writeRuntimeModelConfig(
       defaultBaseUrl: "https://api.ciyuanliudong.com/v1",
     };
   } else {
-    runtime = providerRuntime[selection.provider];
+    runtime = providerRuntimeFor(selection.provider);
   }
   if (!runtime) return undefined;
   const baseUrl = String(
     environment[runtime.baseUrl] ?? runtime.defaultBaseUrl ?? "",
   ).trim();
   const needsCustomProvider = selection.provider === "milksu-relay"
-    || selection.provider === "kourichat"
     || Boolean(baseUrl);
   if (!needsCustomProvider) return undefined;
   if (!/^https?:\/\/[^\s]+$/u.test(baseUrl)) {

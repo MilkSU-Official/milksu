@@ -87,7 +87,7 @@ async function refresh() {
   } catch (reason) {
     error.value = reason instanceof Error
       ? reason.message
-      : '暂时无法读取 Agent 协作状态。'
+      : '暂时无法读取隔离 worktree 状态。'
   } finally {
     loading.value = false
   }
@@ -96,7 +96,7 @@ async function refresh() {
 async function prepare() {
   if (!props.workspacePath || busy.value) return
   const conversationId = taskId.value || props.ensureConversation(
-    `${workspaceName.value} · Agent 协作`,
+    `${workspaceName.value} · 隔离 worktree`,
   )
   retainedConversationId.value = conversationId
   loading.value = true
@@ -135,7 +135,7 @@ async function finish() {
   } catch (reason) {
     error.value = reason instanceof Error
       ? reason.message
-      : '无法安全结束 Agent 协作。'
+      : '无法安全结束隔离 worktree。'
   } finally {
     loading.value = false
   }
@@ -311,7 +311,7 @@ watch(
   <Dialog v-model:open="finishDialogOpen">
     <DialogContent>
       <DialogHeader>
-        <DialogTitle>结束 Agent 协作？</DialogTitle>
+        <DialogTitle>结束隔离 worktree？</DialogTitle>
         <DialogDescription>
           <template v-if="interruptedPreparation">
             MilkSU 已确认中断前创建的 worktree 没有修改或新增提交。继续后只移除 MilkSU

@@ -7,19 +7,13 @@ import {
 import { Type } from "typebox";
 import { createInterface } from "node:readline";
 import { join } from "node:path";
+import currentProviderRuntime from "./current-provider-runtime.cjs";
+
+const { currentProviderDefinition } = currentProviderRuntime;
 
 const relayKey = process.env.MILKSU_RELAY_KEY;
 const relayUrl = process.env.MILKSU_RELAY_URL || "https://api.ciyuanliudong.com/v1";
 const relayEnabled = process.env.MILKSU_RELAY_ENABLED === "1" && Boolean(relayKey);
-const kouriKey = process.env.KOURICHAT_API_KEY;
-const kouriUrl = process.env.KOURICHAT_BASE_URL || "https://api.kourichat.com/v1";
-const providerBaseUrls = {
-  anthropic: process.env.ANTHROPIC_BASE_URL,
-  openai: process.env.OPENAI_BASE_URL,
-  deepseek: process.env.DEEPSEEK_BASE_URL,
-  google: process.env.GOOGLE_BASE_URL,
-  groq: process.env.GROQ_BASE_URL,
-};
 const sessions = new Map();
 const input = createInterface({ input: process.stdin });
 
@@ -55,32 +49,8 @@ function configureRelayModel(session, provider, model) {
 }
 
 function configureRuntimeModel(session, provider, model) {
-  if (provider === "kourichat") {
-    session.modelRegistry.registerProvider("kourichat", {
-      name: "KouriChat",
-      baseUrl: kouriUrl,
-      apiKey: kouriKey,
-      api: "openai-completions",
-      models: [{
-        id: model,
-        name: model === "kimi-k3" ? "Kimi K3" : model,
-        reasoning: false,
-        input: ["text"],
-        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-        contextWindow: 128000,
-        maxTokens: 32768,
-        compat: {
-          supportsDeveloperRole: false,
-          supportsReasoningEffort: false,
-          maxTokensField: "max_tokens",
-        },
-      }],
-    });
-  } else if (providerBaseUrls[provider]) {
-    session.modelRegistry.registerProvider(provider, {
-      baseUrl: providerBaseUrls[provider],
-    });
-  }
+  const definition = currentProviderDefinition(provider, model);
+  if (definition) session.modelRegistry.registerProvider(provider, definition);
   return configureRelayModel(session, provider, model);
 }
 

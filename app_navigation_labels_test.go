@@ -77,17 +77,6 @@ func TestPrimaryNavigationUsesConciseProductNames(t *testing.T) {
 	}
 }
 
-func TestManagedLabsStayOutOfTheDefaultRelease(t *testing.T) {
-	t.Setenv("MILKSU_ENABLE_MANAGED_LABS", "")
-	if managedLabsFeatureEnabled() {
-		t.Fatal("managed labs must remain disabled in the default release")
-	}
-	t.Setenv("MILKSU_ENABLE_MANAGED_LABS", "1")
-	if !managedLabsFeatureEnabled() {
-		t.Fatal("the explicit developer feature flag should enable managed labs")
-	}
-}
-
 func TestCTFPlatformChooserOwnsHistoryPairingAndCustomImport(t *testing.T) {
 	data, err := os.ReadFile("app/src/components-vue/CTFPage.vue")
 	if err != nil {
@@ -119,10 +108,9 @@ func TestCTFPlatformChooserOwnsHistoryPairingAndCustomImport(t *testing.T) {
 	}
 }
 
-func TestCTFAbilityNoLongerLivesBehindTheSidebarTrigger(t *testing.T) {
+func TestCTFAbilityLivesOnlyInTheGlobalWorkspaceRail(t *testing.T) {
 	files := []string{
 		"app/src/components-vue/AppSidebar.vue",
-		"app/src/components-vue/WorkspaceRail.vue",
 		"app/src/components-vue/ContextSidebar.vue",
 	}
 	var sidebarSource strings.Builder
@@ -141,6 +129,16 @@ func TestCTFAbilityNoLongerLivesBehindTheSidebarTrigger(t *testing.T) {
 	} {
 		if strings.Contains(sidebar, obsolete) {
 			t.Fatalf("sidebar still exposes removed CTF ability trigger: %q", obsolete)
+		}
+	}
+	railData, err := os.ReadFile("app/src/components-vue/WorkspaceRail.vue")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rail := string(railData)
+	for _, expected := range []string{`aria-label="查看能力画像"`, `<AbilityRadar`} {
+		if !strings.Contains(rail, expected) {
+			t.Fatalf("global workspace rail lost the evidence-backed ability entry: %q", expected)
 		}
 	}
 
@@ -230,8 +228,8 @@ func TestCodingComposerKeepsOnlyMessageContextControls(t *testing.T) {
 		`aria-label="Coding 执行模式"`,
 		`aria-label="Coding 权限策略"`,
 		`aria-label="选择本任务模型"`,
-		`class="composer-control composer-model ml-auto`,
-		`min-width: 10rem`,
+		`class="composer-control composer-model`,
+		`justify-self: end`,
 	} {
 		if !strings.Contains(source, expected) {
 			t.Fatalf("Coding composer does not preserve the essential send-context control %q", expected)

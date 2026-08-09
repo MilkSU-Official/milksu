@@ -66,13 +66,11 @@ import CTFSubmissionGate from '@/components-vue/CTFSubmissionGate.vue'
 import CTFTrainingArchive from '@/components-vue/CTFTrainingArchive.vue'
 import CTFTrajectory from '@/components-vue/CTFTrajectory.vue'
 import CTFWorkspaceHeader from '@/components-vue/CTFWorkspaceHeader.vue'
-import ManagedLabCatalog from '@/components-vue/ManagedLabCatalog.vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import SessionHistoryPanel from '@/components-vue/SessionHistoryPanel.vue'
 import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
 import { useCTFTrainingPlatforms } from '@/composables/useCTFTrainingPlatforms'
 import { useCTFWorkspace } from '@/composables/useCTFWorkspace'
-import { useManagedLabs } from '@/composables/useManagedLabs'
 import { useCTFShowCatalog } from '@/composables/useCTFShow'
 import { useNSSCTFArena, useNSSCTFChallenges, useNSSCTFWebBridge } from '@/composables/useNSSCTF'
 import { useNSSCTFCatalog, useNSSCTFTraining } from '@/composables/useNSSCTFTraining'
@@ -92,7 +90,6 @@ import type {
   CTFTrainingMemoryEvidenceLink,
 } from '@/ctfTypes'
 import type { CTFTrainingPlatform } from '@/ctfPlatformTypes'
-import type { ManagedLabAccess } from '@/ctfLabTypes'
 import type { CTFWorkspaceSection } from '@/lib/workspaceNavigation'
 import type { NSSCTFChallenge } from '@/nssctfTypes'
 import type { NSSCTFRecommendation, NSSCTFTrainingSeries } from '@/nssctfTrainingTypes'
@@ -139,16 +136,11 @@ const webBridge = useNSSCTFWebBridge()
 const training = useNSSCTFTraining()
 const publicCatalog = useNSSCTFCatalog()
 const ctfshow = useCTFShowCatalog()
-const managedLabs = useManagedLabs()
 const screen = ref<Screen>('challenge')
 const deactivatedFromWorkspace = ref(false)
 const workspaceMode = ref<WorkspaceMode>('solve')
 const ctfSection = computed(() => props.ctfSection)
 const workspaceScrollArea = ref<HTMLElement | null>(null)
-const selectedLabId = ref('')
-const labNotice = ref('')
-const managedLabAccess = ref<ManagedLabAccess | null>(null)
-const labTrainingJobIds = ref<Record<string, string>>({})
 const storedTrainingSource = window.localStorage.getItem('milksu.ctf.question-bank')
 const activeBank = ref<TrainingSource>(
   storedTrainingSource === 'ctfshow'
@@ -717,26 +709,7 @@ watch(activeBank, bank => {
 })
 
 watch(ctfSection, section => {
-  labNotice.value = ''
-  managedLabAccess.value = null
-  if (section === 'labs') {
-    screen.value = 'challenge'
-    closeHistoryMenu()
-    closeBridgeMenu()
-    void managedLabs.refresh()
-    return
-  }
-  void selectDefaultDeskProblem()
-})
-
-watch(managedLabs.labs, labs => {
-  if (!labs.length) {
-    selectedLabId.value = ''
-    return
-  }
-  if (!labs.some(lab => lab.id === selectedLabId.value)) {
-    selectedLabId.value = labs[0].id
-  }
+  if (section === 'catalog') void selectDefaultDeskProblem()
 })
 
 watch(collaborationMode, mode => {
@@ -1580,103 +1553,6 @@ function refreshBridgePresence() {
   else if (activeBank.value === 'nssctf') void webBridge.refresh()
 }
 
-function selectManagedLab(labId: string) {
-  selectedLabId.value = labId
-  labNotice.value = ''
-  managedLabAccess.value = null
-}
-
-function selectedManagedLab(labId: string) {
-  return managedLabs.labs.value.find(lab => lab.id === labId)
-}
-
-async function startManagedLab(labId: string) {
-  selectedLabId.value = labId
-  labNotice.value = ''
-  managedLabAccess.value = null
-  await managedLabs.start(labId).catch(() => undefined)
-}
-
-async function openManagedLab(labId: string) {
-  const instanceId = selectedManagedLab(labId)?.instanceId
-  if (!instanceId) return
-  await managedLabs.open(instanceId).catch(cause => {
-    labNotice.value = cause instanceof Error ? cause.message : String(cause)
-  })
-}
-
-async function resetManagedLab(labId: string) {
-  const instanceId = selectedManagedLab(labId)?.instanceId
-  if (!instanceId) return
-  labNotice.value = ''
-  managedLabAccess.value = null
-  await managedLabs.reset(instanceId).catch(() => undefined)
-}
-
-async function stopManagedLab(labId: string) {
-  const instanceId = selectedManagedLab(labId)?.instanceId
-  if (!instanceId) return
-  labNotice.value = ''
-  await managedLabs.stop(instanceId).catch(() => undefined)
-}
-
-async function destroyManagedLab(labId: string) {
-  const instanceId = selectedManagedLab(labId)?.instanceId
-  if (!instanceId) return
-  labNotice.value = ''
-  managedLabAccess.value = null
-  await managedLabs.destroy(instanceId).catch(() => undefined)
-}
-
-async function revealManagedLabAccess(labId: string) {
-  const instanceId = selectedManagedLab(labId)?.instanceId
-  if (!instanceId) return
-  labNotice.value = ''
-  managedLabAccess.value = await managedLabs.access(instanceId).catch(cause => {
-    labNotice.value = cause instanceof Error ? cause.message : String(cause)
-    return null
-  })
-}
-
-async function ensureManagedLabTraining(labId: string) {
-  const instanceId = selectedManagedLab(labId)?.instanceId
-  if (!instanceId) return null
-  const workspace = await managedLabs.startTraining(
-    instanceId,
-    collaborationMode.value,
-  ).catch(() => null)
-  if (!workspace) return null
-  labTrainingJobIds.value[instanceId] = workspace.ctf.job.id
-  await backend.adoptProjection(workspace.ctf)
-  return workspace
-}
-
-async function startManagedLabAgent(labId: string) {
-  labNotice.value = ''
-  const workspace = await ensureManagedLabTraining(labId)
-  if (!workspace) return
-  emit('startCodingAgent', workspace.handoff)
-}
-
-async function checkManagedLabTraining(labId: string) {
-  labNotice.value = ''
-  const lab = selectedManagedLab(labId)
-  const instanceId = lab?.instanceId
-  if (!instanceId) return
-  let jobId = labTrainingJobIds.value[instanceId]
-  if (!jobId) {
-    const workspace = await ensureManagedLabTraining(labId)
-    jobId = workspace?.ctf.job.id ?? ''
-  }
-  if (!jobId) return
-  const response = await managedLabs.checkTraining(instanceId, jobId).catch(() => null)
-  if (!response) return
-  await backend.adoptProjection(response.ctf)
-  labNotice.value = response.result.solved
-    ? `${response.result.challenge} 已由应用内 Judge 确认完成。`
-    : `${response.result.challenge} 尚未完成；保留本次检查证据，可以继续练习。`
-}
-
 onMounted(async () => {
   document.addEventListener('pointerdown', closeHistoryMenuOnOutsidePointer)
   await Promise.all([
@@ -1686,9 +1562,6 @@ onMounted(async () => {
     activeBank.value === 'ctfshow' ? ctfshow.refresh() : Promise.resolve(null),
     activeBank.value === 'nssctf' ? loadPublicCatalog(1) : Promise.resolve(null),
   ])
-  if (ctfSection.value === 'labs') {
-    await managedLabs.refresh()
-  }
   await bootstrapNSSCTFCatalog()
   await resumeInitialJobIfNeeded(props.initialJobId)
   await selectDefaultDeskProblem()
@@ -1727,7 +1600,7 @@ onBeforeUnmount(() => {
     <WorkspaceModuleTopBar
       module="ctf"
       v-else
-      :subtitle="ctfSection === 'catalog' ? '题库、解题入口与训练状态' : '靶场进度追踪'"
+      subtitle="题库、解题入口与训练状态"
     >
       <template #actions>
         <details
@@ -1959,24 +1832,6 @@ onBeforeUnmount(() => {
         class="w-full"
         :class="screen === 'challenge' ? 'h-full' : screen === 'source' ? 'mx-auto max-w-5xl' : 'mx-auto max-w-5xl'"
       >
-        <ManagedLabCatalog
-          v-if="screen === 'challenge' && ctfSection === 'labs'"
-          :labs="managedLabs.labs.value"
-          :selected-lab-id="selectedLabId"
-          :busy="managedLabs.loading.value || managedLabs.busy.value"
-          :notice="labNotice || managedLabs.error.value"
-          :access="managedLabAccess"
-          @select="selectManagedLab"
-          @request-start="startManagedLab"
-          @open-workspace="openManagedLab"
-          @request-reset="resetManagedLab"
-          @request-stop="stopManagedLab"
-          @request-destroy="destroyManagedLab"
-          @start-training="startManagedLabAgent"
-          @check-training="checkManagedLabTraining"
-          @request-access="revealManagedLabAccess"
-        />
-
         <ol v-if="ctfSection === 'catalog' && screen === 'source'" class="mx-auto mb-10 grid max-w-3xl grid-cols-3" aria-label="训练步骤">
           <li
             v-for="item in [

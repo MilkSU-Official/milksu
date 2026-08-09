@@ -2,7 +2,7 @@
 
 > 文档状态：Current
 >
-> 事实审计：2026-08-06，`main` 当前基线 `833c376`
+> 事实审计：2026-08-09，当前工作树
 >
 > 本页描述当前结构，不安排任务。动态进度和缺口以
 > [当前开发目标](/developer/current-objectives)、代码、测试和真实验收为准。
@@ -41,17 +41,17 @@ flowchart LR
 | --- | --- | --- |
 | Wails 本地桌面宿主 | **Implemented** | `main.go` 只绑定一个 `App`，静态资源来自 `app/dist`。 |
 | Vue 产品表面 | **Implemented / Partial** | `app/src/App.vue` 组合 CTF、Coding、CVE 工作区与设置；左侧 rail 提供全局工作区、能力画像、设置和夜间/日间主题切换；Coding 采用中央会话和右侧动态页面，CTF 默认解题模式与复盘模式分离，CVE 已有学习/追踪与练习入口。 |
-| Pi 通用 Agent | **Verified core / Partial extensions** | `bridge.js` 使用 Pi SessionManager、工具事件和持久会话；Plan/Go、权限档位、Archify、LSP、后台任务、Session Index、PR 交付和 Compaction 已有真实或专项证据。模型选择已收敛为单默认模型；TokenFlux 作为一等中转站注册，fast/deep 按角色路由和 Kimi/KouriChat 产品入口已移除。真实外部 Provider 质量与长期主工作区自举仍未完成。 |
+| Pi 通用 Agent | **Verified core / Partial extensions** | `bridge.js` 使用 Pi SessionManager、工具事件和持久会话；Plan/Go、权限档位、Archify、LSP、后台任务、Session Index、PR 交付和 Compaction 已有真实或专项证据。模型选择已收敛为单默认模型；Coding、CTF 和 sub-agent Sidecar 共用当前 Provider 注册，TokenFlux 是一等中转站，KouriChat 分支已移除。真实外部 Provider 质量与长期主工作区自举仍未完成。 |
 | CTF Runtime | **Implemented** | `internal/ctf` 将 Challenge、Agent Turn、Candidate、Judge Receipt、Debrief 投影到共享 Runtime。 |
 | 浏览器平台 Judge | **Implemented** | `internal/browsercap` 只接受明确配对页，NSSCTF/CTFshow 回执进入 Go Host。 |
 | Coding Browser | **Verified** | `internal/browsercap` 由右侧页面显式启停专用 Chrome；Go Host 向当前 Pi Session 注入瞬态 loopback 描述符，固定 Playwright MCP 在逐次桌面审批下完成真实页面 E2E。 |
 | Artifact Preview | **Verified / expandable** | Markdown、HTML 与图片使用工作区路径、类型、大小和 HTML 隔离策略；打包 App facade、真实 WebView 负向和原生 UI 三类型手动预览均已有证据，后续只做真实项目扩样。 |
 | ImageGen | **Implemented / unverified provider** | 文生图、参考图编辑、项目资产和付费确认主链已接入；未在打包 App 中使用用户自行配置的真实 Provider 验收。 |
 | Computer Use | **Verified slice / expandable** | 已支持用户选择外部可见 App、PID 与 Window 的不可变 Scope；打包 App facade、WebView 启停、真实 Calculator observe/click 和工具截图辅助视觉已有证据。剩余是更广外部 App 矩阵、真实 Provider 质量和系统权限异常路径扩样。 |
-| Multi-Agent / worktree | **Implemented / unverified collaboration** | worktree 管理、恢复和安全收尾有自动化；尚无真实任务证明并行收益。 |
-| 本地持久化 | **Implemented** | `internal/appdata`、`internal/securityruntime`、Catalog、Conversation、Memory 和 Credential Store。 |
-| Managed Labs | **Paused** | 工作区存在实验代码，但已从当前交付范围移除，不是已发布系统能力；长期方向是辅助外部靶场学习与进度追踪，不自建通用 Lab 平台。 |
-| CVE Learning / Tracking | **Implemented / Partial** | CVE 一级工作区已接入多源只读情报同步、来源快照、Vulhub 练习目录匹配、本地 Docker Compose 练习生命周期、资产验证、学习写回和 Coding 接力；CVE 纵深研究、真实漏洞复现、外部资产实验和披露流程后置。 |
+| Worktree / upstream sub-agent | **Implemented / unverified parallel benefit** | MilkSU 负责隔离 worktree、恢复、路径与审批边界，任务执行复用上游 Pi sub-agent；没有自建角色团队、调度器或第二套 Agent loop。并行收益仍需真实任务验证。 |
+| 本地持久化 | **Implemented** | `internal/appdata`、`internal/securityruntime`、Catalog、Conversation、Memory 和 Credential Store；CTF Memory 直接保存 actor / assistance，旧无归因 pre-release 库明确不兼容。 |
+| Managed Labs | **Paused design only** | 生产代码、Wails 绑定、Vue 入口和打包 Lab 资源已移除；长期设计不构成当前产品能力。 |
+| CVE Learning / Tracking | **Implemented / Partial** | CVE 一级工作区已接入多源只读情报同步、来源快照、Vulhub 练习目录匹配、本地 Docker Compose 练习生命周期、资产验证、学习写回和 Coding 接力；资产与学习正式事实只来自 Vuln Runtime，localStorage 只留未提交草稿和 UI 偏好。CVE 纵深研究、真实漏洞复现、外部资产实验和披露流程后置。 |
 | NYU CTF Bench | **Verified narrow developer baseline** | `internal/evalbench` 同时提供 one-shot Runner 与 `cmd/nyu-ctf-bench-agent-run` 两回合 Pi 只读 Runner；后者真实验证读取、强制重启、恢复、超时/格式失败分类和 Digest Judge。无产品 UI，也不代表完整 CTF Agent。 |
 
 ## C4 · Containers / Processes
@@ -126,6 +126,10 @@ flowchart TB
   返回给 Vue。
 - Node Sidecar 通过 JSONL 与 `internal/engine.Supervisor` 通讯。普通 Coding 与 CTF
   Workspace 共用 Pi 基座，但使用不同 Session Policy。
+- WebView 没有假桌面数据层；缺少 Wails Runtime 时命令直接失败，浏览器预览不模拟设置、会话、
+  CTF、CVE、Git、终端或 Feed 网络请求。
+- 当前代码中的 Obelisk 是 `internal/sessionindex` 的 MilkSU 自有会话检索形态，不是 CTF
+  Memory 插件，也不拥有 CTF 的 Evidence、Learning 或 attribution；两者不能混写成同一事实源。
 - Browser Bridge 是 loopback 本地桥，只处理用户明确配对的页面；Coding Browser 则由
   MilkSU 启动 Conversation 隔离的专用 Chrome。二者都不会把用户整个日常 Chrome Profile
   交给模型，且 Coding 的 CDP 描述符不会写入前端、SQLite 或项目配置。
@@ -157,7 +161,7 @@ flowchart TB
 | --- | --- | --- |
 | L1 Product Surface | Vue 3、`WorkspaceRail`、`ContextSidebar`、CTF/Coding/CVE 页面与设置 | **Partial**：主界面可用，左下全局 rail 已支持主题切换和本机持久化；CVE 学习/追踪 MVP 已存在；验收协调器不进入生产启动、Wails 绑定或 Vue 入口；真实 Provider、更多系统权限路径和发行 UI 矩阵仍需按台账验收。 |
 | L2 Application / Role Services | 单一 `App` 组合 `ctf.Service`、`vuln.Service`、Catalog、Memory | **Implemented but concentrated**：接口可用，Facade 未拆。 |
-| L3 Agent / Platform Adapters | Pi Supervisor、Security Supervisor、NSSCTF、CTFshow、Browser Bridge、Playwright MCP、ImageGen、Computer Use、Session Index | **Implemented / Partial**：NSSCTF 主链、隔离 Coding Browser、Computer Use 外部 App slice、Session Index 和 PR 交付已有验收；其余真实 Provider、系统权限失败路径和跨平台 E2E 仍按台账跟踪。 |
+| L3 Agent / Platform Adapters | Pi Supervisor、Security Supervisor、NSSCTF、CTFshow、Browser Bridge、Playwright MCP、ImageGen、Computer Use、Session Index | **Implemented / Partial**：NSSCTF 主链、隔离 Coding Browser、Computer Use 外部 App slice、MilkSU 自有 Session Index 和 PR 交付已有验收；无产品入口的外部会话导入不在发行图。其余真实 Provider、系统权限失败路径和跨平台 E2E 仍按台账跟踪。 |
 | L4 Domain Contracts | CTF Challenge、RoleFact、AgentCandidate、JudgeReceipt、LearningRecord | **Implemented**。 |
 | L5 Evidence Runtime | 追加式 SQLite Event Store、Artifact SHA-256、Projection、Recover | **Implemented**。 |
 | L6 Integrity | Scope、CTF 工作区策略、预算、候选闸门、外部 Judge、资源白名单、精确 Endpoint Broker | **Partial**：HTTP/TCP/SSH 使用精确 Scope，通用 CTF Shell 默认无网络；宿主执行仍不是容器，真实六赛道负向回归尚未完成。 |

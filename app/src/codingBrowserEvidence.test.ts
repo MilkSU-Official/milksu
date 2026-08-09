@@ -32,6 +32,6 @@ describe('Coding Browser evidence desktop binding', () => {
     await expect(invokeCommand(
       'reveal_coding_browser_evidence',
       { conversationId: 'conversation-1' },
-    )).rejects.toThrow('需要 MilkSU 桌面运行时')
+    )).rejects.toThrow('MilkSU desktop runtime is unavailable')
   })
 })

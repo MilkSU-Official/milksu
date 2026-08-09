@@ -1,5 +1,5 @@
 export type WorkspaceSection = 'ctf' | 'vuln' | 'chat'
-export type CTFWorkspaceSection = 'catalog' | 'labs'
+export type CTFWorkspaceSection = 'catalog'
 export type AppSection = WorkspaceSection | 'settings'
 
 export const WORKSPACE_RAIL_ITEMS = [

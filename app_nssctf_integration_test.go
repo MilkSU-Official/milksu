@@ -431,7 +431,7 @@ func TestNSSCTFPageToAcceptedTrainingReportSurvivesRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertVerifiedNSSCTFReport(t, recoveredReport, "NSSCTF{verified}")
-	recoveredMemories, err := reopened.ListCTFMemories("misc", "")
+	recoveredMemories, err := reopened.ctfMemory.Recall(context.Background(), "misc", "", 20)
 	if err != nil {
 		t.Fatal(err)
 	}

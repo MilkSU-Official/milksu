@@ -27,25 +27,6 @@ export interface SessionIndexRefreshResult {
   toolCallCount: number
 }
 
-export interface ExternalSessionHistoryImportRequest {
-  source: 'codex' | 'claude' | 'kimi' | 'pi'
-  path: string
-  project?: string
-  projectPath?: string
-  limit?: number
-}
-
-export interface ExternalSessionHistoryImportResult {
-  importedAt: string
-  indexPath: string
-  source: string
-  path: string
-  sessionCount: number
-  messageCount: number
-  toolCallCount: number
-  skippedLineCount: number
-}
-
 export interface SessionHistorySearchRequest {
   query: string
   limit?: number

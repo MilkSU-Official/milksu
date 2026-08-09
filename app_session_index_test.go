@@ -1,7 +1,6 @@
 package main
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -80,62 +79,5 @@ func TestAppSessionIndexRefreshesMilkSUOwnedHistory(t *testing.T) {
 	}
 	if !strings.Contains(result.Snippet, "CVE-2024-3400") || !strings.Contains(result.Snippet, "[credential redacted]") {
 		t.Fatalf("unexpected search snippet: %q", result.Snippet)
-	}
-}
-
-func TestAppImportsExternalSessionHistoryFromExplicitPath(t *testing.T) {
-	root := filepath.Join(t.TempDir(), "appdata")
-	t.Setenv(appdata.DirectoryOverrideEnv, root)
-	dataDirectory, err := appdata.Ensure()
-	if err != nil {
-		t.Fatalf("Ensure() error = %v", err)
-	}
-	conversations, err := conversation.NewStore()
-	if err != nil {
-		t.Fatalf("conversation.NewStore() error = %v", err)
-	}
-	index, err := sessionindex.NewStore(filepath.Join(dataDirectory, "session-index", "obelisk.sqlite"))
-	if err != nil {
-		t.Fatalf("sessionindex.NewStore() error = %v", err)
-	}
-	historyPath := filepath.Join(t.TempDir(), "claude-history.jsonl")
-	if err := os.WriteFile(historyPath, []byte(`{"sessionId":"claude-a","title":"Claude handoff","timestamp":"2026-08-05T02:00:00Z","message":{"role":"assistant","content":[{"type":"text","text":"Claude remembered CVE-2023-46604 Vulhub practice; OPENAI_API_KEY=sk-app-import-secret12345"}]}}`+"\n"), 0o600); err != nil {
-		t.Fatalf("write external history: %v", err)
-	}
-
-	application := &App{
-		dataDirectory: dataDirectory,
-		conversations: conversations,
-		sessionIndex:  index,
-	}
-	result, err := application.ImportExternalSessionHistory(sessionindex.ExternalImportRequest{
-		Source:      "claude",
-		Path:        historyPath,
-		Project:     "milksu",
-		ProjectPath: "/Users/milksu/code/milksu",
-	})
-	if err != nil {
-		t.Fatalf("ImportExternalSessionHistory() error = %v", err)
-	}
-	if result.SessionCount != 1 || result.MessageCount != 1 {
-		t.Fatalf("unexpected import result: %#v", result)
-	}
-	if !strings.HasPrefix(result.IndexPath, filepath.Join(dataDirectory, "session-index")) {
-		t.Fatalf("session index escaped MilkSU data directory: %q", result.IndexPath)
-	}
-
-	response, err := application.SearchSessionHistory(sessionindex.SearchRequest{
-		Query:  "Vulhub practice",
-		Source: "claude",
-		Limit:  3,
-	})
-	if err != nil {
-		t.Fatalf("SearchSessionHistory() error = %v", err)
-	}
-	if len(response.Results) != 1 {
-		t.Fatalf("SearchSessionHistory() returned %d results, want 1: %#v", len(response.Results), response.Results)
-	}
-	if strings.Contains(response.Results[0].Snippet, "sk-app-import-secret") {
-		t.Fatalf("imported external history leaked credential: %q", response.Results[0].Snippet)
 	}
 }

@@ -12,7 +12,6 @@ import (
 
 	"github.com/MilkSU-Official/milksu/internal/securitypolicy"
 	"github.com/MilkSU-Official/milksu/internal/securityruntime"
-	"github.com/MilkSU-Official/milksu/labs"
 )
 
 const (
@@ -33,16 +32,15 @@ func NewService(runtime *securityruntime.Service) (*Service, error) {
 	if runtime == nil {
 		return nil, fmt.Errorf("vulnerability runtime is required")
 	}
-	fixtures, err := fs.Sub(labs.Assets, ".")
-	if err != nil {
-		return nil, fmt.Errorf("open embedded vulnerability fixtures: %w", err)
-	}
-	return &Service{runtime: runtime, fixtures: fixtures}, nil
+	return &Service{runtime: runtime}, nil
 }
 
 func (s *Service) StartPacketParserFixture(ctx context.Context) (Projection, error) {
 	if err := s.checkOpen(); err != nil {
 		return Projection{}, err
+	}
+	if s.fixtures == nil {
+		return Projection{}, fmt.Errorf("packet-parser is a developer fixture and is not available in the product runtime")
 	}
 	source, err := fs.ReadFile(s.fixtures, packetParserSource)
 	if err != nil {

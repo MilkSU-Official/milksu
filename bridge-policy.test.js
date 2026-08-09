@@ -1098,18 +1098,17 @@ test("CTF HTTP never carries ambient cookie or auth state into the next request"
   }
 });
 
-test("managed lab shell remains networkless while ctf_http keeps exact loopback access", async () => {
+test("authorized loopback origin does not give the general shell ambient network", async () => {
   const origin = "http://127.0.0.1:41234";
   const value = manifest(
     "copilot",
     ["read", "bash"],
     {},
     [
-      { kind: "lab", value: "instance-1" },
       { kind: "origin", value: origin },
     ],
   );
-  value.source.kind = "local-lab";
+  value.source.kind = "directory";
   assert.equal(scopeAllowsNetwork(value), false);
 
   const workspace = await workspaceWithManifest(value);

@@ -803,6 +803,7 @@ async function buildSidecar(platform) {
   const computerUseProxyOutput = join(output, 'computer-use-proxy.cjs')
   const piSubagentLauncherOutput = join(output, 'pi-subagent-launcher.sh')
   const piSubagentRunnerOutput = join(output, 'pi-subagent-runner.cjs')
+  const currentProviderRuntimeOutput = join(output, 'current-provider-runtime.cjs')
   const piSubagentCliOutput = join(output, 'pi-subagent-cli.cjs')
   const piSubagentThemeOutput = join(
     output,
@@ -1018,6 +1019,10 @@ async function buildSidecar(platform) {
       piSubagentRunnerOutput,
     ),
     copyFile(
+      join(repositoryRoot, 'current-provider-runtime.cjs'),
+      currentProviderRuntimeOutput,
+    ),
+    copyFile(
       join(
         repositoryRoot,
         'node_modules',
@@ -1216,6 +1221,10 @@ async function buildSidecar(platform) {
           file: 'pi-subagent-runner.cjs',
           sha256: await sha256(piSubagentRunnerOutput),
         },
+        providerRuntime: {
+          file: 'current-provider-runtime.cjs',
+          sha256: await sha256(currentProviderRuntimeOutput),
+        },
         cli: {
           package: '@earendil-works/pi-coding-agent',
           version: piVersion,
@@ -1311,6 +1320,7 @@ async function smokeSidecar(platform) {
     join(output, 'computer-use-proxy.cjs'),
     join(output, 'pi-subagent-launcher.sh'),
     join(output, 'pi-subagent-runner.cjs'),
+    join(output, 'current-provider-runtime.cjs'),
     join(output, 'pi-subagent-cli.cjs'),
     join(output, 'dist', 'modes', 'interactive', 'theme', 'dark.json'),
     join(output, 'dist', 'modes', 'interactive', 'theme', 'light.json'),
@@ -2223,6 +2233,7 @@ async function installSidecar(platform, binaryPath) {
     'computer-use-proxy.cjs',
     'pi-subagent-launcher.sh',
     'pi-subagent-runner.cjs',
+    'current-provider-runtime.cjs',
     'pi-subagent-cli.cjs',
     'cua-driver',
     'manifest.json',

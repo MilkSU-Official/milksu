@@ -2,12 +2,23 @@ package vuln
 
 import (
 	"context"
+	"io/fs"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/MilkSU-Official/milksu/internal/securityruntime"
+	"github.com/MilkSU-Official/milksu/labs"
 )
+
+func installPacketParserFixture(t *testing.T, service *Service) {
+	t.Helper()
+	fixtures, err := fs.Sub(labs.Assets, ".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	service.fixtures = fixtures
+}
 
 func TestPacketParserFixtureCreatesRecoverableResearchWorkspace(t *testing.T) {
 	runtime, err := securityruntime.NewService(t.TempDir(), nil)
@@ -19,6 +30,7 @@ func TestPacketParserFixtureCreatesRecoverableResearchWorkspace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	installPacketParserFixture(t, service)
 
 	projection, err := service.StartPacketParserFixture(context.Background())
 	if err != nil {
@@ -140,6 +152,7 @@ func TestExternalThreeRunEvidenceIsEvaluatorBacked(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	installPacketParserFixture(t, service)
 	projection, err := service.StartPacketParserFixture(context.Background())
 	if err != nil {
 		t.Fatal(err)

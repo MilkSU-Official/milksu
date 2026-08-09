@@ -333,7 +333,6 @@ async function main() {
         PATH: '/usr/bin:/bin:/usr/sbin:/sbin',
         LANG: 'en_US.UTF-8',
         LC_ALL: 'en_US.UTF-8',
-        MILKSU_ENABLE_MANAGED_LABS: '0',
         MILKSU_INSTANCE_ID: isolatedInstanceId,
       },
       stdio: ['ignore', 'pipe', 'pipe'],

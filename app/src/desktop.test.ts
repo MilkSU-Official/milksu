@@ -229,10 +229,10 @@ describe('desktop command adapter', () => {
     )
   })
 
-  it('does not pretend browser preview can reveal CVE feed snapshots in Finder', async () => {
+  it('rejects product commands when the desktop runtime is absent', async () => {
     await expect(invokeCommand('reveal_vulnerability_feed_snapshot', {
       snapshotPath: '/tmp/feed.json',
-    })).rejects.toThrow('MilkSU 桌面运行时')
+    })).rejects.toThrow('MilkSU desktop runtime is unavailable')
   })
 
   it('passes CVE practice directory selection and lifecycle to Wails', async () => {
@@ -291,16 +291,6 @@ describe('desktop command adapter', () => {
     expect(stopVulnerabilityPractice).toHaveBeenCalledWith(request)
   })
 
-  it('does not pretend browser preview can start CVE practice containers', async () => {
-    await expect(invokeCommand('start_vulnerability_practice', {
-      request: {
-        cveId: 'CVE-2023-46604',
-        environmentId: 'vulhub-cve-2023-46604',
-        directory: '/tmp/vulhub/activemq/CVE-2023-46604',
-      },
-    })).rejects.toThrow('MilkSU 桌面运行时')
-  })
-
   it('passes Session Index status, refresh, and history search to Wails', async () => {
     const status = {
       available: true,
@@ -338,16 +328,6 @@ describe('desktop command adapter', () => {
     const getSessionIndexStatus = vi.fn(async () => status)
     const refreshSessionIndex = vi.fn(async () => refresh)
     const searchSessionHistory = vi.fn(async () => searchResponse)
-    const importExternalSessionHistory = vi.fn(async () => ({
-      importedAt: '2026-08-04T09:33:00Z',
-      indexPath: status.indexPath,
-      source: 'codex',
-      path: '/tmp/codex-history.jsonl',
-      sessionCount: 1,
-      messageCount: 2,
-      toolCallCount: 1,
-      skippedLineCount: 0,
-    }))
     Object.defineProperty(window, 'go', {
       configurable: true,
       value: {
@@ -356,7 +336,6 @@ describe('desktop command adapter', () => {
             GetSessionIndexStatus: getSessionIndexStatus,
             RefreshSessionIndex: refreshSessionIndex,
             SearchSessionHistory: searchSessionHistory,
-            ImportExternalSessionHistory: importExternalSessionHistory,
           },
         },
       },
@@ -367,18 +346,6 @@ describe('desktop command adapter', () => {
     await expect(invokeCommand('search_session_history', {
       request: { query: 'Computer Use', module: 'coding', limit: 4 },
     })).resolves.toBe(searchResponse)
-    await expect(invokeCommand('import_external_session_history', {
-      request: {
-        source: 'codex',
-        path: '/tmp/codex-history.jsonl',
-        project: 'milksu',
-        projectPath: '/Users/milksu/code/milksu',
-      },
-    })).resolves.toMatchObject({
-      source: 'codex',
-      sessionCount: 1,
-      messageCount: 2,
-    })
     expect(getSessionIndexStatus).toHaveBeenCalledOnce()
     expect(refreshSessionIndex).toHaveBeenCalledOnce()
     expect(searchSessionHistory).toHaveBeenCalledWith({
@@ -386,29 +353,6 @@ describe('desktop command adapter', () => {
       module: 'coding',
       limit: 4,
     })
-    expect(importExternalSessionHistory).toHaveBeenCalledWith({
-      source: 'codex',
-      path: '/tmp/codex-history.jsonl',
-      project: 'milksu',
-      projectPath: '/Users/milksu/code/milksu',
-    })
-  })
-
-  it('does not ask browser preview users to install Obelisk for Session Index commands', async () => {
-    await expect(invokeCommand('get_session_index_status')).resolves.toMatchObject({
-      available: false,
-      mode: 'browser-preview',
-      reason: '打包 App 中会自动维护本机历史。',
-    })
-    await expect(invokeCommand('search_session_history', {
-      request: { query: 'CVE-2024-3400', module: 'cve' },
-    })).resolves.toMatchObject({
-      query: 'CVE-2024-3400',
-      results: [],
-    })
-    await expect(invokeCommand('import_external_session_history', {
-      request: { source: 'codex', path: '/tmp/codex-history.jsonl' },
-    })).rejects.toThrow('请在 MilkSU 桌面应用中导入外部历史。')
   })
 
   it('passes Coding background task refresh policy to Wails unchanged', async () => {
@@ -768,31 +712,4 @@ describe('desktop command adapter', () => {
     )
   })
 
-  it('shows a friendly browser-preview fallback for Computer Use commands', async () => {
-    await expect(invokeCommand('get_coding_computer_use_status')).resolves.toMatchObject({
-      available: false,
-      enabled: false,
-      phase: 'unavailable',
-      permissions: {
-        accessibility: false,
-        screenRecording: false,
-      },
-      problem: expect.stringContaining('MilkSU 桌面运行时'),
-    })
-
-    await expect(invokeCommand('request_coding_computer_use_permissions')).resolves.toMatchObject({
-      available: false,
-      enabled: false,
-      problem: expect.stringContaining('浏览器预览只能验证 UI 文案和入口'),
-    })
-    await expect(invokeCommand('list_coding_computer_use_targets')).resolves.toEqual([])
-    await expect(invokeCommand('start_coding_computer_use', {
-      conversationId: 'conversation-ui',
-      targetPid: 4242,
-      targetWindowId: 9001,
-    })).rejects.toThrow('Computer Use 可见 App 会话需要 MilkSU 桌面运行时')
-    await expect(invokeCommand('stop_coding_computer_use', {
-      conversationId: 'conversation-ui',
-    })).rejects.toThrow('Computer Use 可见 App 会话需要 MilkSU 桌面运行时')
-  })
 })

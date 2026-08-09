@@ -376,12 +376,6 @@ func (s *Service) Recover(ctx context.Context) error {
 		if challenge, challengeErr := challengeFromProjection(projection); challengeErr == nil && challenge.CollaborationMode == "coach" && len(projection.Attempts) > 0 && projection.Attempts[len(projection.Attempts)-1].Status == securityruntime.AttemptCompleted {
 			continue
 		}
-		if challenge, challengeErr := challengeFromProjection(projection); challengeErr == nil &&
-			challenge.Source.Kind == "local-lab" &&
-			len(projection.Attempts) > 0 &&
-			projection.Attempts[len(projection.Attempts)-1].Status == securityruntime.AttemptCompleted {
-			continue
-		}
 		if projection.Outcome != nil {
 			if err := s.completeCommittedOutcome(projection); err != nil {
 				return err

@@ -65,7 +65,6 @@ import CodingArtifactPreviewPanel from '@/components-vue/CodingArtifactPreviewPa
 import CodingChangesPanel from '@/components-vue/CodingChangesPanel.vue'
 import CodingComputerUsePanel from '@/components-vue/CodingComputerUsePanel.vue'
 import CodingMCPReviewCard from '@/components-vue/CodingMCPReviewCard.vue'
-import CodingProductLoopPanel from '@/components-vue/CodingProductLoopPanel.vue'
 import SessionHistoryPanel from '@/components-vue/SessionHistoryPanel.vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
@@ -510,7 +509,7 @@ const contextPanelTitle = computed(() => ({
   artifacts: '产物',
   architecture: '架构图',
   browser: props.ctfSession ? '浏览器' : '浏览器与 App',
-  collaboration: 'Agent 协作',
+  collaboration: props.ctfSession ? 'Agent 协作' : '隔离 worktree',
   history: '相关历史',
   evidence: '证据与 Judge',
 })[contextPanel.value])
@@ -1406,7 +1405,7 @@ watch(
           <SelectItem v-if="!ctfSession" value="artifacts">产物</SelectItem>
           <SelectItem v-if="!ctfSession" value="architecture">架构图</SelectItem>
           <SelectItem value="browser">{{ ctfSession ? '浏览器' : '浏览器与 App' }}</SelectItem>
-          <SelectItem v-if="!ctfSession" value="collaboration">Agent 协作</SelectItem>
+          <SelectItem v-if="!ctfSession" value="collaboration">隔离 worktree</SelectItem>
           <SelectItem value="history">相关历史</SelectItem>
           <template v-if="ctfSession">
             <SelectSeparator />
@@ -1471,30 +1470,6 @@ watch(
             </div>
           </div>
         </section>
-
-        <CodingProductLoopPanel
-          v-if="!ctfSession"
-          :workspace-path="workspacePath"
-          :environment="codingEnvironment"
-          :message-count="messageCount"
-          :tool-message-count="toolMessageCount"
-          :running="running"
-          :resumed="resumed"
-          :compacting="compacting"
-          :compacted-at="compactedAt"
-          :compaction-error="compactionError"
-          :execution-mode="effectiveExecutionMode"
-          :approval-policy="effectiveApprovalPolicy"
-          :browser-status="codingBrowserStatus"
-          :computer-use-status="computerUseStatus"
-          :artifact-preview-evidence="artifactPreviewEvidence"
-          :browser-evidence="browserEvidence"
-          :computer-use-evidence="computerUseEvidence"
-          :computer-use-operation-evidence="computerUseOperationEvidence"
-          :git-delivery-evidence="gitDeliveryEvidence"
-          @open-panel="changeContextPanel"
-          @compact-context="$emit('compactContext')"
-        />
 
         <section v-if="!ctfSession" class="border-b border-border px-4 py-4">
           <p class="text-caption font-medium text-muted-foreground">任务操作</p>
