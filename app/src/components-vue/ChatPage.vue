@@ -31,6 +31,7 @@ import {
   ChevronDown,
   CircleDot,
   Compass,
+  ExternalLink,
   FileDiff,
   FileImage,
   FilePenLine,
@@ -707,6 +708,15 @@ function toggleManualContextSidebar() {
   environmentOpen.value = true
 }
 
+function toggleTerminalPanel() {
+  if (environmentOpen.value && contextPanel.value === 'terminal') {
+    environmentOpen.value = false
+    return
+  }
+  contextPanel.value = 'terminal'
+  environmentOpen.value = true
+}
+
 function showBrowserUseScope() {
   contextPanel.value = 'browser-use'
   environmentOpen.value = true
@@ -1341,6 +1351,16 @@ watch(
           返回 CVE
         </Button>
         <Button
+          v-if="!ctfSession"
+          variant="ghost"
+          size="icon-sm"
+          :aria-label="environmentOpen && contextPanel === 'terminal' ? '关闭终端' : '打开终端'"
+          :title="environmentOpen && contextPanel === 'terminal' ? '关闭终端' : '打开终端'"
+          @click="toggleTerminalPanel"
+        >
+          <Terminal class="size-4" />
+        </Button>
+        <Button
           variant="ghost"
           size="icon-sm"
           :aria-label="environmentOpen ? '关闭右侧栏' : '打开右侧栏'"
@@ -1475,12 +1495,12 @@ watch(
           <Wrench v-else-if="contextPanel === 'collaboration'" class="size-4 text-primary" />
           <History v-else-if="contextPanel === 'history'" class="size-4 text-primary" />
           <CircleDot v-else class="size-4 text-primary" />
-          <SelectValue />
+          <span v-if="contextPanel === 'terminal'">终端</span>
+          <SelectValue v-else />
         </SelectTrigger>
         <SelectContent size="sm" align="start" class="min-w-56">
           <SelectItem value="environment">{{ ctfSession ? '解题环境' : '环境信息' }}</SelectItem>
           <SelectItem v-if="!ctfSession" value="changes">变更</SelectItem>
-          <SelectItem v-if="!ctfSession" value="terminal">终端</SelectItem>
           <SelectItem v-if="!ctfSession" value="artifacts">产物</SelectItem>
           <SelectItem v-if="!ctfSession" value="architecture">架构图</SelectItem>
           <SelectItem value="browser">沙箱浏览器</SelectItem>
@@ -1511,14 +1531,6 @@ watch(
             class="size-4"
             :class="{ 'animate-spin': environmentLoading || architecturePreviewLoading }"
           />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label="关闭右侧栏"
-          @click="environmentOpen = false"
-        >
-          <PanelRightClose class="size-4" />
         </Button>
       </div>
     </header>

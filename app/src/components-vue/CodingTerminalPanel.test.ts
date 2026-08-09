@@ -110,21 +110,22 @@ async function mountPanel() {
 }
 
 describe('CodingTerminalPanel', () => {
-  it('does not present old PTY sessions as reconnectable after restart', async () => {
-    await mountPanel()
+  it('keeps the empty terminal concise after restart', async () => {
+    const host = await mountPanel()
 
     expect(invokeCommand).toHaveBeenCalledWith(
       'list_coding_terminals',
       { conversationId: 'conversation-restart' },
     )
     const terminalText = terminalWrites.join('')
-    expect(terminalText).toContain('交互式 Shell 不跨 App 重启恢复')
-    expect(terminalText).toContain('旧 PTY 已结束且不可重连')
-    expect(terminalText).toContain('后台长任务请在“后台任务”中恢复')
+    expect(terminalText).toContain('暂无 Shell')
+    expect(terminalText).not.toContain('交互式 Shell 不跨 App 重启恢复')
+    expect(terminalText).not.toContain('旧 PTY 已结束且不可重连')
+    expect(terminalText).not.toContain('后台长任务请在“后台任务”中恢复')
     const text = document.body.textContent ?? ''
-    expect(text).toContain('下一步')
-    expect(text).toContain('新建项目 Shell')
-    expect(text).toContain('跨 App 重启恢复请使用后台任务')
+    expect(text).not.toContain('下一步')
+    expect(text).toContain('新建 Shell')
+    expect(host.querySelector('[aria-label="新建项目 Shell"]')).not.toBeNull()
   })
 
   it('shows recovered background task status, process metadata, ports, and log tail', async () => {
@@ -147,9 +148,7 @@ describe('CodingTerminalPanel', () => {
     )
     const text = host.textContent ?? ''
     expect(text).toContain('已从磁盘恢复持久任务')
-    expect(text).toContain('查看运行中的后台任务')
-    expect(text).toContain('1 个任务正在运行')
-    expect(text).toContain('刷新状态')
+    expect(text).toContain('1 运行中')
     expect(text).toContain('OPENAI_API_KEY=[credential redacted] npm run dev')
     expect(text).toContain('PID 4321')
     expect(text).toContain(':1420')
@@ -171,7 +170,7 @@ describe('CodingTerminalPanel', () => {
       'list_coding_terminals',
       expect.anything(),
     )
-    expect(terminalWrites.join('')).toContain('交互式 Shell 会在 MilkSU 桌面应用中启动')
+    expect(terminalWrites.join('')).toContain('请在桌面 App 中新建 Shell')
 
     const taskTab = [...host.querySelectorAll('button')]
       .find(button => button.textContent?.includes('后台任务'))
@@ -182,8 +181,6 @@ describe('CodingTerminalPanel', () => {
     const text = host.textContent ?? ''
     expect(text).toContain('浏览器预览只能验证终端/后台任务面板文案和入口')
     expect(text).toContain('真实 Shell、后台命令、端口、日志和重启恢复需要 MilkSU 桌面运行时')
-    expect(text).toContain('打开桌面 App 验收终端')
-    expect(text).toContain('桌面 App 中验收')
     expect(text).toContain('浏览器预览不能读取后台任务')
     expect(text).toContain('请在打包后的 MilkSU App 中验收真实命令、端口、日志和跨应用重启恢复')
     expect(host.querySelector<HTMLTextAreaElement>('[aria-label="后台任务命令"]')?.disabled).toBe(true)

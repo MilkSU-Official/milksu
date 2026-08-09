@@ -243,4 +243,22 @@ describe('ChatPage Goal interaction', () => {
     expect(result.host.querySelector('[aria-label="沙箱浏览器"]')).not.toBeNull()
     expect(result.host.querySelector('[aria-label="Computer Use"]')).toBeNull()
   })
+
+  it('opens Terminal from the topbar and keeps one sidebar toggle', async () => {
+    const result = mountPage({ workspacePath: '/tmp/milksu', sessionReady: true })
+    await nextTick()
+
+    expect(result.host.querySelectorAll('[aria-label="关闭右侧栏"]')).toHaveLength(1)
+    expect(result.host.querySelector('[aria-label="打开终端"]')).not.toBeNull()
+
+    result.host.querySelector<HTMLButtonElement>('[aria-label="打开终端"]')?.click()
+    await nextTick()
+    await Promise.resolve()
+    await nextTick()
+
+    expect(result.host.querySelector('aside[aria-label="终端"]')).not.toBeNull()
+    expect(result.host.querySelector('[aria-label="关闭终端"]')).not.toBeNull()
+    expect(result.host.querySelectorAll('[aria-label="关闭右侧栏"]')).toHaveLength(1)
+    expect(result.host.querySelector('[aria-label="选择右侧页面"]')?.textContent).toContain('终端')
+  })
 })
