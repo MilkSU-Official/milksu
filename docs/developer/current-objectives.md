@@ -10,7 +10,7 @@
 
 ## 先读规则
 
-1. 先读当前代码、测试、Git 状态、本文件、文档状态和当前系统，不按旧对话重复已闭环事项。
+1. 先读当前代码、测试、Git 状态、本文件、文档状态和当前系统，不按旧对话重复已闭环事项, 子功能实现后回写状态到本文档。
 2. 仍是 pre-release；新能力直接实现干净模型，不为未发布旧设计写迁移、双写或兼容层。
 3. 已工作的旧 schema 不在功能纵切中途返工；最终收口可集中做一次破坏性整理。
 4. Provider API Key 不进入模型上下文、工具输出、日志、诊断包、迁移或文档。
@@ -35,7 +35,8 @@
 - **真实 Grok 自举小纵切已跑通一段**：自然提示 → 注册 writer 只改三份 Current 文档 → reviewer 指出事实错误 → 同会话完成返工。**尚未覆盖**功能代码修改、测试、恢复和 Git 交付；不要写成自举完全未开始。
 - **实测缺口**：Goal/输入框上方的 Git 变更摘要看不到 writer worktree 的三文件改动；变更投影仍偏主工作区视角，不足以审阅隔离执行结果。
 - Computer Use：用户选择外部可见 App/PID/Window 的不可变 Scope、打包 App 启停、Calculator observe/click、text-only 主模型下的工具截图辅助视觉已有切片。Browser 与 Computer Use 仍是分离权限面。
-- Composer `/` 已覆盖 Goal、Plan、Pi 会话动作、模型/权限、状态/Diff/Review、worktree、MCP、Browser Use 与 Computer Use；Go 是未开启 Plan 时的默认状态，不再单设 `/go`。输入框左下“+”是统一的当前任务能力入口：附件、Goal、Plan、沙箱浏览器、Browser Use、Computer Use、运行时投影的已审核 Pi Skills（当前固定 frontend-visual-qa / archify）和项目 MCP。Skill 直接复用 Pi `/skill:name` 展开，Browser/Computer 与 Skill 都先成为可删除的内联状态，不会因选择而直接发送；沙箱浏览器和项目 MCP 只打开已有管理面。Plan/Go 不再占一个常驻下拉，审批位于左侧，模型位于右侧。
+- Session Index / 相关历史：MilkSU 自有 `obelisk.sqlite` 已索引本机 Coding、CTF、CVE 会话，支持 FTS/LIKE 搜索、Credential 遮蔽和用户确认后引用到当前输入；当前仍是列表检索，没有实体关系 Projection、图谱视图或统一长期记忆写入。CTF Memory 继续属于独立领域事实，不与历史索引混写。
+- Composer `/` 已覆盖 Goal、Plan、Pi 会话动作、模型/权限、状态/Diff/Review、worktree、MCP、Browser Use 与 Computer Use；Go 是未开启 Plan 时的默认状态，不再单设 `/go`。输入框左下“+”是统一的当前任务能力入口：附件、Goal、Plan、沙箱浏览器、Browser Use、Computer Use、运行时投影的已审核 Pi Skills（当前固定 frontend-visual-qa / archify）和项目 MCP。Skill 直接复用 Pi `/skill:name` 展开，Browser/Computer 与 Skill 都先成为可删除的内联状态，不会因选择而直接发送；沙箱浏览器和项目 MCP 只打开已有管理面。Plan/Go 不再占一个常驻下拉，审批位于左侧，模型位于右侧。该菜单四组、Scope/Skill 删除、Browser/MCP 面板跳转和 Plan → Go 恢复已在重新打包的原生 App 中可见验收。
 - 浏览器三面已分责：右栏“沙箱浏览器”管理会话隔离的专用 Chrome；`/browser-use` 复用固定版 Playwright MCP 官方扩展，由用户在真实 Chrome/Edge 选择准确标签页；`/computer-use` 只列外部原生 App，浏览器窗口不进入该 Scope。NSSCTF/CTFshow 的 MilkSU 扩展继续作为领域 Bridge，不承担通用浏览器控制。
 - 右栏沙箱浏览器当前仍是独立 Chrome 窗口 + CDP/Playwright，并非内嵌 Chromium。目标形态是右栏可直接交互的 Chromium View；不得用截图坐标层、iframe 或普通外部 Chrome 窗口冒充完成。
 - 模型与凭据：单默认模型 + 单来源 + 单凭据区；DeepSeek V4 Flash 默认日常；TokenFlux 一等中转；Coding / CTF / sub-agent 共用当前 Provider 注册。
@@ -54,6 +55,7 @@
 | P0 | Session Index | 继续内置 MilkSU 自有历史索引；外部会话导入在有明确文件选择、确认和产品调用者前不进发行图。 |
 | P0 | CVE 学习/追踪扩样 | 更多真实 CVE 验证同步、练习、研究档案、资产验证和学习写回；不做外部攻击、自动 PoC 或披露。 |
 | P1 | Computer Use 扩样 | Calculator 之外再加 1–2 个真实 App/窗口、权限拒绝路径；稳定 Developer ID 后复检 TCC。不与 Browser 强行合并权限。 |
+| P1 | 相关历史关系图 | 在现有 Session Index 上增加“列表 / 图谱”视图；优先固定并审阅 MIT 许可、仍在维护的 AntV G6，只从现有 sessions/messages/tool_calls 与正式档案即时派生项目、会话、Goal、CVE/CTF、模型、工具、Skill、Evidence/Artifact 的确定关系。节点可追溯原会话并保留确认后引用；不引入图数据库、向量数据库、第二份持久化状态、LLM 事实关系或 Obelisk AGPL 源码。只认打包 App 中的交互、遮蔽、过滤、来源回跳和构建/测试结果。 |
 | P1 | 安全 MCP 试点 | 在 Coding 中先接入并验收一批固定版本、可审阅的安全工具 MCP；先通过只读分析、Scope、凭据、工具清单、重启与证据回执，再决定是否晋升到 CTF/CVE。设置页负责安装/启用/健康检查，Composer “+”只选择已经通过审阅的服务。 |
 | P1 | 内嵌沙箱浏览器 | macOS ARM64 先用官方 CEF 二进制/示例做有界原型：右栏原生 Chromium View、独立 profile、用户直接交互、Agent 共用同一会话/CDP；同时通过 CEF helper/framework/resources、签名与打包验收。先验证最小 NSView/Wails 适配，不以换掉整个 Wails 壳或引入第二套 GUI 框架开局。 |
 | P1 | MilkSU Beta 自举 | 稳定版只从源码构建并启动另一份 `MilkSU Beta`；使用不同产品名、图标标记、Bundle ID、数据目录与 TCC 身份，再由稳定版 Computer Use 操作 Beta。禁止稳定版控制自己或让两份 App 共享状态/权限。 |
@@ -64,6 +66,16 @@
 | 持续 | 架构与 UI | 触碰即拆热点文件；不新开纯清债里程碑。UI 巡检后同步测试与当前文档。 |
 
 推荐顺序：先会话自动 worktree（含 writer 变更投影）→ 用稳定版构建/操作隔离的 MilkSU Beta，把真实 Grok 自举从文档小纵切扩到功能代码/测试/恢复/Git 交付 → 并行做内嵌沙箱浏览器原型和 Computer Use 扩样 → 将验证过的 Scope/证据/恢复机制迁入 CTF/CVE 领域纵切 → 最后加重 Memory / 发行 RC。不恢复 `development-plan.md`，不把已删除 live smoke 嵌回产品启动链。
+
+### 可独立夜间纵切：相关历史关系图 MVP
+
+- **真实任务**：用户在跨 Coding、CTF、CVE 历史中只能逐条搜索，无法看出项目、会话、目标、工具、模型和安全对象之间的关系，也难以从关系节点回到原始会话继续工作。
+- **开发隔离**：使用独立 worktree 和本地分支；不推送、不合并、不访问外部账号，不处理 SQLite 多实例锁、外部会话导入或相邻 UI 清理。当前 Composer/ChatPage 改动未收口时，图谱交互应封装在 `SessionHistoryPanel` 与独立组件内，避免扩大冲突面。
+- **上游优先**：先验证固定版本 `@antv/g6` 在 Wails WebView、深浅主题和生产构建中的兼容性；若依赖或 WebView 不成立，保留有界原型和证据，再比较 Cytoscape.js，不自写图布局/渲染引擎。
+- **最小数据模型**：默认节点只含 project、session、goal、ctf、cve、model、tool、skill、evidence、artifact；边只含 contains、uses、calls、loads、focuses、mentions、derived-from。普通 message 不默认成为节点；确定元数据和精确编号提及必须可区分。
+- **产品交互**：相关历史页提供“列表 / 图谱”切换、模块/项目/时间过滤、缩放拖动、适应视图、节点详情、来源会话回跳和确认后引用。默认限制节点/边数量，不以持续动画或 3D 毛线球代替可读性。
+- **事实边界**：图谱只是历史导航 Projection，不建立 Judge、CVE 来源或用户能力事实；不让模型自动写关系，不把搜索结果自动放进 Agent 上下文，不填充当前无正式写入链路的通用 `memories` 表。
+- **完成证据**：Go Projection 单测、Vue 组件测试、Credential 遮蔽/空索引/删除刷新/节点上限回归、生产构建，以及打包 App 中列表与图谱一致过滤、节点来源回跳和深浅主题截图。依赖下载或同一命令连续失败两次后不得原样空转，应继续完成可独立验证部分并准确记录阻塞。
 
 ### 安全 MCP 候选队列
 

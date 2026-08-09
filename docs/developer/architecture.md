@@ -198,6 +198,11 @@ Capability Package 定义“怎样调用一种技术”，而不是“任务是�
 
 Browser Use 与 Computer Use 也只是这里的执行能力，不是新的 Role 或 Agent Engine。用户通过聊天文字、附件、截图、本地目录、浏览器页面、远程连接或本地 Lab 发起任务时，统一 Challenge Intake 必须先保存原始材料、provenance 和授权，再交给 CTF Role。第三方浏览器/桌面项目的候选、固定版本和准入条件见 [Challenge Intake、Browser Use 与 Computer Use](/developer/challenge-intake-and-automation)。
 
+Composer 中的 `/` 或“+”只选择这些 Capability，不拥有执行语义：Goal/Plan 改变任务状态，
+沙箱浏览器/MCP 打开既有管理面，Browser/Computer Scope 与 Pi Skill 先成为可删除状态，发送后才由
+Runtime 校验和展开。安全工具 MCP 也必须先在 Coding 以固定版本、最小权限和真实任务完成准入，
+再作为 Capability Package 迁入 CTF/CVE；连接一个 Server 不等于建立领域 Finding 或 Judge 结果。
+
 ### L4：Shared Security Runtime
 
 这是 MilkSU 自己必须稳定拥有的部分：

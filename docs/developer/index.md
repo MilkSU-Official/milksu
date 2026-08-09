@@ -17,6 +17,7 @@
 - [CTF Intake → Agent → Judge → Memory](/architecture/ctf-intake-agent-judge-memory)
 - [PI Resource Whitelist](/developer/pi-resource-whitelist)
 - [安全 Agent 与通用 Agent 的能力边界](/developer/security-agent-boundary)
+- [Browser 三面与 Coding → Security 能力迁移](/developer/adr/2026-08-09-browser-surfaces-and-security-transfer)
 - [核心架构：可验证安全任务运行时](/developer/architecture)
 - [Security Role Packages](/developer/role-packages)
 

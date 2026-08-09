@@ -23,20 +23,21 @@ The goal is not the raw number of installed packages. The acceptance metric is a
 | Resource | Version / revision | Session scope | Capability | Controls |
 | --- | --- | --- | --- | --- |
 | `milksu-workflow` | MilkSU source | Coding + CTF roles | Visible progress and role-specific execution guidance | First-party; `milksu_progress` has a bounded schema and no external effects |
+| `frontend-visual-qa` | MilkSU source | Normal Coding only | Tests, real preview and sandbox Browser evidence for frontend changes | First-party reviewed Skill; explicit Pi `/skill:frontend-visual-qa`; CTF sessions must not load it |
 | `tt-a1i/archify` | `2.12.0` / `7b49d0b715fd4ba48116bcdecd1ba3789a279613` | Normal Coding only | Architecture, workflow, sequence, dataflow, and lifecycle diagrams | Pinned submodule; MIT; packaged commit check; CTF sessions must not load it |
 | `@narumitw/pi-lsp` | `0.29.0` + reviewed MilkSU patch | Normal Coding only | `lsp_diagnostics` and reviewed `lsp_fix` through fixed language servers | Exact npm pin; MIT; MilkSU rejects multi-file/resource WorkspaceEdits that cannot be reviewed and applied atomically, forces a reviewed Go/Vue/TypeScript config, ignores repository commands, launches the real server with a non-secret environment, forces a dry-run before writes, validates the project path and hashes, shows a complete Diff in Ask, and verifies the applied text; TypeScript `5.3.0`, Vue `2.2.12` non-Hybrid mode, and TypeScript SDK `6.0.3` are bundled |
 | `diff` | `8.0.4` | Normal Coding LSP adapter | Unified Diff generation for reviewed `lsp_fix` | Exact npm pin; BSD-3-Clause; only formats the upstream Pi LSP dry-run result; license copied into the Sidecar manifest |
 | `@narumitw/pi-goal` | `0.43.0` | Normal Coding only | Pi-native goal lifecycle, alongside the desktop progress projection | Exact npm pin; MIT; CTF sessions keep MilkSU's recorder-owned progress and Judge semantics |
 | `pi-better-background-tasks` | `0.1.10` | Normal Coding only | Conversation-owned background processes, bounded logs and stop | Exact npm pin; MIT; visible lifecycle; CTF sessions must not load it |
 | `pi-mcp-adapter` | `2.17.0` | Normal Coding opt-in | Reviewed project MCP servers and first-party adapters | Exact npm pin; MIT; digest selection, sandbox, environment filtering and per-call desktop approval |
-| `@playwright/mcp` | `0.0.78` | Normal Coding, explicit Browser start | Browser snapshot, form interaction and page control in a dedicated Chrome Profile | Exact npm pin; Apache-2.0; Go-issued transient loopback descriptor; short private socket root; per-call desktop approval; no ambient Chrome login |
+| `@playwright/mcp` | `0.0.78` | Normal Coding, explicit sandbox Browser or Browser Use | Dedicated-profile Browser control or extension-mode access to one user-approved real tab | Exact npm pin; Apache-2.0; the two modes have separate Scope/profile semantics; transient descriptor or extension pairing; no ambient whole-profile authority |
 | `@napi-rs/system-ocr` | `1.1.0` | Normal Coding attachments | Local text extraction for images when the selected model has no vision | Exact npm pin; MIT; local-only fallback and explicit degradation disclosure |
 
 The packaged Sidecar smoke test asserts both sides of the boundary. The
 `ready.extensions` list is derived from the tools and flags actually registered
 by the resource loader; it is not a hard-coded declaration:
 
-- a normal Coding session exposes Archify, Goal, background tasks and the reviewed MCP Adapter;
+- a normal Coding session exposes the reviewed frontend QA/Archify Skills, Goal, background tasks and the reviewed MCP Adapter;
   bundled TypeScript/Vue/Go LSP diagnostics are available, and Playwright appears only after the
   user explicitly starts the Coding Browser;
 - a CTF session exposes none of these external resources and continues to use
@@ -74,6 +75,7 @@ the Sidecar manifest.
 | `tomsej/pi-ext` Code Review / Tool Pills / `pi-sem` | Preferred candidates for review workflow, compact tool rendering, and semantic change inspection. Evaluate measured context cost before enabling semantic tools by default. |
 | `tomsej/pi-ext` Ask User Question | Preferred structured clarification candidate once extension UI requests can round-trip through Wails. |
 | `pi-chrome-devtools` | Do not load. It duplicates the explicit browser pairing boundary and would widen browser authority. |
+| IDA Pro/idalib, Burp, radare2, Ghidra, Semgrep MCP | Security pilot candidates, not active resources. Review and pin one upstream per tool, start read-only/minimal, separate read/write/execute/network effects, keep credentials out of context, retain a real Coding task and a denied over-scope receipt, then decide whether to promote it into CTF/CVE. |
 | Community CTF Skill packs | Do not bulk install. Select one category Skill only after a real failed trajectory establishes the need; review scripts and tool prerequisites before activation. |
 
 Pi's official documentation states that Pi runs with the launching process's filesystem, process, network, and credential authority unless it is sandboxed or containerized. Therefore the MilkSU OS sandbox is platform code, not a duplicate plugin feature. A community permission matcher can improve policy authoring, but cannot replace the enforcement layer.

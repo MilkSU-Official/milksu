@@ -185,6 +185,11 @@ Read-only fact collection
 4. 右侧统一承载环境、材料、证据、协作、浏览器和 Judge；
 5. “继续”必须指出继续哪个 Work Item 和最近一次可靠状态；
 6. 默认动作使用产品预设，不把内部 Schema、Provider、输出路径或容器参数反问用户。
+7. Composer “+”只列已经审阅的附件、任务状态、Scope、Skill 与 MCP；`/` 是同一能力的快捷入口。
+   选择动作不直接发送，也不能安装 Server 或扩大授权，Scope/Skill 必须可见且可移除。
+
+安全工具 MCP 先作为 Coding Capability Package 验收，再进入 CTF/CVE。工具连接成功只表示能力可用，
+不能建立 Challenge、Finding、Reproduction 或 Judge 事实；这些仍由领域 Runtime 和独立回执持有。
 
 ## 8. 发布与解冻条件
 

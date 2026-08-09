@@ -42,12 +42,13 @@ flowchart LR
 | 边界 | 状态 | 代码证据 |
 | --- | --- | --- |
 | Wails 本地桌面宿主 | **Implemented** | `main.go` 只绑定一个 `App`，静态资源来自 `app/dist`。 |
-| Vue 产品表面 | **Implemented / Partial** | `app/src/App.vue` 组合 CTF、Coding、CVE 工作区与设置；左侧 rail 提供全局工作区、能力画像、设置和夜间/日间主题切换；Coding 采用中央会话和右侧动态页面，CTF 默认解题模式与复盘模式分离，CVE 已有学习/追踪与练习入口。 |
+| Vue 产品表面 | **Implemented / Partial** | `app/src/App.vue` 组合 CTF、Coding、CVE 工作区与设置；左侧 rail 提供全局工作区、能力画像、设置和夜间/日间主题切换；Coding 采用中央会话、右侧动态页面和统一 Composer “+”能力入口，CTF 默认解题模式与复盘模式分离，CVE 已有学习/追踪与练习入口。 |
 | Pi 通用 Agent | **Verified core / Partial extensions** | `bridge.js` 使用 Pi SessionManager、工具事件和持久会话；Plan/Go、权限档位、Archify、LSP、后台任务、Session Index、PR 交付和 Compaction 已有真实或专项证据。模型选择已收敛为单默认模型；Coding、CTF 和 sub-agent Sidecar 共用当前 Provider 注册，TokenFlux 是一等中转站，KouriChat 分支已移除。TokenFlux `grok-4.5` 打包 App 真看图已通过；真实 Grok 文档小纵切已跑通，功能代码/测试/恢复/Git 交付仍未覆盖。 |
 | CTF Runtime | **Implemented** | `internal/ctf` 将 Challenge、Agent Turn、Candidate、Judge Receipt、Debrief 投影到共享 Runtime。 |
 | 浏览器平台 Judge | **Implemented** | `internal/browsercap` 只接受明确配对页，NSSCTF/CTFshow 回执进入 Go Host。 |
-| Browser Use | **Implemented / needs packaged acceptance** | Composer 可删除的 `/browser-use` 状态只为本轮加载固定版 `@playwright/mcp --extension`；用户在官方 Chrome/Edge 连接页选择准确标签页，MilkSU 不另造通用浏览器控制协议。 |
-| Coding Browser | **Verified backend / embedded UI pending** | `internal/browsercap` 由右侧页面显式启停独立 profile 的专用 Chrome；Go Host 向当前 Pi Session 注入瞬态 loopback 描述符，固定 Playwright MCP 已完成真实页面 E2E。当前仍是外部 Chrome 窗口，不得宣称右栏已内嵌 Chromium。 |
+| Composer 能力入口 | **Verified packaged UI slice** | “+”统一展示附件、Goal、Plan、沙箱浏览器、Browser/Computer Scope、已审核 Pi Skills 和项目 MCP；Scope/Skill 可删除且选择不会直接发送，Skill 复用 Pi `/skill:name`。Go 是未选择 Plan 时的默认，不另设 `/go`。 |
+| Browser Use | **Implemented UI / live paired task pending** | 打包 App 已验可删除 Browser Use Scope 与右侧授权说明；发送后只为本轮加载固定版 `@playwright/mcp --extension`，用户在官方 Chrome/Edge 连接页选择准确标签页。尚缺一次真实标签页配对任务，MilkSU 不另造通用浏览器控制协议。 |
+| 沙箱浏览器（Coding Browser） | **Verified backend / embedded UI pending** | `internal/browsercap` 由右侧页面或 Composer “+”显式打开独立 profile 的专用 Chrome；Go Host 向当前 Pi Session 注入瞬态 loopback 描述符，固定 Playwright MCP 已完成真实页面 E2E。当前仍是外部 Chrome 窗口，不得宣称右栏已内嵌 Chromium。 |
 | Artifact Preview | **Verified / expandable** | Markdown、HTML 与图片使用工作区路径、类型、大小和 HTML 隔离策略；打包 App facade、真实 WebView 负向和原生 UI 三类型手动预览均已有证据，后续只做真实项目扩样。 |
 | ImageGen | **Implemented / unverified provider** | 文生图、参考图编辑、项目资产和付费确认主链已接入；未在打包 App 中使用用户自行配置的真实 Provider 验收。 |
 | Computer Use | **Verified slice / expandable** | 用户选择外部可见 App、PID 与 Window 的不可变 Scope；打包 App facade、WebView 启停、Calculator observe/click 和工具截图辅助视觉已有证据。Browser 与 Computer Use 仍分离。剩余更广 App 矩阵、权限失败路径和 Developer ID / TCC 复检。 |
@@ -84,7 +85,7 @@ flowchart TB
         supervisor["Go Engine Supervisor"]
         pi_session["Pi Session + Tool Loop"]
         policy["Session Tool Policy"]
-        resources["固定资源<br/>Workflow / Archify / LSP / Goal / MCP / ImageGen"]
+        resources["固定资源<br/>Workflow / reviewed Skills / LSP / Goal / MCP / ImageGen"]
         playwright["Playwright MCP<br/>explicit opt-in · per-call approval"]
     end
 
@@ -141,6 +142,9 @@ flowchart TB
 - 通用 `/browser-use` 不复用上述 CTF Bridge：它加载固定版 Playwright MCP extension mode，
   由上游扩展显示标签页选择/批准并返回准确页面。CTF Bridge 继续拥有 NSSCTF/CTFshow 领域采集、
   附件和 Judge；这是“复用通用基础设施、保留安全领域能力”的边界。
+- Composer “+”和 `/` 只是同一能力状态的两种入口。沙箱浏览器与项目 MCP 打开既有管理面；
+  Browser/Computer Scope 与 Pi Skill 先成为可删除状态，发送时才进入 Runtime。菜单不会安装
+  任意项目插件，也不会把 UI 中的“已选择”当成授权已经执行。
 - Computer Use 已不再固定为 MilkSU 自身；当前实现按用户选择的外部 App、PID 和窗口建立
   不可变 Scope，并保留工具截图辅助视觉证据；浏览器窗口从候选中排除。后续按真实 App/模型/
   权限失败矩阵扩样。
@@ -168,7 +172,7 @@ flowchart TB
 
 | 层 | 当前实现 | 判定 |
 | --- | --- | --- |
-| L1 Product Surface | Vue 3、`WorkspaceRail`、`ContextSidebar`、CTF/Coding/CVE 页面与设置 | **Partial**：主界面可用，左下全局 rail 已支持主题切换和本机持久化；CVE 学习/追踪 MVP 已存在；验收协调器不进入生产启动、Wails 绑定或 Vue 入口；真实 Provider、更多系统权限路径和发行 UI 矩阵仍需按台账验收。 |
+| L1 Product Surface | Vue 3、`WorkspaceRail`、`ContextSidebar`、CTF/Coding/CVE 页面、统一 Composer 能力入口与设置 | **Partial**：主界面可用，左下全局 rail 已支持主题切换和本机持久化；CVE 学习/追踪 MVP 已存在；Composer 能力选择已通过原生 App UI 验收；验收协调器不进入生产启动、Wails 绑定或 Vue 入口；真实 Provider、更多系统权限路径和发行 UI 矩阵仍需按当前目标验收。 |
 | L2 Application / Role Services | 单一 `App` 组合 `ctf.Service`、`vuln.Service`、Catalog、Memory | **Implemented but concentrated**：接口可用，Facade 未拆。 |
 | L3 Agent / Platform Adapters | Pi Supervisor、Security Supervisor、NSSCTF、CTFshow、Browser Bridge、Playwright MCP、ImageGen、Computer Use、Session Index | **Implemented / Partial**：NSSCTF 主链、隔离 Coding Browser、Computer Use 外部 App slice、MilkSU 自有 Session Index 和 PR 交付已有验收；无产品入口的外部会话导入不在发行图。其余真实 Provider、系统权限失败路径和跨平台 E2E 仍按台账跟踪。 |
 | L4 Domain Contracts | CTF Challenge、RoleFact、AgentCandidate、JudgeReceipt、LearningRecord | **Implemented**。 |

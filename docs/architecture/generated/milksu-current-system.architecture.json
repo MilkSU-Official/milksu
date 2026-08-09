@@ -2,31 +2,29 @@
   "schema_version": 1,
   "diagram_type": "architecture",
   "meta": {
-    "title": "MilkSU 当前系统架构",
-    "subtitle": "2026-08-05 pre-release 事实快照 · Pi Coding 基座、Session Index、CTF 证据闭环、CVE 学习追踪与安全静态评测",
+    "title": "milksu Current System",
+    "subtitle": "Go/Wails desktop host, supervised Pi Sidecar, and local CTF/Coding/CVE boundaries",
     "output": "milksu-current-system.html",
-    "animation": "trace",
-    "visual_preset": "blueprint",
+    "animation": "none",
     "quality_profile": "showcase",
-    "viewBox": [1460, 780],
     "views": [
       {
-        "id": "coding-path",
-        "label": "Coding 主链",
-        "focus": ["learner", "vue-shell", "go-host", "pi-sidecar", "coding-resources", "browser-bridge", "model-provider"],
-        "note": "从桌面交互到 Pi 会话、固定资源、显式启用的隔离浏览器和模型 Provider。"
+        "id": "desktop-main-path",
+        "label": "Desktop main path",
+        "focus": ["learner", "vue_shell", "wails_host", "pi_sidecar", "model_provider"],
+        "note": "Learner actions enter Vue, cross the Wails facade, and reach the supervised Pi model loop."
       },
       {
-        "id": "ctf-path",
-        "label": "CTF 证据闭环",
-        "focus": ["learner", "vue-shell", "go-host", "ctf-service", "browser-bridge", "ctf-platforms", "evidence-runtime", "local-state"],
-        "note": "候选答案必须经过平台 Judge 回执，才能进入证据和复盘。"
+        "id": "runtime-and-state",
+        "label": "Runtime and state",
+        "focus": ["wails_host", "security_runtime", "local_state", "pi_sidecar"],
+        "note": "CTF/CVE facts, Judge receipts, and durable artifacts stay in the Go-owned Security Runtime and user-config local state."
       },
       {
-        "id": "eval-boundary",
-        "label": "内部模型评测",
-        "focus": ["nyu-eval", "local-state"],
-        "note": "NYU CTF Bench 运行 one-shot 与两回合 Pi 只读基线；只做 Digest Judge，不执行挑战或模型输出。"
+        "id": "external-tools",
+        "label": "External tool surfaces",
+        "focus": ["wails_host", "coding_browser", "browser_bridge", "computer_use", "pi_sidecar"],
+        "note": "Sandbox Browser, Browser Use, CTF Bridge, and Computer Use retain distinct session and authorization semantics."
       }
     ]
   },
@@ -34,313 +32,245 @@
     {
       "id": "learner",
       "type": "external",
-      "label": "学习者",
-      "sublabel": "选题 · 指导 · 审批 · 复盘",
-      "pos": [40, 303],
-      "size": [160, 66]
+      "label": "Learner",
+      "sublabel": "Approve · guide · review",
+      "pos": [40, 320],
+      "size": [120, 60]
     },
     {
-      "id": "vue-shell",
+      "id": "vue_shell",
       "type": "frontend",
-      "label": "Vue 产品表面",
-      "sublabel": "Wails WebView · CTF / CVE / Coding",
-      "tag": "L1 Product Surface",
-      "pos": [250, 300],
-      "size": [180, 72]
+      "label": "Vue Product Surface",
+      "sublabel": "CTF · Coding · CVE · Composer",
+      "tag": "WebView",
+      "pos": [250, 316],
+      "size": [160, 68]
     },
     {
-      "id": "go-host",
+      "id": "wails_host",
       "type": "backend",
       "label": "Go / Wails Host",
-      "sublabel": "组合根 · Facade · Supervisor",
-      "tag": "L2 Application",
-      "pos": [500, 300],
-      "size": [180, 72]
+      "sublabel": "Facade · services · policy",
+      "tag": "MilkSU.app",
+      "pos": [510, 316],
+      "size": [160, 68]
     },
     {
-      "id": "pi-sidecar",
+      "id": "pi_sidecar",
       "type": "backend",
       "label": "Pi Coding Sidecar",
-      "sublabel": "Session · Context · Generic Tool Loop",
-      "tag": "JSONL process boundary",
-      "pos": [770, 92],
-      "size": [190, 76]
+      "sublabel": "Session · tools · resources",
+      "tag": "Node JSONL",
+      "pos": [770, 316],
+      "size": [160, 68]
     },
     {
-      "id": "coding-resources",
-      "type": "security",
-      "label": "固定 Coding 资源",
-      "sublabel": "Workflow · Archify · Goal · MCP",
-      "tag": "pinned + isolated",
-      "pos": [1040, 92],
-      "size": [190, 76]
-    },
-    {
-      "id": "model-provider",
+      "id": "model_provider",
       "type": "external",
-      "label": "模型 Provider",
-      "sublabel": "用户配置的 API",
-      "tag": "secret injected at launch",
-      "pos": [1290, 92],
-      "size": [150, 76]
+      "label": "Model Providers",
+      "sublabel": "DeepSeek · TokenFlux · others",
+      "pos": [1030, 320],
+      "size": [150, 60]
     },
     {
-      "id": "ctf-service",
-      "type": "backend",
-      "label": "CTF Application",
-      "sublabel": "Challenge · Role · Candidate · Judge",
-      "tag": "L3–L4",
-      "pos": [770, 298],
-      "size": [190, 76]
-    },
-    {
-      "id": "browser-bridge",
+      "id": "security_runtime",
       "type": "security",
-      "label": "Browser Adapters",
-      "sublabel": "配对标签页 · 隔离 Chrome",
-      "tag": "explicit per session",
-      "pos": [1040, 298],
-      "size": [190, 76]
+      "label": "Security Runtime",
+      "sublabel": "Events · Judge · projection",
+      "tag": "append-only",
+      "pos": [510, 80],
+      "size": [160, 68]
     },
     {
-      "id": "ctf-platforms",
-      "type": "external",
-      "label": "CTF 平台",
-      "sublabel": "NSSCTF · CTFshow",
-      "tag": "authoritative Judge",
-      "pos": [1290, 298],
-      "size": [150, 76]
-    },
-    {
-      "id": "evidence-runtime",
-      "type": "backend",
-      "label": "Evidence Runtime",
-      "sublabel": "事件 · 制品 · 投影 · 恢复",
-      "tag": "L5 Integrity",
-      "pos": [770, 520],
-      "size": [190, 76]
-    },
-    {
-      "id": "local-state",
+      "id": "local_state",
       "type": "database",
-      "label": "用户目录本地状态",
-      "sublabel": "SQLite · Workspace · Artifacts",
+      "label": "Local User Data",
+      "sublabel": "SQLite · workspaces · artifacts",
       "tag": "com.milksu.app",
-      "pos": [1040, 520],
-      "size": [190, 76]
+      "pos": [510, 560],
+      "size": [160, 68]
     },
     {
-      "id": "nyu-eval",
-      "type": "backend",
-      "label": "NYU Safe-static Eval",
-      "sublabel": "One-shot · Pi Read-only · Digest",
-      "tag": "developer-only · no effectful tools",
-      "pos": [1290, 520],
-      "size": [150, 76]
+      "id": "coding_browser",
+      "type": "external",
+      "label": "Sandbox Browser",
+      "sublabel": "Isolated Chrome + CDP",
+      "pos": [770, 80],
+      "size": [160, 60]
+    },
+    {
+      "id": "browser_bridge",
+      "type": "external",
+      "label": "Paired Browser Surfaces",
+      "sublabel": "Browser Use · CTF Bridge",
+      "pos": [250, 80],
+      "size": [160, 60]
+    },
+    {
+      "id": "computer_use",
+      "type": "external",
+      "label": "Computer Use Apps",
+      "sublabel": "Visible App · PID · Window",
+      "pos": [770, 560],
+      "size": [160, 60]
     }
   ],
   "boundaries": [
     {
       "kind": "region",
-      "label": "MilkSU.app · 本地桌面系统",
-      "wraps": ["vue-shell", "go-host", "ctf-service", "browser-bridge", "evidence-runtime"],
-      "pad": 30
+      "label": "MilkSU.app desktop process",
+      "wraps": ["vue_shell", "wails_host", "security_runtime"],
+      "pad": 28
     },
     {
-      "kind": "security-group",
-      "label": "受管 Sidecar · 固定资源白名单",
-      "wraps": ["pi-sidecar", "coding-resources"],
+      "kind": "region",
+      "label": "Managed Node Sidecar",
+      "wraps": ["pi_sidecar"],
+      "pad": 28
+    },
+    {
+      "kind": "region",
+      "label": "User config directory",
+      "wraps": ["local_state"],
       "pad": 24
-    },
-    {
-      "kind": "security-group",
-      "label": "用户配置目录",
-      "wraps": ["local-state"],
-      "pad": 22
     }
   ],
   "connections": [
     {
       "id": "learner-to-vue",
       "from": "learner",
-      "to": "vue-shell",
-      "label": "交互",
+      "to": "vue_shell",
+      "label": "UI actions",
       "variant": "emphasis",
-      "fromSide": "right",
-      "toSide": "left",
       "route": "straight",
-      "labelAt": [225, 288]
+      "labelDy": -30
     },
     {
       "id": "vue-to-host",
-      "from": "vue-shell",
-      "to": "go-host",
+      "from": "vue_shell",
+      "to": "wails_host",
       "label": "Wails bindings",
-      "variant": "emphasis",
-      "fromSide": "right",
-      "toSide": "left",
       "route": "straight",
-      "labelAt": [465, 286]
+      "labelDy": -30
     },
     {
-      "id": "host-to-pi",
-      "from": "go-host",
-      "to": "pi-sidecar",
-      "label": "Coding session · JSONL",
+      "id": "host-to-sidecar",
+      "from": "wails_host",
+      "to": "pi_sidecar",
+      "label": "JSONL supervise",
       "variant": "emphasis",
+      "route": "straight",
+      "labelDy": -30
+    },
+    {
+      "id": "sidecar-to-provider",
+      "from": "pi_sidecar",
+      "to": "model_provider",
+      "label": "model calls",
+      "route": "straight",
+      "labelDy": 28
+    },
+    {
+      "id": "host-to-runtime",
+      "from": "wails_host",
+      "to": "security_runtime",
+      "label": "CTF / CVE facts",
       "fromSide": "top",
       "toSide": "bottom",
-      "route": "orthogonal-v",
-      "labelAt": [710, 206]
-    },
-    {
-      "id": "resources-to-pi",
-      "from": "coding-resources",
-      "to": "pi-sidecar",
-      "label": "审核后加载",
-      "variant": "security",
-      "fromSide": "left",
-      "toSide": "right",
       "route": "straight",
-      "labelAt": [1000, 76]
-    },
-    {
-      "id": "pi-to-provider",
-      "from": "pi-sidecar",
-      "to": "model-provider",
-      "label": "推理 API",
-      "variant": "dashed",
-      "fromSide": "top",
-      "toSide": "top",
-      "route": "orthogonal-v",
-      "via": [[865, 38], [1365, 38]],
-      "labelAt": [1260, 24]
-    },
-    {
-      "id": "pi-to-coding-browser",
-      "from": "pi-sidecar",
-      "to": "browser-bridge",
-      "label": "Playwright MCP · transient CDP",
-      "variant": "security",
-      "fromSide": "bottom",
-      "toSide": "top",
-      "route": "orthogonal-v",
-      "labelAt": [1000, 206]
-    },
-    {
-      "id": "host-to-ctf",
-      "from": "go-host",
-      "to": "ctf-service",
-      "label": "训练编排",
-      "variant": "emphasis",
-      "fromSide": "right",
-      "toSide": "left",
-      "route": "straight",
-      "labelAt": [725, 396]
-    },
-    {
-      "id": "ctf-to-browser",
-      "from": "ctf-service",
-      "to": "browser-bridge",
-      "label": "配对与同步",
-      "variant": "security",
-      "fromSide": "right",
-      "toSide": "left",
-      "route": "straight",
-      "labelAt": [1000, 286]
-    },
-    {
-      "id": "browser-to-platform",
-      "from": "browser-bridge",
-      "to": "ctf-platforms",
-      "label": "读取 / 提交",
-      "variant": "dashed",
-      "fromSide": "right",
-      "toSide": "left",
-      "route": "straight",
-      "labelAt": [1260, 286]
-    },
-    {
-      "id": "platform-to-browser",
-      "from": "ctf-platforms",
-      "to": "browser-bridge",
-      "label": "Judge 回执",
-      "variant": "emphasis",
-      "fromSide": "bottom",
-      "toSide": "bottom",
-      "route": "orthogonal-v",
-      "via": [[1365, 426], [1135, 426]],
-      "labelAt": [1260, 446]
-    },
-    {
-      "id": "ctf-to-runtime",
-      "from": "ctf-service",
-      "to": "evidence-runtime",
-      "label": "事实 / 候选 / 回执",
-      "variant": "emphasis",
-      "fromSide": "bottom",
-      "toSide": "top",
-      "route": "straight",
-      "labelAt": [930, 448]
-    },
-    {
-      "id": "runtime-to-state",
-      "from": "evidence-runtime",
-      "to": "local-state",
-      "label": "append + artifact",
-      "variant": "emphasis",
-      "fromSide": "right",
-      "toSide": "left",
-      "route": "straight",
-      "labelAt": [1000, 500]
+      "labelDx": -72
     },
     {
       "id": "host-to-state",
-      "from": "go-host",
-      "to": "local-state",
-      "label": "配置 / Catalog / 会话",
-      "variant": "dashed",
+      "from": "wails_host",
+      "to": "local_state",
+      "label": "persist",
       "fromSide": "bottom",
-      "toSide": "left",
-      "route": "orthogonal-v",
-      "via": [[590, 680], [1000, 680], [1000, 558]],
-      "labelAt": [795, 700]
+      "toSide": "top",
+      "route": "straight",
+      "labelAt": [542, 398]
     },
     {
-      "id": "eval-to-state",
-      "from": "nyu-eval",
-      "to": "local-state",
-      "label": "只读输入 / 报告输出",
+      "id": "host-to-bridge",
+      "from": "wails_host",
+      "to": "browser_bridge",
+      "label": "paired Judge",
+      "fromSide": "top",
+      "toSide": "right"
+    },
+    {
+      "id": "host-to-coding-browser",
+      "from": "wails_host",
+      "to": "coding_browser",
+      "label": "inject CDP",
+      "fromSide": "top",
+      "toSide": "left"
+    },
+    {
+      "id": "sidecar-to-coding-browser",
+      "from": "pi_sidecar",
+      "to": "coding_browser",
+      "label": "Playwright MCP",
       "variant": "dashed",
-      "fromSide": "left",
-      "toSide": "right",
+      "fromSide": "top",
+      "toSide": "bottom",
       "route": "straight",
-      "labelAt": [1260, 612]
+      "labelDx": 70
+    },
+    {
+      "id": "host-to-computer-use",
+      "from": "wails_host",
+      "to": "computer_use",
+      "label": "immutable Scope",
+      "fromSide": "bottom",
+      "toSide": "left"
+    },
+    {
+      "id": "candidate-not-fact",
+      "from": "pi_sidecar",
+      "to": "security_runtime",
+      "label": "candidates only",
+      "variant": "dashed",
+      "fromSide": "right",
+      "toSide": "top",
+      "via": [[990, 350], [990, 40], [590, 40]],
+      "labelDy": -24
     }
   ],
   "cards": [
     {
       "dot": "cyan",
-      "title": "Coding 北极星",
+      "title": "Product surface",
       "items": [
-        "Pi 提供通用 Agent Loop，MilkSU 不重造会话、上下文和工具循环",
-        "向 Codex 对齐项目、执行、Git、权限、上下文、产物和显式启用的隔离浏览器"
+        "Vue WebView owns CTF, Coding, CVE, and Settings",
+        "Composer + selects reviewed state; selection never sends",
+        "No fake desktop data layer when Wails is absent"
       ]
     },
     {
       "dot": "emerald",
-      "title": "CTF 差异化",
+      "title": "Ownership split",
       "items": [
-        "Agent 只产生候选，平台 Judge 回执才是成功事实",
-        "实验轨迹、证据、提示依赖和独立步骤进入能力画像"
+        "Pi owns generic model session, compaction, and tool loop",
+        "MilkSU owns authorization, workspace, credentials, and projection"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Integrity boundaries",
+      "items": [
+        "Provider keys never enter model context, logs, or ordinary files",
+        "Models may propose CTF candidates; only Judge or authorized human marks success"
       ]
     },
     {
       "dot": "amber",
-      "title": "当前边界",
+      "title": "Current external slices",
       "items": [
-        "Managed Labs 暂停；CVE 学习/追踪 MVP 已进入产品，纵深研究、真实复现和披露闭环后置",
-        "NYU 只做人工准入的 one-shot 与两回合 Pi 只读评测，不执行挑战或模型输出"
+        "Sandbox Browser uses a conversation-isolated Chrome profile",
+        "Browser Use pairs one user-approved real tab",
+        "Computer Use binds a user-selected visible App/PID/Window Scope",
+        "Security MCPs remain Coding pilots until CTF/CVE admission"
       ]
     }
   ]

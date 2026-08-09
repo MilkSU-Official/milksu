@@ -48,7 +48,7 @@
 - CTF 主链存在；真实 Judge 成功仍只有窄 Web 路径。Memory actor/assistance 已持久化；尚缺真实
   轨迹校准。Runtime Reliability fixture 已有；发行级恢复矩阵未过。
 - CVE 正式事实只来自 Vuln Runtime；WebView 无假后端；Session Index 只索引 MilkSU 自有历史。
-- UI：rail 主题/设置、Coding Goal 与常用 Agent 动作在 Composer `/`；“+”统一提供附件、Goal、Plan、沙箱浏览器、Browser/Computer Scope、已审核 Pi Skills 与项目 MCP，Skill/Scope 先作为可删除状态加入输入，Goal/Git 摘要统一为圆角胶囊，字重与字号层级已收敛；
+- UI：rail 主题/设置、Coding Goal 与常用 Agent 动作在 Composer `/`；“+”统一提供附件、Goal、Plan、沙箱浏览器、Browser/Computer Scope、已审核 Pi Skills 与项目 MCP，Skill/Scope 先作为可删除状态加入输入且选择不直接发送；菜单四组、删除、面板跳转与 Plan → Go 恢复已通过原生 App 可见验收。Goal/Git 摘要统一为圆角胶囊，字重与字号层级已收敛；
   浏览器 Bridge 与 Computer Use 系统配置集中到“设置 → 浏览器与控制”。
 - 安全 MCP 仍是下一阶段试点，不是当前发行能力：候选为 IDA Pro/idalib、Burp、radare2、Ghidra 与 Semgrep；
   必须先在 Coding 通过固定版本、最小权限、真实任务和拒绝路径，再晋升到 CTF/CVE。

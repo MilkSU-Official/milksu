@@ -54,11 +54,14 @@ network、screenshot 之上实现自己的授权边界测试、证据采集、�
 Computer Use 只接受非浏览器原生 App 的 App/PID/Window Scope。浏览器由 Playwright 的结构化 DOM/
 accessibility 工具负责；视觉坐标控制只留给缺少更成熟接口的原生 GUI。
 
-### 5. Composer 授权
+### 5. Composer 能力与授权
 
-Slash 命令修改输入状态，不直接发送。Browser/Computer 状态插在用户文字中间，可点击移除，也会在
-Backspace/Delete 或覆盖删除后从结构化状态清除。发送前由 runtime 状态校验所需能力，不能只给模型
-拼一段“已经授权”的自然语言。
+Slash 命令与“+”菜单修改同一输入/会话状态，不直接发送。“+”统一展示附件、Goal、Plan、沙箱
+浏览器、Browser Use、Computer Use、已审核 Pi Skills 和项目 MCP；未选择 Plan 时默认就是 Go，
+不提供 `/go`。沙箱浏览器/MCP 只打开现有管理面；Browser/Computer Scope 和 Skill 插在用户文字中，
+可点击移除，也会在 Backspace/Delete 或覆盖删除后从结构化状态清除。Skill 发送时复用 Pi 原生
+`/skill:name`，MilkSU 不建立第二套 Skill 执行器。发送前由 Runtime 校验能力和准确 Scope，不能只给
+模型拼一段“已经授权”的自然语言。
 
 ### 6. MilkSU Beta 自举
 
@@ -79,3 +82,7 @@ ID、数据目录与 TCC 身份。稳定版通过 Computer Use 操作 Beta 完�
 
 采用顺序保持：成熟平台/Pi → 固定 Skill/MCP/插件/CLI → 许可证兼容的最小上游机制 → 最小自有实现。
 领域事实、Judge 和学习归因始终由 MilkSU 持有。
+
+安全工具 MCP 按同一迁移门槛处理：IDA Pro/idalib、Burp、radare2、Ghidra 和 Semgrep 先在 Coding
+使用固定版本与最小工具面完成一项真实任务和一项越权拒绝，再决定是否进入 CTF/CVE。连接成功、
+工具可见或模型生成报告都不能替代 Challenge、Evidence、Finding、Reproduction 或 Judge Receipt。
