@@ -734,3 +734,45 @@ final result: passed
 - Coding Browser and Computer Use are still not connected and remain separate permission surfaces.
 
 final result: passed
+
+# Coding Codex 式底部终端 Dock · Follow-up QA
+
+**Comparison Target**
+
+- Source visual truth: `/var/folders/wf/0w9rnrs904501nhp57pd_jzw0000gn/T/codex-clipboard-c35ea28b-8d90-4215-915e-760d5e43bfc8.png`.
+- Browser implementation: `/tmp/milksu-bottom-dock-browser.png` at 1280 × 720.
+- Packaged implementation: `/tmp/milksu-bottom-dock-native.jpg` at 1180 × 768.
+- Combined comparison input: `/tmp/milksu-bottom-dock-comparison.jpg`; both sides were normalized to 1180 × 768 before the side-by-side comparison.
+- State: Coding conversation open, right Environment page visible, Bottom Dock open, empty Shell state.
+
+**Findings**
+
+- No actionable P0, P1, or P2 layout mismatch remains for the requested panel topology.
+- The top Bottom Dock control sits immediately left of the right-sidebar control, matching the reference ownership.
+- The terminal is not a right-side page. It starts after the persistent Coding task navigation and spans the central conversation plus right sidebar width.
+- The right sidebar and Bottom Dock remain independently operable and may be visible at the same time.
+- MilkSU intentionally retains its navy/green product tokens and real xterm surface; the reference supplies layout and interaction truth, not a palette replacement.
+
+**Comparison History**
+
+- Earlier P1: the terminal button changed the right-side page to Terminal, so the terminal and Environment page could not coexist.
+- Fix: removed `terminal` from `ContextPanel`, introduced independent `terminalOpen` state, placed the Dock below the central/right split, and made both top controls independent.
+- Earlier P2: the terminal had a second in-panel navigation row and a text-heavy new-Shell action.
+- Fix: collapsed the Dock chrome to project Shell tabs, icon-only `+`, background tasks, and a far-right close action. Empty state is only “暂无 Shell”。
+- Post-fix comparison: the combined source/native image shows matching left-navigation boundary, composer-above/dock-below relationship, adjacent top controls, and independent right panel.
+
+**Primary Interactions Tested**
+
+- Browser preview: open the Bottom Dock while Environment remains visible.
+- Browser preview: close and reopen the right sidebar without closing the Dock; close the Dock without closing the right sidebar.
+- Packaged Wails App through Computer Use: repeat the same two independent toggle paths against the real persisted Coding conversation.
+- Packaged Wails App: verify the Dock accessibility tree exposes the project tab, new-Shell action, background tasks, close action, and concise empty Shell state.
+
+**Verification**
+
+- Frontend component suite: 56 files, 321 tests passed.
+- Frontend lint and production build passed.
+- Wails production build completed and produced `/Users/milksu/code/milksu/build/bin/MilkSU.app`.
+- Computer Use visible verification passed at 1180 × 768.
+
+final result: passed

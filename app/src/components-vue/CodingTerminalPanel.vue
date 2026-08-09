@@ -22,9 +22,10 @@ import {
   Plus,
   Play,
   RefreshCw,
-  Shell,
   Square,
+  SquareTerminal,
   Terminal as TerminalIcon,
+  X,
 } from 'lucide-vue-next'
 import {
   hasDesktopRuntime,
@@ -51,8 +52,12 @@ const props = defineProps<{
   approvalPolicy: CodingApprovalPolicy
 }>()
 
+const emit = defineEmits<{
+  close: []
+}>()
+
 const desktopRuntime = hasDesktopRuntime()
-const desktopRuntimeNotice = '浏览器预览只能验证终端/后台任务面板文案和入口；真实 Shell、后台命令、端口、日志和重启恢复需要 MilkSU 桌面运行时。'
+const desktopRuntimeNotice = '真实 Shell 仅在 MilkSU 桌面 App 中可用。'
 const activeView = ref<'shell' | 'tasks'>('shell')
 const shellContainer = ref<HTMLElement | null>(null)
 const terminalSessions = ref<CodingTerminalSession[]>([])
@@ -89,6 +94,10 @@ const runningTasks = computed(() => (
 const commandAllowed = computed(() => (
   props.executionMode === 'go' && props.approvalPolicy !== 'read-only'
 ))
+const workspaceName = computed(() => {
+  const value = props.workspacePath.replace(/\/+$/, '')
+  return value.split('/').at(-1) || '终端'
+})
 
 function taskLabel(task: CodingBackgroundTask): string {
   return task.name || task.command || task.id
@@ -166,6 +175,7 @@ function renderTerminalSession(session: CodingTerminalSession) {
 function selectTerminal(identifier: string) {
   const session = terminalSessions.value.find(item => item.id === identifier)
   if (!session) return
+  activeView.value = 'shell'
   selectedTerminalId.value = identifier
   renderTerminalSession(session)
 }
@@ -555,20 +565,62 @@ onBeforeUnmount(() => {
 
 <template>
   <section class="flex min-h-0 flex-1 flex-col">
-    <div class="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
-      <div class="flex items-center gap-1 rounded-lg bg-muted/50 p-1">
-        <Button
+    <div class="flex h-12 shrink-0 items-center justify-between border-b border-border px-3">
+      <div class="flex min-w-0 items-center gap-1.5 overflow-x-auto">
+        <template v-if="terminalSessions.length">
+          <button
+            v-for="(session, index) in terminalSessions"
+            :key="session.id"
+            type="button"
+            class="flex max-w-44 shrink-0 items-center gap-2 rounded-md px-2.5 py-1.5 text-caption transition-colors"
+            :class="activeView === 'shell' && session.id === selectedTerminalId
+              ? 'bg-secondary text-foreground'
+              : 'text-muted-foreground hover:bg-muted hover:text-foreground'"
+            :title="`${redactProviderCredentials(session.shell)} · PID ${session.pid ?? '—'}`"
+            @click="selectTerminal(session.id)"
+          >
+            <SquareTerminal class="size-3.5 shrink-0" />
+            <span class="truncate">
+              {{ terminalSessions.length > 1 ? `${workspaceName} ${index + 1}` : workspaceName }}
+            </span>
+          </button>
+        </template>
+        <button
+          v-else
           type="button"
-          size="sm"
-          :variant="activeView === 'shell' ? 'secondary' : 'ghost'"
+          class="flex max-w-44 shrink-0 items-center gap-2 rounded-md bg-secondary px-2.5 py-1.5 text-caption text-foreground"
           @click="activeView = 'shell'"
         >
-          <Shell class="size-3.5" />
-          Shell
-          <Badge v-if="runningShells.length" variant="outline">
-            {{ runningShells.length }}
-          </Badge>
+          <SquareTerminal class="size-3.5 shrink-0" />
+          <span class="truncate">{{ workspaceName }}</span>
+        </button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          class="shrink-0"
+          :disabled="!desktopRuntime || !workspacePath || shellLoading || runningShells.length >= 4"
+          aria-label="新建项目 Shell"
+          title="新建项目 Shell"
+          @click="startShell"
+        >
+          <LoaderCircle v-if="shellLoading" class="size-3.5 animate-spin" />
+          <Plus v-else class="size-4" />
         </Button>
+        <Button
+          v-if="selectedTerminal?.status === 'running'"
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          class="shrink-0"
+          :disabled="shellLoading"
+          aria-label="停止当前 Shell"
+          title="停止当前 Shell"
+          @click="stopShell"
+        >
+          <Square class="size-3 fill-current" />
+        </Button>
+        <span class="mx-1 h-5 w-px shrink-0 bg-border" />
         <Button
           type="button"
           size="sm"
@@ -582,16 +634,28 @@ onBeforeUnmount(() => {
           </Badge>
         </Button>
       </div>
-      <Button
-        v-if="activeView === 'tasks'"
-        variant="ghost"
-        size="icon-sm"
-        :disabled="refreshing"
-        aria-label="刷新后台任务"
-        @click="refreshTasks()"
-      >
-        <RefreshCw class="size-3.5" :class="{ 'animate-spin': refreshing }" />
-      </Button>
+      <div class="flex shrink-0 items-center gap-1">
+        <Button
+          v-if="activeView === 'tasks'"
+          variant="ghost"
+          size="icon-sm"
+          :disabled="refreshing"
+          aria-label="刷新后台任务"
+          @click="refreshTasks()"
+        >
+          <RefreshCw class="size-3.5" :class="{ 'animate-spin': refreshing }" />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label="关闭底部面板"
+          title="关闭底部面板"
+          @click="emit('close')"
+        >
+          <X class="size-4" />
+        </Button>
+      </div>
     </div>
 
     <div
@@ -602,58 +666,6 @@ onBeforeUnmount(() => {
     </div>
 
     <template v-if="activeView === 'shell'">
-      <div class="flex shrink-0 items-center gap-2 border-b border-border px-4 py-2">
-        <div class="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
-          <button
-            v-for="(session, index) in terminalSessions"
-            :key="session.id"
-            type="button"
-            class="flex max-w-40 shrink-0 items-center gap-2 rounded-md px-2.5 py-1.5 text-caption transition-colors"
-            :class="session.id === selectedTerminalId
-              ? 'bg-secondary text-foreground'
-              : 'text-muted-foreground hover:bg-muted hover:text-foreground'"
-            :title="`${redactProviderCredentials(session.shell)} · PID ${session.pid ?? '—'}`"
-            @click="selectTerminal(session.id)"
-          >
-            <span
-              class="size-1.5 shrink-0 rounded-full"
-              :class="session.status === 'running'
-                ? 'bg-primary'
-                : session.status === 'failed'
-                  ? 'bg-destructive'
-                  : 'bg-muted-foreground'"
-            />
-            <span class="truncate">Shell {{ terminalSessions.length - index }}</span>
-          </button>
-        </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          class="shrink-0"
-          :disabled="!desktopRuntime || !workspacePath || shellLoading || runningShells.length >= 4"
-          aria-label="新建项目 Shell"
-          title="新建项目 Shell"
-          @click="startShell"
-        >
-          <LoaderCircle v-if="shellLoading" class="size-3.5 animate-spin" />
-          <Plus v-else class="size-4" />
-          新建 Shell
-        </Button>
-        <Button
-          v-if="selectedTerminal?.status === 'running'"
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          :disabled="shellLoading"
-          aria-label="停止当前 Shell"
-          title="停止当前 Shell"
-          @click="stopShell"
-        >
-          <Square class="size-3 fill-current" />
-        </Button>
-      </div>
-
       <div class="flex min-h-0 flex-1 flex-col bg-[#0b111d]">
         <div ref="shellContainer" class="min-h-0 flex-1 px-2 py-2" />
         <p
@@ -702,9 +714,9 @@ onBeforeUnmount(() => {
         </form>
         <p
           v-if="!desktopRuntime"
-          class="mt-2 text-caption leading-5 text-amber-500"
+          class="mt-2 text-caption text-amber-500"
         >
-          后台任务需要 MilkSU 桌面运行时；浏览器预览不会启动命令、读取日志或恢复长任务。
+          后台任务仅在 MilkSU 桌面 App 中可用。
         </p>
         <p
           v-else-if="!commandAllowed"
@@ -828,9 +840,9 @@ onBeforeUnmount(() => {
           </p>
           <p
             v-if="!desktopRuntime"
-            class="mt-2 max-w-md text-caption leading-5 text-muted-foreground"
+            class="mt-2 text-caption text-muted-foreground"
           >
-            请在打包后的 MilkSU App 中验收真实命令、端口、日志和跨应用重启恢复。
+            请打开桌面 App。
           </p>
         </div>
       </div>

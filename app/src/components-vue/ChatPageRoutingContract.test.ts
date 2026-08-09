@@ -55,9 +55,13 @@ describe('ChatPage routing contract', () => {
     expect(chatPageSource).toContain('deletions: git.deletions')
   })
 
-  it('keeps Terminal as a direct topbar action instead of a sidebar menu item', () => {
+  it('keeps Terminal as an independent bottom dock instead of a sidebar page', () => {
     expect(chatPageSource).toContain('function toggleTerminalPanel()')
-    expect(chatPageSource).toContain("? '关闭终端' : '打开终端'")
+    expect(chatPageSource).toContain('terminalOpen.value = !terminalOpen.value')
+    expect(chatPageSource).toContain("? '关闭底部终端' : '打开底部终端'")
+    expect(chatPageSource).toContain('aria-label="底部终端面板"')
+    expect(chatPageSource).toContain('@close="terminalOpen = false"')
+    expect(chatPageSource).not.toContain("contextPanel === 'terminal'")
     expect(chatPageSource).not.toContain('<SelectItem v-if="!ctfSession" value="terminal">终端</SelectItem>')
     expect(chatPageSource.match(/aria-label="关闭右侧栏"/g) ?? []).toHaveLength(0)
   })

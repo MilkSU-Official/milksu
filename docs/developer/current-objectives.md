@@ -2,7 +2,7 @@
 
 > 文档状态：Current / Canonical target contract
 >
-> 最后收口：2026-08-09
+> 最后收口：2026-08-10
 >
 > 本页只回答“现在按什么目标继续做”：当前事实 + 下一条完成线。
 > 实现事实以当前代码、测试、Git 历史和原生 App 验收为准。
@@ -43,7 +43,7 @@
 - CVE：学习/追踪 MVP 可用（多源同步、练习目录、本地 Compose 生命周期、资产验证、学习写回、Coding 接力）；正式事实只来自 Vuln Runtime。
 - CTF：题库、工作区、Evidence、候选、Judge、Checkpoint、恢复、复盘、Memory 主链存在；真实 Judge 成功仍只有窄 Web 路径。
 - Runtime：Sidecar 恢复、Compaction、异常退出标记、后台长任务打包 App/WebView 恢复、预算和失败分类已有。
-- UI：全局 rail 主题、设置、能力画像；Coding Goal 从 Composer `/` 进入，Goal 与 Git 摘要使用一致的圆角胶囊并位于输入框上方。Coding 顶部用独立终端按钮直接打开右栏终端，普通右栏菜单不再承担终端入口；同一状态只有一个右栏开关，空终端只保留“暂无 Shell”和“新建 Shell”。WebView 无假后端。
+- UI：全局 rail 主题、设置、能力画像；Coding Goal 从 Composer `/` 进入，Goal 与 Git 摘要使用一致的圆角胶囊并位于输入框上方。Coding 顶部在右栏开关左侧提供独立的底部面板开关；终端是横跨中央会话与右栏下方的 Bottom Dock，不属于右栏页面，可与右栏同时打开或独立关闭。Dock 顶栏只保留项目 Shell 标签、`+`、后台任务和关闭，空终端只显示“暂无 Shell”。WebView 无假后端。
 - 暂停/后置：Labs；CVE 纵深研究、真实漏洞复现、外部资产实验、披露；NYU safe-static 只是开发者 smoke，不是完整 CTF 成绩。
 
 ## 下一条完成线
@@ -104,7 +104,7 @@
 
 - Archify；Coding 基础理解/测试/审阅/修复/总结；Plan/Go 与三档权限；附件、本地 OCR、视觉降级。
 - Coding Browser 隔离与 Playwright MCP；LSP；Git Diff/Hunk/stage/commit/push/PR 确认发布。
-- 顶栏视觉统一、全局 rail 设置/主题/能力画像、字重与 Coding 字号层级、共享 Button label 规格；Coding 终端顶部直达、单一右栏开关与精简空状态。
+- 顶栏视觉统一、全局 rail 设置/主题/能力画像、字重与 Coding 字号层级、共享 Button label 规格；Coding 顶部独立 Bottom Dock 开关、右栏独立开关、Codex 式终端标签栏与精简空状态。
 - Computer Use 外部 App Scope、权限检测、工具截图辅助视觉；Artifact Preview；后台任务跨重启恢复。
 - CVE 多源同步/练习生命周期/学习写回/资产验证；Session Index 基础索引与确认写入。
 - 相关历史人类语义图：Pi 无工具静默归纳、有界 Memory/会话/Evidence 摘要、Credential 遮蔽、来源回跳；图谱不引用、不回填 Agent。

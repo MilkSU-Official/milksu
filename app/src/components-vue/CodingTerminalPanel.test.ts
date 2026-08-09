@@ -124,8 +124,9 @@ describe('CodingTerminalPanel', () => {
     expect(terminalText).not.toContain('后台长任务请在“后台任务”中恢复')
     const text = document.body.textContent ?? ''
     expect(text).not.toContain('下一步')
-    expect(text).toContain('新建 Shell')
+    expect(text).toContain('milksu')
     expect(host.querySelector('[aria-label="新建项目 Shell"]')).not.toBeNull()
+    expect(host.querySelector('[aria-label="关闭底部面板"]')).not.toBeNull()
   })
 
   it('shows recovered background task status, process metadata, ports, and log tail', async () => {
@@ -179,10 +180,9 @@ describe('CodingTerminalPanel', () => {
     await settle()
 
     const text = host.textContent ?? ''
-    expect(text).toContain('浏览器预览只能验证终端/后台任务面板文案和入口')
-    expect(text).toContain('真实 Shell、后台命令、端口、日志和重启恢复需要 MilkSU 桌面运行时')
+    expect(text).toContain('真实 Shell 仅在 MilkSU 桌面 App 中可用')
     expect(text).toContain('浏览器预览不能读取后台任务')
-    expect(text).toContain('请在打包后的 MilkSU App 中验收真实命令、端口、日志和跨应用重启恢复')
+    expect(text).toContain('请打开桌面 App')
     expect(host.querySelector<HTMLTextAreaElement>('[aria-label="后台任务命令"]')?.disabled).toBe(true)
     expect(invokeCommand).not.toHaveBeenCalledWith(
       'refresh_coding_background_tasks',

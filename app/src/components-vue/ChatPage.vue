@@ -46,6 +46,8 @@ import {
   LoaderCircle,
   MousePointer2,
   Network,
+  PanelBottomClose,
+  PanelBottomOpen,
   PanelRightClose,
   PanelRightOpen,
   RefreshCw,
@@ -187,10 +189,10 @@ const composer = ref<{ appendDraftText: (text: string) => void } | null>(null)
 const scrollArea = ref<HTMLElement | null>(null)
 const workshopState = ref<CTFToolWorkshopState | null>(null)
 const environmentOpen = ref(!props.ctfSession)
+const terminalOpen = ref(false)
 const contextPanelValues = [
   'environment',
   'changes',
-  'terminal',
   'artifacts',
   'architecture',
   'browser',
@@ -515,7 +517,6 @@ const latestJudge = computed(() => ctfProjection.value?.judgeReceipts.at(-1))
 const contextPanelTitle = computed(() => ({
   environment: props.ctfSession ? '解题环境' : '环境信息',
   changes: '变更',
-  terminal: '终端',
   artifacts: '产物',
   architecture: '架构图',
   browser: '沙箱浏览器',
@@ -709,12 +710,7 @@ function toggleManualContextSidebar() {
 }
 
 function toggleTerminalPanel() {
-  if (environmentOpen.value && contextPanel.value === 'terminal') {
-    environmentOpen.value = false
-    return
-  }
-  contextPanel.value = 'terminal'
-  environmentOpen.value = true
+  terminalOpen.value = !terminalOpen.value
 }
 
 function showBrowserUseScope() {
@@ -1150,9 +1146,6 @@ async function stopComputerUse() {
 }
 
 async function refreshContextPanel() {
-  if (contextPanel.value === 'terminal') {
-    return
-  }
   if (contextPanel.value === 'architecture') {
     await refreshArchitecturePreview()
     return
@@ -1317,7 +1310,8 @@ watch(
 </script>
 
 <template>
-  <section class="relative flex min-w-0 flex-1 overflow-hidden bg-surface-editor">
+  <section class="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-surface-editor">
+  <div class="relative flex min-h-0 flex-1 overflow-hidden">
   <main class="chat-main flex min-w-0 flex-1 flex-col overflow-hidden bg-surface-editor">
     <WorkspaceModuleTopBar
       :module="topbarModule"
@@ -1354,11 +1348,12 @@ watch(
           v-if="!ctfSession"
           variant="ghost"
           size="icon-sm"
-          :aria-label="environmentOpen && contextPanel === 'terminal' ? '关闭终端' : '打开终端'"
-          :title="environmentOpen && contextPanel === 'terminal' ? '关闭终端' : '打开终端'"
+          :aria-label="terminalOpen ? '关闭底部终端' : '打开底部终端'"
+          :title="terminalOpen ? '关闭底部终端' : '打开底部终端'"
           @click="toggleTerminalPanel"
         >
-          <Terminal class="size-4" />
+          <PanelBottomClose v-if="terminalOpen" class="size-4" />
+          <PanelBottomOpen v-else class="size-4" />
         </Button>
         <Button
           variant="ghost"
@@ -1470,7 +1465,7 @@ watch(
   <aside
     v-if="environmentOpen"
     class="context-sidebar flex shrink-0 flex-col border-l border-border bg-card/95 backdrop-blur"
-    :class="['architecture', 'artifacts', 'changes', 'terminal', 'collaboration', 'history'].includes(contextPanel)
+    :class="['architecture', 'artifacts', 'changes', 'collaboration', 'history'].includes(contextPanel)
       ? 'w-[min(36rem,36vw)] min-w-[22rem]'
       : 'w-80'"
     :aria-label="contextPanelTitle"
@@ -1488,15 +1483,13 @@ watch(
         >
           <Activity v-if="contextPanel === 'environment'" class="size-4 text-primary" />
           <FileDiff v-else-if="contextPanel === 'changes'" class="size-4 text-primary" />
-          <Terminal v-else-if="contextPanel === 'terminal'" class="size-4 text-primary" />
           <FileImage v-else-if="contextPanel === 'artifacts'" class="size-4 text-primary" />
           <Network v-else-if="contextPanel === 'architecture'" class="size-4 text-primary" />
           <Globe2 v-else-if="contextPanel === 'browser'" class="size-4 text-primary" />
           <Wrench v-else-if="contextPanel === 'collaboration'" class="size-4 text-primary" />
           <History v-else-if="contextPanel === 'history'" class="size-4 text-primary" />
           <CircleDot v-else class="size-4 text-primary" />
-          <span v-if="contextPanel === 'terminal'">终端</span>
-          <SelectValue v-else />
+          <SelectValue />
         </SelectTrigger>
         <SelectContent size="sm" align="start" class="min-w-56">
           <SelectItem value="environment">{{ ctfSession ? '解题环境' : '环境信息' }}</SelectItem>
@@ -1520,7 +1513,7 @@ watch(
       </div>
       <div class="app-no-drag flex items-center gap-1">
         <Button
-          v-if="contextPanel !== 'terminal' && contextPanel !== 'browser-use'"
+          v-if="contextPanel !== 'browser-use'"
           variant="ghost"
           size="icon-sm"
           :disabled="environmentLoading || architecturePreviewLoading"
@@ -1887,16 +1880,6 @@ watch(
           @review="runCodingProductAction('review')"
           @refresh="refreshEnvironment"
           @delivery-evidence="recordGitDeliveryEvidence"
-        />
-      </template>
-
-      <template v-else-if="contextPanel === 'terminal'">
-        <CodingTerminalPanel
-          :active="environmentOpen && contextPanel === 'terminal'"
-          :conversation-id="conversation?.id ?? ''"
-          :workspace-path="workspacePath"
-          :execution-mode="effectiveExecutionMode"
-          :approval-policy="effectiveApprovalPolicy"
         />
       </template>
 
@@ -2288,6 +2271,21 @@ watch(
       </template>
     </div>
   </aside>
+  </div>
+  <div
+    v-if="terminalOpen"
+    class="h-[34vh] min-h-56 max-h-96 shrink-0 border-t border-border bg-card"
+    aria-label="底部终端面板"
+  >
+    <CodingTerminalPanel
+      :active="terminalOpen"
+      :conversation-id="conversation?.id ?? ''"
+      :workspace-path="workspacePath"
+      :execution-mode="effectiveExecutionMode"
+      :approval-policy="effectiveApprovalPolicy"
+      @close="terminalOpen = false"
+    />
+  </div>
   </section>
 </template>
 

@@ -244,21 +244,30 @@ describe('ChatPage Goal interaction', () => {
     expect(result.host.querySelector('[aria-label="Computer Use"]')).toBeNull()
   })
 
-  it('opens Terminal from the topbar and keeps one sidebar toggle', async () => {
+  it('opens Terminal as an independent bottom dock while keeping the right sidebar open', async () => {
     const result = mountPage({ workspacePath: '/tmp/milksu', sessionReady: true })
     await nextTick()
 
     expect(result.host.querySelectorAll('[aria-label="关闭右侧栏"]')).toHaveLength(1)
-    expect(result.host.querySelector('[aria-label="打开终端"]')).not.toBeNull()
+    expect(result.host.querySelector('[aria-label="打开底部终端"]')).not.toBeNull()
 
-    result.host.querySelector<HTMLButtonElement>('[aria-label="打开终端"]')?.click()
+    result.host.querySelector<HTMLButtonElement>('[aria-label="打开底部终端"]')?.click()
     await nextTick()
     await Promise.resolve()
     await nextTick()
 
-    expect(result.host.querySelector('aside[aria-label="终端"]')).not.toBeNull()
-    expect(result.host.querySelector('[aria-label="关闭终端"]')).not.toBeNull()
+    expect(result.host.querySelector('[aria-label="底部终端面板"]')).not.toBeNull()
+    expect(result.host.querySelector('aside[aria-label="环境信息"]')).not.toBeNull()
+    expect(result.host.querySelector('[aria-label="关闭底部终端"]')).not.toBeNull()
     expect(result.host.querySelectorAll('[aria-label="关闭右侧栏"]')).toHaveLength(1)
-    expect(result.host.querySelector('[aria-label="选择右侧页面"]')?.textContent).toContain('终端')
+
+    result.host.querySelector<HTMLButtonElement>('[aria-label="关闭右侧栏"]')?.click()
+    await nextTick()
+    expect(result.host.querySelector('aside')).toBeNull()
+    expect(result.host.querySelector('[aria-label="底部终端面板"]')).not.toBeNull()
+
+    result.host.querySelector<HTMLButtonElement>('[aria-label="关闭底部终端"]')?.click()
+    await nextTick()
+    expect(result.host.querySelector('[aria-label="底部终端面板"]')).toBeNull()
   })
 })
