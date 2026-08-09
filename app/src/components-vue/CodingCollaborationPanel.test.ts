@@ -22,7 +22,7 @@ describe('CodingCollaborationPanel', () => {
   it('prepares explicit writer slots and finishes only after integration', async () => {
     const calls: string[] = []
     const active = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       conversationId: 'conversation-1',
       workspace: '/workspace',
       baseBranch: 'main',
@@ -132,7 +132,7 @@ describe('CodingCollaborationPanel', () => {
   it('offers bounded cleanup after worktree preparation is interrupted', async () => {
     const calls: string[] = []
     const interrupted = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       conversationId: 'conversation-interrupted',
       workspace: '/workspace',
       baseBranch: 'main',

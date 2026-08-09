@@ -54,7 +54,11 @@ MilkSU is a Go/Wails/Vue desktop app with supervised Pi Sidecars.
   reproduction and disclosure workflows remain future work.
 - NYU safe-static is a narrow developer evaluation, not a MilkSU CTF score.
 
-Reuse pinned, reviewable Pi packages, Skills, MCP servers, platform CLIs and mature community components.
+Apply an upstream-first implementation ladder: first use an existing platform or Pi capability, then a pinned
+and reviewable Skill, MCP server, plugin, package or platform CLI, then a small license-compatible vendored
+mechanism or proven design, and only then write the smallest MilkSU-owned implementation. Record why the
+earlier level was insufficient. “Mature” requires an inspectable source, compatible license, bounded
+permissions, maintained releases and evidence for the relevant use case; popularity alone is insufficient.
 Do not grow a second generic Coding Agent harness when an upstream component already owns the capability.
 
 ## Non-Negotiable Boundaries

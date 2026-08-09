@@ -99,20 +99,51 @@ func TestManagerCreatesRecoversAndSafelyFinishesIndependentWorktrees(t *testing.
 	}
 }
 
-func TestManagerSharesIgnoredTrackedPackageDependenciesWithoutDirtyingWriter(t *testing.T) {
+func TestManagerRejectsPreReleaseCollaborationSchema(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	repository := newRepository(t)
-	for _, path := range []string{
-		filepath.Join(repository, "node_modules", "vitepress"),
-		filepath.Join(repository, "app", "node_modules", "vite"),
+	manager, err := New(filepath.Join(t.TempDir(), "collaboration"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Prepare(ctx, "obsolete-schema", repository, 1); err != nil {
+		t.Fatal(err)
+	}
+	manifestPath := manager.manifestPath("obsolete-schema")
+	data, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	obsolete := strings.Replace(string(data), `"schemaVersion": 2`, `"schemaVersion": 1`, 1)
+	if err := os.WriteFile(manifestPath, []byte(obsolete), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Get(ctx, "obsolete-schema", repository); err == nil ||
+		!strings.Contains(err.Error(), "unsupported Coding collaboration schema version 1") {
+		t.Fatalf("expected obsolete schema rejection, got %v", err)
+	}
+}
+
+func TestManagerMaterializesIgnoredDependenciesWithoutSharingWriterMutations(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	repository := newRepository(t)
+	for path, content := range map[string]string{
+		filepath.Join(repository, "node_modules", "vitepress", "package.json"):       "main root dependency\n",
+		filepath.Join(repository, "app", "node_modules", "vite", "package.json"):     "main app dependency\n",
+		filepath.Join(repository, "app", "node_modules", ".bin", "vite-placeholder"): "#!/bin/sh\n",
 	} {
-		if err := os.MkdirAll(path, 0o700); err != nil {
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 			t.Fatal(err)
 		}
 	}
 	for path, content := range map[string]string{
 		".gitignore":       "node_modules/\napp/node_modules/\n",
+		".worktreeinclude": "node_modules/\napp/node_modules/\n",
 		"package.json":     "{\"private\":true}\n",
 		"app/package.json": "{\"private\":true}\n",
 	} {
@@ -124,7 +155,7 @@ func TestManagerSharesIgnoredTrackedPackageDependenciesWithoutDirtyingWriter(t *
 			t.Fatal(err)
 		}
 	}
-	git(t, repository, "add", ".gitignore", "package.json", "app/package.json")
+	git(t, repository, "add", ".gitignore", ".worktreeinclude", "package.json", "app/package.json")
 	git(t, repository, "commit", "-m", "add Node packages")
 
 	manager, err := New(filepath.Join(t.TempDir(), "collaboration"))
@@ -142,13 +173,24 @@ func TestManagerSharesIgnoredTrackedPackageDependenciesWithoutDirtyingWriter(t *
 		if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 			t.Fatalf("shared dependency is not a managed directory: %s info=%v err=%v", view, info, err)
 		}
-		entries, err := os.ReadDir(filepath.Join(repository, dependency))
-		if err != nil || len(entries) != 1 {
-			t.Fatalf("read dependency fixture: entries=%v err=%v", entries, err)
+		mainPackage := filepath.Join(repository, dependency, map[string]string{
+			"node_modules":                       filepath.Join("vitepress", "package.json"),
+			filepath.Join("app", "node_modules"): filepath.Join("vite", "package.json"),
+		}[dependency])
+		writerPackage := filepath.Join(view, map[string]string{
+			"node_modules":                       filepath.Join("vitepress", "package.json"),
+			filepath.Join("app", "node_modules"): filepath.Join("vite", "package.json"),
+		}[dependency])
+		writerInfo, err := os.Lstat(writerPackage)
+		if err != nil || writerInfo.Mode()&os.ModeSymlink != 0 {
+			t.Fatalf("writer dependency was not copied locally: %s info=%v err=%v", writerPackage, writerInfo, err)
 		}
-		resolved, err := filepath.EvalSymlinks(filepath.Join(view, entries[0].Name()))
-		if err != nil || resolved != filepath.Join(repository, dependency, entries[0].Name()) {
-			t.Fatalf("unexpected shared dependency target: %s err=%v", resolved, err)
+		if err := os.WriteFile(writerPackage, []byte("writer replaced dependency\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		mainContent, err := os.ReadFile(mainPackage)
+		if err != nil || strings.Contains(string(mainContent), "writer replaced") {
+			t.Fatalf("writer dependency mutation reached main: content=%q err=%v", mainContent, err)
 		}
 	}
 	refreshed, err := manager.Get(ctx, "shared-dependencies", repository)
@@ -162,8 +204,15 @@ func TestManagerSharesIgnoredTrackedPackageDependenciesWithoutDirtyingWriter(t *
 	if err != nil || !found {
 		t.Fatalf("load collaboration manifest: found=%v err=%v", found, err)
 	}
-	if strings.Join(current.SharedDependencies, ",") != "app/node_modules,node_modules" {
-		t.Fatalf("unexpected shared dependencies: %v", current.SharedDependencies)
+	if !current.Worktrees[0].Prepared {
+		t.Fatalf("writer environment was not marked prepared: %+v", current.Worktrees[0])
+	}
+	manifestData, err := os.ReadFile(manager.manifestPath("shared-dependencies"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(manifestData), "sharedDependencies") {
+		t.Fatalf("manifest retained main-workspace dependency grants: %s", manifestData)
 	}
 }
 
@@ -193,15 +242,11 @@ func TestManagerSafelyFinishesWorktreeContainingSubmodule(t *testing.T) {
 		t.Fatal(err)
 	}
 	writer := status.Worktrees[0]
-	git(
-		t,
-		writer.Path,
-		"-c",
-		"protocol.file.allow=always",
-		"submodule",
-		"update",
-		"--init",
-	)
+	expectedSubmoduleHead := git(t, repository, "rev-parse", "HEAD:packages/ui")
+	writerSubmoduleHead := git(t, filepath.Join(writer.Path, "packages", "ui"), "rev-parse", "HEAD")
+	if writerSubmoduleHead != expectedSubmoduleHead {
+		t.Fatalf("writer submodule head = %s, want %s", writerSubmoduleHead, expectedSubmoduleHead)
+	}
 	writerHead := commitFile(
 		t,
 		writer.Path,
@@ -239,6 +284,44 @@ func TestManagerSafelyFinishesWorktreeContainingSubmodule(t *testing.T) {
 	}
 }
 
+func TestManagerRejectsWorktreeIncludeSymlinkEscapingRepository(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	repository := newRepository(t)
+	outside := filepath.Join(filepath.Dir(repository), "outside-dependency")
+	if err := os.MkdirAll(outside, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	cache := filepath.Join(repository, "cache")
+	if err := os.MkdirAll(cache, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	escapeTarget, err := filepath.Rel(cache, outside)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(escapeTarget, filepath.Join(cache, "escape")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repository, ".gitignore"), []byte("cache/\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repository, ".worktreeinclude"), []byte("cache/\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	git(t, repository, "add", ".gitignore", ".worktreeinclude")
+	git(t, repository, "commit", "-m", "configure worktree environment")
+
+	manager, err := New(filepath.Join(t.TempDir(), "collaboration"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Prepare(ctx, "escaping-include", repository, 1); err == nil ||
+		!strings.Contains(err.Error(), "escapes the repository") {
+		t.Fatalf("expected escaping include rejection, got %v", err)
+	}
+}
+
 func TestManagerRejectsDirtyInitializedSubmoduleBeforeForcedRemoval(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -265,15 +348,6 @@ func TestManagerRejectsDirtyInitializedSubmoduleBeforeForcedRemoval(t *testing.T
 		t.Fatal(err)
 	}
 	writer := status.Worktrees[0]
-	git(
-		t,
-		writer.Path,
-		"-c",
-		"protocol.file.allow=always",
-		"submodule",
-		"update",
-		"--init",
-	)
 	git(t, writer.Path, "config", "submodule.packages/ui.ignore", "all")
 	dirtyPath := filepath.Join(writer.Path, "packages", "ui", "local.txt")
 	if err := os.WriteFile(dirtyPath, []byte("must survive\n"), 0o600); err != nil {

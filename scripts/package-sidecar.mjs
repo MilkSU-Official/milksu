@@ -1610,7 +1610,7 @@ async function smokeSidecar(platform) {
   await writeFile(
     join(collaborationRoot, collaborationKey, 'manifest.json'),
     `${JSON.stringify({
-      schemaVersion: 1,
+      schemaVersion: 2,
       conversationId: collaborationConversation,
       workspace,
       baseBranch: 'main',
@@ -1621,6 +1621,8 @@ async function smokeSidecar(platform) {
         path: collaborationWorktree,
         branch: collaborationBranch,
         baseHead: 'a'.repeat(40),
+        provisioned: true,
+        prepared: true,
       }],
     }, null, 2)}\n`,
     { mode: 0o600 },
@@ -1635,7 +1637,7 @@ async function smokeSidecar(platform) {
         executionMode: 'go',
         approvalPolicy: 'workspace-auto',
         codingCollaboration: {
-          schemaVersion: 1,
+          schemaVersion: 2,
           conversationId: collaborationConversation,
           workspace,
           baseHead: 'a'.repeat(40),

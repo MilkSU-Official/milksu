@@ -48,7 +48,7 @@ flowchart LR
 | Artifact Preview | **Verified / expandable** | Markdown、HTML 与图片使用工作区路径、类型、大小和 HTML 隔离策略；打包 App facade、真实 WebView 负向和原生 UI 三类型手动预览均已有证据，后续只做真实项目扩样。 |
 | ImageGen | **Implemented / unverified provider** | 文生图、参考图编辑、项目资产和付费确认主链已接入；未在打包 App 中使用用户自行配置的真实 Provider 验收。 |
 | Computer Use | **Verified slice / expandable** | 已支持用户选择外部可见 App、PID 与 Window 的不可变 Scope；打包 App facade、WebView 启停、真实 Calculator observe/click 和工具截图辅助视觉已有证据。剩余是更广外部 App 矩阵、真实 Provider 质量和系统权限异常路径扩样。 |
-| Worktree / upstream sub-agent | **Verified isolation slice / unverified parallel benefit** | MilkSU 负责隔离 worktree、恢复、路径与审批边界，任务执行复用上游 Pi sub-agent；注册 writer 对主 Agent 的 `write`、`edit` 与 `bash` 使用同一写入范围，准备时为仓库内现有、被 Git 忽略的 Node 依赖建立只读共享视图。打包 App 已在 writer 内用文件工具写文档并直接完成 VitePress 构建，主工作树保持干净；没有自建角色团队、调度器或第二套 Agent loop，并行收益仍需真实任务验证。 |
+| Worktree / upstream sub-agent | **Verified isolation slice / interaction incomplete** | MilkSU 负责隔离 worktree、恢复、路径与审批边界，任务执行复用上游 Pi；注册 writer 对主 Agent 的 `write`、`edit` 与 `bash` 使用同一写入范围。`.worktreeinclude` 采用 Codex/Claude 同类显式 include 语义，通过平台 copy-on-write 优先复制 ignored 本地环境；已初始化 submodule 从主工作区按精确提交初始化。writer 不再获得主依赖目录授权，安装器可安全替换本地依赖。当前仍由用户显式操作协作面板，下一纵切应改为会话自动拥有一个 worktree，并把可选 sub-agent 隔离从日常交互中移开。 |
 | 本地持久化 | **Implemented** | `internal/appdata`、`internal/securityruntime`、Catalog、Conversation、Memory 和 Credential Store；CTF Memory 直接保存 actor / assistance，旧无归因 pre-release 库明确不兼容。 |
 | Managed Labs | **Paused design only** | 生产代码、Wails 绑定、Vue 入口和打包 Lab 资源已移除；长期设计不构成当前产品能力。 |
 | CVE Learning / Tracking | **Implemented / Partial** | CVE 一级工作区已接入多源只读情报同步、来源快照、Vulhub 练习目录匹配、本地 Docker Compose 练习生命周期、资产验证、学习写回和 Coding 接力；资产与学习正式事实只来自 Vuln Runtime，localStorage 只留未提交草稿和 UI 偏好。CVE 纵深研究、真实漏洞复现、外部资产实验和披露流程后置。 |

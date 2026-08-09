@@ -527,7 +527,7 @@ describe('desktop command adapter', () => {
 
   it('passes Coding collaboration preparation details to Wails unchanged', async () => {
     const status = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       conversationId: 'conversation-collab',
       workspace: '/workspace/milksu',
       phase: 'active',
@@ -562,7 +562,7 @@ describe('desktop command adapter', () => {
 
   it('defaults omitted Coding collaboration writer count to one', async () => {
     const prepareCodingCollaboration = vi.fn(async () => ({
-      schemaVersion: 1,
+      schemaVersion: 2,
       conversationId: 'conversation-collab',
       workspace: '/workspace/milksu',
       phase: 'active',

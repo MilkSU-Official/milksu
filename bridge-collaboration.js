@@ -48,7 +48,7 @@ export function normalizeCodingCollaboration(
   collaborationRoot = process.env.MILKSU_CODING_COLLABORATION_ROOT,
 ) {
   if (value === undefined || value === null) return undefined;
-  if (!exactObject(value) || Number(value.schemaVersion) !== 1) {
+  if (!exactObject(value) || Number(value.schemaVersion) !== 2) {
     throw new Error("MilkSU rejected an invalid Coding collaboration descriptor");
   }
   const normalizedConversation = String(conversationId ?? "").trim();
@@ -90,7 +90,7 @@ export function normalizeCodingCollaboration(
     return Object.freeze({ id, path, branch });
   });
   return Object.freeze({
-    schemaVersion: 1,
+    schemaVersion: 2,
     conversationId: normalizedConversation,
     workspace: normalizedWorkspace,
     baseHead,

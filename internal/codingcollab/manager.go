@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	SchemaVersion = 1
+	SchemaVersion = 2
 	MinWriters    = 1
 	MaxWriters    = 2
 
@@ -41,6 +41,7 @@ type Worktree struct {
 	Integrated  bool   `json:"integrated"`
 	Available   bool   `json:"available"`
 	Provisioned bool   `json:"provisioned,omitempty"`
+	Prepared    bool   `json:"prepared,omitempty"`
 	Problem     string `json:"problem,omitempty"`
 }
 
@@ -75,17 +76,16 @@ type WorktreeDescriptor struct {
 }
 
 type manifest struct {
-	SchemaVersion      int        `json:"schemaVersion"`
-	ConversationID     string     `json:"conversationId"`
-	Workspace          string     `json:"workspace"`
-	BaseBranch         string     `json:"baseBranch"`
-	BaseHead           string     `json:"baseHead"`
-	Phase              string     `json:"phase"`
-	CreatedAt          string     `json:"createdAt"`
-	UpdatedAt          string     `json:"updatedAt"`
-	CompletedAt        string     `json:"completedAt,omitempty"`
-	SharedDependencies []string   `json:"sharedDependencies,omitempty"`
-	Worktrees          []Worktree `json:"worktrees"`
+	SchemaVersion  int        `json:"schemaVersion"`
+	ConversationID string     `json:"conversationId"`
+	Workspace      string     `json:"workspace"`
+	BaseBranch     string     `json:"baseBranch"`
+	BaseHead       string     `json:"baseHead"`
+	Phase          string     `json:"phase"`
+	CreatedAt      string     `json:"createdAt"`
+	UpdatedAt      string     `json:"updatedAt"`
+	CompletedAt    string     `json:"completedAt,omitempty"`
+	Worktrees      []Worktree `json:"worktrees"`
 }
 
 type Manager struct {
@@ -148,7 +148,7 @@ func (m *Manager) Prepare(
 	if err != nil {
 		return Status{}, err
 	}
-	sharedDependencies, err := m.discoverSharedDependencies(ctx, repository)
+	worktreeIncludes, err := m.discoverWorktreeIncludes(ctx, repository)
 	if err != nil {
 		return Status{}, err
 	}
@@ -187,16 +187,15 @@ func (m *Manager) Prepare(
 	}
 	now := m.now().UTC().Format(time.RFC3339Nano)
 	next := manifest{
-		SchemaVersion:      SchemaVersion,
-		ConversationID:     conversationID,
-		Workspace:          repository,
-		BaseBranch:         baseBranch,
-		BaseHead:           baseHead,
-		Phase:              phasePreparing,
-		CreatedAt:          now,
-		UpdatedAt:          now,
-		SharedDependencies: sharedDependencies,
-		Worktrees:          worktrees,
+		SchemaVersion:  SchemaVersion,
+		ConversationID: conversationID,
+		Workspace:      repository,
+		BaseBranch:     baseBranch,
+		BaseHead:       baseHead,
+		Phase:          phasePreparing,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+		Worktrees:      worktrees,
 	}
 	if err := m.save(next); err != nil {
 		return Status{}, err
@@ -236,16 +235,29 @@ func (m *Manager) Prepare(
 		if err := m.save(next); err != nil {
 			return Status{}, err
 		}
-		if err := m.linkSharedDependencies(
-			repository,
-			worktree.Path,
-			sharedDependencies,
-		); err != nil {
+		if err := m.initializeSubmodules(ctx, repository, worktree.Path); err != nil {
 			return Status{}, fmt.Errorf(
-				"share %s collaboration dependencies: %w",
+				"initialize %s collaboration submodules: %w",
 				worktree.ID,
 				err,
 			)
+		}
+		if err := m.materializeWorktreeIncludes(
+			ctx,
+			repository,
+			worktree.Path,
+			worktreeIncludes,
+		); err != nil {
+			return Status{}, fmt.Errorf(
+				"materialize %s collaboration environment: %w",
+				worktree.ID,
+				err,
+			)
+		}
+		next.Worktrees[index].Prepared = true
+		next.UpdatedAt = m.now().UTC().Format(time.RFC3339Nano)
+		if err := m.save(next); err != nil {
+			return Status{}, err
 		}
 	}
 	next.Phase = phaseActive
@@ -527,9 +539,13 @@ func (m *Manager) refreshLocked(ctx context.Context, current manifest) (Status, 
 		return status, nil
 	}
 	allAvailable := true
+	allPrepared := true
 	allFinishable := true
 	refreshed := make([]Worktree, 0, len(current.Worktrees))
 	for _, expected := range current.Worktrees {
+		if !expected.Prepared {
+			allPrepared = false
+		}
 		worktree := expected
 		worktree.Available = false
 		worktree.Problem = ""
@@ -613,7 +629,7 @@ func (m *Manager) refreshLocked(ctx context.Context, current manifest) (Status, 
 		refreshed = append(refreshed, worktree)
 	}
 
-	if current.Phase == phasePreparing && allAvailable {
+	if current.Phase == phasePreparing && allAvailable && allPrepared {
 		current.Phase = phaseActive
 		current.UpdatedAt = m.now().UTC().Format(time.RFC3339Nano)
 		current.Worktrees = refreshed
@@ -625,7 +641,7 @@ func (m *Manager) refreshLocked(ctx context.Context, current manifest) (Status, 
 	status.Worktrees = refreshed
 	status.Active = current.Phase == phaseActive && allAvailable
 	status.CanFinish = allFinishable && len(refreshed) > 0
-	if current.Phase == phasePreparing && !allAvailable {
+	if current.Phase == phasePreparing && (!allAvailable || !allPrepared) {
 		status.Problem = "Coding collaboration preparation was interrupted"
 	}
 	return status, nil
@@ -757,16 +773,6 @@ func (m *Manager) validateManifest(value manifest, conversationID string) error 
 	if len(value.Worktrees) < MinWriters || len(value.Worktrees) > MaxWriters {
 		return errors.New("Coding collaboration manifest has an invalid writer count")
 	}
-	seenDependencies := make(map[string]struct{}, len(value.SharedDependencies))
-	for _, dependency := range value.SharedDependencies {
-		if !validSharedDependencyPath(dependency) {
-			return errors.New("Coding collaboration manifest has an invalid shared dependency")
-		}
-		if _, exists := seenDependencies[dependency]; exists {
-			return errors.New("Coding collaboration manifest repeats a shared dependency")
-		}
-		seenDependencies[dependency] = struct{}{}
-	}
 	key := taskKey(conversationID)
 	for index, worktree := range value.Worktrees {
 		expectedID := "writer-" + strconv.Itoa(index+1)
@@ -782,110 +788,180 @@ func (m *Manager) validateManifest(value manifest, conversationID string) error 
 			worktree.BaseHead != value.BaseHead {
 			return errors.New("Coding collaboration manifest worktree boundary mismatch")
 		}
+		if value.Phase == phaseActive && (!worktree.Provisioned || !worktree.Prepared) {
+			return errors.New("active Coding collaboration contains an unprepared worktree")
+		}
 	}
 	return nil
 }
 
-func (m *Manager) discoverSharedDependencies(
+func (m *Manager) discoverWorktreeIncludes(
 	ctx context.Context,
 	repository string,
 ) ([]string, error) {
-	trackedPackages, err := m.git(
+	includeFile := filepath.Join(repository, ".worktreeinclude")
+	info, err := os.Lstat(includeFile)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("inspect .worktreeinclude: %w", err)
+	}
+	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 || info.Size() > 64*1024 {
+		return nil, errors.New(".worktreeinclude must be a tracked bounded regular file")
+	}
+	if _, err := m.git(
 		ctx,
 		repository,
 		"ls-files",
+		"--error-unmatch",
 		"--",
-		"package.json",
-		":(glob)**/package.json",
+		".worktreeinclude",
+	); err != nil {
+		return nil, errors.New(".worktreeinclude must be tracked by Git")
+	}
+	output, err := m.git(
+		ctx,
+		repository,
+		"ls-files",
+		"--others",
+		"--ignored",
+		"--directory",
+		"--exclude-from=.worktreeinclude",
 	)
 	if err != nil {
-		return nil, fmt.Errorf("list tracked Node package manifests: %w", err)
+		return nil, fmt.Errorf("resolve .worktreeinclude paths: %w", err)
 	}
-	seen := map[string]struct{}{}
-	dependencies := []string{}
-	for _, packagePath := range strings.Split(trackedPackages, "\n") {
-		packagePath = strings.TrimSpace(packagePath)
-		if packagePath == "" {
-			continue
+	paths := make([]string, 0)
+	for _, value := range strings.Split(output, "\n") {
+		path := filepath.Clean(filepath.FromSlash(strings.TrimSuffix(
+			strings.TrimSpace(value),
+			"/",
+		)))
+		if path == "." || !validWorktreeIncludePath(path) {
+			return nil, fmt.Errorf(".worktreeinclude selected an invalid path: %s", value)
 		}
-		directory := filepath.Dir(filepath.FromSlash(packagePath))
-		dependency := filepath.Join(directory, "node_modules")
-		if directory == "." {
-			dependency = "node_modules"
+		if !m.gitPathIgnored(ctx, repository, path) {
+			return nil, fmt.Errorf(".worktreeinclude path is not ignored by Git: %s", path)
 		}
-		if !validSharedDependencyPath(dependency) {
-			continue
-		}
-		if _, exists := seen[dependency]; exists {
-			continue
-		}
-		source := filepath.Join(repository, dependency)
-		info, statErr := os.Lstat(source)
-		if errors.Is(statErr, os.ErrNotExist) {
-			continue
-		}
+		source := filepath.Join(repository, path)
+		entryInfo, statErr := os.Lstat(source)
 		if statErr != nil {
-			return nil, fmt.Errorf("inspect shared dependency %s: %w", dependency, statErr)
+			return nil, fmt.Errorf("inspect .worktreeinclude path %s: %w", path, statErr)
 		}
-		if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		// Match Codex-managed worktrees: a source symlink is not copied.
+		if entryInfo.Mode()&os.ModeSymlink != 0 {
 			continue
 		}
-		resolvedSource, resolveErr := filepath.EvalSymlinks(source)
-		if resolveErr != nil || !pathWithin(repository, resolvedSource) {
-			continue
+		if !entryInfo.IsDir() && !entryInfo.Mode().IsRegular() {
+			return nil, fmt.Errorf(".worktreeinclude path is not a file or directory: %s", path)
 		}
-		if !m.gitPathIgnored(ctx, repository, dependency) {
-			continue
-		}
-		seen[dependency] = struct{}{}
-		dependencies = append(dependencies, dependency)
+		paths = append(paths, path)
 	}
-	sort.Strings(dependencies)
-	return dependencies, nil
+	sort.Strings(paths)
+	selected := make([]string, 0, len(paths))
+	for _, path := range paths {
+		covered := false
+		for _, parent := range selected {
+			if pathWithin(parent, path) {
+				covered = true
+				break
+			}
+		}
+		if !covered {
+			selected = append(selected, path)
+		}
+	}
+	return selected, nil
 }
 
-func (m *Manager) linkSharedDependencies(
+func (m *Manager) materializeWorktreeIncludes(
+	ctx context.Context,
 	repository,
 	worktree string,
-	dependencies []string,
+	paths []string,
 ) error {
-	for _, dependency := range dependencies {
-		source := filepath.Join(repository, dependency)
-		destination := filepath.Join(worktree, dependency)
-		info, err := os.Lstat(destination)
-		if errors.Is(err, os.ErrNotExist) {
-			if err := os.MkdirAll(destination, 0o700); err != nil {
-				return fmt.Errorf("create writer dependency view %s: %w", dependency, err)
+	for _, path := range paths {
+		source := filepath.Join(repository, path)
+		destination := filepath.Join(worktree, path)
+		if _, err := os.Lstat(destination); !errors.Is(err, os.ErrNotExist) {
+			if err == nil {
+				return fmt.Errorf("writer include destination already exists: %s", path)
 			}
-		} else if err != nil {
-			return fmt.Errorf("inspect writer dependency %s: %w", dependency, err)
-		} else if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
-			return fmt.Errorf("writer dependency path is not a managed directory: %s", dependency)
+			return fmt.Errorf("inspect writer include destination %s: %w", path, err)
 		}
-		entries, err := os.ReadDir(source)
-		if err != nil {
-			return fmt.Errorf("read shared dependency %s: %w", dependency, err)
+		if err := validateIncludedSymlinks(repository, source, worktree, path); err != nil {
+			return err
 		}
-		for _, entry := range entries {
-			target := filepath.Join(source, entry.Name())
-			link := filepath.Join(destination, entry.Name())
-			linkInfo, linkErr := os.Lstat(link)
-			if errors.Is(linkErr, os.ErrNotExist) {
-				if err := os.Symlink(target, link); err != nil {
-					return fmt.Errorf("link %s/%s: %w", dependency, entry.Name(), err)
-				}
-				continue
-			}
-			if linkErr != nil {
-				return fmt.Errorf("inspect writer dependency entry %s/%s: %w", dependency, entry.Name(), linkErr)
-			}
-			if linkInfo.Mode()&os.ModeSymlink == 0 {
-				return fmt.Errorf("writer dependency entry is not a managed link: %s/%s", dependency, entry.Name())
-			}
-			resolved, err := os.Readlink(link)
-			if err != nil || resolved != target {
-				return fmt.Errorf("writer dependency entry changed target: %s/%s", dependency, entry.Name())
-			}
+		if err := os.MkdirAll(filepath.Dir(destination), 0o700); err != nil {
+			return fmt.Errorf("create writer include parent %s: %w", path, err)
+		}
+		if err := copyPath(ctx, source, destination); err != nil {
+			return fmt.Errorf("copy .worktreeinclude path %s: %w", path, err)
+		}
+	}
+	return nil
+}
+
+func (m *Manager) initializeSubmodules(
+	ctx context.Context,
+	repository,
+	worktree string,
+) error {
+	gitmodules := filepath.Join(repository, ".gitmodules")
+	if _, err := os.Lstat(gitmodules); errors.Is(err, os.ErrNotExist) {
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("inspect .gitmodules: %w", err)
+	}
+	output, err := m.git(
+		ctx,
+		repository,
+		"config",
+		"-f",
+		".gitmodules",
+		"--get-regexp",
+		`^submodule\..*\.path$`,
+	)
+	if err != nil {
+		return fmt.Errorf("list repository submodules: %w", err)
+	}
+	for _, line := range strings.Split(output, "\n") {
+		separator := strings.IndexAny(line, " \t")
+		if separator <= 0 {
+			return errors.New(".gitmodules contains an invalid submodule path entry")
+		}
+		key := line[:separator]
+		name := strings.TrimSuffix(strings.TrimPrefix(key, "submodule."), ".path")
+		path := filepath.Clean(filepath.FromSlash(strings.TrimSpace(line[separator:])))
+		if name == key || name == "" || !validWorktreeIncludePath(path) {
+			return errors.New(".gitmodules contains an invalid submodule path entry")
+		}
+		source := filepath.Join(repository, path)
+		destination := filepath.Join(worktree, path)
+		expected, expectedErr := m.git(ctx, repository, "rev-parse", "HEAD:"+filepath.ToSlash(path))
+		actual, actualErr := m.git(ctx, source, "rev-parse", "HEAD")
+		if expectedErr != nil || actualErr != nil || expected != actual {
+			return fmt.Errorf("initialize the exact %s submodule in the main workspace first", path)
+		}
+		if _, err := m.git(
+			ctx,
+			worktree,
+			"-c",
+			fmt.Sprintf("submodule.%s.url=%s", name, source),
+			"-c",
+			"protocol.file.allow=always",
+			"submodule",
+			"update",
+			"--init",
+			"--no-fetch",
+			"--",
+			filepath.ToSlash(path),
+		); err != nil {
+			return fmt.Errorf("initialize local submodule %s: %w", path, err)
+		}
+		if err := m.initializeSubmodules(ctx, source, destination); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -909,15 +985,76 @@ func (m *Manager) gitPathIgnored(
 	return command.Run() == nil
 }
 
-func validSharedDependencyPath(value string) bool {
+func validWorktreeIncludePath(value string) bool {
 	if value == "" || filepath.IsAbs(value) || filepath.Clean(value) != value {
 		return false
 	}
-	if value == "node_modules" {
-		return true
+	for _, segment := range strings.Split(value, string(filepath.Separator)) {
+		if segment == "" || segment == "." || segment == ".." || segment == ".git" {
+			return false
+		}
 	}
-	return filepath.Base(value) == "node_modules" &&
-		!strings.HasPrefix(value, ".."+string(filepath.Separator))
+	return true
+}
+
+func validateIncludedSymlinks(
+	repository,
+	source,
+	worktree,
+	relativeSource string,
+) error {
+	return filepath.WalkDir(source, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.Type()&os.ModeSymlink == 0 {
+			return nil
+		}
+		target, err := os.Readlink(path)
+		if err != nil {
+			return err
+		}
+		if filepath.IsAbs(target) {
+			return fmt.Errorf(".worktreeinclude contains an absolute symlink: %s", path)
+		}
+		resolved, err := filepath.EvalSymlinks(path)
+		if err != nil || !pathWithin(repository, resolved) {
+			return fmt.Errorf(".worktreeinclude symlink escapes the repository: %s", path)
+		}
+		inner, err := filepath.Rel(source, path)
+		if err != nil {
+			return err
+		}
+		destinationLink := filepath.Join(worktree, relativeSource, inner)
+		if !pathWithin(worktree, filepath.Clean(filepath.Join(filepath.Dir(destinationLink), target))) {
+			return fmt.Errorf(".worktreeinclude symlink escapes the writer: %s", path)
+		}
+		return nil
+	})
+}
+
+func copyPath(ctx context.Context, source, destination string) error {
+	cpPath, err := exec.LookPath("cp")
+	if err != nil {
+		return errors.New("the platform copy utility is unavailable")
+	}
+	arguments := []string{"-R", "-p", source, destination}
+	if clone := exec.CommandContext(ctx, cpPath, "-c", "-R", "-p", source, destination); clone.Run() == nil {
+		return nil
+	}
+	if err := os.RemoveAll(destination); err != nil {
+		return fmt.Errorf("clear incomplete cloned copy: %w", err)
+	}
+	command := exec.CommandContext(ctx, cpPath, arguments...)
+	output, err := command.CombinedOutput()
+	if err != nil {
+		message := strings.TrimSpace(string(output))
+		if message == "" {
+			message = err.Error()
+		}
+		return errors.New(message)
+	}
+	return nil
 }
 
 func pathWithin(root, target string) bool {

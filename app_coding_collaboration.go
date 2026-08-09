@@ -18,7 +18,7 @@ func (a *App) PrepareCodingCollaboration(
 			"Coding collaboration service is unavailable",
 		)
 	}
-	actionContext, cancel := context.WithTimeout(a.commandContext(), 30*time.Second)
+	actionContext, cancel := context.WithTimeout(a.commandContext(), 3*time.Minute)
 	defer cancel()
 	return a.codingCollab.Prepare(
 		actionContext,

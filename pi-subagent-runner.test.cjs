@@ -9,7 +9,6 @@ const {
   mkdtempSync,
   readFileSync,
   realpathSync,
-  symlinkSync,
   writeFileSync,
 } = require("node:fs");
 const { tmpdir } = require("node:os");
@@ -34,24 +33,20 @@ function fixture(agent) {
   const worktree = join(taskDirectory, "writer-1");
   mkdirSync(workspace);
   mkdirSync(worktree, { recursive: true });
-  mkdirSync(join(workspace, "node_modules"));
-  writeFileSync(join(workspace, "node_modules", "fixture.js"), "module.exports = 1;\n");
   mkdirSync(join(worktree, "node_modules"));
-  symlinkSync(
-    join(workspace, "node_modules", "fixture.js"),
-    join(worktree, "node_modules", "fixture.js"),
-  );
+  writeFileSync(join(worktree, "node_modules", "fixture.js"), "module.exports = 1;\n");
   writeFileSync(cli, "// fixture\n");
   writeFileSync(join(taskDirectory, "manifest.json"), JSON.stringify({
-    schemaVersion: 1,
+    schemaVersion: 2,
     conversationId,
     phase: "active",
     workspace,
-    sharedDependencies: ["node_modules"],
     worktrees: [{
       id: "writer-1",
       path: worktree,
       branch: `codex/agent-${key.slice(0, 12)}-writer-1`,
+      provisioned: true,
+      prepared: true,
     }],
   }));
   return {
@@ -75,10 +70,7 @@ test("effectful roles require an active managed writer worktree", () => {
   assert.equal(policy.effectful, true);
   assert.equal(policy.worktree.id, "writer-1");
   assert.equal(policy.mainWorkspace, realpathSync(value.workspace));
-  assert.deepEqual(
-    policy.sharedDependencyRoots,
-    [realpathSync(join(value.workspace, "node_modules"))],
-  );
+  assert.equal(policy.sharedDependencyRoots, undefined);
 });
 
 test("read-only roles may use main and receive no workspace write grant", () => {
@@ -89,7 +81,6 @@ test("read-only roles may use main and receive no workspace write grant", () => 
     cwd: policy.cwd,
     mainWorkspace: policy.mainWorkspace,
     runtimeDirectory: policy.runtimeDirectory,
-    sharedDependencyRoots: policy.sharedDependencyRoots,
     temporaryDirectory: join(value.workspace, "temporary"),
     writable: false,
   });
@@ -106,18 +97,16 @@ test("writer profile allows source but denies Git metadata writes", () => {
     cwd: policy.cwd,
     mainWorkspace: policy.mainWorkspace,
     runtimeDirectory: policy.runtimeDirectory,
-    sharedDependencyRoots: policy.sharedDependencyRoots,
     temporaryDirectory: join(value.workspace, "temporary"),
     writable: true,
   });
   assert.match(profile, /allow file-write/);
   assert.match(profile, /deny file-write/);
   assert.equal(profile.includes(JSON.stringify(join(policy.cwd, ".git"))), true);
-  const sharedDependency = JSON.stringify(policy.sharedDependencyRoots[0]);
   const readRule = profile.split("\n").find(line => line.startsWith("(allow file-read*"));
   const writeRule = profile.split("\n").find(line => line.startsWith("(allow file-write*"));
-  assert.equal(readRule.includes(sharedDependency), true);
-  assert.equal(writeRule.includes(sharedDependency), false);
+  assert.equal(readRule.includes(JSON.stringify(value.workspace)), false);
+  assert.equal(writeRule.includes(JSON.stringify(value.workspace)), false);
 });
 
 test("child CLI must keep every no-ambient-discovery flag", () => {

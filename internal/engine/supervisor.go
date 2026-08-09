@@ -414,7 +414,7 @@ func normalizeCodingCollaborationDescriptor(
 	if descriptor == nil {
 		return nil, nil
 	}
-	if descriptor.SchemaVersion != 1 {
+	if descriptor.SchemaVersion != 2 {
 		return nil, errors.New("invalid Coding collaboration schema version")
 	}
 	if strings.TrimSpace(descriptor.ConversationID) != strings.TrimSpace(sessionID) {
@@ -441,7 +441,7 @@ func normalizeCodingCollaborationDescriptor(
 	digest := sha256.Sum256([]byte(strings.TrimSpace(sessionID)))
 	taskKey := fmt.Sprintf("%x", digest[:16])
 	normalized := &CodingCollaborationDescriptor{
-		SchemaVersion:  1,
+		SchemaVersion:  2,
 		ConversationID: strings.TrimSpace(sessionID),
 		Workspace:      workspace,
 		BaseHead:       descriptor.BaseHead,

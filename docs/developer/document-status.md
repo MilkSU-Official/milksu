@@ -26,8 +26,9 @@
 - Coding 的工程底座已经覆盖普通修改、构建测试、LSP、Artifact 预览、隔离 Browser、
   后台任务、Git、PR 预览/发布确认、worktree、ImageGen、Project MCP、Session Index 和
   Computer Use 外部 App/窗口纵切。注册 writer worktree 已统一文件工具与终端写入边界，
-  并以只读共享视图复用仓库内现有 Node 依赖；打包 App 已完成一次 `write` 加文档构建的有界
-  自举验证。真实外部 Provider 质量、长期主工作区自改、自主合并发布、完整审批矩阵和发行
+  `.worktreeinclude` 通过平台 copy-on-write 优先复制 ignored 本地环境，并从主工作区精确初始化
+  已有 submodule；writer 不再读取或修改主依赖目录。打包构建和 Sidecar smoke 已通过。真实外部
+  Provider 质量、会话自动 worktree 交互、长期主工作区自改、自主合并发布、完整审批矩阵和发行
   门禁仍未通过。
 - CTF 的 Intake、工作区、Evidence、候选、Judge、Checkpoint、恢复、复盘和 Memory 主链
   已存在；NSSCTF P3879 有一条真实 `correct=true`，但六赛道仍只有 Web 窄路径通过。

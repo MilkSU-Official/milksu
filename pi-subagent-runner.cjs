@@ -87,7 +87,7 @@ function readActiveManifest(root, cwd) {
   }
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
   if (
-    Number(manifest.schemaVersion) !== 1
+    Number(manifest.schemaVersion) !== 2
     || manifest.phase !== "active"
     || !Array.isArray(manifest.worktrees)
     || manifest.worktrees.length < 1
@@ -111,6 +111,8 @@ function readActiveManifest(root, cwd) {
     !worktree
     || !/^writer-[12]$/.test(id)
     || String(worktree.branch ?? "") !== expectedBranch
+    || worktree.provisioned !== true
+    || worktree.prepared !== true
   ) {
     throw new Error("subagent cwd is not registered by the active collaboration");
   }
@@ -118,40 +120,11 @@ function readActiveManifest(root, cwd) {
   if (pathWithin(root, workspace)) {
     throw new Error("manifest workspace overlaps MilkSU collaboration storage");
   }
-  const sharedDependencies = Array.isArray(manifest.sharedDependencies)
-    ? manifest.sharedDependencies
-    : [];
-  const sharedDependencyRoots = sharedDependencies.map(value => {
-    const dependency = String(value ?? "").trim();
-    const segments = dependency.split(/[\\/]/u);
-    if (
-      !dependency
-      || isAbsolute(dependency)
-      || segments.some(segment => !segment || segment === "." || segment === "..")
-      || segments.at(-1) !== "node_modules"
-    ) {
-      throw new Error("Coding collaboration manifest has an invalid shared dependency");
-    }
-    const linkPath = join(cwd, ...segments);
-    const linkInfo = lstatSync(linkPath);
-    if (!linkInfo.isDirectory() || linkInfo.isSymbolicLink()) {
-      throw new Error("Coding collaboration shared dependency is not a managed directory");
-    }
-    const target = canonical(
-      join(workspace, ...segments),
-      "Coding workspace shared dependency",
-    );
-    if (!pathWithin(workspace, target)) {
-      throw new Error("Coding collaboration shared dependency changed target");
-    }
-    return target;
-  });
   return {
     id,
     branch: expectedBranch,
     workspace,
     manifestPath,
-    sharedDependencyRoots,
   };
 }
 
@@ -172,14 +145,12 @@ function sandboxProfile({
   mainWorkspace,
   readableFiles = [],
   runtimeDirectory,
-  sharedDependencyRoots = [],
   temporaryDirectory,
   writable,
 }) {
   const readableRoots = [
     cwd,
     ...(cwd === mainWorkspace ? [] : [join(mainWorkspace, ".git")]),
-    ...sharedDependencyRoots,
     runtimeDirectory,
     temporaryDirectory,
     "/System",
@@ -259,7 +230,6 @@ function prepareRunnerPolicy(environment = process.env, cwd = process.cwd()) {
     collaborationRoot,
     runtimeCli,
     runtimeDirectory: dirname(runtimeCli),
-    sharedDependencyRoots: worktree?.sharedDependencyRoots ?? [],
     worktree,
   };
 }
@@ -435,7 +405,6 @@ function run(argumentsList = process.argv.slice(2), environment = process.env) {
         mainWorkspace: policy.mainWorkspace,
         readableFiles,
         runtimeDirectory: policy.runtimeDirectory,
-        sharedDependencyRoots: policy.sharedDependencyRoots,
         temporaryDirectory,
         writable: policy.effectful,
       }),

@@ -763,7 +763,7 @@ func TestNormalizeCodingCollaborationDescriptorBindsTaskWorkspaceAndWriter(t *te
 		t.Fatal(err)
 	}
 	descriptor := &CodingCollaborationDescriptor{
-		SchemaVersion:  1,
+		SchemaVersion:  2,
 		ConversationID: sessionID,
 		Workspace:      workspace,
 		BaseHead:       strings.Repeat("a", 40),

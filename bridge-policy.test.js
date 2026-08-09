@@ -675,19 +675,16 @@ test("Coding collaboration exposes subagent and aligns main tools on registered 
   await mkdir(worktree);
   await writeFile(join(worktree, "agent-change.txt"), "candidate\n");
   await mkdir(join(workspace, "node_modules"));
-  await writeFile(join(workspace, "node_modules", "fixture.js"), "shared\n");
+  await writeFile(join(workspace, "node_modules", "fixture.js"), "main dependency\n");
   await mkdir(join(worktree, "node_modules"));
-  await symlink(
-    join(workspace, "node_modules", "fixture.js"),
-    join(worktree, "node_modules", "fixture.js"),
-  );
+  await writeFile(join(worktree, "node_modules", "fixture.js"), "writer dependency\n");
   await writeFile(join(workspace, "main-only.txt"), "main\n");
   await symlink(join(workspace, "main-only.txt"), join(worktree, "escape.txt"));
   const policy = await loadSessionPolicy(workspace, "", {
     executionMode: "go",
     approvalPolicy: "workspace-auto",
     codingCollaboration: {
-      schemaVersion: 1,
+      schemaVersion: 2,
       conversationId: "fixture",
       workspace,
       baseHead: "a".repeat(40),
@@ -725,6 +722,23 @@ test("Coding collaboration exposes subagent and aligns main tools on registered 
     {},
   );
   assert.equal(await readFile(join(worktree, "reviewed.txt"), "utf8"), "reviewed");
+  await bash.execute(
+    "writer-local-dependency-update",
+    {
+      command: `printf updated > ${JSON.stringify(join(worktree, "node_modules", "fixture.js"))}`,
+    },
+    undefined,
+    undefined,
+    {},
+  );
+  assert.equal(
+    await readFile(join(worktree, "node_modules", "fixture.js"), "utf8"),
+    "updated",
+  );
+  assert.equal(
+    await readFile(join(workspace, "node_modules", "fixture.js"), "utf8"),
+    "main dependency\n",
+  );
   await assert.rejects(
     bash.execute(
       "unregistered-worktree-write",

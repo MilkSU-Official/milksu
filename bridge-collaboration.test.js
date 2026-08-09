@@ -30,7 +30,7 @@ async function fixture(writers = 2) {
     });
   }
   const descriptor = normalizeCodingCollaboration({
-    schemaVersion: 1,
+    schemaVersion: 2,
     conversationId,
     workspace,
     baseHead: "a".repeat(40),
