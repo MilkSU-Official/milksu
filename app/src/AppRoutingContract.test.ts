@@ -36,4 +36,10 @@ describe('App workspace routing contract', () => {
     expect(appSource).toContain('@return-vuln="returnToVulnerabilityWorkspace"')
     expect(appSource).toContain("section.value = 'vuln'")
   })
+
+  it('routes a related-history source through the existing conversation store', () => {
+    expect(appSource).toContain('function openHistoryConversation(conversationId: string)')
+    expect(appSource).toContain('conversations.activeId.value = conversationId')
+    expect(appSource).toContain('@open-conversation="openHistoryConversation"')
+  })
 })

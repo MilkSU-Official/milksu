@@ -52,6 +52,7 @@ flowchart LR
 | Artifact Preview | **Verified / expandable** | Markdown、HTML 与图片使用工作区路径、类型、大小和 HTML 隔离策略；打包 App facade、真实 WebView 负向和原生 UI 三类型手动预览均已有证据，后续只做真实项目扩样。 |
 | ImageGen | **Implemented / unverified provider** | 文生图、参考图编辑、项目资产和付费确认主链已接入；未在打包 App 中使用用户自行配置的真实 Provider 验收。 |
 | Computer Use | **Verified slice / expandable** | 用户选择外部可见 App、PID 与 Window 的不可变 Scope；打包 App facade、WebView 启停、Calculator observe/click 和工具截图辅助视觉已有证据。Browser 与 Computer Use 仍分离。剩余更广 App 矩阵、权限失败路径和 Developer ID / TCC 复检。 |
+| Session Index / 相关历史 | **Verified packaged UI slice** | `internal/sessionindex` 只索引 MilkSU 自有 Coding、CTF、CVE 历史；`app_session_history.go` 投影列表与瞬态关系图。二者共用模块/项目/时间过滤；图节点可回到来源会话，引用需明确点击。固定 `@antv/g6@5.1.1` 仅在完整图谱视图懒加载，不新增图数据库、关系表或 Memory 写入。 |
 | Grok / multimodal vision | **Verified packaged App slice** | TokenFlux 真实 `grok-4.5` 在打包 App 中经原生 image input 看图成功：中文识别任务列表、进度胶囊和输入栏，且未调用工具。`grok-4.3` 为 text-only；text-only 模型继续 OCR + 可选 auxiliary vision。 |
 | Worktree / upstream sub-agent | **Verified isolation / interaction incomplete** | 隔离 worktree、写入边界、`.worktreeinclude` CoW、精确 submodule 已落地；writer 不读写主依赖。交互仍是 `CodingCollaborationPanel` 显式准备；会话不会自动拥有执行 worktree。实测缺口：Goal/输入框上方 Git 变更摘要看不到 writer 的三文件改动。下一纵切：会话自动 writer，并把活跃 writer diff 投影进 Goal/Composer；sub-agent 保持可选并行。 |
 | Coding self-bootstrap | **Docs slice verified / full task incomplete** | 真实 Grok 小纵切已跑通：自然提示 → writer 只改 Current 文档 → reviewer 纠错返工。功能代码、测试、恢复、Git 交付和完整自然任务闭环仍未覆盖。 |
@@ -96,6 +97,7 @@ flowchart TB
         ctf_memory[("ctf/memory.sqlite3 + Markdown")]
         catalogs[("NSSCTF / CTFshow catalogs")]
         conversations[("conversation JSON")]
+        session_index[("obelisk.sqlite<br/>sessions / messages / tool calls")]
         credentials[("credentials.db<br/>0600，未加密")]
     end
 
@@ -123,6 +125,7 @@ flowchart TB
     app_services --> ctf_memory
     app_services --> catalogs
     app_services --> conversations
+    app_services --> session_index
     app_services --> credentials
 ```
 
@@ -136,6 +139,8 @@ flowchart TB
   CTF、CVE、Git、终端或 Feed 网络请求。
 - 当前代码中的 Obelisk 是 `internal/sessionindex` 的 MilkSU 自有会话检索形态，不是 CTF
   Memory 插件，也不拥有 CTF 的 Evidence、Learning 或 attribution；两者不能混写成同一事实源。
+  相关历史图只把该索引和正式安全档案即时投影为导航关系，普通 message 不成为节点，Projection
+  不持久化，也不会自动进入模型上下文。
 - Browser Bridge 是 loopback 本地桥，只处理用户明确配对的页面；Coding Browser 则由
   MilkSU 启动 Conversation 隔离的专用 Chrome。二者都不会把用户整个日常 Chrome Profile
   交给模型，且 Coding 的 CDP 描述符不会写入前端、SQLite 或项目配置。
@@ -172,9 +177,9 @@ flowchart TB
 
 | 层 | 当前实现 | 判定 |
 | --- | --- | --- |
-| L1 Product Surface | Vue 3、`WorkspaceRail`、`ContextSidebar`、CTF/Coding/CVE 页面、统一 Composer 能力入口与设置 | **Partial**：主界面可用，左下全局 rail 已支持主题切换和本机持久化；CVE 学习/追踪 MVP 已存在；Composer 能力选择已通过原生 App UI 验收；验收协调器不进入生产启动、Wails 绑定或 Vue 入口；真实 Provider、更多系统权限路径和发行 UI 矩阵仍需按当前目标验收。 |
+| L1 Product Surface | Vue 3、`WorkspaceRail`、`ContextSidebar`、CTF/Coding/CVE 页面、统一 Composer 能力入口、相关历史列表/图谱与设置 | **Partial**：主界面可用，左下全局 rail 已支持主题切换和本机持久化；CVE 学习/追踪 MVP 已存在；Composer 能力选择和相关历史关系图已通过原生 App UI 验收；验收协调器不进入生产启动、Wails 绑定或 Vue 入口；真实 Provider、更多系统权限路径和发行 UI 矩阵仍需按当前目标验收。 |
 | L2 Application / Role Services | 单一 `App` 组合 `ctf.Service`、`vuln.Service`、Catalog、Memory | **Implemented but concentrated**：接口可用，Facade 未拆。 |
-| L3 Agent / Platform Adapters | Pi Supervisor、Security Supervisor、NSSCTF、CTFshow、Browser Bridge、Playwright MCP、ImageGen、Computer Use、Session Index | **Implemented / Partial**：NSSCTF 主链、隔离 Coding Browser、Computer Use 外部 App slice、MilkSU 自有 Session Index 和 PR 交付已有验收；无产品入口的外部会话导入不在发行图。其余真实 Provider、系统权限失败路径和跨平台 E2E 仍按台账跟踪。 |
+| L3 Agent / Platform Adapters | Pi Supervisor、Security Supervisor、NSSCTF、CTFshow、Browser Bridge、Playwright MCP、ImageGen、Computer Use、Session Index | **Implemented / Partial**：NSSCTF 主链、隔离 Coding Browser、Computer Use 外部 App slice、MilkSU 自有 Session Index 列表/图谱 Projection 和 PR 交付已有验收；无产品入口的外部会话导入不在发行图。其余真实 Provider、系统权限失败路径和跨平台 E2E 仍按台账跟踪。 |
 | L4 Domain Contracts | CTF Challenge、RoleFact、AgentCandidate、JudgeReceipt、LearningRecord | **Implemented**。 |
 | L5 Evidence Runtime | 追加式 SQLite Event Store、Artifact SHA-256、Projection、Recover | **Implemented**。 |
 | L6 Integrity | Scope、CTF 工作区策略、预算、候选闸门、外部 Judge、资源白名单、精确 Endpoint Broker | **Partial**：HTTP/TCP/SSH 使用精确 Scope，通用 CTF Shell 默认无网络；宿主执行仍不是容器，真实六赛道负向回归尚未完成。 |

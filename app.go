@@ -467,37 +467,6 @@ func (a *App) RevealLocalDataDirectory() error {
 	return nil
 }
 
-func (a *App) GetSessionIndexStatus() (sessionindex.Status, error) {
-	if a.sessionIndex == nil {
-		return sessionindex.Status{}, fmt.Errorf("session index is not ready")
-	}
-	if _, err := a.RefreshSessionIndex(); err != nil {
-		return sessionindex.Status{}, err
-	}
-	return a.sessionIndex.Status(a.commandContext())
-}
-
-func (a *App) RefreshSessionIndex() (sessionindex.RefreshResult, error) {
-	if a.sessionIndex == nil {
-		return sessionindex.RefreshResult{}, fmt.Errorf("session index is not ready")
-	}
-	conversations, err := a.conversations.List()
-	if err != nil {
-		return sessionindex.RefreshResult{}, err
-	}
-	return a.sessionIndex.RefreshMilkSUConversations(a.commandContext(), conversations)
-}
-
-func (a *App) SearchSessionHistory(request sessionindex.SearchRequest) (sessionindex.SearchResponse, error) {
-	if a.sessionIndex == nil {
-		return sessionindex.SearchResponse{}, fmt.Errorf("session index is not ready")
-	}
-	if _, err := a.RefreshSessionIndex(); err != nil {
-		return sessionindex.SearchResponse{}, err
-	}
-	return a.sessionIndex.Search(a.commandContext(), request)
-}
-
 func (a *App) SaveSettingsCmd(settings config.AppSettings) error {
 	err := a.settings.Save(settings)
 	if err != nil && !hasSessionOnlyCredential(a.settings.Get()) {

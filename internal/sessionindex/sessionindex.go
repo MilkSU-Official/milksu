@@ -69,6 +69,8 @@ type SearchRequest struct {
 	Project string `json:"project,omitempty"`
 	Source  string `json:"source,omitempty"`
 	Module  string `json:"module,omitempty"`
+	Since   string `json:"since,omitempty"`
+	Until   string `json:"until,omitempty"`
 }
 
 type SearchResponse struct {
@@ -302,6 +304,18 @@ func (s Store) Search(ctx context.Context, request SearchRequest) (SearchRespons
 	if query == "" {
 		return SearchResponse{}, fmt.Errorf("history search query is required")
 	}
+	var err error
+	request.Since, err = normalizeTimeBoundary(request.Since)
+	if err != nil {
+		return SearchResponse{}, fmt.Errorf("invalid history search since: %w", err)
+	}
+	request.Until, err = normalizeTimeBoundary(request.Until)
+	if err != nil {
+		return SearchResponse{}, fmt.Errorf("invalid history search until: %w", err)
+	}
+	if request.Since != "" && request.Until != "" && request.Since > request.Until {
+		return SearchResponse{}, fmt.Errorf("history search since must not be after until")
+	}
 	limit := clampLimit(request.Limit)
 	status, err := s.Status(ctx)
 	if err != nil {
@@ -440,10 +454,12 @@ func searchFTS(ctx context.Context, db *sql.DB, query string, request SearchRequ
 			AND COALESCE(m.visibility, 'visible') != 'hidden'
 			AND (? = '' OR COALESCE(s.project, '') LIKE ? OR COALESCE(s.project_path, '') LIKE ? OR COALESCE(m.cwd, '') LIKE ?)
 			AND (? = '' OR COALESCE(NULLIF(m.source, ''), NULLIF(s.source, ''), '') = ?)
+			AND (? = '' OR COALESCE(m.timestamp, '') >= ?)
+			AND (? = '' OR COALESCE(m.timestamp, '') <= ?)
 		ORDER BY score ASC, COALESCE(m.timestamp, '') DESC
 		LIMIT ?
 	`, ftsPhrase(query), strings.TrimSpace(request.Project), likeContains(request.Project), likeContains(request.Project), likeContains(request.Project),
-		source, source, limit)
+		source, source, request.Since, request.Since, request.Until, request.Until, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -474,10 +490,12 @@ func searchLike(ctx context.Context, db *sql.DB, query string, request SearchReq
 			AND COALESCE(m.visibility, 'visible') != 'hidden'
 			AND (? = '' OR COALESCE(s.project, '') LIKE ? OR COALESCE(s.project_path, '') LIKE ? OR COALESCE(m.cwd, '') LIKE ?)
 			AND (? = '' OR COALESCE(NULLIF(m.source, ''), NULLIF(s.source, ''), '') = ?)
+			AND (? = '' OR COALESCE(m.timestamp, '') >= ?)
+			AND (? = '' OR COALESCE(m.timestamp, '') <= ?)
 		ORDER BY COALESCE(m.timestamp, '') DESC
 		LIMIT ?
 	`, likeContains(query), strings.TrimSpace(request.Project), likeContains(request.Project), likeContains(request.Project), likeContains(request.Project),
-		source, source, limit)
+		source, source, request.Since, request.Since, request.Until, request.Until, limit)
 	if err != nil {
 		return nil, err
 	}

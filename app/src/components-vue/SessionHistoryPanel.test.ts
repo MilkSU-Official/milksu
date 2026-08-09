@@ -55,6 +55,44 @@ const invokeCommand = vi.fn(async (command: string, args?: unknown) => {
       factBoundary: 'internal-only fact boundary',
     }
   }
+  if (command === 'get_session_history_graph') {
+    const request = (args as { request?: { query?: string } } | undefined)?.request
+    return {
+      generatedAt: '2026-08-04T09:32:00Z',
+      status: {
+        available: true,
+        mode: 'milksu-obelisk-core',
+        indexPath: '/Users/example/Library/Application Support/com.milksu.app/session-index/obelisk.sqlite',
+        checkedAt: '2026-08-04T09:32:00Z',
+        readOnly: true,
+        sessionCount: 3,
+        messageCount: 8,
+        toolCallCount: 2,
+        memoryCount: 0,
+        sources: [],
+      },
+      nodes: [{
+        id: 'session:cve-1',
+        type: 'session',
+        label: 'CVE-2024-3400 接力',
+        detail: 'OPENAI_API_KEY=sk-history-graph-secret12345',
+        module: 'cve',
+        project: 'milksu',
+        quote: 'NVD CVE-2024-3400 同步完成',
+        sources: [{
+          sessionId: 'milksu:cve-1',
+          conversationId: 'cve-1',
+          messageUuid: 'milksu:cve-1:assistant-1',
+          sessionName: 'CVE-2024-3400 接力',
+          timestamp: '2026-08-04T09:20:00Z',
+        }],
+      }],
+      edges: [],
+      projects: ['milksu'],
+      truncated: false,
+      query: request?.query ?? '',
+    }
+  }
   if (command === 'refresh_session_index') {
     return {
       indexedAt: '2026-08-04T09:31:00Z',
@@ -76,8 +114,11 @@ vi.mock('@/desktop', () => ({
 const mountedApps: App[] = []
 
 async function settle() {
-  await Promise.resolve()
-  await Promise.resolve()
+  for (let index = 0; index < 6; index++) {
+    await Promise.resolve()
+    await nextTick()
+  }
+  await new Promise(resolve => setTimeout(resolve, 0))
   await nextTick()
 }
 
@@ -124,7 +165,15 @@ describe('SessionHistoryPanel', () => {
       request: {
         query: 'CVE-2024-3400',
         module: 'cve',
-        limit: 6,
+        limit: 20,
+      },
+    })
+    expect(invokeCommand).toHaveBeenCalledWith('get_session_history_graph', {
+      request: {
+        query: 'CVE-2024-3400',
+        module: 'cve',
+        maxNodes: 120,
+        maxEdges: 200,
       },
     })
   })
@@ -162,7 +211,8 @@ describe('SessionHistoryPanel', () => {
     await settle()
 
     expect(invokeCommand).toHaveBeenCalledWith('refresh_session_index')
-    expect(invokeCommand).toHaveBeenCalledWith('get_session_index_status')
+    expect(invokeCommand).toHaveBeenCalledWith('search_session_history', expect.anything())
+    expect(invokeCommand).toHaveBeenCalledWith('get_session_history_graph', expect.anything())
   })
 
   it('shows a packaged-App empty state in browser preview', async () => {
@@ -172,5 +222,19 @@ describe('SessionHistoryPanel', () => {
     expect(host.textContent).toContain('打包 App 中可查看本机历史')
     expect(host.textContent).toContain('请在打包 App 中查看真实历史')
     expect(invokeCommand).not.toHaveBeenCalled()
+  })
+
+  it('keeps compact panels list-only and avoids loading the graph dependency', async () => {
+    const host = await mountPanel({ compact: true })
+
+    expect(host.textContent).not.toContain('图谱')
+    expect(invokeCommand).not.toHaveBeenCalledWith('get_session_history_graph', expect.anything())
+    expect(invokeCommand).toHaveBeenCalledWith('search_session_history', {
+      request: {
+        query: 'CVE-2024-3400',
+        module: 'cve',
+        limit: 4,
+      },
+    })
   })
 })
