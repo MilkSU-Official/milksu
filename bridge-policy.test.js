@@ -665,7 +665,7 @@ test("Go Project Auto runs normal development commands but contains filesystem w
   );
 });
 
-test("Coding collaboration exposes subagent and lets only the main shell integrate registered worktrees", {
+test("Coding collaboration exposes subagent and aligns main tools on registered worktrees", {
   skip: process.platform !== "darwin",
 }, async () => {
   const workspace = await mkdtemp(join(tmpdir(), "milksu-coding-policy-"));
@@ -674,6 +674,15 @@ test("Coding collaboration exposes subagent and lets only the main shell integra
   const outside = join(tmpdir(), `milksu-collaboration-outside-${Date.now()}.txt`);
   await mkdir(worktree);
   await writeFile(join(worktree, "agent-change.txt"), "candidate\n");
+  await mkdir(join(workspace, "node_modules"));
+  await writeFile(join(workspace, "node_modules", "fixture.js"), "shared\n");
+  await mkdir(join(worktree, "node_modules"));
+  await symlink(
+    join(workspace, "node_modules", "fixture.js"),
+    join(worktree, "node_modules", "fixture.js"),
+  );
+  await writeFile(join(workspace, "main-only.txt"), "main\n");
+  await symlink(join(workspace, "main-only.txt"), join(worktree, "escape.txt"));
   const policy = await loadSessionPolicy(workspace, "", {
     executionMode: "go",
     approvalPolicy: "workspace-auto",
@@ -728,16 +737,68 @@ test("Coding collaboration exposes subagent and lets only the main shell integra
   );
 
   const write = policy.customTools.find(tool => tool.name === "write");
+  await write.execute(
+    "file-tool-worktree-write",
+    { path: join(worktree, "written.txt"), content: "written\n" },
+    undefined,
+    undefined,
+    {},
+  );
+  assert.equal(await readFile(join(worktree, "written.txt"), "utf8"), "written\n");
+
+  const edit = policy.customTools.find(tool => tool.name === "edit");
+  await edit.execute(
+    "file-tool-worktree-edit",
+    {
+      path: join(worktree, "agent-change.txt"),
+      edits: [{
+        oldText: "candidate\n",
+        newText: "reviewed candidate\n",
+      }],
+    },
+    undefined,
+    undefined,
+    {},
+  );
+  assert.equal(
+    await readFile(join(worktree, "agent-change.txt"), "utf8"),
+    "reviewed candidate\n",
+  );
+
   await assert.rejects(
     write.execute(
-      "file-tool-worktree-write",
-      { path: join(worktree, "blocked.txt"), content: "blocked" },
+      "file-tool-unregistered-write",
+      { path: outside, content: "blocked" },
       undefined,
       undefined,
       {},
     ),
     /denied path outside/,
   );
+  await assert.rejects(
+    write.execute(
+      "file-tool-shared-dependency-write",
+      { path: join(worktree, "node_modules", "added.js"), content: "blocked" },
+      undefined,
+      undefined,
+      {},
+    ),
+    /denied path outside/,
+  );
+  await assert.rejects(
+    edit.execute(
+      "file-tool-writer-symlink-escape",
+      {
+        path: join(worktree, "escape.txt"),
+        edits: [{ oldText: "main\n", newText: "escaped\n" }],
+      },
+      undefined,
+      undefined,
+      {},
+    ),
+    /denied path outside|denied mutation of protected entry/,
+  );
+  assert.equal(await readFile(join(workspace, "main-only.txt"), "utf8"), "main\n");
 });
 
 test("Go Project Auto can run a reviewed Node CLI outside the project", {

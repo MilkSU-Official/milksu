@@ -178,6 +178,33 @@ async function nearestExistingAncestor(path) {
   }
 }
 
+async function mutationOwnerRoot(requestedPath, allowedRoots) {
+  let ancestor = requestedPath;
+  for (;;) {
+    try {
+      const info = await lstat(ancestor);
+      if (info.isSymbolicLink()) {
+        const parent = dirname(ancestor);
+        if (parent === ancestor) return undefined;
+        ancestor = parent;
+        continue;
+      }
+      const canonicalAncestor = await realpath(ancestor);
+      const ownedPath = resolve(
+        canonicalAncestor,
+        relative(ancestor, requestedPath),
+      );
+      const root = allowedRoots.find(value => within(value, ownedPath));
+      return root ? { root, ownedPath } : undefined;
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error;
+    }
+    const parent = dirname(ancestor);
+    if (parent === ancestor) return undefined;
+    ancestor = parent;
+  }
+}
+
 export async function assertWorkspacePath(workspace, requestedPath) {
   const root = await resolveReviewedWorkspace(workspace);
   const absolutePath = resolve(requestedPath);
@@ -1586,14 +1613,35 @@ async function createCodingToolDefinitions(
   };
   const ensureRead = async path => (await resolveReadScope(path)).path;
   const ensureMutation = async (path, allowArchitectureParent = false) => {
+    const requestedPath = resolve(path);
+    const owner = await mutationOwnerRoot(
+      requestedPath,
+      [root, ...collaborationPaths],
+    );
+    const ownerSegments = owner
+      ? relative(owner.root, owner.ownedPath).split(sep)
+      : [];
+    if (!owner || ownerSegments.includes("node_modules")) {
+      throw new Error(
+        `MilkSU workspace policy denied path outside the workspace and registered writer worktrees: ${path}`,
+      );
+    }
+    // Resolve again against the chosen lexical owner. If a writer symlink
+    // escapes to the main tree, do not retry that canonical target as a main
+    // workspace mutation.
     const safePath = await assertWorkspaceMutationPath(
-      root,
-      path,
+      owner.root,
+      requestedPath,
       protectedEntries,
       false,
     );
-    const relativePath = relative(root, safePath).replaceAll("\\", "/");
+    const relativePath = relative(owner.root, safePath).replaceAll("\\", "/");
     if (productAction?.kind === "architecture") {
+      if (owner.root !== root) {
+        throw new Error(
+          `MilkSU architecture action only allows writing ${productAction.specPath}`,
+        );
+      }
       const architecturePathAllowed = relativePath === productAction.specPath
         || (
           allowArchitectureParent
@@ -1647,8 +1695,11 @@ async function createCodingToolDefinitions(
     }),
     createEditToolDefinition(root, {
       operations: {
-        access: async path => access(await ensure(path), constants.R_OK | constants.W_OK),
-        readFile: async path => readFile(await ensure(path)),
+        access: async path => access(
+          await ensureMutation(path),
+          constants.R_OK | constants.W_OK,
+        ),
+        readFile: async path => readFile(await ensureMutation(path)),
         writeFile: async (path, content) => writeFile(
           await ensureMutation(path),
           content,
@@ -1723,7 +1774,8 @@ async function createCodingToolDefinitions(
     ? " Full Access runs commands automatically with the current local user authority. "
       + "Model-provider secrets are removed from child-process environments."
     : " Project Auto runs development commands with network access while macOS sandboxing keeps "
-      + "file writes inside the selected project and blocks local credential directories.";
+      + "file writes inside the selected project or registered writer worktrees and blocks local "
+      + "credential directories.";
   return definitions;
 }
 

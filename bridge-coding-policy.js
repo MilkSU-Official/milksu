@@ -85,7 +85,7 @@ export function normalizeCodingPolicy(
         detail: fullAccess
           ? "终端具有当前系统用户权限；文件工具仍以项目为默认边界。"
           : workspaceWritesAllowed
-            ? "文件与命令写入限制在项目内；允许正常 Git 操作，文件工具保护 .milksu。"
+            ? "文件与命令写入限制在项目内；显式准备协作后也可写已注册 worktree；允许正常 Git 操作，文件工具保护 .milksu。"
           : normalizedApprovalPolicy === "ask" && normalizedExecutionMode === "go"
             ? "每次 edit / write 前暂停并在桌面展示参数；只有本次明确批准后执行。"
             : "Plan 或 Read-only 策略禁止 edit / write。",

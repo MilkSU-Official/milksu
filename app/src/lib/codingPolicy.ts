@@ -48,7 +48,7 @@ export function previewCodingCapabilities(
       detail: fullAuto
         ? '终端具有当前系统用户权限；文件工具仍以项目为默认边界。'
         : workspaceAuto
-          ? '文件与命令写入限制在项目内；允许正常 Git 操作，文件工具保护 .milksu。'
+          ? '文件与命令写入限制在项目内；显式准备协作后也可写已注册 worktree；允许正常 Git 操作，文件工具保护 .milksu。'
         : ask
           ? '每次 edit / write 前暂停并展示参数；只有本次明确批准后执行。'
           : '当前模式禁止修改文件。',

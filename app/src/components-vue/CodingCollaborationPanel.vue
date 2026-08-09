@@ -160,7 +160,7 @@ watch(
       <div>
         <p class="text-body font-medium">独立 Git worktree</p>
         <p class="mt-1 text-caption leading-5 text-muted-foreground">
-          写入 Agent 只修改自己的工作树；主 Agent 审阅、提交、集成并运行最终测试。
+          写入 Agent 只修改自己的工作树；主 Agent 可审阅、必要时修正、提交、集成并运行最终测试。
         </p>
       </div>
       <Badge :variant="active ? 'secondary' : interruptedPreparation ? 'destructive' : 'outline'">

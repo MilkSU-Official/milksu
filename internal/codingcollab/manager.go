@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -74,16 +75,17 @@ type WorktreeDescriptor struct {
 }
 
 type manifest struct {
-	SchemaVersion  int        `json:"schemaVersion"`
-	ConversationID string     `json:"conversationId"`
-	Workspace      string     `json:"workspace"`
-	BaseBranch     string     `json:"baseBranch"`
-	BaseHead       string     `json:"baseHead"`
-	Phase          string     `json:"phase"`
-	CreatedAt      string     `json:"createdAt"`
-	UpdatedAt      string     `json:"updatedAt"`
-	CompletedAt    string     `json:"completedAt,omitempty"`
-	Worktrees      []Worktree `json:"worktrees"`
+	SchemaVersion      int        `json:"schemaVersion"`
+	ConversationID     string     `json:"conversationId"`
+	Workspace          string     `json:"workspace"`
+	BaseBranch         string     `json:"baseBranch"`
+	BaseHead           string     `json:"baseHead"`
+	Phase              string     `json:"phase"`
+	CreatedAt          string     `json:"createdAt"`
+	UpdatedAt          string     `json:"updatedAt"`
+	CompletedAt        string     `json:"completedAt,omitempty"`
+	SharedDependencies []string   `json:"sharedDependencies,omitempty"`
+	Worktrees          []Worktree `json:"worktrees"`
 }
 
 type Manager struct {
@@ -146,6 +148,10 @@ func (m *Manager) Prepare(
 	if err != nil {
 		return Status{}, err
 	}
+	sharedDependencies, err := m.discoverSharedDependencies(ctx, repository)
+	if err != nil {
+		return Status{}, err
+	}
 
 	current, found, err := m.load(conversationID)
 	if err != nil {
@@ -181,15 +187,16 @@ func (m *Manager) Prepare(
 	}
 	now := m.now().UTC().Format(time.RFC3339Nano)
 	next := manifest{
-		SchemaVersion:  SchemaVersion,
-		ConversationID: conversationID,
-		Workspace:      repository,
-		BaseBranch:     baseBranch,
-		BaseHead:       baseHead,
-		Phase:          phasePreparing,
-		CreatedAt:      now,
-		UpdatedAt:      now,
-		Worktrees:      worktrees,
+		SchemaVersion:      SchemaVersion,
+		ConversationID:     conversationID,
+		Workspace:          repository,
+		BaseBranch:         baseBranch,
+		BaseHead:           baseHead,
+		Phase:              phasePreparing,
+		CreatedAt:          now,
+		UpdatedAt:          now,
+		SharedDependencies: sharedDependencies,
+		Worktrees:          worktrees,
 	}
 	if err := m.save(next); err != nil {
 		return Status{}, err
@@ -228,6 +235,17 @@ func (m *Manager) Prepare(
 		next.UpdatedAt = m.now().UTC().Format(time.RFC3339Nano)
 		if err := m.save(next); err != nil {
 			return Status{}, err
+		}
+		if err := m.linkSharedDependencies(
+			repository,
+			worktree.Path,
+			sharedDependencies,
+		); err != nil {
+			return Status{}, fmt.Errorf(
+				"share %s collaboration dependencies: %w",
+				worktree.ID,
+				err,
+			)
 		}
 	}
 	next.Phase = phaseActive
@@ -739,6 +757,16 @@ func (m *Manager) validateManifest(value manifest, conversationID string) error 
 	if len(value.Worktrees) < MinWriters || len(value.Worktrees) > MaxWriters {
 		return errors.New("Coding collaboration manifest has an invalid writer count")
 	}
+	seenDependencies := make(map[string]struct{}, len(value.SharedDependencies))
+	for _, dependency := range value.SharedDependencies {
+		if !validSharedDependencyPath(dependency) {
+			return errors.New("Coding collaboration manifest has an invalid shared dependency")
+		}
+		if _, exists := seenDependencies[dependency]; exists {
+			return errors.New("Coding collaboration manifest repeats a shared dependency")
+		}
+		seenDependencies[dependency] = struct{}{}
+	}
 	key := taskKey(conversationID)
 	for index, worktree := range value.Worktrees {
 		expectedID := "writer-" + strconv.Itoa(index+1)
@@ -756,6 +784,150 @@ func (m *Manager) validateManifest(value manifest, conversationID string) error 
 		}
 	}
 	return nil
+}
+
+func (m *Manager) discoverSharedDependencies(
+	ctx context.Context,
+	repository string,
+) ([]string, error) {
+	trackedPackages, err := m.git(
+		ctx,
+		repository,
+		"ls-files",
+		"--",
+		"package.json",
+		":(glob)**/package.json",
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list tracked Node package manifests: %w", err)
+	}
+	seen := map[string]struct{}{}
+	dependencies := []string{}
+	for _, packagePath := range strings.Split(trackedPackages, "\n") {
+		packagePath = strings.TrimSpace(packagePath)
+		if packagePath == "" {
+			continue
+		}
+		directory := filepath.Dir(filepath.FromSlash(packagePath))
+		dependency := filepath.Join(directory, "node_modules")
+		if directory == "." {
+			dependency = "node_modules"
+		}
+		if !validSharedDependencyPath(dependency) {
+			continue
+		}
+		if _, exists := seen[dependency]; exists {
+			continue
+		}
+		source := filepath.Join(repository, dependency)
+		info, statErr := os.Lstat(source)
+		if errors.Is(statErr, os.ErrNotExist) {
+			continue
+		}
+		if statErr != nil {
+			return nil, fmt.Errorf("inspect shared dependency %s: %w", dependency, statErr)
+		}
+		if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+			continue
+		}
+		resolvedSource, resolveErr := filepath.EvalSymlinks(source)
+		if resolveErr != nil || !pathWithin(repository, resolvedSource) {
+			continue
+		}
+		if !m.gitPathIgnored(ctx, repository, dependency) {
+			continue
+		}
+		seen[dependency] = struct{}{}
+		dependencies = append(dependencies, dependency)
+	}
+	sort.Strings(dependencies)
+	return dependencies, nil
+}
+
+func (m *Manager) linkSharedDependencies(
+	repository,
+	worktree string,
+	dependencies []string,
+) error {
+	for _, dependency := range dependencies {
+		source := filepath.Join(repository, dependency)
+		destination := filepath.Join(worktree, dependency)
+		info, err := os.Lstat(destination)
+		if errors.Is(err, os.ErrNotExist) {
+			if err := os.MkdirAll(destination, 0o700); err != nil {
+				return fmt.Errorf("create writer dependency view %s: %w", dependency, err)
+			}
+		} else if err != nil {
+			return fmt.Errorf("inspect writer dependency %s: %w", dependency, err)
+		} else if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("writer dependency path is not a managed directory: %s", dependency)
+		}
+		entries, err := os.ReadDir(source)
+		if err != nil {
+			return fmt.Errorf("read shared dependency %s: %w", dependency, err)
+		}
+		for _, entry := range entries {
+			target := filepath.Join(source, entry.Name())
+			link := filepath.Join(destination, entry.Name())
+			linkInfo, linkErr := os.Lstat(link)
+			if errors.Is(linkErr, os.ErrNotExist) {
+				if err := os.Symlink(target, link); err != nil {
+					return fmt.Errorf("link %s/%s: %w", dependency, entry.Name(), err)
+				}
+				continue
+			}
+			if linkErr != nil {
+				return fmt.Errorf("inspect writer dependency entry %s/%s: %w", dependency, entry.Name(), linkErr)
+			}
+			if linkInfo.Mode()&os.ModeSymlink == 0 {
+				return fmt.Errorf("writer dependency entry is not a managed link: %s/%s", dependency, entry.Name())
+			}
+			resolved, err := os.Readlink(link)
+			if err != nil || resolved != target {
+				return fmt.Errorf("writer dependency entry changed target: %s/%s", dependency, entry.Name())
+			}
+		}
+	}
+	return nil
+}
+
+func (m *Manager) gitPathIgnored(
+	ctx context.Context,
+	repository,
+	path string,
+) bool {
+	command := exec.CommandContext(
+		ctx,
+		m.gitPath,
+		"-C",
+		repository,
+		"check-ignore",
+		"--quiet",
+		"--",
+		path,
+	)
+	return command.Run() == nil
+}
+
+func validSharedDependencyPath(value string) bool {
+	if value == "" || filepath.IsAbs(value) || filepath.Clean(value) != value {
+		return false
+	}
+	if value == "node_modules" {
+		return true
+	}
+	return filepath.Base(value) == "node_modules" &&
+		!strings.HasPrefix(value, ".."+string(filepath.Separator))
+}
+
+func pathWithin(root, target string) bool {
+	relativePath, err := filepath.Rel(root, target)
+	if err != nil {
+		return false
+	}
+	return relativePath == "." ||
+		(relativePath != ".." &&
+			!strings.HasPrefix(relativePath, ".."+string(filepath.Separator)))
 }
 
 func (m *Manager) git(
