@@ -3,6 +3,7 @@
 import { createApp, nextTick, type App } from 'vue'
 import { afterEach, describe, expect, it } from 'vitest'
 import ChatComposer from './ChatComposer.vue'
+import composerControlsSource from './CodingComposerControls.vue?raw'
 import type { CodingGoalState } from '@/types'
 
 const mountedApps: App[] = []
@@ -83,6 +84,31 @@ describe('ChatComposer', () => {
     expect(host.textContent).not.toContain('架构图')
     expect(host.textContent).not.toContain('能力')
     expect(host.textContent).not.toContain('目标')
+  })
+
+  it('keeps the three bottom choosers on one hover language and shows full approval labels', async () => {
+    const { host } = mountComposer()
+    await nextTick()
+
+    const mode = host.querySelector('[aria-label="Coding 执行模式"]')
+    const permission = host.querySelector('[aria-label="Coding 权限策略"]')
+    const model = host.querySelector('[aria-label="选择本任务模型"]')
+    expect(mode?.className).toContain('composer-control')
+    expect(mode?.className).toContain('composer-mode')
+    expect(permission?.className).toContain('composer-control')
+    expect(permission?.className).toContain('composer-permission')
+    expect(model?.className).toContain('composer-control')
+    expect(model?.className).toContain('composer-model')
+    expect(permission?.textContent ?? '').toContain('替我审批')
+    expect(permission?.textContent ?? '').not.toContain('替我…')
+    expect(permission?.getAttribute('title')).toBe('替我审批')
+
+    expect(composerControlsSource).toContain('background-color: var(--btn-ghost-hover) !important;')
+    expect(composerControlsSource).toContain('min-width: 7.75rem;')
+    expect(composerControlsSource).toContain('.composer-permission__label')
+    expect(composerControlsSource).toContain('overflow: visible')
+    expect(composerControlsSource).toContain('width: auto;')
+    expect(composerControlsSource).not.toMatch(/(?:^|\n)\.composer-permission \{[\s\S]*?\n\s*width: 7\.5rem;/)
   })
 
   it('submits a goal without exposing goal controls in the Composer', async () => {

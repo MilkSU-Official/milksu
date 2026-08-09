@@ -58,7 +58,7 @@ defineEmits<{
     >
       <SelectTrigger
         size="sm"
-        class="composer-control w-16 rounded-full border-0 bg-transparent shadow-none"
+        class="composer-control composer-mode rounded-full border-0 bg-transparent shadow-none"
         aria-label="Coding 执行模式"
         title="Plan 只分析和规划；Go 按右侧权限策略使用工具。"
       >
@@ -79,14 +79,15 @@ defineEmits<{
           :class="{ 'composer-permission--full': approvalPolicy === 'full-auto' }"
           :disabled="running"
           aria-label="Coding 权限策略"
+          :title="approvalLabel"
         >
           <ShieldAlert
             v-if="approvalPolicy === 'full-auto'"
             class="size-3.5 shrink-0 text-warning"
           />
           <LockKeyhole v-else class="size-3.5 shrink-0" />
-          <span class="composer-permission__label truncate">{{ approvalLabel }}</span>
-          <ChevronDown class="composer-permission__chevron ml-auto size-3.5 shrink-0 text-muted-foreground" />
+          <span class="composer-permission__label">{{ approvalLabel }}</span>
+          <ChevronDown class="composer-permission__chevron size-3.5 shrink-0 text-muted-foreground opacity-50" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
@@ -205,29 +206,80 @@ defineEmits<{
 </template>
 
 <style scoped>
-.composer-control {
-  font-size: var(--text-body, 0.75rem);
-  line-height: var(--text-body--line-height, 1rem);
-}
-
 .composer-controls {
   flex: 0 1 auto;
+}
+
+/*
+ * Mode / permission / model share one pill language:
+ * transparent at rest, the same soft fill on hover and while open.
+ * SelectTrigger normally uses --ui-hover + field hairline; ghost Button uses
+ * a ::before shell with --btn-ghost-hover. Normalize both here so the three
+ * composer choosers do not flash different hover chips.
+ */
+.composer-control {
+  height: 2rem;
+  min-height: 2rem;
+  gap: 0.35rem;
+  border-radius: 9999px;
+  font-size: var(--text-body, 0.75rem);
+  line-height: var(--text-body--line-height, 1rem);
+  transition:
+    background-color 110ms ease,
+    color 110ms ease;
 }
 
 .composer-control[data-slot='select-trigger'] {
   font-size: var(--text-body, 0.75rem) !important;
   line-height: var(--text-body--line-height, 1rem) !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.composer-control[data-slot='select-trigger']:hover:not(:disabled),
+.composer-control[data-slot='select-trigger'][data-state='open'] {
+  background-color: var(--btn-ghost-hover) !important;
+}
+
+.composer-control[data-button][data-variant='ghost']::before {
+  border-radius: inherit;
+  transition:
+    background-color 110ms ease,
+    scale 0.255s linear(0, 0.3505, 0.7432, 0.9336, 0.9951, 1.0062, 1.0045, 1.0019, 1.0005, 1);
+}
+
+.composer-control[data-button][data-variant='ghost']:hover::before,
+.composer-control[data-button][data-variant='ghost'][data-state='open']::before,
+.composer-control[data-button][data-variant='ghost'][aria-expanded='true']::before {
+  background-color: var(--btn-ghost-hover);
+}
+
+.composer-mode {
+  width: 4.25rem;
+  min-width: 4.25rem;
+  flex: 0 0 4.25rem;
+  justify-content: space-between;
+  padding-inline: 0.65rem;
+}
+
+.composer-permission {
+  width: auto;
+  min-width: 7.75rem;
+  max-width: 11rem;
+  flex: 0 0 auto;
+  padding-inline: 0.55rem 0.45rem;
+}
+
+.composer-permission__label {
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: visible;
+  white-space: nowrap;
 }
 
 .composer-permission--full,
 .composer-permission--full:hover {
   color: var(--warning);
-}
-
-.composer-permission {
-  width: 7.5rem;
-  min-width: 6rem;
-  flex: 0 1 7.5rem;
 }
 
 .approval-option {
@@ -278,6 +330,7 @@ defineEmits<{
   min-width: 9rem;
   flex: 1 1 12rem;
   justify-self: end;
+  padding-inline: 0.65rem;
 }
 
 @container chat-main (max-width: 52rem) {
@@ -287,9 +340,7 @@ defineEmits<{
   }
 
   .composer-permission {
-    width: 7rem;
-    min-width: 5.75rem;
-    flex-basis: 7rem;
+    min-width: 7.5rem;
   }
 
   .composer-model {
@@ -300,9 +351,10 @@ defineEmits<{
 
 @container chat-main (max-width: 36rem) {
   .composer-permission {
-    width: 2.25rem;
-    min-width: 2.25rem;
-    flex: 0 0 2.25rem;
+    width: 2rem;
+    min-width: 2rem;
+    max-width: 2rem;
+    flex: 0 0 2rem;
     justify-content: center;
     padding-inline: 0;
   }
