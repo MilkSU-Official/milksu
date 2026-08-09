@@ -6,7 +6,7 @@
 >
 > Coding 核心交付、附件、统一 Composer 能力入口、PTY、后台任务、Git、Archify、隔离 Browser 和 LSP 已有真实或
 > 专项证据；Artifact Preview、Project MCP、Computer Use 外部 App slice、PR 发布确认、
-> Session Index、worktree 和恢复处于不同程度的 Verified / Implemented / Partial。ImageGen
+> Session Index 列表/关系图、worktree 和恢复处于不同程度的 Verified / Implemented / Partial。ImageGen
 > 仍缺真实 Provider 扩样。当前完成度以代码、测试、Git 历史和
 > [当前开发目标](/developer/current-objectives)为准。
 
@@ -87,6 +87,7 @@ flowchart LR
 | ImageGen | 文生图和参考图编辑；用户明确发起付费动作，输出限制在项目资产范围并可预览 | **否** | 受控 Provider Adapter |
 | Computer Use | 用户选择当前可见的非浏览器 App / PID / Window 并锁定不可变 Scope；调用遵循当前权限档位，`workspace-auto` 不会隐式启用或扩大 Scope | **否** | Go Host + Computer Use Adapter |
 | PR / worktree | PR 发布前展示仓库、分支、提交和目标；写入 Agent 使用独立 worktree | **否** | Go Git/Platform Adapter |
+| 相关历史 | MilkSU 自有 Session Index 的列表与瞬态关系图；同条件过滤、来源会话回跳、明确点击后引用，不自动注入当前模型上下文 | **否** | Go Projection + Vue / G6；不属于 Pi Memory |
 | 文件 / 图片附件 | 是；复制到用户数据目录，纯文本模型可走本地 OCR 或已配置视觉模型 | 使用 CTF Material 管线，不复用 Coding 附件上下文 | MilkSU 附件桥 + 本地 OCR |
 | CTF 类型化工具 | 否 | 按 Role、Scope 和协作模式 | MilkSU CTF Harness |
 | 平台提交 | 否 | Agent 不能直接提交，只能写候选 | MilkSU Judge Gate |
@@ -174,6 +175,7 @@ flowchart TB
 | `github.com/creack/pty` | `1.1.24` | `internal/codingterminal`、`app_coding_terminal.go`、`third_party/licenses/creack-pty-MIT.txt` | **Verified on macOS arm64**：多会话 PTY、stdin、resize、stop、退出状态、输出尾部、Conversation ownership 和 Provider Key 环境剥离通过 race test 与原生 `pwd` |
 | `pi-mcp-adapter` | `2.17.0` | `bridge.js`、项目 MCP 配置摘要与批准桥 | **Verified**：项目显式选择、摘要校验、Sandbox、环境过滤、逐次审批和 CTF 负向隔离 |
 | `@playwright/mcp` | `0.0.78` | `bridge-mcp.js`、`internal/browsercap`、右侧浏览器页、Browser Use 面、Sidecar manifest | **沙箱 Browser Verified**：真实打包 App 启动专用 Chrome，并完成 snapshot、type、click、结果回读和停止；extension mode 的可删除 UI/授权面已验，仍缺一次真实标签页配对任务；CTF 会话不加载该服务器 |
+| `@antv/g6` | `5.1.1` | `SessionHistoryGraph.vue`、`third_party/licenses/antv-g6-MIT.txt`、前端 lockfile | **Verified packaged UI slice**：只在完整关系图视图懒加载；打包 macOS App 已验真实本机历史、同条件过滤、拖动/缩放/适配、来源回跳、显式引用和深浅主题；不进入 Sidecar 或 CTF 工具面 |
 | `@napi-rs/system-ocr` | `1.1.0` | Coding 附件桥、Sidecar manifest、平台原生包 | **Verified**：图片附件可本地 OCR；配置视觉路由时可改用视觉模型 |
 | MilkSU Workflow | first-party | `createMilkSUWorkflowExtension` | Schema 和可见事件已有 |
 

@@ -105,6 +105,20 @@ function newConversation() {
   section.value = 'chat'
 }
 
+function openHistoryConversation(conversationId: string) {
+  const target = conversations.conversations.value.find(item => item.id === conversationId)
+  if (!target) return
+  rememberActiveConversation()
+  conversations.activeId.value = conversationId
+  if (target.ctfJobId) {
+    lastCTFConversationId.value = conversationId
+  } else {
+    lastCodingConversationId.value = conversationId
+  }
+  activeVulnerabilityCodingConversationId.value = null
+  section.value = 'chat'
+}
+
 function rememberActiveConversation() {
   const remembered = rememberWorkspaceConversation(conversations.active.value, {
     codingConversationId: lastCodingConversationId.value,
@@ -362,6 +376,7 @@ onMounted(async () => {
         @change-coding-policy="conversations.setCodingPolicy"
         @change-mcp-servers="conversations.setMCPSelection"
         @open-settings="openSettings('apikeys')"
+        @open-conversation="openHistoryConversation"
         @return-ctf="returnToCTFWorkspace"
         @return-vuln="returnToVulnerabilityWorkspace"
         @switch-ctf-agent="switchCTFAgent"

@@ -175,6 +175,7 @@ const emit = defineEmits<{
   newConversation: []
   controlGoal: [action: 'pause' | 'resume' | 'clear']
   openSettings: []
+  openConversation: [conversationId: string]
   returnCtf: []
   returnVuln: []
   switchCtfAgent: [role: 'solver' | 'tool-builder' | 'strategist']
@@ -1449,7 +1450,7 @@ watch(
   <aside
     v-if="environmentOpen"
     class="context-sidebar flex shrink-0 flex-col border-l border-border bg-card/95 backdrop-blur"
-    :class="['architecture', 'artifacts', 'changes', 'terminal', 'collaboration'].includes(contextPanel)
+    :class="['architecture', 'artifacts', 'changes', 'terminal', 'collaboration', 'history'].includes(contextPanel)
       ? 'w-[min(36rem,36vw)] min-w-[22rem]'
       : 'w-80'"
     :aria-label="contextPanelTitle"
@@ -2231,6 +2232,7 @@ watch(
           :default-query="historyDefaultQuery"
           :confirm-action-label="ctfSession ? '' : '引用到输入'"
           @confirm-result="quoteSessionHistoryToComposer"
+          @open-session="$emit('openConversation', $event)"
         />
         <p v-if="historyDraftNotice" class="px-4 py-3 text-caption text-primary">
           {{ historyDraftNotice }}

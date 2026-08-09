@@ -233,6 +233,7 @@ vi.mock('@/components-vue/ChatPage.vue', () => ({
       'changeCodingPolicy',
       'changeMcpServers',
       'openSettings',
+      'openConversation',
       'returnCtf',
       'returnVuln',
       'switchCtfAgent',
@@ -241,6 +242,7 @@ vi.mock('@/components-vue/ChatPage.vue', () => ({
       return () => h('section', { 'aria-label': 'mock Chat page' }, [
         h('span', { 'data-chat-conversation': props.conversation?.id ?? '' }, props.conversation?.id ?? 'none'),
         h('span', { 'data-chat-ctf-session': String(Boolean(props.ctfSession)) }, String(Boolean(props.ctfSession))),
+        h('button', { 'aria-label': 'open history conversation', onClick: () => emit('openConversation', 'coding-history') }, '打开来源会话'),
         h('button', { 'aria-label': 'return CTF workspace', onClick: () => emit('returnCtf') }, '返回 CTF 工作台'),
       ])
     },
@@ -356,5 +358,22 @@ describe('App cross-module routing', () => {
     expect(host.querySelector('[data-chat-conversation]')?.textContent).toBe('coding-existing')
     expect(host.querySelector('[data-chat-ctf-session]')?.textContent).toBe('false')
     expect(hoisted.conversations?.activeId.value).toBe('coding-existing')
+  })
+
+  it('returns from a related-history graph node to its source conversation', async () => {
+    hoisted.conversations?.conversations.value.push(baseConversation({
+      id: 'coding-history',
+      title: '历史来源会话',
+      createdAt: 3,
+    }))
+    const { host } = await mountApp()
+    host.querySelector<HTMLButtonElement>('[aria-label="navigate Coding"]')?.click()
+    await flushAsyncComponents()
+
+    host.querySelector<HTMLButtonElement>('[aria-label="open history conversation"]')?.click()
+    await flushAsyncComponents()
+
+    expect(host.querySelector('[data-chat-conversation]')?.textContent).toBe('coding-history')
+    expect(hoisted.conversations?.activeId.value).toBe('coding-history')
   })
 })

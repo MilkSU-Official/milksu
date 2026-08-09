@@ -291,7 +291,7 @@ describe('desktop command adapter', () => {
     expect(stopVulnerabilityPractice).toHaveBeenCalledWith(request)
   })
 
-  it('passes Session Index status, refresh, and history search to Wails', async () => {
+  it('passes Session Index status, refresh, search, and graph projection to Wails', async () => {
     const status = {
       available: true,
       mode: 'milksu-obelisk-core',
@@ -325,9 +325,27 @@ describe('desktop command adapter', () => {
         snippet: 'Computer Use 外部 App 点击已验证',
       }],
     }
+    const graphResponse = {
+      generatedAt: '2026-08-04T09:32:00Z',
+      status,
+      nodes: [{
+        id: 'session:conversation',
+        type: 'session',
+        label: 'Computer Use validation',
+        sources: [{
+          sessionId: 'milksu:conversation',
+          conversationId: 'conversation',
+          sessionName: 'Computer Use validation',
+        }],
+      }],
+      edges: [],
+      projects: ['milksu'],
+      truncated: false,
+    }
     const getSessionIndexStatus = vi.fn(async () => status)
     const refreshSessionIndex = vi.fn(async () => refresh)
     const searchSessionHistory = vi.fn(async () => searchResponse)
+    const getSessionHistoryGraph = vi.fn(async () => graphResponse)
     Object.defineProperty(window, 'go', {
       configurable: true,
       value: {
@@ -336,6 +354,7 @@ describe('desktop command adapter', () => {
             GetSessionIndexStatus: getSessionIndexStatus,
             RefreshSessionIndex: refreshSessionIndex,
             SearchSessionHistory: searchSessionHistory,
+            GetSessionHistoryGraph: getSessionHistoryGraph,
           },
         },
       },
@@ -346,12 +365,21 @@ describe('desktop command adapter', () => {
     await expect(invokeCommand('search_session_history', {
       request: { query: 'Computer Use', module: 'coding', limit: 4 },
     })).resolves.toBe(searchResponse)
+    await expect(invokeCommand('get_session_history_graph', {
+      request: { query: 'Computer Use', module: 'coding', maxNodes: 120, maxEdges: 200 },
+    })).resolves.toBe(graphResponse)
     expect(getSessionIndexStatus).toHaveBeenCalledOnce()
     expect(refreshSessionIndex).toHaveBeenCalledOnce()
     expect(searchSessionHistory).toHaveBeenCalledWith({
       query: 'Computer Use',
       module: 'coding',
       limit: 4,
+    })
+    expect(getSessionHistoryGraph).toHaveBeenCalledWith({
+      query: 'Computer Use',
+      module: 'coding',
+      maxNodes: 120,
+      maxEdges: 200,
     })
   })
 

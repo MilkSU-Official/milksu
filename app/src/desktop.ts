@@ -66,6 +66,8 @@ import type {
   CodingTerminalSession,
 } from './codingEnvironmentTypes'
 import type {
+  SessionHistoryGraphRequest,
+  SessionHistoryGraphResponse,
   SessionHistorySearchRequest,
   SessionHistorySearchResponse,
   SessionIndexRefreshResult,
@@ -144,6 +146,7 @@ interface WailsAppBindings {
   GetSessionIndexStatus(): Promise<SessionIndexStatus>
   RefreshSessionIndex(): Promise<SessionIndexRefreshResult>
   SearchSessionHistory(request: SessionHistorySearchRequest): Promise<SessionHistorySearchResponse>
+  GetSessionHistoryGraph(request: SessionHistoryGraphRequest): Promise<SessionHistoryGraphResponse>
   ListConversations(): Promise<unknown>
   SaveConversation(conversation: unknown): Promise<void>
   DeleteConversation(id: string): Promise<void>
@@ -399,6 +402,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.RefreshSessionIndex() as Promise<T>
       case 'search_session_history':
         return app.SearchSessionHistory(args?.request as SessionHistorySearchRequest) as Promise<T>
+      case 'get_session_history_graph':
+        return app.GetSessionHistoryGraph(args?.request as SessionHistoryGraphRequest) as Promise<T>
       case 'list_conversations':
         return app.ListConversations() as Promise<T>
       case 'save_conversation':
