@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, markRaw, ref } from 'vue'
+import { computed, markRaw, nextTick, ref, watch } from 'vue'
 import { Button, Textarea } from '@felinic/ui'
 import {
   ArrowUp,
@@ -8,9 +8,13 @@ import {
   Lightbulb,
   LoaderCircle,
   Paperclip,
+  Pause,
+  Play,
   Route,
   Square,
   StickyNote,
+  Target,
+  Trash2,
   X,
 } from 'lucide-vue-next'
 import CodingComposerControls from '@/components-vue/CodingComposerControls.vue'
@@ -19,8 +23,15 @@ import type {
   CodingApprovalPolicy,
   CodingAttachment,
   CodingExecutionMode,
+  CodingGoalState,
   CTFChatAction,
 } from '@/types'
+
+interface ComposerGitSummary {
+  changedFiles: number
+  additions: number
+  deletions: number
+}
 
 const props = defineProps<{
   running: boolean
@@ -29,6 +40,8 @@ const props = defineProps<{
   ctfMode?: 'coach' | 'copilot' | 'delegate'
   ctfRole?: 'solver' | 'tool-builder' | 'strategist'
   goalMode: boolean
+  goal?: CodingGoalState
+  gitSummary?: ComposerGitSummary
   executionMode: CodingExecutionMode
   approvalPolicy: CodingApprovalPolicy
   approvalLabel: string
@@ -46,13 +59,74 @@ const emit = defineEmits<{
   changeModel: [value: string]
   showPermissions: []
   consumeGoal: []
+  startGoal: []
+  controlGoal: [action: 'pause' | 'resume' | 'clear']
 }>()
 
 const draft = ref('')
+const composerFrame = ref<HTMLElement | null>(null)
 const pendingAttachments = ref<CodingAttachment[]>([])
 const attachmentError = ref('')
 const composing = ref(false)
 const compositionJustEnded = ref(false)
+const slashMenuDismissed = ref(false)
+
+const slashQuery = computed(() => {
+  if (props.ctfSession || props.goalMode) return null
+  if (!draft.value.startsWith('/') || /\s/u.test(draft.value)) return null
+  return draft.value.slice(1).toLocaleLowerCase()
+})
+const hasUnfinishedGoal = computed(() => Boolean(
+  props.goal && props.goal.status !== 'complete',
+))
+const slashCommands = computed(() => {
+  const query = slashQuery.value
+  if (query === null) return []
+  return [{
+    id: 'goal',
+    label: '目标',
+    description: hasUnfinishedGoal.value
+      ? '当前已有持续目标'
+      : '设置要持续追求的目标',
+    disabled: props.running || hasUnfinishedGoal.value,
+  }].filter(command => (
+    !query
+    || command.id.includes(query)
+    || command.label.toLocaleLowerCase().includes(query)
+  ))
+})
+const slashMenuOpen = computed(() => (
+  !slashMenuDismissed.value && slashCommands.value.length > 0
+))
+const goalStatusLabel = computed(() => {
+  const status = props.goal?.status
+  if (status === 'active') return '进行中'
+  if (status === 'paused') return '已暂停'
+  if (status === 'blocked') return '受阻'
+  if (status === 'usage_limited') return '额度受限'
+  if (status === 'budget_limited') return '预算已用完'
+  if (status === 'queued') return '排队中'
+  return '已完成'
+})
+const goalUsageLabel = computed(() => {
+  const goal = props.goal
+  if (!goal?.tokenBudget) return ''
+  return `${goal.tokensUsed.toLocaleString()} / ${goal.tokenBudget.toLocaleString()} tokens`
+})
+const resumableGoal = computed(() => (
+  ['paused', 'blocked', 'usage_limited', 'budget_limited'].includes(
+    props.goal?.status ?? '',
+  )
+))
+const showGitSummary = computed(() => Boolean(
+  props.gitSummary && props.gitSummary.changedFiles > 0,
+))
+const showProgressSummary = computed(() => Boolean(
+  (props.goal?.iteration ?? 0) > 0 || showGitSummary.value,
+))
+const showGoalDock = computed(() => Boolean(
+  !props.ctfSession && (props.goal || props.goalMode || showProgressSummary.value),
+))
 
 const ctfActionOptions = computed(() => {
   const mode = props.ctfMode ?? 'copilot'
@@ -149,12 +223,58 @@ function submit() {
   emit('consumeGoal')
 }
 
-function handleEnterKey(event: KeyboardEvent) {
+function focusMessageInput() {
+  void nextTick(() => {
+    composerFrame.value?.querySelector<HTMLTextAreaElement>('textarea')?.focus()
+  })
+}
+
+function chooseGoalCommand() {
+  const command = slashCommands.value[0]
+  if (!command || command.disabled) return
+  draft.value = ''
+  slashMenuDismissed.value = false
+  emit('startGoal')
+  focusMessageInput()
+}
+
+function handleComposerKeyDown(event: KeyboardEvent) {
   if (
     event.isComposing
     || composing.value
     || compositionJustEnded.value
     || event.keyCode === 229
+  ) return
+
+  if (slashMenuOpen.value) {
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      slashMenuDismissed.value = true
+      return
+    }
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault()
+      return
+    }
+    if (
+      event.key === 'Enter'
+      && !event.shiftKey
+      && !event.ctrlKey
+      && !event.altKey
+      && !event.metaKey
+    ) {
+      event.preventDefault()
+      chooseGoalCommand()
+      return
+    }
+  }
+
+  if (
+    event.key !== 'Enter'
+    || event.shiftKey
+    || event.ctrlKey
+    || event.altKey
+    || event.metaKey
   ) return
   event.preventDefault()
   submit()
@@ -176,6 +296,10 @@ function appendDraftText(text: string) {
     : normalized
 }
 
+watch(draft, () => {
+  slashMenuDismissed.value = false
+})
+
 defineExpose({
   appendDraftText,
 })
@@ -183,7 +307,7 @@ defineExpose({
 
 <template>
   <div class="chat-composer shrink-0 bg-surface-editor px-5 pb-4 pt-2">
-    <div class="mx-auto max-w-3xl">
+    <div ref="composerFrame" class="chat-composer__frame mx-auto max-w-3xl">
       <div
         v-if="ctfSession && ctfRole === 'solver'"
         class="mb-2 flex flex-wrap items-center gap-2 px-1"
@@ -202,6 +326,139 @@ defineExpose({
           <component :is="option.icon" class="size-3.5" />
           {{ option.label }}
         </Button>
+      </div>
+
+      <div
+        v-if="slashMenuOpen"
+        id="coding-slash-command-menu"
+        class="chat-composer__command-menu"
+        role="listbox"
+        aria-label="斜杠命令"
+      >
+        <button
+          v-for="command in slashCommands"
+          :id="`coding-slash-command-${command.id}`"
+          :key="command.id"
+          type="button"
+          class="chat-composer__command-option"
+          :class="{ 'opacity-50': command.disabled }"
+          role="option"
+          aria-selected="true"
+          :aria-disabled="command.disabled"
+          :disabled="command.disabled"
+          @mousedown.prevent
+          @click="chooseGoalCommand"
+        >
+          <Target class="size-4 shrink-0" />
+          <span class="min-w-0 text-left">
+            <span class="block text-body font-medium">{{ command.label }}</span>
+            <span class="mt-0.5 block text-caption text-muted-foreground">
+              {{ command.description }}
+            </span>
+          </span>
+        </button>
+      </div>
+
+      <div
+        v-if="showGoalDock"
+        class="chat-composer__dock"
+        aria-label="任务与目标状态"
+      >
+        <div
+          v-if="showProgressSummary"
+          class="chat-composer__progress-pill"
+          aria-label="任务进度摘要"
+        >
+          <LoaderCircle
+            v-if="goal?.status === 'active'"
+            class="size-3.5 shrink-0 text-primary"
+            :class="{ 'animate-spin': running }"
+          />
+          <span v-if="goal?.iteration">第 {{ goal.iteration }} 轮</span>
+          <span v-if="goal?.iteration && showGitSummary" aria-hidden="true">·</span>
+          <span v-if="showGitSummary">
+            {{ gitSummary?.changedFiles }} 个文件已更改
+          </span>
+          <span v-if="showGitSummary" class="text-primary">
+            +{{ gitSummary?.additions }}
+          </span>
+          <span v-if="showGitSummary" class="text-destructive">
+            -{{ gitSummary?.deletions }}
+          </span>
+        </div>
+
+        <section
+          v-if="goal || goalMode"
+          class="chat-composer__goal-panel"
+          aria-label="持续目标"
+        >
+          <Target class="size-4 shrink-0 text-primary" />
+          <div class="min-w-0 flex-1">
+            <div class="flex min-w-0 items-center gap-2">
+              <span class="shrink-0 text-caption font-medium text-primary">
+                {{ goal ? goalStatusLabel : '正在设置' }}
+              </span>
+              <span
+                v-if="goalUsageLabel"
+                class="truncate text-caption text-muted-foreground"
+              >
+                {{ goalUsageLabel }}
+              </span>
+            </div>
+            <p class="mt-0.5 max-w-[34rem] truncate text-body" :title="goal?.text">
+              {{ goal?.text || '下一条消息会成为持续目标。' }}
+            </p>
+          </div>
+          <div class="flex shrink-0 items-center gap-1">
+            <Button
+              v-if="goal?.status === 'active'"
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              :disabled="aborting"
+              :aria-label="aborting ? '正在暂停目标' : '暂停目标'"
+              :title="aborting ? '正在等待当前回合停止' : '暂停持续目标'"
+              @click="$emit('controlGoal', 'pause')"
+            >
+              <LoaderCircle v-if="aborting" class="size-3.5 animate-spin" />
+              <Pause v-else class="size-3.5" />
+            </Button>
+            <Button
+              v-if="goal && resumableGoal"
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              :disabled="running"
+              aria-label="继续目标"
+              title="继续持续目标"
+              @click="$emit('controlGoal', 'resume')"
+            >
+              <Play class="size-3.5" />
+            </Button>
+            <Button
+              v-if="goal && !running"
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label="清除当前目标"
+              title="清除当前目标"
+              @click="$emit('controlGoal', 'clear')"
+            >
+              <Trash2 class="size-3.5" />
+            </Button>
+            <Button
+              v-else-if="goalMode && !goal"
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label="取消目标模式"
+              title="取消目标模式"
+              @click="$emit('consumeGoal')"
+            >
+              <X class="size-3.5" />
+            </Button>
+          </div>
+        </section>
       </div>
 
       <form class="chat-composer__island flex flex-col gap-1" @submit.prevent="submit">
@@ -232,10 +489,14 @@ defineExpose({
           v-model="draft"
           class="chat-composer__input max-h-44 min-h-24 resize-none border-0 bg-transparent px-1 pb-2 pt-1.5 shadow-none focus-visible:ring-0"
           aria-label="消息"
+          aria-autocomplete="list"
+          :aria-controls="slashMenuOpen ? 'coding-slash-command-menu' : undefined"
+          :aria-expanded="slashMenuOpen"
+          :aria-activedescendant="slashMenuOpen ? 'coding-slash-command-goal' : undefined"
           :placeholder="goalMode ? '写下一个可持续目标，MilkSU 会持续推进并保留恢复点' : ctfSession ? '告诉 Agent 你的观察、假设或下一步想法' : '描述你想让 MilkSU 完成的任务'"
           @compositionstart="composing = true"
           @compositionend="handleCompositionEnd"
-          @keydown.enter.exact="handleEnterKey"
+          @keydown="handleComposerKeyDown"
         />
         <div class="chat-composer__toolbar flex min-w-0 flex-wrap items-center justify-between gap-2">
           <div class="flex min-w-0 items-center gap-1.5">
@@ -304,6 +565,87 @@ defineExpose({
 .chat-composer {
   position: relative;
   z-index: 2;
+}
+
+.chat-composer__frame {
+  position: relative;
+}
+
+.chat-composer__command-menu {
+  position: absolute;
+  bottom: calc(100% + 0.65rem);
+  left: 0;
+  z-index: 10;
+  width: min(25rem, calc(100vw - 3rem));
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--card) 96%, transparent);
+  padding: 0.35rem;
+  box-shadow:
+    0 18px 42px rgb(0 0 0 / 18%),
+    0 3px 10px rgb(0 0 0 / 10%);
+  backdrop-filter: blur(18px);
+}
+
+.chat-composer__command-option {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.75rem;
+  border-radius: 0.7rem;
+  padding: 0.65rem 0.75rem;
+  color: var(--foreground);
+  outline: none;
+}
+
+.chat-composer__command-option:not(:disabled):hover,
+.chat-composer__command-option:not(:disabled):focus-visible {
+  background: var(--muted);
+}
+
+.chat-composer__command-option:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.chat-composer__dock {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0 0.4rem 0.65rem;
+}
+
+.chat-composer__progress-pill,
+.chat-composer__goal-panel {
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  background: color-mix(in srgb, var(--card) 94%, transparent);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 8%);
+  backdrop-filter: blur(14px);
+}
+
+.chat-composer__progress-pill {
+  display: inline-flex;
+  min-height: 2.25rem;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 999px;
+  padding: 0.4rem 0.85rem;
+  font-size: var(--text-caption);
+  color: var(--muted-foreground);
+}
+
+.chat-composer__goal-panel {
+  display: flex;
+  min-width: min(18rem, 100%);
+  max-width: 100%;
+  flex: 1 1 18rem;
+  align-items: center;
+  gap: 0.65rem;
+  border-radius: 1rem;
+  padding: 0.45rem 0.55rem 0.45rem 0.75rem;
 }
 
 .chat-composer__island {

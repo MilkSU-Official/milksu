@@ -122,6 +122,79 @@ No actionable P0, P1, or P2 findings remain.
 
 final result: passed
 
+# Coding 目标入口与 Composer 状态浮层 · Follow-up QA
+
+**Comparison Target**
+
+- Source visual truth:
+  - `/var/folders/wf/0w9rnrs904501nhp57pd_jzw0000gn/T/codex-clipboard-cf5bf14b-3d79-400f-a533-b61bbb20f800.png`
+  - `/var/folders/wf/0w9rnrs904501nhp57pd_jzw0000gn/T/codex-clipboard-598abb6f-f7a9-4b8e-a054-7128e7829f1c.png`
+- Browser-rendered implementation:
+  - `/tmp/milksu-goal-composer-ui-evidence/goal-composer-active.png`
+  - `/tmp/milksu-goal-composer-ui-evidence/goal-composer-menu.png`
+- Browser viewport and implementation pixels: `1280 × 720`, device scale 1.
+- Source pixels: `1236 × 814` for Goal progress; `1246 × 1048` for slash commands.
+- CSS size and density normalization: no resampling. The source screenshots are focused Codex App
+  crops while the implementation captures use the full MilkSU viewport; comparison excludes unrelated
+  app chrome and evaluates the Composer region at visible scale.
+- States: exact `/` draft with one available Goal command; active projected Goal with iteration 4,
+  token usage, 22 changed files, additions and deletions. The projection fixture was used only for the
+  isolated browser capture and was removed after capture; production preview does not invent desktop
+  state.
+
+**Findings**
+
+No actionable P0, P1, or P2 finding remains.
+
+- The right Environment page has no Goal entry. `/` opens the Goal option directly above the
+  Composer, and keyboard Enter selects it without sending the slash text.
+- The progress pill and Goal panel share the row above the input at ordinary desktop width. Narrow
+  containers wrap them instead of clipping controls.
+- The implementation deliberately says `第 4 轮`, not the source's `第 4 / 6 步`: MilkSU has a real
+  Goal iteration projection but no authoritative total-step projection. Git counts and line totals
+  come from the existing environment snapshot.
+
+**Required Fidelity Surfaces**
+
+- Fonts and typography: the implementation uses MilkSU's existing Inter variable stack and current
+  body/caption tokens. The Goal text truncates on one line with a title affordance; status and usage
+  retain distinct optical weight.
+- Spacing and layout rhythm: the command menu is anchored above the Composer with the source's soft
+  radius and elevation. The progress pill sits left of the flexible Goal panel; both retain compact
+  vertical rhythm and wrap only below their usable minimum width.
+- Colors and visual tokens: the source is light while the capture uses MilkSU's selected dark theme.
+  Existing semantic surface, border, muted, primary and destructive tokens are preserved rather than
+  copying Codex-specific colors locally.
+- Image quality and asset fidelity: the target contains no product imagery. All visible control icons
+  reuse the established Lucide package; no custom SVG, CSS drawing, emoji or raster substitute was added.
+- Copy and content: `目标` and `设置要持续追求的目标` match the requested slash entry. Goal status,
+  text, token usage, iteration and Git numbers are all projection-backed.
+- Accessibility and interaction: the textbox exposes `aria-expanded`, conditional `aria-controls`
+  and `aria-activedescendant`; the menu uses listbox/option semantics. Enter selects, Escape dismisses,
+  focus returns to the textbox, and pause/continue/clear have explicit labels. Browser interaction and
+  mounted ChatPage/ChatComposer tests cover these states.
+- Console: the static browser preview reports the expected `get_settings` desktop-runtime error because
+  WebView fallback data is intentionally absent. No new component or interaction exception was observed.
+
+**Comparison History**
+
+- Pass 1 — P2: the active Goal panel wrapped below the progress pill at the focused preview width,
+  weakening the requested Codex-style one-row relationship.
+- Fix: reduced the Goal panel minimum width and flex basis from the initial 21/25 rem values to 18 rem,
+  while retaining responsive wrapping for genuinely narrow containers.
+- Pass 2 — passed: the final `1280 × 720` capture shows the real iteration/Git pill on the left and
+  the active Goal panel on the right. The slash menu capture confirms the separate overlay state.
+
+**Primary Interactions Tested**
+
+- Type `/` → Goal command visible.
+- Press Enter → menu closes, draft clears, focus remains in the Goal-mode textbox.
+- Press Escape → menu closes without changing the slash draft.
+- Active Goal → pause; paused Goal → continue; idle Goal → clear.
+- Environment sidebar → no `设为目标` entry.
+
+final result: passed
+
 # Coding 输入区与右侧页面响应式收口 · Design QA
 
 **Comparison Target**

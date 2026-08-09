@@ -53,7 +53,6 @@ import {
   ShieldCheck,
   Shrink,
   Sparkles,
-  Target,
   Terminal,
   Wrench,
 } from 'lucide-vue-next'
@@ -170,7 +169,7 @@ const emit = defineEmits<{
   changeMcpServers: [servers: string[], configDigest: string]
   respondApproval: [requestId: string, approved: boolean]
   compactContext: []
-  controlGoal: [action: 'resume' | 'clear']
+  controlGoal: [action: 'pause' | 'resume' | 'clear']
   openSettings: []
   returnCtf: []
   returnVuln: []
@@ -260,28 +259,14 @@ const activeTools = computed(() => (
   props.conversation?.agentTools ?? []
 ))
 const activeGoal = computed(() => props.conversation?.agentGoal)
-const hasUnfinishedGoal = computed(() => (
-  Boolean(activeGoal.value && activeGoal.value.status !== 'complete')
-))
-const goalStatusLabel = computed(() => {
-  const status = activeGoal.value?.status
-  if (status === 'active') return '进行中'
-  if (status === 'paused') return '已暂停'
-  if (status === 'blocked') return '受阻'
-  if (status === 'usage_limited') return '额度受限'
-  if (status === 'budget_limited') return '预算已用完'
-  if (status === 'queued') return '排队中'
-  return '已完成'
-})
-const resumableGoal = computed(() => (
-  ['paused', 'blocked', 'usage_limited', 'budget_limited'].includes(
-    activeGoal.value?.status ?? '',
-  )
-))
-const goalUsageLabel = computed(() => {
-  const goal = activeGoal.value
-  if (!goal?.tokenBudget) return ''
-  return `${goal.tokensUsed.toLocaleString()} / ${goal.tokenBudget.toLocaleString()} tokens`
+const composerGitSummary = computed(() => {
+  const git = codingEnvironment.value?.git
+  if (!git?.isRepository || !git.dirty || git.changedFiles <= 0) return undefined
+  return {
+    changedFiles: git.changedFiles,
+    additions: git.additions,
+    deletions: git.deletions,
+  }
 })
 const continuity = computed(() => codingContinuityPresentation({
   sessionReady: props.sessionReady,
@@ -555,6 +540,14 @@ function sendComposerMessage(
 ) {
   goalMode.value = false
   emit('send', prompt, visibleText, attachments)
+}
+
+function controlComposerGoal(action: 'pause' | 'resume' | 'clear') {
+  if (action === 'pause' && props.running) {
+    emit('abort')
+    return
+  }
+  emit('controlGoal', action)
 }
 
 function sessionHistorySourceLabel(source = '') {
@@ -1353,6 +1346,8 @@ watch(
       :ctf-mode="ctfMode"
       :ctf-role="ctfRole"
       :goal-mode="goalMode"
+      :goal="activeGoal"
+      :git-summary="composerGitSummary"
       :execution-mode="effectiveExecutionMode"
       :approval-policy="effectiveApprovalPolicy"
       :approval-label="approvalMenuLabel"
@@ -1367,6 +1362,8 @@ watch(
       @change-model="changeModel"
       @show-permissions="showCodingPermissions"
       @consume-goal="goalMode = false"
+      @start-goal="goalMode = true"
+      @control-goal="controlComposerGoal"
     />
   </main>
   <aside
@@ -1473,7 +1470,7 @@ watch(
 
         <section v-if="!ctfSession" class="border-b border-border px-4 py-4">
           <p class="text-caption font-medium text-muted-foreground">任务操作</p>
-          <div class="mt-3 grid grid-cols-2 gap-2">
+          <div class="mt-3 grid gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger as-child>
                 <Button
@@ -1514,18 +1511,6 @@ watch(
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button
-              :variant="goalMode ? 'secondary' : 'outline'"
-              size="sm"
-              :disabled="running || hasUnfinishedGoal"
-              :title="hasUnfinishedGoal
-                ? '当前已有持续目标；可在输入区上方暂停、继续或清除'
-                : '把下一条消息设为持续目标；Agent 会跨回合推进并验证完成'"
-              @click="goalMode = !goalMode"
-            >
-              <Target class="size-3.5" />
-              {{ goalMode ? '已设为目标' : '设为目标' }}
-            </Button>
           </div>
           <Button
             type="button"
@@ -1566,58 +1551,6 @@ watch(
           >
             整理上下文失败：{{ compactionError }}
           </p>
-          <div
-            v-if="activeGoal || goalMode"
-            class="mt-3 rounded-lg bg-primary/[0.07] p-3"
-          >
-            <div class="flex min-w-0 items-center gap-2">
-              <Target class="size-3.5 shrink-0 text-primary" />
-              <Badge variant="secondary">
-                {{ goalMode && !activeGoal ? '下一条设为目标' : goalStatusLabel }}
-              </Badge>
-              <span
-                v-if="goalUsageLabel"
-                class="ml-auto shrink-0 text-caption text-muted-foreground"
-              >
-                {{ goalUsageLabel }}
-              </span>
-            </div>
-            <p class="mt-2 break-words text-body leading-5">
-              {{ activeGoal?.text || '下一条消息会成为持续目标。' }}
-            </p>
-            <div class="mt-2 flex justify-end gap-1">
-              <Button
-                v-if="activeGoal && resumableGoal"
-                type="button"
-                variant="ghost"
-                size="sm"
-                :disabled="running"
-                @click="$emit('controlGoal', 'resume')"
-              >
-                继续
-              </Button>
-              <Button
-                v-if="activeGoal && !running"
-                type="button"
-                variant="ghost"
-                size="sm"
-                aria-label="清除当前目标"
-                @click="$emit('controlGoal', 'clear')"
-              >
-                清除
-              </Button>
-              <Button
-                v-else-if="goalMode && !activeGoal"
-                type="button"
-                variant="ghost"
-                size="sm"
-                aria-label="取消目标模式"
-                @click="goalMode = false"
-              >
-                取消
-              </Button>
-            </div>
-          </div>
         </section>
 
         <SessionHistoryPanel

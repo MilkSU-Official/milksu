@@ -703,7 +703,7 @@ export function useConversations() {
     }
   }
 
-  async function controlGoal(action: 'resume' | 'clear') {
+  async function controlGoal(action: 'pause' | 'resume' | 'clear') {
     const conversationId = activeId.value
     if (!conversationId || runningIds.value.has(conversationId)) return
     const conversation = conversations.value.find(item => item.id === conversationId)

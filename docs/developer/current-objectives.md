@@ -38,6 +38,7 @@
 - CVE 资产验证与学习记录以 Vuln Runtime 为唯一正式来源；localStorage 只保留明确标记的未提交草稿、筛选和选中项。
 - CTF Memory 直接持久化 actor / assistance 归因，旧的 pre-release 无归因数据库不迁移。
 - 全局主题已有夜间/日间两态：左下 rail 主题按钮切换并本地持久化；日间色板采用浅灰绿背景、白色卡片、橄榄绿重点色，保持 CTF/CVE/Coding/设置同一语义 token。
+- Coding 持续目标不再占用右侧环境栏；用户从 Composer 的 `/` 菜单进入现有 Pi Goal，真实目标状态、迭代轮次和 Git 变更摘要显示在输入框上方，暂停、继续与清除也在同一浮层完成。
 - Labs 纵深闭环暂停；CVE 纵深研究、真实漏洞复现、外部资产实验和披露流程后置。
 - NYU safe-static 只能叫 Pi Runtime safe-static smoke，不能叫 MilkSU 完整 CTF 成绩。
 

@@ -34,4 +34,24 @@ describe('ChatPage routing contract', () => {
     expect(chatPageSource).toContain('已引用到输入框')
     expect(chatPageSource).not.toContain("emit('send', lines.join")
   })
+
+  it('owns Goal interaction in the composer instead of the environment sidebar', () => {
+    expect(chatPageSource).toContain(':goal="activeGoal"')
+    expect(chatPageSource).toContain(':git-summary="composerGitSummary"')
+    expect(chatPageSource).toContain('@start-goal="goalMode = true"')
+    expect(chatPageSource).toContain('@consume-goal="goalMode = false"')
+    expect(chatPageSource).toContain('@control-goal="controlComposerGoal"')
+    expect(chatPageSource).toContain("function controlComposerGoal(action: 'pause' | 'resume' | 'clear')")
+    expect(chatPageSource).toContain("if (action === 'pause' && props.running)")
+    expect(chatPageSource).not.toContain("{{ goalMode ? '已设为目标' : '设为目标' }}")
+    expect(chatPageSource).not.toContain('class="mt-3 rounded-lg bg-primary/[0.07] p-3"')
+  })
+
+  it('passes only a real dirty Git projection to the composer summary', () => {
+    expect(chatPageSource).toContain('const composerGitSummary = computed')
+    expect(chatPageSource).toContain('!git?.isRepository || !git.dirty || git.changedFiles <= 0')
+    expect(chatPageSource).toContain('changedFiles: git.changedFiles')
+    expect(chatPageSource).toContain('additions: git.additions')
+    expect(chatPageSource).toContain('deletions: git.deletions')
+  })
 })
