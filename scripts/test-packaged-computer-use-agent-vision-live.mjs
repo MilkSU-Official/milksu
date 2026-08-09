@@ -32,6 +32,8 @@ const targetBundleId = 'com.apple.calculator'
 const targetName = 'Calculator'
 const computerUseMcpToolName = 'milksu_computer_use_computer_use'
 const startupTimeoutMs = 45_000
+const fixtureProvider = 'tokenflux'
+const fixtureModel = 'x-ai/grok-4.3'
 
 function assert(condition, message) {
   if (!condition) throw new Error(message)
@@ -484,8 +486,8 @@ function startBridge({
         TMPDIR: join(workspaceRuntime, 'tmp'),
         PATH: '/usr/bin:/bin:/usr/sbin:/sbin',
         LANG: 'en_US.UTF-8',
-        KOURICHAT_API_KEY: 'fixture-only-not-a-secret',
-        KOURICHAT_BASE_URL: baseURL,
+        TOKENFLUX_API_KEY: 'fixture-only-not-a-secret',
+        TOKENFLUX_BASE_URL: baseURL,
         OPENAI_API_KEY: 'fixture-vision-not-a-secret',
         OPENAI_BASE_URL: baseURL,
         MILKSU_VISION_PROVIDER: 'openai',
@@ -554,8 +556,8 @@ function startBridge({
     command({
       action: 'create_session',
       conversationId: 'computer-use-agent-vision-live',
-      provider: 'kourichat',
-      model: 'kimi-k3',
+      provider: fixtureProvider,
+      model: fixtureModel,
       executionMode: 'go',
       approvalPolicy: 'workspace-auto',
       computerUse,
@@ -572,8 +574,8 @@ function startBridge({
     command({
       action: 'send_message',
       conversationId: 'computer-use-agent-vision-live',
-      provider: 'kourichat',
-      model: 'kimi-k3',
+      provider: fixtureProvider,
+      model: fixtureModel,
       executionMode: 'go',
       approvalPolicy: 'workspace-auto',
       computerUse,
@@ -898,7 +900,7 @@ deny:
       ],
     }
     const serialized = `${JSON.stringify(report, null, 2)}\n`
-    assert(!/OPENAI_API_KEY|KOURICHAT_API_KEY|sk-[A-Za-z0-9]/.test(serialized), 'report leaked key-shaped content')
+    assert(!/OPENAI_API_KEY|TOKENFLUX_API_KEY|sk-[A-Za-z0-9]/.test(serialized), 'report leaked key-shaped content')
     await fs.writeFile(resultPath, serialized, { mode: 0o600 })
     console.log('MilkSU packaged Computer Use agent vision live smoke passed.')
     console.log(`  target: ${targetBundleId} PID ${pid} Window ${targetWindow.window_id}`)

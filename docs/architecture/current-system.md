@@ -155,7 +155,7 @@ flowchart TB
 
 | 层 | 当前实现 | 判定 |
 | --- | --- | --- |
-| L1 Product Surface | Vue 3、`WorkspaceRail`、`ContextSidebar`、CTF/Coding/CVE 页面与设置 | **Partial**：主界面可用，左下全局 rail 已支持主题切换和本机持久化；CVE 学习/追踪 MVP 和多项原生 smoke 已存在；真实 Provider、更多系统权限路径和发行 UI 矩阵仍需按台账验收。 |
+| L1 Product Surface | Vue 3、`WorkspaceRail`、`ContextSidebar`、CTF/Coding/CVE 页面与设置 | **Partial**：主界面可用，左下全局 rail 已支持主题切换和本机持久化；CVE 学习/追踪 MVP 已存在；验收协调器不进入生产启动、Wails 绑定或 Vue 入口；真实 Provider、更多系统权限路径和发行 UI 矩阵仍需按台账验收。 |
 | L2 Application / Role Services | 单一 `App` 组合 `ctf.Service`、`vuln.Service`、Catalog、Memory | **Implemented but concentrated**：接口可用，Facade 未拆。 |
 | L3 Agent / Platform Adapters | Pi Supervisor、Security Supervisor、NSSCTF、CTFshow、Browser Bridge、Playwright MCP、ImageGen、Computer Use、Session Index | **Implemented / Partial**：NSSCTF 主链、隔离 Coding Browser、Computer Use 外部 App slice、Session Index 和 PR 交付已有验收；其余真实 Provider、系统权限失败路径和跨平台 E2E 仍按台账跟踪。 |
 | L4 Domain Contracts | CTF Challenge、RoleFact、AgentCandidate、JudgeReceipt、LearningRecord | **Implemented**。 |

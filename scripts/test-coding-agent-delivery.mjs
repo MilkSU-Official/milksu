@@ -39,6 +39,8 @@ const keepFixture = process.env.MILKSU_KEEP_CODING_FIXTURE === '1'
 const gitFixtureEnabled = process.env.MILKSU_CODING_DELIVERY_GIT_REPO === '1'
 const historyContext = String(process.env.MILKSU_CODING_DELIVERY_HISTORY_CONTEXT || '').trim()
 const historyToken = String(process.env.MILKSU_CODING_DELIVERY_HISTORY_TOKEN || '').trim()
+const fixtureProvider = 'tokenflux'
+const fixtureModel = 'x-ai/grok-4.3'
 const reliabilityBudgets = {
   providerRequests: 30,
   toolCalls: 24,
@@ -292,7 +294,7 @@ function sendSSE(response, sequence, entry, requestBody, usage) {
     id: `fixture-${sequence}`,
     object: 'chat.completion.chunk',
     created: 1,
-    model: requestBody.model ?? 'kimi-k3',
+    model: requestBody.model ?? fixtureModel,
   }
   if (entry.type === 'hang') {
     response.write(`data: ${JSON.stringify({
@@ -461,8 +463,8 @@ function startBridge({ bundlePath, workspace, agentDirectory, baseURL }) {
     env: {
       ...process.env,
       HOME: dirname(workspace),
-      KOURICHAT_API_KEY: 'fixture-only-not-a-secret',
-      KOURICHAT_BASE_URL: baseURL,
+      TOKENFLUX_API_KEY: 'fixture-only-not-a-secret',
+      TOKENFLUX_BASE_URL: baseURL,
       MILKSU_PI_AGENT_DIR: agentDirectory,
       MILKSU_WORKSPACE_RUNTIME: workspaceRuntime,
       MILKSU_BACKGROUND_TASKS_DIR: join(workspaceRuntime, 'background-tasks'),
@@ -529,8 +531,8 @@ function startBridge({ bundlePath, workspace, agentDirectory, baseURL }) {
     command({
       action: 'create_session',
       conversationId,
-      provider: 'kourichat',
-      model: 'kimi-k3',
+      provider: fixtureProvider,
+      model: fixtureModel,
       executionMode,
       approvalPolicy,
     })
@@ -550,8 +552,8 @@ function startBridge({ bundlePath, workspace, agentDirectory, baseURL }) {
     command({
       action: 'send_message',
       conversationId,
-      provider: 'kourichat',
-      model: 'kimi-k3',
+      provider: fixtureProvider,
+      model: fixtureModel,
       executionMode,
       approvalPolicy,
       prompt: text,
@@ -1119,7 +1121,7 @@ async function main() {
         harness: 'MilkSU Coding Runtime',
         bridge: 'current worktree bridge.js bundle',
         provider: 'local OpenAI-compatible fake provider',
-        model: 'kimi-k3',
+        model: fixtureModel,
         conversationId,
         execution: [
           { phase: 'understand', executionMode: 'plan', approvalPolicy: 'workspace-auto' },

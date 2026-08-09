@@ -80,11 +80,17 @@ rg -q "OpenChromeExtensionManager" app/wailsjs/go/main/App.d.ts
 rg -q "RevealBrowserExtension" app/wailsjs/go/main/App.d.ts
 rg -q "sourceTargets" app/wailsjs/go/models.ts
 if rg -qi "smoke" \
+  app.go \
   app/src/App.vue \
   app/src/desktop.ts \
   app/wailsjs/go/main/App.js \
   app/wailsjs/go/main/App.d.ts; then
   echo "Production Vue entrypoints and Wails bindings must not expose smoke controls." >&2
+  exit 1
+fi
+
+if rg --files -g 'app_*_smoke.go' | rg -q .; then
+  echo "Production Go sources must not contain startup smoke coordinators." >&2
   exit 1
 fi
 

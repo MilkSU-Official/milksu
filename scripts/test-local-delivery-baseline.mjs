@@ -21,9 +21,6 @@ const resultPath = join(resultsDirectory, 'local-delivery-baseline.json')
 const startupTimeoutMs = 30_000
 const idleSampleDelayMs = 2_000
 const shutdownTimeoutMs = 10_000
-const sessionIndexSmokeTimeoutMs = 10_000
-const sessionIndexSmokeQuery = 'SessionIndexPackagedSmoke'
-const sessionIndexSmokeSecret = 'package-smoke-session-index-secret-never-log'
 const isolatedInstanceId = `local-delivery-${process.pid}-${Date.now()}`
 const preReleaseThresholds = {
   startupMarkerMs: 5_000,
@@ -89,86 +86,6 @@ async function inspectTree(root) {
     symlinkCount: symlinks,
     largestFiles: files.slice(0, 8),
   }
-}
-
-async function writeSessionIndexSmokeSeed(appDataDirectory) {
-  const conversationsDirectory = join(appDataDirectory, 'conversations')
-  await fs.mkdir(conversationsDirectory, { recursive: true, mode: 0o700 })
-  const toolName = 'packaged_session_index_smoke'
-  const conversation = {
-    id: 'session-index-smoke',
-    title: 'Session Index packaged smoke',
-    createdAt: Date.parse('2026-08-05T00:00:00.000Z'),
-    workspacePath: repositoryRoot,
-    modelId: 'packaged-smoke',
-    messages: [{
-      id: 'user-1',
-      role: 'user',
-      content: `${sessionIndexSmokeQuery} asks MilkSU to recall a packaged history event.`,
-      timestamp: Date.parse('2026-08-05T00:00:01.000Z'),
-    }, {
-      id: 'tool-1',
-      role: 'tool',
-      content: `${sessionIndexSmokeQuery} finished with OPENAI_API_KEY=${sessionIndexSmokeSecret}`,
-      timestamp: Date.parse('2026-08-05T00:00:02.000Z'),
-      toolName,
-      toolCallId: 'session-index-smoke-tool',
-      status: 'done',
-      approvalInput: `{"token":"${sessionIndexSmokeSecret}"}`,
-      durationMs: 42,
-    }],
-  }
-  const path = join(conversationsDirectory, `${conversation.id}.json`)
-  await fs.writeFile(path, `${JSON.stringify(conversation, null, 2)}\n`, { mode: 0o600 })
-  await fs.chmod(path, 0o600)
-  return path
-}
-
-async function waitForSessionIndexSmokeReport(path, child, spawnErrorRef) {
-  const deadline = performance.now() + sessionIndexSmokeTimeoutMs
-  while (!(await exists(path))) {
-    if (spawnErrorRef()) throw spawnErrorRef()
-    if (child.exitCode !== null || child.signalCode !== null) {
-      throw new Error(
-        `packaged App exited before Session Index smoke report (code=${child.exitCode}, signal=${child.signalCode})`,
-      )
-    }
-    assert(
-      performance.now() < deadline,
-      `Session Index smoke report exceeded ${sessionIndexSmokeTimeoutMs} ms`,
-    )
-    await delay(50)
-  }
-  return JSON.parse(await fs.readFile(path, 'utf8'))
-}
-
-function assertSessionIndexSmoke(report, appDataDirectory) {
-  assert(report.schema === 'milksu-session-index-packaged-smoke/v1', 'unexpected Session Index smoke schema')
-  assert(!report.error, `Session Index smoke failed: ${report.error}`)
-  assert(report.query === sessionIndexSmokeQuery, 'Session Index smoke query changed')
-  assert(report.status?.available === true, 'Session Index did not report available in packaged App')
-  assert(report.status?.mode === 'milksu-obelisk-core', 'Session Index packaged mode changed')
-  assert(report.status?.sessionCount >= 1, 'Session Index did not index seeded packaged conversation')
-  assert(report.status?.messageCount >= 2, 'Session Index did not index seeded packaged messages')
-  assert(report.status?.toolCallCount >= 1, 'Session Index did not index seeded packaged tool event')
-  assert(report.resultCount >= 1, 'Session Index packaged search returned no results')
-  assert(report.firstResult?.source === 'milksu-coding', 'Session Index packaged search did not classify Coding source')
-  assert(
-    typeof report.firstResult?.snippet === 'string'
-      && report.firstResult.snippet.includes(sessionIndexSmokeQuery),
-    'Session Index packaged search snippet did not include the query',
-  )
-  assert(
-    report.firstResult.snippet.includes('[credential redacted]'),
-    'Session Index packaged search did not show the redaction marker',
-  )
-  const serialized = JSON.stringify(report)
-  assert(!serialized.includes(sessionIndexSmokeSecret), 'Session Index packaged smoke leaked the fixture secret')
-  const expectedIndexPrefix = join(appDataDirectory, 'session-index') + '/'
-  assert(
-    typeof report.indexPath === 'string' && report.indexPath.startsWith(expectedIndexPrefix),
-    `Session Index path escaped App data directory: ${report.indexPath}`,
-  )
 }
 
 async function readProcessRows() {
@@ -399,9 +316,7 @@ async function main() {
     'com.milksu.app',
   )
   const lifespanPath = join(appDataDirectory, 'lifespan.json')
-  const sessionIndexSmokeReportPath = join(fixtureHome, 'session-index-smoke.json')
   await fs.mkdir(fixtureTemp, { recursive: true, mode: 0o700 })
-  await writeSessionIndexSmokeSeed(appDataDirectory)
 
   let child
   let stdoutBytes = 0
@@ -420,8 +335,6 @@ async function main() {
         LC_ALL: 'en_US.UTF-8',
         MILKSU_ENABLE_MANAGED_LABS: '0',
         MILKSU_INSTANCE_ID: isolatedInstanceId,
-        MILKSU_SESSION_INDEX_SMOKE_QUERY: sessionIndexSmokeQuery,
-        MILKSU_SESSION_INDEX_SMOKE_RESULT: sessionIndexSmokeReportPath,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     })
@@ -452,12 +365,6 @@ async function main() {
     assert(startupState.schema === 'milksu-lifespan/v1', 'unexpected lifespan schema')
     assert(startupState.lastExit === 'running', 'App did not record a running lifespan')
     assert(startupState.pid === child.pid, 'lifespan PID does not match the launched App')
-    const sessionIndexSmoke = await waitForSessionIndexSmokeReport(
-      sessionIndexSmokeReportPath,
-      child,
-      () => spawnError,
-    )
-    assertSessionIndexSmoke(sessionIndexSmoke, appDataDirectory)
 
     await delay(idleSampleDelayMs)
     const rows = processTree(await readProcessRows(), child.pid)
@@ -519,16 +426,6 @@ async function main() {
         stdoutBytes,
         stderrBytes,
       },
-      sessionIndexSmoke: {
-        schema: sessionIndexSmoke.schema,
-        query: sessionIndexSmoke.query,
-        indexPath: sessionIndexSmoke.indexPath,
-        resultCount: sessionIndexSmoke.resultCount,
-        source: sessionIndexSmoke.firstResult?.source,
-        sessionCount: sessionIndexSmoke.status?.sessionCount,
-        messageCount: sessionIndexSmoke.status?.messageCount,
-        toolCallCount: sessionIndexSmoke.status?.toolCallCount,
-      },
       sidecar: sidecarSize,
       frontend: {
         ...frontendSize,
@@ -541,7 +438,6 @@ async function main() {
         startupWithin30Seconds: startupMarkerMs <= startupTimeoutMs,
         preReleasePerformanceThresholds: thresholdsPassed,
         lifespanStartedAndExitedCleanly: true,
-        sessionIndexPackagedSearch: true,
         minimumWindow1080x680: true,
         isolatedNoProviderFirstRun: true,
       },
@@ -555,7 +451,6 @@ async function main() {
     console.log(`  App logical size: ${printableMiB(appSize.bytes)}`)
     console.log(`  packaged Sidecar logical size: ${printableMiB(sidecarSize.bytes)}`)
     console.log(`  frontend dist logical size: ${printableMiB(frontendSize.bytes)}`)
-    console.log(`  Session Index packaged search: ${sessionIndexSmoke.resultCount} result(s)`)
     console.log(`  report: ${relative(repositoryRoot, resultPath)}`)
   } finally {
     if (child && child.exitCode === null && child.signalCode === null) {

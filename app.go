@@ -281,19 +281,6 @@ func (a *App) Startup(ctx context.Context) {
 	a.diagnostics.Record("app", "info", "desktop runtime started")
 	_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedAppInitialized)
 	_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedDesktopRuntimeStarted)
-	a.maybeRunStartupRecoverySmoke()
-	a.maybeRunSessionIndexSmoke()
-	a.maybeRunExternalSessionImportSmoke()
-	a.maybeRunVulnerabilityFeedSmoke()
-	a.maybeRunVulnerabilityFeedMatrixSmoke()
-	a.maybeRunVulnerabilityLearningWritebackSmoke()
-	a.maybeRunVulnerabilityPracticeSmoke()
-	a.maybeRunCodingArtifactPreviewSmoke()
-	a.maybeRunCodingGitDeliverySmoke()
-	a.maybeRunCodingPullRequestSmoke()
-	a.maybeRunCodingPullRequestCreateSmoke()
-	a.maybeRunCodingBackgroundRecoverySmoke()
-	a.maybeRunComputerUseAppSmoke()
 	if a.managedLabs != nil {
 		reconcileContext, cancel := context.WithTimeout(ctx, managedLabReconcileTimeout)
 		if _, err := a.managedLabs.Reconcile(reconcileContext); err != nil {
@@ -312,7 +299,6 @@ func (a *App) Startup(ctx context.Context) {
 		_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedCTFRecoveryFailed)
 		wailsruntime.EventsEmit(ctx, "job-runtime-error", err.Error())
 	}
-	a.maybeRunCTFRecoverySmoke()
 	if err := a.vulnJobs.Recover(ctx); err != nil {
 		a.diagnostics.Record("vuln", "error", "vulnerability job recovery failed")
 		_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedVulnRecoveryFailed)
