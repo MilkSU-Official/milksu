@@ -246,9 +246,16 @@ func TestCodingComposerKeepsOnlyPersistentMessageContextControls(t *testing.T) {
 	composer := string(composerData)
 	for _, expected := range []string{
 		`aria-label="添加内容与工具"`,
+		`文件或图片`,
+		`目标`,
 		`计划模式`,
 		`退出计划模式`,
+		`沙箱浏览器`,
+		`Browser Use`,
 		`Computer Use`,
+		`前端视觉验收`,
+		`data-composer-skill-token`,
+		`项目 MCP`,
 	} {
 		if !strings.Contains(composer, expected) {
 			t.Fatalf("Coding composer plus menu does not expose %q", expected)

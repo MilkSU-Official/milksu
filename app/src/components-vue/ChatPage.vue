@@ -746,8 +746,8 @@ function runSlashCommand(command: string) {
     void runCodingProductAction('review')
     return
   }
-  if (command === 'architecture') {
-    generateArchitecture()
+  if (command === 'browser') {
+    changeContextPanel('browser')
     return
   }
   if (command === 'browser-use') {
@@ -1431,6 +1431,8 @@ watch(
       :workspace-ready="Boolean(workspacePath)"
       :browser-use-ready="browserUseReadyForCurrentTask"
       :computer-use-ready="externalAppUseReadyForCurrentTask"
+      :available-skills="activeSkills"
+      :selected-mcp-servers="selectedMCPServers"
       @send="sendComposerMessage"
       @ctf-action="$emit('ctfAction', $event)"
       @abort="$emit('abort')"

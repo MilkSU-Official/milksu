@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, markRaw, nextTick, ref, watch } from 'vue'
+import { computed, markRaw, nextTick, ref, watch, type Component } from 'vue'
 import {
   Button,
   DropdownMenu,
@@ -22,6 +22,7 @@ import {
   Lightbulb,
   LoaderCircle,
   MessageSquarePlus,
+  Monitor,
   MousePointer2,
   Paperclip,
   Pause,
@@ -56,6 +57,28 @@ interface ComposerGitSummary {
 
 type ComposerScopeToken = 'browser-use' | 'computer-use'
 
+interface ComposerSkillOption {
+  name: string
+  label: string
+  description: string
+  icon: Component
+}
+
+const reviewedComposerSkills: ComposerSkillOption[] = [
+  {
+    name: 'frontend-visual-qa',
+    label: '前端视觉验收',
+    description: '用真实预览与沙箱浏览器检查前端改动',
+    icon: markRaw(ScanSearch),
+  },
+  {
+    name: 'archify',
+    label: '架构图',
+    description: '生成并校验当前系统架构图',
+    icon: markRaw(Route),
+  },
+]
+
 const props = defineProps<{
   running: boolean
   aborting: boolean
@@ -75,6 +98,8 @@ const props = defineProps<{
   workspaceReady?: boolean
   browserUseReady?: boolean
   computerUseReady?: boolean
+  availableSkills?: string[]
+  selectedMcpServers?: string[]
 }>()
 
 const emit = defineEmits<{
@@ -108,9 +133,29 @@ const activeSlashCommandIndex = ref(0)
 const slashQuery = ref<string | null>(null)
 const slashQueryRange = ref<Range | null>(null)
 const scopeToken = ref<ComposerScopeToken | null>(null)
+const skillToken = ref<string | null>(null)
 const hasUnfinishedGoal = computed(() => Boolean(
   props.goal && props.goal.status !== 'complete',
 ))
+const availableSkillOptions = computed(() => {
+  const known = new Map(reviewedComposerSkills.map(skill => [skill.name, skill]))
+  for (const name of props.availableSkills ?? []) {
+    if (!name || known.has(name)) continue
+    known.set(name, {
+      name,
+      label: name,
+      description: '当前会话已审核的 Pi Skill',
+      icon: markRaw(Plug),
+    })
+  }
+  return [...known.values()]
+})
+const selectedMcpDescription = computed(() => {
+  const servers = props.selectedMcpServers ?? []
+  if (!servers.length) return '查看并选择项目中已审核的 MCP 服务'
+  const names = servers.slice(0, 2).join('、')
+  return `${servers.length} 个已接入${names ? `：${names}` : ''}`
+})
 
 const slashCommandCatalog = [
   {
@@ -357,7 +402,7 @@ function removeCodingAttachment(attachment: CodingAttachment) {
 function editorNodeText(node: Node): string {
   if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? ''
   if (!(node instanceof HTMLElement)) return ''
-  if (node.dataset.composerScopeToken) return '\uFFFC'
+  if (node.dataset.composerScopeToken || node.dataset.composerSkillToken) return '\uFFFC'
   if (node.tagName === 'BR') return '\n'
   const text = [...node.childNodes].map(editorNodeText).join('')
   return ['DIV', 'P'].includes(node.tagName) ? `${text}\n` : text
@@ -423,6 +468,9 @@ function syncComposerInput() {
   scopeToken.value = tokenValue === 'browser-use' || tokenValue === 'computer-use'
     ? tokenValue
     : null
+  skillToken.value = messageEditor.value
+    ?.querySelector<HTMLElement>('[data-composer-skill-token]')
+    ?.dataset.composerSkillToken ?? null
   if (composing.value) return
   slashMenuDismissed.value = false
   detectSlashQuery()
@@ -441,9 +489,9 @@ function removeSlashQueryText() {
   draft.value = readComposerText()
 }
 
-function removeScopeToken(refocus = true) {
+function removeInlineToken(selector: string) {
   const editor = messageEditor.value
-  const token = editor?.querySelector<HTMLElement>('[data-composer-scope-token]')
+  const token = editor?.querySelector<HTMLElement>(selector)
   if (token) {
     const next = token.nextSibling
     token.remove()
@@ -451,15 +499,55 @@ function removeScopeToken(refocus = true) {
       next.textContent = next.textContent.slice(1)
     }
   }
+}
+
+function removeScopeToken(refocus = true) {
+  removeInlineToken('[data-composer-scope-token]')
   scopeToken.value = null
   draft.value = readComposerText()
   if (refocus) focusMessageInput()
 }
 
-function insertScopeToken(value: ComposerScopeToken) {
+function removeSkillToken(refocus = true) {
+  removeInlineToken('[data-composer-skill-token]')
+  skillToken.value = null
+  draft.value = readComposerText()
+  if (refocus) focusMessageInput()
+}
+
+function createInlineToken(
+  attribute: 'data-composer-scope-token' | 'data-composer-skill-token',
+  value: string,
+  labelText: string,
+  ariaLabel: string,
+  removeLabel: string,
+  onRemove: () => void,
+) {
+  const token = document.createElement('span')
+  token.className = 'chat-composer__inline-token'
+  token.setAttribute(attribute, value)
+  token.contentEditable = 'false'
+  token.setAttribute('role', 'group')
+  token.setAttribute('aria-label', ariaLabel)
+
+  const label = document.createElement('span')
+  label.textContent = labelText
+  token.append(label)
+
+  const remove = document.createElement('button')
+  remove.type = 'button'
+  remove.className = 'chat-composer__inline-token-remove'
+  remove.setAttribute('aria-label', removeLabel)
+  remove.textContent = '×'
+  remove.addEventListener('mousedown', event => event.preventDefault())
+  remove.addEventListener('click', onRemove)
+  token.append(remove)
+  return token
+}
+
+function insertInlineToken(token: HTMLElement) {
   const editor = messageEditor.value
-  if (!editor) return
-  removeScopeToken(false)
+  if (!editor) return false
 
   const range = slashQueryRange.value ?? document.createRange()
   if (!slashQueryRange.value) {
@@ -468,36 +556,51 @@ function insertScopeToken(value: ComposerScopeToken) {
   }
   range.deleteContents()
 
-  const token = document.createElement('span')
-  token.className = 'chat-composer__inline-token'
-  token.dataset.composerScopeToken = value
-  token.contentEditable = 'false'
-  token.setAttribute('role', 'group')
-  token.setAttribute('aria-label', value === 'browser-use' ? 'Browser Use 已加入' : 'Computer Use 已加入')
-
-  const label = document.createElement('span')
-  label.textContent = `/${value}`
-  token.append(label)
-
-  const remove = document.createElement('button')
-  remove.type = 'button'
-  remove.className = 'chat-composer__inline-token-remove'
-  remove.setAttribute('aria-label', `移除 /${value}`)
-  remove.textContent = '×'
-  remove.addEventListener('mousedown', event => event.preventDefault())
-  remove.addEventListener('click', () => removeScopeToken())
-  token.append(remove)
-
   const spacer = document.createTextNode('\u00a0')
   range.insertNode(spacer)
   range.insertNode(token)
   setCaretAfter(spacer)
 
-  scopeToken.value = value
   slashQuery.value = null
   slashQueryRange.value = null
   draft.value = readComposerText()
+  return true
+}
+
+function insertScopeToken(value: ComposerScopeToken) {
+  removeScopeToken(false)
+  const label = value === 'browser-use' ? 'Browser Use' : 'Computer Use'
+  const token = createInlineToken(
+    'data-composer-scope-token',
+    value,
+    label,
+    label,
+    `移除 /${value}`,
+    () => removeScopeToken(),
+  )
+  if (!insertInlineToken(token)) return
+  scopeToken.value = value
   emit('runSlashCommand', value)
+}
+
+function skillOption(name: string) {
+  return availableSkillOptions.value.find(skill => skill.name === name)
+}
+
+function insertSkillToken(name: string) {
+  removeSkillToken(false)
+  const option = skillOption(name)
+  const label = option?.label ?? name
+  const token = createInlineToken(
+    'data-composer-skill-token',
+    name,
+    `Skill · ${label}`,
+    `${label} Skill 已加入`,
+    `移除 ${label} Skill`,
+    () => removeSkillToken(),
+  )
+  if (!insertInlineToken(token)) return
+  skillToken.value = name
 }
 
 function clearComposerInput() {
@@ -506,6 +609,7 @@ function clearComposerInput() {
   slashQuery.value = null
   slashQueryRange.value = null
   scopeToken.value = null
+  skillToken.value = null
 }
 
 function handleComposerPaste(event: ClipboardEvent) {
@@ -550,8 +654,14 @@ function submit() {
   const text = draft.value.trim()
     || (attachments.length ? '请检查这些附件并完成我接下来需要处理的任务。' : '')
   if (!text || props.running) return
+  const activeSkillToken = skillToken.value ?? undefined
   const prompt = !props.ctfSession && props.goalMode
     ? `/goal ${text}`
+    : activeSkillToken
+      ? `/skill:${activeSkillToken} ${text}`
+      : text
+  const visiblePrompt = activeSkillToken && !props.goalMode
+    ? `使用 ${skillOption(activeSkillToken)?.label ?? activeSkillToken}\n${text}`
     : text
   const activeScopeToken = scopeToken.value ?? undefined
   const scopeReady = activeScopeToken === 'browser-use'
@@ -569,8 +679,8 @@ function submit() {
   clearComposerInput()
   pendingAttachments.value = []
   attachmentError.value = ''
-  if (activeScopeToken) emit('send', prompt, text, attachments, activeScopeToken)
-  else emit('send', prompt, text, attachments)
+  if (activeScopeToken) emit('send', prompt, visiblePrompt, attachments, activeScopeToken)
+  else emit('send', prompt, visiblePrompt, attachments)
   emit('consumeGoal')
 }
 
@@ -611,6 +721,7 @@ function chooseSlashCommand(command = activeSlashCommand.value) {
 
   if (command.id === 'goal') {
     removeScopeToken(false)
+    removeSkillToken(false)
     emit('startGoal')
   }
   else if (command.id === 'plan') emit('changeExecutionMode', 'plan')
@@ -624,13 +735,20 @@ function togglePlanningMode() {
   focusMessageInput()
 }
 
-function runComposerShortcut(command: 'architecture' | 'mcp') {
+function startGoalFromPlus() {
+  removeScopeToken(false)
+  removeSkillToken(false)
+  emit('startGoal')
+  focusMessageInput()
+}
+
+function runComposerShortcut(command: 'browser' | 'mcp') {
   emit('runSlashCommand', command)
   focusMessageInput()
 }
 
-function addComputerUseScope() {
-  insertScopeToken('computer-use')
+function addInteractionScope(value: ComposerScopeToken) {
+  insertScopeToken(value)
 }
 
 function moveSlashCommandSelection(direction: 1 | -1) {
@@ -707,7 +825,7 @@ function appendDraftText(text: string) {
   if (!normalized || props.running) return
   const editor = messageEditor.value
   if (!editor) return
-  if (readComposerText().trim() || scopeToken.value) {
+  if (readComposerText().trim() || scopeToken.value || skillToken.value) {
     editor.append(document.createElement('br'), document.createElement('br'))
   }
   const textNode = document.createTextNode(normalized)
@@ -976,10 +1094,10 @@ defineExpose({
                 <DropdownMenuContent
                   align="start"
                   :side-offset="8"
-                  class="w-[22rem] max-w-[calc(100vw-2rem)] p-1"
+                  class="composer-add-menu w-[31rem] max-w-[calc(100vw-2rem)] p-1"
                 >
                   <DropdownMenuLabel class="px-3 pb-1.5 pt-2 text-caption">
-                    添加到当前任务
+                    添加
                   </DropdownMenuLabel>
                   <DropdownMenuItem class="composer-add-option" @select="chooseCodingAttachments">
                     <Paperclip class="size-4 shrink-0" />
@@ -988,7 +1106,19 @@ defineExpose({
                       <span class="block text-caption text-muted-foreground">复制到 MilkSU 用户数据目录</span>
                     </span>
                   </DropdownMenuItem>
-                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    class="composer-add-option"
+                    :disabled="running || goalMode || hasUnfinishedGoal"
+                    @select="startGoalFromPlus"
+                  >
+                    <Target class="size-4 shrink-0" />
+                    <span class="min-w-0 flex-1">
+                      <span class="block text-label font-medium">目标</span>
+                      <span class="block text-caption text-muted-foreground">
+                        {{ hasUnfinishedGoal ? '当前已有持续目标' : '设置一个持续追踪的目标' }}
+                      </span>
+                    </span>
+                  </DropdownMenuItem>
                   <DropdownMenuItem class="composer-add-option" @select="togglePlanningMode">
                     <Lightbulb class="size-4 shrink-0" />
                     <span class="min-w-0 flex-1">
@@ -1001,20 +1131,59 @@ defineExpose({
                     </span>
                     <Check v-if="executionMode === 'plan'" class="size-4 shrink-0 text-primary" />
                   </DropdownMenuItem>
+                  <DropdownMenuSeparator />
                   <DropdownMenuLabel class="px-3 pb-1.5 pt-2 text-caption">
-                    技能与工具
+                    浏览与控制
                   </DropdownMenuLabel>
                   <DropdownMenuItem
                     class="composer-add-option"
                     :disabled="!workspaceReady"
-                    @select="runComposerShortcut('architecture')"
+                    @select="runComposerShortcut('browser')"
                   >
-                    <Route class="size-4 shrink-0" />
+                    <Monitor class="size-4 shrink-0" />
                     <span class="min-w-0 flex-1">
-                      <span class="block text-label font-medium">生成架构图</span>
-                      <span class="block text-caption text-muted-foreground">使用固定的 Archify Skill</span>
+                      <span class="block text-label font-medium">沙箱浏览器</span>
+                      <span class="block text-caption text-muted-foreground">打开 MilkSU 管理的隔离浏览器</span>
                     </span>
                   </DropdownMenuItem>
+                  <DropdownMenuItem class="composer-add-option" @select="addInteractionScope('browser-use')">
+                    <Globe2 class="size-4 shrink-0" />
+                    <span class="min-w-0 flex-1">
+                      <span class="block text-label font-medium">Browser Use</span>
+                      <span class="block text-caption text-muted-foreground">选择真实浏览器标签页加入本轮输入</span>
+                    </span>
+                    <Check v-if="scopeToken === 'browser-use'" class="size-4 shrink-0 text-primary" />
+                  </DropdownMenuItem>
+                  <DropdownMenuItem class="composer-add-option" @select="addInteractionScope('computer-use')">
+                    <MousePointer2 class="size-4 shrink-0" />
+                    <span class="min-w-0 flex-1">
+                      <span class="block text-label font-medium">Computer Use</span>
+                      <span class="block text-caption text-muted-foreground">选择一个外部 App 窗口加入本轮输入</span>
+                    </span>
+                    <Check v-if="scopeToken === 'computer-use'" class="size-4 shrink-0 text-primary" />
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel class="px-3 pb-1.5 pt-2 text-caption">
+                    Skills
+                  </DropdownMenuLabel>
+                  <DropdownMenuItem
+                    v-for="skill in availableSkillOptions"
+                    :key="skill.name"
+                    class="composer-add-option"
+                    :disabled="!workspaceReady"
+                    @select="insertSkillToken(skill.name)"
+                  >
+                    <component :is="skill.icon" class="size-4 shrink-0" />
+                    <span class="min-w-0 flex-1">
+                      <span class="block text-label font-medium">{{ skill.label }}</span>
+                      <span class="block text-caption text-muted-foreground">{{ skill.description }}</span>
+                    </span>
+                    <Check v-if="skillToken === skill.name" class="size-4 shrink-0 text-primary" />
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel class="px-3 pb-1.5 pt-2 text-caption">
+                    MCP
+                  </DropdownMenuLabel>
                   <DropdownMenuItem
                     class="composer-add-option"
                     :disabled="!workspaceReady"
@@ -1023,16 +1192,9 @@ defineExpose({
                     <Plug class="size-4 shrink-0" />
                     <span class="min-w-0 flex-1">
                       <span class="block text-label font-medium">项目 MCP</span>
-                      <span class="block text-caption text-muted-foreground">查看并选择已审核的项目服务</span>
+                      <span class="block truncate text-caption text-muted-foreground">{{ selectedMcpDescription }}</span>
                     </span>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem class="composer-add-option" @select="addComputerUseScope">
-                    <MousePointer2 class="size-4 shrink-0" />
-                    <span class="min-w-0 flex-1">
-                      <span class="block text-label font-medium">Computer Use</span>
-                      <span class="block text-caption text-muted-foreground">选择一个外部 App 窗口加入本轮输入</span>
-                    </span>
+                    <Check v-if="selectedMcpServers?.length" class="size-4 shrink-0 text-primary" />
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -1167,6 +1329,12 @@ defineExpose({
   align-items: center;
   gap: 0.75rem;
   padding: 0.55rem 0.75rem;
+}
+
+.composer-add-menu {
+  max-height: min(38rem, calc(100vh - 10rem));
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .chat-composer__island {

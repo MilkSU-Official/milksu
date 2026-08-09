@@ -238,23 +238,50 @@ describe('ChatComposer', () => {
 
   })
 
-  it('exposes attachments, planning, a fixed Skill, MCP, and Computer Use from plus', async () => {
-    const result = mountComposer({ workspaceReady: true })
+  it('exposes task state, browsers, reviewed Skills, MCP, and Computer Use from plus', async () => {
+    const result = mountComposer({
+      workspaceReady: true,
+      availableSkills: ['custom-reviewed'],
+      selectedMcpServers: ['github'],
+    })
     await nextTick()
 
     result.host.querySelector<HTMLButtonElement>('[aria-label="添加内容与工具"]')?.click()
     await nextTick()
     expect(document.body.textContent).toContain('文件或图片')
+    expect(document.body.textContent).toContain('目标')
     expect(document.body.textContent).toContain('计划模式')
-    expect(document.body.textContent).toContain('Archify Skill')
-    expect(document.body.textContent).toContain('项目 MCP')
+    expect(document.body.textContent).toContain('沙箱浏览器')
+    expect(document.body.textContent).toContain('Browser Use')
     expect(document.body.textContent).toContain('Computer Use')
+    expect(document.body.textContent).toContain('前端视觉验收')
+    expect(document.body.textContent).toContain('架构图')
+    expect(document.body.textContent).toContain('custom-reviewed')
+    expect(document.body.textContent).toContain('项目 MCP')
+    expect(document.body.textContent).toContain('1 个已接入：github')
 
+    const sandboxBrowserItem = [...document.querySelectorAll<HTMLDivElement>('[role="menuitem"]')]
+      .find(item => item.textContent?.includes('沙箱浏览器'))
+    sandboxBrowserItem?.click()
+    await nextTick()
+    expect(result.slashCommandActions).toEqual(['browser'])
+
+    result.host.querySelector<HTMLButtonElement>('[aria-label="添加内容与工具"]')?.click()
+    await nextTick()
     const planItem = [...document.querySelectorAll<HTMLDivElement>('[role="menuitem"]')]
       .find(item => item.textContent?.includes('计划模式'))
     planItem?.click()
     await nextTick()
     expect(result.executionModes).toEqual(['plan'])
+
+    result.host.querySelector<HTMLButtonElement>('[aria-label="添加内容与工具"]')?.click()
+    await nextTick()
+    const browserItem = [...document.querySelectorAll<HTMLDivElement>('[role="menuitem"]')]
+      .find(item => item.textContent?.includes('Browser Use'))
+    browserItem?.click()
+    await nextTick()
+    expect(composerEditor(result.host).querySelector('[data-composer-scope-token="browser-use"]'))
+      .not.toBeNull()
 
     result.host.querySelector<HTMLButtonElement>('[aria-label="添加内容与工具"]')?.click()
     await nextTick()
@@ -264,7 +291,47 @@ describe('ChatComposer', () => {
     await nextTick()
     expect(composerEditor(result.host).querySelector('[data-composer-scope-token="computer-use"]'))
       .not.toBeNull()
-    expect(result.slashCommandActions).toEqual(['computer-use'])
+    expect(result.slashCommandActions).toEqual(['browser', 'browser-use', 'computer-use'])
+
+    result.host.querySelector<HTMLButtonElement>('[aria-label="添加内容与工具"]')?.click()
+    await nextTick()
+    const mcpItem = [...document.querySelectorAll<HTMLDivElement>('[role="menuitem"]')]
+      .find(item => item.textContent?.includes('项目 MCP'))
+    mcpItem?.click()
+    await nextTick()
+    expect(result.slashCommandActions).toEqual(['browser', 'browser-use', 'computer-use', 'mcp'])
+  })
+
+  it('adds a reviewed Pi Skill to the draft and expands it only when the user sends', async () => {
+    const result = mountComposer({ workspaceReady: true })
+    await nextTick()
+
+    result.host.querySelector<HTMLButtonElement>('[aria-label="添加内容与工具"]')?.click()
+    await nextTick()
+    const skillItem = [...document.querySelectorAll<HTMLDivElement>('[role="menuitem"]')]
+      .find(item => item.textContent?.includes('前端视觉验收'))
+    skillItem?.click()
+    await nextTick()
+
+    const editor = composerEditor(result.host)
+    expect(editor.querySelector('[data-composer-skill-token="frontend-visual-qa"]'))
+      .not.toBeNull()
+    expect(result.sent).toEqual([])
+    expect(result.slashCommandActions).toEqual([])
+
+    editor.append(document.createTextNode('检查设置页的窄屏布局'))
+    editor.dispatchEvent(new Event('input', { bubbles: true }))
+    result.host.querySelector('form')?.dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true }),
+    )
+    await nextTick()
+
+    expect(result.sent).toEqual([[
+      '/skill:frontend-visual-qa 检查设置页的窄屏布局',
+      '使用 前端视觉验收\n检查设置页的窄屏布局',
+      [],
+    ]])
+    expect(editor.querySelector('[data-composer-skill-token]')).toBeNull()
   })
 
   it('filters slash commands and emits an existing product action instead of sending command text', async () => {
@@ -305,7 +372,7 @@ describe('ChatComposer', () => {
 
     const token = editor.querySelector<HTMLElement>('[data-composer-scope-token="browser-use"]')
     expect(token).not.toBeNull()
-    expect(token?.textContent).toContain('/browser-use')
+    expect(token?.textContent).toContain('Browser Use')
     expect(result.slashCommandActions).toEqual(['browser-use'])
     expect(result.sent).toEqual([])
 
