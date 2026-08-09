@@ -4,11 +4,11 @@
 >
 > 最后事实审计：2026-08-09
 >
-> 产品开发目标：Post-M3 product-loop merge；下一批次从当前目标、代码和测试事实选择
+> 产品开发目标：Post-M3 / M4 自举与隔离执行
 
 ## 事实优先级
 
-文档出现冲突时，按以下顺序判断：
+文档冲突时按此顺序：
 
 1. 当前代码、自动化测试、打包 Sidecar、原生 App 和真实平台回执；
 2. [当前开发目标](/developer/current-objectives)；
@@ -16,47 +16,38 @@
 4. Target/Designed 文档；
 5. Evidence、Historical、Research 和 Design Snapshot。
 
-历史文档里的“下一步”“未完成”“M2/M3/R0.x”不构成当前任务。M3 product-loop PR #1 已于
-2026-08-05 squash merge 到 `main`；`product-loop-sprint.md` 现在是已完成冲刺摘要，不再表示
-同一 PR 仍未合并。旧百分比台账已退休；后续工作从当前目标、代码、测试和真实验收中选择
-有界批次。
+历史文档里的“下一步”“未完成”“M2/M3/R0.x”不构成当前任务。M3 product-loop 已于
+2026-08-05 squash merge；旧百分比台账已退休。后续只从当前目标、代码、测试和真实验收
+选有界批次。
 
 ## 当前准确声明
 
-- Coding 的工程底座已经覆盖普通修改、构建测试、LSP、Artifact 预览、隔离 Browser、
-  后台任务、Git、PR 预览/发布确认、worktree、ImageGen、Project MCP、Session Index 和
-  Computer Use 外部 App/窗口纵切。注册 writer worktree 已统一文件工具与终端写入边界，
-  `.worktreeinclude` 通过平台 copy-on-write 优先复制 ignored 本地环境，并从主工作区精确初始化
-  已有 submodule；writer 不再读取或修改主依赖目录。打包构建和 Sidecar smoke 已通过。真实外部
-  Provider 质量、会话自动 worktree 交互、长期主工作区自改、自主合并发布、完整审批矩阵和发行
-  门禁仍未通过。
-- CTF 的 Intake、工作区、Evidence、候选、Judge、Checkpoint、恢复、复盘和 Memory 主链
-  已存在；NSSCTF P3879 有一条真实 `correct=true`，但六赛道仍只有 Web 窄路径通过。
-- 动态 Endpoint 和精确 HTTP/TCP/SSH Scope 主链已落地，后续只在真实赛道中保持回归；
-  不能恢复旧的 Endpoint 开发计划。
-- Memory 已有归属模型和相关/无关/当前题召回自动化；actor / assistance 现已直接持久化并跨重启保持一致，旧无归因 pre-release 数据不迁移。尚缺真实轨迹校准和用户可解释闭环。
-- Runtime Reliability fixture 已覆盖多轮工具、Sidecar 恢复、Compaction、超时/取消、预算、
-  失败分类、异常退出标记和打包 App/WebView 后台长任务恢复；交互式 PTY 重连、更多真实长任务
-  和发行级恢复矩阵仍未通过。
-- 模型与凭据设置已经从多路由编排收敛为单默认模型；DeepSeek V4 Flash 是默认日常模型，
-  TokenFlux 是一等中转站入口，旧 fast/deep 按角色路由与 Kimi/KouriChat 产品入口不再作为
-  当前系统能力维护；Coding、CTF 和 sub-agent Sidecar 共用同一份当前 Provider 注册。
-- CVE 正式资产验证和学习记录只来自 Vuln Runtime；localStorage 只保存未提交草稿和纯 UI 偏好。
-- WebView 已撤出假桌面后端；无 Wails Runtime 时命令直接失败。Session Index 只索引 MilkSU 自有历史，
-  无产品调用者的多格式外部会话导入已撤出发行图。
-- UI 基线已包含全局 rail 主题切换：夜间灰绿色安全工作台与日间浅灰绿实验室共享同一语义
-  token，左下主题和设置入口使用纯图标控制，rail 悬浮不改变边框颜色，状态持久化到本机；
-  全局正文采用 400/500/600/700 标准字重阶梯；Coding 左侧任务树与中央会话已各提升一个语义字号层级；共享 Button 文字统一使用 label（13px）和 medium（500），不改变按钮高度和点击热区，左上新建任务不再比全局按钮小一档；
-  Coding 持续目标通过 Composer `/` 菜单进入，目标与真实 Git 摘要显示在输入框上方，不再占用
-  右侧环境栏；后续视觉调整仍需同步测试与当前文档。
-- NYU one-shot 与两回合只读 Runtime 只是 safe-static 开发者 smoke，不是完整 MilkSU CTF
-  成绩。
-- 本地备份、恢复、脱敏诊断和单机交付基线已存在；Developer ID、公证、升级和新机器安装
-  属于后期 Release Candidate。
-- Lab 为 `Paused / Designed`，生产代码、Wails 入口和打包资源均已移除，不进入当前完成条件。CVE 已有学习/追踪 MVP；CVE 纵深研究、
-  真实漏洞复现、外部资产实验和披露流程仍后置。
+- 阶段是 **Post-M3 / M4 自举与隔离执行**。M4 不是未合并 PR，而是会话在隔离 worktree 内完成
+  自然任务并交付。
+- Coding 工程底座已覆盖修改/测试、LSP、Artifact、隔离 Browser、后台任务、Git、PR 确认、
+  worktree、ImageGen、Project MCP、Session Index、Computer Use 外部 App 纵切。
+- Worktree 隔离与写入边界、`.worktreeinclude` CoW、精确 submodule 已落地；writer 不读写主依赖。
+  **交互仍是协作面板手工准备**；会话不会自动拥有执行环境。
+- **Grok 看图已通过**：打包 App + TokenFlux 真实 `grok-4.5` 原生 image input；中文识别任务列表、
+  进度胶囊和输入栏，且未调用工具。`grok-4.3` 仍为 text-only。text-only 路径继续 OCR + 可选
+  auxiliary vision。
+- **真实 Grok 自举小纵切已部分跑通**：自然提示 → writer 只改三份 Current 文档 → reviewer 纠错 →
+  返工完成。功能代码、测试、恢复和 Git 交付尚未覆盖；不要写成自举完全未开始。
+- **实测缺口**：输入框上方 Git 变更摘要看不到 writer 的三文件改动；活跃 worktree 变更尚未进入
+  Goal/Composer 投影。
+- Computer Use 有 Calculator Scope 的 observe/click 切片与工具截图辅助视觉；Browser 与
+  Computer Use 仍分离。更广 App 矩阵、权限失败路径、Developer ID / TCC 复检未完成。
+- 完整自然任务自举（功能代码/测试/恢复/Git 交付）、人工接管账本、自主合并发布和发行门禁仍未通过。
+- 模型与凭据：单默认模型；DeepSeek V4 Flash 日常默认；TokenFlux 一等中转；Coding/CTF/sub-agent
+  共用 Provider 注册。
+- CTF 主链存在；真实 Judge 成功仍只有窄 Web 路径。Memory actor/assistance 已持久化；尚缺真实
+  轨迹校准。Runtime Reliability fixture 已有；发行级恢复矩阵未过。
+- CVE 正式事实只来自 Vuln Runtime；WebView 无假后端；Session Index 只索引 MilkSU 自有历史。
+- UI：rail 主题/设置、Coding Goal 在 Composer `/`、字重与字号层级已收敛。
+- Labs 暂停；CVE 纵深/复现/披露后置；NYU safe-static 不是完整 CTF 成绩；Developer ID/公证属 RC。
 
-不再维护动态百分比台账；实现进展以当前代码、测试、Git 历史和真实验收为准。
+Current 入口只保留事实与下一条完成线。历史 smoke、已删脚本路径和流水验收见 Evidence /
+Git history，不堆本页。
 
 ## 文档生命周期
 
@@ -65,23 +56,21 @@
 | **Current** | 当前事实、目标和资源边界 | `current-objectives.md`、本页、`current-system.md`、`pi-resource-whitelist.md` |
 | **Target** | 稳定领域和架构原则，不表示全部实现 | `developer/architecture.md`、`security-agent-boundary.md`、`role-packages.md` |
 | **Evidence** | 可复跑 Runbook 或一次真实验收记录 | `*-acceptance.md`、`local-delivery-baseline.md`、`nyu-ctf-bench-eval.md` |
-| **Retired Summary** | 已压缩的旧台账、工作簿和冲刺流水，只保留考古入口 | `objective-coverage-ledger.md`、`objective-review-workbook.md`、`product-loop-sprint.md`、`product-loop-sprint-acceptance.md` |
-| **Long-term Design / Partially Implemented** | 长期产品设计摘要，部分被当前 MVP 覆盖 | `cve-research-workbench-design.md`、`security-learning-and-research-platform.md` |
-| **Paused / Design Summary** | 已冻结的未来产品设计摘要 | `ctf-labs-design.md`、`lab-management.md` |
-| **Historical** | 当时的 ADR、Checkpoint、Review、Spike 和迁移原因 | `developer/adr/*`、`developer/checkpoints/*`、带日期 Review、`spikes/*` |
-| **Research** | 外部项目、许可证和方案输入 | `developer/research/*`、`industry-baseline.md`；包括 Wallbreaker 静态对照 |
-| **Design Snapshot** | 某次视觉参考、审计和验收证据 | `design/audits/*`、`design-qa.md`、`docs/design/*` |
-| **Vendored / External** | 上游原文或执行契约，不按 MilkSU 进度重写 | `third_party/*`、`packages/ui/*`、测试 fixture、Skill 内部参考 |
+| **Retired Summary** | 已压缩旧台账/冲刺流水，只保留考古入口 | `objective-coverage-ledger.md`、`objective-review-workbook.md`、`product-loop-sprint.md`、`product-loop-sprint-acceptance.md` |
+| **Long-term Design / Partially Implemented** | 长期设计摘要，部分被 MVP 覆盖 | `cve-research-workbench-design.md`、`security-learning-and-research-platform.md` |
+| **Paused / Design Summary** | 已冻结未来设计 | `ctf-labs-design.md`、`lab-management.md` |
+| **Historical** | 当时的 ADR、Checkpoint、Review、Spike | `developer/adr/*`、`developer/checkpoints/*`、带日期 Review、`spikes/*` |
+| **Research** | 外部项目与方案输入 | `developer/research/*`、`industry-baseline.md` |
+| **Design Snapshot** | 视觉参考与验收证据 | `design/audits/*`、`design-qa.md`、`docs/design/*` |
+| **Vendored / External** | 上游原文，不按 MilkSU 进度重写 | `third_party/*`、`packages/ui/*`、fixture、Skill 内部参考 |
 
 ## 维护规则
 
-1. Current 文档只写当前可验证事实，不保留已被取代的临时计划；
-2. Target 文档描述不变量，不维护动态完成度；
-3. Evidence 文档保留原始日期、版本和范围，不把一次结果外推；
-4. Historical/Research/Design 文档只增加状态和 successor，不反向篡改当时内容；
-5. Paused 文档必须在首屏写明未启用；
+1. Current 只写当前可验证事实与下一条完成线，不堆历史 smoke 清单；
+2. Target 描述不变量，不维护动态完成度；
+3. Evidence 保留原始日期、版本和范围，不外推；
+4. Historical/Research/Design 只加状态和 successor，不篡改当时内容；
+5. Paused 文档首屏写明未启用；
 6. 外部或 vendored 文档不替 MilkSU 改写；
-7. 开发过程中只更新测试、回执、Checkpoint 和必要 ADR；最终发布声明在所有 Gate 通过后
-   统一更新。
-8. 文档压缩单独成批处理：先保证 Current/入口文档不误导执行，再把冗余过程记录合并为短入口
-   和 Evidence 索引；不要在功能修复中顺手大规模搬迁历史证据。
+7. 开发中只更新测试、回执、Checkpoint 和必要 ADR；发布声明在 Gate 通过后统一更新；
+8. 文档压缩单独成批：先保证 Current 不误导执行，再合并冗余过程记录。
