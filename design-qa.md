@@ -132,6 +132,9 @@ final result: passed
 - Browser-rendered implementation:
   - `/tmp/milksu-goal-composer-ui-evidence/goal-composer-active.png`
   - `/tmp/milksu-goal-composer-ui-evidence/goal-composer-menu.png`
+- Final packaged Wails App:
+  - `/tmp/milksu-final-qa/slash-menu-native.png`
+  - `/tmp/milksu-final-qa/slash-menu-comparison.png`
 - Browser viewport and implementation pixels: `1280 × 720`, device scale 1.
 - Source pixels: `1236 × 814` for Goal progress; `1246 × 1048` for slash commands.
 - CSS size and density normalization: no resampling. The source screenshots are focused Codex App
@@ -184,6 +187,9 @@ No actionable P0, P1, or P2 finding remains.
   while retaining responsive wrapping for genuinely narrow containers.
 - Pass 2 — passed: the final `1280 × 720` capture shows the real iteration/Git pill on the left and
   the active Goal panel on the right. The slash menu capture confirms the separate overlay state.
+- Pass 3 — passed: the rebuilt, self-signed Wails App shows the same slash entry above the live
+  Composer, with the right Environment page free of a second Goal control. The source and native
+  screenshot were inspected together in `slash-menu-comparison.png`.
 
 **Primary Interactions Tested**
 
