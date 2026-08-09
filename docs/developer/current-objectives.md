@@ -55,6 +55,7 @@
 | P0 | Session Index | 继续内置 MilkSU 自有历史索引；外部会话导入在有明确文件选择、确认和产品调用者前不进发行图。 |
 | P0 | CVE 学习/追踪扩样 | 更多真实 CVE 验证同步、练习、研究档案、资产验证和学习写回；不做外部攻击、自动 PoC 或披露。 |
 | P1 | Computer Use 扩样 | Calculator 之外再加 1–2 个真实 App/窗口、权限拒绝路径；稳定 Developer ID 后复检 TCC。不与 Browser 强行合并权限。 |
+| P1 | Coding 终端与右栏交互收敛 | 终端使用高频直接入口：在顶部“右侧栏”按钮左侧提供独立终端按钮，点击直接打开终端，不要求先从右栏页面下拉菜单寻找。终端空状态只保留必要状态和“新建 Shell”动作，删除“下一步 / 新建项目 Shell”说明卡以及“交互式 Shell 不跨 App 重启恢复 / 旧 PTY 不可重连 / 后台任务中恢复”等重复教学文案；跨重启边界放到帮助或必要时错误提示，不常驻占据工作面。右栏开关在同一界面只出现一次：打开右栏后不得在中央顶栏和右栏标题栏同时显示两个同义按钮。须用重新打包的原生 App 验收关闭态、打开态、终端直达和空 Shell 四种状态。 |
 | P1 | 安全工具 MCP 常规能力 | 先在 Coding Agent 中接入 IDA Pro/idalib、Burp Suite、radare2、Ghidra、Semgrep 等固定版本、可审阅的安全工具 MCP，形成普通的安装、启用、健康检查、版本/Schema 审阅、Scope、审批与证据回执能力，而不是一次性 smoke。设置页管理已审阅服务，Composer “+”只选择已启用服务；是否进入 CTF/CVE 由后续用户监督的领域纵切单独决定。 |
 | P1 | 内嵌沙箱浏览器 | macOS ARM64 先用官方 CEF 二进制/示例做有界原型：右栏原生 Chromium View、独立 profile、用户直接交互、Agent 共用同一会话/CDP；同时通过 CEF helper/framework/resources、签名与打包验收。先验证最小 NSView/Wails 适配，不以换掉整个 Wails 壳或引入第二套 GUI 框架开局。 |
 | P1 | MilkSU Beta 自举 | 稳定版只从源码构建并启动另一份 `MilkSU Beta`；使用不同产品名、图标标记、Bundle ID、数据目录与 TCC 身份，再由稳定版 Computer Use 操作 Beta。禁止稳定版控制自己或让两份 App 共享状态/权限。 |
