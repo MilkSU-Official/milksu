@@ -33,4 +33,12 @@ describe('global style contract', () => {
     expect(indexCss).toContain('font-weight: var(--font-weight-normal)')
     expect(indexCss).toContain('-webkit-font-smoothing: auto')
   })
+
+  it('keeps the day-mode workspace and desktop chrome on a neutral white base', () => {
+    const lightTheme = indexCss.match(/:root\[data-theme='light'\]\s*\{([\s\S]*?)\n\}/)?.[1]
+
+    expect(lightTheme).toContain('--background: #ffffff')
+    expect(lightTheme).toContain('--background-chrome: #ffffff')
+    expect(lightTheme).toContain('--sidebar: #ffffff')
+  })
 })

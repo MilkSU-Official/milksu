@@ -120,8 +120,8 @@
 :root[data-theme='light'] {
   color-scheme: light;
 
-  --background: #f4f6f1;
-  --background-chrome: #eef3ea;
+  --background: #ffffff;
+  --background-chrome: #ffffff;
   --foreground: #17201b;
   --card: #ffffff;
   --card-foreground: #17201b;
@@ -140,7 +140,7 @@
   --border-menu-elevated: #b9c9ae;
   --input: #c4d1ba;
   --ring: #5f9800;
-  --sidebar: #eef3ea;
+  --sidebar: #ffffff;
   --sidebar-foreground: #17201b;
   --sidebar-border: #d7e1d0;
   --sidebar-accent: var(--overlay-hover);

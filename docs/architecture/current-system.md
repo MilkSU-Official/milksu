@@ -42,7 +42,7 @@ flowchart LR
 | 边界 | 状态 | 代码证据 |
 | --- | --- | --- |
 | Wails 本地桌面宿主 | **Implemented** | `main.go` 只绑定一个 `App`，静态资源来自 `app/dist`。 |
-| Vue 产品表面 | **Implemented / Partial** | `app/src/App.vue` 组合 CTF、Coding、CVE 工作区与设置；左侧 rail 提供全局工作区、能力画像、设置和夜间/日间主题切换；Coding 采用中央会话、右侧动态页面、统一 Composer “+”能力入口和独立 Bottom Dock。顶部 Bottom Dock 开关位于右栏开关左侧；终端横跨中央会话与右栏下方，不属于右栏页面，两者可以同时打开或独立关闭。CTF 默认解题模式与复盘模式分离，CVE 已有学习/追踪与练习入口。 |
+| Vue 产品表面 | **Implemented / Partial** | `app/src/App.vue` 组合 CTF、Coding、CVE 工作区与设置；左侧 rail 提供全局工作区、能力画像、设置和夜间/日间主题切换，日间模式的主工作区、桌面 chrome 与 rail 使用中性纯白底；Coding 采用中央会话、右侧动态页面、统一 Composer “+”能力入口和独立 Bottom Dock。顶部 Bottom Dock 开关位于右栏开关左侧；终端横跨中央会话与右栏下方，不属于右栏页面，两者可以同时打开或独立关闭。CTF 默认解题模式与复盘模式分离，CVE 已有学习/追踪与练习入口。 |
 | Pi 通用 Agent | **Verified core / Partial extensions** | `bridge.js` 使用 Pi SessionManager、工具事件和持久会话；Plan/Go、权限档位、Archify、LSP、后台任务、Session Index、PR 交付和 Compaction 已有真实或专项证据。模型选择已收敛为单默认模型；Coding、CTF 和 sub-agent Sidecar 共用当前 Provider 注册，TokenFlux 是一等中转站，KouriChat 分支已移除。TokenFlux `grok-4.5` 打包 App 真看图已通过；真实 Grok 文档小纵切已跑通，功能代码/测试/恢复/Git 交付仍未覆盖。 |
 | CTF Runtime | **Implemented** | `internal/ctf` 将 Challenge、Agent Turn、Candidate、Judge Receipt、Debrief 投影到共享 Runtime。 |
 | 浏览器平台 Judge | **Implemented** | `internal/browsercap` 只接受明确配对页，NSSCTF/CTFshow 回执进入 Go Host。 |
