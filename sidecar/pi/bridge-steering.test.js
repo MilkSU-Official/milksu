@@ -5,8 +5,8 @@ import { projectSteeringQueue, steerSession } from "./bridge-steering.js";
 test("delegates running guidance to Pi steering semantics", async () => {
   const calls = [];
   const sessions = new Map([["coding-1", {
-    async prompt(message, options) {
-      calls.push({ message, options });
+    async steer(message) {
+      calls.push(message);
     },
   }]]);
 
@@ -15,10 +15,7 @@ test("delegates running guidance to Pi steering semantics", async () => {
     prompt: "先保留当前修改，再检查失败测试。",
   });
 
-  assert.deepEqual(calls, [{
-    message: "先保留当前修改，再检查失败测试。",
-    options: { streamingBehavior: "steer" },
-  }]);
+  assert.deepEqual(calls, ["先保留当前修改，再检查失败测试。"]);
 });
 
 test("rejects steering without an existing Pi session", async () => {

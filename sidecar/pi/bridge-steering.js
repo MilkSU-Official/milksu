@@ -16,11 +16,13 @@ export async function steerSession(sessions, command) {
   if (!session) throw new Error(`PI session not found: ${conversationId}`);
   const message = normalizedSteeringMessage(command?.prompt);
 
-  // Pi owns streaming and queue semantics. `streamingBehavior: "steer"`
-  // delivers after the current assistant turn finishes its tool-call batch,
-  // before the next model call; when the session has just become idle, Pi can
-  // start the message normally without a second MilkSU queue implementation.
-  await session.prompt(message, { streamingBehavior: "steer" });
+  // Pi owns streaming and queue semantics. Use its dedicated API instead of
+  // prompt(..., { streamingBehavior: "steer" }): during the small window where
+  // AgentSession has not yet projected isStreaming but the underlying agent is
+  // already processing, prompt() falls through and is rejected as a concurrent
+  // prompt. steer() queues directly after the active tool batch and before the
+  // next model call.
+  await session.steer(message);
 }
 
 export function projectSteeringQueue(event, limit = 8) {
