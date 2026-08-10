@@ -2,34 +2,34 @@
 const layers = [
   {
     id: 'L1',
-    name: 'Product Surface',
-    description: 'Vue + Memoh UI · CTF / CVE / Coding',
-    references: 'macOS Wails 桌面产品；Labs 当前不作为可用入口',
+    name: 'Desktop Surface',
+    description: 'macOS first / Windows later',
+    references: '参考 PentAGI、Agentic SOC 的运行与案件视图',
   },
   {
     id: 'L2',
-    name: 'Workspace / Role',
-    description: 'CTF · Coding · Vulnerability Research',
-    references: 'CTF 窄路径已验；Coding 核心已验；CVE/Labs 暂停',
+    name: 'Role Packages',
+    description: 'CTF / Vuln / Red / Blue / AppSec / Malware',
+    references: '目标、长期状态、Evidence 与 Evaluator',
   },
   {
     id: 'L3',
-    name: 'Agent + Adapters',
-    description: 'Pi · NSSCTF · CTFshow · Browser Bridge · NYU Eval',
-    references: '普通 Coding 与 CTF 使用不同资源和权限策略',
+    name: 'Capability Packages',
+    description: 'Source / Web / Net / Binary / Mobile / Forensics / Fuzz',
+    references: '接入 CodeQL、Burp、Ghidra、HexStrike MCP',
   },
   {
     id: 'L4',
     name: 'Shared Security Runtime',
     description: 'Environment / Evidence / Effect / Evaluator / Trace / Recovery',
-    references: 'Event Store · Artifact · Judge · Projection · Memory',
+    references: '学习 BoxPwnr、PentAGI、Taskflow、Shannon',
     verified: true,
   },
   {
     id: 'L5',
-    name: 'Local Foundation',
-    description: 'Wails Host · Pi Sidecar · SQLite · Workspace',
-    references: 'Provider Key 只注入所需进程；数据保存在用户目录',
+    name: 'Agent Engine',
+    description: 'Pi / Codex Core / Model APIs / Optional External Runtimes',
+    references: '复用通用 Loop；MilkSU 改造为自己的 Security Harness',
   },
   {
     id: 'L6',
@@ -40,12 +40,12 @@ const layers = [
 ]
 
 const roles = [
-  { name: 'CTF', projects: '真实 NSSCTF → Pi → Judge → Debrief', relation: 'Verified narrow / Active' },
-  { name: 'Coding', projects: 'Plan/Go · Pi Resources · 项目交付', relation: 'Verified core / Active' },
-  { name: 'NYU Eval', projects: 'Safe-static one-shot + Digest Judge', relation: 'Developer-only / Verified narrow' },
-  { name: 'Foundation', projects: 'UI · Markdown · Migration · Release', relation: 'Active' },
-  { name: 'Labs', projects: 'Juice Shop · WebGoat · Vulhub', relation: 'Designed / Paused' },
-  { name: 'CVE', projects: '情报 · 资产 · Evidence · Disclosure', relation: 'Designed / Paused' },
+  { name: 'CTF', projects: 'BoxPwnr · CAI', relation: 'Benchmark / 学习' },
+  { name: 'Vuln', projects: 'ARTEMIS · Taskflow + CodeQL', relation: 'Benchmark / 接入' },
+  { name: 'Red', projects: 'CAI · PentAGI · Strix · ARTEMIS', relation: '外部 Worker / 学习' },
+  { name: 'Blue', projects: 'Agentic SOC', relation: '学习 Case / Evidence' },
+  { name: 'AppSec', projects: 'Shannon · Taskflow + CodeQL', relation: '外部 Worker / 接入' },
+  { name: 'Malware', projects: 'Assemblyline · CAPEv2 · capa · AgentRE-Bench', relation: '候选：学习 / 接入 / Benchmark' },
 ]
 </script>
 
@@ -54,10 +54,10 @@ const roles = [
     <main class="boundary-canvas">
       <header class="boundary-intro">
         <div>
-          <h1>MilkSU：授权安全学习与研究工作台</h1>
-          <p>R0.4 当前聚焦 CTF 真实闭环、Coding 日常交付和内部模型评测；Labs/CVE 已设计但暂停。</p>
+          <h1>MilkSU：一站式网络安全 AI 学习客户端</h1>
+          <p>人与安全 Agent 共同学习、实验、验证与复盘的桌面客户端。</p>
         </div>
-        <a class="deep-link" href="/developer/document-status">当前任务与状态 <span>→</span></a>
+        <a class="deep-link" href="/developer/security-agent-boundary">架构与能力边界 <span>→</span></a>
       </header>
 
       <div class="boundary-board">
@@ -128,8 +128,8 @@ const roles = [
         </div>
 
         <section class="architecture-figure" aria-labelledby="architecture-title">
-          <h2 id="architecture-title" class="boundary-sr-only">MilkSU 当前六层边界与工作流状态</h2>
-          <p class="architecture-note">Current、Designed 与 Paused 严格分开</p>
+          <h2 id="architecture-title" class="boundary-sr-only">MilkSU 六层、六角色与开源项目坐标</h2>
+          <p class="architecture-note">项目是候选关系，不是默认依赖</p>
 
           <div class="architecture-body">
             <ol class="layer-stack">
@@ -149,7 +149,7 @@ const roles = [
             </ol>
 
             <div class="role-map">
-              <h3>Workstream → Status</h3>
+              <h3>Role → 开源项目</h3>
               <div class="role-list">
                 <div v-for="role in roles" :key="role.name" class="role-row">
                   <strong>{{ role.name }}</strong>
@@ -157,11 +157,11 @@ const roles = [
                   <small>{{ role.relation }}</small>
                 </div>
               </div>
-              <div class="relation-legend" aria-label="任务状态图例">
-                <span><i class="dot adapter"></i>Verified</span>
-                <span><i class="dot worker"></i>Active</span>
-                <span><i class="dot learn"></i>Designed</span>
-                <span><i class="dot benchmark"></i>Paused</span>
+              <div class="relation-legend" aria-label="项目关系图例">
+                <span><i class="dot adapter"></i>接入</span>
+                <span><i class="dot worker"></i>外部 Worker</span>
+                <span><i class="dot learn"></i>学习</span>
+                <span><i class="dot benchmark"></i>Benchmark</span>
               </div>
             </div>
           </div>
