@@ -26,17 +26,18 @@
   自然任务并交付。
 - Coding 工程底座已覆盖修改/测试、LSP、Artifact、隔离 Browser、后台任务、Git、PR 确认、
   worktree、ImageGen、Project MCP、Session Index、Computer Use 外部 App 纵切。
-- Worktree 隔离与写入边界、`.worktreeinclude` CoW、精确 submodule 已落地；writer 不读写主依赖。
-  **交互仍是协作面板手工准备**；会话不会自动拥有执行环境。
+- Worktree 隔离与写入边界、`.worktreeinclude` CoW、精确 submodule 已落地；干净 Git 任务在首次
+  effectful 回合由 Agent 自动准备内部 writer，用户不再选择或看到 worktree / writer 控件。
 - **Grok 看图已通过**：打包 App + TokenFlux 真实 `grok-4.5` 原生 image input；中文识别任务列表、
   进度胶囊和输入栏，且未调用工具。`grok-4.3` 仍为 text-only。text-only 路径继续 OCR + 可选
   auxiliary vision。
-- **真实 Grok 自举小纵切已部分跑通**：自然提示 → writer 只改三份 Current 文档 → reviewer 纠错 →
-  返工完成。功能代码、测试、恢复和 Git 交付尚未覆盖；不要写成自举完全未开始。
-- **实测缺口**：输入框上方 Git 变更摘要看不到 writer 的三文件改动；活跃 worktree 变更尚未进入
-  Goal/Composer 投影。
-- Computer Use 有 Calculator Scope 的 observe/click 切片与工具截图辅助视觉；Browser 与
-  Computer Use 仍分离。更广 App 矩阵、权限失败路径、Developer ID / TCC 复检未完成。
+- **功能代码自举已有真实部分纵切**：自动执行环境、运行中消息 steering/queue、Git 文件悬浮跳转、
+  CTF/CVE 共享 Coding/Pi、Stable/Beta 身份与构建追踪已实现并测试。Stable 已用 Computer Use 核对
+  干净 Beta 的 branch/40 位 commit/tracking ID，并进入 CTF 选中 P7591；控制模型连续空回合，故最终
+  CTF/CVE 全程仍未通过，不能写成自举完成。
+- Git 变更摘要可悬浮查看文件并跳到“变更”；自然 Agent 会话同时出现 Goal 与真实 Git diff 的打包
+  App 证据仍待补。Computer Use 已从 Calculator 扩到 Stable → MilkSU Beta 的真实 click/scroll；
+  Browser 与 Computer Use 仍分离，Developer ID / TCC 复检未完成。
 - Composer `/` 以可删除内联状态启用 Browser/Computer；通用 Browser Use 复用固定版 Playwright
   MCP 官方扩展并由用户选择真实标签页，Computer Use 排除浏览器。MilkSU CTF 扩展仍负责
   NSSCTF/CTFshow 领域采集与 Judge，不被通用上游替代。
@@ -49,15 +50,18 @@
   右栏“浏览器”是会话隔离的 `WebContentsView`，用户与 Agent 共用同一页面；固定 Playwright MCP
   只得到单一 Target 的 loopback CDP Proxy。打包 App + TokenFlux `grok-4.5` 已只用浏览器完成顺序点击
   CTF-like 挑战、表单提交和 Electron 官方文档调研；三项都在右栏折叠后继续执行，重新展开仍是同一页面
-  与终态，且没有回退 Shell。裸域名补全 HTTPS，普通文字进入搜索。独立身份 `MilkSU Beta` 自举仍属于
-  下一条有界纵切。
+  与终态，且没有回退 Shell。裸域名补全 HTTPS，普通文字进入搜索。`MilkSU Beta` 已使用独立产品名、
+  Bundle ID、图标、数据目录与设置页构建追踪；Stable 排除自身，只能锁定 Beta 等外部 App。
 - 完整自然任务自举（功能代码/测试/恢复/Git 交付）、人工接管账本、自主合并发布和发行门禁仍未通过。
 - 模型与凭据：单默认模型；DeepSeek V4 Flash 日常默认；TokenFlux 一等中转；Coding/CTF/sub-agent
   共用 Provider 注册。
 - CTF 主链存在；真实 Judge 成功仍只有窄 Web 路径。Memory actor/assistance 已持久化；尚缺真实
   轨迹校准。Runtime Reliability fixture 已有；发行级恢复矩阵未过。
+- CTF/CVE 交给 Coding 时只挂草稿、不自动发送，并复用同一 Pi 会话；可折叠领域上下文保留题目/CVE、
+  Scope、材料、Evidence/Judge 或只读边界与返回动作。Beta 已实测 P7591 和 CVE-2024-3400 的交接/返回；
+  未提交 flag、未运行 PoC，且附件或 Judge 未连接不再阻止打开 Coding。
 - CVE 正式事实只来自 Vuln Runtime；WebView 无假后端；Session Index 只索引 MilkSU 自有历史。相关历史列表仍由用户明确确认后引用；完整图谱则按需让当前 Pi/Provider 在无工具静默回合中，把有界的会话、Memory 摘要和正式 Evidence 摘要归纳成人类语义图。图节点必须可回溯来源，关系标为模型推断；不读目标文档、不新增图数据库、不写 Memory、不回填 Agent。
-- UI：rail 主题/设置、Coding Goal 与常用 Agent 动作在 Composer `/`；“+”统一提供附件、Goal、Plan、浏览器、Browser/Computer Scope、已审核 Pi Skills 与项目 MCP，Skill/Scope 先作为可删除状态加入输入且选择不直接发送；菜单四组、删除、面板跳转与 Plan → Go 恢复已通过原生 App 可见验收。产品表面只显示“浏览器”，实现文档才使用“内置沙箱浏览器”。Goal/Git 摘要统一为圆角胶囊，字重与字号层级已收敛；顶部 Bottom Dock 开关位于右栏开关左侧，终端横跨中央会话与右栏下方且可和右栏独立开关，右栏菜单不再列终端；Dock 打开即创建首个项目 Shell，`+` 向右追加且既有标签编号稳定，xterm 约束在 Dock 边界内；
+- UI：rail 主题/设置、Coding Goal 与常用 Agent 动作在 Composer `/`；“+”统一提供附件、Goal、Plan、浏览器、Browser/Computer Scope、已审核 Pi Skills 与项目 MCP。运行中输入可继续发送并通过 Pi steering/queue 在下一模型调用前应用；能力画像支持移出延迟关闭与 Escape；Git 摘要可展开文件并跳到“变更”。产品表面只显示“浏览器”，不再暴露 worktree/writer 或五项 Computer Use readiness 样子货；
   Browser Use Bridge 与 Computer Use 系统配置集中到“设置 → 浏览器与控制”。
 - 安全工具 MCP 是下一阶段 Coding 常规能力，不是当前发行能力：候选为 IDA Pro/idalib、Burp、radare2、Ghidra 与 Semgrep；
   必须先通过固定版本、最小权限、真实任务和拒绝路径，是否进入 CTF/CVE 由用户监督的领域纵切决定。

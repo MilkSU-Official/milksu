@@ -10,6 +10,16 @@ import {
 } from './domainTaskContext'
 
 describe('domainTaskContext', () => {
+  it('describes an empty material projection without claiming the challenge has no attachment', () => {
+    const context = buildCTFDomainTaskContext({
+      jobId: 'job-empty',
+      challengeId: 'ch-empty',
+      challengeTitle: 'Attachment pending',
+      materials: [],
+    })
+    expect(context.materialStatus).toBe('无已挂载附件 / 无本地材料')
+  })
+
   it('builds CTF structured context with exact scope, materials and judge state', () => {
     const context = buildCTFDomainTaskContext({
       jobId: 'job-1',

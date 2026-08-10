@@ -142,7 +142,7 @@ export function formatMaterialStatus(
   if (options.attachmentExpected && options.attachmentReady) {
     return { status: '附件已就绪', count: 0 }
   }
-  return { status: '无附件 / 无本地材料', count: 0 }
+  return { status: '无已挂载附件 / 无本地材料', count: 0 }
 }
 
 export function formatJudgeState(receipts: Array<{
@@ -382,7 +382,7 @@ export function normalizeDomainTaskContext(raw: unknown): DomainTaskContext | un
           ? raw.role as CTFDomainTaskContext['role']
           : 'solver',
       ),
-      materialStatus: String(raw.materialStatus ?? '').trim() || '无附件 / 无本地材料',
+      materialStatus: String(raw.materialStatus ?? '').trim() || '无已挂载附件 / 无本地材料',
       materialCount: Number(raw.materialCount ?? 0) || 0,
       authorizedScope: String(raw.authorizedScope ?? '').trim() || '未授权 Scope',
       evidenceCount: Number(raw.evidenceCount ?? 0) || 0,

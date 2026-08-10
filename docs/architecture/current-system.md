@@ -67,11 +67,11 @@ MilkSU 的桌面壳不是通用 Agent Loop 的另一份实现。Pi 仍负责会�
 | Pi 通用 Agent | **Verified core / partial extensions** | Pi 继续拥有 Session、Compaction、模型和通用 Tool Loop；MilkSU 监管 Sidecar、注入当前 Provider、投影事件并实施工作区/审批边界。TokenFlux `grok-4.5` 多模态和一次真实文档自举已验，完整功能自举仍未完成。 |
 | 内置沙箱浏览器 | **Verified packaged tasks** | 产品 UI 只显示“浏览器”。每次 Coding 会话使用独立 `session.fromPath`，默认拒绝页面权限；用户与 Agent 共用同一 `WebContentsView`。打包 App 中 Grok 只用浏览器完成顺序点击挑战、表单提交和 Electron 官方文档调研，三项均在右栏折叠后继续并保留同一页面终态，未回退 Shell。 |
 | Browser Use | **Implemented UI / live pairing pending** | 真实用户 Chrome/Edge 复用固定 `@playwright/mcp --extension`，由用户选择准确标签页；不复用内置浏览器 profile。 |
-| Computer Use | **Verified narrow slice** | 只接受外部可见 App/PID/Window Scope；Calculator observe/click 和工具截图辅助视觉已验。浏览器窗口不进入该 Scope。 |
+| Computer Use | **Verified partial self-bootstrap** | 只接受外部可见 App/PID/Window Scope；Calculator 与 Stable → MilkSU Beta 的 branch/commit/tracking 核验及 click/scroll 已验。Stable 排除自身，浏览器窗口不进入该 Scope；最终 CTF/CVE 全程受控制模型空回合阻断。 |
 | CTF Runtime | **Implemented** | `internal/ctf` 持有 Challenge、Evidence、Candidate、Judge Receipt、Recovery、Memory 与学习事实；模型候选不能建立成功事实。 |
 | CVE Learning / Tracking | **Implemented / partial** | 多源同步、练习目录、本地 Compose 生命周期、资产验证、学习写回和 Coding 接力可用；正式事实只来自 Vuln Runtime。纵深研究、外部资产实验、真实复现和披露后置。 |
 | Session Index / 相关历史 | **Verified packaged slice** | MilkSU 自有索引只处理本机 Coding/CTF/CVE 会话；完整图谱由当前模型按需把有界会话、Memory 摘要和正式 Evidence 归纳成人类语义图，不读取目标文档、不持久化图谱、不写回 Memory。 |
-| Worktree / 自举 | **Isolation verified / product loop incomplete** | worktree、写入边界、`.worktreeinclude` CoW 和精确 submodule 已有；会话仍需手工准备 writer，活跃 writer diff 尚未完整投影到 Composer。 |
+| Worktree / 自举 | **Automatic isolation / product loop partial** | 干净 Git 任务首次 effectful 回合自动准备内部 writer；`.worktreeinclude` CoW、精确 submodule、写入边界和释放条件已有。用户不再配置 worktree/writer；Git 摘要可列出文件并跳到“变更”。最终 Stable → Beta 全程仍待控制模型稳定后复验。 |
 | 本地持久化 | **Implemented** | Runtime、Artifact、CTF Memory、Catalog、Conversation、Session Index 和 Credential Store 位于用户配置目录。凭据不经桌面 RPC 返回 Vue，也不进入模型上下文。 |
 | Managed Labs | **Paused** | 不在生产启动、桌面 RPC、Vue 入口或当前完成条件中。 |
 
@@ -134,8 +134,10 @@ flowchart TB
   由 Go 通过反向 `host_request` 发起。
 - Go Runtime 和 Electron Host 之间使用有大小上限的 JSONL 消息；Sidecar 仍使用独立、版本化的
   JSONL 协议。桌面壳迁移没有把 Pi 类型泄漏进领域层。
-- `MILKSU_INSTANCE_ID` 会为开发者 Beta 使用隔离的 Electron `userData` 和 Runtime 数据根；完整
-  Beta 产品名、Bundle ID、图标与 TCC 身份仍需下一纵切完成。
+- Beta 使用独立产品名 `MilkSU Beta`、Bundle ID `com.milksu.app.beta`、图标标记、Electron
+  `userData` 和 Runtime 数据根；设置页固定显示 branch、40 位 commit、clean/dirty、build time 与
+  tracking ID。Stable Computer Use 排除自身，只能选择 Beta 等外部 App。当前仍是 ad-hoc 签名，
+  Developer ID / 公证与稳定 TCC 身份属于 RC。
 
 ### 浏览器三面
 
