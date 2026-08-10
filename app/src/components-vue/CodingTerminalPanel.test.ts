@@ -3,10 +3,19 @@
 import { createApp, nextTick, type App } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import CodingTerminalPanel from './CodingTerminalPanel.vue'
-import type { CodingRuntimeStatus } from '@/codingEnvironmentTypes'
+import type {
+  CodingRuntimeStatus,
+  CodingTerminalSession,
+} from '@/codingEnvironmentTypes'
 
 const terminalWrites = vi.hoisted(() => [] as string[])
 const desktopRuntimeEnabled = vi.hoisted(() => ({ value: true }))
+const listedTerminalSessions = vi.hoisted(() => ({
+  value: [] as CodingTerminalSession[],
+}))
+const startedTerminalSessions = vi.hoisted(() => ({
+  value: [] as CodingTerminalSession[],
+}))
 
 class ResizeObserverStub {
   observe() {}
@@ -65,8 +74,29 @@ const runtimeStatus: CodingRuntimeStatus = {
   }],
 }
 
+function terminalSession(
+  id: string,
+  startedAt: number,
+): CodingTerminalSession {
+  return {
+    id,
+    conversationId: 'conversation-restart',
+    workspace: '/Users/milksu/code/milksu',
+    shell: '/bin/zsh',
+    status: 'running',
+    pid: 4200 + startedAt,
+    columns: 100,
+    rows: 28,
+    startedAt,
+  }
+}
+
 const invokeCommand = vi.fn(async (command: string, _args?: unknown) => {
-  if (command === 'list_coding_terminals') return []
+  if (command === 'list_coding_terminals') return listedTerminalSessions.value
+  if (command === 'start_coding_terminal') {
+    return startedTerminalSessions.value.shift()
+      ?? terminalSession('term-auto', 1)
+  }
   if (command === 'refresh_coding_background_tasks') return runtimeStatus
   throw new Error(`unexpected command ${command}`)
 })
@@ -80,8 +110,7 @@ vi.mock('@/desktop', () => ({
 const mountedApps: App[] = []
 
 async function settle() {
-  await Promise.resolve()
-  await Promise.resolve()
+  for (let index = 0; index < 6; index += 1) await Promise.resolve()
   await nextTick()
 }
 
@@ -90,6 +119,8 @@ afterEach(() => {
   document.body.innerHTML = ''
   terminalWrites.length = 0
   desktopRuntimeEnabled.value = true
+  listedTerminalSessions.value = []
+  startedTerminalSessions.value = []
   invokeCommand.mockClear()
 })
 
@@ -110,15 +141,22 @@ async function mountPanel() {
 }
 
 describe('CodingTerminalPanel', () => {
-  it('keeps the empty terminal concise after restart', async () => {
+  it('starts the first project terminal automatically when the dock opens', async () => {
     const host = await mountPanel()
 
     expect(invokeCommand).toHaveBeenCalledWith(
       'list_coding_terminals',
       { conversationId: 'conversation-restart' },
     )
+    expect(invokeCommand).toHaveBeenCalledWith(
+      'start_coding_terminal',
+      expect.objectContaining({
+        conversationId: 'conversation-restart',
+        workspacePath: '/Users/milksu/code/milksu',
+      }),
+    )
     const terminalText = terminalWrites.join('')
-    expect(terminalText).toContain('暂无 Shell')
+    expect(terminalText).not.toContain('暂无 Shell')
     expect(terminalText).not.toContain('交互式 Shell 不跨 App 重启恢复')
     expect(terminalText).not.toContain('旧 PTY 已结束且不可重连')
     expect(terminalText).not.toContain('后台长任务请在“后台任务”中恢复')
@@ -127,6 +165,33 @@ describe('CodingTerminalPanel', () => {
     expect(text).toContain('milksu')
     expect(host.querySelector('[aria-label="新建项目 Shell"]')).not.toBeNull()
     expect(host.querySelector('[aria-label="关闭底部面板"]')).not.toBeNull()
+  })
+
+  it('appends new terminal tabs to the right without renumbering existing tabs', async () => {
+    listedTerminalSessions.value = [
+      terminalSession('term-three', 30),
+      terminalSession('term-one', 10),
+      terminalSession('term-two', 20),
+    ]
+    startedTerminalSessions.value = [terminalSession('term-four', 40)]
+    const host = await mountPanel()
+
+    const tabIds = () => [...host.querySelectorAll<HTMLElement>('[data-terminal-id]')]
+      .map(tab => tab.dataset.terminalId)
+    const tabLabels = () => [...host.querySelectorAll<HTMLElement>('[data-terminal-id]')]
+      .map(tab => tab.getAttribute('aria-label'))
+    expect(tabIds()).toEqual(['term-one', 'term-two', 'term-three'])
+    expect(tabLabels()).toEqual(['milksu', 'milksu 2', 'milksu 3'])
+
+    host.querySelector<HTMLButtonElement>('[data-terminal-id="term-three"]')!.click()
+    host.querySelector<HTMLButtonElement>('[aria-label="新建项目 Shell"]')!.click()
+    await settle()
+
+    expect(tabIds()).toEqual(['term-one', 'term-two', 'term-three', 'term-four'])
+    expect(tabLabels()).toEqual(['milksu', 'milksu 2', 'milksu 3', 'milksu 4'])
+    expect(
+      host.querySelector('[data-terminal-id="term-four"]')?.getAttribute('aria-pressed'),
+    ).toBe('true')
   })
 
   it('shows recovered background task status, process metadata, ports, and log tail', async () => {

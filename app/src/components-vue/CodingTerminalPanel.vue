@@ -71,6 +71,8 @@ const starting = ref(false)
 const stopping = ref<string[]>([])
 const taskError = ref('')
 const pendingOutput = new Map<string, string>()
+const terminalOrdinals = new Map<string, number>()
+let nextTerminalOrdinal = 1
 let hydratingShell = false
 let terminal: XTerm | undefined
 let fitAddon: FitAddon | undefined
@@ -144,12 +146,29 @@ function upsertTerminal(session: CodingTerminalSession) {
     candidate => candidate.id === session.id,
   )
   if (existing < 0) {
-    terminalSessions.value = [session, ...terminalSessions.value]
+    rememberTerminal(session)
+    terminalSessions.value = [...terminalSessions.value, session]
     return
   }
   const updated = [...terminalSessions.value]
   updated[existing] = session
   terminalSessions.value = updated
+}
+
+function rememberTerminal(session: CodingTerminalSession) {
+  if (terminalOrdinals.has(session.id)) return
+  terminalOrdinals.set(session.id, nextTerminalOrdinal)
+  nextTerminalOrdinal += 1
+}
+
+function resetTerminalOrder() {
+  terminalOrdinals.clear()
+  nextTerminalOrdinal = 1
+}
+
+function terminalLabel(session: CodingTerminalSession): string {
+  const ordinal = terminalOrdinals.get(session.id) ?? 1
+  return ordinal === 1 ? workspaceName.value : `${workspaceName.value} ${ordinal}`
 }
 
 function renderTerminalSession(session: CodingTerminalSession) {
@@ -222,6 +241,7 @@ async function hydrateShellSessions() {
   shellError.value = ''
   terminalSessions.value = []
   selectedTerminalId.value = ''
+  resetTerminalOrder()
   pendingOutput.clear()
   if (!desktopRuntime) {
     terminal.reset()
@@ -243,18 +263,18 @@ async function hydrateShellSessions() {
       'list_coding_terminals',
       { conversationId: props.conversationId },
     )
-    terminalSessions.value = sessions
-    const preferred = sessions.find(session => session.status === 'running')
-      ?? sessions[0]
+    const orderedSessions = [...sessions].sort((left, right) => (
+      left.startedAt - right.startedAt || left.id.localeCompare(right.id)
+    ))
+    for (const session of orderedSessions) rememberTerminal(session)
+    terminalSessions.value = orderedSessions
+    const preferred = orderedSessions.find(session => session.status === 'running')
+      ?? orderedSessions[0]
     if (preferred) {
       selectedTerminalId.value = preferred.id
       renderTerminalSession(preferred)
-    } else {
-      terminal.reset()
-      terminal.clear()
-      terminal.write(
-        '\r\n\x1b[90m暂无 Shell。\x1b[0m\r\n',
-      )
+    } else if (props.active) {
+      await startShell()
     }
   } catch (reason) {
     shellError.value = errorMessage(reason, '无法读取项目 Shell。')
@@ -564,13 +584,16 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="flex min-h-0 flex-1 flex-col">
+  <section class="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
     <div class="flex h-12 shrink-0 items-center justify-between border-b border-border px-3">
       <div class="flex min-w-0 items-center gap-1.5 overflow-x-auto">
         <template v-if="terminalSessions.length">
           <button
-            v-for="(session, index) in terminalSessions"
+            v-for="session in terminalSessions"
             :key="session.id"
+            :data-terminal-id="session.id"
+            :aria-label="terminalLabel(session)"
+            :aria-pressed="activeView === 'shell' && session.id === selectedTerminalId"
             type="button"
             class="flex max-w-44 shrink-0 items-center gap-2 rounded-md px-2.5 py-1.5 text-caption transition-colors"
             :class="activeView === 'shell' && session.id === selectedTerminalId
@@ -581,7 +604,7 @@ onBeforeUnmount(() => {
           >
             <SquareTerminal class="size-3.5 shrink-0" />
             <span class="truncate">
-              {{ terminalSessions.length > 1 ? `${workspaceName} ${index + 1}` : workspaceName }}
+              {{ terminalLabel(session) }}
             </span>
           </button>
         </template>
@@ -666,8 +689,11 @@ onBeforeUnmount(() => {
     </div>
 
     <template v-if="activeView === 'shell'">
-      <div class="flex min-h-0 flex-1 flex-col bg-[#0b111d]">
-        <div ref="shellContainer" class="min-h-0 flex-1 px-2 py-2" />
+      <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[#0b111d]">
+        <div
+          ref="shellContainer"
+          class="box-border min-h-0 min-w-0 flex-1 overflow-hidden px-2 py-2"
+        />
         <p
           v-if="shellError"
           class="shrink-0 border-t border-destructive/30 bg-destructive/10 px-4 py-2 text-caption text-destructive"
@@ -853,10 +879,18 @@ onBeforeUnmount(() => {
 <style scoped>
 :deep(.xterm) {
   height: 100%;
+  width: 100%;
+  overflow: hidden;
 }
 
 :deep(.xterm-viewport) {
+  max-width: 100%;
   scrollbar-color: rgb(96 112 137 / 65%) transparent;
+}
+
+:deep(.xterm-screen),
+:deep(.xterm-helpers) {
+  max-width: 100%;
 }
 
 :deep(.xterm-screen canvas) {

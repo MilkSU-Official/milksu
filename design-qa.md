@@ -776,3 +776,43 @@ final result: passed
 - Computer Use visible verification passed at 1180 × 768.
 
 final result: passed
+
+# Coding Bottom Dock 自动 Shell、稳定标签与边界 · Follow-up QA
+
+**Comparison Target**
+
+- Source visual truth: `/var/folders/wf/0w9rnrs904501nhp57pd_jzw0000gn/T/codex-clipboard-c35ea28b-8d90-4215-915e-760d5e43bfc8.png`.
+- Packaged implementation: `/private/tmp/milksu-terminal-stable-tabs-native.png` at 1180 × 768.
+- Side-by-side comparison input: `/private/tmp/milksu-terminal-stable-tabs-comparison.png`; the source was aspect-fitted to the packaged viewport before comparison.
+- State: packaged Wails App restarted, existing `/Users/milksu/code/milksu` Coding task selected, right Environment page and Bottom Dock open together.
+
+**Findings**
+
+- Opening the Dock with no live PTY immediately starts and selects the first project zsh; there is no intermediate empty state or required `+` click.
+- Terminal identity is not derived from the current array index. Existing tabs retain `milksu`, `milksu 2`, and `milksu 3`; creating from the selected third tab appends `milksu 4` at the far right and selects it.
+- The Dock, xterm root, viewport, screen and helper layer form one bounded `min-height: 0` / `overflow: hidden` layout. The content background, prompt, caret and hidden terminal input remain inside the panel at the bottom and right edges.
+- MilkSU continues to use the maintained xterm.js terminal surface and official FitAddon for container geometry; the product code only owns PTY lifecycle, stable tab ordering and panel layout.
+
+**Primary Interactions Tested**
+
+- Quit the previously running App and launch the newly packaged `/Users/milksu/code/milksu/build/bin/MilkSU.app`.
+- Enter Coding, open Bottom Dock, and observe one running `milksu` PTY without another action.
+- Close and reopen the Dock; the same PTY/PID is selected instead of creating a duplicate session.
+- Create terminal 2 and 3, keep terminal 3 active, then create terminal 4; inspect the accessibility tree after each action.
+- Type and execute a real `printf` command in terminal 4 and observe shell output plus the next prompt.
+- Visually compare the Codex reference and packaged MilkSU in one combined image; no terminal content or input surface crosses the Dock boundary.
+
+**Verification**
+
+- `go test ./...` passed.
+- Frontend suite: 56 files, 323 tests passed.
+- Frontend lint and production build passed.
+- Wails production packaging and self-signing passed.
+- Computer Use packaged-App acceptance passed for auto-start, four-tab append order, stable labels, real input/output, and Dock containment.
+
+**Separate Browser Boundary**
+
+- This slice does not claim an embedded sandbox browser. The current Coding Browser still launches a MilkSU-managed external Chrome profile.
+- The requested Codex-like right pane remains the next bounded CEF/Chromium native-view prototype and must pass helper/framework/resource packaging, isolated profile, direct user interaction, shared CDP session and signing acceptance before the external window can be retired.
+
+final result: passed

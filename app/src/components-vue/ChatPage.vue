@@ -2274,7 +2274,7 @@ watch(
   </div>
   <div
     v-if="terminalOpen"
-    class="h-[34vh] min-h-56 max-h-96 shrink-0 border-t border-border bg-card"
+    class="h-[34vh] min-h-56 min-w-0 max-h-96 shrink-0 overflow-hidden border-t border-border bg-card"
     aria-label="底部终端面板"
   >
     <CodingTerminalPanel

@@ -106,6 +106,68 @@ func TestInteractiveTerminalCanBeStopped(t *testing.T) {
 	}
 }
 
+func TestListReturnsTerminalTabsInStableCreationOrder(t *testing.T) {
+	manager := NewManager(nil)
+	manager.sessions = map[string]*terminalSession{
+		"term-newest": {
+			view: Session{
+				ID:             "term-newest",
+				ConversationID: "conversation-order",
+				StartedAt:      30,
+			},
+		},
+		"term-oldest": {
+			view: Session{
+				ID:             "term-oldest",
+				ConversationID: "conversation-order",
+				StartedAt:      10,
+			},
+		},
+		"term-middle": {
+			view: Session{
+				ID:             "term-middle",
+				ConversationID: "conversation-order",
+				StartedAt:      20,
+			},
+		},
+		"term-other-conversation": {
+			view: Session{
+				ID:             "term-other-conversation",
+				ConversationID: "conversation-other",
+				StartedAt:      5,
+			},
+		},
+	}
+
+	sessions, err := manager.List("conversation-order")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sessions) != 3 {
+		t.Fatalf("unexpected terminal count: %#v", sessions)
+	}
+	for index, expected := range []string{
+		"term-oldest",
+		"term-middle",
+		"term-newest",
+	} {
+		if sessions[index].ID != expected {
+			t.Fatalf("terminal tabs are not in creation order: %#v", sessions)
+		}
+	}
+}
+
+func TestTerminalCreationTimestampsAreStrictlyMonotonic(t *testing.T) {
+	manager := NewManager(nil)
+	manager.mu.Lock()
+	first := manager.nextStartedAtLocked()
+	second := manager.nextStartedAtLocked()
+	manager.mu.Unlock()
+	if second <= first {
+		t.Fatalf("terminal creation order is not stable: first=%d second=%d", first, second)
+	}
+}
+
 func TestManagerCloseEndsRunningTerminalsWithoutReconnect(t *testing.T) {
 	t.Setenv("SHELL", "/bin/sh")
 	t.Setenv("HOME", t.TempDir())

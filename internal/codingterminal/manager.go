@@ -71,10 +71,11 @@ type terminalSession struct {
 }
 
 type Manager struct {
-	mu       sync.Mutex
-	sessions map[string]*terminalSession
-	emit     func(Event)
-	closed   bool
+	mu            sync.Mutex
+	sessions      map[string]*terminalSession
+	emit          func(Event)
+	closed        bool
+	lastStartedAt int64
 }
 
 func NewManager(emit func(Event)) *Manager {
@@ -138,7 +139,6 @@ func (m *Manager) Start(
 	if err != nil {
 		return Session{}, fmt.Errorf("start project terminal: %w", err)
 	}
-	startedAt := time.Now().UnixMilli()
 	entry := &terminalSession{
 		view: Session{
 			ID:             "term_" + strings.ReplaceAll(uuid.NewString(), "-", ""),
@@ -149,7 +149,6 @@ func (m *Manager) Start(
 			PID:            command.Process.Pid,
 			Columns:        columns,
 			Rows:           rows,
-			StartedAt:      startedAt,
 		},
 		command:  command,
 		terminal: terminal,
@@ -163,6 +162,7 @@ func (m *Manager) Start(
 		_ = command.Wait()
 		return Session{}, errors.New("Coding terminal manager is closed")
 	}
+	entry.view.StartedAt = m.nextStartedAtLocked()
 	m.sessions[entry.view.ID] = entry
 	m.mu.Unlock()
 
@@ -176,6 +176,15 @@ func (m *Manager) Start(
 	go m.readOutput(entry, terminal)
 	go m.wait(entry)
 	return view, nil
+}
+
+func (m *Manager) nextStartedAtLocked() int64 {
+	startedAt := time.Now().UnixMilli()
+	if startedAt <= m.lastStartedAt {
+		startedAt = m.lastStartedAt + 1
+	}
+	m.lastStartedAt = startedAt
+	return startedAt
 }
 
 func (m *Manager) List(conversationID string) ([]Session, error) {
@@ -200,7 +209,10 @@ func (m *Manager) List(conversationID string) ([]Session, error) {
 		result = append(result, entry.snapshot())
 	}
 	sort.Slice(result, func(left, right int) bool {
-		return result[left].StartedAt > result[right].StartedAt
+		if result[left].StartedAt == result[right].StartedAt {
+			return result[left].ID < result[right].ID
+		}
+		return result[left].StartedAt < result[right].StartedAt
 	})
 	return result, nil
 }
