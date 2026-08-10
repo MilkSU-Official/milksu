@@ -17,6 +17,7 @@ import {
   Paperclip,
   Play,
   RefreshCw,
+  ShieldCheck,
   TerminalSquare,
 } from 'lucide-vue-next'
 import CTFCollaborationModePicker from '@/components-vue/CTFCollaborationModePicker.vue'
@@ -45,6 +46,7 @@ const props = withDefaults(defineProps<{
   pageCount: number
   total: number
   loading: boolean
+  actionLoading: boolean
   collaborationMode: CTFCollaborationMode
   selectedBrowserReady: boolean
   ctfshowBridgeReady: boolean
@@ -68,6 +70,7 @@ const props = withDefaults(defineProps<{
   attachmentError: '',
   localMaterials: () => [],
   catalogError: '',
+  actionLoading: false,
 })
 
 const emit = defineEmits<{
@@ -697,7 +700,7 @@ function runPrimaryAction() {
           <Button
             variant="brand"
             size="sm"
-            :loading="loading && primaryActionType === 'start'"
+            :loading="actionLoading && primaryActionType === 'start'"
             :disabled="primaryActionDisabled"
             @click="runPrimaryAction"
           >

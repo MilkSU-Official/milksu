@@ -1016,70 +1016,75 @@ async function chooseLocalMaterials() {
 
 async function startPublicWorkspace() {
   if (!selectedProblem.value) return
-  if (selectedActiveJob.value) {
-    await resumeJob(selectedActiveJob.value.id)
-    await openCodingAgent()
-    return
-  }
   working.value = true
   attachmentError.value = ''
-  const challenge = selectedProblem.value
-  const materials: CTFMaterialRequest[] = [...localMaterials.value]
-  let materialWarning = ''
-  if (selectedBrowserReady.value) {
-    try {
-      materials.push(await invokeCommand<CTFMaterialRequest>('import_nssctf_web_page_material', {
-        problemId: challenge.platformId,
-      }))
-    } catch (reason) {
-      materialWarning = reason instanceof Error ? reason.message : String(reason)
-    }
-  }
-  if (challenge.hasAttachment) {
-    if (!selectedBrowserReady.value && materials.length === 0) {
-      attachmentError.value = `P${challenge.platformId} 有附件；请先连接已登录的 Chrome 题目页。`
-      working.value = false
+  try {
+    if (selectedActiveJob.value) {
+      await resumeJob(selectedActiveJob.value.id)
+      await openCodingAgent()
       return
     }
+    const challenge = selectedProblem.value
+    const materials: CTFMaterialRequest[] = [...localMaterials.value]
+    let materialWarning = ''
     if (selectedBrowserReady.value) {
       try {
-        materials.push(await invokeCommand<CTFMaterialRequest>('import_nssctf_web_attachment', {
+        materials.push(await invokeCommand<CTFMaterialRequest>('import_nssctf_web_page_material', {
           problemId: challenge.platformId,
         }))
       } catch (reason) {
-        const message = reason instanceof Error ? reason.message : String(reason)
-        if (localMaterials.value.length === 0) {
-          attachmentError.value = message
-          working.value = false
-          return
-        }
-        materialWarning = materialWarning ? `${materialWarning}；${message}` : message
+        materialWarning = reason instanceof Error ? reason.message : String(reason)
       }
     }
-  }
-  const started = await backend.startChallenge({
-    title: challenge.title,
-    statement: challenge.statement,
-    category: challenge.category.toLowerCase(),
-    collaborationMode: collaborationMode.value,
-    deferAgent: true,
-    trackName: 'NSSCTF 真实题库训练',
-    humanGoal: '完成一道真实 NSSCTF 题目，并能复述假设、关键观察与最终证据。',
-    sourceKind: 'url',
-    sourceUri: challenge.sourceUrl,
-    externalPlatform: 'nssctf-web',
-    externalAttemptId: challenge.platformId,
-    expectedFlag: '',
-    knowledgePoints: challenge.tags,
-    materials,
-  })
-  working.value = false
-  if (started) {
+    if (challenge.hasAttachment) {
+      if (!selectedBrowserReady.value && materials.length === 0) {
+        attachmentError.value = `P${challenge.platformId} 有附件；请先连接已登录的 Chrome 题目页。`
+        return
+      }
+      if (selectedBrowserReady.value) {
+        try {
+          materials.push(await invokeCommand<CTFMaterialRequest>('import_nssctf_web_attachment', {
+            problemId: challenge.platformId,
+          }))
+        } catch (reason) {
+          const message = reason instanceof Error ? reason.message : String(reason)
+          if (localMaterials.value.length === 0) {
+            attachmentError.value = message
+            return
+          }
+          materialWarning = materialWarning ? `${materialWarning}；${message}` : message
+        }
+      }
+    }
+    const started = await backend.startChallenge({
+      title: challenge.title,
+      statement: challenge.statement,
+      category: challenge.category.toLowerCase(),
+      collaborationMode: collaborationMode.value,
+      deferAgent: true,
+      trackName: 'NSSCTF 真实题库训练',
+      humanGoal: '完成一道真实 NSSCTF 题目，并能复述假设、关键观察与最终证据。',
+      sourceKind: 'url',
+      sourceUri: challenge.sourceUrl,
+      externalPlatform: 'nssctf-web',
+      externalAttemptId: challenge.platformId,
+      expectedFlag: '',
+      knowledgePoints: challenge.tags,
+      materials,
+    })
+    if (!started) {
+      attachmentError.value = backend.error.value ?? '无法建立 CTF 工作台。'
+      return
+    }
     if (materialWarning) {
       outcomeNotice.value = `${materialWarning}。工作台已使用公开题面和现有材料继续建立。`
     }
     screen.value = 'workspace'
     await openCodingAgent()
+  } catch (reason) {
+    attachmentError.value = reason instanceof Error ? reason.message : String(reason)
+  } finally {
+    working.value = false
   }
 }
 
@@ -2284,6 +2289,7 @@ onBeforeUnmount(() => {
           :page-count="deskPageCount"
           :total="deskProblemTotal"
           :loading="deskLoading || (activeBank === 'nssctf' && training.syncing.value)"
+          :action-loading="working"
           :collaboration-mode="collaborationMode"
           :selected-browser-ready="selectedBrowserReady"
           :ctfshow-bridge-ready="ctfshowBridgeReady"

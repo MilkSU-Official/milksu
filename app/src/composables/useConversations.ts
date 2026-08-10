@@ -467,9 +467,25 @@ export function useConversations() {
 
   function ensureConversation(
     title = DEFAULT_CODING_CONVERSATION_TITLE,
-    options: { domainTaskContext?: Conversation['domainTaskContext'] } = {},
+    options: {
+      domainTaskContext?: Conversation['domainTaskContext']
+      conversationId?: string
+    } = {},
   ) {
-    if (activeId.value) {
+    const requestedId = String(options.conversationId ?? '').trim()
+    if (requestedId) {
+      const existing = conversations.value.find(item => item.id === requestedId)
+      if (existing) {
+        activeId.value = existing.id
+        update(existing.id, conversation => ({
+          ...conversation,
+          title: title.trim().slice(0, 40) || conversation.title,
+          domainTaskContext: options.domainTaskContext ?? conversation.domainTaskContext,
+        }))
+        return existing.id
+      }
+    }
+    if (activeId.value && !requestedId) {
       if (options.domainTaskContext) {
         update(activeId.value, conversation => ({
           ...conversation,
@@ -478,7 +494,7 @@ export function useConversations() {
       }
       return activeId.value
     }
-    const conversationId = crypto.randomUUID()
+    const conversationId = requestedId || crypto.randomUUID()
     const conversation: Conversation = {
       id: conversationId,
       title: title.trim().slice(0, 40) || DEFAULT_CODING_CONVERSATION_TITLE,

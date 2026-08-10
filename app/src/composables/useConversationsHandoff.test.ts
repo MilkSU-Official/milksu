@@ -73,6 +73,7 @@ describe('useConversations domain handoff attach', () => {
     const conversations = useConversations()
     conversations.startNew()
     const id = conversations.ensureConversation('CVE-2023-46604 研究接力', {
+      conversationId: 'cve-research-cve-2023-46604',
       domainTaskContext: {
         kind: 'cve',
         cveId: 'CVE-2023-46604',
@@ -91,12 +92,48 @@ describe('useConversations domain handoff attach', () => {
       '接手 CVE-2023-46604',
     )
     expect(id).toBeTruthy()
+    expect(id).toBe('cve-research-cve-2023-46604')
     expect(conversations.active.value?.domainTaskContext).toMatchObject({
       kind: 'cve',
       cveId: 'CVE-2023-46604',
     })
     expect(conversations.pendingComposerDraft.value?.visibleText).toBe('接手 CVE-2023-46604')
     expect(conversations.activeRunning.value).toBe(false)
+    expect(invokeCommand.mock.calls.some(call => call[0] === 'send_message')).toBe(false)
+  })
+
+  it('reuses one Coding conversation when the same CVE is handed off repeatedly', async () => {
+    const { useConversations } = await import('@/composables/useConversations')
+    const conversations = useConversations()
+    const context = {
+      kind: 'cve' as const,
+      cveId: 'CVE-2024-3400',
+      title: 'PAN-OS',
+      sourceEvidenceState: '尚无用户导入 Feed / 来源证据',
+      sourceEvidenceCount: 0,
+      assetMatchState: '3 项资产',
+      assetCount: 3,
+      researchScope: 'read-only cached evidence only',
+      safetyBoundary: '学习与追踪 only',
+      roleLabel: 'CVE 只读/研究接力',
+    }
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      conversations.startNew()
+      conversations.ensureConversation('CVE-2024-3400 研究接力', {
+        conversationId: 'cve-research-cve-2024-3400',
+        domainTaskContext: context,
+      })
+      conversations.stageComposerDraft('research prompt', '接手 CVE-2024-3400')
+    }
+
+    expect(conversations.conversations.value).toHaveLength(1)
+    expect(conversations.activeId.value).toBe('cve-research-cve-2024-3400')
+    expect(conversations.active.value?.domainTaskContext).toMatchObject({
+      kind: 'cve',
+      cveId: 'CVE-2024-3400',
+    })
+    expect(conversations.pendingComposerDraft.value?.visibleText).toBe('接手 CVE-2024-3400')
     expect(invokeCommand.mock.calls.some(call => call[0] === 'send_message')).toBe(false)
   })
 })
