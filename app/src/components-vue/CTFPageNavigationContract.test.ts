@@ -68,6 +68,23 @@ describe('CTFPage navigation contract', () => {
     expect(startBody).not.toContain('有附件；请先连接已登录的 Chrome 题目页')
   })
 
+  it('keeps manual CTF intake loading scoped to manual challenge creation', () => {
+    expect(ctfPageSource).toContain('const manualCreating = ref(false)')
+
+    const manualStart = ctfPageSource.indexOf('async function startManualChallenge')
+    const manualEnd = ctfPageSource.indexOf('function closeHistoryMenuOnOutsidePointer', manualStart)
+    const manualBody = ctfPageSource.slice(manualStart, manualEnd)
+    expect(manualBody).toContain('manualCreating.value = true')
+    expect(manualBody).toContain('manualCreating.value = false')
+    expect(manualBody).not.toContain('working.value = true')
+
+    const manualComponentStart = ctfPageSource.indexOf('<CTFManualIntake')
+    const manualComponentEnd = ctfPageSource.indexOf('/>', manualComponentStart)
+    const manualComponent = ctfPageSource.slice(manualComponentStart, manualComponentEnd)
+    expect(manualComponent).toContain(':loading="manualCreating"')
+    expect(manualComponent).not.toContain(':loading="working"')
+  })
+
   it('quotes confirmed related history into the debrief draft instead of saving CTF memory directly', () => {
     expect(ctfPageSource).toContain('quoteSessionHistoryToDebrief')
     expect(ctfPageSource).toContain('confirm-action-label="引用到复盘"')
