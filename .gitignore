@@ -1,17 +1,8 @@
 node_modules/
 dist/
-*.js
 *.d.ts
 *.js.map
 *.d.ts.map
-!bridge.js
-!bridge-*.js
-!computer-use-proxy*.js
-!security-bridge.js
-!browserextension/background.js
-!browserextension/popup.js
-!tests/fixtures/coding-agent-delivery/template/src/*.js
-!tests/fixtures/coding-agent-delivery/template/test/*.js
 .DS_Store
 .claude/
 auth.json
