@@ -43,7 +43,7 @@
 - CVE：学习/追踪 MVP 可用（多源同步、练习目录、本地 Compose 生命周期、资产验证、学习写回、Coding 接力）；正式事实只来自 Vuln Runtime。
 - CTF：题库、工作区、Evidence、候选、Judge、Checkpoint、恢复、复盘、Memory 主链存在；真实 Judge 成功仍只有窄 Web 路径。
 - Runtime：Sidecar 恢复、Compaction、异常退出标记、后台长任务打包 App/WebView 恢复、预算和失败分类已有。
-- UI：全局 rail 主题、设置、能力画像；Coding Goal 从 Composer `/` 进入，Goal 与 Git 摘要使用一致的圆角胶囊并位于输入框上方。Coding 顶部在右栏开关左侧提供独立的底部面板开关；终端是横跨中央会话与右栏下方的 Bottom Dock，不属于右栏页面，可与右栏同时打开或独立关闭。Dock 打开后自动创建首个项目 Shell；`+` 只向右追加新标签，既有标签使用稳定编号且不会因切换或新增而重排；xterm 由官方 FitAddon 适配并裁剪在 Dock 内。WebView 无假后端。
+- UI：全局 rail 主题、设置、能力画像；Coding Goal 从 Composer `/` 进入，Goal 与 Git 摘要使用一致的圆角胶囊并位于输入框上方。普通 Coding 新任务不再截取首条消息的前 N 个字符作为标题，而是在主回合启动后复用当前 Pi/Provider 做一次独立、禁工具的首条消息归纳；无有效结果时保留“新编码任务”，不阻塞主回合，也不覆盖 CTF/CVE 接力或执行表面预先给出的领域标题。Coding 顶部在右栏开关左侧提供独立的底部面板开关；终端是横跨中央会话与右栏下方的 Bottom Dock，不属于右栏页面，可与右栏同时打开或独立关闭。Dock 打开后自动创建首个项目 Shell；`+` 只向右追加新标签，既有标签使用稳定编号且不会因切换或新增而重排；xterm 由官方 FitAddon 适配并裁剪在 Dock 内。WebView 无假后端。
 - 暂停/后置：Labs；CVE 纵深研究、真实漏洞复现、外部资产实验、披露；NYU safe-static 只是开发者 smoke，不是完整 CTF 成绩。
 
 ## 下一条完成线

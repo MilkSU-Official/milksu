@@ -26,6 +26,7 @@ import type {
 } from '@/types'
 
 const BROWSER_USE_MCP_SERVER = 'milksu-playwright-user'
+const DEFAULT_CODING_CONVERSATION_TITLE = '新编码任务'
 type ComposerScopeToken = 'browser-use' | 'computer-use'
 
 export function turnMCPServers(
@@ -370,6 +371,7 @@ export function useConversations() {
   ))
   const saveTimers = new Map<string, number>()
   const activeTurnPolicies = new Set<string>()
+  const titleGenerationAttemptedIds = new Set<string>()
   let disposeEvents: (() => void) | undefined
 
   function persist(conversation: Conversation) {
@@ -413,6 +415,7 @@ export function useConversations() {
   async function remove(id: string) {
     await invokeCommand('delete_conversation', { id })
     conversations.value = conversations.value.filter(conversation => conversation.id !== id)
+    titleGenerationAttemptedIds.delete(id)
     continuity.value = removeCodingContinuitySession(continuity.value, id)
     activeTurnPolicies.delete(id)
     finishRun(id)
@@ -431,12 +434,12 @@ export function useConversations() {
     pendingMCPConfigDigest.value = ''
   }
 
-  function ensureConversation(title = '新编码任务') {
+  function ensureConversation(title = DEFAULT_CODING_CONVERSATION_TITLE) {
     if (activeId.value) return activeId.value
     const conversationId = crypto.randomUUID()
     const conversation: Conversation = {
       id: conversationId,
-      title: title.trim().slice(0, 40) || '新编码任务',
+      title: title.trim().slice(0, 40) || DEFAULT_CODING_CONVERSATION_TITLE,
       createdAt: Date.now(),
       workspacePath: pendingWorkspacePath.value || undefined,
       modelMode: pendingModelMode.value,
@@ -597,7 +600,7 @@ export function useConversations() {
       conversationId = crypto.randomUUID()
       const conversation: Conversation = {
         id: conversationId,
-        title: visiblePrompt.slice(0, 40),
+        title: DEFAULT_CODING_CONVERSATION_TITLE,
         createdAt: Date.now(),
         workspacePath: pendingWorkspacePath.value || undefined,
         modelMode: pendingModelMode.value,
@@ -638,6 +641,7 @@ export function useConversations() {
         mcpConfigDigest: conversation?.mcpConfigDigest ?? '',
         attachments,
       })
+      void generateConversationTitle(conversationId)
       return true
     } catch (reason) {
       finishRun(conversationId)
@@ -652,6 +656,41 @@ export function useConversations() {
         }],
       }))
       return false
+    }
+  }
+
+  async function generateConversationTitle(conversationId: string) {
+    if (titleGenerationAttemptedIds.has(conversationId)) return
+    const conversation = conversations.value.find(item => item.id === conversationId)
+    if (
+      !conversation
+      || conversation.title !== DEFAULT_CODING_CONVERSATION_TITLE
+      || conversation.ctfJobId
+    ) return
+    const firstMessage = conversation.messages.find(message => message.role === 'user')?.content.trim()
+    if (!firstMessage) return
+
+    titleGenerationAttemptedIds.add(conversationId)
+    try {
+      const title = await invokeCommand<string>('generate_conversation_title', {
+        firstMessage,
+        modelMode: conversation.modelMode ?? '',
+        modelProvider: conversation.modelProvider ?? '',
+        modelId: conversation.modelId ?? '',
+      })
+      const current = conversations.value.find(item => item.id === conversationId)
+      if (
+        !current
+        || current.title !== DEFAULT_CODING_CONVERSATION_TITLE
+        || !title.trim()
+      ) return
+      update(conversationId, value => ({
+        ...value,
+        title: title.trim(),
+      }))
+    } catch {
+      // Naming is best effort. The primary Coding turn and its recovery state
+      // must remain independent from this silent projection.
     }
   }
 

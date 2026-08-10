@@ -9,6 +9,33 @@ afterEach(() => {
 })
 
 describe('desktop command adapter', () => {
+  it('passes the first Coding message to the silent title generator', async () => {
+    const generateConversationTitle = vi.fn(async () => '修复登录回调状态恢复')
+    Object.defineProperty(window, 'go', {
+      configurable: true,
+      value: {
+        main: {
+          App: {
+            GenerateConversationTitle: generateConversationTitle,
+          },
+        },
+      },
+    })
+
+    await expect(invokeCommand('generate_conversation_title', {
+      firstMessage: '登录刷新后丢失回调路径',
+      modelMode: 'manual',
+      modelProvider: 'tokenflux',
+      modelId: 'grok-4.5',
+    })).resolves.toBe('修复登录回调状态恢复')
+    expect(generateConversationTitle).toHaveBeenCalledWith(
+      '登录刷新后丢失回调路径',
+      'manual',
+      'tokenflux',
+      'grok-4.5',
+    )
+  })
+
   it('passes CISA KEV feed sync to the Wails read-only fetcher', async () => {
     const feed = {
       sourceName: 'CISA KEV',

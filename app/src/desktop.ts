@@ -150,6 +150,12 @@ interface DesktopAppBindings {
   ListConversations(): Promise<unknown>
   SaveConversation(conversation: unknown): Promise<void>
   DeleteConversation(id: string): Promise<void>
+  GenerateConversationTitle(
+    firstMessage: string,
+    modelMode: string,
+    modelProvider: string,
+    modelId: string,
+  ): Promise<string>
   ChooseAgentWorkspace(): Promise<string>
   ChooseCTFMaterials(): Promise<CTFMaterialRequest[]>
   ChooseCodingAttachments(): Promise<CodingAttachment[]>
@@ -428,6 +434,13 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.SaveConversation(args?.conversation) as Promise<T>
       case 'delete_conversation':
         return app.DeleteConversation(args?.id as string) as Promise<T>
+      case 'generate_conversation_title':
+        return app.GenerateConversationTitle(
+          args?.firstMessage as string,
+          (args?.modelMode as string) ?? '',
+          (args?.modelProvider as string) ?? '',
+          (args?.modelId as string) ?? '',
+        ) as Promise<T>
       case 'choose_agent_workspace':
         return app.ChooseAgentWorkspace() as Promise<T>
       case 'choose_ctf_materials':
