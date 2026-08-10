@@ -27,6 +27,7 @@
       "main.cjs",
       "preload.cjs",
       "cdp-proxy.cjs",
+      "channel-identity.cjs",
       "package.json",
       "node_modules/ws/**/*"
     ],

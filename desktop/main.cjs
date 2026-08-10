@@ -16,6 +16,14 @@ const {
   WebContentsView,
 } = require('electron')
 const { ScopedCDPProxy } = require('./cdp-proxy.cjs')
+const {
+  resolveDesktopChannel,
+  channelIdentity,
+  applyChannelIsolation,
+  browserProfileRoots,
+  allowedProfilePath: resolveAllowedProfilePath,
+  resolveRuntimeAppDataDir,
+} = require('./channel-identity.cjs')
 
 const APP_ORIGIN = 'milksu://app'
 const METHOD_PATTERN = /^[A-Z][A-Za-z0-9]{0,80}$/u
@@ -60,11 +68,24 @@ const devToolsPort = findFreePort()
 app.commandLine.appendSwitch('remote-debugging-address', '127.0.0.1')
 app.commandLine.appendSwitch('remote-debugging-port', String(devToolsPort))
 
-const instanceSuffix = String(process.env.MILKSU_INSTANCE_ID ?? '').trim()
-const isolatedInstance = /^[A-Za-z0-9_.-]{1,64}$/u.test(instanceSuffix)
-if (isolatedInstance) {
-  app.setPath('userData', `${app.getPath('userData')}-${instanceSuffix}`)
-}
+// Stable keeps Electron natural userData (existing installs / TCC continuity).
+// Beta always pins a distinct Application Support directory by appId so it can
+// coexist with Stable without MILKSU_INSTANCE_ID and without sharing runtime data.
+let appNameHint = ''
+try {
+  // Packaged beta is named "MilkSU Beta"; package.json name is not channel-aware.
+  appNameHint = String(app.getName?.() ?? '')
+} catch {}
+const desktopChannel = resolveDesktopChannel({
+  env: process.env,
+  appName: appNameHint,
+  desktopAppId: process.env.MILKSU_DESKTOP_APP_ID,
+})
+const desktopIdentity = channelIdentity(desktopChannel)
+const channelIsolation = applyChannelIsolation(desktopIdentity, {
+  app,
+  instanceId: process.env.MILKSU_INSTANCE_ID,
+})
 if (!app.requestSingleInstanceLock()) {
   app.quit()
 }
@@ -143,14 +164,24 @@ class BackendRuntime {
       this.resolveReady = resolve
       this.rejectReady = reject
     })
+    // Beta (and optional MILKSU_INSTANCE_ID) always get a userData-scoped Go
+    // runtime root. Stable keeps historical appdata resolution unless the
+    // caller already set MILKSU_APPDATA_DIR or requested an isolated instance.
+    const env = {
+      ...process.env,
+      MILKSU_CHANNEL: desktopIdentity.channel,
+      MILKSU_DESKTOP_APP_ID: desktopIdentity.appId,
+    }
+    const runtimeAppDataDir = resolveRuntimeAppDataDir({
+      channel: desktopIdentity.channel,
+      isolatedInstance: channelIsolation.isolatedInstance,
+      existingAppDataDir: process.env.MILKSU_APPDATA_DIR,
+      userDataPath: app.getPath('userData'),
+    })
+    if (runtimeAppDataDir) env.MILKSU_APPDATA_DIR = runtimeAppDataDir
     this.process = spawn(executable, [], {
       stdio: ['pipe', 'pipe', 'pipe'],
-	  env: {
-		...process.env,
-		...(isolatedInstance && !process.env.MILKSU_APPDATA_DIR
-		  ? { MILKSU_APPDATA_DIR: path.join(app.getPath('userData'), 'runtime-data') }
-		  : {}),
-	  },
+      env,
     })
     this.process.once('error', error => this.fail(error))
     this.process.once('exit', (code, signal) => {
@@ -262,11 +293,16 @@ class BrowserShell {
   }
 
   allowedProfilePath(profilePath) {
-    const resolved = path.resolve(profilePath)
-    const roots = [path.join(app.getPath('appData'), 'com.milksu.app')]
-    const override = String(process.env.MILKSU_APPDATA_DIR ?? '').trim()
-    if (override && path.isAbsolute(override)) roots.push(path.resolve(override))
-    return roots.some(root => resolved.startsWith(`${root}${path.sep}`)) ? resolved : ''
+    // Stable: historical appData/com.milksu.app (+ explicit MILKSU_APPDATA_DIR).
+    // Beta / isolated instance: also allow current Electron userData.
+    const roots = browserProfileRoots({
+      channel: desktopIdentity.channel,
+      appDataPath: app.getPath('appData'),
+      userDataPath: app.getPath('userData'),
+      isolatedInstance: channelIsolation.isolatedInstance,
+      appDataOverride: process.env.MILKSU_APPDATA_DIR,
+    })
+    return resolveAllowedProfilePath(profilePath, roots)
   }
 
   async start(request) {
@@ -461,7 +497,7 @@ function emitRendererEvent(event, value) {
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    title: 'MilkSU',
+    title: desktopIdentity.productName,
     width: 1440,
     height: 900,
     minWidth: 1080,

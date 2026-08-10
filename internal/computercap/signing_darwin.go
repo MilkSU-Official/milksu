@@ -12,17 +12,18 @@ import (
 )
 
 func platformSigningStatus() SigningStatus {
+	hostBundle := resolveHostBundleID(nil)
 	executablePath, err := os.Executable()
 	if err != nil {
 		return SigningStatus{
-			BundleID:  hostBundleID,
+			BundleID:  hostBundle,
 			Signature: "unknown",
 			Problem:   "无法定位当前 MilkSU 可执行文件，不能判断 macOS 权限绑定身份。",
 		}
 	}
 	subjectPath := signingSubjectPath(executablePath)
 	status := SigningStatus{
-		BundleID:       hostBundleID,
+		BundleID:       hostBundle,
 		ExecutablePath: subjectPath,
 		Signature:      "unknown",
 		TeamIdentifier: "unknown",
@@ -39,6 +40,9 @@ func platformSigningStatus() SigningStatus {
 	}
 	if status.TeamIdentifier == "" {
 		status.TeamIdentifier = "not set"
+	}
+	if !validBundleID(strings.TrimSpace(status.BundleID)) {
+		status.BundleID = hostBundle
 	}
 	status.StableIdentity = status.Signature != "adhoc" &&
 		status.Signature != "unsigned" &&
@@ -86,6 +90,11 @@ func parseCodesignOutput(output string, status *SigningStatus) {
 			continue
 		}
 		switch {
+		case strings.HasPrefix(line, "Identifier="):
+			identifier := strings.TrimSpace(strings.TrimPrefix(line, "Identifier="))
+			if validBundleID(identifier) {
+				status.BundleID = identifier
+			}
 		case strings.HasPrefix(line, "Signature="):
 			signature := strings.TrimSpace(strings.TrimPrefix(line, "Signature="))
 			if strings.EqualFold(signature, "adhoc") {

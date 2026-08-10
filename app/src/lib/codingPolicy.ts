@@ -228,12 +228,13 @@ export function nextComputerUseTargetKey(
   targets: CodingComputerUseTarget[],
   selectedKey: string,
   activeTarget?: CodingComputerUseTarget | null,
+  host?: ComputerUseHostIdentity,
 ): string {
   if (selectedComputerUseTarget(targets, selectedKey)) return selectedKey
   if (activeTarget && selectedComputerUseTarget(targets, computerUseTargetKey(activeTarget))) {
     return computerUseTargetKey(activeTarget)
   }
-  const firstExternalTarget = targets.find(target => !isMilkSUTarget(target))
+  const firstExternalTarget = targets.find(target => !isSelfComputerUseTarget(target, host))
   return firstExternalTarget
     ? computerUseTargetKey(firstExternalTarget)
     : targets[0]
@@ -241,9 +242,31 @@ export function nextComputerUseTargetKey(
       : ''
 }
 
-function isMilkSUTarget(target: Pick<CodingComputerUseTarget, 'name' | 'bundleId'>): boolean {
-  return target.name.trim().toLowerCase() === 'milksu'
-    || target.bundleId.trim().toLowerCase().includes('milksu')
+/** Host identity used to decide which visible window is "self". */
+export type ComputerUseHostIdentity = {
+  hostBundleId?: string
+  hostPid?: number
+}
+
+/**
+ * True when the target is the controlling MilkSU host process/app.
+ * Uses exact host bundle id (and optional host pid) — never name/substring
+ * matching — so Stable can still select identity-isolated MilkSU Beta.
+ */
+export function isSelfComputerUseTarget(
+  target: Pick<CodingComputerUseTarget, 'name' | 'bundleId' | 'pid'>,
+  host: ComputerUseHostIdentity = {},
+): boolean {
+  const hostBundleId = String(host.hostBundleId ?? '').trim().toLowerCase()
+  const targetBundleId = target.bundleId.trim().toLowerCase()
+  if (hostBundleId && targetBundleId && hostBundleId === targetBundleId) {
+    return true
+  }
+  const hostPid = Number(host.hostPid)
+  if (Number.isInteger(hostPid) && hostPid > 1 && target.pid === hostPid) {
+    return true
+  }
+  return false
 }
 
 export function computerUseStartArgs(

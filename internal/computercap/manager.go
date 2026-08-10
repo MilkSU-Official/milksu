@@ -19,9 +19,11 @@ import (
 )
 
 const (
-	DriverVersion = "0.14.2"
-	hostBundleID  = "com.milksu.app"
-	runtimeRoot   = "/private/tmp/milksu-computer-use"
+	DriverVersion       = "0.14.2"
+	defaultHostBundleID = "com.milksu.app"
+	runtimeRoot         = "/private/tmp/milksu-computer-use"
+	hostBundleIDEnv     = "MILKSU_DESKTOP_APP_ID"
+	hostBundleIDEnvAlt  = "CUA_DRIVER_HOST_BUNDLE_ID"
 )
 
 type Permissions struct {
@@ -81,6 +83,9 @@ type Descriptor struct {
 type Options struct {
 	BinaryPath      string
 	TargetPID       int
+	// HostBundleID is the running host app's bundle identifier (stable or beta).
+	// When empty, Manager resolves it from SigningProbe / env / default.
+	HostBundleID    string
 	GOOS            string
 	PermissionProbe func(prompt bool) Permissions
 	PermissionOpen  func(Permissions)
@@ -108,6 +113,7 @@ type Manager struct {
 	mu              sync.Mutex
 	binaryPath      string
 	targetPID       int
+	hostBundleID    string
 	goos            string
 	permissionProbe func(prompt bool) Permissions
 	permissionOpen  func(Permissions)
@@ -151,9 +157,14 @@ func New(options Options) *Manager {
 	if startTimeout <= 0 {
 		startTimeout = 12 * time.Second
 	}
+	hostBundleID := strings.TrimSpace(options.HostBundleID)
+	if !validBundleID(hostBundleID) {
+		hostBundleID = resolveHostBundleID(signingProbe)
+	}
 	return &Manager{
 		binaryPath:      strings.TrimSpace(options.BinaryPath),
 		targetPID:       targetPID,
+		hostBundleID:    hostBundleID,
 		goos:            goos,
 		permissionProbe: permissionProbe,
 		permissionOpen:  permissionOpen,
@@ -162,6 +173,30 @@ func New(options Options) *Manager {
 		commandFactory:  commandFactory,
 		startTimeout:    startTimeout,
 	}
+}
+
+// resolveHostBundleID prefers env / signing probe Identifier, falling back to stable.
+func resolveHostBundleID(signingProbe func() SigningStatus) string {
+	for _, key := range []string{hostBundleIDEnv, hostBundleIDEnvAlt} {
+		if value := strings.TrimSpace(os.Getenv(key)); validBundleID(value) {
+			return value
+		}
+	}
+	if signingProbe != nil {
+		if status := signingProbe(); validBundleID(strings.TrimSpace(status.BundleID)) {
+			return strings.TrimSpace(status.BundleID)
+		}
+	}
+	return defaultHostBundleID
+}
+
+func (manager *Manager) HostBundleID() string {
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+	if validBundleID(manager.hostBundleID) {
+		return manager.hostBundleID
+	}
+	return defaultHostBundleID
 }
 
 func (manager *Manager) Status() Status {
@@ -191,7 +226,7 @@ func (manager *Manager) Targets() ([]Target, error) {
 	if err != nil {
 		return nil, err
 	}
-	return filterValidTargets(targets), nil
+	return filterValidTargets(targets, manager.HostBundleID(), manager.targetPID), nil
 }
 
 func (manager *Manager) Start(
@@ -262,12 +297,16 @@ func (manager *Manager) Start(
 		return Status{}, fmt.Errorf("write Computer Use bounded policy: %w", err)
 	}
 	socketPath := filepath.Join(directory, "driver.sock")
+	hostBundle := manager.hostBundleID
+	if !validBundleID(hostBundle) {
+		hostBundle = defaultHostBundleID
+	}
 	command := manager.commandFactory(
 		binaryPath,
 		"serve",
 		"--embedded",
 		"--host-bundle-id",
-		hostBundleID,
+		hostBundle,
 		"--socket",
 		socketPath,
 		"--permission-mode",
@@ -276,7 +315,7 @@ func (manager *Manager) Start(
 		manifestPath,
 		"--approve-session-policy",
 	)
-	command.Env = driverEnvironment(directory)
+	command.Env = driverEnvironment(directory, hostBundle)
 	command.Stdout = io.Discard
 	command.Stderr = newLimitedBuffer(8 << 10)
 	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
@@ -408,13 +447,25 @@ func (manager *Manager) wait(active *session) {
 }
 
 func (manager *Manager) statusLocked(permissions Permissions) Status {
+	hostBundle := manager.hostBundleID
+	if !validBundleID(hostBundle) {
+		hostBundle = defaultHostBundleID
+	}
+	signing := manager.signingProbe()
+	if !validBundleID(strings.TrimSpace(signing.BundleID)) {
+		signing.BundleID = hostBundle
+	} else if !validBundleID(manager.hostBundleID) {
+		// Adopt probe-reported identity when Options did not pin one.
+		manager.hostBundleID = strings.TrimSpace(signing.BundleID)
+		hostBundle = manager.hostBundleID
+	}
 	status := Status{
 		Available:     manager.driverAvailableLocked(),
 		Phase:         "disabled",
 		DriverVersion: DriverVersion,
-		Target:        defaultTarget(manager.targetPID),
+		Target:        defaultTarget(manager.targetPID, hostBundle),
 		Permissions:   permissions,
-		Signing:       manager.signingProbe(),
+		Signing:       signing,
 	}
 	if manager.goos != "darwin" {
 		status.Available = false
@@ -447,7 +498,11 @@ func (manager *Manager) resolveTargetLocked(selection TargetSelection) (Target, 
 	if err != nil {
 		return Target{}, fmt.Errorf("list visible Computer Use targets: %w", err)
 	}
-	for _, target := range filterValidTargets(targets) {
+	hostBundle := manager.hostBundleID
+	if !validBundleID(hostBundle) {
+		hostBundle = defaultHostBundleID
+	}
+	for _, target := range filterValidTargets(targets, hostBundle, manager.targetPID) {
 		if target.PID == selection.PID && target.WindowID == selection.WindowID {
 			return target, nil
 		}
@@ -518,8 +573,12 @@ func (manager *Manager) driverAvailableLocked() bool {
 }
 
 func (manager *Manager) verifyBinaryLocked(binaryPath string) error {
+	hostBundle := manager.hostBundleID
+	if !validBundleID(hostBundle) {
+		hostBundle = defaultHostBundleID
+	}
 	command := manager.commandFactory(binaryPath, "--version")
-	command.Env = driverEnvironment(filepath.Dir(binaryPath))
+	command.Env = driverEnvironment(filepath.Dir(binaryPath), hostBundle)
 	var output bytes.Buffer
 	command.Stdout = &output
 	command.Stderr = &output
@@ -549,7 +608,7 @@ func (manager *Manager) verifyBinaryLocked(binaryPath string) error {
 func sessionManifest(bundleID string) string {
 	bundleID = strings.TrimSpace(bundleID)
 	if !validBundleID(bundleID) {
-		bundleID = hostBundleID
+		bundleID = defaultHostBundleID
 	}
 	return fmt.Sprintf(`version: 2
 mode: bounded
@@ -586,7 +645,11 @@ deny:
 `, bundleID)
 }
 
-func driverEnvironment(directory string) []string {
+func driverEnvironment(directory string, hostBundleID string) []string {
+	hostBundleID = strings.TrimSpace(hostBundleID)
+	if !validBundleID(hostBundleID) {
+		hostBundleID = defaultHostBundleID
+	}
 	environment := []string{
 		"HOME=" + filepath.Join(directory, "home"),
 		"TMPDIR=" + filepath.Join(directory, "tmp"),
@@ -607,7 +670,8 @@ func driverEnvironment(directory string) []string {
 	return environment
 }
 
-func filterValidTargets(targets []Target) []Target {
+func filterValidTargets(targets []Target, hostBundleID string, hostPID int) []Target {
+	hostBundleID = strings.TrimSpace(hostBundleID)
 	filtered := make([]Target, 0, len(targets))
 	seen := map[string]bool{}
 	for _, target := range targets {
@@ -620,6 +684,11 @@ func filterValidTargets(targets []Target) []Target {
 			!validBundleID(target.BundleID) {
 			continue
 		}
+		// Exclude the running host identity only (exact bundle and/or host PID).
+		// Stable (com.milksu.app) must still list Beta (com.milksu.app.beta).
+		if isSelfComputerUseTarget(target, hostBundleID, hostPID) {
+			continue
+		}
 		key := fmt.Sprintf("%d/%d", target.PID, target.WindowID)
 		if seen[key] {
 			continue
@@ -630,11 +699,33 @@ func filterValidTargets(targets []Target) []Target {
 	return filtered
 }
 
-func defaultTarget(pid int) Target {
+// isSelfComputerUseTarget reports whether target is the controlling host app.
+// Matching is host-identity driven: same bundle id as the host, or same host PID.
+// Display-name substring matching is intentionally avoided so Beta is not blocked.
+func isSelfComputerUseTarget(target Target, hostBundleID string, hostPID int) bool {
+	if hostPID > 1 && target.PID == hostPID {
+		return true
+	}
+	hostBundleID = strings.TrimSpace(hostBundleID)
+	if hostBundleID != "" && strings.EqualFold(target.BundleID, hostBundleID) {
+		return true
+	}
+	return false
+}
+
+func defaultTarget(pid int, hostBundleID string) Target {
 	if pid <= 1 {
 		pid = os.Getpid()
 	}
-	return Target{Name: "MilkSU", BundleID: hostBundleID, PID: pid}
+	hostBundleID = strings.TrimSpace(hostBundleID)
+	if !validBundleID(hostBundleID) {
+		hostBundleID = defaultHostBundleID
+	}
+	name := "MilkSU"
+	if strings.EqualFold(hostBundleID, "com.milksu.app.beta") {
+		name = "MilkSU Beta"
+	}
+	return Target{Name: name, BundleID: hostBundleID, PID: pid}
 }
 
 func validBundleID(value string) bool {

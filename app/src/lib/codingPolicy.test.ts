@@ -4,6 +4,7 @@ import {
   computerUseTargetKey,
   describeActiveComputerUseCapability,
   describePendingComputerUseCapability,
+  isSelfComputerUseTarget,
   isUserBrowserTarget,
   nextComputerUseTargetKey,
   normalizeCodingApprovalPolicy,
@@ -217,7 +218,7 @@ describe('Coding policy presentation', () => {
     expect(nextComputerUseTargetKey([], '4242:9002', targets[1])).toBe('')
   })
 
-  it('prefers a non-MilkSU window when no visible Computer Use session is active yet', () => {
+  it('prefers a non-self window when no visible Computer Use session is active yet', () => {
     const targets = [
       {
         name: 'MilkSU',
@@ -235,7 +236,53 @@ describe('Coding policy presentation', () => {
       },
     ]
 
-    expect(nextComputerUseTargetKey(targets, '')).toBe('3333:4444')
+    expect(nextComputerUseTargetKey(targets, '', null, {
+      hostBundleId: 'com.milksu.app',
+      hostPid: 1111,
+    })).toBe('3333:4444')
+  })
+
+  it('does not treat identity-isolated MilkSU Beta as self when host is Stable', () => {
+    const stableHost = { hostBundleId: 'com.milksu.app', hostPid: 1111 }
+    const beta = {
+      name: 'MilkSU Beta',
+      bundleId: 'com.milksu.app.beta',
+      pid: 2222,
+      windowId: 3333,
+      windowTitle: 'Beta Window',
+    }
+    const stableSelf = {
+      name: 'MilkSU',
+      bundleId: 'com.milksu.app',
+      pid: 1111,
+      windowId: 4444,
+      windowTitle: 'Stable Window',
+    }
+    const external = {
+      name: 'TextEdit',
+      bundleId: 'com.apple.TextEdit',
+      pid: 5555,
+      windowId: 6666,
+      windowTitle: 'Untitled',
+    }
+
+    expect(isSelfComputerUseTarget(stableSelf, stableHost)).toBe(true)
+    expect(isSelfComputerUseTarget(beta, stableHost)).toBe(false)
+    expect(isSelfComputerUseTarget(external, stableHost)).toBe(false)
+    // Fragile name/substring matching must not hide Beta from Stable.
+    expect(isSelfComputerUseTarget({
+      name: 'MilkSU',
+      bundleId: 'com.milksu.app.beta',
+      pid: 2222,
+    }, stableHost)).toBe(false)
+
+    expect(nextComputerUseTargetKey([stableSelf, beta, external], '', null, stableHost))
+      .toBe('2222:3333')
+    expect(nextComputerUseTargetKey([beta], '', null, stableHost)).toBe('2222:3333')
+
+    const betaHost = { hostBundleId: 'com.milksu.app.beta', hostPid: 2222 }
+    expect(isSelfComputerUseTarget(beta, betaHost)).toBe(true)
+    expect(isSelfComputerUseTarget(stableSelf, betaHost)).toBe(false)
   })
 
   it('separates browser windows from external App scopes without substring guesses', () => {

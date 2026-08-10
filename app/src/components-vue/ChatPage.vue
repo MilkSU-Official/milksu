@@ -728,6 +728,9 @@ async function showComputerUseScope() {
     scopedComputerUseTargets.value,
     selectedComputerUseTargetKey.value,
     computerUseStatus.value?.conversationId ? computerUseStatus.value.target : null,
+    {
+      hostBundleId: computerUseStatus.value?.signing?.bundleId,
+    },
   )
 }
 
@@ -976,6 +979,9 @@ async function refreshBrowserPanel() {
       scopedComputerUseTargets.value,
       selectedComputerUseTargetKey.value,
       computerUseStatus.value?.conversationId ? computerUseStatus.value.target : null,
+      {
+        hostBundleId: computerUseStatus.value?.signing?.bundleId,
+      },
     )
   } else {
     computerUseTargets.value = []

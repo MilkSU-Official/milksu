@@ -74,7 +74,7 @@ func TestManagerStartsOneVisibleScopedSessionAndCleansIt(t *testing.T) {
 	}
 	manager := New(Options{
 		BinaryPath:      os.Args[0],
-		TargetPID:       4242,
+		TargetPID:       1111, // host PID must differ from external target PID 4242
 		GOOS:            "darwin",
 		PermissionProbe: func(bool) Permissions { return Permissions{true, true} },
 		TargetProvider:  func() ([]Target, error) { return []Target{target}, nil },
@@ -198,15 +198,16 @@ func TestManagerNeverPromptsAndOpensSettingsOnExplicitRequest(t *testing.T) {
 
 func TestManagerReportsSigningDiagnostics(t *testing.T) {
 	manager := New(Options{
-		BinaryPath: os.Args[0],
-		TargetPID:  4242,
-		GOOS:       "darwin",
+		BinaryPath:   os.Args[0],
+		TargetPID:    4242,
+		HostBundleID: defaultHostBundleID,
+		GOOS:         "darwin",
 		PermissionProbe: func(bool) Permissions {
 			return Permissions{Accessibility: false, ScreenRecording: true}
 		},
 		SigningProbe: func() SigningStatus {
 			return SigningStatus{
-				BundleID:       hostBundleID,
+				BundleID:       defaultHostBundleID,
 				ExecutablePath: "/Applications/MilkSU.app",
 				Signature:      "adhoc",
 				TeamIdentifier: "not set",
@@ -218,7 +219,7 @@ func TestManagerReportsSigningDiagnostics(t *testing.T) {
 	})
 
 	status := manager.Status()
-	if status.Signing.BundleID != hostBundleID ||
+	if status.Signing.BundleID != defaultHostBundleID ||
 		status.Signing.ExecutablePath != "/Applications/MilkSU.app" ||
 		status.Signing.Signature != "adhoc" ||
 		status.Signing.TeamIdentifier != "not set" ||
@@ -227,6 +228,90 @@ func TestManagerReportsSigningDiagnostics(t *testing.T) {
 	}
 	if !strings.Contains(status.Signing.Problem, "Developer ID") {
 		t.Fatalf("missing signing problem detail: %#v", status.Signing)
+	}
+}
+
+func TestFilterValidTargetsExcludesOnlyHostIdentity(t *testing.T) {
+	stableHost := "com.milksu.app"
+	betaHost := "com.milksu.app.beta"
+	targets := []Target{
+		{Name: "MilkSU", BundleID: stableHost, PID: 100, WindowID: 1},
+		{Name: "MilkSU Beta", BundleID: betaHost, PID: 200, WindowID: 2},
+		{Name: "TextEdit", BundleID: "com.apple.TextEdit", PID: 300, WindowID: 3},
+		{Name: "Preview", BundleID: "com.apple.Preview", PID: 100, WindowID: 4}, // same PID as host
+	}
+
+	// Stable host must drop itself and same-PID windows, but keep Beta + external apps.
+	stableListed := filterValidTargets(targets, stableHost, 100)
+	if len(stableListed) != 2 {
+		t.Fatalf("stable host listed %#v", stableListed)
+	}
+	for _, target := range stableListed {
+		if target.BundleID == stableHost {
+			t.Fatalf("stable host failed to exclude self: %#v", target)
+		}
+		if target.PID == 100 {
+			t.Fatalf("stable host failed to exclude host PID: %#v", target)
+		}
+	}
+	foundBeta := false
+	for _, target := range stableListed {
+		if target.BundleID == betaHost {
+			foundBeta = true
+		}
+	}
+	if !foundBeta {
+		t.Fatal("stable host must still list MilkSU Beta as a selectable target")
+	}
+
+	// Beta host excludes Beta only; Stable remains targetable.
+	betaListed := filterValidTargets(targets, betaHost, 200)
+	for _, target := range betaListed {
+		if target.BundleID == betaHost {
+			t.Fatalf("beta host failed to exclude self: %#v", target)
+		}
+	}
+	foundStable := false
+	for _, target := range betaListed {
+		if target.BundleID == stableHost {
+			foundStable = true
+		}
+	}
+	if !foundStable {
+		t.Fatal("beta host must still list MilkSU stable as a selectable target")
+	}
+
+	if isSelfComputerUseTarget(Target{BundleID: betaHost, PID: 200}, stableHost, 100) {
+		t.Fatal("beta must not be treated as self when host is stable")
+	}
+	if !isSelfComputerUseTarget(Target{BundleID: stableHost, PID: 999}, stableHost, 100) {
+		t.Fatal("same bundle as host must be treated as self")
+	}
+}
+
+func TestManagerUsesInjectedHostBundleID(t *testing.T) {
+	manager := New(Options{
+		BinaryPath:   os.Args[0],
+		TargetPID:    55,
+		HostBundleID: "com.milksu.app.beta",
+		GOOS:         "darwin",
+		PermissionProbe: func(bool) Permissions {
+			return Permissions{true, true}
+		},
+		SigningProbe: func() SigningStatus {
+			return SigningStatus{BundleID: "com.milksu.app.beta", Signature: "adhoc"}
+		},
+		CommandFactory: helperCommand,
+	})
+	if manager.HostBundleID() != "com.milksu.app.beta" {
+		t.Fatalf("host bundle id not injected: %s", manager.HostBundleID())
+	}
+	status := manager.Status()
+	if status.Signing.BundleID != "com.milksu.app.beta" {
+		t.Fatalf("status signing bundle: %#v", status.Signing)
+	}
+	if status.Target.BundleID != "com.milksu.app.beta" || status.Target.Name != "MilkSU Beta" {
+		t.Fatalf("default target not host-aware: %#v", status.Target)
 	}
 }
 

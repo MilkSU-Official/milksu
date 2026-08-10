@@ -4,7 +4,7 @@ package computercap
 
 func platformSigningStatus() SigningStatus {
 	return SigningStatus{
-		BundleID:       hostBundleID,
+		BundleID:       resolveHostBundleID(nil),
 		Signature:      "unsupported",
 		StableIdentity: false,
 		Problem:        "Computer Use 签名诊断当前仅适用于 macOS。",
