@@ -1,7 +1,9 @@
 package ctf
 
 import (
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -25,8 +27,8 @@ const (
 	FactJudgeReceipt      = "judge.receipt"
 	FactEndpointRequested = "endpoint.requested"
 	FactEndpointDecided   = "endpoint.decided"
-	maxMaterialBytes      = 32 * 1024 * 1024
-	maxTotalMaterialBytes = 96 * 1024 * 1024
+	maxMaterialBytes      = 256 * 1024 * 1024
+	maxTotalMaterialBytes = 512 * 1024 * 1024
 	maxExperiments        = 12
 	proposalTimeout       = 2 * time.Minute
 )
@@ -50,10 +52,14 @@ type ChallengeRequest struct {
 }
 
 type MaterialRequest struct {
-	Name       string `json:"name"`
-	MediaType  string `json:"mediaType"`
-	DataBase64 string `json:"dataBase64"`
-	Provenance string `json:"provenance"`
+	Name        string `json:"name"`
+	MediaType   string `json:"mediaType"`
+	DataBase64  string `json:"dataBase64,omitempty"`
+	Provenance  string `json:"provenance"`
+	ImportToken string `json:"importToken,omitempty"`
+	Size        int64  `json:"size,omitempty"`
+	SHA256      string `json:"sha256,omitempty"`
+	Data        []byte `json:"-"`
 }
 
 type admittedRequest struct {
@@ -437,7 +443,7 @@ func validateRequest(request ChallengeRequest) (admittedRequest, error) {
 		result.knowledgePoints = append(result.knowledgePoints, point)
 	}
 
-	total := 0
+	total := int64(0)
 	for index, material := range request.Materials {
 		name := strings.TrimSpace(material.Name)
 		if name == "" || len([]rune(name)) > 160 || filepath.Base(name) != name || strings.ContainsAny(name, `/\\`) {
@@ -447,16 +453,39 @@ func validateRequest(request ChallengeRequest) (admittedRequest, error) {
 		if mediaType == "" || len(mediaType) > 128 {
 			return admittedRequest{}, fmt.Errorf("material %q has an invalid media type", name)
 		}
-		data, err := base64.StdEncoding.DecodeString(material.DataBase64)
-		if err != nil {
-			return admittedRequest{}, fmt.Errorf("decode material %q: %w", name, err)
+		inlineData := strings.TrimSpace(material.DataBase64)
+		var data []byte
+		switch {
+		case len(material.Data) > 0 && inlineData != "":
+			return admittedRequest{}, fmt.Errorf("material %q must not mix inline and local data", name)
+		case len(material.Data) > 0:
+			data = append([]byte(nil), material.Data...)
+		case inlineData != "":
+			decoded, err := base64.StdEncoding.DecodeString(inlineData)
+			if err != nil {
+				return admittedRequest{}, fmt.Errorf("decode material %q: %w", name, err)
+			}
+			data = decoded
+		case strings.TrimSpace(material.ImportToken) != "":
+			return admittedRequest{}, fmt.Errorf("material %q has an unresolved local import token", name)
+		default:
+			return admittedRequest{}, fmt.Errorf("material %q has no content", name)
 		}
 		if len(data) == 0 || len(data) > maxMaterialBytes {
-			return admittedRequest{}, fmt.Errorf("material %q must be between 1 byte and 32 MiB", name)
+			return admittedRequest{}, fmt.Errorf("material %q must be between 1 byte and 256 MiB", name)
 		}
-		total += len(data)
+		if material.Size != 0 && material.Size != int64(len(data)) {
+			return admittedRequest{}, fmt.Errorf("material %q size metadata does not match content", name)
+		}
+		if material.SHA256 != "" {
+			digest := sha256.Sum256(data)
+			if !strings.EqualFold(material.SHA256, hex.EncodeToString(digest[:])) {
+				return admittedRequest{}, fmt.Errorf("material %q sha256 metadata does not match content", name)
+			}
+		}
+		total += int64(len(data))
 		if total > maxTotalMaterialBytes {
-			return admittedRequest{}, fmt.Errorf("challenge materials exceed the 96 MiB limit")
+			return admittedRequest{}, fmt.Errorf("challenge materials exceed the 512 MiB limit")
 		}
 		provenance := strings.TrimSpace(material.Provenance)
 		if provenance == "" {

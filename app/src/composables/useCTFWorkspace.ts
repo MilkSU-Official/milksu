@@ -27,6 +27,9 @@ export function toDesktopCTFChallengeRequest(
       mediaType: material.mediaType,
       dataBase64: material.dataBase64,
       provenance: material.provenance,
+      importToken: material.importToken,
+      size: material.size,
+      sha256: material.sha256,
     })),
   }
 }

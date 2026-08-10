@@ -16,8 +16,11 @@ import type {
 export interface CTFMaterialRequest {
   name: string
   mediaType: string
-  dataBase64: string
+  dataBase64?: string
   provenance: string
+  importToken?: string
+  size?: number
+  sha256?: string
 }
 
 export type CTFCollaborationMode = 'coach' | 'copilot' | 'delegate'
