@@ -7,7 +7,7 @@ import {
 import { Type } from "typebox";
 import { createInterface } from "node:readline";
 import { join } from "node:path";
-import currentProviderRuntime from "./current-provider-runtime.cjs";
+import currentProviderRuntime from "../pi/current-provider-runtime.cjs";
 
 const { currentProviderDefinition } = currentProviderRuntime;
 

@@ -44,7 +44,7 @@ Fixture 位于 `tests/fixtures/coding-agent-delivery/template`。脚本会：
 
 1. 复制一个不完整的零依赖 Node.js CLI 到临时目录；
 2. 启动本地 OpenAI-compatible fake provider；
-3. 用当前 `bridge.js` 构建一次临时 Coding Sidecar；
+3. 用当前 `sidecar/pi/bridge.js` 构建一次临时 Coding Sidecar；
 4. 用同一 Conversation 连续发送短提示；
 5. 故意让 CLI smoke 首次失败，观察 Agent 修复并重跑；
 6. 在生成 `dist/report.txt` 前要求批准；
@@ -104,7 +104,7 @@ Fake provider 使用固定响应计划，不调用真实模型、不读取用户
 ### Runtime Reliability 子报告
 
 同一 JSON 中还包含 `milksu-runtime-reliability/v1alpha1` 子报告。它不另造 Runner，直接观察
-正式 `bridge.js`、Pi SessionManager、工具循环和后台任务：
+正式 `sidecar/pi/bridge.js`、Pi SessionManager、工具循环和后台任务：
 
 - 多轮计划、文件读取、普通开发命令和工具调用；
 - Sidecar 重启后会话与后台 Watch 恢复；

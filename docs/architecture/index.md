@@ -86,11 +86,13 @@ ADR、Review 和 Checkpoint 记录当时为什么这样决定，不会因为后�
 
 ## 证据入口
 
-- 进程组合：`desktop/main.cjs`、`desktop/preload.cjs`、`main.go`、`desktop_rpc.go`、`app.go`
-- 通用 Agent：`bridge.js`、`internal/engine/supervisor.go`
-- CTF 事实链：`internal/ctf/`、`ctf_agent_recorder.go`
+- 进程组合：`desktop/main.cjs`、`desktop/preload.cjs`、`cmd/milksu-backend/main.go`、
+  `cmd/milksu-backend/desktop_rpc.go`、`cmd/milksu-backend/app.go`
+- 通用 Agent：`sidecar/pi/bridge.js`、`internal/engine/supervisor.go`
+- CTF 事实链：`internal/ctf/`、`cmd/milksu-backend/ctf_agent_recorder.go`
 - 追加式事实存储：`internal/securityruntime/`
 - 平台与浏览器：`internal/nssctf/`、`internal/ctfshow/`、`internal/browsercap/`
 - 本地数据根：`internal/appdata/directory.go`
 - 固定 Coding 资源：`docs/developer/pi-resource-whitelist.md`、`scripts/package-sidecar.mjs`
-- 发布检查：`scripts/m3-release-check.sh`
+- 构建与验收：`scripts/package-sidecar.mjs`、`scripts/package-electron.mjs`、
+  `scripts/check-macos-signing.mjs`

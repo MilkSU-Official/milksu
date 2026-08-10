@@ -122,6 +122,7 @@
 
 ## 架构和文档规则
 
-- 触碰 `CTFPage.vue`、`app.go`、`bridge-policy.js`、`internal/browsercap/manager.go`、CTF Runner/Recovery 时避免继续塞职责，能抽边界就抽。
+- 触碰 `CTFPage.vue`、`cmd/milksu-backend/app.go`、`sidecar/pi/bridge-policy.js`、
+  `internal/browsercap/manager.go`、CTF Runner/Recovery 时避免继续塞职责，能抽边界就抽。
 - Electron Preload 只暴露窄 RPC/事件桥；Go Runtime 不依赖 Electron 类型；领域层不依赖桌面壳；Pi 不知道平台页面细节；Adapter 不判定学习成功或用户能力。
 - 文档三层：Current 入口、Evidence 索引、Historical/Research。过程聊天、微提交、历史 smoke 清单不堆进入口。

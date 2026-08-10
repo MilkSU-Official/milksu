@@ -1,6 +1,6 @@
 import piLspExtension from "@narumitw/pi-lsp/src/index.ts";
-import { createReviewedLspExtension } from "../bridge-lsp.js";
-import { applyCodingResourcePolicy } from "../bridge-resource-policy.js";
+import { createReviewedLspExtension } from "../sidecar/pi/bridge-lsp.js";
+import { applyCodingResourcePolicy } from "../sidecar/pi/bridge-resource-policy.js";
 
 async function readInput() {
   let value = "";

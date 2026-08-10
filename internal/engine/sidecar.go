@@ -13,7 +13,11 @@ import (
 	"github.com/MilkSU-Official/milksu/internal/config"
 )
 
-const packagedSidecarDirectory = "milksu-sidecar"
+const (
+	packagedSidecarDirectory      = "milksu-sidecar"
+	developmentChatBridgePath     = "sidecar/pi/bridge.js"
+	developmentSecurityBridgePath = "sidecar/security/security-bridge.js"
+)
 
 type sidecarRuntime struct {
 	node     string

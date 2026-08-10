@@ -24,7 +24,13 @@ npm run test:local-delivery
 将它作为完整工程回归中的真实 App Gate：
 
 ```bash
-MILKSU_APP_INTEGRATION=1 npm run m3:release-check
+go test ./...
+npm run test:sidecar
+npm --prefix app test -- --run
+npm run sidecar:smoke
+npm run desktop:build
+npm run test:local-delivery
+npm run codesign:check
 ```
 
 只验证 pre-release 阈值报告结构，不启动 App：

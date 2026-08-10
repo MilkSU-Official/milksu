@@ -99,7 +99,7 @@ Pi's official documentation states that Pi runs with the launching process's fil
 2. Record session scope and whether the resource can read, write, execute, access the network, or load more resources.
 3. Keep ambient discovery disabled.
 4. Add a positive Coding smoke assertion and a negative CTF isolation assertion.
-5. Run the Sidecar smoke test and the full regression command
-   (`npm run m3:release-check`; the script name is retained for compatibility) before publishing.
+5. Run `npm run sidecar:smoke`, `npm run test:sidecar`, the Go/Vue regression suites, `npm run desktop:build`,
+   and `npm run codesign:check` before publishing.
 6. Copy the direct dependency license into `THIRD_PARTY-LICENSES` and record its path in the Sidecar manifest.
 7. Push only to a MilkSU-owned repository. Never open a PR or write to the upstream project.

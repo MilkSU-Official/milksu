@@ -4,7 +4,7 @@
 //
 // The package is a small, Wails-free adapter on purpose: the security-critical
 // path derivation and the macOS Finder open behavior must stay unit-testable
-// without a desktop runtime, and app.go must not grow new responsibilities.
+// without a desktop runtime, and cmd/milksu-backend/app.go must not grow new responsibilities.
 package codingevidence
 
 import (
@@ -19,10 +19,10 @@ import (
 
 // EvidenceRelativeDir is the workspace-relative directory that holds one
 // conversation's Coding browser evidence. It mirrors
-// bridge-browser-policy.js codingBrowserEvidenceRelativePath.
+// sidecar/pi/bridge-browser-policy.js codingBrowserEvidenceRelativePath.
 const EvidenceRelativeDir = ".milksu/browser-evidence"
 
-// sessionIDPattern mirrors bridge-browser-policy.js: a session id can only
+// sessionIDPattern mirrors sidecar/pi/bridge-browser-policy.js: a session id can only
 // ever select one safe directory segment below browser-evidence/.
 var sessionIDPattern = regexp.MustCompile(`^browser_[A-Za-z0-9-]{8,128}$`)
 

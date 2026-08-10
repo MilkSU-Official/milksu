@@ -1011,15 +1011,15 @@ async function buildSidecar(platform) {
       join(licenseOutput, 'pi-sub-agent-MIT.txt'),
     ),
     copyFile(
-      join(repositoryRoot, 'pi-subagent-launcher.sh'),
+      join(repositoryRoot, 'sidecar', 'pi', 'pi-subagent-launcher.sh'),
       piSubagentLauncherOutput,
     ),
     copyFile(
-      join(repositoryRoot, 'pi-subagent-runner.cjs'),
+      join(repositoryRoot, 'sidecar', 'pi', 'pi-subagent-runner.cjs'),
       piSubagentRunnerOutput,
     ),
     copyFile(
-      join(repositoryRoot, 'current-provider-runtime.cjs'),
+      join(repositoryRoot, 'sidecar', 'pi', 'current-provider-runtime.cjs'),
       currentProviderRuntimeOutput,
     ),
     copyFile(
@@ -1090,9 +1090,9 @@ async function buildSidecar(platform) {
         ]),
       ),
     }, null, 2)}\n`, { mode: 0o600 }),
-    bundleBridge('bridge.js', chatOutput),
-    bundleBridge('security-bridge.js', securityOutput),
-    bundleBridge('computer-use-proxy.js', computerUseProxyOutput),
+    bundleBridge('sidecar/pi/bridge.js', chatOutput),
+    bundleBridge('sidecar/security/security-bridge.js', securityOutput),
+    bundleBridge('sidecar/computer-use/computer-use-proxy.js', computerUseProxyOutput),
     bundleBridge(
       'node_modules/@earendil-works/pi-coding-agent/dist/cli.js',
       piSubagentCliOutput,

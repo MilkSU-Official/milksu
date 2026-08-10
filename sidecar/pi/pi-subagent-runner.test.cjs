@@ -12,7 +12,8 @@ const {
   writeFileSync,
 } = require("node:fs");
 const { tmpdir } = require("node:os");
-const { join } = require("node:path");
+const { join, resolve } = require("node:path");
+const { pathToFileURL } = require("node:url");
 const test = require("node:test");
 const {
   prepareRunnerPolicy,
@@ -21,6 +22,8 @@ const {
   validateCLIArguments,
   writeRuntimeModelConfig,
 } = require("./pi-subagent-runner.cjs");
+
+const repositoryRoot = resolve(__dirname, "..", "..");
 
 function fixture(agent) {
   const root = mkdtempSync(join(tmpdir(), "milksu-runner-"));
@@ -153,7 +156,7 @@ test("launcher removes the parent Node permission layer before runner startup", 
 
 test("bundled subagent heartbeats keep an absolute execution limit", () => {
   const source = readFileSync(
-    join(__dirname, "node_modules/pi-sub-agent/extensions/index.ts"),
+    join(repositoryRoot, "node_modules/pi-sub-agent/extensions/index.ts"),
     "utf8",
   );
   assert.match(
@@ -252,7 +255,10 @@ test("Pi subagent shell drops provider credentials without changing ordinary Pi"
     process.env[providerName] = sentinel;
     delete process.env[markerName];
     const { getShellEnv } = await import(
-      "./node_modules/@earendil-works/pi-coding-agent/dist/utils/shell.js"
+      pathToFileURL(join(
+        repositoryRoot,
+        "node_modules/@earendil-works/pi-coding-agent/dist/utils/shell.js",
+      )).href
     );
     assert.equal(getShellEnv()[providerName], sentinel);
 
@@ -285,7 +291,10 @@ test("Pi subagent shell remains networkless while the model runtime can connect"
   try {
     process.env.MILKSU_PI_SUBAGENT_RUNTIME = "1";
     const { createLocalBashOperations } = await import(
-      "./node_modules/@earendil-works/pi-coding-agent/dist/core/tools/bash.js"
+      pathToFileURL(join(
+        repositoryRoot,
+        "node_modules/@earendil-works/pi-coding-agent/dist/core/tools/bash.js",
+      )).href
     );
     const result = await createLocalBashOperations().exec(
       `curl --fail --silent --max-time 2 http://127.0.0.1:${address.port}`,

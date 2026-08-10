@@ -6,8 +6,8 @@ import { chmod, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { codingMcpOperationRequiresApproval } from '../bridge-auto-approval.js'
-import { loadCodingMcpConfig } from '../bridge-mcp.js'
+import { codingMcpOperationRequiresApproval } from '../sidecar/pi/bridge-auto-approval.js'
+import { loadCodingMcpConfig } from '../sidecar/pi/bridge-mcp.js'
 
 function assert(condition, message) {
   if (!condition) throw new Error(message)

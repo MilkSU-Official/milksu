@@ -18,10 +18,10 @@ Wails bindings.
 
 ## Runtime Connections
 
-- `../bridge.js`: normal Coding Pi session and reviewed resources;
-- `../security-bridge.js`: CTF-specific Pi session with Coding resources disabled;
-- `../bridge-policy.js`: tool policy transport and platform enforcement;
-- `../app.go`: Wails facade/composition root;
+- `../sidecar/pi/bridge.js`: normal Coding Pi session and reviewed resources;
+- `../sidecar/security/security-bridge.js`: CTF-specific Pi session with Coding resources disabled;
+- `../sidecar/pi/bridge-policy.js`: tool policy transport and platform enforcement;
+- `../cmd/milksu-backend/app.go`: Go application composition root;
 - `../internal/`: application services, domains, persistence and platform adapters.
 
 Coding Browser, a user-paired platform browser and Computer Use are separate permission surfaces. They do

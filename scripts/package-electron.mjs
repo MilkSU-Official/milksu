@@ -34,7 +34,7 @@ async function buildRuntime() {
   await run('npm', ['--prefix', 'app', 'run', 'build'])
   await mkdir(join(root, 'build', 'desktop'), { recursive: true })
   const backend = join(root, 'build', 'desktop', 'milksu-backend')
-  await run('go', ['build', '-trimpath', '-o', backend, '.'])
+  await run('go', ['build', '-trimpath', '-o', backend, './cmd/milksu-backend'])
   await chmod(backend, 0o755)
 }
 

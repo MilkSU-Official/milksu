@@ -188,7 +188,7 @@ func (s *SecuritySupervisor) ensureProcessLocked(settings config.AppSettings) er
 	if s.process != nil {
 		return nil
 	}
-	command, err := newSidecarCommand("security-bridge.cjs", "security-bridge.js")
+	command, err := newSidecarCommand("security-bridge.cjs", developmentSecurityBridgePath)
 	if err != nil {
 		return err
 	}

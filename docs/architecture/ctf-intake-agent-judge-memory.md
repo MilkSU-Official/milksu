@@ -117,8 +117,8 @@ sequenceDiagram
 | Catalog / Intake | 平台 Adapter 提供来源；CTF Service 归一化 | `internal/nssctf`、`internal/ctfshow`、`internal/browsercap`、`ctf.validateRequest` | **Implemented** |
 | Artifact admission | Security Runtime 计算 SHA-256 并保存 | `internal/securityruntime/artifact_store.go` | **Implemented** |
 | Challenge fact | `challenge.admitted` Role Fact | `internal/ctf/service.go`、`internal/ctf/model.go` | **Implemented** |
-| Workspace handoff | 每题固定目录和固定会话 ID | `internal/ctf/workspace.go`、`app.go` | **Implemented** |
-| Agent execution | Pi 负责通用 Loop；MilkSU 负责策略和工作区 | `bridge.js`、`bridge-policy.js`、`internal/engine` | **Implemented / Partial** |
+| Workspace handoff | 每题固定目录和固定会话 ID | `internal/ctf/workspace.go`、`cmd/milksu-backend/app.go` | **Implemented** |
+| Agent execution | Pi 负责通用 Loop；MilkSU 负责策略和工作区 | `sidecar/pi/bridge.js`、`sidecar/pi/bridge-policy.js`、`internal/engine` | **Implemented / Partial** |
 | Trajectory checkpoint | Recorder + `trajectory.jsonl` + `run.json` | `ctf_agent_recorder.go`、`internal/ctf/run_checkpoint.go` | **Implemented** |
 | Candidate gate | 只读显式候选文件，不从聊天猜 Flag | `ReadAgentWorkspaceResult`、`RecordCodingAgentCandidate` | **Implemented** |
 | External Judge | 平台或受控人工确认 | `PrepareExternalSubmission`、NSSCTF/CTFshow Bridge、Arena | **Implemented** |

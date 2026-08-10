@@ -1217,7 +1217,7 @@ func (s *Supervisor) ensureProcessLocked(settings config.AppSettings, workspace 
 	}
 	command, err := newSidecarCommandAtWithDirectory(
 		"chat-bridge.cjs",
-		"bridge.js",
+		developmentChatBridgePath,
 		workspace,
 		true,
 		s.sidecarDirectory,
@@ -1743,7 +1743,7 @@ func safeBaseEnvironment(source []string) []string {
 
 func findProjectRoot() (string, error) {
 	if root := os.Getenv("MILKSU_ROOT"); root != "" {
-		if _, err := os.Stat(filepath.Join(root, "bridge.js")); err == nil {
+		if projectRootContainsSidecar(root) {
 			return root, nil
 		}
 	}
@@ -1758,7 +1758,7 @@ func findProjectRoot() (string, error) {
 	for _, start := range starts {
 		directory := start
 		for range 12 {
-			if _, err := os.Stat(filepath.Join(directory, "bridge.js")); err == nil {
+			if projectRootContainsSidecar(directory) {
 				return directory, nil
 			}
 			parent := filepath.Dir(directory)
@@ -1768,5 +1768,15 @@ func findProjectRoot() (string, error) {
 			directory = parent
 		}
 	}
-	return "", fmt.Errorf("cannot locate MilkSU project root containing bridge.js")
+	return "", fmt.Errorf("cannot locate MilkSU project root containing %s", developmentChatBridgePath)
+}
+
+func projectRootContainsSidecar(root string) bool {
+	for _, relativePath := range []string{"go.mod", developmentChatBridgePath} {
+		info, err := os.Stat(filepath.Join(root, relativePath))
+		if err != nil || !info.Mode().IsRegular() {
+			return false
+		}
+	}
+	return true
 }

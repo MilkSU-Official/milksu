@@ -7,7 +7,7 @@ import {
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
-import { createFirstPartyPlaywrightMcpServer } from '../bridge-mcp.js'
+import { createFirstPartyPlaywrightMcpServer } from '../sidecar/pi/bridge-mcp.js'
 
 const requiredEnvironment = [
   'MILKSU_CODING_BROWSER_CDP_ENDPOINT',

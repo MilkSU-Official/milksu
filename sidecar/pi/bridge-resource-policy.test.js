@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import {
@@ -31,7 +31,7 @@ test("reviewed LSP config ignores project commands and strips provider secrets",
     assert.equal(server.command[1], "-i");
     assert.equal(server.command.some(value => value.startsWith("HOME=/tmp/home")), true);
   }
-  const root = dirname(fileURLToPath(import.meta.url));
+  const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
   assert.equal(
     config.servers["milksu-go"].command.at(-1),
     join(root, "gopls"),

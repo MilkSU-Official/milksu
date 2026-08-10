@@ -109,7 +109,7 @@ index d81c850..fd8fb9e 100644
 +  spawnCommand,
 +  stopProcessGroup,
 +  validateCommandSpec,
-+} from "../../../bridge-background-process.js";
++} from "../../../sidecar/pi/bridge-background-process.js";
 diff --git a/node_modules/pi-better-background-tasks/src/registry.ts b/node_modules/pi-better-background-tasks/src/registry.ts
 index 9d82042..414c25a 100644
 --- a/node_modules/pi-better-background-tasks/src/registry.ts
@@ -140,7 +140,7 @@ index 292fe9e..f1669ac 100644
 +++ b/node_modules/pi-better-background-tasks/src/runtime.ts
 @@ -1,4 +1,5 @@
  import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-+import { authorizeResumedBackgroundSpecification } from "../../../bridge-background-authorization.js";
++import { authorizeResumedBackgroundSpecification } from "../../../sidecar/pi/bridge-background-authorization.js";
  import { appendLine, appendWatchResult, retainLogTail, resolveMaxLogBytes } from "./logs.js";
  import { evaluateCondition } from "./conditions.js";
  import { processExists, runCommandOnce, spawnCommand, stopProcessGroup } from "./process.js";

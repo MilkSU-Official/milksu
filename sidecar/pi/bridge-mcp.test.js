@@ -10,7 +10,7 @@ import {
   symlink,
   writeFile,
 } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import {
@@ -35,7 +35,7 @@ import {
   resolveReviewedMcpWorkspace,
 } from "./bridge-mcp.js";
 
-const repositoryRoot = dirname(fileURLToPath(import.meta.url));
+const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 test("loads only explicitly selected MCP servers and clears stdio inheritance", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "milksu-mcp-"));

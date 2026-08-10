@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const REVIEWED_LSP_SERVER_NAMES = [
@@ -9,11 +9,15 @@ const REVIEWED_LSP_SERVER_NAMES = [
 ];
 
 const sidecarDirectory = dirname(fileURLToPath(import.meta.url));
-const installedLspRuntime = existsSync(
-  join(sidecarDirectory, "lsp-runtime", "node_modules"),
-)
-  ? join(sidecarDirectory, "lsp-runtime")
-  : sidecarDirectory;
+const installedLspRuntime = (() => {
+  if (existsSync(join(sidecarDirectory, "lsp-runtime", "node_modules"))) {
+    return join(sidecarDirectory, "lsp-runtime");
+  }
+  if (existsSync(join(sidecarDirectory, "node_modules"))) {
+    return sidecarDirectory;
+  }
+  return resolve(sidecarDirectory, "..", "..");
+})();
 const packagedVueLanguageServer = join(
   installedLspRuntime,
   "node_modules",

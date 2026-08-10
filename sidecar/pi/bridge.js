@@ -5,7 +5,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { existsSync } from "node:fs";
 import { createInterface } from "node:readline";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { readFile, unlink } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { Type } from "typebox";
@@ -127,6 +127,9 @@ const abortedSessions = new Set();
 const input = createInterface({ input: process.stdin });
 let commandQueue = Promise.resolve();
 const bridgeDirectory = dirname(fileURLToPath(import.meta.url));
+const sidecarResourceDirectory = existsSync(join(bridgeDirectory, "skills"))
+  ? bridgeDirectory
+  : resolve(bridgeDirectory, "..", "..");
 const approvalRequiredCodingTools = new Set(["bash", "edit", "write"]);
 
 function emit(conversationId, type, data = {}) {
@@ -991,7 +994,7 @@ function reviewedCodingResourceRoots(sessionRole = "") {
   if (sessionRole) return [];
   const attachmentRoot = process.env.MILKSU_CODING_ATTACHMENT_ROOT;
   return [
-    ...reviewedCodingSkillPaths(bridgeDirectory, sessionRole),
+    ...reviewedCodingSkillPaths(sidecarResourceDirectory, sessionRole),
     attachmentRoot,
   ].filter((path) => path && existsSync(path));
 }
@@ -1055,7 +1058,7 @@ async function loadRuntimeSessionPolicy(cwd, command) {
     ? command.sessionRole || "solver"
     : "";
   const codingSkillPaths = reviewedCodingSkillPaths(
-    bridgeDirectory,
+    sidecarResourceDirectory,
     effectiveSessionRole,
   );
   const codingResourceRoots = reviewedCodingResourceRoots(effectiveSessionRole);
@@ -1089,7 +1092,7 @@ function configureSubagentRuntime(cwd, collaboration) {
   const runner = join(bridgeDirectory, "pi-subagent-runner.cjs");
   const packagedCLI = join(bridgeDirectory, "pi-subagent-cli.cjs");
   const developmentCLI = join(
-    bridgeDirectory,
+    sidecarResourceDirectory,
     "node_modules",
     "@earendil-works",
     "pi-coding-agent",
@@ -1098,7 +1101,7 @@ function configureSubagentRuntime(cwd, collaboration) {
   );
   const packagedAgents = join(bridgeDirectory, "subagents", "agents");
   const developmentAgents = join(
-    bridgeDirectory,
+    sidecarResourceDirectory,
     "node_modules",
     "pi-sub-agent",
     "extensions",

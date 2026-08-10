@@ -78,6 +78,18 @@ CVE 纵深研究、真实漏洞复现、外部资产实验和披露流程仍后�
 
 ## 开发
 
+源码按运行时边界组织，仓库根目录只保留模块清单、锁文件和仓库级配置：
+
+- `app/`：Vue Renderer；
+- `desktop/`：Electron 主进程、Preload 与 Chromium 宿主；
+- `cmd/milksu-backend/`：Go Runtime 可执行程序和应用组合层；
+- `internal/`：Go 领域、应用服务与基础设施包；
+- `sidecar/pi/`：Pi Session、工具策略和固定扩展适配；
+- `sidecar/security/`：CTF Security Sidecar 入口；
+- `sidecar/computer-use/`：Computer Use 代理；
+- `browserextension/`：真实浏览器标签页配对扩展；
+- `scripts/`、`tests/`：构建、打包、验收协调器与 fixture。
+
 ```bash
 # 安装根依赖并构建文档
 npm install
@@ -89,13 +101,14 @@ npm --prefix app run dev
 
 # Go 与前端自动测试
 go test ./...
+npm run test:sidecar
 npm --prefix app run test
 npm --prefix app run build
 
 # 固定 Sidecar 资源与 Electron/Chromium 桌面包
 npm run sidecar:smoke
 npm run desktop:build
-npm run m3:release-check
+npm run codesign:check
 ```
 
 具体命令和环境要求以 `package.json`、`app/package.json`、`desktop/package.json` 和当前 CI/脚本为准。

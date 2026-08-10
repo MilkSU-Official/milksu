@@ -71,11 +71,11 @@
       "size": [165, 70],
       "sources": [
         {
-          "path": "app.go",
+          "path": "cmd/milksu-backend/app.go",
           "label": "Application facade"
         },
         {
-          "path": "main.go",
+          "path": "cmd/milksu-backend/main.go",
           "label": "Process composition"
         }
       ]
@@ -98,7 +98,7 @@
           "label": "Agent workspace"
         },
         {
-          "path": "ctf_agent_recorder.go",
+          "path": "cmd/milksu-backend/ctf_agent_recorder.go",
           "label": "Trajectory recorder"
         }
       ]
@@ -113,7 +113,7 @@
       "size": [175, 72],
       "sources": [
         {
-          "path": "bridge.js",
+          "path": "sidecar/pi/bridge.js",
           "label": "PI session bridge"
         },
         {
@@ -132,7 +132,7 @@
       "size": [160, 72],
       "sources": [
         {
-          "path": "bridge-policy.js",
+          "path": "sidecar/pi/bridge-policy.js",
           "label": "Tool enforcement"
         },
         {
@@ -235,7 +235,7 @@
       "size": [165, 70],
       "sources": [
         {
-          "path": "security-bridge.js",
+          "path": "sidecar/security/security-bridge.js",
           "label": "Typed bridge"
         },
         {

@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
 import {
   chmod,
   lstat,
@@ -24,8 +25,16 @@ export { codingBrowserMcpServerName };
 export { browserUseMcpServerName };
 export const computerUseMcpServerName = "milksu-computer-use";
 const bridgeDirectory = dirname(fileURLToPath(import.meta.url));
-const playwrightMcpCliPath = join(
+const sidecarResourceDirectory = existsSync(join(
   bridgeDirectory,
+  "node_modules",
+  "@playwright",
+  "mcp",
+))
+  ? bridgeDirectory
+  : resolve(bridgeDirectory, "..", "..");
+const playwrightMcpCliPath = join(
+  sidecarResourceDirectory,
   "node_modules",
   "@playwright",
   "mcp",
@@ -33,7 +42,10 @@ const playwrightMcpCliPath = join(
 );
 const playwrightSocketRoot = "/private/tmp/milksu-playwright";
 const computerUseSocketRoot = "/private/tmp/milksu-computer-use";
-const computerUseProxyPath = join(bridgeDirectory, "computer-use-proxy.cjs");
+const packagedComputerUseProxyPath = join(bridgeDirectory, "computer-use-proxy.cjs");
+const computerUseProxyPath = existsSync(packagedComputerUseProxyPath)
+  ? packagedComputerUseProxyPath
+  : resolve(bridgeDirectory, "..", "computer-use", "computer-use-proxy.js");
 const computerUseDriverPath = join(bridgeDirectory, "cua-driver");
 const browserUseExecutableCandidates = [
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -485,6 +497,7 @@ export function computerUseSandboxProfile(socketPath, runtimeRoot) {
   const runtimeTemporary = join(runtimeRoot, "tmp");
   const readableRoots = [
     bridgeDirectory,
+    dirname(computerUseProxyPath),
     runtimeRoot,
     "/System",
     "/usr",
@@ -644,7 +657,7 @@ export async function createFirstPartyPlaywrightMcpServer(workspace, descriptor)
       codingBrowserMcpServerName,
       root,
       {
-        extraReadableRoots: [bridgeDirectory],
+        extraReadableRoots: [sidecarResourceDirectory],
         extraWritableRoots: [socketRoot, evidenceRoot],
       },
     ),
@@ -720,7 +733,7 @@ export async function createFirstPartyBrowserUseMcpServer(
       browserUseMcpServerName,
       root,
       {
-        extraReadableRoots: [bridgeDirectory, executablePath],
+        extraReadableRoots: [sidecarResourceDirectory, executablePath],
         extraWritableRoots: [evidenceRoot],
       },
     ),

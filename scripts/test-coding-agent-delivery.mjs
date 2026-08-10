@@ -410,7 +410,7 @@ async function startFakeProvider(plan) {
 
 async function bundleBridge(output) {
   await build({
-    entryPoints: [join(repositoryRoot, 'bridge.js')],
+    entryPoints: [join(repositoryRoot, 'sidecar', 'pi', 'bridge.js')],
     outfile: output,
     bundle: true,
     platform: 'node',
@@ -1119,7 +1119,7 @@ async function main() {
       },
       runtime: {
         harness: 'MilkSU Coding Runtime',
-        bridge: 'current worktree bridge.js bundle',
+        bridge: 'current worktree sidecar/pi/bridge.js bundle',
         provider: 'local OpenAI-compatible fake provider',
         model: fixtureModel,
         conversationId,
