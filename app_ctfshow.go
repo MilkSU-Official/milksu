@@ -11,7 +11,6 @@ import (
 	"github.com/MilkSU-Official/milksu/internal/ctf"
 	"github.com/MilkSU-Official/milksu/internal/ctfshow"
 	"github.com/MilkSU-Official/milksu/internal/securityruntime"
-	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 type CTFShowCatalogStatus struct {
@@ -100,8 +99,7 @@ func (a *App) OpenCTFShowChallenges(rawURL string) error {
 	if a.ctx == nil {
 		return fmt.Errorf("desktop runtime is not ready")
 	}
-	wailsruntime.BrowserOpenURL(a.ctx, target)
-	return nil
+	return a.openExternal(target)
 }
 
 func (a *App) ImportCTFShowChallenge(

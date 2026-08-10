@@ -250,7 +250,7 @@ func TestCodingComposerKeepsOnlyPersistentMessageContextControls(t *testing.T) {
 		`目标`,
 		`计划模式`,
 		`退出计划模式`,
-		`沙箱浏览器`,
+		`浏览器`,
 		`Browser Use`,
 		`Computer Use`,
 		`前端视觉验收`,
@@ -260,6 +260,9 @@ func TestCodingComposerKeepsOnlyPersistentMessageContextControls(t *testing.T) {
 		if !strings.Contains(composer, expected) {
 			t.Fatalf("Coding composer plus menu does not expose %q", expected)
 		}
+	}
+	if strings.Contains(composer, `沙箱浏览器`) {
+		t.Fatal("Coding composer exposes the internal sandbox browser label")
 	}
 	for _, duplicate := range []string{
 		`chooseWorkspace`,

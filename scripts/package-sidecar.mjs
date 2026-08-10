@@ -2223,7 +2223,7 @@ async function installSidecar(platform, binaryPath) {
   const source = await buildSidecar(platform)
   const absoluteBinary = resolve(repositoryRoot, binaryPath)
   if (!absoluteBinary.includes('.app/Contents/MacOS/')) {
-    throw new Error(`Wails macOS binary path was not recognised: ${absoluteBinary}`)
+    throw new Error(`macOS App binary path was not recognised: ${absoluteBinary}`)
   }
   const contents = dirname(dirname(absoluteBinary))
   const destination = join(contents, 'Resources', 'milksu-sidecar')
@@ -2281,6 +2281,9 @@ async function installSidecar(platform, binaryPath) {
       'cli.mjs',
     ),
     join(destination, 'lsp-runtime', 'gopls'),
+    join(destination, 'node_modules', '@playwright', 'mcp', 'cli.js'),
+    join(destination, 'node_modules', 'playwright', 'cli.js'),
+    join(destination, 'node_modules', 'playwright-core', 'package.json'),
     join(
       destination,
       'THIRD_PARTY-LICENSES',

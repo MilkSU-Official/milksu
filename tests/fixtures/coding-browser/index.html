@@ -3,34 +3,86 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>MilkSU Coding Browser Fixture</title>
+    <title>Browser Agent Challenge</title>
+    <style>
+      :root { color-scheme: light; font-family: ui-sans-serif, system-ui, sans-serif; }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: #f5f7fa; color: #18212f; }
+      main { width: min(760px, calc(100% - 40px)); margin: 48px auto; }
+      nav { display: flex; gap: 12px; margin-bottom: 20px; }
+      nav a { color: #3659b8; text-decoration: none; }
+      article { background: white; border: 1px solid #dde3eb; border-radius: 18px; padding: 28px; box-shadow: 0 16px 40px #23324d12; }
+      h1 { margin: 0 0 8px; }
+      .hint { color: #5d6878; line-height: 1.7; }
+      .gate { display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: center; padding: 18px 0; border-top: 1px solid #edf0f4; }
+      .gate:first-of-type { margin-top: 20px; }
+      button { border: 1px solid #cdd5e0; border-radius: 10px; background: #fff; padding: 10px 16px; font: inherit; cursor: pointer; }
+      button:hover { background: #f1f5ff; border-color: #8da6e8; }
+      button[disabled] { cursor: not-allowed; opacity: .45; }
+      output { display: block; margin-top: 22px; padding: 16px; border-radius: 12px; background: #f4f6f9; font-family: ui-monospace, monospace; }
+      output[data-complete="true"] { color: #08783f; background: #eaf8f0; }
+    </style>
   </head>
   <body>
     <main>
-      <h1>MilkSU Coding Browser</h1>
-      <label>
-        Project
-        <input id="project" value="unverified" />
-      </label>
-      <button id="verify" type="button">Verify</button>
-      <output id="result">pending</output>
-      <p id="evidence">Console and Network evidence pending</p>
+      <nav aria-label="Fixture navigation">
+        <strong>点击挑战</strong>
+        <a href="form.html">表单任务</a>
+      </nav>
+      <article>
+        <h1>浏览器 Agent 点击挑战</h1>
+        <p class="hint">
+          这是一个有顺序的四步挑战。每一步完成后，下一步才会解锁；请按编号点击，拿到最终 flag。
+          跳步会重置进度。
+        </p>
+
+        <section class="gate">
+          <div><strong>第一步</strong><br><span class="hint">启动挑战。</span></div>
+          <button type="button" data-step="1">启动第一步</button>
+        </section>
+        <section class="gate">
+          <div><strong>第二步</strong><br><span class="hint">确认页面状态。</span></div>
+          <button type="button" data-step="2" disabled>确认第二步</button>
+        </section>
+        <section class="gate">
+          <div><strong>第三步</strong><br><span class="hint">验证交互路径。</span></div>
+          <button type="button" data-step="3" disabled>验证第三步</button>
+        </section>
+        <section class="gate">
+          <div><strong>第四步</strong><br><span class="hint">完成挑战并显示 flag。</span></div>
+          <button type="button" data-step="4" disabled>完成第四步</button>
+        </section>
+
+        <output id="receipt" role="status" aria-live="polite" data-complete="false">进度：0 / 4</output>
+      </article>
     </main>
     <script>
-      document.querySelector('#verify').addEventListener('click', () => {
-        const verified = document.querySelector('#project').value === 'MilkSU'
-        document.querySelector('#result').textContent = verified
-          ? 'MILKSU-BROWSER-OK'
-          : 'invalid'
-        if (!verified) return
+      const buttons = [...document.querySelectorAll('[data-step]')]
+      const receipt = document.querySelector('#receipt')
+      let next = 1
 
-        console.error('MILKSU-BROWSER-EXPECTED-CONSOLE-ERROR')
-        fetch('http://127.0.0.1:1/milksu-expected-network-failure')
-          .catch(() => {
-            document.querySelector('#evidence').textContent =
-              'MILKSU-BROWSER-EXPECTED-NETWORK-FAILURE'
-          })
-      })
+      function reset() {
+        next = 1
+        buttons.forEach((button, index) => { button.disabled = index !== 0 })
+        receipt.dataset.complete = 'false'
+        receipt.textContent = '顺序错误，已重置。进度：0 / 4'
+      }
+
+      buttons.forEach(button => button.addEventListener('click', () => {
+        const step = Number(button.dataset.step)
+        if (step !== next) return reset()
+        button.disabled = true
+        next += 1
+        if (next <= buttons.length) buttons[next - 1].disabled = false
+        if (step < buttons.length) {
+          receipt.textContent = `进度：${step} / 4`
+          return
+        }
+        const flag = [102,108,97,103,123,98,114,111,119,115,101,114,95,97,103,101,110,116,95,111,107,125]
+          .map(code => String.fromCharCode(code)).join('')
+        receipt.dataset.complete = 'true'
+        receipt.textContent = `挑战完成：${flag}`
+      }))
     </script>
   </body>
 </html>

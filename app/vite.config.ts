@@ -1,5 +1,5 @@
 import path from 'path'
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
 
@@ -12,6 +12,9 @@ export default defineConfig({
     },
   },
   clearScreen: false,
+	test: {
+		setupFiles: ['./src/test/setupDesktopMock.ts'],
+	},
   server: {
     port: 1420,
     strictPort: true,

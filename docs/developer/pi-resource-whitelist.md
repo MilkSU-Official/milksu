@@ -12,7 +12,7 @@ Coding Harness adopts a strict **reuse-first** policy:
 
 1. If Pi core already owns the lifecycle, MilkSU calls Pi instead of reimplementing it.
 2. If a reviewed Pi package provides a general Coding capability, MilkSU pins and adapts it instead of shipping an interim clone.
-3. MilkSU-owned code is limited to desktop product boundaries that an extension cannot own safely: workspace/sandbox enforcement, credential isolation, explicit approval transport, Wails event/state projection, and user-data persistence.
+3. MilkSU-owned code is limited to desktop product boundaries that an extension cannot own safely: workspace/sandbox enforcement, credential isolation, explicit approval transport, Electron/Go RPC event-state projection, and user-data persistence.
 4. Product-specific invention is concentrated in the CTF Agent: role orchestration, evidence, Judge, recovery, training memory, and ability calibration.
 5. A planned Coding feature with a credible upstream candidate stays visibly `Planned` until that candidate is integrated or rejected with evidence. It must not accumulate a temporary bespoke harness meanwhile.
 
@@ -73,7 +73,7 @@ the Sidecar manifest.
 | `tomsej/pi-ext` permissions | Preferred rule-matching/reference implementation for safe/read-only modes. Pi itself explicitly has no built-in permission boundary, so MilkSU must retain its OS sandbox and credential isolation. The extension's TUI confirmation cannot silently stand in for the missing desktop approval protocol. |
 | `tomsej/pi-ext` Session Snap / Query / Handoff | Preferred candidates for archive, recall, and fresh-session handoff. Reuse their session semantics where possible; MilkSU supplies repository-grouped navigation and desktop persistence. |
 | `tomsej/pi-ext` Code Review / Tool Pills / `pi-sem` | Preferred candidates for review workflow, compact tool rendering, and semantic change inspection. Evaluate measured context cost before enabling semantic tools by default. |
-| `tomsej/pi-ext` Ask User Question | Preferred structured clarification candidate once extension UI requests can round-trip through Wails. |
+| `tomsej/pi-ext` Ask User Question | Preferred structured clarification candidate once extension UI requests can round-trip through the Desktop RPC. |
 | `pi-chrome-devtools` | Do not load. It duplicates the explicit browser pairing boundary and would widen browser authority. |
 | IDA Pro/idalib, Burp, radare2, Ghidra, Semgrep MCP | Security pilot candidates, not active resources. Review and pin one upstream per tool, start read-only/minimal, separate read/write/execute/network effects, keep credentials out of context, retain a real Coding task and a denied over-scope receipt, then decide whether to promote it into CTF/CVE. |
 | Community CTF Skill packs | Do not bulk install. Select one category Skill only after a real failed trajectory establishes the need; review scripts and tool prerequisites before activation. |
@@ -85,7 +85,7 @@ Pi's official documentation states that Pi runs with the launching process's fil
 | Current area | Decision | Target |
 | --- | --- | --- |
 | Pi SessionManager, context compaction, model/tool loop | Keep upstream-owned | Remove MilkSU behavior that duplicates Pi lifecycle decisions |
-| `milksu_progress` | Thin projection only | Replace its planning semantics with the selected Pi plan/task package; keep only the bounded Wails event schema |
+| `milksu_progress` | Thin projection only | Replace its planning semantics with the selected Pi plan/task package; keep only the bounded Desktop RPC event schema |
 | Coding permission matcher | Reduce/replace | Reuse a reviewed permission package's matching rules where embedding permits; retain MilkSU sandbox, credential boundary, and desktop approval transport |
 | Agent-side subtask orchestration | Do not build | Integrate `pi-sub-agent` after packaged-runtime and budget tests |
 | Session archive/query/handoff | Do not build | Evaluate Session Snap / Query / Handoff and adapt only desktop navigation/state |

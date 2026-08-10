@@ -240,7 +240,7 @@ describe('ChatPage Goal interaction', () => {
     result.host.querySelector<HTMLButtonElement>('[aria-label="打开右侧栏"]')?.click()
     await nextTick()
 
-    expect(result.host.querySelector('[aria-label="沙箱浏览器"]')).not.toBeNull()
+    expect(result.host.querySelector('[aria-label="浏览器"]')).not.toBeNull()
     expect(result.host.querySelector('[aria-label="Computer Use"]')).toBeNull()
   })
 

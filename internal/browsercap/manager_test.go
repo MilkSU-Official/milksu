@@ -8,8 +8,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -17,6 +20,56 @@ import (
 	"github.com/MilkSU-Official/milksu/internal/ctfshow"
 	"github.com/gorilla/websocket"
 )
+
+type codingHostFixture struct {
+	started CodingHostStartRequest
+}
+
+func (host *codingHostFixture) Start(
+	_ context.Context,
+	request CodingHostStartRequest,
+) (CodingHostSession, error) {
+	host.started = request
+	return CodingHostSession{
+		Name:        "Electron Chromium fixture",
+		CDPEndpoint: "http://127.0.0.1:43117",
+	}, nil
+}
+
+func (*codingHostFixture) SetViewport(string, CodingViewport) error { return nil }
+func (*codingHostFixture) Navigate(string, string) error            { return nil }
+func (*codingHostFixture) Back(string) error                        { return nil }
+func (*codingHostFixture) Forward(string) error                     { return nil }
+func (*codingHostFixture) Reload(string) error                      { return nil }
+func (*codingHostFixture) Stop(string) error                        { return nil }
+func (*codingHostFixture) Close()                                   {}
+
+func TestCodingBrowserUsesUserFacingOriginWithoutSandboxLabel(t *testing.T) {
+	host := &codingHostFixture{}
+	manager, err := NewWithCodingHost(t.TempDir(), host)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer manager.Close()
+
+	status, err := manager.StartCoding(
+		context.Background(),
+		"conversation-1",
+		"https://example.com/docs",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.ProfileLabel != "https://example.com" {
+		t.Fatalf("profile label = %q, want user-facing origin", status.ProfileLabel)
+	}
+	if strings.Contains(strings.ToLower(status.ProfileLabel), "sandbox") {
+		t.Fatalf("profile label exposes implementation terminology: %q", status.ProfileLabel)
+	}
+	if host.started.SessionID == "" || host.started.InitialURL != "https://example.com/docs" {
+		t.Fatalf("unexpected host request: %#v", host.started)
+	}
+}
 
 func TestCodingBrowserDescriptorStaysLoopbackAndConversationBound(t *testing.T) {
 	manager, err := New(t.TempDir())
@@ -43,6 +96,49 @@ func TestCodingBrowserDescriptorStaysLoopbackAndConversationBound(t *testing.T) 
 	}
 	if _, ok := manager.CodingDescriptor("conversation-2"); ok {
 		t.Fatal("descriptor must not leak across conversations")
+	}
+}
+
+func TestPagesCanProbeStartingHostedSession(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/json/list" {
+			http.NotFound(writer, request)
+			return
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`[{
+			"id":"page-1",
+			"title":"Starting",
+			"url":"http://127.0.0.1/",
+			"type":"page",
+			"webSocketDebuggerUrl":"ws://127.0.0.1/devtools/page/page-1"
+		}]`))
+	}))
+	defer server.Close()
+
+	parsed, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	port, err := strconv.Atoi(parsed.Port())
+	if err != nil {
+		t.Fatal(err)
+	}
+	manager, err := New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer manager.Close()
+	manager.sessions["browser_starting"] = &managedSession{
+		public: Session{ID: "browser_starting", Phase: "starting", port: port},
+	}
+
+	pages, err := manager.Pages(context.Background(), "browser_starting")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pages) != 1 || pages[0].Title != "Starting" {
+		t.Fatalf("unexpected pages: %#v", pages)
 	}
 }
 

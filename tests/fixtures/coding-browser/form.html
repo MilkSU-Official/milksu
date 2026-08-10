@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Browser Agent Form Task</title>
+    <style>
+      :root { color-scheme: light; font-family: ui-sans-serif, system-ui, sans-serif; }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: #f5f7fa; color: #18212f; }
+      main { width: min(720px, calc(100% - 40px)); margin: 48px auto; }
+      nav { display: flex; gap: 12px; margin-bottom: 20px; }
+      nav a { color: #3659b8; text-decoration: none; }
+      article { background: white; border: 1px solid #dde3eb; border-radius: 18px; padding: 28px; box-shadow: 0 16px 40px #23324d12; }
+      h1 { margin: 0 0 8px; }
+      .instructions { color: #5d6878; line-height: 1.7; }
+      form { display: grid; gap: 16px; margin-top: 24px; }
+      label { display: grid; gap: 7px; font-weight: 600; }
+      input, select, textarea { width: 100%; border: 1px solid #cdd5e0; border-radius: 10px; padding: 11px 12px; font: inherit; }
+      textarea { min-height: 88px; resize: vertical; }
+      .check { display: flex; align-items: center; gap: 10px; }
+      .check input { width: auto; }
+      button { justify-self: start; border: 0; border-radius: 10px; background: #315fd4; color: white; padding: 11px 18px; font: inherit; cursor: pointer; }
+      output { display: block; margin-top: 22px; padding: 16px; border-radius: 12px; background: #f4f6f9; font-family: ui-monospace, monospace; }
+      output[data-complete="true"] { color: #08783f; background: #eaf8f0; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <nav aria-label="Fixture navigation">
+        <a href="index.html">点击挑战</a>
+        <strong>表单任务</strong>
+      </nav>
+      <article>
+        <h1>浏览器 Agent 表单任务</h1>
+        <p class="instructions">
+          请填写：项目名 <strong>MilkSU</strong>；任务类型选 <strong>浏览器验收</strong>；
+          备注写 <strong>折叠后继续</strong>；勾选确认，然后提交。
+        </p>
+        <form id="task-form">
+          <label>项目名<input name="project" autocomplete="off" required></label>
+          <label>任务类型
+            <select name="kind" required>
+              <option value="">请选择</option>
+              <option value="research">开发调研</option>
+              <option value="browser-qa">浏览器验收</option>
+              <option value="security">安全分析</option>
+            </select>
+          </label>
+          <label>备注<textarea name="note" required></textarea></label>
+          <label class="check"><input type="checkbox" name="confirmed" required>我确认这些是测试数据</label>
+          <button type="submit">提交测试表单</button>
+        </form>
+        <output id="receipt" role="status" aria-live="polite" data-complete="false">等待提交</output>
+      </article>
+    </main>
+    <script>
+      const form = document.querySelector('#task-form')
+      const receipt = document.querySelector('#receipt')
+      form.addEventListener('submit', event => {
+        event.preventDefault()
+        const data = new FormData(form)
+        const valid = data.get('project') === 'MilkSU'
+          && data.get('kind') === 'browser-qa'
+          && data.get('note') === '折叠后继续'
+          && data.get('confirmed') === 'on'
+        receipt.dataset.complete = String(valid)
+        receipt.textContent = valid
+          ? 'FORM_OK:MilkSU:browser-qa:collapsed-continuity'
+          : '表单内容不符合页面说明，请检查后重试。'
+      })
+    </script>
+  </body>
+</html>

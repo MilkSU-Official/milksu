@@ -4,7 +4,6 @@ import (
 	"errors"
 
 	"github.com/MilkSU-Official/milksu/internal/codingterminal"
-	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 func (a *App) ListCodingTerminals(
@@ -81,5 +80,5 @@ func (a *App) emitCodingTerminalEvent(event codingterminal.Event) {
 	if a.ctx == nil {
 		return
 	}
-	wailsruntime.EventsEmit(a.ctx, "coding-terminal-event", event)
+	a.emitDesktopEvent("coding-terminal-event", event)
 }

@@ -1,10 +1,12 @@
 # CTF 六赛道回归清单
 
-> 状态：Evidence contract / pre-selection skeleton
+> 状态：**Deferred evidence template / Not an active target**
 >
-> 对应目标：`CTF-12`
+> 本页保留六赛道验收格式，不对应当前目标编号，也不构成实施队列。是否重启
+> 只由[当前开发目标](./current-objectives.md)选定的 CTF 真实任务纵切决定。
 >
-> 本页只定义六赛道真实验收需要留下什么证据，不声明 MilkSU 已经完成六赛道。
+> 本页只定义未来如果启动六赛道真实验收时需要留下什么证据，不声明
+> MilkSU 已经完成六赛道。
 
 机器可校验清单位于
 [`ctf-six-track-regression-manifest.json`](./ctf-six-track-regression-manifest.json)。

@@ -24,12 +24,12 @@ const shutdownTimeoutMs = 10_000
 const isolatedInstanceId = `local-delivery-${process.pid}-${Date.now()}`
 const preReleaseThresholds = {
   startupMarkerMs: 5_000,
-  idleRSSBytes: 192 * 1024 * 1024,
-  appLogicalBytes: 450 * 1024 * 1024,
+  idleRSSBytes: 512 * 1024 * 1024,
+  appLogicalBytes: 700 * 1024 * 1024,
   sidecarLogicalBytes: 400 * 1024 * 1024,
   frontendDistBytes: 4 * 1024 * 1024,
-  largestFrontendChunkBytes: 512 * 1024,
-  processCount: 3,
+  largestFrontendChunkBytes: 2 * 1024 * 1024,
+  processCount: 6,
 }
 
 function assert(condition, message) {
@@ -138,10 +138,11 @@ async function waitForExit(child, timeoutMs) {
 }
 
 function configuredWindowBounds(source) {
-  const minWidth = Number(source.match(/\bMinWidth:\s*(\d+)/)?.[1])
-  const minHeight = Number(source.match(/\bMinHeight:\s*(\d+)/)?.[1])
-  const defaultWidth = Number(source.match(/\bWidth:\s*(\d+)/)?.[1])
-  const defaultHeight = Number(source.match(/\bHeight:\s*(\d+)/)?.[1])
+	const options = source.match(/new BrowserWindow\(\{([\s\S]*?)webPreferences:/u)?.[1] ?? ''
+	const minWidth = Number(options.match(/\bminWidth:\s*(\d+)/u)?.[1])
+	const minHeight = Number(options.match(/\bminHeight:\s*(\d+)/u)?.[1])
+	const defaultWidth = Number(options.match(/\bwidth:\s*(\d+)/u)?.[1])
+	const defaultHeight = Number(options.match(/\bheight:\s*(\d+)/u)?.[1])
   return { defaultWidth, defaultHeight, minWidth, minHeight }
 }
 
@@ -281,13 +282,13 @@ async function main() {
     )
   }
 
-  const [appSize, sidecarSize, frontendSize, mainSource] = await Promise.all([
+	const [appSize, sidecarSize, frontendSize, desktopSource] = await Promise.all([
     inspectTree(appBundle),
     inspectTree(packagedSidecar),
     inspectTree(frontendDist),
-    fs.readFile(join(repositoryRoot, 'main.go'), 'utf8'),
-  ])
-  const windowBounds = configuredWindowBounds(mainSource)
+		fs.readFile(join(repositoryRoot, 'desktop', 'main.cjs'), 'utf8'),
+	])
+	const windowBounds = configuredWindowBounds(desktopSource)
   assert(
     windowBounds.minWidth === 1080 && windowBounds.minHeight === 680,
     `minimum window changed to ${windowBounds.minWidth}x${windowBounds.minHeight}`,
@@ -333,7 +334,8 @@ async function main() {
         PATH: '/usr/bin:/bin:/usr/sbin:/sbin',
         LANG: 'en_US.UTF-8',
         LC_ALL: 'en_US.UTF-8',
-        MILKSU_INSTANCE_ID: isolatedInstanceId,
+			MILKSU_INSTANCE_ID: isolatedInstanceId,
+			MILKSU_APPDATA_DIR: appDataDirectory,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     })
@@ -363,12 +365,19 @@ async function main() {
     const startupState = JSON.parse(await fs.readFile(lifespanPath, 'utf8'))
     assert(startupState.schema === 'milksu-lifespan/v1', 'unexpected lifespan schema')
     assert(startupState.lastExit === 'running', 'App did not record a running lifespan')
-    assert(startupState.pid === child.pid, 'lifespan PID does not match the launched App')
+		assert(
+			Number.isInteger(startupState.pid) && startupState.pid > 0,
+			'lifespan marker does not identify the Go Runtime process',
+		)
 
     await delay(idleSampleDelayMs)
-    const rows = processTree(await readProcessRows(), child.pid)
-    const idleRSSKiB = rows.reduce((total, row) => total + row.rssKiB, 0)
-    assert(rows.length > 0 && idleRSSKiB > 0, 'could not sample the App process tree RSS')
+		const rows = processTree(await readProcessRows(), child.pid)
+		const idleRSSKiB = rows.reduce((total, row) => total + row.rssKiB, 0)
+		assert(rows.length > 0 && idleRSSKiB > 0, 'could not sample the App process tree RSS')
+		assert(
+			rows.some(row => row.pid === startupState.pid),
+			'Go Runtime lifespan PID is outside the Electron App process tree',
+		)
 
     child.kill('SIGTERM')
     let exit = await waitForExit(child, shutdownTimeoutMs)
@@ -399,7 +408,13 @@ async function main() {
       largestFrontendChunkBytes,
       processCount: rows.length,
     })
-    assert(thresholdsPassed, 'pre-release local delivery performance thresholds failed')
+    const failedThresholds = Object.entries(performanceThresholds.gates)
+      .filter(([, gate]) => !gate.passed)
+      .map(([name, gate]) => `${name}=${gate.actual} (limit ${gate.limit})`)
+    assert(
+      thresholdsPassed,
+      `pre-release local delivery performance thresholds failed: ${failedThresholds.join(', ')}`,
+    )
 
     const report = {
       schema: 'milksu-local-delivery-baseline/v1alpha1',

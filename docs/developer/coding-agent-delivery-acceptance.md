@@ -2,7 +2,8 @@
 
 > 文档状态：**Evidence / Living Runbook**。
 >
-> 验收状态：可执行 deterministic fixture + 真实 DeepSeek 手工/半自动 Runbook。
+> 验收状态：可执行 deterministic fixture + Provider/模型中立的真实手工/半自动
+> Runbook。每次真实运行必须另行记录 Provider、模型、时间和打包版本。
 >
 > 目标：验证“连续、短、人类常见提示”能完成一个小项目，而不是只验证模型能回复一句话或
 > Sidecar 能注册工具；同时用同一条正式 Runtime 路径建立安全、可重复的可靠性基线。
@@ -12,7 +13,8 @@
 
 ## 为什么需要独立交付验收
 
-Sidecar Smoke 证明 Pi、工具、Archify、LSP 和 Retry 被正确打包；它不能证明 Agent 能：
+Sidecar Smoke 证明 Pi、工具、Archify、LSP 和已审阅资源被正确打包；它不能
+证明 Agent 能：
 
 - 先理解仓库再计划；
 - 读取用户附件并据此实现；
@@ -92,7 +94,8 @@ Fake provider 使用固定响应计划，不调用真实模型、不读取用户
 
 此外有四个不计分但必须通过的 Gate：
 
-- Coding 会话加载 `milksu-workflow`、Archify、PI LSP 和 PI Retry；
+- Coding 会话加载 `milksu-workflow`、Archify 和 PI LSP；重试只按 Pi 会话和
+  MilkSU 领域 Recorder 的已验证语义记录，不虚构一个独立“PI Retry”打包资源；
 - 首轮先用 `milksu_progress` 和 Read 理解仓库且不改文件；实现轮确实读取附件并使用
   Edit、Write 和 Bash；
 - 最终说明列出改动、测试和批准产物；
@@ -138,7 +141,7 @@ Fixture Provider 只监听本机回环地址，因此外部 Provider 请求与�
 第二套 Runner，也不声称已经完成 20 个代表任务或裸 Codex/Pi 对照。当前 baseline 行明确标为
 `not-run`，后续真实对照必须复用同一字段，而不是只写口头结论。
 
-## 真实 DeepSeek 手工/半自动 Runbook
+## 真实模型手工/半自动 Runbook
 
 ### 准备
 
@@ -154,7 +157,8 @@ Fixture Provider 只监听本机回环地址，因此外部 Provider 请求与�
    ```
 
 3. 在 MilkSU 的 Coding 中新建任务，选择该目录。
-4. 选择已验证的 DeepSeek 模型。不要把 API Key 写进项目、提示或报告。
+4. 选择当前待验证的 Provider/模型组合。不要把 API Key 写进项目、提示或报告；
+   切换 DeepSeek、TokenFlux/Grok 或后续模型时复用同一份任务和评分契约。
 
 ### 执行
 
@@ -184,5 +188,5 @@ Fixture Provider 只监听本机回环地址，因此外部 Provider 请求与�
   审批前，它不能被描述为内核强制的文件沙箱。
 - 用户选择项目目录代表普通 Coding 的基础授权；CTF 仍使用更严格、独立的工作区策略。
 - 本 fixture 不测试外部网络、MCP、容器或漏洞靶场。
-- 本 fixture 不替代 Archify、LSP、Retry 各自的专项验收，但会确认三者确实加载在普通
-  Coding 会话且没有阻断交付链。
+- 本 fixture 不替代 Archify 和 LSP 各自的专项验收，但会确认它们确实加载在
+  普通 Coding 会话且没有阻断交付链。

@@ -26,7 +26,7 @@
 ## 可复跑验收与证据
 
 - [Coding Agent 交付验收](/developer/coding-agent-delivery-acceptance)
-- [Coding Browser 验收](/developer/coding-browser-acceptance)
+- [浏览器执行表面验收](/developer/coding-browser-acceptance)
 - [前端视觉 QA 验收](/developer/frontend-visual-qa-acceptance)
 - [本地交付基线](/developer/local-delivery-baseline)
 - [NYU CTF Bench 安全边界](/developer/nyu-ctf-bench-eval)
@@ -60,5 +60,5 @@ CVE 已有学习/追踪 MVP；纵深研究、外部资产实验、漏洞复现�
 近期专项调研：
 
 - [Wallbreaker Harness 静态调研与 MilkSU 对照](/developer/research/2026-08-03-wallbreaker-harness-review)
-- [开源安全 Skills / Harness 生态接入调研与计划](/developer/research/2026-08-04-open-source-security-skills-ecosystem)
-- [关于一个优秀 skills 包的接入调研和计划](/developer/research/关于一个优秀%20skills%20包的接入调研和计划)
+- [开源安全 Skills / Harness 生态调研快照（非 backlog）](/developer/research/2026-08-04-open-source-security-skills-ecosystem)
+- [reverse-skill 接入候选调研快照（非 backlog）](/developer/research/关于一个优秀%20skills%20包的接入调研和计划)

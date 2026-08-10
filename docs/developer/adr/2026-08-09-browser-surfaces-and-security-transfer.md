@@ -1,8 +1,11 @@
 # Browser 三面与 Coding → Security 能力迁移
 
-> 状态：Accepted / implementation in slices
+> 状态：Superseded on 2026-08-10
 >
 > 日期：2026-08-09
+>
+> 后继：[Electron/Chromium 桌面壳与内置浏览器](./2026-08-10-electron-chromium-desktop-shell.md)。
+> 本文保留当时“先在 Wails 中验证 CEF”的决策背景，不再描述当前实现或任务。
 
 ## 背景
 

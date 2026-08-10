@@ -11,6 +11,8 @@
     "postinstall": "patch-package",
     "sidecar:build": "node scripts/package-sidecar.mjs build",
     "sidecar:smoke": "node scripts/package-sidecar.mjs smoke",
+	"desktop:build": "node scripts/package-electron.mjs build",
+	"desktop:start": "node scripts/package-electron.mjs start",
     "codesign:check": "node scripts/check-macos-signing.mjs --app build/bin/MilkSU.app",
     "codesign:check:stable": "node scripts/check-macos-signing.mjs --app build/bin/MilkSU.app --require-stable",
     "test:coding-browser": "MILKSU_BROWSER_INTEGRATION=1 go test ./internal/browsercap -run TestManagedBrowserRoundTrip -count=1 -v",

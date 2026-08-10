@@ -40,16 +40,25 @@
 - Composer `/` 以可删除内联状态启用 Browser/Computer；通用 Browser Use 复用固定版 Playwright
   MCP 官方扩展并由用户选择真实标签页，Computer Use 排除浏览器。MilkSU CTF 扩展仍负责
   NSSCTF/CTFshow 领域采集与 Judge，不被通用上游替代。
-- 右栏沙箱浏览器仍是 MilkSU 隔离 profile 的独立 Chrome，不是内嵌 Chromium。CEF 原生 View 与
-  独立身份 `MilkSU Beta` 自举属于下一条有界纵切，尚未完成。
+- 桌面 GUI 的关键产品边界是三种可见执行表面：MilkSU 管理的“浏览器”、用户真实标签页的
+  Browser Use、外部 App/Window 的 Computer Use。用户与 Agent 共用准确对象，Scope 可见且可撤销；
+  面板显隐只改变观察视图，不应替代 Session 的显式启动、停止或恢复。每种表面必须分别保留真实
+  任务证据，不能把其中一项的验收外推到另外两项。
+- 桌面壳已经从 Wails/WKWebView 直接迁到 Electron/Chromium；旧 CEF 原型和 Wails 生产链均已删除，
+  不保留兼容。Vue 通过受限 Preload 调用 Electron Host，Electron 以 JSONL RPC 监管 Go Runtime。
+  右栏“浏览器”是会话隔离的 `WebContentsView`，用户与 Agent 共用同一页面；固定 Playwright MCP
+  只得到单一 Target 的 loopback CDP Proxy。打包 App + TokenFlux `grok-4.5` 已只用浏览器完成顺序点击
+  CTF-like 挑战、表单提交和 Electron 官方文档调研；三项都在右栏折叠后继续执行，重新展开仍是同一页面
+  与终态，且没有回退 Shell。裸域名补全 HTTPS，普通文字进入搜索。独立身份 `MilkSU Beta` 自举仍属于
+  下一条有界纵切。
 - 完整自然任务自举（功能代码/测试/恢复/Git 交付）、人工接管账本、自主合并发布和发行门禁仍未通过。
 - 模型与凭据：单默认模型；DeepSeek V4 Flash 日常默认；TokenFlux 一等中转；Coding/CTF/sub-agent
   共用 Provider 注册。
 - CTF 主链存在；真实 Judge 成功仍只有窄 Web 路径。Memory actor/assistance 已持久化；尚缺真实
   轨迹校准。Runtime Reliability fixture 已有；发行级恢复矩阵未过。
 - CVE 正式事实只来自 Vuln Runtime；WebView 无假后端；Session Index 只索引 MilkSU 自有历史。相关历史列表仍由用户明确确认后引用；完整图谱则按需让当前 Pi/Provider 在无工具静默回合中，把有界的会话、Memory 摘要和正式 Evidence 摘要归纳成人类语义图。图节点必须可回溯来源，关系标为模型推断；不读目标文档、不新增图数据库、不写 Memory、不回填 Agent。
-- UI：rail 主题/设置、Coding Goal 与常用 Agent 动作在 Composer `/`；“+”统一提供附件、Goal、Plan、沙箱浏览器、Browser/Computer Scope、已审核 Pi Skills 与项目 MCP，Skill/Scope 先作为可删除状态加入输入且选择不直接发送；菜单四组、删除、面板跳转与 Plan → Go 恢复已通过原生 App 可见验收。Goal/Git 摘要统一为圆角胶囊，字重与字号层级已收敛；顶部 Bottom Dock 开关位于右栏开关左侧，终端横跨中央会话与右栏下方且可和右栏独立开关，右栏菜单不再列终端；Dock 打开即创建首个项目 Shell，`+` 向右追加且既有标签编号稳定，xterm 约束在 Dock 边界内；
-  浏览器 Bridge 与 Computer Use 系统配置集中到“设置 → 浏览器与控制”。
+- UI：rail 主题/设置、Coding Goal 与常用 Agent 动作在 Composer `/`；“+”统一提供附件、Goal、Plan、浏览器、Browser/Computer Scope、已审核 Pi Skills 与项目 MCP，Skill/Scope 先作为可删除状态加入输入且选择不直接发送；菜单四组、删除、面板跳转与 Plan → Go 恢复已通过原生 App 可见验收。产品表面只显示“浏览器”，实现文档才使用“内置沙箱浏览器”。Goal/Git 摘要统一为圆角胶囊，字重与字号层级已收敛；顶部 Bottom Dock 开关位于右栏开关左侧，终端横跨中央会话与右栏下方且可和右栏独立开关，右栏菜单不再列终端；Dock 打开即创建首个项目 Shell，`+` 向右追加且既有标签编号稳定，xterm 约束在 Dock 边界内；
+  Browser Use Bridge 与 Computer Use 系统配置集中到“设置 → 浏览器与控制”。
 - 安全工具 MCP 是下一阶段 Coding 常规能力，不是当前发行能力：候选为 IDA Pro/idalib、Burp、radare2、Ghidra 与 Semgrep；
   必须先通过固定版本、最小权限、真实任务和拒绝路径，是否进入 CTF/CVE 由用户监督的领域纵切决定。
 - 相关历史人类语义图已在重新打包的 macOS App 用 TokenFlux `grok-4.5` 通过 `Computer Use`（10 节点/11 关系）与 `MCP`（11 节点/12 关系）真实归纳、来源详情/回跳和主聊天不受污染验收；`@antv/g6@5.1.1` 仅在完整图谱视图懒加载，列表与紧凑侧栏不会触发模型调用。

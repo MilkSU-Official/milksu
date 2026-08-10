@@ -36,12 +36,12 @@ import (
 	"github.com/MilkSU-Official/milksu/internal/securityruntime"
 	"github.com/MilkSU-Official/milksu/internal/sessionindex"
 	"github.com/MilkSU-Official/milksu/internal/vuln"
-	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // App is the thin L1 desktop adapter. Domain code must not depend on Wails.
 type App struct {
 	ctx             context.Context
+	host            desktopHost
 	dataDirectory   string
 	diagnostics     *appdata.DiagnosticRecorder
 	settings        *config.Store
@@ -69,6 +69,10 @@ type App struct {
 }
 
 func NewApp() (*App, error) {
+	return newAppWithDesktopHost(nil)
+}
+
+func newAppWithDesktopHost(host desktopHost) (*App, error) {
 	dataDirectory, err := appdata.Ensure()
 	if err != nil {
 		return nil, err
@@ -107,6 +111,7 @@ func NewApp() (*App, error) {
 	}
 
 	application := &App{
+		host:          host,
 		dataDirectory: dataDirectory,
 		diagnostics:   appdata.NewDiagnosticRecorder(256),
 		settings:      settings,
@@ -149,7 +154,11 @@ func NewApp() (*App, error) {
 		return nil, fmt.Errorf("create CTFshow catalog: %w", err)
 	}
 	application.nssctfArena = nssctf.NewArenaClient(nssctf.ArenaClientOptions{})
-	application.browserBridge, err = browsercap.New(dataDirectory)
+	if codingHost := newElectronCodingHost(host); codingHost != nil {
+		application.browserBridge, err = browsercap.NewWithCodingHost(dataDirectory, codingHost)
+	} else {
+		application.browserBridge, err = browsercap.New(dataDirectory)
+	}
 	if err != nil {
 		application.ctfshowCatalog.Close()
 		application.nssctfCatalog.Close()
@@ -272,17 +281,17 @@ func (a *App) Startup(ctx context.Context) {
 	if err := a.jobs.Recover(ctx); err != nil {
 		a.diagnostics.Record("runtime", "error", "runtime job recovery failed")
 		_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedRuntimeRecoveryFailed)
-		wailsruntime.EventsEmit(ctx, "job-runtime-error", err.Error())
+		a.emitDesktopEvent("job-runtime-error", err.Error())
 	}
 	if err := a.ctfJobs.Recover(ctx); err != nil {
 		a.diagnostics.Record("ctf", "error", "CTF job recovery failed")
 		_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedCTFRecoveryFailed)
-		wailsruntime.EventsEmit(ctx, "job-runtime-error", err.Error())
+		a.emitDesktopEvent("job-runtime-error", err.Error())
 	}
 	if err := a.vulnJobs.Recover(ctx); err != nil {
 		a.diagnostics.Record("vuln", "error", "vulnerability job recovery failed")
 		_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedVulnRecoveryFailed)
-		wailsruntime.EventsEmit(ctx, "job-runtime-error", err.Error())
+		a.emitDesktopEvent("job-runtime-error", err.Error())
 	}
 }
 
@@ -317,8 +326,7 @@ func (a *App) showPrimaryWindow() {
 	if a.ctx == nil {
 		return
 	}
-	wailsruntime.WindowUnminimise(a.ctx)
-	wailsruntime.WindowShow(a.ctx)
+	_ = a.desktopCall("window.show", struct{}{}, nil)
 }
 
 func (a *App) GetSettings() config.AppSettings {
@@ -346,13 +354,10 @@ func (a *App) ExportLocalDataBackup() (appdata.BackupExport, error) {
 	if a.ctx == nil {
 		return appdata.BackupExport{}, fmt.Errorf("desktop runtime is not ready")
 	}
-	destination, err := wailsruntime.SaveFileDialog(a.ctx, wailsruntime.SaveDialogOptions{
-		Title:                "导出 MilkSU 本地数据备份",
-		DefaultFilename:      "MilkSU-backup-" + time.Now().Format("2006-01-02") + ".zip",
-		CanCreateDirectories: true,
-		Filters: []wailsruntime.FileFilter{
-			{DisplayName: "MilkSU 备份", Pattern: "*.zip"},
-		},
+	destination, err := a.saveFile(desktopDialogOptions{
+		Title:       "导出 MilkSU 本地数据备份",
+		DefaultPath: "MilkSU-backup-" + time.Now().Format("2006-01-02") + ".zip",
+		Filters:     []desktopFileFilter{{Name: "MilkSU 备份", Extensions: []string{"zip"}}},
 	})
 	if err != nil {
 		return appdata.BackupExport{}, err
@@ -367,11 +372,9 @@ func (a *App) ScheduleLocalDataRestore() (appdata.BackupRestoreStage, error) {
 	if a.ctx == nil {
 		return appdata.BackupRestoreStage{}, fmt.Errorf("desktop runtime is not ready")
 	}
-	source, err := wailsruntime.OpenFileDialog(a.ctx, wailsruntime.OpenDialogOptions{
-		Title: "从 MilkSU 安全备份恢复",
-		Filters: []wailsruntime.FileFilter{
-			{DisplayName: "MilkSU 备份", Pattern: "*.zip"},
-		},
+	source, err := a.openFile(desktopDialogOptions{
+		Title:   "从 MilkSU 安全备份恢复",
+		Filters: []desktopFileFilter{{Name: "MilkSU 备份", Extensions: []string{"zip"}}},
 	})
 	if err != nil {
 		return appdata.BackupRestoreStage{}, err
@@ -384,13 +387,13 @@ func (a *App) ScheduleLocalDataRestore() (appdata.BackupRestoreStage, error) {
 		return appdata.BackupRestoreStage{}, err
 	}
 	const confirmButton = "恢复并在重启后应用"
-	selection, err := wailsruntime.MessageDialog(a.ctx, wailsruntime.MessageDialogOptions{
-		Type:          wailsruntime.WarningDialog,
+	selection, err := a.showMessage(desktopMessageOptions{
+		Type:          "warning",
 		Title:         "确认恢复本地数据",
 		Message:       fmt.Sprintf("将恢复 %d 个文件。当前数据会先保存为可回滚快照；API 凭据、浏览器配对和 PI 认证保持不变。恢复会在下次启动 MilkSU 时应用。", validation.FileCount),
 		Buttons:       []string{confirmButton, "取消"},
-		DefaultButton: "取消",
-		CancelButton:  "取消",
+		DefaultButton: 1,
+		CancelButton:  1,
 	})
 	if err != nil {
 		return appdata.BackupRestoreStage{}, err
@@ -405,13 +408,10 @@ func (a *App) ExportLocalDiagnostics() (appdata.DiagnosticExport, error) {
 	if a.ctx == nil {
 		return appdata.DiagnosticExport{}, fmt.Errorf("desktop runtime is not ready")
 	}
-	destination, err := wailsruntime.SaveFileDialog(a.ctx, wailsruntime.SaveDialogOptions{
-		Title:                "导出 MilkSU 诊断包",
-		DefaultFilename:      "MilkSU-diagnostics-" + time.Now().Format("2006-01-02") + ".zip",
-		CanCreateDirectories: true,
-		Filters: []wailsruntime.FileFilter{
-			{DisplayName: "MilkSU 诊断包", Pattern: "*.zip"},
-		},
+	destination, err := a.saveFile(desktopDialogOptions{
+		Title:       "导出 MilkSU 诊断包",
+		DefaultPath: "MilkSU-diagnostics-" + time.Now().Format("2006-01-02") + ".zip",
+		Filters:     []desktopFileFilter{{Name: "MilkSU 诊断包", Extensions: []string{"zip"}}},
 	})
 	if err != nil {
 		return appdata.DiagnosticExport{}, err
@@ -522,7 +522,7 @@ func (a *App) ChooseAgentWorkspace() (string, error) {
 	if a.ctx == nil {
 		return "", fmt.Errorf("desktop runtime is not ready")
 	}
-	selected, err := wailsruntime.OpenDirectoryDialog(a.ctx, wailsruntime.OpenDialogOptions{
+	selected, err := a.openDirectory(desktopDialogOptions{
 		Title: "选择 Coding Agent 项目目录",
 	})
 	if err != nil || strings.TrimSpace(selected) == "" {
@@ -554,14 +554,11 @@ func (a *App) ChooseCTFMaterials() ([]ctf.MaterialRequest, error) {
 	if a.ctx == nil {
 		return nil, fmt.Errorf("desktop runtime is not ready")
 	}
-	paths, err := wailsruntime.OpenMultipleFilesDialog(a.ctx, wailsruntime.OpenDialogOptions{
+	paths, err := a.openFiles(desktopDialogOptions{
 		Title: "补充 CTF 图片或附件",
-		Filters: []wailsruntime.FileFilter{
-			{
-				DisplayName: "CTF 材料",
-				Pattern:     "*.png;*.jpg;*.jpeg;*.gif;*.webp;*.svg;*.txt;*.md;*.json;*.xml;*.html;*.js;*.py;*.c;*.cpp;*.h;*.zip;*.gz;*.tar;*.7z;*.rar;*.pdf;*.pcap;*.pcapng;*.bin;*.elf;*.exe",
-			},
-			{DisplayName: "所有文件", Pattern: "*"},
+		Filters: []desktopFileFilter{
+			{Name: "CTF 材料", Extensions: []string{"png", "jpg", "jpeg", "gif", "webp", "svg", "txt", "md", "json", "xml", "html", "js", "py", "c", "cpp", "h", "zip", "gz", "tar", "7z", "rar", "pdf", "pcap", "pcapng", "bin", "elf", "exe"}},
+			{Name: "所有文件", Extensions: []string{"*"}},
 		},
 	})
 	if err != nil {
@@ -574,14 +571,11 @@ func (a *App) ChooseCodingAttachments() ([]codingattachment.Attachment, error) {
 	if a.ctx == nil {
 		return nil, fmt.Errorf("desktop runtime is not ready")
 	}
-	paths, err := wailsruntime.OpenMultipleFilesDialog(a.ctx, wailsruntime.OpenDialogOptions{
+	paths, err := a.openFiles(desktopDialogOptions{
 		Title: "添加 Coding 文件或图片",
-		Filters: []wailsruntime.FileFilter{
-			{
-				DisplayName: "代码、文档与图片",
-				Pattern:     "*.png;*.jpg;*.jpeg;*.gif;*.webp;*.svg;*.txt;*.md;*.json;*.yaml;*.yml;*.toml;*.xml;*.html;*.css;*.js;*.jsx;*.ts;*.tsx;*.vue;*.py;*.go;*.rs;*.c;*.cpp;*.h;*.java;*.kt;*.swift;*.sh;*.sql;*.csv;*.pdf;*.zip;*.gz;*.tar",
-			},
-			{DisplayName: "所有文件", Pattern: "*"},
+		Filters: []desktopFileFilter{
+			{Name: "代码、文档与图片", Extensions: []string{"png", "jpg", "jpeg", "gif", "webp", "svg", "txt", "md", "json", "yaml", "yml", "toml", "xml", "html", "css", "js", "jsx", "ts", "tsx", "vue", "py", "go", "rs", "c", "cpp", "h", "java", "kt", "swift", "sh", "sql", "csv", "pdf", "zip", "gz", "tar"}},
+			{Name: "所有文件", Extensions: []string{"*"}},
 		},
 	})
 	if err != nil {
@@ -1012,8 +1006,7 @@ func (a *App) OpenNSSCTFChallenge(rawURL string) error {
 	if a.ctx == nil {
 		return fmt.Errorf("desktop runtime is not ready")
 	}
-	wailsruntime.BrowserOpenURL(a.ctx, normalized)
-	return nil
+	return a.openExternal(normalized)
 }
 
 func (a *App) OpenCTFSourceURL(rawURL string) error {
@@ -1027,8 +1020,7 @@ func (a *App) OpenCTFSourceURL(rawURL string) error {
 	if a.ctx == nil {
 		return fmt.Errorf("desktop runtime is not ready")
 	}
-	wailsruntime.BrowserOpenURL(a.ctx, parsed.String())
-	return nil
+	return a.openExternal(parsed.String())
 }
 
 func (a *App) OpenChromeExtensionManager() error {
@@ -1053,11 +1045,7 @@ func (a *App) OpenPlaywrightBrowserExtension() error {
 	if a.ctx == nil {
 		return fmt.Errorf("desktop runtime is not ready")
 	}
-	wailsruntime.BrowserOpenURL(
-		a.ctx,
-		"https://chromewebstore.google.com/detail/playwright-extension/mmlmfjhmonkocbjadbfplnigmagldckm",
-	)
-	return nil
+	return a.openExternal("https://chromewebstore.google.com/detail/playwright-extension/mmlmfjhmonkocbjadbfplnigmagldckm")
 }
 
 func (a *App) RevealBrowserExtension() error {
@@ -1489,7 +1477,7 @@ func (a *App) ChooseVulnerabilityPracticeDirectory() (string, error) {
 	if a.ctx == nil {
 		return "", fmt.Errorf("desktop runtime is not ready")
 	}
-	return wailsruntime.OpenDirectoryDialog(a.ctx, wailsruntime.OpenDialogOptions{
+	return a.openDirectory(desktopDialogOptions{
 		Title: "选择 CVE 本地练习 Docker Compose 目录",
 	})
 }
@@ -1580,7 +1568,7 @@ func (a *App) emitEngineEvent(event engine.Event) {
 		_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedSidecarProtocolError)
 	}
 	if a.ctx != nil {
-		wailsruntime.EventsEmit(a.ctx, "engine-event", event)
+		a.emitDesktopEvent("engine-event", event)
 	}
 	if a.ctfAgent != nil {
 		if err := a.ctfAgent.Record(a.commandContext(), event); err != nil && a.ctx != nil {
@@ -1588,7 +1576,7 @@ func (a *App) emitEngineEvent(event engine.Event) {
 			if errors.Is(err, errCTFAgentLoopDetected) {
 				_ = a.engines.AbortMessage(event.SessionID)
 			}
-			wailsruntime.EventsEmit(a.ctx, "job-runtime-error", err.Error())
+			a.emitDesktopEvent("job-runtime-error", err.Error())
 		}
 	}
 }
@@ -1604,7 +1592,7 @@ func (a *App) emitJobEvent(event securityruntime.Event) {
 	if a.ctx == nil {
 		return
 	}
-	wailsruntime.EventsEmit(a.ctx, "job-event", event)
+	a.emitDesktopEvent("job-event", event)
 }
 
 func (a *App) commandContext() context.Context {

@@ -68,7 +68,7 @@ const reviewedComposerSkills: ComposerSkillOption[] = [
   {
     name: 'frontend-visual-qa',
     label: '前端视觉验收',
-    description: '用真实预览与沙箱浏览器检查前端改动',
+    description: '用真实预览与浏览器检查前端改动',
     icon: markRaw(ScanSearch),
   },
   {
@@ -1142,7 +1142,7 @@ defineExpose({
                   >
                     <Monitor class="size-4 shrink-0" />
                     <span class="min-w-0 flex-1">
-                      <span class="block text-label font-medium">沙箱浏览器</span>
+                      <span class="block text-label font-medium">浏览器</span>
                       <span class="block text-caption text-muted-foreground">打开 MilkSU 管理的隔离浏览器</span>
                     </span>
                   </DropdownMenuItem>

@@ -3,7 +3,7 @@
   "diagram_type": "architecture",
   "meta": {
     "title": "milksu Current System",
-    "subtitle": "Go/Wails desktop host, supervised Pi Sidecar, and local CTF/Coding/CVE boundaries",
+    "subtitle": "Electron/Chromium desktop shell, supervised Go and Pi runtimes, and local CTF/Coding/CVE boundaries",
     "output": "milksu-current-system.html",
     "animation": "none",
     "quality_profile": "showcase",
@@ -11,20 +11,20 @@
       {
         "id": "desktop-main-path",
         "label": "Desktop main path",
-        "focus": ["learner", "vue_shell", "wails_host", "pi_sidecar", "model_provider"],
-        "note": "Learner actions enter Vue, cross the Wails facade, and reach the supervised Pi model loop."
+        "focus": ["learner", "vue_shell", "desktop_runtime", "pi_sidecar", "model_provider"],
+        "note": "Learner actions enter Vue, cross the Electron Preload and Go desktop RPC, and reach the supervised Pi model loop."
       },
       {
         "id": "runtime-and-state",
         "label": "Runtime and state",
-        "focus": ["wails_host", "security_runtime", "local_state", "pi_sidecar"],
+        "focus": ["desktop_runtime", "security_runtime", "local_state", "pi_sidecar"],
         "note": "CTF/CVE facts, Judge receipts, and durable artifacts stay in the Go-owned Security Runtime and user-config local state."
       },
       {
         "id": "external-tools",
         "label": "External tool surfaces",
-        "focus": ["wails_host", "coding_browser", "browser_bridge", "computer_use", "pi_sidecar"],
-        "note": "Sandbox Browser, Browser Use, CTF Bridge, and Computer Use retain distinct session and authorization semantics."
+        "focus": ["desktop_runtime", "coding_browser", "browser_bridge", "computer_use", "pi_sidecar"],
+        "note": "The in-app Browser, Browser Use, CTF Bridge, and Computer Use retain distinct session and authorization semantics."
       }
     ]
   },
@@ -42,15 +42,15 @@
       "type": "frontend",
       "label": "Vue Product Surface",
       "sublabel": "CTF · Coding · CVE · Composer",
-      "tag": "WebView",
+      "tag": "Chromium renderer",
       "pos": [250, 316],
       "size": [160, 68]
     },
     {
-      "id": "wails_host",
+      "id": "desktop_runtime",
       "type": "backend",
-      "label": "Go / Wails Host",
-      "sublabel": "Facade · services · policy",
+      "label": "Electron + Go Boundary",
+      "sublabel": "Preload · JSONL RPC · services",
       "tag": "MilkSU.app",
       "pos": [510, 316],
       "size": [160, 68]
@@ -92,9 +92,9 @@
     },
     {
       "id": "coding_browser",
-      "type": "external",
-      "label": "Sandbox Browser",
-      "sublabel": "Isolated Chrome + CDP",
+      "type": "frontend",
+      "label": "In-app Browser",
+      "sublabel": "WebContentsView · isolated profile",
       "pos": [770, 80],
       "size": [160, 60]
     },
@@ -118,8 +118,8 @@
   "boundaries": [
     {
       "kind": "region",
-      "label": "MilkSU.app desktop process",
-      "wraps": ["vue_shell", "wails_host", "security_runtime"],
+      "label": "MilkSU.app + supervised Go Runtime",
+      "wraps": ["vue_shell", "desktop_runtime", "security_runtime", "coding_browser"],
       "pad": 28
     },
     {
@@ -148,14 +148,14 @@
     {
       "id": "vue-to-host",
       "from": "vue_shell",
-      "to": "wails_host",
-      "label": "Wails bindings",
+      "to": "desktop_runtime",
+      "label": "Preload + JSONL RPC",
       "route": "straight",
       "labelDy": -30
     },
     {
       "id": "host-to-sidecar",
-      "from": "wails_host",
+      "from": "desktop_runtime",
       "to": "pi_sidecar",
       "label": "JSONL supervise",
       "variant": "emphasis",
@@ -172,7 +172,7 @@
     },
     {
       "id": "host-to-runtime",
-      "from": "wails_host",
+      "from": "desktop_runtime",
       "to": "security_runtime",
       "label": "CTF / CVE facts",
       "fromSide": "top",
@@ -182,7 +182,7 @@
     },
     {
       "id": "host-to-state",
-      "from": "wails_host",
+      "from": "desktop_runtime",
       "to": "local_state",
       "label": "persist",
       "fromSide": "bottom",
@@ -192,7 +192,7 @@
     },
     {
       "id": "host-to-bridge",
-      "from": "wails_host",
+      "from": "desktop_runtime",
       "to": "browser_bridge",
       "label": "paired Judge",
       "fromSide": "top",
@@ -200,7 +200,7 @@
     },
     {
       "id": "host-to-coding-browser",
-      "from": "wails_host",
+      "from": "desktop_runtime",
       "to": "coding_browser",
       "label": "inject CDP",
       "fromSide": "top",
@@ -219,7 +219,7 @@
     },
     {
       "id": "host-to-computer-use",
-      "from": "wails_host",
+      "from": "desktop_runtime",
       "to": "computer_use",
       "label": "immutable Scope",
       "fromSide": "bottom",
@@ -242,9 +242,9 @@
       "dot": "cyan",
       "title": "Product surface",
       "items": [
-        "Vue WebView owns CTF, Coding, CVE, and Settings",
+        "Vue Chromium renderer owns CTF, Coding, CVE, and Settings",
         "Composer + selects reviewed state; selection never sends",
-        "No fake desktop data layer when Wails is absent"
+        "No fake desktop data layer when the Preload bridge is absent"
       ]
     },
     {
@@ -267,7 +267,7 @@
       "dot": "amber",
       "title": "Current external slices",
       "items": [
-        "Sandbox Browser uses a conversation-isolated Chrome profile",
+        "In-app Browser uses a conversation-isolated Chromium profile",
         "Browser Use pairs one user-approved real tab",
         "Computer Use binds a user-selected visible App/PID/Window Scope",
         "Security MCPs remain Coding pilots until CTF/CVE admission"

@@ -1,12 +1,13 @@
 # 开源安全 Skills / Harness 生态接入调研与计划
 
-> 文档状态：**Research / Long-term integration plan**
+> 文档状态：**Research snapshot / Candidate options**
 >
 > 审阅日期：2026-08-04
 >
 > 边界：本次只做公开 GitHub / README / 元数据调研，没有安装、运行、拉取子模块、执行安全工具或
 > 修改 MilkSU Runtime。本页是未来接入候选和设计输入，不表示这些项目已经成为依赖或当前冲刺
-> 目标。
+> 目标。文中的 P0/P1/P2 和 Phase 是 2026-08-04 的研究排序，不构成现行 backlog；实施顺序
+> 只能由[当前开发目标](../current-objectives.md)重新选定。
 
 ## 背景
 
@@ -193,7 +194,7 @@ SkillRouteSuggestion
 - 默认 fail closed；
 - 用户可以只读查看被拦截原因。
 
-## 分阶段计划
+## 当时评估的分阶段选项（非现行 backlog）
 
 ### Phase 0：研究记录与候选清单
 

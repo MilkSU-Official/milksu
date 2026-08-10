@@ -3,7 +3,7 @@
 > **基础产品边界。** MilkSU 的产品定位、领域拆分和核心安全不变量以本文为准；当前实现、
 > 任务和发布状态以[文档与任务状态登记](/developer/document-status)和
 > [架构快照](/architecture/)为准。旧的 Roadmap、Sprint、固定 Task Type 和 Security Kernel
-> 设计已经从仓库删除。
+> 已从当前规划与生产模型退役；压缩后的历史摘要和 ADR 仍保留在仓库用于说明当时决策。
 >
 > 状态：Foundational / Active constraints（差异化假设仍需固定任务集验证）
 >

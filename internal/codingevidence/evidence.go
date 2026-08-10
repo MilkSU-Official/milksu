@@ -51,10 +51,10 @@ func Derive(request Request) (string, error) {
 	}
 	sessionID := strings.TrimSpace(request.SessionID)
 	if sessionID == "" {
-		return "", fmt.Errorf("当前会话没有活跃的隔离 Coding 浏览器")
+		return "", fmt.Errorf("当前会话没有活跃的浏览器")
 	}
 	if !ValidSessionID(sessionID) {
-		return "", fmt.Errorf("隔离 Coding 浏览器会话标识无效")
+		return "", fmt.Errorf("浏览器会话标识无效")
 	}
 	return deriveDirectory(request.Workspace, sessionID)
 }

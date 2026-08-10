@@ -74,6 +74,40 @@ type CodingBrowserDescriptor struct {
 	CDPEndpoint string `json:"cdpEndpoint"`
 }
 
+// CodingViewport is expressed in device-independent CSS pixels relative to
+// the Electron content area. The Chromium shell owns the actual native view.
+type CodingViewport struct {
+	X       float64 `json:"x"`
+	Y       float64 `json:"y"`
+	Width   float64 `json:"width"`
+	Height  float64 `json:"height"`
+	Visible bool    `json:"visible"`
+}
+
+type CodingHostStartRequest struct {
+	SessionID   string `json:"sessionId"`
+	InitialURL  string `json:"initialUrl"`
+	ProfilePath string `json:"profilePath"`
+}
+
+type CodingHostSession struct {
+	Name        string `json:"name"`
+	CDPEndpoint string `json:"cdpEndpoint"`
+}
+
+// CodingHost is the narrow dependency from the Go capability boundary to the
+// Chromium shell. It intentionally contains no Electron types.
+type CodingHost interface {
+	Start(context.Context, CodingHostStartRequest) (CodingHostSession, error)
+	SetViewport(string, CodingViewport) error
+	Navigate(string, string) error
+	Back(string) error
+	Forward(string) error
+	Reload(string) error
+	Stop(string) error
+	Close()
+}
+
 type Capture struct {
 	SessionID        string                    `json:"sessionId"`
 	PageID           string                    `json:"pageId"`
@@ -173,6 +207,7 @@ type NSSCTFJudgeReceipt struct {
 type managedSession struct {
 	public         Session
 	conversationID string
+	hosted         bool
 }
 
 type bridgeClient struct {
@@ -214,9 +249,14 @@ type Manager struct {
 	extensionPath  string
 	httpClient     *http.Client
 	ctfshowSink    func(context.Context, []ctfshow.CatalogProblem) error
+	codingHost     CodingHost
 }
 
 func New(root string) (*Manager, error) {
+	return NewWithCodingHost(root, nil)
+}
+
+func NewWithCodingHost(root string, codingHost CodingHost) (*Manager, error) {
 	root = filepath.Join(root, "browser")
 	if err := os.MkdirAll(root, 0o700); err != nil {
 		return nil, fmt.Errorf("create browser capability root: %w", err)
@@ -225,7 +265,14 @@ func New(root string) (*Manager, error) {
 		root: root, sessions: make(map[string]*managedSession), sharedPath: filepath.Join(root, "shared-pages.json"),
 		bridgeClients: make(map[*bridgeClient]struct{}), bridgeCommands: make(map[string]*bridgeCommandState),
 		pairingPath: filepath.Join(root, "bridge-pairing.json"),
-		httpClient:  &http.Client{Timeout: 5 * time.Second, Transport: &http.Transport{Proxy: nil}},
+		httpClient: &http.Client{
+			Timeout: 5 * time.Second,
+			Transport: &http.Transport{
+				Proxy:             nil,
+				DisableKeepAlives: true,
+			},
+		},
+		codingHost: codingHost,
 	}
 	if err := manager.loadBridgePairing(); err != nil {
 		return nil, err
@@ -302,7 +349,7 @@ func (m *Manager) Sessions() []Session {
 	return result
 }
 
-// StartCoding starts a fresh isolated Chrome profile for a Coding
+// StartCoding starts a fresh Chromium WebContents profile for a Coding
 // conversation. Re-enabling the browser replaces only that conversation's
 // previous managed session.
 func (m *Manager) StartCoding(
@@ -314,26 +361,61 @@ func (m *Manager) StartCoding(
 	if err != nil {
 		return CodingBrowserStatus{}, err
 	}
+	if m.codingHost == nil {
+		return CodingBrowserStatus{}, fmt.Errorf("Chromium desktop host is unavailable in this build")
+	}
 	if existingID := m.codingSessionID(conversationID); existingID != "" {
 		if err := m.Stop(existingID); err != nil {
 			return CodingBrowserStatus{}, err
 		}
 	}
-	session, err := m.Start(ctx, initialURL)
+	origin, err := originTarget(initialURL)
 	if err != nil {
 		return CodingBrowserStatus{}, err
 	}
+	grant, err := securitypolicy.NewGrant(
+		"sandbox-browser",
+		"authorized security learning",
+		[]securitypolicy.Target{origin},
+		8*time.Hour,
+	)
+	if err != nil {
+		return CodingBrowserStatus{}, err
+	}
+	id := "browser_" + uuid.NewString()
+	profile := filepath.Join(m.root, "profiles", id)
+	hosted, err := m.codingHost.Start(ctx, CodingHostStartRequest{
+		SessionID: id, InitialURL: initialURL, ProfilePath: profile,
+	})
+	if err != nil {
+		return CodingBrowserStatus{}, fmt.Errorf("start Chromium WebContents: %w", err)
+	}
+	port, err := loopbackEndpointPort(hosted.CDPEndpoint)
+	if err != nil {
+		_ = m.codingHost.Stop(id)
+		return CodingBrowserStatus{}, err
+	}
+	public := Session{
+		ID: id, Phase: "ready", InitialURL: initialURL,
+		ProfileLabel: origin.Value,
+		Scope:        grant, StartedAt: time.Now().UTC(), BrowserBinary: hosted.Name,
+		port: port,
+	}
 	m.mu.Lock()
-	managed := m.sessions[session.ID]
-	if managed != nil {
-		managed.conversationID = conversationID
+	m.sessions[id] = &managedSession{
+		public: public, conversationID: conversationID, hosted: true,
 	}
 	m.mu.Unlock()
-	if managed == nil {
-		_ = m.Stop(session.ID)
-		return CodingBrowserStatus{}, fmt.Errorf("managed Coding browser session disappeared")
-	}
-	return m.CodingStatus(ctx, conversationID)
+	return CodingBrowserStatus{
+		Enabled:        true,
+		ConversationID: conversationID,
+		SessionID:      public.ID,
+		Phase:          public.Phase,
+		InitialURL:     public.InitialURL,
+		ProfileLabel:   public.ProfileLabel,
+		StartedAt:      public.StartedAt,
+		BrowserBinary:  public.BrowserBinary,
+	}, nil
 }
 
 // CodingStatus returns only UI-safe state. Missing sessions are represented as
@@ -415,6 +497,89 @@ func (m *Manager) StopCoding(conversationID string) error {
 	return m.Stop(sessionID)
 }
 
+func (m *Manager) SetCodingViewport(
+	conversationID string,
+	viewport CodingViewport,
+) error {
+	if m.codingHost == nil {
+		return fmt.Errorf("Chromium desktop host is unavailable in this build")
+	}
+	sessionID := m.codingSessionID(conversationID)
+	if sessionID == "" {
+		return fmt.Errorf("当前会话没有活跃的内嵌浏览器")
+	}
+	return m.codingHost.SetViewport(sessionID, viewport)
+}
+
+func (m *Manager) NavigateCoding(conversationID, targetURL string) error {
+	if m.codingHost == nil {
+		return fmt.Errorf("Chromium desktop host is unavailable in this build")
+	}
+	sessionID := m.codingSessionID(conversationID)
+	if sessionID == "" {
+		return fmt.Errorf("当前会话没有活跃的内嵌浏览器")
+	}
+	origin, err := originTarget(targetURL)
+	if err != nil {
+		return err
+	}
+	grant, err := securitypolicy.NewGrant(
+		"sandbox-browser",
+		"user-visible browser navigation",
+		[]securitypolicy.Target{origin},
+		8*time.Hour,
+	)
+	if err != nil {
+		return err
+	}
+	if err := m.codingHost.Navigate(sessionID, targetURL); err != nil {
+		return err
+	}
+	m.mu.Lock()
+	if session := m.sessions[sessionID]; session != nil {
+		session.public.Scope = grant
+		session.public.InitialURL = targetURL
+		session.public.ProfileLabel = origin.Value
+	}
+	m.mu.Unlock()
+	return nil
+}
+
+func (m *Manager) BackCoding(conversationID string) error {
+	if m.codingHost == nil {
+		return fmt.Errorf("Chromium desktop host is unavailable in this build")
+	}
+	return m.codingCommand(conversationID, m.codingHost.Back)
+}
+
+func (m *Manager) ForwardCoding(conversationID string) error {
+	if m.codingHost == nil {
+		return fmt.Errorf("Chromium desktop host is unavailable in this build")
+	}
+	return m.codingCommand(conversationID, m.codingHost.Forward)
+}
+
+func (m *Manager) ReloadCoding(conversationID string) error {
+	if m.codingHost == nil {
+		return fmt.Errorf("Chromium desktop host is unavailable in this build")
+	}
+	return m.codingCommand(conversationID, m.codingHost.Reload)
+}
+
+func (m *Manager) codingCommand(
+	conversationID string,
+	command func(string) error,
+) error {
+	if m.codingHost == nil {
+		return fmt.Errorf("Chromium desktop host is unavailable in this build")
+	}
+	sessionID := m.codingSessionID(conversationID)
+	if sessionID == "" {
+		return fmt.Errorf("当前会话没有活跃的内嵌浏览器")
+	}
+	return command(sessionID)
+}
+
 // CodingEvidenceSessionID returns the trusted live session id currently owned
 // by a Coding conversation, or an error when no isolated browser is active.
 // Evidence locations are derived only from this backend-owned value; callers
@@ -426,7 +591,7 @@ func (m *Manager) CodingEvidenceSessionID(conversationID string) (string, error)
 	}
 	sessionID := m.codingSessionID(conversationID)
 	if sessionID == "" {
-		return "", fmt.Errorf("当前会话没有活跃的隔离 Coding 浏览器")
+		return "", fmt.Errorf("当前会话没有活跃的浏览器")
 	}
 	return sessionID, nil
 }
@@ -442,8 +607,20 @@ func (m *Manager) codingSessionID(conversationID string) string {
 	return ""
 }
 
+func (m *Manager) codingSessionIDs() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	result := make([]string, 0)
+	for sessionID, session := range m.sessions {
+		if session.conversationID != "" {
+			result = append(result, sessionID)
+		}
+	}
+	return result
+}
+
 func (m *Manager) Pages(ctx context.Context, sessionID string) ([]Page, error) {
-	session, err := m.session(sessionID)
+	session, err := m.sessionEndpoint(sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -582,6 +759,14 @@ func (m *Manager) Stop(sessionID string) error {
 	if session == nil {
 		return nil
 	}
+	if session.hosted {
+		if m.codingHost == nil {
+			return fmt.Errorf("Chromium desktop host disappeared")
+		}
+		if err := m.codingHost.Stop(sessionID); err != nil {
+			return err
+		}
+	}
 	if session.public.command != nil && session.public.command.Process != nil {
 		_ = session.public.command.Process.Signal(os.Interrupt)
 		timer := time.NewTimer(2 * time.Second)
@@ -703,6 +888,9 @@ func (m *Manager) Close() {
 			_ = session.public.command.Process.Kill()
 		}
 	}
+	if m.codingHost != nil {
+		m.codingHost.Close()
+	}
 	if server != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		_ = server.Shutdown(ctx)
@@ -722,6 +910,17 @@ func (m *Manager) session(id string) (Session, error) {
 	session := m.sessions[id]
 	if session == nil || session.public.Phase != "ready" {
 		return Session{}, fmt.Errorf("managed browser session is not ready")
+	}
+	return session.public, nil
+}
+
+func (m *Manager) sessionEndpoint(id string) (Session, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	session := m.sessions[id]
+	if session == nil || session.public.port <= 0 ||
+		(session.public.Phase != "starting" && session.public.Phase != "ready") {
+		return Session{}, fmt.Errorf("managed browser session endpoint is unavailable")
 	}
 	return session.public, nil
 }
@@ -1821,6 +2020,20 @@ func originTarget(raw string) (securitypolicy.Target, error) {
 		return securitypolicy.Target{}, fmt.Errorf("browser URL must be an http(s) URL without embedded credentials")
 	}
 	return securitypolicy.NormalizeTarget(securitypolicy.Target{Kind: securitypolicy.TargetOrigin, Value: parsed.String()})
+}
+
+func loopbackEndpointPort(raw string) (int, error) {
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || parsed.Scheme != "http" || parsed.Hostname() != "127.0.0.1" ||
+		parsed.User != nil || (parsed.Path != "" && parsed.Path != "/") ||
+		parsed.RawQuery != "" || parsed.Fragment != "" {
+		return 0, fmt.Errorf("Chromium host returned an invalid private CDP endpoint")
+	}
+	port, err := strconv.Atoi(parsed.Port())
+	if err != nil || port <= 0 || port > 65535 {
+		return 0, fmt.Errorf("Chromium host returned an invalid private CDP port")
+	}
+	return port, nil
 }
 
 func findChrome() (string, error) {

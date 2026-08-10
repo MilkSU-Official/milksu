@@ -2,7 +2,7 @@
 
 > 文档状态：Current / Stable engineering contract
 >
-> 适用范围：产品设计、Agent Harness、Wails API、Sidecar、持久化、测试与交付评审
+> 适用范围：产品设计、Agent Harness、Desktop RPC、Sidecar、持久化、测试与交付评审
 >
 > 本文回答“什么代码可以进入并继续留在 MilkSU 产品链”。它不是实现队列，也不替代
 > `current-objectives.md` 的当前优先级。
@@ -15,7 +15,7 @@
 这里的“产品链”包括：
 
 - release 构建及其生产依赖图；
-- Wails 对外方法和 Vue 生产入口；
+- Desktop RPC 对外方法、Preload 能力和 Vue 生产入口；
 - Sidecar 包、默认 Agent 资源和启动路径；
 - 持久化 schema、迁移与兼容逻辑；
 - 用户可见设置、状态、入口和产品声明。
@@ -40,7 +40,7 @@
 通过设计准入不代表应立即自写实现。对已经准入的能力，按以下顺序选择机制，只有前一层有具体
 不足时才进入下一层：
 
-1. 直接使用操作系统、Git、Wails、Pi 或目标平台已经提供的当前能力；
+1. 直接使用操作系统、Git、Electron、Pi 或目标平台已经提供的当前能力；
 2. 引入固定版本、可审阅的 Skill、MCP Server、插件、包或平台 CLI，并只写薄适配；
 3. 在许可证兼容且来源可追溯时，提取上游最小代码片段；不能直接复用代码时，采用其已验证的
    协议或设计，并记录与上游的差异；
@@ -92,7 +92,7 @@ Coding Agent 任务默认采用一个结果导向的任务契约：目标、现�
 - Feature Flag 只用于正在交付能力的短期风险控制，必须有当前负责人、验收条件和删除时机；
 - Paused 能力只保留设计摘要，不应继续进入 release 构建、默认启动或用户产品面；
 - 实验代码必须位于独立 CLI、测试目录或不参与 release 的明确构建目标；
-- 新 Wails API 和 Sidecar 文件必须有真实产品调用者，不能只服务 smoke、fixture 或未来设计；
+- 新 Desktop RPC API、Preload 能力和 Sidecar 文件必须有真实产品调用者，不能只服务 smoke、fixture 或未来设计；
 - 触碰热点文件时遵守既定依赖方向，避免继续增加新的职责，但不另开无产品结果的架构清理里程碑。
 
 “默认关闭”不等于已经隔离。只要代码仍被打包、注册、初始化、暴露或要求维护兼容，它就是产品
@@ -104,7 +104,7 @@ Coding Agent 任务默认采用一个结果导向的任务契约：目标、现�
 
 - Go fixture 放在 `_test.go`、`testdata/` 或独立测试包；
 - 前端 mock 和 story 不从 `App.vue` 或其他生产入口导入；
-- 正式 Wails bindings 不暴露仅供测试使用的 `Smoke`、`Fixture` 或 `Sample` 方法；
+- 正式 Desktop RPC / Preload 不暴露仅供测试使用的 `Smoke`、`Fixture` 或 `Sample` 方法；
 - 启动路径和 Vue lifecycle 不运行测试协调器，即使它通常因环境变量而空操作；
 - Browser preview 可以展示静态组件状态，但不能伪造完整领域后端或持久化状态机；
 - benchmark 应调用生产 Runtime 的正式接口，不维护第二套 Agent Runtime；
@@ -126,7 +126,7 @@ Coding Agent 任务默认采用一个结果导向的任务契约：目标、现�
 
 代码评审和交付收口时必须检查：
 
-- 本批次新增了哪些生产依赖、Wails API、Sidecar 文件、schema 和用户入口？
+- 本批次新增了哪些生产依赖、Desktop RPC / Preload 能力、Sidecar 文件、schema 和用户入口？
 - 是否出现只有测试、预览、研究或未来设计使用的正式代码？
 - 是否重复了 Pi 或已审阅上游资源的行为？
 - 是否保留了旧 pre-release 模型的兼容路径？

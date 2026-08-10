@@ -23,7 +23,7 @@ an implementation queue. `docs/developer/development-plan.md` does not exist and
 
 Read `docs/developer/product-code-admission.md` at these decision points:
 
-- before designing a new product capability, public Wails API, persisted state, Sidecar resource or
+- before designing a new product capability, public Desktop RPC API, persisted state, Sidecar resource or
   feature flag;
 - before implementing Agent Harness behavior, compatibility/migration logic, experimental product
   surfaces or a capability already owned by Pi or another reviewed upstream component;
@@ -44,7 +44,7 @@ one of those decisions.
 
 ## Current Product Boundary
 
-MilkSU is a Go/Wails/Vue desktop app with supervised Pi Sidecars.
+MilkSU is an Electron/Chromium + Vue desktop app with a supervised Go Runtime and Pi Sidecars.
 
 - Pi owns the generic model session, context compaction and tool loop.
 - MilkSU owns desktop authorization, workspace and credential boundaries, event projection and product UI.
@@ -80,7 +80,7 @@ Do not grow a second generic Coding Agent harness when an upstream component alr
 The target dependency direction is:
 
 ```text
-Vue -> Wails Facade -> Application Service -> Domain / Runtime -> Infrastructure Adapter
+Vue -> Electron Preload / Desktop RPC -> Application Service -> Domain / Runtime -> Infrastructure Adapter
 ```
 
 Do not start a standalone architecture-cleanup milestone. When a selected product slice touches
@@ -94,7 +94,7 @@ deferred to one destructive pre-release consolidation after the product slices a
 ## Validation and Delivery
 
 - Use the canonical repository scripts instead of inventing parallel runners.
-- Keep smoke, fixtures, benchmarks and acceptance coordinators outside production startup, Wails bindings
+- Keep smoke, fixtures, benchmarks and acceptance coordinators outside production startup, Desktop RPC
   and Vue entrypoints as required by `docs/developer/product-code-admission.md`.
 - A capability is not complete because a button, package or fixture exists; retain one real-task result.
 - Preserve the user's unrelated working-tree changes.

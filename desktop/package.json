@@ -1,0 +1,57 @@
+{
+  "name": "milksu-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MilkSU Chromium desktop shell",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "pack:mac": "electron-builder --mac dir --arm64",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "ws": "8.21.1"
+  },
+  "devDependencies": {
+    "electron": "43.2.0",
+    "electron-builder": "26.15.7"
+  },
+  "build": {
+    "appId": "com.milksu.app",
+    "productName": "MilkSU",
+    "asar": true,
+    "directories": {
+      "output": "../build/electron"
+    },
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "cdp-proxy.cjs",
+      "package.json",
+      "node_modules/ws/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "../app/dist",
+        "to": "renderer"
+      },
+      {
+        "from": "../build/desktop/milksu-backend",
+        "to": "milksu-backend"
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "icon": "../build/appicon.png",
+      "minimumSystemVersion": "12.0.0",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "target": [
+        {
+          "target": "dir",
+          "arch": ["arm64"]
+        }
+      ]
+    }
+  }
+}

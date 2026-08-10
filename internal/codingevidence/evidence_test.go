@@ -65,7 +65,7 @@ func TestDeriveRejectsMissingSession(t *testing.T) {
 		SessionID:      "  ",
 		Workspace:      workspace,
 	})
-	if err == nil || !strings.Contains(err.Error(), "没有活跃的隔离 Coding 浏览器") {
+	if err == nil || !strings.Contains(err.Error(), "没有活跃的浏览器") {
 		t.Fatalf("expected a no-session error, got %v", err)
 	}
 }

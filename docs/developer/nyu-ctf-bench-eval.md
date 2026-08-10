@@ -290,7 +290,7 @@ Agent 的附件分析、命令工具、环境交互、容器、网络、多角�
 ## 与产品的边界
 
 - `development` 可用于内部选择 Prompt、工具与 Harness；`test` 只用于版本验收。
-- 当前没有 Wails API、普通用户 UI、挑战 Runner 或批量自动运行。
+- 当前没有 Desktop RPC 产品入口、普通用户 UI、挑战 Runner 或批量自动运行。
 - Agent Runtime 已复用 Pi 会话、只读工作区工具与恢复，但仍不是完整 CTF Agent：它没有
   挑战附件、命令、容器、浏览器、网络目标、Strategist/Solver 协作或平台 Judge。
 - 若后续增加挑战 Runner，必须放在独立包与显式开发者开关后，并另行完成容器、安全策略、Judge 权威性和安全测试；不能扩大这个 safe-static Runner。

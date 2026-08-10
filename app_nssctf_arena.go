@@ -11,7 +11,6 @@ import (
 	"github.com/MilkSU-Official/milksu/internal/nssctf"
 	"github.com/MilkSU-Official/milksu/internal/securitypolicy"
 	"github.com/MilkSU-Official/milksu/internal/securityruntime"
-	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 type NSSCTFArenaWorkspace struct {
@@ -211,8 +210,7 @@ func (a *App) OpenNSSCTFArena() error {
 	if a.ctx == nil {
 		return fmt.Errorf("desktop runtime is not ready")
 	}
-	wailsruntime.BrowserOpenURL(a.ctx, "https://www.nssctf.cn/ai/agents")
-	return nil
+	return a.openExternal("https://www.nssctf.cn/ai/agents")
 }
 
 func (a *App) nssctfArenaToken() (string, error) {

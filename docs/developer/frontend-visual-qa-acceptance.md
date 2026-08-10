@@ -2,10 +2,13 @@
 
 > 文档状态：**Evidence / Dated acceptance record**。
 >
-> 验收状态：MilkSU 自身项目前端纵切 1/1 已验收；用户授权的其他项目前端纵切 0/1。
+> 验收状态：2026-08-03 旧 Wails + 独立 Chrome 进程时代的 MilkSU 自身项目
+> 前端纵切 1/1；
+> 该记录不得计入当前 Electron 内置浏览器的验收进度。
 >
 > 边界：本记录只固化一次已经完成的真实 MilkSU 任务，不把 Skill 已加载、自动化 fixture
-> 或单张截图当作整体完成，也不代表 Computer Use、用户登录态浏览器或其他项目已经验收。
+> 或单张截图当作整体完成，也不代表当前 Electron 内置浏览器、Browser Use、
+> Computer Use 或其他项目已经验收。
 >
 > 当前完成度与剩余缺口以代码、测试、Git 历史和[当前开发目标](./current-objectives.md)为准。
 
@@ -62,15 +65,14 @@
 
 ## 结论与剩余门槛
 
-这次任务满足 `frontend-visual-qa` 对 MilkSU 自身项目的真实 Browser、双 Viewport、交互、
-Console、Network、截图和证据路径要求，因此记为：
+这次任务满足当时 `frontend-visual-qa` 对 MilkSU 自身项目的真实 Browser、双 Viewport、
+交互、Console、Network、截图和证据路径要求，因此历史记录为：
 
 - MilkSU 前端纵切：**通过（1/1）**；
-- 用户授权的其他项目前端纵切：**待执行（0/1）**；
-- 前端视觉 QA 真实项目门槛：**进行中（1/2）**。
+- 用户授权的其他项目前端纵切：**未在这份历史记录中执行**。
 
-完成条件仍以 `coding-browser-acceptance.md` 为准。后续必须在一个用户明确授权的其他前端
-项目中完成相同等级的修改、测试、Browser 回归和证据检查，才能进入跨项目成功率对照。
+当前完成条件只以 [`coding-browser-acceptance.md`](./coding-browser-acceptance.md) 为准。
+本页不再维护一条独立的“1/2”进度。
 
 Computer Use 当前仍需用户在 macOS 中一次性授予 Accessibility 与 Screen Recording。
 这是独立的系统权限验收，不计入本次 Browser 结果，也不能由“替我审批”绕过。

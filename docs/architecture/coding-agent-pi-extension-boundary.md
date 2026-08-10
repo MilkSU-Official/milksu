@@ -2,7 +2,7 @@
 
 > 文档状态：Current engineering contract
 >
-> 事实审计：2026-08-09
+> 事实审计：2026-08-10
 >
 > Coding 核心交付、附件、统一 Composer 能力入口、PTY、后台任务、Git、Archify、隔离 Browser 和 LSP 已有真实或
 > 专项证据；Artifact Preview、Project MCP、Computer Use 外部 App slice、PR 发布确认、
@@ -62,7 +62,7 @@ flowchart LR
     coreTools --> project
     lsp --> project
     archify --> project
-    browserMcp --> managedBrowser["专用 Chrome<br/>Conversation 隔离 Profile"]
+    browserMcp --> managedBrowser["Electron WebContentsView<br/>Conversation 隔离 Profile"]
     session --> agentData
     bridge -. "结构化工具事件" .-> host
 ```
@@ -81,7 +81,7 @@ flowchart LR
 | Pi Goal | 是；与桌面目标状态并存 | **否**；CTF 使用自己的进度与 Judge 语义 | 固定 Coding Extension |
 | 项目终端 / 后台任务 | 是；用户直接操作的多会话 PTY 由 Go Host 承担，后台任务复用固定 Pi Extension；两者按 Conversation 隔离，展示生命周期、输出和停止动作 | **否** | `creack/pty + xterm.js` Host Adapter；固定 Coding Extension + MilkSU 状态投影 |
 | 项目 MCP | 用户从 Composer “+”打开现有项目 MCP 管理面，再从 `.mcp.json` 明确选择；调用遵循当前权限档位，不能由 Agent 安装或扩大工具面 | **否** | 固定 Coding Extension + MilkSU Sandbox |
-| 沙箱浏览器 | 用户从右侧浏览器页或 Composer “+”显式打开专用 Chrome；工具调用遵循当前权限档位并保留页面、Console、Network 和截图证据 | **否** | 固定 Playwright MCP + Go Browser Manager + MilkSU Sandbox |
+| 浏览器 | 用户从右侧浏览器页或 Composer “+”显式打开会话隔离的内置 Chromium；用户与 Agent 共用同一 `WebContentsView`，工具调用遵循当前权限档位并保留页面、Console、Network 和截图证据 | **否** | Electron Browser Host + Scoped CDP Proxy + 固定 Playwright MCP |
 | Browser Use | 用户把可删除 Scope 加入本轮输入后，固定 Playwright extension mode 才能进入真实浏览器标签页配对路径；不复用沙箱 profile | **否** | 固定 Playwright MCP + 用户标签页授权 |
 | Artifact Preview | 工作区内 Markdown、HTML 和图片；HTML 使用隔离、CSP、禁网和大小限制 | **否** | Go Preview Policy + Vue right page |
 | ImageGen | 文生图和参考图编辑；用户明确发起付费动作，输出限制在项目资产范围并可预览 | **否** | 受控 Provider Adapter |
@@ -101,7 +101,7 @@ flowchart LR
 Composer 左下“+”是已审核能力的统一选择面，不是插件安装器，也不建立第二套 Agent Harness：
 
 - 文件、Goal 和 Plan 属于当前输入或会话状态；未选择 Plan 时默认就是 Go，不提供 `/go`；
-- 沙箱浏览器与项目 MCP 只打开现有右侧管理面，不伪造一条用户消息；
+- 浏览器与项目 MCP 只打开现有右侧管理面，不伪造一条用户消息；
 - Browser Use 与 Computer Use 先插入可删除 Scope，用户发送时才把准确授权交给 Runtime；
 - Skill 先插入可删除状态，发送时直接转换为 Pi 原生 `/skill:name`，MilkSU 不解析或执行 Skill；
 - 菜单只展示打包白名单和当前 Session 投影的已审核资源，项目内容不能借菜单安装任意 Server、
@@ -112,7 +112,7 @@ Composer 左下“+”是已审核能力的统一选择面，不是插件安装�
 
 ## 执行模式与权限策略
 
-`executionMode` 和 `approvalPolicy` 是 Conversation 的持久字段，经 Wails → Go Supervisor →
+`executionMode` 和 `approvalPolicy` 是 Conversation 的持久字段，经 Electron Preload / Desktop RPC → Go Supervisor →
 JSONL Sidecar 传递。`bridge-policy.js` 每回合重新计算 allowlist，调用
 `session.setActiveTools()`；独立 `tool_call` hook 再阻止不在列表中的调用。因此切换按钮不是
 只改变 Prompt 或 UI 文案。
@@ -133,11 +133,11 @@ Shell 运算符、Git 和网络；macOS `sandbox-exec` 仍把写入收口在项�
 
 MilkSU 已在 Sidecar 与桌面之间实现 Approval Broker：需要审批的工具调用带上稳定请求
 ID 暂停，桌面明确显示目标、参数和风险，并把一次性批准或拒绝结果送回原调用。
-项目 MCP、沙箱浏览器、Browser Use、Computer Use 和 ImageGen 都需要先显式启用相应能力面，不会因
+项目 MCP、浏览器、Browser Use、Computer Use 和 ImageGen 都需要先显式启用相应能力面，不会因
 权限档位静默安装、登录账户或扩大 Scope；启用后的普通调用遵循当前权限档位，避免在“替我
-审批”和“完全访问”中制造无意义的逐次确认。沙箱浏览器只能由用户从右侧页面或 Composer “+”显式
-打开，使用
-Conversation 隔离 Profile；Go Host 只向当前 Pi Session 注入瞬态 loopback 描述符，
+审批”和“完全访问”中制造无意义的逐次确认。浏览器只能由用户从右侧页面或 Composer “+”显式
+打开，使用 Conversation 隔离 Profile；Electron Host 只经 Go Runtime 向当前 Pi Session 注入
+瞬态、限定单一 Target 的 loopback 描述符，
 不把 CDP 地址写进前端、SQLite 或项目配置。Browser Use 另走固定 Playwright extension mode 和
 用户标签页批准，不继承沙箱 profile。Computer Use 已完成外部可见 App、bundle / PID / Window
 不可变 Scope、Calculator observe/click 和纯文本模型读取工具截图的辅助视觉小纵切；更广 App、
@@ -174,7 +174,7 @@ flowchart TB
 | `@xterm/xterm` / `@xterm/addon-fit` | `6.0.0` / `0.11.0` | `CodingTerminalPanel.vue`、`third_party/licenses/xterm.js-MIT.txt` | **Verified**：真实原生 App 显示项目 Shell、实时输入输出和 resize；前端独立懒加载，不进入基础 ChatPage chunk |
 | `github.com/creack/pty` | `1.1.24` | `internal/codingterminal`、`app_coding_terminal.go`、`third_party/licenses/creack-pty-MIT.txt` | **Verified on macOS arm64**：多会话 PTY、stdin、resize、stop、退出状态、输出尾部、Conversation ownership 和 Provider Key 环境剥离通过 race test 与原生 `pwd` |
 | `pi-mcp-adapter` | `2.17.0` | `bridge.js`、项目 MCP 配置摘要与批准桥 | **Verified**：项目显式选择、摘要校验、Sandbox、环境过滤、逐次审批和 CTF 负向隔离 |
-| `@playwright/mcp` | `0.0.78` | `bridge-mcp.js`、`internal/browsercap`、右侧浏览器页、Browser Use 面、Sidecar manifest | **沙箱 Browser Verified**：真实打包 App 启动专用 Chrome，并完成 snapshot、type、click、结果回读和停止；extension mode 的可删除 UI/授权面已验，仍缺一次真实标签页配对任务；CTF 会话不加载该服务器 |
+| `@playwright/mcp` | `0.0.78` | `bridge-mcp.js`、`internal/browsercap`、Electron Browser Host、右侧浏览器页、Browser Use 面、Sidecar manifest | **内置 Browser narrow task verified**：打包 App 中用户与 Agent 共用会话隔离 `WebContentsView`，Agent 已经限定单一 Target 的 CDP Proxy 读取真实页面且未回退 Shell；点击/表单/公开调研、面板折叠后的连续执行与 extension mode 真实标签页配对仍按各自任务验收，不能由旧外部 Chrome fixture 代替；CTF 会话不加载该服务器 |
 | `@antv/g6` | `5.1.1` | `SessionHistoryGraph.vue`、`third_party/licenses/antv-g6-MIT.txt`、前端 lockfile | **Verified packaged UI slice**：只在完整关系图视图懒加载；打包 macOS App 已验真实本机历史、同条件过滤、拖动/缩放/适配、来源回跳、显式引用和深浅主题；不进入 Sidecar 或 CTF 工具面 |
 | `@napi-rs/system-ocr` | `1.1.0` | Coding 附件桥、Sidecar manifest、平台原生包 | **Verified**：图片附件可本地 OCR；配置视觉路由时可改用视觉模型 |
 | MilkSU Workflow | first-party | `createMilkSUWorkflowExtension` | Schema 和可见事件已有 |

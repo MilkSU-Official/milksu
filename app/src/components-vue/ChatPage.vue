@@ -27,6 +27,8 @@ import {
 } from '@felinic/ui'
 import {
   Activity,
+  ArrowLeft,
+  ArrowRight,
   Bot,
   ChevronDown,
   CircleDot,
@@ -57,6 +59,7 @@ import {
   Sparkles,
   Terminal,
   Wrench,
+  X,
 } from 'lucide-vue-next'
 import { invokeCommand } from '@/desktop'
 import ChatActivityGroup from '@/components-vue/ChatActivityGroup.vue'
@@ -80,6 +83,7 @@ import type {
   CodingGitDeliveryEvidence,
   CodingMCPConfigSnapshot,
 } from '@/codingEnvironmentTypes'
+import { normalizeCodingBrowserAddress } from '@/codingBrowserAddress'
 import { buildChatTranscript } from '@/lib/chatActivity'
 import { chatTopbarPresentation } from '@/lib/chatTopbar'
 import {
@@ -215,8 +219,9 @@ const architecturePreviewError = ref('')
 const requestedArchitecturePath = ref('')
 const browserPanelError = ref('')
 const codingBrowserLoading = ref(false)
-const codingBrowserURL = ref('http://127.0.0.1:3000')
+const codingBrowserURL = ref('')
 const codingBrowserStatus = ref<CodingBrowserStatus | null>(null)
+const codingBrowserViewport = ref<HTMLElement | null>(null)
 const codingBrowserEvidenceLoading = ref(false)
 const codingBrowserEvidenceError = ref('')
 const codingBrowserEvidenceRevealed = ref(false)
@@ -481,14 +486,11 @@ const codingBrowserEvidencePath = computed(() => {
   const sessionID = codingBrowserStatus.value?.sessionId?.trim()
   return sessionID ? `.milksu/browser-evidence/${sessionID}` : ''
 })
-const codingBrowserApprovalDetail = computed(() => (
-  effectiveApprovalPolicy.value === 'ask'
-    ? '请求批准档会逐次确认浏览器调用。'
-    : effectiveApprovalPolicy.value === 'read-only'
-      ? '只读档不会把浏览器加载给 Agent。'
-      : effectiveApprovalPolicy.value === 'full-auto'
-        ? '完全访问会自动执行已启用的浏览器调用，固定会话边界和硬阻断仍然有效。'
-        : '替我审批会自动执行已启用的浏览器调用；扩大外部账户授权时仍会确认。'
+const codingBrowserPage = computed(() => codingBrowserStatus.value?.pages?.[0] ?? null)
+const codingBrowserTabTitle = computed(() => (
+  codingBrowserPage.value?.title
+  || codingBrowserStatus.value?.initialUrl
+  || '新标签页'
 ))
 const workspaceLocked = computed(() => Boolean(props.conversation?.messages.length))
 const activeModelLabel = computed(() => {
@@ -519,7 +521,7 @@ const contextPanelTitle = computed(() => ({
   changes: '变更',
   artifacts: '产物',
   architecture: '架构图',
-  browser: '沙箱浏览器',
+  browser: '浏览器',
   'browser-use': 'Browser Use',
   'computer-use': 'Computer Use',
   collaboration: props.ctfSession ? 'Agent 协作' : '隔离 worktree',
@@ -580,7 +582,7 @@ function sendComposerMessage(
     return
   }
   const scopedPrompt = scopeToken === 'browser-use'
-    ? `本轮通过 Playwright MCP 官方扩展请求连接真实用户浏览器；首次调用时等我在 Chrome/Edge 里选择并批准准确标签页。只操作扩展返回的标签页，不要改用沙箱浏览器或 Computer Use。\n\n${prompt}`
+    ? `本轮通过 Playwright MCP 官方扩展请求连接真实用户浏览器；首次调用时等我在 Chrome/Edge 里选择并批准准确标签页。只操作扩展返回的标签页，不要改用 MilkSU 内置浏览器或 Computer Use。\n\n${prompt}`
     : scopeToken === 'computer-use'
       ? `本轮使用已锁定的可见 App 窗口完成请求；若尚未接入准确窗口，先停下让我选择。\n\n${prompt}`
       : prompt
@@ -956,7 +958,7 @@ async function refreshBrowserPanel() {
     codingBrowserStatus.value = null
     browserPanelError.value = browser.reason instanceof Error
       ? browser.reason.message
-      : '暂时无法读取 Coding 浏览器状态。'
+      : '暂时无法读取浏览器状态。'
   }
   if (computerUse.status === 'fulfilled') {
     computerUseStatus.value = computerUse.value
@@ -989,9 +991,12 @@ async function refreshBrowserPanel() {
 
 async function startCodingBrowser() {
   browserPanelError.value = ''
-  const initialURL = codingBrowserURL.value.trim()
-  if (!/^https?:\/\//i.test(initialURL)) {
-    browserPanelError.value = '请输入以 http:// 或 https:// 开头的地址。'
+  let initialURL = ''
+  try {
+    initialURL = normalizeCodingBrowserAddress(codingBrowserURL.value)
+    codingBrowserURL.value = initialURL
+  } catch (reason) {
+    browserPanelError.value = reason instanceof Error ? reason.message : '无法识别这个地址。'
     return
   }
   const workspaceName = props.workspacePath
@@ -999,7 +1004,7 @@ async function startCodingBrowser() {
     .split('/')
     .at(-1)
   const conversationID = props.ensureConversation(
-    workspaceName ? `${workspaceName} · 浏览器` : 'Coding 浏览器',
+    workspaceName ? `${workspaceName} · 浏览器` : '浏览器',
   )
   codingBrowserLoading.value = true
   try {
@@ -1010,10 +1015,14 @@ async function startCodingBrowser() {
     codingBrowserEvidenceError.value = ''
     codingBrowserEvidenceRevealed.value = false
     browserEvidence.value = null
+    const pageURL = codingBrowserStatus.value.pages?.[0]?.url
+    if (pageURL) codingBrowserURL.value = pageURL
+    await nextTick()
+    await syncCodingBrowserViewport()
   } catch (reason) {
     browserPanelError.value = reason instanceof Error
       ? reason.message
-      : 'Coding 浏览器启动失败。'
+      : '浏览器启动失败。'
   } finally {
     codingBrowserLoading.value = false
   }
@@ -1025,6 +1034,7 @@ async function stopCodingBrowser() {
   browserPanelError.value = ''
   codingBrowserLoading.value = true
   try {
+    await hideCodingBrowserViewport(conversationID)
     codingBrowserStatus.value = await invokeCommand<CodingBrowserStatus>(
       'stop_coding_browser',
       { conversationId: conversationID },
@@ -1035,9 +1045,130 @@ async function stopCodingBrowser() {
   } catch (reason) {
     browserPanelError.value = reason instanceof Error
       ? reason.message
-      : 'Coding 浏览器停止失败。'
+      : '浏览器停止失败。'
   } finally {
     codingBrowserLoading.value = false
+  }
+}
+
+async function navigateCodingBrowser() {
+  let initialURL = ''
+  try {
+    initialURL = normalizeCodingBrowserAddress(codingBrowserURL.value)
+    codingBrowserURL.value = initialURL
+  } catch (reason) {
+    browserPanelError.value = reason instanceof Error ? reason.message : '无法识别这个地址。'
+    return
+  }
+  if (!codingBrowserStatus.value?.enabled) {
+    await startCodingBrowser()
+    return
+  }
+  const conversationID = props.conversation?.id
+  if (!conversationID) return
+  browserPanelError.value = ''
+  codingBrowserLoading.value = true
+  try {
+    await invokeCommand('navigate_coding_browser', {
+      conversationId: conversationID,
+      targetUrl: initialURL,
+    })
+    window.setTimeout(() => void refreshCodingBrowserState(), 250)
+  } catch (reason) {
+    browserPanelError.value = reason instanceof Error
+      ? reason.message
+      : '页面导航失败。'
+  } finally {
+    codingBrowserLoading.value = false
+  }
+}
+
+async function runCodingBrowserNavigation(action: 'back' | 'forward' | 'reload') {
+  const conversationID = props.conversation?.id
+  if (!conversationID || !codingBrowserStatus.value?.enabled) return
+  browserPanelError.value = ''
+  try {
+    await invokeCommand({
+      back: 'coding_browser_go_back',
+      forward: 'coding_browser_go_forward',
+      reload: 'reload_coding_browser',
+    }[action], { conversationId: conversationID })
+    window.setTimeout(() => void refreshCodingBrowserState(), 180)
+  } catch (reason) {
+    browserPanelError.value = reason instanceof Error
+      ? reason.message
+      : '浏览器操作失败。'
+  }
+}
+
+let codingBrowserResizeObserver: ResizeObserver | null = null
+let codingBrowserStatusTimer = 0
+let lastCodingBrowserViewport = ''
+
+async function syncCodingBrowserViewport() {
+  const conversationID = props.conversation?.id
+  const viewport = codingBrowserViewport.value
+  const visible = Boolean(
+    environmentOpen.value
+    && contextPanel.value === 'browser'
+    && codingBrowserStatus.value?.enabled
+    && viewport,
+  )
+  if (!conversationID || !codingBrowserStatus.value?.enabled || !viewport) return
+  const rect = viewport.getBoundingClientRect()
+  const geometry = {
+    conversationId: conversationID,
+    x: rect.left,
+    y: rect.top,
+    width: rect.width,
+    height: rect.height,
+    visible,
+  }
+  const key = JSON.stringify(geometry)
+  if (key === lastCodingBrowserViewport) return
+  lastCodingBrowserViewport = key
+  try {
+    await invokeCommand('set_coding_browser_viewport', geometry)
+  } catch (reason) {
+    browserPanelError.value = reason instanceof Error
+      ? reason.message
+      : '无法放置内嵌浏览器。'
+  }
+}
+
+async function hideCodingBrowserViewport(conversationID = props.conversation?.id ?? '') {
+  if (!conversationID || !codingBrowserStatus.value?.enabled) return
+  lastCodingBrowserViewport = ''
+  try {
+    await invokeCommand('set_coding_browser_viewport', {
+      conversationId: conversationID,
+      x: 0,
+      y: 0,
+      width: 1,
+      height: 1,
+      visible: false,
+    })
+  } catch {
+    // The native view may already have been disposed with its conversation.
+  }
+}
+
+async function refreshCodingBrowserState() {
+  const conversationID = props.conversation?.id
+  if (!conversationID || !codingBrowserStatus.value?.enabled) return
+  try {
+    const status = await invokeCommand<CodingBrowserStatus>(
+      'get_coding_browser_status',
+      { conversationId: conversationID },
+    )
+    codingBrowserStatus.value = status
+    const pageURL = status.pages?.[0]?.url
+    if (pageURL && document.activeElement?.getAttribute('aria-label') !== '浏览器地址') {
+      codingBrowserURL.value = pageURL
+    }
+    await syncCodingBrowserViewport()
+  } catch {
+    // The regular panel refresh reports actionable errors; polling stays quiet.
   }
 }
 
@@ -1224,10 +1355,41 @@ async function scrollChatToBottom() {
 onMounted(() => {
   window.addEventListener('milksu:coding-smoke-open-panel', handleCodingSmokeOpenPanel as EventListener)
   void scrollChatToBottom()
+  if (typeof ResizeObserver !== 'undefined') {
+    codingBrowserResizeObserver = new ResizeObserver(() => {
+      lastCodingBrowserViewport = ''
+      void syncCodingBrowserViewport()
+    })
+  }
+  codingBrowserStatusTimer = window.setInterval(() => {
+    if (environmentOpen.value && contextPanel.value === 'browser') {
+      void refreshCodingBrowserState()
+    }
+  }, 750)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('milksu:coding-smoke-open-panel', handleCodingSmokeOpenPanel as EventListener)
+  void hideCodingBrowserViewport()
+  codingBrowserResizeObserver?.disconnect()
+  if (codingBrowserStatusTimer) window.clearInterval(codingBrowserStatusTimer)
+})
+
+watch(codingBrowserViewport, (current, previous) => {
+  if (previous) codingBrowserResizeObserver?.unobserve(previous)
+  if (current) {
+    codingBrowserResizeObserver?.observe(current)
+    lastCodingBrowserViewport = ''
+    void syncCodingBrowserViewport()
+  }
+})
+
+watch(environmentOpen, open => {
+  if (open && contextPanel.value === 'browser') {
+    void nextTick(() => syncCodingBrowserViewport())
+  } else {
+    void hideCodingBrowserViewport()
+  }
 })
 
 watch(() => props.conversation?.messages.length, () => {
@@ -1239,7 +1401,10 @@ watch(() => props.ctfSession, (current, previous) => {
     contextPanel.value = 'environment'
   }
 })
-watch(() => props.conversation?.id, () => {
+watch(() => props.conversation?.id, (_current, previous) => {
+  if (previous && codingBrowserStatus.value?.enabled) {
+    void hideCodingBrowserViewport(previous)
+  }
   goalMode.value = false
   codingBrowserStatus.value = null
   codingBrowserEvidenceError.value = ''
@@ -1276,12 +1441,16 @@ watch(
   () => void refreshMCPConfig(),
   { immediate: true },
 )
-watch(contextPanel, panel => {
+watch(contextPanel, (panel, previous) => {
+  if (previous === 'browser' && panel !== 'browser') void hideCodingBrowserViewport()
   if (['browser', 'browser-use', 'computer-use'].includes(panel) && environmentOpen.value) {
     void refreshBrowserPanel()
   }
   if (panel === 'architecture' && environmentOpen.value) void refreshArchitecturePreview()
   if (['artifacts', 'changes'].includes(panel) && environmentOpen.value) void refreshEnvironment()
+  if (panel === 'browser' && environmentOpen.value) {
+    void nextTick(() => syncCodingBrowserViewport())
+  }
 })
 watch(
   () => [props.ctfSession, props.conversation?.ctfJobId, props.ctfRole, props.running] as const,
@@ -1465,7 +1634,7 @@ watch(
   <aside
     v-if="environmentOpen"
     class="context-sidebar flex shrink-0 flex-col border-l border-border bg-card/95 backdrop-blur"
-    :class="['architecture', 'artifacts', 'changes', 'collaboration', 'history'].includes(contextPanel)
+    :class="['architecture', 'artifacts', 'changes', 'collaboration', 'history', 'browser'].includes(contextPanel)
       ? 'w-[min(36rem,36vw)] min-w-[22rem]'
       : 'w-80'"
     :aria-label="contextPanelTitle"
@@ -1496,7 +1665,7 @@ watch(
           <SelectItem v-if="!ctfSession" value="changes">变更</SelectItem>
           <SelectItem v-if="!ctfSession" value="artifacts">产物</SelectItem>
           <SelectItem v-if="!ctfSession" value="architecture">架构图</SelectItem>
-          <SelectItem value="browser">沙箱浏览器</SelectItem>
+          <SelectItem value="browser">浏览器</SelectItem>
           <SelectItem v-if="!ctfSession" value="collaboration">隔离 worktree</SelectItem>
           <SelectItem value="history">相关历史</SelectItem>
           <template v-if="ctfSession">
@@ -1528,7 +1697,10 @@ watch(
       </div>
     </header>
 
-    <div class="min-h-0 flex-1 overflow-y-auto">
+    <div
+      class="min-h-0 flex-1"
+      :class="contextPanel === 'browser' ? 'overflow-hidden' : 'overflow-y-auto'"
+    >
       <template v-if="contextPanel === 'environment'">
         <div v-if="environmentError" class="border-b border-border px-4 py-3 text-caption text-destructive">
           {{ environmentError }}
@@ -1951,118 +2123,111 @@ watch(
       </template>
 
       <template v-else-if="contextPanel === 'browser'">
-        <div v-if="browserPanelError" class="border-b border-border px-4 py-3 text-caption text-destructive">
-          {{ browserPanelError }}
-        </div>
-        <section class="px-4 py-5">
-          <div class="flex items-start justify-between gap-3">
-            <div>
-              <p class="text-body font-medium">隔离 Coding 浏览器</p>
-              <p class="mt-1 text-caption leading-5 text-muted-foreground">
-                Playwright 连接到 MilkSU 专用 Chrome；不会读取你日常 Chrome 的登录状态。
-              </p>
-            </div>
-            <span
-              class="mt-1 size-2 shrink-0 rounded-full"
-              :class="codingBrowserStatus?.enabled ? 'bg-primary' : 'bg-muted-foreground'"
-            />
+        <section class="flex h-full min-h-0 flex-col bg-background">
+          <div v-if="browserPanelError" class="shrink-0 border-b border-border px-3 py-2 text-caption text-destructive">
+            {{ browserPanelError }}
           </div>
-          <div class="mt-4 flex gap-2">
+
+          <div class="flex h-11 shrink-0 items-end gap-1 border-b border-border bg-muted/35 px-2 pt-1.5">
+            <div class="flex h-9 min-w-0 max-w-72 flex-1 items-center gap-2 rounded-t-lg border border-b-0 border-border bg-background px-3">
+              <Globe2 class="size-3.5 shrink-0 text-primary" />
+              <span class="min-w-0 flex-1 truncate text-control">{{ codingBrowserTabTitle }}</span>
+              <Button
+                v-if="codingBrowserStatus?.enabled"
+                variant="ghost"
+                size="icon-sm"
+                class="size-6 shrink-0"
+                aria-label="关闭浏览器"
+                @click="stopCodingBrowser"
+              >
+                <X class="size-3.5" />
+              </Button>
+            </div>
+          </div>
+
+          <div class="flex h-12 shrink-0 items-center gap-1.5 border-b border-border bg-background px-2">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              :disabled="!codingBrowserStatus?.enabled"
+              aria-label="后退"
+              @click="runCodingBrowserNavigation('back')"
+            >
+              <ArrowLeft class="size-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              :disabled="!codingBrowserStatus?.enabled"
+              aria-label="前进"
+              @click="runCodingBrowserNavigation('forward')"
+            >
+              <ArrowRight class="size-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              :disabled="!codingBrowserStatus?.enabled || codingBrowserLoading"
+              aria-label="重新加载"
+              @click="runCodingBrowserNavigation('reload')"
+            >
+              <RefreshCw class="size-4" :class="{ 'animate-spin': codingBrowserLoading }" />
+            </Button>
             <Input
               v-model="codingBrowserURL"
-              :disabled="codingBrowserLoading || codingBrowserStatus?.enabled"
-              class="min-w-0 flex-1 font-mono text-caption"
-              aria-label="Coding 浏览器初始地址"
-              placeholder="http://127.0.0.1:3000"
-              @keydown.enter.prevent="startCodingBrowser"
+              :disabled="codingBrowserLoading"
+              class="h-8 min-w-0 flex-1 rounded-full bg-muted/55 px-3 font-mono text-caption"
+              aria-label="浏览器地址"
+              placeholder="输入网址或搜索内容"
+              @keydown.enter.prevent="navigateCodingBrowser"
             />
             <Button
-              v-if="codingBrowserStatus?.enabled"
-              variant="outline"
-              size="sm"
+              variant="ghost"
+              size="icon-sm"
               :disabled="codingBrowserLoading"
-              @click="stopCodingBrowser"
+              :aria-label="codingBrowserStatus?.enabled ? '打开地址' : '启动浏览器'"
+              @click="navigateCodingBrowser"
             >
-              停止
-            </Button>
-            <Button
-              v-else
-              variant="brand"
-              size="sm"
-              :disabled="codingBrowserLoading"
-              @click="startCodingBrowser"
-            >
-              <LoaderCircle v-if="codingBrowserLoading" class="size-3.5 animate-spin" />
-              <Globe2 v-else class="size-3.5" />
-              启动
+              <LoaderCircle v-if="codingBrowserLoading" class="size-4 animate-spin" />
+              <ArrowRight v-else class="size-4" />
             </Button>
           </div>
-          <p class="mt-3 text-caption leading-5 text-muted-foreground">
-            启用后，Agent 可在 Go 模式中使用浏览器；{{ codingBrowserApprovalDetail }}
-          </p>
-          <div v-if="codingBrowserStatus?.enabled" class="mt-5 border-t border-border pt-4">
-            <div class="flex items-center justify-between gap-3 text-caption">
-              <span class="font-medium text-foreground">当前页面</span>
-              <span class="text-muted-foreground">
-                {{ codingBrowserStatus.browserBinary || 'Chrome' }}
-              </span>
-            </div>
-            <div v-if="codingBrowserStatus.pages?.length" class="mt-3 space-y-2">
-              <div
-                v-for="page in codingBrowserStatus.pages"
-                :key="page.id"
-                class="rounded-md bg-muted/45 px-3 py-2"
-              >
-                <p class="truncate text-body">{{ page.title || '未命名页面' }}</p>
-                <p class="mt-1 truncate font-mono text-caption text-muted-foreground">
-                  {{ page.url }}
-                </p>
-              </div>
-            </div>
-            <p v-else class="mt-3 text-caption text-muted-foreground">
-              Chrome 已启动，等待页面就绪。
-            </p>
+
+          <div class="relative min-h-0 flex-1 bg-white">
             <div
-              v-if="codingBrowserEvidencePath"
-              class="mt-4 rounded-md border border-border bg-muted/35 px-3 py-3"
+              ref="codingBrowserViewport"
+              class="absolute inset-0"
+              data-coding-browser-viewport
+              :aria-label="codingBrowserStatus?.enabled ? '浏览器页面' : '浏览器未启动'"
+            />
+            <div
+              v-if="!codingBrowserStatus?.enabled"
+              class="absolute inset-0 z-10 flex flex-col items-center justify-center bg-background px-8 text-center"
             >
-              <div class="flex items-center justify-between gap-3">
-                <p class="text-caption font-medium text-foreground">浏览器证据</p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  :disabled="codingBrowserEvidenceLoading"
-                  aria-label="在 Finder 中显示浏览器证据"
-                  @click="revealCodingBrowserEvidence"
-                >
-                  <LoaderCircle
-                    v-if="codingBrowserEvidenceLoading"
-                    class="size-3.5 animate-spin"
-                  />
-                  <FolderOpen v-else class="size-3.5" />
-                  在 Finder 中显示
-                </Button>
-              </div>
-              <p class="mt-1 break-all font-mono text-caption text-muted-foreground">
-                {{ codingBrowserEvidencePath }}
-              </p>
-              <p class="mt-2 text-caption leading-5 text-muted-foreground">
-                页面快照、Console、Network 和截图由 Agent 明确采集；显式证据文件只能写入此目录。
-              </p>
-              <p
-                v-if="codingBrowserEvidenceError"
-                class="mt-2 text-caption text-destructive"
-              >
-                {{ codingBrowserEvidenceError }}
-              </p>
-              <p
-                v-else-if="codingBrowserEvidenceRevealed"
-                class="mt-2 text-caption text-foreground"
-              >
-                已在 Finder 中打开该目录。
-              </p>
+              <Globe2 class="size-7 text-muted-foreground" />
+              <p class="mt-3 text-label font-medium">浏览器</p>
+              <p class="mt-1 text-caption text-muted-foreground">输入地址后按回车</p>
             </div>
           </div>
+
+          <footer class="flex h-9 shrink-0 items-center justify-between gap-3 border-t border-border bg-background px-3 text-caption text-muted-foreground">
+            <span class="min-w-0 truncate">
+              {{ codingBrowserStatus?.enabled ? codingBrowserStatus.profileLabel : '独立 profile · 不读取日常浏览器' }}
+            </span>
+            <Button
+              v-if="codingBrowserEvidencePath"
+              variant="ghost"
+              size="sm"
+              class="shrink-0"
+              :disabled="codingBrowserEvidenceLoading"
+              aria-label="在 Finder 中显示浏览器证据"
+              @click="revealCodingBrowserEvidence"
+            >
+              <LoaderCircle v-if="codingBrowserEvidenceLoading" class="size-3.5 animate-spin" />
+              <FolderOpen v-else class="size-3.5" />
+              证据
+            </Button>
+          </footer>
         </section>
       </template>
 

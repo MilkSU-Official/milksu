@@ -36,9 +36,9 @@
 - **实测缺口**：Goal/输入框上方的 Git 变更摘要看不到 writer worktree 的三文件改动；变更投影仍偏主工作区视角，不足以审阅隔离执行结果。
 - Computer Use：用户选择外部可见 App/PID/Window 的不可变 Scope、打包 App 启停、Calculator observe/click、text-only 主模型下的工具截图辅助视觉已有切片。Browser 与 Computer Use 仍是分离权限面。
 - Session Index / 相关历史：MilkSU 自有 `obelisk.sqlite` 已索引本机 Coding、CTF、CVE 会话，支持 FTS/LIKE 搜索、Credential 遮蔽和用户确认后引用到当前输入。完整图谱改为**按需生成的人类语义图**：当前 Pi/Provider 在无工具静默回合中，把有界的 user/assistant 历史、Obelisk Memory 摘要和正式 Evidence 摘要归纳成主题、决策、问题、能力、里程碑、证据和洞见；工具消息不进入材料，节点必须回溯真实来源，关系明确是模型推断。图谱不读取目标文档、不写 Memory、不自动进入 Agent 上下文，也没有“引用到输入”动作。CTF Memory 继续属于独立领域事实，不与历史索引混写。
-- Composer `/` 已覆盖 Goal、Plan、Pi 会话动作、模型/权限、状态/Diff/Review、worktree、MCP、Browser Use 与 Computer Use；Go 是未开启 Plan 时的默认状态，不再单设 `/go`。输入框左下“+”是统一的当前任务能力入口：附件、Goal、Plan、沙箱浏览器、Browser Use、Computer Use、运行时投影的已审核 Pi Skills（当前固定 frontend-visual-qa / archify）和项目 MCP。Skill 直接复用 Pi `/skill:name` 展开，Browser/Computer 与 Skill 都先成为可删除的内联状态，不会因选择而直接发送；沙箱浏览器和项目 MCP 只打开已有管理面。Plan/Go 不再占一个常驻下拉，审批位于左侧，模型位于右侧。该菜单四组、Scope/Skill 删除、Browser/MCP 面板跳转和 Plan → Go 恢复已在重新打包的原生 App 中可见验收。
-- 浏览器三面已分责：右栏“沙箱浏览器”管理会话隔离的专用 Chrome；`/browser-use` 复用固定版 Playwright MCP 官方扩展，由用户在真实 Chrome/Edge 选择准确标签页；`/computer-use` 只列外部原生 App，浏览器窗口不进入该 Scope。NSSCTF/CTFshow 的 MilkSU 扩展继续作为领域 Bridge，不承担通用浏览器控制。
-- 右栏沙箱浏览器当前仍是独立 Chrome 窗口 + CDP/Playwright，并非内嵌 Chromium。目标形态是右栏可直接交互的 Chromium View；不得用截图坐标层、iframe 或普通外部 Chrome 窗口冒充完成。
+- Composer `/` 已覆盖 Goal、Plan、Pi 会话动作、模型/权限、状态/Diff/Review、worktree、MCP、Browser Use 与 Computer Use；Go 是未开启 Plan 时的默认状态，不再单设 `/go`。输入框左下“+”是统一的当前任务能力入口：附件、Goal、Plan、浏览器、Browser Use、Computer Use、运行时投影的已审核 Pi Skills（当前固定 frontend-visual-qa / archify）和项目 MCP。Skill 直接复用 Pi `/skill:name` 展开，Browser/Computer 与 Skill 都先成为可删除的内联状态，不会因选择而直接发送；浏览器和项目 MCP 只打开已有管理面。Plan/Go 不再占一个常驻下拉，审批位于左侧，模型位于右侧。该菜单四组、Scope/Skill 删除、Browser/MCP 面板跳转和 Plan → Go 恢复已在重新打包的原生 App 中可见验收。产品 UI 只使用“浏览器”，不向用户暴露“沙箱浏览器”这个实现术语。
+- 浏览器三面已分责：右栏“浏览器”是会话隔离的内置 Chromium；`/browser-use` 复用固定版 Playwright MCP 官方扩展，由用户在真实 Chrome/Edge 选择准确标签页；`/computer-use` 只列外部原生 App，浏览器窗口不进入该 Scope。NSSCTF/CTFshow 的 MilkSU 扩展继续作为领域 Bridge，不承担通用浏览器控制。
+- **Chromium 桌面壳纵切已完成**：MilkSU.app 现由 Electron/Chromium 承载 Vue 产品表面和右栏 `WebContentsView`，Go 作为受管本地 Runtime 通过 JSONL RPC 提供应用服务。浏览器使用每会话独立 `session.fromPath`、默认拒绝页面权限，并经限定单一 Target 的 loopback CDP Proxy 交给固定 Playwright MCP。打包 App + TokenFlux `grok-4.5` 已只用浏览器完成三类真实任务：按页面提示点击取得 `flag{browser_agent_ok}`、填写并提交表单取得确定性回执、阅读 Electron 官方文档并归纳 `WebContentsView` 与旧 `BrowserView` 的关系。三次均在 Agent 开始后折叠右栏，任务仍继续，重新展开仍是同一页面与终态；未回退 Shell。裸域名会补全 HTTPS，普通文字会进入搜索。旧 Wails/CEF 生产链已直接删除，不保留兼容或双壳。
 - 模型与凭据：单默认模型 + 单来源 + 单凭据区；DeepSeek V4 Flash 默认日常；TokenFlux 一等中转；Coding / CTF / sub-agent 共用当前 Provider 注册。
 - CVE：学习/追踪 MVP 可用（多源同步、练习目录、本地 Compose 生命周期、资产验证、学习写回、Coding 接力）；正式事实只来自 Vuln Runtime。
 - CTF：题库、工作区、Evidence、候选、Judge、Checkpoint、恢复、复盘、Memory 主链存在；真实 Judge 成功仍只有窄 Web 路径。
@@ -56,14 +56,14 @@
 | P0 | CVE 学习/追踪扩样 | 更多真实 CVE 验证同步、练习、研究档案、资产验证和学习写回；不做外部攻击、自动 PoC 或披露。 |
 | P1 | Computer Use 扩样 | Calculator 之外再加 1–2 个真实 App/窗口、权限拒绝路径；稳定 Developer ID 后复检 TCC。不与 Browser 强行合并权限。 |
 | P1 | 安全工具 MCP 常规能力 | 先在 Coding Agent 中接入 IDA Pro/idalib、Burp Suite、radare2、Ghidra、Semgrep 等固定版本、可审阅的安全工具 MCP，形成普通的安装、启用、健康检查、版本/Schema 审阅、Scope、审批与证据回执能力，而不是一次性 smoke。设置页管理已审阅服务，Composer “+”只选择已启用服务；是否进入 CTF/CVE 由后续用户监督的领域纵切单独决定。 |
-| P1 | 内嵌沙箱浏览器 | macOS ARM64 先用官方 CEF 二进制/示例做有界原型：右栏原生 Chromium View、独立 profile、用户直接交互、Agent 共用同一会话/CDP；同时通过 CEF helper/framework/resources、签名与打包验收。先验证最小 NSView/Wails 适配，不以换掉整个 Wails 壳或引入第二套 GUI 框架开局。 |
+| P1 | Chromium 壳扩样 | 已完成 macOS ARM64 Electron/Chromium 壳、地址/搜索、点击、表单、公开资料调研与折叠连续执行纵切；下一阶段只补 Windows 打包评估、下载/弹窗/权限负向矩阵、页面崩溃恢复和自动化更新，不恢复 CEF/Wails 双壳。 |
 | P1 | MilkSU Beta 自举 | 稳定版只从源码构建并启动另一份 `MilkSU Beta`；使用不同产品名、图标标记、Bundle ID、数据目录与 TCC 身份，再由稳定版 Computer Use 操作 Beta。禁止稳定版控制自己或让两份 App 共享状态/权限。 |
 | P1 | Memory 可信度 | 区分 user / agent / shared / imported 与 none / hint / copilot / delegated；Agent 代做不能抬高用户独立能力。 |
 | P1 | Runtime Reliability | 自建安全 fixture：多轮、文件、命令、工具、重启、压缩、取消、预算、失败分类。 |
 | P2 | 本地交付与发行 | RC 再做崩溃恢复、诊断、全新机器、Developer ID `.app`、DMG、公证、stapling、升级、性能和尺寸；Developer ID 先于外部分发与 Computer Use TCC 复检。不读取或迁移本机签名私钥/证书密码/Personal Vault。 |
 | 持续 | 架构与 UI | 触碰即拆热点文件；不新开纯清债里程碑。UI 巡检后同步测试与当前文档。 |
 
-推荐顺序：先会话自动 worktree（含 writer 变更投影）→ 用稳定版构建/操作隔离的 MilkSU Beta，把真实 Grok 自举从文档小纵切扩到功能代码/测试/恢复/Git 交付 → 并行推进安全工具 MCP 常规能力、内嵌沙箱浏览器原型和 Computer Use 扩样 → 最后加重 Memory / 发行 RC。安全工具是否进入 CTF/CVE 以及后续 CTF 领域扩样，由用户监督的独立纵切决定，不列为当前自动推进目标。不恢复 `development-plan.md`，不把已删除 live smoke 嵌回产品启动链。
+推荐顺序：先会话自动 worktree（含 writer 变更投影）→ 用稳定版构建/操作隔离的 MilkSU Beta，把真实 Grok 自举从文档小纵切扩到功能代码/测试/恢复/Git 交付 → 并行推进安全工具 MCP 常规能力、Chromium 壳负向/恢复扩样和 Computer Use 扩样 → 最后加重 Memory / 发行 RC。安全工具是否进入 CTF/CVE 以及后续 CTF 领域扩样，由用户监督的独立纵切决定，不列为当前自动推进目标。不恢复 `development-plan.md`，不把已删除 live smoke 嵌回产品启动链。
 
 ### 已完成纵切：相关历史人类语义图
 
@@ -123,5 +123,5 @@
 ## 架构和文档规则
 
 - 触碰 `CTFPage.vue`、`app.go`、`bridge-policy.js`、`internal/browsercap/manager.go`、CTF Runner/Recovery 时避免继续塞职责，能抽边界就抽。
-- Wails 只做桌面调用和 DTO；领域层不依赖 Wails；Pi 不知道平台页面细节；Adapter 不判定学习成功或用户能力。
+- Electron Preload 只暴露窄 RPC/事件桥；Go Runtime 不依赖 Electron 类型；领域层不依赖桌面壳；Pi 不知道平台页面细节；Adapter 不判定学习成功或用户能力。
 - 文档三层：Current 入口、Evidence 索引、Historical/Research。过程聊天、微提交、历史 smoke 清单不堆进入口。

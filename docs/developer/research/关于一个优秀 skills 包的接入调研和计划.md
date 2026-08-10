@@ -1,13 +1,14 @@
 # 关于一个优秀 skills 包的接入调研和计划
 
-> 文档状态：**Research / Integration plan**
+> 文档状态：**Research snapshot / Candidate options**
 >
 > 审阅日期：2026-08-04
 >
 > 审阅对象：[`zhaoxuya520/reverse-skill`](https://github.com/zhaoxuya520/reverse-skill)
 >
 > 边界：本次只阅读公开仓库、README、AI Bootstrap、路由文件和项目元数据，没有安装、执行、
-> 拉取子模块、运行安全工具或修改 MilkSU 代码。本页不是接入授权，也不是新的自动攻击能力计划。
+> 拉取子模块、运行安全工具或修改 MilkSU 代码。文中的阶段和 P0/P1 是当时的方案
+> 排列，不是现行 backlog。本页不是接入授权，也不是新的自动攻击能力计划。
 
 ## 结论
 
@@ -230,7 +231,7 @@ MilkSU 自己证明：
 
 > 用户打开 App → 选择任务 → 获得帮助 → 产出证据 → 验证结果 → 复盘学习 → 下次变强。
 
-## 近期可落地计划
+## 当时评估的可落地顺序（非现行 backlog）
 
 ### P0：记录为候选集成，不进入当前冲刺主路径
 
@@ -281,7 +282,7 @@ MilkSU 自己证明：
 - 不把模型猜测或外部报告自动写成用户能力事实；
 - 不把它包装成“最强红队 Agent Harness”。
 
-## 一句话计划
+## 一句话研究结论
 
 短期把 `reverse-skill` 当成“优秀安全 Skill 包样本”研究和借鉴；中期做只读 Skill Pack
 Adapter，让 MilkSU 能从这类包里提取路线、工具和方法论；长期再考虑安全插件化。执行权和

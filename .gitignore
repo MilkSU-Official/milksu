@@ -27,6 +27,8 @@ app/package.json.md5
 app/src-tauri/
 app/wailsjs/
 build/bin/
+build/desktop/
+build/electron/
 build/sidecar/
 build/sidecar-cache/
 build/sidecar-smoke/

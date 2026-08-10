@@ -2,7 +2,7 @@
 
 > 文档状态：Current
 >
-> 审阅日期：2026-08-09
+> 审阅日期：2026-08-10
 >
 > 范围：Post-M3 / M4 的当前 `main`。实现进度和任务以
 > [当前开发目标](/developer/current-objectives)、当前代码、测试和真实验收为准。
@@ -63,12 +63,18 @@ ADR、Review 和 Checkpoint 记录当时为什么这样决定，不会因为后�
   ImageGen、Computer Use、PR、Session Index 和 worktree 也已有不同程度的工程主链或真实
   打包验收。真实外部 Provider/更广系统权限矩阵和最终长期自举 Gate 仍未完成，不能把这些
   写成整体替代成功。
-- Coding Composer 的“+”已经收敛为统一能力入口：附件、Goal、Plan、沙箱浏览器、
+- 桌面主壳已迁到 Electron/Chromium：Vue 运行在主 `BrowserWindow`，Go 作为受管本地 Runtime
+  通过 JSONL RPC 提供应用服务；右栏“浏览器”是会话隔离的 `WebContentsView`，用户和 Agent
+  操作同一页面。旧 Wails/CEF 生产链已删除。打包 App + Grok 已真实只用浏览器工具读取页面。
+- “浏览器”、Browser Use 与 Computer Use 是桌面 GUI 的三种独立执行表面：分别对应 MilkSU
+  管理页面、用户授权的真实标签页和用户授权的外部 App/Window。它们共享可见 Scope、可接管和
+  显式停止语义，但不共享 Profile 或权限；面板折叠不等于终止 Session。
+- Coding Composer 的“+”已经收敛为统一能力入口：附件、Goal、Plan、浏览器、
   Browser/Computer Scope、已审核 Pi Skills 与项目 MCP。选择 Scope/Skill 不直接发送，Skill
   复用 Pi 原生 `/skill:name`；未选择 Plan 时默认是 Go，不再维护 `/go` 或常驻 Plan/Go 下拉。
 - IDA Pro/idalib、Burp、radare2、Ghidra 与 Semgrep 仍是安全 MCP 试点候选，不是已打包资源。
   它们必须先在 Coding 通过固定版本、最小权限、真实任务与拒绝路径，再决定是否进入 CTF/CVE。
-- Managed Labs 当前暂停，生产代码、Wails 入口和打包资源已移除；长期设计不能进入当前产品声明。
+- Managed Labs 当前暂停，生产代码、桌面 RPC 入口和打包资源已移除；长期设计不能进入当前产品声明。
 - NYU CTF Bench 的只读元数据、Admission、DeepSeek one-shot Runner、两回合 Pi 只读
   Agent Runtime 和摘要 Judge 是 **Implemented / Verified for the narrow baseline**。
   Agent Runtime 当前只有 5 个手选 static 样本：2 solved、1 unsolved、1 无效 JSON、
@@ -80,7 +86,7 @@ ADR、Review 和 Checkpoint 记录当时为什么这样决定，不会因为后�
 
 ## 证据入口
 
-- 进程组合：`main.go`、`app.go`
+- 进程组合：`desktop/main.cjs`、`desktop/preload.cjs`、`main.go`、`desktop_rpc.go`、`app.go`
 - 通用 Agent：`bridge.js`、`internal/engine/supervisor.go`
 - CTF 事实链：`internal/ctf/`、`ctf_agent_recorder.go`
 - 追加式事实存储：`internal/securityruntime/`

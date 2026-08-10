@@ -61,10 +61,10 @@ flowchart LR
     memory --> profile
 ```
 
-### 2.1 顶层导航决策
+### 2.1 Labs 解冻后的导航候选
 
-用户当前主导航继续保持 `CTF / CVE / Coding`。`Labs` 在 CTF 工作区内作为与“题库”并列的
-二级入口：
+当前主导航是 `CTF / CVE / Coding`，产品表面没有 Labs 入口。下方结构只是 Labs 未来
+经当前目标明确解冻后的信息架构候选，不表示现在应把 Labs 接入 CTF：
 
 ```text
 CTF
@@ -74,7 +74,7 @@ CTF
 └─ 能力画像
 ```
 
-理由：
+如果未来选择该候选，理由是：
 
 1. 用户进入 Labs 的首要目的仍是学习，而不是管理容器；
 2. Labs 与题库共享分类、难度、推荐、Hint Ladder、Agent、Judge 和复盘；

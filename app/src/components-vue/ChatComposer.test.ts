@@ -251,7 +251,7 @@ describe('ChatComposer', () => {
     expect(document.body.textContent).toContain('文件或图片')
     expect(document.body.textContent).toContain('目标')
     expect(document.body.textContent).toContain('计划模式')
-    expect(document.body.textContent).toContain('沙箱浏览器')
+    expect(document.body.textContent).toContain('浏览器')
     expect(document.body.textContent).toContain('Browser Use')
     expect(document.body.textContent).toContain('Computer Use')
     expect(document.body.textContent).toContain('前端视觉验收')
@@ -261,7 +261,7 @@ describe('ChatComposer', () => {
     expect(document.body.textContent).toContain('1 个已接入：github')
 
     const sandboxBrowserItem = [...document.querySelectorAll<HTMLDivElement>('[role="menuitem"]')]
-      .find(item => item.textContent?.includes('沙箱浏览器'))
+      .find(item => item.textContent?.includes('浏览器'))
     sandboxBrowserItem?.click()
     await nextTick()
     expect(result.slashCommandActions).toEqual(['browser'])

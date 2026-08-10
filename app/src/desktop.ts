@@ -134,7 +134,7 @@ export interface VulnerabilityPracticeRun {
   error?: string
 }
 
-interface WailsAppBindings {
+interface DesktopAppBindings {
   GetSettings(): Promise<AppSettings>
   SaveSettingsCmd(settings: AppSettings): Promise<void>
   GetLocalDataStatus(): Promise<LocalDataStatus>
@@ -267,6 +267,18 @@ interface WailsAppBindings {
     initialUrl: string,
   ): Promise<CodingBrowserStatus>
   GetCodingBrowserStatus(conversationId: string): Promise<CodingBrowserStatus>
+  SetCodingBrowserViewport(
+    conversationId: string,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    visible: boolean,
+  ): Promise<void>
+  NavigateCodingBrowser(conversationId: string, targetUrl: string): Promise<void>
+  CodingBrowserGoBack(conversationId: string): Promise<void>
+  CodingBrowserGoForward(conversationId: string): Promise<void>
+  ReloadCodingBrowser(conversationId: string): Promise<void>
   StopCodingBrowser(conversationId: string): Promise<CodingBrowserStatus>
   RevealCodingBrowserEvidence(conversationId: string): Promise<void>
   ListCodingComputerUseTargets(): Promise<CodingComputerUseTarget[]>
@@ -359,23 +371,29 @@ interface WailsAppBindings {
 
 declare global {
   interface Window {
-    go?: { main?: { App?: WailsAppBindings } }
-    runtime?: {
-      EventsOn(event: string, callback: (...data: unknown[]) => void): UnlistenFn
+    milksu?: {
+      invoke(method: string, args: unknown[]): Promise<unknown>
+      onEvent(event: string, callback: (value: unknown) => void): UnlistenFn
     }
   }
 }
 
-function getWailsApp() {
-  return window.go?.main?.App
+function getDesktopApp(): DesktopAppBindings | undefined {
+  if (!window.milksu) return undefined
+  return new Proxy({} as DesktopAppBindings, {
+    get(_target, property) {
+      if (typeof property !== 'string') return undefined
+      return (...args: unknown[]) => window.milksu!.invoke(property, args)
+    },
+  })
 }
 
 export function hasDesktopRuntime(): boolean {
-  return Boolean(getWailsApp())
+  return Boolean(window.milksu)
 }
 
 export async function invokeCommand<T = unknown>(command: string, args?: CommandArgs): Promise<T> {
-  const app = getWailsApp()
+  const app = getDesktopApp()
   if (!app) {
     throw new Error(`MilkSU desktop runtime is unavailable for command: ${command}`)
   }
@@ -559,6 +577,32 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         ) as Promise<T>
       case 'get_coding_browser_status':
         return app.GetCodingBrowserStatus(
+          args?.conversationId as string,
+        ) as Promise<T>
+      case 'set_coding_browser_viewport':
+        return app.SetCodingBrowserViewport(
+          args?.conversationId as string,
+          args?.x as number,
+          args?.y as number,
+          args?.width as number,
+          args?.height as number,
+          args?.visible as boolean,
+        ) as Promise<T>
+      case 'navigate_coding_browser':
+        return app.NavigateCodingBrowser(
+          args?.conversationId as string,
+          args?.targetUrl as string,
+        ) as Promise<T>
+      case 'coding_browser_go_back':
+        return app.CodingBrowserGoBack(
+          args?.conversationId as string,
+        ) as Promise<T>
+      case 'coding_browser_go_forward':
+        return app.CodingBrowserGoForward(
+          args?.conversationId as string,
+        ) as Promise<T>
+      case 'reload_coding_browser':
+        return app.ReloadCodingBrowser(
           args?.conversationId as string,
         ) as Promise<T>
       case 'stop_coding_browser':
@@ -761,8 +805,8 @@ export async function listenEvent<T>(
   event: string,
   handler: (event: EventEnvelope<T>) => void,
 ): Promise<UnlistenFn> {
-  if (!window.runtime) return () => undefined
-  return window.runtime.EventsOn(event, (...data) => {
-    handler({ payload: data[0] as T })
+  if (!window.milksu) return () => undefined
+  return window.milksu.onEvent(event, value => {
+    handler({ payload: value as T })
   })
 }

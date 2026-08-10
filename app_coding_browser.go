@@ -16,14 +16,14 @@ const (
 	codingBrowserStatusTimeout = 4 * time.Second
 )
 
-// StartCodingBrowser creates an isolated, conversation-owned Chrome profile.
-// The private CDP endpoint remains in the Go/Sidecar boundary.
+// StartCodingBrowser creates a conversation-owned Chromium view inside the
+// MilkSU window. The private CDP endpoint remains in the Go/Sidecar boundary.
 func (a *App) StartCodingBrowser(
 	conversationID,
 	initialURL string,
 ) (browsercap.CodingBrowserStatus, error) {
 	if a.browserBridge == nil {
-		return browsercap.CodingBrowserStatus{}, fmt.Errorf("Coding browser service is unavailable")
+		return browsercap.CodingBrowserStatus{}, fmt.Errorf("浏览器服务不可用")
 	}
 	initialURL = strings.TrimSpace(initialURL)
 	if initialURL == "" {
@@ -46,11 +46,62 @@ func (a *App) StartCodingBrowser(
 	return status, nil
 }
 
+func (a *App) SetCodingBrowserViewport(
+	conversationID string,
+	x,
+	y,
+	width,
+	height float64,
+	visible bool,
+) error {
+	if a.browserBridge == nil {
+		return fmt.Errorf("浏览器服务不可用")
+	}
+	return a.browserBridge.SetCodingViewport(
+		conversationID,
+		browsercap.CodingViewport{
+			X: x, Y: y, Width: width, Height: height, Visible: visible,
+		},
+	)
+}
+
+func (a *App) NavigateCodingBrowser(conversationID, targetURL string) error {
+	if a.browserBridge == nil {
+		return fmt.Errorf("浏览器服务不可用")
+	}
+	targetURL = strings.TrimSpace(targetURL)
+	if targetURL == "" {
+		return fmt.Errorf("请输入要打开的 http 或 https 地址")
+	}
+	return a.browserBridge.NavigateCoding(conversationID, targetURL)
+}
+
+func (a *App) CodingBrowserGoBack(conversationID string) error {
+	if a.browserBridge == nil {
+		return fmt.Errorf("浏览器服务不可用")
+	}
+	return a.browserBridge.BackCoding(conversationID)
+}
+
+func (a *App) CodingBrowserGoForward(conversationID string) error {
+	if a.browserBridge == nil {
+		return fmt.Errorf("浏览器服务不可用")
+	}
+	return a.browserBridge.ForwardCoding(conversationID)
+}
+
+func (a *App) ReloadCodingBrowser(conversationID string) error {
+	if a.browserBridge == nil {
+		return fmt.Errorf("浏览器服务不可用")
+	}
+	return a.browserBridge.ReloadCoding(conversationID)
+}
+
 func (a *App) GetCodingBrowserStatus(
 	conversationID string,
 ) (browsercap.CodingBrowserStatus, error) {
 	if a.browserBridge == nil {
-		return browsercap.CodingBrowserStatus{}, fmt.Errorf("Coding browser service is unavailable")
+		return browsercap.CodingBrowserStatus{}, fmt.Errorf("浏览器服务不可用")
 	}
 	statusContext, cancel := context.WithTimeout(
 		a.commandContext(),
@@ -64,9 +115,9 @@ func (a *App) StopCodingBrowser(
 	conversationID string,
 ) (browsercap.CodingBrowserStatus, error) {
 	if a.browserBridge == nil {
-		return browsercap.CodingBrowserStatus{}, fmt.Errorf("Coding browser service is unavailable")
+		return browsercap.CodingBrowserStatus{}, fmt.Errorf("浏览器服务不可用")
 	}
-	// Dispose the MCP client before stopping Chrome, while retaining the
+	// Dispose the MCP client before stopping Chromium, while retaining the
 	// persisted Pi conversation for the next turn.
 	a.engines.DetachSession(conversationID)
 	if err := a.browserBridge.StopCoding(conversationID); err != nil {
@@ -91,7 +142,7 @@ func (a *App) RevealCodingBrowserEvidence(conversationID string) error {
 		return fmt.Errorf("desktop runtime is not ready")
 	}
 	if a.browserBridge == nil {
-		return fmt.Errorf("Coding browser service is unavailable")
+		return fmt.Errorf("浏览器服务不可用")
 	}
 	sessionID, err := a.browserBridge.CodingEvidenceSessionID(conversationID)
 	if err != nil {

@@ -45,7 +45,7 @@ sequenceDiagram
     autonumber
     actor U as 学习者
     participant UI as Vue CTF Workspace
-    participant A as Wails App
+    participant A as Go App Runtime
     participant P as Platform / Browser Adapter
     participant C as internal/ctf Service
     participant R as Security Runtime

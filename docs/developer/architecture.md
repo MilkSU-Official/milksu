@@ -143,13 +143,23 @@ L6  Cross-cutting Agent Integrity
 
 ### L1：桌面交互表面
 
-第一阶段产品只有 macOS 桌面客户端，后续再评估 Windows；不提供 Web 产品、GraphQL 或公开 HTTP API。唯一的本地网络监听是带持久配对令牌的 loopback Browser Bridge，用于把用户明确选择的已登录 CTF 标签页连接到桌面进程。Wails binding 只把 Vue 3 + Memoh UI 连接到 Go application service。L1 负责：
+第一阶段产品只有 macOS 桌面客户端，后续再评估 Windows；不提供 Web 产品、GraphQL 或公开 HTTP API。Electron/Chromium 承载 Vue 产品表面和会话隔离的内置浏览器；受限 Preload 与本地 JSONL RPC 把 UI 连接到受管 Go application service。loopback 只用于明确授权的 Browser Bridge、限定单一 Target 的 CDP Proxy 或其他本地进程协议，不构成公开 HTTP API。L1 负责：
 
 - 创建和查看 Engagement/Job；
 - 选择 Role Package、环境、Agent Engine、模型与预算；
 - 批准高风险 Action；
 - 查看 Evidence、Effect、Evaluation 和成本；
 - 暂停、恢复、比较和导出 Attempt。
+
+L1 还负责桌面产品区别于纯 TUI 的三类可见执行表面：
+
+- MilkSU 管理的“浏览器”，让用户与 Agent 共用会话隔离的 Chromium 页面；
+- Browser Use，把用户真实浏览器中明确选择的单个标签页作为可撤销 Scope；
+- Computer Use，把明确选择的外部 App / PID / Window 作为可撤销 Scope。
+
+它们不是三个 Agent Engine，也不是同一个“控制电脑”总开关。L1 展示对象、授权、生命周期、
+进度、证据与停止动作；L3 Adapter 执行动作；L4/L6 继续判定领域事实和安全边界。面板折叠或页面
+切换只是显示状态，不得隐式终止或扩大已授权 Session。
 
 L1 不拥有任务真相。即使不启动桌面 UI，同一 Job 的核心逻辑仍应能由 Go 契约测试或内部开发命令完整运行；这不等于第一阶段要发布 CLI/API 产品。
 
@@ -199,7 +209,7 @@ Capability Package 定义“怎样调用一种技术”，而不是“任务是�
 Browser Use 与 Computer Use 也只是这里的执行能力，不是新的 Role 或 Agent Engine。用户通过聊天文字、附件、截图、本地目录、浏览器页面、远程连接或本地 Lab 发起任务时，统一 Challenge Intake 必须先保存原始材料、provenance 和授权，再交给 CTF Role。第三方浏览器/桌面项目的候选、固定版本和准入条件见 [Challenge Intake、Browser Use 与 Computer Use](/developer/challenge-intake-and-automation)。
 
 Composer 中的 `/` 或“+”只选择这些 Capability，不拥有执行语义：Goal/Plan 改变任务状态，
-沙箱浏览器/MCP 打开既有管理面，Browser/Computer Scope 与 Pi Skill 先成为可删除状态，发送后才由
+产品 UI 中的“浏览器”和 MCP 打开既有管理面，Browser/Computer Scope 与 Pi Skill 先成为可删除状态，发送后才由
 Runtime 校验和展开。安全工具 MCP 也必须先在 Coding 以固定版本、最小权限和真实任务完成准入，
 再作为 Capability Package 迁入 CTF/CVE；连接一个 Server 不等于建立领域 Finding 或 Judge 结果。
 
