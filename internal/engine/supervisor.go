@@ -74,6 +74,8 @@ type Event struct {
 	Resumed         bool                     `json:"resumed,omitempty"`
 	Aborted         bool                     `json:"aborted,omitempty"`
 	Compaction      *CompactionResult        `json:"compaction,omitempty"`
+	Steering        []string                 `json:"steering,omitempty"`
+	FollowUp        []string                 `json:"followUp,omitempty"`
 }
 
 type RuntimeStatus struct {
@@ -204,6 +206,8 @@ type bridgeEvent struct {
 	Resumed        bool                     `json:"resumed"`
 	Aborted        bool                     `json:"aborted"`
 	Compaction     *CompactionResult        `json:"compaction"`
+	Steering       []string                 `json:"steering"`
+	FollowUp       []string                 `json:"followUp"`
 }
 
 type childProcess struct {
@@ -628,6 +632,40 @@ func (s *Supervisor) AbortMessage(sessionID string) error {
 		"action":         "abort_session",
 		"conversationId": sessionID,
 	})
+}
+
+// SteerMessage delegates mid-run guidance to Pi's native steering queue. Pi
+// applies it after the current assistant tool-call batch and before the next
+// model call, so MilkSU does not maintain a second generic message loop.
+func (s *Supervisor) SteerMessage(sessionID, prompt string) error {
+	sessionID = strings.TrimSpace(sessionID)
+	prompt = strings.TrimSpace(prompt)
+	if sessionID == "" {
+		return fmt.Errorf("session id is required")
+	}
+	if prompt == "" {
+		return fmt.Errorf("steering message is required")
+	}
+	if len([]rune(prompt)) > 16000 {
+		return fmt.Errorf("steering message exceeds 16000 characters")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.process == nil {
+		return fmt.Errorf("PI Sidecar is not running")
+	}
+	if _, exists := s.sessions[sessionID]; !exists {
+		return fmt.Errorf("PI session not found: %s", sessionID)
+	}
+	if err := writeCommand(s.process.stdin, map[string]any{
+		"action":         "steer_message",
+		"conversationId": sessionID,
+		"prompt":         prompt,
+	}); err != nil {
+		return fmt.Errorf("steer engine message: %w", err)
+	}
+	s.armTurnTimerLocked(sessionID)
+	return nil
 }
 
 func (s *Supervisor) RespondToolApproval(
@@ -1331,7 +1369,7 @@ func (s *Supervisor) observeTurnEvent(event Event) {
 			s.approvals[event.SessionID] == 0 {
 			s.armTurnTimerLocked(event.SessionID)
 		}
-	case "session.ready", "session.policy_updated", "session.model_selected", "assistant.delta", "assistant.segment_completed", "tool.started", "tool.progress", "tool.completed":
+	case "session.ready", "session.policy_updated", "session.model_selected", "session.queue_updated", "assistant.delta", "assistant.segment_completed", "tool.started", "tool.progress", "tool.completed":
 		if _, exists := s.turnTimers[event.SessionID]; exists &&
 			s.approvals[event.SessionID] == 0 {
 			s.armTurnTimerLocked(event.SessionID)
@@ -1571,6 +1609,8 @@ func normalizeBridgeEvent(raw bridgeEvent) Event {
 		Resumed:         raw.Resumed,
 		Aborted:         raw.Aborted,
 		Compaction:      raw.Compaction,
+		Steering:        raw.Steering,
+		FollowUp:        raw.FollowUp,
 	}
 	switch raw.Type {
 	case "ready":
@@ -1587,6 +1627,11 @@ func normalizeBridgeEvent(raw bridgeEvent) Event {
 		event.Type = "assistant.started"
 	case "goal_state":
 		event.Type = "session.goal_updated"
+	case "queue_update":
+		event.Type = "session.queue_updated"
+	case "steer_rejected":
+		event.Type = "session.steer_rejected"
+		event.Error = raw.Error
 	case "text_delta":
 		event.Type = "assistant.delta"
 		event.Text = raw.Delta

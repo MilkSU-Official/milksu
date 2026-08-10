@@ -5,6 +5,7 @@ import {
   projectAgentTools,
   projectAgentTurnPolicy,
   projectCodingAbortRequest,
+  projectCodingMessageQueue,
   projectCodingRunFinished,
   turnMCPServers,
 } from '@/composables/useConversations'
@@ -181,6 +182,16 @@ describe('Coding approval conversation recovery', () => {
     )
     expect(finished.running.has('conversation-running')).toBe(false)
     expect(finished.aborting.has('conversation-running')).toBe(false)
+  })
+
+  it('projects a bounded Pi steering queue for the composer', () => {
+    expect(projectCodingMessageQueue(
+      ['先保留修改', '', '再检查失败测试'],
+      ['最后总结'],
+    )).toEqual({
+      steering: ['先保留修改', '再检查失败测试'],
+      followUp: ['最后总结'],
+    })
   })
 
   it('turns provider network failures into a recoverable offline message', () => {

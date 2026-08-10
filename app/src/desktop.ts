@@ -54,7 +54,6 @@ import type {
   CodingCompactionResult,
   CodingComputerUseStatus,
   CodingComputerUseTarget,
-  CodingCollaborationStatus,
   CodingDiffSnapshot,
   CodingEnvironmentSnapshot,
   CodingGitAction,
@@ -249,19 +248,6 @@ interface DesktopAppBindings {
     title: string,
     body: string,
   ): Promise<CodingPullRequestPublishResult>
-  PrepareCodingCollaboration(
-    conversationId: string,
-    workspacePath: string,
-    writers: number,
-  ): Promise<CodingCollaborationStatus>
-  GetCodingCollaboration(
-    conversationId: string,
-    workspacePath: string,
-  ): Promise<CodingCollaborationStatus>
-  FinishCodingCollaboration(
-    conversationId: string,
-    workspacePath: string,
-  ): Promise<CodingCollaborationStatus>
   GetCodingArchitecturePreview(
     workspacePath: string,
     relativePath: string,
@@ -298,6 +284,7 @@ interface DesktopAppBindings {
     targetWindowId: number,
   ): Promise<CodingComputerUseStatus>
   StopCodingComputerUse(conversationId: string): Promise<CodingComputerUseStatus>
+  SteerMessage(conversationId: string, prompt: string): Promise<void>
   TestAgentModel(): Promise<ModelProbeResult>
   ImportNSSCTFChallenge(rawURL: string): Promise<NSSCTFChallenge>
   SyncNSSCTFCatalog(rawURL: string): Promise<NSSCTFCatalogSyncResult>
@@ -467,6 +454,11 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         ) as Promise<T>
       case 'abort_message':
         return app.AbortMessage(args?.conversationId as string) as Promise<T>
+      case 'steer_message':
+        return app.SteerMessage(
+          args?.conversationId as string,
+          args?.prompt as string,
+        ) as Promise<T>
       case 'respond_tool_approval':
         return app.RespondToolApproval(
           args?.conversationId as string,
@@ -560,22 +552,6 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
           args?.confirmationToken as string,
           (args?.title as string) ?? '',
           (args?.body as string) ?? '',
-        ) as Promise<T>
-      case 'prepare_coding_collaboration':
-        return app.PrepareCodingCollaboration(
-          args?.conversationId as string,
-          args?.workspacePath as string,
-          Number(args?.writers ?? 1),
-        ) as Promise<T>
-      case 'get_coding_collaboration':
-        return app.GetCodingCollaboration(
-          args?.conversationId as string,
-          args?.workspacePath as string,
-        ) as Promise<T>
-      case 'finish_coding_collaboration':
-        return app.FinishCodingCollaboration(
-          args?.conversationId as string,
-          args?.workspacePath as string,
         ) as Promise<T>
       case 'get_coding_architecture_preview':
         return app.GetCodingArchitecturePreview(

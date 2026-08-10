@@ -8,16 +8,19 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
 } from '@felinic/ui'
 import {
   Activity,
   ArrowUp,
   Bot,
   Check,
+  Clock3,
   Compass,
   FileDiff,
   FileText,
-  GitBranch,
   Globe2,
   Lightbulb,
   LoaderCircle,
@@ -48,11 +51,14 @@ import type {
   CodingGoalState,
   CTFChatAction,
 } from '@/types'
+import type { CodingGitChange } from '@/codingEnvironmentTypes'
 
 interface ComposerGitSummary {
   changedFiles: number
   additions: number
   deletions: number
+  changes?: CodingGitChange[]
+  changesTruncated?: boolean
 }
 
 type ComposerScopeToken = 'browser-use' | 'computer-use'
@@ -100,6 +106,7 @@ const props = defineProps<{
   computerUseReady?: boolean
   availableSkills?: string[]
   selectedMcpServers?: string[]
+  queuedGuidance?: string[]
 }>()
 
 const emit = defineEmits<{
@@ -111,6 +118,7 @@ const emit = defineEmits<{
   ]
   ctfAction: [action: CTFChatAction]
   abort: []
+  openChanges: []
   changeExecutionMode: [value: string]
   changeApprovalPolicy: [value: string]
   changeModel: [value: string]
@@ -222,13 +230,6 @@ const slashCommandCatalog = [
     icon: markRaw(ScanSearch),
   },
   {
-    id: 'worktree',
-    label: 'Worktree',
-    description: '打开隔离 worktree 与交付面板',
-    keywords: ['branch', 'git', '分支'],
-    icon: markRaw(GitBranch),
-  },
-  {
     id: 'mcp',
     label: 'MCP',
     description: '查看当前项目的 MCP 服务',
@@ -258,7 +259,7 @@ function slashCommandDisabled(id: typeof slashCommandCatalog[number]['id']) {
     return props.running
   }
   if (id === 'review') return props.running || !props.workspaceReady
-  if (['diff', 'worktree', 'mcp'].includes(id)) return !props.workspaceReady
+  if (['diff', 'mcp'].includes(id)) return !props.workspaceReady
   return false
 }
 
@@ -368,6 +369,14 @@ function formatAttachmentSize(size: number) {
   if (size >= 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`
   if (size >= 1024) return `${(size / 1024).toFixed(1)} KB`
   return `${size} B`
+}
+
+function gitChangeStatus(change: CodingGitChange) {
+  if (change.conflict) return '冲突'
+  if (change.untracked) return '新增'
+  if (change.staged && change.modified) return '暂存/修改'
+  if (change.staged) return '已暂存'
+  return '修改'
 }
 
 async function chooseCodingAttachments() {
@@ -653,14 +662,20 @@ function submit() {
   const attachments = [...pendingAttachments.value]
   const text = draft.value.trim()
     || (attachments.length ? '请检查这些附件并完成我接下来需要处理的任务。' : '')
-  if (!text || props.running) return
+  if (!text) return
+  if (props.running && attachments.length) {
+    attachmentError.value = '运行中引导暂不支持附件；请等待当前回合结束后再发送附件。'
+    return
+  }
   const activeSkillToken = skillToken.value ?? undefined
-  const prompt = !props.ctfSession && props.goalMode
+  const prompt = props.running
+    ? text
+    : !props.ctfSession && props.goalMode
     ? `/goal ${text}`
     : activeSkillToken
       ? `/skill:${activeSkillToken} ${text}`
       : text
-  const visiblePrompt = activeSkillToken && !props.goalMode
+  const visiblePrompt = !props.running && activeSkillToken && !props.goalMode
     ? `使用 ${skillOption(activeSkillToken)?.label ?? activeSkillToken}\n${text}`
     : text
   const activeScopeToken = scopeToken.value ?? undefined
@@ -681,7 +696,7 @@ function submit() {
   attachmentError.value = ''
   if (activeScopeToken) emit('send', prompt, visiblePrompt, attachments, activeScopeToken)
   else emit('send', prompt, visiblePrompt, attachments)
-  emit('consumeGoal')
+  if (!props.running) emit('consumeGoal')
 }
 
 function focusMessageInput() {
@@ -936,15 +951,42 @@ defineExpose({
           />
           <span v-if="goal?.iteration">第 {{ goal.iteration }} 轮</span>
           <span v-if="goal?.iteration && showGitSummary" aria-hidden="true">·</span>
-          <span v-if="showGitSummary">
-            {{ gitSummary?.changedFiles }} 个文件已更改
-          </span>
-          <span v-if="showGitSummary" class="text-primary">
-            +{{ gitSummary?.additions }}
-          </span>
-          <span v-if="showGitSummary" class="text-destructive">
-            -{{ gitSummary?.deletions }}
-          </span>
+          <HoverCard v-if="showGitSummary" :open-delay="120" :close-delay="80">
+            <HoverCardTrigger as-child>
+              <button
+                type="button"
+                class="chat-composer__git-trigger"
+                aria-label="查看代码变更"
+                @click="$emit('openChanges')"
+              >
+                <span>代码</span>
+                <span class="text-primary">+{{ gitSummary?.additions }}</span>
+                <span class="text-destructive">-{{ gitSummary?.deletions }}</span>
+              </button>
+            </HoverCardTrigger>
+            <HoverCardContent side="top" align="start" class="w-96 p-0">
+              <div class="border-b border-border px-3 py-2.5">
+                <p class="text-label font-medium">{{ gitSummary?.changedFiles }} 个文件已更改</p>
+                <p class="mt-0.5 text-caption text-muted-foreground">点击“代码”打开右侧变更面板</p>
+              </div>
+              <div class="max-h-64 overflow-y-auto px-2 py-2">
+                <div
+                  v-for="change in gitSummary?.changes ?? []"
+                  :key="`${change.indexStatus}${change.worktreeStatus}:${change.path}`"
+                  class="flex items-center gap-2 rounded-md px-2 py-1.5 text-caption"
+                >
+                  <span class="w-14 shrink-0 text-muted-foreground">{{ gitChangeStatus(change) }}</span>
+                  <span class="min-w-0 flex-1 truncate font-mono" :title="change.path">{{ change.path }}</span>
+                </div>
+                <p v-if="!(gitSummary?.changes?.length)" class="px-2 py-2 text-caption text-muted-foreground">
+                  文件列表正在刷新；点击后可查看完整变更。
+                </p>
+                <p v-if="gitSummary?.changesTruncated" class="px-2 py-1 text-caption text-muted-foreground">
+                  仅显示前 {{ gitSummary?.changes?.length ?? 0 }} 项。
+                </p>
+              </div>
+            </HoverCardContent>
+          </HoverCard>
         </div>
 
         <section
@@ -1016,6 +1058,26 @@ defineExpose({
           </div>
         </section>
       </div>
+
+      <section
+        v-if="queuedGuidance?.length"
+        class="chat-composer__queued-guidance"
+        aria-label="待应用引导"
+      >
+        <div class="flex items-center gap-2 text-caption font-medium text-primary">
+          <Clock3 class="size-3.5" />
+          <span>{{ queuedGuidance.length }} 条引导已排队</span>
+          <span class="font-normal text-muted-foreground">当前工具调用结束后应用</span>
+        </div>
+        <p
+          v-for="(message, index) in queuedGuidance"
+          :key="`${index}:${message}`"
+          class="mt-1 truncate text-caption text-foreground"
+          :title="message"
+        >
+          {{ message }}
+        </p>
+      </section>
 
       <form class="chat-composer__island flex flex-col gap-1" @submit.prevent="submit">
         <div
@@ -1201,7 +1263,7 @@ defineExpose({
             </template>
           </CodingComposerControls>
           <Button
-              v-if="running"
+              v-if="running && (!draft.trim() || aborting)"
               type="button"
               variant="destructive"
               size="icon"
@@ -1219,7 +1281,8 @@ defineExpose({
               variant="brand"
               size="icon"
               :disabled="!draft.trim() && !pendingAttachments.length"
-              aria-label="发送"
+              :aria-label="running ? '发送引导' : '发送'"
+              :title="running ? '在当前工具调用结束后应用' : '发送'"
             >
               <ArrowUp class="size-4" />
             </Button>
@@ -1240,6 +1303,30 @@ defineExpose({
 
 .chat-composer__frame {
   position: relative;
+}
+
+.chat-composer__git-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 0.375rem;
+  padding: 0.125rem 0.25rem;
+  transition: background-color 120ms ease;
+}
+
+.chat-composer__git-trigger:hover,
+.chat-composer__git-trigger:focus-visible {
+  background: var(--muted);
+  outline: none;
+}
+
+.chat-composer__queued-guidance {
+  margin: 0 0.25rem 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--brand) 22%, var(--border));
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--card) 94%, var(--brand) 6%);
+  padding: 0.625rem 0.75rem;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 8%);
 }
 
 .chat-composer__command-menu {

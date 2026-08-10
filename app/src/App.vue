@@ -380,6 +380,7 @@ onMounted(async () => {
         :workspace-path="conversations.workspacePath.value"
         :running="conversations.activeRunning.value"
         :aborting="conversations.activeAborting.value"
+        :message-queue="conversations.activeMessageQueue.value"
         :session-ready="conversations.activeSessionReady.value"
         :resumed="conversations.activeResumed.value"
         :compacting="conversations.activeCompacting.value"

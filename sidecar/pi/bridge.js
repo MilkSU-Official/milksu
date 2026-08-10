@@ -103,6 +103,10 @@ import {
   codingImageGenToolName,
 } from "./bridge-imagegen.js";
 import { reviewedCodingSkillPaths } from "./bridge-skills.js";
+import {
+  projectSteeringQueue,
+  steerSession,
+} from "./bridge-steering.js";
 import currentProviderRuntime from "./current-provider-runtime.cjs";
 
 const { currentProviderDefinition } = currentProviderRuntime;
@@ -841,6 +845,11 @@ function subscribeSession(conversationId, session, maxToolEventOutputBytes) {
       if (!goalKeepsSessionRunning(goal)) {
         emit(conversationId, "turn_settled");
       }
+      return;
+    }
+
+    if (event.type === "queue_update") {
+      emit(conversationId, "queue_update", projectSteeringQueue(event));
       return;
     }
 
@@ -1650,6 +1659,9 @@ async function handleCommand(command) {
     case "send_message":
       await sendMessage(command);
       break;
+    case "steer_message":
+      await steerSession(sessions, command);
+      break;
     case "abort_session":
       await abortSession(command);
       break;
@@ -1682,6 +1694,14 @@ input.on("line", (line) => {
   if (command.action === "abort_session") {
     void abortSession(command).catch((error) => {
       emit(command.conversationId ?? null, "error", { error: describeError(error) });
+    });
+    return;
+  }
+  if (command.action === "steer_message") {
+    void steerSession(sessions, command).catch((error) => {
+      emit(command.conversationId ?? null, "steer_rejected", {
+        error: describeError(error),
+      });
     });
     return;
   }

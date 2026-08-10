@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Badge, Button } from '@felinic/ui'
 import {
   Bug,
@@ -41,6 +41,7 @@ const icons = {
 const abilityOpen = ref(false)
 const training = useNSSCTFTraining()
 const buildTracking = ref<BuildTracking | null>(null)
+let abilityCloseTimer: number | undefined
 
 const abilityLoading = training.loading
 const abilityError = training.error
@@ -72,11 +73,28 @@ onMounted(() => {
 })
 
 async function toggleAbilityProfile() {
+  cancelAbilityClose()
   abilityOpen.value = !abilityOpen.value
   if (abilityOpen.value && !training.dashboard.value && !abilityLoading.value) {
     await training.load()
   }
 }
+
+function cancelAbilityClose() {
+  if (abilityCloseTimer !== undefined) window.clearTimeout(abilityCloseTimer)
+  abilityCloseTimer = undefined
+}
+
+function scheduleAbilityClose() {
+  cancelAbilityClose()
+  if (!abilityOpen.value) return
+  abilityCloseTimer = window.setTimeout(() => {
+    abilityOpen.value = false
+    abilityCloseTimer = undefined
+  }, 180)
+}
+
+onBeforeUnmount(cancelAbilityClose)
 
 function navigate(value: WorkspaceSection) {
   abilityOpen.value = false
@@ -101,6 +119,9 @@ function openSettings() {
     -->
     <div
       class="workspace-rail-traffic-safe relative flex items-end justify-center border-b border-border"
+      @pointerenter="cancelAbilityClose"
+      @pointerleave="scheduleAbilityClose"
+      @keydown.esc="abilityOpen = false"
     >
       <Button
         variant="ghost"

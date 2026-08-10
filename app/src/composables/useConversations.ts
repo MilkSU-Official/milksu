@@ -145,6 +145,28 @@ interface AgentEvent {
   goal?: CodingGoalState
   resumed?: boolean
   aborted?: boolean
+  steering?: string[]
+  followUp?: string[]
+}
+
+export interface CodingMessageQueue {
+  steering: string[]
+  followUp: string[]
+}
+
+export function projectCodingMessageQueue(
+  steering: unknown,
+  followUp: unknown,
+): CodingMessageQueue {
+  const normalize = (value: unknown) => (Array.isArray(value) ? value : [])
+    .map(item => String(item ?? '').trim())
+    .filter(Boolean)
+    .slice(0, 8)
+    .map(item => Array.from(item).slice(0, 16_000).join(''))
+  return {
+    steering: normalize(steering),
+    followUp: normalize(followUp),
+  }
 }
 
 export function projectAgentTools(
@@ -340,6 +362,7 @@ export function useConversations() {
   const pendingMCPConfigDigest = ref('')
   const runningIds = ref(new Set<string>())
   const abortingIds = ref(new Set<string>())
+  const messageQueues = ref(new Map<string, CodingMessageQueue>())
   const continuity = ref<CodingContinuityState>(createCodingContinuityState())
   const active = computed(() => conversations.value.find(item => item.id === activeId.value) ?? null)
   const workspacePath = computed(() => active.value?.workspacePath ?? pendingWorkspacePath.value)
@@ -348,6 +371,11 @@ export function useConversations() {
   ))
   const activeAborting = computed(() => (
     activeId.value ? abortingIds.value.has(activeId.value) : false
+  ))
+  const activeMessageQueue = computed<CodingMessageQueue>(() => (
+    activeId.value
+      ? messageQueues.value.get(activeId.value) ?? { steering: [], followUp: [] }
+      : { steering: [], followUp: [] }
   ))
   const activeResumed = computed(() => (
     activeId.value ? continuity.value.resumed.has(activeId.value) : false
@@ -422,12 +450,20 @@ export function useConversations() {
     abortingIds.value = next.aborting
   }
 
+  function setMessageQueue(id: string, queue: CodingMessageQueue) {
+    const next = new Map(messageQueues.value)
+    if (queue.steering.length || queue.followUp.length) next.set(id, queue)
+    else next.delete(id)
+    messageQueues.value = next
+  }
+
   async function remove(id: string) {
     await invokeCommand('delete_conversation', { id })
     conversations.value = conversations.value.filter(conversation => conversation.id !== id)
     titleGenerationAttemptedIds.delete(id)
     continuity.value = removeCodingContinuitySession(continuity.value, id)
     activeTurnPolicies.delete(id)
+    setMessageQueue(id, { steering: [], followUp: [] })
     finishRun(id)
     if (activeId.value === id) activeId.value = null
   }
@@ -654,6 +690,11 @@ export function useConversations() {
     const prompt = text.trim()
     if (!prompt) return false
     const visiblePrompt = visibleText.trim() || prompt
+    const runningConversationId = activeId.value
+    const steering = Boolean(
+      runningConversationId && runningIds.value.has(runningConversationId),
+    )
+    if (steering && attachments.length) return false
     const message: Message = {
       id: crypto.randomUUID(),
       role: 'user',
@@ -688,6 +729,34 @@ export function useConversations() {
         ...conversation,
         messages: [...conversation.messages, message],
       }))
+    }
+
+    if (steering) {
+      try {
+        await invokeCommand('steer_message', {
+          conversationId,
+          prompt,
+        })
+        const currentQueue = messageQueues.value.get(conversationId)
+          ?? { steering: [], followUp: [] }
+        setMessageQueue(conversationId, projectCodingMessageQueue(
+          [...currentQueue.steering, visiblePrompt],
+          currentQueue.followUp,
+        ))
+        return true
+      } catch (reason) {
+        update(conversationId, conversation => ({
+          ...conversation,
+          messages: [...conversation.messages, {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: `引导未加入当前回合：${agentErrorMessage(reason)}`,
+            timestamp: Date.now(),
+            status: 'done',
+          }],
+        }))
+        return false
+      }
     }
 
     runningIds.value = new Set(runningIds.value).add(conversationId)
@@ -928,6 +997,8 @@ export function useConversations() {
         goal,
         resumed,
         aborted,
+        steering,
+        followUp,
       } = event.payload
       if (!sessionId && (type === 'engine.stopped' || type === 'engine.protocol_error')) {
         activeTurnPolicies.clear()
@@ -973,10 +1044,17 @@ export function useConversations() {
         ))
         runningIds.value = new Set()
         abortingIds.value = new Set()
+        messageQueues.value = new Map()
         for (const id of affected) scheduleSave(id)
         return
       }
       if (!sessionId) return
+      if (type === 'session.queue_updated') {
+        setMessageQueue(
+          sessionId,
+          projectCodingMessageQueue(steering, followUp),
+        )
+      }
       conversations.value = conversations.value.map(conversation => {
         if (conversation.id !== sessionId) return conversation
         const messages = [...conversation.messages]
@@ -1020,7 +1098,16 @@ export function useConversations() {
             agentGoal: normalizeGoal(goal),
           }
         }
-        if (type === 'assistant.started') {
+        if (type === 'session.queue_updated') return conversation
+        if (type === 'session.steer_rejected') {
+          messages.push({
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: `引导未加入当前回合：${agentErrorMessage(error)}`,
+            timestamp: Date.now(),
+            status: 'done',
+          })
+        } else if (type === 'assistant.started') {
           runningIds.value = new Set(runningIds.value).add(sessionId)
           return conversation
         }
@@ -1086,11 +1173,11 @@ export function useConversations() {
               status: 'done',
             })
           }
-          finishRun(sessionId)
         } else if (type === 'assistant.settled') {
           if (last?.role === 'assistant' && last.status === 'running') {
             messages[messages.length - 1] = { ...last, status: 'done' }
           }
+          setMessageQueue(sessionId, { steering: [], followUp: [] })
           finishRun(sessionId)
         } else if (type === 'tool.started' || type === 'tool.completed') {
           if (
@@ -1123,6 +1210,7 @@ export function useConversations() {
             })
           }
         } else if (type === 'engine.error') {
+          setMessageQueue(sessionId, { steering: [], followUp: [] })
           finishRun(sessionId)
           for (let index = 0; index < messages.length; index++) {
             if (messages[index].approvalState === 'pending') {
@@ -1170,6 +1258,7 @@ export function useConversations() {
     workspacePath,
     activeRunning,
     activeAborting,
+    activeMessageQueue,
     selectedModelMode,
     selectedModelProvider,
     selectedModelId,

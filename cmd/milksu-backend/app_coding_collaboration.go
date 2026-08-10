@@ -2,64 +2,131 @@ package main
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"time"
 
 	"github.com/MilkSU-Official/milksu/internal/codingcollab"
+	"github.com/MilkSU-Official/milksu/internal/codingenv"
+	"github.com/MilkSU-Official/milksu/internal/engine"
 )
 
-func (a *App) PrepareCodingCollaboration(
+// ensureAgentManagedCodingCollaboration keeps worktree allocation behind the
+// Coding task boundary. A clean Git task receives one bounded writer slot on
+// its first effectful turn; non-Git and already-dirty projects continue without
+// collaboration instead of asking the user to choose a worktree or writer.
+func (a *App) ensureAgentManagedCodingCollaboration(
 	conversationID,
 	workspacePath string,
-	writers int,
-) (codingcollab.Status, error) {
+	allowPrepare bool,
+) (*engine.CodingCollaborationDescriptor, error) {
 	if a.codingCollab == nil {
-		return codingcollab.Status{}, errors.New(
-			"Coding collaboration service is unavailable",
-		)
+		return nil, nil
 	}
-	actionContext, cancel := context.WithTimeout(a.commandContext(), 3*time.Minute)
-	defer cancel()
-	return a.codingCollab.Prepare(
-		actionContext,
+
+	descriptorContext, cancel := context.WithTimeout(a.commandContext(), 8*time.Second)
+	descriptor, err := a.codingCollab.Descriptor(
+		descriptorContext,
 		conversationID,
 		workspacePath,
-		writers,
 	)
+	cancel()
+	if err != nil {
+		return nil, err
+	}
+	if descriptor == nil && allowPrepare {
+		inspectContext, inspectCancel := context.WithTimeout(a.commandContext(), 4*time.Second)
+		snapshot, inspectErr := codingenv.Inspect(inspectContext, workspacePath)
+		inspectCancel()
+		if inspectErr != nil {
+			return nil, inspectErr
+		}
+		if snapshot.Git.Available && snapshot.Git.IsRepository && !snapshot.Git.Dirty {
+			prepareContext, prepareCancel := context.WithTimeout(
+				a.commandContext(),
+				3*time.Minute,
+			)
+			_, prepareErr := a.codingCollab.Prepare(
+				prepareContext,
+				conversationID,
+				workspacePath,
+				codingcollab.MinWriters,
+			)
+			prepareCancel()
+			if prepareErr != nil {
+				return nil, fmt.Errorf(
+					"prepare Agent-managed Coding worktree: %w",
+					prepareErr,
+				)
+			}
+			descriptorContext, descriptorCancel := context.WithTimeout(
+				a.commandContext(),
+				8*time.Second,
+			)
+			descriptor, err = a.codingCollab.Descriptor(
+				descriptorContext,
+				conversationID,
+				workspacePath,
+			)
+			descriptorCancel()
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	return projectCodingCollaborationDescriptor(descriptor), nil
 }
 
-func (a *App) GetCodingCollaboration(
-	conversationID,
-	workspacePath string,
-) (codingcollab.Status, error) {
-	if a.codingCollab == nil {
-		return codingcollab.Status{}, errors.New(
-			"Coding collaboration service is unavailable",
+func projectCodingCollaborationDescriptor(
+	descriptor *codingcollab.Descriptor,
+) *engine.CodingCollaborationDescriptor {
+	if descriptor == nil {
+		return nil
+	}
+	projected := &engine.CodingCollaborationDescriptor{
+		SchemaVersion:  descriptor.SchemaVersion,
+		ConversationID: descriptor.ConversationID,
+		Workspace:      descriptor.Workspace,
+		BaseHead:       descriptor.BaseHead,
+		Worktrees: make(
+			[]engine.CodingCollaborationWorktree,
+			0,
+			len(descriptor.Worktrees),
+		),
+	}
+	for _, worktree := range descriptor.Worktrees {
+		projected.Worktrees = append(
+			projected.Worktrees,
+			engine.CodingCollaborationWorktree{
+				ID:     worktree.ID,
+				Path:   worktree.Path,
+				Branch: worktree.Branch,
+			},
 		)
 	}
-	actionContext, cancel := context.WithTimeout(a.commandContext(), 8*time.Second)
-	defer cancel()
-	return a.codingCollab.Get(
-		actionContext,
-		conversationID,
-		workspacePath,
-	)
+	return projected
 }
 
-func (a *App) FinishCodingCollaboration(
-	conversationID,
-	workspacePath string,
-) (codingcollab.Status, error) {
+func (a *App) releaseAgentManagedCodingCollaboration(conversationID string) error {
 	if a.codingCollab == nil {
-		return codingcollab.Status{}, errors.New(
-			"Coding collaboration service is unavailable",
+		return nil
+	}
+	statusContext, statusCancel := context.WithTimeout(a.commandContext(), 8*time.Second)
+	status, err := a.codingCollab.Get(statusContext, conversationID, "")
+	statusCancel()
+	if err != nil || !status.Active {
+		return err
+	}
+	if !status.CanFinish {
+		return fmt.Errorf(
+			"Coding task still owns uncommitted or unintegrated Agent worktree changes",
 		)
 	}
-	actionContext, cancel := context.WithTimeout(a.commandContext(), 30*time.Second)
-	defer cancel()
-	return a.codingCollab.Finish(
-		actionContext,
+	finishContext, finishCancel := context.WithTimeout(a.commandContext(), 30*time.Second)
+	_, err = a.codingCollab.Finish(
+		finishContext,
 		conversationID,
-		workspacePath,
+		status.Workspace,
 	)
+	finishCancel()
+	return err
 }

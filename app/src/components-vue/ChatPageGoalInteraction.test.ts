@@ -143,7 +143,7 @@ describe('ChatPage Goal interaction', () => {
     await nextTick()
     const textarea = composerEditor(panels.host)
 
-    setComposerText(textarea, '/worktree')
+    setComposerText(textarea, '/diff')
     await nextTick()
     textarea.dispatchEvent(new KeyboardEvent('keydown', {
       key: 'Enter',
@@ -151,7 +151,8 @@ describe('ChatPage Goal interaction', () => {
       cancelable: true,
     }))
     await nextTick()
-    expect(panels.host.querySelector('[aria-label="隔离 worktree"]')).not.toBeNull()
+    expect(panels.host.querySelector('[aria-label="变更"]')).not.toBeNull()
+    expect(panels.host.textContent).not.toContain('隔离 worktree')
 
     setComposerText(textarea, '/new')
     await nextTick()

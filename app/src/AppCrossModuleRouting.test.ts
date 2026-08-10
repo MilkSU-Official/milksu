@@ -49,6 +49,7 @@ function createMockConversations() {
     workspacePath,
     activeRunning: computed(() => false),
     activeAborting: computed(() => false),
+    activeMessageQueue: computed(() => ({ steering: [], followUp: [] })),
     activeSessionReady: computed(() => true),
     activeResumed: computed(() => false),
     activeCompacting: computed(() => false),

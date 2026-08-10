@@ -52,41 +52,6 @@ export interface CodingGitDeliveryEvidence {
   }
 }
 
-export type CodingCollaborationPhase =
-  | 'preparing'
-  | 'active'
-  | 'completed'
-
-export interface CodingCollaborationWorktree {
-  id: string
-  path: string
-  branch: string
-  baseHead: string
-  head?: string
-  dirty: boolean
-  ahead: number
-  behind: number
-  integrated: boolean
-  available: boolean
-  problem?: string
-}
-
-export interface CodingCollaborationStatus {
-  schemaVersion: number
-  conversationId: string
-  workspace: string
-  baseBranch?: string
-  baseHead?: string
-  phase: CodingCollaborationPhase
-  active: boolean
-  canFinish: boolean
-  createdAt?: string
-  updatedAt?: string
-  completedAt?: string
-  worktrees: CodingCollaborationWorktree[]
-  problem?: string
-}
-
 export type CodingBackgroundTaskStatus =
   | 'running'
   | 'succeeded'

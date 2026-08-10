@@ -35,6 +35,7 @@ function mountComposer(overrides: Record<string, unknown> = {}) {
   const controlledGoals: string[] = []
   const executionModes: string[] = []
   const slashCommandActions: string[] = []
+  let openedChanges = 0
   const app = createApp(ChatComposer, {
     running: false,
     aborting: false,
@@ -62,6 +63,9 @@ function mountComposer(overrides: Record<string, unknown> = {}) {
     onRunSlashCommand: (command: string) => {
       slashCommandActions.push(command)
     },
+    onOpenChanges: () => {
+      openedChanges += 1
+    },
     ...overrides,
   })
   const vm = app.mount(host) as unknown as { appendDraftText: (text: string) => void }
@@ -75,6 +79,7 @@ function mountComposer(overrides: Record<string, unknown> = {}) {
     controlledGoals,
     executionModes,
     slashCommandActions,
+    openedChanges: () => openedChanges,
   }
 }
 
@@ -209,7 +214,6 @@ describe('ChatComposer', () => {
       'status',
       'diff',
       'review',
-      'worktree',
       'mcp',
       'browser-use',
       'computer-use',
@@ -338,12 +342,12 @@ describe('ChatComposer', () => {
     const result = mountComposer({ workspaceReady: true })
     await nextTick()
     const textarea = composerEditor(result.host)
-    setComposerText(textarea, '/worktree')
+    setComposerText(textarea, '/diff')
     await nextTick()
 
     const options = result.host.querySelectorAll('[role="option"]')
-    expect(options).toHaveLength(1)
-    expect(options[0]?.id).toBe('coding-slash-command-worktree')
+    expect([...options].map(option => option.id)).toContain('coding-slash-command-diff')
+    expect(options[0]?.id).toBe('coding-slash-command-diff')
 
     textarea.dispatchEvent(new KeyboardEvent('keydown', {
       key: 'Enter',
@@ -352,7 +356,7 @@ describe('ChatComposer', () => {
     }))
     await nextTick()
 
-    expect(result.slashCommandActions).toEqual(['worktree'])
+    expect(result.slashCommandActions).toEqual(['diff'])
     expect(result.sent).toEqual([])
   })
 
@@ -479,6 +483,15 @@ describe('ChatComposer', () => {
         changedFiles: 22,
         additions: 442,
         deletions: 226,
+        changes: [{
+          path: 'app/src/components-vue/ChatComposer.vue',
+          indexStatus: ' ',
+          worktreeStatus: 'M',
+          staged: false,
+          modified: true,
+          untracked: false,
+          conflict: false,
+        }],
       },
     })
     await nextTick()
@@ -486,9 +499,11 @@ describe('ChatComposer', () => {
     const progress = active.host.querySelector('[aria-label="任务进度摘要"]')
     const goalPanel = active.host.querySelector('[aria-label="持续目标"]')
     expect(progress?.textContent).toContain('第 4 轮')
-    expect(progress?.textContent).toContain('22 个文件已更改')
+    expect(progress?.textContent).toContain('代码')
     expect(progress?.textContent).toContain('+442')
     expect(progress?.textContent).toContain('-226')
+    active.host.querySelector<HTMLButtonElement>('[aria-label="查看代码变更"]')?.click()
+    expect(active.openedChanges()).toBe(1)
     expect(goalPanel?.textContent).toContain('进行中')
     expect(goalPanel?.textContent).toContain(activeGoal.text)
     expect(goalPanel?.textContent).toContain('12,500 / 100,000 tokens')
@@ -611,5 +626,32 @@ describe('ChatComposer', () => {
     expect(pending?.disabled).toBe(true)
     pending?.click()
     expect(stopped).toEqual([[]])
+  })
+
+  it('sends text as Pi guidance while a turn is running and shows its queue', async () => {
+    const running = mountComposer({
+      running: true,
+      queuedGuidance: ['先保留当前修改，再检查失败测试。'],
+    })
+    await nextTick()
+
+    expect(running.host.querySelector('[aria-label="待应用引导"]')?.textContent)
+      .toContain('当前工具调用结束后应用')
+    const editor = composerEditor(running.host)
+    setComposerText(editor, '不要改 API，先补回归测试。')
+    await nextTick()
+
+    expect(running.host.querySelector('[aria-label="停止 Agent"]')).toBeNull()
+    const guide = running.host.querySelector<HTMLButtonElement>('[aria-label="发送引导"]')
+    expect(guide).not.toBeNull()
+    guide?.click()
+    await nextTick()
+
+    expect(running.sent).toEqual([[
+      '不要改 API，先补回归测试。',
+      '不要改 API，先补回归测试。',
+      [],
+    ]])
+    expect(editor.textContent).toBe('')
   })
 })

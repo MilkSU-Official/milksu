@@ -2053,13 +2053,13 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
                 ? automaticCapabilityApproval ? "allowed" : "approval-required"
                 : "unavailable",
               detail: collaborationAvailable
-                ? `${codingCollaboration.worktrees.length} 个写入槽已锁定独立 worktree；`
+                ? "Agent 已准备隔离执行环境；"
                   + (automaticCapabilityApproval
                       ? "当前权限档会自动执行通过边界校验的委托。"
-                      : "当前请求批准档会逐次展示角色、任务和分支。")
+                      : "当前请求批准档会逐次展示角色和任务。")
                 : codingCollaboration
                   ? "当前 Plan、只读或一键产品动作不会加载多 Agent；切换到普通 Go 后可用。"
-                  : "只有用户显式准备独立 Git worktree 后可用；主 Agent 负责审阅、集成和验证。",
+                  : "Agent 会在干净 Git 任务首次执行时自动准备隔离环境；主 Agent 负责审阅、集成和验证。",
             }
           : capability
   ));

@@ -523,6 +523,9 @@ func (a *App) DeleteConversation(id string) error {
 			}
 		}
 	}
+	if err := a.releaseAgentManagedCodingCollaboration(id); err != nil {
+		return err
+	}
 	return a.conversations.Delete(id)
 }
 
@@ -736,40 +739,16 @@ func (a *App) SendMessage(
 		}
 	}
 	var codingCollaboration *engine.CodingCollaborationDescriptor
-	if sessionRole == "" &&
-		strings.TrimSpace(executionMode) != "plan" &&
-		strings.TrimSpace(approvalPolicy) != "read-only" &&
-		a.codingCollab != nil {
-		descriptor, descriptorErr := a.codingCollab.Descriptor(
-			a.commandContext(),
+	if sessionRole == "" {
+		allowPrepare := strings.TrimSpace(executionMode) != "plan" &&
+			strings.TrimSpace(approvalPolicy) != "read-only"
+		codingCollaboration, err = a.ensureAgentManagedCodingCollaboration(
 			conversationID,
 			workspacePath,
+			allowPrepare,
 		)
-		if descriptorErr != nil {
-			return descriptorErr
-		}
-		if descriptor != nil {
-			codingCollaboration = &engine.CodingCollaborationDescriptor{
-				SchemaVersion:  descriptor.SchemaVersion,
-				ConversationID: descriptor.ConversationID,
-				Workspace:      descriptor.Workspace,
-				BaseHead:       descriptor.BaseHead,
-				Worktrees: make(
-					[]engine.CodingCollaborationWorktree,
-					0,
-					len(descriptor.Worktrees),
-				),
-			}
-			for _, worktree := range descriptor.Worktrees {
-				codingCollaboration.Worktrees = append(
-					codingCollaboration.Worktrees,
-					engine.CodingCollaborationWorktree{
-						ID:     worktree.ID,
-						Path:   worktree.Path,
-						Branch: worktree.Branch,
-					},
-				)
-			}
+		if err != nil {
+			return err
 		}
 	}
 	return a.engines.SendMessage(
@@ -791,6 +770,10 @@ func (a *App) SendMessage(
 
 func (a *App) AbortMessage(conversationID string) error {
 	return a.engines.AbortMessage(conversationID)
+}
+
+func (a *App) SteerMessage(conversationID, prompt string) error {
+	return a.engines.SteerMessage(conversationID, prompt)
 }
 
 func (a *App) RespondToolApproval(

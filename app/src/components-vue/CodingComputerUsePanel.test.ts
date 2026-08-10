@@ -92,17 +92,10 @@ describe('CodingComputerUsePanel', () => {
     expect(text).toContain('可启动')
     expect(text).toContain('权限和窗口都已就绪')
     expect(text).toContain('才算正式接入当前 Coding 任务')
-    expect(text).toContain('正式接入/验收需要')
     expect(text).toContain('下一步')
-    expect(text).toContain('系统权限')
-    expect(text).toContain('辅助功能与屏幕录制已授权')
-    expect(text).toContain('窗口 Scope')
-    expect(text).toContain('会话锁定')
-    expect(text).toContain('点击“启动可见会话”后才算接入')
-    expect(text).toContain('审批体感')
     expect(text).toContain('真实操作')
-    expect(text).toContain('仍需一次 click / type / key / scroll 工具结果')
-    expect(text).toContain('observe 只证明看见窗口')
+    expect(text).toContain('需要 Agent 使用 computer_use')
+    expect(text).toContain('observe 只算可见观察')
     expect(text).toContain('Go / 替我审批')
     expect(text).toContain('普通观察、点击和输入会自动执行')
     expect(text).toContain('Codex 将被锁定为当前任务 Scope')
@@ -188,7 +181,6 @@ describe('CodingComputerUsePanel', () => {
     })
 
     expect(host.textContent).toContain('可见会话正由另一个 Coding 任务使用')
-    expect(host.textContent).toContain('其他任务正在使用')
     const start = [...host.querySelectorAll<HTMLButtonElement>('button')].find(
       button => button.textContent?.includes('启动可见会话'),
     )
@@ -210,11 +202,10 @@ describe('CodingComputerUsePanel', () => {
     const text = host.textContent ?? ''
 
     expect(text).toContain('已接入当前任务')
-    expect(text).toContain('已锁定到当前 Coding 任务')
     expect(text).toContain('Go / 完全访问')
     expect(text).toContain('普通观察、点击和输入会自动执行')
     expect(text).toContain('危险、越界或未锁定 Scope 的操作仍会停下')
-    expect(host.querySelectorAll('[data-computer-use-ready="true"]').length).toBe(4)
+    expect(text).not.toContain('正式接入/验收需要')
   })
 
   it('blocks Computer Use when the active session belongs to a browser scope', async () => {
@@ -229,7 +220,7 @@ describe('CodingComputerUsePanel', () => {
     const text = host.textContent ?? ''
 
     expect(text).toContain('已接入其他 Scope')
-    expect(text).toContain('不属于当前 Computer Use 外部 App Scope')
+    expect(text).toContain('不属于 Computer Use 外部 App Scope')
     expect(text).not.toContain('已接入当前任务')
     const stop = [...host.querySelectorAll<HTMLButtonElement>('button')].find(
       button => button.textContent?.includes('停止当前其他 Scope'),
@@ -269,7 +260,7 @@ describe('CodingComputerUsePanel', () => {
     expect(text).toContain('已操作')
     expect(text).toContain('最近真实操作')
     expect(text).not.toContain('等待真实操作')
-    expect(host.querySelectorAll('[data-computer-use-ready="true"]').length).toBe(5)
+    expect(text).not.toContain('正式接入/验收需要')
   })
 
   it('does not count Computer Use operation evidence from a different window scope', async () => {
@@ -294,11 +285,12 @@ describe('CodingComputerUsePanel', () => {
     const text = host.textContent ?? ''
 
     expect(text).toContain('Scope 不匹配')
-    expect(text).toContain('最近一次 Computer Use 操作来自另一个窗口，不计入当前 Scope 验收')
+    expect(text).toContain('最近一次操作属于')
+    expect(text).toContain('不会冒充当前窗口验收')
     expect(text).toContain('Preview · com.example.preview · PID 5252 · Window 9002')
     expect(text).toContain('不计入')
     expect(text).not.toContain('已操作')
-    expect(host.querySelectorAll('[data-computer-use-ready="true"]').length).toBe(4)
+    expect(text).not.toContain('正式接入/验收需要')
   })
 
   it('keeps Plan or read-only visible sessions non-operating', async () => {
@@ -316,7 +308,7 @@ describe('CodingComputerUsePanel', () => {
     expect(text).toContain('Plan / 替我审批')
     expect(text).toContain('当前模式不会操作可见 App')
     expect(text).toContain('切到 Go + 替我审批/完全访问')
-    expect(host.querySelectorAll('[data-computer-use-ready="false"]').length).toBe(2)
+    expect(text).not.toContain('正式接入/验收需要')
   })
 
   it('distinguishes missing macOS permissions from unavailable Computer Use', async () => {

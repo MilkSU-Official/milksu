@@ -152,7 +152,7 @@ export function normalizeCodingPolicy(
         id: "collaboration",
         label: "多 Agent 协作",
         status: "unavailable",
-        detail: "只有用户显式准备独立 Git worktree 后可用；委托跟随当前 Coding 权限档位。",
+        detail: "Agent 会在干净 Git 任务首次执行时自动准备隔离环境；委托跟随当前 Coding 权限档位。",
       },
     ],
   };

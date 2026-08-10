@@ -133,14 +133,12 @@ import type {
   Conversation,
   CTFChatAction,
 } from '@/types'
+import type { CodingMessageQueue } from '@/composables/useConversations'
 import { providerModelLabel } from '@/types'
 import type { SessionHistorySearchResult } from '@/sessionIndexTypes'
 
 const CodingTerminalPanel = defineAsyncComponent(
   () => import('@/components-vue/CodingTerminalPanel.vue'),
-)
-const CodingCollaborationPanel = defineAsyncComponent(
-  () => import('@/components-vue/CodingCollaborationPanel.vue'),
 )
 
 const props = defineProps<{
@@ -149,6 +147,7 @@ const props = defineProps<{
   workspacePath: string
   running: boolean
   aborting: boolean
+  messageQueue?: CodingMessageQueue
   sessionReady: boolean
   resumed: boolean
   compacting: boolean
@@ -225,7 +224,6 @@ const contextPanel = ref<ContextPanel>(
   props.ctfSession || props.vulnerabilitySession ? 'domain' : 'environment',
 )
 const artifactPanel = ref<InstanceType<typeof CodingArtifactPreviewPanel> | null>(null)
-const collaborationPanel = ref<{ refresh: () => Promise<void> } | null>(null)
 const historyPanel = ref<{ refresh: () => Promise<void> } | null>(null)
 const environmentLoading = ref(false)
 const environmentError = ref('')
@@ -295,6 +293,8 @@ const composerGitSummary = computed(() => {
     changedFiles: git.changedFiles,
     additions: git.additions,
     deletions: git.deletions,
+    changes: git.changes ?? [],
+    changesTruncated: git.changesTruncated,
   }
 })
 const continuity = computed(() => codingContinuityPresentation({
@@ -544,7 +544,7 @@ const contextPanelTitle = computed(() => ({
   browser: '浏览器',
   'browser-use': 'Browser Use',
   'computer-use': 'Computer Use',
-  collaboration: props.ctfSession ? 'Agent 协作' : '隔离 worktree',
+  collaboration: 'Agent 协作',
   history: '相关历史',
   evidence: '证据与 Judge',
 })[contextPanel.value])
@@ -823,9 +823,8 @@ function runSlashCommand(command: string) {
   const panel = ({
     status: 'environment',
     diff: 'changes',
-    worktree: 'collaboration',
     mcp: 'environment',
-  } as const)[command as 'status' | 'diff' | 'worktree' | 'mcp']
+  } as const)[command as 'status' | 'diff' | 'mcp']
   if (panel) changeContextPanel(panel)
 }
 
@@ -1370,10 +1369,6 @@ async function refreshContextPanel() {
     await refreshBrowserPanel()
     return
   }
-  if (contextPanel.value === 'collaboration' && !props.ctfSession) {
-    await collaborationPanel.value?.refresh()
-    return
-  }
   if (contextPanel.value === 'history') {
     await historyPanel.value?.refresh()
     return
@@ -1387,6 +1382,7 @@ async function refreshContextPanel() {
 
 function changeContextPanel(value: string) {
   if (!contextPanelValues.some(panel => panel === value)) return
+  if (value === 'collaboration' && !props.ctfSession) return
   contextPanel.value = value as ContextPanel
   environmentOpen.value = true
   void refreshContextPanel()
@@ -1505,13 +1501,6 @@ watch(() => props.conversation?.id, (_current, previous) => {
   void scrollChatToBottom()
   if (['browser', 'browser-use', 'computer-use'].includes(contextPanel.value) && environmentOpen.value) {
     void refreshBrowserPanel()
-  }
-  if (
-    contextPanel.value === 'collaboration'
-    && !props.ctfSession
-    && environmentOpen.value
-  ) {
-    void collaborationPanel.value?.refresh()
   }
 })
 watch(
@@ -1693,6 +1682,7 @@ watch(
       ref="composer"
       :running="running"
       :aborting="aborting"
+      :queued-guidance="messageQueue?.steering ?? []"
       :ctf-session="ctfSession"
       :ctf-mode="ctfMode"
       :ctf-role="ctfRole"
@@ -1712,6 +1702,7 @@ watch(
       :available-skills="activeSkills"
       :selected-mcp-servers="selectedMCPServers"
       @send="sendComposerMessage"
+      @open-changes="changeContextPanel('changes')"
       @ctf-action="$emit('ctfAction', $event)"
       @abort="$emit('abort')"
       @change-execution-mode="changeExecutionMode"
@@ -1763,7 +1754,6 @@ watch(
           <SelectItem v-if="!ctfSession" value="artifacts">产物</SelectItem>
           <SelectItem v-if="!ctfSession" value="architecture">架构图</SelectItem>
           <SelectItem value="browser">浏览器</SelectItem>
-          <SelectItem v-if="!ctfSession" value="collaboration">隔离 worktree</SelectItem>
           <SelectItem value="history">相关历史</SelectItem>
           <template v-if="ctfSession">
             <SelectSeparator />
@@ -2407,15 +2397,6 @@ watch(
       </template>
 
       <template v-else-if="contextPanel === 'collaboration'">
-        <CodingCollaborationPanel
-          v-if="!ctfSession"
-          ref="collaborationPanel"
-          :conversation-id="conversation?.id"
-          :workspace-path="workspacePath"
-          :running="running"
-          :ensure-conversation="ensureConversation"
-        />
-        <template v-else>
         <section class="border-b border-border px-4 py-4">
           <p class="text-caption font-medium text-muted-foreground">当前角色</p>
           <div class="mt-3 grid gap-2">
@@ -2499,7 +2480,6 @@ watch(
             返回训练工作台
           </Button>
         </section>
-        </template>
       </template>
 
       <template v-else-if="contextPanel === 'history'">

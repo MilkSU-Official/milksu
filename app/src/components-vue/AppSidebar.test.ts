@@ -101,4 +101,19 @@ describe('AppSidebar', () => {
     expect(nightButton?.textContent?.trim()).toBe('')
     expect(light.querySelector('[aria-label="设置"]')?.textContent?.trim()).toBe('')
   })
+
+  it('dismisses the ability profile when the pointer leaves the logo and popover area', async () => {
+    const host = await mountSidebar('ctf')
+    host.querySelector<HTMLButtonElement>('[aria-label="查看能力画像"]')?.click()
+    await nextTick()
+    expect(host.querySelector('[aria-label="个人能力画像"]')).not.toBeNull()
+
+    host.querySelector('.workspace-rail-traffic-safe')?.dispatchEvent(
+      new Event('pointerleave'),
+    )
+    await new Promise(resolve => window.setTimeout(resolve, 220))
+    await nextTick()
+
+    expect(host.querySelector('[aria-label="个人能力画像"]')).toBeNull()
+  })
 })

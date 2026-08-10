@@ -125,4 +125,23 @@ describe('Coding conversation title generation', () => {
       ([command]) => command === 'generate_conversation_title',
     )).toHaveLength(1)
   })
+
+  it('uses Pi steering instead of starting a parallel turn while running', async () => {
+    desktop.invokeCommand.mockResolvedValue(undefined)
+    const conversations = mountConversations()
+
+    await expect(conversations.send('先检查当前失败测试')).resolves.toBe(true)
+    await expect(conversations.send('不要改 API，先补回归测试')).resolves.toBe(true)
+
+    expect(desktop.invokeCommand).toHaveBeenCalledWith('steer_message', {
+      conversationId: conversations.activeId.value,
+      prompt: '不要改 API，先补回归测试',
+    })
+    expect(desktop.invokeCommand.mock.calls.filter(
+      ([command]) => command === 'send_message',
+    )).toHaveLength(1)
+    expect(conversations.activeMessageQueue.value.steering).toEqual([
+      '不要改 API，先补回归测试',
+    ])
+  })
 })

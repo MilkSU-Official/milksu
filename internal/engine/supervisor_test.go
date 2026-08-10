@@ -114,6 +114,33 @@ func TestNormalizeGoalStateAndAutomaticTurnStart(t *testing.T) {
 	}
 }
 
+func TestNormalizeSteeringQueue(t *testing.T) {
+	event := normalizeBridgeEvent(bridgeEvent{
+		Type:     "queue_update",
+		ID:       "session-1",
+		Steering: []string{"先保留修改", "再检查测试"},
+		FollowUp: []string{"最后总结"},
+	})
+	if event.Type != "session.queue_updated" ||
+		len(event.Steering) != 2 ||
+		len(event.FollowUp) != 1 {
+		t.Fatalf("unexpected steering queue event: %#v", event)
+	}
+}
+
+func TestNormalizeSteeringRejectionWithoutEndingTurn(t *testing.T) {
+	event := normalizeBridgeEvent(bridgeEvent{
+		Type:  "steer_rejected",
+		ID:    "session-1",
+		Error: "PI session not found",
+	})
+	if event.Type != "session.steer_rejected" ||
+		event.Error != "PI session not found" ||
+		event.Done {
+		t.Fatalf("unexpected steering rejection event: %#v", event)
+	}
+}
+
 func TestNormalizeToolError(t *testing.T) {
 	event := normalizeBridgeEvent(bridgeEvent{
 		Type: "tool_call_end", ID: "session-1", ToolName: "read", Content: "denied", IsError: true,
@@ -857,6 +884,43 @@ func TestSendMessageRejectsMissingKeyBeforeStartingSidecar(t *testing.T) {
 	status := supervisor.Status()
 	if status.Running || status.SessionCount != 0 {
 		t.Fatalf("missing credentials must not start a sidecar or session: %#v", status)
+	}
+}
+
+func TestSteerMessageUsesExistingPiSession(t *testing.T) {
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	defer writer.Close()
+
+	supervisor := NewSupervisor(nil)
+	supervisor.process = &childProcess{stdin: writer, workspace: t.TempDir()}
+	supervisor.sessions["session-1"] = struct{}{}
+	defer func() {
+		supervisor.mu.Lock()
+		supervisor.stopAllTurnTimersLocked()
+		supervisor.process = nil
+		supervisor.sessions = make(map[string]struct{})
+		supervisor.mu.Unlock()
+	}()
+
+	if err := supervisor.SteerMessage("session-1", "不要改 API，先补测试"); err != nil {
+		t.Fatal(err)
+	}
+	line, err := bufio.NewReader(reader).ReadBytes('\n')
+	if err != nil {
+		t.Fatal(err)
+	}
+	var command map[string]any
+	if err := json.Unmarshal(line, &command); err != nil {
+		t.Fatal(err)
+	}
+	if command["action"] != "steer_message" ||
+		command["conversationId"] != "session-1" ||
+		command["prompt"] != "不要改 API，先补测试" {
+		t.Fatalf("unexpected steering command: %#v", command)
 	}
 }
 
