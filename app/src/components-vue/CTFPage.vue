@@ -170,6 +170,7 @@ const catalogBootstrapAttempted = ref(false)
 const attachmentError = ref('')
 const localMaterials = ref<CTFMaterialRequest[]>([])
 const working = ref(false)
+const manualCreating = ref(false)
 const seriesQuery = ref('')
 const seriesCategory = ref('all')
 const seriesStatus = ref<'all' | 'new' | 'attempted' | 'completed'>('all')
@@ -847,7 +848,7 @@ async function chooseRecommendation(recommendation: NSSCTFRecommendation) {
 }
 
 async function startManualChallenge(request: CTFChallengeRequest) {
-  working.value = true
+  manualCreating.value = true
   outcomeNotice.value = ''
   try {
     const started = await backend.startChallenge(request)
@@ -855,7 +856,7 @@ async function startManualChallenge(request: CTFChallengeRequest) {
     manualIntake.value?.resetAndClose()
     screen.value = 'workspace'
   } finally {
-    working.value = false
+    manualCreating.value = false
   }
 }
 
@@ -2778,7 +2779,7 @@ onBeforeUnmount(() => {
     </div>
     <CTFManualIntake
       ref="manualIntake"
-      :loading="working"
+      :loading="manualCreating"
       :error="backend.error.value ?? ''"
       @submit="startManualChallenge"
     />
