@@ -204,4 +204,69 @@ describe('Coding approval conversation recovery', () => {
     expect(message).not.toContain('sk-query-secret')
     expect(message).not.toContain('sk-header-secret')
   })
+
+  it('restores structured CTF domainTaskContext from persisted conversation state', () => {
+    const conversation = normalizeConversation({
+      id: 'ctf-conversation-1',
+      title: 'CTF · Web challenge',
+      createdAt: 1,
+      ctfJobId: 'job-42',
+      ctfMode: 'copilot',
+      ctfRole: 'solver',
+      domainTaskContext: {
+        kind: 'ctf',
+        jobId: 'job-42',
+        challengeId: 'ch-exact',
+        challengeTitle: 'Exact live challenge',
+        role: 'solver',
+        roleLabel: '解题 Agent',
+        materialStatus: '已挂载 1 份材料：dist.zip',
+        materialCount: 1,
+        authorizedScope: 'source-1 · base → origin:https://base.example | net-1 · lab → origin:https://lab.example',
+        evidenceCount: 2,
+        artifactCount: 1,
+        judgeState: 'NSSCTF · accepted · 已验证正确',
+        liveProjection: true,
+      },
+      messages: [],
+    })
+    expect(conversation.ctfJobId).toBe('job-42')
+    expect(conversation.domainTaskContext).toMatchObject({
+      kind: 'ctf',
+      jobId: 'job-42',
+      challengeId: 'ch-exact',
+      challengeTitle: 'Exact live challenge',
+      authorizedScope: expect.stringContaining('source-1'),
+    })
+    expect(String(conversation.domainTaskContext && 'authorizedScope' in conversation.domainTaskContext
+      ? conversation.domainTaskContext.authorizedScope
+      : '')).toContain('net-1')
+  })
+
+  it('restores structured CVE domainTaskContext without inventing network grants', () => {
+    const conversation = normalizeConversation({
+      id: 'cve-conversation-1',
+      title: 'CVE-2023-46604 研究接力',
+      createdAt: 1,
+      domainTaskContext: {
+        kind: 'cve',
+        cveId: 'CVE-2023-46604',
+        title: 'ActiveMQ RCE',
+        sourceEvidenceState: 'NVD（imported）',
+        sourceEvidenceCount: 1,
+        assetMatchState: '尚无用户确认资产匹配',
+        assetCount: 0,
+        researchScope: 'read-only cached evidence only',
+        safetyBoundary: '学习与追踪 only',
+        roleLabel: 'CVE 只读/研究接力',
+      },
+      messages: [],
+    })
+    expect(conversation.domainTaskContext).toMatchObject({
+      kind: 'cve',
+      cveId: 'CVE-2023-46604',
+      researchScope: 'read-only cached evidence only',
+      safetyBoundary: '学习与追踪 only',
+    })
+  })
 })

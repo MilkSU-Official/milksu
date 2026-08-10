@@ -40,6 +40,8 @@ function createMockConversations() {
     conversationRows.value.find(conversation => conversation.id === activeId.value) ?? null
   ))
 
+  const pendingComposerDraft = ref<{ prompt: string; visibleText: string } | null>(null)
+
   return {
     conversations: conversationRows,
     activeId,
@@ -81,11 +83,29 @@ function createMockConversations() {
       activeId.value = id
       return id
     }),
-    startWorkspaceTask: vi.fn(async (task: { title: string; jobId?: string; role?: Conversation['ctfRole'] }) => {
-      const id = task.jobId ? `ctf-${task.jobId}` : `coding-${conversationRows.value.length + 1}`
+    startWorkspaceTask: vi.fn(async (task: {
+      title: string
+      jobId?: string
+      conversationId?: string
+      role?: Conversation['ctfRole']
+      domainTaskContext?: Conversation['domainTaskContext']
+      autoSend?: boolean
+      prompt?: string
+    }) => {
+      // Mirror production default: open Coding without auto-send.
+      expect(task.autoSend === true).toBe(false)
+      const id = task.conversationId
+        || (task.jobId ? `ctf-${task.jobId}` : `coding-${conversationRows.value.length + 1}`)
       const existing = conversationRows.value.find(conversation => conversation.id === id)
       if (existing) {
+        existing.domainTaskContext = task.domainTaskContext ?? existing.domainTaskContext
+        existing.ctfJobId = task.jobId ?? existing.ctfJobId
+        existing.ctfRole = task.role ?? existing.ctfRole
         activeId.value = existing.id
+        if (task.prompt) pendingComposerDraft.value = {
+          prompt: task.prompt,
+          visibleText: task.prompt,
+        }
         return
       }
       conversationRows.value.push(baseConversation({
@@ -94,16 +114,28 @@ function createMockConversations() {
         createdAt: Date.now(),
         ctfJobId: task.jobId,
         ctfRole: task.role ?? (task.jobId ? 'solver' : undefined),
-        messages: [{
-          id: `${id}-message`,
-          role: 'assistant',
-          content: `${task.title} started`,
-          timestamp: Date.now() + 1,
-        }],
+        domainTaskContext: task.domainTaskContext,
+        // No synthetic assistant "started" message: open path does not send.
+        messages: [],
       }))
       activeId.value = id
+      if (task.prompt) pendingComposerDraft.value = {
+        prompt: task.prompt,
+        visibleText: task.prompt,
+      }
     }),
-    send: vi.fn(async () => undefined),
+    stageComposerDraft: vi.fn((prompt: string, visibleText = prompt) => {
+      pendingComposerDraft.value = { prompt, visibleText }
+    }),
+    consumeComposerDraft: vi.fn(() => {
+      const draft = pendingComposerDraft.value
+      pendingComposerDraft.value = null
+      return draft
+    }),
+    pendingComposerDraft,
+    send: vi.fn(async () => {
+      throw new Error('send must not run on open-Coding handoff')
+    }),
     abort: vi.fn(async () => undefined),
     remove: vi.fn(),
     setWorkspace: vi.fn((path: string) => {
@@ -190,15 +222,33 @@ vi.mock('@/components-vue/CTFPage.vue', () => ({
           h('span', { 'data-ctf-initial-job': String(props.initialJobId ?? '') }, String(props.initialJobId ?? 'none')),
           h('span', { 'data-ctf-section': String(props.ctfSection) }, String(props.ctfSection)),
           h('button', {
-            'aria-label': 'start CTF agent',
+            'aria-label': 'open CTF in coding',
             onClick: () => emit('startCodingAgent', {
-              title: 'CTF Solver',
-              prompt: 'solve',
+              title: 'CTF · Web challenge',
+              prompt: 'solve with exact scope',
+              conversationId: 'ctf-job-1',
               workspacePath: '/Users/milksu/Library/Application Support/MilkSU/ctf/job-1',
               jobId: 'job-1',
               role: 'solver',
+              policy: { mode: 'copilot' },
+              materials: [{ name: 'dist.zip' }],
+              domainTaskContext: {
+                kind: 'ctf',
+                jobId: 'job-1',
+                challengeId: 'ch-1',
+                challengeTitle: 'Web challenge',
+                role: 'solver',
+                roleLabel: '解题 Agent',
+                materialStatus: '已挂载 1 份材料：dist.zip',
+                materialCount: 1,
+                authorizedScope: 'source-1 · base → origin:https://base.example',
+                evidenceCount: 0,
+                artifactCount: 0,
+                judgeState: '尚无 Judge 回执',
+                liveProjection: true,
+              },
             }),
-          }, 'Start CTF Agent'),
+          }, '在 Coding 中打开'),
         ])
       }
     },
@@ -309,13 +359,23 @@ describe('App cross-module routing', () => {
     const { host } = await mountApp()
 
     expect(host.querySelector('[aria-label="mock CTF page"]')).not.toBeNull()
-    host.querySelector<HTMLButtonElement>('[aria-label="start CTF agent"]')?.click()
+    host.querySelector<HTMLButtonElement>('[aria-label="open CTF in coding"]')?.click()
     await flushAsyncComponents()
 
     expect(host.querySelector('[aria-label="mock Chat page"]')).not.toBeNull()
     expect(host.querySelector('[data-chat-conversation]')?.textContent).toBe('ctf-job-1')
     expect(host.querySelector('[data-chat-ctf-session]')?.textContent).toBe('true')
     expect(hoisted.conversations?.activeId.value).toBe('ctf-job-1')
+    const opened = hoisted.conversations?.conversations.value.find(item => item.id === 'ctf-job-1')
+    expect(opened?.domainTaskContext).toMatchObject({
+      kind: 'ctf',
+      challengeId: 'ch-1',
+      authorizedScope: expect.stringContaining('source-1'),
+    })
+    expect(opened?.messages ?? []).toEqual([])
+    expect(hoisted.conversations?.pendingComposerDraft.value?.prompt).toContain('solve with exact scope')
+    expect(hoisted.conversations?.send).not.toHaveBeenCalled()
+    expect(hoisted.conversations?.activeRunning.value).toBe(false)
 
     host.querySelector<HTMLButtonElement>('[aria-label="navigate CVE"]')?.click()
     await flushAsyncComponents()
@@ -335,7 +395,7 @@ describe('App cross-module routing', () => {
   it('returns from a CTF Agent chat to the workspace instead of reopening the chat surface', async () => {
     const { host } = await mountApp()
 
-    host.querySelector<HTMLButtonElement>('[aria-label="start CTF agent"]')?.click()
+    host.querySelector<HTMLButtonElement>('[aria-label="open CTF in coding"]')?.click()
     await flushAsyncComponents()
     host.querySelector<HTMLButtonElement>('[aria-label="return CTF workspace"]')?.click()
     await flushAsyncComponents()
@@ -349,7 +409,7 @@ describe('App cross-module routing', () => {
   it('restores Coding navigation to the remembered non-CTF conversation after visiting a CTF Agent', async () => {
     const { host } = await mountApp()
 
-    host.querySelector<HTMLButtonElement>('[aria-label="start CTF agent"]')?.click()
+    host.querySelector<HTMLButtonElement>('[aria-label="open CTF in coding"]')?.click()
     await flushAsyncComponents()
     host.querySelector<HTMLButtonElement>('[aria-label="navigate Coding"]')?.click()
     await flushAsyncComponents()

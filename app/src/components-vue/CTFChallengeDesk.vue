@@ -679,7 +679,7 @@ function runPrimaryAction() {
 
       <div class="sticky bottom-0 z-10 flex flex-wrap items-center gap-3 border-t border-border bg-background/95 px-5 py-3 backdrop-blur">
         <p v-if="primaryActionType === 'start' && !modelVerified" class="text-caption text-muted-foreground">
-          打开 Coding 不要求模型；启动 Agent 回合前再配置/验证模型。
+          打开 Coding 不要求模型；发送回合前再在 Coding 会话中配置/验证模型。
         </p>
         <p v-else-if="activeBank === 'nssctf' && !judgeReady" class="text-caption text-muted-foreground">
           Judge 未连接只影响提交，不阻止打开 Coding 上下文。

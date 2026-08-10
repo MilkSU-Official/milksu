@@ -355,10 +355,8 @@ const agentCheckpointSummary = computed(() => {
       return '已有固定工作区与运行检查点，可以从上次进度继续。'
   }
 })
-const agentActionLabel = computed(() => {
-  if (!props.modelReady) return '配置模型后启动 Agent'
-  return hasAgentRecoveryPoint.value ? '恢复 CTF Agent' : '启动 CTF Agent'
-})
+// Workspace CTA only opens/reuses shared Coding context. It never auto-starts Pi.
+const agentActionLabel = computed(() => '在 Coding 中打开')
 const agentCapabilityLabels = computed(() => {
   const tools = new Set(activeProjection.value?.challenge.agentPolicy.allowedTools ?? [])
   return [
@@ -1132,7 +1130,7 @@ async function openCodingAgent() {
   if (!props.modelReady) {
     // Opening Coding context is allowed; only the Agent turn needs the model.
     await openCodingContext()
-    outcomeNotice.value = '已在 Coding 中打开本题上下文。配置模型后可再点“启动 Agent”发送回合。'
+    outcomeNotice.value = '已在 Coding 中打开本题上下文（未发送）。配置模型后，在 Coding 会话中再显式发送回合。'
     return
   }
   await openCodingContext()
@@ -1150,7 +1148,7 @@ async function openStrategistAgent() {
     )
     emit('startCodingAgent', handoff)
     if (!props.modelReady) {
-      outcomeNotice.value = '已打开策略复盘上下文。配置模型后再显式启动 Agent 回合。'
+      outcomeNotice.value = '已打开策略复盘 Coding 上下文（未发送）。配置模型后，在会话中再显式发送回合。'
     }
   } catch (reason) {
     outcomeNotice.value = `无法打开策略复盘：${String(reason)}`
@@ -1798,7 +1796,7 @@ onBeforeUnmount(() => {
               <ArrowRight class="size-4" />
             </Button>
             <p class="basis-full text-caption text-muted-foreground">
-              打开 Coding 不发送回合、不要求模型凭据；启动 Agent 需另点显式动作。
+              打开 Coding 只挂载上下文与草稿，不发送回合、不要求模型凭据。
             </p>
           </section>
 

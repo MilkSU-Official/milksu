@@ -41,7 +41,11 @@ describe('CTFPage navigation contract', () => {
     expect(ctfPageSource).not.toContain('训练准备')
     expect(ctfPageSource).not.toContain('readinessCount')
     expect(ctfPageSource).not.toContain('{{ readinessCount }}/3')
-    // modelReady only gates the Agent turn messaging, not openCodingContext itself.
+    expect(ctfPageSource).toContain("const agentActionLabel = computed(() => '在 Coding 中打开')")
+    expect(ctfPageSource).not.toContain('启动 CTF Agent')
+    expect(ctfPageSource).not.toContain('恢复 CTF Agent')
+    expect(ctfPageSource).not.toContain('配置模型后启动 Agent')
+    // modelReady only affects post-open notice, not openCodingContext itself.
     const openCodingContextStart = ctfPageSource.indexOf('async function openCodingContext()')
     const openCodingContextEnd = ctfPageSource.indexOf('async function openCodingAgent()', openCodingContextStart)
     const openCodingBody = ctfPageSource.slice(openCodingContextStart, openCodingContextEnd)

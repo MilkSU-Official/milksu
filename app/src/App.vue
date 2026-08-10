@@ -209,12 +209,18 @@ function domainContextFromCTFHandoff(handoff: CTFAgentWorkspaceHandoff) {
   })
 }
 
-async function startCTFAgent(handoff: CTFAgentWorkspaceHandoff) {
+async function startCTFAgent(handoff: CTFAgentWorkspaceHandoff & {
+  domainTaskContext?: import('@/lib/domainTaskContext').DomainTaskContext
+}) {
   rememberActiveConversation()
   section.value = 'chat'
+  // Prefer structured domain snapshot when the caller already built one (tests /
+  // future prepare enrichment). Otherwise derive from handoff materials only.
+  // Never auto-send: opening Coding stages a draft only.
   await conversations.startWorkspaceTask({
     ...handoff,
-    domainTaskContext: domainContextFromCTFHandoff(handoff),
+    domainTaskContext: handoff.domainTaskContext ?? domainContextFromCTFHandoff(handoff),
+    autoSend: false,
   })
   lastCTFConversationId.value = conversations.activeId.value
 }
@@ -260,6 +266,7 @@ async function switchCTFAgent(role: 'solver' | 'tool-builder' | 'strategist') {
     await conversations.startWorkspaceTask({
       ...handoff,
       domainTaskContext: domainContextFromCTFHandoff(handoff),
+      autoSend: false,
     })
     lastCTFConversationId.value = conversations.activeId.value
   } catch (reason) {
