@@ -74,16 +74,11 @@ const canSubmit = computed(() => (
   && (sourceKind.value === 'text' || sourceValue.value.trim().length > 0)
 ))
 
-function open() {
-  materialError.value = ''
-  if (!dialog.value?.open) dialog.value?.showModal()
-}
-
 function close() {
   dialog.value?.close()
 }
 
-function resetAndClose() {
+function resetDraft() {
   title.value = ''
   statement.value = ''
   category.value = 'misc'
@@ -93,6 +88,20 @@ function resetAndClose() {
   collaborationMode.value = 'copilot'
   materials.value = []
   materialError.value = ''
+}
+
+function open() {
+  resetDraft()
+  if (!dialog.value?.open) dialog.value?.showModal()
+}
+
+function cancel() {
+  resetDraft()
+  close()
+}
+
+function resetAndClose() {
+  resetDraft()
   close()
 }
 
@@ -152,7 +161,7 @@ defineExpose({ open, resetAndClose })
             <p class="mt-0.5 text-caption text-muted-foreground">只创建 MilkSU 本地工作区，不会上传到平台</p>
           </div>
         </div>
-        <Button type="button" variant="ghost" size="icon-sm" aria-label="关闭" @click="close">
+        <Button type="button" variant="ghost" size="icon-sm" aria-label="关闭" @click="cancel">
           <X class="size-4" />
         </Button>
       </header>
@@ -265,7 +274,7 @@ defineExpose({ open, resetAndClose })
       </div>
 
       <footer class="flex shrink-0 items-center justify-end gap-3 border-t border-border px-6 py-4">
-        <Button type="button" variant="ghost" @click="close">取消</Button>
+        <Button type="button" variant="ghost" @click="cancel">取消</Button>
         <Button
           type="submit"
           :disabled="!canSubmit"

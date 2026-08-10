@@ -860,6 +860,12 @@ async function startManualChallenge(request: CTFChallengeRequest) {
   }
 }
 
+function openManualChallenge() {
+  if (!backend.creating.value) manualCreating.value = false
+  backend.clearError()
+  manualIntake.value?.open()
+}
+
 function closeHistoryMenuOnOutsidePointer(event: PointerEvent) {
   if (!(event.target instanceof Node)) return
   for (const menu of [historyMenu.value]) {
@@ -2216,7 +2222,7 @@ onBeforeUnmount(() => {
                 </div>
               </div>
 
-              <Button class="mt-7" size="lg" @click="manualIntake?.open()">
+              <Button class="mt-7" size="lg" @click="openManualChallenge">
                 <FilePlus2 class="size-4" />
                 新建自定义题目
               </Button>

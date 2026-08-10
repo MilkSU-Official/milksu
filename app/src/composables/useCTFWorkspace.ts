@@ -102,6 +102,10 @@ export function useCTFWorkspace() {
     }
   }
 
+  function clearError() {
+    error.value = null
+  }
+
   async function selectJob(id: string) {
     selectedId.value = id
     try {
@@ -253,6 +257,7 @@ export function useCTFWorkspace() {
     loadAgentBudget,
     loadAgentRun,
     loadAgentState,
+    clearError,
     selectJob,
     startChallenge,
     recordLearning,

@@ -80,6 +80,9 @@ describe('CTFPage navigation contract', () => {
 
   it('keeps manual CTF intake loading scoped to manual challenge creation', () => {
     expect(ctfPageSource).toContain('const manualCreating = ref(false)')
+    expect(ctfPageSource).toContain('function openManualChallenge()')
+    expect(ctfPageSource).toContain('backend.clearError()')
+    expect(ctfPageSource).toContain('@click="openManualChallenge"')
 
     const manualStart = ctfPageSource.indexOf('async function startManualChallenge')
     const manualEnd = ctfPageSource.indexOf('function closeHistoryMenuOnOutsidePointer', manualStart)
