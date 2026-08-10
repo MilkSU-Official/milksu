@@ -25,6 +25,13 @@ describe('toDesktopCTFChallengeRequest', () => {
         mediaType: 'text/html',
         dataBase64: 'PGh0bWw+',
         provenance: 'NSSCTF public page',
+      }, {
+        name: 'twtapp30303.apk.1',
+        mediaType: 'application/zip',
+        provenance: 'local-file-picker:twtapp30303.apk.1:sha256:1016e313358650b39a5253c0fdba1760a0db58e40bc2a58d7e31735e4fdd7470',
+        importToken: 'ctfmat_0123456789abcdef0123456789abcdef',
+        size: 100316742,
+        sha256: '1016e313358650b39a5253c0fdba1760a0db58e40bc2a58d7e31735e4fdd7470',
       }],
     })
 

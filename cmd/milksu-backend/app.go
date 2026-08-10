@@ -2,14 +2,8 @@ package main
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/base64"
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"io"
-	"mime"
-	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
@@ -17,8 +11,6 @@ import (
 	"runtime"
 	"strings"
 	"time"
-	"unicode"
-	"unicode/utf8"
 
 	"github.com/MilkSU-Official/milksu/internal/appdata"
 	"github.com/MilkSU-Official/milksu/internal/browsercap"
@@ -48,6 +40,7 @@ type App struct {
 	conversations   *conversation.Store
 	codingFiles     *codingattachment.Store
 	codingCollab    *codingcollab.Manager
+	ctfMaterials    *localCTFMaterialStore
 	codingTerminals *codingterminal.Manager
 	codingPRs       *codingenv.PullRequestPublisher
 	computerUse     *computercap.Manager
@@ -118,6 +111,7 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 		conversations: conversations,
 		codingFiles:   codingFiles,
 		codingCollab:  codingCollab,
+		ctfMaterials:  newLocalCTFMaterialStore(),
 	}
 	application.diagnostics.Record("app", "info", "application services initialized")
 	if restoreResult.Applied {
@@ -568,14 +562,21 @@ func (a *App) ChooseCTFMaterials() ([]ctf.MaterialRequest, error) {
 	paths, err := a.openFiles(desktopDialogOptions{
 		Title: "补充 CTF 图片或附件",
 		Filters: []desktopFileFilter{
-			{Name: "CTF 材料", Extensions: []string{"png", "jpg", "jpeg", "gif", "webp", "svg", "txt", "md", "json", "xml", "html", "js", "py", "c", "cpp", "h", "zip", "gz", "tar", "7z", "rar", "pdf", "pcap", "pcapng", "bin", "elf", "exe"}},
 			{Name: "所有文件", Extensions: []string{"*"}},
+			{Name: "CTF 材料", Extensions: []string{"png", "jpg", "jpeg", "gif", "webp", "svg", "txt", "md", "json", "xml", "html", "js", "py", "c", "cpp", "h", "zip", "apk", "ipa", "gz", "tar", "7z", "rar", "pdf", "pcap", "pcapng", "bin", "elf", "exe"}},
 		},
 	})
 	if err != nil {
 		return nil, err
 	}
-	return loadLocalCTFMaterials(paths)
+	return a.localCTFMaterialStore().Import(paths)
+}
+
+func (a *App) localCTFMaterialStore() *localCTFMaterialStore {
+	if a.ctfMaterials == nil {
+		a.ctfMaterials = newLocalCTFMaterialStore()
+	}
+	return a.ctfMaterials
 }
 
 func (a *App) ChooseCodingAttachments() ([]codingattachment.Attachment, error) {
@@ -596,84 +597,6 @@ func (a *App) ChooseCodingAttachments() ([]codingattachment.Attachment, error) {
 		return []codingattachment.Attachment{}, nil
 	}
 	return a.codingFiles.Import(paths)
-}
-
-const (
-	maxLocalCTFMaterialCount = 8
-	maxLocalCTFMaterialBytes = 32 * 1024 * 1024
-	maxLocalCTFTotalBytes    = 96 * 1024 * 1024
-)
-
-func loadLocalCTFMaterials(paths []string) ([]ctf.MaterialRequest, error) {
-	if len(paths) > maxLocalCTFMaterialCount {
-		return nil, fmt.Errorf("一次最多补充 %d 个材料", maxLocalCTFMaterialCount)
-	}
-	materials := make([]ctf.MaterialRequest, 0, len(paths))
-	total := int64(0)
-	for _, path := range paths {
-		path = strings.TrimSpace(path)
-		info, err := os.Lstat(path)
-		if err != nil {
-			return nil, fmt.Errorf("读取材料信息: %w", err)
-		}
-		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
-			return nil, fmt.Errorf("材料 %q 必须是普通文件，不能是链接或目录", filepath.Base(path))
-		}
-		name := filepath.Base(path)
-		if name == "" || name == "." || name == string(filepath.Separator) ||
-			len([]rune(name)) > 160 || !utf8.ValidString(name) ||
-			strings.IndexFunc(name, unicode.IsControl) >= 0 {
-			return nil, fmt.Errorf("材料文件名无效")
-		}
-		if info.Size() <= 0 || info.Size() > maxLocalCTFMaterialBytes {
-			return nil, fmt.Errorf("材料 %q 必须在 1 字节到 32 MiB 之间", name)
-		}
-		total += info.Size()
-		if total > maxLocalCTFTotalBytes {
-			return nil, fmt.Errorf("补充材料合计不能超过 96 MiB")
-		}
-
-		file, err := os.Open(path)
-		if err != nil {
-			return nil, fmt.Errorf("打开材料 %q: %w", name, err)
-		}
-		openedInfo, statErr := file.Stat()
-		if statErr != nil || !openedInfo.Mode().IsRegular() || !os.SameFile(info, openedInfo) ||
-			openedInfo.Size() != info.Size() {
-			_ = file.Close()
-			return nil, fmt.Errorf("材料 %q 在读取前发生变化", name)
-		}
-		data, readErr := io.ReadAll(io.LimitReader(file, maxLocalCTFMaterialBytes+1))
-		closeErr := file.Close()
-		if readErr != nil {
-			return nil, fmt.Errorf("读取材料 %q: %w", name, readErr)
-		}
-		if closeErr != nil {
-			return nil, fmt.Errorf("关闭材料 %q: %w", name, closeErr)
-		}
-		if len(data) == 0 || len(data) > maxLocalCTFMaterialBytes {
-			return nil, fmt.Errorf("材料 %q 必须在 1 字节到 32 MiB 之间", name)
-		}
-		if int64(len(data)) != info.Size() {
-			return nil, fmt.Errorf("材料 %q 在读取时发生变化", name)
-		}
-
-		mediaType := mime.TypeByExtension(strings.ToLower(filepath.Ext(name)))
-		if mediaType == "" {
-			mediaType = http.DetectContentType(data)
-		}
-		if separator := strings.IndexByte(mediaType, ';'); separator >= 0 {
-			mediaType = mediaType[:separator]
-		}
-		digest := sha256.Sum256(data)
-		materials = append(materials, ctf.MaterialRequest{
-			Name:       name,
-			MediaType:  mediaType,
-			DataBase64: base64.StdEncoding.EncodeToString(data),
-			Provenance: fmt.Sprintf("local-file-picker:%s:sha256:%s", name, hex.EncodeToString(digest[:])),
-		})
-	}
-	return materials, nil
 }
 
 func (a *App) SendMessage(
@@ -1068,7 +991,16 @@ func (a *App) RevealBrowserExtension() error {
 }
 
 func (a *App) StartCTFChallenge(request ctf.ChallengeRequest) (ctf.Projection, error) {
-	return a.ctfJobs.StartChallenge(a.commandContext(), request)
+	resolved, cleanup, err := a.localCTFMaterialStore().Resolve(request)
+	if err != nil {
+		return ctf.Projection{}, err
+	}
+	projection, err := a.ctfJobs.StartChallenge(a.commandContext(), resolved)
+	if err != nil {
+		return ctf.Projection{}, err
+	}
+	cleanup()
+	return projection, nil
 }
 
 func (a *App) ListCTFJobs() ([]ctf.Summary, error) {
