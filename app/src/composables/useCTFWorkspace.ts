@@ -10,6 +10,27 @@ import type {
 } from '@/ctfTypes'
 import type { RuntimeEvent } from '@/runtimeTypes'
 
+/** Electron IPC cannot structured-clone Vue reactive proxies. Keep the desktop
+ * boundary explicit so all CTF entry points send plain records and arrays. */
+export function toDesktopCTFChallengeRequest(
+  request: CTFChallengeRequest,
+): CTFChallengeRequest {
+  return {
+    ...request,
+    sourceTargets: request.sourceTargets?.map(target => ({
+      kind: target.kind,
+      value: target.value,
+    })),
+    knowledgePoints: request.knowledgePoints.map(point => String(point)),
+    materials: request.materials.map(material => ({
+      name: material.name,
+      mediaType: material.mediaType,
+      dataBase64: material.dataBase64,
+      provenance: material.provenance,
+    })),
+  }
+}
+
 export function useCTFWorkspace() {
   const jobs = ref<CTFSummary[]>([])
   const selectedId = ref<string | null>(null)
@@ -92,7 +113,9 @@ export function useCTFWorkspace() {
   async function startChallenge(request: CTFChallengeRequest) {
     creating.value = true
     try {
-      const started = await invokeCommand<CTFProjection>('start_ctf_challenge', { request })
+      const started = await invokeCommand<CTFProjection>('start_ctf_challenge', {
+        request: toDesktopCTFChallengeRequest(request),
+      })
       selectedId.value = started.job.id
       projection.value = started
       jobs.value = await invokeCommand<CTFSummary[]>('list_ctf_jobs')
