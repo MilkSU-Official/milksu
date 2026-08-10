@@ -106,23 +106,18 @@ const selectedRecommendationReason = computed(() => {
   )
 })
 
-const nssctfNeedsMaterial = computed(() => Boolean(
-  props.selectedNssctf?.hasAttachment
-  && !props.selectedBrowserReady
-  && !props.localMaterials.length,
-))
 // Primary desk action opens Coding context without model gate. Material/bridge
-// prep still uses open; Agent start remains a separate workspace action.
+// prep remains available as a separate action; it must not block handing the
+// known challenge context to Coding when an attachment is still missing.
 const primaryActionType = computed<'open' | 'start'>(() => {
   if (props.hasActiveTraining) return 'start'
-  if (props.activeBank === 'nssctf' && nssctfNeedsMaterial.value) return 'open'
   if (props.activeBank === 'ctfshow' && !props.ctfshowBridgeReady) return 'open'
   return 'start'
 })
 const primaryActionLabel = computed(() => {
   if (props.hasActiveTraining) return '在 Coding 中打开'
   if (primaryActionType.value === 'open') {
-    return props.activeBank === 'nssctf' ? '打开题目并连接' : '连接 CTFshow'
+    return '连接 CTFshow'
   }
   return props.activeBank === 'nssctf' ? '在 Coding 中打开' : '读取题面并打开 Coding'
 })
@@ -234,8 +229,7 @@ function pinnedNssctfLabel(id: number) {
 
 function runPrimaryAction() {
   if (primaryActionType.value === 'open') {
-    if (props.activeBank === 'nssctf') emit('openProblem')
-    else emit('openCtfshow')
+    emit('openCtfshow')
     return
   }
   // start = open Coding context for the selected challenge (no model gate).

@@ -21,7 +21,7 @@ afterEach(() => {
   document.body.innerHTML = ''
 })
 
-function selectedChallenge(): NSSCTFChallenge {
+function selectedChallenge(hasAttachment = false): NSSCTFChallenge {
   return {
     platform: 'NSSCTF',
     platformId: 3347,
@@ -32,7 +32,7 @@ function selectedChallenge(): NSSCTFChallenge {
     points: 100,
     difficulty: 1.5,
     tags: ['RSA'],
-    hasAttachment: false,
+    hasAttachment,
     hasEnvironment: false,
     writeupCount: 0,
     solvedCount: 1,
@@ -41,7 +41,7 @@ function selectedChallenge(): NSSCTFChallenge {
   }
 }
 
-async function mountDesk(options: { catalogLoading: boolean; actionLoading: boolean }) {
+async function mountDesk(options: { catalogLoading: boolean; actionLoading: boolean; hasAttachment?: boolean }) {
   const onStartNssctf = vi.fn()
   const host = document.createElement('div')
   document.body.append(host)
@@ -49,7 +49,7 @@ async function mountDesk(options: { catalogLoading: boolean; actionLoading: bool
     activeBank: 'nssctf',
     nssctfProblems: [],
     ctfshowProblems: [],
-    selectedNssctf: selectedChallenge(),
+    selectedNssctf: selectedChallenge(options.hasAttachment),
     selectedCtfshow: null,
     dashboard: null,
     nssctfAttemptedIds: [],
@@ -87,6 +87,20 @@ describe('CTFChallengeDesk primary action', () => {
     const { action, onStartNssctf } = await mountDesk({
       catalogLoading: true,
       actionLoading: false,
+    })
+
+    expect(action).toBeTruthy()
+    expect(action?.disabled).toBe(false)
+    action?.click()
+    await nextTick()
+    expect(onStartNssctf).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps missing NSSCTF attachments from blocking the Coding handoff', async () => {
+    const { action, onStartNssctf } = await mountDesk({
+      catalogLoading: false,
+      actionLoading: false,
+      hasAttachment: true,
     })
 
     expect(action).toBeTruthy()
