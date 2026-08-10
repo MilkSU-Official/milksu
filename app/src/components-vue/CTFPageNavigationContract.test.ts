@@ -53,6 +53,21 @@ describe('CTFPage navigation contract', () => {
     expect(openCodingBody).toContain("prepare_ctf_agent_workspace")
   })
 
+  it('does not block Coding context on an NSSCTF attachment or browser bridge', () => {
+    const readinessStart = ctfPageSource.indexOf('const canStartSelectedChallenge')
+    const readinessEnd = ctfPageSource.indexOf('const catalogAction', readinessStart)
+    const readinessBody = ctfPageSource.slice(readinessStart, readinessEnd)
+    expect(readinessBody).toContain('return Boolean(selectedProblem.value)')
+    expect(readinessBody).not.toContain('selectedProblem.value.hasAttachment')
+    expect(readinessBody).not.toContain('selectedBrowserReady.value')
+
+    const startStart = ctfPageSource.indexOf('async function startPublicWorkspace()')
+    const startEnd = ctfPageSource.indexOf('async function startArenaWorkspace()', startStart)
+    const startBody = ctfPageSource.slice(startStart, startEnd)
+    expect(startBody).toContain('附件尚未导入；Coding 将先使用公开题面继续')
+    expect(startBody).not.toContain('有附件；请先连接已登录的 Chrome 题目页')
+  })
+
   it('quotes confirmed related history into the debrief draft instead of saving CTF memory directly', () => {
     expect(ctfPageSource).toContain('quoteSessionHistoryToDebrief')
     expect(ctfPageSource).toContain('confirm-action-label="引用到复盘"')

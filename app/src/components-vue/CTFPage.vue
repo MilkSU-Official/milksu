@@ -272,10 +272,7 @@ const selectedActiveJob = computed(() => {
 const canStartSelectedChallenge = computed(() => {
   if (selectedActiveJob.value) return true
   if (activeBank.value === 'nssctf') {
-    if (!selectedProblem.value) return false
-    return !selectedProblem.value.hasAttachment
-      || selectedBrowserReady.value
-      || localMaterials.value.length > 0
+    return Boolean(selectedProblem.value)
   }
   return activeBank.value === 'ctfshow'
     && Boolean(selectedCTFShowProblemID.value)
@@ -1038,8 +1035,7 @@ async function startPublicWorkspace() {
     }
     if (challenge.hasAttachment) {
       if (!selectedBrowserReady.value && materials.length === 0) {
-        attachmentError.value = `P${challenge.platformId} 有附件；请先连接已登录的 Chrome 题目页。`
-        return
+        materialWarning = `P${challenge.platformId} 的附件尚未导入；Coding 将先使用公开题面继续`
       }
       if (selectedBrowserReady.value) {
         try {
@@ -1048,10 +1044,6 @@ async function startPublicWorkspace() {
           }))
         } catch (reason) {
           const message = reason instanceof Error ? reason.message : String(reason)
-          if (localMaterials.value.length === 0) {
-            attachmentError.value = message
-            return
-          }
           materialWarning = materialWarning ? `${materialWarning}；${message}` : message
         }
       }
