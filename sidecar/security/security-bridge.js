@@ -7,6 +7,7 @@ import {
 import { Type } from "typebox";
 import { createInterface } from "node:readline";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import currentProviderRuntime from "../pi/current-provider-runtime.cjs";
 
 const { currentProviderDefinition } = currentProviderRuntime;
@@ -15,7 +16,7 @@ const relayKey = process.env.MILKSU_RELAY_KEY;
 const relayUrl = process.env.MILKSU_RELAY_URL || "https://api.ciyuanliudong.com/v1";
 const relayEnabled = process.env.MILKSU_RELAY_ENABLED === "1" && Boolean(relayKey);
 const sessions = new Map();
-const input = createInterface({ input: process.stdin });
+let input;
 
 function emit(requestId, type, data = {}) {
   process.stdout.write(`${JSON.stringify({ requestId: requestId ?? null, type, ...data })}\n`);
@@ -27,10 +28,33 @@ function describeError(error) {
   return `${error.stack || error.message}${resource}`;
 }
 
+function findRuntimeModel(session, provider, model) {
+  if (session?.modelRuntime?.getModel) {
+    return session.modelRuntime.getModel(provider, model);
+  }
+  if (session?.modelRegistry?.find) {
+    return session.modelRegistry.find(provider, model);
+  }
+  return undefined;
+}
+
+function registerRuntimeProvider(session, provider, definition) {
+  if (!definition) return false;
+  if (session?.modelRuntime?.registerProvider) {
+    session.modelRuntime.registerProvider(provider, definition);
+    return true;
+  }
+  if (session?.modelRegistry?.registerProvider) {
+    session.modelRegistry.registerProvider(provider, definition);
+    return true;
+  }
+  return false;
+}
+
 function configureRelayModel(session, provider, model) {
   if (!relayEnabled) return { provider, model };
-  const source = session.modelRegistry.find(provider, model);
-  session.modelRegistry.registerProvider("milksu-relay", {
+  const source = findRuntimeModel(session, provider, model);
+  const registered = registerRuntimeProvider(session, "milksu-relay", {
     name: "MilkSU Relay",
     baseUrl: relayUrl,
     apiKey: relayKey,
@@ -45,18 +69,19 @@ function configureRelayModel(session, provider, model) {
       maxTokens: source?.maxTokens ?? 16384,
     }],
   });
+  if (!registered) return { provider, model };
   return { provider: "milksu-relay", model };
 }
 
 function configureRuntimeModel(session, provider, model) {
   const definition = currentProviderDefinition(provider, model);
-  if (definition) session.modelRegistry.registerProvider(provider, definition);
+  registerRuntimeProvider(session, provider, definition);
   return configureRelayModel(session, provider, model);
 }
 
 async function setSessionModel(session, provider, model) {
   if (!provider || !model) throw new Error("provider and model are required");
-  const desired = session.modelRegistry.find(provider, model);
+  const desired = findRuntimeModel(session, provider, model);
   if (!desired) throw new Error(`Model not found: ${provider}/${model}`);
   await session.setModel(desired);
 }
@@ -264,22 +289,25 @@ async function handleCommand(command) {
   }
 }
 
-input.on("line", (line) => {
-  if (!line.trim()) return;
-  let command;
-  try {
-    command = JSON.parse(line);
-  } catch (error) {
-    emit(null, "error", { error: `Malformed JSON command: ${String(error)}` });
-    return;
-  }
-  void handleCommand(command).catch((error) => {
-    emit(command.requestId, "error", { error: describeError(error) });
+function startProtocol() {
+  input = createInterface({ input: process.stdin });
+  input.on("line", (line) => {
+    if (!line.trim()) return;
+    let command;
+    try {
+      command = JSON.parse(line);
+    } catch (error) {
+      emit(null, "error", { error: `Malformed JSON command: ${String(error)}` });
+      return;
+    }
+    void handleCommand(command).catch((error) => {
+      emit(command.requestId, "error", { error: describeError(error) });
+    });
   });
-});
+}
 
 async function shutdown() {
-  input.close();
+  if (input) input.close();
   for (const value of sessions.values()) {
     try {
       await value.session.abort();
@@ -292,5 +320,16 @@ async function shutdown() {
   process.exit(0);
 }
 
-process.on("SIGTERM", () => void shutdown());
-process.on("SIGINT", () => void shutdown());
+const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (isMain) {
+  startProtocol();
+  process.on("SIGTERM", () => void shutdown());
+  process.on("SIGINT", () => void shutdown());
+}
+
+export {
+  configureRuntimeModel,
+  findRuntimeModel,
+  registerRuntimeProvider,
+  setSessionModel,
+};

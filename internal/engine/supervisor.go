@@ -25,6 +25,7 @@ import (
 const eventSchemaVersion = 1
 
 const defaultTurnActivityTimeout = 90 * time.Second
+const defaultToolSilenceTimeout = 5 * time.Minute
 
 // defaultCompactionTimeout bounds a manual context compaction end to end. It
 // deliberately exceeds the Sidecar-side cancellation bound so the Sidecar
@@ -217,38 +218,42 @@ type childProcess struct {
 }
 
 type Supervisor struct {
-	mu               sync.Mutex
-	probeMu          sync.Mutex
-	process          *childProcess
-	sessions         map[string]struct{}
-	probeWaiters     map[string]chan Event
-	silentSessions   map[string]struct{}
-	controlWaiters   map[string]chan Event
-	recoveryWaiters  map[string]map[chan Event]struct{}
-	recoveryFailures map[string]string
-	turnTimeout      time.Duration
-	turnTimers       map[string]*time.Timer
-	turnSequence     map[string]uint64
-	approvals        map[string]int
-	backgroundTasks  map[string][]BackgroundTask
-	emit             func(Event)
-	sidecarDirectory string
+	mu                 sync.Mutex
+	probeMu            sync.Mutex
+	process            *childProcess
+	sessions           map[string]struct{}
+	probeWaiters       map[string]chan Event
+	silentSessions     map[string]struct{}
+	controlWaiters     map[string]chan Event
+	recoveryWaiters    map[string]map[chan Event]struct{}
+	recoveryFailures   map[string]string
+	turnTimeout        time.Duration
+	toolSilenceTimeout time.Duration
+	turnTimers         map[string]*time.Timer
+	turnSequence       map[string]uint64
+	approvals          map[string]int
+	activeToolCalls    map[string]int
+	backgroundTasks    map[string][]BackgroundTask
+	emit               func(Event)
+	sidecarDirectory   string
 }
 
 func NewSupervisor(emit func(Event)) *Supervisor {
 	return &Supervisor{
-		sessions:         make(map[string]struct{}),
-		probeWaiters:     make(map[string]chan Event),
-		silentSessions:   make(map[string]struct{}),
-		controlWaiters:   make(map[string]chan Event),
-		recoveryWaiters:  make(map[string]map[chan Event]struct{}),
-		recoveryFailures: make(map[string]string),
-		turnTimeout:      defaultTurnActivityTimeout,
-		turnTimers:       make(map[string]*time.Timer),
-		turnSequence:     make(map[string]uint64),
-		approvals:        make(map[string]int),
-		backgroundTasks:  make(map[string][]BackgroundTask),
-		emit:             emit,
+		sessions:           make(map[string]struct{}),
+		probeWaiters:       make(map[string]chan Event),
+		silentSessions:     make(map[string]struct{}),
+		controlWaiters:     make(map[string]chan Event),
+		recoveryWaiters:    make(map[string]map[chan Event]struct{}),
+		recoveryFailures:   make(map[string]string),
+		turnTimeout:        defaultTurnActivityTimeout,
+		toolSilenceTimeout: defaultToolSilenceTimeout,
+		turnTimers:         make(map[string]*time.Timer),
+		turnSequence:       make(map[string]uint64),
+		approvals:          make(map[string]int),
+		activeToolCalls:    make(map[string]int),
+		backgroundTasks:    make(map[string][]BackgroundTask),
+		emit:               emit,
 	}
 }
 
@@ -1325,6 +1330,7 @@ func (s *Supervisor) readEvents(process *childProcess, stdout io.Reader) {
 		s.recoveryFailures = make(map[string]string)
 		s.stopAllTurnTimersLocked()
 		s.approvals = make(map[string]int)
+		s.activeToolCalls = make(map[string]int)
 		s.backgroundTasks = make(map[string][]BackgroundTask)
 	}
 	s.mu.Unlock()
@@ -1352,6 +1358,7 @@ func (s *Supervisor) observeTurnEvent(event Event) {
 	case "assistant.completed", "assistant.settled", "engine.error", "session.destroyed":
 		s.stopTurnTimerLocked(event.SessionID)
 		delete(s.approvals, event.SessionID)
+		delete(s.activeToolCalls, event.SessionID)
 	case "approval.requested":
 		s.approvals[event.SessionID]++
 		s.stopTurnTimerLocked(event.SessionID)
@@ -1369,7 +1376,23 @@ func (s *Supervisor) observeTurnEvent(event Event) {
 			s.approvals[event.SessionID] == 0 {
 			s.armTurnTimerLocked(event.SessionID)
 		}
-	case "session.ready", "session.policy_updated", "session.model_selected", "session.queue_updated", "assistant.delta", "assistant.segment_completed", "tool.started", "tool.progress", "tool.completed":
+	case "tool.started":
+		s.activeToolCalls[event.SessionID]++
+		if _, exists := s.turnTimers[event.SessionID]; exists &&
+			s.approvals[event.SessionID] == 0 {
+			s.armTurnTimerLocked(event.SessionID)
+		}
+	case "tool.completed":
+		if s.activeToolCalls[event.SessionID] > 1 {
+			s.activeToolCalls[event.SessionID]--
+		} else {
+			delete(s.activeToolCalls, event.SessionID)
+		}
+		if _, exists := s.turnTimers[event.SessionID]; exists &&
+			s.approvals[event.SessionID] == 0 {
+			s.armTurnTimerLocked(event.SessionID)
+		}
+	case "session.ready", "session.policy_updated", "session.model_selected", "session.queue_updated", "assistant.delta", "assistant.segment_completed", "tool.progress":
 		if _, exists := s.turnTimers[event.SessionID]; exists &&
 			s.approvals[event.SessionID] == 0 {
 			s.armTurnTimerLocked(event.SessionID)
@@ -1403,6 +1426,12 @@ func (s *Supervisor) armTurnTimerLocked(sessionID string) {
 	if timeout <= 0 {
 		timeout = defaultTurnActivityTimeout
 	}
+	if s.activeToolCalls[sessionID] > 0 {
+		timeout = s.toolSilenceTimeout
+		if timeout <= 0 {
+			timeout = defaultToolSilenceTimeout
+		}
+	}
 	s.turnSequence[sessionID]++
 	sequence := s.turnSequence[sessionID]
 	s.turnTimers[sessionID] = time.AfterFunc(timeout, func() {
@@ -1424,6 +1453,7 @@ func (s *Supervisor) stopAllTurnTimersLocked() {
 		delete(s.turnTimers, sessionID)
 		s.turnSequence[sessionID]++
 	}
+	s.activeToolCalls = make(map[string]int)
 }
 
 func (s *Supervisor) handleTurnTimeout(

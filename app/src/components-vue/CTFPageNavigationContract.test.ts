@@ -45,12 +45,22 @@ describe('CTFPage navigation contract', () => {
     expect(ctfPageSource).not.toContain('启动 CTF Agent')
     expect(ctfPageSource).not.toContain('恢复 CTF Agent')
     expect(ctfPageSource).not.toContain('配置模型后启动 Agent')
+    expect(ctfPageSource).toContain('const canOpenCodingAgent = computed')
+    expect(ctfPageSource).not.toContain('const canStartAgentTurn = computed')
+    expect(ctfPageSource).toContain(':disabled="!canOpenCodingAgent"')
+    expect(ctfPageSource).not.toContain(':disabled="!canStartAgentTurn"')
     // modelReady only affects post-open notice, not openCodingContext itself.
     const openCodingContextStart = ctfPageSource.indexOf('async function openCodingContext()')
     const openCodingContextEnd = ctfPageSource.indexOf('async function openCodingAgent()', openCodingContextStart)
     const openCodingBody = ctfPageSource.slice(openCodingContextStart, openCodingContextEnd)
     expect(openCodingBody).not.toContain('modelReady')
     expect(openCodingBody).toContain("prepare_ctf_agent_workspace")
+
+    const openCodingAgentStart = ctfPageSource.indexOf('async function openCodingAgent()')
+    const openCodingAgentEnd = ctfPageSource.indexOf('async function openStrategistAgent()', openCodingAgentStart)
+    const openCodingAgentBody = ctfPageSource.slice(openCodingAgentStart, openCodingAgentEnd)
+    expect(openCodingAgentBody).toContain('await openCodingContext()')
+    expect(openCodingAgentBody).toContain('agentBudgetStopMessage.value')
   })
 
   it('does not block Coding context on an NSSCTF attachment or browser bridge', () => {

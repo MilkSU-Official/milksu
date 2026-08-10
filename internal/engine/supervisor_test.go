@@ -1572,6 +1572,41 @@ func TestTurnActivityEventResetsThenSettledStopsTimeout(t *testing.T) {
 	}
 }
 
+func TestRunningToolUsesLongerSilenceTimeout(t *testing.T) {
+	events := make(chan Event, 2)
+	supervisor := NewSupervisor(func(event Event) {
+		events <- event
+	})
+	defer supervisor.Close()
+	supervisor.turnTimeout = 20 * time.Millisecond
+	supervisor.toolSilenceTimeout = 80 * time.Millisecond
+	supervisor.mu.Lock()
+	supervisor.sessions["session-tool"] = struct{}{}
+	supervisor.armTurnTimerLocked("session-tool")
+	supervisor.mu.Unlock()
+	supervisor.observeTurnEvent(Event{
+		SessionID:  "session-tool",
+		Type:       "tool.started",
+		ToolCallID: "tool-1",
+	})
+	time.Sleep(40 * time.Millisecond)
+	select {
+	case event := <-events:
+		t.Fatalf("running tool used normal turn timeout: %#v", event)
+	default:
+	}
+	select {
+	case event := <-events:
+		if event.Type != "engine.error" ||
+			event.SessionID != "session-tool" ||
+			!strings.Contains(event.Error, "persisted workspace") {
+			t.Fatalf("unexpected tool silence timeout event: %#v", event)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("silent running tool did not time out")
+	}
+}
+
 func TestNormalizeBridgeToolProgressDropsPartialContent(t *testing.T) {
 	event := normalizeBridgeEvent(bridgeEvent{
 		Type:       "tool_call_progress",

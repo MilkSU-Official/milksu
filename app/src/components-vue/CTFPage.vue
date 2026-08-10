@@ -303,8 +303,8 @@ const canContinue = computed(() => {
   const status = activeProjection.value?.job.status
   return Boolean(activeProjection.value && !['succeeded', 'failed', 'cancelled'].includes(status ?? ''))
 })
-const canStartAgentTurn = computed(() => (
-  canContinue.value && !backend.agentBudget.value?.exhausted
+const canOpenCodingAgent = computed(() => (
+  canContinue.value && Boolean(activeProjection.value)
 ))
 const agentCheckpoint = computed(() => backend.agentRun.value)
 const agentProgress = computed(() => agentCheckpoint.value?.progress)
@@ -1122,6 +1122,7 @@ async function openCodingAgent() {
   if (!activeProjection.value) return
   await backend.loadAgentState(activeProjection.value.job.id)
   if (backend.agentBudget.value?.exhausted) {
+    await openCodingContext()
     outcomeNotice.value = agentBudgetStopMessage.value
     return
   }
@@ -2474,7 +2475,7 @@ onBeforeUnmount(() => {
                         </div>
                       </details>
                     </div>
-                    <Button :loading="working" :disabled="!canStartAgentTurn" @click="openCodingAgent">
+                    <Button :loading="working" :disabled="!canOpenCodingAgent" @click="openCodingAgent">
                       <Sparkles class="size-4" />
                       {{ agentActionLabel }}
                     </Button>
