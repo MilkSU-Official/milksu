@@ -21,7 +21,13 @@ import {
   selectCodingConversationId,
   selectCTFResumePoint,
 } from '@/lib/workspaceSessionRouting'
-import { withAppSettingsDefaults, type AppSettings, type CTFChatAction, type StartupRecoveryStatus } from '@/types'
+import {
+  CTF_AGENT_MODEL_SELECTION,
+  withAppSettingsDefaults,
+  type AppSettings,
+  type CTFChatAction,
+  type StartupRecoveryStatus,
+} from '@/types'
 
 const ChatPage = defineAsyncComponent(() => import('@/components-vue/ChatPage.vue'))
 const CTFPage = defineAsyncComponent(() => import('@/components-vue/CTFPage.vue'))
@@ -220,6 +226,9 @@ async function startCTFAgent(handoff: CTFAgentWorkspaceHandoff & {
   await conversations.startWorkspaceTask({
     ...handoff,
     domainTaskContext: handoff.domainTaskContext ?? domainContextFromCTFHandoff(handoff),
+    modelMode: 'manual',
+    modelProvider: CTF_AGENT_MODEL_SELECTION.provider,
+    modelId: CTF_AGENT_MODEL_SELECTION.model,
     autoSend: false,
   })
   lastCTFConversationId.value = conversations.activeId.value
@@ -266,6 +275,9 @@ async function switchCTFAgent(role: 'solver' | 'tool-builder' | 'strategist') {
     await conversations.startWorkspaceTask({
       ...handoff,
       domainTaskContext: domainContextFromCTFHandoff(handoff),
+      modelMode: 'manual',
+      modelProvider: CTF_AGENT_MODEL_SELECTION.provider,
+      modelId: CTF_AGENT_MODEL_SELECTION.model,
       autoSend: false,
     })
     lastCTFConversationId.value = conversations.activeId.value

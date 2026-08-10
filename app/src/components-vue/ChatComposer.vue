@@ -94,6 +94,7 @@ const props = defineProps<{
   goalMode: boolean
   goal?: CodingGoalState
   gitSummary?: ComposerGitSummary
+  taskStepLabel?: string
   executionMode: CodingExecutionMode
   approvalPolicy: CodingApprovalPolicy
   approvalLabel: string
@@ -314,10 +315,10 @@ const showGitSummary = computed(() => Boolean(
   props.gitSummary && props.gitSummary.changedFiles > 0,
 ))
 const showProgressSummary = computed(() => Boolean(
-  (props.goal?.iteration ?? 0) > 0 || showGitSummary.value,
+  props.taskStepLabel || (props.goal?.iteration ?? 0) > 0 || showGitSummary.value,
 ))
 const showGoalDock = computed(() => Boolean(
-  !props.ctfSession && (props.goal || props.goalMode || showProgressSummary.value),
+  showProgressSummary.value || (!props.ctfSession && (props.goal || props.goalMode)),
 ))
 
 const ctfActionOptions = computed(() => {
@@ -949,8 +950,15 @@ defineExpose({
             class="size-3.5 shrink-0 text-primary"
             :class="{ 'animate-spin': running }"
           />
-          <span v-if="goal?.iteration">第 {{ goal.iteration }} 轮</span>
-          <span v-if="goal?.iteration && showGitSummary" aria-hidden="true">·</span>
+          <span
+            v-if="taskStepLabel"
+            class="chat-composer__step-label"
+            :title="taskStepLabel"
+          >
+            {{ taskStepLabel }}
+          </span>
+          <span v-else-if="goal?.iteration">第 {{ goal.iteration }} 轮</span>
+          <span v-if="(taskStepLabel || goal?.iteration) && showGitSummary" aria-hidden="true">·</span>
           <HoverCard v-if="showGitSummary" :open-delay="120" :close-delay="80">
             <HoverCardTrigger as-child>
               <button
@@ -959,7 +967,7 @@ defineExpose({
                 aria-label="查看代码变更"
                 @click="$emit('openChanges')"
               >
-                <span>代码</span>
+                <span>{{ gitSummary?.changedFiles }} 个文件已更改</span>
                 <span class="text-primary">+{{ gitSummary?.additions }}</span>
                 <span class="text-destructive">-{{ gitSummary?.deletions }}</span>
               </button>
@@ -1396,6 +1404,14 @@ defineExpose({
   padding: 0.4rem 0.85rem;
   font-size: var(--text-caption);
   color: var(--muted-foreground);
+}
+
+.chat-composer__step-label {
+  min-width: 0;
+  max-width: min(28rem, 48vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .chat-composer__goal-panel {

@@ -90,6 +90,9 @@ function createMockConversations() {
       conversationId?: string
       role?: Conversation['ctfRole']
       domainTaskContext?: Conversation['domainTaskContext']
+      modelMode?: Conversation['modelMode']
+      modelProvider?: string
+      modelId?: string
       autoSend?: boolean
       prompt?: string
     }) => {
@@ -115,6 +118,9 @@ function createMockConversations() {
         createdAt: Date.now(),
         ctfJobId: task.jobId,
         ctfRole: task.role ?? (task.jobId ? 'solver' : undefined),
+        modelMode: task.modelMode,
+        modelProvider: task.modelProvider,
+        modelId: task.modelId,
         domainTaskContext: task.domainTaskContext,
         // No synthetic assistant "started" message: open path does not send.
         messages: [],
@@ -373,6 +379,9 @@ describe('App cross-module routing', () => {
       challengeId: 'ch-1',
       authorizedScope: expect.stringContaining('source-1'),
     })
+    expect(opened?.modelMode).toBe('manual')
+    expect(opened?.modelProvider).toBe('tokenflux')
+    expect(opened?.modelId).toBe('grok-4.5')
     expect(opened?.messages ?? []).toEqual([])
     expect(hoisted.conversations?.pendingComposerDraft.value?.prompt).toContain('solve with exact scope')
     expect(hoisted.conversations?.send).not.toHaveBeenCalled()

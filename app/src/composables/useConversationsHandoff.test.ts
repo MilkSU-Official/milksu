@@ -32,6 +32,9 @@ describe('useConversations domain handoff attach', () => {
       prompt: 'proposed solver prompt',
       policy: { mode: 'copilot' },
       role: 'solver',
+      modelMode: 'manual',
+      modelProvider: 'tokenflux',
+      modelId: 'grok-4.5',
       domainTaskContext: {
         kind: 'ctf',
         jobId: 'job-42',
@@ -53,6 +56,9 @@ describe('useConversations domain handoff attach', () => {
     expect(conversations.activeId.value).toBe('ctf-conversation-42')
     const active = conversations.active.value
     expect(active?.ctfJobId).toBe('job-42')
+    expect(active?.modelMode).toBe('manual')
+    expect(active?.modelProvider).toBe('tokenflux')
+    expect(active?.modelId).toBe('grok-4.5')
     expect(active?.domainTaskContext).toMatchObject({
       kind: 'ctf',
       challengeId: 'ch-exact',
@@ -66,6 +72,43 @@ describe('useConversations domain handoff attach', () => {
     })
     expect(invokeCommand.mock.calls.some(call => call[0] === 'send_message')).toBe(false)
     expect(invokeCommand.mock.calls.some(call => call[0] === 'save_conversation')).toBe(true)
+  })
+
+  it('applies a CTF default model only when a reused CTF conversation has no manual model yet', async () => {
+    const { useConversations } = await import('@/composables/useConversations')
+    const conversations = useConversations()
+    const task = {
+      jobId: 'job-model',
+      conversationId: 'ctf-conversation-model',
+      title: 'CTF · Model default',
+      workspacePath: '/tmp/ctf-job-model',
+      prompt: 'solve',
+      policy: { mode: 'copilot' as const },
+      role: 'solver' as const,
+    }
+
+    await conversations.startWorkspaceTask(task)
+    expect(conversations.active.value?.modelMode).toBeUndefined()
+
+    await conversations.startWorkspaceTask({
+      ...task,
+      modelMode: 'manual',
+      modelProvider: 'tokenflux',
+      modelId: 'grok-4.5',
+    })
+    expect(conversations.active.value?.modelMode).toBe('manual')
+    expect(conversations.active.value?.modelProvider).toBe('tokenflux')
+    expect(conversations.active.value?.modelId).toBe('grok-4.5')
+
+    conversations.setModelSelection('manual', 'openai', 'gpt-test')
+    await conversations.startWorkspaceTask({
+      ...task,
+      modelMode: 'manual',
+      modelProvider: 'tokenflux',
+      modelId: 'grok-4.5',
+    })
+    expect(conversations.active.value?.modelProvider).toBe('openai')
+    expect(conversations.active.value?.modelId).toBe('gpt-test')
   })
 
   it('CVE ensureConversation + stageComposerDraft does not send', async () => {

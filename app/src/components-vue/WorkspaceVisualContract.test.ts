@@ -23,11 +23,11 @@ describe('Workspace visual contract', () => {
   })
 
   it('raises Coding reading surfaces and aligns its compact controls', () => {
-    expect(contextSidebarSource).toContain('font-size: var(--text-label)')
-    expect(contextSidebarSource).toContain('font-size: var(--text-control)')
-    expect(contextSidebarSource).toContain('line-height: var(--text-control--line-height)')
-    expect(contextSidebarSource).toContain('<h2 class="mb-2 px-0.5 text-control font-semibold">Coding</h2>')
-    expect(contextSidebarSource).toContain('px-3 py-2 text-label font-medium text-muted-foreground')
+    expect(contextSidebarSource).toContain('font-size: var(--text-body)')
+    expect(contextSidebarSource).toContain('line-height: var(--text-body--line-height)')
+    expect(contextSidebarSource).toContain('letter-spacing: var(--text-body--letter-spacing)')
+    expect(contextSidebarSource).toContain('<h2 class="mb-2 px-0.5 text-body font-semibold">Coding</h2>')
+    expect(contextSidebarSource).toContain('px-3 py-2 text-body font-medium text-muted-foreground')
     expect(chatMessageItemSource).toContain('class="break-words text-control leading-7"')
     expect(chatComposerSource).toContain('font-size: var(--text-label)')
     expect(chatComposerSource).toContain('line-height: var(--text-label--line-height)')

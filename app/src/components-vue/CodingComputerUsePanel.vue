@@ -81,38 +81,10 @@ const permissionsReady = computed(() => Boolean(
   props.status?.permissions.accessibility
   && props.status.permissions.screenRecording,
 ))
-const signingStatus = computed(() => props.status?.signing ?? null)
-const signingIdentityLabel = computed(() => {
-  const signing = signingStatus.value
-  if (!signing) return '当前构建身份：未检测'
-  const signature = signing.signature === 'adhoc'
-    ? 'ad-hoc'
-    : signing.signature === 'signed'
-      ? '已签名'
-      : signing.signature || '未知签名'
-  const team = signing.teamIdentifier && signing.teamIdentifier !== 'not set'
-    ? signing.teamIdentifier
-    : '未设置'
-  return `当前构建身份：${signature} · Team ${team}`
-})
-const signingDiagnostic = computed(() => {
-  const signing = signingStatus.value
-  if (!signing) return ''
-  if (signing.stableIdentity) {
-    return `${signingIdentityLabel.value}，权限应绑定到稳定 App 身份。`
-  }
-  return `${signingIdentityLabel.value}；${signing.problem || 'macOS 可能无法稳定复用辅助功能/屏幕录制授权。'}`
-})
-const signingUnstable = computed(() => Boolean(
-  signingStatus.value && !signingStatus.value.stableIdentity,
-))
-const permissionProbeMayBeStale = computed(() => Boolean(
-  signingUnstable.value && !permissionsReady.value,
-))
 // Pre-release / ad-hoc builds must still allow the user to open macOS permission
 // panes and attempt a real TCC grant. We never invent permissions, never auto-
 // approve, and Start still requires Permissions.Ready from the Go probe.
-// Unstable signing only changes diagnostics, not whether the user may act.
+// Signing diagnostics stay in the Settings/audit surface, not this compact side panel.
 const accessibilityPermissionLabel = computed(() => (
   props.status?.permissions.accessibility ? '已授权' : '未授权'
 ))
@@ -177,12 +149,12 @@ const approvalLabel = computed(() => (
 
 const approvalGuidance = computed(() => {
   if (props.executionMode !== 'go' || props.approvalPolicy === 'read-only') {
-    return `${approvalLabel.value}：当前模式不会操作可见 App；切到 Go + 替我审批/完全访问后才会自动完成普通可见操作。`
+    return `${approvalLabel.value}：当前不会自动操作可见 App。`
   }
   if (props.approvalPolicy === 'ask') {
-    return `${approvalLabel.value}：观察、点击或输入前会暂停确认，适合第一次验证高风险 GUI。`
+    return `${approvalLabel.value}：操作前会暂停确认。`
   }
-  return `${approvalLabel.value}：普通观察、点击和输入会自动执行；危险、越界或未锁定 Scope 的操作仍会停下。`
+  return `${approvalLabel.value}：普通可见操作自动执行。`
 })
 
 const guidance = computed(() => {
@@ -190,28 +162,30 @@ const guidance = computed(() => {
     return props.status?.problem || 'Computer Use 当前不可用。'
   }
   if (missingPermissions.value.length) {
-    const signingHint = signingDiagnostic.value || '开发期 ad-hoc 重签后，macOS 可能显示 MilkSU 已勾选但探针仍返回未授权。'
-    if (permissionProbeMayBeStale.value) {
-      return `${missingPermissions.value.join('、')} 缺少或尚未对当前构建生效；“App 管理”不能替代这两项。${signingHint} 仍可显式打开系统权限设置做首次授权；授权后必须回到本页“重新检测”，只有真实探针通过才能启动可见会话。若设置里已勾选但探针仍为 false，请退出并重新打开当前 App，或换用 Developer ID 签名版后再检测——不要伪造权限，也不要反复无意义点授权。`
-    }
-    return `${missingPermissions.value.join('、')} 缺少或尚未对当前构建生效；“App 管理”不能替代这两项。${signingHint}`
+    return `缺少 ${missingPermissions.value.join('、')}；授权后点“重新检测”。`
   }
   if (attachedToOtherTask.value) {
     return '可见会话正由另一个 Coding 任务使用；请回到该任务停止后再切换。'
   }
   if (props.ownedByCurrentTask && props.activeTargetMatchesScope === false) {
-    return `当前任务锁定的是 ${effectiveTarget.value?.name || '另一个窗口'}，不属于 Computer Use 外部 App Scope；先停止当前 Scope，再选择正确窗口。`
+    return `当前 Scope 不匹配；先停止后重新选择窗口。`
   }
   if (!props.targets.length && !props.status?.target) {
     return '没有发现可选的可见窗口；请打开目标 App 窗口，然后重新检测。'
   }
   if (!effectiveTarget.value) {
-    return '请选择一个当前可见窗口，MilkSU 会把 Computer Use 锁定到这个 App / PID / Window。'
+    return '请选择一个当前可见窗口。'
   }
   if (readyForCurrentTask.value) {
-    return `Computer Use 已锁定到当前任务；${approvalGuidance.value}`
+    return `已锁定当前窗口；${approvalGuidance.value}`
   }
-  return '权限和窗口都已就绪，点击“启动可见会话”后才算正式接入当前 Coding 任务。'
+  return '权限和窗口已就绪。'
+})
+
+const operationEvidenceDetail = computed(() => {
+  if (matchingOperationEvidence.value) return '已匹配当前 Scope。'
+  if (operationScopeMismatch.value) return '最近操作来自其他窗口，不计入当前验收。'
+  return '等待 Agent 对当前窗口执行 click、type、key 或 scroll。'
 })
 
 const primarySetupAction = computed<{
@@ -224,7 +198,7 @@ const primarySetupAction = computed<{
   if (props.status?.enabled && props.ownedByCurrentTask && props.activeTargetMatchesScope === false) {
     return {
       label: '停止当前其他 Scope',
-      detail: `${effectiveTarget.value?.name || '当前窗口'} 不属于 Computer Use 外部 App Scope，停止后才能重新选择。`,
+      detail: '停止后重新选择正确窗口。',
       action: 'stop',
       variant: 'outline',
       disabled: props.loading || props.running,
@@ -246,19 +220,16 @@ const primarySetupAction = computed<{
   if (!props.status?.available) {
     return {
       label: '重新检测 Computer Use',
-      detail: props.status?.problem || '当前运行时未报告可用；重新检测不会操作任何 App。',
+      detail: props.status?.problem || '重新检测不会操作任何 App。',
       action: 'refresh',
       variant: 'outline',
       disabled: props.loading || props.running,
     }
   }
   if (!permissionsReady.value) {
-    const unstableDetail = permissionProbeMayBeStale.value
-      ? `${missingPermissions.value.join('、') || '系统权限'} 缺少或未对当前构建生效；${signingDiagnostic.value || '当前构建身份不稳定（如 ad-hoc）。'} 请显式打开系统权限设置完成授权，然后“重新检测”。Start 仍只接受真实 TCC 探针结果；若勾选后仍失败，再重启 App 或换 Developer ID 版。`
-      : `${missingPermissions.value.join('、') || '系统权限'} 缺少或未对当前构建生效；${signingDiagnostic.value || '打开系统设置授权后回到这里重新检测。'}`
     return {
       label: '打开系统权限设置',
-      detail: unstableDetail,
+      detail: `缺少 ${missingPermissions.value.join('、') || '系统权限'}；授权后重新检测。`,
       action: 'permissions',
       variant: 'default',
       disabled: props.loading || props.running || !props.status?.available,
@@ -276,7 +247,7 @@ const primarySetupAction = computed<{
   if (!effectiveTarget.value) {
     return {
       label: '重新检测可见窗口',
-      detail: '打开目标 App 窗口后重新检测，再选择要锁定的 App / PID / Window。',
+      detail: '打开目标 App 窗口后重新检测。',
       action: 'refresh',
       variant: 'outline',
       disabled: props.loading || props.running,
@@ -284,7 +255,7 @@ const primarySetupAction = computed<{
   }
   return {
     label: '启动可见会话',
-    detail: `${effectiveTarget.value.name} 将被锁定为当前任务 Scope；${approvalGuidance.value}`,
+    detail: `锁定 ${effectiveTarget.value.name}；${approvalGuidance.value}`,
     action: 'start',
     variant: 'brand',
     disabled: !canStart.value,
@@ -301,12 +272,15 @@ function runPrimarySetupAction() {
 </script>
 
 <template>
-  <div :class="standalone ? '' : 'mt-5 border-t border-border pt-5'">
+  <div
+    class="computer-use-panel"
+    :class="standalone ? '' : 'mt-5 border-t border-border pt-5'"
+  >
     <div class="flex items-start justify-between gap-3">
       <div>
         <p class="text-body font-medium">可见 App 会话</p>
-        <p class="mt-1 text-caption leading-5 text-muted-foreground">
-          选择一个当前可见窗口，启动后锁定为本轮 Computer Use Scope。
+        <p class="mt-1 text-body leading-5 text-muted-foreground">
+          选择可见窗口并锁定给当前任务。
         </p>
       </div>
       <span
@@ -314,7 +288,7 @@ function runPrimarySetupAction() {
         :class="readyForCurrentTask ? 'bg-primary' : 'bg-muted-foreground'"
       />
     </div>
-    <div class="mt-4 rounded-md bg-muted/45 px-3 py-3 text-caption">
+    <div class="mt-4 rounded-md bg-muted/45 px-3 py-3 text-body">
       <div class="mb-3 flex items-center justify-between gap-3">
         <span class="text-muted-foreground">接入状态</span>
         <Badge :variant="connectionVariant">
@@ -395,32 +369,18 @@ function runPrimarySetupAction() {
           </Badge>
         </button>
       </div>
-      <p
-        v-if="signingDiagnostic"
-        class="mt-3 break-all text-caption leading-5 text-muted-foreground"
-      >
-        {{ signingDiagnostic }}
-      </p>
       <div class="mt-3 rounded-lg border border-border bg-background/70 px-3 py-3" aria-label="Computer Use 真实操作证据">
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
-            <p class="text-caption font-medium text-muted-foreground">真实操作证据</p>
+            <p class="text-body font-medium text-muted-foreground">真实操作证据</p>
             <p v-if="matchingOperationEvidence" class="mt-1 text-body font-medium">
               {{ matchingOperationEvidence.summary }}
             </p>
             <p v-else class="mt-1 text-body font-medium">
               {{ operationScopeMismatch ? 'Scope 不匹配' : '等待真实操作' }}
             </p>
-            <p class="mt-1 text-caption leading-5 text-muted-foreground">
-              <template v-if="matchingOperationEvidence">
-                来自已完成的 computer_use 工具结果；只有 action、bundle、PID 和 Window 与当前 Scope 全部一致才计入。
-              </template>
-              <template v-else-if="operationScopeMismatch">
-                最近一次操作属于 {{ operationEvidence?.targetName }} · {{ operationEvidence?.bundleId }} · PID {{ operationEvidence?.pid }} · Window {{ operationEvidence?.windowId }}，不会冒充当前窗口验收。
-              </template>
-              <template v-else>
-                仅锁定 Scope 还不算真实 GUI 验收；需要 Agent 使用 computer_use 对此窗口完成 click、type、key 或 scroll。observe 只算可见观察，不算操作完成。
-              </template>
+            <p class="mt-1 text-body leading-5 text-muted-foreground">
+              {{ operationEvidenceDetail }}
             </p>
           </div>
           <Badge :variant="matchingOperationEvidence ? 'secondary' : 'outline'" class="shrink-0">
@@ -431,9 +391,9 @@ function runPrimarySetupAction() {
       <div class="mt-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-3" aria-label="Computer Use 下一步">
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
-            <p class="text-caption font-medium text-muted-foreground">下一步</p>
+            <p class="text-body font-medium text-muted-foreground">下一步</p>
             <p class="mt-1 text-body font-medium">{{ primarySetupAction.label }}</p>
-            <p class="mt-1 text-caption leading-5 text-muted-foreground">
+            <p class="mt-1 text-body leading-5 text-muted-foreground">
               {{ primarySetupAction.detail }}
             </p>
           </div>
@@ -452,13 +412,13 @@ function runPrimarySetupAction() {
     </div>
     <p
       v-if="status?.problem"
-      class="mt-3 text-caption leading-5 text-destructive"
+      class="mt-3 text-body leading-5 text-destructive"
     >
       {{ status.problem }}
     </p>
     <p
       v-else
-      class="mt-3 text-caption leading-5 text-muted-foreground"
+      class="mt-3 text-body leading-5 text-muted-foreground"
     >
       {{ guidance }}
     </p>
@@ -505,9 +465,13 @@ function runPrimarySetupAction() {
         启动可见会话
       </Button>
     </div>
-    <p class="mt-3 text-caption leading-5 text-muted-foreground">
-      可见会话必须由你显式启动；{{ approvalGuidance }}
-      Driver {{ status?.driverVersion || '0.14.2' }} · prerelease。
-    </p>
   </div>
 </template>
+
+<style scoped>
+.computer-use-panel {
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+  letter-spacing: var(--text-body--letter-spacing);
+}
+</style>

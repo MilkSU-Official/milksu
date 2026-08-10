@@ -89,10 +89,26 @@ describe('ChatPage routing contract', () => {
 
   it('passes only a real dirty Git projection to the composer summary', () => {
     expect(chatPageSource).toContain('const composerGitSummary = computed')
+    expect(chatPageSource).toContain('const composerTaskStepLabel = computed')
+    expect(chatPageSource).toContain(':task-step-label="composerTaskStepLabel"')
     expect(chatPageSource).toContain('!git?.isRepository || !git.dirty || git.changedFiles <= 0')
     expect(chatPageSource).toContain('changedFiles: git.changedFiles')
     expect(chatPageSource).toContain('additions: git.additions')
     expect(chatPageSource).toContain('deletions: git.deletions')
+  })
+
+  it('shows CTF artifacts in the shared Coding right rail', () => {
+    expect(chatPageSource).toContain("import CTFArtifacts from '@/components-vue/CTFArtifacts.vue'")
+    expect(chatPageSource).toContain('<SelectItem value="artifacts">产物</SelectItem>')
+    expect(chatPageSource).toContain('<CTFArtifacts v-if="ctfProjection" :projection="ctfProjection" />')
+    expect(chatPageSource).toContain("if (props.ctfSession) {\n      await loadCTFDomainProjection()")
+    expect(chatPageSource).not.toContain('<SelectItem v-if="!ctfSession" value="artifacts">产物</SelectItem>')
+  })
+
+  it('uses larger typography in the compact right rail instead of dense caption text', () => {
+    expect(chatPageSource).toContain('.context-sidebar :deep(.text-caption)')
+    expect(chatPageSource).toContain('font-size: var(--text-body);')
+    expect(chatPageSource).toContain('line-height: var(--text-body--line-height);')
   })
 
   it('keeps Terminal as an independent bottom dock instead of a sidebar page', () => {

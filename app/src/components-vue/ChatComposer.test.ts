@@ -138,6 +138,11 @@ describe('ChatComposer', () => {
     expect(composerControlsSource).toContain('.composer-permission__label')
     expect(composerControlsSource).toContain('overflow: visible')
     expect(composerControlsSource).toContain('width: auto;')
+    expect(composerControlsSource).toContain('align="end"')
+    expect(composerControlsSource).toContain('class="w-max min-w-44')
+    expect(composerControlsSource).toContain('width: fit-content;')
+    expect(composerControlsSource).toContain('max-width: min(11rem, 40vw);')
+    expect(composerControlsSource).not.toContain('class="min-w-96"')
     expect(composerControlsSource).not.toContain('aria-label="Coding 执行模式"')
     expect(composerControlsSource).not.toMatch(/\.composer-mode\s*\{/)
     expect(composerControlsSource).not.toMatch(/(?:^|\n)\.composer-permission \{[\s\S]*?\n\s*width: 7\.5rem;/)
@@ -499,7 +504,7 @@ describe('ChatComposer', () => {
     const progress = active.host.querySelector('[aria-label="任务进度摘要"]')
     const goalPanel = active.host.querySelector('[aria-label="持续目标"]')
     expect(progress?.textContent).toContain('第 4 轮')
-    expect(progress?.textContent).toContain('代码')
+    expect(progress?.textContent).toContain('22 个文件已更改')
     expect(progress?.textContent).toContain('+442')
     expect(progress?.textContent).toContain('-226')
     active.host.querySelector<HTMLButtonElement>('[aria-label="查看代码变更"]')?.click()
@@ -518,6 +523,25 @@ describe('ChatComposer', () => {
     await nextTick()
     paused.host.querySelector<HTMLButtonElement>('[aria-label="继续目标"]')?.click()
     expect(paused.controlledGoals).toEqual(['resume'])
+  })
+
+  it('shows the current execution step before the floating Git summary', async () => {
+    const active = mountComposer({
+      taskStepLabel: '第 1/5 步 · 修复 CTF 恢复后 Coding 会话连续性',
+      gitSummary: {
+        changedFiles: 14,
+        additions: 280,
+        deletions: 38,
+        changes: [],
+      },
+    })
+    await nextTick()
+
+    const progress = active.host.querySelector('[aria-label="任务进度摘要"]')
+    expect(progress?.textContent).toContain('第 1/5 步')
+    expect(progress?.textContent).toContain('14 个文件已更改')
+    expect(progress?.textContent).toContain('+280')
+    expect(progress?.textContent).toContain('-38')
   })
 
   it('lets a parent append confirmed context into the draft before sending', async () => {

@@ -65,6 +65,7 @@ import { invokeCommand } from '@/desktop'
 import ChatActivityGroup from '@/components-vue/ChatActivityGroup.vue'
 import ChatComposer from '@/components-vue/ChatComposer.vue'
 import ChatMessageItem from '@/components-vue/ChatMessageItem.vue'
+import CTFArtifacts from '@/components-vue/CTFArtifacts.vue'
 import CodingArtifactPreviewPanel from '@/components-vue/CodingArtifactPreviewPanel.vue'
 import CodingChangesPanel from '@/components-vue/CodingChangesPanel.vue'
 import CodingComputerUsePanel from '@/components-vue/CodingComputerUsePanel.vue'
@@ -134,7 +135,7 @@ import type {
   CTFChatAction,
 } from '@/types'
 import type { CodingMessageQueue } from '@/composables/useConversations'
-import { providerModelLabel } from '@/types'
+import { CTF_AGENT_MODEL_SELECTION, providerModelLabel } from '@/types'
 import type { SessionHistorySearchResult } from '@/sessionIndexTypes'
 
 const CodingTerminalPanel = defineAsyncComponent(
@@ -254,6 +255,7 @@ const ctfBudget = ref<CTFAgentBudgetStatus | null>(null)
 const ctfCheckpoint = ref<CTFAgentRunCheckpoint | null>(null)
 const ctfProjection = ref<CTFProjection | null>(null)
 const automaticModel = computed(() => {
+  if (props.ctfSession) return CTF_AGENT_MODEL_SELECTION
   if (!props.settings) return null
   return {
     provider: props.settings.active_provider,
@@ -437,6 +439,14 @@ const compactModelLabel = computed(() => {
   const modelName = providerModelLabel(provider, model).split(' · ').at(-1) || model
   return modelName.replace(/^DeepSeek\s+/i, '')
 })
+const credentialModelSelection = computed(() => {
+  if (effectiveModelMode.value === 'auto') return automaticModel.value
+  if (!props.settings) return null
+  return {
+    provider: props.modelProvider || props.settings.active_provider,
+    model: props.modelId || props.settings.active_model,
+  }
+})
 const capabilityStatusLabel = (status: string) => (
   status === 'allowed'
     ? '允许'
@@ -464,7 +474,9 @@ const extensionLabel = (value: string) => (
 const hasCredential = computed(() => {
   if (!props.settings) return false
   if (props.settings.relay?.enabled) return props.settings.relay.has_key
-  const provider = props.settings.providers[props.settings.active_provider]
+  const selection = credentialModelSelection.value
+  if (!selection) return false
+  const provider = props.settings.providers[selection.provider]
   return Boolean(provider?.enabled && provider.has_api_key)
 })
 const workspaceName = computed(() => {
@@ -574,6 +586,21 @@ const ctfRoleLabel = computed(() => {
   if (props.ctfRole === 'tool-builder') return 'Coding Agent 工具工坊'
   if (props.ctfRole === 'strategist') return '策略 Agent 复盘'
   return 'CTF 解题会话'
+})
+function compactTaskStepLabel(value: string) {
+  const normalized = value.replace(/\s+/g, ' ').trim()
+  return normalized.length > 90 ? `${normalized.slice(0, 90)}…` : normalized
+}
+const composerTaskStepLabel = computed(() => {
+  if (props.ctfSession) {
+    const progress = ctfCheckpoint.value?.progress
+    const phase = progress?.phase || ctfCheckpoint.value?.status || ctfRoleLabel.value
+    const next = progress?.nextAction || progress?.currentHypothesis || progress?.lastVerifiedFact || ''
+    return compactTaskStepLabel(next ? `${phase} · ${next}` : phase)
+  }
+  const goal = activeGoal.value
+  if (!goal?.text) return ''
+  return compactTaskStepLabel(goal.iteration ? `第 ${goal.iteration} 轮 · ${goal.text}` : goal.text)
 })
 const activeDomainTaskContext = computed<DomainTaskContext | null>(() => {
   const kind = domainSessionKind.value
@@ -1362,6 +1389,10 @@ async function refreshContextPanel() {
     return
   }
   if (contextPanel.value === 'artifacts') {
+    if (props.ctfSession) {
+      await loadCTFDomainProjection()
+      return
+    }
     await artifactPanel.value?.refresh()
     return
   }
@@ -1689,6 +1720,7 @@ watch(
       :goal-mode="goalMode"
       :goal="activeGoal"
       :git-summary="composerGitSummary"
+      :task-step-label="composerTaskStepLabel"
       :execution-mode="effectiveExecutionMode"
       :approval-policy="effectiveApprovalPolicy"
       :approval-label="approvalMenuLabel"
@@ -1751,7 +1783,7 @@ watch(
           <SelectItem v-if="domainTaskPresentation" value="domain">领域上下文</SelectItem>
           <SelectItem value="environment">{{ ctfSession ? '解题环境' : '环境信息' }}</SelectItem>
           <SelectItem v-if="!ctfSession" value="changes">变更</SelectItem>
-          <SelectItem v-if="!ctfSession" value="artifacts">产物</SelectItem>
+          <SelectItem value="artifacts">产物</SelectItem>
           <SelectItem v-if="!ctfSession" value="architecture">架构图</SelectItem>
           <SelectItem value="browser">浏览器</SelectItem>
           <SelectItem value="history">相关历史</SelectItem>
@@ -2081,6 +2113,17 @@ watch(
                 {{ ctfBudget.remainingTurns }}/{{ ctfBudget.budget.maxTurns }}
               </span>
             </div>
+            <div class="flex items-center justify-between gap-3">
+              <span class="text-muted-foreground">产物</span>
+              <Button
+                variant="link"
+                size="text"
+                class="text-right"
+                @click="changeContextPanel('artifacts')"
+              >
+                {{ ctfProjection?.artifacts.length ?? 0 }} 个
+              </Button>
+            </div>
           </div>
         </section>
 
@@ -2163,7 +2206,17 @@ watch(
       </template>
 
       <template v-else-if="contextPanel === 'artifacts'">
+        <section v-if="ctfSession" class="p-4">
+          <CTFArtifacts v-if="ctfProjection" :projection="ctfProjection" />
+          <div
+            v-else
+            class="rounded-xl border border-border bg-card p-5 text-body text-muted-foreground"
+          >
+            正在读取本题产物…
+          </div>
+        </section>
         <CodingArtifactPreviewPanel
+          v-else
           ref="artifactPanel"
           :workspace-path="workspacePath"
           :environment="codingEnvironment"
@@ -2578,6 +2631,19 @@ watch(
   align-items: flex-start;
   gap: 0.75rem;
   padding: 0.65rem 0.75rem;
+}
+
+.context-sidebar {
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+  letter-spacing: var(--text-body--letter-spacing);
+}
+
+.context-sidebar :deep(.text-caption),
+.context-sidebar :deep(.text-control) {
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+  letter-spacing: var(--text-body--letter-spacing);
 }
 
 @media (max-width: 68.75rem) {

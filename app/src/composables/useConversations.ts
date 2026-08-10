@@ -198,6 +198,9 @@ interface WorkspaceTask {
     mode: 'coach' | 'copilot' | 'delegate'
   }
   role: 'solver' | 'tool-builder' | 'strategist'
+  modelMode?: Conversation['modelMode']
+  modelProvider?: string
+  modelId?: string
   domainTaskContext?: Conversation['domainTaskContext']
   /** When false/omitted, attach session + draft only — never auto-start Pi. */
   autoSend?: boolean
@@ -631,12 +634,17 @@ export function useConversations() {
     const existing = conversations.value.find(item => item.id === task.conversationId)
     if (existing) {
       activeId.value = existing.id
+      const shouldApplyTaskModel = Boolean(
+        task.modelMode
+        && !(existing.modelMode === 'manual' && existing.modelProvider && existing.modelId),
+      )
       if (
         existing.workspacePath !== task.workspacePath
         || existing.title !== task.title
         || existing.ctfJobId !== task.jobId
         || existing.ctfMode !== task.policy.mode
         || existing.ctfRole !== task.role
+        || shouldApplyTaskModel
         || task.domainTaskContext
       ) {
         update(existing.id, conversation => ({
@@ -646,6 +654,9 @@ export function useConversations() {
           ctfJobId: task.jobId,
           ctfMode: task.policy.mode,
           ctfRole: task.role,
+          modelMode: shouldApplyTaskModel ? task.modelMode : conversation.modelMode,
+          modelProvider: shouldApplyTaskModel ? task.modelProvider : conversation.modelProvider,
+          modelId: shouldApplyTaskModel ? task.modelId : conversation.modelId,
           domainTaskContext: task.domainTaskContext ?? conversation.domainTaskContext,
         }))
       }
@@ -667,6 +678,9 @@ export function useConversations() {
       ctfJobId: task.jobId,
       ctfMode: task.policy.mode,
       ctfRole: task.role,
+      modelMode: task.modelMode,
+      modelProvider: task.modelProvider,
+      modelId: task.modelId,
       domainTaskContext: task.domainTaskContext,
       messages: [],
     }

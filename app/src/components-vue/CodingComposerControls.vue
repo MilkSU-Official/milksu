@@ -153,7 +153,12 @@ defineEmits<{
       >
         <SelectValue>{{ compactModelLabel }}</SelectValue>
       </SelectTrigger>
-      <SelectContent size="sm" align="start" :align-offset="0" class="min-w-96">
+      <SelectContent
+        size="sm"
+        align="end"
+        :align-offset="0"
+        class="w-max min-w-44 max-w-[min(22rem,calc(100vw-2rem))]"
+      >
         <SelectGroup>
           <SelectLabel>自动</SelectLabel>
           <SelectItem value="auto">
@@ -297,11 +302,19 @@ defineEmits<{
 }
 
 .composer-model {
-  width: min(14rem, 100%);
-  min-width: 9rem;
-  flex: 1 1 12rem;
+  width: fit-content;
+  min-width: 6.5rem;
+  max-width: min(11rem, 40vw);
+  flex: 0 1 auto;
   justify-self: end;
   padding-inline: 0.65rem;
+}
+
+.composer-model :deep([data-slot='select-value']) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 @container chat-main (max-width: 52rem) {
@@ -315,8 +328,8 @@ defineEmits<{
   }
 
   .composer-model {
-    min-width: 10rem;
-    width: min(18rem, 100%);
+    min-width: 6.5rem;
+    max-width: min(10rem, 42vw);
   }
 }
 
@@ -336,8 +349,8 @@ defineEmits<{
   }
 
   .composer-model {
-    min-width: 0;
-    flex-basis: 10rem;
+    min-width: 5.75rem;
+    max-width: min(9rem, 46vw);
   }
 }
 </style>

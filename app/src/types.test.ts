@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  CTF_AGENT_MODEL_SELECTION,
   PROVIDERS,
   PROVIDER_GROUPS,
   providerModelLabel,
@@ -45,6 +46,13 @@ describe('model provider catalog', () => {
     expect(visibleProviders).toContain('deepseek')
     expect(visibleProviders).toContain('tokenflux')
     expect(visibleProviders).not.toContain('kourichat')
+  })
+
+  it('uses TokenFlux Grok 4.5 as the CTF solving Agent default', () => {
+    expect(CTF_AGENT_MODEL_SELECTION).toEqual({
+      provider: 'tokenflux',
+      model: 'grok-4.5',
+    })
   })
 
   it('normalizes unknown pre-release providers back to the current daily model', () => {

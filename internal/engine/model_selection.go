@@ -12,12 +12,26 @@ const (
 	ModelModeManual = "manual"
 )
 
+const (
+	ctfAgentDefaultProvider = "tokenflux"
+	ctfAgentDefaultModel    = "grok-4.5"
+)
+
+func isCTFAgentRole(role string) bool {
+	switch strings.TrimSpace(role) {
+	case "solver", "tool-builder", "strategist":
+		return true
+	default:
+		return false
+	}
+}
+
 // ResolveTaskModel returns a private settings copy with the model selected for
-// one Agent task. Automatic mode uses the single app-level default model.
-// Manual mode only applies an explicit per-conversation override.
+// one Agent task. CTF roles use MilkSU's CTF-specific automatic default unless
+// a conversation has an explicit manual override.
 func ResolveTaskModel(
 	settings config.AppSettings,
-	_ string,
+	role string,
 	mode,
 	provider,
 	model string,
@@ -33,6 +47,14 @@ func ResolveTaskModel(
 		}
 		settings.ActiveProvider = strings.TrimSpace(provider)
 		settings.ActiveModel = strings.TrimSpace(model)
+		return settings, nil
+	}
+
+	if mode == "" || mode == ModelModeAuto {
+		if isCTFAgentRole(role) {
+			settings.ActiveProvider = ctfAgentDefaultProvider
+			settings.ActiveModel = ctfAgentDefaultModel
+		}
 		return settings, nil
 	}
 

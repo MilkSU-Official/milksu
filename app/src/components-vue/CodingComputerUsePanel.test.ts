@@ -90,15 +90,13 @@ describe('CodingComputerUsePanel', () => {
 
     expect(text).toContain('Codex')
     expect(text).toContain('可启动')
-    expect(text).toContain('权限和窗口都已就绪')
-    expect(text).toContain('才算正式接入当前 Coding 任务')
+    expect(text).toContain('权限和窗口已就绪')
     expect(text).toContain('下一步')
     expect(text).toContain('真实操作')
-    expect(text).toContain('需要 Agent 使用 computer_use')
-    expect(text).toContain('observe 只算可见观察')
+    expect(text).toContain('等待 Agent 对当前窗口执行')
     expect(text).toContain('Go / 替我审批')
-    expect(text).toContain('普通观察、点击和输入会自动执行')
-    expect(text).toContain('Codex 将被锁定为当前任务 Scope')
+    expect(text).toContain('普通可见操作自动执行')
+    expect(text).toContain('锁定 Codex')
     expect(text).toContain('com.openai.codex')
     expect(text).toContain('PID 4242')
     expect(text).toContain('Window 9001')
@@ -203,8 +201,8 @@ describe('CodingComputerUsePanel', () => {
 
     expect(text).toContain('已接入当前任务')
     expect(text).toContain('Go / 完全访问')
-    expect(text).toContain('普通观察、点击和输入会自动执行')
-    expect(text).toContain('危险、越界或未锁定 Scope 的操作仍会停下')
+    expect(text).toContain('普通可见操作自动执行')
+    expect(text).not.toContain('危险、越界或未锁定 Scope')
     expect(text).not.toContain('正式接入/验收需要')
   })
 
@@ -220,7 +218,8 @@ describe('CodingComputerUsePanel', () => {
     const text = host.textContent ?? ''
 
     expect(text).toContain('已接入其他 Scope')
-    expect(text).toContain('不属于 Computer Use 外部 App Scope')
+    expect(text).toContain('当前 Scope 不匹配')
+    expect(text).toContain('停止后重新选择正确窗口')
     expect(text).not.toContain('已接入当前任务')
     const stop = [...host.querySelectorAll<HTMLButtonElement>('button')].find(
       button => button.textContent?.includes('停止当前其他 Scope'),
@@ -255,8 +254,7 @@ describe('CodingComputerUsePanel', () => {
 
     expect(text).toContain('真实操作证据')
     expect(text).toContain('click · Preview · com.example.preview · PID 5252 · Window 9002 · 视觉回归')
-    expect(text).toContain('来自已完成的 computer_use 工具结果')
-    expect(text).toContain('action、bundle、PID 和 Window 与当前 Scope 全部一致')
+    expect(text).toContain('已匹配当前 Scope')
     expect(text).toContain('已操作')
     expect(text).toContain('最近真实操作')
     expect(text).not.toContain('等待真实操作')
@@ -285,9 +283,7 @@ describe('CodingComputerUsePanel', () => {
     const text = host.textContent ?? ''
 
     expect(text).toContain('Scope 不匹配')
-    expect(text).toContain('最近一次操作属于')
-    expect(text).toContain('不会冒充当前窗口验收')
-    expect(text).toContain('Preview · com.example.preview · PID 5252 · Window 9002')
+    expect(text).toContain('最近操作来自其他窗口')
     expect(text).toContain('不计入')
     expect(text).not.toContain('已操作')
     expect(text).not.toContain('正式接入/验收需要')
@@ -306,8 +302,8 @@ describe('CodingComputerUsePanel', () => {
     const text = host.textContent ?? ''
 
     expect(text).toContain('Plan / 替我审批')
-    expect(text).toContain('当前模式不会操作可见 App')
-    expect(text).toContain('切到 Go + 替我审批/完全访问')
+    expect(text).toContain('当前不会自动操作可见 App')
+    expect(text).not.toContain('切到 Go + 替我审批/完全访问')
     expect(text).not.toContain('正式接入/验收需要')
   })
 
@@ -323,10 +319,8 @@ describe('CodingComputerUsePanel', () => {
 
     expect(missing.host.textContent).toContain('辅助功能 未授权')
     expect(missing.host.textContent).toContain('缺系统权限')
-    expect(missing.host.textContent).toContain('App 管理')
     expect(missing.host.textContent).toContain('打开系统权限设置')
-    expect(missing.host.textContent).toContain('缺少或尚未对当前构建生效')
-    expect(missing.host.textContent).toContain('ad-hoc 重签')
+    expect(missing.host.textContent).toContain('缺少 辅助功能')
     expect(missing.host.textContent).toContain('重新检测')
     const missingStart = [...missing.host.querySelectorAll<HTMLButtonElement>('button')].find(
       button => button.textContent?.includes('启动可见会话'),
@@ -369,7 +363,7 @@ describe('CodingComputerUsePanel', () => {
     expect(unavailable.onRequestPermissions).not.toHaveBeenCalled()
   })
 
-  it('shows signing diagnostics when macOS permission probes disagree with Settings', async () => {
+  it('keeps signing diagnostics out of the compact sidebar', async () => {
     const { host } = await mountPanel({
       status: status({
         permissions: {
@@ -388,10 +382,11 @@ describe('CodingComputerUsePanel', () => {
     })
     const text = host.textContent ?? ''
 
-    expect(text).toContain('当前构建身份：ad-hoc · Team 未设置')
-    expect(text).toContain('Developer ID')
-    expect(text).toContain('TCC 探针')
-    expect(text).toContain('系统设置里显示已勾选')
+    expect(text).toContain('缺少 辅助功能')
+    expect(text).not.toContain('当前构建身份：ad-hoc · Team 未设置')
+    expect(text).not.toContain('Developer ID')
+    expect(text).not.toContain('TCC 探针')
+    expect(text).not.toContain('系统设置里显示已勾选')
   })
 
   it('keeps explicit permission authorization available on unstable ad-hoc builds without inventing grants', async () => {
@@ -413,11 +408,11 @@ describe('CodingComputerUsePanel', () => {
     })
     const text = host.textContent ?? ''
 
-    // Unstable signing must remain visible, but must not stage-lock pre-release self-bootstrap.
-    expect(text).toContain('当前构建身份：ad-hoc · Team 未设置')
     expect(text).toContain('打开系统权限设置')
     expect(text).toContain('重新检测')
-    expect(text).toContain('真实探针')
+    expect(text).toContain('缺少 辅助功能、屏幕录制')
+    expect(text).not.toContain('当前构建身份：ad-hoc · Team 未设置')
+    expect(text).not.toContain('真实探针')
     expect(text).not.toContain('待稳定签名复检')
     expect(text).not.toContain('先稳定签名再复检')
 

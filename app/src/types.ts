@@ -145,6 +145,11 @@ export const PRIMARY_MODEL_SELECTION: ModelSelection = {
   model: 'deepseek-v4-flash',
 }
 
+export const CTF_AGENT_MODEL_SELECTION: ModelSelection = {
+  provider: 'tokenflux',
+  model: 'grok-4.5',
+}
+
 export function withAppSettingsDefaults(value: AppSettings): AppSettings {
   const legacy = value as AppSettings & {
     providers?: Record<string, ProviderConfig>

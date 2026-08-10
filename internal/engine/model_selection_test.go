@@ -19,15 +19,28 @@ func modelSelectionSettings() config.AppSettings {
 	return settings
 }
 
-func TestResolveTaskModelAutoUsesSingleDefaultForAllRoles(t *testing.T) {
+func TestResolveTaskModelAutoUsesCTFDefaultForSolvingRoles(t *testing.T) {
 	settings := modelSelectionSettings()
-	for _, role := range []string{"solver", "strategist", "cve-research", "deep-review"} {
+	for _, role := range []string{"solver", "tool-builder", "strategist"} {
+		resolved, err := ResolveTaskModel(settings, role, ModelModeAuto, "", "")
+		if err != nil {
+			t.Fatalf("resolve %s: %v", role, err)
+		}
+		if resolved.ActiveProvider != "tokenflux" || resolved.ActiveModel != "grok-4.5" {
+			t.Fatalf("role %s should use CTF default route, got %#v", role, resolved)
+		}
+	}
+}
+
+func TestResolveTaskModelAutoKeepsAppDefaultForNonCTFRoles(t *testing.T) {
+	settings := modelSelectionSettings()
+	for _, role := range []string{"", "cve-research", "deep-review"} {
 		resolved, err := ResolveTaskModel(settings, role, ModelModeAuto, "", "")
 		if err != nil {
 			t.Fatalf("resolve %s: %v", role, err)
 		}
 		if resolved.ActiveProvider != "deepseek" || resolved.ActiveModel != "deepseek-v4-flash" {
-			t.Fatalf("role %s should use single default route, got %#v", role, resolved)
+			t.Fatalf("role %s should use app default route, got %#v", role, resolved)
 		}
 	}
 }
