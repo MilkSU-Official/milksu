@@ -4,7 +4,7 @@ const layers = [
     id: 'L1',
     name: 'Desktop Surface',
     description: 'macOS first / Windows later',
-    references: '参考 PentAGI、Agentic SOC 的运行与案件视图',
+    references: '参考 Agentic SOC 的运行与案件视图',
   },
   {
     id: 'L2',
@@ -22,7 +22,7 @@ const layers = [
     id: 'L4',
     name: 'Shared Security Runtime',
     description: 'Environment / Evidence / Effect / Evaluator / Trace / Recovery',
-    references: '学习 BoxPwnr、PentAGI、Taskflow、Shannon',
+    references: '借鉴 CAI、Taskflow；规划 Shannon MCP / 外部 Worker 接入',
     verified: true,
   },
   {
@@ -40,11 +40,11 @@ const layers = [
 ]
 
 const roles = [
-  { name: 'CTF', projects: 'BoxPwnr · CAI', relation: 'Benchmark / 学习' },
+  { name: 'CTF', projects: 'CAI', relation: '架构思想参考，不接入 Agent Loop' },
   { name: 'Vuln', projects: 'ARTEMIS · Taskflow + CodeQL', relation: 'Benchmark / 接入' },
-  { name: 'Red', projects: 'CAI · PentAGI · Strix · ARTEMIS', relation: '外部 Worker / 学习' },
+  { name: 'Red', projects: 'CAI · Strix · ARTEMIS', relation: '思想参考 / 外部 Worker' },
   { name: 'Blue', projects: 'Agentic SOC', relation: '学习 Case / Evidence' },
-  { name: 'AppSec', projects: 'Shannon · Taskflow + CodeQL', relation: '外部 Worker / 接入' },
+  { name: 'AppSec', projects: 'Shannon · Taskflow + CodeQL', relation: 'MCP / 外部 Worker / 接入' },
   { name: 'Malware', projects: 'Assemblyline · CAPEv2 · capa · AgentRE-Bench', relation: '候选：学习 / 接入 / Benchmark' },
 ]
 </script>
