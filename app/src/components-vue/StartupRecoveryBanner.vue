@@ -23,8 +23,10 @@ function formatTimestamp(value?: string) {
 <template>
   <div
     v-if="status?.previousExit === 'abnormal'"
-    class="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-warning-border bg-warning-soft px-5 py-3"
+    class="shell-traffic-light-safe-x flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-warning-border bg-warning-soft py-3 pr-5"
     role="alert"
+    data-testid="startup-recovery-banner"
+    data-shell-traffic-safe="x"
   >
     <FileWarning class="mt-0.5 size-4 shrink-0 text-warning" />
     <div class="min-w-0 flex-1 text-body leading-5">

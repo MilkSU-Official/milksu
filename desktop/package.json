@@ -28,6 +28,8 @@
       "preload.cjs",
       "cdp-proxy.cjs",
       "channel-identity.cjs",
+      "build-tracking-view.cjs",
+      "computer-use-permissions.cjs",
       "package.json",
       "node_modules/ws/**/*"
     ],

@@ -137,7 +137,15 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 	}
 	application.engines = engine.NewSupervisor(application.emitEngineEvent)
 	application.codingPRs = codingenv.NewPullRequestPublisher()
-	application.computerUse = computercap.New(computercap.Options{})
+	// Packaged Electron owns the TCC principal for embedded Computer Use.
+	// When a desktop host is attached, permission probes/open must go through
+	// host systemPreferences rather than the Go runtime binary identity.
+	computerUseOptions := computercap.Options{}
+	if host != nil {
+		computerUseOptions.PermissionProbe = desktopComputerUsePermissionProbe(host)
+		computerUseOptions.PermissionOpen = desktopComputerUsePermissionOpen(host)
+	}
+	application.computerUse = computercap.New(computerUseOptions)
 	application.nssctf = nssctf.NewClient(nssctf.ClientOptions{})
 	application.nssctfCatalog, err = nssctf.NewCatalogService(
 		filepath.Join(dataDirectory, "nssctf", "catalog.sqlite3"),

@@ -335,7 +335,6 @@ describe('CodingComputerUsePanel', () => {
     expect(missing.host.textContent).toContain('打开系统权限设置')
     expect(missing.host.textContent).toContain('缺少或尚未对当前构建生效')
     expect(missing.host.textContent).toContain('ad-hoc 重签')
-    expect(missing.host.textContent).toContain('稳定 Apple 签名')
     expect(missing.host.textContent).toContain('重新检测')
     const missingStart = [...missing.host.querySelectorAll<HTMLButtonElement>('button')].find(
       button => button.textContent?.includes('启动可见会话'),
@@ -403,8 +402,8 @@ describe('CodingComputerUsePanel', () => {
     expect(text).toContain('系统设置里显示已勾选')
   })
 
-  it('does not make repeated macOS permission approval the primary action for unstable ad-hoc builds', async () => {
-    const { host, onRefresh, onRequestPermissions } = await mountPanel({
+  it('keeps explicit permission authorization available on unstable ad-hoc builds without inventing grants', async () => {
+    const { host, onRefresh, onRequestPermissions, onStart } = await mountPanel({
       status: status({
         permissions: {
           accessibility: false,
@@ -422,32 +421,36 @@ describe('CodingComputerUsePanel', () => {
     })
     const text = host.textContent ?? ''
 
-    expect(text).toContain('重新检测当前构建')
-    expect(text).toContain('不要反复授权')
-    expect(text).toContain('重启当前 App')
-    expect(text).toContain('Developer ID 签名版')
-    expect(text).toContain('首次授权也建议先换稳定签名版')
-    expect(text).toContain('待稳定签名复检')
-    expect(text).toContain('先稳定签名再复检')
+    // Unstable signing must remain visible, but must not stage-lock pre-release self-bootstrap.
+    expect(text).toContain('当前构建身份：ad-hoc · Team 未设置')
+    expect(text).toContain('打开系统权限设置')
+    expect(text).toContain('重新检测')
+    expect(text).toContain('真实探针')
+    expect(text).not.toContain('待稳定签名复检')
+    expect(text).not.toContain('先稳定签名再复检')
 
     const primary = host.querySelector<HTMLButtonElement>('button[aria-label="执行 Computer Use 下一步"]')
-    expect(primary?.textContent).toContain('重新检测当前构建')
+    expect(primary?.textContent).toContain('打开系统权限设置')
+    expect(primary?.disabled).toBe(false)
     primary?.click()
     await nextTick()
-    expect(onRefresh).toHaveBeenCalledOnce()
-    expect(onRequestPermissions).not.toHaveBeenCalled()
+    expect(onRequestPermissions).toHaveBeenCalledOnce()
+    expect(onStart).not.toHaveBeenCalled()
 
-    const secondaryPermissionAction = [...host.querySelectorAll<HTMLButtonElement>('button')].find(
-      button => button.textContent?.includes('打开系统权限设置'),
+    const start = [...host.querySelectorAll<HTMLButtonElement>('button')].find(
+      button => button.textContent?.includes('启动可见会话'),
     )
-    expect(secondaryPermissionAction).toBeUndefined()
-    const blockedPermissionAction = host.querySelector<HTMLButtonElement>(
-      'button[aria-label="系统权限等待稳定签名后复检"]',
-    )
-    expect(blockedPermissionAction?.disabled).toBe(true)
-    const accessibilityBadge = host.querySelector<HTMLButtonElement>('button[aria-label="请求辅助功能权限"]')
-    accessibilityBadge?.click()
+    expect(start?.disabled).toBe(true)
+    start?.click()
     await nextTick()
-    expect(onRequestPermissions).not.toHaveBeenCalled()
+    expect(onStart).not.toHaveBeenCalled()
+
+    // Secondary refresh remains available after the user returns from System Settings.
+    const refresh = [...host.querySelectorAll<HTMLButtonElement>('button')].find(
+      button => button.textContent?.includes('重新检测'),
+    )
+    refresh?.click()
+    await nextTick()
+    expect(onRefresh).toHaveBeenCalledOnce()
   })
 })

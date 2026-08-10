@@ -124,6 +124,8 @@ test('applyChannelIsolation keeps stable natural userData unless instance isolat
     userData: natural,
   }
   const appLike = {
+    names: [],
+    setName(name) { this.names.push(name) },
     setPath(key, value) {
       if (key === 'userData') paths.userData = value
     },
@@ -134,6 +136,7 @@ test('applyChannelIsolation keeps stable natural userData unless instance isolat
     },
   }
 
+  appLike.names = []
   const stable = applyChannelIsolation(channelIdentity('stable'), {
     app: appLike,
     instanceId: '',
@@ -141,24 +144,38 @@ test('applyChannelIsolation keeps stable natural userData unless instance isolat
   assert.equal(stable.userData, natural)
   assert.equal(stable.isolatedInstance, false)
   assert.equal(paths.userData, natural)
+  assert.deepEqual(appLike.names, [STABLE_PRODUCT_NAME])
 
+  appLike.names = []
   const isolated = applyChannelIsolation(channelIdentity('stable'), {
     app: appLike,
     instanceId: 'fork-a',
   })
   assert.equal(isolated.userData, `${natural}-fork-a`)
   assert.equal(isolated.isolatedInstance, true)
+  assert.deepEqual(appLike.names, [STABLE_PRODUCT_NAME])
 })
 
-test('planChannelIsolation is pure and does not require Electron', () => {
-  const plan = planChannelIsolation(channelIdentity('beta'), {
+test('planChannelIsolation is pure and always plans productName for setName', () => {
+  const beta = planChannelIsolation(channelIdentity('beta'), {
     appDataPath: '/app-data',
     naturalUserDataPath: '/natural',
     instanceId: '',
   })
-  assert.equal(plan.userData, path.join('/app-data', BETA_USER_DATA_DIR_NAME))
-  assert.equal(plan.pinUserData, true)
-  assert.equal(plan.setName, BETA_PRODUCT_NAME)
+  assert.equal(beta.userData, path.join('/app-data', BETA_USER_DATA_DIR_NAME))
+  assert.equal(beta.pinUserData, true)
+  assert.equal(beta.setName, BETA_PRODUCT_NAME)
+
+  const stable = planChannelIsolation(channelIdentity('stable'), {
+    appDataPath: '/app-data',
+    naturalUserDataPath: '/natural',
+    instanceId: '',
+  })
+  assert.equal(stable.userData, '/natural')
+  assert.equal(stable.pinUserData, false)
+  assert.equal(stable.setName, STABLE_PRODUCT_NAME)
+  assert.notEqual(stable.setName, 'Electron')
+  assert.notEqual(beta.setName, 'Electron')
 })
 
 test('browserProfileRoots does not expand Stable to natural userData', () => {

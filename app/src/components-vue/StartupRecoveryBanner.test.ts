@@ -53,6 +53,12 @@ describe('StartupRecoveryBanner', () => {
     expect(text).toContain('查看恢复与诊断')
     const buttons = [...host.querySelectorAll('button')]
     expect(buttons.some(button => button.getAttribute('aria-label') === '知道了')).toBe(true)
+    const banner = host.querySelector('[data-testid="startup-recovery-banner"]')
+    expect(banner).not.toBeNull()
+    expect(banner?.className).toContain('shell-traffic-light-safe-x')
+    expect(banner?.getAttribute('data-shell-traffic-safe')).toBe('x')
+    // Full-width top chrome must inset left for traffic lights; no vertical hole class.
+    expect(banner?.className).not.toContain('workspace-rail-traffic-safe')
   })
 
   it('renders nothing for a clean exit or first run', async () => {

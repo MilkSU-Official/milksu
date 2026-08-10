@@ -36,7 +36,7 @@ test('stable and beta channel identities are distinct and stable', () => {
   assert.equal(beta.productName, BETA_PRODUCT_NAME)
   assert.equal(beta.appId, BETA_APP_ID)
   assert.equal(beta.outputAppName, 'MilkSU Beta.app')
-  assert.equal(beta.iconRelative, 'build/appicon-beta.png')
+  assert.equal(beta.iconRelative, 'build/desktop/appicon-beta.png')
   assert.equal(beta.visibleBadge, 'BETA')
 
   assert.notEqual(stable.appId, beta.appId)
@@ -79,6 +79,32 @@ test('resolveDesktopChannel reads --channel and MILKSU_CHANNEL', () => {
   assert.equal(resolveDesktopChannel(['node', 'script'], { MILKSU_CHANNEL: 'beta' }), 'beta')
   assert.equal(resolveDesktopChannel(['node', 'script', '--channel=stable'], { MILKSU_CHANNEL: 'beta' }), 'stable')
   assert.equal(resolveDesktopChannel(['node', 'script'], {}), 'stable')
+})
+
+test('explicit invalid channel never silently falls back to stable', () => {
+  assert.throws(
+    () => resolveDesktopChannel(['node', 'script', '--channel=canary'], {}),
+    /unsupported desktop channel/,
+  )
+  assert.throws(
+    () => resolveDesktopChannel(['node', 'script', '--channel', 'nightly'], {}),
+    /unsupported desktop channel/,
+  )
+  assert.throws(
+    () => resolveDesktopChannel(['node', 'script'], { MILKSU_CHANNEL: 'canary' }),
+    /unsupported MILKSU_CHANNEL/,
+  )
+  assert.throws(
+    () => desktopChannelConfig('canary'),
+    /unsupported desktop channel/,
+  )
+  assert.throws(
+    () => desktopChannelConfig('', { allowDefault: false }),
+    /desktop channel is required/,
+  )
+  // Completely unspecified still defaults to stable.
+  assert.equal(desktopChannelConfig('').channel, 'stable')
+  assert.equal(desktopChannelConfig(undefined).channel, 'stable')
 })
 
 test('userData and runtime data roots are channel-isolated', () => {
@@ -134,31 +160,41 @@ test('beta start plan targets packaged app path, never desktop electron .', () =
     root,
     packagedAppExists: false,
   })
-  assert.equal(betaMissing.mode, 'packaged')
+  assert.equal(betaMissing.mode, 'refuse')
   assert.equal(betaMissing.channel, 'beta')
-  assert.equal(betaMissing.needsBuild, true)
+  assert.equal(betaMissing.needsBuild, false)
   assert.equal(betaMissing.forbidsElectronDot, true)
-  assert.equal(betaMissing.command, '/usr/bin/open')
-  assert.deepEqual(betaMissing.args, ['-n', packagedAppPath(root, 'beta')])
+  assert.equal(betaMissing.command, '')
   assert.equal(
     betaMissing.appPath,
     join(root, 'build', 'bin', 'MilkSU Beta.app'),
   )
-  assert.ok(!betaMissing.args.some(value => String(value).includes('electron')))
-  assert.notEqual(betaMissing.command, 'npm')
-  assert.ok(!betaMissing.args.includes('start'))
-  assert.ok(!betaMissing.args.includes('--prefix'))
-  assert.ok(!betaMissing.args.includes('desktop'))
+  assert.match(betaMissing.refuseReason, /never builds/i)
+  assert.ok(!JSON.stringify(betaMissing).includes('electron .'))
+
+  const betaUnverified = resolveDesktopStartPlan('beta', {
+    root,
+    packagedAppExists: true,
+    identityVerified: false,
+    identityIssues: ['bad identity'],
+  })
+  assert.equal(betaUnverified.mode, 'refuse')
+  assert.equal(betaUnverified.needsBuild, false)
+  assert.match(betaUnverified.refuseReason, /identity/i)
 
   const betaReady = resolveDesktopStartPlan('beta', {
     root,
     packagedAppExists: true,
+    identityVerified: true,
     openBinary: '/usr/bin/open',
   })
   assert.equal(betaReady.needsBuild, false)
   assert.equal(betaReady.mode, 'packaged')
   assert.equal(betaReady.appPath, join(root, 'build', 'bin', 'MilkSU Beta.app'))
   assert.deepEqual(betaReady.args, ['-n', betaReady.appPath])
+  assert.equal(betaReady.command, '/usr/bin/open')
+  assert.ok(!betaReady.args.some(value => String(value).includes('electron')))
+  assert.notEqual(betaReady.command, 'npm')
 
   const stable = resolveDesktopStartPlan('stable', { root })
   assert.equal(stable.mode, 'development')

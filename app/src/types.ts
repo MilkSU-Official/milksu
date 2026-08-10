@@ -82,6 +82,8 @@ export interface Conversation {
   ctfJobId?: string
   ctfMode?: 'coach' | 'copilot' | 'delegate'
   ctfRole?: 'solver' | 'tool-builder' | 'strategist'
+  /** Structured CTF/CVE domain snapshot for the shared Coding/Pi panel. */
+  domainTaskContext?: import('@/lib/domainTaskContext').DomainTaskContext
   messages: Message[]
 }
 
@@ -202,6 +204,30 @@ export interface LocalDataStatus {
   bytes: number
   lastModifiedAt?: string
   databases?: DatabaseCompatibilityStatus[]
+}
+
+/**
+ * Desktop build provenance shown at the bottom of Settings.
+ * Packaged apps expose sealed Resources/build-tracking.json fields.
+ * Development/unpackaged shells set development=true and leave git/hash empty.
+ * trackingId is a canonical-field integrity digest, not a package signature.
+ */
+export interface BuildTracking {
+  schema?: string
+  channel: 'stable' | 'beta' | string
+  productName: string
+  appId: string
+  gitBranch: string
+  gitCommit: string
+  dirty: boolean
+  sourceFingerprint?: string
+  buildTime: string
+  trackingId: string
+  missing?: boolean
+  packaged?: boolean
+  development?: boolean
+  provenanceSource?: string
+  validationIssues?: string[]
 }
 
 export interface LocalDataBackupExport {

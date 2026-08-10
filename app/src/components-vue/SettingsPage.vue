@@ -42,6 +42,7 @@ import type {
 import type { NSSCTFWebBridgeStatus } from '@/nssctfWebTypes'
 import type {
   AppSettings,
+  BuildTracking,
   DatabaseCompatibilityState,
   DatabaseCompatibilityStatus,
   LocalDataBackupExport,
@@ -92,6 +93,8 @@ const localData = ref<LocalDataStatus | null>(null)
 const computerUseStatus = ref<CodingComputerUseStatus | null>(null)
 const browserBridgeStatus = ref<NSSCTFWebBridgeStatus | null>(null)
 const recoveryStatus = ref<StartupRecoveryStatus | null>(null)
+const buildTracking = ref<BuildTracking | null>(null)
+const buildTrackingCopying = ref(false)
 const notice = ref<{ tone: 'ok' | 'error'; text: string } | null>(null)
 
 const databaseStateLabels: Record<DatabaseCompatibilityState, string> = {
@@ -142,6 +145,7 @@ watch(() => props.settings, value => {
 watch(() => props.initialCategory, value => { category.value = value })
 onMounted(() => {
   void loadLocalData()
+  void loadBuildTracking()
   void refreshComputerUseStatus({ silent: true })
   void refreshBrowserBridgeStatus({ silent: true })
 })
@@ -237,6 +241,65 @@ async function loadLocalData() {
   }
 }
 
+async function loadBuildTracking() {
+  try {
+    buildTracking.value = await invokeCommand<BuildTracking>('get_build_tracking')
+  } catch {
+    buildTracking.value = null
+  }
+}
+
+function formatBuildTrackingText(tracking: BuildTracking) {
+  const treeLabel = tracking.development
+    ? 'development/unpackaged'
+    : (tracking.dirty ? 'dirty' : 'clean')
+  const lines = [
+    `channel: ${tracking.channel}`,
+    `product: ${tracking.productName}`,
+    `appId: ${tracking.appId}`,
+    `provenanceSource: ${tracking.provenanceSource || (tracking.packaged ? 'packaged' : 'development/unpackaged')}`,
+    `gitBranch: ${tracking.gitBranch || '(unavailable)'}`,
+    `gitCommit: ${tracking.gitCommit || '(unavailable)'}`,
+    `tree: ${treeLabel}`,
+  ]
+  if (tracking.dirty && tracking.sourceFingerprint) {
+    lines.push(`sourceFingerprint: ${tracking.sourceFingerprint}`)
+  }
+  lines.push(`buildTime: ${tracking.buildTime || '(unavailable)'}`)
+  lines.push(`trackingId: ${tracking.trackingId || '(unavailable)'}`)
+  lines.push('note: trackingId is a canonical-field integrity digest, not a package authenticity signature')
+  if (tracking.missing || tracking.development) {
+    lines.push('warning: sealed build-tracking.json is not available in this shell')
+  }
+  if (tracking.validationIssues?.length) {
+    lines.push(`validation: ${tracking.validationIssues.join('; ')}`)
+  }
+  return lines.join('\n')
+}
+
+async function copyBuildTracking() {
+  if (!buildTracking.value) return
+  buildTrackingCopying.value = true
+  try {
+    const text = formatBuildTrackingText(buildTracking.value)
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text)
+    } else {
+      const area = document.createElement('textarea')
+      area.value = text
+      document.body.append(area)
+      area.select()
+      document.execCommand('copy')
+      area.remove()
+    }
+    notice.value = { tone: 'ok', text: '已复制构建追踪信息' }
+  } catch (reason) {
+    notice.value = { tone: 'error', text: `无法复制构建追踪：${String(reason)}` }
+  } finally {
+    buildTrackingCopying.value = false
+  }
+}
+
 function formatLocalTimestamp(value?: string) {
   if (!value) return ''
   const date = new Date(value)
@@ -301,11 +364,8 @@ const computerUseSigningDiagnostic = computed(() => {
   if (signing.stableIdentity) return '权限会绑定到稳定 App 身份。'
   return signing.problem || '当前构建身份不稳定，macOS 可能无法稳定复用辅助功能/屏幕录制授权。'
 })
-const computerUseReapprovalBlocked = computed(() => Boolean(
-  computerUseSigning.value
-  && !computerUseSigning.value.stableIdentity
-  && computerUseStatus.value?.available
-  && !computerUsePermissionsReady.value,
+const computerUseSigningUnstable = computed(() => Boolean(
+  computerUseSigning.value && !computerUseSigning.value.stableIdentity,
 ))
 const computerUsePermissionSummary = computed(() => {
   const status = computerUseStatus.value
@@ -313,8 +373,8 @@ const computerUsePermissionSummary = computed(() => {
   if (!status.available) return status.problem || 'Computer Use 当前不可用。'
   if (computerUsePermissionsReady.value) return '辅助功能与屏幕录制已授权。'
   const missing = computerUseMissingPermissions.value.join('、') || '系统权限'
-  if (computerUseReapprovalBlocked.value) {
-    return `${missing} 未对当前构建生效；如果系统设置里已经勾选 MilkSU，不要反复授权，请先重启当前 App 或使用稳定签名版后重新检测。`
+  if (computerUseSigningUnstable.value) {
+    return `${missing} 缺少或未对当前构建生效；当前构建身份不稳定（如 ad-hoc）。仍可显式打开系统权限设置做授权，授权后必须“重新检测”；Start 只接受真实 TCC 探针，不会伪造权限。`
   }
   return `${missing} 缺少或未对当前构建生效；App 管理权限不能替代 Computer Use。`
 })
@@ -406,13 +466,17 @@ async function refreshComputerUseStatus(options: { silent?: boolean } = {}) {
 }
 
 async function requestComputerUsePermissions() {
-  if (computerUseReapprovalBlocked.value) return
   computerUseRequesting.value = true
   try {
     computerUseStatus.value = await invokeCommand<CodingComputerUseStatus>(
       'request_coding_computer_use_permissions',
     )
-    notice.value = { tone: 'ok', text: '已打开系统权限设置；完成后回到 MilkSU 点击“重新检测”。' }
+    notice.value = {
+      tone: 'ok',
+      text: computerUseSigningUnstable.value
+        ? '已打开系统权限设置；完成后回到 MilkSU 点击“重新检测”。ad-hoc 构建可能需要重启当前 App 后探针才更新。'
+        : '已打开系统权限设置；完成后回到 MilkSU 点击“重新检测”。',
+    }
   } catch (reason) {
     notice.value = { tone: 'error', text: `无法打开 Computer Use 系统权限设置：${String(reason)}` }
   } finally {
@@ -674,9 +738,52 @@ async function save() {
               </ul>
             </div>
           </SettingsSection>
+
           <div class="mt-6 flex justify-end">
             <Button :loading="saving" @click="save">保存设置</Button>
           </div>
+
+          <!-- Bottom of Settings: sealed/package provenance only; never a fake signature. -->
+          <SettingsSection title="构建追踪" class="mt-10 border-t border-border pt-6">
+            <SettingsRow
+              stack="always"
+              label="可复制构建追踪"
+              description="channel、真实 git branch、完整 40 位 commit、clean/dirty、fingerprint、build time 与 tracking ID。tracking ID 是字段完整性摘要，不是包签名或真实性证明。"
+            >
+              <div
+                v-if="buildTracking"
+                class="rounded-xl border border-border bg-muted/30 p-3 font-mono text-caption leading-5 text-foreground"
+                aria-label="构建追踪"
+                data-testid="build-tracking"
+              >
+                <pre class="whitespace-pre-wrap break-all">{{ formatBuildTrackingText(buildTracking) }}</pre>
+                <div class="mt-3 flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    :loading="buildTrackingCopying"
+                    @click="copyBuildTracking"
+                  >
+                    <Copy class="size-3.5" />
+                    复制完整追踪
+                  </Button>
+                  <Badge
+                    v-if="buildTracking.channel === 'beta' && !buildTracking.development"
+                    variant="secondary"
+                  >
+                    BETA
+                  </Badge>
+                  <Badge v-if="buildTracking.development" variant="outline">development/unpackaged</Badge>
+                  <Badge v-else-if="buildTracking.missing" variant="destructive">sealed provenance 缺失</Badge>
+                  <Badge v-else-if="buildTracking.dirty" variant="outline">dirty</Badge>
+                  <Badge v-else variant="outline">clean</Badge>
+                </div>
+              </div>
+              <p v-else class="text-caption text-muted-foreground">
+                未能读取构建追踪。打包检查器应拒绝缺少 sealed provenance 的发行包；开发壳会显示 development/unpackaged。
+              </p>
+            </SettingsRow>
+          </SettingsSection>
         </template>
 
         <template v-else-if="working && category === 'browser'">
@@ -787,7 +894,7 @@ async function save() {
                   重新检测
                 </Button>
                 <Button
-                  v-if="computerUseStatus && !computerUsePermissionsReady && !computerUseReapprovalBlocked"
+                  v-if="computerUseStatus && !computerUsePermissionsReady"
                   variant="outline"
                   size="sm"
                   :loading="computerUseRequesting"
@@ -796,15 +903,6 @@ async function save() {
                 >
                   <KeyRound class="size-3.5" />
                   打开系统权限设置
-                </Button>
-                <Button
-                  v-else-if="computerUseReapprovalBlocked"
-                  variant="outline"
-                  size="sm"
-                  disabled
-                >
-                  <KeyRound class="size-3.5" />
-                  先稳定签名再复检
                 </Button>
               </div>
             </SettingsRow>

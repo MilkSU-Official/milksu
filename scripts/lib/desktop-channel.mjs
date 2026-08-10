@@ -37,7 +37,9 @@ export const DESKTOP_CHANNELS = {
     productName: BETA_PRODUCT_NAME,
     appId: BETA_APP_ID,
     outputAppName: 'MilkSU Beta.app',
-    iconRelative: 'build/appicon-beta.png',
+    // Generated packaging artifact under the ignored build/desktop/ tree so it
+    // never dirties git status / provenance dirty detection.
+    iconRelative: 'build/desktop/appicon-beta.png',
     userDataDirName: BETA_APP_ID,
     visibleBadge: 'BETA',
   },
@@ -54,7 +56,10 @@ export function normalizeDesktopChannel(value) {
 }
 
 /**
- * Resolve channel from argv / env. Defaults to stable.
+ * Resolve channel from argv / env.
+ * - Completely unspecified => default stable
+ * - Explicit --channel / MILKSU_CHANNEL with invalid value => throw (never silent fallback)
+ *
  * @param {string[]} [argv]
  * @param {NodeJS.ProcessEnv | Record<string, string | undefined>} [env]
  * @returns {DesktopChannel}
@@ -62,25 +67,54 @@ export function normalizeDesktopChannel(value) {
 export function resolveDesktopChannel(argv = process.argv, env = process.env) {
   const inline = argv.find(value => value.startsWith('--channel='))
   if (inline) {
-    const normalized = normalizeDesktopChannel(inline.slice('--channel='.length))
-    if (normalized) return normalized
+    const raw = inline.slice('--channel='.length)
+    const normalized = normalizeDesktopChannel(raw)
+    if (!normalized) {
+      throw new Error(`unsupported desktop channel ${JSON.stringify(raw)}; expected stable|beta`)
+    }
+    return normalized
   }
   const index = argv.indexOf('--channel')
   if (index >= 0) {
-    const normalized = normalizeDesktopChannel(argv[index + 1])
-    if (normalized) return normalized
+    const raw = argv[index + 1]
+    if (raw == null || String(raw).startsWith('--')) {
+      throw new Error('missing value for --channel; expected stable|beta')
+    }
+    const normalized = normalizeDesktopChannel(raw)
+    if (!normalized) {
+      throw new Error(`unsupported desktop channel ${JSON.stringify(raw)}; expected stable|beta`)
+    }
+    return normalized
   }
-  const fromEnv = normalizeDesktopChannel(env.MILKSU_CHANNEL)
-  if (fromEnv) return fromEnv
+  if (Object.prototype.hasOwnProperty.call(env, 'MILKSU_CHANNEL')) {
+    const raw = env.MILKSU_CHANNEL
+    const normalized = normalizeDesktopChannel(raw)
+    if (!normalized) {
+      throw new Error(`unsupported MILKSU_CHANNEL ${JSON.stringify(raw)}; expected stable|beta`)
+    }
+    return normalized
+  }
   return 'stable'
 }
 
 /**
  * @param {DesktopChannel | string} channel
+ * @param {{ allowDefault?: boolean }} [options]
+ *   allowDefault=true (default): empty/undefined falls back to stable.
+ *   allowDefault=false: empty/invalid throws — used by inspect and explicit callers.
  * @returns {DesktopChannelConfig}
  */
-export function desktopChannelConfig(channel) {
-  const normalized = normalizeDesktopChannel(channel) || 'stable'
+export function desktopChannelConfig(channel, options = {}) {
+  const allowDefault = options.allowDefault !== false
+  const raw = channel == null ? '' : String(channel).trim()
+  if (!raw) {
+    if (allowDefault) return DESKTOP_CHANNELS.stable
+    throw new Error('desktop channel is required')
+  }
+  const normalized = normalizeDesktopChannel(raw)
+  if (!normalized) {
+    throw new Error(`unsupported desktop channel ${JSON.stringify(raw)}; expected stable|beta`)
+  }
   return DESKTOP_CHANNELS[normalized]
 }
 
@@ -165,13 +199,16 @@ export function packagedAppPath(root, channel = 'stable') {
 
 /**
  * Decide how `desktop:start` should launch for a channel.
- * - stable/default: develop via desktop `electron .`
- * - beta: always launch the packaged app (never fall back to electron .)
+ * - stable/default (desktop:start): develop via desktop `electron .`
+ * - beta (desktop:start:beta): ONLY launch an already-packaged, identity-verified
+ *   MilkSU Beta.app. Never build implicitly and never fall back to electron .
  *
  * @param {DesktopChannel | string} channel
  * @param {{
  *   root: string,
  *   packagedAppExists?: boolean,
+ *   identityVerified?: boolean,
+ *   identityIssues?: string[],
  *   openBinary?: string,
  * }}
  * options
@@ -181,16 +218,48 @@ export function resolveDesktopStartPlan(channel, options) {
   const openBinary = options.openBinary || '/usr/bin/open'
   if (config.channel === 'beta') {
     const appPath = packagedAppPath(options.root, 'beta')
+    const exists = options.packagedAppExists === true
+    const verified = options.identityVerified === true
+    const identityIssues = Array.isArray(options.identityIssues)
+      ? options.identityIssues.map(String)
+      : []
+    if (!exists) {
+      return {
+        mode: 'refuse',
+        channel: 'beta',
+        appPath,
+        needsBuild: false,
+        command: '',
+        args: [],
+        forbidsElectronDot: true,
+        refuseReason: `packaged Beta app not found at ${appPath}; run a channel build first (desktop:start:beta never builds)`,
+      }
+    }
+    if (!verified) {
+      return {
+        mode: 'refuse',
+        channel: 'beta',
+        appPath,
+        needsBuild: false,
+        command: '',
+        args: [],
+        forbidsElectronDot: true,
+        refuseReason: identityIssues.length
+          ? `packaged Beta identity check failed: ${identityIssues.join('; ')}`
+          : `packaged Beta at ${appPath} failed identity verification`,
+      }
+    }
     return {
       mode: 'packaged',
       channel: 'beta',
       appPath,
-      needsBuild: options.packagedAppExists !== true,
+      needsBuild: false,
       // Prefer absolute path + open -n so a second instance can launch beside Stable.
       command: openBinary,
       args: ['-n', appPath],
       // Guardrail: never encode a desktop electron / npm start fallback for beta.
       forbidsElectronDot: true,
+      refuseReason: '',
     }
   }
   return {
@@ -201,5 +270,6 @@ export function resolveDesktopStartPlan(channel, options) {
     command: 'npm',
     args: ['--prefix', 'desktop', 'start'],
     forbidsElectronDot: false,
+    refuseReason: '',
   }
 }

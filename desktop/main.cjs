@@ -13,6 +13,7 @@ const {
   protocol,
   session,
   shell,
+  systemPreferences,
   WebContentsView,
 } = require('electron')
 const { ScopedCDPProxy } = require('./cdp-proxy.cjs')
@@ -24,6 +25,11 @@ const {
   allowedProfilePath: resolveAllowedProfilePath,
   resolveRuntimeAppDataDir,
 } = require('./channel-identity.cjs')
+const { loadBuildTrackingView } = require('./build-tracking-view.cjs')
+const {
+  probeComputerUsePermissions,
+  computerUsePermissionsSettingsURL,
+} = require('./computer-use-permissions.cjs')
 
 const APP_ORIGIN = 'milksu://app'
 const METHOD_PATTERN = /^[A-Z][A-Za-z0-9]{0,80}$/u
@@ -82,6 +88,7 @@ const desktopChannel = resolveDesktopChannel({
   desktopAppId: process.env.MILKSU_DESKTOP_APP_ID,
 })
 const desktopIdentity = channelIdentity(desktopChannel)
+// Isolation plan owns a single app.setName side effect (Stable/Beta productName).
 const channelIsolation = applyChannelIsolation(desktopIdentity, {
   app,
   instanceId: process.env.MILKSU_INSTANCE_ID,
@@ -486,6 +493,26 @@ async function handleHostRequest(method, payload = {}) {
     case 'browser.reload': return browserShell.reload(payload)
     case 'browser.stop': return browserShell.stop(payload)
     case 'browser.closeAll': return browserShell.closeAll()
+    case 'computerUse.permissions': {
+      // Host-attributed TCC: Electron app identity, never invent grants.
+      // Status/Start always probe with prompt=false; explicit UI opens Settings.
+      const probe = probeComputerUsePermissions(systemPreferences, { prompt: false })
+      return {
+        accessibility: probe.accessibility,
+        screenRecording: probe.screenRecording,
+        screenStatus: probe.screenStatus,
+      }
+    }
+    case 'computerUse.openPermissions': {
+      const accessibility = Boolean(payload?.accessibility)
+      const screenRecording = Boolean(payload?.screenRecording)
+      const url = computerUsePermissionsSettingsURL({
+        accessibility,
+        screenRecording,
+      })
+      await shell.openExternal(url)
+      return null
+    }
     default: throw new Error(`unsupported desktop host method: ${method}`)
   }
 }
@@ -495,9 +522,24 @@ function emitRendererEvent(event, value) {
   mainWindow.webContents.send(`milksu:event:${event}`, value)
 }
 
+async function loadBuildTracking() {
+  // Packaged: sealed Resources/build-tracking.json only.
+  // Unpackaged: explicit development/unpackaged view — never forge git/hash/tracking.
+  return loadBuildTrackingView({
+    isPackaged: app.isPackaged,
+    resourcesPath: process.resourcesPath,
+    identity: desktopIdentity,
+  })
+}
+
+function lockedWindowTitle() {
+  // Always the channel product name — renderer <title> must not override this.
+  return desktopIdentity.productName
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
-    title: desktopIdentity.productName,
+    title: lockedWindowTitle(),
     width: 1440,
     height: 900,
     minWidth: 1080,
@@ -505,6 +547,9 @@ function createWindow() {
     show: false,
     backgroundColor: '#f7f7f5',
     titleBarStyle: 'hiddenInset',
+    // Layout-safe traffic lights: fixed shell inset, not a machine-specific screenshot fudge.
+    // x keeps buttons inside the rail width; y leaves room above the logo slot.
+    trafficLightPosition: { x: 14, y: 16 },
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
@@ -513,6 +558,16 @@ function createWindow() {
       webSecurity: true,
     },
   })
+  // Prevent document.title / Vue route titles from changing the OS window title
+  // (Computer Use and accessibility read the real window title).
+  mainWindow.on('page-title-updated', event => {
+    event.preventDefault()
+    if (!mainWindow || mainWindow.isDestroyed()) return
+    if (mainWindow.getTitle() !== lockedWindowTitle()) {
+      mainWindow.setTitle(lockedWindowTitle())
+    }
+  })
+  mainWindow.setTitle(lockedWindowTitle())
   mainWindow.webContents.setWindowOpenHandler(details => {
     if (details.url.startsWith('https://') || details.url.startsWith('http://')) {
       void shell.openExternal(details.url)
@@ -522,12 +577,19 @@ function createWindow() {
   mainWindow.webContents.on('will-navigate', (event, url) => {
     if (!url.startsWith(`${APP_ORIGIN}/`)) event.preventDefault()
   })
-  mainWindow.once('ready-to-show', () => mainWindow.show())
+  mainWindow.once('ready-to-show', () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return
+    mainWindow.setTitle(lockedWindowTitle())
+    mainWindow.show()
+  })
 }
 
-ipcMain.handle('milksu:invoke', (event, request) => {
+ipcMain.handle('milksu:invoke', async (event, request) => {
   if (!senderIsApp(event)) throw new Error('desktop invocation came from an untrusted renderer')
-  return backend.invoke(String(request?.method ?? ''), request?.args)
+  const method = String(request?.method ?? '')
+  // Packaging provenance is owned by the desktop shell, not Go domain logic.
+  if (method === 'GetBuildTracking') return loadBuildTracking()
+  return backend.invoke(method, request?.args)
 })
 
 app.on('second-instance', () => {

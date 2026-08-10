@@ -71,6 +71,7 @@ import CodingComputerUsePanel from '@/components-vue/CodingComputerUsePanel.vue'
 import CodingMCPReviewCard from '@/components-vue/CodingMCPReviewCard.vue'
 import SessionHistoryPanel from '@/components-vue/SessionHistoryPanel.vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
+import DomainTaskContextPanel from '@/components-vue/DomainTaskContextPanel.vue'
 import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
 import type {
   CodingArchitecturePreview,
@@ -86,6 +87,12 @@ import type {
 import { normalizeCodingBrowserAddress } from '@/codingBrowserAddress'
 import { buildChatTranscript } from '@/lib/chatActivity'
 import { chatTopbarPresentation } from '@/lib/chatTopbar'
+import {
+  presentDomainTaskContext,
+  refreshCTFDomainTaskContext,
+  sharedCodingSessionKind,
+  type DomainTaskContext,
+} from '@/lib/domainTaskContext'
 import {
   agentRecoveryPrompt,
   recoverableAgentFailureId,
@@ -159,6 +166,8 @@ const props = defineProps<{
   mcpServers?: string[]
   mcpConfigDigest?: string
   ensureConversation: (title?: string) => string
+  /** Unsent handoff draft staged by CTF/CVE open path; never auto-starts Pi. */
+  pendingComposerDraft?: { prompt: string; visibleText: string } | null
 }>()
 
 const emit = defineEmits<{
@@ -186,15 +195,20 @@ const emit = defineEmits<{
   returnCtf: []
   returnVuln: []
   switchCtfAgent: [role: 'solver' | 'tool-builder' | 'strategist']
+  consumePendingDraft: []
 }>()
 
 const goalMode = ref(false)
 const composer = ref<{ appendDraftText: (text: string) => void } | null>(null)
 const scrollArea = ref<HTMLElement | null>(null)
 const workshopState = ref<CTFToolWorkshopState | null>(null)
-const environmentOpen = ref(!props.ctfSession)
+const environmentOpen = ref(true)
+// Domain context is the primary right-rail content for CTF/CVE (one rail only).
+// Collapse to a floating PiP with a text control; reopen via the floating chip.
+const domainContextCollapsed = ref(false)
 const terminalOpen = ref(false)
 const contextPanelValues = [
+  'domain',
   'environment',
   'changes',
   'artifacts',
@@ -207,7 +221,9 @@ const contextPanelValues = [
   'evidence',
 ] as const
 type ContextPanel = typeof contextPanelValues[number]
-const contextPanel = ref<ContextPanel>('environment')
+const contextPanel = ref<ContextPanel>(
+  props.ctfSession || props.vulnerabilitySession ? 'domain' : 'environment',
+)
 const artifactPanel = ref<InstanceType<typeof CodingArtifactPreviewPanel> | null>(null)
 const collaborationPanel = ref<{ refresh: () => Promise<void> } | null>(null)
 const historyPanel = ref<{ refresh: () => Promise<void> } | null>(null)
@@ -516,7 +532,11 @@ const recoverableFailureId = computed(() => (
   )
 ))
 const latestJudge = computed(() => ctfProjection.value?.judgeReceipts.at(-1))
+const domainSessionKind = computed(() => (
+  sharedCodingSessionKind(props.ctfSession, Boolean(props.vulnerabilitySession))
+))
 const contextPanelTitle = computed(() => ({
+  domain: props.ctfSession ? 'CTF 领域上下文' : props.vulnerabilitySession ? 'CVE 领域上下文' : '领域上下文',
   environment: props.ctfSession ? '解题环境' : '环境信息',
   changes: '变更',
   artifacts: '产物',
@@ -554,6 +574,35 @@ const ctfRoleLabel = computed(() => {
   if (props.ctfRole === 'tool-builder') return 'Coding Agent 工具工坊'
   if (props.ctfRole === 'strategist') return '策略 Agent 复盘'
   return 'CTF 解题会话'
+})
+const activeDomainTaskContext = computed<DomainTaskContext | null>(() => {
+  const kind = domainSessionKind.value
+  if (kind === 'coding') return null
+  const attached = props.conversation?.domainTaskContext
+  if (kind === 'ctf') {
+    const base = attached?.kind === 'ctf'
+      ? attached
+      : null
+    if (!base) return null
+    const live = ctfProjection.value
+    return refreshCTFDomainTaskContext(base, live ? {
+      challengeId: live.challenge?.id,
+      challengeTitle: live.challenge?.title,
+      materials: live.challenge?.materials,
+      // Base grant + approved endpoint scopes; both must stay visible mid-turn.
+      sourceScope: live.challenge?.source?.scope ?? null,
+      networkScopes: live.networkScopes ?? [],
+      evidenceCount: live.evidence?.length,
+      artifactCount: live.artifacts?.length,
+      judgeReceipts: live.judgeReceipts,
+    } : null)
+  }
+  if (attached?.kind === 'cve') return attached
+  return null
+})
+const domainTaskPresentation = computed(() => {
+  const context = activeDomainTaskContext.value
+  return context ? presentDomainTaskContext(context) : null
 })
 const workshopSummary = computed(() => {
   const state = workshopState.value
@@ -881,6 +930,29 @@ async function loadWorkshopState() {
   }
 }
 
+/**
+ * Read-only CTF domain projection for the shared session panel.
+ * Must run regardless of Agent running state so exact challenge id/title,
+ * materials, authorized network scopes and Judge/evidence stay visible while
+ * the turn is in progress. Does not refresh workshop/coding environment UI.
+ */
+async function loadCTFDomainProjection() {
+  if (!props.ctfSession) {
+    ctfProjection.value = null
+    return
+  }
+  const jobId = props.conversation?.ctfJobId
+  if (!jobId) {
+    ctfProjection.value = null
+    return
+  }
+  try {
+    ctfProjection.value = await invokeCommand<CTFProjection>('get_ctf_job', { id: jobId })
+  } catch {
+    // Keep the last successful projection if a mid-turn read fails.
+  }
+}
+
 async function refreshEnvironment() {
   environmentError.value = ''
   if (props.ctfSession) {
@@ -893,15 +965,18 @@ async function refreshEnvironment() {
       return
     }
     environmentLoading.value = true
-    const [budget, checkpoint, projection] = await Promise.allSettled([
+    const [budget, checkpoint] = await Promise.allSettled([
       invokeCommand<CTFAgentBudgetStatus>('get_ctf_agent_budget_status', { id: jobId }),
       invokeCommand<CTFAgentRunCheckpoint | null>('get_ctf_agent_run_checkpoint', { id: jobId }),
-      invokeCommand<CTFProjection>('get_ctf_job', { id: jobId }),
     ])
+    // Domain projection is owned by loadCTFDomainProjection (running-agnostic).
+    await loadCTFDomainProjection()
     ctfBudget.value = budget.status === 'fulfilled' ? budget.value : null
     ctfCheckpoint.value = checkpoint.status === 'fulfilled' ? checkpoint.value : null
-    ctfProjection.value = projection.status === 'fulfilled' ? projection.value : null
-    if ([budget, checkpoint, projection].every(result => result.status === 'rejected')) {
+    if (
+      [budget, checkpoint].every(result => result.status === 'rejected')
+      && !ctfProjection.value
+    ) {
       environmentError.value = '暂时无法读取解题环境。'
     }
     environmentLoading.value = false
@@ -1317,11 +1392,6 @@ function changeContextPanel(value: string) {
   void refreshContextPanel()
 }
 
-function handleCodingSmokeOpenPanel(event: Event) {
-  const panel = (event as CustomEvent<{ panel?: string }>).detail?.panel
-  if (!panel || props.ctfSession) return
-  changeContextPanel(panel)
-}
 
 function recordArtifactPreview(preview: CodingArtifactPreview) {
   artifactPreviewEvidence.value = {
@@ -1359,7 +1429,6 @@ async function scrollChatToBottom() {
 }
 
 onMounted(() => {
-  window.addEventListener('milksu:coding-smoke-open-panel', handleCodingSmokeOpenPanel as EventListener)
   void scrollChatToBottom()
   if (typeof ResizeObserver !== 'undefined') {
     codingBrowserResizeObserver = new ResizeObserver(() => {
@@ -1375,7 +1444,6 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  window.removeEventListener('milksu:coding-smoke-open-panel', handleCodingSmokeOpenPanel as EventListener)
   void hideCodingBrowserViewport()
   codingBrowserResizeObserver?.disconnect()
   if (codingBrowserStatusTimer) window.clearInterval(codingBrowserStatusTimer)
@@ -1401,12 +1469,27 @@ watch(environmentOpen, open => {
 watch(() => props.conversation?.messages.length, () => {
   void scrollChatToBottom()
 })
-watch(() => props.ctfSession, (current, previous) => {
-  if (current !== previous) {
-    environmentOpen.value = !current
-    contextPanel.value = 'environment'
-  }
-})
+watch(
+  () => [props.ctfSession, props.vulnerabilitySession] as const,
+  ([ctf, vuln]) => {
+    environmentOpen.value = true
+    domainContextCollapsed.value = false
+    if (ctf || vuln) contextPanel.value = 'domain'
+    else if (contextPanel.value === 'domain') contextPanel.value = 'environment'
+  },
+)
+watch(
+  () => props.pendingComposerDraft,
+  draft => {
+    if (!draft?.prompt) return
+    // Stage unsent draft only — never emit send / start tools / network.
+    void nextTick(() => {
+      composer.value?.appendDraftText(draft.visibleText || draft.prompt)
+      emit('consumePendingDraft')
+    })
+  },
+  { immediate: true },
+)
 watch(() => props.conversation?.id, (_current, previous) => {
   if (previous && codingBrowserStatus.value?.enabled) {
     void hideCodingBrowserViewport(previous)
@@ -1458,9 +1541,22 @@ watch(contextPanel, (panel, previous) => {
     void nextTick(() => syncCodingBrowserViewport())
   }
 })
+// Domain panel projection: conversation/job change only. Independent of running.
+watch(
+  () => [props.ctfSession, props.conversation?.ctfJobId] as const,
+  async ([ctfSession, jobId]) => {
+    if (ctfSession && jobId) {
+      await loadCTFDomainProjection()
+      return
+    }
+    if (!ctfSession) ctfProjection.value = null
+  },
+  { immediate: true },
+)
 watch(
   () => [props.ctfSession, props.conversation?.ctfJobId, props.ctfRole, props.running] as const,
   async ([ctfSession, jobId, _role, running]) => {
+    // Workshop / budget / checkpoint stay idle-path only; domain projection is above.
     if (ctfSession && jobId && !running) {
       await Promise.all([loadWorkshopState(), refreshEnvironment()])
     }
@@ -1500,24 +1596,15 @@ watch(
       </template>
       <template #actions>
         <Button
-          v-if="ctfSession"
+          v-if="domainTaskPresentation"
           variant="ghost"
           size="sm"
-          aria-label="返回 CTF 工作台"
-          @click="$emit('returnCtf')"
+          :aria-label="domainTaskPresentation.returnAriaLabel"
+          @click="domainTaskPresentation.kind === 'ctf' ? $emit('returnCtf') : $emit('returnVuln')"
         >
-          <Flag class="size-4" />
-          返回工作台
-        </Button>
-        <Button
-          v-if="vulnerabilitySession"
-          variant="ghost"
-          size="sm"
-          aria-label="返回 CVE 工作台"
-          @click="$emit('returnVuln')"
-        >
-          <ShieldCheck class="size-4" />
-          返回 CVE
+          <Flag v-if="domainTaskPresentation.kind === 'ctf'" class="size-4" />
+          <ShieldCheck v-else class="size-4" />
+          {{ domainTaskPresentation.returnLabel }}
         </Button>
         <Button
           v-if="!ctfSession"
@@ -1638,12 +1725,13 @@ watch(
     />
   </main>
   <aside
-    v-if="environmentOpen"
+    v-if="environmentOpen && !domainContextCollapsed"
     class="context-sidebar flex shrink-0 flex-col border-l border-border bg-card/95 backdrop-blur"
-    :class="['architecture', 'artifacts', 'changes', 'collaboration', 'history', 'browser'].includes(contextPanel)
+    :class="['architecture', 'artifacts', 'changes', 'collaboration', 'history', 'browser', 'domain'].includes(contextPanel)
       ? 'w-[min(36rem,36vw)] min-w-[22rem]'
       : 'w-80'"
     :aria-label="contextPanelTitle"
+    data-testid="single-right-context-rail"
   >
     <header class="app-drag flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
       <Select
@@ -1656,7 +1744,9 @@ watch(
           class="app-no-drag min-w-44 border-0 bg-transparent px-0 shadow-none"
           aria-label="选择右侧页面"
         >
-          <Activity v-if="contextPanel === 'environment'" class="size-4 text-primary" />
+          <Flag v-if="contextPanel === 'domain' && ctfSession" class="size-4 text-primary" />
+          <ShieldCheck v-else-if="contextPanel === 'domain'" class="size-4 text-primary" />
+          <Activity v-else-if="contextPanel === 'environment'" class="size-4 text-primary" />
           <FileDiff v-else-if="contextPanel === 'changes'" class="size-4 text-primary" />
           <FileImage v-else-if="contextPanel === 'artifacts'" class="size-4 text-primary" />
           <Network v-else-if="contextPanel === 'architecture'" class="size-4 text-primary" />
@@ -1667,6 +1757,7 @@ watch(
           <SelectValue />
         </SelectTrigger>
         <SelectContent size="sm" align="start" class="min-w-56">
+          <SelectItem v-if="domainTaskPresentation" value="domain">领域上下文</SelectItem>
           <SelectItem value="environment">{{ ctfSession ? '解题环境' : '环境信息' }}</SelectItem>
           <SelectItem v-if="!ctfSession" value="changes">变更</SelectItem>
           <SelectItem v-if="!ctfSession" value="artifacts">产物</SelectItem>
@@ -1688,7 +1779,18 @@ watch(
       </div>
       <div class="app-no-drag flex items-center gap-1">
         <Button
-          v-if="contextPanel !== 'browser-use'"
+          v-if="domainTaskPresentation"
+          variant="outline"
+          size="sm"
+          class="min-h-9 px-3"
+          aria-label="折叠为 PiP"
+          data-testid="collapse-domain-to-pip"
+          @click="domainContextCollapsed = true"
+        >
+          折叠为 PiP
+        </Button>
+        <Button
+          v-if="contextPanel !== 'browser-use' && contextPanel !== 'domain'"
           variant="ghost"
           size="icon-sm"
           :disabled="environmentLoading || architecturePreviewLoading"
@@ -1707,7 +1809,16 @@ watch(
       class="min-h-0 flex-1"
       :class="contextPanel === 'browser' ? 'overflow-hidden' : 'overflow-y-auto'"
     >
-      <template v-if="contextPanel === 'environment'">
+      <template v-if="contextPanel === 'domain' && domainTaskPresentation">
+        <DomainTaskContextPanel
+          class="domain-task-context-inline"
+          :presentation="domainTaskPresentation"
+          :collapsed="false"
+          @update:collapsed="domainContextCollapsed = $event"
+          @return-domain="domainTaskPresentation.kind === 'ctf' ? $emit('returnCtf') : $emit('returnVuln')"
+        />
+      </template>
+      <template v-else-if="contextPanel === 'environment'">
         <div v-if="environmentError" class="border-b border-border px-4 py-3 text-caption text-destructive">
           {{ environmentError }}
         </div>
@@ -2443,6 +2554,21 @@ watch(
     </div>
   </aside>
   </div>
+  <DomainTaskContextPanel
+    v-if="domainTaskPresentation && domainContextCollapsed"
+    class="domain-task-context-pip"
+    :presentation="domainTaskPresentation"
+    :collapsed="true"
+    data-testid="domain-task-context-pip"
+    @update:collapsed="value => {
+      domainContextCollapsed = value
+      if (!value) {
+        environmentOpen = true
+        contextPanel = 'domain'
+      }
+    }"
+    @return-domain="domainTaskPresentation.kind === 'ctf' ? $emit('returnCtf') : $emit('returnVuln')"
+  />
   <div
     v-if="terminalOpen"
     class="h-[34vh] min-h-56 min-w-0 max-h-96 shrink-0 overflow-hidden border-t border-border bg-card"
@@ -2489,6 +2615,13 @@ watch(
     z-index: 20;
     box-shadow: -18px 0 40px rgb(0 0 0 / 28%);
   }
+}
+
+.domain-task-context-pip {
+  position: absolute;
+  right: 1rem;
+  bottom: 5.75rem;
+  z-index: 30;
 }
 
 </style>

@@ -15,6 +15,7 @@ import {
 } from '@/lib/themeMode'
 import { settingsReturnSection, type CTFWorkspaceSection } from '@/lib/workspaceNavigation'
 import { executeVulnerabilityCodingHandoff } from '@/lib/vulnerabilityCodingHandoff'
+import { buildCTFDomainTaskContext } from '@/lib/domainTaskContext'
 import {
   rememberWorkspaceConversation,
   selectCodingConversationId,
@@ -192,10 +193,29 @@ async function abortConversation() {
   if (conversationId) await conversations.abort(conversationId)
 }
 
+function domainContextFromCTFHandoff(handoff: CTFAgentWorkspaceHandoff) {
+  const role = handoff.role ?? 'solver'
+  const title = String(handoff.title ?? '').replace(/^CTF\s*·\s*/u, '').trim()
+  return buildCTFDomainTaskContext({
+    jobId: handoff.jobId,
+    challengeId: handoff.jobId,
+    challengeTitle: title || handoff.title,
+    role,
+    materials: handoff.materials,
+    networkScopes: [],
+    evidenceCount: 0,
+    artifactCount: 0,
+    judgeReceipts: [],
+  })
+}
+
 async function startCTFAgent(handoff: CTFAgentWorkspaceHandoff) {
   rememberActiveConversation()
   section.value = 'chat'
-  await conversations.startWorkspaceTask(handoff)
+  await conversations.startWorkspaceTask({
+    ...handoff,
+    domainTaskContext: domainContextFromCTFHandoff(handoff),
+  })
   lastCTFConversationId.value = conversations.activeId.value
 }
 
@@ -211,11 +231,14 @@ async function startVulnerabilityCodingTask(
     activeConversationId: () => conversations.activeId.value,
     setLastCodingConversationId: id => { lastCodingConversationId.value = id },
     setSection: value => { section.value = value },
-    send: conversations.send,
+    stageDraft: (prompt, visibleText) => {
+      conversations.stageComposerDraft(prompt, visibleText)
+    },
   })
   if (conversations.activeId.value) {
     activeVulnerabilityCodingConversationId.value = conversations.activeId.value
   }
+  // recordHandoff = opened shared Coding with staged draft; not Agent started / network.
   if (accepted) {
     recordHandoff?.(conversations.workspacePath.value)
   }
@@ -234,7 +257,10 @@ async function switchCTFAgent(role: 'solver' | 'tool-builder' | 'strategist') {
     const handoff = await invokeCommand<CTFAgentWorkspaceHandoff>(command, {
       id: conversation.ctfJobId,
     })
-    await conversations.startWorkspaceTask(handoff)
+    await conversations.startWorkspaceTask({
+      ...handoff,
+      domainTaskContext: domainContextFromCTFHandoff(handoff),
+    })
     lastCTFConversationId.value = conversations.activeId.value
   } catch (reason) {
     console.error('Failed to switch CTF Agent role', reason)
@@ -364,7 +390,9 @@ onMounted(async () => {
         :mcp-servers="conversations.selectedMCPServers.value"
         :mcp-config-digest="conversations.selectedMCPConfigDigest.value"
         :ensure-conversation="conversations.ensureConversation"
+        :pending-composer-draft="conversations.pendingComposerDraft.value"
         @send="conversations.send"
+        @consume-pending-draft="conversations.consumeComposerDraft()"
         @ctf-action="runCTFChatAction"
         @abort="abortConversation"
         @compact-context="conversations.compactContext"

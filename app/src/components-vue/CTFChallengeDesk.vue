@@ -9,7 +9,6 @@ import {
 import {
   ArrowRight,
   Cable,
-  Check,
   ChevronLeft,
   ChevronRight,
   Clock3,
@@ -18,7 +17,6 @@ import {
   Paperclip,
   Play,
   RefreshCw,
-  ShieldCheck,
   TerminalSquare,
 } from 'lucide-vue-next'
 import CTFCollaborationModePicker from '@/components-vue/CTFCollaborationModePicker.vue'
@@ -105,39 +103,25 @@ const selectedRecommendationReason = computed(() => {
   )
 })
 
-const readiness = computed(() => (
-  Number(props.modelVerified) + Number(props.catalogReady) + Number(props.judgeReady)
-))
-const acceptance = computed(() => props.dashboard?.acceptance ?? null)
-const missingAcceptanceTracks = computed(() => (
-  acceptance.value?.tracks.filter(track => track.status !== 'judge-verified') ?? []
-))
-const acceptanceSummary = computed(() => {
-  const current = acceptance.value
-  if (!current) return '同步题库后显示六赛道真实验收状态。'
-  if (current.ready) return '六个赛道都有 Judge-verified 证据，可进入固定回归复核。'
-  const missing = missingAcceptanceTracks.value.map(track => track.label).join('、')
-  return `${current.judgeVerifiedTracks}/${current.requiredTracks} 个赛道已有 Judge-verified 证据；仍缺 ${missing || '待确认赛道'}。`
-})
 const nssctfNeedsMaterial = computed(() => Boolean(
   props.selectedNssctf?.hasAttachment
   && !props.selectedBrowserReady
   && !props.localMaterials.length,
 ))
-const primaryActionType = computed<'settings' | 'open' | 'start'>(() => {
-  if (!props.modelVerified) return 'settings'
+// Primary desk action opens Coding context without model gate. Material/bridge
+// prep still uses open; Agent start remains a separate workspace action.
+const primaryActionType = computed<'open' | 'start'>(() => {
   if (props.hasActiveTraining) return 'start'
   if (props.activeBank === 'nssctf' && nssctfNeedsMaterial.value) return 'open'
   if (props.activeBank === 'ctfshow' && !props.ctfshowBridgeReady) return 'open'
   return 'start'
 })
 const primaryActionLabel = computed(() => {
-  if (primaryActionType.value === 'settings') return '配置模型'
-  if (props.hasActiveTraining) return '继续训练'
+  if (props.hasActiveTraining) return '在 Coding 中打开'
   if (primaryActionType.value === 'open') {
     return props.activeBank === 'nssctf' ? '打开题目并连接' : '连接 CTFshow'
   }
-  return props.activeBank === 'nssctf' ? '用 Agent 开始' : '读取题面并开始'
+  return props.activeBank === 'nssctf' ? '在 Coding 中打开' : '读取题面并打开 Coding'
 })
 const primaryActionDisabled = computed(() => (
   props.activeBank === 'nssctf'
@@ -212,25 +196,6 @@ function statusLabel(status: string) {
   return '未开始'
 }
 
-function acceptanceStatusText(status: string) {
-  switch (status) {
-    case 'judge-verified':
-      return 'Judge 已验证'
-    case 'user-confirmed':
-      return '用户确认'
-    case 'attempted':
-      return '已尝试'
-    default:
-      return '缺证据'
-  }
-}
-
-function acceptanceStatusVariant(status: string) {
-  if (status === 'judge-verified') return 'success'
-  if (status === 'user-confirmed') return 'secondary'
-  return 'outline'
-}
-
 function difficultyLabel(difficulty: number) {
   return difficulty > 0 ? difficulty.toFixed(1) : '待定'
 }
@@ -265,15 +230,12 @@ function pinnedNssctfLabel(id: number) {
 }
 
 function runPrimaryAction() {
-  if (primaryActionType.value === 'settings') {
-    emit('openSettings')
-    return
-  }
   if (primaryActionType.value === 'open') {
     if (props.activeBank === 'nssctf') emit('openProblem')
     else emit('openCtfshow')
     return
   }
+  // start = open Coding context for the selected challenge (no model gate).
   if (props.activeBank === 'nssctf') {
     emit('startNssctf')
     return
@@ -496,49 +458,6 @@ function runPrimaryAction() {
     </div>
 
     <aside ref="detailPane" class="challenge-detail min-h-0 overflow-y-auto bg-card" aria-live="polite">
-      <details
-        v-if="activeBank === 'nssctf' && acceptance"
-        class="border-b border-border bg-background/55 px-5 py-3"
-        aria-label="CTF 六赛道真实验收"
-      >
-        <summary class="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
-          <div class="min-w-0 flex items-center gap-2">
-            <p class="text-control font-medium">六赛道真实验收</p>
-            <Badge variant="outline">
-              {{ acceptance.ready ? 'Ready' : '通用能力 smoke' }}
-            </Badge>
-          </div>
-          <Badge :variant="acceptance.ready ? 'success' : 'outline'" class="shrink-0">
-            {{ acceptance.judgeVerifiedTracks }}/{{ acceptance.requiredTracks }} Judge
-          </Badge>
-          <span class="basis-full text-caption text-muted-foreground">
-            展开查看缺失赛道；默认解题界面只保留题面、Agent/实验和当前授权/提交。
-          </span>
-        </summary>
-        <div class="mt-3 border-t border-border pt-3">
-          <p class="text-control font-medium">
-            {{ acceptance.ready ? 'Ready，可回归复核' : '仍是通用能力 smoke' }}
-          </p>
-          <p class="mt-1 text-caption leading-5 text-muted-foreground">
-            {{ acceptanceSummary }}
-          </p>
-          <div class="mt-3 flex flex-wrap gap-2">
-            <Badge
-              v-for="track in acceptance.tracks"
-              :key="track.key"
-              :variant="acceptanceStatusVariant(track.status)"
-              class="gap-1"
-            >
-              <span>{{ track.label }}</span>
-              <span class="text-muted-foreground">{{ acceptanceStatusText(track.status) }}</span>
-            </Badge>
-          </div>
-          <p class="mt-3 text-caption leading-5 text-muted-foreground">
-            一题成功只算赛道 smoke，不能描述为完整 CTF 成绩；后续补缺失赛道的真实题目、材料、轨迹、Judge 回执、恢复和复盘证据。
-          </p>
-        </div>
-      </details>
-
       <template v-if="selectedNssctf && activeBank === 'nssctf'">
         <div class="p-7 lg:p-9">
           <div class="flex items-start justify-between gap-4">
@@ -759,22 +678,12 @@ function runPrimaryAction() {
       </div>
 
       <div class="sticky bottom-0 z-10 flex flex-wrap items-center gap-3 border-t border-border bg-background/95 px-5 py-3 backdrop-blur">
-        <span class="text-caption font-medium">准备 {{ readiness }}/3</span>
-        <span class="flex items-center gap-1 text-caption text-muted-foreground">
-          <Check v-if="modelVerified" class="size-3.5 text-success" />
-          <RefreshCw v-else class="size-3.5" />
-          模型
-        </span>
-        <span class="flex items-center gap-1 text-caption text-muted-foreground">
-          <Check v-if="catalogReady" class="size-3.5 text-success" />
-          <RefreshCw v-else class="size-3.5" />
-          题库
-        </span>
-        <span class="flex items-center gap-1 text-caption text-muted-foreground">
-          <Check v-if="judgeReady" class="size-3.5 text-success" />
-          <RefreshCw v-else class="size-3.5" />
-          Judge
-        </span>
+        <p v-if="primaryActionType === 'start' && !modelVerified" class="text-caption text-muted-foreground">
+          打开 Coding 不要求模型；启动 Agent 回合前再配置/验证模型。
+        </p>
+        <p v-else-if="activeBank === 'nssctf' && !judgeReady" class="text-caption text-muted-foreground">
+          Judge 未连接只影响提交，不阻止打开 Coding 上下文。
+        </p>
         <div class="ml-auto flex items-center gap-2">
           <Button
             v-if="activeBank === 'nssctf' && !judgeReady"
@@ -793,8 +702,7 @@ function runPrimaryAction() {
             @click="runPrimaryAction"
           >
             <TerminalSquare v-if="primaryActionType === 'start'" class="size-4" />
-            <ExternalLink v-else-if="primaryActionType === 'open'" class="size-4" />
-            <ShieldCheck v-else class="size-4" />
+            <ExternalLink v-else class="size-4" />
             {{ primaryActionLabel }}
             <ArrowRight class="size-4" />
           </Button>

@@ -301,6 +301,20 @@ button {
   -webkit-app-region: no-drag;
 }
 
+/*
+ * Shared macOS traffic-light safe inset for any full-width top chrome under
+ * hiddenInset (recovery banner, future top strips). Horizontal only so a
+ * banner does not invent vertical empty space when the rail already owns the
+ * logo safe region. Pairs with BrowserWindow.trafficLightPosition.
+ */
+:root {
+  --shell-traffic-light-safe-left: 4.75rem;
+}
+
+.shell-traffic-light-safe-x {
+  padding-left: var(--shell-traffic-light-safe-left);
+}
+
 code,
 pre,
 .font-mono {

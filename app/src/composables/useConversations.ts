@@ -15,6 +15,7 @@ import {
   normalizeCodingExecutionMode,
 } from '@/lib/codingPolicy'
 import { redactProviderCredentials } from '@/lib/redaction'
+import { normalizeDomainTaskContext } from '@/lib/domainTaskContext'
 import type {
   CodingApprovalPolicy,
   CodingAttachment,
@@ -175,6 +176,14 @@ interface WorkspaceTask {
     mode: 'coach' | 'copilot' | 'delegate'
   }
   role: 'solver' | 'tool-builder' | 'strategist'
+  domainTaskContext?: Conversation['domainTaskContext']
+  /** When false/omitted, attach session + draft only — never auto-start Pi. */
+  autoSend?: boolean
+}
+
+export interface PendingComposerDraft {
+  prompt: string
+  visibleText: string
 }
 
 export function normalizeConversation(raw: Record<string, unknown>): Conversation {
@@ -226,6 +235,7 @@ export function normalizeConversation(raw: Record<string, unknown>): Conversatio
     ctfRole: ['solver', 'tool-builder', 'strategist'].includes(String(raw.ctfRole))
       ? raw.ctfRole as Conversation['ctfRole']
       : undefined,
+    domainTaskContext: normalizeDomainTaskContext(raw.domainTaskContext),
     messages: messages.map(message => {
       const rawApprovalState = String(message.approvalState ?? '')
       const approvalState = rawApprovalState === 'pending'
@@ -422,6 +432,26 @@ export function useConversations() {
     if (activeId.value === id) activeId.value = null
   }
 
+  const pendingComposerDraft = ref<PendingComposerDraft | null>(null)
+
+  function stageComposerDraft(prompt: string, visibleText = prompt) {
+    const nextPrompt = String(prompt ?? '').trim()
+    if (!nextPrompt) {
+      pendingComposerDraft.value = null
+      return
+    }
+    pendingComposerDraft.value = {
+      prompt: nextPrompt,
+      visibleText: String(visibleText ?? '').trim() || nextPrompt,
+    }
+  }
+
+  function consumeComposerDraft() {
+    const draft = pendingComposerDraft.value
+    pendingComposerDraft.value = null
+    return draft
+  }
+
   function startNew() {
     activeId.value = null
     pendingWorkspacePath.value = ''
@@ -432,10 +462,22 @@ export function useConversations() {
     pendingApprovalPolicy.value = DEFAULT_CODING_APPROVAL_POLICY
     pendingMCPServers.value = []
     pendingMCPConfigDigest.value = ''
+    pendingComposerDraft.value = null
   }
 
-  function ensureConversation(title = DEFAULT_CODING_CONVERSATION_TITLE) {
-    if (activeId.value) return activeId.value
+  function ensureConversation(
+    title = DEFAULT_CODING_CONVERSATION_TITLE,
+    options: { domainTaskContext?: Conversation['domainTaskContext'] } = {},
+  ) {
+    if (activeId.value) {
+      if (options.domainTaskContext) {
+        update(activeId.value, conversation => ({
+          ...conversation,
+          domainTaskContext: options.domainTaskContext,
+        }))
+      }
+      return activeId.value
+    }
     const conversationId = crypto.randomUUID()
     const conversation: Conversation = {
       id: conversationId,
@@ -451,6 +493,7 @@ export function useConversations() {
       mcpConfigDigest: pendingMCPServers.value.length
         ? pendingMCPConfigDigest.value
         : undefined,
+      domainTaskContext: options.domainTaskContext,
       messages: [],
     }
     conversations.value = [conversation, ...conversations.value]
@@ -532,10 +575,18 @@ export function useConversations() {
   }
 
   async function startWorkspaceTask(task: WorkspaceTask) {
+    const autoSend = task.autoSend === true
     const existing = conversations.value.find(item => item.id === task.conversationId)
     if (existing) {
       activeId.value = existing.id
-      if (existing.workspacePath !== task.workspacePath || existing.title !== task.title) {
+      if (
+        existing.workspacePath !== task.workspacePath
+        || existing.title !== task.title
+        || existing.ctfJobId !== task.jobId
+        || existing.ctfMode !== task.policy.mode
+        || existing.ctfRole !== task.role
+        || task.domainTaskContext
+      ) {
         update(existing.id, conversation => ({
           ...conversation,
           title: task.title,
@@ -543,21 +594,15 @@ export function useConversations() {
           ctfJobId: task.jobId,
           ctfMode: task.policy.mode,
           ctfRole: task.role,
-        }))
-      } else if (
-        existing.ctfJobId !== task.jobId
-        || existing.ctfMode !== task.policy.mode
-        || existing.ctfRole !== task.role
-      ) {
-        update(existing.id, conversation => ({
-          ...conversation,
-          ctfJobId: task.jobId,
-          ctfMode: task.policy.mode,
-          ctfRole: task.role,
+          domainTaskContext: task.domainTaskContext ?? conversation.domainTaskContext,
         }))
       }
-      if (!runningIds.value.has(existing.id)) {
-        await send(task.prompt)
+      if (autoSend) {
+        if (!runningIds.value.has(existing.id)) {
+          await send(task.prompt)
+        }
+      } else {
+        stageComposerDraft(task.prompt)
       }
       return
     }
@@ -570,13 +615,18 @@ export function useConversations() {
       ctfJobId: task.jobId,
       ctfMode: task.policy.mode,
       ctfRole: task.role,
+      domainTaskContext: task.domainTaskContext,
       messages: [],
     }
     conversations.value = [conversation, ...conversations.value]
     activeId.value = conversation.id
     pendingWorkspacePath.value = ''
     persist(conversation)
-    await send(task.prompt)
+    if (autoSend) {
+      await send(task.prompt)
+    } else {
+      stageComposerDraft(task.prompt)
+    }
   }
 
   async function send(
@@ -1126,6 +1176,9 @@ export function useConversations() {
     setCodingPolicy,
     setMCPSelection,
     startWorkspaceTask,
+    pendingComposerDraft,
+    stageComposerDraft,
+    consumeComposerDraft,
     activeSessionReady,
     activeResumed,
     activeCompacting,

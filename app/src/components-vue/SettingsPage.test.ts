@@ -26,7 +26,8 @@ async function settle() {
 afterEach(() => {
   for (const app of mountedApps.splice(0)) app.unmount()
   document.body.innerHTML = ''
-  delete (window as unknown as { go?: unknown }).go
+  Reflect.deleteProperty(window, 'go')
+  Reflect.deleteProperty(window, 'milksu')
 })
 
 interface MountSettingsOptions {
@@ -56,32 +57,70 @@ async function mountSettingsPage(
       stableIdentity: true,
     },
   }
-  ;(window as unknown as { go?: unknown }).go = {
-    main: {
-      App: {
-        GetLocalDataStatus: async () => status,
-        GetStartupRecoveryStatus: async () => ({
-          previousExit: 'abnormal',
-          previousStartedAt: '2026-08-03T04:00:00Z',
-          consecutiveAbnormalExits: 2,
-          previousPid: 4242,
-          startedAt: '2026-08-03T05:00:00Z',
-        }),
-        GetCodingComputerUseStatus: async () => defaultComputerUseStatus,
-        GetNSSCTFWebBridgeStatus: async () => ({
-          bridge: {
-            endpoint: 'ws://127.0.0.1:43123',
-            pairingCode: 'copy-only-test-code',
-            extensionPath: '/Applications/MilkSU.app/Contents/Resources/browserextension',
-            active: true,
-            connected: false,
-          },
-          pages: [],
-        }),
-        ...options.appMethods,
+  const appMethods = {
+    GetLocalDataStatus: async () => status,
+    GetBuildTracking: async () => ({
+      schema: 'milksu.build-tracking/v1',
+      packaged: true,
+      development: false,
+      provenanceSource: 'packaged/sealed',
+      channel: 'stable',
+      productName: 'MilkSU',
+      appId: 'com.milksu.app',
+      gitBranch: 'main',
+      gitCommit: '1add25ec965ac1f7cd2fcd1993ee2507bd5855b7',
+      dirty: false,
+      sourceFingerprint: '',
+      buildTime: '2026-08-10T00:00:00.000Z',
+      trackingId: 'ab'.repeat(32),
+      missing: false,
+    }),
+    GetStartupRecoveryStatus: async () => ({
+      previousExit: 'abnormal',
+      previousStartedAt: '2026-08-03T04:00:00Z',
+      consecutiveAbnormalExits: 2,
+      previousPid: 4242,
+      startedAt: '2026-08-03T05:00:00Z',
+    }),
+    GetCodingComputerUseStatus: async () => defaultComputerUseStatus,
+    GetNSSCTFWebBridgeStatus: async () => ({
+      bridge: {
+        endpoint: 'ws://127.0.0.1:43123',
+        pairingCode: 'copy-only-test-code',
+        extensionPath: '/Applications/MilkSU.app/Contents/Resources/browserextension',
+        active: true,
+        connected: false,
       },
+      pages: [],
+    }),
+    ...options.appMethods,
+  }
+  const milksuApi = {
+    invoke(method: string, args: unknown[]) {
+      const fn = (appMethods as Record<string, (...callArgs: unknown[]) => Promise<unknown>>)[method]
+      if (!fn) throw new Error(`unexpected method ${method}`)
+      return fn(...(args ?? []))
+    },
+    onEvent() {
+      return () => {}
     },
   }
+  Object.defineProperty(window, 'milksu', {
+    configurable: true,
+    enumerable: true,
+    writable: true,
+    value: milksuApi,
+  })
+  Object.defineProperty(window, 'go', {
+    configurable: true,
+    enumerable: true,
+    writable: true,
+    value: {
+      main: {
+        App: appMethods,
+      },
+    },
+  })
   const host = document.createElement('div')
   document.body.append(host)
   const app = createApp(SettingsPage, {
@@ -133,6 +172,110 @@ const fiveDatabases: LocalDataStatus = {
     },
   ],
 }
+
+describe('SettingsPage build tracking', () => {
+  it('renders sealed provenance after the save control with full copyable fields', async () => {
+    await mountSettingsPage(fiveDatabases)
+    const panel = document.querySelector('[data-testid="build-tracking"]') as HTMLElement | null
+    expect(panel).not.toBeNull()
+    const saveButton = Array.from(document.querySelectorAll('button')).find(button =>
+      (button.textContent ?? '').includes('保存设置'),
+    )
+    expect(saveButton).toBeTruthy()
+    const position = saveButton!.compareDocumentPosition(panel!)
+    expect(position & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+
+    const text = panel?.textContent ?? ''
+    expect(text).toContain('channel: stable')
+    expect(text).toContain('gitBranch: main')
+    expect(text).toContain('gitCommit: 1add25ec965ac1f7cd2fcd1993ee2507bd5855b7')
+    expect(text).toContain('tree: clean')
+    expect(text).toContain('buildTime: 2026-08-10T00:00:00.000Z')
+    expect(text).toContain(`trackingId: ${'ab'.repeat(32)}`)
+    expect(text).toContain('integrity digest, not a package authenticity signature')
+    expect(text).not.toContain('development/unpackaged')
+
+    const copyButton = Array.from(document.querySelectorAll('button')).find(button =>
+      (button.textContent ?? '').includes('复制完整追踪'),
+    )
+    expect(copyButton).toBeTruthy()
+    const writes: string[] = []
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: async (value: string) => {
+          writes.push(value)
+        },
+      },
+    })
+    copyButton!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await settle()
+    await settle()
+    expect(writes.length).toBe(1)
+    expect(writes[0]).toContain('gitCommit: 1add25ec965ac1f7cd2fcd1993ee2507bd5855b7')
+    expect(writes[0]).toContain('buildTime: 2026-08-10T00:00:00.000Z')
+    expect(writes[0]).toContain(`trackingId: ${'ab'.repeat(32)}`)
+    expect(writes[0]).toContain('integrity digest, not a package authenticity signature')
+  })
+
+  it('renders explicit development/unpackaged provenance without forged commit', async () => {
+    await mountSettingsPage(fiveDatabases, {
+      appMethods: {
+        GetBuildTracking: async () => ({
+          schema: 'milksu.build-tracking/v1',
+          packaged: false,
+          development: true,
+          provenanceSource: 'development/unpackaged',
+          channel: 'stable',
+          productName: 'MilkSU',
+          appId: 'com.milksu.app',
+          gitBranch: 'development/unpackaged',
+          gitCommit: '',
+          dirty: false,
+          sourceFingerprint: '',
+          buildTime: '',
+          trackingId: '',
+          missing: true,
+        }),
+      },
+    })
+    const panel = document.querySelector('[data-testid="build-tracking"]')
+    expect(panel).not.toBeNull()
+    const text = panel?.textContent ?? ''
+    expect(text).toContain('development/unpackaged')
+    expect(text).toContain('gitCommit: (unavailable)')
+    expect(text).toContain('trackingId: (unavailable)')
+    expect(text).not.toMatch(/gitCommit: [0-9a-f]{40}/)
+  })
+
+  it('shows packaged/missing with empty branch fields, not development labels', async () => {
+    await mountSettingsPage(fiveDatabases, {
+      appMethods: {
+        GetBuildTracking: async () => ({
+          schema: 'milksu.build-tracking/v1',
+          packaged: true,
+          development: false,
+          provenanceSource: 'packaged/missing',
+          channel: 'stable',
+          productName: 'MilkSU',
+          appId: 'com.milksu.app',
+          gitBranch: '',
+          gitCommit: '',
+          dirty: false,
+          sourceFingerprint: '',
+          buildTime: '',
+          trackingId: '',
+          missing: true,
+        }),
+      },
+    })
+    const text = document.querySelector('[data-testid="build-tracking"]')?.textContent ?? ''
+    expect(text).toContain('provenanceSource: packaged/missing')
+    expect(text).toContain('gitBranch: (unavailable)')
+    expect(text).toContain('gitCommit: (unavailable)')
+    expect(text).not.toContain('gitBranch: development/unpackaged')
+  })
+})
 
 describe('SettingsPage database compatibility', () => {
   it('renders all five database compatibility states', async () => {
@@ -287,7 +430,7 @@ describe('SettingsPage database compatibility', () => {
     expect(text).toContain('已授权')
   })
 
-  it('does not encourage repeated Computer Use permission prompts for unstable builds', async () => {
+  it('keeps explicit Computer Use permission authorization available on unstable builds', async () => {
     let permissionRequests = 0
     await mountSettingsPage({
       directory: 'MilkSU 用户数据目录',
@@ -315,25 +458,41 @@ describe('SettingsPage database compatibility', () => {
         }) satisfies CodingComputerUseStatus,
         RequestCodingComputerUsePermissions: async () => {
           permissionRequests += 1
-          throw new Error('should not prompt again for unstable signing')
+          return {
+            available: true,
+            enabled: false,
+            phase: 'disabled',
+            permissions: {
+              accessibility: false,
+              screenRecording: false,
+            },
+            signing: {
+              bundleId: 'com.milksu.app',
+              executablePath: '/Applications/MilkSU.app',
+              signature: 'adhoc',
+              teamIdentifier: 'not set',
+              stableIdentity: false,
+              problem: '当前构建不是稳定 Developer ID 签名；系统设置里显示已勾选时，TCC 探针仍可能对当前二进制返回未授权。',
+            },
+          } satisfies CodingComputerUseStatus
         },
       },
     })
 
     const text = document.body.textContent ?? ''
     expect(text).toContain('外部 App 权限')
-    expect(text).toContain('先稳定签名再复检')
-    expect(text).toContain('不要反复授权')
+    expect(text).toContain('打开系统权限设置')
     expect(text).toContain('当前构建身份：ad-hoc · Team 未设置')
     expect(text).toContain('Developer ID')
-    expect(text).not.toContain('打开系统权限设置')
+    expect(text).toContain('真实 TCC 探针')
+    expect(text).not.toContain('先稳定签名再复检')
 
-    const blocked = [...document.querySelectorAll<HTMLButtonElement>('button')]
-      .find(button => button.textContent?.includes('先稳定签名再复检'))
-    expect(blocked?.disabled).toBe(true)
-    blocked?.click()
+    const openSettings = [...document.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.includes('打开系统权限设置'))
+    expect(openSettings?.disabled).toBe(false)
+    openSettings?.click()
     for (let index = 0; index < 2; index += 1) await settle()
-    expect(permissionRequests).toBe(0)
+    expect(permissionRequests).toBe(1)
   })
 
   it('keeps settings saved and explains an offline model verification failure', async () => {

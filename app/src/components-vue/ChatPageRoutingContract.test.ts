@@ -9,9 +9,49 @@ describe('ChatPage routing contract', () => {
     expect(chatPageSource).toContain('const topbarModule = computed')
     expect(chatPageSource).toContain("? 'cve'")
     expect(chatPageSource).toContain("{{ ctfSession ? ctfRoleLabel : 'CVE 接力' }}")
-    expect(chatPageSource).toContain('aria-label="返回 CVE 工作台"')
-    expect(chatPageSource).toContain("@click=\"$emit('returnVuln')\"")
+    expect(chatPageSource).toContain('domainTaskPresentation')
+    expect(chatPageSource).toContain("domainTaskPresentation.kind === 'ctf' ? $emit('returnCtf') : $emit('returnVuln')")
     expect(chatPageSource).toContain(':module="topbarModule"')
+  })
+
+  it('keeps one shared Coding/Pi session with collapsible domain task context for CTF and CVE', () => {
+    expect(chatPageSource).toContain("from '@/lib/domainTaskContext'")
+    expect(chatPageSource).toContain('presentDomainTaskContext')
+    expect(chatPageSource).toContain('refreshCTFDomainTaskContext')
+    expect(chatPageSource).toContain('sharedCodingSessionKind')
+    expect(chatPageSource).toContain('DomainTaskContextPanel')
+    expect(chatPageSource).toContain('domainContextCollapsed')
+    expect(chatPageSource).toContain('conversation?.domainTaskContext')
+    expect(chatPageSource).toContain('live.networkScopes')
+    expect(chatPageSource).toContain('live.challenge?.source?.scope')
+    expect(chatPageSource).toContain('<DomainTaskContextPanel')
+    expect(chatPageSource).not.toContain('milksu:coding-smoke-open-panel')
+    expect(chatPageSource).not.toContain('handleCodingSmokeOpenPanel')
+  })
+
+  it('loads CTF domain projection on conversation/job change without waiting for Agent idle', () => {
+    expect(chatPageSource).toContain('async function loadCTFDomainProjection()')
+    expect(chatPageSource).toContain("invokeCommand<CTFProjection>('get_ctf_job'")
+    // Dedicated watcher is only ctfSession + ctfJobId — no running gate.
+    expect(chatPageSource).toContain(
+      '() => [props.ctfSession, props.conversation?.ctfJobId] as const',
+    )
+    expect(chatPageSource).toContain('await loadCTFDomainProjection()')
+    // Workshop/environment idle path remains separate and still may check !running.
+    expect(chatPageSource).toContain('if (ctfSession && jobId && !running)')
+  })
+
+  it('uses one right rail for domain context with text PiP collapse and draft-only handoff', () => {
+    expect(chatPageSource).toContain('data-testid="single-right-context-rail"')
+    expect(chatPageSource).toContain('data-testid="collapse-domain-to-pip"')
+    expect(chatPageSource).toContain('折叠为 PiP')
+    expect(chatPageSource).toContain("value=\"domain\"")
+    expect(chatPageSource).toContain('pendingComposerDraft')
+    expect(chatPageSource).toContain('consumePendingDraft')
+    expect(chatPageSource).toContain('appendDraftText')
+    // Second expanded domain sidebar removed — only PiP remains when collapsed.
+    const expandedDomainSidebars = (chatPageSource.match(/domainTaskPresentation && !domainContextCollapsed/g) ?? []).length
+    expect(expandedDomainSidebars).toBe(0)
   })
 
   it('scrolls to the latest message when route context or conversation changes', () => {

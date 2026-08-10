@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { Badge, Button } from '@felinic/ui'
 import {
   Bug,
@@ -13,7 +13,9 @@ import {
 import milksuAppIcon from '@/assets/milksu-app-icon.png'
 import AbilityRadar from '@/components-vue/AbilityRadar.vue'
 import { useNSSCTFTraining } from '@/composables/useNSSCTFTraining'
+import { invokeCommand } from '@/desktop'
 import type { ThemeMode } from '@/lib/themeMode'
+import type { BuildTracking } from '@/types'
 import {
   WORKSPACE_RAIL_ITEMS,
   type WorkspaceSection,
@@ -38,17 +40,36 @@ const icons = {
 
 const abilityOpen = ref(false)
 const training = useNSSCTFTraining()
+const buildTracking = ref<BuildTracking | null>(null)
 
 const abilityLoading = training.loading
 const abilityError = training.error
 const abilityDimensions = computed(() => training.dashboard.value?.dimensions ?? [])
-const acceptance = computed(() => training.dashboard.value?.acceptance)
+const judgeVerifiedSolvedCount = computed(() => (
+  training.dashboard.value?.judgeVerifiedSolvedCount ?? 0
+))
+const userConfirmedSolvedCount = computed(() => (
+  training.dashboard.value?.userConfirmedSolvedCount ?? 0
+))
+// Only packaged beta identity shows the badge; Stable and development shells stay clean.
+const isBetaChannel = computed(() => {
+  if (buildTracking.value?.development) return false
+  if (buildTracking.value?.missing) return false
+  return String(buildTracking.value?.channel ?? '').toLowerCase() === 'beta'
+    && String(buildTracking.value?.appId ?? '') === 'com.milksu.app.beta'
+})
 const themeToggleLabel = computed(() => (
   props.themeMode === 'dark' ? '切换到日间模式' : '切换到夜间模式'
 ))
 const ThemeToggleIcon = computed(() => (
   props.themeMode === 'dark' ? Sun : Moon
 ))
+
+onMounted(() => {
+  void invokeCommand<BuildTracking>('get_build_tracking')
+    .then(value => { buildTracking.value = value })
+    .catch(() => { buildTracking.value = null })
+})
 
 async function toggleAbilityProfile() {
   abilityOpen.value = !abilityOpen.value
@@ -69,12 +90,22 @@ function openSettings() {
 </script>
 
 <template>
-  <div class="app-drag relative flex w-[4.75rem] shrink-0 flex-col border-r border-border bg-sidebar">
-    <div class="relative flex h-[4.75rem] items-center justify-center border-b border-border">
+  <div
+    class="app-drag relative flex w-[4.75rem] shrink-0 flex-col border-r border-border bg-sidebar"
+    data-shell-traffic-safe
+  >
+    <!--
+      Shell traffic-light safe region: pairs with BrowserWindow titleBarStyle hiddenInset
+      and trafficLightPosition. Uses layout padding (not screenshot hardcoding) so the
+      logo / first nav control stays below the red-yellow-green cluster on macOS.
+    -->
+    <div
+      class="workspace-rail-traffic-safe relative flex items-end justify-center border-b border-border"
+    >
       <Button
         variant="ghost"
         size="icon"
-        class="app-no-drag size-12 rounded-2xl p-1.5"
+        class="app-no-drag relative size-12 rounded-2xl p-1.5"
         aria-label="查看能力画像"
         :aria-expanded="abilityOpen"
         @click="toggleAbilityProfile"
@@ -84,6 +115,14 @@ function openSettings() {
           alt="MilkSU"
           class="size-9 rounded-xl border border-border bg-white object-cover"
         >
+        <span
+          v-if="isBetaChannel"
+          class="pointer-events-none absolute -right-1 -top-1 rounded-md bg-indigo-600 px-1 py-0.5 text-[9px] font-semibold leading-none tracking-wide text-white"
+          aria-label="Beta 渠道"
+          data-testid="beta-channel-badge"
+        >
+          BETA
+        </span>
       </Button>
 
       <section
@@ -113,12 +152,15 @@ function openSettings() {
           <AbilityRadar class="mt-4" :dimensions="abilityDimensions" />
           <div class="mt-4 flex flex-wrap gap-2">
             <Badge variant="outline">
-              {{ acceptance?.judgeVerifiedTracks ?? 0 }} / {{ acceptance?.requiredTracks ?? abilityDimensions.length }} Judge
+              Judge 验证 {{ judgeVerifiedSolvedCount }}
             </Badge>
-            <Badge :variant="acceptance?.ready ? 'success' : 'secondary'">
-              {{ acceptance?.ready ? 'Ready' : '待校准' }}
+            <Badge variant="secondary">
+              用户确认 {{ userConfirmedSolvedCount }}
             </Badge>
           </div>
+          <p class="mt-3 text-caption leading-5 text-muted-foreground">
+            画像只汇总有证据的维度；Judge 计数不能描述为完整 CTF 成绩。
+          </p>
         </template>
         <div v-else class="mt-5 rounded-xl border border-border bg-muted/30 px-3 py-4 text-body text-muted-foreground">
           暂无训练记录。完成真实 Judge 或用户确认步骤后，这里会出现六维画像。
@@ -175,6 +217,18 @@ function openSettings() {
 </template>
 
 <style scoped>
+/*
+  Traffic-light safe inset for macOS hiddenInset chrome.
+  Height + top padding leave a reliable gap under the window controls so the
+  logo and first nav item do not sit under the red/yellow/green buttons.
+*/
+.workspace-rail-traffic-safe {
+  box-sizing: border-box;
+  min-height: 5.75rem;
+  padding-top: 2.1rem;
+  padding-bottom: 0.5rem;
+}
+
 .workspace-rail-item {
   font-size: var(--text-body);
   line-height: var(--text-body--line-height);

@@ -3,6 +3,7 @@ import {
   type CodingAttachment,
   type LocalDataBackupExport,
   type LocalDataBackupRestore,
+  type BuildTracking,
   type LocalDataStatus,
   type LocalDiagnosticExport,
   type ModelProbeResult,
@@ -138,6 +139,7 @@ interface DesktopAppBindings {
   GetSettings(): Promise<AppSettings>
   SaveSettingsCmd(settings: AppSettings): Promise<void>
   GetLocalDataStatus(): Promise<LocalDataStatus>
+  GetBuildTracking(): Promise<BuildTracking>
   ExportLocalDataBackup(): Promise<LocalDataBackupExport>
   ScheduleLocalDataRestore(): Promise<LocalDataBackupRestore>
   ExportLocalDiagnostics(): Promise<LocalDiagnosticExport>
@@ -410,6 +412,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.SaveSettingsCmd(args?.newSettings as AppSettings) as Promise<T>
       case 'get_local_data_status':
         return app.GetLocalDataStatus() as Promise<T>
+      case 'get_build_tracking':
+        return app.GetBuildTracking() as Promise<T>
       case 'export_local_data_backup':
         return app.ExportLocalDataBackup() as Promise<T>
       case 'schedule_local_data_restore':

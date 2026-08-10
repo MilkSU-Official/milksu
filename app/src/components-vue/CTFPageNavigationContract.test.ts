@@ -24,18 +24,29 @@ describe('CTFPage navigation contract', () => {
     expect(showProblemsSource).toContain('else void loadPublicCatalog(1)')
   })
 
-  it('shows the six-track Judge acceptance state without overstating CTF readiness', () => {
-    expect(ctfChallengeDeskSource).toContain('<details')
-    expect(ctfChallengeDeskSource).toContain('aria-label="CTF 六赛道真实验收"')
-    expect(ctfChallengeDeskSource).toContain('六赛道真实验收')
-    expect(ctfChallengeDeskSource).toContain('展开查看缺失赛道')
-    expect(ctfChallengeDeskSource).toContain('默认解题界面只保留题面、Agent/实验和当前授权/提交')
-    expect(ctfChallengeDeskSource).toContain('仍是通用能力 smoke')
-    expect(ctfChallengeDeskSource).toContain('acceptance.judgeVerifiedTracks')
-    expect(ctfChallengeDeskSource).toContain('acceptance.requiredTracks')
-    expect(ctfChallengeDeskSource).toContain('acceptanceStatusText(track.status)')
-    expect(ctfChallengeDeskSource).toContain('一题成功只算赛道 smoke，不能描述为完整 CTF 成绩')
-    expect(ctfChallengeDeskSource).toContain('真实题目、材料、轨迹、Judge 回执、恢复和复盘证据')
+  it('does not expose six-track smoke / Judge-count acceptance as a user surface', () => {
+    expect(ctfChallengeDeskSource).not.toContain('aria-label="CTF 六赛道真实验收"')
+    expect(ctfChallengeDeskSource).not.toContain('六赛道真实验收')
+    expect(ctfChallengeDeskSource).not.toContain('通用能力 smoke')
+    expect(ctfChallengeDeskSource).not.toContain('acceptance.judgeVerifiedTracks')
+    expect(ctfChallengeDeskSource).not.toContain('acceptance.requiredTracks')
+    expect(ctfChallengeDeskSource).not.toContain('acceptanceStatusText(track.status)')
+    expect(ctfChallengeDeskSource).not.toContain('准备 {{ readiness }}/3')
+    expect(ctfChallengeDeskSource).toContain('在 Coding 中打开')
+  })
+
+  it('opens Coding context without model readiness and without readiness 1/3 strip', () => {
+    expect(ctfPageSource).toContain('async function openCodingContext()')
+    expect(ctfPageSource).toContain('openCodingContext')
+    expect(ctfPageSource).not.toContain('训练准备')
+    expect(ctfPageSource).not.toContain('readinessCount')
+    expect(ctfPageSource).not.toContain('{{ readinessCount }}/3')
+    // modelReady only gates the Agent turn messaging, not openCodingContext itself.
+    const openCodingContextStart = ctfPageSource.indexOf('async function openCodingContext()')
+    const openCodingContextEnd = ctfPageSource.indexOf('async function openCodingAgent()', openCodingContextStart)
+    const openCodingBody = ctfPageSource.slice(openCodingContextStart, openCodingContextEnd)
+    expect(openCodingBody).not.toContain('modelReady')
+    expect(openCodingBody).toContain("prepare_ctf_agent_workspace")
   })
 
   it('quotes confirmed related history into the debrief draft instead of saving CTF memory directly', () => {

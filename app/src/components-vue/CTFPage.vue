@@ -269,11 +269,6 @@ const selectedActiveJob = computed(() => {
     && !['succeeded', 'failed', 'cancelled'].includes(job.status)
   )) ?? null
 })
-const readinessCount = computed(() => (
-  Number(props.modelVerified)
-  + Number(selectedCatalogReady.value)
-  + Number(selectedJudgeReady.value)
-))
 const canStartSelectedChallenge = computed(() => {
   if (selectedActiveJob.value) return true
   if (activeBank.value === 'nssctf') {
@@ -286,23 +281,20 @@ const canStartSelectedChallenge = computed(() => {
     && Boolean(selectedCTFShowProblemID.value)
     && ctfshowBridgeReady.value
 })
-const readinessAction = computed(() => {
-  if (!props.modelVerified) {
-    return { label: props.modelReady ? '验证模型' : '配置模型', action: 'model' as const }
+// Presentation-only readiness strips removed. Inline blockers only at the
+// action they gate: model gates Agent start, Judge gates submit, neither gates
+// opening Coding context.
+const catalogAction = computed(() => (
+  selectedCatalogReady.value
+    ? null
+    : { label: '同步题库', action: 'catalog' as const }
+))
+const startSelectedAction = computed(() => {
+  if (!canStartSelectedChallenge.value) return null
+  return {
+    label: selectedActiveJob.value ? '在 Coding 中打开' : '在 Coding 中打开',
+    action: 'open-coding' as const,
   }
-  if (!selectedCatalogReady.value) {
-    return { label: '同步题库', action: 'catalog' as const }
-  }
-  if (canStartSelectedChallenge.value) {
-    return {
-      label: selectedActiveJob.value ? '继续训练' : '用 Agent 开始',
-      action: 'start' as const,
-    }
-  }
-  if (!selectedJudgeReady.value) {
-    return { label: '连接 Judge', action: 'judge' as const }
-  }
-  return null
 })
 const activeStartCost = computed(() => (
   activeBrowserPage.value?.nssctf.needsStart
@@ -639,28 +631,18 @@ function verdictLabel(verdict?: string) {
   }
 }
 
-async function runReadinessAction() {
-  const action = readinessAction.value?.action
-  if (action === 'model') {
-    emit('openSettings')
+async function runCatalogAction() {
+  if (activeBank.value === 'nssctf') await syncCatalog()
+  else await refreshCTFShow()
+}
+
+async function openSelectedInCoding() {
+  if (activeBank.value === 'ctfshow' && selectedCTFShowProblemID.value) {
+    await chooseCTFShowProblem(selectedCTFShowProblemID.value)
     return
   }
-  if (action === 'catalog') {
-    if (activeBank.value === 'nssctf') await syncCatalog()
-    else await refreshCTFShow()
-    return
-  }
-  if (action === 'judge') {
-    if (activeBank.value === 'ctfshow') await ctfshow.open()
-    else showProblems()
-    return
-  }
-  if (action === 'start') {
-    if (activeBank.value === 'ctfshow' && selectedCTFShowProblemID.value) {
-      await chooseCTFShowProblem(selectedCTFShowProblemID.value)
-    } else if (activeBank.value === 'nssctf') {
-      await startPublicWorkspace()
-    }
+  if (activeBank.value === 'nssctf') {
+    await startPublicWorkspace()
   }
 }
 
@@ -842,7 +824,7 @@ async function selectDefaultDeskProblem() {
 async function runDailyMission() {
   if (dailyMission.value.kind === 'resume' && resumableJob.value) {
     await resumeJob(resumableJob.value.id)
-    if (props.modelReady) await openCodingAgent()
+    await openCodingAgent()
     return
   }
   if (dailyMission.value.kind === 'recommendation') {
@@ -1038,7 +1020,7 @@ async function startPublicWorkspace() {
   if (!selectedProblem.value) return
   if (selectedActiveJob.value) {
     await resumeJob(selectedActiveJob.value.id)
-    if (props.modelReady) await openCodingAgent()
+    await openCodingAgent()
     return
   }
   working.value = true
@@ -1099,7 +1081,7 @@ async function startPublicWorkspace() {
       outcomeNotice.value = `${materialWarning}。工作台已使用公开题面和现有材料继续建立。`
     }
     screen.value = 'workspace'
-    if (props.modelReady) await openCodingAgent()
+    await openCodingAgent()
   }
 }
 
@@ -1118,17 +1100,13 @@ async function startArenaWorkspace() {
   working.value = false
 }
 
-async function openCodingAgent() {
+/**
+ * Open/reuse deferred CTF Coding session + mount domain context without sending.
+ * Does not require model credentials; Start Agent remains a separate explicit action.
+ */
+async function openCodingContext() {
   if (!activeProjection.value) return
   await backend.loadAgentState(activeProjection.value.job.id)
-  if (backend.agentBudget.value?.exhausted) {
-    outcomeNotice.value = agentBudgetStopMessage.value
-    return
-  }
-  if (!props.modelReady) {
-    emit('openSettings')
-    return
-  }
   working.value = true
   outcomeNotice.value = ''
   try {
@@ -1138,18 +1116,31 @@ async function openCodingAgent() {
     backend.agentRun.value = handoff.run
     emit('startCodingAgent', handoff)
   } catch (reason) {
-    outcomeNotice.value = `无法建立 Agent 工作区：${String(reason)}`
+    outcomeNotice.value = `无法打开 Coding 上下文：${String(reason)}`
   } finally {
     working.value = false
   }
 }
 
-async function openStrategistAgent() {
+async function openCodingAgent() {
   if (!activeProjection.value) return
-  if (!props.modelReady) {
-    emit('openSettings')
+  await backend.loadAgentState(activeProjection.value.job.id)
+  if (backend.agentBudget.value?.exhausted) {
+    outcomeNotice.value = agentBudgetStopMessage.value
     return
   }
+  if (!props.modelReady) {
+    // Opening Coding context is allowed; only the Agent turn needs the model.
+    await openCodingContext()
+    outcomeNotice.value = '已在 Coding 中打开本题上下文。配置模型后可再点“启动 Agent”发送回合。'
+    return
+  }
+  await openCodingContext()
+}
+
+async function openStrategistAgent() {
+  if (!activeProjection.value) return
+  // Strategist open is still “open Coding context”; model only needed to run the turn.
   working.value = true
   outcomeNotice.value = ''
   try {
@@ -1158,8 +1149,11 @@ async function openStrategistAgent() {
       { id: activeProjection.value.job.id },
     )
     emit('startCodingAgent', handoff)
+    if (!props.modelReady) {
+      outcomeNotice.value = '已打开策略复盘上下文。配置模型后再显式启动 Agent 回合。'
+    }
   } catch (reason) {
-    outcomeNotice.value = `无法建立策略复盘：${String(reason)}`
+    outcomeNotice.value = `无法打开策略复盘：${String(reason)}`
   } finally {
     working.value = false
   }
@@ -1781,48 +1775,31 @@ onBeforeUnmount(() => {
           </div>
 
           <section
-            class="mb-6 flex flex-wrap items-center gap-x-5 gap-y-3 rounded-lg border border-border bg-card px-4 py-3"
-            aria-label="训练准备"
+            v-if="catalogAction || startSelectedAction"
+            class="mb-6 flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card px-4 py-3"
+            aria-label="当前操作"
           >
-            <div class="flex items-center gap-2">
-              <span class="text-control font-medium">训练准备</span>
-              <Badge variant="outline">{{ readinessCount }}/3</Badge>
-            </div>
-            <div class="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-2 text-caption">
-              <span
-                class="flex items-center gap-1.5"
-                :class="modelVerified ? 'text-foreground' : 'text-muted-foreground'"
-              >
-                <Check v-if="modelVerified" class="size-3.5 text-primary" />
-                <Circle v-else class="size-3.5" />
-                模型{{ modelVerified ? '已验证' : modelReady ? '待验证' : '未配置' }}
-              </span>
-              <span
-                class="flex items-center gap-1.5"
-                :class="selectedCatalogReady ? 'text-foreground' : 'text-muted-foreground'"
-              >
-                <Check v-if="selectedCatalogReady" class="size-3.5 text-primary" />
-                <Circle v-else class="size-3.5" />
-                题库{{ selectedCatalogReady ? '可用' : '未同步' }}
-              </span>
-              <span
-                class="flex items-center gap-1.5"
-                :class="selectedJudgeReady ? 'text-foreground' : 'text-muted-foreground'"
-              >
-                <Check v-if="selectedJudgeReady" class="size-3.5 text-primary" />
-                <Circle v-else class="size-3.5" />
-                Judge{{ selectedJudgeReady ? '已连接' : '待连接' }}
-              </span>
-            </div>
             <Button
-              v-if="readinessAction"
-              variant="ghost"
+              v-if="catalogAction"
+              variant="outline"
               size="sm"
-              @click="runReadinessAction"
+              @click="runCatalogAction"
             >
-              {{ readinessAction.label }}
+              {{ catalogAction.label }}
+            </Button>
+            <Button
+              v-if="startSelectedAction"
+              variant="brand"
+              size="sm"
+              :loading="working"
+              @click="openSelectedInCoding"
+            >
+              {{ startSelectedAction.label }}
               <ArrowRight class="size-4" />
             </Button>
+            <p class="basis-full text-caption text-muted-foreground">
+              打开 Coding 不发送回合、不要求模型凭据；启动 Agent 需另点显式动作。
+            </p>
           </section>
 
           <section v-if="activeBank === 'ctfshow'" aria-labelledby="ctfshow-title">

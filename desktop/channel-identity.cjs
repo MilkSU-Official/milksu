@@ -72,6 +72,7 @@ function channelIdentity(channel) {
 
 /**
  * Compute isolation plan without touching Electron APIs.
+ * setName is always the channel product name so menus/Dock never keep "Electron".
  * @param {{ channel: string, productName: string, userDataDirName: string }} identity
  * @param {{
  *   appDataPath: string,
@@ -82,13 +83,15 @@ function channelIdentity(channel) {
 function planChannelIsolation(identity, paths) {
   const instanceSuffix = String(paths.instanceId ?? '').trim()
   const isolatedInstance = INSTANCE_ID_PATTERN.test(instanceSuffix)
+  const setName = String(identity.productName ?? '').trim()
+    || (identity.channel === 'beta' ? BETA_PRODUCT_NAME : STABLE_PRODUCT_NAME)
   if (identity.channel === 'beta') {
     let userData = path.join(paths.appDataPath, identity.userDataDirName)
     if (isolatedInstance) userData = `${userData}-${instanceSuffix}`
     return {
       userData,
       isolatedInstance,
-      setName: identity.productName,
+      setName,
       pinUserData: true,
     }
   }
@@ -97,14 +100,14 @@ function planChannelIsolation(identity, paths) {
     return {
       userData,
       isolatedInstance: true,
-      setName: '',
+      setName,
       pinUserData: true,
     }
   }
   return {
     userData: paths.naturalUserDataPath,
     isolatedInstance: false,
-    setName: '',
+    setName,
     pinUserData: false,
   }
 }
