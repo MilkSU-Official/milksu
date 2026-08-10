@@ -2,7 +2,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const invokeCommand = vi.fn(async (command: string) => {
+const invokeCommand = vi.fn(async (command: string, _args?: unknown) => {
   if (command === 'list_conversations') return []
   if (command === 'save_conversation') return null
   if (command === 'send_message') {
@@ -64,8 +64,8 @@ describe('useConversations domain handoff attach', () => {
       prompt: 'proposed solver prompt',
       visibleText: 'proposed solver prompt',
     })
-    expect(invokeCommand.mock.calls.some(([command]) => command === 'send_message')).toBe(false)
-    expect(invokeCommand.mock.calls.some(([command]) => command === 'save_conversation')).toBe(true)
+    expect(invokeCommand.mock.calls.some(call => call[0] === 'send_message')).toBe(false)
+    expect(invokeCommand.mock.calls.some(call => call[0] === 'save_conversation')).toBe(true)
   })
 
   it('CVE ensureConversation + stageComposerDraft does not send', async () => {
@@ -97,6 +97,6 @@ describe('useConversations domain handoff attach', () => {
     })
     expect(conversations.pendingComposerDraft.value?.visibleText).toBe('接手 CVE-2023-46604')
     expect(conversations.activeRunning.value).toBe(false)
-    expect(invokeCommand.mock.calls.some(([command]) => command === 'send_message')).toBe(false)
+    expect(invokeCommand.mock.calls.some(call => call[0] === 'send_message')).toBe(false)
   })
 })
