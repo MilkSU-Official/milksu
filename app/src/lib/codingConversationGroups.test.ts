@@ -136,7 +136,7 @@ describe('Coding conversation groups', () => {
     }
     const groups = groupCodingConversations([
       conversation('legacy-old', 'CVE-2024-3400 研究接力', 10, {
-        domainTaskContext: context,
+        // Pre-domain-context build: only the strict legacy title identifies it.
       }),
       conversation('legacy-new', 'CVE-2024-3400 研究接力', 20, {
         domainTaskContext: context,

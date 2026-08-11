@@ -28,13 +28,18 @@ function newestConversation(conversations: Conversation[]) {
 }
 
 export function conversationDomainIdentity(
-  conversation: Pick<Conversation, 'domainTaskContext'>,
+  conversation: Pick<Conversation, 'domainTaskContext'> & Partial<Pick<Conversation, 'title'>>,
 ) {
   const context = conversation.domainTaskContext
   if (context?.kind === 'cve') {
     const cveId = context.cveId.trim().toLocaleLowerCase()
     return cveId ? `cve:${cveId}` : null
   }
+  const legacyCveTitle = conversation.title
+    ?.trim()
+    .match(/^(CVE-\d{4}-\d{4,})\s+研究接力$/iu)?.[1]
+    ?.toLocaleLowerCase()
+  if (legacyCveTitle) return `cve:${legacyCveTitle}`
   return null
 }
 
