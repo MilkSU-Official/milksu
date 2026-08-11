@@ -31,6 +31,7 @@
       "channel-identity.cjs",
       "build-tracking-view.cjs",
       "computer-use-permissions.cjs",
+      "renderer-protocol.cjs",
       "package.json",
       "node_modules/ws/**/*"
     ],

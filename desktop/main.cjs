@@ -28,6 +28,7 @@ const {
 } = require('./channel-identity.cjs')
 const { loadBuildTrackingView } = require('./build-tracking-view.cjs')
 const { AccountSession, accountRedirectURL, loadAccountConfig } = require('./account-session.cjs')
+const { rendererHeaders } = require('./renderer-protocol.cjs')
 const {
   probeComputerUsePermissions,
   computerUsePermissionsSettingsURL,
@@ -125,18 +126,6 @@ function rendererDirectory() {
     : path.resolve(__dirname, '..', 'app', 'dist')
 }
 
-function mimeType(file) {
-  return ({
-    '.css': 'text/css; charset=utf-8',
-    '.html': 'text/html; charset=utf-8',
-    '.js': 'text/javascript; charset=utf-8',
-    '.json': 'application/json; charset=utf-8',
-    '.png': 'image/png',
-    '.svg': 'image/svg+xml',
-    '.woff2': 'font/woff2',
-  })[path.extname(file).toLowerCase()] || 'application/octet-stream'
-}
-
 async function installRendererProtocol() {
   const root = await fs.realpath(rendererDirectory())
   protocol.handle('milksu', async request => {
@@ -153,11 +142,7 @@ async function installRendererProtocol() {
       if (metadata.isDirectory()) candidate = path.join(candidate, 'index.html')
       const body = await fs.readFile(candidate)
       return new Response(body, {
-        headers: {
-          'content-type': mimeType(candidate),
-          'content-security-policy': "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; frame-src 'none'",
-          'x-content-type-options': 'nosniff',
-        },
+        headers: rendererHeaders(candidate),
       })
     } catch {
       return new Response('not found', { status: 404 })
