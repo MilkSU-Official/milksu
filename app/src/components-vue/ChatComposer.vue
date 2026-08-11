@@ -16,6 +16,7 @@ import {
   Activity,
   ArrowUp,
   Bot,
+  Cable,
   Check,
   Clock3,
   Compass,
@@ -27,6 +28,8 @@ import {
   MessageSquarePlus,
   Monitor,
   MousePointer2,
+  PackageCheck,
+  Palette,
   Paperclip,
   Pause,
   Play,
@@ -52,6 +55,7 @@ import type {
   CTFChatAction,
 } from '@/types'
 import type { CodingGitChange } from '@/codingEnvironmentTypes'
+import { CODING_SKILLS } from '@/codingSkills'
 
 interface ComposerGitSummary {
   changedFiles: number
@@ -70,20 +74,20 @@ interface ComposerSkillOption {
   icon: Component
 }
 
-const reviewedComposerSkills: ComposerSkillOption[] = [
-  {
-    name: 'frontend-visual-qa',
-    label: '前端视觉验收',
-    description: '用真实预览与浏览器检查前端改动',
-    icon: markRaw(ScanSearch),
-  },
-  {
-    name: 'archify',
-    label: '架构图',
-    description: '生成并校验当前系统架构图',
-    icon: markRaw(Route),
-  },
-]
+const skillIcons: Record<string, Component> = {
+  'product-design': Palette,
+  'frontend-visual-qa': ScanSearch,
+  'integrate-api': Cable,
+  'review-security': ShieldCheck,
+  'create-technical-deliverables': FileText,
+  archify: Route,
+  'release-milksu': PackageCheck,
+}
+
+const reviewedComposerSkills: ComposerSkillOption[] = CODING_SKILLS.map(skill => ({
+  ...skill,
+  icon: markRaw(skillIcons[skill.name] ?? Plug),
+}))
 
 const props = defineProps<{
   running: boolean
@@ -146,7 +150,10 @@ const hasUnfinishedGoal = computed(() => Boolean(
   props.goal && props.goal.status !== 'complete',
 ))
 const availableSkillOptions = computed(() => {
-  const known = new Map(reviewedComposerSkills.map(skill => [skill.name, skill]))
+  const available = new Set(props.availableSkills ?? [])
+  const known = new Map(reviewedComposerSkills
+    .filter(skill => available.has(skill.name))
+    .map(skill => [skill.name, skill]))
   for (const name of props.availableSkills ?? []) {
     if (!name || known.has(name)) continue
     known.set(name, {

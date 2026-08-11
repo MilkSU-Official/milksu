@@ -17,6 +17,7 @@ import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { build } from 'esbuild'
+import { firstPartyCodingSkillNames } from '../sidecar/pi/bridge-skills.js'
 
 const execFileAsync = promisify(execFile)
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -817,8 +818,11 @@ async function buildSidecar(platform) {
   const cuaDriverOutput = join(output, 'cua-driver')
   const archifySource = join(repositoryRoot, 'third_party', 'archify', 'archify')
   const archifyOutput = join(output, 'skills', 'archify')
-  const frontendVisualQaSource = join(repositoryRoot, 'skills', 'frontend-visual-qa')
-  const frontendVisualQaOutput = join(output, 'skills', 'frontend-visual-qa')
+  const firstPartySkills = firstPartyCodingSkillNames.map(name => ({
+    name,
+    source: join(repositoryRoot, 'skills', name),
+    output: join(output, 'skills', name),
+  }))
   const licenseOutput = join(output, 'THIRD_PARTY-LICENSES')
   const diffSource = join(repositoryRoot, 'node_modules', 'diff')
   const archifyPackage = JSON.parse(await readFile(join(archifySource, 'package.json'), 'utf8'))
@@ -932,7 +936,9 @@ async function buildSidecar(platform) {
   }
 
   await rm(archifyOutput, { recursive: true, force: true })
-  await rm(frontendVisualQaOutput, { recursive: true, force: true })
+  await Promise.all(firstPartySkills.map(skill => (
+    rm(skill.output, { recursive: true, force: true })
+  )))
   await rm(systemOcrOutputRoot, { recursive: true, force: true })
   await rm(lspRuntimeOutput, { recursive: true, force: true })
   await rm(join(output, 'subagents'), { recursive: true, force: true })
@@ -959,7 +965,9 @@ async function buildSidecar(platform) {
     { force: true },
   )
   await cp(archifySource, archifyOutput, { recursive: true })
-  await cp(frontendVisualQaSource, frontendVisualQaOutput, { recursive: true })
+  await Promise.all(firstPartySkills.map(skill => (
+    cp(skill.source, skill.output, { recursive: true })
+  )))
   for (const packageInfo of minimalPackageCopySet(lspRuntimePackages)) {
     const destination = join(
       lspRuntimeOutput,
@@ -1126,11 +1134,11 @@ async function buildSidecar(platform) {
       licenseFile: 'THIRD_PARTY-LICENSES/pi-MIT.txt',
     },
     skills: {
-      frontendVisualQa: {
-        package: '@milksu/frontend-visual-qa',
+      firstParty: {
+        package: '@milksu/coding-skills',
         version: '1',
         origin: 'first-party',
-        path: 'skills/frontend-visual-qa',
+        paths: firstPartyCodingSkillNames.map(name => `skills/${name}`),
         scope: 'coding-only',
       },
       archify: {
@@ -1331,8 +1339,10 @@ async function smokeSidecar(platform) {
     join(output, 'lsp-runtime', 'node_modules', '@vue', 'language-server', 'LICENSE'),
     join(output, 'lsp-runtime', 'node_modules', 'typescript', 'LICENSE.txt'),
     join(output, 'skills', 'archify', 'LICENSE'),
-    join(output, 'skills', 'frontend-visual-qa', 'SKILL.md'),
-    join(output, 'skills', 'frontend-visual-qa', 'agents', 'openai.yaml'),
+    ...firstPartyCodingSkillNames.flatMap(name => [
+      join(output, 'skills', name, 'SKILL.md'),
+      join(output, 'skills', name, 'agents', 'openai.yaml'),
+    ]),
   ]) {
     if (!await exists(licensePath)) {
       throw new Error(`packaged Sidecar is missing license file: ${licensePath}`)
@@ -1535,6 +1545,8 @@ async function smokeSidecar(platform) {
     [
       '{"action":"create_session","conversationId":"packaged-smoke","executionMode":"go","approvalPolicy":"workspace-auto"}',
       '{"action":"destroy_session","conversationId":"packaged-smoke"}',
+      '{"action":"create_session","conversationId":"packaged-skills-disabled","executionMode":"go","approvalPolicy":"workspace-auto","disabledSkills":["product-design","archify","../../untrusted"]}',
+      '{"action":"destroy_session","conversationId":"packaged-skills-disabled"}',
       '',
     ].join('\n'),
     {
@@ -1547,7 +1559,12 @@ async function smokeSidecar(platform) {
     },
   )
   const chatResponses = chatRun.stdout.trim().split('\n').map(line => JSON.parse(line))
-  const ready = chatResponses.find(value => value.type === 'ready')
+  const ready = chatResponses.find(value => (
+    value.type === 'ready' && value.id === 'packaged-smoke'
+  ))
+  const disabledSkillsReady = chatResponses.find(value => (
+    value.type === 'ready' && value.id === 'packaged-skills-disabled'
+  ))
   const coreExpectedTools = [
     'read',
     'bash',
@@ -1573,8 +1590,14 @@ async function smokeSidecar(platform) {
     || !expectedTools.every(tool => ready.tools?.includes(tool))
     || ready.executionMode !== 'go'
     || ready.approvalPolicy !== 'workspace-auto'
-    || !ready.skills?.includes('archify')
-    || !ready.skills?.includes('frontend-visual-qa')
+    || !['archify', ...firstPartyCodingSkillNames]
+      .every(name => ready.skills?.includes(name))
+    || !disabledSkillsReady
+    || disabledSkillsReady.skills?.includes('product-design')
+    || disabledSkillsReady.skills?.includes('archify')
+    || !firstPartyCodingSkillNames
+      .filter(name => name !== 'product-design')
+      .every(name => disabledSkillsReady.skills?.includes(name))
     || !ready.extensions?.includes('pi-lsp')
     || !ready.extensions?.includes('pi-goal')
     || !ready.extensions?.includes('pi-background-tasks')
@@ -2158,8 +2181,8 @@ async function smokeSidecar(platform) {
     || ctfReady.tools?.includes('bash')
     || ctfReady.tools?.includes('lsp_diagnostics')
     || ctfReady.tools?.includes('lsp_fix')
-    || ctfReady.skills?.includes('archify')
-    || ctfReady.skills?.includes('frontend-visual-qa')
+    || ['archify', ...firstPartyCodingSkillNames]
+      .some(name => ctfReady.skills?.includes(name))
     || ctfReady.extensions?.includes('pi-lsp')
     || ctfReady.extensions?.includes('pi-goal')
     || ctfReady.extensions?.includes('pi-mcp-adapter')

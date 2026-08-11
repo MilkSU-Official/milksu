@@ -245,7 +245,12 @@ describe('ChatComposer', () => {
   it('exposes task state, browsers, reviewed Skills, MCP, and Computer Use from plus', async () => {
     const result = mountComposer({
       workspaceReady: true,
-      availableSkills: ['custom-reviewed'],
+      availableSkills: [
+        'frontend-visual-qa',
+        'product-design',
+        'archify',
+        'custom-reviewed',
+      ],
       selectedMcpServers: ['github'],
     })
     await nextTick()
@@ -259,6 +264,7 @@ describe('ChatComposer', () => {
     expect(document.body.textContent).toContain('Browser Use')
     expect(document.body.textContent).toContain('Computer Use')
     expect(document.body.textContent).toContain('前端视觉验收')
+    expect(document.body.textContent).toContain('产品设计')
     expect(document.body.textContent).toContain('架构图')
     expect(document.body.textContent).toContain('custom-reviewed')
     expect(document.body.textContent).toContain('项目 MCP')
@@ -307,7 +313,10 @@ describe('ChatComposer', () => {
   })
 
   it('adds a reviewed Pi Skill to the draft and expands it only when the user sends', async () => {
-    const result = mountComposer({ workspaceReady: true })
+    const result = mountComposer({
+      workspaceReady: true,
+      availableSkills: ['frontend-visual-qa'],
+    })
     await nextTick()
 
     result.host.querySelector<HTMLButtonElement>('[aria-label="添加内容与工具"]')?.click()
@@ -336,6 +345,20 @@ describe('ChatComposer', () => {
       [],
     ]])
     expect(editor.querySelector('[data-composer-skill-token]')).toBeNull()
+  })
+
+  it('does not offer a disabled reviewed Skill in the composer menu', async () => {
+    const result = mountComposer({
+      workspaceReady: true,
+      availableSkills: ['integrate-api'],
+    })
+    await nextTick()
+
+    result.host.querySelector<HTMLButtonElement>('[aria-label="添加内容与工具"]')?.click()
+    await nextTick()
+
+    expect(document.body.textContent).toContain('API 集成')
+    expect(document.body.textContent).not.toContain('产品设计')
   })
 
   it('filters slash commands and emits an existing product action instead of sending command text', async () => {

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Security Review"
+  short_description: "Review concrete credential, authorization, and external-effect risks"
+  default_prompt: "Use $review-security to review this change for concrete security and authorization risks."

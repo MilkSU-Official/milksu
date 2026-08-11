@@ -1,0 +1,4 @@
+interface:
+  display_name: "Product Design"
+  short_description: "Design and verify product UI before implementation"
+  default_prompt: "Use $product-design to design, implement, and visually verify this product UI change."

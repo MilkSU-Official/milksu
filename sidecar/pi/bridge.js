@@ -5,7 +5,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { existsSync } from "node:fs";
 import { createInterface } from "node:readline";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { readFile, unlink } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { Type } from "typebox";
@@ -1064,11 +1064,15 @@ function createMilkSUResourceLoader(
   });
 }
 
-function reviewedCodingResourceRoots(sessionRole = "") {
+function reviewedCodingResourceRoots(sessionRole = "", disabledSkills = []) {
   if (sessionRole) return [];
   const attachmentRoot = process.env.MILKSU_CODING_ATTACHMENT_ROOT;
   return [
-    ...reviewedCodingSkillPaths(sidecarResourceDirectory, sessionRole),
+    ...reviewedCodingSkillPaths(
+      sidecarResourceDirectory,
+      sessionRole,
+      disabledSkills,
+    ),
     attachmentRoot,
   ].filter((path) => path && existsSync(path));
 }
@@ -1131,11 +1135,18 @@ async function loadRuntimeSessionPolicy(cwd, command) {
   const effectiveSessionRole = policy.ctf
     ? command.sessionRole || "solver"
     : "";
+  const disabledSkills = Array.isArray(command.disabledSkills)
+    ? command.disabledSkills
+    : [];
   const codingSkillPaths = reviewedCodingSkillPaths(
     sidecarResourceDirectory,
     effectiveSessionRole,
+    disabledSkills,
   );
-  const codingResourceRoots = reviewedCodingResourceRoots(effectiveSessionRole);
+  const codingResourceRoots = reviewedCodingResourceRoots(
+    effectiveSessionRole,
+    disabledSkills,
+  );
   if (!policy.ctf && codingResourceRoots.length) {
     policy = await loadSessionPolicy(cwd, command.sessionRole, {
       executionMode: command.executionMode,
@@ -1152,6 +1163,7 @@ async function loadRuntimeSessionPolicy(cwd, command) {
       readOnlyResourceRoots: codingResourceRoots,
     });
   }
+  policy.skillNames = codingSkillPaths.map(path => basename(path));
   return {
     policy,
     effectiveSessionRole,
@@ -1386,6 +1398,14 @@ async function sendMessage(command) {
         previousPolicy.codingCollaboration,
         requestedCodingCollaboration,
       )
+      || JSON.stringify(previousPolicy.skillNames ?? [])
+        !== JSON.stringify(
+          reviewedCodingSkillPaths(
+            sidecarResourceDirectory,
+            "",
+            command.disabledSkills,
+          ).map(path => basename(path)),
+        )
     )
   ) {
     await disposeAgentSession(existing, "reload");

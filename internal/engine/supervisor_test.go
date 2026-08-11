@@ -1075,6 +1075,7 @@ func TestSendMessageIncludesComputerUseDescriptorOnlyForInteractiveCoding(t *tes
 		TargetWindowID: 9001,
 	}
 	settings := modelSelectionSettings()
+	settings.DisabledSkills = []string{"product-design", "archify"}
 
 	if err := supervisor.SendMessage(
 		"coding-computer", "observe TextEdit", workspace, "", "go", "workspace-auto", nil, "",
@@ -1094,6 +1095,11 @@ func TestSendMessageIncludesComputerUseDescriptorOnlyForInteractiveCoding(t *tes
 		int(computerUse["targetPid"].(float64)) != descriptor.TargetPID ||
 		int64(computerUse["targetWindowId"].(float64)) != descriptor.TargetWindowID {
 		t.Fatalf("unexpected Computer Use command: %#v", command)
+	}
+	disabledSkills, ok := command["disabledSkills"].([]any)
+	if !ok || len(disabledSkills) != 2 ||
+		disabledSkills[0] != "product-design" || disabledSkills[1] != "archify" {
+		t.Fatalf("unexpected disabled Skills: %#v", command["disabledSkills"])
 	}
 
 	for _, blocked := range []struct {

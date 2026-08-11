@@ -46,7 +46,7 @@ const activeVulnerabilityCodingConversationId = ref<string | null>(null)
 // currently active Coding or CTF conversation workspace implicitly.
 const vulnerabilityCodingWorkspacePath = ref('')
 const settingsReturnTarget = ref<Exclude<Section, 'settings'>>('ctf')
-const settingsCategory = ref<'general' | 'apikeys' | 'browser' | 'cve'>('general')
+const settingsCategory = ref<'general' | 'coding' | 'apikeys' | 'browser' | 'cve'>('general')
 const settings = ref<AppSettings | null>(null)
 const accountStatus = ref<AccountStatus>({ configured: false, authenticated: false, state: 'unconfigured' })
 const accountLoaded = ref(false)
@@ -167,7 +167,7 @@ function useLocalAccountMode() {
   writeLocalAccountMode(true)
 }
 
-function openSettings(category: 'general' | 'apikeys' | 'browser' | 'cve' = 'general') {
+function openSettings(category: 'general' | 'coding' | 'apikeys' | 'browser' | 'cve' = 'general') {
   settingsReturnTarget.value = settingsReturnSection(section.value, settingsReturnTarget.value)
   settingsCategory.value = category
   section.value = 'settings'

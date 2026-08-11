@@ -61,6 +61,19 @@ describe('model provider catalog', () => {
       source_order: ['account', 'personal'],
       auto_fallback: true,
     })
+    expect(settings.disabled_skills).toEqual([])
+  })
+
+  it('normalizes disabled reviewed skill names without accepting paths', () => {
+    const settings = withAppSettingsDefaults({
+      active_provider: 'deepseek',
+      active_model: 'deepseek-v4-flash',
+      model_routing: { source_order: ['account', 'personal'], auto_fallback: true },
+      providers: {},
+      disabled_skills: [' product-design ', 'product-design', '../../untrusted', 'review-security'],
+    })
+
+    expect(settings.disabled_skills).toEqual(['product-design', 'review-security'])
   })
 
   it('keeps an explicit personal-first order and disabled fallback', () => {

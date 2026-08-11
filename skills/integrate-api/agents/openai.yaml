@@ -1,0 +1,4 @@
+interface:
+  display_name: "API Integration"
+  short_description: "Integrate an external API with verified contracts and failure handling"
+  default_prompt: "Use $integrate-api to connect this API and verify authentication, errors, and a real request."

@@ -36,7 +36,7 @@ afterEach(() => {
 })
 
 interface MountSettingsOptions {
-  initialCategory?: 'general' | 'apikeys' | 'browser'
+  initialCategory?: 'general' | 'coding' | 'apikeys' | 'browser'
   settings?: AppSettings
   accountStatus?: AccountStatus
   appMethods?: Record<string, (...args: unknown[]) => Promise<unknown>>
@@ -281,6 +281,59 @@ describe('SettingsPage build tracking', () => {
     expect(text).toContain('gitBranch: (unavailable)')
     expect(text).toContain('gitCommit: (unavailable)')
     expect(text).not.toContain('gitBranch: development/unpackaged')
+  })
+})
+
+describe('SettingsPage Coding Agent Skills', () => {
+  it('shows the reviewed catalog and persists disabled Skills without probing a model', async () => {
+    let savedSettings: AppSettings | null = null
+    const settings = withAppSettingsDefaults({
+      active_provider: 'deepseek',
+      active_model: 'deepseek-v4-flash',
+      model_routing: {
+        source_order: ['account', 'personal'],
+        auto_fallback: true,
+      },
+      disabled_skills: ['product-design'],
+      providers: {},
+    })
+    await mountSettingsPage({
+      directory: 'MilkSU 用户数据目录',
+      fileCount: 0,
+      bytes: 0,
+    }, {
+      initialCategory: 'coding',
+      settings,
+      appMethods: {
+        SaveSettingsCmd: async (value: unknown) => {
+          savedSettings = value as AppSettings
+        },
+        GetSettings: async () => savedSettings ?? settings,
+      },
+    })
+
+    const text = document.body.textContent ?? ''
+    expect(text).toContain('产品设计')
+    expect(text).toContain('API 集成')
+    expect(text).toContain('MilkSU 发布')
+
+    const productDesign = document.querySelector('[aria-label="启用产品设计"]')
+    const securityReview = document.querySelector('[aria-label="启用安全审查"]')
+    expect(productDesign?.getAttribute('data-state')).toBe('unchecked')
+    expect(securityReview?.getAttribute('data-state')).toBe('checked')
+    securityReview?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await settle()
+
+    const saveButton = [...document.querySelectorAll('button')]
+      .find(button => button.textContent?.includes('保存设置'))
+    saveButton?.click()
+    for (let index = 0; index < 4; index += 1) await settle()
+
+    expect((savedSettings as AppSettings | null)?.disabled_skills).toEqual([
+      'product-design',
+      'review-security',
+    ])
+    expect(document.body.textContent).toContain('Skills 设置已保存')
   })
 })
 

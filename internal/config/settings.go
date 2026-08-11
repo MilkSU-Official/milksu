@@ -76,6 +76,7 @@ type AppSettings struct {
 	Relay          *RelayConfig              `json:"relay,omitempty"`
 	NSSCTFArena    *NSSCTFArenaConfig        `json:"nssctf_arena,omitempty"`
 	Locale         *string                   `json:"locale,omitempty"`
+	DisabledSkills []string                  `json:"disabled_skills"`
 	Providers      map[string]ProviderConfig `json:"providers"`
 }
 
@@ -507,6 +508,7 @@ func withDefaults(value AppSettings) AppSettings {
 	if value.ModelRouting.AutoFallback == nil {
 		value.ModelRouting.AutoFallback = boolPointer(true)
 	}
+	value.DisabledSkills = normalizeDisabledSkills(value.DisabledSkills)
 	return value
 }
 
@@ -537,9 +539,38 @@ func normalizeModelSourceOrder(value []string) []string {
 	return result
 }
 
+func normalizeDisabledSkills(value []string) []string {
+	result := make([]string, 0, len(value))
+	seen := make(map[string]bool, len(value))
+	for _, name := range value {
+		name = strings.TrimSpace(name)
+		if name == "" || len(name) > 64 || seen[name] {
+			continue
+		}
+		if name[0] == '-' || name[len(name)-1] == '-' {
+			continue
+		}
+		valid := true
+		for _, character := range name {
+			if (character < 'a' || character > 'z') &&
+				(character < '0' || character > '9') && character != '-' {
+				valid = false
+				break
+			}
+		}
+		if !valid {
+			continue
+		}
+		seen[name] = true
+		result = append(result, name)
+	}
+	return result
+}
+
 func clone(value AppSettings) AppSettings {
 	copy := value
 	copy.ModelRouting.SourceOrder = append([]string(nil), value.ModelRouting.SourceOrder...)
+	copy.DisabledSkills = append([]string(nil), value.DisabledSkills...)
 	if value.ModelRouting.AutoFallback != nil {
 		autoFallback := *value.ModelRouting.AutoFallback
 		copy.ModelRouting.AutoFallback = &autoFallback

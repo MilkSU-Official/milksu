@@ -1,0 +1,4 @@
+interface:
+  display_name: "Technical Deliverables"
+  short_description: "Create readable reports, guides, scripts, and reproducible evidence"
+  default_prompt: "Use $create-technical-deliverables to produce a readable and reproducible technical deliverable."

@@ -2,7 +2,7 @@
 
 > 状态：Current / Living
 >
-> 最后事实审计：2026-08-10
+> 最后事实审计：2026-08-12
 >
 > 产品开发目标：Post-M3 / M4 自举与隔离执行
 
@@ -65,6 +65,7 @@
 - CVE 用户页只显示明确加入研究的公开条目，手工状态与关联 Coding 对话；内置目录不再伪造用户资产命中、实时更新时间或自动进度。WebView 无假后端；Session Index 只索引 MilkSU 自有历史。相关历史列表仍由用户明确确认后引用；完整图谱则按需让当前 Pi/Provider 在无工具静默回合中，把有界的会话、Memory 摘要和正式 Evidence 摘要归纳成人类语义图。图节点必须可回溯来源，关系标为模型推断；不读目标文档、不新增图数据库、不写 Memory、不回填 Agent。
 - UI：rail 主题/设置、Coding Goal 与常用 Agent 动作在 Composer `/`；“+”统一提供附件、Goal、Plan、浏览器、Browser/Computer Scope、已审核 Pi Skills 与项目 MCP。运行中输入可继续发送并通过 Pi steering/queue 在下一模型调用前应用；左上角用户头像进入个人资料页，页面展示真实活跃格、CTF/CVE/Coding 模糊阶段和最近确认成长，全局六维雷达不再挂载；Git 摘要可展开文件并跳到“变更”。产品表面只显示“浏览器”，不再暴露 worktree/writer 或五项 Computer Use readiness 样子货；
   Browser Use Bridge 与 Computer Use 系统配置集中到“设置 → 浏览器与控制”。
+- Coding 的已审核 Skill 由 Pi 按需加载完整内容，设置页只管理审核目录的启停；当前目录覆盖产品设计、前端视觉验收、API 集成、安全审查、技术交付物、架构图和 MilkSU 发布。禁用项从下一条 Coding 消息生效，CTF 角色保持隔离，用户不能借设置注入任意 Skill 路径。
 - 个人安全工作台 Beta 已从干净 `dbdd59dcb2776fa52a4a6c9d0add09ec05bc1ae3` 构建，tracking ID 为 `c51bc5e68e071ff2d57f94eb00bb474f7f706afa8bda5f3a97d1d6cbf470c6e1`。原生审计已覆盖设置追踪、个人页、轻量 CTF/CVE、草稿交接、PiP/返回和关联对话。因构建未注入真实账户部署坐标且本机没有可用模型凭据，GitHub OAuth、真实额度和 App 内 Agent 完成任务尚未验收；当前仍是 ad-hoc 签名。
 - 安全工具 MCP 是下一阶段 Coding 常规能力，不是当前发行能力：候选为 IDA Pro/idalib、Burp、radare2、Ghidra 与 Semgrep；
   必须先通过固定版本、最小权限、真实任务和拒绝路径，是否进入 CTF/CVE 由用户监督的领域纵切决定。

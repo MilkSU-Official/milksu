@@ -163,6 +163,7 @@ export interface AppSettings {
   relay?: RelayConfig
   nssctf_arena?: NSSCTFArenaConfig
   locale?: 'en' | 'zh'
+  disabled_skills?: string[]
   providers: Record<string, ProviderConfig>
 }
 
@@ -188,6 +189,9 @@ export function withAppSettingsDefaults(value: AppSettings): AppSettings {
     active_model: activeModel,
     vision_model: selectableVisionSelection(value.vision_model) ?? undefined,
     model_routing: normalizeModelRouting(value.model_routing),
+    disabled_skills: [...new Set((value.disabled_skills ?? [])
+      .map(name => String(name).trim())
+      .filter(name => /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(name)))],
     providers: legacy.providers ?? {},
   }
 }

@@ -42,7 +42,14 @@ func (s failingSetSecretStore) Set(string, string) error {
 }
 
 func TestWithDefaults(t *testing.T) {
-	settings := withDefaults(AppSettings{})
+	settings := withDefaults(AppSettings{DisabledSkills: []string{
+		" product-design ",
+		"product-design",
+		"../../untrusted",
+		"-review-security",
+		"release-milksu-",
+		"review-security",
+	}})
 	if settings.ActiveProvider != "deepseek" || settings.ActiveModel != "deepseek-v4-flash" {
 		t.Fatalf("unexpected defaults: %#v", settings)
 	}
@@ -55,17 +62,24 @@ func TestWithDefaults(t *testing.T) {
 		!*settings.ModelRouting.AutoFallback {
 		t.Fatalf("unexpected model routing defaults: %#v", settings.ModelRouting)
 	}
+	if len(settings.DisabledSkills) != 2 ||
+		settings.DisabledSkills[0] != "product-design" ||
+		settings.DisabledSkills[1] != "review-security" {
+		t.Fatalf("unexpected disabled skills: %#v", settings.DisabledSkills)
+	}
 }
 
 func TestCloneDoesNotShareMaps(t *testing.T) {
 	original := DefaultSettings()
 	original.Providers["openai"] = ProviderConfig{APIKey: "secret", Enabled: true}
+	original.DisabledSkills = []string{"product-design"}
 	original.VisionModel = &ModelSelection{Provider: "openai", Model: "gpt-4o"}
 	copied := clone(original)
 	delete(copied.Providers, "openai")
 	copied.VisionModel.Model = "gpt-4.1"
 	copied.ModelRouting.SourceOrder[0] = ModelSourcePersonal
 	*copied.ModelRouting.AutoFallback = false
+	copied.DisabledSkills[0] = "review-security"
 	if _, exists := original.Providers["openai"]; !exists {
 		t.Fatal("clone modified original provider map")
 	}
@@ -76,6 +90,9 @@ func TestCloneDoesNotShareMaps(t *testing.T) {
 		original.ModelRouting.AutoFallback == nil ||
 		!*original.ModelRouting.AutoFallback {
 		t.Fatal("clone modified original model routing")
+	}
+	if original.DisabledSkills[0] != "product-design" {
+		t.Fatal("clone modified original disabled skills")
 	}
 }
 

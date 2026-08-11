@@ -136,6 +136,7 @@ import type {
 import type { CodingMessageQueue } from '@/composables/useConversations'
 import { providerModelLabel } from '@/types'
 import type { SessionHistorySearchResult } from '@/sessionIndexTypes'
+import { enabledCodingSkillNames } from '@/codingSkills'
 
 const CodingTerminalPanel = defineAsyncComponent(
   () => import('@/components-vue/CodingTerminalPanel.vue'),
@@ -283,7 +284,9 @@ const activeExtensions = computed(() => (
 ))
 const selectedMCPServers = computed(() => props.mcpServers ?? [])
 const activeSkills = computed(() => (
-  props.conversation?.agentSkills ?? []
+  props.ctfSession
+    ? []
+    : enabledCodingSkillNames(props.settings?.disabled_skills)
 ))
 const activeTools = computed(() => (
   props.conversation?.agentTools ?? []

@@ -407,6 +407,7 @@ func (s *Supervisor) SendMessage(
 		"approvalPolicy":  codingPolicy.ApprovalPolicy,
 		"mcpServers":      mcpServers,
 		"mcpConfigDigest": strings.TrimSpace(mcpConfigDigest),
+		"disabledSkills":  settings.DisabledSkills,
 		"attachments":     attachments,
 		"modelSourceOrder": preferredModelSourceOrder(
 			settings,

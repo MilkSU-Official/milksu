@@ -68,8 +68,9 @@ import {
 } from '@/types'
 import VulnerabilityIntelSettingsPanel from '@/components-vue/VulnerabilityIntelSettingsPanel.vue'
 import { useVulnerabilityDashboard, type VulnerabilityDashboard } from '@/composables/useVulnerabilityDashboard'
+import { CODING_SKILLS } from '@/codingSkills'
 
-type SettingsCategory = 'general' | 'apikeys' | 'browser' | 'cve'
+type SettingsCategory = 'general' | 'coding' | 'apikeys' | 'browser' | 'cve'
 
 const props = defineProps<{
   settings: AppSettings | null
@@ -221,6 +222,18 @@ function setVisionRoute(value: string) {
     provider: routeProvider,
     model: routeModel,
   }
+}
+
+function skillEnabled(name: string): boolean {
+  return !working.value?.disabled_skills?.includes(name)
+}
+
+function setSkillEnabled(name: string, enabled: boolean) {
+  if (!working.value) return
+  const disabled = new Set(working.value.disabled_skills ?? [])
+  if (enabled) disabled.delete(name)
+  else disabled.add(name)
+  working.value.disabled_skills = [...disabled]
 }
 
 function ensureProvider(id: string) {
@@ -643,8 +656,11 @@ async function save() {
     const refreshed = await invokeCommand<AppSettings>('get_settings')
     working.value = cloneSettings(refreshed)
     emit('settingsChange', refreshed)
-    if (category.value === 'general') {
-      notice.value = { tone: 'ok', text: '通用设置已保存。' }
+    if (category.value !== 'apikeys') {
+      notice.value = {
+        tone: 'ok',
+        text: category.value === 'coding' ? 'Skills 设置已保存。' : '设置已保存。',
+      }
       return
     }
     verifying.value = true
@@ -694,7 +710,7 @@ async function save() {
       </Button>
       <div>
         <p class="text-control font-medium">设置</p>
-        <p class="text-caption text-muted-foreground">模型、凭据与本地偏好</p>
+        <p class="text-caption text-muted-foreground">Coding Agent、模型、凭据与本地偏好</p>
       </div>
     </header>
 
@@ -706,6 +722,7 @@ async function save() {
           aria-label="设置分类"
           :items="[
             { value: 'general', label: '通用' },
+            { value: 'coding', label: 'Coding Agent' },
             { value: 'apikeys', label: '模型与凭据' },
             { value: 'browser', label: '浏览器与控制' },
             { value: 'cve', label: 'CVE' },
@@ -875,6 +892,31 @@ async function save() {
               </p>
             </SettingsRow>
           </SettingsSection>
+        </template>
+
+        <template v-else-if="working && category === 'coding'">
+          <SettingsSection title="Skills">
+            <SettingsRow
+              v-for="skill in CODING_SKILLS"
+              :key="skill.name"
+              :label="skill.label"
+              :description="skill.description"
+            >
+              <Switch
+                :model-value="skillEnabled(skill.name)"
+                :aria-label="`启用${skill.label}`"
+                @update:model-value="setSkillEnabled(skill.name, Boolean($event))"
+              />
+            </SettingsRow>
+          </SettingsSection>
+
+          <p class="mt-3 text-caption leading-5 text-muted-foreground">
+            Pi 只常驻已启用 Skill 的名称和用途，任务匹配或你主动选择后才读取完整内容。保存后从下一条 Coding 消息生效。
+          </p>
+
+          <div class="mt-6 flex justify-end">
+            <Button :loading="saving" @click="save">保存设置</Button>
+          </div>
         </template>
 
         <template v-else-if="working && category === 'browser'">
