@@ -39,6 +39,9 @@ const vulnNavigationEpoch = ref(0)
 const lastCodingConversationId = ref<string | null>(null)
 const lastCTFConversationId = ref<string | null>(null)
 const activeVulnerabilityCodingConversationId = ref<string | null>(null)
+// CVE authorization is selected on the CVE surface. It must never inherit the
+// currently active Coding or CTF conversation workspace implicitly.
+const vulnerabilityCodingWorkspacePath = ref('')
 const settingsReturnTarget = ref<Exclude<Section, 'settings'>>('ctf')
 const settingsCategory = ref<'general' | 'apikeys' | 'browser' | 'cve'>('general')
 const settings = ref<AppSettings | null>(null)
@@ -188,6 +191,11 @@ async function chooseAgentWorkspace() {
   if (workspacePath) conversations.setWorkspace(workspacePath)
 }
 
+async function chooseVulnerabilityCodingWorkspace() {
+  const workspacePath = await invokeCommand<string>('choose_agent_workspace')
+  if (workspacePath) vulnerabilityCodingWorkspacePath.value = workspacePath
+}
+
 async function abortConversation() {
   const conversationId = conversations.activeId.value
   if (conversationId) await conversations.abort(conversationId)
@@ -229,21 +237,20 @@ async function startVulnerabilityCodingTask(
   task: VulnerabilityCodingTask,
   recordHandoff?: (workspacePath: string) => void,
 ) {
-  const accepted = await executeVulnerabilityCodingHandoff(task, conversations.workspacePath.value, {
+  const accepted = await executeVulnerabilityCodingHandoff(task, vulnerabilityCodingWorkspacePath.value, {
     rememberActiveConversation,
     startNewConversation: conversations.startNew,
-    setWorkspace: conversations.setWorkspace,
     ensureConversation: conversations.ensureConversation,
     activeConversationId: () => conversations.activeId.value,
-    setLastCodingConversationId: id => { lastCodingConversationId.value = id },
+    setLastCodingConversationId: id => {
+      lastCodingConversationId.value = id
+      activeVulnerabilityCodingConversationId.value = id
+    },
     setSection: value => { section.value = value },
     stageDraft: (prompt, visibleText) => {
       conversations.stageComposerDraft(prompt, visibleText)
     },
   })
-  if (conversations.activeId.value) {
-    activeVulnerabilityCodingConversationId.value = conversations.activeId.value
-  }
   // recordHandoff = opened shared Coding with staged draft; not Agent started / network.
   if (accepted) {
     recordHandoff?.(conversations.workspacePath.value)
@@ -367,9 +374,9 @@ onMounted(async () => {
         <VulnPage
           v-else-if="section === 'vuln'"
           :dashboard="vulnerabilityDashboard"
-          :coding-workspace-path="conversations.workspacePath.value"
+          :coding-workspace-path="vulnerabilityCodingWorkspacePath"
           :navigation-epoch="vulnNavigationEpoch"
-          @choose-coding-workspace="chooseAgentWorkspace"
+          @choose-coding-workspace="chooseVulnerabilityCodingWorkspace"
           @start-coding-task="startVulnerabilityCodingTask"
         />
       </KeepAlive>

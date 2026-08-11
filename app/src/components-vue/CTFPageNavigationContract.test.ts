@@ -53,6 +53,12 @@ describe('CTFPage navigation contract', () => {
     expect(openCodingBody).toContain("prepare_ctf_agent_workspace")
   })
 
+  it('keeps historical or budget-stopped CTF workspaces openable in Coding', () => {
+    expect(ctfPageSource).not.toContain(':disabled="!canStartAgentTurn"')
+    expect(ctfPageSource).not.toContain('if (backend.agentBudget.value?.exhausted)')
+    expect(ctfPageSource).toContain(':disabled="working" @click="openCodingAgent"')
+  })
+
   it('does not block Coding context on an NSSCTF attachment or browser bridge', () => {
     const readinessStart = ctfPageSource.indexOf('const canStartSelectedChallenge')
     const readinessEnd = ctfPageSource.indexOf('const catalogAction', readinessStart)

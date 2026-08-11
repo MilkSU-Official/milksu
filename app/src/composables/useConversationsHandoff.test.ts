@@ -136,4 +136,48 @@ describe('useConversations domain handoff attach', () => {
     expect(conversations.pendingComposerDraft.value?.visibleText).toBe('接手 CVE-2024-3400')
     expect(invokeCommand.mock.calls.some(call => call[0] === 'send_message')).toBe(false)
   })
+
+  it('clears stale CTF workspace and role state when a deterministic CVE conversation is reused', async () => {
+    const { useConversations } = await import('@/composables/useConversations')
+    const conversations = useConversations()
+    await conversations.startWorkspaceTask({
+      jobId: 'ctf-job-stale',
+      conversationId: 'cve-research-cve-2024-3400',
+      title: 'stale CTF task',
+      workspacePath: '/tmp/ctf-workspaces/stale',
+      prompt: 'stale CTF prompt',
+      policy: { mode: 'copilot' },
+      role: 'solver',
+    })
+
+    conversations.startNew()
+    conversations.ensureConversation('CVE-2024-3400 研究接力', {
+      conversationId: 'cve-research-cve-2024-3400',
+      workspacePath: '',
+      domainTaskContext: {
+        kind: 'cve',
+        cveId: 'CVE-2024-3400',
+        title: 'PAN-OS',
+        sourceEvidenceState: '尚无来源证据',
+        sourceEvidenceCount: 0,
+        assetMatchState: '3 项资产',
+        assetCount: 3,
+        researchScope: 'read-only cached evidence only',
+        safetyBoundary: '不运行 PoC、exploit 或外部扫描',
+        roleLabel: 'CVE 只读/研究接力',
+      },
+    })
+    conversations.stageComposerDraft('CVE prompt', '接手 CVE-2024-3400')
+
+    expect(conversations.active.value).toMatchObject({
+      id: 'cve-research-cve-2024-3400',
+      title: 'CVE-2024-3400 研究接力',
+      domainTaskContext: { kind: 'cve', cveId: 'CVE-2024-3400' },
+    })
+    expect(conversations.active.value?.workspacePath).toBeUndefined()
+    expect(conversations.active.value?.ctfJobId).toBeUndefined()
+    expect(conversations.active.value?.ctfMode).toBeUndefined()
+    expect(conversations.active.value?.ctfRole).toBeUndefined()
+    expect(conversations.pendingComposerDraft.value?.visibleText).toBe('接手 CVE-2024-3400')
+  })
 })

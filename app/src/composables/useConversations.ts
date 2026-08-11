@@ -506,9 +506,13 @@ export function useConversations() {
     options: {
       domainTaskContext?: Conversation['domainTaskContext']
       conversationId?: string
+      workspacePath?: string
     } = {},
   ) {
     const requestedId = String(options.conversationId ?? '').trim()
+    const hasWorkspaceOverride = Object.prototype.hasOwnProperty.call(options, 'workspacePath')
+    const workspaceOverride = String(options.workspacePath ?? '').trim() || undefined
+    const clearsCTFContext = options.domainTaskContext?.kind === 'cve'
     if (requestedId) {
       const existing = conversations.value.find(item => item.id === requestedId)
       if (existing) {
@@ -516,7 +520,11 @@ export function useConversations() {
         update(existing.id, conversation => ({
           ...conversation,
           title: title.trim().slice(0, 40) || conversation.title,
+          workspacePath: hasWorkspaceOverride ? workspaceOverride : conversation.workspacePath,
           domainTaskContext: options.domainTaskContext ?? conversation.domainTaskContext,
+          ctfJobId: clearsCTFContext ? undefined : conversation.ctfJobId,
+          ctfMode: clearsCTFContext ? undefined : conversation.ctfMode,
+          ctfRole: clearsCTFContext ? undefined : conversation.ctfRole,
         }))
         return existing.id
       }
@@ -535,7 +543,9 @@ export function useConversations() {
       id: conversationId,
       title: title.trim().slice(0, 40) || DEFAULT_CODING_CONVERSATION_TITLE,
       createdAt: Date.now(),
-      workspacePath: pendingWorkspacePath.value || undefined,
+      workspacePath: hasWorkspaceOverride
+        ? workspaceOverride
+        : pendingWorkspacePath.value || undefined,
       modelMode: pendingModelMode.value,
       modelProvider: pendingModelProvider.value,
       modelId: pendingModelId.value,

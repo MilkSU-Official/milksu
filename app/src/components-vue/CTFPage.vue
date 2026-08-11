@@ -303,9 +303,6 @@ const canContinue = computed(() => {
   const status = activeProjection.value?.job.status
   return Boolean(activeProjection.value && !['succeeded', 'failed', 'cancelled'].includes(status ?? ''))
 })
-const canStartAgentTurn = computed(() => (
-  canContinue.value && !backend.agentBudget.value?.exhausted
-))
 const agentCheckpoint = computed(() => backend.agentRun.value)
 const agentProgress = computed(() => agentCheckpoint.value?.progress)
 const hasAgentRoute = computed(() => {
@@ -1121,10 +1118,6 @@ async function openCodingContext() {
 async function openCodingAgent() {
   if (!activeProjection.value) return
   await backend.loadAgentState(activeProjection.value.job.id)
-  if (backend.agentBudget.value?.exhausted) {
-    outcomeNotice.value = agentBudgetStopMessage.value
-    return
-  }
   if (!props.modelReady) {
     // Opening Coding context is allowed; only the Agent turn needs the model.
     await openCodingContext()
@@ -2474,7 +2467,7 @@ onBeforeUnmount(() => {
                         </div>
                       </details>
                     </div>
-                    <Button :loading="working" :disabled="!canStartAgentTurn" @click="openCodingAgent">
+                    <Button :loading="working" :disabled="working" @click="openCodingAgent">
                       <Sparkles class="size-4" />
                       {{ agentActionLabel }}
                     </Button>

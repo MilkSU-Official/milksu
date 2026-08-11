@@ -8,6 +8,10 @@ import { Type } from "typebox";
 import { createInterface } from "node:readline";
 import { join } from "node:path";
 import currentProviderRuntime from "../pi/current-provider-runtime.cjs";
+import {
+  configureRuntimeModel,
+  setSessionModel,
+} from "./security-model-runtime.js";
 
 const { currentProviderDefinition } = currentProviderRuntime;
 
@@ -25,40 +29,6 @@ function describeError(error) {
   if (!(error instanceof Error)) return String(error);
   const resource = error.resource ? `\nresource: ${error.resource}` : "";
   return `${error.stack || error.message}${resource}`;
-}
-
-function configureRelayModel(session, provider, model) {
-  if (!relayEnabled) return { provider, model };
-  const source = session.modelRegistry.find(provider, model);
-  session.modelRegistry.registerProvider("milksu-relay", {
-    name: "MilkSU Relay",
-    baseUrl: relayUrl,
-    apiKey: relayKey,
-    api: "openai-completions",
-    models: [{
-      id: model,
-      name: source?.name ?? model,
-      reasoning: source?.reasoning ?? false,
-      input: source?.input ?? ["text"],
-      cost: source?.cost ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      contextWindow: source?.contextWindow ?? 128000,
-      maxTokens: source?.maxTokens ?? 16384,
-    }],
-  });
-  return { provider: "milksu-relay", model };
-}
-
-function configureRuntimeModel(session, provider, model) {
-  const definition = currentProviderDefinition(provider, model);
-  if (definition) session.modelRegistry.registerProvider(provider, definition);
-  return configureRelayModel(session, provider, model);
-}
-
-async function setSessionModel(session, provider, model) {
-  if (!provider || !model) throw new Error("provider and model are required");
-  const desired = session.modelRegistry.find(provider, model);
-  if (!desired) throw new Error(`Model not found: ${provider}/${model}`);
-  await session.setModel(desired);
 }
 
 function makeActionTool({ name, actionName, label, description, parameters, mapInput }, selection) {
@@ -200,7 +170,14 @@ async function createSession(command) {
       collaborationMode: command.roleState?.collaborationMode || "delegate",
     }),
   });
-  const effectiveModel = configureRuntimeModel(session, command.provider, command.model);
+  const effectiveModel = configureRuntimeModel(session, command.provider, command.model, {
+    currentProviderDefinition,
+    relay: {
+      enabled: relayEnabled,
+      url: relayUrl,
+      key: relayKey,
+    },
+  });
   await setSessionModel(session, effectiveModel.provider, effectiveModel.model);
   const value = { session, selection, queue: Promise.resolve() };
   sessions.set(attemptId, value);

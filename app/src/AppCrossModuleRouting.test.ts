@@ -74,20 +74,42 @@ function createMockConversations() {
       activeId.value = id
       return id
     }),
-    ensureConversation: vi.fn((title: string) => {
-      const id = `ensured-${conversationRows.value.length + 1}`
+    ensureConversation: vi.fn((title: string, options: {
+      conversationId?: string
+      workspacePath?: string
+      domainTaskContext?: Conversation['domainTaskContext']
+    } = {}) => {
+      const id = options.conversationId || `ensured-${conversationRows.value.length + 1}`
+      const existing = conversationRows.value.find(item => item.id === id)
+      if (existing) {
+        existing.title = title
+        existing.workspacePath = options.workspacePath?.trim() || undefined
+        existing.domainTaskContext = options.domainTaskContext ?? existing.domainTaskContext
+        if (options.domainTaskContext?.kind === 'cve') {
+          existing.ctfJobId = undefined
+          existing.ctfMode = undefined
+          existing.ctfRole = undefined
+        }
+        activeId.value = id
+        workspacePath.value = existing.workspacePath ?? ''
+        return id
+      }
       conversationRows.value.push(baseConversation({
         id,
         title,
         createdAt: Date.now(),
+        workspacePath: options.workspacePath?.trim() || undefined,
+        domainTaskContext: options.domainTaskContext,
       }))
       activeId.value = id
+      workspacePath.value = options.workspacePath?.trim() || ''
       return id
     }),
     startWorkspaceTask: vi.fn(async (task: {
       title: string
       jobId?: string
       conversationId?: string
+      workspacePath?: string
       role?: Conversation['ctfRole']
       domainTaskContext?: Conversation['domainTaskContext']
       autoSend?: boolean
@@ -99,10 +121,12 @@ function createMockConversations() {
         || (task.jobId ? `ctf-${task.jobId}` : `coding-${conversationRows.value.length + 1}`)
       const existing = conversationRows.value.find(conversation => conversation.id === id)
       if (existing) {
+        existing.workspacePath = task.workspacePath?.trim() || undefined
         existing.domainTaskContext = task.domainTaskContext ?? existing.domainTaskContext
         existing.ctfJobId = task.jobId ?? existing.ctfJobId
         existing.ctfRole = task.role ?? existing.ctfRole
         activeId.value = existing.id
+        workspacePath.value = existing.workspacePath ?? ''
         if (task.prompt) pendingComposerDraft.value = {
           prompt: task.prompt,
           visibleText: task.prompt,
@@ -113,6 +137,7 @@ function createMockConversations() {
         id,
         title: task.title,
         createdAt: Date.now(),
+        workspacePath: task.workspacePath?.trim() || undefined,
         ctfJobId: task.jobId,
         ctfRole: task.role ?? (task.jobId ? 'solver' : undefined),
         domainTaskContext: task.domainTaskContext,
@@ -120,6 +145,7 @@ function createMockConversations() {
         messages: [],
       }))
       activeId.value = id
+      workspacePath.value = task.workspacePath?.trim() || ''
       if (task.prompt) pendingComposerDraft.value = {
         prompt: task.prompt,
         visibleText: task.prompt,
@@ -260,9 +286,32 @@ vi.mock('@/components-vue/VulnPage.vue', () => ({
   __esModule: true,
   default: defineComponent({
     name: 'VulnPage',
+    props: ['codingWorkspacePath'],
     emits: ['openSettings', 'chooseCodingWorkspace', 'startCodingTask'],
-    setup() {
-      return () => h('section', { 'aria-label': 'mock CVE page' }, 'CVE workspace')
+    setup(props, { emit }) {
+      return () => h('section', { 'aria-label': 'mock CVE page' }, [
+        h('span', { 'data-vuln-workspace': String(props.codingWorkspacePath ?? '') }, String(props.codingWorkspacePath ?? '')),
+        h('button', {
+          'aria-label': 'open CVE in coding',
+          onClick: () => emit('startCodingTask', {
+            title: 'CVE-2024-3400 研究接力',
+            visibleText: '接手 CVE-2024-3400',
+            prompt: '只读检查 CVE-2024-3400；不运行 PoC、exploit 或外部扫描。',
+            domainTaskContext: {
+              kind: 'cve',
+              cveId: 'CVE-2024-3400',
+              title: 'PAN-OS',
+              sourceEvidenceState: 'NVD',
+              sourceEvidenceCount: 1,
+              assetMatchState: '3 项资产',
+              assetCount: 3,
+              researchScope: 'read-only',
+              safetyBoundary: '不运行 PoC、exploit 或外部扫描',
+              roleLabel: 'CVE 只读/研究接力',
+            },
+          }),
+        }, '交给 Coding'),
+      ])
     },
   }),
 }))
@@ -271,7 +320,7 @@ vi.mock('@/components-vue/ChatPage.vue', () => ({
   __esModule: true,
   default: defineComponent({
     name: 'ChatPage',
-    props: ['conversation', 'ctfSession', 'vulnerabilitySession'],
+    props: ['conversation', 'ctfSession', 'vulnerabilitySession', 'pendingComposerDraft'],
     emits: [
       'send',
       'ctfAction',
@@ -293,6 +342,8 @@ vi.mock('@/components-vue/ChatPage.vue', () => ({
       return () => h('section', { 'aria-label': 'mock Chat page' }, [
         h('span', { 'data-chat-conversation': props.conversation?.id ?? '' }, props.conversation?.id ?? 'none'),
         h('span', { 'data-chat-ctf-session': String(Boolean(props.ctfSession)) }, String(Boolean(props.ctfSession))),
+        h('span', { 'data-chat-vulnerability-session': String(Boolean(props.vulnerabilitySession)) }, String(Boolean(props.vulnerabilitySession))),
+        h('span', { 'data-chat-draft': props.pendingComposerDraft?.visibleText ?? '' }, props.pendingComposerDraft?.visibleText ?? ''),
         h('button', { 'aria-label': 'open history conversation', onClick: () => emit('openConversation', 'coding-history') }, '打开来源会话'),
         h('button', { 'aria-label': 'return CTF workspace', onClick: () => emit('returnCtf') }, '返回 CTF 工作台'),
       ])
@@ -405,6 +456,29 @@ describe('App cross-module routing', () => {
     expect(host.querySelector('[aria-label="mock Chat page"]')).toBeNull()
     expect(host.querySelector('[data-ctf-initial-job]')?.textContent).toBe('job-1')
     expect(hoisted.conversations?.activeId.value).toBe('ctf-job-1')
+  })
+
+  it('does not inherit a CTF workspace when CVE opens Coding and stages its draft', async () => {
+    const { host } = await mountApp()
+
+    host.querySelector<HTMLButtonElement>('[aria-label="open CTF in coding"]')?.click()
+    await flushAsyncComponents()
+    expect(hoisted.conversations?.workspacePath.value).toContain('/ctf/job-1')
+
+    host.querySelector<HTMLButtonElement>('[aria-label="navigate CVE"]')?.click()
+    await flushAsyncComponents()
+    expect(host.querySelector('[data-vuln-workspace]')?.textContent).toBe('')
+    host.querySelector<HTMLButtonElement>('[aria-label="open CVE in coding"]')?.click()
+    await flushAsyncComponents()
+
+    const active = hoisted.conversations?.active.value
+    expect(active?.id).toBe('cve-research-cve-2024-3400')
+    expect(active?.workspacePath).toBeUndefined()
+    expect(active?.ctfJobId).toBeUndefined()
+    expect(active?.domainTaskContext).toMatchObject({ kind: 'cve', cveId: 'CVE-2024-3400' })
+    expect(host.querySelector('[data-chat-vulnerability-session]')?.textContent).toBe('true')
+    expect(host.querySelector('[data-chat-draft]')?.textContent).toBe('接手 CVE-2024-3400')
+    expect(hoisted.conversations?.send).not.toHaveBeenCalled()
   })
 
   it('restores Coding navigation to the remembered non-CTF conversation after visiting a CTF Agent', async () => {
