@@ -35,7 +35,7 @@ function mountComposer(overrides: Record<string, unknown> = {}) {
   const controlledGoals: string[] = []
   const executionModes: string[] = []
   const slashCommandActions: string[] = []
-  let openedChanges = 0
+  const openedChanges: Array<string | undefined> = []
   const app = createApp(ChatComposer, {
     running: false,
     aborting: false,
@@ -63,8 +63,8 @@ function mountComposer(overrides: Record<string, unknown> = {}) {
     onRunSlashCommand: (command: string) => {
       slashCommandActions.push(command)
     },
-    onOpenChanges: () => {
-      openedChanges += 1
+    onOpenChanges: (path?: string) => {
+      openedChanges.push(path)
     },
     ...overrides,
   })
@@ -491,6 +491,8 @@ describe('ChatComposer', () => {
           modified: true,
           untracked: false,
           conflict: false,
+          additions: 18,
+          deletions: 4,
         }],
       },
     })
@@ -502,8 +504,21 @@ describe('ChatComposer', () => {
     expect(progress?.textContent).toContain('代码')
     expect(progress?.textContent).toContain('+442')
     expect(progress?.textContent).toContain('-226')
-    active.host.querySelector<HTMLButtonElement>('[aria-label="查看代码变更"]')?.click()
-    expect(active.openedChanges()).toBe(1)
+    const changeTrigger = active.host.querySelector<HTMLButtonElement>('[aria-label="查看代码变更"]')
+    changeTrigger?.dispatchEvent(new MouseEvent('pointerenter', { bubbles: true }))
+    await new Promise(resolve => window.setTimeout(resolve, 160))
+    await nextTick()
+    const fileAction = document.querySelector<HTMLButtonElement>(
+      '[aria-label="在变更中打开 app/src/components-vue/ChatComposer.vue"]',
+    )
+    expect(fileAction?.textContent).toContain('+18')
+    expect(fileAction?.textContent).toContain('-4')
+    fileAction?.click()
+    changeTrigger?.click()
+    expect(active.openedChanges()).toEqual([
+      'app/src/components-vue/ChatComposer.vue',
+      undefined,
+    ])
     expect(goalPanel?.textContent).toContain('进行中')
     expect(goalPanel?.textContent).toContain(activeGoal.text)
     expect(goalPanel?.textContent).toContain('12,500 / 100,000 tokens')

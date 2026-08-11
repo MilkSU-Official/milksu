@@ -247,6 +247,7 @@ const computerUseStatus = ref<CodingComputerUseStatus | null>(null)
 const computerUseTargets = ref<CodingComputerUseTarget[]>([])
 const selectedComputerUseTargetKey = ref('')
 const gitDeliveryEvidence = ref<CodingGitDeliveryEvidence | null>(null)
+const changesFocusPath = ref('')
 const codingEnvironment = ref<CodingEnvironmentSnapshot | null>(null)
 const mcpConfig = ref<CodingMCPConfigSnapshot | null>(null)
 const mcpConfigLoading = ref(false)
@@ -1388,6 +1389,11 @@ function changeContextPanel(value: string) {
   void refreshContextPanel()
 }
 
+function openChanges(path = '') {
+  changesFocusPath.value = path
+  changeContextPanel('changes')
+}
+
 
 function recordArtifactPreview(preview: CodingArtifactPreview) {
   artifactPreviewEvidence.value = {
@@ -1702,7 +1708,7 @@ watch(
       :available-skills="activeSkills"
       :selected-mcp-servers="selectedMCPServers"
       @send="sendComposerMessage"
-      @open-changes="changeContextPanel('changes')"
+      @open-changes="openChanges"
       @ctf-action="$emit('ctfAction', $event)"
       @abort="$emit('abort')"
       @change-execution-mode="changeExecutionMode"
@@ -2156,6 +2162,7 @@ watch(
           :workspace-path="workspacePath"
           :environment="codingEnvironment"
           :running="running"
+          :focus-path="changesFocusPath"
           @review="runCodingProductAction('review')"
           @refresh="refreshEnvironment"
           @delivery-evidence="recordGitDeliveryEvidence"

@@ -93,60 +93,6 @@ async function flushAsyncUpdates() {
   }
 }
 
-function installSessionHistoryRuntime() {
-  const status = {
-    available: true,
-    mode: 'milksu-obelisk-core',
-    indexPath: '/tmp/milksu/session-index/obelisk.sqlite',
-    checkedAt: '2026-08-05T02:45:00Z',
-    readOnly: true,
-    sessionCount: 1,
-    messageCount: 1,
-    toolCallCount: 1,
-    memoryCount: 0,
-    sources: [{ source: 'milksu-cve', count: 1 }],
-  }
-  ;(window as unknown as {
-    go?: {
-      main?: {
-        App?: {
-          GetSessionIndexStatus: () => Promise<typeof status>
-          SearchSessionHistory: (request: unknown) => Promise<unknown>
-          RefreshSessionIndex: () => Promise<unknown>
-        }
-      }
-    }
-  }).go = {
-    main: {
-      App: {
-        GetSessionIndexStatus: vi.fn(async () => status),
-        SearchSessionHistory: vi.fn(async request => ({
-          query: (request as { query?: string }).query ?? '',
-          searchedAt: '2026-08-05T02:46:00Z',
-          status,
-          results: [{
-            messageUuid: 'milksu:cve-history:assistant-1',
-            sessionId: 'milksu:cve-history',
-            sessionName: 'CVE-2024-3400 研究回顾',
-            source: 'milksu-cve',
-            timestamp: '2026-08-05T02:40:00Z',
-            snippet: 'NVD 同步后确认 CVSS 10.0；OPENAI_API_KEY=sk-history-secret12345',
-            skill: 'fetch_nvd_cve',
-          }],
-        })),
-        RefreshSessionIndex: vi.fn(async () => ({
-          indexedAt: '2026-08-05T02:46:00Z',
-          indexPath: status.indexPath,
-          source: 'milksu',
-          sessionCount: 1,
-          messageCount: 1,
-          toolCallCount: 1,
-        })),
-      },
-    },
-  }
-}
-
 function createVulnProjection(cveId: string, title = cveId): VulnProjection {
   const now = '2026-08-09T04:30:00Z'
   return {
@@ -314,16 +260,13 @@ describe('VulnPage', () => {
     expect(researchText).toContain('单个 CVE 研究台')
     expect(host.querySelector('[aria-label="返回 CVE 列表"]')).not.toBeNull()
     expect(researchText).toContain('CISA KEV')
-    expect(researchText).toContain('学习路径')
-    expect(researchText).toContain('CVE 最小闭环')
-    expect(researchText).toContain('练习结果不等于真实资产已验证')
-    expect(researchText).toContain('隔离练习环境')
-    expect(researchText).toContain('Coding 接力范围')
-    expect(researchText).toContain('Agent 可接手任务')
-    expect(researchText).toContain('研究任务工作区')
-    expect(researchText).toContain('安全边界')
-    expect(researchText).toContain('不批量扫描或攻击外部目标')
-    expect(researchText).toContain('不自动运行 PoC、exploit 或漏洞触发输入')
+    expect(researchText).toContain('CVE 管理面只保留事实、材料、Scope、进度和回写')
+    expect(researchText).toContain('交给 Coding')
+    expect(researchText).toContain('临时研究工作区')
+    expect(researchText).not.toContain('学习路径')
+    expect(researchText).not.toContain('CVE 最小闭环')
+    expect(researchText).not.toContain('研究任务工作区')
+    expect(researchText).not.toContain('暂未匹配到可直接练习的本地环境')
     expect(text).not.toContain('红队 Agent')
 
     const back = host.querySelector<HTMLButtonElement>('[aria-label="返回 CVE 列表"]')
@@ -797,10 +740,10 @@ describe('VulnPage', () => {
   it('shows the Coding workspace scope before handing CVE tasks to Coding', async () => {
     const empty = await mountVulnPageWithWorkspace()
     await openCveResearch(empty.host)
-    expect(empty.host.textContent).toContain('临时工作区')
-    expect(empty.host.textContent).toContain('项目影响检查')
+    expect(empty.host.textContent).toContain('临时研究工作区')
+    expect(empty.host.textContent).toContain('研究 Scope')
     const choose = [...empty.host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
-      item.textContent?.includes('选择项目目录'),
+      item.textContent?.includes('选择项目'),
     )
     if (!choose) throw new Error('missing choose workspace button')
     choose.click()
@@ -812,9 +755,9 @@ describe('VulnPage', () => {
 
     const scoped = await mountVulnPageWithWorkspace('/Users/milksu/code/milksu')
     await openCveResearch(scoped.host)
-    expect(scoped.host.textContent).toContain('已选择项目')
-    expect(scoped.host.textContent).toContain('/Users/milksu/code/milksu')
-    expect(scoped.host.textContent).toContain('更换项目目录')
+    expect(scoped.host.textContent).toContain('已选择授权项目')
+    expect(scoped.host.textContent).not.toContain('/Users/milksu/code/milksu')
+    expect(scoped.host.textContent).toContain('更换项目')
   })
 
   it('lets the user create a visible research tracking task', async () => {
@@ -829,35 +772,14 @@ describe('VulnPage', () => {
     button.click()
     await flushAsyncUpdates()
 
-    expect(host.textContent).toContain('查看研究任务')
-    expect(host.textContent).toContain('已建立')
-    expect(host.textContent).toContain('当前研究焦点')
-    expect(host.textContent).toContain('研究任务已建立')
+    expect(host.textContent).toContain('更新 Scope')
+    expect(host.textContent).toContain('1 个步骤有记录')
     expect(host.textContent).toContain('交给 Coding')
     expect(host.textContent).toContain('把公告、补丁、资产/项目影响和练习启动前清单交给当前授权任务。')
     expect(host.textContent).toContain('研究任务')
     expect(host.textContent).toContain('理解 PAN-OS 的影响范围、修复证据和学习要点')
     expect(host.textContent).toContain('Palo Alto Networks / PAN-OS')
-    expect(host.textContent).toContain('下一步给 Agent 的明确任务')
-    expect(host.textContent).toContain('固化情报快照')
-    expect(host.textContent).toContain('下一步交给 Coding Agent')
-    expect(host.textContent).toContain('不要运行 PoC、exploit 或外部扫描')
-    expect(host.textContent).toContain('研究中')
-
-    const advance = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
-      item.textContent?.includes('记录下一步'),
-    )
-    advance?.click()
-    await nextTick()
-    expect(host.textContent).toContain('阅读材料与补丁')
-    advance?.click()
-    await nextTick()
-    advance?.click()
-    await nextTick()
-    advance?.click()
-    await nextTick()
-    expect(host.textContent).toContain('修复与缓解证据')
-    expect(host.textContent).toContain('学习复盘')
+    expect(host.textContent).toContain('不运行 PoC、exploit 或外部扫描')
     expect(host.textContent).toContain('研究中')
   })
 
@@ -879,7 +801,7 @@ describe('VulnPage', () => {
     nextStep().click()
     await flushAsyncUpdates()
 
-    expect(host.textContent).toContain('研究任务已建立')
+    expect(host.textContent).toContain('1 个步骤有记录')
     expect(host.textContent).toContain('确认练习计划')
     expect(nextStep().textContent).toContain('确认')
     nextStep().click()
@@ -1062,37 +984,6 @@ describe('VulnPage', () => {
     expect(textareas.some(item => item.value.includes('暂不运行 PoC'))).toBe(true)
   })
 
-  it('records a user-confirmed related-history result into the current CVE note', async () => {
-    installSessionHistoryRuntime()
-    const host = await mountVulnPage()
-    await openCveResearch(host)
-    await flushAsyncUpdates()
-
-    expect(host.textContent).toContain('CVE-2024-3400 研究回顾')
-    expect(host.textContent).toContain('OPENAI_API_KEY=[credential redacted]')
-    expect(host.textContent).not.toContain('sk-history-secret12345')
-
-    const beforeTextareas = [...host.querySelectorAll<HTMLTextAreaElement>('textarea')]
-    expect(beforeTextareas.some(item => item.value.includes('相关历史（用户确认）'))).toBe(false)
-
-    const record = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
-      item.textContent?.includes('记入笔记'),
-    )
-    if (!record) throw new Error('missing related-history note action')
-    record.click()
-    await nextTick()
-
-    expect(host.textContent).toContain('已记入当前 CVE 笔记')
-    const afterTextareas = [...host.querySelectorAll<HTMLTextAreaElement>('textarea')]
-    const noteValues = afterTextareas.map(item => item.value).join('\n')
-    expect(noteValues).toContain('相关历史（用户确认）')
-    expect(noteValues).toContain('会话：CVE-2024-3400 研究回顾')
-    expect(noteValues).toContain('来源：CVE')
-    expect(noteValues).toContain('摘要：NVD 同步后确认 CVSS 10.0')
-    expect(noteValues).toContain('OPENAI_API_KEY=[credential redacted]')
-    expect(noteValues).not.toContain('sk-history-secret12345')
-  })
-
   it('imports user-confirmed Coding conclusions back into CVE research notes', async () => {
     installVulnRuntime()
     const { host, tasks, handoffRecorders } = await mountVulnPageWithCodingTaskSink()
@@ -1140,7 +1031,6 @@ describe('VulnPage', () => {
     expect(host.textContent).toContain('已写入正式研究档案')
     expect(host.textContent).toContain('正式研究档案')
     expect(host.textContent).toContain('1 条学习记录')
-    expect(host.textContent).toContain('复制证据摘要')
     expect(host.textContent).toContain('正式学习记录')
     expect(host.textContent).toContain('已核对 Apache advisory 和补丁版本范围。')
     expect(host.textContent).toContain('未发现 ActiveMQ 依赖')
@@ -1211,12 +1101,9 @@ describe('VulnPage', () => {
     await nextTick()
 
     expect(host.textContent).toContain('已确认计划')
-    expect(host.textContent).toContain('已确认本地练习计划，尚未启动容器')
+    expect(host.textContent).toContain('已有启动前计划')
     expect(host.textContent).toContain('选择本地目录')
-    expect(host.textContent).toContain('下一步交给 Coding Agent')
-    expect(host.textContent).toContain('本地练习启动前清单')
-    expect(host.textContent).toContain('复制启动前计划')
-    expect(host.textContent).toContain('必须逐项人工确认 Docker、端口、目录、网络边界和清理方式')
+    expect(host.textContent).toContain('启动前任务')
     expect(host.textContent).toContain('不要自动拉取镜像、启动容器、运行 exploit 或访问外部目标')
 
     const chooseDirectory = [...host.querySelectorAll<HTMLButtonElement>('button')].find(item =>
@@ -1277,6 +1164,7 @@ describe('VulnPage', () => {
 
     expect(host.textContent).toContain('最近 Coding 接力')
     expect(host.textContent).toContain('已交接')
-    expect(host.textContent).toContain('/Users/milksu/code/milksu')
+    expect(host.textContent).toContain('临时研究工作区')
+    expect(host.textContent).not.toContain('/Users/milksu/code/milksu')
   })
 })

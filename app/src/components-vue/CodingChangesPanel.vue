@@ -42,6 +42,7 @@ const props = defineProps<{
   workspacePath: string
   environment: CodingEnvironmentSnapshot | null
   running?: boolean
+  focusPath?: string
 }>()
 
 const emit = defineEmits<{
@@ -535,6 +536,16 @@ watch(changes, current => {
     error.value = ''
   }
 })
+
+watch(
+  () => [props.focusPath, changes.value] as const,
+  ([path, current]) => {
+    if (!path || selectedPath.value === path) return
+    const change = current.find(item => item.path === path)
+    if (change) void inspectDiff(change)
+  },
+  { immediate: true },
+)
 </script>
 
 <template>

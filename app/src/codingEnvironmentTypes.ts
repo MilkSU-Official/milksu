@@ -7,6 +7,8 @@ export interface CodingGitChange {
   modified: boolean
   untracked: boolean
   conflict: boolean
+  additions?: number
+  deletions?: number
 }
 
 export interface CodingGitStatus {

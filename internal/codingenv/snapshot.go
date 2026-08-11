@@ -49,6 +49,8 @@ type GitChange struct {
 	Modified       bool   `json:"modified"`
 	Untracked      bool   `json:"untracked"`
 	Conflict       bool   `json:"conflict"`
+	Additions      int    `json:"additions"`
+	Deletions      int    `json:"deletions"`
 }
 
 type DiffSnapshot struct {
@@ -118,7 +120,22 @@ func Inspect(ctx context.Context, workspace string) (Snapshot, error) {
 		snapshot.Git.Head = strings.TrimSpace(head)
 	}
 	if numstat, numstatErr := runGit(ctx, gitPath, resolved, "diff", "--numstat", "HEAD", "--"); numstatErr == nil {
-		snapshot.Git.Additions, snapshot.Git.Deletions = parseNumstat(numstat)
+		byPath := parseNumstatByPath(numstat)
+		for _, stat := range byPath {
+			snapshot.Git.Additions += stat.additions
+			snapshot.Git.Deletions += stat.deletions
+		}
+		for index := range snapshot.Git.Changes {
+			change := &snapshot.Git.Changes[index]
+			stat, ok := byPath[change.Path]
+			if !ok && change.OriginalPath != "" {
+				stat, ok = byPath[change.OriginalPath]
+			}
+			if ok {
+				change.Additions = stat.additions
+				change.Deletions = stat.deletions
+			}
+		}
 	}
 	return snapshot, nil
 }
@@ -402,23 +419,40 @@ func isConflictCode(code string) bool {
 	}
 }
 
-func parseNumstat(output string) (int, int) {
-	additions := 0
-	deletions := 0
+type gitLineStat struct {
+	additions int
+	deletions int
+}
+
+func parseNumstatByPath(output string) map[string]gitLineStat {
+	stats := make(map[string]gitLineStat)
 	for _, line := range strings.Split(strings.ReplaceAll(output, "\r\n", "\n"), "\n") {
-		fields := strings.Fields(line)
+		fields := strings.SplitN(line, "\t", 3)
 		if len(fields) < 3 {
 			continue
 		}
-		if isMilkSUInternalPath(fields[len(fields)-1]) {
+		path := strings.TrimSpace(fields[2])
+		if isMilkSUInternalPath(path) {
 			continue
 		}
+		stat := gitLineStat{}
 		if value, err := strconv.Atoi(fields[0]); err == nil {
-			additions += value
+			stat.additions = value
 		}
 		if value, err := strconv.Atoi(fields[1]); err == nil {
-			deletions += value
+			stat.deletions = value
 		}
+		stats[path] = stat
+	}
+	return stats
+}
+
+func parseNumstat(output string) (int, int) {
+	additions := 0
+	deletions := 0
+	for _, stat := range parseNumstatByPath(output) {
+		additions += stat.additions
+		deletions += stat.deletions
 	}
 	return additions, deletions
 }

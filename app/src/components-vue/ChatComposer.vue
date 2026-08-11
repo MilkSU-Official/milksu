@@ -118,7 +118,7 @@ const emit = defineEmits<{
   ]
   ctfAction: [action: CTFChatAction]
   abort: []
-  openChanges: []
+  openChanges: [path?: string]
   changeExecutionMode: [value: string]
   changeApprovalPolicy: [value: string]
   changeModel: [value: string]
@@ -970,14 +970,19 @@ defineExpose({
                 <p class="mt-0.5 text-caption text-muted-foreground">点击“代码”打开右侧变更面板</p>
               </div>
               <div class="max-h-64 overflow-y-auto px-2 py-2">
-                <div
+                <button
                   v-for="change in gitSummary?.changes ?? []"
                   :key="`${change.indexStatus}${change.worktreeStatus}:${change.path}`"
-                  class="flex items-center gap-2 rounded-md px-2 py-1.5 text-caption"
+                  type="button"
+                  class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-caption hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  :aria-label="`在变更中打开 ${change.path}`"
+                  @click="$emit('openChanges', change.path)"
                 >
                   <span class="w-14 shrink-0 text-muted-foreground">{{ gitChangeStatus(change) }}</span>
                   <span class="min-w-0 flex-1 truncate font-mono" :title="change.path">{{ change.path }}</span>
-                </div>
+                  <span class="shrink-0 font-mono text-primary">+{{ change.additions ?? 0 }}</span>
+                  <span class="shrink-0 font-mono text-destructive">-{{ change.deletions ?? 0 }}</span>
+                </button>
                 <p v-if="!(gitSummary?.changes?.length)" class="px-2 py-2 text-caption text-muted-foreground">
                   文件列表正在刷新；点击后可查看完整变更。
                 </p>

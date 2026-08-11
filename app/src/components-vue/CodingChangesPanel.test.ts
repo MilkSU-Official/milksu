@@ -47,12 +47,13 @@ function cleanEnvironment(overrides: Partial<CodingEnvironmentSnapshot['git']> =
   }
 }
 
-async function mountChangesPanel(environment: CodingEnvironmentSnapshot) {
+async function mountChangesPanel(environment: CodingEnvironmentSnapshot, focusPath = '') {
   const host = document.createElement('div')
   document.body.append(host)
   const app = createApp(CodingChangesPanel, {
     workspacePath: '/workspace',
     environment,
+    focusPath,
   })
   app.mount(host)
   mountedApps.push(app)
@@ -61,6 +62,32 @@ async function mountChangesPanel(environment: CodingEnvironmentSnapshot) {
 }
 
 describe('CodingChangesPanel Pull Request confirmation', () => {
+  it('focuses a file requested from the Composer change hover card', async () => {
+    const path = 'app/src/App.vue'
+    const host = await mountChangesPanel(cleanEnvironment({
+      dirty: true,
+      changedFiles: 1,
+      modified: 1,
+      additions: 6,
+      deletions: 2,
+      changes: [{
+        path,
+        indexStatus: ' ',
+        worktreeStatus: 'M',
+        staged: false,
+        modified: true,
+        untracked: false,
+        conflict: false,
+        additions: 6,
+        deletions: 2,
+      }],
+    }), path)
+    await settle()
+
+    const row = host.querySelector<HTMLButtonElement>(`[aria-label="暂存 ${path}"]`)?.parentElement
+    expect(row?.className).toContain('bg-muted')
+  })
+
   it('explains browser-preview Git delivery limits without pretending the workspace was inspected', async () => {
     const host = await mountChangesPanel(cleanEnvironment({
       available: false,

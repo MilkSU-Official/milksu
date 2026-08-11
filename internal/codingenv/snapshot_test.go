@@ -58,6 +58,23 @@ func TestParseNumstatIgnoresMilkSURuntimeFiles(t *testing.T) {
 	}
 }
 
+func TestParseNumstatByPathPreservesPerFileCounters(t *testing.T) {
+	stats := parseNumstatByPath(
+		"12\t4\tapp/src/App.vue\n" +
+			"3\t0\tdocs/current notes.md\n" +
+			"-\t-\tassets/icon.png\n",
+	)
+	if stats["app/src/App.vue"].additions != 12 || stats["app/src/App.vue"].deletions != 4 {
+		t.Fatalf("unexpected app stat: %#v", stats["app/src/App.vue"])
+	}
+	if stats["docs/current notes.md"].additions != 3 || stats["docs/current notes.md"].deletions != 0 {
+		t.Fatalf("unexpected spaced-path stat: %#v", stats["docs/current notes.md"])
+	}
+	if stats["assets/icon.png"] != (gitLineStat{}) {
+		t.Fatalf("binary counters should remain zero: %#v", stats["assets/icon.png"])
+	}
+}
+
 func TestParsePorcelainChangesPreservesStatusAndRename(t *testing.T) {
 	changes, truncated := parsePorcelainChanges(
 		"M  staged.go\x00 M modified.go\x00?? new.go\x00R  renamed.go\x00old.go\x00",
@@ -128,7 +145,9 @@ func TestInspectAndDiffExposeReadOnlyFileChanges(t *testing.T) {
 	}
 	if len(snapshot.Git.Changes) != 1 ||
 		snapshot.Git.Changes[0].Path != "hello.txt" ||
-		!snapshot.Git.Changes[0].Modified {
+		!snapshot.Git.Changes[0].Modified ||
+		snapshot.Git.Changes[0].Additions != 1 ||
+		snapshot.Git.Changes[0].Deletions != 0 {
 		t.Fatalf("unexpected change snapshot: %#v", snapshot.Git.Changes)
 	}
 	diff, err := InspectDiff(ctx, workspace, snapshot.Git.Changes[0].Path)

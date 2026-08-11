@@ -19,7 +19,6 @@ import {
   Bookmark,
   ClipboardList,
   ExternalLink,
-  FileText,
   FolderOpen,
   Plus,
   Play,
@@ -29,17 +28,14 @@ import {
   ShieldCheck,
   Star,
   Square,
-  Workflow,
 } from 'lucide-vue-next'
 import WorkspaceDetailTitle from '@/components-vue/WorkspaceDetailTitle.vue'
 import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
-import SessionHistoryPanel from '@/components-vue/SessionHistoryPanel.vue'
 import VulnerabilityLoopPanel from '@/components-vue/VulnerabilityLoopPanel.vue'
 import { useVulnerabilityDashboard, type VulnerabilityDashboard } from '@/composables/useVulnerabilityDashboard'
 import { hasDesktopRuntime, invokeCommand } from '@/desktop'
 import { redactProviderCredentials } from '@/lib/redaction'
 import type { VulnerabilityCodingTask } from '@/composables/useVulnerabilityDashboard'
-import type { SessionHistorySearchResult } from '@/sessionIndexTypes'
 import type { VulnerabilitySeverity, VulnerabilityStatus } from '@/vulnerabilityIntel'
 import type { VulnProjection } from '@/vulnTypes'
 
@@ -57,31 +53,6 @@ const emit = defineEmits<{
 }>()
 const dashboard = props.dashboard ?? useVulnerabilityDashboard()
 
-const sprintTasks = [
-  '让 Coding Agent 读取公告、补丁和版本清单，产出影响判断草稿',
-  '把用户确认的资产状态、学习笔记和参考材料固化为证据',
-  '在授权仓库内做静态补丁理解或依赖版本检查',
-]
-
-const learningPath = [
-  { label: '理解影响', detail: '看懂组件、受影响版本、利用成熟度和资产命中。' },
-  { label: '收集证据', detail: '保留公告、补丁、版本清单、用户确认和处置记录。' },
-  { label: '沉淀能力', detail: '把独立完成、提示依赖和 Agent 代做分开记录。' },
-]
-
-const safetyBoundaries = [
-  '不批量扫描或攻击外部目标',
-  '不自动运行 PoC、exploit 或漏洞触发输入',
-  '不把情报状态等同于漏洞已经验证',
-]
-const researchSteps = [
-  { id: 'snapshot', label: '固化情报快照', detail: '保存 CVE、公告、版本范围、资产命中和当前状态。' },
-  { id: 'materials', label: '阅读材料与补丁', detail: '整理 NVD、厂商公告、补丁 Diff 和公开分析。' },
-  { id: 'impact', label: '影响检查', detail: '在授权仓库或资产清单中只读核对组件与版本证据。' },
-  { id: 'fix', label: '修复与缓解证据', detail: '记录升级版本、配置缓解、补丁或分流原因。' },
-  { id: 'reflection', label: '学习复盘', detail: '沉淀根因、判断方法、提示依赖和用户贡献。' },
-]
-
 const showCustomForm = ref(false)
 const customFormError = ref('')
 const cveView = ref<'list' | 'research'>('list')
@@ -98,13 +69,11 @@ const researchDraftWritebackBusy = ref(false)
 const researchDraftError = ref('')
 const researchDraftNotice = ref('')
 const archiveLoadError = ref('')
-const historyNoteNotice = ref('')
 const selectedIntelNotice = ref('')
 const selectedIntelError = ref('')
 const selectedIntelSyncing = ref('')
 const loopWorkspace = ref<HTMLElement | null>(null)
 const practiceWorkspace = ref<HTMLElement | null>(null)
-const researchWorkspace = ref<HTMLElement | null>(null)
 const notesWorkspace = ref<HTMLElement | null>(null)
 const customForm = ref({
   id: '',
@@ -286,39 +255,6 @@ async function submitResearchDraft() {
   }
 }
 
-function sessionHistorySourceLabel(source = '') {
-  if (source === 'milksu-ctf') return 'CTF'
-  if (source === 'milksu-cve') return 'CVE'
-  if (source === 'milksu-coding') return 'Coding'
-  return source || '历史'
-}
-
-function trimHistoryField(value = '', maxLength = 600) {
-  const redacted = redactProviderCredentials(value).trim()
-  if (redacted.length <= maxLength) return redacted
-  return `${redacted.slice(0, maxLength)}…`
-}
-
-function recordSessionHistoryAsNote(result: SessionHistorySearchResult) {
-  const existing = dashboard.researchNoteFor.value
-  const stamp = new Date().toLocaleString()
-  const lines = [
-    `- 会话：${trimHistoryField(result.sessionName, 160)}`,
-    `- 来源：${sessionHistorySourceLabel(result.source)}`,
-    result.timestamp ? `- 时间：${new Date(result.timestamp).toLocaleString()}` : '',
-    result.skill ? `- 工具：${trimHistoryField(result.skill, 160)}` : '',
-    `- 摘要：${trimHistoryField(result.snippet)}`,
-  ].filter(Boolean)
-
-  dashboard.updateResearchNote(dashboard.selected.value.id, {
-    notes: [
-      existing.notes.trim(),
-      `[${stamp}] 相关历史（用户确认）：\n${lines.join('\n')}`,
-    ].filter(Boolean).join('\n\n'),
-  })
-  historyNoteNotice.value = '已记入当前 CVE 笔记。'
-}
-
 type SelectedIntelSyncResult = Awaited<ReturnType<VulnerabilityDashboard['syncSelectedNvdCve']>>
 
 function formatSelectedIntelNotice(sourceName: string, result: SelectedIntelSyncResult) {
@@ -406,7 +342,7 @@ function startSelectedCodingTask(task: VulnerabilityCodingTask) {
 async function establishOrFocusResearchTask() {
   dashboard.establishResearchTask(dashboard.selected.value.id)
   await nextTick()
-  researchWorkspace.value?.scrollIntoView?.({ block: 'start', behavior: 'smooth' })
+  loopWorkspace.value?.scrollIntoView?.({ block: 'start', behavior: 'smooth' })
 }
 
 async function scrollToWorkspace(target: HTMLElement | null) {
@@ -755,7 +691,12 @@ function statusVariant(status: VulnerabilityStatus) {
                 />
                 {{ dashboard.watched.value.includes(dashboard.selected.value.id) ? '已关注' : '关注' }}
               </Button>
-              <Button size="sm" aria-label="执行当前 CVE 下一步" @click="runSelectedNextAction">
+              <Button
+                v-if="dashboard.selectedNextAction.value.label !== '交给 Coding'"
+                size="sm"
+                aria-label="执行当前 CVE 下一步"
+                @click="runSelectedNextAction"
+              >
                 {{ selectedNextActionCta }}
               </Button>
             </div>
@@ -938,42 +879,19 @@ function statusVariant(status: VulnerabilityStatus) {
             :coding-task="dashboard.codingTaskForSelected.value"
             @establish-task="establishOrFocusResearchTask"
             @confirm-practice="dashboard.confirmPracticeEnvironment(dashboard.selected.value.id)"
+            @choose-workspace="$emit('chooseCodingWorkspace')"
             @start-coding-task="startSelectedCodingTask"
           />
         </div>
 
-        <section class="mt-5 rounded-xl border border-border bg-background px-5 py-5">
-          <h3 class="text-label font-medium">学习路径</h3>
-          <ol class="mt-3 space-y-3">
-            <li
-              v-for="(step, index) in learningPath"
-              :key="step.label"
-              class="grid grid-cols-[1.75rem_1fr] gap-3"
-            >
-              <span class="flex size-7 items-center justify-center rounded-full bg-muted font-mono text-caption">
-                {{ index + 1 }}
-              </span>
-              <span>
-                <span class="block text-body font-medium">{{ step.label }}</span>
-                <span class="mt-1 block text-caption leading-5 text-muted-foreground">{{ step.detail }}</span>
-              </span>
-            </li>
-          </ol>
-        </section>
-
-        <SessionHistoryPanel
-          module="cve"
-          compact
-          :default-query="dashboard.selected.value.id"
-          confirm-action-label="记入笔记"
-          @confirm-result="recordSessionHistoryAsNote"
-        />
-
-        <section ref="practiceWorkspace" class="border-b border-border px-6 py-5">
+        <section
+          v-if="dashboard.practiceEnvironmentFor.value"
+          ref="practiceWorkspace"
+          class="mt-5 rounded-xl border border-border bg-background px-5 py-5"
+        >
           <div class="flex items-center justify-between gap-3">
             <h3 class="text-label font-medium">隔离练习环境</h3>
-            <Badge v-if="dashboard.practiceEnvironmentFor.value" variant="info">已匹配</Badge>
-            <Badge v-else variant="outline">未匹配</Badge>
+            <Badge variant="info">已匹配</Badge>
           </div>
 
           <div v-if="dashboard.practiceEnvironmentFor.value" class="mt-4 rounded-xl border border-border bg-card px-4 py-4">
@@ -1046,16 +964,7 @@ function statusVariant(status: VulnerabilityStatus) {
               class="mt-4 rounded-lg border border-border bg-muted/20 px-3 py-3"
             >
               <div class="flex items-center justify-between gap-3">
-                <p class="text-caption font-medium text-muted-foreground">下一步交给 Coding Agent</p>
-                <Button
-                  v-if="dashboard.codingTaskForSelected.value"
-                  variant="outline"
-                  size="sm"
-                  @click="startSelectedCodingTask(dashboard.codingTaskForSelected.value)"
-                >
-                  <Workflow class="size-4" />
-                  交给 Coding
-                </Button>
+                <p class="text-caption font-medium text-muted-foreground">启动前任务</p>
               </div>
               <p class="mt-2 text-body leading-6">{{ dashboard.practiceSessionFor.value.nextPrompt }}</p>
               <dl class="mt-3 grid gap-1.5 text-caption leading-5">
@@ -1150,12 +1059,6 @@ function statusVariant(status: VulnerabilityStatus) {
             </div>
           </div>
 
-          <div v-else class="mt-4 rounded-xl border border-dashed border-border bg-muted/20 px-4 py-4">
-            <p class="text-body font-medium">暂未匹配到可直接练习的本地环境</p>
-            <p class="mt-1 text-caption leading-5 text-muted-foreground">
-              继续保留情报、资产和笔记；后续 Vulhub catalog import 或用户手动绑定环境后，在这里显示确认启动入口。
-            </p>
-          </div>
         </section>
 
         <section ref="notesWorkspace" class="mt-5 rounded-xl border border-border bg-background px-5 py-5">
@@ -1236,107 +1139,6 @@ function statusVariant(status: VulnerabilityStatus) {
 
         <section class="mt-5 rounded-xl border border-border bg-background px-5 py-5">
           <div class="flex items-center justify-between gap-3">
-            <h3 class="text-label font-medium">Coding 接力范围</h3>
-            <Badge :variant="codingWorkspacePath ? 'success' : 'outline'">
-              {{ codingWorkspacePath ? '已选择项目' : '临时工作区' }}
-            </Badge>
-          </div>
-          <div class="mt-3 rounded-xl border border-border bg-card px-4 py-3">
-            <p v-if="codingWorkspacePath" class="truncate font-mono text-caption text-muted-foreground">
-              {{ codingWorkspacePath }}
-            </p>
-            <p v-else class="text-caption leading-5 text-muted-foreground">
-              尚未选择授权项目；交给 Coding 后仍可先做公告阅读和启动前清单，但“项目影响检查”需要先选择目录。
-            </p>
-            <div class="mt-3 flex flex-wrap items-center gap-2">
-              <Button variant="outline" size="sm" @click="$emit('chooseCodingWorkspace')">
-                <FolderOpen class="size-4" />
-                {{ codingWorkspacePath ? '更换项目目录' : '选择项目目录' }}
-              </Button>
-              <Badge variant="outline">只读影响检查</Badge>
-              <Badge variant="outline">不读取凭据</Badge>
-            </div>
-          </div>
-        </section>
-
-        <section ref="researchWorkspace" class="mt-5 rounded-xl border border-border bg-background px-5 py-5">
-          <div class="flex items-center justify-between gap-3">
-            <h3 class="text-label font-medium">研究任务工作区</h3>
-            <Badge v-if="dashboard.researchTaskFor.value" variant="info">已建立</Badge>
-            <Badge v-else variant="outline">未建立</Badge>
-          </div>
-          <div v-if="dashboard.researchTaskFor.value" class="mt-4 space-y-4">
-            <div class="rounded-xl border border-border bg-card px-4 py-3">
-              <p class="flex items-center gap-2 text-body font-medium">
-                <ClipboardList class="size-4 text-primary" />
-                {{ dashboard.researchTaskFor.value.title }}
-              </p>
-              <dl class="mt-3 grid gap-2 text-caption leading-5">
-                <div class="grid grid-cols-[4rem_1fr] gap-3">
-                  <dt class="text-muted-foreground">目标</dt>
-                  <dd>{{ dashboard.researchTaskFor.value.goal }}</dd>
-                </div>
-                <div class="grid grid-cols-[4rem_1fr] gap-3">
-                  <dt class="text-muted-foreground">Scope</dt>
-                  <dd>{{ dashboard.researchTaskFor.value.scope }}</dd>
-                </div>
-              </dl>
-            </div>
-            <div class="space-y-2">
-              <div
-                v-for="step in researchSteps"
-                :key="step.id"
-                class="rounded-lg border px-3 py-2"
-                :class="dashboard.researchTaskFor.value.completedSteps.includes(step.id)
-                  ? 'border-primary/25 bg-primary/5'
-                  : 'border-border bg-muted/20'"
-              >
-                <div class="flex items-center justify-between gap-3">
-                  <p class="text-body font-medium">{{ step.label }}</p>
-                  <Badge
-                    :variant="dashboard.researchTaskFor.value.completedSteps.includes(step.id) ? 'success' : 'outline'"
-                  >
-                    {{ dashboard.researchTaskFor.value.completedSteps.includes(step.id) ? '完成' : '待办' }}
-                  </Badge>
-                </div>
-                <p class="mt-1 text-caption leading-5 text-muted-foreground">{{ step.detail }}</p>
-              </div>
-            </div>
-            <div class="rounded-xl border border-border bg-muted/30 px-4 py-3">
-              <div class="flex items-center justify-between gap-3">
-                <p class="flex items-center gap-2 text-caption font-medium text-muted-foreground">
-                  <FileText class="size-4" />
-                  下一步交给 Coding Agent
-                </p>
-                <Button
-                  v-if="dashboard.codingTaskForSelected.value"
-                  variant="outline"
-                  size="sm"
-                  @click="startSelectedCodingTask(dashboard.codingTaskForSelected.value)"
-                >
-                  <Workflow class="size-4" />
-                  交给 Coding
-                </Button>
-              </div>
-              <p class="mt-2 text-body leading-6">{{ dashboard.researchTaskFor.value.nextPrompt }}</p>
-            </div>
-          </div>
-          <div v-else>
-            <p class="mt-3 text-caption font-medium text-muted-foreground">Agent 可接手任务</p>
-            <ul class="mt-2 space-y-2 text-body leading-5">
-              <li
-                v-for="task in sprintTasks"
-                :key="task"
-                class="rounded-lg border border-border bg-muted/30 px-3 py-2"
-              >
-                {{ task }}
-              </li>
-            </ul>
-          </div>
-        </section>
-
-        <section class="mt-5 rounded-xl border border-border bg-background px-5 py-5">
-          <div class="flex items-center justify-between gap-3">
             <h3 class="text-label font-medium">研究笔记</h3>
             <div class="flex items-center gap-2">
               <Badge
@@ -1384,9 +1186,6 @@ function statusVariant(status: VulnerabilityStatus) {
           </form>
           <p v-if="codingConclusionNotice" class="mt-3 text-caption text-primary">
             {{ codingConclusionNotice }}
-          </p>
-          <p v-if="historyNoteNotice" class="mt-3 text-caption text-primary">
-            {{ historyNoteNotice }}
           </p>
           <p
             v-if="dashboard.runtimeProjectionFor.value"
@@ -1446,40 +1245,6 @@ function statusVariant(status: VulnerabilityStatus) {
           </p>
         </section>
 
-        <section class="mt-5 rounded-xl border border-border bg-background px-5 py-5">
-          <h3 class="text-label font-medium">安全边界</h3>
-          <ul class="mt-3 space-y-2 text-caption leading-5 text-muted-foreground">
-            <li v-for="boundary in safetyBoundaries" :key="boundary" class="flex gap-2">
-              <ShieldCheck class="mt-0.5 size-3.5 shrink-0" />
-              <span>{{ boundary }}</span>
-            </li>
-          </ul>
-        </section>
-
-        <section class="mt-5 rounded-xl border border-border bg-background px-5 py-5">
-          <Button
-            block
-            @click="establishOrFocusResearchTask"
-          >
-            <ShieldCheck
-              v-if="dashboard.researchTaskFor.value"
-              class="size-4"
-            />
-            <Workflow v-else class="size-4" />
-            {{ dashboard.researchTaskFor.value ? '查看研究任务' : '建立研究任务' }}
-          </Button>
-          <Button
-            variant="ghost"
-            block
-            class="mt-2"
-            @click="dashboard.advanceTask(dashboard.selected.value.id)"
-          >
-            记录下一步
-          </Button>
-          <p class="mt-3 text-center text-caption leading-5 text-muted-foreground">
-            建立任务后固化情报快照、受影响资产与证据边界。
-          </p>
-        </section>
       </div>
     </section>
   </main>
