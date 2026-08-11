@@ -74,6 +74,11 @@ import { useNSSCTFArena, useNSSCTFChallenges, useNSSCTFWebBridge } from '@/compo
 import { useNSSCTFCatalog, useNSSCTFTraining } from '@/composables/useNSSCTFTraining'
 import { invokeCommand } from '@/desktop'
 import { shouldBootstrapNSSCTFCatalog } from '@/lib/ctfCatalogBootstrap'
+import {
+  ctfManualStatusFromJobStatus,
+  ctfManualStatusLabel,
+  type CTFManualStatus,
+} from '@/lib/ctfManualStatus'
 import { deriveCTFWorkspacePresentation } from '@/lib/ctfWorkspacePresentation'
 import { redactProviderCredentials } from '@/lib/redaction'
 import type {
@@ -98,8 +103,6 @@ type Screen = 'source' | 'challenge' | 'workspace'
 type WorkspaceMode = 'solve' | 'review'
 type QuestionBank = Extract<CTFTrainingPlatform['id'], 'nssctf' | 'ctfshow'>
 type TrainingSource = CTFTrainingPlatform['id'] | 'custom'
-type CTFManualStatus = 'not_started' | 'in_progress' | 'paused' | 'completed'
-
 defineOptions({ name: 'CTFPage' })
 
 function formatCategory(value: string) {
@@ -302,6 +305,17 @@ const selectedCatalogJob = computed(() => {
 function updateManualStatus(key: string, status: CTFManualStatus) {
   manualStatuses.value = { ...manualStatuses.value, [key]: status }
   window.localStorage.setItem('milksu.ctf.manual-statuses', JSON.stringify(manualStatuses.value))
+}
+
+function manualStatusForJob(job: Pick<CTFSummary, 'id' | 'status'>): CTFManualStatus {
+  return manualStatuses.value[`job:${job.id}`] ?? ctfManualStatusFromJobStatus(job.status)
+}
+
+function updateActiveJobManualStatus(event: Event) {
+  const job = activeProjection.value?.job
+  const status = (event.target as HTMLSelectElement | null)?.value as CTFManualStatus | undefined
+  if (!job || !status || !['not_started', 'in_progress', 'paused', 'completed'].includes(status)) return
+  updateManualStatus(`job:${job.id}`, status)
 }
 const canStartSelectedChallenge = computed(() => {
   if (selectedActiveJob.value) return true
@@ -628,23 +642,8 @@ const dailyMission = computed(() => {
   }
 })
 
-function jobStatusLabel(status: string) {
-  switch (status) {
-    case 'queued': return '待开始'
-    case 'running': return '进行中'
-    case 'cancelling': return '正在停止'
-    case 'recovering': return '正在恢复'
-    case 'succeeded': return '已完成'
-    case 'failed': return '未完成'
-    case 'cancelled': return '已中断'
-    default: return status
-  }
-}
-
 function jobSummaryLabel(job: CTFSummary) {
-  if (job.pendingJudge) return '判题中'
-  if (job.pendingSubmission) return '待提交'
-  return jobStatusLabel(job.status)
+  return ctfManualStatusLabel(manualStatusForJob(job))
 }
 
 function verdictLabel(verdict?: string) {
@@ -2386,7 +2385,18 @@ onBeforeUnmount(() => {
               <div class="min-w-0">
                 <div class="flex flex-wrap items-center gap-2">
                   <Badge variant="outline">{{ formatCategory(activeProjection.challenge.category) }}</Badge>
-                  <Badge variant="outline">{{ jobStatusLabel(activeProjection.job.status) }}</Badge>
+                  <NativeSelect
+                    :model-value="manualStatusForJob(activeProjection.job)"
+                    size="sm"
+                    class="w-32"
+                    :aria-label="`${activeProjection.challenge.title} 状态`"
+                    @change="updateActiveJobManualStatus"
+                  >
+                    <NativeSelectOption value="not_started">未开始</NativeSelectOption>
+                    <NativeSelectOption value="in_progress">进行中</NativeSelectOption>
+                    <NativeSelectOption value="paused">稍后继续</NativeSelectOption>
+                    <NativeSelectOption value="completed">已完成</NativeSelectOption>
+                  </NativeSelect>
                   <Badge v-if="isArenaWorkspace" variant="secondary">Agent Arena</Badge>
                   <Badge v-if="isWebWorkspace" variant="secondary">Chrome Judge</Badge>
                 </div>

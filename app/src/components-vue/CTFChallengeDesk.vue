@@ -14,13 +14,12 @@ import {
   TerminalSquare,
 } from 'lucide-vue-next'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
+import { ctfManualStatusLabel, type CTFManualStatus } from '@/lib/ctfManualStatus'
 import type { CTFCollaborationMode, CTFMaterialRequest } from '@/ctfTypes'
 import type { CTFShowCatalogProblem } from '@/ctfshowTypes'
 import type { NSSCTFChallenge } from '@/nssctfTypes'
 import type { NSSCTFCatalogProblem, NSSCTFTrainingDashboard } from '@/nssctfTrainingTypes'
 import type { Conversation } from '@/types'
-
-export type CTFManualStatus = 'not_started' | 'in_progress' | 'paused' | 'completed'
 
 const props = withDefaults(defineProps<{
   activeBank: 'nssctf' | 'ctfshow'
@@ -132,7 +131,7 @@ function statusFor(id: number): CTFManualStatus {
 }
 
 function statusLabel(status: CTFManualStatus) {
-  return ({ not_started: '未开始', in_progress: '进行中', paused: '稍后继续', completed: '已完成' })[status]
+  return ctfManualStatusLabel(status)
 }
 
 function difficultyLabel(value: number) {
