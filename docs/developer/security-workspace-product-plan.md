@@ -22,6 +22,16 @@ GitHub 登录、邀请制访问、额度与流水管理 API/管理前端；让 M
 [当前开发目标](current-objectives.md#进行中目标个人安全工作台) 为准，本文保存稳定产品决策与
 验收方向。
 
+## 当前进度
+
+- 已实现并测试：个人资料、轻量 CTF/CVE、共享 Coding 上下文、独立 Admin 基线、账户额度与本机
+  Key 的全局/对话级顺序。
+- 已从干净提交 `dbdd59dcb2776fa52a4a6c9d0add09ec05bc1ae3` 构建 `MilkSU Beta`；设置页和包检查器
+  均确认 tracking ID `c51bc5e68e071ff2d57f94eb00bb474f7f706afa8bda5f3a97d1d6cbf470c6e1`。
+- 原生 Computer Use 已复检个人页、CTF/CVE 草稿交接、领域上下文 PiP、返回状态、关联对话和
+  无虚构 CVE 资产。当前包没有真实账户部署配置，本机也没有可用模型凭据，所以 GitHub 登录、
+  真实额度以及 App 内 Agent 实际完成 CTF/CVE 仍是完成线，不以按钮或草稿代替。
+
 ## 目标
 
 把 CTF 和 CVE 收成轻量的个人记录与任务入口，把分析、工具和动态工作继续交给同一个

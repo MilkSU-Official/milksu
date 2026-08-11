@@ -2,7 +2,7 @@
 
 > 文档状态：Current / Canonical target contract
 >
-> 最后收口：2026-08-10
+> 最后收口：2026-08-11
 >
 > 本页只回答“现在按什么目标继续做”：当前事实 + 下一条完成线。
 > 实现事实以当前代码、测试、Git 历史和原生 App 验收为准。
@@ -40,11 +40,11 @@
 - 浏览器三面已分责：右栏“浏览器”是会话隔离的内置 Chromium；`/browser-use` 复用固定版 Playwright MCP 官方扩展，由用户在真实 Chrome/Edge 选择准确标签页；`/computer-use` 只列外部原生 App，浏览器窗口不进入该 Scope。NSSCTF/CTFshow 的 MilkSU 扩展继续作为领域 Bridge，不承担通用浏览器控制。
 - **Chromium 桌面壳纵切已完成**：MilkSU.app 现由 Electron/Chromium 承载 Vue 产品表面和右栏 `WebContentsView`，Go 作为受管本地 Runtime 通过 JSONL RPC 提供应用服务。浏览器使用每会话独立 `session.fromPath`、默认拒绝页面权限，并经限定单一 Target 的 loopback CDP Proxy 交给固定 Playwright MCP。打包 App + TokenFlux `grok-4.5` 已只用浏览器完成三类真实任务：按页面提示点击取得 `flag{browser_agent_ok}`、填写并提交表单取得确定性回执、阅读 Electron 官方文档并归纳 `WebContentsView` 与旧 `BrowserView` 的关系。三次均在 Agent 开始后折叠右栏，任务仍继续，重新展开仍是同一页面与终态；未回退 Shell。裸域名会补全 HTTPS，普通文字会进入搜索。旧 Wails/CEF 生产链已直接删除，不保留兼容或双壳。
 - 模型与凭据：单默认模型；内测账户额度与本机个人 Key 独立存在，默认账户优先且仅在模型输出或工具执行前自动切换。设置保存全局顺序，Coding 可只为当前对话调整优先来源；个人 Key 不进入后台、日志或模型上下文。DeepSeek V4 Flash 默认日常；TokenFlux 是账户 Team Key 与个人中转的当前实现，Coding / CTF / sub-agent 仍共用 Pi Provider 注册。
-- CVE：学习/追踪 MVP 可用（多源同步、练习目录、本地 Compose 生命周期、资产验证、学习写回、Coding 接力）；正式事实只来自 Vuln Runtime。
+- CVE：用户首页只显示自己明确加入研究的公开 CVE，状态手工维护，并自动关联从该条目发起的 Coding 对话；内置公开目录不再伪造资产命中、用户状态或实时更新时间。纵深研究、真实复现、外部资产和披露仍后置。
 - CTF：题库、工作区、Evidence、候选、Judge、Checkpoint、恢复、复盘、Memory 主链存在；真实 Judge 成功仍只有窄 Web 路径。
 - CTF/CVE → Coding 已复用同一 Coding/Pi：交接只挂载草稿、不自动发送；右侧可折叠领域上下文保留题目/CVE、授权 Scope、材料、Evidence/Judge 或只读安全边界，并提供返回工作台。NSSCTF 附件或 Judge 未连接不再阻止用公开题面打开 Coding；附件缺失只作为材料警告。Beta Computer Use 已实测 P7591 与 CVE-2024-3400 的草稿交接和返回连续性；未运行 PoC、未提交 flag、未建立 Judge 成功事实。
 - Runtime：Sidecar 恢复、Compaction、异常退出标记、后台长任务打包 App/WebView 恢复、预算和失败分类已有。
-- UI：全局 rail 主题、设置、能力画像；能力画像支持移出延迟关闭与 Escape。Goal 与 Git 摘要位于输入框上方，Git 摘要可展开文件列表并跳到“变更”。Coding 顶部保留独立 Bottom Dock 和统一右栏；CTF/CVE 进入 Coding 后领域上下文可折叠/PiP，不再丢失原任务。Computer Use 使用紧凑任务面，诊断与证据默认折叠。Electron 窗口已避开 macOS 红黄绿按钮，Stable/Beta 使用正确名称与图标；设置页底部固定显示 branch、40 位 commit、clean/dirty、build time 和 tracking ID。
+- UI：左上角显示当前用户头像并打开个人菜单；完整个人页展示真实活跃格、CTF/CVE/Coding 模糊阶段和最近确认成长，全局六维雷达不再挂载。Goal 与 Git 摘要位于输入框上方，Git 摘要可展开文件列表并跳到“变更”。Coding 顶部保留独立 Bottom Dock 和统一右栏；CTF/CVE 进入 Coding 后领域上下文可折叠/PiP，不再丢失原任务。Computer Use 使用紧凑任务面，诊断与证据默认折叠。Electron 窗口已避开 macOS 红黄绿按钮，Stable/Beta 使用正确名称与图标；设置页底部固定显示 branch、40 位 commit、clean/dirty、build time 和 tracking ID。
 - 暂停/后置：Labs；CVE 纵深研究、真实漏洞复现、外部资产实验、披露；NYU safe-static 只是开发者 smoke，不是完整 CTF 成绩。
 
 ## 下一条完成线
@@ -53,9 +53,9 @@
 
 - **任务**：Codex `019fe9ee-b865-75b3-903d-bada1266f254`。
 - **目标文档**：[个人安全工作台计划](security-workspace-product-plan.md)。
-- **当前切片**：目标问答、定稿图、个人资料、轻量 CTF/CVE、独立 Admin 基线和双模型来源路由已经进入代码；正在跑完整回归并准备从干净提交构建 Beta。账户登录仍只认真实部署配置，不用 fixture 冒充在线账户路径。
+- **当前切片**：目标问答、六张定稿图、个人资料、轻量 CTF/CVE、独立 Admin 基线和双模型来源路由已经进入代码。干净提交 `dbdd59dcb2776fa52a4a6c9d0add09ec05bc1ae3` 已构建并检查 Beta；原生 UI 已核对个人页、CTF/CVE 草稿交接、PiP/返回、关联对话、来源顺序和无虚构 CVE 资产。账户部署和模型凭据未配置，因此在线 GitHub 登录、真实额度及由 App 内 Agent 完成 CTF/CVE 仍未验收，不能写成已完成。
 - **完成线**：个人资料、轻量 CTF、轻量 CVE、账户额度/个人 Key 路由均按定稿图完成；从干净
-  提交构建 Beta，核对 branch、完整 commit、tracking ID，并完成真实 CTF/CVE 与账户路径验收。
+  提交构建 Beta，核对 branch、完整 commit、tracking ID，并在真实账户部署和可用模型来源下完成 CTF/CVE 与账户路径验收；之后再构建正式 App。
 
 | 优先级 | 主线 | 只认什么完成 |
 | --- | --- | --- |

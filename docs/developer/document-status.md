@@ -54,16 +54,18 @@
   与终态，且没有回退 Shell。裸域名补全 HTTPS，普通文字进入搜索。`MilkSU Beta` 已使用独立产品名、
   Bundle ID、图标、数据目录与设置页构建追踪；Stable 排除自身，只能锁定 Beta 等外部 App。
 - 完整自然任务自举（功能代码/测试/恢复/Git 交付）、人工接管账本、自主合并发布和发行门禁仍未通过。
-- 模型与凭据：单默认模型；DeepSeek V4 Flash 日常默认；TokenFlux 一等中转；Coding/CTF/sub-agent
-  共用 Provider 注册。
+- 模型与凭据：单默认模型；账户额度和本机个人 Key 是两个独立来源，设置页可调整全局顺序，Coding
+  可只为当前对话调整优先来源；仅允许在模型未输出且工具未执行前自动切换。个人 Key 不进入后台、
+  日志或模型上下文。真实账户部署和 TokenFlux 明细仍待联调。
 - CTF 主链存在；真实 Judge 成功仍只有窄 Web 路径。Memory actor/assistance 已持久化；尚缺真实
   轨迹校准。Runtime Reliability fixture 已有；发行级恢复矩阵未过。
 - CTF/CVE 交给 Coding 时只挂草稿、不自动发送，并复用同一 Pi 会话；可折叠领域上下文保留题目/CVE、
   Scope、材料、Evidence/Judge 或只读边界与返回动作。Beta 已实测 P7591 和 CVE-2024-3400 的交接/返回；
   未提交 flag、未运行 PoC，且附件或 Judge 未连接不再阻止打开 Coding。
-- CVE 正式事实只来自 Vuln Runtime；WebView 无假后端；Session Index 只索引 MilkSU 自有历史。相关历史列表仍由用户明确确认后引用；完整图谱则按需让当前 Pi/Provider 在无工具静默回合中，把有界的会话、Memory 摘要和正式 Evidence 摘要归纳成人类语义图。图节点必须可回溯来源，关系标为模型推断；不读目标文档、不新增图数据库、不写 Memory、不回填 Agent。
-- UI：rail 主题/设置、Coding Goal 与常用 Agent 动作在 Composer `/`；“+”统一提供附件、Goal、Plan、浏览器、Browser/Computer Scope、已审核 Pi Skills 与项目 MCP。运行中输入可继续发送并通过 Pi steering/queue 在下一模型调用前应用；能力画像支持移出延迟关闭与 Escape；Git 摘要可展开文件并跳到“变更”。产品表面只显示“浏览器”，不再暴露 worktree/writer 或五项 Computer Use readiness 样子货；
+- CVE 用户页只显示明确加入研究的公开条目，手工状态与关联 Coding 对话；内置目录不再伪造用户资产命中、实时更新时间或自动进度。WebView 无假后端；Session Index 只索引 MilkSU 自有历史。相关历史列表仍由用户明确确认后引用；完整图谱则按需让当前 Pi/Provider 在无工具静默回合中，把有界的会话、Memory 摘要和正式 Evidence 摘要归纳成人类语义图。图节点必须可回溯来源，关系标为模型推断；不读目标文档、不新增图数据库、不写 Memory、不回填 Agent。
+- UI：rail 主题/设置、Coding Goal 与常用 Agent 动作在 Composer `/`；“+”统一提供附件、Goal、Plan、浏览器、Browser/Computer Scope、已审核 Pi Skills 与项目 MCP。运行中输入可继续发送并通过 Pi steering/queue 在下一模型调用前应用；左上角用户头像进入个人资料页，页面展示真实活跃格、CTF/CVE/Coding 模糊阶段和最近确认成长，全局六维雷达不再挂载；Git 摘要可展开文件并跳到“变更”。产品表面只显示“浏览器”，不再暴露 worktree/writer 或五项 Computer Use readiness 样子货；
   Browser Use Bridge 与 Computer Use 系统配置集中到“设置 → 浏览器与控制”。
+- 个人安全工作台 Beta 已从干净 `dbdd59dcb2776fa52a4a6c9d0add09ec05bc1ae3` 构建，tracking ID 为 `c51bc5e68e071ff2d57f94eb00bb474f7f706afa8bda5f3a97d1d6cbf470c6e1`。原生审计已覆盖设置追踪、个人页、轻量 CTF/CVE、草稿交接、PiP/返回和关联对话。因构建未注入真实账户部署坐标且本机没有可用模型凭据，GitHub OAuth、真实额度和 App 内 Agent 完成任务尚未验收；当前仍是 ad-hoc 签名。
 - 安全工具 MCP 是下一阶段 Coding 常规能力，不是当前发行能力：候选为 IDA Pro/idalib、Burp、radare2、Ghidra 与 Semgrep；
   必须先通过固定版本、最小权限、真实任务和拒绝路径，是否进入 CTF/CVE 由用户监督的领域纵切决定。
 - 相关历史人类语义图已在重新打包的 macOS App 用 TokenFlux `grok-4.5` 通过 `Computer Use`（10 节点/11 关系）与 `MCP`（11 节点/12 关系）真实归纳、来源详情/回跳和主聊天不受污染验收；`@antv/g6@5.1.1` 仅在完整图谱视图懒加载，列表与紧凑侧栏不会触发模型调用。
