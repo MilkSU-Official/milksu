@@ -7,6 +7,8 @@ import {
   Flag,
   LogOut,
   Moon,
+  PanelLeftClose,
+  PanelLeftOpen,
   Settings,
   Sun,
   UserRound,
@@ -24,7 +26,8 @@ import {
 const props = defineProps<{
   activeSection: AppSection
   accountStatus: AccountStatus
-  expanded?: boolean
+  contextAvailable?: boolean
+  contextOpen?: boolean
   themeMode: ThemeMode
 }>()
 
@@ -35,6 +38,7 @@ const emit = defineEmits<{
   accountLogout: []
   settings: []
   toggleTheme: []
+  toggleContext: []
 }>()
 
 const icons = {
@@ -47,7 +51,6 @@ const menuOpen = ref(false)
 const menuRoot = ref<HTMLElement | null>(null)
 const buildTracking = ref<BuildTracking | null>(null)
 const avatarSource = computed(() => props.accountStatus.user?.avatarUrl || profileAvatar)
-const userName = computed(() => props.accountStatus.user?.displayName || 'MilkSU')
 
 // AbilityRadar.vue is intentionally retained but no longer mounted globally.
 // If the six-axis view returns, it belongs to a future evidence-backed CTF-only page,
@@ -96,20 +99,17 @@ function openSettings() {
 
 <template>
   <div
-    class="app-drag relative flex shrink-0 flex-col border-r border-border bg-sidebar transition-[width] duration-200"
-    :class="expanded ? 'w-56' : 'w-[4.75rem]'"
+    class="app-drag relative flex w-[4.75rem] shrink-0 flex-col border-r border-border bg-sidebar"
     data-shell-traffic-safe
   >
     <div
       ref="menuRoot"
-      class="workspace-rail-traffic-safe relative flex border-b border-border"
-      :class="expanded ? 'expanded items-center' : 'items-end justify-center'"
+      class="workspace-rail-traffic-safe relative flex items-end justify-center border-b border-border"
       @keydown.esc="menuOpen = false"
     >
       <Button
         variant="ghost"
-        class="app-no-drag relative p-1.5"
-        :class="expanded ? 'h-auto w-full flex-col gap-2 rounded-xl' : 'size-12 rounded-2xl'"
+        class="app-no-drag relative size-12 rounded-2xl p-1.5"
         aria-label="打开用户菜单"
         :aria-expanded="menuOpen"
         @click.stop="menuOpen = !menuOpen"
@@ -118,8 +118,7 @@ function openSettings() {
           <img
             :src="avatarSource"
             alt="用户头像"
-            class="border-2 border-primary bg-white object-cover"
-            :class="expanded ? 'size-20 rounded-full' : 'size-9 rounded-xl'"
+            class="size-9 rounded-xl border-2 border-primary bg-white object-cover"
           >
           <i class="absolute bottom-0 right-0 size-3 rounded-full border-2 border-sidebar bg-primary" aria-hidden="true" />
           <span
@@ -129,13 +128,11 @@ function openSettings() {
             data-testid="beta-channel-badge"
           >BETA</span>
         </span>
-        <span v-if="expanded" class="max-w-full truncate text-base font-semibold">{{ userName }}</span>
       </Button>
 
       <section
         v-if="menuOpen"
-        class="app-no-drag absolute z-50 w-48 overflow-hidden rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl"
-        :class="expanded ? 'left-4 top-[11.25rem]' : 'left-[4.5rem] top-10'"
+        class="app-no-drag absolute left-[4.5rem] top-10 z-50 w-48 overflow-hidden rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl"
         aria-label="用户菜单"
       >
         <button class="user-menu-item" @click="openProfile"><UserRound class="size-4" />个人资料</button>
@@ -153,7 +150,7 @@ function openSettings() {
         :variant="activeSection === item.id ? 'secondary' : 'ghost'"
         :class="[
           'workspace-rail-item relative h-auto min-h-12 px-3 py-2',
-          expanded ? 'flex-row justify-start gap-3' : 'flex-col gap-0.5 px-1 py-1.5',
+          'flex-col gap-0.5 px-1 py-1.5',
           activeSection === item.id ? 'workspace-rail-active' : '',
         ]"
         :aria-label="item.label"
@@ -171,28 +168,39 @@ function openSettings() {
 
     <div class="app-no-drag space-y-1.5 border-t border-border p-2">
       <Button
+        v-if="contextAvailable"
         variant="ghost"
         class="workspace-rail-control relative h-12 w-full"
-        :class="expanded ? 'justify-start gap-3 px-3' : ''"
+        :aria-label="contextOpen ? '收起会话' : '展开会话'"
+        :title="contextOpen ? '收起会话' : '展开会话'"
+        :aria-expanded="contextOpen"
+        aria-controls="coding-context-sidebar"
+        @click="emit('toggleContext')"
+      >
+        <PanelLeftClose v-if="contextOpen" class="size-4" />
+        <PanelLeftOpen v-else class="size-4" />
+      </Button>
+
+      <Button
+        variant="ghost"
+        class="workspace-rail-control relative h-12 w-full"
         :aria-label="themeToggleLabel"
         :title="themeToggleLabel"
         @click="emit('toggleTheme')"
       >
         <component :is="ThemeToggleIcon" class="size-4" />
-        <span v-if="expanded">{{ themeMode === 'dark' ? '日间模式' : '深色模式' }}</span>
       </Button>
 
       <Button
         :variant="activeSection === 'settings' ? 'secondary' : 'ghost'"
         class="workspace-rail-control relative h-12 w-full"
-        :class="[activeSection === 'settings' ? 'workspace-rail-active' : '', expanded ? 'justify-start gap-3 px-3' : '']"
+        :class="activeSection === 'settings' ? 'workspace-rail-active' : ''"
         aria-label="设置"
         title="设置"
         :data-ui-selected="activeSection === 'settings' ? '' : undefined"
         @click="openSettings"
       >
         <Settings class="size-4" />
-        <span v-if="expanded">设置</span>
       </Button>
     </div>
   </div>
@@ -200,7 +208,6 @@ function openSettings() {
 
 <style scoped>
 .workspace-rail-traffic-safe { box-sizing: border-box; min-height: 5.75rem; padding-top: 2.1rem; padding-bottom: .5rem; }
-.workspace-rail-traffic-safe.expanded { min-height: 13rem; padding: 3rem 1.25rem .75rem; }
 .workspace-rail-item { font-size: var(--text-body); line-height: var(--text-body--line-height); letter-spacing: var(--text-body--letter-spacing); }
 .workspace-rail-item, .workspace-rail-control { --border-hairline: transparent; --selected-border: transparent; }
 .workspace-rail-active { color: var(--brand); }
