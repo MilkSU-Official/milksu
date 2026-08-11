@@ -30,14 +30,14 @@ function toggleCollapsed() {
   <aside
     class="domain-task-context app-no-drag"
     :class="collapsed ? 'domain-task-context--collapsed' : 'domain-task-context--expanded'"
-    :aria-label="`${presentation.moduleLabel} 领域任务上下文`"
+    :aria-label="`${presentation.moduleLabel} 任务信息`"
     data-testid="domain-task-context-panel"
   >
     <template v-if="collapsed">
       <button
         type="button"
         class="domain-task-context__pip"
-        :aria-label="`展开 ${presentation.moduleLabel} 领域上下文`"
+        :aria-label="`展开 ${presentation.moduleLabel} 任务信息`"
         :title="presentation.collapsedLabel"
         data-testid="reopen-domain-from-pip"
         @click="toggleCollapsed"
@@ -64,33 +64,33 @@ function toggleCollapsed() {
           <div class="flex items-center gap-2">
             <component :is="DomainIcon" class="size-4 shrink-0 text-primary" />
             <Badge variant="secondary">{{ presentation.moduleLabel }}</Badge>
-            <span class="truncate text-caption font-medium">领域任务上下文</span>
+            <span class="truncate text-caption font-medium">任务信息</span>
           </div>
           <p class="mt-1 truncate text-body font-medium" :title="presentation.title">
             {{ presentation.title }}
           </p>
-          <p class="mt-0.5 line-clamp-2 text-caption leading-5 text-muted-foreground">
+          <p v-if="presentation.subtitle" class="mt-0.5 line-clamp-2 text-caption leading-5 text-muted-foreground">
             {{ presentation.subtitle }}
           </p>
         </div>
       </header>
 
       <div class="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-3">
-        <p class="text-caption leading-5 text-muted-foreground">
+        <p v-if="presentation.ownership" class="text-caption leading-5 text-muted-foreground">
           {{ presentation.ownership }}
         </p>
         <dl v-if="presentation.facts.length" class="space-y-2">
           <div
             v-for="fact in presentation.facts"
             :key="fact.label"
-            class="flex items-start justify-between gap-3 rounded-lg border border-border bg-muted/25 px-2.5 py-2"
+            class="flex items-start justify-between gap-3 border-b border-border px-0 py-2.5 last:border-b-0"
           >
             <dt class="shrink-0 text-caption text-muted-foreground">{{ fact.label }}</dt>
             <dd class="min-w-0 break-words text-right text-caption font-medium leading-5">{{ fact.value }}</dd>
           </div>
         </dl>
         <p v-else class="text-caption text-muted-foreground">
-          尚无额外领域投影；可继续在同一 Pi 会话中工作，或返回工作台查看题面与材料。
+          可返回工作台查看题面与材料。
         </p>
       </div>
 
@@ -99,11 +99,11 @@ function toggleCollapsed() {
           variant="outline"
           size="sm"
           class="min-h-9 w-full justify-start"
-          aria-label="折叠为 PiP"
+          aria-label="收起任务信息"
           data-testid="collapse-domain-to-pip-inline"
           @click="toggleCollapsed"
         >
-          折叠为 PiP
+          收起
         </Button>
         <Button
           variant="outline"

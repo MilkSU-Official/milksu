@@ -1800,11 +1800,11 @@ watch(
           variant="outline"
           size="sm"
           class="min-h-9 px-3"
-          aria-label="折叠为 PiP"
+          aria-label="收起任务信息"
           data-testid="collapse-domain-to-pip"
           @click="domainContextCollapsed = true"
         >
-          折叠为 PiP
+          收起
         </Button>
         <Button
           v-if="contextPanel !== 'browser-use' && contextPanel !== 'domain'"

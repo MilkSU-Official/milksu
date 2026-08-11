@@ -45,12 +45,10 @@ describe('domainTaskContext', () => {
     expect(context.judgeState).toContain('已验证正确')
 
     const view = presentDomainTaskContext(context)
-    expect(view.facts.map(item => item.label)).toEqual([
-      '题目 ID', '题目标题', '材料/附件', '授权 Scope', '证据', '制品', 'Judge', '角色',
-    ])
+    expect(view.facts.map(item => item.label)).toEqual(['材料', '可用范围'])
     expect(view.returnAriaLabel).toBe('返回 CTF 工作台')
-    expect(view.ownership).toContain('CTF 工作台持有')
-    expect(view.ownership).toContain('同一 Coding/Pi 会话')
+    expect(view.collapsedLabel).toBe('CTF · NSSCTF P3879')
+    expect(view.ownership).toBe('')
   })
 
   it('refreshes CTF panel from live domain projection without dropping handoff identity', () => {
@@ -97,13 +95,12 @@ describe('domainTaskContext', () => {
       practiceScope: 'vulhub · host-only · confirmed',
     })
     const view = presentDomainTaskContext(context)
-    expect(view.facts.find(item => item.label === 'CVE ID')?.value).toBe('CVE-2023-46604')
-    expect(view.facts.find(item => item.label === '来源证据')?.value).toContain('NVD')
-    expect(view.facts.find(item => item.label === '资产匹配')?.value).toContain('affected')
-    expect(view.facts.find(item => item.label === '研究 Scope')?.value).toContain('vulhub')
+    expect(view.subtitle).toBe('CVE-2023-46604')
+    expect(view.facts.find(item => item.label === '来源')?.value).toContain('NVD')
+    expect(view.facts.find(item => item.label === '研究范围')?.value).toContain('vulhub')
     expect(view.facts.find(item => item.label === '安全边界')?.value).toContain('学习与追踪')
     expect(view.returnLabel).toBe('返回 CVE')
-    expect(view.ownership).toContain('CVE 工作台持有')
+    expect(view.ownership).toBe('')
   })
 
   it('maps session flags onto one shared Coding/Pi surface', () => {
@@ -148,19 +145,19 @@ describe('domainTaskContext', () => {
     }
     const merged = refreshCTFDomainTaskContext(handoffSnapshot, projectionReturned)
     const view = presentDomainTaskContext(merged!)
-    const scopeText = view.facts.find(f => f.label === '授权 Scope')?.value ?? ''
+    const scopeText = view.facts.find(f => f.label === '可用范围')?.value ?? ''
 
-    expect(view.facts.find(f => f.label === '题目 ID')?.value).toBe('ch-exact-42')
-    expect(view.facts.find(f => f.label === '题目标题')?.value).toBe('Exact live challenge')
-    expect(view.facts.find(f => f.label === '材料/附件')?.value).toContain('challenge.bin')
+    expect(view.subtitle).toBe('ch-exact-42')
+    expect(view.title).toBe('Exact live challenge')
+    expect(view.facts.find(f => f.label === '材料')?.value).toContain('challenge.bin')
     expect(scopeText).toContain('source-grant-base')
     expect(scopeText).toContain('https://challenge.example')
     expect(scopeText).toContain('scope-exact')
     expect(scopeText).toContain('https://live.lab:8443')
-    expect(view.facts.find(f => f.label === '证据')?.value).toBe('5')
-    expect(view.facts.find(f => f.label === 'Judge')?.value).toContain('已验证正确')
+    expect(merged?.evidenceCount).toBe(5)
+    expect(merged?.judgeState).toContain('已验证正确')
     // Must not remain stuck on handoff jobId-as-challengeId fallback.
-    expect(view.facts.find(f => f.label === '题目 ID')?.value).not.toBe('job-running')
+    expect(view.subtitle).not.toBe('job-running')
     expect(scopeText).not.toBe('未授权 Scope')
   })
 

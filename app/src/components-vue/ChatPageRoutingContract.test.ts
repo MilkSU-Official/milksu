@@ -44,7 +44,7 @@ describe('ChatPage routing contract', () => {
   it('uses one right rail for domain context with text PiP collapse and draft-only handoff', () => {
     expect(chatPageSource).toContain('data-testid="single-right-context-rail"')
     expect(chatPageSource).toContain('data-testid="collapse-domain-to-pip"')
-    expect(chatPageSource).toContain('折叠为 PiP')
+    expect(chatPageSource).toContain('收起任务信息')
     expect(chatPageSource).toContain("value=\"domain\"")
     expect(chatPageSource).toContain('pendingComposerDraft')
     expect(chatPageSource).toContain('consumePendingDraft')

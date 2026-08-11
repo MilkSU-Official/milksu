@@ -62,8 +62,8 @@ describe('DomainTaskContextPanel integration', () => {
     expect(text).toContain('web.zip')
     expect(text).toContain('scope-web')
     expect(text).toContain('https://ctf.local')
-    expect(text).toContain('NSSCTF')
-    expect(text).toContain('CTF 工作台持有')
+    expect(text).not.toContain('NSSCTF')
+    expect(text).not.toContain('Agent Harness')
     host.querySelector<HTMLButtonElement>('[aria-label="返回 CTF 工作台"]')?.click()
     await nextTick()
     expect(onReturnDomain).toHaveBeenCalledTimes(1)
@@ -85,7 +85,7 @@ describe('DomainTaskContextPanel integration', () => {
     const text = host.textContent ?? ''
     expect(text).toContain('CVE-2024-1234')
     expect(text).toContain('NVD')
-    expect(text).toContain('not_affected')
+    expect(text).not.toContain('not_affected')
     expect(text).toContain('read-only repo')
     expect(text).toContain('学习与追踪 only')
     host.querySelector<HTMLButtonElement>('[aria-label="返回 CVE 工作台"]')?.click()
@@ -136,17 +136,17 @@ describe('DomainTaskContextPanel integration', () => {
     expect(host.textContent).toContain('payload.bin')
     expect(host.textContent).toContain('scope-live')
 
-    host.querySelector<HTMLButtonElement>('[aria-label="折叠为 PiP"]')?.click()
+    host.querySelector<HTMLButtonElement>('[aria-label="收起任务信息"]')?.click()
     await nextTick()
     expect(collapsed.value).toBe(true)
-    expect(host.textContent).toContain('CTF · ch-live')
+    expect(host.textContent).toContain('CTF · Live challenge')
     expect(host.querySelector('[data-testid="reopen-domain-from-pip"]')).not.toBeNull()
 
     host.querySelector<HTMLButtonElement>('[data-testid="reopen-domain-from-pip"]')?.click()
     await nextTick()
     expect(collapsed.value).toBe(false)
     expect(host.textContent).toContain('127.0.0.1:9999')
-    expect(host.textContent).toContain('已验证正确')
+    expect(host.textContent).not.toContain('已验证正确')
   })
 
   it('keeps collapse/return hit targets large enough for constrained packaged width', async () => {
@@ -167,7 +167,7 @@ describe('DomainTaskContextPanel integration', () => {
     }))
     const { host } = await mountPanel({ presentation, collapsed: false })
     host.style.width = '320px'
-    const collapse = host.querySelector<HTMLButtonElement>('[aria-label="折叠为 PiP"]')
+    const collapse = host.querySelector<HTMLButtonElement>('[aria-label="收起任务信息"]')
     const ret = host.querySelector<HTMLButtonElement>('[aria-label="返回 CTF 工作台"]')
     expect(collapse).not.toBeNull()
     expect(ret).not.toBeNull()
