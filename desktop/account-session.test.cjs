@@ -15,9 +15,7 @@ const safeStorage = {
 
 test('rejects non-HTTPS account endpoints and reports an unconfigured client', async () => {
   const config = await loadAccountConfig({ env: {
-    MILKSU_SUPABASE_URL: 'http://unsafe.example',
-    MILKSU_SUPABASE_ANON_KEY: 'public-anon',
-    MILKSU_ACCOUNT_API_URL: 'https://account.example',
+    MILKSU_ACCOUNT_API_URL: 'http://unsafe.example',
   } })
   assert.equal(config.configured, false)
   const session = new AccountSession({ config, userDataPath: os.tmpdir(), safeStorage, openExternal: async () => {} })
@@ -30,9 +28,7 @@ test('keeps Stable and Beta OAuth callbacks on separate protocol handlers', asyn
   const config = await loadAccountConfig({
     channel: 'beta',
     env: {
-      MILKSU_SUPABASE_URL: 'https://example.supabase.co',
       MILKSU_ACCOUNT_API_URL: 'https://account.example.test',
-      MILKSU_SUPABASE_ANON_KEY: 'public-anon-key',
     },
   })
   assert.equal(config.redirectUrl, 'milksu-beta://auth/callback')
@@ -43,15 +39,13 @@ test('uses system-browser PKCE and returns no credential material to the rendere
   const opened = []
   const requests = []
   const config = await loadAccountConfig({ env: {
-    MILKSU_SUPABASE_URL: 'https://identity.example',
-    MILKSU_SUPABASE_ANON_KEY: 'public-anon',
     MILKSU_ACCOUNT_API_URL: 'https://account.example',
   } })
   const fetchImpl = async (url, options = {}) => {
     requests.push({ url, options })
-    if (url.includes('grant_type=pkce')) return {
+    if (url.endsWith('/v1/auth/exchange')) return {
       ok: true,
-      json: async () => ({ access_token: 'access-secret', refresh_token: 'refresh-secret', expires_in: 3600 }),
+      json: async () => ({ accessToken: 'access-secret', expiresAt: new Date(Date.now() + 3600_000).toISOString() }),
     }
     return {
       ok: true,
@@ -62,17 +56,19 @@ test('uses system-browser PKCE and returns no credential material to the rendere
   const session = new AccountSession({ config, userDataPath: root, safeStorage, openExternal: async url => opened.push(url), fetchImpl })
   await session.startLogin()
   const authorize = new URL(opened[0])
-  const redirect = new URL(authorize.searchParams.get('redirect_to'))
-  assert.equal(authorize.searchParams.get('provider'), 'github')
+  assert.equal(authorize.origin, 'https://account.example')
+  assert.equal(authorize.pathname, '/auth/github/start')
+  assert.equal(authorize.searchParams.get('return_to'), 'milksu://auth/callback')
   assert.ok(authorize.searchParams.get('code_challenge'))
-  redirect.searchParams.set('code', 'authorization-code')
-  await session.handleCallback(redirect.toString())
+  await session.handleCallback('milksu://auth/callback?code=authorization-code')
   const status = await session.status()
   assert.equal(status.state, 'active')
   assert.equal(status.balanceCents, 1860)
   assert.equal('accessToken' in status, false)
   assert.equal('refreshToken' in status, false)
-  assert.match(requests[0].options.body, /authorization-code/)
+  const exchangeBody = JSON.parse(requests[0].options.body)
+  assert.equal(exchangeBody.code, 'authorization-code')
+  assert.match(exchangeBody.codeVerifier, /^[A-Za-z0-9_-]{64}$/u)
   assert.doesNotMatch(JSON.stringify(status), /secret/)
 })
 
@@ -80,12 +76,9 @@ test('projects only a bounded GitHub avatar as an inline image for the renderer'
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'milksu-avatar-'))
   await fs.writeFile(path.join(root, 'account-session.bin'), Buffer.from(JSON.stringify({
     accessToken: 'access-secret',
-    refreshToken: 'refresh-secret',
     expiresAt: Date.now() + 600_000,
   })))
   const config = await loadAccountConfig({ env: {
-    MILKSU_SUPABASE_URL: 'https://identity.example',
-    MILKSU_SUPABASE_ANON_KEY: 'public-anon',
     MILKSU_ACCOUNT_API_URL: 'https://account.example',
   } })
   let avatarRequests = 0

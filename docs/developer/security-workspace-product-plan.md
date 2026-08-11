@@ -32,8 +32,9 @@ GitHub 登录、邀请制访问、额度与流水管理 API/管理前端；让 M
   真实额度以及 App 内 Agent 实际完成 CTF/CVE 仍是完成线，不以按钮或草稿代替。
 - 全局左栏固定为窄栏，头像使用圆形裁切；Coding 会话历史默认收起，只在用户点击后以浮层展开，
   不再因 CTF、CVE、Coding、个人资料和设置切换而挤动主页面。
-- 独立 Admin 已到提交 `b0e54ae627063e5ac97674a78c9646fbaa0289c9`：邀请、暂停访问、额度增减、
-  用户流水和全局流水均有实际 API/界面与测试；Supabase、GitHub OAuth 和 TokenFlux 仍待真实部署。
+- 独立 Admin 已到提交 `cfead31`：React 管理端、Cloudflare Worker、D1、邀请、暂停访问、额度增减、
+  用户流水和全局流水均已部署到 `accounts.milksu.org`；GitHub OAuth 只差在 GitHub 完成二次验证后
+  写入 Worker Secret，TokenFlux Team 仍按真实团队接入结果验收。
 
 ## 目标
 
@@ -110,10 +111,12 @@ Coding Agent。个人资料页诚实记录用户在 CTF、CVE 和 Coding 中的�
 
 ### 5. GitHub 内测账户
 
-- 使用 Supabase Auth 和系统浏览器完成 GitHub 登录；只有邀请用户可以进入内测。
+- 使用 Cloudflare Worker、D1 和 GitHub OAuth 在系统浏览器完成登录；只有邀请用户可以进入内测。
 - 登录后左上角显示用户头像；资料允许修改头像、显示名称和一句介绍。
 - 所有联系入口统一使用 `milksu@proton.me`。
-- 新建独立私有后台仓库，保存邀请、账户额度、模型路由和管理员页面；不放进桌面端仓库。
+- 独立私有后台仓库保存邀请、账户额度、管理员页面和账户 API；不放进桌面端仓库，也不向内测用户开放。
+- Web 管理端、账户 API 和 D1 由一个 Cloudflare Worker 承载，桌面端只保存加密后的不透明会话；
+  GitHub Client Secret 只进入 Worker Secret，不进入仓库或客户端。
 
 ### 6. 额度与模型来源
 

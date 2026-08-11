@@ -15,6 +15,7 @@ import {
 } from '@/lib/personalProfile'
 
 const props = defineProps<{ accountStatus: AccountStatus, conversations: Conversation[] }>()
+const emit = defineEmits<{ accountStatusChange: [status: AccountStatus] }>()
 
 const ctfJobs = ref<CTFSummary[]>([])
 const vulnJobs = ref<VulnSummary[]>([])
@@ -69,6 +70,25 @@ async function load() {
     vulnJobs.value = vuln
   } catch {
     error.value = '暂时无法读取本机成长记录，请稍后再试。'
+  } finally {
+    loading.value = false
+  }
+}
+
+async function refreshProfile() {
+  loading.value = true
+  error.value = ''
+  try {
+    const [ctf, vuln, account] = await Promise.all([
+      invokeCommand<CTFSummary[]>('list_ctf_jobs'),
+      invokeCommand<VulnSummary[]>('list_vuln_jobs'),
+      invokeCommand<AccountStatus>('get_account_status'),
+    ])
+    ctfJobs.value = ctf
+    vulnJobs.value = vuln
+    emit('accountStatusChange', account)
+  } catch {
+    error.value = '暂时无法刷新本机成长记录或账户余额，请稍后再试。'
   } finally {
     loading.value = false
   }
@@ -154,7 +174,7 @@ onMounted(load)
         </div>
         <div class="flex items-center gap-4">
           <span v-if="accountStatus.state === 'active'" class="text-body">可用额度 <strong class="ml-2 text-primary">{{ balanceLabel }}</strong></span>
-          <Button variant="ghost" size="sm" :disabled="loading" @click="load"><RotateCw class="mr-2 size-4" />刷新</Button>
+          <Button variant="ghost" size="sm" :disabled="loading" @click="refreshProfile"><RotateCw class="mr-2 size-4" />刷新</Button>
         </div>
       </header>
       <p v-if="avatarError" class="mt-3 text-caption text-destructive">{{ avatarError }}</p>
@@ -211,7 +231,6 @@ onMounted(load)
 </template>
 
 <style scoped>
-.profile-page { background-image: radial-gradient(circle at 75% 0%, color-mix(in srgb, var(--primary) 4%, transparent), transparent 36%); }
 .profile-name-input { width: min(26rem, 100%); border: 0; border-bottom: 1px solid var(--border); background: transparent; padding: .25rem 0; font-size: 1.875rem; font-weight: 600; outline: 0; }
 .profile-bio-input { margin-top: .75rem; width: min(40rem, 100%); border: 0; border-bottom: 1px solid var(--border); background: transparent; padding: .35rem 0; color: var(--muted-foreground); outline: 0; }
 .activity-calendar { min-width: 900px; display: grid; grid-template-columns: repeat(53, minmax(10px, 1fr)); grid-template-rows: 20px repeat(7, 11px); gap: 4px; }

@@ -14,7 +14,9 @@ function base64url(buffer) {
 function cleanHTTPS(value) {
   try {
     const url = new URL(String(value ?? '').trim())
-    return url.protocol === 'https:' ? url.toString().replace(/\/$/u, '') : ''
+    return url.protocol === 'https:' && url.hostname && !url.username && !url.password
+      ? url.toString().replace(/\/$/u, '')
+      : ''
   } catch {
     return ''
   }
@@ -38,14 +40,10 @@ async function loadAccountConfig({ env = process.env, resourcesPath = '', isPack
   const sealed = isPackaged && resourcesPath
     ? await readJSON(path.join(resourcesPath, 'account-config.json'))
     : {}
-  const supabaseUrl = cleanHTTPS(env.MILKSU_SUPABASE_URL || sealed.supabaseUrl)
   const apiUrl = cleanHTTPS(env.MILKSU_ACCOUNT_API_URL || sealed.apiUrl)
-  const anonKey = String(env.MILKSU_SUPABASE_ANON_KEY || sealed.supabaseAnonKey || '').trim()
   return {
-    configured: Boolean(supabaseUrl && apiUrl && anonKey),
-    supabaseUrl,
+    configured: Boolean(apiUrl),
     apiUrl,
-    anonKey,
     redirectUrl: accountRedirectURL(channel),
   }
 }
@@ -84,7 +82,7 @@ class AccountSession {
     try {
       const encrypted = await fs.readFile(this.sessionPath)
       const value = JSON.parse(this.safeStorage.decryptString(encrypted))
-      return value?.accessToken && value?.refreshToken ? value : null
+      return value?.accessToken && Number(value?.expiresAt) > 0 ? value : null
     } catch {
       return null
     }
@@ -98,31 +96,12 @@ class AccountSession {
     await fs.chmod(this.sessionPath, 0o600)
   }
 
-  async refreshSession(session) {
-    const response = await this.fetch(`${this.config.supabaseUrl}/auth/v1/token?grant_type=refresh_token`, {
-      method: 'POST',
-      headers: { apikey: this.config.anonKey, 'content-type': 'application/json' },
-      body: JSON.stringify({ refresh_token: session.refreshToken }),
-    })
-    if (!response.ok) {
-      await fs.unlink(this.sessionPath).catch(() => {})
-      return null
-    }
-    const token = await response.json()
-    const next = {
-      accessToken: String(token.access_token ?? ''),
-      refreshToken: String(token.refresh_token ?? session.refreshToken),
-      expiresAt: Date.now() + Math.max(60, Number(token.expires_in) || 3600) * 1000,
-    }
-    if (!next.accessToken || !next.refreshToken) return null
-    await this.writeSession(next)
-    return next
-  }
-
   async activeSession() {
     const session = await this.readSession()
     if (!session) return null
-    return Number(session.expiresAt) > Date.now() + 60_000 ? session : this.refreshSession(session)
+    if (Number(session.expiresAt) > Date.now() + 60_000) return session
+    await fs.unlink(this.sessionPath).catch(() => {})
+    return null
   }
 
   async status() {
@@ -131,8 +110,13 @@ class AccountSession {
     if (!session) return { configured: true, state: this.pending ? 'authorizing' : 'signed_out', authenticated: false }
     const response = await this.fetch(`${this.config.apiUrl}/v1/account`, {
       headers: { authorization: `Bearer ${session.accessToken}` },
-    })
+    }).catch(() => null)
+    if (!response) return { configured: true, authenticated: true, state: 'unavailable' }
     const payload = await response.json().catch(() => ({}))
+    if (response.status === 401) {
+      await fs.unlink(this.sessionPath).catch(() => {})
+      return { configured: true, authenticated: false, state: 'signed_out' }
+    }
     if (response.status === 403) {
       return {
         configured: true,
@@ -160,15 +144,10 @@ class AccountSession {
     if (!this.config.configured) throw new Error('内测账户尚未配置')
     const verifier = base64url(crypto.randomBytes(48))
     const challenge = base64url(crypto.createHash('sha256').update(verifier).digest())
-    const state = base64url(crypto.randomBytes(24))
-    const redirect = new URL(this.config.redirectUrl)
-    redirect.searchParams.set('state', state)
-    const authorize = new URL(`${this.config.supabaseUrl}/auth/v1/authorize`)
-    authorize.searchParams.set('provider', 'github')
-    authorize.searchParams.set('redirect_to', redirect.toString())
+    const authorize = new URL(`${this.config.apiUrl}/auth/github/start`)
+    authorize.searchParams.set('return_to', this.config.redirectUrl)
     authorize.searchParams.set('code_challenge', challenge)
-    authorize.searchParams.set('code_challenge_method', 's256')
-    this.pending = { state, verifier }
+    this.pending = { verifier }
     await this.openExternal(authorize.toString())
     return this.status()
   }
@@ -179,31 +158,35 @@ class AccountSession {
     try { url = new URL(rawURL) } catch { return false }
     const expected = new URL(this.config.redirectUrl)
     if (url.protocol !== expected.protocol || url.hostname !== expected.hostname || url.pathname !== expected.pathname) return false
-    if (url.searchParams.get('state') !== this.pending.state) throw new Error('登录回调校验失败')
     const code = String(url.searchParams.get('code') ?? '')
     if (!code) throw new Error('登录回调缺少授权码')
-    const pending = this.pending
-    this.pending = null
-    const response = await this.fetch(`${this.config.supabaseUrl}/auth/v1/token?grant_type=pkce`, {
+    const response = await this.fetch(`${this.config.apiUrl}/v1/auth/exchange`, {
       method: 'POST',
-      headers: { apikey: this.config.anonKey, 'content-type': 'application/json' },
-      body: JSON.stringify({ auth_code: code, code_verifier: pending.verifier }),
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ code, codeVerifier: this.pending.verifier }),
     })
     if (!response.ok) throw new Error('GitHub 登录失败')
     const token = await response.json()
     const session = {
-      accessToken: String(token.access_token ?? ''),
-      refreshToken: String(token.refresh_token ?? ''),
-      expiresAt: Date.now() + Math.max(60, Number(token.expires_in) || 3600) * 1000,
+      accessToken: String(token.accessToken ?? ''),
+      expiresAt: Date.parse(String(token.expiresAt ?? '')),
     }
-    if (!session.accessToken || !session.refreshToken) throw new Error('登录响应不完整')
+    if (!session.accessToken || !Number.isFinite(session.expiresAt)) throw new Error('登录响应不完整')
     await this.writeSession(session)
+    this.pending = null
     this.onChanged(await this.status())
     return true
   }
 
   async logout() {
     this.pending = null
+    const session = await this.readSession()
+    if (session?.accessToken && this.config.configured) {
+      await this.fetch(`${this.config.apiUrl}/v1/auth/logout`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${session.accessToken}` },
+      }).catch(() => null)
+    }
     await fs.unlink(this.sessionPath).catch(() => {})
     const next = await this.status()
     this.onChanged(next)

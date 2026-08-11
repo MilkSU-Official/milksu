@@ -2,7 +2,8 @@
 import { computed } from 'vue'
 import { Button } from '@felinic/ui'
 import { Github, Globe2, Mail, ShieldCheck } from 'lucide-vue-next'
-import appIcon from '@/assets/milksu-app-icon.png'
+import brandLockup from '@/assets/milksu-brand-lockup.png'
+import loginActivityMap from '@/assets/milksu-login-activity-map.png'
 import type { AccountStatus } from '@/types'
 
 const props = defineProps<{
@@ -31,13 +32,11 @@ const loginLabel = computed(() => props.status.state === 'authorizing' ? '等待
   <main class="account-login flex min-h-screen min-w-0 bg-[#071524] text-slate-100" aria-label="登录 MilkSU">
     <section class="flex min-w-0 flex-1 flex-col px-10 py-9 md:px-20 md:py-16">
       <header class="flex items-center gap-3">
-        <img :src="appIcon" alt="MilkSU" class="size-10 rounded-xl object-cover">
-        <span class="text-xl font-semibold tracking-tight">MilkSU</span>
+        <img :src="brandLockup" alt="MilkSU" class="h-[2.6rem] w-auto object-contain">
       </header>
 
       <div class="my-auto w-full max-w-[520px] py-14">
-        <p class="text-sm font-medium uppercase tracking-[0.18em] text-lime-300">Personal Security Workspace</p>
-        <h1 class="mt-5 text-5xl font-semibold tracking-[-0.05em] text-white">
+        <h1 class="text-5xl font-semibold tracking-[-0.05em] text-white">
           登录 <span class="text-lime-300">MilkSU</span>
         </h1>
         <p class="mt-5 text-lg leading-7 text-slate-300">{{ stateMessage }}</p>
@@ -72,11 +71,8 @@ const loginLabel = computed(() => props.status.state === 'authorizing' ? '等待
       </div>
     </section>
 
-    <aside class="hidden w-[38%] shrink-0 border-l border-slate-800/80 xl:flex xl:items-center xl:justify-center">
-      <div class="max-w-xs px-10">
-        <img :src="appIcon" alt="" class="mx-auto size-40 rounded-[2.25rem] object-cover shadow-2xl shadow-lime-400/10">
-        <p class="mt-8 text-center text-sm leading-6 text-slate-400">一个账户连接内测额度；你的项目、会话和个人 API Key 仍然留在本机。</p>
-      </div>
+    <aside class="hidden w-[46%] shrink-0 items-center justify-end overflow-hidden xl:flex" aria-hidden="true">
+      <img :src="loginActivityMap" alt="" class="h-auto w-full max-w-[668px] object-contain object-right">
     </aside>
   </main>
 </template>

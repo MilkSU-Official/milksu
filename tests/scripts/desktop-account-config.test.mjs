@@ -3,29 +3,25 @@ import test from 'node:test'
 
 import { desktopAccountConfigFromEnvironment } from '../../scripts/lib/desktop-account-config.mjs'
 
-test('omits account config when no deployment is configured', () => {
-  assert.equal(desktopAccountConfigFromEnvironment({}), null)
-})
-
-test('seals only complete HTTPS account deployment coordinates', () => {
-  assert.deepEqual(desktopAccountConfigFromEnvironment({
-    MILKSU_SUPABASE_URL: 'https://example.supabase.co/',
-    MILKSU_ACCOUNT_API_URL: 'https://account.example.test/',
-    MILKSU_SUPABASE_ANON_KEY: 'public-anon-key',
-  }), {
-    supabaseUrl: 'https://example.supabase.co',
-    apiUrl: 'https://account.example.test',
-    supabaseAnonKey: 'public-anon-key',
+test('seals the production Cloudflare account origin by default', () => {
+  assert.deepEqual(desktopAccountConfigFromEnvironment({}), {
+    apiUrl: 'https://accounts.milksu.org',
   })
 })
 
-test('rejects partial or insecure account deployment coordinates', () => {
+test('allows one credential-free HTTPS account origin override', () => {
+  assert.deepEqual(desktopAccountConfigFromEnvironment({
+    MILKSU_ACCOUNT_API_URL: 'https://account.example.test/',
+  }), {
+    apiUrl: 'https://account.example.test',
+  })
+})
+
+test('rejects insecure or credential-bearing account origins', () => {
   assert.throws(() => desktopAccountConfigFromEnvironment({
-    MILKSU_SUPABASE_URL: 'https://example.supabase.co',
-  }), /requires Supabase URL/u)
-  assert.throws(() => desktopAccountConfigFromEnvironment({
-    MILKSU_SUPABASE_URL: 'http://example.supabase.co',
-    MILKSU_ACCOUNT_API_URL: 'https://account.example.test',
-    MILKSU_SUPABASE_ANON_KEY: 'public-anon-key',
+    MILKSU_ACCOUNT_API_URL: 'http://account.example.test',
   }), /HTTPS URL/u)
+  assert.throws(() => desktopAccountConfigFromEnvironment({
+    MILKSU_ACCOUNT_API_URL: 'https://user:password@account.example.test',
+  }), /credential-free/u)
 })
