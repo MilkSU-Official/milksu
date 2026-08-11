@@ -25,13 +25,15 @@ GitHub 登录、邀请制访问、额度与流水管理 API/管理前端；让 M
 
 - 已实现并测试：个人资料、轻量 CTF/CVE、共享 Coding 上下文、独立 Admin 基线、账户额度与本机
   Key 的全局/对话级顺序。
-- 已从干净提交 `cf45e37aefe6f64c500fa50d4041a6c2b311c461` 构建 `MilkSU Beta`；设置页和包检查器
-  均确认 tracking ID `704f90b23486cb1ed68f7708c64c4932f515034eb7d64b48272b36f01d34e21d`。
+- 已从干净提交 `ab6b9587d5894947f3eef83caa56ec3134c581d5` 构建 `MilkSU Beta`；设置页确认
+  tracking ID `aa6a63bd1635572e225d70a6529a2d702e6757894519857e9745b180870ee0db`。
 - 原生 Computer Use 已复检个人页、CTF/CVE 草稿交接、领域上下文 PiP、返回状态、关联对话和
   无虚构 CVE 资产。当前包没有真实账户部署配置，本机也没有可用模型凭据，所以 GitHub 登录、
   真实额度以及 App 内 Agent 实际完成 CTF/CVE 仍是完成线，不以按钮或草稿代替。
 - 全局左栏固定为窄栏，头像使用圆形裁切；Coding 会话历史默认收起，只在用户点击后以浮层展开，
   不再因 CTF、CVE、Coding、个人资料和设置切换而挤动主页面。
+- 独立 Admin 已到提交 `b0e54ae627063e5ac97674a78c9646fbaa0289c9`：邀请、暂停访问、额度增减、
+  用户流水和全局流水均有实际 API/界面与测试；Supabase、GitHub OAuth 和 TokenFlux 仍待真实部署。
 
 ## 目标
 
