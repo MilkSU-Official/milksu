@@ -25,11 +25,13 @@ GitHub 登录、邀请制访问、额度与流水管理 API/管理前端；让 M
 
 - 已实现并测试：个人资料、轻量 CTF/CVE、共享 Coding 上下文、独立 Admin 基线、账户额度与本机
   Key 的全局/对话级顺序。
-- 已从干净提交 `dbdd59dcb2776fa52a4a6c9d0add09ec05bc1ae3` 构建 `MilkSU Beta`；设置页和包检查器
-  均确认 tracking ID `c51bc5e68e071ff2d57f94eb00bb474f7f706afa8bda5f3a97d1d6cbf470c6e1`。
+- 已从干净提交 `cf45e37aefe6f64c500fa50d4041a6c2b311c461` 构建 `MilkSU Beta`；设置页和包检查器
+  均确认 tracking ID `704f90b23486cb1ed68f7708c64c4932f515034eb7d64b48272b36f01d34e21d`。
 - 原生 Computer Use 已复检个人页、CTF/CVE 草稿交接、领域上下文 PiP、返回状态、关联对话和
   无虚构 CVE 资产。当前包没有真实账户部署配置，本机也没有可用模型凭据，所以 GitHub 登录、
   真实额度以及 App 内 Agent 实际完成 CTF/CVE 仍是完成线，不以按钮或草稿代替。
+- 全局左栏固定为窄栏，头像使用圆形裁切；Coding 会话历史默认收起，只在用户点击后以浮层展开，
+  不再因 CTF、CVE、Coding、个人资料和设置切换而挤动主页面。
 
 ## 目标
 
@@ -177,3 +179,4 @@ Coding Agent。个人资料页诚实记录用户在 CTF、CVE 和 Coding 中的�
 | 28 | 额度如何表示和奖励？ | 直接显示人民币余额；支持初始赠送、Bug 奖励和带原因的增减流水。 |
 | 29 | 账户额度与个人 API Key 如何共存？ | 两者都可用、可排序；默认账户额度优先，个人 Key 备用，Coding 可临时选择。 |
 | 30 | TokenFlux、CVE 披露和联系入口如何处理？ | TokenFlux 明细与硬限额先实测；披露追踪暂缓；联系统一为 `milksu@proton.me`。 |
+| 31 | 全局侧栏如何避免切换页面时忽大忽小？ | 固定使用窄栏；Coding 会话历史默认收起，需要时由一个按钮打开浮层。头像裁切为圆形。 |

@@ -44,7 +44,7 @@
 - CTF：题库、工作区、Evidence、候选、Judge、Checkpoint、恢复、复盘、Memory 主链存在；真实 Judge 成功仍只有窄 Web 路径。
 - CTF/CVE → Coding 已复用同一 Coding/Pi：交接只挂载草稿、不自动发送；右侧可折叠领域上下文保留题目/CVE、授权 Scope、材料、Evidence/Judge 或只读安全边界，并提供返回工作台。NSSCTF 附件或 Judge 未连接不再阻止用公开题面打开 Coding；附件缺失只作为材料警告。Beta Computer Use 已实测 P7591 与 CVE-2024-3400 的草稿交接和返回连续性；未运行 PoC、未提交 flag、未建立 Judge 成功事实。
 - Runtime：Sidecar 恢复、Compaction、异常退出标记、后台长任务打包 App/WebView 恢复、预算和失败分类已有。
-- UI：左上角显示当前用户头像并打开个人菜单；完整个人页展示真实活跃格、CTF/CVE/Coding 模糊阶段和最近确认成长，全局六维雷达不再挂载。Goal 与 Git 摘要位于输入框上方，Git 摘要可展开文件列表并跳到“变更”。Coding 顶部保留独立 Bottom Dock 和统一右栏；CTF/CVE 进入 Coding 后领域上下文可折叠/PiP，不再丢失原任务。Computer Use 使用紧凑任务面，诊断与证据默认折叠。Electron 窗口已避开 macOS 红黄绿按钮，Stable/Beta 使用正确名称与图标；设置页底部固定显示 branch、40 位 commit、clean/dirty、build time 和 tracking ID。
+- UI：左上角显示圆形裁切的当前用户头像并打开个人菜单；全局左栏固定为窄栏，Coding 会话历史默认收起并由单一按钮以浮层展开，不再因模块切换挤动主页面。完整个人页展示真实活跃格、CTF/CVE/Coding 模糊阶段和最近确认成长，全局六维雷达不再挂载。Goal 与 Git 摘要位于输入框上方，Git 摘要可展开文件列表并跳到“变更”。Coding 顶部保留独立 Bottom Dock 和统一右栏；CTF/CVE 进入 Coding 后领域上下文可折叠/PiP，不再丢失原任务。Computer Use 使用紧凑任务面，诊断与证据默认折叠。Electron 窗口已避开 macOS 红黄绿按钮，Stable/Beta 使用正确名称与图标；设置页底部固定显示 branch、40 位 commit、clean/dirty、build time 和 tracking ID。
 - 暂停/后置：Labs；CVE 纵深研究、真实漏洞复现、外部资产实验、披露；NYU safe-static 只是开发者 smoke，不是完整 CTF 成绩。
 
 ## 下一条完成线
@@ -54,7 +54,7 @@
 - **任务**：Codex `019fe9ee-b865-75b3-903d-bada1266f254`。
 - **目标文档**：[个人安全工作台计划](security-workspace-product-plan.md)。
 - **关联方式**：该 Codex 任务执行目标文档中的产品目标，本节只维护当前切片、完成线和验收状态。
-- **当前切片**：目标问答、六张定稿图、个人资料、轻量 CTF/CVE、独立 Admin 基线和双模型来源路由已经进入代码。干净提交 `dbdd59dcb2776fa52a4a6c9d0add09ec05bc1ae3` 已构建并检查 Beta；原生 UI 已核对个人页、CTF/CVE 草稿交接、PiP/返回、关联对话、来源顺序和无虚构 CVE 资产。账户部署和模型凭据未配置，因此在线 GitHub 登录、真实额度及由 App 内 Agent 完成 CTF/CVE 仍未验收，不能写成已完成。
+- **当前切片**：目标问答、六张定稿图、个人资料、轻量 CTF/CVE、独立 Admin 基线和双模型来源路由已经进入代码。干净提交 `cf45e37aefe6f64c500fa50d4041a6c2b311c461` 已构建并检查 Beta，tracking ID 为 `704f90b23486cb1ed68f7708c64c4932f515034eb7d64b48272b36f01d34e21d`；原生 UI 已核对固定窄栏、圆形头像、Coding 会话浮层、个人页、CTF/CVE 草稿交接、PiP/返回、关联对话、来源顺序和无虚构 CVE 资产。账户部署和模型凭据未配置，因此在线 GitHub 登录、真实额度及由 App 内 Agent 完成 CTF/CVE 仍未验收，不能写成已完成。
 - **完成线**：个人资料、轻量 CTF、轻量 CVE、账户额度/个人 Key 路由均按定稿图完成；从干净
   提交构建 Beta，核对 branch、完整 commit、tracking ID，并在真实账户部署和可用模型来源下完成 CTF/CVE 与账户路径验收；之后再构建正式 App。
 
