@@ -55,7 +55,7 @@
 - **任务**：Codex `019fe9ee-b865-75b3-903d-bada1266f254`。
 - **目标文档**：[个人安全工作台计划](security-workspace-product-plan.md)。
 - **关联方式**：该 Codex 任务执行目标文档中的产品目标，本节只维护当前切片、完成线和验收状态。
-- **当前切片**：目标问答、六张定稿图、个人资料、轻量 CTF/CVE、独立 Admin 基线和双模型来源路由已经进入代码。干净提交 `ab6b9587d5894947f3eef83caa56ec3134c581d5` 已构建并检查 Beta，tracking ID 为 `aa6a63bd1635572e225d70a6529a2d702e6757894519857e9745b180870ee0db`；原生 UI 已核对固定窄栏、圆形头像、Coding 会话浮层、个人页、CTF/CVE 草稿交接、PiP/返回、关联对话、来源顺序和无虚构 CVE 资产。独立 Admin 已在 `b0e54ae627063e5ac97674a78c9646fbaa0289c9` 提供邀请、访问开关、额度增减、用户流水和全局流水的 API/管理界面。账户部署和模型凭据未配置，因此在线 GitHub 登录、真实额度及由 App 内 Agent 完成 CTF/CVE 仍未验收，不能写成已完成。
+- **当前切片**：目标问答、六张定稿图、个人资料、轻量 CTF/CVE、独立 Admin 和双模型来源路由已经进入代码。干净提交 `3a4fbbd326fdee2ffee1f8a9ce3f18da719a8f33` 已构建并检查 Beta，tracking ID 为 `9e3bf417639dc803fe43e08ec0baa87aaa2703c5f574fa8eec3f17a7ae5d77a3`；此前原生 UI 已核对固定窄栏、圆形头像、Coding 会话浮层、个人页、CTF/CVE 草稿交接、PiP/返回、关联对话、来源顺序和无虚构 CVE 资产，最终收薄领域上下文后的包待钥匙串确认后回归。独立私有仓库 `MilkSU-Official/milksu-admin` 已在 `a72b89c4eb9439906d61cd4cd9a0de368f4b359a` 提供邀请、访问开关、额度增减、用户流水和全局流水，并把 React 管理端、Worker API 和 D1 部署到 `accounts.milksu.org`；线上健康与就绪检查通过。GitHub OAuth Secret、真实额度及由 App 内 Agent 完成 CTF/CVE 仍未验收，不能写成已完成。
 - **完成线**：个人资料、轻量 CTF、轻量 CVE、账户额度/个人 Key 路由均按定稿图完成；从干净
   提交构建 Beta，核对 branch、完整 commit、tracking ID，并在真实账户部署和可用模型来源下完成 CTF/CVE 与账户路径验收；之后再构建正式 App。
 

@@ -25,16 +25,19 @@ GitHub 登录、邀请制访问、额度与流水管理 API/管理前端；让 M
 
 - 已实现并测试：个人资料、轻量 CTF/CVE、共享 Coding 上下文、独立 Admin 基线、账户额度与本机
   Key 的全局/对话级顺序。
-- 已从干净提交 `ab6b9587d5894947f3eef83caa56ec3134c581d5` 构建 `MilkSU Beta`；设置页确认
-  tracking ID `aa6a63bd1635572e225d70a6529a2d702e6757894519857e9745b180870ee0db`。
-- 原生 Computer Use 已复检个人页、CTF/CVE 草稿交接、领域上下文 PiP、返回状态、关联对话和
-  无虚构 CVE 资产。当前包没有真实账户部署配置，本机也没有可用模型凭据，所以 GitHub 登录、
-  真实额度以及 App 内 Agent 实际完成 CTF/CVE 仍是完成线，不以按钮或草稿代替。
+- 已从干净提交 `3a4fbbd326fdee2ffee1f8a9ce3f18da719a8f33` 构建 `MilkSU Beta`；包检查确认
+  branch `main`、`dirty=false`，tracking ID
+  `9e3bf417639dc803fe43e08ec0baa87aaa2703c5f574fa8eec3f17a7ae5d77a3`。
+- 原生 Computer Use 已复检个人页、模型来源、CTF/CVE 草稿交接、领域上下文 PiP、返回状态、
+  关联对话和无虚构 CVE 资产；随后又收薄了 Coding 中的领域上下文并重新打包。最终包的原生复检
+  正在等待本机钥匙串确认；GitHub OAuth、真实额度以及 App 内 Agent 实际完成 CTF/CVE 仍是完成线，
+  不以按钮或草稿代替。
 - 全局左栏固定为窄栏，头像使用圆形裁切；Coding 会话历史默认收起，只在用户点击后以浮层展开，
   不再因 CTF、CVE、Coding、个人资料和设置切换而挤动主页面。
-- 独立 Admin 已到提交 `cfead31`：React 管理端、Cloudflare Worker、D1、邀请、暂停访问、额度增减、
-  用户流水和全局流水均已部署到 `accounts.milksu.org`；GitHub OAuth 只差在 GitHub 完成二次验证后
-  写入 Worker Secret，TokenFlux Team 仍按真实团队接入结果验收。
+- 独立私有仓库 [MilkSU-Official/milksu-admin](https://github.com/MilkSU-Official/milksu-admin) 已到
+  `a72b89c4eb9439906d61cd4cd9a0de368f4b359a`：React 管理端、Cloudflare Worker、D1、邀请、暂停访问、
+  额度增减、用户流水和全局流水均已部署到 `accounts.milksu.org`；线上 `/health` 和 `/ready` 已通过。
+  GitHub OAuth 只差在 GitHub 完成二次验证后写入 Worker Secret，TokenFlux Team 仍按真实团队接入结果验收。
 
 ## 目标
 

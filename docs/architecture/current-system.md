@@ -16,6 +16,7 @@ flowchart LR
     user_browser["用户真实浏览器<br/>Playwright MCP Extension"]
     native_apps["外部原生 App<br/>Computer Use Scope"]
     ctf_platforms["CTF 平台<br/>NSSCTF / CTFshow"]
+    account_cloud["Cloudflare 账户服务<br/>Worker + D1 + GitHub OAuth"]
 
     subgraph milksu["MilkSU 本地桌面系统"]
         chromium["Electron / Chromium 桌面壳<br/>Vue UI + 内置浏览器"]
@@ -33,6 +34,7 @@ flowchart LR
     chromium <--> user_browser
     chromium <--> native_apps
     chromium <--> ctf_platforms
+    chromium <--> account_cloud
 ```
 
 MilkSU 当前不是“Wails 中嵌一个浏览器”。整个桌面壳已经建立在 Electron/Chromium 上：Vue
@@ -64,7 +66,7 @@ MilkSU 的桌面壳不是通用 Agent Loop 的另一份实现。Pi 仍负责会�
 | Electron/Chromium 桌面壳 | **Implemented / packaged** | `desktop/main.cjs` 创建主窗口、注册 `milksu://app`、监管 Go Runtime 并承载右栏 `WebContentsView`；`desktop/preload.cjs` 只暴露调用与事件订阅。旧 Wails 配置、绑定和 CEF 原型已从生产链删除。 |
 | Vue 产品表面 | **Implemented / partial** | CTF、Coding、CVE、设置、相关历史、Composer、右栏与 Bottom Dock 均复用现有 Vue。生产前端只接受 Preload API；Vitest mock 隔离在测试入口。 |
 | 个人资料 | **Implemented / packaged** | 左上角用户头像打开个人菜单；个人页按真实任务记录活跃格、CTF/CVE/Coding 模糊阶段和最近确认成长。工具调用不单独计数，全局六维雷达不再挂载。 |
-| 内测账户与模型来源 | **Implemented / deployment pending** | 系统浏览器 GitHub PKCE、稳定/测试版独立回调、加密本地会话、账户额度与本机 Key 顺序及对话级偏好已实现；只有打包时提供完整公开部署坐标才启用在线账户。真实 Supabase/TokenFlux 尚未联调。 |
+| 内测账户与模型来源 | **Deployed / live OAuth pending** | 系统浏览器 GitHub PKCE、稳定/测试版独立回调、加密本地会话、账户额度与本机 Key 顺序及对话级偏好已实现；打包客户端指向 `accounts.milksu.org`。独立私有 Admin 的 React 静态资源、Worker API 和 D1 已部署且健康/就绪检查通过；GitHub OAuth Secret、真实用户/额度联动和 TokenFlux 明细仍待验收。 |
 | Go Runtime | **Implemented / concentrated** | `cmd/milksu-backend/main.go` 启动应用组合根和 JSONL RPC；同目录的 `desktop_rpc.go` 分派现有 App 方法并传递事件，`desktop_host.go` 把文件对话框、外链和浏览器宿主能力反向委托给 Electron。`app.go` 仍较集中，触碰时按纵切拆分。 |
 | Pi 通用 Agent | **Verified core / partial extensions** | Pi 继续拥有 Session、Compaction、模型和通用 Tool Loop；MilkSU 监管 Sidecar、注入当前 Provider、投影事件并实施工作区/审批边界。已审核 Coding Skill 只向 Pi 常驻名称与用途，完整内容按任务或显式选择加载；设置只能停用审核目录，CTF 角色不加载 Coding Skill。TokenFlux `grok-4.5` 多模态和一次真实文档自举已验，完整功能自举仍未完成。 |
 | 内置沙箱浏览器 | **Verified packaged tasks** | 产品 UI 只显示“浏览器”。每次 Coding 会话使用独立 `session.fromPath`，默认拒绝页面权限；用户与 Agent 共用同一 `WebContentsView`。打包 App 中 Grok 只用浏览器完成顺序点击挑战、表单提交和 Electron 官方文档调研，三项均在右栏折叠后继续并保留同一页面终态，未回退 Shell。 |
