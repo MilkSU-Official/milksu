@@ -72,6 +72,15 @@ const moduleKey = computed(() => props.module ?? props.title.trim().toLowerCase(
   max-width: 100%;
 }
 
+.workspace-topbar[data-workspace-module="ctf"],
+.workspace-topbar[data-workspace-module="cve"] {
+  --module-topbar-title-size: 1.875rem;
+  --module-topbar-title-line-height: 2.25rem;
+  min-height: 5rem;
+  padding-top: 1.25rem;
+  padding-bottom: 1rem;
+}
+
 .workspace-topbar__title,
 .workspace-topbar__subtitle {
   margin: 0;

@@ -4,7 +4,12 @@ import { createApp, nextTick, type App } from 'vue'
 import { afterEach, describe, expect, it } from 'vitest'
 import SettingsPage from './SettingsPage.vue'
 import type { CodingComputerUseStatus } from '@/codingEnvironmentTypes'
-import { withAppSettingsDefaults, type AppSettings, type LocalDataStatus } from '@/types'
+import {
+  withAppSettingsDefaults,
+  type AccountStatus,
+  type AppSettings,
+  type LocalDataStatus,
+} from '@/types'
 
 // jsdom does not implement ResizeObserver; @felinic/ui components (e.g. the
 // settings-category SegmentedControl) call it on mount.
@@ -33,6 +38,7 @@ afterEach(() => {
 interface MountSettingsOptions {
   initialCategory?: 'general' | 'apikeys' | 'browser'
   settings?: AppSettings
+  accountStatus?: AccountStatus
   appMethods?: Record<string, (...args: unknown[]) => Promise<unknown>>
 }
 
@@ -126,6 +132,7 @@ async function mountSettingsPage(
   const app = createApp(SettingsPage, {
     settings,
     initialCategory: options.initialCategory ?? 'general',
+    accountStatus: options.accountStatus,
   })
   app.mount(host)
   mountedApps.push(app)
@@ -584,6 +591,88 @@ describe('SettingsPage database compatibility', () => {
     const persisted = savedSettings as AppSettings
     expect(persisted.active_provider).toBe('tokenflux')
     expect(persisted.active_model).toBe('grok-4.3')
-    expect('model_routing' in persisted).toBe(false)
+    expect(persisted.model_routing).toEqual({
+      source_order: ['account', 'personal'],
+      auto_fallback: true,
+    })
+  })
+
+  it('lets a signed-in user put a local personal key ahead of beta quota', async () => {
+    let savedSettings: unknown = null
+    const settings = withAppSettingsDefaults({
+      active_provider: 'tokenflux',
+      active_model: 'grok-4.5',
+      model_routing: {
+        source_order: ['account', 'personal'],
+        auto_fallback: true,
+      },
+      relay: {
+        enabled: true,
+        url: 'https://tokenflux.dev/v1',
+        key: '',
+        has_key: true,
+      },
+      providers: {
+        tokenflux: {
+          api_key: '',
+          has_api_key: true,
+          enabled: true,
+          base_url: 'https://tokenflux.dev/v1',
+        },
+      },
+    } as AppSettings)
+    await mountSettingsPage({
+      directory: 'MilkSU 用户数据目录',
+      fileCount: 0,
+      bytes: 0,
+    }, {
+      initialCategory: 'apikeys',
+      settings,
+      accountStatus: {
+        configured: true,
+        authenticated: true,
+        state: 'active',
+        balanceCents: 1860,
+        tokenFluxLinked: true,
+        user: {
+          githubLogin: 'milksuofficial',
+          displayName: 'MilkSU',
+          avatarUrl: '',
+        },
+      },
+      appMethods: {
+        SaveSettingsCmd: async (value: unknown) => {
+          savedSettings = value
+        },
+        GetSettings: async () => savedSettings ?? settings,
+        TestAgentModel: async () => ({
+          provider: 'tokenflux',
+          model: 'grok-4.5',
+          ready: true,
+          latencyMs: 25,
+        }),
+      },
+    })
+
+    const text = document.body.textContent ?? ''
+    expect(text).toContain('@milksuofficial · 内测用户')
+    expect(text).toContain('¥18.60')
+    expect(text).toContain('内测额度')
+    expect(text).toContain('我的 API Key')
+
+    const personalReorderButton = document.querySelector(
+      'button[aria-label="拖动我的 API Key调整顺序"]',
+    ) as HTMLButtonElement | null
+    expect(personalReorderButton).not.toBeNull()
+    personalReorderButton?.click()
+    await settle()
+
+    const saveButton = [...document.querySelectorAll('button')]
+      .find(button => button.textContent?.includes('保存并验证'))
+    saveButton?.click()
+    for (let index = 0; index < 6; index += 1) await settle()
+
+    expect((savedSettings as AppSettings).model_routing.source_order)
+      .toEqual(['personal', 'account'])
   })
 })

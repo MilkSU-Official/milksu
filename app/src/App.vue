@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onMounted, ref } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
 import AppSidebar from '@/components-vue/AppSidebar.vue'
 import StartupRecoveryBanner from '@/components-vue/StartupRecoveryBanner.vue'
 import { useConversations } from '@/composables/useConversations'
-import { invokeCommand } from '@/desktop'
+import { invokeCommand, listenEvent } from '@/desktop'
 import type { CTFAgentWorkspaceHandoff } from '@/ctfTypes'
 import { useVulnerabilityDashboard, type VulnerabilityCodingTask } from '@/composables/useVulnerabilityDashboard'
 import {
@@ -22,14 +22,16 @@ import {
   selectCTFResumePoint,
   selectReusableDomainConversationId,
 } from '@/lib/workspaceSessionRouting'
-import { withAppSettingsDefaults, type AppSettings, type CTFChatAction, type StartupRecoveryStatus } from '@/types'
+import { withAppSettingsDefaults, type AccountStatus, type AppSettings, type CTFChatAction, type StartupRecoveryStatus } from '@/types'
 
 const ChatPage = defineAsyncComponent(() => import('@/components-vue/ChatPage.vue'))
+const AccountLoginPage = defineAsyncComponent(() => import('@/components-vue/AccountLoginPage.vue'))
 const CTFPage = defineAsyncComponent(() => import('@/components-vue/CTFPage.vue'))
+const ProfilePage = defineAsyncComponent(() => import('@/components-vue/ProfilePage.vue'))
 const SettingsPage = defineAsyncComponent(() => import('@/components-vue/SettingsPage.vue'))
 const VulnPage = defineAsyncComponent(() => import('@/components-vue/VulnPage.vue'))
 
-type Section = 'chat' | 'ctf' | 'vuln' | 'settings'
+type Section = 'chat' | 'ctf' | 'vuln' | 'profile' | 'settings'
 
 const conversations = useConversations()
 const vulnerabilityDashboard = useVulnerabilityDashboard()
@@ -46,9 +48,33 @@ const vulnerabilityCodingWorkspacePath = ref('')
 const settingsReturnTarget = ref<Exclude<Section, 'settings'>>('ctf')
 const settingsCategory = ref<'general' | 'apikeys' | 'browser' | 'cve'>('general')
 const settings = ref<AppSettings | null>(null)
+const accountStatus = ref<AccountStatus>({ configured: false, authenticated: false, state: 'unconfigured' })
+const accountLoaded = ref(false)
+const accountLoginBusy = ref(false)
+const localAccountModeKey = 'milksu.account.continue-local'
+
+function readLocalAccountMode() {
+  try {
+    return window.localStorage?.getItem(localAccountModeKey) === '1'
+  } catch {
+    return false
+  }
+}
+
+function writeLocalAccountMode(enabled: boolean) {
+  try {
+    if (enabled) window.localStorage?.setItem(localAccountModeKey, '1')
+    else window.localStorage?.removeItem(localAccountModeKey)
+  } catch {
+    // Some embedded or test renderers intentionally expose no local storage.
+  }
+}
+
+const continueWithoutAccount = ref(readLocalAccountMode())
 const recoveryStatus = ref<StartupRecoveryStatus | null>(null)
 const recoveryDismissed = ref(false)
 const themeMode = ref<ThemeMode>(readThemeMode())
+let unlistenAccount: (() => void) | undefined
 
 applyThemeMode(themeMode.value)
 
@@ -62,17 +88,27 @@ const defaultTaskModel = computed(() => {
 const activeProvider = computed(() => (
   defaultTaskModel.value ? settings.value?.providers[defaultTaskModel.value.provider] : undefined
 ))
-const modelReady = computed(() => Boolean(
-  settings.value?.relay?.enabled
-    ? settings.value.relay.has_key
-    : activeProvider.value?.enabled && activeProvider.value.has_api_key,
+const accountModelReady = computed(() => Boolean(
+  accountStatus.value.state === 'active'
+  && settings.value?.relay?.enabled
+  && settings.value.relay.has_key,
 ))
+const personalModelReady = computed(() => Boolean(
+  activeProvider.value?.enabled && activeProvider.value.has_api_key,
+))
+const modelReady = computed(() => accountModelReady.value || personalModelReady.value)
 const modelVerified = computed(() => Boolean(
   settings.value?.model_verification
   && settings.value.model_verification.provider === defaultTaskModel.value?.provider
   && settings.value.model_verification.model === defaultTaskModel.value?.model,
 ))
 const arenaReady = computed(() => Boolean(settings.value?.nssctf_arena?.has_token))
+const showAccountGate = computed(() => (
+  accountLoaded.value
+  && accountStatus.value.configured
+  && accountStatus.value.state !== 'active'
+  && !continueWithoutAccount.value
+))
 const activeCTFConversation = computed(() => (
   Boolean(conversations.active.value?.ctfJobId)
 ))
@@ -89,6 +125,35 @@ const sidebarSection = computed(() => (
 async function loadSettings() {
   const value = await invokeCommand<AppSettings>('get_settings')
   settings.value = withAppSettingsDefaults(value)
+}
+
+async function loadAccountStatus() {
+  try {
+    const next = await invokeCommand<AccountStatus | null>('get_account_status')
+    if (next?.state) accountStatus.value = next
+  } finally {
+    accountLoaded.value = true
+  }
+}
+
+async function startAccountLogin() {
+  accountLoginBusy.value = true
+  try {
+    accountStatus.value = await invokeCommand<AccountStatus>('start_account_login')
+  } finally {
+    accountLoginBusy.value = false
+  }
+}
+
+async function logoutAccount() {
+  accountStatus.value = await invokeCommand<AccountStatus>('logout_account')
+  continueWithoutAccount.value = true
+  writeLocalAccountMode(true)
+}
+
+function useLocalAccountMode() {
+  continueWithoutAccount.value = true
+  writeLocalAccountMode(true)
 }
 
 function openSettings(category: 'general' | 'apikeys' | 'browser' | 'cve' = 'general') {
@@ -319,7 +384,14 @@ function toggleThemeMode() {
 
 onMounted(async () => {
   applyThemeMode(themeMode.value)
-  await Promise.all([loadSettings(), conversations.load()])
+  await Promise.all([loadSettings(), loadAccountStatus(), conversations.load()])
+  unlistenAccount = await listenEvent<AccountStatus>('account.changed', event => {
+    accountStatus.value = event.payload
+    if (event.payload.state === 'active') {
+      continueWithoutAccount.value = false
+      writeLocalAccountMode(false)
+    }
+  })
   await conversations.listen()
   try {
     recoveryStatus.value = await invokeCommand<StartupRecoveryStatus>('get_startup_recovery_status')
@@ -327,10 +399,20 @@ onMounted(async () => {
     recoveryStatus.value = null
   }
 })
+
+onBeforeUnmount(() => unlistenAccount?.())
 </script>
 
 <template>
-  <div class="flex h-screen min-w-0 flex-col bg-surface-editor text-foreground">
+  <div v-if="!accountLoaded" class="grid h-screen place-items-center bg-[#071524] text-xl font-semibold text-white">MilkSU</div>
+  <AccountLoginPage
+    v-else-if="showAccountGate"
+    :status="accountStatus"
+    :busy="accountLoginBusy"
+    @login="startAccountLogin"
+    @continue-local="useLocalAccountMode"
+  />
+  <div v-else class="flex h-screen min-w-0 flex-col bg-surface-editor text-foreground">
     <StartupRecoveryBanner
       v-if="recoveryStatus && !recoveryDismissed"
       :status="recoveryStatus"
@@ -342,10 +424,14 @@ onMounted(async () => {
         :active-section="sidebarSection"
         :active-conversation-id="conversations.activeId.value"
         :conversations="conversations.conversations.value"
+        :account-status="accountStatus"
         :ctf-section="ctfSection"
         :theme-mode="themeMode"
         @new="newConversation"
         @navigate="navigateSection"
+        @profile="navigateSection('profile')"
+        @account-login="startAccountLogin"
+        @account-logout="logoutAccount"
         @settings="openSettings('general')"
         @toggle-theme="toggleThemeMode"
         @select-conversation="id => {
@@ -361,9 +447,17 @@ onMounted(async () => {
         v-if="section === 'settings'"
         :initial-category="settingsCategory"
         :settings="settings"
+        :account-status="accountStatus"
         :vulnerability-dashboard="vulnerabilityDashboard"
         @close="async () => { await loadSettings(); section = settingsReturnTarget }"
         @settings-change="value => { settings = value }"
+        @account-login="startAccountLogin"
+        @account-logout="logoutAccount"
+      />
+      <ProfilePage
+        v-else-if="section === 'profile'"
+        :account-status="accountStatus"
+        :conversations="conversations.conversations.value"
       />
       <KeepAlive include="CTFPage,VulnPage">
         <CTFPage
@@ -373,16 +467,20 @@ onMounted(async () => {
           :arena-ready="arenaReady"
           :initial-job-id="ctfResumeJobId"
           :ctf-section="ctfSection"
+          :conversations="conversations.conversations.value"
           @open-settings="category => openSettings(category ?? 'apikeys')"
           @start-coding-agent="startCTFAgent"
+          @open-coding-conversation="openHistoryConversation"
         />
         <VulnPage
           v-else-if="section === 'vuln'"
           :dashboard="vulnerabilityDashboard"
           :coding-workspace-path="vulnerabilityCodingWorkspacePath"
           :navigation-epoch="vulnNavigationEpoch"
+          :conversations="conversations.conversations.value"
           @choose-coding-workspace="chooseVulnerabilityCodingWorkspace"
           @start-coding-task="startVulnerabilityCodingTask"
+          @open-coding-conversation="openHistoryConversation"
         />
       </KeepAlive>
       <ChatPage
@@ -405,6 +503,7 @@ onMounted(async () => {
         :model-mode="conversations.selectedModelMode.value"
         :model-provider="conversations.selectedModelProvider.value"
         :model-id="conversations.selectedModelId.value"
+        :model-source-preference="conversations.selectedModelSourcePreference.value"
         :execution-mode="conversations.selectedExecutionMode.value"
         :approval-policy="conversations.selectedApprovalPolicy.value"
         :mcp-servers="conversations.selectedMCPServers.value"
@@ -421,6 +520,7 @@ onMounted(async () => {
         @respond-approval="conversations.respondApproval"
         @choose-workspace="chooseAgentWorkspace"
         @change-model="changeModel"
+        @change-model-source="conversations.setModelSourcePreference"
         @change-coding-policy="conversations.setCodingPolicy"
         @change-mcp-servers="conversations.setMCPSelection"
         @open-settings="openSettings('apikeys')"

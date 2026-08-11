@@ -77,7 +77,7 @@ async function mountDesk(options: { catalogLoading: boolean; actionLoading: bool
   mountedApps.push(app)
   await nextTick()
   const action = Array.from(host.querySelectorAll('button')).find(button => (
-    button.textContent?.includes('在 Coding 中打开')
+    button.textContent?.includes('交给 Coding')
   )) as HTMLButtonElement | undefined
   return { action, onStartNssctf }
 }

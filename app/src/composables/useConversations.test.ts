@@ -88,6 +88,41 @@ describe('Coding approval conversation recovery', () => {
     expect(conversation.messages[0]?.attachments).toBeUndefined()
   })
 
+  it('restores only a known model source projection', () => {
+    expect(normalizeConversation({
+      id: 'conversation-account-source',
+      title: 'Account source',
+      createdAt: 1,
+      modelSource: 'account',
+      messages: [],
+    }).modelSource).toBe('account')
+    expect(normalizeConversation({
+      id: 'conversation-unknown-source',
+      title: 'Unknown source',
+      createdAt: 1,
+      modelSource: 'relay-secret-slot',
+      messages: [],
+    }).modelSource).toBeUndefined()
+  })
+
+  it('restores only a known per-conversation model source preference', () => {
+    expect(normalizeConversation({
+      id: 'coding-1',
+      title: 'Coding',
+      createdAt: 1,
+      messages: [],
+      modelSourcePreference: 'personal',
+    }).modelSourcePreference).toBe('personal')
+
+    expect(normalizeConversation({
+      id: 'coding-2',
+      title: 'Coding',
+      createdAt: 1,
+      messages: [],
+      modelSourcePreference: 'relay-secret-slot',
+    }).modelSourcePreference).toBeUndefined()
+  })
+
   it('restores only a valid bounded Coding goal projection', () => {
     const conversation = normalizeConversation({
       id: 'conversation-goal',

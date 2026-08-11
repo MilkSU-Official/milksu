@@ -1,6 +1,6 @@
 export type WorkspaceSection = 'ctf' | 'vuln' | 'chat'
 export type CTFWorkspaceSection = 'catalog'
-export type AppSection = WorkspaceSection | 'settings'
+export type AppSection = WorkspaceSection | 'profile' | 'settings'
 
 export const WORKSPACE_RAIL_ITEMS = [
   { id: 'ctf', label: 'CTF' },
@@ -28,7 +28,7 @@ export function workspaceContextLabel(section: WorkspaceSection) {
 
 export function settingsReturnSection(
   currentSection: AppSection,
-  fallback: WorkspaceSection = 'ctf',
-): WorkspaceSection {
+  fallback: Exclude<AppSection, 'settings'> = 'ctf',
+): Exclude<AppSection, 'settings'> {
   return currentSection === 'settings' ? fallback : currentSection
 }

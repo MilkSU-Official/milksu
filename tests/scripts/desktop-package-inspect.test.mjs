@@ -62,6 +62,7 @@ async function writeMinimalApp({
   const name = productName || (channel === 'beta' ? BETA_PRODUCT_NAME : STABLE_PRODUCT_NAME)
   const id = appId || (channel === 'beta' ? BETA_APP_ID : STABLE_APP_ID)
   const execName = executableName || name
+  const accountProtocolScheme = channel === 'beta' ? 'milksu-beta' : 'milksu'
   const appPath = join(dir, `${name}.app`)
   const contents = join(appPath, 'Contents')
   const macos = join(contents, 'MacOS')
@@ -89,6 +90,10 @@ async function writeMinimalApp({
   <key>CFBundleDisplayName</key><string>${name}</string>
   <key>CFBundleExecutable</key><string>${execName}</string>
   <key>CFBundleIconFile</key><string>${iconName.replace(/\\.icns$/u, '')}</string>
+  <key>CFBundleURLTypes</key><array><dict>
+    <key>CFBundleURLName</key><string>${name} Account Login</string>
+    <key>CFBundleURLSchemes</key><array><string>${accountProtocolScheme}</string></array>
+  </dict></array>
   <key>CFBundlePackageType</key><string>APPL</string>
 </dict></plist>
 `
@@ -108,6 +113,7 @@ test('inspectPackagedApp accepts ad-hoc signed minimal beta app with sealed trac
     const result = await inspectPackagedApp(appPath, 'beta')
     assert.equal(result.ok, true, result.issues.join('; '))
     assert.equal(result.plist.bundleId, BETA_APP_ID)
+    assert.equal(result.plist.accountProtocolScheme, 'milksu-beta')
     assert.equal(result.tracking.channel, 'beta')
     assert.equal(result.codesign.identifier, BETA_APP_ID)
     assert.equal(result.backend?.identifier, BETA_APP_ID)

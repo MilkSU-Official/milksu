@@ -92,11 +92,13 @@ import type { CTFWorkspaceSection } from '@/lib/workspaceNavigation'
 import type { NSSCTFChallenge } from '@/nssctfTypes'
 import type { NSSCTFRecommendation, NSSCTFTrainingSeries } from '@/nssctfTrainingTypes'
 import type { SessionHistorySearchResult } from '@/sessionIndexTypes'
+import type { Conversation } from '@/types'
 
 type Screen = 'source' | 'challenge' | 'workspace'
 type WorkspaceMode = 'solve' | 'review'
 type QuestionBank = Extract<CTFTrainingPlatform['id'], 'nssctf' | 'ctfshow'>
 type TrainingSource = CTFTrainingPlatform['id'] | 'custom'
+type CTFManualStatus = 'not_started' | 'in_progress' | 'paused' | 'completed'
 
 defineOptions({ name: 'CTFPage' })
 
@@ -119,11 +121,13 @@ const props = defineProps<{
   arenaReady: boolean
   initialJobId?: string | null
   ctfSection: CTFWorkspaceSection
+  conversations?: Conversation[]
 }>()
 
 const emit = defineEmits<{
   openSettings: [category?: 'apikeys' | 'browser']
   startCodingAgent: [handoff: CTFAgentWorkspaceHandoff]
+  openCodingConversation: [id: string]
 }>()
 
 const backend = useCTFWorkspace()
@@ -188,6 +192,20 @@ const recalledMemories = ref<CTFTrainingMemory[]>([])
 const historyReflectionSeed = ref('')
 const memoryLoading = ref(false)
 const historyMenu = ref<HTMLDetailsElement | null>(null)
+const manualStatuses = ref<Record<string, CTFManualStatus>>((() => {
+  try {
+    const value = JSON.parse(window.localStorage.getItem('milksu.ctf.manual-statuses') || '{}')
+    return value && typeof value === 'object' ? value : {}
+  } catch {
+    return {}
+  }
+})())
+const catalogErrorMessage = computed(() => {
+  const error = activeBank.value === 'nssctf'
+    ? publicCatalog.error.value ?? training.error.value
+    : ctfshow.error.value
+  return error ? '题库暂时没有同步成功，请稍后重试。' : ''
+})
 const manualIntake = ref<InstanceType<typeof CTFManualIntake> | null>(null)
 let catalogSearchTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -270,6 +288,21 @@ const selectedActiveJob = computed(() => {
     && !['succeeded', 'failed', 'cancelled'].includes(job.status)
   )) ?? null
 })
+const selectedCatalogJob = computed(() => {
+  const selectedID = activeBank.value === 'nssctf'
+    ? selectedProblem.value?.platformId
+    : selectedCTFShowProblemID.value
+  const platform = activeBank.value === 'nssctf' ? 'nssctf-web' : 'ctfshow-web'
+  if (!selectedID) return null
+  return backend.jobs.value.find(job => (
+    job.externalPlatform === platform && job.externalAttemptId === selectedID
+  )) ?? null
+})
+
+function updateManualStatus(key: string, status: CTFManualStatus) {
+  manualStatuses.value = { ...manualStatuses.value, [key]: status }
+  window.localStorage.setItem('milksu.ctf.manual-statuses', JSON.stringify(manualStatuses.value))
+}
 const canStartSelectedChallenge = computed(() => {
   if (selectedActiveJob.value) return true
   if (activeBank.value === 'nssctf') {
@@ -1533,11 +1566,11 @@ onBeforeUnmount(() => {
     <WorkspaceModuleTopBar
       module="ctf"
       v-else
-      subtitle="题库、解题入口与训练状态"
+      title="挑战"
     >
       <template #actions>
         <details
-        v-if="ctfSection === 'catalog' && backend.jobs.value.length"
+        v-if="ctfSection === 'catalog'"
         ref="historyMenu"
         class="app-no-drag relative shrink-0"
         @keydown.esc.stop.prevent="closeHistoryMenu"
@@ -1569,6 +1602,12 @@ onBeforeUnmount(() => {
             <span class="font-normal text-muted-foreground">仅保存在本机</span>
           </div>
           <div :class="menuSeparatorClass" />
+          <p
+            v-if="!backend.jobs.value.length"
+            class="px-3 py-5 text-center text-caption text-muted-foreground"
+          >
+            还没有做过题
+          </p>
           <button
             v-for="job in backend.jobs.value"
             :key="job.id"
@@ -1602,6 +1641,16 @@ onBeforeUnmount(() => {
           </button>
         </div>
         </details>
+        <Button
+          v-if="ctfSection === 'catalog'"
+          variant="ghost"
+          size="sm"
+          class="app-no-drag shrink-0"
+          @click="activeBank = 'custom'"
+        >
+          <FilePlus2 class="size-4" />
+          导入
+        </Button>
       </template>
       <template v-if="ctfSection === 'catalog' && activeQuestionBank" #filters>
       <div class="flex w-full flex-wrap items-center gap-3">
@@ -2281,13 +2330,14 @@ onBeforeUnmount(() => {
           :ctfshow-bridge-ready="ctfshowBridgeReady"
           :attachment-error="attachmentError || publicProblems.error.value || ''"
           :local-materials="localMaterials"
-          :catalog-error="activeBank === 'nssctf'
-            ? publicCatalog.error.value ?? training.error.value ?? ''
-            : ctfshow.error.value ?? ''"
+          :catalog-error="catalogErrorMessage"
           :model-verified="modelVerified"
           :catalog-ready="selectedCatalogReady"
           :judge-ready="selectedJudgeReady"
           :has-active-training="Boolean(selectedActiveJob)"
+          :manual-statuses="manualStatuses"
+          :conversations="conversations ?? []"
+          :related-job-id="selectedCatalogJob?.id"
           @select-nssctf="chooseCatalogProblem"
           @select-ctfshow="previewCTFShowProblem"
           @previous-page="previousDeskPage"
@@ -2302,6 +2352,8 @@ onBeforeUnmount(() => {
           @refresh-judge="activeBank === 'ctfshow' ? ctfshow.open() : webBridge.refresh()"
           @open-settings="$emit('openSettings')"
           @open-browser-settings="$emit('openSettings', 'browser')"
+          @open-conversation="$emit('openCodingConversation', $event)"
+          @update-manual-status="updateManualStatus"
           @update:collaboration-mode="collaborationMode = $event"
         />
 

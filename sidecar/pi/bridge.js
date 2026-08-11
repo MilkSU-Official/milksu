@@ -108,12 +108,20 @@ import {
   steerSession,
 } from "./bridge-steering.js";
 import currentProviderRuntime from "./current-provider-runtime.cjs";
+import {
+  createModelSourceStream,
+  normalizeModelSourceOrder,
+} from "./model-source-routing.js";
 
-const { currentProviderDefinition } = currentProviderRuntime;
+const { currentProviderDefinition, tokenfluxModelIDForProvider } = currentProviderRuntime;
 
 const relayKey = process.env.MILKSU_RELAY_KEY;
-const relayUrl = process.env.MILKSU_RELAY_URL || "https://api.ciyuanliudong.com/v1";
+const relayUrl = process.env.MILKSU_RELAY_URL || "https://tokenflux.dev/v1";
 const relayEnabled = process.env.MILKSU_RELAY_ENABLED === "1" && Boolean(relayKey);
+const configuredModelSourceOrder = normalizeModelSourceOrder(
+  process.env.MILKSU_MODEL_SOURCE_ORDER,
+);
+const modelSourceFallbackEnabled = process.env.MILKSU_MODEL_SOURCE_FALLBACK === "1";
 const auxiliaryVisionSelection = {
   provider: String(process.env.MILKSU_VISION_PROVIDER ?? "").trim(),
   model: String(process.env.MILKSU_VISION_MODEL ?? "").trim(),
@@ -759,15 +767,78 @@ function formatToolInput(toolName, args) {
   return truncate(JSON.stringify(args, null, 2), 4000);
 }
 
-function configureRelayModel(session, provider, model) {
-  if (!relayEnabled) return { provider, model };
-
-  const source = session.modelRuntime.getModel(provider, model);
-  session.modelRuntime.registerProvider("milksu-relay", {
-    name: "MilkSU Relay",
+function registerAccountModel(session, provider, model) {
+  const accountModelID = tokenfluxModelIDForProvider(provider, model);
+  const accountDefinition = currentProviderDefinition("tokenflux", accountModelID, {
+    TOKENFLUX_API_KEY: relayKey,
+    TOKENFLUX_BASE_URL: relayUrl,
+  });
+  const source = accountDefinition?.models?.find(item => item.id === accountModelID);
+  session.modelRuntime.registerProvider("milksu-account", {
+    name: "MilkSU 内测额度",
     baseUrl: relayUrl,
     apiKey: relayKey,
     api: "openai-completions",
+    models: [{
+      ...source,
+      id: accountModelID,
+      name: source?.name ?? accountModelID,
+      reasoning: source?.reasoning ?? false,
+      input: source?.input ?? ["text"],
+      cost: source?.cost ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      contextWindow: source?.contextWindow ?? 128000,
+      maxTokens: source?.maxTokens ?? 16384,
+    }],
+  });
+  return session.modelRuntime.getModel("milksu-account", accountModelID);
+}
+
+function normalizeCommandModelSourceOrder(value) {
+  const source = Array.isArray(value) ? value : configuredModelSourceOrder;
+  return [...new Set(source.filter(id => id === "account" || id === "personal"))];
+}
+
+function configureRuntimeModel(session, provider, model, conversationId, sourceOrder) {
+  const definition = currentProviderDefinition(provider, model);
+  if (definition) session.modelRuntime.registerProvider(provider, definition);
+  const personalModel = session.modelRuntime.getModel(provider, model);
+  const accountModel = relayEnabled
+    ? registerAccountModel(session, provider, model)
+    : undefined;
+  const available = new Map([
+    ["account", accountModel],
+    ["personal", personalModel && session.modelRuntime.hasConfiguredAuth(provider)
+      ? personalModel
+      : undefined],
+  ]);
+  const sources = normalizeCommandModelSourceOrder(sourceOrder).flatMap(id => {
+    const sourceModel = available.get(id);
+    return sourceModel ? [{ id, model: sourceModel }] : [];
+  });
+  if (sources.length === 0) return { provider, model };
+  if (sources.length === 1) {
+    emit(conversationId, "model_source_selected", { source: sources[0].id });
+    return { provider: sources[0].model.provider, model: sources[0].model.id };
+  }
+
+  const source = personalModel ?? accountModel;
+  session.modelRuntime.registerProvider("milksu-route", {
+    name: "MilkSU 模型来源",
+    apiKey: "milksu-model-source-route",
+    api: source.api,
+    streamSimple: (_routeModel, context, options) => createModelSourceStream({
+      sources,
+      autoFallback: modelSourceFallbackEnabled,
+      openSource: selected => session.modelRuntime.streamSimple(
+        selected.model,
+        context,
+        options,
+      ),
+      onSource: selected => emit(conversationId, "model_source_selected", {
+        source: selected,
+      }),
+      onFallback: fallback => emit(conversationId, "model_source_fallback", fallback),
+    }),
     models: [{
       id: model,
       name: source?.name ?? model,
@@ -778,13 +849,7 @@ function configureRelayModel(session, provider, model) {
       maxTokens: source?.maxTokens ?? 16384,
     }],
   });
-  return { provider: "milksu-relay", model };
-}
-
-function configureRuntimeModel(session, provider, model) {
-  const definition = currentProviderDefinition(provider, model);
-  if (definition) session.modelRuntime.registerProvider(provider, definition);
-  return configureRelayModel(session, provider, model);
+  return { provider: "milksu-route", model };
 }
 
 function configureProviderEndpoint(session, provider) {
@@ -1235,7 +1300,13 @@ async function createSession(command) {
       sessionPolicy.maxToolEventOutputBytes,
     );
 
-    const effectiveModel = configureRuntimeModel(session, command.provider, command.model);
+    const effectiveModel = configureRuntimeModel(
+      session,
+      command.provider,
+      command.model,
+      conversationId,
+      command.modelSourceOrder,
+    );
     await setSessionModel(
       conversationId,
       session,
@@ -1334,7 +1405,13 @@ async function sendMessage(command) {
       }
       controller.setActiveTools(sessionPolicy.activeTools);
     }
-    const effectiveModel = configureRuntimeModel(session, command.provider, command.model);
+    const effectiveModel = configureRuntimeModel(
+      session,
+      command.provider,
+      command.model,
+      conversationId,
+      command.modelSourceOrder,
+    );
     await setSessionModel(
       conversationId,
       session,

@@ -19,6 +19,7 @@ import {
   SelectValue,
   SettingsRow,
   SettingsSection,
+  Switch,
 } from '@felinic/ui'
 import {
   AlertCircle,
@@ -30,9 +31,13 @@ import {
   ExternalLink,
   FileWarning,
   FolderOpen,
+  Github,
+  GripVertical,
   KeyRound,
+  LogOut,
   RotateCcw,
   ShieldCheck,
+  WalletCards,
 } from 'lucide-vue-next'
 import { invokeCommand } from '@/desktop'
 import type {
@@ -42,6 +47,7 @@ import type {
 import type { NSSCTFWebBridgeStatus } from '@/nssctfWebTypes'
 import type {
   AppSettings,
+  AccountStatus,
   BuildTracking,
   DatabaseCompatibilityState,
   DatabaseCompatibilityStatus,
@@ -50,6 +56,7 @@ import type {
   LocalDataStatus,
   LocalDiagnosticExport,
   ModelProbeResult,
+  ModelSource,
   PreviousExitState,
   StartupRecoveryStatus,
 } from '@/types'
@@ -67,12 +74,15 @@ type SettingsCategory = 'general' | 'apikeys' | 'browser' | 'cve'
 const props = defineProps<{
   settings: AppSettings | null
   initialCategory: SettingsCategory
+  accountStatus?: AccountStatus
   vulnerabilityDashboard?: VulnerabilityDashboard
 }>()
 
 const emit = defineEmits<{
   close: []
   settingsChange: [value: AppSettings]
+  accountLogin: []
+  accountLogout: []
 }>()
 
 const category = ref(props.initialCategory)
@@ -96,6 +106,21 @@ const recoveryStatus = ref<StartupRecoveryStatus | null>(null)
 const buildTracking = ref<BuildTracking | null>(null)
 const buildTrackingCopying = ref(false)
 const notice = ref<{ tone: 'ok' | 'error'; text: string } | null>(null)
+const accountRouteSetupOpen = ref(false)
+const draggedModelSource = ref<ModelSource | null>(null)
+const account = computed<AccountStatus>(() => props.accountStatus ?? ({ configured: false, authenticated: false, state: 'unconfigured' }))
+const accountBalance = computed(() => new Intl.NumberFormat('zh-CN', {
+  style: 'currency', currency: 'CNY', minimumFractionDigits: 2,
+}).format((account.value.balanceCents ?? 0) / 100))
+const accountStateLabel = computed(() => ({
+  unconfigured: '未配置',
+  signed_out: '未登录',
+  authorizing: '等待授权',
+  active: '已登录',
+  suspended: '访问已暂停',
+  invitation_required: '等待邀请',
+  unavailable: '暂时不可用',
+}[account.value.state]))
 
 const databaseStateLabels: Record<DatabaseCompatibilityState, string> = {
   compatible: '兼容',
@@ -140,6 +165,7 @@ watch(() => props.settings, value => {
   working.value = value ? cloneSettings(withAppSettingsDefaults(value)) : null
   if (working.value) {
     ensureProvider(working.value.active_provider)
+    ensureAccountRoute()
   }
 }, { immediate: true })
 watch(() => props.initialCategory, value => { category.value = value })
@@ -153,6 +179,7 @@ onMounted(() => {
 const provider = computed(() => (
   working.value ? working.value.providers[working.value.active_provider] : undefined
 ))
+const accountRoute = computed(() => working.value?.relay)
 const providerInfo = computed(() => (
   PROVIDERS.find(item => item.id === working.value?.active_provider)
 ))
@@ -211,6 +238,70 @@ function ensureProvider(id: string) {
   }
   working.value.active_provider = id
   if (info && !info.models.includes(working.value.active_model)) working.value.active_model = info.models[0]
+}
+
+function ensureAccountRoute() {
+  if (!working.value) return
+  if (!working.value.relay) {
+    working.value.relay = {
+      enabled: false,
+      url: 'https://tokenflux.dev/v1',
+      key: '',
+      has_key: false,
+    }
+  }
+  if (!working.value.relay.url) working.value.relay.url = 'https://tokenflux.dev/v1'
+}
+
+const accountModelSourceReady = computed(() => Boolean(
+  account.value.state === 'active'
+  && (accountRoute.value?.has_key || accountRoute.value?.key),
+))
+const personalModelSourceReady = computed(() => Boolean(
+  provider.value?.enabled
+  && (provider.value.has_api_key || provider.value.api_key),
+))
+const modelSourcePreview = computed(() => {
+  const order = working.value?.model_routing.source_order ?? ['account', 'personal']
+  const available = order.filter(source => (
+    source === 'account' ? accountModelSourceReady.value : personalModelSourceReady.value
+  ))
+  const first = available[0]
+  if (first === 'account') return `内测额度 · ${accountBalance.value}`
+  if (first === 'personal') return `我的 API Key · ${providerInfo.value?.name ?? working.value?.active_provider ?? ''}`
+  return '还没有可用的模型来源'
+})
+
+function setModelSourceEnabled(source: ModelSource, enabled: boolean) {
+  if (!working.value) return
+  if (source === 'account') {
+    ensureAccountRoute()
+    if (enabled && !accountModelSourceReady.value) {
+      accountRouteSetupOpen.value = true
+      working.value.relay!.enabled = false
+      return
+    }
+    working.value.relay!.enabled = enabled
+    return
+  }
+  ensureProvider(working.value.active_provider)
+  working.value.providers[working.value.active_provider].enabled = enabled
+}
+
+function moveModelSource(source: ModelSource, target: ModelSource) {
+  if (!working.value || source === target) return
+  const order = [...working.value.model_routing.source_order]
+  const from = order.indexOf(source)
+  const to = order.indexOf(target)
+  if (from < 0 || to < 0) return
+  order.splice(from, 1)
+  order.splice(to, 0, source)
+  working.value.model_routing.source_order = order
+}
+
+function dropModelSource(target: ModelSource) {
+  if (draggedModelSource.value) moveModelSource(draggedModelSource.value, target)
+  draggedModelSource.value = null
 }
 
 function formatBytes(value: number) {
@@ -608,7 +699,7 @@ async function save() {
     </header>
 
     <div class="min-h-0 flex-1 overflow-y-auto px-6 py-8">
-      <div :class="category === 'cve' ? 'mx-auto w-full max-w-6xl' : 'mx-auto max-w-2xl'">
+      <div :class="category === 'cve' ? 'mx-auto w-full max-w-6xl' : category === 'apikeys' ? 'mx-auto w-full max-w-5xl' : 'mx-auto max-w-2xl'">
         <SegmentedControl
           v-model="category"
           class="mb-7 w-fit"
@@ -910,12 +1001,168 @@ async function save() {
         </template>
 
         <template v-else-if="working && category === 'apikeys'">
-          <SettingsSection title="模型与凭据">
+          <SettingsSection title="账户与模型">
             <SettingsRow
-              label="模型来源"
+              label="GitHub 账户"
+              :description="account.state === 'active'
+                ? `@${account.user?.githubLogin || 'GitHub'} · 内测用户`
+                : '登录后可使用分配的内测额度；不登录也能继续使用自己的 API Key'"
+            >
+              <div class="flex items-center gap-3">
+                <span v-if="account.state === 'active'" class="font-mono text-body font-semibold text-primary">{{ accountBalance }}</span>
+                <Badge :variant="account.state === 'active' ? 'secondary' : 'outline'">{{ accountStateLabel }}</Badge>
+                <Button v-if="account.state === 'active'" variant="ghost" size="sm" @click="$emit('accountLogout')">
+                  <LogOut class="size-4" />退出
+                </Button>
+                <Button v-else-if="account.configured" variant="outline" size="sm" @click="$emit('accountLogin')">
+                  <Github class="size-4" />GitHub 登录
+                </Button>
+              </div>
+            </SettingsRow>
+          </SettingsSection>
+
+          <section class="mt-8 border-t border-border pt-6">
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <h2 class="text-title font-semibold">使用顺序</h2>
+                <p class="mt-1 text-caption text-muted-foreground">拖动调整优先级，列表从上到下依次使用</p>
+              </div>
+            </div>
+
+            <div class="mt-4 space-y-2">
+              <article
+                v-for="(source, index) in working.model_routing.source_order"
+                :key="source"
+                class="flex min-h-20 items-center gap-4 rounded-lg border bg-card px-4 py-3 transition-colors"
+                :class="index === 0 ? 'border-primary/50 shadow-[inset_3px_0_0_hsl(var(--primary))]' : 'border-border'"
+                @dragover.prevent
+                @drop="dropModelSource(source)"
+              >
+                <button
+                  class="cursor-grab text-muted-foreground active:cursor-grabbing"
+                  draggable="true"
+                  :aria-label="`拖动${source === 'account' ? '内测额度' : '我的 API Key'}调整顺序`"
+                  @dragstart="draggedModelSource = source"
+                  @dragend="draggedModelSource = null"
+                  @click="moveModelSource(source, source === 'account' ? 'personal' : 'account')"
+                >
+                  <GripVertical class="size-5" />
+                </button>
+                <span class="w-6 text-center font-mono text-xl" :class="index === 0 ? 'text-primary' : 'text-muted-foreground'">{{ index + 1 }}</span>
+
+                <template v-if="source === 'account'">
+                  <span class="grid size-11 shrink-0 place-items-center rounded-full bg-muted text-primary"><WalletCards class="size-5" /></span>
+                  <div class="min-w-0 flex-1">
+                    <p class="font-medium">内测额度</p>
+                    <p class="mt-0.5 text-caption text-muted-foreground">
+                      {{ accountModelSourceReady ? 'TokenFlux 团队额度' : account.state === 'active' ? '连接团队 Key 后可用' : '登录内测账户后连接' }}
+                    </p>
+                  </div>
+                  <span v-if="account.state === 'active'" class="font-mono text-body font-semibold text-primary">{{ accountBalance }}</span>
+                  <Badge :variant="index === 0 && accountRoute?.enabled ? 'secondary' : 'outline'">
+                    {{ index === 0 && accountRoute?.enabled ? '当前优先' : accountModelSourceReady ? '备用' : '未连接' }}
+                  </Badge>
+                  <Button
+                    v-if="!accountModelSourceReady"
+                    variant="ghost"
+                    size="sm"
+                    :disabled="account.state !== 'active'"
+                    @click="accountRouteSetupOpen = !accountRouteSetupOpen"
+                  >连接</Button>
+                  <Switch
+                    :model-value="Boolean(accountRoute?.enabled)"
+                    :disabled="!accountModelSourceReady && !accountRoute?.enabled"
+                    aria-label="启用内测额度"
+                    @update:model-value="setModelSourceEnabled('account', Boolean($event))"
+                  />
+                </template>
+
+                <template v-else>
+                  <span class="grid size-11 shrink-0 place-items-center rounded-full bg-muted text-foreground"><KeyRound class="size-5" /></span>
+                  <div class="min-w-0 flex-1">
+                    <p class="font-medium">我的 API Key</p>
+                    <p class="mt-0.5 text-caption text-muted-foreground">{{ providerInfo?.name ?? working.active_provider }} · 只保存在本机</p>
+                  </div>
+                  <span class="text-caption text-muted-foreground">{{ personalModelSourceReady ? '已配置' : '尚未配置' }}</span>
+                  <Badge :variant="index === 0 && provider?.enabled ? 'secondary' : 'outline'">
+                    {{ index === 0 && provider?.enabled ? '当前优先' : '备用' }}
+                  </Badge>
+                  <Switch
+                    :model-value="Boolean(provider?.enabled)"
+                    :disabled="!provider"
+                    aria-label="启用我的 API Key"
+                    @update:model-value="setModelSourceEnabled('personal', Boolean($event))"
+                  />
+                </template>
+              </article>
+            </div>
+
+            <div v-if="accountRouteSetupOpen && working.relay" class="mt-3 rounded-lg border border-border bg-muted/30 p-4">
+              <div class="flex items-start justify-between gap-5">
+                <div>
+                  <p class="text-body font-medium">连接 TokenFlux 团队额度</p>
+                  <p class="mt-1 text-caption leading-5 text-muted-foreground">接受团队邀请后，在 TokenFlux 创建自己的团队 Key，再粘贴到这里。Key 只保存在这台电脑。</p>
+                </div>
+                <a class="shrink-0 text-caption font-medium text-primary hover:underline" href="https://tokenflux.dev/team" target="_blank" rel="noreferrer">打开团队页面</a>
+              </div>
+              <Input
+                class="mt-3"
+                :model-value="working.relay.key"
+                type="password"
+                autocomplete="off"
+                placeholder="粘贴团队 API Key"
+                aria-label="TokenFlux 团队 API Key"
+                @update:model-value="value => {
+                  working!.relay!.key = String(value)
+                  if (value) {
+                    working!.relay!.enabled = true
+                    working!.relay!.session_only = false
+                  }
+                }"
+              />
+            </div>
+
+            <div class="mt-4 flex items-center gap-3">
+              <Switch
+                :model-value="working.model_routing.auto_fallback"
+                aria-label="来源不可用时自动切换"
+                @update:model-value="working.model_routing.auto_fallback = Boolean($event)"
+              />
+              <div>
+                <p class="text-body font-medium">来源不可用时自动使用下一项</p>
+                <p class="text-caption text-muted-foreground">只在模型尚未输出、也未运行工具时切换</p>
+              </div>
+            </div>
+          </section>
+
+          <SettingsSection title="模型" class="mt-8 border-t border-border pt-6">
+            <SettingsRow
+              label="默认模型"
+              description="Coding、CTF、CVE 共用；单个 Coding 对话仍可临时更换"
+            >
+              <NativeSelect
+                v-model="working.active_model"
+                size="sm"
+                class="min-w-56"
+                aria-label="默认模型"
+              >
+                <NativeSelectOption
+                  v-for="model in activeProviderModels"
+                  :key="model"
+                  :value="model"
+                >
+                  {{ model }}
+                </NativeSelectOption>
+              </NativeSelect>
+            </SettingsRow>
+          </SettingsSection>
+
+          <SettingsSection title="API Key 管理" class="mt-8 border-t border-border pt-6">
+            <SettingsRow
+              label="服务商"
               :description="providerInfo
                 ? `${providerInfo.kind === 'relay' ? '中转站' : '原厂'} · ${providerInfo.summary}`
-                : '选择要配置和验证的模型服务'"
+                : '选择自己的 API Key 对应的服务商'"
             >
               <Select
                 :model-value="working.active_provider"
@@ -947,25 +1194,6 @@ async function save() {
                   </template>
                 </SelectContent>
               </Select>
-            </SettingsRow>
-            <SettingsRow
-              label="默认模型"
-              description="Coding、CTF、CVE Agent 默认共用这一个模型；默认建议 DeepSeek V4 Flash，Grok 等中转模型可从 TokenFlux 选择"
-            >
-              <NativeSelect
-                v-model="working.active_model"
-                size="sm"
-                class="min-w-56"
-                aria-label="默认模型"
-              >
-                <NativeSelectOption
-                  v-for="model in activeProviderModels"
-                  :key="model"
-                  :value="model"
-                >
-                  {{ model }}
-                </NativeSelectOption>
-              </NativeSelect>
             </SettingsRow>
             <SettingsRow
               stack="always"
@@ -1000,6 +1228,9 @@ async function save() {
                 }"
               />
             </SettingsRow>
+            <div class="mt-4 rounded-lg border border-border bg-muted/20 px-4 py-3 text-caption text-muted-foreground">
+              Coding Agent 当前优先使用 <strong class="font-medium text-foreground">{{ modelSourcePreview }}</strong>
+            </div>
           </SettingsSection>
 
           <SettingsSection title="图片理解" class="mt-6">

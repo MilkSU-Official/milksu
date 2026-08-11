@@ -69,6 +69,20 @@ function tokenfluxModel(model) {
   };
 }
 
+function tokenfluxModelIDForProvider(provider, model) {
+  const normalizedProvider = String(provider ?? "").trim();
+  const normalizedModel = String(model ?? "").trim();
+  if (!normalizedModel || normalizedProvider === "tokenflux") return normalizedModel;
+  if (normalizedModel.includes("/")) return normalizedModel;
+  if (normalizedProvider === "anthropic") {
+    return `anthropic/${normalizedModel.replace(/-(\d+)-(\d+)$/u, "-$1.$2")}`;
+  }
+  if (["deepseek", "google", "openai"].includes(normalizedProvider)) {
+    return `${normalizedProvider}/${normalizedModel}`;
+  }
+  return normalizedModel;
+}
+
 function providerRuntimeFor(provider) {
   return providerRuntime[provider];
 }
@@ -109,4 +123,5 @@ function currentProviderDefinition(provider, model, environment = process.env) {
 module.exports = {
   currentProviderDefinition,
   providerRuntimeFor,
+  tokenfluxModelIDForProvider,
 };

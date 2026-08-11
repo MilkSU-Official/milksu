@@ -33,6 +33,7 @@ describe('workspace navigation', () => {
     expect(settingsReturnSection('ctf')).toBe('ctf')
     expect(settingsReturnSection('vuln')).toBe('vuln')
     expect(settingsReturnSection('chat')).toBe('chat')
+    expect(settingsReturnSection('profile')).toBe('profile')
     expect(settingsReturnSection('settings', 'vuln')).toBe('vuln')
   })
 })

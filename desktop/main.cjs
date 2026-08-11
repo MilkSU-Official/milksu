@@ -11,6 +11,7 @@ const {
   ipcMain,
   net,
   protocol,
+  safeStorage,
   session,
   shell,
   systemPreferences,
@@ -26,6 +27,7 @@ const {
   resolveRuntimeAppDataDir,
 } = require('./channel-identity.cjs')
 const { loadBuildTrackingView } = require('./build-tracking-view.cjs')
+const { AccountSession, accountRedirectURL, loadAccountConfig } = require('./account-session.cjs')
 const {
   probeComputerUsePermissions,
   computerUsePermissionsSettingsURL,
@@ -100,6 +102,8 @@ if (!app.requestSingleInstanceLock()) {
 let mainWindow
 let backend
 let browserShell
+let accountSession
+let pendingAccountCallback = ''
 let quitting = false
 
 function resourcesPath(relative) {
@@ -589,19 +593,74 @@ ipcMain.handle('milksu:invoke', async (event, request) => {
   const method = String(request?.method ?? '')
   // Packaging provenance is owned by the desktop shell, not Go domain logic.
   if (method === 'GetBuildTracking') return loadBuildTracking()
+  if (method === 'GetAccountStatus') {
+    return accountSession
+      ? accountSession.status()
+      : { configured: false, state: 'unconfigured', authenticated: false }
+  }
+  if (method === 'StartAccountLogin') {
+    if (!accountSession) throw new Error('内测账户尚未就绪')
+    return accountSession.startLogin()
+  }
+  if (method === 'LogoutAccount') {
+    if (!accountSession) return { configured: false, state: 'unconfigured', authenticated: false }
+    return accountSession.logout()
+  }
   return backend.invoke(method, request?.args)
 })
 
-app.on('second-instance', () => {
+app.on('open-url', (event, url) => {
+  event.preventDefault()
+  if (!accountSession) {
+    pendingAccountCallback = url
+    return
+  }
+  void accountSession.handleCallback(url).catch(error => {
+    dialog.showErrorBox('MilkSU 登录失败', error.message)
+  })
+})
+
+app.on('second-instance', (_event, argv = []) => {
   if (mainWindow) {
     if (mainWindow.isMinimized()) mainWindow.restore()
     mainWindow.show()
     mainWindow.focus()
   }
+  const callback = argv.find(value => String(value).startsWith(accountRedirectURL(desktopChannel)))
+  if (callback) {
+    if (!accountSession) {
+      pendingAccountCallback = callback
+    } else {
+      void accountSession.handleCallback(callback).catch(error => {
+        dialog.showErrorBox('MilkSU 登录失败', error.message)
+      })
+    }
+  }
 })
 
 app.whenReady().then(async () => {
   await installRendererProtocol()
+  const accountRedirect = new URL(accountRedirectURL(desktopChannel))
+  if (app.isPackaged) {
+    app.setAsDefaultProtocolClient(accountRedirect.protocol.replace(':', ''))
+  }
+  const accountConfig = await loadAccountConfig({
+    resourcesPath: process.resourcesPath,
+    isPackaged: app.isPackaged,
+    channel: desktopChannel,
+  })
+  accountSession = new AccountSession({
+    config: accountConfig,
+    userDataPath: app.getPath('userData'),
+    safeStorage,
+    openExternal: url => shell.openExternal(url),
+    onChanged: value => emitRendererEvent('account.changed', value),
+  })
+  if (pendingAccountCallback) {
+    const callback = pendingAccountCallback
+    pendingAccountCallback = ''
+    await accountSession.handleCallback(callback)
+  }
   const upstreamEndpoint = await waitForDevTools()
 	createWindow()
   browserShell = new BrowserShell(mainWindow, upstreamEndpoint)

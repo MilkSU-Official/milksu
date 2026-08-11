@@ -1,5 +1,18 @@
 export type MessageRole = 'user' | 'assistant' | 'tool'
 
+export interface AccountStatus {
+  configured: boolean
+  authenticated: boolean
+  state: 'unconfigured' | 'signed_out' | 'authorizing' | 'active' | 'suspended' | 'invitation_required' | 'unavailable'
+  user?: {
+    githubLogin: string
+    displayName: string
+    avatarUrl: string
+  }
+  balanceCents?: number
+  tokenFluxLinked?: boolean
+}
+
 export interface CodingAttachment {
   id: string
   name: string
@@ -70,6 +83,10 @@ export interface Conversation {
   modelMode?: 'auto' | 'manual'
   modelProvider?: string
   modelId?: string
+  /** Preferred credential source for this conversation; undefined means global order. */
+  modelSourcePreference?: ModelSource
+  /** Source that actually served the latest model turn. */
+  modelSource?: ModelSource
   executionMode?: CodingExecutionMode
   approvalPolicy?: CodingApprovalPolicy
   mcpServers?: string[]
@@ -129,11 +146,20 @@ export interface ModelSelection {
   model: string
 }
 
+export type ModelSource = 'account' | 'personal'
+export type ModelSourcePreference = 'auto' | ModelSource
+
+export interface ModelRoutingConfig {
+  source_order: ModelSource[]
+  auto_fallback: boolean
+}
+
 export interface AppSettings {
   active_provider: string
   active_model: string
   vision_model?: ModelSelection
   model_verification?: ModelVerification
+  model_routing: ModelRoutingConfig
   relay?: RelayConfig
   nssctf_arena?: NSSCTFArenaConfig
   locale?: 'en' | 'zh'
@@ -161,7 +187,24 @@ export function withAppSettingsDefaults(value: AppSettings): AppSettings {
     active_provider: activeProvider,
     active_model: activeModel,
     vision_model: selectableVisionSelection(value.vision_model) ?? undefined,
+    model_routing: normalizeModelRouting(value.model_routing),
     providers: legacy.providers ?? {},
+  }
+}
+
+export function normalizeModelRouting(value?: Partial<ModelRoutingConfig>): ModelRoutingConfig {
+  const sourceOrder: ModelSource[] = []
+  for (const source of value?.source_order ?? []) {
+    if ((source === 'account' || source === 'personal') && !sourceOrder.includes(source)) {
+      sourceOrder.push(source)
+    }
+  }
+  for (const source of ['account', 'personal'] as const) {
+    if (!sourceOrder.includes(source)) sourceOrder.push(source)
+  }
+  return {
+    source_order: sourceOrder,
+    auto_fallback: value?.auto_fallback ?? true,
   }
 }
 

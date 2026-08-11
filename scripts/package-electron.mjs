@@ -15,6 +15,7 @@ import {
   collectBuildTracking,
   writeBuildTrackingFile,
 } from './lib/desktop-build-provenance.mjs'
+import { desktopAccountConfigFromEnvironment } from './lib/desktop-account-config.mjs'
 import { inspectPackagedApp } from './lib/desktop-package-inspect.mjs'
 import { generateBetaAppIconFiles } from './generate-beta-appicon.mjs'
 
@@ -92,10 +93,20 @@ async function writeBuilderConfig(trackingPath) {
       to: BUILD_TRACKING_RESOURCE,
     },
   ]
+  const accountConfig = desktopAccountConfigFromEnvironment(process.env)
+  if (accountConfig) {
+    const accountConfigPath = join(root, 'build', 'desktop', `account-config.${channelConfig.channel}.json`)
+    await writeFile(accountConfigPath, `${JSON.stringify(accountConfig, null, 2)}\n`, { mode: 0o600 })
+    extraResources.push({ from: accountConfigPath, to: 'account-config.json' })
+  }
   const build = {
     ...desktopPackage.build,
     appId: channelConfig.appId,
     productName: channelConfig.productName,
+    protocols: [{
+      name: `${channelConfig.productName} Account Login`,
+      schemes: [channelConfig.accountProtocolScheme],
+    }],
     files,
     extraMetadata: {
       ...(desktopPackage.build?.extraMetadata || {}),

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  normalizeModelRouting,
   PROVIDERS,
   PROVIDER_GROUPS,
   providerModelLabel,
@@ -56,6 +57,19 @@ describe('model provider catalog', () => {
 
     expect(settings.active_provider).toBe('deepseek')
     expect(settings.active_model).toBe('deepseek-v4-flash')
-    expect('model_routing' in settings).toBe(false)
+    expect(settings.model_routing).toEqual({
+      source_order: ['account', 'personal'],
+      auto_fallback: true,
+    })
+  })
+
+  it('keeps an explicit personal-first order and disabled fallback', () => {
+    expect(normalizeModelRouting({
+      source_order: ['personal', 'personal'],
+      auto_fallback: false,
+    })).toEqual({
+      source_order: ['personal', 'account'],
+      auto_fallback: false,
+    })
   })
 })

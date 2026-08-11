@@ -45,4 +45,10 @@ describe('App workspace routing contract', () => {
     expect(appSource).toContain('conversations.activeId.value = conversationId')
     expect(appSource).toContain('@open-conversation="openHistoryConversation"')
   })
+
+  it('routes the avatar menu to a real personal profile page', () => {
+    expect(appSource).toContain("import('@/components-vue/ProfilePage.vue')")
+    expect(appSource).toContain("@profile=\"navigateSection('profile')\"")
+    expect(appSource).toContain("v-else-if=\"section === 'profile'\"")
+  })
 })

@@ -1,35 +1,26 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
-import {
-  Alert,
-  AlertDescription,
-  Badge,
-  Button,
-} from '@felinic/ui'
+import { computed } from 'vue'
+import { Badge, Button, NativeSelect, NativeSelectOption } from '@felinic/ui'
 import {
   ArrowRight,
-  Cable,
+  CalendarDays,
   ChevronLeft,
   ChevronRight,
-  Clock3,
   ExternalLink,
   LoaderCircle,
+  MessagesSquare,
   Paperclip,
-  Play,
   RefreshCw,
-  ShieldCheck,
   TerminalSquare,
 } from 'lucide-vue-next'
-import CTFCollaborationModePicker from '@/components-vue/CTFCollaborationModePicker.vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
-import WorkspaceDetailTitle from '@/components-vue/WorkspaceDetailTitle.vue'
 import type { CTFCollaborationMode, CTFMaterialRequest } from '@/ctfTypes'
 import type { CTFShowCatalogProblem } from '@/ctfshowTypes'
 import type { NSSCTFChallenge } from '@/nssctfTypes'
-import type {
-  NSSCTFCatalogProblem,
-  NSSCTFTrainingDashboard,
-} from '@/nssctfTrainingTypes'
+import type { NSSCTFCatalogProblem, NSSCTFTrainingDashboard } from '@/nssctfTrainingTypes'
+import type { Conversation } from '@/types'
+
+export type CTFManualStatus = 'not_started' | 'in_progress' | 'paused' | 'completed'
 
 const props = withDefaults(defineProps<{
   activeBank: 'nssctf' | 'ctfshow'
@@ -57,6 +48,9 @@ const props = withDefaults(defineProps<{
   catalogReady: boolean
   judgeReady: boolean
   hasActiveTraining: boolean
+  manualStatuses?: Record<string, CTFManualStatus>
+  conversations?: Conversation[]
+  relatedJobId?: string
 }>(), {
   nssctfProblems: () => [],
   ctfshowProblems: () => [],
@@ -67,10 +61,12 @@ const props = withDefaults(defineProps<{
   nssctfCompletedIds: () => [],
   ctfshowAttemptedIds: () => [],
   ctfshowCompletedIds: () => [],
-  attachmentError: '',
   localMaterials: () => [],
   catalogError: '',
-  actionLoading: false,
+  attachmentError: '',
+  manualStatuses: () => ({}),
+  conversations: () => [],
+  relatedJobId: '',
 })
 
 const emit = defineEmits<{
@@ -88,657 +84,212 @@ const emit = defineEmits<{
   refreshJudge: []
   openSettings: []
   openBrowserSettings: []
+  openConversation: [id: string]
+  updateManualStatus: [key: string, status: CTFManualStatus]
   'update:collaborationMode': [value: CTFCollaborationMode]
 }>()
 
-const selectedRecommendation = computed(() => (
-  props.dashboard?.recommendations.find(
-    recommendation => recommendation.problem.platformId === props.selectedNssctf?.platformId,
-  ) ?? null
-))
-const selectedRecommendationReason = computed(() => {
-  const recommendation = selectedRecommendation.value
-  const actualCategory = props.selectedNssctf?.category
-  if (!recommendation || !actualCategory) return recommendation?.reason ?? ''
-  return recommendation.reason.replace(
-    recommendation.problem.category,
-    actualCategory,
-  )
-})
-
-// Primary desk action opens Coding context without model gate. Material/bridge
-// prep remains available as a separate action; it must not block handing the
-// known challenge context to Coding when an attachment is still missing.
-const primaryActionType = computed<'open' | 'start'>(() => {
-  if (props.hasActiveTraining) return 'start'
-  if (props.activeBank === 'ctfshow' && !props.ctfshowBridgeReady) return 'open'
-  return 'start'
-})
-const primaryActionLabel = computed(() => {
-  if (props.hasActiveTraining) return '在 Coding 中打开'
-  if (primaryActionType.value === 'open') {
-    return '连接 CTFshow'
-  }
-  return props.activeBank === 'nssctf' ? '在 Coding 中打开' : '读取题面并打开 Coding'
-})
-const primaryActionDisabled = computed(() => (
-  props.activeBank === 'nssctf'
-    ? !props.selectedNssctf
-    : !props.selectedCtfshow
-))
-const detailPane = ref<HTMLElement | null>(null)
-const selectedNssctfCatalogProblem = computed<NSSCTFCatalogProblem | null>(() => {
-  const problem = props.selectedNssctf
-  if (!problem) return null
-  return {
-    platformId: problem.platformId,
-    sourceUrl: problem.sourceUrl,
-    title: problem.title,
-    category: problem.category,
-    points: problem.points,
-    difficulty: problem.difficulty,
-    tags: problem.tags,
-    hasWriteup: problem.writeupCount > 0,
-    solvedCount: problem.solvedCount,
-    wrongAnswerCount: problem.wrongAnswerCount,
+const selectedID = computed(() => props.activeBank === 'nssctf'
+  ? props.selectedNssctf?.platformId
+  : props.selectedCtfshow?.platformId)
+const displayedNssctfProblems = computed(() => {
+  const selected = props.selectedNssctf
+  if (!selected || props.nssctfProblems.some(problem => problem.platformId === selected.platformId)) return props.nssctfProblems
+  return [{
+    platformId: selected.platformId,
+    sourceUrl: selected.sourceUrl,
+    title: selected.title,
+    category: selected.category,
+    points: selected.points,
+    difficulty: selected.difficulty,
+    tags: selected.tags,
+    hasWriteup: selected.writeupCount > 0,
+    solvedCount: selected.solvedCount,
+    wrongAnswerCount: selected.wrongAnswerCount,
     noAnswerCount: 0,
     open: true,
-    syncedAt: problem.importedAt,
-  }
+    syncedAt: selected.importedAt,
+  }, ...props.nssctfProblems]
 })
-const displayedNssctfProblems = computed(() => {
-  const selected = selectedNssctfCatalogProblem.value
-  if (!selected || props.nssctfProblems.some(problem => problem.platformId === selected.platformId)) {
-    return props.nssctfProblems
-  }
-  return [selected, ...props.nssctfProblems]
-})
-
+const firstProblemID = computed(() => props.activeBank === 'nssctf'
+  ? displayedNssctfProblems.value[0]?.platformId
+  : props.ctfshowProblems[0]?.platformId)
+const relatedConversations = computed(() => props.relatedJobId
+  ? props.conversations.filter(item => item.ctfJobId === props.relatedJobId)
+  : [])
 const visiblePages = computed(() => {
-  if (props.pageCount <= 5) {
-    return Array.from({ length: props.pageCount }, (_, index) => index + 1)
-  }
-  const first = Math.min(
-    Math.max(props.page - 2, 1),
-    props.pageCount - 4,
-  )
+  if (props.pageCount <= 5) return Array.from({ length: props.pageCount }, (_, index) => index + 1)
+  const first = Math.min(Math.max(props.page - 2, 1), props.pageCount - 4)
   return Array.from({ length: 5 }, (_, index) => first + index)
 })
 
-watch(
-  () => props.activeBank === 'nssctf'
-    ? props.selectedNssctf?.platformId
-    : props.selectedCtfshow?.platformId,
-  async selectedID => {
-    if (!selectedID || !window.matchMedia('(max-width: 1120px)').matches) return
-    await nextTick()
-    detailPane.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  },
-)
-
-function nssctfStatus(id: number) {
-  if (props.nssctfCompletedIds.includes(id)) return 'completed'
-  if (props.nssctfAttemptedIds.includes(id)) return 'attempted'
-  return 'new'
+function statusKey(id: number) {
+  return `${props.activeBank}:${id}`
 }
 
-function ctfshowStatus(id: number) {
-  if (props.ctfshowCompletedIds.includes(id)) return 'completed'
-  if (props.ctfshowAttemptedIds.includes(id)) return 'attempted'
-  return 'new'
+function statusFor(id: number): CTFManualStatus {
+  return props.manualStatuses?.[statusKey(id)] ?? 'not_started'
 }
 
-function statusLabel(status: string) {
-  if (status === 'completed') return '已完成'
-  if (status === 'attempted') return '进行中'
-  return '未开始'
+function statusLabel(status: CTFManualStatus) {
+  return ({ not_started: '未开始', in_progress: '进行中', paused: '稍后继续', completed: '已完成' })[status]
 }
 
-function difficultyLabel(difficulty: number) {
-  return difficulty > 0 ? difficulty.toFixed(1) : '待定'
+function difficultyLabel(value: number) {
+  if (!value || value <= 1.4) return '入门'
+  if (value <= 2.4) return '简单'
+  if (value <= 3.2) return '中等'
+  return '困难'
 }
 
-function difficultyClass(difficulty: number) {
-  if (difficulty <= 1.5) return 'bg-success-soft text-success'
-  if (difficulty <= 2.8) return 'bg-info-soft text-info'
-  return 'bg-warning-soft text-warning'
+function difficultyClass(value: number) {
+  if (!value || value <= 2.4) return 'text-primary'
+  if (value <= 3.2) return 'text-warning'
+  return 'text-destructive'
 }
 
-function estimateMinutes(difficulty: number) {
-  if (!difficulty) return '15–30 分钟'
-  const lower = Math.max(10, Math.round(difficulty * 8 / 5) * 5)
-  return `${lower}–${lower + 15} 分钟`
+function select(id: number) {
+  if (props.activeBank === 'nssctf') emit('selectNssctf', id)
+  else emit('selectCtfshow', id)
 }
 
-function isSelected(id: number) {
-  return props.activeBank === 'nssctf'
-    ? props.selectedNssctf?.platformId === id
-    : props.selectedCtfshow?.platformId === id
+function updateStatus(id: number, raw: string) {
+  if (!['not_started', 'in_progress', 'paused', 'completed'].includes(raw)) return
+  emit('updateManualStatus', statusKey(id), raw as CTFManualStatus)
 }
 
-function nssctfCategory(problem: NSSCTFCatalogProblem) {
-  return props.selectedNssctf?.platformId === problem.platformId
-    ? props.selectedNssctf.category
-    : problem.category
+function handleStatusChange(id: number, event: Event) {
+  const value = (event.target as HTMLSelectElement | null)?.value
+  if (value) updateStatus(id, value)
 }
 
-function pinnedNssctfLabel(id: number) {
-  if (props.nssctfProblems.some(problem => problem.platformId === id)) return ''
-  return props.dashboard?.recommendations[0]?.problem.platformId === id ? '推荐' : '当前'
-}
-
-function runPrimaryAction() {
-  if (primaryActionType.value === 'open') {
-    emit('openCtfshow')
-    return
-  }
-  // start = open Coding context for the selected challenge (no model gate).
-  if (props.activeBank === 'nssctf') {
-    emit('startNssctf')
-    return
-  }
-  if (props.selectedCtfshow) emit('startCtfshow', props.selectedCtfshow.platformId)
+function openCoding() {
+  if (props.activeBank === 'nssctf') emit('startNssctf')
+  else if (props.selectedCtfshow) emit('startCtfshow', props.selectedCtfshow.platformId)
 }
 </script>
 
 <template>
-  <section class="challenge-desk h-full min-h-0" aria-label="CTF 选题与解题桌面">
-    <div class="challenge-list min-h-0 border-r border-border bg-background">
-      <div
-        class="grid h-12 grid-cols-[72px_minmax(0,1fr)_92px_74px_78px] items-center gap-3 border-b border-border px-5 text-caption text-muted-foreground"
-        aria-hidden="true"
-      >
-        <span>题号</span>
-        <span>题名</span>
-        <span>类型</span>
-        <span>难度</span>
-        <span>状态</span>
-      </div>
-
-      <div class="min-h-0 flex-1 overflow-y-auto">
-        <template v-if="activeBank === 'nssctf'">
-          <button
-            v-for="problem in displayedNssctfProblems"
-            :key="problem.platformId"
-            type="button"
-            class="group grid min-h-[72px] w-full grid-cols-[72px_minmax(0,1fr)_92px_74px_78px] items-center gap-3 border-b border-l-2 border-border px-[18px] text-left transition-colors hover:bg-muted/40 focus:outline-none focus-visible:bg-muted/60"
-            :class="isSelected(problem.platformId)
-              ? 'border-l-brand bg-brand-soft/70'
-              : 'border-l-transparent bg-background'"
-            :aria-pressed="isSelected(problem.platformId)"
-            @click="emit('selectNssctf', problem.platformId)"
-          >
-            <span class="flex items-center gap-2 font-mono text-caption text-muted-foreground">
-              <span
-                v-if="isSelected(problem.platformId)"
-                class="size-1.5 rounded-full bg-brand"
-                aria-hidden="true"
-              />
-              P{{ problem.platformId }}
-            </span>
-            <span class="min-w-0">
-              <span class="flex min-w-0 items-center gap-2">
-                <span class="block truncate text-control font-medium">{{ problem.title }}</span>
-                <span
-                  v-if="pinnedNssctfLabel(problem.platformId)"
-                  class="shrink-0 rounded bg-brand-soft px-1.5 py-0.5 text-[10px] font-medium text-brand"
-                >
-                  {{ pinnedNssctfLabel(problem.platformId) }}
-                </span>
-              </span>
-              <span v-if="problem.tags.length" class="mt-1 block truncate text-caption text-muted-foreground">
-                {{ problem.tags.slice(0, 3).join(' · ') }}
-              </span>
-            </span>
-            <span class="truncate text-caption">{{ nssctfCategory(problem) }}</span>
-            <span>
-              <span
-                class="inline-flex min-w-9 justify-center rounded-md px-2 py-1 font-mono text-caption font-medium"
-                :class="difficultyClass(problem.difficulty)"
-              >
-                {{ difficultyLabel(problem.difficulty) }}
-              </span>
-            </span>
-            <span
-              class="text-caption"
-              :class="nssctfStatus(problem.platformId) === 'attempted'
-                ? 'font-medium text-brand'
-                : nssctfStatus(problem.platformId) === 'completed'
-                  ? 'text-success'
-                  : 'text-muted-foreground'"
-            >
-              {{ statusLabel(nssctfStatus(problem.platformId)) }}
-            </span>
-          </button>
-        </template>
-
-        <template v-else>
-          <button
-            v-for="problem in ctfshowProblems"
-            :key="problem.platformId"
-            type="button"
-            class="group grid min-h-[72px] w-full grid-cols-[72px_minmax(0,1fr)_92px_74px_78px] items-center gap-3 border-b border-l-2 border-border px-[18px] text-left transition-colors hover:bg-muted/40 focus:outline-none focus-visible:bg-muted/60"
-            :class="isSelected(problem.platformId)
-              ? 'border-l-brand bg-brand-soft/70'
-              : 'border-l-transparent bg-background'"
-            :aria-pressed="isSelected(problem.platformId)"
-            @click="emit('selectCtfshow', problem.platformId)"
-          >
-            <span class="flex items-center gap-2 font-mono text-caption text-muted-foreground">
-              <span
-                v-if="isSelected(problem.platformId)"
-                class="size-1.5 rounded-full bg-brand"
-                aria-hidden="true"
-              />
-              #{{ problem.platformId }}
-            </span>
-            <span class="min-w-0">
-              <span class="block truncate text-control font-medium">{{ problem.title }}</span>
-              <span v-if="problem.tags.length" class="mt-1 block truncate text-caption text-muted-foreground">
-                {{ problem.tags.slice(0, 3).join(' · ') }}
-              </span>
-            </span>
-            <span class="truncate text-caption">{{ problem.category }}</span>
-            <span>
-              <span class="inline-flex min-w-9 justify-center rounded-md bg-muted px-2 py-1 font-mono text-caption">
-                {{ problem.points }}
-              </span>
-            </span>
-            <span
-              class="text-caption"
-              :class="ctfshowStatus(problem.platformId) === 'attempted'
-                ? 'font-medium text-brand'
-                : ctfshowStatus(problem.platformId) === 'completed'
-                  ? 'text-success'
-                  : 'text-muted-foreground'"
-            >
-              {{ statusLabel(ctfshowStatus(problem.platformId)) }}
-            </span>
-          </button>
-        </template>
-
-        <div v-if="loading" class="grid min-h-40 place-items-center">
-          <LoaderCircle class="size-5 animate-spin text-muted-foreground" />
-        </div>
-        <div
-          v-else-if="!(activeBank === 'nssctf' ? displayedNssctfProblems.length : ctfshowProblems.length)"
-          class="grid min-h-56 place-items-center px-8 text-center"
-        >
-          <div>
-            <p class="text-control font-medium">
-              {{
-                catalogError
-                  ? activeBank === 'nssctf' && !catalogReady
-                    ? '题库同步失败'
-                    : '题库暂时不可用'
-                  : activeBank === 'ctfshow'
-                    ? '连接 CTFshow 题库'
-                    : catalogReady
-                      ? '没有匹配题目'
-                      : '准备 NSSCTF 题库'
-              }}
-            </p>
-            <p class="mt-1 text-caption text-muted-foreground">
-              {{
-                catalogError
-                  || (activeBank === 'ctfshow'
-                    ? '在已登录页面点击 MilkSU 扩展，然后回来刷新。'
-                    : catalogReady
-                      ? '换个题号、题名或分类试试。'
-                      : '首次使用会把公开题目目录同步到本机 SQLite。')
-              }}
-            </p>
-            <Button
-              v-if="activeBank === 'nssctf' && !catalogReady"
-              variant="brand"
-              size="sm"
-              class="mt-4"
-              @click="emit('syncNssctf')"
-            >
-              <RefreshCw class="size-4" />
-              {{ catalogError ? '重试同步' : '同步 NSSCTF 题库' }}
-            </Button>
-            <Button
-              v-if="activeBank === 'ctfshow' && !catalogError"
-              variant="outline"
-              size="sm"
-              class="mt-4"
-              @click="emit('openCtfshow')"
-            >
-              <ExternalLink class="size-4" />
-              打开 CTFshow
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      <footer class="flex h-16 shrink-0 items-center justify-between border-t border-border px-5">
-        <span class="text-caption text-muted-foreground">
-          {{ total.toLocaleString() }} 题
-        </span>
-        <div class="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            :disabled="page <= 1 || loading"
-            aria-label="上一页"
-            @click="emit('previousPage')"
-          >
-            <ChevronLeft class="size-4" />
-          </Button>
-          <Button
-            v-for="pageNumber in visiblePages"
-            :key="pageNumber"
-            :variant="pageNumber === page ? 'default' : 'ghost'"
-            size="icon-sm"
-            :aria-label="`第 ${pageNumber} 页`"
-            :aria-current="pageNumber === page ? 'page' : undefined"
-            :disabled="loading"
-            @click="emit('goPage', pageNumber)"
-          >
-            {{ pageNumber }}
-          </Button>
-          <span v-if="pageCount > 5" class="px-1 font-mono text-caption text-muted-foreground">
-            / {{ pageCount }}
-          </span>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            :disabled="page >= pageCount || loading"
-            aria-label="下一页"
-            @click="emit('nextPage')"
-          >
-            <ChevronRight class="size-4" />
-          </Button>
-        </div>
-      </footer>
+  <section class="flex h-full min-h-0 flex-col bg-background" aria-label="CTF 挑战列表">
+    <div class="grid h-12 shrink-0 grid-cols-[92px_minmax(0,1fr)_140px_110px_130px_90px] items-center gap-4 border-b border-border px-6 text-caption text-muted-foreground">
+      <span>#</span><span>题目</span><span>类别</span><span>难度</span><span>我的状态</span><span>操作</span>
     </div>
 
-    <aside ref="detailPane" class="challenge-detail min-h-0 overflow-y-auto bg-card" aria-live="polite">
-      <template v-if="selectedNssctf && activeBank === 'nssctf'">
-        <div class="p-7 lg:p-9">
-          <div class="flex items-start justify-between gap-4">
-            <div class="min-w-0">
-              <p class="font-mono text-caption text-muted-foreground">NSSCTF · P{{ selectedNssctf.platformId }}</p>
-              <WorkspaceDetailTitle :title="selectedNssctf.title" />
-            </div>
-            <Button variant="ghost" size="icon-sm" aria-label="在 NSSCTF 打开" @click="emit('openProblem')">
-              <ExternalLink class="size-4" />
-            </Button>
-          </div>
-
-          <div class="mt-5 flex flex-wrap items-center gap-3">
-            <Badge variant="secondary">{{ selectedNssctf.category }}</Badge>
-            <span
-              class="rounded-md px-2 py-1 font-mono text-caption font-medium"
-              :class="difficultyClass(selectedNssctf.difficulty)"
-            >
-              难度 {{ difficultyLabel(selectedNssctf.difficulty) }}
+    <div class="min-h-0 flex-1 overflow-y-auto">
+      <template v-if="activeBank === 'nssctf'">
+        <template v-for="problem in displayedNssctfProblems" :key="problem.platformId">
+          <button
+            type="button"
+            class="grid min-h-[62px] w-full grid-cols-[92px_minmax(0,1fr)_140px_110px_130px_90px] items-center gap-4 border-b border-border px-6 text-left hover:bg-muted/30"
+            :class="selectedID === problem.platformId ? 'bg-brand-soft/45' : ''"
+            :aria-expanded="selectedID === problem.platformId"
+            @click="select(problem.platformId)"
+          >
+            <span class="font-mono text-caption" :class="firstProblemID === problem.platformId ? 'text-primary' : 'text-muted-foreground'">
+              <CalendarDays v-if="firstProblemID === problem.platformId" class="mr-2 inline size-4" />
+              {{ firstProblemID === problem.platformId ? 'Daily' : `P${problem.platformId}` }}
             </span>
-            <span class="flex items-center gap-1.5 text-caption text-muted-foreground">
-              <Clock3 class="size-3.5" />
-              预计 {{ estimateMinutes(selectedNssctf.difficulty) }}
+            <span class="min-w-0">
+              <span class="truncate text-control font-medium">{{ problem.title }}</span>
+              <Badge v-if="firstProblemID === problem.platformId" variant="outline" class="ml-3">每日挑战</Badge>
             </span>
-          </div>
+            <span class="text-caption text-info">{{ problem.category }}</span>
+            <span class="text-caption" :class="difficultyClass(problem.difficulty)">{{ difficultyLabel(problem.difficulty) }}</span>
+            <span class="text-caption" :class="statusFor(problem.platformId) === 'in_progress' ? 'text-primary' : 'text-muted-foreground'">{{ statusLabel(statusFor(problem.platformId)) }}</span>
+            <span class="text-caption text-info">{{ selectedID === problem.platformId ? '已展开' : statusFor(problem.platformId) === 'in_progress' ? '继续' : '开始' }}</span>
+          </button>
 
-          <section class="mt-7 border-t border-border pt-6">
-            <h3 class="text-label font-medium">题目描述</h3>
-            <MarkdownContent
-              class="mt-3 max-h-48 overflow-y-auto text-body leading-7 text-foreground/75"
-              :content="selectedNssctf.statement"
-            />
-          </section>
-
-          <section class="mt-6 border-t border-border pt-6">
-            <div class="flex items-center justify-between gap-4">
-              <div>
-                <h3 class="text-label font-medium">我的进度</h3>
-                <p class="mt-1 text-caption text-muted-foreground">
-                  {{ selectedNssctf.solvedCount.toLocaleString() }} 人解出
-                  · {{ statusLabel(nssctfStatus(selectedNssctf.platformId)) }}
-                </p>
-              </div>
-              <CTFCollaborationModePicker
-                :model-value="collaborationMode"
-                @update:model-value="emit('update:collaborationMode', $event as CTFCollaborationMode)"
-              />
-            </div>
-
-            <div v-if="selectedRecommendation" class="mt-5 rounded-lg bg-muted/40 px-4 py-3">
-              <p class="text-caption font-medium">{{ selectedRecommendation.kind }} · 推荐思路</p>
-              <p class="mt-1 text-caption leading-5 text-muted-foreground">{{ selectedRecommendationReason }}</p>
-            </div>
-
-            <div
-              v-if="!judgeReady"
-              class="mt-5 rounded-lg border border-warning-border bg-warning-soft px-4 py-4"
-            >
-              <div class="flex items-start gap-3">
-                <Cable class="mt-0.5 size-4 shrink-0 text-warning" />
-                <div class="min-w-0">
-                  <p class="text-control font-medium">连接 NSSCTF Judge</p>
-                  <p class="mt-1 text-caption leading-5 text-muted-foreground">
-                    首次使用先在浏览器设置中安装并配对扩展；以后只需在题目页点击 MilkSU。
-                  </p>
+          <div v-if="selectedID === problem.platformId && selectedNssctf" class="border-b border-l-2 border-l-primary border-border bg-card px-6 py-5">
+            <div class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+              <div class="min-w-0">
+                <p class="text-caption font-medium text-muted-foreground">题目描述</p>
+                <MarkdownContent class="mt-2 max-h-32 overflow-y-auto text-body leading-6" :content="selectedNssctf.statement" />
+                <div class="mt-4 flex flex-wrap items-center gap-5 text-caption">
+                  <button v-if="selectedNssctf.hasAttachment || localMaterials.length" class="inline-flex items-center gap-2 text-foreground" @click.stop="emit('chooseLocalMaterials')">
+                    <Paperclip class="size-4" />附件 {{ localMaterials.length || 1 }}
+                  </button>
+                  <span class="inline-flex items-center gap-2 text-info"><MessagesSquare class="size-4" />关联对话 {{ relatedConversations.length }}</span>
+                  <button class="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground" @click.stop="emit('openProblem')">
+                    <ExternalLink class="size-4" />打开题目
+                  </button>
+                </div>
+                <div v-if="relatedConversations.length" class="mt-4 flex flex-wrap gap-2">
+                  <Button v-for="item in relatedConversations" :key="item.id" variant="outline" size="sm" @click="emit('openConversation', item.id)">
+                    {{ item.title }}
+                  </Button>
                 </div>
               </div>
-              <div class="mt-3 flex flex-wrap gap-2">
-                <Button variant="outline" size="sm" @click="emit('openBrowserSettings')">
-                  <Cable class="size-4" />
-                  前往浏览器设置
-                </Button>
-                <Button variant="outline" size="sm" @click="emit('openProblem')">
-                  <ExternalLink class="size-4" />
-                  打开 P{{ selectedNssctf.platformId }}
+              <div class="flex items-end justify-end gap-3">
+                <label class="min-w-36 text-caption text-muted-foreground">我的状态
+                  <NativeSelect :model-value="statusFor(problem.platformId)" size="sm" class="mt-2 w-full" @click.stop @change="handleStatusChange(problem.platformId, $event)">
+                    <NativeSelectOption value="not_started">未开始</NativeSelectOption>
+                    <NativeSelectOption value="in_progress">进行中</NativeSelectOption>
+                    <NativeSelectOption value="paused">稍后继续</NativeSelectOption>
+                    <NativeSelectOption value="completed">已完成</NativeSelectOption>
+                  </NativeSelect>
+                </label>
+                <Button variant="brand" :loading="actionLoading" :disabled="actionLoading" @click="openCoding">
+                  <TerminalSquare class="size-4" />交给 Coding<ArrowRight class="size-4" />
                 </Button>
               </div>
-              <p
-                v-if="selectedNssctf.hasAttachment"
-                class="mt-3 flex items-center gap-2 text-caption text-muted-foreground"
-              >
-                <ShieldCheck class="size-3.5 shrink-0 text-success" />
-                连接后自动校验并导入本题附件。
-              </p>
             </div>
-
-            <details
-              v-if="selectedNssctf.hasAttachment || localMaterials.length"
-              class="mt-4 rounded-lg border border-border bg-muted/20"
-              :open="localMaterials.length > 0"
-            >
-              <summary class="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-caption font-medium [&::-webkit-details-marker]:hidden">
-                <Paperclip class="size-3.5 text-muted-foreground" />
-                使用本地附件
-                <span class="ml-auto font-normal text-muted-foreground">
-                  {{ localMaterials.length ? `${localMaterials.length} 项` : '备用方式' }}
-                </span>
-              </summary>
-              <div class="flex min-w-0 flex-wrap items-center gap-3 border-t border-border px-3 py-3">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  title="从电脑选择文件，只复制到这道题的 MilkSU 本地工作区"
-                  @click="emit('chooseLocalMaterials')"
-                >
-                  <Paperclip class="size-4" />
-                  选择附件
-                </Button>
-                <span
-                  v-if="localMaterials.length"
-                  class="min-w-0 flex-1 truncate text-caption text-muted-foreground"
-                  :title="localMaterials.map(material => material.name).join(' · ')"
-                >
-                  {{ localMaterials.map(material => material.name).join(' · ') }}
-                </span>
-                <span v-else class="text-caption text-muted-foreground">
-                  只复制到本题工作区，不会上传平台。
-                </span>
-              </div>
-            </details>
-
-            <Alert v-if="attachmentError" variant="destructive" class="mt-4">
-              <AlertDescription>{{ attachmentError }}</AlertDescription>
-            </Alert>
-          </section>
-
-        </div>
-      </template>
-
-      <template v-else-if="selectedCtfshow && activeBank === 'ctfshow'">
-        <div class="p-7 lg:p-9">
-          <p class="font-mono text-caption text-muted-foreground">CTFshow · #{{ selectedCtfshow.platformId }}</p>
-          <WorkspaceDetailTitle :title="selectedCtfshow.title" />
-          <div class="mt-5 flex flex-wrap items-center gap-3">
-            <Badge variant="secondary">{{ selectedCtfshow.category }}</Badge>
-            <span class="rounded-md bg-muted px-2 py-1 font-mono text-caption">
-              {{ selectedCtfshow.points }} 分
-            </span>
-            <span class="text-caption text-muted-foreground">
-              {{ selectedCtfshow.solvedCount.toLocaleString() }} 人解出
-            </span>
           </div>
-
-          <section class="mt-7 border-t border-border pt-6">
-            <h3 class="text-label font-medium">读取题面</h3>
-            <p class="mt-2 text-body leading-7 text-muted-foreground">
-              MilkSU 会从已连接的 CTFshow 标签页读取题面和附件，并建立与 NSSCTF 相同的 PI 工作区、Judge 和复盘证据链。
-            </p>
-          </section>
-
-          <section class="mt-6 border-t border-border pt-6">
-            <div class="flex items-center justify-between gap-4">
-              <div>
-                <h3 class="text-label font-medium">我的进度</h3>
-                <p class="mt-1 text-caption text-muted-foreground">
-                  {{ statusLabel(ctfshowStatus(selectedCtfshow.platformId)) }}
-                </p>
-              </div>
-              <CTFCollaborationModePicker
-                :model-value="collaborationMode"
-                @update:model-value="emit('update:collaborationMode', $event as CTFCollaborationMode)"
-              />
-            </div>
-
-            <div
-              v-if="!ctfshowBridgeReady"
-              class="mt-5 flex items-start gap-3 rounded-lg border border-warning-border bg-warning-soft px-4 py-3"
-            >
-              <Cable class="mt-0.5 size-4 shrink-0 text-warning" />
-              <div class="min-w-0 flex-1">
-                <p class="text-control font-medium">连接 CTFshow 标签页</p>
-                <p class="mt-1 text-caption leading-5 text-muted-foreground">
-                  先在已登录页面运行 MilkSU 扩展，再读取这道题。
-                </p>
-              </div>
-              <Button variant="outline" size="sm" @click="emit('openCtfshow')">
-                <ExternalLink class="size-4" />
-                打开
-              </Button>
-            </div>
-
-            <details
-              v-if="localMaterials.length"
-              class="mt-4 rounded-lg border border-border bg-muted/20"
-              open
-            >
-              <summary class="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-caption font-medium [&::-webkit-details-marker]:hidden">
-                <Paperclip class="size-3.5 text-muted-foreground" />
-                本地附件
-                <span class="ml-auto font-normal text-muted-foreground">{{ localMaterials.length }} 项</span>
-              </summary>
-              <div class="flex min-w-0 flex-wrap items-center gap-3 border-t border-border px-3 py-3">
-                <Button variant="outline" size="sm" @click="emit('chooseLocalMaterials')">
-                  <Paperclip class="size-4" />
-                  继续添加
-                </Button>
-                <span
-                  class="min-w-0 flex-1 truncate text-caption text-muted-foreground"
-                  :title="localMaterials.map(material => material.name).join(' · ')"
-                >
-                  {{ localMaterials.map(material => material.name).join(' · ') }}
-                </span>
-              </div>
-            </details>
-          </section>
-
-        </div>
+        </template>
       </template>
 
-      <div v-else class="grid min-h-full place-items-center p-8 text-center">
-        <div class="max-w-xs">
-          <Play class="mx-auto size-6 text-muted-foreground" />
-          <h2 class="mt-4 text-label font-medium">选择一道题</h2>
-          <p class="mt-2 text-caption leading-5 text-muted-foreground">
-            题面、训练方式和 Agent 入口会出现在这里。
-          </p>
-        </div>
-      </div>
+      <template v-else>
+        <template v-for="problem in ctfshowProblems" :key="problem.platformId">
+          <button
+            type="button"
+            class="grid min-h-[62px] w-full grid-cols-[92px_minmax(0,1fr)_140px_110px_130px_90px] items-center gap-4 border-b border-border px-6 text-left hover:bg-muted/30"
+            :class="selectedID === problem.platformId ? 'bg-brand-soft/45' : ''"
+            @click="select(problem.platformId)"
+          >
+            <span class="font-mono text-caption text-muted-foreground">#{{ problem.platformId }}</span>
+            <span class="truncate text-control font-medium">{{ problem.title }}</span>
+            <span class="text-caption text-info">{{ problem.category }}</span>
+            <span class="text-caption text-primary">{{ problem.points }} 分</span>
+            <span class="text-caption text-muted-foreground">{{ statusLabel(statusFor(problem.platformId)) }}</span>
+            <span class="text-caption text-info">{{ selectedID === problem.platformId ? '已展开' : '开始' }}</span>
+          </button>
+          <div v-if="selectedID === problem.platformId && selectedCtfshow" class="border-b border-l-2 border-l-primary border-border bg-card px-6 py-5">
+            <div class="flex flex-wrap items-end justify-between gap-5">
+              <div>
+                <p class="text-body">从已连接的 CTFshow 页面读取题面和附件，再交给同一个 Coding Agent。</p>
+                <p class="mt-3 inline-flex items-center gap-2 text-caption text-info"><MessagesSquare class="size-4" />关联对话 {{ relatedConversations.length }}</p>
+              </div>
+              <div class="flex items-end gap-3">
+                <NativeSelect :model-value="statusFor(problem.platformId)" size="sm" class="w-36" @change="handleStatusChange(problem.platformId, $event)">
+                  <NativeSelectOption value="not_started">未开始</NativeSelectOption>
+                  <NativeSelectOption value="in_progress">进行中</NativeSelectOption>
+                  <NativeSelectOption value="paused">稍后继续</NativeSelectOption>
+                  <NativeSelectOption value="completed">已完成</NativeSelectOption>
+                </NativeSelect>
+                <Button variant="brand" :loading="actionLoading" :disabled="actionLoading" @click="openCoding"><TerminalSquare class="size-4" />交给 Coding</Button>
+              </div>
+            </div>
+          </div>
+        </template>
+      </template>
 
-      <div class="sticky bottom-0 z-10 flex flex-wrap items-center gap-3 border-t border-border bg-background/95 px-5 py-3 backdrop-blur">
-        <p v-if="primaryActionType === 'start' && !modelVerified" class="text-caption text-muted-foreground">
-          打开 Coding 不要求模型；发送回合前再在 Coding 会话中配置/验证模型。
-        </p>
-        <p v-else-if="activeBank === 'nssctf' && !judgeReady" class="text-caption text-muted-foreground">
-          Judge 未连接只影响提交，不阻止打开 Coding 上下文。
-        </p>
-        <div class="ml-auto flex items-center gap-2">
-          <Button
-            v-if="activeBank === 'nssctf' && !judgeReady"
-            variant="outline"
-            size="sm"
-            @click="emit('openBrowserSettings')"
-          >
-            <Cable class="size-4" />
-            浏览器设置
-          </Button>
-          <Button
-            variant="brand"
-            size="sm"
-            :loading="actionLoading && primaryActionType === 'start'"
-            :disabled="primaryActionDisabled"
-            @click="runPrimaryAction"
-          >
-            <TerminalSquare v-if="primaryActionType === 'start'" class="size-4" />
-            <ExternalLink v-else class="size-4" />
-            {{ primaryActionLabel }}
-            <ArrowRight class="size-4" />
-          </Button>
+      <div v-if="loading" class="grid min-h-44 place-items-center"><LoaderCircle class="size-5 animate-spin text-muted-foreground" /></div>
+      <div v-else-if="!(activeBank === 'nssctf' ? displayedNssctfProblems.length : ctfshowProblems.length)" class="grid min-h-64 place-items-center px-8 text-center">
+        <div>
+          <p class="text-control font-medium">{{ catalogError ? '题库暂时不可用' : '没有匹配题目' }}</p>
+          <p class="mt-2 text-caption text-muted-foreground">{{ catalogError || '换个题号、题名或分类试试。' }}</p>
+          <Button v-if="activeBank === 'nssctf'" variant="outline" size="sm" class="mt-4" @click="emit('syncNssctf')"><RefreshCw class="size-4" />重新同步</Button>
+          <Button v-else variant="outline" size="sm" class="mt-4" @click="emit('openCtfshow')"><ExternalLink class="size-4" />打开 CTFshow</Button>
         </div>
       </div>
-    </aside>
+    </div>
+
+    <footer class="flex h-14 shrink-0 items-center justify-between border-t border-border px-6">
+      <span class="text-caption text-muted-foreground">共 {{ total.toLocaleString() }} 题</span>
+      <div class="flex items-center gap-1">
+        <Button variant="ghost" size="icon-sm" :disabled="page <= 1 || loading" aria-label="上一页" @click="emit('previousPage')"><ChevronLeft class="size-4" /></Button>
+        <Button v-for="pageNumber in visiblePages" :key="pageNumber" :variant="pageNumber === page ? 'outline' : 'ghost'" size="icon-sm" @click="emit('goPage', pageNumber)">{{ pageNumber }}</Button>
+        <Button variant="ghost" size="icon-sm" :disabled="page >= pageCount || loading" aria-label="下一页" @click="emit('nextPage')"><ChevronRight class="size-4" /></Button>
+      </div>
+    </footer>
   </section>
 </template>
-
-<style scoped>
-.challenge-desk {
-  display: grid;
-  grid-template-columns: minmax(470px, 0.98fr) minmax(410px, 1.02fr);
-}
-
-.challenge-list {
-  display: flex;
-  flex-direction: column;
-}
-
-.challenge-detail {
-  position: relative;
-}
-
-@media (max-width: 1120px) {
-  .challenge-desk {
-    grid-template-columns: 1fr;
-    overflow-y: auto;
-  }
-
-  .challenge-list {
-    min-height: 560px;
-    border-right: 0;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .challenge-detail {
-    min-height: 620px;
-    overflow: visible;
-  }
-}
-</style>

@@ -77,7 +77,7 @@ Git history，不堆本页。
 | 类型 | 用途 | 当前入口 |
 | --- | --- | --- |
 | **Current** | 当前事实、目标和资源边界 | `current-objectives.md`、本页、`current-system.md`、`pi-resource-whitelist.md` |
-| **Target** | 稳定领域和架构原则，不表示全部实现 | `developer/architecture.md`、`security-agent-boundary.md`、`role-packages.md` |
+| **Target** | 稳定领域和架构原则，或已确认但尚未实现的产品目标 | `developer/architecture.md`、`security-agent-boundary.md`、`role-packages.md`、`security-workspace-product-plan.md` |
 | **Evidence** | 可复跑 Runbook 或一次真实验收记录 | `*-acceptance.md`、`local-delivery-baseline.md`、`nyu-ctf-bench-eval.md` |
 | **Retired Summary** | 已压缩旧台账/冲刺流水，只保留考古入口 | `objective-coverage-ledger.md`、`objective-review-workbook.md`、`product-loop-sprint.md`、`product-loop-sprint-acceptance.md` |
 | **Long-term Design / Partially Implemented** | 长期设计摘要，部分被 MVP 覆盖 | `cve-research-workbench-design.md`、`security-learning-and-research-platform.md` |

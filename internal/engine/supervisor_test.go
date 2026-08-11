@@ -141,6 +141,31 @@ func TestNormalizeSteeringRejectionWithoutEndingTurn(t *testing.T) {
 	}
 }
 
+func TestNormalizeModelSourceSelectionAndFallback(t *testing.T) {
+	selected := normalizeBridgeEvent(bridgeEvent{
+		Type:   "model_source_selected",
+		ID:     "session-1",
+		Source: config.ModelSourceAccount,
+	})
+	if selected.Type != "session.model_source" ||
+		selected.ModelSource != config.ModelSourceAccount {
+		t.Fatalf("unexpected selected model source: %#v", selected)
+	}
+
+	fallback := normalizeBridgeEvent(bridgeEvent{
+		Type:   "model_source_fallback",
+		ID:     "session-1",
+		From:   config.ModelSourceAccount,
+		To:     config.ModelSourcePersonal,
+		Reason: "quota",
+	})
+	if fallback.Type != "session.model_source" ||
+		fallback.ModelSource != config.ModelSourcePersonal ||
+		fallback.Reason != "quota" {
+		t.Fatalf("unexpected fallback model source: %#v", fallback)
+	}
+}
+
 func TestNormalizeToolError(t *testing.T) {
 	event := normalizeBridgeEvent(bridgeEvent{
 		Type: "tool_call_end", ID: "session-1", ToolName: "read", Content: "denied", IsError: true,
@@ -865,7 +890,7 @@ func TestValidateModelAccessRejectsMissingProviderKey(t *testing.T) {
 	settings := config.DefaultSettings()
 
 	err := validateModelAccess(settings)
-	if err == nil || !strings.Contains(err.Error(), "Settings > API Keys") {
+	if err == nil || !strings.Contains(err.Error(), "both model sources are unavailable") {
 		t.Fatalf("expected actionable missing-key error, got %v", err)
 	}
 }
@@ -878,7 +903,7 @@ func TestSendMessageRejectsMissingKeyBeforeStartingSidecar(t *testing.T) {
 	err := supervisor.SendMessage(
 		"session-1", "hello", "", "", "", "", nil, "", nil, nil, nil, nil, config.DefaultSettings(),
 	)
-	if err == nil || !strings.Contains(err.Error(), "Settings > API Keys") {
+	if err == nil || !strings.Contains(err.Error(), "both model sources are unavailable") {
 		t.Fatalf("expected actionable missing-key error, got %v", err)
 	}
 	status := supervisor.Status()
@@ -1102,6 +1127,48 @@ func TestSendMessageIncludesComputerUseDescriptorOnlyForInteractiveCoding(t *tes
 		if _, exists := command["computerUse"]; exists {
 			t.Fatalf("%s command unexpectedly loaded Computer Use: %#v", blocked.name, command)
 		}
+	}
+}
+
+func TestSendMessageCarriesConversationModelSourcePreference(t *testing.T) {
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	defer writer.Close()
+
+	workspace, err := resolveAgentWorkspace(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	supervisor := NewSupervisor(nil)
+	supervisor.process = &childProcess{stdin: writer, workspace: workspace}
+	defer func() {
+		supervisor.mu.Lock()
+		supervisor.stopAllTurnTimersLocked()
+		supervisor.process = nil
+		supervisor.sessions = make(map[string]struct{})
+		supervisor.mu.Unlock()
+	}()
+	settings := routingSettings()
+	if err := supervisor.SendMessage(
+		"coding-source", "hello", workspace, "", "go", "workspace-auto",
+		nil, "", nil, nil, nil, nil, settings, config.ModelSourcePersonal,
+	); err != nil {
+		t.Fatal(err)
+	}
+	line, err := bufio.NewReader(reader).ReadBytes('\n')
+	if err != nil {
+		t.Fatal(err)
+	}
+	var command map[string]any
+	if err := json.Unmarshal(line, &command); err != nil {
+		t.Fatal(err)
+	}
+	order, ok := command["modelSourceOrder"].([]any)
+	if !ok || len(order) != 2 || order[0] != config.ModelSourcePersonal || order[1] != config.ModelSourceAccount {
+		t.Fatalf("unexpected conversation source order: %#v", command["modelSourceOrder"])
 	}
 }
 
@@ -1664,13 +1731,27 @@ func TestProbeFailureMessageRedactsCredentialsAndKeepsOfflineCause(t *testing.T)
 	}
 }
 
-func TestValidateModelAccessRejectsEnabledRelayWithoutKey(t *testing.T) {
+func TestValidateModelAccessUsesPersonalKeyWhenAccountSourceHasNoKey(t *testing.T) {
+	settings := config.DefaultSettings()
+	settings.Relay = &config.RelayConfig{Enabled: true}
+	settings.Providers["deepseek"] = config.ProviderConfig{
+		Enabled: true,
+		APIKey:  "personal-secret",
+	}
+
+	if err := validateModelAccess(settings); err != nil {
+		t.Fatalf("personal source should remain usable: %v", err)
+	}
+}
+
+func TestValidateModelAccessRejectsWhenBothSourcesAreUnavailable(t *testing.T) {
+	t.Setenv("DEEPSEEK_API_KEY", "")
 	settings := config.DefaultSettings()
 	settings.Relay = &config.RelayConfig{Enabled: true}
 
 	err := validateModelAccess(settings)
-	if err == nil || !strings.Contains(err.Error(), "Relay is enabled but has no API key") {
-		t.Fatalf("expected missing relay-key error, got %v", err)
+	if err == nil || !strings.Contains(err.Error(), "both model sources are unavailable") {
+		t.Fatalf("expected missing source error, got %v", err)
 	}
 }
 

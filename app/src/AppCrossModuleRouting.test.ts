@@ -58,6 +58,7 @@ function createMockConversations() {
     selectedModelMode: ref<'auto' | 'manual'>('manual'),
     selectedModelProvider: ref('openai'),
     selectedModelId: ref('gpt-test'),
+    selectedModelSourcePreference: ref<'auto' | 'account' | 'personal'>('auto'),
     selectedExecutionMode: ref<'plan' | 'go'>('go'),
     selectedApprovalPolicy: ref<'read-only' | 'ask' | 'workspace-auto' | 'full-auto'>('workspace-auto'),
     selectedMCPServers: ref<string[]>([]),
@@ -169,6 +170,7 @@ function createMockConversations() {
       workspacePath.value = path
     }),
     setModelSelection: vi.fn(),
+    setModelSourcePreference: vi.fn(),
     setCodingPolicy: vi.fn(),
     setMCPSelection: vi.fn(),
     compactContext: vi.fn(),
@@ -204,9 +206,17 @@ vi.mock('@/desktop', () => ({
         },
       }
     }
+    if (command === 'get_account_status') {
+      return {
+        configured: false,
+        authenticated: false,
+        state: 'unconfigured',
+      }
+    }
     if (command === 'get_startup_recovery_status') return null
     return null
   }),
+  listenEvent: vi.fn(async () => () => undefined),
 }))
 
 vi.mock('@/composables/useConversations', () => ({

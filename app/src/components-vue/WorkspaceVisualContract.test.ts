@@ -4,22 +4,16 @@ import chatComposerSource from './ChatComposer.vue?raw'
 import chatMessageItemSource from './ChatMessageItem.vue?raw'
 import contextSidebarSource from './ContextSidebar.vue?raw'
 import vulnPageSource from './VulnPage.vue?raw'
-import workspaceDetailTitleSource from './WorkspaceDetailTitle.vue?raw'
 import workspaceRailSource from './WorkspaceRail.vue?raw'
 
 describe('Workspace visual contract', () => {
-  it('uses one shared detail title component for CTF and CVE detail panes', () => {
-    expect(workspaceDetailTitleSource).toContain('data-workspace-detail-title')
-    expect(workspaceDetailTitleSource).toContain('workspace-detail-title mt-3 text-2xl font-semibold')
-    expect(workspaceDetailTitleSource).toContain('<h2')
-
-    expect(ctfChallengeDeskSource).toContain("import WorkspaceDetailTitle from '@/components-vue/WorkspaceDetailTitle.vue'")
-    expect(ctfChallengeDeskSource).toContain('<WorkspaceDetailTitle :title="selectedNssctf.title" />')
-    expect(ctfChallengeDeskSource).toContain('<WorkspaceDetailTitle :title="selectedCtfshow.title" />')
-
-    expect(vulnPageSource).toContain("import WorkspaceDetailTitle from '@/components-vue/WorkspaceDetailTitle.vue'")
-    expect(vulnPageSource).toContain('<WorkspaceDetailTitle class="mt-4" :title="dashboard.selected.value.title" />')
-    expect(vulnPageSource).not.toContain('text-xl font-semibold leading-8')
+  it('uses compact inline expansion for CTF and CVE instead of separate dashboards', () => {
+    expect(ctfChallengeDeskSource).toContain("border-l-2 border-l-primary")
+    expect(ctfChallengeDeskSource).toContain('交给 Coding')
+    expect(vulnPageSource).toContain("border-l-2 border-l-primary")
+    expect(vulnPageSource).toContain('关联的 Coding 对话')
+    expect(vulnPageSource).not.toContain('VulnerabilityLoopPanel')
+    expect(vulnPageSource).not.toContain('当前下一步')
   })
 
   it('raises Coding reading surfaces and aligns its compact controls', () => {

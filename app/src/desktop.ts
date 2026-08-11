@@ -1,4 +1,5 @@
 import {
+  type AccountStatus,
   type AppSettings,
   type CodingAttachment,
   type LocalDataBackupExport,
@@ -135,6 +136,9 @@ export interface VulnerabilityPracticeRun {
 }
 
 interface DesktopAppBindings {
+  GetAccountStatus(): Promise<AccountStatus>
+  StartAccountLogin(): Promise<AccountStatus>
+  LogoutAccount(): Promise<AccountStatus>
   GetSettings(): Promise<AppSettings>
   SaveSettingsCmd(settings: AppSettings): Promise<void>
   GetLocalDataStatus(): Promise<LocalDataStatus>
@@ -167,6 +171,7 @@ interface DesktopAppBindings {
     modelMode: string,
     modelProvider: string,
     modelId: string,
+    modelSourcePreference: string,
     executionMode: string,
     approvalPolicy: string,
     mcpConfigDigest: string,
@@ -393,6 +398,12 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
     throw new Error(`MilkSU desktop runtime is unavailable for command: ${command}`)
   }
   switch (command) {
+      case 'get_account_status':
+        return app.GetAccountStatus() as Promise<T>
+      case 'start_account_login':
+        return app.StartAccountLogin() as Promise<T>
+      case 'logout_account':
+        return app.LogoutAccount() as Promise<T>
       case 'get_settings':
         return app.GetSettings() as Promise<T>
       case 'save_settings_cmd':
@@ -446,6 +457,7 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
           (args?.modelMode as string) ?? '',
           (args?.modelProvider as string) ?? '',
           (args?.modelId as string) ?? '',
+          (args?.modelSourcePreference as string) ?? 'auto',
           (args?.executionMode as string) ?? '',
           (args?.approvalPolicy as string) ?? '',
           (args?.mcpConfigDigest as string) ?? '',

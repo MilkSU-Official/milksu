@@ -49,6 +49,12 @@ func TestWithDefaults(t *testing.T) {
 	if settings.Providers == nil {
 		t.Fatal("providers map must be initialized")
 	}
+	if len(settings.ModelRouting.SourceOrder) != 2 ||
+		settings.ModelRouting.SourceOrder[0] != ModelSourceAccount ||
+		settings.ModelRouting.AutoFallback == nil ||
+		!*settings.ModelRouting.AutoFallback {
+		t.Fatalf("unexpected model routing defaults: %#v", settings.ModelRouting)
+	}
 }
 
 func TestCloneDoesNotShareMaps(t *testing.T) {
@@ -58,11 +64,18 @@ func TestCloneDoesNotShareMaps(t *testing.T) {
 	copied := clone(original)
 	delete(copied.Providers, "openai")
 	copied.VisionModel.Model = "gpt-4.1"
+	copied.ModelRouting.SourceOrder[0] = ModelSourcePersonal
+	*copied.ModelRouting.AutoFallback = false
 	if _, exists := original.Providers["openai"]; !exists {
 		t.Fatal("clone modified original provider map")
 	}
 	if original.VisionModel.Model != "gpt-4o" {
 		t.Fatal("clone modified original vision model selection")
+	}
+	if original.ModelRouting.SourceOrder[0] != ModelSourceAccount ||
+		original.ModelRouting.AutoFallback == nil ||
+		!*original.ModelRouting.AutoFallback {
+		t.Fatal("clone modified original model routing")
 	}
 }
 
@@ -205,6 +218,22 @@ func TestStoreValidatesBaseURLAndInvalidatesVerificationWhenItChanges(t *testing
 	invalid.Providers["deepseek"] = provider
 	if err := store.Save(invalid); err == nil || !strings.Contains(err.Error(), "must use http or https") {
 		t.Fatalf("expected invalid provider Base URL rejection, got %v", err)
+	}
+}
+
+func TestStoreRequiresHTTPSForAccountModelCredentials(t *testing.T) {
+	store, err := newStore(filepath.Join(t.TempDir(), "settings.json"), fakeSecretStore{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	settings := DefaultSettings()
+	settings.Relay = &RelayConfig{
+		Enabled: true,
+		URL:     "http://tokenflux.invalid/v1",
+		Key:     "account-secret",
+	}
+	if err := store.Save(settings); err == nil || !strings.Contains(err.Error(), "must use https") {
+		t.Fatalf("expected insecure account model URL rejection, got %v", err)
 	}
 }
 

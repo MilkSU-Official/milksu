@@ -19,6 +19,7 @@ export const BETA_PRODUCT_NAME = 'MilkSU Beta'
  * @property {string} iconRelative
  * @property {string} userDataDirName
  * @property {string} visibleBadge
+ * @property {string} accountProtocolScheme
  */
 
 /** @type {Record<DesktopChannel, DesktopChannelConfig>} */
@@ -31,6 +32,7 @@ export const DESKTOP_CHANNELS = {
     iconRelative: 'build/appicon.png',
     userDataDirName: STABLE_APP_ID,
     visibleBadge: '',
+    accountProtocolScheme: 'milksu',
   },
   beta: {
     channel: 'beta',
@@ -42,6 +44,7 @@ export const DESKTOP_CHANNELS = {
     iconRelative: 'build/desktop/appicon-beta.png',
     userDataDirName: BETA_APP_ID,
     visibleBadge: 'BETA',
+    accountProtocolScheme: 'milksu-beta',
   },
 }
 

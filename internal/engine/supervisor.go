@@ -76,6 +76,7 @@ type Event struct {
 	Compaction      *CompactionResult        `json:"compaction,omitempty"`
 	Steering        []string                 `json:"steering,omitempty"`
 	FollowUp        []string                 `json:"followUp,omitempty"`
+	ModelSource     string                   `json:"modelSource,omitempty"`
 }
 
 type RuntimeStatus struct {
@@ -208,6 +209,9 @@ type bridgeEvent struct {
 	Compaction     *CompactionResult        `json:"compaction"`
 	Steering       []string                 `json:"steering"`
 	FollowUp       []string                 `json:"followUp"`
+	Source         string                   `json:"source"`
+	From           string                   `json:"from"`
+	To             string                   `json:"to"`
 }
 
 type childProcess struct {
@@ -324,6 +328,7 @@ func (s *Supervisor) SendMessage(
 	codingCollaboration *CodingCollaborationDescriptor,
 	attachments []codingattachment.Attachment,
 	settings config.AppSettings,
+	modelSourcePreference ...string,
 ) error {
 	if strings.TrimSpace(sessionID) == "" {
 		return fmt.Errorf("session id is required")
@@ -386,6 +391,10 @@ func (s *Supervisor) SendMessage(
 	if err := s.ensureProcessLocked(settings, workspace); err != nil {
 		return err
 	}
+	preference := ""
+	if len(modelSourcePreference) > 0 {
+		preference = modelSourcePreference[0]
+	}
 
 	command := map[string]any{
 		"action":          "send_message",
@@ -399,6 +408,10 @@ func (s *Supervisor) SendMessage(
 		"mcpServers":      mcpServers,
 		"mcpConfigDigest": strings.TrimSpace(mcpConfigDigest),
 		"attachments":     attachments,
+		"modelSourceOrder": preferredModelSourceOrder(
+			settings,
+			preference,
+		),
 	}
 	if codingBrowser != nil {
 		command["codingBrowser"] = codingBrowser
@@ -1611,6 +1624,7 @@ func normalizeBridgeEvent(raw bridgeEvent) Event {
 		Compaction:      raw.Compaction,
 		Steering:        raw.Steering,
 		FollowUp:        raw.FollowUp,
+		ModelSource:     raw.Source,
 	}
 	switch raw.Type {
 	case "ready":
@@ -1623,6 +1637,12 @@ func normalizeBridgeEvent(raw bridgeEvent) Event {
 		event.Type = "session.turn_policy_cleared"
 	case "model_selected":
 		event.Type = "session.model_selected"
+	case "model_source_selected":
+		event.Type = "session.model_source"
+	case "model_source_fallback":
+		event.Type = "session.model_source"
+		event.ModelSource = raw.To
+		event.Reason = raw.Reason
 	case "turn_started":
 		event.Type = "assistant.started"
 	case "goal_state":
@@ -1714,10 +1734,7 @@ func validateModelAccess(settings config.AppSettings) error {
 		return fmt.Errorf("model provider and model must be selected")
 	}
 
-	if relay := settings.Relay; relay != nil && relay.Enabled {
-		if strings.TrimSpace(relay.Key) == "" {
-			return fmt.Errorf("MilkSU Relay is enabled but has no API key; open Settings > API Keys, enter the relay key, and save")
-		}
+	if len(resolvedModelSourceOrder(settings)) > 0 {
 		return nil
 	}
 
@@ -1727,15 +1744,14 @@ func validateModelAccess(settings config.AppSettings) error {
 	}
 	if configured, exists := settings.Providers[provider]; exists {
 		if !configured.Enabled {
-			return fmt.Errorf("%s/%s cannot start because the provider is disabled; open Settings > API Keys, enable %s, and save", provider, model, provider)
+			return fmt.Errorf("%s/%s cannot start because both model sources are unavailable; enable the personal API key or connect the beta account quota in Settings", provider, model)
 		}
 		if strings.TrimSpace(configured.APIKey) == "" {
-			return fmt.Errorf("%s/%s cannot start because no API key is configured; open Settings > API Keys, enter a key for %s, enable it, and save", provider, model, provider)
+			return fmt.Errorf("%s/%s cannot start because both model sources are unavailable; add a personal API key or connect the beta account quota in Settings", provider, model)
 		}
-		return nil
 	}
 	if strings.TrimSpace(os.Getenv(environmentKey)) == "" {
-		return fmt.Errorf("%s/%s cannot start because no API key is configured; open Settings > API Keys, enter a key for %s, enable it, and save", provider, model, provider)
+		return fmt.Errorf("%s/%s cannot start because both model sources are unavailable; add a personal API key or connect the beta account quota in Settings", provider, model)
 	}
 	return nil
 }
@@ -1763,6 +1779,12 @@ func engineEnvironment(settings config.AppSettings) []string {
 		environment = append(environment, "MILKSU_RELAY_ENABLED=1", "MILKSU_RELAY_KEY="+relay.Key)
 		if relay.URL != "" {
 			environment = append(environment, "MILKSU_RELAY_URL="+relay.URL)
+		}
+	}
+	if order := resolvedModelSourceOrder(settings); len(order) > 0 {
+		environment = append(environment, "MILKSU_MODEL_SOURCE_ORDER="+strings.Join(order, ","))
+		if modelSourceAutoFallback(settings) {
+			environment = append(environment, "MILKSU_MODEL_SOURCE_FALLBACK=1")
 		}
 	}
 	return environment

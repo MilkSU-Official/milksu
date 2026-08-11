@@ -18,6 +18,7 @@ const (
 	relaySecretAccount       = "relay"
 	nssctfArenaSecretAccount = "nssctf-agent-arena"
 	providerAccountPrefix    = "provider:"
+	tokenFluxAccountURL      = "https://tokenflux.dev/v1"
 )
 
 type RelayConfig struct {
@@ -56,11 +57,22 @@ type ModelSelection struct {
 	Model    string `json:"model"`
 }
 
+const (
+	ModelSourceAccount  = "account"
+	ModelSourcePersonal = "personal"
+)
+
+type ModelRoutingConfig struct {
+	SourceOrder  []string `json:"source_order"`
+	AutoFallback *bool    `json:"auto_fallback"`
+}
+
 type AppSettings struct {
 	ActiveProvider string                    `json:"active_provider"`
 	ActiveModel    string                    `json:"active_model"`
 	VisionModel    *ModelSelection           `json:"vision_model,omitempty"`
 	ModelVerified  *ModelVerification        `json:"model_verification,omitempty"`
+	ModelRouting   ModelRoutingConfig        `json:"model_routing"`
 	Relay          *RelayConfig              `json:"relay,omitempty"`
 	NSSCTFArena    *NSSCTFArenaConfig        `json:"nssctf_arena,omitempty"`
 	Locale         *string                   `json:"locale,omitempty"`
@@ -71,7 +83,11 @@ func DefaultSettings() AppSettings {
 	return AppSettings{
 		ActiveProvider: "deepseek",
 		ActiveModel:    "deepseek-v4-flash",
-		Providers:      make(map[string]ProviderConfig),
+		ModelRouting: ModelRoutingConfig{
+			SourceOrder:  []string{ModelSourceAccount, ModelSourcePersonal},
+			AutoFallback: boolPointer(true),
+		},
+		Providers: make(map[string]ProviderConfig),
 	}
 }
 
@@ -191,8 +207,15 @@ func (s *Store) Save(value AppSettings) error {
 	}
 
 	if value.Relay != nil {
+		value.Relay.URL = strings.TrimSpace(value.Relay.URL)
+		if value.Relay.URL == "" {
+			value.Relay.URL = tokenFluxAccountURL
+		}
+		if err := validateAccountModelURL(value.Relay.URL); err != nil {
+			return fmt.Errorf("account model URL: %w", err)
+		}
 		if err := validateSecretInput(value.Relay.Key); err != nil {
-			return fmt.Errorf("relay credential: %w", err)
+			return fmt.Errorf("account model credential: %w", err)
 		}
 		switch {
 		case value.Relay.RemoveKey:
@@ -480,11 +503,47 @@ func withDefaults(value AppSettings) AppSettings {
 	if value.Providers == nil {
 		value.Providers = make(map[string]ProviderConfig)
 	}
+	value.ModelRouting.SourceOrder = normalizeModelSourceOrder(value.ModelRouting.SourceOrder)
+	if value.ModelRouting.AutoFallback == nil {
+		value.ModelRouting.AutoFallback = boolPointer(true)
+	}
 	return value
+}
+
+func boolPointer(value bool) *bool {
+	return &value
+}
+
+func boolValue(value *bool) bool {
+	return value == nil || *value
+}
+
+func normalizeModelSourceOrder(value []string) []string {
+	result := make([]string, 0, 2)
+	seen := make(map[string]bool, 2)
+	for _, source := range value {
+		source = strings.TrimSpace(source)
+		if (source != ModelSourceAccount && source != ModelSourcePersonal) || seen[source] {
+			continue
+		}
+		seen[source] = true
+		result = append(result, source)
+	}
+	for _, source := range []string{ModelSourceAccount, ModelSourcePersonal} {
+		if !seen[source] {
+			result = append(result, source)
+		}
+	}
+	return result
 }
 
 func clone(value AppSettings) AppSettings {
 	copy := value
+	copy.ModelRouting.SourceOrder = append([]string(nil), value.ModelRouting.SourceOrder...)
+	if value.ModelRouting.AutoFallback != nil {
+		autoFallback := *value.ModelRouting.AutoFallback
+		copy.ModelRouting.AutoFallback = &autoFallback
+	}
 	copy.Providers = make(map[string]ProviderConfig, len(value.Providers))
 	for name, provider := range value.Providers {
 		copy.Providers[name] = provider
@@ -521,6 +580,11 @@ func modelVerificationInvalidated(previous, next AppSettings) bool {
 	if previous.ActiveProvider != next.ActiveProvider || previous.ActiveModel != next.ActiveModel {
 		return true
 	}
+	if boolValue(previous.ModelRouting.AutoFallback) != boolValue(next.ModelRouting.AutoFallback) ||
+		strings.Join(normalizeModelSourceOrder(previous.ModelRouting.SourceOrder), ",") !=
+			strings.Join(normalizeModelSourceOrder(next.ModelRouting.SourceOrder), ",") {
+		return true
+	}
 	active := next.Providers[next.ActiveProvider]
 	if active.APIKey != "" || active.RemoveAPIKey {
 		return true
@@ -537,6 +601,9 @@ func modelVerificationInvalidated(previous, next AppSettings) bool {
 			return true
 		}
 		if previous.Relay == nil || previous.Relay.Enabled != next.Relay.Enabled {
+			return true
+		}
+		if previous.Relay == nil || strings.TrimSpace(previous.Relay.URL) != strings.TrimSpace(next.Relay.URL) {
 			return true
 		}
 	} else if previous.Relay != nil && previous.Relay.Enabled {
@@ -580,6 +647,17 @@ func validateProviderBaseURL(value string) error {
 	}
 	if parsed.User != nil {
 		return fmt.Errorf("must not include credentials")
+	}
+	return nil
+}
+
+func validateAccountModelURL(value string) error {
+	if err := validateProviderBaseURL(value); err != nil {
+		return err
+	}
+	parsed, _ := url.Parse(value)
+	if parsed.Scheme != "https" {
+		return fmt.Errorf("must use https")
 	}
 	return nil
 }

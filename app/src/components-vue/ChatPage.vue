@@ -160,6 +160,7 @@ const props = defineProps<{
   modelMode?: 'auto' | 'manual'
   modelProvider?: string
   modelId?: string
+  modelSourcePreference?: 'auto' | 'account' | 'personal'
   executionMode?: CodingExecutionMode
   approvalPolicy?: CodingApprovalPolicy
   mcpServers?: string[]
@@ -180,6 +181,7 @@ const emit = defineEmits<{
   abort: []
   chooseWorkspace: []
   changeModel: [mode: 'auto' | 'manual', provider?: string, model?: string]
+  changeModelSource: [preference: 'auto' | 'account' | 'personal']
   changeCodingPolicy: [
     executionMode: CodingExecutionMode,
     approvalPolicy: CodingApprovalPolicy,
@@ -464,7 +466,7 @@ const extensionLabel = (value: string) => (
 )
 const hasCredential = computed(() => {
   if (!props.settings) return false
-  if (props.settings.relay?.enabled) return props.settings.relay.has_key
+  if (props.settings.relay?.enabled && props.settings.relay.has_key) return true
   const provider = props.settings.providers[props.settings.active_provider]
   return Boolean(provider?.enabled && provider.has_api_key)
 })
@@ -516,6 +518,22 @@ const activeModelLabel = computed(() => {
   const model = props.modelId || props.settings?.active_model
   return provider && model ? providerModelLabel(provider, model) : '等待选择'
 })
+const activeModelSourceLabel = computed(() => (
+  props.conversation?.modelSource === 'account'
+    ? '内测额度'
+    : props.conversation?.modelSource === 'personal'
+      ? '我的 API Key'
+      : props.settings?.model_routing.source_order[0] === 'personal'
+        ? '我的 API Key 优先'
+        : '内测额度优先'
+))
+const preferredModelSourceLabel = computed(() => (
+  props.modelSourcePreference === 'account'
+    ? '内测额度优先'
+    : props.modelSourcePreference === 'personal'
+      ? '我的 API Key 优先'
+      : '跟随设置'
+))
 const messageCount = computed(() => props.conversation?.messages.length ?? 0)
 const toolMessageCount = computed(() => (
   props.conversation?.messages.filter(message => message.role === 'tool').length ?? 0
@@ -2108,6 +2126,30 @@ watch(
           <div class="flex items-start justify-between gap-3">
             <span class="shrink-0 text-muted-foreground">模型</span>
             <span class="text-right text-caption leading-5">{{ activeModelLabel }}</span>
+          </div>
+          <div class="flex items-start justify-between gap-3">
+            <span class="shrink-0 text-muted-foreground">来源</span>
+            <div class="min-w-0 text-right">
+              <Select
+                :model-value="modelSourcePreference || 'auto'"
+                @update:model-value="value => emit('changeModelSource', value as 'auto' | 'account' | 'personal')"
+              >
+                <SelectTrigger
+                  class="ml-auto h-7 w-32 border-border/70 bg-transparent px-2 text-caption"
+                  aria-label="本对话模型来源"
+                >
+                  <SelectValue :placeholder="preferredModelSourceLabel" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">跟随设置</SelectItem>
+                  <SelectItem value="account">内测额度优先</SelectItem>
+                  <SelectItem value="personal">我的 API Key 优先</SelectItem>
+                </SelectContent>
+              </Select>
+              <p class="mt-1 text-[11px] leading-4 text-muted-foreground">
+                {{ conversation?.modelSource ? `本轮：${activeModelSourceLabel}` : '只影响本对话' }}
+              </p>
+            </div>
           </div>
           <div class="flex items-start justify-between gap-3">
             <span class="shrink-0 text-muted-foreground">插件</span>

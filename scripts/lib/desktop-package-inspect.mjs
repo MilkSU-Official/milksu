@@ -209,13 +209,19 @@ export async function inspectPackagedApp(appPath, expectedChannel) {
       displayName = ''
     }
     const executable = await readPlist('CFBundleExecutable')
+    let accountProtocolScheme = ''
+    try {
+      accountProtocolScheme = await readPlist('CFBundleURLTypes.0.CFBundleURLSchemes.0')
+    } catch {
+      accountProtocolScheme = ''
+    }
     let iconFile = ''
     try {
       iconFile = await readPlist('CFBundleIconFile')
     } catch {
       iconFile = ''
     }
-    result.plist = { bundleId, name, displayName, executable, iconFile }
+    result.plist = { bundleId, name, displayName, executable, iconFile, accountProtocolScheme }
 
     if (config.channel === 'stable' && bundleId !== STABLE_APP_ID) {
       issues.push(`stable CFBundleIdentifier must be ${STABLE_APP_ID}, got ${bundleId}`)
@@ -257,6 +263,11 @@ export async function inspectPackagedApp(appPath, expectedChannel) {
         result.appPath,
         executable,
       ))
+    }
+    if (accountProtocolScheme !== config.accountProtocolScheme) {
+      issues.push(
+        `account callback scheme expected ${config.accountProtocolScheme}, got ${accountProtocolScheme || '(empty)'}`,
+      )
     }
     if (!iconFile) {
       issues.push('CFBundleIconFile is missing')

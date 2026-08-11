@@ -32,12 +32,14 @@ test('stable and beta channel identities are distinct and stable', () => {
   assert.equal(stable.outputAppName, 'MilkSU.app')
   assert.equal(stable.iconRelative, 'build/appicon.png')
   assert.equal(stable.visibleBadge, '')
+  assert.equal(stable.accountProtocolScheme, 'milksu')
 
   assert.equal(beta.productName, BETA_PRODUCT_NAME)
   assert.equal(beta.appId, BETA_APP_ID)
   assert.equal(beta.outputAppName, 'MilkSU Beta.app')
   assert.equal(beta.iconRelative, 'build/desktop/appicon-beta.png')
   assert.equal(beta.visibleBadge, 'BETA')
+  assert.equal(beta.accountProtocolScheme, 'milksu-beta')
 
   assert.notEqual(stable.appId, beta.appId)
   assert.notEqual(stable.productName, beta.productName)

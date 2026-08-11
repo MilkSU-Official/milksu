@@ -26,6 +26,7 @@
     "files": [
       "main.cjs",
       "preload.cjs",
+      "account-session.cjs",
       "cdp-proxy.cjs",
       "channel-identity.cjs",
       "build-tracking-view.cjs",

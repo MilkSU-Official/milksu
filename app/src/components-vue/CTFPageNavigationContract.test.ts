@@ -32,7 +32,7 @@ describe('CTFPage navigation contract', () => {
     expect(ctfChallengeDeskSource).not.toContain('acceptance.requiredTracks')
     expect(ctfChallengeDeskSource).not.toContain('acceptanceStatusText(track.status)')
     expect(ctfChallengeDeskSource).not.toContain('准备 {{ readiness }}/3')
-    expect(ctfChallengeDeskSource).toContain('在 Coding 中打开')
+    expect(ctfChallengeDeskSource).toContain('交给 Coding')
   })
 
   it('opens Coding context without model readiness and without readiness 1/3 strip', () => {

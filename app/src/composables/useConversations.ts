@@ -147,6 +147,7 @@ interface AgentEvent {
   aborted?: boolean
   steering?: string[]
   followUp?: string[]
+  modelSource?: 'account' | 'personal'
 }
 
 export interface CodingMessageQueue {
@@ -220,6 +221,13 @@ export function normalizeConversation(raw: Record<string, unknown>): Conversatio
       : undefined,
     modelProvider: typeof raw.modelProvider === 'string' ? raw.modelProvider : undefined,
     modelId: typeof raw.modelId === 'string' ? raw.modelId : undefined,
+    modelSourcePreference: raw.modelSourcePreference === 'account'
+      || raw.modelSourcePreference === 'personal'
+      ? raw.modelSourcePreference
+      : undefined,
+    modelSource: raw.modelSource === 'account' || raw.modelSource === 'personal'
+      ? raw.modelSource
+      : undefined,
     executionMode: normalizeCodingExecutionMode(raw.executionMode),
     approvalPolicy: normalizeCodingApprovalPolicy(raw.approvalPolicy),
     mcpServers: normalizeMCPServers(raw.mcpServers),
@@ -356,6 +364,7 @@ export function useConversations() {
   const pendingModelMode = ref<'auto' | 'manual' | undefined>()
   const pendingModelProvider = ref<string | undefined>()
   const pendingModelId = ref<string | undefined>()
+  const pendingModelSourcePreference = ref<'auto' | 'account' | 'personal'>('auto')
   const pendingExecutionMode = ref<CodingExecutionMode>(DEFAULT_CODING_EXECUTION_MODE)
   const pendingApprovalPolicy = ref<CodingApprovalPolicy>(DEFAULT_CODING_APPROVAL_POLICY)
   const pendingMCPServers = ref<string[]>([])
@@ -395,6 +404,9 @@ export function useConversations() {
   const selectedModelMode = computed(() => active.value?.modelMode ?? pendingModelMode.value)
   const selectedModelProvider = computed(() => active.value?.modelProvider ?? pendingModelProvider.value)
   const selectedModelId = computed(() => active.value?.modelId ?? pendingModelId.value)
+  const selectedModelSourcePreference = computed(() => (
+    active.value?.modelSourcePreference ?? pendingModelSourcePreference.value
+  ))
   const selectedExecutionMode = computed(() => (
     active.value?.executionMode ?? pendingExecutionMode.value
   ))
@@ -494,6 +506,7 @@ export function useConversations() {
     pendingModelMode.value = undefined
     pendingModelProvider.value = undefined
     pendingModelId.value = undefined
+    pendingModelSourcePreference.value = 'auto'
     pendingExecutionMode.value = DEFAULT_CODING_EXECUTION_MODE
     pendingApprovalPolicy.value = DEFAULT_CODING_APPROVAL_POLICY
     pendingMCPServers.value = []
@@ -549,6 +562,9 @@ export function useConversations() {
       modelMode: pendingModelMode.value,
       modelProvider: pendingModelProvider.value,
       modelId: pendingModelId.value,
+      modelSourcePreference: pendingModelSourcePreference.value === 'auto'
+        ? undefined
+        : pendingModelSourcePreference.value,
       executionMode: pendingExecutionMode.value,
       approvalPolicy: pendingApprovalPolicy.value,
       mcpServers: pendingMCPServers.value.length ? pendingMCPServers.value : undefined,
@@ -599,6 +615,18 @@ export function useConversations() {
       modelMode: mode,
       modelProvider: mode === 'manual' ? normalizedProvider : undefined,
       modelId: mode === 'manual' ? normalizedModel : undefined,
+    }))
+  }
+
+  function setModelSourcePreference(preference: 'auto' | 'account' | 'personal') {
+    if (!activeId.value) {
+      pendingModelSourcePreference.value = preference
+      return
+    }
+    if (!activeId.value) return
+    update(activeId.value, conversation => ({
+      ...conversation,
+      modelSourcePreference: preference === 'auto' ? undefined : preference,
     }))
   }
 
@@ -723,6 +751,9 @@ export function useConversations() {
         modelMode: pendingModelMode.value,
         modelProvider: pendingModelProvider.value,
         modelId: pendingModelId.value,
+        modelSourcePreference: pendingModelSourcePreference.value === 'auto'
+          ? undefined
+          : pendingModelSourcePreference.value,
         executionMode: pendingExecutionMode.value,
         approvalPolicy: pendingApprovalPolicy.value,
         mcpServers: pendingMCPServers.value.length ? pendingMCPServers.value : undefined,
@@ -780,6 +811,7 @@ export function useConversations() {
         modelMode: conversation?.modelMode ?? '',
         modelProvider: conversation?.modelProvider ?? '',
         modelId: conversation?.modelId ?? '',
+        modelSourcePreference: conversation?.modelSourcePreference ?? 'auto',
         executionMode: conversation?.executionMode ?? DEFAULT_CODING_EXECUTION_MODE,
         approvalPolicy: conversation?.approvalPolicy ?? DEFAULT_CODING_APPROVAL_POLICY,
         mcpServers: requestedMCPServers,
@@ -918,6 +950,7 @@ export function useConversations() {
         modelMode: conversation.modelMode ?? '',
         modelProvider: conversation.modelProvider ?? '',
         modelId: conversation.modelId ?? '',
+        modelSourcePreference: conversation.modelSourcePreference ?? 'auto',
         executionMode: conversation.executionMode ?? DEFAULT_CODING_EXECUTION_MODE,
         approvalPolicy: conversation.approvalPolicy ?? DEFAULT_CODING_APPROVAL_POLICY,
         mcpServers: conversation.mcpServers ?? [],
@@ -1009,6 +1042,7 @@ export function useConversations() {
         aborted,
         steering,
         followUp,
+        modelSource,
       } = event.payload
       if (!sessionId && (type === 'engine.stopped' || type === 'engine.protocol_error')) {
         activeTurnPolicies.clear()
@@ -1100,6 +1134,14 @@ export function useConversations() {
             executionMode: executionMode ?? conversation.executionMode,
             approvalPolicy: approvalPolicy ?? conversation.approvalPolicy,
             agentCapabilities: capabilities ?? conversation.agentCapabilities,
+          }
+        }
+        if (type === 'session.model_source') {
+          return {
+            ...conversation,
+            modelSource: modelSource === 'account' || modelSource === 'personal'
+              ? modelSource
+              : conversation.modelSource,
           }
         }
         if (type === 'session.goal_updated') {
@@ -1272,6 +1314,7 @@ export function useConversations() {
     selectedModelMode,
     selectedModelProvider,
     selectedModelId,
+    selectedModelSourcePreference,
     selectedExecutionMode,
     selectedApprovalPolicy,
     selectedMCPServers,
@@ -1288,6 +1331,7 @@ export function useConversations() {
     ensureConversation,
     setWorkspace,
     setModelSelection,
+    setModelSourcePreference,
     setCodingPolicy,
     setMCPSelection,
     startWorkspaceTask,

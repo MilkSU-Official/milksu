@@ -606,6 +606,7 @@ func (a *App) SendMessage(
 	modelMode,
 	modelProvider,
 	modelID,
+	modelSourcePreference,
 	executionMode,
 	approvalPolicy,
 	mcpConfigDigest string,
@@ -688,6 +689,7 @@ func (a *App) SendMessage(
 		codingCollaboration,
 		attachments,
 		settings,
+		modelSourcePreference,
 	)
 }
 

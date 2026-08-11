@@ -20,7 +20,7 @@
 8. 非阻塞问题先记复现和影响；只有数据 / Credential / Scope / 私有远端 / Judge / 验收失真立即修。
 9. 夜间/日间主题已可用：左下 rail 设置上方纯图标切换并本机持久化；日间模式的主工作区、桌面 chrome 与 rail 使用中性纯白底，绿色只保留给品牌、选中和状态反馈；后续只在 UI 巡检中扩样调色。
 10. UI 巡检或视觉修复后，必须同步防回归测试与当前文档。
-11. 模型与凭据保持普通入口：一个默认模型、一个模型来源、一个凭据区。默认日常模型 DeepSeek V4 Flash；TokenFlux 是一等中转站；不保留 fast/deep 角色路由，不接 Kimi/KouriChat 产品入口。
+11. 模型与凭据保持普通入口：一个默认模型，账户额度与本机个人 Key 两个独立来源。默认账户额度优先，用户可调整全局顺序，也可只为当前 Coding 对话调整优先来源；不保留 fast/deep 角色路由，不接 Kimi/KouriChat 产品入口。
 12. Coding 自举默认由外部 reviewer 操作真实打包 MilkSU：给略带模糊的人类需求，让 MilkSU 在隔离 worktree 内理解、修改和验证；reviewer 只查轨迹、diff、测试和边界，并通过产品 UI 要求返工。除非链路阻塞、安全/Scope 问题或用户明确要求，reviewer 不直接改功能代码。
 13. 上游优先：平台/Pi → 固定可审阅 Skill/MCP/插件/CLI → 许可证兼容的最小上游机制 → 最小自有实现。一会话一个结果契约，除阻塞和安全外不靠连续微提示收口。
 14. Coding Agent 的成熟机制要反哺 CTF/CVE：通用会话、浏览器、worktree、恢复和审阅优先复用上游；Challenge/Evidence/Judge、漏洞研究事实、领域采集与安全验证工作流由 MilkSU 持有。不能把“上游优先”误写成不发展自己的安全领域能力。
@@ -39,7 +39,7 @@
 - Composer `/` 已覆盖 Goal、Plan、Pi 会话动作、模型/权限、状态/Diff/Review、MCP、Browser Use 与 Computer Use；用户可见的 worktree / writer 入口已删除。Agent 运行时输入仍可发送：消息先通过 Pi steering 应用于下一次模型调用，并以队列卡片展示；只有真正 settled 才结束运行态。输入框左下“+”继续作为附件、Goal、Plan、浏览器、Browser/Computer Scope、已审核 Pi Skills 和项目 MCP 的统一入口。产品 UI 只使用“浏览器”，不暴露“沙箱浏览器”。
 - 浏览器三面已分责：右栏“浏览器”是会话隔离的内置 Chromium；`/browser-use` 复用固定版 Playwright MCP 官方扩展，由用户在真实 Chrome/Edge 选择准确标签页；`/computer-use` 只列外部原生 App，浏览器窗口不进入该 Scope。NSSCTF/CTFshow 的 MilkSU 扩展继续作为领域 Bridge，不承担通用浏览器控制。
 - **Chromium 桌面壳纵切已完成**：MilkSU.app 现由 Electron/Chromium 承载 Vue 产品表面和右栏 `WebContentsView`，Go 作为受管本地 Runtime 通过 JSONL RPC 提供应用服务。浏览器使用每会话独立 `session.fromPath`、默认拒绝页面权限，并经限定单一 Target 的 loopback CDP Proxy 交给固定 Playwright MCP。打包 App + TokenFlux `grok-4.5` 已只用浏览器完成三类真实任务：按页面提示点击取得 `flag{browser_agent_ok}`、填写并提交表单取得确定性回执、阅读 Electron 官方文档并归纳 `WebContentsView` 与旧 `BrowserView` 的关系。三次均在 Agent 开始后折叠右栏，任务仍继续，重新展开仍是同一页面与终态；未回退 Shell。裸域名会补全 HTTPS，普通文字会进入搜索。旧 Wails/CEF 生产链已直接删除，不保留兼容或双壳。
-- 模型与凭据：单默认模型 + 单来源 + 单凭据区；DeepSeek V4 Flash 默认日常；TokenFlux 一等中转；Coding / CTF / sub-agent 共用当前 Provider 注册。
+- 模型与凭据：单默认模型；内测账户额度与本机个人 Key 独立存在，默认账户优先且仅在模型输出或工具执行前自动切换。设置保存全局顺序，Coding 可只为当前对话调整优先来源；个人 Key 不进入后台、日志或模型上下文。DeepSeek V4 Flash 默认日常；TokenFlux 是账户 Team Key 与个人中转的当前实现，Coding / CTF / sub-agent 仍共用 Pi Provider 注册。
 - CVE：学习/追踪 MVP 可用（多源同步、练习目录、本地 Compose 生命周期、资产验证、学习写回、Coding 接力）；正式事实只来自 Vuln Runtime。
 - CTF：题库、工作区、Evidence、候选、Judge、Checkpoint、恢复、复盘、Memory 主链存在；真实 Judge 成功仍只有窄 Web 路径。
 - CTF/CVE → Coding 已复用同一 Coding/Pi：交接只挂载草稿、不自动发送；右侧可折叠领域上下文保留题目/CVE、授权 Scope、材料、Evidence/Judge 或只读安全边界，并提供返回工作台。NSSCTF 附件或 Judge 未连接不再阻止用公开题面打开 Coding；附件缺失只作为材料警告。Beta Computer Use 已实测 P7591 与 CVE-2024-3400 的草稿交接和返回连续性；未运行 PoC、未提交 flag、未建立 Judge 成功事实。
@@ -48,6 +48,14 @@
 - 暂停/后置：Labs；CVE 纵深研究、真实漏洞复现、外部资产实验、披露；NYU safe-static 只是开发者 smoke，不是完整 CTF 成绩。
 
 ## 下一条完成线
+
+### 进行中目标：个人安全工作台
+
+- **任务**：Codex `019fe9ee-b865-75b3-903d-bada1266f254`。
+- **目标文档**：[个人安全工作台计划](security-workspace-product-plan.md)。
+- **当前切片**：目标问答、定稿图、个人资料、轻量 CTF/CVE、独立 Admin 基线和双模型来源路由已经进入代码；正在跑完整回归并准备从干净提交构建 Beta。账户登录仍只认真实部署配置，不用 fixture 冒充在线账户路径。
+- **完成线**：个人资料、轻量 CTF、轻量 CVE、账户额度/个人 Key 路由均按定稿图完成；从干净
+  提交构建 Beta，核对 branch、完整 commit、tracking ID，并完成真实 CTF/CVE 与账户路径验收。
 
 | 优先级 | 主线 | 只认什么完成 |
 | --- | --- | --- |
