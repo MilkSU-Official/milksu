@@ -1,5 +1,8 @@
 import type { Conversation } from '@/types'
-import { conversationActivityAt } from '@/lib/workspaceSessionRouting'
+import {
+  conversationActivityAt,
+  projectUniqueDomainConversations,
+} from '@/lib/workspaceSessionRouting'
 
 export interface CodingConversationGroup {
   key: string
@@ -46,7 +49,7 @@ export function groupCodingConversations(
   const normalizedQuery = query.trim().toLocaleLowerCase()
   const groups = new Map<string, CodingConversationGroup>()
 
-  for (const conversation of conversations) {
+  for (const conversation of projectUniqueDomainConversations(conversations)) {
     if (conversation.ctfJobId) continue
 
     const path = normalizeWorkspacePath(conversation.workspacePath)

@@ -120,4 +120,31 @@ describe('Coding conversation groups', () => {
     expect(groups[0].conversations.map(item => item.id))
       .toEqual(['milk-older-active', 'milk-new-created'])
   })
+
+  it('shows one newest Coding row for one CVE domain task', () => {
+    const context = {
+      kind: 'cve' as const,
+      cveId: 'CVE-2024-3400',
+      title: 'PAN-OS',
+      sourceEvidenceState: '3 条材料',
+      sourceEvidenceCount: 3,
+      assetMatchState: '3 项资产',
+      assetCount: 3,
+      researchScope: 'read-only',
+      safetyBoundary: '不运行 PoC',
+      roleLabel: 'CVE 只读/研究接力',
+    }
+    const groups = groupCodingConversations([
+      conversation('legacy-old', 'CVE-2024-3400 研究接力', 10, {
+        domainTaskContext: context,
+      }),
+      conversation('legacy-new', 'CVE-2024-3400 研究接力', 20, {
+        domainTaskContext: context,
+        messages: [{ id: 'm', role: 'assistant', content: '已有研究结论', timestamp: 30 }],
+      }),
+    ])
+
+    expect(groups).toHaveLength(1)
+    expect(groups[0].conversations.map(item => item.id)).toEqual(['legacy-new'])
+  })
 })

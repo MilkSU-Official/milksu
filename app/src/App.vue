@@ -20,6 +20,7 @@ import {
   rememberWorkspaceConversation,
   selectCodingConversationId,
   selectCTFResumePoint,
+  selectReusableDomainConversationId,
 } from '@/lib/workspaceSessionRouting'
 import { withAppSettingsDefaults, type AppSettings, type CTFChatAction, type StartupRecoveryStatus } from '@/types'
 
@@ -242,6 +243,10 @@ async function startVulnerabilityCodingTask(
     startNewConversation: conversations.startNew,
     ensureConversation: conversations.ensureConversation,
     activeConversationId: () => conversations.activeId.value,
+    reusableConversationId: context => selectReusableDomainConversationId(
+      conversations.conversations.value,
+      context,
+    ),
     setLastCodingConversationId: id => {
       lastCodingConversationId.value = id
       activeVulnerabilityCodingConversationId.value = id

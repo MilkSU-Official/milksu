@@ -27,6 +27,48 @@ function newestConversation(conversations: Conversation[]) {
   }, null)
 }
 
+export function conversationDomainIdentity(
+  conversation: Pick<Conversation, 'domainTaskContext'>,
+) {
+  const context = conversation.domainTaskContext
+  if (context?.kind === 'cve') {
+    const cveId = context.cveId.trim().toLocaleLowerCase()
+    return cveId ? `cve:${cveId}` : null
+  }
+  return null
+}
+
+export function selectReusableDomainConversationId(
+  conversations: Conversation[],
+  domainTaskContext: Conversation['domainTaskContext'],
+) {
+  const identity = conversationDomainIdentity({ domainTaskContext })
+  if (!identity) return null
+  return newestConversation(conversations.filter(conversation => (
+    conversationDomainIdentity(conversation) === identity
+  )))?.id ?? null
+}
+
+/**
+ * Pre-release legacy builds could persist several Coding rows for one CVE.
+ * Keep the history intact, but project only the newest row for each domain task.
+ */
+export function projectUniqueDomainConversations(conversations: Conversation[]) {
+  const newestByIdentity = new Map<string, Conversation>()
+  for (const conversation of conversations) {
+    const identity = conversationDomainIdentity(conversation)
+    if (!identity) continue
+    const current = newestByIdentity.get(identity)
+    if (!current || newestConversation([current, conversation])?.id === conversation.id) {
+      newestByIdentity.set(identity, conversation)
+    }
+  }
+  return conversations.filter(conversation => {
+    const identity = conversationDomainIdentity(conversation)
+    return !identity || newestByIdentity.get(identity)?.id === conversation.id
+  })
+}
+
 export function rememberWorkspaceConversation(
   conversation: Conversation | null | undefined,
   remembered: {
