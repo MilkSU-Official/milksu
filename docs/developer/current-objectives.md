@@ -32,9 +32,9 @@
 - Coding 工程底座已覆盖：Plan/Go、权限、附件、本地 OCR、LSP、Artifact Preview、隔离 Browser、后台任务恢复、Diff/Hunk、Git、PR 发布确认、worktree、ImageGen、Project MCP、Session Index、Computer Use 外部 App 纵切。
 - Worktree 隔离已落地：干净 Git 项目的首次 effectful 回合由 Agent 自动准备一个内部 writer；`.worktreeinclude` 用平台 CoW 复制 ignored 本地环境，submodule 按精确提交初始化，writer 不读写主依赖目录。用户不再选择或看到 worktree / writer；脏工作区和非 Git 任务保留原工作区并明确降级。
 - **Grok 看图已通过**：打包 App 经 TokenFlux 真实 `grok-4.5` 原生 image input 看图成功；中文识别任务列表、进度胶囊和输入栏，且未调用工具。`grok-4.3` 仍为 text-only；text-only 模型继续走 OCR + 可选 auxiliary vision。
-- **功能代码自举已有一条真实但未完全闭环的纵切**：本分支完成 Agent 自动执行环境、运行中消息 steering/queue、Git 变更文件悬浮跳转、CTF/CVE 共享 Coding/Pi 上下文、Stable/Beta 身份与构建追踪；自动化测试和打包均通过。Stable 已通过 Computer Use 核对干净 Beta 的分支、完整提交与追踪号，并进入 CTF 选中真实 P7591；控制模型随后连续空回合，故不能把最终 CTF/CVE 全程写成 Stable 自举通过。
+- **功能代码自举已有真实但仍不等于完整自治交付的纵切**：本批次完成 Agent 自动执行环境、运行中消息 steering/queue、Git 变更文件悬浮跳转、CTF/CVE 共享 Coding/Pi 上下文、Stable/Beta 身份与构建追踪；自动化测试和打包均通过。正式 Stable 已通过内部 Computer Use 核对干净 Beta 的分支、完整提交与追踪号，并完成真实 CTF/CVE 任务连续性、PiP 与返回路径验收。实现过程仍有 reviewer 直接收口，不能外推为 Coding Agent 已能全自治完成任意功能开发。
 - Git 变更摘要现在可悬浮查看真实文件并点击打开“变更”；执行环境由 Agent 维护，不再暴露用户手工 writer 控件。自然会话中出现 Goal 与真实 Git diff 时的打包 App 悬浮纵切仍需补一条证据。
-- Computer Use：用户选择外部可见 App/PID/Window 的不可变 Scope；Stable/Beta 独立产品名、Bundle ID、图标、数据目录、构建追踪和自我排除已落地。Stable → Beta 已完成版本核验与真实 click/scroll；最终跨 CTF/CVE 全程受控制模型空回合阻断。Browser 与 Computer Use 仍是分离权限面。
+- Computer Use：用户选择外部可见 App/PID/Window 的不可变 Scope；Stable/Beta 独立产品名、Bundle ID、图标、数据目录、构建追踪和自我排除已落地。Stable → Beta 已完成版本核验、真实 click/scroll 与 CTF/CVE 连续性全程；右栏默认只保留目标、接入状态与一个主操作，权限、签名诊断和操作证据收进按需展开的“运行详情”。Browser 与 Computer Use 仍是分离权限面。
 - Session Index / 相关历史：MilkSU 自有 `obelisk.sqlite` 已索引本机 Coding、CTF、CVE 会话，支持 FTS/LIKE 搜索、Credential 遮蔽和用户确认后引用到当前输入。完整图谱改为**按需生成的人类语义图**：当前 Pi/Provider 在无工具静默回合中，把有界的 user/assistant 历史、Obelisk Memory 摘要和正式 Evidence 摘要归纳成主题、决策、问题、能力、里程碑、证据和洞见；工具消息不进入材料，节点必须回溯真实来源，关系明确是模型推断。图谱不读取目标文档、不写 Memory、不自动进入 Agent 上下文，也没有“引用到输入”动作。CTF Memory 继续属于独立领域事实，不与历史索引混写。
 - Composer `/` 已覆盖 Goal、Plan、Pi 会话动作、模型/权限、状态/Diff/Review、MCP、Browser Use 与 Computer Use；用户可见的 worktree / writer 入口已删除。Agent 运行时输入仍可发送：消息先通过 Pi steering 应用于下一次模型调用，并以队列卡片展示；只有真正 settled 才结束运行态。输入框左下“+”继续作为附件、Goal、Plan、浏览器、Browser/Computer Scope、已审核 Pi Skills 和项目 MCP 的统一入口。产品 UI 只使用“浏览器”，不暴露“沙箱浏览器”。
 - 浏览器三面已分责：右栏“浏览器”是会话隔离的内置 Chromium；`/browser-use` 复用固定版 Playwright MCP 官方扩展，由用户在真实 Chrome/Edge 选择准确标签页；`/computer-use` 只列外部原生 App，浏览器窗口不进入该 Scope。NSSCTF/CTFshow 的 MilkSU 扩展继续作为领域 Bridge，不承担通用浏览器控制。
@@ -44,26 +44,26 @@
 - CTF：题库、工作区、Evidence、候选、Judge、Checkpoint、恢复、复盘、Memory 主链存在；真实 Judge 成功仍只有窄 Web 路径。
 - CTF/CVE → Coding 已复用同一 Coding/Pi：交接只挂载草稿、不自动发送；右侧可折叠领域上下文保留题目/CVE、授权 Scope、材料、Evidence/Judge 或只读安全边界，并提供返回工作台。NSSCTF 附件或 Judge 未连接不再阻止用公开题面打开 Coding；附件缺失只作为材料警告。Beta Computer Use 已实测 P7591 与 CVE-2024-3400 的草稿交接和返回连续性；未运行 PoC、未提交 flag、未建立 Judge 成功事实。
 - Runtime：Sidecar 恢复、Compaction、异常退出标记、后台长任务打包 App/WebView 恢复、预算和失败分类已有。
-- UI：全局 rail 主题、设置、能力画像；能力画像支持移出延迟关闭与 Escape。Goal 与 Git 摘要位于输入框上方，Git 摘要可展开文件列表并跳到“变更”。Coding 顶部保留独立 Bottom Dock 和统一右栏；CTF/CVE 进入 Coding 后领域上下文可折叠/PiP，不再丢失原任务。Electron 窗口已避开 macOS 红黄绿按钮，Stable/Beta 使用正确名称与图标；设置页底部固定显示 branch、40 位 commit、clean/dirty、build time 和 tracking ID。
+- UI：全局 rail 主题、设置、能力画像；能力画像支持移出延迟关闭与 Escape。Goal 与 Git 摘要位于输入框上方，Git 摘要可展开文件列表并跳到“变更”。Coding 顶部保留独立 Bottom Dock 和统一右栏；CTF/CVE 进入 Coding 后领域上下文可折叠/PiP，不再丢失原任务。Computer Use 使用紧凑任务面，诊断与证据默认折叠。Electron 窗口已避开 macOS 红黄绿按钮，Stable/Beta 使用正确名称与图标；设置页底部固定显示 branch、40 位 commit、clean/dirty、build time 和 tracking ID。
 - 暂停/后置：Labs；CVE 纵深研究、真实漏洞复现、外部资产实验、披露；NYU safe-static 只是开发者 smoke，不是完整 CTF 成绩。
 
 ## 下一条完成线
 
 | 优先级 | 主线 | 只认什么完成 |
 | --- | --- | --- |
-| P0 | Coding 自举闭环 | 自动 worktree、功能代码、测试、Beta 打包与一段 Stable → Beta Computer Use 已有；下一条只认控制模型稳定完成同一最终 Beta 的 P7591 + CVE-2024-3400 全程、运行中 steering/queue、Git 悬浮跳转与失败恢复，并保留最终回执。历史 fixture、单元测试和人工补测不能替代这条证据。 |
+| P0 | Coding 自举闭环 | 自动 worktree、功能代码、测试、Beta 打包、运行中 steering/queue、Git 悬浮跳转与 Stable → Beta CTF/CVE 可见验收已有；下一条只认 Coding Agent 在一次自然功能任务中自行完成修改、测试、恢复与 Git 交付，并记录人工接管和越权拒绝。历史 fixture、单元测试和本批次 reviewer 直接收口不能替代。 |
 | P0 | Session Index | 继续内置 MilkSU 自有历史索引；外部会话导入在有明确文件选择、确认和产品调用者前不进发行图。 |
 | P0 | CVE 学习/追踪扩样 | 更多真实 CVE 验证同步、练习、研究档案、资产验证和学习写回；不做外部攻击、自动 PoC 或披露。 |
 | P1 | Computer Use 扩样 | Calculator 之外再加 1–2 个真实 App/窗口、权限拒绝路径；稳定 Developer ID 后复检 TCC。不与 Browser 强行合并权限。 |
 | P1 | 安全工具 MCP 常规能力 | 先在 Coding Agent 中接入 IDA Pro/idalib、Burp Suite、radare2、Ghidra、Semgrep 等固定版本、可审阅的安全工具 MCP，形成普通的安装、启用、健康检查、版本/Schema 审阅、Scope、审批与证据回执能力，而不是一次性 smoke。设置页管理已审阅服务，Composer “+”只选择已启用服务；是否进入 CTF/CVE 由后续用户监督的领域纵切单独决定。 |
 | P1 | Chromium 壳扩样 | 已完成 macOS ARM64 Electron/Chromium 壳、地址/搜索、点击、表单、公开资料调研与折叠连续执行纵切；下一阶段只补 Windows 打包评估、下载/弹窗/权限负向矩阵、页面崩溃恢复和自动化更新，不恢复 CEF/Wails 双壳。 |
-| P1 | MilkSU Beta 自举 | 双身份、数据目录、追踪、签名检查、自我排除与 Stable → Beta 版本核验已完成；只剩控制模型稳定跑完整 CTF/CVE 任务与 Developer ID 后的 TCC 复检。禁止稳定版控制自己或共享状态/权限。 |
+| P1 | MilkSU Beta 自举 | 双身份、数据目录、追踪、签名检查、自我排除、版本核验与 CTF/CVE 可见任务全程已完成；剩余 Developer ID 后的 TCC 复检与更广真实任务扩样。禁止稳定版控制自己或共享状态/权限。 |
 | P1 | Memory 可信度 | 区分 user / agent / shared / imported 与 none / hint / copilot / delegated；Agent 代做不能抬高用户独立能力。 |
 | P1 | Runtime Reliability | 自建安全 fixture：多轮、文件、命令、工具、重启、压缩、取消、预算、失败分类。 |
 | P2 | 本地交付与发行 | RC 再做崩溃恢复、诊断、全新机器、Developer ID `.app`、DMG、公证、stapling、升级、性能和尺寸；Developer ID 先于外部分发与 Computer Use TCC 复检。不读取或迁移本机签名私钥/证书密码/Personal Vault。 |
 | 持续 | 架构与 UI | 触碰即拆热点文件；不新开纯清债里程碑。UI 巡检后同步测试与当前文档。 |
 
-推荐顺序：先解决控制模型空回合并重跑最终 Stable → Beta 的 P7591/CVE-2024-3400/steering/Git 悬浮证据 → 再补 Chromium 与 Computer Use 负向/恢复扩样 → 并行推进安全工具 MCP 常规能力 → 最后加重 Memory / 发行 RC。安全工具是否进入 CTF/CVE 仍由用户监督的独立纵切决定。不恢复 `development-plan.md`，不把已删除 live smoke 嵌回产品启动链。
+推荐顺序：先用一次自然功能任务补齐 Coding Agent 自主修改/测试/恢复/Git 交付证据 → 再补 Chromium 与 Computer Use 负向/恢复扩样 → 并行推进安全工具 MCP 常规能力 → 最后加重 Memory / 发行 RC。安全工具是否进入 CTF/CVE 仍由用户监督的独立纵切决定。不恢复 `development-plan.md`，不把已删除 live smoke 嵌回产品启动链。
 
 ### 已完成纵切：相关历史人类语义图
 

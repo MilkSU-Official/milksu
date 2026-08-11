@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from '@felinic/ui'
 import {
+  ChevronDown,
   Compass,
   KeyRound,
   LoaderCircle,
@@ -214,6 +215,28 @@ const guidance = computed(() => {
   return '权限和窗口都已就绪，点击“启动可见会话”后才算正式接入当前 Coding 任务。'
 })
 
+const compactGuidance = computed(() => {
+  if (!props.status?.available) {
+    return props.status?.problem || 'Computer Use 当前不可用。'
+  }
+  if (missingPermissions.value.length) {
+    return `还需授权${missingPermissions.value.join('和')}；完成后重新检测。`
+  }
+  if (attachedToOtherTask.value) {
+    return '另一个 Coding 任务正在使用可见会话。'
+  }
+  if (props.ownedByCurrentTask && props.activeTargetMatchesScope === false) {
+    return '当前任务锁定了其他类型的可见 Scope，请先停止后再切换。'
+  }
+  if (!effectiveTarget.value) {
+    return '打开目标 App 后重新检测并选择窗口。'
+  }
+  if (readyForCurrentTask.value) {
+    return `已锁定 ${effectiveTarget.value.name}；Agent 只能操作这个 App / PID / Window。`
+  }
+  return '启动后，此窗口会成为当前任务唯一的 Computer Use Scope。'
+})
+
 const primarySetupAction = computed<{
   label: string
   detail: string
@@ -232,7 +255,7 @@ const primarySetupAction = computed<{
   }
   if (readyForCurrentTask.value) {
     return {
-      label: '已接入当前任务',
+      label: '停止可见会话',
       detail: effectiveTarget.value
         ? matchingOperationEvidence.value
           ? `最近真实操作：${matchingOperationEvidence.value.summary}`
@@ -303,24 +326,18 @@ function runPrimarySetupAction() {
 <template>
   <div :class="standalone ? '' : 'mt-5 border-t border-border pt-5'">
     <div class="flex items-start justify-between gap-3">
-      <div>
-        <p class="text-body font-medium">可见 App 会话</p>
+      <div class="min-w-0">
+        <p class="text-body font-medium">外部 App</p>
         <p class="mt-1 text-caption leading-5 text-muted-foreground">
-          选择一个当前可见窗口，启动后锁定为本轮 Computer Use Scope。
+          为当前任务锁定一个可见窗口。
         </p>
       </div>
-      <span
-        class="mt-1 size-2 shrink-0 rounded-full"
-        :class="readyForCurrentTask ? 'bg-primary' : 'bg-muted-foreground'"
-      />
+      <Badge :variant="connectionVariant" class="shrink-0">
+        {{ connectionLabel }}
+      </Badge>
     </div>
-    <div class="mt-4 rounded-md bg-muted/45 px-3 py-3 text-caption">
-      <div class="mb-3 flex items-center justify-between gap-3">
-        <span class="text-muted-foreground">接入状态</span>
-        <Badge :variant="connectionVariant">
-          {{ connectionLabel }}
-        </Badge>
-      </div>
+
+    <div class="mt-4 rounded-xl border border-border bg-muted/25 p-3">
       <div
         v-if="!ownedByCurrentTask"
         class="mb-3"
@@ -344,170 +361,160 @@ function runPrimarySetupAction() {
           </SelectContent>
         </Select>
       </div>
-      <div class="flex items-center justify-between gap-3">
-        <span class="text-muted-foreground">
-          {{ status?.conversationId ? '锁定范围' : '目标窗口' }}
-        </span>
-        <span class="font-medium text-foreground">
-          {{ effectiveTarget?.name || '未选择' }}
-        </span>
-      </div>
-      <p class="mt-1 break-all font-mono text-muted-foreground">
-        {{ effectiveTarget?.bundleId || '—' }}
-        · PID {{ effectiveTarget?.pid || '—' }}
-        · Window {{ effectiveTarget?.windowId || '—' }}
-      </p>
-      <p
-        v-if="effectiveTarget?.windowTitle"
-        class="mt-1 truncate text-muted-foreground"
-      >
-        {{ effectiveTarget.windowTitle }}
-      </p>
-      <div class="mt-3 flex flex-wrap gap-2">
-        <button
-          type="button"
-          class="rounded-full disabled:cursor-default"
-          :disabled="Boolean(status?.permissions.accessibility) || loading || running || !status?.available"
-          aria-label="请求辅助功能权限"
-          @click="emit('requestPermissions')"
-        >
-          <Badge
-            :variant="status?.permissions.accessibility ? 'secondary' : 'outline'"
-            :class="!status?.permissions.accessibility && status?.available ? 'cursor-pointer' : ''"
+
+      <div class="flex items-start gap-3">
+        <span
+          class="mt-1.5 size-2 shrink-0 rounded-full"
+          :class="readyForCurrentTask ? 'bg-primary' : 'bg-muted-foreground/60'"
+        />
+        <div class="min-w-0 flex-1">
+          <p class="truncate text-body font-medium">
+            {{ effectiveTarget?.name || '尚未选择窗口' }}
+          </p>
+          <p
+            v-if="effectiveTarget?.windowTitle"
+            class="mt-0.5 truncate text-caption text-muted-foreground"
           >
-            辅助功能
-            {{ accessibilityPermissionLabel }}
-          </Badge>
-        </button>
-        <button
-          type="button"
-          class="rounded-full disabled:cursor-default"
-          :disabled="Boolean(status?.permissions.screenRecording) || loading || running || !status?.available"
-          aria-label="请求屏幕录制权限"
-          @click="emit('requestPermissions')"
-        >
-          <Badge
-            :variant="status?.permissions.screenRecording ? 'secondary' : 'outline'"
-            :class="!status?.permissions.screenRecording && status?.available ? 'cursor-pointer' : ''"
+            {{ effectiveTarget.windowTitle }}
+          </p>
+          <p
+            v-if="effectiveTarget"
+            class="mt-1 truncate font-mono text-[11px] text-muted-foreground"
+            :title="`${effectiveTarget.bundleId} · PID ${effectiveTarget.pid} · Window ${effectiveTarget.windowId}`"
           >
-            屏幕录制
-            {{ screenRecordingPermissionLabel }}
-          </Badge>
-        </button>
-      </div>
-      <p
-        v-if="signingDiagnostic"
-        class="mt-3 break-all text-caption leading-5 text-muted-foreground"
-      >
-        {{ signingDiagnostic }}
-      </p>
-      <div class="mt-3 rounded-lg border border-border bg-background/70 px-3 py-3" aria-label="Computer Use 真实操作证据">
-        <div class="flex items-start justify-between gap-3">
-          <div class="min-w-0">
-            <p class="text-caption font-medium text-muted-foreground">真实操作证据</p>
-            <p v-if="matchingOperationEvidence" class="mt-1 text-body font-medium">
-              {{ matchingOperationEvidence.summary }}
-            </p>
-            <p v-else class="mt-1 text-body font-medium">
-              {{ operationScopeMismatch ? 'Scope 不匹配' : '等待真实操作' }}
-            </p>
-            <p class="mt-1 text-caption leading-5 text-muted-foreground">
-              <template v-if="matchingOperationEvidence">
-                来自已完成的 computer_use 工具结果；只有 action、bundle、PID 和 Window 与当前 Scope 全部一致才计入。
-              </template>
-              <template v-else-if="operationScopeMismatch">
-                最近一次操作属于 {{ operationEvidence?.targetName }} · {{ operationEvidence?.bundleId }} · PID {{ operationEvidence?.pid }} · Window {{ operationEvidence?.windowId }}，不会冒充当前窗口验收。
-              </template>
-              <template v-else>
-                仅锁定 Scope 还不算真实 GUI 验收；需要 Agent 使用 computer_use 对此窗口完成 click、type、key 或 scroll。observe 只算可见观察，不算操作完成。
-              </template>
-            </p>
-          </div>
-          <Badge :variant="matchingOperationEvidence ? 'secondary' : 'outline'" class="shrink-0">
-            {{ matchingOperationEvidence ? '已操作' : operationScopeMismatch ? '不计入' : '待操作' }}
-          </Badge>
+            {{ effectiveTarget.bundleId }} · PID {{ effectiveTarget.pid }} · Window {{ effectiveTarget.windowId }}
+          </p>
         </div>
       </div>
-      <div class="mt-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-3" aria-label="Computer Use 下一步">
-        <div class="flex items-start justify-between gap-3">
-          <div class="min-w-0">
-            <p class="text-caption font-medium text-muted-foreground">下一步</p>
-            <p class="mt-1 text-body font-medium">{{ primarySetupAction.label }}</p>
-            <p class="mt-1 text-caption leading-5 text-muted-foreground">
-              {{ primarySetupAction.detail }}
-            </p>
+
+      <p
+        class="mt-3 text-caption leading-5"
+        :class="status?.problem ? 'text-destructive' : 'text-muted-foreground'"
+      >
+        {{ compactGuidance }}
+      </p>
+
+      <Button
+        :variant="primarySetupAction.variant"
+        size="sm"
+        class="mt-3 w-full"
+        :disabled="primarySetupAction.disabled"
+        aria-label="执行 Computer Use 下一步"
+        @click="runPrimarySetupAction"
+      >
+        <LoaderCircle v-if="loading" class="size-3.5 animate-spin" />
+        <Compass v-else-if="primarySetupAction.action === 'start'" class="size-3.5" />
+        <KeyRound v-else-if="primarySetupAction.action === 'permissions'" class="size-3.5" />
+        {{ primarySetupAction.label }}
+      </Button>
+    </div>
+
+    <details class="group mt-3 rounded-lg border border-border bg-background/60">
+      <summary
+        class="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-caption text-muted-foreground [&::-webkit-details-marker]:hidden"
+        aria-label="Computer Use 运行详情"
+      >
+        <span class="font-medium text-foreground">运行详情</span>
+        <span class="min-w-0 flex-1 truncate text-right">
+          {{ matchingOperationEvidence ? '已记录真实操作' : permissionsReady ? '权限就绪' : `${missingPermissions.length} 项待授权` }}
+        </span>
+        <ChevronDown class="size-3.5 shrink-0 transition-transform group-open:rotate-180" />
+      </summary>
+
+      <div class="space-y-4 border-t border-border px-3 py-3">
+        <div>
+          <p class="text-caption font-medium text-muted-foreground">系统权限</p>
+          <div class="mt-2 flex flex-wrap gap-2">
+            <button
+              type="button"
+              class="rounded-full disabled:cursor-default"
+              :disabled="Boolean(status?.permissions.accessibility) || loading || running || !status?.available"
+              aria-label="请求辅助功能权限"
+              @click="emit('requestPermissions')"
+            >
+              <Badge
+                :variant="status?.permissions.accessibility ? 'secondary' : 'outline'"
+                :class="!status?.permissions.accessibility && status?.available ? 'cursor-pointer' : ''"
+              >
+                辅助功能 {{ accessibilityPermissionLabel }}
+              </Badge>
+            </button>
+            <button
+              type="button"
+              class="rounded-full disabled:cursor-default"
+              :disabled="Boolean(status?.permissions.screenRecording) || loading || running || !status?.available"
+              aria-label="请求屏幕录制权限"
+              @click="emit('requestPermissions')"
+            >
+              <Badge
+                :variant="status?.permissions.screenRecording ? 'secondary' : 'outline'"
+                :class="!status?.permissions.screenRecording && status?.available ? 'cursor-pointer' : ''"
+              >
+                屏幕录制 {{ screenRecordingPermissionLabel }}
+              </Badge>
+            </button>
           </div>
-          <Button
-            :variant="primarySetupAction.variant"
-            size="sm"
-            class="shrink-0"
-            :disabled="primarySetupAction.disabled"
-            aria-label="执行 Computer Use 下一步"
-            @click="runPrimarySetupAction"
+          <p
+            v-if="signingDiagnostic"
+            class="mt-2 break-words text-caption leading-5 text-muted-foreground"
           >
-            {{ primarySetupAction.label }}
+            {{ signingDiagnostic }}
+          </p>
+        </div>
+
+        <div class="border-t border-border pt-3" aria-label="Computer Use 真实操作证据">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <p class="text-caption font-medium text-muted-foreground">最近操作</p>
+              <p class="mt-1 break-words text-caption leading-5 text-foreground">
+                <template v-if="matchingOperationEvidence">
+                  {{ matchingOperationEvidence.summary }}
+                </template>
+                <template v-else-if="operationScopeMismatch">
+                  其他窗口的操作不会计入当前 Scope。
+                </template>
+                <template v-else>
+                  暂无；observe 只表示看见窗口，click、type、key 或 scroll 才记为真实操作。
+                </template>
+              </p>
+            </div>
+            <Badge :variant="matchingOperationEvidence ? 'secondary' : 'outline'" class="shrink-0">
+              {{ matchingOperationEvidence ? '已记录' : operationScopeMismatch ? '不匹配' : '暂无' }}
+            </Badge>
+          </div>
+        </div>
+
+        <p class="border-t border-border pt-3 text-caption leading-5 text-muted-foreground">
+          {{ guidance }}
+        </p>
+
+        <div class="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            :disabled="loading || running"
+            @click="emit('refresh')"
+          >
+            <LoaderCircle v-if="loading" class="size-3.5 animate-spin" />
+            <RefreshCw v-else class="size-3.5" />
+            重新检测
+          </Button>
+          <Button
+            v-if="!permissionsReady"
+            variant="outline"
+            size="sm"
+            :disabled="loading || running || !status?.available"
+            @click="emit('requestPermissions')"
+          >
+            <KeyRound class="size-3.5" />
+            系统权限设置
           </Button>
         </div>
+
+        <p class="text-[11px] leading-4 text-muted-foreground">
+          {{ approvalGuidance }} Driver {{ status?.driverVersion || '0.14.2' }} · prerelease。
+        </p>
       </div>
-    </div>
-    <p
-      v-if="status?.problem"
-      class="mt-3 text-caption leading-5 text-destructive"
-    >
-      {{ status.problem }}
-    </p>
-    <p
-      v-else
-      class="mt-3 text-caption leading-5 text-muted-foreground"
-    >
-      {{ guidance }}
-    </p>
-    <div class="mt-4 flex flex-wrap gap-2">
-      <Button
-        variant="outline"
-        size="sm"
-        :disabled="loading || running"
-        @click="emit('refresh')"
-      >
-        <LoaderCircle v-if="loading" class="size-3.5 animate-spin" />
-        <RefreshCw v-else class="size-3.5" />
-        重新检测
-      </Button>
-      <Button
-        v-if="!permissionsReady"
-        variant="outline"
-        size="sm"
-        :disabled="loading || running || !status?.available"
-        @click="emit('requestPermissions')"
-      >
-        <LoaderCircle v-if="loading" class="size-3.5 animate-spin" />
-        <KeyRound v-else class="size-3.5" />
-        打开系统权限设置
-      </Button>
-      <Button
-        v-if="ownedByCurrentTask"
-        variant="outline"
-        size="sm"
-        :disabled="loading || running"
-        @click="emit('stop')"
-      >
-        停止可见会话
-      </Button>
-      <Button
-        v-else
-        variant="brand"
-        size="sm"
-        :disabled="!canStart"
-        @click="emit('start')"
-      >
-        <LoaderCircle v-if="loading" class="size-3.5 animate-spin" />
-        <Compass v-else class="size-3.5" />
-        启动可见会话
-      </Button>
-    </div>
-    <p class="mt-3 text-caption leading-5 text-muted-foreground">
-      可见会话必须由你显式启动；{{ approvalGuidance }}
-      Driver {{ status?.driverVersion || '0.14.2' }} · prerelease。
-    </p>
+    </details>
   </div>
 </template>

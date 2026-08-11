@@ -32,12 +32,13 @@
   进度胶囊和输入栏，且未调用工具。`grok-4.3` 仍为 text-only。text-only 路径继续 OCR + 可选
   auxiliary vision。
 - **功能代码自举已有真实部分纵切**：自动执行环境、运行中消息 steering/queue、Git 文件悬浮跳转、
-  CTF/CVE 共享 Coding/Pi、Stable/Beta 身份与构建追踪已实现并测试。Stable 已用 Computer Use 核对
-  干净 Beta 的 branch/40 位 commit/tracking ID，并进入 CTF 选中 P7591；控制模型连续空回合，故最终
-  CTF/CVE 全程仍未通过，不能写成自举完成。
+  CTF/CVE 共享 Coding/Pi、Stable/Beta 身份与构建追踪已实现并测试。正式 Stable 已用内部 Computer Use
+  核对干净 Beta 的 branch/40 位 commit/tracking ID，并完成 CTF/CVE 任务连续性、PiP 与返回路径全程。
+  实现过程仍有 reviewer 直接收口，因此不能写成 Coding Agent 已完成通用自治交付。
 - Git 变更摘要可悬浮查看文件并跳到“变更”；自然 Agent 会话同时出现 Goal 与真实 Git diff 的打包
-  App 证据仍待补。Computer Use 已从 Calculator 扩到 Stable → MilkSU Beta 的真实 click/scroll；
-  Browser 与 Computer Use 仍分离，Developer ID / TCC 复检未完成。
+  App 证据仍待补。Computer Use 已从 Calculator 扩到 Stable → MilkSU Beta 的真实 click/scroll 和
+  CTF/CVE 连续性全程；右栏默认收敛为目标、状态和单一主操作，诊断与证据按需展开。Browser 与
+  Computer Use 仍分离，Developer ID / TCC 复检未完成。
 - Composer `/` 以可删除内联状态启用 Browser/Computer；通用 Browser Use 复用固定版 Playwright
   MCP 官方扩展并由用户选择真实标签页，Computer Use 排除浏览器。MilkSU CTF 扩展仍负责
   NSSCTF/CTFshow 领域采集与 Judge，不被通用上游替代。
