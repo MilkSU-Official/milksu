@@ -51,6 +51,7 @@ const settings = ref<AppSettings | null>(null)
 const accountStatus = ref<AccountStatus>({ configured: false, authenticated: false, state: 'unconfigured' })
 const accountLoaded = ref(false)
 const accountLoginBusy = ref(false)
+const accountLoginError = ref('')
 const localAccountModeKey = 'milksu.account.continue-local'
 
 function readLocalAccountMode() {
@@ -138,20 +139,30 @@ async function loadAccountStatus() {
 
 async function startAccountLogin() {
   accountLoginBusy.value = true
+  accountLoginError.value = ''
   try {
     accountStatus.value = await invokeCommand<AccountStatus>('start_account_login')
+  } catch {
+    accountLoginError.value = '无法打开 GitHub 登录。请检查网络或稍后再试；你仍可使用自己的 API Key。'
+    accountStatus.value = {
+      ...accountStatus.value,
+      authenticated: false,
+      state: 'unavailable',
+    }
   } finally {
     accountLoginBusy.value = false
   }
 }
 
 async function logoutAccount() {
+  accountLoginError.value = ''
   accountStatus.value = await invokeCommand<AccountStatus>('logout_account')
   continueWithoutAccount.value = true
   writeLocalAccountMode(true)
 }
 
 function useLocalAccountMode() {
+  accountLoginError.value = ''
   continueWithoutAccount.value = true
   writeLocalAccountMode(true)
 }
@@ -388,6 +399,7 @@ onMounted(async () => {
   unlistenAccount = await listenEvent<AccountStatus>('account.changed', event => {
     accountStatus.value = event.payload
     if (event.payload.state === 'active') {
+      accountLoginError.value = ''
       continueWithoutAccount.value = false
       writeLocalAccountMode(false)
     }
@@ -409,6 +421,7 @@ onBeforeUnmount(() => unlistenAccount?.())
     v-else-if="showAccountGate"
     :status="accountStatus"
     :busy="accountLoginBusy"
+    :error="accountLoginError"
     @login="startAccountLogin"
     @continue-local="useLocalAccountMode"
   />

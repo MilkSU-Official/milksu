@@ -8,6 +8,7 @@ import type { AccountStatus } from '@/types'
 const props = defineProps<{
   status: AccountStatus
   busy: boolean
+  error?: string
 }>()
 
 defineEmits<{
@@ -40,6 +41,9 @@ const loginLabel = computed(() => props.status.state === 'authorizing' ? '等待
           登录 <span class="text-lime-300">MilkSU</span>
         </h1>
         <p class="mt-5 text-lg leading-7 text-slate-300">{{ stateMessage }}</p>
+        <p v-if="error" class="mt-4 rounded-lg border border-rose-400/30 bg-rose-950/30 px-4 py-3 text-sm leading-6 text-rose-100" role="alert">
+          {{ error }}
+        </p>
 
         <Button
           size="lg"

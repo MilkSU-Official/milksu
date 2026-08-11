@@ -39,4 +39,19 @@ describe('AccountLoginPage', () => {
     expect(mounted.host.textContent).toContain('使用自己的 API Key')
     mounted.app.unmount()
   })
+
+  it('shows a login failure without hiding the personal API key path', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    const app = createApp(AccountLoginPage, {
+      status: { configured: true, authenticated: false, state: 'unavailable' },
+      busy: false,
+      error: '无法打开 GitHub 登录。请检查网络或稍后再试；你仍可使用自己的 API Key。',
+    })
+    app.mount(host)
+    await nextTick()
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain('无法打开 GitHub 登录')
+    expect(host.textContent).toContain('暂不登录，使用自己的 API Key')
+    app.unmount()
+  })
 })
