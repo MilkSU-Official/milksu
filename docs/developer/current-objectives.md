@@ -53,6 +53,7 @@
 
 - **任务**：Codex `019fe9ee-b865-75b3-903d-bada1266f254`。
 - **目标文档**：[个人安全工作台计划](security-workspace-product-plan.md)。
+- **关联方式**：该 Codex 任务执行目标文档中的产品目标，本节只维护当前切片、完成线和验收状态。
 - **当前切片**：目标问答、六张定稿图、个人资料、轻量 CTF/CVE、独立 Admin 基线和双模型来源路由已经进入代码。干净提交 `dbdd59dcb2776fa52a4a6c9d0add09ec05bc1ae3` 已构建并检查 Beta；原生 UI 已核对个人页、CTF/CVE 草稿交接、PiP/返回、关联对话、来源顺序和无虚构 CVE 资产。账户部署和模型凭据未配置，因此在线 GitHub 登录、真实额度及由 App 内 Agent 完成 CTF/CVE 仍未验收，不能写成已完成。
 - **完成线**：个人资料、轻量 CTF、轻量 CVE、账户额度/个人 Key 路由均按定稿图完成；从干净
   提交构建 Beta，核对 branch、完整 commit、tracking ID，并在真实账户部署和可用模型来源下完成 CTF/CVE 与账户路径验收；之后再构建正式 App。

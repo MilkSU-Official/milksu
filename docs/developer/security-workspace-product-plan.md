@@ -4,9 +4,8 @@
 >
 > 形成日期：2026-08-11
 >
-> 进行中目标：Codex 任务 `019fe9ee-b865-75b3-903d-bada1266f254`
->
-> 当前执行入口：[当前开发目标](current-objectives.md#进行中目标个人安全工作台)
+> 目标关联：Codex 任务 `019fe9ee-b865-75b3-903d-bada1266f254`（进行中）→ 本产品计划 →
+> [当前开发目标](current-objectives.md#进行中目标个人安全工作台)
 >
 > 本文是下一阶段产品目标，不是完成证据。执行时先读取
 > `current-objectives.md`、`product-code-admission.md`、`current-system.md` 和当前代码。
