@@ -118,7 +118,7 @@ function openSettings() {
           <img
             :src="avatarSource"
             alt="用户头像"
-            class="size-9 rounded-xl border-2 border-primary bg-white object-cover"
+            class="size-9 rounded-full border-2 border-primary bg-white object-cover"
           >
           <i class="absolute bottom-0 right-0 size-3 rounded-full border-2 border-sidebar bg-primary" aria-hidden="true" />
           <span

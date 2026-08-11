@@ -43,6 +43,7 @@ describe('AppSidebar', () => {
     expect(ctf.querySelector('[aria-label="全局工作区"]')?.textContent).toContain('CTF')
     expect(ctf.querySelector('[aria-label="CTF 工作区"]')).toBeNull()
     expect(ctf.querySelector('[aria-label="打开用户菜单"]')).not.toBeNull()
+    expect(ctf.querySelector<HTMLImageElement>('img[alt="用户头像"]')?.className).toContain('rounded-full')
     expect(ctf.querySelector('[aria-label="设置"]')).not.toBeNull()
     expect(ctf.textContent).not.toContain('题库')
 
