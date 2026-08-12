@@ -53,7 +53,7 @@ function selectCollection(id: string) {
 </script>
 
 <template>
-  <div class="collection-tabs flex min-w-0 shrink items-center overflow-x-auto border border-border bg-card/45" role="tablist" aria-label="收藏夹">
+  <div class="collection-tabs flex min-w-0 shrink items-center overflow-x-auto border border-border bg-card" role="tablist" aria-label="收藏夹">
     <button
       type="button"
       class="collection-tab"
@@ -121,7 +121,7 @@ function selectCollection(id: string) {
 </template>
 
 <style scoped>
-.collection-tabs { border-radius: .45rem; scrollbar-width: none; }
+.collection-tabs { border-radius: 0; clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%); scrollbar-width: none; }
 .collection-tabs::-webkit-scrollbar { display: none; }
 .collection-tab { position: relative; display: inline-flex; height: 2.65rem; flex: none; align-items: center; gap: .45rem; border: 0; border-right: 1px solid var(--border); background: transparent; padding: 0 1rem; color: var(--muted-foreground); font-size: var(--text-body); cursor: pointer; }
 .collection-tab:hover { color: var(--foreground); background: var(--overlay-hover-light); }

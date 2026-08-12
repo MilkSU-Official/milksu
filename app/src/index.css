@@ -26,29 +26,29 @@
    * tokens: components consume roles such as background, card, border and
    * brand, never HTB-specific color literals.
    */
-  --background: #071523;
-  --background-chrome: #06111e;
+  --background: #0d1115;
+  --background-chrome: #090c0f;
   --foreground: #f4f7fb;
-  --card: #0b1a2b;
+  --card: #14191d;
   --card-foreground: #f4f7fb;
-  --popover: #0d1d30;
+  --popover: #171c21;
   --popover-foreground: #f4f7fb;
-  --secondary: #10233a;
+  --secondary: #1b2026;
   --secondary-foreground: #f4f7fb;
-  --muted: #102238;
+  --muted: #1b2026;
   --muted-foreground: #8998ad;
-  --accent: #11263e;
+  --accent: #20262c;
   --accent-foreground: #f4f7fb;
-  --border: #1c3048;
+  --border: #353c43;
   --border-soft: color-mix(in oklab, var(--border) 62%, transparent);
-  --border-hairline: #304963;
-  --border-menu: #304963;
-  --border-menu-elevated: #3d5873;
-  --input: #304963;
+  --border-hairline: #424a52;
+  --border-menu: #424a52;
+  --border-menu-elevated: #59636d;
+  --input: #515b65;
   --ring: #168dff;
-  --sidebar: #06111e;
+  --sidebar: #090c0f;
   --sidebar-foreground: #f4f7fb;
-  --sidebar-border: #1c3048;
+  --sidebar-border: #353c43;
   --sidebar-accent: var(--overlay-hover);
   --sidebar-accent-foreground: #f4f4f4;
   --scrollbar-thumb: rgb(137 152 173 / 0.24);
@@ -76,8 +76,8 @@
   --focus-panel: rgb(159 239 0 / 0.055);
   --focus-panel-strong: rgb(159 239 0 / 0.11);
   --grid-line: rgb(106 169 255 / 0.075);
-  --surface-raised: #0d1d30;
-  --surface-sunken: #06111e;
+  --surface-raised: #171c21;
+  --surface-sunken: #0b0e11;
 
   --overlay-hover-light: rgb(255 255 255 / 0.055);
   --overlay-hover: rgb(255 255 255 / 0.09);
@@ -86,8 +86,8 @@
   --overlay-active-strong: rgb(255 255 255 / 0.19);
   --action-card-hover: rgb(255 255 255 / 0.055);
   --action-card-active: rgb(255 255 255 / 0.085);
-  --segment-track: #1e2939;
-  --segment-thumb: #344158;
+  --segment-track: #191e23;
+  --segment-thumb: #343b42;
 
   --success: #9fef00;
   --success-foreground: #c8ff5b;
@@ -149,29 +149,29 @@
 :root[data-theme='light'] {
   color-scheme: light;
 
-  --background: #ffffff;
-  --background-chrome: #f7faff;
+  --background: #ebe9e2;
+  --background-chrome: #deddd6;
   --foreground: #101c2b;
-  --card: #ffffff;
+  --card: #f4f2eb;
   --card-foreground: #101c2b;
-  --popover: #ffffff;
+  --popover: #f4f2eb;
   --popover-foreground: #101c2b;
-  --secondary: #edf4fb;
+  --secondary: #ddddd7;
   --secondary-foreground: #101c2b;
-  --muted: #f1f5fa;
+  --muted: #e3e1da;
   --muted-foreground: #627087;
-  --accent: #e9f3fe;
+  --accent: #d8d8d2;
   --accent-foreground: #101c2b;
-  --border: #d6e0ec;
+  --border: #b7b6af;
   --border-soft: color-mix(in oklab, var(--border) 70%, transparent);
-  --border-hairline: #c3d0df;
-  --border-menu: #c3d0df;
-  --border-menu-elevated: #aebdd0;
-  --input: #b9c8da;
-  --ring: #087ee8;
-  --sidebar: #f8fbff;
-  --sidebar-foreground: #101c2b;
-  --sidebar-border: #d6e0ec;
+  --border-hairline: #a8a8a2;
+  --border-menu: #a8a8a2;
+  --border-menu-elevated: #91938f;
+  --input: #9da09e;
+  --ring: #6b8e12;
+  --sidebar: #090c0f;
+  --sidebar-foreground: #f4f7fb;
+  --sidebar-border: #353c43;
   --sidebar-accent: var(--overlay-hover);
   --sidebar-accent-foreground: #17201b;
   --scrollbar-thumb: rgb(101 117 105 / 0.28);
@@ -199,8 +199,8 @@
   --focus-panel: rgb(95 152 0 / 0.045);
   --focus-panel-strong: rgb(95 152 0 / 0.09);
   --grid-line: rgb(47 111 167 / 0.065);
-  --surface-raised: #f7faff;
-  --surface-sunken: #f2f6fb;
+  --surface-raised: #f4f2eb;
+  --surface-sunken: #deddd6;
 
   --overlay-hover-light: rgb(23 32 27 / 0.045);
   --overlay-hover: rgb(23 32 27 / 0.075);
@@ -209,8 +209,8 @@
   --overlay-active-strong: rgb(95 152 0 / 0.2);
   --action-card-hover: rgb(23 32 27 / 0.045);
   --action-card-active: rgb(95 152 0 / 0.1);
-  --segment-track: #e5edf6;
-  --segment-thumb: #ffffff;
+  --segment-track: #d2d2cc;
+  --segment-thumb: #f4f2eb;
 
   --success: #5f9800;
   --success-foreground: #426b00;
@@ -313,7 +313,7 @@ body {
 :root[data-theme='light'] .chat-main,
 :root[data-theme='light'] .settings-page,
 :root[data-theme='light'] .profile-page {
-  background-color: #eef0ef;
+  background-color: var(--background);
   background-image: var(--tactical-paper-image);
 }
 
@@ -323,6 +323,59 @@ body {
   background: var(--card);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / .035);
   clip-path: polygon(0 var(--tactical-cut), var(--tactical-cut) 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%);
+}
+
+.tactical-paper-surface {
+  color: #f4f7fb;
+  --foreground: #f4f7fb;
+  --card-foreground: #f4f7fb;
+  --popover: #171c21;
+  --popover-foreground: #f4f7fb;
+  --secondary: #1b2026;
+  --secondary-foreground: #f4f7fb;
+  --muted: #1b2026;
+  --muted-foreground: #9ba6b4;
+  --accent: #20262c;
+  --accent-foreground: #f4f7fb;
+  --border: #353c43;
+  --border-hairline: #424a52;
+  --input: #515b65;
+  --card: #14191d;
+  --surface-raised: #171c21;
+  --surface-sunken: #0b0e11;
+}
+
+:root[data-theme='light'] .tactical-paper-surface {
+  color: var(--tactical-paper-ink);
+  --foreground: var(--tactical-paper-ink);
+  --muted-foreground: var(--tactical-paper-muted);
+  --border: #b7b6af;
+  --border-hairline: #a8a8a2;
+  --card: #f4f2eb;
+  --card-foreground: var(--tactical-paper-ink);
+  --popover: #f4f2eb;
+  --popover-foreground: var(--tactical-paper-ink);
+  --secondary: #ddddd7;
+  --secondary-foreground: var(--tactical-paper-ink);
+  --muted: #e3e1da;
+  --accent: #d8d8d2;
+  --accent-foreground: var(--tactical-paper-ink);
+  --input: #9da09e;
+  --surface-raised: #f4f2eb;
+  --surface-sunken: #deddd6;
+}
+
+.tactical-desk-head {
+  background: #171c21;
+  color: #9ba6b4;
+  font-family: 'SFMono-Regular', monospace;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+:root[data-theme='light'] .tactical-paper-surface .tactical-desk-head {
+  background: #deddd6;
+  color: #555954;
 }
 
 .game-focus-panel {
@@ -382,20 +435,20 @@ body {
 [data-button][data-variant="brand"]::before,
 [data-button][data-variant="primary"]::before,
 [data-button][data-variant="default"]::before {
-  background-color: var(--action) !important;
-  box-shadow: 0 0 0 1px var(--action-border), 0 8px 26px color-mix(in srgb, var(--action) 14%, transparent);
+  background-color: var(--tactical-blue) !important;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--tactical-blue) 72%, white), 0 8px 26px rgb(8 124 240 / .14);
 }
 
 [data-button][data-variant="brand"]:hover::before,
 [data-button][data-variant="primary"]:hover::before,
 [data-button][data-variant="default"]:hover::before {
-  background-color: var(--action-hover) !important;
+  background-color: #2691f5 !important;
 }
 
 [data-button][data-variant="brand"]:active::before,
 [data-button][data-variant="primary"]:active::before,
 [data-button][data-variant="default"]:active::before {
-  background-color: var(--action-active) !important;
+  background-color: var(--tactical-blue-strong) !important;
 }
 
 [data-slot="input"],
@@ -407,7 +460,7 @@ body {
 [data-slot="input"]:focus,
 [data-slot="select-trigger"][data-state="open"],
 [data-slot="native-select"]:focus {
-  box-shadow: inset 0 0 0 1px var(--action), 0 0 0 3px var(--action-soft) !important;
+  box-shadow: inset 0 0 0 1px var(--tactical-acid), 0 0 0 3px rgb(183 239 40 / .12) !important;
 }
 
 [data-slot="dialog-content"],
@@ -528,12 +581,29 @@ pre,
  * Tactical archive primitives. Surfaces use the generated raster materials,
  * while CSS owns only layout, states and structural cuts.
  */
-.tactical-command-surface {
-  position: relative;
+.tactical-command-surface,
+.tactical-dark-surface {
   color: #f4f7fb;
   --foreground: #f4f7fb;
+  --card-foreground: #f4f7fb;
+  --popover-foreground: #f4f7fb;
+  --secondary-foreground: #f4f7fb;
+  --accent-foreground: #f4f7fb;
   --muted-foreground: #9ba6b4;
   --border: #333a41;
+  --border-hairline: #424a52;
+  --input: #515b65;
+  --card: #14191d;
+  --popover: #171c21;
+  --secondary: #1b2026;
+  --muted: #1b2026;
+  --accent: #20262c;
+  --surface-raised: #171c21;
+  --surface-sunken: #0b0e11;
+}
+
+.tactical-command-surface {
+  position: relative;
   border: 1px solid #333a41;
   background-color: var(--tactical-ink-2);
   background-image: var(--tactical-carbon-image);
@@ -608,7 +678,8 @@ pre,
   color: var(--foreground);
 }
 
-.tactical-paper .tactical-acid-panel {
+.tactical-paper .tactical-acid-panel,
+.tactical-paper-surface .tactical-acid-panel {
   border-color: #859842;
   background: color-mix(in srgb, var(--tactical-acid) 18%, var(--tactical-paper));
   box-shadow: inset 4px 0 0 #789800;

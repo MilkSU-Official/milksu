@@ -3,6 +3,9 @@ import ctfChallengeDeskSource from './CTFChallengeDesk.vue?raw'
 import chatComposerSource from './ChatComposer.vue?raw'
 import chatMessageItemSource from './ChatMessageItem.vue?raw'
 import contextSidebarSource from './ContextSidebar.vue?raw'
+import chatPageSource from './ChatPage.vue?raw'
+import loginPageSource from './AccountLoginPage.vue?raw'
+import settingsPageSource from './SettingsPage.vue?raw'
 import vulnPageSource from './VulnPage.vue?raw'
 import workspaceRailSource from './WorkspaceRail.vue?raw'
 
@@ -29,5 +32,12 @@ describe('Workspace visual contract', () => {
     expect(chatComposerSource).toContain('border-radius: 9999px;')
     expect(workspaceRailSource).toContain('font-size: var(--text-body)')
     expect(workspaceRailSource).toContain('line-height: var(--text-body--line-height)')
+  })
+
+  it('pins every persistent dark surface to its own readable theme roles', () => {
+    expect(loginPageSource).toContain('game-shell tactical-dark-surface')
+    expect(settingsPageSource).toContain('settings-nav tactical-dark-surface')
+    expect(chatPageSource).toContain('context-sidebar tactical-dark-surface')
+    expect(workspaceRailSource).toContain('--foreground: #f4f7fb')
   })
 })

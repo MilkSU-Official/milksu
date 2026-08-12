@@ -266,9 +266,9 @@ function openTopic(query: string) {
       </div>
     </form>
 
-    <section class="min-h-0 flex-1 overflow-auto" aria-label="CVE 列表">
+    <section class="tactical-paper-surface min-h-0 flex-1 overflow-auto bg-card" aria-label="CVE 列表">
       <div class="min-w-[1040px]">
-        <div class="tactical-table-head grid h-12 grid-cols-[170px_minmax(260px,1.2fr)_minmax(190px,.9fr)_100px_150px_42px_120px] items-center gap-4 border-b border-border px-6 text-caption text-muted-foreground">
+        <div class="tactical-desk-head tactical-table-head grid h-12 grid-cols-[170px_minmax(260px,1.2fr)_minmax(190px,.9fr)_100px_150px_42px_120px] items-center gap-4 border-b border-border px-6 text-caption text-muted-foreground">
           <span>CVE</span><span>漏洞</span><span>厂商/产品</span><span>严重性</span><span>我的状态</span><span class="sr-only">收藏</span><span>最近研究</span>
         </div>
 
@@ -377,5 +377,5 @@ function openTopic(query: string) {
 <style scoped>
 .vuln-row { position: relative; transition: background-color 140ms ease; }
 .vuln-row-selected { background: var(--focus-panel); box-shadow: inset 3px 0 0 var(--brand); }
-.tactical-table-head { background: var(--tactical-ink-2); color: #9ea8b2; font-family: 'SFMono-Regular', monospace; letter-spacing: .08em; text-transform: uppercase; }
+.tactical-table-head { font-family: 'SFMono-Regular', monospace; letter-spacing: .08em; text-transform: uppercase; }
 </style>

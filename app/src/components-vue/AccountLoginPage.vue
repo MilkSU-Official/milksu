@@ -29,7 +29,7 @@ const loginLabel = computed(() => props.status.state === 'authorizing' ? '等待
 </script>
 
 <template>
-  <main class="account-login game-shell flex min-h-screen min-w-0 bg-background text-foreground" aria-label="登录 MilkSU">
+  <main class="account-login game-shell tactical-dark-surface flex min-h-screen min-w-0 bg-background text-foreground" aria-label="登录 MilkSU">
     <section class="flex min-w-0 flex-1 flex-col px-10 py-9 md:px-20 md:py-16">
       <header class="flex items-center gap-3">
         <img :src="brandLockup" alt="MilkSU" class="h-[2.6rem] w-auto object-contain">

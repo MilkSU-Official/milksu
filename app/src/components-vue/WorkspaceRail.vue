@@ -216,7 +216,7 @@ function openSettings() {
 
 <style scoped>
 .workspace-rail-traffic-safe { box-sizing: border-box; min-height: 5.75rem; padding-top: 2.1rem; padding-bottom: .5rem; }
-.workspace-rail { background-color: var(--tactical-ink); background-image: var(--tactical-carbon-image); background-size: 640px 640px; }
+.workspace-rail { color: #f4f7fb; --foreground: #f4f7fb; --card-foreground: #f4f7fb; --muted-foreground: #9ba6b4; --border: #353c43; --border-hairline: #424a52; --input: #515b65; --card: #14191d; --popover: #171c21; --popover-foreground: #f4f7fb; --secondary: #1b2026; --secondary-foreground: #f4f7fb; --accent: #20262c; --accent-foreground: #f4f7fb; background-color: var(--tactical-ink); background-image: var(--tactical-carbon-image); background-size: 640px 640px; }
 .workspace-rail-item { font-size: var(--text-body); line-height: var(--text-body--line-height); letter-spacing: var(--text-body--letter-spacing); }
 .workspace-rail-item, .workspace-rail-control { --border-hairline: transparent; --selected-border: transparent; }
 .workspace-rail-active { color: #fff; background: linear-gradient(100deg, #1d2228 0 84%, var(--tactical-acid) 84% 100%); }

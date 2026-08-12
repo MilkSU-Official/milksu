@@ -34,11 +34,26 @@ describe('global style contract', () => {
     expect(indexCss).toContain('-webkit-font-smoothing: auto')
   })
 
-  it('keeps the day-mode workspace white with cool blue chrome', () => {
+  it('keeps day mode on the tactical paper palette with a persistent dark rail', () => {
     const lightTheme = indexCss.match(/:root\[data-theme='light'\]\s*\{([\s\S]*?)\n\}/)?.[1]
 
-    expect(lightTheme).toContain('--background: #ffffff')
-    expect(lightTheme).toContain('--background-chrome: #f7faff')
-    expect(lightTheme).toContain('--sidebar: #f8fbff')
+    expect(lightTheme).toContain('--background: #ebe9e2')
+    expect(lightTheme).toContain('--background-chrome: #deddd6')
+    expect(lightTheme).toContain('--sidebar: #090c0f')
+    expect(lightTheme).toContain('--sidebar-foreground: #f4f7fb')
+  })
+
+  it('keeps dark command surfaces readable inside the day-mode document', () => {
+    expect(indexCss).toContain('.tactical-command-surface,\n.tactical-dark-surface {')
+    expect(indexCss).toContain('--foreground: #f4f7fb')
+    expect(indexCss).toContain('--card-foreground: #f4f7fb')
+    expect(indexCss).toContain('--popover-foreground: #f4f7fb')
+    expect(indexCss).toContain('--muted-foreground: #9ba6b4')
+  })
+
+  it('limits paper colors to document surfaces in day mode', () => {
+    expect(indexCss).toContain(":root[data-theme='light'] .tactical-paper-surface {")
+    expect(indexCss).toContain('--card: #f4f2eb')
+    expect(indexCss).toContain('.tactical-desk-head {')
   })
 })

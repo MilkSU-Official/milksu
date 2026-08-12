@@ -741,7 +741,7 @@ async function save() {
     </header>
 
     <div class="settings-layout flex min-h-0 flex-1">
-      <nav class="settings-nav app-no-drag w-56 shrink-0 border-r border-[#343b42] bg-[#101418] px-3 py-5" aria-label="设置分类">
+      <nav class="settings-nav tactical-dark-surface app-no-drag w-56 shrink-0 border-r border-[#343b42] bg-[#101418] px-3 py-5" aria-label="设置分类">
         <button
           v-for="item in settingsCategories"
           :key="item.value"

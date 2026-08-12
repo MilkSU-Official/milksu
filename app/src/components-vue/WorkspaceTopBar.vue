@@ -61,6 +61,14 @@ const moduleKey = computed(() => props.module ?? props.title.trim().toLowerCase(
 
 <style scoped>
 .workspace-topbar {
+  --foreground: #f5f6f7;
+  --muted-foreground: #9da6b0;
+  --border: #3a424a;
+  --border-hairline: #46505a;
+  --card: #14191d;
+  --secondary: #1b2026;
+  --muted: #1b2026;
+  --surface-sunken: #0b0e11;
   --module-topbar-title-size: var(--text-control, 0.875rem);
   --module-topbar-title-line-height: var(--text-control--line-height, 1.25rem);
   --module-topbar-control-size: var(--text-control, 0.875rem);

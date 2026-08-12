@@ -1771,7 +1771,7 @@ watch(
   </main>
   <aside
     v-if="environmentOpen && !domainContextCollapsed"
-    class="context-sidebar flex shrink-0 flex-col border-l border-[#343a40] bg-[#171b1f]"
+    class="context-sidebar tactical-dark-surface flex shrink-0 flex-col border-l border-[#343a40] bg-[#171b1f]"
     :class="['architecture', 'artifacts', 'changes', 'collaboration', 'history', 'browser', 'domain'].includes(contextPanel)
       ? 'w-[min(36rem,36vw)] min-w-[22rem]'
       : 'w-80'"

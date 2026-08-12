@@ -176,8 +176,8 @@ function openCoding() {
 </script>
 
 <template>
-  <section class="flex h-full min-h-0 flex-col bg-background" aria-label="CTF 挑战列表">
-    <div class="grid h-12 shrink-0 grid-cols-[92px_minmax(0,1fr)_140px_110px_130px_42px_90px] items-center gap-4 border-b border-border px-6 text-caption text-muted-foreground">
+  <section class="tactical-paper-surface flex h-full min-h-0 flex-col bg-card" aria-label="CTF 挑战列表">
+    <div class="tactical-desk-head grid h-12 shrink-0 grid-cols-[92px_minmax(0,1fr)_140px_110px_130px_42px_90px] items-center gap-4 border-b border-border px-6 text-caption text-muted-foreground">
       <span>#</span><span>题目</span><span>类别</span><span>难度</span><span>我的状态</span><span class="sr-only">收藏</span><span>操作</span>
     </div>
 
@@ -186,7 +186,7 @@ function openCoding() {
         <template v-for="problem in displayedNssctfProblems" :key="problem.platformId">
           <button
             type="button"
-            class="challenge-row grid min-h-[62px] w-full grid-cols-[92px_minmax(0,1fr)_140px_110px_130px_42px_90px] items-center gap-4 border-b border-border px-6 text-left hover:bg-muted/30"
+            class="challenge-row tactical-row grid min-h-[62px] w-full grid-cols-[92px_minmax(0,1fr)_140px_110px_130px_42px_90px] items-center gap-4 border-b border-border px-6 text-left hover:bg-muted/30"
             :class="selectedID === problem.platformId ? 'challenge-row-selected' : ''"
             :aria-expanded="selectedID === problem.platformId"
             @click="select(problem.platformId)"
@@ -248,7 +248,7 @@ function openCoding() {
         <template v-for="problem in ctfshowProblems" :key="problem.platformId">
           <button
             type="button"
-            class="challenge-row grid min-h-[62px] w-full grid-cols-[92px_minmax(0,1fr)_140px_110px_130px_42px_90px] items-center gap-4 border-b border-border px-6 text-left hover:bg-muted/30"
+            class="challenge-row tactical-row grid min-h-[62px] w-full grid-cols-[92px_minmax(0,1fr)_140px_110px_130px_42px_90px] items-center gap-4 border-b border-border px-6 text-left hover:bg-muted/30"
             :class="selectedID === problem.platformId ? 'challenge-row-selected' : ''"
             @click="select(problem.platformId)"
           >
