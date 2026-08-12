@@ -132,6 +132,9 @@ async function writeBuilderConfig(trackingPath) {
       entitlements: join(root, 'desktop', 'build', 'entitlements.mac.plist'),
       entitlementsInherit: join(root, 'desktop', 'build', 'entitlements.mac.inherit.plist'),
       timestamp: codesignIdentity === '-' ? undefined : 'http://timestamp.apple.com/ts01',
+      // Release notarization is deliberately performed only after the final
+      // Sidecar/backend mutation and DMG creation in release-macos.mjs.
+      notarize: false,
       gatekeeperAssess: false,
     },
     directories: {
