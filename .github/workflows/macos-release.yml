@@ -27,6 +27,7 @@ jobs:
           cache: true
       - name: Install dependencies
         run: |
+          brew install ripgrep
           npm ci
           npm --prefix app ci
           npm --prefix desktop ci
