@@ -530,6 +530,10 @@ pre,
  */
 .tactical-command-surface {
   position: relative;
+  color: #f4f7fb;
+  --foreground: #f4f7fb;
+  --muted-foreground: #9ba6b4;
+  --border: #333a41;
   border: 1px solid #333a41;
   background-color: var(--tactical-ink-2);
   background-image: var(--tactical-carbon-image);
@@ -541,6 +545,9 @@ pre,
 .tactical-paper {
   position: relative;
   color: var(--tactical-paper-ink);
+  --foreground: var(--tactical-paper-ink);
+  --muted-foreground: var(--tactical-paper-muted);
+  --border: #aba9a1;
   border: 1px solid #aba9a1;
   background-color: var(--tactical-paper);
   background-image: var(--tactical-paper-image);
