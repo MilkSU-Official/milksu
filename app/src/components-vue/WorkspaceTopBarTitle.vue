@@ -6,7 +6,7 @@ defineProps<{
 
 <template>
   <h1
-    class="workspace-topbar__title truncate text-control font-medium tracking-[-0.01em]"
+    class="workspace-topbar__title truncate text-control font-semibold tracking-[-0.025em]"
     data-workspace-topbar-title
   >
     {{ title }}

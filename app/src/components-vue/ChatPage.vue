@@ -1656,17 +1656,17 @@ watch(
             : '选择项目并描述目标。MilkSU 使用 PI，并由当前执行模式和权限策略决定可用工具。' }}
         </p>
         <div class="mt-6 grid grid-cols-3 gap-3">
-          <div class="rounded-lg border border-border bg-card px-4 py-3">
+          <div class="game-surface px-4 py-3">
             <Files class="size-4 text-muted-foreground" />
             <p class="mt-3 text-body font-medium">理解项目</p>
             <p class="mt-1 text-caption leading-5 text-muted-foreground">搜索并读取相关代码</p>
           </div>
-          <div class="rounded-lg border border-border bg-card px-4 py-3">
+          <div class="game-surface px-4 py-3">
             <FilePenLine class="size-4 text-muted-foreground" />
             <p class="mt-3 text-body font-medium">修改文件</p>
             <p class="mt-1 text-caption leading-5 text-muted-foreground">直接完成可审查的改动</p>
           </div>
-          <div class="rounded-lg border border-border bg-card px-4 py-3">
+          <div class="game-surface px-4 py-3">
             <Terminal class="size-4 text-muted-foreground" />
             <p class="mt-3 text-body font-medium">运行命令</p>
             <p class="mt-1 text-caption leading-5 text-muted-foreground">构建、测试与验证结果</p>
@@ -1744,7 +1744,7 @@ watch(
   </main>
   <aside
     v-if="environmentOpen && !domainContextCollapsed"
-    class="context-sidebar flex shrink-0 flex-col border-l border-border bg-card/95 backdrop-blur"
+    class="context-sidebar flex shrink-0 flex-col border-l border-border bg-card/95"
     :class="['architecture', 'artifacts', 'changes', 'collaboration', 'history', 'browser', 'domain'].includes(contextPanel)
       ? 'w-[min(36rem,36vw)] min-w-[22rem]'
       : 'w-80'"

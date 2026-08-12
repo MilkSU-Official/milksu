@@ -55,6 +55,13 @@ Coding Agent。个人资料页诚实记录用户在 CTF、CVE 和 Coding 中的�
 
 这些图片是实现目标，不代表功能已经完成：
 
+### 全局游戏化界面系统
+
+Desktop 与独立 Admin 的全部页面统一采用
+[MilkSU 游戏化界面系统](../design/milksu-game-ui-system.md)。Coding 任务、CTF/CVE 数据列表、个人页、
+设置页和 Admin 深浅色基准图共同构成当前视觉契约；旧六张定稿图继续保留为产品决策来源，但视觉
+层级、组件语言和主题以新契约为准。
+
 ### 个人资料页
 
 ![个人资料页定稿](../design/milksu-personal-profile-approved.png)

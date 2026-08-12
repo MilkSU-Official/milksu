@@ -51,6 +51,7 @@ const menuOpen = ref(false)
 const menuRoot = ref<HTMLElement | null>(null)
 const buildTracking = ref<BuildTracking | null>(null)
 const avatarSource = computed(() => props.accountStatus.user?.avatarUrl || profileAvatar)
+const userName = computed(() => props.accountStatus.user?.displayName || props.accountStatus.user?.githubLogin || 'MilkSU')
 
 // AbilityRadar.vue is intentionally retained but no longer mounted globally.
 // If the six-axis view returns, it belongs to a future evidence-backed CTF-only page,
@@ -99,17 +100,17 @@ function openSettings() {
 
 <template>
   <div
-    class="app-drag relative flex w-[4.75rem] shrink-0 flex-col border-r border-border bg-sidebar"
+    class="app-drag relative flex w-full shrink-0 flex-col bg-sidebar"
     data-shell-traffic-safe
   >
     <div
       ref="menuRoot"
-      class="workspace-rail-traffic-safe relative flex items-end justify-center border-b border-border"
+      class="workspace-rail-traffic-safe relative flex items-end justify-center border-b border-border px-2 xl:justify-start xl:px-4"
       @keydown.esc="menuOpen = false"
     >
       <Button
         variant="ghost"
-        class="app-no-drag relative size-12 rounded-2xl p-1.5"
+        class="app-no-drag relative h-12 min-w-12 rounded-full p-1.5 xl:w-full xl:justify-start xl:gap-3"
         aria-label="打开用户菜单"
         :aria-expanded="menuOpen"
         @click.stop="menuOpen = !menuOpen"
@@ -128,11 +129,15 @@ function openSettings() {
             data-testid="beta-channel-badge"
           >BETA</span>
         </span>
+        <span class="hidden min-w-0 flex-1 text-left xl:block">
+          <strong class="block truncate text-control font-semibold">{{ userName }}</strong>
+          <small class="mt-0.5 block text-caption text-muted-foreground">个人安全工作台</small>
+        </span>
       </Button>
 
       <section
         v-if="menuOpen"
-        class="app-no-drag absolute left-[4.5rem] top-10 z-50 w-48 overflow-hidden rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl"
+        class="app-no-drag absolute left-[4.5rem] top-10 z-50 w-52 overflow-hidden rounded-lg border border-border bg-popover p-1.5 text-popover-foreground shadow-xl xl:left-[12.5rem]"
         aria-label="用户菜单"
       >
         <button class="user-menu-item" @click="openProfile"><UserRound class="size-4" />个人资料</button>
@@ -143,14 +148,14 @@ function openSettings() {
       </section>
     </div>
 
-    <nav class="app-no-drag flex flex-col gap-1.5 px-2 py-3" aria-label="全局工作区">
+    <nav class="app-no-drag flex flex-col gap-1.5 px-2 py-4" aria-label="全局工作区">
       <Button
         v-for="item in WORKSPACE_RAIL_ITEMS"
         :key="item.id"
         :variant="activeSection === item.id ? 'secondary' : 'ghost'"
         :class="[
           'workspace-rail-item relative h-auto min-h-12 px-3 py-2',
-          'flex-col gap-0.5 px-1 py-1.5',
+          'flex-col gap-0.5 px-1 py-1.5 xl:flex-row xl:justify-start xl:gap-3 xl:px-4',
           activeSection === item.id ? 'workspace-rail-active' : '',
         ]"
         :aria-label="item.label"
@@ -166,11 +171,11 @@ function openSettings() {
 
     <div class="flex-1" />
 
-    <div class="app-no-drag space-y-1.5 border-t border-border p-2">
+    <div class="app-no-drag space-y-1.5 border-t border-border p-2 xl:px-3 xl:py-3">
       <Button
         v-if="contextAvailable"
         variant="ghost"
-        class="workspace-rail-control relative h-12 w-full"
+        class="workspace-rail-control relative h-12 w-full xl:justify-start xl:gap-3 xl:px-4"
         :aria-label="contextOpen ? '收起会话' : '展开会话'"
         :title="contextOpen ? '收起会话' : '展开会话'"
         :aria-expanded="contextOpen"
@@ -179,21 +184,23 @@ function openSettings() {
       >
         <PanelLeftClose v-if="contextOpen" class="size-4" />
         <PanelLeftOpen v-else class="size-4" />
+        <span class="hidden xl:inline">会话</span>
       </Button>
 
       <Button
         variant="ghost"
-        class="workspace-rail-control relative h-12 w-full"
+        class="workspace-rail-control relative h-12 w-full xl:justify-start xl:gap-3 xl:px-4"
         :aria-label="themeToggleLabel"
         :title="themeToggleLabel"
         @click="emit('toggleTheme')"
       >
         <component :is="ThemeToggleIcon" class="size-4" />
+        <span class="hidden xl:inline">{{ themeMode === 'dark' ? '日间模式' : '夜间模式' }}</span>
       </Button>
 
       <Button
         :variant="activeSection === 'settings' ? 'secondary' : 'ghost'"
-        class="workspace-rail-control relative h-12 w-full"
+        class="workspace-rail-control relative h-12 w-full xl:justify-start xl:gap-3 xl:px-4"
         :class="activeSection === 'settings' ? 'workspace-rail-active' : ''"
         aria-label="设置"
         title="设置"
@@ -201,6 +208,7 @@ function openSettings() {
         @click="openSettings"
       >
         <Settings class="size-4" />
+        <span class="hidden xl:inline">设置</span>
       </Button>
     </div>
   </div>
@@ -210,10 +218,11 @@ function openSettings() {
 .workspace-rail-traffic-safe { box-sizing: border-box; min-height: 5.75rem; padding-top: 2.1rem; padding-bottom: .5rem; }
 .workspace-rail-item { font-size: var(--text-body); line-height: var(--text-body--line-height); letter-spacing: var(--text-body--letter-spacing); }
 .workspace-rail-item, .workspace-rail-control { --border-hairline: transparent; --selected-border: transparent; }
-.workspace-rail-active { color: var(--brand); }
+.workspace-rail-active { color: var(--foreground); background: color-mix(in srgb, var(--action) 8%, transparent); }
+.workspace-rail-active :deep(svg) { color: var(--brand); }
 .workspace-rail-control { color: var(--muted-foreground); }
 .workspace-rail-control:hover, .workspace-rail-control:focus-visible { color: var(--foreground); }
-.workspace-rail-active::after { position: absolute; inset-block: .75rem; inset-inline-start: .125rem; width: .1875rem; border-radius: 999px; background: var(--brand); content: ''; }
+.workspace-rail-active::after { position: absolute; inset-block: .65rem; inset-inline-start: 0; width: .1875rem; background: var(--brand); box-shadow: 0 0 14px color-mix(in srgb, var(--brand) 45%, transparent); content: ''; }
 .user-menu-item { display: flex; width: 100%; align-items: center; gap: .65rem; border: 0; border-radius: .55rem; background: transparent; padding: .65rem .7rem; color: var(--foreground); font-size: var(--text-body); cursor: pointer; }
 .user-menu-item:hover:not(:disabled), .user-menu-item:focus-visible { background: var(--muted); outline: 0; }
 .user-menu-item:disabled { cursor: default; opacity: .55; }

@@ -26,6 +26,7 @@ export interface NSSCTFCatalogQuery {
   category: string
   page: number
   pageSize: 10 | 20 | 40
+  problemIds?: number[]
 }
 
 export interface NSSCTFCatalogSearchResult {

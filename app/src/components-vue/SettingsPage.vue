@@ -8,7 +8,6 @@ import {
   Input,
   NativeSelect,
   NativeSelectOption,
-  SegmentedControl,
   Select,
   SelectContent,
   SelectGroup,
@@ -72,6 +71,14 @@ import { useVulnerabilityDashboard, type VulnerabilityDashboard } from '@/compos
 import { CODING_SKILLS } from '@/codingSkills'
 
 type SettingsCategory = 'general' | 'coding' | 'apikeys' | 'browser' | 'cve'
+
+const settingsCategories: Array<{ value: SettingsCategory; label: string }> = [
+  { value: 'general', label: '通用' },
+  { value: 'apikeys', label: '模型与额度' },
+  { value: 'coding', label: 'Coding' },
+  { value: 'browser', label: '浏览器与控制' },
+  { value: 'cve', label: 'CVE' },
+]
 
 const props = defineProps<{
   settings: AppSettings | null
@@ -722,31 +729,38 @@ async function save() {
 </script>
 
 <template>
-  <main class="flex min-w-0 flex-1 flex-col bg-muted/20">
-    <header class="app-drag flex h-14 shrink-0 items-center border-b border-border bg-background px-5">
+  <main class="settings-page flex min-w-0 flex-1 flex-col bg-background">
+    <header class="app-drag flex h-16 shrink-0 items-center border-b border-border bg-background px-5">
       <Button variant="ghost" size="icon-sm" class="app-no-drag mr-3" aria-label="返回" @click="$emit('close')">
         <ArrowLeft class="size-4" />
       </Button>
       <div>
-        <p class="text-control font-medium">设置</p>
-        <p class="text-caption text-muted-foreground">Coding Agent、模型、凭据与本地偏好</p>
+        <p class="text-lg font-semibold tracking-[-0.02em]">设置</p>
+        <p class="text-caption text-muted-foreground">应用、Coding、账户与本地数据</p>
       </div>
     </header>
 
-    <div class="min-h-0 flex-1 overflow-y-auto px-6 py-8">
-      <div :class="category === 'cve' ? 'mx-auto w-full max-w-6xl' : category === 'apikeys' ? 'mx-auto w-full max-w-5xl' : 'mx-auto max-w-2xl'">
-        <SegmentedControl
-          v-model="category"
-          class="mb-7 w-fit"
-          aria-label="设置分类"
-          :items="[
-            { value: 'general', label: '通用' },
-            { value: 'coding', label: 'Coding Agent' },
-            { value: 'apikeys', label: '模型与凭据' },
-            { value: 'browser', label: '浏览器与控制' },
-            { value: 'cve', label: 'CVE' },
-          ]"
-        />
+    <div class="settings-layout flex min-h-0 flex-1">
+      <nav class="settings-nav app-no-drag w-56 shrink-0 border-r border-border bg-sidebar/65 px-3 py-5" aria-label="设置分类">
+        <button
+          v-for="item in settingsCategories"
+          :key="item.value"
+          type="button"
+          class="settings-nav-item"
+          :class="category === item.value ? 'active' : ''"
+          :aria-current="category === item.value ? 'page' : undefined"
+          @click="category = item.value"
+        >
+          <span>{{ item.label }}</span>
+        </button>
+      </nav>
+
+      <div class="min-h-0 min-w-0 flex-1 overflow-y-auto px-6 py-8">
+      <div :class="category === 'cve' ? 'mx-auto w-full max-w-6xl' : category === 'apikeys' ? 'mx-auto w-full max-w-5xl' : 'mx-auto max-w-3xl'">
+        <div class="mb-7">
+          <p class="game-kicker">Settings</p>
+          <h1 class="mt-1 text-3xl font-semibold tracking-[-0.04em]">{{ settingsCategories.find(item => item.value === category)?.label }}</h1>
+        </div>
 
         <Alert v-if="notice" :variant="notice.tone === 'error' ? 'destructive' : 'default'" class="mb-5">
           <AlertCircle v-if="notice.tone === 'error'" class="size-4" />
@@ -1392,6 +1406,17 @@ async function save() {
           <VulnerabilityIntelSettingsPanel :dashboard="dashboard" />
         </template>
       </div>
+      </div>
     </div>
   </main>
 </template>
+
+<style scoped>
+.settings-nav-item { position: relative; display: flex; min-height: 3rem; width: 100%; align-items: center; border: 0; background: transparent; padding: 0 1rem; color: var(--muted-foreground); text-align: left; cursor: pointer; }
+.settings-nav-item:hover { color: var(--foreground); background: var(--overlay-hover-light); }
+.settings-nav-item.active { color: var(--brand); background: var(--focus-panel); }
+.settings-nav-item.active::before { position: absolute; inset-block: .55rem; left: 0; width: 3px; background: var(--brand); box-shadow: 0 0 12px color-mix(in srgb, var(--brand) 45%, transparent); content: ''; }
+.settings-page :deep([data-slot="settings-section"]),
+.settings-page :deep(.rounded-menu-shell) { border-radius: .45rem; }
+@media (max-width: 850px) { .settings-nav { width: 10.5rem; } }
+</style>

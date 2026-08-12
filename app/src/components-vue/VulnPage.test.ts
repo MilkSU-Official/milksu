@@ -158,4 +158,23 @@ describe('VulnPage thin workspace', () => {
     expect(dashboard.query.value).toBe('ActiveMQ')
     expect(host.textContent).toContain('CVE-2023-46604')
   })
+
+  it('lets one CVE belong to several collection views', async () => {
+    const { host } = await mountPage({ trackedIds: ['CVE-2024-3400'] })
+    const bookmark = host.querySelector<HTMLButtonElement>('[aria-label="收藏"]')
+    expect(bookmark).not.toBeNull()
+
+    bookmark?.click()
+    await nextTick()
+    const popover = document.body.querySelector('[data-slot="popover-content"]')
+    const quickCollection = [...(popover?.querySelectorAll<HTMLButtonElement>('button') ?? [])]
+      .find(button => button.textContent?.trim() === '收藏')
+    quickCollection?.click()
+    await nextTick()
+
+    expect(host.querySelector('[aria-label="编辑收藏"]')).not.toBeNull()
+    buttonWithText(host, '收藏')?.click()
+    await nextTick()
+    expect(host.textContent).toContain('CVE-2024-3400')
+  })
 })

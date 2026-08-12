@@ -136,13 +136,13 @@ defineExpose({ open, resetAndClose })
 <template>
   <dialog
     ref="dialog"
-    class="m-auto max-h-[calc(100vh-3rem)] w-[min(680px,calc(100vw-2rem))] overflow-hidden rounded-xl border border-border bg-card p-0 text-foreground shadow-[var(--shadow-modal)] backdrop:bg-foreground/20 backdrop:backdrop-blur-[2px]"
+    class="m-auto max-h-[calc(100vh-3rem)] w-[min(680px,calc(100vw-2rem))] overflow-hidden rounded-lg border border-border-menu-elevated bg-card p-0 text-foreground shadow-[var(--shadow-modal)] backdrop:bg-foreground/20 backdrop:backdrop-blur-[2px]"
     aria-labelledby="manual-ctf-title"
   >
     <form class="flex max-h-[calc(100vh-3rem)] flex-col" @submit.prevent="submit">
-      <header class="flex shrink-0 items-center justify-between border-b border-border px-6 py-4">
+      <header class="game-grid flex shrink-0 items-center justify-between border-b border-border px-6 py-4">
         <div class="flex items-center gap-3">
-          <span class="grid size-9 place-items-center rounded-lg bg-muted">
+          <span class="grid size-9 place-items-center bg-action-soft text-info">
             <FilePlus2 class="size-4" />
           </span>
           <div>

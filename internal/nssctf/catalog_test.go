@@ -488,6 +488,24 @@ func TestCatalogSyncAndDashboard(t *testing.T) {
 	if empty.Total != 0 || empty.Page != 1 || empty.PageCount != 0 || len(empty.Problems) != 0 {
 		t.Fatalf("empty catalog search returned an invalid page contract: %+v", empty)
 	}
+	favorites, err := service.Search(context.Background(), CatalogQuery{
+		ProblemIDs: []int{101, 104, 101, -1}, Page: 1, PageSize: 20,
+	})
+	if err != nil {
+		t.Fatalf("filter catalog by favorites: %v", err)
+	}
+	if favorites.Total != 2 || len(favorites.Problems) != 2 {
+		t.Fatalf("favorite catalog filter returned unexpected problems: %+v", favorites)
+	}
+	noFavorites, err := service.Search(context.Background(), CatalogQuery{
+		ProblemIDs: []int{}, Page: 1, PageSize: 20,
+	})
+	if err != nil {
+		t.Fatalf("filter catalog by empty favorites: %v", err)
+	}
+	if noFavorites.Total != 0 || len(noFavorites.Problems) != 0 {
+		t.Fatalf("empty favorite catalog filter leaked problems: %+v", noFavorites)
+	}
 }
 
 func TestTrainingAcceptanceRequiresJudgeEvidenceAcrossEveryTrack(t *testing.T) {

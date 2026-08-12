@@ -6,7 +6,7 @@ defineProps<{
 
 <template>
   <h2
-    class="workspace-detail-title mt-3 text-2xl font-semibold tracking-[-0.035em]"
+    class="workspace-detail-title mt-3 text-3xl font-semibold tracking-[-0.045em]"
     data-workspace-detail-title
   >
     {{ title }}

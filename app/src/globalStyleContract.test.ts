@@ -34,11 +34,11 @@ describe('global style contract', () => {
     expect(indexCss).toContain('-webkit-font-smoothing: auto')
   })
 
-  it('keeps the day-mode workspace and desktop chrome on a neutral white base', () => {
+  it('keeps the day-mode workspace white with cool blue chrome', () => {
     const lightTheme = indexCss.match(/:root\[data-theme='light'\]\s*\{([\s\S]*?)\n\}/)?.[1]
 
     expect(lightTheme).toContain('--background: #ffffff')
-    expect(lightTheme).toContain('--background-chrome: #ffffff')
-    expect(lightTheme).toContain('--sidebar: #ffffff')
+    expect(lightTheme).toContain('--background-chrome: #f7faff')
+    expect(lightTheme).toContain('--sidebar: #f8fbff')
   })
 })

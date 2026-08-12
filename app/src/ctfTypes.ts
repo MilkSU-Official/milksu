@@ -352,9 +352,15 @@ export interface CTFAgentWorkspaceMaterial {
 
 export interface CTFAgentWorkspaceHandoff {
   jobId: string
+  challengeId?: string
   conversationId: string
   role: 'solver' | 'tool-builder' | 'strategist'
   title: string
+  statement?: string
+  category?: string
+  humanGoal?: string
+  externalPlatform?: string
+  externalAttemptId?: number
   workspacePath: string
   prompt: string
   policy: CTFAgentWorkspacePolicy

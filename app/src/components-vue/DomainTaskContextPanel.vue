@@ -2,8 +2,12 @@
 import { computed } from 'vue'
 import { Badge, Button } from '@felinic/ui'
 import {
+  ChevronDown,
+  File,
   Flag,
+  RotateCcw,
   ShieldCheck,
+  Target,
 } from 'lucide-vue-next'
 import type { DomainTaskContextPresentation } from '@/lib/domainTaskContext'
 
@@ -19,6 +23,9 @@ const emit = defineEmits<{
 
 const DomainIcon = computed(() => (
   props.presentation.kind === 'ctf' ? Flag : ShieldCheck
+))
+const topReturnLabel = computed(() => (
+  props.presentation.kind === 'ctf' ? '返回挑战' : '返回 CVE'
 ))
 
 function toggleCollapsed() {
@@ -59,60 +66,97 @@ function toggleCollapsed() {
     </template>
 
     <template v-else>
-      <header class="flex items-start justify-between gap-2 border-b border-border px-3 py-2.5">
-        <div class="min-w-0">
-          <div class="flex items-center gap-2">
-            <component :is="DomainIcon" class="size-4 shrink-0 text-primary" />
-            <Badge variant="secondary">{{ presentation.moduleLabel }}</Badge>
-            <span class="truncate text-caption font-medium">任务信息</span>
-          </div>
-          <p class="mt-1 truncate text-body font-medium" :title="presentation.title">
-            {{ presentation.title }}
-          </p>
-          <p v-if="presentation.subtitle" class="mt-0.5 line-clamp-2 text-caption leading-5 text-muted-foreground">
-            {{ presentation.subtitle }}
-          </p>
+      <header class="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-border px-4">
+        <div class="flex min-w-0 items-center gap-2 text-control font-medium">
+          <component :is="DomainIcon" class="size-4 shrink-0 text-primary" />
+          <span>来自 {{ presentation.moduleLabel }}</span>
         </div>
+        <Button variant="ghost" size="sm" class="shrink-0" @click="emit('returnDomain')">
+          <RotateCcw class="size-3.5" />
+          {{ topReturnLabel }}
+        </Button>
       </header>
 
-      <div class="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-3">
-        <p v-if="presentation.ownership" class="text-caption leading-5 text-muted-foreground">
-          {{ presentation.ownership }}
-        </p>
-        <dl v-if="presentation.facts.length" class="space-y-2">
-          <div
-            v-for="fact in presentation.facts"
-            :key="fact.label"
-            class="flex items-start justify-between gap-3 border-b border-border px-0 py-2.5 last:border-b-0"
-          >
-            <dt class="shrink-0 text-caption text-muted-foreground">{{ fact.label }}</dt>
-            <dd class="min-w-0 break-words text-right text-caption font-medium leading-5">{{ fact.value }}</dd>
+      <div class="min-h-0 flex-1 overflow-y-auto">
+        <section class="domain-mission-hero game-grid border-b border-border px-5 py-7">
+          <p class="break-words text-2xl font-semibold tracking-[-0.035em]" :title="presentation.title">
+            {{ presentation.title }}
+          </p>
+          <div v-if="presentation.meta.length" class="mt-4 flex flex-wrap gap-2">
+            <Badge
+              v-for="(item, index) in presentation.meta"
+              :key="item"
+              :variant="index === 0 && presentation.kind === 'ctf' ? 'info' : 'outline'"
+            >
+              {{ item }}
+            </Badge>
           </div>
-        </dl>
-        <p v-else class="text-caption text-muted-foreground">
-          可返回工作台查看题面与材料。
-        </p>
+        </section>
+
+        <div class="space-y-6 px-5 py-5">
+          <section class="domain-mission-objective game-focus-panel flex items-center gap-4 px-4 py-4">
+            <Target class="size-9 shrink-0 text-primary" />
+            <div class="min-w-0">
+              <p class="text-caption font-semibold text-foreground">{{ presentation.objectiveLabel }}</p>
+              <p class="mt-1 text-body font-semibold leading-6 text-primary">{{ presentation.objective }}</p>
+            </div>
+          </section>
+
+          <section>
+            <h3 class="text-control font-semibold">{{ presentation.briefLabel }}</h3>
+            <p class="mt-3 whitespace-pre-line text-body leading-6 text-muted-foreground">
+              {{ presentation.brief }}
+            </p>
+          </section>
+
+          <section v-if="presentation.materials.length">
+            <h3 class="text-control font-semibold">材料</h3>
+            <div class="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+              <div
+                v-for="material in presentation.materials"
+                :key="material"
+                class="flex min-w-0 items-center gap-2 rounded-md border border-border bg-background/45 px-3 py-3"
+              >
+                <File class="size-4 shrink-0 text-muted-foreground" />
+                <span class="min-w-0 flex-1 truncate text-control">{{ material }}</span>
+              </div>
+            </div>
+          </section>
+
+          <details v-if="presentation.facts.length" class="group rounded-lg border border-border bg-background/35">
+            <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-3 text-control text-muted-foreground [&::-webkit-details-marker]:hidden">
+              {{ presentation.detailsLabel }}
+              <ChevronDown class="size-4 transition-transform group-open:rotate-180" />
+            </summary>
+            <dl class="border-t border-border px-3 py-2">
+              <div v-for="fact in presentation.facts" :key="fact.label" class="py-2">
+                <dt class="text-caption text-muted-foreground">{{ fact.label }}</dt>
+                <dd class="mt-1 break-words text-caption leading-5">{{ fact.value }}</dd>
+              </div>
+            </dl>
+          </details>
+        </div>
       </div>
 
-      <footer class="space-y-2 border-t border-border px-3 py-2.5">
+      <footer class="space-y-2 border-t border-border px-4 py-3">
         <Button
-          variant="outline"
+          variant="brand"
+          class="min-h-10 w-full"
+          :aria-label="presentation.returnAriaLabel"
+          @click="emit('returnDomain')"
+        >
+          <component :is="DomainIcon" class="size-4" />
+          {{ presentation.returnLabel }}
+        </Button>
+        <Button
+          variant="ghost"
           size="sm"
-          class="min-h-9 w-full justify-start"
+          class="min-h-9 w-full"
           aria-label="收起任务信息"
           data-testid="collapse-domain-to-pip-inline"
           @click="toggleCollapsed"
         >
-          收起
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          class="min-h-9 w-full justify-start"
-          :aria-label="presentation.returnAriaLabel"
-          @click="emit('returnDomain')"
-        >
-          {{ presentation.returnLabel }}
+          收起简报
         </Button>
       </footer>
     </template>
@@ -129,9 +173,9 @@ function toggleCollapsed() {
   align-items: center;
   gap: 0.35rem;
   max-width: min(28rem, 80vw);
-  border: 1px solid hsl(var(--border));
-  border-radius: 999px;
-  background: color-mix(in oklab, hsl(var(--card)) 92%, transparent);
+  border: 1px solid var(--border);
+  border-radius: .45rem;
+  background: color-mix(in oklab, var(--card) 92%, transparent);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
   padding: 0.25rem 0.35rem 0.25rem 0.25rem;
   backdrop-filter: blur(10px);
@@ -155,7 +199,7 @@ function toggleCollapsed() {
 }
 
 .domain-task-context__pip:hover {
-  background: hsl(var(--muted) / 0.55);
+  background: color-mix(in srgb, var(--muted) 55%, transparent);
 }
 
 .domain-task-context--expanded {
@@ -166,6 +210,13 @@ function toggleCollapsed() {
   flex-direction: column;
   overflow: hidden;
   background: transparent;
+}
+
+.domain-mission-hero {
+  background:
+    linear-gradient(90deg, var(--focus-panel-strong), transparent 58%),
+    transparent;
+  box-shadow: inset 3px 0 0 var(--brand);
 }
 
 .domain-task-context-inline.domain-task-context--expanded {

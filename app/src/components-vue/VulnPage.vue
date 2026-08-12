@@ -18,10 +18,13 @@ import {
   Plus,
   Search,
 } from 'lucide-vue-next'
+import CollectionPicker from '@/components-vue/CollectionPicker.vue'
+import CollectionViewFilter from '@/components-vue/CollectionViewFilter.vue'
 import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
 import { useVulnerabilityDashboard, type VulnerabilityCodingTask, type VulnerabilityDashboard } from '@/composables/useVulnerabilityDashboard'
 import type { Conversation } from '@/types'
 import type { VulnerabilityIntel, VulnerabilitySeverity, VulnerabilityStatus } from '@/vulnerabilityIntel'
+import { ALL_COLLECTIONS_ID, createItemCollectionStore } from '@/lib/itemCollections'
 
 defineOptions({ name: 'VulnPage' })
 
@@ -46,6 +49,8 @@ const dashboard = props.dashboard ?? useVulnerabilityDashboard()
 const showCustomForm = ref(false)
 const showLearningTopics = ref(false)
 const customFormError = ref('')
+const cveCollections = createItemCollectionStore('milksu.cve.collections.v1')
+const collectionView = ref(ALL_COLLECTIONS_ID)
 const statusFilter = ref<'all' | VulnerabilityStatus>('all')
 const page = ref(1)
 const pageSize = 20
@@ -83,9 +88,15 @@ const learningTopics = [
   },
 ] as const
 
-const filteredItems = computed(() => dashboard.tracked.value.filter(item => (
-  statusFilter.value === 'all' || item.status === statusFilter.value
-)))
+const filteredItems = computed(() => {
+  const allowed = collectionView.value === ALL_COLLECTIONS_ID
+    ? null
+    : new Set(cveCollections.itemKeysFor(collectionView.value))
+  return dashboard.tracked.value.filter(item => (
+    (statusFilter.value === 'all' || item.status === statusFilter.value)
+    && (!allowed || allowed.has(item.id))
+  ))
+})
 const pageCount = computed(() => Math.max(1, Math.ceil(filteredItems.value.length / pageSize)))
 const visibleItems = computed(() => filteredItems.value.slice((page.value - 1) * pageSize, page.value * pageSize))
 
@@ -202,7 +213,9 @@ function openTopic(query: string) {
       </template>
 
       <template #filters>
-        <div class="flex flex-wrap items-center gap-3">
+        <div class="flex flex-col gap-3">
+          <CollectionViewFilter v-model="collectionView" :store="cveCollections" />
+          <div class="flex flex-wrap items-center gap-3">
           <label class="relative min-w-64 flex-1 max-w-md">
             <Search class="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -219,6 +232,7 @@ function openTopic(query: string) {
               {{ option.label }}
             </NativeSelectOption>
           </NativeSelect>
+          </div>
         </div>
       </template>
     </WorkspaceModuleTopBar>
@@ -254,15 +268,15 @@ function openTopic(query: string) {
 
     <section class="min-h-0 flex-1 overflow-auto" aria-label="CVE 列表">
       <div class="min-w-[1040px]">
-        <div class="grid h-12 grid-cols-[170px_minmax(260px,1.2fr)_minmax(190px,.9fr)_100px_150px_120px] items-center gap-4 border-b border-border px-6 text-caption text-muted-foreground">
-          <span>CVE</span><span>漏洞</span><span>厂商/产品</span><span>严重性</span><span>我的状态</span><span>最近研究</span>
+        <div class="grid h-12 grid-cols-[170px_minmax(260px,1.2fr)_minmax(190px,.9fr)_100px_150px_42px_120px] items-center gap-4 border-b border-border px-6 text-caption text-muted-foreground">
+          <span>CVE</span><span>漏洞</span><span>厂商/产品</span><span>严重性</span><span>我的状态</span><span class="sr-only">收藏</span><span>最近研究</span>
         </div>
 
         <template v-for="item in visibleItems" :key="item.id">
           <button
             type="button"
-            class="grid min-h-[72px] w-full grid-cols-[170px_minmax(260px,1.2fr)_minmax(190px,.9fr)_100px_150px_120px] items-center gap-4 border-b border-border px-6 text-left hover:bg-muted/25"
-            :class="item.id === dashboard.selectedId.value ? 'bg-primary/5' : ''"
+            class="vuln-row grid min-h-[72px] w-full grid-cols-[170px_minmax(260px,1.2fr)_minmax(190px,.9fr)_100px_150px_42px_120px] items-center gap-4 border-b border-border px-6 text-left hover:bg-muted/25"
+            :class="item.id === dashboard.selectedId.value ? 'vuln-row-selected' : ''"
             :aria-expanded="item.id === dashboard.selectedId.value"
             @click="selectItem(item.id)"
           >
@@ -274,10 +288,11 @@ function openTopic(query: string) {
             </span>
             <span><Badge :variant="severityVariant(item.severity)" font="mono">{{ item.cvss.toFixed(1) }}</Badge></span>
             <span><Badge :variant="statusVariant(item.status)">{{ item.status === '已分流' ? '已归档' : item.status }}</Badge></span>
+            <CollectionPicker :item-key="item.id" :store="cveCollections" @click.stop />
             <span class="text-caption text-muted-foreground">{{ recentResearch(item) }}</span>
           </button>
 
-          <div v-if="item.id === dashboard.selectedId.value" class="border-b border-l-2 border-l-primary border-border bg-card px-6 py-5">
+          <div v-if="item.id === dashboard.selectedId.value" class="game-focus-panel border-b bg-card px-6 py-5">
             <div class="flex flex-wrap items-start justify-between gap-5">
               <div class="min-w-0 flex-1">
                 <p class="max-w-4xl text-body leading-6 text-muted-foreground">{{ item.summary }}</p>
@@ -342,7 +357,7 @@ function openTopic(query: string) {
         <div v-if="!visibleItems.length" class="grid min-h-64 place-items-center px-8 text-center">
           <div>
             <p class="text-control font-medium">{{ dashboard.tracked.value.length ? '没有匹配的 CVE' : '还没有添加 CVE' }}</p>
-            <p class="mt-2 text-caption text-muted-foreground">{{ dashboard.tracked.value.length ? '换个关键词或状态试试。' : '添加一个你想研究的公开 CVE。' }}</p>
+            <p class="mt-2 text-caption text-muted-foreground">{{ dashboard.tracked.value.length ? (collectionView === ALL_COLLECTIONS_ID ? '换个关键词或状态试试。' : '这个收藏夹还是空的。') : '添加一个你想研究的公开 CVE。' }}</p>
           </div>
         </div>
       </div>
@@ -358,3 +373,8 @@ function openTopic(query: string) {
     </footer>
   </main>
 </template>
+
+<style scoped>
+.vuln-row { position: relative; transition: background-color 140ms ease; }
+.vuln-row-selected { background: var(--focus-panel); box-shadow: inset 3px 0 0 var(--brand); }
+</style>

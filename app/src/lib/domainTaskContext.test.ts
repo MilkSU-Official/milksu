@@ -45,7 +45,8 @@ describe('domainTaskContext', () => {
     expect(context.judgeState).toContain('已验证正确')
 
     const view = presentDomainTaskContext(context)
-    expect(view.facts.map(item => item.label)).toEqual(['材料', '可用范围'])
+    expect(view.materials).toEqual(['dist.zip', 'readme.md'])
+    expect(view.facts.map(item => item.label)).toEqual(['本次权限'])
     expect(view.returnAriaLabel).toBe('返回 CTF 工作台')
     expect(view.collapsedLabel).toBe('CTF · NSSCTF P3879')
     expect(view.ownership).toBe('')
@@ -145,11 +146,11 @@ describe('domainTaskContext', () => {
     }
     const merged = refreshCTFDomainTaskContext(handoffSnapshot, projectionReturned)
     const view = presentDomainTaskContext(merged!)
-    const scopeText = view.facts.find(f => f.label === '可用范围')?.value ?? ''
+    const scopeText = view.facts.find(f => f.label === '本次权限')?.value ?? ''
 
     expect(view.subtitle).toBe('ch-exact-42')
     expect(view.title).toBe('Exact live challenge')
-    expect(view.facts.find(f => f.label === '材料')?.value).toContain('challenge.bin')
+    expect(view.materials).toContain('challenge.bin')
     expect(scopeText).toContain('source-grant-base')
     expect(scopeText).toContain('https://challenge.example')
     expect(scopeText).toContain('scope-exact')

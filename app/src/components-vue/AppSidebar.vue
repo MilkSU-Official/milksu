@@ -41,7 +41,7 @@ watch(
 
 <template>
   <aside
-    class="relative z-40 flex w-[4.75rem] shrink-0 border-r border-border bg-sidebar text-sidebar-foreground"
+    class="workspace-navigation-shell relative z-40 flex shrink-0 border-r border-border bg-sidebar text-sidebar-foreground"
     data-testid="stable-app-sidebar"
   >
     <WorkspaceRail
@@ -61,7 +61,7 @@ watch(
     <section
       v-if="showContextSidebar"
       id="coding-context-sidebar"
-      class="absolute bottom-0 left-full top-0 z-40 flex w-[13.75rem] border-r border-border bg-sidebar text-sidebar-foreground shadow-2xl"
+      class="absolute bottom-0 left-full top-0 z-40 flex w-[15rem] border-r border-border bg-sidebar text-sidebar-foreground shadow-2xl"
       aria-label="Coding 会话"
       data-testid="coding-context-drawer"
     >
@@ -78,3 +78,8 @@ watch(
     </section>
   </aside>
 </template>
+
+<style scoped>
+.workspace-navigation-shell { width: 4.75rem; }
+@media (min-width: 1180px) { .workspace-navigation-shell { width: 13.5rem; } }
+</style>

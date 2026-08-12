@@ -64,6 +64,7 @@ import CTFSubmissionGate from '@/components-vue/CTFSubmissionGate.vue'
 import CTFTrainingArchive from '@/components-vue/CTFTrainingArchive.vue'
 import CTFTrajectory from '@/components-vue/CTFTrajectory.vue'
 import CTFWorkspaceHeader from '@/components-vue/CTFWorkspaceHeader.vue'
+import CollectionViewFilter from '@/components-vue/CollectionViewFilter.vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import SessionHistoryPanel from '@/components-vue/SessionHistoryPanel.vue'
 import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
@@ -74,6 +75,7 @@ import { useNSSCTFArena, useNSSCTFChallenges, useNSSCTFWebBridge } from '@/compo
 import { useNSSCTFCatalog, useNSSCTFTraining } from '@/composables/useNSSCTFTraining'
 import { invokeCommand } from '@/desktop'
 import { shouldBootstrapNSSCTFCatalog } from '@/lib/ctfCatalogBootstrap'
+import { ALL_COLLECTIONS_ID, createItemCollectionStore } from '@/lib/itemCollections'
 import {
   ctfManualStatusFromJobStatus,
   ctfManualStatusLabel,
@@ -195,6 +197,8 @@ const recalledMemories = ref<CTFTrainingMemory[]>([])
 const historyReflectionSeed = ref('')
 const memoryLoading = ref(false)
 const historyMenu = ref<HTMLDetailsElement | null>(null)
+const ctfCollections = createItemCollectionStore('milksu.ctf.collections.v1')
+const collectionView = ref(ALL_COLLECTIONS_ID)
 const manualStatuses = ref<Record<string, CTFManualStatus>>((() => {
   try {
     const value = JSON.parse(window.localStorage.getItem('milksu.ctf.manual-statuses') || '{}')
@@ -539,7 +543,11 @@ const ctfshowCategories = computed(() => [...new Set(
 const filteredCTFShowProblems = computed(() => {
   const query = ctfshowQuery.value.trim().toLowerCase()
   const normalizedID = query.replace(/^#/i, '')
+  const allowed = collectionView.value === ALL_COLLECTIONS_ID
+    ? null
+    : new Set(ctfCollections.itemKeysFor(collectionView.value))
   return ctfshowProblems.value.filter(problem => {
+    if (allowed && !allowed.has(`ctfshow:${problem.platformId}`)) return false
     if (ctfshowCategory.value !== 'all' && problem.category !== ctfshowCategory.value) return false
     if (!query) return true
     return String(problem.platformId).includes(normalizedID)
@@ -718,7 +726,7 @@ watch(collaborationMode, mode => {
   window.localStorage.setItem('milksu.ctf.collaboration-mode', mode)
 })
 
-watch([ctfshowQuery, ctfshowCategory], () => {
+watch([ctfshowQuery, ctfshowCategory, collectionView, ctfCollections.revision], () => {
   ctfshowPage.value = 1
 })
 
@@ -726,7 +734,7 @@ watch(ctfshowPageCount, pageCount => {
   if (ctfshowPage.value > pageCount) ctfshowPage.value = pageCount
 })
 
-watch([catalogQuery, catalogCategory], () => {
+watch([catalogQuery, catalogCategory, collectionView, ctfCollections.revision], () => {
   if (activeBank.value !== 'nssctf' || screen.value !== 'challenge') return
   if (catalogSearchTimer) clearTimeout(catalogSearchTimer)
   catalogSearchTimer = setTimeout(() => {
@@ -820,11 +828,18 @@ async function bootstrapNSSCTFCatalog() {
 }
 
 async function loadPublicCatalog(page = catalogPage.value) {
+  const problemIds = collectionView.value === ALL_COLLECTIONS_ID
+    ? undefined
+    : ctfCollections.itemKeysFor(collectionView.value)
+        .filter(key => key.startsWith('nssctf:'))
+        .map(key => Number(key.slice('nssctf:'.length)))
+        .filter(Number.isFinite)
   const result = await publicCatalog.search({
     query: catalogQuery.value,
     category: catalogCategory.value,
     page,
     pageSize: catalogPageSize,
+    problemIds,
   })
   if (result) catalogPage.value = result.page
 }
@@ -1652,7 +1667,9 @@ onBeforeUnmount(() => {
         </Button>
       </template>
       <template v-if="ctfSection === 'catalog' && activeQuestionBank" #filters>
-      <div class="flex w-full flex-wrap items-center gap-3">
+      <div class="flex w-full flex-col gap-3">
+        <CollectionViewFilter v-model="collectionView" :store="ctfCollections" />
+        <div class="flex w-full flex-wrap items-center gap-3">
         <Select v-model="activeBank">
         <SelectTrigger
           size="sm"
@@ -1743,6 +1760,7 @@ onBeforeUnmount(() => {
       >
           <RefreshCw class="size-4" />
         </Button>
+        </div>
       </div>
       </template>
     </WorkspaceModuleTopBar>
@@ -2337,6 +2355,7 @@ onBeforeUnmount(() => {
           :manual-statuses="manualStatuses"
           :conversations="conversations ?? []"
           :related-job-id="selectedCatalogJob?.id"
+          :collection-store="ctfCollections"
           @select-nssctf="chooseCatalogProblem"
           @select-ctfshow="previewCTFShowProblem"
           @previous-page="previousDeskPage"

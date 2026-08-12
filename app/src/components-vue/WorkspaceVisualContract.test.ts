@@ -8,9 +8,9 @@ import workspaceRailSource from './WorkspaceRail.vue?raw'
 
 describe('Workspace visual contract', () => {
   it('uses compact inline expansion for CTF and CVE instead of separate dashboards', () => {
-    expect(ctfChallengeDeskSource).toContain("border-l-2 border-l-primary")
+    expect(ctfChallengeDeskSource).toContain('game-focus-panel')
     expect(ctfChallengeDeskSource).toContain('交给 Coding')
-    expect(vulnPageSource).toContain("border-l-2 border-l-primary")
+    expect(vulnPageSource).toContain('game-focus-panel')
     expect(vulnPageSource).toContain('关联的 Coding 对话')
     expect(vulnPageSource).not.toContain('VulnerabilityLoopPanel')
     expect(vulnPageSource).not.toContain('当前下一步')

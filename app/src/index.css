@@ -26,33 +26,33 @@
    * tokens: components consume roles such as background, card, border and
    * brand, never HTB-specific color literals.
    */
-  --background: #101927;
-  --background-chrome: #0d1522;
-  --foreground: #f4f4f4;
-  --card: #151f2e;
-  --card-foreground: #f4f4f4;
-  --popover: #1e2939;
-  --popover-foreground: #f4f4f4;
-  --secondary: #1e2939;
-  --secondary-foreground: #f4f4f4;
-  --muted: #1e2939;
-  --muted-foreground: #8799b5;
-  --accent: #1e2939;
-  --accent-foreground: #f4f4f4;
-  --border: #212c3c;
+  --background: #071523;
+  --background-chrome: #06111e;
+  --foreground: #f4f7fb;
+  --card: #0b1a2b;
+  --card-foreground: #f4f7fb;
+  --popover: #0d1d30;
+  --popover-foreground: #f4f7fb;
+  --secondary: #10233a;
+  --secondary-foreground: #f4f7fb;
+  --muted: #102238;
+  --muted-foreground: #8998ad;
+  --accent: #11263e;
+  --accent-foreground: #f4f7fb;
+  --border: #1c3048;
   --border-soft: color-mix(in oklab, var(--border) 62%, transparent);
-  --border-hairline: #344158;
-  --border-menu: #344158;
-  --border-menu-elevated: #344158;
-  --input: #344158;
-  --ring: #9fef00;
-  --sidebar: #0d1522;
-  --sidebar-foreground: #f4f4f4;
-  --sidebar-border: #212c3c;
+  --border-hairline: #304963;
+  --border-menu: #304963;
+  --border-menu-elevated: #3d5873;
+  --input: #304963;
+  --ring: #168dff;
+  --sidebar: #06111e;
+  --sidebar-foreground: #f4f7fb;
+  --sidebar-border: #1c3048;
   --sidebar-accent: var(--overlay-hover);
   --sidebar-accent-foreground: #f4f4f4;
-  --scrollbar-thumb: rgb(135 153 181 / 0.24);
-  --scrollbar-thumb-hover: rgb(159 239 0 / 0.44);
+  --scrollbar-thumb: rgb(137 152 173 / 0.24);
+  --scrollbar-thumb-hover: rgb(22 141 255 / 0.48);
 
   --primary: var(--brand);
   --primary-foreground: var(--brand-foreground);
@@ -64,9 +64,20 @@
   --sidebar-primary: var(--brand);
   --sidebar-primary-foreground: var(--brand-foreground);
   --sidebar-ring: var(--brand);
-  --btn-primary: var(--brand);
-  --btn-primary-hover: var(--brand-hover);
-  --btn-primary-active: #87ca00;
+  --btn-primary: #168dff;
+  --btn-primary-hover: #2e9aff;
+  --btn-primary-active: #0878df;
+  --action: #168dff;
+  --action-hover: #2e9aff;
+  --action-active: #0878df;
+  --action-foreground: #ffffff;
+  --action-soft: rgb(22 141 255 / 0.12);
+  --action-border: rgb(22 141 255 / 0.48);
+  --focus-panel: rgb(159 239 0 / 0.055);
+  --focus-panel-strong: rgb(159 239 0 / 0.11);
+  --grid-line: rgb(106 169 255 / 0.075);
+  --surface-raised: #0d1d30;
+  --surface-sunken: #06111e;
 
   --overlay-hover-light: rgb(255 255 255 / 0.055);
   --overlay-hover: rgb(255 255 255 / 0.09);
@@ -88,10 +99,10 @@
   --warning-solid-foreground: #101927;
   --warning-soft: rgb(246 195 68 / 0.13);
   --warning-border: rgb(246 195 68 / 0.34);
-  --info: #6aa9ff;
-  --info-foreground: #9bc5ff;
-  --info-soft: rgb(106 169 255 / 0.13);
-  --info-border: rgb(106 169 255 / 0.34);
+  --info: #168dff;
+  --info-foreground: #72baff;
+  --info-soft: rgb(22 141 255 / 0.13);
+  --info-border: rgb(22 141 255 / 0.38);
   --destructive: #ff5e57;
   --destructive-foreground: #fff;
   --destructive-soft: rgb(255 94 87 / 0.11);
@@ -121,32 +132,32 @@
   color-scheme: light;
 
   --background: #ffffff;
-  --background-chrome: #ffffff;
-  --foreground: #17201b;
+  --background-chrome: #f7faff;
+  --foreground: #101c2b;
   --card: #ffffff;
-  --card-foreground: #17201b;
+  --card-foreground: #101c2b;
   --popover: #ffffff;
-  --popover-foreground: #17201b;
-  --secondary: #e8eee2;
-  --secondary-foreground: #17201b;
-  --muted: #edf2e7;
-  --muted-foreground: #657569;
-  --accent: #e7f1dd;
-  --accent-foreground: #17201b;
-  --border: #d9e2d2;
+  --popover-foreground: #101c2b;
+  --secondary: #edf4fb;
+  --secondary-foreground: #101c2b;
+  --muted: #f1f5fa;
+  --muted-foreground: #627087;
+  --accent: #e9f3fe;
+  --accent-foreground: #101c2b;
+  --border: #d6e0ec;
   --border-soft: color-mix(in oklab, var(--border) 70%, transparent);
-  --border-hairline: #c6d3bd;
-  --border-menu: #c6d3bd;
-  --border-menu-elevated: #b9c9ae;
-  --input: #c4d1ba;
-  --ring: #5f9800;
-  --sidebar: #ffffff;
-  --sidebar-foreground: #17201b;
-  --sidebar-border: #d7e1d0;
+  --border-hairline: #c3d0df;
+  --border-menu: #c3d0df;
+  --border-menu-elevated: #aebdd0;
+  --input: #b9c8da;
+  --ring: #087ee8;
+  --sidebar: #f8fbff;
+  --sidebar-foreground: #101c2b;
+  --sidebar-border: #d6e0ec;
   --sidebar-accent: var(--overlay-hover);
   --sidebar-accent-foreground: #17201b;
   --scrollbar-thumb: rgb(101 117 105 / 0.28);
-  --scrollbar-thumb-hover: rgb(95 152 0 / 0.42);
+  --scrollbar-thumb-hover: rgb(8 126 232 / 0.42);
 
   --primary: var(--brand);
   --primary-foreground: var(--brand-foreground);
@@ -158,9 +169,20 @@
   --sidebar-primary: var(--brand);
   --sidebar-primary-foreground: var(--brand-foreground);
   --sidebar-ring: var(--brand);
-  --btn-primary: #7ddb00;
-  --btn-primary-hover: #6fc700;
-  --btn-primary-active: #5f9800;
+  --btn-primary: #168dff;
+  --btn-primary-hover: #087ee8;
+  --btn-primary-active: #0069c8;
+  --action: #168dff;
+  --action-hover: #087ee8;
+  --action-active: #0069c8;
+  --action-foreground: #ffffff;
+  --action-soft: rgb(22 141 255 / 0.09);
+  --action-border: rgb(8 126 232 / 0.34);
+  --focus-panel: rgb(95 152 0 / 0.045);
+  --focus-panel-strong: rgb(95 152 0 / 0.09);
+  --grid-line: rgb(47 111 167 / 0.065);
+  --surface-raised: #f7faff;
+  --surface-sunken: #f2f6fb;
 
   --overlay-hover-light: rgb(23 32 27 / 0.045);
   --overlay-hover: rgb(23 32 27 / 0.075);
@@ -169,8 +191,8 @@
   --overlay-active-strong: rgb(95 152 0 / 0.2);
   --action-card-hover: rgb(23 32 27 / 0.045);
   --action-card-active: rgb(95 152 0 / 0.1);
-  --segment-track: #e1e9da;
-  --segment-thumb: #f8faf5;
+  --segment-track: #e5edf6;
+  --segment-thumb: #ffffff;
 
   --success: #5f9800;
   --success-foreground: #426b00;
@@ -182,10 +204,10 @@
   --warning-solid-foreground: #ffffff;
   --warning-soft: rgb(184 121 0 / 0.12);
   --warning-border: rgb(184 121 0 / 0.3);
-  --info: #2f6fa7;
-  --info-foreground: #24547f;
-  --info-soft: rgb(47 111 167 / 0.12);
-  --info-border: rgb(47 111 167 / 0.28);
+  --info: #087ee8;
+  --info-foreground: #075fae;
+  --info-soft: rgb(8 126 232 / 0.09);
+  --info-border: rgb(8 126 232 / 0.28);
   --destructive: #c2413a;
   --destructive-foreground: #ffffff;
   --destructive-soft: rgb(194 65 58 / 0.1);
@@ -199,16 +221,16 @@
 
   --tooltip: #17201b;
   --tooltip-foreground: #ffffff;
-  --terminal-background: #f8faf5;
-  --terminal-foreground: #17201b;
+  --terminal-background: #f8fbff;
+  --terminal-foreground: #101c2b;
   --terminal-cursor: var(--brand);
   --terminal-selection: rgb(125 219 0 / 0.24);
 
   --surface-editor: var(--background);
   --surface-chrome: var(--background-chrome);
   --surface-composer: #ffffff;
-  --chat-user-bubble: #e1f3c7;
-  --chat-user-bubble-fg: #244000;
+  --chat-user-bubble: rgb(22 141 255 / 0.10);
+  --chat-user-bubble-fg: #0a4f92;
 }
 
 @theme inline {
@@ -235,6 +257,121 @@ body {
   font-weight: var(--font-weight-normal);
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: auto;
+}
+
+#app {
+  isolation: isolate;
+}
+
+.game-shell {
+  background:
+    radial-gradient(circle at 82% 10%, color-mix(in srgb, var(--info) 4%, transparent), transparent 26rem),
+    var(--surface-editor);
+}
+
+.game-surface {
+  border: 1px solid var(--border);
+  border-radius: .5rem;
+  background: color-mix(in srgb, var(--card) 94%, transparent);
+}
+
+.game-focus-panel {
+  position: relative;
+  border: 1px solid color-mix(in srgb, var(--brand) 48%, var(--border));
+  border-radius: .375rem;
+  background:
+    linear-gradient(90deg, var(--focus-panel-strong), transparent 58%),
+    var(--card);
+  box-shadow: inset 3px 0 0 var(--brand);
+}
+
+.game-focus-panel::before,
+.game-focus-panel::after {
+  position: absolute;
+  left: -1px;
+  width: 14px;
+  height: 14px;
+  border-left: 1px solid var(--brand);
+  content: '';
+  pointer-events: none;
+}
+
+.game-focus-panel::before { top: -1px; border-top: 1px solid var(--brand); }
+.game-focus-panel::after { bottom: -1px; border-bottom: 1px solid var(--brand); }
+
+.game-grid {
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+.game-kicker {
+  color: var(--muted-foreground);
+  font-size: var(--text-caption);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.game-status-dot {
+  display: inline-block;
+  width: .45rem;
+  height: .45rem;
+  border-radius: 999px;
+  background: var(--brand);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--brand) 45%, transparent);
+}
+
+[data-button][data-variant="brand"],
+[data-button][data-variant="primary"],
+[data-button][data-variant="default"] {
+  color: var(--action-foreground);
+}
+
+[data-button][data-variant="brand"]::before,
+[data-button][data-variant="primary"]::before,
+[data-button][data-variant="default"]::before {
+  background-color: var(--action) !important;
+  box-shadow: 0 0 0 1px var(--action-border), 0 8px 26px color-mix(in srgb, var(--action) 14%, transparent);
+}
+
+[data-button][data-variant="brand"]:hover::before,
+[data-button][data-variant="primary"]:hover::before,
+[data-button][data-variant="default"]:hover::before {
+  background-color: var(--action-hover) !important;
+}
+
+[data-button][data-variant="brand"]:active::before,
+[data-button][data-variant="primary"]:active::before,
+[data-button][data-variant="default"]:active::before {
+  background-color: var(--action-active) !important;
+}
+
+[data-slot="input"],
+[data-slot="select-trigger"],
+[data-slot="native-select"] {
+  background-color: color-mix(in srgb, var(--surface-sunken) 78%, transparent) !important;
+}
+
+[data-slot="input"]:focus,
+[data-slot="select-trigger"][data-state="open"],
+[data-slot="native-select"]:focus {
+  box-shadow: inset 0 0 0 1px var(--action), 0 0 0 3px var(--action-soft) !important;
+}
+
+[data-slot="dialog-content"],
+[data-slot="popover-content"],
+[data-slot="dropdown-menu-content"] {
+  background: var(--surface-raised);
+  box-shadow: 0 22px 70px rgb(0 0 0 / .28), inset 0 1px 0 rgb(255 255 255 / .035);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .game-focus-panel,
+  [data-ui-selected] {
+    transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+  }
 }
 
 button,
@@ -322,6 +459,17 @@ pre,
 }
 
 ::selection {
-  background: var(--brand-soft);
+  background: var(--action-soft);
   color: var(--foreground);
+}
+
+/*
+ * Legacy page sections used three unrelated corner scales. Normalize their
+ * geometry at the shell boundary while preserving circular avatars, badges
+ * and compact pills.
+ */
+.rounded-xl,
+.rounded-2xl,
+.rounded-3xl {
+  border-radius: .5rem;
 }

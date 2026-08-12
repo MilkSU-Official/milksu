@@ -172,7 +172,7 @@ describe('DomainTaskContextPanel integration', () => {
     expect(collapse).not.toBeNull()
     expect(ret).not.toBeNull()
     expect(collapse?.className).toContain('min-h-9')
-    expect(ret?.className).toContain('min-h-9')
+    expect(ret?.className).toContain('min-h-10')
     expect(host.textContent).toContain('source-w')
     expect(host.textContent).toContain('net-w')
   })

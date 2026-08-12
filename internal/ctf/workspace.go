@@ -64,6 +64,7 @@ type AgentWorkspaceManifest struct {
 	JobID             string                      `json:"jobId"`
 	ChallengeID       string                      `json:"challengeId"`
 	Title             string                      `json:"title"`
+	Statement         string                      `json:"statement"`
 	Category          string                      `json:"category"`
 	CollaborationMode string                      `json:"collaborationMode"`
 	TrackName         string                      `json:"trackName"`
@@ -79,16 +80,22 @@ type AgentWorkspaceManifest struct {
 }
 
 type AgentWorkspaceHandoff struct {
-	JobID          string                   `json:"jobId"`
-	ConversationID string                   `json:"conversationId"`
-	Role           string                   `json:"role"`
-	Title          string                   `json:"title"`
-	WorkspacePath  string                   `json:"workspacePath"`
-	Prompt         string                   `json:"prompt"`
-	Policy         AgentWorkspacePolicy     `json:"policy"`
-	Budget         AgentWorkspaceBudget     `json:"budget"`
-	Materials      []AgentWorkspaceMaterial `json:"materials"`
-	Run            AgentRunCheckpoint       `json:"run"`
+	JobID             string                   `json:"jobId"`
+	ChallengeID       string                   `json:"challengeId"`
+	ConversationID    string                   `json:"conversationId"`
+	Role              string                   `json:"role"`
+	Title             string                   `json:"title"`
+	Statement         string                   `json:"statement"`
+	Category          string                   `json:"category"`
+	HumanGoal         string                   `json:"humanGoal"`
+	ExternalPlatform  string                   `json:"externalPlatform,omitempty"`
+	ExternalAttemptID int64                    `json:"externalAttemptId,omitempty"`
+	WorkspacePath     string                   `json:"workspacePath"`
+	Prompt            string                   `json:"prompt"`
+	Policy            AgentWorkspacePolicy     `json:"policy"`
+	Budget            AgentWorkspaceBudget     `json:"budget"`
+	Materials         []AgentWorkspaceMaterial `json:"materials"`
+	Run               AgentRunCheckpoint       `json:"run"`
 }
 
 type WorkspaceArtifactReader interface {
@@ -198,7 +205,8 @@ func PrepareAgentWorkspace(
 	manifest := AgentWorkspaceManifest{
 		SchemaVersion: AgentWorkspaceSchemaVersion,
 		JobID:         projection.Job.ID, ChallengeID: projection.Challenge.ID,
-		Title: projection.Challenge.Title, Category: projection.Challenge.Category,
+		Title: projection.Challenge.Title, Statement: projection.Challenge.Statement,
+		Category:          projection.Challenge.Category,
 		CollaborationMode: projection.Challenge.CollaborationMode,
 		TrackName:         projection.Challenge.TrackName, HumanGoal: projection.Challenge.HumanGoal,
 		Source:            projection.Challenge.Source,
@@ -307,16 +315,22 @@ func PrepareAgentWorkspace(
 		strings.TrimSpace(run.LastAssistantSummary) != ""
 
 	return AgentWorkspaceHandoff{
-		JobID:          projection.Job.ID,
-		ConversationID: agentConversationID(projection.Job.ID),
-		Role:           AgentWorkspaceRoleSolver,
-		Title:          "CTF · " + projection.Challenge.Title,
-		WorkspacePath:  workspacePath,
-		Prompt:         initialAgentPrompt(policy, resume, run.Progress),
-		Policy:         policy,
-		Budget:         budget,
-		Materials:      append([]AgentWorkspaceMaterial{}, exported...),
-		Run:            run,
+		JobID:             projection.Job.ID,
+		ChallengeID:       projection.Challenge.ID,
+		ConversationID:    agentConversationID(projection.Job.ID),
+		Role:              AgentWorkspaceRoleSolver,
+		Title:             "CTF · " + projection.Challenge.Title,
+		Statement:         projection.Challenge.Statement,
+		Category:          projection.Challenge.Category,
+		HumanGoal:         projection.Challenge.HumanGoal,
+		ExternalPlatform:  projection.Challenge.ExternalPlatform,
+		ExternalAttemptID: projection.Challenge.ExternalAttemptID,
+		WorkspacePath:     workspacePath,
+		Prompt:            initialAgentPrompt(policy, resume, run.Progress),
+		Policy:            policy,
+		Budget:            budget,
+		Materials:         append([]AgentWorkspaceMaterial{}, exported...),
+		Run:               run,
 	}, nil
 }
 
@@ -380,16 +394,22 @@ func LoadAgentWorkspaceHandoff(workspacePath string) (AgentWorkspaceHandoff, err
 		return AgentWorkspaceHandoff{}, err
 	}
 	return AgentWorkspaceHandoff{
-		JobID:          manifest.JobID,
-		ConversationID: conversationID,
-		Role:           AgentWorkspaceRoleSolver,
-		Title:          "CTF · " + manifest.Title,
-		WorkspacePath:  workspacePath,
-		Prompt:         initialAgentPrompt(policy, true, run.Progress),
-		Policy:         policy,
-		Budget:         manifest.Budget,
-		Materials:      append([]AgentWorkspaceMaterial{}, manifest.Materials...),
-		Run:            run,
+		JobID:             manifest.JobID,
+		ChallengeID:       manifest.ChallengeID,
+		ConversationID:    conversationID,
+		Role:              AgentWorkspaceRoleSolver,
+		Title:             "CTF · " + manifest.Title,
+		Statement:         manifest.Statement,
+		Category:          manifest.Category,
+		HumanGoal:         manifest.HumanGoal,
+		ExternalPlatform:  manifest.ExternalPlatform,
+		ExternalAttemptID: manifest.ExternalAttemptID,
+		WorkspacePath:     workspacePath,
+		Prompt:            initialAgentPrompt(policy, true, run.Progress),
+		Policy:            policy,
+		Budget:            manifest.Budget,
+		Materials:         append([]AgentWorkspaceMaterial{}, manifest.Materials...),
+		Run:               run,
 	}, nil
 }
 

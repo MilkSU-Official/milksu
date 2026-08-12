@@ -13,6 +13,7 @@ import {
   RefreshCw,
   TerminalSquare,
 } from 'lucide-vue-next'
+import CollectionPicker from '@/components-vue/CollectionPicker.vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import { ctfManualStatusLabel, type CTFManualStatus } from '@/lib/ctfManualStatus'
 import type { CTFCollaborationMode, CTFMaterialRequest } from '@/ctfTypes'
@@ -20,6 +21,7 @@ import type { CTFShowCatalogProblem } from '@/ctfshowTypes'
 import type { NSSCTFChallenge } from '@/nssctfTypes'
 import type { NSSCTFCatalogProblem, NSSCTFTrainingDashboard } from '@/nssctfTrainingTypes'
 import type { Conversation } from '@/types'
+import type { ItemCollectionStore } from '@/lib/itemCollections'
 
 const props = withDefaults(defineProps<{
   activeBank: 'nssctf' | 'ctfshow'
@@ -50,6 +52,7 @@ const props = withDefaults(defineProps<{
   manualStatuses?: Record<string, CTFManualStatus>
   conversations?: Conversation[]
   relatedJobId?: string
+  collectionStore: ItemCollectionStore
 }>(), {
   nssctfProblems: () => [],
   ctfshowProblems: () => [],
@@ -126,6 +129,10 @@ function statusKey(id: number) {
   return `${props.activeBank}:${id}`
 }
 
+function collectionKey(id: number) {
+  return `${props.activeBank}:${id}`
+}
+
 function statusFor(id: number): CTFManualStatus {
   return props.manualStatuses?.[statusKey(id)] ?? 'not_started'
 }
@@ -170,8 +177,8 @@ function openCoding() {
 
 <template>
   <section class="flex h-full min-h-0 flex-col bg-background" aria-label="CTF 挑战列表">
-    <div class="grid h-12 shrink-0 grid-cols-[92px_minmax(0,1fr)_140px_110px_130px_90px] items-center gap-4 border-b border-border px-6 text-caption text-muted-foreground">
-      <span>#</span><span>题目</span><span>类别</span><span>难度</span><span>我的状态</span><span>操作</span>
+    <div class="grid h-12 shrink-0 grid-cols-[92px_minmax(0,1fr)_140px_110px_130px_42px_90px] items-center gap-4 border-b border-border px-6 text-caption text-muted-foreground">
+      <span>#</span><span>题目</span><span>类别</span><span>难度</span><span>我的状态</span><span class="sr-only">收藏</span><span>操作</span>
     </div>
 
     <div class="min-h-0 flex-1 overflow-y-auto">
@@ -179,8 +186,8 @@ function openCoding() {
         <template v-for="problem in displayedNssctfProblems" :key="problem.platformId">
           <button
             type="button"
-            class="grid min-h-[62px] w-full grid-cols-[92px_minmax(0,1fr)_140px_110px_130px_90px] items-center gap-4 border-b border-border px-6 text-left hover:bg-muted/30"
-            :class="selectedID === problem.platformId ? 'bg-brand-soft/45' : ''"
+            class="challenge-row grid min-h-[62px] w-full grid-cols-[92px_minmax(0,1fr)_140px_110px_130px_42px_90px] items-center gap-4 border-b border-border px-6 text-left hover:bg-muted/30"
+            :class="selectedID === problem.platformId ? 'challenge-row-selected' : ''"
             :aria-expanded="selectedID === problem.platformId"
             @click="select(problem.platformId)"
           >
@@ -195,10 +202,11 @@ function openCoding() {
             <span class="text-caption text-info">{{ problem.category }}</span>
             <span class="text-caption" :class="difficultyClass(problem.difficulty)">{{ difficultyLabel(problem.difficulty) }}</span>
             <span class="text-caption" :class="statusFor(problem.platformId) === 'in_progress' ? 'text-primary' : 'text-muted-foreground'">{{ statusLabel(statusFor(problem.platformId)) }}</span>
+            <CollectionPicker :item-key="collectionKey(problem.platformId)" :store="collectionStore" @click.stop />
             <span class="text-caption text-info">{{ selectedID === problem.platformId ? '已展开' : statusFor(problem.platformId) === 'in_progress' ? '继续' : '开始' }}</span>
           </button>
 
-          <div v-if="selectedID === problem.platformId && selectedNssctf" class="border-b border-l-2 border-l-primary border-border bg-card px-6 py-5">
+          <div v-if="selectedID === problem.platformId && selectedNssctf" class="game-focus-panel border-b bg-card px-6 py-5">
             <div class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
               <div class="min-w-0">
                 <p class="text-caption font-medium text-muted-foreground">题目描述</p>
@@ -240,8 +248,8 @@ function openCoding() {
         <template v-for="problem in ctfshowProblems" :key="problem.platformId">
           <button
             type="button"
-            class="grid min-h-[62px] w-full grid-cols-[92px_minmax(0,1fr)_140px_110px_130px_90px] items-center gap-4 border-b border-border px-6 text-left hover:bg-muted/30"
-            :class="selectedID === problem.platformId ? 'bg-brand-soft/45' : ''"
+            class="challenge-row grid min-h-[62px] w-full grid-cols-[92px_minmax(0,1fr)_140px_110px_130px_42px_90px] items-center gap-4 border-b border-border px-6 text-left hover:bg-muted/30"
+            :class="selectedID === problem.platformId ? 'challenge-row-selected' : ''"
             @click="select(problem.platformId)"
           >
             <span class="font-mono text-caption text-muted-foreground">#{{ problem.platformId }}</span>
@@ -249,9 +257,10 @@ function openCoding() {
             <span class="text-caption text-info">{{ problem.category }}</span>
             <span class="text-caption text-primary">{{ problem.points }} 分</span>
             <span class="text-caption text-muted-foreground">{{ statusLabel(statusFor(problem.platformId)) }}</span>
+            <CollectionPicker :item-key="collectionKey(problem.platformId)" :store="collectionStore" @click.stop />
             <span class="text-caption text-info">{{ selectedID === problem.platformId ? '已展开' : '开始' }}</span>
           </button>
-          <div v-if="selectedID === problem.platformId && selectedCtfshow" class="border-b border-l-2 border-l-primary border-border bg-card px-6 py-5">
+          <div v-if="selectedID === problem.platformId && selectedCtfshow" class="game-focus-panel border-b bg-card px-6 py-5">
             <div class="flex flex-wrap items-end justify-between gap-5">
               <div>
                 <p class="text-body">从已连接的 CTFshow 页面读取题面和附件，再交给同一个 Coding Agent。</p>
@@ -292,3 +301,8 @@ function openCoding() {
     </footer>
   </section>
 </template>
+
+<style scoped>
+.challenge-row { position: relative; transition: background-color 140ms ease; }
+.challenge-row-selected { background: var(--focus-panel); box-shadow: inset 3px 0 0 var(--brand); }
+</style>

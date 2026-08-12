@@ -20,6 +20,11 @@ export interface CTFDomainTaskContext {
   jobId: string
   challengeId: string
   challengeTitle: string
+  statement?: string
+  category?: string
+  objective?: string
+  originLabel?: string
+  materialNames?: string[]
   role: 'solver' | 'tool-builder' | 'strategist'
   roleLabel: string
   materialStatus: string
@@ -37,6 +42,10 @@ export interface CVEDomainTaskContext {
   kind: 'cve'
   cveId: string
   title: string
+  summary?: string
+  vendor?: string
+  product?: string
+  affected?: string
   sourceEvidenceState: string
   sourceEvidenceCount: number
   assetMatchState: string
@@ -57,6 +66,13 @@ export interface DomainTaskContextPresentation {
   returnLabel: string
   returnAriaLabel: string
   collapsedLabel: string
+  objectiveLabel: string
+  objective: string
+  briefLabel: string
+  brief: string
+  meta: string[]
+  materials: string[]
+  detailsLabel: string
   facts: DomainTaskFact[]
 }
 
@@ -164,6 +180,10 @@ export function buildCTFDomainTaskContext(input: {
   jobId: string
   challengeId: string
   challengeTitle: string
+  statement?: string
+  category?: string
+  objective?: string
+  originLabel?: string
   role?: CTFDomainTaskContext['role']
   materials?: Array<{ name?: string }>
   /** Base grant from challenge.source.scope */
@@ -191,6 +211,13 @@ export function buildCTFDomainTaskContext(input: {
     jobId: String(input.jobId ?? '').trim(),
     challengeId: String(input.challengeId ?? '').trim() || String(input.jobId ?? '').trim(),
     challengeTitle: String(input.challengeTitle ?? '').trim() || '未命名题目',
+    statement: String(input.statement ?? '').trim(),
+    category: String(input.category ?? '').trim(),
+    objective: String(input.objective ?? '').trim() || '分析题目并形成可验证的候选答案',
+    originLabel: String(input.originLabel ?? '').trim(),
+    materialNames: (input.materials ?? [])
+      .map(item => String(item.name ?? '').trim())
+      .filter(Boolean),
     role,
     roleLabel: ctfRoleLabel(role),
     materialStatus: material.status,
@@ -208,6 +235,10 @@ export function buildCTFDomainTaskContext(input: {
 export function buildCVEDomainTaskContext(input: {
   cveId: string
   title?: string
+  summary?: string
+  vendor?: string
+  product?: string
+  affected?: string
   sourceEvidence?: Array<{ sourceName?: string; cacheState?: string; digest?: string }>
   assets?: Array<{ name?: string; status?: string; environment?: string; address?: string }>
   researchScope?: string
@@ -240,6 +271,10 @@ export function buildCVEDomainTaskContext(input: {
     kind: 'cve',
     cveId,
     title: String(input.title ?? '').trim() || `${cveId} 研究接力`,
+    summary: String(input.summary ?? '').trim(),
+    vendor: String(input.vendor ?? '').trim(),
+    product: String(input.product ?? '').trim(),
+    affected: String(input.affected ?? '').trim(),
     sourceEvidenceState,
     sourceEvidenceCount: sources.length,
     assetMatchState,
@@ -283,6 +318,9 @@ export function refreshCTFDomainTaskContext(
     challengeTitle: String(live.challengeTitle ?? base.challengeTitle).trim() || base.challengeTitle,
     materialStatus: material.status,
     materialCount: material.count,
+    materialNames: live.materials
+      ? live.materials.map(item => String(item.name ?? '').trim()).filter(Boolean)
+      : (base.materialNames ?? []),
     authorizedScope: hasLiveScopes
       ? formatAuthorizedScope(mergeAuthorizedScopes(
           live.sourceScope ?? null,
@@ -311,9 +349,16 @@ export function presentDomainTaskContext(
       returnLabel: '返回 CTF',
       returnAriaLabel: '返回 CTF 工作台',
       collapsedLabel: `CTF · ${title}`,
+      objectiveLabel: '当前目标',
+      objective: context.objective || '分析题目并形成可验证的候选答案',
+      briefLabel: '任务简报',
+      brief: context.statement || '题面暂未带入，可返回 CTF 查看完整内容。',
+      meta: [context.category, context.originLabel || idLabel]
+        .filter((value): value is string => Boolean(value)),
+      materials: context.materialNames ?? [],
+      detailsLabel: '权限与来源',
       facts: [
-        { label: '材料', value: context.materialStatus, kind: 'material' },
-        { label: '可用范围', value: context.authorizedScope, kind: 'scope' },
+        { label: '本次权限', value: context.authorizedScope, kind: 'scope' },
       ],
     }
   }
@@ -327,6 +372,14 @@ export function presentDomainTaskContext(
     returnLabel: '返回 CVE',
     returnAriaLabel: '返回 CVE 工作台',
     collapsedLabel: `CVE · ${context.cveId}`,
+    objectiveLabel: '当前目标',
+    objective: '整理影响范围、版本证据与后续安全验证方向',
+    briefLabel: '漏洞摘要',
+    brief: context.summary || '暂无摘要，可返回 CVE 查看公开来源与完整信息。',
+    meta: [context.cveId, [context.vendor, context.product].filter(Boolean).join(' / '), context.affected]
+      .filter((value): value is string => Boolean(value)),
+    materials: [],
+    detailsLabel: '研究边界与来源',
     facts: [
       { label: '来源', value: context.sourceEvidenceState, kind: 'evidence' },
       { label: '研究范围', value: context.researchScope, kind: 'scope' },
@@ -364,6 +417,13 @@ export function normalizeDomainTaskContext(raw: unknown): DomainTaskContext | un
       jobId: String(raw.jobId ?? '').trim(),
       challengeId: String(raw.challengeId ?? '').trim() || String(raw.jobId ?? '').trim(),
       challengeTitle: String(raw.challengeTitle ?? '').trim() || '未命名题目',
+      statement: String(raw.statement ?? '').trim(),
+      category: String(raw.category ?? '').trim(),
+      objective: String(raw.objective ?? '').trim() || '分析题目并形成可验证的候选答案',
+      originLabel: String(raw.originLabel ?? '').trim(),
+      materialNames: Array.isArray(raw.materialNames)
+        ? raw.materialNames.map(item => String(item).trim()).filter(Boolean)
+        : [],
       role: ['solver', 'tool-builder', 'strategist'].includes(String(raw.role))
         ? raw.role as CTFDomainTaskContext['role']
         : 'solver',
@@ -385,6 +445,10 @@ export function normalizeDomainTaskContext(raw: unknown): DomainTaskContext | un
     kind: 'cve',
     cveId: String(raw.cveId ?? '').trim(),
     title: String(raw.title ?? '').trim() || 'CVE 研究接力',
+    summary: String(raw.summary ?? '').trim(),
+    vendor: String(raw.vendor ?? '').trim(),
+    product: String(raw.product ?? '').trim(),
+    affected: String(raw.affected ?? '').trim(),
     sourceEvidenceState: String(raw.sourceEvidenceState ?? '').trim() || '尚无用户导入 Feed / 来源证据',
     sourceEvidenceCount: Number(raw.sourceEvidenceCount ?? 0) || 0,
     assetMatchState: String(raw.assetMatchState ?? '').trim() || '尚无用户确认资产匹配',

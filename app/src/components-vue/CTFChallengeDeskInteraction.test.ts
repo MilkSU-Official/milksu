@@ -3,6 +3,7 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { createApp, nextTick, type App as VueApp } from 'vue'
 import CTFChallengeDesk from './CTFChallengeDesk.vue'
+import { createItemCollectionStore } from '@/lib/itemCollections'
 import type { NSSCTFChallenge } from '@/nssctfTypes'
 
 const mountedApps: VueApp[] = []
@@ -71,6 +72,7 @@ async function mountDesk(options: { catalogLoading: boolean; actionLoading: bool
     catalogReady: true,
     judgeReady: false,
     hasActiveTraining: false,
+    collectionStore: createItemCollectionStore('test.ctf.collections'),
     onStartNssctf,
   })
   app.mount(host)

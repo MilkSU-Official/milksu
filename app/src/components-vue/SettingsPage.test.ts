@@ -650,7 +650,7 @@ describe('SettingsPage database compatibility', () => {
     })
 
     const text = document.body.textContent ?? ''
-    expect(text).toContain('模型与凭据')
+    expect(text).toContain('模型与额度')
     expect(text).toContain('默认模型')
     expect(text).toContain('词元流动')
     expect(text).toContain('grok-4.3')

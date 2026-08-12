@@ -13,13 +13,14 @@ const moduleKey = computed(() => props.module ?? props.title.trim().toLowerCase(
 
 <template>
   <header
-    class="workspace-topbar app-drag border-b border-border bg-background px-6 py-3"
+    class="workspace-topbar app-drag border-b border-border bg-background/95 px-6 py-4"
     data-module-topbar
     data-workspace-topbar
     :data-workspace-module="moduleKey"
   >
     <div class="flex min-w-0 items-center justify-between gap-4">
-      <div class="flex min-w-0 items-start gap-2">
+      <div class="flex min-w-0 items-center gap-3">
+        <span class="workspace-topbar__module-mark" aria-hidden="true" />
         <div v-if="$slots.leading" class="workspace-topbar__leading app-no-drag shrink-0">
           <slot name="leading" />
         </div>
@@ -65,7 +66,27 @@ const moduleKey = computed(() => props.module ?? props.title.trim().toLowerCase(
   --module-topbar-control-size: var(--text-control, 0.875rem);
   --module-topbar-control-line-height: var(--text-control--line-height, 1.25rem);
 
-  min-height: 3.5rem;
+  min-height: 4rem;
+  position: relative;
+  background-image: linear-gradient(90deg, color-mix(in srgb, var(--action) 4%, transparent), transparent 34%);
+}
+
+.workspace-topbar::after {
+  position: absolute;
+  inset-inline: 1.5rem;
+  bottom: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, var(--action-border), transparent 45%);
+  content: '';
+  opacity: .45;
+}
+
+.workspace-topbar__module-mark {
+  width: .22rem;
+  height: 1.9rem;
+  flex: none;
+  background: var(--brand);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--brand) 45%, transparent);
 }
 
 .workspace-topbar__actions {
@@ -74,11 +95,11 @@ const moduleKey = computed(() => props.module ?? props.title.trim().toLowerCase(
 
 .workspace-topbar[data-workspace-module="ctf"],
 .workspace-topbar[data-workspace-module="cve"] {
-  --module-topbar-title-size: 1.875rem;
-  --module-topbar-title-line-height: 2.25rem;
-  min-height: 5rem;
-  padding-top: 1.25rem;
-  padding-bottom: 1rem;
+  --module-topbar-title-size: 1.75rem;
+  --module-topbar-title-line-height: 2.1rem;
+  min-height: 5.25rem;
+  padding-top: 1.15rem;
+  padding-bottom: 1.05rem;
 }
 
 .workspace-topbar__title,

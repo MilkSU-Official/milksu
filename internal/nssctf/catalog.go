@@ -157,10 +157,11 @@ type TrainingDashboard struct {
 }
 
 type CatalogQuery struct {
-	Query    string `json:"query"`
-	Category string `json:"category"`
-	Page     int    `json:"page"`
-	PageSize int    `json:"pageSize"`
+	Query      string `json:"query"`
+	Category   string `json:"category"`
+	Page       int    `json:"page"`
+	PageSize   int    `json:"pageSize"`
+	ProblemIDs []int  `json:"problemIds,omitempty"`
 }
 
 type CatalogSearchResult struct {
@@ -676,7 +677,31 @@ func (s *CatalogService) Search(ctx context.Context, request CatalogQuery) (Cata
 	}
 
 	where := []string{"is_open = 1"}
-	args := make([]any, 0, 5)
+	args := make([]any, 0, 5+len(request.ProblemIDs))
+	if request.ProblemIDs != nil {
+		ids := make([]int, 0, len(request.ProblemIDs))
+		seen := make(map[int]struct{}, len(request.ProblemIDs))
+		for _, id := range request.ProblemIDs {
+			if id <= 0 {
+				continue
+			}
+			if _, exists := seen[id]; exists {
+				continue
+			}
+			seen[id] = struct{}{}
+			ids = append(ids, id)
+		}
+		if len(ids) == 0 {
+			where = append(where, "1 = 0")
+		} else {
+			placeholders := make([]string, len(ids))
+			for index, id := range ids {
+				placeholders[index] = "?"
+				args = append(args, id)
+			}
+			where = append(where, "platform_id IN ("+strings.Join(placeholders, ",")+")")
+		}
+	}
 	if query != "" {
 		idQuery := strings.TrimPrefix(query, "p")
 		where = append(where, `(

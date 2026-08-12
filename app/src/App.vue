@@ -283,8 +283,14 @@ function domainContextFromCTFHandoff(handoff: CTFAgentWorkspaceHandoff) {
   const title = String(handoff.title ?? '').replace(/^CTF\s*·\s*/u, '').trim()
   return buildCTFDomainTaskContext({
     jobId: handoff.jobId,
-    challengeId: handoff.jobId,
+    challengeId: handoff.challengeId || handoff.jobId,
     challengeTitle: title || handoff.title,
+    statement: handoff.statement,
+    category: handoff.category,
+    objective: handoff.humanGoal,
+    originLabel: handoff.externalPlatform
+      ? `${handoff.externalPlatform.replace(/-web$/u, '').toUpperCase()}${handoff.externalAttemptId ? ` · P${handoff.externalAttemptId}` : ''}`
+      : '自定义题目',
     role,
     materials: handoff.materials,
     networkScopes: [],
@@ -425,7 +431,7 @@ onBeforeUnmount(() => unlistenAccount?.())
     @login="startAccountLogin"
     @continue-local="useLocalAccountMode"
   />
-  <div v-else class="flex h-screen min-w-0 flex-col bg-surface-editor text-foreground">
+  <div v-else class="game-shell flex h-screen min-w-0 flex-col bg-surface-editor text-foreground">
     <StartupRecoveryBanner
       v-if="recoveryStatus && !recoveryDismissed"
       :status="recoveryStatus"
