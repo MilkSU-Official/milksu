@@ -194,7 +194,7 @@ function openTopic(query: string) {
 </script>
 
 <template>
-  <main class="flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
+  <main class="tactical-page flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
     <WorkspaceModuleTopBar module="cve">
       <template #actions>
         <Button
@@ -242,7 +242,7 @@ function openTopic(query: string) {
         v-for="topic in learningTopics"
         :key="topic.title"
         type="button"
-        class="rounded-xl border border-border bg-background px-4 py-4 text-left transition-colors hover:border-primary/50 hover:bg-primary/5"
+        class="tactical-command-surface border border-border px-4 py-4 text-left transition-colors hover:border-primary/50"
         @click="openTopic(topic.query)"
       >
         <span class="text-control font-semibold">{{ topic.title }}</span>
@@ -268,14 +268,14 @@ function openTopic(query: string) {
 
     <section class="min-h-0 flex-1 overflow-auto" aria-label="CVE 列表">
       <div class="min-w-[1040px]">
-        <div class="grid h-12 grid-cols-[170px_minmax(260px,1.2fr)_minmax(190px,.9fr)_100px_150px_42px_120px] items-center gap-4 border-b border-border px-6 text-caption text-muted-foreground">
+        <div class="tactical-table-head grid h-12 grid-cols-[170px_minmax(260px,1.2fr)_minmax(190px,.9fr)_100px_150px_42px_120px] items-center gap-4 border-b border-border px-6 text-caption text-muted-foreground">
           <span>CVE</span><span>漏洞</span><span>厂商/产品</span><span>严重性</span><span>我的状态</span><span class="sr-only">收藏</span><span>最近研究</span>
         </div>
 
         <template v-for="item in visibleItems" :key="item.id">
           <button
             type="button"
-            class="vuln-row grid min-h-[72px] w-full grid-cols-[170px_minmax(260px,1.2fr)_minmax(190px,.9fr)_100px_150px_42px_120px] items-center gap-4 border-b border-border px-6 text-left hover:bg-muted/25"
+            class="vuln-row tactical-row grid min-h-[72px] w-full grid-cols-[170px_minmax(260px,1.2fr)_minmax(190px,.9fr)_100px_150px_42px_120px] items-center gap-4 px-6 text-left"
             :class="item.id === dashboard.selectedId.value ? 'vuln-row-selected' : ''"
             :aria-expanded="item.id === dashboard.selectedId.value"
             @click="selectItem(item.id)"
@@ -292,7 +292,7 @@ function openTopic(query: string) {
             <span class="text-caption text-muted-foreground">{{ recentResearch(item) }}</span>
           </button>
 
-          <div v-if="item.id === dashboard.selectedId.value" class="game-focus-panel border-b bg-card px-6 py-5">
+          <div v-if="item.id === dashboard.selectedId.value" class="game-focus-panel tactical-acid-panel border-b px-6 py-5">
             <div class="flex flex-wrap items-start justify-between gap-5">
               <div class="min-w-0 flex-1">
                 <p class="max-w-4xl text-body leading-6 text-muted-foreground">{{ item.summary }}</p>
@@ -377,4 +377,5 @@ function openTopic(query: string) {
 <style scoped>
 .vuln-row { position: relative; transition: background-color 140ms ease; }
 .vuln-row-selected { background: var(--focus-panel); box-shadow: inset 3px 0 0 var(--brand); }
+.tactical-table-head { background: var(--tactical-ink-2); color: #9ea8b2; font-family: 'SFMono-Regular', monospace; letter-spacing: .08em; text-transform: uppercase; }
 </style>

@@ -13,14 +13,14 @@ const moduleKey = computed(() => props.module ?? props.title.trim().toLowerCase(
 
 <template>
   <header
-    class="workspace-topbar app-drag border-b border-border bg-background/95 px-6 py-4"
+    class="workspace-topbar app-drag px-6 py-4"
     data-module-topbar
     data-workspace-topbar
     :data-workspace-module="moduleKey"
   >
     <div class="flex min-w-0 items-center justify-between gap-4">
       <div class="flex min-w-0 items-center gap-3">
-        <span class="workspace-topbar__module-mark" aria-hidden="true" />
+        <span class="workspace-topbar__module-mark tactical-display" aria-hidden="true">{{ moduleKey === 'coding' ? '</>' : moduleKey.toUpperCase() }}</span>
         <div v-if="$slots.leading" class="workspace-topbar__leading app-no-drag shrink-0">
           <slot name="leading" />
         </div>
@@ -66,27 +66,36 @@ const moduleKey = computed(() => props.module ?? props.title.trim().toLowerCase(
   --module-topbar-control-size: var(--text-control, 0.875rem);
   --module-topbar-control-line-height: var(--text-control--line-height, 1.25rem);
 
-  min-height: 4rem;
+  min-height: 5rem;
   position: relative;
-  background-image: linear-gradient(90deg, color-mix(in srgb, var(--action) 4%, transparent), transparent 34%);
+  margin: .75rem .75rem 0;
+  border: 1px solid #323a42;
+  background-color: var(--tactical-ink-2);
+  background-image: var(--tactical-carbon-image);
+  background-size: 640px 640px;
+  color: #f5f6f7;
+  clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, 0 100%);
 }
 
 .workspace-topbar::after {
   position: absolute;
-  inset-inline: 1.5rem;
+  inset-inline: 0;
   bottom: -1px;
   height: 1px;
-  background: linear-gradient(90deg, var(--action-border), transparent 45%);
+  background: linear-gradient(90deg, var(--tactical-blue), transparent 45%);
   content: '';
   opacity: .45;
 }
 
 .workspace-topbar__module-mark {
-  width: .22rem;
-  height: 1.9rem;
+  display: inline-flex;
+  min-width: 2.1rem;
+  height: 2.2rem;
   flex: none;
-  background: var(--brand);
-  box-shadow: 0 0 16px color-mix(in srgb, var(--brand) 45%, transparent);
+  align-items: center;
+  justify-content: center;
+  color: var(--tactical-acid);
+  font-size: 1rem;
 }
 
 .workspace-topbar__actions {
@@ -97,10 +106,13 @@ const moduleKey = computed(() => props.module ?? props.title.trim().toLowerCase(
 .workspace-topbar[data-workspace-module="cve"] {
   --module-topbar-title-size: 1.75rem;
   --module-topbar-title-line-height: 2.1rem;
-  min-height: 5.25rem;
+  min-height: 6rem;
   padding-top: 1.15rem;
   padding-bottom: 1.05rem;
 }
+
+.workspace-topbar :deep([data-button]) { color: #f5f6f7; }
+.workspace-topbar__subtitle { color: #9da6b0; }
 
 .workspace-topbar__title,
 .workspace-topbar__subtitle {

@@ -882,7 +882,7 @@ defineExpose({
 
 <template>
   <div class="chat-composer shrink-0 bg-surface-editor px-5 pb-4 pt-2">
-    <div ref="composerFrame" class="chat-composer__frame mx-auto max-w-3xl">
+    <div ref="composerFrame" class="chat-composer__frame mx-auto max-w-5xl">
       <div
         v-if="ctfSession && ctfRole === 'solver'"
         class="mb-2 flex flex-wrap items-center gap-2 px-1"
@@ -1091,7 +1091,8 @@ defineExpose({
         </p>
       </section>
 
-      <form class="chat-composer__island flex flex-col gap-1" @submit.prevent="submit">
+      <form class="chat-composer__island tactical-command-surface flex flex-col gap-1" @submit.prevent="submit">
+        <div class="chat-composer__command-label tactical-label">Command composer</div>
         <div
           v-if="pendingAttachments.length"
           class="flex flex-wrap gap-2 px-1 pb-1"
@@ -1292,6 +1293,7 @@ defineExpose({
               type="submit"
               variant="brand"
               size="icon"
+              class="tactical-action"
               :disabled="!draft.trim() && !pendingAttachments.length"
               :aria-label="running ? '发送引导' : '发送'"
               :title="running ? '在当前工具调用结束后应用' : '发送'"
@@ -1437,14 +1439,14 @@ defineExpose({
 }
 
 .chat-composer__island {
-  border: 1px solid var(--border);
-  border-radius: 1.35rem;
-  background: var(--card);
-  padding: 0.8rem;
-  box-shadow:
-    0 14px 34px rgb(0 0 0 / 18%),
-    0 2px 8px rgb(0 0 0 / 10%);
+  border: 1px solid #3a424a;
+  border-radius: 0;
+  background-color: var(--tactical-ink-2);
+  padding: .75rem 1rem .85rem;
+  box-shadow: 0 16px 38px rgb(0 0 0 / 24%);
 }
+
+.chat-composer__command-label { border-bottom: 1px solid #343b42; padding: 0 0 .55rem .15rem; color: #a1aab3; }
 
 .chat-composer__toolbar {
   border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
@@ -1459,10 +1461,11 @@ defineExpose({
   font-size: var(--text-label);
   line-height: var(--text-label--line-height);
   letter-spacing: var(--text-label--letter-spacing);
+  color: #f6f7f8;
 }
 
 .chat-composer__input:empty::before {
-  color: var(--muted-foreground);
+  color: #929ca6;
   content: attr(data-placeholder);
   pointer-events: none;
 }

@@ -66,7 +66,7 @@ function toggleCollapsed() {
     </template>
 
     <template v-else>
-      <header class="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-border px-4">
+      <header class="domain-dossier__header flex h-12 shrink-0 items-center justify-between gap-3 px-4">
         <div class="flex min-w-0 items-center gap-2 text-control font-medium">
           <component :is="DomainIcon" class="size-4 shrink-0 text-primary" />
           <span>来自 {{ presentation.moduleLabel }}</span>
@@ -77,9 +77,10 @@ function toggleCollapsed() {
         </Button>
       </header>
 
-      <div class="min-h-0 flex-1 overflow-y-auto">
-        <section class="domain-mission-hero game-grid border-b border-border px-5 py-7">
-          <p class="break-words text-2xl font-semibold tracking-[-0.035em]" :title="presentation.title">
+      <div class="domain-dossier tactical-paper tactical-paper--stacked min-h-0 flex-1 overflow-y-auto">
+        <section class="domain-mission-hero px-6 py-7">
+          <span class="tactical-label">Dossier / {{ presentation.kind.toUpperCase() }}</span>
+          <p class="tactical-display mt-4 break-words text-[2.65rem] leading-none" :title="presentation.title">
             {{ presentation.title }}
           </p>
           <div v-if="presentation.meta.length" class="mt-4 flex flex-wrap gap-2">
@@ -93,44 +94,44 @@ function toggleCollapsed() {
           </div>
         </section>
 
-        <div class="space-y-6 px-5 py-5">
-          <section class="domain-mission-objective game-focus-panel flex items-center gap-4 px-4 py-4">
-            <Target class="size-9 shrink-0 text-primary" />
+        <div class="space-y-6 px-6 py-5">
+          <section class="domain-mission-objective tactical-acid-panel flex items-center gap-4 px-4 py-4">
+            <Target class="size-9 shrink-0" />
             <div class="min-w-0">
-              <p class="text-caption font-semibold text-foreground">{{ presentation.objectiveLabel }}</p>
-              <p class="mt-1 text-body font-semibold leading-6 text-primary">{{ presentation.objective }}</p>
+              <p class="text-caption font-semibold">{{ presentation.objectiveLabel }}</p>
+              <p class="mt-1 text-body font-semibold leading-6">{{ presentation.objective }}</p>
             </div>
           </section>
 
           <section>
-            <h3 class="text-control font-semibold">{{ presentation.briefLabel }}</h3>
-            <p class="mt-3 whitespace-pre-line text-body leading-6 text-muted-foreground">
+            <h3 class="tactical-section-heading">{{ presentation.briefLabel }}</h3>
+            <p class="mt-3 whitespace-pre-line text-body leading-6 text-[color:var(--tactical-paper-muted)]">
               {{ presentation.brief }}
             </p>
           </section>
 
           <section v-if="presentation.materials.length">
-            <h3 class="text-control font-semibold">材料</h3>
+            <h3 class="tactical-section-heading">材料</h3>
             <div class="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
               <div
                 v-for="material in presentation.materials"
                 :key="material"
-                class="flex min-w-0 items-center gap-2 rounded-md border border-border bg-background/45 px-3 py-3"
+                class="domain-material flex min-w-0 items-center gap-2 border px-3 py-3"
               >
-                <File class="size-4 shrink-0 text-muted-foreground" />
+                <File class="size-4 shrink-0" />
                 <span class="min-w-0 flex-1 truncate text-control">{{ material }}</span>
               </div>
             </div>
           </section>
 
-          <details v-if="presentation.facts.length" class="group rounded-lg border border-border bg-background/35">
-            <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-3 text-control text-muted-foreground [&::-webkit-details-marker]:hidden">
+          <details v-if="presentation.facts.length" class="domain-facts group border">
+            <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-3 text-control [&::-webkit-details-marker]:hidden">
               {{ presentation.detailsLabel }}
               <ChevronDown class="size-4 transition-transform group-open:rotate-180" />
             </summary>
-            <dl class="border-t border-border px-3 py-2">
+            <dl class="border-t px-3 py-2">
               <div v-for="fact in presentation.facts" :key="fact.label" class="py-2">
-                <dt class="text-caption text-muted-foreground">{{ fact.label }}</dt>
+                <dt class="text-caption text-[color:var(--tactical-paper-muted)]">{{ fact.label }}</dt>
                 <dd class="mt-1 break-words text-caption leading-5">{{ fact.value }}</dd>
               </div>
             </dl>
@@ -138,7 +139,7 @@ function toggleCollapsed() {
         </div>
       </div>
 
-      <footer class="space-y-2 border-t border-border px-4 py-3">
+      <footer class="domain-dossier__footer space-y-2 border-t px-4 py-3">
         <Button
           variant="brand"
           class="min-h-10 w-full"
@@ -209,17 +210,21 @@ function toggleCollapsed() {
   min-height: 100%;
   flex-direction: column;
   overflow: hidden;
-  background: transparent;
+  background: #111519;
+  overflow: visible;
 }
 
 .domain-mission-hero {
-  background:
-    linear-gradient(90deg, var(--focus-panel-strong), transparent 58%),
-    transparent;
-  box-shadow: inset 3px 0 0 var(--brand);
+  border-bottom: 1px solid rgb(17 19 21 / .32);
 }
 
 .domain-task-context-inline.domain-task-context--expanded {
   border: 0;
 }
+
+.domain-dossier { z-index: 2; margin: 2rem 1.15rem 1rem; overflow: auto; color: var(--tactical-paper-ink); }
+.domain-dossier__header { border-bottom: 1px solid #343b42; color: #f6f7f8; }
+.domain-dossier__footer { border-color: #343b42; color: #f6f7f8; }
+.domain-material, .domain-facts { border-color: rgb(17 19 21 / .35); background: rgb(255 255 255 / .14); }
+.domain-facts dl { border-color: rgb(17 19 21 / .28); }
 </style>

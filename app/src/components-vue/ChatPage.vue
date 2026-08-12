@@ -64,6 +64,7 @@ import {
 import { invokeCommand } from '@/desktop'
 import ChatActivityGroup from '@/components-vue/ChatActivityGroup.vue'
 import ChatComposer from '@/components-vue/ChatComposer.vue'
+import MissionOperationPanel from '@/components-vue/MissionOperationPanel.vue'
 import ChatMessageItem from '@/components-vue/ChatMessageItem.vue'
 import CodingArtifactPreviewPanel from '@/components-vue/CodingArtifactPreviewPanel.vue'
 import CodingChangesPanel from '@/components-vue/CodingChangesPanel.vue'
@@ -1659,7 +1660,21 @@ watch(
     </WorkspaceModuleTopBar>
 
     <div ref="scrollArea" class="min-h-0 flex-1 overflow-y-auto">
-      <div v-if="!conversation?.messages.length" class="mx-auto flex min-h-full max-w-2xl flex-col justify-center px-8 py-16">
+      <div v-if="!conversation?.messages.length && domainTaskPresentation" class="mx-auto flex min-h-full w-full max-w-5xl flex-col justify-center px-5 py-5 2xl:px-8">
+        <MissionOperationPanel :presentation="domainTaskPresentation" :running="running" />
+        <div class="mt-4 flex items-center gap-2">
+          <Button v-if="!workspacePath" class="tactical-action" @click="$emit('chooseWorkspace')">
+            <FolderOpen class="size-4" />
+            选择项目目录
+          </Button>
+          <Badge v-else variant="outline" class="max-w-md truncate">任务工作区已就绪</Badge>
+          <Button v-if="!hasCredential" variant="outline" @click="$emit('openSettings')">
+            <KeyRound class="size-4" />
+            配置模型
+          </Button>
+        </div>
+      </div>
+      <div v-else-if="!conversation?.messages.length" class="mx-auto flex min-h-full max-w-3xl flex-col justify-center px-8 py-16">
         <Bot class="size-6 text-muted-foreground" />
         <h2 class="mt-5 text-body font-medium">{{ topbarPresentation.title }}</h2>
         <p class="mt-2 max-w-lg text-body leading-6 text-muted-foreground">
@@ -1668,17 +1683,17 @@ watch(
             : '选择项目并描述目标。MilkSU 使用 PI，并由当前执行模式和权限策略决定可用工具。' }}
         </p>
         <div class="mt-6 grid grid-cols-3 gap-3">
-          <div class="game-surface px-4 py-3">
+          <div class="tactical-command-surface px-4 py-4">
             <Files class="size-4 text-muted-foreground" />
             <p class="mt-3 text-body font-medium">理解项目</p>
             <p class="mt-1 text-caption leading-5 text-muted-foreground">搜索并读取相关代码</p>
           </div>
-          <div class="game-surface px-4 py-3">
+          <div class="tactical-command-surface px-4 py-4">
             <FilePenLine class="size-4 text-muted-foreground" />
             <p class="mt-3 text-body font-medium">修改文件</p>
             <p class="mt-1 text-caption leading-5 text-muted-foreground">直接完成可审查的改动</p>
           </div>
-          <div class="game-surface px-4 py-3">
+          <div class="tactical-command-surface px-4 py-4">
             <Terminal class="size-4 text-muted-foreground" />
             <p class="mt-3 text-body font-medium">运行命令</p>
             <p class="mt-1 text-caption leading-5 text-muted-foreground">构建、测试与验证结果</p>
@@ -1756,7 +1771,7 @@ watch(
   </main>
   <aside
     v-if="environmentOpen && !domainContextCollapsed"
-    class="context-sidebar flex shrink-0 flex-col border-l border-border bg-card/95"
+    class="context-sidebar flex shrink-0 flex-col border-l border-[#343a40] bg-[#171b1f]"
     :class="['architecture', 'artifacts', 'changes', 'collaboration', 'history', 'browser', 'domain'].includes(contextPanel)
       ? 'w-[min(36rem,36vw)] min-w-[22rem]'
       : 'w-80'"

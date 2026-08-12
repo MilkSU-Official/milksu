@@ -126,6 +126,24 @@
   --surface-composer: var(--card);
   --chat-user-bubble: rgb(159 239 0 / 0.13);
   --chat-user-bubble-fg: #e5ffaf;
+
+  /* Tactical archive visual contract: accepted concept #2. */
+  --tactical-ink: #090c0f;
+  --tactical-ink-2: #111519;
+  --tactical-ink-3: #1a1f24;
+  --tactical-paper: #e8e6df;
+  --tactical-paper-2: #d9d9d4;
+  --tactical-paper-ink: #111315;
+  --tactical-paper-muted: #62615c;
+  --tactical-blue: #087cf0;
+  --tactical-blue-strong: #006ad9;
+  --tactical-acid: #b7ef28;
+  --tactical-orange: #ff8618;
+  --tactical-cut: 16px;
+  --tactical-shadow: 0 24px 58px rgb(0 0 0 / .36);
+  --tactical-paper-image: none;
+  --tactical-carbon-image: none;
+  --font-display: 'Barlow Condensed', 'Arial Narrow', 'PingFang SC', sans-serif;
 }
 
 :root[data-theme='light'] {
@@ -231,6 +249,19 @@
   --surface-composer: #ffffff;
   --chat-user-bubble: rgb(22 141 255 / 0.10);
   --chat-user-bubble-fg: #0a4f92;
+
+  --tactical-ink: #13171b;
+  --tactical-ink-2: #1d2228;
+  --tactical-ink-3: #292f36;
+  --tactical-paper: #f3f2ed;
+  --tactical-paper-2: #e4e3dd;
+  --tactical-paper-ink: #101214;
+  --tactical-paper-muted: #5d5d59;
+  --tactical-blue: #087cf0;
+  --tactical-blue-strong: #006ad9;
+  --tactical-acid: #78a600;
+  --tactical-orange: #d46800;
+  --tactical-shadow: 0 22px 48px rgb(13 19 26 / .18);
 }
 
 @theme inline {
@@ -264,21 +295,40 @@ body {
 }
 
 .game-shell {
-  background:
-    radial-gradient(circle at 82% 10%, color-mix(in srgb, var(--info) 4%, transparent), transparent 26rem),
-    var(--surface-editor);
+  background-color: var(--tactical-ink);
+  background-image: var(--tactical-carbon-image);
+  background-size: 640px 640px;
+}
+
+.tactical-page,
+.chat-main,
+.settings-page,
+.profile-page {
+  background-color: var(--background);
+  background-image: var(--tactical-carbon-image);
+  background-size: 640px 640px;
+}
+
+:root[data-theme='light'] .tactical-page,
+:root[data-theme='light'] .chat-main,
+:root[data-theme='light'] .settings-page,
+:root[data-theme='light'] .profile-page {
+  background-color: #eef0ef;
+  background-image: var(--tactical-paper-image);
 }
 
 .game-surface {
-  border: 1px solid var(--border);
-  border-radius: .5rem;
-  background: color-mix(in srgb, var(--card) 94%, transparent);
+  border: 1px solid var(--border-hairline);
+  border-radius: 0;
+  background: var(--card);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .035);
+  clip-path: polygon(0 var(--tactical-cut), var(--tactical-cut) 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%);
 }
 
 .game-focus-panel {
   position: relative;
   border: 1px solid color-mix(in srgb, var(--brand) 48%, var(--border));
-  border-radius: .375rem;
+  border-radius: 0;
   background:
     linear-gradient(90deg, var(--focus-panel-strong), transparent 58%),
     var(--card);
@@ -471,5 +521,136 @@ pre,
 .rounded-xl,
 .rounded-2xl,
 .rounded-3xl {
-  border-radius: .5rem;
+  border-radius: .25rem;
+}
+
+/*
+ * Tactical archive primitives. Surfaces use the generated raster materials,
+ * while CSS owns only layout, states and structural cuts.
+ */
+.tactical-command-surface {
+  position: relative;
+  border: 1px solid #333a41;
+  background-color: var(--tactical-ink-2);
+  background-image: var(--tactical-carbon-image);
+  background-size: 640px 640px;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .04), var(--tactical-shadow);
+  clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, 18px 100%, 0 calc(100% - 18px));
+}
+
+.tactical-paper {
+  position: relative;
+  color: var(--tactical-paper-ink);
+  border: 1px solid #aba9a1;
+  background-color: var(--tactical-paper);
+  background-image: var(--tactical-paper-image);
+  background-size: 640px 640px;
+  box-shadow: var(--tactical-shadow);
+  clip-path: polygon(0 14px, 14px 0, calc(100% - 18px) 0, 100% 18px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%);
+}
+
+.tactical-paper--stacked::before,
+.tactical-paper--stacked::after {
+  position: absolute;
+  z-index: -1;
+  border: 1px solid #a5a7a5;
+  background-color: var(--tactical-paper-2);
+  background-image: var(--tactical-paper-image);
+  background-size: 640px 640px;
+  content: '';
+  pointer-events: none;
+}
+
+.tactical-paper--stacked::before { inset: -18px -18px 18px 18px; transform: rotate(.45deg); }
+.tactical-paper--stacked::after { inset: -34px -32px 34px 34px; transform: rotate(-.65deg); }
+
+.tactical-display {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -.035em;
+}
+
+.tactical-label {
+  font-family: 'SFMono-Regular', 'Cascadia Code', monospace;
+  font-size: .6875rem;
+  font-weight: 600;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+
+.tactical-register {
+  color: var(--tactical-orange);
+}
+
+.tactical-rule {
+  border-color: color-mix(in srgb, currentColor 22%, transparent);
+}
+
+.tactical-action {
+  border-color: var(--tactical-blue) !important;
+  background: var(--tactical-blue) !important;
+  color: #fff !important;
+  border-radius: 2px !important;
+  box-shadow: 0 10px 28px rgb(8 124 240 / .22) !important;
+}
+
+.tactical-acid-panel {
+  border: 1px solid color-mix(in srgb, var(--tactical-acid) 68%, #202700);
+  background: color-mix(in srgb, var(--tactical-acid) 11%, var(--tactical-ink));
+  box-shadow: inset 4px 0 0 var(--tactical-acid), 0 0 24px rgb(183 239 40 / .06);
+  color: var(--foreground);
+}
+
+.tactical-paper .tactical-acid-panel {
+  border-color: #859842;
+  background: color-mix(in srgb, var(--tactical-acid) 18%, var(--tactical-paper));
+  box-shadow: inset 4px 0 0 #789800;
+  color: var(--tactical-paper-ink);
+}
+
+.tactical-row {
+  border-bottom: 1px solid color-mix(in srgb, var(--border-hairline) 78%, transparent);
+  transition: background-color 120ms ease, border-color 120ms ease, transform 120ms ease;
+}
+
+.tactical-row:hover { background: color-mix(in srgb, var(--action) 5%, transparent); }
+.tactical-row[data-ui-selected],
+.tactical-row.is-selected {
+  border-left: 4px solid var(--tactical-acid);
+  background: color-mix(in srgb, var(--tactical-acid) 8%, var(--card));
+}
+
+.tactical-section-heading {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: .01em;
+}
+
+.tactical-section-heading::before {
+  width: .45rem;
+  height: .45rem;
+  flex: none;
+  border: 1px solid currentColor;
+  content: '';
+  transform: rotate(45deg);
+}
+
+[data-button] { border-radius: 2px; }
+[data-slot="input"],
+[data-slot="select-trigger"],
+[data-slot="native-select"] { border-radius: 2px !important; }
+[data-slot="dialog-content"],
+[data-slot="popover-content"],
+[data-slot="dropdown-menu-content"] {
+  border-radius: 2px !important;
+  clip-path: polygon(0 10px, 10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%);
+}
+
+@media (max-width: 900px) {
+  .tactical-paper--stacked::before,
+  .tactical-paper--stacked::after { display: none; }
 }

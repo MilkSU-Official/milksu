@@ -150,12 +150,12 @@ onMounted(load)
 </script>
 
 <template>
-  <main class="profile-page min-w-0 flex-1 overflow-y-auto bg-background text-foreground" aria-label="个人资料">
+  <main class="profile-page tactical-page min-w-0 flex-1 overflow-y-auto bg-background text-foreground" aria-label="个人资料">
     <div class="mx-auto w-full max-w-[1280px] px-6 py-7 lg:px-9">
       <header class="flex items-center justify-between gap-5 pb-5">
         <div class="flex items-center gap-3">
           <UserRound class="size-6 text-info" />
-          <h1 class="text-2xl font-semibold tracking-[-0.035em]">个人资料</h1>
+          <h1 class="tactical-display text-4xl">个人资料</h1>
           <span class="inline-flex items-center gap-1.5 text-caption text-success"><LockKeyhole class="size-3.5" />仅自己可见</span>
         </div>
         <div class="flex items-center gap-2">
@@ -164,7 +164,7 @@ onMounted(load)
         </div>
       </header>
 
-      <section class="profile-identity game-surface flex flex-wrap items-center gap-6 px-7 py-6">
+      <section class="profile-identity tactical-paper flex flex-wrap items-center gap-6 px-7 py-6 text-[color:var(--tactical-paper-ink)]">
         <div class="relative shrink-0">
           <img :src="shownAvatar" alt="个人头像" class="size-24 rounded-full border-2 border-primary object-cover shadow-sm">
           <input ref="avatarInput" class="sr-only" type="file" accept="image/png,image/jpeg,image/webp" @change="updateAvatar">
@@ -193,7 +193,7 @@ onMounted(load)
 
       <div class="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <div class="min-w-0 space-y-4">
-          <section class="activity-section game-surface px-5 py-5" aria-labelledby="activity-heading">
+          <section class="activity-section tactical-command-surface px-5 py-5" aria-labelledby="activity-heading">
             <div class="flex flex-wrap items-center justify-between gap-4">
               <div><p class="game-kicker">过去一年</p><h2 id="activity-heading" class="mt-1 text-xl font-semibold">活跃记录</h2></div>
               <p class="text-caption text-muted-foreground">按真实任务记录；工具调用不单独计入</p>
@@ -216,20 +216,20 @@ onMounted(load)
           </section>
 
           <section class="module-grid grid gap-3 md:grid-cols-3" aria-label="成长概况">
-            <article v-for="item in snapshot.modules" :key="item.module" class="game-surface module-card px-5 py-5">
+            <article v-for="item in snapshot.modules" :key="item.module" class="tactical-command-surface module-card px-5 py-5">
               <div class="flex items-start justify-between gap-3"><h2 class="text-xl font-semibold">{{ item.label }}</h2><span class="module-stage">{{ item.stage }}</span></div>
               <p class="mt-5 text-caption text-muted-foreground">最近记录</p>
               <p class="mt-1 truncate text-body" :title="item.recentFocus">{{ item.recentFocus }}</p>
             </article>
           </section>
 
-          <section v-if="accountStatus.state === 'active'" class="game-surface flex items-center justify-between gap-5 px-5 py-4">
+          <section v-if="accountStatus.state === 'active'" class="tactical-acid-panel flex items-center justify-between gap-5 px-5 py-4">
             <div><p class="game-kicker">账户与额度</p><p class="mt-1 text-body text-muted-foreground">内测账户可用额度</p></div>
             <strong class="font-mono text-2xl text-primary">{{ balanceLabel }}</strong>
           </section>
         </div>
 
-        <section class="game-surface px-5 py-5" aria-labelledby="growth-heading">
+        <section class="tactical-command-surface px-5 py-5" aria-labelledby="growth-heading">
           <div class="border-b border-border pb-4"><p class="game-kicker">有结果来源</p><h2 id="growth-heading" class="mt-1 text-xl font-semibold">最近确认的成长</h2></div>
           <p v-if="error" class="mt-5 border border-destructive/30 bg-destructive/10 px-4 py-3 text-body text-destructive">{{ error }}</p>
           <div v-else-if="!recentGrowth.length" class="mt-6 border-l-2 border-border py-4 pl-5 text-body text-muted-foreground">完成有明确结果的 Coding、CTF 或 CVE 任务后，这里会自动出现记录。</div>

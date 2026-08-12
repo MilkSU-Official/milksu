@@ -100,7 +100,7 @@ function openSettings() {
 
 <template>
   <div
-    class="app-drag relative flex w-full shrink-0 flex-col bg-sidebar"
+    class="app-drag workspace-rail relative flex w-full shrink-0 flex-col"
     data-shell-traffic-safe
   >
     <div
@@ -110,7 +110,7 @@ function openSettings() {
     >
       <Button
         variant="ghost"
-        class="app-no-drag relative h-12 min-w-12 rounded-full p-1.5 xl:w-full xl:justify-start xl:gap-3"
+        class="app-no-drag relative h-14 min-w-12 rounded-none p-1.5 xl:w-full xl:justify-start xl:gap-3"
         aria-label="打开用户菜单"
         :aria-expanded="menuOpen"
         @click.stop="menuOpen = !menuOpen"
@@ -154,7 +154,7 @@ function openSettings() {
         :key="item.id"
         :variant="activeSection === item.id ? 'secondary' : 'ghost'"
         :class="[
-          'workspace-rail-item relative h-auto min-h-12 px-3 py-2',
+          'workspace-rail-item relative h-auto min-h-14 px-3 py-2',
           'flex-col gap-0.5 px-1 py-1.5 xl:flex-row xl:justify-start xl:gap-3 xl:px-4',
           activeSection === item.id ? 'workspace-rail-active' : '',
         ]"
@@ -216,14 +216,15 @@ function openSettings() {
 
 <style scoped>
 .workspace-rail-traffic-safe { box-sizing: border-box; min-height: 5.75rem; padding-top: 2.1rem; padding-bottom: .5rem; }
+.workspace-rail { background-color: var(--tactical-ink); background-image: var(--tactical-carbon-image); background-size: 640px 640px; }
 .workspace-rail-item { font-size: var(--text-body); line-height: var(--text-body--line-height); letter-spacing: var(--text-body--letter-spacing); }
 .workspace-rail-item, .workspace-rail-control { --border-hairline: transparent; --selected-border: transparent; }
-.workspace-rail-active { color: var(--foreground); background: color-mix(in srgb, var(--action) 8%, transparent); }
+.workspace-rail-active { color: #fff; background: linear-gradient(100deg, #1d2228 0 84%, var(--tactical-acid) 84% 100%); }
 .workspace-rail-active :deep(svg) { color: var(--brand); }
 .workspace-rail-control { color: var(--muted-foreground); }
 .workspace-rail-control:hover, .workspace-rail-control:focus-visible { color: var(--foreground); }
-.workspace-rail-active::after { position: absolute; inset-block: .65rem; inset-inline-start: 0; width: .1875rem; background: var(--brand); box-shadow: 0 0 14px color-mix(in srgb, var(--brand) 45%, transparent); content: ''; }
-.user-menu-item { display: flex; width: 100%; align-items: center; gap: .65rem; border: 0; border-radius: .55rem; background: transparent; padding: .65rem .7rem; color: var(--foreground); font-size: var(--text-body); cursor: pointer; }
+.workspace-rail-active::after { position: absolute; inset-block: 0; inset-inline-start: 0; width: .2rem; background: var(--tactical-acid); content: ''; }
+.user-menu-item { display: flex; width: 100%; align-items: center; gap: .65rem; border: 0; border-radius: 0; background: transparent; padding: .65rem .7rem; color: var(--foreground); font-size: var(--text-body); cursor: pointer; }
 .user-menu-item:hover:not(:disabled), .user-menu-item:focus-visible { background: var(--muted); outline: 0; }
 .user-menu-item:disabled { cursor: default; opacity: .55; }
 </style>

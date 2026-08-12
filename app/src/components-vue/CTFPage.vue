@@ -1563,7 +1563,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <main class="flex min-w-0 flex-1 flex-col bg-background">
+  <main class="tactical-page flex min-w-0 flex-1 flex-col bg-background">
     <CTFWorkspaceHeader
       v-if="screen === 'workspace'"
       :challenge-title="activeProjection?.challenge.title"
@@ -1766,13 +1766,13 @@ onBeforeUnmount(() => {
     <div
       ref="workspaceScrollArea"
       class="min-h-0 flex-1"
-      :class="screen === 'challenge' ? 'overflow-hidden' : 'overflow-y-auto px-6 py-9'"
+      :class="screen === 'challenge' ? 'overflow-hidden' : 'overflow-y-auto px-6 py-7'"
     >
       <div
         class="w-full"
         :class="screen === 'challenge' ? 'h-full' : screen === 'source' ? 'mx-auto max-w-5xl' : 'mx-auto max-w-5xl'"
       >
-        <ol v-if="ctfSection === 'catalog' && screen === 'source'" class="mx-auto mb-10 grid max-w-3xl grid-cols-3" aria-label="训练步骤">
+        <ol v-if="ctfSection === 'catalog' && screen === 'source'" class="tactical-paper mx-auto mb-8 grid max-w-3xl grid-cols-3 p-4" aria-label="训练步骤">
           <li
             v-for="item in [
               { index: 1, label: '选择入口' },

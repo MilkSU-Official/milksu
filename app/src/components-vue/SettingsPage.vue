@@ -729,8 +729,8 @@ async function save() {
 </script>
 
 <template>
-  <main class="settings-page flex min-w-0 flex-1 flex-col bg-background">
-    <header class="app-drag flex h-16 shrink-0 items-center border-b border-border bg-background px-5">
+  <main class="settings-page tactical-page flex min-w-0 flex-1 flex-col bg-background">
+    <header class="app-drag tactical-command-surface mx-3 mt-3 flex h-16 shrink-0 items-center px-5 text-white">
       <Button variant="ghost" size="icon-sm" class="app-no-drag mr-3" aria-label="返回" @click="$emit('close')">
         <ArrowLeft class="size-4" />
       </Button>
@@ -741,7 +741,7 @@ async function save() {
     </header>
 
     <div class="settings-layout flex min-h-0 flex-1">
-      <nav class="settings-nav app-no-drag w-56 shrink-0 border-r border-border bg-sidebar/65 px-3 py-5" aria-label="设置分类">
+      <nav class="settings-nav app-no-drag w-56 shrink-0 border-r border-[#343b42] bg-[#101418] px-3 py-5" aria-label="设置分类">
         <button
           v-for="item in settingsCategories"
           :key="item.value"
@@ -758,8 +758,8 @@ async function save() {
       <div class="min-h-0 min-w-0 flex-1 overflow-y-auto px-6 py-8">
       <div :class="category === 'cve' ? 'mx-auto w-full max-w-6xl' : category === 'apikeys' ? 'mx-auto w-full max-w-5xl' : 'mx-auto max-w-3xl'">
         <div class="mb-7">
-          <p class="game-kicker">Settings</p>
-          <h1 class="mt-1 text-3xl font-semibold tracking-[-0.04em]">{{ settingsCategories.find(item => item.value === category)?.label }}</h1>
+          <p class="tactical-label text-muted-foreground">Settings</p>
+          <h1 class="tactical-display mt-1 text-5xl">{{ settingsCategories.find(item => item.value === category)?.label }}</h1>
         </div>
 
         <Alert v-if="notice" :variant="notice.tone === 'error' ? 'destructive' : 'default'" class="mb-5">
