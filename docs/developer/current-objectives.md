@@ -57,7 +57,7 @@
 - **目标文档**：[个人安全工作台计划](security-workspace-product-plan.md)。
 - **关联方式**：该 Codex 任务执行目标文档中的产品目标，本节只维护当前切片、完成线和验收状态。
 - **当前切片**：目标问答、六张定稿图、个人资料、轻量 CTF/CVE、独立 Admin、双模型来源路由和 `~/Documents/MilkSU` 用户产物目录已经进入代码。Desktop 与 Admin 的全部用户可达页面已进一步迁移到统一的游戏化界面系统；实际日夜界面截图、组件语义和 Computer Use 复检保存在[视觉规范](../design/milksu-game-ui-system.md)。Desktop 功能提交 `2fc493cc4be705ec054f782b930db125c40f0972` 的 clean Beta 已通过 CTF/CVE 列表、共享 Coding 接力、个人资料和设置追踪复检，tracking ID 为 `a8cc501e9d993f50106bec6cc7bc597f2926c4f61475d6a54e7449e49ee57c08`；Admin 游戏化界面提交为 `0f1d86d47105c25b186a27165e9d02166a077eca`。原生验收仍保留全新自定义题 `Caesar Shift 12` 的创建、手工状态、共享 Coding、运行中引导、脚本/笔记交付、返回与历史收口；题面矛盾没有被伪造成 Flag 或 Judge 成功。账户会话已改为 `0600` 本地文件，启动不再触发 macOS Keychain；私有 `macos-release` workflow 已实现 Developer ID、hardened runtime、公证、staple、Gatekeeper 验证与临时资产销毁，首个真实 workflow 产物仍待最终提交推送后取得。
-- **完成线**：从本目标最终干净提交构建并打开正式 App，在设置页核对正式版 branch、完整 commit、tracking ID，完成账户、CTF、CVE 的最小回归并只推送 MilkSU 私有远端；随后运行 `macOS signed release` 并以 Apple `Accepted`、stapler、Gatekeeper 和下载 artifact 回执建立正式分发事实。账户 Team Key、TokenFlux 真实扣费/明细/硬限额/同步延迟，以及 Obelisk 到可归因成长事实的升级都是独立后续纵切；当前界面和文档不得把它们伪装成已验收。
+- **完成线**：本目标最终 clean `main` 已构建并打开正式 App；设置页 branch、完整 commit、tracking ID、Package Inspector 与 CTF/CVE 最小回归均通过，代码只推送 MilkSU 私有远端。剩余发行条件是运行 `macOS signed release`，并以 Apple `Accepted`、stapler、Gatekeeper 和下载 artifact 回执建立可外部分发事实。账户 Team Key、TokenFlux 真实扣费/明细/硬限额/同步延迟，以及 Obelisk 到可归因成长事实的升级都是独立后续纵切；当前界面和文档不得把它们伪装成已验收。
 
 | 优先级 | 主线 | 只认什么完成 |
 | --- | --- | --- |

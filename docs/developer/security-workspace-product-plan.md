@@ -111,7 +111,7 @@ Desktop 与独立 Admin 的全部页面统一采用
 | 邀请与初始额度 | 桌面兑换邀请；Admin/客户端均显示访问开通、¥5.00 和初始额度流水 | 通过 |
 | 桌面账户联动 | GitHub 登录、头像、余额与两种模型来源顺序；Team Key 未连接时如实显示不可用 | 通过；TokenFlux 扣费明细后续 |
 | 真实 CTF/CVE | 全新 `Caesar Shift 12` 完成创建、共享 Coding、运行中引导、脚本/笔记、返回和手工完成；题面矛盾被如实指出，未编造 Flag 或 Judge 成功。CVE-2024-3400 已完成只读研究、文档交付、返回与对话关联 | 通过 |
-| 正式 App | 从最终干净提交构建、核对追踪并打开 | 待最终验收 |
+| 正式 App | 从最终干净 `main` 构建；Package Inspector、设置页 branch/完整 commit/tracking ID 与 CTF 首页最小回归通过，并已打开 | 通过（本地 ad-hoc；Developer ID 公证仍按发行纵切后续完成） |
 
 Obelisk 当前保存和检索 Coding、CTF、CVE 历史，只能帮助用户找回做过的事情。个人页现有次数、
 阶段和最近活动是本机投影，不把一次 Agent 代做、手工“已完成”或普通工具调用解释成用户能力提升。
