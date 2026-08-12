@@ -27,6 +27,9 @@ const channelConfig = desktopChannelConfig(channel)
 // Always prefer the current managed Node that launched this script.
 const managedNode = process.execPath
 const codesignIdentity = String(process.env.MILKSU_CODESIGN_IDENTITY ?? '').trim() || '-'
+const electronBuilderIdentity = codesignIdentity === '-'
+  ? null
+  : codesignIdentity.replace(/^Developer ID Application:\s*/, '')
 
 function run(command, args, options = {}) {
   return new Promise((resolvePromise, reject) => {
@@ -121,7 +124,10 @@ async function writeBuilderConfig(trackingPath) {
       // Local Stable/Beta packages are deliberately ad-hoc until a Developer ID
       // is supplied. Explicit null prevents electron-builder from repeatedly
       // enumerating the user's Keychain during ordinary inner-loop builds.
-      identity: codesignIdentity === '-' ? null : codesignIdentity,
+      // electron-builder expects the certificate qualifier without the
+      // "Developer ID Application:" type prefix. Direct codesign calls below
+      // keep using the exact full identity.
+      identity: electronBuilderIdentity,
       hardenedRuntime: codesignIdentity !== '-',
       entitlements: join(root, 'desktop', 'build', 'entitlements.mac.plist'),
       entitlementsInherit: join(root, 'desktop', 'build', 'entitlements.mac.inherit.plist'),
