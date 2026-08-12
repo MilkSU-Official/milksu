@@ -98,14 +98,14 @@ const phases = computed(() => props.presentation.kind === 'ctf'
 .mission-operation__paper-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; border-bottom: 1px solid rgb(17 19 21 / .3); padding-bottom: .6rem; color: var(--tactical-paper-muted); }
 .mission-operation__identity { display: flex; align-items: end; justify-content: space-between; gap: 1.5rem; padding: .45rem 0 .9rem; }
 .mission-operation__title { max-width: 100%; overflow-wrap: anywhere; font-size: clamp(2.25rem, 7cqi, 4.6rem); line-height: .94; }
-.mission-operation__category { display: inline-block; margin-top: .55rem; background: var(--tactical-blue); padding: .18rem .65rem; color: white; font-size: .75rem; }
+.mission-operation__category { display: inline-block; margin-top: .55rem; border: 1px solid color-mix(in srgb, var(--tactical-acid) 72%, var(--tactical-paper-ink)); background: color-mix(in srgb, var(--tactical-acid) 20%, transparent); padding: .18rem .65rem; color: var(--tactical-paper-ink); font-size: .75rem; }
 .mission-operation__file { display: grid; min-width: 8rem; gap: .25rem; color: var(--tactical-paper-muted); text-align: right; }
 .mission-operation__file strong { color: var(--tactical-paper-ink); font-family: 'SFMono-Regular', monospace; font-size: .75rem; }
 .mission-phase-rail { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0; padding: 0; border: 1px solid rgb(17 19 21 / .4); list-style: none; }
 .mission-phase-rail li { display: flex; min-width: 0; min-height: 4.25rem; align-items: center; gap: .7rem; padding: .55rem .8rem; border-right: 1px solid rgb(17 19 21 / .28); color: var(--tactical-paper-muted); }
 .mission-phase-rail li:last-child { border-right: 0; }
-.mission-phase-rail li.active { background: var(--tactical-blue); color: white; }
-.mission-phase-rail li.running { background: rgb(8 124 240 / .12); color: var(--tactical-paper-ink); }
+.mission-phase-rail li.active { background: color-mix(in srgb, var(--tactical-acid) 76%, var(--tactical-paper)); color: var(--tactical-paper-ink); }
+.mission-phase-rail li.running { background: color-mix(in srgb, var(--tactical-acid) 18%, transparent); color: var(--tactical-paper-ink); }
 .mission-phase-rail__index { display: grid; width: 1.7rem; height: 1.7rem; flex: none; place-items: center; border: 1px solid currentColor; border-radius: 50%; font-family: var(--font-display); font-size: 1rem; font-weight: 700; }
 .mission-phase-rail strong, .mission-phase-rail small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mission-phase-rail strong { font-size: .8rem; }
@@ -117,12 +117,12 @@ const phases = computed(() => props.presentation.kind === 'ctf'
 .mission-activity { padding: .85rem 1rem 1rem; color: var(--foreground); box-shadow: none; }
 .mission-activity > header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; border-bottom: 1px solid #30373e; padding: 0 .2rem .65rem; color: var(--muted-foreground); }
 .mission-activity__row { display: flex; min-height: 5.2rem; align-items: center; gap: 1rem; margin-top: .65rem; border: 1px solid #343c44; background: #171b1f; padding: .65rem .9rem; }
-.mission-activity__icon { display: grid; width: 3.35rem; height: 3.35rem; flex: none; place-items: center; border: 1px solid var(--tactical-blue); color: var(--tactical-blue); }
+.mission-activity__icon { display: grid; width: 3.35rem; height: 3.35rem; flex: none; place-items: center; border: 1px solid var(--tactical-acid); color: var(--tactical-acid); }
 .mission-activity__icon :deep(svg) { width: 1.65rem; height: 1.65rem; }
 .mission-activity time { display: block; color: var(--muted-foreground); font-family: 'SFMono-Regular', monospace; font-size: .68rem; }
 .mission-activity strong { display: block; margin-top: .4rem; font-size: 1.05rem; }
-.mission-activity__state { background: rgb(8 124 240 / .16); padding: .25rem .55rem; color: #52a8ff; font-size: .75rem; }
-.mission-activity__state.active { box-shadow: inset 2px 0 0 var(--tactical-blue); }
+.mission-activity__state { background: color-mix(in srgb, var(--tactical-acid) 14%, transparent); padding: .25rem .55rem; color: var(--tactical-acid); font-size: .75rem; }
+.mission-activity__state.active { box-shadow: inset 2px 0 0 var(--tactical-acid); }
 @container chat-main (max-width: 56rem) {
   .mission-phase-rail { grid-template-columns: repeat(2, 1fr); }
   .mission-phase-rail li:nth-child(2) { border-right: 0; }
