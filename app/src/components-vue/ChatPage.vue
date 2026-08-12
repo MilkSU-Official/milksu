@@ -201,6 +201,7 @@ const emit = defineEmits<{
 }>()
 
 const goalMode = ref(false)
+const stagedComposerPrompt = ref<{ conversationId: string; prompt: string } | null>(null)
 const composer = ref<{ appendDraftText: (text: string) => void } | null>(null)
 const scrollArea = ref<HTMLElement | null>(null)
 const workshopState = ref<CTFToolWorkshopState | null>(null)
@@ -652,11 +653,18 @@ function sendComposerMessage(
     void showComputerUseScope()
     return
   }
+  const stagedPrompt = stagedComposerPrompt.value
+  const submittedPrompt = stagedPrompt
+    && stagedPrompt.conversationId === props.conversation?.id
+    && stagedPrompt.prompt !== prompt
+    ? `${stagedPrompt.prompt}\n\n用户当前请求：${prompt}`
+    : prompt
+  stagedComposerPrompt.value = null
   const scopedPrompt = scopeToken === 'browser-use'
-    ? `本轮通过 Playwright MCP 官方扩展请求连接真实用户浏览器；首次调用时等我在 Chrome/Edge 里选择并批准准确标签页。只操作扩展返回的标签页，不要改用 MilkSU 内置浏览器或 Computer Use。\n\n${prompt}`
+    ? `本轮通过 Playwright MCP 官方扩展请求连接真实用户浏览器；首次调用时等我在 Chrome/Edge 里选择并批准准确标签页。只操作扩展返回的标签页，不要改用 MilkSU 内置浏览器或 Computer Use。\n\n${submittedPrompt}`
     : scopeToken === 'computer-use'
-      ? `本轮使用已锁定的可见 App 窗口完成请求；若尚未接入准确窗口，先停下让我选择。\n\n${prompt}`
-      : prompt
+      ? `本轮使用已锁定的可见 App 窗口完成请求；若尚未接入准确窗口，先停下让我选择。\n\n${submittedPrompt}`
+      : submittedPrompt
   emit('send', scopedPrompt, visibleText, attachments, scopeToken)
 }
 
@@ -1507,6 +1515,10 @@ watch(
     if (!draft?.prompt) return
     // Stage unsent draft only — never emit send / start tools / network.
     void nextTick(() => {
+      stagedComposerPrompt.value = {
+        conversationId: props.conversation?.id ?? '',
+        prompt: draft.prompt,
+      }
       composer.value?.appendDraftText(draft.visibleText || draft.prompt)
       emit('consumePendingDraft')
     })
@@ -1678,7 +1690,7 @@ watch(
             选择项目目录
           </Button>
           <Badge v-else variant="outline" class="max-w-md truncate">
-            {{ workspacePath }}
+            {{ domainTaskPresentation ? '任务工作区已就绪' : workspacePath }}
           </Badge>
           <Button v-if="!hasCredential" variant="outline" @click="$emit('openSettings')">
             <KeyRound class="size-4" />

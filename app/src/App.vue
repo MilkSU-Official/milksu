@@ -300,6 +300,13 @@ function domainContextFromCTFHandoff(handoff: CTFAgentWorkspaceHandoff) {
   })
 }
 
+function visibleCTFDraft(handoff: CTFAgentWorkspaceHandoff) {
+  const title = String(handoff.title ?? '').replace(/^CTF\s*·\s*/u, '').trim() || '这道题'
+  if (handoff.role === 'strategist') return `复盘 ${title} 的当前路线，给出一个最值得验证的下一步。`
+  if (handoff.role === 'tool-builder') return `继续 ${title}：实现并验证当前待办的最小解题工具。`
+  return `继续解决 ${title}：检查已有材料和进度，完成下一个可验证步骤。`
+}
+
 async function startCTFAgent(handoff: CTFAgentWorkspaceHandoff & {
   domainTaskContext?: import('@/lib/domainTaskContext').DomainTaskContext
 }) {
@@ -310,6 +317,7 @@ async function startCTFAgent(handoff: CTFAgentWorkspaceHandoff & {
   // Never auto-send: opening Coding stages a draft only.
   await conversations.startWorkspaceTask({
     ...handoff,
+    visibleText: visibleCTFDraft(handoff),
     domainTaskContext: handoff.domainTaskContext ?? domainContextFromCTFHandoff(handoff),
     autoSend: false,
   })
@@ -359,6 +367,7 @@ async function switchCTFAgent(role: 'solver' | 'tool-builder' | 'strategist') {
     })
     await conversations.startWorkspaceTask({
       ...handoff,
+      visibleText: visibleCTFDraft(handoff),
       domainTaskContext: domainContextFromCTFHandoff(handoff),
       autoSend: false,
     })

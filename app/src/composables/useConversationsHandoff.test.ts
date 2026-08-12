@@ -30,6 +30,7 @@ describe('useConversations domain handoff attach', () => {
       title: 'CTF · Exact challenge',
       workspacePath: '/tmp/ctf-job-42',
       prompt: 'proposed solver prompt',
+      visibleText: '继续解决 Exact challenge',
       policy: { mode: 'copilot' },
       role: 'solver',
       domainTaskContext: {
@@ -62,7 +63,7 @@ describe('useConversations domain handoff attach', () => {
     expect(conversations.activeRunning.value).toBe(false)
     expect(conversations.pendingComposerDraft.value).toEqual({
       prompt: 'proposed solver prompt',
-      visibleText: 'proposed solver prompt',
+      visibleText: '继续解决 Exact challenge',
     })
     expect(invokeCommand.mock.calls.some(call => call[0] === 'send_message')).toBe(false)
     expect(invokeCommand.mock.calls.some(call => call[0] === 'save_conversation')).toBe(true)

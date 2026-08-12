@@ -2,6 +2,13 @@ import { describe, expect, it } from 'vitest'
 import chatPageSource from './ChatPage.vue?raw'
 
 describe('ChatPage routing contract', () => {
+  it('keeps structured domain prompts out of the visible composer while retaining them for submit', () => {
+    expect(chatPageSource).toContain('composer.value?.appendDraftText(draft.visibleText || draft.prompt)')
+    expect(chatPageSource).toContain('stagedPrompt.prompt')
+    expect(chatPageSource).toContain('用户当前请求：${prompt}')
+    expect(chatPageSource).toContain("stagedPrompt.conversationId === props.conversation?.id")
+  })
+
   it('shows a CVE handoff badge and return action while preserving a typed topbar module', () => {
     expect(chatPageSource).toContain('vulnerabilitySession?: boolean')
     expect(chatPageSource).toContain('returnVuln: []')

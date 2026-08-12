@@ -195,6 +195,7 @@ interface WorkspaceTask {
   title: string
   workspacePath: string
   prompt: string
+  visibleText?: string
   policy: {
     mode: 'coach' | 'copilot' | 'delegate'
   }
@@ -692,7 +693,7 @@ export function useConversations() {
           await send(task.prompt)
         }
       } else {
-        stageComposerDraft(task.prompt)
+        stageComposerDraft(task.prompt, task.visibleText)
       }
       return
     }
@@ -715,7 +716,7 @@ export function useConversations() {
     if (autoSend) {
       await send(task.prompt)
     } else {
-      stageComposerDraft(task.prompt)
+      stageComposerDraft(task.prompt, task.visibleText)
     }
   }
 

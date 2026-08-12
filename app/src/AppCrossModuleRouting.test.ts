@@ -115,6 +115,7 @@ function createMockConversations() {
       domainTaskContext?: Conversation['domainTaskContext']
       autoSend?: boolean
       prompt?: string
+      visibleText?: string
     }) => {
       // Mirror production default: open Coding without auto-send.
       expect(task.autoSend === true).toBe(false)
@@ -130,7 +131,7 @@ function createMockConversations() {
         workspacePath.value = existing.workspacePath ?? ''
         if (task.prompt) pendingComposerDraft.value = {
           prompt: task.prompt,
-          visibleText: task.prompt,
+          visibleText: task.visibleText ?? task.prompt,
         }
         return
       }
@@ -149,7 +150,7 @@ function createMockConversations() {
       workspacePath.value = task.workspacePath?.trim() || ''
       if (task.prompt) pendingComposerDraft.value = {
         prompt: task.prompt,
-        visibleText: task.prompt,
+        visibleText: task.visibleText ?? task.prompt,
       }
     }),
     stageComposerDraft: vi.fn((prompt: string, visibleText = prompt) => {
@@ -436,6 +437,9 @@ describe('App cross-module routing', () => {
     })
     expect(opened?.messages ?? []).toEqual([])
     expect(hoisted.conversations?.pendingComposerDraft.value?.prompt).toContain('solve with exact scope')
+    expect(hoisted.conversations?.pendingComposerDraft.value?.visibleText).toBe(
+      '继续解决 Web challenge：检查已有材料和进度，完成下一个可验证步骤。',
+    )
     expect(hoisted.conversations?.send).not.toHaveBeenCalled()
     expect(hoisted.conversations?.activeRunning.value).toBe(false)
 
