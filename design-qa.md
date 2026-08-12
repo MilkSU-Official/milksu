@@ -40,6 +40,7 @@ final result: passed
 ## 结论
 
 结构、材质、字体、操作色、目标色、斜切几何、日间主题和关键交互均已按定稿方案实现；没有剩余
-P0/P1/P2 视觉差异。原生 Beta 已确认 `channel=beta`、`tree=clean`，追踪号为
-`5ead2fb84c17a551e659701d238d20487ce700b6beabb758a49fa851205d3ceb`。Computer Use 实际打开并检查了
+P0/P1/P2 视觉差异。原生 Beta 已确认 `channel=beta`、`tree=clean`，最终视觉修正提交为
+`26dd96e5b7e12f00a3cfd0c8eb08396a0a4ce7bc`，追踪号为
+`445f59964ccb81e815dfcf8b7b1f55eacd4ca6f09c647c70395d820f6446bcd9`。Computer Use 实际打开并检查了
 设置追踪、CTF 历史、CVE 首页、CVE 接力、会话抽屉、右栏页面选择、浏览器、变更和架构图空态。
