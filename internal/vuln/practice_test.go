@@ -19,6 +19,10 @@ type recordedPracticeCall struct {
 	directory   string
 }
 
+func (r *recordingPracticeRunner) Executables() (string, string, []string, error) {
+	return "/usr/bin/docker", "/usr/bin/docker", []string{"compose"}, nil
+}
+
 func (r *recordingPracticeRunner) Run(
 	_ context.Context,
 	executable string,

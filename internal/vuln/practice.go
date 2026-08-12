@@ -78,10 +78,15 @@ type PracticeCommandSummary struct {
 }
 
 type practiceCommandRunner interface {
+	Executables() (string, string, []string, error)
 	Run(context.Context, string, []string, []string, string) ([]byte, error)
 }
 
 type dockerPracticeRunner struct{}
+
+func (dockerPracticeRunner) Executables() (string, string, []string, error) {
+	return findDockerPracticeExecutables()
+}
 
 func (dockerPracticeRunner) Run(
 	ctx context.Context,
@@ -135,7 +140,7 @@ func runPracticeEnvironment(
 	run = newPracticeRun(action, resolved)
 	environment := practiceCommandEnvironment()
 
-	dockerExecutable, composeExecutable, composePrefix, err := findDockerPracticeExecutables()
+	dockerExecutable, composeExecutable, composePrefix, err := runner.Executables()
 	if err != nil {
 		run.Error = "Docker CLI is unavailable"
 		run.Gates.NoCredentialLeak = !practiceRunContainsSensitiveShape(run)
