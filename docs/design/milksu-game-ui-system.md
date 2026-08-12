@@ -107,3 +107,16 @@ MilkSU 使用一套任务型游戏界面语言：黑色指挥台承载操作与�
 
 Admin 的实际日间与夜间截图保存在私有 `milksu-admin/docs/evidence/game-ui/`，避免把内测用户资料
 复制进对内测用户开放的 Desktop 仓库。
+
+### 日夜主题纠偏复检
+
+用户随后提供的原生截图证明，上一轮验收没有覆盖完整的日夜页面矩阵：日间模式中的深色 rail、
+设置导航和 Coding 右栏继承了纸面文字色，CTF/CVE 内容区还残留旧蓝色 chrome。修复后的共享
+主题把内容事实限定到中性纸面，把导航、页头、筛选、Composer 和右栏限定到深色命令面；夜间
+事实区保持中性炭黑，不再使用大面积海军蓝。
+
+`MilkSU Beta` clean 构建 `9d3b53fc6acb40ed234ae97519f9c3413edc34e4` 已通过原生 Computer
+Use 复检：设置页追踪、CTF 日/夜、CVE 日/夜、CTF → Coding 和 CVE → Coding 右栏均可读，
+tracking ID 为 `28bdf05ab9ed974ef9880769833227fe5428e0149246d5cef1ed7dbf5f8b9954`。
+内置浏览器同时用于开发期快速检查纸面/命令面对比，但没有桌面 Runtime 数据，因此不作为正式
+验收回执。
