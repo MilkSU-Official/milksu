@@ -71,6 +71,26 @@ func TestAgentManagedCodingCollaborationDoesNotHideDirtyWorkspace(t *testing.T) 
 	}
 }
 
+func TestAgentManagedCodingCollaborationLeavesTemporaryWorkspaceToEngine(t *testing.T) {
+	manager, err := codingcollab.New(filepath.Join(t.TempDir(), "collaboration"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	application := &App{codingCollab: manager}
+
+	descriptor, err := application.ensureAgentManagedCodingCollaboration(
+		"cve-research-cve-2024-3400",
+		"",
+		true,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if descriptor != nil {
+		t.Fatalf("temporary workspace unexpectedly received a worktree: %#v", descriptor)
+	}
+}
+
 func newAgentManagedTestRepository(t *testing.T) string {
 	t.Helper()
 	repository := t.TempDir()

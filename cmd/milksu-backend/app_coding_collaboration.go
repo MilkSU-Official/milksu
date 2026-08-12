@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/MilkSU-Official/milksu/internal/codingcollab"
@@ -20,6 +21,13 @@ func (a *App) ensureAgentManagedCodingCollaboration(
 	allowPrepare bool,
 ) (*engine.CodingCollaborationDescriptor, error) {
 	if a.codingCollab == nil {
+		return nil, nil
+	}
+	// A domain handoff without a user-selected project runs in the fixed
+	// MilkSU temporary workspace resolved by the engine. It is deliberately
+	// outside the Git worktree collaboration flow, so do not ask the
+	// collaboration manager to resolve an empty project path first.
+	if strings.TrimSpace(workspacePath) == "" {
 		return nil, nil
 	}
 
