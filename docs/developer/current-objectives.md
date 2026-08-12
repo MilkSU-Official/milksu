@@ -35,7 +35,7 @@
 - **功能代码自举已有真实但仍不等于完整自治交付的纵切**：本批次完成 Agent 自动执行环境、运行中消息 steering/queue、Git 变更文件悬浮跳转、CTF/CVE 共享 Coding/Pi 上下文、Stable/Beta 身份与构建追踪；自动化测试和打包均通过。正式 Stable 已通过内部 Computer Use 核对干净 Beta 的分支、完整提交与追踪号，并完成真实 CTF/CVE 任务连续性、PiP 与返回路径验收。实现过程仍有 reviewer 直接收口，不能外推为 Coding Agent 已能全自治完成任意功能开发。
 - Git 变更摘要现在可悬浮查看真实文件并点击打开“变更”；执行环境由 Agent 维护，不再暴露用户手工 writer 控件。自然会话中出现 Goal 与真实 Git diff 时的打包 App 悬浮纵切仍需补一条证据。
 - Computer Use：用户选择外部可见 App/PID/Window 的不可变 Scope；Stable/Beta 独立产品名、Bundle ID、图标、数据目录、构建追踪和自我排除已落地。Stable → Beta 已完成版本核验、真实 click/scroll 与 CTF/CVE 连续性全程；右栏默认只保留目标、接入状态与一个主操作，权限、签名诊断和操作证据收进按需展开的“运行详情”。Browser 与 Computer Use 仍是分离权限面。
-- Session Index / 相关历史：MilkSU 自有 `obelisk.sqlite` 已索引本机 Coding、CTF、CVE 会话，支持 FTS/LIKE 搜索、Credential 遮蔽和用户确认后引用到当前输入。完整图谱改为**按需生成的人类语义图**：当前 Pi/Provider 在无工具静默回合中，把有界的 user/assistant 历史、Obelisk Memory 摘要和正式 Evidence 摘要归纳成主题、决策、问题、能力、里程碑、证据和洞见；工具消息不进入材料，节点必须回溯真实来源，关系明确是模型推断。图谱不读取目标文档、不写 Memory、不自动进入 Agent 上下文，也没有“引用到输入”动作。CTF Memory 继续属于独立领域事实，不与历史索引混写。
+- Session Index / 相关历史：MilkSU 自有 `obelisk.sqlite` 已索引本机 Coding、CTF、CVE 会话，支持 FTS/LIKE 搜索、Credential 遮蔽和用户确认后引用到当前输入。完整图谱改为**按需生成的人类语义图**：当前 Pi/Provider 在无工具静默回合中，把有界的 user/assistant 历史、Obelisk Memory 摘要和正式 Evidence 摘要归纳成主题、决策、问题、能力、里程碑、证据和洞见；工具消息不进入材料，节点必须回溯真实来源，关系明确是模型推断。图谱不读取目标文档、不写 Memory、不自动进入 Agent 上下文，也没有“引用到输入”动作。Obelisk 当前是历史索引和线索入口，不是个人成长事实源；个人页的次数、阶段和“最近成长”仍是本机活动的近似投影，只有 Judge、测试/提交、正式 Evidence 或用户明确确认的结果才能在后续成为可归因的成长事实。CTF Memory 继续属于独立领域事实，不与历史索引混写。
 - Composer `/` 已覆盖 Goal、Plan、Pi 会话动作、模型/权限、状态/Diff/Review、MCP、Browser Use 与 Computer Use；用户可见的 worktree / writer 入口已删除。Agent 运行时输入仍可发送：消息先通过 Pi steering 应用于下一次模型调用，并以队列卡片展示；只有真正 settled 才结束运行态。输入框左下“+”继续作为附件、Goal、Plan、浏览器、Browser/Computer Scope、已审核 Pi Skills 和项目 MCP 的统一入口。产品 UI 只使用“浏览器”，不暴露“沙箱浏览器”。
 - Coding 的已审核 Skill 已扩为产品设计、前端视觉验收、API 集成、安全审查、技术交付物、架构图和 MilkSU 发布；设置页可逐项停用。Pi 常驻的仍只是 Skill 名称与用途，完整 `SKILL.md` 只在任务匹配或用户主动选择后加载；禁用列表随消息进入 Sidecar，变更在下一条 Coding 消息重载会话资源。CTF 领域角色不继承这些 Coding Skill，设置也不能添加任意路径。
 - 浏览器三面已分责：右栏“浏览器”是会话隔离的内置 Chromium；`/browser-use` 复用固定版 Playwright MCP 官方扩展，由用户在真实 Chrome/Edge 选择准确标签页；`/computer-use` 只列外部原生 App，浏览器窗口不进入该 Scope。NSSCTF/CTFshow 的 MilkSU 扩展继续作为领域 Bridge，不承担通用浏览器控制。
@@ -45,7 +45,8 @@
 - CTF：题库、工作区、Evidence、候选、Judge、Checkpoint、恢复、复盘、Memory 主链存在；真实 Judge 成功仍只有窄 Web 路径。
 - CTF/CVE → Coding 已复用同一 Coding/Pi：交接只挂载草稿、不自动发送；右侧可折叠领域上下文保留题目/CVE、授权 Scope、材料、Evidence/Judge 或只读安全边界，并提供返回工作台。NSSCTF 附件或 Judge 未连接不再阻止用公开题面打开 Coding；附件缺失只作为材料警告。Beta Computer Use 已实测历史真实 CTF 任务的手工完成状态，以及 CVE-2024-3400 从跟踪页进入临时 Coding 工作区、生成只读研究简报、返回并自动关联 1 个对话的完整纵切；CVE 状态仍由用户手工保持“研究中”。未运行 PoC、未提交 flag、未建立 Judge 成功事实。
 - Runtime：Sidecar 恢复、Compaction、异常退出标记、后台长任务打包 App/WebView 恢复、预算和失败分类已有。
-- UI：左上角显示圆形裁切的当前用户头像并打开个人菜单；全局左栏固定为窄栏，Coding 会话历史默认收起并由单一按钮以浮层展开，不再因模块切换挤动主页面。完整个人页展示真实活跃格、CTF/CVE/Coding 模糊阶段和最近确认成长，全局六维雷达不再挂载。Goal 与 Git 摘要位于输入框上方，Git 摘要可展开文件列表并跳到“变更”。Coding 顶部保留独立 Bottom Dock 和统一右栏；CTF/CVE 进入 Coding 后领域上下文可折叠/PiP，不再丢失原任务。Computer Use 使用紧凑任务面，诊断与证据默认折叠。Electron 窗口已避开 macOS 红黄绿按钮，Stable/Beta 使用正确名称与图标；设置页底部固定显示 branch、40 位 commit、clean/dirty、build time 和 tracking ID。
+- UI：左上角显示圆形裁切的当前用户头像并打开个人菜单；全局左栏固定为窄栏，Coding 会话历史默认收起并由单一按钮以浮层展开，不再因模块切换挤动主页面。完整个人页展示真实活跃格、CTF/CVE/Coding 模糊阶段和最近活动，全局六维雷达不再挂载。Goal 与 Git 摘要位于输入框上方，Git 摘要可展开文件列表并跳到“变更”。Coding 顶部保留独立 Bottom Dock 和统一右栏；CTF/CVE 进入 Coding 后领域上下文可折叠/PiP，不再丢失原任务。Computer Use 使用紧凑任务面，诊断与证据默认折叠。Electron 窗口已避开 macOS 红黄绿按钮，Stable/Beta 使用正确名称与图标；设置页底部固定显示 branch、40 位 commit、clean/dirty、build time 和 tracking ID。
+- 用户可见产物固定写入 `~/Documents/MilkSU/{Coding,CTF,CVE}`，设置页可直接打开。Runtime、事件库、凭据、Obelisk、浏览器 Profile 和内部恢复数据继续留在 `~/Library/Application Support/<bundle-id>`，两类目录不混用；工作区拒绝根目录、用户主目录和符号链接越界。
 - 暂停/后置：Labs；CVE 纵深研究、真实漏洞复现、外部资产实验、披露；NYU safe-static 只是开发者 smoke，不是完整 CTF 成绩。
 
 ## 下一条完成线
@@ -55,8 +56,8 @@
 - **任务**：Codex `019fe9ee-b865-75b3-903d-bada1266f254`。
 - **目标文档**：[个人安全工作台计划](security-workspace-product-plan.md)。
 - **关联方式**：该 Codex 任务执行目标文档中的产品目标，本节只维护当前切片、完成线和验收状态。
-- **当前切片**：目标问答、六张定稿图、个人资料、轻量 CTF/CVE、独立 Admin 和双模型来源路由已经进入代码。CTF 状态由用户手工维护，CVE 首页只显示用户明确加入的条目。临时工作区交接缺陷在 `6c17dbc3a6d94d790536b52850fd2362a1012518` 修复；随后从该干净提交构建 Beta，Package Inspector 与严格签名检查通过，tracking ID 为 `d03255745600dae358433ed348cfa23fe586754ddc13835d09b7246348dd9586`。Computer Use 已在设置页核对 `main`、完整提交、`clean` 和 tracking ID，并完成真实 CTF 手工状态、CVE-2024-3400 只读研究、交付文档、对话关联与返回路径。独立私有仓库 `MilkSU-Official/milksu-admin` 已在 `277af3b73b21a4295ee58c462adb807b36225e1c` 部署 React 管理端、Worker API 和 D1 到 `accounts.milksu.org`；GitHub OAuth、邀请兑换、访问开通、¥5.00 余额和首笔额度流水已经在真实 Admin 与桌面客户端联动验证。账户 Team Key 尚未连接，因此不能把本次模型调用记为账户额度扣费或 TokenFlux 明细联动。
-- **完成线**：从最终干净文档提交构建并打开正式 App，在设置页核对正式版 branch、完整 commit、tracking ID，完成账户、CTF、CVE 的最小回归；账户 Team Key 与 TokenFlux 扣费明细作为独立后续纵切，不伪装成本轮已验收。
+- **当前切片**：目标问答、六张定稿图、个人资料、轻量 CTF/CVE、独立 Admin、双模型来源路由和 `~/Documents/MilkSU` 用户产物目录已经进入代码。最终 Beta 从干净 `main@31c06dfb296dd85e96e24dacf21a26ba70cea3d1` 构建，Package Inspector、严格签名和设置页追踪通过，tracking ID 为 `4ba1468a816ce6028e5745d83570c6ef181cbc047366021682818897bc7ecf34`。原生验收确认了用户产物与内部数据分离，并完成全新自定义题 `Caesar Shift 12` 的创建、手工状态、共享 Coding、运行中引导、脚本/笔记交付、返回与历史收口。Agent 复核后确认题面密文无法以统一凯撒位移得到规定的 `MilkSU{...}` 格式，因此没有编造候选或 Judge 成功；手工“已完成”只表示本次任务已收口。独立私有仓库 `MilkSU-Official/milksu-admin` 已在 `277af3b73b21a4295ee58c462adb807b36225e1c` 部署 React 管理端、Worker API 和 D1 到 `accounts.milksu.org`；GitHub OAuth、邀请兑换、访问开通、¥5.00 余额和首笔额度流水已经在真实 Admin 与桌面客户端联动验证。
+- **完成线**：从本目标最终干净提交构建并打开正式 App，在设置页核对正式版 branch、完整 commit、tracking ID，完成账户、CTF、CVE 的最小回归并只推送 MilkSU 私有远端。账户 Team Key、TokenFlux 真实扣费/明细/硬限额/同步延迟，以及 Obelisk 到可归因成长事实的升级都是独立后续纵切；当前界面和文档不得把它们伪装成已验收。
 
 | 优先级 | 主线 | 只认什么完成 |
 | --- | --- | --- |

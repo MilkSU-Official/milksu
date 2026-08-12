@@ -25,15 +25,17 @@ GitHub 登录、邀请制访问、额度与流水管理 API/管理前端；让 M
 
 - 已实现并测试：个人资料、轻量 CTF/CVE、共享 Coding 上下文、独立 Admin 基线、账户额度与本机
   Key 的全局/对话级顺序。
-- 已从干净提交 `6c17dbc3a6d94d790536b52850fd2362a1012518` 构建 `MilkSU Beta`；包检查确认
+- 已从干净提交 `31c06dfb296dd85e96e24dacf21a26ba70cea3d1` 构建 `MilkSU Beta`；包检查确认
   branch `main`、`dirty=false`，tracking ID
-  `d03255745600dae358433ed348cfa23fe586754ddc13835d09b7246348dd9586`。
+  `4ba1468a816ce6028e5745d83570c6ef181cbc047366021682818897bc7ecf34`。
 - 原生 Computer Use 已复检个人页、模型来源、CTF/CVE 草稿交接、领域上下文 PiP、返回状态、
   关联对话和无虚构 CVE 资产。CTF 状态由用户手工维护；CVE 首页只显示用户明确加入的条目。
   CVE-2024-3400 已在打包 App 中由 Coding Agent 进入临时工作区完成只读研究并生成中文简报，返回后
   自动关联 1 个 Coding 对话，状态仍诚实地保持手工“研究中”。
 - 全局左栏固定为窄栏，头像使用圆形裁切；Coding 会话历史默认收起，只在用户点击后以浮层展开，
   不再因 CTF、CVE、Coding、个人资料和设置切换而挤动主页面。
+- 用户可见产物固定写入 `~/Documents/MilkSU/{Coding,CTF,CVE}`，设置页可打开；内部 Runtime、凭据、
+  Obelisk、浏览器 Profile 和恢复数据继续留在 App Support，不暴露成用户工作区。
 - 独立私有仓库 [MilkSU-Official/milksu-admin](https://github.com/MilkSU-Official/milksu-admin) 已到
   `277af3b73b21a4295ee58c462adb807b36225e1c`：React 管理端、Cloudflare Worker、D1、邀请、暂停访问、
   额度增减、用户流水、全局流水和日间/夜间模式均已部署到 `accounts.milksu.org`；线上 `/health` 和
@@ -84,19 +86,24 @@ Coding Agent。个人资料页诚实记录用户在 CTF、CVE 和 Coding 中的�
 
 | 项目 | 当前证据 | 结果 |
 | --- | --- | --- |
-| 桌面产品代码 | Vue/Vitest 68 个文件、365 项测试，lint 与生产构建通过 | 通过 |
+| 桌面产品代码 | Vue/Vitest 68 个文件、366 项测试与生产构建通过 | 通过 |
 | 桌面壳与 Sidecar | Electron、账户 PKCE、Pi、安全边界与 Computer Use 共 212 项 Node 测试通过 | 通过 |
 | Go Runtime | `cmd/milksu-backend`、`internal/config` 与 `internal/computercap` 测试通过 | 通过 |
 | CTF/CVE 收薄 | CTF 状态手工维护；CVE 首页只从用户明确加入的条目生成；聚焦测试 37 项通过；Beta 原生复检通过 | 通过 |
-| Beta 身份 | `main@6c17dbc3a6d94d790536b52850fd2362a1012518`、`dirty=false`、tracking ID `d03255745600dae358433ed348cfa23fe586754ddc13835d09b7246348dd9586`；Package Inspector 与严格签名检查通过 | 通过 |
+| Beta 身份 | `main@31c06dfb296dd85e96e24dacf21a26ba70cea3d1`、`dirty=false`、tracking ID `4ba1468a816ce6028e5745d83570c6ef181cbc047366021682818897bc7ecf34`；Package Inspector 与严格签名检查通过 | 通过 |
 | Admin 前后端 | `main@277af3b73b21a4295ee58c462adb807b36225e1c`；构建、10 项前端测试与 3 项 Worker 资源测试通过 | 通过 |
 | Cloudflare 部署 | `accounts.milksu.org` 的 Worker、D1、静态管理端、`/health` 与 `/ready` 可用 | 通过 |
 | Admin 日间模式 | 与客户端相同的日间/夜间切换、持久化和窄屏布局已在本地及线上核对 | 通过 |
 | GitHub OAuth | 真实 GitHub 管理员账户登录成功；OAuth Secret 只存在 Worker Secret | 通过 |
 | 邀请与初始额度 | 桌面兑换邀请；Admin/客户端均显示访问开通、¥5.00 和初始额度流水 | 通过 |
 | 桌面账户联动 | GitHub 登录、头像、余额与两种模型来源顺序；Team Key 未连接时如实显示不可用 | 通过；TokenFlux 扣费明细后续 |
-| 真实 CTF/CVE | 历史真实 CTF 结果由用户手工标记完成；CVE-2024-3400 在打包 App 中完成只读研究、文档交付、返回与对话关联 | 通过 |
+| 真实 CTF/CVE | 全新 `Caesar Shift 12` 完成创建、共享 Coding、运行中引导、脚本/笔记、返回和手工完成；题面矛盾被如实指出，未编造 Flag 或 Judge 成功。CVE-2024-3400 已完成只读研究、文档交付、返回与对话关联 | 通过 |
 | 正式 App | 从最终干净提交构建、核对追踪并打开 | 待最终验收 |
+
+Obelisk 当前保存和检索 Coding、CTF、CVE 历史，只能帮助用户找回做过的事情。个人页现有次数、
+阶段和最近活动是本机投影，不把一次 Agent 代做、手工“已完成”或普通工具调用解释成用户能力提升。
+后续只有带来源、结果和协助程度的 Judge、测试/提交、正式 Evidence 或用户确认，才进入可归因的
+成长事实；这项升级不在本轮实现。
 
 ## 实施顺序
 

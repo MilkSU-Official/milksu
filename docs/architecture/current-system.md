@@ -23,7 +23,8 @@ flowchart LR
         go["Go Runtime<br/>应用服务 + 安全边界"]
         pi["Pi Sidecar<br/>Session + Compaction + Tool Loop"]
         security["Security Runtime<br/>CTF / CVE 事实与 Judge"]
-        local["本地用户状态<br/>SQLite + Workspace + Artifact"]
+        local["内部运行状态<br/>SQLite + Runtime Artifact"]
+        deliverables["用户可见产物<br/>Documents/MilkSU"]
     end
 
     learner --> chromium
@@ -31,6 +32,7 @@ flowchart LR
     go <--> pi
     pi --> provider
     go --> security --> local
+    go --> deliverables
     chromium <--> user_browser
     chromium <--> native_apps
     chromium <--> ctf_platforms
@@ -65,7 +67,7 @@ MilkSU 的桌面壳不是通用 Agent Loop 的另一份实现。Pi 仍负责会�
 | --- | --- | --- |
 | Electron/Chromium 桌面壳 | **Implemented / packaged** | `desktop/main.cjs` 创建主窗口、注册 `milksu://app`、监管 Go Runtime 并承载右栏 `WebContentsView`；`desktop/preload.cjs` 只暴露调用与事件订阅。旧 Wails 配置、绑定和 CEF 原型已从生产链删除。 |
 | Vue 产品表面 | **Implemented / partial** | CTF、Coding、CVE、设置、相关历史、Composer、右栏与 Bottom Dock 均复用现有 Vue。生产前端只接受 Preload API；Vitest mock 隔离在测试入口。 |
-| 个人资料 | **Implemented / packaged** | 左上角用户头像打开个人菜单；个人页按真实任务记录活跃格、CTF/CVE/Coding 模糊阶段和最近确认成长。工具调用不单独计数，全局六维雷达不再挂载。 |
+| 个人资料 | **Implemented / packaged** | 左上角用户头像打开个人菜单；个人页按本机任务活动展示活跃格、CTF/CVE/Coding 模糊阶段和最近活动。工具调用不单独计数，全局六维雷达不再挂载。当前阶段不是独立能力评分；Obelisk 只提供历史线索，尚未成为可归因成长事实源。 |
 | 内测账户与模型来源 | **Deployed / desktop linked** | 系统浏览器 GitHub PKCE、稳定/测试版独立回调、加密本地会话、账户额度与本机 Key 顺序及对话级偏好已实现；打包客户端指向 `accounts.milksu.org`。真实 GitHub 登录、邀请兑换、访问开通、¥5.00 余额和初始额度流水已在 Admin 与桌面端联动验证。账户 Team Key 尚未连接，TokenFlux 扣费与明细同步不属于已验收事实。 |
 | Go Runtime | **Implemented / concentrated** | `cmd/milksu-backend/main.go` 启动应用组合根和 JSONL RPC；同目录的 `desktop_rpc.go` 分派现有 App 方法并传递事件，`desktop_host.go` 把文件对话框、外链和浏览器宿主能力反向委托给 Electron。`app.go` 仍较集中，触碰时按纵切拆分。 |
 | Pi 通用 Agent | **Verified core / partial extensions** | Pi 继续拥有 Session、Compaction、模型和通用 Tool Loop；MilkSU 监管 Sidecar、注入当前 Provider、投影事件并实施工作区/审批边界。已审核 Coding Skill 只向 Pi 常驻名称与用途，完整内容按任务或显式选择加载；设置只能停用审核目录，CTF 角色不加载 Coding Skill。TokenFlux `grok-4.5` 多模态和一次真实文档自举已验，完整功能自举仍未完成。 |
@@ -76,7 +78,7 @@ MilkSU 的桌面壳不是通用 Agent Loop 的另一份实现。Pi 仍负责会�
 | CVE Learning / Tracking | **Verified packaged tracking slice** | 用户界面只显示明确加入的公开 CVE、手工状态和关联 Coding 对话；内置目录不声称用户资产命中或实时进度。打包 Beta 已用 CVE-2024-3400 验证临时 Coding 工作区、只读公开资料研究、文档交付、返回和对话关联；状态没有被 Agent 自动改写。外部资产实验、真实复现和披露仍后置。 |
 | Session Index / 相关历史 | **Verified packaged slice** | MilkSU 自有索引只处理本机 Coding/CTF/CVE 会话；完整图谱由当前模型按需把有界会话、Memory 摘要和正式 Evidence 归纳成人类语义图，不读取目标文档、不持久化图谱、不写回 Memory。 |
 | Worktree / 自举 | **Automatic isolation / product loop partial** | 干净 Git 任务首次 effectful 回合自动准备内部 writer；`.worktreeinclude` CoW、精确 submodule、写入边界和释放条件已有。用户不再配置 worktree/writer；Git 摘要可列出文件并跳到“变更”。Stable → Beta 可见验收已通过，完整自然功能任务的自治 Git 交付仍待扩样。 |
-| 本地持久化 | **Implemented** | Runtime、Artifact、CTF Memory、Catalog、Conversation、Session Index 和 Credential Store 位于用户配置目录。凭据不经桌面 RPC 返回 Vue，也不进入模型上下文。 |
+| 本地持久化 | **Implemented** | 用户可见 Coding/CTF/CVE 产物位于 `~/Documents/MilkSU`；Runtime Artifact、CTF Memory、Catalog、Conversation、Obelisk Session Index、Browser Profile 和 Credential Store 位于用户配置目录。凭据不经桌面 RPC 返回 Vue，也不进入模型上下文。 |
 | Managed Labs | **Paused** | 不在生产启动、桌面 RPC、Vue 入口或当前完成条件中。 |
 
 ## 进程与 IPC
@@ -114,6 +116,12 @@ flowchart TB
         profiles[("browser profiles")]
     end
 
+    subgraph documents["用户文稿 · MilkSU"]
+        coding_files[("Coding")]
+        ctf_files[("CTF")]
+        cve_files[("CVE")]
+    end
+
     window --> preload --> host
     host <--> rpc --> app
     app --> runtime
@@ -128,6 +136,9 @@ flowchart TB
     app --> workspaces
     app --> memories
     app --> credentials
+    app --> coding_files
+    app --> ctf_files
+    app --> cve_files
 ```
 
 ### 桌面边界
