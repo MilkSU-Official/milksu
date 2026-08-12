@@ -62,7 +62,9 @@ const entries = computed<TimelineEntry[]>(() => {
       number: experiment.number,
       kind: failed ? 'failure' as const : definition.kind,
       title: failed ? `${definition.title}失败` : definition.title,
-      summary: observation || attempt?.reason || action?.rationale || '该步骤尚未形成完整观察。',
+      summary: failed
+        ? '这个回合没有完成。需要诊断时可回到关联的 Coding 会话继续处理。'
+        : observation || action?.rationale || '该步骤尚未形成完整观察。',
       status: failed ? 'failed' : experiment.status,
       detail: [attempt?.engine, attempt?.model].filter(Boolean).join(' · '),
       artifactCount: experiment.artifactIds.length,
@@ -76,7 +78,7 @@ const entries = computed<TimelineEntry[]>(() => {
       number: values.length + 1,
       kind: 'failure',
       title: 'Agent 回合中断',
-      summary: attempt.reason || '该回合未能完成。',
+      summary: '这个回合没有完成。需要诊断时可回到关联的 Coding 会话继续处理。',
       status: attempt.status,
       detail: [attempt.engine, attempt.model].filter(Boolean).join(' · '),
       artifactCount: 0,
@@ -113,8 +115,8 @@ function statusLabel(status: string) {
 </script>
 
 <template>
-  <section class="rounded-xl border border-border bg-card p-6">
-    <div class="flex items-start justify-between gap-4">
+  <details class="group game-surface px-5 py-4">
+    <summary class="flex cursor-pointer list-none items-start justify-between gap-4 [&::-webkit-details-marker]:hidden">
       <div>
         <h2 class="flex items-center gap-2 text-label font-medium">
           <RotateCcw class="size-4" />
@@ -124,10 +126,10 @@ function statusLabel(status: string) {
           每次 Agent 回合、确定性实验和 Judge 分支都来自 Runtime 事实。
         </p>
       </div>
-      <Badge variant="outline">{{ entries.length }} 步</Badge>
-    </div>
+      <span class="flex items-center gap-2"><Badge variant="outline">{{ entries.length }} 步</Badge><ChevronDown class="size-4 text-muted-foreground transition-transform group-open:rotate-180" /></span>
+    </summary>
 
-    <div v-if="visibleEntries.length" class="mt-5">
+    <div v-if="visibleEntries.length" class="mt-5 border-t border-border pt-5">
       <article
         v-for="(entry, index) in visibleEntries"
         :key="entry.id"
@@ -169,7 +171,7 @@ function statusLabel(status: string) {
       </article>
     </div>
 
-    <div v-else class="mt-5 rounded-lg border border-dashed border-border px-4 py-7 text-center">
+    <div v-else class="mt-5 border-t border-border px-4 py-7 text-center">
       <Circle class="mx-auto size-4 text-muted-foreground" />
       <p class="mt-2 text-control font-medium">等待第一次可验证实验</p>
       <p class="mt-1 text-caption text-muted-foreground">打开 PI 后，工具结果和失败原因会出现在这里。</p>
@@ -194,5 +196,5 @@ function statusLabel(status: string) {
       <Check class="size-3.5 shrink-0" />
       最新候选来自 PI 的显式候选文件；提交前仍需你确认。
     </p>
-  </section>
+  </details>
 </template>

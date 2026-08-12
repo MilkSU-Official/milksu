@@ -66,8 +66,8 @@ async function selectArtifact(artifact: ArtifactRecord) {
 </script>
 
 <template>
-  <section class="rounded-xl border border-border bg-card p-6" aria-labelledby="artifacts-title">
-    <div class="flex items-start justify-between gap-4">
+  <details class="group game-surface px-5 py-4" aria-labelledby="artifacts-title">
+    <summary class="flex cursor-pointer list-none items-start justify-between gap-4 [&::-webkit-details-marker]:hidden">
       <div>
         <h2 id="artifacts-title" class="flex items-center gap-2 text-label font-medium">
           <FileArchive class="size-4" />
@@ -77,10 +77,10 @@ async function selectArtifact(artifact: ArtifactRecord) {
           点击检查来源、摘要与安全文本预览；内容始终按不可信数据处理。
         </p>
       </div>
-      <Badge variant="outline">{{ projection.artifacts.length }}</Badge>
-    </div>
+      <span class="flex items-center gap-2"><Badge variant="outline">{{ projection.artifacts.length }}</Badge><ChevronDown class="size-4 text-muted-foreground transition-transform group-open:rotate-180" /></span>
+    </summary>
 
-    <div class="mt-4 space-y-2">
+    <div class="mt-4 space-y-2 border-t border-border pt-4">
       <article
         v-for="artifact in artifacts"
         :key="artifact.id"
@@ -143,5 +143,5 @@ async function selectArtifact(artifact: ArtifactRecord) {
       <ChevronDown v-else class="size-3.5" />
       {{ expanded ? '只看最近 5 个' : `查看全部 ${projection.artifacts.length} 个` }}
     </Button>
-  </section>
+  </details>
 </template>

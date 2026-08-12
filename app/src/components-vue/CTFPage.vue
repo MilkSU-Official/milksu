@@ -765,9 +765,7 @@ watch(
 
 watch(
   () => [screen.value, workspaceMode.value, activeProjection.value?.job.id] as const,
-  () => {
-    void scrollWorkspaceToLatest()
-  },
+  () => { void resetWorkspaceViewport() },
   { flush: 'post' },
 )
 
@@ -784,12 +782,12 @@ watch(
   { immediate: true },
 )
 
-async function scrollWorkspaceToLatest() {
+async function resetWorkspaceViewport() {
   if (screen.value !== 'workspace' || workspaceMode.value !== 'solve') return
   await nextTick()
   const area = workspaceScrollArea.value
   if (!area) return
-  area.scrollTop = area.scrollHeight
+  area.scrollTop = 0
 }
 
 function showProblems() {
@@ -1551,7 +1549,7 @@ onMounted(async () => {
 
 onActivated(() => {
   if (deactivatedFromWorkspace.value) void resumeInitialJobIfNeeded(props.initialJobId)
-  void scrollWorkspaceToLatest()
+  void resetWorkspaceViewport()
 })
 
 onDeactivated(() => {
