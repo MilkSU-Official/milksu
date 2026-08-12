@@ -25,6 +25,11 @@ GitHub 登录、邀请制访问、额度与流水管理 API/管理前端；让 M
 
 - 已实现并测试：个人资料、轻量 CTF/CVE、共享 Coding 上下文、独立 Admin 基线、账户额度与本机
   Key 的全局/对话级顺序。
+- Desktop 与 Admin 已按[游戏化界面系统](../design/milksu-game-ui-system.md)完成全局迁移；共享布局、
+  列表、焦点面、表单、弹层、日夜主题和圆形头像使用同一套层级与状态语义。真实运行截图已纳入视觉
+  规范的“实际界面验收”章节。
+- CTF/CVE 交给 Coding 时，输入框只显示一句可读的接力任务；完整结构化提示在发送时才交给 Agent，
+  并绑定当前对话，避免内部工作区路径、Scope 编排和长提示直接暴露或跨任务串用。
 - 已从干净提交 `31c06dfb296dd85e96e24dacf21a26ba70cea3d1` 构建 `MilkSU Beta`；包检查确认
   branch `main`、`dirty=false`，tracking ID
   `4ba1468a816ce6028e5745d83570c6ef181cbc047366021682818897bc7ecf34`。
@@ -93,7 +98,7 @@ Desktop 与独立 Admin 的全部页面统一采用
 
 | 项目 | 当前证据 | 结果 |
 | --- | --- | --- |
-| 桌面产品代码 | Vue/Vitest 68 个文件、366 项测试与生产构建通过 | 通过 |
+| 桌面产品代码 | Vue/Vitest 69 个文件、371 项测试、lint 与生产构建通过 | 通过 |
 | 桌面壳与 Sidecar | Electron、账户 PKCE、Pi、安全边界与 Computer Use 共 212 项 Node 测试通过 | 通过 |
 | Go Runtime | `cmd/milksu-backend`、`internal/config` 与 `internal/computercap` 测试通过 | 通过 |
 | CTF/CVE 收薄 | CTF 状态手工维护；CVE 首页只从用户明确加入的条目生成；聚焦测试 37 项通过；Beta 原生复检通过 | 通过 |
@@ -101,6 +106,7 @@ Desktop 与独立 Admin 的全部页面统一采用
 | Admin 前后端 | `main@277af3b73b21a4295ee58c462adb807b36225e1c`；构建、10 项前端测试与 3 项 Worker 资源测试通过 | 通过 |
 | Cloudflare 部署 | `accounts.milksu.org` 的 Worker、D1、静态管理端、`/health` 与 `/ready` 可用 | 通过 |
 | Admin 日间模式 | 与客户端相同的日间/夜间切换、持久化和窄屏布局已在本地及线上核对 | 通过 |
+| 游戏化 UI | Desktop CTF/CVE/Coding/Profile/Settings 与 Admin 日夜主题均以实际运行截图核对；CTF/CVE 接力草稿、来源右栏和返回路径通过 Computer Use | 通过 |
 | GitHub OAuth | 真实 GitHub 管理员账户登录成功；OAuth Secret 只存在 Worker Secret | 通过 |
 | 邀请与初始额度 | 桌面兑换邀请；Admin/客户端均显示访问开通、¥5.00 和初始额度流水 | 通过 |
 | 桌面账户联动 | GitHub 登录、头像、余额与两种模型来源顺序；Team Key 未连接时如实显示不可用 | 通过；TokenFlux 扣费明细后续 |

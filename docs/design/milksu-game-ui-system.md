@@ -58,3 +58,34 @@ MilkSU 使用一套任务型游戏界面语言：像游戏任务与指挥台一�
 共享令牌与基础组件先行，再迁移页面。Desktop 与 Admin 都必须在日间、夜间以及窄屏状态下验收；
 视觉验收使用实际运行截图与上述原型逐项对比。功能测试之外，至少核对导航稳定、唯一主操作、键盘
 焦点、文字可读、弹层不越界和状态颜色语义。
+
+## 实际界面验收
+
+以下图片来自 `MilkSU Beta` 与 Admin 实际运行界面，不是设计稿。Desktop 截图对应功能提交
+`2fc493cc4be705ec054f782b930db125c40f0972`，Beta 构建为 clean，tracking ID 为
+`a8cc501e9d993f50106bec6cc7bc597f2926c4f61475d6a54e7449e49ee57c08`。Admin 截图对应
+`milksu-admin@0f1d86d47105c25b186a27165e9d02166a077eca`。
+
+| 实际页面 | 验收重点 |
+| --- | --- |
+| [CTF 任务页](game-ui/qa/ctf-task-light.jpg) | 首屏只突出题面、手工状态、一个 Coding 入口；轨迹与证据默认收起 |
+| [CTF → Coding](game-ui/qa/ctf-coding-light.jpg) | 输入框只显示人类可读任务；完整结构化上下文仍交给 Agent；右栏保留来源、目标、材料与返回 |
+| [CVE 列表](game-ui/qa/cve-list-light.jpg) | 全部/收藏夹、搜索、手工状态与选中详情处于同一列表语境 |
+| [CVE → Coding](game-ui/qa/cve-coding-light.jpg) | 公开 CVE 摘要、研究目标与安全边界可读；不伪造自动项目状态 |
+| [个人资料](game-ui/qa/profile-light.jpg) | 圆形用户头像、真实活跃格、三个方向的模糊阶段，不显示伪精确分数 |
+| [设置夜间模式](game-ui/qa/settings-dark.jpg) | 二级导航稳定，构建追踪显示 branch、完整 commit、clean 与 tracking ID |
+| Admin 日间 | 表格、选中用户与额度操作构成一个清楚的管理任务面；截图保存在私有 Admin 仓库 |
+| Admin 夜间 | 与日间共享布局和状态语义，绿色表示选中/确认，蓝色表示操作；截图保存在私有 Admin 仓库 |
+
+### CTF 任务接力
+
+![CTF 进入 Coding 的实际界面](game-ui/qa/ctf-coding-light.jpg)
+
+### 个人资料
+
+![个人资料实际界面](game-ui/qa/profile-light.jpg)
+
+### Admin 日间与夜间
+
+Admin 的实际日间与夜间截图保存在私有 `milksu-admin/docs/evidence/game-ui/`，避免把内测用户资料
+复制进对内测用户开放的 Desktop 仓库。
