@@ -78,6 +78,7 @@ type StoredConversation struct {
 	CTFJobID          string             `json:"ctfJobId,omitempty"`
 	CTFMode           string             `json:"ctfMode,omitempty"`
 	CTFRole           string             `json:"ctfRole,omitempty"`
+	DomainTaskContext map[string]any     `json:"domainTaskContext,omitempty"`
 	Messages          []StoredMessage    `json:"messages"`
 }
 

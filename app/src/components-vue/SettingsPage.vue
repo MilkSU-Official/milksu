@@ -54,6 +54,7 @@ import type {
   LocalDataBackupExport,
   LocalDataBackupRestore,
   LocalDataStatus,
+  UserArtifactDirectoryStatus,
   LocalDiagnosticExport,
   ModelProbeResult,
   ModelSource,
@@ -101,6 +102,7 @@ const backupExporting = ref(false)
 const restoreScheduling = ref(false)
 const diagnosticExporting = ref(false)
 const localData = ref<LocalDataStatus | null>(null)
+const userArtifacts = ref<UserArtifactDirectoryStatus | null>(null)
 const computerUseStatus = ref<CodingComputerUseStatus | null>(null)
 const browserBridgeStatus = ref<NSSCTFWebBridgeStatus | null>(null)
 const recoveryStatus = ref<StartupRecoveryStatus | null>(null)
@@ -172,10 +174,19 @@ watch(() => props.settings, value => {
 watch(() => props.initialCategory, value => { category.value = value })
 onMounted(() => {
   void loadLocalData()
+  void loadUserArtifactDirectory()
   void loadBuildTracking()
   void refreshComputerUseStatus({ silent: true })
   void refreshBrowserBridgeStatus({ silent: true })
 })
+
+async function loadUserArtifactDirectory() {
+  try {
+    userArtifacts.value = await invokeCommand<UserArtifactDirectoryStatus>('get_user_artifact_directory_status')
+  } catch (reason) {
+    notice.value = { tone: 'error', text: `无法读取产物目录：${String(reason)}` }
+  }
+}
 
 const provider = computed(() => (
   working.value ? working.value.providers[working.value.active_provider] : undefined
@@ -596,6 +607,14 @@ async function revealLocalData() {
   }
 }
 
+async function revealUserArtifacts() {
+  try {
+    await invokeCommand('reveal_user_artifact_directory')
+  } catch (reason) {
+    notice.value = { tone: 'error', text: `无法打开产物目录：${String(reason)}` }
+  }
+}
+
 async function exportLocalDataBackup() {
   backupExporting.value = true
   notice.value = null
@@ -745,6 +764,26 @@ async function save() {
             </SettingsRow>
             <SettingsRow label="本地优先" description="会话与研究记录保留在本机，凭据不写入设置文件">
               <ShieldCheck class="size-4 text-muted-foreground" />
+            </SettingsRow>
+          </SettingsSection>
+          <SettingsSection title="产物" class="mt-6">
+            <SettingsRow
+              stack="always"
+              label="工作产物"
+              description="Coding、CTF 和 CVE 生成的文件放在这里；会话、凭据和运行日志仍保存在应用数据目录"
+            >
+              <p
+                v-if="userArtifacts?.directory"
+                class="mb-3 truncate font-mono text-caption text-muted-foreground"
+                :title="userArtifacts.directory"
+                data-testid="user-artifact-directory"
+              >
+                {{ userArtifacts.directory }}
+              </p>
+              <Button variant="outline" size="sm" @click="revealUserArtifacts">
+                <FolderOpen class="size-3.5" />
+                打开产物目录
+              </Button>
             </SettingsRow>
           </SettingsSection>
           <SettingsSection title="本地数据" class="mt-6">

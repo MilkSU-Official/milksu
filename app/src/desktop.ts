@@ -6,6 +6,7 @@ import {
   type LocalDataBackupRestore,
   type BuildTracking,
   type LocalDataStatus,
+  type UserArtifactDirectoryStatus,
   type LocalDiagnosticExport,
   type ModelProbeResult,
   type StartupRecoveryStatus,
@@ -142,11 +143,13 @@ interface DesktopAppBindings {
   GetSettings(): Promise<AppSettings>
   SaveSettingsCmd(settings: AppSettings): Promise<void>
   GetLocalDataStatus(): Promise<LocalDataStatus>
+  GetUserArtifactDirectoryStatus(): Promise<UserArtifactDirectoryStatus>
   GetBuildTracking(): Promise<BuildTracking>
   ExportLocalDataBackup(): Promise<LocalDataBackupExport>
   ScheduleLocalDataRestore(): Promise<LocalDataBackupRestore>
   ExportLocalDiagnostics(): Promise<LocalDiagnosticExport>
   RevealLocalDataDirectory(): Promise<void>
+  RevealUserArtifactDirectory(): Promise<void>
   GetStartupRecoveryStatus(): Promise<StartupRecoveryStatus>
   GetSessionIndexStatus(): Promise<SessionIndexStatus>
   RefreshSessionIndex(): Promise<SessionIndexRefreshResult>
@@ -154,6 +157,7 @@ interface DesktopAppBindings {
   GetSessionHistoryGraph(request: SessionHistoryGraphRequest): Promise<SessionHistoryGraphResponse>
   ListConversations(): Promise<unknown>
   SaveConversation(conversation: unknown): Promise<void>
+  EnsureCodingArtifactWorkspace(conversationId: string): Promise<string>
   DeleteConversation(id: string): Promise<void>
   GenerateConversationTitle(
     firstMessage: string,
@@ -410,6 +414,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.SaveSettingsCmd(args?.newSettings as AppSettings) as Promise<T>
       case 'get_local_data_status':
         return app.GetLocalDataStatus() as Promise<T>
+      case 'get_user_artifact_directory_status':
+        return app.GetUserArtifactDirectoryStatus() as Promise<T>
       case 'get_build_tracking':
         return app.GetBuildTracking() as Promise<T>
       case 'export_local_data_backup':
@@ -420,6 +426,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.ExportLocalDiagnostics() as Promise<T>
       case 'reveal_local_data_directory':
         return app.RevealLocalDataDirectory() as Promise<T>
+      case 'reveal_user_artifact_directory':
+        return app.RevealUserArtifactDirectory() as Promise<T>
       case 'get_startup_recovery_status':
         return app.GetStartupRecoveryStatus() as Promise<T>
       case 'get_session_index_status':
@@ -434,6 +442,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.ListConversations() as Promise<T>
       case 'save_conversation':
         return app.SaveConversation(args?.conversation) as Promise<T>
+      case 'ensure_coding_artifact_workspace':
+        return app.EnsureCodingArtifactWorkspace(args?.conversationId as string) as Promise<T>
       case 'delete_conversation':
         return app.DeleteConversation(args?.id as string) as Promise<T>
       case 'generate_conversation_title':

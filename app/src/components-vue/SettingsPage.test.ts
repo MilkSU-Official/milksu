@@ -65,6 +65,9 @@ async function mountSettingsPage(
   }
   const appMethods = {
     GetLocalDataStatus: async () => status,
+    GetUserArtifactDirectoryStatus: async () => ({
+      directory: '/Users/test/Documents/MilkSU',
+    }),
     GetBuildTracking: async () => ({
       schema: 'milksu.build-tracking/v1',
       packaged: true,
@@ -281,6 +284,28 @@ describe('SettingsPage build tracking', () => {
     expect(text).toContain('gitBranch: (unavailable)')
     expect(text).toContain('gitCommit: (unavailable)')
     expect(text).not.toContain('gitBranch: development/unpackaged')
+  })
+})
+
+describe('SettingsPage user artifacts', () => {
+  it('separates visible work products from internal app data', async () => {
+    let revealed = false
+    await mountSettingsPage(fiveDatabases, {
+      appMethods: {
+        RevealUserArtifactDirectory: async () => { revealed = true },
+      },
+    })
+
+    const path = document.querySelector('[data-testid="user-artifact-directory"]')
+    expect(path?.textContent).toContain('/Users/test/Documents/MilkSU')
+    expect(document.body.textContent).toContain('Coding、CTF 和 CVE 生成的文件放在这里')
+    expect(document.body.textContent).toContain('会话、凭据和运行日志仍保存在应用数据目录')
+
+    const button = [...document.querySelectorAll('button')]
+      .find(value => value.textContent?.includes('打开产物目录'))
+    button?.click()
+    await settle()
+    expect(revealed).toBe(true)
   })
 })
 

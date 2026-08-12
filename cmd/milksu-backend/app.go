@@ -27,38 +27,40 @@ import (
 	"github.com/MilkSU-Official/milksu/internal/nssctf"
 	"github.com/MilkSU-Official/milksu/internal/securityruntime"
 	"github.com/MilkSU-Official/milksu/internal/sessionindex"
+	"github.com/MilkSU-Official/milksu/internal/userartifact"
 	"github.com/MilkSU-Official/milksu/internal/vuln"
 )
 
 // App is the thin L1 desktop adapter. Domain code must not depend on Wails.
 type App struct {
-	ctx             context.Context
-	host            desktopHost
-	dataDirectory   string
-	diagnostics     *appdata.DiagnosticRecorder
-	settings        *config.Store
-	conversations   *conversation.Store
-	codingFiles     *codingattachment.Store
-	codingCollab    *codingcollab.Manager
-	ctfMaterials    *localCTFMaterialStore
-	codingTerminals *codingterminal.Manager
-	codingPRs       *codingenv.PullRequestPublisher
-	computerUse     *computercap.Manager
-	engines         *engine.Supervisor
-	securityEngine  *engine.SecuritySupervisor
-	nssctf          *nssctf.Client
-	nssctfCatalog   *nssctf.CatalogService
-	ctfshowCatalog  *ctfshow.CatalogService
-	nssctfArena     *nssctf.ArenaClient
-	browserBridge   *browsercap.Manager
-	jobs            *securityruntime.Service
-	ctfJobs         *ctf.Service
-	ctfAgent        *ctfAgentRecorder
-	ctfMemory       *ctf.MemoryStore
-	vulnJobs        *vuln.Service
-	sessionIndex    *sessionindex.Store
-	lifespanStart   appdata.LifespanStart
-	lifespanHandle  appdata.LifespanHandle
+	ctx               context.Context
+	host              desktopHost
+	dataDirectory     string
+	artifactDirectory string
+	diagnostics       *appdata.DiagnosticRecorder
+	settings          *config.Store
+	conversations     *conversation.Store
+	codingFiles       *codingattachment.Store
+	codingCollab      *codingcollab.Manager
+	ctfMaterials      *localCTFMaterialStore
+	codingTerminals   *codingterminal.Manager
+	codingPRs         *codingenv.PullRequestPublisher
+	computerUse       *computercap.Manager
+	engines           *engine.Supervisor
+	securityEngine    *engine.SecuritySupervisor
+	nssctf            *nssctf.Client
+	nssctfCatalog     *nssctf.CatalogService
+	ctfshowCatalog    *ctfshow.CatalogService
+	nssctfArena       *nssctf.ArenaClient
+	browserBridge     *browsercap.Manager
+	jobs              *securityruntime.Service
+	ctfJobs           *ctf.Service
+	ctfAgent          *ctfAgentRecorder
+	ctfMemory         *ctf.MemoryStore
+	vulnJobs          *vuln.Service
+	sessionIndex      *sessionindex.Store
+	lifespanStart     appdata.LifespanStart
+	lifespanHandle    appdata.LifespanHandle
 }
 
 func NewApp() (*App, error) {
@@ -90,6 +92,14 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create conversation store: %w", err)
 	}
+	artifactDirectory, err := userartifact.Directory()
+	if err != nil {
+		return nil, fmt.Errorf("resolve user artifact directory: %w", err)
+	}
+	artifactDirectory, err = userartifact.Ensure(artifactDirectory)
+	if err != nil {
+		return nil, fmt.Errorf("create user artifact directory: %w", err)
+	}
 	codingFiles, err := codingattachment.NewStore(
 		filepath.Join(dataDirectory, "agent-home", "attachments"),
 	)
@@ -104,14 +114,15 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 	}
 
 	application := &App{
-		host:          host,
-		dataDirectory: dataDirectory,
-		diagnostics:   appdata.NewDiagnosticRecorder(256),
-		settings:      settings,
-		conversations: conversations,
-		codingFiles:   codingFiles,
-		codingCollab:  codingCollab,
-		ctfMaterials:  newLocalCTFMaterialStore(),
+		host:              host,
+		dataDirectory:     dataDirectory,
+		artifactDirectory: artifactDirectory,
+		diagnostics:       appdata.NewDiagnosticRecorder(256),
+		settings:          settings,
+		conversations:     conversations,
+		codingFiles:       codingFiles,
+		codingCollab:      codingCollab,
+		ctfMaterials:      newLocalCTFMaterialStore(),
 	}
 	application.diagnostics.Record("app", "info", "application services initialized")
 	if restoreResult.Applied {
@@ -210,7 +221,7 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 		return nil, fmt.Errorf("create CTF memory store: %w", err)
 	}
 	application.ctfAgent = newCTFAgentRecorder(
-		filepath.Join(dataDirectory, "ctf-workspaces"),
+		filepath.Join(artifactDirectory, string(userartifact.KindCTF)),
 		application.ctfJobs,
 		application.settings,
 	)
@@ -469,6 +480,35 @@ func (a *App) RevealLocalDataDirectory() error {
 	return nil
 }
 
+type UserArtifactDirectoryStatus struct {
+	Directory string `json:"directory"`
+}
+
+func (a *App) GetUserArtifactDirectoryStatus() UserArtifactDirectoryStatus {
+	return UserArtifactDirectoryStatus{Directory: a.artifactDirectory}
+}
+
+func (a *App) EnsureCodingArtifactWorkspace(conversationID string) (string, error) {
+	return a.resolveConversationWorkspace(conversationID, "")
+}
+
+func (a *App) RevealUserArtifactDirectory() error {
+	if a.ctx == nil {
+		return fmt.Errorf("desktop runtime is not ready")
+	}
+	if runtime.GOOS != "darwin" {
+		return fmt.Errorf("reveal user artifact directory is currently supported on macOS")
+	}
+	root, err := userartifact.Ensure(a.artifactDirectory)
+	if err != nil {
+		return err
+	}
+	if err := exec.Command("/usr/bin/open", root).Run(); err != nil {
+		return fmt.Errorf("open user artifact directory: %w", err)
+	}
+	return nil
+}
+
 func (a *App) SaveSettingsCmd(settings config.AppSettings) error {
 	err := a.settings.Save(settings)
 	if err != nil && !hasSessionOnlyCredential(a.settings.Get()) {
@@ -613,6 +653,11 @@ func (a *App) SendMessage(
 	mcpServers []string,
 	attachments []codingattachment.Attachment,
 ) error {
+	resolvedWorkspace, err := a.resolveConversationWorkspace(conversationID, workspacePath)
+	if err != nil {
+		return err
+	}
+	workspacePath = resolvedWorkspace
 	sessionRole := ""
 	if a.ctfAgent != nil {
 		if err := a.ctfAgent.AuthorizeTurn(a.commandContext(), conversationID, workspacePath); err != nil {
@@ -691,6 +736,45 @@ func (a *App) SendMessage(
 		settings,
 		modelSourcePreference,
 	)
+}
+
+func (a *App) resolveConversationWorkspace(conversationID, requested string) (string, error) {
+	if strings.TrimSpace(requested) != "" || strings.HasPrefix(conversationID, "ctf_") {
+		return requested, nil
+	}
+	stored, err := a.conversations.Get(conversationID)
+	if err != nil {
+		return "", fmt.Errorf("read Coding conversation for artifact workspace: %w", err)
+	}
+	kind := userartifact.KindCoding
+	label := stored.Title
+	if domainKind, _ := stored.DomainTaskContext["kind"].(string); domainKind == "cve" {
+		kind = userartifact.KindCVE
+		if cveID, _ := stored.DomainTaskContext["cveId"].(string); strings.TrimSpace(cveID) != "" {
+			label = cveID
+		}
+	}
+	workspace, err := userartifact.Workspace(
+		a.artifactDirectory,
+		kind,
+		conversationID,
+		label,
+	)
+	if err != nil {
+		return "", err
+	}
+	stored.WorkspacePath = workspace
+	if err := a.conversations.Save(stored); err != nil {
+		return "", fmt.Errorf("save Coding artifact workspace: %w", err)
+	}
+	return workspace, nil
+}
+
+func (a *App) ctfWorkspaceRoot() string {
+	if strings.TrimSpace(a.artifactDirectory) != "" {
+		return filepath.Join(a.artifactDirectory, string(userartifact.KindCTF))
+	}
+	return filepath.Join(a.dataDirectory, "ctf-workspaces")
 }
 
 func (a *App) AbortMessage(conversationID string) error {
@@ -1024,7 +1108,7 @@ func (a *App) PrepareCTFAgentWorkspace(id string) (ctf.AgentWorkspaceHandoff, er
 	}
 	handoff, err := ctf.PrepareAgentWorkspace(
 		a.commandContext(),
-		filepath.Join(a.dataDirectory, "ctf-workspaces"),
+		a.ctfWorkspaceRoot(),
 		projection,
 		a.jobs,
 	)
@@ -1102,7 +1186,7 @@ func (a *App) refreshCTFMemoryContext(
 	}
 	memories = a.attributeCTFMemories(memories)
 	workspacePath, pathErr := ctf.AgentWorkspacePath(
-		filepath.Join(a.dataDirectory, "ctf-workspaces"),
+		a.ctfWorkspaceRoot(),
 		projection.Job.ID,
 	)
 	if pathErr != nil {
@@ -1159,7 +1243,7 @@ func (a *App) PrepareCTFToolBuilderWorkspace(id string) (ctf.AgentWorkspaceHando
 		return ctf.AgentWorkspaceHandoff{}, err
 	}
 	workspacePath, err := ctf.AgentWorkspacePath(
-		filepath.Join(a.dataDirectory, "ctf-workspaces"),
+		a.ctfWorkspaceRoot(),
 		id,
 	)
 	if err != nil {
@@ -1180,7 +1264,7 @@ func (a *App) PrepareCTFStrategistWorkspace(id string) (ctf.AgentWorkspaceHandof
 		return ctf.AgentWorkspaceHandoff{}, err
 	}
 	workspacePath, err := ctf.AgentWorkspacePath(
-		filepath.Join(a.dataDirectory, "ctf-workspaces"),
+		a.ctfWorkspaceRoot(),
 		id,
 	)
 	if err != nil {
@@ -1201,7 +1285,7 @@ func (a *App) GetCTFToolWorkshopState(id string) (ctf.ToolWorkshopState, error) 
 		return ctf.ToolWorkshopState{}, err
 	}
 	workspacePath, err := ctf.AgentWorkspacePath(
-		filepath.Join(a.dataDirectory, "ctf-workspaces"),
+		a.ctfWorkspaceRoot(),
 		id,
 	)
 	if err != nil {
@@ -1222,7 +1306,7 @@ func (a *App) GetCTFAgentReplay(id string) (ctf.AgentReplay, error) {
 		return ctf.AgentReplay{}, err
 	}
 	workspacePath, err := ctf.AgentWorkspacePath(
-		filepath.Join(a.dataDirectory, "ctf-workspaces"),
+		a.ctfWorkspaceRoot(),
 		id,
 	)
 	if err != nil {
@@ -1251,7 +1335,7 @@ func (a *App) GetCTFAgentRunCheckpoint(id string) (*ctf.AgentRunCheckpoint, erro
 		return nil, err
 	}
 	workspacePath, err := ctf.AgentWorkspacePath(
-		filepath.Join(a.dataDirectory, "ctf-workspaces"),
+		a.ctfWorkspaceRoot(),
 		id,
 	)
 	if err != nil {

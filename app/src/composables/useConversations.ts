@@ -802,7 +802,23 @@ export function useConversations() {
 
     runningIds.value = new Set(runningIds.value).add(conversationId)
     try {
-      const conversation = conversations.value.find(item => item.id === conversationId)
+      let conversation = conversations.value.find(item => item.id === conversationId)
+      if (conversation && !conversation.workspacePath) {
+        // Save the structured CTF/CVE context before the backend chooses the
+        // visible Coding or CVE artifact directory for this conversation.
+        await invokeCommand('save_conversation', { conversation })
+        const automaticWorkspace = await invokeCommand<string>(
+          'ensure_coding_artifact_workspace',
+          { conversationId },
+        )
+        if (automaticWorkspace) {
+          update(conversationId, current => ({
+            ...current,
+            workspacePath: automaticWorkspace,
+          }))
+          conversation = conversations.value.find(item => item.id === conversationId)
+        }
+      }
       const requestedMCPServers = turnMCPServers(conversation?.mcpServers, scopeToken)
       await invokeCommand('send_message', {
         conversationId,

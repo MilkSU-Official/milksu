@@ -253,6 +253,10 @@ export interface LocalDataStatus {
   databases?: DatabaseCompatibilityStatus[]
 }
 
+export interface UserArtifactDirectoryStatus {
+  directory: string
+}
+
 /**
  * Desktop build provenance shown at the bottom of Settings.
  * Packaged apps expose sealed Resources/build-tracking.json fields.
