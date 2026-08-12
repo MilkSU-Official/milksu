@@ -43,7 +43,7 @@
 - 模型与凭据：单默认模型；内测账户额度与本机个人 Key 独立存在，默认账户优先且仅在模型输出或工具执行前自动切换。设置保存全局顺序，Coding 可只为当前对话调整优先来源；个人 Key 不进入后台、日志或模型上下文。DeepSeek V4 Flash 默认日常；TokenFlux 是账户 Team Key 与个人中转的当前实现，Coding / CTF / sub-agent 仍共用 Pi Provider 注册。
 - CVE：用户首页只显示自己明确加入研究的公开 CVE，状态手工维护，并自动关联从该条目发起的 Coding 对话；内置公开目录不再伪造资产命中、用户状态或实时更新时间。纵深研究、真实复现、外部资产和披露仍后置。
 - CTF：题库、工作区、Evidence、候选、Judge、Checkpoint、恢复、复盘、Memory 主链存在；真实 Judge 成功仍只有窄 Web 路径。
-- CTF/CVE → Coding 已复用同一 Coding/Pi：交接只挂载草稿、不自动发送；右侧可折叠领域上下文保留题目/CVE、授权 Scope、材料、Evidence/Judge 或只读安全边界，并提供返回工作台。NSSCTF 附件或 Judge 未连接不再阻止用公开题面打开 Coding；附件缺失只作为材料警告。Beta Computer Use 已实测 P7591 与 CVE-2024-3400 的草稿交接和返回连续性；未运行 PoC、未提交 flag、未建立 Judge 成功事实。
+- CTF/CVE → Coding 已复用同一 Coding/Pi：交接只挂载草稿、不自动发送；右侧可折叠领域上下文保留题目/CVE、授权 Scope、材料、Evidence/Judge 或只读安全边界，并提供返回工作台。NSSCTF 附件或 Judge 未连接不再阻止用公开题面打开 Coding；附件缺失只作为材料警告。Beta Computer Use 已实测历史真实 CTF 任务的手工完成状态，以及 CVE-2024-3400 从跟踪页进入临时 Coding 工作区、生成只读研究简报、返回并自动关联 1 个对话的完整纵切；CVE 状态仍由用户手工保持“研究中”。未运行 PoC、未提交 flag、未建立 Judge 成功事实。
 - Runtime：Sidecar 恢复、Compaction、异常退出标记、后台长任务打包 App/WebView 恢复、预算和失败分类已有。
 - UI：左上角显示圆形裁切的当前用户头像并打开个人菜单；全局左栏固定为窄栏，Coding 会话历史默认收起并由单一按钮以浮层展开，不再因模块切换挤动主页面。完整个人页展示真实活跃格、CTF/CVE/Coding 模糊阶段和最近确认成长，全局六维雷达不再挂载。Goal 与 Git 摘要位于输入框上方，Git 摘要可展开文件列表并跳到“变更”。Coding 顶部保留独立 Bottom Dock 和统一右栏；CTF/CVE 进入 Coding 后领域上下文可折叠/PiP，不再丢失原任务。Computer Use 使用紧凑任务面，诊断与证据默认折叠。Electron 窗口已避开 macOS 红黄绿按钮，Stable/Beta 使用正确名称与图标；设置页底部固定显示 branch、40 位 commit、clean/dirty、build time 和 tracking ID。
 - 暂停/后置：Labs；CVE 纵深研究、真实漏洞复现、外部资产实验、披露；NYU safe-static 只是开发者 smoke，不是完整 CTF 成绩。
@@ -55,9 +55,8 @@
 - **任务**：Codex `019fe9ee-b865-75b3-903d-bada1266f254`。
 - **目标文档**：[个人安全工作台计划](security-workspace-product-plan.md)。
 - **关联方式**：该 Codex 任务执行目标文档中的产品目标，本节只维护当前切片、完成线和验收状态。
-- **当前切片**：目标问答、六张定稿图、个人资料、轻量 CTF/CVE、独立 Admin 和双模型来源路由已经进入代码。CTF 的任务状态已改为用户手工维护，CVE 首页只从用户明确加入的条目生成列表。干净功能提交 `3bbf2817ccd39935bc6e596a2a3d7470d1658907` 已构建并检查 Beta，tracking ID 为 `c762a242def367e2dcb8d6a7066db52bf71dd96c1035dd639e77e900135fc7f0`；最终原生回归正在等待本机确认这次 ad-hoc Beta 对 macOS 安全存储的访问。独立私有仓库 `MilkSU-Official/milksu-admin` 已在 `277af3b73b21a4295ee58c462adb807b36225e1c` 提供邀请、访问开关、额度增减、用户流水、全局流水和与客户端一致的日间/夜间模式，并把 React 管理端、Worker API 和 D1 部署到 `accounts.milksu.org`；线上健康与就绪检查通过。GitHub OAuth 已在真实管理员账户完成登录，`MilkSU-Official` 的 ¥5.00 待领取邀请已写入 D1；桌面端兑换邀请、显示余额以及 App 内 Agent 完成 CTF/CVE 仍未验收，不能写成已完成。
-- **完成线**：个人资料、轻量 CTF、轻量 CVE、账户额度/个人 Key 路由均按定稿图完成；从干净
-  提交构建 Beta，核对 branch、完整 commit、tracking ID，并在真实账户部署和可用模型来源下完成 CTF/CVE 与账户路径验收；之后再构建正式 App。
+- **当前切片**：目标问答、六张定稿图、个人资料、轻量 CTF/CVE、独立 Admin 和双模型来源路由已经进入代码。CTF 状态由用户手工维护，CVE 首页只显示用户明确加入的条目。临时工作区交接缺陷在 `6c17dbc3a6d94d790536b52850fd2362a1012518` 修复；随后从该干净提交构建 Beta，Package Inspector 与严格签名检查通过，tracking ID 为 `d03255745600dae358433ed348cfa23fe586754ddc13835d09b7246348dd9586`。Computer Use 已在设置页核对 `main`、完整提交、`clean` 和 tracking ID，并完成真实 CTF 手工状态、CVE-2024-3400 只读研究、交付文档、对话关联与返回路径。独立私有仓库 `MilkSU-Official/milksu-admin` 已在 `277af3b73b21a4295ee58c462adb807b36225e1c` 部署 React 管理端、Worker API 和 D1 到 `accounts.milksu.org`；GitHub OAuth、邀请兑换、访问开通、¥5.00 余额和首笔额度流水已经在真实 Admin 与桌面客户端联动验证。账户 Team Key 尚未连接，因此不能把本次模型调用记为账户额度扣费或 TokenFlux 明细联动。
+- **完成线**：从最终干净文档提交构建并打开正式 App，在设置页核对正式版 branch、完整 commit、tracking ID，完成账户、CTF、CVE 的最小回归；账户 Team Key 与 TokenFlux 扣费明细作为独立后续纵切，不伪装成本轮已验收。
 
 | 优先级 | 主线 | 只认什么完成 |
 | --- | --- | --- |

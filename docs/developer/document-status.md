@@ -56,8 +56,8 @@
 - 完整自然任务自举（功能代码/测试/恢复/Git 交付）、人工接管账本、自主合并发布和发行门禁仍未通过。
 - 模型与凭据：单默认模型；账户额度和本机个人 Key 是两个独立来源，设置页可调整全局顺序，Coding
   可只为当前对话调整优先来源；仅允许在模型未输出且工具未执行前自动切换。个人 Key 不进入后台、
-  日志或模型上下文。Cloudflare Worker、D1、管理端和公开账户 API 已部署；GitHub OAuth 已完成真实
-  管理员登录，首个 ¥5.00 邀请待桌面端兑换。桌面登录/额度联动和 TokenFlux 明细仍待联调。
+  日志或模型上下文。Cloudflare Worker、D1、管理端和公开账户 API 已部署；真实 GitHub 登录、邀请兑换、
+  访问开通、¥5.00 余额和初始额度流水已在 Admin 与桌面端联动验证。TokenFlux Team Key 与真实扣费明细仍待独立联调。
 - CTF 主链存在；真实 Judge 成功仍只有窄 Web 路径。Memory actor/assistance 已持久化；尚缺真实
   轨迹校准。Runtime Reliability fixture 已有；发行级恢复矩阵未过。
 - CTF/CVE 交给 Coding 时只挂草稿、不自动发送，并复用同一 Pi 会话；可折叠领域上下文保留题目/CVE、
@@ -67,7 +67,7 @@
 - UI：rail 主题/设置、Coding Goal 与常用 Agent 动作在 Composer `/`；“+”统一提供附件、Goal、Plan、浏览器、Browser/Computer Scope、已审核 Pi Skills 与项目 MCP。运行中输入可继续发送并通过 Pi steering/queue 在下一模型调用前应用；左上角用户头像进入个人资料页，页面展示真实活跃格、CTF/CVE/Coding 模糊阶段和最近确认成长，全局六维雷达不再挂载；Git 摘要可展开文件并跳到“变更”。产品表面只显示“浏览器”，不再暴露 worktree/writer 或五项 Computer Use readiness 样子货；
   Browser Use Bridge 与 Computer Use 系统配置集中到“设置 → 浏览器与控制”。
 - Coding 的已审核 Skill 由 Pi 按需加载完整内容，设置页只管理审核目录的启停；当前目录覆盖产品设计、前端视觉验收、API 集成、安全审查、技术交付物、架构图和 MilkSU 发布。禁用项从下一条 Coding 消息生效，CTF 角色保持隔离，用户不能借设置注入任意 Skill 路径。
-- 个人安全工作台 Beta 已从干净功能提交 `3bbf2817ccd39935bc6e596a2a3d7470d1658907` 构建，tracking ID 为 `c762a242def367e2dcb8d6a7066db52bf71dd96c1035dd639e77e900135fc7f0`；包身份、sealed provenance 和严格签名已通过。此前原生审计已覆盖设置追踪、个人页、轻量 CTF/CVE、草稿交接、PiP/返回和关联对话；最后一批 CTF 手工状态与 CVE 明确加入列表仍待本机确认 ad-hoc Beta 的安全存储访问后复检。客户端已指向 `accounts.milksu.org`，但邀请兑换、真实余额和 App 内 Agent 完成任务尚未验收；当前仍是 ad-hoc 签名。
+- 个人安全工作台 Beta 已从干净提交 `6c17dbc3a6d94d790536b52850fd2362a1012518` 构建，tracking ID 为 `d03255745600dae358433ed348cfa23fe586754ddc13835d09b7246348dd9586`；包身份、sealed provenance 和严格签名已通过。原生 Computer Use 已核对设置追踪、真实 GitHub 登录与 ¥5.00 余额、CTF 手工状态、CVE 明确加入列表，以及 CVE-2024-3400 从跟踪页进入临时 Coding 工作区、生成 `cve-2024-3400/README.md`、返回并自动关联对话的完整纵切。CVE 状态没有被 Agent 自动改写，仍是用户手工的“研究中”。当前仍是 ad-hoc 签名，正式 App 构建与最小回归是本切片最后一步。
 - 安全工具 MCP 是下一阶段 Coding 常规能力，不是当前发行能力：候选为 IDA Pro/idalib、Burp、radare2、Ghidra 与 Semgrep；
   必须先通过固定版本、最小权限、真实任务和拒绝路径，是否进入 CTF/CVE 由用户监督的领域纵切决定。
 - 相关历史人类语义图已在重新打包的 macOS App 用 TokenFlux `grok-4.5` 通过 `Computer Use`（10 节点/11 关系）与 `MCP`（11 节点/12 关系）真实归纳、来源详情/回跳和主聊天不受污染验收；`@antv/g6@5.1.1` 仅在完整图谱视图懒加载，列表与紧凑侧栏不会触发模型调用。

@@ -25,20 +25,21 @@ GitHub 登录、邀请制访问、额度与流水管理 API/管理前端；让 M
 
 - 已实现并测试：个人资料、轻量 CTF/CVE、共享 Coding 上下文、独立 Admin 基线、账户额度与本机
   Key 的全局/对话级顺序。
-- 已从干净功能提交 `3bbf2817ccd39935bc6e596a2a3d7470d1658907` 构建 `MilkSU Beta`；包检查确认
+- 已从干净提交 `6c17dbc3a6d94d790536b52850fd2362a1012518` 构建 `MilkSU Beta`；包检查确认
   branch `main`、`dirty=false`，tracking ID
-  `c762a242def367e2dcb8d6a7066db52bf71dd96c1035dd639e77e900135fc7f0`。
+  `d03255745600dae358433ed348cfa23fe586754ddc13835d09b7246348dd9586`。
 - 原生 Computer Use 已复检个人页、模型来源、CTF/CVE 草稿交接、领域上下文 PiP、返回状态、
-  关联对话和无虚构 CVE 资产；最后一批又把 CTF 状态改为手工维护，并让 CVE 首页只显示用户明确
-  加入的条目。最终包的原生复检正在等待本机确认这次 ad-hoc Beta 对 macOS 安全存储的访问；桌面端
-  兑换邀请、显示真实额度以及 App 内 Agent 实际完成 CTF/CVE 仍是完成线，不以按钮或草稿代替。
+  关联对话和无虚构 CVE 资产。CTF 状态由用户手工维护；CVE 首页只显示用户明确加入的条目。
+  CVE-2024-3400 已在打包 App 中由 Coding Agent 进入临时工作区完成只读研究并生成中文简报，返回后
+  自动关联 1 个 Coding 对话，状态仍诚实地保持手工“研究中”。
 - 全局左栏固定为窄栏，头像使用圆形裁切；Coding 会话历史默认收起，只在用户点击后以浮层展开，
   不再因 CTF、CVE、Coding、个人资料和设置切换而挤动主页面。
 - 独立私有仓库 [MilkSU-Official/milksu-admin](https://github.com/MilkSU-Official/milksu-admin) 已到
   `277af3b73b21a4295ee58c462adb807b36225e1c`：React 管理端、Cloudflare Worker、D1、邀请、暂停访问、
   额度增减、用户流水、全局流水和日间/夜间模式均已部署到 `accounts.milksu.org`；线上 `/health` 和
-  `/ready` 已通过。GitHub OAuth 已完成真实管理员登录；`MilkSU-Official` 的 ¥5.00 待领取邀请已写入
-  D1，仍需由桌面端登录兑换。TokenFlux Team 继续按真实团队接入结果验收。
+  `/ready` 已通过。GitHub OAuth 已完成真实管理员登录；`MilkSU-Official` 的邀请已由桌面端兑换，
+  Admin 与客户端均显示访问已开通、¥5.00 余额和初始额度流水。TokenFlux Team Key 与扣费明细没有在
+  本轮接通，继续按真实团队接入结果单独验收。
 
 ## 目标
 
@@ -86,15 +87,15 @@ Coding Agent。个人资料页诚实记录用户在 CTF、CVE 和 Coding 中的�
 | 桌面产品代码 | Vue/Vitest 68 个文件、365 项测试，lint 与生产构建通过 | 通过 |
 | 桌面壳与 Sidecar | Electron、账户 PKCE、Pi、安全边界与 Computer Use 共 212 项 Node 测试通过 | 通过 |
 | Go Runtime | `cmd/milksu-backend`、`internal/config` 与 `internal/computercap` 测试通过 | 通过 |
-| CTF/CVE 收薄 | CTF 状态手工维护；CVE 首页只从用户明确加入的条目生成；聚焦测试 37 项通过 | 代码通过，最终原生复检待完成 |
-| Beta 身份 | `main@3bbf2817ccd39935bc6e596a2a3d7470d1658907`、`dirty=false`、tracking ID `c762a242def367e2dcb8d6a7066db52bf71dd96c1035dd639e77e900135fc7f0`；Package Inspector 与严格签名检查通过 | 通过 |
+| CTF/CVE 收薄 | CTF 状态手工维护；CVE 首页只从用户明确加入的条目生成；聚焦测试 37 项通过；Beta 原生复检通过 | 通过 |
+| Beta 身份 | `main@6c17dbc3a6d94d790536b52850fd2362a1012518`、`dirty=false`、tracking ID `d03255745600dae358433ed348cfa23fe586754ddc13835d09b7246348dd9586`；Package Inspector 与严格签名检查通过 | 通过 |
 | Admin 前后端 | `main@277af3b73b21a4295ee58c462adb807b36225e1c`；构建、10 项前端测试与 3 项 Worker 资源测试通过 | 通过 |
 | Cloudflare 部署 | `accounts.milksu.org` 的 Worker、D1、静态管理端、`/health` 与 `/ready` 可用 | 通过 |
 | Admin 日间模式 | 与客户端相同的日间/夜间切换、持久化和窄屏布局已在本地及线上核对 | 通过 |
 | GitHub OAuth | 真实 GitHub 管理员账户登录成功；OAuth Secret 只存在 Worker Secret | 通过 |
-| 邀请与初始额度 | D1 中存在 `MilkSU-Official` 的 ¥5.00 待领取邀请 | 后台通过，桌面兑换待完成 |
-| 桌面账户联动 | GitHub 登录、头像、余额与两种模型来源顺序 | 待原生验收 |
-| 真实 CTF/CVE | 由打包 App 内 Agent 完成任务并保留结果 | 待最终验收 |
+| 邀请与初始额度 | 桌面兑换邀请；Admin/客户端均显示访问开通、¥5.00 和初始额度流水 | 通过 |
+| 桌面账户联动 | GitHub 登录、头像、余额与两种模型来源顺序；Team Key 未连接时如实显示不可用 | 通过；TokenFlux 扣费明细后续 |
+| 真实 CTF/CVE | 历史真实 CTF 结果由用户手工标记完成；CVE-2024-3400 在打包 App 中完成只读研究、文档交付、返回与对话关联 | 通过 |
 | 正式 App | 从最终干净提交构建、核对追踪并打开 | 待最终验收 |
 
 ## 实施顺序
