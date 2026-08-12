@@ -18,7 +18,7 @@
 6. 自动审批可减少无意义打断，但不能绕过付费、外部账户、Scope 扩大、路径边界、托管发布或不可逆操作。
 7. CTF、CVE、Coding 是同级主工作区；同语义控件必须同规格。全局设置固定左下 rail；缺凭据或模块配置 CTA 跳到全局设置对应分类。
 8. 非阻塞问题先记复现和影响；只有数据 / Credential / Scope / 私有远端 / Judge / 验收失真立即修。
-9. 夜间/日间主题已可用：左下 rail 设置上方纯图标切换并本机持久化；日间模式以中性档案纸承载内容，导航、页头、筛选、Coding 右栏等命令面保持深色，绿色只保留给品牌、选中和状态反馈；后续只在 UI 巡检中扩样调色。
+9. 日间/夜间主题已可用：新安装和无有效偏好时默认日间，用户明确选择后本机持久化；日间模式以中性档案纸承载内容，导航、页头、筛选、Coding 右栏等命令面保持深色；主操作使用酸绿，蓝色只保留给链接和执行/诊断状态；后续只在 UI 巡检中扩样调色。
 10. UI 巡检或视觉修复后，必须同步防回归测试与当前文档。
 11. 模型与凭据保持普通入口：一个默认模型，账户额度与本机个人 Key 两个独立来源。默认账户额度优先，用户可调整全局顺序，也可只为当前 Coding 对话调整优先来源；不保留 fast/deep 角色路由，不接 Kimi/KouriChat 产品入口。
 12. Coding 自举默认由外部 reviewer 操作真实打包 MilkSU：给略带模糊的人类需求，让 MilkSU 在隔离 worktree 内理解、修改和验证；reviewer 只查轨迹、diff、测试和边界，并通过产品 UI 要求返工。除非链路阻塞、安全/Scope 问题或用户明确要求，reviewer 不直接改功能代码。
@@ -57,7 +57,7 @@
 - **目标文档**：[个人安全工作台计划](security-workspace-product-plan.md)。
 - **关联方式**：该 Codex 任务执行目标文档中的产品目标，本节只维护当前切片、完成线和验收状态。
 - **当前切片**：目标问答、六张定稿图、个人资料、轻量 CTF/CVE、独立 Admin、双模型来源路由和 `~/Documents/MilkSU` 用户产物目录已经进入代码。Desktop 与 Admin 的全部用户可达页面已进一步迁移到统一的游戏化界面系统；实际日夜界面截图、组件语义和 Computer Use 复检保存在[视觉规范](../design/milksu-game-ui-system.md)。Desktop 功能提交 `2fc493cc4be705ec054f782b930db125c40f0972` 的 clean Beta 已通过 CTF/CVE 列表、共享 Coding 接力、个人资料和设置追踪复检，tracking ID 为 `a8cc501e9d993f50106bec6cc7bc597f2926c4f61475d6a54e7449e49ee57c08`；Admin 游戏化界面提交为 `0f1d86d47105c25b186a27165e9d02166a077eca`。原生验收仍保留全新自定义题 `Caesar Shift 12` 的创建、手工状态、共享 Coding、运行中引导、脚本/笔记交付、返回与历史收口；题面矛盾没有被伪造成 Flag 或 Judge 成功。账户会话已改为 `0600` 本地文件，启动不再触发 macOS Keychain；私有 `macos-release` workflow 已实现 Developer ID、hardened runtime、公证、staple、Gatekeeper 验证与临时资产销毁，首个真实 workflow 产物仍待最终提交推送后取得。
-- **当前 UI 纠偏**：用户提供的原生日/夜截图暴露了主题角色穿透：日间模式中的固定深色 rail、Coding 右栏和设置导航继承了纸面文字色，CTF/CVE 事实区仍混有旧蓝色 chrome。当前纵切统一深色命令面与纸面事实区的局部主题角色，并以 CTF、CVE、Coding、设置的日/夜原生 Beta 矩阵为完成线；内置浏览器只用于快速检查样式，不替代桌面运行时验收。
+- **当前 UI 纠偏**：用户提供的原生截图继续暴露隐藏状态与窄屏缺口：Coding 会话抽屉、右栏浏览器/变更/架构等默认隐藏面没有共用已定稿的战术组件；CTF 历史浮层被页面堆叠上下文压在题目表格下；CTF → Coding 的长题名、目标、阶段轨与领域简报在右栏打开后发生裁切。当前纵切以共享 `TacticalPanelShell` 和全局浮层主题收口所有隐藏控制面，以容器查询让右栏在不足空间时覆盖主区，并让任务标题、目标、阶段轨和简报按可用宽度重排。内置浏览器负责快速样式/断点巡检，打包 Beta 负责真实数据和原生壳最终验收。
 - **完成线**：本目标最终 clean `main` 已构建并打开正式 App；设置页 branch、完整 commit、tracking ID、Package Inspector 与 CTF/CVE 最小回归均通过，代码只推送 MilkSU 私有远端。剩余发行条件是运行 `macOS signed release`，并以 Apple `Accepted`、stapler、Gatekeeper 和下载 artifact 回执建立可外部分发事实。账户 Team Key、TokenFlux 真实扣费/明细/硬限额/同步延迟，以及 Obelisk 到可归因成长事实的升级都是独立后续纵切；当前界面和文档不得把它们伪装成已验收。
 
 | 优先级 | 主线 | 只认什么完成 |

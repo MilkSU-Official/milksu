@@ -76,13 +76,25 @@ const moduleKey = computed(() => props.module ?? props.title.trim().toLowerCase(
 
   min-height: 5rem;
   position: relative;
+  z-index: var(--z-sticky);
+  isolation: isolate;
   margin: .75rem .75rem 0;
+  border: 0;
+  background: transparent;
+  color: #f5f6f7;
+  overflow: visible;
+}
+
+.workspace-topbar::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
   border: 1px solid #323a42;
   background-color: var(--tactical-ink-2);
   background-image: var(--tactical-carbon-image);
   background-size: 640px 640px;
-  color: #f5f6f7;
   clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, 0 100%);
+  content: '';
 }
 
 .workspace-topbar::after {

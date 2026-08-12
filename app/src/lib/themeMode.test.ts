@@ -16,15 +16,15 @@ describe('themeMode', () => {
     document.documentElement.removeAttribute('style')
   })
 
-  it('defaults to the night theme unless the user explicitly chose day mode', () => {
+  it('defaults to the day theme while preserving an explicit night choice', () => {
     const storage = createMemoryStorage()
     expect(normalizeThemeMode('dark')).toBe('dark')
     expect(normalizeThemeMode('light')).toBe('light')
-    expect(normalizeThemeMode('system')).toBe('dark')
-    expect(readThemeMode(storage)).toBe('dark')
-
-    storage.setItem(THEME_MODE_STORAGE_KEY, 'light')
+    expect(normalizeThemeMode('system')).toBe('light')
     expect(readThemeMode(storage)).toBe('light')
+
+    storage.setItem(THEME_MODE_STORAGE_KEY, 'dark')
+    expect(readThemeMode(storage)).toBe('dark')
   })
 
   it('applies and persists the current mode', () => {

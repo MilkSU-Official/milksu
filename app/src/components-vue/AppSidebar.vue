@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import ContextSidebar from '@/components-vue/ContextSidebar.vue'
+import TacticalPanelShell from '@/components-vue/TacticalPanelShell.vue'
 import WorkspaceRail from '@/components-vue/WorkspaceRail.vue'
 import type { ThemeMode } from '@/lib/themeMode'
 import type { AppSection, CTFWorkspaceSection, WorkspaceSection } from '@/lib/workspaceNavigation'
@@ -58,10 +59,13 @@ watch(
       @toggle-theme="$emit('toggleTheme')"
       @toggle-context="codingContextOpen = !codingContextOpen"
     />
-    <section
+    <TacticalPanelShell
       v-if="showContextSidebar"
+      as="section"
+      size="drawer"
+      body-mode="viewport"
       id="coding-context-sidebar"
-      class="absolute bottom-0 left-full top-0 z-40 flex w-[15rem] border-r border-[#2d343b] bg-[#0d1115] text-sidebar-foreground shadow-2xl"
+      class="coding-context-drawer absolute bottom-0 left-full top-0 z-40"
       aria-label="Coding 会话"
       data-testid="coding-context-drawer"
     >
@@ -75,11 +79,12 @@ watch(
         @delete-conversation="$emit('deleteConversation', $event)"
         @navigate-ctf="$emit('navigateCtf', $event)"
       />
-    </section>
+    </TacticalPanelShell>
   </aside>
 </template>
 
 <style scoped>
 .workspace-navigation-shell { width: 4.75rem; }
+.coding-context-drawer { border-right: 1px solid #343b42; }
 @media (min-width: 1180px) { .workspace-navigation-shell { width: 13.5rem; } }
 </style>

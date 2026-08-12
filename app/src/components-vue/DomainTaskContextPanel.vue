@@ -80,7 +80,7 @@ function toggleCollapsed() {
       <div class="domain-dossier tactical-paper tactical-paper--stacked min-h-0 flex-1 overflow-y-auto">
         <section class="domain-mission-hero px-6 py-7">
           <span class="tactical-label">Dossier / {{ presentation.kind.toUpperCase() }}</span>
-          <p class="tactical-display mt-4 break-words text-[2.65rem] leading-none" :title="presentation.title">
+          <p class="domain-mission-title tactical-display mt-4 break-words leading-none" :title="presentation.title">
             {{ presentation.title }}
           </p>
           <div v-if="presentation.meta.length" class="mt-4 flex flex-wrap gap-2">
@@ -94,7 +94,7 @@ function toggleCollapsed() {
           </div>
         </section>
 
-        <div class="space-y-6 px-6 py-5">
+        <div class="domain-dossier__body space-y-6 px-6 py-5">
           <section class="domain-mission-objective tactical-acid-panel flex items-center gap-4 px-4 py-4">
             <Target class="size-9 shrink-0" />
             <div class="min-w-0">
@@ -211,7 +211,8 @@ function toggleCollapsed() {
   flex-direction: column;
   overflow: hidden;
   background: #111519;
-  overflow: visible;
+  container-name: domain-dossier;
+  container-type: inline-size;
 }
 
 .domain-mission-hero {
@@ -223,8 +224,15 @@ function toggleCollapsed() {
 }
 
 .domain-dossier { z-index: 2; margin: 2rem 1.15rem 1rem; overflow: auto; color: var(--tactical-paper-ink); }
+.domain-mission-title { overflow-wrap: anywhere; font-size: clamp(1.9rem, 10cqi, 2.65rem); }
 .domain-dossier__header { border-bottom: 1px solid #343b42; color: #f6f7f8; }
 .domain-dossier__footer { border-color: #343b42; color: #f6f7f8; }
 .domain-material, .domain-facts { border-color: rgb(17 19 21 / .35); background: rgb(255 255 255 / .14); }
 .domain-facts dl { border-color: rgb(17 19 21 / .28); }
+
+@container domain-dossier (max-width: 25rem) {
+  .domain-dossier { margin: 1rem .65rem .75rem; }
+  .domain-mission-hero, .domain-dossier__body { padding-inline: 1rem; }
+  .domain-mission-objective { align-items: flex-start; }
+}
 </style>

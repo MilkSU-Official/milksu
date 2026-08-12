@@ -82,7 +82,7 @@ describe('AppSidebar', () => {
       .toContain('实现产品闭环')
     expect(coding.querySelector('[aria-label="设置"]')).not.toBeNull()
     const codingHeading = [...coding.querySelectorAll('h2')]
-      .find(node => node.textContent === 'Coding')
+      .find(node => node.textContent === 'Coding 会话')
     const newTask = [...coding.querySelectorAll('button')]
       .find(node => node.textContent?.includes('新建编码任务'))
     expect(codingHeading).not.toBeUndefined()

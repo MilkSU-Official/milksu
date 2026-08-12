@@ -1605,7 +1605,7 @@ onBeforeUnmount(() => {
           data-state="open"
           data-side="bottom"
           :class="[menuContentClass, menuViewportClass]"
-          class="absolute right-0 top-[calc(100%+4px)] max-h-[min(480px,calc(100vh-7rem))] w-[min(420px,calc(100vw-2rem))] overflow-y-auto"
+          class="tactical-floating-surface absolute right-0 top-[calc(100%+4px)] z-[var(--z-overlay)] max-h-[min(480px,calc(100vh-7rem))] w-[min(420px,calc(100vw-2rem))] overflow-y-auto"
           role="menu"
           aria-label="训练历史"
         >

@@ -195,7 +195,7 @@ function openTopic(query: string) {
 
 <template>
   <main class="tactical-page flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
-    <WorkspaceModuleTopBar module="cve">
+    <WorkspaceModuleTopBar module="cve" title="漏洞">
       <template #actions>
         <Button
           variant="ghost"

@@ -73,6 +73,7 @@ import CodingMCPReviewCard from '@/components-vue/CodingMCPReviewCard.vue'
 import SessionHistoryPanel from '@/components-vue/SessionHistoryPanel.vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import DomainTaskContextPanel from '@/components-vue/DomainTaskContextPanel.vue'
+import TacticalPanelShell from '@/components-vue/TacticalPanelShell.vue'
 import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
 import type {
   CodingArchitecturePreview,
@@ -235,6 +236,7 @@ const environmentError = ref('')
 const architecturePreview = ref<CodingArchitecturePreview | null>(null)
 const architecturePreviewLoading = ref(false)
 const architecturePreviewError = ref('')
+const architectureFitToPanel = ref(true)
 const requestedArchitecturePath = ref('')
 const browserPanelError = ref('')
 const codingBrowserLoading = ref(false)
@@ -502,9 +504,12 @@ const architecturePreviewSource = computed(() => {
     'media-src data: blob:',
   ].join('; ')
   const csp = `<meta http-equiv="Content-Security-Policy" content="${policy}">`
+  const panelMode = architectureFitToPanel.value
+    ? `<script>document.documentElement.dataset.embed='true'<\/script>`
+    : ''
   return /<head(?:\s[^>]*)?>/i.test(html)
-    ? html.replace(/<head(\s[^>]*)?>/i, match => `${match}${csp}`)
-    : `${csp}${html}`
+    ? html.replace(/<head(\s[^>]*)?>/i, match => `${match}${csp}${panelMode}`)
+    : `${csp}${panelMode}${html}`
 })
 const codingBrowserEvidencePath = computed(() => {
   const sessionID = codingBrowserStatus.value?.sessionId?.trim()
@@ -1611,7 +1616,7 @@ watch(
 
 <template>
   <section class="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-surface-editor">
-  <div class="relative flex min-h-0 flex-1 overflow-hidden">
+  <div class="coding-workspace relative flex min-h-0 flex-1 overflow-hidden">
   <main class="chat-main flex min-w-0 flex-1 flex-col overflow-hidden bg-surface-editor">
     <WorkspaceModuleTopBar
       :module="topbarModule"
@@ -1769,16 +1774,19 @@ watch(
       @control-goal="controlComposerGoal"
     />
   </main>
-  <aside
+  <TacticalPanelShell
     v-if="environmentOpen && !domainContextCollapsed"
-    class="context-sidebar tactical-dark-surface flex shrink-0 flex-col border-l border-[#343a40] bg-[#171b1f]"
-    :class="['architecture', 'artifacts', 'changes', 'collaboration', 'history', 'browser', 'domain'].includes(contextPanel)
-      ? 'w-[min(36rem,36vw)] min-w-[22rem]'
-      : 'w-80'"
+    as="aside"
+    class="context-sidebar"
+    :size="['architecture', 'artifacts', 'changes', 'collaboration', 'history', 'browser', 'domain'].includes(contextPanel)
+      ? 'wide'
+      : 'compact'"
+    :body-mode="contextPanel === 'browser' ? 'viewport' : 'scroll'"
     :aria-label="contextPanelTitle"
     data-testid="single-right-context-rail"
   >
-    <header class="app-drag flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
+    <template #header>
+    <div class="app-drag flex w-full items-center justify-between">
       <Select
         v-if="!transientComputerUsePanel"
         :model-value="contextPanel"
@@ -1847,11 +1855,11 @@ watch(
           />
         </Button>
       </div>
-    </header>
+    </div>
+    </template>
 
     <div
       class="min-h-0 flex-1"
-      :class="contextPanel === 'browser' ? 'overflow-hidden' : 'overflow-y-auto'"
     >
       <template v-if="contextPanel === 'domain' && domainTaskPresentation">
         <DomainTaskContextPanel
@@ -2275,6 +2283,15 @@ watch(
                 {{ architecturePreview?.exists ? '重新生成' : '生成' }}
               </Button>
             </div>
+            <Button
+              v-if="architecturePreview?.exists"
+              variant="ghost"
+              size="sm"
+              class="mt-2"
+              @click="architectureFitToPanel = !architectureFitToPanel"
+            >
+              {{ architectureFitToPanel ? '查看完整页面' : '适应窗口' }}
+            </Button>
           </div>
           <p
             v-if="architecturePreviewError"
@@ -2309,7 +2326,7 @@ watch(
       </template>
 
       <template v-else-if="contextPanel === 'browser'">
-        <section class="flex h-full min-h-0 flex-col bg-background">
+        <section class="coding-browser-panel flex h-full min-h-0 flex-col">
           <div v-if="browserPanelError" class="shrink-0 border-b border-border px-3 py-2 text-caption text-destructive">
             {{ browserPanelError }}
           </div>
@@ -2611,7 +2628,7 @@ watch(
         </section>
       </template>
     </div>
-  </aside>
+  </TacticalPanelShell>
   </div>
   <DomainTaskContextPanel
     v-if="domainTaskPresentation && domainContextCollapsed"
@@ -2651,29 +2668,23 @@ watch(
   container-type: inline-size;
 }
 
+.coding-workspace {
+  container-name: coding-workspace;
+  container-type: inline-size;
+}
+
+.coding-browser-panel {
+  background-color: var(--tactical-ink-2);
+  background-image: var(--tactical-carbon-image);
+  background-size: 640px 640px;
+}
+
 .coding-action-option {
   display: flex;
   cursor: pointer;
   align-items: flex-start;
   gap: 0.75rem;
   padding: 0.65rem 0.75rem;
-}
-
-@media (max-width: 68.75rem) {
-  .context-sidebar {
-    width: 20rem;
-  }
-}
-
-@media (max-width: 56rem) {
-  .context-sidebar {
-    position: absolute;
-    inset-block: 0;
-    right: 0;
-    width: min(20rem, calc(100% - 3rem));
-    z-index: 20;
-    box-shadow: -18px 0 40px rgb(0 0 0 / 28%);
-  }
 }
 
 .domain-task-context-pip {

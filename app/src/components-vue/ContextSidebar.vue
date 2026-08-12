@@ -60,7 +60,7 @@ watch(
 </script>
 
 <template>
-  <div class="app-drag flex min-w-0 flex-1 flex-col bg-sidebar text-sidebar-foreground">
+  <div class="coding-context-archive app-drag flex min-w-0 flex-1 flex-col text-sidebar-foreground">
     <nav
       v-if="ctfContext"
       class="app-no-drag flex flex-1 flex-col gap-1 p-3"
@@ -104,7 +104,8 @@ watch(
 
     <div v-else-if="codingContext" class="app-no-drag flex min-h-0 flex-1 flex-col pt-4">
       <div class="px-3">
-        <h2 class="mb-2 px-0.5 text-control font-semibold">Coding</h2>
+        <p class="tactical-label px-0.5 text-primary">Task archive</p>
+        <h2 class="mb-3 mt-1 px-0.5 font-semibold">Coding 会话</h2>
         <Button
           variant="outline"
           size="sm"
@@ -191,6 +192,28 @@ watch(
   font-size: var(--text-label);
   line-height: var(--text-label--line-height);
   letter-spacing: var(--text-label--letter-spacing);
+}
+
+.coding-context-archive {
+  background-color: var(--tactical-ink-2);
+  background-image: var(--tactical-carbon-image);
+  background-size: 640px 640px;
+  color: #f4f7fb;
+  --foreground: #f4f7fb;
+  --card-foreground: #f4f7fb;
+  --muted-foreground: #9ba6b4;
+  --secondary: #1b2026;
+  --secondary-foreground: #f4f7fb;
+  --muted: #1b2026;
+  --accent: #242b31;
+  --accent-foreground: #f4f7fb;
+  --border: #343b42;
+  --input: #515b65;
+  --surface-sunken: #0b0e11;
+}
+
+.coding-context-archive :deep([data-slot='input']) {
+  color: #f4f7fb;
 }
 
 .coding-project-row {

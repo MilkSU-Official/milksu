@@ -97,7 +97,7 @@ const phases = computed(() => props.presentation.kind === 'ctf'
 .mission-operation__paper { padding: 1.1rem 1.35rem 0; box-shadow: 0 18px 42px rgb(0 0 0 / .26); }
 .mission-operation__paper-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; border-bottom: 1px solid rgb(17 19 21 / .3); padding-bottom: .6rem; color: var(--tactical-paper-muted); }
 .mission-operation__identity { display: flex; align-items: end; justify-content: space-between; gap: 1.5rem; padding: .45rem 0 .9rem; }
-.mission-operation__title { overflow: hidden; font-size: clamp(2.7rem, 5vw, 4.6rem); line-height: .94; text-overflow: ellipsis; white-space: nowrap; }
+.mission-operation__title { max-width: 100%; overflow-wrap: anywhere; font-size: clamp(2.25rem, 7cqi, 4.6rem); line-height: .94; }
 .mission-operation__category { display: inline-block; margin-top: .55rem; background: var(--tactical-blue); padding: .18rem .65rem; color: white; font-size: .75rem; }
 .mission-operation__file { display: grid; min-width: 8rem; gap: .25rem; color: var(--tactical-paper-muted); text-align: right; }
 .mission-operation__file strong { color: var(--tactical-paper-ink); font-family: 'SFMono-Regular', monospace; font-size: .75rem; }
@@ -111,7 +111,7 @@ const phases = computed(() => props.presentation.kind === 'ctf'
 .mission-phase-rail strong { font-size: .8rem; }
 .mission-phase-rail small { margin-top: .2rem; font-size: .65rem; }
 .mission-objective-band { display: flex; min-height: 7.15rem; align-items: center; gap: 1.15rem; padding: 1rem 1.4rem; color: var(--tactical-acid); }
-.mission-objective-band p { margin-top: .35rem; overflow: hidden; color: var(--tactical-acid); font-size: 1.42rem; font-weight: 700; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+.mission-objective-band p { margin-top: .35rem; overflow-wrap: anywhere; color: var(--tactical-acid); font-size: clamp(1.05rem, 2.8cqi, 1.42rem); font-weight: 700; line-height: 1.3; }
 .mission-objective-band__priority { display: grid; min-width: 7rem; gap: .35rem; border: 1px solid var(--tactical-acid); padding: .65rem; text-align: center; }
 .mission-objective-band__priority strong { font-family: var(--font-display); font-size: 1.05rem; text-transform: uppercase; }
 .mission-activity { padding: .85rem 1rem 1rem; color: var(--foreground); box-shadow: none; }
@@ -123,10 +123,22 @@ const phases = computed(() => props.presentation.kind === 'ctf'
 .mission-activity strong { display: block; margin-top: .4rem; font-size: 1.05rem; }
 .mission-activity__state { background: rgb(8 124 240 / .16); padding: .25rem .55rem; color: #52a8ff; font-size: .75rem; }
 .mission-activity__state.active { box-shadow: inset 2px 0 0 var(--tactical-blue); }
-@media (max-width: 880px) {
+@container chat-main (max-width: 56rem) {
   .mission-phase-rail { grid-template-columns: repeat(2, 1fr); }
   .mission-phase-rail li:nth-child(2) { border-right: 0; }
   .mission-phase-rail li:nth-child(-n+2) { border-bottom: 1px solid rgb(17 19 21 / .28); }
   .mission-operation__file, .mission-objective-band__priority { display: none; }
+  .mission-operation__identity { align-items: start; }
+}
+
+@container chat-main (max-width: 38rem) {
+  .mission-operation__paper { padding-inline: .85rem; }
+  .mission-operation__paper-head { align-items: flex-start; flex-direction: column; gap: .25rem; }
+  .mission-phase-rail { grid-template-columns: 1fr; }
+  .mission-phase-rail li { border-right: 0; border-bottom: 1px solid rgb(17 19 21 / .28); }
+  .mission-phase-rail li:last-child { border-bottom: 0; }
+  .mission-objective-band { align-items: flex-start; padding-inline: 1rem; }
+  .mission-objective-band > :deep(svg) { width: 2rem; height: 2rem; }
+  .mission-activity__row { align-items: flex-start; flex-wrap: wrap; }
 }
 </style>

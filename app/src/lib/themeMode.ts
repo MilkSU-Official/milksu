@@ -3,11 +3,11 @@ export const THEME_MODE_STORAGE_KEY = 'milksu.theme-mode'
 export type ThemeMode = 'dark' | 'light'
 
 export function normalizeThemeMode(value: unknown): ThemeMode {
-  return value === 'light' ? 'light' : 'dark'
+  return value === 'dark' ? 'dark' : 'light'
 }
 
 export function readThemeMode(storage: Storage | null = safeStorage()): ThemeMode {
-  if (!storage) return 'dark'
+  if (!storage) return 'light'
   return normalizeThemeMode(storage.getItem(THEME_MODE_STORAGE_KEY))
 }
 
