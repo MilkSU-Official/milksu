@@ -68,7 +68,7 @@ MilkSU 的桌面壳不是通用 Agent Loop 的另一份实现。Pi 仍负责会�
 | Electron/Chromium 桌面壳 | **Implemented / packaged** | `desktop/main.cjs` 创建主窗口、注册 `milksu://app`、监管 Go Runtime 并承载右栏 `WebContentsView`；`desktop/preload.cjs` 只暴露调用与事件订阅。旧 Wails 配置、绑定和 CEF 原型已从生产链删除。 |
 | Vue 产品表面 | **Implemented / partial** | CTF、Coding、CVE、设置、相关历史、Composer、右栏与 Bottom Dock 均复用现有 Vue。生产前端只接受 Preload API；Vitest mock 隔离在测试入口。 |
 | 个人资料 | **Implemented / packaged** | 左上角用户头像打开个人菜单；个人页按本机任务活动展示活跃格、CTF/CVE/Coding 模糊阶段和最近活动。工具调用不单独计数，全局六维雷达不再挂载。当前阶段不是独立能力评分；Obelisk 只提供历史线索，尚未成为可归因成长事实源。 |
-| 内测账户与模型来源 | **Deployed / desktop linked** | 系统浏览器 GitHub PKCE、稳定/测试版独立回调、加密本地会话、账户额度与本机 Key 顺序及对话级偏好已实现；打包客户端指向 `accounts.milksu.org`。真实 GitHub 登录、邀请兑换、访问开通、¥5.00 余额和初始额度流水已在 Admin 与桌面端联动验证。账户 Team Key 尚未连接，TokenFlux 扣费与明细同步不属于已验收事实。 |
+| 内测账户与模型来源 | **Deployed / desktop linked** | 系统浏览器 GitHub PKCE、稳定/测试版独立回调、`0600` 本地不透明会话、账户额度与本机 Key 顺序及对话级偏好已实现；打包客户端指向 `accounts.milksu.org`。会话不使用 macOS Keychain，也不进入 renderer、日志或模型上下文；同一系统用户下的本地恶意进程仍是明确风险。真实 GitHub 登录、邀请兑换、访问开通、¥5.00 余额和初始额度流水已在 Admin 与桌面端联动验证。账户 Team Key 尚未连接，TokenFlux 扣费与明细同步不属于已验收事实。 |
 | Go Runtime | **Implemented / concentrated** | `cmd/milksu-backend/main.go` 启动应用组合根和 JSONL RPC；同目录的 `desktop_rpc.go` 分派现有 App 方法并传递事件，`desktop_host.go` 把文件对话框、外链和浏览器宿主能力反向委托给 Electron。`app.go` 仍较集中，触碰时按纵切拆分。 |
 | Pi 通用 Agent | **Verified core / partial extensions** | Pi 继续拥有 Session、Compaction、模型和通用 Tool Loop；MilkSU 监管 Sidecar、注入当前 Provider、投影事件并实施工作区/审批边界。已审核 Coding Skill 只向 Pi 常驻名称与用途，完整内容按任务或显式选择加载；设置只能停用审核目录，CTF 角色不加载 Coding Skill。TokenFlux `grok-4.5` 多模态和一次真实文档自举已验，完整功能自举仍未完成。 |
 | 内置沙箱浏览器 | **Verified packaged tasks** | 产品 UI 只显示“浏览器”。每次 Coding 会话使用独立 `session.fromPath`，默认拒绝页面权限；用户与 Agent 共用同一 `WebContentsView`。打包 App 中 Grok 只用浏览器完成顺序点击挑战、表单提交和 Electron 官方文档调研，三项均在右栏折叠后继续并保留同一页面终态，未回退 Shell。 |
@@ -151,8 +151,9 @@ flowchart TB
   JSONL 协议。桌面壳迁移没有把 Pi 类型泄漏进领域层。
 - Beta 使用独立产品名 `MilkSU Beta`、Bundle ID `com.milksu.app.beta`、图标标记、Electron
   `userData` 和 Runtime 数据根；设置页固定显示 branch、40 位 commit、clean/dirty、build time 与
-  tracking ID。Stable Computer Use 排除自身，只能选择 Beta 等外部 App。当前仍是 ad-hoc 签名，
-  Developer ID / 公证与稳定 TCC 身份属于 RC。
+  tracking ID。Stable Computer Use 排除自身，只能选择 Beta 等外部 App。本机开发包仍是 ad-hoc；
+  私有 GitHub Actions 已实现临时 Keychain、Developer ID、hardened runtime、公证、staple 与 Gatekeeper
+  验证，首个经该流程产出的正式包仍待环境密钥配置和真实 workflow 回执。
 
 ### 浏览器三面
 
@@ -231,6 +232,7 @@ Electron 不拥有 CTF/CVE 事实，Go 不拥有通用模型循环，Pi 不拥�
 ## 发行边界
 
 当前 macOS ARM64 `.app` 由 `npm run desktop:build` 构建，Electron Builder 生成壳，随后固定 Sidecar
-安装器写入 Node/Pi/Playwright 资源并重新签名。打包 App 已通过本机 ad-hoc 签名检查、真实浏览器任务
-和隔离无 Provider 首启/正常退出基线；
-稳定 Developer ID、hardened runtime、公证、stapling、升级和全新机器属于 RC，不能由本次验收外推。
+安装器写入 Node/Pi/Playwright 资源并重新签名。普通本机构建显式使用 ad-hoc，不枚举 Developer ID。
+正式发行由 `macOS signed release` 私有 workflow 完成测试、hardened runtime / Developer ID 签名、
+DMG、公证、staple 与 Gatekeeper 验证；在取得首个真实 workflow 回执前，不能把流程实现写成正式包
+已通过。升级与全新机器仍属于 RC。

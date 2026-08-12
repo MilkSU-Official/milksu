@@ -49,15 +49,17 @@ async function loadAccountConfig({ env = process.env, resourcesPath = '', isPack
 }
 
 class AccountSession {
-  constructor({ config, userDataPath, safeStorage, openExternal, fetchImpl = fetch, onChanged = () => {} }) {
+  constructor({ config, userDataPath, openExternal, fetchImpl = fetch, onChanged = () => {} }) {
     this.config = config
-    this.safeStorage = safeStorage
     this.openExternal = openExternal
     this.fetch = fetchImpl
     this.onChanged = onChanged
-    this.sessionPath = path.join(userDataPath, 'account-session.bin')
+    this.sessionPath = path.join(userDataPath, 'account-session.json')
+    this.legacySessionPath = path.join(userDataPath, 'account-session.bin')
     this.pending = null
     this.avatarCache = new Map()
+    this.sessionLoaded = false
+    this.sessionValue = null
   }
 
   async avatarDataURL(rawURL) {
@@ -78,22 +80,28 @@ class AccountSession {
   }
 
   async readSession() {
-    if (!this.safeStorage.isEncryptionAvailable()) return null
+    if (this.sessionLoaded) return this.sessionValue
     try {
-      const encrypted = await fs.readFile(this.sessionPath)
-      const value = JSON.parse(this.safeStorage.decryptString(encrypted))
-      return value?.accessToken && Number(value?.expiresAt) > 0 ? value : null
+      // Never decrypt the pre-release safeStorage payload. On some macOS
+      // setups that prompts for the login Keychain again after every rebuild.
+      await fs.unlink(this.legacySessionPath).catch(() => {})
+      const value = JSON.parse(await fs.readFile(this.sessionPath, 'utf8'))
+      this.sessionValue = value?.accessToken && Number(value?.expiresAt) > 0 ? value : null
     } catch {
-      return null
+      this.sessionValue = null
     }
+    this.sessionLoaded = true
+    return this.sessionValue
   }
 
   async writeSession(session) {
-    if (!this.safeStorage.isEncryptionAvailable()) throw new Error('系统安全存储不可用')
-    const encrypted = this.safeStorage.encryptString(JSON.stringify(session))
     await fs.mkdir(path.dirname(this.sessionPath), { recursive: true })
-    await fs.writeFile(this.sessionPath, encrypted, { mode: 0o600 })
+    const temporary = `${this.sessionPath}.tmp`
+    await fs.writeFile(temporary, `${JSON.stringify(session)}\n`, { mode: 0o600 })
+    await fs.rename(temporary, this.sessionPath)
     await fs.chmod(this.sessionPath, 0o600)
+    this.sessionValue = session
+    this.sessionLoaded = true
   }
 
   async activeSession() {
@@ -101,6 +109,8 @@ class AccountSession {
     if (!session) return null
     if (Number(session.expiresAt) > Date.now() + 60_000) return session
     await fs.unlink(this.sessionPath).catch(() => {})
+    this.sessionValue = null
+    this.sessionLoaded = true
     return null
   }
 
@@ -115,6 +125,8 @@ class AccountSession {
     const payload = await response.json().catch(() => ({}))
     if (response.status === 401) {
       await fs.unlink(this.sessionPath).catch(() => {})
+      this.sessionValue = null
+      this.sessionLoaded = true
       return { configured: true, authenticated: false, state: 'signed_out' }
     }
     if (response.status === 403) {
@@ -188,6 +200,8 @@ class AccountSession {
       }).catch(() => null)
     }
     await fs.unlink(this.sessionPath).catch(() => {})
+    this.sessionValue = null
+    this.sessionLoaded = true
     const next = await this.status()
     this.onChanged(next)
     return next

@@ -9,6 +9,7 @@ import {
   readFile,
   rm,
   stat,
+  readdir,
   writeFile,
 } from 'node:fs/promises'
 import { createServer as createHttpServer } from 'node:http'
@@ -221,6 +222,35 @@ async function inspectCodesign(path) {
     identifier: fields.get('Identifier') || '',
     signature: fields.get('Signature') || '',
     teamIdentifier: fields.get('TeamIdentifier') || '',
+  }
+}
+
+async function signMachOFiles(root, identity) {
+  const paths = []
+  async function walk(directory) {
+    const entries = await readdir(directory, { withFileTypes: true })
+    for (const entry of entries) {
+      const path = join(directory, entry.name)
+      if (entry.isDirectory()) {
+        await walk(path)
+      } else if (entry.isFile()) {
+        paths.push(path)
+      }
+    }
+  }
+  await walk(root)
+  for (const path of paths) {
+    const header = await readFile(path).then(bytes => bytes.subarray(0, 4)).catch(() => Buffer.alloc(0))
+    if (header.length !== 4) continue
+    const magic = header.readUInt32BE(0)
+    if (![0xfeedface, 0xfeedfacf, 0xcafebabe, 0xbebafeca, 0xcefaedfe, 0xcffaedfe].includes(magic)) continue
+    await execFileAsync('/usr/bin/codesign', [
+      '--force',
+      '--options', 'runtime',
+      '--timestamp',
+      '--sign', identity,
+      path,
+    ])
   }
 }
 
@@ -2332,15 +2362,25 @@ async function installSidecar(platform, binaryPath) {
   await chmod(join(destination, 'node'), 0o755)
   await chmod(join(destination, 'cua-driver'), 0o755)
   await chmod(join(destination, 'lsp-runtime', 'gopls'), 0o755)
+  if (codesignIdentity !== '-') {
+    await signMachOFiles(destination, codesignIdentity)
+  } else {
+    await execFileAsync('/usr/bin/codesign', [
+      '--force',
+      '--sign',
+      codesignIdentity,
+      join(destination, 'cua-driver'),
+    ])
+  }
   await execFileAsync('/usr/bin/codesign', [
     '--force',
-    '--sign',
-    codesignIdentity,
-    join(destination, 'cua-driver'),
-  ])
-  await execFileAsync('/usr/bin/codesign', [
-    '--force',
-    '--deep',
+    ...(codesignIdentity === '-'
+      ? ['--deep']
+      : [
+          '--options', 'runtime',
+          '--timestamp',
+          '--entitlements', join(repositoryRoot, 'desktop', 'build', 'entitlements.mac.plist'),
+        ]),
     '--sign',
     codesignIdentity,
     application,

@@ -21,6 +21,24 @@ func TestEnsureCreatesVisibleSections(t *testing.T) {
 		if statErr != nil || !info.IsDir() {
 			t.Fatalf("artifact section %s was not created: %v", name, statErr)
 		}
+		if info.Mode().Perm() != 0o700 {
+			t.Fatalf("artifact section %s mode = %o, want 700", name, info.Mode().Perm())
+		}
+	}
+}
+
+func TestEnsureKeepsAlreadyProtectedVisibleSections(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "MilkSU")
+	for _, directory := range []string{root, filepath.Join(root, "Coding"), filepath.Join(root, "CTF"), filepath.Join(root, "CVE")} {
+		if err := os.MkdirAll(directory, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chmod(directory, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := Ensure(root); err != nil {
+		t.Fatal(err)
 	}
 }
 

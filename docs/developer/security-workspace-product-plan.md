@@ -148,8 +148,10 @@ Obelisk 当前保存和检索 Coding、CTF、CVE 历史，只能帮助用户找�
 - 登录后左上角显示用户头像；资料允许修改头像、显示名称和一句介绍。
 - 所有联系入口统一使用 `milksu@proton.me`。
 - 独立私有后台仓库保存邀请、账户额度、管理员页面和账户 API；不放进桌面端仓库，也不向内测用户开放。
-- Web 管理端、账户 API 和 D1 由一个 Cloudflare Worker 承载，桌面端只保存加密后的不透明会话；
-  GitHub Client Secret 只进入 Worker Secret，不进入仓库或客户端。
+- Web 管理端、账户 API 和 D1 由一个 Cloudflare Worker 承载，桌面端只保存权限为 `0600` 的不透明
+  会话文件，不使用 macOS Keychain；会话不进入 renderer、日志或模型上下文。同一系统用户下的本地
+  恶意进程仍可能读取，这是换取无钥匙串弹窗体验的明确边界。GitHub Client Secret 只进入 Worker
+  Secret，不进入仓库或客户端。
 
 ### 6. 额度与模型来源
 

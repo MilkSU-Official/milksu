@@ -113,7 +113,9 @@ async function main() {
   const requireStable = process.argv.includes('--require-stable')
     || boolEnv(process.env.MILKSU_REQUIRE_STABLE_CODESIGN)
   const identity = argument('identity', process.env.MILKSU_CODESIGN_IDENTITY || '')
-  const identities = process.platform === 'darwin'
+  // Ordinary local/ad-hoc inspection only reads the app signature. Enumerate
+  // the Keychain solely when a release identity is explicitly required.
+  const identities = process.platform === 'darwin' && (requireStable || identity)
     ? await listCodeSigningIdentities()
     : []
   const selectedIdentityProblem = identityProblem(identity, identities)

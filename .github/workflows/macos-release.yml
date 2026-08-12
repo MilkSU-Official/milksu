@@ -1,0 +1,92 @@
+name: macOS signed release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: macos-15
+    timeout-minutes: 180
+    environment: macos-release
+    steps:
+      - uses: actions/checkout@v4
+      - name: Refuse a Stable release outside main
+        run: test "$GITHUB_REF" = refs/heads/main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm --prefix app ci
+          npm --prefix desktop ci
+      - name: Test
+        run: |
+          go test ./...
+          npm --prefix app test
+          npm run test:sidecar
+      - name: Import Developer ID certificate into an ephemeral Keychain
+        env:
+          MACOS_CSC_LINK: ${{ secrets.MACOS_CSC_LINK }}
+          MACOS_CSC_KEY_PASSWORD: ${{ secrets.MACOS_CSC_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          keychain="$RUNNER_TEMP/milksu-signing.keychain-db"
+          certificate="$RUNNER_TEMP/milksu-developer-id.p12"
+          keychain_password="$(openssl rand -hex 24)"
+          echo "MILKSU_SIGNING_KEYCHAIN=$keychain" >> "$GITHUB_ENV"
+          if ! printf '%s' "$MACOS_CSC_LINK" | base64 --decode > "$certificate" 2>/dev/null; then
+            printf '%s' "$MACOS_CSC_LINK" | base64 -D > "$certificate"
+          fi
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$certificate" -k "$keychain" -P "$MACOS_CSC_KEY_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$keychain_password" "$keychain"
+          existing_keychains=()
+          while IFS= read -r keychain_path; do
+            [[ -n "$keychain_path" ]] && existing_keychains+=("$keychain_path")
+          done < <(security list-keychains -d user | sed -E 's/^[[:space:]]*"//; s/"[[:space:]]*$//')
+          security list-keychains -d user -s "$keychain" "${existing_keychains[@]}"
+          rm -f "$certificate"
+      - name: Prepare App Store Connect API key
+        env:
+          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+        run: |
+          set -euo pipefail
+          key="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY_ID}.p8"
+          echo "APPLE_API_KEY_PATH=$key" >> "$GITHUB_ENV"
+          if ! printf '%s' "$APPLE_API_KEY_BASE64" | base64 --decode > "$key" 2>/dev/null; then
+            printf '%s' "$APPLE_API_KEY_BASE64" | base64 -D > "$key"
+          fi
+          chmod 600 "$key"
+      - name: Build, sign, notarize and verify
+        env:
+          MILKSU_CODESIGN_IDENTITY: ${{ secrets.MILKSU_CODESIGN_IDENTITY }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          MILKSU_ACCOUNT_API_URL: https://accounts.milksu.org
+        run: npm run desktop:release:mac
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MilkSU-macOS-arm64
+          path: build/release/MilkSU-macOS-arm64.dmg
+          if-no-files-found: error
+          retention-days: 14
+      - name: Remove temporary signing assets
+        if: always()
+        run: |
+          rm -f "${APPLE_API_KEY_PATH:-}"
+          if [[ -n "${MILKSU_SIGNING_KEYCHAIN:-}" ]]; then
+            security delete-keychain "$MILKSU_SIGNING_KEYCHAIN" || true
+          fi

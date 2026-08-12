@@ -11,7 +11,6 @@ const {
   ipcMain,
   net,
   protocol,
-  safeStorage,
   session,
   shell,
   systemPreferences,
@@ -637,7 +636,6 @@ app.whenReady().then(async () => {
   accountSession = new AccountSession({
     config: accountConfig,
     userDataPath: app.getPath('userData'),
-    safeStorage,
     openExternal: url => shell.openExternal(url),
     onChanged: value => emitRendererEvent('account.changed', value),
   })

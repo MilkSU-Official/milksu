@@ -48,7 +48,7 @@ func Ensure(root string) (string, error) {
 		if err := os.MkdirAll(directory, 0o700); err != nil {
 			return "", fmt.Errorf("create MilkSU artifact directory: %w", err)
 		}
-		if err := os.Chmod(directory, 0o700); err != nil {
+		if err := protectDirectory(directory); err != nil {
 			return "", fmt.Errorf("protect MilkSU artifact directory: %w", err)
 		}
 	}
@@ -104,11 +104,22 @@ func Workspace(root string, kind Kind, identity, label string) (string, error) {
 		if err := os.MkdirAll(directory, 0o700); err != nil {
 			return "", fmt.Errorf("create MilkSU artifact workspace: %w", err)
 		}
-		if err := os.Chmod(directory, 0o700); err != nil {
+		if err := protectDirectory(directory); err != nil {
 			return "", fmt.Errorf("protect MilkSU artifact workspace: %w", err)
 		}
 	}
 	return workspace, nil
+}
+
+func protectDirectory(path string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	if info.Mode().Perm() == 0o700 {
+		return nil
+	}
+	return os.Chmod(path, 0o700)
 }
 
 func validateRoot(value string) (string, error) {

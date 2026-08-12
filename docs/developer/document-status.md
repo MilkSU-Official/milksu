@@ -73,7 +73,9 @@
 - 安全工具 MCP 是下一阶段 Coding 常规能力，不是当前发行能力：候选为 IDA Pro/idalib、Burp、radare2、Ghidra 与 Semgrep；
   必须先通过固定版本、最小权限、真实任务和拒绝路径，是否进入 CTF/CVE 由用户监督的领域纵切决定。
 - 相关历史人类语义图已在重新打包的 macOS App 用 TokenFlux `grok-4.5` 通过 `Computer Use`（10 节点/11 关系）与 `MCP`（11 节点/12 关系）真实归纳、来源详情/回跳和主聊天不受污染验收；`@antv/g6@5.1.1` 仅在完整图谱视图懒加载，列表与紧凑侧栏不会触发模型调用。
-- Labs 暂停；CVE 纵深/复现/披露后置；NYU safe-static 不是完整 CTF 成绩；Developer ID/公证属 RC。
+- Labs 暂停；CVE 纵深/复现/披露后置；NYU safe-static 不是完整 CTF 成绩。Developer ID / 公证的
+  私有 workflow 与 Environment Secrets 已配置；在首个 Apple `Accepted`、stapler、Gatekeeper 和
+  artifact 回执完成前，仍只能声明发行流程已实现，不能声明正式分发包通过。
 
 Current 入口只保留事实与下一条完成线。历史 smoke、已删脚本路径和流水验收见 Evidence /
 Git history，不堆本页。

@@ -7,18 +7,12 @@ const { promises: fs } = require('node:fs')
 const test = require('node:test')
 const { AccountSession, accountRedirectURL, loadAccountConfig } = require('./account-session.cjs')
 
-const safeStorage = {
-  isEncryptionAvailable: () => true,
-  encryptString: value => Buffer.from(value, 'utf8'),
-  decryptString: value => Buffer.from(value).toString('utf8'),
-}
-
 test('rejects non-HTTPS account endpoints and reports an unconfigured client', async () => {
   const config = await loadAccountConfig({ env: {
     MILKSU_ACCOUNT_API_URL: 'http://unsafe.example',
   } })
   assert.equal(config.configured, false)
-  const session = new AccountSession({ config, userDataPath: os.tmpdir(), safeStorage, openExternal: async () => {} })
+  const session = new AccountSession({ config, userDataPath: os.tmpdir(), openExternal: async () => {} })
   assert.deepEqual(await session.status(), { configured: false, state: 'unconfigured', authenticated: false })
 })
 
@@ -53,7 +47,7 @@ test('uses system-browser PKCE and returns no credential material to the rendere
       json: async () => ({ account: { githubLogin: 'hunter', displayName: 'Hunter', avatarUrl: 'https://avatars.example/hunter', balanceCents: 1860, tokenFluxLinked: true } }),
     }
   }
-  const session = new AccountSession({ config, userDataPath: root, safeStorage, openExternal: async url => opened.push(url), fetchImpl })
+  const session = new AccountSession({ config, userDataPath: root, openExternal: async url => opened.push(url), fetchImpl })
   await session.startLogin()
   const authorize = new URL(opened[0])
   assert.equal(authorize.origin, 'https://account.example')
@@ -74,10 +68,10 @@ test('uses system-browser PKCE and returns no credential material to the rendere
 
 test('projects only a bounded GitHub avatar as an inline image for the renderer', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'milksu-avatar-'))
-  await fs.writeFile(path.join(root, 'account-session.bin'), Buffer.from(JSON.stringify({
+  await fs.writeFile(path.join(root, 'account-session.json'), JSON.stringify({
     accessToken: 'access-secret',
     expiresAt: Date.now() + 600_000,
-  })))
+  }), { mode: 0o600 })
   const config = await loadAccountConfig({ env: {
     MILKSU_ACCOUNT_API_URL: 'https://account.example',
   } })
@@ -102,10 +96,28 @@ test('projects only a bounded GitHub avatar as an inline image for the renderer'
       } }),
     }
   }
-  const session = new AccountSession({ config, userDataPath: root, safeStorage, openExternal: async () => {}, fetchImpl })
+  const session = new AccountSession({ config, userDataPath: root, openExternal: async () => {}, fetchImpl })
   const first = await session.status()
   const second = await session.status()
   assert.match(first.user.avatarUrl, /^data:image\/png;base64,/)
   assert.equal(second.user.avatarUrl, first.user.avatarUrl)
   assert.equal(avatarRequests, 1)
+})
+
+test('stores the account session locally without reading the legacy Keychain payload', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'milksu-account-local-'))
+  const legacy = path.join(root, 'account-session.bin')
+  await fs.writeFile(legacy, 'legacy-encrypted-payload', { mode: 0o600 })
+  const config = await loadAccountConfig({ env: {
+    MILKSU_ACCOUNT_API_URL: 'https://account.example',
+  } })
+  const session = new AccountSession({ config, userDataPath: root, openExternal: async () => {} })
+  assert.equal(await session.readSession(), null)
+  await assert.rejects(fs.stat(legacy), error => error?.code === 'ENOENT')
+
+  const value = { accessToken: 'local-session', expiresAt: Date.now() + 600_000 }
+  await session.writeSession(value)
+  const saved = JSON.parse(await fs.readFile(path.join(root, 'account-session.json'), 'utf8'))
+  assert.deepEqual(saved, value)
+  assert.equal((await fs.stat(path.join(root, 'account-session.json'))).mode & 0o777, 0o600)
 })

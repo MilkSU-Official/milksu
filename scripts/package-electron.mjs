@@ -26,6 +26,7 @@ const channel = resolveDesktopChannel(process.argv, process.env)
 const channelConfig = desktopChannelConfig(channel)
 // Always prefer the current managed Node that launched this script.
 const managedNode = process.execPath
+const codesignIdentity = String(process.env.MILKSU_CODESIGN_IDENTITY ?? '').trim() || '-'
 
 function run(command, args, options = {}) {
   return new Promise((resolvePromise, reject) => {
@@ -117,7 +118,14 @@ async function writeBuilderConfig(trackingPath) {
     mac: {
       ...(desktopPackage.build?.mac || {}),
       icon: join(root, channelConfig.iconRelative),
-      hardenedRuntime: false,
+      // Local Stable/Beta packages are deliberately ad-hoc until a Developer ID
+      // is supplied. Explicit null prevents electron-builder from repeatedly
+      // enumerating the user's Keychain during ordinary inner-loop builds.
+      identity: codesignIdentity === '-' ? null : codesignIdentity,
+      hardenedRuntime: codesignIdentity !== '-',
+      entitlements: join(root, 'desktop', 'build', 'entitlements.mac.plist'),
+      entitlementsInherit: join(root, 'desktop', 'build', 'entitlements.mac.inherit.plist'),
+      timestamp: codesignIdentity === '-' ? undefined : 'http://timestamp.apple.com/ts01',
       gatekeeperAssess: false,
     },
     directories: {
@@ -153,6 +161,7 @@ async function buildApp() {
       ...process.env,
       MILKSU_CHANNEL: channelConfig.channel,
       MILKSU_DESKTOP_APP_ID: channelConfig.appId,
+      CSC_IDENTITY_AUTO_DISCOVERY: codesignIdentity === '-' ? 'false' : 'true',
     },
   })
 
@@ -200,7 +209,13 @@ async function buildApp() {
     'install',
     '--platform=darwin/arm64',
     `--bin=${sidecarBin}`,
-  ])
+  ], {
+    env: {
+      ...process.env,
+      MILKSU_CODESIGN_IDENTITY: codesignIdentity,
+      MILKSU_REQUIRE_STABLE_CODESIGN: codesignIdentity === '-' ? '0' : '1',
+    },
+  })
 
   // After sidecar install/re-sign, tracking must still be present (sealed). No late copy.
   if (!(await exists(trackingInApp))) {
@@ -217,15 +232,22 @@ async function buildApp() {
   }
   await execFileAsync('/usr/bin/codesign', [
     '--force',
-    '--sign', '-',
+    ...(codesignIdentity === '-' ? [] : ['--options', 'runtime', '--timestamp']),
+    '--sign', codesignIdentity,
     '--identifier', channelConfig.appId,
     backendInApp,
   ])
   // Re-seal the app bundle after mutating an embedded binary.
   await execFileAsync('/usr/bin/codesign', [
     '--force',
-    '--deep',
-    '--sign', '-',
+    ...(codesignIdentity === '-'
+      ? ['--deep']
+      : [
+          '--options', 'runtime',
+          '--timestamp',
+          '--entitlements', join(root, 'desktop', 'build', 'entitlements.mac.plist'),
+        ]),
+    '--sign', codesignIdentity,
     resolvedSource,
   ])
 

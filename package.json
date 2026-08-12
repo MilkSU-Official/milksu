@@ -14,6 +14,7 @@
 	"desktop:build": "node scripts/package-electron.mjs build",
 	"desktop:build:stable": "node scripts/package-electron.mjs build --channel=stable",
 	"desktop:build:beta": "node scripts/package-electron.mjs build --channel=beta",
+	"desktop:release:mac": "node scripts/release-macos.mjs",
 	"desktop:start": "node scripts/package-electron.mjs start",
 	"desktop:start:beta": "node scripts/package-electron.mjs start:beta",
 	"desktop:inspect": "node scripts/package-electron.mjs inspect",
