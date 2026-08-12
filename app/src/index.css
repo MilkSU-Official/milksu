@@ -435,20 +435,26 @@ body {
 [data-button][data-variant="brand"]::before,
 [data-button][data-variant="primary"]::before,
 [data-button][data-variant="default"]::before {
-  background-color: var(--tactical-blue) !important;
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--tactical-blue) 72%, white), 0 8px 26px rgb(8 124 240 / .14);
+  background-color: var(--tactical-acid) !important;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--tactical-acid) 72%, white), 0 8px 26px rgb(183 239 40 / .14);
+}
+
+[data-button][data-variant="brand"],
+[data-button][data-variant="primary"],
+[data-button][data-variant="default"] {
+  color: #101315 !important;
 }
 
 [data-button][data-variant="brand"]:hover::before,
 [data-button][data-variant="primary"]:hover::before,
 [data-button][data-variant="default"]:hover::before {
-  background-color: #2691f5 !important;
+  background-color: color-mix(in srgb, var(--tactical-acid) 84%, white) !important;
 }
 
 [data-button][data-variant="brand"]:active::before,
 [data-button][data-variant="primary"]:active::before,
 [data-button][data-variant="default"]:active::before {
-  background-color: var(--tactical-blue-strong) !important;
+  background-color: color-mix(in srgb, var(--tactical-acid) 86%, black) !important;
 }
 
 [data-slot="input"],
@@ -664,11 +670,11 @@ pre,
 }
 
 .tactical-action {
-  border-color: var(--tactical-blue) !important;
-  background: var(--tactical-blue) !important;
-  color: #fff !important;
+  border-color: var(--tactical-acid) !important;
+  background: var(--tactical-acid) !important;
+  color: #101315 !important;
   border-radius: 2px !important;
-  box-shadow: 0 10px 28px rgb(8 124 240 / .22) !important;
+  box-shadow: 0 10px 28px rgb(183 239 40 / .18) !important;
 }
 
 .tactical-acid-panel {

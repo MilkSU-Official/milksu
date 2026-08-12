@@ -56,4 +56,11 @@ describe('global style contract', () => {
     expect(indexCss).toContain('--card: #f4f2eb')
     expect(indexCss).toContain('.tactical-desk-head {')
   })
+
+  it('uses the acid action color for primary buttons instead of the old SaaS blue', () => {
+    expect(indexCss).toContain('background-color: var(--tactical-acid) !important')
+    expect(indexCss).toContain('color: #101315 !important')
+    expect(indexCss).toContain('border-color: var(--tactical-acid) !important')
+    expect(indexCss).not.toContain('background-color: var(--tactical-blue) !important')
+  })
 })
