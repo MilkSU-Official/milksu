@@ -30,6 +30,10 @@ const codesignIdentity = String(process.env.MILKSU_CODESIGN_IDENTITY ?? '').trim
 const electronBuilderIdentity = codesignIdentity === '-'
   ? null
   : codesignIdentity.replace(/^Developer ID Application:\s*/, '')
+const screenCaptureUsageDescription = [
+  'MilkSU 使用屏幕录制读取你明确选择的外部 App 窗口，',
+  '供 Coding Agent 的 Computer Use 完成可见操作。',
+].join('')
 
 function run(command, args, options = {}) {
   return new Promise((resolvePromise, reject) => {
@@ -148,6 +152,10 @@ async function writeBuilderConfig(trackingPath) {
     mac: {
       ...(desktopPackage.build?.mac || {}),
       icon: join(root, channelConfig.iconRelative),
+      extendInfo: {
+        ...(desktopPackage.build?.mac?.extendInfo || {}),
+        NSScreenCaptureUsageDescription: screenCaptureUsageDescription,
+      },
       // Local Stable/Beta packages are deliberately ad-hoc until a Developer ID
       // is supplied. Explicit null prevents electron-builder from repeatedly
       // enumerating the user's Keychain during ordinary inner-loop builds.

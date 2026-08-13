@@ -221,7 +221,21 @@ export async function inspectPackagedApp(appPath, expectedChannel) {
     } catch {
       iconFile = ''
     }
-    result.plist = { bundleId, name, displayName, executable, iconFile, accountProtocolScheme }
+    let screenCaptureUsageDescription = ''
+    try {
+      screenCaptureUsageDescription = await readPlist('NSScreenCaptureUsageDescription')
+    } catch {
+      screenCaptureUsageDescription = ''
+    }
+    result.plist = {
+      bundleId,
+      name,
+      displayName,
+      executable,
+      iconFile,
+      accountProtocolScheme,
+      screenCaptureUsageDescription,
+    }
 
     if (config.channel === 'stable' && bundleId !== STABLE_APP_ID) {
       issues.push(`stable CFBundleIdentifier must be ${STABLE_APP_ID}, got ${bundleId}`)
@@ -292,6 +306,9 @@ export async function inspectPackagedApp(appPath, expectedChannel) {
       if (!found) {
         issues.push(`CFBundleIconFile resource missing for ${iconFile}`)
       }
+    }
+    if (!screenCaptureUsageDescription) {
+      issues.push('NSScreenCaptureUsageDescription is required for Computer Use')
     }
   } catch (error) {
     issues.push(`Info.plist inspect failed: ${error?.message || error}`)

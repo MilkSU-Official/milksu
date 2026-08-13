@@ -67,6 +67,9 @@
     "mac": {
       "category": "public.app-category.developer-tools",
       "icon": "../build/appicon.png",
+      "extendInfo": {
+        "NSScreenCaptureUsageDescription": "MilkSU 使用屏幕录制读取你明确选择的外部 App 窗口，供 Coding Agent 的 Computer Use 完成可见操作。"
+      },
       "minimumSystemVersion": "12.0.0",
       "hardenedRuntime": false,
       "gatekeeperAssess": false,
