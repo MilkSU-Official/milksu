@@ -33,6 +33,8 @@
       "build-tracking-view.cjs",
       "update-manager.cjs",
       "computer-use-permissions.cjs",
+      "screen-recording-primer.cjs",
+      "screen-recording-primer.html",
       "renderer-protocol.cjs",
       "package.json",
       "node_modules/ws/**/*",

@@ -37,6 +37,7 @@ const {
   primeComputerUsePermission,
   shouldRelaunchAfterScreenRecordingGrant,
 } = require('./computer-use-permissions.cjs')
+const { requestScreenRecordingPermission } = require('./screen-recording-primer.cjs')
 
 const APP_ORIGIN = 'milksu://app'
 const METHOD_PATTERN = /^[A-Z][A-Za-z0-9]{0,80}$/u
@@ -509,7 +510,18 @@ async function handleHostRequest(method, payload = {}) {
           previousStatus: probe.screenStatus,
         }
       }
-      await primeComputerUsePermission(systemPreferences, desktopCapturer, permission)
+      await primeComputerUsePermission(
+        systemPreferences,
+        permission === 'screen-recording'
+          ? () => requestScreenRecordingPermission({
+              BrowserWindow,
+              session,
+              desktopCapturer,
+              htmlPath: path.join(__dirname, 'screen-recording-primer.html'),
+            })
+          : undefined,
+        permission,
+      )
       await shell.openExternal(url)
       return null
     }

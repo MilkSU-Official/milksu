@@ -90,6 +90,8 @@ async function writeBuilderConfig(trackingPath) {
     : []
   if (!files.includes('channel-identity.cjs')) files.push('channel-identity.cjs')
   if (!files.includes('computer-use-permissions.cjs')) files.push('computer-use-permissions.cjs')
+  if (!files.includes('screen-recording-primer.cjs')) files.push('screen-recording-primer.cjs')
+  if (!files.includes('screen-recording-primer.html')) files.push('screen-recording-primer.html')
   const extraResources = [
     ...(desktopPackage.build?.extraResources || []),
     {

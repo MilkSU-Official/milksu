@@ -77,15 +77,12 @@ test('primeComputerUsePermission registers the signed host before opening Settin
   assert.deepEqual(accessibilityPrompts, [true, false])
   assert.equal(accessibility.accessibility, false)
 
-  const sourceRequests = []
+  let screenRequests = 0
   const screen = await primeComputerUsePermission({
     isTrustedAccessibilityClient: () => false,
     getMediaAccessStatus: () => 'not-determined',
-  }, {
-    async getSources(options) { sourceRequests.push(options) },
-  }, 'screen-recording')
-  assert.equal(sourceRequests.length, 1)
-  assert.deepEqual(sourceRequests[0].types, ['screen'])
+  }, async () => { screenRequests += 1 }, 'screen-recording')
+  assert.equal(screenRequests, 1)
   assert.equal(screen.screenRecording, false)
 
   await assert.rejects(
@@ -99,9 +96,7 @@ test('primeComputerUsePermission does not recapture after Screen Recording is gr
   const result = await primeComputerUsePermission({
     isTrustedAccessibilityClient: () => true,
     getMediaAccessStatus: () => 'granted',
-  }, {
-    async getSources() { sourceRequests += 1 },
-  }, 'screen-recording')
+  }, async () => { sourceRequests += 1 }, 'screen-recording')
   assert.equal(sourceRequests, 0)
   assert.equal(result.screenRecording, true)
 })
