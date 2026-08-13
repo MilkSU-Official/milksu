@@ -82,7 +82,7 @@ async function buildRuntime() {
       '-I', join(dirname(managedNode), '..', 'include', 'node'),
       '-framework', 'CoreGraphics',
       '-framework', 'Foundation',
-      '-framework', 'ScreenCaptureKit',
+      '-weak_framework', 'ScreenCaptureKit',
       '-o', nativeModule,
       join(root, 'desktop', 'native', 'macos-screen-permission.m'),
     ])

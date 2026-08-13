@@ -25,16 +25,50 @@ static void execute_request(napi_env env, void *data) {
   (void)env;
   screen_permission_request *request = data;
   @autoreleasepool {
+    if (@available(macOS 12.3, *)) {
     dispatch_semaphore_t finished = dispatch_semaphore_create(0);
     [SCShareableContent
       getShareableContentExcludingDesktopWindows:YES
       onScreenWindowsOnly:YES
       completionHandler:^(SCShareableContent *content, NSError *error) {
-        request->result = content != nil && error == nil;
-        dispatch_semaphore_signal(finished);
+        SCDisplay *display = content.displays.firstObject;
+        if (display == nil || error != nil) {
+          request->result = false;
+          dispatch_semaphore_signal(finished);
+          return;
+        }
+
+        SCContentFilter *filter = [[SCContentFilter alloc]
+          initWithDisplay:display
+          excludingWindows:@[]];
+        SCStreamConfiguration *configuration = [[SCStreamConfiguration alloc] init];
+        configuration.width = 2;
+        configuration.height = 2;
+        configuration.showsCursor = NO;
+        configuration.minimumFrameInterval = CMTimeMake(1, 1);
+        __block SCStream *stream = [[SCStream alloc]
+          initWithFilter:filter
+          configuration:configuration
+          delegate:nil];
+        [stream startCaptureWithCompletionHandler:^(NSError *startError) {
+          if (startError != nil) {
+            request->result = false;
+            stream = nil;
+            dispatch_semaphore_signal(finished);
+            return;
+          }
+          [stream stopCaptureWithCompletionHandler:^(NSError *stopError) {
+            request->result = stopError == nil;
+            stream = nil;
+            dispatch_semaphore_signal(finished);
+          }];
+        }];
       }];
     dispatch_time_t timeout = dispatch_time(DISPATCH_TIME_NOW, 90 * NSEC_PER_SEC);
     if (dispatch_semaphore_wait(finished, timeout) != 0) request->result = false;
+    } else {
+      request->result = CGRequestScreenCaptureAccess();
+    }
   }
 }
 
