@@ -1120,7 +1120,7 @@ async function save() {
                   <div class="flex items-start justify-between gap-3">
                     <div>
                       <p class="text-body font-medium">辅助功能</p>
-                      <p class="mt-1 text-caption leading-5 text-muted-foreground">允许 MilkSU 读取控件并执行点击、键盘输入。</p>
+                      <p class="mt-1 text-caption leading-5 text-muted-foreground">点击后先登记当前签名的 MilkSU，再打开准确设置。</p>
                     </div>
                     <Badge :variant="computerUseStatus?.permissions.accessibility ? 'secondary' : 'outline'">
                       {{ computerUseStatus?.permissions.accessibility ? '已授权' : '待授权' }}
@@ -1143,7 +1143,7 @@ async function save() {
                   <div class="flex items-start justify-between gap-3">
                     <div>
                       <p class="text-body font-medium">屏幕录制</p>
-                      <p class="mt-1 text-caption leading-5 text-muted-foreground">允许 MilkSU 看见已锁定的外部 App 窗口。</p>
+                      <p class="mt-1 text-caption leading-5 text-muted-foreground">点击后先登记当前签名的 MilkSU，再打开准确设置。</p>
                     </div>
                     <Badge :variant="computerUseStatus?.permissions.screenRecording ? 'secondary' : 'outline'">
                       {{ computerUseStatus?.permissions.screenRecording ? '已授权' : '待授权' }}

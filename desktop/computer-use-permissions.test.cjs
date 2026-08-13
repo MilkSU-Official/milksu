@@ -5,6 +5,7 @@ const assert = require('node:assert/strict')
 const {
   probeComputerUsePermissions,
   computerUsePermissionsSettingsURL,
+  primeComputerUsePermission,
   shouldRelaunchAfterScreenRecordingGrant,
 } = require('./computer-use-permissions.cjs')
 
@@ -62,6 +63,47 @@ test('computerUsePermissionsSettingsURL opens the separately requested privacy p
     'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility',
   )
   assert.throws(() => computerUsePermissionsSettingsURL('camera'), /unsupported Computer Use permission/)
+})
+
+test('primeComputerUsePermission registers the signed host before opening Settings', async () => {
+  const accessibilityPrompts = []
+  const accessibility = await primeComputerUsePermission({
+    isTrustedAccessibilityClient(prompt) {
+      accessibilityPrompts.push(prompt)
+      return prompt
+    },
+    getMediaAccessStatus: () => 'denied',
+  }, {}, 'accessibility')
+  assert.deepEqual(accessibilityPrompts, [true, false])
+  assert.equal(accessibility.accessibility, false)
+
+  const sourceRequests = []
+  const screen = await primeComputerUsePermission({
+    isTrustedAccessibilityClient: () => false,
+    getMediaAccessStatus: () => 'not-determined',
+  }, {
+    async getSources(options) { sourceRequests.push(options) },
+  }, 'screen-recording')
+  assert.equal(sourceRequests.length, 1)
+  assert.deepEqual(sourceRequests[0].types, ['screen'])
+  assert.equal(screen.screenRecording, false)
+
+  await assert.rejects(
+    primeComputerUsePermission({}, {}, 'camera'),
+    /unsupported Computer Use permission/,
+  )
+})
+
+test('primeComputerUsePermission does not recapture after Screen Recording is granted', async () => {
+  let sourceRequests = 0
+  const result = await primeComputerUsePermission({
+    isTrustedAccessibilityClient: () => true,
+    getMediaAccessStatus: () => 'granted',
+  }, {
+    async getSources() { sourceRequests += 1 },
+  }, 'screen-recording')
+  assert.equal(sourceRequests, 0)
+  assert.equal(result.screenRecording, true)
 })
 
 test('screen grant relaunch is armed only for a fresh transition to granted', () => {

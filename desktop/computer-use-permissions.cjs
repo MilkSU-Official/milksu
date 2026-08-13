@@ -64,6 +64,49 @@ function computerUsePermissionsSettingsURL(permission) {
 }
 
 /**
+ * Register the currently running, signed Electron host with macOS before
+ * opening System Settings. A fresh install otherwise may land on a privacy
+ * pane that does not contain MilkSU yet.
+ *
+ * Screen Recording has no Electron askForMediaAccess API. A minimal
+ * desktopCapturer query is the supported operation that makes macOS register
+ * and, when applicable, prompt for the current host identity. The source data
+ * is discarded immediately.
+ * @param {{
+ *   isTrustedAccessibilityClient?: (prompt: boolean) => boolean,
+ *   getMediaAccessStatus?: (mediaType: string) => string,
+ * }} prefs
+ * @param {{ getSources?: (options: object) => Promise<unknown> }} capturer
+ * @param {'accessibility' | 'screen-recording' | string} permission
+ */
+async function primeComputerUsePermission(prefs, capturer, permission) {
+  if (permission === 'accessibility') {
+    try {
+      prefs?.isTrustedAccessibilityClient?.(true)
+    } catch {
+      // The exact privacy pane still gives the user a recoverable path.
+    }
+    return probeComputerUsePermissions(prefs, { prompt: false })
+  }
+  if (permission === 'screen-recording') {
+    const before = probeComputerUsePermissions(prefs, { prompt: false })
+    if (!before.screenRecording) {
+      try {
+        await capturer?.getSources?.({
+          types: ['screen'],
+          thumbnailSize: { width: 1, height: 1 },
+          fetchWindowIcons: false,
+        })
+      } catch {
+        // Denied/restricted systems are handled by the exact Settings pane.
+      }
+    }
+    return probeComputerUsePermissions(prefs, { prompt: false })
+  }
+  throw new Error(`unsupported Computer Use permission ${JSON.stringify(permission)}`)
+}
+
+/**
  * A Screen Recording grant may ask macOS to quit the app. MilkSU performs an
  * asynchronous backend shutdown, so the system's immediate reopen can race the
  * existing single-instance lock. Arm an Electron-owned relaunch only for the
@@ -84,5 +127,6 @@ function shouldRelaunchAfterScreenRecordingGrant(arm, currentStatus, now = Date.
 module.exports = {
   probeComputerUsePermissions,
   computerUsePermissionsSettingsURL,
+  primeComputerUsePermission,
   shouldRelaunchAfterScreenRecordingGrant,
 }

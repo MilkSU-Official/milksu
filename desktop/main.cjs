@@ -7,6 +7,7 @@ const readline = require('node:readline')
 const {
   app,
   BrowserWindow,
+  desktopCapturer,
   dialog,
   ipcMain,
   net,
@@ -33,6 +34,7 @@ const { UpdateManager } = require('./update-manager.cjs')
 const {
   probeComputerUsePermissions,
   computerUsePermissionsSettingsURL,
+  primeComputerUsePermission,
   shouldRelaunchAfterScreenRecordingGrant,
 } = require('./computer-use-permissions.cjs')
 
@@ -507,6 +509,7 @@ async function handleHostRequest(method, payload = {}) {
           previousStatus: probe.screenStatus,
         }
       }
+      await primeComputerUsePermission(systemPreferences, desktopCapturer, permission)
       await shell.openExternal(url)
       return null
     }
