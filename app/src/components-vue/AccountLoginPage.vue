@@ -3,7 +3,6 @@ import { computed } from 'vue'
 import { Button } from '@felinic/ui'
 import { Github, Globe2, Mail, ShieldCheck } from 'lucide-vue-next'
 import brandLockup from '@/assets/milksu-brand-lockup.png'
-import loginActivityMap from '@/assets/milksu-login-activity-map.png'
 import type { AccountStatus } from '@/types'
 
 const props = defineProps<{
@@ -26,6 +25,19 @@ const stateMessage = computed(() => {
 })
 
 const loginLabel = computed(() => props.status.state === 'authorizing' ? '等待 GitHub 授权' : '使用 GitHub 登录')
+
+const loginSignalCells = Array.from({ length: 19 * 15 }, (_, index) => {
+  const column = index % 19
+  const row = Math.floor(index / 19)
+  const primaryPath = 7 + Math.sin(column * 0.72) * 2.2
+  const secondaryPath = 10.8 - Math.cos(column * 0.46) * 2.8
+  const distance = Math.min(Math.abs(row - primaryPath), Math.abs(row - secondaryPath))
+  if (distance < 0.42 && (column + row) % 3 !== 0) return 4
+  if (distance < 0.9) return 3
+  if (distance < 1.7) return 2
+  if (distance < 2.7) return 1
+  return 0
+})
 </script>
 
 <template>
@@ -73,8 +85,116 @@ const loginLabel = computed(() => props.status.state === 'authorizing' ? '等待
       </div>
     </section>
 
-    <aside class="game-grid hidden w-[46%] shrink-0 items-center justify-end overflow-hidden border-l border-border bg-card/25 xl:flex" aria-hidden="true">
-      <img :src="loginActivityMap" alt="" class="h-auto w-full max-w-[668px] object-contain object-right">
+    <aside class="login-visual game-grid relative hidden w-[46%] shrink-0 overflow-hidden border-l border-border xl:block" aria-hidden="true">
+      <div class="login-signal-field">
+        <span
+          v-for="(strength, index) in loginSignalCells"
+          :key="index"
+          class="login-signal-cell"
+          :class="`login-signal-cell--${strength}`"
+        />
+      </div>
+      <div class="login-signal-reticle" />
     </aside>
   </main>
 </template>
+
+<style scoped>
+.login-visual {
+  background:
+    radial-gradient(circle at 70% 54%, color-mix(in oklab, var(--primary) 7%, transparent), transparent 32%),
+    linear-gradient(145deg, color-mix(in oklab, var(--card) 46%, transparent), transparent 58%);
+}
+
+.login-visual::before {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, color-mix(in oklab, var(--background) 72%, transparent), transparent 34%),
+    repeating-linear-gradient(135deg, transparent 0 42px, color-mix(in oklab, var(--foreground) 3%, transparent) 42px 43px);
+  content: '';
+  pointer-events: none;
+}
+
+.login-signal-field {
+  position: absolute;
+  inset: 16% 6% 14% 11%;
+  display: grid;
+  grid-template-columns: repeat(19, minmax(0, 1fr));
+  gap: clamp(8px, 1vw, 17px);
+  align-content: center;
+  transform: perspective(900px) rotateX(4deg) rotateZ(-4deg);
+  -webkit-mask-image: radial-gradient(ellipse 76% 68% at 62% 55%, #000 35%, rgb(0 0 0 / 72%) 72%, transparent 100%);
+  mask-image: radial-gradient(ellipse 76% 68% at 62% 55%, #000 35%, rgb(0 0 0 / 72%) 72%, transparent 100%);
+}
+
+.login-signal-cell {
+  aspect-ratio: 1;
+  border: 1px solid color-mix(in oklab, var(--foreground) 8%, transparent);
+  background: color-mix(in oklab, var(--foreground) 3%, transparent);
+}
+
+.login-signal-cell--1 {
+  border-color: color-mix(in oklab, var(--foreground) 14%, transparent);
+  background: color-mix(in oklab, var(--foreground) 8%, transparent);
+}
+
+.login-signal-cell--2 {
+  border-color: color-mix(in oklab, var(--primary) 24%, transparent);
+  background: color-mix(in oklab, var(--primary) 14%, transparent);
+}
+
+.login-signal-cell--3 {
+  border-color: color-mix(in oklab, var(--primary) 52%, transparent);
+  background: color-mix(in oklab, var(--primary) 34%, transparent);
+}
+
+.login-signal-cell--4 {
+  border-color: color-mix(in oklab, var(--primary) 82%, transparent);
+  background: var(--primary);
+  box-shadow: 0 0 18px color-mix(in oklab, var(--primary) 55%, transparent);
+}
+
+.login-signal-reticle {
+  position: absolute;
+  top: 50%;
+  left: 62%;
+  width: min(34vw, 430px);
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  border: 1px solid color-mix(in oklab, var(--primary) 12%, transparent);
+  border-radius: 50%;
+  box-shadow:
+    inset 0 0 0 4.5rem color-mix(in oklab, var(--background) 2%, transparent),
+    0 0 0 5rem color-mix(in oklab, var(--foreground) 2%, transparent);
+  opacity: 0.72;
+}
+
+.login-signal-reticle::before,
+.login-signal-reticle::after {
+  position: absolute;
+  background: color-mix(in oklab, var(--primary) 18%, transparent);
+  content: '';
+}
+
+.login-signal-reticle::before {
+  top: 50%;
+  left: -14%;
+  width: 128%;
+  height: 1px;
+}
+
+.login-signal-reticle::after {
+  top: -14%;
+  left: 50%;
+  width: 1px;
+  height: 128%;
+}
+
+@media (max-aspect-ratio: 7 / 5) {
+  .login-signal-field {
+    inset-inline: 7% 3%;
+    gap: 8px;
+  }
+}
+</style>

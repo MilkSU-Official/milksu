@@ -44,6 +44,9 @@ describe('Workspace visual contract', () => {
 
   it('pins every persistent dark surface to its own readable theme roles', () => {
     expect(loginPageSource).toContain('game-shell tactical-dark-surface')
+    expect(loginPageSource).toContain('login-signal-field')
+    expect(loginPageSource).toContain('background: var(--primary)')
+    expect(loginPageSource).toContain('mask-image: radial-gradient')
     expect(settingsPageSource).toContain('settings-nav tactical-dark-surface')
     expect(chatPageSource).toContain("import TacticalPanelShell from '@/components-vue/TacticalPanelShell.vue'")
     expect(chatPageSource).toContain('class="context-sidebar"')
