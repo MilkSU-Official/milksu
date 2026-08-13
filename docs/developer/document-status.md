@@ -4,7 +4,7 @@
 >
 > 最后事实审计：2026-08-13
 >
-> 产品开发目标：Post-M3 / 内测发行收口
+> 产品开发目标：Post-M3 / 内测运行与后续纵切
 
 ## 事实优先级
 
@@ -22,8 +22,8 @@
 
 ## 当前准确声明
 
-- 阶段是 **Post-M3 / 内测发行收口**。完整 Coding 自治功能交付证据已由用户明确后置，不再作为
-  本次内测发行条件。
+- 阶段是 **Post-M3 / 内测运行与后续纵切**。首个可分发的正式签名包已经完成；完整 Coding 自治
+  功能交付证据已由用户明确后置，不再作为当前内测条件。
 - Coding 工程底座已覆盖修改/测试、LSP、Artifact、隔离 Browser、后台任务、Git、PR 确认、
   worktree、ImageGen、Project MCP、Session Index、Computer Use 外部 App 纵切。
 - Worktree 隔离与写入边界、`.worktreeinclude` CoW、精确 submodule 已落地；干净 Git 任务在首次
@@ -38,7 +38,7 @@
 - Git 变更摘要可悬浮查看文件并跳到“变更”；自然 Agent 会话同时出现 Goal 与真实 Git diff 的打包
   App 证据仍待补。Computer Use 已从 Calculator 扩到 Stable → MilkSU Beta 的真实 click/scroll 和
   CTF/CVE 连续性全程；右栏默认收敛为目标、状态和单一主操作，诊断与证据按需展开。Browser 与
-  Computer Use 仍分离，Developer ID / TCC 复检未完成。
+  Computer Use 仍分离；Developer ID 正式包已通过，Computer Use TCC 扩样仍待后续复检。
 - Composer `/` 以可删除内联状态启用 Browser/Computer；通用 Browser Use 复用固定版 Playwright
   MCP 官方扩展并由用户选择真实标签页，Computer Use 排除浏览器。MilkSU CTF 扩展仍负责
   NSSCTF/CTFshow 领域采集与 Judge，不被通用上游替代。
@@ -54,9 +54,10 @@
   与终态，且没有回退 Shell。裸域名补全 HTTPS，普通文字进入搜索。`MilkSU Beta` 已使用独立产品名、
   Bundle ID、图标、数据目录与设置页构建追踪；Stable 排除自身，只能锁定 Beta 等外部 App。
 - 完整自然任务自举（功能代码/测试/恢复/Git 交付）、人工接管账本与自主合并发布仍未扩样；它们是
-  后续证据，不阻塞本次内测。正式发行门禁已在 `main@77ae7ac4f15de7f9d11db1f19588ef6fc34d24d8`
-  的 workflow `31663550136` 首次通过 Apple 公证票据、stapler、Gatekeeper 和下载 artifact 静态验收，
-  最终功能提交仍需从同一 HEAD 重跑并做首次启动回归。
+  后续证据，不阻塞当前内测。最终功能提交 `main@cfc9a102408b8e2017f339ddce08f246b6b67c02`
+  已由 workflow `31676876645` 生成正式 DMG；Apple 公证票据、stapler、Gatekeeper、严格签名和隔离
+  首次启动均通过。设置页实机核对完整 commit、`dirty=false` 与 tracking ID
+  `6adfa291a021387f7cb40800012941a51f051bec90036b78353c68a4c57d58ff`。
 - 模型与凭据：单默认模型；账户额度和本机个人 Key 是两个独立来源，设置页可调整全局顺序，Coding
   可只为当前对话调整优先来源；仅允许在模型未输出且工具未执行前自动切换。个人 Key 不进入后台、
   日志或模型上下文。Cloudflare Worker、D1、管理端和公开账户 API 已部署；真实 GitHub 登录、邀请兑换、
@@ -67,18 +68,19 @@
 - CTF/CVE 交给 Coding 时只挂草稿、不自动发送，并复用同一 Pi 会话；可折叠领域上下文保留题目/CVE、
   Scope、材料、Evidence/Judge 或只读边界与返回动作。Beta 已实测 P7591 和 CVE-2024-3400 的交接/返回；
   未提交 flag、未运行 PoC，且附件或 Judge 未连接不再阻止打开 Coding。
-- CVE 用户页只显示明确加入研究的公开条目，手工状态与关联 Coding 对话；添加入口按编号、产品或关键词搜索 NVD，再由用户选择加入，不要求手填公开元数据。选择结果直接保存，不重复发起网络请求；临时上游失败不泄露 Desktop RPC 错误。NVD 参考资料按机构去重，主界面只留四个关键来源和“在 NVD 查看全部”。WebView 无假后端；Session Index 只索引 MilkSU 自有历史。
+- CVE 用户页只显示明确加入研究的公开条目，用户可见默认状态为“想研究”，状态完全手工并自动关联从条目发起的 Coding 对话；添加入口按编号、产品或关键词搜索 NVD，再由用户选择加入，不要求手填公开元数据。选择结果直接保存，不重复发起网络请求；临时上游失败不泄露 Desktop RPC 错误。NVD 参考资料按机构去重，主界面只留四个关键来源和“在 NVD 查看全部”。三个薄学习专题直接搜索公共 NVD 数据；最终签名 App 已取得真实专题搜索结果。WebView 无假后端；Session Index 只索引 MilkSU 自有历史。
+- CTF Daily 不再把题库第一行伪装成每日挑战：规则先筛未完成候选，Pi 可结合近期题目、关联 Coding 对话、已确认事实和 CTF Memory 选择并解释，当天固定且允许主动换题，模型不可用时规则兜底。代码、测试与最终包表面已回归；真实模型选择回执仍待有可用题库与模型的内测环境补齐。
 - UI：rail 主题/设置、Coding Goal 与常用 Agent 动作在 Composer `/`；“+”统一提供附件、Goal、Plan、浏览器、Browser/Computer Scope、已审核 Pi Skills 与项目 MCP。运行中输入可继续发送并通过 Pi steering/queue 在下一模型调用前应用；左上角用户头像进入个人资料页，页面展示真实活跃格、CTF/CVE/Coding 模糊阶段和最近确认成长，全局六维雷达不再挂载；Git 摘要可展开文件并跳到“变更”。产品表面只显示“浏览器”，不再暴露 worktree/writer 或五项 Computer Use readiness 样子货；
   Browser Use Bridge 与 Computer Use 系统配置集中到“设置 → 浏览器与控制”。
 - Coding 的已审核 Skill 由 Pi 按需加载完整内容，设置页只管理审核目录的启停；当前目录覆盖产品设计、前端视觉验收、API 集成、安全审查、技术交付物、架构图和 MilkSU 发布。禁用项从下一条 Coding 消息生效，CTF 角色保持隔离，用户不能借设置注入任意 Skill 路径。
 - 用户可见交付物写入 `~/Documents/MilkSU/{Coding,CTF,CVE}`；Runtime、事件、凭据、Obelisk、浏览器 Profile 与恢复状态继续留在 App Support。设置页明确展示并可打开产物目录。
-- 个人安全工作台最终 Beta 已从干净提交 `31c06dfb296dd85e96e24dacf21a26ba70cea3d1` 构建，tracking ID 为 `4ba1468a816ce6028e5745d83570c6ef181cbc047366021682818897bc7ecf34`；包身份、sealed provenance 和严格签名已通过。原生 Computer Use 已核对目录分离，并用全新自定义题 `Caesar Shift 12` 完成创建、共享 Coding、运行中引导、可复现脚本/笔记、返回与手工状态闭环。题面与规定 Flag 格式实际不一致，Agent 明确拒绝编造候选，未建立 Judge 成功事实。账户 Team Key 与真实 TokenFlux 扣费明细仍待独立联调。
+- 个人安全工作台历史 Beta 纵切来自干净提交 `31c06dfb296dd85e96e24dacf21a26ba70cea3d1`；原生 Computer Use 已用全新自定义题 `Caesar Shift 12` 完成创建、共享 Coding、运行中引导、可复现脚本/笔记、返回与手工状态闭环。题面与规定 Flag 格式实际不一致，Agent 明确拒绝编造候选，未建立 Judge 成功事实。该 Beta 是过程证据，不再代表当前正式版本；当前正式签名基线是 `cfc9a10`。账户 Team Key 与真实 TokenFlux 扣费明细仍待独立联调。
 - 安全工具 MCP 是下一阶段 Coding 常规能力，不是当前发行能力：候选为 IDA Pro/idalib、Burp、radare2、Ghidra 与 Semgrep；
   必须先通过固定版本、最小权限、真实任务和拒绝路径，是否进入 CTF/CVE 由用户监督的领域纵切决定。
 - 相关历史人类语义图已在重新打包的 macOS App 用 TokenFlux `grok-4.5` 通过 `Computer Use`（10 节点/11 关系）与 `MCP`（11 节点/12 关系）真实归纳、来源详情/回跳和主聊天不受污染验收；`@antv/g6@5.1.1` 仅在完整图谱视图懒加载，列表与紧凑侧栏不会触发模型调用。
 - Labs 暂停；CVE 纵深/复现/披露后置；NYU safe-static 不是完整 CTF 成绩。Developer ID / 公证的
-  私有 workflow 与 Environment Secrets 已配置，首个 Apple 公证、stapler、Gatekeeper 和 artifact
-  静态回执已完成；最终功能提交的正式包与近新用户首次启动仍是开始内测前的最后发行验收。
+  私有 workflow 与 Environment Secrets 已配置，最终功能提交的 Apple 公证、stapler、Gatekeeper、
+  下载 artifact 和隔离首次启动回执均已完成。升级、全新机器、性能与恢复矩阵仍属于 RC。
 
 Current 入口只保留事实与下一条完成线。历史 smoke、已删脚本路径和流水验收见 Evidence /
 Git history，不堆本页。

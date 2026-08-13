@@ -23,23 +23,28 @@ GitHub 登录、邀请制访问、额度与流水管理 API/管理前端；让 M
 
 ## 当前进度
 
-- 已实现并测试：个人资料、轻量 CTF/CVE、共享 Coding 上下文、独立 Admin 基线、账户额度与本机
-  Key 的全局/对话级顺序。
+- 已实现并测试：个人资料、轻量 CTF/CVE、共享 Coding 上下文、真实 CTF Daily、公共数据驱动的
+  CVE 学习专题、独立 Admin、账户额度与本机 Key 的全局/对话级顺序。
 - Desktop 与 Admin 已按[游戏化界面系统](../design/milksu-game-ui-system.md)完成全局迁移；共享布局、
   列表、焦点面、表单、弹层、日夜主题和圆形头像使用同一套层级与状态语义。真实运行截图已纳入视觉
   规范的“实际界面验收”章节。
 - CTF/CVE 交给 Coding 时，输入框只显示一句可读的接力任务；完整结构化提示在发送时才交给 Agent，
   并绑定当前对话，避免内部工作区路径、Scope 编排和长提示直接暴露或跨任务串用。
-- 已从干净提交 `31c06dfb296dd85e96e24dacf21a26ba70cea3d1` 构建 `MilkSU Beta`；包检查确认
-  branch `main`、`dirty=false`，tracking ID
-  `4ba1468a816ce6028e5745d83570c6ef181cbc047366021682818897bc7ecf34`。
+- 最终功能提交 `main@cfc9a102408b8e2017f339ddce08f246b6b67c02` 已由 workflow `31676876645`
+  构建正式签名 App；Apple 公证、stapler、Gatekeeper、严格签名和隔离首次启动均通过。设置页实机
+  确认 `dirty=false` 与 tracking ID
+  `6adfa291a021387f7cb40800012941a51f051bec90036b78353c68a4c57d58ff`。
 - 原生 Computer Use 已复检个人页、模型来源、CTF/CVE 草稿交接、领域上下文 PiP、返回状态、
   关联对话和无虚构 CVE 资产。CTF 状态由用户手工维护；CVE 首页只显示用户明确加入的条目。
   CVE-2024-3400 已在打包 App 中由 Coding Agent 进入临时工作区完成只读研究并生成中文简报，返回后
   自动关联 1 个 Coding 对话，状态仍诚实地保持手工“研究中”。
 - “添加 CVE”已改为先搜索 NVD 再选择加入；搜索结果加入时复用当前返回数据，不发第二次请求。
-  `CVE-2024-3094` 已在打包 Beta 中真实搜索并加入，状态保持手工“待复现”。大量 NVD 参考资料按
-  机构去重，主界面最多显示四个关键来源，其余统一进入“在 NVD 查看全部”。
+  `CVE-2024-3094` 已在打包 App 中真实搜索并加入；用户可见默认状态为手工“想研究”。大量 NVD
+  参考资料按机构去重，主界面最多显示四个关键来源，其余统一进入“在 NVD 查看全部”。最终签名 App
+  已通过学习专题取得真实 NVD 搜索结果。
+- CTF Daily 不再把题库第一行伪装成每日挑战：规则先筛候选，Pi 可结合近期题目、关联 Coding 对话、
+  已确认训练事实和 CTF Memory 选择并解释，当天固定且允许换题，模型不可用时规则兜底。代码与最终包
+  表面已复检；真实模型选择回执仍待有可用题库与模型的内测环境补齐。
 - 全局左栏固定为窄栏，头像使用圆形裁切；Coding 会话历史默认收起，只在用户点击后以浮层展开，
   不再因 CTF、CVE、Coding、个人资料和设置切换而挤动主页面。
 - 用户可见产物固定写入 `~/Documents/MilkSU/{Coding,CTF,CVE}`，设置页可打开；内部 Runtime、凭据、
@@ -56,12 +61,12 @@ GitHub 登录、邀请制访问、额度与流水管理 API/管理前端；让 M
 把 CTF 和 CVE 收成轻量的个人记录与任务入口，把分析、工具和动态工作继续交给同一个
 Coding Agent。个人资料页诚实记录用户在 CTF、CVE 和 Coding 中的活动与成长。
 
-内测结束前补上 GitHub 登录、邀请、额度和模型来源切换；用户可以使用 MilkSU 分发的额度，
-也可以继续使用自己保存在本机的 API Key。
+GitHub 登录、邀请、额度和模型来源切换已经接入；用户可以使用 MilkSU 分发的额度，也可以继续使用
+自己保存在本机的 API Key。TokenFlux Team Key 与真实扣费同步仍是独立后续纵切。
 
 ## 已确认界面
 
-这些图片是实现目标，不代表功能已经完成：
+这些图片是视觉决策来源；完成度与验收以当前代码、测试和真实运行 App 为准：
 
 ### 全局游戏化界面系统
 
@@ -101,11 +106,11 @@ Desktop 与独立 Admin 的全部页面统一采用
 
 | 项目 | 当前证据 | 结果 |
 | --- | --- | --- |
-| 桌面产品代码 | Vue/Vitest 69 个文件、371 项测试、lint 与生产构建通过 | 通过 |
-| 桌面壳与 Sidecar | Electron、账户 PKCE、Pi、安全边界与 Computer Use 共 212 项 Node 测试通过 | 通过 |
-| Go Runtime | `cmd/milksu-backend`、`internal/config` 与 `internal/computercap` 测试通过 | 通过 |
-| CTF/CVE 收薄 | CTF 状态手工维护；CVE 首页只从用户明确加入的条目生成；聚焦测试 37 项通过；Beta 原生复检通过 | 通过 |
-| Beta 身份 | `main@31c06dfb296dd85e96e24dacf21a26ba70cea3d1`、`dirty=false`、tracking ID `4ba1468a816ce6028e5745d83570c6ef181cbc047366021682818897bc7ecf34`；Package Inspector 与严格签名检查通过 | 通过 |
+| 桌面产品代码 | Vue/Vitest 70 个文件、390 项测试与生产类型检查/构建通过 | 通过 |
+| 桌面壳与 Sidecar | Electron、账户 PKCE、Pi、安全边界、Browser Extension 与 Computer Use 共 213 项 Node 测试通过 | 通过 |
+| Go Runtime | `go test ./...` 全仓通过 | 通过 |
+| CTF/CVE 收薄 | CTF 状态手工维护；CVE 首页只从用户明确加入的条目生成；相关聚焦与完整回归通过；最终签名 App 已完成原生复检 | 通过；Daily 真实模型回执单列 |
+| 正式签名身份 | `main@cfc9a102408b8e2017f339ddce08f246b6b67c02`、`dirty=false`、tracking ID `6adfa291a021387f7cb40800012941a51f051bec90036b78353c68a4c57d58ff`；Developer ID、公证、staple、Gatekeeper 与严格签名通过 | 通过 |
 | Admin 前后端 | `main@277af3b73b21a4295ee58c462adb807b36225e1c`；构建、10 项前端测试与 3 项 Worker 资源测试通过 | 通过 |
 | Cloudflare 部署 | `accounts.milksu.org` 的 Worker、D1、静态管理端、`/health` 与 `/ready` 可用 | 通过 |
 | Admin 日间模式 | 与客户端相同的日间/夜间切换、持久化和窄屏布局已在本地及线上核对 | 通过 |
@@ -114,7 +119,7 @@ Desktop 与独立 Admin 的全部页面统一采用
 | 邀请与初始额度 | 桌面兑换邀请；Admin/客户端均显示访问开通、¥5.00 和初始额度流水 | 通过 |
 | 桌面账户联动 | GitHub 登录、头像、余额与两种模型来源顺序；Team Key 未连接时如实显示不可用 | 通过；TokenFlux 扣费明细后续 |
 | 真实 CTF/CVE | 全新 `Caesar Shift 12` 完成创建、共享 Coding、运行中引导、脚本/笔记、返回和手工完成；题面矛盾被如实指出，未编造 Flag 或 Judge 成功。CVE-2024-3400 已完成只读研究、文档交付、返回与对话关联 | 通过 |
-| 正式 App | 从最终干净 `main` 构建；Package Inspector、设置页 branch/完整 commit/tracking ID 与 CTF 首页最小回归通过，并已打开 | 通过（本地 ad-hoc；Developer ID 公证仍按发行纵切后续完成） |
+| 正式 App | workflow `31676876645` 产出的 DMG 已下载，并在隔离数据目录首次启动；设置页 branch/完整 commit/tracking ID、登录视觉、CVE 专题与真实 NVD 结果已回归 | 通过；CTF Daily 真实模型回执待内测环境补齐 |
 
 Obelisk 当前保存和检索 Coding、CTF、CVE 历史，只能帮助用户找回做过的事情。个人页现有次数、
 阶段和最近活动是本机投影，不把一次 Agent 代做、手工“已完成”或普通工具调用解释成用户能力提升。

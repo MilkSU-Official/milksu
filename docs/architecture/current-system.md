@@ -2,7 +2,7 @@
 
 > 文档状态：Current
 >
-> 事实审计：2026-08-12，当前工作树
+> 事实审计：2026-08-13，`main@cfc9a10` 正式签名基线
 >
 > 本页描述当前结构，不安排任务。动态进度和缺口以
 > [当前开发目标](/developer/current-objectives)、代码、测试和真实验收为准。
@@ -71,11 +71,11 @@ MilkSU 的桌面壳不是通用 Agent Loop 的另一份实现。Pi 仍负责会�
 | 内测账户与模型来源 | **Deployed / desktop linked** | 系统浏览器 GitHub PKCE、稳定/测试版独立回调、`0600` 本地不透明会话、账户额度与本机 Key 顺序及对话级偏好已实现；打包客户端指向 `accounts.milksu.org`。会话不使用 macOS Keychain，也不进入 renderer、日志或模型上下文；同一系统用户下的本地恶意进程仍是明确风险。真实 GitHub 登录、邀请兑换、访问开通、¥5.00 余额和初始额度流水已在 Admin 与桌面端联动验证。账户 Team Key 尚未连接，TokenFlux 扣费与明细同步不属于已验收事实。 |
 | Go Runtime | **Implemented / concentrated** | `cmd/milksu-backend/main.go` 启动应用组合根和 JSONL RPC；同目录的 `desktop_rpc.go` 分派现有 App 方法并传递事件，`desktop_host.go` 把文件对话框、外链和浏览器宿主能力反向委托给 Electron。`app.go` 仍较集中，触碰时按纵切拆分。 |
 | Pi 通用 Agent | **Verified core / partial extensions** | Pi 继续拥有 Session、Compaction、模型和通用 Tool Loop；MilkSU 监管 Sidecar、注入当前 Provider、投影事件并实施工作区/审批边界。已审核 Coding Skill 只向 Pi 常驻名称与用途，完整内容按任务或显式选择加载；设置只能停用审核目录，CTF 角色不加载 Coding Skill。TokenFlux `grok-4.5` 多模态和一次真实文档自举已验，完整功能自举仍未完成。 |
-| 内置沙箱浏览器 | **Verified packaged tasks** | 产品 UI 只显示“浏览器”。每次 Coding 会话使用独立 `session.fromPath`，默认拒绝页面权限；用户与 Agent 共用同一 `WebContentsView`。打包 App 中 Grok 只用浏览器完成顺序点击挑战、表单提交和 Electron 官方文档调研，三项均在右栏折叠后继续并保留同一页面终态，未回退 Shell。 |
+| 内置浏览器 | **Verified packaged tasks** | 产品 UI 只显示“浏览器”。每次 Coding 会话使用独立 `session.fromPath`，默认拒绝页面权限；用户与 Agent 共用同一 `WebContentsView`。打包 App 中 Grok 只用浏览器完成顺序点击挑战、表单提交和 Electron 官方文档调研，三项均在右栏折叠后继续并保留同一页面终态，未回退 Shell。 |
 | Browser Use | **Implemented UI / live pairing pending** | 真实用户 Chrome/Edge 复用固定 `@playwright/mcp --extension`，由用户选择准确标签页；不复用内置浏览器 profile。 |
 | Computer Use | **Verified self-bootstrap slice** | 只接受外部可见 App/PID/Window Scope；Calculator 与 Stable → MilkSU Beta 的 branch/commit/tracking 核验、click/scroll 及 CTF/CVE 任务连续性全程已验。Stable 排除自身，浏览器窗口不进入该 Scope；右栏诊断和操作证据默认折叠。 |
-| CTF Runtime | **Implemented** | `internal/ctf` 持有 Challenge、Evidence、Candidate、Judge Receipt、Recovery、Memory 与学习事实；模型候选不能建立成功事实。 |
-| CVE Learning / Tracking | **Verified packaged tracking slice** | 用户界面只显示明确加入的公开 CVE、手工状态和关联 Coding 对话。添加入口通过只读 Desktop RPC 搜索 NVD，用户选中后直接把当前结果和来源元数据写入本地追踪，不做第二次网络请求；参考资料按机构去重，完整集合仍由 NVD 承载。打包 Beta 已用 CVE-2024-3094 验证搜索、加入、手工状态与人类可读来源。外部资产实验、真实复现和披露仍后置。 |
+| CTF Runtime | **Implemented / Daily receipt partial** | `internal/ctf` 持有 Challenge、Evidence、Candidate、Judge Receipt、Recovery、Memory 与学习事实；模型候选不能建立成功事实。Daily 由规则筛选未完成候选，再复用 Pi 结合近期题目、关联 Coding 对话、已确认事实和 Memory 选择并解释；结果按本地日期固定并允许主动换题，模型不可用时规则兜底。代码、测试与最终包表面已回归，真实模型选择回执仍待有可用题库与模型的内测环境补齐。 |
+| CVE Learning / Tracking | **Verified signed tracking slice** | 用户界面只显示明确加入的公开 CVE、手工状态和关联 Coding 对话，默认文案为“想研究”。添加入口通过只读 Desktop RPC 搜索 NVD，用户选中后直接把当前结果和来源元数据写入本地追踪，不做第二次网络请求；参考资料按机构去重，完整集合仍由 NVD 承载。三个薄学习专题直接查询公共 NVD 数据；最终签名 App 已返回真实专题搜索结果。外部资产实验、真实复现和披露仍后置。 |
 | Session Index / 相关历史 | **Verified packaged slice** | MilkSU 自有索引只处理本机 Coding/CTF/CVE 会话；完整图谱由当前模型按需把有界会话、Memory 摘要和正式 Evidence 归纳成人类语义图，不读取目标文档、不持久化图谱、不写回 Memory。 |
 | Worktree / 自举 | **Automatic isolation / product loop partial** | 干净 Git 任务首次 effectful 回合自动准备内部 writer；`.worktreeinclude` CoW、精确 submodule、写入边界和释放条件已有。用户不再配置 worktree/writer；Git 摘要可列出文件并跳到“变更”。Stable → Beta 可见验收已通过，完整自然功能任务的自治 Git 交付仍待扩样。 |
 | 本地持久化 | **Implemented** | 用户可见 Coding/CTF/CVE 产物位于 `~/Documents/MilkSU`；Runtime Artifact、CTF Memory、Catalog、Conversation、Obelisk Session Index、Browser Profile 和 Credential Store 位于用户配置目录。凭据不经桌面 RPC 返回 Vue，也不进入模型上下文。 |
@@ -153,7 +153,8 @@ flowchart TB
   `userData` 和 Runtime 数据根；设置页固定显示 branch、40 位 commit、clean/dirty、build time 与
   tracking ID。Stable Computer Use 排除自身，只能选择 Beta 等外部 App。本机开发包仍是 ad-hoc；
   私有 GitHub Actions 已实现临时 Keychain、Developer ID、hardened runtime、公证、staple 与 Gatekeeper
-  验证，首个经该流程产出的正式包仍待环境密钥配置和真实 workflow 回执。
+  验证；`main@cfc9a102408b8e2017f339ddce08f246b6b67c02` 的 workflow `31676876645` 已取得真实
+  正式包与隔离首次启动回执。
 
 ### 浏览器三面
 
@@ -234,7 +235,8 @@ Electron 不拥有 CTF/CVE 事实，Go 不拥有通用模型循环，Pi 不拥�
 当前 macOS ARM64 `.app` 由 `npm run desktop:build` 构建，Electron Builder 生成壳，随后固定 Sidecar
 安装器写入 Node/Pi/Playwright 资源并重新签名。普通本机构建显式使用 ad-hoc，不枚举 Developer ID。
 正式发行由 `macOS signed release` 私有 workflow 完成测试、hardened runtime / Developer ID 签名、
-DMG、公证、staple 与 Gatekeeper 验证。`main@77ae7ac4f15de7f9d11db1f19588ef6fc34d24d8`
-的 workflow `31663550136` 已取得首个真实成功回执，下载 DMG 的公证票据、stapler、Gatekeeper 与
-严格签名静态核验通过。每个最终发行 HEAD 仍需重跑同一流程，并以近新用户首次启动验收该产物；
-升级与全新机器仍属于 RC。
+DMG、公证、staple 与 Gatekeeper 验证。`main@cfc9a102408b8e2017f339ddce08f246b6b67c02`
+的 workflow `31676876645` 已生成当前正式 DMG；下载产物的公证票据、stapler、Gatekeeper、严格签名
+与隔离首次启动均通过，设置页核对 tracking ID
+`6adfa291a021387f7cb40800012941a51f051bec90036b78353c68a4c57d58ff`。每个新的功能发行 HEAD 仍需重跑
+同一流程；纯文档提交不改变已签名 App 的来源提交。升级与全新机器仍属于 RC。

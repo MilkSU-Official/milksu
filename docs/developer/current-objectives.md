@@ -27,7 +27,7 @@
 
 ## 当前事实
 
-- 阶段：**Post-M3 / 内测发行收口**。M4 的 Coding 自治功能交付证据由用户明确后置，不阻塞当前内测发行。
+- 阶段：**Post-M3 / 内测运行与后续纵切**。首个可分发的正式签名包已经完成；M4 的 Coding 自治功能交付证据由用户明确后置，不阻塞当前内测。
 - M3 product-loop 已 squash merge（`108e0e3`，2026-08-05）；不要把它或旧分支当打开中的任务。
 - Coding 工程底座已覆盖：Plan/Go、权限、附件、本地 OCR、LSP、Artifact Preview、隔离 Browser、后台任务恢复、Diff/Hunk、Git、PR 发布确认、worktree、ImageGen、Project MCP、Session Index、Computer Use 外部 App 纵切。
 - Worktree 隔离已落地：干净 Git 项目的首次 effectful 回合由 Agent 自动准备一个内部 writer；`.worktreeinclude` 用平台 CoW 复制 ignored 本地环境，submodule 按精确提交初始化，writer 不读写主依赖目录。用户不再选择或看到 worktree / writer；脏工作区和非 Git 任务保留原工作区并明确降级。
@@ -56,24 +56,24 @@
 - **任务**：Codex `019fe9ee-b865-75b3-903d-bada1266f254`。
 - **目标文档**：[个人安全工作台计划](security-workspace-product-plan.md)。
 - **关联方式**：该 Codex 任务执行目标文档中的产品目标，本节只维护当前切片、完成线和验收状态。
-- **当前切片**：个人安全工作台、Admin、账户模型来源、全局游戏化界面与隐藏/窄屏控制面均已进入代码。CVE 搜索加入纵切已从干净提交构建 Beta，经 Computer Use 搜索并加入 `CVE-2024-3094`，确认不再二次请求；参考资料按机构收敛为关键来源。私有 `macOS signed release` 已在 `main@77ae7ac4f15de7f9d11db1f19588ef6fc34d24d8` 首次真实运行成功，workflow `31663550136` 的 DMG 已通过 Apple 公证票据、stapler、Gatekeeper 与严格签名静态核验。
-- **完成线**：将当前 CVE 搜索加入提交和本文档快进到 `main`、推送私有远端，从同一最终提交再触发正式签名发行；下载 DMG，以接近新用户的环境完成首次启动、设置页 branch/完整 commit/tracking ID 与 CTF/CVE 最小回归后开始内测。账户 Team Key、TokenFlux 真实扣费/明细/硬限额/同步延迟、Obelisk 可归因成长事实及安全工具接入都作为独立后续纵切，不阻塞本次发行。
+- **当前切片**：个人安全工作台、Admin、账户模型来源、全局游戏化界面与隐藏/窄屏控制面均已进入代码。最终功能提交 `main@cfc9a102408b8e2017f339ddce08f246b6b67c02` 已由私有 `macOS signed release` workflow `31676876645` 构建；下载 DMG 的 SHA-256 为 `3eff2a795a48c4fa11e5e9aa5549d32e8127e5149843a48fb163ae37086b159a`，Apple 公证、stapler、Gatekeeper、严格签名与首次启动均通过。设置页实机核对 `branch=main`、完整 commit、`dirty=false` 和 tracking ID `6adfa291a021387f7cb40800012941a51f051bec90036b78353c68a4c57d58ff`；最终签名 App 的 GitHub 登录视觉、CVE “漏洞”页、公共学习专题和真实 NVD 搜索结果已经复检。
+- **完成线**：开始内测并只处理真实阻塞问题；补一条配置可用模型和真实题库时的 Daily 推荐回执，明确区分模型选择与规则兜底。账户 Team Key、TokenFlux 真实扣费/明细/硬限额/同步延迟、Obelisk 可归因成长事实及安全工具接入都作为独立后续纵切，不阻塞当前内测。
 
 | 优先级 | 主线 | 只认什么完成 |
 | --- | --- | --- |
 | P2 | Coding 自举闭环 | 自动 worktree、运行中 steering/queue、Git 悬浮跳转与 Stable → Beta 可见验收已有；完整自然功能任务的自治 Git 交付证据由用户明确后置，不阻塞当前内测发行。 |
 | P0 | Session Index | 继续内置 MilkSU 自有历史索引；外部会话导入在有明确文件选择、确认和产品调用者前不进发行图。 |
 | P0 | CVE 学习/追踪扩样 | 更多真实 CVE 验证同步、练习、研究档案、资产验证和学习写回；不做外部攻击、自动 PoC 或披露。 |
-| P1 | Computer Use 扩样 | Calculator 之外再加 1–2 个真实 App/窗口、权限拒绝路径；稳定 Developer ID 后复检 TCC。不与 Browser 强行合并权限。 |
+| P1 | Computer Use 扩样 | Calculator 之外再加 1–2 个真实 App/窗口、权限拒绝路径；在正式签名包上复检 TCC。不与 Browser 强行合并权限。 |
 | P1 | 安全工具 MCP 常规能力 | 先在 Coding Agent 中接入 IDA Pro/idalib、Burp Suite、radare2、Ghidra、Semgrep 等固定版本、可审阅的安全工具 MCP，形成普通的安装、启用、健康检查、版本/Schema 审阅、Scope、审批与证据回执能力，而不是一次性 smoke。设置页管理已审阅服务，Composer “+”只选择已启用服务；是否进入 CTF/CVE 由后续用户监督的领域纵切单独决定。 |
 | P1 | Chromium 壳扩样 | 已完成 macOS ARM64 Electron/Chromium 壳、地址/搜索、点击、表单、公开资料调研与折叠连续执行纵切；下一阶段只补 Windows 打包评估、下载/弹窗/权限负向矩阵、页面崩溃恢复和自动化更新，不恢复 CEF/Wails 双壳。 |
-| P1 | MilkSU Beta 自举 | 双身份、数据目录、追踪、签名检查、自我排除、版本核验与 CTF/CVE 可见任务全程已完成；剩余 Developer ID 后的 TCC 复检与更广真实任务扩样。禁止稳定版控制自己或共享状态/权限。 |
+| P1 | MilkSU Beta 自举 | 双身份、数据目录、追踪、签名检查、自我排除、版本核验与 CTF/CVE 可见任务全程已完成；剩余更广真实任务与 Computer Use TCC 扩样。禁止稳定版控制自己或共享状态/权限。 |
 | P1 | Memory 可信度 | 区分 user / agent / shared / imported 与 none / hint / copilot / delegated；Agent 代做不能抬高用户独立能力。 |
 | P1 | Runtime Reliability | 自建安全 fixture：多轮、文件、命令、工具、重启、压缩、取消、预算、失败分类。 |
-| P2 | 本地交付与发行 | RC 再做崩溃恢复、诊断、全新机器、Developer ID `.app`、DMG、公证、stapling、升级、性能和尺寸；Developer ID 先于外部分发与 Computer Use TCC 复检。不读取或迁移本机签名私钥/证书密码/Personal Vault。 |
+| P2 | 本地交付与发行 | Developer ID `.app`、DMG、公证、stapling、Gatekeeper 与隔离首次启动已通过；RC 再做崩溃恢复、诊断、全新机器、升级、性能和尺寸。不读取或迁移本机签名私钥/证书密码/Personal Vault。 |
 | 持续 | 架构与 UI | 触碰即拆热点文件；不新开纯清债里程碑。UI 巡检后同步测试与当前文档。 |
 
-推荐顺序：先完成最终提交的正式签名包与近新用户首次启动验收并开始内测；之后独立推进 TokenFlux、Obelisk 成长事实和安全工具。Coding 完整自治功能交付留作后续证据，不恢复 `development-plan.md`，不把已删除 live smoke 嵌回产品启动链。
+推荐顺序：先开始内测并记录真实阻塞问题；有可用模型与题库时补 Daily 真实推荐回执，之后独立推进 TokenFlux、Obelisk 成长事实和安全工具。Coding 完整自治功能交付留作后续证据，不恢复 `development-plan.md`，不把已删除 live smoke 嵌回产品启动链。
 
 ### 2026-08-13 M4 距离核对后的增量任务
 
@@ -82,24 +82,25 @@
 
 | 状态 | 增量任务 | 收口标准 |
 | --- | --- | --- |
-| 已完成，待随最终包复检 | CVE 添加改为公共搜索 | 输入 CVE 编号、产品或关键词搜索 NVD，选择结果直接加入；上游 503 等错误不泄露 Desktop RPC；不再要求用户手填公开元数据。 |
-| 已完成，待随最终包复检 | CVE 来源收敛 | 参考链接按机构去重，主界面只显示四个可读来源和“在 NVD 查看全部”，不再让重复 UUID/邮箱链接贯穿页面。 |
-| 已完成，Beta 实机已确认 | 登录页右侧视觉融合 | 删除带整块深蓝背景的旧活动图调用，改用复用当前酸绿、灰白与炭黑色票的代码化信号格和准星；图案随容器自适应，不再出现位图矩形接缝。 |
-| 已完成，待随最终包复检 | 真实 CTF 每日挑战 | 现有规则先筛出未完成且适合用户的少量候选；复用当前 Pi，根据近期做题、已确认训练事实、相关 Coding 对话和 CTF Memory 选择一题并给一句理由；当天固定，用户主动“换一道”才重选；模型不可用时使用可解释的规则兜底。不得再把题库第一行伪装成 Daily。 |
-| 已完成，待随最终包复检 | CVE “想研究”状态 | 用户界面和交给 Coding 的上下文统一显示“想研究”，不再默认暗示必须复现；状态继续完全手工。当前工作中的旧持久化枚举不在这个 UI 纵切中途破坏性迁移。 |
-| 已完成，待随最终包复检 | 公共数据驱动的 CVE 学习专题 | 专题只做薄入口；点击后直接搜索 NVD 公共数据并展示可加入研究的真实 CVE，不过滤用户本地列表，不建立课程进度、自动状态或第二套 Agent。 |
+| 已完成，最终签名包已复检 | CVE 添加改为公共搜索 | 输入 CVE 编号、产品或关键词搜索 NVD，选择结果直接加入；上游 503 等错误不泄露 Desktop RPC；不再要求用户手填公开元数据。 |
+| 已完成，最终签名包已复检 | CVE 来源收敛 | 参考链接按机构去重，主界面只显示四个可读来源和“在 NVD 查看全部”，不再让重复 UUID/邮箱链接贯穿页面。 |
+| 已完成，最终签名包已复检 | 登录页右侧视觉融合 | 删除带整块深蓝背景的旧活动图调用，改用复用当前酸绿、灰白与炭黑色票的代码化信号格和准星；图案随容器自适应，不再出现位图矩形接缝。 |
+| 已实现，真实模型回执待补 | 真实 CTF 每日挑战 | 现有规则先筛出未完成且适合用户的少量候选；复用当前 Pi，根据近期做题、已确认训练事实、相关 Coding 对话和 CTF Memory 选择一题并给一句理由；当天固定，用户主动“换一道”才重选；模型不可用时使用可解释的规则兜底。不得再把题库第一行伪装成 Daily。 |
+| 已完成，最终签名包已复检 | CVE “想研究”状态 | 用户界面和交给 Coding 的上下文统一显示“想研究”，不再默认暗示必须复现；状态继续完全手工。当前工作中的旧持久化枚举不在这个 UI 纵切中途破坏性迁移。 |
+| 已完成，最终签名包已复检 | 公共数据驱动的 CVE 学习专题 | 专题只做薄入口；点击后直接搜索 NVD 公共数据并展示可加入研究的真实 CVE，不过滤用户本地列表，不建立课程进度、自动状态或第二套 Agent。 |
 | 已确认边界 | 高级安全能力只进 Coding | CodeQL、capa、补丁分析、变体搜索和后续安全 Worker 作为 Coding 工具/任务入口；CTF/CVE 只保留对象、来源、收藏、手工状态和关联对话。 |
-| 待上述代码完成 | 最终发行与近新用户验收 | 从最终干净 `main` 重新触发 Developer ID 签名、公证、staple、Gatekeeper 和 DMG；下载产物，首次启动先核对 branch、完整 commit、tracking ID，再回归 CTF Daily、CVE 专题/搜索/想研究状态。旧 HEAD 的成功 workflow 不能替代最终 HEAD。 |
+| 已完成 | 最终发行与近新用户验收 | `main@cfc9a102408b8e2017f339ddce08f246b6b67c02` 的正式 DMG 已通过 Developer ID 签名、公证、staple、Gatekeeper、严格签名和隔离首次启动；设置页版本追踪、登录视觉、CVE 专题与真实 NVD 结果已回归。Daily 的真实模型选择回执单独保留，不将无题库空状态伪写为通过。 |
 | 用户明确后置 | M4 独立自治功能任务 | 原建议第 3 项“让 Coding Agent 独立完成一个小型真实功能”暂缓，不阻塞内测发行，也不在本轮偷偷恢复自举监督。 |
 | 独立后续纵切 | TokenFlux、Obelisk 成长事实、安全工具 | Team Key、真实扣费明细/硬限额/延迟；Obelisk 可归因成长；CodeQL/capa/Shannon 等按各自真实任务和权限边界推进，不与本轮 UI 收口混批。 |
 
-本批次执行顺序固定为：完成 Daily 与 CVE 专题/状态 → 聚焦测试和完整回归 → 更新 Current 事实 →
-提交并推送私有远端 → 从同一最终 HEAD 重跑正式签名发行 → 下载 DMG 做近新用户首次启动。
+本批次既定发行顺序已经执行完成。此后的 Current 文档提交只记录事实，不改变已签名 App 的来源提交；
+若功能代码再变化，才从新的干净 HEAD 重跑正式签名发行。
 
 本批次代码与本地回归证据：Go 全仓通过；Vue 70 个测试文件、390 个测试通过；Sidecar、Desktop
 与 Browser Extension 213 个测试通过；生产前端类型检查与构建通过。内置浏览器已确认“想研究”文案、
-三个薄专题入口，以及专题点击后进入预填关键词的 NVD 公共搜索。真实桌面 Runtime、Pi 推荐结果与
-NVD 联网结果仍只在最终签名包上收口，不用网页预览替代。
+三个薄专题入口，以及专题点击后进入预填关键词的 NVD 公共搜索；最终签名包也已返回真实 NVD 公共
+搜索结果。由于隔离首次启动环境没有可用题库与已配置模型，本轮没有
+把 Daily 空状态或规则兜底冒充为真实 Pi 推荐；该回执随内测可用环境补齐。
 
 ### 已完成纵切：相关历史人类语义图
 

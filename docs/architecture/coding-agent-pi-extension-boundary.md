@@ -2,7 +2,7 @@
 
 > 文档状态：Current engineering contract
 >
-> 事实审计：2026-08-10
+> 事实审计：2026-08-13
 >
 > Coding 核心交付、附件、统一 Composer 能力入口、PTY、后台任务、Git、Archify、隔离 Browser 和 LSP 已有真实或
 > 专项证据；Artifact Preview、Project MCP、Computer Use 外部 App slice、PR 发布确认、
@@ -140,8 +140,8 @@ ID 暂停，桌面明确显示目标、参数和风险，并把一次性批准�
 瞬态、限定单一 Target 的 loopback 描述符，
 不把 CDP 地址写进前端、SQLite 或项目配置。Browser Use 另走固定 Playwright extension mode 和
 用户标签页批准，不继承沙箱 profile。Computer Use 已完成外部可见 App、bundle / PID / Window
-不可变 Scope、Calculator observe/click 和纯文本模型读取工具截图的辅助视觉小纵切；更广 App、
-权限拒绝与稳定 Developer ID 下的 TCC 复检仍未完成。Provider API Key
+不可变 Scope、Calculator observe/click 和纯文本模型读取工具截图的辅助视觉小纵切；Developer ID
+正式签名包已通过，更多 App、权限拒绝与该正式身份下的 TCC 扩样仍未完成。Provider API Key
 不进入模型上下文，也不传给 Bash、MCP 或 Computer Use 子进程。
 
 ## 资源加载与供应链
