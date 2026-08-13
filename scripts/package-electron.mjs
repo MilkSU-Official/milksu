@@ -68,6 +68,17 @@ async function ensureBetaIcon() {
 async function buildRuntime() {
   await run('npm', ['--prefix', 'app', 'run', 'build'])
   await mkdir(join(root, 'build', 'desktop'), { recursive: true })
+  if (process.platform === 'darwin') {
+    const nativeModule = join(root, 'build', 'desktop', 'macos-screen-permission.node')
+    await run('/usr/bin/clang', [
+      '-shared',
+      '-undefined', 'dynamic_lookup',
+      '-I', join(dirname(managedNode), '..', 'include', 'node'),
+      '-framework', 'CoreGraphics',
+      '-o', nativeModule,
+      join(root, 'desktop', 'native', 'macos-screen-permission.c'),
+    ])
+  }
   const backend = join(root, 'build', 'desktop', 'milksu-backend')
   // Provenance is sealed as extraResources/build-tracking.json before codesign.
   // Do not embed tracking via ldflags. Strip debug symbols (-s -w) so the local
@@ -90,10 +101,13 @@ async function writeBuilderConfig(trackingPath) {
     : []
   if (!files.includes('channel-identity.cjs')) files.push('channel-identity.cjs')
   if (!files.includes('computer-use-permissions.cjs')) files.push('computer-use-permissions.cjs')
-  if (!files.includes('screen-recording-primer.cjs')) files.push('screen-recording-primer.cjs')
-  if (!files.includes('screen-recording-primer.html')) files.push('screen-recording-primer.html')
+  if (!files.includes('macos-screen-permission.cjs')) files.push('macos-screen-permission.cjs')
   const extraResources = [
     ...(desktopPackage.build?.extraResources || []),
+    {
+      from: join(root, 'build', 'desktop', 'macos-screen-permission.node'),
+      to: 'macos-screen-permission.node',
+    },
     {
       from: trackingPath,
       to: BUILD_TRACKING_RESOURCE,

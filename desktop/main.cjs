@@ -37,7 +37,7 @@ const {
   primeComputerUsePermission,
   shouldRelaunchAfterScreenRecordingGrant,
 } = require('./computer-use-permissions.cjs')
-const { requestScreenRecordingPermission } = require('./screen-recording-primer.cjs')
+const { requestMacOSScreenPermission } = require('./macos-screen-permission.cjs')
 
 const APP_ORIGIN = 'milksu://app'
 const METHOD_PATTERN = /^[A-Z][A-Za-z0-9]{0,80}$/u
@@ -50,6 +50,13 @@ const BROWSER_USER_AGENT = [
   `Chrome/${process.versions.chrome}`,
   'Safari/537.36',
 ].join(' ')
+
+const macOSScreenPermissionPath = app.isPackaged
+  ? path.join(process.resourcesPath, 'macos-screen-permission.node')
+  : path.join(__dirname, '..', 'build', 'desktop', 'macos-screen-permission.node')
+const macOSScreenPermission = process.platform === 'darwin'
+  ? require(macOSScreenPermissionPath)
+  : null
 
 protocol.registerSchemesAsPrivileged([{
   scheme: 'milksu',
@@ -513,12 +520,7 @@ async function handleHostRequest(method, payload = {}) {
       await primeComputerUsePermission(
         systemPreferences,
         permission === 'screen-recording'
-          ? () => requestScreenRecordingPermission({
-              BrowserWindow,
-              session,
-              desktopCapturer,
-              htmlPath: path.join(__dirname, 'screen-recording-primer.html'),
-            })
+          ? () => requestMacOSScreenPermission(macOSScreenPermission)
           : undefined,
         permission,
       )
