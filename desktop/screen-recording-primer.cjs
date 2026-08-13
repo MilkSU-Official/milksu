@@ -21,6 +21,7 @@
  *   desktopCapturer: { getSources: (options: object) => Promise<Array<object>> },
  *   htmlPath: string,
  *   partition?: string,
+ *   timeoutMs?: number,
  * }} dependencies
  */
 async function requestScreenRecordingPermission(dependencies) {
@@ -31,8 +32,10 @@ async function requestScreenRecordingPermission(dependencies) {
     htmlPath,
   } = dependencies
   const partition = String(dependencies.partition || `milksu-screen-permission-${Date.now()}`)
+  const timeoutMs = Math.max(1, Number(dependencies.timeoutMs) || 2500)
   const primerSession = session.fromPartition(partition)
   let primerWindow = null
+  let timeout = null
 
   try {
     primerWindow = new BrowserWindow({
@@ -73,14 +76,21 @@ async function requestScreenRecordingPermission(dependencies) {
     })
 
     await primerWindow.loadFile(htmlPath)
-    await primerWindow.webContents.executeJavaScript(`
+    const capture = primerWindow.webContents.executeJavaScript(`
       (async () => {
         const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })
         for (const track of stream.getTracks()) track.stop()
         return true
       })()
     `, true)
+    await Promise.race([
+      capture,
+      new Promise((_, reject) => {
+        timeout = setTimeout(() => reject(new Error('screen recording permission request timed out')), timeoutMs)
+      }),
+    ])
   } finally {
+    if (timeout) clearTimeout(timeout)
     primerSession.setDisplayMediaRequestHandler(null)
     primerSession.setPermissionRequestHandler(null)
     primerSession.setPermissionCheckHandler(null)

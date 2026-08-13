@@ -108,3 +108,34 @@ test('screen recording primer tears down when capture is denied', async () => {
   assert.equal(handlers.check, null)
   assert.equal(handlers.display, null)
 })
+
+test('screen recording primer cannot block the settings action indefinitely', async () => {
+  const handlers = {}
+  let destroyed = false
+  const fakeSession = {
+    setPermissionRequestHandler(handler) { handlers.permission = handler },
+    setPermissionCheckHandler(handler) { handlers.check = handler },
+    setDisplayMediaRequestHandler(handler) { handlers.display = handler },
+  }
+  class FakeWindow {
+    constructor() {
+      this.webContents = { executeJavaScript: () => new Promise(() => {}) }
+    }
+    async loadFile() {}
+    isDestroyed() { return destroyed }
+    destroy() { destroyed = true }
+  }
+
+  await assert.rejects(requestScreenRecordingPermission({
+    BrowserWindow: FakeWindow,
+    session: { fromPartition: () => fakeSession },
+    desktopCapturer: { async getSources() { return [] } },
+    htmlPath: '/sealed/screen-recording-primer.html',
+    partition: 'screen-permission-timeout-test',
+    timeoutMs: 5,
+  }), /timed out/)
+  assert.equal(destroyed, true)
+  assert.equal(handlers.permission, null)
+  assert.equal(handlers.check, null)
+  assert.equal(handlers.display, null)
+})
