@@ -146,6 +146,21 @@ export interface ModelSelection {
   model: string
 }
 
+export interface ModelCatalogItem {
+  id: string
+  name: string
+  context_window: number
+  max_tokens: number
+  input: string[]
+}
+
+export interface ModelCatalogSnapshot {
+  provider: string
+  models: ModelCatalogItem[]
+  refreshed_at?: string
+  source: 'remote' | 'cache' | 'bundled'
+}
+
 export type ModelSource = 'account' | 'personal'
 export type ModelSourcePreference = 'auto' | ModelSource
 
@@ -172,18 +187,25 @@ export const PRIMARY_MODEL_SELECTION: ModelSelection = {
   provider: 'deepseek',
   model: 'deepseek-v4-flash',
 }
+export const TOKENFLUX_DEFAULT_MODEL = 'grok-4.5'
 
 export function withAppSettingsDefaults(value: AppSettings): AppSettings {
   const legacy = value as AppSettings & {
     providers?: Record<string, ProviderConfig>
   }
-  const activeProvider = selectableProvider(value.active_provider)
+  const providerIsSelectable = selectableProvider(value.active_provider)
+  const activeProvider = providerIsSelectable
     ? value.active_provider
     : PRIMARY_MODEL_SELECTION.provider
   const activeInfo = providerByID(activeProvider)
-  const activeModel = activeInfo?.models.includes(value.active_model)
-    ? value.active_model
-    : activeInfo?.models[0] ?? PRIMARY_MODEL_SELECTION.model
+  const requestedModel = String(value.active_model ?? '').trim()
+  const activeModel = !providerIsSelectable
+    ? PRIMARY_MODEL_SELECTION.model
+    : activeProvider === 'tokenflux'
+      ? requestedModel || TOKENFLUX_DEFAULT_MODEL
+      : activeInfo?.models.includes(requestedModel)
+        ? requestedModel
+        : activeInfo?.models[0] ?? PRIMARY_MODEL_SELECTION.model
   return {
     ...value,
     active_provider: activeProvider,
@@ -365,17 +387,8 @@ export const PROVIDERS: ProviderInfo[] = [
     id: 'tokenflux',
     name: 'TokenFlux',
     kind: 'relay',
-    models: [
-      'grok-4.5',
-      'grok-4.3',
-      'openai/gpt-5.6-sol',
-      'openai/gpt-5.2-codex',
-      'anthropic/claude-sonnet-4.6',
-      'deepseek/deepseek-v4-flash',
-      'google/gemini-3.1-pro-preview',
-      'qwen/qwen3-coder-plus',
-    ],
-    visionModels: ['grok-4.5', 'openai/gpt-4o', 'openai/gpt-4.1', 'google/gemini-3.1-flash-image'],
+    models: [],
+    visionModels: [],
     envKey: 'TOKENFLUX_API_KEY',
     placeholder: 'tf_... 或 TokenFlux API Key',
     defaultBaseUrl: 'https://tokenflux.dev/v1',
@@ -452,7 +465,10 @@ function selectableProvider(id: string) {
 function selectableVisionSelection(selection?: Partial<ModelSelection>) {
   if (!selection?.provider || !selection.model) return null
   const provider = providerByID(selection.provider)
-  if (!provider || !provider.visionModels.includes(selection.model)) return null
+  if (
+    !provider
+    || (provider.id !== 'tokenflux' && !provider.visionModels.includes(selection.model))
+  ) return null
   return {
     provider: selection.provider,
     model: selection.model,

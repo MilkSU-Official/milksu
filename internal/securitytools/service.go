@@ -151,7 +151,7 @@ func (s *Service) CodingHandoff(ctx context.Context, id string) (CodingHandoff, 
 		}
 	}
 	prompt := fmt.Sprintf(
-		"帮我准备 MilkSU 的 %s 本机能力。先检测当前系统和已有安装；只使用官方来源与固定版本，不要修改项目业务代码。完成后运行最小健康检查，并告诉我 MilkSU 设置页还需要重新检测什么。当前检测结果：%s。",
+		"帮我准备 MilkSU 的 %s 本机能力。先检测当前系统和已有安装；优先采用 MilkSU 已审核的固定版本适配器，只使用官方来源与固定版本，不要修改项目业务代码。不要直接启动可能阻塞的 GUI；所有外部工具健康检查都必须是非交互式并带 15 秒超时。完成后运行最小健康检查，并告诉我 MilkSU 设置页还需要重新检测什么。当前检测结果：%s。",
 		name,
 		detected.statusLabel,
 	)
@@ -160,7 +160,9 @@ func (s *Service) CodingHandoff(ctx context.Context, id string) (CodingHandoff, 
 	}
 	return CodingHandoff{
 		ToolID: id, Title: "配置 " + name, Prompt: prompt,
-		VisibleText: "检查并准备 " + name + "，完成一次最小健康检查。",
+		VisibleText:    "检查并准备 " + name + "，完成一次最小健康检查。",
+		ExecutionMode:  "go",
+		ApprovalPolicy: "full-auto",
 	}, nil
 }
 

@@ -9,6 +9,7 @@ import {
   type UserArtifactDirectoryStatus,
   type LocalDiagnosticExport,
   type ModelProbeResult,
+  type ModelCatalogSnapshot,
   type StartupRecoveryStatus,
 } from './types'
 import type {
@@ -147,6 +148,7 @@ interface DesktopAppBindings {
   StartAccountLogin(): Promise<AccountStatus>
   LogoutAccount(): Promise<AccountStatus>
   GetSettings(): Promise<AppSettings>
+  GetModelCatalog(): Promise<ModelCatalogSnapshot>
   SaveSettingsCmd(settings: AppSettings): Promise<void>
   ListSecurityTools(): Promise<SecurityToolSnapshot[]>
   SetSecurityToolEnabled(id: string, enabled: boolean): Promise<void>
@@ -404,7 +406,10 @@ function getDesktopApp(): DesktopAppBindings | undefined {
   return new Proxy({} as DesktopAppBindings, {
     get(_target, property) {
       if (typeof property !== 'string') return undefined
-      return (...args: unknown[]) => window.milksu!.invoke(property, args)
+      return (...args: unknown[]) => window.milksu!.invoke(
+        property,
+        JSON.parse(JSON.stringify(args)) as unknown[],
+      )
     },
   })
 }
@@ -427,6 +432,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.LogoutAccount() as Promise<T>
       case 'get_settings':
         return app.GetSettings() as Promise<T>
+      case 'get_model_catalog':
+        return app.GetModelCatalog() as Promise<T>
       case 'save_settings_cmd':
         return app.SaveSettingsCmd(args?.newSettings as AppSettings) as Promise<T>
       case 'get_local_data_status':

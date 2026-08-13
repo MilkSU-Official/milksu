@@ -40,7 +40,7 @@
 - Coding 的已审核 Skill 已扩为产品设计、前端视觉验收、API 集成、安全审查、技术交付物、架构图和 MilkSU 发布；设置页可逐项停用。Pi 常驻的仍只是 Skill 名称与用途，完整 `SKILL.md` 只在任务匹配或用户主动选择后加载；禁用列表随消息进入 Sidecar，变更在下一条 Coding 消息重载会话资源。CTF 领域角色不继承这些 Coding Skill，设置也不能添加任意路径。
 - 浏览器三面已分责：右栏“浏览器”是会话隔离的内置 Chromium；`/browser-use` 复用固定版 Playwright MCP 官方扩展，由用户在真实 Chrome/Edge 选择准确标签页；`/computer-use` 只列外部原生 App，浏览器窗口不进入该 Scope。NSSCTF/CTFshow 的 MilkSU 扩展继续作为领域 Bridge，不承担通用浏览器控制。
 - **Chromium 桌面壳纵切已完成**：MilkSU.app 现由 Electron/Chromium 承载 Vue 产品表面和右栏 `WebContentsView`，Go 作为受管本地 Runtime 通过 JSONL RPC 提供应用服务。浏览器使用每会话独立 `session.fromPath`、默认拒绝页面权限，并经限定单一 Target 的 loopback CDP Proxy 交给固定 Playwright MCP。打包 App + TokenFlux `grok-4.5` 已只用浏览器完成三类真实任务：按页面提示点击取得 `flag{browser_agent_ok}`、填写并提交表单取得确定性回执、阅读 Electron 官方文档并归纳 `WebContentsView` 与旧 `BrowserView` 的关系。三次均在 Agent 开始后折叠右栏，任务仍继续，重新展开仍是同一页面与终态；未回退 Shell。裸域名会补全 HTTPS，普通文字会进入搜索。旧 Wails/CEF 生产链已直接删除，不保留兼容或双壳。
-- 模型与凭据：单默认模型；内测账户额度与本机个人 Key 独立存在，默认账户优先且仅在模型输出或工具执行前自动切换。设置保存全局顺序，Coding 可只为当前对话调整优先来源；个人 Key 不进入后台、日志或模型上下文。DeepSeek V4 Flash 默认日常；TokenFlux 是账户 Team Key 与个人中转的当前实现，Coding / CTF / sub-agent 仍共用 Pi Provider 注册。
+- 模型与凭据：单默认模型；内测账户额度与本机个人 Key 独立存在，默认账户优先且仅在模型输出或工具执行前自动切换。设置保存全局顺序，Coding 可只为当前对话调整优先来源；个人 Key 不进入后台、日志或模型上下文。DeepSeek V4 Flash 仍是新安装默认值，但 TokenFlux 可用模型不再由前端静态常量决定：Go 在应用启动时刷新远端目录、以 `0600` 保存 last-known-good，并把同一份目录交给设置、Composer 与 Pi。2026-08-13 的本机 Stable 包取得 200 个模型，设置页包含 `x-ai/grok-4.6`；关闭再启动后仍从缓存目录恢复并继续刷新。TokenFlux 是账户 Team Key 与个人中转的当前实现，Coding / CTF / sub-agent 仍共用 Pi Provider 注册。
 - CVE：用户首页只显示自己明确加入研究的公开 CVE，状态手工维护，并自动关联从该条目发起的 Coding 对话；“添加 CVE”先按编号、产品或关键词搜索 NVD，再由用户选择加入，不再要求手填整套元数据。搜索结果加入时直接保存已返回的公开元数据，不重复请求；临时服务错误转为用户可读提示。NVD 大量参考资料按机构去重，主界面只留四个关键来源和“在 NVD 查看全部”。纵深研究、真实复现、外部资产和披露仍后置。
 - CTF：题库、工作区、Evidence、候选、Judge、Checkpoint、恢复、复盘、Memory 主链存在；真实 Judge 成功仍只有窄 Web 路径。
 - CTF/CVE → Coding 已复用同一 Coding/Pi：交接只挂载草稿、不自动发送；右侧可折叠领域上下文保留题目/CVE、授权 Scope、材料、Evidence/Judge 或只读安全边界，并提供返回工作台。NSSCTF 附件或 Judge 未连接不再阻止用公开题面打开 Coding；附件缺失只作为材料警告。Beta Computer Use 已实测历史真实 CTF 任务的手工完成状态，以及 CVE-2024-3400 从跟踪页进入临时 Coding 工作区、生成只读研究简报、返回并自动关联 1 个对话的完整纵切；CVE 状态仍由用户手工保持“研究中”。未运行 PoC、未提交 flag、未建立 Judge 成功事实。
@@ -119,7 +119,12 @@
 
 第一条生产纵切已经进入“设置 → 安全工具”和普通 Coding：Desktop RPC 提供真实目录、检测、启停持久化、
 准备进度和健康检查；准备完成的能力由 Go 在每个回合重新投影给现有 Pi Session，模型根据轻量能力摘要自行
-决定是否调用。完整 MCP Schema 仍按需加载；“在 Coding 中配置”只挂未发送草稿，不会暗中启动安装。
+决定是否调用。完整 MCP Schema 仍按需加载；“在 Coding 中配置”只挂未发送草稿，不会暗中启动安装；
+该草稿明确使用 `Go · 完全访问`，用户发送后 Coding 才能在本机用户目录准备软件，而不是落回项目沙箱。
+2026-08-13 的本机 Stable 实测从设置页进入 Coding，安装 `uv 0.12.3` 与固定
+`mrexodia/ida-pro-mcp@0b5f7ae...`，完成非交互健康检查，再回设置页得到 IDA Pro“可用 / 已加入自动能力目录”。
+首轮实测发现无超时启动 IDA 会阻塞；当前交接提示已要求不启动 GUI，所有外部工具健康检查必须非交互且带
+15 秒超时。该回执证明配置链路，不等于已经完成真实 crackme 反编译任务。
 视觉参考与生产组件证据见 `docs/design/milksu-security-tools-settings-master.png`、
 `docs/design/milksu-security-tools-settings-option-3.png` 和 `docs/design/audits/milksu-security-tools-settings-production.png`。
 

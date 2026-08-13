@@ -66,6 +66,7 @@ Object.defineProperty(window, 'milksu', {
       if (method === 'CheckSecurityTool') return catalog.find(tool => tool.id === args[0])
       if (method === 'PrepareSecurityToolCodingHandoff') return {
         toolId: args[0], title: '配置本机安全工具', prompt: '检测并配置这个工具。', visibleText: '检测并配置这个工具。',
+        executionMode: 'go', approvalPolicy: 'full-auto',
       }
       if (method === 'StartSecurityToolSetup') {
         const snapshot: SecurityToolSetupSnapshot = {

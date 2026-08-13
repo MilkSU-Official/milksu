@@ -60,10 +60,12 @@ type SetupSnapshot struct {
 }
 
 type CodingHandoff struct {
-	ToolID      string `json:"toolId"`
-	Title       string `json:"title"`
-	Prompt      string `json:"prompt"`
-	VisibleText string `json:"visibleText"`
+	ToolID         string `json:"toolId"`
+	Title          string `json:"title"`
+	Prompt         string `json:"prompt"`
+	VisibleText    string `json:"visibleText"`
+	ExecutionMode  string `json:"executionMode"`
+	ApprovalPolicy string `json:"approvalPolicy"`
 }
 
 // RuntimeTool is the display-free, recomputed descriptor sent to Pi for one

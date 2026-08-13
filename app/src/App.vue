@@ -23,6 +23,8 @@ import {
   selectReusableDomainConversationId,
 } from '@/lib/workspaceSessionRouting'
 import { withAppSettingsDefaults, type AccountStatus, type AppSettings, type CTFChatAction, type StartupRecoveryStatus } from '@/types'
+import type { ModelCatalogSnapshot } from '@/types'
+import { installModelCatalog, loadModelCatalog } from '@/modelCatalog'
 import type { SecurityToolCodingHandoff } from '@/securityToolsTypes'
 
 const ChatPage = defineAsyncComponent(() => import('@/components-vue/ChatPage.vue'))
@@ -78,6 +80,7 @@ const recoveryStatus = ref<StartupRecoveryStatus | null>(null)
 const recoveryDismissed = ref(false)
 const themeMode = ref<ThemeMode>(readThemeMode())
 let unlistenAccount: (() => void) | undefined
+let unlistenModelCatalog: (() => void) | undefined
 
 applyThemeMode(themeMode.value)
 
@@ -178,6 +181,7 @@ function openSettings(category: SettingsCategory = 'general') {
 function startSecurityToolCodingSetup(handoff: SecurityToolCodingHandoff) {
   rememberActiveConversation()
   conversations.startNew()
+  conversations.setCodingPolicy(handoff.executionMode, handoff.approvalPolicy)
   conversations.stageComposerDraft(handoff.prompt, handoff.visibleText)
   lastCodingConversationId.value = null
   activeVulnerabilityCodingConversationId.value = null
@@ -421,7 +425,10 @@ function toggleThemeMode() {
 
 onMounted(async () => {
   applyThemeMode(themeMode.value)
-  await Promise.all([loadSettings(), loadAccountStatus(), conversations.load()])
+  unlistenModelCatalog = await listenEvent<ModelCatalogSnapshot>('model-catalog-changed', event => {
+    installModelCatalog(event.payload)
+  })
+  await Promise.all([loadModelCatalog(), loadSettings(), loadAccountStatus(), conversations.load()])
   unlistenAccount = await listenEvent<AccountStatus>('account.changed', event => {
     accountStatus.value = event.payload
     if (event.payload.state === 'active') {
@@ -438,7 +445,10 @@ onMounted(async () => {
   }
 })
 
-onBeforeUnmount(() => unlistenAccount?.())
+onBeforeUnmount(() => {
+  unlistenAccount?.()
+  unlistenModelCatalog?.()
+})
 </script>
 
 <template>

@@ -1,5 +1,7 @@
 "use strict";
 
+const fs = require("node:fs");
+
 const providerRuntime = Object.freeze({
   anthropic: {
     api: "anthropic-messages",
@@ -39,28 +41,42 @@ const providerRuntime = Object.freeze({
   },
 });
 
-const tokenfluxModelCatalog = Object.freeze([
-  ["grok-4.5", "Grok 4.5", 500_000, 32_768, ["text", "image"]],
-  ["grok-4.3", "Grok 4.3", 1_000_000, 32_768, ["text"]],
-  ["openai/gpt-5.6-sol", "GPT-5.6 Sol", 1_050_000, 32_768, ["text"]],
-  ["openai/gpt-5.2-codex", "GPT-5.2 Codex", 400_000, 32_768, ["text"]],
-  ["openai/gpt-4o", "GPT-4o", 128_000, 16_384, ["text", "image"]],
-  ["openai/gpt-4.1", "GPT-4.1", 1_047_576, 32_768, ["text", "image"]],
-  ["anthropic/claude-sonnet-4.6", "Claude Sonnet 4.6", 1_000_000, 32_768, ["text"]],
-  ["deepseek/deepseek-v4-flash", "DeepSeek V4 Flash", 1_048_576, 32_768, ["text"]],
-  ["google/gemini-3.1-pro-preview", "Gemini 3.1 Pro Preview", 1_048_576, 32_768, ["text"]],
-  ["google/gemini-3.1-flash-image", "Gemini 3.1 Flash Image", 131_072, 16_384, ["text", "image"]],
-  ["qwen/qwen3-coder-plus", "Qwen3 Coder Plus", 1_000_000, 32_768, ["text"]],
-].map(([id, name, contextWindow, maxTokens, input]) => ({
-  id,
-  name,
-  contextWindow,
-  maxTokens,
-  input,
-})));
+const tokenfluxModelCatalog = Object.freeze([]);
 
-function tokenfluxModel(model) {
-  return tokenfluxModelCatalog.find(item => item.id === model) ?? {
+function runtimeTokenfluxModelCatalog(environment = process.env) {
+  const catalogPath = String(environment.MILKSU_MODEL_CATALOG_PATH ?? "").trim();
+  if (!catalogPath) return tokenfluxModelCatalog;
+  try {
+    const snapshot = JSON.parse(fs.readFileSync(catalogPath, "utf8"));
+    if (snapshot?.provider !== "tokenflux" || !Array.isArray(snapshot.models)) {
+      return tokenfluxModelCatalog;
+    }
+    const dynamic = snapshot.models.flatMap(item => {
+      const id = String(item?.id ?? "").trim();
+      if (!id) return [];
+      const input = Array.isArray(item?.input)
+        ? [...new Set(item.input.filter(value => value === "text" || value === "image"))]
+        : ["text"];
+      return [{
+        id,
+        name: String(item?.name ?? id).trim() || id,
+        contextWindow: Number.isInteger(item?.context_window) && item.context_window > 0
+          ? item.context_window
+          : 128_000,
+        maxTokens: Number.isInteger(item?.max_tokens) && item.max_tokens > 0
+          ? item.max_tokens
+          : 16_384,
+        input: input.includes("text") ? input : ["text", ...input],
+      }];
+    });
+    return dynamic.length > 0 ? dynamic : tokenfluxModelCatalog;
+  } catch {
+    return tokenfluxModelCatalog;
+  }
+}
+
+function tokenfluxModel(model, environment = process.env) {
+  return runtimeTokenfluxModelCatalog(environment).find(item => item.id === model) ?? {
     id: model,
     name: model,
     contextWindow: 128_000,
@@ -94,9 +110,9 @@ function currentProviderDefinition(provider, model, environment = process.env) {
     const baseUrl = String(environment[runtime.baseUrl] ?? "").trim();
     return baseUrl ? { baseUrl } : undefined;
   }
-  const catalog = [...tokenfluxModelCatalog];
+  const catalog = [...runtimeTokenfluxModelCatalog(environment)];
   if (model && !catalog.some(item => item.id === model)) {
-    catalog.push(tokenfluxModel(model));
+    catalog.push(tokenfluxModel(model, environment));
   }
   return {
     name: "TokenFlux",
@@ -123,5 +139,6 @@ function currentProviderDefinition(provider, model, environment = process.env) {
 module.exports = {
   currentProviderDefinition,
   providerRuntimeFor,
+  runtimeTokenfluxModelCatalog,
   tokenfluxModelIDForProvider,
 };

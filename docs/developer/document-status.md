@@ -60,7 +60,9 @@
   `6adfa291a021387f7cb40800012941a51f051bec90036b78353c68a4c57d58ff`。
 - 模型与凭据：单默认模型；账户额度和本机个人 Key 是两个独立来源，设置页可调整全局顺序，Coding
   可只为当前对话调整优先来源；仅允许在模型未输出且工具未执行前自动切换。个人 Key 不进入后台、
-  日志或模型上下文。Cloudflare Worker、D1、管理端和公开账户 API 已部署；真实 GitHub 登录、邀请兑换、
+  日志或模型上下文。TokenFlux 可用模型目录现在由 Go 在应用启动时远端刷新并以 `0600` 缓存，设置、
+  Composer 与 Pi 共用同一目录；本机 Stable 已取得 200 个模型并显示 `x-ai/grok-4.6`，重启后仍可恢复并刷新。
+  Cloudflare Worker、D1、管理端和公开账户 API 已部署；真实 GitHub 登录、邀请兑换、
   访问开通、¥5.00 余额和初始额度流水已在 Admin 与桌面端联动验证。TokenFlux Team Key 与真实扣费明细仍待独立联调。
 - CTF 主链存在；真实 Judge 成功仍只有窄 Web 路径。Memory actor/assistance 已持久化；尚缺真实
   轨迹校准。Obelisk 目前只索引历史与线索，不是个人成长事实源；个人页阶段是活动近似值，不等于
@@ -77,7 +79,9 @@
 - 个人安全工作台历史 Beta 纵切来自干净提交 `31c06dfb296dd85e96e24dacf21a26ba70cea3d1`；原生 Computer Use 已用全新自定义题 `Caesar Shift 12` 完成创建、共享 Coding、运行中引导、可复现脚本/笔记、返回与手工状态闭环。题面与规定 Flag 格式实际不一致，Agent 明确拒绝编造候选，未建立 Judge 成功事实。该 Beta 是过程证据，不再代表当前正式版本；当前正式签名基线是 `cfc9a10`。账户 Team Key 与真实 TokenFlux 扣费明细仍待独立联调。
 - 安全工具设置与普通 Coding 的首条生产纵切已实现：真实目录、检测、启停持久化和准备进度进入
   Desktop RPC；IDA Pro/idalib lazy MCP 与 capa 原生工具只在 `ready + enabled` 时交给现有 Pi 供模型
-  自主选择。CodeQL、Burp Suite、Shannon 仍是检测/前提状态，不是模型能力；真实 crackme/二进制任务
+  自主选择。“在 Coding 中配置”会挂载未发送草稿和所需的 `Go · 完全访问`；本机 Stable 已由该入口
+  安装 uv 与固定 idalib MCP、完成非交互健康检查，并在返回设置页后显示 IDA Pro“可用 / 已加入自动能力目录”。
+  CodeQL、Burp Suite、Shannon 仍是检测/前提状态，不是模型能力；真实 crackme/二进制任务
   回执和 CTF/CVE 模块接入仍待独立纵切，不能由当前自动化测试外推。
 - 相关历史人类语义图已在重新打包的 macOS App 用 TokenFlux `grok-4.5` 通过 `Computer Use`（10 节点/11 关系）与 `MCP`（11 节点/12 关系）真实归纳、来源详情/回跳和主聊天不受污染验收；`@antv/g6@5.1.1` 仅在完整图谱视图懒加载，列表与紧凑侧栏不会触发模型调用。
 - Labs 暂停；CVE 纵深/复现/披露后置；NYU safe-static 不是完整 CTF 成绩。Developer ID / 公证的

@@ -42,6 +42,16 @@ one of those decisions.
 - Explain relevant Agent Harness concepts when they materially help product decisions or the user's
   interview and presentation preparation.
 
+## Beta Self-Bootstrap Boundary
+
+- `MilkSU Beta.app` exists only for MilkSU's own self-bootstrap loop, where a Stable MilkSU reviewer controls
+  an independently identified Beta build and verifies its branch, commit, tracking ID and user-visible task.
+- Codex must not build or refresh the Beta app during ordinary implementation, debugging, UI validation or
+  release preparation. Use unit/component tests, Sidecar tests, browser previews, or the Stable development
+  runtime instead.
+- Build Beta only when the user explicitly asks to run a MilkSU self-bootstrap exercise. A request to test a
+  feature, inspect the desktop UI, or package a normal app is not self-bootstrap authorization.
+
 ## Current Product Boundary
 
 MilkSU is an Electron/Chromium + Vue desktop app with a supervised Go Runtime and Pi Sidecars.

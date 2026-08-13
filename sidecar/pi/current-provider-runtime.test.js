@@ -1,16 +1,46 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 import currentProviderRuntime from "./current-provider-runtime.cjs";
 
 const { currentProviderDefinition, tokenfluxModelIDForProvider } = currentProviderRuntime;
 
-test("Grok 4.5 is image-capable through the existing TokenFlux catalog modality", () => {
+test("TokenFlux registers a selected model even before a refreshed cache is available", () => {
   const definition = currentProviderDefinition("tokenflux", "grok-4.5", {});
   const model = definition.models.find((item) => item.id === "grok-4.5");
   assert.ok(model);
-  assert.deepEqual(model.input, ["text", "image"]);
-  const textOnly = definition.models.find((item) => item.id === "grok-4.3");
-  assert.deepEqual(textOnly.input, ["text"]);
+  assert.deepEqual(model.input, ["text"]);
+});
+
+test("loads refreshed canonical models from the desktop catalog cache", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "milksu-model-catalog-"));
+  const catalogPath = path.join(directory, "tokenflux.json");
+  fs.writeFileSync(catalogPath, JSON.stringify({
+    provider: "tokenflux",
+    source: "remote",
+    refreshed_at: "2026-08-13T12:30:00Z",
+    models: [{
+      id: "x-ai/grok-4.6",
+      name: "Grok 4.6",
+      context_window: 500000,
+      max_tokens: 32768,
+      input: ["text", "image"],
+    }],
+  }));
+  try {
+    const definition = currentProviderDefinition("tokenflux", "x-ai/grok-4.6", {
+      TOKENFLUX_API_KEY: "test-key",
+      MILKSU_MODEL_CATALOG_PATH: catalogPath,
+    });
+    const model = definition.models.find(item => item.id === "x-ai/grok-4.6");
+    assert.equal(model.name, "Grok 4.6");
+    assert.equal(model.contextWindow, 500000);
+    assert.deepEqual(model.input, ["text", "image"]);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 test("maps official provider model IDs onto TokenFlux account routes", () => {

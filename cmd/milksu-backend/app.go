@@ -24,6 +24,7 @@ import (
 	"github.com/MilkSU-Official/milksu/internal/ctf"
 	"github.com/MilkSU-Official/milksu/internal/ctfshow"
 	"github.com/MilkSU-Official/milksu/internal/engine"
+	"github.com/MilkSU-Official/milksu/internal/modelcatalog"
 	"github.com/MilkSU-Official/milksu/internal/nssctf"
 	"github.com/MilkSU-Official/milksu/internal/securityruntime"
 	"github.com/MilkSU-Official/milksu/internal/securitytools"
@@ -50,6 +51,7 @@ type App struct {
 	engines           *engine.Supervisor
 	securityEngine    *engine.SecuritySupervisor
 	securityTools     *securitytools.Service
+	modelCatalog      *modelcatalog.Service
 	nssctf            *nssctf.Client
 	nssctfCatalog     *nssctf.CatalogService
 	ctfshowCatalog    *ctfshow.CatalogService
@@ -127,6 +129,15 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 		ctfMaterials:      newLocalCTFMaterialStore(),
 	}
 	application.diagnostics.Record("app", "info", "application services initialized")
+	application.modelCatalog, err = modelcatalog.New(
+		dataDirectory,
+		settings.GetResolved,
+		modelcatalog.Options{},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create model catalog: %w", err)
+	}
+	settings.SetRuntimeModelCatalogPath(application.modelCatalog.CachePath())
 	application.securityTools = securitytools.NewService(
 		dataDirectory,
 		settings,
@@ -298,6 +309,17 @@ func (a *App) Startup(ctx context.Context) {
 	a.diagnostics.Record("app", "info", "desktop runtime started")
 	_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedAppInitialized)
 	_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedDesktopRuntimeStarted)
+	go func() {
+		refreshContext, cancelRefresh := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
+		defer cancelRefresh()
+		refreshedCatalog, refreshErr := a.modelCatalog.Refresh(refreshContext)
+		if refreshErr != nil {
+			a.diagnostics.Record("model-catalog", "warning", "model catalog refresh failed; retained last-known-good catalog")
+			return
+		}
+		a.diagnostics.Record("model-catalog", "info", "model catalog refreshed")
+		a.emitDesktopEvent("model-catalog-changed", refreshedCatalog)
+	}()
 	if err := a.jobs.Recover(ctx); err != nil {
 		a.diagnostics.Record("runtime", "error", "runtime job recovery failed")
 		_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedRuntimeRecoveryFailed)

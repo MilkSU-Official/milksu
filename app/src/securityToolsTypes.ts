@@ -49,4 +49,6 @@ export interface SecurityToolCodingHandoff {
   title: string
   prompt: string
   visibleText: string
+  executionMode: 'go'
+  approvalPolicy: 'full-auto'
 }

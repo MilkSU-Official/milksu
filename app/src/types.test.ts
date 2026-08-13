@@ -9,36 +9,35 @@ import {
 } from './types'
 
 describe('model provider catalog', () => {
-  it('includes TokenFlux Grok and gateway models as a first-class relay provider', () => {
+  it('keeps TokenFlux as a first-class relay while runtime models come from Desktop RPC', () => {
     const tokenflux = PROVIDERS.find(provider => provider.id === 'tokenflux')
 
     expect(tokenflux).toBeDefined()
     expect(tokenflux?.kind).toBe('relay')
     expect(tokenflux?.defaultBaseUrl).toBe('https://tokenflux.dev/v1')
     expect(tokenflux?.envKey).toBe('TOKENFLUX_API_KEY')
-    expect(tokenflux?.models).toEqual(expect.arrayContaining([
-      'grok-4.3',
-      'grok-4.5',
-      'anthropic/claude-sonnet-4.6',
-      'deepseek/deepseek-v4-flash',
-    ]))
-    expect(tokenflux?.visionModels).toEqual(expect.arrayContaining([
-      'grok-4.5',
-      'openai/gpt-4o',
-    ]))
+    expect(tokenflux?.models).toEqual([])
+    expect(tokenflux?.visionModels).toEqual([])
     expect(providerModelLabel('tokenflux', 'grok-4.3'))
       .toBe('TokenFlux · Grok 4.3')
   })
 
-  it('keeps Supergrok grok-4.5 first, image-capable, and drops the retired grok-build-0.1', () => {
-    const tokenflux = PROVIDERS.find(provider => provider.id === 'tokenflux')
-    const tokenfluxModels = tokenflux?.models ?? []
+  it('preserves a refreshed model selection that is not in bundled provider metadata', () => {
+    const settings = withAppSettingsDefaults({
+      active_provider: 'tokenflux',
+      active_model: 'x-ai/grok-4.6',
+      providers: {},
+    } as AppSettings)
+    expect(settings.active_model).toBe('x-ai/grok-4.6')
+  })
 
-    expect(tokenfluxModels).not.toContain('grok-build-0.1')
-    expect(tokenfluxModels.indexOf('grok-4.5')).toBeGreaterThanOrEqual(0)
-    expect(tokenfluxModels.indexOf('grok-4.5'))
-      .toBeLessThan(tokenfluxModels.indexOf('grok-4.3'))
-    expect(tokenflux?.visionModels).toContain('grok-4.5')
+  it('still rejects an unknown model for a static provider', () => {
+    const settings = withAppSettingsDefaults({
+      active_provider: 'deepseek',
+      active_model: 'unknown-model',
+      providers: {},
+    } as AppSettings)
+    expect(settings.active_model).toBe('deepseek-v4-flash')
   })
 
   it('keeps normal model pickers focused on the single daily model path', () => {

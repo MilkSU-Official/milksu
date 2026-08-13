@@ -4,6 +4,7 @@ import { createApp, nextTick, type App } from 'vue'
 import { afterEach, describe, expect, it } from 'vitest'
 import SettingsPage from './SettingsPage.vue'
 import type { CodingComputerUseStatus } from '@/codingEnvironmentTypes'
+import { installModelCatalog } from '@/modelCatalog'
 import {
   withAppSettingsDefaults,
   type AccountStatus,
@@ -21,6 +22,16 @@ class ResizeObserverStub {
 ;(globalThis as { ResizeObserver?: unknown }).ResizeObserver = ResizeObserverStub
 
 const mountedApps: App[] = []
+
+installModelCatalog({
+  provider: 'tokenflux',
+  source: 'remote',
+  refreshed_at: '2026-08-13T12:30:00Z',
+  models: [
+    { id: 'grok-4.5', name: 'Grok 4.5', context_window: 500000, max_tokens: 32768, input: ['text', 'image'] },
+    { id: 'grok-4.3', name: 'Grok 4.3', context_window: 1000000, max_tokens: 32768, input: ['text'] },
+  ],
+})
 
 async function settle() {
   await Promise.resolve()
@@ -653,7 +664,7 @@ describe('SettingsPage database compatibility', () => {
     expect(text).toContain('模型与额度')
     expect(text).toContain('默认模型')
     expect(text).toContain('词元流动')
-    expect(text).toContain('grok-4.3')
+    expect(text).toContain('Grok 4.3')
     expect(text).not.toContain('快速执行')
     expect(text).not.toContain('深度策略')
     expect(text).not.toContain('KouriChat')

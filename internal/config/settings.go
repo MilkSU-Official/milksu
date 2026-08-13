@@ -86,6 +86,10 @@ type AppSettings struct {
 	DisabledSkills []string                          `json:"disabled_skills"`
 	SecurityTools  map[string]SecurityToolPreference `json:"security_tools,omitempty"`
 	Providers      map[string]ProviderConfig         `json:"providers"`
+	// RuntimeModelCatalogPath is injected only into resolved settings so Pi can
+	// read the same refreshed public model metadata as the desktop UI. It is
+	// never persisted or returned across Desktop RPC.
+	RuntimeModelCatalogPath string `json:"-"`
 }
 
 func DefaultSettings() AppSettings {
@@ -101,11 +105,12 @@ func DefaultSettings() AppSettings {
 }
 
 type Store struct {
-	mu           sync.RWMutex
-	path         string
-	secretStore  secretStore
-	secretValues map[string]string
-	settings     AppSettings
+	mu                      sync.RWMutex
+	path                    string
+	secretStore             secretStore
+	secretValues            map[string]string
+	runtimeModelCatalogPath string
+	settings                AppSettings
 }
 
 func NewStore() (*Store, error) {
@@ -157,7 +162,16 @@ func (s *Store) GetResolved() AppSettings {
 	if value.NSSCTFArena != nil {
 		value.NSSCTFArena.Token = s.secretValues[nssctfArenaSecretAccount]
 	}
+	value.RuntimeModelCatalogPath = s.runtimeModelCatalogPath
 	return value
+}
+
+// SetRuntimeModelCatalogPath publishes public, non-credential model metadata
+// to local Sidecars without adding it to persisted Settings or Desktop RPC.
+func (s *Store) SetRuntimeModelCatalogPath(path string) {
+	s.mu.Lock()
+	s.runtimeModelCatalogPath = strings.TrimSpace(path)
+	s.mu.Unlock()
 }
 
 func (s *Store) Save(value AppSettings) error {

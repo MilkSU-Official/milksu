@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/MilkSU-Official/milksu/internal/config"
@@ -73,8 +74,12 @@ func TestCodingHandoffStagesActionableTaskWithoutStartingSetup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if handoff.ToolID != ToolCapa || handoff.Prompt == "" || handoff.VisibleText == "" {
+	if handoff.ToolID != ToolCapa || handoff.Prompt == "" || handoff.VisibleText == "" ||
+		handoff.ExecutionMode != "go" || handoff.ApprovalPolicy != "full-auto" {
 		t.Fatalf("unexpected handoff: %#v", handoff)
+	}
+	if !strings.Contains(handoff.Prompt, "15 秒超时") || !strings.Contains(handoff.Prompt, "不要直接启动") {
+		t.Fatalf("handoff did not bound the health check: %q", handoff.Prompt)
 	}
 	status, err := service.SetupStatus(ToolCapa)
 	if err != nil {

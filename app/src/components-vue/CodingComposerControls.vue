@@ -24,7 +24,9 @@ import {
   ShieldCheck,
 } from 'lucide-vue-next'
 import type { CodingApprovalPolicy } from '@/types'
-import { PROVIDER_GROUPS, providerModelLabel } from '@/types'
+import { useModelCatalog } from '@/modelCatalog'
+
+const { providerGroups, providerModelLabel } = useModelCatalog()
 
 defineProps<{
   running: boolean
@@ -162,7 +164,7 @@ defineEmits<{
         </SelectGroup>
         <SelectSeparator />
         <template
-          v-for="(group, groupIndex) in PROVIDER_GROUPS"
+          v-for="(group, groupIndex) in providerGroups"
           :key="group.kind"
         >
           <SelectSeparator v-if="groupIndex > 0" />

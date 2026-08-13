@@ -61,11 +61,9 @@ import type {
   StartupRecoveryStatus,
 } from '@/types'
 import {
-  PROVIDERS,
-  PROVIDER_GROUPS,
-  providerModelLabel,
   withAppSettingsDefaults,
 } from '@/types'
+import { useModelCatalog } from '@/modelCatalog'
 import VulnerabilityIntelSettingsPanel from '@/components-vue/VulnerabilityIntelSettingsPanel.vue'
 import SecurityToolsSettingsPanel from '@/components-vue/SecurityToolsSettingsPanel.vue'
 import type { SecurityToolCodingHandoff } from '@/securityToolsTypes'
@@ -122,6 +120,11 @@ const buildTrackingCopying = ref(false)
 const notice = ref<{ tone: 'ok' | 'error'; text: string } | null>(null)
 const accountRouteSetupOpen = ref(false)
 const draggedModelSource = ref<ModelSource | null>(null)
+const {
+  providers: modelProviders,
+  providerGroups: modelProviderGroups,
+  providerModelLabel,
+} = useModelCatalog()
 const account = computed<AccountStatus>(() => props.accountStatus ?? ({ configured: false, authenticated: false, state: 'unconfigured' }))
 const accountBalance = computed(() => new Intl.NumberFormat('zh-CN', {
   style: 'currency', currency: 'CNY', minimumFractionDigits: 2,
@@ -204,24 +207,38 @@ const provider = computed(() => (
 ))
 const accountRoute = computed(() => working.value?.relay)
 const providerInfo = computed(() => (
-  PROVIDERS.find(item => item.id === working.value?.active_provider)
+  modelProviders.value.find(item => item.id === working.value?.active_provider)
 ))
 const activeProviderModels = computed(() => (
-  providerInfo.value?.models ?? []
+  working.value?.active_model
+  && !(providerInfo.value?.models ?? []).includes(working.value.active_model)
+    ? [working.value.active_model, ...(providerInfo.value?.models ?? [])]
+    : providerInfo.value?.models ?? []
 ))
-const visionModelOptions = PROVIDERS.flatMap(item => item.visionModels.map(model => ({
-  key: `${item.id}:${model}`,
-  provider: item.id,
-  model,
-  kind: item.kind,
-  label: providerModelLabel(item.id, model),
-})))
-const visionProviderGroups = PROVIDER_GROUPS
+const visionModelOptions = computed(() => {
+  const options = modelProviders.value.flatMap(item => item.visionModels.map(model => ({
+    key: `${item.id}:${model}`,
+    provider: item.id,
+    model,
+    kind: item.kind,
+    label: providerModelLabel(item.id, model),
+  })))
+  const selected = working.value?.vision_model
+  if (selected && !options.some(option => option.key === routeKey(selected))) {
+    const selectedProvider = modelProviders.value.find(item => item.id === selected.provider)
+    if (selectedProvider) options.unshift({
+      key: routeKey(selected), provider: selected.provider, model: selected.model,
+      kind: selectedProvider.kind, label: providerModelLabel(selected.provider, selected.model),
+    })
+  }
+  return options
+})
+const visionProviderGroups = computed(() => modelProviderGroups.value
   .map(group => ({
     ...group,
-    options: visionModelOptions.filter(item => item.kind === group.kind),
+    options: visionModelOptions.value.filter(item => item.kind === group.kind),
   }))
-  .filter(group => group.options.length)
+  .filter(group => group.options.length))
 
 function routeKey(selection: { provider: string; model: string }) {
   return `${selection.provider}:${selection.model}`
@@ -260,7 +277,8 @@ function setSkillEnabled(name: string, enabled: boolean) {
 
 function ensureProvider(id: string) {
   if (!working.value) return
-  const info = PROVIDERS.find(item => item.id === id)
+  const providerChanged = working.value.active_provider !== id
+  const info = modelProviders.value.find(item => item.id === id)
   if (!working.value.providers[id]) {
     working.value.providers[id] = {
       api_key: '',
@@ -272,7 +290,9 @@ function ensureProvider(id: string) {
     working.value.providers[id].base_url = info.defaultBaseUrl
   }
   working.value.active_provider = id
-  if (info && !info.models.includes(working.value.active_model)) working.value.active_model = info.models[0]
+  if (info && (providerChanged || !working.value.active_model) && info.models[0]) {
+    working.value.active_model = info.models[0]
+  }
 }
 
 function ensureAccountRoute() {
@@ -1250,7 +1270,7 @@ async function save() {
                   :key="model"
                   :value="model"
                 >
-                  {{ model }}
+                  {{ providerModelLabel(working.active_provider, model) }}
                 </NativeSelectOption>
               </NativeSelect>
             </SettingsRow>
@@ -1276,7 +1296,7 @@ async function save() {
                 </SelectTrigger>
                 <SelectContent size="sm" align="end" :align-offset="0" class="min-w-48">
                   <template
-                    v-for="(group, groupIndex) in PROVIDER_GROUPS"
+                    v-for="(group, groupIndex) in modelProviderGroups"
                     :key="group.kind"
                   >
                     <SelectSeparator v-if="groupIndex > 0" />
@@ -1320,7 +1340,7 @@ async function save() {
                 :model-value="provider.api_key"
                 type="password"
                 autocomplete="off"
-                :placeholder="PROVIDERS.find(item => item.id === working?.active_provider)?.placeholder"
+                :placeholder="modelProviders.find(item => item.id === working?.active_provider)?.placeholder"
                 @update:model-value="value => {
                   provider!.api_key = String(value)
                   if (value) provider!.session_only = false

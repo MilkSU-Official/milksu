@@ -136,7 +136,7 @@ import type {
   CTFChatAction,
 } from '@/types'
 import type { CodingMessageQueue } from '@/composables/useConversations'
-import { providerModelLabel } from '@/types'
+import { providerModelLabel } from '@/modelCatalog'
 import type { SessionHistorySearchResult } from '@/sessionIndexTypes'
 import { enabledCodingSkillNames } from '@/codingSkills'
 

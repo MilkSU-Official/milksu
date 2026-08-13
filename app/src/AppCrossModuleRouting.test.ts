@@ -378,6 +378,8 @@ vi.mock('@/components-vue/SettingsPage.vue', () => ({
             title: '配置 IDA Pro',
             prompt: '检测并准备 IDA Pro。',
             visibleText: '检查并准备 IDA Pro。',
+            executionMode: 'go',
+            approvalPolicy: 'full-auto',
           }),
         }, '在 Coding 中配置'),
       ])
@@ -441,6 +443,7 @@ describe('App cross-module routing', () => {
     expect(host.querySelector('[aria-label="mock Chat page"]')).not.toBeNull()
     expect(host.querySelector('[data-chat-draft]')?.textContent).toBe('检查并准备 IDA Pro。')
     expect(hoisted.conversations?.startNew).toHaveBeenCalledTimes(1)
+    expect(hoisted.conversations?.setCodingPolicy).toHaveBeenCalledWith('go', 'full-auto')
     expect(hoisted.conversations?.send).not.toHaveBeenCalled()
   })
 

@@ -1,14 +1,40 @@
 // @vitest-environment jsdom
 
+import { reactive } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { invokeCommand } from './desktop'
 
 afterEach(() => {
   vi.restoreAllMocks()
   Reflect.deleteProperty(window, 'go')
+  Reflect.deleteProperty(window, 'milksu')
 })
 
 describe('desktop command adapter', () => {
+  it('serializes Vue reactive values before crossing Electron IPC', async () => {
+    const invoke = vi.fn(async (_method: string, args: unknown[]) => {
+      structuredClone(args)
+    })
+    Object.defineProperty(window, 'milksu', {
+      configurable: true,
+      value: { invoke },
+    })
+    const conversation = reactive({
+      id: 'coding-1',
+      title: '配置 IDA Pro',
+      createdAt: 1,
+      messages: [{ id: 'message-1', role: 'user', content: '运行健康检查', timestamp: 2 }],
+    })
+
+    await expect(invokeCommand('save_conversation', { conversation })).resolves.toBeUndefined()
+    expect(invoke).toHaveBeenCalledWith('SaveConversation', [{
+      id: 'coding-1',
+      title: '配置 IDA Pro',
+      createdAt: 1,
+      messages: [{ id: 'message-1', role: 'user', content: '运行健康检查', timestamp: 2 }],
+    }])
+  })
+
   it('passes the first Coding message to the silent title generator', async () => {
     const generateConversationTitle = vi.fn(async () => '修复登录回调状态恢复')
     Object.defineProperty(window, 'go', {
