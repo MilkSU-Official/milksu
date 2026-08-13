@@ -46,6 +46,7 @@ import type {
   NSSCTFCatalogQuery,
   NSSCTFCatalogSearchResult,
   NSSCTFCatalogSyncResult,
+  NSSCTFDailyChallengeSelection,
   NSSCTFTrainingDashboard,
 } from './nssctfTrainingTypes'
 import type { CTFTrainingPlatform } from './ctfPlatformTypes'
@@ -298,6 +299,10 @@ interface DesktopAppBindings {
   ImportNSSCTFChallenge(rawURL: string): Promise<NSSCTFChallenge>
   SyncNSSCTFCatalog(rawURL: string): Promise<NSSCTFCatalogSyncResult>
   GetNSSCTFTrainingDashboard(): Promise<NSSCTFTrainingDashboard>
+  RecommendCTFDailyChallenge(
+    dateKey: string,
+    excludedProblemIds: number[],
+  ): Promise<NSSCTFDailyChallengeSelection>
   ListNSSCTFCatalog(query: NSSCTFCatalogQuery): Promise<NSSCTFCatalogSearchResult>
   GetCTFTrainingPlatforms(): Promise<CTFTrainingPlatform[]>
   OpenNSSCTFChallenge(rawURL: string): Promise<void>
@@ -653,6 +658,11 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.SyncNSSCTFCatalog(args?.url as string) as Promise<T>
       case 'get_nssctf_training_dashboard':
         return app.GetNSSCTFTrainingDashboard() as Promise<T>
+      case 'recommend_ctf_daily_challenge':
+        return app.RecommendCTFDailyChallenge(
+          args?.dateKey as string,
+          (args?.excludedProblemIds as number[]) ?? [],
+        ) as Promise<T>
       case 'list_nssctf_catalog':
         return app.ListNSSCTFCatalog(args?.query as NSSCTFCatalogQuery) as Promise<T>
       case 'get_ctf_training_platforms':

@@ -719,4 +719,36 @@ describe('desktop command adapter', () => {
     )
   })
 
+  it('passes the daily CTF date and exclusions to the recommendation service', async () => {
+    const selection = {
+      dateKey: '2026-08-13',
+      problemId: 2655,
+      reason: '延续最近的 Reverse 练习，难度跨度合适。',
+      source: 'pi',
+      provider: 'tokenflux',
+      model: 'grok-4.5',
+    }
+    const recommendCTFDailyChallenge = vi.fn(async () => selection)
+    Object.defineProperty(window, 'go', {
+      configurable: true,
+      value: {
+        main: {
+          App: {
+            RecommendCTFDailyChallenge: recommendCTFDailyChallenge,
+          },
+        },
+      },
+    })
+
+    await expect(invokeCommand('recommend_ctf_daily_challenge', {
+      dateKey: '2026-08-13',
+      excludedProblemIds: [3400, 3094],
+    })).resolves.toBe(selection)
+
+    expect(recommendCTFDailyChallenge).toHaveBeenCalledWith(
+      '2026-08-13',
+      [3400, 3094],
+    )
+  })
+
 })

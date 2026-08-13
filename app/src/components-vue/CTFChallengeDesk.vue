@@ -28,6 +28,8 @@ const props = withDefaults(defineProps<{
   nssctfProblems: NSSCTFCatalogProblem[]
   ctfshowProblems: CTFShowCatalogProblem[]
   selectedNssctf: NSSCTFChallenge | null
+  dailyProblem?: NSSCTFCatalogProblem | null
+  dailyReason?: string
   selectedCtfshow: CTFShowCatalogProblem | null
   dashboard: NSSCTFTrainingDashboard | null
   nssctfAttemptedIds: number[]
@@ -57,6 +59,8 @@ const props = withDefaults(defineProps<{
   nssctfProblems: () => [],
   ctfshowProblems: () => [],
   selectedNssctf: null,
+  dailyProblem: null,
+  dailyReason: '',
   selectedCtfshow: null,
   dashboard: null,
   nssctfAttemptedIds: () => [],
@@ -88,6 +92,7 @@ const emit = defineEmits<{
   openBrowserSettings: []
   openConversation: [id: string]
   updateManualStatus: [key: string, status: CTFManualStatus]
+  changeDaily: []
   'update:collaborationMode': [value: CTFCollaborationMode]
 }>()
 
@@ -95,27 +100,30 @@ const selectedID = computed(() => props.activeBank === 'nssctf'
   ? props.selectedNssctf?.platformId
   : props.selectedCtfshow?.platformId)
 const displayedNssctfProblems = computed(() => {
+  const problems: NSSCTFCatalogProblem[] = []
+  if (props.dailyProblem) problems.push(props.dailyProblem)
   const selected = props.selectedNssctf
-  if (!selected || props.nssctfProblems.some(problem => problem.platformId === selected.platformId)) return props.nssctfProblems
-  return [{
-    platformId: selected.platformId,
-    sourceUrl: selected.sourceUrl,
-    title: selected.title,
-    category: selected.category,
-    points: selected.points,
-    difficulty: selected.difficulty,
-    tags: selected.tags,
-    hasWriteup: selected.writeupCount > 0,
-    solvedCount: selected.solvedCount,
-    wrongAnswerCount: selected.wrongAnswerCount,
-    noAnswerCount: 0,
-    open: true,
-    syncedAt: selected.importedAt,
-  }, ...props.nssctfProblems]
+  if (selected) {
+    problems.push({
+      platformId: selected.platformId,
+      sourceUrl: selected.sourceUrl,
+      title: selected.title,
+      category: selected.category,
+      points: selected.points,
+      difficulty: selected.difficulty,
+      tags: selected.tags,
+      hasWriteup: selected.writeupCount > 0,
+      solvedCount: selected.solvedCount,
+      wrongAnswerCount: selected.wrongAnswerCount,
+      noAnswerCount: 0,
+      open: true,
+      syncedAt: selected.importedAt,
+    })
+  }
+  problems.push(...props.nssctfProblems)
+  return [...new Map(problems.map(problem => [problem.platformId, problem])).values()]
 })
-const firstProblemID = computed(() => props.activeBank === 'nssctf'
-  ? displayedNssctfProblems.value[0]?.platformId
-  : props.ctfshowProblems[0]?.platformId)
+const dailyProblemID = computed(() => props.dailyProblem?.platformId)
 const relatedConversations = computed(() => props.relatedJobId
   ? props.conversations.filter(item => item.ctfJobId === props.relatedJobId)
   : [])
@@ -191,13 +199,13 @@ function openCoding() {
             :aria-expanded="selectedID === problem.platformId"
             @click="select(problem.platformId)"
           >
-            <span class="font-mono text-caption" :class="firstProblemID === problem.platformId ? 'text-primary' : 'text-muted-foreground'">
-              <CalendarDays v-if="firstProblemID === problem.platformId" class="mr-2 inline size-4" />
-              {{ firstProblemID === problem.platformId ? 'Daily' : `P${problem.platformId}` }}
+            <span class="font-mono text-caption" :class="dailyProblemID === problem.platformId ? 'text-primary' : 'text-muted-foreground'">
+              <CalendarDays v-if="dailyProblemID === problem.platformId" class="mr-2 inline size-4" />
+              {{ dailyProblemID === problem.platformId ? 'Daily' : `P${problem.platformId}` }}
             </span>
             <span class="min-w-0">
               <span class="truncate text-control font-medium">{{ problem.title }}</span>
-              <Badge v-if="firstProblemID === problem.platformId" variant="outline" class="ml-3">每日挑战</Badge>
+              <Badge v-if="dailyProblemID === problem.platformId" variant="outline" class="ml-3">每日挑战</Badge>
             </span>
             <span class="text-caption text-info">{{ problem.category }}</span>
             <span class="text-caption" :class="difficultyClass(problem.difficulty)">{{ difficultyLabel(problem.difficulty) }}</span>
@@ -210,6 +218,9 @@ function openCoding() {
             <div class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
               <div class="min-w-0">
                 <p class="text-caption font-medium text-muted-foreground">题目描述</p>
+                <p v-if="dailyProblemID === problem.platformId && dailyReason" class="mt-2 border-l-2 border-primary pl-3 text-caption leading-5 text-foreground">
+                  今日推荐：{{ dailyReason }}
+                </p>
                 <MarkdownContent class="mt-2 max-h-32 overflow-y-auto text-body leading-6" :content="selectedNssctf.statement" />
                 <div class="mt-4 flex flex-wrap items-center gap-5 text-caption">
                   <button v-if="selectedNssctf.hasAttachment || localMaterials.length" class="inline-flex items-center gap-2 text-foreground" @click.stop="emit('chooseLocalMaterials')">
@@ -227,6 +238,9 @@ function openCoding() {
                 </div>
               </div>
               <div class="flex items-end justify-end gap-3">
+                <Button v-if="dailyProblemID === problem.platformId" variant="outline" size="sm" @click.stop="emit('changeDaily')">
+                  换一道
+                </Button>
                 <label class="min-w-36 text-caption text-muted-foreground">我的状态
                   <NativeSelect :model-value="statusFor(problem.platformId)" size="sm" class="mt-2 w-full" @click.stop @change="handleStatusChange(problem.platformId, $event)">
                     <NativeSelectOption value="not_started">未开始</NativeSelectOption>

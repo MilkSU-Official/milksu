@@ -35,6 +35,13 @@ describe('CTFPage navigation contract', () => {
     expect(ctfChallengeDeskSource).toContain('交给 Coding')
   })
 
+  it('only labels the persisted date-based selection as the daily challenge', () => {
+    expect(ctfPageSource).toContain(':daily-problem="dailyChallengeVisible"')
+    expect(ctfPageSource).toContain('@change-daily="changeDailyChallenge"')
+    expect(ctfChallengeDeskSource).toContain('dailyProblemID === problem.platformId ? \'Daily\'')
+    expect(ctfChallengeDeskSource).not.toContain('firstProblemID')
+  })
+
   it('opens Coding context without model readiness and without readiness 1/3 strip', () => {
     expect(ctfPageSource).toContain('async function openCodingContext()')
     expect(ctfPageSource).toContain('openCodingContext')

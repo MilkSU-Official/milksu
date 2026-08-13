@@ -89,6 +89,15 @@ export interface NSSCTFRecommendation {
   score: number
 }
 
+export interface NSSCTFDailyChallengeSelection {
+  dateKey: string
+  problem: NSSCTFCatalogProblem
+  reason: string
+  source: 'model' | 'rules'
+  provider?: string
+  model?: string
+}
+
 export interface NSSCTFTrainingSeries {
   name: string
   derivedFrom: 'title-prefix'

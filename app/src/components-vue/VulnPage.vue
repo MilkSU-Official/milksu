@@ -29,7 +29,7 @@ import CollectionViewFilter from '@/components-vue/CollectionViewFilter.vue'
 import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
 import { useVulnerabilityDashboard, type VulnerabilityCodingTask, type VulnerabilityDashboard, type VulnerabilitySearchCandidate } from '@/composables/useVulnerabilityDashboard'
 import type { Conversation } from '@/types'
-import type { VulnerabilityIntel, VulnerabilitySeverity, VulnerabilityStatus } from '@/vulnerabilityIntel'
+import { vulnerabilityStatusLabel, type VulnerabilityIntel, type VulnerabilitySeverity, type VulnerabilityStatus } from '@/vulnerabilityIntel'
 import { ALL_COLLECTIONS_ID, createItemCollectionStore } from '@/lib/itemCollections'
 
 defineOptions({ name: 'VulnPage' })
@@ -66,28 +66,16 @@ const page = ref(1)
 const pageSize = 20
 
 const statusOptions: Array<{ value: VulnerabilityStatus; label: string }> = [
-  { value: '待复现', label: '待复现' },
+  { value: '待复现', label: '想研究' },
   { value: '研究中', label: '研究中' },
   { value: '已验证', label: '已验证' },
   { value: '已分流', label: '已归档' },
 ]
 
 const learningTopics = [
-  {
-    title: '命令与参数注入',
-    query: 'Injection',
-    detail: '从输入边界、调用链到补丁方式，横向看同类 CVE。',
-  },
-  {
-    title: '反序列化与协议边界',
-    query: 'ActiveMQ',
-    detail: '对照协议、对象创建与不受信类型的共同风险。',
-  },
-  {
-    title: '供应链与组件信任',
-    query: 'Supply Chain',
-    detail: '从构建、依赖和发布链理解供应链事件。',
-  },
+  { title: '命令与参数注入', query: 'command injection' },
+  { title: '反序列化与协议边界', query: 'deserialization' },
+  { title: '供应链与组件信任', query: 'supply chain' },
 ] as const
 
 const filteredItems = computed(() => {
@@ -122,7 +110,6 @@ watch(
   },
   { flush: 'sync' },
 )
-watch(() => props.navigationEpoch, () => { showLearningTopics.value = false })
 
 function relatedConversations(cveId: string) {
   return props.conversations.filter(conversation => (
@@ -211,11 +198,22 @@ function keyReferences(item: VulnerabilityIntel) {
 }
 
 function openCveSearch() {
+  showLearningTopics.value = false
   showCveSearch.value = true
   cveSearchError.value = ''
   cveSearchResults.value = []
   cveSearchAttempted.value = false
   cveSearchQuery.value = ''
+}
+
+async function openLearningTopic(query: string) {
+  showLearningTopics.value = false
+  showCveSearch.value = true
+  cveSearchQuery.value = query
+  cveSearchError.value = ''
+  cveSearchResults.value = []
+  cveSearchAttempted.value = false
+  await searchCves()
 }
 
 function readableCveSearchError(cause: unknown) {
@@ -271,11 +269,6 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
   }
 }
 
-function openTopic(query: string) {
-  dashboard.query.value = query
-  statusFilter.value = 'all'
-  showLearningTopics.value = false
-}
 </script>
 
 <template>
@@ -322,16 +315,16 @@ function openTopic(query: string) {
       </template>
     </WorkspaceModuleTopBar>
 
-    <section v-if="showLearningTopics" class="grid shrink-0 gap-3 border-b border-border bg-card/40 px-6 py-5 md:grid-cols-3" aria-label="CVE 学习专题">
+    <section v-if="showLearningTopics" class="grid shrink-0 gap-3 border-b border-border bg-card/40 px-6 py-4 md:grid-cols-3" aria-label="CVE 学习专题">
       <button
         v-for="topic in learningTopics"
         :key="topic.title"
         type="button"
-        class="tactical-command-surface border border-border px-4 py-4 text-left transition-colors hover:border-primary/50"
-        @click="openTopic(topic.query)"
+        class="tactical-command-surface flex items-center justify-between gap-4 border border-border px-4 py-3 text-left transition-colors hover:border-primary/50"
+        @click="openLearningTopic(topic.query)"
       >
         <span class="text-control font-semibold">{{ topic.title }}</span>
-        <span class="mt-2 block text-caption leading-5 text-muted-foreground">{{ topic.detail }}</span>
+        <Search class="size-4 shrink-0 text-primary" />
       </button>
     </section>
 
@@ -410,7 +403,7 @@ function openTopic(query: string) {
               <span class="mt-0.5 block truncate text-caption text-muted-foreground">{{ item.product }}</span>
             </span>
             <span><Badge :variant="severityVariant(item.severity)" font="mono">{{ item.cvss.toFixed(1) }}</Badge></span>
-            <span><Badge :variant="statusVariant(item.status)">{{ item.status === '已分流' ? '已归档' : item.status }}</Badge></span>
+            <span><Badge :variant="statusVariant(item.status)">{{ vulnerabilityStatusLabel(item.status) }}</Badge></span>
             <CollectionPicker :item-key="item.id" :store="cveCollections" @click.stop />
             <span class="text-caption text-muted-foreground">{{ recentResearch(item) }}</span>
           </button>

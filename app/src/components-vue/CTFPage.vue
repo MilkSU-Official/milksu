@@ -75,6 +75,12 @@ import { useNSSCTFArena, useNSSCTFChallenges, useNSSCTFWebBridge } from '@/compo
 import { useNSSCTFCatalog, useNSSCTFTraining } from '@/composables/useNSSCTFTraining'
 import { invokeCommand } from '@/desktop'
 import { shouldBootstrapNSSCTFCatalog } from '@/lib/ctfCatalogBootstrap'
+import {
+  chooseCTFDailyChallenge,
+  CTF_DAILY_CHALLENGE_STORAGE_KEY,
+  localCTFDateKey,
+  parseCTFDailyChallengeRecord,
+} from '@/lib/ctfDailyChallenge'
 import { ALL_COLLECTIONS_ID, createItemCollectionStore } from '@/lib/itemCollections'
 import {
   ctfManualStatusFromJobStatus,
@@ -97,7 +103,12 @@ import type {
 import type { CTFTrainingPlatform } from '@/ctfPlatformTypes'
 import type { CTFWorkspaceSection } from '@/lib/workspaceNavigation'
 import type { NSSCTFChallenge } from '@/nssctfTypes'
-import type { NSSCTFRecommendation, NSSCTFTrainingSeries } from '@/nssctfTrainingTypes'
+import type {
+  NSSCTFCatalogProblem,
+  NSSCTFDailyChallengeSelection,
+  NSSCTFRecommendation,
+  NSSCTFTrainingSeries,
+} from '@/nssctfTrainingTypes'
 import type { SessionHistorySearchResult } from '@/sessionIndexTypes'
 import type { Conversation } from '@/types'
 
@@ -207,6 +218,16 @@ const manualStatuses = ref<Record<string, CTFManualStatus>>((() => {
     return {}
   }
 })())
+const dailyChallenge = ref<NSSCTFCatalogProblem | null>(null)
+const dailyChallengeReason = ref('')
+const dailyChallengeVisible = computed(() => (
+  activeBank.value === 'nssctf'
+  && catalogQuery.value.trim() === ''
+  && catalogCategory.value === 'all'
+  && collectionView.value === ALL_COLLECTIONS_ID
+    ? dailyChallenge.value
+    : null
+))
 const catalogErrorMessage = computed(() => {
   const error = activeBank.value === 'nssctf'
     ? publicCatalog.error.value ?? training.error.value
@@ -215,6 +236,7 @@ const catalogErrorMessage = computed(() => {
 })
 const manualIntake = ref<InstanceType<typeof CTFManualIntake> | null>(null)
 let catalogSearchTimer: ReturnType<typeof setTimeout> | undefined
+let dailyChallengeLoading = false
 
 const step = computed(() => screen.value === 'source' ? 1 : screen.value === 'challenge' ? 2 : 3)
 const activeProjection = computed(() => backend.projection.value)
@@ -743,6 +765,16 @@ watch([catalogQuery, catalogCategory, collectionView, ctfCollections.revision], 
 })
 
 watch(
+  () => ({
+    recommendations: training.dashboard.value?.recommendations.map(item => item.problem.platformId).join(',') ?? '',
+    catalog: publicCatalog.result.value?.problems.map(item => item.platformId).join(',') ?? '',
+    completed: publicCatalog.result.value?.completedProblemIds.join(',') ?? '',
+  }),
+  () => { void refreshDailyChallenge() },
+  { immediate: true },
+)
+
+watch(
   () => activeProjection.value?.challenge.externalPlatform,
   platform => {
     if (platform === 'ctfshow-web') void ctfshow.refresh()
@@ -854,9 +886,68 @@ async function selectDefaultDeskProblem() {
   const recommendation = catalogQuery.value.trim() === '' && catalogCategory.value === 'all'
     ? training.dashboard.value?.recommendations[0]
     : null
-  const platformId = recommendation?.problem.platformId
+  const platformId = dailyChallengeVisible.value?.platformId
+    ?? recommendation?.problem.platformId
     ?? publicCatalog.result.value?.problems[0]?.platformId
   if (platformId) await chooseCatalogProblem(platformId)
+}
+
+function dailyChallengeCandidates() {
+  const candidates = [
+    ...(training.dashboard.value?.recommendations.map(item => item.problem) ?? []),
+    ...(publicCatalog.result.value?.problems ?? []),
+  ]
+  return [...new Map(candidates.map(problem => [problem.platformId, problem])).values()]
+}
+
+async function refreshDailyChallenge(change = false) {
+  if (dailyChallengeLoading) return
+  const dateKey = localCTFDateKey()
+  const completedIds = publicCatalog.result.value?.completedProblemIds ?? []
+  const stored = parseCTFDailyChallengeRecord(window.localStorage.getItem(CTF_DAILY_CHALLENGE_STORAGE_KEY))
+  if (!change && stored?.dateKey === dateKey && !completedIds.includes(stored.problem.platformId)) {
+    dailyChallenge.value = stored.problem
+    dailyChallengeReason.value = stored.reason ?? '根据今天的训练记录推荐。'
+    return
+  }
+  const excludedProblemIds = change && dailyChallenge.value
+    ? [...completedIds, dailyChallenge.value.platformId]
+    : completedIds
+  let selection: NSSCTFDailyChallengeSelection | null = null
+  dailyChallengeLoading = true
+  try {
+    selection = await invokeCommand<NSSCTFDailyChallengeSelection>('recommend_ctf_daily_challenge', {
+      dateKey,
+      excludedProblemIds,
+    })
+  } catch {
+    const problem = chooseCTFDailyChallenge(
+      dateKey,
+      dailyChallengeCandidates(),
+      completedIds,
+      change ? dailyChallenge.value?.platformId : undefined,
+    )
+    if (!problem) return
+    const recommendation = training.dashboard.value?.recommendations.find(item => (
+      item.problem.platformId === problem.platformId
+    ))
+    selection = {
+      dateKey,
+      problem,
+      reason: recommendation?.reason || '根据当前训练记录，从未完成题目中优先选择。',
+      source: 'rules',
+    }
+  } finally {
+    dailyChallengeLoading = false
+  }
+  dailyChallenge.value = selection.problem
+  dailyChallengeReason.value = selection.reason
+  window.localStorage.setItem(CTF_DAILY_CHALLENGE_STORAGE_KEY, JSON.stringify(selection))
+}
+
+async function changeDailyChallenge() {
+  await refreshDailyChallenge(true)
+  if (dailyChallenge.value) await chooseCatalogProblem(dailyChallenge.value.platformId)
 }
 
 async function runDailyMission() {
@@ -2329,6 +2420,8 @@ onBeforeUnmount(() => {
           :nssctf-problems="publicCatalog.result.value?.problems ?? []"
           :ctfshow-problems="visibleCTFShowProblems"
           :selected-nssctf="selectedProblem"
+          :daily-problem="dailyChallengeVisible"
+          :daily-reason="dailyChallengeReason"
           :selected-ctfshow="selectedCTFShowProblem"
           :dashboard="training.dashboard.value"
           :nssctf-attempted-ids="publicCatalog.result.value?.attemptedProblemIds ?? []"
@@ -2370,6 +2463,7 @@ onBeforeUnmount(() => {
           @open-browser-settings="$emit('openSettings', 'browser')"
           @open-conversation="$emit('openCodingConversation', $event)"
           @update-manual-status="updateManualStatus"
+          @change-daily="changeDailyChallenge"
           @update:collaboration-mode="collaborationMode = $event"
         />
 

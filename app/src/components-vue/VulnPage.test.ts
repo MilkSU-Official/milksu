@@ -69,6 +69,8 @@ describe('VulnPage thin workspace', () => {
     expect(host.textContent).toContain('学习专题')
     expect(host.textContent).toContain('添加 CVE')
     expect(host.textContent).toContain('交给 Coding')
+    expect(host.textContent).toContain('想研究')
+    expect(host.textContent).not.toContain('待复现')
     expect(host.textContent).not.toContain('练习环境')
     expect(host.textContent).not.toContain('当前下一步')
     expect(host.textContent).not.toContain('闭环')
@@ -214,17 +216,32 @@ describe('VulnPage thin workspace', () => {
     expect(openConversation).toHaveBeenCalledWith(conversation.id)
   })
 
-  it('uses learning topics as lightweight list filters', async () => {
+  it('searches public CVE data when the user opens a learning topic', async () => {
     const { host, dashboard } = await mountPage({ trackedIds: ['CVE-2023-46604'] })
+    const search = vi.spyOn(dashboard, 'searchNvdCves').mockResolvedValueOnce([{
+      id: 'CVE-2017-12149',
+      title: 'JBoss Application Server deserialization RCE',
+      vendor: 'Red Hat',
+      product: 'JBoss',
+      affected: 'Multiple versions',
+      summary: 'Deserialization issue.',
+      cvss: 9.8,
+      severity: 'critical',
+      updated: '2023-10-27',
+      references: [],
+      sourceName: 'NVD',
+      sourceUrl: 'https://services.nvd.nist.gov/rest/json/cves/2.0',
+      retrievedAt: '2026-08-13T00:00:00Z',
+    }])
 
     buttonWithText(host, '学习专题')?.click()
     await nextTick()
-    expect(host.textContent).toContain('反序列化与协议边界')
-
     buttonWithText(host, '反序列化与协议边界')?.click()
-    await nextTick()
-    expect(dashboard.query.value).toBe('ActiveMQ')
-    expect(host.textContent).toContain('CVE-2023-46604')
+    await vi.waitFor(() => expect(search).toHaveBeenCalledWith('deserialization'))
+
+    const dialog = document.body.querySelector('[role="dialog"]')
+    await vi.waitFor(() => expect(dialog?.textContent).toContain('CVE-2017-12149'))
+    expect(dialog?.textContent).toContain('加入研究')
   })
 
   it('lets one CVE belong to several collection views', async () => {
