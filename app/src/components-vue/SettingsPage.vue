@@ -633,7 +633,9 @@ async function requestComputerUsePermission(permission: CodingComputerUsePermiss
     const label = permission === 'accessibility' ? '辅助功能' : '屏幕录制'
     notice.value = {
       tone: 'ok',
-      text: `已打开“${label}”设置；开启 MilkSU 后回到应用，状态会在重新检测时更新。`,
+      text: permission === 'screen-recording'
+        ? '已打开“屏幕录制”设置；若列表没有 MilkSU，点列表下方“+”并选择 /Applications/MilkSU.app，再开启并按系统提示重新打开。'
+        : `已打开“${label}”设置；开启 MilkSU 后回到应用，状态会在重新检测时更新。`,
     }
   } catch (reason) {
     notice.value = { tone: 'error', text: `无法打开 Computer Use 系统权限设置：${String(reason)}` }
@@ -1120,7 +1122,7 @@ async function save() {
                   <div class="flex items-start justify-between gap-3">
                     <div>
                       <p class="text-body font-medium">辅助功能</p>
-                      <p class="mt-1 text-caption leading-5 text-muted-foreground">点击后先登记当前签名的 MilkSU，再打开准确设置。</p>
+                      <p class="mt-1 text-caption leading-5 text-muted-foreground">打开准确设置后开启 MilkSU；系统会记住正式签名身份。</p>
                     </div>
                     <Badge :variant="computerUseStatus?.permissions.accessibility ? 'secondary' : 'outline'">
                       {{ computerUseStatus?.permissions.accessibility ? '已授权' : '待授权' }}
@@ -1143,7 +1145,7 @@ async function save() {
                   <div class="flex items-start justify-between gap-3">
                     <div>
                       <p class="text-body font-medium">屏幕录制</p>
-                      <p class="mt-1 text-caption leading-5 text-muted-foreground">点击后先登记当前签名的 MilkSU，再打开准确设置。</p>
+                      <p class="mt-1 text-caption leading-5 text-muted-foreground">若列表没有 MilkSU，点下方“+”并选择 /Applications/MilkSU.app；开启后按系统提示重新打开。</p>
                     </div>
                     <Badge :variant="computerUseStatus?.permissions.screenRecording ? 'secondary' : 'outline'">
                       {{ computerUseStatus?.permissions.screenRecording ? '已授权' : '待授权' }}

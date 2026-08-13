@@ -579,6 +579,7 @@ describe('SettingsPage database compatibility', () => {
     expect(text).toContain('外部 App 权限')
     expect(text).toContain('打开辅助功能设置')
     expect(text).toContain('打开屏幕录制设置')
+    expect(text).toContain('选择 /Applications/MilkSU.app')
     expect(text).toContain('当前构建身份：ad-hoc · Team 未设置')
     expect(text).toContain('Developer ID')
     expect(text).toContain('真实 TCC 探针')
