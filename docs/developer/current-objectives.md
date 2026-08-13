@@ -2,7 +2,7 @@
 
 > 文档状态：Current / Canonical target contract
 >
-> 最后收口：2026-08-12
+> 最后收口：2026-08-13
 >
 > 本页只回答“现在按什么目标继续做”：当前事实 + 下一条完成线。
 > 实现事实以当前代码、测试、Git 历史和原生 App 验收为准。
@@ -27,7 +27,7 @@
 
 ## 当前事实
 
-- 阶段：**Post-M3 / M4 自举与隔离执行**。M4 不是未合并 PR，而是把 Coding 推进到“会话在隔离 worktree 内完成自然任务并交付”。
+- 阶段：**Post-M3 / 内测发行收口**。M4 的 Coding 自治功能交付证据由用户明确后置，不阻塞当前内测发行。
 - M3 product-loop 已 squash merge（`108e0e3`，2026-08-05）；不要把它或旧分支当打开中的任务。
 - Coding 工程底座已覆盖：Plan/Go、权限、附件、本地 OCR、LSP、Artifact Preview、隔离 Browser、后台任务恢复、Diff/Hunk、Git、PR 发布确认、worktree、ImageGen、Project MCP、Session Index、Computer Use 外部 App 纵切。
 - Worktree 隔离已落地：干净 Git 项目的首次 effectful 回合由 Agent 自动准备一个内部 writer；`.worktreeinclude` 用平台 CoW 复制 ignored 本地环境，submodule 按精确提交初始化，writer 不读写主依赖目录。用户不再选择或看到 worktree / writer；脏工作区和非 Git 任务保留原工作区并明确降级。
@@ -41,7 +41,7 @@
 - 浏览器三面已分责：右栏“浏览器”是会话隔离的内置 Chromium；`/browser-use` 复用固定版 Playwright MCP 官方扩展，由用户在真实 Chrome/Edge 选择准确标签页；`/computer-use` 只列外部原生 App，浏览器窗口不进入该 Scope。NSSCTF/CTFshow 的 MilkSU 扩展继续作为领域 Bridge，不承担通用浏览器控制。
 - **Chromium 桌面壳纵切已完成**：MilkSU.app 现由 Electron/Chromium 承载 Vue 产品表面和右栏 `WebContentsView`，Go 作为受管本地 Runtime 通过 JSONL RPC 提供应用服务。浏览器使用每会话独立 `session.fromPath`、默认拒绝页面权限，并经限定单一 Target 的 loopback CDP Proxy 交给固定 Playwright MCP。打包 App + TokenFlux `grok-4.5` 已只用浏览器完成三类真实任务：按页面提示点击取得 `flag{browser_agent_ok}`、填写并提交表单取得确定性回执、阅读 Electron 官方文档并归纳 `WebContentsView` 与旧 `BrowserView` 的关系。三次均在 Agent 开始后折叠右栏，任务仍继续，重新展开仍是同一页面与终态；未回退 Shell。裸域名会补全 HTTPS，普通文字会进入搜索。旧 Wails/CEF 生产链已直接删除，不保留兼容或双壳。
 - 模型与凭据：单默认模型；内测账户额度与本机个人 Key 独立存在，默认账户优先且仅在模型输出或工具执行前自动切换。设置保存全局顺序，Coding 可只为当前对话调整优先来源；个人 Key 不进入后台、日志或模型上下文。DeepSeek V4 Flash 默认日常；TokenFlux 是账户 Team Key 与个人中转的当前实现，Coding / CTF / sub-agent 仍共用 Pi Provider 注册。
-- CVE：用户首页只显示自己明确加入研究的公开 CVE，状态手工维护，并自动关联从该条目发起的 Coding 对话；内置公开目录不再伪造资产命中、用户状态或实时更新时间。纵深研究、真实复现、外部资产和披露仍后置。
+- CVE：用户首页只显示自己明确加入研究的公开 CVE，状态手工维护，并自动关联从该条目发起的 Coding 对话；“添加 CVE”先按编号、产品或关键词搜索 NVD，再由用户选择加入，不再要求手填整套元数据。搜索结果加入时直接保存已返回的公开元数据，不重复请求；临时服务错误转为用户可读提示。NVD 大量参考资料按机构去重，主界面只留四个关键来源和“在 NVD 查看全部”。纵深研究、真实复现、外部资产和披露仍后置。
 - CTF：题库、工作区、Evidence、候选、Judge、Checkpoint、恢复、复盘、Memory 主链存在；真实 Judge 成功仍只有窄 Web 路径。
 - CTF/CVE → Coding 已复用同一 Coding/Pi：交接只挂载草稿、不自动发送；右侧可折叠领域上下文保留题目/CVE、授权 Scope、材料、Evidence/Judge 或只读安全边界，并提供返回工作台。NSSCTF 附件或 Judge 未连接不再阻止用公开题面打开 Coding；附件缺失只作为材料警告。Beta Computer Use 已实测历史真实 CTF 任务的手工完成状态，以及 CVE-2024-3400 从跟踪页进入临时 Coding 工作区、生成只读研究简报、返回并自动关联 1 个对话的完整纵切；CVE 状态仍由用户手工保持“研究中”。未运行 PoC、未提交 flag、未建立 Judge 成功事实。
 - Runtime：Sidecar 恢复、Compaction、异常退出标记、后台长任务打包 App/WebView 恢复、预算和失败分类已有。
@@ -56,13 +56,12 @@
 - **任务**：Codex `019fe9ee-b865-75b3-903d-bada1266f254`。
 - **目标文档**：[个人安全工作台计划](security-workspace-product-plan.md)。
 - **关联方式**：该 Codex 任务执行目标文档中的产品目标，本节只维护当前切片、完成线和验收状态。
-- **当前切片**：目标问答、六张定稿图、个人资料、轻量 CTF/CVE、独立 Admin、双模型来源路由和 `~/Documents/MilkSU` 用户产物目录已经进入代码。Desktop 与 Admin 的全部用户可达页面已进一步迁移到统一的游戏化界面系统；实际日夜界面截图、组件语义和 Computer Use 复检保存在[视觉规范](../design/milksu-game-ui-system.md)。Desktop 功能提交 `2fc493cc4be705ec054f782b930db125c40f0972` 的 clean Beta 已通过 CTF/CVE 列表、共享 Coding 接力、个人资料和设置追踪复检，tracking ID 为 `a8cc501e9d993f50106bec6cc7bc597f2926c4f61475d6a54e7449e49ee57c08`；Admin 游戏化界面提交为 `0f1d86d47105c25b186a27165e9d02166a077eca`。原生验收仍保留全新自定义题 `Caesar Shift 12` 的创建、手工状态、共享 Coding、运行中引导、脚本/笔记交付、返回与历史收口；题面矛盾没有被伪造成 Flag 或 Judge 成功。账户会话已改为 `0600` 本地文件，启动不再触发 macOS Keychain；私有 `macos-release` workflow 已实现 Developer ID、hardened runtime、公证、staple、Gatekeeper 验证与临时资产销毁，首个真实 workflow 产物仍待最终提交推送后取得。
-- **当前 UI 纠偏**：用户提供的原生截图继续暴露隐藏状态与窄屏缺口：Coding 会话抽屉、右栏浏览器/变更/架构等默认隐藏面没有共用已定稿的战术组件；CTF 历史浮层被页面堆叠上下文压在题目表格下；CTF → Coding 的长题名、目标、阶段轨与领域简报在右栏打开后发生裁切。当前纵切以共享 `TacticalPanelShell` 和全局浮层主题收口所有隐藏控制面，以容器查询让右栏在不足空间时覆盖主区，并让任务标题、目标、阶段轨和简报按可用宽度重排。内置浏览器负责快速样式/断点巡检，打包 Beta 负责真实数据和原生壳最终验收。
-- **完成线**：本目标最终 clean `main` 已构建并打开正式 App；设置页 branch、完整 commit、tracking ID、Package Inspector 与 CTF/CVE 最小回归均通过，代码只推送 MilkSU 私有远端。剩余发行条件是运行 `macOS signed release`，并以 Apple `Accepted`、stapler、Gatekeeper 和下载 artifact 回执建立可外部分发事实。账户 Team Key、TokenFlux 真实扣费/明细/硬限额/同步延迟，以及 Obelisk 到可归因成长事实的升级都是独立后续纵切；当前界面和文档不得把它们伪装成已验收。
+- **当前切片**：个人安全工作台、Admin、账户模型来源、全局游戏化界面与隐藏/窄屏控制面均已进入代码。CVE 搜索加入纵切已从干净提交构建 Beta，经 Computer Use 搜索并加入 `CVE-2024-3094`，确认不再二次请求；参考资料按机构收敛为关键来源。私有 `macOS signed release` 已在 `main@77ae7ac4f15de7f9d11db1f19588ef6fc34d24d8` 首次真实运行成功，workflow `31663550136` 的 DMG 已通过 Apple 公证票据、stapler、Gatekeeper 与严格签名静态核验。
+- **完成线**：将当前 CVE 搜索加入提交和本文档快进到 `main`、推送私有远端，从同一最终提交再触发正式签名发行；下载 DMG，以接近新用户的环境完成首次启动、设置页 branch/完整 commit/tracking ID 与 CTF/CVE 最小回归后开始内测。账户 Team Key、TokenFlux 真实扣费/明细/硬限额/同步延迟、Obelisk 可归因成长事实及安全工具接入都作为独立后续纵切，不阻塞本次发行。
 
 | 优先级 | 主线 | 只认什么完成 |
 | --- | --- | --- |
-| P0 | Coding 自举闭环 | 自动 worktree、功能代码、测试、Beta 打包、运行中 steering/queue、Git 悬浮跳转与 Stable → Beta CTF/CVE 可见验收已有；下一条只认 Coding Agent 在一次自然功能任务中自行完成修改、测试、恢复与 Git 交付，并记录人工接管和越权拒绝。历史 fixture、单元测试和本批次 reviewer 直接收口不能替代。 |
+| P2 | Coding 自举闭环 | 自动 worktree、运行中 steering/queue、Git 悬浮跳转与 Stable → Beta 可见验收已有；完整自然功能任务的自治 Git 交付证据由用户明确后置，不阻塞当前内测发行。 |
 | P0 | Session Index | 继续内置 MilkSU 自有历史索引；外部会话导入在有明确文件选择、确认和产品调用者前不进发行图。 |
 | P0 | CVE 学习/追踪扩样 | 更多真实 CVE 验证同步、练习、研究档案、资产验证和学习写回；不做外部攻击、自动 PoC 或披露。 |
 | P1 | Computer Use 扩样 | Calculator 之外再加 1–2 个真实 App/窗口、权限拒绝路径；稳定 Developer ID 后复检 TCC。不与 Browser 强行合并权限。 |
@@ -74,7 +73,7 @@
 | P2 | 本地交付与发行 | RC 再做崩溃恢复、诊断、全新机器、Developer ID `.app`、DMG、公证、stapling、升级、性能和尺寸；Developer ID 先于外部分发与 Computer Use TCC 复检。不读取或迁移本机签名私钥/证书密码/Personal Vault。 |
 | 持续 | 架构与 UI | 触碰即拆热点文件；不新开纯清债里程碑。UI 巡检后同步测试与当前文档。 |
 
-推荐顺序：先用一次自然功能任务补齐 Coding Agent 自主修改/测试/恢复/Git 交付证据 → 再补 Chromium 与 Computer Use 负向/恢复扩样 → 并行推进安全工具 MCP 常规能力 → 最后加重 Memory / 发行 RC。安全工具是否进入 CTF/CVE 仍由用户监督的独立纵切决定。不恢复 `development-plan.md`，不把已删除 live smoke 嵌回产品启动链。
+推荐顺序：先完成最终提交的正式签名包与近新用户首次启动验收并开始内测；之后独立推进 TokenFlux、Obelisk 成长事实和安全工具。Coding 完整自治功能交付留作后续证据，不恢复 `development-plan.md`，不把已删除 live smoke 嵌回产品启动链。
 
 ### 已完成纵切：相关历史人类语义图
 

@@ -75,7 +75,7 @@ MilkSU 的桌面壳不是通用 Agent Loop 的另一份实现。Pi 仍负责会�
 | Browser Use | **Implemented UI / live pairing pending** | 真实用户 Chrome/Edge 复用固定 `@playwright/mcp --extension`，由用户选择准确标签页；不复用内置浏览器 profile。 |
 | Computer Use | **Verified self-bootstrap slice** | 只接受外部可见 App/PID/Window Scope；Calculator 与 Stable → MilkSU Beta 的 branch/commit/tracking 核验、click/scroll 及 CTF/CVE 任务连续性全程已验。Stable 排除自身，浏览器窗口不进入该 Scope；右栏诊断和操作证据默认折叠。 |
 | CTF Runtime | **Implemented** | `internal/ctf` 持有 Challenge、Evidence、Candidate、Judge Receipt、Recovery、Memory 与学习事实；模型候选不能建立成功事实。 |
-| CVE Learning / Tracking | **Verified packaged tracking slice** | 用户界面只显示明确加入的公开 CVE、手工状态和关联 Coding 对话；内置目录不声称用户资产命中或实时进度。打包 Beta 已用 CVE-2024-3400 验证临时 Coding 工作区、只读公开资料研究、文档交付、返回和对话关联；状态没有被 Agent 自动改写。外部资产实验、真实复现和披露仍后置。 |
+| CVE Learning / Tracking | **Verified packaged tracking slice** | 用户界面只显示明确加入的公开 CVE、手工状态和关联 Coding 对话。添加入口通过只读 Desktop RPC 搜索 NVD，用户选中后直接把当前结果和来源元数据写入本地追踪，不做第二次网络请求；参考资料按机构去重，完整集合仍由 NVD 承载。打包 Beta 已用 CVE-2024-3094 验证搜索、加入、手工状态与人类可读来源。外部资产实验、真实复现和披露仍后置。 |
 | Session Index / 相关历史 | **Verified packaged slice** | MilkSU 自有索引只处理本机 Coding/CTF/CVE 会话；完整图谱由当前模型按需把有界会话、Memory 摘要和正式 Evidence 归纳成人类语义图，不读取目标文档、不持久化图谱、不写回 Memory。 |
 | Worktree / 自举 | **Automatic isolation / product loop partial** | 干净 Git 任务首次 effectful 回合自动准备内部 writer；`.worktreeinclude` CoW、精确 submodule、写入边界和释放条件已有。用户不再配置 worktree/writer；Git 摘要可列出文件并跳到“变更”。Stable → Beta 可见验收已通过，完整自然功能任务的自治 Git 交付仍待扩样。 |
 | 本地持久化 | **Implemented** | 用户可见 Coding/CTF/CVE 产物位于 `~/Documents/MilkSU`；Runtime Artifact、CTF Memory、Catalog、Conversation、Obelisk Session Index、Browser Profile 和 Credential Store 位于用户配置目录。凭据不经桌面 RPC 返回 Vue，也不进入模型上下文。 |
@@ -234,5 +234,7 @@ Electron 不拥有 CTF/CVE 事实，Go 不拥有通用模型循环，Pi 不拥�
 当前 macOS ARM64 `.app` 由 `npm run desktop:build` 构建，Electron Builder 生成壳，随后固定 Sidecar
 安装器写入 Node/Pi/Playwright 资源并重新签名。普通本机构建显式使用 ad-hoc，不枚举 Developer ID。
 正式发行由 `macOS signed release` 私有 workflow 完成测试、hardened runtime / Developer ID 签名、
-DMG、公证、staple 与 Gatekeeper 验证；在取得首个真实 workflow 回执前，不能把流程实现写成正式包
-已通过。升级与全新机器仍属于 RC。
+DMG、公证、staple 与 Gatekeeper 验证。`main@77ae7ac4f15de7f9d11db1f19588ef6fc34d24d8`
+的 workflow `31663550136` 已取得首个真实成功回执，下载 DMG 的公证票据、stapler、Gatekeeper 与
+严格签名静态核验通过。每个最终发行 HEAD 仍需重跑同一流程，并以近新用户首次启动验收该产物；
+升级与全新机器仍属于 RC。

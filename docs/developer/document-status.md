@@ -2,9 +2,9 @@
 
 > 状态：Current / Living
 >
-> 最后事实审计：2026-08-12
+> 最后事实审计：2026-08-13
 >
-> 产品开发目标：Post-M3 / M4 自举与隔离执行
+> 产品开发目标：Post-M3 / 内测发行收口
 
 ## 事实优先级
 
@@ -22,8 +22,8 @@
 
 ## 当前准确声明
 
-- 阶段是 **Post-M3 / M4 自举与隔离执行**。M4 不是未合并 PR，而是会话在隔离 worktree 内完成
-  自然任务并交付。
+- 阶段是 **Post-M3 / 内测发行收口**。完整 Coding 自治功能交付证据已由用户明确后置，不再作为
+  本次内测发行条件。
 - Coding 工程底座已覆盖修改/测试、LSP、Artifact、隔离 Browser、后台任务、Git、PR 确认、
   worktree、ImageGen、Project MCP、Session Index、Computer Use 外部 App 纵切。
 - Worktree 隔离与写入边界、`.worktreeinclude` CoW、精确 submodule 已落地；干净 Git 任务在首次
@@ -53,7 +53,10 @@
   CTF-like 挑战、表单提交和 Electron 官方文档调研；三项都在右栏折叠后继续执行，重新展开仍是同一页面
   与终态，且没有回退 Shell。裸域名补全 HTTPS，普通文字进入搜索。`MilkSU Beta` 已使用独立产品名、
   Bundle ID、图标、数据目录与设置页构建追踪；Stable 排除自身，只能锁定 Beta 等外部 App。
-- 完整自然任务自举（功能代码/测试/恢复/Git 交付）、人工接管账本、自主合并发布和发行门禁仍未通过。
+- 完整自然任务自举（功能代码/测试/恢复/Git 交付）、人工接管账本与自主合并发布仍未扩样；它们是
+  后续证据，不阻塞本次内测。正式发行门禁已在 `main@77ae7ac4f15de7f9d11db1f19588ef6fc34d24d8`
+  的 workflow `31663550136` 首次通过 Apple 公证票据、stapler、Gatekeeper 和下载 artifact 静态验收，
+  最终功能提交仍需从同一 HEAD 重跑并做首次启动回归。
 - 模型与凭据：单默认模型；账户额度和本机个人 Key 是两个独立来源，设置页可调整全局顺序，Coding
   可只为当前对话调整优先来源；仅允许在模型未输出且工具未执行前自动切换。个人 Key 不进入后台、
   日志或模型上下文。Cloudflare Worker、D1、管理端和公开账户 API 已部署；真实 GitHub 登录、邀请兑换、
@@ -64,7 +67,7 @@
 - CTF/CVE 交给 Coding 时只挂草稿、不自动发送，并复用同一 Pi 会话；可折叠领域上下文保留题目/CVE、
   Scope、材料、Evidence/Judge 或只读边界与返回动作。Beta 已实测 P7591 和 CVE-2024-3400 的交接/返回；
   未提交 flag、未运行 PoC，且附件或 Judge 未连接不再阻止打开 Coding。
-- CVE 用户页只显示明确加入研究的公开条目，手工状态与关联 Coding 对话；内置目录不再伪造用户资产命中、实时更新时间或自动进度。WebView 无假后端；Session Index 只索引 MilkSU 自有历史。相关历史列表仍由用户明确确认后引用；完整图谱则按需让当前 Pi/Provider 在无工具静默回合中，把有界的会话、Memory 摘要和正式 Evidence 摘要归纳成人类语义图。图节点必须可回溯来源，关系标为模型推断；不读目标文档、不新增图数据库、不写 Memory、不回填 Agent。
+- CVE 用户页只显示明确加入研究的公开条目，手工状态与关联 Coding 对话；添加入口按编号、产品或关键词搜索 NVD，再由用户选择加入，不要求手填公开元数据。选择结果直接保存，不重复发起网络请求；临时上游失败不泄露 Desktop RPC 错误。NVD 参考资料按机构去重，主界面只留四个关键来源和“在 NVD 查看全部”。WebView 无假后端；Session Index 只索引 MilkSU 自有历史。
 - UI：rail 主题/设置、Coding Goal 与常用 Agent 动作在 Composer `/`；“+”统一提供附件、Goal、Plan、浏览器、Browser/Computer Scope、已审核 Pi Skills 与项目 MCP。运行中输入可继续发送并通过 Pi steering/queue 在下一模型调用前应用；左上角用户头像进入个人资料页，页面展示真实活跃格、CTF/CVE/Coding 模糊阶段和最近确认成长，全局六维雷达不再挂载；Git 摘要可展开文件并跳到“变更”。产品表面只显示“浏览器”，不再暴露 worktree/writer 或五项 Computer Use readiness 样子货；
   Browser Use Bridge 与 Computer Use 系统配置集中到“设置 → 浏览器与控制”。
 - Coding 的已审核 Skill 由 Pi 按需加载完整内容，设置页只管理审核目录的启停；当前目录覆盖产品设计、前端视觉验收、API 集成、安全审查、技术交付物、架构图和 MilkSU 发布。禁用项从下一条 Coding 消息生效，CTF 角色保持隔离，用户不能借设置注入任意 Skill 路径。
@@ -74,8 +77,8 @@
   必须先通过固定版本、最小权限、真实任务和拒绝路径，是否进入 CTF/CVE 由用户监督的领域纵切决定。
 - 相关历史人类语义图已在重新打包的 macOS App 用 TokenFlux `grok-4.5` 通过 `Computer Use`（10 节点/11 关系）与 `MCP`（11 节点/12 关系）真实归纳、来源详情/回跳和主聊天不受污染验收；`@antv/g6@5.1.1` 仅在完整图谱视图懒加载，列表与紧凑侧栏不会触发模型调用。
 - Labs 暂停；CVE 纵深/复现/披露后置；NYU safe-static 不是完整 CTF 成绩。Developer ID / 公证的
-  私有 workflow 与 Environment Secrets 已配置；在首个 Apple `Accepted`、stapler、Gatekeeper 和
-  artifact 回执完成前，仍只能声明发行流程已实现，不能声明正式分发包通过。
+  私有 workflow 与 Environment Secrets 已配置，首个 Apple 公证、stapler、Gatekeeper 和 artifact
+  静态回执已完成；最终功能提交的正式包与近新用户首次启动仍是开始内测前的最后发行验收。
 
 Current 入口只保留事实与下一条完成线。历史 smoke、已删脚本路径和流水验收见 Evidence /
 Git history，不堆本页。
