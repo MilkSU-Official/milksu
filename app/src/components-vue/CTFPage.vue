@@ -649,6 +649,18 @@ const deskLoadingDetail = computed(() => {
   }
   return 'MilkSU 正在读取本地缓存；不会在这个阶段启动题目环境或 Agent。'
 })
+const deskEmptyTitle = computed(() => {
+  if (deskQuery.value.trim() || deskCategory.value !== 'all') return '没有匹配题目'
+  if (activeBank.value === 'ctfshow') return '尚未同步 CTFshow 题库'
+  return '本地题库还是空的'
+})
+const deskEmptyDetail = computed(() => {
+  if (deskQuery.value.trim() || deskCategory.value !== 'all') return '换个题号、题名或分类试试。'
+  if (activeBank.value === 'ctfshow') {
+    return 'CTFshow 不会跟随 NSSCTF 自动同步。请打开已登录的 CTFshow 题库页面，点击 MilkSU 浏览器扩展并选择“同步到 MilkSU”。'
+  }
+  return 'NSSCTF 会自动同步公开题库；也可以点击“重新同步”立即重试。'
+})
 
 const modeItems = [
   { value: 'coach' as const, label: '教练' },
@@ -2470,6 +2482,8 @@ onBeforeUnmount(() => {
           :loading="deskLoading || (activeBank === 'nssctf' && training.syncing.value)"
           :loading-title="deskLoadingTitle"
           :loading-detail="deskLoadingDetail"
+          :empty-title="deskEmptyTitle"
+          :empty-detail="deskEmptyDetail"
           :action-loading="working"
           :collaboration-mode="collaborationMode"
           :selected-browser-ready="selectedBrowserReady"

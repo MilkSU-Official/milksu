@@ -42,6 +42,8 @@ const props = withDefaults(defineProps<{
   loading: boolean
   loadingTitle?: string
   loadingDetail?: string
+  emptyTitle?: string
+  emptyDetail?: string
   actionLoading: boolean
   collaborationMode: CTFCollaborationMode
   selectedBrowserReady: boolean
@@ -74,6 +76,8 @@ const props = withDefaults(defineProps<{
   attachmentError: '',
   loadingTitle: '正在加载题库',
   loadingDetail: 'MilkSU 正在读取本地题库状态。',
+  emptyTitle: '没有匹配题目',
+  emptyDetail: '换个题号、题名或分类试试。',
   manualStatuses: () => ({}),
   conversations: () => [],
   relatedJobId: '',
@@ -328,8 +332,8 @@ function openCoding() {
       </div>
       <div v-else-if="!(activeBank === 'nssctf' ? displayedNssctfProblems.length : ctfshowProblems.length)" class="grid min-h-64 place-items-center px-8 text-center">
         <div>
-          <p class="text-control font-medium">{{ catalogError ? '题库暂时不可用' : '没有匹配题目' }}</p>
-          <p class="mt-2 text-caption text-muted-foreground">{{ catalogError || '换个题号、题名或分类试试。' }}</p>
+          <p class="text-control font-medium">{{ catalogError ? '题库暂时不可用' : emptyTitle }}</p>
+          <p class="mt-2 max-w-lg text-caption leading-5 text-muted-foreground">{{ catalogError || emptyDetail }}</p>
           <Button v-if="activeBank === 'nssctf'" variant="outline" size="sm" class="mt-4" @click="emit('syncNssctf')"><RefreshCw class="size-4" />重新同步</Button>
           <Button v-else variant="outline" size="sm" class="mt-4" @click="emit('openCtfshow')"><ExternalLink class="size-4" />打开 CTFshow</Button>
         </div>

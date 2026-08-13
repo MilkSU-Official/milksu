@@ -104,6 +104,45 @@ function dailyProblem(): NSSCTFCatalogProblem {
 }
 
 describe('CTFChallengeDesk primary action', () => {
+  it('explains how to populate an empty CTFshow catalog', async () => {
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const app = createApp(CTFChallengeDesk, {
+      activeBank: 'ctfshow',
+      nssctfProblems: [],
+      ctfshowProblems: [],
+      selectedNssctf: null,
+      selectedCtfshow: null,
+      page: 1,
+      pageCount: 1,
+      total: 0,
+      loading: false,
+      actionLoading: false,
+      collaborationMode: 'copilot',
+      selectedBrowserReady: false,
+      ctfshowBridgeReady: false,
+      attachmentError: '',
+      localMaterials: [],
+      catalogError: '',
+      modelVerified: false,
+      catalogReady: false,
+      judgeReady: false,
+      hasActiveTraining: false,
+      collectionStore: createItemCollectionStore('test.ctf.empty.collections'),
+      emptyTitle: '尚未同步 CTFshow 题库',
+      emptyDetail: '请在 CTFshow 题库页面点击 MilkSU 浏览器扩展并选择“同步到 MilkSU”。',
+    })
+
+    app.mount(host)
+    mountedApps.push(app)
+    await nextTick()
+
+    expect(host.textContent).toContain('尚未同步 CTFshow 题库')
+    expect(host.textContent).toContain('同步到 MilkSU')
+    expect(host.textContent).toContain('打开 CTFshow')
+
+  })
+
   it('renders an actionable catalog loading explanation instead of an unlabeled spinner', async () => {
     const onOpenCtfshow = vi.fn()
     const host = document.createElement('div')
