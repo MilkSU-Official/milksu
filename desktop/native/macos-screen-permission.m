@@ -1,4 +1,6 @@
-#include <CoreGraphics/CoreGraphics.h>
+#import <CoreGraphics/CoreGraphics.h>
+#import <Foundation/Foundation.h>
+#import <ScreenCaptureKit/ScreenCaptureKit.h>
 #include <node_api.h>
 #include <stdlib.h>
 
@@ -22,7 +24,18 @@ static napi_value preflight(napi_env env, napi_callback_info info) {
 static void execute_request(napi_env env, void *data) {
   (void)env;
   screen_permission_request *request = data;
-  request->result = CGRequestScreenCaptureAccess();
+  @autoreleasepool {
+    dispatch_semaphore_t finished = dispatch_semaphore_create(0);
+    [SCShareableContent
+      getShareableContentExcludingDesktopWindows:YES
+      onScreenWindowsOnly:YES
+      completionHandler:^(SCShareableContent *content, NSError *error) {
+        request->result = content != nil && error == nil;
+        dispatch_semaphore_signal(finished);
+      }];
+    dispatch_time_t timeout = dispatch_time(DISPATCH_TIME_NOW, 90 * NSEC_PER_SEC);
+    if (dispatch_semaphore_wait(finished, timeout) != 0) request->result = false;
+  }
 }
 
 static void complete_request(napi_env env, napi_status status, void *data) {
@@ -46,7 +59,7 @@ static void complete_request(napi_env env, napi_status status, void *data) {
   free(request);
 }
 
-static napi_value request(napi_env env, napi_callback_info info) {
+static napi_value request_permission(napi_env env, napi_callback_info info) {
   (void)info;
   screen_permission_request *request = calloc(1, sizeof(*request));
   if (request == NULL) {
@@ -60,7 +73,7 @@ static napi_value request(napi_env env, napi_callback_info info) {
     napi_create_promise(env, &request->deferred, &promise) != napi_ok ||
     napi_create_string_utf8(
       env,
-      "MilkSU macOS screen permission",
+      "MilkSU ScreenCaptureKit permission",
       NAPI_AUTO_LENGTH,
       &resource_name
     ) != napi_ok ||
@@ -86,7 +99,7 @@ static napi_value request(napi_env env, napi_callback_info info) {
 static napi_value initialize(napi_env env, napi_value exports) {
   napi_property_descriptor properties[] = {
     { "preflight", NULL, preflight, NULL, NULL, NULL, napi_default, NULL },
-    { "request", NULL, request, NULL, NULL, NULL, napi_default, NULL },
+    { "request", NULL, request_permission, NULL, NULL, NULL, napi_default, NULL },
   };
   if (napi_define_properties(env, exports, 2, properties) != napi_ok) return NULL;
   return exports;

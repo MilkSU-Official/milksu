@@ -77,10 +77,14 @@ async function buildRuntime() {
     await run('/usr/bin/clang', [
       '-shared',
       '-undefined', 'dynamic_lookup',
+      '-fobjc-arc',
+      '-fblocks',
       '-I', join(dirname(managedNode), '..', 'include', 'node'),
       '-framework', 'CoreGraphics',
+      '-framework', 'Foundation',
+      '-framework', 'ScreenCaptureKit',
       '-o', nativeModule,
-      join(root, 'desktop', 'native', 'macos-screen-permission.c'),
+      join(root, 'desktop', 'native', 'macos-screen-permission.m'),
     ])
   }
   const backend = join(root, 'build', 'desktop', 'milksu-backend')
