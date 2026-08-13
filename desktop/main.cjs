@@ -33,6 +33,7 @@ const { UpdateManager } = require('./update-manager.cjs')
 const {
   probeComputerUsePermissions,
   computerUsePermissionsSettingsURL,
+  shouldRelaunchAfterScreenRecordingGrant,
 } = require('./computer-use-permissions.cjs')
 
 const APP_ORIGIN = 'milksu://app'
@@ -108,6 +109,8 @@ let accountSession
 let updateManager
 let pendingAccountCallback = ''
 let quitting = false
+let relaunchScheduled = false
+let screenRecordingRelaunchArm = null
 
 function resourcesPath(relative) {
   if (app.isPackaged) return path.join(process.resourcesPath, relative)
@@ -495,14 +498,25 @@ async function handleHostRequest(method, payload = {}) {
       }
     }
     case 'computerUse.openPermissions': {
-      const accessibility = Boolean(payload?.accessibility)
-      const screenRecording = Boolean(payload?.screenRecording)
-      const url = computerUsePermissionsSettingsURL({
-        accessibility,
-        screenRecording,
-      })
+      const permission = String(payload?.permission ?? '')
+      const url = computerUsePermissionsSettingsURL(permission)
+      if (permission === 'screen-recording') {
+        const probe = probeComputerUsePermissions(systemPreferences, { prompt: false })
+        screenRecordingRelaunchArm = {
+          openedAt: Date.now(),
+          previousStatus: probe.screenStatus,
+        }
+      }
       await shell.openExternal(url)
       return null
+    }
+    case 'app.relaunch': {
+      if (!relaunchScheduled) {
+        relaunchScheduled = true
+        app.relaunch()
+      }
+      setImmediate(() => app.quit())
+      return true
     }
     default: throw new Error(`unsupported desktop host method: ${method}`)
   }
@@ -696,6 +710,16 @@ app.on('window-all-closed', () => app.quit())
 
 app.on('before-quit', event => {
   if (quitting) return
+  if (!relaunchScheduled) {
+    const probe = probeComputerUsePermissions(systemPreferences, { prompt: false })
+    if (shouldRelaunchAfterScreenRecordingGrant(
+      screenRecordingRelaunchArm,
+      probe.screenStatus,
+    )) {
+      relaunchScheduled = true
+      app.relaunch()
+    }
+  }
   quitting = true
   event.preventDefault()
   void (async () => {

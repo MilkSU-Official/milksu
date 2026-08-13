@@ -39,16 +39,15 @@ func desktopComputerUsePermissionProbe(host desktopHost) func(prompt bool) compu
 
 // desktopComputerUsePermissionOpen opens macOS Privacy panes via the Electron
 // host. Only the explicit desktop button path may call this.
-func desktopComputerUsePermissionOpen(host desktopHost) func(computercap.Permissions) {
-	return func(permissions computercap.Permissions) {
+func desktopComputerUsePermissionOpen(host desktopHost) func(computercap.PermissionKind) {
+	return func(permission computercap.PermissionKind) {
 		if host == nil {
 			return
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = host.Call(ctx, "computerUse.openPermissions", map[string]any{
-			"accessibility":   permissions.Accessibility,
-			"screenRecording": permissions.ScreenRecording,
+			"permission": permission,
 		}, nil)
 	}
 }

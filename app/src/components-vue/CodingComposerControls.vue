@@ -299,10 +299,12 @@ defineEmits<{
 }
 
 .composer-model {
-  width: min(14rem, 100%);
-  min-width: 9rem;
-  flex: 1 1 12rem;
+  width: fit-content;
+  min-width: 0;
+  max-width: min(18rem, 100%);
+  flex: 0 1 auto;
   justify-self: end;
+  margin-left: auto;
   padding-inline: 0.65rem;
 }
 
@@ -317,8 +319,8 @@ defineEmits<{
   }
 
   .composer-model {
-    min-width: 10rem;
-    width: min(18rem, 100%);
+    width: fit-content;
+    max-width: min(18rem, 100%);
   }
 }
 
@@ -339,7 +341,7 @@ defineEmits<{
 
   .composer-model {
     min-width: 0;
-    flex-basis: 10rem;
+    max-width: calc(100% - 2.5rem);
   }
 }
 </style>

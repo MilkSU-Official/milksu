@@ -509,7 +509,7 @@ describe('SettingsPage database compatibility', () => {
     expect(text).toContain('Computer Use')
     expect(text).toContain('辅助功能 未授权')
     expect(text).toContain('屏幕录制 已授权')
-    expect(text).toContain('打开系统权限设置')
+    expect(text).toContain('打开辅助功能设置')
 
     const refresh = [...document.querySelectorAll<HTMLButtonElement>('button')]
       .find(button => button.textContent?.includes('重新检测'))
@@ -527,7 +527,7 @@ describe('SettingsPage database compatibility', () => {
   })
 
   it('keeps explicit Computer Use permission authorization available on unstable builds', async () => {
-    let permissionRequests = 0
+    const permissionRequests: string[] = []
     await mountSettingsPage({
       directory: 'MilkSU 用户数据目录',
       fileCount: 0,
@@ -552,8 +552,8 @@ describe('SettingsPage database compatibility', () => {
             problem: '当前构建不是稳定 Developer ID 签名；系统设置里显示已勾选时，TCC 探针仍可能对当前二进制返回未授权。',
           },
         }) satisfies CodingComputerUseStatus,
-        RequestCodingComputerUsePermissions: async () => {
-          permissionRequests += 1
+        RequestCodingComputerUsePermissions: async (permission: unknown) => {
+          permissionRequests.push(String(permission))
           return {
             available: true,
             enabled: false,
@@ -577,18 +577,24 @@ describe('SettingsPage database compatibility', () => {
 
     const text = document.body.textContent ?? ''
     expect(text).toContain('外部 App 权限')
-    expect(text).toContain('打开系统权限设置')
+    expect(text).toContain('打开辅助功能设置')
+    expect(text).toContain('打开屏幕录制设置')
     expect(text).toContain('当前构建身份：ad-hoc · Team 未设置')
     expect(text).toContain('Developer ID')
     expect(text).toContain('真实 TCC 探针')
     expect(text).not.toContain('先稳定签名再复检')
 
-    const openSettings = [...document.querySelectorAll<HTMLButtonElement>('button')]
-      .find(button => button.textContent?.includes('打开系统权限设置'))
-    expect(openSettings?.disabled).toBe(false)
-    openSettings?.click()
+    const accessibility = [...document.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.includes('打开辅助功能设置'))
+    expect(accessibility?.disabled).toBe(false)
+    accessibility?.click()
     for (let index = 0; index < 2; index += 1) await settle()
-    expect(permissionRequests).toBe(1)
+    const screenRecording = [...document.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.includes('打开屏幕录制设置'))
+    expect(screenRecording?.disabled).toBe(false)
+    screenRecording?.click()
+    for (let index = 0; index < 2; index += 1) await settle()
+    expect(permissionRequests).toEqual(['accessibility', 'screen-recording'])
   })
 
   it('keeps settings saved and explains an offline model verification failure', async () => {

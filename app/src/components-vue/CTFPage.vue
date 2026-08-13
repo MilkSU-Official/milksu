@@ -164,9 +164,11 @@ const activeBank = ref<TrainingSource>(
   storedTrainingSource === 'ctfshow'
   || storedTrainingSource === 'hackthebox'
   || storedTrainingSource === 'tryhackme'
-  || storedTrainingSource === 'custom'
     ? storedTrainingSource
     : 'nssctf',
+)
+const lastNonCustomBank = ref<Exclude<TrainingSource, 'custom'>>(
+  activeBank.value as Exclude<TrainingSource, 'custom'>,
 )
 const source = ref<'public' | 'arena'>('public')
 const problemInput = ref('')
@@ -633,6 +635,20 @@ const deskLoading = computed(() => (
   working.value
   || (activeBank.value === 'ctfshow' ? ctfshow.loading.value : publicCatalog.loading.value)
 ))
+const deskLoadingTitle = computed(() => {
+  if (activeBank.value === 'ctfshow') return '正在检查 CTFshow 连接'
+  if (training.syncing.value) return '正在首次同步 NSSCTF 公开题库'
+  return '正在读取 NSSCTF 本地题库'
+})
+const deskLoadingDetail = computed(() => {
+  if (activeBank.value === 'ctfshow') {
+    return 'CTFshow 不会跟随 NSSCTF 自动同步。请在 CTFshow 题库页面点击 MilkSU 浏览器扩展，连接后题目会写入本地题库。'
+  }
+  if (training.syncing.value) {
+    return '无需连接浏览器。MilkSU 正在读取 NSSCTF 公开题库并缓存到本地；遇到平台限流会自动退避，首次同步可能需要几分钟。'
+  }
+  return 'MilkSU 正在读取本地缓存；不会在这个阶段启动题目环境或 Agent。'
+})
 
 const modeItems = [
   { value: 'coach' as const, label: '教练' },
@@ -691,6 +707,19 @@ async function runCatalogAction() {
   else await refreshCTFShow()
 }
 
+function openCustomImport() {
+  if (activeBank.value !== 'custom') {
+    lastNonCustomBank.value = activeBank.value
+  }
+  activeBank.value = 'custom'
+  screen.value = 'challenge'
+}
+
+function cancelCustomImport() {
+  activeBank.value = lastNonCustomBank.value
+  screen.value = 'challenge'
+}
+
 async function openSelectedInCoding() {
   if (activeBank.value === 'ctfshow' && selectedCTFShowProblemID.value) {
     await chooseCTFShowProblem(selectedCTFShowProblemID.value)
@@ -725,7 +754,10 @@ function ctfshowProblemStatusLabel(problemId: number) {
 }
 
 watch(activeBank, bank => {
-  window.localStorage.setItem('milksu.ctf.question-bank', bank)
+  if (bank !== 'custom') {
+    lastNonCustomBank.value = bank
+    window.localStorage.setItem('milksu.ctf.question-bank', bank)
+  }
   selectedProblem.value = null
   selectedCTFShowProblemID.value = null
   localMaterials.value = []
@@ -1749,7 +1781,7 @@ onBeforeUnmount(() => {
           variant="ghost"
           size="sm"
           class="app-no-drag shrink-0"
-          @click="activeBank = 'custom'"
+          @click="openCustomImport"
         >
           <FilePlus2 class="size-4" />
           导入
@@ -2334,6 +2366,10 @@ onBeforeUnmount(() => {
           aria-labelledby="custom-challenge-title"
         >
           <div class="mx-auto max-w-4xl">
+            <Button variant="ghost" size="sm" class="mb-4" @click="cancelCustomImport">
+              <ArrowLeft class="size-4" />
+              取消导入并返回题库
+            </Button>
             <div class="rounded-xl border border-border bg-card p-7 sm:p-9">
               <span class="grid size-11 place-items-center rounded-lg bg-primary/10 text-primary">
                 <FilePlus2 class="size-5" />
@@ -2432,6 +2468,8 @@ onBeforeUnmount(() => {
           :page-count="deskPageCount"
           :total="deskProblemTotal"
           :loading="deskLoading || (activeBank === 'nssctf' && training.syncing.value)"
+          :loading-title="deskLoadingTitle"
+          :loading-detail="deskLoadingDetail"
           :action-loading="working"
           :collaboration-mode="collaborationMode"
           :selected-browser-ready="selectedBrowserReady"

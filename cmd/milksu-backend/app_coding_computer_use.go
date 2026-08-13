@@ -22,16 +22,23 @@ func (a *App) GetCodingComputerUseStatus() computercap.Status {
 
 // RequestCodingComputerUsePermissions is called only from the explicit
 // desktop button. Agent turns and Workspace Auto never reach this method.
-func (a *App) RequestCodingComputerUsePermissions() computercap.Status {
+func (a *App) RequestCodingComputerUsePermissions(permission string) (computercap.Status, error) {
 	if a.computerUse == nil {
 		return computercap.Status{
 			Phase:   "unavailable",
 			Problem: "Computer Use service is unavailable.",
-		}
+		}, nil
 	}
-	status := a.computerUse.RequestPermissions()
+	kind, err := computercap.ParsePermissionKind(permission)
+	if err != nil {
+		return a.computerUse.Status(), err
+	}
+	status, err := a.computerUse.RequestPermission(kind)
+	if err != nil {
+		return status, err
+	}
 	a.diagnostics.Record("computer-use", "info", "host permission state refreshed")
-	return status
+	return status, nil
 }
 
 func (a *App) ListCodingComputerUseTargets() ([]computercap.Target, error) {

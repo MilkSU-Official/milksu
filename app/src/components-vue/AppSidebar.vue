@@ -59,6 +59,13 @@ watch(
       @toggle-theme="$emit('toggleTheme')"
       @toggle-context="codingContextOpen = !codingContextOpen"
     />
+    <button
+      v-if="showContextSidebar"
+      type="button"
+      class="coding-context-backdrop fixed bottom-0 right-0 top-0 z-30 cursor-default bg-black/45 backdrop-blur-[1px]"
+      aria-label="关闭 Coding 会话"
+      @click="codingContextOpen = false"
+    />
     <TacticalPanelShell
       v-if="showContextSidebar"
       as="section"
@@ -85,6 +92,10 @@ watch(
 
 <style scoped>
 .workspace-navigation-shell { width: 4.75rem; }
+.coding-context-backdrop { left: 4.75rem; }
 .coding-context-drawer { border-right: 1px solid #343b42; }
-@media (min-width: 1180px) { .workspace-navigation-shell { width: 13.5rem; } }
+@media (min-width: 1180px) {
+  .workspace-navigation-shell { width: 13.5rem; }
+  .coding-context-backdrop { left: 13.5rem; }
+}
 </style>

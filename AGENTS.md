@@ -84,6 +84,9 @@ Do not grow a second generic Coding Agent harness when an upstream component alr
 - Models may propose CTF candidates, but only an independent Judge or explicit authorized human result may
   establish success.
 - Do not describe partial smoke tests as complete Coding, CTF, Memory, NYU or release results.
+- Computer Use self-bootstrap acceptance must use the installed Developer ID-signed Stable MilkSU as the
+  operator. Never use a locally rebuilt ad-hoc Stable app for TCC acceptance; MilkSU Beta is the controlled
+  target and does not receive the operator's Accessibility or Screen Recording grants.
 
 ## Architecture Direction
 

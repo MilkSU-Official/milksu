@@ -40,6 +40,8 @@ const props = withDefaults(defineProps<{
   pageCount: number
   total: number
   loading: boolean
+  loadingTitle?: string
+  loadingDetail?: string
   actionLoading: boolean
   collaborationMode: CTFCollaborationMode
   selectedBrowserReady: boolean
@@ -70,6 +72,8 @@ const props = withDefaults(defineProps<{
   localMaterials: () => [],
   catalogError: '',
   attachmentError: '',
+  loadingTitle: '正在加载题库',
+  loadingDetail: 'MilkSU 正在读取本地题库状态。',
   manualStatuses: () => ({}),
   conversations: () => [],
   relatedJobId: '',
@@ -294,7 +298,34 @@ function openCoding() {
         </template>
       </template>
 
-      <div v-if="loading" class="grid min-h-44 place-items-center"><LoaderCircle class="size-5 animate-spin text-muted-foreground" /></div>
+      <div
+        v-if="loading && !(activeBank === 'nssctf' ? displayedNssctfProblems.length : ctfshowProblems.length)"
+        class="grid min-h-64 place-items-center px-8 text-center"
+        data-testid="ctf-catalog-loading-state"
+      >
+        <div class="max-w-lg">
+          <LoaderCircle class="mx-auto size-5 animate-spin text-primary" />
+          <p class="mt-4 text-control font-medium">{{ loadingTitle }}</p>
+          <p class="mt-2 text-caption leading-5 text-muted-foreground">{{ loadingDetail }}</p>
+          <Button
+            v-if="activeBank === 'ctfshow'"
+            variant="outline"
+            size="sm"
+            class="mt-4"
+            @click="emit('openCtfshow')"
+          >
+            <ExternalLink class="size-4" />
+            打开 CTFshow
+          </Button>
+        </div>
+      </div>
+      <div
+        v-else-if="loading"
+        class="flex min-h-12 items-center justify-center gap-2 border-b border-border px-6 text-caption text-muted-foreground"
+      >
+        <LoaderCircle class="size-4 animate-spin" />
+        正在后台刷新，当前题目仍可使用
+      </div>
       <div v-else-if="!(activeBank === 'nssctf' ? displayedNssctfProblems.length : ctfshowProblems.length)" class="grid min-h-64 place-items-center px-8 text-center">
         <div>
           <p class="text-control font-medium">{{ catalogError ? '题库暂时不可用' : '没有匹配题目' }}</p>

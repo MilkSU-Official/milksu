@@ -5,6 +5,7 @@ const assert = require('node:assert/strict')
 const {
   probeComputerUsePermissions,
   computerUsePermissionsSettingsURL,
+  shouldRelaunchAfterScreenRecordingGrant,
 } = require('./computer-use-permissions.cjs')
 
 test('probeComputerUsePermissions reads Electron host TCC without inventing grants', () => {
@@ -51,13 +52,34 @@ test('probeComputerUsePermissions fails closed when Electron APIs throw', () => 
   })
 })
 
-test('computerUsePermissionsSettingsURL prefers screen pane when only screen is missing', () => {
+test('computerUsePermissionsSettingsURL opens the separately requested privacy pane', () => {
   assert.equal(
-    computerUsePermissionsSettingsURL({ accessibility: true, screenRecording: false }),
+    computerUsePermissionsSettingsURL('screen-recording'),
     'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture',
   )
   assert.equal(
-    computerUsePermissionsSettingsURL({ accessibility: false, screenRecording: false }),
+    computerUsePermissionsSettingsURL('accessibility'),
     'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility',
   )
+  assert.throws(() => computerUsePermissionsSettingsURL('camera'), /unsupported Computer Use permission/)
+})
+
+test('screen grant relaunch is armed only for a fresh transition to granted', () => {
+  const openedAt = Date.now()
+  assert.equal(shouldRelaunchAfterScreenRecordingGrant({
+    openedAt,
+    previousStatus: 'denied',
+  }, 'granted', openedAt + 1000), true)
+  assert.equal(shouldRelaunchAfterScreenRecordingGrant({
+    openedAt,
+    previousStatus: 'granted',
+  }, 'granted', openedAt + 1000), false)
+  assert.equal(shouldRelaunchAfterScreenRecordingGrant({
+    openedAt,
+    previousStatus: 'denied',
+  }, 'denied', openedAt + 1000), false)
+  assert.equal(shouldRelaunchAfterScreenRecordingGrant({
+    openedAt,
+    previousStatus: 'denied',
+  }, 'granted', openedAt + 11 * 60 * 1000), false)
 })

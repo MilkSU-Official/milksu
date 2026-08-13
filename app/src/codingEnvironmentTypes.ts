@@ -230,6 +230,8 @@ export interface CodingComputerUsePermissions {
   screenRecording: boolean
 }
 
+export type CodingComputerUsePermission = 'accessibility' | 'screen-recording'
+
 export interface CodingComputerUseSigning {
   bundleId: string
   executablePath?: string

@@ -305,7 +305,8 @@ interface DesktopAppBindings {
   RevealCodingBrowserEvidence(conversationId: string): Promise<void>
   ListCodingComputerUseTargets(): Promise<CodingComputerUseTarget[]>
   GetCodingComputerUseStatus(): Promise<CodingComputerUseStatus>
-  RequestCodingComputerUsePermissions(): Promise<CodingComputerUseStatus>
+  RequestCodingComputerUsePermissions(permission: string): Promise<CodingComputerUseStatus>
+  RelaunchDesktopApp(): Promise<boolean>
   StartCodingComputerUse(
     conversationId: string,
     targetPid: number,
@@ -670,7 +671,9 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
       case 'list_coding_computer_use_targets':
         return app.ListCodingComputerUseTargets() as Promise<T>
       case 'request_coding_computer_use_permissions':
-        return app.RequestCodingComputerUsePermissions() as Promise<T>
+        return app.RequestCodingComputerUsePermissions(args?.permission as string) as Promise<T>
+      case 'relaunch_desktop_app':
+        return app.RelaunchDesktopApp() as Promise<T>
       case 'start_coding_computer_use':
         return app.StartCodingComputerUse(
           args?.conversationId as string,

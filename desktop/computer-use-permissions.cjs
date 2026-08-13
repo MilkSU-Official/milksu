@@ -47,18 +47,42 @@ function probeComputerUsePermissions(prefs, options = {}) {
 }
 
 /**
- * Choose the System Settings privacy pane to open for an explicit user action.
- * @param {{ accessibility?: boolean, screenRecording?: boolean }} permissions
+ * Choose the exact System Settings privacy pane for an explicit user action.
+ * Keeping this selector explicit prevents Accessibility and Screen Recording
+ * from collapsing into one ambiguous button.
+ * @param {'accessibility' | 'screen-recording' | string} permission
  * @returns {string}
  */
-function computerUsePermissionsSettingsURL(permissions = {}) {
-  if (permissions.accessibility && !permissions.screenRecording) {
+function computerUsePermissionsSettingsURL(permission) {
+  if (permission === 'screen-recording') {
     return 'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture'
   }
-  return 'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility'
+  if (permission === 'accessibility') {
+    return 'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility'
+  }
+  throw new Error(`unsupported Computer Use permission ${JSON.stringify(permission)}`)
+}
+
+/**
+ * A Screen Recording grant may ask macOS to quit the app. MilkSU performs an
+ * asynchronous backend shutdown, so the system's immediate reopen can race the
+ * existing single-instance lock. Arm an Electron-owned relaunch only for the
+ * short window in which an ungranted screen permission became granted.
+ * @param {{ openedAt?: number, previousStatus?: string } | null} arm
+ * @param {string} currentStatus
+ * @param {number} [now]
+ * @returns {boolean}
+ */
+function shouldRelaunchAfterScreenRecordingGrant(arm, currentStatus, now = Date.now()) {
+  const openedAt = Number(arm?.openedAt)
+  if (!Number.isFinite(openedAt) || openedAt <= 0) return false
+  if (now < openedAt || now - openedAt > 10 * 60 * 1000) return false
+  return String(arm?.previousStatus ?? '') !== 'granted'
+    && String(currentStatus ?? '') === 'granted'
 }
 
 module.exports = {
   probeComputerUsePermissions,
   computerUsePermissionsSettingsURL,
+  shouldRelaunchAfterScreenRecordingGrant,
 }

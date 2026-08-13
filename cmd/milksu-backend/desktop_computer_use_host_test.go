@@ -69,12 +69,27 @@ func TestDesktopComputerUsePermissionProbeUsesHostAndFailsClosed(t *testing.T) {
 func TestDesktopComputerUsePermissionOpenCallsHost(t *testing.T) {
 	host := &stubDesktopHost{}
 	open := desktopComputerUsePermissionOpen(host)
-	open(computercap.Permissions{Accessibility: true, ScreenRecording: false})
+	open(computercap.PermissionScreenRecording)
 	if len(host.calls) != 1 || host.calls[0] != "computerUse.openPermissions" {
 		t.Fatalf("unexpected host calls: %#v", host.calls)
 	}
 	payload, _ := host.payload.(map[string]any)
-	if payload["accessibility"] != true || payload["screenRecording"] != false {
+	if payload["permission"] != computercap.PermissionScreenRecording {
 		t.Fatalf("unexpected open payload: %#v", payload)
+	}
+}
+
+func TestRelaunchDesktopAppDelegatesToElectronHost(t *testing.T) {
+	host := &stubDesktopHost{result: true}
+	app := &App{host: host}
+	started, err := app.RelaunchDesktopApp()
+	if err != nil {
+		t.Fatalf("relaunch desktop app: %v", err)
+	}
+	if !started {
+		t.Fatal("desktop host did not acknowledge relaunch")
+	}
+	if len(host.calls) != 1 || host.calls[0] != "app.relaunch" {
+		t.Fatalf("unexpected host calls: %#v", host.calls)
 	}
 }

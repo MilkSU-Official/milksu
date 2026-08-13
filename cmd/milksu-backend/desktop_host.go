@@ -3,11 +3,25 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/MilkSU-Official/milksu/internal/browsercap"
 )
+
+func (a *App) RelaunchDesktopApp() (bool, error) {
+	if a.host == nil {
+		return false, fmt.Errorf("desktop host is unavailable")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	var started bool
+	if err := a.host.Call(ctx, "app.relaunch", nil, &started); err != nil {
+		return false, err
+	}
+	return started, nil
+}
 
 type desktopFileFilter struct {
 	Name       string   `json:"name"`

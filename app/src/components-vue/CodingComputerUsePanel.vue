@@ -17,6 +17,7 @@ import {
   RefreshCw,
 } from 'lucide-vue-next'
 import type {
+  CodingComputerUsePermission,
   CodingComputerUseStatus,
   CodingComputerUseTarget,
 } from '@/codingEnvironmentTypes'
@@ -46,7 +47,7 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
   'update:selectedTargetKey': [value: string]
-  requestPermissions: []
+  requestPermissions: [permission: CodingComputerUsePermission]
   refresh: []
   start: []
   stop: []
@@ -240,7 +241,7 @@ const compactGuidance = computed(() => {
 const primarySetupAction = computed<{
   label: string
   detail: string
-  action: 'refresh' | 'permissions' | 'start' | 'stop' | 'none'
+  action: 'refresh' | 'start' | 'stop' | 'none'
   variant: 'default' | 'outline' | 'brand'
   disabled: boolean
 }>(() => {
@@ -276,15 +277,12 @@ const primarySetupAction = computed<{
     }
   }
   if (!permissionsReady.value) {
-    const unstableDetail = permissionProbeMayBeStale.value
-      ? `${missingPermissions.value.join('、') || '系统权限'} 缺少或未对当前构建生效；${signingDiagnostic.value || '当前构建身份不稳定（如 ad-hoc）。'} 请显式打开系统权限设置完成授权，然后“重新检测”。Start 仍只接受真实 TCC 探针结果；若勾选后仍失败，再重启 App 或换 Developer ID 版。`
-      : `${missingPermissions.value.join('、') || '系统权限'} 缺少或未对当前构建生效；${signingDiagnostic.value || '打开系统设置授权后回到这里重新检测。'}`
     return {
-      label: '打开系统权限设置',
-      detail: unstableDetail,
-      action: 'permissions',
-      variant: 'default',
-      disabled: props.loading || props.running || !props.status?.available,
+      label: '重新检测授权',
+      detail: '两项权限分别完成后，回到这里重新检测。',
+      action: 'refresh',
+      variant: 'outline',
+      disabled: props.loading || props.running,
     }
   }
   if (attachedToOtherTask.value) {
@@ -317,7 +315,6 @@ const primarySetupAction = computed<{
 function runPrimarySetupAction() {
   if (primarySetupAction.value.disabled) return
   if (primarySetupAction.value.action === 'refresh') emit('refresh')
-  if (primarySetupAction.value.action === 'permissions') emit('requestPermissions')
   if (primarySetupAction.value.action === 'start') emit('start')
   if (primarySetupAction.value.action === 'stop') emit('stop')
 }
@@ -394,6 +391,29 @@ function runPrimarySetupAction() {
         {{ compactGuidance }}
       </p>
 
+      <div v-if="status?.available && !permissionsReady" class="mt-3 grid gap-2 sm:grid-cols-2">
+        <Button
+          variant="outline"
+          size="sm"
+          :disabled="loading || running || Boolean(status.permissions.accessibility)"
+          aria-label="打开辅助功能设置"
+          @click="emit('requestPermissions', 'accessibility')"
+        >
+          <KeyRound class="size-3.5" />
+          辅助功能设置
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          :disabled="loading || running || Boolean(status.permissions.screenRecording)"
+          aria-label="打开屏幕录制设置"
+          @click="emit('requestPermissions', 'screen-recording')"
+        >
+          <KeyRound class="size-3.5" />
+          屏幕录制设置
+        </Button>
+      </div>
+
       <Button
         :variant="primarySetupAction.variant"
         size="sm"
@@ -404,7 +424,6 @@ function runPrimarySetupAction() {
       >
         <LoaderCircle v-if="loading" class="size-3.5 animate-spin" />
         <Compass v-else-if="primarySetupAction.action === 'start'" class="size-3.5" />
-        <KeyRound v-else-if="primarySetupAction.action === 'permissions'" class="size-3.5" />
         {{ primarySetupAction.label }}
       </Button>
     </div>
@@ -430,7 +449,7 @@ function runPrimarySetupAction() {
               class="rounded-full disabled:cursor-default"
               :disabled="Boolean(status?.permissions.accessibility) || loading || running || !status?.available"
               aria-label="请求辅助功能权限"
-              @click="emit('requestPermissions')"
+              @click="emit('requestPermissions', 'accessibility')"
             >
               <Badge
                 :variant="status?.permissions.accessibility ? 'secondary' : 'outline'"
@@ -444,7 +463,7 @@ function runPrimarySetupAction() {
               class="rounded-full disabled:cursor-default"
               :disabled="Boolean(status?.permissions.screenRecording) || loading || running || !status?.available"
               aria-label="请求屏幕录制权限"
-              @click="emit('requestPermissions')"
+              @click="emit('requestPermissions', 'screen-recording')"
             >
               <Badge
                 :variant="status?.permissions.screenRecording ? 'secondary' : 'outline'"
@@ -498,16 +517,6 @@ function runPrimarySetupAction() {
             <LoaderCircle v-if="loading" class="size-3.5 animate-spin" />
             <RefreshCw v-else class="size-3.5" />
             重新检测
-          </Button>
-          <Button
-            v-if="!permissionsReady"
-            variant="outline"
-            size="sm"
-            :disabled="loading || running || !status?.available"
-            @click="emit('requestPermissions')"
-          >
-            <KeyRound class="size-3.5" />
-            系统权限设置
           </Button>
         </div>
 

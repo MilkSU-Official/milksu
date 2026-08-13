@@ -79,6 +79,7 @@ import type {
   CodingArchitecturePreview,
   CodingArtifactPreview,
   CodingBrowserStatus,
+  CodingComputerUsePermission,
   CodingComputerUseStatus,
   CodingComputerUseTarget,
   CodingDiffSnapshot,
@@ -1317,12 +1318,13 @@ async function revealCodingBrowserEvidence() {
   }
 }
 
-async function requestComputerUsePermissions() {
+async function requestComputerUsePermissions(permission: CodingComputerUsePermission) {
   browserPanelError.value = ''
   computerUseLoading.value = true
   try {
     computerUseStatus.value = await invokeCommand<CodingComputerUseStatus>(
       'request_coding_computer_use_permissions',
+      { permission },
     )
   } catch (reason) {
     browserPanelError.value = reason instanceof Error
@@ -1467,6 +1469,7 @@ async function scrollChatToBottom() {
 
 onMounted(() => {
   void scrollChatToBottom()
+  window.addEventListener('focus', refreshComputerUseAfterSettings)
   if (typeof ResizeObserver !== 'undefined') {
     codingBrowserResizeObserver = new ResizeObserver(() => {
       lastCodingBrowserViewport = ''
@@ -1482,9 +1485,18 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   void hideCodingBrowserViewport()
+  window.removeEventListener('focus', refreshComputerUseAfterSettings)
   codingBrowserResizeObserver?.disconnect()
   if (codingBrowserStatusTimer) window.clearInterval(codingBrowserStatusTimer)
 })
+
+function refreshComputerUseAfterSettings() {
+  if (!computerUseStatus.value || (
+    computerUseStatus.value.permissions.accessibility
+    && computerUseStatus.value.permissions.screenRecording
+  )) return
+  void refreshBrowserPanel()
+}
 
 watch(codingBrowserViewport, (current, previous) => {
   if (previous) codingBrowserResizeObserver?.unobserve(previous)

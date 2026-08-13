@@ -76,6 +76,9 @@ describe('AppSidebar', () => {
     expect(coding.textContent).toContain('milksu')
     expect(coding.textContent).toContain('实现产品闭环')
     expect(coding.querySelector('[data-testid="coding-context-drawer"]')).not.toBeNull()
+    const backdrop = coding.querySelector<HTMLButtonElement>('[aria-label="关闭 Coding 会话"]')
+    expect(backdrop).not.toBeNull()
+    expect(backdrop?.className).toContain('backdrop-blur')
     expect(coding.querySelector('[aria-label="收起会话"]')?.getAttribute('aria-expanded')).toBe('true')
     expect(coding.querySelector('aside > div:last-child > header')).toBeNull()
     expect(coding.querySelector('[data-active-conversation-row]')?.textContent)
@@ -90,6 +93,9 @@ describe('AppSidebar', () => {
     expect(Boolean(codingHeading && newTask && (
       codingHeading.compareDocumentPosition(newTask) & Node.DOCUMENT_POSITION_FOLLOWING
     ))).toBe(true)
+    backdrop?.click()
+    await nextTick()
+    expect(coding.querySelector('[data-testid="coding-context-drawer"]')).toBeNull()
   })
 
   it('uses rail-local selection styling instead of inherited button hover borders', async () => {

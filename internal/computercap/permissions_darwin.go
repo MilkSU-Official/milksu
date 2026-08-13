@@ -46,9 +46,9 @@ func platformPermissions(prompt bool) Permissions {
 	}
 }
 
-func platformRequestPermissions(permissions Permissions) {
+func platformRequestPermissions(kind PermissionKind) {
 	url := "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
-	if permissions.Accessibility && !permissions.ScreenRecording {
+	if kind == PermissionScreenRecording {
 		url = "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
 	}
 	_ = exec.Command("/usr/bin/open", url).Start()

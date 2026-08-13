@@ -188,8 +188,11 @@ flowchart LR
   JSONL 协议。桌面壳迁移没有把 Pi 类型泄漏进领域层。
 - Beta 使用独立产品名 `MilkSU Beta`、Bundle ID `com.milksu.app.beta`、图标标记、Electron
   `userData` 和 Runtime 数据根；设置页固定显示 branch、40 位 commit、clean/dirty、build time 与
-  tracking ID。Stable Computer Use 排除自身，只能选择 Beta 等外部 App。本机开发包仍是 ad-hoc；
-  私有 GitHub Actions 已实现临时 Keychain、Developer ID、hardened runtime、公证、staple 与 Gatekeeper
+  tracking ID。Stable Computer Use 排除自身，只能选择 Beta 等外部 App。Accessibility 与 Screen
+  Recording 绑定操作者 Stable 的 TCC 身份，Beta 作为被控目标不接收这两项授权；本机 ad-hoc Stable
+  只用于开发预览，不能进入 Computer Use 权限或自举验收。权限设置使用两个准确的 macOS 隐私面板，
+  返回 App 后自动复检，屏幕录制授权触发的退出由 Electron 安排重新启动。私有 GitHub Actions 已实现
+  临时 Keychain、Developer ID、hardened runtime、公证、staple 与 Gatekeeper
   验证；`main@cfc9a102408b8e2017f339ddce08f246b6b67c02` 的 workflow `31676876645` 已取得真实
   正式包与隔离首次启动回执。
 

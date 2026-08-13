@@ -98,6 +98,26 @@ describe('CTFPage navigation contract', () => {
     expect(manualComponent).not.toContain(':loading="working"')
   })
 
+  it('keeps custom import transient and provides an explicit cancel route', () => {
+    expect(ctfPageSource).not.toContain("storedTrainingSource === 'custom'")
+    expect(ctfPageSource).toContain("if (bank !== 'custom')")
+    expect(ctfPageSource).toContain('function openCustomImport()')
+    expect(ctfPageSource).toContain('function cancelCustomImport()')
+    expect(ctfPageSource).toContain('@click="openCustomImport"')
+    expect(ctfPageSource).toContain('@click="cancelCustomImport"')
+    expect(ctfPageSource).toContain('取消导入并返回题库')
+  })
+
+  it('explains the two different catalog synchronization paths while loading', () => {
+    expect(ctfPageSource).toContain('正在首次同步 NSSCTF 公开题库')
+    expect(ctfPageSource).toContain('无需连接浏览器')
+    expect(ctfPageSource).toContain('CTFshow 不会跟随 NSSCTF 自动同步')
+    expect(ctfPageSource).toContain('点击 MilkSU 浏览器扩展')
+    expect(ctfChallengeDeskSource).toContain('data-testid="ctf-catalog-loading-state"')
+    expect(ctfChallengeDeskSource).toContain('{{ loadingTitle }}')
+    expect(ctfChallengeDeskSource).toContain('{{ loadingDetail }}')
+  })
+
   it('quotes confirmed related history into the debrief draft instead of saving CTF memory directly', () => {
     expect(ctfPageSource).toContain('quoteSessionHistoryToDebrief')
     expect(ctfPageSource).toContain('confirm-action-label="引用到复盘"')

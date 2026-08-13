@@ -38,7 +38,9 @@
 - Git 变更摘要可悬浮查看文件并跳到“变更”；自然 Agent 会话同时出现 Goal 与真实 Git diff 的打包
   App 证据仍待补。Computer Use 已从 Calculator 扩到 Stable → MilkSU Beta 的真实 click/scroll 和
   CTF/CVE 连续性全程；右栏默认收敛为目标、状态和单一主操作，诊断与证据按需展开。Browser 与
-  Computer Use 仍分离；Developer ID 正式包已通过，Computer Use TCC 扩样仍待后续复检。
+  Computer Use 仍分离；辅助功能/屏幕录制已分成准确入口并在返回后复检，屏幕录制授权退出由 Electron
+  安排可靠重启。TCC 只授予 Developer ID 正式 Stable 操作者，Beta 只是被控目标，本地 ad-hoc Stable
+  不再作为验收入口；新签名包上的 TCC 跨版本复用与扩样仍需本批次真实复检。
 - Composer `/` 以可删除内联状态启用 Browser/Computer；通用 Browser Use 复用固定版 Playwright
   MCP 官方扩展并由用户选择真实标签页，Computer Use 排除浏览器。MilkSU CTF 扩展仍负责
   NSSCTF/CTFshow 领域采集与 Judge，不被通用上游替代。

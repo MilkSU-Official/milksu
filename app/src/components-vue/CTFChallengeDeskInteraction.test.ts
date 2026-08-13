@@ -104,6 +104,50 @@ function dailyProblem(): NSSCTFCatalogProblem {
 }
 
 describe('CTFChallengeDesk primary action', () => {
+  it('renders an actionable catalog loading explanation instead of an unlabeled spinner', async () => {
+    const onOpenCtfshow = vi.fn()
+    const host = document.createElement('div')
+    document.body.append(host)
+    const app = createApp(CTFChallengeDesk, {
+      activeBank: 'ctfshow',
+      nssctfProblems: [],
+      ctfshowProblems: [],
+      selectedNssctf: null,
+      selectedCtfshow: null,
+      page: 1,
+      pageCount: 1,
+      total: 0,
+      loading: true,
+      loadingTitle: '正在检查 CTFshow 连接',
+      loadingDetail: '请在 CTFshow 题库页面点击 MilkSU 浏览器扩展。',
+      actionLoading: false,
+      collaborationMode: 'copilot',
+      selectedBrowserReady: false,
+      ctfshowBridgeReady: false,
+      attachmentError: '',
+      localMaterials: [],
+      catalogError: '',
+      modelVerified: false,
+      catalogReady: false,
+      judgeReady: false,
+      hasActiveTraining: false,
+      collectionStore: createItemCollectionStore('test.ctf.loading.collections'),
+      onOpenCtfshow,
+    })
+    app.mount(host)
+    mountedApps.push(app)
+    await nextTick()
+
+    const state = host.querySelector('[data-testid="ctf-catalog-loading-state"]')
+    expect(state?.textContent).toContain('正在检查 CTFshow 连接')
+    expect(state?.textContent).toContain('点击 MilkSU 浏览器扩展')
+    const open = [...host.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.includes('打开 CTFshow'))
+    open?.click()
+    await nextTick()
+    expect(onOpenCtfshow).toHaveBeenCalledOnce()
+  })
+
   it('only labels the explicitly selected daily challenge and allows changing it', async () => {
     const onChangeDaily = vi.fn()
     const host = document.createElement('div')

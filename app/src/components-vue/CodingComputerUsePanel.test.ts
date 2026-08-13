@@ -318,7 +318,8 @@ describe('CodingComputerUsePanel', () => {
     expect(missing.host.textContent).toContain('辅助功能 未授权')
     expect(missing.host.textContent).toContain('缺系统权限')
     expect(missing.host.textContent).toContain('App 管理')
-    expect(missing.host.textContent).toContain('打开系统权限设置')
+    expect(missing.host.textContent).toContain('辅助功能设置')
+    expect(missing.host.textContent).toContain('屏幕录制设置')
     expect(missing.host.textContent).toContain('缺少或尚未对当前构建生效')
     expect(missing.host.textContent).toContain('ad-hoc 重签')
     expect(missing.host.textContent).toContain('重新检测')
@@ -327,12 +328,12 @@ describe('CodingComputerUsePanel', () => {
     )
     expect(missingStart).toBeUndefined()
     const request = [...missing.host.querySelectorAll<HTMLButtonElement>('button')].find(
-      button => button.textContent?.includes('打开系统权限设置'),
+      button => button.getAttribute('aria-label') === '打开辅助功能设置',
     )
     expect(request?.disabled).toBe(false)
     request?.click()
     await nextTick()
-    expect(missing.onRequestPermissions).toHaveBeenCalledOnce()
+    expect(missing.onRequestPermissions).toHaveBeenCalledWith('accessibility')
 
     const permissionBadge = [...missing.host.querySelectorAll<HTMLButtonElement>('button')].find(
       button => button.getAttribute('aria-label') === '请求辅助功能权限',
@@ -340,7 +341,7 @@ describe('CodingComputerUsePanel', () => {
     expect(permissionBadge?.disabled).toBe(false)
     permissionBadge?.click()
     await nextTick()
-    expect(missing.onRequestPermissions).toHaveBeenCalledTimes(2)
+    expect(missing.onRequestPermissions).toHaveBeenNthCalledWith(2, 'accessibility')
 
     const unavailable = await mountPanel({
       status: status({
@@ -354,12 +355,8 @@ describe('CodingComputerUsePanel', () => {
     })
     expect(unavailable.host.textContent).toContain('Computer Use 当前仅支持 macOS。')
     expect(unavailable.host.textContent).toContain('重新检测 Computer Use')
-    const unavailableRequest = [...unavailable.host.querySelectorAll<HTMLButtonElement>('button')].find(
-      button => button.textContent?.includes('系统权限设置'),
-    )
-    expect(unavailableRequest?.disabled).toBe(true)
-    unavailableRequest?.click()
-    await nextTick()
+    const unavailableRequest = unavailable.host.querySelector<HTMLButtonElement>('[aria-label="打开辅助功能设置"]')
+    expect(unavailableRequest).toBeNull()
     expect(unavailable.onRequestPermissions).not.toHaveBeenCalled()
   })
 
@@ -409,18 +406,23 @@ describe('CodingComputerUsePanel', () => {
 
     // Unstable signing must remain visible, but must not stage-lock pre-release self-bootstrap.
     expect(text).toContain('当前构建身份：ad-hoc · Team 未设置')
-    expect(text).toContain('打开系统权限设置')
+    expect(text).toContain('辅助功能设置')
+    expect(text).toContain('屏幕录制设置')
     expect(text).toContain('重新检测')
     expect(text).toContain('真实探针')
     expect(text).not.toContain('待稳定签名复检')
     expect(text).not.toContain('先稳定签名再复检')
 
     const primary = host.querySelector<HTMLButtonElement>('button[aria-label="执行 Computer Use 下一步"]')
-    expect(primary?.textContent).toContain('打开系统权限设置')
+    expect(primary?.textContent).toContain('重新检测授权')
     expect(primary?.disabled).toBe(false)
-    primary?.click()
+    const accessibility = host.querySelector<HTMLButtonElement>('[aria-label="打开辅助功能设置"]')
+    const screenRecording = host.querySelector<HTMLButtonElement>('[aria-label="打开屏幕录制设置"]')
+    accessibility?.click()
+    screenRecording?.click()
     await nextTick()
-    expect(onRequestPermissions).toHaveBeenCalledOnce()
+    expect(onRequestPermissions).toHaveBeenNthCalledWith(1, 'accessibility')
+    expect(onRequestPermissions).toHaveBeenNthCalledWith(2, 'screen-recording')
     expect(onStart).not.toHaveBeenCalled()
 
     const start = [...host.querySelectorAll<HTMLButtonElement>('button')].find(

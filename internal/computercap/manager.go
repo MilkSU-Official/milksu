@@ -31,6 +31,23 @@ type Permissions struct {
 	ScreenRecording bool `json:"screenRecording"`
 }
 
+type PermissionKind string
+
+const (
+	PermissionAccessibility   PermissionKind = "accessibility"
+	PermissionScreenRecording PermissionKind = "screen-recording"
+)
+
+func ParsePermissionKind(value string) (PermissionKind, error) {
+	kind := PermissionKind(strings.TrimSpace(value))
+	switch kind {
+	case PermissionAccessibility, PermissionScreenRecording:
+		return kind, nil
+	default:
+		return "", fmt.Errorf("unsupported Computer Use permission %q", value)
+	}
+}
+
 func (value Permissions) Ready() bool {
 	return value.Accessibility && value.ScreenRecording
 }
@@ -81,14 +98,14 @@ type Descriptor struct {
 }
 
 type Options struct {
-	BinaryPath      string
-	TargetPID       int
+	BinaryPath string
+	TargetPID  int
 	// HostBundleID is the running host app's bundle identifier (stable or beta).
 	// When empty, Manager resolves it from SigningProbe / env / default.
 	HostBundleID    string
 	GOOS            string
 	PermissionProbe func(prompt bool) Permissions
-	PermissionOpen  func(Permissions)
+	PermissionOpen  func(PermissionKind)
 	SigningProbe    func() SigningStatus
 	TargetProvider  func() ([]Target, error)
 	CommandFactory  func(name string, args ...string) *exec.Cmd
@@ -116,7 +133,7 @@ type Manager struct {
 	hostBundleID    string
 	goos            string
 	permissionProbe func(prompt bool) Permissions
-	permissionOpen  func(Permissions)
+	permissionOpen  func(PermissionKind)
 	signingProbe    func() SigningStatus
 	targetProvider  func() ([]Target, error)
 	commandFactory  func(name string, args ...string) *exec.Cmd
@@ -205,17 +222,20 @@ func (manager *Manager) Status() Status {
 	return manager.statusLocked(manager.permissionProbe(false))
 }
 
-func (manager *Manager) RequestPermissions() Status {
+func (manager *Manager) RequestPermission(kind PermissionKind) (Status, error) {
+	if _, err := ParsePermissionKind(string(kind)); err != nil {
+		return manager.Status(), err
+	}
 	manager.mu.Lock()
 	permissions := manager.permissionProbe(false)
 	status := manager.statusLocked(permissions)
 	permissionOpen := manager.permissionOpen
 	goos := manager.goos
 	manager.mu.Unlock()
-	if !permissions.Ready() && goos == "darwin" {
-		permissionOpen(permissions)
+	if goos == "darwin" {
+		permissionOpen(kind)
 	}
-	return status
+	return status, nil
 }
 
 func (manager *Manager) Targets() ([]Target, error) {

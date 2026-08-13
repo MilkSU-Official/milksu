@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   Alert,
   AlertDescription,
@@ -40,6 +40,7 @@ import {
 } from 'lucide-vue-next'
 import { invokeCommand } from '@/desktop'
 import type {
+  CodingComputerUsePermission,
   CodingComputerUseStatus,
   CodingComputerUseSigning,
 } from '@/codingEnvironmentTypes'
@@ -103,7 +104,8 @@ const saving = ref(false)
 const verifying = ref(false)
 const localDataLoading = ref(false)
 const computerUseLoading = ref(false)
-const computerUseRequesting = ref(false)
+const computerUseRequesting = ref<CodingComputerUsePermission | null>(null)
+const computerUseRestarting = ref(false)
 const browserBridgeLoading = ref(false)
 const browserSetupBusy = ref(false)
 const browserUseOpening = ref(false)
@@ -192,7 +194,17 @@ onMounted(() => {
   void loadBuildTracking()
   void refreshComputerUseStatus({ silent: true })
   void refreshBrowserBridgeStatus({ silent: true })
+  window.addEventListener('focus', refreshComputerUseAfterSettings)
 })
+
+onBeforeUnmount(() => {
+  window.removeEventListener('focus', refreshComputerUseAfterSettings)
+})
+
+function refreshComputerUseAfterSettings() {
+  if (category.value !== 'browser' || computerUsePermissionsReady.value) return
+  void refreshComputerUseStatus({ silent: true })
+}
 
 async function loadUserArtifactDirectory() {
   try {
@@ -507,7 +519,7 @@ const computerUseSigningLabel = computed(() => {
 const computerUseSigningDiagnostic = computed(() => {
   const signing = computerUseSigning.value
   if (!signing) return ''
-  if (signing.stableIdentity) return '权限会绑定到稳定 App 身份。'
+  if (signing.stableIdentity) return '权限绑定到稳定 App 身份；正式版本更新会继续复用同一次授权。'
   return signing.problem || '当前构建身份不稳定，macOS 可能无法稳定复用辅助功能/屏幕录制授权。'
 })
 const computerUseSigningUnstable = computed(() => Boolean(
@@ -611,22 +623,32 @@ async function refreshComputerUseStatus(options: { silent?: boolean } = {}) {
   }
 }
 
-async function requestComputerUsePermissions() {
-  computerUseRequesting.value = true
+async function requestComputerUsePermission(permission: CodingComputerUsePermission) {
+  computerUseRequesting.value = permission
   try {
     computerUseStatus.value = await invokeCommand<CodingComputerUseStatus>(
       'request_coding_computer_use_permissions',
+      { permission },
     )
+    const label = permission === 'accessibility' ? '辅助功能' : '屏幕录制'
     notice.value = {
       tone: 'ok',
-      text: computerUseSigningUnstable.value
-        ? '已打开系统权限设置；完成后回到 MilkSU 点击“重新检测”。ad-hoc 构建可能需要重启当前 App 后探针才更新。'
-        : '已打开系统权限设置；完成后回到 MilkSU 点击“重新检测”。',
+      text: `已打开“${label}”设置；开启 MilkSU 后回到应用，状态会在重新检测时更新。`,
     }
   } catch (reason) {
     notice.value = { tone: 'error', text: `无法打开 Computer Use 系统权限设置：${String(reason)}` }
   } finally {
-    computerUseRequesting.value = false
+    computerUseRequesting.value = null
+  }
+}
+
+async function relaunchDesktopApp() {
+  computerUseRestarting.value = true
+  try {
+    await invokeCommand<boolean>('relaunch_desktop_app')
+  } catch (reason) {
+    computerUseRestarting.value = false
+    notice.value = { tone: 'error', text: `无法重新打开 MilkSU：${String(reason)}` }
   }
 }
 
@@ -1093,6 +1115,54 @@ async function save() {
               <p class="mt-3 break-all text-caption leading-5 text-muted-foreground">
                 {{ computerUseSigningLabel }}<template v-if="computerUseSigningDiagnostic">；{{ computerUseSigningDiagnostic }}</template>
               </p>
+              <div class="mt-4 grid gap-3 sm:grid-cols-2" aria-label="Computer Use 权限设置">
+                <div class="rounded-lg border border-border bg-background/60 p-3">
+                  <div class="flex items-start justify-between gap-3">
+                    <div>
+                      <p class="text-body font-medium">辅助功能</p>
+                      <p class="mt-1 text-caption leading-5 text-muted-foreground">允许 MilkSU 读取控件并执行点击、键盘输入。</p>
+                    </div>
+                    <Badge :variant="computerUseStatus?.permissions.accessibility ? 'secondary' : 'outline'">
+                      {{ computerUseStatus?.permissions.accessibility ? '已授权' : '待授权' }}
+                    </Badge>
+                  </div>
+                  <Button
+                    v-if="!computerUseStatus?.permissions.accessibility"
+                    variant="outline"
+                    size="sm"
+                    class="mt-3"
+                    :loading="computerUseRequesting === 'accessibility'"
+                    :disabled="!computerUseStatus?.available || Boolean(computerUseRequesting)"
+                    @click="requestComputerUsePermission('accessibility')"
+                  >
+                    <KeyRound class="size-3.5" />
+                    打开辅助功能设置
+                  </Button>
+                </div>
+                <div class="rounded-lg border border-border bg-background/60 p-3">
+                  <div class="flex items-start justify-between gap-3">
+                    <div>
+                      <p class="text-body font-medium">屏幕录制</p>
+                      <p class="mt-1 text-caption leading-5 text-muted-foreground">允许 MilkSU 看见已锁定的外部 App 窗口。</p>
+                    </div>
+                    <Badge :variant="computerUseStatus?.permissions.screenRecording ? 'secondary' : 'outline'">
+                      {{ computerUseStatus?.permissions.screenRecording ? '已授权' : '待授权' }}
+                    </Badge>
+                  </div>
+                  <Button
+                    v-if="!computerUseStatus?.permissions.screenRecording"
+                    variant="outline"
+                    size="sm"
+                    class="mt-3"
+                    :loading="computerUseRequesting === 'screen-recording'"
+                    :disabled="!computerUseStatus?.available || Boolean(computerUseRequesting)"
+                    @click="requestComputerUsePermission('screen-recording')"
+                  >
+                    <KeyRound class="size-3.5" />
+                    打开屏幕录制设置
+                  </Button>
+                </div>
+              </div>
               <div class="mt-3 flex flex-wrap gap-2">
                 <Button
                   variant="outline"
@@ -1104,15 +1174,14 @@ async function save() {
                   重新检测
                 </Button>
                 <Button
-                  v-if="computerUseStatus && !computerUsePermissionsReady"
+                  v-if="computerUseStatus && computerUsePermissionsReady"
                   variant="outline"
                   size="sm"
-                  :loading="computerUseRequesting"
-                  :disabled="!computerUseStatus.available"
-                  @click="requestComputerUsePermissions"
+                  :loading="computerUseRestarting"
+                  @click="relaunchDesktopApp"
                 >
-                  <KeyRound class="size-3.5" />
-                  打开系统权限设置
+                  <RotateCcw class="size-3.5" />
+                  重新打开 MilkSU
                 </Button>
               </div>
             </SettingsRow>
