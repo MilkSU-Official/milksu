@@ -212,7 +212,7 @@ onBeforeUnmount(() => {
       </header>
 
       <div class="flex min-h-0 flex-1">
-        <nav class="settings-nav tactical-dark-surface app-no-drag w-56 shrink-0 border-r border-[#343b42] bg-[#101418] px-3 py-5" aria-label="设置分类">
+        <nav class="settings-nav settings-nav-surface tactical-dark-surface app-no-drag w-56 shrink-0 border-r px-3 py-5" aria-label="设置分类">
           <button v-for="label in ['通用', '模型与额度', 'Coding', '浏览器与控制', 'CVE']" :key="label" type="button" class="settings-nav-item">
             {{ label }}
           </button>
@@ -322,6 +322,7 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.settings-nav-surface { border-color: color-mix(in srgb, var(--border-hairline) 72%, transparent); background-color: rgb(9 12 15 / .62); background-image: linear-gradient(90deg, rgb(255 255 255 / .018), transparent 72%), var(--tactical-carbon-image); background-size: auto, 640px 640px; box-shadow: inset -1px 0 0 rgb(255 255 255 / .025); }
 .settings-nav-item { position: relative; display: flex; min-height: 3rem; width: 100%; align-items: center; border: 0; background: transparent; padding: 0 1rem; color: var(--muted-foreground); text-align: left; cursor: pointer; }
 .settings-nav-item:hover { color: var(--foreground); background: var(--overlay-hover-light); }
 .settings-nav-item.active { color: var(--brand); background: var(--focus-panel); }
