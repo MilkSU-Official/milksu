@@ -359,6 +359,7 @@ interface DesktopAppBindings {
   GetVulnJob(id: string): Promise<VulnProjection>
   FetchCISAKEVFeed(): Promise<VulnerabilityFeedDownload>
   FetchNVDCVE(cveId: string): Promise<VulnerabilityFeedDownload>
+  SearchNVDCVEs(query: string): Promise<VulnerabilityFeedDownload>
   FetchFIRSTEPSS(cveId: string): Promise<VulnerabilityFeedDownload>
   FetchOSVCVE(cveId: string): Promise<VulnerabilityFeedDownload>
   FetchGitHubAdvisories(cveId: string): Promise<VulnerabilityFeedDownload>
@@ -787,6 +788,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.FetchCISAKEVFeed() as Promise<T>
       case 'fetch_nvd_cve':
         return app.FetchNVDCVE(args?.cveId as string) as Promise<T>
+      case 'search_nvd_cves':
+        return app.SearchNVDCVEs(args?.query as string) as Promise<T>
       case 'fetch_first_epss':
         return app.FetchFIRSTEPSS(args?.cveId as string) as Promise<T>
       case 'fetch_osv_cve':

@@ -89,6 +89,26 @@ describe('desktop command adapter', () => {
     expect(fetchNVDCVE).toHaveBeenCalledWith('CVE-2024-3400')
   })
 
+  it('passes NVD CVE search to the Wails read-only searcher', async () => {
+    const feed = {
+      sourceName: 'NVD',
+      sourceUrl: 'https://services.nvd.nist.gov/rest/json/cves/2.0?keywordSearch=ActiveMQ',
+      retrievedAt: '2026-08-13T03:00:00Z',
+      lastModified: '',
+      httpStatus: 200,
+      contentType: 'application/json',
+      body: '{"vulnerabilities":[]}',
+    }
+    const searchNVDCVEs = vi.fn(async () => feed)
+    Object.defineProperty(window, 'go', {
+      configurable: true,
+      value: { main: { App: { SearchNVDCVEs: searchNVDCVEs } } },
+    })
+
+    await expect(invokeCommand('search_nvd_cves', { query: 'ActiveMQ' })).resolves.toBe(feed)
+    expect(searchNVDCVEs).toHaveBeenCalledWith('ActiveMQ')
+  })
+
   it('passes selected FIRST EPSS sync to the Wails read-only fetcher', async () => {
     const feed = {
       sourceName: 'FIRST EPSS',

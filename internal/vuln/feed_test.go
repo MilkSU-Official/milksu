@@ -110,6 +110,57 @@ func TestFetchNVDCVERejectsInvalidCVEID(t *testing.T) {
 	}
 }
 
+func TestSearchNVDCVEsUsesExactIDWhenAvailable(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Query().Get("cveId") != "CVE-2024-3400" {
+			t.Fatalf("cveId query = %q", request.URL.Query().Get("cveId"))
+		}
+		if request.URL.Query().Has("keywordSearch") {
+			t.Fatal("exact CVE search unexpectedly used keywordSearch")
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`{"vulnerabilities":[{"cve":{"id":"CVE-2024-3400"}}]}`))
+	}))
+	defer server.Close()
+
+	download, err := SearchNVDCVEsFrom(context.Background(), server.Client(), server.URL, " cve-2024-3400 ", 10)
+	if err != nil {
+		t.Fatalf("SearchNVDCVEsFrom() error = %v", err)
+	}
+	if !strings.Contains(download.Body, "CVE-2024-3400") {
+		t.Fatalf("Body = %q", download.Body)
+	}
+}
+
+func TestSearchNVDCVEsUsesBoundedKeywordResults(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Query().Get("keywordSearch") != "Apache ActiveMQ" {
+			t.Fatalf("keywordSearch = %q", request.URL.Query().Get("keywordSearch"))
+		}
+		if request.URL.Query().Get("resultsPerPage") != "10" {
+			t.Fatalf("resultsPerPage = %q", request.URL.Query().Get("resultsPerPage"))
+		}
+		if !request.URL.Query().Has("noRejected") {
+			t.Fatal("noRejected filter is missing")
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`{"vulnerabilities":[]}`))
+	}))
+	defer server.Close()
+
+	if _, err := SearchNVDCVEsFrom(context.Background(), server.Client(), server.URL, "Apache ActiveMQ", 25); err != nil {
+		t.Fatalf("SearchNVDCVEsFrom() error = %v", err)
+	}
+}
+
+func TestSearchNVDCVEsRejectsEmptyAndOversizedQueries(t *testing.T) {
+	for _, query := range []string{" ", strings.Repeat("a", 161)} {
+		if _, err := SearchNVDCVEsFrom(context.Background(), nil, NVDCVEAPIURL, query, 10); err == nil {
+			t.Fatalf("SearchNVDCVEsFrom(%q) expected validation error", query)
+		}
+	}
+}
+
 func TestFetchFIRSTEPSSBuildsExactQueryAndKeepsTiming(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if request.URL.Path != "/data/v1/epss" {

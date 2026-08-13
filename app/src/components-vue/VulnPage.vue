@@ -3,6 +3,11 @@ import { computed, ref, watch } from 'vue'
 import {
   Badge,
   Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
   Input,
   NativeSelect,
   NativeSelectOption,
@@ -15,13 +20,14 @@ import {
   Code2,
   ExternalLink,
   Link2,
+  LoaderCircle,
   Plus,
   Search,
 } from 'lucide-vue-next'
 import CollectionPicker from '@/components-vue/CollectionPicker.vue'
 import CollectionViewFilter from '@/components-vue/CollectionViewFilter.vue'
 import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
-import { useVulnerabilityDashboard, type VulnerabilityCodingTask, type VulnerabilityDashboard } from '@/composables/useVulnerabilityDashboard'
+import { useVulnerabilityDashboard, type VulnerabilityCodingTask, type VulnerabilityDashboard, type VulnerabilitySearchCandidate } from '@/composables/useVulnerabilityDashboard'
 import type { Conversation } from '@/types'
 import type { VulnerabilityIntel, VulnerabilitySeverity, VulnerabilityStatus } from '@/vulnerabilityIntel'
 import { ALL_COLLECTIONS_ID, createItemCollectionStore } from '@/lib/itemCollections'
@@ -46,22 +52,18 @@ const emit = defineEmits<{
 }>()
 
 const dashboard = props.dashboard ?? useVulnerabilityDashboard()
-const showCustomForm = ref(false)
+const showCveSearch = ref(false)
 const showLearningTopics = ref(false)
-const customFormError = ref('')
+const cveSearchQuery = ref('')
+const cveSearchError = ref('')
+const cveSearchLoading = ref(false)
+const cveSearchResults = ref<VulnerabilitySearchCandidate[]>([])
+const cveSearchAttempted = ref(false)
 const cveCollections = createItemCollectionStore('milksu.cve.collections.v1')
 const collectionView = ref(ALL_COLLECTIONS_ID)
 const statusFilter = ref<'all' | VulnerabilityStatus>('all')
 const page = ref(1)
 const pageSize = 20
-const customForm = ref({
-  id: '',
-  title: '',
-  vendor: '',
-  product: '',
-  affected: '',
-  referenceHref: '',
-})
 
 const statusOptions: Array<{ value: VulnerabilityStatus; label: string }> = [
   { value: '待复现', label: '待复现' },
@@ -99,6 +101,14 @@ const filteredItems = computed(() => {
 })
 const pageCount = computed(() => Math.max(1, Math.ceil(filteredItems.value.length / pageSize)))
 const visibleItems = computed(() => filteredItems.value.slice((page.value - 1) * pageSize, page.value * pageSize))
+const directCveId = computed(() => cveSearchQuery.value.trim().toUpperCase())
+const canAddDirectCve = computed(() => (
+  cveSearchAttempted.value
+  && !cveSearchLoading.value
+  && !cveSearchResults.value.length
+  && /^CVE-\d{4}-\d{4,}$/.test(directCveId.value)
+  && !dashboard.watched.value.includes(directCveId.value)
+))
 
 watch([() => dashboard.query.value, statusFilter], () => { page.value = 1 })
 watch(pageCount, count => { if (page.value > count) page.value = count })
@@ -164,25 +174,100 @@ function recentResearch(item: VulnerabilityIntel) {
   return date.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })
 }
 
-function addCustomTrackingItem() {
-  customFormError.value = ''
+function referenceOrganization(href: string) {
+  try {
+    const hostname = new URL(href).hostname.replace(/^www\./, '')
+    const parts = hostname.split('.')
+    return parts.length > 2 ? parts.slice(-2).join('.') : hostname
+  } catch {
+    return href
+  }
+}
+
+function referenceLabel(label: string, href: string) {
+  const organization = referenceOrganization(href)
+  const knownLabels: Record<string, string> = {
+    'nist.gov': 'NVD',
+    'cisa.gov': 'CISA',
+    'redhat.com': 'Red Hat',
+    'github.com': 'GitHub',
+    'openwall.com': 'Openwall',
+    'debian.org': 'Debian',
+    'ubuntu.com': 'Ubuntu',
+  }
+  if (knownLabels[organization]) return knownLabels[organization]
+  if (label.includes('@') || /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(label)) return organization
+  return label
+}
+
+function keyReferences(item: VulnerabilityIntel) {
+  const seen = new Set<string>()
+  return item.references.filter(reference => {
+    const organization = referenceOrganization(reference.href)
+    if (seen.has(organization)) return false
+    seen.add(organization)
+    return true
+  }).slice(0, 4)
+}
+
+function openCveSearch() {
+  showCveSearch.value = true
+  cveSearchError.value = ''
+  cveSearchResults.value = []
+  cveSearchAttempted.value = false
+  cveSearchQuery.value = ''
+}
+
+function readableCveSearchError(cause: unknown) {
+  const message = cause instanceof Error ? cause.message : String(cause)
+  if (/HTTP\s*(429|502|503|504)|timeout|timed out|deadline exceeded|network|fetch failed/i.test(message)) {
+    return '公开 CVE 服务暂时繁忙，请稍后重试。'
+  }
+  if (/请输入至少 2 个字符/.test(message)) return '请至少输入 2 个字符。'
+  return '暂时无法读取公开 CVE，请稍后重试。'
+}
+
+async function searchCves() {
+  cveSearchError.value = ''
+  cveSearchResults.value = []
+  cveSearchAttempted.value = true
+  cveSearchLoading.value = true
+  try {
+    cveSearchResults.value = await dashboard.searchNvdCves(cveSearchQuery.value)
+    if (!cveSearchResults.value.length) cveSearchError.value = '没有找到匹配的公开 CVE。'
+  } catch (cause) {
+    cveSearchError.value = readableCveSearchError(cause)
+  } finally {
+    cveSearchLoading.value = false
+  }
+}
+
+function addDirectCve() {
+  cveSearchError.value = ''
   try {
     dashboard.addTrackingItem({
-      ...customForm.value,
-      summary: '',
-      learningGoal: '',
-    })
-    showCustomForm.value = false
-    customForm.value = {
-      id: '',
-      title: '',
+      id: directCveId.value,
+      title: `${directCveId.value} · 待补公开资料`,
       vendor: '',
       product: '',
       affected: '',
-      referenceHref: '',
-    }
+      summary: 'NVD 暂未返回公开记录；已按 CVE 编号加入，后续可重新搜索或交给 Coding 核对公开材料。',
+    })
+    showCveSearch.value = false
   } catch (cause) {
-    customFormError.value = cause instanceof Error ? cause.message : String(cause)
+    cveSearchError.value = cause instanceof Error ? cause.message : String(cause)
+  }
+}
+
+function addSearchResult(candidate: VulnerabilitySearchCandidate) {
+  cveSearchError.value = ''
+  try {
+    dashboard.addNvdSearchResult(candidate)
+    dashboard.query.value = ''
+    statusFilter.value = 'all'
+    showCveSearch.value = false
+  } catch (cause) {
+    cveSearchError.value = readableCveSearchError(cause)
   }
 }
 
@@ -206,7 +291,7 @@ function openTopic(query: string) {
           <BookOpen class="size-4" />
           学习专题
         </Button>
-        <Button variant="brand" size="sm" @click="showCustomForm = !showCustomForm">
+        <Button variant="brand" size="sm" @click="openCveSearch">
           <Plus class="size-4" />
           添加 CVE
         </Button>
@@ -250,21 +335,59 @@ function openTopic(query: string) {
       </button>
     </section>
 
-    <form v-if="showCustomForm" class="shrink-0 border-b border-border bg-card/70 px-6 py-5" @submit.prevent="addCustomTrackingItem">
-      <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        <Input v-model="customForm.id" size="sm" aria-label="CVE 编号" placeholder="CVE-2024-12345" />
-        <Input v-model="customForm.title" size="sm" aria-label="漏洞名称" placeholder="漏洞名称" />
-        <Input v-model="customForm.vendor" size="sm" aria-label="厂商或项目" placeholder="厂商或项目" />
-        <Input v-model="customForm.product" size="sm" aria-label="产品或组件" placeholder="产品或组件" />
-        <Input v-model="customForm.affected" size="sm" aria-label="受影响版本" placeholder="受影响版本，可稍后补充" />
-        <Input v-model="customForm.referenceHref" size="sm" aria-label="公开来源链接" placeholder="公开公告或来源链接，可选" />
-      </div>
-      <p v-if="customFormError" class="mt-3 text-caption text-destructive">{{ customFormError }}</p>
-      <div class="mt-4 flex items-center gap-2">
-        <Button type="submit" size="sm">添加到列表</Button>
-        <Button type="button" variant="ghost" size="sm" @click="showCustomForm = false">取消</Button>
-      </div>
-    </form>
+    <Dialog v-model:open="showCveSearch">
+      <DialogContent class="cve-search-dialog sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>查找公开 CVE</DialogTitle>
+          <DialogDescription>输入 CVE 编号、产品名或关键词，从 NVD 公开资料中选择。</DialogDescription>
+        </DialogHeader>
+
+        <form class="flex gap-2" @submit.prevent="searchCves">
+          <label class="relative min-w-0 flex-1">
+            <Search class="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              v-model="cveSearchQuery"
+              class="pl-9"
+              autofocus
+              aria-label="搜索公开 CVE"
+              placeholder="例如 CVE-2024-3400、ActiveMQ、Android deserialization"
+            />
+          </label>
+          <Button type="submit" variant="brand" :disabled="cveSearchLoading || cveSearchQuery.trim().length < 2">
+            <LoaderCircle v-if="cveSearchLoading" class="size-4 animate-spin" />
+            <Search v-else class="size-4" />
+            搜索
+          </Button>
+        </form>
+
+        <p v-if="cveSearchError" class="text-caption text-destructive" role="alert">{{ cveSearchError }}</p>
+
+        <div v-if="canAddDirectCve" class="flex flex-wrap items-center justify-between gap-3 border border-border bg-muted/30 px-4 py-3">
+          <p class="text-caption text-muted-foreground">NVD 暂无结果，可以先只记录 {{ directCveId }}，其他资料以后再补。</p>
+          <Button size="sm" variant="outline" @click="addDirectCve">仅按编号加入</Button>
+        </div>
+
+        <div v-if="cveSearchResults.length" class="cve-search-results divide-y divide-border border border-border" aria-label="公开 CVE 搜索结果">
+          <article v-for="candidate in cveSearchResults" :key="candidate.id" class="grid gap-3 px-4 py-4 md:grid-cols-[1fr_auto] md:items-center">
+            <div class="min-w-0">
+              <div class="flex flex-wrap items-center gap-2">
+                <strong class="font-mono text-control text-primary">{{ candidate.id }}</strong>
+                <Badge v-if="candidate.cvss > 0" :variant="severityVariant(candidate.severity)" font="mono">{{ candidate.cvss.toFixed(1) }}</Badge>
+              </div>
+              <p class="mt-1 line-clamp-2 text-body font-medium">{{ candidate.title }}</p>
+              <p class="mt-1 text-caption text-muted-foreground">{{ candidate.updated || 'NVD 公开记录' }}</p>
+            </div>
+            <Button
+              size="sm"
+              :disabled="dashboard.watched.value.includes(candidate.id)"
+              @click="addSearchResult(candidate)"
+            >
+              {{ dashboard.watched.value.includes(candidate.id) ? '已在列表' : '加入研究' }}
+            </Button>
+          </article>
+        </div>
+      </DialogContent>
+    </Dialog>
 
     <section class="tactical-paper-surface min-h-0 flex-1 overflow-auto bg-card" aria-label="CVE 列表">
       <div class="min-w-[1040px]">
@@ -297,12 +420,12 @@ function openTopic(query: string) {
               <div class="min-w-0 flex-1">
                 <p class="max-w-4xl text-body leading-6 text-muted-foreground">{{ item.summary }}</p>
                 <div class="mt-4 flex flex-wrap items-center gap-5 text-caption">
-                  <span class="inline-flex items-center gap-2"><Link2 class="size-4" />来源链接 {{ item.references.length }}</span>
+                  <span class="inline-flex items-center gap-2"><Link2 class="size-4" />公开来源 {{ item.references.length }}</span>
                   <span class="inline-flex items-center gap-2 text-info"><Code2 class="size-4" />关联对话 {{ relatedConversations(item.id).length }}</span>
                 </div>
                 <div v-if="item.references.length" class="mt-3 flex flex-wrap gap-2">
                   <Button
-                    v-for="reference in item.references"
+                    v-for="reference in keyReferences(item)"
                     :key="reference.href"
                     as="a"
                     :href="reference.href"
@@ -311,7 +434,18 @@ function openTopic(query: string) {
                     variant="outline"
                     size="sm"
                   >
-                    {{ reference.label }}<ExternalLink class="size-3" />
+                    {{ referenceLabel(reference.label, reference.href) }}<ExternalLink class="size-3" />
+                  </Button>
+                  <Button
+                    v-if="item.references.length > 5"
+                    as="a"
+                    :href="`https://nvd.nist.gov/vuln/detail/${item.id}`"
+                    target="_blank"
+                    rel="noreferrer"
+                    variant="outline"
+                    size="sm"
+                  >
+                    在 NVD 查看全部<ExternalLink class="size-3" />
                   </Button>
                 </div>
               </div>
@@ -378,4 +512,6 @@ function openTopic(query: string) {
 .vuln-row { position: relative; transition: background-color 140ms ease; }
 .vuln-row-selected { background: var(--focus-panel); box-shadow: inset 3px 0 0 var(--brand); }
 .tactical-table-head { font-family: 'SFMono-Regular', monospace; letter-spacing: .08em; text-transform: uppercase; }
+.cve-search-dialog { max-height: min(760px, calc(100vh - 3rem)); overflow: hidden; }
+.cve-search-results { max-height: min(470px, calc(100vh - 17rem)); overflow: auto; }
 </style>

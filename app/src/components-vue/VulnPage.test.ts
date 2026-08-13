@@ -82,6 +82,74 @@ describe('VulnPage thin workspace', () => {
     expect(host.textContent).not.toContain('CVE-2024-3400')
   })
 
+  it('uses one public search field instead of asking the user to fill CVE metadata', async () => {
+    const { host } = await mountPage()
+
+    buttonWithText(host, '添加 CVE')?.click()
+    await nextTick()
+
+    const dialog = document.body.querySelector('[role="dialog"]')
+    expect(dialog?.textContent).toContain('查找公开 CVE')
+    expect(dialog?.querySelector('[aria-label="搜索公开 CVE"]')).not.toBeNull()
+    expect(dialog?.querySelector('[aria-label="漏洞名称"]')).toBeNull()
+    expect(dialog?.querySelector('[aria-label="厂商或项目"]')).toBeNull()
+    expect(dialog?.querySelector('[aria-label="受影响版本"]')).toBeNull()
+  })
+
+  it('turns a temporary NVD failure into a user-facing message', async () => {
+    const { host, dashboard } = await mountPage()
+    vi.spyOn(dashboard, 'searchNvdCves').mockRejectedValueOnce(
+      new Error("Error invoking remote method 'milksu:invoke': Error: fetch vulnerability feed: unexpected HTTP 503"),
+    )
+
+    buttonWithText(host, '添加 CVE')?.click()
+    await nextTick()
+    const dialog = document.body.querySelector<HTMLElement>('[role="dialog"]')!
+    const input = dialog.querySelector<HTMLInputElement>('[aria-label="搜索公开 CVE"]')!
+    input.value = 'CVE-2024-3094'
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    dialog.querySelector('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+    await vi.waitFor(() => expect(dialog.textContent).toContain('公开 CVE 服务暂时繁忙，请稍后重试。'))
+
+    expect(dialog.textContent).not.toContain('milksu:invoke')
+    expect(dialog.textContent).not.toContain('HTTP 503')
+  })
+
+  it('shows only a few readable source organizations for a CVE with many references', async () => {
+    const { host, dashboard } = await mountPage()
+    dashboard.addNvdSearchResult({
+      id: 'CVE-2024-3094',
+      title: 'XZ Utils supply chain compromise',
+      vendor: 'Tukaani',
+      product: 'XZ Utils',
+      affected: '5.6.0–5.6.1',
+      summary: 'Public NVD summary.',
+      cvss: 10,
+      severity: 'critical',
+      updated: '2026-06-16',
+      sourceName: 'NVD',
+      sourceUrl: 'https://services.nvd.nist.gov/rest/json/cves/2.0?cveId=CVE-2024-3094',
+      retrievedAt: '2026-08-13T03:00:00Z',
+      references: [
+        { label: 'NVD', href: 'https://nvd.nist.gov/vuln/detail/CVE-2024-3094' },
+        { label: 'secalert@redhat.com', href: 'https://access.redhat.com/security/cve/CVE-2024-3094' },
+        { label: 'secalert@redhat.com', href: 'https://bugzilla.redhat.com/show_bug.cgi?id=2272210' },
+        { label: 'af854a3a-2127-422b-91ae-364da2661108', href: 'https://www.openwall.com/lists/oss-security/2024/03/29/4' },
+        { label: 'af854a3a-2127-422b-91ae-364da2661108', href: 'https://www.openwall.com/lists/oss-security/2024/03/30/12' },
+        { label: 'GitHub advisory', href: 'https://github.com/advisories/GHSA-rxwq-x6h5-x525' },
+      ],
+    })
+    await nextTick()
+
+    const sourceLinks = [...host.querySelectorAll<HTMLAnchorElement>('.game-focus-panel a')]
+    expect(sourceLinks).toHaveLength(5)
+    expect(sourceLinks.map(link => link.textContent?.trim())).toEqual([
+      'NVD', 'CISA', 'Red Hat', 'Openwall', '在 NVD 查看全部',
+    ])
+    expect(host.textContent).not.toContain('secalert@redhat.com')
+    expect(host.textContent).not.toContain('af854a3a-2127-422b-91ae-364da2661108')
+  })
+
   it('lets the user set CVE status manually', async () => {
     const { host, dashboard } = await mountPage({ trackedIds: ['CVE-2024-3400'] })
     const status = host.querySelector<HTMLSelectElement>('[aria-label="CVE-2024-3400 状态"]')

@@ -65,6 +65,14 @@ func FetchNVDCVE(ctx context.Context, client *http.Client, cveID string) (FeedSn
 	return FetchNVDCVEFrom(ctx, client, NVDCVEAPIURL, cveID)
 }
 
+// SearchNVDCVEs returns a small, read-only result set for the user-facing
+// "add CVE" picker. Exact CVE IDs use the precise NVD filter; other terms use
+// NVD's description keyword search. Search responses are not persisted by the
+// Go runtime until the user explicitly selects a result in the product UI.
+func SearchNVDCVEs(ctx context.Context, client *http.Client, query string) (FeedSnapshotDownload, error) {
+	return SearchNVDCVEsFrom(ctx, client, NVDCVEAPIURL, query, 10)
+}
+
 func FetchFIRSTEPSS(ctx context.Context, client *http.Client, cveID string) (FeedSnapshotDownload, error) {
 	return FetchFIRSTEPSSFrom(ctx, client, FIRSTEPSSAPIURL, cveID)
 }
@@ -96,6 +104,40 @@ func FetchNVDCVEFrom(
 	}
 	query := parsed.Query()
 	query.Set("cveId", normalizedID)
+	parsed.RawQuery = query.Encode()
+	return FetchFeedSnapshot(ctx, client, NVDCVEFeedName, parsed.String())
+}
+
+func SearchNVDCVEsFrom(
+	ctx context.Context,
+	client *http.Client,
+	apiURL string,
+	queryText string,
+	limit int,
+) (FeedSnapshotDownload, error) {
+	queryText = strings.TrimSpace(queryText)
+	if len([]rune(queryText)) < 2 || len(queryText) > 160 {
+		return FeedSnapshotDownload{}, fmt.Errorf("search NVD CVEs: enter 2 to 160 characters")
+	}
+	if limit < 1 || limit > 20 {
+		limit = 10
+	}
+	parsed, err := url.Parse(strings.TrimSpace(apiURL))
+	if err != nil {
+		return FeedSnapshotDownload{}, fmt.Errorf("search NVD CVEs: invalid API URL: %w", err)
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return FeedSnapshotDownload{}, fmt.Errorf("search NVD CVEs: unsupported API URL scheme %q", parsed.Scheme)
+	}
+	query := parsed.Query()
+	normalizedID := strings.ToUpper(queryText)
+	if cveIDPattern.MatchString(normalizedID) {
+		query.Set("cveId", normalizedID)
+	} else {
+		query.Set("keywordSearch", queryText)
+		query.Set("resultsPerPage", fmt.Sprintf("%d", limit))
+		query.Set("noRejected", "")
+	}
 	parsed.RawQuery = query.Encode()
 	return FetchFeedSnapshot(ctx, client, NVDCVEFeedName, parsed.String())
 }
