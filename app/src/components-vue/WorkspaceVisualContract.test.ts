@@ -13,6 +13,7 @@ import vulnPageSource from './VulnPage.vue?raw'
 import workspaceRailSource from './WorkspaceRail.vue?raw'
 import ctfPageSource from './CTFPage.vue?raw'
 import domainTaskContextSource from './DomainTaskContextPanel.vue?raw'
+import appSource from '../App.vue?raw'
 const appStylesSource = readFileSync(new URL('../index.css', import.meta.url), 'utf8')
 
 describe('Workspace visual contract', () => {
@@ -43,6 +44,8 @@ describe('Workspace visual contract', () => {
   })
 
   it('pins every persistent dark surface to its own readable theme roles', () => {
+    expect(appSource).toContain('game-shell tactical-dark-surface grid h-screen')
+    expect(appSource).not.toContain('bg-[#071524]')
     expect(loginPageSource).toContain('game-shell tactical-dark-surface')
     expect(loginPageSource).toContain('login-signal-field')
     expect(loginPageSource).toContain('background: var(--primary)')

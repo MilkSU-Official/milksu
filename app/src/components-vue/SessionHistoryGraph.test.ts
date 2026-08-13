@@ -127,6 +127,17 @@ describe('SessionHistoryGraph', () => {
     expect(JSON.stringify(instance.options)).not.toContain('bash')
   })
 
+  it('uses the neutral MilkSU dark palette when CSS variables are unavailable', async () => {
+    document.documentElement.dataset.theme = 'dark'
+    await mountGraph()
+    const data = g6.instances[0].options.data as {
+      nodes: Array<{ style: { fill: string } }>
+      edges: Array<{ style: { stroke: string } }>
+    }
+    expect(data.nodes[0].style.fill).toBe('#14191d')
+    expect(data.edges[0].style.stroke).toBe('#9ba6b4')
+  })
+
   it('opens traceable human sources and redacts credentials without feeding the model', async () => {
     const opened: string[] = []
     const host = await mountGraph(response, { onOpenSession: (id: string) => opened.push(id) })

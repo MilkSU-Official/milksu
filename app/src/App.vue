@@ -469,7 +469,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div v-if="!accountLoaded" class="grid h-screen place-items-center bg-[#071524] text-xl font-semibold text-white">MilkSU</div>
+  <div v-if="!accountLoaded" class="game-shell tactical-dark-surface grid h-screen place-items-center text-xl font-semibold text-white">MilkSU</div>
   <AccountLoginPage
     v-else-if="showAccountGate"
     :status="accountStatus"
