@@ -1,5 +1,12 @@
 #include <CoreGraphics/CoreGraphics.h>
 #include <node_api.h>
+#include <stdlib.h>
+
+typedef struct {
+  napi_async_work work;
+  napi_deferred deferred;
+  bool result;
+} screen_permission_request;
 
 static napi_value boolean_result(napi_env env, bool value) {
   napi_value result;
@@ -12,9 +19,68 @@ static napi_value preflight(napi_env env, napi_callback_info info) {
   return boolean_result(env, CGPreflightScreenCaptureAccess());
 }
 
+static void execute_request(napi_env env, void *data) {
+  (void)env;
+  screen_permission_request *request = data;
+  request->result = CGRequestScreenCaptureAccess();
+}
+
+static void complete_request(napi_env env, napi_status status, void *data) {
+  screen_permission_request *request = data;
+  if (status == napi_ok) {
+    napi_value result = boolean_result(env, request->result);
+    if (result != NULL) napi_resolve_deferred(env, request->deferred, result);
+  } else {
+    napi_value message;
+    napi_value error;
+    napi_create_string_utf8(
+      env,
+      "macOS screen permission request failed",
+      NAPI_AUTO_LENGTH,
+      &message
+    );
+    napi_create_error(env, NULL, message, &error);
+    napi_reject_deferred(env, request->deferred, error);
+  }
+  napi_delete_async_work(env, request->work);
+  free(request);
+}
+
 static napi_value request(napi_env env, napi_callback_info info) {
   (void)info;
-  return boolean_result(env, CGRequestScreenCaptureAccess());
+  screen_permission_request *request = calloc(1, sizeof(*request));
+  if (request == NULL) {
+    napi_throw_error(env, NULL, "could not allocate macOS screen permission request");
+    return NULL;
+  }
+
+  napi_value promise;
+  napi_value resource_name;
+  if (
+    napi_create_promise(env, &request->deferred, &promise) != napi_ok ||
+    napi_create_string_utf8(
+      env,
+      "MilkSU macOS screen permission",
+      NAPI_AUTO_LENGTH,
+      &resource_name
+    ) != napi_ok ||
+    napi_create_async_work(
+      env,
+      NULL,
+      resource_name,
+      execute_request,
+      complete_request,
+      request,
+      &request->work
+    ) != napi_ok ||
+    napi_queue_async_work(env, request->work) != napi_ok
+  ) {
+    if (request->work != NULL) napi_delete_async_work(env, request->work);
+    free(request);
+    napi_throw_error(env, NULL, "could not start macOS screen permission request");
+    return NULL;
+  }
+  return promise;
 }
 
 static napi_value initialize(napi_env env, napi_value exports) {
