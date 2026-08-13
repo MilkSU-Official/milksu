@@ -152,6 +152,13 @@ class AccountSession {
     }
   }
 
+  async activeAccessToken() {
+    const status = await this.status()
+    if (status.state !== 'active') return ''
+    const session = await this.activeSession()
+    return String(session?.accessToken ?? '')
+  }
+
   async startLogin() {
     if (!this.config.configured) throw new Error('内测账户尚未配置')
     const verifier = base64url(crypto.randomBytes(48))

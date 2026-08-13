@@ -2,6 +2,27 @@ name: macOS signed release
 
 on:
   workflow_dispatch:
+    inputs:
+      upload_release:
+        description: Upload verified artifacts to private R2 and create an Admin draft
+        required: true
+        type: boolean
+        default: false
+      release_title:
+        description: Release title shown in MilkSU
+        required: true
+        type: string
+        default: MilkSU update
+      release_notes:
+        description: Short release notes shown before download
+        required: true
+        type: string
+        default: A new signed MilkSU version is available.
+      minimum_version:
+        description: Oldest version allowed to install this update
+        required: true
+        type: string
+        default: 0.1.0
 
 permissions:
   contents: read
@@ -79,13 +100,32 @@ jobs:
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           MILKSU_ACCOUNT_API_URL: https://accounts.milksu.org
+          MILKSU_RELEASE_TITLE: ${{ inputs.release_title }}
+          MILKSU_RELEASE_NOTES: ${{ inputs.release_notes }}
+          MILKSU_MINIMUM_UPDATE_VERSION: ${{ inputs.minimum_version }}
         run: npm run desktop:release:mac
       - uses: actions/upload-artifact@v4
         with:
           name: MilkSU-macOS-arm64
-          path: build/release/MilkSU-macOS-arm64.dmg
+          path: |
+            build/release/MilkSU-macOS-arm64.dmg
+            build/release/MilkSU-macOS-arm64-*.zip
+            build/release/release-metadata.json
           if-no-files-found: error
           retention-days: 14
+      - name: Install R2 uploader
+        if: ${{ inputs.upload_release }}
+        run: brew install rclone
+      - name: Upload verified release and create Admin draft
+        if: ${{ inputs.upload_release }}
+        env:
+          CLOUDFLARE_R2_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_R2_ACCOUNT_ID }}
+          CLOUDFLARE_R2_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
+          CLOUDFLARE_R2_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
+          MILKSU_R2_BUCKET: milksu-releases
+          MILKSU_RELEASE_API_URL: https://accounts.milksu.org
+          MILKSU_RELEASE_PUBLISH_TOKEN: ${{ secrets.MILKSU_RELEASE_PUBLISH_TOKEN }}
+        run: node scripts/publish-release.mjs
       - name: Remove temporary signing assets
         if: always()
         run: |

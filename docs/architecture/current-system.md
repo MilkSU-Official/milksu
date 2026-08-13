@@ -17,7 +17,7 @@ flowchart LR
     user_browser["用户真实浏览器<br/>Playwright MCP Extension"]
     native_apps["外部原生 App<br/>Computer Use Scope"]
     ctf_platforms["CTF 平台<br/>NSSCTF / CTFshow"]
-    account_cloud["Cloudflare 账户服务<br/>Worker + D1 + GitHub OAuth"]
+    account_cloud["Cloudflare 账户与发行服务<br/>Worker + D1 + private R2"]
 
     subgraph milksu["MilkSU 本地桌面系统"]
         chromium["Electron / Chromium 桌面壳<br/>Vue UI + 内置浏览器"]
@@ -71,6 +71,7 @@ MilkSU 的桌面壳不是通用 Agent Loop 的另一份实现。Pi 仍负责会�
 | Vue 产品表面 | **Implemented / partial** | CTF、Coding、CVE、设置、相关历史、Composer、右栏与 Bottom Dock 均复用现有 Vue。生产前端只接受 Preload API；Vitest mock 隔离在测试入口。 |
 | 个人资料 | **Implemented / packaged** | 左上角用户头像打开个人菜单；个人页按本机任务活动展示活跃格、CTF/CVE/Coding 模糊阶段和最近活动。工具调用不单独计数，全局六维雷达不再挂载。当前阶段不是独立能力评分；Obelisk 只提供历史线索，尚未成为可归因成长事实源。 |
 | 内测账户与模型来源 | **Deployed / desktop linked** | 系统浏览器 GitHub PKCE、稳定/测试版独立回调、`0600` 本地不透明会话、账户额度与本机 Key 顺序及对话级偏好已实现；打包客户端指向 `accounts.milksu.org`。Go Model Catalog 在每次应用启动时异步刷新 TokenFlux，并以 `0600` last-known-good 同时驱动设置、Composer 和 Pi；远端失败保留缓存或内置最小目录，不改写用户已选模型。本机 Stable 已取得 200 个模型、显示 `x-ai/grok-4.6` 并通过重启恢复。会话不使用 macOS Keychain，也不进入 renderer、日志或模型上下文；同一系统用户下的本地恶意进程仍是明确风险。真实 GitHub 登录、邀请兑换、访问开通、¥5.00 余额和初始额度流水已在 Admin 与桌面端联动验证。账户 Team Key 尚未连接，TokenFlux 扣费与明细同步不属于已验收事实。 |
+| OTA 更新 | **Implemented / production upgrade pending** | Stable Electron 主进程在窗口可用后异步检查更新；只有账户会话有效时才把 Bearer header 交给 electron-updater，Vue 只接收版本、进度和可执行动作。Admin D1 保存草稿/当前/历史/暂停状态，Worker 验证账户仍受邀且访问正常后生成 feed 或从私有 R2 流式返回 ZIP/DMG；R2 key 不返回客户端。CI 已实现签名后上传、回读验哈希和建草稿，Admin 人工发布才改变 current pointer。生产部署和一次正式旧版到新版升级仍待验收；Beta 不启用 updater。 |
 | Go Runtime | **Implemented / concentrated** | `cmd/milksu-backend/main.go` 启动应用组合根和 JSONL RPC；同目录的 `desktop_rpc.go` 分派现有 App 方法并传递事件，`desktop_host.go` 把文件对话框、外链和浏览器宿主能力反向委托给 Electron。`app.go` 仍较集中，触碰时按纵切拆分。 |
 | Pi 通用 Agent | **Verified core / partial extensions** | Pi 继续拥有 Session、Compaction、模型和通用 Tool Loop；MilkSU 监管 Sidecar、注入当前 Provider、投影事件并实施工作区/审批边界。已审核 Coding Skill 只向 Pi 常驻名称与用途，完整内容按任务或显式选择加载；设置只能停用审核目录，CTF 角色不加载 Coding Skill。TokenFlux `grok-4.5` 多模态和一次真实文档自举已验，完整功能自举仍未完成。 |
 | 安全工具目录 | **Verified setup chain / real binary task pending** | “设置 → 安全工具”使用真实 Desktop RPC 检测与持久化。IDA Pro/idalib 和 capa 具备可准备的固定版本适配器；就绪且启用后进入普通 Coding 的模型可选目录。“在 Coding 中配置”挂未发送草稿并预置 `Go · 完全访问`，发送后可准备用户级软件；本机 Stable 已安装 uv 与固定 idalib MCP、通过非交互健康检查并回到“可用”。CodeQL、Burp Suite、Shannon 目前仅做本机/前提检测，不会被误报为模型可用。尚未用真实 crackme/二进制完成任务回执，也未进入 CTF/CVE。 |
@@ -271,8 +272,12 @@ Electron 不拥有 CTF/CVE 事实，Go 不拥有通用模型循环，Pi 不拥�
 当前 macOS ARM64 `.app` 由 `npm run desktop:build` 构建，Electron Builder 生成壳，随后固定 Sidecar
 安装器写入 Node/Pi/Playwright 资源并重新签名。普通本机构建显式使用 ad-hoc，不枚举 Developer ID。
 正式发行由 `macOS signed release` 私有 workflow 完成测试、hardened runtime / Developer ID 签名、
-DMG、公证、staple 与 Gatekeeper 验证。`main@cfc9a102408b8e2017f339ddce08f246b6b67c02`
+App/DMG 公证、staple 与 Gatekeeper 验证，并为 macOS updater 生成版本化 ZIP 和元数据。显式选择上传时，
+CI 通过 rclone 把 ZIP、DMG 和元数据写到私有 R2 的不可变版本路径，逐个回读校验 SHA-256，再用窄
+publisher token 在 Admin 建草稿；管理员发布后，已登录且访问正常的 Stable 客户端才可经 Worker 获取
+feed 和安装包。R2 没有公共下载地址，账户 Bearer token 只由 Electron 主进程持有。`main@cfc9a102408b8e2017f339ddce08f246b6b67c02`
 的 workflow `31676876645` 已生成当前正式 DMG；下载产物的公证票据、stapler、Gatekeeper、严格签名
 与隔离首次启动均通过，设置页核对 tracking ID
 `6adfa291a021387f7cb40800012941a51f051bec90036b78353c68a4c57d58ff`。每个新的功能发行 HEAD 仍需重跑
-同一流程；纯文档提交不改变已签名 App 的来源提交。升级与全新机器仍属于 RC。
+同一流程；纯文档提交不改变已签名 App 的来源提交。OTA 代码当前只通过本地自动化、Admin 浏览器验收
+和普通 Stable ad-hoc 打包；生产 D1/R2/Worker 与真实 Developer ID 旧版到新版升级仍属于发行验收。

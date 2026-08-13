@@ -64,6 +64,7 @@ test('uses system-browser PKCE and returns no credential material to the rendere
   assert.equal(exchangeBody.code, 'authorization-code')
   assert.match(exchangeBody.codeVerifier, /^[A-Za-z0-9_-]{64}$/u)
   assert.doesNotMatch(JSON.stringify(status), /secret/)
+  assert.equal(await session.activeAccessToken(), 'access-secret')
 })
 
 test('projects only a bounded GitHub avatar as an inline image for the renderer', async () => {

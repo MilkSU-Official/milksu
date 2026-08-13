@@ -16,6 +16,7 @@ const {
   systemPreferences,
   WebContentsView,
 } = require('electron')
+const { autoUpdater } = require('electron-updater')
 const { ScopedCDPProxy } = require('./cdp-proxy.cjs')
 const {
   resolveDesktopChannel,
@@ -28,6 +29,7 @@ const {
 const { loadBuildTrackingView } = require('./build-tracking-view.cjs')
 const { AccountSession, accountRedirectURL, loadAccountConfig } = require('./account-session.cjs')
 const { rendererHeaders } = require('./renderer-protocol.cjs')
+const { UpdateManager } = require('./update-manager.cjs')
 const {
   probeComputerUsePermissions,
   computerUsePermissionsSettingsURL,
@@ -103,6 +105,7 @@ let mainWindow
 let backend
 let browserShell
 let accountSession
+let updateManager
 let pendingAccountCallback = ''
 let quitting = false
 
@@ -590,6 +593,28 @@ ipcMain.handle('milksu:invoke', async (event, request) => {
     if (!accountSession) return { configured: false, state: 'unconfigured', authenticated: false }
     return accountSession.logout()
   }
+  if (method === 'GetUpdateStatus') {
+    return updateManager?.view() ?? {
+      state: 'idle',
+      currentVersion: app.getVersion(),
+      enabled: false,
+    }
+  }
+  if (method === 'CheckForUpdates') {
+    return updateManager?.check() ?? null
+  }
+  if (method === 'DownloadUpdate') {
+    return updateManager?.download() ?? null
+  }
+  if (method === 'InstallUpdate') {
+    if (!updateManager || updateManager.view().state !== 'downloaded') return false
+    if (browserShell) await browserShell.closeAll()
+    if (backend) await backend.stop()
+    quitting = true
+    const started = updateManager.install()
+    if (!started) quitting = false
+    return started
+  }
   return backend.invoke(method, request?.args)
 })
 
@@ -637,7 +662,18 @@ app.whenReady().then(async () => {
     config: accountConfig,
     userDataPath: app.getPath('userData'),
     openExternal: url => shell.openExternal(url),
-    onChanged: value => emitRendererEvent('account.changed', value),
+    onChanged: value => {
+      emitRendererEvent('account.changed', value)
+      if (value?.state === 'active') void updateManager?.check()
+      else updateManager?.clearAuthorization()
+    },
+  })
+  updateManager = new UpdateManager({
+    updater: autoUpdater,
+    currentVersion: app.getVersion(),
+    enabled: app.isPackaged && desktopChannel === 'stable' && accountConfig.configured,
+    getAuthorization: () => accountSession.activeAccessToken(),
+    onChanged: value => emitRendererEvent('update.changed', value),
   })
   if (pendingAccountCallback) {
     const callback = pendingAccountCallback
@@ -650,6 +686,7 @@ app.whenReady().then(async () => {
   backend = new BackendRuntime(backendExecutable(), handleHostRequest, emitRendererEvent)
   await backend.ready()
 	await mainWindow.loadURL(`${APP_ORIGIN}/index.html`)
+	void updateManager.check()
 }).catch(error => {
   dialog.showErrorBox('MilkSU 启动失败', error.message)
   app.quit()

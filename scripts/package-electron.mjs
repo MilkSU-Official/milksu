@@ -102,6 +102,17 @@ async function writeBuilderConfig(trackingPath) {
     const accountConfigPath = join(root, 'build', 'desktop', `account-config.${channelConfig.channel}.json`)
     await writeFile(accountConfigPath, `${JSON.stringify(accountConfig, null, 2)}\n`, { mode: 0o600 })
     extraResources.push({ from: accountConfigPath, to: 'account-config.json' })
+    if (channelConfig.channel === 'stable') {
+      const updateConfigPath = join(root, 'build', 'desktop', 'app-update.stable.yml')
+      const updateFeedURL = `${accountConfig.apiUrl}/v1/releases/feed/stable/darwin/arm64`
+      await writeFile(updateConfigPath, [
+        'provider: generic',
+        `url: ${JSON.stringify(updateFeedURL)}`,
+        'updaterCacheDirName: milksu-updater',
+        '',
+      ].join('\n'), { mode: 0o600 })
+      extraResources.push({ from: updateConfigPath, to: 'app-update.yml' })
+    }
   }
   const build = {
     ...desktopPackage.build,

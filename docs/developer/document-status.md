@@ -64,6 +64,11 @@
   Composer 与 Pi 共用同一目录；本机 Stable 已取得 200 个模型并显示 `x-ai/grok-4.6`，重启后仍可恢复并刷新。
   Cloudflare Worker、D1、管理端和公开账户 API 已部署；真实 GitHub 登录、邀请兑换、
   访问开通、¥5.00 余额和初始额度流水已在 Admin 与桌面端联动验证。TokenFlux Team Key 与真实扣费明细仍待独立联调。
+- OTA 代码纵切已实现但尚未生产发布：独立 Admin 可管理版本草稿、发布和暂停；CI 可在 Apple 验证后把
+  ZIP/DMG/元数据上传私有 R2、回读验哈希并创建草稿；Desktop Stable 启动后用 Electron 主进程保存的
+  登录态检查、下载并重启安装。feed 与下载都要求已受邀且访问正常的登录账户，R2 不公开。当前只有
+  自动化、管理页浏览器验收和普通 Stable ad-hoc 打包证据；生产 D1/R2/Worker、正式签名流水与真实旧版
+  到新版升级尚未执行，Beta 不参与这条 OTA 流程。
 - CTF 主链存在；真实 Judge 成功仍只有窄 Web 路径。Memory actor/assistance 已持久化；尚缺真实
   轨迹校准。Obelisk 目前只索引历史与线索，不是个人成长事实源；个人页阶段是活动近似值，不等于
   独立能力评分。Runtime Reliability fixture 已有；发行级恢复矩阵未过。

@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 
 import { execFile, spawn } from 'node:child_process'
-import { mkdir, readdir } from 'node:fs/promises'
+import { createReadStream } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
@@ -17,6 +19,8 @@ const apiIssuer = String(process.env.APPLE_API_ISSUER ?? '').trim()
 const appPath = join(repositoryRoot, 'build', 'bin', 'MilkSU.app')
 const releaseDirectory = join(repositoryRoot, 'build', 'release')
 const dmgPath = join(releaseDirectory, 'MilkSU-macOS-arm64.dmg')
+const metadataPath = join(releaseDirectory, 'release-metadata.json')
+const semverPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/u
 
 function run(command, args, options = {}) {
   return new Promise((resolvePromise, reject) => {
@@ -47,6 +51,38 @@ async function assertSignedIdentity() {
   }
 }
 
+async function submitForNotarization(target, label) {
+  const notaryArgs = notaryArguments()
+  const { stdout } = await execFileAsync('/usr/bin/xcrun', [
+    'notarytool',
+    'submit',
+    target,
+    ...notaryArgs,
+    '--no-s3-acceleration',
+    '--wait',
+    '--output-format', 'json',
+  ], { maxBuffer: 10 * 1024 * 1024 })
+  const result = JSON.parse(stdout)
+  if (result.status !== 'Accepted') {
+    if (result.id) {
+      await run('/usr/bin/xcrun', ['notarytool', 'log', result.id, ...notaryArgs]).catch(() => {})
+    }
+    throw new Error(`${label} notarization was not accepted (status: ${result.status || 'unknown'})`)
+  }
+  process.stdout.write(`${label} notarization accepted: ${result.id}\n`)
+}
+
+async function digest(file, algorithm, encoding) {
+  const hash = createHash(algorithm)
+  await new Promise((resolvePromise, reject) => {
+    const stream = createReadStream(file)
+    stream.on('data', chunk => hash.update(chunk))
+    stream.once('end', resolvePromise)
+    stream.once('error', reject)
+  })
+  return hash.digest(encoding)
+}
+
 if (!identity.startsWith('Developer ID Application: ')) {
   throw new Error('MILKSU_CODESIGN_IDENTITY must be an exact Developer ID Application identity name')
 }
@@ -63,6 +99,24 @@ await run('/usr/bin/codesign', ['--verify', '--deep', '--strict', '--verbose=4',
 await assertSignedIdentity()
 
 await mkdir(releaseDirectory, { recursive: true })
+const desktopPackage = JSON.parse(await readFile(join(repositoryRoot, 'desktop', 'package.json'), 'utf8'))
+const version = String(desktopPackage.version ?? '').trim()
+const minimumVersion = String(process.env.MILKSU_MINIMUM_UPDATE_VERSION ?? '0.1.0').trim()
+if (!semverPattern.test(version) || !semverPattern.test(minimumVersion)) {
+  throw new Error('desktop package version and MILKSU_MINIMUM_UPDATE_VERSION must be stable semantic versions')
+}
+const zipPath = join(releaseDirectory, `MilkSU-macOS-arm64-${version}.zip`)
+const notaryZipPath = join(releaseDirectory, 'MilkSU-macOS-arm64.notary.zip')
+await rm(notaryZipPath, { force: true })
+await run('/usr/bin/ditto', ['-c', '-k', '--sequesterRsrc', '--keepParent', appPath, notaryZipPath])
+await submitForNotarization(notaryZipPath, 'MilkSU.app')
+await run('/usr/bin/xcrun', ['stapler', 'staple', appPath])
+await run('/usr/bin/xcrun', ['stapler', 'validate', appPath])
+await run('/usr/sbin/spctl', ['--assess', '--type', 'execute', '--verbose=4', appPath])
+await rm(notaryZipPath, { force: true })
+await rm(zipPath, { force: true })
+await run('/usr/bin/ditto', ['-c', '-k', '--sequesterRsrc', '--keepParent', appPath, zipPath])
+
 await run('/usr/bin/hdiutil', [
   'create',
   '-volname', 'MilkSU',
@@ -77,29 +131,47 @@ await run('/usr/bin/codesign', [
   '--sign', identity,
   dmgPath,
 ])
-const notaryArgs = notaryArguments()
-const { stdout: notaryOutput } = await execFileAsync('/usr/bin/xcrun', [
-  'notarytool',
-  'submit',
-  dmgPath,
-  ...notaryArgs,
-  '--no-s3-acceleration',
-  '--wait',
-  '--output-format', 'json',
-], { maxBuffer: 10 * 1024 * 1024 })
-const notaryResult = JSON.parse(notaryOutput)
-if (notaryResult.status !== 'Accepted') {
-  if (notaryResult.id) {
-    await run('/usr/bin/xcrun', ['notarytool', 'log', notaryResult.id, ...notaryArgs]).catch(() => {})
-  }
-  throw new Error(`Apple notarization was not accepted (status: ${notaryResult.status || 'unknown'})`)
-}
-process.stdout.write(`Apple notarization accepted: ${notaryResult.id}\n`)
+await submitForNotarization(dmgPath, 'DMG')
 await run('/usr/bin/xcrun', ['stapler', 'staple', dmgPath])
 await run('/usr/bin/xcrun', ['stapler', 'validate', dmgPath])
 await run('/usr/sbin/spctl', ['--assess', '--type', 'open', '--context', 'context:primary-signature', '--verbose=4', dmgPath])
 await run('/usr/bin/codesign', ['--verify', '--verbose=4', dmgPath])
 
+const tracking = JSON.parse(await readFile(join(appPath, 'Contents', 'Resources', 'build-tracking.json'), 'utf8'))
+const [zipMetadata, dmgMetadata] = await Promise.all([zipPath, dmgPath].map(async file => ({
+  size: (await stat(file)).size,
+  sha256: await digest(file, 'sha256', 'hex'),
+})))
+const zipSha512 = await digest(zipPath, 'sha512', 'base64')
+const objectPrefix = `releases/stable/darwin/arm64/${version}`
+const metadata = {
+  schema: 'milksu.release-upload/v1',
+  channel: 'stable',
+  platform: 'darwin',
+  arch: 'arm64',
+  version,
+  minimumVersion,
+  commitSha: String(tracking.gitCommit ?? ''),
+  trackingId: String(tracking.trackingId ?? ''),
+  title: String(process.env.MILKSU_RELEASE_TITLE ?? `MilkSU ${version}`).trim(),
+  notes: String(process.env.MILKSU_RELEASE_NOTES ?? `MilkSU ${version}`).trim(),
+  zipObjectKey: `${objectPrefix}/${basename(zipPath)}`,
+  zipSha512,
+  zipSha256: zipMetadata.sha256,
+  zipSize: zipMetadata.size,
+  dmgObjectKey: `${objectPrefix}/${basename(dmgPath)}`,
+  dmgSha256: dmgMetadata.sha256,
+  dmgSize: dmgMetadata.size,
+  manifestObjectKey: `${objectPrefix}/release-metadata.json`,
+  files: {
+    zip: basename(zipPath),
+    dmg: basename(dmgPath),
+  },
+}
+await writeFile(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`, { mode: 0o600 })
+
 const artifacts = (await readdir(releaseDirectory)).filter(name => name.endsWith('.dmg'))
 if (!artifacts.includes(basename(dmgPath))) throw new Error('notarized DMG disappeared after release verification')
 process.stdout.write(`${dmgPath}\n`)
+process.stdout.write(`${zipPath}\n`)
+process.stdout.write(`${metadataPath}\n`)

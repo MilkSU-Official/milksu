@@ -11,6 +11,7 @@ import {
   type ModelProbeResult,
   type ModelCatalogSnapshot,
   type StartupRecoveryStatus,
+  type UpdateStatus,
 } from './types'
 import type {
   CTFArtifactPreview,
@@ -147,6 +148,10 @@ interface DesktopAppBindings {
   GetAccountStatus(): Promise<AccountStatus>
   StartAccountLogin(): Promise<AccountStatus>
   LogoutAccount(): Promise<AccountStatus>
+  GetUpdateStatus(): Promise<UpdateStatus>
+  CheckForUpdates(): Promise<UpdateStatus>
+  DownloadUpdate(): Promise<UpdateStatus>
+  InstallUpdate(): Promise<boolean>
   GetSettings(): Promise<AppSettings>
   GetModelCatalog(): Promise<ModelCatalogSnapshot>
   SaveSettingsCmd(settings: AppSettings): Promise<void>
@@ -430,6 +435,14 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.StartAccountLogin() as Promise<T>
       case 'logout_account':
         return app.LogoutAccount() as Promise<T>
+      case 'get_update_status':
+        return app.GetUpdateStatus() as Promise<T>
+      case 'check_for_updates':
+        return app.CheckForUpdates() as Promise<T>
+      case 'download_update':
+        return app.DownloadUpdate() as Promise<T>
+      case 'install_update':
+        return app.InstallUpdate() as Promise<T>
       case 'get_settings':
         return app.GetSettings() as Promise<T>
       case 'get_model_catalog':

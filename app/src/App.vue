@@ -2,6 +2,7 @@
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
 import AppSidebar from '@/components-vue/AppSidebar.vue'
 import StartupRecoveryBanner from '@/components-vue/StartupRecoveryBanner.vue'
+import UpdateNotification from '@/components-vue/UpdateNotification.vue'
 import { useConversations } from '@/composables/useConversations'
 import { invokeCommand, listenEvent } from '@/desktop'
 import type { CTFAgentWorkspaceHandoff } from '@/ctfTypes'
@@ -22,7 +23,7 @@ import {
   selectCTFResumePoint,
   selectReusableDomainConversationId,
 } from '@/lib/workspaceSessionRouting'
-import { withAppSettingsDefaults, type AccountStatus, type AppSettings, type CTFChatAction, type StartupRecoveryStatus } from '@/types'
+import { withAppSettingsDefaults, type AccountStatus, type AppSettings, type CTFChatAction, type StartupRecoveryStatus, type UpdateStatus } from '@/types'
 import type { ModelCatalogSnapshot } from '@/types'
 import { installModelCatalog, loadModelCatalog } from '@/modelCatalog'
 import type { SecurityToolCodingHandoff } from '@/securityToolsTypes'
@@ -78,9 +79,12 @@ function writeLocalAccountMode(enabled: boolean) {
 const continueWithoutAccount = ref(readLocalAccountMode())
 const recoveryStatus = ref<StartupRecoveryStatus | null>(null)
 const recoveryDismissed = ref(false)
+const updateStatus = ref<UpdateStatus | null>(null)
+const dismissedUpdateVersion = ref('')
 const themeMode = ref<ThemeMode>(readThemeMode())
 let unlistenAccount: (() => void) | undefined
 let unlistenModelCatalog: (() => void) | undefined
+let unlistenUpdate: (() => void) | undefined
 
 applyThemeMode(themeMode.value)
 
@@ -423,12 +427,24 @@ function toggleThemeMode() {
   writeThemeMode(themeMode.value)
 }
 
+async function downloadUpdate() {
+  updateStatus.value = await invokeCommand<UpdateStatus>('download_update')
+}
+
+async function installUpdate() {
+  await invokeCommand<boolean>('install_update')
+}
+
 onMounted(async () => {
   applyThemeMode(themeMode.value)
   unlistenModelCatalog = await listenEvent<ModelCatalogSnapshot>('model-catalog-changed', event => {
     installModelCatalog(event.payload)
   })
+  unlistenUpdate = await listenEvent<UpdateStatus>('update.changed', event => {
+    updateStatus.value = event.payload
+  })
   await Promise.all([loadModelCatalog(), loadSettings(), loadAccountStatus(), conversations.load()])
+  updateStatus.value = await invokeCommand<UpdateStatus>('get_update_status').catch(() => null)
   unlistenAccount = await listenEvent<AccountStatus>('account.changed', event => {
     accountStatus.value = event.payload
     if (event.payload.state === 'active') {
@@ -448,6 +464,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   unlistenAccount?.()
   unlistenModelCatalog?.()
+  unlistenUpdate?.()
 })
 </script>
 
@@ -467,6 +484,13 @@ onBeforeUnmount(() => {
       :status="recoveryStatus"
       @dismiss="recoveryDismissed = true"
       @open-recovery="openRecovery"
+    />
+    <UpdateNotification
+      :status="updateStatus"
+      :dismissed-version="dismissedUpdateVersion"
+      @dismiss="dismissedUpdateVersion = $event"
+      @download="downloadUpdate"
+      @install="installUpdate"
     />
     <div class="flex min-h-0 flex-1">
       <AppSidebar

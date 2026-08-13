@@ -24,26 +24,60 @@ staple 与 Gatekeeper 验证。签名资产只存在 Personal Vault 和 GitHub S
 | `APPLE_API_KEY_BASE64` | App Store Connect API `.p8` 文件的 base64，不带换行 |
 | `APPLE_API_KEY_ID` | App Store Connect API Key ID |
 | `APPLE_API_ISSUER` | App Store Connect Issuer ID |
+| `CLOUDFLARE_R2_ACCOUNT_ID` | 持有私有 `milksu-releases` bucket 的账户 ID |
+| `CLOUDFLARE_R2_ACCESS_KEY_ID` | 只允许写入该 release bucket 的 R2 S3 access key ID |
+| `CLOUDFLARE_R2_SECRET_ACCESS_KEY` | 对应的 R2 S3 secret access key |
+| `MILKSU_RELEASE_PUBLISH_TOKEN` | 只允许在 Admin 创建 release draft 的随机 token |
 
 本机的字段名和资产位置记录在 Personal Vault；不要复制到 issue、commit、PR、终端输出或聊天。
 
-## 发一次内测包
+## 构建一次正式候选包
 
 1. 确认要发布的提交已推送到 MilkSU 私有仓库且工作树干净。
-2. 打开 **Actions → macOS signed release → Run workflow**，选择准确分支。
+2. 打开 **Actions → macOS signed release → Run workflow**，选择准确分支，填写发布标题、说明和最低版本。
+   第一次核对保持 `upload_release=false`；它只生成经过签名验证的候选产物，不接触 R2 或 Admin。
 3. 审批 `macos-release` environment。
-4. 等待 job 完成，下载 `MilkSU-macOS-arm64` artifact。
+4. 等待 job 完成，下载 `MilkSU-macOS-arm64` artifact。它包含 DMG、electron-updater 使用的版本化 ZIP 和
+   `release-metadata.json`；元数据不含本机绝对路径或凭据。
 5. 在一台未安装开发证书的 Mac 上下载并打开 DMG，核对设置页 branch、40 位 commit 和 tracking ID。
 
 Workflow 会在一次性 keychain 中导入 `.p12`，并依次执行：
 
 ```text
 测试 → 构建 Stable → Hardened Runtime / Developer ID 签名
-→ 生成并签名 DMG → notarytool 公证 → staple
-→ stapler validate → spctl Gatekeeper 验证 → 上传 artifact
+→ App 公证、staple 与验证 → 生成 updater ZIP
+→ 生成并签名 DMG → DMG 公证、staple 与验证
+→ 生成哈希与 release metadata → 上传 workflow artifact
 ```
 
-任何签名、公证、staple 或 Gatekeeper 步骤失败，workflow 都不会上传可分发产物。
+任何签名、公证、staple 或 Gatekeeper 步骤失败，workflow 都不会上传可分发产物。这个 workflow 只构建
+Stable；Codex 进行普通功能开发和验收时不构建 Beta，Beta 只在 MilkSU 明确执行自举任务时使用。
+
+## 上传私有 R2 并建立草稿
+
+候选包核对通过后，维护者再次手工运行同一个 workflow 并显式设置 `upload_release=true`。CI 使用 rclone
+的 Cloudflare S3 provider 把 ZIP、DMG 和元数据上传到 `releases/stable/darwin/arm64/<version>/`，再逐个
+下载到临时目录复核 SHA-256。只有回读一致时，CI 才调用 Admin 的窄 internal API 创建或幂等更新草稿。
+
+这一步不会直接向用户发布。维护者必须进入 MilkSU Admin 的 **版本** 页面，核对版本、commit、tracking、
+大小、哈希和发布说明，再点击“发布此版本”。发布只改变 D1 的 current pointer；R2 对象保持不可变。
+
+`milksu-releases` 必须保持私有，不配置公开 bucket domain。Desktop feed、ZIP 和 DMG 都经
+`accounts.milksu.org` Worker 返回，并要求受邀且访问状态正常的登录账户 Bearer session。会话只保存在
+Electron 主进程；不得进入 Vue、日志、诊断或模型上下文。暂停账户、未受邀账户和未登录客户端不能检查
+或下载更新。
+
+## OTA 发行验收
+
+代码测试、Admin fixture、候选 DMG 或只看到更新提示都不代表 OTA 已完成。正式收口需要：
+
+1. 应用远端 D1 migration，并部署带私有 R2 binding 与 release secret 的 Admin Worker；
+2. 用新干净 HEAD 运行正式签名流水、上传 R2、在 Admin 人工发布；
+3. 在安装着旧正式签名 Stable 的近新用户 Mac 上登录有效账户，收到提示并完成下载、重启安装；
+4. 核对新版本、完整 commit、tracking ID、严格签名、Gatekeeper 和核心启动路径；
+5. 用退出登录或暂停账户复核 feed/download 不再可用。
+
+不要用 Beta 代替 Stable OTA 验收，也不要让本地开发脚本持有或复制 CI 的 Apple/R2/Admin 凭据。
 
 ## 本机只读核对
 

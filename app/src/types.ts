@@ -13,6 +13,20 @@ export interface AccountStatus {
   tokenFluxLinked?: boolean
 }
 
+export interface UpdateStatus {
+  state: 'idle' | 'checking' | 'available' | 'downloading' | 'downloaded' | 'error'
+  currentVersion: string
+  enabled: boolean
+  version?: string
+  title?: string
+  notes?: string
+  releaseDate?: string
+  percent?: number
+  transferred?: number
+  total?: number
+  message?: string
+}
+
 export interface CodingAttachment {
   id: string
   name: string
