@@ -164,6 +164,7 @@ export interface AppSettings {
   nssctf_arena?: NSSCTFArenaConfig
   locale?: 'en' | 'zh'
   disabled_skills?: string[]
+  security_tools?: Record<string, { enabled: boolean }>
   providers: Record<string, ProviderConfig>
 }
 

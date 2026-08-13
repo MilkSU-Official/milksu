@@ -56,8 +56,8 @@
 - **任务**：Codex `019fe9ee-b865-75b3-903d-bada1266f254`。
 - **目标文档**：[个人安全工作台计划](security-workspace-product-plan.md)。
 - **关联方式**：该 Codex 任务执行目标文档中的产品目标，本节只维护当前切片、完成线和验收状态。
-- **当前切片**：个人安全工作台、Admin、账户模型来源、全局游戏化界面与隐藏/窄屏控制面均已进入代码。最终功能提交 `main@cfc9a102408b8e2017f339ddce08f246b6b67c02` 已由私有 `macOS signed release` workflow `31676876645` 构建；下载 DMG 的 SHA-256 为 `3eff2a795a48c4fa11e5e9aa5549d32e8127e5149843a48fb163ae37086b159a`，Apple 公证、stapler、Gatekeeper、严格签名与首次启动均通过。设置页实机核对 `branch=main`、完整 commit、`dirty=false` 和 tracking ID `6adfa291a021387f7cb40800012941a51f051bec90036b78353c68a4c57d58ff`；最终签名 App 的 GitHub 登录视觉、CVE “漏洞”页、公共学习专题和真实 NVD 搜索结果已经复检。
-- **完成线**：开始内测并只处理真实阻塞问题；补一条配置可用模型和真实题库时的 Daily 推荐回执，明确区分模型选择与规则兜底。账户 Team Key、TokenFlux 真实扣费/明细/硬限额/同步延迟、Obelisk 可归因成长事实及安全工具接入都作为独立后续纵切，不阻塞当前内测。
+- **当前切片**：个人安全工作台、Admin、账户模型来源、全局游戏化界面与隐藏/窄屏控制面均已进入代码。最终功能提交 `main@cfc9a102408b8e2017f339ddce08f246b6b67c02` 已由私有 `macOS signed release` workflow `31676876645` 构建；下载 DMG 的 SHA-256 为 `3eff2a795a48c4fa11e5e9aa5549d32e8127e5149843a48fb163ae37086b159a`，Apple 公证、stapler、Gatekeeper、严格签名与首次启动均通过。设置页实机核对 `branch=main`、完整 commit、`dirty=false` 和 tracking ID `6adfa291a021387f7cb40800012941a51f051bec90036b78353c68a4c57d58ff`；最终签名 App 的 GitHub 登录视觉、CVE “漏洞”页、公共学习专题和真实 NVD 搜索结果已经复检。当前功能批次另已实现安全工具设置和普通 Coding 的首条纵切，但尚未形成新的签名发行。
+- **完成线**：开始内测并只处理真实阻塞问题；补一条配置可用模型和真实题库时的 Daily 推荐回执，并为 IDA/capa 各保留一项真实本地样本回执。账户 Team Key、TokenFlux 真实扣费/明细/硬限额/同步延迟与 Obelisk 可归因成长事实继续作为独立后续纵切。
 
 | 优先级 | 主线 | 只认什么完成 |
 | --- | --- | --- |
@@ -65,7 +65,7 @@
 | P0 | Session Index | 继续内置 MilkSU 自有历史索引；外部会话导入在有明确文件选择、确认和产品调用者前不进发行图。 |
 | P0 | CVE 学习/追踪扩样 | 更多真实 CVE 验证同步、练习、研究档案、资产验证和学习写回；不做外部攻击、自动 PoC 或披露。 |
 | P1 | Computer Use 扩样 | Calculator 之外再加 1–2 个真实 App/窗口、权限拒绝路径；在正式签名包上复检 TCC。不与 Browser 强行合并权限。 |
-| P1 | 安全工具 MCP 常规能力 | 先在 Coding Agent 中接入 IDA Pro/idalib、Burp Suite、radare2、Ghidra、Semgrep 等固定版本、可审阅的安全工具 MCP，形成普通的安装、启用、健康检查、版本/Schema 审阅、Scope、审批与证据回执能力，而不是一次性 smoke。设置页管理已审阅服务，Composer “+”只选择已启用服务；是否进入 CTF/CVE 由后续用户监督的领域纵切单独决定。 |
+| P1 | 安全工具 MCP 常规能力 | 先在 Coding Agent 中接入固定版本、可审阅的安全工具，形成普通的检测、准备、启用、健康检查、版本/Schema 审阅与证据回执能力。设置页把能力准备好；就绪且启用的能力自动进入现有 Pi 工具目录，由模型按任务选择，不要求用户逐任务勾选。是否进入 CTF/CVE 由后续领域纵切单独决定。 |
 | P1 | Chromium 壳扩样 | 已完成 macOS ARM64 Electron/Chromium 壳、地址/搜索、点击、表单、公开资料调研与折叠连续执行纵切；下一阶段只补 Windows 打包评估、下载/弹窗/权限负向矩阵、页面崩溃恢复和自动化更新，不恢复 CEF/Wails 双壳。 |
 | P1 | MilkSU Beta 自举 | 双身份、数据目录、追踪、签名检查、自我排除、版本核验与 CTF/CVE 可见任务全程已完成；剩余更广真实任务与 Computer Use TCC 扩样。禁止稳定版控制自己或共享状态/权限。 |
 | P1 | Memory 可信度 | 区分 user / agent / shared / imported 与 none / hint / copilot / delegated；Agent 代做不能抬高用户独立能力。 |
@@ -73,7 +73,7 @@
 | P2 | 本地交付与发行 | Developer ID `.app`、DMG、公证、stapling、Gatekeeper 与隔离首次启动已通过；RC 再做崩溃恢复、诊断、全新机器、升级、性能和尺寸。不读取或迁移本机签名私钥/证书密码/Personal Vault。 |
 | 持续 | 架构与 UI | 触碰即拆热点文件；不新开纯清债里程碑。UI 巡检后同步测试与当前文档。 |
 
-推荐顺序：先开始内测并记录真实阻塞问题；有可用模型与题库时补 Daily 真实推荐回执，之后独立推进 TokenFlux、Obelisk 成长事实和安全工具。Coding 完整自治功能交付留作后续证据，不恢复 `development-plan.md`，不把已删除 live smoke 嵌回产品启动链。
+推荐顺序：先开始内测并记录真实阻塞问题；有可用模型与题库时补 Daily 真实推荐回执，同时用本地 crackme/二进制补齐 IDA/capa 真实回执；之后独立推进 TokenFlux、Obelisk 成长事实和其余安全工具。Coding 完整自治功能交付留作后续证据，不恢复 `development-plan.md`，不把已删除 live smoke 嵌回产品启动链。
 
 ### 2026-08-13 M4 距离核对后的增量任务
 
@@ -91,7 +91,7 @@
 | 已确认边界 | 高级安全能力只进 Coding | CodeQL、capa、补丁分析、变体搜索和后续安全 Worker 作为 Coding 工具/任务入口；CTF/CVE 只保留对象、来源、收藏、手工状态和关联对话。 |
 | 已完成 | 最终发行与近新用户验收 | `main@cfc9a102408b8e2017f339ddce08f246b6b67c02` 的正式 DMG 已通过 Developer ID 签名、公证、staple、Gatekeeper、严格签名和隔离首次启动；设置页版本追踪、登录视觉、CVE 专题与真实 NVD 结果已回归。Daily 的真实模型选择回执单独保留，不将无题库空状态伪写为通过。 |
 | 用户明确后置 | M4 独立自治功能任务 | 原建议第 3 项“让 Coding Agent 独立完成一个小型真实功能”暂缓，不阻塞内测发行，也不在本轮偷偷恢复自举监督。 |
-| 独立后续纵切 | TokenFlux、Obelisk 成长事实、安全工具 | Team Key、真实扣费明细/硬限额/延迟；Obelisk 可归因成长；CodeQL/capa/Shannon 等按各自真实任务和权限边界推进，不与本轮 UI 收口混批。 |
+| 安全工具首条已实现 | TokenFlux、Obelisk 成长事实、安全工具 | Team Key、真实扣费明细/硬限额/延迟与 Obelisk 可归因成长仍后续；安全工具已实现设置、检测和 IDA/capa 适配器，真实样本回执及 CodeQL/Burp/Shannon 适配继续逐项推进。 |
 
 本批次既定发行顺序已经执行完成。此后的 Current 文档提交只记录事实，不改变已签名 App 的来源提交；
 若功能代码再变化，才从新的干净 HEAD 重跑正式签名发行。
@@ -113,23 +113,32 @@
 
 ### 安全工具 MCP 常规能力队列
 
-这是 Coding Agent 的常规能力接入队列，但不是默认捆绑或自动启用清单。每项先在 Coding 用受控
-样本完成真实任务，通过审阅后才进入可安装/启用目录；是否进入 CTF/CVE 由用户后续单独决定。
-未经审阅的社区 Server 只作为研究输入，不进入发行依赖图。
+这是 Coding Agent 的常规能力接入队列，不是默认捆绑清单。设置目录可以展示检测到的软件和已审阅的
+准备入口；只有 `ready + enabled` 的适配器进入模型目录。每项还必须用受控样本完成真实任务，才可把
+状态提升为任务验收或扩到 CTF/CVE。未经审阅的社区 Server 只作为研究输入，不进入发行依赖图。
 
-1. **IDA Pro / idalib**：优先评估 [mrexodia/ida-pro-mcp](https://github.com/mrexodia/ida-pro-mcp) 当前的
-   Codex Plugin + `idalib` MCP 路径，不接它准备弃用的旧 GUI MCP。验收一个 crackme：函数/交叉引用读取、
-   有确认的重命名/注释、报告与重启恢复；默认禁止补丁和任意脚本。
-2. **Burp Suite**：评估 [PortSwigger/mcp-server](https://github.com/PortSwigger/mcp-server)。第一阶段只读
-   Proxy/Repeater 历史和请求详情；任何发送、扫描、配置修改都必须绑定准确授权目标与显式效果确认，
-   不因 Server 已连接就获得互联网攻击权限。
-3. **radare2**：评估 radareorg 的 [radare2-mcp](https://github.com/radareorg/radare2-mcp)，优先使用其
-   read-only、sandbox lock 与工具 allowlist，作为开源逆向基线和 IDA 结果交叉验证，不开放 raw r2 命令。
-4. **Ghidra**：在 [13bm/GhidraMCP](https://github.com/13bm/GhidraMCP) 与
-   [LaurieWired/GhidraMCP](https://github.com/LaurieWired/GhidraMCP) 之间做一次上游审阅，不同时保留两套。
-   比较版本钉定、localhost/auth、路径约束、写工具拆分、分页、重启和测试；它们都不是 NSA/Ghidra 官方组件。
-5. **Semgrep**：评估官方 Semgrep MCP/Plugin，先用本地样本验证 SAST、依赖与 secrets 结果回执；需要账号
-   或云端上传的能力必须单独授权，不能把仓库内容或发现自动发往外部服务。
+第一条生产纵切已经进入“设置 → 安全工具”和普通 Coding：Desktop RPC 提供真实目录、检测、启停持久化、
+准备进度和健康检查；准备完成的能力由 Go 在每个回合重新投影给现有 Pi Session，模型根据轻量能力摘要自行
+决定是否调用。完整 MCP Schema 仍按需加载；“在 Coding 中配置”只挂未发送草稿，不会暗中启动安装。
+视觉参考与生产组件证据见 `docs/design/milksu-security-tools-settings-master.png`、
+`docs/design/milksu-security-tools-settings-option-3.png` 和 `docs/design/audits/milksu-security-tools-settings-production.png`。
+
+1. **IDA Pro / idalib**：已实现真实 IDA/idalib 检测、固定
+   [mrexodia/ida-pro-mcp](https://github.com/mrexodia/ida-pro-mcp) commit 的隔离安装、只读 profile 与 lazy MCP；
+   当前允许函数、反编译、交叉引用、字符串和数据库生命周期工具，不开放 `py_eval`、补丁与任意脚本。
+   仍需用一个本地 crackme 保留真实成功回执，完成前状态是“实现并测试”，不是发行级任务验收。
+2. **capa**：已实现官方 [mandiant/capa](https://github.com/mandiant/capa) `v9.4.0` 的架构选择、SHA-256
+   校验、托管安装和原生 `capa_analyze` 工具；模型只得到工作区相对文件入口。仍需对真实二进制保留一次
+   能力识别结果，不能由单元测试替代。
+3. **CodeQL**：当前只有 CLI 检测与设置说明，没有自动安装、查询包或模型工具；检测到 CLI 也不进入
+   自动能力目录。后续先用公开漏洞仓库验证建库、查询与 SARIF 回执。
+4. **Burp Suite**：当前只检测本机 App，没有接入 MCP。后续评估
+   [PortSwigger/mcp-server](https://github.com/PortSwigger/mcp-server)，第一阶段只读 Proxy/Repeater 历史和请求详情。
+5. **Shannon**：当前只检测 Docker CLI/Engine 前提，没有安装 Worker 或暴露任务工具。后续以独立容器任务
+   适配器接入，并用明确授权的本地靶场验证，不把它复制成第二套 Agent Loop。
+
+radare2、Ghidra、Semgrep 和 CAI 继续作为后续上游研究输入；在前五项没有产生真实任务证据前，不扩大
+生产目录。CTF/CVE 模块只在普通 Coding 中的能力通过实际题目或漏洞样本后再做独立纵切，不直接继承设置页状态。
 
 共同准入门槛：固定 commit/release 与许可证；工具描述和 schema 哈希可审阅；默认 localhost/stdio、
 最小环境变量和工作区根；读写/执行/联网效果分类；凭据不进模型上下文；Server 更新后重新审阅；保留一项

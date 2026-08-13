@@ -73,6 +73,9 @@ func TestCloneDoesNotShareMaps(t *testing.T) {
 	original := DefaultSettings()
 	original.Providers["openai"] = ProviderConfig{APIKey: "secret", Enabled: true}
 	original.DisabledSkills = []string{"product-design"}
+	original.SecurityTools = map[string]SecurityToolPreference{
+		"capa": {Enabled: true},
+	}
 	original.VisionModel = &ModelSelection{Provider: "openai", Model: "gpt-4o"}
 	copied := clone(original)
 	delete(copied.Providers, "openai")
@@ -80,6 +83,7 @@ func TestCloneDoesNotShareMaps(t *testing.T) {
 	copied.ModelRouting.SourceOrder[0] = ModelSourcePersonal
 	*copied.ModelRouting.AutoFallback = false
 	copied.DisabledSkills[0] = "review-security"
+	copied.SecurityTools["capa"] = SecurityToolPreference{Enabled: false}
 	if _, exists := original.Providers["openai"]; !exists {
 		t.Fatal("clone modified original provider map")
 	}
@@ -93,6 +97,33 @@ func TestCloneDoesNotShareMaps(t *testing.T) {
 	}
 	if original.DisabledSkills[0] != "product-design" {
 		t.Fatal("clone modified original disabled skills")
+	}
+	if !original.SecurityTools["capa"].Enabled {
+		t.Fatal("clone modified original security tool preference")
+	}
+}
+
+func TestSetSecurityToolEnabledPersistsOnePreference(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	store, err := newStore(path, fakeSecretStore{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetSecurityToolEnabled("ida-pro", false); err != nil {
+		t.Fatal(err)
+	}
+	if store.Get().SecurityTools["ida-pro"].Enabled {
+		t.Fatal("disabled preference was not retained")
+	}
+	reloaded, err := newStore(path, fakeSecretStore{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.Get().SecurityTools["ida-pro"].Enabled {
+		t.Fatal("disabled preference was not persisted")
+	}
+	if err := store.SetSecurityToolEnabled("../unsafe", true); err == nil {
+		t.Fatal("invalid security tool id was accepted")
 	}
 }
 

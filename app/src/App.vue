@@ -23,6 +23,7 @@ import {
   selectReusableDomainConversationId,
 } from '@/lib/workspaceSessionRouting'
 import { withAppSettingsDefaults, type AccountStatus, type AppSettings, type CTFChatAction, type StartupRecoveryStatus } from '@/types'
+import type { SecurityToolCodingHandoff } from '@/securityToolsTypes'
 
 const ChatPage = defineAsyncComponent(() => import('@/components-vue/ChatPage.vue'))
 const AccountLoginPage = defineAsyncComponent(() => import('@/components-vue/AccountLoginPage.vue'))
@@ -46,7 +47,8 @@ const activeVulnerabilityCodingConversationId = ref<string | null>(null)
 // currently active Coding or CTF conversation workspace implicitly.
 const vulnerabilityCodingWorkspacePath = ref('')
 const settingsReturnTarget = ref<Exclude<Section, 'settings'>>('ctf')
-const settingsCategory = ref<'general' | 'coding' | 'apikeys' | 'browser' | 'cve'>('general')
+type SettingsCategory = 'general' | 'coding' | 'apikeys' | 'browser' | 'cve' | 'security-tools'
+const settingsCategory = ref<SettingsCategory>('general')
 const settings = ref<AppSettings | null>(null)
 const accountStatus = ref<AccountStatus>({ configured: false, authenticated: false, state: 'unconfigured' })
 const accountLoaded = ref(false)
@@ -167,10 +169,19 @@ function useLocalAccountMode() {
   writeLocalAccountMode(true)
 }
 
-function openSettings(category: 'general' | 'coding' | 'apikeys' | 'browser' | 'cve' = 'general') {
+function openSettings(category: SettingsCategory = 'general') {
   settingsReturnTarget.value = settingsReturnSection(section.value, settingsReturnTarget.value)
   settingsCategory.value = category
   section.value = 'settings'
+}
+
+function startSecurityToolCodingSetup(handoff: SecurityToolCodingHandoff) {
+  rememberActiveConversation()
+  conversations.startNew()
+  conversations.stageComposerDraft(handoff.prompt, handoff.visibleText)
+  lastCodingConversationId.value = null
+  activeVulnerabilityCodingConversationId.value = null
+  section.value = 'chat'
 }
 
 function openRecovery() {
@@ -481,6 +492,7 @@ onBeforeUnmount(() => unlistenAccount?.())
         @settings-change="value => { settings = value }"
         @account-login="startAccountLogin"
         @account-logout="logoutAccount"
+        @security-tool-coding-handoff="startSecurityToolCodingSetup"
       />
       <ProfilePage
         v-else-if="section === 'profile'"

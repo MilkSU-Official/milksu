@@ -242,6 +242,7 @@ vi.mock('@/components-vue/AppSidebar.vue', () => ({
         h('button', { 'aria-label': 'navigate CTF', onClick: () => emit('navigate', 'ctf') }, 'CTF'),
         h('button', { 'aria-label': 'navigate CVE', onClick: () => emit('navigate', 'vuln') }, 'CVE'),
         h('button', { 'aria-label': 'navigate Coding', onClick: () => emit('navigate', 'chat') }, 'Coding'),
+        h('button', { 'aria-label': 'open settings', onClick: () => emit('settings') }, '设置'),
       ])
     },
   }),
@@ -366,9 +367,20 @@ vi.mock('@/components-vue/SettingsPage.vue', () => ({
   __esModule: true,
   default: defineComponent({
     name: 'SettingsPage',
-    emits: ['close', 'settingsChange'],
-    setup() {
-      return () => h('section', { 'aria-label': 'mock settings page' }, 'Settings')
+    emits: ['close', 'settingsChange', 'securityToolCodingHandoff'],
+    setup(_props, { emit }) {
+      return () => h('section', { 'aria-label': 'mock settings page' }, [
+        'Settings',
+        h('button', {
+          'aria-label': 'configure security tool in coding',
+          onClick: () => emit('securityToolCodingHandoff', {
+            toolId: 'ida-pro',
+            title: '配置 IDA Pro',
+            prompt: '检测并准备 IDA Pro。',
+            visibleText: '检查并准备 IDA Pro。',
+          }),
+        }, '在 Coding 中配置'),
+      ])
     },
   }),
 }))
@@ -418,6 +430,20 @@ afterEach(() => {
 })
 
 describe('App cross-module routing', () => {
+  it('opens a security-tool setup draft in a new Coding task without sending it', async () => {
+    const { host } = await mountApp()
+
+    host.querySelector<HTMLButtonElement>('[aria-label="open settings"]')?.click()
+    await flushAsyncComponents()
+    host.querySelector<HTMLButtonElement>('[aria-label="configure security tool in coding"]')?.click()
+    await flushAsyncComponents()
+
+    expect(host.querySelector('[aria-label="mock Chat page"]')).not.toBeNull()
+    expect(host.querySelector('[data-chat-draft]')?.textContent).toBe('检查并准备 IDA Pro。')
+    expect(hoisted.conversations?.startNew).toHaveBeenCalledTimes(1)
+    expect(hoisted.conversations?.send).not.toHaveBeenCalled()
+  })
+
   it('keeps a CTF Agent resume point across CVE navigation and returns to the CTF workspace', async () => {
     const { host } = await mountApp()
 

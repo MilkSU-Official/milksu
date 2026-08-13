@@ -235,7 +235,7 @@ function sanitizeLocalDefinition(
   definition,
   serverName,
   workspace,
-  { extraReadableRoots = [], extraWritableRoots = [] } = {},
+  { extraReadableRoots = [], extraWritableRoots = [], allowNetwork = true } = {},
 ) {
   const command = String(definition.command ?? "").trim();
   if (!command || command.includes("\0")) {
@@ -254,7 +254,7 @@ function sanitizeLocalDefinition(
       "-p",
       sandboxProfile(
         workspace,
-        true,
+        allowNetwork,
         [],
         false,
         extraReadableRoots,
@@ -825,6 +825,7 @@ export async function loadCodingMcpConfig(
   codingBrowser,
   computerUse,
   browserUse,
+  securityTools = [],
 ) {
   const project = await loadSelectedMcpConfig(
     workspace,
@@ -834,13 +835,15 @@ export async function loadCodingMcpConfig(
   const builtIn = await createFirstPartyPlaywrightMcpServer(workspace, codingBrowser);
   const builtInComputerUse = await createFirstPartyComputerUseMcpServer(computerUse);
   const builtInBrowserUse = await createFirstPartyBrowserUseMcpServer(workspace, browserUse);
-  if (!builtIn && !builtInComputerUse && !builtInBrowserUse) {
+  const builtInIDA = await createManagedIDAMcpServer(workspace, securityTools);
+  if (!builtIn && !builtInComputerUse && !builtInBrowserUse && !builtInIDA) {
     return {
       ...project,
       projectSelected: project.selected,
       codingBrowser: undefined,
       computerUse: undefined,
       browserUse: undefined,
+      securityTools,
     };
   }
   const selected = [
@@ -848,6 +851,7 @@ export async function loadCodingMcpConfig(
     ...(builtIn ? [codingBrowserMcpServerName] : []),
     ...(builtInBrowserUse ? [browserUseMcpServerName] : []),
     ...(builtInComputerUse ? [computerUseMcpServerName] : []),
+    ...(builtInIDA ? [builtInIDA.name] : []),
   ].sort((left, right) => left.localeCompare(right));
   return {
     projectSelected: project.selected,
@@ -855,6 +859,7 @@ export async function loadCodingMcpConfig(
     codingBrowser: builtIn?.browser,
     computerUse: builtInComputerUse?.computerUse,
     browserUse: builtInBrowserUse?.browserUse,
+    securityTools,
     config: adapterConfig({
       ...(project.config?.mcpServers ?? {}),
       ...(builtIn ? { [codingBrowserMcpServerName]: builtIn.server } : {}),
@@ -864,7 +869,66 @@ export async function loadCodingMcpConfig(
       ...(builtInComputerUse
         ? { [computerUseMcpServerName]: builtInComputerUse.server }
         : {}),
+      ...(builtInIDA ? { [builtInIDA.name]: builtInIDA.server } : {}),
     }),
+  };
+}
+
+async function createManagedIDAMcpServer(workspace, securityTools) {
+  const ida = securityTools.find(tool => tool.id === "ida-pro");
+  if (!ida) return undefined;
+  const root = await resolveReviewedMcpWorkspace(workspace);
+  const runtimeRoot = await ensurePrivateDirectoryTree(
+    root,
+    [".milksu", "mcp-runtime"],
+    "IDA MCP runtime",
+  );
+  await Promise.all([
+    mkdir(join(runtimeRoot, "home"), { recursive: true, mode: 0o700 }),
+    mkdir(join(runtimeRoot, "tmp"), { recursive: true, mode: 0o700 }),
+  ]);
+  const name = "milksu-ida-pro";
+  const includeTools = [
+    "idb_open", "idb_list", "idb_close", "server_health",
+    "list_funcs", "list_globals", "imports", "imports_query",
+    "lookup_funcs", "func_query", "entity_query", "int_convert", "find_regex",
+    "decompile", "disasm", "func_profile", "analyze_batch", "xrefs_to",
+    "xref_query", "xrefs_to_field", "callees", "basic_blocks", "find_bytes",
+    "find", "insn_query", "export_funcs", "callgraph", "analyze_function",
+    "analyze_component", "trace_data_flow", "read_struct", "type_query",
+    "get_bytes", "get_int", "get_string", "get_global_value", "stack_frame",
+  ];
+  return {
+    name,
+    server: sanitizeServerDefinition(
+      {
+        command: ida.command,
+        args: [
+          "--stdio",
+          "--profile",
+          ida.profilePath,
+          "--max-workers",
+          "2",
+        ],
+        env: {
+          HOME: dirname(ida.userIdaPath),
+          IDAUSR: ida.userIdaPath,
+        },
+        includeTools,
+      },
+      name,
+      root,
+      {
+        allowNetwork: false,
+        extraReadableRoots: [
+          dirname(dirname(ida.command)),
+          ida.profilePath,
+          ida.idaPath,
+          ida.userIdaPath,
+        ],
+        extraWritableRoots: [ida.userIdaPath],
+      },
+    ),
   };
 }
 

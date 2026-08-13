@@ -67,10 +67,12 @@ import {
   withAppSettingsDefaults,
 } from '@/types'
 import VulnerabilityIntelSettingsPanel from '@/components-vue/VulnerabilityIntelSettingsPanel.vue'
+import SecurityToolsSettingsPanel from '@/components-vue/SecurityToolsSettingsPanel.vue'
+import type { SecurityToolCodingHandoff } from '@/securityToolsTypes'
 import { useVulnerabilityDashboard, type VulnerabilityDashboard } from '@/composables/useVulnerabilityDashboard'
 import { CODING_SKILLS } from '@/codingSkills'
 
-type SettingsCategory = 'general' | 'coding' | 'apikeys' | 'browser' | 'cve'
+type SettingsCategory = 'general' | 'coding' | 'apikeys' | 'browser' | 'cve' | 'security-tools'
 
 const settingsCategories: Array<{ value: SettingsCategory; label: string }> = [
   { value: 'general', label: '通用' },
@@ -78,6 +80,7 @@ const settingsCategories: Array<{ value: SettingsCategory; label: string }> = [
   { value: 'coding', label: 'Coding' },
   { value: 'browser', label: '浏览器与控制' },
   { value: 'cve', label: 'CVE' },
+  { value: 'security-tools', label: '安全工具' },
 ]
 
 const props = defineProps<{
@@ -92,6 +95,7 @@ const emit = defineEmits<{
   settingsChange: [value: AppSettings]
   accountLogin: []
   accountLogout: []
+  securityToolCodingHandoff: [handoff: SecurityToolCodingHandoff]
 }>()
 
 const category = ref(props.initialCategory)
@@ -756,7 +760,7 @@ async function save() {
       </nav>
 
       <div class="min-h-0 min-w-0 flex-1 overflow-y-auto px-6 py-8">
-      <div :class="category === 'cve' ? 'mx-auto w-full max-w-6xl' : category === 'apikeys' ? 'mx-auto w-full max-w-5xl' : 'mx-auto max-w-3xl'">
+      <div :class="category === 'cve' || category === 'security-tools' ? 'mx-auto w-full max-w-6xl' : category === 'apikeys' ? 'mx-auto w-full max-w-5xl' : 'mx-auto max-w-3xl'">
         <div class="mb-7">
           <p class="tactical-label text-muted-foreground">Settings</p>
           <h1 class="tactical-display mt-1 text-5xl">{{ settingsCategories.find(item => item.value === category)?.label }}</h1>
@@ -1400,6 +1404,12 @@ async function save() {
               {{ verifying ? '正在验证 PI' : '保存并验证' }}
             </Button>
           </div>
+        </template>
+
+        <template v-else-if="category === 'security-tools'">
+          <SecurityToolsSettingsPanel
+            @coding-handoff="$emit('securityToolCodingHandoff', $event)"
+          />
         </template>
 
         <template v-else-if="category === 'cve'">

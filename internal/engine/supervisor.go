@@ -20,6 +20,7 @@ import (
 
 	"github.com/MilkSU-Official/milksu/internal/codingattachment"
 	"github.com/MilkSU-Official/milksu/internal/config"
+	"github.com/MilkSU-Official/milksu/internal/securitytools"
 )
 
 const eventSchemaVersion = 1
@@ -235,6 +236,7 @@ type Supervisor struct {
 	turnSequence     map[string]uint64
 	approvals        map[string]int
 	backgroundTasks  map[string][]BackgroundTask
+	securityTools    []securitytools.RuntimeTool
 	emit             func(Event)
 	sidecarDirectory string
 }
@@ -269,6 +271,15 @@ func NewSupervisorWithSidecarDirectory(
 	supervisor := NewSupervisor(emit)
 	supervisor.sidecarDirectory = strings.TrimSpace(sidecarDirectory)
 	return supervisor
+}
+
+// SetSecurityTools publishes the current local, display-free capability
+// descriptors to subsequent Coding turns. Detection remains owned by the
+// desktop application; Pi only receives tools that are enabled and ready.
+func (s *Supervisor) SetSecurityTools(tools []securitytools.RuntimeTool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.securityTools = append([]securitytools.RuntimeTool(nil), tools...)
 }
 
 // SetTurnActivityTimeout configures the inactivity deadline used for turns
@@ -413,6 +424,9 @@ func (s *Supervisor) SendMessage(
 			settings,
 			preference,
 		),
+	}
+	if len(s.securityTools) > 0 {
+		command["securityTools"] = append([]securitytools.RuntimeTool(nil), s.securityTools...)
 	}
 	if codingBrowser != nil {
 		command["codingBrowser"] = codingBrowser

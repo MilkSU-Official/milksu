@@ -67,17 +67,25 @@ type ModelRoutingConfig struct {
 	AutoFallback *bool    `json:"auto_fallback"`
 }
 
+// SecurityToolPreference records only the user's global availability choice.
+// Detection, versions and runtime paths are always recomputed from the local
+// machine and must never be trusted from persisted settings.
+type SecurityToolPreference struct {
+	Enabled bool `json:"enabled"`
+}
+
 type AppSettings struct {
-	ActiveProvider string                    `json:"active_provider"`
-	ActiveModel    string                    `json:"active_model"`
-	VisionModel    *ModelSelection           `json:"vision_model,omitempty"`
-	ModelVerified  *ModelVerification        `json:"model_verification,omitempty"`
-	ModelRouting   ModelRoutingConfig        `json:"model_routing"`
-	Relay          *RelayConfig              `json:"relay,omitempty"`
-	NSSCTFArena    *NSSCTFArenaConfig        `json:"nssctf_arena,omitempty"`
-	Locale         *string                   `json:"locale,omitempty"`
-	DisabledSkills []string                  `json:"disabled_skills"`
-	Providers      map[string]ProviderConfig `json:"providers"`
+	ActiveProvider string                            `json:"active_provider"`
+	ActiveModel    string                            `json:"active_model"`
+	VisionModel    *ModelSelection                   `json:"vision_model,omitempty"`
+	ModelVerified  *ModelVerification                `json:"model_verification,omitempty"`
+	ModelRouting   ModelRoutingConfig                `json:"model_routing"`
+	Relay          *RelayConfig                      `json:"relay,omitempty"`
+	NSSCTFArena    *NSSCTFArenaConfig                `json:"nssctf_arena,omitempty"`
+	Locale         *string                           `json:"locale,omitempty"`
+	DisabledSkills []string                          `json:"disabled_skills"`
+	SecurityTools  map[string]SecurityToolPreference `json:"security_tools,omitempty"`
+	Providers      map[string]ProviderConfig         `json:"providers"`
 }
 
 func DefaultSettings() AppSettings {
@@ -287,6 +295,34 @@ func (s *Store) Save(value AppSettings) error {
 	s.settings = clone(value)
 	s.secretValues = secrets
 	return errors.Join(persistenceErrors...)
+}
+
+// SetSecurityToolEnabled updates one local capability preference without
+// round-tripping model credentials or unrelated settings through the UI.
+func (s *Store) SetSecurityToolEnabled(id string, enabled bool) error {
+	id = strings.TrimSpace(id)
+	if id == "" || len(id) > 64 {
+		return fmt.Errorf("security tool id is invalid")
+	}
+	for _, character := range id {
+		if (character < 'a' || character > 'z') &&
+			(character < '0' || character > '9') && character != '-' {
+			return fmt.Errorf("security tool id is invalid")
+		}
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	next := clone(s.settings)
+	if next.SecurityTools == nil {
+		next.SecurityTools = make(map[string]SecurityToolPreference)
+	}
+	next.SecurityTools[id] = SecurityToolPreference{Enabled: enabled}
+	if err := persistSettings(s.path, next); err != nil {
+		return err
+	}
+	s.settings = next
+	return nil
 }
 
 func (s *Store) RecordModelVerification(provider, model string, verifiedAt time.Time) error {
@@ -509,7 +545,36 @@ func withDefaults(value AppSettings) AppSettings {
 		value.ModelRouting.AutoFallback = boolPointer(true)
 	}
 	value.DisabledSkills = normalizeDisabledSkills(value.DisabledSkills)
+	value.SecurityTools = normalizeSecurityToolPreferences(value.SecurityTools)
 	return value
+}
+
+func normalizeSecurityToolPreferences(value map[string]SecurityToolPreference) map[string]SecurityToolPreference {
+	if len(value) == 0 {
+		return nil
+	}
+	result := make(map[string]SecurityToolPreference, len(value))
+	for id, preference := range value {
+		id = strings.TrimSpace(id)
+		if id == "" || len(id) > 64 {
+			continue
+		}
+		valid := true
+		for _, character := range id {
+			if (character < 'a' || character > 'z') &&
+				(character < '0' || character > '9') && character != '-' {
+				valid = false
+				break
+			}
+		}
+		if valid {
+			result[id] = preference
+		}
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
 }
 
 func boolPointer(value bool) *bool {
@@ -571,6 +636,12 @@ func clone(value AppSettings) AppSettings {
 	copy := value
 	copy.ModelRouting.SourceOrder = append([]string(nil), value.ModelRouting.SourceOrder...)
 	copy.DisabledSkills = append([]string(nil), value.DisabledSkills...)
+	if value.SecurityTools != nil {
+		copy.SecurityTools = make(map[string]SecurityToolPreference, len(value.SecurityTools))
+		for id, preference := range value.SecurityTools {
+			copy.SecurityTools[id] = preference
+		}
+	}
 	if value.ModelRouting.AutoFallback != nil {
 		autoFallback := *value.ModelRouting.AutoFallback
 		copy.ModelRouting.AutoFallback = &autoFallback

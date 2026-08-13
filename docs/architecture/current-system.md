@@ -13,6 +13,7 @@
 flowchart LR
     learner["学习者<br/>指导 Agent、审批效果、审阅证据"]
     provider["模型 Provider<br/>DeepSeek / TokenFlux / 已配置 Provider"]
+    local_tools["本机安全工具<br/>IDA Pro / capa / 后续适配器"]
     user_browser["用户真实浏览器<br/>Playwright MCP Extension"]
     native_apps["外部原生 App<br/>Computer Use Scope"]
     ctf_platforms["CTF 平台<br/>NSSCTF / CTFshow"]
@@ -31,6 +32,7 @@ flowchart LR
     chromium <--> go
     go <--> pi
     pi --> provider
+    pi <--> local_tools
     go --> security --> local
     go --> deliverables
     chromium <--> user_browser
@@ -71,6 +73,7 @@ MilkSU 的桌面壳不是通用 Agent Loop 的另一份实现。Pi 仍负责会�
 | 内测账户与模型来源 | **Deployed / desktop linked** | 系统浏览器 GitHub PKCE、稳定/测试版独立回调、`0600` 本地不透明会话、账户额度与本机 Key 顺序及对话级偏好已实现；打包客户端指向 `accounts.milksu.org`。会话不使用 macOS Keychain，也不进入 renderer、日志或模型上下文；同一系统用户下的本地恶意进程仍是明确风险。真实 GitHub 登录、邀请兑换、访问开通、¥5.00 余额和初始额度流水已在 Admin 与桌面端联动验证。账户 Team Key 尚未连接，TokenFlux 扣费与明细同步不属于已验收事实。 |
 | Go Runtime | **Implemented / concentrated** | `cmd/milksu-backend/main.go` 启动应用组合根和 JSONL RPC；同目录的 `desktop_rpc.go` 分派现有 App 方法并传递事件，`desktop_host.go` 把文件对话框、外链和浏览器宿主能力反向委托给 Electron。`app.go` 仍较集中，触碰时按纵切拆分。 |
 | Pi 通用 Agent | **Verified core / partial extensions** | Pi 继续拥有 Session、Compaction、模型和通用 Tool Loop；MilkSU 监管 Sidecar、注入当前 Provider、投影事件并实施工作区/审批边界。已审核 Coding Skill 只向 Pi 常驻名称与用途，完整内容按任务或显式选择加载；设置只能停用审核目录，CTF 角色不加载 Coding Skill。TokenFlux `grok-4.5` 多模态和一次真实文档自举已验，完整功能自举仍未完成。 |
+| 安全工具目录 | **Implemented first slice / real-task acceptance pending** | “设置 → 安全工具”使用真实 Desktop RPC 检测与持久化。IDA Pro/idalib 和 capa 具备可准备的固定版本适配器；就绪且启用后进入普通 Coding 的模型可选目录。CodeQL、Burp Suite、Shannon 目前仅做本机/前提检测，不会被误报为模型可用。尚未用真实 crackme/二进制完成任务回执，也未进入 CTF/CVE。 |
 | 内置浏览器 | **Verified packaged tasks** | 产品 UI 只显示“浏览器”。每次 Coding 会话使用独立 `session.fromPath`，默认拒绝页面权限；用户与 Agent 共用同一 `WebContentsView`。打包 App 中 Grok 只用浏览器完成顺序点击挑战、表单提交和 Electron 官方文档调研，三项均在右栏折叠后继续并保留同一页面终态，未回退 Shell。 |
 | Browser Use | **Implemented UI / live pairing pending** | 真实用户 Chrome/Edge 复用固定 `@playwright/mcp --extension`，由用户选择准确标签页；不复用内置浏览器 profile。 |
 | Computer Use | **Verified self-bootstrap slice** | 只接受外部可见 App/PID/Window Scope；Calculator 与 Stable → MilkSU Beta 的 branch/commit/tracking 核验、click/scroll 及 CTF/CVE 任务连续性全程已验。Stable 排除自身，浏览器窗口不进入该 Scope；右栏诊断和操作证据默认折叠。 |
@@ -98,12 +101,14 @@ flowchart TB
         app["Application Services"]
         runtime["CTF / CVE / Evidence Runtime"]
         supervisors["Pi / Security Supervisors"]
+        tool_catalog["Security Tool Service<br/>catalog · detect · setup · health"]
     end
 
     subgraph sidecar["受管 Node Sidecar"]
         pi["Pi Session + Tool Loop"]
         policy["Tool / Approval Policy"]
         resources["固定 Skills · MCP · LSP · Goal"]
+        security_adapters["安全工具适配器<br/>lazy IDA MCP · capa native tool"]
         playwright["固定 Playwright MCP"]
     end
 
@@ -126,8 +131,10 @@ flowchart TB
     host <--> rpc --> app
     app --> runtime
     app --> supervisors <--> pi
+    app --> tool_catalog --> supervisors
     pi --> policy
     pi --> resources
+    pi --> security_adapters
     pi <--> playwright
     host --> browser --> profiles
     browser <--> proxy <--> playwright
@@ -139,7 +146,34 @@ flowchart TB
     app --> coding_files
     app --> ctf_files
     app --> cve_files
+    security_adapters --> coding_files
 ```
+
+### 安全工具能力目录
+
+```mermaid
+flowchart LR
+    settings["设置页<br/>检测 · 准备 · 健康检查"]
+    rpc["Desktop RPC"]
+    service["Security Tool Service<br/>目录 · 偏好 · 进度"]
+    local["本机与托管资源<br/>IDA · uv · capa · Docker"]
+    descriptor["有界运行描述符<br/>仅 ready + enabled"]
+    pi["现有 Pi Session<br/>模型工具循环"]
+    index["轻量能力摘要"]
+    adapter["按需适配器<br/>IDA MCP / capa"]
+
+    settings --> rpc --> service
+    service <--> local
+    service --> descriptor --> pi
+    pi --> index --> pi
+    pi --> adapter --> local
+```
+
+这里不增加第二套 Planner 或 Agent Harness。设置页负责把本机能力准备到可用状态；Go 在发送 Coding
+回合前重新计算 `ready + enabled` 描述符；Pi 只看到短名称、用途和调用提示，由当前模型自行选择。IDA
+以保留名称的 lazy MCP Server 加载只读 Schema，capa 以一个工作区相对路径的原生工具进入现有工具集。
+目录发生变化时才重建 Pi Session，因此用户无需在每个任务里手动选择工具，也不会把未配置工具写进
+模型上下文。CodeQL、Burp Suite 和 Shannon 当前只有检测事实，不进入描述符。
 
 ### 桌面边界
 
@@ -207,7 +241,7 @@ flowchart TB
 | --- | --- |
 | L1 Product Surface | 主产品面可用；多平台、系统权限失败和发行 UI 矩阵仍需扩样。 |
 | L2 Desktop / Application | Preload 与 JSONL RPC 已替代 Wails Binding；`cmd/milksu-backend/app.go` 仍是主要集中点。 |
-| L3 Agent / Platform | Pi、Playwright、Platform Bridge、ImageGen、Computer Use、Session Index 已接入；安全工具 MCP 仍是准入队列。 |
+| L3 Agent / Platform | Pi、Playwright、Platform Bridge、ImageGen、Computer Use、Session Index 已接入；IDA lazy MCP 与 capa 原生工具进入普通 Coding 的首条安全工具纵切，其余候选仍在准入队列。 |
 | L4 Domain | CTF/CVE 当前领域契约成立；模型不能越过 Judge/正式事实源。 |
 | L5 Evidence | 追加式事件、Artifact 哈希、Projection 和 Recovery 已实现。 |
 | L6 Integrity | 工作区、审批、精确 Browser Target 与 Credential 边界存在；宿主执行仍非容器，跨平台负向矩阵未完成。 |

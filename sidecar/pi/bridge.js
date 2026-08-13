@@ -64,6 +64,11 @@ import {
   projectMcpServersFromSelection,
 } from "./bridge-mcp.js";
 import {
+  createSecurityToolsExtension,
+  normalizeSecurityTools,
+  securityToolSelectionChanged,
+} from "./bridge-security-tools.js";
+import {
   codingBrowserEvidenceFileBlockReason,
   codingBrowserEvidenceRelativePath,
   codingBrowserToolBlockReason,
@@ -1018,6 +1023,7 @@ function createMilkSUResourceLoader(
   getPolicy,
   registerPolicyController,
   mcpConfig,
+  securityTools,
   getSession,
 ) {
   // Skills and extensions may execute instructions supplied by third parties.
@@ -1042,6 +1048,7 @@ function createMilkSUResourceLoader(
         },
       ),
       createComputerUseVisionResultExtension(getSession),
+      createSecurityToolsExtension(cwd, securityTools),
     );
     if (mcpConfig) {
       extensionFactories.push(createMcpAdapter({ config: mcpConfig }));
@@ -1102,6 +1109,9 @@ async function loadRuntimeSessionPolicy(cwd, command) {
         cwd,
       );
   const browserUse = requestedBrowserUseDescriptor(command);
+  const securityTools = command.sessionRole
+    ? []
+    : await normalizeSecurityTools(command.securityTools);
   const selectedMcp = command.sessionRole
     ? {
         selected: [],
@@ -1118,6 +1128,7 @@ async function loadRuntimeSessionPolicy(cwd, command) {
         command.codingBrowser,
         command.computerUse,
         browserUse,
+        securityTools,
       );
   let policy = await loadSessionPolicy(cwd, command.sessionRole, {
     executionMode: command.executionMode,
@@ -1164,11 +1175,18 @@ async function loadRuntimeSessionPolicy(cwd, command) {
     });
   }
   policy.skillNames = codingSkillPaths.map(path => basename(path));
+  policy.securityTools = securityTools;
+  if (!policy.ctf && securityTools.some(tool => tool.id === "capa")) {
+    if (!policy.activeTools.includes("capa_analyze")) {
+      policy.activeTools.push("capa_analyze");
+    }
+  }
   return {
     policy,
     effectiveSessionRole,
     codingSkillPaths,
     mcpConfig: selectedMcp.config,
+    securityTools,
   };
 }
 
@@ -1227,6 +1245,7 @@ async function createSession(command) {
     effectiveSessionRole,
     codingSkillPaths,
     mcpConfig,
+    securityTools,
   } = await loadRuntimeSessionPolicy(cwd, command);
   if (!effectiveSessionRole) {
     applyCodingResourcePolicy();
@@ -1247,6 +1266,7 @@ async function createSession(command) {
     () => sessionPolicies.get(conversationId),
     controller => sessionPolicyControllers.set(conversationId, controller),
     mcpConfig,
+    securityTools,
     () => session,
   );
   // MilkSU performs its own explicit, reviewed resource loading. Mark the
@@ -1276,6 +1296,9 @@ async function createSession(command) {
               ? [codingCollaborationToolName]
               : []),
             ...(sessionPolicy.mcpServers?.length ? ["mcp"] : []),
+            ...(sessionPolicy.securityTools?.some(tool => tool.id === "capa")
+              ? ["capa_analyze"]
+              : []),
           ],
       customTools: sessionPolicy.customTools,
     }));
@@ -1397,6 +1420,10 @@ async function sendMessage(command) {
       || codingCollaborationChanged(
         previousPolicy.codingCollaboration,
         requestedCodingCollaboration,
+      )
+      || securityToolSelectionChanged(
+        previousPolicy.securityTools,
+        command.securityTools,
       )
       || JSON.stringify(previousPolicy.skillNames ?? [])
         !== JSON.stringify(

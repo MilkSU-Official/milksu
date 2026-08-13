@@ -122,6 +122,10 @@ func newSidecarCommandAtWithDirectory(
 
 	arguments := []string{runtime.bridge}
 	if runtime.packaged {
+		dataDirectory, dataErr := appdata.Ensure()
+		if dataErr != nil {
+			return nil, dataErr
+		}
 		sidecarDirectory := filepath.Dir(runtime.bridge)
 		playwrightSocketDirectory := filepath.Join("/private/tmp", "milksu-playwright")
 		computerUseRuntimeDirectory := filepath.Join(
@@ -134,6 +138,7 @@ func newSidecarCommandAtWithDirectory(
 			"--allow-fs-read=" + sidecarDirectory,
 			"--allow-fs-read=" + workspace,
 			"--allow-fs-read=" + runtimeHome,
+			"--allow-fs-read=" + filepath.Join(dataDirectory, "security-tools"),
 			"--allow-fs-write=" + workspace,
 			"--allow-fs-write=" + runtimeHome,
 			"--allow-fs-write=" + playwrightSocketDirectory,
@@ -149,6 +154,18 @@ func newSidecarCommandAtWithDirectory(
 				"--allow-fs-read=/usr/bin/env",
 				"--allow-fs-read=/usr/bin/sandbox-exec",
 			)
+			if home, homeErr := os.UserHomeDir(); homeErr == nil {
+				idaUserDirectory := filepath.Join(home, ".idapro")
+				arguments = append(
+					arguments,
+					"--allow-fs-read="+idaUserDirectory,
+					"--allow-fs-write="+idaUserDirectory,
+				)
+			}
+			idaApplications, _ := filepath.Glob("/Applications/IDA Professional*.app")
+			for _, idaApplication := range idaApplications {
+				arguments = append(arguments, "--allow-fs-read="+idaApplication)
+			}
 		}
 		arguments = append(arguments, runtime.bridge)
 	}

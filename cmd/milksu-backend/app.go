@@ -26,6 +26,7 @@ import (
 	"github.com/MilkSU-Official/milksu/internal/engine"
 	"github.com/MilkSU-Official/milksu/internal/nssctf"
 	"github.com/MilkSU-Official/milksu/internal/securityruntime"
+	"github.com/MilkSU-Official/milksu/internal/securitytools"
 	"github.com/MilkSU-Official/milksu/internal/sessionindex"
 	"github.com/MilkSU-Official/milksu/internal/userartifact"
 	"github.com/MilkSU-Official/milksu/internal/vuln"
@@ -48,6 +49,7 @@ type App struct {
 	computerUse       *computercap.Manager
 	engines           *engine.Supervisor
 	securityEngine    *engine.SecuritySupervisor
+	securityTools     *securitytools.Service
 	nssctf            *nssctf.Client
 	nssctfCatalog     *nssctf.CatalogService
 	ctfshowCatalog    *ctfshow.CatalogService
@@ -125,6 +127,11 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 		ctfMaterials:      newLocalCTFMaterialStore(),
 	}
 	application.diagnostics.Record("app", "info", "application services initialized")
+	application.securityTools = securitytools.NewService(
+		dataDirectory,
+		settings,
+		application.emitSecurityToolSetup,
+	)
 	if restoreResult.Applied {
 		application.diagnostics.Record("appdata", "info", "pending local data restore applied")
 		_ = appdata.AppendEventLog(dataDirectory, appdata.PersistedRestoreApplied)
@@ -720,6 +727,7 @@ func (a *App) SendMessage(
 			return err
 		}
 	}
+	a.engines.SetSecurityTools(a.securityTools.RuntimeTools(a.commandContext()))
 	return a.engines.SendMessage(
 		conversationID,
 		prompt,

@@ -75,8 +75,10 @@
 - Coding 的已审核 Skill 由 Pi 按需加载完整内容，设置页只管理审核目录的启停；当前目录覆盖产品设计、前端视觉验收、API 集成、安全审查、技术交付物、架构图和 MilkSU 发布。禁用项从下一条 Coding 消息生效，CTF 角色保持隔离，用户不能借设置注入任意 Skill 路径。
 - 用户可见交付物写入 `~/Documents/MilkSU/{Coding,CTF,CVE}`；Runtime、事件、凭据、Obelisk、浏览器 Profile 与恢复状态继续留在 App Support。设置页明确展示并可打开产物目录。
 - 个人安全工作台历史 Beta 纵切来自干净提交 `31c06dfb296dd85e96e24dacf21a26ba70cea3d1`；原生 Computer Use 已用全新自定义题 `Caesar Shift 12` 完成创建、共享 Coding、运行中引导、可复现脚本/笔记、返回与手工状态闭环。题面与规定 Flag 格式实际不一致，Agent 明确拒绝编造候选，未建立 Judge 成功事实。该 Beta 是过程证据，不再代表当前正式版本；当前正式签名基线是 `cfc9a10`。账户 Team Key 与真实 TokenFlux 扣费明细仍待独立联调。
-- 安全工具 MCP 是下一阶段 Coding 常规能力，不是当前发行能力：候选为 IDA Pro/idalib、Burp、radare2、Ghidra 与 Semgrep；
-  必须先通过固定版本、最小权限、真实任务和拒绝路径，是否进入 CTF/CVE 由用户监督的领域纵切决定。
+- 安全工具设置与普通 Coding 的首条生产纵切已实现：真实目录、检测、启停持久化和准备进度进入
+  Desktop RPC；IDA Pro/idalib lazy MCP 与 capa 原生工具只在 `ready + enabled` 时交给现有 Pi 供模型
+  自主选择。CodeQL、Burp Suite、Shannon 仍是检测/前提状态，不是模型能力；真实 crackme/二进制任务
+  回执和 CTF/CVE 模块接入仍待独立纵切，不能由当前自动化测试外推。
 - 相关历史人类语义图已在重新打包的 macOS App 用 TokenFlux `grok-4.5` 通过 `Computer Use`（10 节点/11 关系）与 `MCP`（11 节点/12 关系）真实归纳、来源详情/回跳和主聊天不受污染验收；`@antv/g6@5.1.1` 仅在完整图谱视图懒加载，列表与紧凑侧栏不会触发模型调用。
 - Labs 暂停；CVE 纵深/复现/披露后置；NYU safe-static 不是完整 CTF 成绩。Developer ID / 公证的
   私有 workflow 与 Environment Secrets 已配置，最终功能提交的 Apple 公证、stapler、Gatekeeper、

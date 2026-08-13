@@ -76,6 +76,11 @@ import type {
   SessionIndexRefreshResult,
   SessionIndexStatus,
 } from './sessionIndexTypes'
+import type {
+  SecurityToolCodingHandoff,
+  SecurityToolSetupSnapshot,
+  SecurityToolSnapshot,
+} from './securityToolsTypes'
 
 type CommandArgs = Record<string, unknown>
 type UnlistenFn = () => void
@@ -143,6 +148,12 @@ interface DesktopAppBindings {
   LogoutAccount(): Promise<AccountStatus>
   GetSettings(): Promise<AppSettings>
   SaveSettingsCmd(settings: AppSettings): Promise<void>
+  ListSecurityTools(): Promise<SecurityToolSnapshot[]>
+  SetSecurityToolEnabled(id: string, enabled: boolean): Promise<void>
+  StartSecurityToolSetup(id: string): Promise<SecurityToolSetupSnapshot>
+  GetSecurityToolSetup(id: string): Promise<SecurityToolSetupSnapshot>
+  CheckSecurityTool(id: string): Promise<SecurityToolSnapshot>
+  PrepareSecurityToolCodingHandoff(id: string): Promise<SecurityToolCodingHandoff>
   GetLocalDataStatus(): Promise<LocalDataStatus>
   GetUserArtifactDirectoryStatus(): Promise<UserArtifactDirectoryStatus>
   GetBuildTracking(): Promise<BuildTracking>
@@ -652,6 +663,21 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         ) as Promise<T>
       case 'test_agent_model':
         return app.TestAgentModel() as Promise<T>
+      case 'list_security_tools':
+        return app.ListSecurityTools() as Promise<T>
+      case 'set_security_tool_enabled':
+        return app.SetSecurityToolEnabled(
+          args?.id as string,
+          args?.enabled as boolean,
+        ) as Promise<T>
+      case 'start_security_tool_setup':
+        return app.StartSecurityToolSetup(args?.id as string) as Promise<T>
+      case 'get_security_tool_setup':
+        return app.GetSecurityToolSetup(args?.id as string) as Promise<T>
+      case 'check_security_tool':
+        return app.CheckSecurityTool(args?.id as string) as Promise<T>
+      case 'prepare_security_tool_coding_handoff':
+        return app.PrepareSecurityToolCodingHandoff(args?.id as string) as Promise<T>
       case 'import_nssctf_challenge':
         return app.ImportNSSCTFChallenge(args?.url as string) as Promise<T>
       case 'sync_nssctf_catalog':
