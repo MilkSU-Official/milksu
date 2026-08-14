@@ -64,7 +64,13 @@ export async function normalizeSecurityTools(value) {
         throw new Error("MilkSU requires IDA Pro to be a regular application directory");
       }
       normalized.userIdaPath = resolve(boundedText(raw.userIdaPath, "IDA user path", 520));
-      const home = String(process.env.HOME ?? "").trim();
+      // HOME belongs to MilkSU's isolated Agent runtime. The supervised Go
+      // launcher separately publishes the real local user home for reviewed
+      // desktop tools such as IDA, whose IDAUSR directory intentionally lives
+      // outside that isolation root.
+      const home = String(
+        process.env.MILKSU_USER_HOME ?? process.env.HOME ?? "",
+      ).trim();
       if (!home || !within(resolve(home), normalized.userIdaPath)) {
         throw new Error("MilkSU rejected an IDA user directory outside the current home");
       }

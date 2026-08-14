@@ -69,6 +69,31 @@ test("normalizes the recomputed local catalog and builds lazy read-only IDA MCP"
   }
 });
 
+test("validates IDAUSR against the supervised user home instead of the isolated Agent HOME", async () => {
+  const value = await fixture();
+  const previousHome = process.env.HOME;
+  const previousUserHome = process.env.MILKSU_USER_HOME;
+  process.env.HOME = join(value.root, "isolated-agent-home");
+  process.env.MILKSU_USER_HOME = value.home;
+  try {
+    const tools = await normalizeSecurityTools([{
+      id: "ida-pro",
+      command: value.command,
+      version: "9.1",
+      profilePath: value.profilePath,
+      idaPath: value.idaPath,
+      userIdaPath: value.userIdaPath,
+      capabilities: ["读取函数与反编译结果"],
+    }]);
+    assert.equal(tools[0].userIdaPath, value.userIdaPath);
+  } finally {
+    if (previousHome === undefined) delete process.env.HOME;
+    else process.env.HOME = previousHome;
+    if (previousUserHome === undefined) delete process.env.MILKSU_USER_HOME;
+    else process.env.MILKSU_USER_HOME = previousUserHome;
+  }
+});
+
 test("registers capa as a model-selectable tool and publishes a lightweight index", async () => {
   const registered = [];
   const listeners = new Map();
