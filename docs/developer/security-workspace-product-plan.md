@@ -72,32 +72,8 @@ GitHub 登录、邀请、额度和模型来源切换已经接入；用户可以�
 
 Desktop 与独立 Admin 的全部页面统一采用
 [MilkSU 游戏化界面系统](../design/milksu-game-ui-system.md)。Coding 任务、CTF/CVE 数据列表、个人页、
-设置页和 Admin 深浅色基准图共同构成当前视觉契约；旧六张定稿图继续保留为产品决策来源，但视觉
-层级、组件语言和主题以新契约为准。
-
-### 个人资料页
-
-![个人资料页定稿](../design/milksu-personal-profile-approved.png)
-
-### CTF 挑战页
-
-![CTF 挑战页定稿](../design/milksu-ctf-challenges-approved.png)
-
-### CVE 研究页
-
-![CVE 研究页定稿](../design/milksu-cve-research-approved.png)
-
-### 账户与模型来源
-
-![账户与模型来源定稿](../design/milksu-account-model-routing-approved.png)
-
-### GitHub 登录页
-
-![GitHub 登录页定稿](../design/milksu-github-login-approved.png)
-
-### 独立内测管理后台
-
-![独立内测管理后台定稿](../design/milksu-beta-admin-approved.png)
+设置页和 Admin 深浅色实际界面共同构成当前视觉契约。当前代码、共享界面系统以及真实运行验收图
+是视觉判断依据；迁移前的六张独立定稿图已经退役并删除，不得再作为新设计、实现或验收的参考。
 
 实现后的 Admin 视觉对照、额度操作和 Cloudflare 版本截图保存在独立私有仓库
 `MilkSU-Official/milksu-admin` 的 `docs/evidence/`，不复制进对内测用户开放的桌面仓库。
