@@ -97,6 +97,11 @@ func TestRefreshFailureKeepsBundledCatalog(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := service.Snapshot()
+	if len(before.Models) < 2 ||
+		before.Models[0].ID != "x-ai/grok-4.6" ||
+		before.Models[1].ID != "x-ai/grok-4.5" {
+		t.Fatalf("bundled catalog does not prefer Grok 4.6 with Grok 4.5 available: %#v", before.Models)
+	}
 	after, err := service.Refresh(context.Background())
 	if err == nil {
 		t.Fatal("expected refresh failure")

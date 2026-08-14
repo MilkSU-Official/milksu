@@ -94,8 +94,8 @@ type AppSettings struct {
 
 func DefaultSettings() AppSettings {
 	return AppSettings{
-		ActiveProvider: "deepseek",
-		ActiveModel:    "deepseek-v4-flash",
+		ActiveProvider: "tokenflux",
+		ActiveModel:    "x-ai/grok-4.6",
 		ModelRouting: ModelRoutingConfig{
 			SourceOrder:  []string{ModelSourceAccount, ModelSourcePersonal},
 			AutoFallback: boolPointer(true),

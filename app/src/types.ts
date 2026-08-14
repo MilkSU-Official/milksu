@@ -198,10 +198,10 @@ export interface AppSettings {
 }
 
 export const PRIMARY_MODEL_SELECTION: ModelSelection = {
-  provider: 'deepseek',
-  model: 'deepseek-v4-flash',
+  provider: 'tokenflux',
+  model: 'x-ai/grok-4.6',
 }
-export const TOKENFLUX_DEFAULT_MODEL = 'grok-4.5'
+export const TOKENFLUX_DEFAULT_MODEL = 'x-ai/grok-4.6'
 
 export function withAppSettingsDefaults(value: AppSettings): AppSettings {
   const legacy = value as AppSettings & {
@@ -395,7 +395,7 @@ export const PROVIDERS: ProviderInfo[] = [
     envKey: 'DEEPSEEK_API_KEY',
     placeholder: 'sk-...',
     defaultBaseUrl: 'https://api.deepseek.com',
-    summary: '默认日常模型，适合代码迭代、CTF/CVE 辅助和连续工具调用',
+    summary: '适合代码迭代、CTF/CVE 辅助和连续工具调用',
   },
   {
     id: 'tokenflux',
@@ -406,7 +406,7 @@ export const PROVIDERS: ProviderInfo[] = [
     envKey: 'TOKENFLUX_API_KEY',
     placeholder: 'tf_... 或 TokenFlux API Key',
     defaultBaseUrl: 'https://tokenflux.dev/v1',
-    summary: '词元流动 · Grok、Claude、OpenAI、DeepSeek 等统一网关',
+    summary: '词元流动 · 默认通过内测额度使用 Grok，也可接入个人 TokenFlux API Key',
   },
   {
     id: 'anthropic',
@@ -493,6 +493,8 @@ export function providerModelLabel(provider: string, model: string) {
   const info = PROVIDERS.find(item => item.id === provider)
   const displayModel = ({
     'deepseek-v4-flash': 'DeepSeek V4 Flash',
+    'x-ai/grok-4.6': 'Grok 4.6',
+    'x-ai/grok-4.5': 'Grok 4.5',
     'grok-4.3': 'Grok 4.3',
     'grok-4.5': 'Grok 4.5',
     'openai/gpt-5.6-sol': 'GPT-5.6 Sol',

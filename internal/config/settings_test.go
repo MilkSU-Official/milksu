@@ -50,7 +50,7 @@ func TestWithDefaults(t *testing.T) {
 		"release-milksu-",
 		"review-security",
 	}})
-	if settings.ActiveProvider != "deepseek" || settings.ActiveModel != "deepseek-v4-flash" {
+	if settings.ActiveProvider != "tokenflux" || settings.ActiveModel != "x-ai/grok-4.6" {
 		t.Fatalf("unexpected defaults: %#v", settings)
 	}
 	if settings.Providers == nil {
@@ -152,6 +152,8 @@ func TestStoreKeepsSecretsOutOfSettingsAndPublicBoundary(t *testing.T) {
 		t.Fatal(err)
 	}
 	settings := DefaultSettings()
+	settings.ActiveProvider = "deepseek"
+	settings.ActiveModel = "deepseek-v4-flash"
 	settings.Providers["deepseek"] = ProviderConfig{APIKey: "provider-secret", Enabled: true}
 	settings.Relay = &RelayConfig{Enabled: true, URL: "https://relay.example", Key: "relay-secret"}
 	settings.NSSCTFArena = &NSSCTFArenaConfig{Token: "nss_agent_arena-secret"}
@@ -193,6 +195,8 @@ func TestStorePersistsAndInvalidatesModelVerification(t *testing.T) {
 		t.Fatal(err)
 	}
 	settings := DefaultSettings()
+	settings.ActiveProvider = "deepseek"
+	settings.ActiveModel = "deepseek-v4-flash"
 	settings.Providers["deepseek"] = ProviderConfig{APIKey: "provider-secret", Enabled: true}
 	if err := store.Save(settings); err != nil {
 		t.Fatal(err)
@@ -235,6 +239,8 @@ func TestStoreValidatesBaseURLAndInvalidatesVerificationWhenItChanges(t *testing
 	}
 	firstURL := "https://api.deepseek.com"
 	settings := DefaultSettings()
+	settings.ActiveProvider = "deepseek"
+	settings.ActiveModel = "deepseek-v4-flash"
 	settings.Providers["deepseek"] = ProviderConfig{
 		APIKey:  "provider-secret",
 		BaseURL: &firstURL,

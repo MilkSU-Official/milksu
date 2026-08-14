@@ -357,7 +357,8 @@ func writeSnapshot(path string, value Snapshot) error {
 
 func fallbackSnapshot() Snapshot {
 	models := []Model{
-		{ID: "grok-4.5", Name: "Grok 4.5", ContextWindow: 500_000, MaxTokens: defaultMaxTokens, Input: []string{"text", "image"}},
+		{ID: "x-ai/grok-4.6", Name: "Grok 4.6", ContextWindow: 500_000, MaxTokens: defaultMaxTokens, Input: []string{"text", "image"}},
+		{ID: "x-ai/grok-4.5", Name: "Grok 4.5", ContextWindow: 500_000, MaxTokens: defaultMaxTokens, Input: []string{"text", "image"}},
 		{ID: "grok-4.3", Name: "Grok 4.3", ContextWindow: 1_000_000, MaxTokens: defaultMaxTokens, Input: []string{"text"}},
 		{ID: "openai/gpt-5.6-sol", Name: "GPT-5.6 Sol", ContextWindow: 1_050_000, MaxTokens: defaultMaxTokens, Input: []string{"text"}},
 		{ID: "openai/gpt-5.2-codex", Name: "GPT-5.2 Codex", ContextWindow: 400_000, MaxTokens: defaultMaxTokens, Input: []string{"text"}},

@@ -1451,6 +1451,8 @@ func containsEnvironmentEntry(environment []string, expected string) bool {
 
 func TestValidateModelAccessAcceptsEnabledProviderKey(t *testing.T) {
 	settings := config.DefaultSettings()
+	settings.ActiveProvider = "deepseek"
+	settings.ActiveModel = "deepseek-v4-flash"
 	settings.Providers["deepseek"] = config.ProviderConfig{
 		APIKey:  "provider-secret",
 		Enabled: true,
@@ -1739,6 +1741,8 @@ func TestProbeFailureMessageRedactsCredentialsAndKeepsOfflineCause(t *testing.T)
 
 func TestValidateModelAccessUsesPersonalKeyWhenAccountSourceHasNoKey(t *testing.T) {
 	settings := config.DefaultSettings()
+	settings.ActiveProvider = "deepseek"
+	settings.ActiveModel = "deepseek-v4-flash"
 	settings.Relay = &config.RelayConfig{Enabled: true}
 	settings.Providers["deepseek"] = config.ProviderConfig{
 		Enabled: true,

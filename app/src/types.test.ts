@@ -20,6 +20,8 @@ describe('model provider catalog', () => {
     expect(tokenflux?.visionModels).toEqual([])
     expect(providerModelLabel('tokenflux', 'grok-4.3'))
       .toBe('TokenFlux · Grok 4.3')
+    expect(providerModelLabel('tokenflux', 'x-ai/grok-4.6'))
+      .toBe('TokenFlux · Grok 4.6')
   })
 
   it('preserves a refreshed model selection that is not in bundled provider metadata', () => {
@@ -54,8 +56,8 @@ describe('model provider catalog', () => {
       providers: {},
     } as AppSettings)
 
-    expect(settings.active_provider).toBe('deepseek')
-    expect(settings.active_model).toBe('deepseek-v4-flash')
+    expect(settings.active_provider).toBe('tokenflux')
+    expect(settings.active_model).toBe('x-ai/grok-4.6')
     expect(settings.model_routing).toEqual({
       source_order: ['account', 'personal'],
       auto_fallback: true,
