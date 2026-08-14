@@ -37,7 +37,7 @@ const showContextSidebar = computed(() => props.codingContextOpen)
 
 <template>
   <aside
-    class="workspace-navigation-shell relative z-40 flex shrink-0 border-r border-[#2d343b] text-sidebar-foreground"
+    class="workspace-navigation-shell relative z-40 flex shrink-0 border-r border-[var(--night-border)] text-sidebar-foreground"
     data-testid="stable-app-sidebar"
   >
     <WorkspaceRail
@@ -87,7 +87,7 @@ const showContextSidebar = computed(() => props.codingContextOpen)
 .coding-context-backdrop { left: 4.75rem; }
 .coding-context-drawer {
   left: 4.75rem;
-  border-right: 1px solid #343b42;
+  border-right: 1px solid var(--night-border);
 }
 @media (min-width: 1180px) {
   .workspace-navigation-shell { width: 13.5rem; }

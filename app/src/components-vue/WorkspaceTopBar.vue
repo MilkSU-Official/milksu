@@ -61,14 +61,14 @@ const moduleKey = computed(() => props.module ?? props.title.trim().toLowerCase(
 
 <style scoped>
 .workspace-topbar {
-  --foreground: #f5f6f7;
-  --muted-foreground: #9da6b0;
-  --border: #3a424a;
-  --border-hairline: #46505a;
-  --card: #14191d;
-  --secondary: #1b2026;
-  --muted: #1b2026;
-  --surface-sunken: #0b0e11;
+  --foreground: var(--night-foreground);
+  --muted-foreground: var(--night-muted-foreground);
+  --border: var(--night-border);
+  --border-hairline: var(--night-border-hairline);
+  --card: var(--night-card);
+  --secondary: var(--night-muted);
+  --muted: var(--night-muted);
+  --surface-sunken: var(--night-sunken);
   --module-topbar-title-size: var(--text-control, 0.875rem);
   --module-topbar-title-line-height: var(--text-control--line-height, 1.25rem);
   --module-topbar-control-size: var(--text-control, 0.875rem);
@@ -81,7 +81,7 @@ const moduleKey = computed(() => props.module ?? props.title.trim().toLowerCase(
   margin: .75rem .75rem 0;
   border: 0;
   background: transparent;
-  color: #f5f6f7;
+  color: var(--night-foreground);
   overflow: visible;
 }
 
@@ -89,7 +89,7 @@ const moduleKey = computed(() => props.module ?? props.title.trim().toLowerCase(
   position: absolute;
   z-index: -1;
   inset: 0;
-  border: 1px solid #323a42;
+  border: 1px solid var(--night-border);
   background-color: var(--tactical-ink-2);
   background-image: var(--tactical-carbon-image);
   background-size: 640px 640px;
@@ -131,8 +131,8 @@ const moduleKey = computed(() => props.module ?? props.title.trim().toLowerCase(
   padding-bottom: 1.05rem;
 }
 
-.workspace-topbar :deep([data-button]) { color: #f5f6f7; }
-.workspace-topbar__subtitle { color: #9da6b0; }
+.workspace-topbar :deep([data-button]) { color: var(--night-foreground); }
+.workspace-topbar__subtitle { color: var(--night-muted-foreground); }
 
 .workspace-topbar__title,
 .workspace-topbar__subtitle {

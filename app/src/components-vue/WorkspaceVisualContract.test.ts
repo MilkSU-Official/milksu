@@ -51,11 +51,11 @@ describe('Workspace visual contract', () => {
     expect(loginPageSource).toContain('background: var(--primary)')
     expect(loginPageSource).toContain('mask-image: radial-gradient')
     expect(settingsPageSource).toContain('settings-nav-surface tactical-dark-surface')
-    expect(settingsPageSource).toContain('background-color: rgb(9 12 15 / .62)')
+    expect(settingsPageSource).toContain('background-color: rgb(17 18 15 / .68)')
     expect(settingsPageSource).not.toContain('bg-[#101418]')
     expect(chatPageSource).toContain("import TacticalPanelShell from '@/components-vue/TacticalPanelShell.vue'")
     expect(chatPageSource).toContain('class="context-sidebar"')
-    expect(workspaceRailSource).toContain('--foreground: #f4f7fb')
+    expect(workspaceRailSource).toContain('--foreground: var(--night-foreground)')
   })
 
   it('uses one tactical shell for hidden Coding surfaces and adapts the task layout to its container', () => {

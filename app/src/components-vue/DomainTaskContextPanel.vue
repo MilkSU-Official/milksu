@@ -210,7 +210,7 @@ function toggleCollapsed() {
   min-height: 100%;
   flex-direction: column;
   overflow: hidden;
-  background: #111519;
+  background: var(--night-canvas);
   container-name: domain-dossier;
   container-type: inline-size;
 }
@@ -225,8 +225,8 @@ function toggleCollapsed() {
 
 .domain-dossier { z-index: 2; margin: 2rem 1.15rem 1rem; overflow: auto; color: var(--tactical-paper-ink); }
 .domain-mission-title { overflow-wrap: anywhere; font-size: clamp(1.9rem, 10cqi, 2.65rem); }
-.domain-dossier__header { border-bottom: 1px solid #343b42; color: #f6f7f8; }
-.domain-dossier__footer { border-color: #343b42; color: #f6f7f8; }
+.domain-dossier__header { border-bottom: 1px solid var(--night-border); color: var(--night-foreground); }
+.domain-dossier__footer { border-color: var(--night-border); color: var(--night-foreground); }
 .domain-material, .domain-facts { border-color: rgb(17 19 21 / .35); background: rgb(255 255 255 / .14); }
 .domain-facts dl { border-color: rgb(17 19 21 / .28); }
 

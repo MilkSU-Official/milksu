@@ -552,6 +552,7 @@ onBeforeUnmount(() => {
         v-else-if="section === 'profile'"
         :account-status="accountStatus"
         :conversations="conversations.conversations.value"
+        :vulnerabilities="vulnerabilityDashboard.tracked.value"
         @account-status-change="accountStatus = $event"
       />
       <KeepAlive include="CTFPage,VulnPage">

@@ -503,13 +503,13 @@ onMounted(async () => {
     screenReaderMode: true,
     scrollback: 5000,
     theme: {
-      background: '#0b111d',
-      foreground: '#e7edf6',
+      background: '#12130f',
+      foreground: '#f1f3ec',
       cursor: '#9fef00',
-      cursorAccent: '#0b111d',
+      cursorAccent: '#12130f',
       selectionBackground: '#9fef0033',
-      black: '#0b111d',
-      brightBlack: '#607089',
+      black: '#12130f',
+      brightBlack: '#6e7167',
       green: '#9fef00',
       brightGreen: '#b7ff3c',
       cyan: '#5ce1e6',
@@ -522,7 +522,7 @@ onMounted(async () => {
       brightBlue: '#94c1ff',
       magenta: '#c084fc',
       brightMagenta: '#d7a8ff',
-      white: '#d7deea',
+      white: '#dfe1d9',
       brightWhite: '#ffffff',
     },
   })
@@ -689,7 +689,7 @@ onBeforeUnmount(() => {
     </div>
 
     <template v-if="activeView === 'shell'">
-      <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[#0b111d]">
+      <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[var(--night-sunken)]">
         <div
           ref="shellContainer"
           class="box-border min-h-0 min-w-0 flex-1 overflow-hidden px-2 py-2"

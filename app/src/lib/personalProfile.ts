@@ -1,6 +1,6 @@
 import type { CTFSummary } from '@/ctfTypes'
 import type { Conversation } from '@/types'
-import type { VulnSummary } from '@/vulnTypes'
+import type { VulnerabilityIntel } from '@/vulnerabilityIntel'
 
 export type PersonalActivityModule = 'ctf' | 'vuln' | 'coding'
 
@@ -46,7 +46,7 @@ function validTimestamp(value: string | number | undefined) {
   return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : 0
 }
 
-function localDay(timestamp: number) {
+export function localDayKey(timestamp: number) {
   const date = new Date(timestamp)
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
@@ -61,7 +61,7 @@ export function qualitativeStage(count: number) {
   return '比较熟悉'
 }
 
-function codingActivities(conversations: Conversation[]) {
+export function codingActivities(conversations: Conversation[]) {
   return conversations.flatMap((conversation): PersonalActivity[] => {
     const taskMessages = conversation.messages.filter(message => message.role !== 'tool')
     const hasUserTask = taskMessages.some(message => message.role === 'user')
@@ -88,7 +88,7 @@ function codingActivities(conversations: Conversation[]) {
   })
 }
 
-function ctfActivities(jobs: CTFSummary[]) {
+export function ctfActivities(jobs: CTFSummary[]) {
   return jobs.flatMap((job): PersonalActivity[] => {
     const timestamp = validTimestamp(job.updatedAt)
     if (!timestamp) return []
@@ -98,22 +98,32 @@ function ctfActivities(jobs: CTFSummary[]) {
       title: job.title,
       detail: job.verdict === 'pass' ? '答案已通过独立验证' : '更新一次 CTF 练习记录',
       timestamp,
-      confirmed: job.verdict === 'pass' || job.status === 'succeeded',
+      confirmed: job.verdict === 'pass',
     }]
   })
 }
 
-function vulnActivities(jobs: VulnSummary[]) {
-  return jobs.flatMap((job): PersonalActivity[] => {
-    const timestamp = validTimestamp(job.updatedAt)
+export function vulnActivities(items: VulnerabilityIntel[], conversations: Conversation[]) {
+  const tracked = new Map(items.map(item => [item.id.toUpperCase(), item]))
+  return conversations.flatMap((conversation): PersonalActivity[] => {
+    if (conversation.domainTaskContext?.kind !== 'cve') return []
+    const item = tracked.get(conversation.domainTaskContext.cveId.toUpperCase())
+    if (!item) return []
+    const taskMessages = conversation.messages.filter(message => message.role !== 'tool')
+    if (!taskMessages.some(message => message.role === 'user')) return []
+    const timestamp = Math.max(
+      validTimestamp(conversation.createdAt),
+      ...taskMessages.map(message => validTimestamp(message.timestamp)),
+    )
     if (!timestamp) return []
+    const userVerified = item.status === '已验证'
     return [{
-      id: `vuln:${job.id}`,
+      id: `vuln:${conversation.id}`,
       module: 'vuln',
-      title: job.title,
-      detail: '更新一次 CVE 研究记录',
+      title: `${item.id} · ${item.product || item.title}`,
+      detail: userVerified ? '用户已明确标记为已验证' : '推进一次 CVE 研究记录',
       timestamp,
-      confirmed: job.verdict === 'pass' || job.status === 'succeeded',
+      confirmed: userVerified,
     }]
   })
 }
@@ -123,36 +133,40 @@ function moduleSummary(
   label: PersonalModuleSummary['label'],
   unit: string,
   activities: PersonalActivity[],
+  count = activities.filter(activity => activity.module === module).length,
+  recentFocus = activities.find(activity => activity.module === module)?.title ?? '暂无记录',
 ) {
-  const matching = activities.filter(activity => activity.module === module)
   return {
     module,
     label,
-    count: matching.length,
+    count,
     unit,
-    stage: qualitativeStage(matching.length),
-    recentFocus: matching[0]?.title ?? '暂无记录',
+    stage: qualitativeStage(count),
+    recentFocus,
   } satisfies PersonalModuleSummary
 }
 
 export function buildPersonalProfileSnapshot(
   conversations: Conversation[],
   ctfJobs: CTFSummary[],
-  vulnJobs: VulnSummary[],
+  vulnerabilities: VulnerabilityIntel[],
   now = Date.now(),
 ): PersonalProfileSnapshot {
+  const coding = codingActivities(conversations)
+  const ctf = ctfActivities(ctfJobs)
+  const vuln = vulnActivities(vulnerabilities, conversations)
   const earliest = now - 365 * 24 * 60 * 60 * 1000
   const activities = [
-    ...codingActivities(conversations),
-    ...ctfActivities(ctfJobs),
-    ...vulnActivities(vulnJobs),
+    ...coding,
+    ...ctf,
+    ...vuln,
   ]
     .filter(activity => activity.timestamp <= now && activity.timestamp >= earliest)
     .sort((left, right) => right.timestamp - left.timestamp)
 
   const dayCounts: Record<string, number> = {}
   for (const activity of activities) {
-    const day = localDay(activity.timestamp)
+    const day = localDayKey(activity.timestamp)
     dayCounts[day] = (dayCounts[day] ?? 0) + 1
   }
 
@@ -160,9 +174,9 @@ export function buildPersonalProfileSnapshot(
     activities,
     activeDays: Object.keys(dayCounts).length,
     modules: [
-      moduleSummary('ctf', 'CTF', '题', activities),
-      moduleSummary('vuln', 'CVE', '项', activities),
-      moduleSummary('coding', 'Coding', '次', activities),
+      moduleSummary('ctf', 'CTF', '题', activities, ctfJobs.length, ctf[0]?.title ?? '暂无记录'),
+      moduleSummary('vuln', 'CVE', '项', activities, vulnerabilities.length, vulnerabilities[0]?.id ?? '暂无记录'),
+      moduleSummary('coding', 'Coding', '次', activities, coding.length, coding[0]?.title ?? '暂无记录'),
     ],
     dayCounts,
   }
@@ -177,7 +191,7 @@ export function activityCalendar(dayCounts: Record<string, number>, now = Date.n
   for (let index = 0; index < 371; index += 1) {
     const date = new Date(start)
     date.setDate(start.getDate() + index)
-    const key = localDay(date.getTime())
+    const key = localDayKey(date.getTime())
     cells.push({
       key,
       date,

@@ -134,8 +134,8 @@ describe('SessionHistoryGraph', () => {
       nodes: Array<{ style: { fill: string } }>
       edges: Array<{ style: { stroke: string } }>
     }
-    expect(data.nodes[0].style.fill).toBe('#14191d')
-    expect(data.edges[0].style.stroke).toBe('#9ba6b4')
+    expect(data.nodes[0].style.fill).toBe('#1f201c')
+    expect(data.edges[0].style.stroke).toBe('#a4a99f')
   })
 
   it('opens traceable human sources and redacts credentials without feeding the model', async () => {

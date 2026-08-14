@@ -4,6 +4,7 @@ import (
 	"github.com/MilkSU-Official/milksu/internal/appdata"
 	"github.com/MilkSU-Official/milksu/internal/ctf"
 	"github.com/MilkSU-Official/milksu/internal/ctfshow"
+	"github.com/MilkSU-Official/milksu/internal/modelusage"
 	"github.com/MilkSU-Official/milksu/internal/nssctf"
 	"github.com/MilkSU-Official/milksu/internal/securityruntime"
 )
@@ -33,6 +34,11 @@ func databaseCompatDescriptors() []appdata.DatabaseDescriptor {
 			LogicalName:  "CTFshow Catalog",
 			RelativePath: "ctfshow/catalog.sqlite3",
 			Supported:    ctfshow.SupportedCTFshowCatalogDatabaseVersion,
+		},
+		{
+			LogicalName:  "Coding Agent Usage",
+			RelativePath: "usage/model-usage.sqlite3",
+			Supported:    modelusage.SupportedDatabaseVersion,
 		},
 	}
 }

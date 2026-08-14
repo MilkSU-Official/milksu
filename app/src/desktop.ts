@@ -78,6 +78,7 @@ import type {
   SessionIndexRefreshResult,
   SessionIndexStatus,
 } from './sessionIndexTypes'
+import type { CodingUsageSnapshot } from './modelUsageTypes'
 import type {
   SecurityToolCodingHandoff,
   SecurityToolSetupSnapshot,
@@ -316,6 +317,7 @@ interface DesktopAppBindings {
   StopCodingComputerUse(conversationId: string): Promise<CodingComputerUseStatus>
   SteerMessage(conversationId: string, prompt: string): Promise<void>
   TestAgentModel(): Promise<ModelProbeResult>
+  GetCodingUsageSnapshot(): Promise<CodingUsageSnapshot>
   ImportNSSCTFChallenge(rawURL: string): Promise<NSSCTFChallenge>
   SyncNSSCTFCatalog(rawURL: string): Promise<NSSCTFCatalogSyncResult>
   GetNSSCTFTrainingDashboard(): Promise<NSSCTFTrainingDashboard>
@@ -449,6 +451,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.GetSettings() as Promise<T>
       case 'get_model_catalog':
         return app.GetModelCatalog() as Promise<T>
+      case 'get_coding_usage_snapshot':
+        return app.GetCodingUsageSnapshot() as Promise<T>
       case 'save_settings_cmd':
         return app.SaveSettingsCmd(args?.newSettings as AppSettings) as Promise<T>
       case 'get_local_data_status':

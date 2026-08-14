@@ -917,6 +917,8 @@ func TestNormalizeCodingCollaborationDescriptorBindsTaskWorkspaceAndWriter(t *te
 func TestValidateModelAccessRejectsMissingProviderKey(t *testing.T) {
 	t.Setenv("DEEPSEEK_API_KEY", "")
 	settings := config.DefaultSettings()
+	settings.ActiveProvider = "deepseek"
+	settings.ActiveModel = "deepseek-v4-flash"
 
 	err := validateModelAccess(settings)
 	if err == nil || !strings.Contains(err.Error(), "both model sources are unavailable") {
@@ -928,9 +930,12 @@ func TestSendMessageRejectsMissingKeyBeforeStartingSidecar(t *testing.T) {
 	t.Setenv("DEEPSEEK_API_KEY", "")
 	supervisor := NewSupervisor(nil)
 	defer supervisor.Close()
+	settings := config.DefaultSettings()
+	settings.ActiveProvider = "deepseek"
+	settings.ActiveModel = "deepseek-v4-flash"
 
 	err := supervisor.SendMessage(
-		"session-1", "hello", "", "", "", "", nil, "", nil, nil, nil, nil, config.DefaultSettings(),
+		"session-1", "hello", "", "", "", "", nil, "", nil, nil, nil, nil, settings,
 	)
 	if err == nil || !strings.Contains(err.Error(), "both model sources are unavailable") {
 		t.Fatalf("expected actionable missing-key error, got %v", err)
@@ -1825,6 +1830,8 @@ func TestValidateModelAccessUsesPersonalKeyWhenAccountSourceHasNoKey(t *testing.
 func TestValidateModelAccessRejectsWhenBothSourcesAreUnavailable(t *testing.T) {
 	t.Setenv("DEEPSEEK_API_KEY", "")
 	settings := config.DefaultSettings()
+	settings.ActiveProvider = "deepseek"
+	settings.ActiveModel = "deepseek-v4-flash"
 	settings.Relay = &config.RelayConfig{Enabled: true}
 
 	err := validateModelAccess(settings)

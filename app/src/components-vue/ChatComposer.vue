@@ -1472,14 +1472,14 @@ defineExpose({
 }
 
 .chat-composer__island {
-  border: 1px solid #3a424a;
+  border: 1px solid var(--night-border);
   border-radius: 0;
   background-color: var(--tactical-ink-2);
   padding: .75rem 1rem .85rem;
   box-shadow: 0 16px 38px rgb(0 0 0 / 24%);
 }
 
-.chat-composer__command-label { border-bottom: 1px solid #343b42; padding: 0 0 .55rem .15rem; color: #a1aab3; }
+.chat-composer__command-label { border-bottom: 1px solid var(--night-border); padding: 0 0 .55rem .15rem; color: var(--night-muted-foreground); }
 
 .chat-composer__toolbar {
   border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
@@ -1494,11 +1494,11 @@ defineExpose({
   font-size: var(--text-label);
   line-height: var(--text-label--line-height);
   letter-spacing: var(--text-label--letter-spacing);
-  color: #f6f7f8;
+  color: var(--night-foreground);
 }
 
 .chat-composer__input:empty::before {
-  color: #929ca6;
+  color: var(--night-muted-foreground);
   content: attr(data-placeholder);
   pointer-events: none;
 }

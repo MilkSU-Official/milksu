@@ -12,6 +12,7 @@ import (
 	"github.com/MilkSU-Official/milksu/internal/appdata"
 	"github.com/MilkSU-Official/milksu/internal/ctf"
 	"github.com/MilkSU-Official/milksu/internal/ctfshow"
+	"github.com/MilkSU-Official/milksu/internal/modelusage"
 	"github.com/MilkSU-Official/milksu/internal/nssctf"
 	"github.com/MilkSU-Official/milksu/internal/securityruntime"
 
@@ -68,7 +69,7 @@ func TestRestoredLegacyBackupIsProtectedBeforeAllDatabaseUpgrades(t *testing.T) 
 		t.Fatal(err)
 	}
 	if !migrationBackup.Required || !migrationBackup.Created ||
-		migrationBackup.PendingDatabaseCount != 4 ||
+		migrationBackup.PendingDatabaseCount != 5 ||
 		migrationBackup.CredentialsIncluded {
 		t.Fatalf("unexpected migration backup result: %#v", migrationBackup)
 	}
@@ -100,8 +101,8 @@ func TestRestoredLegacyBackupIsProtectedBeforeAllDatabaseUpgrades(t *testing.T) 
 		liveRoot,
 		databaseCompatDescriptors(),
 	)
-	if len(statuses) != 4 {
-		t.Fatalf("database status count = %d, want 4: %#v", len(statuses), statuses)
+	if len(statuses) != 5 {
+		t.Fatalf("database status count = %d, want 5: %#v", len(statuses), statuses)
 	}
 	for _, status := range statuses {
 		if status.State != "compatible" || status.Current == nil ||
@@ -169,6 +170,15 @@ func openAndCloseAllDatabases(t *testing.T, root string) {
 		t.Fatal(err)
 	}
 	if err := ctfshowCatalog.Close(); err != nil {
+		t.Fatal(err)
+	}
+	usageStore, err := modelusage.NewStore(
+		filepath.Join(root, "usage", "model-usage.sqlite3"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := usageStore.Close(); err != nil {
 		t.Fatal(err)
 	}
 }

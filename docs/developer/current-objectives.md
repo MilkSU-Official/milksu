@@ -18,7 +18,7 @@
 6. 自动审批可减少无意义打断，但不能绕过付费、外部账户、Scope 扩大、路径边界、托管发布或不可逆操作。
 7. CTF、CVE、Coding 是同级主工作区；同语义控件必须同规格。全局设置固定左下 rail；缺凭据或模块配置 CTA 跳到全局设置对应分类。
 8. 非阻塞问题先记复现和影响；只有数据 / Credential / Scope / 私有远端 / Judge / 验收失真立即修。
-9. 日间/夜间主题已可用：新安装和无有效偏好时默认日间，用户明确选择后本机持久化；日间模式以中性档案纸承载内容，导航、页头、筛选、Coding 右栏等命令面保持深色；设置分类栏、启动等待页、浏览器 Bridge 弹窗和历史图谱兜底统一使用中性炭黑层级，不再以实心偏蓝黑色块割裂产品；主操作使用酸绿，蓝色只保留给链接和执行/诊断状态；后续只在 UI 巡检中扩样调色。
+9. 日间/夜间主题已可用：新安装和无有效偏好时默认日间，用户明确选择后本机持久化；日间模式以中性档案纸承载内容，导航、页头、筛选、Coding 右栏等命令面保持深色；夜间模式的 CTF、CVE、Coding、设置和个人页统一使用无明显蓝、绿、棕偏色的中性暖石墨层级，不再以实心偏蓝黑色块割裂产品；主操作使用酸绿，蓝色只保留给链接和执行/诊断状态；后续只在 UI 巡检中扩样调色。
 10. UI 巡检或视觉修复后，必须同步防回归测试与当前文档。
 11. 模型与凭据保持普通入口：一个默认模型，账户额度与本机个人 Key 两个独立来源。默认账户额度优先，用户可调整全局顺序，也可只为当前 Coding 对话调整优先来源；不保留 fast/deep 角色路由，不接 Kimi/KouriChat 产品入口。
 12. Coding 自举默认由外部 reviewer 操作真实打包 MilkSU：给略带模糊的人类需求，让 MilkSU 在隔离 worktree 内理解、修改和验证；reviewer 只查轨迹、diff、测试和边界，并通过产品 UI 要求返工。除非链路阻塞、安全/Scope 问题或用户明确要求，reviewer 不直接改功能代码。
@@ -45,7 +45,7 @@
 - CTF：题库、工作区、Evidence、候选、Judge、Checkpoint、恢复、复盘、Memory 主链存在；真实 Judge 成功仍只有窄 Web 路径。
 - CTF/CVE → Coding 已复用同一 Coding/Pi：交接只挂载草稿、不自动发送；右侧可折叠领域上下文保留题目/CVE、授权 Scope、材料、Evidence/Judge 或只读安全边界，并提供返回工作台。NSSCTF 附件或 Judge 未连接不再阻止用公开题面打开 Coding；附件缺失只作为材料警告。Beta Computer Use 已实测历史真实 CTF 任务的手工完成状态，以及 CVE-2024-3400 从跟踪页进入临时 Coding 工作区、生成只读研究简报、返回并自动关联 1 个对话的完整纵切；CVE 状态仍由用户手工保持“研究中”。未运行 PoC、未提交 flag、未建立 Judge 成功事实。
 - Runtime：Sidecar 恢复、Compaction、异常退出标记、后台长任务打包 App/WebView 恢复、预算和失败分类已有。
-- UI：左上角显示圆形裁切的当前用户头像并打开个人菜单；全局左栏固定为窄栏，Coding 会话历史默认收起并由单一按钮以浮层展开，不再因模块切换挤动主页面。完整个人页展示真实活跃格、CTF/CVE/Coding 模糊阶段和最近活动，全局六维雷达不再挂载。Goal 与 Git 摘要位于输入框上方，Git 摘要可展开文件列表并跳到“变更”。Coding 顶部保留独立 Bottom Dock 和统一右栏；CTF/CVE 进入 Coding 后领域上下文可折叠/PiP，不再丢失原任务。Computer Use 使用紧凑任务面，诊断与证据默认折叠。Electron 窗口已避开 macOS 红黄绿按钮，Stable/Beta 使用正确名称与图标；设置页底部固定显示 branch、40 位 commit、clean/dirty、build time 和 tracking ID。
+- UI：左上角显示圆形裁切的当前用户头像并打开个人菜单；全局左栏固定为窄栏，Coding 会话历史默认收起并由单一按钮以浮层展开，不再因模块切换挤动主页面。完整个人页以 CTF/CVE/Coding 页签展示真实全年活跃图、所选日期细节与最近活动，全局六维雷达不再挂载；Coding 页签从统一的 `usage/model-usage.sqlite3` 读取全部模型与工具事件，不为每个模型拆库，也不保存 prompt、回复、工具参数或输出。三个模块的页签、标签与活跃度统一使用中性炭黑加酸绿色阶，不再以旧偏蓝黑或 `info` 蓝区分模块。Goal 与 Git 摘要位于输入框上方，Git 摘要可展开文件列表并跳到“变更”。Coding 顶部保留独立 Bottom Dock 和统一右栏；CTF/CVE 进入 Coding 后领域上下文可折叠/PiP，不再丢失原任务。Computer Use 使用紧凑任务面，诊断与证据默认折叠。Electron 窗口已避开 macOS 红黄绿按钮，Stable/Beta 使用正确名称与图标；设置页底部固定显示 branch、40 位 commit、clean/dirty、build time 和 tracking ID。
 - 用户可见产物固定写入 `~/Documents/MilkSU/{Coding,CTF,CVE}`，设置页可直接打开。普通用户文件通过 Composer 的只读附件入口进入受管附件区，目录通过项目选择器成为任务 Scope，Provider Key 只走模型设置。无项目 Coding 会话统一显示为“无项目任务”，实际临时工作区转入 `Application Support/<bundle-id>/agent-workspaces`，不再在 Documents 生成“新编码任务-哈希”目录；CVE 等用户可见产物仍留在 Documents。Runtime、事件库、凭据、Obelisk、浏览器 Profile 和内部恢复数据继续留在 `~/Library/Application Support/<bundle-id>`，两类目录不混用；工作区拒绝根目录、用户主目录和符号链接越界。
 - 暂停/后置：Labs；CVE 纵深研究、真实漏洞复现、外部资产实验、披露；NYU safe-static 只是开发者 smoke，不是完整 CTF 成绩。
 

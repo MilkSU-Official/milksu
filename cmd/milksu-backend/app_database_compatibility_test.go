@@ -12,6 +12,7 @@ import (
 	"github.com/MilkSU-Official/milksu/internal/config"
 	"github.com/MilkSU-Official/milksu/internal/ctf"
 	"github.com/MilkSU-Official/milksu/internal/ctfshow"
+	"github.com/MilkSU-Official/milksu/internal/modelusage"
 	"github.com/MilkSU-Official/milksu/internal/nssctf"
 	"github.com/MilkSU-Official/milksu/internal/securityruntime"
 
@@ -49,6 +50,12 @@ func TestDatabaseCompatDescriptors(t *testing.T) {
 			ctfshow.SupportedCTFshowCatalogDatabaseVersion,
 		)
 	}
+	if modelusage.SupportedDatabaseVersion != 1 {
+		t.Fatalf(
+			"SupportedDatabaseVersion = %d, want 1",
+			modelusage.SupportedDatabaseVersion,
+		)
+	}
 	descriptors := databaseCompatDescriptors()
 	want := []appdata.DatabaseDescriptor{
 		{
@@ -70,6 +77,11 @@ func TestDatabaseCompatDescriptors(t *testing.T) {
 			LogicalName:  "CTFshow Catalog",
 			RelativePath: "ctfshow/catalog.sqlite3",
 			Supported:    ctfshow.SupportedCTFshowCatalogDatabaseVersion,
+		},
+		{
+			LogicalName:  "Coding Agent Usage",
+			RelativePath: "usage/model-usage.sqlite3",
+			Supported:    modelusage.SupportedDatabaseVersion,
 		},
 	}
 	if !reflect.DeepEqual(descriptors, want) {
@@ -138,14 +150,23 @@ func TestGetLocalDataStatusIncludesDatabaseCompatibility(t *testing.T) {
 	if err := ctfshowCatalog.Close(); err != nil {
 		t.Fatal(err)
 	}
+	usageStore, err := modelusage.NewStore(
+		filepath.Join(dataDirectory, "usage", "model-usage.sqlite3"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := usageStore.Close(); err != nil {
+		t.Fatal(err)
+	}
 
 	app := &App{dataDirectory: dataDirectory}
 	status, err := app.GetLocalDataStatus()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(status.Databases) != 4 {
-		t.Fatalf("databases count = %d, want 4: %#v", len(status.Databases), status.Databases)
+	if len(status.Databases) != 5 {
+		t.Fatalf("databases count = %d, want 5: %#v", len(status.Databases), status.Databases)
 	}
 
 	eventStore := status.Databases[0]
@@ -218,5 +239,16 @@ func TestGetLocalDataStatusIncludesDatabaseCompatibility(t *testing.T) {
 			ctfshowStatus.Supported,
 			ctfshow.SupportedCTFshowCatalogDatabaseVersion,
 		)
+	}
+
+	usageStatus := status.Databases[4]
+	if usageStatus.LogicalName != "Coding Agent Usage" ||
+		usageStatus.RelativePath != "usage/model-usage.sqlite3" ||
+		usageStatus.State != "compatible" {
+		t.Fatalf("unexpected Coding Agent Usage status: %#v", usageStatus)
+	}
+	if usageStatus.Current == nil || *usageStatus.Current != 1 ||
+		usageStatus.Supported == nil || *usageStatus.Supported != modelusage.SupportedDatabaseVersion {
+		t.Fatalf("unexpected Coding Agent Usage versions: %#v", usageStatus)
 	}
 }

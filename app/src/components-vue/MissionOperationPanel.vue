@@ -115,8 +115,8 @@ const phases = computed(() => props.presentation.kind === 'ctf'
 .mission-objective-band__priority { display: grid; min-width: 7rem; gap: .35rem; border: 1px solid var(--tactical-acid); padding: .65rem; text-align: center; }
 .mission-objective-band__priority strong { font-family: var(--font-display); font-size: 1.05rem; text-transform: uppercase; }
 .mission-activity { padding: .85rem 1rem 1rem; color: var(--foreground); box-shadow: none; }
-.mission-activity > header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; border-bottom: 1px solid #30373e; padding: 0 .2rem .65rem; color: var(--muted-foreground); }
-.mission-activity__row { display: flex; min-height: 5.2rem; align-items: center; gap: 1rem; margin-top: .65rem; border: 1px solid #343c44; background: #171b1f; padding: .65rem .9rem; }
+.mission-activity > header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; border-bottom: 1px solid var(--night-border); padding: 0 .2rem .65rem; color: var(--muted-foreground); }
+.mission-activity__row { display: flex; min-height: 5.2rem; align-items: center; gap: 1rem; margin-top: .65rem; border: 1px solid var(--night-border); background: var(--night-card); padding: .65rem .9rem; }
 .mission-activity__icon { display: grid; width: 3.35rem; height: 3.35rem; flex: none; place-items: center; border: 1px solid var(--tactical-acid); color: var(--tactical-acid); }
 .mission-activity__icon :deep(svg) { width: 1.65rem; height: 1.65rem; }
 .mission-activity time { display: block; color: var(--muted-foreground); font-family: 'SFMono-Regular', monospace; font-size: .68rem; }

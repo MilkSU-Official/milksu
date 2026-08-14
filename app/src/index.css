@@ -18,46 +18,53 @@
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
 
-  /*
-   * MilkSU "Labs" theme.
-   *
-   * The base palette is sampled from the authenticated HTB Labs Machines and
-   * Challenges surfaces on 2026-07-31. These remain semantic application
-   * tokens: components consume roles such as background, card, border and
-   * brand, never HTB-specific color literals.
-   */
-  --background: #0d1115;
-  --background-chrome: #090c0f;
-  --foreground: #f4f7fb;
-  --card: #14191d;
-  --card-foreground: #f4f7fb;
-  --popover: #171c21;
-  --popover-foreground: #f4f7fb;
-  --secondary: #1b2026;
-  --secondary-foreground: #f4f7fb;
-  --muted: #1b2026;
-  --muted-foreground: #8998ad;
-  --accent: #20262c;
-  --accent-foreground: #f4f7fb;
-  --border: #353c43;
+  /* MilkSU neutral warm graphite night palette. */
+  --night-chrome: #11120f;
+  --night-canvas: #171815;
+  --night-card: #1f201c;
+  --night-popover: #24251f;
+  --night-muted: #272822;
+  --night-accent: #2d2e28;
+  --night-sunken: #12130f;
+  --night-foreground: #f1f3ec;
+  --night-muted-foreground: #a4a99f;
+  --night-border: #3a3c35;
+  --night-border-hairline: #46483f;
+  --night-border-elevated: #5a5c52;
+  --night-input: #55574d;
+
+  --background: var(--night-canvas);
+  --background-chrome: var(--night-chrome);
+  --foreground: var(--night-foreground);
+  --card: var(--night-card);
+  --card-foreground: var(--night-foreground);
+  --popover: var(--night-popover);
+  --popover-foreground: var(--night-foreground);
+  --secondary: var(--night-muted);
+  --secondary-foreground: var(--night-foreground);
+  --muted: var(--night-muted);
+  --muted-foreground: var(--night-muted-foreground);
+  --accent: var(--night-accent);
+  --accent-foreground: var(--night-foreground);
+  --border: var(--night-border);
   --border-soft: color-mix(in oklab, var(--border) 62%, transparent);
-  --border-hairline: #424a52;
-  --border-menu: #424a52;
-  --border-menu-elevated: #59636d;
-  --input: #515b65;
+  --border-hairline: var(--night-border-hairline);
+  --border-menu: var(--night-border-hairline);
+  --border-menu-elevated: var(--night-border-elevated);
+  --input: var(--night-input);
   --ring: #168dff;
-  --sidebar: #090c0f;
-  --sidebar-foreground: #f4f7fb;
-  --sidebar-border: #353c43;
+  --sidebar: var(--night-chrome);
+  --sidebar-foreground: var(--night-foreground);
+  --sidebar-border: var(--night-border);
   --sidebar-accent: var(--overlay-hover);
-  --sidebar-accent-foreground: #f4f4f4;
-  --scrollbar-thumb: rgb(137 152 173 / 0.24);
-  --scrollbar-thumb-hover: rgb(22 141 255 / 0.48);
+  --sidebar-accent-foreground: var(--night-foreground);
+  --scrollbar-thumb: rgb(164 169 159 / 0.24);
+  --scrollbar-thumb-hover: rgb(159 239 0 / 0.42);
 
   --primary: var(--brand);
   --primary-foreground: var(--brand-foreground);
   --brand: #9fef00;
-  --brand-foreground: #101927;
+  --brand-foreground: #14170f;
   --brand-soft: rgb(159 239 0 / 0.13);
   --brand-border: rgb(159 239 0 / 0.36);
   --brand-hover: #b5f542;
@@ -75,9 +82,9 @@
   --action-border: rgb(22 141 255 / 0.48);
   --focus-panel: rgb(159 239 0 / 0.055);
   --focus-panel-strong: rgb(159 239 0 / 0.11);
-  --grid-line: rgb(106 169 255 / 0.075);
-  --surface-raised: #171c21;
-  --surface-sunken: #0b0e11;
+  --grid-line: rgb(164 169 159 / 0.065);
+  --surface-raised: var(--night-popover);
+  --surface-sunken: var(--night-sunken);
 
   --overlay-hover-light: rgb(255 255 255 / 0.055);
   --overlay-hover: rgb(255 255 255 / 0.09);
@@ -86,17 +93,17 @@
   --overlay-active-strong: rgb(255 255 255 / 0.19);
   --action-card-hover: rgb(255 255 255 / 0.055);
   --action-card-active: rgb(255 255 255 / 0.085);
-  --segment-track: #191e23;
-  --segment-thumb: #343b42;
+  --segment-track: #22231e;
+  --segment-thumb: #3a3c34;
 
   --success: #9fef00;
   --success-foreground: #c8ff5b;
-  --success-solid-foreground: #101927;
+  --success-solid-foreground: #14170f;
   --success-soft: rgb(159 239 0 / 0.13);
   --success-border: rgb(159 239 0 / 0.34);
   --warning: #f6c344;
   --warning-foreground: #ffd979;
-  --warning-solid-foreground: #101927;
+  --warning-solid-foreground: #14170f;
   --warning-soft: rgb(246 195 68 / 0.13);
   --warning-border: rgb(246 195 68 / 0.34);
   --info: #168dff;
@@ -115,9 +122,9 @@
   --chart-5: #ff5e57;
 
   --tooltip: #f4f4f4;
-  --tooltip-foreground: #101927;
-  --terminal-background: #0a111c;
-  --terminal-foreground: #dce7f9;
+  --tooltip-foreground: #14170f;
+  --terminal-background: var(--night-sunken);
+  --terminal-foreground: #e1e6dc;
   --terminal-cursor: var(--brand);
   --terminal-selection: rgb(159 239 0 / 0.2);
 
@@ -127,10 +134,10 @@
   --chat-user-bubble: rgb(159 239 0 / 0.13);
   --chat-user-bubble-fg: #e5ffaf;
 
-  /* Tactical archive visual contract: accepted concept #2. */
-  --tactical-ink: #090c0f;
-  --tactical-ink-2: #111519;
-  --tactical-ink-3: #1a1f24;
+  /* Tactical archive visual contract: accepted neutral graphite concept #1. */
+  --tactical-ink: var(--night-chrome);
+  --tactical-ink-2: #181915;
+  --tactical-ink-3: #22231e;
   --tactical-paper: #e8e6df;
   --tactical-paper-2: #d9d9d4;
   --tactical-paper-ink: #111315;
@@ -169,9 +176,9 @@
   --border-menu-elevated: #91938f;
   --input: #9da09e;
   --ring: #6b8e12;
-  --sidebar: #090c0f;
-  --sidebar-foreground: #f4f7fb;
-  --sidebar-border: #353c43;
+  --sidebar: var(--night-chrome);
+  --sidebar-foreground: var(--night-foreground);
+  --sidebar-border: var(--night-border);
   --sidebar-accent: var(--overlay-hover);
   --sidebar-accent-foreground: #17201b;
   --scrollbar-thumb: rgb(101 117 105 / 0.28);
@@ -250,9 +257,9 @@
   --chat-user-bubble: rgb(22 141 255 / 0.10);
   --chat-user-bubble-fg: #0a4f92;
 
-  --tactical-ink: #13171b;
-  --tactical-ink-2: #1d2228;
-  --tactical-ink-3: #292f36;
+  --tactical-ink: #161713;
+  --tactical-ink-2: #1d1e1a;
+  --tactical-ink-3: #272823;
   --tactical-paper: #f3f2ed;
   --tactical-paper-2: #e4e3dd;
   --tactical-paper-ink: #101214;
@@ -261,7 +268,7 @@
   --tactical-blue-strong: #006ad9;
   --tactical-acid: #78a600;
   --tactical-orange: #d46800;
-  --tactical-shadow: 0 22px 48px rgb(13 19 26 / .18);
+  --tactical-shadow: 0 22px 48px rgb(17 18 15 / .18);
 }
 
 @theme inline {
@@ -326,23 +333,23 @@ body {
 }
 
 .tactical-paper-surface {
-  color: #f4f7fb;
-  --foreground: #f4f7fb;
-  --card-foreground: #f4f7fb;
-  --popover: #171c21;
-  --popover-foreground: #f4f7fb;
-  --secondary: #1b2026;
-  --secondary-foreground: #f4f7fb;
-  --muted: #1b2026;
-  --muted-foreground: #9ba6b4;
-  --accent: #20262c;
-  --accent-foreground: #f4f7fb;
-  --border: #353c43;
-  --border-hairline: #424a52;
-  --input: #515b65;
-  --card: #14191d;
-  --surface-raised: #171c21;
-  --surface-sunken: #0b0e11;
+  color: var(--night-foreground);
+  --foreground: var(--night-foreground);
+  --card-foreground: var(--night-foreground);
+  --popover: var(--night-popover);
+  --popover-foreground: var(--night-foreground);
+  --secondary: var(--night-muted);
+  --secondary-foreground: var(--night-foreground);
+  --muted: var(--night-muted);
+  --muted-foreground: var(--night-muted-foreground);
+  --accent: var(--night-accent);
+  --accent-foreground: var(--night-foreground);
+  --border: var(--night-border);
+  --border-hairline: var(--night-border-hairline);
+  --input: var(--night-input);
+  --card: var(--night-card);
+  --surface-raised: var(--night-popover);
+  --surface-sunken: var(--night-sunken);
 }
 
 :root[data-theme='light'] .tactical-paper-surface {
@@ -366,8 +373,8 @@ body {
 }
 
 .tactical-desk-head {
-  background: #171c21;
-  color: #9ba6b4;
+  background: var(--night-popover);
+  color: var(--night-muted-foreground);
   font-family: 'SFMono-Regular', monospace;
   letter-spacing: .08em;
   text-transform: uppercase;
@@ -442,7 +449,7 @@ body {
 [data-button][data-variant="brand"],
 [data-button][data-variant="primary"],
 [data-button][data-variant="default"] {
-  color: #101315 !important;
+  color: var(--brand-foreground) !important;
 }
 
 [data-button][data-variant="brand"]:hover::before,
@@ -479,20 +486,20 @@ body {
 [data-slot="sheet-content"],
 [data-slot="hover-card-content"],
 .tactical-floating-surface {
-  color: #f4f7fb;
-  --foreground: #f4f7fb;
-  --popover-foreground: #f4f7fb;
-  --muted-foreground: #9ba6b4;
-  --secondary: #1b2026;
-  --secondary-foreground: #f4f7fb;
-  --muted: #1b2026;
-  --accent: #242b31;
-  --accent-foreground: #f4f7fb;
-  --border: #424a52;
-  --border-menu: #59636d;
-  --input: #515b65;
-  --surface-raised: #171c21;
-  --surface-sunken: #0b0e11;
+  color: var(--night-foreground);
+  --foreground: var(--night-foreground);
+  --popover-foreground: var(--night-foreground);
+  --muted-foreground: var(--night-muted-foreground);
+  --secondary: var(--night-muted);
+  --secondary-foreground: var(--night-foreground);
+  --muted: var(--night-muted);
+  --accent: var(--night-accent);
+  --accent-foreground: var(--night-foreground);
+  --border: var(--night-border-hairline);
+  --border-menu: var(--night-border-elevated);
+  --input: var(--night-input);
+  --surface-raised: var(--night-popover);
+  --surface-sunken: var(--night-sunken);
   background-color: var(--tactical-ink-2) !important;
   background-image: var(--tactical-carbon-image) !important;
   background-size: 640px 640px !important;
@@ -612,30 +619,30 @@ pre,
  */
 .tactical-command-surface,
 .tactical-dark-surface {
-  color: #f4f7fb;
-  --background: #111519;
-  --background-chrome: #090c0f;
-  --foreground: #f4f7fb;
-  --card-foreground: #f4f7fb;
-  --popover-foreground: #f4f7fb;
-  --secondary-foreground: #f4f7fb;
-  --accent-foreground: #f4f7fb;
-  --muted-foreground: #9ba6b4;
-  --border: #333a41;
-  --border-hairline: #424a52;
-  --input: #515b65;
-  --card: #14191d;
-  --popover: #171c21;
-  --secondary: #1b2026;
-  --muted: #1b2026;
-  --accent: #20262c;
-  --surface-raised: #171c21;
-  --surface-sunken: #0b0e11;
+  color: var(--night-foreground);
+  --background: var(--night-canvas);
+  --background-chrome: var(--night-chrome);
+  --foreground: var(--night-foreground);
+  --card-foreground: var(--night-foreground);
+  --popover-foreground: var(--night-foreground);
+  --secondary-foreground: var(--night-foreground);
+  --accent-foreground: var(--night-foreground);
+  --muted-foreground: var(--night-muted-foreground);
+  --border: var(--night-border);
+  --border-hairline: var(--night-border-hairline);
+  --input: var(--night-input);
+  --card: var(--night-card);
+  --popover: var(--night-popover);
+  --secondary: var(--night-muted);
+  --muted: var(--night-muted);
+  --accent: var(--night-accent);
+  --surface-raised: var(--night-popover);
+  --surface-sunken: var(--night-sunken);
 }
 
 .tactical-command-surface {
   position: relative;
-  border: 1px solid #333a41;
+  border: 1px solid var(--night-border);
   background-color: var(--tactical-ink-2);
   background-image: var(--tactical-carbon-image);
   background-size: 640px 640px;
@@ -697,7 +704,7 @@ pre,
 .tactical-action {
   border-color: var(--tactical-acid) !important;
   background: var(--tactical-acid) !important;
-  color: #101315 !important;
+  color: var(--brand-foreground) !important;
   border-radius: 2px !important;
   box-shadow: 0 10px 28px rgb(183 239 40 / .18) !important;
 }
@@ -709,8 +716,8 @@ pre,
   color: var(--foreground);
 }
 
-.tactical-paper .tactical-acid-panel,
-.tactical-paper-surface .tactical-acid-panel {
+:root[data-theme='light'] .tactical-paper .tactical-acid-panel,
+:root[data-theme='light'] .tactical-paper-surface .tactical-acid-panel {
   border-color: #859842;
   background: color-mix(in srgb, var(--tactical-acid) 18%, var(--tactical-paper));
   box-shadow: inset 4px 0 0 #789800;
@@ -722,7 +729,7 @@ pre,
   transition: background-color 120ms ease, border-color 120ms ease, transform 120ms ease;
 }
 
-.tactical-row:hover { background: color-mix(in srgb, var(--action) 5%, transparent); }
+.tactical-row:hover { background: color-mix(in srgb, var(--primary) 4%, transparent); }
 .tactical-row[data-ui-selected],
 .tactical-row.is-selected {
   border-left: 4px solid var(--tactical-acid);

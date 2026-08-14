@@ -44,11 +44,11 @@ const hasFooter = computed(() => Boolean(slots.footer))
   flex: none;
   flex-direction: column;
   isolation: isolate;
-  border-left: 1px solid #343b42;
+  border-left: 1px solid var(--night-border);
   background-color: var(--tactical-ink-2);
   background-image: var(--tactical-carbon-image);
   background-size: 640px 640px;
-  color: #f4f7fb;
+  color: var(--night-foreground);
   box-shadow: -18px 0 38px rgb(0 0 0 / .16);
 }
 
@@ -71,7 +71,7 @@ const hasFooter = computed(() => Boolean(slots.footer))
   min-height: 3.5rem;
   flex: none;
   align-items: center;
-  border-bottom: 1px solid #343b42;
+  border-bottom: 1px solid var(--night-border);
   padding: 0 1rem;
 }
 
@@ -95,7 +95,7 @@ const hasFooter = computed(() => Boolean(slots.footer))
 
 .tactical-panel-shell__footer {
   flex: none;
-  border-top: 1px solid #343b42;
+  border-top: 1px solid var(--night-border);
 }
 
 @container coding-workspace (max-width: 68rem) {

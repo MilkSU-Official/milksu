@@ -25,6 +25,7 @@ import (
 	"github.com/MilkSU-Official/milksu/internal/ctfshow"
 	"github.com/MilkSU-Official/milksu/internal/engine"
 	"github.com/MilkSU-Official/milksu/internal/modelcatalog"
+	"github.com/MilkSU-Official/milksu/internal/modelusage"
 	"github.com/MilkSU-Official/milksu/internal/nssctf"
 	"github.com/MilkSU-Official/milksu/internal/securityruntime"
 	"github.com/MilkSU-Official/milksu/internal/securitytools"
@@ -52,6 +53,7 @@ type App struct {
 	securityEngine    *engine.SecuritySupervisor
 	securityTools     *securitytools.Service
 	modelCatalog      *modelcatalog.Service
+	modelUsage        *modelusage.Store
 	nssctf            *nssctf.Client
 	nssctfCatalog     *nssctf.CatalogService
 	ctfshowCatalog    *ctfshow.CatalogService
@@ -273,6 +275,20 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 		application.nssctfCatalog.Close()
 		return nil, fmt.Errorf("create session index: %w", err)
 	}
+	application.modelUsage, err = modelusage.NewStore(
+		filepath.Join(dataDirectory, "usage", "model-usage.sqlite3"),
+	)
+	if err != nil {
+		_ = application.vulnJobs.Close()
+		_ = application.ctfMemory.Close()
+		_ = application.ctfJobs.Close()
+		_ = application.jobs.Close()
+		application.securityEngine.Close()
+		application.browserBridge.Close()
+		_ = application.ctfshowCatalog.Close()
+		_ = application.nssctfCatalog.Close()
+		return nil, fmt.Errorf("create Coding Agent usage ledger: %w", err)
+	}
 	return application, nil
 }
 
@@ -346,6 +362,9 @@ func (a *App) Shutdown(_ context.Context) {
 	a.securityEngine.Close()
 	_ = a.jobs.Close()
 	a.engines.Close()
+	if a.modelUsage != nil {
+		_ = a.modelUsage.Close()
+	}
 	if a.computerUse != nil {
 		a.computerUse.Close()
 	}
@@ -1622,10 +1641,16 @@ func (a *App) emitEngineEvent(event engine.Event) {
 	case "engine.protocol_error":
 		_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedSidecarProtocolError)
 	}
-	if a.ctx != nil {
+	usageChanged, usageErr := a.recordCodingUsage(event)
+	if usageErr != nil {
+		a.diagnostics.Record("coding-usage", "error", "Coding Agent usage recording failed")
+	} else if usageChanged && a.ctx != nil {
+		a.emitDesktopEvent("model-usage-changed", struct{}{})
+	}
+	if event.Type != "usage.recorded" && a.ctx != nil {
 		a.emitDesktopEvent("engine-event", event)
 	}
-	if a.ctfAgent != nil {
+	if event.Type != "usage.recorded" && a.ctfAgent != nil {
 		if err := a.ctfAgent.Record(a.commandContext(), event); err != nil && a.ctx != nil {
 			a.diagnostics.Record("ctf-agent", "error", "CTF Agent event recording failed")
 			if errors.Is(err, errCTFAgentLoopDetected) {

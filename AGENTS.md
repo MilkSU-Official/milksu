@@ -42,6 +42,15 @@ one of those decisions.
 - Explain relevant Agent Harness concepts when they materially help product decisions or the user's
   interview and presentation preparation.
 
+## Product UI Color Boundary
+
+- Do not restore the old blue-black visual style for product panels, tabs, labels, badges or category states.
+  Night mode uses neutral warm graphite without an obvious blue, green or brown cast; day mode keeps the
+  paper theme's neutral tones. Acid green is reserved for selection, primary actions and activity intensity.
+  Blue is reserved for links and explicit execution or diagnostic states.
+- CTF, CVE and Coding tabs and labels must use the same charcoal-and-acid-green tonal system. Do not use
+  `--info`, blue borders or blue-filled surfaces to distinguish those three product modules.
+
 ## Beta Self-Bootstrap Boundary
 
 - `MilkSU Beta.app` exists only for MilkSU's own self-bootstrap loop, where a Stable MilkSU reviewer controls

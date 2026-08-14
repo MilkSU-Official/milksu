@@ -118,6 +118,10 @@ import {
   normalizeModelSourceOrder,
 } from "./model-source-routing.js";
 import { projectAssistantMessageEnd } from "./bridge-message-view.js";
+import {
+  projectAssistantUsage,
+  projectToolModelUsage,
+} from "./bridge-usage-view.js";
 
 const { currentProviderDefinition, tokenfluxModelIDForProvider } = currentProviderRuntime;
 
@@ -141,6 +145,8 @@ const promptQueues = new Map();
 const compactionRuns = new Map();
 const compactionRequestIds = new Map();
 const sessionTurnContracts = new Map();
+const sessionModelSources = new Map();
+const sessionConfiguredProviders = new Map();
 const abortedSessions = new Set();
 const input = createInterface({ input: process.stdin });
 let commandQueue = Promise.resolve();
@@ -802,6 +808,7 @@ function normalizeCommandModelSourceOrder(value) {
 }
 
 function configureRuntimeModel(session, provider, model, conversationId, sourceOrder) {
+  sessionConfiguredProviders.set(conversationId, String(provider ?? "").trim());
   const definition = currentProviderDefinition(provider, model);
   if (definition) session.modelRuntime.registerProvider(provider, definition);
   const personalModel = session.modelRuntime.getModel(provider, model);
@@ -818,8 +825,12 @@ function configureRuntimeModel(session, provider, model, conversationId, sourceO
     const sourceModel = available.get(id);
     return sourceModel ? [{ id, model: sourceModel }] : [];
   });
-  if (sources.length === 0) return { provider, model };
+  if (sources.length === 0) {
+    sessionModelSources.set(conversationId, "personal");
+    return { provider, model };
+  }
   if (sources.length === 1) {
+    sessionModelSources.set(conversationId, sources[0].id);
     emit(conversationId, "model_source_selected", { source: sources[0].id });
     return { provider: sources[0].model.provider, model: sources[0].model.id };
   }
@@ -837,9 +848,10 @@ function configureRuntimeModel(session, provider, model, conversationId, sourceO
         context,
         options,
       ),
-      onSource: selected => emit(conversationId, "model_source_selected", {
-        source: selected,
-      }),
+      onSource: selected => {
+        sessionModelSources.set(conversationId, selected);
+        emit(conversationId, "model_source_selected", { source: selected });
+      },
       onFallback: fallback => emit(conversationId, "model_source_fallback", fallback),
     }),
     models: [{
@@ -871,7 +883,12 @@ async function setSessionModel(conversationId, session, provider, model) {
   emit(conversationId, "model_selected", { provider, model });
 }
 
-function subscribeSession(conversationId, session, maxToolEventOutputBytes) {
+function subscribeSession(
+  conversationId,
+  session,
+  maxToolEventOutputBytes,
+  usageModule,
+) {
   let assistantTextStreamed = false;
   const toolStartedAt = new Map();
 
@@ -941,6 +958,13 @@ function subscribeSession(conversationId, session, maxToolEventOutputBytes) {
       })) {
         emit(conversationId, projected.type, projected.data);
       }
+      const usage = projectAssistantUsage(event.message, {
+        conversationId,
+        module: usageModule,
+        provider: sessionConfiguredProviders.get(conversationId),
+        source: sessionModelSources.get(conversationId),
+      });
+      if (usage) emit(conversationId, "usage_recorded", { usage, module: usageModule });
       assistantTextStreamed = false;
       return;
     }
@@ -951,6 +975,7 @@ function subscribeSession(conversationId, session, maxToolEventOutputBytes) {
         toolCallId: event.toolCallId,
         toolName: event.toolName,
         content: formatToolInput(event.toolName, event.args),
+        module: usageModule,
       });
       return;
     }
@@ -961,6 +986,7 @@ function subscribeSession(conversationId, session, maxToolEventOutputBytes) {
       emit(conversationId, "tool_call_progress", {
         toolCallId: event.toolCallId,
         toolName: event.toolName,
+        module: usageModule,
       });
       return;
     }
@@ -971,6 +997,16 @@ function subscribeSession(conversationId, session, maxToolEventOutputBytes) {
       if (event.toolName === "bg_task" || event.toolName === "bg_status") {
         emitBackgroundTasks(conversationId);
       }
+      for (const usage of projectToolModelUsage(event.result, {
+        conversationId,
+        toolCallId: event.toolCallId,
+        toolName: event.toolName,
+        module: usageModule,
+        provider: sessionConfiguredProviders.get(conversationId),
+        source: sessionModelSources.get(conversationId),
+      })) {
+        emit(conversationId, "usage_recorded", { usage, module: usageModule });
+      }
       emit(conversationId, "tool_call_end", {
         toolCallId: event.toolCallId,
         toolName: event.toolName,
@@ -979,6 +1015,7 @@ function subscribeSession(conversationId, session, maxToolEventOutputBytes) {
           ? undefined
           : Math.max(0, Date.now() - startedAt),
         isError: event.isError,
+        module: usageModule,
       });
     }
   });
@@ -1324,6 +1361,7 @@ async function createSession(command) {
       conversationId,
       session,
       sessionPolicy.maxToolEventOutputBytes,
+      sessionPolicy.ctf ? "ctf" : "coding",
     );
 
     const effectiveModel = configureRuntimeModel(
@@ -1363,6 +1401,8 @@ async function createSession(command) {
     await disposeAgentSession(session, "create_failed");
     sessionPolicies.delete(conversationId);
     sessionPolicyControllers.delete(conversationId);
+    sessionModelSources.delete(conversationId);
+    sessionConfiguredProviders.delete(conversationId);
     throw error;
   }
 }
@@ -1430,6 +1470,8 @@ async function sendMessage(command) {
     sessions.delete(conversationId);
     sessionPolicies.delete(conversationId);
     sessionPolicyControllers.delete(conversationId);
+    sessionModelSources.delete(conversationId);
+    sessionConfiguredProviders.delete(conversationId);
     existing = undefined;
   }
   const session = existing ?? await createSession(command);
@@ -1581,6 +1623,8 @@ async function destroySession(command) {
   sessions.delete(conversationId);
   sessionPolicies.delete(conversationId);
   sessionPolicyControllers.delete(conversationId);
+  sessionModelSources.delete(conversationId);
+  sessionConfiguredProviders.delete(conversationId);
   backgroundTaskControllers.delete(conversationId);
   promptQueues.delete(conversationId);
   abortedSessions.delete(conversationId);

@@ -39,28 +39,40 @@ describe('global style contract', () => {
 
     expect(lightTheme).toContain('--background: #ebe9e2')
     expect(lightTheme).toContain('--background-chrome: #deddd6')
-    expect(lightTheme).toContain('--sidebar: #090c0f')
-    expect(lightTheme).toContain('--sidebar-foreground: #f4f7fb')
+    expect(lightTheme).toContain('--sidebar: var(--night-chrome)')
+    expect(lightTheme).toContain('--sidebar-foreground: var(--night-foreground)')
   })
 
   it('keeps dark command surfaces readable inside the day-mode document', () => {
     expect(indexCss).toContain('.tactical-command-surface,\n.tactical-dark-surface {')
-    expect(indexCss).toContain('--foreground: #f4f7fb')
-    expect(indexCss).toContain('--card-foreground: #f4f7fb')
-    expect(indexCss).toContain('--popover-foreground: #f4f7fb')
-    expect(indexCss).toContain('--muted-foreground: #9ba6b4')
+    expect(indexCss).toContain('--foreground: var(--night-foreground)')
+    expect(indexCss).toContain('--card-foreground: var(--night-foreground)')
+    expect(indexCss).toContain('--popover-foreground: var(--night-foreground)')
+    expect(indexCss).toContain('--muted-foreground: var(--night-muted-foreground)')
   })
 
   it('limits paper colors to document surfaces in day mode', () => {
     expect(indexCss).toContain(":root[data-theme='light'] .tactical-paper-surface {")
     expect(indexCss).toContain('--card: #f4f2eb')
     expect(indexCss).toContain('.tactical-desk-head {')
+    expect(indexCss).toContain(":root[data-theme='light'] .tactical-paper .tactical-acid-panel")
+    expect(indexCss).not.toContain('\n.tactical-paper .tactical-acid-panel,\n.tactical-paper-surface .tactical-acid-panel')
   })
 
   it('uses the acid action color for primary buttons instead of the old SaaS blue', () => {
     expect(indexCss).toContain('background-color: var(--tactical-acid) !important')
-    expect(indexCss).toContain('color: #101315 !important')
+    expect(indexCss).toContain('color: var(--brand-foreground) !important')
     expect(indexCss).toContain('border-color: var(--tactical-acid) !important')
     expect(indexCss).not.toContain('background-color: var(--tactical-blue) !important')
+  })
+
+  it('keeps night mode on neutral warm graphite instead of the retired blue-black palette', () => {
+    expect(indexCss).toContain('--night-chrome: #11120f')
+    expect(indexCss).toContain('--night-canvas: #171815')
+    expect(indexCss).toContain('--night-card: #1f201c')
+    expect(indexCss).toContain('--night-popover: #24251f')
+    expect(indexCss).toContain('--night-muted: #272822')
+    expect(indexCss).toContain('--night-border: #3a3c35')
+    expect(indexCss).not.toMatch(/#(?:0d1115|090c0f|111519|14191d|171c21|1b2026|20262c)/i)
   })
 })

@@ -148,8 +148,8 @@ function formatTime(value?: string) {
 
 function graphData(): NonNullable<GraphOptions['data']> {
   const foreground = cssColor('--foreground', themeMode.value === 'dark' ? '#f4f4f4' : '#17201b')
-  const card = cssColor('--card', themeMode.value === 'dark' ? '#14191d' : '#ffffff')
-  const edgeStroke = cssColor('--muted-foreground', themeMode.value === 'dark' ? '#9ba6b4' : '#657569')
+  const card = cssColor('--card', themeMode.value === 'dark' ? '#1f201c' : '#ffffff')
+  const edgeStroke = cssColor('--muted-foreground', themeMode.value === 'dark' ? '#a4a99f' : '#657569')
   const showEdgeLabels = edges.value.length <= 18
 
   return {

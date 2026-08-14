@@ -208,22 +208,22 @@ watch(
   background-color: var(--tactical-ink-2);
   background-image: var(--tactical-carbon-image);
   background-size: 640px 640px;
-  color: #f4f7fb;
-  --foreground: #f4f7fb;
-  --card-foreground: #f4f7fb;
-  --muted-foreground: #9ba6b4;
-  --secondary: #1b2026;
-  --secondary-foreground: #f4f7fb;
-  --muted: #1b2026;
-  --accent: #242b31;
-  --accent-foreground: #f4f7fb;
-  --border: #343b42;
-  --input: #515b65;
-  --surface-sunken: #0b0e11;
+  color: var(--night-foreground);
+  --foreground: var(--night-foreground);
+  --card-foreground: var(--night-foreground);
+  --muted-foreground: var(--night-muted-foreground);
+  --secondary: var(--night-muted);
+  --secondary-foreground: var(--night-foreground);
+  --muted: var(--night-muted);
+  --accent: var(--night-accent);
+  --accent-foreground: var(--night-foreground);
+  --border: var(--night-border);
+  --input: var(--night-input);
+  --surface-sunken: var(--night-sunken);
 }
 
 .coding-context-archive :deep([data-slot='input']) {
-  color: #f4f7fb;
+  color: var(--night-foreground);
 }
 
 .coding-project-row {
