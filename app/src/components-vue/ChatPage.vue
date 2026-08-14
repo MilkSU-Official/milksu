@@ -72,6 +72,7 @@ import ChatMessageItem from '@/components-vue/ChatMessageItem.vue'
 import CodingArtifactPreviewPanel from '@/components-vue/CodingArtifactPreviewPanel.vue'
 import CodingChangesPanel from '@/components-vue/CodingChangesPanel.vue'
 import CodingComputerUsePanel from '@/components-vue/CodingComputerUsePanel.vue'
+import CodingComputerUsePermissionDialog from '@/components-vue/CodingComputerUsePermissionDialog.vue'
 import CodingMCPReviewCard from '@/components-vue/CodingMCPReviewCard.vue'
 import SessionHistoryPanel from '@/components-vue/SessionHistoryPanel.vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
@@ -263,6 +264,11 @@ const computerUseLoading = ref(false)
 const computerUseStatus = ref<CodingComputerUseStatus | null>(null)
 const computerUseTargets = ref<CodingComputerUseTarget[]>([])
 const selectedComputerUseTargetKey = ref('')
+const computerUsePermissionDialogOpen = ref(false)
+const computerUsePermissionRequesting = ref<CodingComputerUsePermission | null>(null)
+const computerUsePermissionPolling = ref(false)
+const computerUsePermissionError = ref('')
+const computerUsePermissionCompleting = ref(false)
 const gitDeliveryEvidence = ref<CodingGitDeliveryEvidence | null>(null)
 const changesFocusPath = ref('')
 const codingEnvironment = ref<CodingEnvironmentSnapshot | null>(null)
@@ -337,6 +343,10 @@ const computerUseOwnedByCurrentTask = computed(() => Boolean(
 const computerUseReadyForCurrentTask = computed(() => Boolean(
   computerUseStatus.value?.enabled
   && computerUseOwnedByCurrentTask.value,
+))
+const computerUsePermissionsReady = computed(() => Boolean(
+  computerUseStatus.value?.permissions.accessibility
+  && computerUseStatus.value.permissions.screenRecording,
 ))
 const scopedComputerUseTargets = computed(() => (
   computerUseTargets.value.filter(target => !isUserBrowserTarget(target))
@@ -824,6 +834,15 @@ async function showComputerUseScope() {
   contextPanel.value = 'computer-use'
   environmentOpen.value = true
   await refreshBrowserPanel()
+  if (computerUseStatus.value?.available && !computerUsePermissionsReady.value) {
+    computerUsePermissionError.value = ''
+    computerUsePermissionDialogOpen.value = true
+    return
+  }
+  await continueComputerUseScope()
+}
+
+async function continueComputerUseScope() {
   selectedComputerUseTargetKey.value = nextComputerUseTargetKey(
     scopedComputerUseTargets.value,
     selectedComputerUseTargetKey.value,
@@ -837,8 +856,7 @@ async function showComputerUseScope() {
   const status = computerUseStatus.value
   const canStartOnlyVisibleTarget = Boolean(
     status?.available
-    && status.permissions.accessibility
-    && status.permissions.screenRecording
+    && computerUsePermissionsReady.value
     && !status.enabled
     && !status.conversationId
     && scopedComputerUseTargets.value.length === 1,
@@ -1365,18 +1383,49 @@ async function revealCodingBrowserEvidence() {
 
 async function requestComputerUsePermissions(permission: CodingComputerUsePermission) {
   browserPanelError.value = ''
-  computerUseLoading.value = true
+  computerUsePermissionError.value = ''
+  computerUsePermissionDialogOpen.value = true
+  computerUsePermissionRequesting.value = permission
   try {
     computerUseStatus.value = await invokeCommand<CodingComputerUseStatus>(
       'request_coding_computer_use_permissions',
       { permission },
     )
   } catch (reason) {
-    browserPanelError.value = reason instanceof Error
+    computerUsePermissionError.value = reason instanceof Error
       ? reason.message
       : '无法请求 MilkSU 的系统权限。'
   } finally {
-    computerUseLoading.value = false
+    computerUsePermissionRequesting.value = null
+  }
+}
+
+async function pollComputerUsePermissions() {
+  if (!computerUsePermissionDialogOpen.value || computerUsePermissionPolling.value) return
+  computerUsePermissionPolling.value = true
+  try {
+    computerUseStatus.value = await invokeCommand<CodingComputerUseStatus>(
+      'get_coding_computer_use_status',
+    )
+    computerUsePermissionError.value = ''
+  } catch (reason) {
+    computerUsePermissionError.value = reason instanceof Error
+      ? reason.message
+      : '暂时无法读取 Computer Use 权限状态。'
+  } finally {
+    computerUsePermissionPolling.value = false
+  }
+}
+
+async function handleComputerUsePermissionComplete() {
+  if (computerUsePermissionCompleting.value) return
+  computerUsePermissionCompleting.value = true
+  computerUsePermissionDialogOpen.value = false
+  try {
+    await refreshBrowserPanel()
+    await continueComputerUseScope()
+  } finally {
+    computerUsePermissionCompleting.value = false
   }
 }
 
@@ -1557,6 +1606,10 @@ onBeforeUnmount(() => {
 })
 
 function refreshComputerUseAfterSettings() {
+  if (computerUsePermissionDialogOpen.value) {
+    void pollComputerUsePermissions()
+    return
+  }
   if (!computerUseStatus.value || (
     computerUseStatus.value.permissions.accessibility
     && computerUseStatus.value.permissions.screenRecording
@@ -1620,6 +1673,9 @@ watch(() => props.conversation?.id, (_current, previous) => {
   artifactPreviewEvidence.value = null
   browserEvidence.value = null
   computerUseEvidence.value = null
+  computerUsePermissionDialogOpen.value = false
+  computerUsePermissionRequesting.value = null
+  computerUsePermissionError.value = ''
   gitDeliveryEvidence.value = null
   chatAutoScrollPinned.value = true
   lastChatScrollTop.value = 0
@@ -2762,6 +2818,15 @@ watch(
       @close="terminalOpen = false"
     />
   </div>
+  <CodingComputerUsePermissionDialog
+    v-model:open="computerUsePermissionDialogOpen"
+    :status="computerUseStatus"
+    :requesting="computerUsePermissionRequesting"
+    :error="computerUsePermissionError"
+    @request-permissions="requestComputerUsePermissions"
+    @poll="pollComputerUsePermissions"
+    @complete="handleComputerUsePermissionComplete"
+  />
   </section>
 </template>
 

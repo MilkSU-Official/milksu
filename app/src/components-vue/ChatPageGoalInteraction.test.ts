@@ -3,6 +3,7 @@
 import { createApp, nextTick, type App } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { CodingGoalState, Conversation } from '@/types'
+import { invokeCommand } from '@/desktop'
 import ChatPage from './ChatPage.vue'
 
 vi.mock('@/desktop', () => ({
@@ -108,6 +109,11 @@ function mountPage(options: {
 afterEach(() => {
   for (const app of mountedApps.splice(0)) app.unmount()
   document.body.innerHTML = ''
+  const invoke = vi.mocked(invokeCommand)
+  invoke.mockReset()
+  invoke.mockImplementation(async () => {
+    throw new Error('desktop runtime unavailable in component test')
+  })
 })
 
 describe('ChatPage Goal interaction', () => {
@@ -243,6 +249,100 @@ describe('ChatPage Goal interaction', () => {
 
     expect(result.host.querySelector('[aria-label="浏览器"]')).not.toBeNull()
     expect(result.host.querySelector('[aria-label="Computer Use"]')).toBeNull()
+  })
+
+  it('opens one permission dialog and automatically starts the only visible Computer Use target', async () => {
+    const target = {
+      name: 'Preview',
+      bundleId: 'com.example.preview',
+      pid: 4242,
+      windowId: 9001,
+      windowTitle: 'Permission integration',
+    }
+    const permissions = {
+      accessibility: false,
+      screenRecording: false,
+    }
+    const computerUseStatus = () => ({
+      available: true,
+      enabled: false,
+      phase: 'disabled',
+      permissions: { ...permissions },
+    })
+    vi.mocked(invokeCommand).mockImplementation(async (command, args) => {
+      if (command === 'get_coding_browser_status') {
+        return {
+          enabled: false,
+          conversationId: '',
+          phase: 'disabled',
+          pages: [],
+        } as never
+      }
+      if (command === 'activate_coding_computer_use'
+        || command === 'get_coding_computer_use_status') {
+        return computerUseStatus() as never
+      }
+      if (command === 'list_coding_computer_use_targets') return [target] as never
+      if (command === 'request_coding_computer_use_permissions') {
+        const permission = (args as { permission?: string } | undefined)?.permission
+        if (permission === 'accessibility') permissions.accessibility = true
+        if (permission === 'screen-recording') permissions.screenRecording = true
+        return computerUseStatus() as never
+      }
+      if (command === 'start_coding_computer_use') {
+        return {
+          ...computerUseStatus(),
+          enabled: true,
+          phase: 'ready',
+          conversationId: 'conversation-1',
+          target,
+        } as never
+      }
+      throw new Error(`unsupported test command ${command}`)
+    })
+
+    const result = mountPage({ workspacePath: '/tmp/milksu', sessionReady: true })
+    await nextTick()
+    await vi.waitFor(() => {
+      expect(vi.mocked(invokeCommand)).toHaveBeenCalledWith(
+        'activate_coding_computer_use',
+        { conversationId: 'conversation-1' },
+      )
+    })
+    const editor = composerEditor(result.host)
+    setComposerText(editor, '/computer-use')
+    await nextTick()
+    editor.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Enter',
+      bubbles: true,
+      cancelable: true,
+    }))
+    await vi.waitFor(() => {
+      expect(document.querySelector('[role="dialog"]')?.textContent).toContain('开启 Computer Use')
+    })
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain('0 / 2')
+
+    document.querySelector<HTMLButtonElement>(
+      'button[aria-label="打开辅助功能系统设置"]',
+    )?.click()
+    await vi.waitFor(() => {
+      expect(document.querySelector('[role="dialog"]')?.textContent).toContain('1 / 2')
+    })
+
+    document.querySelector<HTMLButtonElement>(
+      'button[aria-label="打开屏幕录制系统设置"]',
+    )?.click()
+    await vi.waitFor(() => {
+      expect(document.querySelector('[role="dialog"]')).toBeNull()
+      expect(vi.mocked(invokeCommand)).toHaveBeenCalledWith(
+        'start_coding_computer_use',
+        expect.objectContaining({
+          conversationId: 'conversation-1',
+          targetPid: 4242,
+          targetWindowId: 9001,
+        }),
+      )
+    })
   })
 
   it('opens Terminal as an independent bottom dock while keeping the right sidebar open', async () => {

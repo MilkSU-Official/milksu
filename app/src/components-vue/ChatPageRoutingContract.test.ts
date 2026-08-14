@@ -126,6 +126,15 @@ describe('ChatPage routing contract', () => {
     expect(chatPageSource).toContain('await startComputerUse()')
   })
 
+  it('guides missing Computer Use permissions in one polling dialog and resumes the same scope', () => {
+    expect(chatPageSource).toContain('CodingComputerUsePermissionDialog')
+    expect(chatPageSource).toContain('computerUsePermissionDialogOpen.value = true')
+    expect(chatPageSource).toContain("'get_coding_computer_use_status'")
+    expect(chatPageSource).toContain('@poll="pollComputerUsePermissions"')
+    expect(chatPageSource).toContain('@complete="handleComputerUsePermissionComplete"')
+    expect(chatPageSource).toContain('await continueComputerUseScope()')
+  })
+
   it('preserves colons inside custom relay model ids', () => {
     expect(chatPageSource).toContain('const [mode, provider, ...modelParts] = value.split(\':\')')
     expect(chatPageSource).toContain("const model = modelParts.join(':')")
