@@ -227,6 +227,17 @@ async function inspectCodesign(path) {
 
 async function signMachOFiles(root, identity) {
   const paths = []
+  // The embedded standalone Node process owns the Pi/V8 loop. Hardened
+  // Runtime signing without the JIT entitlements makes V8 abort in Heap::SetUp
+  // before any Sidecar JavaScript can run. Native helpers and addons do not
+  // receive these process entitlements.
+  const nodeRuntime = join(root, 'node')
+  const nodeEntitlements = join(
+    repositoryRoot,
+    'desktop',
+    'build',
+    'entitlements.mac.plist',
+  )
   async function walk(directory) {
     const entries = await readdir(directory, { withFileTypes: true })
     for (const entry of entries) {
@@ -248,6 +259,7 @@ async function signMachOFiles(root, identity) {
       '--force',
       '--options', 'runtime',
       '--timestamp',
+      ...(path === nodeRuntime ? ['--entitlements', nodeEntitlements] : []),
       '--sign', identity,
       path,
     ])
@@ -2385,6 +2397,17 @@ async function installSidecar(platform, binaryPath) {
     codesignIdentity,
     application,
   ])
+  const packagedNode = join(destination, 'node')
+  const { stdout: packagedNodeVersion } = await execFileAsync(
+    packagedNode,
+    ['--version'],
+    { timeout: 15_000 },
+  )
+  if (packagedNodeVersion.trim() !== `v${nodeVersion}`) {
+    throw new Error(
+      `signed packaged Node failed version check: ${packagedNodeVersion.trim() || '(empty)'}`,
+    )
+  }
   const signing = await inspectCodesign(application)
   if (stableCodesignRequired) {
     assertStableCodesign(application, signing)
