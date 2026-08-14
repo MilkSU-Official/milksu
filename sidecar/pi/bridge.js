@@ -117,6 +117,7 @@ import {
   createModelSourceStream,
   normalizeModelSourceOrder,
 } from "./model-source-routing.js";
+import { projectAssistantMessageEnd } from "./bridge-message-view.js";
 
 const { currentProviderDefinition, tokenfluxModelIDForProvider } = currentProviderRuntime;
 
@@ -219,14 +220,6 @@ function describeError(error) {
   if (!(error instanceof Error)) return String(error);
   const resource = error.resource ? `\nresource: ${error.resource}` : "";
   return `${error.stack || error.message}${resource}`;
-}
-
-function extractTextContent(message) {
-  if (!Array.isArray(message?.content)) return "";
-  return message.content
-    .filter((item) => item.type === "text")
-    .map((item) => item.text)
-    .join("");
 }
 
 function extractToolResultContent(result) {
@@ -938,17 +931,10 @@ function subscribeSession(conversationId, session, maxToolEventOutputBytes) {
     }
 
     if (event.type === "message_end" && event.message?.role === "assistant") {
-      const content = extractTextContent(event.message);
-      const stopReason = event.message.stopReason ?? "stop";
-      const hasToolCall = Array.isArray(event.message.content)
-        && event.message.content.some((item) => item.type === "toolCall");
-      if (content || assistantTextStreamed) {
-        emit(conversationId, stopReason === "toolUse" || hasToolCall
-          ? "message_segment_done"
-          : "message_done", {
-          reason: stopReason,
-          content,
-        });
+      for (const projected of projectAssistantMessageEnd(event.message, {
+        textStreamed: assistantTextStreamed,
+      })) {
+        emit(conversationId, projected.type, projected.data);
       }
       assistantTextStreamed = false;
       return;
