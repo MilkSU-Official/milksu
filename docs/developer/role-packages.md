@@ -94,7 +94,7 @@ Coach 模式不应第一步就给答案：
 4. 展示关键命令或代码片段；
 5. 最后才完整演示，并要求用户解释或迁移。
 
-首批项目参考：BoxPwnr 用于 Environment、Attempt、Judge 与 benchmark；CAI、D-CIPHER、HackSynth 用于能力和对照研究。它们不是默认依赖。
+首批项目参考：CAI、D-CIPHER、HackSynth 用于架构思想、能力和对照研究；BoxPwnr、PentAGI 不进入产品或接入队列。保留历史调研只为解释此前取舍，不把它们当作当前学习来源。
 
 ## Vulnerability Research Role Package
 

@@ -54,8 +54,9 @@ CVE 已有学习/追踪 MVP；纵深研究、外部资产实验、漏洞复现�
 证据，但不是 backlog；顶部的 Historical/Research/Evidence 标识优先于正文中的旧
 “下一步”或“未完成”列表。
 
-选择外部项目时参考[开源项目基线](/developer/industry-baseline)，但项目写进调研表不等于
-进入依赖。正式接入仍需要许可证、供应链、权限面和真实任务验收。
+历史样本见[开源项目基线](/developer/industry-baseline)，当前接入顺序和拒绝项以
+[个人安全工作台计划：安全工具接入 Coding](/developer/security-workspace-product-plan#4-安全工具接入-coding)
+为准。项目写进调研表不等于已经进入产品；正式接入仍需经过许可证、供应链、权限面和真实任务验收。
 
 近期专项调研：
 

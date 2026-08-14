@@ -7,6 +7,10 @@
 >
 > 更新：2026-07-19
 >
+> 当前产品取舍：本页保留当日调研证据，不代表现行接入队列。现行顺序见
+> [个人安全工作台计划：安全工具接入 Coding](./security-workspace-product-plan.md#4-安全工具接入-coding)。
+> BoxPwnr、PentAGI 已明确不进入产品；CAI 保留为思想和评测参考，Shannon 保留为外部 Worker 候选。
+>
 > 后续专项调研：
 > [Wallbreaker Harness 静态调研与 MilkSU 对照](./research/2026-08-03-wallbreaker-harness-review.md)。
 > 该项目当前只作 `adapt` / `benchmark-only` 参考，不进入依赖或 External Worker。
