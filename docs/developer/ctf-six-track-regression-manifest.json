@@ -42,7 +42,7 @@
     {
       "key": "web",
       "label": "Web",
-      "status": "judge-verified",
+      "status": "attempted",
       "selection": {
         "platform": "NSSCTF",
         "challengeId": "P3879",
@@ -59,25 +59,22 @@
       "judge": {
         "authority": "platform",
         "platform": "NSSCTF",
-        "status": "accepted",
-        "correct": true,
-        "receiptReference": "docs/developer/adr/0009-nssctf-browser-judge-bridge.md",
-        "verifiedAt": "2026-07-31"
+        "status": "historical-narrow-receipt",
+        "correct": null,
+        "receiptReference": "",
+        "verifiedAt": ""
       },
       "evidenceRefs": {
         "authorizedProblemStatement": "docs/developer/adr/0009-nssctf-browser-judge-bridge.md",
-        "materials": "docs/developer/architecture-review-2026-07-31.md",
-        "solverTrajectory": "docs/developer/architecture-review-2026-07-31.md",
-        "checkpoints": "docs/developer/architecture-review-2026-07-31.md",
         "candidates": "docs/developer/adr/0009-nssctf-browser-judge-bridge.md",
-        "judgeReceipt": "docs/developer/adr/0009-nssctf-browser-judge-bridge.md",
-        "hintDependency": "docs/developer/architecture-review-2026-07-31.md",
-        "userContribution": "docs/developer/architecture-review-2026-07-31.md",
-        "interruptionRecovery": "docs/developer/architecture-review-2026-07-31.md",
-        "debrief": "docs/developer/architecture-review-2026-07-31.md",
-        "trainingEvidence": "docs/developer/document-status.md"
+        "judgeReceipt": "docs/developer/adr/0009-nssctf-browser-judge-bridge.md"
       },
-      "notes": "Existing narrow Web proof only; it cannot be generalized to other tracks or to an overall CTF score."
+      "gaps": [
+        "Retain challenge materials and a complete solver trajectory.",
+        "Record checkpoints, interruption recovery, hint dependency, and user contribution.",
+        "Retain debrief and training evidence before promoting this slot to judge-verified."
+      ],
+      "notes": "A narrow platform receipt exists, but it is not a complete six-track acceptance slot and cannot be generalized to an overall CTF score."
     },
     {
       "key": "pwn",

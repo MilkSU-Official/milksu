@@ -21,7 +21,7 @@ npm run test:ctf-six-track-regression
 
 | 赛道 | 当前状态 | 说明 |
 | --- | --- | --- |
-| Web | `judge-verified` | NSSCTF P3879 已有一条真实 `correct=true` 窄路径记录。 |
+| Web | `attempted` | NSSCTF P3879 有窄 Judge 回执，但缺少本清单要求的完整轨迹、恢复和用户贡献证据。 |
 | Pwn | `missing` | 待选择授权真题并记录完整证据。 |
 | Reverse | `missing` | 待选择授权真题并记录完整证据。 |
 | Crypto | `missing` | 待选择授权真题并记录完整证据。 |

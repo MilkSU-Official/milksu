@@ -2,54 +2,10 @@
 
 > 文档状态：**Evidence / Living acceptance contract**。
 >
-> 旧状态：本机外部 Chrome + Playwright MCP 的自动化 Runbook 已被 Electron/Chromium 壳替代，
-> 不再代表当前产品实现。
->
 > 当前边界：只记录 MilkSU 管理的“浏览器”执行表面；Browser Use 与 Computer Use 必须分别验收，
 > 不能用本页结果代替。
 >
 > 当前完成度与剩余缺口以代码、测试、Git 历史和[当前开发目标](./current-objectives.md)为准。
-
-## 已退休的自动化纵切
-
-以下命令和结论只保留为旧实现的证据，不再作为当前 Gate：
-
-旧命令：
-
-```bash
-npm run test:coding-browser
-```
-
-旧完整工程回归曾通过以下方式选择性启用：
-
-```bash
-MILKSU_BROWSER_INTEGRATION=1 npm run m3:release-check
-```
-
-旧 Runbook 曾通过以下方式保留临时证据：
-
-```bash
-MILKSU_KEEP_BROWSER_FIXTURE=1 npm run test:coding-browser
-```
-
-旧验收由 `internal/browsercap.Manager` 启动外部 Chrome。当前生产路径已经改为 Electron
-`WebContentsView` + Conversation 隔离 Profile + 单一 Target 的 `ScopedCDPProxy`；旧 fixture
-仍可保留为底层动作与证据回归，但“测试通过”不能再证明打包 App 的当前浏览器表面可用。
-
-旧本地页面会产生一个预期 Console Error 和一个预期 HTTP 503。当时的自动化覆盖：
-
-1. 导航到本机页面并读取可访问性快照；
-2. 点击语义明确的 Verify 按钮并观察 `Verified`；
-3. 在 `1080×680` 和 `1440×900` 分别保存 PNG；
-4. 保存最终快照、Console 和 Network 证据；
-5. 验证 Console 包含固定错误，Network 包含固定 503；
-6. 验证全部文件都位于当前 Session 的
-   `.milksu/browser-evidence/<session-id>`，且为非空普通文件；
-7. 确认生产 Adapter 排除 `browser_run_code_unsafe`。
-
-该旧验收不访问外部站点，不使用用户 Cookie、浏览器登录态或 Provider Credential；它依赖
-系统安装的 Chrome/Chromium。保留这些描述是为了说明历史证据范围，不是要求当前 Electron
-产品重新依赖外部浏览器。
 
 ## 当前打包 App 验收
 
@@ -80,6 +36,4 @@ Session 状态，才能把对应任务记为通过。
 这组结果证明的是当前 macOS ARM64 打包 App 中的页面控制和面板显隐生命周期。下载、弹窗、权限拒绝、
 renderer 崩溃/恢复、显式停止后的旧 Target 失效和 Windows 仍需各自的负向证据。
 
-前端视觉 QA 的历史任务另见
-[前端视觉 QA 真实任务验收记录](./frontend-visual-qa-acceptance.md)。新浏览器任务必须按当前
-Electron 路径单独记录，不提前复用旧 Chrome 结果。
+新浏览器任务必须按当前 Electron 路径单独记录，不复用旧外部 Chrome 或 Wails 时代的结果。

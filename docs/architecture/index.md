@@ -42,10 +42,10 @@
 1. `developer/current-objectives.md` 的当前任务与完成门槛；
 2. 本目录的 `current-system.md` 与代码、测试、原生 App 的实现事实；
 3. `Planned / Paused` 详细设计；
-4. ADR 与带日期的 Architecture Review / Checkpoint。
+4. 记录代码无法表达之取舍的 ADR。
 
-ADR、Review 和 Checkpoint 记录当时为什么这样决定，不会因为后续实现而改写历史；它们必须
-通过 `Historical`、`Superseded` 或后继链接避免被误读成当前状态。
+ADR 记录当时为什么这样决定，不会因为后续实现而改写历史。单次代码审阅、文件规模和工程
+Checkpoint 由 Git 历史与自动化重新生成，不再长期占用文档入口。
 
 ## 本快照的关键结论
 

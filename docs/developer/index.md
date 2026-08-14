@@ -27,18 +27,13 @@
 
 - [Coding Agent 交付验收](/developer/coding-agent-delivery-acceptance)
 - [浏览器执行表面验收](/developer/coding-browser-acceptance)
-- [前端视觉 QA 验收](/developer/frontend-visual-qa-acceptance)
 - [本地交付基线](/developer/local-delivery-baseline)
 - [NYU CTF Bench 安全边界](/developer/nyu-ctf-bench-eval)
 
 证据文档只证明记录中明确写出的范围；不能外推为整个产品完成。
 
-## 已完成冲刺、暂停或未来设计
+## 暂停或未来设计
 
-- [产品闭环冲刺摘要](/developer/product-loop-sprint)：2026-08-05 已随 PR #1 合并到 `main`。
-- [产品闭环验收索引](/developer/product-loop-sprint-acceptance)：旧流水验收的压缩索引。
-- [旧目标台账摘要](/developer/objective-coverage-ledger)：已退休，不再维护百分比。
-- [旧目标评估摘要](/developer/objective-review-workbook)：已写入当前目标，不再作为 backlog。
 - [授权安全学习与研究平台](/architecture/security-learning-and-research-platform)
 - [CTF Labs 设计](/architecture/ctf-labs-design)
 - [CVE 研究工作台设计](/architecture/cve-research-workbench-design)
@@ -49,9 +44,9 @@ CVE 已有学习/追踪 MVP；纵深研究、外部资产实验、漏洞复现�
 
 ## 历史与研究
 
-`developer/adr/*`、`developer/checkpoints/*`、带日期的 Review、`developer/research/*`、
-`design/audits/*` 和根目录 `design-qa.md` 记录当时的决策、调研或验收快照。它们保留原因和
-证据，但不是 backlog；顶部的 Historical/Research/Evidence 标识优先于正文中的旧
+`developer/adr/*`、`developer/research/*` 和保留的实际界面 QA
+记录当时的决策、调研或验收快照。它们保留原因和证据，但不是 backlog；顶部的
+Historical/Research/Evidence 标识优先于正文中的旧
 “下一步”或“未完成”列表。
 
 历史样本见[开源项目基线](/developer/industry-baseline)，当前接入顺序和拒绝项以

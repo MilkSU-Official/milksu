@@ -10,8 +10,7 @@
 >
 > 当前完成度与剩余缺口以代码、测试、Git 历史和[当前开发目标](./current-objectives.md)为准。
 >
-> 当前基线（2026-08-10）：自动化入口已经迁到 Electron/Chromium 打包 App；本文先记录当前单机
-> pre-release 实测，再保留 2026-08-03 Wails/WebKit 数值作为历史对照。
+> 当前基线（2026-08-10）：自动化入口使用 Electron/Chromium 打包 App。
 
 ## 自动化入口
 
@@ -93,68 +92,6 @@ Driver 51.5 MiB、`gopls` 39.0 MiB、Coding Bridge 22.2 MiB 和 Go Runtime 21.7 
 
 语义图仅在完整图谱视图懒加载。后续只有真实启动、内存、下载或更新成本证明收益时，才单独进入
 Sidecar 去重或 chunk 优化纵切。
-
-## 2026-08-03 历史 Wails 基线
-
-环境为 Apple Silicon macOS（Darwin 25.5.0）。同一构建连续执行三次，并在两次完整 M3
-重新打包后各执行一次，观察到：
-
-| 指标 | 观察值 |
-| --- | ---: |
-| 启动至正式 lifespan 标记 | 155–949 ms |
-| 启动后两秒 App 进程树 RSS | 107.4–117.7 MiB |
-| App 未压缩逻辑体积 | 347.0 MiB |
-| 其中打包 Sidecar 未压缩逻辑体积 | 327.2 MiB |
-| 前端 dist 未压缩逻辑体积 | 1.8 MiB |
-| App / Sidecar 文件数 | 2,797 / 2,793 |
-| 运行进程数 | 1 |
-| 正常退出标记 | 5/5 `clean` |
-
-这些值受文件缓存、机器负载和构建方式影响。下列旧阈值只用于理解迁移前基线；Electron 壳的
-进程模型、包体和内存构成不同，不能拿它判定当前构建回归：
-
-| Gate | Pre-release 上限 |
-| --- | ---: |
-| 启动至正式 lifespan 标记 | 5,000 ms |
-| 启动后两秒 App 进程树 RSS | 192 MiB |
-| App 未压缩逻辑体积 | 450 MiB |
-| 打包 Sidecar 未压缩逻辑体积 | 400 MiB |
-| 前端 dist 未压缩逻辑体积 | 4 MiB |
-| 最大前端 JS/CSS chunk | 512 KiB |
-| App 进程树进程数 | 3 |
-
-这些不是正式发行承诺。启动指标是生命周期初始化标记，不等价于首屏完全可交互时间；旧空闲
-RSS 只统计当时的 MilkSU 进程树，不包含 macOS 共享的 WebKit 系统进程。当前 Electron/Chromium
-基线包含 Renderer、GPU、Network 和 Go Runtime 子进程；冷/热启动、首屏交互和多机器 RC 上限仍需
-在发行阶段重复测量。
-
-`local-delivery-baseline.json` 中的 `performanceThresholds` 还包含当前单机 support matrix
-entry。现在只有 Apple Silicon macOS 被标为 `measured-pre-release-baseline`；多机器、
-Intel/macOS 版本矩阵仍等待 RC 阶段重复实测。
-
-历史 Wails App 的体积主要来自 Sidecar，而不是前端：
-
-| 产物 | 逻辑体积 |
-| --- | ---: |
-| Node Runtime | 115.4 MiB |
-| Computer Use Driver | 51.5 MiB |
-| `gopls` | 39.0 MiB |
-| Coding Bridge | 22.2 MiB |
-| MilkSU 原生可执行文件 | 18.0 MiB |
-
-历史 Wails 构建中最大的前端 JS/CSS chunk：
-
-| Chunk | 逻辑体积 |
-| --- | ---: |
-| 主入口 JS | 378.5 KiB |
-| Coding Terminal JS | 349.5 KiB |
-| CTF Page JS | 169.5 KiB |
-| 主样式 | 149.7 KiB |
-| Markdown JS | 139.4 KiB |
-| Chat Page JS | 112.3 KiB |
-
-这张表用于后续对照，不把“最大文件存在”本身判定为缺陷。前端拆分和 Sidecar 去重只有在
-真实启动、内存、下载体积或更新成本证明有收益时才进入优化纵切。
 
 ## 无 Provider 首启、离线失败与诊断边界
 
