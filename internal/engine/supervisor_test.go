@@ -22,6 +22,35 @@ func TestNormalizeAssistantDelta(t *testing.T) {
 	}
 }
 
+func TestNormalizeUsageProjectionKeepsOnlyBoundedAccountingFields(t *testing.T) {
+	usage := &ModelUsage{
+		RecordID: "usage-1", Module: "coding",
+		OccurredAt: "2026-08-14T08:00:00Z",
+		Provider:   "tokenflux", Model: "openai/gpt-5.6-sol", Source: "account",
+		InputTokens: 120, OutputTokens: 40, CacheRead: 80,
+		Reasoning: 15, TotalTokens: 240, CostUSD: 0.05, Success: true,
+	}
+	event := normalizeBridgeEvent(bridgeEvent{
+		Type: "usage_recorded", ID: "session-1", Module: "coding", Usage: usage,
+	})
+	if event.Type != "usage.recorded" || event.SessionID != "session-1" ||
+		event.Module != "coding" || event.Usage == nil ||
+		event.Usage.RecordID != "usage-1" || event.Usage.TotalTokens != 240 {
+		t.Fatalf("unexpected usage event: %#v", event)
+	}
+}
+
+func TestNormalizeToolCompletionPreservesUsageModule(t *testing.T) {
+	event := normalizeBridgeEvent(bridgeEvent{
+		Type: "tool_call_end", ID: "session-1", Module: "coding",
+		ToolName: "exec_command", ToolCallID: "tool-1", DurationMS: 25,
+	})
+	if event.Type != "tool.completed" || event.Module != "coding" ||
+		event.ToolName != "exec_command" || event.ToolCallID != "tool-1" {
+		t.Fatalf("unexpected tool event: %#v", event)
+	}
+}
+
 func TestNormalizeReadyPreservesResumeEvidence(t *testing.T) {
 	event := normalizeBridgeEvent(bridgeEvent{
 		Type:           "ready",
@@ -1479,6 +1508,45 @@ func TestEngineEnvironmentIncludesEditableProviderBaseURL(t *testing.T) {
 	} {
 		if !containsEnvironmentEntry(environment, expected) {
 			t.Fatalf("expected %q in %#v", expected, environment)
+		}
+	}
+}
+
+func TestEngineEnvironmentIncludesOnlyTheActiveCustomRelay(t *testing.T) {
+	activeURL := "https://relay.example.test/v1"
+	otherURL := "https://other.example.test/v1"
+	settings := config.DefaultSettings()
+	settings.ActiveProvider = "custom-relay-example"
+	settings.ActiveModel = "vendor/model-a"
+	settings.Providers["custom-relay-example"] = config.ProviderConfig{
+		Custom: true, Name: "Example relay", Models: []string{"vendor/model-a"},
+		APIKey: "active-custom-secret", BaseURL: &activeURL, Enabled: true,
+	}
+	settings.Providers["custom-relay-other"] = config.ProviderConfig{
+		Custom: true, Name: "Other relay", Models: []string{"other/model"},
+		APIKey: "other-custom-secret", BaseURL: &otherURL, Enabled: true,
+	}
+	settings.Relay = &config.RelayConfig{
+		Enabled: true, URL: "https://tokenflux.example.test/v1", Key: "inactive-account-secret",
+	}
+
+	if err := validateModelAccess(settings); err != nil {
+		t.Fatalf("expected custom relay to pass validation, got %v", err)
+	}
+	environment := engineEnvironment(settings)
+	for _, expected := range []string{
+		"MILKSU_CUSTOM_PROVIDER_ID=custom-relay-example",
+		"MILKSU_CUSTOM_PROVIDER_NAME=Example relay",
+		"MILKSU_CUSTOM_PROVIDER_KEY=active-custom-secret",
+		"MILKSU_CUSTOM_PROVIDER_URL=https://relay.example.test/v1",
+	} {
+		if !containsEnvironmentEntry(environment, expected) {
+			t.Fatalf("expected %q in %#v", expected, environment)
+		}
+	}
+	for _, entry := range environment {
+		if strings.Contains(entry, "other-custom-secret") || strings.Contains(entry, "inactive-account-secret") {
+			t.Fatalf("inactive model source credential leaked into environment: %q", entry)
 		}
 	}
 }

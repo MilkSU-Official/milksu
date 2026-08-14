@@ -693,6 +693,73 @@ describe('SettingsPage database compatibility', () => {
     })
   })
 
+  it('adds and verifies a simple custom OpenAI-compatible relay', async () => {
+    let savedSettings: unknown = null
+    const settings = withAppSettingsDefaults({
+      active_provider: 'tokenflux',
+      active_model: 'grok-4.5',
+      providers: {},
+    } as AppSettings)
+    await mountSettingsPage({
+      directory: 'MilkSU 用户数据目录',
+      fileCount: 0,
+      bytes: 0,
+    }, {
+      initialCategory: 'apikeys',
+      settings,
+      appMethods: {
+        SaveSettingsCmd: async (value: unknown) => {
+          savedSettings = value as AppSettings
+        },
+        GetSettings: async () => savedSettings ?? settings,
+        TestAgentModel: async () => ({
+          provider: (savedSettings as AppSettings | null)?.active_provider,
+          model: (savedSettings as AppSettings | null)?.active_model,
+          ready: true,
+          latencyMs: 37,
+        }),
+      },
+    })
+
+    const addRelay = [...document.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.includes('添加中转站'))
+    addRelay?.click()
+    await settle()
+
+    function typeInto(input: HTMLInputElement | null, value: string) {
+      expect(input).not.toBeNull()
+      input!.value = value
+      input!.dispatchEvent(new Event('input', { bubbles: true }))
+    }
+
+    typeInto(document.querySelector('input[aria-label="中转站名称"]'), '我的 Grok 中转站')
+    typeInto(document.querySelector('input[aria-label="自定义模型 ID"]'), 'x-ai/grok-4.6:fast')
+    const addModel = [...document.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.trim() === '添加')
+    addModel?.click()
+    await settle()
+    typeInto(document.querySelector('input[type="url"]'), 'https://relay.example/v1')
+    typeInto(document.querySelector('input[type="password"]'), 'custom-test-secret')
+
+    const saveButton = [...document.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.includes('保存并验证'))
+    saveButton?.click()
+    for (let index = 0; index < 6; index += 1) await settle()
+
+    const persisted = savedSettings as AppSettings
+    expect(persisted.active_provider).toMatch(/^custom-relay-/)
+    expect(persisted.active_model).toBe('x-ai/grok-4.6:fast')
+    const savedProvider = persisted.providers[persisted.active_provider]
+    expect(savedProvider).toMatchObject({
+      custom: true,
+      name: '我的 Grok 中转站',
+      base_url: 'https://relay.example/v1',
+      models: ['x-ai/grok-4.6:fast'],
+      api_key: 'custom-test-secret',
+    })
+    expect(document.body.textContent).toContain('已保存并验证')
+  })
+
   it('lets a signed-in user put a local personal key ahead of beta quota', async () => {
     let savedSettings: unknown = null
     const settings = withAppSettingsDefaults({

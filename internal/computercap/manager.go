@@ -901,6 +901,12 @@ func filterValidTargets(targets []Target, hostBundleID string, hostPID int) []Ta
 		if isSelfComputerUseTarget(target, hostBundleID, hostPID) {
 			continue
 		}
+		// Browser windows use the dedicated Browser / Browser Use surfaces. They
+		// must not become a Computer Use target even if a renderer bypasses the
+		// frontend filter and calls the Desktop RPC directly.
+		if isUserBrowserTarget(target) {
+			continue
+		}
 		key := fmt.Sprintf("%d/%d", target.PID, target.WindowID)
 		if seen[key] {
 			continue
@@ -909,6 +915,35 @@ func filterValidTargets(targets []Target, hostBundleID string, hostPID int) []Ta
 		filtered = append(filtered, target)
 	}
 	return filtered
+}
+
+func isUserBrowserTarget(target Target) bool {
+	bundleID := strings.ToLower(strings.TrimSpace(target.BundleID))
+	name := strings.ToLower(strings.TrimSpace(target.Name))
+	for _, candidate := range []string{
+		"com.apple.safari",
+		"com.brave.browser",
+		"com.google.chrome",
+		"com.microsoft.edgemac",
+		"com.operasoftware.opera",
+		"com.vivaldi.vivaldi",
+		"company.thebrowser.browser",
+		"org.chromium.chromium",
+		"org.mozilla.firefox",
+	} {
+		if bundleID == candidate || strings.HasPrefix(bundleID, candidate+".") {
+			return true
+		}
+	}
+	for _, candidate := range []string{
+		"arc", "brave browser", "chromium", "firefox", "google chrome",
+		"microsoft edge", "opera", "safari", "vivaldi",
+	} {
+		if name == candidate {
+			return true
+		}
+	}
+	return false
 }
 
 // isSelfComputerUseTarget reports whether target is the controlling host app.

@@ -74,6 +74,9 @@ describe('Coding conversation groups', () => {
       conversation('current-scratch', '当前任务', 30, {
         workspacePath: '/Users/milksu/Documents/MilkSU/Coding/临时任务-cafebabe',
       }),
+      conversation('internal-scratch', '内部任务', 40, {
+        workspacePath: '/Users/milksu/Library/Application Support/com.milksu.app/agent-workspaces/Coding/无项目任务-feedface',
+      }),
       conversation('not-started', '尚未开始', 10),
     ])
 
@@ -86,6 +89,7 @@ describe('Coding conversation groups', () => {
       temporary: true,
     })
     expect(groups[0].conversations.map(item => item.id)).toEqual([
+      'internal-scratch',
       'current-scratch',
       'legacy-scratch',
       'not-started',

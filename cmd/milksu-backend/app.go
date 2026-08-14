@@ -787,15 +787,17 @@ func (a *App) resolveConversationWorkspace(conversationID, requested string) (st
 		return "", fmt.Errorf("read Coding conversation for artifact workspace: %w", err)
 	}
 	kind := userartifact.KindCoding
-	label := "临时任务"
+	label := "无项目任务"
+	workspaceRoot := filepath.Join(a.dataDirectory, "agent-workspaces")
 	if domainKind, _ := stored.DomainTaskContext["kind"].(string); domainKind == "cve" {
 		kind = userartifact.KindCVE
+		workspaceRoot = a.artifactDirectory
 		if cveID, _ := stored.DomainTaskContext["cveId"].(string); strings.TrimSpace(cveID) != "" {
 			label = cveID
 		}
 	}
 	workspace, err := userartifact.Workspace(
-		a.artifactDirectory,
+		workspaceRoot,
 		kind,
 		conversationID,
 		label,

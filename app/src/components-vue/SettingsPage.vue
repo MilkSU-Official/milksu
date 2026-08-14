@@ -34,8 +34,10 @@ import {
   GripVertical,
   KeyRound,
   LogOut,
+  Plus,
   RotateCcw,
   ShieldCheck,
+  Trash2,
   WalletCards,
 } from 'lucide-vue-next'
 import { invokeCommand } from '@/desktop'
@@ -122,11 +124,13 @@ const buildTrackingCopying = ref(false)
 const notice = ref<{ tone: 'ok' | 'error'; text: string } | null>(null)
 const accountRouteSetupOpen = ref(false)
 const draggedModelSource = ref<ModelSource | null>(null)
+const customModelInput = ref('')
+const providerSettings = computed(() => working.value?.providers ?? {})
 const {
   providers: modelProviders,
   providerGroups: modelProviderGroups,
   providerModelLabel,
-} = useModelCatalog()
+} = useModelCatalog(providerSettings)
 const account = computed<AccountStatus>(() => props.accountStatus ?? ({ configured: false, authenticated: false, state: 'unconfigured' }))
 const accountBalance = computed(() => new Intl.NumberFormat('zh-CN', {
   style: 'currency', currency: 'CNY', minimumFractionDigits: 2,
@@ -267,7 +271,8 @@ function setVisionRoute(value: string) {
     working.value.vision_model = undefined
     return
   }
-  const [routeProvider, routeModel] = value.split(':')
+  const [routeProvider, ...routeModelParts] = value.split(':')
+  const routeModel = routeModelParts.join(':')
   if (!routeProvider || !routeModel) return
   working.value.vision_model = {
     provider: routeProvider,
@@ -307,6 +312,68 @@ function ensureProvider(id: string) {
   }
 }
 
+function customRelayID() {
+  const random = globalThis.crypto?.randomUUID?.().replaceAll('-', '').slice(0, 12)
+    ?? Math.random().toString(36).slice(2, 14)
+  return `custom-relay-${random}`
+}
+
+function addCustomRelay() {
+  if (!working.value) return
+  const count = Object.values(working.value.providers).filter(item => item.custom).length
+  if (count >= 8) {
+    notice.value = { tone: 'error', text: '最多可以添加 8 个自定义中转站。' }
+    return
+  }
+  const id = customRelayID()
+  working.value.providers[id] = {
+    api_key: '',
+    has_api_key: false,
+    base_url: '',
+    enabled: true,
+    custom: true,
+    name: '我的中转站',
+    models: [],
+  }
+  working.value.active_provider = id
+  working.value.active_model = ''
+  customModelInput.value = ''
+  notice.value = null
+}
+
+function removeCustomRelay() {
+  if (!working.value || !provider.value?.custom) return
+  delete working.value.providers[working.value.active_provider]
+  customModelInput.value = ''
+  ensureProvider('tokenflux')
+}
+
+function addCustomRelayModel() {
+  if (!working.value || !provider.value?.custom) return
+  const model = customModelInput.value.trim()
+  if (!model) return
+  const models = provider.value.models ?? []
+  if (models.includes(model)) {
+    customModelInput.value = ''
+    return
+  }
+  if (models.length >= 32) {
+    notice.value = { tone: 'error', text: '每个中转站最多可以添加 32 个模型。' }
+    return
+  }
+  provider.value.models = [...models, model]
+  if (!working.value.active_model) working.value.active_model = model
+  customModelInput.value = ''
+}
+
+function removeCustomRelayModel(model: string) {
+  if (!working.value || !provider.value?.custom) return
+  provider.value.models = (provider.value.models ?? []).filter(item => item !== model)
+  if (working.value.active_model === model) {
+    working.value.active_model = provider.value.models[0] ?? ''
+  }
+}
+
 function ensureAccountRoute() {
   if (!working.value) return
   if (!working.value.relay) {
@@ -321,6 +388,8 @@ function ensureAccountRoute() {
 }
 
 const accountModelSourceReady = computed(() => Boolean(
+  !provider.value?.custom
+  &&
   account.value.state === 'active'
   && (accountRoute.value?.has_key || accountRoute.value?.key),
 ))
@@ -342,6 +411,7 @@ const modelSourcePreview = computed(() => {
 function setModelSourceEnabled(source: ModelSource, enabled: boolean) {
   if (!working.value) return
   if (source === 'account') {
+    if (provider.value?.custom) return
     ensureAccountRoute()
     if (enabled && !accountModelSourceReady.value) {
       accountRouteSetupOpen.value = true
@@ -723,6 +793,20 @@ async function exportLocalDiagnostics() {
 
 async function save() {
   if (!working.value) return
+  if (provider.value?.custom) {
+    if (!provider.value.name?.trim()) {
+      notice.value = { tone: 'error', text: '请填写中转站名称。' }
+      return
+    }
+    if (!provider.value.base_url?.trim()) {
+      notice.value = { tone: 'error', text: '请填写中转站 Base URL。' }
+      return
+    }
+    if (!(provider.value.models ?? []).length) {
+      notice.value = { tone: 'error', text: '请至少添加一个模型 ID。' }
+      return
+    }
+  }
   saving.value = true
   notice.value = null
   try {
@@ -1245,15 +1329,15 @@ async function save() {
                   <div class="min-w-0 flex-1">
                     <p class="font-medium">内测额度</p>
                     <p class="mt-0.5 text-caption text-muted-foreground">
-                      {{ accountModelSourceReady ? 'TokenFlux 团队额度' : account.state === 'active' ? '连接团队 Key 后可用' : '登录内测账户后连接' }}
+                      {{ provider?.custom ? '自定义模型只使用对应中转站' : accountModelSourceReady ? 'TokenFlux 团队额度' : account.state === 'active' ? '连接团队 Key 后可用' : '登录内测账户后连接' }}
                     </p>
                   </div>
                   <span v-if="account.state === 'active'" class="font-mono text-body font-semibold text-primary">{{ accountBalance }}</span>
                   <Badge :variant="index === 0 && accountRoute?.enabled ? 'secondary' : 'outline'">
-                    {{ index === 0 && accountRoute?.enabled ? '当前优先' : accountModelSourceReady ? '备用' : '未连接' }}
+                    {{ provider?.custom ? '不适用' : index === 0 && accountRoute?.enabled ? '当前优先' : accountModelSourceReady ? '备用' : '未连接' }}
                   </Badge>
                   <Button
-                    v-if="!accountModelSourceReady"
+                    v-if="!provider?.custom && !accountModelSourceReady"
                     variant="ghost"
                     size="sm"
                     :disabled="account.state !== 'active'"
@@ -1261,7 +1345,7 @@ async function save() {
                   >连接</Button>
                   <Switch
                     :model-value="Boolean(accountRoute?.enabled)"
-                    :disabled="!accountModelSourceReady && !accountRoute?.enabled"
+                    :disabled="Boolean(provider?.custom) || (!accountModelSourceReady && !accountRoute?.enabled)"
                     aria-label="启用内测额度"
                     @update:model-value="setModelSourceEnabled('account', Boolean($event))"
                   />
@@ -1349,6 +1433,15 @@ async function save() {
 
           <SettingsSection title="API Key 管理" class="mt-8 border-t border-border pt-6">
             <SettingsRow
+              label="自定义中转站"
+              description="添加 OpenAI-compatible 接口和模型 ID；配置后会出现在所有模型选择器里"
+            >
+              <Button variant="outline" size="sm" @click="addCustomRelay">
+                <Plus class="size-4" />
+                添加中转站
+              </Button>
+            </SettingsRow>
+            <SettingsRow
               label="服务商"
               :description="providerInfo
                 ? `${providerInfo.kind === 'relay' ? '中转站' : '原厂'} · ${providerInfo.summary}`
@@ -1386,6 +1479,54 @@ async function save() {
               </Select>
             </SettingsRow>
             <SettingsRow
+              v-if="provider?.custom"
+              stack="always"
+              label="中转站名称"
+              description="用于模型选择器中的显示名称"
+            >
+              <Input
+                :model-value="provider.name ?? ''"
+                autocomplete="off"
+                placeholder="例如：我的中转站"
+                aria-label="中转站名称"
+                @update:model-value="value => { provider!.name = String(value) }"
+              />
+            </SettingsRow>
+            <SettingsRow
+              v-if="provider?.custom"
+              stack="always"
+              label="模型 ID"
+              description="填写中转站实际接受的模型 ID；第一版按 OpenAI-compatible 文本模型接入"
+            >
+              <div class="flex gap-2">
+                <Input
+                  v-model="customModelInput"
+                  autocomplete="off"
+                  placeholder="例如：x-ai/grok-4.6"
+                  aria-label="自定义模型 ID"
+                  @keydown.enter.prevent="addCustomRelayModel"
+                />
+                <Button variant="outline" @click="addCustomRelayModel">添加</Button>
+              </div>
+              <div v-if="provider.models?.length" class="mt-3 flex flex-wrap gap-2">
+                <span
+                  v-for="model in provider.models"
+                  :key="model"
+                  class="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/30 px-2.5 py-1 font-mono text-caption"
+                >
+                  {{ model }}
+                  <button
+                    type="button"
+                    class="text-muted-foreground hover:text-destructive"
+                    :aria-label="`移除模型 ${model}`"
+                    @click="removeCustomRelayModel(model)"
+                  >
+                    <Trash2 class="size-3.5" />
+                  </button>
+                </span>
+              </div>
+            </SettingsRow>
+            <SettingsRow
               stack="always"
               label="Base URL"
               :description="providerInfo?.kind === 'relay'
@@ -1420,6 +1561,12 @@ async function save() {
             </SettingsRow>
             <div class="mt-4 rounded-lg border border-border bg-muted/20 px-4 py-3 text-caption text-muted-foreground">
               Coding Agent 当前优先使用 <strong class="font-medium text-foreground">{{ modelSourcePreview }}</strong>
+            </div>
+            <div v-if="provider?.custom" class="mt-3 flex justify-end">
+              <Button variant="ghost" size="sm" class="text-destructive" @click="removeCustomRelay">
+                <Trash2 class="size-4" />
+                删除这个中转站
+              </Button>
             </div>
           </SettingsSection>
 

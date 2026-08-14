@@ -58,3 +58,28 @@ test("maps official provider model IDs onto TokenFlux account routes", () => {
   );
   assert.equal(tokenfluxModelIDForProvider("tokenflux", "grok-4.5"), "grok-4.5");
 });
+
+test("registers the active custom OpenAI-compatible relay only from runtime environment", () => {
+  const definition = currentProviderDefinition(
+    "custom-relay-team",
+    "vendor/model:preview",
+    {
+      MILKSU_CUSTOM_PROVIDER_ID: "custom-relay-team",
+      MILKSU_CUSTOM_PROVIDER_NAME: "Team Relay",
+      MILKSU_CUSTOM_PROVIDER_KEY: "secret-key",
+      MILKSU_CUSTOM_PROVIDER_URL: "https://relay.invalid/v1",
+    },
+  );
+  assert.equal(definition.name, "Team Relay");
+  assert.equal(definition.baseUrl, "https://relay.invalid/v1");
+  assert.equal(definition.apiKey, "secret-key");
+  assert.equal(definition.models[0].id, "vendor/model:preview");
+  assert.equal(
+    currentProviderDefinition("custom-relay-other", "model", {
+      MILKSU_CUSTOM_PROVIDER_ID: "custom-relay-team",
+      MILKSU_CUSTOM_PROVIDER_KEY: "secret-key",
+      MILKSU_CUSTOM_PROVIDER_URL: "https://relay.invalid/v1",
+    }),
+    undefined,
+  );
+});

@@ -8,6 +8,9 @@ import (
 )
 
 func accountModelSourceAvailable(settings config.AppSettings) bool {
+	if provider, exists := settings.Providers[strings.TrimSpace(settings.ActiveProvider)]; exists && provider.Custom {
+		return false
+	}
 	relay := settings.Relay
 	return relay != nil && relay.Enabled && strings.TrimSpace(relay.Key) != ""
 }

@@ -31,12 +31,15 @@ type RelayConfig struct {
 }
 
 type ProviderConfig struct {
-	APIKey       string  `json:"api_key,omitempty"`
-	HasAPIKey    bool    `json:"has_api_key"`
-	SessionOnly  bool    `json:"session_only,omitempty"`
-	RemoveAPIKey bool    `json:"remove_api_key,omitempty"`
-	BaseURL      *string `json:"base_url,omitempty"`
-	Enabled      bool    `json:"enabled"`
+	APIKey       string   `json:"api_key,omitempty"`
+	HasAPIKey    bool     `json:"has_api_key"`
+	SessionOnly  bool     `json:"session_only,omitempty"`
+	RemoveAPIKey bool     `json:"remove_api_key,omitempty"`
+	BaseURL      *string  `json:"base_url,omitempty"`
+	Enabled      bool     `json:"enabled"`
+	Custom       bool     `json:"custom,omitempty"`
+	Name         string   `json:"name,omitempty"`
+	Models       []string `json:"models,omitempty"`
 }
 
 type NSSCTFArenaConfig struct {
@@ -179,6 +182,9 @@ func (s *Store) Save(value AppSettings) error {
 	defer s.mu.Unlock()
 
 	value = withDefaults(value)
+	if err := validateCustomProviders(value); err != nil {
+		return err
+	}
 	verification := cloneModelVerification(s.settings.ModelVerified)
 	if modelVerificationInvalidated(s.settings, value) {
 		verification = nil
@@ -186,6 +192,20 @@ func (s *Store) Save(value AppSettings) error {
 	value.ModelVerified = verification
 	secrets := cloneSecrets(s.secretValues)
 	var persistenceErrors []error
+	for name, previous := range s.settings.Providers {
+		if !previous.Custom {
+			continue
+		}
+		next, exists := value.Providers[name]
+		if exists && next.Custom {
+			continue
+		}
+		account := providerSecretAccount(name)
+		if err := deleteSecretIfPresent(s.secretStore, account); err != nil {
+			return fmt.Errorf("remove custom relay %s credential: %w", name, err)
+		}
+		delete(secrets, account)
+	}
 	for name, provider := range value.Providers {
 		account := providerSecretAccount(name)
 		if provider.BaseURL != nil {
@@ -379,6 +399,9 @@ func (s *Store) load() error {
 		return fmt.Errorf("decode settings: %w", err)
 	}
 	value = withDefaults(value)
+	if err := validateCustomProviders(value); err != nil {
+		return fmt.Errorf("validate settings: %w", err)
+	}
 	migrated := false
 
 	for name, provider := range value.Providers {
@@ -554,6 +577,14 @@ func withDefaults(value AppSettings) AppSettings {
 	if value.Providers == nil {
 		value.Providers = make(map[string]ProviderConfig)
 	}
+	for id, provider := range value.Providers {
+		if !provider.Custom {
+			continue
+		}
+		provider.Name = strings.TrimSpace(provider.Name)
+		provider.Models = normalizeCustomModels(provider.Models)
+		value.Providers[id] = provider
+	}
 	value.ModelRouting.SourceOrder = normalizeModelSourceOrder(value.ModelRouting.SourceOrder)
 	if value.ModelRouting.AutoFallback == nil {
 		value.ModelRouting.AutoFallback = boolPointer(true)
@@ -662,6 +693,7 @@ func clone(value AppSettings) AppSettings {
 	}
 	copy.Providers = make(map[string]ProviderConfig, len(value.Providers))
 	for name, provider := range value.Providers {
+		provider.Models = append([]string(nil), provider.Models...)
 		copy.Providers[name] = provider
 	}
 	if value.Relay != nil {
@@ -706,6 +738,11 @@ func modelVerificationInvalidated(previous, next AppSettings) bool {
 		return true
 	}
 	previousActive := previous.Providers[previous.ActiveProvider]
+	if previousActive.Custom != active.Custom ||
+		previousActive.Name != active.Name ||
+		strings.Join(previousActive.Models, "\x00") != strings.Join(active.Models, "\x00") {
+		return true
+	}
 	if previousActive.Enabled != active.Enabled {
 		return true
 	}
@@ -765,6 +802,82 @@ func validateProviderBaseURL(value string) error {
 		return fmt.Errorf("must not include credentials")
 	}
 	return nil
+}
+
+func validateCustomProviders(value AppSettings) error {
+	count := 0
+	for id, provider := range value.Providers {
+		if !provider.Custom {
+			continue
+		}
+		count++
+		if count > 8 {
+			return fmt.Errorf("at most 8 custom relays may be configured")
+		}
+		if !validCustomProviderID(id) {
+			return fmt.Errorf("custom relay id %q is invalid", id)
+		}
+		if provider.Name == "" || len([]rune(provider.Name)) > 64 || strings.ContainsAny(provider.Name, "\x00\r\n") {
+			return fmt.Errorf("custom relay %s name must be 1 to 64 characters", id)
+		}
+		if provider.BaseURL == nil || strings.TrimSpace(*provider.BaseURL) == "" {
+			return fmt.Errorf("custom relay %s Base URL is required", id)
+		}
+		if err := validateProviderBaseURL(strings.TrimSpace(*provider.BaseURL)); err != nil {
+			return fmt.Errorf("custom relay %s Base URL: %w", id, err)
+		}
+		if len(provider.Models) == 0 {
+			return fmt.Errorf("custom relay %s needs at least one model id", id)
+		}
+		if len(provider.Models) > 32 {
+			return fmt.Errorf("custom relay %s may contain at most 32 models", id)
+		}
+		for _, model := range provider.Models {
+			if len([]rune(model)) > 256 || strings.ContainsAny(model, "\x00\r\n") {
+				return fmt.Errorf("custom relay %s has an invalid model id", id)
+			}
+		}
+	}
+	if active, exists := value.Providers[value.ActiveProvider]; exists && active.Custom {
+		found := false
+		for _, model := range active.Models {
+			if model == value.ActiveModel {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("active model is not configured for custom relay %s", value.ActiveProvider)
+		}
+	}
+	return nil
+}
+
+func validCustomProviderID(value string) bool {
+	if !strings.HasPrefix(value, "custom-relay-") || len(value) > 64 {
+		return false
+	}
+	for _, character := range value {
+		if (character < 'a' || character > 'z') &&
+			(character < '0' || character > '9') && character != '-' {
+			return false
+		}
+	}
+	return true
+}
+
+func normalizeCustomModels(values []string) []string {
+	result := make([]string, 0, len(values))
+	seen := make(map[string]bool, len(values))
+	for _, model := range values {
+		model = strings.TrimSpace(model)
+		if model == "" || seen[model] {
+			continue
+		}
+		seen[model] = true
+		result = append(result, model)
+	}
+	return result
 }
 
 func validateAccountModelURL(value string) error {

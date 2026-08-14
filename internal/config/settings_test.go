@@ -72,6 +72,9 @@ func TestWithDefaults(t *testing.T) {
 func TestCloneDoesNotShareMaps(t *testing.T) {
 	original := DefaultSettings()
 	original.Providers["openai"] = ProviderConfig{APIKey: "secret", Enabled: true}
+	original.Providers["custom-relay-local"] = ProviderConfig{
+		Custom: true, Name: "Local relay", Models: []string{"model-a"}, Enabled: true,
+	}
 	original.DisabledSkills = []string{"product-design"}
 	original.SecurityTools = map[string]SecurityToolPreference{
 		"capa": {Enabled: true},
@@ -79,6 +82,9 @@ func TestCloneDoesNotShareMaps(t *testing.T) {
 	original.VisionModel = &ModelSelection{Provider: "openai", Model: "gpt-4o"}
 	copied := clone(original)
 	delete(copied.Providers, "openai")
+	custom := copied.Providers["custom-relay-local"]
+	custom.Models[0] = "model-b"
+	copied.Providers["custom-relay-local"] = custom
 	copied.VisionModel.Model = "gpt-4.1"
 	copied.ModelRouting.SourceOrder[0] = ModelSourcePersonal
 	*copied.ModelRouting.AutoFallback = false
@@ -86,6 +92,9 @@ func TestCloneDoesNotShareMaps(t *testing.T) {
 	copied.SecurityTools["capa"] = SecurityToolPreference{Enabled: false}
 	if _, exists := original.Providers["openai"]; !exists {
 		t.Fatal("clone modified original provider map")
+	}
+	if original.Providers["custom-relay-local"].Models[0] != "model-a" {
+		t.Fatal("clone shared custom relay models")
 	}
 	if original.VisionModel.Model != "gpt-4o" {
 		t.Fatal("clone modified original vision model selection")
@@ -100,6 +109,74 @@ func TestCloneDoesNotShareMaps(t *testing.T) {
 	}
 	if !original.SecurityTools["capa"].Enabled {
 		t.Fatal("clone modified original security tool preference")
+	}
+}
+
+func TestStorePersistsCustomRelayMetadataAndKeepsCredentialPrivate(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	secrets := fakeSecretStore{}
+	store, err := newStore(path, secrets)
+	if err != nil {
+		t.Fatal(err)
+	}
+	baseURL := "https://relay.example.test/v1"
+	settings := DefaultSettings()
+	settings.ActiveProvider = "custom-relay-example"
+	settings.ActiveModel = "vendor/model-a"
+	settings.Providers["custom-relay-example"] = ProviderConfig{
+		Custom:  true,
+		Name:    "Example relay",
+		Models:  []string{" vendor/model-a ", "vendor/model-a", "vendor/model-b"},
+		BaseURL: &baseURL,
+		APIKey:  "custom-secret",
+		Enabled: true,
+	}
+	if err := store.Save(settings); err != nil {
+		t.Fatal(err)
+	}
+
+	public := store.Get()
+	provider := public.Providers["custom-relay-example"]
+	if !provider.Custom || provider.Name != "Example relay" ||
+		len(provider.Models) != 2 || provider.Models[0] != "vendor/model-a" ||
+		!provider.HasAPIKey || provider.APIKey != "" {
+		t.Fatalf("unexpected public custom relay: %#v", provider)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "custom-secret") {
+		t.Fatal("custom relay credential leaked into settings.json")
+	}
+	if resolved := store.GetResolved().Providers["custom-relay-example"].APIKey; resolved != "custom-secret" {
+		t.Fatal("custom relay credential was not resolved for the engine")
+	}
+
+	removed := store.Get()
+	delete(removed.Providers, "custom-relay-example")
+	removed.ActiveProvider = "tokenflux"
+	removed.ActiveModel = "x-ai/grok-4.6"
+	if err := store.Save(removed); err != nil {
+		t.Fatal(err)
+	}
+	if _, exists := secrets[providerSecretAccount("custom-relay-example")]; exists {
+		t.Fatal("removing a custom relay retained its credential")
+	}
+}
+
+func TestStoreRejectsIncompleteCustomRelay(t *testing.T) {
+	store, err := newStore(filepath.Join(t.TempDir(), "settings.json"), fakeSecretStore{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	settings := DefaultSettings()
+	baseURL := "file:///tmp/relay"
+	settings.Providers["custom-relay-invalid"] = ProviderConfig{
+		Custom: true, Name: "Invalid", Models: []string{"model"}, BaseURL: &baseURL,
+	}
+	if err := store.Save(settings); err == nil || !strings.Contains(err.Error(), "must use http or https") {
+		t.Fatalf("expected custom relay URL validation, got %v", err)
 	}
 }
 

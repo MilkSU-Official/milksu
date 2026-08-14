@@ -33,6 +33,7 @@ export function isGeneratedScratchWorkspace(value?: string | null) {
   const path = normalizeWorkspacePath(value)
   if (!path) return false
   return /\/MilkSU\/Coding\/(?:新编码任务|临时任务)-[a-f0-9]{8}$/u.test(path)
+    || /\/agent-workspaces\/Coding\/无项目任务-[a-f0-9]{8}$/u.test(path)
 }
 
 function workspaceGroupKey(path: string | null) {

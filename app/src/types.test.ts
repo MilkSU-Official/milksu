@@ -42,6 +42,28 @@ describe('model provider catalog', () => {
     expect(settings.active_model).toBe('deepseek-v4-flash')
   })
 
+  it('keeps a configured custom relay and its exact model id', () => {
+    const settings = withAppSettingsDefaults({
+      active_provider: 'custom-relay-team',
+      active_model: 'vendor/model:preview',
+      model_routing: { source_order: ['personal', 'account'], auto_fallback: true },
+      providers: {
+        'custom-relay-team': {
+          api_key: '',
+          has_api_key: true,
+          enabled: true,
+          custom: true,
+          name: 'Team Relay',
+          base_url: 'https://relay.example/v1',
+          models: ['vendor/model:preview'],
+        },
+      },
+    } as AppSettings)
+
+    expect(settings.active_provider).toBe('custom-relay-team')
+    expect(settings.active_model).toBe('vendor/model:preview')
+  })
+
   it('keeps normal model pickers focused on the single daily model path', () => {
     const visibleProviders = PROVIDER_GROUPS.flatMap(group => group.providers.map(provider => provider.id))
     expect(visibleProviders).toContain('deepseek')

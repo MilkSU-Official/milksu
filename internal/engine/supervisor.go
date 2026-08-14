@@ -78,6 +78,28 @@ type Event struct {
 	Steering        []string                 `json:"steering,omitempty"`
 	FollowUp        []string                 `json:"followUp,omitempty"`
 	ModelSource     string                   `json:"modelSource,omitempty"`
+	Module          string                   `json:"module,omitempty"`
+	Usage           *ModelUsage              `json:"usage,omitempty"`
+}
+
+// ModelUsage is the bounded, credential-free projection emitted by Pi after
+// one real model call. Prompt, response, tool arguments and Provider headers
+// never cross this structure.
+type ModelUsage struct {
+	RecordID     string  `json:"recordId"`
+	Module       string  `json:"module"`
+	OccurredAt   string  `json:"occurredAt"`
+	Provider     string  `json:"provider"`
+	Model        string  `json:"model"`
+	Source       string  `json:"source"`
+	InputTokens  int64   `json:"inputTokens"`
+	OutputTokens int64   `json:"outputTokens"`
+	CacheRead    int64   `json:"cacheReadTokens"`
+	CacheWrite   int64   `json:"cacheWriteTokens"`
+	Reasoning    int64   `json:"reasoningTokens"`
+	TotalTokens  int64   `json:"totalTokens"`
+	CostUSD      float64 `json:"costUsd"`
+	Success      bool    `json:"success"`
 }
 
 type RuntimeStatus struct {
@@ -213,6 +235,8 @@ type bridgeEvent struct {
 	Source         string                   `json:"source"`
 	From           string                   `json:"from"`
 	To             string                   `json:"to"`
+	Module         string                   `json:"module"`
+	Usage          *ModelUsage              `json:"usage"`
 }
 
 type childProcess struct {
@@ -1640,6 +1664,8 @@ func normalizeBridgeEvent(raw bridgeEvent) Event {
 		Steering:        raw.Steering,
 		FollowUp:        raw.FollowUp,
 		ModelSource:     raw.Source,
+		Module:          raw.Module,
+		Usage:           raw.Usage,
 	}
 	switch raw.Type {
 	case "ready":
@@ -1690,6 +1716,8 @@ func normalizeBridgeEvent(raw bridgeEvent) Event {
 		if raw.IsError {
 			event.Error = raw.Content
 		}
+	case "usage_recorded":
+		event.Type = "usage.recorded"
 	case "approval_requested":
 		event.Type = "approval.requested"
 	case "approval_resolved":
@@ -1748,6 +1776,25 @@ func validateModelAccess(settings config.AppSettings) error {
 	if provider == "" || model == "" {
 		return fmt.Errorf("model provider and model must be selected")
 	}
+	if configured, exists := settings.Providers[provider]; exists && configured.Custom {
+		modelConfigured := false
+		for _, candidate := range configured.Models {
+			if strings.TrimSpace(candidate) == model {
+				modelConfigured = true
+				break
+			}
+		}
+		if !modelConfigured {
+			return fmt.Errorf("custom relay %s does not contain model %q", provider, model)
+		}
+		if !configured.Enabled || strings.TrimSpace(configured.APIKey) == "" {
+			return fmt.Errorf("%s/%s cannot start; enable the custom relay and add its API key in Settings", provider, model)
+		}
+		if configured.BaseURL == nil || strings.TrimSpace(*configured.BaseURL) == "" {
+			return fmt.Errorf("%s/%s cannot start; add the custom relay Base URL in Settings", provider, model)
+		}
+		return nil
+	}
 
 	if len(resolvedModelSourceOrder(settings)) > 0 {
 		return nil
@@ -1773,7 +1820,12 @@ func validateModelAccess(settings config.AppSettings) error {
 
 func engineEnvironment(settings config.AppSettings) []string {
 	environment := safeBaseEnvironment(os.Environ())
+	activeProvider, activeProviderConfigured := settings.Providers[settings.ActiveProvider]
+	activeCustomProvider := activeProviderConfigured && activeProvider.Custom
 	for name, provider := range settings.Providers {
+		if provider.Custom {
+			continue
+		}
 		key, supported := providerAPIKeyEnvironment(name)
 		if !supported || !provider.Enabled || provider.APIKey == "" {
 			continue
@@ -1783,6 +1835,15 @@ func engineEnvironment(settings config.AppSettings) []string {
 			environment = append(environment, strings.ToUpper(name)+"_BASE_URL="+strings.TrimSpace(*provider.BaseURL))
 		}
 	}
+	if activeCustomProvider && activeProvider.Enabled && activeProvider.APIKey != "" && activeProvider.BaseURL != nil {
+		environment = append(
+			environment,
+			"MILKSU_CUSTOM_PROVIDER_ID="+settings.ActiveProvider,
+			"MILKSU_CUSTOM_PROVIDER_NAME="+strings.TrimSpace(activeProvider.Name),
+			"MILKSU_CUSTOM_PROVIDER_KEY="+activeProvider.APIKey,
+			"MILKSU_CUSTOM_PROVIDER_URL="+strings.TrimSpace(*activeProvider.BaseURL),
+		)
+	}
 	if key, supported := providerAPIKeyEnvironment(settings.ActiveProvider); supported {
 		if _, configured := settings.Providers[settings.ActiveProvider]; !configured {
 			if value := os.Getenv(key); value != "" {
@@ -1790,7 +1851,7 @@ func engineEnvironment(settings config.AppSettings) []string {
 			}
 		}
 	}
-	if relay := settings.Relay; relay != nil && relay.Enabled && relay.Key != "" {
+	if relay := settings.Relay; !activeCustomProvider && relay != nil && relay.Enabled && relay.Key != "" {
 		environment = append(environment, "MILKSU_RELAY_ENABLED=1", "MILKSU_RELAY_KEY="+relay.Key)
 		if relay.URL != "" {
 			environment = append(environment, "MILKSU_RELAY_URL="+relay.URL)

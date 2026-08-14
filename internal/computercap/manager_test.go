@@ -498,6 +498,20 @@ func TestFilterValidTargetsExcludesOnlyHostIdentity(t *testing.T) {
 	}
 }
 
+func TestFilterValidTargetsExcludesUserBrowsersFromComputerUse(t *testing.T) {
+	targets := []Target{
+		{Name: "Google Chrome", BundleID: "com.google.Chrome", PID: 101, WindowID: 1},
+		{Name: "Safari", BundleID: "com.apple.Safari.WebApp", PID: 102, WindowID: 2},
+		{Name: "MilkSU Beta", BundleID: "com.milksu.app.beta", PID: 103, WindowID: 3},
+		{Name: "Preview", BundleID: "com.apple.Preview", PID: 104, WindowID: 4},
+	}
+
+	filtered := filterValidTargets(targets, "com.milksu.app", 100)
+	if len(filtered) != 2 || filtered[0].Name != "MilkSU Beta" || filtered[1].Name != "Preview" {
+		t.Fatalf("Computer Use target list retained a browser: %#v", filtered)
+	}
+}
+
 func TestManagerUsesInjectedHostBundleID(t *testing.T) {
 	manager := New(Options{
 		BinaryPath:   os.Args[0],

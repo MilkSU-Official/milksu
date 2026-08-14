@@ -114,6 +114,7 @@ import { extractLatestComputerUseOperationEvidence } from '@/lib/codingComputerU
 import { redactProviderCredentials } from '@/lib/redaction'
 
 import {
+  computerUseTargetKey,
   computerUseStartArgs,
   describeActiveComputerUseCapability,
   describePendingComputerUseCapability,
@@ -735,7 +736,8 @@ function changeModel(value: string) {
     emit('changeModel', 'auto')
     return
   }
-  const [mode, provider, model] = value.split(':')
+  const [mode, provider, ...modelParts] = value.split(':')
+  const model = modelParts.join(':')
   if (mode === 'manual' && provider && model) emit('changeModel', 'manual', provider, model)
 }
 
@@ -832,6 +834,21 @@ async function showComputerUseScope() {
       hostBundleId: computerUseStatus.value?.signing?.bundleId,
     },
   )
+  const status = computerUseStatus.value
+  const canStartOnlyVisibleTarget = Boolean(
+    status?.available
+    && status.permissions.accessibility
+    && status.permissions.screenRecording
+    && !status.enabled
+    && !status.conversationId
+    && scopedComputerUseTargets.value.length === 1,
+  )
+  if (canStartOnlyVisibleTarget) {
+    selectedComputerUseTargetKey.value = computerUseTargetKey(
+      scopedComputerUseTargets.value[0],
+    )
+    await startComputerUse()
+  }
 }
 
 async function openPlaywrightBrowserExtension() {

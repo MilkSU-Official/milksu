@@ -25,7 +25,7 @@ import {
 } from '@/lib/workspaceSessionRouting'
 import { withAppSettingsDefaults, type AccountStatus, type AppSettings, type CTFChatAction, type StartupRecoveryStatus, type UpdateStatus } from '@/types'
 import type { ModelCatalogSnapshot } from '@/types'
-import { installModelCatalog, loadModelCatalog } from '@/modelCatalog'
+import { installCustomProviderSettings, installModelCatalog, loadModelCatalog } from '@/modelCatalog'
 import type { SecurityToolCodingHandoff } from '@/securityToolsTypes'
 
 const ChatPage = defineAsyncComponent(() => import('@/components-vue/ChatPage.vue'))
@@ -139,7 +139,13 @@ watch(section, current => {
 
 async function loadSettings() {
   const value = await invokeCommand<AppSettings>('get_settings')
-  settings.value = withAppSettingsDefaults(value)
+  applySettings(value)
+}
+
+function applySettings(value: AppSettings) {
+  const normalized = withAppSettingsDefaults(value)
+  settings.value = normalized
+  installCustomProviderSettings(normalized.providers)
 }
 
 async function loadAccountStatus() {
@@ -537,7 +543,7 @@ onBeforeUnmount(() => {
         :account-status="accountStatus"
         :vulnerability-dashboard="vulnerabilityDashboard"
         @close="async () => { await loadSettings(); section = settingsReturnTarget }"
-        @settings-change="value => { settings = value }"
+        @settings-change="applySettings"
         @account-login="startAccountLogin"
         @account-logout="logoutAccount"
         @security-tool-coding-handoff="startSecurityToolCodingSetup"

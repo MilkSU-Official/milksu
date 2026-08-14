@@ -119,4 +119,15 @@ describe('ChatPage routing contract', () => {
     expect(chatPageSource).not.toContain('<SelectItem v-if="!ctfSession" value="terminal">终端</SelectItem>')
     expect(chatPageSource.match(/aria-label="关闭右侧栏"/g) ?? []).toHaveLength(0)
   })
+
+  it('automatically starts an explicitly requested Computer Use scope when one target is visible', () => {
+    expect(chatPageSource).toContain('const canStartOnlyVisibleTarget = Boolean(')
+    expect(chatPageSource).toContain('scopedComputerUseTargets.value.length === 1')
+    expect(chatPageSource).toContain('await startComputerUse()')
+  })
+
+  it('preserves colons inside custom relay model ids', () => {
+    expect(chatPageSource).toContain('const [mode, provider, ...modelParts] = value.split(\':\')')
+    expect(chatPageSource).toContain("const model = modelParts.join(':')")
+  })
 })

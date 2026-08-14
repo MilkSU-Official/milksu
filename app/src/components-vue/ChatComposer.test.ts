@@ -80,6 +80,10 @@ function mountComposer(overrides: Record<string, unknown> = {}) {
     executionModes,
     slashCommandActions,
     openedChanges: () => openedChanges,
+    setProp(name: string, value: unknown) {
+      if (!app._instance) throw new Error('missing root component instance')
+      ;(app._instance.props as Record<string, unknown>)[name] = value
+    },
   }
 }
 
@@ -495,6 +499,36 @@ describe('ChatComposer', () => {
     )
     await nextTick()
     expect(deleted.sent).toEqual([['普通消息', '普通消息', []]])
+  })
+
+  it('keeps a Computer Use submission and sends it after automatic activation completes', async () => {
+    const result = mountComposer({ computerUseReady: false })
+    await nextTick()
+    const editor = composerEditor(result.host)
+    setComposerText(editor, '/computer-use')
+    editor.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Enter', bubbles: true, cancelable: true,
+    }))
+    await nextTick()
+    editor.append(document.createTextNode('检查这个窗口'))
+    editor.dispatchEvent(new Event('input', { bubbles: true }))
+    result.host.querySelector('form')?.dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true }),
+    )
+    await nextTick()
+
+    expect(result.sent).toEqual([])
+    expect(editor.textContent).toContain('检查这个窗口')
+    expect(result.slashCommandActions).toEqual(['computer-use', 'computer-use'])
+
+    result.setProp('computerUseReady', true)
+    await nextTick()
+    await nextTick()
+
+    expect(result.sent).toEqual([
+      ['检查这个窗口', '检查这个窗口', [], 'computer-use'],
+    ])
+    expect(editor.textContent).toBe('')
   })
 
   it('dismisses the slash menu with Escape and disables a second active goal', async () => {

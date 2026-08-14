@@ -104,6 +104,35 @@ function providerRuntimeFor(provider) {
 }
 
 function currentProviderDefinition(provider, model, environment = process.env) {
+  const customProviderID = String(
+    environment.MILKSU_CUSTOM_PROVIDER_ID ?? "",
+  ).trim();
+  if (customProviderID && customProviderID === provider) {
+    const baseUrl = String(environment.MILKSU_CUSTOM_PROVIDER_URL ?? "").trim();
+    const apiKey = String(environment.MILKSU_CUSTOM_PROVIDER_KEY ?? "").trim();
+    if (!baseUrl || !apiKey || !model) return undefined;
+    return {
+      name: String(environment.MILKSU_CUSTOM_PROVIDER_NAME ?? provider).trim()
+        || provider,
+      baseUrl,
+      apiKey,
+      api: "openai-completions",
+      models: [{
+        id: model,
+        name: model,
+        reasoning: false,
+        input: ["text"],
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: 128_000,
+        maxTokens: 16_384,
+        compat: {
+          supportsDeveloperRole: false,
+          supportsReasoningEffort: false,
+          maxTokensField: "max_tokens",
+        },
+      }],
+    };
+  }
   const runtime = providerRuntimeFor(provider);
   if (!runtime) return undefined;
   if (provider !== "tokenflux") {

@@ -70,3 +70,18 @@ func TestModelRoutingEnvironmentContainsNoSourceNamesWithoutCredentials(t *testi
 		}
 	}
 }
+
+func TestCustomRelayUsesOnlyThePersonalSource(t *testing.T) {
+	baseURL := "https://relay.example.test/v1"
+	settings := routingSettings()
+	settings.ActiveProvider = "custom-relay-example"
+	settings.ActiveModel = "vendor/model"
+	settings.Providers["custom-relay-example"] = config.ProviderConfig{
+		Custom: true, Name: "Example", Models: []string{"vendor/model"},
+		APIKey: "custom-secret", BaseURL: &baseURL, Enabled: true,
+	}
+
+	if got := resolvedModelSourceOrder(settings); !reflect.DeepEqual(got, []string{config.ModelSourcePersonal}) {
+		t.Fatalf("custom relay must not route through account quota: %#v", got)
+	}
+}

@@ -322,7 +322,16 @@ function writeRuntimeModelConfig(
   const selection = selectedModel(argumentsList);
   if (!selection) return undefined;
   let runtime;
-  if (selection.provider === "milksu-relay") {
+  const customProvider = String(
+    environment.MILKSU_CUSTOM_PROVIDER_ID ?? "",
+  ).trim() === selection.provider;
+  if (customProvider) {
+    runtime = {
+      api: "openai-completions",
+      apiKey: "MILKSU_CUSTOM_PROVIDER_KEY",
+      baseUrl: "MILKSU_CUSTOM_PROVIDER_URL",
+    };
+  } else if (selection.provider === "milksu-relay") {
     runtime = {
       api: "openai-completions",
       apiKey: "MILKSU_RELAY_KEY",
@@ -336,7 +345,8 @@ function writeRuntimeModelConfig(
   const baseUrl = String(
     environment[runtime.baseUrl] ?? runtime.defaultBaseUrl ?? "",
   ).trim();
-  const needsCustomProvider = selection.provider === "milksu-relay"
+  const needsCustomProvider = customProvider
+    || selection.provider === "milksu-relay"
     || Boolean(baseUrl);
   if (!needsCustomProvider) return undefined;
   if (!/^https?:\/\/[^\s]+$/u.test(baseUrl)) {

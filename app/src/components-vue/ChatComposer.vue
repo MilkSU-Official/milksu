@@ -148,6 +148,7 @@ const activeSlashCommandIndex = ref(0)
 const slashQuery = ref<string | null>(null)
 const slashQueryRange = ref<Range | null>(null)
 const scopeToken = ref<ComposerScopeToken | null>(null)
+const pendingScopeSubmit = ref<ComposerScopeToken | null>(null)
 const skillToken = ref<string | null>(null)
 const hasUnfinishedGoal = computed(() => Boolean(
   props.goal && props.goal.status !== 'complete',
@@ -523,6 +524,7 @@ function removeInlineToken(selector: string) {
 function removeScopeToken(refocus = true) {
   removeInlineToken('[data-composer-scope-token]')
   scopeToken.value = null
+  pendingScopeSubmit.value = null
   draft.value = readComposerText()
   if (refocus) focusMessageInput()
 }
@@ -628,6 +630,7 @@ function clearComposerInput() {
   slashQuery.value = null
   slashQueryRange.value = null
   scopeToken.value = null
+  pendingScopeSubmit.value = null
   skillToken.value = null
 }
 
@@ -695,6 +698,9 @@ function submit() {
       ? props.computerUseReady
       : true
   if (!scopeReady && activeScopeToken) {
+    pendingScopeSubmit.value = activeScopeToken === 'computer-use'
+      ? activeScopeToken
+      : null
     attachmentError.value = activeScopeToken === 'browser-use'
       ? 'Browser Use 需要已选择项目，并使用可调用工具的 Go 权限；当前输入不会被清空。'
       : '请先在右栏锁定一个外部 App 窗口；当前输入不会被清空。'
@@ -862,6 +868,17 @@ function appendDraftText(text: string) {
 watch(draft, () => {
   slashMenuDismissed.value = false
   activeSlashCommandIndex.value = 0
+})
+
+watch(() => props.computerUseReady, ready => {
+  if (
+    !ready
+    || props.running
+    || pendingScopeSubmit.value !== 'computer-use'
+    || scopeToken.value !== 'computer-use'
+  ) return
+  pendingScopeSubmit.value = null
+  void nextTick(() => submit())
 })
 
 watch(slashCommands, commands => {

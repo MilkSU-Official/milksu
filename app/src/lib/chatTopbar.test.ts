@@ -48,6 +48,18 @@ describe('chatTopbarPresentation', () => {
     })
   })
 
+  it('does not expose an internal no-project workspace as a user project', () => {
+    expect(chatTopbarPresentation({
+      ctfSession: false,
+      conversationTitle: '整理一段临时文本',
+      workspacePath: '/Users/milksu/Library/Application Support/com.milksu.app/agent-workspaces/Coding/无项目任务-feedface',
+      codingPolicyLabel: 'Go · 项目自动',
+    })).toEqual({
+      title: '整理一段临时文本',
+      subtitle: '临时工作区 · Go · 项目自动',
+    })
+  })
+
   it('labels CVE handoff conversations with the CVE module title', () => {
     expect(chatTopbarPresentation({
       ctfSession: false,

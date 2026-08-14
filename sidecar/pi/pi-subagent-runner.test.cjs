@@ -222,6 +222,31 @@ test("runner configures Relay by environment reference without persisting its ke
   );
 });
 
+test("runner configures an active custom relay without persisting its key", () => {
+  const agentDirectory = join(mkdtempSync(join(tmpdir(), "milksu-models-")), "agent");
+  const sentinel = "custom-secret-must-not-be-written";
+  const path = writeRuntimeModelConfig(
+    agentDirectory,
+    ["--model", "custom-relay-team/vendor/model:preview:high"],
+    {
+      MILKSU_CUSTOM_PROVIDER_ID: "custom-relay-team",
+      MILKSU_CUSTOM_PROVIDER_KEY: sentinel,
+      MILKSU_CUSTOM_PROVIDER_URL: "https://relay.invalid/v1",
+    },
+  );
+  const content = readFileSync(path, "utf8");
+  const config = JSON.parse(content);
+  assert.equal(content.includes(sentinel), false);
+  assert.equal(
+    config.providers["custom-relay-team"].apiKey,
+    "$MILKSU_CUSTOM_PROVIDER_KEY",
+  );
+  assert.equal(
+    config.providers["custom-relay-team"].models[0].id,
+    "vendor/model:preview",
+  );
+});
+
 test("runner configures TokenFlux and rejects the removed KouriChat provider", () => {
   const agentDirectory = join(mkdtempSync(join(tmpdir(), "milksu-models-")), "agent");
   const path = writeRuntimeModelConfig(

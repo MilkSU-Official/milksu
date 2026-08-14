@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/MilkSU-Official/milksu/internal/appdata"
@@ -19,6 +20,7 @@ func TestResolveConversationWorkspaceSeparatesCodingAndCVEArtifacts(t *testing.T
 	}
 	artifactDirectory := filepath.Join(t.TempDir(), "Documents", "MilkSU")
 	app := &App{
+		dataDirectory:     dataDirectory,
 		artifactDirectory: artifactDirectory,
 		conversations:     conversations,
 	}
@@ -28,6 +30,7 @@ func TestResolveConversationWorkspaceSeparatesCodingAndCVEArtifacts(t *testing.T
 		conversation conversation.StoredConversation
 		wantSection  string
 		wantBase     string
+		wantRoot     string
 	}{
 		{
 			name: "coding",
@@ -35,6 +38,7 @@ func TestResolveConversationWorkspaceSeparatesCodingAndCVEArtifacts(t *testing.T
 				ID: "coding-one", Title: "分析登录回调", Messages: []conversation.StoredMessage{},
 			},
 			wantSection: string(userartifact.KindCoding),
+			wantRoot:    filepath.Join(dataDirectory, "agent-workspaces"),
 		},
 		{
 			name: "cve",
@@ -47,6 +51,7 @@ func TestResolveConversationWorkspaceSeparatesCodingAndCVEArtifacts(t *testing.T
 			},
 			wantSection: string(userartifact.KindCVE),
 			wantBase:    "CVE-2024-3400",
+			wantRoot:    artifactDirectory,
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -59,6 +64,10 @@ func TestResolveConversationWorkspaceSeparatesCodingAndCVEArtifacts(t *testing.T
 			}
 			if filepath.Base(filepath.Dir(workspace)) != test.wantSection {
 				t.Fatalf("workspace = %q, want %s section", workspace, test.wantSection)
+			}
+			if relative, err := filepath.Rel(test.wantRoot, workspace); err != nil ||
+				relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+				t.Fatalf("workspace = %q, want root %q", workspace, test.wantRoot)
 			}
 			if test.wantBase != "" && filepath.Base(workspace) != test.wantBase {
 				t.Fatalf("workspace = %q, want base %q", workspace, test.wantBase)

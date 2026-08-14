@@ -131,6 +131,9 @@ export interface ProviderConfig {
   remove_api_key?: boolean
   base_url?: string
   enabled: boolean
+  custom?: boolean
+  name?: string
+  models?: string[]
 }
 
 export interface RelayConfig {
@@ -207,11 +210,17 @@ export function withAppSettingsDefaults(value: AppSettings): AppSettings {
   const legacy = value as AppSettings & {
     providers?: Record<string, ProviderConfig>
   }
+  const configuredProviders = legacy.providers ?? {}
+  const configuredProvider = customProviderInfo(
+    value.active_provider,
+    configuredProviders[value.active_provider],
+  )
   const providerIsSelectable = selectableProvider(value.active_provider)
+    || Boolean(configuredProvider)
   const activeProvider = providerIsSelectable
     ? value.active_provider
     : PRIMARY_MODEL_SELECTION.provider
-  const activeInfo = providerByID(activeProvider)
+  const activeInfo = providerByID(activeProvider) ?? configuredProvider
   const requestedModel = String(value.active_model ?? '').trim()
   const activeModel = !providerIsSelectable
     ? PRIMARY_MODEL_SELECTION.model
@@ -229,7 +238,7 @@ export function withAppSettingsDefaults(value: AppSettings): AppSettings {
     disabled_skills: [...new Set((value.disabled_skills ?? [])
       .map(name => String(name).trim())
       .filter(name => /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(name)))],
-    providers: legacy.providers ?? {},
+    providers: configuredProviders,
   }
 }
 
@@ -466,6 +475,35 @@ export const PROVIDER_GROUPS = [
     providers: PROVIDERS.filter(provider => provider.kind === 'relay'),
   },
 ]
+
+export function customProviderInfo(
+  id: string,
+  config?: ProviderConfig,
+): ProviderInfo | null {
+  if (
+    !config?.custom
+    || id.length > 64
+    || !/^custom-relay-[a-z0-9-]*$/u.test(id)
+  ) return null
+  const seen = new Set<string>()
+  const models = (config.models ?? []).flatMap(value => {
+    const model = String(value ?? '').trim()
+    if (!model || model.length > 256 || seen.has(model)) return []
+    seen.add(model)
+    return [model]
+  })
+  return {
+    id,
+    name: String(config.name ?? '').trim() || '自定义中转站',
+    kind: 'relay',
+    models,
+    visionModels: [],
+    envKey: '',
+    placeholder: 'sk-... 或中转站 API Key',
+    defaultBaseUrl: String(config.base_url ?? '').trim(),
+    summary: '用户配置的 OpenAI-compatible 中转站',
+  }
+}
 
 function providerByID(id: string) {
   return PROVIDERS.find(provider => provider.id === id)
