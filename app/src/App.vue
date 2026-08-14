@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AppSidebar from '@/components-vue/AppSidebar.vue'
 import StartupRecoveryBanner from '@/components-vue/StartupRecoveryBanner.vue'
 import UpdateNotification from '@/components-vue/UpdateNotification.vue'
@@ -40,6 +40,7 @@ type Section = 'chat' | 'ctf' | 'vuln' | 'profile' | 'settings'
 const conversations = useConversations()
 const vulnerabilityDashboard = useVulnerabilityDashboard()
 const section = ref<Section>('ctf')
+const codingConversationDrawerOpen = ref(false)
 const ctfSection = ref<CTFWorkspaceSection>('catalog')
 const ctfResumeJobId = ref<string | null>(null)
 const vulnNavigationEpoch = ref(0)
@@ -131,6 +132,10 @@ const activeVulnerabilityCodingConversation = computed(() => (
 const sidebarSection = computed(() => (
   section.value === 'chat' && activeCTFConversation.value ? 'ctf' : section.value
 ))
+
+watch(section, current => {
+  if (current !== 'chat') codingConversationDrawerOpen.value = false
+})
 
 async function loadSettings() {
   const value = await invokeCommand<AppSettings>('get_settings')
@@ -285,6 +290,13 @@ function returnToVulnerabilityWorkspace() {
 async function chooseAgentWorkspace() {
   const workspacePath = await invokeCommand<string>('choose_agent_workspace')
   if (workspacePath) conversations.setWorkspace(workspacePath)
+}
+
+async function chooseAgentWorkspaceForNewTask() {
+  const workspacePath = await invokeCommand<string>('choose_agent_workspace')
+  if (!workspacePath) return
+  newConversation()
+  conversations.setWorkspace(workspacePath)
 }
 
 async function chooseVulnerabilityCodingWorkspace() {
@@ -499,6 +511,7 @@ onBeforeUnmount(() => {
         :conversations="conversations.conversations.value"
         :account-status="accountStatus"
         :ctf-section="ctfSection"
+        :coding-context-open="codingConversationDrawerOpen"
         :theme-mode="themeMode"
         @new="newConversation"
         @navigate="navigateSection"
@@ -507,6 +520,7 @@ onBeforeUnmount(() => {
         @account-logout="logoutAccount"
         @settings="openSettings('general')"
         @toggle-theme="toggleThemeMode"
+        @close-coding-context="codingConversationDrawerOpen = false"
         @select-conversation="id => {
           conversations.activeId.value = id
           rememberActiveConversation()
@@ -585,6 +599,7 @@ onBeforeUnmount(() => {
         :mcp-config-digest="conversations.selectedMCPConfigDigest.value"
         :ensure-conversation="conversations.ensureConversation"
         :pending-composer-draft="conversations.pendingComposerDraft.value"
+        :conversation-drawer-open="codingConversationDrawerOpen"
         @send="conversations.send"
         @consume-pending-draft="conversations.consumeComposerDraft()"
         @ctf-action="runCTFChatAction"
@@ -594,6 +609,7 @@ onBeforeUnmount(() => {
         @control-goal="conversations.controlGoal"
         @respond-approval="conversations.respondApproval"
         @choose-workspace="chooseAgentWorkspace"
+        @choose-workspace-for-new-task="chooseAgentWorkspaceForNewTask"
         @change-model="changeModel"
         @change-model-source="conversations.setModelSourcePreference"
         @change-coding-policy="conversations.setCodingPolicy"
@@ -603,6 +619,7 @@ onBeforeUnmount(() => {
         @return-ctf="returnToCTFWorkspace"
         @return-vuln="returnToVulnerabilityWorkspace"
         @switch-ctf-agent="switchCTFAgent"
+        @toggle-conversation-drawer="codingConversationDrawerOpen = !codingConversationDrawerOpen"
       />
     </div>
   </div>

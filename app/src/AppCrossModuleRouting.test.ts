@@ -341,6 +341,7 @@ vi.mock('@/components-vue/ChatPage.vue', () => ({
       'controlGoal',
       'respondApproval',
       'chooseWorkspace',
+      'chooseWorkspaceForNewTask',
       'changeModel',
       'changeCodingPolicy',
       'changeMcpServers',

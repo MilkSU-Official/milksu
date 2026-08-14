@@ -7,8 +7,6 @@ import {
   Flag,
   LogOut,
   Moon,
-  PanelLeftClose,
-  PanelLeftOpen,
   Settings,
   Sun,
   UserRound,
@@ -26,8 +24,6 @@ import {
 const props = defineProps<{
   activeSection: AppSection
   accountStatus: AccountStatus
-  contextAvailable?: boolean
-  contextOpen?: boolean
   themeMode: ThemeMode
 }>()
 
@@ -38,7 +34,6 @@ const emit = defineEmits<{
   accountLogout: []
   settings: []
   toggleTheme: []
-  toggleContext: []
 }>()
 
 const icons = {
@@ -172,21 +167,6 @@ function openSettings() {
     <div class="flex-1" />
 
     <div class="app-no-drag space-y-1.5 border-t border-border p-2 xl:px-3 xl:py-3">
-      <Button
-        v-if="contextAvailable"
-        variant="ghost"
-        class="workspace-rail-control relative h-12 w-full xl:justify-start xl:gap-3 xl:px-4"
-        :aria-label="contextOpen ? '收起会话' : '展开会话'"
-        :title="contextOpen ? '收起会话' : '展开会话'"
-        :aria-expanded="contextOpen"
-        aria-controls="coding-context-sidebar"
-        @click="emit('toggleContext')"
-      >
-        <PanelLeftClose v-if="contextOpen" class="size-4" />
-        <PanelLeftOpen v-else class="size-4" />
-        <span class="hidden xl:inline">会话</span>
-      </Button>
-
       <Button
         variant="ghost"
         class="workspace-rail-control relative h-12 w-full xl:justify-start xl:gap-3 xl:px-4"

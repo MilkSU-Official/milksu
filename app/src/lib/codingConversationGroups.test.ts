@@ -40,7 +40,7 @@ describe('Coding conversation groups', () => {
     expect(groups.map(group => group.name)).toEqual([
       'milksu',
       'milksu-interview',
-      '临时沙盒',
+      '无项目任务',
     ])
     expect(groups[0].conversations.map(item => item.id)).toEqual(['milk-new', 'milk-old'])
     expect(groups.flatMap(group => group.conversations).map(item => item.id))
@@ -60,10 +60,36 @@ describe('Coding conversation groups', () => {
 
     expect(group).toMatchObject({
       key: 'temporary',
-      name: '临时沙盒',
+      name: '无项目任务',
       path: null,
       paths: [],
     })
+  })
+
+  it('groups product-generated scratch directories as no-project tasks', () => {
+    const groups = groupCodingConversations([
+      conversation('legacy-scratch', '旧任务', 20, {
+        workspacePath: '/Users/milksu/Documents/MilkSU/Coding/新编码任务-deadbeef',
+      }),
+      conversation('current-scratch', '当前任务', 30, {
+        workspacePath: '/Users/milksu/Documents/MilkSU/Coding/临时任务-cafebabe',
+      }),
+      conversation('not-started', '尚未开始', 10),
+    ])
+
+    expect(groups).toHaveLength(1)
+    expect(groups[0]).toMatchObject({
+      key: 'temporary',
+      name: '无项目任务',
+      path: null,
+      paths: [],
+      temporary: true,
+    })
+    expect(groups[0].conversations.map(item => item.id)).toEqual([
+      'current-scratch',
+      'legacy-scratch',
+      'not-started',
+    ])
   })
 
   it('collapses historical path variants with the same project name into one visible project', () => {

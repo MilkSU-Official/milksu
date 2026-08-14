@@ -252,12 +252,14 @@ export interface CodingComputerUseTarget {
 export interface CodingComputerUseStatus {
   available: boolean
   enabled: boolean
+  authorized?: boolean
   conversationId?: string
   sessionId?: string
   phase: 'disabled' | 'starting' | 'ready' | 'stopping' | 'stopped' | 'failed' | 'unavailable' | string
   startedAt?: string
   driverVersion?: string
   target?: CodingComputerUseTarget
+  grantedTarget?: CodingComputerUseTarget
   permissions: CodingComputerUsePermissions
   signing?: CodingComputerUseSigning
   problem?: string

@@ -22,6 +22,7 @@ import {
   Compass,
   FileDiff,
   FileText,
+  FolderOpen,
   Globe2,
   Lightbulb,
   LoaderCircle,
@@ -106,6 +107,7 @@ const props = defineProps<{
   compactModelLabel: string
   compactDisabled?: boolean
   workspaceReady?: boolean
+  workspaceLocked?: boolean
   browserUseReady?: boolean
   computerUseReady?: boolean
   availableSkills?: string[]
@@ -131,6 +133,7 @@ const emit = defineEmits<{
   startGoal: []
   runSlashCommand: [command: string]
   controlGoal: [action: 'pause' | 'resume' | 'clear']
+  chooseWorkspace: []
 }>()
 
 const draft = ref('')
@@ -1177,8 +1180,21 @@ defineExpose({
                   <DropdownMenuItem class="composer-add-option" @select="chooseCodingAttachments">
                     <Paperclip class="size-4 shrink-0" />
                     <span class="min-w-0 flex-1">
-                      <span class="block text-label font-medium">文件或图片</span>
-                      <span class="block text-caption text-muted-foreground">复制到 MilkSU 用户数据目录</span>
+                      <span class="block text-label font-medium">本机文件或图片</span>
+                      <span class="block text-caption text-muted-foreground">选择后以只读附件交给 Agent</span>
+                    </span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem class="composer-add-option" @select="$emit('chooseWorkspace')">
+                    <FolderOpen class="size-4 shrink-0" />
+                    <span class="min-w-0 flex-1">
+                      <span class="block text-label font-medium">
+                        {{ workspaceLocked ? '其他项目目录' : '项目目录' }}
+                      </span>
+                      <span class="block text-caption text-muted-foreground">
+                        {{ workspaceLocked
+                          ? '保留当前会话，用所选目录新建任务'
+                          : '选择后作为当前任务的可读写范围' }}
+                      </span>
                     </span>
                   </DropdownMenuItem>
                   <DropdownMenuItem

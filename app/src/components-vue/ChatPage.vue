@@ -48,8 +48,8 @@ import {
   LoaderCircle,
   MousePointer2,
   Network,
-  PanelBottomClose,
-  PanelBottomOpen,
+  PanelLeftClose,
+  PanelLeftOpen,
   PanelRightClose,
   PanelRightOpen,
   RefreshCw,
@@ -57,11 +57,14 @@ import {
   ShieldCheck,
   Shrink,
   Sparkles,
+  SquareTerminal,
   Terminal,
   Wrench,
   X,
 } from 'lucide-vue-next'
 import { invokeCommand } from '@/desktop'
+import { nextChatAutoScrollPinned } from '@/lib/chatAutoScroll'
+import { isGeneratedScratchWorkspace } from '@/lib/codingConversationGroups'
 import ChatActivityGroup from '@/components-vue/ChatActivityGroup.vue'
 import ChatComposer from '@/components-vue/ChatComposer.vue'
 import MissionOperationPanel from '@/components-vue/MissionOperationPanel.vue'
@@ -172,6 +175,7 @@ const props = defineProps<{
   ensureConversation: (title?: string) => string
   /** Unsent handoff draft staged by CTF/CVE open path; never auto-starts Pi. */
   pendingComposerDraft?: { prompt: string; visibleText: string } | null
+  conversationDrawerOpen?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -184,6 +188,7 @@ const emit = defineEmits<{
   ctfAction: [action: CTFChatAction]
   abort: []
   chooseWorkspace: []
+  chooseWorkspaceForNewTask: []
   changeModel: [mode: 'auto' | 'manual', provider?: string, model?: string]
   changeModelSource: [preference: 'auto' | 'account' | 'personal']
   changeCodingPolicy: [
@@ -201,12 +206,15 @@ const emit = defineEmits<{
   returnVuln: []
   switchCtfAgent: [role: 'solver' | 'tool-builder' | 'strategist']
   consumePendingDraft: []
+  toggleConversationDrawer: []
 }>()
 
 const goalMode = ref(false)
 const stagedComposerPrompt = ref<{ conversationId: string; prompt: string } | null>(null)
 const composer = ref<{ appendDraftText: (text: string) => void } | null>(null)
 const scrollArea = ref<HTMLElement | null>(null)
+const chatAutoScrollPinned = ref(true)
+const lastChatScrollTop = ref(0)
 const workshopState = ref<CTFToolWorkshopState | null>(null)
 const environmentOpen = ref(true)
 // Domain context is the primary right-rail content for CTF/CVE (one rail only).
@@ -478,9 +486,13 @@ const hasCredential = computed(() => {
   const provider = props.settings.providers[props.settings.active_provider]
   return Boolean(provider?.enabled && provider.has_api_key)
 })
+const automaticScratchWorkspace = computed(() => (
+  isGeneratedScratchWorkspace(props.workspacePath)
+))
 const workspaceName = computed(() => {
+  if (automaticScratchWorkspace.value) return '无项目任务'
   const value = props.workspacePath.replace(/\/+$/, '')
-  return value.split('/').at(-1) || '临时沙盒'
+  return value.split('/').at(-1) || '无项目任务'
 })
 const architectureAction = computed(() => (
   props.workspacePath
@@ -506,7 +518,7 @@ const architecturePreviewSource = computed(() => {
   ].join('; ')
   const csp = `<meta http-equiv="Content-Security-Policy" content="${policy}">`
   const panelMode = architectureFitToPanel.value
-    ? `<script>document.documentElement.dataset.embed='true'<\/script>`
+    ? "<script>document.documentElement.dataset.embed='true'</" + 'script>'
     : ''
   return /<head(?:\s[^>]*)?>/i.test(html)
     ? html.replace(/<head(\s[^>]*)?>/i, match => `${match}${csp}${panelMode}`)
@@ -813,7 +825,9 @@ async function showComputerUseScope() {
   selectedComputerUseTargetKey.value = nextComputerUseTargetKey(
     scopedComputerUseTargets.value,
     selectedComputerUseTargetKey.value,
-    computerUseStatus.value?.conversationId ? computerUseStatus.value.target : null,
+    computerUseStatus.value?.conversationId
+      ? computerUseStatus.value.target
+      : computerUseStatus.value?.grantedTarget,
     {
       hostBundleId: computerUseStatus.value?.signing?.bundleId,
     },
@@ -863,6 +877,14 @@ function runSlashCommand(command: string) {
     mcp: 'environment',
   } as const)[command as 'status' | 'diff' | 'mcp']
   if (panel) changeContextPanel(panel)
+}
+
+function chooseWorkspaceFromCurrentTask() {
+  if (workspaceLocked.value) {
+    emit('chooseWorkspaceForNewTask')
+    return
+  }
+  emit('chooseWorkspace')
 }
 
 function generateArchitecture() {
@@ -1060,7 +1082,11 @@ async function refreshBrowserPanel() {
           phase: 'disabled',
           pages: [],
         }),
-    invokeCommand<CodingComputerUseStatus>('get_coding_computer_use_status'),
+    conversationID
+      ? invokeCommand<CodingComputerUseStatus>('activate_coding_computer_use', {
+          conversationId: conversationID,
+        })
+      : invokeCommand<CodingComputerUseStatus>('get_coding_computer_use_status'),
     invokeCommand<CodingComputerUseTarget[]>('list_coding_computer_use_targets'),
   ])
   if (browser.status === 'fulfilled') {
@@ -1089,7 +1115,9 @@ async function refreshBrowserPanel() {
     selectedComputerUseTargetKey.value = nextComputerUseTargetKey(
       scopedComputerUseTargets.value,
       selectedComputerUseTargetKey.value,
-      computerUseStatus.value?.conversationId ? computerUseStatus.value.target : null,
+      computerUseStatus.value?.conversationId
+        ? computerUseStatus.value.target
+        : computerUseStatus.value?.grantedTarget,
       {
         hostBundleId: computerUseStatus.value?.signing?.bundleId,
       },
@@ -1457,18 +1485,39 @@ function verifyDeliveredTool() {
   })
 }
 
-async function scrollChatToBottom() {
+function handleChatScroll() {
+  const element = scrollArea.value
+  if (!element) return
+  chatAutoScrollPinned.value = nextChatAutoScrollPinned(
+    lastChatScrollTop.value,
+    element.scrollTop,
+    element.clientHeight,
+    element.scrollHeight,
+  )
+  lastChatScrollTop.value = element.scrollTop
+}
+
+async function scrollChatToBottom(force = false) {
+  if (!force && !chatAutoScrollPinned.value) return
   await nextTick()
-  if (!scrollArea.value) return
-  scrollArea.value.scrollTop = scrollArea.value.scrollHeight
+  if (!force && !chatAutoScrollPinned.value) return
+  const element = scrollArea.value
+  if (!element) return
+  element.scrollTop = element.scrollHeight
+  lastChatScrollTop.value = element.scrollTop
   if (typeof window !== 'undefined' && 'requestAnimationFrame' in window) {
     await new Promise<void>(resolve => window.requestAnimationFrame(() => resolve()))
-    if (scrollArea.value) scrollArea.value.scrollTop = scrollArea.value.scrollHeight
+    if (!force && !chatAutoScrollPinned.value) return
+    if (scrollArea.value) {
+      scrollArea.value.scrollTop = scrollArea.value.scrollHeight
+      lastChatScrollTop.value = scrollArea.value.scrollTop
+    }
   }
 }
 
 onMounted(() => {
-  void scrollChatToBottom()
+  void scrollChatToBottom(true)
+  if (props.conversation?.id && !props.running) void refreshBrowserPanel()
   window.addEventListener('focus', refreshComputerUseAfterSettings)
   if (typeof ResizeObserver !== 'undefined') {
     codingBrowserResizeObserver = new ResizeObserver(() => {
@@ -1555,7 +1604,10 @@ watch(() => props.conversation?.id, (_current, previous) => {
   browserEvidence.value = null
   computerUseEvidence.value = null
   gitDeliveryEvidence.value = null
-  void scrollChatToBottom()
+  chatAutoScrollPinned.value = true
+  lastChatScrollTop.value = 0
+  void scrollChatToBottom(true)
+  if (props.conversation?.id && !props.running) void refreshBrowserPanel()
   if (['browser', 'browser-use', 'computer-use'].includes(contextPanel.value) && environmentOpen.value) {
     void refreshBrowserPanel()
   }
@@ -1635,6 +1687,20 @@ watch(
       :title="topbarPresentation.title"
       :subtitle="topbarPresentation.subtitle"
     >
+      <template #leading>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          :aria-label="conversationDrawerOpen ? '收起会话' : '展开会话'"
+          :title="conversationDrawerOpen ? '收起会话' : '展开会话'"
+          :aria-expanded="conversationDrawerOpen"
+          aria-controls="coding-context-sidebar"
+          @click="$emit('toggleConversationDrawer')"
+        >
+          <PanelLeftClose v-if="conversationDrawerOpen" class="size-4" />
+          <PanelLeftOpen v-else class="size-4" />
+        </Button>
+      </template>
       <template v-if="ctfSession || vulnerabilitySession" #badge>
         <Badge variant="secondary" class="max-w-full truncate">
           {{ ctfSession ? ctfRoleLabel : 'CVE 接力' }}
@@ -1660,8 +1726,7 @@ watch(
           :title="terminalOpen ? '关闭底部终端' : '打开底部终端'"
           @click="toggleTerminalPanel"
         >
-          <PanelBottomClose v-if="terminalOpen" class="size-4" />
-          <PanelBottomOpen v-else class="size-4" />
+          <SquareTerminal class="size-4" />
         </Button>
         <Button
           variant="ghost"
@@ -1676,7 +1741,11 @@ watch(
       </template>
     </WorkspaceModuleTopBar>
 
-    <div ref="scrollArea" class="min-h-0 flex-1 overflow-y-auto">
+    <div
+      ref="scrollArea"
+      class="min-h-0 flex-1 overflow-y-auto"
+      @scroll.passive="handleChatScroll"
+    >
       <div v-if="!conversation?.messages.length && domainTaskPresentation" class="mx-auto flex min-h-full w-full max-w-5xl flex-col justify-center px-5 py-5 2xl:px-8">
         <MissionOperationPanel :presentation="domainTaskPresentation" :running="running" />
         <div class="mt-4 flex items-center gap-2">
@@ -1768,6 +1837,7 @@ watch(
       :compact-model-label="compactModelLabel"
       :compact-disabled="continuity.compactDisabled"
       :workspace-ready="Boolean(workspacePath)"
+      :workspace-locked="workspaceLocked"
       :browser-use-ready="browserUseReadyForCurrentTask"
       :computer-use-ready="externalAppUseReadyForCurrentTask"
       :available-skills="activeSkills"
@@ -1780,6 +1850,7 @@ watch(
       @change-approval-policy="changeApprovalPolicy"
       @change-model="changeModel"
       @show-permissions="showCodingPermissions"
+      @choose-workspace="chooseWorkspaceFromCurrentTask"
       @consume-goal="goalMode = false"
       @start-goal="goalMode = true"
       @run-slash-command="runSlashCommand"
@@ -1891,23 +1962,26 @@ watch(
           <div class="flex items-center justify-between gap-3">
             <p class="text-caption font-medium text-muted-foreground">工作区</p>
             <Button
-              v-if="!ctfSession && !workspaceLocked"
+              v-if="!ctfSession"
               type="button"
               variant="ghost"
               size="sm"
-              @click="$emit('chooseWorkspace')"
+              :disabled="running"
+              @click="chooseWorkspaceFromCurrentTask"
             >
-              更换
+              {{ workspaceLocked ? '新任务使用其他目录' : '更换' }}
             </Button>
           </div>
           <div class="mt-3 flex items-start gap-3">
             <FolderOpen class="mt-0.5 size-4 shrink-0 text-primary" />
             <div class="min-w-0">
               <p class="truncate text-body font-medium">
-                {{ codingEnvironment?.workspaceName || workspaceName }}
+                {{ automaticScratchWorkspace ? workspaceName : codingEnvironment?.workspaceName || workspaceName }}
               </p>
               <p class="mt-1 truncate font-mono text-caption text-muted-foreground" :title="workspacePath">
-                {{ workspacePath || '尚未选择项目' }}
+                {{ automaticScratchWorkspace
+                  ? '无项目任务 · MilkSU 本地临时工作区'
+                  : workspacePath || '尚未选择项目' }}
               </p>
             </div>
           </div>

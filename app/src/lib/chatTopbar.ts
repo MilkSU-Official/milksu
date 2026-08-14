@@ -1,3 +1,5 @@
+import { isGeneratedScratchWorkspace } from '@/lib/codingConversationGroups'
+
 export interface ChatTopbarInput {
   ctfSession: boolean
   vulnerabilitySession?: boolean
@@ -14,6 +16,9 @@ function ctfModeLabel(mode: ChatTopbarInput['ctfMode']) {
 }
 
 export function chatTopbarPresentation(input: ChatTopbarInput) {
+  const workspacePath = isGeneratedScratchWorkspace(input.workspacePath)
+    ? ''
+    : input.workspacePath
   if (input.ctfSession) {
     return {
       title: 'CTF',
@@ -24,12 +29,12 @@ export function chatTopbarPresentation(input: ChatTopbarInput) {
   if (input.vulnerabilitySession) {
     return {
       title: 'CVE',
-      subtitle: `${input.conversationTitle || 'CVE 接力'} · ${input.workspacePath || `临时工作区 · ${input.codingPolicyLabel}`}`,
+      subtitle: `${input.conversationTitle || 'CVE 接力'} · ${workspacePath || `临时工作区 · ${input.codingPolicyLabel}`}`,
     }
   }
 
   return {
     title: input.conversationTitle || '新编码任务',
-    subtitle: input.workspacePath || `临时工作区 · ${input.codingPolicyLabel}`,
+    subtitle: workspacePath || `临时工作区 · ${input.codingPolicyLabel}`,
   }
 }

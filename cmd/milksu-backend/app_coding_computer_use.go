@@ -20,6 +20,31 @@ func (a *App) GetCodingComputerUseStatus() computercap.Status {
 	return a.computerUse.Status()
 }
 
+func (a *App) ActivateCodingComputerUse(conversationID string) computercap.Status {
+	status, _, err := a.restoreCodingComputerUse(conversationID)
+	if err != nil {
+		status.Problem = err.Error()
+	}
+	return status
+}
+
+func (a *App) restoreCodingComputerUse(
+	conversationID string,
+) (computercap.Status, bool, error) {
+	if a.computerUse == nil {
+		return computercap.Status{
+			Phase:   "unavailable",
+			Problem: "Computer Use service is unavailable.",
+		}, false, nil
+	}
+	restoreContext, cancel := context.WithTimeout(
+		a.commandContext(),
+		codingComputerUseStartTimeout,
+	)
+	defer cancel()
+	return a.computerUse.Restore(restoreContext, conversationID)
+}
+
 // RequestCodingComputerUsePermissions is called only from the explicit
 // desktop button. Agent turns and Workspace Auto never reach this method.
 func (a *App) RequestCodingComputerUsePermissions(permission string) (computercap.Status, error) {
@@ -84,9 +109,13 @@ func (a *App) StopCodingComputerUse(
 		return computercap.Status{}, fmt.Errorf("Computer Use service is unavailable")
 	}
 	if !a.computerUse.OwnsConversation(conversationID) {
-		return a.computerUse.Status(), fmt.Errorf(
-			"Computer Use session does not belong to this Coding task",
-		)
+		status := a.computerUse.StatusForConversation(conversationID)
+		if !status.Authorized {
+			return status, fmt.Errorf(
+				"Computer Use session does not belong to this Coding task",
+			)
+		}
+		return a.computerUse.Stop(conversationID)
 	}
 	// Dispose the MCP client before ending the host-owned daemon. Pending
 	// approvals expire with the Sidecar session and unknown actions are never

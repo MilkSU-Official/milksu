@@ -64,6 +64,13 @@ func helperCommand(_ string, arguments ...string) *exec.Cmd {
 	return exec.Command(os.Args[0], values...)
 }
 
+func failingServeCommand(_ string, arguments ...string) *exec.Cmd {
+	if len(arguments) == 1 && arguments[0] == "--version" {
+		return exec.Command("/bin/echo", "cua-driver "+DriverVersion)
+	}
+	return exec.Command("/usr/bin/false")
+}
+
 func TestManagerStartsOneVisibleScopedSessionAndCleansIt(t *testing.T) {
 	target := Target{
 		Name:        "Codex",
@@ -151,6 +158,203 @@ func TestManagerStartsOneVisibleScopedSessionAndCleansIt(t *testing.T) {
 	}
 	if manager.OwnsConversation("conversation-1") {
 		t.Fatal("stopped session retained conversation ownership")
+	}
+}
+
+func TestManagerRestoresPersistedTaskAuthorizationAfterRestart(t *testing.T) {
+	grantDirectory := t.TempDir()
+	originalTarget := Target{
+		Name:        "MilkSU Beta",
+		BundleID:    "com.milksu.app.beta",
+		PID:         4242,
+		WindowID:    9001,
+		WindowTitle: "MilkSU Beta",
+	}
+	newTarget := originalTarget
+	newTarget.PID = 4343
+	newTarget.WindowID = 9010
+
+	newManager := func(target Target) *Manager {
+		return New(Options{
+			BinaryPath:      os.Args[0],
+			TargetPID:       1111,
+			GOOS:            "darwin",
+			PermissionProbe: func(bool) Permissions { return Permissions{true, true} },
+			TargetProvider:  func() ([]Target, error) { return []Target{target}, nil },
+			CommandFactory:  helperCommand,
+			StartTimeout:    2 * time.Second,
+			GrantDirectory:  grantDirectory,
+		})
+	}
+
+	first := newManager(originalTarget)
+	started, err := first.Start(
+		context.Background(),
+		"conversation-restore",
+		TargetSelection{PID: originalTarget.PID, WindowID: originalTarget.WindowID},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !started.Authorized || started.GrantedTarget == nil {
+		t.Fatalf("task authorization was not persisted: %#v", started)
+	}
+	first.Close()
+	closed := first.StatusForConversation("conversation-restore")
+	if closed.Enabled || !closed.Authorized || closed.GrantedTarget == nil {
+		t.Fatalf("restart lost persisted task authorization: %#v", closed)
+	}
+
+	second := newManager(newTarget)
+	defer second.Close()
+	restored, authorized, err := second.Restore(
+		context.Background(),
+		"conversation-restore",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !authorized || !restored.Authorized || !restored.Enabled ||
+		restored.Target.PID != newTarget.PID ||
+		restored.Target.WindowID != newTarget.WindowID {
+		t.Fatalf("task authorization was not restored to the visible target: %#v", restored)
+	}
+
+	stopped, err := second.Stop("conversation-restore")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stopped.Enabled || stopped.Authorized || stopped.GrantedTarget != nil {
+		t.Fatalf("explicit stop did not revoke task authorization: %#v", stopped)
+	}
+}
+
+func TestManagerRestartsAnAuthorizedTaskAfterDriverFailure(t *testing.T) {
+	target := Target{
+		Name:        "MilkSU Beta",
+		BundleID:    "com.milksu.app.beta",
+		PID:         4242,
+		WindowID:    9001,
+		WindowTitle: "MilkSU Beta",
+	}
+	manager := New(Options{
+		BinaryPath:      os.Args[0],
+		TargetPID:       1111,
+		GOOS:            "darwin",
+		PermissionProbe: func(bool) Permissions { return Permissions{true, true} },
+		TargetProvider:  func() ([]Target, error) { return []Target{target}, nil },
+		CommandFactory:  helperCommand,
+		StartTimeout:    2 * time.Second,
+		GrantDirectory:  t.TempDir(),
+	})
+	defer manager.Close()
+
+	started, err := manager.Start(
+		context.Background(),
+		"conversation-recover-driver",
+		TargetSelection{PID: target.PID, WindowID: target.WindowID},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manager.mu.Lock()
+	command := manager.active.command
+	manager.mu.Unlock()
+	killProcess(command)
+	deadline := time.Now().Add(2 * time.Second)
+	for manager.Status().Phase != "failed" && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if manager.Status().Phase != "failed" {
+		t.Fatalf("driver did not reach failed state: %#v", manager.Status())
+	}
+
+	restored, authorized, err := manager.Restore(
+		context.Background(),
+		"conversation-recover-driver",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !authorized || !restored.Enabled || !restored.Authorized {
+		t.Fatalf("authorized task was not recovered: %#v", restored)
+	}
+	if restored.SessionID == started.SessionID {
+		t.Fatal("failed driver session id was reused")
+	}
+}
+
+func TestFailedAutomaticRestoreKeepsTaskAuthorizationForRetry(t *testing.T) {
+	grantDirectory := t.TempDir()
+	target := Target{
+		Name:        "MilkSU Beta",
+		BundleID:    "com.milksu.app.beta",
+		PID:         4242,
+		WindowID:    9001,
+		WindowTitle: "MilkSU Beta",
+	}
+	store := newGrantStore(grantDirectory)
+	if err := store.Save("conversation-retry-restore", target); err != nil {
+		t.Fatal(err)
+	}
+	manager := New(Options{
+		BinaryPath:      os.Args[0],
+		TargetPID:       1111,
+		GOOS:            "darwin",
+		PermissionProbe: func(bool) Permissions { return Permissions{true, true} },
+		TargetProvider:  func() ([]Target, error) { return []Target{target}, nil },
+		CommandFactory:  failingServeCommand,
+		StartTimeout:    200 * time.Millisecond,
+		GrantDirectory:  grantDirectory,
+	})
+	defer manager.Close()
+
+	status, authorized, err := manager.Restore(
+		context.Background(),
+		"conversation-retry-restore",
+	)
+	if err == nil {
+		t.Fatal("expected automatic restore to report the failed driver start")
+	}
+	if !authorized || !status.Authorized || status.GrantedTarget == nil {
+		t.Fatalf("failed restore revoked the user's task authorization: %#v", status)
+	}
+}
+
+func TestCorruptTaskAuthorizationFailsClosed(t *testing.T) {
+	store := newGrantStore(t.TempDir())
+	target := Target{
+		Name:     "MilkSU Beta",
+		BundleID: "com.milksu.app.beta",
+		PID:      4242,
+		WindowID: 9001,
+	}
+	if err := store.Save("conversation-corrupt", target); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(store.path("conversation-corrupt"), []byte("{"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, exists, err := store.Load("conversation-corrupt")
+	if !exists || err == nil {
+		t.Fatalf("corrupt authorization must remain visible and fail closed: exists=%v err=%v", exists, err)
+	}
+}
+
+func TestResolveGrantedTargetRejectsAmbiguousReplacementWindows(t *testing.T) {
+	granted := Target{
+		Name:        "MilkSU Beta",
+		BundleID:    "com.milksu.app.beta",
+		PID:         4242,
+		WindowID:    9001,
+		WindowTitle: "Original task",
+	}
+	_, err := resolveGrantedTarget(granted, []Target{
+		{Name: "MilkSU Beta", BundleID: granted.BundleID, PID: 5001, WindowID: 10, WindowTitle: "Task A"},
+		{Name: "MilkSU Beta", BundleID: granted.BundleID, PID: 5001, WindowID: 11, WindowTitle: "Task B"},
+	})
+	if err == nil || !strings.Contains(err.Error(), "多个可见窗口") {
+		t.Fatalf("expected ambiguous replacement windows to require selection, got %v", err)
 	}
 }
 

@@ -18,6 +18,9 @@ async function mountSidebar(
   conversations: Conversation[] = [],
   themeMode: ThemeMode = 'dark',
   onToggleTheme = vi.fn(),
+  codingContextOpen = false,
+  onCloseCodingContext = vi.fn(),
+  onSelectConversation = vi.fn(),
 ) {
   const host = document.createElement('div')
   document.body.append(host)
@@ -27,8 +30,11 @@ async function mountSidebar(
     activeConversationId: conversations[0]?.id ?? null,
     conversations,
     ctfSection: 'catalog',
+    codingContextOpen,
     themeMode,
     onToggleTheme,
+    onCloseCodingContext,
+    onSelectConversation,
   })
   app.mount(host)
   mountedApps.push(app)
@@ -56,30 +62,41 @@ describe('AppSidebar', () => {
     expect(vuln.textContent).not.toContain('追踪')
   })
 
-  it('keeps Coding narrow until the user explicitly opens conversation history', async () => {
-    const coding = await mountSidebar('chat', [{
+  it('keeps Coding narrow and anchors the controlled conversation drawer to the rail', async () => {
+    const conversations: Conversation[] = [{
       id: 'conversation-1',
       title: '实现产品闭环',
       createdAt: Date.now(),
       workspacePath: '/Users/milksu/code/milksu',
       messages: [],
-    }])
+    }]
+    const closed = await mountSidebar('chat', conversations)
 
-    expect(coding.querySelector('aside')?.className).toContain('workspace-navigation-shell')
-    expect(coding.textContent).not.toContain('新建编码任务')
-    expect(coding.textContent).not.toContain('实现产品闭环')
-    const toggle = coding.querySelector<HTMLButtonElement>('[aria-label="展开会话"]')
-    expect(toggle?.getAttribute('aria-expanded')).toBe('false')
-    toggle?.click()
-    await nextTick()
+    expect(closed.querySelector('aside')?.className).toContain('workspace-navigation-shell')
+    expect(closed.textContent).not.toContain('新建编码任务')
+    expect(closed.textContent).not.toContain('实现产品闭环')
+    expect(closed.querySelector('[aria-label="展开会话"]')).toBeNull()
+
+    const onCloseCodingContext = vi.fn()
+    const coding = await mountSidebar(
+      'chat',
+      conversations,
+      'dark',
+      vi.fn(),
+      true,
+      onCloseCodingContext,
+    )
     expect(coding.textContent).toContain('新建编码任务')
     expect(coding.textContent).toContain('milksu')
     expect(coding.textContent).toContain('实现产品闭环')
-    expect(coding.querySelector('[data-testid="coding-context-drawer"]')).not.toBeNull()
+    const drawer = coding.querySelector('[data-testid="coding-context-drawer"]')
+    expect(drawer).not.toBeNull()
+    expect(drawer?.className).toContain('fixed')
+    expect(drawer?.className).not.toContain('left-full')
     const backdrop = coding.querySelector<HTMLButtonElement>('[aria-label="关闭 Coding 会话"]')
     expect(backdrop).not.toBeNull()
     expect(backdrop?.className).toContain('backdrop-blur')
-    expect(coding.querySelector('[aria-label="收起会话"]')?.getAttribute('aria-expanded')).toBe('true')
+    expect(coding.querySelector('[aria-label="收起会话"]')).toBeNull()
     expect(coding.querySelector('aside > div:last-child > header')).toBeNull()
     expect(coding.querySelector('[data-active-conversation-row]')?.textContent)
       .toContain('实现产品闭环')
@@ -95,7 +112,7 @@ describe('AppSidebar', () => {
     ))).toBe(true)
     backdrop?.click()
     await nextTick()
-    expect(coding.querySelector('[data-testid="coding-context-drawer"]')).toBeNull()
+    expect(onCloseCodingContext).toHaveBeenCalledOnce()
   })
 
   it('uses rail-local selection styling instead of inherited button hover borders', async () => {
@@ -104,6 +121,35 @@ describe('AppSidebar', () => {
     expect(activeButton?.className).toContain('workspace-rail-item')
     expect(activeButton?.className).toContain('workspace-rail-active')
     expect(activeButton?.getAttribute('data-ui-selected')).toBe('')
+  })
+
+  it('opens a single-task project or task row with one click', async () => {
+    const conversations: Conversation[] = [{
+      id: 'single-task',
+      title: '修复单击打开',
+      createdAt: Date.now(),
+      workspacePath: '/Users/milksu/code/milksu',
+      messages: [],
+    }]
+    const fromProject = vi.fn()
+    const projectHost = await mountSidebar(
+      'chat', conversations, 'dark', vi.fn(), true, vi.fn(), fromProject,
+    )
+    projectHost.querySelector<HTMLElement>('summary')?.click()
+    await nextTick()
+    expect(fromProject).toHaveBeenCalledOnce()
+    expect(fromProject).toHaveBeenCalledWith('single-task')
+
+    const fromTask = vi.fn()
+    const taskHost = await mountSidebar(
+      'chat', conversations, 'dark', vi.fn(), true, vi.fn(), fromTask,
+    )
+    const task = [...taskHost.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.includes('修复单击打开'))
+    task?.click()
+    await nextTick()
+    expect(fromTask).toHaveBeenCalledOnce()
+    expect(fromTask).toHaveBeenCalledWith('single-task')
   })
 
   it('keeps the theme switch in the global rail and emits a single toggle action', async () => {

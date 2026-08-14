@@ -77,12 +77,14 @@ type TargetSelection struct {
 type Status struct {
 	Available      bool          `json:"available"`
 	Enabled        bool          `json:"enabled"`
+	Authorized     bool          `json:"authorized"`
 	ConversationID string        `json:"conversationId,omitempty"`
 	SessionID      string        `json:"sessionId,omitempty"`
 	Phase          string        `json:"phase"`
 	StartedAt      string        `json:"startedAt,omitempty"`
 	DriverVersion  string        `json:"driverVersion,omitempty"`
 	Target         Target        `json:"target"`
+	GrantedTarget  *Target       `json:"grantedTarget,omitempty"`
 	Permissions    Permissions   `json:"permissions"`
 	Signing        SigningStatus `json:"signing"`
 	Problem        string        `json:"problem,omitempty"`
@@ -110,6 +112,7 @@ type Options struct {
 	TargetProvider  func() ([]Target, error)
 	CommandFactory  func(name string, args ...string) *exec.Cmd
 	StartTimeout    time.Duration
+	GrantDirectory  string
 }
 
 type session struct {
@@ -138,6 +141,7 @@ type Manager struct {
 	targetProvider  func() ([]Target, error)
 	commandFactory  func(name string, args ...string) *exec.Cmd
 	startTimeout    time.Duration
+	grants          *grantStore
 	active          *session
 }
 
@@ -189,6 +193,7 @@ func New(options Options) *Manager {
 		targetProvider:  targetProvider,
 		commandFactory:  commandFactory,
 		startTimeout:    startTimeout,
+		grants:          newGrantStore(options.GrantDirectory),
 	}
 }
 
@@ -220,6 +225,69 @@ func (manager *Manager) Status() Status {
 	manager.mu.Lock()
 	defer manager.mu.Unlock()
 	return manager.statusLocked(manager.permissionProbe(false))
+}
+
+func (manager *Manager) StatusForConversation(conversationID string) Status {
+	status := manager.Status()
+	grant, exists, err := manager.grants.Load(strings.TrimSpace(conversationID))
+	status.Authorized = exists
+	if err != nil {
+		status.Problem = err.Error()
+		return status
+	}
+	if exists {
+		status.Authorized = true
+		grantedTarget := grant.Target
+		status.GrantedTarget = &grantedTarget
+	}
+	return status
+}
+
+func (manager *Manager) Restore(
+	ctx context.Context,
+	conversationID string,
+) (Status, bool, error) {
+	conversationID = strings.TrimSpace(conversationID)
+	if !validConversationID(conversationID) {
+		return Status{}, false, fmt.Errorf("invalid Coding conversation id")
+	}
+	if _, enabled := manager.Descriptor(conversationID); enabled {
+		return manager.StatusForConversation(conversationID), true, nil
+	}
+	grant, exists, err := manager.grants.Load(conversationID)
+	if err != nil || !exists {
+		return manager.StatusForConversation(conversationID), exists, err
+	}
+	manager.mu.Lock()
+	active := manager.active
+	if active != nil && active.conversationID != conversationID {
+		status := manager.statusLocked(manager.permissionProbe(false))
+		manager.mu.Unlock()
+		return status, true, fmt.Errorf("Computer Use is already attached to another visible Coding task")
+	}
+	manager.mu.Unlock()
+	if active != nil {
+		status, ready, err := manager.waitForRestoreTransition(ctx, conversationID)
+		if err != nil || ready {
+			return status, true, err
+		}
+		if _, err := manager.stop(conversationID, false); err != nil {
+			return manager.StatusForConversation(conversationID), true, err
+		}
+	}
+	targets, err := manager.Targets()
+	if err != nil {
+		return manager.StatusForConversation(conversationID), true, err
+	}
+	target, err := resolveGrantedTarget(grant.Target, targets)
+	if err != nil {
+		return manager.StatusForConversation(conversationID), true, err
+	}
+	_, err = manager.Start(ctx, conversationID, TargetSelection{
+		PID:      target.PID,
+		WindowID: target.WindowID,
+	})
+	return manager.StatusForConversation(conversationID), true, err
 }
 
 func (manager *Manager) RequestPermission(kind PermissionKind) (Status, error) {
@@ -261,11 +329,23 @@ func (manager *Manager) Start(
 	manager.mu.Lock()
 	if manager.active != nil {
 		status := manager.statusLocked(manager.permissionProbe(false))
-		if manager.active.conversationID == conversationID && manager.active.phase == "ready" {
+		sameConversation := manager.active.conversationID == conversationID
+		phase := manager.active.phase
+		if sameConversation && phase == "ready" {
 			manager.mu.Unlock()
 			return status, nil
 		}
 		manager.mu.Unlock()
+		if sameConversation && phase == "starting" {
+			status, ready, err := manager.waitForRestoreTransition(ctx, conversationID)
+			if err != nil {
+				return status, err
+			}
+			if ready {
+				return status, nil
+			}
+			return status, fmt.Errorf("Computer Use session did not become ready")
+		}
 		return status, fmt.Errorf(
 			"Computer Use is already attached to another visible Coding task",
 		)
@@ -362,8 +442,11 @@ func (manager *Manager) Start(
 	waitContext, cancel := context.WithTimeout(ctx, manager.startTimeout)
 	defer cancel()
 	if err := waitForSocket(waitContext, socketPath, active.done); err != nil {
-		_, _ = manager.Stop(conversationID)
-		return manager.Status(), fmt.Errorf("start Computer Use private driver: %w", err)
+		_, _ = manager.stop(conversationID, false)
+		return manager.StatusForConversation(conversationID), fmt.Errorf(
+			"start Computer Use private driver: %w",
+			err,
+		)
 	}
 	manager.mu.Lock()
 	if manager.active == active && active.phase == "starting" {
@@ -371,23 +454,53 @@ func (manager *Manager) Start(
 	}
 	status := manager.statusLocked(manager.permissionProbe(false))
 	manager.mu.Unlock()
+	if err := manager.grants.Save(conversationID, status.Target); err != nil {
+		_, _ = manager.stop(conversationID, false)
+		return manager.StatusForConversation(conversationID), fmt.Errorf(
+			"persist Computer Use task authorization: %w",
+			err,
+		)
+	}
+	status.Authorized = true
+	grantedTarget := status.Target
+	status.GrantedTarget = &grantedTarget
 	return status, nil
 }
 
 func (manager *Manager) Stop(conversationID string) (Status, error) {
+	return manager.stop(conversationID, true)
+}
+
+func (manager *Manager) Revoke(conversationID string) error {
 	conversationID = strings.TrimSpace(conversationID)
+	if !validConversationID(conversationID) {
+		return fmt.Errorf("invalid Coding conversation id")
+	}
+	return manager.grants.Delete(conversationID)
+}
+
+func (manager *Manager) stop(conversationID string, revoke bool) (Status, error) {
+	conversationID = strings.TrimSpace(conversationID)
+	if !validConversationID(conversationID) {
+		return manager.Status(), fmt.Errorf("invalid Coding conversation id")
+	}
 	manager.mu.Lock()
 	active := manager.active
-	if active == nil {
-		status := manager.statusLocked(manager.permissionProbe(false))
-		manager.mu.Unlock()
-		return status, nil
-	}
-	if active.conversationID != conversationID {
+	if active != nil && active.conversationID != conversationID {
 		status := manager.statusLocked(manager.permissionProbe(false))
 		manager.mu.Unlock()
 		return status, fmt.Errorf("Computer Use session belongs to another Coding task")
 	}
+	manager.mu.Unlock()
+	if revoke {
+		if err := manager.grants.Delete(conversationID); err != nil {
+			return manager.StatusForConversation(conversationID), err
+		}
+	}
+	if active == nil {
+		return manager.StatusForConversation(conversationID), nil
+	}
+	manager.mu.Lock()
 	active.stopping = true
 	active.phase = "stopping"
 	manager.mu.Unlock()
@@ -411,6 +524,9 @@ func (manager *Manager) Stop(conversationID string) (Status, error) {
 	}
 	status := manager.statusLocked(manager.permissionProbe(false))
 	manager.mu.Unlock()
+	if !revoke {
+		status = manager.StatusForConversation(conversationID)
+	}
 	return status, nil
 }
 
@@ -445,7 +561,83 @@ func (manager *Manager) Close() {
 	active := manager.active
 	manager.mu.Unlock()
 	if active != nil {
-		_, _ = manager.Stop(active.conversationID)
+		_, _ = manager.stop(active.conversationID, false)
+	}
+}
+
+func resolveGrantedTarget(granted Target, targets []Target) (Target, error) {
+	for _, target := range targets {
+		if target.PID == granted.PID &&
+			target.WindowID == granted.WindowID &&
+			strings.EqualFold(target.BundleID, granted.BundleID) {
+			return target, nil
+		}
+	}
+	candidates := make([]Target, 0, len(targets))
+	for _, target := range targets {
+		if strings.EqualFold(target.BundleID, granted.BundleID) {
+			candidates = append(candidates, target)
+		}
+	}
+	if granted.WindowTitle != "" {
+		titleMatches := candidates[:0]
+		for _, target := range candidates {
+			if target.WindowTitle == granted.WindowTitle {
+				titleMatches = append(titleMatches, target)
+			}
+		}
+		if len(titleMatches) == 1 {
+			return titleMatches[0], nil
+		}
+	}
+	if len(candidates) == 1 {
+		return candidates[0], nil
+	}
+	if len(candidates) > 1 {
+		return Target{}, fmt.Errorf(
+			"之前授权的 %s 当前有多个可见窗口，请重新选择准确窗口",
+			granted.Name,
+		)
+	}
+	return Target{}, fmt.Errorf(
+		"之前授权的 %s 当前不可见，请打开目标 App 后重试",
+		granted.Name,
+	)
+}
+
+func (manager *Manager) waitForRestoreTransition(
+	ctx context.Context,
+	conversationID string,
+) (Status, bool, error) {
+	ticker := time.NewTicker(25 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		if _, ready := manager.Descriptor(conversationID); ready {
+			return manager.StatusForConversation(conversationID), true, nil
+		}
+		manager.mu.Lock()
+		active := manager.active
+		if active == nil {
+			manager.mu.Unlock()
+			return manager.StatusForConversation(conversationID), false, nil
+		}
+		if active.conversationID != conversationID {
+			status := manager.statusLocked(manager.permissionProbe(false))
+			manager.mu.Unlock()
+			return status, false, fmt.Errorf(
+				"Computer Use is already attached to another visible Coding task",
+			)
+		}
+		transitioning := active.phase == "starting" || active.phase == "stopping"
+		manager.mu.Unlock()
+		if !transitioning {
+			return manager.StatusForConversation(conversationID), false, nil
+		}
+		select {
+		case <-ctx.Done():
+			return manager.StatusForConversation(conversationID), false, ctx.Err()
+		case <-ticker.C:
+		}
 	}
 }
 

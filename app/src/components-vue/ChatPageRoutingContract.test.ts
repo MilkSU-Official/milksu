@@ -61,13 +61,17 @@ describe('ChatPage routing contract', () => {
     expect(expandedDomainSidebars).toBe(0)
   })
 
-  it('scrolls to the latest message when route context or conversation changes', () => {
+  it('follows new output only while the user remains near the bottom', () => {
     expect(chatPageSource).toContain("window.requestAnimationFrame")
     expect(chatPageSource).toContain('props.conversation?.id')
     expect(chatPageSource).toContain('props.conversation?.messages.length ?? 0')
     expect(chatPageSource).toContain('props.ctfSession')
     expect(chatPageSource).toContain('props.vulnerabilitySession')
     expect(chatPageSource).toContain('scrollArea.value.scrollTop = scrollArea.value.scrollHeight')
+    expect(chatPageSource).toContain('@scroll.passive="handleChatScroll"')
+    expect(chatPageSource).toContain('chatAutoScrollPinned.value = nextChatAutoScrollPinned')
+    expect(chatPageSource).toContain('if (!force && !chatAutoScrollPinned.value) return')
+    expect(chatPageSource).toContain('void scrollChatToBottom(true)')
   })
 
   it('quotes confirmed related history into the Coding composer draft without auto-sending it', () => {
@@ -108,6 +112,9 @@ describe('ChatPage routing contract', () => {
     expect(chatPageSource).toContain("? '关闭底部终端' : '打开底部终端'")
     expect(chatPageSource).toContain('aria-label="底部终端面板"')
     expect(chatPageSource).toContain('@close="terminalOpen = false"')
+    expect(chatPageSource).toContain('<SquareTerminal class="size-4" />')
+    expect(chatPageSource).not.toContain('<PanelBottomOpen')
+    expect(chatPageSource).not.toContain('<PanelBottomClose')
     expect(chatPageSource).not.toContain("contextPanel === 'terminal'")
     expect(chatPageSource).not.toContain('<SelectItem v-if="!ctfSession" value="terminal">终端</SelectItem>')
     expect(chatPageSource.match(/aria-label="关闭右侧栏"/g) ?? []).toHaveLength(0)

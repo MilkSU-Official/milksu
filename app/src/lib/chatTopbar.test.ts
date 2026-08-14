@@ -36,6 +36,18 @@ describe('chatTopbarPresentation', () => {
     })
   })
 
+  it('does not expose a generated scratch directory as a user project', () => {
+    expect(chatTopbarPresentation({
+      ctfSession: false,
+      conversationTitle: '检查登录回调',
+      workspacePath: '/Users/milksu/Documents/MilkSU/Coding/临时任务-deadbeef',
+      codingPolicyLabel: 'Go · 项目自动',
+    })).toEqual({
+      title: '检查登录回调',
+      subtitle: '临时工作区 · Go · 项目自动',
+    })
+  })
+
   it('labels CVE handoff conversations with the CVE module title', () => {
     expect(chatTopbarPresentation({
       ctfSession: false,

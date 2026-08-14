@@ -2,7 +2,10 @@
 
 import { createApp, defineComponent, h, nextTick, type App } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useConversations } from '@/composables/useConversations'
+import {
+  fallbackConversationTitle,
+  useConversations,
+} from '@/composables/useConversations'
 
 const desktop = vi.hoisted(() => ({
   invokeCommand: vi.fn(),
@@ -57,7 +60,7 @@ afterEach(() => {
 })
 
 describe('Coding conversation title generation', () => {
-  it('keeps a neutral title until Pi summarizes the first message', async () => {
+  it('uses the first request immediately and lets Pi replace it with a concise title', async () => {
     let resolveTitle!: (title: string) => void
     const generatedTitle = new Promise<string>(resolve => {
       resolveTitle = resolve
@@ -68,9 +71,10 @@ describe('Coding conversation title generation', () => {
     })
     const conversations = mountConversations()
     const firstMessage = '请检查登录回调为什么在刷新后丢失原始路径，并修好状态恢复与相应测试'
+    const fallbackTitle = fallbackConversationTitle(firstMessage)
 
     await expect(conversations.send(firstMessage)).resolves.toBe(true)
-    expect(conversations.active.value?.title).toBe('新编码任务')
+    expect(conversations.active.value?.title).toBe(fallbackTitle)
     expect(desktop.invokeCommand).toHaveBeenCalledWith('generate_conversation_title', {
       firstMessage,
       modelMode: '',
@@ -80,7 +84,7 @@ describe('Coding conversation title generation', () => {
     const prematurelySavedTitles = desktop.invokeCommand.mock.calls
       .filter(([command]) => command === 'save_conversation')
       .map(([, args]) => (args as { conversation: { title: string } }).conversation.title)
-    expect(prematurelySavedTitles).not.toContain(firstMessage.slice(0, 40))
+    expect(prematurelySavedTitles).toContain(fallbackTitle)
 
     resolveTitle('修复登录回调状态恢复')
     await settle()
@@ -120,10 +124,16 @@ describe('Coding conversation title generation', () => {
     await expect(conversations.send('补上恢复测试')).resolves.toBe(true)
     await settle()
 
-    expect(conversations.active.value?.title).toBe('新编码任务')
+    expect(conversations.active.value?.title).toBe('修复登录回调')
     expect(desktop.invokeCommand.mock.calls.filter(
       ([command]) => command === 'generate_conversation_title',
     )).toHaveLength(1)
+  })
+
+  it('normalizes and truncates the local fallback without leaving trailing punctuation', () => {
+    expect(fallbackConversationTitle('  检查   登录回调。  ')).toBe('检查 登录回调')
+    expect(Array.from(fallbackConversationTitle('请把这段很长的用户请求截断为一个可读的会话标题并保留关键信息')).length)
+      .toBeLessThanOrEqual(24)
   })
 
   it('uses Pi steering instead of starting a parallel turn while running', async () => {

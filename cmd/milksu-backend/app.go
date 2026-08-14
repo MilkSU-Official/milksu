@@ -163,7 +163,9 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 	// Packaged Electron owns the TCC principal for embedded Computer Use.
 	// When a desktop host is attached, permission probes/open must go through
 	// host systemPreferences rather than the Go runtime binary identity.
-	computerUseOptions := computercap.Options{}
+	computerUseOptions := computercap.Options{
+		GrantDirectory: filepath.Join(dataDirectory, "computer-use", "task-authorizations"),
+	}
 	if host != nil {
 		computerUseOptions.PermissionProbe = desktopComputerUsePermissionProbe(host)
 		computerUseOptions.PermissionOpen = desktopComputerUsePermissionOpen(host)
@@ -584,6 +586,8 @@ func (a *App) DeleteConversation(id string) error {
 			if _, err := a.computerUse.Stop(id); err != nil {
 				return err
 			}
+		} else if err := a.computerUse.Revoke(id); err != nil {
+			return err
 		}
 	}
 	if err := a.releaseAgentManagedCodingCollaboration(id); err != nil {
@@ -725,6 +729,12 @@ func (a *App) SendMessage(
 		strings.TrimSpace(executionMode) != "plan" &&
 		strings.TrimSpace(approvalPolicy) != "read-only" &&
 		a.computerUse != nil {
+		if _, authorized, restoreErr := a.restoreCodingComputerUse(conversationID); restoreErr != nil {
+			a.diagnostics.Record("computer-use", "warning", "authorized task scope could not be restored")
+			if authorized {
+				return fmt.Errorf("Computer Use 自动恢复失败：%w", restoreErr)
+			}
+		}
 		if descriptor, enabled := a.computerUse.Descriptor(conversationID); enabled {
 			computerUse = &engine.ComputerUseDescriptor{
 				SessionID:      descriptor.SessionID,
@@ -777,7 +787,7 @@ func (a *App) resolveConversationWorkspace(conversationID, requested string) (st
 		return "", fmt.Errorf("read Coding conversation for artifact workspace: %w", err)
 	}
 	kind := userartifact.KindCoding
-	label := stored.Title
+	label := "临时任务"
 	if domainKind, _ := stored.DomainTaskContext["kind"].(string); domainKind == "cve" {
 		kind = userartifact.KindCVE
 		if cveID, _ := stored.DomainTaskContext["cveId"].(string); strings.TrimSpace(cveID) != "" {

@@ -14,7 +14,10 @@ import {
   Search,
   Trash2,
 } from 'lucide-vue-next'
-import { groupCodingConversations } from '@/lib/codingConversationGroups'
+import {
+  groupCodingConversations,
+  type CodingConversationGroup,
+} from '@/lib/codingConversationGroups'
 import {
   CTF_CONTEXT_ITEMS,
   showsCodingHistory,
@@ -30,12 +33,18 @@ const props = defineProps<{
   ctfSection: CTFWorkspaceSection
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   new: []
   selectConversation: [id: string]
   deleteConversation: [id: string]
   navigateCtf: [value: CTFWorkspaceSection]
 }>()
+
+function openSingleConversation(event: MouseEvent, group: CodingConversationGroup) {
+  if (group.conversations.length !== 1) return
+  event.preventDefault()
+  emit('selectConversation', group.conversations[0].id)
+}
 
 const query = ref('')
 const conversationList = ref<HTMLElement | null>(null)
@@ -139,7 +148,8 @@ watch(
           >
             <summary
               class="coding-project-row flex cursor-pointer list-none items-center gap-2 rounded-md px-3 py-1.5 font-medium hover:bg-accent/50"
-              :title="group.paths.length ? group.paths.join('\n') : '未绑定仓库的临时编码任务'"
+              :title="group.paths.length ? group.paths.join('\n') : '未绑定项目的编码任务'"
+              @click="openSingleConversation($event, group)"
             >
               <ChevronRight class="coding-project-chevron size-3.5 shrink-0 text-muted-foreground" />
               <Folder class="size-4 shrink-0 text-muted-foreground" />
@@ -160,7 +170,7 @@ watch(
                   variant="ghost"
                   size="sm"
                   class="coding-project-row h-7 min-w-0 flex-1 justify-start pl-2"
-                  @click="$emit('selectConversation', conversation.id)"
+                  @click.stop="$emit('selectConversation', conversation.id)"
                 >
                   <span class="truncate">{{ conversation.title }}</span>
                 </Button>
@@ -169,7 +179,7 @@ watch(
                   size="icon-sm"
                   class="mr-1 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
                   aria-label="删除编码任务"
-                  @click="$emit('deleteConversation', conversation.id)"
+                  @click.stop="$emit('deleteConversation', conversation.id)"
                 >
                   <Trash2 class="size-3.5" />
                 </Button>

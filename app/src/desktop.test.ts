@@ -745,6 +745,43 @@ describe('desktop command adapter', () => {
     )
   })
 
+  it('activates the persisted Computer Use scope for the selected Coding task', async () => {
+    const status = {
+      available: true,
+      enabled: true,
+      authorized: true,
+      conversationId: 'conversation-ui',
+      phase: 'ready',
+      target: {
+        name: 'MilkSU Beta',
+        bundleId: 'com.milksu.app.beta',
+        pid: 4343,
+        windowId: 9010,
+      },
+      permissions: {
+        accessibility: true,
+        screenRecording: true,
+      },
+    }
+    const activateCodingComputerUse = vi.fn(async () => status)
+    Object.defineProperty(window, 'go', {
+      configurable: true,
+      value: {
+        main: {
+          App: {
+            ActivateCodingComputerUse: activateCodingComputerUse,
+          },
+        },
+      },
+    })
+
+    await expect(invokeCommand('activate_coding_computer_use', {
+      conversationId: 'conversation-ui',
+    })).resolves.toBe(status)
+
+    expect(activateCodingComputerUse).toHaveBeenCalledWith('conversation-ui')
+  })
+
   it('passes the daily CTF date and exclusions to the recommendation service', async () => {
     const selection = {
       dateKey: '2026-08-13',

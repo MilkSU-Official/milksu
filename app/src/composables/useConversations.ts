@@ -30,6 +30,14 @@ const BROWSER_USE_MCP_SERVER = 'milksu-playwright-user'
 const DEFAULT_CODING_CONVERSATION_TITLE = '新编码任务'
 type ComposerScopeToken = 'browser-use' | 'computer-use'
 
+export function fallbackConversationTitle(value: string) {
+  const normalized = String(value ?? '').replace(/\s+/g, ' ').trim()
+  if (!normalized) return DEFAULT_CODING_CONVERSATION_TITLE
+  const truncated = Array.from(normalized).slice(0, 24).join('')
+  return truncated.replace(/[，。！？、；：,.!?;:]+$/u, '').trim()
+    || DEFAULT_CODING_CONVERSATION_TITLE
+}
+
 export function turnMCPServers(
   selected: string[] | undefined,
   scopeToken?: ComposerScopeToken,
@@ -741,12 +749,13 @@ export function useConversations() {
       timestamp: Date.now(),
       attachments: attachments.length ? attachments : undefined,
     }
+    const fallbackTitle = fallbackConversationTitle(visiblePrompt)
     let conversationId = activeId.value
     if (!conversationId) {
       conversationId = crypto.randomUUID()
       const conversation: Conversation = {
         id: conversationId,
-        title: DEFAULT_CODING_CONVERSATION_TITLE,
+        title: fallbackTitle,
         createdAt: Date.now(),
         workspacePath: pendingWorkspacePath.value || undefined,
         modelMode: pendingModelMode.value,
@@ -769,6 +778,9 @@ export function useConversations() {
     } else {
       update(conversationId, conversation => ({
         ...conversation,
+        title: conversation.title === DEFAULT_CODING_CONVERSATION_TITLE
+          ? fallbackTitle
+          : conversation.title,
         messages: [...conversation.messages, message],
       }))
     }
@@ -858,11 +870,15 @@ export function useConversations() {
     const conversation = conversations.value.find(item => item.id === conversationId)
     if (
       !conversation
-      || conversation.title !== DEFAULT_CODING_CONVERSATION_TITLE
       || conversation.ctfJobId
     ) return
     const firstMessage = conversation.messages.find(message => message.role === 'user')?.content.trim()
     if (!firstMessage) return
+    const fallbackTitle = fallbackConversationTitle(firstMessage)
+    if (
+      conversation.title !== DEFAULT_CODING_CONVERSATION_TITLE
+      && conversation.title !== fallbackTitle
+    ) return
 
     titleGenerationAttemptedIds.add(conversationId)
     try {
@@ -875,7 +891,10 @@ export function useConversations() {
       const current = conversations.value.find(item => item.id === conversationId)
       if (
         !current
-        || current.title !== DEFAULT_CODING_CONVERSATION_TITLE
+        || (
+          current.title !== DEFAULT_CODING_CONVERSATION_TITLE
+          && current.title !== fallbackTitle
+        )
         || !title.trim()
       ) return
       update(conversationId, value => ({

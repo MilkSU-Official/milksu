@@ -262,7 +262,9 @@ describe('ChatComposer', () => {
 
     result.host.querySelector<HTMLButtonElement>('[aria-label="添加内容与工具"]')?.click()
     await nextTick()
-    expect(document.body.textContent).toContain('文件或图片')
+    expect(document.body.textContent).toContain('本机文件或图片')
+    expect(document.body.textContent).toContain('项目目录')
+    expect(document.body.textContent).toContain('选择后以只读附件交给 Agent')
     expect(document.body.textContent).toContain('目标')
     expect(document.body.textContent).toContain('计划模式')
     expect(document.body.textContent).toContain('浏览器')
@@ -315,6 +317,25 @@ describe('ChatComposer', () => {
     mcpItem?.click()
     await nextTick()
     expect(result.slashCommandActions).toEqual(['browser', 'browser-use', 'computer-use', 'mcp'])
+  })
+
+  it('offers a new task when choosing another directory after the conversation started', async () => {
+    const chosen: unknown[][] = []
+    const result = mountComposer({
+      workspaceLocked: true,
+      onChooseWorkspace: (...args: unknown[]) => chosen.push(args),
+    })
+    await nextTick()
+
+    result.host.querySelector<HTMLButtonElement>('[aria-label="添加内容与工具"]')?.click()
+    await nextTick()
+    const directoryItem = [...document.querySelectorAll<HTMLDivElement>('[role="menuitem"]')]
+      .find(item => item.textContent?.includes('其他项目目录'))
+    expect(directoryItem?.textContent).toContain('保留当前会话，用所选目录新建任务')
+    directoryItem?.click()
+    await nextTick()
+
+    expect(chosen).toHaveLength(1)
   })
 
   it('adds a reviewed Pi Skill to the draft and expands it only when the user sends', async () => {

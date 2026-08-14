@@ -16,7 +16,7 @@ export interface CodingConversationGroup {
 
 const TEMPORARY_GROUP_KEY = 'temporary'
 
-function normalizeWorkspacePath(value?: string) {
+function normalizeWorkspacePath(value?: string | null) {
   const normalized = value
     ?.trim()
     .replaceAll('\\', '/')
@@ -27,6 +27,12 @@ function normalizeWorkspacePath(value?: string) {
 
 function workspaceName(path: string) {
   return path.split(/[\\/]/).filter(Boolean).at(-1) ?? path
+}
+
+export function isGeneratedScratchWorkspace(value?: string | null) {
+  const path = normalizeWorkspacePath(value)
+  if (!path) return false
+  return /\/MilkSU\/Coding\/(?:新编码任务|临时任务)-[a-f0-9]{8}$/u.test(path)
 }
 
 function workspaceGroupKey(path: string | null) {
@@ -52,11 +58,12 @@ export function groupCodingConversations(
   for (const conversation of projectUniqueDomainConversations(conversations)) {
     if (conversation.ctfJobId) continue
 
-    const path = normalizeWorkspacePath(conversation.workspacePath)
+    const normalizedPath = normalizeWorkspacePath(conversation.workspacePath)
+    const path = isGeneratedScratchWorkspace(normalizedPath) ? null : normalizedPath
     const key = workspaceGroupKey(path)
     const group = groups.get(key) ?? {
       key,
-      name: path ? workspaceName(path) : '临时沙盒',
+      name: path ? workspaceName(path) : '无项目任务',
       path,
       paths: path ? [path] : [],
       temporary: !path,
