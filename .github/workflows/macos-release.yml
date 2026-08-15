@@ -8,6 +8,11 @@ on:
         required: true
         type: boolean
         default: false
+      use_self_hosted:
+        description: Run the signed release on a registered private macOS runner
+        required: true
+        type: boolean
+        default: false
       release_title:
         description: Release title shown in MilkSU
         required: true
@@ -29,7 +34,7 @@ permissions:
 
 jobs:
   release:
-    runs-on: macos-15
+    runs-on: ${{ inputs.use_self_hosted && fromJSON('["self-hosted","macOS","ARM64"]') || fromJSON('["macos-15"]') }}
     timeout-minutes: 180
     environment: macos-release
     steps:
