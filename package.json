@@ -1,6 +1,6 @@
 {
   "name": "@milksu/milksu",
-  "version": "26.815.2",
+  "version": "26.816.1",
   "description": "MilkSU — one-stop cybersecurity AI learning client",
   "type": "module",
   "license": "MIT",
@@ -15,6 +15,7 @@
 	"desktop:build:stable": "node scripts/package-electron.mjs build --channel=stable",
 	"desktop:build:beta": "node scripts/package-electron.mjs build --channel=beta",
 	"desktop:release:mac": "node scripts/release-macos.mjs",
+	"desktop:release:windows": "node scripts/release-windows.mjs",
 	"desktop:start": "node scripts/package-electron.mjs start",
 	"desktop:start:beta": "node scripts/package-electron.mjs start:beta",
 	"desktop:inspect": "node scripts/package-electron.mjs inspect",

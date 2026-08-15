@@ -1,0 +1,104 @@
+name: Windows x64 release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: windows-2025
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Refuse a Stable release outside main
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF -ne 'refs/heads/main') {
+            throw "Stable release must run from main, got $env:GITHUB_REF"
+          }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          npm ci
+          npm --prefix app ci
+          npm --prefix desktop ci
+      - name: Test
+        shell: pwsh
+        run: |
+          go test ./...
+          npm --prefix app test
+          npm run test:sidecar
+      - name: Build Windows installer
+        shell: pwsh
+        env:
+          MILKSU_ACCOUNT_API_URL: https://accounts.milksu.org
+        run: npm run desktop:release:windows
+      - name: Verify packaged runtimes and first launch
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = (Get-Content desktop/package.json | ConvertFrom-Json).version
+          $installer = "build/release/MilkSU-Windows-x64-$version-Setup.exe"
+          if (-not (Test-Path $installer)) { throw "missing installer: $installer" }
+          $digest = (Get-FileHash -Algorithm SHA256 $installer).Hash.ToLowerInvariant()
+          Write-Host "installer_sha256=$digest"
+
+          $node = 'build/sidecar/windows-amd64/node.exe'
+          $nodeVersion = (& $node --version).Trim()
+          if ($nodeVersion -ne 'v24.18.0') { throw "unexpected Node runtime: $nodeVersion" }
+
+          $backend = 'build/desktop/milksu-backend.exe'
+          $stdout = Join-Path $env:RUNNER_TEMP 'milksu-backend.stdout'
+          $stderr = Join-Path $env:RUNNER_TEMP 'milksu-backend.stderr'
+          $backendProcess = Start-Process -FilePath $backend -PassThru -NoNewWindow `
+            -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          try {
+            $ready = $false
+            for ($attempt = 0; $attempt -lt 30; $attempt++) {
+              Start-Sleep -Milliseconds 500
+              if (Test-Path $stdout) {
+                $ready = (Get-Content $stdout -Raw) -match '"type"\s*:\s*"ready"'
+              }
+              if ($ready) { break }
+              if ($backendProcess.HasExited) { break }
+            }
+            if (-not $ready) {
+              $safeError = if (Test-Path $stderr) { Get-Content $stderr -Raw } else { '' }
+              throw "backend did not publish ready: $safeError"
+            }
+          } finally {
+            if (-not $backendProcess.HasExited) { Stop-Process -Id $backendProcess.Id -Force }
+          }
+
+          $env:MILKSU_INSTANCE_ID = 'windows-release-smoke'
+          $appPath = 'build/electron/windows/stable/win-unpacked/MilkSU.exe'
+          $appProcess = Start-Process -FilePath $appPath -PassThru
+          try {
+            Start-Sleep -Seconds 12
+            if ($appProcess.HasExited) {
+              throw "packaged MilkSU exited during first-launch acceptance ($($appProcess.ExitCode))"
+            }
+            $backendChildren = Get-Process -Name 'milksu-backend' -ErrorAction SilentlyContinue
+            if (-not $backendChildren) { throw 'packaged MilkSU did not start its Go runtime' }
+          } finally {
+            Get-Process -Name 'MilkSU','milksu-backend' -ErrorAction SilentlyContinue |
+              Stop-Process -Force -ErrorAction SilentlyContinue
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MilkSU-Windows-x64-installer
+          path: build/release/MilkSU-Windows-x64-*-Setup.exe
+          if-no-files-found: error
+          retention-days: 14

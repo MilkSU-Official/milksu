@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"strings"
 	"time"
 
@@ -20,7 +21,7 @@ func (a *App) ensureAgentManagedCodingCollaboration(
 	workspacePath string,
 	allowPrepare bool,
 ) (*engine.CodingCollaborationDescriptor, error) {
-	if a.codingCollab == nil {
+	if runtime.GOOS != "darwin" || a.codingCollab == nil {
 		return nil, nil
 	}
 	// A domain handoff without a user-selected project runs in the fixed

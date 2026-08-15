@@ -92,6 +92,7 @@ const lspRuntimeRootPackages = [
 const systemOcrNativePackages = {
   'darwin/arm64': '@napi-rs/system-ocr-darwin-arm64',
   'darwin/amd64': '@napi-rs/system-ocr-darwin-x64',
+  'windows/amd64': '@napi-rs/system-ocr-win32-x64-msvc',
 }
 const nodeArchives = {
   'darwin/arm64': {
@@ -102,6 +103,14 @@ const nodeArchives = {
     file: `node-v${nodeVersion}-darwin-x64.tar.xz`,
     sha256: '4a3b6bc81542154430825128d9a279e8b364e8d90581544e506ef7579fd1ab6f',
   },
+  'windows/amd64': {
+    file: `node-v${nodeVersion}-win-x64.zip`,
+    sha256: '0ae68406b42d7725661da979b1403ec9926da205c6770827f33aac9d8f26e821',
+  },
+}
+
+function platformBinaryName(platform, name) {
+  return platform.startsWith('windows/') ? `${name}.exe` : name
 }
 
 function argument(name, fallback = undefined) {
@@ -287,8 +296,11 @@ async function officialNodeRuntime(platform) {
   if (!archive) throw new Error(`unsupported Sidecar platform: ${platform}`)
   const cache = join(repositoryRoot, 'build', 'sidecar-cache', platform.replace('/', '-'))
   const archivePath = join(cache, archive.file)
-  const runtimeRoot = join(cache, `node-v${nodeVersion}`)
-  const runtimeBinary = join(runtimeRoot, 'bin', 'node')
+  const archiveDirectory = archive.file.replace(/(?:\.tar\.xz|\.zip)$/u, '')
+  const runtimeRoot = join(cache, archiveDirectory)
+  const runtimeBinary = platform.startsWith('windows/')
+    ? join(runtimeRoot, 'node.exe')
+    : join(runtimeRoot, 'bin', 'node')
   await mkdir(cache, { recursive: true, mode: 0o700 })
 
   let archiveValid = await exists(archivePath) && await sha256(archivePath) === archive.sha256
@@ -299,14 +311,12 @@ async function officialNodeRuntime(platform) {
   if (!archiveValid) throw new Error(`official Node archive checksum mismatch: ${archive.file}`)
 
   if (!await exists(runtimeBinary)) {
-    await mkdir(runtimeRoot, { recursive: true, mode: 0o700 })
-    const archiveDirectory = archive.file.replace(/\.tar\.xz$/, '')
-    await execFileAsync('/usr/bin/tar', [
-      '-xJf', archivePath,
-      '-C', runtimeRoot,
-      '--strip-components=1',
-      `${archiveDirectory}/bin/node`,
-      `${archiveDirectory}/LICENSE`,
+    await rm(runtimeRoot, { recursive: true, force: true })
+    await execFileAsync(process.platform === 'win32' ? 'tar' : '/usr/bin/tar', [
+      archive.file.endsWith('.zip') ? '-xf' : '-xJf',
+      archivePath,
+      '-C',
+      cache,
     ])
   }
   return { binary: runtimeBinary, license: join(runtimeRoot, 'LICENSE'), archive }
@@ -393,12 +403,12 @@ async function officialCuaDriverRuntime(platform) {
 
 async function officialGoplsRuntime(platform) {
   const [goos, goarch] = platform.split('/')
-  if (goos !== 'darwin' || !['arm64', 'amd64'].includes(goarch)) {
+  if (!['darwin', 'windows'].includes(goos) || !['arm64', 'amd64'].includes(goarch)) {
     throw new Error(`unsupported gopls platform: ${platform}`)
   }
   const cache = join(repositoryRoot, 'build', 'sidecar-cache', platform.replace('/', '-'))
   const runtimeRoot = join(cache, `gopls-v${goplsVersion}`)
-  const runtimeBinary = join(runtimeRoot, 'gopls')
+  const runtimeBinary = join(runtimeRoot, platformBinaryName(platform, 'gopls'))
   const runtimeLicense = join(runtimeRoot, 'LICENSE')
   const metadataPath = join(runtimeRoot, 'build.json')
   const { stdout: goVersionOutput } = await execFileAsync('go', ['version'])
@@ -835,12 +845,15 @@ async function verifyReviewedLspCodeActions({
 }
 
 async function buildSidecar(platform) {
+  const [goos] = platform.split('/')
   const runtime = await officialNodeRuntime(platform)
-  const cuaRuntime = await officialCuaDriverRuntime(platform)
+  const cuaRuntime = goos === 'darwin'
+    ? await officialCuaDriverRuntime(platform)
+    : null
   const goplsRuntime = await officialGoplsRuntime(platform)
   const output = join(repositoryRoot, 'build', 'sidecar', platform.replace('/', '-'))
   await mkdir(output, { recursive: true, mode: 0o700 })
-  const nodeOutput = join(output, 'node')
+  const nodeOutput = join(output, platformBinaryName(platform, 'node'))
   const chatOutput = join(output, 'chat-bridge.cjs')
   const securityOutput = join(output, 'security-bridge.cjs')
   const computerUseProxyOutput = join(output, 'computer-use-proxy.cjs')
@@ -857,7 +870,7 @@ async function buildSidecar(platform) {
   )
   const piSubagentSource = join(repositoryRoot, 'node_modules', 'pi-sub-agent')
   const piSubagentAgentsOutput = join(output, 'subagents', 'agents')
-  const cuaDriverOutput = join(output, 'cua-driver')
+  const cuaDriverOutput = goos === 'darwin' ? join(output, 'cua-driver') : ''
   const archifySource = join(repositoryRoot, 'third_party', 'archify', 'archify')
   const archifyOutput = join(output, 'skills', 'archify')
   const firstPartySkills = firstPartyCodingSkillNames.map(name => ({
@@ -934,7 +947,7 @@ async function buildSidecar(platform) {
     },
   ]
   const lspRuntimeOutput = join(output, 'lsp-runtime')
-  const goplsOutput = join(lspRuntimeOutput, 'gopls')
+  const goplsOutput = join(lspRuntimeOutput, platformBinaryName(platform, 'gopls'))
   const lspRuntimePackages = await collectInstalledPackageClosure(
     lspRuntimeRootPackages.map(packageInfo => packageInfo.name),
   )
@@ -1026,7 +1039,7 @@ async function buildSidecar(platform) {
   await Promise.all([
     copyFile(runtime.binary, nodeOutput),
     copyFile(runtime.license, join(output, 'NODE-LICENSE')),
-    copyFile(cuaRuntime.binary, cuaDriverOutput),
+    ...(cuaRuntime ? [copyFile(cuaRuntime.binary, cuaDriverOutput)] : []),
     copyFile(goplsRuntime.binary, goplsOutput),
     copyFile(
       goplsRuntime.license,
@@ -1150,7 +1163,7 @@ async function buildSidecar(platform) {
   ])
   await Promise.all([
     chmod(nodeOutput, 0o755),
-    chmod(cuaDriverOutput, 0o755),
+    ...(cuaDriverOutput ? [chmod(cuaDriverOutput, 0o755)] : []),
     chmod(goplsOutput, 0o755),
     chmod(chatOutput, 0o644),
     chmod(securityOutput, 0o644),
@@ -1305,21 +1318,23 @@ async function buildSidecar(platform) {
           'playwright-core': playwrightVersion,
         },
       },
-      cuaDriver: {
-        package: 'trycua/cua',
-        version: cuaDriverVersion,
-        prerelease: true,
-        tag: cuaRuntime.tag,
-        sourceCommit: cuaRuntime.sourceCommit,
-        archive: cuaRuntime.archive.file,
-        archiveSha256: cuaRuntime.archive.sha256,
-        binarySha256: await sha256(cuaDriverOutput),
-        license: 'MIT',
-        licenseFile: 'THIRD_PARTY-LICENSES/cua-MIT.txt',
-        scope: 'coding-computer-use-opt-in',
-        targetScope: 'runtime-selected-visible-app-window',
-        proxy: 'computer-use-proxy.cjs',
-      },
+      ...(cuaRuntime ? {
+        cuaDriver: {
+          package: 'trycua/cua',
+          version: cuaDriverVersion,
+          prerelease: true,
+          tag: cuaRuntime.tag,
+          sourceCommit: cuaRuntime.sourceCommit,
+          archive: cuaRuntime.archive.file,
+          archiveSha256: cuaRuntime.archive.sha256,
+          binarySha256: await sha256(cuaDriverOutput),
+          license: 'MIT',
+          licenseFile: 'THIRD_PARTY-LICENSES/cua-MIT.txt',
+          scope: 'coding-computer-use-opt-in',
+          targetScope: 'runtime-selected-visible-app-window',
+          proxy: 'computer-use-proxy.cjs',
+        },
+      } : {}),
       localOcr: {
         package: '@napi-rs/system-ocr',
         version: systemOcrVersion,

@@ -45,7 +45,9 @@ const EVENT_PATTERN = /^[a-z][a-z0-9._-]{0,100}$/u
 const BROWSER_SESSION_PATTERN = /^browser_[0-9a-f-]{36}$/u
 const MAX_BACKEND_MESSAGE_BYTES = 128 << 20
 const BROWSER_USER_AGENT = [
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+  process.platform === 'win32'
+    ? 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+    : 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
   'AppleWebKit/537.36 (KHTML, like Gecko)',
   `Chrome/${process.versions.chrome}`,
   'Safari/537.36',
@@ -152,9 +154,10 @@ function resourcesPath(relative) {
 function backendExecutable() {
   const override = String(process.env.MILKSU_BACKEND_PATH ?? '').trim()
   if (override && path.isAbsolute(override)) return override
+  const binary = process.platform === 'win32' ? 'milksu-backend.exe' : 'milksu-backend'
   return app.isPackaged
-    ? path.join(process.resourcesPath, 'milksu-backend')
-    : path.resolve(__dirname, '..', 'build', 'desktop', 'milksu-backend')
+    ? path.join(process.resourcesPath, binary)
+    : path.resolve(__dirname, '..', 'build', 'desktop', binary)
 }
 
 function rendererDirectory() {
@@ -606,10 +609,12 @@ function createWindow() {
     minHeight: 680,
     show: false,
     backgroundColor: '#f7f7f5',
-    titleBarStyle: 'hiddenInset',
-    // Layout-safe traffic lights: fixed shell inset, not a machine-specific screenshot fudge.
-    // x keeps buttons inside the rail width; y leaves room above the logo slot.
-    trafficLightPosition: { x: 14, y: 16 },
+    ...(process.platform === 'darwin' ? {
+      titleBarStyle: 'hiddenInset',
+      // Layout-safe traffic lights: fixed shell inset, not a machine-specific screenshot fudge.
+      // x keeps buttons inside the rail width; y leaves room above the logo slot.
+      trafficLightPosition: { x: 14, y: 16 },
+    } : {}),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
@@ -742,7 +747,10 @@ app.whenReady().then(async () => {
   updateManager = new UpdateManager({
     updater: autoUpdater,
     currentVersion: app.getVersion(),
-    enabled: app.isPackaged && desktopChannel === 'stable' && accountConfig.configured,
+    enabled: process.platform === 'darwin'
+      && app.isPackaged
+      && desktopChannel === 'stable'
+      && accountConfig.configured,
     getAuthorization: () => accountSession.activeAccessToken(),
     onChanged: value => emitRendererEvent('update.changed', value),
   })

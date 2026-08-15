@@ -14,7 +14,6 @@ import (
 	"runtime"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 )
 
@@ -418,7 +417,7 @@ func (manager *Manager) Start(
 	command.Env = driverEnvironment(directory, hostBundle)
 	command.Stdout = io.Discard
 	command.Stderr = newLimitedBuffer(8 << 10)
-	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	configureProcessGroup(command)
 	if err := command.Start(); err != nil {
 		_ = cleanupRuntimeDirectory(directory)
 		manager.mu.Unlock()
@@ -1052,10 +1051,9 @@ func createRuntimeDirectory(directory string) error {
 	if err != nil {
 		return fmt.Errorf("inspect Computer Use runtime root: %w", err)
 	}
-	rootStat, ownerKnown := rootInfo.Sys().(*syscall.Stat_t)
 	if rootInfo.Mode()&os.ModeSymlink != 0 ||
 		!rootInfo.IsDir() ||
-		(ownerKnown && int(rootStat.Uid) != os.Getuid()) {
+		!runtimeRootOwnerMatches(rootInfo) {
 		return fmt.Errorf("Computer Use runtime root is not a private app-owned directory")
 	}
 	if err := os.Chmod(runtimeRoot, 0o700); err != nil {
@@ -1084,21 +1082,11 @@ func cleanupRuntimeDirectory(directory string) error {
 }
 
 func stopProcess(command *exec.Cmd) {
-	if command == nil || command.Process == nil {
-		return
-	}
-	if err := syscall.Kill(-command.Process.Pid, syscall.SIGTERM); err != nil {
-		_ = command.Process.Signal(syscall.SIGTERM)
-	}
+	terminateProcess(command, false)
 }
 
 func killProcess(command *exec.Cmd) {
-	if command == nil || command.Process == nil {
-		return
-	}
-	if err := syscall.Kill(-command.Process.Pid, syscall.SIGKILL); err != nil {
-		_ = command.Process.Kill()
-	}
+	terminateProcess(command, true)
 }
 
 type limitedBuffer struct {

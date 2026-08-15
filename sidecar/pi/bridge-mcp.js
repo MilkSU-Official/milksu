@@ -9,6 +9,7 @@ import {
   realpath,
 } from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { sandboxProfile } from "./bridge-policy.js";
 import {
@@ -40,8 +41,9 @@ const playwrightMcpCliPath = join(
   "mcp",
   "cli.js",
 );
-const playwrightSocketRoot = "/private/tmp/milksu-playwright";
-const computerUseSocketRoot = "/private/tmp/milksu-computer-use";
+const shortRuntimeRoot = process.platform === "darwin" ? "/private/tmp" : tmpdir();
+const playwrightSocketRoot = join(shortRuntimeRoot, "milksu-playwright");
+const computerUseSocketRoot = join(shortRuntimeRoot, "milksu-computer-use");
 const packagedComputerUseProxyPath = join(bridgeDirectory, "computer-use-proxy.cjs");
 const computerUseProxyPath = existsSync(packagedComputerUseProxyPath)
   ? packagedComputerUseProxyPath

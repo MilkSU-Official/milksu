@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	goruntime "runtime"
 	"strings"
 
 	"github.com/MilkSU-Official/milksu/internal/appdata"
@@ -130,9 +131,13 @@ func newSidecarCommandAtWithDirectory(
 			return nil, dataErr
 		}
 		sidecarDirectory := filepath.Dir(runtime.bridge)
-		playwrightSocketDirectory := filepath.Join("/private/tmp", "milksu-playwright")
+		temporaryRoot := os.TempDir()
+		if goruntime.GOOS == "darwin" {
+			temporaryRoot = "/private/tmp"
+		}
+		playwrightSocketDirectory := filepath.Join(temporaryRoot, "milksu-playwright")
 		computerUseRuntimeDirectory := filepath.Join(
-			"/private/tmp",
+			temporaryRoot,
 			"milksu-computer-use",
 		)
 		arguments = []string{
@@ -148,7 +153,7 @@ func newSidecarCommandAtWithDirectory(
 			"--allow-fs-read=" + computerUseRuntimeDirectory,
 			"--allow-fs-write=" + computerUseRuntimeDirectory,
 		}
-		if allowChildProcess {
+		if allowChildProcess && goruntime.GOOS == "darwin" {
 			arguments = append(
 				arguments,
 				"--allow-child-process",
@@ -275,7 +280,19 @@ func resolveSidecarRuntimeWithDirectory(
 	}
 
 	if executable, err := os.Executable(); err == nil {
-		resources := filepath.Join(filepath.Dir(executable), "..", "Resources", packagedSidecarDirectory)
+		resources := filepath.Join(
+			filepath.Dir(executable),
+			"..",
+			"Resources",
+			packagedSidecarDirectory,
+		)
+		if goruntime.GOOS == "windows" {
+			resources = filepath.Join(
+				filepath.Dir(executable),
+				"resources",
+				packagedSidecarDirectory,
+			)
+		}
 		if runtime, ok := packagedRuntimeAt(resources, packagedBridge); ok {
 			return runtime, nil
 		}
@@ -293,7 +310,11 @@ func resolveSidecarRuntimeWithDirectory(
 }
 
 func packagedRuntimeAt(directory, bridgeName string) (sidecarRuntime, bool) {
-	node := filepath.Join(directory, "node")
+	nodeName := "node"
+	if goruntime.GOOS == "windows" {
+		nodeName = "node.exe"
+	}
+	node := filepath.Join(directory, nodeName)
 	bridge := filepath.Join(directory, bridgeName)
 	if !regularFile(node) || !regularFile(bridge) {
 		return sidecarRuntime{}, false

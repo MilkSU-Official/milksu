@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"syscall"
 	"time"
 )
 
@@ -103,7 +102,7 @@ func AppendEventLog(root string, event PersistedEvent) error {
 	}
 	file, err := os.OpenFile(
 		path,
-		os.O_APPEND|os.O_CREATE|os.O_WRONLY|syscall.O_NOFOLLOW,
+		os.O_APPEND|os.O_CREATE|os.O_WRONLY|noFollowOpenFlag(),
 		0o600,
 	)
 	if err != nil {

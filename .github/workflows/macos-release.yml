@@ -111,11 +111,8 @@ jobs:
         run: npm run desktop:release:mac
       - uses: actions/upload-artifact@v4
         with:
-          name: MilkSU-macOS-arm64
-          path: |
-            build/release/MilkSU-macOS-arm64.dmg
-            build/release/MilkSU-macOS-arm64-*.zip
-            build/release/release-metadata.json
+          name: MilkSU-macOS-arm64-installer
+          path: build/release/MilkSU-macOS-arm64.dmg
           if-no-files-found: error
           retention-days: 14
       - name: Install R2 uploader

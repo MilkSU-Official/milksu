@@ -8,7 +8,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"syscall"
 	"time"
 )
 
@@ -191,7 +190,7 @@ func readLifespanState(path string) (LifespanState, error) {
 	if info.Size() > maxLifespanBytes {
 		return LifespanState{}, fmt.Errorf("%s is larger than %d bytes", LifespanFile, maxLifespanBytes)
 	}
-	file, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW, 0)
+	file, err := os.OpenFile(path, os.O_RDONLY|noFollowOpenFlag(), 0)
 	if err != nil {
 		return LifespanState{}, err
 	}
