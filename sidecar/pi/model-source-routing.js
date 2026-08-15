@@ -143,13 +143,25 @@ export function createModelSourceRouteProvider({
     baseUrl,
     apiKey: "milksu-model-source-route",
     api: source.api,
-    streamSimple: (_routeModel, context, options) => createModelSourceStream({
-      sources,
-      autoFallback,
-      openSource: selected => openSource(selected, context, options),
-      onSource,
-      onFallback,
-    }),
+    streamSimple: (_routeModel, context, options) => {
+      const sourceOptions = { ...(options ?? {}) };
+      delete sourceOptions.apiKey;
+      if (sourceOptions.headers && typeof sourceOptions.headers === "object") {
+        const headers = Object.fromEntries(
+          Object.entries(sourceOptions.headers)
+            .filter(([name]) => name.toLowerCase() !== "authorization"),
+        );
+        if (Object.keys(headers).length > 0) sourceOptions.headers = headers;
+        else delete sourceOptions.headers;
+      }
+      return createModelSourceStream({
+        sources,
+        autoFallback,
+        openSource: selected => openSource(selected, context, sourceOptions),
+        onSource,
+        onFallback,
+      });
+    },
     models: [{
       id: model,
       name: source?.name ?? model,

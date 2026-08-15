@@ -72,6 +72,43 @@ function stream(events) {
   return value;
 }
 
+test("dual-source route resolves each source credential instead of forwarding route auth", async () => {
+  const done = message("account");
+  const seenOptions = [];
+  const definition = createModelSourceRouteProvider({
+    source: {
+      id: "grok-4.5",
+      name: "Grok 4.5",
+      api: "openai-completions",
+      baseUrl: "https://tokenflux.dev/v1",
+      input: ["text"],
+    },
+    model: "grok-4.5",
+    sources: [{ id: "account" }],
+    autoFallback: true,
+    openSource(_source, _context, options) {
+      seenOptions.push(options);
+      return stream([{ type: "done", reason: "stop", message: done }]);
+    },
+  });
+  const routed = definition.streamSimple(
+    definition.models[0],
+    { systemPrompt: "", messages: [], tools: [] },
+    {
+      apiKey: "milksu-model-source-route",
+      headers: {
+        Authorization: "Bearer milksu-model-source-route",
+        "X-Request-ID": "request-1",
+      },
+    },
+  );
+  for await (const _event of routed) {
+    // Drain the routed stream so the selected source is opened.
+  }
+  assert.equal(Object.hasOwn(seenOptions[0], "apiKey"), false);
+  assert.deepEqual(seenOptions[0].headers, { "X-Request-ID": "request-1" });
+});
+
 test("normalizes the two model sources without duplicates", () => {
   assert.deepEqual(normalizeModelSourceOrder("personal,personal"), ["personal", "account"]);
 });
