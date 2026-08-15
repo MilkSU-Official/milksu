@@ -34,12 +34,16 @@ jobs:
           npm ci
           npm --prefix app ci
           npm --prefix desktop ci
-      - name: Test
+      - name: Validate the Windows build boundary
         shell: pwsh
         run: |
-          go test ./...
-          npm --prefix app test
-          npm run test:sidecar
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          # The canonical full suite runs locally and in the macOS release job.
+          # Windows compiles every Go package/test, then exercises the routed
+          # model regression with native paths before packaging and first launch.
+          go test ./... -run '^$'
+          node --test sidecar/pi/current-provider-runtime.test.js sidecar/pi/model-source-routing.test.js
       - name: Build Windows installer
         shell: pwsh
         env:
