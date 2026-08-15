@@ -1,11 +1,46 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { AssistantMessageEventStream } from "@earendil-works/pi-ai";
 import {
+  AssistantMessageEventStream,
+  InMemoryCredentialStore,
+  InMemoryModelsStore,
+} from "@earendil-works/pi-ai";
+import { ModelRuntime } from "@earendil-works/pi-coding-agent";
+import {
+  createModelSourceRouteProvider,
   createModelSourceStream,
   modelSourceFallbackReason,
   normalizeModelSourceOrder,
 } from "./model-source-routing.js";
+
+test("dual-source route inherits a base URL accepted by the Pi runtime", async () => {
+  const definition = createModelSourceRouteProvider({
+    source: {
+      id: "grok-4.6",
+      name: "Grok 4.6",
+      api: "openai-completions",
+      baseUrl: "https://tokenflux.dev/v1",
+      input: ["text", "image"],
+    },
+    model: "grok-4.6",
+    sources: [],
+    autoFallback: true,
+    openSource: () => { throw new Error("not called"); },
+  });
+  assert.equal(definition.baseUrl, "https://tokenflux.dev/v1");
+  assert.equal(definition.models[0].id, "grok-4.6");
+  const runtime = await ModelRuntime.create({
+    credentials: new InMemoryCredentialStore(),
+    modelsStore: new InMemoryModelsStore(),
+    modelsPath: null,
+    allowModelNetwork: false,
+  });
+  runtime.registerProvider("milksu-route", definition);
+  assert.equal(
+    runtime.getModel("milksu-route", "grok-4.6")?.baseUrl,
+    "https://tokenflux.dev/v1",
+  );
+});
 
 function message(provider, stopReason = "stop", errorMessage = undefined) {
   return {

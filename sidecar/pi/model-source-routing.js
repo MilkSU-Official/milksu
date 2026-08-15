@@ -126,3 +126,38 @@ export function createModelSourceStream({
   });
   return outer;
 }
+
+export function createModelSourceRouteProvider({
+  source,
+  model,
+  sources,
+  autoFallback,
+  openSource,
+  onSource,
+  onFallback,
+}) {
+  const baseUrl = String(source?.baseUrl ?? "").trim();
+  if (!baseUrl) throw new Error("模型来源缺少 baseUrl");
+  return {
+    name: "MilkSU 模型来源",
+    baseUrl,
+    apiKey: "milksu-model-source-route",
+    api: source.api,
+    streamSimple: (_routeModel, context, options) => createModelSourceStream({
+      sources,
+      autoFallback,
+      openSource: selected => openSource(selected, context, options),
+      onSource,
+      onFallback,
+    }),
+    models: [{
+      id: model,
+      name: source?.name ?? model,
+      reasoning: source?.reasoning ?? false,
+      input: source?.input ?? ["text"],
+      cost: source?.cost ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      contextWindow: source?.contextWindow ?? 128000,
+      maxTokens: source?.maxTokens ?? 16384,
+    }],
+  };
+}

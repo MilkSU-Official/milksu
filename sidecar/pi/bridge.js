@@ -114,7 +114,7 @@ import {
 } from "./bridge-steering.js";
 import currentProviderRuntime from "./current-provider-runtime.cjs";
 import {
-  createModelSourceStream,
+  createModelSourceRouteProvider,
   normalizeModelSourceOrder,
 } from "./model-source-routing.js";
 import { projectAssistantMessageEnd } from "./bridge-message-view.js";
@@ -836,34 +836,22 @@ function configureRuntimeModel(session, provider, model, conversationId, sourceO
   }
 
   const source = personalModel ?? accountModel;
-  session.modelRuntime.registerProvider("milksu-route", {
-    name: "MilkSU 模型来源",
-    apiKey: "milksu-model-source-route",
-    api: source.api,
-    streamSimple: (_routeModel, context, options) => createModelSourceStream({
-      sources,
-      autoFallback: modelSourceFallbackEnabled,
-      openSource: selected => session.modelRuntime.streamSimple(
-        selected.model,
-        context,
-        options,
-      ),
-      onSource: selected => {
-        sessionModelSources.set(conversationId, selected);
-        emit(conversationId, "model_source_selected", { source: selected });
-      },
-      onFallback: fallback => emit(conversationId, "model_source_fallback", fallback),
-    }),
-    models: [{
-      id: model,
-      name: source?.name ?? model,
-      reasoning: source?.reasoning ?? false,
-      input: source?.input ?? ["text"],
-      cost: source?.cost ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      contextWindow: source?.contextWindow ?? 128000,
-      maxTokens: source?.maxTokens ?? 16384,
-    }],
-  });
+  session.modelRuntime.registerProvider("milksu-route", createModelSourceRouteProvider({
+    source,
+    model,
+    sources,
+    autoFallback: modelSourceFallbackEnabled,
+    openSource: (selected, context, options) => session.modelRuntime.streamSimple(
+      selected.model,
+      context,
+      options,
+    ),
+    onSource: selected => {
+      sessionModelSources.set(conversationId, selected);
+      emit(conversationId, "model_source_selected", { source: selected });
+    },
+    onFallback: fallback => emit(conversationId, "model_source_fallback", fallback),
+  }));
   return { provider: "milksu-route", model };
 }
 
