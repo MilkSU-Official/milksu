@@ -221,12 +221,20 @@ const accountRoute = computed(() => working.value?.relay)
 const providerInfo = computed(() => (
   modelProviders.value.find(item => item.id === working.value?.active_provider)
 ))
-const activeProviderModels = computed(() => (
-  working.value?.active_model
-  && !(providerInfo.value?.models ?? []).includes(working.value.active_model)
-    ? [working.value.active_model, ...(providerInfo.value?.models ?? [])]
-    : providerInfo.value?.models ?? []
-))
+function equivalentModelID(value: string) {
+  return value.startsWith('x-ai/grok-') ? value.slice('x-ai/'.length) : value
+}
+
+const activeProviderModels = computed(() => {
+  const models = providerInfo.value?.models ?? []
+  const selected = working.value?.active_model
+  if (!selected || models.includes(selected)) return models
+  const equivalentIndex = models.findIndex(model => (
+    equivalentModelID(model) === equivalentModelID(selected)
+  ))
+  if (equivalentIndex < 0) return [selected, ...models]
+  return models.map((model, index) => index === equivalentIndex ? selected : model)
+})
 const visionModelOptions = computed(() => {
   const options = modelProviders.value.flatMap(item => item.visionModels.map(model => ({
     key: `${item.id}:${model}`,

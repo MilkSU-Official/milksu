@@ -50,4 +50,33 @@ describe('runtime model catalog', () => {
     expect(scopedLabel('custom-relay-team', 'vendor/model:preview'))
       .toBe('Team Relay · vendor/model:preview')
   })
+
+  it('hides unconfigured official providers from runtime pickers', () => {
+    installModelCatalog({
+      provider: 'tokenflux',
+      source: 'remote',
+      refreshed_at: '2026-08-15T00:00:00Z',
+      models: [
+        {
+          id: 'grok-4.6', name: 'Grok 4.6',
+          context_window: 500_000, max_tokens: 32_768, input: ['text'],
+        },
+      ],
+    })
+    const settings: Record<string, ProviderConfig> = {
+      openai: {
+        api_key: '',
+        has_api_key: false,
+        enabled: true,
+      },
+    }
+    installCustomProviderSettings(settings)
+
+    const runtime = useModelCatalog()
+    expect(runtime.providerGroups.value.map(group => group.label)).toEqual(['中转站'])
+    expect(runtime.providers.value.map(provider => provider.id)).toEqual(['tokenflux'])
+
+    const configurable = useModelCatalog(computed(() => settings))
+    expect(configurable.providers.value.some(provider => provider.id === 'openai')).toBe(true)
+  })
 })

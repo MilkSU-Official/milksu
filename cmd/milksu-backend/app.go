@@ -404,19 +404,76 @@ func (a *App) SetAccountModelCredential(baseURL, credential string) error {
 	if err != nil {
 		return err
 	}
-	if !changed {
-		return nil
+	refreshedCatalog := a.modelCatalog.Snapshot()
+	if changed {
+		refreshContext, cancelRefresh := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancelRefresh()
+		if nextCatalog, refreshErr := a.modelCatalog.Refresh(refreshContext); refreshErr != nil {
+			a.diagnostics.Record("model-catalog", "warning", "account model catalog refresh failed; retained last-known-good catalog")
+		} else {
+			refreshedCatalog = nextCatalog
+			a.emitDesktopEvent("model-catalog-changed", refreshedCatalog)
+		}
 	}
-	refreshContext, cancelRefresh := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancelRefresh()
-	if refreshedCatalog, refreshErr := a.modelCatalog.Refresh(refreshContext); refreshErr != nil {
-		a.diagnostics.Record("model-catalog", "warning", "account model catalog refresh failed; retained last-known-good catalog")
-	} else {
-		a.emitDesktopEvent("model-catalog-changed", refreshedCatalog)
+	selectionChanged, err := a.alignAccountModelSelection(refreshedCatalog)
+	if err != nil {
+		return err
+	}
+	if !changed && !selectionChanged {
+		return nil
 	}
 	a.engines.Close()
 	a.securityEngine.Restart()
 	return nil
+}
+
+func (a *App) alignAccountModelSelection(catalog modelcatalog.Snapshot) (bool, error) {
+	settings := a.settings.Get()
+	if settings.ActiveProvider != modelcatalog.ProviderTokenFlux {
+		return false, nil
+	}
+	model := accountCatalogModel(settings.ActiveModel, catalog.Models)
+	if model == "" || model == settings.ActiveModel {
+		return false, nil
+	}
+	settings.ActiveModel = model
+	if err := a.settings.Save(settings); err != nil {
+		return false, fmt.Errorf("align account model selection: %w", err)
+	}
+	return true, nil
+}
+
+func accountCatalogModel(active string, models []modelcatalog.Model) string {
+	active = strings.TrimSpace(active)
+	available := make(map[string]bool, len(models))
+	for _, model := range models {
+		if id := strings.TrimSpace(model.ID); id != "" {
+			available[id] = true
+		}
+	}
+	if available[active] {
+		return active
+	}
+	if strings.HasPrefix(active, "x-ai/grok-") {
+		if direct := strings.TrimPrefix(active, "x-ai/"); available[direct] {
+			return direct
+		}
+	}
+	for _, preferred := range []string{
+		"grok-4.6", "x-ai/grok-4.6",
+		"grok-4.5", "x-ai/grok-4.5",
+		"grok-4.3", "x-ai/grok-4.3",
+	} {
+		if available[preferred] {
+			return preferred
+		}
+	}
+	for _, model := range models {
+		if id := strings.TrimSpace(model.ID); id != "" {
+			return id
+		}
+	}
+	return ""
 }
 
 func (a *App) ClearAccountModelCredential() error {

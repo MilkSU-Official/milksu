@@ -12,22 +12,37 @@ import {
 const current = shallowRef<ModelCatalogSnapshot | null>(null)
 const configuredCustomProviders = shallowRef<Record<string, ProviderConfig>>({})
 
-function providerList(settings: Record<string, ProviderConfig>) {
-  const builtIn = PROVIDERS.map(provider => {
-  if (provider.id !== current.value?.provider || !current.value.models.length) {
-    return { ...provider, models: [...provider.models], visionModels: [...provider.visionModels] }
-  }
-  return {
-    ...provider,
-    models: current.value.models.map(model => model.id),
-    visionModels: current.value.models
-      .filter(model => model.input.includes('image'))
-      .map(model => model.id),
-  }
+function providerReady(settings: Record<string, ProviderConfig>, id: string) {
+  const config = settings[id]
+  return Boolean(
+    config?.enabled
+    && (config.has_api_key || String(config.api_key ?? '').trim()),
+  )
+}
+
+function providerList(
+  settings: Record<string, ProviderConfig>,
+  { includeUnconfigured = false } = {},
+) {
+  const builtIn = PROVIDERS.flatMap(provider => {
+    const catalog = current.value
+    const catalogReady = provider.id === catalog?.provider && catalog.models.length > 0
+    if (!includeUnconfigured && !catalogReady && !providerReady(settings, provider.id)) return []
+    if (!catalogReady) {
+      return [{ ...provider, models: [...provider.models], visionModels: [...provider.visionModels] }]
+    }
+    return [{
+      ...provider,
+      models: catalog.models.map(model => model.id),
+      visionModels: catalog.models
+        .filter(model => model.input.includes('image'))
+        .map(model => model.id),
+    }]
   })
   const custom = Object.entries(settings).flatMap(([id, config]) => {
     const provider = customProviderInfo(id, config)
-    return provider ? [provider] : []
+    if (!provider || (!includeUnconfigured && !providerReady(settings, id))) return []
+    return [provider]
   })
   return [...builtIn, ...custom]
 }
@@ -46,7 +61,7 @@ function groupProviders(values: ProviderInfo[]) {
     label: '中转站',
     providers: values.filter(provider => provider.kind === 'relay'),
   },
-  ]
+  ].filter(group => group.providers.length > 0)
 }
 
 const providerGroups = computed(() => groupProviders(providers.value))
@@ -97,7 +112,7 @@ export function useModelCatalog(
   providerSettings?: MaybeRef<Record<string, ProviderConfig>>,
 ) {
   const scopedProviders = providerSettings
-    ? computed(() => providerList(unref(providerSettings)))
+    ? computed(() => providerList(unref(providerSettings), { includeUnconfigured: true }))
     : providers
   const scopedProviderGroups = providerSettings
     ? computed(() => groupProviders(scopedProviders.value))

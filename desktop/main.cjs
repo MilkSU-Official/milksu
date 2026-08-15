@@ -68,6 +68,10 @@ protocol.registerSchemesAsPrivileged([{
   },
 }])
 
+function isClosedPipeError(error) {
+  return error?.code === 'EPIPE' || error?.code === 'ERR_STREAM_DESTROYED'
+}
+
 function findFreePort() {
   const source = [
     "const net=require('node:net')",
@@ -189,6 +193,7 @@ class BackendRuntime {
     this.eventHandler = eventHandler
     this.pending = new Map()
     this.nextID = 0
+    this.stopping = false
     this.readyPromise = new Promise((resolve, reject) => {
       this.resolveReady = resolve
       this.rejectReady = reject
@@ -213,6 +218,10 @@ class BackendRuntime {
       env,
     })
     this.process.once('error', error => this.fail(error))
+    this.process.stdin.on('error', error => {
+      if (this.stopping && isClosedPipeError(error)) return
+      this.fail(error)
+    })
     this.process.once('exit', (code, signal) => {
       this.fail(new Error(`MilkSU Go runtime exited (${code ?? signal ?? 'unknown'})`))
     })
@@ -265,9 +274,19 @@ class BackendRuntime {
     }
   }
 
-  send(message) {
-    if (!this.process.stdin.writable) throw new Error('MilkSU Go runtime is unavailable')
-    this.process.stdin.write(`${JSON.stringify(message)}\n`)
+  send(message, { allowClosed = false } = {}) {
+    if (this.stopping && !allowClosed) return false
+    const stdin = this.process?.stdin
+    if (!stdin || stdin.destroyed || !stdin.writable) {
+      if (allowClosed) return false
+      throw new Error('MilkSU Go runtime is unavailable')
+    }
+    try {
+      return stdin.write(`${JSON.stringify(message)}\n`)
+    } catch (error) {
+      if (allowClosed && isClosedPipeError(error)) return false
+      throw error
+    }
   }
 
   async ready() {
@@ -293,7 +312,8 @@ class BackendRuntime {
 
   async stop() {
     if (!this.process || this.process.exitCode !== null) return
-    this.send({ type: 'shutdown' })
+    this.stopping = true
+    this.send({ type: 'shutdown' }, { allowClosed: true })
     await Promise.race([
       new Promise(resolve => this.process.once('exit', resolve)),
       new Promise(resolve => setTimeout(resolve, 15000)),
