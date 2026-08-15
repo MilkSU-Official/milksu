@@ -112,6 +112,48 @@ func TestCloneDoesNotShareMaps(t *testing.T) {
 	}
 }
 
+func TestRuntimeRelayIsResolvedWithoutPersistenceOrPublicCredential(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	store, err := newStore(path, fakeSecretStore{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const credential = "desktop-account-session-token"
+	const baseURL = "https://accounts.milksu.org/v1/model"
+	changed, err := store.SetRuntimeRelay(baseURL, credential)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !changed {
+		t.Fatal("first runtime relay update was not reported as changed")
+	}
+	changed, err = store.SetRuntimeRelay(baseURL, credential)
+	if err != nil || changed {
+		t.Fatalf("identical runtime relay update was not idempotent: changed=%v err=%v", changed, err)
+	}
+	public := store.Get()
+	if public.Relay != nil && (public.Relay.Key != "" || public.Relay.HasKey) {
+		t.Fatalf("runtime account credential leaked through public settings: %#v", public.Relay)
+	}
+	resolved := store.GetResolved()
+	if resolved.Relay == nil || resolved.Relay.Key != credential || resolved.Relay.URL != baseURL || !resolved.Relay.Enabled {
+		t.Fatalf("runtime account credential was not resolved: %#v", resolved.Relay)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), credential) {
+		t.Fatal("runtime account credential was persisted")
+	}
+	if !store.ClearRuntimeRelay() || store.ClearRuntimeRelay() {
+		t.Fatal("runtime relay clear was not idempotent")
+	}
+	if store.GetResolved().Relay != nil {
+		t.Fatal("runtime account credential was not cleared")
+	}
+}
+
 func TestStorePersistsCustomRelayMetadataAndKeepsCredentialPrivate(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "settings.json")
 	secrets := fakeSecretStore{}

@@ -122,7 +122,6 @@ const recoveryStatus = ref<StartupRecoveryStatus | null>(null)
 const buildTracking = ref<BuildTracking | null>(null)
 const buildTrackingCopying = ref(false)
 const notice = ref<{ tone: 'ok' | 'error'; text: string } | null>(null)
-const accountRouteSetupOpen = ref(false)
 const draggedModelSource = ref<ModelSource | null>(null)
 const customModelInput = ref('')
 const providerSettings = computed(() => working.value?.providers ?? {})
@@ -378,20 +377,20 @@ function ensureAccountRoute() {
   if (!working.value) return
   if (!working.value.relay) {
     working.value.relay = {
-      enabled: false,
-      url: 'https://tokenflux.dev/v1',
+      enabled: account.value.state === 'active' && account.value.tokenFluxLinked === true,
+      url: 'https://accounts.milksu.org/v1/model',
       key: '',
       has_key: false,
     }
   }
-  if (!working.value.relay.url) working.value.relay.url = 'https://tokenflux.dev/v1'
+  if (!working.value.relay.url) working.value.relay.url = 'https://accounts.milksu.org/v1/model'
 }
 
 const accountModelSourceReady = computed(() => Boolean(
   !provider.value?.custom
   &&
   account.value.state === 'active'
-  && (accountRoute.value?.has_key || accountRoute.value?.key),
+  && account.value.tokenFluxLinked === true,
 ))
 const personalModelSourceReady = computed(() => Boolean(
   provider.value?.enabled
@@ -414,7 +413,6 @@ function setModelSourceEnabled(source: ModelSource, enabled: boolean) {
     if (provider.value?.custom) return
     ensureAccountRoute()
     if (enabled && !accountModelSourceReady.value) {
-      accountRouteSetupOpen.value = true
       working.value.relay!.enabled = false
       return
     }
@@ -1329,20 +1327,13 @@ async function save() {
                   <div class="min-w-0 flex-1">
                     <p class="font-medium">内测额度</p>
                     <p class="mt-0.5 text-caption text-muted-foreground">
-                      {{ provider?.custom ? '自定义模型只使用对应中转站' : accountModelSourceReady ? 'TokenFlux 团队额度' : account.state === 'active' ? '连接团队 Key 后可用' : '登录内测账户后连接' }}
+                      {{ provider?.custom ? '自定义模型只使用对应中转站' : accountModelSourceReady ? '登录后自动使用，不下发 Team Key' : account.state === 'active' ? '管理员尚未连接账户模型服务' : '登录内测账户后自动连接' }}
                     </p>
                   </div>
                   <span v-if="account.state === 'active'" class="font-mono text-body font-semibold text-primary">{{ accountBalance }}</span>
                   <Badge :variant="index === 0 && accountRoute?.enabled ? 'secondary' : 'outline'">
                     {{ provider?.custom ? '不适用' : index === 0 && accountRoute?.enabled ? '当前优先' : accountModelSourceReady ? '备用' : '未连接' }}
                   </Badge>
-                  <Button
-                    v-if="!provider?.custom && !accountModelSourceReady"
-                    variant="ghost"
-                    size="sm"
-                    :disabled="account.state !== 'active'"
-                    @click="accountRouteSetupOpen = !accountRouteSetupOpen"
-                  >连接</Button>
                   <Switch
                     :model-value="Boolean(accountRoute?.enabled)"
                     :disabled="Boolean(provider?.custom) || (!accountModelSourceReady && !accountRoute?.enabled)"
@@ -1369,31 +1360,6 @@ async function save() {
                   />
                 </template>
               </article>
-            </div>
-
-            <div v-if="accountRouteSetupOpen && working.relay" class="mt-3 rounded-lg border border-border bg-muted/30 p-4">
-              <div class="flex items-start justify-between gap-5">
-                <div>
-                  <p class="text-body font-medium">连接 TokenFlux 团队额度</p>
-                  <p class="mt-1 text-caption leading-5 text-muted-foreground">接受团队邀请后，在 TokenFlux 创建自己的团队 Key，再粘贴到这里。Key 只保存在这台电脑。</p>
-                </div>
-                <a class="shrink-0 text-caption font-medium text-primary hover:underline" href="https://tokenflux.dev/team" target="_blank" rel="noreferrer">打开团队页面</a>
-              </div>
-              <Input
-                class="mt-3"
-                :model-value="working.relay.key"
-                type="password"
-                autocomplete="off"
-                placeholder="粘贴团队 API Key"
-                aria-label="TokenFlux 团队 API Key"
-                @update:model-value="value => {
-                  working!.relay!.key = String(value)
-                  if (value) {
-                    working!.relay!.enabled = true
-                    working!.relay!.session_only = false
-                  }
-                }"
-              />
             </div>
 
             <div class="mt-4 flex items-center gap-3">

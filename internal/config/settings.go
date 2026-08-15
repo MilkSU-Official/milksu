@@ -113,6 +113,7 @@ type Store struct {
 	secretStore             secretStore
 	secretValues            map[string]string
 	runtimeModelCatalogPath string
+	runtimeRelay            *RelayConfig
 	settings                AppSettings
 }
 
@@ -159,7 +160,10 @@ func (s *Store) GetResolved() AppSettings {
 		provider.APIKey = s.secretValues[providerSecretAccount(name)]
 		value.Providers[name] = provider
 	}
-	if value.Relay != nil {
+	if s.runtimeRelay != nil {
+		relay := *s.runtimeRelay
+		value.Relay = &relay
+	} else if value.Relay != nil {
 		value.Relay.Key = s.secretValues[relaySecretAccount]
 	}
 	if value.NSSCTFArena != nil {
@@ -167,6 +171,42 @@ func (s *Store) GetResolved() AppSettings {
 	}
 	value.RuntimeModelCatalogPath = s.runtimeModelCatalogPath
 	return value
+}
+
+// SetRuntimeRelay installs the authenticated account model route for this
+// process only. The bearer credential is never persisted or returned through
+// Desktop RPC; it is replaced on login refresh and cleared on logout.
+func (s *Store) SetRuntimeRelay(baseURL, credential string) (bool, error) {
+	baseURL = strings.TrimSpace(baseURL)
+	credential = strings.TrimSpace(credential)
+	if err := validateAccountModelURL(baseURL); err != nil {
+		return false, fmt.Errorf("runtime account model URL: %w", err)
+	}
+	if err := validateSecretInput(credential); err != nil {
+		return false, fmt.Errorf("runtime account model credential: %w", err)
+	}
+	if credential == "" {
+		return false, fmt.Errorf("runtime account model credential is required")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.runtimeRelay != nil && s.runtimeRelay.URL == baseURL && s.runtimeRelay.Key == credential {
+		return false, nil
+	}
+	s.runtimeRelay = &RelayConfig{
+		Enabled: true, URL: baseURL, Key: credential, HasKey: true, SessionOnly: true,
+	}
+	return true, nil
+}
+
+func (s *Store) ClearRuntimeRelay() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.runtimeRelay == nil {
+		return false
+	}
+	s.runtimeRelay = nil
+	return true
 }
 
 // SetRuntimeModelCatalogPath publishes public, non-credential model metadata

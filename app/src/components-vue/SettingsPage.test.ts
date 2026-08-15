@@ -760,7 +760,7 @@ describe('SettingsPage database compatibility', () => {
     expect(document.body.textContent).toContain('已保存并验证')
   })
 
-  it('lets a signed-in user put a local personal key ahead of beta quota', async () => {
+  it('uses the signed-in account gateway without a local Team Key and allows personal fallback order', async () => {
     let savedSettings: unknown = null
     const settings = withAppSettingsDefaults({
       active_provider: 'tokenflux',
@@ -771,9 +771,9 @@ describe('SettingsPage database compatibility', () => {
       },
       relay: {
         enabled: true,
-        url: 'https://tokenflux.dev/v1',
+        url: 'https://accounts.milksu.org/v1/model',
         key: '',
-        has_key: true,
+        has_key: false,
       },
       providers: {
         tokenflux: {
@@ -822,6 +822,8 @@ describe('SettingsPage database compatibility', () => {
     expect(text).toContain('¥18.60')
     expect(text).toContain('内测额度')
     expect(text).toContain('我的 API Key')
+    expect(text).toContain('登录后自动使用，不下发 Team Key')
+    expect(document.querySelector('input[aria-label="TokenFlux 团队 API Key"]')).toBeNull()
 
     const personalReorderButton = document.querySelector(
       'button[aria-label="拖动我的 API Key调整顺序"]',

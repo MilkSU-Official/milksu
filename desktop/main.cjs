@@ -122,6 +122,22 @@ let quitting = false
 let relaunchScheduled = false
 let screenRecordingRelaunchArm = null
 
+async function syncAccountModelAuthorization(status) {
+  if (!backend || !accountSession) return
+  if (status?.state === 'active' && status?.tokenFluxLinked === true) {
+    const sessionValue = await accountSession.activeSession()
+    const credential = String(sessionValue?.accessToken ?? '')
+    if (credential) {
+      await backend.invoke('SetAccountModelAuthorization', [
+        `${accountSession.config.apiUrl}/v1/model`,
+        credential,
+      ])
+      return
+    }
+  }
+  await backend.invoke('ClearAccountModelAuthorization', [])
+}
+
 function resourcesPath(relative) {
   if (app.isPackaged) return path.join(process.resourcesPath, relative)
   return path.resolve(__dirname, '..', relative)
@@ -612,9 +628,10 @@ ipcMain.handle('milksu:invoke', async (event, request) => {
   // Packaging provenance is owned by the desktop shell, not Go domain logic.
   if (method === 'GetBuildTracking') return loadBuildTracking()
   if (method === 'GetAccountStatus') {
-    return accountSession
-      ? accountSession.status()
-      : { configured: false, state: 'unconfigured', authenticated: false }
+    if (!accountSession) return { configured: false, state: 'unconfigured', authenticated: false }
+    const status = await accountSession.status()
+    await syncAccountModelAuthorization(status)
+    return status
   }
   if (method === 'StartAccountLogin') {
     if (!accountSession) throw new Error('内测账户尚未就绪')
@@ -695,6 +712,7 @@ app.whenReady().then(async () => {
     openExternal: url => shell.openExternal(url),
     onChanged: value => {
       emitRendererEvent('account.changed', value)
+      void syncAccountModelAuthorization(value)
       if (value?.state === 'active') void updateManager?.check()
       else updateManager?.clearAuthorization()
     },
@@ -716,8 +734,9 @@ app.whenReady().then(async () => {
   browserShell = new BrowserShell(mainWindow, upstreamEndpoint)
   backend = new BackendRuntime(backendExecutable(), handleHostRequest, emitRendererEvent)
   await backend.ready()
-	await mainWindow.loadURL(`${APP_ORIGIN}/index.html`)
-	void updateManager.check()
+  await syncAccountModelAuthorization(await accountSession.status())
+  await mainWindow.loadURL(`${APP_ORIGIN}/index.html`)
+  void updateManager.check()
 }).catch(error => {
   dialog.showErrorBox('MilkSU 启动失败', error.message)
   app.quit()

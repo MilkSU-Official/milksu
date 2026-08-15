@@ -65,6 +65,9 @@ one of those decisions.
 
 MilkSU is an Electron/Chromium + Vue desktop app with a supervised Go Runtime and Pi Sidecars.
 
+TokenFlux API traffic must use `https://tokenflux.dev/v1`. Never use the `tokenflux.ai` domain in product
+code, configuration, test defaults or documentation.
+
 - Pi owns the generic model session, context compaction and tool loop.
 - MilkSU owns desktop authorization, workspace and credential boundaries, event projection and product UI.
 - The CTF domain owns Challenge, Evidence, Candidate, Judge Receipt, Recovery, Memory and learning facts.
