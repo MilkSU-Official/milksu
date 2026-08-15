@@ -2,7 +2,7 @@
 
 > 文档状态：Current / Canonical target contract
 >
-> 最后收口：2026-08-13
+> 最后收口：2026-08-15
 >
 > 本页只回答“现在按什么目标继续做”：当前事实 + 下一条完成线。
 > 实现事实以当前代码、测试、Git 历史和原生 App 验收为准。
@@ -20,7 +20,7 @@
 8. 非阻塞问题先记复现和影响；只有数据 / Credential / Scope / 私有远端 / Judge / 验收失真立即修。
 9. 日间/夜间主题已可用：新安装和无有效偏好时默认日间，用户明确选择后本机持久化；日间模式以中性档案纸承载内容，导航、页头、筛选、Coding 右栏等命令面保持深色；夜间模式的 CTF、CVE、Coding、设置和个人页统一使用无明显蓝、绿、棕偏色的中性暖石墨层级，不再以实心偏蓝黑色块割裂产品；主操作使用酸绿，蓝色只保留给链接和执行/诊断状态；后续只在 UI 巡检中扩样调色。
 10. UI 巡检或视觉修复后，必须同步防回归测试与当前文档。
-11. 模型与凭据保持普通入口：一个默认模型，账户额度与本机个人 Key 两个独立来源。默认账户额度优先，用户可调整全局顺序，也可只为当前 Coding 对话调整优先来源；不保留 fast/deep 角色路由，不接 Kimi/KouriChat 产品入口。
+11. 模型与凭据保持普通入口：登录账户可取得 Admin 分配的用户级 TokenFlux Key，本机个人 Provider Key 仍可独立配置。账户 Key 由 Electron 获取并写入现有 Credential Store，不返回 renderer；MilkSU 不承载余额、价格映射或计费代理。运行时只展示当前凭据实际返回的模型；未配置凭据的原厂 Provider 不进入任务模型列表。
 12. Coding 自举默认由外部 reviewer 操作真实打包 MilkSU：给略带模糊的人类需求，让 MilkSU 在隔离 worktree 内理解、修改和验证；reviewer 只查轨迹、diff、测试和边界，并通过产品 UI 要求返工。除非链路阻塞、安全/Scope 问题或用户明确要求，reviewer 不直接改功能代码。
 13. 上游优先：平台/Pi → 固定可审阅 Skill/MCP/插件/CLI → 许可证兼容的最小上游机制 → 最小自有实现。一会话一个结果契约，除阻塞和安全外不靠连续微提示收口。
 14. Coding Agent 的成熟机制要反哺 CTF/CVE：通用会话、浏览器、worktree、恢复和审阅优先复用上游；Challenge/Evidence/Judge、漏洞研究事实、领域采集与安全验证工作流由 MilkSU 持有。不能把“上游优先”误写成不发展自己的安全领域能力。
@@ -40,7 +40,7 @@
 - Coding 的已审核 Skill 已扩为产品设计、前端视觉验收、API 集成、安全审查、技术交付物、架构图和 MilkSU 发布；设置页可逐项停用。Pi 常驻的仍只是 Skill 名称与用途，完整 `SKILL.md` 只在任务匹配或用户主动选择后加载；禁用列表随消息进入 Sidecar，变更在下一条 Coding 消息重载会话资源。CTF 领域角色不继承这些 Coding Skill，设置也不能添加任意路径。
 - 浏览器三面已分责：右栏“浏览器”是会话隔离的内置 Chromium；`/browser-use` 复用固定版 Playwright MCP 官方扩展，由用户在真实 Chrome/Edge 选择准确标签页；`/computer-use` 只列外部原生 App，浏览器窗口不进入该 Scope。NSSCTF/CTFshow 的 MilkSU 扩展继续作为领域 Bridge，不承担通用浏览器控制。
 - **Chromium 桌面壳纵切已完成**：MilkSU.app 现由 Electron/Chromium 承载 Vue 产品表面和右栏 `WebContentsView`，Go 作为受管本地 Runtime 通过 JSONL RPC 提供应用服务。浏览器使用每会话独立 `session.fromPath`、默认拒绝页面权限，并经限定单一 Target 的 loopback CDP Proxy 交给固定 Playwright MCP。打包 App + TokenFlux `grok-4.5` 已只用浏览器完成三类真实任务：按页面提示点击取得 `flag{browser_agent_ok}`、填写并提交表单取得确定性回执、阅读 Electron 官方文档并归纳 `WebContentsView` 与旧 `BrowserView` 的关系。三次均在 Agent 开始后折叠右栏，任务仍继续，重新展开仍是同一页面与终态；未回退 Shell。裸域名会补全 HTTPS，普通文字会进入搜索。旧 Wails/CEF 生产链已直接删除，不保留兼容或双壳。
-- 模型与凭据：单默认模型；内测账户额度与本机个人 Key 独立存在，默认账户优先且仅在模型输出或工具执行前自动切换。设置保存全局顺序，Coding 可只为当前对话调整优先来源；个人 Key 不进入后台、日志或模型上下文。新安装默认使用 TokenFlux `x-ai/grok-4.6`，内置目录同时保留 `x-ai/grok-4.5`；已有用户明确保存的模型选择不会被启动刷新覆盖。TokenFlux 可用模型不再由前端静态常量决定：Go 在应用启动时刷新远端目录、以 `0600` 保存 last-known-good，并把同一份目录交给设置、Composer 与 Pi。2026-08-14 公开目录同时返回 `x-ai/grok-4.6` 与 `x-ai/grok-4.5`；关闭再启动后仍从缓存目录恢复并继续刷新。设置页还可添加最多 8 个简单的 OpenAI-compatible 中转站，编辑显示名、Base URL 和模型 ID；元数据沿用 `providers` 数据列表，Key 仍进入本机 Credential Store，运行时只把当前中转站交给 Pi，且不回退到账户额度。第一版只声明文本模型，不做远端模型发现或自定义协议。Coding / CTF / sub-agent 仍共用 Pi Provider 注册。
+- 模型与凭据：Admin 可为每个登录用户分配独立 TokenFlux Key；Electron 使用账户会话向 `accounts.milksu.org` 取得该凭据并交给 Go，Go 把它保存到现有 `0600` Credential Store，renderer、日志、模型上下文和普通配置文件都拿不到 Key。MilkSU 当前直接请求 `https://tokenflux.dev/v1`，不再经过自建计费代理，也不维护余额、价格映射、扣费流水或 10% 超限逻辑。远端模型目录与该 Key 的模型分组一致，并以 last-known-good 缓存同时驱动设置、Composer 与 Pi；运行时只展示当前账户目录中的模型，未配置 Key 的原厂 Provider 自动隐藏。2026-08-15 的分配 Key 返回 `grok-4.3`、`grok-4.5`、`grok-4.6`；客户端已把旧 `x-ai/grok-4.6` 选择对齐为准确的 `grok-4.6`，Computer Use 实测真实 Coding 回合成功，直接请求非分组模型得到 `404 model_not_found` 且无有效输出。设置页仍可配置本机个人 Provider 或最多 8 个简单 OpenAI-compatible 中转站；这些 Key 各自进入同一 Credential Store，未配置时不进入任务模型列表。Coding / CTF / sub-agent 继续共用 Pi Provider 注册。
 - CVE：用户首页只显示自己明确加入研究的公开 CVE，状态手工维护，并自动关联从该条目发起的 Coding 对话；“添加 CVE”先按编号、产品或关键词搜索 NVD，再由用户选择加入，不再要求手填整套元数据。搜索结果加入时直接保存已返回的公开元数据，不重复请求；临时服务错误转为用户可读提示。NVD 大量参考资料按机构去重，主界面只留四个关键来源和“在 NVD 查看全部”。纵深研究、真实复现、外部资产和披露仍后置。
 - CTF：题库、工作区、Evidence、候选、Judge、Checkpoint、恢复、复盘、Memory 主链存在；真实 Judge 成功仍只有窄 Web 路径。
 - CTF/CVE → Coding 已复用同一 Coding/Pi：交接只挂载草稿、不自动发送；右侧可折叠领域上下文保留题目/CVE、授权 Scope、材料、Evidence/Judge 或只读安全边界，并提供返回工作台。NSSCTF 附件或 Judge 未连接不再阻止用公开题面打开 Coding；附件缺失只作为材料警告。Beta Computer Use 已实测历史真实 CTF 任务的手工完成状态，以及 CVE-2024-3400 从跟踪页进入临时 Coding 工作区、生成只读研究简报、返回并自动关联 1 个对话的完整纵切；CVE 状态仍由用户手工保持“研究中”。未运行 PoC、未提交 flag、未建立 Judge 成功事实。
@@ -56,8 +56,8 @@
 - **任务**：Codex `019fe9ee-b865-75b3-903d-bada1266f254`。
 - **目标文档**：[个人安全工作台计划](security-workspace-product-plan.md)。
 - **关联方式**：该 Codex 任务执行目标文档中的产品目标，本节只维护当前切片、完成线和验收状态。
-- **当前切片**：个人安全工作台、Admin、账户模型来源、全局游戏化界面与隐藏/窄屏控制面均已进入代码。最终功能提交 `main@cfc9a102408b8e2017f339ddce08f246b6b67c02` 已由私有 `macOS signed release` workflow `31676876645` 构建；下载 DMG 的 SHA-256 为 `3eff2a795a48c4fa11e5e9aa5549d32e8127e5149843a48fb163ae37086b159a`，Apple 公证、stapler、Gatekeeper、严格签名与首次启动均通过。设置页实机核对 `branch=main`、完整 commit、`dirty=false` 和 tracking ID `6adfa291a021387f7cb40800012941a51f051bec90036b78353c68a4c57d58ff`；最终签名 App 的 GitHub 登录视觉、CVE “漏洞”页、公共学习专题和真实 NVD 搜索结果已经复检。当前功能批次另已实现安全工具设置和普通 Coding 的首条纵切，但尚未形成新的签名发行。
-- **完成线**：开始内测并只处理真实阻塞问题；补一条配置可用模型和真实题库时的 Daily 推荐回执，并为 IDA/capa 各保留一项真实本地样本回执。账户 Team Key、TokenFlux 真实扣费/明细/硬限额/同步延迟与 Obelisk 可归因成长事实继续作为独立后续纵切。
+- **当前切片**：个人安全工作台、Admin、账户模型来源、全局游戏化界面与隐藏/窄屏控制面均已进入代码。最终功能提交 `main@cfc9a102408b8e2017f339ddce08f246b6b67c02` 已由私有 `macOS signed release` workflow `31676876645` 构建；下载 DMG 的 SHA-256 为 `3eff2a795a48c4fa11e5e9aa5549d32e8127e5149843a48fb163ae37086b159a`，Apple 公证、stapler、Gatekeeper、严格签名与首次启动均通过。设置页实机核对 `branch=main`、完整 commit、`dirty=false` 和 tracking ID `6adfa291a021387f7cb40800012941a51f051bec90036b78353c68a4c57d58ff`；最终签名 App 的 GitHub 登录视觉、CVE “漏洞”页、公共学习专题和真实 NVD 搜索结果已经复检。用户级 TokenFlux Key 的 Admin 分配、桌面静默同步、本地凭据保存、模型目录过滤和旧模型 ID 对齐已分别进入 Admin `89b2037` 与客户端 `main@73595e4`，并通过本地 Stable 包真实 Coding 回合；这两个新提交尚未形成新的正式签名发行。
+- **完成线**：从客户端 `main@73595e4` 生成新的 Developer ID 签名发行并完成内测升级；继续只处理真实阻塞问题，补一条真实题库的 Daily 推荐回执，并为 IDA/capa 各保留一项真实本地样本回执。MilkSU 自建余额、价格映射、扣费流水和代理计费已从当前路线移除；Obelisk 可归因成长事实继续作为独立后续纵切。
 
 | 优先级 | 主线 | 只认什么完成 |
 | --- | --- | --- |
@@ -75,7 +75,7 @@
 | P2 | 本地交付与发行 | Developer ID `.app`、DMG、公证、stapling、Gatekeeper 与隔离首次启动已通过；RC 再做崩溃恢复、诊断、全新机器、OTA 升级、性能和尺寸。不读取或迁移本机签名私钥/证书密码/Personal Vault。 |
 | 持续 | 架构与 UI | 触碰即拆热点文件；不新开纯清债里程碑。UI 巡检后同步测试与当前文档。 |
 
-推荐顺序：先开始内测并记录真实阻塞问题；有可用模型与题库时补 Daily 真实推荐回执，同时用本地 crackme/二进制补齐 IDA/capa 真实回执；之后独立推进 TokenFlux、Obelisk 成长事实和其余安全工具。Coding 完整自治功能交付留作后续证据，不恢复 `development-plan.md`，不把已删除 live smoke 嵌回产品启动链。
+推荐顺序：先从 `main@73595e4` 完成正式签名发行并记录真实阻塞问题；有可用模型与题库时补 Daily 真实推荐回执，同时用本地 crackme/二进制补齐 IDA/capa 真实回执；之后推进 Obelisk 成长事实和其余安全工具。Coding 完整自治功能交付留作后续证据，不恢复 `development-plan.md`，不把已删除 live smoke 嵌回产品启动链。
 
 ### 2026-08-13 M4 距离核对后的增量任务
 
@@ -93,7 +93,7 @@
 | 已确认边界 | 高级安全能力只进 Coding | CodeQL、capa、补丁分析、变体搜索和后续安全 Worker 作为 Coding 工具/任务入口；CTF/CVE 只保留对象、来源、收藏、手工状态和关联对话。 |
 | 已完成 | 最终发行与近新用户验收 | `main@cfc9a102408b8e2017f339ddce08f246b6b67c02` 的正式 DMG 已通过 Developer ID 签名、公证、staple、Gatekeeper、严格签名和隔离首次启动；设置页版本追踪、登录视觉、CVE 专题与真实 NVD 结果已回归。Daily 的真实模型选择回执单独保留，不将无题库空状态伪写为通过。 |
 | 用户明确后置 | M4 独立自治功能任务 | 原建议第 3 项“让 Coding Agent 独立完成一个小型真实功能”暂缓，不阻塞内测发行，也不在本轮偷偷恢复自举监督。 |
-| 安全工具首条已实现 | TokenFlux、Obelisk 成长事实、安全工具 | Team Key、真实扣费明细/硬限额/延迟与 Obelisk 可归因成长仍后续；安全工具已实现设置、检测和 IDA/capa 适配器，真实样本回执及 CodeQL/Burp/Shannon 适配继续逐项推进。 |
+| 账户 Key 已联调，安全工具首条已实现 | 账户模型、Obelisk 成长事实、安全工具 | 用户级 TokenFlux Key 分配、静默同步、模型过滤与真实 Coding 调用已完成；不再建设 MilkSU 自有计费。Obelisk 可归因成长仍后续；安全工具已实现设置、检测和 IDA/capa 适配器，真实样本回执及 CodeQL/Burp/Shannon 适配继续逐项推进。 |
 | 已实现，生产部署待执行 | Admin OTA 版本管理 | 独立 Admin 已有版本列表、草稿/发布/暂停、发布说明和 D1 current pointer；版本清单、electron-updater feed 与下载都要求已登录且访问状态正常的账户。 |
 | 已实现，真实升级待验收 | R2 签名发版流水 | 私有 CI 可上传 ZIP/DMG/元数据到私有 R2，回读验 SHA-256 后建立 Admin 草稿；Desktop 已接入带登录态的启动检查、下载和重启安装。仍需生产部署并保留一次旧签名版到新签名版真实升级回执。 |
 

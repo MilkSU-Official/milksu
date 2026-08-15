@@ -2,7 +2,7 @@
 
 > 状态：Current / Living
 >
-> 最后事实审计：2026-08-13
+> 最后事实审计：2026-08-15
 >
 > 产品开发目标：Post-M3 / 内测运行与后续纵切
 
@@ -60,12 +60,14 @@
   已由 workflow `31676876645` 生成正式 DMG；Apple 公证票据、stapler、Gatekeeper、严格签名和隔离
   首次启动均通过。设置页实机核对完整 commit、`dirty=false` 与 tracking ID
   `6adfa291a021387f7cb40800012941a51f051bec90036b78353c68a4c57d58ff`。
-- 模型与凭据：单默认模型；账户额度和本机个人 Key 是两个独立来源，设置页可调整全局顺序，Coding
-  可只为当前对话调整优先来源；仅允许在模型未输出且工具未执行前自动切换。个人 Key 不进入后台、
-  日志或模型上下文。TokenFlux 可用模型目录现在由 Go 在应用启动时远端刷新并以 `0600` 缓存，设置、
-  Composer 与 Pi 共用同一目录；本机 Stable 已取得 200 个模型并显示 `x-ai/grok-4.6`，重启后仍可恢复并刷新。
-  Cloudflare Worker、D1、管理端和公开账户 API 已部署；真实 GitHub 登录、邀请兑换、
-  访问开通、¥5.00 余额和初始额度流水已在 Admin 与桌面端联动验证。TokenFlux Team Key 与真实扣费明细仍待独立联调。
+- 模型与凭据：Admin 已支持为每个登录用户分配独立 TokenFlux Key；Electron 用账户会话取得凭据并交给
+  Go 写入现有 `0600` Credential Store，renderer、日志、模型上下文和普通配置文件均不接触 Key。MilkSU
+  当前直接请求 `https://tokenflux.dev/v1`，自建余额、价格映射、扣费流水、超限和代理计费不再属于产品链。
+  Go 获取与该 Key 分组一致的模型目录并以 last-known-good 缓存，设置、Composer 与 Pi 共用同一目录；
+  运行时只展示当前凭据实际可用的模型，未配置 Key 的原厂 Provider 自动隐藏。2026-08-15 的分配 Key
+  返回 Grok 4.3/4.5/4.6；客户端已把旧 `x-ai/grok-4.6` 对齐为 `grok-4.6`，本地 Stable 包经 Computer Use
+  完成真实 Coding 调用，非分组模型直接请求得到 `404 model_not_found`。Admin 对应提交为 `89b2037`，
+  客户端为 `main@73595e4`；尚未把该客户端提交制成新的 Developer ID 正式签名发行。
 - OTA 代码纵切已实现但尚未生产发布：独立 Admin 可管理版本草稿、发布和暂停；CI 可在 Apple 验证后把
   ZIP/DMG/元数据上传私有 R2、回读验哈希并创建草稿；Desktop Stable 启动后用 Electron 主进程保存的
   登录态检查、下载并重启安装。feed 与下载都要求已受邀且访问正常的登录账户，R2 不公开。当前只有
@@ -83,7 +85,7 @@
   Browser Use Bridge 与 Computer Use 系统配置集中到“设置 → 浏览器与控制”。
 - Coding 的已审核 Skill 由 Pi 按需加载完整内容，设置页只管理审核目录的启停；当前目录覆盖产品设计、前端视觉验收、API 集成、安全审查、技术交付物、架构图和 MilkSU 发布。禁用项从下一条 Coding 消息生效，CTF 角色保持隔离，用户不能借设置注入任意 Skill 路径。
 - 用户可见交付物写入 `~/Documents/MilkSU/{Coding,CTF,CVE}`；Runtime、事件、凭据、Obelisk、浏览器 Profile 与恢复状态继续留在 App Support。设置页明确展示并可打开产物目录。
-- 个人安全工作台历史 Beta 纵切来自干净提交 `31c06dfb296dd85e96e24dacf21a26ba70cea3d1`；原生 Computer Use 已用全新自定义题 `Caesar Shift 12` 完成创建、共享 Coding、运行中引导、可复现脚本/笔记、返回与手工状态闭环。题面与规定 Flag 格式实际不一致，Agent 明确拒绝编造候选，未建立 Judge 成功事实。该 Beta 是过程证据，不再代表当前正式版本；当前正式签名基线是 `cfc9a10`。账户 Team Key 与真实 TokenFlux 扣费明细仍待独立联调。
+- 个人安全工作台历史 Beta 纵切来自干净提交 `31c06dfb296dd85e96e24dacf21a26ba70cea3d1`；原生 Computer Use 已用全新自定义题 `Caesar Shift 12` 完成创建、共享 Coding、运行中引导、可复现脚本/笔记、返回与手工状态闭环。题面与规定 Flag 格式实际不一致，Agent 明确拒绝编造候选，未建立 Judge 成功事实。该 Beta 是过程证据，不再代表当前正式版本；当前正式签名基线仍是 `cfc9a10`，待发行代码 HEAD 为 `73595e4`。
 - 安全工具设置与普通 Coding 的首条生产纵切已实现：真实目录、检测、启停持久化和准备进度进入
   Desktop RPC；IDA Pro/idalib lazy MCP 与 capa 原生工具只在 `ready + enabled` 时交给现有 Pi 供模型
   自主选择。“在 Coding 中配置”会挂载未发送草稿和所需的 `Go · 完全访问`；本机 Stable 已由该入口

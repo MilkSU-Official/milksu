@@ -14,8 +14,8 @@
 
 完成 MilkSU 个人安全工作台：固化已确认的产品决策、问答与界面稿；将 CTF/CVE 做薄并接入
 统一 Coding；实现真实个人成长页；在独立私有目录 `/Users/milksu/code/milksu-admin` 建立
-GitHub 登录、邀请制访问、额度与流水管理 API/管理前端；让 MilkSU 客户端接入账户额度与
-自有 API Key 的可选路由；按纵向切片完成测试、Beta 追踪和真实验收。
+GitHub 登录、邀请制访问和用户级模型凭据管理；让 MilkSU 客户端静默取得账户分配 Key，同时保留
+用户自有 Provider Key；按纵向切片完成测试、构建追踪和真实验收。
 
 本目标已经作为当前 Codex 任务的进行中目标创建。阶段进度以
 [当前开发目标](current-objectives.md#进行中目标个人安全工作台) 为准，本文保存稳定产品决策与
@@ -24,7 +24,7 @@ GitHub 登录、邀请制访问、额度与流水管理 API/管理前端；让 M
 ## 当前进度
 
 - 已实现并测试：个人资料、轻量 CTF/CVE、共享 Coding 上下文、真实 CTF Daily、公共数据驱动的
-  CVE 学习专题、独立 Admin、账户额度与本机 Key 的全局/对话级顺序。
+  CVE 学习专题、独立 Admin、用户级 TokenFlux Key 分配与客户端静默同步。
 - Desktop 与 Admin 已按[游戏化界面系统](../design/milksu-game-ui-system.md)完成全局迁移；共享布局、
   列表、焦点面、表单、弹层、日夜主题和圆形头像使用同一套层级与状态语义。真实运行截图已纳入视觉
   规范的“实际界面验收”章节。
@@ -50,19 +50,19 @@ GitHub 登录、邀请制访问、额度与流水管理 API/管理前端；让 M
 - 用户可见产物固定写入 `~/Documents/MilkSU/{Coding,CTF,CVE}`，设置页可打开；内部 Runtime、凭据、
   Obelisk、浏览器 Profile 和恢复数据继续留在 App Support，不暴露成用户工作区。
 - 独立私有仓库 [MilkSU-Official/milksu-admin](https://github.com/MilkSU-Official/milksu-admin) 已到
-  `277af3b73b21a4295ee58c462adb807b36225e1c`：React 管理端、Cloudflare Worker、D1、邀请、暂停访问、
-  额度增减、用户流水、全局流水和日间/夜间模式均已部署到 `accounts.milksu.org`；线上 `/health` 和
-  `/ready` 已通过。GitHub OAuth 已完成真实管理员登录；`MilkSU-Official` 的邀请已由桌面端兑换，
-  Admin 与客户端均显示访问已开通、¥5.00 余额和初始额度流水。TokenFlux Team Key 与扣费明细没有在
-  本轮接通，继续按真实团队接入结果单独验收。
+  `89b2037`：React 管理端、Cloudflare Worker、D1、邀请、暂停访问、用户级 TokenFlux 凭据分配和
+  日间/夜间模式均已部署到 `accounts.milksu.org`；线上 `/health` 和 `/ready` 已通过。GitHub OAuth
+  已完成真实管理员登录；`MilkSU-Official` 的邀请已由桌面端兑换，Admin 已显示访问开通和模型凭据
+  已分配。客户端 `main@73595e4` 已静默取得该 Key、保存到本地 Credential Store，并以准确的
+  `grok-4.6` 完成真实 Coding 回合。MilkSU 自有余额、价格映射、扣费流水和代理计费已退出当前产品链。
 
 ## 目标
 
 把 CTF 和 CVE 收成轻量的个人记录与任务入口，把分析、工具和动态工作继续交给同一个
 Coding Agent。个人资料页诚实记录用户在 CTF、CVE 和 Coding 中的活动与成长。
 
-GitHub 登录、邀请、额度和模型来源切换已经接入；用户可以使用 MilkSU 分发的额度，也可以继续使用
-自己保存在本机的 API Key。TokenFlux Team Key 与真实扣费同步仍是独立后续纵切。
+GitHub 登录、邀请和模型来源已经接入；登录用户可以使用 Admin 分配的独立 TokenFlux Key，也可以
+继续使用自己保存在本机 Credential Store 的 Provider Key。MilkSU 不再提供余额或自建代理计费。
 
 ## 已确认界面
 
@@ -75,25 +75,25 @@ Desktop 与独立 Admin 的全部页面统一采用
 设置页和 Admin 深浅色实际界面共同构成当前视觉契约。当前代码、共享界面系统以及真实运行验收图
 是视觉判断依据；迁移前的六张独立定稿图已经退役并删除，不得再作为新设计、实现或验收的参考。
 
-实现后的 Admin 视觉对照、额度操作和 Cloudflare 版本截图保存在独立私有仓库
+实现后的 Admin 视觉对照、凭据分配和 Cloudflare 版本截图保存在独立私有仓库
 `MilkSU-Official/milksu-admin` 的 `docs/evidence/`，不复制进对内测用户开放的桌面仓库。
 
 ## 验收记录
 
 | 项目 | 当前证据 | 结果 |
 | --- | --- | --- |
-| 桌面产品代码 | Vue/Vitest 70 个文件、390 项测试与生产类型检查/构建通过 | 通过 |
-| 桌面壳与 Sidecar | Electron、账户 PKCE、Pi、安全边界、Browser Extension 与 Computer Use 共 213 项 Node 测试通过 | 通过 |
+| 桌面产品代码 | Vue/Vitest 76 个文件、434 项测试与生产类型检查/构建通过 | 通过 |
+| 桌面壳与 Sidecar | Electron、账户 PKCE、Pi、安全边界、Browser Extension 与 Computer Use 共 240 项 Node 测试通过 | 通过 |
 | Go Runtime | `go test ./...` 全仓通过 | 通过 |
 | CTF/CVE 收薄 | CTF 状态手工维护；CVE 首页只从用户明确加入的条目生成；相关聚焦与完整回归通过；最终签名 App 已完成原生复检 | 通过；Daily 真实模型回执单列 |
 | 正式签名身份 | `main@cfc9a102408b8e2017f339ddce08f246b6b67c02`、`dirty=false`、tracking ID `6adfa291a021387f7cb40800012941a51f051bec90036b78353c68a4c57d58ff`；Developer ID、公证、staple、Gatekeeper 与严格签名通过 | 通过 |
-| Admin 前后端 | `main@277af3b73b21a4295ee58c462adb807b36225e1c`；构建、10 项前端测试与 3 项 Worker 资源测试通过 | 通过 |
+| Admin 前后端 | `main@89b2037`；用户级模型凭据接口、加密保存、管理界面与生产部署已完成 | 通过 |
 | Cloudflare 部署 | `accounts.milksu.org` 的 Worker、D1、静态管理端、`/health` 与 `/ready` 可用 | 通过 |
 | Admin 日间模式 | 与客户端相同的日间/夜间切换、持久化和窄屏布局已在本地及线上核对 | 通过 |
 | 游戏化 UI | Desktop CTF/CVE/Coding/Profile/Settings 与 Admin 日夜主题均以实际运行截图核对；CTF/CVE 接力草稿、来源右栏和返回路径通过 Computer Use | 通过 |
 | GitHub OAuth | 真实 GitHub 管理员账户登录成功；OAuth Secret 只存在 Worker Secret | 通过 |
-| 邀请与初始额度 | 桌面兑换邀请；Admin/客户端均显示访问开通、¥5.00 和初始额度流水 | 通过 |
-| 桌面账户联动 | GitHub 登录、头像、余额与两种模型来源顺序；Team Key 未连接时如实显示不可用 | 通过；TokenFlux 扣费明细后续 |
+| 邀请与模型凭据 | 桌面兑换邀请；Admin 显示访问开通和 TokenFlux 凭据已分配 | 通过 |
+| 桌面账户联动 | Electron 静默取得账户 Key，Go 保存到本地 Credential Store；运行时只显示 Grok 4.3/4.5/4.6，真实 Coding 回合成功 | 通过；正式签名发行待生成 |
 | 真实 CTF/CVE | 全新 `Caesar Shift 12` 完成创建、共享 Coding、运行中引导、脚本/笔记、返回和手工完成；题面矛盾被如实指出，未编造 Flag 或 Judge 成功。CVE-2024-3400 已完成只读研究、文档交付、返回与对话关联 | 通过 |
 | 正式 App | workflow `31676876645` 产出的 DMG 已下载，并在隔离数据目录首次启动；设置页 branch/完整 commit/tracking ID、登录视觉、CVE 专题与真实 NVD 结果已回归 | 通过；CTF Daily 真实模型回执待内测环境补齐 |
 
@@ -147,26 +147,23 @@ Obelisk 当前保存和检索 Coding、CTF、CVE 历史，只能帮助用户找�
 - 使用 Cloudflare Worker、D1 和 GitHub OAuth 在系统浏览器完成登录；只有邀请用户可以进入内测。
 - 登录后左上角显示用户头像；资料允许修改头像、显示名称和一句介绍。
 - 所有联系入口统一使用 `milksu@proton.me`。
-- 独立私有后台仓库保存邀请、账户额度、管理员页面和账户 API；不放进桌面端仓库，也不向内测用户开放。
+- 独立私有后台仓库保存邀请、访问状态、加密的用户级模型凭据、管理员页面和账户 API；不放进桌面端仓库，也不向内测用户开放。
 - Web 管理端、账户 API 和 D1 由一个 Cloudflare Worker 承载，桌面端只保存权限为 `0600` 的不透明
   会话文件，不使用 macOS Keychain；会话不进入 renderer、日志或模型上下文。同一系统用户下的本地
   恶意进程仍可能读取，这是换取无钥匙串弹窗体验的明确边界。GitHub Client Secret 只进入 Worker
   Secret，不进入仓库或客户端。
 
-### 6. 额度与模型来源
+### 6. 账户模型与个人来源
 
-- 账户额度和用户自己的 API Key 是两个独立来源。
-- 默认账户额度优先、个人 Key 备用；用户可以调整顺序和自动切换方式。
-- Coding 中的临时选择只影响当前对话，设置页保存全局默认。
-- 个人 Key 只留在本机；账户额度由私有后台管理。MilkSU Admin 不保存或转发任何模型 Key。
-- 账户模型使用 [TokenFlux Team](https://docs.tokenflux.dev/docs/tokenflux/team.html)：管理员邀请成员，
-  成员在 TokenFlux 创建自己的团队 Key，再保存在本机凭据库；管理员只管理成员、额度和停用状态，
-  看不到成员 Key 明文。
-- 自动切换只允许发生在模型尚未输出、也未执行工具之前；已经产生内容或外部效果后必须原地报错，
-  不能换来源重放同一回合。
-- TokenFlux 的真实余额与消费明细、硬限额和同步延迟在接入真实团队后实测；没有可靠结果前，后台
-  人民币流水只作为 MilkSU 内测预算账本，不伪装成 TokenFlux 的实时账单。
-- 管理后台支持邀请、暂停访问、初始赠送和带原因的额度增减，Bug 奖励进入同一流水。
+- Admin 为每个登录用户分配一份独立 TokenFlux Key，并加密保存在服务端。
+- Electron 用不透明账户会话取得当前用户凭据，直接交给 Go 写入现有 `0600` Credential Store；
+  renderer、日志、模型上下文和普通配置文件都不接触 Key。
+- 账户模型直接请求 `https://tokenflux.dev/v1`；MilkSU 不维护余额、价格映射、扣费流水、超限或代理路由。
+- Go 获取与当前 Key 分组一致的模型目录并作为唯一可选集合；未配置凭据的原厂 Provider 不进入任务模型列表。
+- 原厂 Provider 和自定义 OpenAI-compatible 中转站仍可由用户在设置中逐个配置；每个 Key 只保存在本机
+  Credential Store，未配置时隐藏。
+- Coding 中的模型选择只影响当前对话；Coding、CTF 与 sub-agent 复用同一 Pi Provider 注册和目录。
+- 管理后台继续支持邀请、暂停访问和更换/撤销用户模型凭据，不再把内部测试额度描述成模型账单。
 
 ### 7. 收口
 
@@ -214,11 +211,11 @@ Obelisk 当前保存和检索 Coding、CTF、CVE 历史，只能帮助用户找�
 | 23 | 登录后左上角显示什么？ | 用户自己的头像，不再显示 MilkSU Logo。 |
 | 24 | 头像菜单放什么？ | 先放个人资料，并为账户、设置、退出保留自然位置。 |
 | 25 | 内测使用什么登录？ | GitHub OAuth；Google 暂缓。 |
-| 26 | 谁能登录内测？ | 受邀用户；代码仓库权限和账户额度分开管理。 |
+| 26 | 谁能登录内测？ | 受邀用户；代码仓库权限和产品访问状态分开管理。 |
 | 27 | 管理系统放在哪里？ | 独立私有仓库 `/Users/milksu/code/milksu-admin`，包含 Web 管理前端和 API 后端。 |
-| 28 | 额度如何表示和奖励？ | 直接显示人民币余额；支持初始赠送、Bug 奖励和带原因的增减流水。 |
-| 29 | 账户额度与个人 API Key 如何共存？ | 两者都可用、可排序；默认账户额度优先，个人 Key 备用，Coding 可临时选择。 |
-| 30 | TokenFlux、CVE 披露和联系入口如何处理？ | TokenFlux 明细与硬限额先实测；披露追踪暂缓；联系统一为 `milksu@proton.me`。 |
+| 28 | 账户如何获得模型能力？ | Admin 为每个受邀用户分配独立 TokenFlux Key；客户端登录后静默同步到本机 Credential Store。 |
+| 29 | 账户 Key 与个人 API Key 如何共存？ | 账户目录和用户已配置 Provider 都可用；运行时只展示各凭据实际可调用的模型。 |
+| 30 | TokenFlux、CVE 披露和联系入口如何处理？ | TokenFlux 直接使用用户级 Key，不建设 MilkSU 自有计费；披露追踪暂缓；联系统一为 `milksu@proton.me`。 |
 | 31 | 全局侧栏如何避免切换页面时忽大忽小？ | 固定使用窄栏；Coding 会话历史默认收起，需要时由一个按钮打开浮层。头像裁切为圆形。 |
 | 32 | CVE 默认状态如何表达？ | 用户可见为“想研究”，不暗示必须复现；状态仍完全手工。 |
 | 33 | CVE 学习专题从哪里取内容？ | 搜索 NVD 公共数据，不只过滤用户已经加入的 CVE。 |

@@ -2,7 +2,7 @@
 
 > 文档状态：Current
 >
-> 事实审计：2026-08-13，`main@cfc9a10` 正式签名基线
+> 事实审计：2026-08-15，代码 `main@73595e4`；正式签名基线仍为 `main@cfc9a10`
 >
 > 本页描述当前结构，不安排任务。动态进度和缺口以
 > [当前开发目标](/developer/current-objectives)、代码、测试和真实验收为准。
@@ -12,12 +12,12 @@
 ```mermaid
 flowchart LR
     learner["学习者<br/>指导 Agent、审批效果、审阅证据"]
-    provider["模型 Provider<br/>DeepSeek / TokenFlux / 已配置 Provider"]
+    provider["模型 Provider<br/>账户 TokenFlux / 已配置个人 Provider"]
     local_tools["本机安全工具<br/>IDA Pro / capa / 后续适配器"]
     user_browser["用户真实浏览器<br/>Playwright MCP Extension"]
     native_apps["外部原生 App<br/>Computer Use Scope"]
     ctf_platforms["CTF 平台<br/>NSSCTF / CTFshow"]
-    account_cloud["Cloudflare 账户与发行服务<br/>Worker + D1 + private R2"]
+    account_cloud["Cloudflare 账户、用户模型凭据与发行服务<br/>Worker + D1 + private R2"]
 
     subgraph milksu["MilkSU 本地桌面系统"]
         chromium["Electron / Chromium 桌面壳<br/>Vue UI + 内置浏览器"]
@@ -70,7 +70,7 @@ MilkSU 的桌面壳不是通用 Agent Loop 的另一份实现。Pi 仍负责会�
 | Electron/Chromium 桌面壳 | **Implemented / packaged** | `desktop/main.cjs` 创建主窗口、注册 `milksu://app`、监管 Go Runtime 并承载右栏 `WebContentsView`；`desktop/preload.cjs` 只暴露调用与事件订阅。旧 Wails 配置、绑定和 CEF 原型已从生产链删除。 |
 | Vue 产品表面 | **Implemented / partial** | CTF、Coding、CVE、设置、相关历史、Composer、右栏与 Bottom Dock 均复用现有 Vue。生产前端只接受 Preload API；Vitest mock 隔离在测试入口。 |
 | 个人资料 | **Implemented / packaged** | 左上角用户头像打开个人菜单；个人页按本机任务活动展示活跃格、CTF/CVE/Coding 模糊阶段和最近活动。工具调用不单独计数，全局六维雷达不再挂载。当前阶段不是独立能力评分；Obelisk 只提供历史线索，尚未成为可归因成长事实源。 |
-| 内测账户与模型来源 | **Deployed / desktop linked** | 系统浏览器 GitHub PKCE、稳定/测试版独立回调、`0600` 本地不透明会话、账户额度与本机 Key 顺序及对话级偏好已实现；打包客户端指向 `accounts.milksu.org`。Go Model Catalog 在每次应用启动时异步刷新 TokenFlux，并以 `0600` last-known-good 同时驱动设置、Composer 和 Pi；远端失败保留缓存或内置最小目录，不改写用户已选模型。本机 Stable 已取得 200 个模型、显示 `x-ai/grok-4.6` 并通过重启恢复。用户还可在同一 `providers` 列表添加简单的 OpenAI-compatible 中转站及模型 ID；元数据持久化，Key 仍只在 Credential Store，只有当前中转站凭据进入 Pi，且该模型来源固定为 personal，不误用账户额度。第一版不做模型自动发现、视觉能力声明或自定义协议。会话不使用 macOS Keychain，也不进入 renderer、日志或模型上下文；同一系统用户下的本地恶意进程仍是明确风险。真实 GitHub 登录、邀请兑换、访问开通、¥5.00 余额和初始额度流水已在 Admin 与桌面端联动验证。账户 Team Key 尚未连接，TokenFlux 扣费与明细同步不属于已验收事实。 |
+| 内测账户与模型来源 | **Deployed / desktop verified** | 系统浏览器 GitHub PKCE、稳定/测试版独立回调和 `0600` 本地不透明会话已实现；打包客户端指向 `accounts.milksu.org`。Admin 为每个用户保存一份加密的 TokenFlux 凭据，Electron 用账户会话取得后只交给 Go，Go 写入现有 `credentials.db`；Key 不返回 renderer，不进入日志、模型上下文或普通配置文件。模型请求直接发往 `https://tokenflux.dev/v1`，MilkSU 不再承载余额、价格映射、扣费流水、超限或代理计费。Go Model Catalog 获取与当前 Key 分组一致的模型并以 `0600` last-known-good 同时驱动设置、Composer 与 Pi；运行时隐藏未配置的原厂 Provider，并把旧 `x-ai/grok-4.6` 选择对齐为目录中的 `grok-4.6`。2026-08-15 本地 Stable 包经 Computer Use 使用账户分配模型完成真实 Coding 回合；非分组模型请求得到 `404 model_not_found`。用户仍可在设置中配置各原厂 Provider 或简单 OpenAI-compatible 中转站，元数据进入 `providers`，各 Key 进入同一 Credential Store；未配置的来源不进入任务模型列表。Admin 对应提交 `89b2037`，客户端对应 `main@73595e4`，新的 Developer ID 正式签名发行尚待生成。 |
 | OTA 更新 | **Implemented / production upgrade pending** | Stable Electron 主进程在窗口可用后异步检查更新；只有账户会话有效时才把 Bearer header 交给 electron-updater，Vue 只接收版本、进度和可执行动作。Admin D1 保存草稿/当前/历史/暂停状态，Worker 验证账户仍受邀且访问正常后生成 feed 或从私有 R2 流式返回 ZIP/DMG；R2 key 不返回客户端。CI 已实现签名后上传、回读验哈希和建草稿，Admin 人工发布才改变 current pointer。生产部署和一次正式旧版到新版升级仍待验收；Beta 不启用 updater。 |
 | Go Runtime | **Implemented / concentrated** | `cmd/milksu-backend/main.go` 启动应用组合根和 JSONL RPC；同目录的 `desktop_rpc.go` 分派现有 App 方法并传递事件，`desktop_host.go` 把文件对话框、外链和浏览器宿主能力反向委托给 Electron。`app.go` 仍较集中，触碰时按纵切拆分。 |
 | Pi 通用 Agent | **Verified core / partial extensions** | Pi 继续拥有 Session、Compaction、模型和通用 Tool Loop；MilkSU 监管 Sidecar、注入当前 Provider、投影事件并实施工作区/审批边界。已审核 Coding Skill 只向 Pi 常驻名称与用途，完整内容按任务或显式选择加载；设置只能停用审核目录，CTF 角色不加载 Coding Skill。TokenFlux `grok-4.5` 多模态和一次真实文档自举已验，完整功能自举仍未完成。 |
