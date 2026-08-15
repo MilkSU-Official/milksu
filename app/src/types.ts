@@ -9,7 +9,6 @@ export interface AccountStatus {
     displayName: string
     avatarUrl: string
   }
-  balanceCents?: number
   tokenFluxLinked?: boolean
 }
 
@@ -415,7 +414,7 @@ export const PROVIDERS: ProviderInfo[] = [
     envKey: 'TOKENFLUX_API_KEY',
     placeholder: 'tf_... 或 TokenFlux API Key',
     defaultBaseUrl: 'https://tokenflux.dev/v1',
-    summary: '词元流动 · 默认通过内测额度使用 Grok，也可接入个人 TokenFlux API Key',
+    summary: '词元流动 · 可使用账户分配模型，也可接入个人 TokenFlux API Key',
   },
   {
     id: 'anthropic',

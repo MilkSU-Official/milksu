@@ -131,9 +131,6 @@ const {
   providerModelLabel,
 } = useModelCatalog(providerSettings)
 const account = computed<AccountStatus>(() => props.accountStatus ?? ({ configured: false, authenticated: false, state: 'unconfigured' }))
-const accountBalance = computed(() => new Intl.NumberFormat('zh-CN', {
-  style: 'currency', currency: 'CNY', minimumFractionDigits: 2,
-}).format((account.value.balanceCents ?? 0) / 100))
 const accountStateLabel = computed(() => ({
   unconfigured: '未配置',
   signed_out: '未登录',
@@ -378,12 +375,12 @@ function ensureAccountRoute() {
   if (!working.value.relay) {
     working.value.relay = {
       enabled: account.value.state === 'active' && account.value.tokenFluxLinked === true,
-      url: 'https://accounts.milksu.org/v1/model',
+      url: 'https://tokenflux.dev/v1',
       key: '',
       has_key: false,
     }
   }
-  if (!working.value.relay.url) working.value.relay.url = 'https://accounts.milksu.org/v1/model'
+  if (!working.value.relay.url) working.value.relay.url = 'https://tokenflux.dev/v1'
 }
 
 const accountModelSourceReady = computed(() => Boolean(
@@ -402,7 +399,7 @@ const modelSourcePreview = computed(() => {
     source === 'account' ? accountModelSourceReady.value : personalModelSourceReady.value
   ))
   const first = available[0]
-  if (first === 'account') return `内测额度 · ${accountBalance.value}`
+  if (first === 'account') return '账户分配模型 · TokenFlux'
   if (first === 'personal') return `我的 API Key · ${providerInfo.value?.name ?? working.value?.active_provider ?? ''}`
   return '还没有可用的模型来源'
 })
@@ -1278,10 +1275,9 @@ async function save() {
               label="GitHub 账户"
               :description="account.state === 'active'
                 ? `@${account.user?.githubLogin || 'GitHub'} · 内测用户`
-                : '登录后可使用分配的内测额度；不登录也能继续使用自己的 API Key'"
+                : '登录后可使用管理员分配的模型；不登录也能继续使用自己的 API Key'"
             >
               <div class="flex items-center gap-3">
-                <span v-if="account.state === 'active'" class="font-mono text-body font-semibold text-primary">{{ accountBalance }}</span>
                 <Badge :variant="account.state === 'active' ? 'secondary' : 'outline'">{{ accountStateLabel }}</Badge>
                 <Button v-if="account.state === 'active'" variant="ghost" size="sm" @click="$emit('accountLogout')">
                   <LogOut class="size-4" />退出
@@ -1313,7 +1309,7 @@ async function save() {
                 <button
                   class="cursor-grab text-muted-foreground active:cursor-grabbing"
                   draggable="true"
-                  :aria-label="`拖动${source === 'account' ? '内测额度' : '我的 API Key'}调整顺序`"
+                  :aria-label="`拖动${source === 'account' ? '账户分配模型' : '我的 API Key'}调整顺序`"
                   @dragstart="draggedModelSource = source"
                   @dragend="draggedModelSource = null"
                   @click="moveModelSource(source, source === 'account' ? 'personal' : 'account')"
@@ -1325,19 +1321,18 @@ async function save() {
                 <template v-if="source === 'account'">
                   <span class="grid size-11 shrink-0 place-items-center rounded-full bg-muted text-primary"><WalletCards class="size-5" /></span>
                   <div class="min-w-0 flex-1">
-                    <p class="font-medium">内测额度</p>
+                    <p class="font-medium">账户分配模型</p>
                     <p class="mt-0.5 text-caption text-muted-foreground">
-                      {{ provider?.custom ? '自定义模型只使用对应中转站' : accountModelSourceReady ? '登录后自动使用，不下发 Team Key' : account.state === 'active' ? '管理员尚未连接账户模型服务' : '登录内测账户后自动连接' }}
+                      {{ provider?.custom ? '自定义模型只使用对应中转站' : accountModelSourceReady ? '登录后静默同步到本地凭据存储' : account.state === 'active' ? '管理员尚未为此账户分配模型 Key' : '登录内测账户后自动连接' }}
                     </p>
                   </div>
-                  <span v-if="account.state === 'active'" class="font-mono text-body font-semibold text-primary">{{ accountBalance }}</span>
                   <Badge :variant="index === 0 && accountRoute?.enabled ? 'secondary' : 'outline'">
                     {{ provider?.custom ? '不适用' : index === 0 && accountRoute?.enabled ? '当前优先' : accountModelSourceReady ? '备用' : '未连接' }}
                   </Badge>
                   <Switch
                     :model-value="Boolean(accountRoute?.enabled)"
                     :disabled="Boolean(provider?.custom) || (!accountModelSourceReady && !accountRoute?.enabled)"
-                    aria-label="启用内测额度"
+                    aria-label="启用账户分配模型"
                     @update:model-value="setModelSourceEnabled('account', Boolean($event))"
                   />
                 </template>

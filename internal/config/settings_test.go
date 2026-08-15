@@ -112,45 +112,54 @@ func TestCloneDoesNotShareMaps(t *testing.T) {
 	}
 }
 
-func TestRuntimeRelayIsResolvedWithoutPersistenceOrPublicCredential(t *testing.T) {
+func TestManagedAccountRelayPersistsOnlyInCredentialStore(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "settings.json")
-	store, err := newStore(path, fakeSecretStore{})
+	secrets := fakeSecretStore{}
+	store, err := newStore(path, secrets)
 	if err != nil {
 		t.Fatal(err)
 	}
-	const credential = "desktop-account-session-token"
-	const baseURL = "https://accounts.milksu.org/v1/model"
-	changed, err := store.SetRuntimeRelay(baseURL, credential)
+	const credential = "account-assigned-provider-key"
+	const baseURL = "https://tokenflux.dev/v1"
+	changed, err := store.SetManagedAccountRelay(baseURL, credential)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !changed {
-		t.Fatal("first runtime relay update was not reported as changed")
+		t.Fatal("first managed relay update was not reported as changed")
 	}
-	changed, err = store.SetRuntimeRelay(baseURL, credential)
+	changed, err = store.SetManagedAccountRelay(baseURL, credential)
 	if err != nil || changed {
-		t.Fatalf("identical runtime relay update was not idempotent: changed=%v err=%v", changed, err)
+		t.Fatalf("identical managed relay update was not idempotent: changed=%v err=%v", changed, err)
 	}
 	public := store.Get()
-	if public.Relay != nil && (public.Relay.Key != "" || public.Relay.HasKey) {
-		t.Fatalf("runtime account credential leaked through public settings: %#v", public.Relay)
+	if public.Relay == nil || public.Relay.Key != "" || !public.Relay.HasKey || public.Relay.SessionOnly {
+		t.Fatalf("managed account credential leaked or was not marked persisted: %#v", public.Relay)
 	}
 	resolved := store.GetResolved()
 	if resolved.Relay == nil || resolved.Relay.Key != credential || resolved.Relay.URL != baseURL || !resolved.Relay.Enabled {
-		t.Fatalf("runtime account credential was not resolved: %#v", resolved.Relay)
+		t.Fatalf("managed account credential was not resolved: %#v", resolved.Relay)
 	}
 	data, err := os.ReadFile(path)
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
+	if err != nil {
 		t.Fatal(err)
 	}
 	if strings.Contains(string(data), credential) {
-		t.Fatal("runtime account credential was persisted")
+		t.Fatal("managed account credential leaked into settings.json")
 	}
-	if !store.ClearRuntimeRelay() || store.ClearRuntimeRelay() {
-		t.Fatal("runtime relay clear was not idempotent")
+	if secrets[relaySecretAccount] != credential {
+		t.Fatal("managed account credential was not persisted in the credential store")
 	}
-	if store.GetResolved().Relay != nil {
-		t.Fatal("runtime account credential was not cleared")
+	cleared, err := store.ClearManagedAccountRelay()
+	if err != nil || !cleared {
+		t.Fatalf("managed relay clear failed: changed=%v err=%v", cleared, err)
+	}
+	cleared, err = store.ClearManagedAccountRelay()
+	if err != nil || cleared {
+		t.Fatalf("managed relay clear was not idempotent: changed=%v err=%v", cleared, err)
+	}
+	if _, exists := secrets[relaySecretAccount]; exists {
+		t.Fatal("managed account credential was not removed from the credential store")
 	}
 }
 
@@ -274,7 +283,7 @@ func TestStoreKeepsSecretsOutOfSettingsAndPublicBoundary(t *testing.T) {
 	settings.ActiveProvider = "deepseek"
 	settings.ActiveModel = "deepseek-v4-flash"
 	settings.Providers["deepseek"] = ProviderConfig{APIKey: "provider-secret", Enabled: true}
-	settings.Relay = &RelayConfig{Enabled: true, URL: "https://relay.example", Key: "relay-secret"}
+	settings.Relay = &RelayConfig{Enabled: true, URL: "https://tokenflux.dev/v1", Key: "relay-secret"}
 	settings.NSSCTFArena = &NSSCTFArenaConfig{Token: "nss_agent_arena-secret"}
 	if err := store.Save(settings); err != nil {
 		t.Fatal(err)

@@ -217,7 +217,7 @@ function modelLabel(provider: string, model: string) {
 }
 
 function sourceLabel(source: string) {
-  if (source === 'account') return '内测额度'
+  if (source === 'account') return '账户分配模型'
   if (source === 'personal') return '个人 API'
   return '未标注来源'
 }

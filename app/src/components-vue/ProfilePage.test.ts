@@ -22,7 +22,6 @@ const account: AccountStatus = {
   authenticated: true,
   state: 'active',
   user: { githubLogin: 'hunter', displayName: 'Hunter', avatarUrl: '' },
-  balanceCents: 2500,
 }
 
 async function settle() {

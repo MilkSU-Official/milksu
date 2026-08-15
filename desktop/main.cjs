@@ -125,17 +125,19 @@ let screenRecordingRelaunchArm = null
 async function syncAccountModelAuthorization(status) {
   if (!backend || !accountSession) return
   if (status?.state === 'active' && status?.tokenFluxLinked === true) {
-    const sessionValue = await accountSession.activeSession()
-    const credential = String(sessionValue?.accessToken ?? '')
-    if (credential) {
-      await backend.invoke('SetAccountModelAuthorization', [
-        `${accountSession.config.apiUrl}/v1/model`,
-        credential,
-      ])
+    try {
+      const credential = await accountSession.modelCredential()
+      if (credential?.apiKey) {
+        await backend.invoke('SetAccountModelCredential', [credential.baseUrl, credential.apiKey])
+        return
+      }
+    } catch {
+      // Preserve the last locally persisted account credential during a
+      // transient account-service failure. A later status refresh retries.
       return
     }
   }
-  await backend.invoke('ClearAccountModelAuthorization', [])
+  await backend.invoke('ClearAccountModelCredential', [])
 }
 
 function resourcesPath(relative) {

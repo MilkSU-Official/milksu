@@ -44,7 +44,7 @@ test('uses system-browser PKCE and returns no credential material to the rendere
     return {
       ok: true,
       status: 200,
-      json: async () => ({ account: { githubLogin: 'hunter', displayName: 'Hunter', avatarUrl: 'https://avatars.example/hunter', balanceCents: 1860, tokenFluxLinked: true } }),
+      json: async () => ({ account: { githubLogin: 'hunter', displayName: 'Hunter', avatarUrl: 'https://avatars.example/hunter', tokenFluxLinked: true } }),
     }
   }
   const session = new AccountSession({ config, userDataPath: root, openExternal: async url => opened.push(url), fetchImpl })
@@ -57,7 +57,6 @@ test('uses system-browser PKCE and returns no credential material to the rendere
   await session.handleCallback('milksu://auth/callback?code=authorization-code')
   const status = await session.status()
   assert.equal(status.state, 'active')
-  assert.equal(status.balanceCents, 1860)
   assert.equal('accessToken' in status, false)
   assert.equal('refreshToken' in status, false)
   const exchangeBody = JSON.parse(requests[0].options.body)
@@ -93,7 +92,6 @@ test('projects only a bounded GitHub avatar as an inline image for the renderer'
         githubLogin: 'hunter',
         displayName: 'Hunter',
         avatarUrl: 'https://avatars.githubusercontent.com/u/42',
-        balanceCents: 500,
       } }),
     }
   }
@@ -103,6 +101,38 @@ test('projects only a bounded GitHub avatar as an inline image for the renderer'
   assert.match(first.user.avatarUrl, /^data:image\/png;base64,/)
   assert.equal(second.user.avatarUrl, first.user.avatarUrl)
   assert.equal(avatarRequests, 1)
+})
+
+test('retrieves the assigned TokenFlux credential only through the main-process account session', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'milksu-model-credential-'))
+  await fs.writeFile(path.join(root, 'account-session.json'), JSON.stringify({
+    accessToken: 'account-session-secret',
+    expiresAt: Date.now() + 600_000,
+  }), { mode: 0o600 })
+  const config = await loadAccountConfig({ env: {
+    MILKSU_ACCOUNT_API_URL: 'https://account.example',
+  } })
+  const fetchImpl = async (url, options = {}) => {
+    assert.equal(url, 'https://account.example/v1/account/model-credential')
+    assert.equal(new Headers(options.headers).get('authorization'), 'Bearer account-session-secret')
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ credential: {
+        provider: 'tokenflux',
+        baseUrl: 'https://tokenflux.dev/v1',
+        apiKey: 'assigned-provider-secret',
+        models: ['grok-4.5', 'grok-4.6'],
+      } }),
+    }
+  }
+  const session = new AccountSession({ config, userDataPath: root, openExternal: async () => {}, fetchImpl })
+  assert.deepEqual(await session.modelCredential(), {
+    provider: 'tokenflux',
+    baseUrl: 'https://tokenflux.dev/v1',
+    apiKey: 'assigned-provider-secret',
+    models: ['grok-4.5', 'grok-4.6'],
+  })
 })
 
 test('stores the account session locally without reading the legacy Keychain payload', async () => {

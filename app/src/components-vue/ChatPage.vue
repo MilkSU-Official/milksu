@@ -554,16 +554,16 @@ const activeModelLabel = computed(() => {
 })
 const activeModelSourceLabel = computed(() => (
   props.conversation?.modelSource === 'account'
-    ? '内测额度'
+    ? '账户分配模型'
     : props.conversation?.modelSource === 'personal'
       ? '我的 API Key'
       : props.settings?.model_routing.source_order[0] === 'personal'
         ? '我的 API Key 优先'
-        : '内测额度优先'
+        : '账户分配模型优先'
 ))
 const preferredModelSourceLabel = computed(() => (
   props.modelSourcePreference === 'account'
-    ? '内测额度优先'
+    ? '账户分配模型优先'
     : props.modelSourcePreference === 'personal'
       ? '我的 API Key 优先'
       : '跟随设置'
@@ -2339,7 +2339,7 @@ watch(
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="auto">跟随设置</SelectItem>
-                  <SelectItem value="account">内测额度优先</SelectItem>
+                  <SelectItem value="account">账户分配模型优先</SelectItem>
                   <SelectItem value="personal">我的 API Key 优先</SelectItem>
                 </SelectContent>
               </Select>

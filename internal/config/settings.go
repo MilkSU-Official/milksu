@@ -173,40 +173,47 @@ func (s *Store) GetResolved() AppSettings {
 	return value
 }
 
-// SetRuntimeRelay installs the authenticated account model route for this
-// process only. The bearer credential is never persisted or returned through
-// Desktop RPC; it is replaced on login refresh and cleared on logout.
-func (s *Store) SetRuntimeRelay(baseURL, credential string) (bool, error) {
+// SetManagedAccountRelay stores the account-assigned provider credential in
+// the same local secret store used by a manually configured relay. The secret
+// is never returned through Desktop RPC or written to settings.json.
+func (s *Store) SetManagedAccountRelay(baseURL, credential string) (bool, error) {
 	baseURL = strings.TrimSpace(baseURL)
 	credential = strings.TrimSpace(credential)
 	if err := validateAccountModelURL(baseURL); err != nil {
-		return false, fmt.Errorf("runtime account model URL: %w", err)
+		return false, fmt.Errorf("account model URL: %w", err)
 	}
 	if err := validateSecretInput(credential); err != nil {
-		return false, fmt.Errorf("runtime account model credential: %w", err)
+		return false, fmt.Errorf("account model credential: %w", err)
 	}
 	if credential == "" {
-		return false, fmt.Errorf("runtime account model credential is required")
+		return false, fmt.Errorf("account model credential is required")
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.runtimeRelay != nil && s.runtimeRelay.URL == baseURL && s.runtimeRelay.Key == credential {
+	current := s.Get()
+	resolved := s.GetResolved()
+	if current.Relay != nil && current.Relay.Enabled && current.Relay.URL == baseURL &&
+		resolved.Relay != nil && resolved.Relay.Key == credential && !current.Relay.SessionOnly {
 		return false, nil
 	}
-	s.runtimeRelay = &RelayConfig{
-		Enabled: true, URL: baseURL, Key: credential, HasKey: true, SessionOnly: true,
+	current.Relay = &RelayConfig{
+		Enabled: true, URL: baseURL, Key: credential,
+	}
+	if err := s.Save(current); err != nil {
+		return false, err
 	}
 	return true, nil
 }
 
-func (s *Store) ClearRuntimeRelay() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.runtimeRelay == nil {
-		return false
+func (s *Store) ClearManagedAccountRelay() (bool, error) {
+	current := s.Get()
+	if current.Relay == nil || (!current.Relay.HasKey && !current.Relay.Enabled) {
+		return false, nil
 	}
-	s.runtimeRelay = nil
-	return true
+	current.Relay.Enabled = false
+	current.Relay.RemoveKey = true
+	if err := s.Save(current); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // SetRuntimeModelCatalogPath publishes public, non-credential model metadata
@@ -927,6 +934,9 @@ func validateAccountModelURL(value string) error {
 	parsed, _ := url.Parse(value)
 	if parsed.Scheme != "https" {
 		return fmt.Errorf("must use https")
+	}
+	if strings.TrimRight(parsed.String(), "/") != tokenFluxAccountURL {
+		return fmt.Errorf("must use %s", tokenFluxAccountURL)
 	}
 	return nil
 }

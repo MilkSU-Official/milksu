@@ -760,7 +760,7 @@ describe('SettingsPage database compatibility', () => {
     expect(document.body.textContent).toContain('已保存并验证')
   })
 
-  it('uses the signed-in account gateway without a local Team Key and allows personal fallback order', async () => {
+  it('uses the signed-in account-assigned Key without exposing it and allows personal fallback order', async () => {
     let savedSettings: unknown = null
     const settings = withAppSettingsDefaults({
       active_provider: 'tokenflux',
@@ -771,7 +771,7 @@ describe('SettingsPage database compatibility', () => {
       },
       relay: {
         enabled: true,
-        url: 'https://accounts.milksu.org/v1/model',
+        url: 'https://tokenflux.dev/v1',
         key: '',
         has_key: false,
       },
@@ -795,7 +795,6 @@ describe('SettingsPage database compatibility', () => {
         configured: true,
         authenticated: true,
         state: 'active',
-        balanceCents: 1860,
         tokenFluxLinked: true,
         user: {
           githubLogin: 'milksuofficial',
@@ -819,10 +818,9 @@ describe('SettingsPage database compatibility', () => {
 
     const text = document.body.textContent ?? ''
     expect(text).toContain('@milksuofficial · 内测用户')
-    expect(text).toContain('¥18.60')
-    expect(text).toContain('内测额度')
+    expect(text).toContain('账户分配模型')
     expect(text).toContain('我的 API Key')
-    expect(text).toContain('登录后自动使用，不下发 Team Key')
+    expect(text).toContain('登录后静默同步到本地凭据存储')
     expect(document.querySelector('input[aria-label="TokenFlux 团队 API Key"]')).toBeNull()
 
     const personalReorderButton = document.querySelector(

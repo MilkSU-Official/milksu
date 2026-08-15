@@ -784,7 +784,7 @@ function registerAccountModel(session, provider, model) {
   });
   const source = accountDefinition?.models?.find(item => item.id === accountModelID);
   session.modelRuntime.registerProvider("milksu-account", {
-    name: "MilkSU 内测额度",
+    name: "MilkSU 账户分配模型",
     baseUrl: relayUrl,
     apiKey: relayKey,
     api: "openai-completions",

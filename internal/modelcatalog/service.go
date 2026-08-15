@@ -21,7 +21,7 @@ import (
 const (
 	ProviderTokenFlux         = "tokenflux"
 	defaultTokenFluxBaseURL   = "https://tokenflux.dev/v1"
-	publicTokenFluxCatalogURL = "https://tokenflux.ai/v1/models"
+	publicTokenFluxCatalogURL = "https://tokenflux.dev/v1/models"
 	defaultMaxTokens          = 32_768
 	maxCatalogResponseBytes   = 8 << 20
 )
@@ -240,7 +240,7 @@ func normalizeModels(values []struct {
 		if id == "" || len(id) > 256 || seen[id] || strings.ContainsAny(id, "\x00\r\n\t ") {
 			continue
 		}
-		if kind := strings.TrimSpace(value.Type); kind != "" && kind != "chat" {
+		if kind := strings.TrimSpace(value.Type); kind != "" && kind != "chat" && kind != "model" {
 			continue
 		}
 		input := normalizeInput(value.Architecture.InputModalities)

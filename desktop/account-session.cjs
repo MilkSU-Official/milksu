@@ -6,6 +6,7 @@ const path = require('node:path')
 
 const MAX_AVATAR_BYTES = 1024 * 1024
 const GITHUB_AVATAR_HOST = 'avatars.githubusercontent.com'
+const TOKENFLUX_BASE_URL = 'https://tokenflux.dev/v1'
 
 function base64url(buffer) {
   return Buffer.from(buffer).toString('base64url')
@@ -147,8 +148,33 @@ class AccountSession {
         displayName: String(payload.account.displayName ?? payload.account.githubLogin ?? ''),
         avatarUrl,
       },
-      balanceCents: Number(payload.account.balanceCents ?? 0),
       tokenFluxLinked: payload.account.tokenFluxLinked === true,
+    }
+  }
+
+  async modelCredential() {
+    if (!this.config.configured) return null
+    const session = await this.activeSession()
+    if (!session) return null
+    const response = await this.fetch(`${this.config.apiUrl}/v1/account/model-credential`, {
+      headers: { authorization: `Bearer ${session.accessToken}` },
+    })
+    if (response.status === 404) return null
+    if (!response.ok) throw new Error('账户模型凭据同步失败')
+    const payload = await response.json().catch(() => ({}))
+    const credential = payload?.credential
+    const apiKey = String(credential?.apiKey ?? '').trim()
+    const baseUrl = String(credential?.baseUrl ?? '').replace(/\/+$/u, '')
+    if (credential?.provider !== 'tokenflux' || baseUrl !== TOKENFLUX_BASE_URL || !apiKey) {
+      throw new Error('账户模型凭据无效')
+    }
+    return {
+      provider: 'tokenflux',
+      baseUrl,
+      apiKey,
+      models: Array.isArray(credential.models)
+        ? credential.models.map(value => String(value).trim()).filter(Boolean)
+        : [],
     }
   }
 

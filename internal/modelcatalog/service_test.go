@@ -21,7 +21,7 @@ func TestRefreshUpdatesCatalogAndRestartLoadsCache(t *testing.T) {
 		_ = json.NewEncoder(writer).Encode(map[string]any{
 			"data": []map[string]any{
 				{
-					"id": "x-ai/grok-4.6", "name": "Grok 4.6", "type": "chat",
+					"id": "grok-4.6", "name": "Grok 4.6", "type": "model",
 					"context_length": 500000,
 					"architecture":   map[string]any{"input_modalities": []string{"text", "image", "file"}},
 				},
@@ -59,7 +59,7 @@ func TestRefreshUpdatesCatalogAndRestartLoadsCache(t *testing.T) {
 	if refreshed.Source != "remote" || refreshed.RefreshedAt != "2026-08-13T12:30:00Z" {
 		t.Fatalf("unexpected refreshed snapshot: %#v", refreshed)
 	}
-	if len(refreshed.Models) != 1 || refreshed.Models[0].ID != "x-ai/grok-4.6" {
+	if len(refreshed.Models) != 1 || refreshed.Models[0].ID != "grok-4.6" {
 		t.Fatalf("unexpected models: %#v", refreshed.Models)
 	}
 	if strings.Join(refreshed.Models[0].Input, ",") != "text,image" {
@@ -80,7 +80,7 @@ func TestRefreshUpdatesCatalogAndRestartLoadsCache(t *testing.T) {
 		t.Fatal(err)
 	}
 	cached := restarted.Snapshot()
-	if cached.Source != "cache" || len(cached.Models) != 1 || cached.Models[0].ID != "x-ai/grok-4.6" {
+	if cached.Source != "cache" || len(cached.Models) != 1 || cached.Models[0].ID != "grok-4.6" {
 		t.Fatalf("restart did not load last-known-good catalog: %#v", cached)
 	}
 }

@@ -396,11 +396,31 @@ func (a *App) GetSettings() config.AppSettings {
 	return a.settings.Get()
 }
 
-// SetAccountModelAuthorization is called only by the Electron main process
-// after it validates an active desktop account session. The credential remains
-// runtime-only and is never returned to the renderer or persisted locally.
-func (a *App) SetAccountModelAuthorization(baseURL, credential string) error {
-	changed, err := a.settings.SetRuntimeRelay(baseURL, credential)
+// SetAccountModelCredential is called only by the Electron main process after
+// it retrieves the current user's assigned provider credential. The settings
+// store persists it in credentials.db and never exposes it to the renderer.
+func (a *App) SetAccountModelCredential(baseURL, credential string) error {
+	changed, err := a.settings.SetManagedAccountRelay(baseURL, credential)
+	if err != nil {
+		return err
+	}
+	if !changed {
+		return nil
+	}
+	refreshContext, cancelRefresh := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancelRefresh()
+	if refreshedCatalog, refreshErr := a.modelCatalog.Refresh(refreshContext); refreshErr != nil {
+		a.diagnostics.Record("model-catalog", "warning", "account model catalog refresh failed; retained last-known-good catalog")
+	} else {
+		a.emitDesktopEvent("model-catalog-changed", refreshedCatalog)
+	}
+	a.engines.Close()
+	a.securityEngine.Restart()
+	return nil
+}
+
+func (a *App) ClearAccountModelCredential() error {
+	changed, err := a.settings.ClearManagedAccountRelay()
 	if err != nil {
 		return err
 	}
@@ -410,14 +430,6 @@ func (a *App) SetAccountModelAuthorization(baseURL, credential string) error {
 	a.engines.Close()
 	a.securityEngine.Restart()
 	return nil
-}
-
-func (a *App) ClearAccountModelAuthorization() {
-	if !a.settings.ClearRuntimeRelay() {
-		return
-	}
-	a.engines.Close()
-	a.securityEngine.Restart()
 }
 
 func (a *App) GetStartupRecoveryStatus() appdata.LifespanStart {
