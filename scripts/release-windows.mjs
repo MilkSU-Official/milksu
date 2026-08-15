@@ -31,8 +31,16 @@ const backendPath = join(repositoryRoot, 'build', 'desktop', 'milksu-backend.exe
 const sidecarPath = join(repositoryRoot, 'build', 'sidecar', 'windows-amd64')
 
 function run(command, args, options = {}) {
+  let executable = command
+  let commandArgs = args
+  if (process.platform === 'win32' && command === 'npm') {
+    const npmCLI = String(process.env.npm_execpath ?? '').trim()
+    if (!npmCLI) throw new Error('npm_execpath is required for native Windows packaging')
+    executable = process.execPath
+    commandArgs = [npmCLI, ...args]
+  }
   return new Promise((resolvePromise, rejectPromise) => {
-    const child = spawn(command, args, {
+    const child = spawn(executable, commandArgs, {
       cwd: repositoryRoot,
       stdio: 'inherit',
       ...options,
