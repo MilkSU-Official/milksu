@@ -2,6 +2,12 @@ name: Windows x64 release
 
 on:
   workflow_dispatch:
+    inputs:
+      source_commit:
+        description: Optional full main commit to package with this workflow revision
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -14,6 +20,22 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 0
+      - name: Select the immutable release source
+        shell: pwsh
+        env:
+          RELEASE_SOURCE_COMMIT: ${{ inputs.source_commit }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $source = $env:RELEASE_SOURCE_COMMIT.Trim().ToLowerInvariant()
+          if (-not $source) { exit 0 }
+          if ($source -notmatch '^[0-9a-f]{40}$') {
+            throw "source_commit must be a full Git commit"
+          }
+          git merge-base --is-ancestor $source origin/main
+          if ($LASTEXITCODE -ne 0) { throw "source_commit is not on main" }
+          git checkout -B main $source
+          if ((git status --porcelain)) { throw "selected release source is dirty" }
       - name: Refuse a Stable release outside main
         shell: pwsh
         run: |
