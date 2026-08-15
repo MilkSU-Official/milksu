@@ -1,114 +1,140 @@
-# MilkSU
+<p align="center">
+  <img src="app/src/assets/milksu-app-icon.png" width="112" alt="MilkSU">
+</p>
 
-MilkSU 是一个 macOS-first 的本地 AI 学习与开发客户端，当前产品主线是：
+<h1 align="center">MilkSU</h1>
 
-- **Coding Agent**：以固定版本 Pi 为通用 Agent 基座，在用户授权的项目中持续修改、构建、
-  测试、预览、恢复并交付代码；
-- **CTF**：把题面、材料、Agent 轨迹、候选、平台 Judge、恢复、复盘和训练证据连成可验证
-  的学习闭环。
+<p align="center">
+  面向安全学习、漏洞研究与软件开发的本地 AI 工作台
+</p>
 
-MilkSU 不从零重写通用模型调用、Tool Loop、Compaction、LSP、Browser 或 ImageGen。
-通用能力优先复用成熟组件；自研重点是桌面权限边界，以及 CTF 的 Evidence、Judge、
-Recovery、Memory、教学和 Agent 协作。
+<p align="center">
+  <a href="https://github.com/MilkSU-Official/milksu/releases"><img src="https://img.shields.io/badge/status-internal_beta-a6ef00?style=flat-square&labelColor=20211f" alt="Internal beta"></a>
+  <img src="https://img.shields.io/badge/platform-macOS_Apple_Silicon-f3f0e8?style=flat-square&labelColor=20211f" alt="macOS Apple Silicon">
+  <img src="https://img.shields.io/badge/desktop-Electron_%2B_Vue_%2B_Go-f3f0e8?style=flat-square&labelColor=20211f" alt="Electron, Vue and Go">
+</p>
 
-> 当前仍是 pre-release 开发版本，不是正式签名、公证或可自动升级的发行包。
->
-> 2026-08-05，M3 product-loop PR #1 已 squash merge 到 `main`，合并后基线为
-> `108e0e3`。当前进度和未完成项只以
-> [当前开发目标](docs/developer/current-objectives.md)、当前代码、测试和 Git 历史为准；
-> [产品闭环冲刺摘要](docs/developer/product-loop-sprint.md)只记录已完成冲刺的关键结论，
-> 不表示同一 PR 仍未合并。
+<p align="center">
+  <a href="https://github.com/MilkSU-Official/milksu/releases">下载内测版</a>
+  ·
+  <a href="docs/architecture/current-system.md">了解系统</a>
+  ·
+  <a href="https://github.com/MilkSU-Official/milksu/issues">反馈问题</a>
+</p>
 
-## 为什么是桌面 Agent
+![MilkSU Coding 工作台](docs/media/readme-coding.png)
 
-MilkSU 的桌面 GUI 不只是给命令行 Agent 加一层聊天界面。它提供三种由用户看得见、可控制的
-执行表面，这是它相对纯 TUI 的关键产品能力：
+MilkSU 把 Coding、CTF 和 CVE 放进同一个桌面工作台。你可以让 Agent 阅读项目、修改文件、运行测试，也可以从一道 CTF 或一个 CVE 出发，把题面、材料、研究过程和最终产物留在同一个可回看的任务里。
 
-- **浏览器**：MilkSU 管理的会话隔离 Chromium。用户和 Agent 操作同一个页面，适合网页调研、
-  前端验证以及后续经领域授权的 CTF/CVE Web 任务；产品界面只称“浏览器”。
-- **Browser Use**：用户把真实 Chrome/Edge 中的准确标签页授权给当前任务，用于必须复用现有
-  登录态或浏览器扩展的工作；它不继承 MilkSU 浏览器的 Profile，也不获得整个日常浏览器权限。
-- **Computer Use**：用户选择一个可见的外部 App、进程和窗口作为 Scope，用于没有更成熟结构化
-  接口的桌面操作；浏览器不混入这个权限面。
+它不是又一个只有输入框的聊天客户端。MilkSU 让 Agent 的工作对象真正出现在你面前：项目文件、内置浏览器、真实浏览器标签页和外部桌面应用都可以成为当前任务的一部分；你可以随时观察、补充要求、接管或停止。
 
-这三类能力共享同一条产品原则：用户输入表达任务意图，Composer 中的可删除 Scope 表达准确
-授权；右栏或底部面板只是观察和接管入口，折叠界面不应等同于停止 Agent、浏览器会话或外部
-任务。具体实现、已验证范围和未完成矩阵见
-[当前系统与分层](docs/architecture/current-system.md)与
-[Coding Agent / Pi 扩展边界](docs/architecture/coding-agent-pi-extension-boundary.md)。
+## 你可以用 MilkSU 做什么
 
-## 当前事实
+### Coding
 
-| 领域 | 可以准确声称 | 仍不能声称 |
-| --- | --- | --- |
-| Coding | Plan/Go、三档权限、项目工具、附件、本地 OCR、LSP、Artifact 预览、内置 Chromium 浏览器、后台任务、Diff/Hunk、Git、PR 预览/发布确认、worktree、ImageGen、Project MCP、Session Index 和 Computer Use 外部 App 纵切均已有不同程度的工程主链或真实打包验收证据 | 仍不能称为 Codex 等价产品；真实外部 Provider 质量、长期主工作区自改、自主合并发布、完整审批矩阵和发行门禁仍未完成 |
-| CTF | NSSCTF/CTFshow 目录、自定义题、单题工作区、Coach/Copilot/Delegate、Evidence、候选、Judge、Checkpoint、恢复、复盘和 Memory 主链已存在；NSSCTF P3879 有一条真实 `correct=true` 记录 | 只有 Web 窄路径有真实 Judge 成功，不能称为六赛道通用 CTF 成绩 |
-| CVE | 一级菜单已从 mock 骨架推进为学习/追踪 MVP：NVD、FIRST EPSS、OSV、GitHub Advisory、CISA KEV 与 Vulhub 练习目录同步，来源快照、研究档案、资产验证、学习写回、本地 Docker Compose 练习生命周期和 Coding 接力均已有真实或窄验收 | 不是红队 Agent、批量扫描器、自动 PoC 复现器或披露平台；真实 Vulhub 漏洞复现、外部资产研究和披露闭环后置 |
-| Memory | 用户/Agent/协作/导入和提示依赖的归属模型、当前题排除及相关/无关召回测试已经存在 | 尚未完成真实 36 条分层轨迹、跨题推荐和用户能力画像校准 |
-| Runtime | 多轮工具 fixture、Sidecar 恢复、Compaction、超时/取消、预算、失败分类、异常退出标记和打包 App/WebView 后台长任务恢复已有可复跑报告 | NYU safe-static 只是开发者 smoke，不是 MilkSU CTF Outcome；交互式 PTY 重连、更多真实长任务和发行级恢复矩阵仍未完成 |
-| 发行 | 本地备份、恢复、脱敏诊断、最低窗口和单机性能基线已存在 | Developer ID、Hardened Runtime、公证、升级、新机器和正式支持矩阵尚未进入 RC 验收 |
+- 让 Agent 理解现有仓库，完成修改、构建、测试和代码审阅；
+- 使用 Plan / Go 工作方式和不同权限档位控制执行范围；
+- 查看文件变更、Git 状态、终端任务和可预览产物；
+- 按任务使用浏览器、Browser Use、Computer Use、MCP、LSP 和已审核 Skill；
+- 在干净 Git 项目中自动隔离修改，不打乱当前工作区。
 
-Lab 纵深闭环仍保持 `Paused / Designed`，不进入当前真实完成条件。CVE 已有学习/追踪 MVP；
-CVE 纵深研究、真实漏洞复现、外部资产实验和披露流程仍后置。实验代码和历史设计不能被描述为
-当前用户能力。
+### CTF
 
-## 稳定边界
+- 浏览 NSSCTF、CTFshow 题库，收藏题目并获得每日训练建议；
+- 导入自定义题目，为每道题建立独立工作区；
+- 在 Coach、Copilot 和 Delegate 之间选择合适的协作深度；
+- 保存材料、Evidence、候选、Judge 回执、检查点和复盘；
+- 把题目连同上下文交给同一个 Coding Agent 继续处理。
 
-- 模型候选不等于成功；CTF 成功由平台 Judge 或其他独立 Evaluator 决定。
-- Provider Credential 不进入模型上下文、前端、普通文件、日志、诊断包或迁移。
-- “替我审批”和“完全访问”优先减少普通任务中的无意义中断，但不会绕过付费、外部账户、
-  扩大 Scope、托管发布、路径边界或不可逆操作。
-- 只允许向用户明确授权的 MilkSU 私有远端发布，不向引用的开源项目创建 PR。
-- 新代码直接实现当前干净模型；pre-release 旧 schema 和过渡结构在产品稳定后集中做一次
-  破坏性收口，不在功能纵切中途维护临时兼容层。
+### CVE
 
-## 文档入口
+- 按编号、产品或关键词搜索公开 CVE，并加入个人研究列表；
+- 汇总 NVD、CISA KEV、EPSS、OSV、GitHub Advisory 等公开来源；
+- 手动维护“想研究、研究中、已归档”等个人状态；
+- 将漏洞背景和来源一并交给 Coding，继续阅读代码或整理研究材料。
 
-先按以下顺序阅读，避免从历史 ADR 恢复旧计划：
+<table>
+  <tr>
+    <td width="50%">
+      <img src="docs/media/readme-ctf.png" alt="MilkSU CTF 题库与每日挑战">
+      <p align="center"><sub>CTF 题库、每日挑战与 Coding 交接</sub></p>
+    </td>
+    <td width="50%">
+      <img src="docs/design/game-ui/qa/cve-list-light.jpg" alt="MilkSU CVE 研究列表">
+      <p align="center"><sub>个人 CVE 研究列表与公开来源</sub></p>
+    </td>
+  </tr>
+</table>
 
-1. [当前开发目标](docs/developer/current-objectives.md)：唯一目标契约、优先级和执行规则。
-2. [文档与事实状态](docs/developer/document-status.md)：哪些文档是 Current、Target、Evidence、
-   Historical、Research 或 Paused。
-3. [当前系统与分层](docs/architecture/current-system.md)：当前代码中的进程、模块和边界。
-4. [架构快照索引](docs/architecture/index.md)：长期设计、暂停范围和证据入口。
+## Agent 不只看得到，也做得到
 
-`objective-coverage-ledger.md`、`objective-review-workbook.md`、`docs/developer/adr/`、
-带日期的 Review、Checkpoint、设计审计和 Spike 都是历史决策或证据，
-不是当前 backlog。发生冲突时，以代码、测试、原生 App、真实回执和当前目标为准。
+MilkSU 会把当前任务可用的能力告诉模型，再由模型按上下文选择合适的工具。用户不需要在每次任务前手工拼装一套工具链。
 
-## 开发
+- **项目能力**：文件、Shell、Git、LSP、测试与 Artifact 预览；
+- **网页能力**：会话隔离的内置浏览器，以及用户明确选择的真实 Chrome / Edge 标签页；
+- **桌面能力**：针对准确 App 和窗口的 Computer Use；
+- **安全工具**：已经准备并启用的 IDA Pro / idalib、capa 等能力可以按需进入 Coding；
+- **历史能力**：搜索本机 Coding、CTF、CVE 会话，并按需生成人类可读的语义关系图。
 
-源码按运行时边界组织，仓库根目录只保留模块清单、锁文件和仓库级配置：
+![MilkSU 安全工具设置](docs/design/audits/milksu-security-tools-settings-production.png)
 
-- `app/`：Vue Renderer；
-- `desktop/`：Electron 主进程、Preload 与 Chromium 宿主；
-- `cmd/milksu-backend/`：Go Runtime 可执行程序和应用组合层；
-- `internal/`：Go 领域、应用服务与基础设施包；
-- `sidecar/pi/`：Pi Session、工具策略和固定扩展适配；
-- `sidecar/security/`：CTF Security Sidecar 入口；
-- `sidecar/computer-use/`：Computer Use 代理；
-- `browserextension/`：真实浏览器标签页配对扩展；
-- `scripts/`、`tests/`：构建、打包、验收协调器与 fixture。
+## 开始使用
+
+MilkSU 目前处于内测阶段，正式支持 **macOS Apple Silicon**。
+
+1. 从 [Releases](https://github.com/MilkSU-Official/milksu/releases) 下载最新 DMG；
+2. 将 MilkSU 拖入“应用程序”并打开；
+3. 使用 GitHub 登录；
+4. 由内测管理员为账户开通模型，或在“设置 → 模型与额度”中添加自己的 Provider / OpenAI-compatible 中转站；
+5. 选择 Coding、CTF 或 CVE，开始第一个任务。
+
+账户未分配模型额度时仍可登录和浏览本地功能，只是暂时不能发起模型任务。正式版本使用 Developer ID 签名与 Apple 公证；Stable 客户端支持登录后检查受保护的应用更新。
+
+## 本地优先
+
+- 用户可见的 Coding、CTF 和 CVE 产物保存在 `~/Documents/MilkSU/`；
+- 项目目录、浏览器标签页和桌面窗口都需要明确进入当前任务范围；
+- Provider 凭据保存在本机凭据存储中，不进入聊天内容、普通日志或项目文件；
+- CTF 的成功结果以平台 Judge 或用户确认的结果为准，不由模型自述决定。
+
+## 当前状态
+
+MilkSU 已经有可分发的 macOS 内测包，核心 Coding、CTF 和 CVE 工作流可用，但仍在快速迭代。Windows 打包、更多安全工具的真实任务验证、完整 OTA 升级回执和更广的跨应用测试仍在推进。
+
+MilkSU 面向个人学习、授权研究和本地开发，不是互联网资产扫描器或无人值守的自动红队平台。
+
+## 本地开发
+
+需要 Node.js、npm、Go，以及用于桌面构建的 macOS Apple Silicon 环境。
 
 ```bash
-# 安装根依赖并构建文档
+# 安装依赖
 npm install
-npm run docs:build
-
-# Vue 浏览器开发预览
 npm --prefix app install
+
+# 启动 Vue 预览
 npm --prefix app run dev
 
-# Go 与前端自动测试
+# 启动桌面开发版本
+npm run desktop:start
+```
+
+提交前至少运行与改动对应的测试：
+
+```bash
 go test ./...
 npm run test:sidecar
 npm --prefix app run test
 npm --prefix app run build
-
-# 固定 Sidecar 资源与 Electron/Chromium 桌面包
-npm run sidecar:smoke
-npm run desktop:build
-npm run codesign:check
 ```
 
-具体命令和环境要求以 `package.json`、`app/package.json`、`desktop/package.json` 和当前 CI/脚本为准。
+更完整的架构、开发边界和当前事实请从以下文档开始：
+
+- [当前开发目标](docs/developer/current-objectives.md)
+- [文档与事实状态](docs/developer/document-status.md)
+- [当前系统与分层](docs/architecture/current-system.md)
+- [架构索引](docs/architecture/index.md)
+
+## 反馈
+
+内测问题和产品建议可以提交到 [GitHub Issues](https://github.com/MilkSU-Official/milksu/issues)，或发送邮件至 [milksu@proton.me](mailto:milksu@proton.me)。
