@@ -4,7 +4,7 @@ import { createApp, nextTick, type App } from 'vue'
 import { afterEach, describe, expect, it } from 'vitest'
 import SettingsPage from './SettingsPage.vue'
 import type { CodingComputerUseStatus } from '@/codingEnvironmentTypes'
-import { installModelCatalog } from '@/modelCatalog'
+import { installCustomProviderSettings, installModelCatalog } from '@/modelCatalog'
 import {
   withAppSettingsDefaults,
   type AccountStatus,
@@ -20,6 +20,10 @@ class ResizeObserverStub {
   disconnect() {}
 }
 ;(globalThis as { ResizeObserver?: unknown }).ResizeObserver = ResizeObserverStub
+HTMLElement.prototype.hasPointerCapture = () => false
+HTMLElement.prototype.setPointerCapture = () => undefined
+HTMLElement.prototype.releasePointerCapture = () => undefined
+HTMLElement.prototype.scrollIntoView = () => undefined
 
 const mountedApps: App[] = []
 
@@ -45,6 +49,7 @@ afterEach(() => {
   document.body.innerHTML = ''
   Reflect.deleteProperty(window, 'go')
   Reflect.deleteProperty(window, 'milksu')
+  installCustomProviderSettings({})
 })
 
 interface MountSettingsOptions {
@@ -59,6 +64,7 @@ async function mountSettingsPage(
   options: MountSettingsOptions = {},
 ) {
   const settings = options.settings ?? withAppSettingsDefaults({} as AppSettings)
+  installCustomProviderSettings(settings.providers)
   const defaultComputerUseStatus: CodingComputerUseStatus = {
     available: true,
     enabled: false,
@@ -733,6 +739,64 @@ describe('SettingsPage database compatibility', () => {
       source_order: ['account', 'personal'],
       auto_fallback: true,
     })
+  })
+
+  it('uses the same available provider groups as Coding and updates provider with the default model', async () => {
+    let savedSettings: unknown = null
+    const settings = withAppSettingsDefaults({
+      active_provider: 'tokenflux',
+      active_model: 'grok-4.3',
+      providers: {
+        deepseek: {
+          api_key: '',
+          has_api_key: true,
+          enabled: true,
+          base_url: 'https://api.deepseek.com',
+        },
+      },
+    } as unknown as AppSettings)
+    await mountSettingsPage({
+      directory: 'MilkSU 用户数据目录',
+      fileCount: 0,
+      bytes: 0,
+    }, {
+      initialCategory: 'apikeys',
+      settings,
+      appMethods: {
+        SaveSettingsCmd: async (value: unknown) => {
+          savedSettings = value
+        },
+        GetSettings: async () => savedSettings ?? settings,
+        TestAgentModel: async () => ({
+          provider: 'deepseek',
+          model: 'deepseek-v4-pro',
+          ready: true,
+          latencyMs: 30,
+        }),
+      },
+    })
+
+    const trigger = document.querySelector<HTMLElement>('[aria-label="默认模型"]')
+    expect(trigger).not.toBeNull()
+    trigger?.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }))
+    await settle()
+
+    const options = [...document.querySelectorAll<HTMLElement>('[role="option"]')]
+    expect(options.some(option => option.textContent?.includes('TokenFlux · Grok 4.5'))).toBe(true)
+    const deepSeek = options.find(option => option.textContent?.includes('DeepSeek · deepseek-v4-pro'))
+    expect(deepSeek).toBeDefined()
+    deepSeek?.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, button: 0 }))
+    await settle()
+
+    const saveButton = [...document.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.includes('保存并验证'))
+    saveButton?.click()
+    for (let index = 0; index < 6; index += 1) await settle()
+
+    const persisted = savedSettings as AppSettings
+    expect(persisted.active_provider).toBe('deepseek')
+    expect(persisted.active_model).toBe('deepseek-v4-pro')
+    expect(persisted.model_routing.source_order).toEqual(['account', 'personal'])
   })
 
   it('adds and verifies a simple custom OpenAI-compatible relay', async () => {
