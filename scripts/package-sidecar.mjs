@@ -14,7 +14,7 @@ import {
 } from 'node:fs/promises'
 import { createServer as createHttpServer } from 'node:http'
 import { createConnection, createServer as createNetServer } from 'node:net'
-import { dirname, join, relative, resolve } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { build } from 'esbuild'
@@ -151,7 +151,9 @@ async function exists(path) {
 
 async function resolveInstalledPackage(packageName, fromDirectory, optional = false) {
   let current = resolve(fromDirectory)
-  while (current === repositoryRoot || current.startsWith(`${repositoryRoot}/`)) {
+  while (true) {
+    const relativeToRepository = relative(repositoryRoot, current)
+    if (relativeToRepository.startsWith('..') || isAbsolute(relativeToRepository)) break
     const candidate = join(current, 'node_modules', ...packageName.split('/'))
     if (await exists(join(candidate, 'package.json'))) return candidate
     const parent = dirname(current)
