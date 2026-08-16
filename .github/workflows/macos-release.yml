@@ -68,7 +68,9 @@ jobs:
           cache: false
       - name: Install dependencies
         run: |
-          brew install ripgrep
+          # Pi owns Coding search semantics; the clean release runner supplies
+          # the native executables used by Pi's built-in grep/find tools.
+          brew install ripgrep fd
           npm ci
           npm --prefix app ci
           npm --prefix desktop ci
