@@ -8,6 +8,7 @@ describe('runtime model catalog', () => {
     installModelCatalog({
       provider: 'tokenflux',
       source: 'remote',
+      credential_source: 'account',
       refreshed_at: '2026-08-13T12:30:00Z',
       models: [
         {
@@ -59,6 +60,7 @@ describe('runtime model catalog', () => {
     installModelCatalog({
       provider: 'tokenflux',
       source: 'remote',
+      credential_source: 'account',
       refreshed_at: '2026-08-15T00:00:00Z',
       models: [
         {

@@ -10,7 +10,11 @@ import {
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import currentProviderRuntime from "./current-provider-runtime.cjs";
 
-const { currentProviderDefinition, tokenfluxModelIDForProvider } = currentProviderRuntime;
+const {
+  currentProviderDefinition,
+  tokenfluxAccountModelAvailability,
+  tokenfluxModelIDForProvider,
+} = currentProviderRuntime;
 
 test("TokenFlux registers a selected model even before a refreshed cache is available", () => {
   const definition = currentProviderDefinition("tokenflux", "grok-4.5", {});
@@ -31,6 +35,7 @@ test("loads refreshed canonical models from the desktop catalog cache", () => {
   fs.writeFileSync(catalogPath, JSON.stringify({
     provider: "tokenflux",
     source: "remote",
+    credential_source: "account",
     refreshed_at: "2026-08-13T12:30:00Z",
     models: [{
       id: "x-ai/grok-4.6",
@@ -49,6 +54,42 @@ test("loads refreshed canonical models from the desktop catalog cache", () => {
     assert.equal(model.name, "Grok 4.6");
     assert.equal(model.contextWindow, 500000);
     assert.deepEqual(model.input, ["text", "image"]);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("uses only an authoritative account catalog to reject unavailable models", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "milksu-account-catalog-"));
+  const catalogPath = path.join(directory, "tokenflux.json");
+  try {
+    fs.writeFileSync(catalogPath, JSON.stringify({
+      provider: "tokenflux",
+      source: "remote",
+      credential_source: "account",
+      models: [{ id: "grok-4.5", input: ["text"] }],
+    }));
+    const account = tokenfluxAccountModelAvailability("grok-4.5", {
+      MILKSU_MODEL_CATALOG_PATH: catalogPath,
+    });
+    assert.equal(account.authoritative, true);
+    assert.equal(account.model.id, "grok-4.5");
+    const missing = tokenfluxAccountModelAvailability("deepseek/deepseek-v4-flash", {
+      MILKSU_MODEL_CATALOG_PATH: catalogPath,
+    });
+    assert.equal(missing.authoritative, true);
+    assert.equal(missing.model, undefined);
+
+    fs.writeFileSync(catalogPath, JSON.stringify({
+      provider: "tokenflux",
+      source: "remote",
+      credential_source: "personal",
+      models: [{ id: "grok-4.5", input: ["text"] }],
+    }));
+    const personal = tokenfluxAccountModelAvailability("deepseek/deepseek-v4-flash", {
+      MILKSU_MODEL_CATALOG_PATH: catalogPath,
+    });
+    assert.equal(personal.authoritative, false);
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }

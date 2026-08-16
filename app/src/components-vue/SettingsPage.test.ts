@@ -26,6 +26,7 @@ const mountedApps: App[] = []
 installModelCatalog({
   provider: 'tokenflux',
   source: 'remote',
+  credential_source: 'account',
   refreshed_at: '2026-08-13T12:30:00Z',
   models: [
     { id: 'grok-4.5', name: 'Grok 4.5', context_window: 500000, max_tokens: 32768, input: ['text', 'image'] },
