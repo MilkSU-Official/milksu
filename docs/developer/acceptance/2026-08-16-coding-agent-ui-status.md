@@ -24,7 +24,7 @@
 | C16 | 内置浏览器标签页 | Fail | Computer Use 确认“新标签页”目前只是标题文本，未接操作；应提供 `+` 新建、单标签关闭和独立保留地址/前进后退状态，不能用重置当前页面冒充新标签页 |
 | C17 | 大范围删除二次确认 | Pass / 用户接受自动化证据 | 按 Pi 官方 Permission Gate 模式接入 `tool_call` 前置钩子，而不是只写 Skill。执行递归删除前展开 `~`、POSIX/PowerShell/Windows 环境变量，解析相对路径、通配符和符号链接；用户 Home、文件系统根、工作区根、会话授权根、超过 1000 项或 1 GiB 的目录即使在“完全访问”也会展示规范化路径、影响和原命令并单独确认。无法规范化的变量/命令替换直接阻止并要求模型改用明确绝对路径；普通文件和小目录不增加确认。跨平台解析与大小边界及 Sidecar 全量通过；用户明确接受自动化证据，不再要求本轮手工验收 |
 | C18 | 多模态模型身份与图片路由 | Pass | 修复 TokenFlux 模型目录缓存未就绪时把 Grok 4.5 兜底注册为 `text-only` 的问题：已确认的 `grok-4.5` 与 `x-ai/grok-4.5` 现在注册 `text + image`，未知模型仍保守保持纯文本。Pi `before_agent_start` 同步注入当前模型真实图片能力，禁止多模态模型声称自己纯文本或在没有 OCR 证据时声称使用 OCR。焦点 20/20、Sidecar 全量 261/261 通过；用户已在本地 Stable 包完成真实验收并确认通过 |
-| C19 | 实时网页搜索与查证 | 自动化与真实联网工具通过 / 待用户验收 | 已直接装载 Pi PR `#3080`、revision `53e430c` 的 `web_search` / `web_fetch` Extension；MilkSU 只接入现有 Coding 工具档位，不增加搜索关键词路由或第二套 harness。Sidecar 263/263、Go 全仓、前端 448/448 通过；真实联网工具测试以“Grok 4.5 是否支持图片输入”为题，先得到 xAI 官方文档搜索结果，再成功读取该官方页面。首次包验发现 Extension 被误当工厂提前执行，已改为直接交给 Pi Resource Loader；重打包后真实 `create_session` 返回 `web_search` / `web_fetch` 且 `extensionErrors=[]`。待 GUI 验收后改为 Pass |
+| C19 | 实时网页搜索与查证 | Pass | 已直接装载 Pi PR `#3080`、revision `53e430c` 的 `web_search` / `web_fetch` Extension；MilkSU 只接入现有 Coding 工具档位，不增加搜索关键词路由或第二套 harness。Sidecar 263/263、Go 全仓、前端 448/448 通过；真实联网工具测试以“Grok 4.5 是否支持图片输入”为题，先得到 xAI 官方文档搜索结果，再成功读取该官方页面。首次包验发现 Extension 被误当工厂提前执行，已改为直接交给 Pi Resource Loader；重打包后真实 `create_session` 返回 `web_search` / `web_fetch` 且 `extensionErrors=[]`，用户已完成 Stable GUI 验收并确认通过 |
 | C20 | 输入框原生撤销 | Fail / 本轮后置 | 用户确认当前编辑器按 `⌘Z` 无法撤销。发版优先级低于 C18/C19，本轮不扩展修改面；后续应补标准文本编辑器撤销/重做语义与真实键盘验收 |
 
 ## 使用规则
