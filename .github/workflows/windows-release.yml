@@ -78,6 +78,12 @@ jobs:
           $version = (Get-Content desktop/package.json | ConvertFrom-Json).version
           $installer = "build/release/MilkSU-Windows-x64-$version-Setup.exe"
           if (-not (Test-Path $installer)) { throw "missing installer: $installer" }
+          $builderConfig = Get-Content 'build/desktop/electron-builder.stable.windows.json' | ConvertFrom-Json
+          if ($builderConfig.nsis.oneClick -ne $false) { throw 'installer must use the assisted setup wizard' }
+          if ($builderConfig.nsis.allowToChangeInstallationDirectory -ne $true) { throw 'installer must expose the installation directory' }
+          if ($builderConfig.nsis.createDesktopShortcut -ne 'always') { throw 'installer must offer a persistent desktop shortcut' }
+          if ($builderConfig.nsis.createStartMenuShortcut -ne $true) { throw 'installer must create a Start menu shortcut' }
+          if ($builderConfig.nsis.runAfterFinish -ne $true) { throw 'installer must expose launch on the completion page' }
           $digest = (Get-FileHash -Algorithm SHA256 $installer).Hash.ToLowerInvariant()
           Write-Host "installer_sha256=$digest"
 

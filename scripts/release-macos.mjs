@@ -3,7 +3,8 @@
 import { execFile, spawn } from 'node:child_process'
 import { createReadStream } from 'node:fs'
 import { createHash } from 'node:crypto'
-import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, readlink, rm, stat, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
@@ -20,6 +21,9 @@ const appPath = join(repositoryRoot, 'build', 'bin', 'MilkSU.app')
 const releaseDirectory = join(repositoryRoot, 'build', 'release')
 const dmgPath = join(releaseDirectory, 'MilkSU-macOS-arm64.dmg')
 const metadataPath = join(releaseDirectory, 'release-metadata.json')
+const dmgBackgroundSourcePath = join(repositoryRoot, 'desktop', 'build', 'dmg-background.svg')
+const dmgBackgroundPath = join(repositoryRoot, 'build', 'desktop', 'dmg-background.png')
+const dmgBuilderConfigPath = join(repositoryRoot, 'build', 'desktop', 'electron-builder.stable.dmg.json')
 const semverPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/u
 
 function run(command, args, options = {}) {
@@ -83,6 +87,31 @@ async function digest(file, algorithm, encoding) {
   return hash.digest(encoding)
 }
 
+async function verifyDmgInstallLayout() {
+  const mountPoint = await mkdtemp(join(tmpdir(), 'milksu-dmg-layout-'))
+  let attached = false
+  try {
+    await run('/usr/bin/hdiutil', [
+      'attach',
+      '-readonly',
+      '-nobrowse',
+      '-mountpoint', mountPoint,
+      dmgPath,
+    ])
+    attached = true
+    await stat(join(mountPoint, 'MilkSU.app'))
+    const applicationsTarget = await readlink(join(mountPoint, 'Applications'))
+    if (applicationsTarget !== '/Applications') {
+      throw new Error(`DMG Applications shortcut points to ${applicationsTarget}`)
+    }
+    await stat(join(mountPoint, '.DS_Store'))
+    await stat(join(mountPoint, '.background.png'))
+  } finally {
+    if (attached) await run('/usr/bin/hdiutil', ['detach', mountPoint])
+    await rm(mountPoint, { recursive: true, force: true })
+  }
+}
+
 if (!identity.startsWith('Developer ID Application: ')) {
   throw new Error('MILKSU_CODESIGN_IDENTITY must be an exact Developer ID Application identity name')
 }
@@ -117,14 +146,52 @@ await rm(notaryZipPath, { force: true })
 await rm(zipPath, { force: true })
 await run('/usr/bin/ditto', ['-c', '-k', '--sequesterRsrc', '--keepParent', appPath, zipPath])
 
-await run('/usr/bin/hdiutil', [
-  'create',
-  '-volname', 'MilkSU',
-  '-srcfolder', appPath,
-  '-ov',
-  '-format', 'UDZO',
-  dmgPath,
+await run('/usr/bin/sips', [
+  '-s', 'format', 'png',
+  dmgBackgroundSourcePath,
+  '--out', dmgBackgroundPath,
 ])
+await writeFile(dmgBuilderConfigPath, `${JSON.stringify({
+  appId: 'com.milksu.app',
+  productName: 'MilkSU',
+  directories: { output: releaseDirectory },
+  mac: {
+    icon: join(repositoryRoot, 'build', 'appicon.png'),
+    identity: null,
+  },
+  dmg: {
+    artifactName: basename(dmgPath),
+    title: 'MilkSU',
+    background: dmgBackgroundPath,
+    iconSize: 104,
+    iconTextSize: 13,
+    format: 'UDZO',
+    filesystem: 'APFS',
+    sign: false,
+    writeUpdateInfo: false,
+    window: { width: 660, height: 440 },
+    contents: [
+      { x: 170, y: 250, type: 'file', path: appPath, name: 'MilkSU.app' },
+      { x: 490, y: 250, type: 'link', path: '/Applications' },
+    ],
+  },
+}, null, 2)}\n`)
+await rm(dmgPath, { force: true })
+await run(process.execPath, [
+  join(repositoryRoot, 'desktop', 'node_modules', 'electron-builder', 'cli.js'),
+  '--mac', 'dmg',
+  '--arm64',
+  '--prepackaged', appPath,
+  `--config=${dmgBuilderConfigPath}`,
+  '--project', join(repositoryRoot, 'desktop'),
+  '--publish', 'never',
+], {
+  env: {
+    ...process.env,
+    CSC_IDENTITY_AUTO_DISCOVERY: 'false',
+  },
+})
+await verifyDmgInstallLayout()
 await run('/usr/bin/codesign', [
   '--force',
   '--timestamp',

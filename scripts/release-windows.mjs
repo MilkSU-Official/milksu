@@ -162,10 +162,18 @@ const builderConfig = {
   nsis: {
     oneClick: false,
     perMachine: false,
+    allowElevation: true,
     allowToChangeInstallationDirectory: true,
-    createDesktopShortcut: true,
+    removeDefaultUninstallWelcomePage: false,
+    createDesktopShortcut: 'always',
     createStartMenuShortcut: true,
     shortcutName: 'MilkSU',
+    runAfterFinish: true,
+    deleteAppDataOnUninstall: false,
+    displayLanguageSelector: false,
+    installerLanguages: ['zh_CN', 'en_US'],
+    multiLanguageInstaller: true,
+    packElevateHelper: true,
   },
 }
 delete builderConfig.mac

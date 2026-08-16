@@ -73,6 +73,7 @@
 | P1 | Runtime Reliability | 自建安全 fixture：多轮、文件、命令、工具、重启、压缩、取消、预算、失败分类。 |
 | P1 | OTA 版本与更新提示 | Admin 版本草稿/发布/暂停、Desktop 启动检查、更新提示、下载进度与重启安装已实现并通过本地用户视角验收；生产 D1/R2 部署和一条真实旧签名版到新签名版升级回执仍待完成。 |
 | P1 | Cloudflare R2 正式发版 | 私有签名 workflow 已能在签名、公证、staple 和 Gatekeeper 后生成 ZIP/DMG/元数据，以 rclone 上传私有 R2、回读验哈希并创建 Admin 草稿；只有 Admin 人工发布才改变当前版本。生产 secrets 与真实流水尚未执行。 |
+| P1 | 桌面安装器体验 | macOS DMG 已同屏提供 `MilkSU.app`、`Applications` 快捷方式、品牌背景与中英拖拽说明，并通过本地 Finder 可见布局验收；Windows 已固定辅助式 NSIS 安装向导、安装位置、开始菜单/桌面快捷方式、卸载入口和完成页启动动作。仍须由本次正式双平台产物完成签名/原生构建验收；近新用户覆盖升级和卸载回执留作后续发行扩样，不得只以产物存在代替。 |
 | P2 | 本地交付与发行 | Developer ID `.app`、DMG、公证、stapling、Gatekeeper 与隔离首次启动已通过；RC 再做崩溃恢复、诊断、全新机器、OTA 升级、性能和尺寸。不读取或迁移本机签名私钥/证书密码/Personal Vault。 |
 | 持续 | 架构与 UI | 触碰即拆热点文件；不新开纯清债里程碑。UI 巡检后同步测试与当前文档。 |
 

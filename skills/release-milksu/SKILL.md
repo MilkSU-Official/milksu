@@ -21,16 +21,18 @@ Push the clean release commit to the authorized private `main`, then dispatch th
 
 ### macOS ARM64
 
-Use `macOS signed release` once. It must test, compile the App once, apply Developer ID signing and hardened runtime, notarize, staple, and verify Gatekeeper. Derive both deliverables from the same verified `.app`:
+Prefer a registered private self-hosted macOS ARM64 runner; use a GitHub-hosted Mac only when the local runner is unavailable or unsuitable. Use `macOS signed release` once. It must test, compile the App once, apply Developer ID signing and hardened runtime, notarize, staple, and verify Gatekeeper. Derive both deliverables from the same verified `.app`:
 
 - DMG: user installer and GitHub Release asset;
 - ZIP plus updater metadata: authenticated OTA payload uploaded directly from the runner to private R2.
+
+The DMG is a real drag-install surface, not a container holding only an App. It must show `MilkSU.app`, an `/Applications` shortcut, clear drag guidance, and a readable branded background in one Finder window. Mount it and verify the App, shortcut target, `.DS_Store`, and background; retain a visible Finder inspection before release.
 
 Download only the DMG artifact for local inspection. Do not download the OTA ZIP just to upload it again, and do not expose the ZIP on GitHub.
 
 ### Windows x64
 
-Use `Windows x64 release` on a native Windows runner. It must test, build the packaged runtimes and NSIS installer, start the packaged App, and confirm that its Go Runtime starts. Download only the EXE artifact.
+Use `Windows x64 release` on a native Windows runner. It must test, build the packaged runtimes and assisted NSIS installer, start the packaged App, and confirm that its Go Runtime starts. The installer must expose a conventional installation directory, Start menu and desktop shortcuts, an uninstall entry, and a finish-page launch action. Download only the EXE artifact.
 
 Do not claim Windows signing unless the workflow had a configured Windows code-signing certificate and verified the resulting signature. Until then, label the EXE as an unsigned internal-test build and expect SmartScreen. Record unavailable platform capabilities in the release notes instead of silently implying parity.
 

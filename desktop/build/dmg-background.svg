@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="660" height="440" viewBox="0 0 660 440">
+  <defs>
+    <linearGradient id="surface" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f5f3eb"/>
+      <stop offset="1" stop-color="#e8e6dd"/>
+    </linearGradient>
+    <pattern id="grain" width="24" height="24" patternUnits="userSpaceOnUse">
+      <circle cx="3" cy="6" r="0.7" fill="#171918" opacity="0.045"/>
+      <circle cx="17" cy="19" r="0.6" fill="#171918" opacity="0.03"/>
+    </pattern>
+  </defs>
+  <rect width="660" height="440" rx="18" fill="url(#surface)"/>
+  <rect width="660" height="440" rx="18" fill="url(#grain)"/>
+  <path d="M0 0h660v150H0z" fill="#151716"/>
+  <path d="M0 0h660v5H0z" fill="#9de800"/>
+  <text x="44" y="58" fill="#9de800" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="12" font-weight="700" letter-spacing="2">MILKSU INSTALLER</text>
+  <text x="44" y="96" fill="#f2f3ef" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="25" font-weight="700">拖动 MilkSU 到 Applications</text>
+  <text x="44" y="125" fill="#aeb3ad" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="14">Drag MilkSU to Applications to install</text>
+  <path d="M246 247h160" fill="none" stroke="#69a800" stroke-width="3" stroke-linecap="round"/>
+  <path d="m390 232 18 15-18 15" fill="none" stroke="#69a800" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="42" y="378" width="576" height="1" fill="#c8c7bf"/>
+  <text x="44" y="407" fill="#666b66" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="12">MilkSU · 个人安全工作台</text>
+</svg>
