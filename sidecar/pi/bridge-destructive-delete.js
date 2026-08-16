@@ -298,10 +298,6 @@ export async function destructiveDeleteDecision({
   const protectedRoots = [
     { path: homeDirectory, reason: "用户主目录" },
     { path: workspace, reason: "当前工作区根目录" },
-    ...((policy?.workspaceAccessPaths ?? []).map(path => ({
-      path,
-      reason: "当前会话授权目录根",
-    }))),
   ];
   const canonicalProtectedRoots = [];
   for (const entry of protectedRoots) {

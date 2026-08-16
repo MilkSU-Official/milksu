@@ -1,5 +1,5 @@
 diff --git a/node_modules/pi-better-background-tasks/src/process.ts b/node_modules/pi-better-background-tasks/src/process.ts
-index d81c850..fd8fb9e 100644
+index d81c850..a5a1e7a 100644
 --- a/node_modules/pi-better-background-tasks/src/process.ts
 +++ b/node_modules/pi-better-background-tasks/src/process.ts
 @@ -1,99 +1,7 @@
@@ -121,35 +121,13 @@ index 9d82042..414c25a 100644
 +import { join, resolve } from "node:path";
  import type { BackgroundTaskMeta } from "./types.js";
  import { isTerminalStatus } from "./types.js";
--
-+
+ 
 @@ -8,6 +8,8 @@ let seq = 0;
  const metaCache = new Map<string, BackgroundTaskMeta>();
--
-+
+ 
  export function baseDir(): string {
 +  const configured = process.env.MILKSU_BACKGROUND_TASKS_DIR?.trim();
 +  if (configured) return resolve(configured);
    return join(tmpdir(), "pi-better-background-tasks");
  }
--
-+
-diff --git a/node_modules/pi-better-background-tasks/src/runtime.ts b/node_modules/pi-better-background-tasks/src/runtime.ts
-index 292fe9e..f1669ac 100644
---- a/node_modules/pi-better-background-tasks/src/runtime.ts
-+++ b/node_modules/pi-better-background-tasks/src/runtime.ts
-@@ -1,4 +1,5 @@
- import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-+import { authorizeResumedBackgroundSpecification } from "../../../sidecar/pi/bridge-background-authorization.js";
- import { appendLine, appendWatchResult, retainLogTail, resolveMaxLogBytes } from "./logs.js";
- import { evaluateCondition } from "./conditions.js";
- import { processExists, runCommandOnce, spawnCommand, stopProcessGroup } from "./process.js";
-@@ -142,6 +143,8 @@ export function resumeRunningTask(
-     return meta;
-   }
-   if (meta.kind === "command_watch") {
-+    authorizeResumedBackgroundSpecification(meta);
-+    writeMeta(meta);
-     scheduleWatch(pi, meta.id, 0, getActiveSession);
-     return meta;
-   }
+ 

@@ -157,8 +157,6 @@ interface AgentEvent {
   steering?: string[]
   followUp?: string[]
   modelSource?: 'account' | 'personal'
-  paths?: string[]
-  restartRequired?: boolean
 }
 
 interface RuntimeTurnDispatch {
@@ -166,7 +164,6 @@ interface RuntimeTurnDispatch {
   attachments: CodingAttachment[]
   scopeToken?: ComposerScopeToken
   productAction?: CodingProductActionRequest
-  workspaceResumeCount: number
 }
 
 export interface CodingMessageQueue {
@@ -229,15 +226,6 @@ export interface PendingComposerDraft {
   visibleText: string
 }
 
-function normalizeWorkspaceAccessPaths(value: unknown, primary = '') {
-  if (!Array.isArray(value)) return []
-  const primaryPath = primary.trim()
-  return [...new Set(value
-    .map(item => String(item ?? '').trim())
-    .filter(item => item && item !== primaryPath))]
-    .slice(0, 8)
-}
-
 export function normalizeConversation(raw: Record<string, unknown>): Conversation {
   const messages = (raw.messages as Record<string, unknown>[] | undefined) ?? []
   return {
@@ -245,10 +233,6 @@ export function normalizeConversation(raw: Record<string, unknown>): Conversatio
     title: String(raw.title ?? '未命名对话'),
     createdAt: Number(raw.createdAt ?? 0),
     workspacePath: typeof raw.workspacePath === 'string' ? raw.workspacePath : undefined,
-    workspaceAccessPaths: normalizeWorkspaceAccessPaths(
-      raw.workspaceAccessPaths,
-      typeof raw.workspacePath === 'string' ? raw.workspacePath : '',
-    ),
     modelMode: ['auto', 'manual'].includes(String(raw.modelMode))
       ? raw.modelMode as Conversation['modelMode']
       : undefined,
@@ -363,6 +347,10 @@ export function agentErrorMessage(value: unknown) {
   return message || 'Agent engine failed'
 }
 
+function missingPiSession(value: unknown) {
+  return /PI session not found|PI Sidecar is not running/i.test(String(value ?? ''))
+}
+
 export function agentRuntimeErrorMessage(value: unknown) {
   const raw = String(value ?? '')
   const normalized = agentErrorMessage(value)
@@ -468,7 +456,6 @@ export function useConversations() {
   const continuity = ref<CodingContinuityState>(createCodingContinuityState())
   const active = computed(() => conversations.value.find(item => item.id === activeId.value) ?? null)
   const workspacePath = computed(() => active.value?.workspacePath ?? pendingWorkspacePath.value)
-  const workspaceAccessPaths = computed(() => active.value?.workspaceAccessPaths ?? [])
   const activeRunning = computed(() => (
     activeId.value ? runningIds.value.has(activeId.value) : false
   ))
@@ -516,8 +503,6 @@ export function useConversations() {
   const saveTimers = new Map<string, number>()
   const activeTurnPolicies = new Set<string>()
   const titleGenerationAttemptedIds = new Set<string>()
-  const activeTurnDispatches = new Map<string, RuntimeTurnDispatch>()
-  const workspaceResumePending = new Set<string>()
   let disposeEvents: (() => void) | undefined
 
   function persist(conversation: Conversation) {
@@ -569,7 +554,6 @@ export function useConversations() {
       conversationId,
       prompt: dispatch.prompt,
       workspacePath: conversation.workspacePath ?? '',
-      workspaceAccessPaths: conversation.workspaceAccessPaths ?? [],
       modelMode: conversation.modelMode ?? '',
       modelProvider: conversation.modelProvider ?? '',
       modelId: conversation.modelId ?? '',
@@ -583,44 +567,6 @@ export function useConversations() {
     })
   }
 
-  async function resumeWorkspaceAuthorizedTurn(conversationId: string) {
-    workspaceResumePending.delete(conversationId)
-    const dispatch = activeTurnDispatches.get(conversationId)
-    if (!dispatch) return
-    if (dispatch.workspaceResumeCount >= 2) {
-      activeTurnDispatches.delete(conversationId)
-      update(conversationId, conversation => ({
-        ...conversation,
-        messages: [...conversation.messages, {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          content: '目录授权已保存，但 Agent 未能在重载后继续当前任务。请再试一次。',
-          timestamp: Date.now(),
-          status: 'done',
-        }],
-      }))
-      return
-    }
-    dispatch.workspaceResumeCount += 1
-    runningIds.value = new Set(runningIds.value).add(conversationId)
-    try {
-      await invokeRuntimeTurn(conversationId, dispatch)
-    } catch (reason) {
-      activeTurnDispatches.delete(conversationId)
-      finishRun(conversationId)
-      update(conversationId, conversation => ({
-        ...conversation,
-        messages: [...conversation.messages, {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          content: `Agent 重载失败：${agentRuntimeErrorMessage(reason)}`,
-          timestamp: Date.now(),
-          status: 'done',
-        }],
-      }))
-    }
-  }
-
   function setMessageQueue(id: string, queue: CodingMessageQueue) {
     const next = new Map(messageQueues.value)
     if (queue.steering.length || queue.followUp.length) next.set(id, queue)
@@ -632,8 +578,6 @@ export function useConversations() {
     await invokeCommand('delete_conversation', { id })
     conversations.value = conversations.value.filter(conversation => conversation.id !== id)
     titleGenerationAttemptedIds.delete(id)
-    activeTurnDispatches.delete(id)
-    workspaceResumePending.delete(id)
     continuity.value = removeCodingContinuitySession(continuity.value, id)
     activeTurnPolicies.delete(id)
     setMessageQueue(id, { steering: [], followUp: [] })
@@ -755,39 +699,6 @@ export function useConversations() {
       workspacePath: normalized,
       mcpServers: undefined,
       mcpConfigDigest: undefined,
-    }))
-  }
-
-  function addWorkspaceAccess(path: string) {
-    const normalized = path.trim()
-    if (!normalized || !activeId.value) return
-    update(activeId.value, conversation => ({
-      ...conversation,
-      workspaceAccessPaths: normalizeWorkspaceAccessPaths(
-        [...(conversation.workspaceAccessPaths ?? []), normalized],
-        conversation.workspacePath,
-      ),
-    }))
-  }
-
-  function removeWorkspaceAccess(path: string) {
-    const normalized = path.trim()
-    if (!normalized || !activeId.value) return
-    update(activeId.value, conversation => ({
-      ...conversation,
-      workspaceAccessPaths: (conversation.workspaceAccessPaths ?? [])
-        .filter(value => value !== normalized),
-    }))
-  }
-
-  function setWorkspaceAccessPaths(paths: string[]) {
-    if (!activeId.value) return
-    update(activeId.value, conversation => ({
-      ...conversation,
-      workspaceAccessPaths: normalizeWorkspaceAccessPaths(
-        paths,
-        conversation.workspacePath,
-      ),
     }))
   }
 
@@ -986,17 +897,32 @@ export function useConversations() {
         ))
         return true
       } catch (reason) {
-        update(conversationId, conversation => ({
-          ...conversation,
-          messages: [...conversation.messages, {
-            id: crypto.randomUUID(),
-            role: 'assistant',
-            content: `引导未加入当前回合：${agentErrorMessage(reason)}`,
-            timestamp: Date.now(),
-            status: 'done',
-          }],
-        }))
-        return false
+        if (missingPiSession(reason)) {
+          // The host process may have restarted after the renderer observed a
+          // running turn. Treat that state as stale and recreate the same Pi
+          // conversation through the normal send path instead of exposing a
+          // dead session id or asking the user to repeat the message.
+          finishRun(conversationId)
+          setMessageQueue(conversationId, { steering: [], followUp: [] })
+          update(conversationId, conversation => ({
+            ...conversation,
+            messages: conversation.messages.map(item => (
+              item.id === message.id ? { ...item, status: undefined } : item
+            )),
+          }))
+        } else {
+          update(conversationId, conversation => ({
+            ...conversation,
+            messages: [...conversation.messages, {
+              id: crypto.randomUUID(),
+              role: 'assistant',
+              content: `引导未加入当前回合：${agentErrorMessage(reason)}`,
+              timestamp: Date.now(),
+              status: 'done',
+            }],
+          }))
+          return false
+        }
       }
     }
 
@@ -1025,15 +951,11 @@ export function useConversations() {
         attachments,
         scopeToken,
         productAction,
-        workspaceResumeCount: 0,
       }
-      activeTurnDispatches.set(conversationId, dispatch)
       await invokeRuntimeTurn(conversationId, dispatch)
       void generateConversationTitle(conversationId)
       return true
     } catch (reason) {
-      activeTurnDispatches.delete(conversationId)
-      workspaceResumePending.delete(conversationId)
       finishRun(conversationId)
       update(conversationId, conversation => ({
         ...conversation,
@@ -1207,7 +1129,6 @@ export function useConversations() {
         conversationId,
         prompt: `/goal ${action}`,
         workspacePath: conversation.workspacePath ?? '',
-        workspaceAccessPaths: conversation.workspaceAccessPaths ?? [],
         modelMode: conversation.modelMode ?? '',
         modelProvider: conversation.modelProvider ?? '',
         modelId: conversation.modelId ?? '',
@@ -1304,8 +1225,6 @@ export function useConversations() {
         steering,
         followUp,
         modelSource,
-        paths,
-        restartRequired,
       } = event.payload
       if (!sessionId && (type === 'engine.stopped' || type === 'engine.protocol_error')) {
         activeTurnPolicies.clear()
@@ -1352,8 +1271,6 @@ export function useConversations() {
         runningIds.value = new Set()
         abortingIds.value = new Set()
         messageQueues.value = new Map()
-        activeTurnDispatches.clear()
-        workspaceResumePending.clear()
         for (const id of affected) scheduleSave(id)
         return
       }
@@ -1431,13 +1348,6 @@ export function useConversations() {
             modelSource: modelSource === 'account' || modelSource === 'personal'
               ? modelSource
               : conversation.modelSource,
-          }
-        }
-        if (type === 'workspace.access.updated') {
-          if (restartRequired) workspaceResumePending.add(sessionId)
-          return {
-            ...conversation,
-            workspaceAccessPaths: normalizeWorkspaceAccessPaths(paths),
           }
         }
         if (type === 'session.goal_updated') {
@@ -1527,13 +1437,6 @@ export function useConversations() {
           }
           setMessageQueue(sessionId, { steering: [], followUp: [] })
           finishRun(sessionId)
-          if (workspaceResumePending.has(sessionId)) {
-            window.setTimeout(() => {
-              void resumeWorkspaceAuthorizedTurn(sessionId)
-            }, 0)
-          } else {
-            activeTurnDispatches.delete(sessionId)
-          }
         } else if (type === 'tool.started' || type === 'tool.completed') {
           const toolText = type === 'tool.completed'
             ? agentToolResultMessage(text, error)
@@ -1568,8 +1471,6 @@ export function useConversations() {
             })
           }
         } else if (type === 'engine.error') {
-          activeTurnDispatches.delete(sessionId)
-          workspaceResumePending.delete(sessionId)
           setMessageQueue(sessionId, { steering: [], followUp: [] })
           finishRun(sessionId)
           for (let index = 0; index < messages.length; index++) {
@@ -1607,8 +1508,6 @@ export function useConversations() {
   onBeforeUnmount(() => {
     disposeEvents?.()
     activeTurnPolicies.clear()
-    activeTurnDispatches.clear()
-    workspaceResumePending.clear()
     for (const timer of saveTimers.values()) window.clearTimeout(timer)
     saveTimers.clear()
   })
@@ -1618,7 +1517,6 @@ export function useConversations() {
     activeId,
     active,
     workspacePath,
-    workspaceAccessPaths,
     activeRunning,
     activeAborting,
     activeMessageQueue,
@@ -1643,9 +1541,6 @@ export function useConversations() {
     startNew,
     ensureConversation,
     setWorkspace,
-    addWorkspaceAccess,
-    removeWorkspaceAccess,
-    setWorkspaceAccessPaths,
     setModelSelection,
     setModelSourcePreference,
     setCodingPolicy,

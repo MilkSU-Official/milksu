@@ -44,12 +44,11 @@ func (s *Supervisor) recoverBackgroundTaskSession(
 	}
 	delete(s.recoveryFailures, sessionID)
 	err := writeCommand(s.process.stdin, map[string]any{
-		"action":               "create_session",
-		"conversationId":       sessionID,
-		"executionMode":        policy.ExecutionMode,
-		"approvalPolicy":       policy.ApprovalPolicy,
-		"workspaceAccessPaths": append([]string(nil), s.process.workspaceAccessPaths...),
-		"recoveryPurpose":      "background-tasks",
+		"action":          "create_session",
+		"conversationId":  sessionID,
+		"executionMode":   policy.ExecutionMode,
+		"approvalPolicy":  policy.ApprovalPolicy,
+		"recoveryPurpose": "background-tasks",
 	})
 	if err == nil {
 		// Reserve the session before releasing the process lock so concurrent

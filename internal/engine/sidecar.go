@@ -63,10 +63,8 @@ func sidecarEnvironment(settings config.AppSettings) ([]string, error) {
 		"MILKSU_CODING_ATTACHMENT_ROOT="+attachmentRoot,
 		"MILKSU_CODING_COLLABORATION_ROOT="+collaborationRoot,
 		"MILKSU_VISION_CACHE="+filepath.Join(runtimeHome, "vision-cache.json"),
-		// The Sidecar's packaged Node permission model deliberately cannot read
-		// the whole local home directory. Resolve it in the supervised launcher
-		// so policy code can reject overly broad scopes without probing that
-		// directory from the restricted process.
+		// Resolve the real user home in the supervised launcher so Pi policy can
+		// reject accidental broad grants without guessing from its isolated HOME.
 		"MILKSU_USER_HOME="+canonicalUserHome,
 	)
 	if catalogPath := strings.TrimSpace(settings.RuntimeModelCatalogPath); catalogPath != "" {
@@ -108,24 +106,6 @@ func newSidecarCommandAtWithDirectory(
 	allowChildProcess bool,
 	sidecarDirectory string,
 ) (*exec.Cmd, error) {
-	return newSidecarCommandAtWithDirectoryAndRoots(
-		packagedBridge,
-		sourceBridge,
-		workspace,
-		nil,
-		allowChildProcess,
-		sidecarDirectory,
-	)
-}
-
-func newSidecarCommandAtWithDirectoryAndRoots(
-	packagedBridge,
-	sourceBridge,
-	workspace string,
-	workspaceAccessPaths []string,
-	allowChildProcess bool,
-	sidecarDirectory string,
-) (*exec.Cmd, error) {
 	runtime, err := resolveSidecarRuntimeWithDirectory(
 		packagedBridge,
 		sourceBridge,
@@ -138,115 +118,10 @@ func newSidecarCommandAtWithDirectoryAndRoots(
 	if err != nil {
 		return nil, err
 	}
-	workspaceAccessPaths, err = resolveAgentWorkspaceAccessPaths(
-		workspace,
-		workspaceAccessPaths,
-	)
-	if err != nil {
-		return nil, err
-	}
-	runtimeHome, err := sidecarRuntimeHome()
-	if err != nil {
-		return nil, err
-	}
-
 	arguments := []string{runtime.bridge}
-	if runtime.packaged {
-		dataDirectory, dataErr := appdata.Ensure()
-		if dataErr != nil {
-			return nil, dataErr
-		}
-		sidecarDirectory := filepath.Dir(runtime.bridge)
-		temporaryRoot := os.TempDir()
-		if goruntime.GOOS == "darwin" {
-			temporaryRoot = "/private/tmp"
-		}
-		playwrightSocketDirectory := filepath.Join(temporaryRoot, "milksu-playwright")
-		computerUseRuntimeDirectory := filepath.Join(
-			temporaryRoot,
-			"milksu-computer-use",
-		)
-		arguments = []string{
-			"--permission",
-			"--allow-addons",
-			"--allow-fs-read=" + sidecarDirectory,
-			"--allow-fs-read=" + workspace,
-			"--allow-fs-read=" + runtimeHome,
-			"--allow-fs-read=" + filepath.Join(dataDirectory, "security-tools"),
-			"--allow-fs-write=" + workspace,
-			"--allow-fs-write=" + runtimeHome,
-			"--allow-fs-write=" + playwrightSocketDirectory,
-			"--allow-fs-read=" + computerUseRuntimeDirectory,
-			"--allow-fs-write=" + computerUseRuntimeDirectory,
-		}
-		for _, path := range workspaceAccessPaths {
-			arguments = append(
-				arguments,
-				"--allow-fs-read="+path,
-				"--allow-fs-write="+path,
-			)
-		}
-		if allowChildProcess && goruntime.GOOS == "darwin" {
-			arguments = append(
-				arguments,
-				"--allow-child-process",
-				"--allow-fs-read=/bin/bash",
-				"--allow-fs-read=/bin/sh",
-				"--allow-fs-read=/usr/bin/env",
-				"--allow-fs-read=/usr/bin/sandbox-exec",
-			)
-			if home, homeErr := os.UserHomeDir(); homeErr == nil {
-				idaUserDirectory := filepath.Join(home, ".idapro")
-				arguments = append(
-					arguments,
-					"--allow-fs-read="+idaUserDirectory,
-					"--allow-fs-write="+idaUserDirectory,
-				)
-			}
-			idaApplications, _ := filepath.Glob("/Applications/IDA Professional*.app")
-			for _, idaApplication := range idaApplications {
-				arguments = append(arguments, "--allow-fs-read="+idaApplication)
-			}
-		}
-		arguments = append(arguments, runtime.bridge)
-	}
 	command := exec.Command(runtime.node, arguments...)
 	command.Dir = workspace
 	return command, nil
-}
-
-func resolveAgentWorkspaceAccessPaths(
-	workspace string,
-	values []string,
-) ([]string, error) {
-	const maximumWorkspaceAccessPaths = 8
-	if len(values) > maximumWorkspaceAccessPaths {
-		return nil, fmt.Errorf(
-			"workspace access is limited to %d additional directories",
-			maximumWorkspaceAccessPaths,
-		)
-	}
-	resolvedWorkspace, err := resolveAgentWorkspace(workspace)
-	if err != nil {
-		return nil, err
-	}
-	seen := map[string]struct{}{resolvedWorkspace: {}}
-	result := make([]string, 0, len(values))
-	for _, value := range values {
-		if strings.TrimSpace(value) == "" {
-			continue
-		}
-		resolved, resolveErr := resolveAgentWorkspace(value)
-		if resolveErr != nil {
-			return nil, fmt.Errorf("resolve authorized workspace: %w", resolveErr)
-		}
-		if _, exists := seen[resolved]; exists {
-			continue
-		}
-		seen[resolved] = struct{}{}
-		result = append(result, resolved)
-	}
-	return result, nil
 }
 
 func withWorkspaceTemporaryDirectory(environment []string, workspace string) ([]string, error) {

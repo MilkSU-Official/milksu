@@ -133,7 +133,7 @@ test("child CLI must keep every no-ambient-discovery flag", () => {
   );
 });
 
-test("launcher removes the parent Node permission layer before runner startup", () => {
+test("launcher removes ambient Node options before runner startup", () => {
   const result = spawnSync(
     "/bin/sh",
     [

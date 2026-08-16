@@ -35,20 +35,18 @@ export function previewCodingCapabilities(
   return [
     {
       id: 'workspace-read',
-      label: '工作区读取',
+      label: '文件读取',
       status: 'allowed',
-      detail: fullAuto
-        ? '文件工具读取项目；终端可访问当前系统用户可读的路径。'
-        : '文件与终端读取限制在当前项目和系统开发工具。',
+      detail: 'Pi 文件与终端工具使用当前系统用户可读的路径。',
     },
     {
       id: 'workspace-write',
-      label: '工作区写入',
+      label: '文件写入',
       status: mutating ? 'allowed' : ask ? 'approval-required' : 'blocked',
       detail: fullAuto
-        ? '终端具有当前系统用户权限；文件工具仍以项目为默认边界。'
+        ? 'Pi 文件与终端工具使用当前系统用户权限。'
         : workspaceAuto
-          ? '文件与命令写入限制在项目内；显式准备协作后也可写已注册 worktree；允许正常 Git 操作，文件工具保护 .milksu。'
+          ? 'Pi 文件与终端工具直接执行；大范围递归删除仍需单独确认。'
         : ask
           ? '每次 edit / write 前暂停并展示参数；只有本次明确批准后执行。'
           : '当前模式禁止修改文件。',
@@ -60,9 +58,9 @@ export function previewCodingCapabilities(
       detail: fullAuto
         ? '命令自动执行，不受项目沙箱限制；模型 Provider Key 不传给子进程。'
         : workspaceAuto
-          ? '项目沙箱内可运行开发命令和后台工具，支持网络。'
+          ? '使用 Pi 原生命令工具运行开发命令和后台工具，支持网络。'
         : ask
-          ? '每次 bash 调用前展示完整命令并等待批准；仍受项目沙箱约束。'
+          ? '每次 bash 调用前展示完整命令并等待批准。'
           : '当前模式不提供 bash。',
     },
     {

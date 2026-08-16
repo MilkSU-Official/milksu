@@ -28,12 +28,11 @@ func TestStoreGetReturnsTheSavedConversation(t *testing.T) {
 		t.Fatal("expected a missing conversation to be rejected")
 	}
 	want := StoredConversation{
-		ID:                   "conversation-1",
-		Title:                "浏览器证据",
-		CreatedAt:            42,
-		WorkspacePath:        "/tmp/milksu-workspace",
-		WorkspaceAccessPaths: []string{"/tmp/milksu-adjacent-project"},
-		Messages:             []StoredMessage{},
+		ID:            "conversation-1",
+		Title:         "浏览器证据",
+		CreatedAt:     42,
+		WorkspacePath: "/tmp/milksu-workspace",
+		Messages:      []StoredMessage{},
 	}
 	if err := store.Save(want); err != nil {
 		t.Fatalf("save conversation: %v", err)

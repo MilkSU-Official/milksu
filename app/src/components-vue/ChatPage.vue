@@ -148,7 +148,6 @@ const props = defineProps<{
   conversation: Conversation | null
   settings: AppSettings | null
   workspacePath: string
-  workspaceAccessPaths?: string[]
   running: boolean
   aborting: boolean
   messageQueue?: CodingMessageQueue
@@ -187,8 +186,6 @@ const emit = defineEmits<{
   abort: []
   chooseWorkspace: []
   chooseWorkspaceForNewTask: []
-  authorizeWorkspace: []
-  removeWorkspaceAccess: [path: string]
   cancelQueuedGuidance: [index: number]
   editQueuedGuidance: [index: number]
   changeModel: [mode: 'auto' | 'manual', provider?: string, model?: string]
@@ -849,7 +846,7 @@ function runSlashCommand(command: string) {
 
 function chooseWorkspaceFromCurrentTask() {
   if (workspaceLocked.value) {
-    emit('authorizeWorkspace')
+    emit('chooseWorkspaceForNewTask')
     return
   }
   emit('chooseWorkspace')
@@ -1919,7 +1916,7 @@ watch(
               :disabled="running"
               @click="chooseWorkspaceFromCurrentTask"
             >
-              {{ workspaceLocked ? '授权其他项目' : '更换' }}
+              {{ workspaceLocked ? '新任务使用其他目录' : '更换' }}
             </Button>
           </div>
           <div class="mt-3 flex items-start gap-3">
@@ -1933,26 +1930,6 @@ watch(
                   ? '无项目任务 · MilkSU 本地临时工作区'
                   : workspacePath || '尚未选择项目' }}
               </p>
-            </div>
-          </div>
-          <div v-if="workspaceAccessPaths?.length" class="mt-3 grid gap-2" aria-label="已授权项目目录">
-            <div
-              v-for="path in workspaceAccessPaths"
-              :key="path"
-              class="flex items-center gap-2 rounded-md border border-border/70 bg-muted/35 px-2.5 py-2"
-            >
-              <FolderOpen class="size-3.5 shrink-0 text-primary" />
-              <span class="min-w-0 flex-1 truncate font-mono text-caption" :title="path">{{ path }}</span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                :disabled="running"
-                :aria-label="`撤销目录授权 ${path}`"
-                @click="$emit('removeWorkspaceAccess', path)"
-              >
-                <X class="size-3.5" />
-              </Button>
             </div>
           </div>
         </section>

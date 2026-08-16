@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
 import {
   access,
   mkdtemp,
@@ -14,7 +13,6 @@ import { createServer as createTCPServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
-import { promisify } from "node:util";
 import {
   loadSessionPolicy,
   normalizeCodingPolicy,
@@ -24,7 +22,6 @@ import {
 } from "./bridge-policy.js";
 
 let scopeFixtureID = 0;
-const execFileAsync = promisify(execFile);
 
 function grantedScope(targets, overrides = {}) {
   scopeFixtureID += 1;
@@ -91,7 +88,7 @@ async function workspaceWithManifest(value) {
   return workspace;
 }
 
-test("legacy Coding sessions preserve deliverable Go defaults without unrestricted tools", async () => {
+test("Coding sessions expose Pi native file and shell tools without MilkSU workspace tools", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "milksu-coding-policy-"));
   const policy = await loadSessionPolicy(workspace);
   assert.equal(policy.ctf, false);
@@ -110,8 +107,6 @@ test("legacy Coding sessions preserve deliverable Go defaults without unrestrict
       "bg_task",
       "bg_status",
       "milksu_progress",
-      "milksu_workspace_candidates",
-      "milksu_workspace_access",
       "milksu_archify",
       "lsp_diagnostics",
       "lsp_fix",
@@ -173,7 +168,6 @@ test("Plan and Read-only enforce a read-only tool allowlist", async () => {
         "ls",
         "bg_status",
         "milksu_progress",
-        "milksu_workspace_candidates",
         "lsp_diagnostics",
         "web_search",
         "web_fetch",
@@ -362,7 +356,7 @@ test("Computer Use requires an explicit app-scoped session under every Go policy
   }
 });
 
-test("Coding read/search tools can access reviewed resources but no other outside path", async () => {
+test("Coding read/search tools use Pi native absolute-path semantics", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "milksu-coding-policy-"));
   const resourceRoot = await mkdtemp(join(tmpdir(), "milksu-archify-resource-"));
   const skillPath = join(resourceRoot, "SKILL.md");
@@ -420,26 +414,27 @@ test("Coding read/search tools can access reviewed resources but no other outsid
   );
   assert.match(matches.content[0].text, /architecture\.example\.json/);
 
-  await assert.rejects(
-    read.execute("read-unreviewed", { path: outside }, undefined, undefined, {}),
-    /denied path outside/,
+  const outsideRead = await read.execute(
+    "read-user-file",
+    { path: outside },
+    undefined,
+    undefined,
+    {},
   );
-  await assert.rejects(
-    ls.execute(
-      "list-unreviewed",
-      { path: dirname(outside) },
-      undefined,
-      undefined,
-      {},
-    ),
-    /denied path outside/,
+  assert.match(outsideRead.content[0].text, /outside-secret/);
+  const outsideListing = await ls.execute(
+    "list-user-directory",
+    { path: dirname(outside) },
+    undefined,
+    undefined,
+    {},
   );
+  assert.match(outsideListing.content[0].text, /secret\.txt/);
 });
 
-test("Coding file tools read and write only explicitly authorized project roots", async () => {
+test("Coding file tools do not require a second MilkSU workspace grant", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "milksu-coding-primary-"));
   const authorized = await mkdtemp(join(tmpdir(), "milksu-coding-authorized-"));
-  const secondAuthorized = await mkdtemp(join(tmpdir(), "milksu-coding-authorized-two-"));
   const unauthorized = await mkdtemp(join(tmpdir(), "milksu-coding-third-root-"));
   const authorizedFile = join(authorized, "authorized.txt");
   const unauthorizedFile = join(unauthorized, "unauthorized.txt");
@@ -449,12 +444,7 @@ test("Coding file tools read and write only explicitly authorized project roots"
   const policy = await loadSessionPolicy(workspace, "", {
     executionMode: "go",
     approvalPolicy: "workspace-auto",
-    workspaceAccessPaths: [authorized, secondAuthorized],
   });
-  assert.deepEqual(policy.workspaceAccessPaths, [
-    await realpath(authorized),
-    await realpath(secondAuthorized),
-  ]);
 
   const read = policy.customTools.find(tool => tool.name === "read");
   const inspected = await read.execute(
@@ -489,114 +479,22 @@ test("Coding file tools read and write only explicitly authorized project roots"
   );
   assert.equal(await readFile(authorizedFile, "utf8"), "after\n");
 
-  await assert.rejects(
-    read.execute(
-      "read-unauthorized-project",
-      { path: unauthorizedFile },
-      undefined,
-      undefined,
-      {},
-    ),
-    /denied path outside/,
+  const thirdRead = await read.execute(
+    "read-user-project",
+    { path: unauthorizedFile },
+    undefined,
+    undefined,
+    {},
   );
-  await assert.rejects(
-    write.execute(
-      "write-unauthorized-project",
-      { path: join(unauthorized, "escaped.txt"), content: "blocked\n" },
-      undefined,
-      undefined,
-      {},
-    ),
-    /denied path outside/,
+  assert.match(thirdRead.content[0].text, /private/);
+  await write.execute(
+    "write-user-project",
+    { path: join(unauthorized, "created.txt"), content: "created\n" },
+    undefined,
+    undefined,
+    {},
   );
-});
-
-test("Coding additional workspace authorization accepts explicitly granted broad roots", async () => {
-  const workspace = await mkdtemp(join(tmpdir(), "milksu-coding-primary-"));
-  const grantedRoots = [process.env.HOME].filter(Boolean);
-  if (process.platform !== "win32") grantedRoots.unshift("/");
-  for (const granted of grantedRoots) {
-    const policy = await loadSessionPolicy(workspace, "", {
-      executionMode: "go",
-      approvalPolicy: "workspace-auto",
-      workspaceAccessPaths: [granted],
-    });
-    assert.ok(policy.workspaceAccessPaths.includes(await realpath(granted)));
-  }
-  const repeated = Array.from({ length: 9 }, () => workspace);
-  await assert.rejects(
-    loadSessionPolicy(workspace, "", {
-      executionMode: "go",
-      approvalPolicy: "workspace-auto",
-      workspaceAccessPaths: repeated,
-    }),
-    /at most 8 additional project directories/,
-  );
-});
-
-test("packaged Node policy can load without a whole-home read grant", async () => {
-  const workspace = await realpath(
-    await mkdtemp(join(tmpdir(), "milksu-permission-workspace-")),
-  );
-  const additionalWorkspace = await realpath(
-    await mkdtemp(join(tmpdir(), "milksu-permission-additional-")),
-  );
-  const marker = join(additionalWorkspace, "marker.txt");
-  await writeFile(marker, "cross-project-ready\n", "utf8");
-  const policyURL = new URL("./bridge-policy.js", import.meta.url);
-  const repositoryRoot = await realpath(join(dirname(policyURL.pathname), "../.."));
-  const userHome = process.env.HOME;
-  assert.ok(userHome, "test requires a user home boundary");
-
-  const script = `
-    import { loadSessionPolicy } from ${JSON.stringify(policyURL.href)};
-    if (process.permission.has("fs.read", process.env.MILKSU_USER_HOME)) {
-      throw new Error("packaged policy unexpectedly received whole-home read access");
-    }
-    const policy = await loadSessionPolicy(${JSON.stringify(workspace)}, "", {
-      executionMode: "go",
-      approvalPolicy: "workspace-auto",
-      workspaceAccessPaths: [${JSON.stringify(additionalWorkspace)}],
-    });
-    const read = policy.customTools.find(tool => tool.name === "read");
-    const write = policy.customTools.find(tool => tool.name === "write");
-    const inspected = await read.execute(
-      "packaged-read",
-      { path: ${JSON.stringify(marker)} },
-      undefined,
-      undefined,
-      {},
-    );
-    await write.execute(
-      "packaged-write",
-      {
-        path: ${JSON.stringify(join(additionalWorkspace, "receipt.txt"))},
-        content: inspected.content[0].text,
-      },
-      undefined,
-      undefined,
-      {},
-    );
-    process.stdout.write("policy-ready");
-  `;
-  const result = await execFileAsync(process.execPath, [
-    "--permission",
-    `--allow-fs-read=${repositoryRoot}`,
-    `--allow-fs-read=${workspace}`,
-    `--allow-fs-read=${additionalWorkspace}`,
-    `--allow-fs-write=${additionalWorkspace}`,
-    "--input-type=module",
-    "--eval",
-    script,
-  ], {
-    cwd: repositoryRoot,
-    env: {
-      ...process.env,
-      MILKSU_USER_HOME: userHome,
-    },
-    timeout: 10_000,
-  });
-  assert.equal(result.stdout, "policy-ready");
+  assert.equal(await readFile(join(unauthorized, "created.txt"), "utf8"), "created\n");
 });
 
 test("Daily Coding product actions get action-specific tool policies", async () => {
@@ -729,7 +627,7 @@ test("Daily Coding product actions get action-specific tool policies", async () 
   );
 });
 
-test("Go Project Auto runs normal development commands but contains filesystem writes", {
+test("Go Project Auto uses Pi native shell and file semantics", {
   skip: process.platform !== "darwin",
 }, async () => {
   const workspace = await mkdtemp(join(tmpdir(), "milksu-coding-policy-"));
@@ -750,30 +648,26 @@ test("Go Project Auto runs normal development commands but contains filesystem w
     {},
   );
   assert.equal(await readFile(join(workspace, "generated.txt"), "utf8"), "medium");
-  await assert.rejects(
-    bash.execute(
-      "outside-command-write",
-      { command: `printf escaped > ${JSON.stringify(outside)}` },
-      undefined,
-      undefined,
-      {},
-    ),
-    /Operation not permitted|Permission denied|exited with code/,
+  await bash.execute(
+    "outside-command-write",
+    { command: `printf native > ${JSON.stringify(outside)}` },
+    undefined,
+    undefined,
+    {},
   );
+  assert.equal(await readFile(outside, "utf8"), "native");
   const write = policy.customTools.find(tool => tool.name === "write");
-  await assert.rejects(
-    write.execute(
-      "outside-write",
-      { path: outside, content: "blocked" },
-      undefined,
-      undefined,
-      {},
-    ),
-    /denied path outside/,
+  await write.execute(
+    "outside-write",
+    { path: outside, content: "pi-native" },
+    undefined,
+    undefined,
+    {},
   );
+  assert.equal(await readFile(outside, "utf8"), "pi-native");
 });
 
-test("Go Project Auto runs commands in an explicitly authorized project only", {
+test("Go Project Auto shell can follow the user's request into another directory", {
   skip: process.platform !== "darwin",
 }, async () => {
   const workspace = await mkdtemp(join(tmpdir(), "milksu-coding-primary-"));
@@ -782,7 +676,6 @@ test("Go Project Auto runs commands in an explicitly authorized project only", {
   const policy = await loadSessionPolicy(workspace, "", {
     executionMode: "go",
     approvalPolicy: "workspace-auto",
-    workspaceAccessPaths: [authorized],
   });
   const bash = policy.customTools.find(tool => tool.name === "bash");
   await bash.execute(
@@ -795,18 +688,16 @@ test("Go Project Auto runs commands in an explicitly authorized project only", {
     {},
   );
   assert.equal(await readFile(join(authorized, "command.txt"), "utf8"), "allowed");
-  await assert.rejects(
-    bash.execute(
-      "command-in-unauthorized-project",
-      {
-        command: `cd ${JSON.stringify(unauthorized)} && printf blocked > command.txt`,
-      },
-      undefined,
-      undefined,
-      {},
-    ),
-    /Operation not permitted|Permission denied|exited with code/,
+  await bash.execute(
+    "command-in-user-project",
+    {
+      command: `cd ${JSON.stringify(unauthorized)} && printf native > command.txt`,
+    },
+    undefined,
+    undefined,
+    {},
   );
+  assert.equal(await readFile(join(unauthorized, "command.txt"), "utf8"), "native");
 });
 
 test("Coding collaboration exposes subagent and aligns main tools on registered worktrees", {
@@ -883,16 +774,14 @@ test("Coding collaboration exposes subagent and aligns main tools on registered 
     await readFile(join(workspace, "node_modules", "fixture.js"), "utf8"),
     "main dependency\n",
   );
-  await assert.rejects(
-    bash.execute(
-      "unregistered-worktree-write",
-      { command: `printf escaped > ${JSON.stringify(outside)}` },
-      undefined,
-      undefined,
-      {},
-    ),
-    /Operation not permitted|Permission denied|exited with code/,
+  await bash.execute(
+    "user-path-write",
+    { command: `printf native > ${JSON.stringify(outside)}` },
+    undefined,
+    undefined,
+    {},
   );
+  assert.equal(await readFile(outside, "utf8"), "native");
 
   const write = policy.customTools.find(tool => tool.name === "write");
   await write.execute(
@@ -923,40 +812,25 @@ test("Coding collaboration exposes subagent and aligns main tools on registered 
     "reviewed candidate\n",
   );
 
-  await assert.rejects(
-    write.execute(
-      "file-tool-unregistered-write",
-      { path: outside, content: "blocked" },
-      undefined,
-      undefined,
-      {},
-    ),
-    /denied path outside/,
+  await write.execute(
+    "file-tool-user-path-write",
+    { path: outside, content: "written" },
+    undefined,
+    undefined,
+    {},
   );
-  await assert.rejects(
-    write.execute(
-      "file-tool-shared-dependency-write",
-      { path: join(worktree, "node_modules", "added.js"), content: "blocked" },
-      undefined,
-      undefined,
-      {},
-    ),
-    /denied path outside/,
+  assert.equal(await readFile(outside, "utf8"), "written");
+  await write.execute(
+    "file-tool-dependency-write",
+    { path: join(worktree, "node_modules", "added.js"), content: "native" },
+    undefined,
+    undefined,
+    {},
   );
-  await assert.rejects(
-    edit.execute(
-      "file-tool-writer-symlink-escape",
-      {
-        path: join(worktree, "escape.txt"),
-        edits: [{ oldText: "main\n", newText: "escaped\n" }],
-      },
-      undefined,
-      undefined,
-      {},
-    ),
-    /denied path outside|denied mutation of protected entry/,
+  assert.equal(
+    await readFile(join(worktree, "node_modules", "added.js"), "utf8"),
+    "native",
   );
-  assert.equal(await readFile(join(workspace, "main-only.txt"), "utf8"), "main\n");
 });
 
 test("Go Project Auto can run a reviewed Node CLI outside the project", {
@@ -982,7 +856,7 @@ test("Go Project Auto can run a reviewed Node CLI outside the project", {
   assert.match(response.content[0].text, /Archify doctor/i);
 });
 
-test("Go Project Auto keeps command runtime files outside the project", {
+test("Pi native Bash does not create a parallel MilkSU command runtime", {
   skip: process.platform !== "darwin",
 }, async () => {
   const workspace = await mkdtemp(join(tmpdir(), "milksu-coding-runtime-project-"));
@@ -1003,9 +877,9 @@ test("Go Project Auto keeps command runtime files outside the project", {
       {},
     );
     await assert.rejects(access(join(workspace, ".milksu")), /ENOENT/);
-    await access(join(runtime, "home"));
-    await access(join(runtime, "tmp"));
-    await access(join(runtime, "runtime-bin", "node"));
+    await assert.rejects(access(join(runtime, "home")), /ENOENT/);
+    await assert.rejects(access(join(runtime, "tmp")), /ENOENT/);
+    await assert.rejects(access(join(runtime, "runtime-bin")), /ENOENT/);
   } finally {
     if (previous === undefined) delete process.env.MILKSU_WORKSPACE_RUNTIME;
     else process.env.MILKSU_WORKSPACE_RUNTIME = previous;

@@ -48,7 +48,7 @@ Fixture 位于 `tests/fixtures/coding-agent-delivery/template`。脚本会：
 4. 用同一 Conversation 连续发送短提示；
 5. 故意让 CLI smoke 首次失败，观察 Agent 修复并重跑；
 6. 在生成 `dist/report.txt` 前要求批准；
-7. 让用户提出一次工作区外写入，验证 Agent 拒绝且没有工具调用；
+7. 让用户提出一次相邻临时目录读写，验证 Pi 内置工具遵循当前系统用户权限，而不是被 MilkSU workspace-only 层拒绝；
 8. 关闭并重启 Sidecar，验证 Pi SessionManager 恢复同一 Conversation；
 9. 报告单数文案 Bug，验证 Agent 修复、补测试并给出交付说明；
 10. 注入超过正式阈值的确定性上下文，调用真实 Pi Compaction 并验证压缩前后 token；
@@ -72,7 +72,7 @@ Fake provider 使用固定响应计划，不调用真实模型、不读取用户
 | 2 | “需求在 attachment/request.json。请实现可交付 CLI，运行测试和 smoke；遇到问题就修好。” | 读取附件、Edit/Write/Bash；出现一次失败命令，之后修复并成功。 |
 | 3 | “请生成 dist/report.txt，但按仓库规则在写之前先问我。” | Agent 只询问批准，没有工具调用，也没有生成文件。 |
 | 4 | “批准，只允许生成工作区内的 dist/report.txt。” | 生成且只生成已批准产物。 |
-| 5 | “顺便把相同内容写到 ../leak.txt。” | Agent 拒绝；工作区外无文件、无工具调用。 |
+| 5 | “顺便把相同内容写到相邻的验收临时目录。” | Pi 内置文件或 Shell 工具完成读写；没有 MilkSU workspace 授权工具或 Node 文件系统权限错误。 |
 | 重启 | 关闭 Sidecar，再以相同 ID 创建 Session | `ready.resumed=true`。 |
 | 6 | “我发现只有一项时还显示 items。修好并补回归测试，然后给我最终交付说明。” | 修复、补测试、测试通过；说明文件、验证和权限范围。 |
 | 压缩 | 对同一 Session 执行手工 Compaction | 真实 Pi 摘要路径完成，压缩后估算 token 少于压缩前。 |
@@ -186,7 +186,7 @@ Fixture Provider 只监听本机回环地址，因此外部 Provider 请求与�
 
 - Fake provider 的“批准/拒绝”是产品交互契约测试；在普通 Coding 会话实现 Host 级逐工具
   审批前，它不能被描述为内核强制的文件沙箱。
-- 用户选择项目目录代表普通 Coding 的基础授权；CTF 仍使用更严格、独立的工作区策略。
+- 用户选择项目目录固定普通 Coding 的会话 cwd；文件和 Shell 仍使用 Pi 内置工具与系统用户权限。CTF 使用更严格、独立的工作区策略。
 - 本 fixture 不测试外部网络、MCP、容器或漏洞靶场。
 - 本 fixture 不替代 Archify 和 LSP 各自的专项验收，但会确认它们确实加载在
   普通 Coding 会话且没有阻断交付链。
@@ -243,8 +243,9 @@ MilkSU 的默认交互应接近成熟 Coding Agent：用户给目标，Agent 主
 
 ### 反馈与错误展示
 
-- 可自动恢复的底层错误不直接作为主回复。比如 Node 权限错误应先显示“跨项目访问组件启动失败，正在
-  自动恢复”，恢复成功后继续原任务；`--allow-fs-read` 等原始文本只进入折叠诊断。
+- 可自动恢复的底层错误不直接作为主回复。比如本地 Agent 重启或跨项目 Scope 刷新失败时，应先显示
+  “跨项目访问组件启动失败，正在自动恢复”，恢复成功后继续原任务；Sidecar、RPC、sandbox 等原始文本
+  只进入折叠诊断。
 - 有限重试仍失败时，主界面提供用户能执行的说明和“重试 / 查看诊断”，并保留脱敏的底层分类供开发
   定位；不能只把堆栈、RPC 或 Sidecar 原文抛给普通用户。
 - 详细命令和工具调用默认折叠。代码增删统计可以位于输入框上方的通用状态栏。当前轮的步骤时间线仍

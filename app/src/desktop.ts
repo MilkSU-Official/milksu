@@ -188,8 +188,6 @@ interface DesktopAppBindings {
     modelId: string,
   ): Promise<string>
   ChooseAgentWorkspace(): Promise<string>
-  AuthorizeConversationWorkspaceAccess(conversationId: string): Promise<string[]>
-  RevokeConversationWorkspaceAccess(conversationId: string, path: string): Promise<string[]>
   ChooseCTFMaterials(): Promise<CTFMaterialRequest[]>
   ChooseCodingAttachments(): Promise<CodingAttachment[]>
   ImportCodingAttachments(payloads: CodingAttachmentImport[]): Promise<CodingAttachment[]>
@@ -198,7 +196,6 @@ interface DesktopAppBindings {
     conversationId: string,
     prompt: string,
     workspacePath: string,
-    workspaceAccessPaths: string[],
     modelMode: string,
     modelProvider: string,
     modelId: string,
@@ -512,15 +509,6 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         ) as Promise<T>
       case 'choose_agent_workspace':
         return app.ChooseAgentWorkspace() as Promise<T>
-      case 'authorize_conversation_workspace_access':
-        return app.AuthorizeConversationWorkspaceAccess(
-          args?.conversationId as string,
-        ) as Promise<T>
-      case 'revoke_conversation_workspace_access':
-        return app.RevokeConversationWorkspaceAccess(
-          args?.conversationId as string,
-          args?.path as string,
-        ) as Promise<T>
       case 'choose_ctf_materials':
         return app.ChooseCTFMaterials() as Promise<T>
       case 'choose_coding_attachments':
@@ -538,7 +526,6 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
           args?.conversationId as string,
           args?.prompt as string,
           args?.workspacePath as string,
-          (args?.workspaceAccessPaths as string[]) ?? [],
           (args?.modelMode as string) ?? '',
           (args?.modelProvider as string) ?? '',
           (args?.modelId as string) ?? '',

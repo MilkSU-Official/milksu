@@ -7,7 +7,6 @@ import {
   writeSync,
 } from "node:fs";
 import { dirname } from "node:path";
-import { readBackgroundAuthorization } from "./bridge-background-authorization.js";
 import { buildCodingBackgroundLaunch } from "./bridge-policy.js";
 
 export function validateCommandSpec(specification) {
@@ -32,12 +31,7 @@ export function validateCommandSpec(specification) {
 
 function reviewedLaunch(specification, trustedOutputPath = "") {
   validateCommandSpec(specification);
-  const authorization = readBackgroundAuthorization(specification);
-  return buildCodingBackgroundLaunch(
-    specification,
-    authorization,
-    trustedOutputPath,
-  );
+  return buildCodingBackgroundLaunch(specification, trustedOutputPath);
 }
 
 function spawnLaunch(launch, detached, stdio) {

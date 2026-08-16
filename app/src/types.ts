@@ -114,8 +114,6 @@ export interface Conversation {
   title: string
   createdAt: number
   workspacePath?: string
-  /** Additional project roots explicitly authorized for this conversation. */
-  workspaceAccessPaths?: string[]
   modelMode?: 'auto' | 'manual'
   modelProvider?: string
   modelId?: string

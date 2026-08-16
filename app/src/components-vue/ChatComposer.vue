@@ -1359,17 +1359,15 @@ defineExpose({
                       <span class="block text-caption text-muted-foreground">选择后以只读附件交给 Agent</span>
                     </span>
                   </DropdownMenuItem>
-                  <DropdownMenuItem class="composer-add-option" @select="$emit('chooseWorkspace')">
+                  <DropdownMenuItem
+                    v-if="!workspaceLocked"
+                    class="composer-add-option"
+                    @select="$emit('chooseWorkspace')"
+                  >
                     <FolderOpen class="size-4 shrink-0" />
                     <span class="min-w-0 flex-1">
-                      <span class="block text-label font-medium">
-                        {{ workspaceLocked ? '其他项目目录' : '项目目录' }}
-                      </span>
-                      <span class="block text-caption text-muted-foreground">
-                        {{ workspaceLocked
-                          ? '授权所选目录给当前会话，立即跨项目读写'
-                          : '选择后作为当前任务的可读写范围' }}
-                      </span>
+                      <span class="block text-label font-medium">项目目录</span>
+                      <span class="block text-caption text-muted-foreground">选择当前任务的会话目录</span>
                     </span>
                   </DropdownMenuItem>
                   <DropdownMenuItem

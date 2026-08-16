@@ -307,25 +307,6 @@ async function chooseAgentWorkspaceForNewTask() {
   conversations.setWorkspace(workspacePath)
 }
 
-async function authorizeAdditionalAgentWorkspace() {
-  const conversationId = conversations.activeId.value
-  if (!conversationId) return
-  const paths = await invokeCommand<string[]>('authorize_conversation_workspace_access', {
-    conversationId,
-  })
-  conversations.setWorkspaceAccessPaths(paths)
-}
-
-async function revokeAdditionalAgentWorkspace(path: string) {
-  const conversationId = conversations.activeId.value
-  if (!conversationId) return
-  const paths = await invokeCommand<string[]>('revoke_conversation_workspace_access', {
-    conversationId,
-    path,
-  })
-  conversations.setWorkspaceAccessPaths(paths)
-}
-
 async function chooseVulnerabilityCodingWorkspace() {
   const workspacePath = await invokeCommand<string>('choose_agent_workspace')
   if (workspacePath) vulnerabilityCodingWorkspacePath.value = workspacePath
@@ -605,7 +586,6 @@ onBeforeUnmount(() => {
         :conversation="conversations.active.value"
         :settings="settings"
         :workspace-path="conversations.workspacePath.value"
-        :workspace-access-paths="conversations.workspaceAccessPaths.value"
         :running="conversations.activeRunning.value"
         :aborting="conversations.activeAborting.value"
         :message-queue="conversations.activeMessageQueue.value"
@@ -639,8 +619,6 @@ onBeforeUnmount(() => {
         @respond-approval="conversations.respondApproval"
         @choose-workspace="chooseAgentWorkspace"
         @choose-workspace-for-new-task="chooseAgentWorkspaceForNewTask"
-        @authorize-workspace="authorizeAdditionalAgentWorkspace"
-        @remove-workspace-access="revokeAdditionalAgentWorkspace"
         @cancel-queued-guidance="conversations.cancelQueuedGuidance"
         @edit-queued-guidance="conversations.editQueuedGuidance"
         @change-model="changeModel"

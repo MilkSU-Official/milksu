@@ -74,12 +74,11 @@ describe('ChatPage routing contract', () => {
     expect(chatPageSource).toContain('void scrollChatToBottom(true)')
   })
 
-  it('authorizes additional projects on the current Coding conversation', () => {
-    expect(chatPageSource).toContain('workspaceAccessPaths?: string[]')
-    expect(chatPageSource).toContain("emit('authorizeWorkspace')")
-    expect(chatPageSource).toContain("{{ workspaceLocked ? '授权其他项目' : '更换' }}")
-    expect(chatPageSource).toContain('aria-label="已授权项目目录"')
-    expect(chatPageSource).toContain("@click=\"$emit('removeWorkspaceAccess', path)\"")
+  it('opens a separate task when the user chooses another directory', () => {
+    expect(chatPageSource).not.toContain('workspaceAccessPaths?: string[]')
+    expect(chatPageSource).not.toContain("emit('authorizeWorkspace')")
+    expect(chatPageSource).toContain("emit('chooseWorkspaceForNewTask')")
+    expect(chatPageSource).toContain('新任务使用其他目录')
   })
 
   it('does not expose single-session related history in the Coding right rail', () => {

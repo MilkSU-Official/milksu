@@ -181,41 +181,24 @@ describe('Coding conversation title generation', () => {
     ])
   })
 
-  it('reloads Pi and resumes the same fuzzy request after model-selected workspace access', async () => {
-    desktop.invokeCommand.mockResolvedValue(undefined)
+  it('recreates a stale Pi session instead of exposing its old id', async () => {
+    desktop.invokeCommand.mockImplementation(async (command: string) => {
+      if (command === 'steer_message') {
+        throw new Error('PI session not found: stale-conversation')
+      }
+      return undefined
+    })
     const conversations = mountConversations()
-    conversations.setWorkspace('/Users/milksu/code/primary')
-    await conversations.listen()
-    const prompt = '去我那个 MilkSU 项目看一下设置页'
 
-    await expect(conversations.send(prompt)).resolves.toBe(true)
-    desktop.eventCallback?.({
-      payload: {
-        sessionId: conversations.activeId.value,
-        type: 'workspace.access.updated',
-        paths: ['/Users/milksu/code/milksu'],
-        restartRequired: true,
-      },
-    })
-    desktop.eventCallback?.({
-      payload: {
-        sessionId: conversations.activeId.value,
-        type: 'assistant.settled',
-      },
-    })
-    await new Promise(resolve => window.setTimeout(resolve, 0))
-    await settle()
+    await expect(conversations.send('先检查当前失败测试')).resolves.toBe(true)
+    await expect(conversations.send('继续检查')).resolves.toBe(true)
 
-    const sends = desktop.invokeCommand.mock.calls.filter(
+    expect(desktop.invokeCommand.mock.calls.filter(
       ([command]) => command === 'send_message',
-    )
-    expect(sends).toHaveLength(2)
-    expect(sends[1]?.[1]).toMatchObject({
-      prompt,
-      workspaceAccessPaths: ['/Users/milksu/code/milksu'],
-    })
-    expect(conversations.active.value?.messages.filter(message => message.role === 'user'))
-      .toHaveLength(1)
+    )).toHaveLength(2)
+    expect(conversations.active.value?.messages.some(message => (
+      message.role === 'assistant' && message.content.includes('PI session not found')
+    ))).toBe(false)
   })
 
   it('removes a queued steering message only after the runtime receipt succeeds', async () => {

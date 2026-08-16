@@ -72,9 +72,9 @@ flowchart LR
 | 能力 | 普通 Coding | CTF Solver / Tool Builder / Strategist | 归属 |
 | --- | --- | --- | --- |
 | Pi Session / Model / Tool Loop | 是 | 是 | Pi |
-| `read/grep/find/ls` | 所选项目范围 | MilkSU 单题工作区内按角色裁剪 | Pi 工具 + MilkSU Policy |
-| `edit/write` | `Go + 替我审批`（存储值 `workspace-auto`）的文件工具限制在项目内；显式 `完全访问` 的终端继承当前用户权限 | 按 CTF Role 裁剪 | Pi 工具 + `sidecar/pi/bridge-policy.js` |
-| `bash` | `替我审批` 支持正常开发命令、Shell 组合、Git 和网络，但写入受 macOS 项目沙箱约束；`完全访问` 显式解除项目沙箱 | Coach/Strategist 无；Solver 模式按策略；Tool Builder 仅离线工作区 | Pi 工具 + `sidecar/pi/bridge-policy.js` |
+| `read/grep/find/ls` | Pi 内置工具，使用当前系统用户可读路径；所选项目只固定会话 cwd | MilkSU 单题工作区内按角色裁剪 | Pi；CTF 另加 MilkSU Policy |
+| `edit/write` | Pi 内置工具；`Go + 替我审批` 或 `完全访问` 按当前系统用户权限执行，Ask 档位仍逐次批准 | 按 CTF Role 裁剪 | Pi；CTF 另加 `sidecar/pi/bridge-policy.js` |
+| `bash` | Pi 内置 Bash，支持正常开发命令、Shell 组合、Git、网络和用户可访问目录；Provider Key 不传给子进程 | Coach/Strategist 无；Solver 模式按策略；Tool Builder 仅离线工作区 | Pi；CTF 另加 `sidecar/pi/bridge-policy.js` |
 | `milksu_progress` | 是 | 是，附角色 Guidance | MilkSU first-party Extension |
 | 已审核 Pi Skills | `frontend-visual-qa` 与 Archify 可从 Composer “+”作为可删除 Skill 状态加入；发送时使用 Pi 原生 `/skill:name` 展开 | **否** | 固定 Coding Skill；MilkSU 只投影选择状态 |
 | `lsp_diagnostics` / `lsp_fix` | 诊断可用；`lsp_fix` 先只读计算并校验项目内目标、统一 Diff 与文件哈希。请求批准展示完整 Diff；替我审批 / 完全访问在项目内自动应用并写后复核 | **否** | 固定 Coding Extension + MilkSU 审阅 Adapter |
@@ -122,14 +122,14 @@ JSONL Sidecar 传递。`sidecar/pi/bridge-policy.js` 每回合重新计算 allow
 | `Plan` | 任意 | `read/grep/find/ls/milksu_progress/lsp_diagnostics`；明确移除 `bash/edit/write/lsp_fix`。 |
 | `Go` | `Read-only` | 与 Plan 相同，只允许分析和诊断。 |
 | `Go` | `Ask` | 读取类工具直接执行；`bash/edit/write`、后台任务及项目 MCP 等有副作用调用会暂停，等待桌面单次批准或拒绝；`lsp_fix` 在暂停前先计算并展示完整统一 Diff。 |
-| `Go` | `替我审批`（存储值 `workspace-auto`） | 已启用且固定范围内的普通文件、命令、Browser、Computer Use、只读 MCP 和合规委托自动执行；文件写入仍受项目沙箱约束。 |
+| `Go` | `替我审批`（存储值 `workspace-auto`） | 已启用的普通文件、命令、Browser、Computer Use、只读 MCP 和合规委托自动执行；文件与 Shell 使用 Pi 内置工具和当前系统用户权限。 |
 | `Go` | `完全访问`（存储值 `full-auto`） | 用户显式选择后，已启用能力自动执行；Provider Key、禁止工具、付费/发布/扩 Scope 和不可逆外部动作等硬边界不随档位消失。 |
 
-旧 Conversation 没有字段时使用已有的 `Go + workspace-auto` 读取语义，保持 Coding Agent
-可以直接交付代码。`替我审批` 不维护脆弱的命令白名单：Agent 可以使用真实研发所需的命令、
-Shell 运算符、Git 和网络；macOS `sandbox-exec` 仍把写入收口在项目内，并只为审阅过的
-打包资源开放只读路径。`完全访问` 必须由用户从 Composer 权限菜单明确选择，不能由
-模型、项目文件或旧会话自行升级。
+旧 Conversation 没有字段时使用已有的 `Go + workspace-auto` 语义，保持 Coding Agent
+可以直接交付代码。普通 Coding 不维护第二套 workspace-only 文件/Shell 或 Node 权限状态机：
+cwd 用于恢复项目上下文，真正的文件和命令语义由 Pi 内置工具及操作系统用户权限提供。
+MilkSU 继续隔离 Provider 凭据，并在递归删除 Home、当前 cwd 或大型目录前二次确认。
+`完全访问` 必须由用户从 Composer 权限菜单明确选择，不能由模型、项目文件或旧会话自行升级。
 
 MilkSU 已在 Sidecar 与桌面之间实现 Approval Broker：需要审批的工具调用带上稳定请求
 ID 暂停，桌面明确显示目标、参数和风险，并把一次性批准或拒绝结果送回原调用。

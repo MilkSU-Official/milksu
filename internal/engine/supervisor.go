@@ -13,7 +13,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -72,11 +71,6 @@ type Event struct {
 	RequestID       string                   `json:"requestId,omitempty"`
 	Input           string                   `json:"input,omitempty"`
 	Reason          string                   `json:"reason,omitempty"`
-	Action          string                   `json:"action,omitempty"`
-	Path            string                   `json:"path,omitempty"`
-	Paths           []string                 `json:"paths,omitempty"`
-	Query           string                   `json:"query,omitempty"`
-	RestartRequired bool                     `json:"restartRequired,omitempty"`
 	Approved        *bool                    `json:"approved,omitempty"`
 	BackgroundTasks []BackgroundTask         `json:"backgroundTasks,omitempty"`
 	Goal            *CodingGoalState         `json:"goal,omitempty"`
@@ -220,49 +214,43 @@ type CodingCollaborationWorktree struct {
 }
 
 type bridgeEvent struct {
-	Type            string                   `json:"type"`
-	ID              string                   `json:"id"`
-	Delta           string                   `json:"delta"`
-	Content         string                   `json:"content"`
-	Error           string                   `json:"error"`
-	ToolName        string                   `json:"toolName"`
-	ToolCallID      string                   `json:"toolCallId"`
-	DurationMS      int64                    `json:"durationMs"`
-	IsError         bool                     `json:"isError"`
-	Tools           []string                 `json:"tools"`
-	Extensions      []string                 `json:"extensions"`
-	Skills          []string                 `json:"skills"`
-	ExecutionMode   string                   `json:"executionMode"`
-	ApprovalPolicy  string                   `json:"approvalPolicy"`
-	Capabilities    []CodingCapabilityStatus `json:"capabilities"`
-	RequestID       string                   `json:"requestId"`
-	Input           string                   `json:"input"`
-	Reason          string                   `json:"reason"`
-	Action          string                   `json:"action"`
-	Path            string                   `json:"path"`
-	Paths           []string                 `json:"paths"`
-	Query           string                   `json:"query"`
-	RestartRequired bool                     `json:"restartRequired"`
-	Approved        *bool                    `json:"approved"`
-	Tasks           []BackgroundTask         `json:"tasks"`
-	Goal            *CodingGoalState         `json:"goal"`
-	Resumed         bool                     `json:"resumed"`
-	Aborted         bool                     `json:"aborted"`
-	Compaction      *CompactionResult        `json:"compaction"`
-	Steering        []string                 `json:"steering"`
-	FollowUp        []string                 `json:"followUp"`
-	Source          string                   `json:"source"`
-	From            string                   `json:"from"`
-	To              string                   `json:"to"`
-	Module          string                   `json:"module"`
-	Usage           *ModelUsage              `json:"usage"`
+	Type           string                   `json:"type"`
+	ID             string                   `json:"id"`
+	Delta          string                   `json:"delta"`
+	Content        string                   `json:"content"`
+	Error          string                   `json:"error"`
+	ToolName       string                   `json:"toolName"`
+	ToolCallID     string                   `json:"toolCallId"`
+	DurationMS     int64                    `json:"durationMs"`
+	IsError        bool                     `json:"isError"`
+	Tools          []string                 `json:"tools"`
+	Extensions     []string                 `json:"extensions"`
+	Skills         []string                 `json:"skills"`
+	ExecutionMode  string                   `json:"executionMode"`
+	ApprovalPolicy string                   `json:"approvalPolicy"`
+	Capabilities   []CodingCapabilityStatus `json:"capabilities"`
+	RequestID      string                   `json:"requestId"`
+	Input          string                   `json:"input"`
+	Reason         string                   `json:"reason"`
+	Approved       *bool                    `json:"approved"`
+	Tasks          []BackgroundTask         `json:"tasks"`
+	Goal           *CodingGoalState         `json:"goal"`
+	Resumed        bool                     `json:"resumed"`
+	Aborted        bool                     `json:"aborted"`
+	Compaction     *CompactionResult        `json:"compaction"`
+	Steering       []string                 `json:"steering"`
+	FollowUp       []string                 `json:"followUp"`
+	Source         string                   `json:"source"`
+	From           string                   `json:"from"`
+	To             string                   `json:"to"`
+	Module         string                   `json:"module"`
+	Usage          *ModelUsage              `json:"usage"`
 }
 
 type childProcess struct {
-	command              *exec.Cmd
-	stdin                io.WriteCloser
-	workspace            string
-	workspaceAccessPaths []string
+	command   *exec.Cmd
+	stdin     io.WriteCloser
+	workspace string
 }
 
 type Supervisor struct {
@@ -385,47 +373,10 @@ func (s *Supervisor) SendMessage(
 	settings config.AppSettings,
 	modelSourcePreference ...string,
 ) error {
-	return s.SendMessageWithWorkspaceAccess(
+	return s.sendMessage(
 		sessionID,
 		prompt,
 		workspacePath,
-		nil,
-		sessionRole,
-		executionMode,
-		approvalPolicy,
-		mcpServers,
-		mcpConfigDigest,
-		codingBrowser,
-		computerUse,
-		codingCollaboration,
-		attachments,
-		settings,
-		modelSourcePreference...,
-	)
-}
-
-func (s *Supervisor) SendMessageWithWorkspaceAccess(
-	sessionID,
-	prompt,
-	workspacePath string,
-	workspaceAccessPaths []string,
-	sessionRole string,
-	executionMode string,
-	approvalPolicy string,
-	mcpServers []string,
-	mcpConfigDigest string,
-	codingBrowser *CodingBrowserDescriptor,
-	computerUse *ComputerUseDescriptor,
-	codingCollaboration *CodingCollaborationDescriptor,
-	attachments []codingattachment.Attachment,
-	settings config.AppSettings,
-	modelSourcePreference ...string,
-) error {
-	return s.sendMessageWithWorkspaceAccess(
-		sessionID,
-		prompt,
-		workspacePath,
-		workspaceAccessPaths,
 		sessionRole,
 		executionMode,
 		approvalPolicy,
@@ -441,11 +392,10 @@ func (s *Supervisor) SendMessageWithWorkspaceAccess(
 	)
 }
 
-func (s *Supervisor) SendMessageWithWorkspaceAccessAndProductAction(
+func (s *Supervisor) SendMessageWithProductAction(
 	sessionID,
 	prompt,
 	workspacePath string,
-	workspaceAccessPaths []string,
 	sessionRole string,
 	executionMode string,
 	approvalPolicy string,
@@ -459,11 +409,10 @@ func (s *Supervisor) SendMessageWithWorkspaceAccessAndProductAction(
 	settings config.AppSettings,
 	modelSourcePreference ...string,
 ) error {
-	return s.sendMessageWithWorkspaceAccess(
+	return s.sendMessage(
 		sessionID,
 		prompt,
 		workspacePath,
-		workspaceAccessPaths,
 		sessionRole,
 		executionMode,
 		approvalPolicy,
@@ -479,11 +428,10 @@ func (s *Supervisor) SendMessageWithWorkspaceAccessAndProductAction(
 	)
 }
 
-func (s *Supervisor) sendMessageWithWorkspaceAccess(
+func (s *Supervisor) sendMessage(
 	sessionID,
 	prompt,
 	workspacePath string,
-	workspaceAccessPaths []string,
 	sessionRole string,
 	executionMode string,
 	approvalPolicy string,
@@ -534,16 +482,9 @@ func (s *Supervisor) sendMessageWithWorkspaceAccess(
 	if err != nil {
 		return err
 	}
-	if strings.TrimSpace(sessionRole) != "" {
-		workspaceAccessPaths = nil
-	}
-	workspaceAccessPaths, err = resolveAgentWorkspaceAccessPaths(
-		workspace,
-		workspaceAccessPaths,
-	)
-	if err != nil {
-		return err
-	}
+	// Generic Coding file and shell access is owned by Pi. MilkSU records the
+	// conversation cwd, but additional directory metadata must not alter the
+	// Sidecar process or create a second workspace-only permission layer.
 	collaborationRoot, err := codingCollaborationRoot()
 	if err != nil {
 		return err
@@ -572,11 +513,7 @@ func (s *Supervisor) sendMessageWithWorkspaceAccess(
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := s.ensureProcessLockedWithWorkspaceAccess(
-		settings,
-		workspace,
-		workspaceAccessPaths,
-	); err != nil {
+	if err := s.ensureProcessLocked(settings, workspace); err != nil {
 		return err
 	}
 	preference := ""
@@ -598,10 +535,6 @@ func (s *Supervisor) sendMessageWithWorkspaceAccess(
 		"mcpConfigDigest": strings.TrimSpace(mcpConfigDigest),
 		"disabledSkills":  settings.DisabledSkills,
 		"attachments":     attachments,
-		"workspaceAccessPaths": append(
-			[]string(nil),
-			workspaceAccessPaths...,
-		),
 		"modelSourceOrder": preferredModelSourceOrder(
 			settings,
 			preference,
@@ -1057,64 +990,9 @@ func (s *Supervisor) RespondToolApproval(
 	})
 }
 
-func (s *Supervisor) RespondWorkspaceAccess(
-	sessionID,
-	requestID,
-	path string,
-	paths []string,
-	restartRequired bool,
-	responseError string,
-) error {
-	if strings.TrimSpace(sessionID) == "" {
-		return fmt.Errorf("session id is required")
-	}
-	if strings.TrimSpace(requestID) == "" {
-		return fmt.Errorf("workspace request id is required")
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.process == nil {
-		return fmt.Errorf("PI Sidecar is not running")
-	}
-	if _, exists := s.sessions[sessionID]; !exists {
-		return fmt.Errorf("PI session not found: %s", sessionID)
-	}
-	return writeCommand(s.process.stdin, map[string]any{
-		"action":          "workspace_access_response",
-		"conversationId":  sessionID,
-		"requestId":       requestID,
-		"path":            strings.TrimSpace(path),
-		"paths":           append([]string(nil), paths...),
-		"restartRequired": restartRequired,
-		"error":           strings.TrimSpace(responseError),
-	})
-}
-
 func (s *Supervisor) StartBackgroundTask(
 	sessionID,
 	workspacePath,
-	command,
-	name,
-	executionMode,
-	approvalPolicy string,
-	settings config.AppSettings,
-) (RuntimeStatus, error) {
-	return s.StartBackgroundTaskWithWorkspaceAccess(
-		sessionID,
-		workspacePath,
-		nil,
-		command,
-		name,
-		executionMode,
-		approvalPolicy,
-		settings,
-	)
-}
-
-func (s *Supervisor) StartBackgroundTaskWithWorkspaceAccess(
-	sessionID,
-	workspacePath string,
-	workspaceAccessPaths []string,
 	command,
 	name,
 	executionMode,
@@ -1147,19 +1025,8 @@ func (s *Supervisor) StartBackgroundTaskWithWorkspaceAccess(
 	if err != nil {
 		return RuntimeStatus{}, err
 	}
-	workspaceAccessPaths, err = resolveAgentWorkspaceAccessPaths(
-		workspace,
-		workspaceAccessPaths,
-	)
-	if err != nil {
-		return RuntimeStatus{}, err
-	}
 	s.mu.Lock()
-	err = s.ensureProcessLockedWithWorkspaceAccess(
-		settings,
-		workspace,
-		workspaceAccessPaths,
-	)
+	err = s.ensureProcessLocked(settings, workspace)
 	s.mu.Unlock()
 	if err != nil {
 		return RuntimeStatus{}, err
@@ -1168,12 +1035,11 @@ func (s *Supervisor) StartBackgroundTaskWithWorkspaceAccess(
 		sessionID,
 		"start background task",
 		map[string]any{
-			"control":              "spawn",
-			"command":              command,
-			"name":                 strings.TrimSpace(name),
-			"executionMode":        codingPolicy.ExecutionMode,
-			"approvalPolicy":       codingPolicy.ApprovalPolicy,
-			"workspaceAccessPaths": append([]string(nil), workspaceAccessPaths...),
+			"control":        "spawn",
+			"command":        command,
+			"name":           strings.TrimSpace(name),
+			"executionMode":  codingPolicy.ExecutionMode,
+			"approvalPolicy": codingPolicy.ApprovalPolicy,
 		},
 	)
 }
@@ -1203,24 +1069,6 @@ func (s *Supervisor) RefreshBackgroundTasks(
 	approvalPolicy string,
 	settings config.AppSettings,
 ) (RuntimeStatus, error) {
-	return s.RefreshBackgroundTasksWithWorkspaceAccess(
-		sessionID,
-		workspacePath,
-		nil,
-		executionMode,
-		approvalPolicy,
-		settings,
-	)
-}
-
-func (s *Supervisor) RefreshBackgroundTasksWithWorkspaceAccess(
-	sessionID,
-	workspacePath string,
-	workspaceAccessPaths []string,
-	executionMode,
-	approvalPolicy string,
-	settings config.AppSettings,
-) (RuntimeStatus, error) {
 	sessionID = strings.TrimSpace(sessionID)
 	if sessionID == "" {
 		return RuntimeStatus{}, fmt.Errorf("session id is required")
@@ -1238,11 +1086,7 @@ func (s *Supervisor) RefreshBackgroundTasksWithWorkspaceAccess(
 		return RuntimeStatus{}, err
 	}
 	s.mu.Lock()
-	err = s.ensureProcessLockedWithWorkspaceAccess(
-		settings,
-		workspace,
-		workspaceAccessPaths,
-	)
+	err = s.ensureProcessLocked(settings, workspace)
 	s.mu.Unlock()
 	if err != nil {
 		return RuntimeStatus{}, err
@@ -1687,24 +1531,7 @@ func (s *Supervisor) Close() {
 }
 
 func (s *Supervisor) ensureProcessLocked(settings config.AppSettings, workspace string) error {
-	return s.ensureProcessLockedWithWorkspaceAccess(settings, workspace, nil)
-}
-
-func (s *Supervisor) ensureProcessLockedWithWorkspaceAccess(
-	settings config.AppSettings,
-	workspace string,
-	workspaceAccessPaths []string,
-) error {
-	resolvedWorkspaceAccessPaths, err := resolveAgentWorkspaceAccessPaths(
-		workspace,
-		workspaceAccessPaths,
-	)
-	if err != nil {
-		return err
-	}
-	if s.process != nil &&
-		s.process.workspace == workspace &&
-		slices.Equal(s.process.workspaceAccessPaths, resolvedWorkspaceAccessPaths) {
+	if s.process != nil && s.process.workspace == workspace {
 		return nil
 	}
 	if s.process != nil {
@@ -1720,11 +1547,10 @@ func (s *Supervisor) ensureProcessLockedWithWorkspaceAccess(
 			_ = previous.command.Process.Kill()
 		}
 	}
-	command, err := newSidecarCommandAtWithDirectoryAndRoots(
+	command, err := newSidecarCommandAtWithDirectory(
 		"chat-bridge.cjs",
 		developmentChatBridgePath,
 		workspace,
-		resolvedWorkspaceAccessPaths,
 		true,
 		s.sidecarDirectory,
 	)
@@ -1757,10 +1583,9 @@ func (s *Supervisor) ensureProcessLockedWithWorkspaceAccess(
 	}
 
 	process := &childProcess{
-		command:              command,
-		stdin:                stdin,
-		workspace:            workspace,
-		workspaceAccessPaths: append([]string(nil), resolvedWorkspaceAccessPaths...),
+		command:   command,
+		stdin:     stdin,
+		workspace: workspace,
 	}
 	s.process = process
 	go s.readEvents(process, stdout)
@@ -2076,11 +1901,6 @@ func normalizeBridgeEvent(raw bridgeEvent) Event {
 		RequestID:       raw.RequestID,
 		Input:           raw.Input,
 		Reason:          raw.Reason,
-		Action:          raw.Action,
-		Path:            raw.Path,
-		Paths:           append([]string(nil), raw.Paths...),
-		Query:           raw.Query,
-		RestartRequired: raw.RestartRequired,
 		Approved:        raw.Approved,
 		BackgroundTasks: raw.Tasks,
 		Goal:            raw.Goal,
@@ -2152,11 +1972,6 @@ func normalizeBridgeEvent(raw bridgeEvent) Event {
 		event.Type = "approval.requested"
 	case "approval_resolved":
 		event.Type = "approval.resolved"
-		event.Done = true
-	case "workspace_access_requested":
-		event.Type = "workspace.access.requested"
-	case "workspace_access_updated":
-		event.Type = "workspace.access.updated"
 		event.Done = true
 	case "session_destroyed":
 		event.Type = "session.destroyed"

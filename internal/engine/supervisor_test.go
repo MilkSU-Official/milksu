@@ -8,12 +8,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/MilkSU-Official/milksu/internal/appdata"
 	"github.com/MilkSU-Official/milksu/internal/config"
 )
 
@@ -304,15 +302,10 @@ func TestRefreshBackgroundTasksRecoversRunningTasksWithoutModelTurn(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	additionalWorkspace, err := resolveAgentWorkspace(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
 	supervisor := NewSupervisor(nil)
 	supervisor.process = &childProcess{
-		stdin:                writer,
-		workspace:            workspace,
-		workspaceAccessPaths: []string{additionalWorkspace},
+		stdin:     writer,
+		workspace: workspace,
 	}
 	type refreshResult struct {
 		status RuntimeStatus
@@ -320,10 +313,9 @@ func TestRefreshBackgroundTasksRecoversRunningTasksWithoutModelTurn(t *testing.T
 	}
 	result := make(chan refreshResult, 1)
 	go func() {
-		status, refreshErr := supervisor.RefreshBackgroundTasksWithWorkspaceAccess(
+		status, refreshErr := supervisor.RefreshBackgroundTasks(
 			"session-recovery",
 			workspace,
-			[]string{additionalWorkspace},
 			"go",
 			"workspace-auto",
 			config.DefaultSettings(),
@@ -381,12 +373,6 @@ func TestRefreshBackgroundTasksRecoversRunningTasksWithoutModelTurn(t *testing.T
 		recovery["recoveryPurpose"] != "background-tasks" {
 		t.Fatalf("unexpected background recovery command: %#v", recovery)
 	}
-	if !reflect.DeepEqual(
-		recovery["workspaceAccessPaths"],
-		[]any{additionalWorkspace},
-	) {
-		t.Fatalf("background recovery lost authorized workspaces: %#v", recovery)
-	}
 	for _, forbidden := range []string{
 		"prompt",
 		"provider",
@@ -441,10 +427,9 @@ func TestRefreshBackgroundTasksRecoversRunningTasksWithoutModelTurn(t *testing.T
 	}
 
 	go func() {
-		status, refreshErr := supervisor.RefreshBackgroundTasksWithWorkspaceAccess(
+		status, refreshErr := supervisor.RefreshBackgroundTasks(
 			"session-recovery",
 			workspace,
-			[]string{additionalWorkspace},
 			"go",
 			"workspace-auto",
 			config.DefaultSettings(),
@@ -792,43 +777,6 @@ func TestNormalizeApprovalLifecycle(t *testing.T) {
 	}
 }
 
-func TestRespondWorkspaceAccessWritesBoundedSidecarReceipt(t *testing.T) {
-	reader, writer, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer reader.Close()
-	defer writer.Close()
-	supervisor := NewSupervisor(func(Event) {})
-	supervisor.process = &childProcess{stdin: writer, workspace: "/workspace"}
-	supervisor.sessions["session-1"] = struct{}{}
-
-	if err := supervisor.RespondWorkspaceAccess(
-		"session-1",
-		"workspace-1",
-		"/workspace/other",
-		[]string{"/workspace/other"},
-		true,
-		"",
-	); err != nil {
-		t.Fatal(err)
-	}
-	line, err := bufio.NewReader(reader).ReadBytes('\n')
-	if err != nil {
-		t.Fatal(err)
-	}
-	var command map[string]any
-	if err := json.Unmarshal(line, &command); err != nil {
-		t.Fatal(err)
-	}
-	if command["action"] != "workspace_access_response" ||
-		command["requestId"] != "workspace-1" ||
-		command["path"] != "/workspace/other" ||
-		command["restartRequired"] != true {
-		t.Fatalf("unexpected workspace response: %#v", command)
-	}
-}
-
 func TestNormalizeAssistantToolSegmentDoesNotCompleteTurn(t *testing.T) {
 	event := normalizeBridgeEvent(bridgeEvent{
 		Type: "message_segment_done", ID: "session-1", Content: "先运行验收。",
@@ -1015,7 +963,7 @@ func TestSendMessageRejectsMissingKeyBeforeStartingSidecar(t *testing.T) {
 	}
 }
 
-func TestSendMessageCarriesAdditionalWorkspaceScopeToPi(t *testing.T) {
+func TestSendMessageDoesNotSendAParallelWorkspaceScopeToPi(t *testing.T) {
 	reader, writer, err := os.Pipe()
 	if err != nil {
 		t.Fatal(err)
@@ -1026,16 +974,10 @@ func TestSendMessageCarriesAdditionalWorkspaceScopeToPi(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	additional, err := resolveAgentWorkspace(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	supervisor := NewSupervisor(nil)
 	supervisor.process = &childProcess{
-		stdin:                writer,
-		workspace:            workspace,
-		workspaceAccessPaths: []string{additional},
+		stdin:     writer,
+		workspace: workspace,
 	}
 	defer func() {
 		supervisor.mu.Lock()
@@ -1045,11 +987,10 @@ func TestSendMessageCarriesAdditionalWorkspaceScopeToPi(t *testing.T) {
 		supervisor.mu.Unlock()
 	}()
 
-	if err := supervisor.SendMessageWithWorkspaceAccess(
+	if err := supervisor.SendMessage(
 		"session-cross-project",
 		"compare both projects",
 		workspace,
-		[]string{additional},
 		"",
 		"go",
 		"workspace-auto",
@@ -1072,9 +1013,11 @@ func TestSendMessageCarriesAdditionalWorkspaceScopeToPi(t *testing.T) {
 		t.Fatal(err)
 	}
 	if command["action"] != "send_message" ||
-		command["conversationId"] != "session-cross-project" ||
-		!reflect.DeepEqual(command["workspaceAccessPaths"], []any{additional}) {
-		t.Fatalf("Pi command lost additional workspace scope: %#v", command)
+		command["conversationId"] != "session-cross-project" {
+		t.Fatalf("unexpected Pi command: %#v", command)
+	}
+	if _, exists := command["workspaceAccessPaths"]; exists {
+		t.Fatalf("Pi command must not receive a MilkSU workspace-only scope: %#v", command)
 	}
 }
 
@@ -1087,69 +1030,6 @@ func TestResolvedUserInterfaceLocale(t *testing.T) {
 	settings.Locale = &locale
 	if got := resolvedUserInterfaceLocale(settings); got != "en" {
 		t.Fatalf("configured interface locale = %q, want en", got)
-	}
-}
-
-func TestSidecarRestartsWhenConversationWorkspaceAccessChanges(t *testing.T) {
-	directory := t.TempDir()
-	node := filepath.Join(directory, "node")
-	bridge := filepath.Join(directory, "chat-bridge.cjs")
-	if err := os.WriteFile(
-		node,
-		[]byte("#!/bin/sh\nwhile IFS= read -r line; do :; done\n"),
-		0o700,
-	); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(bridge, []byte("bridge"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("MILKSU_SIDECAR_DIR", directory)
-	t.Setenv(appdata.DirectoryOverrideEnv, filepath.Join(t.TempDir(), "appdata"))
-	workspace := t.TempDir()
-	additional := t.TempDir()
-	resolvedAdditional, err := filepath.EvalSymlinks(additional)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	supervisor := NewSupervisor(nil)
-	defer supervisor.Close()
-	supervisor.mu.Lock()
-	err = supervisor.ensureProcessLockedWithWorkspaceAccess(
-		config.DefaultSettings(),
-		workspace,
-		nil,
-	)
-	first := supervisor.process
-	if err == nil {
-		err = supervisor.ensureProcessLockedWithWorkspaceAccess(
-			config.DefaultSettings(),
-			workspace,
-			[]string{additional},
-		)
-	}
-	second := supervisor.process
-	if err == nil {
-		err = supervisor.ensureProcessLockedWithWorkspaceAccess(
-			config.DefaultSettings(),
-			workspace,
-			nil,
-		)
-	}
-	third := supervisor.process
-	supervisor.mu.Unlock()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if first == nil || second == nil || first == second {
-		t.Fatal("workspace scope change did not replace the packaged Sidecar process")
-	}
-	if !reflect.DeepEqual(second.workspaceAccessPaths, []string{resolvedAdditional}) {
-		t.Fatalf("restarted Sidecar lost the reviewed roots: %#v", second.workspaceAccessPaths)
-	}
-	if third == nil || third == second || len(third.workspaceAccessPaths) != 0 {
-		t.Fatal("revoking the directory did not restart Sidecar without that root")
 	}
 }
 
@@ -1414,11 +1294,10 @@ func TestSendMessageCarriesTypedProductActionToPi(t *testing.T) {
 		supervisor.mu.Unlock()
 	}()
 
-	err = supervisor.SendMessageWithWorkspaceAccessAndProductAction(
+	err = supervisor.SendMessageWithProductAction(
 		"session-product-action",
 		"run the repository test contract",
 		workspace,
-		nil,
 		"",
 		"go",
 		"workspace-auto",
@@ -1451,11 +1330,10 @@ func TestSendMessageCarriesTypedProductActionToPi(t *testing.T) {
 		t.Fatalf("Pi command lost the user-interface locale: %#v", command)
 	}
 
-	err = supervisor.SendMessageWithWorkspaceAccess(
+	err = supervisor.SendMessage(
 		"session-ordinary-prompt",
 		"[MilkSU product action: Run tests]\nThis is ordinary user text.",
 		workspace,
-		nil,
 		"",
 		"go",
 		"workspace-auto",
@@ -1485,11 +1363,10 @@ func TestSendMessageCarriesTypedProductActionToPi(t *testing.T) {
 
 func TestSendMessageRejectsUnknownTypedProductAction(t *testing.T) {
 	supervisor := NewSupervisor(nil)
-	err := supervisor.SendMessageWithWorkspaceAccessAndProductAction(
+	err := supervisor.SendMessageWithProductAction(
 		"session-product-action",
 		"run it",
 		"",
-		nil,
 		"",
 		"go",
 		"workspace-auto",
@@ -1793,7 +1670,7 @@ func TestResolveAgentWorkspaceRejectsFiles(t *testing.T) {
 	}
 }
 
-func TestCodingSidecarAllowsOnlyTheRequiredSystemShells(t *testing.T) {
+func TestPackagedCodingSidecarDoesNotDuplicatePiFilesystemPolicyInNode(t *testing.T) {
 	directory := t.TempDir()
 	node := filepath.Join(directory, "node")
 	bridge := filepath.Join(directory, "chat-bridge.cjs")
@@ -1805,103 +1682,24 @@ func TestCodingSidecarAllowsOnlyTheRequiredSystemShells(t *testing.T) {
 	}
 	t.Setenv("MILKSU_SIDECAR_DIR", directory)
 
-	command, err := newSidecarCommandAt("chat-bridge.cjs", "bridge.js", t.TempDir(), true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	arguments := strings.Join(command.Args, "\n")
-	for _, expected := range []string{
-		"--allow-child-process",
-		"--allow-fs-read=/bin/bash",
-		"--allow-fs-read=/bin/sh",
-		"--allow-fs-read=/usr/bin/env",
-		"--allow-fs-read=/usr/bin/sandbox-exec",
-		"--allow-fs-read=/private/tmp/milksu-computer-use",
-		"--allow-fs-write=/private/tmp/milksu-computer-use",
-	} {
-		if !strings.Contains(arguments, expected) {
-			t.Fatalf("coding Sidecar is missing %q: %s", expected, arguments)
-		}
-	}
-}
-
-func TestCodingSidecarGrantsNodePermissionsToAdditionalWorkspaces(t *testing.T) {
-	directory := t.TempDir()
-	node := filepath.Join(directory, "node")
-	bridge := filepath.Join(directory, "chat-bridge.cjs")
-	if err := os.WriteFile(node, []byte("runtime"), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(bridge, []byte("bridge"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("MILKSU_SIDECAR_DIR", directory)
 	workspace := t.TempDir()
-	additional := t.TempDir()
-
-	command, err := newSidecarCommandAtWithDirectoryAndRoots(
+	command, err := newSidecarCommandAtWithDirectory(
 		"chat-bridge.cjs",
 		"bridge.js",
 		workspace,
-		[]string{additional},
 		true,
 		"",
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	resolvedAdditional, err := filepath.EvalSymlinks(additional)
-	if err != nil {
-		t.Fatal(err)
+	if len(command.Args) != 2 || command.Args[0] != node || command.Args[1] != bridge {
+		t.Fatalf("unexpected packaged Sidecar command: %#v", command.Args)
 	}
-	arguments := strings.Join(command.Args, "\n")
-	for _, expected := range []string{
-		"--allow-fs-read=" + resolvedAdditional,
-		"--allow-fs-write=" + resolvedAdditional,
-	} {
-		if !strings.Contains(arguments, expected) {
-			t.Fatalf("Coding Sidecar is missing %q: %s", expected, arguments)
+	for _, argument := range command.Args {
+		if argument == "--permission" || strings.HasPrefix(argument, "--allow-") {
+			t.Fatalf("Node duplicated Pi filesystem policy: %#v", command.Args)
 		}
-	}
-}
-
-func TestResolveAgentWorkspaceAccessPathsRejectsBroadAndInvalidScopes(t *testing.T) {
-	workspace := t.TempDir()
-	additional := t.TempDir()
-	resolvedAdditional, err := filepath.EvalSymlinks(additional)
-	if err != nil {
-		t.Fatal(err)
-	}
-	resolved, err := resolveAgentWorkspaceAccessPaths(
-		workspace,
-		[]string{additional, additional},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !reflect.DeepEqual(resolved, []string{resolvedAdditional}) {
-		t.Fatalf("unexpected resolved access paths: %#v", resolved)
-	}
-
-	wholeHome := t.TempDir()
-	resolvedWholeHome, err := resolveAgentWorkspaceAccessPaths(workspace, []string{wholeHome})
-	if err != nil {
-		t.Fatalf("explicit whole-home-style grant should be accepted: %v", err)
-	}
-	canonicalWholeHome, err := filepath.EvalSymlinks(wholeHome)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !reflect.DeepEqual(resolvedWholeHome, []string{canonicalWholeHome}) {
-		t.Fatalf("whole-home-style grant = %#v", resolvedWholeHome)
-	}
-
-	values := make([]string, 9)
-	for index := range values {
-		values[index] = additional
-	}
-	if _, err := resolveAgentWorkspaceAccessPaths(workspace, values); err == nil {
-		t.Fatal("expected more than eight access paths to be rejected")
 	}
 }
 

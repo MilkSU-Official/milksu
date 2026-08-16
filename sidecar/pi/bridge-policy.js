@@ -393,12 +393,8 @@ async function ensureSandboxedCommandRuntime(runtimeDirectory) {
   const nodeWrapper = join(runtimeBin, "node");
   const nodeBinary = process.execPath;
   await mkdir(runtimeBin, { recursive: true, mode: 0o700 });
-  // Node's permission model automatically injects its own --permission flags
-  // into child-process NODE_OPTIONS, even when spawn() receives a sanitized
-  // environment. That makes npm scripts inherit the Sidecar's read grants
-  // instead of the selected project. The wrapper removes only that inherited
-  // Node layer; sandbox-exec still enforces network denial, workspace-only
-  // writes, and protected .git/.milksu paths for the reviewed command.
+  // Do not let ambient NODE_OPTIONS alter project commands. sandbox-exec owns
+  // network denial, workspace writes, and protected .git/.milksu paths here.
   await writeFile(
     nodeWrapper,
     `#!/bin/sh\nunset NODE_OPTIONS\nexec ${JSON.stringify(nodeBinary)} "$@"\n`,
@@ -578,76 +574,9 @@ function sanitizedBackgroundEnvironment(value) {
   return environment;
 }
 
-export async function prepareCodingBackgroundAuthorization(
-  workspace,
-  approvalPolicy,
-  input,
-  resourceReadRoots = [],
-  workspaceAccessPaths = [],
-) {
-  const root = await resolveReviewedWorkspace(workspace);
-  const writableRoots = [root];
-  for (const value of workspaceAccessPaths) {
-    try {
-      const reviewed = await realpath(value);
-      if (reviewed !== root && !writableRoots.includes(reviewed)) {
-        writableRoots.push(reviewed);
-      }
-    } catch (error) {
-      if (error?.code !== "ENOENT") throw error;
-    }
-  }
-  const requested = typeof input?.cwd === "string" && input.cwd.trim()
-    ? input.cwd.trim()
-    : root;
-  const candidate = isAbsolute(requested) ? requested : resolve(root, requested);
-  const cwd = candidate === root ? root : await realpath(candidate);
-  const fullAccess = approvalPolicy === "full-auto";
-  if (!fullAccess) {
-    let authorized = false;
-    for (const allowedRoot of writableRoots) {
-      try {
-        await assertWorkspacePath(allowedRoot, cwd);
-        authorized = true;
-        break;
-      } catch {
-        // Try the next explicitly authorized project root.
-      }
-    }
-    if (!authorized) {
-      throw new Error(
-        `MilkSU workspace policy denied background cwd outside authorized projects: ${cwd}`,
-      );
-    }
-  }
-
-  const readableRoots = [];
-  for (const value of resourceReadRoots) {
-    try {
-      readableRoots.push(await realpath(value));
-    } catch (error) {
-      if (error?.code !== "ENOENT") throw error;
-    }
-  }
-  const runtimeDirectory = commandRuntimeDirectory(root);
-  await mkdir(join(runtimeDirectory, "home"), { recursive: true, mode: 0o700 });
-  await mkdir(join(runtimeDirectory, "tmp"), { recursive: true, mode: 0o700 });
-  await ensureSandboxedCommandRuntime(runtimeDirectory);
-
-  input.cwd = cwd;
-  return {
-    workspace: root,
-    cwd,
-    mode: fullAccess ? "full-auto" : "workspace-auto",
-    readableRoots,
-    writableRoots: writableRoots.slice(1),
-    runtimeDirectory,
-  };
-}
-
-function reviewedBackgroundOutputPath(authorization, value) {
+function reviewedBackgroundOutputPath(value) {
   if (!value) return "";
-  const configuredRuntime = String(authorization.runtimeDirectory ?? "").trim();
+  const configuredRuntime = String(process.env.MILKSU_WORKSPACE_RUNTIME ?? "").trim();
   if (!configuredRuntime) {
     throw new Error(
       "MilkSU denied a background process without a private runtime",
@@ -671,26 +600,10 @@ function reviewedBackgroundOutputPath(authorization, value) {
 
 export function buildCodingBackgroundLaunch(
   specification,
-  authorization,
   trustedOutputPath = "",
 ) {
-  const workspace = resolve(authorization.workspace);
-  const cwd = resolve(specification.cwd || authorization.cwd);
-  const outputPath = reviewedBackgroundOutputPath(
-    authorization,
-    trustedOutputPath,
-  );
-  if (cwd !== resolve(authorization.cwd)) {
-    throw new Error("MilkSU denied a background process whose cwd changed after authorization");
-  }
-  if (
-    authorization.mode !== "full-auto"
-    && ![workspace, ...(authorization.writableRoots || [])]
-      .some(root => within(resolve(root), cwd))
-  ) {
-    throw new Error("MilkSU denied a background process outside authorized projects");
-  }
-
+  const cwd = resolve(specification.cwd || process.cwd());
+  reviewedBackgroundOutputPath(trustedOutputPath);
   const explicitEnvironment = sanitizedBackgroundEnvironment(specification.env);
   const direct = specification.shell === false;
   const command = direct ? specification.argv?.[0] : "/bin/bash";
@@ -698,106 +611,13 @@ export function buildCodingBackgroundLaunch(
     ? specification.argv.slice(1)
     : ["--noprofile", "--norc", "-c", specification.command];
 
-  if (authorization.mode === "full-auto") {
-    return {
-      file: command,
-      arguments: argumentsList,
-      cwd,
-      environment: {
-        ...fullAccessCommandEnvironment(process.env),
-        ...explicitEnvironment,
-      },
-    };
-  }
-
-  const runtimeDirectory = resolve(authorization.runtimeDirectory);
-  const runtimeHome = join(runtimeDirectory, "home");
-  const runtimeTemporary = join(runtimeDirectory, "tmp");
-  const runtimeBin = join(runtimeDirectory, "runtime-bin");
   return {
-    file: "/usr/bin/sandbox-exec",
-    arguments: [
-      "-p",
-      sandboxProfile(
-        workspace,
-        true,
-        [],
-        false,
-        [...authorization.readableRoots, runtimeBin],
-        [
-          ...(authorization.writableRoots || []),
-          runtimeHome,
-          runtimeTemporary,
-          outputPath,
-        ].filter(Boolean),
-      ),
-      command,
-      ...argumentsList,
-    ],
+    file: command,
+    arguments: argumentsList,
     cwd,
     environment: {
-      ...commandEnvironment(workspace, process.env, runtimeDirectory),
+      ...fullAccessCommandEnvironment(process.env),
       ...explicitEnvironment,
-    },
-  };
-}
-
-function createFullAccessBashOperations(execution) {
-  return {
-    exec: async (command, cwd, options = {}) => {
-      const timeout = Math.min(
-        Math.max(Number(options.timeout) || execution.defaultCommandTimeoutSeconds, 1),
-        execution.maxCommandTimeoutSeconds,
-      );
-      return await new Promise((resolvePromise, rejectPromise) => {
-        const child = spawn(
-          "/bin/bash",
-          ["--noprofile", "--norc", "-c", command],
-          {
-            cwd: resolve(cwd),
-            detached: true,
-            env: fullAccessCommandEnvironment({
-              ...process.env,
-              ...options.env,
-            }),
-            stdio: ["ignore", "pipe", "pipe"],
-          },
-        );
-        let settled = false;
-        let timedOut = false;
-        const finish = callback => {
-          if (settled) return;
-          settled = true;
-          clearTimeout(timeoutHandle);
-          options.signal?.removeEventListener("abort", onAbort);
-          callback();
-        };
-        const onAbort = () => {
-          killChildProcess(child);
-        };
-        const timeoutHandle = setTimeout(() => {
-          timedOut = true;
-          killChildProcess(child);
-        }, timeout * 1000);
-
-        options.signal?.addEventListener("abort", onAbort, { once: true });
-        child.stdout?.on("data", options.onData);
-        child.stderr?.on("data", options.onData);
-        child.on("error", error => finish(() => rejectPromise(error)));
-        child.on("close", exitCode => {
-          finish(() => {
-            if (options.signal?.aborted) {
-              rejectPromise(new Error("aborted"));
-              return;
-            }
-            if (timedOut) {
-              rejectPromise(new Error(`timeout:${timeout}`));
-              return;
-            }
-            resolvePromise({ exitCode });
-          });
-        });
-      });
     },
   };
 }
@@ -1560,28 +1380,15 @@ async function resolveReviewedWorkspace(workspace) {
 async function createCodingToolDefinitions(
   workspace,
   resourceReadRoots = [],
-  workspaceAccessPaths = [],
-  approvalPolicy = "workspace-auto",
   productAction = undefined,
   codingCollaboration = undefined,
 ) {
   const root = await resolveReviewedWorkspace(workspace);
   const reviewedResourceRoots = [];
-  const authorizedWorkspaceRoots = [];
   const collaborationPaths = [];
   for (const value of resourceReadRoots) {
     try {
       reviewedResourceRoots.push(await realpath(value));
-    } catch (error) {
-      if (error?.code !== "ENOENT") throw error;
-    }
-  }
-  for (const value of workspaceAccessPaths) {
-    try {
-      const reviewed = await realpath(value);
-      if (reviewed !== root && !authorizedWorkspaceRoots.includes(reviewed)) {
-        authorizedWorkspaceRoots.push(reviewed);
-      }
     } catch (error) {
       if (error?.code !== "ENOENT") throw error;
     }
@@ -1600,7 +1407,6 @@ async function createCodingToolDefinitions(
   const resolveReadScope = async path => {
     for (const allowedRoot of [
       root,
-      ...authorizedWorkspaceRoots,
       ...reviewedResourceRoots,
     ]) {
       try {
@@ -1621,7 +1427,7 @@ async function createCodingToolDefinitions(
     const requestedPath = resolve(path);
     const owner = await mutationOwnerRoot(
       requestedPath,
-      [root, ...authorizedWorkspaceRoots, ...collaborationPaths],
+      [root, ...collaborationPaths],
     );
     const ownerSegments = owner
       ? relative(owner.root, owner.ownedPath).split(sep)
@@ -1642,114 +1448,26 @@ async function createCodingToolDefinitions(
     );
     return safePath;
   };
-  const readOperations = {
-    access: async path => access(await ensureRead(path), constants.R_OK),
-    readFile: async path => readFile(await ensureRead(path)),
-    detectImageMimeType: async path => {
-      const safePath = await ensureRead(path);
-      const file = await open(safePath, "r");
-      try {
-        const data = Buffer.alloc(12);
-        const { bytesRead } = await file.read(data, 0, data.length, 0);
-        return detectImageMimeType(safePath, data.subarray(0, bytesRead));
-      } finally {
-        await file.close();
-      }
-    },
-  };
-  const fullAccess = approvalPolicy === "full-auto";
-  const bashOperations = fullAccess
-    ? createFullAccessBashOperations(defaultExecution)
-    : createSandboxedBashOperations(
-        root,
-        defaultExecution,
-        true,
-        [],
-        false,
-        [...authorizedWorkspaceRoots, ...reviewedResourceRoots],
-        [...authorizedWorkspaceRoots, ...collaborationPaths],
-      );
   const definitions = [
-    createReadToolDefinition(root, { operations: readOperations }),
+    // Generic Coding tools deliberately use Pi's native filesystem and shell
+    // behavior. MilkSU supplies the initial cwd and approval UI, but does not
+    // layer a second workspace policy over Pi's absolute-path support.
+    createReadToolDefinition(root),
     createBashToolDefinition(root, {
-      operations: bashOperations,
-      // MilkSU exposes session/model context through the desktop environment
-      // panel. Child commands do not need Pi's ambient PI_* variables.
       exposeSessionEnvironment: false,
+      spawnHook: context => ({
+        ...context,
+        env: fullAccessCommandEnvironment(context.env),
+      }),
     }),
-    createEditToolDefinition(root, {
-      operations: {
-        access: async path => access(
-          await ensureMutation(path),
-          constants.R_OK | constants.W_OK,
-        ),
-        readFile: async path => readFile(await ensureMutation(path)),
-        writeFile: async (path, content) => writeFile(
-          await ensureMutation(path),
-          content,
-          { encoding: "utf8", mode: 0o600 },
-        ),
-      },
-    }),
-    createWriteToolDefinition(root, {
-      operations: {
-        mkdir: async path => mkdir(
-          await ensureMutation(path, true),
-          { recursive: true, mode: 0o700 },
-        ),
-        writeFile: async (path, content) => writeFile(
-          await ensureMutation(path),
-          content,
-          { encoding: "utf8", mode: 0o600 },
-        ),
-      },
-    }),
-    createGrepToolDefinition(root, {
-      operations: {
-        isDirectory: async path => (await lstat(await ensureRead(path))).isDirectory(),
-        readFile: async path => readFile(await ensureRead(path), "utf8"),
-      },
-    }),
-    createFindToolDefinition(root, {
-      operations: {
-        exists: async path => {
-          try {
-            await lstat(await ensureRead(path));
-            return true;
-          } catch (error) {
-            if (error?.code === "ENOENT") return false;
-            throw error;
-          }
-        },
-        glob: async (pattern, path, options) => {
-          const scope = await resolveReadScope(path);
-          return findWorkspaceFiles(
-            scope.root,
-            scope.path,
-            pattern,
-            options.limit,
-          );
-        },
-      },
-    }),
-    createLsToolDefinition(root, {
-      operations: {
-        exists: async path => {
-          try {
-            await lstat(await ensureRead(path));
-            return true;
-          } catch (error) {
-            if (error?.code === "ENOENT") return false;
-            throw error;
-          }
-        },
-        stat: async path => lstat(await ensureRead(path)),
-        readdir: async path => readdir(await ensureRead(path)),
-      },
-    }),
+    createEditToolDefinition(root),
+    createWriteToolDefinition(root),
+    createGrepToolDefinition(root),
+    createFindToolDefinition(root),
+    createLsToolDefinition(root),
     createArchifyTool(
       root,
-      [...authorizedWorkspaceRoots, ...reviewedResourceRoots],
+      reviewedResourceRoots,
       productAction,
     ),
     createImageGenTool(root, {
@@ -1757,13 +1475,6 @@ async function createCodingToolDefinitions(
       ensureMutation,
     }),
   ];
-  const bash = definitions.find(tool => tool.name === "bash");
-  bash.description += fullAccess
-    ? " Full Access runs commands automatically with the current local user authority. "
-      + "Model-provider secrets are removed from child-process environments."
-    : " Project Auto runs development commands with network access while macOS sandboxing keeps "
-      + "file writes inside the selected or explicitly authorized projects and registered writer worktrees and blocks local "
-      + "credential directories.";
   return definitions;
 }
 
@@ -1907,23 +1618,6 @@ export async function createCTFToolDefinitions(
 
 async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
   const root = await resolveReviewedWorkspace(workspace);
-  if (
-    Array.isArray(codingPolicy.workspaceAccessPaths)
-    && codingPolicy.workspaceAccessPaths.length > 8
-  ) {
-    throw new Error("MilkSU supports at most 8 additional project directories");
-  }
-  const workspaceAccessPaths = [];
-  for (const value of Array.isArray(codingPolicy.workspaceAccessPaths)
-    ? codingPolicy.workspaceAccessPaths.slice(0, 8)
-    : []) {
-    const candidate = String(value ?? "").trim();
-    if (!candidate) continue;
-    const reviewed = await realpath(candidate);
-    if (reviewed !== root && !workspaceAccessPaths.includes(reviewed)) {
-      workspaceAccessPaths.push(reviewed);
-    }
-  }
   const normalized = normalizeCodingPolicy(
     codingPolicy.executionMode,
     codingPolicy.approvalPolicy,
@@ -2074,7 +1768,6 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
     activeTools,
     capabilities,
     workspace: root,
-    workspaceAccessPaths,
     productAction,
     mcpServers,
     projectMcpServers,
@@ -2087,8 +1780,6 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
     customTools: await createCodingToolDefinitions(
       root,
       codingPolicy.readOnlyResourceRoots,
-      workspaceAccessPaths,
-      normalized.approvalPolicy,
       productAction,
       codingCollaboration,
     ),

@@ -424,7 +424,7 @@ describe('ChatComposer', () => {
     expect(invoke).toHaveBeenCalledWith('ChooseCodingAttachments', [])
   })
 
-  it('offers to authorize another project for the current conversation', async () => {
+  it('does not add a second workspace-authorization layer after cwd is fixed', async () => {
     const chosen: unknown[][] = []
     const result = mountComposer({
       workspaceLocked: true,
@@ -436,11 +436,8 @@ describe('ChatComposer', () => {
     await nextTick()
     const directoryItem = [...document.querySelectorAll<HTMLDivElement>('[role="menuitem"]')]
       .find(item => item.textContent?.includes('其他项目目录'))
-    expect(directoryItem?.textContent).toContain('授权所选目录给当前会话，立即跨项目读写')
-    directoryItem?.click()
-    await nextTick()
-
-    expect(chosen).toHaveLength(1)
+    expect(directoryItem).toBeUndefined()
+    expect(chosen).toHaveLength(0)
   })
 
   it('adds a reviewed Pi Skill to the draft and expands it only when the user sends', async () => {

@@ -38,6 +38,7 @@
 - Computer Use：用户选择外部可见 App/PID/Window 的不可变 Scope；Stable/Beta 独立产品名、Bundle ID、图标、数据目录、构建追踪和自我排除已落地。Stable → Beta 已完成版本核验、真实 click/scroll 与 CTF/CVE 连续性全程；辅助功能与屏幕录制现在分别打开准确的系统设置，授权返回后自动复检，屏幕录制导致的系统退出由 Electron 安排可靠重启。任务级授权会在重启或驱动恢复后自动重连；用户明确请求 Computer Use 且只存在一个合格外部窗口时直接启动，准备期间提交的消息会在能力就绪后自动续发，多窗口仍要求选择准确目标。后端同时排除浏览器窗口，不能由绕过前端的 RPC 把 Browser Scope 混进来。TCC 只授予作为操作者的 Developer ID 正式 Stable，Beta 只是被控目标；本地 ad-hoc Stable 不得用于权限验收。Browser 与 Computer Use 仍是分离权限面。
 - Session Index / 相关历史：MilkSU 自有 `obelisk.sqlite` 已索引本机 Coding、CTF、CVE 会话，支持 FTS/LIKE 搜索、Credential 遮蔽和用户确认后引用到当前输入。完整图谱改为**按需生成的人类语义图**：当前 Pi/Provider 在无工具静默回合中，把有界的 user/assistant 历史、Obelisk Memory 摘要和正式 Evidence 摘要归纳成主题、决策、问题、能力、里程碑、证据和洞见；工具消息不进入材料，节点必须回溯真实来源，关系明确是模型推断。图谱不读取目标文档、不写 Memory、不自动进入 Agent 上下文，也没有“引用到输入”动作。Obelisk 当前是历史索引和线索入口，不是个人成长事实源；个人页的次数、阶段和“最近成长”仍是本机活动的近似投影，只有 Judge、测试/提交、正式 Evidence 或用户明确确认的结果才能在后续成为可归因的成长事实。CTF Memory 继续属于独立领域事实，不与历史索引混写。
 - Composer `/` 已覆盖 Goal、Plan、Pi 会话动作、模型/权限、状态/Diff/Review、MCP、Browser Use 与 Computer Use；用户可见的 worktree / writer 入口已删除。Agent 运行时输入仍可发送：消息先通过 Pi steering 应用于下一次模型调用，并以队列卡片展示；只有真正 settled 才结束运行态。输入框左下“+”继续作为附件、Goal、Plan、浏览器、Browser/Computer Scope、已审核 Pi Skills 和项目 MCP 的统一入口。产品 UI 只使用“浏览器”，不暴露“沙箱浏览器”。
+- 普通 Coding 的跨目录文件与 Shell 已收敛为 Pi 内置语义：Desktop 只保存会话 cwd，不再暴露目录授权工具或持久化授权根；打包 Node 不再维护 `--allow-fs-*` 或后台授权令牌，普通 Bash 也不套 workspace-only `sandbox-exec`。Provider 凭据继续与 Bash/后台任务隔离，递归删除 Home、当前 cwd 或大型目录仍二次确认；重启后旧 Pi session ID 会自动清理并按普通消息重建。自动化已通过，Stable GUI 仍待用户复验后才算完成。
 - Coding 的已审核 Skill 已扩为产品设计、前端视觉验收、API 集成、安全审查、技术交付物、架构图和 MilkSU 发布；设置页可逐项停用。Pi 常驻的仍只是 Skill 名称与用途，完整 `SKILL.md` 只在任务匹配或用户主动选择后加载；禁用列表随消息进入 Sidecar，变更在下一条 Coding 消息重载会话资源。CTF 领域角色不继承这些 Coding Skill，设置也不能添加任意路径。
 - 浏览器三面已分责：右栏“浏览器”是会话隔离的内置 Chromium；`/browser-use` 复用固定版 Playwright MCP 官方扩展，由用户在真实 Chrome/Edge 选择准确标签页；`/computer-use` 只列外部原生 App，浏览器窗口不进入该 Scope。NSSCTF/CTFshow 的 MilkSU 扩展继续作为领域 Bridge，不承担通用浏览器控制。
 - **Chromium 桌面壳纵切已完成**：MilkSU.app 现由 Electron/Chromium 承载 Vue 产品表面和右栏 `WebContentsView`，Go 作为受管本地 Runtime 通过 JSONL RPC 提供应用服务。浏览器使用每会话独立 `session.fromPath`、默认拒绝页面权限，并经限定单一 Target 的 loopback CDP Proxy 交给固定 Playwright MCP。打包 App + TokenFlux `grok-4.5` 已只用浏览器完成三类真实任务：按页面提示点击取得 `flag{browser_agent_ok}`、填写并提交表单取得确定性回执、阅读 Electron 官方文档并归纳 `WebContentsView` 与旧 `BrowserView` 的关系。三次均在 Agent 开始后折叠右栏，任务仍继续，重新展开仍是同一页面与终态；未回退 Shell。裸域名会补全 HTTPS，普通文字会进入搜索。旧 Wails/CEF 生产链已直接删除，不保留兼容或双壳。
@@ -54,7 +55,7 @@
   实际命令解释器事实；Windows 当前遵循 Pi 上游 Bash backend，需要原生 Windows cmdlet 时由模型
   显式调用 `powershell.exe`。这些改动已过局部 Go/Sidecar/Vue 测试，仍待正式 Windows 包真实验收。
 - UI：左上角显示圆形裁切的当前用户头像并打开个人菜单；全局左栏固定为窄栏，Coding 会话历史默认收起并由单一按钮以浮层展开，不再因模块切换挤动主页面。完整个人页以 CTF/CVE/Coding 页签展示真实全年活跃图、所选日期细节与最近活动，全局六维雷达不再挂载；Coding 页签从统一的 `usage/model-usage.sqlite3` 读取全部模型与工具事件，不为每个模型拆库，也不保存 prompt、回复、工具参数或输出。三个模块的页签、标签与活跃度统一使用中性炭黑加酸绿色阶，不再以旧偏蓝黑或 `info` 蓝区分模块。Goal 与 Git 摘要位于输入框上方，Git 摘要可展开文件列表并跳到“变更”。Coding 顶部保留独立 Bottom Dock 和统一右栏；CTF/CVE 进入 Coding 后领域上下文可折叠/PiP，不再丢失原任务。Computer Use 使用紧凑任务面，诊断与证据默认折叠。Electron 窗口已避开 macOS 红黄绿按钮，Stable/Beta 使用正确名称与图标；设置页底部固定显示 branch、40 位 commit、clean/dirty、build time 和 tracking ID。
-- 用户可见产物固定写入 `~/Documents/MilkSU/{Coding,CTF,CVE}`，设置页可直接打开。普通用户文件通过 Composer 的附件入口进入受管附件区，选择、粘贴和拖放统一为可排序、预览、移除及恢复的 Pi 附件描述；目录由模型理解意图后通过 Desktop 工具请求当前会话授权，实际读写只开放持久化的规范化根并继续服从操作系统权限，Provider Key 只走模型设置。无项目 Coding 会话统一显示为“无项目任务”，实际临时工作区转入 `Application Support/<bundle-id>/agent-workspaces`，不再在 Documents 生成“新编码任务-哈希”目录；CVE 等用户可见产物仍留在 Documents。Runtime、事件库、凭据、Obelisk、浏览器 Profile 和内部恢复数据继续留在平台用户配置目录，两类目录不混用。递归删除用户 Home、文件系统根、工作区/授权根或大型目录时，Pi 工具前置钩子在任何审批档位都要求展示规范化目标和影响并再次确认。
+- 用户可见产物固定写入 `~/Documents/MilkSU/{Coding,CTF,CVE}`，设置页可直接打开。普通用户文件通过 Composer 的附件入口进入受管附件区，选择、粘贴和拖放统一为可排序、预览、移除及恢复的 Pi 附件描述；普通 Coding 的文件与 Shell 使用 Pi 内置工具和当前系统用户权限，MilkSU 只持久化会话 cwd，不再维护第二套当前会话授权根或 workspace-only 工具。Provider Key 只走模型设置和隔离的模型进程，不进入 Bash、后台任务、工具输出或模型上下文。无项目 Coding 会话统一显示为“无项目任务”，实际临时工作区转入 `Application Support/<bundle-id>/agent-workspaces`，不再在 Documents 生成“新编码任务-哈希”目录；CVE 等用户可见产物仍留在 Documents。Runtime、事件库、凭据、Obelisk、浏览器 Profile 和内部恢复数据继续留在平台用户配置目录，两类目录不混用。递归删除用户 Home、文件系统根、当前会话 cwd 或大型目录时，Pi 工具前置钩子在任何审批档位都要求展示规范化目标和影响并再次确认；CTF 继续使用独立的严格沙箱。
 - 暂停/后置：Labs；CVE 纵深研究、真实漏洞复现、外部资产实验、披露；NYU safe-static 只是开发者 smoke，不是完整 CTF 成绩。
 
 ## 下一条完成线
@@ -170,7 +171,7 @@ D1 migration、R2 bucket/secrets 和真实 Developer ID 旧版到新版升级仍
 第一条生产纵切已经进入“设置 → 安全工具”和普通 Coding：Desktop RPC 提供真实目录、检测、启停持久化、
 准备进度和健康检查；准备完成的能力由 Go 在每个回合重新投影给现有 Pi Session，模型根据轻量能力摘要自行
 决定是否调用。完整 MCP Schema 仍按需加载；“在 Coding 中配置”只挂未发送草稿，不会暗中启动安装；
-该草稿明确使用 `Go · 完全访问`，用户发送后 Coding 才能在本机用户目录准备软件，而不是落回项目沙箱。
+该草稿明确使用 `Go · 完全访问`，用户发送后 Coding 才会自动执行在本机用户目录准备软件的任务；Pi 内置文件与 Shell 仍遵循当前系统用户权限，Provider 凭据不进入子进程。
 2026-08-13 的本机 Stable 实测从设置页进入 Coding，安装 `uv 0.12.3` 与固定
 `mrexodia/ida-pro-mcp@0b5f7ae...`，完成非交互健康检查，再回设置页得到 IDA Pro“可用 / 已加入自动能力目录”。
 首轮实测发现无超时启动 IDA 会阻塞；当前交接提示已要求不启动 GUI，所有外部工具健康检查必须非交互且带

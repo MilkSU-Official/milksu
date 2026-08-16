@@ -92,37 +92,6 @@ describe('desktop command adapter', () => {
     ])
   })
 
-  it('uses desktop-owned RPCs for adding and revoking project access', async () => {
-    const invoke = vi.fn(async (method: string) => (
-      method === 'AuthorizeConversationWorkspaceAccess'
-        ? ['/Users/milksu/code/second-project']
-        : []
-    ))
-    Object.defineProperty(window, 'milksu', {
-      configurable: true,
-      value: { invoke },
-    })
-
-    await expect(invokeCommand('authorize_conversation_workspace_access', {
-      conversationId: 'coding-1',
-    })).resolves.toEqual(['/Users/milksu/code/second-project'])
-    await expect(invokeCommand('revoke_conversation_workspace_access', {
-      conversationId: 'coding-1',
-      path: '/Users/milksu/code/second-project',
-    })).resolves.toEqual([])
-
-    expect(invoke).toHaveBeenNthCalledWith(
-      1,
-      'AuthorizeConversationWorkspaceAccess',
-      ['coding-1'],
-    )
-    expect(invoke).toHaveBeenNthCalledWith(
-      2,
-      'RevokeConversationWorkspaceAccess',
-      ['coding-1', '/Users/milksu/code/second-project'],
-    )
-  })
-
   it('passes the first Coding message to the silent title generator', async () => {
     const generateConversationTitle = vi.fn(async () => '修复登录回调状态恢复')
     Object.defineProperty(window, 'go', {

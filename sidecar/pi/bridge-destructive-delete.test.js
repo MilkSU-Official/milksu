@@ -45,18 +45,15 @@ test("delete target expansion handles home and cross-platform environment forms"
   assert.match(expandDeleteTarget("$UNKNOWN/cache", options).error, /无法安全解析/);
 });
 
-test("Full Access still asks before deleting home, workspace, or an authorized root", async (t) => {
+test("Full Access still asks before deleting home or the conversation workspace", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "milksu-delete-gate-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const home = join(root, "home");
   const workspace = join(home, "project");
-  const authorized = join(home, "other project");
   await mkdir(workspace, { recursive: true });
-  await mkdir(authorized, { recursive: true });
   const policy = {
     approvalPolicy: "full-auto",
     workspace,
-    workspaceAccessPaths: [authorized],
     uiLocale: "zh",
   };
 
@@ -80,16 +77,6 @@ test("Full Access still asks before deleting home, workspace, or an authorized r
   });
   assert.equal(workspaceDecision.action, "approval");
   assert.match(workspaceDecision.content, /当前工作区根目录/);
-
-  const authorizedDecision = await destructiveDeleteDecision({
-    toolName: "bg_task",
-    input: { action: "start", command: `rm -rf '${authorized}'` },
-    policy,
-    environment: { HOME: home },
-    homeDirectory: home,
-  });
-  assert.equal(authorizedDecision.action, "approval");
-  assert.match(authorizedDecision.content, /当前会话授权目录根/);
 });
 
 test("symlink and glob targets are normalized before the confirmation decision", async (t) => {
@@ -101,7 +88,7 @@ test("symlink and glob targets are normalized before the confirmation decision",
   await mkdir(home, { recursive: true });
   await mkdir(workspace, { recursive: true });
   await symlink(home, link, "dir");
-  const policy = { workspace, workspaceAccessPaths: [], uiLocale: "zh" };
+  const policy = { workspace, uiLocale: "zh" };
   const decision = await destructiveDeleteDecision({
     toolName: "bash",
     input: { command: `rm -rf '${link}'/*` },
@@ -126,7 +113,7 @@ test("small recursive deletes remain automatic while large directories require c
   await Promise.all(Array.from({ length: 1001 }, (_value, index) => (
     writeFile(join(large, `${index}.txt`), "x")
   )));
-  const policy = { workspace, workspaceAccessPaths: [], uiLocale: "zh" };
+  const policy = { workspace, uiLocale: "zh" };
 
   assert.equal(await destructiveDeleteDecision({
     toolName: "bash",
@@ -150,7 +137,7 @@ test("unresolved recursive delete targets are blocked instead of being approved 
   const decision = await destructiveDeleteDecision({
     toolName: "bash",
     input: { command: 'rm -rf "$UNKNOWN_ROOT"' },
-    policy: { workspace: process.cwd(), workspaceAccessPaths: [], uiLocale: "zh" },
+    policy: { workspace: process.cwd(), uiLocale: "zh" },
     environment: {},
     homeDirectory: "/nonexistent-home",
   });

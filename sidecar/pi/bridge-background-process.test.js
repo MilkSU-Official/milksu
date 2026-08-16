@@ -3,13 +3,7 @@ import { access, mkdtemp, readFile, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import {
-  authorizeBackgroundToolInput,
-  authorizeResumedBackgroundSpecification,
-  withBackgroundResumeAuthorization,
-} from "./bridge-background-authorization.js";
 import { runCommandOnce, spawnCommand } from "./bridge-background-process.js";
-import { prepareCodingBackgroundAuthorization } from "./bridge-policy.js";
 
 async function waitFor(child) {
   return await new Promise((resolvePromise, rejectPromise) => {
@@ -18,18 +12,7 @@ async function waitFor(child) {
   });
 }
 
-test("background adapter rejects calls that did not pass MilkSU tool preflight", () => {
-  assert.throws(
-    () => spawnCommand(
-      { command: "printf unsafe", cwd: process.cwd(), shell: true },
-      join(tmpdir(), `milksu-background-unauthorised-${Date.now()}.log`),
-      true,
-    ),
-    /unauthorised background process/,
-  );
-});
-
-test("Project Auto background tasks stay in the workspace and strip provider secrets", {
+test("Pi background tasks preserve cwd and strip provider secrets", {
   skip: process.platform !== "darwin",
 }, async () => {
   const workspace = await mkdtemp(join(tmpdir(), "milksu-background-workspace-"));
@@ -54,12 +37,6 @@ test("Project Auto background tasks stay in the workspace and strip provider sec
         HOME: "/tmp/untrusted-home",
       },
     };
-    const authorization = await prepareCodingBackgroundAuthorization(
-      workspace,
-      "workspace-auto",
-      allowed,
-    );
-    authorizeBackgroundToolInput(allowed, authorization);
     const spawned = spawnCommand(
       { ...allowed, shell: true },
       join(runtime, "allowed.log"),
@@ -78,32 +55,6 @@ test("Project Auto background tasks stay in the workspace and strip provider sec
     assert.equal(watchResult.exitCode, 0);
     assert.equal(await readFile(join(workspace, "background.txt"), "utf8"), "safe");
 
-    assert.throws(
-      () => runCommandOnce({
-        ...persistedWatchCommand,
-        command: "printf changed > background.txt",
-      }),
-      /command changed after authorization/,
-    );
-
-    const denied = {
-      action: "spawn",
-      command: `printf escaped > ${JSON.stringify(outside)}`,
-      cwd: workspace,
-    };
-    const deniedAuthorization = await prepareCodingBackgroundAuthorization(
-      workspace,
-      "workspace-auto",
-      denied,
-    );
-    authorizeBackgroundToolInput(denied, deniedAuthorization);
-    const deniedSpawn = spawnCommand(
-      { ...denied, shell: true },
-      join(runtime, "denied.log"),
-      true,
-    );
-    const deniedResult = await waitFor(deniedSpawn.child);
-    assert.notEqual(deniedResult.code, 0);
     await assert.rejects(access(outside), /ENOENT/);
   } finally {
     if (previousRuntime === undefined) delete process.env.MILKSU_WORKSPACE_RUNTIME;
@@ -130,12 +81,6 @@ test("Project Auto Node background tasks can inspect their private log descripto
       command: "node --version > node-version.txt",
       cwd: workspace,
     };
-    const authorization = await prepareCodingBackgroundAuthorization(
-      workspace,
-      "workspace-auto",
-      input,
-    );
-    authorizeBackgroundToolInput(input, authorization);
     const logPath = join(runtime, "background-tasks", "node", "output.log");
     const spawned = spawnCommand(
       { ...input, shell: true },
@@ -154,7 +99,7 @@ test("Project Auto Node background tasks can inspect their private log descripto
   }
 });
 
-test("Project Auto background tasks accept an explicitly authorized project cwd", {
+test("Project Auto background tasks use Pi-native cwd semantics", {
   skip: process.platform !== "darwin",
 }, async () => {
   const workspace = await mkdtemp(join(tmpdir(), "milksu-background-primary-"));
@@ -169,14 +114,6 @@ test("Project Auto background tasks accept an explicitly authorized project cwd"
       command: "printf background > authorized.txt",
       cwd: authorized,
     };
-    const authorization = await prepareCodingBackgroundAuthorization(
-      workspace,
-      "workspace-auto",
-      input,
-      [],
-      [authorized],
-    );
-    authorizeBackgroundToolInput(input, authorization);
     const spawned = spawnCommand(
       { ...input, shell: true },
       join(runtime, "authorized.log"),
@@ -193,26 +130,24 @@ test("Project Auto background tasks accept an explicitly authorized project cwd"
       cwd: authorized,
       shell: true,
     };
-    await withBackgroundResumeAuthorization(authorization, async () => {
-      authorizeResumedBackgroundSpecification(resumed);
-      const result = await runCommandOnce(resumed);
-      assert.equal(result.exitCode, 0);
-    });
+    const result = await runCommandOnce(resumed);
+    assert.equal(result.exitCode, 0);
     assert.equal(
       await readFile(join(authorized, "resumed.txt"), "utf8"),
       "resumed",
     );
 
-    await assert.rejects(
-      prepareCodingBackgroundAuthorization(
-        workspace,
-        "workspace-auto",
-        { command: "printf blocked", cwd: unauthorized },
-        [],
-        [authorized],
-      ),
-      /outside authorized projects/,
+    const anotherInput = {
+      command: "printf native > native.txt",
+      cwd: unauthorized,
+    };
+    const another = spawnCommand(
+      { ...anotherInput, shell: true },
+      join(runtime, "native.log"),
+      true,
     );
+    assert.deepEqual(await waitFor(another.child), { code: 0, signal: null });
+    assert.equal(await readFile(join(unauthorized, "native.txt"), "utf8"), "native");
   } finally {
     if (previousRuntime === undefined) delete process.env.MILKSU_WORKSPACE_RUNTIME;
     else process.env.MILKSU_WORKSPACE_RUNTIME = previousRuntime;
@@ -234,12 +169,6 @@ test("background task logs cannot escape the reviewed private runtime", async ()
       command: "printf denied",
       cwd: workspace,
     };
-    const authorization = await prepareCodingBackgroundAuthorization(
-      workspace,
-      "workspace-auto",
-      input,
-    );
-    authorizeBackgroundToolInput(input, authorization);
     assert.throws(
       () => spawnCommand({ ...input, shell: true }, outside, true),
       /log outside its private runtime/u,
@@ -271,12 +200,6 @@ test("Full Access background tasks may leave the workspace without inheriting mo
         OPENAI_API_KEY: "model-supplied-secret",
       },
     };
-    const authorization = await prepareCodingBackgroundAuthorization(
-      workspace,
-      "full-auto",
-      input,
-    );
-    authorizeBackgroundToolInput(input, authorization);
     const spawned = spawnCommand(
       { ...input, shell: true },
       join(runtime, "full.log"),
@@ -292,47 +215,20 @@ test("Full Access background tasks may leave the workspace without inheriting mo
   }
 });
 
-test("durable command watchers are rebound only during reviewed session recovery", async () => {
+test("durable command watchers resume from their persisted cwd", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "milksu-background-resume-workspace-"));
   const runtime = await mkdtemp(join(tmpdir(), "milksu-background-resume-runtime-"));
   const previousRuntime = process.env.MILKSU_WORKSPACE_RUNTIME;
   process.env.MILKSU_WORKSPACE_RUNTIME = runtime;
   try {
-    const scopeInput = { cwd: workspace };
-    const scope = await prepareCodingBackgroundAuthorization(
-      workspace,
-      "workspace-auto",
-      scopeInput,
-    );
     const persisted = {
       command: "printf resumed > resumed.txt",
       cwd: workspace,
-      env: { MILKSU_BACKGROUND_AUTHORIZATION: "expired-sidecar-token" },
       shell: true,
     };
-
-    assert.throws(
-      () => authorizeResumedBackgroundSpecification({ ...persisted }),
-      /outside a reviewed session start/,
-    );
-    await withBackgroundResumeAuthorization(scope, async () => {
-      authorizeResumedBackgroundSpecification(persisted);
-      const result = await runCommandOnce(persisted);
-      assert.equal(result.exitCode, 0);
-    });
+    const result = await runCommandOnce(persisted);
+    assert.equal(result.exitCode, 0);
     assert.equal(await readFile(join(workspace, "resumed.txt"), "utf8"), "resumed");
-
-    const outside = {
-      command: "printf denied",
-      cwd: await mkdtemp(join(tmpdir(), "milksu-background-resume-outside-")),
-      shell: true,
-    };
-    await assert.rejects(
-      withBackgroundResumeAuthorization(scope, async () => {
-        authorizeResumedBackgroundSpecification(outside);
-      }),
-      /outside authorized projects/,
-    );
   } finally {
     if (previousRuntime === undefined) delete process.env.MILKSU_WORKSPACE_RUNTIME;
     else process.env.MILKSU_WORKSPACE_RUNTIME = previousRuntime;

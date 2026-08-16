@@ -15,17 +15,9 @@ func (a *App) RefreshCodingBackgroundTasks(
 	executionMode,
 	approvalPolicy string,
 ) (engine.RuntimeStatus, error) {
-	workspaceAccessPaths, err := a.codingWorkspaceAccessPaths(
+	status, err := a.engines.RefreshBackgroundTasks(
 		conversationID,
 		workspacePath,
-	)
-	if err != nil {
-		return engine.RuntimeStatus{}, err
-	}
-	status, err := a.engines.RefreshBackgroundTasksWithWorkspaceAccess(
-		conversationID,
-		workspacePath,
-		workspaceAccessPaths,
 		executionMode,
 		approvalPolicy,
 		a.settings.GetResolved(),
@@ -55,17 +47,9 @@ func (a *App) StartCodingBackgroundTask(
 	executionMode,
 	approvalPolicy string,
 ) (engine.RuntimeStatus, error) {
-	workspaceAccessPaths, err := a.codingWorkspaceAccessPaths(
+	status, err := a.engines.StartBackgroundTask(
 		conversationID,
 		workspacePath,
-	)
-	if err != nil {
-		return engine.RuntimeStatus{}, err
-	}
-	status, err := a.engines.StartBackgroundTaskWithWorkspaceAccess(
-		conversationID,
-		workspacePath,
-		workspaceAccessPaths,
 		command,
 		name,
 		executionMode,
@@ -78,20 +62,6 @@ func (a *App) StartCodingBackgroundTask(
 	a.diagnostics.Record("coding-engine", "info", "background task started")
 	_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedBackgroundTaskStarted)
 	return a.enrichRuntimeStatus(status), nil
-}
-
-func (a *App) codingWorkspaceAccessPaths(
-	conversationID,
-	workspacePath string,
-) ([]string, error) {
-	conversation, err := a.conversations.Get(conversationID)
-	if err != nil {
-		return nil, err
-	}
-	return normalizeWorkspaceAccessPaths(
-		workspacePath,
-		conversation.WorkspaceAccessPaths,
-	)
 }
 
 func (a *App) StopCodingBackgroundTask(

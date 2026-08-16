@@ -40,7 +40,6 @@ function createMockConversations() {
   ])
   const activeId = ref<string | null>('coding-existing')
   const workspacePath = ref('/Users/milksu/code/milksu')
-  const workspaceAccessPaths = ref<string[]>([])
 
   const active = computed(() => (
     conversationRows.value.find(conversation => conversation.id === activeId.value) ?? null
@@ -53,7 +52,6 @@ function createMockConversations() {
     activeId,
     active,
     workspacePath,
-    workspaceAccessPaths,
     activeRunning: computed(() => false),
     activeAborting: computed(() => false),
     activeMessageQueue: computed(() => ({ steering: [], followUp: [] })),
@@ -176,15 +174,6 @@ function createMockConversations() {
     remove: vi.fn(),
     setWorkspace: vi.fn((path: string) => {
       workspacePath.value = path
-    }),
-    addWorkspaceAccess: vi.fn((path: string) => {
-      workspaceAccessPaths.value = [...workspaceAccessPaths.value, path]
-    }),
-    removeWorkspaceAccess: vi.fn((path: string) => {
-      workspaceAccessPaths.value = workspaceAccessPaths.value.filter(item => item !== path)
-    }),
-    setWorkspaceAccessPaths: vi.fn((paths: string[]) => {
-      workspaceAccessPaths.value = [...paths]
     }),
     cancelQueuedGuidance: vi.fn(),
     editQueuedGuidance: vi.fn(),
