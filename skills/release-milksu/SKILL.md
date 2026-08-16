@@ -1,33 +1,53 @@
 ---
 name: release-milksu
-description: Build, inspect, and promote a traced MilkSU desktop Beta from a clean commit, then update Stable only after real App verification. Use only inside the MilkSU repository when the user asks to package, audit, release, promote, or self-bootstrap MilkSU. Do not use for ordinary project releases or merely running local tests.
+description: Build, verify, publish, or audit a traced MilkSU Stable desktop release for macOS ARM64 and Windows x64. Use only inside the MilkSU repository when the user asks to package, release, publish, promote, or inspect a MilkSU desktop version. Build MilkSU Beta only for an explicitly requested Stable-to-Beta self-bootstrap exercise.
 ---
 
 # Release MilkSU
 
-Treat Beta as the executable acceptance candidate and Stable as a promotion of the same verified source.
+Use one clean source commit and the repository workflows. Keep signing, notarization, R2, and Admin publisher credentials inside their GitHub environments.
 
-## Confirm the source
+## Confirm the release
 
-1. Read `AGENTS.md`, `docs/developer/current-objectives.md`, `docs/developer/document-status.md`, `docs/architecture/current-system.md`, and the relevant canonical acceptance instructions.
-2. Record the current branch, full HEAD, and working-tree state before packaging.
-3. Preserve unrelated changes. Do not build a release candidate from an unexplained dirty tree.
-4. Run the repository's canonical focused tests, Sidecar checks, frontend build, Go tests, and packaging checks proportional to the slice.
+1. Read `AGENTS.md`, the three current architecture/status documents it names, and `docs/developer/product-code-admission.md` when release acceptance infrastructure changes.
+2. Record the branch, full HEAD, working-tree state, previous published version, requested platforms, and whether publication is authorized.
+3. Preserve unrelated changes. Do not package Stable from an unexplained dirty tree.
+4. Use version `YY.MDD.N`: two-digit year, month without a leading zero plus two-digit day, then that day's sequence. For example, the first release on 2026-08-16 is `26.816.1`; October 5 is `26.1005.1`.
+5. Run canonical tests locally before consuming hosted minutes. Do not retry an unchanged failed workflow.
 
-## Build and inspect Beta
+## Build Stable
 
-Build `MilkSU Beta` with the canonical command from the clean commit. Fully quit any older Beta before launching the new bundle.
+Push the clean release commit to the authorized private `main`, then dispatch the platform workflows against that exact commit.
 
-Before acceptance, open Settings and confirm the visible channel, branch, full commit, clean state, build time, and tracking ID. Verify Bundle identity, data-directory isolation, signature checks available in the current environment, and that Stable cannot select itself for Computer Use.
+### macOS ARM64
 
-## Run real acceptance
+Use `macOS signed release` once. It must test, compile the App once, apply Developer ID signing and hardened runtime, notarize, staple, and verify Gatekeeper. Derive both deliverables from the same verified `.app`:
 
-Use Stable to operate the newly built Beta through Computer Use when the selected slice requires self-bootstrap verification. Exercise the real user path, a relevant failure or recovery path, and the final visible state. Save credential-free evidence and record any manual takeover.
+- DMG: user installer and GitHub Release asset;
+- ZIP plus updater metadata: authenticated OTA payload uploaded directly from the runner to private R2.
 
-Do not treat an old running process, overwritten bundle on disk, unit test, fixture, screenshot, or model statement as final Beta acceptance.
+Download only the DMG artifact for local inspection. Do not download the OTA ZIP just to upload it again, and do not expose the ZIP on GitHub.
 
-## Promote
+### Windows x64
 
-Only after the final Beta from the same clean commit passes acceptance, build Stable from that commit. Recheck Settings tracking and the minimum launch path. Commit or push only to the explicitly authorized MilkSU private remote; hosted publication and irreversible release actions still require confirmation.
+Use `Windows x64 release` on a native Windows runner. It must test, build the packaged runtimes and NSIS installer, start the packaged App, and confirm that its Go Runtime starts. Download only the EXE artifact.
 
-Report the tested commit, Beta tracking ID, commands, real App path verified, remaining release limitations, and whether Stable was actually built or only remains eligible for promotion.
+Do not claim Windows signing unless the workflow had a configured Windows code-signing certificate and verified the resulting signature. Until then, label the EXE as an unsigned internal-test build and expect SmartScreen. Record unavailable platform capabilities in the release notes instead of silently implying parity.
+
+## Verify and publish
+
+1. Confirm both runs used the intended full commit and version.
+2. Record run IDs, artifact names, sizes, SHA-256 values, tracking metadata, and platform-specific verification results without credentials.
+3. Locally verify the macOS DMG with `codesign`, `spctl`, and `xcrun stapler`; rely on the native Windows workflow for first-launch acceptance unless a real Windows machine is available.
+4. Create immutable tag `v<version>` at the release source commit only after required builds pass.
+5. Create a GitHub prerelease for internal testers. Upload only the DMG and EXE; never upload the OTA ZIP.
+6. The macOS workflow may upload the OTA objects and create an Admin draft after explicit publication authorization. Publishing or changing the Admin current pointer must match that authorization and must not overwrite immutable R2 objects.
+7. Verify the GitHub tag, Release assets, R2/Admin receipt, and checksums before reporting completion.
+
+## Beta exception
+
+Do not build or refresh `MilkSU Beta.app` during ordinary implementation, debugging, UI validation, or Stable release preparation. Build Beta only when the user explicitly requests a MilkSU self-bootstrap exercise. In that case, use the installed Developer ID-signed Stable App as operator, keep Stable and Beta identities/data separate, and record the Beta branch, commit, tracking ID, and visible task.
+
+## Close out
+
+Update current release facts only after the real artifacts exist. Keep the tag on the binary source commit; a later documentation-only commit does not change binary provenance. Report what was built, signed, notarized, uploaded, published, and actually tested, plus any remaining platform limitations.

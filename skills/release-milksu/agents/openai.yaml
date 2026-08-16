@@ -1,4 +1,4 @@
 interface:
   display_name: "MilkSU Release"
-  short_description: "Build and verify a traced MilkSU Beta before Stable promotion"
-  default_prompt: "Use $release-milksu to build, trace, and verify a MilkSU Beta release."
+  short_description: "Build and publish verified MilkSU desktop releases"
+  default_prompt: "Use $release-milksu to build and publish a traced Stable release."
