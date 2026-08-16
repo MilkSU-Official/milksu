@@ -8,7 +8,7 @@
 | --- | --- | --- | --- |
 | C1 | 中文任务操作语言 | Pass | Desktop 把界面语言随每轮 Runtime 命令传给 Sidecar；Pi Harness 的 `before_agent_start` 扩展统一注入目标可见语言，以及真实 OS、架构、Shell 和路径规则，覆盖普通输入、产品动作、快捷动作、进度、图表和生成产物。Go Runtime、应用生产构建、Sidecar 252/252 通过；用户已在本地 Stable 包完成真实界面验收并确认通过 |
 | C2 | 工具错误展示 | 已修 / 暂不验收 | Runtime 启动与运行错误已收敛为可行动中文提示；本次补齐工具卡片错误投影，`Access to this API has been restricted`、`--allow-fs-read/write`、401、`baseUrl`、Node/bridge 内部异常不再显示原文，普通测试失败输出仍保留；原始错误只进入既有脱敏诊断记录。`useConversations` 25/25 与后台诊断测试通过；用户要求当前先不处理 C2，保留改动、暂不占用验收时间 |
-| C3 | 跨目录文件与 Shell | 已修 / 待用户验收 | 普通 Coding 已删除 Desktop 会话授权根、`milksu_workspace_*` 工具、Node `--allow-fs-*`、后台任务授权令牌和 `sandbox-exec` workspace-only 路径，文件读写与 Bash 恢复为 Pi 内置工具及当前系统用户权限；宿主只记录会话 cwd、隔离 Provider 凭据与后台私有日志，并在递归删除 Home、当前 cwd 或大型目录前二次确认。重启后如果前端仍持有旧 Pi session ID，steering 会清理旧运行态并自动按普通消息重建 session，不再把 ID 错误显示给用户。前端 447/447、Sidecar 258/258、Go 全仓、Vue 生产构建和 lint 通过；仍需用户在新 Stable 包里复测绝对路径真实读写和重启后的连续对话，未确认前不记 Pass |
+| C3 | 跨目录文件与 Shell | Pass | 普通 Coding 已删除 Desktop 会话授权根、`milksu_workspace_*` 工具、Node `--allow-fs-*`、后台任务授权令牌和 `sandbox-exec` workspace-only 路径，文件读写与 Bash 恢复为 Pi 内置工具及当前系统用户权限；宿主只记录会话 cwd、隔离 Provider 凭据与后台私有日志，并在递归删除 Home、当前 cwd 或大型目录前二次确认。重启后如果前端仍持有旧 Pi session ID，steering 会清理旧运行态并自动按普通消息重建 session，不再把 ID 错误显示给用户。前端 447/447、Sidecar 258/258、Go 全仓、Vue 生产构建和 lint 通过；用户已完成 Stable GUI 真实验收并确认通过 |
 | C4 | 内置浏览器右栏 | Pass | Stable 包用 Computer Use 打开 `https://example.com`：菜单可显示在网页上层；切回“环境信息”后网页从视觉层和 AX 树完全消失；再切回浏览器时原页面与地址仍保留。隐藏时卸载原生 View、显示时重新挂载的生命周期通过实机验收 |
 | C5 | 架构图 | TODO / 本轮后置 | 删除特殊页面，改为自然语言确认对接要求 → 用户回答 → 生成普通 HTML → 内置浏览器展示 → 询问是否调整；禁止向用户展示 JSON 草稿 |
 | C6 | 底部终端 | Pass | Computer Use 先复现 Stop 后输入无效且无恢复入口、每个 Tab 无关闭；现已提供单 Tab 关闭和停止后的“重新启动当前 Shell”。本地 Stable 包实测：停止后输入区只读并出现重启按钮，重启后 `printf C6RESTARTED` 正常返回，关闭 Tab 后从栏中移除。Go terminal/backend、Vue 组件测试及生产构建通过 |
@@ -26,7 +26,7 @@
 | C18 | 多模态模型身份与图片路由 | Pass | 修复 TokenFlux 模型目录缓存未就绪时把 Grok 4.5 兜底注册为 `text-only` 的问题：已确认的 `grok-4.5` 与 `x-ai/grok-4.5` 现在注册 `text + image`，未知模型仍保守保持纯文本。Pi `before_agent_start` 同步注入当前模型真实图片能力，禁止多模态模型声称自己纯文本或在没有 OCR 证据时声称使用 OCR。焦点 20/20、Sidecar 全量 261/261 通过；用户已在本地 Stable 包完成真实验收并确认通过 |
 | C19 | 实时网页搜索与查证 | Pass | 已直接装载 Pi PR `#3080`、revision `53e430c` 的 `web_search` / `web_fetch` Extension；MilkSU 只接入现有 Coding 工具档位，不增加搜索关键词路由或第二套 harness。Sidecar 263/263、Go 全仓、前端 448/448 通过；真实联网工具测试以“Grok 4.5 是否支持图片输入”为题，先得到 xAI 官方文档搜索结果，再成功读取该官方页面。首次包验发现 Extension 被误当工厂提前执行，已改为直接交给 Pi Resource Loader；重打包后真实 `create_session` 返回 `web_search` / `web_fetch` 且 `extensionErrors=[]`，用户已完成 Stable GUI 验收并确认通过 |
 | C20 | 输入框原生撤销 | Fail / 本轮后置 | 用户确认当前编辑器按 `⌘Z` 无法撤销。发版优先级低于 C18/C19，本轮不扩展修改面；后续应补标准文本编辑器撤销/重做语义与真实键盘验收 |
-| C21 | 普通 Coding 回答风格 | 已修 / 待用户验收 | 已删除普通 Coding 的 workspace policy guidance、目录授权 broker prompt 和客服式回答约束；没有 typed 产品动作时，MilkSU 不再追加回答结构、收尾话术或“下一步”模板，保留的无凭据 Runtime context 只提供界面语言、OS、架构、路径分隔符、Shell、当前模型图片能力与实时查证事实。模型正文按 Pi 原生会话输出投影；Sidecar 258/258 通过，仍需新 Stable 包用普通 `hi`、简短任务和跨目录任务确认无固定长尾 |
+| C21 | 普通 Coding 回答风格 | Pass | 已删除普通 Coding 的 workspace policy guidance、目录授权 broker prompt 和客服式回答约束；没有 typed 产品动作时，MilkSU 不再追加回答结构、收尾话术或“下一步”模板，保留的无凭据 Runtime context 只提供界面语言、OS、架构、路径分隔符、Shell、当前模型图片能力与实时查证事实。模型正文按 Pi 原生会话输出投影；Sidecar 258/258 通过，用户已完成 Stable GUI 真实验收并确认通过 |
 
 ## 使用规则
 
@@ -34,12 +34,13 @@
 - 当前所有 C 项完成后，再执行交付文档中的通用发版前 Agent GUI 基线门禁。
 - 新发现的问题从 C14 开始继续追加，不重排现有编号。
 
-## 本轮用户验收包
+## 本轮正式内测发行
 
-- 路径：`/Users/milksu/code/milksu/build/bin/MilkSU.app`
-- 渠道：Stable 本地验收包；ad-hoc 签名，不用于正式发布或 macOS TCC/Computer Use 权限结论
-- 源码：`main@f65c0a7` + 当前 C3/C21 未提交工作树；source fingerprint `176d46be5d03846104ca85f4b03edd74d898c0f9f27e980c49f347fcafdbd8f9f`
-- 版本：`26.816.2`
-- Tracking ID：`8bed3ff820cf591201dd64d3a2ea72f7d72ad004463cbf6a942a2e270483bbfe`
-- 构建时间：`2026-08-16T20:18:49.142Z`
-- 本轮重点：C3 Pi 原生跨目录文件与 Shell、C21 Pi 原生回答风格。C19 Pi `web_search` / `web_fetch` 已通过用户验收，不再重复测试。C3 新包验收提示词：`进入 /Users/milksu/code/milksu，创建 test1234.md，写入 C3_OK，再读取确认。` 预期直接使用 Pi 文件或 Bash 工具完成；不得出现 MilkSU workspace 授权工具、权限组件启动失败、`Operation not permitted` 或 `PI session not found`。再重启 App 并在同一会话继续一次只读命令，确认旧 session 自动重建。验收后删除探针文件。C21 用普通 `hi`、简短任务和跨目录任务确认回复没有固定客服长尾、编号菜单或“下一步”模板。C9 的加号点击与 C20 原生撤销明确后置
+- 版本：`26.817.1`
+- Tag / 源码：`v26.817.1` / `main@783679f02e6586c624efc50164fa8c8c402bbda1`
+- GitHub Release：`https://github.com/MilkSU-Official/milksu/releases/tag/v26.817.1`
+- macOS ARM64 DMG SHA-256：`cb92f640132e984e2bf1139f19204c831b44e1d41da0733e918756ee6d08a60b`
+- Windows x64 EXE SHA-256：`22ccae2f67bee571e759e69a5390f2b0891b04e165d9dcddcc1f4327a3ee1c91`
+- macOS：标准拖拽安装布局、Developer ID 严格签名、Apple 公证、stapler 与 Gatekeeper 均通过。
+- Windows：打包 Runtime 与首次启动检查通过；当前仍为未签名内测安装程序，可能显示 SmartScreen 提示。
+- OTA：未发布。R2/Admin 草稿步骤因 GitHub `release` Environment 缺少 Cloudflare 与 publisher secrets 失败；GitHub DMG/EXE 内测分发不受影响，current pointer 未改变。

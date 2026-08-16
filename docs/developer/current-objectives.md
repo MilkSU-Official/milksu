@@ -2,7 +2,7 @@
 
 > 文档状态：Current / Canonical target contract
 >
-> 最后收口：2026-08-15
+> 最后收口：2026-08-17
 >
 > 本页只回答“现在按什么目标继续做”：当前事实 + 下一条完成线。
 > 实现事实以当前代码、测试、Git 历史和原生 App 验收为准。
@@ -43,7 +43,8 @@
 - 浏览器三面已分责：右栏“浏览器”是会话隔离的内置 Chromium；`/browser-use` 复用固定版 Playwright MCP 官方扩展，由用户在真实 Chrome/Edge 选择准确标签页；`/computer-use` 只列外部原生 App，浏览器窗口不进入该 Scope。NSSCTF/CTFshow 的 MilkSU 扩展继续作为领域 Bridge，不承担通用浏览器控制。
 - **Chromium 桌面壳纵切已完成**：MilkSU.app 现由 Electron/Chromium 承载 Vue 产品表面和右栏 `WebContentsView`，Go 作为受管本地 Runtime 通过 JSONL RPC 提供应用服务。浏览器使用每会话独立 `session.fromPath`、默认拒绝页面权限，并经限定单一 Target 的 loopback CDP Proxy 交给固定 Playwright MCP。打包 App + TokenFlux `grok-4.5` 已只用浏览器完成三类真实任务：按页面提示点击取得 `flag{browser_agent_ok}`、填写并提交表单取得确定性回执、阅读 Electron 官方文档并归纳 `WebContentsView` 与旧 `BrowserView` 的关系。三次均在 Agent 开始后折叠右栏，任务仍继续，重新展开仍是同一页面与终态；未回退 Shell。裸域名会补全 HTTPS，普通文字会进入搜索。旧 Wails/CEF 生产链已直接删除，不保留兼容或双壳。
 - 模型与凭据：Admin 可为每个登录用户分配独立 TokenFlux Key；Electron 使用账户会话向 `accounts.milksu.org` 取得该凭据并交给 Go，Go 把它保存到现有 `0600` Credential Store，renderer、日志、模型上下文和普通配置文件都拿不到 Key。MilkSU 当前直接请求 `https://tokenflux.dev/v1`，不再经过自建计费代理，也不维护余额、价格映射、扣费流水或 10% 超限逻辑。远端模型目录与该 Key 的模型分组一致，并以 last-known-good 缓存同时驱动设置、Composer 与 Pi；运行时只展示当前账户目录中的模型，未配置 Key 的原厂 Provider 自动隐藏。2026-08-15 的分配 Key 返回 `grok-4.3`、`grok-4.5`、`grok-4.6`；客户端已把旧 `x-ai/grok-4.6` 选择对齐为准确的 `grok-4.6`，Computer Use 实测真实 Coding 回合成功，直接请求非分组模型得到 `404 model_not_found` 且无有效输出。设置页仍可配置本机个人 Provider 或最多 8 个简单 OpenAI-compatible 中转站；这些 Key 各自进入同一 Credential Store，未配置时不进入任务模型列表。Coding / CTF / sub-agent 继续共用 Pi Provider 注册。
-- 2026-08-16 模型路由回归：双来源 `milksu-route` 曾把外层占位 `apiKey` 原样转发给账户和个人 Provider，覆盖两个来源各自的真实凭据并造成 `401`。当前路由会在进入具体来源前移除外层 `apiKey` 与 `Authorization`，再由 Pi 为所选来源独立解析凭据；两个本机凭据的 TokenFlux `/models` 均返回 `200`，真实双来源链选择 `account` 并由 `grok-4.5` 返回精确回执 `MILKSU_ROUTE_OK`，全量 Sidecar 242 项通过。当前已安装 `26.816.1 / main@4077c86` 不含这次认证转发修复，仍需新的正式签名发行。
+- 2026-08-16 模型路由回归：双来源 `milksu-route` 曾把外层占位 `apiKey` 原样转发给账户和个人 Provider，覆盖两个来源各自的真实凭据并造成 `401`。当前路由会在进入具体来源前移除外层 `apiKey` 与 `Authorization`，再由 Pi 为所选来源独立解析凭据；两个本机凭据的 TokenFlux `/models` 均返回 `200`，真实双来源链选择 `account` 并由 `grok-4.5` 返回精确回执 `MILKSU_ROUTE_OK`，全量 Sidecar 242 项通过。该修复已进入 `26.817.1 / main@783679f` 内测发行。
+- **2026-08-17 内测发行**：`v26.817.1` 固定到 `main@783679f02e6586c624efc50164fa8c8c402bbda1`。macOS ARM64 DMG 已通过 Developer ID 严格签名、Apple 公证、stapler 和 Gatekeeper；Windows x64 安装程序已通过打包 Runtime 与首次启动检查。GitHub prerelease 只提供 DMG 和 EXE。私有 R2 / Admin 草稿未发布：GitHub `release` Environment 缺少 Cloudflare 与 publisher secrets，签名产物不受该上传失败影响。
 - CVE：用户首页只显示自己明确加入研究的公开 CVE，状态手工维护，并自动关联从该条目发起的 Coding 对话；“添加 CVE”先按编号、产品或关键词搜索 NVD，再由用户选择加入，不再要求手填整套元数据。搜索结果加入时直接保存已返回的公开元数据，不重复请求；临时服务错误转为用户可读提示。NVD 大量参考资料按机构去重，主界面只留四个关键来源和“在 NVD 查看全部”。纵深研究、真实复现、外部资产和披露仍后置。
 - CTF：题库、工作区、Evidence、候选、Judge、Checkpoint、恢复、复盘、Memory 主链存在；真实 Judge 成功仍只有窄 Web 路径。
 - CTF/CVE → Coding 已复用同一 Coding/Pi：交接只挂载草稿、不自动发送；右侧可折叠领域上下文保留题目/CVE、授权 Scope、材料、Evidence/Judge 或只读安全边界，并提供返回工作台。NSSCTF 附件或 Judge 未连接不再阻止用公开题面打开 Coding；附件缺失只作为材料警告。Beta Computer Use 已实测历史真实 CTF 任务的手工完成状态，以及 CVE-2024-3400 从跟踪页进入临时 Coding 工作区、生成只读研究简报、返回并自动关联 1 个对话的完整纵切；CVE 状态仍由用户手工保持“研究中”。未运行 PoC、未提交 flag、未建立 Judge 成功事实。
