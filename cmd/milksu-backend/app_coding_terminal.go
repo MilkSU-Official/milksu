@@ -76,6 +76,16 @@ func (a *App) StopCodingTerminal(
 	return a.codingTerminals.Stop(conversationID, terminalID)
 }
 
+func (a *App) CloseCodingTerminal(
+	conversationID,
+	terminalID string,
+) error {
+	if a.codingTerminals == nil {
+		return errors.New("Coding terminal runtime is unavailable")
+	}
+	return a.codingTerminals.CloseSession(conversationID, terminalID)
+}
+
 func (a *App) emitCodingTerminalEvent(event codingterminal.Event) {
 	if a.ctx == nil {
 		return

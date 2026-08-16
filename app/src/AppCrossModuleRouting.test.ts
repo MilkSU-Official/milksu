@@ -2,11 +2,16 @@
 
 import { createApp, computed, defineComponent, h, nextTick, ref, type App as VueApp } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Conversation } from '@/types'
+import type { AccountStatus, Conversation } from '@/types'
 
 const hoisted = vi.hoisted(() => ({
   conversations: null as ReturnType<typeof createMockConversations> | null,
   lastCTFInitialJobId: '',
+  accountStatus: {
+    configured: false,
+    authenticated: false,
+    state: 'unconfigured',
+  } as AccountStatus,
 }))
 
 function baseConversation(overrides: Partial<Conversation>): Conversation {
@@ -35,6 +40,7 @@ function createMockConversations() {
   ])
   const activeId = ref<string | null>('coding-existing')
   const workspacePath = ref('/Users/milksu/code/milksu')
+  const workspaceAccessPaths = ref<string[]>([])
 
   const active = computed(() => (
     conversationRows.value.find(conversation => conversation.id === activeId.value) ?? null
@@ -47,6 +53,7 @@ function createMockConversations() {
     activeId,
     active,
     workspacePath,
+    workspaceAccessPaths,
     activeRunning: computed(() => false),
     activeAborting: computed(() => false),
     activeMessageQueue: computed(() => ({ steering: [], followUp: [] })),
@@ -170,6 +177,17 @@ function createMockConversations() {
     setWorkspace: vi.fn((path: string) => {
       workspacePath.value = path
     }),
+    addWorkspaceAccess: vi.fn((path: string) => {
+      workspaceAccessPaths.value = [...workspaceAccessPaths.value, path]
+    }),
+    removeWorkspaceAccess: vi.fn((path: string) => {
+      workspaceAccessPaths.value = workspaceAccessPaths.value.filter(item => item !== path)
+    }),
+    setWorkspaceAccessPaths: vi.fn((paths: string[]) => {
+      workspaceAccessPaths.value = [...paths]
+    }),
+    cancelQueuedGuidance: vi.fn(),
+    editQueuedGuidance: vi.fn(),
     setModelSelection: vi.fn(),
     setModelSourcePreference: vi.fn(),
     setCodingPolicy: vi.fn(),
@@ -208,11 +226,15 @@ vi.mock('@/desktop', () => ({
       }
     }
     if (command === 'get_account_status') {
-      return {
-        configured: false,
+      return hoisted.accountStatus
+    }
+    if (command === 'logout_account') {
+      hoisted.accountStatus = {
+        configured: true,
         authenticated: false,
-        state: 'unconfigured',
+        state: 'signed_out',
       }
+      return hoisted.accountStatus
     }
     if (command === 'get_startup_recovery_status') return null
     return null
@@ -234,8 +256,16 @@ vi.mock('@/components-vue/AppSidebar.vue', () => ({
   __esModule: true,
   default: defineComponent({
     name: 'AppSidebar',
-    props: ['activeSection'],
-    emits: ['navigate', 'selectConversation', 'new', 'deleteConversation', 'navigateCtf', 'settings'],
+    props: ['activeSection', 'accountStatus'],
+    emits: [
+      'navigate',
+      'selectConversation',
+      'new',
+      'deleteConversation',
+      'navigateCtf',
+      'settings',
+      'accountLogout',
+    ],
     setup(props, { emit }) {
       return () => h('nav', { 'aria-label': 'mock sidebar' }, [
         h('span', { 'data-active-section': props.activeSection }, String(props.activeSection)),
@@ -243,7 +273,22 @@ vi.mock('@/components-vue/AppSidebar.vue', () => ({
         h('button', { 'aria-label': 'navigate CVE', onClick: () => emit('navigate', 'vuln') }, 'CVE'),
         h('button', { 'aria-label': 'navigate Coding', onClick: () => emit('navigate', 'chat') }, 'Coding'),
         h('button', { 'aria-label': 'open settings', onClick: () => emit('settings') }, '设置'),
+        props.accountStatus?.state === 'active'
+          ? h('button', { 'aria-label': 'logout account', onClick: () => emit('accountLogout') }, '退出登录')
+          : null,
       ])
+    },
+  }),
+}))
+
+vi.mock('@/components-vue/AccountLoginPage.vue', () => ({
+  __esModule: true,
+  default: defineComponent({
+    name: 'AccountLoginPage',
+    props: ['status'],
+    emits: ['login', 'continueLocal'],
+    setup(props) {
+      return () => h('section', { 'aria-label': 'mock account login gate' }, String(props.status?.state ?? ''))
     },
   }),
 }))
@@ -357,7 +402,7 @@ vi.mock('@/components-vue/ChatPage.vue', () => ({
         h('span', { 'data-chat-ctf-session': String(Boolean(props.ctfSession)) }, String(Boolean(props.ctfSession))),
         h('span', { 'data-chat-vulnerability-session': String(Boolean(props.vulnerabilitySession)) }, String(Boolean(props.vulnerabilitySession))),
         h('span', { 'data-chat-draft': props.pendingComposerDraft?.visibleText ?? '' }, props.pendingComposerDraft?.visibleText ?? ''),
-        h('button', { 'aria-label': 'open history conversation', onClick: () => emit('openConversation', 'coding-history') }, '打开来源会话'),
+        h('button', { 'aria-label': 'open linked coding conversation', onClick: () => emit('openConversation', 'coding-existing') }, '打开关联 Coding'),
         h('button', { 'aria-label': 'return CTF workspace', onClick: () => emit('returnCtf') }, '返回 CTF 工作台'),
       ])
     },
@@ -400,6 +445,20 @@ vi.mock('@/components-vue/StartupRecoveryBanner.vue', () => ({
 }))
 
 const mountedApps: VueApp[] = []
+let localAccountStore = new Map<string, string>()
+
+function installLocalStorage() {
+  localAccountStore = new Map()
+  Object.defineProperty(window, 'localStorage', {
+    configurable: true,
+    value: {
+      getItem: (key: string) => localAccountStore.get(key) ?? null,
+      setItem: (key: string, value: string) => { localAccountStore.set(key, value) },
+      removeItem: (key: string) => { localAccountStore.delete(key) },
+      clear: () => { localAccountStore.clear() },
+    },
+  })
+}
 
 async function flushAsyncComponents() {
   for (let index = 0; index < 3; index++) {
@@ -422,8 +481,14 @@ async function mountApp() {
 }
 
 beforeEach(() => {
+  installLocalStorage()
   hoisted.conversations = createMockConversations()
   hoisted.lastCTFInitialJobId = ''
+  hoisted.accountStatus = {
+    configured: false,
+    authenticated: false,
+    state: 'unconfigured',
+  }
 })
 
 afterEach(() => {
@@ -433,6 +498,25 @@ afterEach(() => {
 })
 
 describe('App cross-module routing', () => {
+  it('returns an authenticated user to the login gate immediately after logout', async () => {
+    hoisted.accountStatus = {
+      configured: true,
+      authenticated: true,
+      state: 'active',
+      user: { githubLogin: 'milksu', displayName: 'MilkSU', avatarUrl: '' },
+    }
+    window.localStorage.setItem('milksu.account.continue-local', '1')
+    const { host } = await mountApp()
+
+    expect(host.querySelector('[aria-label="mock account login gate"]')).toBeNull()
+    host.querySelector<HTMLButtonElement>('[aria-label="logout account"]')?.click()
+    await flushAsyncComponents()
+
+    expect(host.querySelector('[aria-label="mock account login gate"]')?.textContent).toBe('signed_out')
+    expect(host.querySelector('[aria-label="mock sidebar"]')).toBeNull()
+    expect(window.localStorage.getItem('milksu.account.continue-local')).toBeNull()
+  })
+
   it('opens a security-tool setup draft in a new Coding task without sending it', async () => {
     const { host } = await mountApp()
 
@@ -539,20 +623,15 @@ describe('App cross-module routing', () => {
     expect(hoisted.conversations?.activeId.value).toBe('coding-existing')
   })
 
-  it('returns from a related-history graph node to its source conversation', async () => {
-    hoisted.conversations?.conversations.value.push(baseConversation({
-      id: 'coding-history',
-      title: '历史来源会话',
-      createdAt: 3,
-    }))
+  it('routes an explicit linked Coding conversation through the existing conversation store', async () => {
     const { host } = await mountApp()
     host.querySelector<HTMLButtonElement>('[aria-label="navigate Coding"]')?.click()
     await flushAsyncComponents()
 
-    host.querySelector<HTMLButtonElement>('[aria-label="open history conversation"]')?.click()
+    host.querySelector<HTMLButtonElement>('[aria-label="open linked coding conversation"]')?.click()
     await flushAsyncComponents()
 
-    expect(host.querySelector('[data-chat-conversation]')?.textContent).toBe('coding-history')
-    expect(hoisted.conversations?.activeId.value).toBe('coding-history')
+    expect(host.querySelector('[data-chat-conversation]')?.textContent).toBe('coding-existing')
+    expect(hoisted.conversations?.activeId.value).toBe('coding-existing')
   })
 })

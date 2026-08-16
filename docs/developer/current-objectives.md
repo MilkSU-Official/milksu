@@ -31,7 +31,7 @@
 - M3 product-loop 已 squash merge（`108e0e3`，2026-08-05）；不要把它或旧分支当打开中的任务。
 - Coding 工程底座已覆盖：Plan/Go、权限、附件、本地 OCR、LSP、Artifact Preview、隔离 Browser、后台任务恢复、Diff/Hunk、Git、PR 发布确认、worktree、ImageGen、Project MCP、Session Index、Computer Use 外部 App 纵切。
 - Worktree 隔离已落地：干净 Git 项目的首次 effectful 回合由 Agent 自动准备一个内部 writer；`.worktreeinclude` 用平台 CoW 复制 ignored 本地环境，submodule 按精确提交初始化，writer 不读写主依赖目录。用户不再选择或看到 worktree / writer；脏工作区和非 Git 任务保留原工作区并明确降级。
-- **Grok 看图已通过**：打包 App 经 TokenFlux 真实 `grok-4.5` 原生 image input 看图成功；中文识别任务列表、进度胶囊和输入栏，且未调用工具。`grok-4.3` 仍为 text-only；text-only 模型继续走 OCR + 可选 auxiliary vision。
+- **Grok 看图已通过**：打包 App 经 TokenFlux 真实 `grok-4.5` 原生 image input 看图成功；中文识别任务列表、进度胶囊和输入栏，且未调用工具。当前代码按所选模型能力自动路由：声明 image input 时把原图直接交给当前模型，否则只调用本地 OCR；不再保存或要求用户选择辅助视觉模型。`grok-4.5` 的能力由真实回执保留，`grok-4.6` 只有远端目录明确声明 image 时才启用；Groq 当前官方视觉项 `qwen/qwen3.6-27b` 已进入模型目录。自动路由已过局部 Go、Sidecar 和前端测试，尚未重新打包复检 Computer Use 截图路径，也未真实调用 Groq 视觉模型。
 - **功能代码自举已有真实但仍不等于完整自治交付的纵切**：本批次完成 Agent 自动执行环境、运行中消息 steering/queue、Git 变更文件悬浮跳转、CTF/CVE 共享 Coding/Pi 上下文、Stable/Beta 身份与构建追踪；自动化测试和打包均通过。正式 Stable 已通过内部 Computer Use 核对干净 Beta 的分支、完整提交与追踪号，并完成真实 CTF/CVE 任务连续性、PiP 与返回路径验收。实现过程仍有 reviewer 直接收口，不能外推为 Coding Agent 已能全自治完成任意功能开发。
 - Git 变更摘要现在可悬浮查看真实文件并点击打开“变更”；执行环境由 Agent 维护，不再暴露用户手工 writer 控件。自然会话中出现 Goal 与真实 Git diff 时的打包 App 悬浮纵切仍需补一条证据。
 - Computer Use：用户选择外部可见 App/PID/Window 的不可变 Scope；Stable/Beta 独立产品名、Bundle ID、图标、数据目录、构建追踪和自我排除已落地。Stable → Beta 已完成版本核验、真实 click/scroll 与 CTF/CVE 连续性全程；辅助功能与屏幕录制现在分别打开准确的系统设置，授权返回后自动复检，屏幕录制导致的系统退出由 Electron 安排可靠重启。任务级授权会在重启或驱动恢复后自动重连；用户明确请求 Computer Use 且只存在一个合格外部窗口时直接启动，准备期间提交的消息会在能力就绪后自动续发，多窗口仍要求选择准确目标。后端同时排除浏览器窗口，不能由绕过前端的 RPC 把 Browser Scope 混进来。TCC 只授予作为操作者的 Developer ID 正式 Stable，Beta 只是被控目标；本地 ad-hoc Stable 不得用于权限验收。Browser 与 Computer Use 仍是分离权限面。
@@ -46,8 +46,14 @@
 - CTF：题库、工作区、Evidence、候选、Judge、Checkpoint、恢复、复盘、Memory 主链存在；真实 Judge 成功仍只有窄 Web 路径。
 - CTF/CVE → Coding 已复用同一 Coding/Pi：交接只挂载草稿、不自动发送；右侧可折叠领域上下文保留题目/CVE、授权 Scope、材料、Evidence/Judge 或只读安全边界，并提供返回工作台。NSSCTF 附件或 Judge 未连接不再阻止用公开题面打开 Coding；附件缺失只作为材料警告。Beta Computer Use 已实测历史真实 CTF 任务的手工完成状态，以及 CVE-2024-3400 从跟踪页进入临时 Coding 工作区、生成只读研究简报、返回并自动关联 1 个对话的完整纵切；CVE 状态仍由用户手工保持“研究中”。未运行 PoC、未提交 flag、未建立 Judge 成功事实。
 - Runtime：Sidecar 恢复、Compaction、异常退出标记、后台长任务打包 App/WebView 恢复、预算和失败分类已有。
+- Pi Harness 边界：普通用户文字完全交给 Pi/模型理解，不再由 GUI、Go 或 Sidecar 用关键词/正则猜测
+  “不要工具”“只答几行”或一键产品动作。GUI 的理解项目、测试、审阅、修复、总结和架构图通过 typed
+  product action 进入现有 Pi policy；内部标题/摘要投影通过 typed tool-free turn policy 运行。MCP 审批
+  不再从任意工具名里的动词猜副作用。每个 Pi 回合会收到无凭据的真实宿主 OS、架构、路径分隔符和
+  实际命令解释器事实；Windows 当前遵循 Pi 上游 Bash backend，需要原生 Windows cmdlet 时由模型
+  显式调用 `powershell.exe`。这些改动已过局部 Go/Sidecar/Vue 测试，仍待正式 Windows 包真实验收。
 - UI：左上角显示圆形裁切的当前用户头像并打开个人菜单；全局左栏固定为窄栏，Coding 会话历史默认收起并由单一按钮以浮层展开，不再因模块切换挤动主页面。完整个人页以 CTF/CVE/Coding 页签展示真实全年活跃图、所选日期细节与最近活动，全局六维雷达不再挂载；Coding 页签从统一的 `usage/model-usage.sqlite3` 读取全部模型与工具事件，不为每个模型拆库，也不保存 prompt、回复、工具参数或输出。三个模块的页签、标签与活跃度统一使用中性炭黑加酸绿色阶，不再以旧偏蓝黑或 `info` 蓝区分模块。Goal 与 Git 摘要位于输入框上方，Git 摘要可展开文件列表并跳到“变更”。Coding 顶部保留独立 Bottom Dock 和统一右栏；CTF/CVE 进入 Coding 后领域上下文可折叠/PiP，不再丢失原任务。Computer Use 使用紧凑任务面，诊断与证据默认折叠。Electron 窗口已避开 macOS 红黄绿按钮，Stable/Beta 使用正确名称与图标；设置页底部固定显示 branch、40 位 commit、clean/dirty、build time 和 tracking ID。
-- 用户可见产物固定写入 `~/Documents/MilkSU/{Coding,CTF,CVE}`，设置页可直接打开。普通用户文件通过 Composer 的只读附件入口进入受管附件区，目录通过项目选择器成为任务 Scope，Provider Key 只走模型设置。无项目 Coding 会话统一显示为“无项目任务”，实际临时工作区转入 `Application Support/<bundle-id>/agent-workspaces`，不再在 Documents 生成“新编码任务-哈希”目录；CVE 等用户可见产物仍留在 Documents。Runtime、事件库、凭据、Obelisk、浏览器 Profile 和内部恢复数据继续留在 `~/Library/Application Support/<bundle-id>`，两类目录不混用；工作区拒绝根目录、用户主目录和符号链接越界。
+- 用户可见产物固定写入 `~/Documents/MilkSU/{Coding,CTF,CVE}`，设置页可直接打开。普通用户文件通过 Composer 的附件入口进入受管附件区，选择、粘贴和拖放统一为可排序、预览、移除及恢复的 Pi 附件描述；目录由模型理解意图后通过 Desktop 工具请求当前会话授权，实际读写只开放持久化的规范化根并继续服从操作系统权限，Provider Key 只走模型设置。无项目 Coding 会话统一显示为“无项目任务”，实际临时工作区转入 `Application Support/<bundle-id>/agent-workspaces`，不再在 Documents 生成“新编码任务-哈希”目录；CVE 等用户可见产物仍留在 Documents。Runtime、事件库、凭据、Obelisk、浏览器 Profile 和内部恢复数据继续留在平台用户配置目录，两类目录不混用。递归删除用户 Home、文件系统根、工作区/授权根或大型目录时，Pi 工具前置钩子在任何审批档位都要求展示规范化目标和影响并再次确认。
 - 暂停/后置：Labs；CVE 纵深研究、真实漏洞复现、外部资产实验、披露；NYU safe-static 只是开发者 smoke，不是完整 CTF 成绩。
 
 ## 下一条完成线

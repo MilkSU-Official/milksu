@@ -32,6 +32,7 @@ function freezeAuthorization(authorization) {
   return Object.freeze({
     ...authorization,
     readableRoots: Object.freeze([...(authorization?.readableRoots || [])]),
+    writableRoots: Object.freeze([...(authorization?.writableRoots || [])]),
   });
 }
 
@@ -121,23 +122,27 @@ export function authorizeResumedBackgroundSpecification(specification) {
     : resolve(scope.workspace, requested);
   const cwd = realpathSync(candidate);
   const workspace = realpathSync(scope.workspace);
-  const path = relative(workspace, cwd);
+  const writableRoots = [
+    workspace,
+    ...(scope.writableRoots || []).map(value => realpathSync(value)),
+  ];
   if (
     scope.mode !== "full-auto"
-    && (
-      path === ".."
-      || path.startsWith(`..${sep}`)
-      || isAbsolute(path)
-    )
+    && !writableRoots.some(root => {
+      const path = relative(root, cwd);
+      return path === ""
+        || (!path.startsWith(`..${sep}`) && path !== ".." && !isAbsolute(path));
+    })
   ) {
     throw new Error(
-      "MilkSU denied recovery of a background task outside the selected project",
+      "MilkSU denied recovery of a background task outside authorized projects",
     );
   }
   specification.cwd = cwd;
   authorizeBackgroundToolInput(specification, {
     ...scope,
     workspace,
+    writableRoots: writableRoots.slice(1),
     cwd,
   });
 }

@@ -126,6 +126,7 @@ export interface CodingTerminalEvent {
     | 'terminal.output'
     | 'terminal.resized'
     | 'terminal.exited'
+    | 'terminal.closed'
   conversationId: string
   terminalId: string
   data?: string
@@ -188,13 +189,6 @@ export interface CodingPullRequestPublishResult {
   created: boolean
   verified: boolean
   problem?: string
-}
-
-export interface CodingArchitecturePreview {
-  exists: boolean
-  relativePath: string
-  html?: string
-  sizeBytes?: number
 }
 
 export interface CodingArtifactPreview {

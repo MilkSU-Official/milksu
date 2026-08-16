@@ -34,6 +34,21 @@ export interface CodingAttachment {
   sha256: string
 }
 
+export interface CodingAttachmentImport {
+  name: string
+  mediaType: string
+  dataBase64: string
+}
+
+export interface CodingAttachmentPreview {
+  name: string
+  mediaType: string
+  size: number
+  kind: 'image' | 'text' | 'metadata'
+  dataUrl?: string
+  text?: string
+}
+
 export interface Message {
   id: string
   role: MessageRole
@@ -42,7 +57,7 @@ export interface Message {
   toolName?: string
   toolCallId?: string
   durationMs?: number
-  status?: 'running' | 'done'
+  status?: 'running' | 'queued' | 'done'
   approvalRequestId?: string
   approvalInput?: string
   approvalState?: 'pending' | 'approved' | 'denied' | 'expired'
@@ -56,6 +71,12 @@ export type CodingApprovalPolicy =
   | 'ask'
   | 'workspace-auto'
   | 'full-auto'
+
+export interface CodingProductActionRequest {
+  kind: 'understand' | 'test' | 'review' | 'fix' | 'summary'
+  specPath?: string
+  htmlPath?: string
+}
 export type CodingCapabilityStatus = 'allowed' | 'blocked' | 'approval-required' | 'unavailable'
 
 export interface CodingCapability {
@@ -93,6 +114,8 @@ export interface Conversation {
   title: string
   createdAt: number
   workspacePath?: string
+  /** Additional project roots explicitly authorized for this conversation. */
+  workspaceAccessPaths?: string[]
   modelMode?: 'auto' | 'manual'
   modelProvider?: string
   modelId?: string
@@ -188,7 +211,6 @@ export interface ModelRoutingConfig {
 export interface AppSettings {
   active_provider: string
   active_model: string
-  vision_model?: ModelSelection
   model_verification?: ModelVerification
   model_routing: ModelRoutingConfig
   relay?: RelayConfig
@@ -232,7 +254,6 @@ export function withAppSettingsDefaults(value: AppSettings): AppSettings {
     ...value,
     active_provider: activeProvider,
     active_model: activeModel,
-    vision_model: selectableVisionSelection(value.vision_model) ?? undefined,
     model_routing: normalizeModelRouting(value.model_routing),
     disabled_skills: [...new Set((value.disabled_skills ?? [])
       .map(name => String(name).trim())
@@ -410,7 +431,10 @@ export const PROVIDERS: ProviderInfo[] = [
     name: 'TokenFlux',
     kind: 'relay',
     models: [],
-    visionModels: [],
+    // grok-4.5 is backed by a packaged-App image-input receipt. Grok 4.6 is
+    // intentionally absent here unless the refreshed TokenFlux catalog
+    // explicitly reports image input for that exact model.
+    visionModels: ['grok-4.5', 'x-ai/grok-4.5'],
     envKey: 'TOKENFLUX_API_KEY',
     placeholder: 'tf_... 或 TokenFlux API Key',
     defaultBaseUrl: 'https://tokenflux.dev/v1',
@@ -453,8 +477,8 @@ export const PROVIDERS: ProviderInfo[] = [
     id: 'groq',
     name: 'Groq',
     kind: 'official',
-    models: ['llama-3.3-70b-versatile', 'qwen/qwen3-32b'],
-    visionModels: [],
+    models: ['qwen/qwen3.6-27b'],
+    visionModels: ['qwen/qwen3.6-27b'],
     envKey: 'GROQ_API_KEY',
     placeholder: 'gsk_...',
     defaultBaseUrl: 'https://api.groq.com/openai/v1',
@@ -513,19 +537,6 @@ function selectableProvider(id: string) {
   return Boolean(provider)
 }
 
-function selectableVisionSelection(selection?: Partial<ModelSelection>) {
-  if (!selection?.provider || !selection.model) return null
-  const provider = providerByID(selection.provider)
-  if (
-    !provider
-    || (provider.id !== 'tokenflux' && !provider.visionModels.includes(selection.model))
-  ) return null
-  return {
-    provider: selection.provider,
-    model: selection.model,
-  }
-}
-
 export function providerModelLabel(provider: string, model: string) {
   const info = PROVIDERS.find(item => item.id === provider)
   const displayModel = ({
@@ -542,6 +553,7 @@ export function providerModelLabel(provider: string, model: string) {
     'deepseek/deepseek-v4-flash': 'DeepSeek V4 Flash',
     'google/gemini-3.1-pro-preview': 'Gemini 3.1 Pro Preview',
     'google/gemini-3.1-flash-image': 'Gemini 3.1 Flash Image',
+    'qwen/qwen3.6-27b': 'Qwen 3.6 27B',
     'qwen/qwen3-coder-plus': 'Qwen3 Coder Plus',
   } as Record<string, string>)[model] ?? model
   return `${info?.name ?? provider} · ${displayModel}`

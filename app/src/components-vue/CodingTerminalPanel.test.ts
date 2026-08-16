@@ -28,6 +28,7 @@ vi.mock('@xterm/xterm', () => ({
   Terminal: class {
     cols = 100
     rows = 28
+    options = { disableStdin: false }
     loadAddon() {}
     open() {}
     onData() {
@@ -97,6 +98,8 @@ const invokeCommand = vi.fn(async (command: string, _args?: unknown) => {
     return startedTerminalSessions.value.shift()
       ?? terminalSession('term-auto', 1)
   }
+  if (command === 'stop_coding_terminal') return undefined
+  if (command === 'close_coding_terminal') return undefined
   if (command === 'refresh_coding_background_tasks') return runtimeStatus
   throw new Error(`unexpected command ${command}`)
 })
@@ -192,6 +195,58 @@ describe('CodingTerminalPanel', () => {
     expect(
       host.querySelector('[data-terminal-id="term-four"]')?.getAttribute('aria-pressed'),
     ).toBe('true')
+  })
+
+  it('closes an individual terminal tab and keeps the remaining tab active', async () => {
+    listedTerminalSessions.value = [
+      terminalSession('term-one', 10),
+      terminalSession('term-two', 20),
+    ]
+    const host = await mountPanel()
+
+    host.querySelector<HTMLButtonElement>('[aria-label="关闭 milksu"]')!.click()
+    await settle()
+
+    expect(invokeCommand).toHaveBeenCalledWith(
+      'close_coding_terminal',
+      {
+        conversationId: 'conversation-restart',
+        terminalId: 'term-one',
+      },
+    )
+    expect(host.querySelector('[data-terminal-id="term-one"]')).toBeNull()
+    expect(
+      host.querySelector('[data-terminal-id="term-two"]')?.getAttribute('aria-pressed'),
+    ).toBe('true')
+  })
+
+  it('restarts a stopped terminal from the visible restart control', async () => {
+    const stopped = terminalSession('term-stopped', 10)
+    stopped.status = 'stopped'
+    stopped.exitCode = 1
+    listedTerminalSessions.value = [stopped]
+    startedTerminalSessions.value = [terminalSession('term-restarted', 20)]
+    const host = await mountPanel()
+
+    expect(host.querySelector('[aria-label="重新启动当前 Shell"]')).not.toBeNull()
+    host.querySelector<HTMLButtonElement>('[aria-label="重新启动当前 Shell"]')!.click()
+    await settle()
+
+    expect(invokeCommand).toHaveBeenCalledWith(
+      'close_coding_terminal',
+      {
+        conversationId: 'conversation-restart',
+        terminalId: 'term-stopped',
+      },
+    )
+    expect(invokeCommand).toHaveBeenCalledWith(
+      'start_coding_terminal',
+      expect.objectContaining({ conversationId: 'conversation-restart' }),
+    )
+    expect(host.querySelector('[data-terminal-id="term-stopped"]')).toBeNull()
+    expect(
+      host.querySelector('[data-terminal-id="term-restarted"]')?.getAttribute('aria-label'),
+    ).toBe('milksu')
   })
 
   it('shows recovered background task status, process metadata, ports, and log tail', async () => {

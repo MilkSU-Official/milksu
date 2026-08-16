@@ -3,6 +3,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import {
+  InMemoryCredentialStore,
+  InMemoryModelsStore,
+} from "@earendil-works/pi-ai";
+import { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import currentProviderRuntime from "./current-provider-runtime.cjs";
 
 const { currentProviderDefinition, tokenfluxModelIDForProvider } = currentProviderRuntime;
@@ -11,6 +16,12 @@ test("TokenFlux registers a selected model even before a refreshed cache is avai
   const definition = currentProviderDefinition("tokenflux", "grok-4.5", {});
   const model = definition.models.find((item) => item.id === "grok-4.5");
   assert.ok(model);
+  assert.deepEqual(model.input, ["text", "image"]);
+});
+
+test("keeps unknown TokenFlux models text-only without catalog evidence", () => {
+  const definition = currentProviderDefinition("tokenflux", "vendor/unknown", {});
+  const model = definition.models.find((item) => item.id === "vendor/unknown");
   assert.deepEqual(model.input, ["text"]);
 });
 
@@ -57,6 +68,28 @@ test("maps official provider model IDs onto TokenFlux account routes", () => {
     "openai/gpt-4.1",
   );
   assert.equal(tokenfluxModelIDForProvider("tokenflux", "grok-4.5"), "grok-4.5");
+});
+
+test("registers Groq's current vision model with image input", async () => {
+  const definition = currentProviderDefinition("groq", "qwen/qwen3.6-27b", {
+    GROQ_API_KEY: "test-key",
+  });
+  assert.equal(definition.baseUrl, "https://api.groq.com/openai/v1");
+  assert.deepEqual(definition.models.map(item => item.id), ["qwen/qwen3.6-27b"]);
+  const vision = definition.models.find(item => item.id === "qwen/qwen3.6-27b");
+  assert.deepEqual(vision.input, ["text", "image"]);
+  assert.equal(vision.maxTokens, 16_384);
+  const runtime = await ModelRuntime.create({
+    credentials: new InMemoryCredentialStore(),
+    modelsStore: new InMemoryModelsStore(),
+    modelsPath: null,
+    allowModelNetwork: false,
+  });
+  runtime.registerProvider("groq", definition);
+  assert.deepEqual(
+    runtime.getModel("groq", "qwen/qwen3.6-27b")?.input,
+    ["text", "image"],
+  );
 });
 
 test("registers the active custom OpenAI-compatible relay only from runtime environment", () => {

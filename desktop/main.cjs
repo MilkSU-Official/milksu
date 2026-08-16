@@ -32,6 +32,10 @@ const { AccountSession, accountRedirectURL, loadAccountConfig } = require('./acc
 const { rendererHeaders } = require('./renderer-protocol.cjs')
 const { UpdateManager } = require('./update-manager.cjs')
 const {
+  attachBrowserView,
+  detachBrowserView,
+} = require('./browser-view-attachment.cjs')
+const {
   probeComputerUsePermissions,
   computerUsePermissionsSettingsURL,
   primeComputerUsePermission,
@@ -399,7 +403,9 @@ class BrowserShell {
         targetId,
       })
       const cdpEndpoint = await proxy.start()
-      this.sessions.set(sessionId, { view, proxy, profilePath })
+      const current = { view, proxy, profilePath, attached: true }
+      detachBrowserView(this.window.contentView, current)
+      this.sessions.set(sessionId, current)
       return { name: `Electron Chromium ${process.versions.chrome}`, cdpEndpoint }
     } catch (error) {
       this.window.contentView.removeChildView(view)
@@ -422,7 +428,7 @@ class BrowserShell {
     const viewport = request.viewport ?? {}
     const visible = viewport.visible === true
     if (!visible) {
-      current.view.setVisible(false)
+      detachBrowserView(this.window.contentView, current)
       return
     }
     const bounds = {
@@ -431,6 +437,7 @@ class BrowserShell {
       width: Math.max(1, Math.round(Number(viewport.width) || 1)),
       height: Math.max(1, Math.round(Number(viewport.height) || 1)),
     }
+    attachBrowserView(this.window.contentView, current)
     current.view.setBounds(bounds)
     current.view.setVisible(true)
   }
@@ -460,8 +467,7 @@ class BrowserShell {
     const current = this.sessions.get(sessionId)
     if (!current) return
     this.sessions.delete(sessionId)
-    current.view.setVisible(false)
-    this.window.contentView.removeChildView(current.view)
+    detachBrowserView(this.window.contentView, current)
     await current.proxy.close()
     current.view.webContents.close()
   }

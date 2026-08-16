@@ -2,6 +2,9 @@ import {
   type AccountStatus,
   type AppSettings,
   type CodingAttachment,
+  type CodingAttachmentImport,
+  type CodingAttachmentPreview,
+  type CodingProductActionRequest,
   type LocalDataBackupExport,
   type LocalDataBackupRestore,
   type BuildTracking,
@@ -53,7 +56,6 @@ import type {
 } from './nssctfTrainingTypes'
 import type { CTFTrainingPlatform } from './ctfPlatformTypes'
 import type {
-  CodingArchitecturePreview,
   CodingArtifactPreview,
   CodingBrowserStatus,
   CodingCompactionResult,
@@ -186,12 +188,17 @@ interface DesktopAppBindings {
     modelId: string,
   ): Promise<string>
   ChooseAgentWorkspace(): Promise<string>
+  AuthorizeConversationWorkspaceAccess(conversationId: string): Promise<string[]>
+  RevokeConversationWorkspaceAccess(conversationId: string, path: string): Promise<string[]>
   ChooseCTFMaterials(): Promise<CTFMaterialRequest[]>
   ChooseCodingAttachments(): Promise<CodingAttachment[]>
+  ImportCodingAttachments(payloads: CodingAttachmentImport[]): Promise<CodingAttachment[]>
+  PreviewCodingAttachment(attachment: CodingAttachment): Promise<CodingAttachmentPreview>
   SendMessage(
     conversationId: string,
     prompt: string,
     workspacePath: string,
+    workspaceAccessPaths: string[],
     modelMode: string,
     modelProvider: string,
     modelId: string,
@@ -201,6 +208,7 @@ interface DesktopAppBindings {
     mcpConfigDigest: string,
     mcpServers: string[],
     attachments: CodingAttachment[],
+    productAction?: CodingProductActionRequest,
   ): Promise<void>
   AbortMessage(conversationId: string): Promise<void>
   RespondToolApproval(
@@ -253,6 +261,10 @@ interface DesktopAppBindings {
     conversationId: string,
     terminalId: string,
   ): Promise<CodingTerminalSession>
+  CloseCodingTerminal(
+    conversationId: string,
+    terminalId: string,
+  ): Promise<void>
   GetCodingEnvironment(workspacePath: string): Promise<CodingEnvironmentSnapshot>
   GetCodingMCPConfig(workspacePath: string): Promise<CodingMCPConfigSnapshot>
   GetCodingDiff(workspacePath: string, relativePath: string): Promise<CodingDiffSnapshot>
@@ -277,10 +289,6 @@ interface DesktopAppBindings {
     title: string,
     body: string,
   ): Promise<CodingPullRequestPublishResult>
-  GetCodingArchitecturePreview(
-    workspacePath: string,
-    relativePath: string,
-  ): Promise<CodingArchitecturePreview>
   GetCodingArtifactPreview(
     workspacePath: string,
     relativePath: string,
@@ -316,6 +324,12 @@ interface DesktopAppBindings {
   ): Promise<CodingComputerUseStatus>
   StopCodingComputerUse(conversationId: string): Promise<CodingComputerUseStatus>
   SteerMessage(conversationId: string, prompt: string): Promise<void>
+  RemoveQueuedMessage(
+    conversationId: string,
+    queue: string,
+    index: number,
+    expected: string,
+  ): Promise<void>
   TestAgentModel(): Promise<ModelProbeResult>
   GetCodingUsageSnapshot(): Promise<CodingUsageSnapshot>
   ImportNSSCTFChallenge(rawURL: string): Promise<NSSCTFChallenge>
@@ -498,15 +512,33 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         ) as Promise<T>
       case 'choose_agent_workspace':
         return app.ChooseAgentWorkspace() as Promise<T>
+      case 'authorize_conversation_workspace_access':
+        return app.AuthorizeConversationWorkspaceAccess(
+          args?.conversationId as string,
+        ) as Promise<T>
+      case 'revoke_conversation_workspace_access':
+        return app.RevokeConversationWorkspaceAccess(
+          args?.conversationId as string,
+          args?.path as string,
+        ) as Promise<T>
       case 'choose_ctf_materials':
         return app.ChooseCTFMaterials() as Promise<T>
       case 'choose_coding_attachments':
         return app.ChooseCodingAttachments() as Promise<T>
+      case 'import_coding_attachments':
+        return app.ImportCodingAttachments(
+          (args?.payloads as CodingAttachmentImport[]) ?? [],
+        ) as Promise<T>
+      case 'preview_coding_attachment':
+        return app.PreviewCodingAttachment(
+          args?.attachment as CodingAttachment,
+        ) as Promise<T>
       case 'send_message':
         return app.SendMessage(
           args?.conversationId as string,
           args?.prompt as string,
           args?.workspacePath as string,
+          (args?.workspaceAccessPaths as string[]) ?? [],
           (args?.modelMode as string) ?? '',
           (args?.modelProvider as string) ?? '',
           (args?.modelId as string) ?? '',
@@ -516,6 +548,7 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
           (args?.mcpConfigDigest as string) ?? '',
           (args?.mcpServers as string[]) ?? [],
           (args?.attachments as CodingAttachment[]) ?? [],
+          args?.productAction as CodingProductActionRequest | undefined,
         ) as Promise<T>
       case 'abort_message':
         return app.AbortMessage(args?.conversationId as string) as Promise<T>
@@ -523,6 +556,13 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.SteerMessage(
           args?.conversationId as string,
           args?.prompt as string,
+        ) as Promise<T>
+      case 'remove_queued_message':
+        return app.RemoveQueuedMessage(
+          args?.conversationId as string,
+          args?.queue as string,
+          Number(args?.index ?? -1),
+          args?.expected as string,
         ) as Promise<T>
       case 'respond_tool_approval':
         return app.RespondToolApproval(
@@ -584,6 +624,11 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
           args?.conversationId as string,
           args?.terminalId as string,
         ) as Promise<T>
+      case 'close_coding_terminal':
+        return app.CloseCodingTerminal(
+          args?.conversationId as string,
+          args?.terminalId as string,
+        ) as Promise<T>
       case 'get_coding_environment':
         return app.GetCodingEnvironment(args?.workspacePath as string) as Promise<T>
       case 'get_coding_mcp_config':
@@ -617,11 +662,6 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
           args?.confirmationToken as string,
           (args?.title as string) ?? '',
           (args?.body as string) ?? '',
-        ) as Promise<T>
-      case 'get_coding_architecture_preview':
-        return app.GetCodingArchitecturePreview(
-          args?.workspacePath as string,
-          args?.relativePath as string,
         ) as Promise<T>
       case 'get_coding_artifact_preview':
         return app.GetCodingArtifactPreview(

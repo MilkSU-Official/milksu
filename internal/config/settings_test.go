@@ -79,13 +79,11 @@ func TestCloneDoesNotShareMaps(t *testing.T) {
 	original.SecurityTools = map[string]SecurityToolPreference{
 		"capa": {Enabled: true},
 	}
-	original.VisionModel = &ModelSelection{Provider: "openai", Model: "gpt-4o"}
 	copied := clone(original)
 	delete(copied.Providers, "openai")
 	custom := copied.Providers["custom-relay-local"]
 	custom.Models[0] = "model-b"
 	copied.Providers["custom-relay-local"] = custom
-	copied.VisionModel.Model = "gpt-4.1"
 	copied.ModelRouting.SourceOrder[0] = ModelSourcePersonal
 	*copied.ModelRouting.AutoFallback = false
 	copied.DisabledSkills[0] = "review-security"
@@ -95,9 +93,6 @@ func TestCloneDoesNotShareMaps(t *testing.T) {
 	}
 	if original.Providers["custom-relay-local"].Models[0] != "model-a" {
 		t.Fatal("clone shared custom relay models")
-	}
-	if original.VisionModel.Model != "gpt-4o" {
-		t.Fatal("clone modified original vision model selection")
 	}
 	if original.ModelRouting.SourceOrder[0] != ModelSourceAccount ||
 		original.ModelRouting.AutoFallback == nil ||
@@ -252,23 +247,6 @@ func TestSetSecurityToolEnabledPersistsOnePreference(t *testing.T) {
 	}
 	if err := store.SetSecurityToolEnabled("../unsafe", true); err == nil {
 		t.Fatal("invalid security tool id was accepted")
-	}
-}
-
-func TestWithDefaultsSanitizesVisionModelSelection(t *testing.T) {
-	settings := withDefaults(AppSettings{
-		VisionModel: &ModelSelection{Provider: " openai ", Model: " gpt-4o "},
-	})
-	if settings.VisionModel == nil ||
-		settings.VisionModel.Provider != "openai" ||
-		settings.VisionModel.Model != "gpt-4o" {
-		t.Fatalf("unexpected vision selection: %#v", settings.VisionModel)
-	}
-	settings = withDefaults(AppSettings{
-		VisionModel: &ModelSelection{Provider: "openai"},
-	})
-	if settings.VisionModel != nil {
-		t.Fatalf("incomplete vision selection must be removed: %#v", settings.VisionModel)
 	}
 }
 

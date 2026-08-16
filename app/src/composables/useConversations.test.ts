@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   agentErrorMessage,
+  agentRuntimeErrorMessage,
+  agentToolResultMessage,
   normalizeConversation,
   projectAgentTools,
   projectAgentTurnPolicy,
@@ -249,6 +251,87 @@ describe('Coding approval conversation recovery', () => {
     expect(message).not.toContain('sk-other-secret')
     expect(message).not.toContain('sk-query-secret')
     expect(message).not.toContain('sk-header-secret')
+  })
+
+  it('keeps packaged permission internals in diagnostics instead of chat', () => {
+    const message = agentRuntimeErrorMessage(
+      'Error: Access to this API has been restricted. Use --allow-fs-read to manage permissions. resource: /Users/example',
+    )
+    expect(message).toContain('本地 Agent 权限组件启动失败')
+    expect(message).not.toContain('--allow-fs-read')
+    expect(message).not.toContain('/Users/example')
+  })
+
+  it('replaces packaged permission failures inside tool cards without hiding normal test output', () => {
+    const permission = agentToolResultMessage(
+      'Access to this API has been restricted. Use --allow-fs-read to manage permissions.',
+      'Access to this API has been restricted. Use --allow-fs-read to manage permissions. resource: /Users/example',
+    )
+    expect(permission).toContain('本地 Agent 权限组件启动失败')
+    expect(permission).not.toContain('--allow-fs-read')
+    expect(permission).not.toContain('/Users/example')
+
+    expect(agentToolResultMessage(
+      'FAIL src/math.test.ts\nExpected 2, received 3',
+      'command exited with status 1',
+    )).toContain('Expected 2, received 3')
+  })
+
+  it('turns unknown runtime errors into a bounded recovery message', () => {
+    const message = agentRuntimeErrorMessage('Error: internal module exploded at bridge.js:42')
+    expect(message).toContain('Agent 遇到本地运行时异常')
+    expect(message).not.toContain('bridge.js')
+  })
+
+  it.each([
+    [
+      '401 status code (no body)',
+      '当前模型凭据已失效或无权访问',
+      '401',
+    ],
+    [
+      'Provider milksu-route: "baseUrl" is required when defining custom models.',
+      '当前模型连接尚未准备好',
+      'baseUrl',
+    ],
+    [
+      'requested input exceeds the context window',
+      '当前对话上下文已满',
+      'context window',
+    ],
+    [
+      'AbortError: This operation was aborted',
+      '本轮已停止',
+      'AbortError',
+    ],
+    [
+      '明确的目录授权需要包含一个可解析的具体路径',
+      '具体的本地目录路径',
+      '可解析',
+    ],
+    [
+      'Coding Agent cannot authorize a filesystem root or the whole user directory',
+      '不能把整个磁盘或用户主目录授权给 Agent',
+      'filesystem root',
+    ],
+    [
+      'open Coding Agent project directory: no such file or directory',
+      'MilkSU 无法打开该目录',
+      'no such file',
+    ],
+  ])('maps common runtime failure %s to an actionable message', (raw, expected, hidden) => {
+    const message = agentRuntimeErrorMessage(raw)
+    expect(message).toContain(expected)
+    expect(message).not.toContain(hidden)
+  })
+
+  it('does not expose unknown engine internals just because diagnostics need redaction', () => {
+    const message = agentRuntimeErrorMessage(
+      'Error: internal bridge.js:42 exploded with token=synthetic-secret-value',
+    )
+    expect(message).toContain('Agent 遇到本地运行时异常')
+    expect(message).not.toContain('bridge.js')
+    expect(message).not.toContain('synthetic-secret-value')
   })
 
   it('restores structured CTF domainTaskContext from persisted conversation state', () => {

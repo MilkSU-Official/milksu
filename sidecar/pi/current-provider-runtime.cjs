@@ -22,6 +22,7 @@ const providerRuntime = Object.freeze({
     api: "openai-completions",
     apiKey: "GROQ_API_KEY",
     baseUrl: "GROQ_BASE_URL",
+    defaultBaseUrl: "https://api.groq.com/openai/v1",
   },
   mistral: {
     api: "openai-completions",
@@ -42,6 +43,21 @@ const providerRuntime = Object.freeze({
 });
 
 const tokenfluxModelCatalog = Object.freeze([]);
+const verifiedImageInputModels = new Set([
+  "grok-4.5",
+  "x-ai/grok-4.5",
+]);
+const groqModelCatalog = Object.freeze([
+  {
+    id: "qwen/qwen3.6-27b",
+    name: "Qwen 3.6 27B",
+    reasoning: true,
+    input: ["text", "image"],
+    contextWindow: 131_072,
+    maxTokens: 16_384,
+    thinkingLevelMap: { off: "none", high: "default" },
+  },
+]);
 
 function runtimeTokenfluxModelCatalog(environment = process.env) {
   const catalogPath = String(environment.MILKSU_MODEL_CATALOG_PATH ?? "").trim();
@@ -81,7 +97,7 @@ function tokenfluxModel(model, environment = process.env) {
     name: model,
     contextWindow: 128_000,
     maxTokens: 16_384,
-    input: ["text"],
+    input: verifiedImageInputModels.has(model) ? ["text", "image"] : ["text"],
   };
 }
 
@@ -135,6 +151,25 @@ function currentProviderDefinition(provider, model, environment = process.env) {
   }
   const runtime = providerRuntimeFor(provider);
   if (!runtime) return undefined;
+  if (provider === "groq") {
+    return {
+      name: "Groq",
+      baseUrl: String(
+        environment[runtime.baseUrl] ?? runtime.defaultBaseUrl,
+      ).trim(),
+      apiKey: environment[runtime.apiKey],
+      api: runtime.api,
+      models: groqModelCatalog.map(item => ({
+        ...item,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        compat: {
+          supportsDeveloperRole: false,
+          supportsReasoningEffort: item.reasoning,
+          maxTokensField: "max_completion_tokens",
+        },
+      })),
+    };
+  }
   if (provider !== "tokenflux") {
     const baseUrl = String(environment[runtime.baseUrl] ?? "").trim();
     return baseUrl ? { baseUrl } : undefined;

@@ -68,6 +68,7 @@ type terminalSession struct {
 	output        []byte
 	outputTrimmed bool
 	stopRequested bool
+	dismissed     bool
 }
 
 type Manager struct {
@@ -317,6 +318,57 @@ func (m *Manager) Stop(
 	return entry.snapshot(), nil
 }
 
+func (m *Manager) CloseSession(
+	conversationID,
+	terminalID string,
+) error {
+	entry, err := m.session(conversationID, terminalID)
+	if err != nil {
+		return err
+	}
+
+	m.mu.Lock()
+	current := m.sessions[terminalID]
+	if current != entry {
+		m.mu.Unlock()
+		return errors.New("terminal session not found")
+	}
+	entry.mu.Lock()
+	entry.dismissed = true
+	running := entry.view.Status == StatusRunning
+	if running {
+		entry.stopRequested = true
+	}
+	process := entry.command.Process
+	terminal := entry.terminal
+	delete(m.sessions, terminalID)
+	entry.mu.Unlock()
+	m.mu.Unlock()
+
+	if running && process != nil {
+		_ = process.Signal(os.Interrupt)
+	}
+	if running && terminal != nil {
+		_ = terminal.Close()
+	}
+	if running && process != nil {
+		time.AfterFunc(750*time.Millisecond, func() {
+			entry.mu.Lock()
+			stillRunning := entry.view.Status == StatusRunning
+			entry.mu.Unlock()
+			if stillRunning {
+				_ = process.Kill()
+			}
+		})
+	}
+	m.emitEvent(Event{
+		Type:           "terminal.closed",
+		ConversationID: conversationID,
+		TerminalID:     terminalID,
+	})
+	return nil
+}
+
 func (m *Manager) CloseConversation(conversationID string) {
 	conversationID = strings.TrimSpace(conversationID)
 	if conversationID == "" {
@@ -449,7 +501,11 @@ func (m *Manager) wait(entry *terminalSession) {
 	entry.view.ExitCode = &exitCode
 	entry.terminal = nil
 	view := entry.snapshotLocked()
+	dismissed := entry.dismissed
 	entry.mu.Unlock()
+	if dismissed {
+		return
+	}
 	m.emitEvent(Event{
 		Type:           "terminal.exited",
 		ConversationID: view.ConversationID,

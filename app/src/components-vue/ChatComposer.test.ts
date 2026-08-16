@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { createApp, nextTick, type App } from 'vue'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import ChatComposer from './ChatComposer.vue'
 import composerControlsSource from './CodingComposerControls.vue?raw'
 import type { CodingGoalState } from '@/types'
@@ -36,6 +36,8 @@ function mountComposer(overrides: Record<string, unknown> = {}) {
   const executionModes: string[] = []
   const slashCommandActions: string[] = []
   const openedChanges: Array<string | undefined> = []
+  const cancelledGuidance: number[] = []
+  const editedGuidance: number[] = []
   const app = createApp(ChatComposer, {
     running: false,
     aborting: false,
@@ -45,7 +47,7 @@ function mountComposer(overrides: Record<string, unknown> = {}) {
     approvalPolicy: 'workspace-auto',
     approvalLabel: '替我审批',
     modelKey: 'auto',
-    automaticModelLabel: '自动 · DeepSeek · DeepSeek V4 Flash',
+    automaticModelLabel: 'Default · DeepSeek · DeepSeek V4 Flash',
     compactModelLabel: 'V4 Flash',
     onSend: (...args: unknown[]) => sent.push(args),
     onConsumeGoal: () => {
@@ -66,6 +68,12 @@ function mountComposer(overrides: Record<string, unknown> = {}) {
     onOpenChanges: (path?: string) => {
       openedChanges.push(path)
     },
+    onCancelQueuedGuidance: (index: number) => {
+      cancelledGuidance.push(index)
+    },
+    onEditQueuedGuidance: (index: number) => {
+      editedGuidance.push(index)
+    },
     ...overrides,
   })
   const vm = app.mount(host) as unknown as { appendDraftText: (text: string) => void }
@@ -80,6 +88,8 @@ function mountComposer(overrides: Record<string, unknown> = {}) {
     executionModes,
     slashCommandActions,
     openedChanges: () => openedChanges,
+    cancelledGuidance,
+    editedGuidance,
     setProp(name: string, value: unknown) {
       if (!app._instance) throw new Error('missing root component instance')
       ;(app._instance.props as Record<string, unknown>)[name] = value
@@ -104,6 +114,7 @@ const activeGoal: CodingGoalState = {
 afterEach(() => {
   for (const app of mountedApps.splice(0)) app.unmount()
   document.body.innerHTML = ''
+  Reflect.deleteProperty(window, 'milksu')
 })
 
 describe('ChatComposer', () => {
@@ -323,7 +334,97 @@ describe('ChatComposer', () => {
     expect(result.slashCommandActions).toEqual(['browser', 'browser-use', 'computer-use', 'mcp'])
   })
 
-  it('offers a new task when choosing another directory after the conversation started', async () => {
+  it('imports pasted files as an ordered attachment rail with preview and removal', async () => {
+    const first = {
+      id: 'a'.repeat(64), name: 'first.png', mediaType: 'image/png', size: 8,
+      sha256: 'a'.repeat(64),
+    }
+    const second = {
+      id: 'b'.repeat(64), name: 'notes.txt', mediaType: 'text/plain', size: 5,
+      sha256: 'b'.repeat(64),
+    }
+    const invoke = vi.fn(async (method: string) => {
+      if (method === 'ImportCodingAttachments') return [first, second]
+      if (method === 'PreviewCodingAttachment') return {
+        name: first.name,
+        mediaType: first.mediaType,
+        size: first.size,
+        kind: 'image',
+        dataUrl: 'data:image/png;base64,aW1hZ2U=',
+      }
+      return []
+    })
+    Object.defineProperty(window, 'milksu', {
+      configurable: true,
+      value: { invoke },
+    })
+    const result = mountComposer()
+    await nextTick()
+    const editor = composerEditor(result.host)
+    const paste = new Event('paste', { bubbles: true, cancelable: true })
+    Object.defineProperty(paste, 'clipboardData', {
+      value: {
+        files: [
+          new File(['image'], 'first.png', { type: 'image/png' }),
+          new File(['notes'], 'notes.txt', { type: 'text/plain' }),
+        ],
+        getData: () => '',
+      },
+    })
+    editor.dispatchEvent(paste)
+    await vi.waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith(
+        'ImportCodingAttachments',
+        [expect.any(Array)],
+      )
+    })
+    await nextTick()
+
+    const rail = result.host.querySelector('[aria-label="待发送附件"]')
+    expect(paste.defaultPrevented).toBe(true)
+    expect(rail?.textContent).toContain('first.png')
+    expect(rail?.textContent).toContain('notes.txt')
+    expect(rail?.textContent?.indexOf('first.png')).toBeLessThan(
+      rail?.textContent?.indexOf('notes.txt') ?? -1,
+    )
+    expect(invoke).toHaveBeenCalledWith('ImportCodingAttachments', [expect.arrayContaining([
+      expect.objectContaining({ name: 'first.png', mediaType: 'image/png' }),
+      expect.objectContaining({ name: 'notes.txt', mediaType: 'text/plain' }),
+    ])])
+
+    result.host.querySelector<HTMLButtonElement>('[aria-label="预览 first.png"]')?.click()
+    await vi.waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith('PreviewCodingAttachment', [first])
+    })
+    await vi.waitFor(() => {
+      expect(result.host.querySelector<HTMLImageElement>('img[alt="first.png"]')?.src)
+        .toContain('data:image/png;base64,aW1hZ2U=')
+    })
+
+    result.host.querySelector<HTMLButtonElement>('[aria-label="移除 first.png"]')?.click()
+    await nextTick()
+    expect(rail?.textContent).not.toContain('first.png')
+    expect(rail?.textContent).toContain('notes.txt')
+  })
+
+  it('makes the whole local attachment menu row invoke the native chooser', async () => {
+    const invoke = vi.fn(async () => [])
+    Object.defineProperty(window, 'milksu', {
+      configurable: true,
+      value: { invoke },
+    })
+    const result = mountComposer()
+    await nextTick()
+    result.host.querySelector<HTMLButtonElement>('[aria-label="添加内容与工具"]')?.click()
+    await nextTick()
+    const item = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
+      .find(value => value.textContent?.includes('本机文件或图片'))
+    item?.click()
+    await nextTick()
+    expect(invoke).toHaveBeenCalledWith('ChooseCodingAttachments', [])
+  })
+
+  it('offers to authorize another project for the current conversation', async () => {
     const chosen: unknown[][] = []
     const result = mountComposer({
       workspaceLocked: true,
@@ -335,7 +436,7 @@ describe('ChatComposer', () => {
     await nextTick()
     const directoryItem = [...document.querySelectorAll<HTMLDivElement>('[role="menuitem"]')]
       .find(item => item.textContent?.includes('其他项目目录'))
-    expect(directoryItem?.textContent).toContain('保留当前会话，用所选目录新建任务')
+    expect(directoryItem?.textContent).toContain('授权所选目录给当前会话，立即跨项目读写')
     directoryItem?.click()
     await nextTick()
 
@@ -622,11 +723,11 @@ describe('ChatComposer', () => {
     const result = mountComposer()
     await nextTick()
 
-    result.vm.appendDraftText('参考相关历史：CVE 同步失败曾由缓存过期导致。')
+    result.vm.appendDraftText('参考上文：CVE 同步失败曾由缓存过期导致。')
     await nextTick()
 
     const textarea = composerEditor(result.host)
-    expect(textarea.textContent).toContain('参考相关历史')
+    expect(textarea.textContent).toContain('参考上文')
 
     result.host.querySelector('form')?.dispatchEvent(
       new Event('submit', { bubbles: true, cancelable: true }),
@@ -634,7 +735,7 @@ describe('ChatComposer', () => {
     await nextTick()
 
     expect(result.sent).toEqual([
-      ['参考相关历史：CVE 同步失败曾由缓存过期导致。', '参考相关历史：CVE 同步失败曾由缓存过期导致。', []],
+      ['参考上文：CVE 同步失败曾由缓存过期导致。', '参考上文：CVE 同步失败曾由缓存过期导致。', []],
     ])
   })
 
@@ -751,5 +852,37 @@ describe('ChatComposer', () => {
       [],
     ]])
     expect(editor.textContent).toBe('')
+  })
+
+  it('offers separate retract and retract-for-edit actions for each queued message', async () => {
+    const running = mountComposer({
+      running: true,
+      queuedGuidance: ['先保留当前修改。', '再检查失败测试。'],
+    })
+    await nextTick()
+
+    const edit = running.host.querySelector<HTMLButtonElement>(
+      '[aria-label="编辑排队消息 1"]',
+    )
+    const cancel = running.host.querySelector<HTMLButtonElement>(
+      '[aria-label="撤回排队消息 2"]',
+    )
+    expect(edit?.title).toBe('撤回并编辑')
+    expect(cancel?.title).toBe('撤回')
+
+    edit?.click()
+    cancel?.click()
+    expect(running.editedGuidance).toEqual([0])
+    expect(running.cancelledGuidance).toEqual([1])
+  })
+
+  it('restores withdrawn guidance into the composer during an active turn', async () => {
+    const running = mountComposer({ running: true })
+    await nextTick()
+
+    running.vm.appendDraftText('改完这一条再重新排队。')
+    await nextTick()
+
+    expect(composerEditor(running.host).textContent).toBe('改完这一条再重新排队。')
   })
 })

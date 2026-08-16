@@ -22,6 +22,7 @@ const (
 	ProviderTokenFlux         = "tokenflux"
 	defaultTokenFluxBaseURL   = "https://tokenflux.dev/v1"
 	publicTokenFluxCatalogURL = "https://tokenflux.dev/v1/models"
+	catalogSchema             = "milksu-model-catalog/v1"
 	defaultMaxTokens          = 32_768
 	maxCatalogResponseBytes   = 8 << 20
 )
@@ -35,6 +36,7 @@ type Model struct {
 }
 
 type Snapshot struct {
+	Schema      string  `json:"schema"`
 	Provider    string  `json:"provider"`
 	Models      []Model `json:"models"`
 	RefreshedAt string  `json:"refreshed_at,omitempty"`
@@ -117,6 +119,7 @@ func (s *Service) Refresh(ctx context.Context) (Snapshot, error) {
 			continue
 		}
 		next := Snapshot{
+			Schema:      catalogSchema,
 			Provider:    ProviderTokenFlux,
 			Models:      models,
 			RefreshedAt: s.now().UTC().Format(time.RFC3339),
@@ -244,6 +247,14 @@ func normalizeModels(values []struct {
 			continue
 		}
 		input := normalizeInput(value.Architecture.InputModalities)
+		// TokenFlux currently exposes model availability and, when present,
+		// architecture metadata. grok-4.5 also has a retained packaged-App
+		// image-input receipt, so keep that verified capability even when an
+		// otherwise valid catalog response omits architecture. Do not infer the
+		// same capability for adjacent Grok versions.
+		if verifiedImageInputModel(id) && !contains(input, "image") {
+			input = append(input, "image")
+		}
 		if !contains(input, "text") {
 			continue
 		}
@@ -306,6 +317,15 @@ func contains(values []string, expected string) bool {
 	return false
 }
 
+func verifiedImageInputModel(id string) bool {
+	switch strings.TrimSpace(id) {
+	case "grok-4.5", "x-ai/grok-4.5":
+		return true
+	default:
+		return false
+	}
+}
+
 func readSnapshot(path string) (Snapshot, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -315,7 +335,9 @@ func readSnapshot(path string) (Snapshot, error) {
 	if err := json.Unmarshal(data, &value); err != nil {
 		return Snapshot{}, err
 	}
-	if value.Provider != ProviderTokenFlux || len(value.Models) == 0 {
+	if value.Schema != catalogSchema ||
+		value.Provider != ProviderTokenFlux ||
+		len(value.Models) == 0 {
 		return Snapshot{}, errors.New("cached model catalog is incomplete")
 	}
 	value.Models = cloneModels(value.Models)
@@ -357,7 +379,7 @@ func writeSnapshot(path string, value Snapshot) error {
 
 func fallbackSnapshot() Snapshot {
 	models := []Model{
-		{ID: "x-ai/grok-4.6", Name: "Grok 4.6", ContextWindow: 500_000, MaxTokens: defaultMaxTokens, Input: []string{"text", "image"}},
+		{ID: "x-ai/grok-4.6", Name: "Grok 4.6", ContextWindow: 500_000, MaxTokens: defaultMaxTokens, Input: []string{"text"}},
 		{ID: "x-ai/grok-4.5", Name: "Grok 4.5", ContextWindow: 500_000, MaxTokens: defaultMaxTokens, Input: []string{"text", "image"}},
 		{ID: "grok-4.3", Name: "Grok 4.3", ContextWindow: 1_000_000, MaxTokens: defaultMaxTokens, Input: []string{"text"}},
 		{ID: "openai/gpt-5.6-sol", Name: "GPT-5.6 Sol", ContextWindow: 1_050_000, MaxTokens: defaultMaxTokens, Input: []string{"text"}},
@@ -367,7 +389,10 @@ func fallbackSnapshot() Snapshot {
 		{ID: "google/gemini-3.1-pro-preview", Name: "Gemini 3.1 Pro Preview", ContextWindow: 1_048_576, MaxTokens: defaultMaxTokens, Input: []string{"text"}},
 		{ID: "qwen/qwen3-coder-plus", Name: "Qwen3 Coder Plus", ContextWindow: 1_000_000, MaxTokens: defaultMaxTokens, Input: []string{"text"}},
 	}
-	return Snapshot{Provider: ProviderTokenFlux, Models: models, Source: "bundled"}
+	return Snapshot{
+		Schema: catalogSchema, Provider: ProviderTokenFlux,
+		Models: models, Source: "bundled",
+	}
 }
 
 func cloneSnapshot(value Snapshot) Snapshot {

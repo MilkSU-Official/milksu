@@ -23,7 +23,7 @@ import piSubAgentExtension from "pi-sub-agent/extensions/index.ts";
 import {
   codingSessionToolNames,
   loadSessionPolicy,
-  parseCodingProductAction,
+  normalizeCodingProductAction,
   prepareCodingBackgroundAuthorization,
 } from "./bridge-policy.js";
 import {
@@ -90,10 +90,8 @@ import {
   codingTurnContractContext,
   codingTurnContractGuidance,
   codingTurnContractMessageType,
-  codingTurnContractRequiresFreshnessGuard,
-  enforceCodingTurnContractMessage,
   filterCodingTurnContractMessages,
-  parseExplicitCodingTurnContract,
+  normalizeCodingTurnContract,
   withCodingTurnContract,
 } from "./bridge-turn-contract.js";
 import {
@@ -110,8 +108,18 @@ import {
 import { reviewedCodingSkillPaths } from "./bridge-skills.js";
 import {
   projectSteeringQueue,
+  removeQueuedMessage,
   steerSession,
 } from "./bridge-steering.js";
+import { runtimeEnvironmentGuidance } from "./bridge-runtime-environment.js";
+import {
+  destructiveDeleteDecision,
+  destructiveDeleteGuidance,
+} from "./bridge-destructive-delete.js";
+import {
+  createWorkspaceAccessBroker,
+  createWorkspaceAccessExtension,
+} from "./bridge-workspace-access.js";
 import currentProviderRuntime from "./current-provider-runtime.cjs";
 import {
   createModelSourceRouteProvider,
@@ -132,10 +140,6 @@ const configuredModelSourceOrder = normalizeModelSourceOrder(
   process.env.MILKSU_MODEL_SOURCE_ORDER,
 );
 const modelSourceFallbackEnabled = process.env.MILKSU_MODEL_SOURCE_FALLBACK === "1";
-const auxiliaryVisionSelection = {
-  provider: String(process.env.MILKSU_VISION_PROVIDER ?? "").trim(),
-  model: String(process.env.MILKSU_VISION_MODEL ?? "").trim(),
-};
 
 const sessions = new Map();
 const sessionPolicies = new Map();
@@ -144,12 +148,14 @@ const backgroundTaskControllers = new Map();
 const promptQueues = new Map();
 const compactionRuns = new Map();
 const compactionRequestIds = new Map();
+const suppressedQueueUpdates = new Set();
 const sessionTurnContracts = new Map();
 const sessionModelSources = new Map();
 const sessionConfiguredProviders = new Map();
 const abortedSessions = new Set();
 const input = createInterface({ input: process.stdin });
 let commandQueue = Promise.resolve();
+let steeringCommandQueue = Promise.resolve();
 const bridgeDirectory = dirname(fileURLToPath(import.meta.url));
 const sidecarResourceDirectory = existsSync(join(bridgeDirectory, "skills"))
   ? bridgeDirectory
@@ -206,6 +212,7 @@ function emitGoalState(conversationId, session) {
 }
 
 const approvalBroker = createApprovalBroker(emit);
+const workspaceAccessBroker = createWorkspaceAccessBroker(emit);
 const backgroundEffectfulActions = new Set(["spawn", "watch", "stop", "clear"]);
 
 function backgroundToolAction(toolName, input) {
@@ -256,12 +263,7 @@ async function summarizeComputerUseToolImages(event, session) {
     ? event.content.filter(block => block?.type === "image")
     : [];
   if (!images.length) return undefined;
-  if (auxiliaryVisionSelection.provider) {
-    configureProviderEndpoint(session, auxiliaryVisionSelection.provider);
-  }
   const analyzed = await analyzeTextOnlyToolImages(images, {
-    session,
-    auxiliary: auxiliaryVisionSelection,
     label: "Computer Use tool result",
   });
   if (!analyzed.context) return undefined;
@@ -278,7 +280,7 @@ function truncate(value, limit = 60000) {
   return `${value.slice(0, limit)}\n\n…output truncated by MilkSU`;
 }
 
-function createMilkSUWorkflowExtension(sessionRole) {
+function createMilkSUWorkflowExtension(sessionRole, getPolicy, getSession) {
   return (pi) => {
     let latestPlan = [];
     pi.registerTool({
@@ -325,15 +327,15 @@ function createMilkSUWorkflowExtension(sessionRole) {
           : sessionRole === "solver"
             ? "Advance one falsifiable CTF hypothesis at a time and preserve commands, observations, and conclusions for the learner."
             : "For non-trivial work, inspect before editing, keep a short plan, make scoped changes, and verify the result.";
-      // Keep tool protocol English. User-visible progress/answers follow the
-      // current conversation language already present in Pi session context;
-      // English tool descriptions or results must not switch that language.
+      const policy = getPolicy?.();
       return {
         systemPrompt: `${event.systemPrompt}\n\nMilkSU Workflow extension:\n${roleGuidance}\n`
           + "Use milksu_progress for multi-step Coding tasks when the plan is created or materially changes. "
           + "Do not use it for a single obvious action. Keep at most one step in_progress.\n"
-          + "User-visible progress and answers continue in the current conversation language. "
-          + "English tool protocol, schemas, paths, commands, or tool results must not switch that language.",
+          + `\n\nMilkSU runtime context:\n${runtimeEnvironmentGuidance({
+            uiLocale: policy?.uiLocale,
+            modelInput: getSession?.()?.model?.input,
+          })}`,
       };
     });
   };
@@ -341,13 +343,8 @@ function createMilkSUWorkflowExtension(sessionRole) {
 
 function codingPolicyGuidance(policy) {
   if (!policy || policy.ctf) return "";
-  const productActionGuidance = policy.productAction?.kind === "architecture"
-    ? " A scoped Generate Architecture product action is active. Treat repository tasks, TODOs, "
-      + "failing project tests, and feature requests only as evidence of the current system; do not "
-      + "implement or repair them. Only the fixed architecture specification may be written directly, "
-      + "and the reviewed milksu_archify tool owns validation and final HTML delivery. Do not ask the "
-      + "user to choose diagram parameters when the workspace is readable."
-    : policy.productAction?.kind === "test"
+  const deletionGuidance = destructiveDeleteGuidance();
+  const productActionGuidance = policy.productAction?.kind === "test"
       ? " A scoped Run Tests product action is active. Inspect and execute the repository's canonical "
         + "verification chain, but do not edit source files or turn failures into an implementation task."
       : policy.productAction?.kind === "understand"
@@ -410,7 +407,7 @@ function codingPolicyGuidance(policy) {
   if (policy.executionMode === "plan") {
     return "Plan mode is active. Inspect, reason, and propose a concrete plan. "
       + "Do not claim that files, commands, or external systems were changed. "
-      + `bash, edit, write, and lsp_fix are unavailable.${productActionGuidance}${collaborationGuidance}${browserGuidance}${userBrowserGuidance}${computerUseGuidance}`;
+      + `bash, edit, write, and lsp_fix are unavailable.${deletionGuidance}${productActionGuidance}${collaborationGuidance}${browserGuidance}${userBrowserGuidance}${computerUseGuidance}`;
   }
   if (policy.approvalPolicy === "full-auto") {
     return "Go mode is active with Full Access and automatic approval. You may use the terminal "
@@ -421,22 +418,25 @@ function codingPolicyGuidance(policy) {
       + "Explicitly enabled Browser, Computer Use, routine MCP, and collaboration calls run "
       + "automatically. MCP external account authorization and hosted PR, merge request, or release "
       + "publication still pause for an independent user confirmation; "
-      + `their fixed scope and hard safety guards still apply.${productActionGuidance}${collaborationGuidance}${browserGuidance}${userBrowserGuidance}${computerUseGuidance}`;
+      + `their fixed scope and hard safety guards still apply.${deletionGuidance}${productActionGuidance}${collaborationGuidance}${browserGuidance}${userBrowserGuidance}${computerUseGuidance}`;
   }
   if (policy.approvalPolicy === "workspace-auto") {
     return "Go mode is active with Project Auto. You may edit files, use Git, run development "
       + "commands, start background tools, and access the network inside the selected project. "
       + "The project sandbox blocks writes outside the project and access to local credential "
       + "directories; model-provider API keys are never passed to child processes. If the requested "
-      + "file is outside the selected project, do not retry through alternate paths. Tell the user "
-      + "to add it as a read-only local attachment from the plus menu, or start a new task with that "
-      + "project directory selected. A typed authorization sentence does not change the selected "
-      + "directory. Never ask the user to expose a model-provider key as a file; direct them to "
+      + "file is outside the selected project, understand the user's intended directory from the "
+      + "conversation, discover only plausible user-directory candidates with "
+      + "milksu_workspace_candidates when the location is vague, and use milksu_workspace_access "
+      + "to request the exact resolved directory for this conversation. Never infer authorization "
+      + "from keywords or retry through an unapproved path. Never ask the user to expose a "
+      + "model-provider key as a file; direct them to "
       + "MilkSU model settings instead. Explicitly "
       + "enabled Browser and Computer Use calls, read-only selected MCP calls, and validated "
       + "collaboration run automatically inside their fixed task scope; mutating project MCP calls "
       + "and external account authorization still pause for confirmation. "
       + "LSP fixes are previewed and verified inside the project before apply."
+      + deletionGuidance
       + productActionGuidance
       + collaborationGuidance
       + browserGuidance
@@ -449,13 +449,13 @@ function codingPolicyGuidance(policy) {
       + "LSP fixes first compute and show the exact Diff; other tools show their exact parameters. "
       + "Continue only after that one request is approved; "
       + "selected MCP calls use the same independent approval channel. A rejection is authoritative "
-      + `and must not be bypassed with another tool.${productActionGuidance}${collaborationGuidance}`
+      + `and must not be bypassed with another tool.${deletionGuidance}${productActionGuidance}${collaborationGuidance}`
       + browserGuidance
       + userBrowserGuidance
       + computerUseGuidance;
   }
   return "Go mode is active with Read-only. Inspect and explain, but do not claim any mutation or "
-    + `command execution; write and side-effect tools are unavailable.${productActionGuidance}${collaborationGuidance}${browserGuidance}${userBrowserGuidance}${computerUseGuidance}`;
+    + `command execution; write and side-effect tools are unavailable.${deletionGuidance}${productActionGuidance}${collaborationGuidance}${browserGuidance}${userBrowserGuidance}${computerUseGuidance}`;
 }
 
 function createCodingPermissionExtension(
@@ -497,6 +497,33 @@ function createCodingPermissionExtension(
           reason: `MilkSU Coding policy blocked ${event.toolName}: `
           + `${policy.executionMode}/${policy.approvalPolicy}`,
         };
+      }
+      let destructiveDeleteApproved = false;
+      const deleteDecision = await destructiveDeleteDecision({
+        toolName: event.toolName,
+        input: event.input,
+        policy,
+      });
+      if (deleteDecision?.action === "block") {
+        return {
+          block: true,
+          reason: deleteDecision.reason,
+        };
+      }
+      if (deleteDecision?.action === "approval") {
+        const approved = await approvalBroker.request({
+          conversationId,
+          toolName: "destructive-delete",
+          content: deleteDecision.content,
+          input: truncate(deleteDecision.input, 16000),
+        });
+        if (!approved) {
+          return {
+            block: true,
+            reason: "MilkSU user denied broad recursive deletion",
+          };
+        }
+        destructiveDeleteApproved = true;
       }
       if (event.toolName === "mcp") {
         const serverName = selectedMcpServer(policy, event.input);
@@ -569,6 +596,7 @@ function createCodingPermissionExtension(
       }
       if (
         policy.approvalPolicy === "ask"
+        && !destructiveDeleteApproved
         && (
           approvalRequiredCodingTools.has(event.toolName)
           || backgroundEffect
@@ -615,18 +643,11 @@ function createCodingPermissionExtension(
           policy.approvalPolicy,
           event.input,
           policy.readOnlyResourceRoots,
+          policy.workspaceAccessPaths,
         );
         authorizeBackgroundToolInput(event.input, authorization);
       }
       return undefined;
-    });
-
-    pi.on("message_end", async (event) => {
-      const message = enforceCodingTurnContractMessage(
-        event.message,
-        getTurnContract(),
-      );
-      return message ? { message } : undefined;
     });
 
     pi.on("before_agent_start", async (event) => {
@@ -672,7 +693,7 @@ function createComputerUseVisionResultExtension(getSession) {
             {
               type: "text",
               text: "\n\n[MilkSU Computer Use visual evidence]\n"
-                + `auxiliary vision unavailable: ${message}`,
+                + `local OCR unavailable: ${message}`,
             },
           ],
         };
@@ -855,11 +876,6 @@ function configureRuntimeModel(session, provider, model, conversationId, sourceO
   return { provider: "milksu-route", model };
 }
 
-function configureProviderEndpoint(session, provider) {
-  const definition = currentProviderDefinition(provider);
-  if (definition) session.modelRuntime.registerProvider(provider, definition);
-}
-
 async function setSessionModel(conversationId, session, provider, model) {
   if (!provider || !model) return;
 
@@ -922,6 +938,7 @@ function subscribeSession(
     }
 
     if (event.type === "queue_update") {
+      if (suppressedQueueUpdates.has(conversationId)) return;
       emit(conversationId, "queue_update", projectSteeringQueue(event));
       return;
     }
@@ -929,11 +946,6 @@ function subscribeSession(
     if (event.type === "message_update" && event.assistantMessageEvent) {
       const update = event.assistantMessageEvent;
       if (update.type === "text_delta") {
-        if (codingTurnContractRequiresFreshnessGuard(
-          sessionTurnContracts.get(conversationId),
-        )) {
-          return;
-        }
         assistantTextStreamed = true;
         emit(conversationId, "text_delta", { delta: update.delta });
       }
@@ -1044,11 +1056,14 @@ function createMilkSUResourceLoader(
 ) {
   // Skills and extensions may execute instructions supplied by third parties.
   // Keep Pi's ambient discovery disabled and load only MilkSU-reviewed resources.
-  const extensionFactories = [createMilkSUWorkflowExtension(sessionRole)];
+  const extensionFactories = [
+    createMilkSUWorkflowExtension(sessionRole, getPolicy, getSession),
+  ];
   if (!sessionRole) {
     extensionFactories.push(
       piGoalExtension,
       createReviewedBackgroundTasksExtension(conversationId),
+      createWorkspaceAccessExtension(conversationId, workspaceAccessBroker),
       createCodingPermissionExtension(
         conversationId,
         getPolicy,
@@ -1116,7 +1131,10 @@ function requestedBrowserUseDescriptor(command) {
 }
 
 async function loadRuntimeSessionPolicy(cwd, command) {
-  const productAction = parseCodingProductAction(command.prompt);
+  const productAction = normalizeCodingProductAction(cwd, command.productAction);
+  if (command.productAction !== undefined && !productAction) {
+    throw new Error("MilkSU rejected an invalid typed Coding product action");
+  }
   const codingCollaboration = command.sessionRole
     ? undefined
     : normalizeCodingCollaboration(
@@ -1149,6 +1167,7 @@ async function loadRuntimeSessionPolicy(cwd, command) {
   let policy = await loadSessionPolicy(cwd, command.sessionRole, {
     executionMode: command.executionMode,
     approvalPolicy: command.approvalPolicy,
+    workspaceAccessPaths: command.workspaceAccessPaths,
     productAction,
     mcpServers: selectedMcp.selected,
     projectMcpServers: selectedMcp.projectSelected,
@@ -1178,6 +1197,7 @@ async function loadRuntimeSessionPolicy(cwd, command) {
     policy = await loadSessionPolicy(cwd, command.sessionRole, {
       executionMode: command.executionMode,
       approvalPolicy: command.approvalPolicy,
+      workspaceAccessPaths: command.workspaceAccessPaths,
       productAction,
       mcpServers: selectedMcp.selected,
       projectMcpServers: selectedMcp.projectSelected,
@@ -1197,6 +1217,7 @@ async function loadRuntimeSessionPolicy(cwd, command) {
       policy.activeTools.push("capa_analyze");
     }
   }
+  policy.uiLocale = command.locale === "en" ? "en" : "zh";
   return {
     policy,
     effectiveSessionRole,
@@ -1332,6 +1353,7 @@ async function createSession(command) {
         sessionPolicy.approvalPolicy,
         resumeInput,
         sessionPolicy.readOnlyResourceRoots,
+        sessionPolicy.workspaceAccessPaths,
       );
       await withBackgroundResumeAuthorization(
         resumeAuthorization,
@@ -1402,7 +1424,13 @@ async function sendMessage(command) {
   let existing = sessions.get(conversationId);
   const previousPolicy = sessionPolicies.get(conversationId);
   const requestedFullAccess = command.approvalPolicy === "full-auto";
-  const requestedProductAction = parseCodingProductAction(command.prompt);
+  const requestedProductAction = normalizeCodingProductAction(
+    process.cwd(),
+    command.productAction,
+  );
+  if (command.productAction !== undefined && !requestedProductAction) {
+    throw new Error("MilkSU rejected an invalid typed Coding product action");
+  }
   const previousProductAction = previousPolicy?.productAction;
   const productActionChanged = JSON.stringify(previousProductAction)
     !== JSON.stringify(requestedProductAction);
@@ -1414,6 +1442,11 @@ async function sendMessage(command) {
   const requestedCodingCollaboration = command.sessionRole
     ? undefined
     : command.codingCollaboration;
+  const requestedWorkspaceAccessPaths = command.sessionRole
+    ? []
+    : Array.isArray(command.workspaceAccessPaths)
+      ? command.workspaceAccessPaths.map(value => String(value ?? "").trim()).filter(Boolean)
+      : [];
   if (
     existing
     && previousPolicy
@@ -1444,6 +1477,8 @@ async function sendMessage(command) {
         previousPolicy.securityTools,
         command.securityTools,
       )
+      || JSON.stringify(previousPolicy.workspaceAccessPaths ?? [])
+        !== JSON.stringify(requestedWorkspaceAccessPaths)
       || JSON.stringify(previousPolicy.skillNames ?? [])
         !== JSON.stringify(
           reviewedCodingSkillPaths(
@@ -1513,20 +1548,10 @@ async function sendMessage(command) {
     const policy = sessionPolicies.get(conversationId);
     const contract = policy?.ctf
       ? undefined
-      : parseExplicitCodingTurnContract(command.prompt);
-    if (
-      !supportsImages
-      && contract?.toolAccess !== "none"
-      && auxiliaryVisionSelection.provider
-    ) {
-      configureProviderEndpoint(session, auxiliaryVisionSelection.provider);
-    }
-    const analyzed = supportsImages || contract?.toolAccess === "none"
+      : normalizeCodingTurnContract(command.turnPolicy);
+    const analyzed = supportsImages
       ? { context: "" }
-      : await analyzeTextOnlyImages(prepared.attachments, {
-          session,
-          auxiliary: auxiliaryVisionSelection,
-        });
+      : await analyzeTextOnlyImages(prepared.attachments);
     const prompt = `${command.prompt ?? ""}${prepared.context}${analyzed.context}`;
     const controller = sessionPolicyControllers.get(conversationId);
     if (contract && !controller) {
@@ -1604,6 +1629,7 @@ async function destroySession(command) {
     }
   }
   approvalBroker.cancelConversation(conversationId, "session destroyed");
+  workspaceAccessBroker.cancelConversation(conversationId, "session destroyed");
   compactionRuns.delete(conversationId);
   compactionRequestIds.delete(conversationId);
   sessionTurnContracts.delete(conversationId);
@@ -1635,6 +1661,23 @@ function respondToolApproval(command) {
     conversationId,
     requestId,
     approved: command.approved === true,
+  });
+}
+
+function respondWorkspaceAccess(command) {
+  const conversationId = String(command.conversationId ?? "").trim();
+  const requestId = String(command.requestId ?? "").trim();
+  if (!conversationId) throw new Error("conversationId is required");
+  if (!requestId) throw new Error("requestId is required");
+  workspaceAccessBroker.respond({
+    conversationId,
+    requestId,
+    path: String(command.path ?? "").trim(),
+    paths: Array.isArray(command.paths)
+      ? command.paths.map(value => String(value ?? "").trim()).filter(Boolean)
+      : [],
+    restartRequired: command.restartRequired === true,
+    error: String(command.error ?? "").trim(),
   });
 }
 
@@ -1701,6 +1744,43 @@ async function compactSessionCommand(command) {
   }
 }
 
+function currentSessionQueue(session) {
+  if (!session) return { steering: [], followUp: [] };
+  return projectSteeringQueue({
+    steering: session.getSteeringMessages?.(),
+    followUp: session.getFollowUpMessages?.(),
+  });
+}
+
+async function removeQueuedMessageCommand(command) {
+  const conversationId = String(command.conversationId ?? "").trim();
+  const requestId = String(command.requestId ?? "").trim();
+  try {
+    if (!conversationId) throw new Error("conversationId is required");
+    if (!requestId) throw new Error("requestId is required");
+    suppressedQueueUpdates.add(conversationId);
+    const queue = await removeQueuedMessage(sessions, command);
+    suppressedQueueUpdates.delete(conversationId);
+    emit(conversationId, "queued_message_removed", {
+      requestId,
+      ...projectSteeringQueue(queue),
+    });
+  } catch (error) {
+    suppressedQueueUpdates.delete(conversationId);
+    const queue = currentSessionQueue(sessions.get(conversationId));
+    // A stale index can mean Pi already consumed a message. Re-project the
+    // restored live queue so the renderer does not keep stale controls.
+    if (conversationId && sessions.has(conversationId)) {
+      emit(conversationId, "queue_update", queue);
+    }
+    emit(conversationId || null, "queued_message_removed", {
+      requestId,
+      ...queue,
+      error: describeError(error),
+    });
+  }
+}
+
 async function controlBackgroundTask(command) {
   const conversationId = String(command.conversationId ?? "").trim();
   const requestId = String(command.requestId ?? "").trim();
@@ -1727,6 +1807,7 @@ async function controlBackgroundTask(command) {
       const policy = await loadSessionPolicy(process.cwd(), "", {
         executionMode: command.executionMode,
         approvalPolicy: command.approvalPolicy,
+        workspaceAccessPaths: command.workspaceAccessPaths,
       });
       if (
         policy.ctf
@@ -1750,6 +1831,7 @@ async function controlBackgroundTask(command) {
         policy.approvalPolicy,
         input,
         policy.readOnlyResourceRoots,
+        policy.workspaceAccessPaths,
       );
       authorizeBackgroundToolInput(input, authorization);
       const pi = backgroundTaskControllers.get(conversationId) ?? {
@@ -1809,11 +1891,17 @@ async function handleCommand(command) {
     case "steer_message":
       await steerSession(sessions, command);
       break;
+    case "remove_queued_message":
+      await removeQueuedMessageCommand(command);
+      break;
     case "abort_session":
       await abortSession(command);
       break;
     case "approval_response":
       respondToolApproval(command);
+      break;
+    case "workspace_access_response":
+      respondWorkspaceAccess(command);
       break;
     case "background_task_control":
       await controlBackgroundTask(command);
@@ -1845,16 +1933,37 @@ input.on("line", (line) => {
     return;
   }
   if (command.action === "steer_message") {
-    void steerSession(sessions, command).catch((error) => {
-      emit(command.conversationId ?? null, "steer_rejected", {
-        error: describeError(error),
+    steeringCommandQueue = steeringCommandQueue
+      .then(() => steerSession(sessions, command))
+      .catch((error) => {
+        emit(command.conversationId ?? null, "steer_rejected", {
+          error: describeError(error),
+        });
       });
-    });
+    return;
+  }
+  if (command.action === "remove_queued_message") {
+    steeringCommandQueue = steeringCommandQueue
+      .then(() => removeQueuedMessageCommand(command))
+      .catch((error) => {
+        emit(command.conversationId ?? null, "queued_message_removed", {
+          requestId: String(command.requestId ?? "").trim(),
+          error: describeError(error),
+        });
+      });
     return;
   }
   if (command.action === "approval_response") {
     try {
       respondToolApproval(command);
+    } catch (error) {
+      emit(command.conversationId ?? null, "error", { error: describeError(error) });
+    }
+    return;
+  }
+  if (command.action === "workspace_access_response") {
+    try {
+      respondWorkspaceAccess(command);
     } catch (error) {
       emit(command.conversationId ?? null, "error", { error: describeError(error) });
     }
@@ -1880,8 +1989,10 @@ input.on("line", (line) => {
 
 async function disposeAllSessions() {
   approvalBroker.cancelAll("Sidecar stopped");
+  workspaceAccessBroker.cancelAll("Sidecar stopped");
   compactionRuns.clear();
   compactionRequestIds.clear();
+  suppressedQueueUpdates.clear();
   sessionTurnContracts.clear();
   await Promise.all(
     [...sessions.values()].map(session => disposeAgentSession(session)),

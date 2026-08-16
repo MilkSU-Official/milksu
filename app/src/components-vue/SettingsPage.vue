@@ -5,17 +5,15 @@ import {
   AlertDescription,
   Badge,
   Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   Input,
   NativeSelect,
   NativeSelectOption,
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectSeparator,
-  SelectTrigger,
-  SelectValue,
   SettingsRow,
   SettingsSection,
   Switch,
@@ -23,19 +21,24 @@ import {
 import {
   AlertCircle,
   ArrowLeft,
+  Box,
+  Bug,
   Cable,
   Check,
+  Code2,
   Copy,
   Download,
   ExternalLink,
   FileWarning,
+  Flag,
   FolderOpen,
   Github,
-  GripVertical,
+  Globe2,
   KeyRound,
   LogOut,
   Plus,
   RotateCcw,
+  Settings2,
   ShieldCheck,
   Trash2,
   WalletCards,
@@ -60,6 +63,8 @@ import type {
   LocalDiagnosticExport,
   ModelProbeResult,
   ModelSource,
+  ProviderConfig,
+  ProviderInfo,
   PreviousExitState,
   StartupRecoveryStatus,
 } from '@/types'
@@ -73,16 +78,17 @@ import type { SecurityToolCodingHandoff } from '@/securityToolsTypes'
 import { useVulnerabilityDashboard, type VulnerabilityDashboard } from '@/composables/useVulnerabilityDashboard'
 import { CODING_SKILLS } from '@/codingSkills'
 
-type SettingsCategory = 'general' | 'coding' | 'apikeys' | 'browser' | 'cve' | 'security-tools'
+type SettingsCategory = 'general' | 'apikeys' | 'ctf' | 'cve' | 'coding' | 'browser' | 'security-tools'
 
-const settingsCategories: Array<{ value: SettingsCategory; label: string }> = [
-  { value: 'general', label: '通用' },
-  { value: 'apikeys', label: '模型与额度' },
-  { value: 'coding', label: 'Coding' },
-  { value: 'browser', label: '浏览器与控制' },
-  { value: 'cve', label: 'CVE' },
-  { value: 'security-tools', label: '安全工具' },
-]
+const settingsCategories = [
+  { value: 'general', label: '通用', icon: Settings2 },
+  { value: 'apikeys', label: '模型', icon: Box },
+  { value: 'ctf', label: 'CTF', icon: Flag },
+  { value: 'cve', label: 'CVE', icon: Bug },
+  { value: 'coding', label: 'Coding', icon: Code2 },
+  { value: 'browser', label: '浏览器控制', icon: Globe2 },
+  { value: 'security-tools', label: '安全工具', icon: ShieldCheck },
+] as const
 
 const props = defineProps<{
   settings: AppSettings | null
@@ -122,12 +128,11 @@ const recoveryStatus = ref<StartupRecoveryStatus | null>(null)
 const buildTracking = ref<BuildTracking | null>(null)
 const buildTrackingCopying = ref(false)
 const notice = ref<{ tone: 'ok' | 'error'; text: string } | null>(null)
-const draggedModelSource = ref<ModelSource | null>(null)
+const editingProviderID = ref<string | null>(null)
 const customModelInput = ref('')
 const providerSettings = computed(() => working.value?.providers ?? {})
 const {
   providers: modelProviders,
-  providerGroups: modelProviderGroups,
   providerModelLabel,
 } = useModelCatalog(providerSettings)
 const account = computed<AccountStatus>(() => props.accountStatus ?? ({ configured: false, authenticated: false, state: 'unconfigured' }))
@@ -235,54 +240,6 @@ const activeProviderModels = computed(() => {
   if (equivalentIndex < 0) return [selected, ...models]
   return models.map((model, index) => index === equivalentIndex ? selected : model)
 })
-const visionModelOptions = computed(() => {
-  const options = modelProviders.value.flatMap(item => item.visionModels.map(model => ({
-    key: `${item.id}:${model}`,
-    provider: item.id,
-    model,
-    kind: item.kind,
-    label: providerModelLabel(item.id, model),
-  })))
-  const selected = working.value?.vision_model
-  if (selected && !options.some(option => option.key === routeKey(selected))) {
-    const selectedProvider = modelProviders.value.find(item => item.id === selected.provider)
-    if (selectedProvider) options.unshift({
-      key: routeKey(selected), provider: selected.provider, model: selected.model,
-      kind: selectedProvider.kind, label: providerModelLabel(selected.provider, selected.model),
-    })
-  }
-  return options
-})
-const visionProviderGroups = computed(() => modelProviderGroups.value
-  .map(group => ({
-    ...group,
-    options: visionModelOptions.value.filter(item => item.kind === group.kind),
-  }))
-  .filter(group => group.options.length))
-
-function routeKey(selection: { provider: string; model: string }) {
-  return `${selection.provider}:${selection.model}`
-}
-
-function visionRouteKey() {
-  const vision = working.value?.vision_model
-  return vision ? routeKey(vision) : 'local-ocr'
-}
-
-function setVisionRoute(value: string) {
-  if (!working.value) return
-  if (value === 'local-ocr') {
-    working.value.vision_model = undefined
-    return
-  }
-  const [routeProvider, ...routeModelParts] = value.split(':')
-  const routeModel = routeModelParts.join(':')
-  if (!routeProvider || !routeModel) return
-  working.value.vision_model = {
-    provider: routeProvider,
-    model: routeModel,
-  }
-}
 
 function skillEnabled(name: string): boolean {
   return !working.value?.disabled_skills?.includes(name)
@@ -296,9 +253,8 @@ function setSkillEnabled(name: string, enabled: boolean) {
   working.value.disabled_skills = [...disabled]
 }
 
-function ensureProvider(id: string) {
-  if (!working.value) return
-  const providerChanged = working.value.active_provider !== id
+function ensureProviderConfig(id: string): ProviderConfig | undefined {
+  if (!working.value) return undefined
   const info = modelProviders.value.find(item => item.id === id)
   if (!working.value.providers[id]) {
     working.value.providers[id] = {
@@ -310,6 +266,14 @@ function ensureProvider(id: string) {
   } else if (!working.value.providers[id].base_url && info?.defaultBaseUrl) {
     working.value.providers[id].base_url = info.defaultBaseUrl
   }
+  return working.value.providers[id]
+}
+
+function ensureProvider(id: string) {
+  if (!working.value) return
+  const providerChanged = working.value.active_provider !== id
+  const info = modelProviders.value.find(item => item.id === id)
+  ensureProviderConfig(id)
   working.value.active_provider = id
   if (info && (providerChanged || !working.value.active_model) && info.models[0]) {
     working.value.active_model = info.models[0]
@@ -345,18 +309,44 @@ function addCustomRelay() {
   notice.value = null
 }
 
-function removeCustomRelay() {
-  if (!working.value || !provider.value?.custom) return
-  delete working.value.providers[working.value.active_provider]
+function addModelService() {
+  const previousProvider = working.value?.active_provider
+  addCustomRelay()
+  if (
+    working.value?.active_provider !== previousProvider
+    && working.value?.active_provider.startsWith('custom-relay-')
+  ) {
+    editingProviderID.value = working.value.active_provider
+  }
+}
+
+function removeModelService(id: string) {
+  if (!working.value) return
+  const config = working.value.providers[id] ?? ensureProviderConfig(id)
+  if (!config) return
+  if (config.custom) {
+    delete working.value.providers[id]
+  } else {
+    working.value.providers[id] = {
+      ...config,
+      api_key: '',
+      has_api_key: false,
+      remove_api_key: true,
+      enabled: false,
+      session_only: false,
+    }
+  }
+  if (working.value.active_provider === id) ensureProvider('tokenflux')
+  editingProviderID.value = null
   customModelInput.value = ''
-  ensureProvider('tokenflux')
 }
 
 function addCustomRelayModel() {
-  if (!working.value || !provider.value?.custom) return
+  const target = editingProvider.value?.custom ? editingProvider.value : provider.value
+  if (!working.value || !target?.custom) return
   const model = customModelInput.value.trim()
   if (!model) return
-  const models = provider.value.models ?? []
+  const models = target.models ?? []
   if (models.includes(model)) {
     customModelInput.value = ''
     return
@@ -365,16 +355,19 @@ function addCustomRelayModel() {
     notice.value = { tone: 'error', text: '每个中转站最多可以添加 32 个模型。' }
     return
   }
-  provider.value.models = [...models, model]
-  if (!working.value.active_model) working.value.active_model = model
+  target.models = [...models, model]
+  if (working.value.active_provider === editingProviderID.value && !working.value.active_model) {
+    working.value.active_model = model
+  }
   customModelInput.value = ''
 }
 
 function removeCustomRelayModel(model: string) {
-  if (!working.value || !provider.value?.custom) return
-  provider.value.models = (provider.value.models ?? []).filter(item => item !== model)
-  if (working.value.active_model === model) {
-    working.value.active_model = provider.value.models[0] ?? ''
+  const target = editingProvider.value?.custom ? editingProvider.value : provider.value
+  if (!working.value || !target?.custom) return
+  target.models = (target.models ?? []).filter(item => item !== model)
+  if (working.value.active_provider === editingProviderID.value && working.value.active_model === model) {
+    working.value.active_model = target.models[0] ?? ''
   }
 }
 
@@ -397,20 +390,139 @@ const accountModelSourceReady = computed(() => Boolean(
   account.value.state === 'active'
   && account.value.tokenFluxLinked === true,
 ))
-const personalModelSourceReady = computed(() => Boolean(
-  provider.value?.enabled
-  && (provider.value.has_api_key || provider.value.api_key),
-))
-const modelSourcePreview = computed(() => {
-  const order = working.value?.model_routing.source_order ?? ['account', 'personal']
-  const available = order.filter(source => (
-    source === 'account' ? accountModelSourceReady.value : personalModelSourceReady.value
-  ))
-  const first = available[0]
-  if (first === 'account') return '账户分配模型 · TokenFlux'
-  if (first === 'personal') return `我的 API Key · ${providerInfo.value?.name ?? working.value?.active_provider ?? ''}`
-  return '还没有可用的模型来源'
+type ModelServiceRow =
+  | { key: 'account'; source: 'account'; provider?: undefined }
+  | { key: string; source: 'personal'; provider: ProviderInfo }
+
+const modelServiceRows = computed<ModelServiceRow[]>(() => {
+  if (!working.value) return []
+  const activeProvider = modelProviders.value.find(item => item.id === working.value?.active_provider)
+  const routed = working.value.model_routing.source_order.flatMap<ModelServiceRow>(source => {
+    if (source === 'account') return [{ key: 'account', source: 'account' }]
+    return activeProvider
+      ? [{ key: `provider:${activeProvider.id}`, source: 'personal', provider: activeProvider }]
+      : []
+  })
+  const remaining = modelProviders.value
+    .filter(item => item.id !== activeProvider?.id)
+    .map<ModelServiceRow>(item => ({ key: `provider:${item.id}`, source: 'personal', provider: item }))
+  return [...routed, ...remaining]
 })
+
+const accountProviderInfo = computed(() => modelProviders.value.find(item => item.id === 'tokenflux'))
+const editingProviderInfo = computed(() => (
+  modelProviders.value.find(item => item.id === editingProviderID.value)
+))
+const editingProvider = computed(() => (
+  editingProviderID.value ? working.value?.providers[editingProviderID.value] : undefined
+))
+const editingProviderModel = computed(() => {
+  if (!editingProviderInfo.value || !working.value) return ''
+  if (editingProviderID.value === working.value.active_provider) return working.value.active_model
+  return editingProviderInfo.value.models[0] ?? ''
+})
+const editingProviderModels = computed(() => {
+  const models = editingProviderInfo.value?.models ?? []
+  if (models.length || editingProviderID.value !== working.value?.active_provider || !working.value.active_model) return models
+  return [working.value.active_model]
+})
+const providerEditorOpen = computed({
+  get: () => Boolean(editingProviderID.value),
+  set: value => {
+    if (!value) {
+      editingProviderID.value = null
+      customModelInput.value = ''
+    }
+  },
+})
+
+function providerConfig(id: string): ProviderConfig | undefined {
+  return working.value?.providers[id]
+}
+
+function providerModelsText(info: ProviderInfo): string {
+  if (providerConfig(info.id)?.custom) return `${info.models.length} 个模型`
+  if (!info.models.length) return '等待模型目录'
+  return info.models.slice(0, 3).map(model => {
+    const label = providerModelLabel(info.id, model)
+    return label.split(' · ').at(-1) ?? label
+  }).join(' · ')
+}
+
+function modelDisplayLabel(providerID: string, model: string): string {
+  const label = providerModelLabel(providerID, model)
+  return label.split(' · ').at(-1) ?? label
+}
+
+function accountModelsText(): string {
+  const info = accountProviderInfo.value
+  return info?.models.length ? providerModelsText(info) : '管理员分配的模型'
+}
+
+function providerServiceName(info: ProviderInfo): string {
+  if (providerConfig(info.id)?.custom) return info.name
+  if (info.id === 'tokenflux') return 'TokenFlux 个人'
+  return `${info.name} 官方`
+}
+
+function serviceStatus(row: ModelServiceRow): string {
+  if (row.source === 'account') return accountModelSourceReady.value && accountRoute.value?.enabled ? '已连接' : '未连接'
+  const config = providerConfig(row.provider.id)
+  if (!config || !(config.has_api_key || config.api_key)) return '未配置'
+  if (!config.enabled) return '已停用'
+  return '可用'
+}
+
+function serviceStatusClass(row: ModelServiceRow): string {
+  const status = serviceStatus(row)
+  if (status === '已连接' || status === '可用') return 'text-primary'
+  if (status === '未配置') return 'text-warning'
+  return 'text-muted-foreground'
+}
+
+function servicePriorityLabel(row: ModelServiceRow): string {
+  if (!working.value) return ''
+  const sourceIsFirst = working.value.model_routing.source_order[0] === row.source
+  if (row.source === 'account') return sourceIsFirst && accountRoute.value?.enabled ? '默认' : '备用'
+  if (row.provider.id !== working.value.active_provider) return '设为默认'
+  return sourceIsFirst && provider.value?.enabled ? '默认' : '备用'
+}
+
+function openProviderEditor(id: string) {
+  ensureProviderConfig(id)
+  editingProviderID.value = id
+  customModelInput.value = ''
+  notice.value = null
+}
+
+function setEditingProviderModel(value: string) {
+  if (!working.value || !editingProviderID.value || !value) return
+  if (working.value.active_provider !== editingProviderID.value) return
+  working.value.active_model = value
+}
+
+function setServiceDefault(row: ModelServiceRow) {
+  if (!working.value) return
+  if (row.source === 'account') {
+    ensureAccountRoute()
+    if (accountModelSourceReady.value) working.value.relay!.enabled = true
+    moveModelSource('account', working.value.model_routing.source_order[0])
+    return
+  }
+  ensureProvider(row.provider.id)
+  const config = ensureProviderConfig(row.provider.id)
+  if (config) config.enabled = true
+  moveModelSource('personal', working.value.model_routing.source_order[0])
+}
+
+function setModelServiceEnabled(row: ModelServiceRow, enabled: boolean) {
+  if (row.source === 'account') {
+    setModelSourceEnabled('account', enabled)
+    return
+  }
+  const config = ensureProviderConfig(row.provider.id)
+  if (config) config.enabled = enabled
+}
 
 function setModelSourceEnabled(source: ModelSource, enabled: boolean) {
   if (!working.value) return
@@ -437,11 +549,6 @@ function moveModelSource(source: ModelSource, target: ModelSource) {
   order.splice(from, 1)
   order.splice(to, 0, source)
   working.value.model_routing.source_order = order
-}
-
-function dropModelSource(target: ModelSource) {
-  if (draggedModelSource.value) moveModelSource(draggedModelSource.value, target)
-  draggedModelSource.value = null
 }
 
 function formatBytes(value: number) {
@@ -796,16 +903,19 @@ async function exportLocalDiagnostics() {
 
 async function save() {
   if (!working.value) return
-  if (provider.value?.custom) {
-    if (!provider.value.name?.trim()) {
+  const incompleteCustomProvider = Object.values(working.value.providers).find(item => (
+    item.custom && (!item.name?.trim() || !item.base_url?.trim() || !(item.models ?? []).length)
+  ))
+  if (incompleteCustomProvider) {
+    if (!incompleteCustomProvider.name?.trim()) {
       notice.value = { tone: 'error', text: '请填写中转站名称。' }
       return
     }
-    if (!provider.value.base_url?.trim()) {
+    if (!incompleteCustomProvider.base_url?.trim()) {
       notice.value = { tone: 'error', text: '请填写中转站 Base URL。' }
       return
     }
-    if (!(provider.value.models ?? []).length) {
+    if (!(incompleteCustomProvider.models ?? []).length) {
       notice.value = { tone: 'error', text: '请至少添加一个模型 ID。' }
       return
     }
@@ -861,6 +971,13 @@ async function save() {
   }
 }
 
+async function saveProviderEditor(closeAfterSave: boolean) {
+  await save()
+  if (closeAfterSave && notice.value?.tone === 'ok') {
+    providerEditorOpen.value = false
+  }
+}
+
 </script>
 
 <template>
@@ -869,10 +986,9 @@ async function save() {
       <Button variant="ghost" size="icon-sm" class="app-no-drag mr-3" aria-label="返回" @click="$emit('close')">
         <ArrowLeft class="size-4" />
       </Button>
-      <div>
-        <p class="text-lg font-semibold tracking-[-0.02em]">设置</p>
-        <p class="text-caption text-muted-foreground">应用、Coding、账户与本地数据</p>
-      </div>
+      <p class="text-lg font-semibold tracking-[-0.02em]">
+        {{ settingsCategories.find(item => item.value === category)?.label }}
+      </p>
     </header>
 
     <div class="settings-layout flex min-h-0 flex-1">
@@ -886,16 +1002,13 @@ async function save() {
           :aria-current="category === item.value ? 'page' : undefined"
           @click="category = item.value"
         >
+          <component :is="item.icon" class="mr-3 size-4 shrink-0" />
           <span>{{ item.label }}</span>
         </button>
       </nav>
 
       <div class="min-h-0 min-w-0 flex-1 overflow-y-auto px-6 py-8">
       <div :class="category === 'cve' || category === 'security-tools' ? 'mx-auto w-full max-w-6xl' : category === 'apikeys' ? 'mx-auto w-full max-w-5xl' : 'mx-auto max-w-3xl'">
-        <div class="mb-7">
-          <p class="tactical-label text-muted-foreground">Settings</p>
-          <h1 class="tactical-display mt-1 text-5xl">{{ settingsCategories.find(item => item.value === category)?.label }}</h1>
-        </div>
 
         <Alert v-if="notice" :variant="notice.tone === 'error' ? 'destructive' : 'default'" class="mb-5">
           <AlertCircle v-if="notice.tone === 'error'" class="size-4" />
@@ -904,7 +1017,26 @@ async function save() {
         </Alert>
 
         <template v-if="working && category === 'general'">
-          <SettingsSection title="应用">
+          <SettingsSection title="账户">
+            <SettingsRow
+              label="GitHub 账户"
+              :description="account.state === 'active'
+                ? `@${account.user?.githubLogin || 'GitHub'} · 内测用户`
+                : '登录后可使用管理员分配的模型；不登录也能继续使用自己的 API Key'"
+            >
+              <div class="flex items-center gap-3">
+                <Badge :variant="account.state === 'active' ? 'secondary' : 'outline'">{{ accountStateLabel }}</Badge>
+                <Button v-if="account.state === 'active'" variant="ghost" size="sm" @click="$emit('accountLogout')">
+                  <LogOut class="size-4" />退出
+                </Button>
+                <Button v-else-if="account.configured" variant="outline" size="sm" @click="$emit('accountLogin')">
+                  <Github class="size-4" />GitHub 登录
+                </Button>
+              </div>
+            </SettingsRow>
+          </SettingsSection>
+
+          <SettingsSection title="应用" class="mt-6">
             <SettingsRow label="界面语言" description="M3 MVP 默认使用简体中文">
               <NativeSelect v-model="working.locale" size="sm" aria-label="界面语言">
                 <NativeSelectOption value="zh">简体中文</NativeSelectOption>
@@ -1278,309 +1410,210 @@ async function save() {
         </template>
 
         <template v-else-if="working && category === 'apikeys'">
-          <SettingsSection title="账户与模型">
-            <SettingsRow
-              label="GitHub 账户"
-              :description="account.state === 'active'
-                ? `@${account.user?.githubLogin || 'GitHub'} · 内测用户`
-                : '登录后可使用管理员分配的模型；不登录也能继续使用自己的 API Key'"
+          <section class="model-default-row flex items-center gap-8">
+            <label for="default-model" class="w-24 shrink-0 text-body font-medium">默认模型</label>
+            <NativeSelect
+              id="default-model"
+              v-model="working.active_model"
+              size="sm"
+              class="min-w-64"
+              aria-label="默认模型"
             >
-              <div class="flex items-center gap-3">
-                <Badge :variant="account.state === 'active' ? 'secondary' : 'outline'">{{ accountStateLabel }}</Badge>
-                <Button v-if="account.state === 'active'" variant="ghost" size="sm" @click="$emit('accountLogout')">
-                  <LogOut class="size-4" />退出
-                </Button>
-                <Button v-else-if="account.configured" variant="outline" size="sm" @click="$emit('accountLogin')">
-                  <Github class="size-4" />GitHub 登录
-                </Button>
-              </div>
-            </SettingsRow>
-          </SettingsSection>
+              <NativeSelectOption
+                v-for="model in activeProviderModels"
+                :key="model"
+                :value="model"
+              >
+                {{ modelDisplayLabel(working.active_provider, model) }}
+              </NativeSelectOption>
+            </NativeSelect>
+          </section>
 
-          <section class="mt-8 border-t border-border pt-6">
-            <div class="flex items-start justify-between gap-4">
-              <div>
-                <h2 class="text-title font-semibold">使用顺序</h2>
-                <p class="mt-1 text-caption text-muted-foreground">拖动调整优先级，列表从上到下依次使用</p>
-              </div>
+          <section class="mt-8">
+            <div class="flex items-center justify-between gap-4">
+              <h2 class="text-title font-semibold">模型服务</h2>
+              <Button
+                variant="outline"
+                size="icon-sm"
+                aria-label="新增模型服务"
+                title="新增自定义中转站"
+                @click="addModelService"
+              >
+                <Plus class="size-4" />
+              </Button>
             </div>
 
-            <div class="mt-4 space-y-2">
+            <div class="model-service-list mt-4 overflow-hidden rounded-lg border border-border bg-card">
               <article
-                v-for="(source, index) in working.model_routing.source_order"
-                :key="source"
-                class="flex min-h-20 items-center gap-4 rounded-lg border bg-card px-4 py-3 transition-colors"
-                :class="index === 0 ? 'border-primary/50 shadow-[inset_3px_0_0_hsl(var(--primary))]' : 'border-border'"
-                @dragover.prevent
-                @drop="dropModelSource(source)"
+                v-for="(row, index) in modelServiceRows"
+                :key="row.key"
+                class="model-service-row grid min-h-20 grid-cols-[48px_minmax(170px,1fr)_minmax(180px,1.1fr)_90px_auto_auto] items-center gap-4 border-b border-border px-4 py-3 last:border-b-0"
+                :class="index === 0 ? 'model-service-row-primary' : ''"
               >
-                <button
-                  class="cursor-grab text-muted-foreground active:cursor-grabbing"
-                  draggable="true"
-                  :aria-label="`拖动${source === 'account' ? '账户分配模型' : '我的 API Key'}调整顺序`"
-                  @dragstart="draggedModelSource = source"
-                  @dragend="draggedModelSource = null"
-                  @click="moveModelSource(source, source === 'account' ? 'personal' : 'account')"
-                >
-                  <GripVertical class="size-5" />
-                </button>
-                <span class="w-6 text-center font-mono text-xl" :class="index === 0 ? 'text-primary' : 'text-muted-foreground'">{{ index + 1 }}</span>
+                <span class="model-service-icon grid size-11 place-items-center rounded-lg border border-border bg-muted/40" :class="row.source === 'account' || row.provider.id === working.active_provider ? 'text-primary' : 'text-foreground'">
+                  <WalletCards v-if="row.source === 'account'" class="size-5" />
+                  <Box v-else-if="row.provider.kind === 'relay'" class="size-5" />
+                  <KeyRound v-else class="size-5" />
+                </span>
 
-                <template v-if="source === 'account'">
-                  <span class="grid size-11 shrink-0 place-items-center rounded-full bg-muted text-primary"><WalletCards class="size-5" /></span>
-                  <div class="min-w-0 flex-1">
-                    <p class="font-medium">账户分配模型</p>
-                    <p class="mt-0.5 text-caption text-muted-foreground">
-                      {{ provider?.custom ? '自定义模型只使用对应中转站' : accountModelSourceReady ? '登录后静默同步到本地凭据存储' : account.state === 'active' ? '管理员尚未为此账户分配模型 Key' : '登录内测账户后自动连接' }}
-                    </p>
-                  </div>
-                  <Badge :variant="index === 0 && accountRoute?.enabled ? 'secondary' : 'outline'">
-                    {{ provider?.custom ? '不适用' : index === 0 && accountRoute?.enabled ? '当前优先' : accountModelSourceReady ? '备用' : '未连接' }}
-                  </Badge>
-                  <Switch
-                    :model-value="Boolean(accountRoute?.enabled)"
-                    :disabled="Boolean(provider?.custom) || (!accountModelSourceReady && !accountRoute?.enabled)"
-                    aria-label="启用账户分配模型"
-                    @update:model-value="setModelSourceEnabled('account', Boolean($event))"
-                  />
-                </template>
+                <div class="min-w-0">
+                  <p class="truncate font-medium">
+                    {{ row.source === 'account' ? 'MilkSU 账户' : providerServiceName(row.provider) }}
+                  </p>
+                </div>
 
-                <template v-else>
-                  <span class="grid size-11 shrink-0 place-items-center rounded-full bg-muted text-foreground"><KeyRound class="size-5" /></span>
-                  <div class="min-w-0 flex-1">
-                    <p class="font-medium">我的 API Key</p>
-                    <p class="mt-0.5 text-caption text-muted-foreground">{{ providerInfo?.name ?? working.active_provider }} · 只保存在本机</p>
-                  </div>
-                  <span class="text-caption text-muted-foreground">{{ personalModelSourceReady ? '已配置' : '尚未配置' }}</span>
-                  <Badge :variant="index === 0 && provider?.enabled ? 'secondary' : 'outline'">
-                    {{ index === 0 && provider?.enabled ? '当前优先' : '备用' }}
-                  </Badge>
-                  <Switch
-                    :model-value="Boolean(provider?.enabled)"
-                    :disabled="!provider"
-                    aria-label="启用我的 API Key"
-                    @update:model-value="setModelSourceEnabled('personal', Boolean($event))"
-                  />
-                </template>
+                <p class="truncate text-caption text-muted-foreground" :title="row.source === 'account' ? accountModelsText() : providerModelsText(row.provider)">
+                  {{ row.source === 'account' ? accountModelsText() : providerModelsText(row.provider) }}
+                </p>
+
+                <span class="text-caption font-medium" :class="serviceStatusClass(row)">{{ serviceStatus(row) }}</span>
+
+                <div class="flex items-center justify-end gap-2 whitespace-nowrap text-caption">
+                  <button
+                    type="button"
+                    class="text-link hover:underline"
+                    @click="setServiceDefault(row)"
+                  >
+                    {{ servicePriorityLabel(row) }}
+                  </button>
+                  <template v-if="row.source === 'personal'">
+                    <span class="text-muted-foreground">/</span>
+                    <button type="button" class="text-link hover:underline" @click="openProviderEditor(row.provider.id)">编辑</button>
+                    <span class="text-muted-foreground">/</span>
+                    <button type="button" class="text-destructive hover:underline" @click="removeModelService(row.provider.id)">删除</button>
+                  </template>
+                </div>
+
+                <Switch
+                  :model-value="row.source === 'account' ? Boolean(accountRoute?.enabled) : Boolean(providerConfig(row.provider.id)?.enabled)"
+                  :aria-label="`启用${row.source === 'account' ? 'MilkSU 账户' : providerServiceName(row.provider)}`"
+                  @update:model-value="setModelServiceEnabled(row, Boolean($event))"
+                />
               </article>
             </div>
 
-            <div class="mt-4 flex items-center gap-3">
+            <div class="mt-4 flex items-center justify-end gap-3">
+              <span class="text-caption text-muted-foreground">来源不可用时自动切换</span>
               <Switch
                 :model-value="working.model_routing.auto_fallback"
                 aria-label="来源不可用时自动切换"
                 @update:model-value="working.model_routing.auto_fallback = Boolean($event)"
               />
-              <div>
-                <p class="text-body font-medium">来源不可用时自动使用下一项</p>
-                <p class="text-caption text-muted-foreground">只在模型尚未输出、也未运行工具时切换</p>
-              </div>
             </div>
           </section>
 
-          <SettingsSection title="模型" class="mt-8 border-t border-border pt-6">
-            <SettingsRow
-              label="默认模型"
-              description="Coding、CTF、CVE 共用；单个 Coding 对话仍可临时更换"
-            >
-              <NativeSelect
-                v-model="working.active_model"
-                size="sm"
-                class="min-w-56"
-                aria-label="默认模型"
-              >
-                <NativeSelectOption
-                  v-for="model in activeProviderModels"
-                  :key="model"
-                  :value="model"
-                >
-                  {{ providerModelLabel(working.active_provider, model) }}
-                </NativeSelectOption>
-              </NativeSelect>
-            </SettingsRow>
-          </SettingsSection>
+          <div class="mt-6 flex justify-end">
+            <Button :loading="saving || verifying" @click="save">
+              {{ verifying ? '正在验证 PI' : '保存并验证' }}
+            </Button>
+          </div>
 
-          <SettingsSection title="API Key 管理" class="mt-8 border-t border-border pt-6">
-            <SettingsRow
-              label="自定义中转站"
-              description="添加 OpenAI-compatible 接口和模型 ID；配置后会出现在所有模型选择器里"
-            >
-              <Button variant="outline" size="sm" @click="addCustomRelay">
-                <Plus class="size-4" />
-                添加中转站
-              </Button>
-            </SettingsRow>
-            <SettingsRow
-              label="服务商"
-              :description="providerInfo
-                ? `${providerInfo.kind === 'relay' ? '中转站' : '原厂'} · ${providerInfo.summary}`
-                : '选择自己的 API Key 对应的服务商'"
-            >
-              <Select
-                :model-value="working.active_provider"
-                @update:model-value="value => ensureProvider(String(value ?? ''))"
-              >
-                <SelectTrigger
-                  size="sm"
-                  class="min-w-40"
-                  aria-label="模型来源"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent size="sm" align="end" :align-offset="0" class="min-w-48">
-                  <template
-                    v-for="(group, groupIndex) in modelProviderGroups"
-                    :key="group.kind"
-                  >
-                    <SelectSeparator v-if="groupIndex > 0" />
-                    <SelectGroup>
-                      <SelectLabel>{{ group.label }}</SelectLabel>
-                      <SelectItem
-                        v-for="item in group.providers"
-                        :key="item.id"
-                        :value="item.id"
+          <Dialog v-model:open="providerEditorOpen">
+            <DialogContent class="provider-editor-dialog sm:max-w-xl">
+              <DialogHeader>
+                <DialogTitle>编辑 {{ editingProviderInfo ? providerServiceName(editingProviderInfo) : '模型服务' }}</DialogTitle>
+                <DialogDescription class="sr-only">配置这个模型服务的接口地址、凭据和可用模型。</DialogDescription>
+              </DialogHeader>
+
+              <div v-if="editingProvider && editingProviderInfo" class="grid gap-4">
+                <label v-if="editingProvider.custom" class="provider-editor-field">
+                  <span>名称</span>
+                  <Input
+                    :model-value="editingProvider.name ?? ''"
+                    autocomplete="off"
+                    placeholder="例如：我的中转站"
+                    aria-label="中转站名称"
+                    @update:model-value="value => { editingProvider!.name = String(value) }"
+                  />
+                </label>
+                <label v-else class="provider-editor-field">
+                  <span>名称</span>
+                  <Input :model-value="providerServiceName(editingProviderInfo)" readonly aria-label="名称" />
+                </label>
+
+                <label class="provider-editor-field">
+                  <span>Base URL</span>
+                  <Input
+                    :model-value="editingProvider.base_url ?? editingProviderInfo.defaultBaseUrl"
+                    type="url"
+                    autocomplete="url"
+                    :placeholder="editingProviderInfo.defaultBaseUrl"
+                    aria-label="Base URL"
+                    @update:model-value="value => { editingProvider!.base_url = String(value).trim() }"
+                  />
+                </label>
+
+                <label class="provider-editor-field">
+                  <span>API Key</span>
+                  <Input
+                    :model-value="editingProvider.api_key"
+                    type="password"
+                    autocomplete="off"
+                    :placeholder="editingProviderInfo.placeholder"
+                    aria-label="API Key"
+                    @update:model-value="value => {
+                      editingProvider!.api_key = String(value)
+                      if (value) editingProvider!.session_only = false
+                    }"
+                  />
+                </label>
+
+                <div v-if="editingProvider.custom" class="provider-editor-field items-start">
+                  <span class="pt-2">模型 ID</span>
+                  <div class="min-w-0">
+                    <div class="flex gap-2">
+                      <Input
+                        v-model="customModelInput"
+                        autocomplete="off"
+                        placeholder="例如：x-ai/grok-4.6"
+                        aria-label="自定义模型 ID"
+                        @keydown.enter.prevent="addCustomRelayModel"
+                      />
+                      <Button variant="outline" @click="addCustomRelayModel">添加</Button>
+                    </div>
+                    <div v-if="editingProvider.models?.length" class="mt-2 flex flex-wrap gap-2">
+                      <span
+                        v-for="model in editingProvider.models"
+                        :key="model"
+                        class="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/30 px-2.5 py-1 font-mono text-caption"
                       >
-                        {{ item.name }}
-                      </SelectItem>
-                    </SelectGroup>
-                  </template>
-                </SelectContent>
-              </Select>
-            </SettingsRow>
-            <SettingsRow
-              v-if="provider?.custom"
-              stack="always"
-              label="中转站名称"
-              description="用于模型选择器中的显示名称"
-            >
-              <Input
-                :model-value="provider.name ?? ''"
-                autocomplete="off"
-                placeholder="例如：我的中转站"
-                aria-label="中转站名称"
-                @update:model-value="value => { provider!.name = String(value) }"
-              />
-            </SettingsRow>
-            <SettingsRow
-              v-if="provider?.custom"
-              stack="always"
-              label="模型 ID"
-              description="填写中转站实际接受的模型 ID；第一版按 OpenAI-compatible 文本模型接入"
-            >
-              <div class="flex gap-2">
-                <Input
-                  v-model="customModelInput"
-                  autocomplete="off"
-                  placeholder="例如：x-ai/grok-4.6"
-                  aria-label="自定义模型 ID"
-                  @keydown.enter.prevent="addCustomRelayModel"
-                />
-                <Button variant="outline" @click="addCustomRelayModel">添加</Button>
-              </div>
-              <div v-if="provider.models?.length" class="mt-3 flex flex-wrap gap-2">
-                <span
-                  v-for="model in provider.models"
-                  :key="model"
-                  class="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/30 px-2.5 py-1 font-mono text-caption"
-                >
-                  {{ model }}
-                  <button
-                    type="button"
-                    class="text-muted-foreground hover:text-destructive"
-                    :aria-label="`移除模型 ${model}`"
-                    @click="removeCustomRelayModel(model)"
-                  >
-                    <Trash2 class="size-3.5" />
-                  </button>
-                </span>
-              </div>
-            </SettingsRow>
-            <SettingsRow
-              stack="always"
-              label="Base URL"
-              :description="providerInfo?.kind === 'relay'
-                ? '中转站的 OpenAI 兼容接口地址；修改后会重启并重新验证 Agent'
-                : '原厂 API 地址；需要代理或兼容网关时可在这里修改'"
-            >
-              <Input
-                v-if="provider"
-                :model-value="provider.base_url ?? providerInfo?.defaultBaseUrl ?? ''"
-                type="url"
-                autocomplete="url"
-                :placeholder="providerInfo?.defaultBaseUrl"
-                @update:model-value="value => { provider!.base_url = String(value).trim() }"
-              />
-            </SettingsRow>
-            <SettingsRow
-              stack="always"
-              label="API Key"
-              :description="provider?.session_only ? '本地数据库写入失败；当前仅在本次运行可用' : provider?.has_api_key ? '已保存在本机 SQLite 凭据库；不会写入设置文件' : '保存在本机 SQLite 凭据库；仅当前系统用户可读'"
-            >
-              <Input
-                v-if="provider"
-                :model-value="provider.api_key"
-                type="password"
-                autocomplete="off"
-                :placeholder="modelProviders.find(item => item.id === working?.active_provider)?.placeholder"
-                @update:model-value="value => {
-                  provider!.api_key = String(value)
-                  if (value) provider!.session_only = false
-                }"
-              />
-            </SettingsRow>
-            <div class="mt-4 rounded-lg border border-border bg-muted/20 px-4 py-3 text-caption text-muted-foreground">
-              Coding Agent 当前优先使用 <strong class="font-medium text-foreground">{{ modelSourcePreview }}</strong>
-            </div>
-            <div v-if="provider?.custom" class="mt-3 flex justify-end">
-              <Button variant="ghost" size="sm" class="text-destructive" @click="removeCustomRelay">
-                <Trash2 class="size-4" />
-                删除这个中转站
-              </Button>
-            </div>
-          </SettingsSection>
+                        {{ model }}
+                        <button type="button" class="text-muted-foreground hover:text-destructive" :aria-label="`移除模型 ${model}`" @click="removeCustomRelayModel(model)">
+                          <Trash2 class="size-3.5" />
+                        </button>
+                      </span>
+                    </div>
+                  </div>
+                </div>
 
-          <SettingsSection title="图片理解" class="mt-6">
-            <SettingsRow
-              label="视觉模型"
-              description="默认只走本地 OCR；需要理解图表、布局和界面图片时再选择一个视觉模型"
-            >
-              <Select
-                :model-value="visionRouteKey()"
-                @update:model-value="value => setVisionRoute(String(value ?? 'local-ocr'))"
-              >
-                <SelectTrigger
-                  size="sm"
-                  class="min-w-64"
-                  aria-label="图片理解模型"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent size="sm" align="end" :align-offset="0" class="min-w-80">
-                  <SelectItem value="local-ocr">
-                    仅本地 OCR · 图片不发送给其他模型
-                  </SelectItem>
-                  <template
-                    v-for="group in visionProviderGroups"
-                    :key="`vision:${group.kind}`"
+                <label class="provider-editor-field">
+                  <span>可用模型</span>
+                  <NativeSelect
+                    :model-value="editingProviderModel"
+                    size="sm"
+                    :disabled="editingProviderID !== working.active_provider"
+                    aria-label="可用模型"
+                    @update:model-value="setEditingProviderModel(String($event))"
                   >
-                    <SelectSeparator />
-                    <SelectGroup>
-                      <SelectLabel>{{ group.label }}视觉模型</SelectLabel>
-                      <SelectItem
-                        v-for="option in group.options"
-                        :key="`vision:${option.key}`"
-                        :value="option.key"
-                      >
-                        {{ option.label }}
-                      </SelectItem>
-                    </SelectGroup>
-                  </template>
-                </SelectContent>
-              </Select>
-            </SettingsRow>
-          </SettingsSection>
+                    <NativeSelectOption v-for="model in editingProviderModels" :key="model" :value="model">
+                      {{ modelDisplayLabel(editingProviderInfo.id, model) }}
+                    </NativeSelectOption>
+                  </NativeSelect>
+                </label>
 
-          <SettingsSection title="NSSCTF Agent Arena" class="mt-6">
+                <p v-if="notice" class="text-caption" :class="notice.tone === 'error' ? 'text-destructive' : 'text-primary'">{{ notice.text }}</p>
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" :loading="saving || verifying" @click="saveProviderEditor(false)">测试连接</Button>
+                <Button :loading="saving || verifying" @click="saveProviderEditor(true)">保存</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </template>
+
+        <template v-else-if="working && category === 'ctf'">
+          <SettingsSection title="NSSCTF Agent Arena">
             <SettingsRow
               stack="always"
               label="Arena Token"
@@ -1601,15 +1634,8 @@ async function save() {
               />
             </SettingsRow>
           </SettingsSection>
-
-          <div class="mt-6 flex items-center justify-between gap-4">
-            <p class="flex items-center gap-2 text-caption text-muted-foreground">
-              <KeyRound class="size-3.5" />
-              凭据写入本机 SQLite；保存后立即重启 Agent 会话引擎，所有 Agent 默认共用同一个模型
-            </p>
-            <Button :loading="saving || verifying" @click="save">
-              {{ verifying ? '正在验证 PI' : '保存并验证' }}
-            </Button>
+          <div class="mt-6 flex justify-end">
+            <Button :loading="saving" @click="save">保存设置</Button>
           </div>
         </template>
 
@@ -1636,5 +1662,22 @@ async function save() {
 .settings-nav-item.active::before { position: absolute; inset-block: .55rem; left: 0; width: 3px; background: var(--brand); box-shadow: 0 0 12px color-mix(in srgb, var(--brand) 45%, transparent); content: ''; }
 .settings-page :deep([data-slot="settings-section"]),
 .settings-page :deep(.rounded-menu-shell) { border-radius: .45rem; }
-@media (max-width: 850px) { .settings-nav { width: 10.5rem; } }
+.model-default-row { min-height: 3.25rem; }
+.model-service-row { transition: background-color 120ms ease, border-color 120ms ease; }
+.model-service-row:hover { background: var(--overlay-hover-light); }
+.model-service-row-primary { box-shadow: inset 3px 0 0 var(--brand); }
+.model-service-icon { box-shadow: inset 0 0 18px color-mix(in srgb, var(--brand) 5%, transparent); }
+.provider-editor-field { display: grid; grid-template-columns: 7rem minmax(0, 1fr); align-items: center; gap: 1rem; font-size: var(--text-body); }
+@media (max-width: 1080px) {
+  .model-service-row { grid-template-columns: 44px minmax(150px, 1fr) 90px auto auto; }
+  .model-service-row > p { display: none; }
+}
+@media (max-width: 850px) {
+  .settings-nav { width: 10.5rem; }
+  .model-service-row { grid-template-columns: 40px minmax(110px, 1fr) auto auto; }
+  .model-service-row > :nth-child(4),
+  .model-service-row > :nth-child(5),
+  .model-service-row > p { display: none; }
+  .provider-editor-field { grid-template-columns: 1fr; gap: .5rem; }
+}
 </style>

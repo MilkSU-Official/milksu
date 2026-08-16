@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -108,5 +109,69 @@ func TestRefreshFailureKeepsBundledCatalog(t *testing.T) {
 	}
 	if after.Source != "bundled" || len(after.Models) != len(before.Models) {
 		t.Fatalf("failure did not preserve bundled catalog: %#v", after)
+	}
+	if strings.Join(before.Models[0].Input, ",") != "text" {
+		t.Fatalf("Grok 4.6 must not inherit unverified image input: %#v", before.Models[0])
+	}
+	if strings.Join(before.Models[1].Input, ",") != "text,image" {
+		t.Fatalf("verified Grok 4.5 image input is missing: %#v", before.Models[1])
+	}
+}
+
+func TestNewReplacesUnversionedCapabilityCache(t *testing.T) {
+	dataDirectory := t.TempDir()
+	cachePath := filepath.Join(dataDirectory, "model-catalog", "tokenflux.json")
+	if err := os.MkdirAll(filepath.Dir(cachePath), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	legacy := `{
+		"provider":"tokenflux",
+		"source":"bundled",
+		"models":[{"id":"x-ai/grok-4.6","name":"Grok 4.6","context_window":500000,"max_tokens":32768,"input":["text","image"]}]
+	}`
+	if err := os.WriteFile(cachePath, []byte(legacy), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	service, err := New(
+		dataDirectory,
+		func() config.AppSettings { return config.DefaultSettings() },
+		Options{},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot := service.Snapshot()
+	if snapshot.Schema != catalogSchema || snapshot.Source != "bundled" {
+		t.Fatalf("legacy cache was not replaced: %#v", snapshot)
+	}
+	if len(snapshot.Models) == 0 || strings.Join(snapshot.Models[0].Input, ",") != "text" {
+		t.Fatalf("legacy unverified Grok 4.6 image input survived: %#v", snapshot.Models)
+	}
+}
+
+func TestNormalizeModelsKeepsOnlyVerifiedOrDeclaredImageInput(t *testing.T) {
+	var payload tokenFluxResponse
+	if err := json.Unmarshal([]byte(`{
+		"data": [
+			{"id":"grok-4.5","type":"model","architecture":{"input_modalities":["text"]}},
+			{"id":"grok-4.6","type":"model","architecture":{"input_modalities":["text"]}},
+			{"id":"x-ai/grok-4.6","type":"model","architecture":{"input_modalities":["text","image"]}}
+		]
+	}`), &payload); err != nil {
+		t.Fatal(err)
+	}
+	models := normalizeModels(payload.Data)
+	inputs := make(map[string]string, len(models))
+	for _, model := range models {
+		inputs[model.ID] = strings.Join(model.Input, ",")
+	}
+	if inputs["grok-4.5"] != "text,image" {
+		t.Fatalf("verified Grok 4.5 capability = %q, want text,image", inputs["grok-4.5"])
+	}
+	if inputs["grok-4.6"] != "text" {
+		t.Fatalf("undeclared Grok 4.6 capability = %q, want text", inputs["grok-4.6"])
+	}
+	if inputs["x-ai/grok-4.6"] != "text,image" {
+		t.Fatalf("declared Grok 4.6 capability = %q, want text,image", inputs["x-ai/grok-4.6"])
 	}
 }

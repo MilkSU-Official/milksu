@@ -17,11 +17,19 @@ describe('model provider catalog', () => {
     expect(tokenflux?.defaultBaseUrl).toBe('https://tokenflux.dev/v1')
     expect(tokenflux?.envKey).toBe('TOKENFLUX_API_KEY')
     expect(tokenflux?.models).toEqual([])
-    expect(tokenflux?.visionModels).toEqual([])
+    expect(tokenflux?.visionModels).toEqual(['grok-4.5', 'x-ai/grok-4.5'])
     expect(providerModelLabel('tokenflux', 'grok-4.3'))
       .toBe('TokenFlux · Grok 4.3')
     expect(providerModelLabel('tokenflux', 'x-ai/grok-4.6'))
       .toBe('TokenFlux · Grok 4.6')
+  })
+
+  it('exposes Groq vision only for its current image-understanding model', () => {
+    const groq = PROVIDERS.find(provider => provider.id === 'groq')
+    expect(groq?.models).toEqual(['qwen/qwen3.6-27b'])
+    expect(groq?.visionModels).toEqual(['qwen/qwen3.6-27b'])
+    expect(providerModelLabel('groq', 'qwen/qwen3.6-27b'))
+      .toBe('Groq · Qwen 3.6 27B')
   })
 
   it('preserves a refreshed model selection that is not in bundled provider metadata', () => {

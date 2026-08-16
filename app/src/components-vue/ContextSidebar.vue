@@ -69,7 +69,7 @@ watch(
 </script>
 
 <template>
-  <div class="coding-context-archive app-drag flex min-w-0 flex-1 flex-col text-sidebar-foreground">
+  <div class="coding-context-archive app-no-drag flex min-w-0 flex-1 flex-col text-sidebar-foreground">
     <nav
       v-if="ctfContext"
       class="app-no-drag flex flex-1 flex-col gap-1 p-3"
@@ -111,15 +111,17 @@ watch(
       </Button>
     </nav>
 
-    <div v-else-if="codingContext" class="app-no-drag flex min-h-0 flex-1 flex-col pt-4">
+    <div v-else-if="codingContext" class="coding-context-content app-no-drag flex min-h-0 flex-1 flex-col">
       <div class="px-3">
         <p class="tactical-label px-0.5 text-primary">Task archive</p>
         <h2 class="mb-3 mt-1 px-0.5 font-semibold">Coding 会话</h2>
         <Button
+          type="button"
           variant="outline"
           size="sm"
           block
-          class="coding-sidebar-control h-7 justify-start"
+          class="coding-new-task-button app-no-drag relative z-10 min-h-9 justify-start"
+          data-testid="coding-new-task-button"
           @click="$emit('new')"
         >
           <MessageSquarePlus class="size-3.5" />
@@ -202,6 +204,18 @@ watch(
   font-size: var(--text-label);
   line-height: var(--text-label--line-height);
   letter-spacing: var(--text-label--letter-spacing);
+}
+
+.coding-new-task-button {
+  font-size: var(--text-label);
+  line-height: var(--text-label--line-height);
+  letter-spacing: var(--text-label--letter-spacing);
+  -webkit-app-region: no-drag;
+}
+
+.coding-context-content {
+  /* Keep every interactive row below Electron's hiddenInset title-bar drag zone. */
+  padding-top: calc(2.1rem + 1rem);
 }
 
 .coding-context-archive {

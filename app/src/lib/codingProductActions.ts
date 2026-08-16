@@ -41,8 +41,7 @@ const actions: Record<CodingProductActionKind, CodingProductAction> = {
     visibleText: '理解项目',
     executionMode: 'plan',
     panel: 'environment',
-    prompt: `[MilkSU product action: Understand project]
-${sharedContract}
+    prompt: `${sharedContract}
 
 Read the repository instructions and enough source/configuration to establish a truthful system map.
 Do not modify files or run mutating commands. Return a compact project brief with:
@@ -63,8 +62,7 @@ Prefer direct repository evidence over README claims when they disagree.`,
     executionMode: 'go',
     approvalPolicy: 'workspace-auto',
     panel: 'environment',
-    prompt: `[MilkSU product action: Run tests]
-${sharedContract}
+    prompt: `${sharedContract}
 
 Inspect repository instructions and package/build configuration, then run the smallest canonical
 verification chain that represents this project. Start with focused tests when the conversation names
@@ -81,8 +79,7 @@ not tested rather than declaring the whole product correct.`,
     visibleText: '审阅变更',
     executionMode: 'plan',
     panel: 'changes',
-    prompt: `[MilkSU product action: Review changes]
-${sharedContract}
+    prompt: `${sharedContract}
 
 Review the current Git working tree as a code reviewer. Read repository instructions, git status,
 staged and unstaged diffs, untracked source files, and enough surrounding code to validate behavior.
@@ -100,8 +97,7 @@ findings, say so and list the residual testing gaps. Do not manufacture findings
     executionMode: 'go',
     approvalPolicy: 'workspace-auto',
     panel: 'environment',
-    prompt: `[MilkSU product action: Fix failure]
-${sharedContract}
+    prompt: `${sharedContract}
 
 Locate the most recent concrete failure in this conversation or repository state. Re-run the smallest
 command that reproduces it before editing. Diagnose the root cause from tool evidence, implement the
@@ -118,8 +114,7 @@ Do not weaken tests, delete evidence, or broadly rewrite unrelated code to make 
     visibleText: '生成总结',
     executionMode: 'plan',
     panel: 'environment',
-    prompt: `[MilkSU product action: Summarize work]
-${sharedContract}
+    prompt: `${sharedContract}
 
 Summarize the current task from conversation and repository evidence. Do not modify files.
 Include:

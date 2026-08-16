@@ -3,6 +3,9 @@
 import { createApp, nextTick, type App } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import AppSidebar from './AppSidebar.vue'
+import appSidebarSource from './AppSidebar.vue?raw'
+import contextSidebarSource from './ContextSidebar.vue?raw'
+import tacticalPanelShellSource from './TacticalPanelShell.vue?raw'
 import type { ThemeMode } from '@/lib/themeMode'
 import type { Conversation } from '@/types'
 
@@ -21,6 +24,7 @@ async function mountSidebar(
   codingContextOpen = false,
   onCloseCodingContext = vi.fn(),
   onSelectConversation = vi.fn(),
+  onNew = vi.fn(),
 ) {
   const host = document.createElement('div')
   document.body.append(host)
@@ -35,6 +39,7 @@ async function mountSidebar(
     onToggleTheme,
     onCloseCodingContext,
     onSelectConversation,
+    onNew,
   })
   app.mount(host)
   mountedApps.push(app)
@@ -62,7 +67,7 @@ describe('AppSidebar', () => {
     expect(vuln.textContent).not.toContain('追踪')
   })
 
-  it('keeps Coding narrow and anchors the controlled conversation drawer to the rail', async () => {
+  it('keeps Coding narrow and anchors the controlled conversation drawer once after the rail', async () => {
     const conversations: Conversation[] = [{
       id: 'conversation-1',
       title: '实现产品闭环',
@@ -91,8 +96,8 @@ describe('AppSidebar', () => {
     expect(coding.textContent).toContain('实现产品闭环')
     const drawer = coding.querySelector('[data-testid="coding-context-drawer"]')
     expect(drawer).not.toBeNull()
-    expect(drawer?.className).toContain('fixed')
-    expect(drawer?.className).not.toContain('left-full')
+    expect(drawer?.className).toContain('app-no-drag')
+    expect(drawer?.className).not.toContain('fixed')
     const backdrop = coding.querySelector<HTMLButtonElement>('[aria-label="关闭 Coding 会话"]')
     expect(backdrop).not.toBeNull()
     expect(backdrop?.className).toContain('backdrop-blur')
@@ -113,6 +118,36 @@ describe('AppSidebar', () => {
     backdrop?.click()
     await nextTick()
     expect(onCloseCodingContext).toHaveBeenCalledOnce()
+  })
+
+  it('makes the complete new-task row a native no-drag click target', async () => {
+    const onCloseCodingContext = vi.fn()
+    const onNew = vi.fn()
+    const host = await mountSidebar(
+      'chat', [], 'dark', vi.fn(), true, onCloseCodingContext, vi.fn(), onNew,
+    )
+    const newTask = host.querySelector<HTMLButtonElement>('[data-testid="coding-new-task-button"]')
+    expect(newTask).not.toBeNull()
+    expect(newTask?.getAttribute('data-block')).toBe('')
+    expect(newTask?.className).toContain('w-full')
+    expect(newTask?.className).toContain('min-h-9')
+    expect(newTask?.className).toContain('app-no-drag')
+
+    newTask?.querySelector<HTMLElement>('[data-button-content]')?.click()
+    await nextTick()
+    expect(onCloseCodingContext).toHaveBeenCalledOnce()
+    expect(onNew).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the drawer and all of its interactive archive out of Electron drag regions', () => {
+    expect(contextSidebarSource).toContain('coding-context-archive app-no-drag')
+    expect(contextSidebarSource).toContain('coding-context-content app-no-drag')
+    expect(contextSidebarSource).toContain('padding-top: calc(2.1rem + 1rem)')
+    expect(contextSidebarSource).toContain('coding-new-task-button app-no-drag')
+    expect(tacticalPanelShellSource).toContain('position: var(--tactical-panel-position, relative)')
+    expect(appSidebarSource).toContain('--tactical-panel-position: absolute')
+    expect(appSidebarSource).toContain('left: 100%')
+    expect(appSidebarSource).not.toContain('.coding-context-drawer { left: 13.5rem; }')
   })
 
   it('uses rail-local selection styling instead of inherited button hover borders', async () => {

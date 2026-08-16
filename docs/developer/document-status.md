@@ -29,8 +29,10 @@
 - Worktree 隔离与写入边界、`.worktreeinclude` CoW、精确 submodule 已落地；干净 Git 任务在首次
   effectful 回合由 Agent 自动准备内部 writer，用户不再选择或看到 worktree / writer 控件。
 - **Grok 看图已通过**：打包 App + TokenFlux 真实 `grok-4.5` 原生 image input；中文识别任务列表、
-  进度胶囊和输入栏，且未调用工具。`grok-4.3` 仍为 text-only。text-only 路径继续 OCR + 可选
-  auxiliary vision。
+  进度胶囊和输入栏，且未调用工具。当前代码由所选模型的 image input 能力自动决定原图透传或本地
+  OCR，不再配置第二个视觉模型；`grok-4.5` 保留真实回执，`grok-4.6` 只接受远端目录的明确能力声明，
+  Groq 当前官方视觉项为 `qwen/qwen3.6-27b`。这次自动路由仅完成局部自动化，尚未重新打包复检
+  Computer Use 截图，也未真实调用 Groq 视觉模型。
 - **功能代码自举已有真实部分纵切**：自动执行环境、运行中消息 steering/queue、Git 文件悬浮跳转、
   CTF/CVE 共享 Coding/Pi、Stable/Beta 身份与构建追踪已实现并测试。正式 Stable 已用内部 Computer Use
   核对干净 Beta 的 branch/40 位 commit/tracking ID，并完成 CTF/CVE 任务连续性、PiP 与返回路径全程。

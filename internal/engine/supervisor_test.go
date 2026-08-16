@@ -8,10 +8,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/MilkSU-Official/milksu/internal/appdata"
 	"github.com/MilkSU-Official/milksu/internal/config"
 )
 
@@ -157,6 +159,23 @@ func TestNormalizeSteeringQueue(t *testing.T) {
 	}
 }
 
+func TestNormalizeQueuedMessageRemovalReceipt(t *testing.T) {
+	event := normalizeBridgeEvent(bridgeEvent{
+		Type:      "queued_message_removed",
+		ID:        "session-1",
+		RequestID: "queue-remove-1",
+		Steering:  []string{"仍在等待"},
+		FollowUp:  []string{"最后总结"},
+	})
+	if event.Type != "runtime.queued_message_removed" ||
+		event.RequestID != "queue-remove-1" ||
+		!event.Done ||
+		len(event.Steering) != 1 ||
+		len(event.FollowUp) != 1 {
+		t.Fatalf("unexpected queue removal receipt: %#v", event)
+	}
+}
+
 func TestNormalizeSteeringRejectionWithoutEndingTurn(t *testing.T) {
 	event := normalizeBridgeEvent(bridgeEvent{
 		Type:  "steer_rejected",
@@ -285,10 +304,15 @@ func TestRefreshBackgroundTasksRecoversRunningTasksWithoutModelTurn(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
+	additionalWorkspace, err := resolveAgentWorkspace(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	supervisor := NewSupervisor(nil)
 	supervisor.process = &childProcess{
-		stdin:     writer,
-		workspace: workspace,
+		stdin:                writer,
+		workspace:            workspace,
+		workspaceAccessPaths: []string{additionalWorkspace},
 	}
 	type refreshResult struct {
 		status RuntimeStatus
@@ -296,9 +320,10 @@ func TestRefreshBackgroundTasksRecoversRunningTasksWithoutModelTurn(t *testing.T
 	}
 	result := make(chan refreshResult, 1)
 	go func() {
-		status, refreshErr := supervisor.RefreshBackgroundTasks(
+		status, refreshErr := supervisor.RefreshBackgroundTasksWithWorkspaceAccess(
 			"session-recovery",
 			workspace,
+			[]string{additionalWorkspace},
 			"go",
 			"workspace-auto",
 			config.DefaultSettings(),
@@ -356,6 +381,12 @@ func TestRefreshBackgroundTasksRecoversRunningTasksWithoutModelTurn(t *testing.T
 		recovery["recoveryPurpose"] != "background-tasks" {
 		t.Fatalf("unexpected background recovery command: %#v", recovery)
 	}
+	if !reflect.DeepEqual(
+		recovery["workspaceAccessPaths"],
+		[]any{additionalWorkspace},
+	) {
+		t.Fatalf("background recovery lost authorized workspaces: %#v", recovery)
+	}
 	for _, forbidden := range []string{
 		"prompt",
 		"provider",
@@ -410,9 +441,10 @@ func TestRefreshBackgroundTasksRecoversRunningTasksWithoutModelTurn(t *testing.T
 	}
 
 	go func() {
-		status, refreshErr := supervisor.RefreshBackgroundTasks(
+		status, refreshErr := supervisor.RefreshBackgroundTasksWithWorkspaceAccess(
 			"session-recovery",
 			workspace,
+			[]string{additionalWorkspace},
 			"go",
 			"workspace-auto",
 			config.DefaultSettings(),
@@ -760,6 +792,43 @@ func TestNormalizeApprovalLifecycle(t *testing.T) {
 	}
 }
 
+func TestRespondWorkspaceAccessWritesBoundedSidecarReceipt(t *testing.T) {
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	defer writer.Close()
+	supervisor := NewSupervisor(func(Event) {})
+	supervisor.process = &childProcess{stdin: writer, workspace: "/workspace"}
+	supervisor.sessions["session-1"] = struct{}{}
+
+	if err := supervisor.RespondWorkspaceAccess(
+		"session-1",
+		"workspace-1",
+		"/workspace/other",
+		[]string{"/workspace/other"},
+		true,
+		"",
+	); err != nil {
+		t.Fatal(err)
+	}
+	line, err := bufio.NewReader(reader).ReadBytes('\n')
+	if err != nil {
+		t.Fatal(err)
+	}
+	var command map[string]any
+	if err := json.Unmarshal(line, &command); err != nil {
+		t.Fatal(err)
+	}
+	if command["action"] != "workspace_access_response" ||
+		command["requestId"] != "workspace-1" ||
+		command["path"] != "/workspace/other" ||
+		command["restartRequired"] != true {
+		t.Fatalf("unexpected workspace response: %#v", command)
+	}
+}
+
 func TestNormalizeAssistantToolSegmentDoesNotCompleteTurn(t *testing.T) {
 	event := normalizeBridgeEvent(bridgeEvent{
 		Type: "message_segment_done", ID: "session-1", Content: "先运行验收。",
@@ -946,6 +1015,144 @@ func TestSendMessageRejectsMissingKeyBeforeStartingSidecar(t *testing.T) {
 	}
 }
 
+func TestSendMessageCarriesAdditionalWorkspaceScopeToPi(t *testing.T) {
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	defer writer.Close()
+	workspace, err := resolveAgentWorkspace(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	additional, err := resolveAgentWorkspace(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	supervisor := NewSupervisor(nil)
+	supervisor.process = &childProcess{
+		stdin:                writer,
+		workspace:            workspace,
+		workspaceAccessPaths: []string{additional},
+	}
+	defer func() {
+		supervisor.mu.Lock()
+		supervisor.stopAllTurnTimersLocked()
+		supervisor.process = nil
+		supervisor.sessions = make(map[string]struct{})
+		supervisor.mu.Unlock()
+	}()
+
+	if err := supervisor.SendMessageWithWorkspaceAccess(
+		"session-cross-project",
+		"compare both projects",
+		workspace,
+		[]string{additional},
+		"",
+		"go",
+		"workspace-auto",
+		nil,
+		"",
+		nil,
+		nil,
+		nil,
+		nil,
+		modelSelectionSettings(),
+	); err != nil {
+		t.Fatal(err)
+	}
+	line, err := bufio.NewReader(reader).ReadBytes('\n')
+	if err != nil {
+		t.Fatal(err)
+	}
+	var command map[string]any
+	if err := json.Unmarshal(line, &command); err != nil {
+		t.Fatal(err)
+	}
+	if command["action"] != "send_message" ||
+		command["conversationId"] != "session-cross-project" ||
+		!reflect.DeepEqual(command["workspaceAccessPaths"], []any{additional}) {
+		t.Fatalf("Pi command lost additional workspace scope: %#v", command)
+	}
+}
+
+func TestResolvedUserInterfaceLocale(t *testing.T) {
+	settings := modelSelectionSettings()
+	if got := resolvedUserInterfaceLocale(settings); got != "zh" {
+		t.Fatalf("default interface locale = %q, want zh", got)
+	}
+	locale := "EN"
+	settings.Locale = &locale
+	if got := resolvedUserInterfaceLocale(settings); got != "en" {
+		t.Fatalf("configured interface locale = %q, want en", got)
+	}
+}
+
+func TestSidecarRestartsWhenConversationWorkspaceAccessChanges(t *testing.T) {
+	directory := t.TempDir()
+	node := filepath.Join(directory, "node")
+	bridge := filepath.Join(directory, "chat-bridge.cjs")
+	if err := os.WriteFile(
+		node,
+		[]byte("#!/bin/sh\nwhile IFS= read -r line; do :; done\n"),
+		0o700,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(bridge, []byte("bridge"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("MILKSU_SIDECAR_DIR", directory)
+	t.Setenv(appdata.DirectoryOverrideEnv, filepath.Join(t.TempDir(), "appdata"))
+	workspace := t.TempDir()
+	additional := t.TempDir()
+	resolvedAdditional, err := filepath.EvalSymlinks(additional)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	supervisor := NewSupervisor(nil)
+	defer supervisor.Close()
+	supervisor.mu.Lock()
+	err = supervisor.ensureProcessLockedWithWorkspaceAccess(
+		config.DefaultSettings(),
+		workspace,
+		nil,
+	)
+	first := supervisor.process
+	if err == nil {
+		err = supervisor.ensureProcessLockedWithWorkspaceAccess(
+			config.DefaultSettings(),
+			workspace,
+			[]string{additional},
+		)
+	}
+	second := supervisor.process
+	if err == nil {
+		err = supervisor.ensureProcessLockedWithWorkspaceAccess(
+			config.DefaultSettings(),
+			workspace,
+			nil,
+		)
+	}
+	third := supervisor.process
+	supervisor.mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first == nil || second == nil || first == second {
+		t.Fatal("workspace scope change did not replace the packaged Sidecar process")
+	}
+	if !reflect.DeepEqual(second.workspaceAccessPaths, []string{resolvedAdditional}) {
+		t.Fatalf("restarted Sidecar lost the reviewed roots: %#v", second.workspaceAccessPaths)
+	}
+	if third == nil || third == second || len(third.workspaceAccessPaths) != 0 {
+		t.Fatal("revoking the directory did not restart Sidecar without that root")
+	}
+}
+
 func TestSteerMessageUsesExistingPiSession(t *testing.T) {
 	reader, writer, err := os.Pipe()
 	if err != nil {
@@ -980,6 +1187,125 @@ func TestSteerMessageUsesExistingPiSession(t *testing.T) {
 		command["conversationId"] != "session-1" ||
 		command["prompt"] != "不要改 API，先补测试" {
 		t.Fatalf("unexpected steering command: %#v", command)
+	}
+}
+
+func TestRemoveQueuedMessageWaitsForExactSidecarReceipt(t *testing.T) {
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	defer writer.Close()
+
+	supervisor := NewSupervisor(nil)
+	supervisor.process = &childProcess{stdin: writer, workspace: t.TempDir()}
+	supervisor.sessions["session-1"] = struct{}{}
+	defer func() {
+		supervisor.mu.Lock()
+		supervisor.process = nil
+		supervisor.sessions = make(map[string]struct{})
+		supervisor.mu.Unlock()
+	}()
+
+	result := make(chan error, 1)
+	go func() {
+		result <- supervisor.RemoveQueuedMessageWithTimeout(
+			"session-1",
+			"steering",
+			1,
+			"再检查失败测试",
+			time.Second,
+		)
+	}()
+
+	line, err := bufio.NewReader(reader).ReadBytes('\n')
+	if err != nil {
+		t.Fatal(err)
+	}
+	var command map[string]any
+	if err := json.Unmarshal(line, &command); err != nil {
+		t.Fatal(err)
+	}
+	requestID, _ := command["requestId"].(string)
+	if command["action"] != "remove_queued_message" ||
+		command["conversationId"] != "session-1" ||
+		command["queue"] != "steering" ||
+		command["index"] != float64(1) ||
+		command["expected"] != "再检查失败测试" ||
+		requestID == "" {
+		t.Fatalf("unexpected queue removal command: %#v", command)
+	}
+
+	supervisor.emitEvent(normalizeBridgeEvent(bridgeEvent{
+		Type:      "queued_message_removed",
+		ID:        "session-1",
+		RequestID: requestID,
+		Steering:  []string{"先保留修改"},
+	}))
+
+	select {
+	case removeErr := <-result:
+		if removeErr != nil {
+			t.Fatal(removeErr)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("queue removal receipt was not delivered")
+	}
+}
+
+func TestRemoveQueuedMessageSurfacesStaleQueueFailure(t *testing.T) {
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	defer writer.Close()
+
+	supervisor := NewSupervisor(nil)
+	supervisor.process = &childProcess{stdin: writer, workspace: t.TempDir()}
+	supervisor.sessions["session-1"] = struct{}{}
+	defer func() {
+		supervisor.mu.Lock()
+		supervisor.process = nil
+		supervisor.sessions = make(map[string]struct{})
+		supervisor.mu.Unlock()
+	}()
+
+	result := make(chan error, 1)
+	go func() {
+		result <- supervisor.RemoveQueuedMessageWithTimeout(
+			"session-1",
+			"steering",
+			0,
+			"旧消息",
+			time.Second,
+		)
+	}()
+
+	line, err := bufio.NewReader(reader).ReadBytes('\n')
+	if err != nil {
+		t.Fatal(err)
+	}
+	var command map[string]any
+	if err := json.Unmarshal(line, &command); err != nil {
+		t.Fatal(err)
+	}
+	requestID, _ := command["requestId"].(string)
+	supervisor.emitEvent(normalizeBridgeEvent(bridgeEvent{
+		Type:      "queued_message_removed",
+		ID:        "session-1",
+		RequestID: requestID,
+		Error:     "queued message changed before it could be removed",
+	}))
+
+	select {
+	case removeErr := <-result:
+		if removeErr == nil || !strings.Contains(removeErr.Error(), "changed before") {
+			t.Fatalf("expected stale queue failure, got %v", removeErr)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("queue removal failure receipt was not delivered")
 	}
 }
 
@@ -1027,11 +1353,14 @@ func TestGenerateTextUsesSilentToolFreePiTurn(t *testing.T) {
 	}
 	sessionID, _ := command["conversationId"].(string)
 	prompt, _ := command["prompt"].(string)
+	turnPolicy, _ := command["turnPolicy"].(map[string]any)
 	if command["action"] != "send_message" ||
 		command["executionMode"] != "plan" ||
 		command["approvalPolicy"] != "read-only" ||
 		!strings.HasPrefix(sessionID, "milksu_text_projection_") ||
-		!strings.HasPrefix(prompt, "Do not call any Agent tools.") {
+		prompt != "return semantic JSON" ||
+		turnPolicy["toolAccess"] != "none" ||
+		turnPolicy["reason"] != "text_projection" {
 		t.Fatalf("unexpected text projection command: %#v", command)
 	}
 
@@ -1060,6 +1389,121 @@ func TestGenerateTextUsesSilentToolFreePiTurn(t *testing.T) {
 	case event := <-publicEvents:
 		t.Fatalf("delayed projection cleanup leaked to product stream: %#v", event)
 	default:
+	}
+}
+
+func TestSendMessageCarriesTypedProductActionToPi(t *testing.T) {
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	defer writer.Close()
+
+	workspace, err := resolveAgentWorkspace(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	supervisor := NewSupervisor(nil)
+	supervisor.process = &childProcess{stdin: writer, workspace: workspace}
+	defer func() {
+		supervisor.mu.Lock()
+		supervisor.stopAllTurnTimersLocked()
+		supervisor.process = nil
+		supervisor.sessions = make(map[string]struct{})
+		supervisor.mu.Unlock()
+	}()
+
+	err = supervisor.SendMessageWithWorkspaceAccessAndProductAction(
+		"session-product-action",
+		"run the repository test contract",
+		workspace,
+		nil,
+		"",
+		"go",
+		"workspace-auto",
+		nil,
+		"",
+		nil,
+		nil,
+		nil,
+		nil,
+		&CodingProductActionDescriptor{Kind: "test"},
+		modelSelectionSettings(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	line, err := bufio.NewReader(reader).ReadBytes('\n')
+	if err != nil {
+		t.Fatal(err)
+	}
+	var command map[string]any
+	if err := json.Unmarshal(line, &command); err != nil {
+		t.Fatal(err)
+	}
+	action, _ := command["productAction"].(map[string]any)
+	if command["action"] != "send_message" || action["kind"] != "test" {
+		t.Fatalf("Pi command lost typed product action: %#v", command)
+	}
+	if command["locale"] != "zh" {
+		t.Fatalf("Pi command lost the user-interface locale: %#v", command)
+	}
+
+	err = supervisor.SendMessageWithWorkspaceAccess(
+		"session-ordinary-prompt",
+		"[MilkSU product action: Run tests]\nThis is ordinary user text.",
+		workspace,
+		nil,
+		"",
+		"go",
+		"workspace-auto",
+		nil,
+		"",
+		nil,
+		nil,
+		nil,
+		nil,
+		modelSelectionSettings(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	line, err = bufio.NewReader(reader).ReadBytes('\n')
+	if err != nil {
+		t.Fatal(err)
+	}
+	command = nil
+	if err := json.Unmarshal(line, &command); err != nil {
+		t.Fatal(err)
+	}
+	if _, exists := command["productAction"]; exists {
+		t.Fatalf("ordinary prompt text activated a product action: %#v", command)
+	}
+}
+
+func TestSendMessageRejectsUnknownTypedProductAction(t *testing.T) {
+	supervisor := NewSupervisor(nil)
+	err := supervisor.SendMessageWithWorkspaceAccessAndProductAction(
+		"session-product-action",
+		"run it",
+		"",
+		nil,
+		"",
+		"go",
+		"workspace-auto",
+		nil,
+		"",
+		nil,
+		nil,
+		nil,
+		nil,
+		&CodingProductActionDescriptor{Kind: "whatever"},
+		modelSelectionSettings(),
+	)
+	if err == nil || !strings.Contains(err.Error(), "unsupported Coding product action") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
@@ -1381,6 +1825,86 @@ func TestCodingSidecarAllowsOnlyTheRequiredSystemShells(t *testing.T) {
 	}
 }
 
+func TestCodingSidecarGrantsNodePermissionsToAdditionalWorkspaces(t *testing.T) {
+	directory := t.TempDir()
+	node := filepath.Join(directory, "node")
+	bridge := filepath.Join(directory, "chat-bridge.cjs")
+	if err := os.WriteFile(node, []byte("runtime"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(bridge, []byte("bridge"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("MILKSU_SIDECAR_DIR", directory)
+	workspace := t.TempDir()
+	additional := t.TempDir()
+
+	command, err := newSidecarCommandAtWithDirectoryAndRoots(
+		"chat-bridge.cjs",
+		"bridge.js",
+		workspace,
+		[]string{additional},
+		true,
+		"",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolvedAdditional, err := filepath.EvalSymlinks(additional)
+	if err != nil {
+		t.Fatal(err)
+	}
+	arguments := strings.Join(command.Args, "\n")
+	for _, expected := range []string{
+		"--allow-fs-read=" + resolvedAdditional,
+		"--allow-fs-write=" + resolvedAdditional,
+	} {
+		if !strings.Contains(arguments, expected) {
+			t.Fatalf("Coding Sidecar is missing %q: %s", expected, arguments)
+		}
+	}
+}
+
+func TestResolveAgentWorkspaceAccessPathsRejectsBroadAndInvalidScopes(t *testing.T) {
+	workspace := t.TempDir()
+	additional := t.TempDir()
+	resolvedAdditional, err := filepath.EvalSymlinks(additional)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolved, err := resolveAgentWorkspaceAccessPaths(
+		workspace,
+		[]string{additional, additional},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(resolved, []string{resolvedAdditional}) {
+		t.Fatalf("unexpected resolved access paths: %#v", resolved)
+	}
+
+	wholeHome := t.TempDir()
+	resolvedWholeHome, err := resolveAgentWorkspaceAccessPaths(workspace, []string{wholeHome})
+	if err != nil {
+		t.Fatalf("explicit whole-home-style grant should be accepted: %v", err)
+	}
+	canonicalWholeHome, err := filepath.EvalSymlinks(wholeHome)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(resolvedWholeHome, []string{canonicalWholeHome}) {
+		t.Fatalf("whole-home-style grant = %#v", resolvedWholeHome)
+	}
+
+	values := make([]string, 9)
+	for index := range values {
+		values[index] = additional
+	}
+	if _, err := resolveAgentWorkspaceAccessPaths(workspace, values); err == nil {
+		t.Fatal("expected more than eight access paths to be rejected")
+	}
+}
+
 func TestWorkspaceTemporaryDirectoryStaysOutsideAgentWorkspace(t *testing.T) {
 	workspace := t.TempDir()
 	runtimeHome := t.TempDir()
@@ -1582,23 +2106,17 @@ func TestEngineEnvironmentIncludesTokenFluxProvider(t *testing.T) {
 	}
 }
 
-func TestSidecarEnvironmentIncludesConfiguredVisionRoute(t *testing.T) {
+func TestSidecarEnvironmentIncludesLocalOCRCacheWithoutVisionRoute(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
 	settings := config.DefaultSettings()
-	settings.VisionModel = &config.ModelSelection{
-		Provider: "openai",
-		Model:    "gpt-4o",
-	}
 	environment, err := sidecarEnvironment(settings)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{
-		"MILKSU_VISION_PROVIDER=openai",
-		"MILKSU_VISION_MODEL=gpt-4o",
-	} {
-		if !containsEnvironmentEntry(environment, expected) {
-			t.Fatalf("expected %q in %#v", expected, environment)
+	for _, entry := range environment {
+		if strings.HasPrefix(entry, "MILKSU_VISION_PROVIDER=") ||
+			strings.HasPrefix(entry, "MILKSU_VISION_MODEL=") {
+			t.Fatalf("obsolete auxiliary vision route leaked into environment: %q", entry)
 		}
 	}
 	foundCache := false
@@ -1610,6 +2128,25 @@ func TestSidecarEnvironmentIncludesConfiguredVisionRoute(t *testing.T) {
 	}
 	if !foundCache {
 		t.Fatalf("vision cache path missing from %#v", environment)
+	}
+}
+
+func TestSidecarEnvironmentPublishesCanonicalUserHomeWithoutGrantingIt(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	environment, err := sidecarEnvironment(config.DefaultSettings())
+	if err != nil {
+		t.Fatal(err)
+	}
+	userHome, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	canonicalUserHome, err := filepath.EvalSymlinks(userHome)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !containsEnvironmentEntry(environment, "MILKSU_USER_HOME="+canonicalUserHome) {
+		t.Fatalf("canonical user home missing from %#v", environment)
 	}
 }
 

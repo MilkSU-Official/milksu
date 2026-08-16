@@ -62,16 +62,6 @@ const workspaceSchemaVersion = "ctf-workspace.milksu.dev/v1alpha2";
 const toolBuilderRole = "tool-builder";
 const strategistRole = "strategist";
 const codingToolNames = ["read", "bash", "edit", "write", "grep", "find", "ls"];
-const codingArchitectureToolNames = [
-  "read",
-  "grep",
-  "find",
-  "ls",
-  "write",
-  "milksu_archify",
-  "milksu_progress",
-  ...codingGoalToolNames,
-];
 const codingProductReadOnlyToolNames = [
   "read",
   "grep",
@@ -436,7 +426,28 @@ function createSandboxedBashOperations(
         throw new Error("CTF bash containment is currently available only on macOS");
       }
       const canonicalWorkspace = await resolveReviewedWorkspace(workspace);
-      const canonicalCwd = await assertWorkspacePath(canonicalWorkspace, cwd);
+      const writableRoots = [canonicalWorkspace];
+      for (const value of extraWritableRoots) {
+        try {
+          writableRoots.push(await realpath(value));
+        } catch (error) {
+          if (error?.code !== "ENOENT") throw error;
+        }
+      }
+      let canonicalCwd;
+      for (const allowedRoot of writableRoots) {
+        try {
+          canonicalCwd = await assertWorkspacePath(allowedRoot, cwd);
+          break;
+        } catch {
+          // Try the next explicitly authorized writable project.
+        }
+      }
+      if (!canonicalCwd) {
+        throw new Error(
+          `MilkSU workspace policy denied command cwd outside authorized projects: ${cwd}`,
+        );
+      }
       const runtimeDirectory = commandRuntimeDirectory(canonicalWorkspace);
       const runtimeHome = join(runtimeDirectory, "home");
       const runtimeTemporary = join(runtimeDirectory, "tmp");
@@ -568,15 +579,43 @@ export async function prepareCodingBackgroundAuthorization(
   approvalPolicy,
   input,
   resourceReadRoots = [],
+  workspaceAccessPaths = [],
 ) {
   const root = await resolveReviewedWorkspace(workspace);
+  const writableRoots = [root];
+  for (const value of workspaceAccessPaths) {
+    try {
+      const reviewed = await realpath(value);
+      if (reviewed !== root && !writableRoots.includes(reviewed)) {
+        writableRoots.push(reviewed);
+      }
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error;
+    }
+  }
   const requested = typeof input?.cwd === "string" && input.cwd.trim()
     ? input.cwd.trim()
     : root;
   const candidate = isAbsolute(requested) ? requested : resolve(root, requested);
   const cwd = candidate === root ? root : await realpath(candidate);
   const fullAccess = approvalPolicy === "full-auto";
-  if (!fullAccess) await assertWorkspacePath(root, cwd);
+  if (!fullAccess) {
+    let authorized = false;
+    for (const allowedRoot of writableRoots) {
+      try {
+        await assertWorkspacePath(allowedRoot, cwd);
+        authorized = true;
+        break;
+      } catch {
+        // Try the next explicitly authorized project root.
+      }
+    }
+    if (!authorized) {
+      throw new Error(
+        `MilkSU workspace policy denied background cwd outside authorized projects: ${cwd}`,
+      );
+    }
+  }
 
   const readableRoots = [];
   for (const value of resourceReadRoots) {
@@ -597,6 +636,7 @@ export async function prepareCodingBackgroundAuthorization(
     cwd,
     mode: fullAccess ? "full-auto" : "workspace-auto",
     readableRoots,
+    writableRoots: writableRoots.slice(1),
     runtimeDirectory,
   };
 }
@@ -641,9 +681,10 @@ export function buildCodingBackgroundLaunch(
   }
   if (
     authorization.mode !== "full-auto"
-    && relative(workspace, cwd).split(sep).includes("..")
+    && ![workspace, ...(authorization.writableRoots || [])]
+      .some(root => within(resolve(root), cwd))
   ) {
-    throw new Error("MilkSU denied a background process outside the selected project");
+    throw new Error("MilkSU denied a background process outside authorized projects");
   }
 
   const explicitEnvironment = sanitizedBackgroundEnvironment(specification.env);
@@ -679,7 +720,12 @@ export function buildCodingBackgroundLaunch(
         [],
         false,
         [...authorization.readableRoots, runtimeBin],
-        [runtimeHome, runtimeTemporary, outputPath].filter(Boolean),
+        [
+          ...(authorization.writableRoots || []),
+          runtimeHome,
+          runtimeTemporary,
+          outputPath,
+        ].filter(Boolean),
       ),
       command,
       ...argumentsList,
@@ -1336,61 +1382,15 @@ async function findWorkspaceFiles(workspace, start, pattern, limit) {
   return matches;
 }
 
-const codingArchitectureHeader = "[MilkSU product action: Generate architecture diagram]";
-const codingProductActionHeaders = new Map([
-  ["[MilkSU product action: Understand project]", "understand"],
-  ["[MilkSU product action: Run tests]", "test"],
-  ["[MilkSU product action: Review changes]", "review"],
-  ["[MilkSU product action: Fix failure]", "fix"],
-  ["[MilkSU product action: Summarize work]", "summary"],
-]);
-
-export function parseCodingProductAction(prompt) {
-  const value = String(prompt || "");
-  if (value.startsWith(codingArchitectureHeader)) {
-    const specPath = /^Product spec path: (.+)$/m.exec(value)?.[1]?.trim();
-    const htmlPath = /^Product HTML path: (.+)$/m.exec(value)?.[1]?.trim();
-    if (!specPath || !htmlPath) return undefined;
-    return {
-      kind: "architecture",
-      specPath,
-      htmlPath,
-    };
-  }
-  for (const [header, kind] of codingProductActionHeaders) {
-    if (value.startsWith(header)) return { kind };
-  }
-  return undefined;
-}
-
-function normalizedCodingProductAction(workspace, value) {
+export function normalizeCodingProductAction(_workspace, value) {
   if (!value || typeof value !== "object") return undefined;
   if (["understand", "test", "review", "fix", "summary"].includes(value.kind)) {
     return { kind: value.kind };
   }
-  if (value.kind !== "architecture") return undefined;
-  const normalizeOutput = (path, extension) => {
-    const candidate = String(path || "").trim().replaceAll("\\", "/");
-    const allowedPrefix = "docs/architecture/generated/";
-    if (
-      !candidate.startsWith(allowedPrefix)
-      || candidate.includes("../")
-      || candidate.startsWith("/")
-      || !candidate.endsWith(extension)
-    ) {
-      throw new Error(`MilkSU rejected unsafe architecture output path: ${candidate || "(empty)"}`);
-    }
-    return relative(workspace, resolve(workspace, candidate)).replaceAll("\\", "/");
-  };
-  return {
-    kind: "architecture",
-    specPath: normalizeOutput(value.specPath, ".architecture.json"),
-    htmlPath: normalizeOutput(value.htmlPath, ".html"),
-  };
+  return undefined;
 }
 
 function codingProductActionTools(action, fallback) {
-  if (action?.kind === "architecture") return [...codingArchitectureToolNames];
   if (["understand", "review", "summary"].includes(action?.kind)) {
     return [...codingProductReadOnlyToolNames];
   }
@@ -1454,21 +1454,6 @@ function createArchifyTool(workspace, reviewedResourceRoots, productAction) {
           false,
         );
         argumentsList.push(output);
-      }
-      if (productAction?.kind === "architecture") {
-        const inputRelative = relative(root, input).replaceAll("\\", "/");
-        const outputRelative = output
-          ? relative(root, output).replaceAll("\\", "/")
-          : "";
-        if (
-          inputRelative !== productAction.specPath
-          || (
-            params.action === "deliver"
-            && outputRelative !== productAction.htmlPath
-          )
-        ) {
-          throw new Error("MilkSU architecture action denied an unexpected input or output path");
-        }
       }
       argumentsList.push("--quality", quality, "--json", "--repo-root", root);
 
@@ -1571,16 +1556,28 @@ async function resolveReviewedWorkspace(workspace) {
 async function createCodingToolDefinitions(
   workspace,
   resourceReadRoots = [],
+  workspaceAccessPaths = [],
   approvalPolicy = "workspace-auto",
   productAction = undefined,
   codingCollaboration = undefined,
 ) {
   const root = await resolveReviewedWorkspace(workspace);
   const reviewedResourceRoots = [];
+  const authorizedWorkspaceRoots = [];
   const collaborationPaths = [];
   for (const value of resourceReadRoots) {
     try {
       reviewedResourceRoots.push(await realpath(value));
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error;
+    }
+  }
+  for (const value of workspaceAccessPaths) {
+    try {
+      const reviewed = await realpath(value);
+      if (reviewed !== root && !authorizedWorkspaceRoots.includes(reviewed)) {
+        authorizedWorkspaceRoots.push(reviewed);
+      }
     } catch (error) {
       if (error?.code !== "ENOENT") throw error;
     }
@@ -1597,7 +1594,11 @@ async function createCodingToolDefinitions(
   const protectedEntries = [".git", ".milksu"];
   const ensure = path => assertWorkspacePath(root, path);
   const resolveReadScope = async path => {
-    for (const allowedRoot of [root, ...reviewedResourceRoots]) {
+    for (const allowedRoot of [
+      root,
+      ...authorizedWorkspaceRoots,
+      ...reviewedResourceRoots,
+    ]) {
       try {
         return {
           root: allowedRoot,
@@ -1612,11 +1613,11 @@ async function createCodingToolDefinitions(
     );
   };
   const ensureRead = async path => (await resolveReadScope(path)).path;
-  const ensureMutation = async (path, allowArchitectureParent = false) => {
+  const ensureMutation = async path => {
     const requestedPath = resolve(path);
     const owner = await mutationOwnerRoot(
       requestedPath,
-      [root, ...collaborationPaths],
+      [root, ...authorizedWorkspaceRoots, ...collaborationPaths],
     );
     const ownerSegments = owner
       ? relative(owner.root, owner.ownedPath).split(sep)
@@ -1635,27 +1636,6 @@ async function createCodingToolDefinitions(
       protectedEntries,
       false,
     );
-    const relativePath = relative(owner.root, safePath).replaceAll("\\", "/");
-    if (productAction?.kind === "architecture") {
-      if (owner.root !== root) {
-        throw new Error(
-          `MilkSU architecture action only allows writing ${productAction.specPath}`,
-        );
-      }
-      const architecturePathAllowed = relativePath === productAction.specPath
-        || (
-          allowArchitectureParent
-          && (
-            relativePath === ""
-            || productAction.specPath.startsWith(`${relativePath}/`)
-          )
-        );
-      if (!architecturePathAllowed) {
-        throw new Error(
-          `MilkSU architecture action only allows writing ${productAction.specPath}`,
-        );
-      }
-    }
     return safePath;
   };
   const readOperations = {
@@ -1682,8 +1662,8 @@ async function createCodingToolDefinitions(
         true,
         [],
         false,
-        reviewedResourceRoots,
-        collaborationPaths,
+        [...authorizedWorkspaceRoots, ...reviewedResourceRoots],
+        [...authorizedWorkspaceRoots, ...collaborationPaths],
       );
   const definitions = [
     createReadToolDefinition(root, { operations: readOperations }),
@@ -1763,9 +1743,13 @@ async function createCodingToolDefinitions(
         readdir: async path => readdir(await ensureRead(path)),
       },
     }),
-    createArchifyTool(root, reviewedResourceRoots, productAction),
+    createArchifyTool(
+      root,
+      [...authorizedWorkspaceRoots, ...reviewedResourceRoots],
+      productAction,
+    ),
     createImageGenTool(root, {
-      ensureRead: ensure,
+      ensureRead,
       ensureMutation,
     }),
   ];
@@ -1774,7 +1758,7 @@ async function createCodingToolDefinitions(
     ? " Full Access runs commands automatically with the current local user authority. "
       + "Model-provider secrets are removed from child-process environments."
     : " Project Auto runs development commands with network access while macOS sandboxing keeps "
-      + "file writes inside the selected project or registered writer worktrees and blocks local "
+      + "file writes inside the selected or explicitly authorized projects and registered writer worktrees and blocks local "
       + "credential directories.";
   return definitions;
 }
@@ -1919,6 +1903,23 @@ export async function createCTFToolDefinitions(
 
 async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
   const root = await resolveReviewedWorkspace(workspace);
+  if (
+    Array.isArray(codingPolicy.workspaceAccessPaths)
+    && codingPolicy.workspaceAccessPaths.length > 8
+  ) {
+    throw new Error("MilkSU supports at most 8 additional project directories");
+  }
+  const workspaceAccessPaths = [];
+  for (const value of Array.isArray(codingPolicy.workspaceAccessPaths)
+    ? codingPolicy.workspaceAccessPaths.slice(0, 8)
+    : []) {
+    const candidate = String(value ?? "").trim();
+    if (!candidate) continue;
+    const reviewed = await realpath(candidate);
+    if (reviewed !== root && !workspaceAccessPaths.includes(reviewed)) {
+      workspaceAccessPaths.push(reviewed);
+    }
+  }
   const normalized = normalizeCodingPolicy(
     codingPolicy.executionMode,
     codingPolicy.approvalPolicy,
@@ -1962,7 +1963,7 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
       }
     : undefined;
   const codingCollaboration = codingPolicy.codingCollaboration;
-  const productAction = normalizedCodingProductAction(
+  const productAction = normalizeCodingProductAction(
     root,
     codingPolicy.productAction,
   );
@@ -2069,6 +2070,7 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
     activeTools,
     capabilities,
     workspace: root,
+    workspaceAccessPaths,
     productAction,
     mcpServers,
     projectMcpServers,
@@ -2081,6 +2083,7 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
     customTools: await createCodingToolDefinitions(
       root,
       codingPolicy.readOnlyResourceRoots,
+      workspaceAccessPaths,
       normalized.approvalPolicy,
       productAction,
       codingCollaboration,

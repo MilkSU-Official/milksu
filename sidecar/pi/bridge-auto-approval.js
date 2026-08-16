@@ -17,19 +17,10 @@ const hostedExternalMcpServers = new Set([
   "notion",
   "slack",
 ]);
-const readOnlyMcpToolPattern = /(?:^|[_-])(?:describe|fetch|find|get|health|inspect|list|lookup|query|read|resolve|search|status|view)(?:[_-]|$)/iu;
-const hostedPublicationToolPattern = /(?:^|[_-])(?:create|merge|open|publish|submit)[_-](?:draft[_-])?(?:merge[_-]request|pull[_-]request|release)(?:[_-]|$)/iu;
-const externalAccountWriteToolPattern = /(?:^|[_-])(?:add|archive|assign|close|comment|create|delete|edit|invite|merge|move|open|post|publish|remove|reopen|resolve|send|submit|transition|unarchive|update|write)(?:[_-]|$)/iu;
 
 function normalizedApprovalPolicy(value) {
   const policy = String(value ?? "").trim();
   return approvalPolicies.has(policy) ? policy : "read-only";
-}
-
-function normalizedMcpToolName(value) {
-  return String(value ?? "")
-    .trim()
-    .replace(/([a-z0-9])([A-Z])/gu, "$1_$2");
 }
 
 export function codingCollaborationRequiresApproval(approvalPolicy) {
@@ -43,7 +34,7 @@ export function codingMcpOperationRequiresApproval(
 ) {
   if (!input || typeof input !== "object") return false;
   const action = String(input.action ?? "").trim();
-  const tool = normalizedMcpToolName(input.tool);
+  const tool = String(input.tool ?? "").trim();
   const operation = Boolean(
     tool
     || input.connect
@@ -51,27 +42,21 @@ export function codingMcpOperationRequiresApproval(
   );
   if (!operation) return false;
 
-  // These effects remain an independent user decision under every permission
-  // tier. Full Access can widen local execution authority, but it must not turn
-  // an MCP OAuth grant or hosted publication into an ambient side effect.
-  if (
-    ["auth-start", "auth-complete"].includes(action)
-    || hostedPublicationToolPattern.test(tool)
-    || (
-      hostedExternalMcpServers.has(String(selectedServer || input.server || "").trim())
-      && externalAccountWriteToolPattern.test(tool)
-    )
-  ) {
-    return true;
-  }
+  // Authentication remains an explicit external-account decision. Do not
+  // infer tool effects from verbs in arbitrary MCP tool names: the name is not
+  // a reviewed authorization contract.
+  if (["auth-start", "auth-complete"].includes(action)) return true;
 
   const policy = normalizedApprovalPolicy(approvalPolicy);
+  if (policy === "ask" || policy === "read-only") return true;
+
+  // Selecting an already configured server is not itself a remote effect.
+  if (input.connect) return false;
+
+  const server = String(selectedServer || input.server || "").trim();
+  // Until the adapter forwards trusted MCP effect annotations, every hosted
+  // account tool call remains visible. This is conservative but deterministic.
+  if (hostedExternalMcpServers.has(server)) return true;
   if (policy === "full-auto") return false;
-  if (policy === "workspace-auto") {
-    if (input.connect) return false;
-    const server = String(selectedServer || input.server || "").trim();
-    if (autoApprovedMcpServers.has(server)) return false;
-    return !readOnlyMcpToolPattern.test(tool);
-  }
-  return true;
+  return !autoApprovedMcpServers.has(server);
 }

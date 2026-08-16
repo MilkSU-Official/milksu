@@ -43,11 +43,9 @@ import {
   FolderOpen,
   GitBranch,
   Globe2,
-  History,
   KeyRound,
   LoaderCircle,
   MousePointer2,
-  Network,
   PanelLeftClose,
   PanelLeftOpen,
   PanelRightClose,
@@ -74,13 +72,11 @@ import CodingChangesPanel from '@/components-vue/CodingChangesPanel.vue'
 import CodingComputerUsePanel from '@/components-vue/CodingComputerUsePanel.vue'
 import CodingComputerUsePermissionDialog from '@/components-vue/CodingComputerUsePermissionDialog.vue'
 import CodingMCPReviewCard from '@/components-vue/CodingMCPReviewCard.vue'
-import SessionHistoryPanel from '@/components-vue/SessionHistoryPanel.vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import DomainTaskContextPanel from '@/components-vue/DomainTaskContextPanel.vue'
 import TacticalPanelShell from '@/components-vue/TacticalPanelShell.vue'
 import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
 import type {
-  CodingArchitecturePreview,
   CodingArtifactPreview,
   CodingBrowserStatus,
   CodingComputerUsePermission,
@@ -104,7 +100,6 @@ import {
   agentRecoveryPrompt,
   recoverableAgentFailureId,
 } from '@/lib/agentRecovery'
-import { buildCodingArchitectureAction } from '@/lib/codingArchitecture'
 import {
   codingProductAction,
   codingProductActions,
@@ -112,7 +107,6 @@ import {
   type CodingProductActionKind,
 } from '@/lib/codingProductActions'
 import { extractLatestComputerUseOperationEvidence } from '@/lib/codingComputerUseEvidence'
-import { redactProviderCredentials } from '@/lib/redaction'
 
 import {
   computerUseTargetKey,
@@ -138,12 +132,12 @@ import type {
   CodingApprovalPolicy,
   CodingAttachment,
   CodingExecutionMode,
+  CodingProductActionRequest,
   Conversation,
   CTFChatAction,
 } from '@/types'
 import type { CodingMessageQueue } from '@/composables/useConversations'
 import { providerModelLabel } from '@/modelCatalog'
-import type { SessionHistorySearchResult } from '@/sessionIndexTypes'
 import { enabledCodingSkillNames } from '@/codingSkills'
 
 const CodingTerminalPanel = defineAsyncComponent(
@@ -154,6 +148,7 @@ const props = defineProps<{
   conversation: Conversation | null
   settings: AppSettings | null
   workspacePath: string
+  workspaceAccessPaths?: string[]
   running: boolean
   aborting: boolean
   messageQueue?: CodingMessageQueue
@@ -186,11 +181,16 @@ const emit = defineEmits<{
     visibleText?: string,
     attachments?: CodingAttachment[],
     scopeToken?: 'browser-use' | 'computer-use',
+    productAction?: CodingProductActionRequest,
   ]
   ctfAction: [action: CTFChatAction]
   abort: []
   chooseWorkspace: []
   chooseWorkspaceForNewTask: []
+  authorizeWorkspace: []
+  removeWorkspaceAccess: [path: string]
+  cancelQueuedGuidance: [index: number]
+  editQueuedGuidance: [index: number]
   changeModel: [mode: 'auto' | 'manual', provider?: string, model?: string]
   changeModelSource: [preference: 'auto' | 'account' | 'personal']
   changeCodingPolicy: [
@@ -228,12 +228,10 @@ const contextPanelValues = [
   'environment',
   'changes',
   'artifacts',
-  'architecture',
   'browser',
   'browser-use',
   'computer-use',
   'collaboration',
-  'history',
   'evidence',
 ] as const
 type ContextPanel = typeof contextPanelValues[number]
@@ -241,14 +239,8 @@ const contextPanel = ref<ContextPanel>(
   props.ctfSession || props.vulnerabilitySession ? 'domain' : 'environment',
 )
 const artifactPanel = ref<InstanceType<typeof CodingArtifactPreviewPanel> | null>(null)
-const historyPanel = ref<{ refresh: () => Promise<void> } | null>(null)
 const environmentLoading = ref(false)
 const environmentError = ref('')
-const architecturePreview = ref<CodingArchitecturePreview | null>(null)
-const architecturePreviewLoading = ref(false)
-const architecturePreviewError = ref('')
-const architectureFitToPanel = ref(true)
-const requestedArchitecturePath = ref('')
 const browserPanelError = ref('')
 const codingBrowserLoading = ref(false)
 const codingBrowserURL = ref('')
@@ -296,8 +288,8 @@ const currentModelKey = computed(() => {
 })
 const automaticModelLabel = computed(() => {
   const selection = automaticModel.value
-  if (!selection) return '自动'
-  return `自动 · ${providerModelLabel(selection.provider, selection.model)}`
+  if (!selection) return 'Default'
+  return `Default · ${providerModelLabel(selection.provider, selection.model)}`
 })
 const activeExtensions = computed(() => (
   props.conversation?.agentExtensions ?? []
@@ -462,7 +454,7 @@ const compactModelLabel = computed(() => {
     ? automaticModel.value?.model
     : props.modelId || props.settings?.active_model
   if (!provider || !model) {
-    return effectiveModelMode.value === 'auto' ? '自动编排' : '选择模型'
+    return effectiveModelMode.value === 'auto' ? 'Default' : '选择模型'
   }
   const modelName = providerModelLabel(provider, model).split(' · ').at(-1) || model
   return modelName.replace(/^DeepSeek\s+/i, '')
@@ -505,36 +497,6 @@ const workspaceName = computed(() => {
   const value = props.workspacePath.replace(/\/+$/, '')
   return value.split('/').at(-1) || '无项目任务'
 })
-const architectureAction = computed(() => (
-  props.workspacePath
-    ? buildCodingArchitectureAction(props.workspacePath)
-    : null
-))
-const architecturePath = computed(() => (
-  requestedArchitecturePath.value
-  || architectureAction.value?.relativeHtmlPath
-  || ''
-))
-const architecturePreviewSource = computed(() => {
-  const html = architecturePreview.value?.html
-  if (!html) return ''
-  const policy = [
-    "default-src 'none'",
-    "style-src 'unsafe-inline'",
-    "script-src 'unsafe-inline'",
-    'img-src data: blob:',
-    'font-src data:',
-    "connect-src 'none'",
-    'media-src data: blob:',
-  ].join('; ')
-  const csp = `<meta http-equiv="Content-Security-Policy" content="${policy}">`
-  const panelMode = architectureFitToPanel.value
-    ? "<script>document.documentElement.dataset.embed='true'</" + 'script>'
-    : ''
-  return /<head(?:\s[^>]*)?>/i.test(html)
-    ? html.replace(/<head(\s[^>]*)?>/i, match => `${match}${csp}${panelMode}`)
-    : `${csp}${panelMode}${html}`
-})
 const codingBrowserEvidencePath = computed(() => {
   const sessionID = codingBrowserStatus.value?.sessionId?.trim()
   return sessionID ? `.milksu/browser-evidence/${sessionID}` : ''
@@ -547,7 +509,7 @@ const codingBrowserTabTitle = computed(() => (
 ))
 const workspaceLocked = computed(() => Boolean(props.conversation?.messages.length))
 const activeModelLabel = computed(() => {
-  if (effectiveModelMode.value === 'auto') return automaticModelLabel.value.replace(/^自动 · /, '')
+  if (effectiveModelMode.value === 'auto') return automaticModelLabel.value.replace(/^Default · /, '')
   const provider = props.modelProvider || props.settings?.active_provider
   const model = props.modelId || props.settings?.active_model
   return provider && model ? providerModelLabel(provider, model) : '等待选择'
@@ -593,23 +555,15 @@ const contextPanelTitle = computed(() => ({
   environment: props.ctfSession ? '解题环境' : '环境信息',
   changes: '变更',
   artifacts: '产物',
-  architecture: '架构图',
   browser: '浏览器',
   'browser-use': 'Browser Use',
   'computer-use': 'Computer Use',
   collaboration: 'Agent 协作',
-  history: '相关历史',
   evidence: '证据与 Judge',
 })[contextPanel.value])
 const transientComputerUsePanel = computed(() => (
   contextPanel.value === 'browser-use' || contextPanel.value === 'computer-use'
 ))
-const historyDefaultQuery = computed(() => {
-  if (props.vulnerabilitySession) return props.conversation?.title || 'CVE'
-  if (props.ctfSession) return props.conversation?.title || 'Judge correct=true'
-  return props.conversation?.title || workspaceName.value
-})
-const historyDraftNotice = ref('')
 const codingActionIcons = {
   understand: Compass,
   test: Terminal,
@@ -673,6 +627,7 @@ function sendComposerMessage(
   visibleText?: string,
   attachments?: CodingAttachment[],
   scopeToken?: 'browser-use' | 'computer-use',
+  productAction?: CodingProductActionRequest,
 ) {
   goalMode.value = false
   if (scopeToken === 'browser-use' && !browserUseReadyForCurrentTask.value) {
@@ -695,7 +650,7 @@ function sendComposerMessage(
     : scopeToken === 'computer-use'
       ? `本轮使用已锁定的可见 App 窗口完成请求；若尚未接入准确窗口，先停下让我选择。\n\n${submittedPrompt}`
       : submittedPrompt
-  emit('send', scopedPrompt, visibleText, attachments, scopeToken)
+  emit('send', scopedPrompt, visibleText, attachments, scopeToken, productAction)
 }
 
 function controlComposerGoal(action: 'pause' | 'resume' | 'clear') {
@@ -706,39 +661,17 @@ function controlComposerGoal(action: 'pause' | 'resume' | 'clear') {
   emit('controlGoal', action)
 }
 
-function sessionHistorySourceLabel(source = '') {
-  if (source === 'milksu-ctf') return 'CTF'
-  if (source === 'milksu-cve') return 'CVE'
-  if (source === 'milksu-coding') return 'Coding'
-  return source || '历史'
-}
-
-function trimHistoryField(value = '', maxLength = 600) {
-  const redacted = redactProviderCredentials(value).trim()
-  if (redacted.length <= maxLength) return redacted
-  return `${redacted.slice(0, maxLength)}…`
-}
-
-async function quoteSessionHistoryToComposer(result: SessionHistorySearchResult) {
-  if (props.ctfSession) return
-  const lines = [
-    '参考这条相关历史继续当前任务：',
-    `- 会话：${trimHistoryField(result.sessionName, 160)}`,
-    `- 来源：${sessionHistorySourceLabel(result.source)}`,
-    result.timestamp ? `- 时间：${new Date(result.timestamp).toLocaleString()}` : '',
-    result.skill ? `- 工具：${trimHistoryField(result.skill, 160)}` : '',
-    `- 摘要：${trimHistoryField(result.snippet)}`,
-    '',
-    '请先核对当前仓库和本轮会话里的证据，再决定是否采用。',
-  ].filter(line => line !== '')
-  composer.value?.appendDraftText(lines.join('\n'))
-  historyDraftNotice.value = '已引用到输入框。'
-  await nextTick()
-}
-
 function resumeAfterFailure() {
   if (props.running || !recoverableFailureId.value) return
-  emit('send', agentRecoveryPrompt(props.ctfSession), '继续')
+  const lastUserMessage = [...(props.conversation?.messages ?? [])]
+    .reverse()
+    .find(message => message.role === 'user')
+  emit(
+    'send',
+    agentRecoveryPrompt(props.ctfSession),
+    '继续',
+    lastUserMessage?.attachments,
+  )
 }
 
 function changeModel(value: string) {
@@ -916,29 +849,10 @@ function runSlashCommand(command: string) {
 
 function chooseWorkspaceFromCurrentTask() {
   if (workspaceLocked.value) {
-    emit('chooseWorkspaceForNewTask')
+    emit('authorizeWorkspace')
     return
   }
   emit('chooseWorkspace')
-}
-
-function generateArchitecture() {
-  if (!props.workspacePath) {
-    emit('chooseWorkspace')
-    return
-  }
-  if (props.running || !architectureAction.value) return
-  requestedArchitecturePath.value = architectureAction.value.relativeHtmlPath
-  architecturePreview.value = null
-  architecturePreviewError.value = ''
-  contextPanel.value = 'architecture'
-  environmentOpen.value = true
-  emit('changeCodingPolicy', 'go', 'workspace-auto')
-  emit(
-    'send',
-    architectureAction.value.prompt,
-    architectureAction.value.visibleText,
-  )
 }
 
 async function runCodingProductAction(kind: CodingProductActionKind) {
@@ -979,32 +893,7 @@ async function runCodingProductAction(kind: CodingProductActionKind) {
     ))
     prompt = codingReviewPrompt(prompt, environment, diffs)
   }
-  emit('send', prompt, action.visibleText)
-}
-
-async function refreshArchitecturePreview() {
-  architecturePreviewError.value = ''
-  if (!props.workspacePath || !architecturePath.value) {
-    architecturePreview.value = null
-    return
-  }
-  architecturePreviewLoading.value = true
-  try {
-    architecturePreview.value = await invokeCommand<CodingArchitecturePreview>(
-      'get_coding_architecture_preview',
-      {
-        workspacePath: props.workspacePath,
-        relativePath: architecturePath.value,
-      },
-    )
-  } catch (reason) {
-    architecturePreview.value = null
-    architecturePreviewError.value = reason instanceof Error
-      ? reason.message
-      : '暂时无法读取架构图。'
-  } finally {
-    architecturePreviewLoading.value = false
-  }
+  emit('send', prompt, action.visibleText, undefined, undefined, { kind })
 }
 
 async function loadWorkshopState() {
@@ -1489,20 +1378,12 @@ async function stopComputerUse() {
 }
 
 async function refreshContextPanel() {
-  if (contextPanel.value === 'architecture') {
-    await refreshArchitecturePreview()
-    return
-  }
   if (contextPanel.value === 'artifacts') {
     await artifactPanel.value?.refresh()
     return
   }
   if (['browser', 'computer-use'].includes(contextPanel.value)) {
     await refreshBrowserPanel()
-    return
-  }
-  if (contextPanel.value === 'history') {
-    await historyPanel.value?.refresh()
     return
   }
   await Promise.all([
@@ -1706,7 +1587,6 @@ watch(contextPanel, (panel, previous) => {
   if (['browser', 'browser-use', 'computer-use'].includes(panel) && environmentOpen.value) {
     void refreshBrowserPanel()
   }
-  if (panel === 'architecture' && environmentOpen.value) void refreshArchitecturePreview()
   if (['artifacts', 'changes'].includes(panel) && environmentOpen.value) void refreshEnvironment()
   if (panel === 'browser' && environmentOpen.value) {
     void nextTick(() => syncCodingBrowserViewport())
@@ -1744,7 +1624,6 @@ watch(
   async ([_ctfSession, _conversationId, _workspacePath, running]) => {
     if (!running) {
       await refreshEnvironment()
-      if (architecturePath.value) await refreshArchitecturePreview()
     }
   },
   { immediate: true },
@@ -1924,6 +1803,8 @@ watch(
       @change-model="changeModel"
       @show-permissions="showCodingPermissions"
       @choose-workspace="chooseWorkspaceFromCurrentTask"
+      @cancel-queued-guidance="$emit('cancelQueuedGuidance', $event)"
+      @edit-queued-guidance="$emit('editQueuedGuidance', $event)"
       @consume-goal="goalMode = false"
       @start-goal="goalMode = true"
       @run-slash-command="runSlashCommand"
@@ -1934,7 +1815,7 @@ watch(
     v-if="environmentOpen && !domainContextCollapsed"
     as="aside"
     class="context-sidebar"
-    :size="['architecture', 'artifacts', 'changes', 'collaboration', 'history', 'browser', 'domain'].includes(contextPanel)
+    :size="['artifacts', 'changes', 'collaboration', 'browser', 'domain'].includes(contextPanel)
       ? 'wide'
       : 'compact'"
     :body-mode="contextPanel === 'browser' ? 'viewport' : 'scroll'"
@@ -1958,10 +1839,8 @@ watch(
           <Activity v-else-if="contextPanel === 'environment'" class="size-4 text-primary" />
           <FileDiff v-else-if="contextPanel === 'changes'" class="size-4 text-primary" />
           <FileImage v-else-if="contextPanel === 'artifacts'" class="size-4 text-primary" />
-          <Network v-else-if="contextPanel === 'architecture'" class="size-4 text-primary" />
           <Globe2 v-else-if="contextPanel === 'browser'" class="size-4 text-primary" />
           <Wrench v-else-if="contextPanel === 'collaboration'" class="size-4 text-primary" />
-          <History v-else-if="contextPanel === 'history'" class="size-4 text-primary" />
           <CircleDot v-else class="size-4 text-primary" />
           <SelectValue />
         </SelectTrigger>
@@ -1970,9 +1849,7 @@ watch(
           <SelectItem value="environment">{{ ctfSession ? '解题环境' : '环境信息' }}</SelectItem>
           <SelectItem v-if="!ctfSession" value="changes">变更</SelectItem>
           <SelectItem v-if="!ctfSession" value="artifacts">产物</SelectItem>
-          <SelectItem v-if="!ctfSession" value="architecture">架构图</SelectItem>
           <SelectItem value="browser">浏览器</SelectItem>
-          <SelectItem value="history">相关历史</SelectItem>
           <template v-if="ctfSession">
             <SelectSeparator />
             <SelectItem value="collaboration">Agent 协作</SelectItem>
@@ -2001,13 +1878,13 @@ watch(
           v-if="contextPanel !== 'browser-use' && contextPanel !== 'domain'"
           variant="ghost"
           size="icon-sm"
-          :disabled="environmentLoading || architecturePreviewLoading"
+          :disabled="environmentLoading"
           :aria-label="`刷新${contextPanelTitle}`"
           @click="refreshContextPanel"
         >
           <RefreshCw
             class="size-4"
-            :class="{ 'animate-spin': environmentLoading || architecturePreviewLoading }"
+            :class="{ 'animate-spin': environmentLoading }"
           />
         </Button>
       </div>
@@ -2042,7 +1919,7 @@ watch(
               :disabled="running"
               @click="chooseWorkspaceFromCurrentTask"
             >
-              {{ workspaceLocked ? '新任务使用其他目录' : '更换' }}
+              {{ workspaceLocked ? '授权其他项目' : '更换' }}
             </Button>
           </div>
           <div class="mt-3 flex items-start gap-3">
@@ -2056,6 +1933,26 @@ watch(
                   ? '无项目任务 · MilkSU 本地临时工作区'
                   : workspacePath || '尚未选择项目' }}
               </p>
+            </div>
+          </div>
+          <div v-if="workspaceAccessPaths?.length" class="mt-3 grid gap-2" aria-label="已授权项目目录">
+            <div
+              v-for="path in workspaceAccessPaths"
+              :key="path"
+              class="flex items-center gap-2 rounded-md border border-border/70 bg-muted/35 px-2.5 py-2"
+            >
+              <FolderOpen class="size-3.5 shrink-0 text-primary" />
+              <span class="min-w-0 flex-1 truncate font-mono text-caption" :title="path">{{ path }}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                :disabled="running"
+                :aria-label="`撤销目录授权 ${path}`"
+                @click="$emit('removeWorkspaceAccess', path)"
+              >
+                <X class="size-3.5" />
+              </Button>
             </div>
           </div>
         </section>
@@ -2144,18 +2041,6 @@ watch(
             整理上下文失败：{{ compactionError }}
           </p>
         </section>
-
-        <SessionHistoryPanel
-          v-if="!ctfSession"
-          :module="topbarModule"
-          :default-query="historyDefaultQuery"
-          compact
-          confirm-action-label="引用到输入"
-          @confirm-result="quoteSessionHistoryToComposer"
-        />
-        <p v-if="historyDraftNotice" class="border-b border-border px-4 pb-4 text-caption text-primary">
-          {{ historyDraftNotice }}
-        </p>
 
         <template v-if="!ctfSession">
         <section class="border-b border-border px-4 py-4">
@@ -2417,73 +2302,6 @@ watch(
         />
       </template>
 
-      <template v-else-if="contextPanel === 'architecture'">
-        <section class="flex min-h-full flex-col">
-          <div class="border-b border-border px-4 py-3">
-            <div class="flex items-center justify-between gap-3">
-              <div class="min-w-0">
-                <p class="text-body font-medium">
-                  {{ architecturePreview?.exists ? '当前架构图' : running ? '正在生成架构图' : '尚未生成' }}
-                </p>
-                <p
-                  class="mt-1 truncate font-mono text-caption text-muted-foreground"
-                  :title="architecturePath"
-                >
-                  {{ architecturePath || '请先选择项目' }}
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                :disabled="running"
-                @click="generateArchitecture"
-              >
-                <Network class="size-3.5" />
-                {{ architecturePreview?.exists ? '重新生成' : '生成' }}
-              </Button>
-            </div>
-            <Button
-              v-if="architecturePreview?.exists"
-              variant="ghost"
-              size="sm"
-              class="mt-2"
-              @click="architectureFitToPanel = !architectureFitToPanel"
-            >
-              {{ architectureFitToPanel ? '查看完整页面' : '适应窗口' }}
-            </Button>
-          </div>
-          <p
-            v-if="architecturePreviewError"
-            class="border-b border-border px-4 py-3 text-caption leading-5 text-destructive"
-          >
-            {{ architecturePreviewError }}
-          </p>
-          <iframe
-            v-if="architecturePreview?.exists && architecturePreviewSource"
-            class="min-h-[32rem] flex-1 bg-white"
-            :srcdoc="architecturePreviewSource"
-            sandbox="allow-scripts"
-            title="Archify 架构图预览"
-          />
-          <div
-            v-else
-            class="flex min-h-80 flex-1 flex-col items-center justify-center px-8 text-center"
-          >
-            <LoaderCircle
-              v-if="running || architecturePreviewLoading"
-              class="size-6 animate-spin text-primary"
-            />
-            <Network v-else class="size-6 text-muted-foreground" />
-            <p class="mt-4 text-label font-medium">
-              {{ running ? 'Agent 正在读取仓库、生成并验证' : '点击一次即可生成' }}
-            </p>
-            <p class="mt-2 max-w-sm text-body leading-6 text-muted-foreground">
-              MilkSU 会自动选择系统架构图、标题和输出目录，并要求 Archify 通过 9 项检查。
-            </p>
-          </div>
-        </section>
-      </template>
-
       <template v-else-if="contextPanel === 'browser'">
         <section class="coding-browser-panel flex h-full min-h-0 flex-col">
           <div v-if="browserPanelError" class="shrink-0 border-b border-border px-3 py-2 text-caption text-destructive">
@@ -2735,20 +2553,6 @@ watch(
             返回训练工作台
           </Button>
         </section>
-      </template>
-
-      <template v-else-if="contextPanel === 'history'">
-        <SessionHistoryPanel
-          ref="historyPanel"
-          :module="topbarModule"
-          :default-query="historyDefaultQuery"
-          :confirm-action-label="ctfSession ? '' : '引用到输入'"
-          @confirm-result="quoteSessionHistoryToComposer"
-          @open-session="$emit('openConversation', $event)"
-        />
-        <p v-if="historyDraftNotice" class="px-4 py-3 text-caption text-primary">
-          {{ historyDraftNotice }}
-        </p>
       </template>
 
       <template v-else>

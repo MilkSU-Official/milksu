@@ -106,6 +106,37 @@ func TestInteractiveTerminalCanBeStopped(t *testing.T) {
 	}
 }
 
+func TestInteractiveTerminalCanBeClosedAndRemoved(t *testing.T) {
+	t.Setenv("SHELL", "/bin/sh")
+	t.Setenv("HOME", t.TempDir())
+	events := make(chan Event, 64)
+	manager := NewManager(func(event Event) {
+		events <- event
+	})
+	t.Cleanup(manager.Close)
+
+	started, err := manager.Start("conversation-close-tab", t.TempDir(), 80, 24)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.CloseSession("conversation-close-tab", started.ID); err != nil {
+		t.Fatal(err)
+	}
+	closed := waitForTerminalEvent(t, events, func(event Event) bool {
+		return event.Type == "terminal.closed" && event.TerminalID == started.ID
+	})
+	if closed.Session != nil {
+		t.Fatalf("closed event unexpectedly retained a session: %#v", closed)
+	}
+	sessions, err := manager.List("conversation-close-tab")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sessions) != 0 {
+		t.Fatalf("closed terminal remained in the tab list: %#v", sessions)
+	}
+}
+
 func TestListReturnsTerminalTabsInStableCreationOrder(t *testing.T) {
 	manager := NewManager(nil)
 	manager.sessions = map[string]*terminalSession{

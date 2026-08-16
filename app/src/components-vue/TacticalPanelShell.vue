@@ -37,7 +37,7 @@ const hasFooter = computed(() => Boolean(slots.footer))
 
 <style scoped>
 .tactical-panel-shell {
-  position: relative;
+  position: var(--tactical-panel-position, relative);
   display: flex;
   min-width: 0;
   min-height: 0;

@@ -47,7 +47,7 @@ afterEach(() => {
 })
 
 interface MountSettingsOptions {
-  initialCategory?: 'general' | 'coding' | 'apikeys' | 'browser'
+  initialCategory?: 'general' | 'apikeys' | 'ctf' | 'cve' | 'coding' | 'browser' | 'security-tools'
   settings?: AppSettings
   accountStatus?: AccountStatus
   appMethods?: Record<string, (...args: unknown[]) => Promise<unknown>>
@@ -639,6 +639,42 @@ describe('SettingsPage database compatibility', () => {
     expect(text).not.toContain('synthetic-secret-value')
   })
 
+  it('uses the approved settings order and keeps account and CTF credentials in their own categories', async () => {
+    const settings = withAppSettingsDefaults({
+      active_provider: 'tokenflux',
+      active_model: 'grok-4.5',
+      providers: {},
+    } as AppSettings)
+    const accountStatus: AccountStatus = {
+      configured: true,
+      authenticated: true,
+      state: 'active',
+      tokenFluxLinked: true,
+      user: {
+        githubLogin: 'milksuofficial',
+        displayName: 'MilkSU',
+        avatarUrl: '',
+      },
+    }
+    await mountSettingsPage({ directory: 'MilkSU 用户数据目录', fileCount: 0, bytes: 0 }, {
+      initialCategory: 'general',
+      settings,
+      accountStatus,
+    })
+
+    const labels = [...document.querySelectorAll<HTMLElement>('.settings-nav-item')]
+      .map(item => item.textContent?.trim())
+    expect(labels).toEqual(['通用', '模型', 'CTF', 'CVE', 'Coding', '浏览器控制', '安全工具'])
+    expect(document.body.textContent).toContain('@milksuofficial · 内测用户')
+
+    const ctfButton = [...document.querySelectorAll<HTMLButtonElement>('.settings-nav-item')]
+      .find(item => item.textContent?.trim() === 'CTF')
+    ctfButton?.click()
+    await settle()
+    expect(document.body.textContent).toContain('Arena Token')
+    expect(document.body.textContent).not.toContain('@milksuofficial · 内测用户')
+  })
+
   it('keeps model settings on one daily model route and includes TokenFlux without Kimi in the normal UI', async () => {
     let savedSettings: unknown = null
     const settings = withAppSettingsDefaults({
@@ -668,10 +704,15 @@ describe('SettingsPage database compatibility', () => {
     })
 
     const text = document.body.textContent ?? ''
-    expect(text).toContain('模型与额度')
+    expect(text).toContain('模型')
+    expect(text).not.toContain('模型与额度')
     expect(text).toContain('默认模型')
-    expect(text).toContain('词元流动')
+    expect(text).toContain('模型服务')
+    expect(text).toContain('TokenFlux 个人')
     expect(text).toContain('Grok 4.3')
+    expect(text).toContain('Groq 官方')
+    expect(text).not.toContain('视觉模型')
+    expect(text).not.toContain('Arena Token')
     expect(text).not.toContain('快速执行')
     expect(text).not.toContain('深度策略')
     expect(text).not.toContain('KouriChat')
@@ -721,8 +762,7 @@ describe('SettingsPage database compatibility', () => {
       },
     })
 
-    const addRelay = [...document.querySelectorAll<HTMLButtonElement>('button')]
-      .find(button => button.textContent?.includes('添加中转站'))
+    const addRelay = document.querySelector<HTMLButtonElement>('button[aria-label="新增模型服务"]')
     addRelay?.click()
     await settle()
 
@@ -758,6 +798,50 @@ describe('SettingsPage database compatibility', () => {
       api_key: 'custom-test-secret',
     })
     expect(document.body.textContent).toContain('已保存并验证')
+  })
+
+  it('edits a provider without silently replacing the default model service', async () => {
+    let savedSettings: AppSettings | null = null
+    const settings = withAppSettingsDefaults({
+      active_provider: 'tokenflux',
+      active_model: 'grok-4.5',
+      providers: {},
+    } as AppSettings)
+    await mountSettingsPage({ directory: 'MilkSU 用户数据目录', fileCount: 0, bytes: 0 }, {
+      initialCategory: 'apikeys',
+      settings,
+      appMethods: {
+        SaveSettingsCmd: async (value: unknown) => {
+          savedSettings = value as AppSettings
+        },
+        GetSettings: async () => savedSettings ?? settings,
+        TestAgentModel: async () => ({
+          provider: 'tokenflux',
+          model: 'grok-4.5',
+          ready: true,
+          latencyMs: 30,
+        }),
+      },
+    })
+
+    const deepSeekRow = [...document.querySelectorAll<HTMLElement>('.model-service-row')]
+      .find(row => row.textContent?.includes('DeepSeek 官方'))
+    expect(deepSeekRow).toBeDefined()
+    const edit = [...deepSeekRow!.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.trim() === '编辑')
+    edit?.click()
+    await settle()
+
+    const dialog = document.querySelector<HTMLElement>('.provider-editor-dialog')
+    expect(dialog?.textContent).toContain('编辑 DeepSeek 官方')
+    const save = [...dialog!.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.trim() === '保存')
+    save?.click()
+    for (let index = 0; index < 6; index += 1) await settle()
+
+    const persistedSettings = savedSettings as unknown as AppSettings
+    expect(persistedSettings.active_provider).toBe('tokenflux')
+    expect(persistedSettings.active_model).toBe('grok-4.5')
   })
 
   it('uses the signed-in account-assigned Key without exposing it and allows personal fallback order', async () => {
@@ -817,17 +901,17 @@ describe('SettingsPage database compatibility', () => {
     })
 
     const text = document.body.textContent ?? ''
-    expect(text).toContain('@milksuofficial · 内测用户')
-    expect(text).toContain('账户分配模型')
-    expect(text).toContain('我的 API Key')
-    expect(text).toContain('登录后静默同步到本地凭据存储')
+    expect(text).toContain('MilkSU 账户')
+    expect(text).toContain('TokenFlux 个人')
+    expect(text).toContain('已连接')
     expect(document.querySelector('input[aria-label="TokenFlux 团队 API Key"]')).toBeNull()
 
-    const personalReorderButton = document.querySelector(
-      'button[aria-label="拖动我的 API Key调整顺序"]',
-    ) as HTMLButtonElement | null
-    expect(personalReorderButton).not.toBeNull()
-    personalReorderButton?.click()
+    const personalRow = [...document.querySelectorAll<HTMLElement>('.model-service-row')]
+      .find(row => row.textContent?.includes('TokenFlux 个人'))
+    const personalDefaultButton = [...(personalRow?.querySelectorAll<HTMLButtonElement>('button') ?? [])]
+      .find(button => button.textContent?.trim() === '备用')
+    expect(personalDefaultButton).toBeDefined()
+    personalDefaultButton?.click()
     await settle()
 
     const saveButton = [...document.querySelectorAll('button')]

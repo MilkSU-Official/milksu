@@ -64,7 +64,7 @@ const showContextSidebar = computed(() => props.codingContextOpen)
       size="drawer"
       body-mode="viewport"
       id="coding-context-sidebar"
-      class="coding-context-drawer fixed bottom-0 top-0 z-40"
+      class="coding-context-drawer app-no-drag z-40"
       aria-label="Coding 会话"
       data-testid="coding-context-drawer"
     >
@@ -83,15 +83,18 @@ const showContextSidebar = computed(() => props.codingContextOpen)
 </template>
 
 <style scoped>
-.workspace-navigation-shell { width: 4.75rem; }
-.coding-context-backdrop { left: 4.75rem; }
+.workspace-navigation-shell {
+  --workspace-rail-width: 4.75rem;
+  width: var(--workspace-rail-width);
+}
+.coding-context-backdrop { left: var(--workspace-rail-width); }
 .coding-context-drawer {
-  left: 4.75rem;
+  --tactical-panel-position: absolute;
+  inset-block: 0;
+  left: 100%;
   border-right: 1px solid var(--night-border);
 }
 @media (min-width: 1180px) {
-  .workspace-navigation-shell { width: 13.5rem; }
-  .coding-context-backdrop { left: 13.5rem; }
-  .coding-context-drawer { left: 13.5rem; }
+  .workspace-navigation-shell { --workspace-rail-width: 13.5rem; }
 }
 </style>

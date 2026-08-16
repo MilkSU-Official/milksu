@@ -45,6 +45,10 @@ func sidecarEnvironment(settings config.AppSettings) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("resolve local user home: %w", err)
 	}
+	canonicalUserHome, err := filepath.EvalSymlinks(userHome)
+	if err != nil {
+		return nil, fmt.Errorf("resolve canonical local user home: %w", err)
+	}
 	environment := engineEnvironment(settings)
 	filtered := environment[:0]
 	for _, entry := range environment {
@@ -59,17 +63,14 @@ func sidecarEnvironment(settings config.AppSettings) ([]string, error) {
 		"MILKSU_CODING_ATTACHMENT_ROOT="+attachmentRoot,
 		"MILKSU_CODING_COLLABORATION_ROOT="+collaborationRoot,
 		"MILKSU_VISION_CACHE="+filepath.Join(runtimeHome, "vision-cache.json"),
-		"MILKSU_USER_HOME="+userHome,
+		// The Sidecar's packaged Node permission model deliberately cannot read
+		// the whole local home directory. Resolve it in the supervised launcher
+		// so policy code can reject overly broad scopes without probing that
+		// directory from the restricted process.
+		"MILKSU_USER_HOME="+canonicalUserHome,
 	)
 	if catalogPath := strings.TrimSpace(settings.RuntimeModelCatalogPath); catalogPath != "" {
 		environment = append(environment, "MILKSU_MODEL_CATALOG_PATH="+catalogPath)
-	}
-	if vision := settings.VisionModel; vision != nil {
-		environment = append(
-			environment,
-			"MILKSU_VISION_PROVIDER="+strings.TrimSpace(vision.Provider),
-			"MILKSU_VISION_MODEL="+strings.TrimSpace(vision.Model),
-		)
 	}
 	if socket := strings.TrimSpace(os.Getenv("SSH_AUTH_SOCK")); socket != "" {
 		environment = append(environment, "MILKSU_USER_SSH_AUTH_SOCK="+socket)
@@ -107,6 +108,24 @@ func newSidecarCommandAtWithDirectory(
 	allowChildProcess bool,
 	sidecarDirectory string,
 ) (*exec.Cmd, error) {
+	return newSidecarCommandAtWithDirectoryAndRoots(
+		packagedBridge,
+		sourceBridge,
+		workspace,
+		nil,
+		allowChildProcess,
+		sidecarDirectory,
+	)
+}
+
+func newSidecarCommandAtWithDirectoryAndRoots(
+	packagedBridge,
+	sourceBridge,
+	workspace string,
+	workspaceAccessPaths []string,
+	allowChildProcess bool,
+	sidecarDirectory string,
+) (*exec.Cmd, error) {
 	runtime, err := resolveSidecarRuntimeWithDirectory(
 		packagedBridge,
 		sourceBridge,
@@ -116,6 +135,13 @@ func newSidecarCommandAtWithDirectory(
 		return nil, err
 	}
 	workspace, err = resolveAgentWorkspace(workspace)
+	if err != nil {
+		return nil, err
+	}
+	workspaceAccessPaths, err = resolveAgentWorkspaceAccessPaths(
+		workspace,
+		workspaceAccessPaths,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -153,6 +179,13 @@ func newSidecarCommandAtWithDirectory(
 			"--allow-fs-read=" + computerUseRuntimeDirectory,
 			"--allow-fs-write=" + computerUseRuntimeDirectory,
 		}
+		for _, path := range workspaceAccessPaths {
+			arguments = append(
+				arguments,
+				"--allow-fs-read="+path,
+				"--allow-fs-write="+path,
+			)
+		}
 		if allowChildProcess && goruntime.GOOS == "darwin" {
 			arguments = append(
 				arguments,
@@ -180,6 +213,40 @@ func newSidecarCommandAtWithDirectory(
 	command := exec.Command(runtime.node, arguments...)
 	command.Dir = workspace
 	return command, nil
+}
+
+func resolveAgentWorkspaceAccessPaths(
+	workspace string,
+	values []string,
+) ([]string, error) {
+	const maximumWorkspaceAccessPaths = 8
+	if len(values) > maximumWorkspaceAccessPaths {
+		return nil, fmt.Errorf(
+			"workspace access is limited to %d additional directories",
+			maximumWorkspaceAccessPaths,
+		)
+	}
+	resolvedWorkspace, err := resolveAgentWorkspace(workspace)
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]struct{}{resolvedWorkspace: {}}
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		if strings.TrimSpace(value) == "" {
+			continue
+		}
+		resolved, resolveErr := resolveAgentWorkspace(value)
+		if resolveErr != nil {
+			return nil, fmt.Errorf("resolve authorized workspace: %w", resolveErr)
+		}
+		if _, exists := seen[resolved]; exists {
+			continue
+		}
+		seen[resolved] = struct{}{}
+		result = append(result, resolved)
+	}
+	return result, nil
 }
 
 func withWorkspaceTemporaryDirectory(environment []string, workspace string) ([]string, error) {

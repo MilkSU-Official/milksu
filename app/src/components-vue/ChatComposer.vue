@@ -33,6 +33,7 @@ import {
   Palette,
   Paperclip,
   Pause,
+  Pencil,
   Play,
   Plus,
   Plug,
@@ -51,6 +52,8 @@ import { invokeCommand } from '@/desktop'
 import type {
   CodingApprovalPolicy,
   CodingAttachment,
+  CodingAttachmentImport,
+  CodingAttachmentPreview,
   CodingExecutionMode,
   CodingGoalState,
   CTFChatAction,
@@ -134,6 +137,8 @@ const emit = defineEmits<{
   runSlashCommand: [command: string]
   controlGoal: [action: 'pause' | 'resume' | 'clear']
   chooseWorkspace: []
+  cancelQueuedGuidance: [index: number]
+  editQueuedGuidance: [index: number]
 }>()
 
 const draft = ref('')
@@ -141,6 +146,10 @@ const composerFrame = ref<HTMLElement | null>(null)
 const messageEditor = ref<HTMLElement | null>(null)
 const pendingAttachments = ref<CodingAttachment[]>([])
 const attachmentError = ref('')
+const attachmentImporting = ref(false)
+const attachmentPreviewDialog = ref<HTMLDialogElement | null>(null)
+const attachmentPreview = ref<CodingAttachmentPreview | null>(null)
+const attachmentPreviewLoading = ref(false)
 const composing = ref(false)
 const compositionJustEnded = ref(false)
 const slashMenuDismissed = ref(false)
@@ -413,6 +422,101 @@ async function chooseCodingAttachments() {
   }
 }
 
+function mergeCodingAttachments(selected: CodingAttachment[]) {
+  const merged = new Map(
+    pendingAttachments.value.map(value => [`${value.id}:${value.name}`, value]),
+  )
+  for (const attachment of selected) {
+    merged.set(`${attachment.id}:${attachment.name}`, attachment)
+  }
+  if (merged.size > 8) {
+    attachmentError.value = '每条消息最多添加 8 个附件。'
+    return false
+  }
+  pendingAttachments.value = [...merged.values()]
+  return true
+}
+
+function fileAsBase64(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(reader.error ?? new Error('读取附件失败'))
+    reader.onload = () => {
+      const result = String(reader.result ?? '')
+      const separator = result.indexOf(',')
+      if (separator < 0) reject(new Error('读取附件失败'))
+      else resolve(result.slice(separator + 1))
+    }
+    reader.readAsDataURL(file)
+  })
+}
+
+function fallbackClipboardFileName(file: File, index: number) {
+  if (file.name.trim()) return file.name.trim()
+  const extension = file.type === 'image/jpeg'
+    ? 'jpg'
+    : file.type === 'image/webp'
+      ? 'webp'
+      : file.type === 'image/gif'
+        ? 'gif'
+        : file.type === 'image/png'
+          ? 'png'
+          : 'bin'
+  return `粘贴附件-${Date.now()}-${index + 1}.${extension}`
+}
+
+async function importCodingFiles(files: File[]) {
+  if (!files.length || attachmentImporting.value) return
+  attachmentError.value = ''
+  if (pendingAttachments.value.length + files.length > 8) {
+    attachmentError.value = '每条消息最多添加 8 个附件。'
+    return
+  }
+  if (files.some(file => file.size <= 0 || file.size > 32 * 1024 * 1024)) {
+    attachmentError.value = '单个附件必须在 1 字节到 32 MiB 之间。'
+    return
+  }
+  if (files.reduce((total, file) => total + file.size, 0) > 96 * 1024 * 1024) {
+    attachmentError.value = '附件合计不能超过 96 MiB。'
+    return
+  }
+  attachmentImporting.value = true
+  try {
+    const payloads: CodingAttachmentImport[] = await Promise.all(files.map(async (file, index) => ({
+      name: fallbackClipboardFileName(file, index),
+      mediaType: file.type || 'application/octet-stream',
+      dataBase64: await fileAsBase64(file),
+    })))
+    const imported = await invokeCommand<CodingAttachment[]>('import_coding_attachments', { payloads })
+    mergeCodingAttachments(imported)
+  } catch (reason) {
+    attachmentError.value = reason instanceof Error ? reason.message : '暂时无法添加附件。'
+  } finally {
+    attachmentImporting.value = false
+  }
+}
+
+async function previewCodingAttachment(attachment: CodingAttachment) {
+  attachmentError.value = ''
+  attachmentPreview.value = null
+  attachmentPreviewLoading.value = true
+  const dialog = attachmentPreviewDialog.value
+  if (typeof dialog?.showModal === 'function') dialog.showModal()
+  else dialog?.setAttribute('open', '')
+  try {
+    attachmentPreview.value = await invokeCommand<CodingAttachmentPreview>(
+      'preview_coding_attachment',
+      { attachment },
+    )
+  } catch (reason) {
+    attachmentError.value = reason instanceof Error ? reason.message : '暂时无法预览附件。'
+    if (typeof dialog?.close === 'function') dialog.close()
+    else dialog?.removeAttribute('open')
+  } finally {
+    attachmentPreviewLoading.value = false
+  }
+}
+
 function removeCodingAttachment(attachment: CodingAttachment) {
   pendingAttachments.value = pendingAttachments.value.filter(value => (
     value.id !== attachment.id || value.name !== attachment.name
@@ -636,6 +740,12 @@ function clearComposerInput() {
 
 function handleComposerPaste(event: ClipboardEvent) {
   const editor = messageEditor.value
+  const files = [...(event.clipboardData?.files ?? [])]
+  if (files.length) {
+    event.preventDefault()
+    void importCodingFiles(files)
+    return
+  }
   const text = event.clipboardData?.getData('text/plain') ?? ''
   if (!editor || !text) return
   event.preventDefault()
@@ -654,6 +764,12 @@ function handleComposerPaste(event: ClipboardEvent) {
 
 function handleComposerDrop(event: DragEvent) {
   const editor = messageEditor.value
+  const files = [...(event.dataTransfer?.files ?? [])]
+  if (files.length) {
+    event.preventDefault()
+    void importCodingFiles(files)
+    return
+  }
   const text = event.dataTransfer?.getData('text/plain') ?? ''
   event.preventDefault()
   if (!editor || !text) return
@@ -671,6 +787,10 @@ function handleComposerDrop(event: DragEvent) {
 }
 
 function submit() {
+  if (attachmentImporting.value) {
+    attachmentError.value = '附件仍在加入，请稍候。'
+    return
+  }
   draft.value = readComposerText()
   const attachments = [...pendingAttachments.value]
   const text = draft.value.trim()
@@ -853,7 +973,10 @@ function handleCompositionEnd() {
 
 function appendDraftText(text: string) {
   const normalized = text.trim()
-  if (!normalized || props.running) return
+  // Running conversations still accept steering input. Queue retraction uses
+  // this path to place the withdrawn guidance back into the composer, so do
+  // not discard it merely because the current Agent turn is active.
+  if (!normalized) return
   const editor = messageEditor.value
   if (!editor) return
   if (readComposerText().trim() || scopeToken.value || skillToken.value) {
@@ -1101,14 +1224,37 @@ defineExpose({
           <span>{{ queuedGuidance.length }} 条引导已排队</span>
           <span class="font-normal text-muted-foreground">当前工具调用结束后应用</span>
         </div>
-        <p
+        <div
           v-for="(message, index) in queuedGuidance"
           :key="`${index}:${message}`"
-          class="mt-1 truncate text-caption text-foreground"
-          :title="message"
+          class="mt-1 flex items-center gap-2 rounded-md border border-border/70 bg-background/55 px-2 py-1.5"
         >
-          {{ message }}
-        </p>
+          <p class="min-w-0 flex-1 truncate text-caption text-foreground" :title="message">
+            {{ message }}
+          </p>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            class="shrink-0 text-muted-foreground hover:text-foreground"
+            :aria-label="`编辑排队消息 ${index + 1}`"
+            title="撤回并编辑"
+            @click="$emit('editQueuedGuidance', index)"
+          >
+            <Pencil class="size-3.5" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            class="shrink-0 text-muted-foreground hover:text-destructive"
+            :aria-label="`撤回排队消息 ${index + 1}`"
+            title="撤回"
+            @click="$emit('cancelQueuedGuidance', index)"
+          >
+            <X class="size-3.5" />
+          </Button>
+        </div>
       </section>
 
       <form class="chat-composer__island tactical-command-surface flex flex-col gap-1" @submit.prevent="submit">
@@ -1124,8 +1270,16 @@ defineExpose({
             class="inline-flex max-w-full items-center gap-2 rounded-lg border border-border bg-muted/60 px-2.5 py-1.5 text-caption"
             :title="`${attachment.mediaType} · ${formatAttachmentSize(attachment.size)}`"
           >
-            <FileText class="size-3.5 shrink-0 text-muted-foreground" />
-            <span class="max-w-52 truncate">{{ attachment.name }}</span>
+            <button
+              type="button"
+              class="inline-flex min-w-0 items-center gap-2 rounded-sm text-left hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              :aria-label="`预览 ${attachment.name}`"
+              @click="previewCodingAttachment(attachment)"
+            >
+              <FileText class="size-3.5 shrink-0 text-muted-foreground" />
+              <span class="max-w-52 truncate">{{ attachment.name }}</span>
+              <span class="shrink-0 text-muted-foreground">{{ formatAttachmentSize(attachment.size) }}</span>
+            </button>
             <button
               type="button"
               class="rounded-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -1189,12 +1343,16 @@ defineExpose({
                 <DropdownMenuContent
                   align="start"
                   :side-offset="8"
-                  class="composer-add-menu w-[31rem] max-w-[calc(100vw-2rem)] p-1"
+                  class="composer-add-menu app-no-drag w-[31rem] max-w-[calc(100vw-2rem)] p-1"
                 >
                   <DropdownMenuLabel class="px-3 pb-1.5 pt-2 text-caption">
                     添加
                   </DropdownMenuLabel>
-                  <DropdownMenuItem class="composer-add-option" @select="chooseCodingAttachments">
+                  <DropdownMenuItem
+                    class="composer-add-option app-no-drag cursor-pointer"
+                    @pointerdown.stop
+                    @select="chooseCodingAttachments"
+                  >
                     <Paperclip class="size-4 shrink-0" />
                     <span class="min-w-0 flex-1">
                       <span class="block text-label font-medium">本机文件或图片</span>
@@ -1209,7 +1367,7 @@ defineExpose({
                       </span>
                       <span class="block text-caption text-muted-foreground">
                         {{ workspaceLocked
-                          ? '保留当前会话，用所选目录新建任务'
+                          ? '授权所选目录给当前会话，立即跨项目读写'
                           : '选择后作为当前任务的可读写范围' }}
                       </span>
                     </span>
@@ -1327,7 +1485,7 @@ defineExpose({
               variant="brand"
               size="icon"
               class="tactical-action"
-              :disabled="!draft.trim() && !pendingAttachments.length"
+              :disabled="attachmentImporting || (!draft.trim() && !pendingAttachments.length)"
               :aria-label="running ? '发送引导' : '发送'"
               :title="running ? '在当前工具调用结束后应用' : '发送'"
             >
@@ -1338,7 +1496,50 @@ defineExpose({
       <p v-if="attachmentError" class="px-2 pt-1.5 text-caption text-destructive">
         {{ attachmentError }}
       </p>
+      <p v-else-if="attachmentImporting" class="px-2 pt-1.5 text-caption text-muted-foreground">
+        正在加入附件…
+      </p>
     </div>
+    <dialog
+      ref="attachmentPreviewDialog"
+      class="m-auto max-h-[calc(100vh-3rem)] w-[min(760px,calc(100vw-2rem))] overflow-hidden rounded-xl border border-border bg-card p-0 text-foreground shadow-[var(--shadow-modal)] backdrop:bg-foreground/25 backdrop:backdrop-blur-[2px]"
+      aria-labelledby="coding-attachment-preview-title"
+      @click.self="attachmentPreviewDialog?.close()"
+    >
+      <section class="flex max-h-[calc(100vh-3rem)] flex-col">
+        <header class="flex items-center justify-between gap-4 border-b border-border px-5 py-4">
+          <div class="min-w-0">
+            <h2 id="coding-attachment-preview-title" class="truncate text-lg font-semibold">
+              {{ attachmentPreview?.name || '附件预览' }}
+            </h2>
+            <p v-if="attachmentPreview" class="text-caption text-muted-foreground">
+              {{ attachmentPreview.mediaType }} · {{ formatAttachmentSize(attachmentPreview.size) }}
+            </p>
+          </div>
+          <Button type="button" variant="ghost" size="icon-sm" aria-label="关闭附件预览" @click="attachmentPreviewDialog?.close()">
+            <X class="size-4" />
+          </Button>
+        </header>
+        <div class="min-h-0 flex-1 overflow-auto p-5">
+          <div v-if="attachmentPreviewLoading" class="grid min-h-48 place-items-center text-muted-foreground">
+            <LoaderCircle class="size-5 animate-spin" />
+          </div>
+          <img
+            v-else-if="attachmentPreview?.kind === 'image' && attachmentPreview.dataUrl"
+            :src="attachmentPreview.dataUrl"
+            :alt="attachmentPreview.name"
+            class="mx-auto max-h-[65vh] max-w-full rounded-lg object-contain"
+          >
+          <pre
+            v-else-if="attachmentPreview?.kind === 'text'"
+            class="whitespace-pre-wrap break-words rounded-lg border border-border bg-muted/40 p-4 font-mono text-caption"
+          >{{ attachmentPreview.text }}</pre>
+          <p v-else class="text-body text-muted-foreground">
+            此附件已加入发送队列；当前格式不提供内嵌内容预览。
+          </p>
+        </div>
+      </section>
+    </dialog>
   </div>
 </template>
 

@@ -9,10 +9,16 @@ import {
 
 const desktop = vi.hoisted(() => ({
   invokeCommand: vi.fn(),
+  eventCallback: undefined as undefined | ((event: {
+    payload: Record<string, unknown>
+  }) => void),
   listenEvent: vi.fn(async (
     _event: string,
-    _callback: (event: unknown) => void,
-  ) => () => undefined),
+    callback: (event: { payload: Record<string, unknown> }) => void,
+  ) => {
+    desktop.eventCallback = callback
+    return () => undefined
+  }),
 }))
 
 vi.mock('@/desktop', () => ({
@@ -52,6 +58,7 @@ async function settle() {
 beforeEach(() => {
   desktop.invokeCommand.mockReset()
   desktop.listenEvent.mockClear()
+  desktop.eventCallback = undefined
 })
 
 afterEach(() => {
@@ -110,6 +117,25 @@ describe('Coding conversation title generation', () => {
     )
   })
 
+  it('sends a GUI product action as structured runtime data', async () => {
+    desktop.invokeCommand.mockResolvedValue(undefined)
+    const conversations = mountConversations()
+    conversations.setWorkspace('/Users/milksu/code/project')
+
+    await expect(conversations.send(
+      'Run the repository test contract.',
+      '运行测试',
+      [],
+      undefined,
+      { kind: 'test' },
+    )).resolves.toBe(true)
+
+    expect(desktop.invokeCommand).toHaveBeenCalledWith('send_message', expect.objectContaining({
+      prompt: 'Run the repository test contract.',
+      productAction: { kind: 'test' },
+    }))
+  })
+
   it('does not spend another title turn after a best-effort failure', async () => {
     desktop.invokeCommand.mockImplementation(async (command: string) => {
       if (command === 'generate_conversation_title') {
@@ -153,5 +179,99 @@ describe('Coding conversation title generation', () => {
     expect(conversations.activeMessageQueue.value.steering).toEqual([
       '不要改 API，先补回归测试',
     ])
+  })
+
+  it('reloads Pi and resumes the same fuzzy request after model-selected workspace access', async () => {
+    desktop.invokeCommand.mockResolvedValue(undefined)
+    const conversations = mountConversations()
+    conversations.setWorkspace('/Users/milksu/code/primary')
+    await conversations.listen()
+    const prompt = '去我那个 MilkSU 项目看一下设置页'
+
+    await expect(conversations.send(prompt)).resolves.toBe(true)
+    desktop.eventCallback?.({
+      payload: {
+        sessionId: conversations.activeId.value,
+        type: 'workspace.access.updated',
+        paths: ['/Users/milksu/code/milksu'],
+        restartRequired: true,
+      },
+    })
+    desktop.eventCallback?.({
+      payload: {
+        sessionId: conversations.activeId.value,
+        type: 'assistant.settled',
+      },
+    })
+    await new Promise(resolve => window.setTimeout(resolve, 0))
+    await settle()
+
+    const sends = desktop.invokeCommand.mock.calls.filter(
+      ([command]) => command === 'send_message',
+    )
+    expect(sends).toHaveLength(2)
+    expect(sends[1]?.[1]).toMatchObject({
+      prompt,
+      workspaceAccessPaths: ['/Users/milksu/code/milksu'],
+    })
+    expect(conversations.active.value?.messages.filter(message => message.role === 'user'))
+      .toHaveLength(1)
+  })
+
+  it('removes a queued steering message only after the runtime receipt succeeds', async () => {
+    desktop.invokeCommand.mockResolvedValue(undefined)
+    const conversations = mountConversations()
+
+    await conversations.send('先检查当前失败测试')
+    await conversations.send('不要改 API，先补回归测试')
+    await expect(conversations.cancelQueuedGuidance(0)).resolves.toBe(true)
+
+    expect(desktop.invokeCommand).toHaveBeenCalledWith('remove_queued_message', {
+      conversationId: conversations.activeId.value,
+      queue: 'steering',
+      index: 0,
+      expected: '不要改 API，先补回归测试',
+    })
+    expect(conversations.activeMessageQueue.value.steering).toEqual([])
+    expect(conversations.active.value?.messages.map(message => message.content))
+      .not.toContain('不要改 API，先补回归测试')
+  })
+
+  it('returns a successfully retracted message to the composer for editing', async () => {
+    desktop.invokeCommand.mockResolvedValue(undefined)
+    const conversations = mountConversations()
+
+    await conversations.send('先检查当前失败测试')
+    await conversations.send('把 API 全部改掉')
+    await expect(conversations.editQueuedGuidance(0)).resolves.toBe(true)
+
+    expect(conversations.pendingComposerDraft.value).toEqual({
+      prompt: '把 API 全部改掉',
+      visibleText: '把 API 全部改掉',
+    })
+    expect(conversations.activeMessageQueue.value.steering).toEqual([])
+  })
+
+  it('keeps the queued message when the runtime rejects a stale removal', async () => {
+    desktop.invokeCommand.mockImplementation(async (command: string) => {
+      if (command === 'remove_queued_message') {
+        throw new Error('queued message changed before it could be removed')
+      }
+      return undefined
+    })
+    const conversations = mountConversations()
+
+    await conversations.send('先检查当前失败测试')
+    await conversations.send('继续补回归测试')
+    await expect(conversations.cancelQueuedGuidance(0)).rejects.toThrow('changed before')
+
+    expect(conversations.activeMessageQueue.value.steering).toEqual(['继续补回归测试'])
+    expect(conversations.active.value?.messages).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        role: 'user',
+        content: '继续补回归测试',
+        status: 'queued',
+      }),
+    ]))
   })
 })

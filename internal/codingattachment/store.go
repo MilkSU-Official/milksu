@@ -2,6 +2,7 @@ package codingattachment
 
 import (
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -30,6 +31,23 @@ type Attachment struct {
 	SHA256    string `json:"sha256"`
 }
 
+// ImportPayload is the bounded renderer-to-Desktop representation used for
+// clipboard and drag/drop files that do not have a stable local path.
+type ImportPayload struct {
+	Name       string `json:"name"`
+	MediaType  string `json:"mediaType"`
+	DataBase64 string `json:"dataBase64"`
+}
+
+type Preview struct {
+	Name      string `json:"name"`
+	MediaType string `json:"mediaType"`
+	Size      int64  `json:"size"`
+	Kind      string `json:"kind"`
+	DataURL   string `json:"dataUrl,omitempty"`
+	Text      string `json:"text,omitempty"`
+}
+
 type Store struct {
 	root string
 }
@@ -56,6 +74,36 @@ func (s *Store) Import(paths []string) ([]Attachment, error) {
 	total := int64(0)
 	for _, sourcePath := range paths {
 		attachment, data, err := readSource(sourcePath)
+		if err != nil {
+			return nil, err
+		}
+		total += attachment.Size
+		if total > MaxTotalBytes {
+			return nil, fmt.Errorf("附件合计不能超过 96 MiB")
+		}
+		if err := s.persist(attachment, data); err != nil {
+			return nil, err
+		}
+		attachments = append(attachments, attachment)
+	}
+	return attachments, nil
+}
+
+func (s *Store) ImportPayloads(payloads []ImportPayload) ([]Attachment, error) {
+	if len(payloads) > MaxCount {
+		return nil, fmt.Errorf("一次最多添加 %d 个附件", MaxCount)
+	}
+	attachments := make([]Attachment, 0, len(payloads))
+	total := int64(0)
+	for _, payload := range payloads {
+		if base64.StdEncoding.DecodedLen(len(payload.DataBase64)) > MaxFileBytes {
+			return nil, fmt.Errorf("附件 %q 必须在 1 字节到 32 MiB 之间", payload.Name)
+		}
+		data, err := base64.StdEncoding.DecodeString(payload.DataBase64)
+		if err != nil {
+			return nil, fmt.Errorf("附件 %q 的数据无效", payload.Name)
+		}
+		attachment, err := attachmentFromData(payload.Name, payload.MediaType, data)
 		if err != nil {
 			return nil, err
 		}
@@ -110,9 +158,28 @@ func readSource(sourcePath string) (Attachment, []byte, error) {
 		return Attachment{}, nil, fmt.Errorf("附件 %q 在读取时发生变化或大小无效", name)
 	}
 
+	attachment, err := attachmentFromData(name, "", data)
+	return attachment, data, err
+}
+
+func attachmentFromData(name, declaredMediaType string, data []byte) (Attachment, error) {
+	if err := validateName(name); err != nil {
+		return Attachment{}, err
+	}
+	if len(data) == 0 || len(data) > MaxFileBytes {
+		return Attachment{}, fmt.Errorf("附件 %q 必须在 1 字节到 32 MiB 之间", name)
+	}
 	digest := sha256.Sum256(data)
 	digestHex := hex.EncodeToString(digest[:])
-	mediaType := mime.TypeByExtension(strings.ToLower(filepath.Ext(name)))
+	mediaType := strings.TrimSpace(strings.ToLower(declaredMediaType))
+	if parsed, _, err := mime.ParseMediaType(mediaType); err == nil {
+		mediaType = parsed
+	} else {
+		mediaType = ""
+	}
+	if mediaType == "" {
+		mediaType = mime.TypeByExtension(strings.ToLower(filepath.Ext(name)))
+	}
 	if mediaType == "" {
 		mediaType = http.DetectContentType(data)
 	}
@@ -125,7 +192,57 @@ func readSource(sourcePath string) (Attachment, []byte, error) {
 		MediaType: mediaType,
 		Size:      int64(len(data)),
 		SHA256:    digestHex,
-	}, data, nil
+	}, nil
+}
+
+func (s *Store) Preview(attachment Attachment) (Preview, error) {
+	data, err := s.read(attachment)
+	if err != nil {
+		return Preview{}, err
+	}
+	preview := Preview{
+		Name: attachment.Name, MediaType: attachment.MediaType,
+		Size: attachment.Size, Kind: "metadata",
+	}
+	if strings.HasPrefix(attachment.MediaType, "image/") && len(data) <= 12*1024*1024 {
+		preview.Kind = "image"
+		preview.DataURL = "data:" + attachment.MediaType + ";base64," + base64.StdEncoding.EncodeToString(data)
+		return preview, nil
+	}
+	if (strings.HasPrefix(attachment.MediaType, "text/") ||
+		strings.Contains(attachment.MediaType, "json") ||
+		strings.Contains(attachment.MediaType, "xml")) && len(data) <= 1024*1024 && utf8.Valid(data) {
+		preview.Kind = "text"
+		preview.Text = string(data)
+	}
+	return preview, nil
+}
+
+func (s *Store) read(attachment Attachment) ([]byte, error) {
+	if len(attachment.ID) != sha256.Size*2 || attachment.ID != attachment.SHA256 {
+		return nil, fmt.Errorf("附件元数据无效")
+	}
+	if _, err := hex.DecodeString(attachment.ID); err != nil {
+		return nil, fmt.Errorf("附件元数据无效")
+	}
+	if err := validateName(attachment.Name); err != nil {
+		return nil, err
+	}
+	path := filepath.Join(s.root, attachment.ID, attachment.Name)
+	info, err := os.Lstat(path)
+	if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 ||
+		info.Size() != attachment.Size {
+		return nil, fmt.Errorf("附件 %q 不可用", attachment.Name)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("读取附件 %q: %w", attachment.Name, err)
+	}
+	digest := sha256.Sum256(data)
+	if hex.EncodeToString(digest[:]) != attachment.SHA256 {
+		return nil, fmt.Errorf("附件 %q 完整性校验失败", attachment.Name)
+	}
+	return data, nil
 }
 
 func validateName(name string) error {

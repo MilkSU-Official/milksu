@@ -150,14 +150,14 @@ defineEmits<{
         class="composer-control composer-model min-w-0 rounded-full border-0 bg-transparent shadow-none"
         aria-label="选择本任务模型"
         :title="modelKey === 'auto'
-          ? 'MilkSU 按任务角色自动选择模型；你可以仅为当前对话覆盖'
+          ? '使用 MilkSU 默认模型；你可以仅为当前对话覆盖'
           : '当前对话固定使用所选模型'"
       >
         <SelectValue>{{ compactModelLabel }}</SelectValue>
       </SelectTrigger>
       <SelectContent size="sm" align="start" :align-offset="0" class="min-w-96">
         <SelectGroup>
-          <SelectLabel>自动</SelectLabel>
+          <SelectLabel>Default</SelectLabel>
           <SelectItem value="auto">
             {{ automaticModelLabel }}
           </SelectItem>

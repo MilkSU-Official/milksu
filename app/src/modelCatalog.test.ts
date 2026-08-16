@@ -11,6 +11,10 @@ describe('runtime model catalog', () => {
       refreshed_at: '2026-08-13T12:30:00Z',
       models: [
         {
+          id: 'grok-4.5', name: 'Grok 4.5',
+          context_window: 500000, max_tokens: 32768, input: ['text', 'image'],
+        },
+        {
           id: 'x-ai/grok-4.6', name: 'Grok 4.6',
           context_window: 500000, max_tokens: 32768, input: ['text', 'image'],
         },
@@ -23,8 +27,8 @@ describe('runtime model catalog', () => {
 
     const { providers } = useModelCatalog()
     const tokenflux = providers.value.find(provider => provider.id === 'tokenflux')
-    expect(tokenflux?.models).toEqual(['x-ai/grok-4.6', 'openai/gpt-5.6-sol'])
-    expect(tokenflux?.visionModels).toEqual(['x-ai/grok-4.6'])
+    expect(tokenflux?.models).toEqual(['grok-4.5', 'x-ai/grok-4.6', 'openai/gpt-5.6-sol'])
+    expect(tokenflux?.visionModels).toEqual(['grok-4.5', 'x-ai/grok-4.6'])
     expect(providerModelLabel('tokenflux', 'x-ai/grok-4.6')).toBe('TokenFlux · Grok 4.6')
   })
 

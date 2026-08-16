@@ -22,6 +22,7 @@ import type {
   CodingCapability,
   CodingExecutionMode,
   CodingGoalState,
+  CodingProductActionRequest,
   Conversation,
   Message,
 } from '@/types'
@@ -156,6 +157,16 @@ interface AgentEvent {
   steering?: string[]
   followUp?: string[]
   modelSource?: 'account' | 'personal'
+  paths?: string[]
+  restartRequired?: boolean
+}
+
+interface RuntimeTurnDispatch {
+  prompt: string
+  attachments: CodingAttachment[]
+  scopeToken?: ComposerScopeToken
+  productAction?: CodingProductActionRequest
+  workspaceResumeCount: number
 }
 
 export interface CodingMessageQueue {
@@ -218,6 +229,15 @@ export interface PendingComposerDraft {
   visibleText: string
 }
 
+function normalizeWorkspaceAccessPaths(value: unknown, primary = '') {
+  if (!Array.isArray(value)) return []
+  const primaryPath = primary.trim()
+  return [...new Set(value
+    .map(item => String(item ?? '').trim())
+    .filter(item => item && item !== primaryPath))]
+    .slice(0, 8)
+}
+
 export function normalizeConversation(raw: Record<string, unknown>): Conversation {
   const messages = (raw.messages as Record<string, unknown>[] | undefined) ?? []
   return {
@@ -225,6 +245,10 @@ export function normalizeConversation(raw: Record<string, unknown>): Conversatio
     title: String(raw.title ?? '未命名对话'),
     createdAt: Number(raw.createdAt ?? 0),
     workspacePath: typeof raw.workspacePath === 'string' ? raw.workspacePath : undefined,
+    workspaceAccessPaths: normalizeWorkspaceAccessPaths(
+      raw.workspaceAccessPaths,
+      typeof raw.workspacePath === 'string' ? raw.workspacePath : '',
+    ),
     modelMode: ['auto', 'manual'].includes(String(raw.modelMode))
       ? raw.modelMode as Conversation['modelMode']
       : undefined,
@@ -339,6 +363,66 @@ export function agentErrorMessage(value: unknown) {
   return message || 'Agent engine failed'
 }
 
+export function agentRuntimeErrorMessage(value: unknown) {
+  const raw = String(value ?? '')
+  const normalized = agentErrorMessage(value)
+  if (/具体路径|explicit path|可解析的具体路径/i.test(raw)) {
+    return '请告诉我一个具体的本地目录路径，例如 ~/code/project；确认后我会把它授权给当前会话。'
+  }
+  if (/filesystem root|whole user directory|整个用户目录|磁盘根目录/i.test(raw)) {
+    return '不能把整个磁盘或用户主目录授权给 Agent，请指定一个具体的项目目录。'
+  }
+  if (/must have a primary workspace|还没有工作区/i.test(raw)) {
+    return '当前会话还没有工作区。请先选择或创建一个项目，再授权其他目录。'
+  }
+  if (/CTF Agent directory scope/i.test(raw)) {
+    return 'CTF 会话不能扩大 Coding 目录权限；请在 Coding 中打开对应项目。'
+  }
+  if (/project access is (?:not|no longer) authorized|目录权限.*(?:未授权|已撤销)/i.test(raw)) {
+    return '当前会话没有这个目录的权限。请明确授权具体路径后再试。'
+  }
+  if (/supports at most 8 additional project directories|limited to 8 additional directories/i.test(raw)) {
+    return '当前会话最多可授权 8 个额外目录；请先撤销不再需要的目录。'
+  }
+  if (/resolve Coding Agent project|open Coding Agent project|project must be a directory/i.test(raw)) {
+    return 'MilkSU 无法打开该目录。请确认路径存在、指向文件夹，并且当前用户可以访问。'
+  }
+  if (/Access to this API has been restricted|--allow-fs-(?:read|write)|ERR_ACCESS_DENIED/i.test(raw)) {
+    return '本地 Agent 权限组件启动失败。当前任务已保留，请重试；如果仍然失败，可以在设置中导出诊断。'
+  }
+  if (/\b401\b|unauthori[sz]ed|invalid api key|authentication failed/i.test(raw)) {
+    return '当前模型凭据已失效或无权访问。请重新登录，或在设置中更新模型凭据后重试。'
+  }
+  if (/baseUrl.*required|required.*baseUrl/i.test(raw)) {
+    return '当前模型连接尚未准备好。请刷新模型配置后重试；任务和工作区状态已保留。'
+  }
+  if (/context_length_exceeded|maximum context length|context (?:window|length)|token limit exceeded|too many tokens|上下文(?:窗口|过长|长度)/i.test(raw)) {
+    return '当前对话上下文已满。本轮已停止，整理上下文后可以从断点继续。'
+  }
+  if (/abort(?:ed)?|cancel(?:led|ed)|interrupted|context canceled|用户已中断|用户取消/i.test(raw)) {
+    return '本轮已停止，已经完成的修改和工具结果都已保留。'
+  }
+  if (
+    /no API key is configured|No API key for|Model not found|ECONNREFUSED|ECONNRESET|ENOTFOUND|ETIMEDOUT|network is unreachable|connection refused|fetch failed|dial tcp|produced no model or tool activity/i
+      .test(raw)
+  ) {
+    return normalized
+  }
+  return 'Agent 遇到本地运行时异常。当前任务已保留，请重试；如果仍然失败，可以在设置中导出诊断。'
+}
+
+export function agentToolResultMessage(text: string, error?: string) {
+  const raw = String(error ?? '').trim()
+  if (!raw) return redactProviderCredentials(text)
+  if (
+    /Access to this API has been restricted|--allow-fs-(?:read|write)|ERR_ACCESS_DENIED|\b401\b|unauthori[sz]ed|invalid api key|authentication failed|baseUrl.*required|required.*baseUrl|node:internal|bridge\.js|Cannot find module|Uncaught Exception/i
+      .test(raw)
+  ) {
+    return agentRuntimeErrorMessage(raw)
+  }
+  return redactProviderCredentials(text || raw) || '工具执行失败。'
+}
+
 export function projectCodingAbortRequest(
   running: ReadonlySet<string>,
   aborting: ReadonlySet<string>,
@@ -384,6 +468,7 @@ export function useConversations() {
   const continuity = ref<CodingContinuityState>(createCodingContinuityState())
   const active = computed(() => conversations.value.find(item => item.id === activeId.value) ?? null)
   const workspacePath = computed(() => active.value?.workspacePath ?? pendingWorkspacePath.value)
+  const workspaceAccessPaths = computed(() => active.value?.workspaceAccessPaths ?? [])
   const activeRunning = computed(() => (
     activeId.value ? runningIds.value.has(activeId.value) : false
   ))
@@ -431,6 +516,8 @@ export function useConversations() {
   const saveTimers = new Map<string, number>()
   const activeTurnPolicies = new Set<string>()
   const titleGenerationAttemptedIds = new Set<string>()
+  const activeTurnDispatches = new Map<string, RuntimeTurnDispatch>()
+  const workspaceResumePending = new Set<string>()
   let disposeEvents: (() => void) | undefined
 
   function persist(conversation: Conversation) {
@@ -471,6 +558,69 @@ export function useConversations() {
     abortingIds.value = next.aborting
   }
 
+  async function invokeRuntimeTurn(
+    conversationId: string,
+    dispatch: RuntimeTurnDispatch,
+  ) {
+    const conversation = conversations.value.find(item => item.id === conversationId)
+    if (!conversation) throw new Error('Coding conversation is unavailable')
+    await invokeCommand('save_conversation', { conversation })
+    await invokeCommand('send_message', {
+      conversationId,
+      prompt: dispatch.prompt,
+      workspacePath: conversation.workspacePath ?? '',
+      workspaceAccessPaths: conversation.workspaceAccessPaths ?? [],
+      modelMode: conversation.modelMode ?? '',
+      modelProvider: conversation.modelProvider ?? '',
+      modelId: conversation.modelId ?? '',
+      modelSourcePreference: conversation.modelSourcePreference ?? 'auto',
+      executionMode: conversation.executionMode ?? DEFAULT_CODING_EXECUTION_MODE,
+      approvalPolicy: conversation.approvalPolicy ?? DEFAULT_CODING_APPROVAL_POLICY,
+      mcpServers: turnMCPServers(conversation.mcpServers, dispatch.scopeToken),
+      mcpConfigDigest: conversation.mcpConfigDigest ?? '',
+      attachments: dispatch.attachments,
+      productAction: dispatch.productAction,
+    })
+  }
+
+  async function resumeWorkspaceAuthorizedTurn(conversationId: string) {
+    workspaceResumePending.delete(conversationId)
+    const dispatch = activeTurnDispatches.get(conversationId)
+    if (!dispatch) return
+    if (dispatch.workspaceResumeCount >= 2) {
+      activeTurnDispatches.delete(conversationId)
+      update(conversationId, conversation => ({
+        ...conversation,
+        messages: [...conversation.messages, {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: '目录授权已保存，但 Agent 未能在重载后继续当前任务。请再试一次。',
+          timestamp: Date.now(),
+          status: 'done',
+        }],
+      }))
+      return
+    }
+    dispatch.workspaceResumeCount += 1
+    runningIds.value = new Set(runningIds.value).add(conversationId)
+    try {
+      await invokeRuntimeTurn(conversationId, dispatch)
+    } catch (reason) {
+      activeTurnDispatches.delete(conversationId)
+      finishRun(conversationId)
+      update(conversationId, conversation => ({
+        ...conversation,
+        messages: [...conversation.messages, {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: `Agent 重载失败：${agentRuntimeErrorMessage(reason)}`,
+          timestamp: Date.now(),
+          status: 'done',
+        }],
+      }))
+    }
+  }
+
   function setMessageQueue(id: string, queue: CodingMessageQueue) {
     const next = new Map(messageQueues.value)
     if (queue.steering.length || queue.followUp.length) next.set(id, queue)
@@ -482,6 +632,8 @@ export function useConversations() {
     await invokeCommand('delete_conversation', { id })
     conversations.value = conversations.value.filter(conversation => conversation.id !== id)
     titleGenerationAttemptedIds.delete(id)
+    activeTurnDispatches.delete(id)
+    workspaceResumePending.delete(id)
     continuity.value = removeCodingContinuitySession(continuity.value, id)
     activeTurnPolicies.delete(id)
     setMessageQueue(id, { steering: [], followUp: [] })
@@ -603,6 +755,39 @@ export function useConversations() {
       workspacePath: normalized,
       mcpServers: undefined,
       mcpConfigDigest: undefined,
+    }))
+  }
+
+  function addWorkspaceAccess(path: string) {
+    const normalized = path.trim()
+    if (!normalized || !activeId.value) return
+    update(activeId.value, conversation => ({
+      ...conversation,
+      workspaceAccessPaths: normalizeWorkspaceAccessPaths(
+        [...(conversation.workspaceAccessPaths ?? []), normalized],
+        conversation.workspacePath,
+      ),
+    }))
+  }
+
+  function removeWorkspaceAccess(path: string) {
+    const normalized = path.trim()
+    if (!normalized || !activeId.value) return
+    update(activeId.value, conversation => ({
+      ...conversation,
+      workspaceAccessPaths: (conversation.workspaceAccessPaths ?? [])
+        .filter(value => value !== normalized),
+    }))
+  }
+
+  function setWorkspaceAccessPaths(paths: string[]) {
+    if (!activeId.value) return
+    update(activeId.value, conversation => ({
+      ...conversation,
+      workspaceAccessPaths: normalizeWorkspaceAccessPaths(
+        paths,
+        conversation.workspacePath,
+      ),
     }))
   }
 
@@ -733,6 +918,7 @@ export function useConversations() {
     visibleText = text,
     attachments: CodingAttachment[] = [],
     scopeToken?: ComposerScopeToken,
+    productAction?: CodingProductActionRequest,
   ) {
     const prompt = text.trim()
     if (!prompt) return false
@@ -747,6 +933,7 @@ export function useConversations() {
       role: 'user',
       content: visiblePrompt,
       timestamp: Date.now(),
+      status: steering ? 'queued' : undefined,
       attachments: attachments.length ? attachments : undefined,
     }
     const fallbackTitle = fallbackConversationTitle(visiblePrompt)
@@ -832,37 +1019,74 @@ export function useConversations() {
           conversation = conversations.value.find(item => item.id === conversationId)
         }
       }
-      const requestedMCPServers = turnMCPServers(conversation?.mcpServers, scopeToken)
-      await invokeCommand('send_message', {
-        conversationId,
+      if (conversation) await invokeCommand('save_conversation', { conversation })
+      const dispatch: RuntimeTurnDispatch = {
         prompt,
-        workspacePath: conversation?.workspacePath ?? '',
-        modelMode: conversation?.modelMode ?? '',
-        modelProvider: conversation?.modelProvider ?? '',
-        modelId: conversation?.modelId ?? '',
-        modelSourcePreference: conversation?.modelSourcePreference ?? 'auto',
-        executionMode: conversation?.executionMode ?? DEFAULT_CODING_EXECUTION_MODE,
-        approvalPolicy: conversation?.approvalPolicy ?? DEFAULT_CODING_APPROVAL_POLICY,
-        mcpServers: requestedMCPServers,
-        mcpConfigDigest: conversation?.mcpConfigDigest ?? '',
         attachments,
-      })
+        scopeToken,
+        productAction,
+        workspaceResumeCount: 0,
+      }
+      activeTurnDispatches.set(conversationId, dispatch)
+      await invokeRuntimeTurn(conversationId, dispatch)
       void generateConversationTitle(conversationId)
       return true
     } catch (reason) {
+      activeTurnDispatches.delete(conversationId)
+      workspaceResumePending.delete(conversationId)
       finishRun(conversationId)
       update(conversationId, conversation => ({
         ...conversation,
         messages: [...conversation.messages, {
           id: crypto.randomUUID(),
           role: 'assistant',
-          content: `Agent 未启动：${agentErrorMessage(reason)}`,
+          content: `Agent 未启动：${agentRuntimeErrorMessage(reason)}`,
           timestamp: Date.now(),
           status: 'done',
         }],
       }))
       return false
     }
+  }
+
+  async function removeQueuedGuidance(index: number, edit: boolean) {
+    const conversationId = activeId.value
+    if (!conversationId || !Number.isInteger(index) || index < 0) return false
+    const currentQueue = messageQueues.value.get(conversationId)
+      ?? { steering: [], followUp: [] }
+    const message = currentQueue.steering[index]
+    if (!message) return false
+    await invokeCommand('remove_queued_message', {
+      conversationId,
+      queue: 'steering',
+      index,
+      expected: message,
+    })
+    update(conversationId, conversation => {
+      let queuedIndex = -1
+      return {
+        ...conversation,
+        messages: conversation.messages.filter(item => {
+          if (item.role !== 'user' || item.status !== 'queued') return true
+          queuedIndex += 1
+          return queuedIndex !== index
+        }),
+      }
+    })
+    setMessageQueue(conversationId, {
+      ...currentQueue,
+      steering: currentQueue.steering.filter((_item, itemIndex) => itemIndex !== index),
+    })
+    if (edit) stageComposerDraft(message, message)
+    return true
+  }
+
+  function cancelQueuedGuidance(index: number) {
+    return removeQueuedGuidance(index, false)
+  }
+
+  function editQueuedGuidance(index: number) {
+    return removeQueuedGuidance(index, true)
   }
 
   async function generateConversationTitle(conversationId: string) {
@@ -983,6 +1207,7 @@ export function useConversations() {
         conversationId,
         prompt: `/goal ${action}`,
         workspacePath: conversation.workspacePath ?? '',
+        workspaceAccessPaths: conversation.workspaceAccessPaths ?? [],
         modelMode: conversation.modelMode ?? '',
         modelProvider: conversation.modelProvider ?? '',
         modelId: conversation.modelId ?? '',
@@ -1079,6 +1304,8 @@ export function useConversations() {
         steering,
         followUp,
         modelSource,
+        paths,
+        restartRequired,
       } = event.payload
       if (!sessionId && (type === 'engine.stopped' || type === 'engine.protocol_error')) {
         activeTurnPolicies.clear()
@@ -1094,8 +1321,8 @@ export function useConversations() {
           )
         }
         const message = type === 'engine.protocol_error'
-          ? `Agent 通信异常：${agentErrorMessage(error)}`
-          : `Agent 已停止${error ? `：${agentErrorMessage(error)}` : '。'}`
+          ? `Agent 通信异常：${agentRuntimeErrorMessage(error)}`
+          : `Agent 已停止${error ? `：${agentRuntimeErrorMessage(error)}` : '。'}`
         conversations.value = conversations.value.map(conversation => (
           affected.includes(conversation.id)
             ? {
@@ -1125,15 +1352,41 @@ export function useConversations() {
         runningIds.value = new Set()
         abortingIds.value = new Set()
         messageQueues.value = new Map()
+        activeTurnDispatches.clear()
+        workspaceResumePending.clear()
         for (const id of affected) scheduleSave(id)
         return
       }
       if (!sessionId) return
       if (type === 'session.queue_updated') {
+        const previousQueue = messageQueues.value.get(sessionId)
+          ?? { steering: [], followUp: [] }
+        const nextQueue = projectCodingMessageQueue(steering, followUp)
+        const appliedSteeringCount = Math.max(
+          0,
+          previousQueue.steering.length - nextQueue.steering.length,
+        )
         setMessageQueue(
           sessionId,
-          projectCodingMessageQueue(steering, followUp),
+          nextQueue,
         )
+        if (appliedSteeringCount > 0) {
+          let remaining = appliedSteeringCount
+          conversations.value = conversations.value.map(conversation => (
+            conversation.id === sessionId
+              ? {
+                  ...conversation,
+                  messages: conversation.messages.map(message => {
+                    if (remaining <= 0 || message.role !== 'user' || message.status !== 'queued') {
+                      return message
+                    }
+                    remaining -= 1
+                    return { ...message, status: 'done' }
+                  }),
+                }
+              : conversation
+          ))
+        }
       }
       conversations.value = conversations.value.map(conversation => {
         if (conversation.id !== sessionId) return conversation
@@ -1178,6 +1431,13 @@ export function useConversations() {
             modelSource: modelSource === 'account' || modelSource === 'personal'
               ? modelSource
               : conversation.modelSource,
+          }
+        }
+        if (type === 'workspace.access.updated') {
+          if (restartRequired) workspaceResumePending.add(sessionId)
+          return {
+            ...conversation,
+            workspaceAccessPaths: normalizeWorkspaceAccessPaths(paths),
           }
         }
         if (type === 'session.goal_updated') {
@@ -1267,7 +1527,17 @@ export function useConversations() {
           }
           setMessageQueue(sessionId, { steering: [], followUp: [] })
           finishRun(sessionId)
+          if (workspaceResumePending.has(sessionId)) {
+            window.setTimeout(() => {
+              void resumeWorkspaceAuthorizedTurn(sessionId)
+            }, 0)
+          } else {
+            activeTurnDispatches.delete(sessionId)
+          }
         } else if (type === 'tool.started' || type === 'tool.completed') {
+          const toolText = type === 'tool.completed'
+            ? agentToolResultMessage(text, error)
+            : text
           if (
             last?.role === 'tool'
             && last.toolName === toolName
@@ -1276,8 +1546,8 @@ export function useConversations() {
           ) {
             messages[messages.length - 1] = {
               ...last,
-              content: text
-                ? [last.content, text].filter(Boolean).join('\n\n')
+              content: toolText
+                ? [last.content, toolText].filter(Boolean).join('\n\n')
                 : last.content,
               toolCallId: toolCallId || last.toolCallId,
               durationMs: type === 'tool.completed'
@@ -1289,7 +1559,7 @@ export function useConversations() {
             messages.push({
               id: crypto.randomUUID(),
               role: 'tool',
-              content: text,
+              content: toolText,
               timestamp: Date.now(),
               toolName,
               toolCallId,
@@ -1298,6 +1568,8 @@ export function useConversations() {
             })
           }
         } else if (type === 'engine.error') {
+          activeTurnDispatches.delete(sessionId)
+          workspaceResumePending.delete(sessionId)
           setMessageQueue(sessionId, { steering: [], followUp: [] })
           finishRun(sessionId)
           for (let index = 0; index < messages.length; index++) {
@@ -1313,7 +1585,7 @@ export function useConversations() {
           messages.push({
             id: crypto.randomUUID(),
             role: 'assistant',
-            content: `Agent 运行失败：${agentErrorMessage(error)}`,
+            content: `Agent 运行失败：${agentRuntimeErrorMessage(error)}`,
             timestamp: Date.now(),
             status: 'done',
           })
@@ -1335,6 +1607,8 @@ export function useConversations() {
   onBeforeUnmount(() => {
     disposeEvents?.()
     activeTurnPolicies.clear()
+    activeTurnDispatches.clear()
+    workspaceResumePending.clear()
     for (const timer of saveTimers.values()) window.clearTimeout(timer)
     saveTimers.clear()
   })
@@ -1344,6 +1618,7 @@ export function useConversations() {
     activeId,
     active,
     workspacePath,
+    workspaceAccessPaths,
     activeRunning,
     activeAborting,
     activeMessageQueue,
@@ -1363,9 +1638,14 @@ export function useConversations() {
     controlGoal,
     respondApproval,
     remove,
+    cancelQueuedGuidance,
+    editQueuedGuidance,
     startNew,
     ensureConversation,
     setWorkspace,
+    addWorkspaceAccess,
+    removeWorkspaceAccess,
+    setWorkspaceAccessPaths,
     setModelSelection,
     setModelSourcePreference,
     setCodingPolicy,

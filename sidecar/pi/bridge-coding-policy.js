@@ -7,6 +7,7 @@ export const codingReadOnlyToolNames = [
   "ls",
   "bg_status",
   "milksu_progress",
+  "milksu_workspace_candidates",
   "lsp_diagnostics",
   ...codingGoalToolNames,
 ];
@@ -22,7 +23,10 @@ export const codingWorkspaceAutoToolNames = [
   "bg_task",
   "bg_status",
   "milksu_progress",
+  "milksu_workspace_candidates",
+  "milksu_workspace_access",
   "milksu_imagegen",
+  "milksu_archify",
   "lsp_diagnostics",
   "lsp_fix",
   ...codingGoalToolNames,
@@ -32,7 +36,7 @@ export const codingWorkspaceAutoToolNames = [
 // Pi's setActiveTools() can narrow or restore tools that already exist, but it
 // cannot add definitions that were omitted when createAgentSession() ran.
 export const codingSessionToolNames = [
-  ...new Set([...codingWorkspaceAutoToolNames, "milksu_archify"]),
+  ...new Set(codingWorkspaceAutoToolNames),
 ];
 
 export function normalizeCodingPolicy(

@@ -82,6 +82,12 @@ mechanism or proven design, and only then write the smallest MilkSU-owned implem
 earlier level was insufficient. “Mature” requires an inspectable source, compatible license, bounded
 permissions, maintained releases and evidence for the relevant use case; popularity alone is insufficient.
 Do not grow a second generic Coding Agent harness when an upstream component already owns the capability.
+When Pi Agent Harness already exposes a reviewed session API, lifecycle hook, extension point, tool,
+compaction mechanism, runtime-context mechanism or other matching primitive, integrate through that
+primitive and preserve Pi's semantics instead of recreating the behavior with MilkSU-owned prompt routing,
+regular expressions, parallel state machines or a second harness. MilkSU should add only the product UI,
+desktop authorization, persistence and evidence projection that Pi does not own; document the concrete Pi
+gap before admitting a replacement mechanism.
 
 ## Non-Negotiable Boundaries
 

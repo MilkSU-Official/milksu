@@ -1,19 +1,30 @@
 import assert from "node:assert/strict";
-import { access, mkdtemp, mkdir, readFile, symlink, writeFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import {
+  access,
+  mkdtemp,
+  mkdir,
+  readFile,
+  realpath,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { createServer as createHTTPServer } from "node:http";
 import { createServer as createTCPServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
+import { promisify } from "node:util";
 import {
   loadSessionPolicy,
   normalizeCodingPolicy,
-  parseCodingProductAction,
+  normalizeCodingProductAction,
   sandboxProfile,
   scopeAllowsNetwork,
 } from "./bridge-policy.js";
 
 let scopeFixtureID = 0;
+const execFileAsync = promisify(execFile);
 
 function grantedScope(targets, overrides = {}) {
   scopeFixtureID += 1;
@@ -99,6 +110,9 @@ test("legacy Coding sessions preserve deliverable Go defaults without unrestrict
       "bg_task",
       "bg_status",
       "milksu_progress",
+      "milksu_workspace_candidates",
+      "milksu_workspace_access",
+      "milksu_archify",
       "lsp_diagnostics",
       "lsp_fix",
       "goal_complete",
@@ -157,6 +171,7 @@ test("Plan and Read-only enforce a read-only tool allowlist", async () => {
         "ls",
         "bg_status",
         "milksu_progress",
+        "milksu_workspace_candidates",
         "lsp_diagnostics",
         "goal_complete",
         "goal_blocked",
@@ -417,97 +432,167 @@ test("Coding read/search tools can access reviewed resources but no other outsid
   );
 });
 
-test("Architecture product action gets a narrow typed tool policy", async () => {
-  const workspace = await mkdtemp(join(
-    process.platform === "darwin" ? "/private/tmp" : tmpdir(),
-    "milksu-architecture-action-",
-  ));
-  const resourceRoot = join(process.cwd(), "third_party", "archify", "archify");
-  const specRelative = "docs/architecture/generated/project-current-system.architecture.json";
-  const htmlRelative = "docs/architecture/generated/project-current-system.html";
-  const candidate = await readFile(
-    join(resourceRoot, "examples", "web-app.architecture.json"),
-    "utf8",
-  );
+test("Coding file tools read and write only explicitly authorized project roots", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "milksu-coding-primary-"));
+  const authorized = await mkdtemp(join(tmpdir(), "milksu-coding-authorized-"));
+  const secondAuthorized = await mkdtemp(join(tmpdir(), "milksu-coding-authorized-two-"));
+  const unauthorized = await mkdtemp(join(tmpdir(), "milksu-coding-third-root-"));
+  const authorizedFile = join(authorized, "authorized.txt");
+  const unauthorizedFile = join(unauthorized, "unauthorized.txt");
+  await writeFile(authorizedFile, "before\n", "utf8");
+  await writeFile(unauthorizedFile, "private\n", "utf8");
 
-  const action = parseCodingProductAction(
-    `[MilkSU product action: Generate architecture diagram]\n`
-      + `Product spec path: ${specRelative}\n`
-      + `Product HTML path: ${htmlRelative}\n`,
-  );
-  assert.deepEqual(action, {
-    kind: "architecture",
-    specPath: specRelative,
-    htmlPath: htmlRelative,
-  });
   const policy = await loadSessionPolicy(workspace, "", {
     executionMode: "go",
     approvalPolicy: "workspace-auto",
-    productAction: action,
-    readOnlyResourceRoots: [resourceRoot],
+    workspaceAccessPaths: [authorized, secondAuthorized],
   });
-  assert.deepEqual(policy.activeTools, [
-    "read",
-    "grep",
-    "find",
-    "ls",
-    "write",
-    "milksu_archify",
-    "milksu_progress",
-    "goal_complete",
-    "goal_blocked",
+  assert.deepEqual(policy.workspaceAccessPaths, [
+    await realpath(authorized),
+    await realpath(secondAuthorized),
   ]);
-  assert.equal(policy.activeTools.includes("bash"), false);
-  assert.equal(policy.activeTools.includes("edit"), false);
 
-  const write = policy.customTools.find(tool => tool.name === "write");
-  await write.execute(
-    "write-architecture-spec",
-    { path: join(workspace, specRelative), content: candidate },
+  const read = policy.customTools.find(tool => tool.name === "read");
+  const inspected = await read.execute(
+    "read-authorized-project",
+    { path: authorizedFile },
     undefined,
     undefined,
     {},
   );
+  assert.match(inspected.content[0].text, /before/);
+
+  const write = policy.customTools.find(tool => tool.name === "write");
+  await write.execute(
+    "write-authorized-project",
+    { path: join(authorized, "created.txt"), content: "created\n" },
+    undefined,
+    undefined,
+    {},
+  );
+  assert.equal(await readFile(join(authorized, "created.txt"), "utf8"), "created\n");
+
+  const edit = policy.customTools.find(tool => tool.name === "edit");
+  await edit.execute(
+    "edit-authorized-project",
+    {
+      path: authorizedFile,
+      edits: [{ oldText: "before\n", newText: "after\n" }],
+    },
+    undefined,
+    undefined,
+    {},
+  );
+  assert.equal(await readFile(authorizedFile, "utf8"), "after\n");
+
   await assert.rejects(
-    write.execute(
-      "write-unrelated-source",
-      { path: join(workspace, "src.js"), content: "changed" },
+    read.execute(
+      "read-unauthorized-project",
+      { path: unauthorizedFile },
       undefined,
       undefined,
       {},
     ),
-    /only allows writing/,
+    /denied path outside/,
   );
+  await assert.rejects(
+    write.execute(
+      "write-unauthorized-project",
+      { path: join(unauthorized, "escaped.txt"), content: "blocked\n" },
+      undefined,
+      undefined,
+      {},
+    ),
+    /denied path outside/,
+  );
+});
 
-  const archify = policy.customTools.find(tool => tool.name === "milksu_archify");
-  const validation = await archify.execute(
-    "validate-architecture",
-    {
-      action: "validate",
-      diagramType: "architecture",
-      inputPath: specRelative,
-      quality: "showcase",
-    },
-    undefined,
-    undefined,
-    {},
+test("Coding additional workspace authorization accepts explicitly granted broad roots", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "milksu-coding-primary-"));
+  const grantedRoots = [process.env.HOME].filter(Boolean);
+  if (process.platform !== "win32") grantedRoots.unshift("/");
+  for (const granted of grantedRoots) {
+    const policy = await loadSessionPolicy(workspace, "", {
+      executionMode: "go",
+      approvalPolicy: "workspace-auto",
+      workspaceAccessPaths: [granted],
+    });
+    assert.ok(policy.workspaceAccessPaths.includes(await realpath(granted)));
+  }
+  const repeated = Array.from({ length: 9 }, () => workspace);
+  await assert.rejects(
+    loadSessionPolicy(workspace, "", {
+      executionMode: "go",
+      approvalPolicy: "workspace-auto",
+      workspaceAccessPaths: repeated,
+    }),
+    /at most 8 additional project directories/,
   );
-  assert.match(validation.content[0].text, /"ok": true/);
-  const delivery = await archify.execute(
-    "deliver-architecture",
-    {
-      action: "deliver",
-      diagramType: "architecture",
-      inputPath: specRelative,
-      outputPath: htmlRelative,
-      quality: "showcase",
-    },
-    undefined,
-    undefined,
-    {},
+});
+
+test("packaged Node policy can load without a whole-home read grant", async () => {
+  const workspace = await realpath(
+    await mkdtemp(join(tmpdir(), "milksu-permission-workspace-")),
   );
-  assert.match(delivery.content[0].text, /"ok": true/);
-  await access(join(workspace, htmlRelative));
+  const additionalWorkspace = await realpath(
+    await mkdtemp(join(tmpdir(), "milksu-permission-additional-")),
+  );
+  const marker = join(additionalWorkspace, "marker.txt");
+  await writeFile(marker, "cross-project-ready\n", "utf8");
+  const policyURL = new URL("./bridge-policy.js", import.meta.url);
+  const repositoryRoot = await realpath(join(dirname(policyURL.pathname), "../.."));
+  const userHome = process.env.HOME;
+  assert.ok(userHome, "test requires a user home boundary");
+
+  const script = `
+    import { loadSessionPolicy } from ${JSON.stringify(policyURL.href)};
+    if (process.permission.has("fs.read", process.env.MILKSU_USER_HOME)) {
+      throw new Error("packaged policy unexpectedly received whole-home read access");
+    }
+    const policy = await loadSessionPolicy(${JSON.stringify(workspace)}, "", {
+      executionMode: "go",
+      approvalPolicy: "workspace-auto",
+      workspaceAccessPaths: [${JSON.stringify(additionalWorkspace)}],
+    });
+    const read = policy.customTools.find(tool => tool.name === "read");
+    const write = policy.customTools.find(tool => tool.name === "write");
+    const inspected = await read.execute(
+      "packaged-read",
+      { path: ${JSON.stringify(marker)} },
+      undefined,
+      undefined,
+      {},
+    );
+    await write.execute(
+      "packaged-write",
+      {
+        path: ${JSON.stringify(join(additionalWorkspace, "receipt.txt"))},
+        content: inspected.content[0].text,
+      },
+      undefined,
+      undefined,
+      {},
+    );
+    process.stdout.write("policy-ready");
+  `;
+  const result = await execFileAsync(process.execPath, [
+    "--permission",
+    `--allow-fs-read=${repositoryRoot}`,
+    `--allow-fs-read=${workspace}`,
+    `--allow-fs-read=${additionalWorkspace}`,
+    `--allow-fs-write=${additionalWorkspace}`,
+    "--input-type=module",
+    "--eval",
+    script,
+  ], {
+    cwd: repositoryRoot,
+    env: {
+      ...process.env,
+      MILKSU_USER_HOME: userHome,
+    },
+    timeout: 10_000,
+  });
+  assert.equal(result.stdout, "policy-ready");
 });
 
 test("Daily Coding product actions get action-specific tool policies", async () => {
@@ -552,31 +637,26 @@ test("Daily Coding product actions get action-specific tool policies", async () 
   ];
   const cases = [
     {
-      header: "[MilkSU product action: Understand project]",
       kind: "understand",
       executionMode: "plan",
       tools: readOnlyTools,
     },
     {
-      header: "[MilkSU product action: Run tests]",
       kind: "test",
       executionMode: "go",
       tools: testTools,
     },
     {
-      header: "[MilkSU product action: Review changes]",
       kind: "review",
       executionMode: "plan",
       tools: readOnlyTools,
     },
     {
-      header: "[MilkSU product action: Fix failure]",
       kind: "fix",
       executionMode: "go",
       tools: fixTools,
     },
     {
-      header: "[MilkSU product action: Summarize work]",
       kind: "summary",
       executionMode: "plan",
       tools: readOnlyTools,
@@ -584,7 +664,7 @@ test("Daily Coding product actions get action-specific tool policies", async () 
   ];
 
   for (const value of cases) {
-    const action = parseCodingProductAction(`${value.header}\nexecute now`);
+    const action = normalizeCodingProductAction(workspace, { kind: value.kind });
     assert.deepEqual(action, { kind: value.kind });
     const policy = await loadSessionPolicy(workspace, "", {
       executionMode: value.executionMode,
@@ -648,6 +728,7 @@ test("Go Project Auto runs normal development commands but contains filesystem w
     executionMode: "go",
     approvalPolicy: "workspace-auto",
   });
+  assert.equal(policy.activeTools.includes("milksu_archify"), true);
   const bash = policy.customTools.find(tool => tool.name === "bash");
   await bash.execute(
     "normal-development-command",
@@ -679,6 +760,42 @@ test("Go Project Auto runs normal development commands but contains filesystem w
       {},
     ),
     /denied path outside/,
+  );
+});
+
+test("Go Project Auto runs commands in an explicitly authorized project only", {
+  skip: process.platform !== "darwin",
+}, async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "milksu-coding-primary-"));
+  const authorized = await mkdtemp(join(tmpdir(), "milksu-coding-authorized-"));
+  const unauthorized = await mkdtemp(join(tmpdir(), "milksu-coding-unauthorized-"));
+  const policy = await loadSessionPolicy(workspace, "", {
+    executionMode: "go",
+    approvalPolicy: "workspace-auto",
+    workspaceAccessPaths: [authorized],
+  });
+  const bash = policy.customTools.find(tool => tool.name === "bash");
+  await bash.execute(
+    "command-in-authorized-project",
+    {
+      command: `cd ${JSON.stringify(authorized)} && printf allowed > command.txt`,
+    },
+    undefined,
+    undefined,
+    {},
+  );
+  assert.equal(await readFile(join(authorized, "command.txt"), "utf8"), "allowed");
+  await assert.rejects(
+    bash.execute(
+      "command-in-unauthorized-project",
+      {
+        command: `cd ${JSON.stringify(unauthorized)} && printf blocked > command.txt`,
+      },
+      undefined,
+      undefined,
+      {},
+    ),
+    /Operation not permitted|Permission denied|exited with code/,
   );
 });
 

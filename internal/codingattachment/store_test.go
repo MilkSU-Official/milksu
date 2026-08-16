@@ -2,6 +2,7 @@ package codingattachment
 
 import (
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"os"
 	"path/filepath"
@@ -48,6 +49,43 @@ func TestStoreImportsContentAddressedAttachment(t *testing.T) {
 	}
 	if info.Mode().Perm() != 0o600 {
 		t.Fatalf("expected 0600 attachment, got %o", info.Mode().Perm())
+	}
+}
+
+func TestStoreImportsClipboardPayloadAndPreviewsImage(t *testing.T) {
+	store, err := NewStore(filepath.Join(t.TempDir(), "attachments"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	image := []byte("\x89PNG\r\n\x1a\nfixture")
+	attachments, err := store.ImportPayloads([]ImportPayload{{
+		Name: "clipboard.png", MediaType: "image/png",
+		DataBase64: base64.StdEncoding.EncodeToString(image),
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(attachments) != 1 || attachments[0].MediaType != "image/png" {
+		t.Fatalf("unexpected clipboard import: %#v", attachments)
+	}
+	preview, err := store.Preview(attachments[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if preview.Kind != "image" || !strings.HasPrefix(preview.DataURL, "data:image/png;base64,") {
+		t.Fatalf("unexpected image preview: %#v", preview)
+	}
+}
+
+func TestStoreClipboardPayloadRejectsInvalidData(t *testing.T) {
+	store, err := NewStore(filepath.Join(t.TempDir(), "attachments"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.ImportPayloads([]ImportPayload{{
+		Name: "broken.png", MediaType: "image/png", DataBase64: "not-base64",
+	}}); err == nil {
+		t.Fatal("invalid clipboard payload should fail")
 	}
 }
 

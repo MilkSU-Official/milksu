@@ -74,16 +74,22 @@ describe('ChatPage routing contract', () => {
     expect(chatPageSource).toContain('void scrollChatToBottom(true)')
   })
 
-  it('quotes confirmed related history into the Coding composer draft without auto-sending it', () => {
+  it('authorizes additional projects on the current Coding conversation', () => {
+    expect(chatPageSource).toContain('workspaceAccessPaths?: string[]')
+    expect(chatPageSource).toContain("emit('authorizeWorkspace')")
+    expect(chatPageSource).toContain("{{ workspaceLocked ? '授权其他项目' : '更换' }}")
+    expect(chatPageSource).toContain('aria-label="已授权项目目录"')
+    expect(chatPageSource).toContain("@click=\"$emit('removeWorkspaceAccess', path)\"")
+  })
+
+  it('does not expose single-session related history in the Coding right rail', () => {
     expect(chatPageSource).toContain('const composer = ref<{ appendDraftText')
-    expect(chatPageSource).toContain('quoteSessionHistoryToComposer')
-    expect(chatPageSource).toContain('confirm-action-label="引用到输入"')
-    expect(chatPageSource).toContain('@confirm-result="quoteSessionHistoryToComposer"')
     expect(chatPageSource).toContain("composer.value?.appendDraftText")
-    expect(chatPageSource).toContain('redactProviderCredentials(value)')
-    expect(chatPageSource).toContain('trimHistoryField(result.snippet)')
-    expect(chatPageSource).toContain('已引用到输入框')
-    expect(chatPageSource).not.toContain("emit('send', lines.join")
+    expect(chatPageSource).not.toContain('SessionHistoryPanel')
+    expect(chatPageSource).not.toContain('quoteSessionHistoryToComposer')
+    expect(chatPageSource).not.toContain('confirm-action-label="引用到输入"')
+    expect(chatPageSource).not.toContain('value="history"')
+    expect(chatPageSource).not.toContain('相关历史')
   })
 
   it('owns Goal interaction in the composer instead of the environment sidebar', () => {
@@ -138,5 +144,11 @@ describe('ChatPage routing contract', () => {
   it('preserves colons inside custom relay model ids', () => {
     expect(chatPageSource).toContain('const [mode, provider, ...modelParts] = value.split(\':\')')
     expect(chatPageSource).toContain("const model = modelParts.join(':')")
+  })
+
+  it('reuses the latest persisted user attachments when retrying a failed turn', () => {
+    expect(chatPageSource).toContain(".find(message => message.role === 'user')")
+    expect(chatPageSource).toContain('lastUserMessage?.attachments')
+    expect(chatPageSource).toContain("agentRecoveryPrompt(props.ctfSession)")
   })
 })

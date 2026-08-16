@@ -154,6 +154,71 @@ test("Project Auto Node background tasks can inspect their private log descripto
   }
 });
 
+test("Project Auto background tasks accept an explicitly authorized project cwd", {
+  skip: process.platform !== "darwin",
+}, async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "milksu-background-primary-"));
+  const authorized = await mkdtemp(join(tmpdir(), "milksu-background-authorized-"));
+  const unauthorized = await mkdtemp(join(tmpdir(), "milksu-background-unauthorized-"));
+  const runtime = await mkdtemp(join(tmpdir(), "milksu-background-runtime-"));
+  const previousRuntime = process.env.MILKSU_WORKSPACE_RUNTIME;
+  process.env.MILKSU_WORKSPACE_RUNTIME = runtime;
+  try {
+    const input = {
+      action: "spawn",
+      command: "printf background > authorized.txt",
+      cwd: authorized,
+    };
+    const authorization = await prepareCodingBackgroundAuthorization(
+      workspace,
+      "workspace-auto",
+      input,
+      [],
+      [authorized],
+    );
+    authorizeBackgroundToolInput(input, authorization);
+    const spawned = spawnCommand(
+      { ...input, shell: true },
+      join(runtime, "authorized.log"),
+      true,
+    );
+    assert.deepEqual(await waitFor(spawned.child), { code: 0, signal: null });
+    assert.equal(
+      await readFile(join(authorized, "authorized.txt"), "utf8"),
+      "background",
+    );
+
+    const resumed = {
+      command: "printf resumed > resumed.txt",
+      cwd: authorized,
+      shell: true,
+    };
+    await withBackgroundResumeAuthorization(authorization, async () => {
+      authorizeResumedBackgroundSpecification(resumed);
+      const result = await runCommandOnce(resumed);
+      assert.equal(result.exitCode, 0);
+    });
+    assert.equal(
+      await readFile(join(authorized, "resumed.txt"), "utf8"),
+      "resumed",
+    );
+
+    await assert.rejects(
+      prepareCodingBackgroundAuthorization(
+        workspace,
+        "workspace-auto",
+        { command: "printf blocked", cwd: unauthorized },
+        [],
+        [authorized],
+      ),
+      /outside authorized projects/,
+    );
+  } finally {
+    if (previousRuntime === undefined) delete process.env.MILKSU_WORKSPACE_RUNTIME;
+    else process.env.MILKSU_WORKSPACE_RUNTIME = previousRuntime;
+  }
+});
+
 test("background task logs cannot escape the reviewed private runtime", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "milksu-background-log-workspace-"));
   const runtime = await mkdtemp(join(tmpdir(), "milksu-background-log-runtime-"));
@@ -266,7 +331,7 @@ test("durable command watchers are rebound only during reviewed session recovery
       withBackgroundResumeAuthorization(scope, async () => {
         authorizeResumedBackgroundSpecification(outside);
       }),
-      /outside the selected project/,
+      /outside authorized projects/,
     );
   } finally {
     if (previousRuntime === undefined) delete process.env.MILKSU_WORKSPACE_RUNTIME;

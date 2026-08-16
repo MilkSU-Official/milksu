@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -32,6 +33,8 @@ const defaultTurnActivityTimeout = 90 * time.Second
 // always aborts the summarization call first; the Supervisor timeout only
 // reports that the control surface gave up.
 const defaultCompactionTimeout = 130 * time.Second
+
+const defaultQueueControlTimeout = 5 * time.Second
 
 var (
 	probeCredentialPattern = regexp.MustCompile(
@@ -69,6 +72,11 @@ type Event struct {
 	RequestID       string                   `json:"requestId,omitempty"`
 	Input           string                   `json:"input,omitempty"`
 	Reason          string                   `json:"reason,omitempty"`
+	Action          string                   `json:"action,omitempty"`
+	Path            string                   `json:"path,omitempty"`
+	Paths           []string                 `json:"paths,omitempty"`
+	Query           string                   `json:"query,omitempty"`
+	RestartRequired bool                     `json:"restartRequired,omitempty"`
 	Approved        *bool                    `json:"approved,omitempty"`
 	BackgroundTasks []BackgroundTask         `json:"backgroundTasks,omitempty"`
 	Goal            *CodingGoalState         `json:"goal,omitempty"`
@@ -182,6 +190,12 @@ type CodingBrowserDescriptor struct {
 	CDPEndpoint string `json:"cdpEndpoint"`
 }
 
+type CodingProductActionDescriptor struct {
+	Kind     string `json:"kind"`
+	SpecPath string `json:"specPath,omitempty"`
+	HTMLPath string `json:"htmlPath,omitempty"`
+}
+
 type ComputerUseDescriptor struct {
 	SessionID      string `json:"sessionId"`
 	SocketPath     string `json:"socketPath"`
@@ -206,43 +220,49 @@ type CodingCollaborationWorktree struct {
 }
 
 type bridgeEvent struct {
-	Type           string                   `json:"type"`
-	ID             string                   `json:"id"`
-	Delta          string                   `json:"delta"`
-	Content        string                   `json:"content"`
-	Error          string                   `json:"error"`
-	ToolName       string                   `json:"toolName"`
-	ToolCallID     string                   `json:"toolCallId"`
-	DurationMS     int64                    `json:"durationMs"`
-	IsError        bool                     `json:"isError"`
-	Tools          []string                 `json:"tools"`
-	Extensions     []string                 `json:"extensions"`
-	Skills         []string                 `json:"skills"`
-	ExecutionMode  string                   `json:"executionMode"`
-	ApprovalPolicy string                   `json:"approvalPolicy"`
-	Capabilities   []CodingCapabilityStatus `json:"capabilities"`
-	RequestID      string                   `json:"requestId"`
-	Input          string                   `json:"input"`
-	Reason         string                   `json:"reason"`
-	Approved       *bool                    `json:"approved"`
-	Tasks          []BackgroundTask         `json:"tasks"`
-	Goal           *CodingGoalState         `json:"goal"`
-	Resumed        bool                     `json:"resumed"`
-	Aborted        bool                     `json:"aborted"`
-	Compaction     *CompactionResult        `json:"compaction"`
-	Steering       []string                 `json:"steering"`
-	FollowUp       []string                 `json:"followUp"`
-	Source         string                   `json:"source"`
-	From           string                   `json:"from"`
-	To             string                   `json:"to"`
-	Module         string                   `json:"module"`
-	Usage          *ModelUsage              `json:"usage"`
+	Type            string                   `json:"type"`
+	ID              string                   `json:"id"`
+	Delta           string                   `json:"delta"`
+	Content         string                   `json:"content"`
+	Error           string                   `json:"error"`
+	ToolName        string                   `json:"toolName"`
+	ToolCallID      string                   `json:"toolCallId"`
+	DurationMS      int64                    `json:"durationMs"`
+	IsError         bool                     `json:"isError"`
+	Tools           []string                 `json:"tools"`
+	Extensions      []string                 `json:"extensions"`
+	Skills          []string                 `json:"skills"`
+	ExecutionMode   string                   `json:"executionMode"`
+	ApprovalPolicy  string                   `json:"approvalPolicy"`
+	Capabilities    []CodingCapabilityStatus `json:"capabilities"`
+	RequestID       string                   `json:"requestId"`
+	Input           string                   `json:"input"`
+	Reason          string                   `json:"reason"`
+	Action          string                   `json:"action"`
+	Path            string                   `json:"path"`
+	Paths           []string                 `json:"paths"`
+	Query           string                   `json:"query"`
+	RestartRequired bool                     `json:"restartRequired"`
+	Approved        *bool                    `json:"approved"`
+	Tasks           []BackgroundTask         `json:"tasks"`
+	Goal            *CodingGoalState         `json:"goal"`
+	Resumed         bool                     `json:"resumed"`
+	Aborted         bool                     `json:"aborted"`
+	Compaction      *CompactionResult        `json:"compaction"`
+	Steering        []string                 `json:"steering"`
+	FollowUp        []string                 `json:"followUp"`
+	Source          string                   `json:"source"`
+	From            string                   `json:"from"`
+	To              string                   `json:"to"`
+	Module          string                   `json:"module"`
+	Usage           *ModelUsage              `json:"usage"`
 }
 
 type childProcess struct {
-	command   *exec.Cmd
-	stdin     io.WriteCloser
-	workspace string
+	command              *exec.Cmd
+	stdin                io.WriteCloser
+	workspace            string
+	workspaceAccessPaths []string
 }
 
 type Supervisor struct {
@@ -365,6 +385,118 @@ func (s *Supervisor) SendMessage(
 	settings config.AppSettings,
 	modelSourcePreference ...string,
 ) error {
+	return s.SendMessageWithWorkspaceAccess(
+		sessionID,
+		prompt,
+		workspacePath,
+		nil,
+		sessionRole,
+		executionMode,
+		approvalPolicy,
+		mcpServers,
+		mcpConfigDigest,
+		codingBrowser,
+		computerUse,
+		codingCollaboration,
+		attachments,
+		settings,
+		modelSourcePreference...,
+	)
+}
+
+func (s *Supervisor) SendMessageWithWorkspaceAccess(
+	sessionID,
+	prompt,
+	workspacePath string,
+	workspaceAccessPaths []string,
+	sessionRole string,
+	executionMode string,
+	approvalPolicy string,
+	mcpServers []string,
+	mcpConfigDigest string,
+	codingBrowser *CodingBrowserDescriptor,
+	computerUse *ComputerUseDescriptor,
+	codingCollaboration *CodingCollaborationDescriptor,
+	attachments []codingattachment.Attachment,
+	settings config.AppSettings,
+	modelSourcePreference ...string,
+) error {
+	return s.sendMessageWithWorkspaceAccess(
+		sessionID,
+		prompt,
+		workspacePath,
+		workspaceAccessPaths,
+		sessionRole,
+		executionMode,
+		approvalPolicy,
+		mcpServers,
+		mcpConfigDigest,
+		codingBrowser,
+		computerUse,
+		codingCollaboration,
+		attachments,
+		nil,
+		settings,
+		modelSourcePreference...,
+	)
+}
+
+func (s *Supervisor) SendMessageWithWorkspaceAccessAndProductAction(
+	sessionID,
+	prompt,
+	workspacePath string,
+	workspaceAccessPaths []string,
+	sessionRole string,
+	executionMode string,
+	approvalPolicy string,
+	mcpServers []string,
+	mcpConfigDigest string,
+	codingBrowser *CodingBrowserDescriptor,
+	computerUse *ComputerUseDescriptor,
+	codingCollaboration *CodingCollaborationDescriptor,
+	attachments []codingattachment.Attachment,
+	productAction *CodingProductActionDescriptor,
+	settings config.AppSettings,
+	modelSourcePreference ...string,
+) error {
+	return s.sendMessageWithWorkspaceAccess(
+		sessionID,
+		prompt,
+		workspacePath,
+		workspaceAccessPaths,
+		sessionRole,
+		executionMode,
+		approvalPolicy,
+		mcpServers,
+		mcpConfigDigest,
+		codingBrowser,
+		computerUse,
+		codingCollaboration,
+		attachments,
+		productAction,
+		settings,
+		modelSourcePreference...,
+	)
+}
+
+func (s *Supervisor) sendMessageWithWorkspaceAccess(
+	sessionID,
+	prompt,
+	workspacePath string,
+	workspaceAccessPaths []string,
+	sessionRole string,
+	executionMode string,
+	approvalPolicy string,
+	mcpServers []string,
+	mcpConfigDigest string,
+	codingBrowser *CodingBrowserDescriptor,
+	computerUse *ComputerUseDescriptor,
+	codingCollaboration *CodingCollaborationDescriptor,
+	attachments []codingattachment.Attachment,
+	productAction *CodingProductActionDescriptor,
+	settings config.AppSettings,
+	modelSourcePreference ...string,
+) error {
 	if strings.TrimSpace(sessionID) == "" {
 		return fmt.Errorf("session id is required")
 	}
@@ -402,6 +534,16 @@ func (s *Supervisor) SendMessage(
 	if err != nil {
 		return err
 	}
+	if strings.TrimSpace(sessionRole) != "" {
+		workspaceAccessPaths = nil
+	}
+	workspaceAccessPaths, err = resolveAgentWorkspaceAccessPaths(
+		workspace,
+		workspaceAccessPaths,
+	)
+	if err != nil {
+		return err
+	}
 	collaborationRoot, err := codingCollaborationRoot()
 	if err != nil {
 		return err
@@ -420,10 +562,21 @@ func (s *Supervisor) SendMessage(
 		codingPolicy.ApprovalPolicy == "read-only" {
 		codingCollaboration = nil
 	}
+	productAction, err = normalizeCodingProductActionDescriptor(productAction)
+	if err != nil {
+		return err
+	}
+	if sessionRole != "" {
+		productAction = nil
+	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := s.ensureProcessLocked(settings, workspace); err != nil {
+	if err := s.ensureProcessLockedWithWorkspaceAccess(
+		settings,
+		workspace,
+		workspaceAccessPaths,
+	); err != nil {
 		return err
 	}
 	preference := ""
@@ -435,6 +588,7 @@ func (s *Supervisor) SendMessage(
 		"action":          "send_message",
 		"conversationId":  sessionID,
 		"prompt":          prompt,
+		"locale":          resolvedUserInterfaceLocale(settings),
 		"provider":        settings.ActiveProvider,
 		"model":           settings.ActiveModel,
 		"sessionRole":     strings.TrimSpace(sessionRole),
@@ -444,10 +598,21 @@ func (s *Supervisor) SendMessage(
 		"mcpConfigDigest": strings.TrimSpace(mcpConfigDigest),
 		"disabledSkills":  settings.DisabledSkills,
 		"attachments":     attachments,
+		"workspaceAccessPaths": append(
+			[]string(nil),
+			workspaceAccessPaths...,
+		),
 		"modelSourceOrder": preferredModelSourceOrder(
 			settings,
 			preference,
 		),
+	}
+	if strings.HasPrefix(sessionID, "milksu_text_projection_") ||
+		strings.HasPrefix(sessionID, "milksu_model_probe_") {
+		command["turnPolicy"] = map[string]any{
+			"toolAccess": "none",
+			"reason":     "text_projection",
+		}
 	}
 	if len(s.securityTools) > 0 {
 		command["securityTools"] = append([]securitytools.RuntimeTool(nil), s.securityTools...)
@@ -461,12 +626,47 @@ func (s *Supervisor) SendMessage(
 	if codingCollaboration != nil {
 		command["codingCollaboration"] = codingCollaboration
 	}
+	if productAction != nil {
+		command["productAction"] = productAction
+	}
 	if err := writeCommand(s.process.stdin, command); err != nil {
 		return fmt.Errorf("send engine message: %w", err)
 	}
 	s.sessions[sessionID] = struct{}{}
 	s.armTurnTimerLocked(sessionID)
 	return nil
+}
+
+func resolvedUserInterfaceLocale(settings config.AppSettings) string {
+	if settings.Locale != nil && strings.EqualFold(strings.TrimSpace(*settings.Locale), "en") {
+		return "en"
+	}
+	return "zh"
+}
+
+func normalizeCodingProductActionDescriptor(
+	descriptor *CodingProductActionDescriptor,
+) (*CodingProductActionDescriptor, error) {
+	if descriptor == nil {
+		return nil, nil
+	}
+	normalized := &CodingProductActionDescriptor{
+		Kind:     strings.TrimSpace(descriptor.Kind),
+		SpecPath: strings.TrimSpace(descriptor.SpecPath),
+		HTMLPath: strings.TrimSpace(descriptor.HTMLPath),
+	}
+	switch normalized.Kind {
+	case "understand", "test", "review", "fix", "summary":
+		normalized.SpecPath = ""
+		normalized.HTMLPath = ""
+	case "architecture":
+		if normalized.SpecPath == "" || normalized.HTMLPath == "" {
+			return nil, errors.New("architecture product action requires fixed output paths")
+		}
+	default:
+		return nil, errors.New("unsupported Coding product action")
+	}
+	return normalized, nil
 }
 
 func normalizeCodingCollaborationDescriptor(
@@ -720,6 +920,116 @@ func (s *Supervisor) SteerMessage(sessionID, prompt string) error {
 	return nil
 }
 
+// RemoveQueuedMessage asks Pi to remove one exact pending message and waits
+// for a request-bound receipt. The index and expected text are both sent so a
+// stale renderer cannot accidentally retract a different message after Pi has
+// advanced the live queue.
+func (s *Supervisor) RemoveQueuedMessage(
+	sessionID,
+	queue string,
+	index int,
+	expected string,
+) error {
+	return s.RemoveQueuedMessageWithTimeout(
+		sessionID,
+		queue,
+		index,
+		expected,
+		defaultQueueControlTimeout,
+	)
+}
+
+func (s *Supervisor) RemoveQueuedMessageWithTimeout(
+	sessionID,
+	queue string,
+	index int,
+	expected string,
+	timeout time.Duration,
+) error {
+	sessionID = strings.TrimSpace(sessionID)
+	queue = strings.TrimSpace(queue)
+	expected = strings.TrimSpace(expected)
+	if sessionID == "" {
+		return fmt.Errorf("session id is required")
+	}
+	if queue != "steering" && queue != "followUp" {
+		return fmt.Errorf("unsupported queued message type: %s", queue)
+	}
+	if index < 0 {
+		return fmt.Errorf("queued message index must be non-negative")
+	}
+	if expected == "" {
+		return fmt.Errorf("queued message text is required")
+	}
+	if len([]rune(expected)) > 16000 {
+		return fmt.Errorf("queued message text exceeds 16000 characters")
+	}
+	if timeout <= 0 {
+		return fmt.Errorf("queue control timeout must be positive")
+	}
+
+	requestID := fmt.Sprintf("queue_remove_%d", time.Now().UnixNano())
+	events := make(chan Event, 1)
+	s.probeMu.Lock()
+	s.controlWaiters[requestID] = events
+	s.probeMu.Unlock()
+	defer func() {
+		s.probeMu.Lock()
+		delete(s.controlWaiters, requestID)
+		s.probeMu.Unlock()
+	}()
+
+	s.mu.Lock()
+	if s.process == nil {
+		s.mu.Unlock()
+		return fmt.Errorf("PI Sidecar is not running")
+	}
+	if _, exists := s.sessions[sessionID]; !exists {
+		s.mu.Unlock()
+		return fmt.Errorf("PI session not found: %s", sessionID)
+	}
+	err := writeCommand(s.process.stdin, map[string]any{
+		"action":         "remove_queued_message",
+		"conversationId": sessionID,
+		"requestId":      requestID,
+		"queue":          queue,
+		"index":          index,
+		"expected":       expected,
+	})
+	s.mu.Unlock()
+	if err != nil {
+		return fmt.Errorf("remove queued message: %w", err)
+	}
+
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	select {
+	case event := <-events:
+		switch event.Type {
+		case "engine.stopped", "engine.protocol_error":
+			return fmt.Errorf(
+				"remove queued message stopped: %s",
+				probeFailureMessage(event),
+			)
+		}
+		if strings.TrimSpace(event.Error) != "" {
+			return fmt.Errorf(
+				"remove queued message failed: %s",
+				probeFailureMessage(event),
+			)
+		}
+		if event.Type != "runtime.queued_message_removed" {
+			return fmt.Errorf("remove queued message ended without a receipt")
+		}
+		return nil
+	case <-timer.C:
+		return fmt.Errorf(
+			"remove queued message timed out after %s",
+			timeout.Round(time.Millisecond),
+		)
+	}
+}
+
 func (s *Supervisor) RespondToolApproval(
 	sessionID,
 	requestID string,
@@ -747,9 +1057,64 @@ func (s *Supervisor) RespondToolApproval(
 	})
 }
 
+func (s *Supervisor) RespondWorkspaceAccess(
+	sessionID,
+	requestID,
+	path string,
+	paths []string,
+	restartRequired bool,
+	responseError string,
+) error {
+	if strings.TrimSpace(sessionID) == "" {
+		return fmt.Errorf("session id is required")
+	}
+	if strings.TrimSpace(requestID) == "" {
+		return fmt.Errorf("workspace request id is required")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.process == nil {
+		return fmt.Errorf("PI Sidecar is not running")
+	}
+	if _, exists := s.sessions[sessionID]; !exists {
+		return fmt.Errorf("PI session not found: %s", sessionID)
+	}
+	return writeCommand(s.process.stdin, map[string]any{
+		"action":          "workspace_access_response",
+		"conversationId":  sessionID,
+		"requestId":       requestID,
+		"path":            strings.TrimSpace(path),
+		"paths":           append([]string(nil), paths...),
+		"restartRequired": restartRequired,
+		"error":           strings.TrimSpace(responseError),
+	})
+}
+
 func (s *Supervisor) StartBackgroundTask(
 	sessionID,
 	workspacePath,
+	command,
+	name,
+	executionMode,
+	approvalPolicy string,
+	settings config.AppSettings,
+) (RuntimeStatus, error) {
+	return s.StartBackgroundTaskWithWorkspaceAccess(
+		sessionID,
+		workspacePath,
+		nil,
+		command,
+		name,
+		executionMode,
+		approvalPolicy,
+		settings,
+	)
+}
+
+func (s *Supervisor) StartBackgroundTaskWithWorkspaceAccess(
+	sessionID,
+	workspacePath string,
+	workspaceAccessPaths []string,
 	command,
 	name,
 	executionMode,
@@ -782,8 +1147,19 @@ func (s *Supervisor) StartBackgroundTask(
 	if err != nil {
 		return RuntimeStatus{}, err
 	}
+	workspaceAccessPaths, err = resolveAgentWorkspaceAccessPaths(
+		workspace,
+		workspaceAccessPaths,
+	)
+	if err != nil {
+		return RuntimeStatus{}, err
+	}
 	s.mu.Lock()
-	err = s.ensureProcessLocked(settings, workspace)
+	err = s.ensureProcessLockedWithWorkspaceAccess(
+		settings,
+		workspace,
+		workspaceAccessPaths,
+	)
 	s.mu.Unlock()
 	if err != nil {
 		return RuntimeStatus{}, err
@@ -792,11 +1168,12 @@ func (s *Supervisor) StartBackgroundTask(
 		sessionID,
 		"start background task",
 		map[string]any{
-			"control":        "spawn",
-			"command":        command,
-			"name":           strings.TrimSpace(name),
-			"executionMode":  codingPolicy.ExecutionMode,
-			"approvalPolicy": codingPolicy.ApprovalPolicy,
+			"control":              "spawn",
+			"command":              command,
+			"name":                 strings.TrimSpace(name),
+			"executionMode":        codingPolicy.ExecutionMode,
+			"approvalPolicy":       codingPolicy.ApprovalPolicy,
+			"workspaceAccessPaths": append([]string(nil), workspaceAccessPaths...),
 		},
 	)
 }
@@ -826,6 +1203,24 @@ func (s *Supervisor) RefreshBackgroundTasks(
 	approvalPolicy string,
 	settings config.AppSettings,
 ) (RuntimeStatus, error) {
+	return s.RefreshBackgroundTasksWithWorkspaceAccess(
+		sessionID,
+		workspacePath,
+		nil,
+		executionMode,
+		approvalPolicy,
+		settings,
+	)
+}
+
+func (s *Supervisor) RefreshBackgroundTasksWithWorkspaceAccess(
+	sessionID,
+	workspacePath string,
+	workspaceAccessPaths []string,
+	executionMode,
+	approvalPolicy string,
+	settings config.AppSettings,
+) (RuntimeStatus, error) {
 	sessionID = strings.TrimSpace(sessionID)
 	if sessionID == "" {
 		return RuntimeStatus{}, fmt.Errorf("session id is required")
@@ -843,7 +1238,11 @@ func (s *Supervisor) RefreshBackgroundTasks(
 		return RuntimeStatus{}, err
 	}
 	s.mu.Lock()
-	err = s.ensureProcessLocked(settings, workspace)
+	err = s.ensureProcessLockedWithWorkspaceAccess(
+		settings,
+		workspace,
+		workspaceAccessPaths,
+	)
 	s.mu.Unlock()
 	if err != nil {
 		return RuntimeStatus{}, err
@@ -1054,7 +1453,7 @@ func (s *Supervisor) ProbeModel(settings config.AppSettings) (ModelProbeResult, 
 	startedAt := time.Now()
 	if err := s.SendMessage(
 		sessionID,
-		"Reply with exactly OK. Do not call tools.",
+		"Reply with exactly OK.",
 		"",
 		"",
 		"",
@@ -1126,9 +1525,8 @@ func (s *Supervisor) GenerateText(prompt string, settings config.AppSettings) (T
 		s.probeMu.Unlock()
 	}()
 
-	// The explicit directive is enforced by bridge-turn-contract.js, which
-	// removes all active tools for this turn. Plan/read-only is a second boundary.
-	prompt = "Do not call any Agent tools. Return only the requested text.\n\n" + prompt
+	// The internal session identifier adds a typed tool-free turn policy to the
+	// Sidecar command. Plan/read-only remains a second deterministic boundary.
 	s.mu.Lock()
 	workspace := ""
 	if s.process != nil {
@@ -1289,7 +1687,24 @@ func (s *Supervisor) Close() {
 }
 
 func (s *Supervisor) ensureProcessLocked(settings config.AppSettings, workspace string) error {
-	if s.process != nil && s.process.workspace == workspace {
+	return s.ensureProcessLockedWithWorkspaceAccess(settings, workspace, nil)
+}
+
+func (s *Supervisor) ensureProcessLockedWithWorkspaceAccess(
+	settings config.AppSettings,
+	workspace string,
+	workspaceAccessPaths []string,
+) error {
+	resolvedWorkspaceAccessPaths, err := resolveAgentWorkspaceAccessPaths(
+		workspace,
+		workspaceAccessPaths,
+	)
+	if err != nil {
+		return err
+	}
+	if s.process != nil &&
+		s.process.workspace == workspace &&
+		slices.Equal(s.process.workspaceAccessPaths, resolvedWorkspaceAccessPaths) {
 		return nil
 	}
 	if s.process != nil {
@@ -1305,10 +1720,11 @@ func (s *Supervisor) ensureProcessLocked(settings config.AppSettings, workspace 
 			_ = previous.command.Process.Kill()
 		}
 	}
-	command, err := newSidecarCommandAtWithDirectory(
+	command, err := newSidecarCommandAtWithDirectoryAndRoots(
 		"chat-bridge.cjs",
 		developmentChatBridgePath,
 		workspace,
+		resolvedWorkspaceAccessPaths,
 		true,
 		s.sidecarDirectory,
 	)
@@ -1340,7 +1756,12 @@ func (s *Supervisor) ensureProcessLocked(settings config.AppSettings, workspace 
 		return fmt.Errorf("start Pi sidecar: %w", err)
 	}
 
-	process := &childProcess{command: command, stdin: stdin, workspace: workspace}
+	process := &childProcess{
+		command:              command,
+		stdin:                stdin,
+		workspace:            workspace,
+		workspaceAccessPaths: append([]string(nil), resolvedWorkspaceAccessPaths...),
+	}
 	s.process = process
 	go s.readEvents(process, stdout)
 	s.emitEvent(Event{Engine: "pi", Type: "engine.started"})
@@ -1655,6 +2076,11 @@ func normalizeBridgeEvent(raw bridgeEvent) Event {
 		RequestID:       raw.RequestID,
 		Input:           raw.Input,
 		Reason:          raw.Reason,
+		Action:          raw.Action,
+		Path:            raw.Path,
+		Paths:           append([]string(nil), raw.Paths...),
+		Query:           raw.Query,
+		RestartRequired: raw.RestartRequired,
 		Approved:        raw.Approved,
 		BackgroundTasks: raw.Tasks,
 		Goal:            raw.Goal,
@@ -1690,6 +2116,10 @@ func normalizeBridgeEvent(raw bridgeEvent) Event {
 		event.Type = "session.goal_updated"
 	case "queue_update":
 		event.Type = "session.queue_updated"
+	case "queued_message_removed":
+		event.Type = "runtime.queued_message_removed"
+		event.Error = raw.Error
+		event.Done = true
 	case "steer_rejected":
 		event.Type = "session.steer_rejected"
 		event.Error = raw.Error
@@ -1722,6 +2152,11 @@ func normalizeBridgeEvent(raw bridgeEvent) Event {
 		event.Type = "approval.requested"
 	case "approval_resolved":
 		event.Type = "approval.resolved"
+		event.Done = true
+	case "workspace_access_requested":
+		event.Type = "workspace.access.requested"
+	case "workspace_access_updated":
+		event.Type = "workspace.access.updated"
 		event.Done = true
 	case "session_destroyed":
 		event.Type = "session.destroyed"

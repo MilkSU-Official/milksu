@@ -31,6 +31,7 @@
       "cdp-proxy.cjs",
       "channel-identity.cjs",
       "build-tracking-view.cjs",
+      "browser-view-attachment.cjs",
       "update-manager.cjs",
       "computer-use-permissions.cjs",
       "macos-screen-permission.cjs",

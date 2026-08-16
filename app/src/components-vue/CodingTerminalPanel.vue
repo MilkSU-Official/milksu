@@ -63,6 +63,7 @@ const shellContainer = ref<HTMLElement | null>(null)
 const terminalSessions = ref<CodingTerminalSession[]>([])
 const selectedTerminalId = ref('')
 const shellLoading = ref(false)
+const closingTerminals = ref<string[]>([])
 const shellError = ref('')
 const command = ref('')
 const runtime = ref<CodingRuntimeStatus | null>(null)
@@ -173,6 +174,7 @@ function terminalLabel(session: CodingTerminalSession): string {
 
 function renderTerminalSession(session: CodingTerminalSession) {
   if (!terminal) return
+  terminal.options.disableStdin = session.status !== 'running'
   terminal.reset()
   terminal.clear()
   if (session.outputTrimmed) {
@@ -189,6 +191,14 @@ function renderTerminalSession(session: CodingTerminalSession) {
     fitShell()
     terminal?.focus()
   })
+}
+
+function renderEmptyTerminal() {
+  if (!terminal) return
+  terminal.options.disableStdin = true
+  terminal.reset()
+  terminal.clear()
+  terminal.write('\r\n\x1b[90m暂无 Shell，点击 + 新建。\x1b[0m\r\n')
 }
 
 function selectTerminal(identifier: string) {
@@ -288,6 +298,10 @@ async function hydrateShellSessions() {
 
 function handleTerminalEvent(event: CodingTerminalEvent) {
   if (event.conversationId !== props.conversationId) return
+  if (event.type === 'terminal.closed') {
+    removeTerminalFromView(event.terminalId)
+    return
+  }
   if (event.session) {
     upsertTerminal(event.session)
     if (!selectedTerminalId.value) {
@@ -309,6 +323,7 @@ function handleTerminalEvent(event: CodingTerminalEvent) {
     && event.session
     && event.terminalId === selectedTerminalId.value
   ) {
+    if (terminal) terminal.options.disableStdin = true
     const exit = event.session.exitCode === undefined
       ? ''
       : ` · exit ${event.session.exitCode}`
@@ -316,6 +331,45 @@ function handleTerminalEvent(event: CodingTerminalEvent) {
       `\r\n\x1b[90m[${terminalStatusLabel(event.session.status)}${exit}]\x1b[0m\r\n`,
     )
   }
+}
+
+function removeTerminalFromView(identifier: string) {
+  const index = terminalSessions.value.findIndex(item => item.id === identifier)
+  if (index < 0) return
+  const updated = terminalSessions.value.filter(item => item.id !== identifier)
+  terminalSessions.value = updated
+  if (updated.length === 0) resetTerminalOrder()
+  else terminalOrdinals.delete(identifier)
+  if (selectedTerminalId.value !== identifier) return
+  const next = updated[index] ?? updated[index - 1]
+  selectedTerminalId.value = next?.id ?? ''
+  if (next) renderTerminalSession(next)
+  else renderEmptyTerminal()
+}
+
+async function closeShell(session: CodingTerminalSession): Promise<boolean> {
+  if (closingTerminals.value.includes(session.id)) return false
+  closingTerminals.value = [...closingTerminals.value, session.id]
+  shellError.value = ''
+  try {
+    await invokeCommand<void>('close_coding_terminal', {
+      conversationId: props.conversationId,
+      terminalId: session.id,
+    })
+    removeTerminalFromView(session.id)
+    return true
+  } catch (reason) {
+    shellError.value = errorMessage(reason, '无法关闭项目 Shell。')
+    return false
+  } finally {
+    closingTerminals.value = closingTerminals.value.filter(id => id !== session.id)
+  }
+}
+
+async function restartShell() {
+  const session = selectedTerminal.value
+  if (!session || session.status === 'running' || shellLoading.value) return
+  if (await closeShell(session)) await startShell()
 }
 
 function writeShell(data: string) {
@@ -588,25 +642,43 @@ onBeforeUnmount(() => {
     <div class="flex h-12 shrink-0 items-center justify-between border-b border-border px-3">
       <div class="flex min-w-0 items-center gap-1.5 overflow-x-auto">
         <template v-if="terminalSessions.length">
-          <button
+          <div
             v-for="session in terminalSessions"
             :key="session.id"
-            :data-terminal-id="session.id"
-            :aria-label="terminalLabel(session)"
-            :aria-pressed="activeView === 'shell' && session.id === selectedTerminalId"
-            type="button"
-            class="flex max-w-44 shrink-0 items-center gap-2 rounded-md px-2.5 py-1.5 text-caption transition-colors"
+            class="flex max-w-48 shrink-0 items-center rounded-md transition-colors"
             :class="activeView === 'shell' && session.id === selectedTerminalId
               ? 'bg-secondary text-foreground'
               : 'text-muted-foreground hover:bg-muted hover:text-foreground'"
-            :title="`${redactProviderCredentials(session.shell)} · PID ${session.pid ?? '—'}`"
-            @click="selectTerminal(session.id)"
           >
-            <SquareTerminal class="size-3.5 shrink-0" />
-            <span class="truncate">
-              {{ terminalLabel(session) }}
-            </span>
-          </button>
+            <button
+              type="button"
+              :data-terminal-id="session.id"
+              class="flex min-w-0 items-center gap-2 px-2.5 py-1.5 text-caption"
+              :aria-label="terminalLabel(session)"
+              :aria-pressed="activeView === 'shell' && session.id === selectedTerminalId"
+              :title="`${redactProviderCredentials(session.shell)} · PID ${session.pid ?? '—'}`"
+              @click="selectTerminal(session.id)"
+            >
+              <SquareTerminal class="size-3.5 shrink-0" />
+              <span class="truncate">
+                {{ terminalLabel(session) }}
+              </span>
+            </button>
+            <button
+              type="button"
+              class="mr-1 flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-background/70 hover:text-foreground"
+              :disabled="closingTerminals.includes(session.id)"
+              :aria-label="`关闭 ${terminalLabel(session)}`"
+              :title="`关闭 ${terminalLabel(session)}`"
+              @click="closeShell(session)"
+            >
+              <LoaderCircle
+                v-if="closingTerminals.includes(session.id)"
+                class="size-3 animate-spin"
+              />
+              <X v-else class="size-3" />
+            </button>
+          </div>
         </template>
         <button
           v-else
@@ -642,6 +714,19 @@ onBeforeUnmount(() => {
           @click="stopShell"
         >
           <Square class="size-3 fill-current" />
+        </Button>
+        <Button
+          v-else-if="selectedTerminal"
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          class="shrink-0"
+          :disabled="shellLoading || closingTerminals.includes(selectedTerminal.id)"
+          aria-label="重新启动当前 Shell"
+          title="重新启动当前 Shell"
+          @click="restartShell"
+        >
+          <RefreshCw class="size-3.5" />
         </Button>
         <span class="mx-1 h-5 w-px shrink-0 bg-border" />
         <Button

@@ -2,7 +2,7 @@ import type { Message } from '@/types'
 
 const noActivityFailure = /(?:模型长时间没有产生文本或工具进展|produced no model or tool activity)/i
 const networkFailure = /(?:模型或 Agent 网络连接失败|ECONNREFUSED|ECONNRESET|ENOTFOUND|ETIMEDOUT|network is unreachable|connection refused|fetch failed|dial tcp|context deadline exceeded|i\/o timeout|TLS handshake timeout)/i
-const runtimeStoppedFailure = /(?:Agent 已停止|Agent 通信异常|sidecar exited|engine stopped|engine\.stopped|engine\.protocol_error|protocol error|Agent 进程已停止)/i
+const runtimeStoppedFailure = /(?:Agent 已停止|Agent 通信异常|Agent 遇到本地运行时异常|本地 Agent 权限组件启动失败|sidecar exited|engine stopped|engine\.stopped|engine\.protocol_error|protocol error|Agent 进程已停止)/i
 const interruptionFailure = /(?:用户已中断|用户取消|已取消|已中断|abort(?:ed)?|cancel(?:led|ed)|interrupted|operation was canceled|context canceled)/i
 const contextWindowFailure = /(?:上下文窗口|上下文过长|上下文长度|context window|context length|maximum context|token limit|too many tokens|tokens exceeded|context_length_exceeded)/i
 

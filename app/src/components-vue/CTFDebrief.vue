@@ -27,7 +27,6 @@ const props = defineProps<{
   debrief: CTFDebrief
   humanOutcome: CTFHumanOutcome
   submitting?: boolean
-  reflectionSeed?: string
 }>()
 
 const emit = defineEmits<{
@@ -40,7 +39,6 @@ const independentStep = ref('')
 const independentStepConfirmed = ref(false)
 const submittedAtStepCount = ref<number | null>(null)
 const reflection = ref('')
-const lastReflectionSeed = ref('')
 const submittedAtCount = ref<number | null>(null)
 const copyNotice = ref('')
 const canSaveMemory = computed(
@@ -102,19 +100,6 @@ watch(
       submittedAtCount.value = null
     }
   },
-)
-
-watch(
-  () => props.reflectionSeed,
-  value => {
-    const seed = (value || '').trim()
-    if (!seed || seed === lastReflectionSeed.value || !props.debrief.needsReflection) return
-    reflection.value = reflection.value.trim()
-      ? `${reflection.value.trim()}\n\n${seed}`
-      : seed
-    lastReflectionSeed.value = seed
-  },
-  { immediate: true },
 )
 
 watch(

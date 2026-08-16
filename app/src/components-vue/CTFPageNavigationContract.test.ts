@@ -118,13 +118,12 @@ describe('CTFPage navigation contract', () => {
     expect(ctfChallengeDeskSource).toContain('{{ loadingDetail }}')
   })
 
-  it('quotes confirmed related history into the debrief draft instead of saving CTF memory directly', () => {
-    expect(ctfPageSource).toContain('quoteSessionHistoryToDebrief')
-    expect(ctfPageSource).toContain('confirm-action-label="引用到复盘"')
-    expect(ctfPageSource).toContain('@confirm-result="quoteSessionHistoryToDebrief"')
-    expect(ctfPageSource).toContain(':reflection-seed="historyReflectionSeed"')
-    expect(ctfPageSource).toContain('redactProviderCredentials(value)')
-    expect(ctfPageSource).toContain('保存复盘后才可沉淀为记忆')
-    expect(ctfPageSource).not.toContain("quoteSessionHistoryToDebrief(result); saveTrainingMemory")
+  it('does not expose single-session related history in the CTF workspace sidebar', () => {
+    expect(ctfPageSource).not.toContain('SessionHistoryPanel')
+    expect(ctfPageSource).not.toContain('quoteSessionHistoryToDebrief')
+    expect(ctfPageSource).not.toContain('confirm-action-label="引用到复盘"')
+    expect(ctfPageSource).not.toContain(':reflection-seed="historyReflectionSeed"')
+    expect(ctfPageSource).toContain('CTFMemoryRecall')
+    expect(ctfPageSource).toContain("'save_ctf_training_memory'")
   })
 })

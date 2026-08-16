@@ -55,11 +55,6 @@ type ModelVerification struct {
 	VerifiedAt string `json:"verified_at"`
 }
 
-type ModelSelection struct {
-	Provider string `json:"provider"`
-	Model    string `json:"model"`
-}
-
 const (
 	ModelSourceAccount  = "account"
 	ModelSourcePersonal = "personal"
@@ -80,7 +75,6 @@ type SecurityToolPreference struct {
 type AppSettings struct {
 	ActiveProvider string                            `json:"active_provider"`
 	ActiveModel    string                            `json:"active_model"`
-	VisionModel    *ModelSelection                   `json:"vision_model,omitempty"`
 	ModelVerified  *ModelVerification                `json:"model_verification,omitempty"`
 	ModelRouting   ModelRoutingConfig                `json:"model_routing"`
 	Relay          *RelayConfig                      `json:"relay,omitempty"`
@@ -609,18 +603,6 @@ func withDefaults(value AppSettings) AppSettings {
 	if value.ActiveModel == "" {
 		value.ActiveModel = defaults.ActiveModel
 	}
-	if value.VisionModel != nil {
-		provider := strings.TrimSpace(value.VisionModel.Provider)
-		model := strings.TrimSpace(value.VisionModel.Model)
-		if provider == "" || model == "" {
-			value.VisionModel = nil
-		} else {
-			value.VisionModel = &ModelSelection{
-				Provider: provider,
-				Model:    model,
-			}
-		}
-	}
 	if value.Providers == nil {
 		value.Providers = make(map[string]ProviderConfig)
 	}
@@ -756,10 +738,6 @@ func clone(value AppSettings) AppSettings {
 		copy.Locale = &locale
 	}
 	copy.ModelVerified = cloneModelVerification(value.ModelVerified)
-	if value.VisionModel != nil {
-		vision := *value.VisionModel
-		copy.VisionModel = &vision
-	}
 	return copy
 }
 

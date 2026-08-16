@@ -213,7 +213,7 @@ onBeforeUnmount(() => {
 
       <div class="flex min-h-0 flex-1">
         <nav class="settings-nav settings-nav-surface tactical-dark-surface app-no-drag w-56 shrink-0 border-r px-3 py-5" aria-label="设置分类">
-          <button v-for="label in ['通用', '模型与额度', 'Coding', '浏览器与控制', 'CVE']" :key="label" type="button" class="settings-nav-item">
+          <button v-for="label in ['通用', '模型', 'CTF', 'CVE', 'Coding', '浏览器控制', '安全工具']" :key="label" type="button" class="settings-nav-item">
             {{ label }}
           </button>
           <button type="button" class="settings-nav-item active" aria-current="page">安全工具</button>

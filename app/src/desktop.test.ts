@@ -11,6 +11,42 @@ afterEach(() => {
 })
 
 describe('desktop command adapter', () => {
+  it('imports and previews renderer clipboard attachments through Desktop RPC', async () => {
+    const attachment = {
+      id: 'a'.repeat(64),
+      name: 'pasted.png',
+      mediaType: 'image/png',
+      size: 5,
+      sha256: 'a'.repeat(64),
+    }
+    const preview = {
+      name: attachment.name,
+      mediaType: attachment.mediaType,
+      size: attachment.size,
+      kind: 'image',
+      dataUrl: 'data:image/png;base64,aW1hZ2U=',
+    }
+    const invoke = vi.fn(async (method: string) => (
+      method === 'ImportCodingAttachments' ? [attachment] : preview
+    ))
+    Object.defineProperty(window, 'milksu', {
+      configurable: true,
+      value: { invoke },
+    })
+    const payloads = [{
+      name: attachment.name,
+      mediaType: attachment.mediaType,
+      dataBase64: 'aW1hZ2U=',
+    }]
+
+    await expect(invokeCommand('import_coding_attachments', { payloads }))
+      .resolves.toEqual([attachment])
+    await expect(invokeCommand('preview_coding_attachment', { attachment }))
+      .resolves.toEqual(preview)
+    expect(invoke).toHaveBeenNthCalledWith(1, 'ImportCodingAttachments', [payloads])
+    expect(invoke).toHaveBeenNthCalledWith(2, 'PreviewCodingAttachment', [attachment])
+  })
+
   it('serializes Vue reactive values before crossing Electron IPC', async () => {
     const invoke = vi.fn(async (_method: string, args: unknown[]) => {
       structuredClone(args)
@@ -33,6 +69,58 @@ describe('desktop command adapter', () => {
       createdAt: 1,
       messages: [{ id: 'message-1', role: 'user', content: '运行健康检查', timestamp: 2 }],
     }])
+  })
+
+  it('passes an exact queued-message removal through Desktop RPC', async () => {
+    const invoke = vi.fn(async () => undefined)
+    Object.defineProperty(window, 'milksu', {
+      configurable: true,
+      value: { invoke },
+    })
+
+    await expect(invokeCommand('remove_queued_message', {
+      conversationId: 'coding-1',
+      queue: 'steering',
+      index: 2,
+      expected: '先别改 API',
+    })).resolves.toBeUndefined()
+    expect(invoke).toHaveBeenCalledWith('RemoveQueuedMessage', [
+      'coding-1',
+      'steering',
+      2,
+      '先别改 API',
+    ])
+  })
+
+  it('uses desktop-owned RPCs for adding and revoking project access', async () => {
+    const invoke = vi.fn(async (method: string) => (
+      method === 'AuthorizeConversationWorkspaceAccess'
+        ? ['/Users/milksu/code/second-project']
+        : []
+    ))
+    Object.defineProperty(window, 'milksu', {
+      configurable: true,
+      value: { invoke },
+    })
+
+    await expect(invokeCommand('authorize_conversation_workspace_access', {
+      conversationId: 'coding-1',
+    })).resolves.toEqual(['/Users/milksu/code/second-project'])
+    await expect(invokeCommand('revoke_conversation_workspace_access', {
+      conversationId: 'coding-1',
+      path: '/Users/milksu/code/second-project',
+    })).resolves.toEqual([])
+
+    expect(invoke).toHaveBeenNthCalledWith(
+      1,
+      'AuthorizeConversationWorkspaceAccess',
+      ['coding-1'],
+    )
+    expect(invoke).toHaveBeenNthCalledWith(
+      2,
+      'RevokeConversationWorkspaceAccess',
+      ['coding-1', '/Users/milksu/code/second-project'],
+    )
   })
 
   it('passes the first Coding message to the silent title generator', async () => {

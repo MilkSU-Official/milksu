@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 
@@ -680,6 +681,20 @@ func (a *App) ListConversations() ([]conversation.StoredConversation, error) {
 }
 
 func (a *App) SaveConversation(value conversation.StoredConversation) error {
+	stored, err := a.conversations.Get(value.ID)
+	if err == nil {
+		// Workspace grants are owned by the desktop authorization RPC. Renderer
+		// persistence may update conversation content, but cannot silently add or
+		// widen filesystem access.
+		value.WorkspaceAccessPaths = append(
+			[]string(nil),
+			stored.WorkspaceAccessPaths...,
+		)
+	} else if errors.Is(err, os.ErrNotExist) {
+		value.WorkspaceAccessPaths = nil
+	} else {
+		return err
+	}
 	return a.conversations.Save(value)
 }
 
@@ -721,8 +736,72 @@ func (a *App) ChooseAgentWorkspace() (string, error) {
 	return normalizeAgentWorkspaceSelection(selected)
 }
 
+func (a *App) AuthorizeConversationWorkspaceAccess(
+	conversationID string,
+) ([]string, error) {
+	stored, err := a.conversations.Get(conversationID)
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(stored.WorkspacePath) == "" {
+		return nil, fmt.Errorf("Coding task must have a primary workspace before authorizing another project")
+	}
+	selected, err := a.ChooseAgentWorkspace()
+	if err != nil || strings.TrimSpace(selected) == "" {
+		return append([]string(nil), stored.WorkspaceAccessPaths...), err
+	}
+	paths, err := normalizeWorkspaceAccessPaths(
+		stored.WorkspacePath,
+		append(stored.WorkspaceAccessPaths, selected),
+	)
+	if err != nil {
+		return nil, err
+	}
+	stored.WorkspaceAccessPaths = paths
+	if err := a.conversations.Save(stored); err != nil {
+		return nil, err
+	}
+	return append([]string(nil), paths...), nil
+}
+
+func (a *App) RevokeConversationWorkspaceAccess(
+	conversationID,
+	path string,
+) ([]string, error) {
+	stored, err := a.conversations.Get(conversationID)
+	if err != nil {
+		return nil, err
+	}
+	target := filepath.Clean(strings.TrimSpace(path))
+	paths := make([]string, 0, len(stored.WorkspaceAccessPaths))
+	found := false
+	for _, current := range stored.WorkspaceAccessPaths {
+		if filepath.Clean(current) == target {
+			found = true
+			continue
+		}
+		paths = append(paths, current)
+	}
+	if !found {
+		return nil, fmt.Errorf("Coding project access is no longer authorized")
+	}
+	stored.WorkspaceAccessPaths = paths
+	if err := a.conversations.Save(stored); err != nil {
+		return nil, err
+	}
+	return append([]string(nil), paths...), nil
+}
+
 func normalizeAgentWorkspaceSelection(value string) (string, error) {
-	absolute, err := filepath.Abs(strings.TrimSpace(value))
+	value = strings.TrimSpace(value)
+	if value == "~" || strings.HasPrefix(value, "~/") {
+		home, homeErr := os.UserHomeDir()
+		if homeErr != nil {
+			return "", fmt.Errorf("locate user directory: %w", homeErr)
+		}
+		value = filepath.Join(home, strings.TrimPrefix(value, "~/"))
+	}
+	absolute, err := filepath.Abs(value)
 	if err != nil {
 		return "", fmt.Errorf("resolve Coding Agent project directory: %w", err)
 	}
@@ -738,6 +817,35 @@ func normalizeAgentWorkspaceSelection(value string) (string, error) {
 		return "", fmt.Errorf("Coding Agent project must be a directory: %s", resolved)
 	}
 	return filepath.Clean(resolved), nil
+}
+
+func normalizeWorkspaceAccessPaths(primary string, values []string) ([]string, error) {
+	if len(values) > 8 {
+		return nil, fmt.Errorf("Coding Agent supports at most 8 additional project directories")
+	}
+	primary = filepath.Clean(strings.TrimSpace(primary))
+	if primary != "." {
+		if resolvedPrimary, resolveErr := normalizeAgentWorkspaceSelection(primary); resolveErr == nil {
+			primary = resolvedPrimary
+		}
+	}
+	seen := make(map[string]struct{}, len(values))
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		resolved, err := normalizeAgentWorkspaceSelection(value)
+		if err != nil {
+			return nil, err
+		}
+		if resolved == primary {
+			continue
+		}
+		if _, exists := seen[resolved]; exists {
+			continue
+		}
+		seen[resolved] = struct{}{}
+		result = append(result, resolved)
+	}
+	return result, nil
 }
 
 func (a *App) ChooseCTFMaterials() ([]ctf.MaterialRequest, error) {
@@ -784,10 +892,23 @@ func (a *App) ChooseCodingAttachments() ([]codingattachment.Attachment, error) {
 	return a.codingFiles.Import(paths)
 }
 
+func (a *App) ImportCodingAttachments(
+	payloads []codingattachment.ImportPayload,
+) ([]codingattachment.Attachment, error) {
+	return a.codingFiles.ImportPayloads(payloads)
+}
+
+func (a *App) PreviewCodingAttachment(
+	attachment codingattachment.Attachment,
+) (codingattachment.Preview, error) {
+	return a.codingFiles.Preview(attachment)
+}
+
 func (a *App) SendMessage(
 	conversationID,
 	prompt,
-	workspacePath,
+	workspacePath string,
+	workspaceAccessPaths []string,
 	modelMode,
 	modelProvider,
 	modelID,
@@ -797,12 +918,34 @@ func (a *App) SendMessage(
 	mcpConfigDigest string,
 	mcpServers []string,
 	attachments []codingattachment.Attachment,
+	productAction *engine.CodingProductActionDescriptor,
 ) error {
 	resolvedWorkspace, err := a.resolveConversationWorkspace(conversationID, workspacePath)
 	if err != nil {
 		return err
 	}
 	workspacePath = resolvedWorkspace
+	workspaceAccessPaths, err = normalizeWorkspaceAccessPaths(workspacePath, workspaceAccessPaths)
+	if err != nil {
+		return err
+	}
+	if !strings.HasPrefix(conversationID, "ctf_") {
+		stored, storedErr := a.conversations.Get(conversationID)
+		if storedErr != nil {
+			return storedErr
+		}
+		authorizedPaths, normalizeErr := normalizeWorkspaceAccessPaths(
+			workspacePath,
+			stored.WorkspaceAccessPaths,
+		)
+		if normalizeErr != nil {
+			return normalizeErr
+		}
+		if !slices.Equal(workspaceAccessPaths, authorizedPaths) {
+			return fmt.Errorf("Coding project authorization changed; retry the message")
+		}
+		workspaceAccessPaths = authorizedPaths
+	}
 	sessionRole := ""
 	if a.ctfAgent != nil {
 		if err := a.ctfAgent.AuthorizeTurn(a.commandContext(), conversationID, workspacePath); err != nil {
@@ -872,10 +1015,11 @@ func (a *App) SendMessage(
 		}
 	}
 	a.engines.SetSecurityTools(a.securityTools.RuntimeTools(a.commandContext()))
-	return a.engines.SendMessage(
+	return a.engines.SendMessageWithWorkspaceAccessAndProductAction(
 		conversationID,
 		prompt,
 		workspacePath,
+		workspaceAccessPaths,
 		sessionRole,
 		executionMode,
 		approvalPolicy,
@@ -885,6 +1029,7 @@ func (a *App) SendMessage(
 		computerUse,
 		codingCollaboration,
 		attachments,
+		productAction,
 		settings,
 		modelSourcePreference,
 	)
@@ -939,19 +1084,21 @@ func (a *App) SteerMessage(conversationID, prompt string) error {
 	return a.engines.SteerMessage(conversationID, prompt)
 }
 
+func (a *App) RemoveQueuedMessage(
+	conversationID,
+	queue string,
+	index int,
+	expected string,
+) error {
+	return a.engines.RemoveQueuedMessage(conversationID, queue, index, expected)
+}
+
 func (a *App) RespondToolApproval(
 	conversationID,
 	requestID string,
 	approved bool,
 ) error {
 	return a.engines.RespondToolApproval(conversationID, requestID, approved)
-}
-
-func (a *App) GetCodingArchitecturePreview(
-	workspacePath,
-	relativePath string,
-) (codingenv.ArchitecturePreview, error) {
-	return codingenv.InspectArchitecturePreview(workspacePath, relativePath)
 }
 
 func (a *App) GetCodingArtifactPreview(
@@ -1721,8 +1868,19 @@ func (a *App) CancelVulnJob(id string) error {
 }
 
 func (a *App) emitEngineEvent(event engine.Event) {
+	if event.Type == "workspace.access.requested" {
+		a.handleWorkspaceAccessRequest(event)
+		return
+	}
 	if event.Error != "" {
-		a.diagnostics.Record("coding-engine", "error", "coding engine event failed")
+		// The renderer projects a bounded, actionable message. Keep the exact
+		// runtime failure only in the existing diagnostic recorder, which applies
+		// credential redaction and length limits before retaining it.
+		a.diagnostics.Record(
+			"coding-engine",
+			"error",
+			fmt.Sprintf("%s: %s", event.Type, event.Error),
+		)
 	} else if event.Type == "engine.started" || event.Type == "engine.stopped" {
 		a.diagnostics.Record("coding-engine", "info", event.Type)
 	}
