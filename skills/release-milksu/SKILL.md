@@ -21,7 +21,7 @@ Push the clean release commit to the authorized private `main`, then dispatch th
 
 ### macOS ARM64
 
-Prefer a registered private self-hosted macOS ARM64 runner; use a GitHub-hosted Mac only when the local runner is unavailable or unsuitable. Use `macOS signed release` once. It must test, compile the App once, apply Developer ID signing and hardened runtime, notarize, staple, and verify Gatekeeper. Derive both deliverables from the same verified `.app`:
+Prefer a registered private self-hosted macOS ARM64 runner; use a GitHub-hosted Mac only when the local runner is unavailable or unsuitable. Do not restore or upload GitHub's remote Node/Go caches on the self-hosted path; reuse the runner's local tool and package caches instead. Use `macOS signed release` once. It must test, compile the App once, apply Developer ID signing and hardened runtime, notarize, staple, and verify Gatekeeper. Derive both deliverables from the same verified `.app`:
 
 - DMG: user installer and GitHub Release asset;
 - ZIP plus updater metadata: authenticated OTA payload uploaded directly from the runner to private R2.

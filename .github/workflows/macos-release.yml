@@ -43,14 +43,29 @@ jobs:
           submodules: recursive
       - name: Refuse a Stable release outside main
         run: test "$GITHUB_REF" = refs/heads/main
-      - uses: actions/setup-node@v4
+      - name: Set up Node with hosted cache
+        if: ${{ !inputs.use_self_hosted }}
+        uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
-      - uses: actions/setup-go@v5
+      - name: Set up Node without remote cache
+        if: ${{ inputs.use_self_hosted }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Set up Go with hosted cache
+        if: ${{ !inputs.use_self_hosted }}
+        uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           cache: true
+      - name: Set up Go without remote cache
+        if: ${{ inputs.use_self_hosted }}
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
       - name: Install dependencies
         run: |
           brew install ripgrep
