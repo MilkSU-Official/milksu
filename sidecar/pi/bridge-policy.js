@@ -35,6 +35,7 @@ import { Type } from "typebox";
 import {
   codingGoalToolNames,
   codingSessionToolNames,
+  codingWebResearchToolNames,
   normalizeCodingPolicy,
 } from "./bridge-coding-policy.js";
 import {
@@ -69,6 +70,7 @@ const codingProductReadOnlyToolNames = [
   "ls",
   "milksu_progress",
   "lsp_diagnostics",
+  ...codingWebResearchToolNames,
   ...codingGoalToolNames,
 ];
 const codingProductTestToolNames = [
@@ -79,6 +81,7 @@ const codingProductTestToolNames = [
   "ls",
   "milksu_progress",
   "lsp_diagnostics",
+  ...codingWebResearchToolNames,
   ...codingGoalToolNames,
 ];
 const codingProductFixToolNames = [
@@ -92,6 +95,7 @@ const codingProductFixToolNames = [
   "milksu_progress",
   "lsp_diagnostics",
   "lsp_fix",
+  ...codingWebResearchToolNames,
   ...codingGoalToolNames,
 ];
 const ctfLocalToolNames = [

@@ -1,4 +1,5 @@
 export const codingGoalToolNames = ["goal_complete", "goal_blocked"];
+export const codingWebResearchToolNames = ["web_search", "web_fetch"];
 
 export const codingReadOnlyToolNames = [
   "read",
@@ -9,6 +10,7 @@ export const codingReadOnlyToolNames = [
   "milksu_progress",
   "milksu_workspace_candidates",
   "lsp_diagnostics",
+  ...codingWebResearchToolNames,
   ...codingGoalToolNames,
 ];
 
@@ -29,6 +31,7 @@ export const codingWorkspaceAutoToolNames = [
   "milksu_archify",
   "lsp_diagnostics",
   "lsp_fix",
+  ...codingWebResearchToolNames,
   ...codingGoalToolNames,
 ];
 

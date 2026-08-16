@@ -116,6 +116,7 @@ import {
   destructiveDeleteDecision,
   destructiveDeleteGuidance,
 } from "./bridge-destructive-delete.js";
+import piWebResearchExtension from "./bridge-web-research.js";
 import {
   createWorkspaceAccessBroker,
   createWorkspaceAccessExtension,
@@ -1063,6 +1064,7 @@ function createMilkSUResourceLoader(
     extensionFactories.push(
       piGoalExtension,
       createReviewedBackgroundTasksExtension(conversationId),
+      piWebResearchExtension,
       createWorkspaceAccessExtension(conversationId, workspaceAccessBroker),
       createCodingPermissionExtension(
         conversationId,
