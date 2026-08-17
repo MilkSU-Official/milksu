@@ -33,32 +33,37 @@ staple 与 Gatekeeper 验证。签名资产只存在 Personal Vault 和 GitHub S
 
 ## 构建一次正式候选包
 
-1. 确认要发布的提交已推送到 MilkSU 私有仓库且工作树干净。
-2. 打开 **Actions → macOS signed release → Run workflow**，选择准确分支，填写发布标题、说明和最低版本。
-   第一次核对保持 `upload_release=false`；它只生成经过签名验证的候选产物，不接触 R2 或 Admin。
+1. 按[三端打包与发版流程](release-process.md)把准确版本提交并推送到私有 `main`，运行一次
+   `npm run release:verify` 生成绑定完整 commit 的本地回执。
+2. 使用 `npm run release:dispatch -- --release-title ... --release-notes ...` 一次触发三端。脚本会给
+   macOS workflow 传入同一个 40 位 `source_commit`；默认 `upload_release=false`，不接触 R2 或 Admin。
 3. 审批 `macos-release` environment。
-4. 等待 job 完成，下载 `MilkSU-macOS-arm64-installer` artifact。Actions 候选 artifact 只包含给用户安装的
-   DMG；electron-updater ZIP 与 `release-metadata.json` 只在同一 job 的 `upload_release=true` 路径中用于
-   私有 R2 / Admin 草稿，不上传到 GitHub Actions artifact 或 GitHub Release 页面。
+4. 等待 job 完成，下载 `MilkSU-macOS-arm64-installer` artifact。GitHub-only 模式只生成给用户安装的
+   DMG，不再生成 electron-updater ZIP 或 `release-metadata.json`。
 5. 在一台未安装开发证书的 Mac 上下载并打开 DMG，核对设置页 branch、40 位 commit 和 tracking ID。
 
 Workflow 会在一次性 keychain 中导入 `.p12`，并依次执行：
 
 ```text
-测试 → 构建 Stable → Hardened Runtime / Developer ID 签名
-→ App 公证、staple 与验证 → 生成 updater ZIP
+已验证 source commit → 构建 Stable → Hardened Runtime / Developer ID 签名
+→ App 公证、staple 与验证
 → 生成并签名 DMG → DMG 公证、staple 与验证
-→ 生成哈希与 release metadata → 上传 workflow artifact
+→ 验证 DMG 安装布局 → 上传 DMG workflow artifact
 ```
+
+全仓 Go、Vue、Sidecar、lint 和生产/文档构建已由 commit-bound 本地回执证明，macOS workflow 不重复
+执行。只有显式 `--upload-release` 时，App 公证后才额外生成 updater ZIP 与 release metadata。
 
 任何签名、公证、staple 或 Gatekeeper 步骤失败，workflow 都不会上传可分发产物。这个 workflow 只构建
 Stable；Codex 进行普通功能开发和验收时不构建 Beta，Beta 只在 MilkSU 明确执行自举任务时使用。
 
 ## 上传私有 R2 并建立草稿
 
-候选包核对通过后，维护者再次手工运行同一个 workflow 并显式设置 `upload_release=true`。CI 使用 rclone
-的 Cloudflare S3 provider 把 ZIP、DMG 和元数据上传到 `releases/stable/darwin/arm64/<version>/`，再逐个
-下载到临时目录复核 SHA-256。只有回读一致时，CI 才调用 Admin 的窄 internal API 创建或幂等更新草稿。
+需要 OTA 时，不先构建 GitHub-only 候选再重复整轮签名。维护者在同一次已验证 source commit 分发中
+使用 `npm run release:dispatch -- --upload-release ...`。CI 在该轮额外生成 updater ZIP 和元数据，使用
+rclone 的 Cloudflare S3 provider 把 ZIP、DMG 和元数据上传到
+`releases/stable/darwin/arm64/<version>/`，再逐个下载到临时目录复核 SHA-256。只有回读一致时，CI 才调用
+Admin 的窄 internal API 创建或幂等更新草稿。
 
 这一步不会直接向用户发布。维护者必须进入 MilkSU Admin 的 **版本** 页面，核对版本、commit、tracking、
 大小、哈希和发布说明，再点击“发布此版本”。发布只改变 D1 的 current pointer；R2 对象保持不可变。

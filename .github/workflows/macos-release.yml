@@ -3,6 +3,10 @@ name: macOS signed release
 on:
   workflow_dispatch:
     inputs:
+      source_commit:
+        description: Full verified main commit to package
+        required: true
+        type: string
       upload_release:
         description: Upload verified artifacts to private R2 and create an Admin draft
         required: true
@@ -41,6 +45,21 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 0
+      - name: Select the immutable release source
+        env:
+          RELEASE_SOURCE_COMMIT: ${{ inputs.source_commit }}
+        run: |
+          set -euo pipefail
+          source_commit="${RELEASE_SOURCE_COMMIT,,}"
+          if [[ ! "$source_commit" =~ ^[0-9a-f]{40}$ ]]; then
+            echo 'source_commit must be a full Git commit' >&2
+            exit 1
+          fi
+          git merge-base --is-ancestor "$source_commit" origin/main
+          git checkout -B main "$source_commit"
+          git submodule update --init --recursive
+          test -z "$(git status --porcelain)"
       - name: Refuse a Stable release outside main
         run: test "$GITHUB_REF" = refs/heads/main
       - name: Set up Node with hosted cache
@@ -68,17 +87,9 @@ jobs:
           cache: false
       - name: Install dependencies
         run: |
-          # Pi owns Coding search semantics; the clean release runner supplies
-          # the native executables used by Pi's built-in grep/find tools.
-          brew install ripgrep fd
           npm ci
           npm --prefix app ci
           npm --prefix desktop ci
-      - name: Test
-        run: |
-          go test ./...
-          npm --prefix app test
-          npm run test:sidecar
       - name: Import Developer ID certificate into an ephemeral Keychain
         env:
           MACOS_CSC_LINK: ${{ secrets.MACOS_CSC_LINK }}
@@ -125,6 +136,7 @@ jobs:
           MILKSU_RELEASE_TITLE: ${{ inputs.release_title }}
           MILKSU_RELEASE_NOTES: ${{ inputs.release_notes }}
           MILKSU_MINIMUM_UPDATE_VERSION: ${{ inputs.minimum_version }}
+          MILKSU_BUILD_OTA: ${{ inputs.upload_release && '1' || '0' }}
         run: npm run desktop:release:mac
       - uses: actions/upload-artifact@v4
         with:

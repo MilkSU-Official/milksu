@@ -25,6 +25,7 @@
 | 当前内测发行 | `v26.817.2 / main@09718ce21ca6fb96f392f6ca37061d788a050f10`；同一 source commit 生成 macOS ARM64、Windows x64 与 Linux x64 三端安装包。GitHub prerelease 只提供 DMG、EXE、DEB，R2/Admin current pointer 未发布。 |
 | 当前开发 | `main` 已包含上述发行源与后续纯文档收口；`v26.817.2` 始终固定在 `09718ce`，后续文档提交不移动发行标签。 |
 | 平台边界 | macOS DMG 已签名、公证、staple、Gatekeeper 验证；Windows 安装器已完成原生 Runtime 与首次启动检查但尚未代码签名；Linux DEB 已完成原生 Ubuntu 包结构、Sidecar、Go Runtime 与 Xvfb Electron 启动检查，仍是无 Secret Service、本地 OCR、Computer Use 的试用边界。 |
+| 发行流水 | 下一发行从干净、已推送的 `main` 对 canonical Go/Vue/Sidecar/lint/生产与文档构建只验证一次，回执绑定完整 commit 和版本；一条命令把同一 source commit 分发给三端，workflow 只保留平台原生构建与安装/首次启动门禁。GitHub-only 的 macOS job 不再生成 OTA ZIP/metadata。 |
 
 ## 当前产品事实
 

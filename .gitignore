@@ -26,6 +26,7 @@ build/sidecar-smoke/
 build/sidecar-smoke-non-git/
 build/sidecar-spike/
 build/test-results/
+build/release/
 docs/.vitepress/cache/
 
 # Archify previews are reproducible local artifacts. Keep the compact JSON

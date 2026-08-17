@@ -275,8 +275,10 @@ Electron 不拥有 CTF/CVE 事实，Go 不拥有通用模型循环，Pi 不拥�
 
 当前 macOS ARM64 `.app` 由 `npm run desktop:build` 构建，Electron Builder 生成壳，随后固定 Sidecar
 安装器写入 Node/Pi/Playwright 资源并重新签名。普通本机构建显式使用 ad-hoc，不枚举 Developer ID。
-正式发行由 `macOS signed release` 私有 workflow 完成测试、hardened runtime / Developer ID 签名、
-App/DMG 公证、staple 与 Gatekeeper 验证，并为 macOS updater 生成版本化 ZIP 和元数据。显式选择上传时，
+正式发行先在干净、已推送的 `main` 上运行一次 canonical 全仓验证并生成绑定完整 commit/版本的本地回执，
+再由三个私有 workflow 并行完成各平台构建与原生安装包验收。macOS job 不重复全仓测试，只完成
+hardened runtime / Developer ID 签名、App/DMG 公证、staple、Gatekeeper 和 DMG 布局验证。默认
+GitHub-only 模式不生成 updater ZIP 或元数据；显式选择 OTA 上传时，macOS 同一轮才额外生成二者，
 CI 通过 rclone 把 ZIP、DMG 和元数据写到私有 R2 的不可变版本路径，逐个回读校验 SHA-256，再用窄
 publisher token 在 Admin 建草稿；管理员发布后，已登录且访问正常的 Stable 客户端才可经 Worker 获取
 feed 和安装包。R2 没有公共下载地址，账户 Bearer token 只由 Electron 主进程持有。正式内测发行
