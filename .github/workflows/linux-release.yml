@@ -1,0 +1,121 @@
+name: Linux x64 deb trial
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_commit:
+        description: Optional full main commit to package with this workflow revision
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - name: Select the immutable trial source
+        env:
+          RELEASE_SOURCE_COMMIT: ${{ inputs.source_commit }}
+        run: |
+          set -euo pipefail
+          source_commit="${RELEASE_SOURCE_COMMIT,,}"
+          if [[ -z "$source_commit" ]]; then exit 0; fi
+          if [[ ! "$source_commit" =~ ^[0-9a-f]{40}$ ]]; then
+            echo 'source_commit must be a full Git commit' >&2
+            exit 1
+          fi
+          git merge-base --is-ancestor "$source_commit" origin/main
+          git checkout -B main "$source_commit"
+          test -z "$(git status --porcelain)"
+      - name: Refuse a Stable trial outside main
+        run: |
+          test "$GITHUB_REF" = 'refs/heads/main'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm --prefix app ci
+          npm --prefix desktop ci
+      - name: Validate the Linux build boundary
+        run: |
+          set -euo pipefail
+          go test ./... -run '^$'
+          node --test sidecar/pi/current-provider-runtime.test.js sidecar/pi/model-source-routing.test.js sidecar/pi/bridge-vision.test.js
+      - name: Build Linux deb
+        env:
+          MILKSU_ACCOUNT_API_URL: https://accounts.milksu.org
+        run: npm run desktop:release:linux
+      - name: Verify deb, packaged runtimes and first launch
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./desktop/package.json').version")"
+          package="build/release/MilkSU-Linux-x64-${version}.deb"
+          test -f "$package"
+          test "$(dpkg-deb -f "$package" Architecture)" = 'amd64'
+          test "$(dpkg-deb -f "$package" Version)" = "$version"
+          dpkg-deb --contents "$package" | grep -q '/opt/MilkSU/'
+          sha256sum "$package"
+
+          node_runtime='build/sidecar/linux-amd64/node'
+          test "$("$node_runtime" --version)" = 'v24.18.0'
+          manifest='build/sidecar/linux-amd64/manifest.json'
+          test "$(node -p "require('./${manifest}').platform")" = 'linux/amd64'
+          test "$(node -p "String(require('./${manifest}').extensions.localOcr.available)")" = 'false'
+
+          runtime_home="$RUNNER_TEMP/milksu-linux-sidecar"
+          mkdir -p "$runtime_home/.git"
+          printf '%s\n' \
+            '{"action":"create_session","conversationId":"linux-package-smoke","executionMode":"go","approvalPolicy":"workspace-auto"}' \
+            '{"action":"destroy_session","conversationId":"linux-package-smoke"}' \
+            | HOME="$runtime_home" "$node_runtime" \
+              build/sidecar/linux-amd64/chat-bridge.cjs \
+              | tee "$RUNNER_TEMP/milksu-sidecar.stdout"
+          grep -q '"type":"ready"' "$RUNNER_TEMP/milksu-sidecar.stdout"
+
+          backend='build/desktop/milksu-backend'
+          "$backend" >"$RUNNER_TEMP/milksu-backend.stdout" 2>"$RUNNER_TEMP/milksu-backend.stderr" &
+          backend_pid=$!
+          trap 'kill $backend_pid 2>/dev/null || true' EXIT
+          for _ in $(seq 1 30); do
+            grep -q '"type"[[:space:]]*:[[:space:]]*"ready"' "$RUNNER_TEMP/milksu-backend.stdout" && break
+            kill -0 "$backend_pid"
+            sleep 0.5
+          done
+          grep -q '"type"[[:space:]]*:[[:space:]]*"ready"' "$RUNNER_TEMP/milksu-backend.stdout"
+          kill "$backend_pid"
+          wait "$backend_pid" || true
+          trap - EXIT
+
+          app='build/electron/linux/stable/linux-unpacked/milksu'
+          MILKSU_INSTANCE_ID=linux-release-smoke xvfb-run -a "$app" \
+            >"$RUNNER_TEMP/milksu-app.stdout" 2>"$RUNNER_TEMP/milksu-app.stderr" &
+          app_pid=$!
+          trap 'kill $app_pid 2>/dev/null || true; pkill -f milksu-backend 2>/dev/null || true' EXIT
+          sleep 12
+          kill -0 "$app_pid"
+          pgrep -f '/resources/milksu-backend' >/dev/null
+          kill "$app_pid"
+          wait "$app_pid" || true
+          pkill -f milksu-backend || true
+          trap - EXIT
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MilkSU-Linux-x64-deb-trial
+          path: build/release/MilkSU-Linux-x64-*.deb
+          if-no-files-found: error
+          retention-days: 14

@@ -107,6 +107,10 @@ const nodeArchives = {
     file: `node-v${nodeVersion}-win-x64.zip`,
     sha256: '0ae68406b42d7725661da979b1403ec9926da205c6770827f33aac9d8f26e821',
   },
+  'linux/amd64': {
+    file: `node-v${nodeVersion}-linux-x64.tar.xz`,
+    sha256: '55aa7153f9d88f28d765fcdad5ae6945b5c0f98a36881703817e4c450fa76742',
+  },
 }
 
 function platformBinaryName(platform, name) {
@@ -405,7 +409,7 @@ async function officialCuaDriverRuntime(platform) {
 
 async function officialGoplsRuntime(platform) {
   const [goos, goarch] = platform.split('/')
-  if (!['darwin', 'windows'].includes(goos) || !['arm64', 'amd64'].includes(goarch)) {
+  if (!['darwin', 'linux', 'windows'].includes(goos) || !['arm64', 'amd64'].includes(goarch)) {
     throw new Error(`unsupported gopls platform: ${platform}`)
   }
   const cache = join(repositoryRoot, 'build', 'sidecar-cache', platform.replace('/', '-'))
@@ -910,16 +914,14 @@ async function buildSidecar(platform) {
     )
   }
   const systemOcrNativePackage = systemOcrNativePackages[platform]
-  if (!systemOcrNativePackage) {
-    throw new Error(`system OCR does not support Sidecar platform: ${platform}`)
-  }
   const systemOcrSource = join(repositoryRoot, 'node_modules', '@napi-rs', 'system-ocr')
-  const systemOcrNativeSource = join(
-    repositoryRoot,
-    'node_modules',
-    ...systemOcrNativePackage.split('/'),
-  )
-  if (!await exists(systemOcrSource) || !await exists(systemOcrNativeSource)) {
+  const systemOcrNativeSource = systemOcrNativePackage
+    ? join(repositoryRoot, 'node_modules', ...systemOcrNativePackage.split('/'))
+    : ''
+  if (
+    !await exists(systemOcrSource)
+    || (systemOcrNativePackage && !await exists(systemOcrNativeSource))
+  ) {
     throw new Error(
       `system OCR packages are incomplete for ${platform}; run npm install on the target architecture`,
     )
@@ -1129,11 +1131,11 @@ async function buildSidecar(platform) {
       join(licenseOutput, packageInfo.licenseFile),
     )),
     cp(systemOcrSource, join(systemOcrOutputRoot, 'system-ocr'), { recursive: true }),
-    cp(
+    ...(systemOcrNativePackage ? [cp(
       systemOcrNativeSource,
       join(systemOcrOutputRoot, systemOcrNativePackage.split('/')[1]),
       { recursive: true },
-    ),
+    )] : []),
     ...playwrightPackages.map(packageInfo => cp(
       packageInfo.source,
       packageInfo.output,
@@ -1343,6 +1345,10 @@ async function buildSidecar(platform) {
         license: 'MIT',
         licenseFile: 'THIRD_PARTY-LICENSES/napi-rs-system-ocr-MIT.txt',
         scope: 'coding-attachments',
+        available: Boolean(systemOcrNativePackage),
+        ...(systemOcrNativePackage ? {} : {
+          unavailableReason: 'no reviewed native system OCR package for this platform',
+        }),
       },
     },
     libraries: {
