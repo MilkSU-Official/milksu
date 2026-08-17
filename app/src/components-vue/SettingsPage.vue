@@ -1224,9 +1224,12 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                 诊断包只包含版本、运行状态、数据库健康检查和脱敏错误事件，便于排查启动与连接问题。
               </p>
             </SettingsRow>
-            <div v-if="localData?.databases?.length" class="mt-4 min-w-0">
-              <p class="text-control font-medium">数据库兼容性</p>
-              <ul class="mt-2 flex flex-col gap-3">
+            <SettingsRow
+              v-if="localData?.databases?.length"
+              stack="always"
+              label="数据库兼容性"
+            >
+              <ul class="flex min-w-0 flex-col gap-3">
                 <li
                   v-for="database in localData.databases"
                   :key="database.relativePath"
@@ -1255,7 +1258,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                   </p>
                 </li>
               </ul>
-            </div>
+            </SettingsRow>
           </SettingsSection>
 
           <div class="mt-6 flex justify-end">
