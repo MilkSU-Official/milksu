@@ -2,11 +2,13 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
+const readText = async (url) => (await readFile(url, 'utf8')).replaceAll('\r\n', '\n')
+
 const [macWorkflow, windowsWorkflow, linuxWorkflow, macReleaseScript] = await Promise.all([
-  readFile(new URL('../../.github/workflows/macos-release.yml', import.meta.url), 'utf8'),
-  readFile(new URL('../../.github/workflows/windows-release.yml', import.meta.url), 'utf8'),
-  readFile(new URL('../../.github/workflows/linux-release.yml', import.meta.url), 'utf8'),
-  readFile(new URL('../../scripts/release-macos.mjs', import.meta.url), 'utf8'),
+  readText(new URL('../../.github/workflows/macos-release.yml', import.meta.url)),
+  readText(new URL('../../.github/workflows/windows-release.yml', import.meta.url)),
+  readText(new URL('../../.github/workflows/linux-release.yml', import.meta.url)),
+  readText(new URL('../../scripts/release-macos.mjs', import.meta.url)),
 ])
 
 test('release workflows require one immutable verified source commit', () => {
