@@ -324,11 +324,56 @@ export function normalizeConversation(raw: Record<string, unknown>): Conversatio
   }
 }
 
-export function agentErrorMessage(value: unknown) {
-  const firstLine = String(value ?? 'Agent engine failed').split(/\r?\n/, 1)[0].trim()
-  const message = redactProviderCredentials(
-    firstLine.replace(/^(?:Error:\s*)+/i, '').trim(),
+/** True when the text looks like MilkSU/Node internals, not a provider reply. */
+function isInternalAgentStack(message: string) {
+  return (
+    /node:internal|bridge\.js|Cannot find module|Uncaught Exception|TypeError:|ReferenceError:|SyntaxError:|internal module|stack trace|milksu-sidecar|at\s+\S+\.(?:js|cjs|mjs|ts|go):\d+/i
+      .test(message)
+    || /Access to this API has been restricted|--allow-fs-(?:read|write)|ERR_ACCESS_DENIED/i
+      .test(message)
   )
+}
+
+/**
+ * Prefer a short, credential-free detail for chat. HTTP + JSON bodies from
+ * TokenFlux/OpenAI-compatible APIs are unwrapped to their message field.
+ */
+export function agentProviderErrorDetail(value: unknown) {
+  const raw = String(value ?? '')
+  // Keep multi-line provider bodies (JSON) when the first line is only a status.
+  const cleaned = raw
+    .replace(/^(?:Error:\s*)+/gim, '')
+    .replace(/\r\n/g, '\n')
+    .trim()
+  const compact = cleaned.split(/\n+/).map(line => line.trim()).filter(Boolean).join(' ')
+  const redacted = redactProviderCredentials(compact)
+  if (!redacted) return ''
+
+  const statusJson = redacted.match(/^(\d{3})\s*:\s*(\{[\s\S]*\})\s*$/)
+  if (statusJson) {
+    try {
+      const body = JSON.parse(statusJson[2]) as Record<string, unknown>
+      const nested = body.error
+      const nestedMessage = nested && typeof nested === 'object'
+        ? String((nested as { message?: unknown }).message ?? '').trim()
+        : ''
+      const message = String(
+        body.message
+        ?? nestedMessage
+        ?? (typeof nested === 'string' ? nested : '')
+        ?? body.type
+        ?? '',
+      ).trim()
+      if (message) return `${statusJson[1]}：${message}`
+    } catch {
+      // fall through to redacted text
+    }
+  }
+  return redacted
+}
+
+export function agentErrorMessage(value: unknown) {
+  const message = agentProviderErrorDetail(value) || 'Agent engine failed'
   if (/no API key is configured|No API key for/i.test(message)) {
     return '当前模型没有可用的 API Key，请在“授权与模型”中保存并验证。'
   }
@@ -341,7 +386,7 @@ export function agentErrorMessage(value: unknown) {
   ) {
     return '模型或 Agent 网络连接失败。请检查网络、Provider Base URL、本地代理或服务状态；工作区、审批和恢复点已保留，可以稍后继续。'
   }
-  return message || 'Agent engine failed'
+  return message
 }
 
 function missingPiSession(value: unknown) {
@@ -350,6 +395,7 @@ function missingPiSession(value: unknown) {
 
 export function agentRuntimeErrorMessage(value: unknown) {
   const raw = String(value ?? '')
+  const detail = agentProviderErrorDetail(value)
   const normalized = agentErrorMessage(value)
   if (/具体路径|explicit path|可解析的具体路径/i.test(raw)) {
     return '请告诉我一个具体的本地目录路径，例如 ~/code/project；确认后我会把它授权给当前会话。'
@@ -397,12 +443,6 @@ export function agentRuntimeErrorMessage(value: unknown) {
   ) {
     return '当前模型只允许 Claude Code 客户端（Anthropic /v1/messages），MilkSU 使用 OpenAI 兼容接口，无法调用。请改选 Grok、GPT 等 OpenAI 兼容模型，或换一个未限制客户端的 Claude 模型。'
   }
-  if (
-    /\b403\b|permission_error|forbidden|this group is restricted/i
-      .test(raw)
-  ) {
-    return '当前模型或模型组拒绝了本次请求（权限/客户端限制）。请换一个可用模型，或检查 TokenFlux 控制台对该 Key/分组的访问限制。'
-  }
   if (/\b401\b|unauthori[sz]ed|invalid api key|authentication failed/i.test(raw)) {
     return '当前模型凭据已失效或无权访问。请重新登录，或在设置中更新模型凭据后重试。'
   }
@@ -420,6 +460,14 @@ export function agentRuntimeErrorMessage(value: unknown) {
       .test(raw)
   ) {
     return normalized
+  }
+
+  // Provider / model / policy failures: show the concrete (redacted) detail.
+  // Only collapse obvious MilkSU/Node internals into the generic local message.
+  if (detail && !isInternalAgentStack(detail) && !isInternalAgentStack(raw)) {
+    // Cap length so chat stays readable; full text remains in Pi session logs.
+    const shown = detail.length > 480 ? `${detail.slice(0, 477)}…` : detail
+    return shown
   }
   return 'Agent 遇到本地运行时异常。当前任务已保留，请重试；如果仍然失败，可以在设置中导出诊断。'
 }

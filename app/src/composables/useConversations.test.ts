@@ -277,10 +277,19 @@ describe('Coding approval conversation recovery', () => {
     )).toContain('Expected 2, received 3')
   })
 
-  it('turns unknown runtime errors into a bounded recovery message', () => {
+  it('turns internal runtime stacks into a bounded recovery message', () => {
     const message = agentRuntimeErrorMessage('Error: internal module exploded at bridge.js:42')
     expect(message).toContain('Agent 遇到本地运行时异常')
     expect(message).not.toContain('bridge.js')
+  })
+
+  it('surfaces provider HTTP bodies after credential redaction', () => {
+    const message = agentRuntimeErrorMessage(
+      '403: {"message":"model group rate limited for this key","type":"permission_error"}',
+    )
+    expect(message).toContain('403')
+    expect(message).toContain('model group rate limited for this key')
+    expect(message).not.toContain('Agent 遇到本地运行时异常')
   })
 
   it.each([
