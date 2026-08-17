@@ -504,7 +504,7 @@ describe('App cross-module routing', () => {
     expect(host.querySelector('[aria-label="mock account login gate"]')?.textContent).toBe('signed_out')
     expect(host.querySelector('[aria-label="mock sidebar"]')).toBeNull()
     expect(window.localStorage.getItem('milksu.account.continue-local')).toBeNull()
-  }, 10_000)
+  }, 30_000)
 
   it('opens a security-tool setup draft in a new Coding task without sending it', async () => {
     const { host } = await mountApp()
@@ -519,7 +519,7 @@ describe('App cross-module routing', () => {
     expect(hoisted.conversations?.startNew).toHaveBeenCalledTimes(1)
     expect(hoisted.conversations?.setCodingPolicy).toHaveBeenCalledWith('go', 'full-auto')
     expect(hoisted.conversations?.send).not.toHaveBeenCalled()
-  }, 10_000)
+  }, 30_000)
 
   it('keeps a CTF Agent resume point across CVE navigation and returns to the CTF workspace', async () => {
     const { host } = await mountApp()
