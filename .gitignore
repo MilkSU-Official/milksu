@@ -11,9 +11,6 @@ auth.json
 # Desktop build output
 app/node_modules/
 app/dist/
-!app/dist/
-app/dist/*
-!app/dist/.gitkeep
 app/package.json.md5
 app/src-tauri/
 app/wailsjs/
