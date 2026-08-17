@@ -623,7 +623,7 @@ describe('SettingsPage database compatibility', () => {
         key: '',
         has_key: false,
       },
-    } as AppSettings)
+    } as unknown as AppSettings)
     let saved = false
     let probed = false
     await mountSettingsPage({
@@ -919,7 +919,7 @@ describe('SettingsPage database compatibility', () => {
         key: '',
         has_key: true,
       },
-    } as AppSettings)
+    } as unknown as AppSettings)
     await mountSettingsPage({ directory: 'MilkSU 用户数据目录', fileCount: 0, bytes: 0 }, {
       initialCategory: 'apikeys',
       settings,
