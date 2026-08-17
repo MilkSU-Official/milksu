@@ -22,9 +22,9 @@
 | --- | --- |
 | 阶段 | **内测迭代 / Agent Runtime 与跨平台发行收敛**。当前工作不再按 M3/M4 里程碑组织。 |
 | 历史基线 | M3 product-loop 已在 `108e0e3`（2026-08-05）合并，仅供追溯。 |
-| 正式发行 | `v26.817.1 / main@783679f02e6586c624efc50164fa8c8c402bbda1`；macOS ARM64 DMG 已签名、公证、staple、Gatekeeper 验证，Windows x64 安装程序已通过 Runtime 与首次启动检查。GitHub prerelease 只提供用户安装包，R2/Admin current pointer 未发布。 |
-| 当前开发 | `main@7d6126784b059611a7ee09772b71ec84b5cd547b`；晚于正式发行，最新无签名 Stable tracking 为 clean，并通过本机启动与 Go Runtime 存活检查。 |
-| Linux 试验 | `main@4ffa5a1` 的 Linux x64 `.deb` 已在原生 Ubuntu 完成包结构、Node/Pi Sidecar、Go Runtime 与 Xvfb Electron 启动验证；它不是正式发行，也不含后续 `c9a5a28` / `7d61267` 的 Runtime 收敛。 |
+| 当前内测发行 | `v26.817.2 / main@09718ce21ca6fb96f392f6ca37061d788a050f10`；同一 source commit 生成 macOS ARM64、Windows x64 与 Linux x64 三端安装包。GitHub prerelease 只提供 DMG、EXE、DEB，R2/Admin current pointer 未发布。 |
+| 当前开发 | `main` 已包含上述发行源与后续纯文档收口；`v26.817.2` 始终固定在 `09718ce`，后续文档提交不移动发行标签。 |
+| 平台边界 | macOS DMG 已签名、公证、staple、Gatekeeper 验证；Windows 安装器已完成原生 Runtime 与首次启动检查但尚未代码签名；Linux DEB 已完成原生 Ubuntu 包结构、Sidecar、Go Runtime 与 Xvfb Electron 启动检查，仍是无 Secret Service、本地 OCR、Computer Use 的试用边界。 |
 
 ## 当前产品事实
 
@@ -54,15 +54,24 @@
 
 ## 当前完成线
 
-### 进行中：三端同源发行
+### 已完成：`26.817.2` 三端同源内测发行
 
-用户已明确要求一边更新文档，一边进行 macOS、Windows、Linux 三端发行。只认以下结果：
+三端都从 `main@09718ce21ca6fb96f392f6ca37061d788a050f10` 构建并通过各自 workflow。GitHub
+prerelease 为 `v26.817.2`，没有上传 OTA ZIP；R2/Admin current pointer 未改变。
 
-1. 三端都从同一个新的干净 `main` commit 构建，并使用同一版本号；旧提交产物不能混入新 Release。
-2. macOS 完成正式签名、公证、staple 与 Gatekeeper；Windows 完成安装程序结构、打包 Runtime 与首次启动；Linux x64 `.deb` 完成原生 Ubuntu 包结构、Sidecar、Go Runtime 与 Xvfb Electron 启动。
-3. GitHub Release 只展示内测用户应下载的 DMG、EXE 与 DEB；OTA ZIP/元数据不上传到 Release 页面。R2/OTA 只有在鉴权下载与 Admin 发布链明确执行时才算发布。
-4. 任何平台失败都标记该平台未发行，不把另外两端的成功外推为“三端完成”。
-5. 发行完成后，把 tag、source commit、workflow、文件名、大小、SHA-256 和平台验收结果回写本页与发行记录。
+| 平台 | Workflow | 用户安装包 | 大小 | SHA-256 | 结果 |
+| --- | --- | --- | ---: | --- | --- |
+| macOS ARM64 | `31997309888` | `MilkSU-macOS-arm64.dmg` | 235,713,210 B | `2900cd75617b4f0ba6bbeb4c12fb19482114e35c05ea8034134b373f227ecc2b` | 测试、Developer ID 签名、Apple 公证、staple、Gatekeeper 与本机复验通过 |
+| Windows x64 | `31997313428` | `MilkSU-Windows-x64-26.817.2-Setup.exe` | 172,643,710 B | `2196d20a490603f1639487f6ffc3e87433f6a1b789af3262172768eb0422949e` | 原生 Windows 构建、Runtime 与首次启动通过；安装器未代码签名 |
+| Linux x64 | `31997315782` | `MilkSU-Linux-x64-26.817.2.deb` | 174,484,176 B | `5d4e01769e30c74f48cc29ab51878ad225eaa6596fd3ec092a6c0921a46f7a11` | 原生 Ubuntu 包结构、Sidecar、Go Runtime 与 Xvfb Electron 首次启动通过；试用边界 |
+
+发行页：<https://github.com/MilkSU-Official/milksu/releases/tag/v26.817.2>
+
+### 下一完成线
+
+`26.817.2` 已满足三端构建与分发门禁，但用户视角功能验收不能由 CI 外推。下一条完成线是使用该版本
+继续常用 Agent GUI 与 Pi Runtime 回归，失败项回到下面 P0 队列；Windows 签名、Linux 缺失能力和
+R2/OTA 分别保持为明确后续工作。
 
 ### 后续队列
 
