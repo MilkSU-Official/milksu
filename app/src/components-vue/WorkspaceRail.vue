@@ -25,6 +25,8 @@ const props = defineProps<{
   activeSection: AppSection
   accountStatus: AccountStatus
   themeMode: ThemeMode
+  /** Icon-only rail (product default). Expanded labels are optional. */
+  collapsed?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -46,7 +48,6 @@ const menuOpen = ref(false)
 const menuRoot = ref<HTMLElement | null>(null)
 const buildTracking = ref<BuildTracking | null>(null)
 const avatarSource = computed(() => props.accountStatus.user?.avatarUrl || profileAvatar)
-const userName = computed(() => props.accountStatus.user?.displayName || props.accountStatus.user?.githubLogin || 'MilkSU')
 
 // AbilityRadar.vue is intentionally retained but no longer mounted globally.
 // If the six-axis view returns, it belongs to a future evidence-backed CTF-only page,
@@ -95,17 +96,18 @@ function openSettings() {
 
 <template>
   <div
-    class="app-drag workspace-rail relative flex w-full shrink-0 flex-col"
+    class="app-drag workspace-rail relative flex w-[4.75rem] shrink-0 flex-col"
+    :class="{ 'workspace-rail--collapsed': collapsed !== false }"
     data-shell-traffic-safe
   >
     <div
       ref="menuRoot"
-      class="workspace-rail-traffic-safe relative flex items-end justify-center border-b border-border px-2 xl:justify-start xl:px-4"
+      class="workspace-rail-traffic-safe relative flex items-end justify-center border-b border-border px-2"
       @keydown.esc="menuOpen = false"
     >
       <Button
         variant="ghost"
-        class="app-no-drag relative h-14 min-w-12 rounded-none p-1.5 xl:w-full xl:justify-start xl:gap-3"
+        class="app-no-drag relative h-14 min-w-12 rounded-none p-1.5"
         aria-label="打开用户菜单"
         :aria-expanded="menuOpen"
         @click.stop="menuOpen = !menuOpen"
@@ -124,15 +126,11 @@ function openSettings() {
             data-testid="beta-channel-badge"
           >BETA</span>
         </span>
-        <span class="hidden min-w-0 flex-1 text-left xl:block">
-          <strong class="block truncate text-control font-semibold">{{ userName }}</strong>
-          <small class="mt-0.5 block text-caption text-muted-foreground">个人安全工作台</small>
-        </span>
       </Button>
 
       <section
         v-if="menuOpen"
-        class="app-no-drag absolute left-[4.5rem] top-10 z-50 w-52 overflow-hidden rounded-lg border border-border bg-popover p-1.5 text-popover-foreground shadow-xl xl:left-[12.5rem]"
+        class="app-no-drag absolute left-[4.5rem] top-10 z-50 w-52 overflow-hidden rounded-lg border border-border bg-popover p-1.5 text-popover-foreground shadow-xl"
         aria-label="用户菜单"
       >
         <button class="user-menu-item" @click="openProfile"><UserRound class="size-4" />个人资料</button>
@@ -149,8 +147,7 @@ function openSettings() {
         :key="item.id"
         :variant="activeSection === item.id ? 'secondary' : 'ghost'"
         :class="[
-          'workspace-rail-item relative h-auto min-h-14 px-3 py-2',
-          'flex-col gap-0.5 px-1 py-1.5 xl:flex-row xl:justify-start xl:gap-3 xl:px-4',
+          'workspace-rail-item relative h-auto min-h-14 flex-col gap-0.5 px-1 py-1.5',
           activeSection === item.id ? 'workspace-rail-active' : '',
         ]"
         :aria-label="item.label"
@@ -160,27 +157,26 @@ function openSettings() {
         @click="navigate(item.id)"
       >
         <component :is="icons[item.id]" class="size-4" />
-        <span>{{ item.label }}</span>
+        <span class="text-[10px] leading-tight">{{ item.label }}</span>
       </Button>
     </nav>
 
     <div class="flex-1" />
 
-    <div class="app-no-drag space-y-1.5 border-t border-border p-2 xl:px-3 xl:py-3">
+    <div class="app-no-drag space-y-1.5 border-t border-border p-2">
       <Button
         variant="ghost"
-        class="workspace-rail-control relative h-12 w-full xl:justify-start xl:gap-3 xl:px-4"
+        class="workspace-rail-control relative h-12 w-full"
         :aria-label="themeToggleLabel"
         :title="themeToggleLabel"
         @click="emit('toggleTheme')"
       >
         <component :is="ThemeToggleIcon" class="size-4" />
-        <span class="hidden xl:inline">{{ themeMode === 'dark' ? '日间模式' : '夜间模式' }}</span>
       </Button>
 
       <Button
         :variant="activeSection === 'settings' ? 'secondary' : 'ghost'"
-        class="workspace-rail-control relative h-12 w-full xl:justify-start xl:gap-3 xl:px-4"
+        class="workspace-rail-control relative h-12 w-full"
         :class="activeSection === 'settings' ? 'workspace-rail-active' : ''"
         aria-label="设置"
         title="设置"
@@ -188,7 +184,6 @@ function openSettings() {
         @click="openSettings"
       >
         <Settings class="size-4" />
-        <span class="hidden xl:inline">设置</span>
       </Button>
     </div>
   </div>

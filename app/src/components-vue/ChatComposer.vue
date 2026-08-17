@@ -44,7 +44,9 @@ import {
   Square,
   StickyNote,
   Target,
+  Terminal,
   Trash2,
+  Wrench,
   X,
 } from 'lucide-vue-next'
 import CodingComposerControls from '@/components-vue/CodingComposerControls.vue'
@@ -208,6 +210,41 @@ const slashCommandCatalog = [
     icon: markRaw(Lightbulb),
   },
   {
+    id: 'understand',
+    label: '理解项目',
+    description: '读取入口、结构、运行方式和风险',
+    keywords: ['project', '项目', '了解'],
+    icon: markRaw(Compass),
+  },
+  {
+    id: 'test',
+    label: '运行测试',
+    description: '自动识别并运行项目的主验证链',
+    keywords: ['verify', '测试'],
+    icon: markRaw(Terminal),
+  },
+  {
+    id: 'review',
+    label: '审阅变更',
+    description: '按文件和风险检查当前 Git 变更',
+    keywords: ['diff', 'code-review', '审查', '审阅'],
+    icon: markRaw(ScanSearch),
+  },
+  {
+    id: 'fix',
+    label: '修复失败',
+    description: '复现最近失败并完成最小修复',
+    keywords: ['repair', '修复'],
+    icon: markRaw(Wrench),
+  },
+  {
+    id: 'summary',
+    label: '生成总结',
+    description: '汇总改动、验证、风险和下一步',
+    keywords: ['report', '总结'],
+    icon: markRaw(FileText),
+  },
+  {
     id: 'compact',
     label: '整理上下文',
     description: '使用 Pi 压缩当前会话上下文',
@@ -243,13 +280,6 @@ const slashCommandCatalog = [
     icon: markRaw(FileDiff),
   },
   {
-    id: 'review',
-    label: '审阅',
-    description: '让 Agent 审阅当前工作区变更',
-    keywords: ['diff', 'code-review', '审查'],
-    icon: markRaw(ScanSearch),
-  },
-  {
     id: 'mcp',
     label: 'MCP',
     description: '查看当前项目的 MCP 服务',
@@ -278,7 +308,9 @@ function slashCommandDisabled(id: typeof slashCommandCatalog[number]['id']) {
   if (id === 'new' || id === 'plan' || id === 'model' || id === 'permissions') {
     return props.running
   }
-  if (id === 'review') return props.running || !props.workspaceReady
+  if (['understand', 'test', 'review', 'fix', 'summary'].includes(id)) {
+    return props.running || !props.workspaceReady
+  }
   if (['diff', 'mcp'].includes(id)) return !props.workspaceReady
   return false
 }
@@ -1024,8 +1056,8 @@ defineExpose({
 </script>
 
 <template>
-  <div class="chat-composer shrink-0 bg-surface-editor px-5 pb-4 pt-2">
-    <div ref="composerFrame" class="chat-composer__frame mx-auto max-w-5xl">
+  <div class="chat-composer shrink-0 border-t border-border bg-surface-editor px-4 pb-3 pt-2">
+    <div ref="composerFrame" class="chat-composer__frame mx-auto w-full max-w-5xl">
       <div
         v-if="ctfSession && ctfRole === 'solver'"
         class="mb-2 flex flex-wrap items-center gap-2 px-1"
@@ -1257,8 +1289,7 @@ defineExpose({
         </div>
       </section>
 
-      <form class="chat-composer__island tactical-command-surface flex flex-col gap-1" @submit.prevent="submit">
-        <div class="chat-composer__command-label tactical-label">Command composer</div>
+      <form class="chat-composer__island flex flex-col gap-1" @submit.prevent="submit">
         <div
           v-if="pendingAttachments.length"
           class="flex flex-wrap gap-2 px-1 pb-1"
@@ -1671,14 +1702,13 @@ defineExpose({
 }
 
 .chat-composer__island {
-  border: 1px solid var(--night-border);
-  border-radius: 0;
-  background-color: var(--tactical-ink-2);
-  padding: .75rem 1rem .85rem;
-  box-shadow: 0 16px 38px rgb(0 0 0 / 24%);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background-color: var(--card);
+  padding: .65rem .85rem .75rem;
+  box-shadow: none;
+  color: var(--foreground);
 }
-
-.chat-composer__command-label { border-bottom: 1px solid var(--night-border); padding: 0 0 .55rem .15rem; color: var(--night-muted-foreground); }
 
 .chat-composer__toolbar {
   border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
@@ -1693,11 +1723,11 @@ defineExpose({
   font-size: var(--text-label);
   line-height: var(--text-label--line-height);
   letter-spacing: var(--text-label--letter-spacing);
-  color: var(--night-foreground);
+  color: var(--foreground);
 }
 
 .chat-composer__input:empty::before {
-  color: var(--night-muted-foreground);
+  color: var(--muted-foreground);
   content: attr(data-placeholder);
   pointer-events: none;
 }

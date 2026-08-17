@@ -6,6 +6,7 @@ import {
 } from '@felinic/ui'
 import {
   Boxes,
+  ChevronLeft,
   ChevronRight,
   Folder,
   Library,
@@ -38,6 +39,7 @@ const emit = defineEmits<{
   selectConversation: [id: string]
   deleteConversation: [id: string]
   navigateCtf: [value: CTFWorkspaceSection]
+  collapse: []
 }>()
 
 function openSingleConversation(event: MouseEvent, group: CodingConversationGroup) {
@@ -114,22 +116,32 @@ watch(
     </nav>
 
     <div v-else-if="codingContext" class="coding-context-content app-no-drag flex min-h-0 flex-1 flex-col">
-      <div class="px-3">
-        <p class="tactical-label px-0.5 text-primary">Task archive</p>
-        <h2 class="mb-3 mt-1 px-0.5 font-semibold">Coding 会话</h2>
+      <div class="coding-context-header flex items-center gap-1 px-2 pt-2">
         <Button
           type="button"
           variant="outline"
           size="sm"
-          block
-          class="coding-new-task-button app-no-drag relative z-10 min-h-9 justify-start"
+          class="coding-new-task-button app-no-drag relative z-10 min-h-8 min-w-0 flex-1 justify-start"
           data-testid="coding-new-task-button"
           @click="$emit('new')"
         >
           <MessageSquarePlus class="size-3.5" />
           新建编码任务
         </Button>
-        <label class="relative mt-3 block">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          class="app-no-drag shrink-0"
+          aria-label="收起会话历史"
+          title="收起会话历史"
+          @click="$emit('collapse')"
+        >
+          <ChevronLeft class="size-4" />
+        </Button>
+      </div>
+      <div class="px-3 pt-2">
+        <label class="relative block">
           <Search class="pointer-events-none absolute left-3 top-1/2 z-10 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             v-model="query"
@@ -141,8 +153,8 @@ watch(
         </label>
       </div>
 
-      <div ref="conversationList" class="mt-3 min-h-0 flex-1 overflow-y-auto px-2">
-        <p class="px-3 py-2 text-label font-medium text-muted-foreground">项目</p>
+      <div ref="conversationList" class="mt-2 min-h-0 flex-1 overflow-y-auto px-2">
+        <p class="px-3 py-1.5 text-label font-medium text-muted-foreground">项目</p>
         <div v-if="projectGroups.length || temporaryGroup" class="flex flex-col">
           <div v-if="projectGroups.length" class="space-y-1">
             <details
@@ -265,8 +277,8 @@ watch(
 }
 
 .coding-context-content {
-  /* Keep every interactive row below Electron's hiddenInset title-bar drag zone. */
-  padding-top: calc(2.1rem + 1rem);
+  /* Traffic lights sit on the icon rail; history panel starts flush under the top edge. */
+  padding-top: 0.35rem;
 }
 
 .coding-context-archive {

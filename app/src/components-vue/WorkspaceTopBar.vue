@@ -74,37 +74,18 @@ const moduleKey = computed(() => props.module ?? props.title.trim().toLowerCase(
   --module-topbar-control-size: var(--text-control, 0.875rem);
   --module-topbar-control-line-height: var(--text-control--line-height, 1.25rem);
 
-  min-height: 5rem;
+  min-height: 4.25rem;
   position: relative;
   z-index: var(--z-sticky);
   isolation: isolate;
-  margin: .75rem .75rem 0;
+  margin: 0;
   border: 0;
-  background: transparent;
-  color: var(--night-foreground);
-  overflow: visible;
-}
-
-.workspace-topbar::before {
-  position: absolute;
-  z-index: -1;
-  inset: 0;
-  border: 1px solid var(--night-border);
+  border-bottom: 1px solid var(--night-border);
   background-color: var(--tactical-ink-2);
   background-image: var(--tactical-carbon-image);
   background-size: 640px 640px;
-  clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, 0 100%);
-  content: '';
-}
-
-.workspace-topbar::after {
-  position: absolute;
-  inset-inline: 0;
-  bottom: -1px;
-  height: 1px;
-  background: linear-gradient(90deg, var(--tactical-blue), transparent 45%);
-  content: '';
-  opacity: .45;
+  color: var(--night-foreground);
+  overflow: visible;
 }
 
 .workspace-topbar__module-mark {
@@ -124,11 +105,11 @@ const moduleKey = computed(() => props.module ?? props.title.trim().toLowerCase(
 
 .workspace-topbar[data-workspace-module="ctf"],
 .workspace-topbar[data-workspace-module="cve"] {
-  --module-topbar-title-size: 1.75rem;
-  --module-topbar-title-line-height: 2.1rem;
-  min-height: 6rem;
-  padding-top: 1.15rem;
-  padding-bottom: 1.05rem;
+  --module-topbar-title-size: 1.5rem;
+  --module-topbar-title-line-height: 1.85rem;
+  min-height: 4.75rem;
+  padding-top: 0.9rem;
+  padding-bottom: 0.85rem;
 }
 
 .workspace-topbar :deep([data-button]) { color: var(--night-foreground); }

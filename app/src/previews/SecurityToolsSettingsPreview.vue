@@ -201,7 +201,7 @@ onBeforeUnmount(() => {
     />
 
     <main class="settings-page tactical-page flex min-w-0 flex-1 flex-col bg-background">
-      <header class="app-drag tactical-command-surface mx-3 mt-3 flex h-16 shrink-0 items-center px-5 text-white">
+      <header class="app-drag settings-page-header flex h-14 shrink-0 items-center border-b border-border bg-[var(--tactical-ink-2)] px-5 text-white">
         <Button variant="ghost" size="icon-sm" class="app-no-drag mr-3" aria-label="返回">
           <ArrowLeft class="size-4" />
         </Button>

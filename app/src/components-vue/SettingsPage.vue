@@ -78,7 +78,7 @@ import type {
 import {
   withAppSettingsDefaults,
 } from '@/types'
-import { installAppModelSettings, useModelCatalog } from '@/modelCatalog'
+import { installAppModelSettings, loadModelCatalog, useModelCatalog } from '@/modelCatalog'
 import VulnerabilityIntelSettingsPanel from '@/components-vue/VulnerabilityIntelSettingsPanel.vue'
 import SecurityToolsSettingsPanel from '@/components-vue/SecurityToolsSettingsPanel.vue'
 import type { SecurityToolCodingHandoff } from '@/securityToolsTypes'
@@ -541,8 +541,8 @@ function accountModelsText(): string {
 
 function providerServiceName(info: ProviderInfo): string {
   if (providerConfig(info.id)?.custom) return info.name
-  if (info.id === 'tokenflux') return 'TokenFlux 个人'
-  return `${info.name} 官方`
+  if (info.id === 'tokenflux') return 'TokenFlux 中转站'
+  return info.name
 }
 
 function serviceStatus(row: ModelServiceRow): string {
@@ -583,7 +583,8 @@ function openProviderEditor(id: string) {
 
 function setEditingProviderModel(value: string) {
   if (!working.value || !editingProviderID.value || !value) return
-  if (working.value.active_provider !== editingProviderID.value) return
+  // Selecting a model in the service editor also makes that service the default.
+  working.value.active_provider = editingProviderID.value
   working.value.active_model = value
 }
 
@@ -975,6 +976,11 @@ async function exportLocalDiagnostics() {
   }
 }
 
+async function refreshCallableModels() {
+  await loadModelCatalog()
+  alignDefaultModelToEnabledServices()
+}
+
 async function save() {
   if (!working.value) return
   const incompleteCustomProvider = Object.values(working.value.providers).find(item => (
@@ -986,11 +992,11 @@ async function save() {
       return
     }
     if (!incompleteCustomProvider.base_url?.trim()) {
-      notice.value = { tone: 'error', text: '请填写中转站 Base URL。' }
+      notice.value = { tone: 'error', text: '请填写 API 端点（Base URL）。' }
       return
     }
     if (!(incompleteCustomProvider.models ?? []).length) {
-      notice.value = { tone: 'error', text: '请至少添加一个模型 ID。' }
+      notice.value = { tone: 'error', text: '请至少添加一个模型 ID 或关键词前缀。' }
       return
     }
   }
@@ -1001,10 +1007,26 @@ async function save() {
     const refreshed = await invokeCommand<AppSettings>('get_settings')
     working.value = cloneSettings(refreshed)
     emit('settingsChange', refreshed)
+    await refreshCallableModels()
     if (category.value !== 'apikeys') {
       notice.value = {
         tone: 'ok',
         text: category.value === 'coding' ? 'Skills 设置已保存。' : '设置已保存。',
+      }
+      return
+    }
+    // Only probe when the active service can actually start (enabled + key).
+    const active = working.value.providers[working.value.active_provider]
+    const activeReady = working.value.active_provider === 'tokenflux'
+      ? (
+        (working.value.relay?.enabled && working.value.relay.has_key)
+        || (active?.enabled && (active.has_api_key || String(active.api_key ?? '').trim()))
+      )
+      : Boolean(active?.enabled && (active.has_api_key || String(active.api_key ?? '').trim()))
+    if (!activeReady) {
+      notice.value = {
+        tone: 'ok',
+        text: '设置已保存。当前没有已启用且可用的模型服务，请启用账户或填写 TokenFlux / 自定义中转站后再验证。',
       }
       return
     }
@@ -1014,15 +1036,18 @@ async function save() {
       const verifiedSettings = await invokeCommand<AppSettings>('get_settings')
       working.value = cloneSettings(verifiedSettings)
       emit('settingsChange', verifiedSettings)
+      await refreshCallableModels()
       notice.value = {
         tone: 'ok',
         text: `已保存并验证 ${result.provider}/${result.model}，PI 响应 ${result.latencyMs} ms。`,
       }
     } catch (reason) {
-      notice.value = {
-        tone: 'error',
-        text: `凭据已保存，但 PI 模型验证失败：${String(reason)}`,
-      }
+      await refreshCallableModels()
+      const raw = String(reason)
+      const friendly = /both model sources are unavailable|enable the personal API key/i.test(raw)
+        ? '凭据已保存，但当前没有可用的账户或个人模型来源。请启用 MilkSU 账户或 TokenFlux 个人 Key 后重试。'
+        : `凭据已保存，但 PI 模型验证失败：${raw}`
+      notice.value = { tone: 'error', text: friendly }
     } finally {
       verifying.value = false
     }
@@ -1032,6 +1057,7 @@ async function save() {
       working.value = cloneSettings(refreshed)
       emit('settingsChange', refreshed)
     }
+    await refreshCallableModels().catch(() => undefined)
     const sessionOnly = refreshed && (
       Object.values(refreshed.providers).some(item => item.session_only)
       || refreshed.relay?.session_only
@@ -1046,7 +1072,32 @@ async function save() {
 }
 
 async function saveProviderEditor(closeAfterSave: boolean) {
+  if (!working.value || !editingProviderID.value) {
+    await save()
+    return
+  }
+  // Probe the service being edited, not a stale active_provider from old official keys.
+  const editingID = editingProviderID.value
+  const editing = working.value.providers[editingID]
+  if (editing && (editing.has_api_key || String(editing.api_key ?? '').trim() || editingID === 'tokenflux')) {
+    working.value.active_provider = editingID
+    if (editing.custom && editing.models?.[0]) {
+      working.value.active_model = editing.models[0]
+    }
+    if (editingID === 'tokenflux') {
+      // Prefer personal TokenFlux while testing/saving this editor.
+      working.value.model_routing.source_order = ['personal', 'account']
+      working.value.model_routing.auto_fallback = false
+      editing.enabled = true
+      if (String(editing.api_key ?? '').trim() || editing.has_api_key) {
+        // Keep personal route ready so /v1/models refresh can populate the picker.
+        editing.enabled = true
+      }
+    }
+  }
   await save()
+  // Catalog refresh happens inside save(); re-align default model to new list.
+  alignDefaultModelToEnabledServices()
   if (closeAfterSave && notice.value?.tone === 'ok') {
     providerEditorOpen.value = false
   }
@@ -1056,7 +1107,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
 
 <template>
   <main class="settings-page tactical-page flex min-w-0 flex-1 flex-col bg-background">
-    <header class="app-drag tactical-command-surface mx-3 mt-3 flex h-16 shrink-0 items-center px-5 text-white">
+    <header class="app-drag settings-page-header flex h-14 shrink-0 items-center border-b border-border bg-[var(--tactical-ink-2)] px-5 text-white">
       <Button variant="ghost" size="icon-sm" class="app-no-drag mr-3" aria-label="返回" @click="$emit('close')">
         <ArrowLeft class="size-4" />
       </Button>
@@ -1634,8 +1685,20 @@ async function saveProviderEditor(closeAfterSave: boolean) {
               </DialogHeader>
 
               <div v-if="editingProvider && editingProviderInfo" class="grid gap-4">
+                <label class="provider-editor-field">
+                  <span>API 端点</span>
+                  <Input
+                    :model-value="editingProvider.base_url ?? editingProviderInfo.defaultBaseUrl"
+                    type="url"
+                    autocomplete="url"
+                    :placeholder="editingProviderInfo.defaultBaseUrl || 'https://example.com/v1'"
+                    aria-label="API 端点"
+                    @update:model-value="value => { editingProvider!.base_url = String(value).trim() }"
+                  />
+                </label>
+
                 <label v-if="editingProvider.custom" class="provider-editor-field">
-                  <span>名称</span>
+                  <span>自定义名字</span>
                   <Input
                     :model-value="editingProvider.name ?? ''"
                     autocomplete="off"
@@ -1649,46 +1712,22 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                   <Input :model-value="providerServiceName(editingProviderInfo)" readonly aria-label="名称" />
                 </label>
 
-                <label class="provider-editor-field">
-                  <span>Base URL</span>
-                  <Input
-                    :model-value="editingProvider.base_url ?? editingProviderInfo.defaultBaseUrl"
-                    type="url"
-                    autocomplete="url"
-                    :placeholder="editingProviderInfo.defaultBaseUrl"
-                    aria-label="Base URL"
-                    @update:model-value="value => { editingProvider!.base_url = String(value).trim() }"
-                  />
-                </label>
-
-                <label class="provider-editor-field">
-                  <span>API Key</span>
-                  <Input
-                    :model-value="editingProvider.api_key"
-                    type="password"
-                    autocomplete="off"
-                    :placeholder="editingProviderInfo.placeholder"
-                    aria-label="API Key"
-                    @update:model-value="value => {
-                      editingProvider!.api_key = String(value)
-                      if (value) editingProvider!.session_only = false
-                    }"
-                  />
-                </label>
-
                 <div v-if="editingProvider.custom" class="provider-editor-field items-start">
-                  <span class="pt-2">模型 ID</span>
+                  <span class="pt-2">模型 / 前缀</span>
                   <div class="min-w-0">
                     <div class="flex gap-2">
                       <Input
                         v-model="customModelInput"
                         autocomplete="off"
-                        placeholder="例如：x-ai/grok-4.6"
-                        aria-label="自定义模型 ID"
+                        placeholder="例如：grok-4.5 或 openai/gpt-5"
+                        aria-label="模型 ID 或关键词前缀"
                         @keydown.enter.prevent="addCustomRelayModel"
                       />
                       <Button variant="outline" @click="addCustomRelayModel">添加</Button>
                     </div>
+                    <p class="mt-1 text-caption text-muted-foreground">
+                      填写完整模型 ID，或可匹配的关键词前缀。
+                    </p>
                     <div v-if="editingProvider.models?.length" class="mt-2 flex flex-wrap gap-2">
                       <span
                         v-for="model in editingProvider.models"
@@ -1705,18 +1744,68 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                 </div>
 
                 <label class="provider-editor-field">
-                  <span>可用模型</span>
-                  <NativeSelect
-                    :model-value="editingProviderModel"
-                    size="sm"
-                    :disabled="editingProviderID !== working.active_provider"
-                    aria-label="可用模型"
-                    @update:model-value="setEditingProviderModel(String($event))"
-                  >
-                    <NativeSelectOption v-for="model in editingProviderModels" :key="model" :value="model">
-                      {{ modelDisplayLabel(editingProviderInfo.id, model) }}
-                    </NativeSelectOption>
-                  </NativeSelect>
+                  <span>API Key</span>
+                  <Input
+                    :model-value="editingProvider.api_key"
+                    type="password"
+                    autocomplete="off"
+                    :placeholder="editingProviderInfo.placeholder"
+                    aria-label="API Key"
+                    @update:model-value="value => {
+                      editingProvider!.api_key = String(value)
+                      if (value) editingProvider!.session_only = false
+                    }"
+                  />
+                </label>
+
+                <label v-if="!editingProvider.custom" class="provider-editor-field items-start">
+                  <span class="pt-2">可用模型</span>
+                  <div class="min-w-0">
+                    <Select
+                      :model-value="editingProviderModels.length
+                        ? modelSelectionKey(editingProviderInfo.id, editingProviderModel || editingProviderModels[0] || '')
+                        : ''"
+                      @update:model-value="value => {
+                        const selection = parseModelSelectionKey(String(value ?? ''))
+                        if (!selection) return
+                        setEditingProviderModel(selection[1])
+                      }"
+                    >
+                      <SelectTrigger
+                        size="sm"
+                        class="min-w-72"
+                        :disabled="!editingProviderModels.length"
+                        aria-label="可用模型"
+                      >
+                        <SelectValue>
+                          {{ editingProviderModels.length
+                            ? modelDisplayLabel(
+                              editingProviderInfo.id,
+                              editingProviderModel || editingProviderModels[0] || '',
+                            )
+                            : '测试连接后显示可用模型' }}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent size="sm" align="start" class="min-w-96">
+                        <SelectGroup>
+                          <SelectLabel>{{ providerServiceName(editingProviderInfo) }}</SelectLabel>
+                          <SelectItem
+                            v-for="model in editingProviderModels"
+                            :key="modelSelectionKey(editingProviderInfo.id, model)"
+                            :value="modelSelectionKey(editingProviderInfo.id, model)"
+                          >
+                            {{ modelDisplayLabel(editingProviderInfo.id, model) }}
+                          </SelectItem>
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                    <p
+                      v-if="!editingProviderModels.length"
+                      class="mt-1 text-caption text-muted-foreground"
+                    >
+                      填写 API Key 后点「测试连接」，可用模型会与默认模型列表同步刷新。
+                    </p>
+                  </div>
                 </label>
 
                 <p v-if="notice" class="text-caption" :class="notice.tone === 'error' ? 'text-destructive' : 'text-primary'">{{ notice.text }}</p>

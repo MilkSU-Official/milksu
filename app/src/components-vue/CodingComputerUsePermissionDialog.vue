@@ -252,15 +252,12 @@ onBeforeUnmount(stopPolling)
 
 <style scoped>
 .computer-use-permission-dialog {
-  clip-path: polygon(0 14px, 14px 0, calc(100% - 18px) 0, 100% 18px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%);
+  border-radius: 0.5rem;
 }
 
-.permission-guide {
-  clip-path: polygon(0 10px, 10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%);
-}
-
+.permission-guide,
 .permission-list {
-  clip-path: polygon(0 10px, 10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%);
+  border-radius: 0.35rem;
 }
 
 .permission-row {
@@ -278,14 +275,13 @@ onBeforeUnmount(stopPolling)
   flex: 0 0 auto;
   place-items: center;
   border: 1px solid color-mix(in srgb, var(--primary) 70%, transparent);
+  border-radius: 0.35rem;
   color: var(--primary);
   background: color-mix(in srgb, var(--primary) 8%, transparent);
-  clip-path: polygon(0 8px, 8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%);
 }
 
 .permission-icon--recording {
   border-radius: 9999px;
-  clip-path: none;
 }
 
 @media (max-width: 640px) {

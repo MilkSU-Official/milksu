@@ -93,8 +93,8 @@ const phases = computed(() => props.presentation.kind === 'ctf'
 </template>
 
 <style scoped>
-.mission-operation { display: grid; gap: 1rem; width: 100%; }
-.mission-operation__paper { padding: 1.1rem 1.35rem 0; box-shadow: 0 18px 42px rgb(0 0 0 / .26); }
+.mission-operation { display: grid; gap: 0.75rem; width: 100%; }
+.mission-operation__paper { padding: 1.1rem 1.35rem 0; box-shadow: none; }
 .mission-operation__paper-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; border-bottom: 1px solid rgb(17 19 21 / .3); padding-bottom: .6rem; color: var(--tactical-paper-muted); }
 .mission-operation__identity { display: flex; align-items: end; justify-content: space-between; gap: 1.5rem; padding: .45rem 0 .9rem; }
 .mission-operation__title { max-width: 100%; overflow-wrap: anywhere; font-size: clamp(2.25rem, 7cqi, 4.6rem); line-height: .94; }

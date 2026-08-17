@@ -2,7 +2,6 @@
 import {
   computed,
   defineAsyncComponent,
-  markRaw,
   nextTick,
   onBeforeUnmount,
   onMounted,
@@ -12,11 +11,6 @@ import {
 import {
   Badge,
   Button,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
   Input,
   Select,
   SelectContent,
@@ -30,14 +24,11 @@ import {
   ArrowLeft,
   ArrowRight,
   Bot,
-  ChevronDown,
   CircleDot,
-  Compass,
   ExternalLink,
   FileDiff,
   FileImage,
   FilePenLine,
-  FileText,
   Files,
   Flag,
   FolderOpen,
@@ -53,8 +44,6 @@ import {
   RefreshCw,
   Route,
   ShieldCheck,
-  Shrink,
-  Sparkles,
   SquareTerminal,
   Terminal,
   Wrench,
@@ -84,7 +73,6 @@ import type {
   CodingComputerUseTarget,
   CodingDiffSnapshot,
   CodingEnvironmentSnapshot,
-  CodingGitDeliveryEvidence,
   CodingMCPConfigSnapshot,
 } from '@/codingEnvironmentTypes'
 import { normalizeCodingBrowserAddress } from '@/codingBrowserAddress'
@@ -102,7 +90,6 @@ import {
 } from '@/lib/agentRecovery'
 import {
   codingProductAction,
-  codingProductActions,
   codingReviewPrompt,
   type CodingProductActionKind,
 } from '@/lib/codingProductActions'
@@ -258,7 +245,7 @@ const computerUsePermissionRequesting = ref<CodingComputerUsePermission | null>(
 const computerUsePermissionPolling = ref(false)
 const computerUsePermissionError = ref('')
 const computerUsePermissionCompleting = ref(false)
-const gitDeliveryEvidence = ref<CodingGitDeliveryEvidence | null>(null)
+
 const changesFocusPath = ref('')
 const codingEnvironment = ref<CodingEnvironmentSnapshot | null>(null)
 const mcpConfig = ref<CodingMCPConfigSnapshot | null>(null)
@@ -527,10 +514,7 @@ const preferredModelSourceLabel = computed(() => (
       ? '我的 API Key 优先'
       : '跟随设置'
 ))
-const messageCount = computed(() => props.conversation?.messages.length ?? 0)
-const toolMessageCount = computed(() => (
-  props.conversation?.messages.filter(message => message.role === 'tool').length ?? 0
-))
+
 const computerUseOperationEvidence = computed(() => (
   extractLatestComputerUseOperationEvidence(props.conversation?.messages ?? [])
 ))
@@ -560,19 +544,6 @@ const contextPanelTitle = computed(() => ({
 })[contextPanel.value])
 const transientComputerUsePanel = computed(() => (
   contextPanel.value === 'browser-use' || contextPanel.value === 'computer-use'
-))
-const codingActionIcons = {
-  understand: Compass,
-  test: Terminal,
-  review: FileDiff,
-  fix: Wrench,
-  summary: FileText,
-} as const
-const codingActionOptions = computed(() => (
-  codingProductActions().map(action => ({
-    ...action,
-    icon: markRaw(codingActionIcons[action.kind]),
-  }))
 ))
 const ctfRoleLabel = computed(() => {
   if (props.ctfRole === 'tool-builder') return 'Coding Agent 工具工坊'
@@ -819,8 +790,8 @@ function runSlashCommand(command: string) {
     emit('compactContext')
     return
   }
-  if (command === 'review') {
-    void runCodingProductAction('review')
+  if (['understand', 'test', 'review', 'fix', 'summary'].includes(command)) {
+    void runCodingProductAction(command as CodingProductActionKind)
     return
   }
   if (command === 'browser') {
@@ -1411,10 +1382,6 @@ function recordArtifactPreview(preview: CodingArtifactPreview) {
   }
 }
 
-function recordGitDeliveryEvidence(evidence: CodingGitDeliveryEvidence) {
-  gitDeliveryEvidence.value = evidence
-}
-
 function requestTool() {
   emit('ctfAction', {
     kind: 'handoff',
@@ -1554,7 +1521,6 @@ watch(() => props.conversation?.id, (_current, previous) => {
   computerUsePermissionDialogOpen.value = false
   computerUsePermissionRequesting.value = null
   computerUsePermissionError.value = ''
-  gitDeliveryEvidence.value = null
   chatAutoScrollPinned.value = true
   lastChatScrollTop.value = 0
   void scrollChatToBottom(true)
@@ -1718,17 +1684,17 @@ watch(
             : '选择项目并描述目标。MilkSU 使用 PI，并由当前执行模式和权限策略决定可用工具。' }}
         </p>
         <div class="mt-6 grid grid-cols-3 gap-3">
-          <div class="tactical-command-surface px-4 py-4">
+          <div class="rounded-md border border-border bg-card px-4 py-4">
             <Files class="size-4 text-muted-foreground" />
             <p class="mt-3 text-body font-medium">理解项目</p>
             <p class="mt-1 text-caption leading-5 text-muted-foreground">搜索并读取相关代码</p>
           </div>
-          <div class="tactical-command-surface px-4 py-4">
+          <div class="rounded-md border border-border bg-card px-4 py-4">
             <FilePenLine class="size-4 text-muted-foreground" />
             <p class="mt-3 text-body font-medium">修改文件</p>
             <p class="mt-1 text-caption leading-5 text-muted-foreground">直接完成可审查的改动</p>
           </div>
-          <div class="tactical-command-surface px-4 py-4">
+          <div class="rounded-md border border-border bg-card px-4 py-4">
             <Terminal class="size-4 text-muted-foreground" />
             <p class="mt-3 text-body font-medium">运行命令</p>
             <p class="mt-1 text-caption leading-5 text-muted-foreground">构建、测试与验证结果</p>
@@ -1934,154 +1900,7 @@ watch(
           </div>
         </section>
 
-        <section v-if="!ctfSession" class="border-b border-border px-4 py-4">
-          <p class="text-caption font-medium text-muted-foreground">任务操作</p>
-          <div class="mt-3 grid gap-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger as-child>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  class="justify-between"
-                  :disabled="running"
-                  aria-label="Coding 快捷动作"
-                >
-                  <span class="flex min-w-0 items-center gap-2">
-                    <Sparkles class="size-3.5 shrink-0" />
-                    <span class="truncate">直接完成</span>
-                  </span>
-                  <ChevronDown class="size-3.5 shrink-0 text-muted-foreground" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="start"
-                :side-offset="8"
-                class="w-[22rem] max-w-[calc(100vw-2rem)] p-1"
-              >
-                <DropdownMenuLabel class="px-3 pb-2 pt-2 text-label">
-                  直接完成
-                </DropdownMenuLabel>
-                <DropdownMenuItem
-                  v-for="option in codingActionOptions"
-                  :key="option.kind"
-                  class="coding-action-option"
-                  @select="runCodingProductAction(option.kind)"
-                >
-                  <component :is="option.icon" class="mt-0.5 size-4 shrink-0" />
-                  <div class="min-w-0 flex-1">
-                    <p class="text-label font-medium">{{ option.label }}</p>
-                    <p class="mt-0.5 text-caption leading-5 text-muted-foreground">
-                      {{ option.description }}
-                    </p>
-                  </div>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            class="mt-2 w-full justify-between"
-            :disabled="continuity.compactDisabled"
-            :title="continuity.compactTitle"
-            @click="$emit('compactContext')"
-          >
-            <span class="flex min-w-0 items-center gap-2">
-              <Shrink class="size-3.5 shrink-0" />
-              <span class="truncate">
-                {{ continuity.compactLabel }}
-              </span>
-            </span>
-            <LoaderCircle
-              v-if="compacting"
-              class="size-3.5 shrink-0 animate-spin text-primary"
-            />
-          </Button>
-          <div
-            class="mt-2 flex flex-wrap items-center gap-1.5"
-            :title="continuity.title"
-          >
-            <span class="text-caption text-muted-foreground">连续性</span>
-            <Badge
-              v-for="badge in continuity.badges"
-              :key="badge"
-              variant="outline"
-            >
-              {{ badge }}
-            </Badge>
-          </div>
-          <p
-            v-if="compactionError"
-            class="mt-2 text-caption leading-5 text-destructive"
-          >
-            整理上下文失败：{{ compactionError }}
-          </p>
-        </section>
-
         <template v-if="!ctfSession">
-        <section class="border-b border-border px-4 py-4">
-          <div class="flex items-center justify-between gap-3">
-            <p class="text-caption font-medium text-muted-foreground">执行与权限</p>
-            <Badge variant="outline">{{ codingPolicyLabel }}</Badge>
-          </div>
-          <div class="mt-3 space-y-3">
-            <div
-              v-for="capability in codingCapabilities"
-              :key="capability.id"
-              class="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1"
-            >
-              <p class="text-body">{{ capability.label }}</p>
-              <span
-                class="text-caption"
-                :class="capability.status === 'allowed'
-                  ? 'text-primary'
-                  : capability.status === 'approval-required'
-                    ? 'text-amber-500'
-                    : 'text-muted-foreground'"
-              >
-                {{ capabilityStatusLabel(capability.status) }}
-              </span>
-              <p class="col-span-2 text-caption leading-5 text-muted-foreground">
-                {{ capability.detail }}
-              </p>
-            </div>
-          </div>
-          <div class="mt-4 border-t border-border/70 pt-4">
-            <p class="text-caption font-medium text-muted-foreground">项目 MCP</p>
-            <p v-if="mcpConfigLoading" class="mt-2 text-caption text-muted-foreground">
-              正在读取项目的 .mcp.json…
-            </p>
-            <p
-              v-else-if="mcpConfig?.problem"
-              class="mt-2 text-caption leading-5 text-destructive"
-            >
-              {{ mcpConfig.problem }}
-            </p>
-            <p
-              v-else-if="!mcpConfig?.configured || !mcpConfig.servers.length"
-              class="mt-2 text-caption leading-5 text-muted-foreground"
-            >
-              当前项目没有可选择的 .mcp.json 服务器。
-            </p>
-            <template v-else>
-              <div class="mt-2 space-y-2">
-                <CodingMCPReviewCard
-                  v-for="server in mcpConfig.servers"
-                  :key="server.name"
-                  :server="server"
-                  :selected="selectedMCPServers.includes(server.name)"
-                  :running="running"
-                  @toggle="toggleMCPServer(server)"
-                />
-              </div>
-              <p class="mt-2 text-caption leading-5 text-muted-foreground">
-                只接入来源、固定版本、工具白名单和权限面均已审阅的服务器；选择仅绑定当前任务。
-                替我审批自动执行连接与只读调用，修改和外部账户授权仍确认。
-              </p>
-            </template>
-          </div>
-        </section>
         <section class="border-b border-border px-4 py-4">
           <div class="flex items-center justify-between">
             <p class="text-caption font-medium text-muted-foreground">Git</p>
@@ -2239,22 +2058,67 @@ watch(
         </div>
         </section>
 
-        <section class="px-4 py-4">
-        <p class="text-caption font-medium text-muted-foreground">任务上下文</p>
-        <div class="mt-3 space-y-3 text-body">
+        <section v-if="!ctfSession" class="border-b border-border px-4 py-4">
           <div class="flex items-center justify-between gap-3">
-            <span class="text-muted-foreground">消息</span>
-            <span>{{ messageCount }}</span>
+            <p class="text-caption font-medium text-muted-foreground">执行与权限</p>
+            <Badge variant="outline">{{ codingPolicyLabel }}</Badge>
           </div>
-          <div class="flex items-center justify-between gap-3">
-            <span class="text-muted-foreground">工具记录</span>
-            <span>{{ toolMessageCount }}</span>
+          <div class="mt-3 space-y-3">
+            <div
+              v-for="capability in codingCapabilities"
+              :key="capability.id"
+              class="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1"
+            >
+              <p class="text-body">{{ capability.label }}</p>
+              <span
+                class="text-caption"
+                :class="capability.status === 'allowed'
+                  ? 'text-primary'
+                  : capability.status === 'approval-required'
+                    ? 'text-amber-500'
+                    : 'text-muted-foreground'"
+              >
+                {{ capabilityStatusLabel(capability.status) }}
+              </span>
+              <p class="col-span-2 text-caption leading-5 text-muted-foreground">
+                {{ capability.detail }}
+              </p>
+            </div>
           </div>
-          <div v-if="ctfSession" class="flex items-center justify-between gap-3">
-            <span class="text-muted-foreground">工具工坊</span>
-            <span class="text-right text-caption">{{ workshopSummary }}</span>
+          <div class="mt-4 border-t border-border/70 pt-4">
+            <p class="text-caption font-medium text-muted-foreground">项目 MCP</p>
+            <p v-if="mcpConfigLoading" class="mt-2 text-caption text-muted-foreground">
+              正在读取项目的 .mcp.json…
+            </p>
+            <p
+              v-else-if="mcpConfig?.problem"
+              class="mt-2 text-caption leading-5 text-destructive"
+            >
+              {{ mcpConfig.problem }}
+            </p>
+            <p
+              v-else-if="!mcpConfig?.configured || !mcpConfig.servers.length"
+              class="mt-2 text-caption leading-5 text-muted-foreground"
+            >
+              当前项目没有可选择的 .mcp.json 服务器。
+            </p>
+            <template v-else>
+              <div class="mt-2 space-y-2">
+                <CodingMCPReviewCard
+                  v-for="server in mcpConfig.servers"
+                  :key="server.name"
+                  :server="server"
+                  :selected="selectedMCPServers.includes(server.name)"
+                  :running="running"
+                  @toggle="toggleMCPServer(server)"
+                />
+              </div>
+              <p class="mt-2 text-caption leading-5 text-muted-foreground">
+                只接入来源、固定版本、工具白名单和权限面均已审阅的服务器；选择仅绑定当前任务。
+                替我审批自动执行连接与只读调用，修改和外部账户授权仍确认。
+              </p>
+            </template>
           </div>
-        </div>
         </section>
       </template>
 
@@ -2266,7 +2130,6 @@ watch(
           :focus-path="changesFocusPath"
           @review="runCodingProductAction('review')"
           @refresh="refreshEnvironment"
-          @delivery-evidence="recordGitDeliveryEvidence"
         />
       </template>
 

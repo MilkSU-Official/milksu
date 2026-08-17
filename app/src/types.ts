@@ -418,18 +418,9 @@ export interface ProviderInfo {
   summary: string
 }
 
+// Built-in product services: only TokenFlux personal relay. Official vendor
+// keys are no longer offered in Settings; users add OpenAI-compatible relays.
 export const PROVIDERS: ProviderInfo[] = [
-  {
-    id: 'deepseek',
-    name: 'DeepSeek',
-    kind: 'official',
-    models: ['deepseek-v4-flash', 'deepseek-v4-pro'],
-    visionModels: [],
-    envKey: 'DEEPSEEK_API_KEY',
-    placeholder: 'sk-...',
-    defaultBaseUrl: 'https://api.deepseek.com',
-    summary: '适合代码迭代、CTF/CVE 辅助和连续工具调用',
-  },
   {
     id: 'tokenflux',
     name: 'TokenFlux',
@@ -444,58 +435,9 @@ export const PROVIDERS: ProviderInfo[] = [
     defaultBaseUrl: 'https://tokenflux.dev/v1',
     summary: '词元流动 · 可使用账户分配模型，也可接入个人 TokenFlux API Key',
   },
-  {
-    id: 'anthropic',
-    name: 'Anthropic',
-    kind: 'official',
-    models: ['claude-sonnet-4-6', 'claude-opus-4-8', 'claude-haiku-4-5'],
-    visionModels: ['claude-sonnet-4-6', 'claude-opus-4-8', 'claude-haiku-4-5'],
-    envKey: 'ANTHROPIC_API_KEY',
-    placeholder: 'sk-ant-...',
-    defaultBaseUrl: 'https://api.anthropic.com',
-    summary: '通用推理与编码',
-  },
-  {
-    id: 'openai',
-    name: 'OpenAI',
-    kind: 'official',
-    models: ['gpt-4o', 'gpt-4.1', 'gpt-4.1-mini', 'o4-mini'],
-    visionModels: ['gpt-4o', 'gpt-4.1', 'gpt-4.1-mini'],
-    envKey: 'OPENAI_API_KEY',
-    placeholder: 'sk-...',
-    defaultBaseUrl: 'https://api.openai.com/v1',
-    summary: '通用推理与编码',
-  },
-  {
-    id: 'google',
-    name: 'Google Gemini',
-    kind: 'official',
-    models: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-3.5-flash'],
-    visionModels: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-3.5-flash'],
-    envKey: 'GEMINI_API_KEY',
-    placeholder: 'AI...',
-    defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta',
-    summary: '长上下文与多模态任务',
-  },
-  {
-    id: 'groq',
-    name: 'Groq',
-    kind: 'official',
-    models: ['qwen/qwen3.6-27b'],
-    visionModels: ['qwen/qwen3.6-27b'],
-    envKey: 'GROQ_API_KEY',
-    placeholder: 'gsk_...',
-    defaultBaseUrl: 'https://api.groq.com/openai/v1',
-    summary: '低延迟开源模型推理',
-  },
 ]
 
 export const PROVIDER_GROUPS = [
-  {
-    kind: 'official' as const,
-    label: '原厂',
-    providers: PROVIDERS.filter(provider => provider.kind === 'official'),
-  },
   {
     kind: 'relay' as const,
     label: '中转站',

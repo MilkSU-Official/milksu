@@ -329,7 +329,6 @@ body {
   border-radius: 0;
   background: var(--card);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / .035);
-  clip-path: polygon(0 var(--tactical-cut), var(--tactical-cut) 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%);
 }
 
 .tactical-paper-surface {
@@ -646,8 +645,7 @@ pre,
   background-color: var(--tactical-ink-2);
   background-image: var(--tactical-carbon-image);
   background-size: 640px 640px;
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / .04), var(--tactical-shadow);
-  clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, 18px 100%, 0 calc(100% - 18px));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .04);
 }
 
 .tactical-paper {
@@ -660,24 +658,12 @@ pre,
   background-color: var(--tactical-paper);
   background-image: var(--tactical-paper-image);
   background-size: 640px 640px;
-  box-shadow: var(--tactical-shadow);
-  clip-path: polygon(0 14px, 14px 0, calc(100% - 18px) 0, 100% 18px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%);
 }
 
-.tactical-paper--stacked::before,
-.tactical-paper--stacked::after {
-  position: absolute;
-  z-index: -1;
-  border: 1px solid #a5a7a5;
-  background-color: var(--tactical-paper-2);
-  background-image: var(--tactical-paper-image);
-  background-size: 640px 640px;
-  content: '';
-  pointer-events: none;
+/* Stacked paper layers retired: keep class for markup compatibility. */
+.tactical-paper--stacked {
+  position: relative;
 }
-
-.tactical-paper--stacked::before { inset: -18px -18px 18px 18px; transform: rotate(.45deg); }
-.tactical-paper--stacked::after { inset: -34px -32px 34px 34px; transform: rotate(-.65deg); }
 
 .tactical-display {
   font-family: var(--font-display);
@@ -770,10 +756,4 @@ pre,
 [data-slot="hover-card-content"],
 .tactical-floating-surface {
   border-radius: 2px !important;
-  clip-path: polygon(0 10px, 10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%);
-}
-
-@media (max-width: 900px) {
-  .tactical-paper--stacked::before,
-  .tactical-paper--stacked::after { display: none; }
 }

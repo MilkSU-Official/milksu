@@ -169,14 +169,9 @@ export function configurableProviders(
 function groupProviders(values: ProviderInfo[]) {
   return [
     {
-      kind: 'official' as const,
-      label: '原厂',
-      providers: values.filter(provider => provider.kind === 'official'),
-    },
-    {
       kind: 'relay' as const,
-      label: '中转站',
-      providers: values.filter(provider => provider.kind === 'relay'),
+      label: '模型服务',
+      providers: values.filter(provider => provider.kind === 'relay' || provider.kind === 'official'),
     },
   ].filter(group => group.providers.length > 0)
 }
@@ -185,7 +180,22 @@ const providers = computed(() => callableProviders(
   configuredCustomProviders.value,
   configuredRelay.value,
 ))
-const providerGroups = computed(() => groupProviders(providers.value))
+
+function isScopedSettings(value: ModelCatalogScope): value is {
+  providers: Record<string, ProviderConfig>
+  relay?: RelayConfig | null
+  includeUnconfigured?: boolean
+} {
+  return Boolean(
+    value
+    && typeof value === 'object'
+    && 'providers' in value
+    && value.providers
+    && typeof value.providers === 'object'
+    && !('api_key' in value.providers)
+    && !('has_api_key' in value.providers),
+  )
+}
 
 export function installModelCatalog(snapshot?: ModelCatalogSnapshot | null) {
   if (!snapshot || snapshot.provider !== 'tokenflux' || !Array.isArray(snapshot.models)) return
@@ -263,10 +273,10 @@ export function useModelCatalog(scope?: MaybeRef<ModelCatalogScope | undefined>)
         includeUnconfigured: false,
       }
     }
-    if ('providers' in raw && raw.providers && typeof raw.providers === 'object') {
+    if (isScopedSettings(raw)) {
       return {
         providers: raw.providers,
-        relay: 'relay' in raw ? raw.relay : configuredRelay.value,
+        relay: raw.relay ?? configuredRelay.value,
         includeUnconfigured: Boolean(raw.includeUnconfigured),
       }
     }

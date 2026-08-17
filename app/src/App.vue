@@ -40,7 +40,8 @@ type Section = 'chat' | 'ctf' | 'vuln' | 'profile' | 'settings'
 const conversations = useConversations()
 const vulnerabilityDashboard = useVulnerabilityDashboard()
 const section = ref<Section>('ctf')
-const codingConversationDrawerOpen = ref(false)
+// Coding history is a fixed left panel (not a floating drawer); open by default.
+const codingConversationDrawerOpen = ref(true)
 const ctfSection = ref<CTFWorkspaceSection>('catalog')
 const ctfResumeJobId = ref<string | null>(null)
 const vulnNavigationEpoch = ref(0)
@@ -134,7 +135,11 @@ const sidebarSection = computed(() => (
 ))
 
 watch(section, current => {
-  if (current !== 'chat') codingConversationDrawerOpen.value = false
+  // Keep Coding history open by default when entering Coding; leave it alone
+  // on other sections so returning to chat restores the user's fold state.
+  if (current === 'chat' && !codingConversationDrawerOpen.value) {
+    codingConversationDrawerOpen.value = true
+  }
 })
 
 async function loadSettings() {
@@ -529,10 +534,12 @@ onBeforeUnmount(() => {
         @settings="openSettings('general')"
         @toggle-theme="toggleThemeMode"
         @close-coding-context="codingConversationDrawerOpen = false"
+        @open-coding-context="codingConversationDrawerOpen = true"
         @select-conversation="id => {
           conversations.activeId.value = id
           rememberActiveConversation()
           section = 'chat'
+          codingConversationDrawerOpen = true
         }"
         @delete-conversation="conversations.remove"
         @navigate-ctf="ctfSection = $event"

@@ -71,7 +71,7 @@ describe('runtime model catalog', () => {
       .toBe('Team Relay · vendor/model:preview')
   })
 
-  it('hides unconfigured official providers from runtime pickers', () => {
+  it('hides unconfigured custom relays from runtime pickers', () => {
     installModelCatalog({
       provider: 'tokenflux',
       source: 'remote',
@@ -85,10 +85,14 @@ describe('runtime model catalog', () => {
       ],
     })
     const settings: Record<string, ProviderConfig> = {
-      openai: {
+      'custom-relay-team': {
         api_key: '',
         has_api_key: false,
         enabled: true,
+        custom: true,
+        name: 'Team Relay',
+        base_url: 'https://relay.example/v1',
+        models: ['vendor/model'],
       },
     }
     installAppModelSettings({
@@ -102,14 +106,14 @@ describe('runtime model catalog', () => {
     })
 
     const runtime = useModelCatalog()
-    expect(runtime.providerGroups.value.map(group => group.label)).toEqual(['中转站'])
+    expect(runtime.providerGroups.value.map(group => group.label)).toEqual(['模型服务'])
     expect(runtime.providers.value.map(provider => provider.id)).toEqual(['tokenflux'])
 
     const configurable = useModelCatalog(computed(() => ({
       providers: settings,
       includeUnconfigured: true,
     })))
-    expect(configurable.providers.value.some(provider => provider.id === 'openai')).toBe(true)
+    expect(configurable.providers.value.some(provider => provider.id === 'custom-relay-team')).toBe(true)
   })
 
   it('does not expose bundled or public metadata as callable models', () => {
@@ -165,11 +169,14 @@ describe('runtime model catalog', () => {
           enabled: false,
           base_url: 'https://tokenflux.dev/v1',
         },
-        deepseek: {
+        'custom-relay-team': {
           api_key: '',
           has_api_key: true,
           enabled: true,
-          base_url: 'https://api.deepseek.com',
+          custom: true,
+          name: 'Team Relay',
+          base_url: 'https://relay.example/v1',
+          models: ['vendor/model:preview'],
         },
       },
       relay: {
@@ -181,8 +188,12 @@ describe('runtime model catalog', () => {
     })
 
     const { providers } = useModelCatalog()
-    expect(providers.value.map(provider => provider.id).sort()).toEqual(['deepseek', 'tokenflux'])
+    expect(providers.value.map(provider => provider.id).sort()).toEqual([
+      'custom-relay-team',
+      'tokenflux',
+    ])
     expect(providers.value.find(provider => provider.id === 'tokenflux')?.models).toEqual(['grok-4.5'])
-    expect(providers.value.find(provider => provider.id === 'deepseek')?.models).toContain('deepseek-v4-pro')
+    expect(providers.value.find(provider => provider.id === 'custom-relay-team')?.models)
+      .toEqual(['vendor/model:preview'])
   })
 })

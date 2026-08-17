@@ -228,17 +228,25 @@ describe('ChatComposer', () => {
       'goal',
       'new',
       'plan',
+      'understand',
+      'test',
+      'review',
+      'fix',
+      'summary',
       'compact',
       'model',
       'permissions',
       'status',
       'diff',
-      'review',
       'mcp',
       'browser-use',
       'computer-use',
     ])
+    // Product task actions live only in the slash menu (no sidebar duplicate).
+    expect(new Set(commandIds).size).toBe(commandIds.length)
+    expect(commandIds.filter(id => id === 'review')).toHaveLength(1)
 
+    // Arrow to "plan" (index 2) and activate it.
     textarea.dispatchEvent(new KeyboardEvent('keydown', {
       key: 'ArrowDown',
       bubbles: true,

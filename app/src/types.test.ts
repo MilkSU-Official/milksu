@@ -9,7 +9,7 @@ import {
 } from './types'
 
 describe('model provider catalog', () => {
-  it('keeps TokenFlux as a first-class relay while runtime models come from Desktop RPC', () => {
+  it('keeps TokenFlux as the only built-in relay while runtime models come from Desktop RPC', () => {
     const tokenflux = PROVIDERS.find(provider => provider.id === 'tokenflux')
 
     expect(tokenflux).toBeDefined()
@@ -24,12 +24,9 @@ describe('model provider catalog', () => {
       .toBe('TokenFlux · Grok 4.6')
   })
 
-  it('exposes Groq vision only for its current image-understanding model', () => {
-    const groq = PROVIDERS.find(provider => provider.id === 'groq')
-    expect(groq?.models).toEqual(['qwen/qwen3.6-27b'])
-    expect(groq?.visionModels).toEqual(['qwen/qwen3.6-27b'])
-    expect(providerModelLabel('groq', 'qwen/qwen3.6-27b'))
-      .toBe('Groq · Qwen 3.6 27B')
+  it('does not expose official vendor providers in the built-in catalog', () => {
+    expect(PROVIDERS.map(provider => provider.id)).toEqual(['tokenflux'])
+    expect(PROVIDERS.some(provider => provider.kind === 'official')).toBe(false)
   })
 
   it('preserves a refreshed model selection that is not in bundled provider metadata', () => {
@@ -41,13 +38,14 @@ describe('model provider catalog', () => {
     expect(settings.active_model).toBe('x-ai/grok-4.6')
   })
 
-  it('still rejects an unknown model for a static provider', () => {
+  it('falls unknown official providers back to the TokenFlux daily model', () => {
     const settings = withAppSettingsDefaults({
       active_provider: 'deepseek',
       active_model: 'unknown-model',
       providers: {},
     } as AppSettings)
-    expect(settings.active_model).toBe('deepseek-v4-flash')
+    expect(settings.active_provider).toBe('tokenflux')
+    expect(settings.active_model).toBe('x-ai/grok-4.6')
   })
 
   it('keeps a configured custom relay and its exact model id', () => {
@@ -72,10 +70,10 @@ describe('model provider catalog', () => {
     expect(settings.active_model).toBe('vendor/model:preview')
   })
 
-  it('keeps normal model pickers focused on the single daily model path', () => {
+  it('keeps normal model pickers focused on account TokenFlux plus custom relays', () => {
     const visibleProviders = PROVIDER_GROUPS.flatMap(group => group.providers.map(provider => provider.id))
-    expect(visibleProviders).toContain('deepseek')
-    expect(visibleProviders).toContain('tokenflux')
+    expect(visibleProviders).toEqual(['tokenflux'])
+    expect(visibleProviders).not.toContain('deepseek')
     expect(visibleProviders).not.toContain('kourichat')
   })
 
@@ -97,8 +95,8 @@ describe('model provider catalog', () => {
 
   it('normalizes disabled reviewed skill names without accepting paths', () => {
     const settings = withAppSettingsDefaults({
-      active_provider: 'deepseek',
-      active_model: 'deepseek-v4-flash',
+      active_provider: 'tokenflux',
+      active_model: 'grok-4.5',
       model_routing: { source_order: ['account', 'personal'], auto_fallback: false },
       providers: {},
       disabled_skills: [' product-design ', 'product-design', '../../untrusted', 'review-security'],

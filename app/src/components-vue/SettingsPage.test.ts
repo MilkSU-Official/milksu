@@ -606,7 +606,24 @@ describe('SettingsPage database compatibility', () => {
   })
 
   it('keeps settings saved and explains an offline model verification failure', async () => {
-    const settings = withAppSettingsDefaults({} as AppSettings)
+    const settings = withAppSettingsDefaults({
+      active_provider: 'tokenflux',
+      active_model: 'grok-4.5',
+      providers: {
+        tokenflux: {
+          api_key: '',
+          has_api_key: true,
+          enabled: true,
+          base_url: 'https://tokenflux.dev/v1',
+        },
+      },
+      relay: {
+        enabled: false,
+        url: 'https://tokenflux.dev/v1',
+        key: '',
+        has_key: false,
+      },
+    } as AppSettings)
     let saved = false
     let probed = false
     await mountSettingsPage({
@@ -715,9 +732,10 @@ describe('SettingsPage database compatibility', () => {
     expect(text).not.toContain('模型与额度')
     expect(text).toContain('默认模型')
     expect(text).toContain('模型服务')
-    expect(text).toContain('TokenFlux 个人')
-    expect(text).toContain('Grok 4.3')
-    expect(text).toContain('Groq 官方')
+    expect(text).toContain('TokenFlux 中转站')
+    expect(text).toContain('MilkSU 账户')
+    expect(text).not.toContain('DeepSeek 官方')
+    expect(text).not.toContain('Groq 官方')
     expect(text).not.toContain('视觉模型')
     expect(text).not.toContain('Arena Token')
     expect(text).not.toContain('快速执行')
@@ -753,11 +771,20 @@ describe('SettingsPage database compatibility', () => {
         has_key: true,
       },
       providers: {
-        deepseek: {
+        tokenflux: {
           api_key: '',
           has_api_key: true,
           enabled: true,
-          base_url: 'https://api.deepseek.com',
+          base_url: 'https://tokenflux.dev/v1',
+        },
+        'custom-relay-team': {
+          api_key: '',
+          has_api_key: true,
+          enabled: true,
+          custom: true,
+          name: 'Team Relay',
+          base_url: 'https://relay.example/v1',
+          models: ['vendor/model:preview'],
         },
       },
     } as unknown as AppSettings)
@@ -774,8 +801,8 @@ describe('SettingsPage database compatibility', () => {
         },
         GetSettings: async () => savedSettings ?? settings,
         TestAgentModel: async () => ({
-          provider: 'deepseek',
-          model: 'deepseek-v4-pro',
+          provider: 'custom-relay-team',
+          model: 'vendor/model:preview',
           ready: true,
           latencyMs: 30,
         }),
@@ -789,9 +816,9 @@ describe('SettingsPage database compatibility', () => {
 
     const options = [...document.querySelectorAll<HTMLElement>('[role="option"]')]
     expect(options.some(option => option.textContent?.includes('TokenFlux · Grok 4.5'))).toBe(true)
-    const deepSeek = options.find(option => option.textContent?.includes('DeepSeek · deepseek-v4-pro'))
-    expect(deepSeek).toBeDefined()
-    deepSeek?.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, button: 0 }))
+    const custom = options.find(option => option.textContent?.includes('Team Relay · vendor/model:preview'))
+    expect(custom).toBeDefined()
+    custom?.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, button: 0 }))
     await settle()
 
     const saveButton = [...document.querySelectorAll<HTMLButtonElement>('button')]
@@ -800,8 +827,8 @@ describe('SettingsPage database compatibility', () => {
     for (let index = 0; index < 6; index += 1) await settle()
 
     const persisted = savedSettings as AppSettings
-    expect(persisted.active_provider).toBe('deepseek')
-    expect(persisted.active_model).toBe('deepseek-v4-pro')
+    expect(persisted.active_provider).toBe('custom-relay-team')
+    expect(persisted.active_model).toBe('vendor/model:preview')
     expect(persisted.model_routing.source_order).toEqual(['account', 'personal'])
   })
 
@@ -843,17 +870,19 @@ describe('SettingsPage database compatibility', () => {
       input!.dispatchEvent(new Event('input', { bubbles: true }))
     }
 
-    typeInto(document.querySelector('input[aria-label="中转站名称"]'), '我的 Grok 中转站')
-    typeInto(document.querySelector('input[aria-label="自定义模型 ID"]'), 'x-ai/grok-4.6:fast')
-    const addModel = [...document.querySelectorAll<HTMLButtonElement>('button')]
+    const dialog = document.querySelector<HTMLElement>('.provider-editor-dialog')
+    expect(dialog).not.toBeNull()
+    typeInto(dialog!.querySelector('input[aria-label="API 端点"]'), 'https://relay.example/v1')
+    typeInto(dialog!.querySelector('input[aria-label="中转站名称"]'), '我的 Grok 中转站')
+    typeInto(dialog!.querySelector('input[aria-label="模型 ID 或关键词前缀"]'), 'x-ai/grok-4.6:fast')
+    const addModel = [...dialog!.querySelectorAll<HTMLButtonElement>('button')]
       .find(button => button.textContent?.trim() === '添加')
     addModel?.click()
     await settle()
-    typeInto(document.querySelector('input[type="url"]'), 'https://relay.example/v1')
-    typeInto(document.querySelector('input[type="password"]'), 'custom-test-secret')
+    typeInto(dialog!.querySelector('input[aria-label="API Key"]'), 'custom-test-secret')
 
-    const saveButton = [...document.querySelectorAll<HTMLButtonElement>('button')]
-      .find(button => button.textContent?.includes('保存并验证'))
+    const saveButton = [...dialog!.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.trim() === '保存')
     saveButton?.click()
     for (let index = 0; index < 6; index += 1) await settle()
 
@@ -871,12 +900,25 @@ describe('SettingsPage database compatibility', () => {
     expect(document.body.textContent).toContain('已保存并验证')
   })
 
-  it('edits a provider without silently replacing the default model service', async () => {
+  it('edits TokenFlux personal without silently replacing the default model service', async () => {
     let savedSettings: AppSettings | null = null
     const settings = withAppSettingsDefaults({
       active_provider: 'tokenflux',
       active_model: 'grok-4.5',
-      providers: {},
+      providers: {
+        tokenflux: {
+          api_key: '',
+          has_api_key: true,
+          enabled: true,
+          base_url: 'https://tokenflux.dev/v1',
+        },
+      },
+      relay: {
+        enabled: true,
+        url: 'https://tokenflux.dev/v1',
+        key: '',
+        has_key: true,
+      },
     } as AppSettings)
     await mountSettingsPage({ directory: 'MilkSU 用户数据目录', fileCount: 0, bytes: 0 }, {
       initialCategory: 'apikeys',
@@ -895,16 +937,16 @@ describe('SettingsPage database compatibility', () => {
       },
     })
 
-    const deepSeekRow = [...document.querySelectorAll<HTMLElement>('.model-service-row')]
-      .find(row => row.textContent?.includes('DeepSeek 官方'))
-    expect(deepSeekRow).toBeDefined()
-    const edit = [...deepSeekRow!.querySelectorAll<HTMLButtonElement>('button')]
+    const tokenfluxRow = [...document.querySelectorAll<HTMLElement>('.model-service-row')]
+      .find(row => row.textContent?.includes('TokenFlux 中转站'))
+    expect(tokenfluxRow).toBeDefined()
+    const edit = [...tokenfluxRow!.querySelectorAll<HTMLButtonElement>('button')]
       .find(button => button.textContent?.trim() === '编辑')
     edit?.click()
     await settle()
 
     const dialog = document.querySelector<HTMLElement>('.provider-editor-dialog')
-    expect(dialog?.textContent).toContain('编辑 DeepSeek 官方')
+    expect(dialog?.textContent).toContain('编辑 TokenFlux 中转站')
     const save = [...dialog!.querySelectorAll<HTMLButtonElement>('button')]
       .find(button => button.textContent?.trim() === '保存')
     save?.click()
@@ -973,7 +1015,7 @@ describe('SettingsPage database compatibility', () => {
 
     const text = document.body.textContent ?? ''
     expect(text).toContain('MilkSU 账户')
-    expect(text).toContain('TokenFlux 个人')
+    expect(text).toContain('TokenFlux 中转站')
     expect(text).toContain('已启用')
     expect(text).not.toContain('备用')
     expect(text).not.toContain('设为默认')
@@ -981,10 +1023,10 @@ describe('SettingsPage database compatibility', () => {
     expect(document.querySelector('input[aria-label="TokenFlux 团队 API Key"]')).toBeNull()
 
     const personalRow = [...document.querySelectorAll<HTMLElement>('.model-service-row')]
-      .find(row => row.textContent?.includes('TokenFlux 个人'))
+      .find(row => row.textContent?.includes('TokenFlux 中转站'))
     expect(personalRow).toBeDefined()
     const personalSwitch = personalRow!.querySelector<HTMLButtonElement>('[role="switch"]')
-      ?? personalRow!.querySelector<HTMLButtonElement>('button[aria-label*="TokenFlux 个人"]')
+      ?? personalRow!.querySelector<HTMLButtonElement>('button[aria-label*="TokenFlux 中转站"]')
     expect(personalSwitch).toBeDefined()
     personalSwitch?.click()
     await settle()

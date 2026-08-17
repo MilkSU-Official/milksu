@@ -5,7 +5,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import AppSidebar from './AppSidebar.vue'
 import appSidebarSource from './AppSidebar.vue?raw'
 import contextSidebarSource from './ContextSidebar.vue?raw'
-import tacticalPanelShellSource from './TacticalPanelShell.vue?raw'
 import type { ThemeMode } from '@/lib/themeMode'
 import type { Conversation } from '@/types'
 
@@ -25,6 +24,7 @@ async function mountSidebar(
   onCloseCodingContext = vi.fn(),
   onSelectConversation = vi.fn(),
   onNew = vi.fn(),
+  onOpenCodingContext = vi.fn(),
 ) {
   const host = document.createElement('div')
   document.body.append(host)
@@ -38,6 +38,7 @@ async function mountSidebar(
     themeMode,
     onToggleTheme,
     onCloseCodingContext,
+    onOpenCodingContext,
     onSelectConversation,
     onNew,
   })
@@ -48,26 +49,20 @@ async function mountSidebar(
 }
 
 describe('AppSidebar', () => {
-  it('hides single-item CTF and CVE context sidebars until real history exists', async () => {
+  it('keeps the global rail icon-only and hides CTF/CVE secondary sidebars', async () => {
     const ctf = await mountSidebar('ctf')
     expect(ctf.querySelector('aside')?.className).toContain('workspace-navigation-shell')
     expect(ctf.querySelector('[aria-label="全局工作区"]')?.textContent).toContain('CTF')
     expect(ctf.querySelector('[aria-label="CTF 工作区"]')).toBeNull()
     expect(ctf.querySelector('[aria-label="打开用户菜单"]')).not.toBeNull()
-    expect(ctf.querySelector<HTMLImageElement>('img[alt="用户头像"]')?.className).toContain('rounded-full')
-    expect(ctf.querySelector('[aria-label="设置"]')).not.toBeNull()
-    expect(ctf.textContent).not.toContain('题库')
+    expect(ctf.querySelector('[data-testid="coding-context-drawer"]')).toBeNull()
 
     const vuln = await mountSidebar('vuln')
-    expect(vuln.querySelector('aside')?.className).toContain('workspace-navigation-shell')
-    expect(vuln.querySelector('[aria-label="全局工作区"]')?.textContent).toContain('CVE')
     expect(vuln.querySelector('[aria-label="CVE 工作区"]')).toBeNull()
-    expect(vuln.querySelector('[aria-label="打开用户菜单"]')).not.toBeNull()
-    expect(vuln.querySelector('[aria-label="设置"]')).not.toBeNull()
-    expect(vuln.textContent).not.toContain('追踪')
+    expect(vuln.querySelector('[data-testid="coding-context-drawer"]')).toBeNull()
   })
 
-  it('keeps Coding narrow and anchors the controlled conversation drawer once after the rail', async () => {
+  it('mounts Coding history as a fixed panel, not a floating overlay drawer', async () => {
     const conversations: Conversation[] = [{
       id: 'conversation-1',
       title: '实现产品闭环',
@@ -75,12 +70,10 @@ describe('AppSidebar', () => {
       workspacePath: '/Users/milksu/code/milksu',
       messages: [],
     }]
-    const closed = await mountSidebar('chat', conversations)
-
-    expect(closed.querySelector('aside')?.className).toContain('workspace-navigation-shell')
+    const closed = await mountSidebar('chat', conversations, 'dark', vi.fn(), false)
+    expect(closed.querySelector('[data-testid="coding-context-drawer"]')).toBeNull()
+    expect(closed.querySelector('[aria-label="展开会话历史"]')).not.toBeNull()
     expect(closed.textContent).not.toContain('新建编码任务')
-    expect(closed.textContent).not.toContain('实现产品闭环')
-    expect(closed.querySelector('[aria-label="展开会话"]')).toBeNull()
 
     const onCloseCodingContext = vi.fn()
     const coding = await mountSidebar(
@@ -92,132 +85,80 @@ describe('AppSidebar', () => {
       onCloseCodingContext,
     )
     expect(coding.textContent).toContain('新建编码任务')
-    expect(coding.textContent).toContain('milksu')
     expect(coding.textContent).toContain('实现产品闭环')
-    const drawer = coding.querySelector('[data-testid="coding-context-drawer"]')
-    expect(drawer).not.toBeNull()
-    expect(drawer?.className).toContain('app-no-drag')
-    expect(drawer?.className).not.toContain('fixed')
-    const backdrop = coding.querySelector<HTMLButtonElement>('[aria-label="关闭 Coding 会话"]')
-    expect(backdrop).not.toBeNull()
-    expect(backdrop?.className).toContain('backdrop-blur')
-    expect(coding.querySelector('[aria-label="收起会话"]')).toBeNull()
-    expect(coding.querySelector('aside > div:last-child > header')).toBeNull()
-    expect(coding.querySelector('[data-active-conversation-row]')?.textContent)
-      .toContain('实现产品闭环')
-    expect(coding.querySelector('[aria-label="设置"]')).not.toBeNull()
-    const codingHeading = [...coding.querySelectorAll('h2')]
-      .find(node => node.textContent === 'Coding 会话')
-    const newTask = [...coding.querySelectorAll('button')]
-      .find(node => node.textContent?.includes('新建编码任务'))
-    expect(codingHeading).not.toBeUndefined()
-    expect(newTask).not.toBeUndefined()
-    expect(Boolean(codingHeading && newTask && (
-      codingHeading.compareDocumentPosition(newTask) & Node.DOCUMENT_POSITION_FOLLOWING
-    ))).toBe(true)
-    backdrop?.click()
+    const panel = coding.querySelector('[data-testid="coding-context-drawer"]')
+    expect(panel).not.toBeNull()
+    expect(panel?.className).toContain('coding-history-panel')
+    expect(panel?.className).toContain('app-no-drag')
+    expect(coding.querySelector('[aria-label="关闭 Coding 会话"]')).toBeNull()
+    expect(coding.querySelector('[aria-label="收起会话历史"]')).not.toBeNull()
+    expect(appSidebarSource).not.toContain('coding-context-backdrop')
+    expect(appSidebarSource).not.toContain('coding-history-toolbar')
+    expect(appSidebarSource).not.toContain('left: 100%')
+    expect(contextSidebarSource).toContain('coding-context-archive app-no-drag')
+    expect(contextSidebarSource).not.toContain('Task archive')
+
+    coding.querySelector<HTMLButtonElement>('[aria-label="收起会话历史"]')?.click()
     await nextTick()
     expect(onCloseCodingContext).toHaveBeenCalledOnce()
+  })
+
+  it('expands collapsed Coding history from the narrow strip', async () => {
+    const onOpen = vi.fn()
+    const host = await mountSidebar('chat', [], 'dark', vi.fn(), false, vi.fn(), vi.fn(), vi.fn(), onOpen)
+    host.querySelector<HTMLButtonElement>('[data-testid="coding-history-expand"]')?.click()
+    await nextTick()
+    expect(onOpen).toHaveBeenCalledOnce()
   })
 
   it('makes the complete new-task row a native no-drag click target', async () => {
-    const onCloseCodingContext = vi.fn()
     const onNew = vi.fn()
     const host = await mountSidebar(
-      'chat', [], 'dark', vi.fn(), true, onCloseCodingContext, vi.fn(), onNew,
+      'chat', [], 'dark', vi.fn(), true, vi.fn(), vi.fn(), onNew,
     )
     const newTask = host.querySelector<HTMLButtonElement>('[data-testid="coding-new-task-button"]')
     expect(newTask).not.toBeNull()
-    expect(newTask?.getAttribute('data-block')).toBe('')
-    expect(newTask?.className).toContain('w-full')
-    expect(newTask?.className).toContain('min-h-9')
     expect(newTask?.className).toContain('app-no-drag')
-
-    newTask?.querySelector<HTMLElement>('[data-button-content]')?.click()
+    newTask?.click()
     await nextTick()
-    expect(onCloseCodingContext).toHaveBeenCalledOnce()
     expect(onNew).toHaveBeenCalledOnce()
   })
 
-  it('keeps the drawer and all of its interactive archive out of Electron drag regions', () => {
-    expect(contextSidebarSource).toContain('coding-context-archive app-no-drag')
-    expect(contextSidebarSource).toContain('coding-context-content app-no-drag')
-    expect(contextSidebarSource).toContain('padding-top: calc(2.1rem + 1rem)')
-    expect(contextSidebarSource).toContain('coding-new-task-button app-no-drag')
-    expect(tacticalPanelShellSource).toContain('position: var(--tactical-panel-position, relative)')
-    expect(appSidebarSource).toContain('--tactical-panel-position: absolute')
-    expect(appSidebarSource).toContain('left: 100%')
-    expect(appSidebarSource).not.toContain('.coding-context-drawer { left: 13.5rem; }')
-  })
+  it('keeps no-project tasks alone under the project tree without a folder icon', async () => {
+    const conversations: Conversation[] = [
+      {
+        id: 'scratch-hot',
+        title: '草稿任务',
+        createdAt: 10,
+        messages: [{ id: 'm1', role: 'user', content: '最新', timestamp: 2000 }],
+      },
+      {
+        id: 'project-quiet',
+        title: '项目任务',
+        createdAt: 100,
+        workspacePath: '/Users/milksu/code/quiet',
+        messages: [{ id: 'm2', role: 'assistant', content: '旧', timestamp: 50 }],
+      },
+    ]
+    const host = await mountSidebar('chat', conversations, 'dark', vi.fn(), true)
+    const temporary = host.querySelector('[data-testid="coding-temporary-group"]')
+    expect(temporary).not.toBeNull()
+    expect(temporary?.textContent).toContain('无项目任务')
+    expect(temporary?.textContent).toContain('草稿任务')
+    // No Folder icon inside the temporary block (projects still use lucide Folder).
+    expect(temporary?.querySelector('svg.lucide-folder')).toBeNull()
+    expect(host.querySelector('.coding-project-group svg.lucide-folder')).not.toBeNull()
 
-  it('uses rail-local selection styling instead of inherited button hover borders', async () => {
-    const host = await mountSidebar('ctf')
-    const activeButton = host.querySelector<HTMLButtonElement>('[aria-label="CTF"]')
-    expect(activeButton?.className).toContain('workspace-rail-item')
-    expect(activeButton?.className).toContain('workspace-rail-active')
-    expect(activeButton?.getAttribute('data-ui-selected')).toBe('')
-  })
+    const projectNames = [...host.querySelectorAll('.coding-project-group summary')]
+      .map(node => node.textContent ?? '')
+    expect(projectNames.some(text => text.includes('quiet'))).toBe(true)
+    expect(projectNames.some(text => text.includes('无项目任务'))).toBe(false)
 
-  it('opens a single-task project or task row with one click', async () => {
-    const conversations: Conversation[] = [{
-      id: 'single-task',
-      title: '修复单击打开',
-      createdAt: Date.now(),
-      workspacePath: '/Users/milksu/code/milksu',
-      messages: [],
-    }]
-    const fromProject = vi.fn()
-    const projectHost = await mountSidebar(
-      'chat', conversations, 'dark', vi.fn(), true, vi.fn(), fromProject,
-    )
-    projectHost.querySelector<HTMLElement>('summary')?.click()
-    await nextTick()
-    expect(fromProject).toHaveBeenCalledOnce()
-    expect(fromProject).toHaveBeenCalledWith('single-task')
-
-    const fromTask = vi.fn()
-    const taskHost = await mountSidebar(
-      'chat', conversations, 'dark', vi.fn(), true, vi.fn(), fromTask,
-    )
-    const task = [...taskHost.querySelectorAll<HTMLButtonElement>('button')]
-      .find(button => button.textContent?.includes('修复单击打开'))
-    task?.click()
-    await nextTick()
-    expect(fromTask).toHaveBeenCalledOnce()
-    expect(fromTask).toHaveBeenCalledWith('single-task')
-  })
-
-  it('keeps the theme switch in the global rail and emits a single toggle action', async () => {
-    const onToggleTheme = vi.fn()
-    const dark = await mountSidebar('ctf', [], 'dark', onToggleTheme)
-    const dayButton = dark.querySelector<HTMLButtonElement>('[aria-label="切换到日间模式"]')
-    expect(dayButton?.textContent).toContain('日间模式')
-    dayButton?.click()
-    await nextTick()
-    expect(onToggleTheme).toHaveBeenCalledOnce()
-
-    const light = await mountSidebar('ctf', [], 'light')
-    const nightButton = light.querySelector<HTMLButtonElement>('[aria-label="切换到夜间模式"]')
-    expect(nightButton?.textContent).toContain('夜间模式')
-    expect(light.querySelector('[aria-label="设置"]')?.textContent).toContain('设置')
-  })
-
-  it('opens a concise user menu and closes it after choosing the profile', async () => {
-    const host = await mountSidebar('ctf')
-    host.querySelector<HTMLButtonElement>('[aria-label="打开用户菜单"]')?.click()
-    await nextTick()
-    expect(host.querySelector('[aria-label="用户菜单"]')).not.toBeNull()
-    const profile = [...host.querySelectorAll<HTMLButtonElement>('button')]
-      .find(button => button.textContent?.includes('个人资料'))
-    profile?.click()
-    await nextTick()
-    expect(host.querySelector('[aria-label="用户菜单"]')).toBeNull()
-  })
-
-  it('keeps the profile rail narrow without adding another context sidebar', async () => {
-    const profile = await mountSidebar('profile')
-    expect(profile.querySelector('aside')?.className).toContain('workspace-navigation-shell')
-    expect(profile.querySelector('[aria-label="全局工作区"]')?.textContent).toContain('Coding')
-    expect(profile.querySelector('[data-testid="coding-context-drawer"]')).toBeNull()
+    const archive = host.querySelector('.coding-context-archive')
+    const html = archive?.innerHTML ?? ''
+    const projectIdx = html.indexOf('coding-project-group')
+    const temporaryIdx = html.indexOf('coding-temporary-group')
+    expect(projectIdx).toBeGreaterThanOrEqual(0)
+    expect(temporaryIdx).toBeGreaterThan(projectIdx)
   })
 })

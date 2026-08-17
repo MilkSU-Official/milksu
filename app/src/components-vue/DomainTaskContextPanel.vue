@@ -223,7 +223,16 @@ function toggleCollapsed() {
   border: 0;
 }
 
-.domain-dossier { z-index: 2; margin: 2rem 1.15rem 1rem; overflow: auto; color: var(--tactical-paper-ink); }
+.domain-dossier {
+  z-index: 2;
+  margin: 0;
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  border: 0;
+  border-radius: 0;
+  color: var(--tactical-paper-ink);
+}
 .domain-mission-title { overflow-wrap: anywhere; font-size: clamp(1.9rem, 10cqi, 2.65rem); }
 .domain-dossier__header { border-bottom: 1px solid var(--night-border); color: var(--night-foreground); }
 .domain-dossier__footer { border-color: var(--night-border); color: var(--night-foreground); }
@@ -231,7 +240,6 @@ function toggleCollapsed() {
 .domain-facts dl { border-color: rgb(17 19 21 / .28); }
 
 @container domain-dossier (max-width: 25rem) {
-  .domain-dossier { margin: 1rem .65rem .75rem; }
   .domain-mission-hero, .domain-dossier__body { padding-inline: 1rem; }
   .domain-mission-objective { align-items: flex-start; }
 }
