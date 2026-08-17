@@ -25,6 +25,7 @@ const dmgBackgroundSourcePath = join(repositoryRoot, 'desktop', 'build', 'dmg-ba
 const dmgBackgroundPath = join(repositoryRoot, 'build', 'desktop', 'dmg-background.png')
 const dmgBuilderConfigPath = join(repositoryRoot, 'build', 'desktop', 'electron-builder.stable.dmg.json')
 const semverPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/u
+const buildOta = /^(1|true)$/iu.test(String(process.env.MILKSU_BUILD_OTA ?? '').trim())
 
 function run(command, args, options = {}) {
   return new Promise((resolvePromise, reject) => {
@@ -144,7 +145,10 @@ await run('/usr/bin/xcrun', ['stapler', 'validate', appPath])
 await run('/usr/sbin/spctl', ['--assess', '--type', 'execute', '--verbose=4', appPath])
 await rm(notaryZipPath, { force: true })
 await rm(zipPath, { force: true })
-await run('/usr/bin/ditto', ['-c', '-k', '--sequesterRsrc', '--keepParent', appPath, zipPath])
+await rm(metadataPath, { force: true })
+if (buildOta) {
+  await run('/usr/bin/ditto', ['-c', '-k', '--sequesterRsrc', '--keepParent', appPath, zipPath])
+}
 
 await run('/usr/bin/sips', [
   '-s', 'format', 'png',
@@ -204,41 +208,45 @@ await run('/usr/bin/xcrun', ['stapler', 'validate', dmgPath])
 await run('/usr/sbin/spctl', ['--assess', '--type', 'open', '--context', 'context:primary-signature', '--verbose=4', dmgPath])
 await run('/usr/bin/codesign', ['--verify', '--verbose=4', dmgPath])
 
-const tracking = JSON.parse(await readFile(join(appPath, 'Contents', 'Resources', 'build-tracking.json'), 'utf8'))
-const [zipMetadata, dmgMetadata] = await Promise.all([zipPath, dmgPath].map(async file => ({
-  size: (await stat(file)).size,
-  sha256: await digest(file, 'sha256', 'hex'),
-})))
-const zipSha512 = await digest(zipPath, 'sha512', 'base64')
-const objectPrefix = `releases/stable/darwin/arm64/${version}`
-const metadata = {
-  schema: 'milksu.release-upload/v1',
-  channel: 'stable',
-  platform: 'darwin',
-  arch: 'arm64',
-  version,
-  minimumVersion,
-  commitSha: String(tracking.gitCommit ?? ''),
-  trackingId: String(tracking.trackingId ?? ''),
-  title: String(process.env.MILKSU_RELEASE_TITLE ?? `MilkSU ${version}`).trim(),
-  notes: String(process.env.MILKSU_RELEASE_NOTES ?? `MilkSU ${version}`).trim(),
-  zipObjectKey: `${objectPrefix}/${basename(zipPath)}`,
-  zipSha512,
-  zipSha256: zipMetadata.sha256,
-  zipSize: zipMetadata.size,
-  dmgObjectKey: `${objectPrefix}/${basename(dmgPath)}`,
-  dmgSha256: dmgMetadata.sha256,
-  dmgSize: dmgMetadata.size,
-  manifestObjectKey: `${objectPrefix}/release-metadata.json`,
-  files: {
-    zip: basename(zipPath),
-    dmg: basename(dmgPath),
-  },
+if (buildOta) {
+  const tracking = JSON.parse(await readFile(join(appPath, 'Contents', 'Resources', 'build-tracking.json'), 'utf8'))
+  const [zipMetadata, dmgMetadata] = await Promise.all([zipPath, dmgPath].map(async file => ({
+    size: (await stat(file)).size,
+    sha256: await digest(file, 'sha256', 'hex'),
+  })))
+  const zipSha512 = await digest(zipPath, 'sha512', 'base64')
+  const objectPrefix = `releases/stable/darwin/arm64/${version}`
+  const metadata = {
+    schema: 'milksu.release-upload/v1',
+    channel: 'stable',
+    platform: 'darwin',
+    arch: 'arm64',
+    version,
+    minimumVersion,
+    commitSha: String(tracking.gitCommit ?? ''),
+    trackingId: String(tracking.trackingId ?? ''),
+    title: String(process.env.MILKSU_RELEASE_TITLE ?? `MilkSU ${version}`).trim(),
+    notes: String(process.env.MILKSU_RELEASE_NOTES ?? `MilkSU ${version}`).trim(),
+    zipObjectKey: `${objectPrefix}/${basename(zipPath)}`,
+    zipSha512,
+    zipSha256: zipMetadata.sha256,
+    zipSize: zipMetadata.size,
+    dmgObjectKey: `${objectPrefix}/${basename(dmgPath)}`,
+    dmgSha256: dmgMetadata.sha256,
+    dmgSize: dmgMetadata.size,
+    manifestObjectKey: `${objectPrefix}/release-metadata.json`,
+    files: {
+      zip: basename(zipPath),
+      dmg: basename(dmgPath),
+    },
+  }
+  await writeFile(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`, { mode: 0o600 })
 }
-await writeFile(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`, { mode: 0o600 })
 
 const artifacts = (await readdir(releaseDirectory)).filter(name => name.endsWith('.dmg'))
 if (!artifacts.includes(basename(dmgPath))) throw new Error('notarized DMG disappeared after release verification')
 process.stdout.write(`${dmgPath}\n`)
-process.stdout.write(`${zipPath}\n`)
-process.stdout.write(`${metadataPath}\n`)
+if (buildOta) {
+  process.stdout.write(`${zipPath}\n`)
+  process.stdout.write(`${metadataPath}\n`)
+}

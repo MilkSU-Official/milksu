@@ -4,10 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       source_commit:
-        description: Optional full main commit to package with this workflow revision
-        required: false
+        description: Full verified main commit to package with this workflow revision
+        required: true
         type: string
-        default: ''
 
 permissions:
   contents: read
@@ -28,13 +27,13 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $source = $env:RELEASE_SOURCE_COMMIT.Trim().ToLowerInvariant()
-          if (-not $source) { exit 0 }
           if ($source -notmatch '^[0-9a-f]{40}$') {
             throw "source_commit must be a full Git commit"
           }
           git merge-base --is-ancestor $source origin/main
           if ($LASTEXITCODE -ne 0) { throw "source_commit is not on main" }
           git checkout -B main $source
+          git submodule update --init --recursive
           if ((git status --porcelain)) { throw "selected release source is dirty" }
       - name: Refuse a Stable release outside main
         shell: pwsh
@@ -61,9 +60,10 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
-          # The canonical full suite runs locally and in the macOS release job.
-          # Windows compiles every Go package/test, then exercises the routed
-          # model regression with native paths before packaging and first launch.
+          # The canonical full suite is already bound to this commit by the
+          # local release receipt. Windows compiles every Go package/test, then
+          # exercises the routed model regression with native paths before
+          # packaging and first launch.
           go test ./... -run '^$'
           node --test sidecar/pi/current-provider-runtime.test.js sidecar/pi/model-source-routing.test.js
       - name: Build Windows installer

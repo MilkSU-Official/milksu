@@ -4,10 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       source_commit:
-        description: Optional full main commit to package with this workflow revision
-        required: false
+        description: Full verified main commit to package with this workflow revision
+        required: true
         type: string
-        default: ''
 
 permissions:
   contents: read
@@ -27,13 +26,13 @@ jobs:
         run: |
           set -euo pipefail
           source_commit="${RELEASE_SOURCE_COMMIT,,}"
-          if [[ -z "$source_commit" ]]; then exit 0; fi
           if [[ ! "$source_commit" =~ ^[0-9a-f]{40}$ ]]; then
             echo 'source_commit must be a full Git commit' >&2
             exit 1
           fi
           git merge-base --is-ancestor "$source_commit" origin/main
           git checkout -B main "$source_commit"
+          git submodule update --init --recursive
           test -z "$(git status --porcelain)"
       - name: Refuse a Stable trial outside main
         run: |
@@ -60,12 +59,6 @@ jobs:
         env:
           MILKSU_ACCOUNT_API_URL: https://accounts.milksu.org
         run: npm run desktop:release:linux
-      - uses: actions/upload-artifact@v4
-        with:
-          name: MilkSU-Linux-x64-deb-trial
-          path: build/release/MilkSU-Linux-x64-*.deb
-          if-no-files-found: error
-          retention-days: 14
       - name: Verify deb, packaged runtimes and first launch
         run: |
           set -euo pipefail
@@ -125,3 +118,9 @@ jobs:
           wait "$app_pid" || true
           pkill -f milksu-backend || true
           trap - EXIT
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MilkSU-Linux-x64-deb-trial
+          path: build/release/MilkSU-Linux-x64-*.deb
+          if-no-files-found: error
+          retention-days: 14

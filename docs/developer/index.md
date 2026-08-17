@@ -25,6 +25,7 @@
 
 ## 可复跑验收与证据
 
+- [三端打包与发版流程](/developer/release-process)
 - [Coding Agent 交付验收](/developer/coding-agent-delivery-acceptance)
 - [浏览器执行表面验收](/developer/coding-browser-acceptance)
 - [本地交付基线](/developer/local-delivery-baseline)
