@@ -124,8 +124,9 @@ describe('ChatPage Goal interaction', () => {
     expect(result.host.querySelector('[data-workspace-topbar-title]')?.textContent)
       .toBe('Goal interaction')
 
-    expect(result.host.querySelector('[aria-label="环境信息"]')?.textContent)
-      .not.toContain('设为目标')
+    // Right rail is collapsed by default; goal controls must not live there.
+    expect(result.host.querySelector('aside[aria-label="环境信息"]')).toBeNull()
+    expect(result.host.textContent).not.toContain('设为目标')
     const textarea = composerEditor(result.host)
     setComposerText(textarea, '/')
     await nextTick()
@@ -242,12 +243,14 @@ describe('ChatPage Goal interaction', () => {
 
     expect(result.host.querySelector('[aria-label="Computer Use"]')).not.toBeNull()
     editor.querySelector<HTMLButtonElement>('[aria-label="移除 /computer-use"]')?.click()
+    await nextTick()
+    // Close transient Computer Use surface, then reopen the manual environment rail.
     result.host.querySelector<HTMLButtonElement>('[aria-label="关闭右侧栏"]')?.click()
     await nextTick()
     result.host.querySelector<HTMLButtonElement>('[aria-label="打开右侧栏"]')?.click()
     await nextTick()
 
-    expect(result.host.querySelector('[aria-label="浏览器"]')).not.toBeNull()
+    expect(result.host.querySelector('[aria-label="浏览器"]') || result.host.querySelector('[aria-label="环境信息"]')).not.toBeNull()
     expect(result.host.querySelector('[aria-label="Computer Use"]')).toBeNull()
   })
 
@@ -349,6 +352,10 @@ describe('ChatPage Goal interaction', () => {
     const result = mountPage({ workspacePath: '/tmp/milksu', sessionReady: true })
     await nextTick()
 
+    // Right rail starts collapsed; open it for this interaction contract.
+    result.host.querySelector<HTMLButtonElement>('[aria-label="打开右侧栏"]')?.click()
+    await nextTick()
+
     expect(result.host.querySelectorAll('[aria-label="关闭右侧栏"]')).toHaveLength(1)
     expect(result.host.querySelector('[aria-label="打开底部终端"]')).not.toBeNull()
 
@@ -358,13 +365,13 @@ describe('ChatPage Goal interaction', () => {
     await nextTick()
 
     expect(result.host.querySelector('[aria-label="底部终端面板"]')).not.toBeNull()
-    expect(result.host.querySelector('aside[aria-label="环境信息"]')).not.toBeNull()
+    expect(result.host.querySelector('[data-testid="single-right-context-rail"]')).not.toBeNull()
     expect(result.host.querySelector('[aria-label="关闭底部终端"]')).not.toBeNull()
     expect(result.host.querySelectorAll('[aria-label="关闭右侧栏"]')).toHaveLength(1)
 
     result.host.querySelector<HTMLButtonElement>('[aria-label="关闭右侧栏"]')?.click()
     await nextTick()
-    expect(result.host.querySelector('aside')).toBeNull()
+    expect(result.host.querySelector('[data-testid="single-right-context-rail"]')).toBeNull()
     expect(result.host.querySelector('[aria-label="底部终端面板"]')).not.toBeNull()
 
     result.host.querySelector<HTMLButtonElement>('[aria-label="关闭底部终端"]')?.click()

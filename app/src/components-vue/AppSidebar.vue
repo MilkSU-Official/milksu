@@ -1,7 +1,5 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Button } from '@felinic/ui'
-import { ChevronRight } from 'lucide-vue-next'
 import ContextSidebar from '@/components-vue/ContextSidebar.vue'
 import WorkspaceRail from '@/components-vue/WorkspaceRail.vue'
 import type { ThemeMode } from '@/lib/themeMode'
@@ -38,7 +36,6 @@ const railSection = computed(() => props.activeSection)
 const showCodingHistory = computed(() => (
   props.activeSection === 'chat' && props.codingContextOpen
 ))
-const codingSectionActive = computed(() => props.activeSection === 'chat')
 </script>
 
 <template>
@@ -79,32 +76,20 @@ const codingSectionActive = computed(() => props.activeSection === 'chat')
       />
     </section>
 
-    <div
-      v-else-if="codingSectionActive"
-      class="coding-history-collapsed app-no-drag flex w-8 shrink-0 flex-col items-center border-r border-[var(--night-border)] bg-[var(--tactical-ink)] pt-3"
-    >
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        aria-label="展开会话历史"
-        title="展开会话历史"
-        data-testid="coding-history-expand"
-        @click="$emit('openCodingContext')"
-      >
-        <ChevronRight class="size-4" />
-      </Button>
-    </div>
+    <!-- Collapsed: no extra strip; expand from Coding topbar only. -->
   </aside>
 </template>
 
 <style scoped>
 .workspace-navigation-shell {
   --workspace-rail-width: 4.75rem;
+  /* Single edge against the main canvas; history panel has its own right border. */
   border-right: 1px solid var(--night-border);
 }
 .coding-history-panel {
   min-height: 0;
+  /* History sits between icon rail and chat; keep a hairline on the rail side. */
+  border-left: 1px solid color-mix(in srgb, var(--night-border) 80%, transparent);
   background-image: var(--tactical-carbon-image);
   background-size: 640px 640px;
 }

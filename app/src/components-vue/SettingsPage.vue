@@ -78,7 +78,14 @@ import type {
 import {
   withAppSettingsDefaults,
 } from '@/types'
-import { installAppModelSettings, loadModelCatalog, useModelCatalog } from '@/modelCatalog'
+import {
+  encodePickerSelection,
+  installAppModelSettings,
+  loadModelCatalog,
+  parsePickerSelection,
+  useModelCatalog,
+  type PickerServiceGroup,
+} from '@/modelCatalog'
 import VulnerabilityIntelSettingsPanel from '@/components-vue/VulnerabilityIntelSettingsPanel.vue'
 import SecurityToolsSettingsPanel from '@/components-vue/SecurityToolsSettingsPanel.vue'
 import type { SecurityToolCodingHandoff } from '@/securityToolsTypes'
@@ -153,9 +160,9 @@ const {
   providerModelLabel,
 } = useModelCatalog(serviceSettings)
 const {
-  providers: availableProviders,
-  providerGroups: availableProviderGroups,
+  pickerGroups: availablePickerGroups,
   providerModelLabel: availableProviderModelLabel,
+  pickerModelLabel: availablePickerModelLabel,
 } = useModelCatalog(pickerSettings)
 const account = computed<AccountStatus>(() => props.accountStatus ?? ({ configured: false, authenticated: false, state: 'unconfigured' }))
 const accountStateLabel = computed(() => ({
@@ -249,55 +256,66 @@ const provider = computed(() => (
   working.value ? working.value.providers[working.value.active_provider] : undefined
 ))
 const accountRoute = computed(() => working.value?.relay)
+
+function matchPickerGroup(providerId: string, model: string): PickerServiceGroup | undefined {
+  return availablePickerGroups.value.find(group => (
+    group.providerId === providerId && group.models.includes(model)
+  ))
+}
+
+/** Editor dialog selection key (provider + model only). */
 function modelSelectionKey(provider: string, model: string) {
-  return JSON.stringify([provider, model])
+  return encodePickerSelection(provider, model, 'service')
 }
 
 function parseModelSelectionKey(value: string): [string, string] | null {
-  try {
-    const parsed = JSON.parse(value) as unknown
-    if (
-      !Array.isArray(parsed)
-      || parsed.length !== 2
-      || typeof parsed[0] !== 'string'
-      || typeof parsed[1] !== 'string'
-      || !parsed[0]
-      || !parsed[1]
-    ) return null
-    return [parsed[0], parsed[1]]
-  } catch {
-    return null
-  }
+  const selection = parsePickerSelection(value)
+  if (!selection) return null
+  return [selection.providerId, selection.model]
 }
 
 const defaultModelKey = computed({
-  get: () => working.value
-    ? modelSelectionKey(working.value.active_provider, working.value.active_model)
-    : '',
+  get: () => {
+    if (!working.value) return ''
+    const match = matchPickerGroup(working.value.active_provider, working.value.active_model)
+    return encodePickerSelection(
+      working.value.active_provider,
+      working.value.active_model,
+      match?.source ?? 'service',
+    )
+  },
   set: value => {
     if (!working.value) return
-    const selection = parseModelSelectionKey(String(value ?? ''))
+    const selection = parsePickerSelection(String(value ?? ''))
     if (!selection) return
-    working.value.active_provider = selection[0]
-    working.value.active_model = selection[1]
+    working.value.active_provider = selection.providerId
+    working.value.active_model = selection.model
+    // Selecting a flat group also records which TokenFlux credential path to prefer.
+    if (selection.source === 'account') {
+      working.value.model_routing.source_order = ['account', 'personal']
+    } else if (selection.source === 'personal') {
+      working.value.model_routing.source_order = ['personal', 'account']
+    }
   },
 })
 
 const defaultModelAvailable = computed(() => {
   if (!working.value) return false
-  return availableProviders.value.some(provider => (
-    provider.id === working.value?.active_provider
-    && provider.models.includes(working.value.active_model)
+  return availablePickerGroups.value.some(group => (
+    group.providerId === working.value?.active_provider
+    && group.models.includes(working.value.active_model)
   ))
 })
 
-const availableModelCount = computed(() => availableProviders.value.reduce(
-  (total, provider) => total + provider.models.length,
+const availableModelCount = computed(() => availablePickerGroups.value.reduce(
+  (total, group) => total + group.models.length,
   0,
 ))
 
 const defaultModelLabel = computed(() => {
   if (!working.value) return ''
+  const match = matchPickerGroup(working.value.active_provider, working.value.active_model)
+  if (match) return availablePickerModelLabel(match, working.value.active_model)
   return availableProviderModelLabel(
     working.value.active_provider,
     working.value.active_model,
@@ -314,25 +332,30 @@ function alignDefaultModelToEnabledServices() {
   ) {
     working.value.active_provider = 'tokenflux'
   }
-  const callable = availableProviders.value
-  if (callable.length === 0) {
+  const groups = availablePickerGroups.value
+  if (groups.length === 0) {
     if (working.value.active_provider !== 'tokenflux') {
       working.value.active_provider = 'tokenflux'
     }
     return
   }
-  const current = callable.find(provider => (
-    provider.id === working.value?.active_provider
-    && provider.models.includes(working.value.active_model)
+  const current = groups.find(group => (
+    group.providerId === working.value?.active_provider
+    && group.models.includes(working.value.active_model)
   ))
   if (current) return
-  const sameProvider = callable.find(provider => provider.id === working.value?.active_provider)
+  const sameProvider = groups.find(group => group.providerId === working.value?.active_provider)
   if (sameProvider?.models[0]) {
     working.value.active_model = sameProvider.models[0]
     return
   }
-  working.value.active_provider = callable[0].id
-  working.value.active_model = callable[0].models[0] ?? ''
+  working.value.active_provider = groups[0].providerId
+  working.value.active_model = groups[0].models[0] ?? ''
+  if (groups[0].source === 'account') {
+    working.value.model_routing.source_order = ['account', 'personal']
+  } else if (groups[0].source === 'personal') {
+    working.value.model_routing.source_order = ['personal', 'account']
+  }
 }
 
 function skillEnabled(name: string): boolean {
@@ -575,50 +598,15 @@ function serviceStatusClass(row: ModelServiceRow): string {
   return 'text-muted-foreground'
 }
 
-/** Preferred TokenFlux path from model_routing (account vs personal Key). */
-function preferredTokenfluxSource(): 'account' | 'personal' | null {
-  if (!working.value) return null
-  const order = working.value.model_routing?.source_order ?? []
-  const accountOn = Boolean(accountRoute.value?.enabled && accountModelSourceReady.value)
-  const personalOn = Boolean(
-    providerConfig('tokenflux')?.enabled
-    && (providerConfig('tokenflux')?.has_api_key || String(providerConfig('tokenflux')?.api_key ?? '').trim()),
-  )
-  for (const source of order) {
-    if (source === 'account' && accountOn) return 'account'
-    if (source === 'personal' && personalOn) return 'personal'
-  }
-  if (accountOn) return 'account'
-  if (personalOn) return 'personal'
-  return null
-}
-
 function serviceIsActiveDefault(row: ModelServiceRow): boolean {
   if (!working.value) return false
+  // Highlight rows that currently contribute models to the default picker.
   if (row.source === 'account') {
-    return preferredTokenfluxSource() === 'account'
+    return Boolean(accountRoute.value?.enabled && accountModelSourceReady.value)
   }
-  if (row.provider.id === 'tokenflux') {
-    return preferredTokenfluxSource() === 'personal'
-      && working.value.active_provider === 'tokenflux'
-  }
-  return working.value.active_provider === row.provider.id
-    && Boolean(providerConfig(row.provider.id)?.enabled)
-}
-
-function serviceRoleLabel(row: ModelServiceRow): string {
-  if (!working.value) return ''
-  if (row.source === 'account') {
-    if (!accountRoute.value?.enabled || !accountModelSourceReady.value) return ''
-    return preferredTokenfluxSource() === 'account' ? '当前优先' : '已启用备用'
-  }
-  if (row.provider.id === 'tokenflux') {
-    const config = providerConfig('tokenflux')
-    if (!config?.enabled || !(config.has_api_key || config.api_key)) return ''
-    return preferredTokenfluxSource() === 'personal' ? '当前优先' : '已启用备用'
-  }
-  if (serviceIsActiveDefault(row)) return '当前默认服务'
-  return ''
+  return Boolean(providerConfig(row.provider.id)?.enabled
+    && (providerConfig(row.provider.id)?.has_api_key || String(providerConfig(row.provider.id)?.api_key ?? '').trim()
+      || row.provider.id !== 'tokenflux'))
 }
 
 function openProviderEditor(id: string) {
@@ -645,13 +633,9 @@ function setModelServiceEnabled(row: ModelServiceRow, enabled: boolean) {
       return
     }
     working.value.relay!.enabled = enabled
-    // Prefer account TokenFlux when it is turned on; otherwise leave personal order.
-    if (enabled) {
-      working.value.model_routing.source_order = ['account', 'personal']
-      working.value.model_routing.auto_fallback = false
-      if (working.value.active_provider !== 'tokenflux') {
-        working.value.active_provider = 'tokenflux'
-      }
+    // Enabling a service only expands the flat picker; do not force priority order.
+    if (enabled && working.value.active_provider !== 'tokenflux') {
+      working.value.active_provider = 'tokenflux'
     }
     alignDefaultModelToEnabledServices()
     return
@@ -660,12 +644,7 @@ function setModelServiceEnabled(row: ModelServiceRow, enabled: boolean) {
   if (!config) return
   config.enabled = enabled
   if (enabled) {
-    // Enabling a personal service makes it the active path for that provider.
     working.value.active_provider = row.provider.id
-    if (row.provider.id === 'tokenflux') {
-      working.value.model_routing.source_order = ['personal', 'account']
-    }
-    working.value.model_routing.auto_fallback = false
     if (row.provider.models[0] && !row.provider.models.includes(working.value.active_model)) {
       working.value.active_model = row.provider.models[0]
     }
@@ -1598,29 +1577,27 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                   <SelectValue>{{ defaultModelLabel }}</SelectValue>
                 </SelectTrigger>
                 <SelectContent size="sm" align="start" class="min-w-96">
-                  <SelectGroup v-if="!defaultModelAvailable">
+                  <SelectGroup v-if="!defaultModelAvailable && defaultModelKey">
                     <SelectLabel>当前选择</SelectLabel>
                     <SelectItem :value="defaultModelKey" disabled>
                       {{ defaultModelLabel }}（当前不可用）
                     </SelectItem>
                   </SelectGroup>
-                  <SelectSeparator v-if="!defaultModelAvailable && availableProviderGroups.length" />
+                  <SelectSeparator v-if="!defaultModelAvailable && availablePickerGroups.length" />
                   <template
-                    v-for="(group, groupIndex) in availableProviderGroups"
-                    :key="group.kind"
+                    v-for="(group, groupIndex) in availablePickerGroups"
+                    :key="group.key"
                   >
-                    <SelectSeparator v-if="groupIndex > 0" />
+                    <SelectSeparator v-if="groupIndex > 0 || (!defaultModelAvailable && defaultModelKey)" />
                     <SelectGroup>
                       <SelectLabel>{{ group.label }}</SelectLabel>
-                      <template v-for="availableProvider in group.providers" :key="availableProvider.id">
-                        <SelectItem
-                          v-for="model in availableProvider.models"
-                          :key="modelSelectionKey(availableProvider.id, model)"
-                          :value="modelSelectionKey(availableProvider.id, model)"
-                        >
-                          {{ availableProviderModelLabel(availableProvider.id, model) }}
-                        </SelectItem>
-                      </template>
+                      <SelectItem
+                        v-for="model in group.models"
+                        :key="`${group.key}:${model}`"
+                        :value="encodePickerSelection(group.providerId, model, group.source)"
+                      >
+                        {{ availablePickerModelLabel(group, model) }}
+                      </SelectItem>
                     </SelectGroup>
                   </template>
                 </SelectContent>
@@ -1649,8 +1626,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
             </div>
 
             <p class="mt-1 text-caption text-muted-foreground">
-              默认模型列表来自下方已启用的服务；Coding 输入框使用同一套列表。
-              MilkSU 账户与 TokenFlux 中转站可同时开启：标「当前优先」的会先用，另一个仅在优先来源不可用且你允许回退时使用。
+              下方已启用的服务会平铺到上方默认模型列表与 Coding 输入框：MilkSU 账户、TokenFlux 中转站和自定义中转站各自成组，可直接点选。
             </p>
 
             <div class="model-service-list mt-4 overflow-hidden rounded-lg border border-border bg-card">
@@ -1672,13 +1648,6 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                 <div class="min-w-0">
                   <p class="truncate font-medium">
                     {{ row.source === 'account' ? 'MilkSU 账户' : providerServiceName(row.provider) }}
-                  </p>
-                  <p
-                    v-if="serviceRoleLabel(row)"
-                    class="text-caption"
-                    :class="serviceIsActiveDefault(row) ? 'text-primary' : 'text-muted-foreground'"
-                  >
-                    {{ serviceRoleLabel(row) }}
                   </p>
                   <p
                     v-if="row.source === 'account'"

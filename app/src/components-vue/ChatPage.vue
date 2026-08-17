@@ -124,7 +124,12 @@ import type {
   CTFChatAction,
 } from '@/types'
 import type { CodingMessageQueue } from '@/composables/useConversations'
-import { providerModelLabel } from '@/modelCatalog'
+import {
+  encodeComposerModelKey,
+  parseComposerModelKey,
+  providerModelLabel,
+  useModelCatalog,
+} from '@/modelCatalog'
 import { enabledCodingSkillNames } from '@/codingSkills'
 
 const CodingTerminalPanel = defineAsyncComponent(
@@ -202,7 +207,8 @@ const scrollArea = ref<HTMLElement | null>(null)
 const chatAutoScrollPinned = ref(true)
 const lastChatScrollTop = ref(0)
 const workshopState = ref<CTFToolWorkshopState | null>(null)
-const environmentOpen = ref(true)
+// Right context rail starts collapsed so the chat canvas stays wide.
+const environmentOpen = ref(false)
 // Domain context is the primary right-rail content for CTF/CVE (one rail only).
 // Collapse to a floating PiP with a text control; reopen via the floating chip.
 const domainContextCollapsed = ref(false)
@@ -263,16 +269,26 @@ const automaticModel = computed(() => {
 const effectiveModelMode = computed(() => (
   props.modelMode ?? 'auto'
 ))
+const { pickerGroups, pickerModelLabel } = useModelCatalog()
 const currentModelKey = computed(() => {
   if (!props.settings) return ''
   if (effectiveModelMode.value === 'auto') return 'auto'
   const provider = props.modelProvider || props.settings.active_provider
   const model = props.modelId || props.settings.active_model
-  return `manual:${provider}:${model}`
+  // Prefer matching an enabled picker group so account vs personal stay distinct.
+  const match = pickerGroups.value.find(group => (
+    group.providerId === provider && group.models.includes(model)
+  ))
+  const source = match?.source ?? 'service'
+  return encodeComposerModelKey(provider, model, source)
 })
 const automaticModelLabel = computed(() => {
   const selection = automaticModel.value
   if (!selection) return 'Default'
+  const match = pickerGroups.value.find(group => (
+    group.providerId === selection.provider && group.models.includes(selection.model)
+  ))
+  if (match) return `Default · ${pickerModelLabel(match, selection.model)}`
   return `Default · ${providerModelLabel(selection.provider, selection.model)}`
 })
 const activeExtensions = computed(() => (
@@ -500,19 +516,10 @@ const activeModelLabel = computed(() => {
 })
 const activeModelSourceLabel = computed(() => (
   props.conversation?.modelSource === 'account'
-    ? '账户分配模型'
+    ? 'MilkSU 账户'
     : props.conversation?.modelSource === 'personal'
-      ? '我的 API Key'
-      : props.settings?.model_routing.source_order[0] === 'personal'
-        ? '我的 API Key 优先'
-        : '账户分配模型优先'
-))
-const preferredModelSourceLabel = computed(() => (
-  props.modelSourcePreference === 'account'
-    ? '账户分配模型优先'
-    : props.modelSourcePreference === 'personal'
-      ? '我的 API Key 优先'
-      : '跟随设置'
+      ? 'TokenFlux 中转站'
+      : '在模型列表中按服务选择'
 ))
 
 const computerUseOperationEvidence = computed(() => (
@@ -643,13 +650,18 @@ function resumeAfterFailure() {
 }
 
 function changeModel(value: string) {
-  if (value === 'auto') {
+  const parsed = parseComposerModelKey(value)
+  if (parsed.mode === 'auto') {
     emit('changeModel', 'auto')
     return
   }
-  const [mode, provider, ...modelParts] = value.split(':')
-  const model = modelParts.join(':')
-  if (mode === 'manual' && provider && model) emit('changeModel', 'manual', provider, model)
+  if (parsed.providerId && parsed.model) {
+    // Source preference follows the group the user picked (account vs personal).
+    if (parsed.source === 'account' || parsed.source === 'personal') {
+      emit('changeModelSource', parsed.source)
+    }
+    emit('changeModel', 'manual', parsed.providerId, parsed.model)
+  }
 }
 
 function changeExecutionMode(value: string) {
@@ -2005,27 +2017,11 @@ watch(
           </div>
           <div class="flex items-start justify-between gap-3">
             <span class="shrink-0 text-muted-foreground">来源</span>
-            <div class="min-w-0 text-right">
-              <Select
-                :model-value="modelSourcePreference || 'auto'"
-                @update:model-value="value => emit('changeModelSource', value as 'auto' | 'account' | 'personal')"
-              >
-                <SelectTrigger
-                  class="ml-auto h-7 w-32 border-border/70 bg-transparent px-2 text-caption"
-                  aria-label="本对话模型来源"
-                >
-                  <SelectValue :placeholder="preferredModelSourceLabel" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="auto">跟随设置</SelectItem>
-                  <SelectItem value="account">账户分配模型优先</SelectItem>
-                  <SelectItem value="personal">我的 API Key 优先</SelectItem>
-                </SelectContent>
-              </Select>
-              <p class="mt-1 text-[11px] leading-4 text-muted-foreground">
-                {{ conversation?.modelSource ? `本轮：${activeModelSourceLabel}` : '只影响本对话' }}
-              </p>
-            </div>
+            <span class="text-right text-caption leading-5">
+              {{ conversation?.modelSource
+                ? activeModelSourceLabel
+                : '在模型列表中按服务选择' }}
+            </span>
           </div>
           <div class="flex items-start justify-between gap-3">
             <span class="shrink-0 text-muted-foreground">插件</span>

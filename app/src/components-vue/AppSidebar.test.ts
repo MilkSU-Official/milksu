@@ -72,8 +72,10 @@ describe('AppSidebar', () => {
     }]
     const closed = await mountSidebar('chat', conversations, 'dark', vi.fn(), false)
     expect(closed.querySelector('[data-testid="coding-context-drawer"]')).toBeNull()
-    expect(closed.querySelector('[aria-label="展开会话历史"]')).not.toBeNull()
-    expect(closed.textContent).not.toContain('新建编码任务')
+    // Collapsed history has no extra strip; expand lives on the Coding topbar only.
+    expect(closed.querySelector('[aria-label="展开会话历史"]')).toBeNull()
+    expect(closed.querySelector('[data-testid="coding-history-expand"]')).toBeNull()
+    expect(closed.textContent).not.toContain('新会话')
 
     const onCloseCodingContext = vi.fn()
     const coding = await mountSidebar(
@@ -84,7 +86,7 @@ describe('AppSidebar', () => {
       true,
       onCloseCodingContext,
     )
-    expect(coding.textContent).toContain('新建编码任务')
+    expect(coding.textContent).toContain('新会话')
     expect(coding.textContent).toContain('实现产品闭环')
     const panel = coding.querySelector('[data-testid="coding-context-drawer"]')
     expect(panel).not.toBeNull()
@@ -92,6 +94,7 @@ describe('AppSidebar', () => {
     expect(panel?.className).toContain('app-no-drag')
     expect(coding.querySelector('[aria-label="关闭 Coding 会话"]')).toBeNull()
     expect(coding.querySelector('[aria-label="收起会话历史"]')).not.toBeNull()
+    expect(coding.querySelector('[data-testid="coding-new-task-button"]')).not.toBeNull()
     expect(appSidebarSource).not.toContain('coding-context-backdrop')
     expect(appSidebarSource).not.toContain('coding-history-toolbar')
     expect(appSidebarSource).not.toContain('left: 100%')
@@ -103,15 +106,13 @@ describe('AppSidebar', () => {
     expect(onCloseCodingContext).toHaveBeenCalledOnce()
   })
 
-  it('expands collapsed Coding history from the narrow strip', async () => {
-    const onOpen = vi.fn()
-    const host = await mountSidebar('chat', [], 'dark', vi.fn(), false, vi.fn(), vi.fn(), vi.fn(), onOpen)
-    host.querySelector<HTMLButtonElement>('[data-testid="coding-history-expand"]')?.click()
-    await nextTick()
-    expect(onOpen).toHaveBeenCalledOnce()
+  it('keeps collapsed Coding history without a leftover expand strip', async () => {
+    const host = await mountSidebar('chat', [], 'dark', vi.fn(), false)
+    expect(host.querySelector('[data-testid="coding-context-drawer"]')).toBeNull()
+    expect(host.querySelector('[data-testid="coding-history-expand"]')).toBeNull()
   })
 
-  it('makes the complete new-task row a native no-drag click target', async () => {
+  it('makes the new-task icon a native no-drag click target', async () => {
     const onNew = vi.fn()
     const host = await mountSidebar(
       'chat', [], 'dark', vi.fn(), true, vi.fn(), vi.fn(), onNew,

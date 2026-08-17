@@ -141,8 +141,10 @@ describe('ChatPage routing contract', () => {
   })
 
   it('preserves colons inside custom relay model ids', () => {
-    expect(chatPageSource).toContain('const [mode, provider, ...modelParts] = value.split(\':\')')
-    expect(chatPageSource).toContain("const model = modelParts.join(':')")
+    // Manual model keys are parsed by parseComposerModelKey so source + model
+    // segments (including colons in custom relay ids) stay intact.
+    expect(chatPageSource).toContain('parseComposerModelKey')
+    expect(chatPageSource).toContain('encodeComposerModelKey')
   })
 
   it('reuses the latest persisted user attachments when retrying a failed turn', () => {

@@ -33,6 +33,7 @@ describe('Workspace visual contract', () => {
     expect(contextSidebarSource).toContain('line-height: var(--text-control--line-height)')
     expect(contextSidebarSource).toContain('data-testid="coding-new-task-button"')
     expect(contextSidebarSource).toContain('aria-label="收起会话历史"')
+    expect(contextSidebarSource).toContain('新会话')
     expect(contextSidebarSource).not.toContain('Task archive')
     expect(contextSidebarSource).toContain('px-3 py-1.5 text-label font-medium text-muted-foreground')
     expect(chatMessageItemSource).toContain('class="break-words text-control leading-7"')

@@ -187,7 +187,7 @@ describe('runtime model catalog', () => {
       },
     })
 
-    const { providers } = useModelCatalog()
+    const { providers, pickerGroups } = useModelCatalog()
     expect(providers.value.map(provider => provider.id).sort()).toEqual([
       'custom-relay-team',
       'tokenflux',
@@ -195,5 +195,50 @@ describe('runtime model catalog', () => {
     expect(providers.value.find(provider => provider.id === 'tokenflux')?.models).toEqual(['grok-4.5'])
     expect(providers.value.find(provider => provider.id === 'custom-relay-team')?.models)
       .toEqual(['vendor/model:preview'])
+    // Flat picker: account TokenFlux + custom relay (personal TokenFlux off).
+    expect(pickerGroups.value.map(group => group.label)).toEqual([
+      'MilkSU 账户',
+      'Team Relay',
+    ])
+    expect(pickerGroups.value.find(group => group.key === 'tokenflux:account')?.models)
+      .toEqual(['grok-4.5'])
+  })
+
+  it('splits account and personal TokenFlux into separate flat picker groups', () => {
+    installModelCatalog({
+      provider: 'tokenflux',
+      source: 'remote',
+      credential_source: 'merged',
+      account_model_ids: ['grok-4.5'],
+      models: [
+        { id: 'grok-4.5', name: 'Grok 4.5', context_window: 128000, max_tokens: 32768, input: ['text'] },
+        { id: 'x-ai/grok-4.6', name: 'Grok 4.6', context_window: 128000, max_tokens: 32768, input: ['text'] },
+      ],
+    })
+    installAppModelSettings({
+      providers: {
+        tokenflux: {
+          api_key: '',
+          has_api_key: true,
+          enabled: true,
+          base_url: 'https://tokenflux.dev/v1',
+        },
+      },
+      relay: {
+        enabled: true,
+        url: 'https://tokenflux.dev/v1',
+        key: '',
+        has_key: true,
+      },
+    })
+    const { pickerGroups, pickerModelLabel } = useModelCatalog()
+    expect(pickerGroups.value.map(group => group.key)).toEqual([
+      'tokenflux:account',
+      'tokenflux:personal',
+    ])
+    const account = pickerGroups.value[0]
+    const personal = pickerGroups.value[1]
+    expect(pickerModelLabel(account, 'grok-4.5')).toBe('MilkSU 账户 · Grok 4.5')
+    expect(pickerModelLabel(personal, 'x-ai/grok-4.6')).toBe('TokenFlux 中转站 · Grok 4.6')
   })
 })

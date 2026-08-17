@@ -815,7 +815,9 @@ describe('SettingsPage database compatibility', () => {
     await settle()
 
     const options = [...document.querySelectorAll<HTMLElement>('[role="option"]')]
-    expect(options.some(option => option.textContent?.includes('TokenFlux · Grok 4.5'))).toBe(true)
+    // Flat groups: account and personal TokenFlux appear as separate service labels.
+    expect(options.some(option => option.textContent?.includes('MilkSU 账户 · Grok 4.5'))).toBe(true)
+    expect(options.some(option => option.textContent?.includes('TokenFlux 中转站 · Grok 4.5'))).toBe(true)
     const custom = options.find(option => option.textContent?.includes('Team Relay · vendor/model:preview'))
     expect(custom).toBeDefined()
     custom?.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, button: 0 }))
@@ -829,7 +831,6 @@ describe('SettingsPage database compatibility', () => {
     const persisted = savedSettings as AppSettings
     expect(persisted.active_provider).toBe('custom-relay-team')
     expect(persisted.active_model).toBe('vendor/model:preview')
-    expect(persisted.model_routing.source_order).toEqual(['account', 'personal'])
   })
 
   it('adds and verifies a simple custom OpenAI-compatible relay', async () => {
@@ -1017,8 +1018,9 @@ describe('SettingsPage database compatibility', () => {
     expect(text).toContain('MilkSU 账户')
     expect(text).toContain('TokenFlux 中转站')
     expect(text).toContain('已启用')
-    expect(text).toContain('当前优先')
-    expect(text).toContain('已启用备用')
+    expect(text).toContain('平铺到上方默认模型列表')
+    expect(text).not.toContain('当前优先')
+    expect(text).not.toContain('已启用备用')
     expect(text).not.toContain('设为默认')
     expect(text).not.toContain('来源不可用时自动切换')
     expect(document.querySelector('input[aria-label="TokenFlux 团队 API Key"]')).toBeNull()

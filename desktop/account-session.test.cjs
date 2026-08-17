@@ -89,7 +89,7 @@ test('uses system-browser PKCE and returns no credential material to the rendere
   assert.equal(await session.activeAccessToken(), 'access-secret')
 })
 
-test('projects only a bounded GitHub avatar as an inline image for the renderer', async () => {
+test('defers GitHub avatar fetch so status() does not block startup', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'milksu-avatar-'))
   await fs.writeFile(path.join(root, 'account-session.json'), JSON.stringify({
     accessToken: 'access-secret',
@@ -99,15 +99,21 @@ test('projects only a bounded GitHub avatar as an inline image for the renderer'
     MILKSU_ACCOUNT_API_URL: 'https://account.example',
   } })
   let avatarRequests = 0
+  let accountRequests = 0
+  let avatarRelease
+  const avatarGate = new Promise(resolve => { avatarRelease = resolve })
+  const changed = []
   const fetchImpl = async url => {
     if (url === 'https://avatars.githubusercontent.com/u/42') {
       avatarRequests += 1
+      await avatarGate
       return {
         ok: true,
         headers: new Headers({ 'content-type': 'image/png', 'content-length': '4' }),
         arrayBuffer: async () => Uint8Array.from([137, 80, 78, 71]).buffer,
       }
     }
+    accountRequests += 1
     return {
       ok: true,
       status: 200,
@@ -118,12 +124,90 @@ test('projects only a bounded GitHub avatar as an inline image for the renderer'
       } }),
     }
   }
-  const session = new AccountSession({ config, userDataPath: root, openExternal: async () => {}, fetchImpl })
+  const session = new AccountSession({
+    config,
+    userDataPath: root,
+    openExternal: async () => {},
+    fetchImpl,
+    onChanged: value => changed.push(value),
+  })
   const first = await session.status()
-  const second = await session.status()
-  assert.match(first.user.avatarUrl, /^data:image\/png;base64,/)
-  assert.equal(second.user.avatarUrl, first.user.avatarUrl)
+  // Status returns before the avatar network completes.
+  assert.equal(first.user.avatarUrl, '')
+  assert.equal(first.state, 'active')
   assert.equal(avatarRequests, 1)
+  assert.equal(accountRequests, 1)
+
+  // Second call joins the short TTL cache — no second /v1/account hop.
+  const second = await session.status()
+  assert.equal(second.user.avatarUrl, '')
+  assert.equal(accountRequests, 1)
+
+  avatarRelease()
+  await new Promise(resolve => setTimeout(resolve, 30))
+  const filled = changed.find(value => value?.user?.avatarUrl?.startsWith('data:image/png;base64,'))
+  assert.ok(filled, 'background avatar fill should emit account.changed')
+  assert.match(filled.user.avatarUrl, /^data:image\/png;base64,/)
+  assert.equal(avatarRequests, 1)
+
+  // After fill, cached status includes the inline avatar.
+  const third = await session.status()
+  assert.equal(third.user.avatarUrl, filled.user.avatarUrl)
+  assert.equal(accountRequests, 1)
+})
+
+test('dedupes concurrent status and modelCredential network fetches', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'milksu-status-dedupe-'))
+  await fs.writeFile(path.join(root, 'account-session.json'), JSON.stringify({
+    accessToken: 'access-secret',
+    expiresAt: Date.now() + 600_000,
+  }), { mode: 0o600 })
+  const config = await loadAccountConfig({ env: {
+    MILKSU_ACCOUNT_API_URL: 'https://account.example',
+  } })
+  let accountRequests = 0
+  let credentialRequests = 0
+  const fetchImpl = async url => {
+    if (String(url).endsWith('/v1/account/model-credential')) {
+      credentialRequests += 1
+      await new Promise(resolve => setTimeout(resolve, 20))
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ credential: {
+          provider: 'tokenflux',
+          baseUrl: 'https://tokenflux.dev/v1',
+          apiKey: 'assigned-provider-secret',
+          models: ['grok-4.6'],
+        } }),
+      }
+    }
+    accountRequests += 1
+    await new Promise(resolve => setTimeout(resolve, 20))
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ account: {
+        githubLogin: 'hunter',
+        displayName: 'Hunter',
+        avatarUrl: 'https://avatars.example/hunter',
+        tokenFluxLinked: true,
+      } }),
+    }
+  }
+  const session = new AccountSession({ config, userDataPath: root, openExternal: async () => {}, fetchImpl })
+  const [a, b, c, d] = await Promise.all([
+    session.status(),
+    session.status(),
+    session.modelCredential(),
+    session.modelCredential(),
+  ])
+  assert.equal(a.state, 'active')
+  assert.equal(b.state, 'active')
+  assert.equal(c.apiKey, 'assigned-provider-secret')
+  assert.equal(d.apiKey, 'assigned-provider-secret')
+  assert.equal(accountRequests, 1)
+  assert.equal(credentialRequests, 1)
 })
 
 test('retrieves the assigned TokenFlux credential only through the main-process account session', async () => {

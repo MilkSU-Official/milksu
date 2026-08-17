@@ -7,6 +7,10 @@ const path = require('node:path')
 const MAX_AVATAR_BYTES = 1024 * 1024
 const GITHUB_AVATAR_HOST = 'avatars.githubusercontent.com'
 const TOKENFLUX_BASE_URL = 'https://tokenflux.dev/v1'
+// Startup often calls status()/modelCredential() twice (main pre-load + renderer).
+// Short TTL + in-flight dedupe avoids a second network round-trip without stale login UX.
+const STATUS_CACHE_TTL_MS = 15_000
+const CREDENTIAL_CACHE_TTL_MS = 15_000
 
 function base64url(buffer) {
   return Buffer.from(buffer).toString('base64url')
@@ -72,6 +76,25 @@ class AccountSession {
     this.avatarCache = new Map()
     this.sessionLoaded = false
     this.sessionValue = null
+    this.statusCache = null
+    this.statusInflight = null
+    this.credentialCache = null
+    this.credentialInflight = null
+    this.avatarFillInflight = new Map()
+  }
+
+  clearNetworkCaches() {
+    this.statusCache = null
+    this.statusInflight = null
+    this.credentialCache = null
+    this.credentialInflight = null
+  }
+
+  cachedAvatarDataURL(rawURL) {
+    let url
+    try { url = new URL(String(rawURL ?? '')) } catch { return '' }
+    if (url.protocol !== 'https:' || url.hostname !== GITHUB_AVATAR_HOST) return ''
+    return this.avatarCache.get(url.href) || ''
   }
 
   async avatarDataURL(rawURL) {
@@ -89,6 +112,47 @@ class AccountSession {
     const value = `data:${contentType};base64,${bytes.toString('base64')}`
     this.avatarCache.set(url.href, value)
     return value
+  }
+
+  // Do not block status()/startup on GitHub avatar bytes. Emit account.changed when ready.
+  scheduleAvatarFill(remoteURL, baseStatus) {
+    const remote = String(remoteURL ?? '')
+    if (!remote || baseStatus?.state !== 'active') return
+    if (this.cachedAvatarDataURL(remote)) return
+    if (this.avatarFillInflight.has(remote)) return
+    const work = this.avatarDataURL(remote)
+      .then(avatarUrl => {
+        if (!avatarUrl) return
+        const login = String(baseStatus?.user?.githubLogin ?? '')
+        const cached = this.statusCache?.value
+        if (
+          cached?.state === 'active'
+          && String(cached?.user?.githubLogin ?? '') === login
+        ) {
+          const next = {
+            ...cached,
+            user: {
+              ...cached.user,
+              avatarUrl,
+            },
+          }
+          this.statusCache = { value: next, at: Date.now() }
+          this.onChanged(next)
+          return
+        }
+        this.onChanged({
+          ...baseStatus,
+          user: {
+            ...baseStatus.user,
+            avatarUrl,
+          },
+        })
+      })
+      .catch(() => {})
+      .finally(() => {
+        this.avatarFillInflight.delete(remote)
+      })
+    this.avatarFillInflight.set(remote, work)
   }
 
   async readSession() {
@@ -114,6 +178,7 @@ class AccountSession {
     await fs.chmod(this.sessionPath, 0o600)
     this.sessionValue = session
     this.sessionLoaded = true
+    this.clearNetworkCaches()
   }
 
   async activeSession() {
@@ -123,10 +188,33 @@ class AccountSession {
     await fs.unlink(this.sessionPath).catch(() => {})
     this.sessionValue = null
     this.sessionLoaded = true
+    this.clearNetworkCaches()
     return null
   }
 
+  rememberStatus(value) {
+    this.statusCache = { value, at: Date.now() }
+    return value
+  }
+
   async status() {
+    if (this.statusCache && Date.now() - this.statusCache.at < STATUS_CACHE_TTL_MS) {
+      console.info(`[startup] account.status cache-hit age=${Date.now() - this.statusCache.at}ms state=${this.statusCache.value?.state ?? 'unknown'}`)
+      return this.statusCache.value
+    }
+    if (this.statusInflight) {
+      console.info('[startup] account.status join-inflight')
+      return this.statusInflight
+    }
+    this.statusInflight = this.loadStatus()
+      .then(value => this.rememberStatus(value))
+      .finally(() => {
+        this.statusInflight = null
+      })
+    return this.statusInflight
+  }
+
+  async loadStatus() {
     const started = Date.now()
     if (!this.config.configured) {
       console.info(`[startup] account.status skip unconfigured ${Date.now() - started}ms`)
@@ -152,6 +240,7 @@ class AccountSession {
       await fs.unlink(this.sessionPath).catch(() => {})
       this.sessionValue = null
       this.sessionLoaded = true
+      this.clearNetworkCaches()
       console.info(`[startup] account.status 401 network=${networkMs}ms total=${Date.now() - started}ms`)
       return { configured: true, authenticated: false, state: 'signed_out' }
     }
@@ -168,8 +257,9 @@ class AccountSession {
       console.info(`[startup] account.status http=${response.status} network=${networkMs}ms total=${Date.now() - started}ms`)
       return { configured: true, authenticated: true, state: 'unavailable' }
     }
-    const avatarStarted = Date.now()
-    const avatarUrl = await this.avatarDataURL(payload.account.avatarUrl)
+    const remoteAvatar = String(payload.account.avatarUrl ?? '')
+    // Prefer an already-downloaded data URL; never await network for the avatar here.
+    const avatarUrl = this.cachedAvatarDataURL(remoteAvatar)
     const result = {
       configured: true,
       authenticated: true,
@@ -182,12 +272,33 @@ class AccountSession {
       tokenFluxLinked: payload.account.tokenFluxLinked === true,
     }
     console.info(
-      `[startup] account.status active network=${networkMs}ms avatar=${Date.now() - avatarStarted}ms total=${Date.now() - started}ms tokenFlux=${result.tokenFluxLinked}`,
+      `[startup] account.status active network=${networkMs}ms avatar=${avatarUrl ? 'cache' : 'deferred'} total=${Date.now() - started}ms tokenFlux=${result.tokenFluxLinked}`,
     )
+    this.scheduleAvatarFill(remoteAvatar, result)
     return result
   }
 
   async modelCredential() {
+    if (this.credentialCache && Date.now() - this.credentialCache.at < CREDENTIAL_CACHE_TTL_MS) {
+      console.info(`[startup] account.modelCredential cache-hit age=${Date.now() - this.credentialCache.at}ms`)
+      return this.credentialCache.value
+    }
+    if (this.credentialInflight) {
+      console.info('[startup] account.modelCredential join-inflight')
+      return this.credentialInflight
+    }
+    this.credentialInflight = this.loadModelCredential()
+      .then(value => {
+        this.credentialCache = { value, at: Date.now() }
+        return value
+      })
+      .finally(() => {
+        this.credentialInflight = null
+      })
+    return this.credentialInflight
+  }
+
+  async loadModelCredential() {
     const started = Date.now()
     if (!this.config.configured) {
       console.info(`[startup] account.modelCredential skip unconfigured ${Date.now() - started}ms`)
@@ -287,6 +398,7 @@ class AccountSession {
     await fs.unlink(this.sessionPath).catch(() => {})
     this.sessionValue = null
     this.sessionLoaded = true
+    this.clearNetworkCaches()
     const next = await this.status()
     this.onChanged(next)
     return next

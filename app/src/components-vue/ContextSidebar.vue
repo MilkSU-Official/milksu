@@ -116,17 +116,18 @@ watch(
     </nav>
 
     <div v-else-if="codingContext" class="coding-context-content app-no-drag flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div class="coding-context-header flex shrink-0 items-center gap-1 px-3 pt-2">
+      <div class="coding-context-toolbar flex shrink-0 items-center justify-between gap-1 px-2 pt-2">
         <Button
           type="button"
-          variant="outline"
-          size="sm"
-          class="coding-new-task-button app-no-drag relative z-10 min-h-8 min-w-0 flex-1 justify-center"
+          variant="ghost"
+          size="icon-sm"
+          class="coding-new-task-icon app-no-drag shrink-0"
+          aria-label="新建编码任务"
+          title="新建编码任务"
           data-testid="coding-new-task-button"
           @click="$emit('new')"
         >
-          <MessageSquarePlus class="size-3.5" />
-          新建编码任务
+          <MessageSquarePlus class="size-4" />
         </Button>
         <Button
           type="button"
@@ -141,7 +142,17 @@ watch(
         </Button>
       </div>
       <div class="shrink-0 px-3 pt-2">
-        <label class="relative block">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          block
+          class="coding-new-session-button app-no-drag min-h-8 justify-center"
+          @click="$emit('new')"
+        >
+          新会话
+        </Button>
+        <label class="relative mt-2 block">
           <Search class="pointer-events-none absolute left-3 top-1/2 z-10 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             v-model="query"
@@ -269,11 +280,15 @@ watch(
   letter-spacing: var(--text-label--letter-spacing);
 }
 
-.coding-new-task-button {
+.coding-new-task-icon,
+.coding-new-session-button {
+  -webkit-app-region: no-drag;
+}
+
+.coding-new-session-button {
   font-size: var(--text-label);
   line-height: var(--text-label--line-height);
   letter-spacing: var(--text-label--letter-spacing);
-  -webkit-app-region: no-drag;
 }
 
 .coding-context-content {

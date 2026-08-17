@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
 import AppSidebar from '@/components-vue/AppSidebar.vue'
 import StartupRecoveryBanner from '@/components-vue/StartupRecoveryBanner.vue'
 import UpdateNotification from '@/components-vue/UpdateNotification.vue'
@@ -134,13 +134,7 @@ const sidebarSection = computed(() => (
   section.value === 'chat' && activeCTFConversation.value ? 'ctf' : section.value
 ))
 
-watch(section, current => {
-  // Keep Coding history open by default when entering Coding; leave it alone
-  // on other sections so returning to chat restores the user's fold state.
-  if (current === 'chat' && !codingConversationDrawerOpen.value) {
-    codingConversationDrawerOpen.value = true
-  }
-})
+// History open/closed is user-controlled; entering Coding does not force it open.
 
 function startupLog(label: string, detail = '') {
   const suffix = detail ? ` ${detail}` : ''

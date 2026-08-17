@@ -95,6 +95,64 @@ export function tokenfluxCallableModels(
   return []
 }
 
+export type PickerServiceSource = 'account' | 'personal' | 'service'
+
+/** One enabled service slice for Settings / Coding model pickers. */
+export interface PickerServiceGroup {
+  /** Stable key for Vue lists and selection encoding. */
+  key: string
+  /** Underlying provider id used by Desktop RPC / Agent (tokenflux, custom-relay-…). */
+  providerId: string
+  /** Credential route when provider is TokenFlux. */
+  source: PickerServiceSource
+  /** Group heading shown in the picker. */
+  label: string
+  models: string[]
+  visionModels: string[]
+}
+
+function catalogModelsForTokenfluxSource(
+  source: 'account' | 'personal',
+  settings: {
+    providers?: Record<string, ProviderConfig>
+    relay?: RelayConfig | null
+  },
+): ModelCatalogSnapshot['models'] {
+  const catalog = credentialedCatalog('tokenflux')
+  if (!catalog) return []
+  const accountOn = accountRouteReady(settings.relay)
+  const personalOn = providerReady(settings.providers ?? {}, 'tokenflux')
+  if (source === 'account' && !accountOn) return []
+  if (source === 'personal' && !personalOn) return []
+
+  const accountIDs = new Set(
+    (catalog.account_model_ids ?? [])
+      .map(id => String(id ?? '').trim())
+      .filter(Boolean),
+  )
+
+  if (source === 'account') {
+    if (catalog.credential_source === 'merged' && accountIDs.size > 0) {
+      return catalog.models.filter(model => accountIDs.has(model.id))
+    }
+    if (catalog.credential_source === 'account' || catalog.credential_source === 'merged') {
+      return catalog.models
+    }
+    // Account route on but catalog only has personal metadata — still list all
+    // known TokenFlux models so the account row is usable.
+    return catalog.models
+  }
+
+  if (catalog.credential_source === 'merged' && accountIDs.size > 0) {
+    const personal = catalog.models.filter(model => !accountIDs.has(model.id))
+    return personal.length > 0 ? personal : catalog.models
+  }
+  if (catalog.credential_source === 'personal' || catalog.credential_source === 'merged') {
+    return catalog.models
+  }
+  return catalog.models
+}
+
 function withTokenfluxModels(
   provider: ProviderInfo,
   settings: Record<string, ProviderConfig>,
@@ -115,8 +173,60 @@ function withTokenfluxModels(
 }
 
 /**
+ * Flat picker groups: every enabled service is listed side by side.
+ * Account TokenFlux and personal TokenFlux appear as two groups when both on.
+ */
+export function callablePickerGroups(
+  settings: Record<string, ProviderConfig>,
+  relay?: RelayConfig | null,
+): PickerServiceGroup[] {
+  const groups: PickerServiceGroup[] = []
+  const accountModels = catalogModelsForTokenfluxSource('account', { providers: settings, relay })
+  if (accountModels.length > 0) {
+    groups.push({
+      key: 'tokenflux:account',
+      providerId: 'tokenflux',
+      source: 'account',
+      label: 'MilkSU 账户',
+      models: accountModels.map(model => model.id),
+      visionModels: accountModels
+        .filter(model => model.input.includes('image'))
+        .map(model => model.id),
+    })
+  }
+  const personalModels = catalogModelsForTokenfluxSource('personal', { providers: settings, relay })
+  if (personalModels.length > 0) {
+    groups.push({
+      key: 'tokenflux:personal',
+      providerId: 'tokenflux',
+      source: 'personal',
+      label: 'TokenFlux 中转站',
+      models: personalModels.map(model => model.id),
+      visionModels: personalModels
+        .filter(model => model.input.includes('image'))
+        .map(model => model.id),
+    })
+  }
+  for (const [id, config] of Object.entries(settings)) {
+    if (id === 'tokenflux' || !providerReady(settings, id)) continue
+    const provider = customProviderInfo(id, config)
+    if (!provider || provider.models.length === 0) continue
+    groups.push({
+      key: `service:${id}`,
+      providerId: id,
+      source: 'service',
+      label: provider.name,
+      models: [...provider.models],
+      visionModels: [...provider.visionModels],
+    })
+  }
+  return groups
+}
+
+/**
  * Callable providers for pickers (Settings default model + Coding composer).
  * Only enabled services that currently expose at least one model.
+ * TokenFlux rows are merged for legacy callers; prefer callablePickerGroups.
  */
 export function callableProviders(
   settings: Record<string, ProviderConfig>,
@@ -174,6 +284,86 @@ function groupProviders(values: ProviderInfo[]) {
       providers: values.filter(provider => provider.kind === 'relay' || provider.kind === 'official'),
     },
   ].filter(group => group.providers.length > 0)
+}
+
+/** Encode a picker selection so account vs personal TokenFlux stay distinct. */
+export function encodePickerSelection(
+  providerId: string,
+  model: string,
+  source: PickerServiceSource = 'service',
+): string {
+  return JSON.stringify([providerId, model, source])
+}
+
+export function parsePickerSelection(value: string): {
+  providerId: string
+  model: string
+  source: PickerServiceSource
+} | null {
+  try {
+    const parsed = JSON.parse(value) as unknown
+    if (
+      !Array.isArray(parsed)
+      || parsed.length < 2
+      || typeof parsed[0] !== 'string'
+      || typeof parsed[1] !== 'string'
+      || !parsed[0]
+      || !parsed[1]
+    ) return null
+    const source = parsed[2] === 'account' || parsed[2] === 'personal' || parsed[2] === 'service'
+      ? parsed[2]
+      : 'service'
+    return { providerId: parsed[0], model: parsed[1], source }
+  } catch {
+    return null
+  }
+}
+
+/** Coding composer manual key: manual:provider:source:model */
+export function encodeComposerModelKey(
+  providerId: string,
+  model: string,
+  source: PickerServiceSource = 'service',
+): string {
+  return `manual:${providerId}:${source}:${model}`
+}
+
+export function parseComposerModelKey(value: string): {
+  mode: 'auto' | 'manual'
+  providerId?: string
+  model?: string
+  source?: PickerServiceSource
+} {
+  if (!value || value === 'auto') return { mode: 'auto' }
+  if (!value.startsWith('manual:')) return { mode: 'auto' }
+  const body = value.slice('manual:'.length)
+  const first = body.indexOf(':')
+  if (first < 0) return { mode: 'auto' }
+  const providerId = body.slice(0, first)
+  const rest = body.slice(first + 1)
+  const second = rest.indexOf(':')
+  if (second < 0) {
+    // Legacy manual:provider:model
+    return { mode: 'manual', providerId, model: rest, source: 'service' }
+  }
+  const sourceRaw = rest.slice(0, second)
+  const model = rest.slice(second + 1)
+  const source: PickerServiceSource = sourceRaw === 'account' || sourceRaw === 'personal'
+    ? sourceRaw
+    : 'service'
+  if (!providerId || !model) return { mode: 'auto' }
+  return { mode: 'manual', providerId, model, source }
+}
+
+export function pickerModelLabel(
+  group: PickerServiceGroup,
+  model: string,
+  catalog?: ModelCatalogSnapshot | null,
+): string {
+  const catalogName = (catalog ?? credentialedCatalog(group.providerId))?.models
+    .find(item => item.id === model)?.name
+  const modelName = catalogName || model
+  return `${group.label} · ${modelName}`
 }
 
 const providers = computed(() => callableProviders(
@@ -294,13 +484,23 @@ export function useModelCatalog(scope?: MaybeRef<ModelCatalogScope | undefined>)
       : callableProviders(resolved.value.providers, resolved.value.relay)
   ))
   const scopedProviderGroups = computed(() => groupProviders(scopedProviders.value))
+  /** Flat enabled-service groups for Settings + Coding pickers (account / personal / custom). */
+  const scopedPickerGroups = computed(() => (
+    resolved.value.includeUnconfigured
+      ? []
+      : callablePickerGroups(resolved.value.providers, resolved.value.relay)
+  ))
 
   return {
     snapshot: current,
     providers: scopedProviders,
     providerGroups: scopedProviderGroups,
+    pickerGroups: scopedPickerGroups,
     providerModelLabel: (provider: string, model: string) => (
       modelLabelFromProviders(scopedProviders.value, provider, model)
+    ),
+    pickerModelLabel: (group: PickerServiceGroup, model: string) => (
+      pickerModelLabel(group, model, current.value)
     ),
   }
 }

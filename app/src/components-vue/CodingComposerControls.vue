@@ -24,9 +24,12 @@ import {
   ShieldCheck,
 } from 'lucide-vue-next'
 import type { CodingApprovalPolicy } from '@/types'
-import { useModelCatalog } from '@/modelCatalog'
+import {
+  encodeComposerModelKey,
+  useModelCatalog,
+} from '@/modelCatalog'
 
-const { providerGroups, providerModelLabel } = useModelCatalog()
+const { pickerGroups, pickerModelLabel } = useModelCatalog()
 
 defineProps<{
   running: boolean
@@ -162,23 +165,21 @@ defineEmits<{
             {{ automaticModelLabel }}
           </SelectItem>
         </SelectGroup>
-        <SelectSeparator />
+        <SelectSeparator v-if="pickerGroups.length" />
         <template
-          v-for="(group, groupIndex) in providerGroups"
-          :key="group.kind"
+          v-for="(group, groupIndex) in pickerGroups"
+          :key="group.key"
         >
           <SelectSeparator v-if="groupIndex > 0" />
           <SelectGroup>
             <SelectLabel>{{ group.label }}</SelectLabel>
-            <template v-for="provider in group.providers" :key="provider.id">
-              <SelectItem
-                v-for="model in provider.models"
-                :key="`${provider.id}:${model}`"
-                :value="`manual:${provider.id}:${model}`"
-              >
-                {{ providerModelLabel(provider.id, model) }}
-              </SelectItem>
-            </template>
+            <SelectItem
+              v-for="model in group.models"
+              :key="`${group.key}:${model}`"
+              :value="encodeComposerModelKey(group.providerId, model, group.source)"
+            >
+              {{ pickerModelLabel(group, model) }}
+            </SelectItem>
           </SelectGroup>
         </template>
       </SelectContent>

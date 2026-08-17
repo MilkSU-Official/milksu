@@ -157,33 +157,57 @@ let pendingAccountCallback = ''
 let quitting = false
 let relaunchScheduled = false
 let screenRecordingRelaunchArm = null
+// Avoid re-pushing the same account credential into Go on the renderer status RPC
+// immediately after the main-process pre-load sync (same startup window).
+let lastAccountModelSync = null
+let accountModelSyncInflight = null
+const ACCOUNT_MODEL_SYNC_DEDUP_MS = 15_000
 
 async function syncAccountModelAuthorization(status) {
   if (!backend || !accountSession) return false
   const started = Date.now()
   const action = accountModelAuthorizationAction(status)
+  if (
+    action === 'refresh'
+    && lastAccountModelSync?.action === 'refresh'
+    && Date.now() - lastAccountModelSync.at < ACCOUNT_MODEL_SYNC_DEDUP_MS
+  ) {
+    startupLog('syncAccountModelAuthorization', `${Date.now() - started}ms action=refresh skip-recent`)
+    return true
+  }
+  if (action === 'refresh' && accountModelSyncInflight) {
+    startupLog('syncAccountModelAuthorization', `${Date.now() - started}ms action=refresh join-inflight`)
+    return accountModelSyncInflight
+  }
   if (action === 'refresh') {
-    try {
-      const credential = await accountSession.modelCredential()
-      if (credential?.apiKey) {
-        await backend.invoke('SetAccountModelCredential', [credential.baseUrl, credential.apiKey])
-        startupLog('syncAccountModelAuthorization', `${Date.now() - started}ms action=refresh ok`)
-        return true
+    accountModelSyncInflight = (async () => {
+      try {
+        const credential = await accountSession.modelCredential()
+        if (credential?.apiKey) {
+          await backend.invoke('SetAccountModelCredential', [credential.baseUrl, credential.apiKey])
+          lastAccountModelSync = { action: 'refresh', at: Date.now() }
+          startupLog('syncAccountModelAuthorization', `${Date.now() - started}ms action=refresh ok`)
+          return true
+        }
+        startupLog('syncAccountModelAuthorization', `${Date.now() - started}ms action=refresh empty`)
+        return false
+      } catch {
+        // Preserve the last locally persisted account credential during a
+        // transient account-service failure. A later status refresh retries.
+        startupLog('syncAccountModelAuthorization', `${Date.now() - started}ms action=refresh preserve-on-error`)
+        return false
+      } finally {
+        accountModelSyncInflight = null
       }
-      startupLog('syncAccountModelAuthorization', `${Date.now() - started}ms action=refresh empty`)
-      return false
-    } catch {
-      // Preserve the last locally persisted account credential during a
-      // transient account-service failure. A later status refresh retries.
-      startupLog('syncAccountModelAuthorization', `${Date.now() - started}ms action=refresh preserve-on-error`)
-      return false
-    }
+    })()
+    return accountModelSyncInflight
   }
   if (action === 'preserve') {
     startupLog('syncAccountModelAuthorization', `${Date.now() - started}ms action=preserve`)
     return false
   }
   await backend.invoke('ClearAccountModelCredential', [])
+  lastAccountModelSync = { action: 'clear', at: Date.now() }
   startupLog('syncAccountModelAuthorization', `${Date.now() - started}ms action=clear`)
   return false
 }
