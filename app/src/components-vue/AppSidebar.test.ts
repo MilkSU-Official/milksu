@@ -21,7 +21,6 @@ async function mountSidebar(
   themeMode: ThemeMode = 'dark',
   onToggleTheme = vi.fn(),
   codingContextOpen = false,
-  onCloseCodingContext = vi.fn(),
   onSelectConversation = vi.fn(),
   onNew = vi.fn(),
   onOpenCodingContext = vi.fn(),
@@ -37,7 +36,6 @@ async function mountSidebar(
     codingContextOpen,
     themeMode,
     onToggleTheme,
-    onCloseCodingContext,
     onOpenCodingContext,
     onSelectConversation,
     onNew,
@@ -77,14 +75,12 @@ describe('AppSidebar', () => {
     expect(closed.querySelector('[data-testid="coding-history-expand"]')).toBeNull()
     expect(closed.textContent).not.toContain('新会话')
 
-    const onCloseCodingContext = vi.fn()
     const coding = await mountSidebar(
       'chat',
       conversations,
       'dark',
       vi.fn(),
       true,
-      onCloseCodingContext,
     )
     expect(coding.textContent).toContain('新会话')
     expect(coding.textContent).toContain('实现产品闭环')
@@ -93,29 +89,29 @@ describe('AppSidebar', () => {
     expect(panel?.className).toContain('coding-history-panel')
     expect(panel?.className).toContain('app-no-drag')
     expect(coding.querySelector('[aria-label="关闭 Coding 会话"]')).toBeNull()
-    expect(coding.querySelector('[aria-label="收起会话历史"]')).not.toBeNull()
+    // Collapse control is only on the Coding topbar, not inside the history panel.
+    expect(coding.querySelector('[aria-label="收起会话历史"]')).toBeNull()
     expect(coding.querySelector('[data-testid="coding-new-task-button"]')).not.toBeNull()
     expect(appSidebarSource).not.toContain('coding-context-backdrop')
     expect(appSidebarSource).not.toContain('coding-history-toolbar')
     expect(appSidebarSource).not.toContain('left: 100%')
     expect(contextSidebarSource).toContain('coding-context-archive app-no-drag')
     expect(contextSidebarSource).not.toContain('Task archive')
-
-    coding.querySelector<HTMLButtonElement>('[aria-label="收起会话历史"]')?.click()
-    await nextTick()
-    expect(onCloseCodingContext).toHaveBeenCalledOnce()
+    expect(contextSidebarSource).not.toContain('收起会话历史')
   })
 
   it('keeps collapsed Coding history without a leftover expand strip', async () => {
     const host = await mountSidebar('chat', [], 'dark', vi.fn(), false)
     expect(host.querySelector('[data-testid="coding-context-drawer"]')).toBeNull()
     expect(host.querySelector('[data-testid="coding-history-expand"]')).toBeNull()
+    // Expand must come from Coding topbar, not a second control in the rail.
+    expect(host.querySelector('[aria-label="展开会话历史"]')).toBeNull()
   })
 
   it('makes the new-task icon a native no-drag click target', async () => {
     const onNew = vi.fn()
     const host = await mountSidebar(
-      'chat', [], 'dark', vi.fn(), true, vi.fn(), vi.fn(), onNew,
+      'chat', [], 'dark', vi.fn(), true, vi.fn(), onNew,
     )
     const newTask = host.querySelector<HTMLButtonElement>('[data-testid="coding-new-task-button"]')
     expect(newTask).not.toBeNull()

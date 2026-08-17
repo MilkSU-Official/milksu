@@ -1618,8 +1618,10 @@ watch(
         <Button
           variant="ghost"
           size="icon-sm"
-          :aria-label="conversationDrawerOpen ? '收起会话' : '展开会话'"
-          :title="conversationDrawerOpen ? '收起会话' : '展开会话'"
+          class="app-no-drag"
+          data-testid="coding-history-toggle"
+          :aria-label="conversationDrawerOpen ? '收起会话历史' : '展开会话历史'"
+          :title="conversationDrawerOpen ? '收起会话历史' : '展开会话历史'"
           :aria-expanded="conversationDrawerOpen"
           aria-controls="coding-context-sidebar"
           @click="$emit('toggleConversationDrawer')"

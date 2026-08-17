@@ -196,6 +196,11 @@ async function logoutAccount() {
   section.value = 'ctf'
 }
 
+/** Single control for Coding history: only the ChatPage topbar toggles this. */
+function toggleCodingConversationDrawer() {
+  codingConversationDrawerOpen.value = !codingConversationDrawerOpen.value
+}
+
 function useLocalAccountMode() {
   accountLoginError.value = ''
   continueWithoutAccount.value = true
@@ -569,7 +574,6 @@ onBeforeUnmount(() => {
         @account-logout="logoutAccount"
         @settings="openSettings('general')"
         @toggle-theme="toggleThemeMode"
-        @close-coding-context="codingConversationDrawerOpen = false"
         @open-coding-context="codingConversationDrawerOpen = true"
         @select-conversation="id => {
           conversations.activeId.value = id
@@ -673,7 +677,7 @@ onBeforeUnmount(() => {
         @return-ctf="returnToCTFWorkspace"
         @return-vuln="returnToVulnerabilityWorkspace"
         @switch-ctf-agent="switchCTFAgent"
-        @toggle-conversation-drawer="codingConversationDrawerOpen = !codingConversationDrawerOpen"
+        @toggle-conversation-drawer="toggleCodingConversationDrawer"
       />
     </div>
   </div>

@@ -28,7 +28,6 @@ const emit = defineEmits<{
   selectConversation: [id: string]
   deleteConversation: [id: string]
   navigateCtf: [value: CTFWorkspaceSection]
-  closeCodingContext: []
   openCodingContext: []
 }>()
 
@@ -72,11 +71,10 @@ const showCodingHistory = computed(() => (
         @select-conversation="$emit('selectConversation', $event)"
         @delete-conversation="$emit('deleteConversation', $event)"
         @navigate-ctf="$emit('navigateCtf', $event)"
-        @collapse="$emit('closeCodingContext')"
       />
     </section>
 
-    <!-- Collapsed: no extra strip; expand from Coding topbar only. -->
+    <!-- Collapsed: expand only via Coding topbar (single control). -->
   </aside>
 </template>
 

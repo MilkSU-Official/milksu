@@ -6,7 +6,6 @@ import {
 } from '@felinic/ui'
 import {
   Boxes,
-  ChevronLeft,
   ChevronRight,
   Folder,
   Library,
@@ -39,7 +38,6 @@ const emit = defineEmits<{
   selectConversation: [id: string]
   deleteConversation: [id: string]
   navigateCtf: [value: CTFWorkspaceSection]
-  collapse: []
 }>()
 
 function openSingleConversation(event: MouseEvent, group: CodingConversationGroup) {
@@ -116,42 +114,31 @@ watch(
     </nav>
 
     <div v-else-if="codingContext" class="coding-context-content app-no-drag flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div class="coding-context-toolbar flex shrink-0 items-center justify-between gap-1 px-2 pt-2">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          class="coding-new-task-icon app-no-drag shrink-0"
-          aria-label="新建编码任务"
-          title="新建编码任务"
-          data-testid="coding-new-task-button"
-          @click="$emit('new')"
-        >
-          <MessageSquarePlus class="size-4" />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          class="app-no-drag shrink-0"
-          aria-label="收起会话历史"
-          title="收起会话历史"
-          @click="$emit('collapse')"
-        >
-          <ChevronLeft class="size-4" />
-        </Button>
-      </div>
+      <!-- Collapse/expand lives only on the Coding topbar; history panel is content-only. -->
       <div class="shrink-0 px-3 pt-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          block
-          class="coding-new-session-button app-no-drag min-h-8 justify-center"
-          @click="$emit('new')"
-        >
-          新会话
-        </Button>
+        <div class="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            class="coding-new-task-icon app-no-drag shrink-0"
+            aria-label="新建编码任务"
+            title="新建编码任务"
+            data-testid="coding-new-task-button"
+            @click="$emit('new')"
+          >
+            <MessageSquarePlus class="size-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            class="coding-new-session-button app-no-drag min-h-8 min-w-0 flex-1 justify-center"
+            @click="$emit('new')"
+          >
+            新会话
+          </Button>
+        </div>
         <label class="relative mt-2 block">
           <Search class="pointer-events-none absolute left-3 top-1/2 z-10 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
