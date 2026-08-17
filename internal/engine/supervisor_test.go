@@ -1667,6 +1667,9 @@ func TestResolveAgentWorkspaceRejectsFiles(t *testing.T) {
 func TestPackagedCodingSidecarDoesNotDuplicatePiFilesystemPolicyInNode(t *testing.T) {
 	directory := t.TempDir()
 	node := filepath.Join(directory, "node")
+	if os.PathSeparator == '\\' {
+		node += ".exe"
+	}
 	bridge := filepath.Join(directory, "chat-bridge.cjs")
 	if err := os.WriteFile(node, []byte("runtime"), 0o700); err != nil {
 		t.Fatal(err)
@@ -2065,9 +2068,35 @@ func TestValidateModelAccessRejectsWhenBothSourcesAreUnavailable(t *testing.T) {
 	}
 }
 
+func TestPackagedRuntimeIsBesideBackendExecutable(t *testing.T) {
+	resources := filepath.Join(t.TempDir(), "resources")
+	backend := filepath.Join(resources, "milksu-backend.exe")
+	sidecar := filepath.Join(resources, packagedSidecarDirectory)
+	if err := os.MkdirAll(sidecar, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"node", "node.exe"} {
+		if err := os.WriteFile(filepath.Join(sidecar, name), []byte("runtime"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	bridge := filepath.Join(sidecar, "chat-bridge.cjs")
+	if err := os.WriteFile(bridge, []byte("bridge"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	runtime, ok := packagedRuntimeBesideExecutable(backend, "chat-bridge.cjs")
+	if !ok || !runtime.packaged || runtime.bridge != bridge || filepath.Dir(runtime.node) != sidecar {
+		t.Fatalf("unexpected packaged runtime: %#v", runtime)
+	}
+}
+
 func TestResolveSidecarRuntimeUsesCompletePackagedOverride(t *testing.T) {
 	directory := t.TempDir()
 	node := filepath.Join(directory, "node")
+	if os.PathSeparator == '\\' {
+		node += ".exe"
+	}
 	bridge := filepath.Join(directory, "security-bridge.cjs")
 	if err := os.WriteFile(node, []byte("runtime"), 0o700); err != nil {
 		t.Fatal(err)
@@ -2096,6 +2125,9 @@ func TestResolveSidecarRuntimeRejectsIncompleteOverride(t *testing.T) {
 func TestResolveSidecarRuntimeUsesExplicitCompleteDirectory(t *testing.T) {
 	directory := t.TempDir()
 	node := filepath.Join(directory, "node")
+	if os.PathSeparator == '\\' {
+		node += ".exe"
+	}
 	bridge := filepath.Join(directory, "chat-bridge.cjs")
 	if err := os.WriteFile(node, []byte("runtime"), 0o700); err != nil {
 		t.Fatal(err)

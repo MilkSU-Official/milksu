@@ -222,20 +222,7 @@ func resolveSidecarRuntimeWithDirectory(
 	}
 
 	if executable, err := os.Executable(); err == nil {
-		resources := filepath.Join(
-			filepath.Dir(executable),
-			"..",
-			"Resources",
-			packagedSidecarDirectory,
-		)
-		if goruntime.GOOS == "windows" {
-			resources = filepath.Join(
-				filepath.Dir(executable),
-				"resources",
-				packagedSidecarDirectory,
-			)
-		}
-		if runtime, ok := packagedRuntimeAt(resources, packagedBridge); ok {
+		if runtime, ok := packagedRuntimeBesideExecutable(executable, packagedBridge); ok {
 			return runtime, nil
 		}
 	}
@@ -249,6 +236,13 @@ func resolveSidecarRuntimeWithDirectory(
 		return sidecarRuntime{}, fmt.Errorf("development Sidecar requires Node.js: %w", err)
 	}
 	return sidecarRuntime{node: node, bridge: filepath.Join(root, sourceBridge)}, nil
+}
+
+func packagedRuntimeBesideExecutable(executable, bridgeName string) (sidecarRuntime, bool) {
+	return packagedRuntimeAt(
+		filepath.Join(filepath.Dir(executable), packagedSidecarDirectory),
+		bridgeName,
+	)
 }
 
 func packagedRuntimeAt(directory, bridgeName string) (sidecarRuntime, bool) {
