@@ -60,6 +60,12 @@ jobs:
         env:
           MILKSU_ACCOUNT_API_URL: https://accounts.milksu.org
         run: npm run desktop:release:linux
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MilkSU-Linux-x64-deb-trial
+          path: build/release/MilkSU-Linux-x64-*.deb
+          if-no-files-found: error
+          retention-days: 14
       - name: Verify deb, packaged runtimes and first launch
         run: |
           set -euo pipefail
@@ -104,20 +110,18 @@ jobs:
           trap - EXIT
 
           app='build/electron/linux/stable/linux-unpacked/milksu'
-          MILKSU_INSTANCE_ID=linux-release-smoke xvfb-run -a "$app" \
+          MILKSU_INSTANCE_ID=linux-release-smoke xvfb-run -a "$app" --no-sandbox \
             >"$RUNNER_TEMP/milksu-app.stdout" 2>"$RUNNER_TEMP/milksu-app.stderr" &
           app_pid=$!
           trap 'kill $app_pid 2>/dev/null || true; pkill -f milksu-backend 2>/dev/null || true' EXIT
           sleep 12
-          kill -0 "$app_pid"
+          if ! kill -0 "$app_pid" 2>/dev/null; then
+            cat "$RUNNER_TEMP/milksu-app.stdout" || true
+            cat "$RUNNER_TEMP/milksu-app.stderr" >&2 || true
+            exit 1
+          fi
           pgrep -f '/resources/milksu-backend' >/dev/null
           kill "$app_pid"
           wait "$app_pid" || true
           pkill -f milksu-backend || true
           trap - EXIT
-      - uses: actions/upload-artifact@v4
-        with:
-          name: MilkSU-Linux-x64-deb-trial
-          path: build/release/MilkSU-Linux-x64-*.deb
-          if-no-files-found: error
-          retention-days: 14
