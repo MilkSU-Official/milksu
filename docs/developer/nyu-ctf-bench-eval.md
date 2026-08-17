@@ -144,10 +144,9 @@ Harness 会记录：
 缺失，运行就 fail closed。Runner 不读取 Provider Key；与产品相同，由本地 `config.Store`
 把已解析的凭据只交给 Pi Sidecar。
 
-每回合有独立硬预算。Eval Runtime 会把该预算显式传给 Supervisor 的活动计时器，并加
-250 ms 兜底余量，使评测 Context 而不是普通产品的 90 秒防卡死阈值成为权威终止条件。
-因此耗尽 120 秒的运行会稳定记录为 `runtime-timeout`，不会被误记为通用
-`runtime-error`。
+每回合有独立硬预算。Eval Runtime 只由评测 Context deadline 终止自己的会话；普通产品
+回合不复用这条评测预算，也不在 Supervisor 中维护第二套活动计时器。因此耗尽预算的运行
+会稳定记录为 `runtime-timeout`，不会被误记为通用 `runtime-error`。
 
 ## Run schema
 
@@ -313,6 +312,5 @@ fake Agent Runtime：
 - 证明 DeepSeek HTTP 请求不含 tools、拒绝 Tool Call，错误不会回显 Credential 或响应正文。
 - 证明 Agent Runtime 只接受只读工具、必须发生 `read`、必须在重启后报告恢复；
 - 证明作用型工具、审批、工具失败、无效 JSON 与缺少恢复证据都会 fail closed；
-- 证明评测回合预算覆盖普通产品的 90 秒活动超时，并把 Context deadline 分类为
-  `runtime-timeout`；
+- 证明评测 Context deadline 会中止自己的评测会话并分类为 `runtime-timeout`；
 - 证明 Agent Runtime 的退出原因进入统一 Report，同时仍不写入答案明文或运行时错误正文。

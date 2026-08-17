@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/MilkSU-Official/milksu/internal/config"
 	"github.com/MilkSU-Official/milksu/internal/engine"
@@ -14,7 +13,6 @@ import (
 )
 
 const runtimeEventBuffer = 4096
-const runtimeTurnDeadlineGrace = 250 * time.Millisecond
 
 type EngineRuntime struct {
 	mu               sync.Mutex
@@ -58,11 +56,6 @@ func (runtime *EngineRuntime) RunTurn(
 	if supervisor == nil || events == nil {
 		return evalbench.AgentRuntimeTurnResult{}, errors.New("PI runtime is unavailable")
 	}
-	if timeout, ok := turnActivityTimeoutForContext(ctx, time.Now()); ok {
-		if err := supervisor.SetTurnActivityTimeout(timeout); err != nil {
-			return evalbench.AgentRuntimeTurnResult{}, err
-		}
-	}
 	if err := supervisor.SendMessage(
 		request.SessionID,
 		request.Prompt,
@@ -81,21 +74,6 @@ func (runtime *EngineRuntime) RunTurn(
 		return evalbench.AgentRuntimeTurnResult{}, err
 	}
 	return waitForTurn(ctx, supervisor, events, request.SessionID)
-}
-
-func turnActivityTimeoutForContext(
-	ctx context.Context,
-	now time.Time,
-) (time.Duration, bool) {
-	deadline, ok := ctx.Deadline()
-	if !ok {
-		return 0, false
-	}
-	remaining := deadline.Sub(now)
-	if remaining <= 0 {
-		return 0, false
-	}
-	return remaining + runtimeTurnDeadlineGrace, true
 }
 
 func (runtime *EngineRuntime) Restart(ctx context.Context) error {

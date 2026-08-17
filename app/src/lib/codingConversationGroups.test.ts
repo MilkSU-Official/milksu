@@ -160,9 +160,9 @@ describe('Coding conversation groups', () => {
       sourceEvidenceCount: 3,
       assetMatchState: '3 项资产',
       assetCount: 3,
-      researchScope: 'read-only',
-      safetyBoundary: '不运行 PoC',
-      roleLabel: 'CVE 只读/研究接力',
+      researchScope: '当前会话与用户所选项目/材料',
+      safetyBoundary: '沿用 Coding Agent 当前权限档',
+      roleLabel: 'CVE 研究接力',
     }
     const groups = groupCodingConversations([
       conversation('legacy-old', 'CVE-2024-3400 研究接力', 10, {

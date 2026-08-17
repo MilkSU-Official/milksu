@@ -199,9 +199,9 @@ describe('VulnPage thin workspace', () => {
         sourceEvidenceCount: 1,
         assetMatchState: '尚无用户确认资产匹配',
         assetCount: 0,
-        researchScope: '只读研究',
-        safetyBoundary: '不运行 PoC',
-        roleLabel: 'CVE 只读/研究接力',
+        researchScope: '当前会话与用户所选项目/材料',
+        safetyBoundary: '沿用 Coding Agent 当前权限档',
+        roleLabel: 'CVE 研究接力',
       },
     }
     const { host } = await mountPage({

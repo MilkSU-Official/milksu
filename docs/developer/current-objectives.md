@@ -47,7 +47,7 @@
 - **2026-08-17 内测发行**：`v26.817.1` 固定到 `main@783679f02e6586c624efc50164fa8c8c402bbda1`。macOS ARM64 DMG 已通过 Developer ID 严格签名、Apple 公证、stapler 和 Gatekeeper；Windows x64 安装程序已通过打包 Runtime 与首次启动检查。GitHub prerelease 只提供 DMG 和 EXE。私有 R2 / Admin 草稿未发布：GitHub `release` Environment 缺少 Cloudflare 与 publisher secrets，签名产物不受该上传失败影响。
 - CVE：用户首页只显示自己明确加入研究的公开 CVE，状态手工维护，并自动关联从该条目发起的 Coding 对话；“添加 CVE”先按编号、产品或关键词搜索 NVD，再由用户选择加入，不再要求手填整套元数据。搜索结果加入时直接保存已返回的公开元数据，不重复请求；临时服务错误转为用户可读提示。NVD 大量参考资料按机构去重，主界面只留四个关键来源和“在 NVD 查看全部”。纵深研究、真实复现、外部资产和披露仍后置。
 - CTF：题库、工作区、Evidence、候选、Judge、Checkpoint、恢复、复盘、Memory 主链存在；真实 Judge 成功仍只有窄 Web 路径。
-- CTF/CVE → Coding 已复用同一 Coding/Pi：交接只挂载草稿、不自动发送；右侧可折叠领域上下文保留题目/CVE、授权 Scope、材料、Evidence/Judge 或只读安全边界，并提供返回工作台。NSSCTF 附件或 Judge 未连接不再阻止用公开题面打开 Coding；附件缺失只作为材料警告。Beta Computer Use 已实测历史真实 CTF 任务的手工完成状态，以及 CVE-2024-3400 从跟踪页进入临时 Coding 工作区、生成只读研究简报、返回并自动关联 1 个对话的完整纵切；CVE 状态仍由用户手工保持“研究中”。未运行 PoC、未提交 flag、未建立 Judge 成功事实。
+- CTF/CVE → Coding 已复用同一 Coding/Pi：交接只挂载草稿、不自动发送；右侧可折叠领域上下文保留题目/CVE、授权 Scope、材料、Evidence/Judge、研究范围与当前执行方式，并提供返回工作台。CVE 交接不再注入只读工具限制或“只输出启动前清单”的回合提示，执行沿用 Coding/Pi 当前权限档和既有外部效果确认。普通产品回合也不再由 Supervisor 的 90 秒无事件 watchdog 强制中断，结束状态交回 Pi 原生会话生命周期；用户停止和独立评测预算仍使用各自明确的取消入口。NSSCTF 附件或 Judge 未连接不再阻止用公开题面打开 Coding；附件缺失只作为材料警告。Beta Computer Use 已实测历史真实 CTF 任务的手工完成状态，以及 CVE-2024-3400 从跟踪页进入临时 Coding 工作区、生成研究简报、返回并自动关联 1 个对话的完整纵切；CVE 状态仍由用户手工保持“研究中”。该历史验收未运行 PoC、未提交 flag、未建立 Judge 成功事实。
 - Runtime：Sidecar 恢复、Compaction、异常退出标记、后台长任务打包 App/WebView 恢复、预算和失败分类已有。
 - Pi Harness 边界：普通用户文字完全交给 Pi/模型理解，不再由 GUI、Go 或 Sidecar 用关键词/正则猜测
   “不要工具”“只答几行”或一键产品动作。GUI 的理解项目、测试、审阅、修复、总结和架构图通过 typed

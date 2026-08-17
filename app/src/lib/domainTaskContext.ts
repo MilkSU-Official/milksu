@@ -264,9 +264,9 @@ export function buildCVEDomainTaskContext(input: {
       }).join('；') + (assets.length > 3 ? '…' : '')
     : '尚无用户确认资产匹配'
   const researchScope = String(input.researchScope ?? '').trim()
-    || '仅授权仓库/材料只读检查；禁止 PoC、exploit、外部扫描'
+    || '当前会话与用户所选项目/材料'
   const safetyBoundary = String(input.safetyBoundary ?? '').trim()
-    || '学习与追踪 only：不自动拉镜像/启容器/开端口/触发漏洞输入/访问外部目标'
+    || '沿用 Coding Agent 当前权限档与既有外部效果确认'
   return {
     kind: 'cve',
     cveId,
@@ -283,7 +283,7 @@ export function buildCVEDomainTaskContext(input: {
       ? `${researchScope} · 练习：${input.practiceScope}`
       : researchScope,
     safetyBoundary,
-    roleLabel: 'CVE 只读/研究接力',
+    roleLabel: 'CVE 研究接力',
   }
 }
 
@@ -454,9 +454,9 @@ export function normalizeDomainTaskContext(raw: unknown): DomainTaskContext | un
     assetMatchState: String(raw.assetMatchState ?? '').trim() || '尚无用户确认资产匹配',
     assetCount: Number(raw.assetCount ?? 0) || 0,
     researchScope: String(raw.researchScope ?? '').trim()
-      || '仅授权仓库/材料只读检查；禁止 PoC、exploit、外部扫描',
+      || '当前会话与用户所选项目/材料',
     safetyBoundary: String(raw.safetyBoundary ?? '').trim()
-      || '学习与追踪 only：不自动拉镜像/启容器/开端口/触发漏洞输入/访问外部目标',
-    roleLabel: String(raw.roleLabel ?? '').trim() || 'CVE 只读/研究接力',
+      || '沿用 Coding Agent 当前权限档与既有外部效果确认',
+    roleLabel: String(raw.roleLabel ?? '').trim() || 'CVE 研究接力',
   }
 }

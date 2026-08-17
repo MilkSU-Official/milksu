@@ -981,7 +981,6 @@ func TestSendMessageDoesNotSendAParallelWorkspaceScopeToPi(t *testing.T) {
 	}
 	defer func() {
 		supervisor.mu.Lock()
-		supervisor.stopAllTurnTimersLocked()
 		supervisor.process = nil
 		supervisor.sessions = make(map[string]struct{})
 		supervisor.mu.Unlock()
@@ -1046,7 +1045,6 @@ func TestSteerMessageUsesExistingPiSession(t *testing.T) {
 	supervisor.sessions["session-1"] = struct{}{}
 	defer func() {
 		supervisor.mu.Lock()
-		supervisor.stopAllTurnTimersLocked()
 		supervisor.process = nil
 		supervisor.sessions = make(map[string]struct{})
 		supervisor.mu.Unlock()
@@ -1207,7 +1205,6 @@ func TestGenerateTextUsesSilentToolFreePiTurn(t *testing.T) {
 	supervisor.process = &childProcess{stdin: writer, workspace: workspace}
 	defer func() {
 		supervisor.mu.Lock()
-		supervisor.stopAllTurnTimersLocked()
 		supervisor.process = nil
 		supervisor.sessions = make(map[string]struct{})
 		supervisor.mu.Unlock()
@@ -1288,7 +1285,6 @@ func TestSendMessageCarriesTypedProductActionToPi(t *testing.T) {
 	supervisor.process = &childProcess{stdin: writer, workspace: workspace}
 	defer func() {
 		supervisor.mu.Lock()
-		supervisor.stopAllTurnTimersLocked()
 		supervisor.process = nil
 		supervisor.sessions = make(map[string]struct{})
 		supervisor.mu.Unlock()
@@ -1403,7 +1399,6 @@ func TestSendMessageIncludesComputerUseDescriptorOnlyForInteractiveCoding(t *tes
 	}
 	defer func() {
 		supervisor.mu.Lock()
-		supervisor.stopAllTurnTimersLocked()
 		supervisor.process = nil
 		supervisor.sessions = make(map[string]struct{})
 		supervisor.mu.Unlock()
@@ -1507,7 +1502,6 @@ func TestSendMessageCarriesConversationModelSourcePreference(t *testing.T) {
 	supervisor.process = &childProcess{stdin: writer, workspace: workspace}
 	defer func() {
 		supervisor.mu.Lock()
-		supervisor.stopAllTurnTimersLocked()
 		supervisor.process = nil
 		supervisor.sessions = make(map[string]struct{})
 		supervisor.mu.Unlock()
@@ -1989,72 +1983,6 @@ func TestEmitEventDoesNotDeadlockWhileProcessLockIsHeld(t *testing.T) {
 	}
 }
 
-func TestTurnActivityTimeoutEmitsRecoverableFailure(t *testing.T) {
-	events := make(chan Event, 2)
-	supervisor := NewSupervisor(func(event Event) {
-		events <- event
-	})
-	defer supervisor.Close()
-	if err := supervisor.SetTurnActivityTimeout(20 * time.Millisecond); err != nil {
-		t.Fatal(err)
-	}
-	supervisor.mu.Lock()
-	supervisor.sessions["session-stalled"] = struct{}{}
-	supervisor.armTurnTimerLocked("session-stalled")
-	supervisor.mu.Unlock()
-
-	select {
-	case event := <-events:
-		if event.Type != "engine.error" ||
-			event.SessionID != "session-stalled" ||
-			!strings.Contains(event.Error, "persisted workspace") {
-			t.Fatalf("unexpected turn timeout event: %#v", event)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("stalled turn did not time out")
-	}
-}
-
-func TestSetTurnActivityTimeoutRejectsNonPositiveDuration(t *testing.T) {
-	supervisor := NewSupervisor(nil)
-	defer supervisor.Close()
-	if err := supervisor.SetTurnActivityTimeout(0); err == nil {
-		t.Fatal("zero turn activity timeout was accepted")
-	}
-	if supervisor.turnTimeout != defaultTurnActivityTimeout {
-		t.Fatalf("invalid timeout changed the default: %s", supervisor.turnTimeout)
-	}
-}
-
-func TestTurnActivityEventResetsThenSettledStopsTimeout(t *testing.T) {
-	events := make(chan Event, 2)
-	supervisor := NewSupervisor(func(event Event) {
-		events <- event
-	})
-	defer supervisor.Close()
-	supervisor.turnTimeout = 40 * time.Millisecond
-	supervisor.mu.Lock()
-	supervisor.sessions["session-active"] = struct{}{}
-	supervisor.armTurnTimerLocked("session-active")
-	supervisor.mu.Unlock()
-	time.Sleep(25 * time.Millisecond)
-	supervisor.observeTurnEvent(Event{
-		SessionID: "session-active",
-		Type:      "tool.progress",
-	})
-	time.Sleep(25 * time.Millisecond)
-	supervisor.observeTurnEvent(Event{
-		SessionID: "session-active",
-		Type:      "assistant.settled",
-	})
-	time.Sleep(50 * time.Millisecond)
-	select {
-	case event := <-events:
-		t.Fatalf("completed turn emitted a timeout: %#v", event)
-	default:
-	}
-}
-
 func TestNormalizeBridgeToolProgressDropsPartialContent(t *testing.T) {
 	event := normalizeBridgeEvent(bridgeEvent{
 		Type:       "tool_call_progress",
@@ -2071,44 +1999,6 @@ func TestNormalizeBridgeToolProgressDropsPartialContent(t *testing.T) {
 	}
 	if event.Text != "" || event.Error != "" || event.Done {
 		t.Fatalf("tool progress leaked content or settled the tool: %#v", event)
-	}
-}
-
-func TestPendingApprovalPausesTurnTimeoutUntilResolved(t *testing.T) {
-	events := make(chan Event, 2)
-	supervisor := NewSupervisor(func(event Event) {
-		events <- event
-	})
-	defer supervisor.Close()
-	supervisor.turnTimeout = 30 * time.Millisecond
-	supervisor.mu.Lock()
-	supervisor.sessions["session-approval"] = struct{}{}
-	supervisor.armTurnTimerLocked("session-approval")
-	supervisor.mu.Unlock()
-
-	supervisor.observeTurnEvent(Event{
-		SessionID: "session-approval",
-		Type:      "approval.requested",
-	})
-	time.Sleep(60 * time.Millisecond)
-	select {
-	case event := <-events:
-		t.Fatalf("pending user approval timed out: %#v", event)
-	default:
-	}
-
-	supervisor.observeTurnEvent(Event{
-		SessionID: "session-approval",
-		Type:      "approval.resolved",
-	})
-	select {
-	case event := <-events:
-		if event.Type != "engine.error" ||
-			event.SessionID != "session-approval" {
-			t.Fatalf("unexpected resumed timeout event: %#v", event)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("resolved approval did not resume the turn timeout")
 	}
 }
 

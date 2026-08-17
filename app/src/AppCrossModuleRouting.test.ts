@@ -342,7 +342,7 @@ vi.mock('@/components-vue/VulnPage.vue', () => ({
           onClick: () => emit('startCodingTask', {
             title: 'CVE-2024-3400 研究接力',
             visibleText: '接手 CVE-2024-3400',
-            prompt: '只读检查 CVE-2024-3400；不运行 PoC、exploit 或外部扫描。',
+            prompt: '研究 CVE-2024-3400，并按当前任务继续验证。',
             domainTaskContext: {
               kind: 'cve',
               cveId: 'CVE-2024-3400',
@@ -351,9 +351,9 @@ vi.mock('@/components-vue/VulnPage.vue', () => ({
               sourceEvidenceCount: 1,
               assetMatchState: '3 项资产',
               assetCount: 3,
-              researchScope: 'read-only',
-              safetyBoundary: '不运行 PoC、exploit 或外部扫描',
-              roleLabel: 'CVE 只读/研究接力',
+              researchScope: '当前会话与用户所选项目/材料',
+              safetyBoundary: '沿用 Coding Agent 当前权限档',
+              roleLabel: 'CVE 研究接力',
             },
           }),
         }, '交给 Coding'),

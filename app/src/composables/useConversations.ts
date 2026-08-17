@@ -341,9 +341,6 @@ export function agentErrorMessage(value: unknown) {
   ) {
     return '模型或 Agent 网络连接失败。请检查网络、Provider Base URL、本地代理或服务状态；工作区、审批和恢复点已保留，可以稍后继续。'
   }
-  if (/produced no model or tool activity/i.test(message)) {
-    return '模型长时间没有产生文本或工具进展，本回合已停止。工作区和证据都已保留，点击继续即可从断点恢复。'
-  }
   return message || 'Agent engine failed'
 }
 
@@ -391,7 +388,7 @@ export function agentRuntimeErrorMessage(value: unknown) {
     return '本轮已停止，已经完成的修改和工具结果都已保留。'
   }
   if (
-    /no API key is configured|No API key for|Model not found|ECONNREFUSED|ECONNRESET|ENOTFOUND|ETIMEDOUT|network is unreachable|connection refused|fetch failed|dial tcp|produced no model or tool activity/i
+    /no API key is configured|No API key for|Model not found|ECONNREFUSED|ECONNRESET|ENOTFOUND|ETIMEDOUT|network is unreachable|connection refused|fetch failed|dial tcp/i
       .test(raw)
   ) {
     return normalized

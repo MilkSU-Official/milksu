@@ -25,8 +25,6 @@ import (
 
 const eventSchemaVersion = 1
 
-const defaultTurnActivityTimeout = 90 * time.Second
-
 // defaultCompactionTimeout bounds a manual context compaction end to end. It
 // deliberately exceeds the Sidecar-side cancellation bound so the Sidecar
 // always aborts the summarization call first; the Supervisor timeout only
@@ -263,10 +261,6 @@ type Supervisor struct {
 	controlWaiters   map[string]chan Event
 	recoveryWaiters  map[string]map[chan Event]struct{}
 	recoveryFailures map[string]string
-	turnTimeout      time.Duration
-	turnTimers       map[string]*time.Timer
-	turnSequence     map[string]uint64
-	approvals        map[string]int
 	backgroundTasks  map[string][]BackgroundTask
 	securityTools    []securitytools.RuntimeTool
 	emit             func(Event)
@@ -281,10 +275,6 @@ func NewSupervisor(emit func(Event)) *Supervisor {
 		controlWaiters:   make(map[string]chan Event),
 		recoveryWaiters:  make(map[string]map[chan Event]struct{}),
 		recoveryFailures: make(map[string]string),
-		turnTimeout:      defaultTurnActivityTimeout,
-		turnTimers:       make(map[string]*time.Timer),
-		turnSequence:     make(map[string]uint64),
-		approvals:        make(map[string]int),
 		backgroundTasks:  make(map[string][]BackgroundTask),
 		emit:             emit,
 	}
@@ -312,19 +302,6 @@ func (s *Supervisor) SetSecurityTools(tools []securitytools.RuntimeTool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.securityTools = append([]securitytools.RuntimeTool(nil), tools...)
-}
-
-// SetTurnActivityTimeout configures the inactivity deadline used for turns
-// started after this call. Callers with a stricter end-to-end deadline should
-// set this before SendMessage so that their deadline remains authoritative.
-func (s *Supervisor) SetTurnActivityTimeout(timeout time.Duration) error {
-	if timeout <= 0 {
-		return fmt.Errorf("turn activity timeout must be positive")
-	}
-	s.mu.Lock()
-	s.turnTimeout = timeout
-	s.mu.Unlock()
-	return nil
 }
 
 func normalizeCodingPolicy(
@@ -566,7 +543,6 @@ func (s *Supervisor) sendMessage(
 		return fmt.Errorf("send engine message: %w", err)
 	}
 	s.sessions[sessionID] = struct{}{}
-	s.armTurnTimerLocked(sessionID)
 	return nil
 }
 
@@ -849,7 +825,6 @@ func (s *Supervisor) SteerMessage(sessionID, prompt string) error {
 	}); err != nil {
 		return fmt.Errorf("steer engine message: %w", err)
 	}
-	s.armTurnTimerLocked(sessionID)
 	return nil
 }
 
@@ -1461,10 +1436,8 @@ func (s *Supervisor) disposeSession(sessionID string, deletePersisted bool) {
 			"deletePersisted": deletePersisted,
 		})
 	}
-	s.stopTurnTimerLocked(sessionID)
 	delete(s.sessions, sessionID)
 	delete(s.recoveryFailures, sessionID)
-	delete(s.approvals, sessionID)
 	delete(s.backgroundTasks, sessionID)
 }
 
@@ -1516,8 +1489,6 @@ func (s *Supervisor) Close() {
 	s.process = nil
 	s.sessions = make(map[string]struct{})
 	s.recoveryFailures = make(map[string]string)
-	s.stopAllTurnTimersLocked()
-	s.approvals = make(map[string]int)
 	s.backgroundTasks = make(map[string][]BackgroundTask)
 	s.mu.Unlock()
 
@@ -1539,8 +1510,6 @@ func (s *Supervisor) ensureProcessLocked(settings config.AppSettings, workspace 
 		s.process = nil
 		s.sessions = make(map[string]struct{})
 		s.recoveryFailures = make(map[string]string)
-		s.stopAllTurnTimersLocked()
-		s.approvals = make(map[string]int)
 		s.backgroundTasks = make(map[string][]BackgroundTask)
 		_ = previous.stdin.Close()
 		if previous.command.Process != nil {
@@ -1604,7 +1573,6 @@ func (s *Supervisor) readEvents(process *childProcess, stdout io.Reader) {
 			continue
 		}
 		event := normalizeBridgeEvent(raw)
-		s.observeTurnEvent(event)
 		s.observeRuntimeEvent(event)
 		if raw.ID != "" && (raw.Type == "error" || raw.Type == "session_destroyed") {
 			s.mu.Lock()
@@ -1621,8 +1589,6 @@ func (s *Supervisor) readEvents(process *childProcess, stdout io.Reader) {
 		s.process = nil
 		s.sessions = make(map[string]struct{})
 		s.recoveryFailures = make(map[string]string)
-		s.stopAllTurnTimersLocked()
-		s.approvals = make(map[string]int)
 		s.backgroundTasks = make(map[string][]BackgroundTask)
 	}
 	s.mu.Unlock()
@@ -1638,41 +1604,6 @@ func (s *Supervisor) readEvents(process *childProcess, stdout io.Reader) {
 		errorText = scanError.Error()
 	}
 	s.emitEvent(Event{Engine: "pi", Type: "engine.stopped", Error: errorText, Done: true})
-}
-
-func (s *Supervisor) observeTurnEvent(event Event) {
-	if event.SessionID == "" {
-		return
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	switch event.Type {
-	case "assistant.completed", "assistant.settled", "engine.error", "session.destroyed":
-		s.stopTurnTimerLocked(event.SessionID)
-		delete(s.approvals, event.SessionID)
-	case "approval.requested":
-		s.approvals[event.SessionID]++
-		s.stopTurnTimerLocked(event.SessionID)
-	case "approval.resolved":
-		if s.approvals[event.SessionID] > 1 {
-			s.approvals[event.SessionID]--
-		} else {
-			delete(s.approvals, event.SessionID)
-			if _, exists := s.sessions[event.SessionID]; exists {
-				s.armTurnTimerLocked(event.SessionID)
-			}
-		}
-	case "assistant.started":
-		if _, exists := s.sessions[event.SessionID]; exists &&
-			s.approvals[event.SessionID] == 0 {
-			s.armTurnTimerLocked(event.SessionID)
-		}
-	case "session.ready", "session.policy_updated", "session.model_selected", "session.queue_updated", "assistant.delta", "assistant.segment_completed", "tool.started", "tool.progress", "tool.completed":
-		if _, exists := s.turnTimers[event.SessionID]; exists &&
-			s.approvals[event.SessionID] == 0 {
-			s.armTurnTimerLocked(event.SessionID)
-		}
-	}
 }
 
 func (s *Supervisor) observeRuntimeEvent(event Event) {
@@ -1691,69 +1622,6 @@ func (s *Supervisor) observeRuntimeEvent(event Event) {
 		)
 	}
 	s.mu.Unlock()
-}
-
-func (s *Supervisor) armTurnTimerLocked(sessionID string) {
-	if timer := s.turnTimers[sessionID]; timer != nil {
-		timer.Stop()
-	}
-	timeout := s.turnTimeout
-	if timeout <= 0 {
-		timeout = defaultTurnActivityTimeout
-	}
-	s.turnSequence[sessionID]++
-	sequence := s.turnSequence[sessionID]
-	s.turnTimers[sessionID] = time.AfterFunc(timeout, func() {
-		s.handleTurnTimeout(sessionID, sequence, timeout)
-	})
-}
-
-func (s *Supervisor) stopTurnTimerLocked(sessionID string) {
-	if timer := s.turnTimers[sessionID]; timer != nil {
-		timer.Stop()
-		delete(s.turnTimers, sessionID)
-	}
-	s.turnSequence[sessionID]++
-}
-
-func (s *Supervisor) stopAllTurnTimersLocked() {
-	for sessionID, timer := range s.turnTimers {
-		timer.Stop()
-		delete(s.turnTimers, sessionID)
-		s.turnSequence[sessionID]++
-	}
-}
-
-func (s *Supervisor) handleTurnTimeout(
-	sessionID string,
-	sequence uint64,
-	timeout time.Duration,
-) {
-	s.mu.Lock()
-	if s.turnSequence[sessionID] != sequence || s.turnTimers[sessionID] == nil {
-		s.mu.Unlock()
-		return
-	}
-	delete(s.turnTimers, sessionID)
-	s.turnSequence[sessionID]++
-	process := s.process
-	if process != nil {
-		_ = writeCommand(process.stdin, map[string]any{
-			"action":         "abort_session",
-			"conversationId": sessionID,
-		})
-	}
-	s.mu.Unlock()
-	s.emitEvent(Event{
-		Engine:    "pi",
-		SessionID: sessionID,
-		Type:      "engine.error",
-		Error: fmt.Sprintf(
-			"Agent turn produced no model or tool activity for %s and was stopped; retry to resume from the persisted workspace",
-			timeout.Round(time.Second),
-		),
-		Done: true,
-	})
 }
 
 func (s *Supervisor) emitEvent(event Event) {

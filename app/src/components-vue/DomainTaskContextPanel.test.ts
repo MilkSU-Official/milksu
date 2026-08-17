@@ -75,8 +75,8 @@ describe('DomainTaskContextPanel integration', () => {
       title: 'Example vuln',
       sourceEvidence: [{ sourceName: 'NVD', cacheState: 'imported' }],
       assets: [{ name: 'svc', status: 'not_affected', environment: 'prod' }],
-      researchScope: 'vendor/product · read-only repo',
-      safetyBoundary: '学习与追踪 only',
+      researchScope: 'vendor/product · 当前会话与用户所选项目',
+      safetyBoundary: '沿用 Coding Agent 当前权限档',
     })
     const { host, onReturnDomain } = await mountPanel({
       presentation: presentDomainTaskContext(context),
@@ -86,8 +86,8 @@ describe('DomainTaskContextPanel integration', () => {
     expect(text).toContain('CVE-2024-1234')
     expect(text).toContain('NVD')
     expect(text).not.toContain('not_affected')
-    expect(text).toContain('read-only repo')
-    expect(text).toContain('学习与追踪 only')
+    expect(text).toContain('当前会话与用户所选项目')
+    expect(text).toContain('Coding Agent 当前权限档')
     host.querySelector<HTMLButtonElement>('[aria-label="返回 CVE 工作台"]')?.click()
     await nextTick()
     expect(onReturnDomain).toHaveBeenCalledTimes(1)

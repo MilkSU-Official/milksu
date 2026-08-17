@@ -83,9 +83,9 @@ describe('useConversations domain handoff attach', () => {
         sourceEvidenceCount: 1,
         assetMatchState: 'none',
         assetCount: 0,
-        researchScope: 'read-only cached evidence only',
-        safetyBoundary: '学习与追踪 only',
-        roleLabel: 'CVE 只读/研究接力',
+        researchScope: '当前会话与用户所选项目/材料',
+        safetyBoundary: '沿用 Coding Agent 当前权限档',
+        roleLabel: 'CVE 研究接力',
       },
     })
     conversations.stageComposerDraft(
@@ -114,9 +114,9 @@ describe('useConversations domain handoff attach', () => {
       sourceEvidenceCount: 0,
       assetMatchState: '3 项资产',
       assetCount: 3,
-      researchScope: 'read-only cached evidence only',
-      safetyBoundary: '学习与追踪 only',
-      roleLabel: 'CVE 只读/研究接力',
+      researchScope: '当前会话与用户所选项目/材料',
+      safetyBoundary: '沿用 Coding Agent 当前权限档',
+      roleLabel: 'CVE 研究接力',
     }
 
     for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -163,9 +163,9 @@ describe('useConversations domain handoff attach', () => {
         sourceEvidenceCount: 0,
         assetMatchState: '3 项资产',
         assetCount: 3,
-        researchScope: 'read-only cached evidence only',
-        safetyBoundary: '不运行 PoC、exploit 或外部扫描',
-        roleLabel: 'CVE 只读/研究接力',
+        researchScope: '当前会话与用户所选项目/材料',
+        safetyBoundary: '沿用 Coding Agent 当前权限档',
+        roleLabel: 'CVE 研究接力',
       },
     })
     conversations.stageComposerDraft('CVE prompt', '接手 CVE-2024-3400')

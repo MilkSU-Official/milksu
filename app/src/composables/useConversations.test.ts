@@ -385,17 +385,17 @@ describe('Coding approval conversation recovery', () => {
         sourceEvidenceCount: 1,
         assetMatchState: '尚无用户确认资产匹配',
         assetCount: 0,
-        researchScope: 'read-only cached evidence only',
-        safetyBoundary: '学习与追踪 only',
-        roleLabel: 'CVE 只读/研究接力',
+        researchScope: '当前会话与用户所选项目/材料',
+        safetyBoundary: '沿用 Coding Agent 当前权限档',
+        roleLabel: 'CVE 研究接力',
       },
       messages: [],
     })
     expect(conversation.domainTaskContext).toMatchObject({
       kind: 'cve',
       cveId: 'CVE-2023-46604',
-      researchScope: 'read-only cached evidence only',
-      safetyBoundary: '学习与追踪 only',
+      researchScope: '当前会话与用户所选项目/材料',
+      safetyBoundary: '沿用 Coding Agent 当前权限档',
     })
   })
 })

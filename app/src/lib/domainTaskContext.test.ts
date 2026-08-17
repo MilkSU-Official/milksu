@@ -91,15 +91,15 @@ describe('domainTaskContext', () => {
       assets: [
         { name: 'broker-a', status: 'affected', environment: 'lab', address: '10.0.0.8' },
       ],
-      researchScope: 'vendor/product · 仅授权仓库只读',
-      safetyBoundary: '学习与追踪 only',
+      researchScope: 'vendor/product · 当前会话与用户所选项目',
+      safetyBoundary: '沿用 Coding Agent 当前权限档',
       practiceScope: 'vulhub · host-only · confirmed',
     })
     const view = presentDomainTaskContext(context)
     expect(view.subtitle).toBe('CVE-2023-46604')
     expect(view.facts.find(item => item.label === '来源')?.value).toContain('NVD')
     expect(view.facts.find(item => item.label === '研究范围')?.value).toContain('vulhub')
-    expect(view.facts.find(item => item.label === '安全边界')?.value).toContain('学习与追踪')
+    expect(view.facts.find(item => item.label === '安全边界')?.value).toContain('Coding Agent 当前权限档')
     expect(view.returnLabel).toBe('返回 CVE')
     expect(view.ownership).toBe('')
   })

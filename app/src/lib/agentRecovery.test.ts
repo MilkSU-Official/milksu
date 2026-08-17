@@ -20,26 +20,6 @@ function message(
 }
 
 describe('agent recovery', () => {
-  it('offers recovery only for the latest no-activity failure', () => {
-    expect(recoverableAgentFailureId([
-      message('user', 'user', '继续分析'),
-      message(
-        'failure',
-        'assistant',
-        'Agent 运行失败：模型长时间没有产生文本或工具进展，本回合已停止。',
-      ),
-    ], false)).toBe('failure')
-
-    expect(recoverableAgentFailureId([
-      message('failure', 'assistant', 'produced no model or tool activity'),
-      message('newer', 'user', '新的要求'),
-    ], false)).toBe('')
-
-    expect(recoverableAgentFailureId([
-      message('failure', 'assistant', 'produced no model or tool activity'),
-    ], true)).toBe('')
-  })
-
   it('offers recovery for transient network failures without treating configuration errors as resumable', () => {
     expect(recoverableAgentFailureId([
       message(
