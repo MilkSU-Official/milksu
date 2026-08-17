@@ -137,6 +137,11 @@ const builderConfig = {
     ...(desktopPackage.build?.extraMetadata || {}),
     name: 'milksu-desktop',
     productName: channelConfig.productName,
+    homepage: 'https://github.com/MilkSU-Official/milksu',
+    author: {
+      name: 'MilkSU',
+      email: 'milksu@proton.me',
+    },
   },
   extraResources: [
     { from: join(repositoryRoot, 'app', 'dist'), to: 'renderer' },
@@ -172,6 +177,8 @@ await run(process.execPath, [
   `--config=${configPath}`,
   '--project',
   join(repositoryRoot, 'desktop'),
+  '--publish',
+  'never',
 ], {
   env: {
     ...process.env,
