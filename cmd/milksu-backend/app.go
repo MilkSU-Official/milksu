@@ -405,7 +405,7 @@ func (a *App) SetAccountModelCredential(baseURL, credential string) error {
 		return err
 	}
 	refreshedCatalog := a.modelCatalog.Snapshot()
-	if changed {
+	if changed || refreshedCatalog.CredentialSource != modelcatalog.CredentialSourceAccount {
 		refreshContext, cancelRefresh := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancelRefresh()
 		if nextCatalog, refreshErr := a.modelCatalog.Refresh(refreshContext); refreshErr != nil {

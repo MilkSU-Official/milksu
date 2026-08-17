@@ -196,6 +196,7 @@ export interface ModelCatalogSnapshot {
   models: ModelCatalogItem[]
   refreshed_at?: string
   source: 'remote' | 'cache' | 'bundled'
+  credential_source: 'account' | 'personal' | 'public' | 'bundled'
 }
 
 export type ModelSource = 'account' | 'personal'

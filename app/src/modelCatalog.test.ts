@@ -8,6 +8,7 @@ describe('runtime model catalog', () => {
     installModelCatalog({
       provider: 'tokenflux',
       source: 'remote',
+      credential_source: 'account',
       refreshed_at: '2026-08-13T12:30:00Z',
       models: [
         {
@@ -59,6 +60,7 @@ describe('runtime model catalog', () => {
     installModelCatalog({
       provider: 'tokenflux',
       source: 'remote',
+      credential_source: 'account',
       refreshed_at: '2026-08-15T00:00:00Z',
       models: [
         {
@@ -82,5 +84,31 @@ describe('runtime model catalog', () => {
 
     const configurable = useModelCatalog(computed(() => settings))
     expect(configurable.providers.value.some(provider => provider.id === 'openai')).toBe(true)
+  })
+
+  it('does not expose bundled or public metadata as callable models', () => {
+    const model = {
+      id: 'grok-4.6', name: 'Grok 4.6',
+      context_window: 500_000, max_tokens: 32_768, input: ['text'] as ('text' | 'image')[],
+    }
+    installCustomProviderSettings({})
+
+    installModelCatalog({
+      provider: 'tokenflux', source: 'bundled', credential_source: 'bundled',
+      refreshed_at: '2026-08-15T00:00:00Z', models: [model],
+    })
+    expect(useModelCatalog().providers.value).toEqual([])
+
+    installModelCatalog({
+      provider: 'tokenflux', source: 'remote', credential_source: 'public',
+      refreshed_at: '2026-08-15T00:01:00Z', models: [model],
+    })
+    expect(useModelCatalog().providers.value).toEqual([])
+
+    installModelCatalog({
+      provider: 'tokenflux', source: 'cache', credential_source: 'account',
+      refreshed_at: '2026-08-15T00:02:00Z', models: [model],
+    })
+    expect(useModelCatalog().providers.value.map(provider => provider.id)).toEqual(['tokenflux'])
   })
 })

@@ -59,13 +59,17 @@ const groqModelCatalog = Object.freeze([
   },
 ]);
 
-function runtimeTokenfluxModelCatalog(environment = process.env) {
+function runtimeTokenfluxModelCatalogSnapshot(environment = process.env) {
   const catalogPath = String(environment.MILKSU_MODEL_CATALOG_PATH ?? "").trim();
-  if (!catalogPath) return tokenfluxModelCatalog;
+  if (!catalogPath) return {
+    models: tokenfluxModelCatalog,
+    source: "",
+    credentialSource: "",
+  };
   try {
     const snapshot = JSON.parse(fs.readFileSync(catalogPath, "utf8"));
     if (snapshot?.provider !== "tokenflux" || !Array.isArray(snapshot.models)) {
-      return tokenfluxModelCatalog;
+      return { models: tokenfluxModelCatalog, source: "", credentialSource: "" };
     }
     const dynamic = snapshot.models.flatMap(item => {
       const id = String(item?.id ?? "").trim();
@@ -85,10 +89,29 @@ function runtimeTokenfluxModelCatalog(environment = process.env) {
         input: input.includes("text") ? input : ["text", ...input],
       }];
     });
-    return dynamic.length > 0 ? dynamic : tokenfluxModelCatalog;
+    return {
+      models: dynamic.length > 0 ? dynamic : tokenfluxModelCatalog,
+      source: String(snapshot.source ?? "").trim(),
+      credentialSource: String(snapshot.credential_source ?? "").trim(),
+    };
   } catch {
-    return tokenfluxModelCatalog;
+    return { models: tokenfluxModelCatalog, source: "", credentialSource: "" };
   }
+}
+
+function runtimeTokenfluxModelCatalog(environment = process.env) {
+  return runtimeTokenfluxModelCatalogSnapshot(environment).models;
+}
+
+function tokenfluxAccountModelAvailability(model, environment = process.env) {
+  const snapshot = runtimeTokenfluxModelCatalogSnapshot(environment);
+  const authoritative = snapshot.credentialSource === "account"
+    && (snapshot.source === "remote" || snapshot.source === "cache");
+  if (!authoritative) return { authoritative: false, model: undefined };
+  return {
+    authoritative: true,
+    model: snapshot.models.find(item => item.id === model),
+  };
 }
 
 function tokenfluxModel(model, environment = process.env) {
@@ -204,5 +227,6 @@ module.exports = {
   currentProviderDefinition,
   providerRuntimeFor,
   runtimeTokenfluxModelCatalog,
+  tokenfluxAccountModelAvailability,
   tokenfluxModelIDForProvider,
 };

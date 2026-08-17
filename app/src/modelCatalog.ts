@@ -20,15 +20,25 @@ function providerReady(settings: Record<string, ProviderConfig>, id: string) {
   )
 }
 
+function credentialedCatalog(provider: string): ModelCatalogSnapshot | null {
+  const catalog = current.value
+  return catalog
+    && provider === catalog.provider
+    && catalog.models.length > 0
+    && (catalog.source === 'remote' || catalog.source === 'cache')
+    && (catalog.credential_source === 'account' || catalog.credential_source === 'personal')
+    ? catalog
+    : null
+}
+
 function providerList(
   settings: Record<string, ProviderConfig>,
   { includeUnconfigured = false } = {},
 ) {
   const builtIn = PROVIDERS.flatMap(provider => {
-    const catalog = current.value
-    const catalogReady = provider.id === catalog?.provider && catalog.models.length > 0
-    if (!includeUnconfigured && !catalogReady && !providerReady(settings, provider.id)) return []
-    if (!catalogReady) {
+    const catalog = credentialedCatalog(provider.id)
+    if (!includeUnconfigured && !catalog && !providerReady(settings, provider.id)) return []
+    if (!catalog) {
       return [{ ...provider, models: [...provider.models], visionModels: [...provider.visionModels] }]
     }
     return [{
@@ -98,9 +108,8 @@ export function providerModelLabel(provider: string, model: string) {
 
 function modelLabelFromProviders(values: ProviderInfo[], provider: string, model: string) {
   const providerInfo = values.find(item => item.id === provider)
-  const catalogName = provider === current.value?.provider
-    ? current.value.models.find(item => item.id === model)?.name
-    : undefined
+  const catalogName = credentialedCatalog(provider)?.models
+    .find(item => item.id === model)?.name
   if (catalogName) return `${providerInfo?.name ?? provider} · ${catalogName}`
   if (providerInfo && !PROVIDERS.some(item => item.id === provider)) {
     return `${providerInfo.name} · ${model}`

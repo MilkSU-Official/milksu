@@ -123,7 +123,11 @@ import {
   projectToolModelUsage,
 } from "./bridge-usage-view.js";
 
-const { currentProviderDefinition, tokenfluxModelIDForProvider } = currentProviderRuntime;
+const {
+  currentProviderDefinition,
+  tokenfluxAccountModelAvailability,
+  tokenfluxModelIDForProvider,
+} = currentProviderRuntime;
 
 const relayKey = process.env.MILKSU_RELAY_KEY;
 const relayUrl = process.env.MILKSU_RELAY_URL || "https://tokenflux.dev/v1";
@@ -655,9 +659,14 @@ function formatToolInput(toolName, args) {
 
 function registerAccountModel(session, provider, model) {
   const accountModelID = tokenfluxModelIDForProvider(provider, model);
+  const availability = tokenfluxAccountModelAvailability(accountModelID);
+  if (availability.authoritative && !availability.model) {
+    return { id: accountModelID, model: undefined, unavailable: true };
+  }
   const accountDefinition = currentProviderDefinition("tokenflux", accountModelID, {
     TOKENFLUX_API_KEY: relayKey,
     TOKENFLUX_BASE_URL: relayUrl,
+    MILKSU_MODEL_CATALOG_PATH: process.env.MILKSU_MODEL_CATALOG_PATH,
   });
   const source = accountDefinition?.models?.find(item => item.id === accountModelID);
   session.modelRuntime.registerProvider("milksu-account", {
@@ -676,7 +685,11 @@ function registerAccountModel(session, provider, model) {
       maxTokens: source?.maxTokens ?? 16384,
     }],
   });
-  return session.modelRuntime.getModel("milksu-account", accountModelID);
+  return {
+    id: accountModelID,
+    model: session.modelRuntime.getModel("milksu-account", accountModelID),
+    unavailable: false,
+  };
 }
 
 function normalizeCommandModelSourceOrder(value) {
@@ -689,30 +702,45 @@ function configureRuntimeModel(session, provider, model, conversationId, sourceO
   const definition = currentProviderDefinition(provider, model);
   if (definition) session.modelRuntime.registerProvider(provider, definition);
   const personalModel = session.modelRuntime.getModel(provider, model);
-  const accountModel = relayEnabled
+  const account = relayEnabled
     ? registerAccountModel(session, provider, model)
-    : undefined;
+    : { id: "", model: undefined, unavailable: false };
   const available = new Map([
-    ["account", accountModel],
+    ["account", account.model],
     ["personal", personalModel && session.modelRuntime.hasConfiguredAuth(provider)
       ? personalModel
       : undefined],
   ]);
-  const sources = normalizeCommandModelSourceOrder(sourceOrder).flatMap(id => {
+  const requestedOrder = normalizeCommandModelSourceOrder(sourceOrder);
+  const sources = requestedOrder.flatMap(id => {
     const sourceModel = available.get(id);
     return sourceModel ? [{ id, model: sourceModel }] : [];
   });
   if (sources.length === 0) {
+    if (account.unavailable && requestedOrder.includes("account")) {
+      throw new Error(
+        `账户分配模型不支持 ${account.id}，且没有可用的个人 API Key`,
+      );
+    }
     sessionModelSources.set(conversationId, "personal");
     return { provider, model };
   }
   if (sources.length === 1) {
     sessionModelSources.set(conversationId, sources[0].id);
+    if (
+      account.unavailable
+      && requestedOrder[0] === "account"
+      && sources[0].id === "personal"
+    ) {
+      emit(conversationId, "model_source_fallback", {
+        from: "account", to: "personal", reason: "model",
+      });
+    }
     emit(conversationId, "model_source_selected", { source: sources[0].id });
     return { provider: sources[0].model.provider, model: sources[0].model.id };
   }
 
-  const source = personalModel ?? accountModel;
+  const source = personalModel ?? account.model;
   session.modelRuntime.registerProvider("milksu-route", createModelSourceRouteProvider({
     source,
     model,

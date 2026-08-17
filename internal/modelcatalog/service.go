@@ -25,6 +25,10 @@ const (
 	catalogSchema             = "milksu-model-catalog/v1"
 	defaultMaxTokens          = 32_768
 	maxCatalogResponseBytes   = 8 << 20
+	CredentialSourceAccount   = "account"
+	CredentialSourcePersonal  = "personal"
+	CredentialSourcePublic    = "public"
+	CredentialSourceBundled   = "bundled"
 )
 
 type Model struct {
@@ -36,11 +40,12 @@ type Model struct {
 }
 
 type Snapshot struct {
-	Schema      string  `json:"schema"`
-	Provider    string  `json:"provider"`
-	Models      []Model `json:"models"`
-	RefreshedAt string  `json:"refreshed_at,omitempty"`
-	Source      string  `json:"source"`
+	Schema           string  `json:"schema"`
+	Provider         string  `json:"provider"`
+	Models           []Model `json:"models"`
+	RefreshedAt      string  `json:"refreshed_at,omitempty"`
+	Source           string  `json:"source"`
+	CredentialSource string  `json:"credential_source"`
 }
 
 type Options struct {
@@ -119,11 +124,12 @@ func (s *Service) Refresh(ctx context.Context) (Snapshot, error) {
 			continue
 		}
 		next := Snapshot{
-			Schema:      catalogSchema,
-			Provider:    ProviderTokenFlux,
-			Models:      models,
-			RefreshedAt: s.now().UTC().Format(time.RFC3339),
-			Source:      "remote",
+			Schema:           catalogSchema,
+			Provider:         ProviderTokenFlux,
+			Models:           models,
+			RefreshedAt:      s.now().UTC().Format(time.RFC3339),
+			Source:           "remote",
+			CredentialSource: candidate.credentialSource,
 		}
 		if err := writeSnapshot(s.cachePath, next); err != nil {
 			return s.Snapshot(), fmt.Errorf("cache model catalog: %w", err)
@@ -140,14 +146,15 @@ func (s *Service) Refresh(ctx context.Context) (Snapshot, error) {
 }
 
 type catalogCandidate struct {
-	url string
-	key string
+	url              string
+	key              string
+	credentialSource string
 }
 
 func catalogCandidates(settings config.AppSettings, publicURL string) []catalogCandidate {
 	result := make([]catalogCandidate, 0, 3)
 	seen := make(map[string]bool, 3)
-	add := func(baseURL, key string, alreadyCatalogURL bool) {
+	add := func(baseURL, key, credentialSource string, alreadyCatalogURL bool) {
 		baseURL = strings.TrimSpace(baseURL)
 		if baseURL == "" {
 			return
@@ -156,27 +163,31 @@ func catalogCandidates(settings config.AppSettings, publicURL string) []catalogC
 		if !alreadyCatalogURL {
 			catalogURL = strings.TrimRight(baseURL, "/") + "/models"
 		}
-		if seen[catalogURL] {
+		key = strings.TrimSpace(key)
+		identity := catalogURL + "\x00" + key
+		if seen[identity] {
 			return
 		}
-		seen[catalogURL] = true
-		result = append(result, catalogCandidate{url: catalogURL, key: strings.TrimSpace(key)})
-	}
-	if provider, ok := settings.Providers[ProviderTokenFlux]; ok && provider.Enabled && provider.APIKey != "" {
-		baseURL := defaultTokenFluxBaseURL
-		if provider.BaseURL != nil && strings.TrimSpace(*provider.BaseURL) != "" {
-			baseURL = strings.TrimSpace(*provider.BaseURL)
-		}
-		add(baseURL, provider.APIKey, false)
+		seen[identity] = true
+		result = append(result, catalogCandidate{
+			url: catalogURL, key: key, credentialSource: credentialSource,
+		})
 	}
 	if relay := settings.Relay; relay != nil && relay.Enabled && relay.Key != "" {
 		baseURL := strings.TrimSpace(relay.URL)
 		if baseURL == "" {
 			baseURL = defaultTokenFluxBaseURL
 		}
-		add(baseURL, relay.Key, false)
+		add(baseURL, relay.Key, CredentialSourceAccount, false)
 	}
-	add(publicURL, "", true)
+	if provider, ok := settings.Providers[ProviderTokenFlux]; ok && provider.Enabled && provider.APIKey != "" {
+		baseURL := defaultTokenFluxBaseURL
+		if provider.BaseURL != nil && strings.TrimSpace(*provider.BaseURL) != "" {
+			baseURL = strings.TrimSpace(*provider.BaseURL)
+		}
+		add(baseURL, provider.APIKey, CredentialSourcePersonal, false)
+	}
+	add(publicURL, "", CredentialSourcePublic, true)
 	return result
 }
 
@@ -337,7 +348,8 @@ func readSnapshot(path string) (Snapshot, error) {
 	}
 	if value.Schema != catalogSchema ||
 		value.Provider != ProviderTokenFlux ||
-		len(value.Models) == 0 {
+		len(value.Models) == 0 ||
+		!validCredentialSource(value.CredentialSource) {
 		return Snapshot{}, errors.New("cached model catalog is incomplete")
 	}
 	value.Models = cloneModels(value.Models)
@@ -392,6 +404,17 @@ func fallbackSnapshot() Snapshot {
 	return Snapshot{
 		Schema: catalogSchema, Provider: ProviderTokenFlux,
 		Models: models, Source: "bundled",
+		CredentialSource: CredentialSourceBundled,
+	}
+}
+
+func validCredentialSource(value string) bool {
+	switch value {
+	case CredentialSourceAccount, CredentialSourcePersonal,
+		CredentialSourcePublic, CredentialSourceBundled:
+		return true
+	default:
+		return false
 	}
 }
 

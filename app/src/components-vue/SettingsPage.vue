@@ -14,6 +14,14 @@ import {
   Input,
   NativeSelect,
   NativeSelectOption,
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
   SettingsRow,
   SettingsSection,
   Switch,
@@ -135,6 +143,10 @@ const {
   providers: modelProviders,
   providerModelLabel,
 } = useModelCatalog(providerSettings)
+const {
+  providerGroups: availableProviderGroups,
+  providerModelLabel: availableProviderModelLabel,
+} = useModelCatalog()
 const account = computed<AccountStatus>(() => props.accountStatus ?? ({ configured: false, authenticated: false, state: 'unconfigured' }))
 const accountStateLabel = computed(() => ({
   unconfigured: '未配置',
@@ -223,22 +235,62 @@ const provider = computed(() => (
   working.value ? working.value.providers[working.value.active_provider] : undefined
 ))
 const accountRoute = computed(() => working.value?.relay)
-const providerInfo = computed(() => (
-  modelProviders.value.find(item => item.id === working.value?.active_provider)
-))
-function equivalentModelID(value: string) {
-  return value.startsWith('x-ai/grok-') ? value.slice('x-ai/'.length) : value
+function modelSelectionKey(provider: string, model: string) {
+  return JSON.stringify([provider, model])
 }
 
-const activeProviderModels = computed(() => {
-  const models = providerInfo.value?.models ?? []
-  const selected = working.value?.active_model
-  if (!selected || models.includes(selected)) return models
-  const equivalentIndex = models.findIndex(model => (
-    equivalentModelID(model) === equivalentModelID(selected)
-  ))
-  if (equivalentIndex < 0) return [selected, ...models]
-  return models.map((model, index) => index === equivalentIndex ? selected : model)
+function parseModelSelectionKey(value: string): [string, string] | null {
+  try {
+    const parsed = JSON.parse(value) as unknown
+    if (
+      !Array.isArray(parsed)
+      || parsed.length !== 2
+      || typeof parsed[0] !== 'string'
+      || typeof parsed[1] !== 'string'
+      || !parsed[0]
+      || !parsed[1]
+    ) return null
+    return [parsed[0], parsed[1]]
+  } catch {
+    return null
+  }
+}
+
+const defaultModelKey = computed({
+  get: () => working.value
+    ? modelSelectionKey(working.value.active_provider, working.value.active_model)
+    : '',
+  set: value => {
+    if (!working.value) return
+    const selection = parseModelSelectionKey(String(value ?? ''))
+    if (!selection) return
+    working.value.active_provider = selection[0]
+    working.value.active_model = selection[1]
+  },
+})
+
+const defaultModelAvailable = computed(() => {
+  if (!working.value) return false
+  return availableProviderGroups.value.some(group => group.providers.some(provider => (
+    provider.id === working.value?.active_provider
+    && provider.models.includes(working.value.active_model)
+  )))
+})
+
+const availableModelCount = computed(() => availableProviderGroups.value.reduce(
+  (total, group) => total + group.providers.reduce(
+    (providerTotal, provider) => providerTotal + provider.models.length,
+    0,
+  ),
+  0,
+))
+
+const defaultModelLabel = computed(() => {
+  if (!working.value) return ''
+  return availableProviderModelLabel(
+    working.value.active_provider,
+    working.value.active_model,
+  )
 })
 
 function skillEnabled(name: string): boolean {
@@ -1410,23 +1462,56 @@ async function saveProviderEditor(closeAfterSave: boolean) {
         </template>
 
         <template v-else-if="working && category === 'apikeys'">
-          <section class="model-default-row flex items-center gap-8">
+          <section class="model-default-row flex items-start gap-8">
             <label for="default-model" class="w-24 shrink-0 text-body font-medium">默认模型</label>
-            <NativeSelect
-              id="default-model"
-              v-model="working.active_model"
-              size="sm"
-              class="min-w-64"
-              aria-label="默认模型"
-            >
-              <NativeSelectOption
-                v-for="model in activeProviderModels"
-                :key="model"
-                :value="model"
+            <div>
+              <Select
+                id="default-model"
+                v-model="defaultModelKey"
               >
-                {{ modelDisplayLabel(working.active_provider, model) }}
-              </NativeSelectOption>
-            </NativeSelect>
+                <SelectTrigger
+                  id="default-model"
+                  size="sm"
+                  class="min-w-72"
+                  aria-label="默认模型"
+                >
+                  <SelectValue>{{ defaultModelLabel }}</SelectValue>
+                </SelectTrigger>
+                <SelectContent size="sm" align="start" class="min-w-96">
+                  <SelectGroup v-if="!defaultModelAvailable">
+                    <SelectLabel>当前选择</SelectLabel>
+                    <SelectItem :value="defaultModelKey" disabled>
+                      {{ defaultModelLabel }}（当前不可用）
+                    </SelectItem>
+                  </SelectGroup>
+                  <SelectSeparator v-if="!defaultModelAvailable && availableProviderGroups.length" />
+                  <template
+                    v-for="(group, groupIndex) in availableProviderGroups"
+                    :key="group.kind"
+                  >
+                    <SelectSeparator v-if="groupIndex > 0" />
+                    <SelectGroup>
+                      <SelectLabel>{{ group.label }}</SelectLabel>
+                      <template v-for="availableProvider in group.providers" :key="availableProvider.id">
+                        <SelectItem
+                          v-for="model in availableProvider.models"
+                          :key="modelSelectionKey(availableProvider.id, model)"
+                          :value="modelSelectionKey(availableProvider.id, model)"
+                        >
+                          {{ availableProviderModelLabel(availableProvider.id, model) }}
+                        </SelectItem>
+                      </template>
+                    </SelectGroup>
+                  </template>
+                </SelectContent>
+              </Select>
+              <p v-if="availableModelCount === 0" class="mt-1 text-caption text-muted-foreground">
+                没有可用模型；请先连接账户或配置个人 API Key。
+              </p>
+              <p v-else-if="!defaultModelAvailable" class="mt-1 text-caption text-warning">
+                当前默认模型不可用，请选择一个已配置来源的模型。
+              </p>
+            </div>
           </section>
 
           <section class="mt-8">

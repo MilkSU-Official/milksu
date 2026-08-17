@@ -57,7 +57,8 @@ func TestRefreshUpdatesCatalogAndRestartLoadsCache(t *testing.T) {
 	if requestedAuthorization != "Bearer catalog-secret" {
 		t.Fatalf("authenticated relay catalog was not preferred: %q", requestedAuthorization)
 	}
-	if refreshed.Source != "remote" || refreshed.RefreshedAt != "2026-08-13T12:30:00Z" {
+	if refreshed.Source != "remote" || refreshed.RefreshedAt != "2026-08-13T12:30:00Z" ||
+		refreshed.CredentialSource != CredentialSourcePersonal {
 		t.Fatalf("unexpected refreshed snapshot: %#v", refreshed)
 	}
 	if len(refreshed.Models) != 1 || refreshed.Models[0].ID != "grok-4.6" {
@@ -81,8 +82,46 @@ func TestRefreshUpdatesCatalogAndRestartLoadsCache(t *testing.T) {
 		t.Fatal(err)
 	}
 	cached := restarted.Snapshot()
-	if cached.Source != "cache" || len(cached.Models) != 1 || cached.Models[0].ID != "grok-4.6" {
+	if cached.Source != "cache" || cached.CredentialSource != CredentialSourcePersonal ||
+		len(cached.Models) != 1 || cached.Models[0].ID != "grok-4.6" {
 		t.Fatalf("restart did not load last-known-good catalog: %#v", cached)
+	}
+}
+
+func TestRefreshUsesAccountCredentialBeforePersonalCredentialAtSameURL(t *testing.T) {
+	var requested []string
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		requested = append(requested, request.Header.Get("Authorization"))
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(map[string]any{
+			"data": []map[string]any{{"id": "grok-4.5", "type": "model"}},
+		})
+	}))
+	defer server.Close()
+
+	baseURL := server.URL + "/v1"
+	settings := config.DefaultSettings()
+	settings.Providers[ProviderTokenFlux] = config.ProviderConfig{
+		APIKey: "personal-secret", BaseURL: &baseURL, Enabled: true,
+	}
+	settings.Relay = &config.RelayConfig{
+		Enabled: true, URL: baseURL, Key: "account-secret",
+	}
+	service, err := New(t.TempDir(), func() config.AppSettings { return settings }, Options{
+		Client: server.Client(), PublicCatalogURL: server.URL + "/public-models",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	refreshed, err := service.Refresh(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(requested) != 1 || requested[0] != "Bearer account-secret" {
+		t.Fatalf("catalog credential order = %#v, want account credential only", requested)
+	}
+	if refreshed.CredentialSource != CredentialSourceAccount {
+		t.Fatalf("credential source = %q, want account", refreshed.CredentialSource)
 	}
 }
 
@@ -107,7 +146,8 @@ func TestRefreshFailureKeepsBundledCatalog(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected refresh failure")
 	}
-	if after.Source != "bundled" || len(after.Models) != len(before.Models) {
+	if after.Source != "bundled" || after.CredentialSource != CredentialSourceBundled ||
+		len(after.Models) != len(before.Models) {
 		t.Fatalf("failure did not preserve bundled catalog: %#v", after)
 	}
 	if strings.Join(before.Models[0].Input, ",") != "text" {
@@ -173,5 +213,25 @@ func TestNormalizeModelsKeepsOnlyVerifiedOrDeclaredImageInput(t *testing.T) {
 	}
 	if inputs["x-ai/grok-4.6"] != "text,image" {
 		t.Fatalf("declared Grok 4.6 capability = %q, want text,image", inputs["x-ai/grok-4.6"])
+	}
+}
+
+func TestNewRebuildsCatalogWithoutCredentialSource(t *testing.T) {
+	dataDirectory := t.TempDir()
+	catalogDirectory := filepath.Join(dataDirectory, "model-catalog")
+	if err := os.MkdirAll(catalogDirectory, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	legacy := `{"schema":"milksu-model-catalog/v1","provider":"tokenflux","source":"remote","models":[{"id":"grok-4.5"}]}`
+	if err := os.WriteFile(filepath.Join(catalogDirectory, "tokenflux.json"), []byte(legacy), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	service, err := New(dataDirectory, func() config.AppSettings { return config.DefaultSettings() }, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot := service.Snapshot()
+	if snapshot.Source != "bundled" || snapshot.CredentialSource != CredentialSourceBundled {
+		t.Fatalf("invalid cache was not rebuilt: %#v", snapshot)
 	}
 }

@@ -186,3 +186,39 @@ test("classifies only safe pre-output fallback failures", () => {
   assert.equal(modelSourceFallbackReason({ errorMessage: "model not found" }), "model");
   assert.equal(modelSourceFallbackReason({ errorMessage: "invalid request body" }), "");
 });
+
+test("classifies TokenFlux account model entitlement failures", () => {
+  const error = message(
+    "account",
+    "error",
+    "404 {\"message\":\"Model \\\"deepseek/deepseek-v4-flash\\\" is not supported by any configured account in this group\",\"type\":\"model_not_found\"}",
+  );
+  assert.equal(modelSourceFallbackReason(error), "model");
+});
+
+test("falls back on a TokenFlux account model entitlement failure before output", async () => {
+  const accountError = message(
+    "account",
+    "error",
+    "404 {\"message\":\"Model \\\"deepseek/deepseek-v4-flash\\\" is not supported by any configured account in this group\",\"type\":\"model_not_found\"}",
+  );
+  const personalDone = message("personal");
+  const selected = [];
+  const routed = createModelSourceStream({
+    sources: [{ id: "account" }, { id: "personal" }],
+    autoFallback: true,
+    openSource(source) {
+      return source.id === "account"
+        ? stream([
+            { type: "start", partial: accountError },
+            { type: "error", reason: "error", error: accountError },
+          ])
+        : stream([{ type: "done", reason: "stop", message: personalDone }]);
+    },
+    onSource: source => selected.push(source),
+  });
+  const events = [];
+  for await (const event of routed) events.push(event);
+  assert.deepEqual(selected, ["account", "personal"]);
+  assert.equal(events.at(-1).type, "done");
+});
