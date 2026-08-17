@@ -104,9 +104,6 @@ func TestPrepareAgentWorkspaceExportsVerifiedMaterialsAndPreservesNotes(t *testi
 		!containsString(manifest.Policy.AllowedTools, "ctf_triage") ||
 		!containsString(manifest.Policy.AllowedTools, "ctf_inspect") ||
 		!containsString(manifest.Policy.AllowedTools, "ctf_request_endpoint") ||
-		!manifest.Policy.Execution.WorkspaceOnly ||
-		manifest.Policy.Execution.DefaultCommandTimeoutSeconds != 120 ||
-		manifest.Policy.Execution.MaxCommandTimeoutSeconds != 300 ||
 		manifest.Policy.Execution.MaxToolEventOutputBytes != 60_000 ||
 		manifest.Materials[0].RelativePath != "materials/challenge.txt" ||
 		manifest.Materials[0].Inspection.DetectedType != "text" ||
@@ -130,7 +127,7 @@ func TestPrepareAgentWorkspaceExportsVerifiedMaterialsAndPreservesNotes(t *testi
 		!strings.Contains(string(instructions), "协作契约：搭档") ||
 		!strings.Contains(string(instructions), "work/tool-requests/") ||
 		!strings.Contains(string(instructions), "Shell 不继承模型 API Key") ||
-		!strings.Contains(string(instructions), "始终由 macOS sandbox 关闭网络") ||
+		!strings.Contains(string(instructions), "Pi Agent Harness 的原生工具语义") ||
 		!strings.Contains(string(instructions), "ctf_request_endpoint") ||
 		!strings.Contains(string(instructions), "不要直接向 NSSCTF") {
 		t.Fatalf("workspace instructions are incomplete: %s", instructions)
@@ -236,9 +233,7 @@ func TestAgentCollaborationPoliciesChangeBehaviorAndBudget(t *testing.T) {
 			if !strings.Contains(prompt, policy.Label) ||
 				!strings.Contains(instructions, policy.CandidateRule) ||
 				!strings.Contains(instructions, "evidence/run.json") ||
-				!policy.Execution.WorkspaceOnly ||
-				policy.Execution.DefaultCommandTimeoutSeconds <= 0 ||
-				policy.Execution.MaxCommandTimeoutSeconds < policy.Execution.DefaultCommandTimeoutSeconds ||
+				!strings.Contains(instructions, "Pi Agent Harness 的原生工具语义") ||
 				len(policy.AllowedTools) == 0 {
 				t.Fatalf("%s policy was not embedded into the Agent contract", mode)
 			}
@@ -372,8 +367,8 @@ func TestPrepareAgentWorkspaceCarriesApprovedScopesWithoutOpeningShellNetwork(t 
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(instructions), "Shell 不继承模型 API Key") ||
-		!strings.Contains(string(instructions), "始终由 macOS sandbox 关闭网络") {
-		t.Fatalf("workspace instructions implied ambient Shell network: %s", instructions)
+		!strings.Contains(string(instructions), "Pi Agent Harness 的原生工具语义") {
+		t.Fatalf("workspace instructions do not describe Pi-native CTF tools: %s", instructions)
 	}
 }
 

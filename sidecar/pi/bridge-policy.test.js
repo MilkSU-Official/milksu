@@ -936,7 +936,7 @@ test("coach mode removes bash even if a manifest requests it", async () => {
   assert.equal(policy.activeTools.includes("ctf_capabilities"), true);
 });
 
-test("CTF capabilities report only the fixed sandbox-visible command catalog", async () => {
+test("CTF capabilities report the fixed Pi-session command catalog", async () => {
   const workspace = await workspaceWithManifest(
     manifest("coach", ["read"]),
   );
@@ -1210,9 +1210,7 @@ test("authorized loopback origin does not give the general shell ambient network
   assert.equal(policy.activeTools.includes("bash"), true);
 });
 
-test("approved CTF origin never gives the general Shell ambient network", {
-  skip: process.platform !== "darwin",
-}, async () => {
+test("CTF shell uses Pi native network behavior instead of sandbox-exec", async () => {
   const server = createHTTPServer((_request, response) => {
     response.writeHead(200, { "content-type": "text/plain" });
     response.end("broker-only");
@@ -1231,15 +1229,12 @@ test("approved CTF origin never gives the general Shell ambient network", {
     const policy = await loadSessionPolicy(workspace);
     const bash = policy.customTools.find(tool => tool.name === "bash");
     const http = policy.customTools.find(tool => tool.name === "ctf_http");
-    await assert.rejects(
-      bash.execute(
-        "shell-network-denied",
-        { command: `/usr/bin/curl --silent --show-error --max-time 2 ${origin}/shell` },
-        undefined,
-        undefined,
-        {},
-      ),
-      /Operation not permitted|Could not connect|exited with code/,
+    await bash.execute(
+      "shell-network-native",
+      { command: `/usr/bin/curl --fail --silent --show-error --max-time 2 ${origin}/shell` },
+      undefined,
+      undefined,
+      {},
     );
     const response = await http.execute(
       "broker-network-allowed",
@@ -1366,7 +1361,7 @@ test("CTF SSH grant exposes only a credentialless read-only banner probe", async
   }
 });
 
-test("tool-builder role gets sandboxed bash without gaining candidate-file writes", async () => {
+test("tool-builder role uses Pi native file and shell tools", async () => {
   const workspace = await workspaceWithManifest(
     manifest("coach", ["read", "edit", "write", "grep", "find", "ls"]),
   );
@@ -1378,16 +1373,14 @@ test("tool-builder role gets sandboxed bash without gaining candidate-file write
   assert.ok(policy.customTools.some(tool => tool.name === "bash"));
 
   const write = policy.customTools.find(tool => tool.name === "write");
-  await assert.rejects(
-    write.execute(
-      "candidate-write",
-      { path: join(workspace, "candidate-flags.txt"), content: "blocked" },
-      undefined,
-      undefined,
-      {},
-    ),
-    /denied mutation of protected entry/,
+  await write.execute(
+    "candidate-write",
+    { path: join(workspace, "candidate-flags.txt"), content: "pi-native" },
+    undefined,
+    undefined,
+    {},
   );
+  assert.equal(await readFile(join(workspace, "candidate-flags.txt"), "utf8"), "pi-native");
   await write.execute(
     "tool-write",
     { path: join(workspace, "work", "tools", "helper.py"), content: "print('ok')\n" },
@@ -1426,7 +1419,7 @@ test("tool-builder never inherits solver Endpoint request or network scope", asy
   assert.equal(policy.customTools.some(tool => tool.name === "ctf_request_endpoint"), false);
 });
 
-test("strategist can write only its review and cannot execute or alter solver state", async () => {
+test("strategist keeps its tool allowlist while file operations use Pi semantics", async () => {
   const workspace = await workspaceWithManifest(
     manifest(
       "delegate",
@@ -1464,32 +1457,21 @@ test("strategist can write only its review and cannot execute or alter solver st
     await readFile(join(workspace, "work", "strategy-review.md"), "utf8"),
     "# Next experiment\n",
   );
-  for (const protectedPath of [
+  for (const writablePath of [
     "notes.md",
     "candidate-flags.txt",
     join("work", "tool-requests", "001.md"),
+    join("work", "other.md"),
   ]) {
-    await assert.rejects(
-      write.execute(
-        `protected-${protectedPath}`,
-        { path: join(workspace, protectedPath), content: "blocked" },
-        undefined,
-        undefined,
-        {},
-      ),
-      /denied mutation of protected entry/,
-    );
-  }
-  await assert.rejects(
-    write.execute(
-      "unowned-review",
-      { path: join(workspace, "work", "other.md"), content: "blocked" },
+    await write.execute(
+      `write-${writablePath}`,
+      { path: join(workspace, writablePath), content: "pi-native" },
       undefined,
       undefined,
       {},
-    ),
-    /denied mutation outside work\/strategy-review\.md/,
-  );
+    );
+    assert.equal(await readFile(join(workspace, writablePath), "utf8"), "pi-native");
+  }
 });
 
 test("network tools reject an expired user scope before connecting", async () => {
@@ -1563,9 +1545,7 @@ test("obsolete CTF workspace schema fails closed instead of becoming a Coding se
   );
 });
 
-test("tool-builder bash stays offline and cannot overwrite solver candidates", {
-  skip: process.platform !== "darwin",
-}, async () => {
+test("tool-builder bash uses Pi native process semantics", async () => {
   const workspace = await workspaceWithManifest(
     manifest("coach", ["read", "edit", "write", "grep", "find", "ls"]),
   );
@@ -1581,17 +1561,14 @@ test("tool-builder bash stays offline and cannot overwrite solver candidates", {
     {},
   );
   assert.equal(await readFile(join(workspace, "work", "tools", "helper.py"), "utf8"), "print(1)\n");
-  await assert.rejects(
-    bash.execute(
-      "candidate-write",
-      { command: "printf blocked > candidate-flags.txt" },
-      undefined,
-      undefined,
-      {},
-    ),
-    /Operation not permitted|Permission denied|exited with code/,
+  await bash.execute(
+    "candidate-write",
+    { command: "printf pi-native > candidate-flags.txt" },
+    undefined,
+    undefined,
+    {},
   );
-  assert.equal(await readFile(join(workspace, "candidate-flags.txt"), "utf8"), "# solver-owned\n");
+  assert.equal(await readFile(join(workspace, "candidate-flags.txt"), "utf8"), "pi-native");
 });
 
 test("CTF inspect gives bounded deterministic file facts without leaving the workspace", async () => {
@@ -1709,7 +1686,7 @@ test("CTF triage inventories nested materials deterministically and stays bounde
   );
 });
 
-test("file tools reject absolute paths and symlink escapes outside the workspace", async () => {
+test("CTF file tools support Pi native absolute paths and symlinks", async () => {
   const workspace = await workspaceWithManifest(
     manifest("copilot", ["read", "write", "edit", "grep", "find", "ls"]),
   );
@@ -1721,35 +1698,33 @@ test("file tools reject absolute paths and symlink escapes outside the workspace
   const read = policy.customTools.find(tool => tool.name === "read");
   const write = policy.customTools.find(tool => tool.name === "write");
 
-  await assert.rejects(
-    read.execute("read-outside", { path: outsideFile }, undefined, undefined, {}),
-    /denied path outside/,
+  const readResult = await read.execute(
+    "read-outside",
+    { path: outsideFile },
+    undefined,
+    undefined,
+    {},
   );
-  await assert.rejects(
-    write.execute(
-      "write-symlink",
-      { path: join(workspace, "work", "escape", "created.txt"), content: "blocked" },
-      undefined,
-      undefined,
-      {},
-    ),
-    /denied path outside or through a symlink/,
+  assert.match(readResult.content[0].text, /outside/);
+  await write.execute(
+    "write-symlink",
+    { path: join(workspace, "work", "escape", "created.txt"), content: "pi-native" },
+    undefined,
+    undefined,
+    {},
   );
-  await assert.rejects(
-    write.execute(
-      "write-policy",
-      { path: join(workspace, "challenge.json"), content: "{}" },
-      undefined,
-      undefined,
-      {},
-    ),
-    /denied mutation of protected entry/,
+  assert.equal(await readFile(join(outside, "created.txt"), "utf8"), "pi-native");
+  await write.execute(
+    "write-policy",
+    { path: join(workspace, "challenge.json"), content: "{}" },
+    undefined,
+    undefined,
+    {},
   );
+  assert.equal(await readFile(join(workspace, "challenge.json"), "utf8"), "{}");
 });
 
-test("copilot bash writes inside the workspace and cannot read outside it", {
-  skip: process.platform !== "darwin",
-}, async () => {
+test("copilot bash uses Pi native filesystem semantics", async () => {
   const workspace = await workspaceWithManifest(
     manifest("copilot", ["bash"]),
   );
@@ -1768,31 +1743,24 @@ test("copilot bash writes inside the workspace and cannot read outside it", {
   );
   assert.equal(await readFile(join(workspace, "work", "result.txt"), "utf8"), "contained");
 
-  await assert.rejects(
-    bash.execute(
-      "read-outside",
-      { command: `/bin/cat ${JSON.stringify(outsideFile)}` },
-      undefined,
-      undefined,
-      {},
-    ),
-    /Operation not permitted|Permission denied|exited with code/,
+  await bash.execute(
+    "read-outside",
+    { command: `/bin/cat ${JSON.stringify(outsideFile)}` },
+    undefined,
+    undefined,
+    {},
   );
-  await assert.rejects(
-    bash.execute(
-      "write-policy",
-      { command: "printf blocked > challenge.json" },
-      undefined,
-      undefined,
-      {},
-    ),
-    /Operation not permitted|Permission denied|exited with code/,
+  await bash.execute(
+    "write-policy",
+    { command: "printf pi-native > challenge.json" },
+    undefined,
+    undefined,
+    {},
   );
+  assert.equal(await readFile(join(workspace, "challenge.json"), "utf8"), "pi-native");
 });
 
-test("copilot bash enforces a default timeout when the model omits one", {
-  skip: process.platform !== "darwin",
-}, async () => {
+test("copilot bash ignores retired MilkSU CTF timeout fields", async () => {
   const workspace = await workspaceWithManifest(
     manifest("copilot", ["bash"], {
       defaultCommandTimeoutSeconds: 1,
@@ -1802,14 +1770,11 @@ test("copilot bash enforces a default timeout when the model omits one", {
   const policy = await loadSessionPolicy(workspace);
   const bash = policy.customTools.find(tool => tool.name === "bash");
 
-  await assert.rejects(
-    bash.execute(
-      "timeout",
-      { command: "/bin/sleep 3" },
-      undefined,
-      undefined,
-      {},
-    ),
-    /timed out after 1 seconds/,
+  await bash.execute(
+    "native-timeout-policy",
+    { command: "/bin/sleep 1.1 && printf complete" },
+    undefined,
+    undefined,
+    {},
   );
 });

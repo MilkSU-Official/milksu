@@ -127,9 +127,6 @@ const coachToolNames = [
 ];
 const strategistToolNames = ["read", "write", "grep", "find", "ls", "milksu_progress"];
 const defaultExecution = {
-  workspaceOnly: true,
-  defaultCommandTimeoutSeconds: 120,
-  maxCommandTimeoutSeconds: 300,
   maxToolEventOutputBytes: 60000,
 };
 const commandPath = [
@@ -236,18 +233,7 @@ async function assertWorkspaceMutationPath(
 
 function normalizeExecution(value) {
   const execution = value && typeof value === "object" ? value : {};
-  const defaultTimeout = Math.min(
-    Math.max(Number(execution.defaultCommandTimeoutSeconds) || defaultExecution.defaultCommandTimeoutSeconds, 1),
-    300,
-  );
-  const maxTimeout = Math.min(
-    Math.max(Number(execution.maxCommandTimeoutSeconds) || defaultExecution.maxCommandTimeoutSeconds, defaultTimeout),
-    900,
-  );
   return {
-    workspaceOnly: true,
-    defaultCommandTimeoutSeconds: defaultTimeout,
-    maxCommandTimeoutSeconds: maxTimeout,
     maxToolEventOutputBytes: Math.min(
       Math.max(Number(execution.maxToolEventOutputBytes) || defaultExecution.maxToolEventOutputBytes, 4096),
       60000,
@@ -409,120 +395,6 @@ function killChildProcess(child) {
   } catch {
     child.kill("SIGTERM");
   }
-}
-
-function createSandboxedBashOperations(
-  workspace,
-  execution,
-  allowNetwork,
-  extraProtectedEntries = [],
-  includeCTFProtectedEntries = true,
-  extraReadableRoots = [],
-  extraWritableRoots = [],
-) {
-  return {
-    exec: async (command, cwd, options) => {
-      if (process.platform !== "darwin") {
-        throw new Error("CTF bash containment is currently available only on macOS");
-      }
-      const canonicalWorkspace = await resolveReviewedWorkspace(workspace);
-      const writableRoots = [canonicalWorkspace];
-      for (const value of extraWritableRoots) {
-        try {
-          writableRoots.push(await realpath(value));
-        } catch (error) {
-          if (error?.code !== "ENOENT") throw error;
-        }
-      }
-      let canonicalCwd;
-      for (const allowedRoot of writableRoots) {
-        try {
-          canonicalCwd = await assertWorkspacePath(allowedRoot, cwd);
-          break;
-        } catch {
-          // Try the next explicitly authorized writable project.
-        }
-      }
-      if (!canonicalCwd) {
-        throw new Error(
-          `MilkSU workspace policy denied command cwd outside authorized projects: ${cwd}`,
-        );
-      }
-      const runtimeDirectory = commandRuntimeDirectory(canonicalWorkspace);
-      const runtimeHome = join(runtimeDirectory, "home");
-      const runtimeTemporary = join(runtimeDirectory, "tmp");
-      const runtimeBin = join(runtimeDirectory, "runtime-bin");
-      const timeout = Math.min(
-        Math.max(Number(options.timeout) || execution.defaultCommandTimeoutSeconds, 1),
-        execution.maxCommandTimeoutSeconds,
-      );
-      await mkdir(join(runtimeDirectory, "home"), { recursive: true, mode: 0o700 });
-      await mkdir(join(runtimeDirectory, "tmp"), { recursive: true, mode: 0o700 });
-      await ensureSandboxedCommandRuntime(runtimeDirectory);
-
-      return await new Promise((resolvePromise, rejectPromise) => {
-        const child = spawn(
-          "/usr/bin/sandbox-exec",
-          [
-            "-p",
-            sandboxProfile(
-              canonicalWorkspace,
-              allowNetwork,
-              extraProtectedEntries,
-              includeCTFProtectedEntries,
-              [...extraReadableRoots, runtimeBin],
-              [runtimeHome, runtimeTemporary, ...extraWritableRoots],
-            ),
-            "/bin/bash",
-            "--noprofile",
-            "--norc",
-            "-c",
-            command,
-          ],
-          {
-            cwd: canonicalCwd,
-            detached: true,
-            env: commandEnvironment(canonicalWorkspace, options.env, runtimeDirectory),
-            stdio: ["ignore", "pipe", "pipe"],
-          },
-        );
-        let settled = false;
-        let timedOut = false;
-        const finish = callback => {
-          if (settled) return;
-          settled = true;
-          clearTimeout(timeoutHandle);
-          options.signal?.removeEventListener("abort", onAbort);
-          callback();
-        };
-        const onAbort = () => {
-          killChildProcess(child);
-        };
-        const timeoutHandle = setTimeout(() => {
-          timedOut = true;
-          killChildProcess(child);
-        }, timeout * 1000);
-
-        options.signal?.addEventListener("abort", onAbort, { once: true });
-        child.stdout?.on("data", options.onData);
-        child.stderr?.on("data", options.onData);
-        child.on("error", error => finish(() => rejectPromise(error)));
-        child.on("close", exitCode => {
-          finish(() => {
-            if (options.signal?.aborted) {
-              rejectPromise(new Error("aborted"));
-              return;
-            }
-            if (timedOut) {
-              rejectPromise(new Error(`timeout:${timeout}`));
-              return;
-            }
-            resolvePromise({ exitCode });
-          });
-        });
-      });
-    },
-  };
 }
 
 function fullAccessCommandEnvironment(source = {}) {
@@ -994,7 +866,7 @@ function createCTFCapabilitiesTool() {
     name: "ctf_capabilities",
     label: "Check CTF tools",
     description: "Deterministically report which common CTF command-line tools are actually "
-      + "available in MilkSU's sandbox-visible PATH. Use this before planning around a debugger, "
+      + "available in the Pi session PATH. Use this before planning around a debugger, "
       + "disassembler, packet analyzer, steganography utility, or scanner.",
     parameters: Type.Object({
       category: Type.Optional(Type.Union([
@@ -1481,118 +1353,19 @@ async function createCodingToolDefinitions(
 export async function createCTFToolDefinitions(
   workspace,
   manifest,
-  execution,
   sessionRole = "",
 ) {
   const root = await resolveReviewedWorkspace(workspace);
-  const toolBuilder = sessionRole === toolBuilderRole;
-  const strategist = sessionRole === strategistRole;
-  const roleProtectedEntries = toolBuilder
-    ? ["candidate-flags.txt"]
-    : strategist
-      ? [
-          "candidate-flags.txt",
-          "notes.md",
-          "work/tool-requests",
-          "work/tools",
-        ]
-      : [];
   const ensure = path => assertWorkspacePath(root, path);
-  const ensureMutation = async (path, allowStrategistReviewDirectory = false) => {
-    const safePath = await assertWorkspaceMutationPath(
-      root,
-      path,
-      roleProtectedEntries,
-    );
-    const relativePath = relative(root, safePath);
-    const strategistPathAllowed = relativePath === join("work", "strategy-review.md")
-      || (
-        allowStrategistReviewDirectory
-        && (relativePath === "" || relativePath === "work")
-      );
-    if (strategist && !strategistPathAllowed) {
-      throw new Error(
-        "CTF strategist policy denied mutation outside work/strategy-review.md",
-      );
-    }
-    return safePath;
-  };
-  const readOperations = {
-    access: async path => access(await ensure(path), constants.R_OK),
-    readFile: async path => readFile(await ensure(path)),
-    detectImageMimeType: async path => {
-      const safePath = await ensure(path);
-      const file = await open(safePath, "r");
-      try {
-        const data = Buffer.alloc(12);
-        const { bytesRead } = await file.read(data, 0, data.length, 0);
-        return detectImageMimeType(safePath, data.subarray(0, bytesRead));
-      } finally {
-        await file.close();
-      }
-    },
-  };
-  const editOperations = {
-    access: async path => access(await ensure(path), constants.R_OK | constants.W_OK),
-    readFile: async path => readFile(await ensure(path)),
-    writeFile: async (path, content) => writeFile(
-      await ensureMutation(path),
-      content,
-      { encoding: "utf8", mode: 0o600 },
-    ),
-  };
-  const writeOperations = {
-    mkdir: async path => mkdir(
-      await ensureMutation(path, true),
-      { recursive: true, mode: 0o700 },
-    ),
-    writeFile: async (path, content) => writeFile(
-      await ensureMutation(path),
-      content,
-      { encoding: "utf8", mode: 0o600 },
-    ),
-  };
   const definitions = [
-    createReadToolDefinition(root, { operations: readOperations }),
-    createEditToolDefinition(root, { operations: editOperations }),
-    createWriteToolDefinition(root, { operations: writeOperations }),
-    createGrepToolDefinition(root, {
-      operations: {
-        isDirectory: async path => (await lstat(await ensure(path))).isDirectory(),
-        readFile: async path => readFile(await ensure(path), "utf8"),
-      },
-    }),
-    createFindToolDefinition(root, {
-      operations: {
-        exists: async path => {
-          try {
-            await lstat(await ensure(path));
-            return true;
-          } catch (error) {
-            if (error?.code === "ENOENT") return false;
-            throw error;
-          }
-        },
-        glob: async (pattern, path, options) => (
-          findWorkspaceFiles(root, await ensure(path), pattern, options.limit)
-        ),
-      },
-    }),
-    createLsToolDefinition(root, {
-      operations: {
-        exists: async path => {
-          try {
-            await lstat(await ensure(path));
-            return true;
-          } catch (error) {
-            if (error?.code === "ENOENT") return false;
-            throw error;
-          }
-        },
-        stat: async path => lstat(await ensure(path)),
-        readdir: async path => readdir(await ensure(path)),
-      },
-    }),
+    // CTF sessions use Pi's native filesystem and shell semantics just like
+    // Coding sessions. MilkSU keeps only CTF-specific domain tools here.
+    createReadToolDefinition(root),
+    createEditToolDefinition(root),
+    createWriteToolDefinition(root),
+    createGrepToolDefinition(root),
+    createFindToolDefinition(root),
+    createLsToolDefinition(root),
     createCTFCapabilitiesTool(),
     createCTFDecodeTool(),
     createCTFTriageTool(root, ensure),
@@ -1600,18 +1373,13 @@ export async function createCTFToolDefinitions(
     ...createCTFEndpointToolDefinitions(manifest),
   ];
   if (!["coach", strategistRole].includes(manifest?.policy?.mode)) {
-    const bash = createBashToolDefinition(root, {
-      operations: createSandboxedBashOperations(
-        root,
-        execution,
-        false,
-        roleProtectedEntries,
-      ),
+    definitions.push(createBashToolDefinition(root, {
       exposeSessionEnvironment: false,
-    });
-    bash.description += ` MilkSU enforces a ${execution.defaultCommandTimeoutSeconds}s default timeout, `
-      + `${execution.maxCommandTimeoutSeconds}s maximum, workspace-only writes, and a macOS sandbox.`;
-    definitions.push(bash);
+      spawnHook: context => ({
+        ...context,
+        env: fullAccessCommandEnvironment(context.env),
+      }),
+    }));
   }
   return definitions;
 }
@@ -1837,7 +1605,6 @@ export async function loadSessionPolicy(
   const definitions = await createCTFToolDefinitions(
     workspace,
     effectiveManifest,
-    execution,
     sessionRole,
   );
   return {

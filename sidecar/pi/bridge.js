@@ -74,6 +74,7 @@ import {
   isComputerUseMcpToolName,
 } from "./bridge-computer-use-routing.js";
 import { disposeAgentSession } from "./bridge-session-lifecycle.js";
+import { createCTFTruncationContinuationExtension } from "./bridge-ctf-continuation.js";
 import {
   compactSession,
   projectCompactionEvent,
@@ -914,6 +915,9 @@ function createMilkSUResourceLoader(
   const extensionFactories = [
     createMilkSUWorkflowExtension(sessionRole, getPolicy, getSession),
   ];
+  if (sessionRole) {
+    extensionFactories.push(createCTFTruncationContinuationExtension(sessionRole));
+  }
   if (!sessionRole) {
     extensionFactories.push(
       piGoalExtension,

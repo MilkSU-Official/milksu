@@ -30,10 +30,7 @@ type AgentWorkspaceBudget struct {
 }
 
 type AgentWorkspaceExecution struct {
-	WorkspaceOnly                bool `json:"workspaceOnly"`
-	DefaultCommandTimeoutSeconds int  `json:"defaultCommandTimeoutSeconds"`
-	MaxCommandTimeoutSeconds     int  `json:"maxCommandTimeoutSeconds"`
-	MaxToolEventOutputBytes      int  `json:"maxToolEventOutputBytes"`
+	MaxToolEventOutputBytes int `json:"maxToolEventOutputBytes"`
 }
 
 type AgentWorkspacePolicy struct {
@@ -571,10 +568,7 @@ func uniqueMaterialName(original string, index int, used map[string]struct{}) st
 
 func agentCollaborationPolicy(mode string) AgentWorkspacePolicy {
 	execution := AgentWorkspaceExecution{
-		WorkspaceOnly:                true,
-		DefaultCommandTimeoutSeconds: 120,
-		MaxCommandTimeoutSeconds:     300,
-		MaxToolEventOutputBytes:      60_000,
+		MaxToolEventOutputBytes: 60_000,
 	}
 	switch strings.ToLower(strings.TrimSpace(mode)) {
 	case "coach":
@@ -712,7 +706,7 @@ func agentToolBuilderPrompt() string {
 		"在 work/tools/ 中实现最小、可测试、" +
 		"可重复运行的辅助工具，用题目本地材料或最小 fixture 验证，并把请求状态更新为 ready，" +
 		"写清输入输出契约、运行命令、测试结果和已知限制。不要直接提交外部平台，也不要把候选写入 " +
-		"candidate-flags.txt。你的专用会话拥有离线、工作区沙箱内的 Bash，即使解题 Agent 是 Coach；" +
+		"candidate-flags.txt。你的专用会话拥有 Pi 原生 Bash，即使解题 Agent 是 Coach；" +
 		"必须实际运行本地测试，不能用静态核对冒充执行。完成后告诉解题 Agent 应读取哪个请求和工具文件。"
 }
 
@@ -813,13 +807,13 @@ func agentWorkspaceInstructions(category string, policy AgentWorkspacePolicy) st
 - 所有生成文件放在 work/；关键假设、命令、观察、失败原因和证据持续写入 notes.md。
 - 一次只做一个可解释实验，观察结果后再决定下一步。遇到连续重复失败时停下来总结，不要无界重试。
 - 不要直接向 NSSCTF 或其他平台提交 Flag。候选逐行写入 candidate-flags.txt，由 MilkSU 的 Judge 闸门和用户提交。
-- 不要删除或覆盖 materials/、challenge.json、TASK.md、AGENTS.md、TOOLING.md、MEMORY.md。不要读取工作区之外的用户文件或秘密。
+- 把 challenge.json、materials/、TASK.md、AGENTS.md、TOOLING.md 和 MEMORY.md 当作题目输入，不要主动覆盖。
 - 需要编写超过一次性小片段的辅助工具时，按 TOOLING.md 在 work/tool-requests/ 写请求。Coding Agent 会把实现与测试放入 work/tools/；恢复后读取 ready 请求并验证再使用。
-- MilkSU 在执行层把文件工具限制到本题工作区；搭档/代理的 Shell 也只允许在工作区写入，并有 %d 秒默认、%d 秒最大超时。不要尝试绕过这些边界。
-- Shell 不继承模型 API Key 等 Sidecar 凭据，并且始终由 macOS sandbox 关闭网络；存在 Endpoint Scope 也只会启用对应的有界网络工具，不会给 Shell 扩权。
+- 通用文件与 Shell 操作使用 Pi Agent Harness 的原生工具语义；MilkSU 不再复制一套 CTF workspace-only 工具。
+- Shell 不继承模型 API Key 等 Sidecar 凭据。访问题目站点时优先使用 challenge.json 已授权的 ctf_http、ctf_socket 或 ctf_ssh，以保留可复核证据。
 - challenge.json 的 materials[].extractedPaths 是 MilkSU 安全展开的普通文件；优先读取这些路径，不要再次直接运行 unzip/tar。危险或超限归档不会自动展开，原因记录在 inspection.warnings。
 - 首轮先用 ctf_triage 对 materials/ 做一次有界、确定性的全局清点，再对关键单文件使用 ctf_inspect summary/strings/hex 深挖。两个工具都只读取普通文件，不执行样本。
-- 需要专用 CLI 前先用 ctf_capabilities 按题型探测 MilkSU 沙箱内真实可用的工具，不要仅根据常见 Kali 环境假设某个命令存在。
+- 需要专用 CLI 前先用 ctf_capabilities 按题型探测当前 Pi 会话真实可用的工具，不要仅根据常见 Kali 环境假设某个命令存在。
 - 材料事实明确指向 Hex、Base64、Base32、URL、ROT13 或二进制字节时，可用 ctf_decode 一次只验证一层；每层输入、操作和输出哈希都写入 notes.md，不把“可打印”自动当作 Flag。
 - challenge.json 授权了 origin、socket 或 ssh 时，分别使用 ctf_http、ctf_socket 或只读的 ctf_ssh 做有界、可审计的基线交互；它们只接受精确授权目标。不得用工作区脚本绕过网络 broker；复杂协议需要新的逐次批准窄执行器。
 - Shell 前先用 command -v 检查所需程序；工具缺失时改用已有系统工具或在 work/ 写最小 Python/JavaScript 脚本，不要在循环中反复调用不存在的命令。
@@ -836,8 +830,7 @@ func agentWorkspaceInstructions(category string, policy AgentWorkspacePolicy) st
 - 可用工具：%s
 - 运行预算：%d 回合 / %d 分钟 / %d 次错误提交
 
-`, policy.Execution.DefaultCommandTimeoutSeconds, policy.Execution.MaxCommandTimeoutSeconds,
-		policy.Label, policy.Autonomy, policy.StartBehavior, policy.CandidateRule,
+`, policy.Label, policy.Autonomy, policy.StartBehavior, policy.CandidateRule,
 		strings.Join(policy.AllowedTools, "、"),
 		policy.Budget.MaxTurns, policy.Budget.MaxWallMinutes, policy.Budget.MaxWrongSubmissions,
 	) + categoryPlaybook(category)
