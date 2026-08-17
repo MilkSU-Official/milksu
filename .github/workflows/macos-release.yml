@@ -51,7 +51,7 @@ jobs:
           RELEASE_SOURCE_COMMIT: ${{ inputs.source_commit }}
         run: |
           set -euo pipefail
-          source_commit="${RELEASE_SOURCE_COMMIT,,}"
+          source_commit="$(printf '%s' "$RELEASE_SOURCE_COMMIT" | tr '[:upper:]' '[:lower:]')"
           if [[ ! "$source_commit" =~ ^[0-9a-f]{40}$ ]]; then
             echo 'source_commit must be a full Git commit' >&2
             exit 1

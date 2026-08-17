@@ -17,6 +17,8 @@ test('release workflows require one immutable verified source commit', () => {
     assert.match(workflow, /source_commit:\n(?:.*\n){1,3}\s+required: true/u)
     assert.match(workflow, /git merge-base --is-ancestor/u)
   }
+  assert.doesNotMatch(macWorkflow, /\$\{RELEASE_SOURCE_COMMIT,,\}/u)
+  assert.match(macWorkflow, /tr '\[:upper:\]' '\[:lower:\]'/u)
 })
 
 test('macOS packaging does not repeat the canonical repository suite', () => {
