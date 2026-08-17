@@ -36,6 +36,7 @@ import {
 } from "./bridge-mcp.js";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+const shortRuntimeRoot = process.platform === "darwin" ? "/private/tmp" : tmpdir();
 
 test("loads only explicitly selected MCP servers and clears stdio inheritance", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "milksu-mcp-"));
@@ -218,7 +219,12 @@ test("builds the first-party Playwright server from a strict loopback descriptor
   );
   assert.ok(builtIn.server.args.includes(process.execPath));
   assert.ok(
-    builtIn.server.args.some(value => value.endsWith("/node_modules/@playwright/mcp/cli.js")),
+    builtIn.server.args.some(value => value.endsWith(join(
+      "node_modules",
+      "@playwright",
+      "mcp",
+      "cli.js",
+    ))),
   );
   assert.deepEqual(
     builtIn.server.args.slice(-10),
@@ -243,7 +249,11 @@ test("builds the first-party Playwright server from a strict loopback descriptor
   assert.equal(builtIn.server.args.includes("npx"), false);
   assert.ok(
     builtIn.server.args.some(value => (
-      value === "PWTEST_SOCKETS_DIR=/private/tmp/milksu-playwright/123456789abc"
+      value === `PWTEST_SOCKETS_DIR=${join(
+        shortRuntimeRoot,
+        "milksu-playwright",
+        "123456789abc",
+      )}`
     )),
   );
   assert.deepEqual(builtIn.server.env, {});
@@ -504,8 +514,12 @@ test("reserves the built-in Playwright server name from project MCP config", asy
 test("accepts only an exact immutable scoped Computer Use descriptor", () => {
   const valid = {
     sessionId: "computer_12345678",
-    socketPath:
-      "/private/tmp/milksu-computer-use/computer_12345678/driver.sock",
+    socketPath: join(
+      shortRuntimeRoot,
+      "milksu-computer-use",
+      "computer_12345678",
+      "driver.sock",
+    ),
     targetBundleId: "com.openai.codex",
     targetName: "Codex",
     targetPid: 4242,

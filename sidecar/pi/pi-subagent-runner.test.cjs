@@ -63,7 +63,9 @@ function fixture(agent) {
   };
 }
 
-test("effectful roles require an active managed writer worktree", () => {
+test("effectful roles require an active managed writer worktree", {
+  skip: process.platform !== "darwin",
+}, () => {
   const value = fixture("worker");
   assert.throws(
     () => prepareRunnerPolicy(value.environment, value.workspace),
@@ -76,7 +78,9 @@ test("effectful roles require an active managed writer worktree", () => {
   assert.equal(policy.sharedDependencyRoots, undefined);
 });
 
-test("read-only roles may use main and receive no workspace write grant", () => {
+test("read-only roles may use main and receive no workspace write grant", {
+  skip: process.platform !== "darwin",
+}, () => {
   const value = fixture("reviewer");
   const policy = prepareRunnerPolicy(value.environment, value.workspace);
   assert.equal(policy.effectful, false);
@@ -93,7 +97,9 @@ test("read-only roles may use main and receive no workspace write grant", () => 
   );
 });
 
-test("writer profile allows source but denies Git metadata writes", () => {
+test("writer profile allows source but denies Git metadata writes", {
+  skip: process.platform !== "darwin",
+}, () => {
   const value = fixture("worker");
   const policy = prepareRunnerPolicy(value.environment, value.worktree);
   const profile = sandboxProfile({
@@ -133,7 +139,9 @@ test("child CLI must keep every no-ambient-discovery flag", () => {
   );
 });
 
-test("launcher removes ambient Node options before runner startup", () => {
+test("launcher removes ambient Node options before runner startup", {
+  skip: process.platform === "win32",
+}, () => {
   const result = spawnSync(
     "/bin/sh",
     [
