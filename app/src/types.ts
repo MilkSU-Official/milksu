@@ -10,6 +10,8 @@ export interface AccountStatus {
     avatarUrl: string
   }
   tokenFluxLinked?: boolean
+  /** Main-process local bootstrap before /v1/account confirms; UI should not treat as final. */
+  provisional?: boolean
 }
 
 export interface UpdateStatus {

@@ -380,15 +380,34 @@ class BackendRuntime {
     this.pending.clear()
   }
 
-  async stop() {
+  async stop({
+    // Quit must feel instant; 15s made Cmd+Q look broken while the window stayed up.
+    gracefulMs = 2000,
+    termMs = 500,
+  } = {}) {
     if (!this.process || this.process.exitCode !== null) return
     this.stopping = true
     this.send({ type: 'shutdown' }, { allowClosed: true })
     await Promise.race([
       new Promise(resolve => this.process.once('exit', resolve)),
-      new Promise(resolve => setTimeout(resolve, 15000)),
+      new Promise(resolve => setTimeout(resolve, gracefulMs)),
     ])
-    if (this.process.exitCode === null) this.process.kill('SIGTERM')
+    if (this.process.exitCode === null) {
+      try { this.process.kill('SIGTERM') } catch {}
+      await Promise.race([
+        new Promise(resolve => this.process.once('exit', resolve)),
+        new Promise(resolve => setTimeout(resolve, termMs)),
+      ])
+    }
+    if (this.process.exitCode === null) {
+      try { this.process.kill('SIGKILL') } catch {}
+    }
+  }
+
+  forceKill() {
+    if (!this.process || this.process.exitCode !== null) return
+    this.stopping = true
+    try { this.process.kill('SIGKILL') } catch {}
   }
 }
 
@@ -738,13 +757,16 @@ ipcMain.handle('milksu:invoke', async (event, request) => {
   if (method === 'GetAccountStatus') {
     if (!accountSession) return { configured: false, state: 'unconfigured', authenticated: false }
     const started = Date.now()
+    // Prefer non-blocking status(): provisional shell returns immediately while
+    // /v1/account refreshes in the background after bootstrap.
     const status = await accountSession.status()
     const statusMs = Date.now() - started
     const syncStarted = Date.now()
+    // Provisional active must not trigger credential refresh/clear (preserve local relay).
     await syncAccountModelAuthorization(status)
     startupLog(
       'ipc.GetAccountStatus',
-      `status=${statusMs}ms sync=${Date.now() - syncStarted}ms state=${status?.state ?? 'unknown'} total=${Date.now() - started}ms`,
+      `status=${statusMs}ms sync=${Date.now() - syncStarted}ms state=${status?.state ?? 'unknown'} provisional=${status?.provisional === true} total=${Date.now() - started}ms`,
     )
     return status
   }
@@ -867,10 +889,49 @@ app.whenReady().then(async () => {
   backend = new BackendRuntime(backendExecutable(), handleHostRequest, emitRendererEvent)
   startupLog('backend.spawn', `${Date.now() - backendSpawnStarted}ms`)
   await startupTime('backend.ready', () => backend.ready())
-  const accountStatus = await startupTime('account.status (main pre-load)', () => accountSession.status())
-  await syncAccountModelAuthorization(accountStatus)
+  // Local session probe only — never block first paint on account API / credentials.
+  // Provisional active keeps the shell open; network status + model sync finish via
+  // AccountSession.onChanged after loadURL (see ensureStatusRefresh notify path).
+  const accountStatus = await startupTime(
+    'account.bootstrap (local)',
+    () => accountSession.bootstrapStatus(),
+  )
+  if (!accountStatus?.provisional) {
+    await syncAccountModelAuthorization(accountStatus)
+  } else {
+    startupLog(
+      'account.bootstrap deferred network+credential sync',
+      `state=${accountStatus.state}`,
+    )
+  }
   await startupTime('loadURL', () => mainWindow.loadURL(`${APP_ORIGIN}/index.html`))
-  startupLog('main pre-renderer complete', `account.state=${accountStatus?.state ?? 'unknown'}`)
+  startupLog(
+    'main pre-renderer complete',
+    `account.state=${accountStatus?.state ?? 'unknown'} provisional=${accountStatus?.provisional === true}`,
+  )
+  // After first paint: wait for network status, push account.changed (renderer
+  // subscribed in onMounted), then refresh credentials. Re-emit on did-finish-load
+  // so a settle that finished before Vue mounted is not lost.
+  if (accountStatus?.provisional) {
+    const publishSettledAccount = async reason => {
+      try {
+        const settled = await accountSession.statusSettled()
+        startupLog(
+          'account.background settled',
+          `${reason} state=${settled?.state ?? 'unknown'} provisional=${settled?.provisional === true}`,
+        )
+        emitRendererEvent('account.changed', settled)
+        await syncAccountModelAuthorization(settled)
+      } catch (error) {
+        startupLog('account.background failed', `${reason} ${error?.message || String(error)}`)
+      }
+    }
+    void publishSettledAccount('post-loadURL')
+    mainWindow.webContents.once('did-finish-load', () => {
+      // One more pass after the document (and usually Vue) is up.
+      void publishSettledAccount('did-finish-load')
+    })
+  }
   void updateManager.check()
 }).catch(error => {
   dialog.showErrorBox('MilkSU 启动失败', error.message)
@@ -879,8 +940,41 @@ app.whenReady().then(async () => {
 
 app.on('window-all-closed', () => app.quit())
 
+function hideAllWindowsForQuit() {
+  // Immediate quit UX: hide before async browser/backend teardown.
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (win.isDestroyed()) continue
+    try { win.hide() } catch {}
+  }
+}
+
+async function teardownDesktopRuntime({ force = false } = {}) {
+  if (force) {
+    backend?.forceKill?.()
+    app.exit(0)
+    return
+  }
+  try {
+    if (browserShell) {
+      await Promise.race([
+        browserShell.closeAll(),
+        new Promise(resolve => setTimeout(resolve, 1000)),
+      ])
+    }
+  } catch {}
+  try {
+    if (backend) await backend.stop()
+  } catch {}
+  app.exit(0)
+}
+
 app.on('before-quit', event => {
-  if (quitting) return
+  // Second Cmd+Q (or quit while still tearing down): force-kill and leave now.
+  if (quitting) {
+    event.preventDefault()
+    void teardownDesktopRuntime({ force: true })
+    return
+  }
   if (!relaunchScheduled) {
     const probe = probeComputerUsePermissions(systemPreferences, { prompt: false })
     if (shouldRelaunchAfterScreenRecordingGrant(
@@ -892,12 +986,11 @@ app.on('before-quit', event => {
     }
   }
   quitting = true
+  // Cancel Electron's default quit path so we can stop the supervised Go runtime;
+  // hide windows immediately so the first Cmd+Q already feels like quit.
   event.preventDefault()
-  void (async () => {
-    if (browserShell) await browserShell.closeAll()
-    if (backend) await backend.stop()
-    app.exit(0)
-  })()
+  hideAllWindowsForQuit()
+  void teardownDesktopRuntime({ force: false })
 })
 
 process.on('SIGTERM', () => app.quit())

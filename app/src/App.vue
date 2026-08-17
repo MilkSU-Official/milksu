@@ -477,6 +477,22 @@ onMounted(async () => {
   const mountedAt = performance.now()
   startupLog('renderer.onMounted')
   applyThemeMode(themeMode.value)
+  // Subscribe before any RPC so background account.bootstrap → onChanged is not missed
+  // (network status often completes right after first paint).
+  unlistenAccount = await listenEvent<AccountStatus>('account.changed', event => {
+    const previous = accountStatus.value
+    accountStatus.value = event.payload
+    if (event.payload.state === 'active') {
+      accountLoginError.value = ''
+      continueWithoutAccount.value = false
+      writeLocalAccountMode(false)
+      // First confirmed status after provisional bootstrap may have just written
+      // the managed relay into credentials.db — refresh has_key for modelReady.
+      if (previous.provisional && !event.payload.provisional) {
+        void loadSettings().catch(() => {})
+      }
+    }
+  })
   unlistenModelCatalog = await listenEvent<ModelCatalogSnapshot>('model-catalog-changed', event => {
     installModelCatalog(event.payload)
   })
@@ -484,7 +500,7 @@ onMounted(async () => {
     updateStatus.value = event.payload
   })
   // Four parallel RPCs; accountLoaded only flips after loadAccountStatus finishes.
-  // wall ≈ max(individual), not sum — compare to find the gate.
+  // After bootstrap, GetAccountStatus is non-blocking (provisional or cache).
   const parallelStarted = performance.now()
   async function measure(label: string, work: () => Promise<unknown>) {
     const started = performance.now()
@@ -503,19 +519,11 @@ onMounted(async () => {
   const slowest = Math.max(catalogMs, settingsMs, accountMs, conversationsMs)
   startupLog(
     'renderer.parallelBootstrap',
-    `wall=${parallelWallMs}ms catalog=${catalogMs}ms settings=${settingsMs}ms account=${accountMs}ms conversations=${conversationsMs}ms slowest=${slowest}ms accountLoaded=${accountLoaded.value}`,
+    `wall=${parallelWallMs}ms catalog=${catalogMs}ms settings=${settingsMs}ms account=${accountMs}ms conversations=${conversationsMs}ms slowest=${slowest}ms accountLoaded=${accountLoaded.value} provisional=${accountStatus.value.provisional === true}`,
   )
   updateStatus.value = await timedStartupStep('rpc.get_update_status', () =>
     invokeCommand<UpdateStatus>('get_update_status').catch(() => null),
   )
-  unlistenAccount = await listenEvent<AccountStatus>('account.changed', event => {
-    accountStatus.value = event.payload
-    if (event.payload.state === 'active') {
-      accountLoginError.value = ''
-      continueWithoutAccount.value = false
-      writeLocalAccountMode(false)
-    }
-  })
   await conversations.listen()
   try {
     recoveryStatus.value = await timedStartupStep('rpc.get_startup_recovery_status', () =>
@@ -524,7 +532,10 @@ onMounted(async () => {
   } catch {
     recoveryStatus.value = null
   }
-  startupLog('renderer.firstPaintGateDone', `fromMount=${Math.round(performance.now() - mountedAt)}ms state=${accountStatus.value.state}`)
+  startupLog(
+    'renderer.firstPaintGateDone',
+    `fromMount=${Math.round(performance.now() - mountedAt)}ms state=${accountStatus.value.state} provisional=${accountStatus.value.provisional === true}`,
+  )
 })
 
 onBeforeUnmount(() => {

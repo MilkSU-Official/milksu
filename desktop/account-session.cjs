@@ -42,6 +42,9 @@ function accountRedirectURL(channel = 'stable') {
 }
 
 function accountModelAuthorizationAction(status) {
+  // Local bootstrap marks a provisional active session before /v1/account returns.
+  // Keep any previously persisted account relay until the network status confirms.
+  if (status?.provisional) return 'preserve'
   if (status?.state === 'active' && status?.tokenFluxLinked === true) return 'refresh'
   if (status?.state === 'unavailable' || status?.state === 'authorizing') return 'preserve'
   return 'clear'
@@ -197,21 +200,83 @@ class AccountSession {
     return value
   }
 
+  // Local-only gate for first paint: never waits on account API / avatar / credentials.
+  // When a session file is still valid, return provisional active and refresh in background.
+  async bootstrapStatus() {
+    const started = Date.now()
+    if (!this.config.configured) {
+      const value = { configured: false, state: 'unconfigured', authenticated: false }
+      console.info(`[startup] account.bootstrap unconfigured ${Date.now() - started}ms`)
+      return this.rememberStatus(value)
+    }
+    const session = await this.activeSession()
+    if (!session) {
+      const state = this.pending ? 'authorizing' : 'signed_out'
+      const value = { configured: true, state, authenticated: false }
+      console.info(`[startup] account.bootstrap local-only state=${state} ${Date.now() - started}ms`)
+      return this.rememberStatus(value)
+    }
+    const provisional = {
+      configured: true,
+      authenticated: true,
+      state: 'active',
+      provisional: true,
+      // Optimistic: refresh path is gated by accountModelAuthorizationAction(provisional)=preserve
+      // until the network status confirms tokenFluxLinked.
+      tokenFluxLinked: true,
+      user: {
+        githubLogin: '',
+        displayName: '',
+        avatarUrl: '',
+      },
+    }
+    this.rememberStatus(provisional)
+    // Refresh without onChanged here: main emits after first paint so the
+    // renderer has listeners (avoids a silent pre-mount account.changed).
+    this.ensureStatusRefresh({ notify: false })
+    console.info(`[startup] account.bootstrap provisional-active ${Date.now() - started}ms`)
+    return provisional
+  }
+
+  ensureStatusRefresh({ notify = false } = {}) {
+    if (this.statusInflight) return this.statusInflight
+    this.statusInflight = this.loadStatus()
+      .then(value => {
+        const remembered = this.rememberStatus(value)
+        if (notify) this.onChanged(remembered)
+        return remembered
+      })
+      .finally(() => {
+        this.statusInflight = null
+      })
+    return this.statusInflight
+  }
+
   async status() {
-    if (this.statusCache && Date.now() - this.statusCache.at < STATUS_CACHE_TTL_MS) {
-      console.info(`[startup] account.status cache-hit age=${Date.now() - this.statusCache.at}ms state=${this.statusCache.value?.state ?? 'unknown'}`)
-      return this.statusCache.value
+    const cached = this.statusCache
+    const cacheAge = cached ? Date.now() - cached.at : Infinity
+    // Confirmed (non-provisional) status is safe to reuse for the short startup window.
+    if (cached && !cached.value?.provisional && cacheAge < STATUS_CACHE_TTL_MS) {
+      console.info(`[startup] account.status cache-hit age=${cacheAge}ms state=${cached.value?.state ?? 'unknown'}`)
+      return cached.value
+    }
+    // While the network refresh is in flight, keep returning the provisional shell
+    // so the renderer is not blocked on /v1/account.
+    if (cached?.value?.provisional && this.statusInflight) {
+      console.info('[startup] account.status provisional-while-refresh')
+      return cached.value
     }
     if (this.statusInflight) {
       console.info('[startup] account.status join-inflight')
       return this.statusInflight
     }
-    this.statusInflight = this.loadStatus()
-      .then(value => this.rememberStatus(value))
-      .finally(() => {
-        this.statusInflight = null
-      })
-    return this.statusInflight
+    return this.ensureStatusRefresh({ notify: false })
+  }
+
+  // Wait for any in-flight network status (used after first paint).
+  async statusSettled() {
+    if (this.statusInflight) return this.statusInflight
+    return this.status()
   }
 
   async loadStatus() {

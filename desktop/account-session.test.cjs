@@ -16,6 +16,11 @@ const {
 test('preserves account model authorization during transient account status failures', () => {
   assert.equal(accountModelAuthorizationAction({ state: 'unavailable', authenticated: true }), 'preserve')
   assert.equal(accountModelAuthorizationAction({ state: 'authorizing', authenticated: false }), 'preserve')
+  assert.equal(accountModelAuthorizationAction({
+    state: 'active',
+    provisional: true,
+    tokenFluxLinked: true,
+  }), 'preserve')
   assert.equal(accountModelAuthorizationAction({ state: 'active', tokenFluxLinked: true }), 'refresh')
   assert.equal(accountModelAuthorizationAction({ state: 'active', tokenFluxLinked: false }), 'clear')
   assert.equal(accountModelAuthorizationAction({ state: 'signed_out', authenticated: false }), 'clear')
@@ -154,6 +159,85 @@ test('defers GitHub avatar fetch so status() does not block startup', async () =
   const third = await session.status()
   assert.equal(third.user.avatarUrl, filled.user.avatarUrl)
   assert.equal(accountRequests, 1)
+})
+
+test('bootstrapStatus returns provisional active without waiting on account API', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'milksu-bootstrap-'))
+  await fs.writeFile(path.join(root, 'account-session.json'), JSON.stringify({
+    accessToken: 'access-secret',
+    expiresAt: Date.now() + 600_000,
+  }), { mode: 0o600 })
+  const config = await loadAccountConfig({ env: {
+    MILKSU_ACCOUNT_API_URL: 'https://account.example',
+  } })
+  let accountRequests = 0
+  let releaseAccount
+  const accountGate = new Promise(resolve => { releaseAccount = resolve })
+  const changed = []
+  const fetchImpl = async url => {
+    if (String(url).endsWith('/v1/account')) {
+      accountRequests += 1
+      await accountGate
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ account: {
+          githubLogin: 'hunter',
+          displayName: 'Hunter',
+          avatarUrl: 'https://avatars.example/hunter',
+          tokenFluxLinked: true,
+        } }),
+      }
+    }
+    throw new Error(`unexpected fetch ${url}`)
+  }
+  const session = new AccountSession({
+    config,
+    userDataPath: root,
+    openExternal: async () => {},
+    fetchImpl,
+    onChanged: value => changed.push(value),
+  })
+  const boot = await session.bootstrapStatus()
+  assert.equal(boot.state, 'active')
+  assert.equal(boot.provisional, true)
+  assert.equal(boot.authenticated, true)
+  // Bootstrap schedules network without onChanged (main publishes after paint).
+  assert.equal(changed.length, 0)
+
+  // Concurrent status() stays non-blocking on the provisional shell.
+  const during = await session.status()
+  assert.equal(during.provisional, true)
+  assert.equal(during.state, 'active')
+
+  releaseAccount()
+  const settled = await session.statusSettled()
+  assert.equal(settled.state, 'active')
+  assert.equal(settled.provisional, undefined)
+  assert.equal(settled.user.githubLogin, 'hunter')
+  assert.equal(accountRequests, 1)
+  // notify:false — settled does not auto-emit; main process emits after paint.
+  assert.equal(changed.length, 0)
+
+  const after = await session.status()
+  assert.equal(after.user.githubLogin, 'hunter')
+  assert.equal(accountRequests, 1)
+})
+
+test('bootstrapStatus without a session stays signed_out and does not hit the network', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'milksu-bootstrap-empty-'))
+  const config = await loadAccountConfig({ env: {
+    MILKSU_ACCOUNT_API_URL: 'https://account.example',
+  } })
+  let accountRequests = 0
+  const fetchImpl = async () => {
+    accountRequests += 1
+    return { ok: true, status: 200, json: async () => ({}) }
+  }
+  const session = new AccountSession({ config, userDataPath: root, openExternal: async () => {}, fetchImpl })
+  const boot = await session.bootstrapStatus()
+  assert.deepEqual(boot, { configured: true, state: 'signed_out', authenticated: false })
+  assert.equal(accountRequests, 0)
 })
 
 test('dedupes concurrent status and modelCredential network fetches', async () => {
