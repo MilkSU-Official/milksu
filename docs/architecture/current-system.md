@@ -282,7 +282,9 @@ GitHub-only 模式不生成 updater ZIP 或元数据；显式选择 OTA 上传�
 CI 通过 rclone 把 ZIP、DMG 和元数据写到私有 R2 的不可变版本路径，逐个回读校验 SHA-256，再用窄
 publisher token 在 Admin 建草稿；管理员发布后，已登录且访问正常的 Stable 客户端才可经 Worker 获取
 feed 和安装包。R2 没有公共下载地址，账户 Bearer token 只由 Electron 主进程持有。正式内测发行
-`v26.817.2 / main@09718ce21ca6fb96f392f6ca37061d788a050f10` 是当前三端共同发行源。macOS
+`v26.817.3 / main@11760758926ab2a1f025cc32c2518d19afdeca35` 是当前三端共同发行源。打包后的
+Go Runtime 以自身所在 `resources` 目录直接定位同级 `milksu-sidecar/node.exe` 与 `chat-bridge.cjs`，
+不再把开发仓库根定位混入安装版资源查找。macOS
 ARM64 DMG 已完成 Developer ID 签名、Apple 公证、stapler、Gatekeeper 与本机下载后复验；Windows x64
 安装程序已在原生 Windows 完成打包 Runtime 与首次启动检查，但当前没有 Windows 代码签名；Linux x64
 DEB 已在原生 Ubuntu 完成包结构、Node/Pi Sidecar、Go Runtime 与 Xvfb Electron 启动检查。GitHub

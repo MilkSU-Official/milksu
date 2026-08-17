@@ -23,15 +23,15 @@
 
 | 事实 | 当前状态 |
 | --- | --- |
-| 发行源 | `v26.817.2 / main@09718ce21ca6fb96f392f6ca37061d788a050f10`；标签固定在三端共同 source commit，后续纯文档提交不移动标签。 |
+| 发行源 | `v26.817.3 / main@11760758926ab2a1f025cc32c2518d19afdeca35`；标签固定在三端共同 source commit，后续 workflow/文档提交不移动标签。 |
 | 三端内测发行 | GitHub prerelease 已提供签名并公证的 macOS ARM64 DMG、未签名 Windows x64 EXE 和 Linux x64 试用 DEB；三端原生 workflow 均成功，R2/Admin current pointer 未发布。 |
-| Linux | `26.817.2` DEB 已包含当前 Pi Runtime 收敛并通过原生 Ubuntu 包结构、Node/Pi、Go Runtime 与 Xvfb Electron 启动；仍不含 Secret Service、本地 OCR 或 Computer Use。 |
+| Linux | `26.817.3` DEB 已包含当前 Pi Runtime 收敛并通过原生 Ubuntu 包结构、Node/Pi、Go Runtime 与 Xvfb Electron 启动；仍不含 Secret Service、本地 OCR 或 Computer Use。 |
 | Agent Harness | Pi 拥有 Session、Compaction、自然语言理解、通用文件/Shell 与 Tool Loop。MilkSU 已删除 workspace-only 文件工具、Node 文件权限状态机、普通回合 watchdog、CTF sandbox-exec、CVE 只读启动限制与客服式回复模板。 |
 | MilkSU 宿主边界 | 只保留会话目录记录、Provider 凭据隔离、桌面授权、领域事实/Judge，以及危险大目录删除二次确认。 |
 | 模型与附件 | 账户 TokenFlux 与本机 Provider 共用模型目录；图片由当前模型原生 image input 或本地 OCR 自动路由，附件通过统一可预览/移除队列进入 Pi。 |
 | 网页查证 | Coding 复用固定 revision 的 Pi `web_search` / `web_fetch` Extension，已保留真实搜索和官方页面读取回执。 |
 | Obelisk | 会话索引底层保留；Coding 右栏和环境页的单会话“相关历史”、过滤、搜索与图谱前端已经移除。 |
-| 最近发行回执 | macOS `31997309888`、Windows `31997313428`、Linux `31997315782` 均成功；文件名、大小和 SHA-256 记录在当前开发目标。 |
+| 最近发行回执 | macOS `32007817407`、Windows `32007690071`、Linux `32007693429` 均成功；文件名、大小和 SHA-256 记录在当前开发目标。Windows 真实打包 App 另已完成模型验证与 Pi Agent 工具回合。 |
 | 下一发行流水 | canonical 全仓验证只在干净且已推送的 source commit 上运行一次并写本地回执；三端 workflow 接收同一完整 commit，只运行平台原生打包与验收。GitHub-only 不构建 macOS OTA ZIP/metadata。 |
 
 ## Canonical 文档职责
