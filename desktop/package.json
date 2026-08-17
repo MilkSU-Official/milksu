@@ -1,6 +1,6 @@
 {
   "name": "milksu-desktop",
-  "version": "26.817.3",
+  "version": "26.818.1",
   "private": true,
   "description": "MilkSU Chromium desktop shell",
   "main": "main.cjs",
