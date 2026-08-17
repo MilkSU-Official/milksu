@@ -11,6 +11,7 @@ on:
       - 'go.sum'
       - 'internal/appdata/**'
       - 'internal/codingcollab/**'
+      - 'internal/modelcatalog/**'
       - 'internal/userartifact/**'
   workflow_dispatch:
 
@@ -46,6 +47,9 @@ jobs:
             $unformatted | ForEach-Object { Write-Error "gofmt required: $_" }
             throw 'cmd/milksu-backend is not gofmt-clean'
           }
+      - name: Verify model catalog behavior on Windows
+        shell: pwsh
+        run: go test ./internal/modelcatalog -count=1
       - name: Verify the private Electron probe environment
         shell: pwsh
         run: node --test --test-isolation=none desktop/startup-environment.test.cjs desktop/package-files.test.cjs
