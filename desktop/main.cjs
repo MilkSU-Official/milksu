@@ -28,7 +28,13 @@ const {
   resolveRuntimeAppDataDir,
 } = require('./channel-identity.cjs')
 const { loadBuildTrackingView } = require('./build-tracking-view.cjs')
-const { AccountSession, accountRedirectURL, loadAccountConfig } = require('./account-session.cjs')
+const {
+  AccountSession,
+  accountModelAuthorizationAction,
+  accountModelAuthorizationRefreshRequired,
+  accountRedirectURL,
+  loadAccountConfig,
+} = require('./account-session.cjs')
 const { rendererHeaders } = require('./renderer-protocol.cjs')
 const { UpdateManager } = require('./update-manager.cjs')
 const {
@@ -133,21 +139,24 @@ let relaunchScheduled = false
 let screenRecordingRelaunchArm = null
 
 async function syncAccountModelAuthorization(status) {
-  if (!backend || !accountSession) return
-  if (status?.state === 'active' && status?.tokenFluxLinked === true) {
+  if (!backend || !accountSession) return false
+  const action = accountModelAuthorizationAction(status)
+  if (action === 'refresh') {
     try {
       const credential = await accountSession.modelCredential()
       if (credential?.apiKey) {
         await backend.invoke('SetAccountModelCredential', [credential.baseUrl, credential.apiKey])
-        return
+        return true
       }
     } catch {
       // Preserve the last locally persisted account credential during a
       // transient account-service failure. A later status refresh retries.
-      return
+      return false
     }
   }
+  if (action === 'preserve') return false
   await backend.invoke('ClearAccountModelCredential', [])
+  return false
 }
 
 function resourcesPath(relative) {
@@ -696,7 +705,18 @@ ipcMain.handle('milksu:invoke', async (event, request) => {
     if (!started) quitting = false
     return started
   }
-  return backend.invoke(method, request?.args)
+  try {
+    return await backend.invoke(method, request?.args)
+  } catch (error) {
+    if (
+      accountSession
+      && accountModelAuthorizationRefreshRequired(method, error)
+      && await syncAccountModelAuthorization(await accountSession.status())
+    ) {
+      return backend.invoke(method, request?.args)
+    }
+    throw error
+  }
 })
 
 app.on('open-url', (event, url) => {

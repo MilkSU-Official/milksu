@@ -37,6 +37,17 @@ function accountRedirectURL(channel = 'stable') {
     : 'milksu://auth/callback'
 }
 
+function accountModelAuthorizationAction(status) {
+  if (status?.state === 'active' && status?.tokenFluxLinked === true) return 'refresh'
+  if (status?.state === 'unavailable' || status?.state === 'authorizing') return 'preserve'
+  return 'clear'
+}
+
+function accountModelAuthorizationRefreshRequired(method, error) {
+  return method === 'SendMessage'
+    && /both model sources are unavailable/i.test(String(error?.message ?? error ?? ''))
+}
+
 async function loadAccountConfig({ env = process.env, resourcesPath = '', isPackaged = false, channel = 'stable' } = {}) {
   const sealed = isPackaged && resourcesPath
     ? await readJSON(path.join(resourcesPath, 'account-config.json'))
@@ -241,4 +252,10 @@ class AccountSession {
   }
 }
 
-module.exports = { AccountSession, accountRedirectURL, loadAccountConfig }
+module.exports = {
+  AccountSession,
+  accountModelAuthorizationAction,
+  accountModelAuthorizationRefreshRequired,
+  accountRedirectURL,
+  loadAccountConfig,
+}

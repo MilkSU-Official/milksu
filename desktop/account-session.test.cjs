@@ -5,7 +5,30 @@ const os = require('node:os')
 const path = require('node:path')
 const { promises: fs } = require('node:fs')
 const test = require('node:test')
-const { AccountSession, accountRedirectURL, loadAccountConfig } = require('./account-session.cjs')
+const {
+  AccountSession,
+  accountModelAuthorizationAction,
+  accountModelAuthorizationRefreshRequired,
+  accountRedirectURL,
+  loadAccountConfig,
+} = require('./account-session.cjs')
+
+test('preserves account model authorization during transient account status failures', () => {
+  assert.equal(accountModelAuthorizationAction({ state: 'unavailable', authenticated: true }), 'preserve')
+  assert.equal(accountModelAuthorizationAction({ state: 'authorizing', authenticated: false }), 'preserve')
+  assert.equal(accountModelAuthorizationAction({ state: 'active', tokenFluxLinked: true }), 'refresh')
+  assert.equal(accountModelAuthorizationAction({ state: 'active', tokenFluxLinked: false }), 'clear')
+  assert.equal(accountModelAuthorizationAction({ state: 'signed_out', authenticated: false }), 'clear')
+})
+
+test('refreshes account authorization only after a pre-Sidecar SendMessage rejection', () => {
+  const unavailable = new Error(
+    'tokenflux/grok-4.6 cannot start because both model sources are unavailable',
+  )
+  assert.equal(accountModelAuthorizationRefreshRequired('SendMessage', unavailable), true)
+  assert.equal(accountModelAuthorizationRefreshRequired('GetSettings', unavailable), false)
+  assert.equal(accountModelAuthorizationRefreshRequired('SendMessage', new Error('provider returned 401')), false)
+})
 
 test('rejects non-HTTPS account endpoints and reports an unconfigured client', async () => {
   const config = await loadAccountConfig({ env: {
@@ -150,5 +173,7 @@ test('stores the account session locally without reading the legacy Keychain pay
   await session.writeSession(value)
   const saved = JSON.parse(await fs.readFile(path.join(root, 'account-session.json'), 'utf8'))
   assert.deepEqual(saved, value)
-  assert.equal((await fs.stat(path.join(root, 'account-session.json'))).mode & 0o777, 0o600)
+  if (process.platform !== 'win32') {
+    assert.equal((await fs.stat(path.join(root, 'account-session.json'))).mode & 0o777, 0o600)
+  }
 })

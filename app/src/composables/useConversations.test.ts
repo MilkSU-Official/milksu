@@ -290,6 +290,11 @@ describe('Coding approval conversation recovery', () => {
       '401',
     ],
     [
+      'tokenflux/grok-4.6 cannot start because both model sources are unavailable; add a personal API key or connect the beta account quota in Settings',
+      '当前模型没有可用的账户或个人凭据',
+      'both model sources',
+    ],
+    [
       'Provider milksu-route: "baseUrl" is required when defining custom models.',
       '当前模型连接尚未准备好',
       'baseUrl',

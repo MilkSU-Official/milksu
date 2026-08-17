@@ -375,6 +375,12 @@ export function agentRuntimeErrorMessage(value: unknown) {
   if (/Access to this API has been restricted|--allow-fs-(?:read|write)|ERR_ACCESS_DENIED/i.test(raw)) {
     return '本地 Agent 权限组件启动失败。当前任务已保留，请重试；如果仍然失败，可以在设置中导出诊断。'
   }
+  if (
+    /both model sources are unavailable|enable the personal API key|add a personal API key|connect the beta account quota/i
+      .test(raw)
+  ) {
+    return '当前模型没有可用的账户或个人凭据。请刷新账户状态，或在“授权与模型”中配置并启用个人 API Key。'
+  }
   if (/\b401\b|unauthori[sz]ed|invalid api key|authentication failed/i.test(raw)) {
     return '当前模型凭据已失效或无权访问。请重新登录，或在设置中更新模型凭据后重试。'
   }
