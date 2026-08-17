@@ -37,8 +37,9 @@ staple 与 Gatekeeper 验证。签名资产只存在 Personal Vault 和 GitHub S
 2. 打开 **Actions → macOS signed release → Run workflow**，选择准确分支，填写发布标题、说明和最低版本。
    第一次核对保持 `upload_release=false`；它只生成经过签名验证的候选产物，不接触 R2 或 Admin。
 3. 审批 `macos-release` environment。
-4. 等待 job 完成，下载 `MilkSU-macOS-arm64` artifact。它包含 DMG、electron-updater 使用的版本化 ZIP 和
-   `release-metadata.json`；元数据不含本机绝对路径或凭据。
+4. 等待 job 完成，下载 `MilkSU-macOS-arm64-installer` artifact。Actions 候选 artifact 只包含给用户安装的
+   DMG；electron-updater ZIP 与 `release-metadata.json` 只在同一 job 的 `upload_release=true` 路径中用于
+   私有 R2 / Admin 草稿，不上传到 GitHub Actions artifact 或 GitHub Release 页面。
 5. 在一台未安装开发证书的 Mac 上下载并打开 DMG，核对设置页 branch、40 位 commit 和 tracking ID。
 
 Workflow 会在一次性 keychain 中导入 `.p12`，并依次执行：
