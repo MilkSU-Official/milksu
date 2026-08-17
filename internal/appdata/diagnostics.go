@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -305,7 +304,7 @@ func inspectDiagnosticDatabase(
 	}
 	result.Exists = true
 	result.Bytes = info.Size()
-	databaseURL := (&url.URL{Scheme: "file", Path: path}).String() + "?mode=ro"
+	databaseURL := ReadOnlySQLiteURL(path)
 	database, err := sql.Open("sqlite", databaseURL)
 	if err != nil {
 		result.Error = sanitizeDiagnosticText(strings.ReplaceAll(err.Error(), root, "<data>"))

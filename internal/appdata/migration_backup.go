@@ -10,9 +10,9 @@ import (
 	"hash"
 	"io"
 	"io/fs"
-	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -212,7 +212,7 @@ func preflightDatabaseMigrations(
 		if missing {
 			continue
 		}
-		databaseURL := (&url.URL{Scheme: "file", Path: path}).String() + "?mode=ro"
+		databaseURL := ReadOnlySQLiteURL(path)
 		database, err := sql.Open("sqlite", databaseURL)
 		if err != nil {
 			return nil, fmt.Errorf("preflight database %q: %w", descriptor.LogicalName, err)
@@ -344,6 +344,12 @@ func installMigrationBackup(source, destination string) (bool, error) {
 }
 
 func syncDirectory(directory string) error {
+	// Directory fsync persists new directory entries on POSIX filesystems.
+	// Windows rejects FlushFileBuffers on read-opened directory handles, and
+	// NTFS metadata durability does not depend on it.
+	if runtime.GOOS == "windows" {
+		return nil
+	}
 	handle, err := os.Open(directory)
 	if err != nil {
 		return fmt.Errorf("open migration backup directory for sync: %w", err)

@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -16,6 +15,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/MilkSU-Official/milksu/internal/appdata"
 	"github.com/MilkSU-Official/milksu/internal/conversation"
 	_ "modernc.org/sqlite"
 )
@@ -371,11 +371,8 @@ func openReadOnly(path string) (*sql.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	uri := url.URL{Scheme: "file", Path: absolute}
-	query := uri.Query()
-	query.Set("mode", "ro")
-	uri.RawQuery = query.Encode()
-	db, err := sql.Open("sqlite", uri.String())
+
+	db, err := sql.Open("sqlite", appdata.ReadOnlySQLiteURL(absolute))
 	if err != nil {
 		return nil, err
 	}

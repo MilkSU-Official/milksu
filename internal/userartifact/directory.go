@@ -27,11 +27,7 @@ func Directory() (string, error) {
 	if override := strings.TrimSpace(os.Getenv(DirectoryOverrideEnv)); override != "" {
 		return validateRoot(override)
 	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("resolve user home for MilkSU artifacts: %w", err)
-	}
-	return filepath.Join(home, "Documents", "MilkSU"), nil
+	return defaultDirectory()
 }
 
 func Ensure(root string) (string, error) {

@@ -45,6 +45,19 @@ type DatabaseCompatibilityStatus struct {
 	Error        string `json:"error,omitempty"`
 }
 
+// ReadOnlySQLiteURL renders an absolute filesystem path as a SQLite file URI
+// with mode=ro. Windows drive-letter paths are normalized to the canonical
+// rooted file:/C:/... shape: url.URL alone would treat the rootless "C:/"
+// path as a URI authority and SQLite would reject it, while backslashes would
+// be escaped into %5C.
+func ReadOnlySQLiteURL(path string) string {
+	slashed := filepath.ToSlash(path)
+	if !strings.HasPrefix(slashed, "/") {
+		slashed = "/" + slashed
+	}
+	return (&url.URL{Scheme: "file", Path: slashed}).String() + "?mode=ro"
+}
+
 // InspectDatabaseCompatibility performs a strictly read-only inspection of the
 // databases described by descriptors under root. It never writes, never
 // creates files or directories, never reads business-table contents, never
@@ -132,7 +145,8 @@ func inspectDatabaseCompatibility(
 		status.Error = sanitizeDatabaseError(err.Error(), root)
 		return status
 	}
-	databaseURL := (&url.URL{Scheme: "file", Path: accumulated}).String() + "?mode=ro"
+
+	databaseURL := ReadOnlySQLiteURL(accumulated)
 	database, err := sql.Open("sqlite", databaseURL)
 	if err != nil {
 		status.State = databaseStateCorrupt
@@ -293,6 +307,9 @@ func inspectMigrationHistory(ctx context.Context, database *sql.DB) (migrationHi
 // escaping the data root after cleaning.
 func safeDescriptorPath(relativePath string) bool {
 	if strings.TrimSpace(relativePath) == "" {
+		return false
+	}
+	if strings.HasPrefix(relativePath, "/") {
 		return false
 	}
 	native := filepath.FromSlash(relativePath)
