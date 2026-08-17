@@ -52,6 +52,7 @@
 - 桌面壳是 Electron/Chromium + Vue；Go 是受管 Runtime，Pi Sidecar 拥有通用模型会话、Compaction 与 Tool Loop。
 - 右栏“浏览器”、真实 Chrome/Edge 的 Browser Use、外部 App 的 Computer Use 是三个独立执行表面。折叠面板只改变观察视图，不应停止 Session。
 - 用户可见产物写入各操作系统的用户文档目录下 `MilkSU/{Coding,CTF,CVE}`；无项目 Coding 临时工作区、Runtime、事件、Obelisk、浏览器 Profile 与凭据留在平台用户配置目录，不把 macOS 路径写死为产品契约。
+- Windows `26.817.3` 的设置页“打开产物目录”和“打开数据目录”曾因 Go Reveal 实现写死 macOS `/usr/bin/open` 而无法使用；当前开发分支改为由 Go 确定受信任路径、Electron Host 统一调用平台 `shell.openPath`，定向 Go/Desktop 测试已通过；新的正式 Windows 包尚未发行。
 - Obelisk 会话索引底层继续保留；Coding 右栏与环境页已移除“相关历史”、搜索、过滤和图谱等单会话前端。学习记录/记忆系统如重新进入产品，应单独设计页面。
 - 日间/夜间模式共用中性纸面/暖石墨层级，酸绿只用于选择、主操作和活动强度；CTF、CVE、Coding 不以旧蓝黑色块区分。
 

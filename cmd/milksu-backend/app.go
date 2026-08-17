@@ -682,19 +682,6 @@ func (a *App) ExportLocalDiagnostics() (appdata.DiagnosticExport, error) {
 	)
 }
 
-func (a *App) RevealLocalDataDirectory() error {
-	if a.ctx == nil {
-		return fmt.Errorf("desktop runtime is not ready")
-	}
-	if runtime.GOOS != "darwin" {
-		return fmt.Errorf("reveal local data directory is currently supported on macOS")
-	}
-	if err := exec.Command("/usr/bin/open", a.dataDirectory).Run(); err != nil {
-		return fmt.Errorf("open local data directory: %w", err)
-	}
-	return nil
-}
-
 type UserArtifactDirectoryStatus struct {
 	Directory string `json:"directory"`
 }
@@ -705,23 +692,6 @@ func (a *App) GetUserArtifactDirectoryStatus() UserArtifactDirectoryStatus {
 
 func (a *App) EnsureCodingArtifactWorkspace(conversationID string) (string, error) {
 	return a.resolveConversationWorkspace(conversationID, "")
-}
-
-func (a *App) RevealUserArtifactDirectory() error {
-	if a.ctx == nil {
-		return fmt.Errorf("desktop runtime is not ready")
-	}
-	if runtime.GOOS != "darwin" {
-		return fmt.Errorf("reveal user artifact directory is currently supported on macOS")
-	}
-	root, err := userartifact.Ensure(a.artifactDirectory)
-	if err != nil {
-		return err
-	}
-	if err := exec.Command("/usr/bin/open", root).Run(); err != nil {
-		return fmt.Errorf("open user artifact directory: %w", err)
-	}
-	return nil
 }
 
 func (a *App) SaveSettingsCmd(settings config.AppSettings) error {
