@@ -73,7 +73,7 @@ watch(
 </script>
 
 <template>
-  <div class="coding-context-archive app-no-drag flex min-w-0 flex-1 flex-col text-sidebar-foreground">
+  <div class="coding-context-archive app-no-drag flex h-full min-h-0 min-w-0 flex-1 flex-col text-sidebar-foreground">
     <nav
       v-if="ctfContext"
       class="app-no-drag flex flex-1 flex-col gap-1 p-3"
@@ -115,13 +115,13 @@ watch(
       </Button>
     </nav>
 
-    <div v-else-if="codingContext" class="coding-context-content app-no-drag flex min-h-0 flex-1 flex-col">
-      <div class="coding-context-header flex items-center gap-1 px-2 pt-2">
+    <div v-else-if="codingContext" class="coding-context-content app-no-drag flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div class="coding-context-header flex shrink-0 items-center gap-1 px-3 pt-2">
         <Button
           type="button"
           variant="outline"
           size="sm"
-          class="coding-new-task-button app-no-drag relative z-10 min-h-8 min-w-0 flex-1 justify-start"
+          class="coding-new-task-button app-no-drag relative z-10 min-h-8 min-w-0 flex-1 justify-center"
           data-testid="coding-new-task-button"
           @click="$emit('new')"
         >
@@ -140,7 +140,7 @@ watch(
           <ChevronLeft class="size-4" />
         </Button>
       </div>
-      <div class="px-3 pt-2">
+      <div class="shrink-0 px-3 pt-2">
         <label class="relative block">
           <Search class="pointer-events-none absolute left-3 top-1/2 z-10 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -153,7 +153,7 @@ watch(
         </label>
       </div>
 
-      <div ref="conversationList" class="mt-2 min-h-0 flex-1 overflow-y-auto px-2">
+      <div ref="conversationList" class="coding-conversation-list mt-2 min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-2 pb-3">
         <p class="px-3 py-1.5 text-label font-medium text-muted-foreground">项目</p>
         <div v-if="projectGroups.length || temporaryGroup" class="flex flex-col">
           <div v-if="projectGroups.length" class="space-y-1">
@@ -278,10 +278,17 @@ watch(
 
 .coding-context-content {
   /* Traffic lights sit on the icon rail; history panel starts flush under the top edge. */
+  min-height: 0;
   padding-top: 0.35rem;
 }
 
+.coding-conversation-list {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
 .coding-context-archive {
+  min-height: 0;
   background-color: var(--tactical-ink-2);
   background-image: var(--tactical-carbon-image);
   background-size: 640px 640px;

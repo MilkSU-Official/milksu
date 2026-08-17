@@ -1778,9 +1778,7 @@ watch(
     v-if="environmentOpen && !domainContextCollapsed"
     as="aside"
     class="context-sidebar"
-    :size="['artifacts', 'changes', 'collaboration', 'browser', 'domain'].includes(contextPanel)
-      ? 'wide'
-      : 'compact'"
+    size="wide"
     :body-mode="contextPanel === 'browser' ? 'viewport' : 'scroll'"
     :aria-label="contextPanelTitle"
     data-testid="single-right-context-rail"

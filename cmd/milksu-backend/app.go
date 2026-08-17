@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"net/url"
 	"os"
 	"os/exec"
@@ -293,6 +294,7 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 }
 
 func (a *App) Startup(ctx context.Context) {
+	startupBegan := time.Now()
 	a.ctx = ctx
 	lifespanStart, lifespanHandle, lifespanErr := appdata.BeginLifespan(
 		a.dataDirectory,
@@ -324,35 +326,49 @@ func (a *App) Startup(ctx context.Context) {
 			a.diagnostics.Record("appdata", "info", "previous MilkSU run exited cleanly")
 		}
 	}
+	log.Printf("[startup] go.lifespan %dms", time.Since(startupBegan).Milliseconds())
 	a.diagnostics.Record("app", "info", "desktop runtime started")
 	_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedAppInitialized)
 	_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedDesktopRuntimeStarted)
 	go func() {
 		refreshContext, cancelRefresh := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
 		defer cancelRefresh()
+		refreshStarted := time.Now()
 		refreshedCatalog, refreshErr := a.modelCatalog.Refresh(refreshContext)
 		if refreshErr != nil {
+			log.Printf("[startup] go.modelCatalog.Refresh failed %dms", time.Since(refreshStarted).Milliseconds())
 			a.diagnostics.Record("model-catalog", "warning", "model catalog refresh failed; retained last-known-good catalog")
 			return
 		}
+		log.Printf("[startup] go.modelCatalog.Refresh ok %dms", time.Since(refreshStarted).Milliseconds())
 		a.diagnostics.Record("model-catalog", "info", "model catalog refreshed")
 		a.emitDesktopEvent("model-catalog-changed", refreshedCatalog)
 	}()
+	recoverStarted := time.Now()
 	if err := a.jobs.Recover(ctx); err != nil {
 		a.diagnostics.Record("runtime", "error", "runtime job recovery failed")
 		_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedRuntimeRecoveryFailed)
 		a.emitDesktopEvent("job-runtime-error", err.Error())
 	}
+	log.Printf("[startup] go.jobs.Recover %dms", time.Since(recoverStarted).Milliseconds())
+	ctfRecoverStarted := time.Now()
 	if err := a.ctfJobs.Recover(ctx); err != nil {
 		a.diagnostics.Record("ctf", "error", "CTF job recovery failed")
 		_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedCTFRecoveryFailed)
 		a.emitDesktopEvent("job-runtime-error", err.Error())
 	}
+	log.Printf("[startup] go.ctfJobs.Recover %dms", time.Since(ctfRecoverStarted).Milliseconds())
+	vulnRecoverStarted := time.Now()
 	if err := a.vulnJobs.Recover(ctx); err != nil {
 		a.diagnostics.Record("vuln", "error", "vulnerability job recovery failed")
 		_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedVulnRecoveryFailed)
 		a.emitDesktopEvent("job-runtime-error", err.Error())
 	}
+	log.Printf(
+		"[startup] go.vulnJobs.Recover %dms total=%dms",
+		time.Since(vulnRecoverStarted).Milliseconds(),
+		time.Since(startupBegan).Milliseconds(),
+	)
 }
 
 func (a *App) Shutdown(_ context.Context) {

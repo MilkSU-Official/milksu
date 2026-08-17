@@ -43,7 +43,7 @@ const codingSectionActive = computed(() => props.activeSection === 'chat')
 
 <template>
   <aside
-    class="workspace-navigation-shell relative z-30 flex shrink-0 border-r border-[var(--night-border)] text-sidebar-foreground"
+    class="workspace-navigation-shell relative z-30 flex h-full min-h-0 shrink-0 text-sidebar-foreground"
     data-testid="stable-app-sidebar"
   >
     <WorkspaceRail
@@ -62,7 +62,7 @@ const codingSectionActive = computed(() => props.activeSection === 'chat')
     <section
       v-if="showCodingHistory"
       id="coding-context-sidebar"
-      class="coding-history-panel app-no-drag flex min-h-0 w-[16.5rem] shrink-0 flex-col border-r border-[var(--night-border)] bg-[var(--tactical-ink)]"
+      class="coding-history-panel app-no-drag flex h-full min-h-0 w-[16.5rem] shrink-0 flex-col border-r border-[var(--night-border)] bg-[var(--tactical-ink)]"
       aria-label="Coding 会话"
       data-testid="coding-context-drawer"
     >
@@ -101,8 +101,10 @@ const codingSectionActive = computed(() => props.activeSection === 'chat')
 <style scoped>
 .workspace-navigation-shell {
   --workspace-rail-width: 4.75rem;
+  border-right: 1px solid var(--night-border);
 }
 .coding-history-panel {
+  min-height: 0;
   background-image: var(--tactical-carbon-image);
   background-size: 640px 640px;
 }

@@ -142,6 +142,20 @@ watch(section, current => {
   }
 })
 
+function startupLog(label: string, detail = '') {
+  const suffix = detail ? ` ${detail}` : ''
+  console.info(`[startup] ${label}${suffix}`)
+}
+
+async function timedStartupStep<T>(label: string, work: () => Promise<T>): Promise<T> {
+  const started = performance.now()
+  try {
+    return await work()
+  } finally {
+    startupLog(label, `${Math.round(performance.now() - started)}ms`)
+  }
+}
+
 async function loadSettings() {
   const value = await invokeCommand<AppSettings>('get_settings')
   applySettings(value)
@@ -461,6 +475,8 @@ async function installUpdate() {
 }
 
 onMounted(async () => {
+  const mountedAt = performance.now()
+  startupLog('renderer.onMounted')
   applyThemeMode(themeMode.value)
   unlistenModelCatalog = await listenEvent<ModelCatalogSnapshot>('model-catalog-changed', event => {
     installModelCatalog(event.payload)
@@ -468,8 +484,31 @@ onMounted(async () => {
   unlistenUpdate = await listenEvent<UpdateStatus>('update.changed', event => {
     updateStatus.value = event.payload
   })
-  await Promise.all([loadModelCatalog(), loadSettings(), loadAccountStatus(), conversations.load()])
-  updateStatus.value = await invokeCommand<UpdateStatus>('get_update_status').catch(() => null)
+  // Four parallel RPCs; accountLoaded only flips after loadAccountStatus finishes.
+  // wall ≈ max(individual), not sum — compare to find the gate.
+  const parallelStarted = performance.now()
+  async function measure(label: string, work: () => Promise<unknown>) {
+    const started = performance.now()
+    await work()
+    const ms = Math.round(performance.now() - started)
+    startupLog(label, `${ms}ms`)
+    return ms
+  }
+  const [catalogMs, settingsMs, accountMs, conversationsMs] = await Promise.all([
+    measure('rpc.loadModelCatalog', () => loadModelCatalog()),
+    measure('rpc.loadSettings', () => loadSettings()),
+    measure('rpc.loadAccountStatus', () => loadAccountStatus()),
+    measure('rpc.conversations.load', () => conversations.load()),
+  ])
+  const parallelWallMs = Math.round(performance.now() - parallelStarted)
+  const slowest = Math.max(catalogMs, settingsMs, accountMs, conversationsMs)
+  startupLog(
+    'renderer.parallelBootstrap',
+    `wall=${parallelWallMs}ms catalog=${catalogMs}ms settings=${settingsMs}ms account=${accountMs}ms conversations=${conversationsMs}ms slowest=${slowest}ms accountLoaded=${accountLoaded.value}`,
+  )
+  updateStatus.value = await timedStartupStep('rpc.get_update_status', () =>
+    invokeCommand<UpdateStatus>('get_update_status').catch(() => null),
+  )
   unlistenAccount = await listenEvent<AccountStatus>('account.changed', event => {
     accountStatus.value = event.payload
     if (event.payload.state === 'active') {
@@ -480,10 +519,13 @@ onMounted(async () => {
   })
   await conversations.listen()
   try {
-    recoveryStatus.value = await invokeCommand<StartupRecoveryStatus>('get_startup_recovery_status')
+    recoveryStatus.value = await timedStartupStep('rpc.get_startup_recovery_status', () =>
+      invokeCommand<StartupRecoveryStatus>('get_startup_recovery_status'),
+    )
   } catch {
     recoveryStatus.value = null
   }
+  startupLog('renderer.firstPaintGateDone', `fromMount=${Math.round(performance.now() - mountedAt)}ms state=${accountStatus.value.state}`)
 })
 
 onBeforeUnmount(() => {

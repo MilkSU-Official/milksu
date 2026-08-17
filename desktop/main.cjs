@@ -84,6 +84,26 @@ function isClosedPipeError(error) {
   return error?.code === 'EPIPE' || error?.code === 'ERR_STREAM_DESTROYED'
 }
 
+// Startup stage timings: filter logs with `[startup]`.
+// Measures serial gates (DevTools → backend.ready → account status → loadURL → renderer RPCs).
+const processBootMs = Date.now()
+
+function startupLog(label, detail = '') {
+  const total = Date.now() - processBootMs
+  const suffix = detail ? ` ${detail}` : ''
+  console.info(`[startup] +${total}ms ${label}${suffix}`)
+}
+
+async function startupTime(label, work) {
+  const started = Date.now()
+  try {
+    return await work()
+  } finally {
+    const ms = Date.now() - started
+    startupLog(label, `${ms}ms`)
+  }
+}
+
 function findFreePort() {
   const source = [
     "const net=require('node:net')",
@@ -140,22 +160,31 @@ let screenRecordingRelaunchArm = null
 
 async function syncAccountModelAuthorization(status) {
   if (!backend || !accountSession) return false
+  const started = Date.now()
   const action = accountModelAuthorizationAction(status)
   if (action === 'refresh') {
     try {
       const credential = await accountSession.modelCredential()
       if (credential?.apiKey) {
         await backend.invoke('SetAccountModelCredential', [credential.baseUrl, credential.apiKey])
+        startupLog('syncAccountModelAuthorization', `${Date.now() - started}ms action=refresh ok`)
         return true
       }
+      startupLog('syncAccountModelAuthorization', `${Date.now() - started}ms action=refresh empty`)
+      return false
     } catch {
       // Preserve the last locally persisted account credential during a
       // transient account-service failure. A later status refresh retries.
+      startupLog('syncAccountModelAuthorization', `${Date.now() - started}ms action=refresh preserve-on-error`)
       return false
     }
   }
-  if (action === 'preserve') return false
+  if (action === 'preserve') {
+    startupLog('syncAccountModelAuthorization', `${Date.now() - started}ms action=preserve`)
+    return false
+  }
   await backend.invoke('ClearAccountModelCredential', [])
+  startupLog('syncAccountModelAuthorization', `${Date.now() - started}ms action=clear`)
   return false
 }
 
@@ -340,13 +369,18 @@ class BackendRuntime {
 
 async function waitForDevTools() {
   const endpoint = `http://127.0.0.1:${devToolsPort}`
+  const started = Date.now()
   for (let attempt = 0; attempt < 100; attempt += 1) {
     try {
       const response = await fetch(`${endpoint}/json/version`)
-      if (response.ok) return endpoint
+      if (response.ok) {
+        startupLog('waitForDevTools', `${Date.now() - started}ms attempts=${attempt + 1}`)
+        return endpoint
+      }
     } catch {}
     await new Promise(resolve => setTimeout(resolve, 50))
   }
+  startupLog('waitForDevTools.timeout', `${Date.now() - started}ms`)
   throw new Error('Electron DevTools endpoint did not start')
 }
 
@@ -660,6 +694,7 @@ function createWindow() {
   mainWindow.once('ready-to-show', () => {
     if (!mainWindow || mainWindow.isDestroyed()) return
     mainWindow.setTitle(lockedWindowTitle())
+    startupLog('window.ready-to-show → show()')
     mainWindow.show()
   })
 }
@@ -671,8 +706,15 @@ ipcMain.handle('milksu:invoke', async (event, request) => {
   if (method === 'GetBuildTracking') return loadBuildTracking()
   if (method === 'GetAccountStatus') {
     if (!accountSession) return { configured: false, state: 'unconfigured', authenticated: false }
+    const started = Date.now()
     const status = await accountSession.status()
+    const statusMs = Date.now() - started
+    const syncStarted = Date.now()
     await syncAccountModelAuthorization(status)
+    startupLog(
+      'ipc.GetAccountStatus',
+      `status=${statusMs}ms sync=${Date.now() - syncStarted}ms state=${status?.state ?? 'unknown'} total=${Date.now() - started}ms`,
+    )
     return status
   }
   if (method === 'StartAccountLogin') {
@@ -749,16 +791,17 @@ app.on('second-instance', (_event, argv = []) => {
 })
 
 app.whenReady().then(async () => {
-  await installRendererProtocol()
+  startupLog('app.whenReady')
+  await startupTime('installRendererProtocol', () => installRendererProtocol())
   const accountRedirect = new URL(accountRedirectURL(desktopChannel))
   if (app.isPackaged) {
     app.setAsDefaultProtocolClient(accountRedirect.protocol.replace(':', ''))
   }
-  const accountConfig = await loadAccountConfig({
+  const accountConfig = await startupTime('loadAccountConfig', () => loadAccountConfig({
     resourcesPath: process.resourcesPath,
     isPackaged: app.isPackaged,
     channel: desktopChannel,
-  })
+  }))
   accountSession = new AccountSession({
     config: accountConfig,
     userDataPath: app.getPath('userData'),
@@ -783,15 +826,20 @@ app.whenReady().then(async () => {
   if (pendingAccountCallback) {
     const callback = pendingAccountCallback
     pendingAccountCallback = ''
-    await accountSession.handleCallback(callback)
+    await startupTime('account.handleCallback', () => accountSession.handleCallback(callback))
   }
   const upstreamEndpoint = await waitForDevTools()
-	createWindow()
+  createWindow()
+  startupLog('createWindow')
   browserShell = new BrowserShell(mainWindow, upstreamEndpoint)
+  const backendSpawnStarted = Date.now()
   backend = new BackendRuntime(backendExecutable(), handleHostRequest, emitRendererEvent)
-  await backend.ready()
-  await syncAccountModelAuthorization(await accountSession.status())
-  await mainWindow.loadURL(`${APP_ORIGIN}/index.html`)
+  startupLog('backend.spawn', `${Date.now() - backendSpawnStarted}ms`)
+  await startupTime('backend.ready', () => backend.ready())
+  const accountStatus = await startupTime('account.status (main pre-load)', () => accountSession.status())
+  await syncAccountModelAuthorization(accountStatus)
+  await startupTime('loadURL', () => mainWindow.loadURL(`${APP_ORIGIN}/index.html`))
+  startupLog('main pre-renderer complete', `account.state=${accountStatus?.state ?? 'unknown'}`)
   void updateManager.check()
 }).catch(error => {
   dialog.showErrorBox('MilkSU 启动失败', error.message)

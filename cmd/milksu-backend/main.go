@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/MilkSU-Official/milksu/internal/appdata"
 )
@@ -15,14 +16,20 @@ const instanceIDEnv = "MILKSU_INSTANCE_ID"
 // behavior. This executable is the local, typed Go runtime it supervises.
 func main() {
 	log.SetOutput(os.Stderr)
+	bootStarted := time.Now()
 	host := newDesktopRPC(os.Stdin, os.Stdout)
+	appConstructStarted := time.Now()
 	application, err := newAppWithDesktopHost(host)
 	if err != nil {
 		log.Fatal(err)
 	}
+	log.Printf("[startup] go.newApp %dms", time.Since(appConstructStarted).Milliseconds())
 	host.attach(application)
+	startupStarted := time.Now()
 	application.Startup(context.Background())
+	log.Printf("[startup] go.Startup %dms", time.Since(startupStarted).Milliseconds())
 	host.ready()
+	log.Printf("[startup] go.ready emitted total=%dms", time.Since(bootStarted).Milliseconds())
 	if err := host.serve(); err != nil {
 		log.Printf("desktop RPC stopped: %v", err)
 	}

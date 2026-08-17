@@ -141,7 +141,9 @@ func newStore(path string, secrets secretStore) (*Store, error) {
 func (s *Store) Get() AppSettings {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return clone(s.settings)
+	// Apply defaults on read so stale official providers (deepseek, …) never
+	// reach Desktop RPC or the Agent start path after a product surface change.
+	return withDefaults(clone(s.settings))
 }
 
 // GetResolved returns a private copy for starting a local Engine process.
@@ -149,7 +151,7 @@ func (s *Store) Get() AppSettings {
 func (s *Store) GetResolved() AppSettings {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	value := clone(s.settings)
+	value := withDefaults(clone(s.settings))
 	for name, provider := range value.Providers {
 		provider.APIKey = s.secretValues[providerSecretAccount(name)]
 		value.Providers[name] = provider
@@ -613,6 +615,27 @@ func withDefaults(value AppSettings) AppSettings {
 		provider.Name = strings.TrimSpace(provider.Name)
 		provider.Models = normalizeCustomModels(provider.Models)
 		value.Providers[id] = provider
+	}
+	// Product surface is TokenFlux + custom relays only. Stale official
+	// providers (deepseek/openai/…) are remapped so Agent turns do not start
+	// against a retired vendor default.
+	active := strings.TrimSpace(value.ActiveProvider)
+	if active != "tokenflux" {
+		provider, exists := value.Providers[active]
+		if !exists || !provider.Custom {
+			value.ActiveProvider = defaults.ActiveProvider
+			model := strings.TrimSpace(value.ActiveModel)
+			if model == "" ||
+				strings.EqualFold(active, "deepseek") ||
+				strings.HasPrefix(strings.ToLower(model), "deepseek") ||
+				strings.EqualFold(active, "openai") ||
+				strings.EqualFold(active, "anthropic") ||
+				strings.EqualFold(active, "google") ||
+				strings.EqualFold(active, "groq") ||
+				strings.EqualFold(active, "mistral") {
+				value.ActiveModel = defaults.ActiveModel
+			}
+		}
 	}
 	value.ModelRouting.SourceOrder = normalizeModelSourceOrder(value.ModelRouting.SourceOrder)
 	if value.ModelRouting.AutoFallback == nil {

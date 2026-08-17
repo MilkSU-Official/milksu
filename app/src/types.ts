@@ -239,12 +239,17 @@ export function withAppSettingsDefaults(value: AppSettings): AppSettings {
     value.active_provider,
     configuredProviders[value.active_provider],
   )
-  const providerIsSelectable = selectableProvider(value.active_provider)
+  const rawActive = String(value.active_provider ?? '').trim()
+  // Stale pre-release official providers (deepseek, openai, …) are not product
+  // surfaces; remap them to TokenFlux so Agent turns use an enabled path.
+  const providerIsSelectable = selectableProvider(rawActive)
     || Boolean(configuredProvider)
   const activeProvider = providerIsSelectable
-    ? value.active_provider
+    ? rawActive
     : PRIMARY_MODEL_SELECTION.provider
-  const activeInfo = providerByID(activeProvider) ?? configuredProvider
+  const activeInfo = providerByID(activeProvider) ?? (
+    activeProvider === rawActive ? configuredProvider : null
+  )
   const requestedModel = String(value.active_model ?? '').trim()
   const activeModel = !providerIsSelectable
     ? PRIMARY_MODEL_SELECTION.model

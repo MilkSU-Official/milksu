@@ -127,30 +127,50 @@ class AccountSession {
   }
 
   async status() {
-    if (!this.config.configured) return { configured: false, state: 'unconfigured', authenticated: false }
+    const started = Date.now()
+    if (!this.config.configured) {
+      console.info(`[startup] account.status skip unconfigured ${Date.now() - started}ms`)
+      return { configured: false, state: 'unconfigured', authenticated: false }
+    }
     const session = await this.activeSession()
-    if (!session) return { configured: true, state: this.pending ? 'authorizing' : 'signed_out', authenticated: false }
+    if (!session) {
+      const state = this.pending ? 'authorizing' : 'signed_out'
+      console.info(`[startup] account.status local-only state=${state} ${Date.now() - started}ms`)
+      return { configured: true, state, authenticated: false }
+    }
+    const networkStarted = Date.now()
     const response = await this.fetch(`${this.config.apiUrl}/v1/account`, {
       headers: { authorization: `Bearer ${session.accessToken}` },
     }).catch(() => null)
-    if (!response) return { configured: true, authenticated: true, state: 'unavailable' }
+    const networkMs = Date.now() - networkStarted
+    if (!response) {
+      console.info(`[startup] account.status network-fail ${networkMs}ms total=${Date.now() - started}ms`)
+      return { configured: true, authenticated: true, state: 'unavailable' }
+    }
     const payload = await response.json().catch(() => ({}))
     if (response.status === 401) {
       await fs.unlink(this.sessionPath).catch(() => {})
       this.sessionValue = null
       this.sessionLoaded = true
+      console.info(`[startup] account.status 401 network=${networkMs}ms total=${Date.now() - started}ms`)
       return { configured: true, authenticated: false, state: 'signed_out' }
     }
     if (response.status === 403) {
+      const state = payload.error === 'access_suspended' ? 'suspended' : 'invitation_required'
+      console.info(`[startup] account.status 403 state=${state} network=${networkMs}ms total=${Date.now() - started}ms`)
       return {
         configured: true,
         authenticated: true,
-        state: payload.error === 'access_suspended' ? 'suspended' : 'invitation_required',
+        state,
       }
     }
-    if (!response.ok || !payload.account) return { configured: true, authenticated: true, state: 'unavailable' }
+    if (!response.ok || !payload.account) {
+      console.info(`[startup] account.status http=${response.status} network=${networkMs}ms total=${Date.now() - started}ms`)
+      return { configured: true, authenticated: true, state: 'unavailable' }
+    }
+    const avatarStarted = Date.now()
     const avatarUrl = await this.avatarDataURL(payload.account.avatarUrl)
-    return {
+    const result = {
       configured: true,
       authenticated: true,
       state: 'active',
@@ -161,24 +181,45 @@ class AccountSession {
       },
       tokenFluxLinked: payload.account.tokenFluxLinked === true,
     }
+    console.info(
+      `[startup] account.status active network=${networkMs}ms avatar=${Date.now() - avatarStarted}ms total=${Date.now() - started}ms tokenFlux=${result.tokenFluxLinked}`,
+    )
+    return result
   }
 
   async modelCredential() {
-    if (!this.config.configured) return null
+    const started = Date.now()
+    if (!this.config.configured) {
+      console.info(`[startup] account.modelCredential skip unconfigured ${Date.now() - started}ms`)
+      return null
+    }
     const session = await this.activeSession()
-    if (!session) return null
+    if (!session) {
+      console.info(`[startup] account.modelCredential no-session ${Date.now() - started}ms`)
+      return null
+    }
+    const networkStarted = Date.now()
     const response = await this.fetch(`${this.config.apiUrl}/v1/account/model-credential`, {
       headers: { authorization: `Bearer ${session.accessToken}` },
     })
-    if (response.status === 404) return null
-    if (!response.ok) throw new Error('账户模型凭据同步失败')
+    const networkMs = Date.now() - networkStarted
+    if (response.status === 404) {
+      console.info(`[startup] account.modelCredential 404 network=${networkMs}ms total=${Date.now() - started}ms`)
+      return null
+    }
+    if (!response.ok) {
+      console.info(`[startup] account.modelCredential fail http=${response.status} network=${networkMs}ms total=${Date.now() - started}ms`)
+      throw new Error('账户模型凭据同步失败')
+    }
     const payload = await response.json().catch(() => ({}))
     const credential = payload?.credential
     const apiKey = String(credential?.apiKey ?? '').trim()
     const baseUrl = String(credential?.baseUrl ?? '').replace(/\/+$/u, '')
     if (credential?.provider !== 'tokenflux' || baseUrl !== TOKENFLUX_BASE_URL || !apiKey) {
+      console.info(`[startup] account.modelCredential invalid network=${networkMs}ms total=${Date.now() - started}ms`)
       throw new Error('账户模型凭据无效')
     }
+    console.info(`[startup] account.modelCredential ok network=${networkMs}ms total=${Date.now() - started}ms`)
     return {
       provider: 'tokenflux',
       baseUrl,

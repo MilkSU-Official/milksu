@@ -62,8 +62,11 @@ const hasFooter = computed(() => Boolean(slots.footer))
   pointer-events: none;
 }
 
-.tactical-panel-shell[data-panel-size='compact'] { width: 20rem; }
-.tactical-panel-shell[data-panel-size='wide'] { width: clamp(22rem, 34cqi, 34rem); }
+/* Keep environment / changes / artifacts / browser on one rail width. */
+.tactical-panel-shell[data-panel-size='compact'],
+.tactical-panel-shell[data-panel-size='wide'] {
+  width: clamp(22rem, 30cqi, 28rem);
+}
 .tactical-panel-shell[data-panel-size='drawer'] { width: clamp(16rem, 22vw, 19rem); }
 
 .tactical-panel-shell__header {

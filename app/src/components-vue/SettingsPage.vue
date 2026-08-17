@@ -307,8 +307,20 @@ const defaultModelLabel = computed(() => {
 /** Keep active_provider/model on an enabled callable service after toggles. */
 function alignDefaultModelToEnabledServices() {
   if (!working.value) return
+  // Retired official providers (deepseek, …) must never remain the active path.
+  if (
+    working.value.active_provider !== 'tokenflux'
+    && !working.value.providers[working.value.active_provider]?.custom
+  ) {
+    working.value.active_provider = 'tokenflux'
+  }
   const callable = availableProviders.value
-  if (callable.length === 0) return
+  if (callable.length === 0) {
+    if (working.value.active_provider !== 'tokenflux') {
+      working.value.active_provider = 'tokenflux'
+    }
+    return
+  }
   const current = callable.find(provider => (
     provider.id === working.value?.active_provider
     && provider.models.includes(working.value.active_model)
@@ -563,15 +575,50 @@ function serviceStatusClass(row: ModelServiceRow): string {
   return 'text-muted-foreground'
 }
 
+/** Preferred TokenFlux path from model_routing (account vs personal Key). */
+function preferredTokenfluxSource(): 'account' | 'personal' | null {
+  if (!working.value) return null
+  const order = working.value.model_routing?.source_order ?? []
+  const accountOn = Boolean(accountRoute.value?.enabled && accountModelSourceReady.value)
+  const personalOn = Boolean(
+    providerConfig('tokenflux')?.enabled
+    && (providerConfig('tokenflux')?.has_api_key || String(providerConfig('tokenflux')?.api_key ?? '').trim()),
+  )
+  for (const source of order) {
+    if (source === 'account' && accountOn) return 'account'
+    if (source === 'personal' && personalOn) return 'personal'
+  }
+  if (accountOn) return 'account'
+  if (personalOn) return 'personal'
+  return null
+}
+
 function serviceIsActiveDefault(row: ModelServiceRow): boolean {
   if (!working.value) return false
   if (row.source === 'account') {
-    return working.value.active_provider === 'tokenflux'
-      && Boolean(accountRoute.value?.enabled)
-      && accountModelSourceReady.value
+    return preferredTokenfluxSource() === 'account'
+  }
+  if (row.provider.id === 'tokenflux') {
+    return preferredTokenfluxSource() === 'personal'
+      && working.value.active_provider === 'tokenflux'
   }
   return working.value.active_provider === row.provider.id
     && Boolean(providerConfig(row.provider.id)?.enabled)
+}
+
+function serviceRoleLabel(row: ModelServiceRow): string {
+  if (!working.value) return ''
+  if (row.source === 'account') {
+    if (!accountRoute.value?.enabled || !accountModelSourceReady.value) return ''
+    return preferredTokenfluxSource() === 'account' ? '当前优先' : '已启用备用'
+  }
+  if (row.provider.id === 'tokenflux') {
+    const config = providerConfig('tokenflux')
+    if (!config?.enabled || !(config.has_api_key || config.api_key)) return ''
+    return preferredTokenfluxSource() === 'personal' ? '当前优先' : '已启用备用'
+  }
+  if (serviceIsActiveDefault(row)) return '当前默认服务'
+  return ''
 }
 
 function openProviderEditor(id: string) {
@@ -1603,6 +1650,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
 
             <p class="mt-1 text-caption text-muted-foreground">
               默认模型列表来自下方已启用的服务；Coding 输入框使用同一套列表。
+              MilkSU 账户与 TokenFlux 中转站可同时开启：标「当前优先」的会先用，另一个仅在优先来源不可用且你允许回退时使用。
             </p>
 
             <div class="model-service-list mt-4 overflow-hidden rounded-lg border border-border bg-card">
@@ -1625,8 +1673,24 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                   <p class="truncate font-medium">
                     {{ row.source === 'account' ? 'MilkSU 账户' : providerServiceName(row.provider) }}
                   </p>
-                  <p v-if="serviceIsActiveDefault(row)" class="text-caption text-primary">
-                    当前默认服务
+                  <p
+                    v-if="serviceRoleLabel(row)"
+                    class="text-caption"
+                    :class="serviceIsActiveDefault(row) ? 'text-primary' : 'text-muted-foreground'"
+                  >
+                    {{ serviceRoleLabel(row) }}
+                  </p>
+                  <p
+                    v-if="row.source === 'account'"
+                    class="mt-0.5 text-caption text-muted-foreground"
+                  >
+                    登录后由管理员分配的 TokenFlux 配额
+                  </p>
+                  <p
+                    v-else-if="row.provider.id === 'tokenflux'"
+                    class="mt-0.5 text-caption text-muted-foreground"
+                  >
+                    你自己的 TokenFlux API Key
                   </p>
                 </div>
 

@@ -301,20 +301,20 @@ func TestStorePersistsAndInvalidatesModelVerification(t *testing.T) {
 		t.Fatal(err)
 	}
 	settings := DefaultSettings()
-	settings.ActiveProvider = "deepseek"
-	settings.ActiveModel = "deepseek-v4-flash"
-	settings.Providers["deepseek"] = ProviderConfig{APIKey: "provider-secret", Enabled: true}
+	settings.ActiveProvider = "tokenflux"
+	settings.ActiveModel = "x-ai/grok-4.6"
+	settings.Providers["tokenflux"] = ProviderConfig{APIKey: "provider-secret", Enabled: true}
 	if err := store.Save(settings); err != nil {
 		t.Fatal(err)
 	}
 	verifiedAt := time.Date(2026, 7, 31, 4, 30, 0, 0, time.UTC)
-	if err := store.RecordModelVerification("deepseek", "deepseek-v4-flash", verifiedAt); err != nil {
+	if err := store.RecordModelVerification("tokenflux", "x-ai/grok-4.6", verifiedAt); err != nil {
 		t.Fatal(err)
 	}
 	verification := store.Get().ModelVerified
 	if verification == nil ||
-		verification.Provider != "deepseek" ||
-		verification.Model != "deepseek-v4-flash" ||
+		verification.Provider != "tokenflux" ||
+		verification.Model != "x-ai/grok-4.6" ||
 		verification.VerifiedAt != "2026-07-31T04:30:00Z" {
 		t.Fatalf("unexpected model verification: %#v", verification)
 	}
@@ -328,7 +328,7 @@ func TestStorePersistsAndInvalidatesModelVerification(t *testing.T) {
 	}
 
 	changed := reloaded.Get()
-	changed.ActiveModel = "deepseek-v4-pro"
+	changed.ActiveModel = "x-ai/grok-4.5"
 	if err := reloaded.Save(changed); err != nil {
 		t.Fatal(err)
 	}
@@ -343,11 +343,11 @@ func TestStoreValidatesBaseURLAndInvalidatesVerificationWhenItChanges(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	firstURL := "https://api.deepseek.com"
+	firstURL := "https://tokenflux.dev/v1"
 	settings := DefaultSettings()
-	settings.ActiveProvider = "deepseek"
-	settings.ActiveModel = "deepseek-v4-flash"
-	settings.Providers["deepseek"] = ProviderConfig{
+	settings.ActiveProvider = "tokenflux"
+	settings.ActiveModel = "x-ai/grok-4.6"
+	settings.Providers["tokenflux"] = ProviderConfig{
 		APIKey:  "provider-secret",
 		BaseURL: &firstURL,
 		Enabled: true,
@@ -355,15 +355,15 @@ func TestStoreValidatesBaseURLAndInvalidatesVerificationWhenItChanges(t *testing
 	if err := store.Save(settings); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.RecordModelVerification("deepseek", "deepseek-v4-flash", time.Now()); err != nil {
+	if err := store.RecordModelVerification("tokenflux", "x-ai/grok-4.6", time.Now()); err != nil {
 		t.Fatal(err)
 	}
 
 	changed := store.Get()
 	secondURL := "https://gateway.example.test/v1"
-	provider := changed.Providers["deepseek"]
+	provider := changed.Providers["tokenflux"]
 	provider.BaseURL = &secondURL
-	changed.Providers["deepseek"] = provider
+	changed.Providers["tokenflux"] = provider
 	if err := store.Save(changed); err != nil {
 		t.Fatal(err)
 	}
@@ -373,9 +373,9 @@ func TestStoreValidatesBaseURLAndInvalidatesVerificationWhenItChanges(t *testing
 
 	invalid := store.Get()
 	badURL := "file:///tmp/provider"
-	provider = invalid.Providers["deepseek"]
+	provider = invalid.Providers["tokenflux"]
 	provider.BaseURL = &badURL
-	invalid.Providers["deepseek"] = provider
+	invalid.Providers["tokenflux"] = provider
 	if err := store.Save(invalid); err == nil || !strings.Contains(err.Error(), "must use http or https") {
 		t.Fatalf("expected invalid provider Base URL rejection, got %v", err)
 	}

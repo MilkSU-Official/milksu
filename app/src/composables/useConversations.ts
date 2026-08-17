@@ -379,7 +379,10 @@ export function agentRuntimeErrorMessage(value: unknown) {
     /both model sources are unavailable|enable the personal API key|add a personal API key|connect the beta account quota/i
       .test(raw)
   ) {
-    return '当前模型没有可用的账户或个人凭据。请刷新账户状态，或在“授权与模型”中配置并启用个人 API Key。'
+    return '当前模型没有可用的账户或个人凭据。请在设置 → 授权与模型中启用 MilkSU 账户或 TokenFlux 中转站，并重新选择默认模型后重试。'
+  }
+  if (/model provider .* is not supported|provider .* is not supported by the local Agent runtime/i.test(raw)) {
+    return '当前默认模型仍指向已停用的原厂服务。请打开设置 → 授权与模型，把默认模型改成 TokenFlux 或自定义中转站后重试。'
   }
   if (
     /COMPOSITE_KEY_MODEL_PREFIX_REQUIRED|composite api key model must use prefix\/model_id/i
