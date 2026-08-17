@@ -407,6 +407,17 @@ async function officialCuaDriverRuntime(platform) {
   }
 }
 
+function verifiedGoplsDownload(moduleDownload) {
+  return moduleDownload.Path === goplsSource.module
+    && moduleDownload.Version === `v${goplsVersion}`
+    && moduleDownload.Sum === goplsSource.moduleSum
+    && moduleDownload.GoModSum === goplsSource.goModSum
+    && moduleDownload.Origin?.URL === goplsSource.originURL
+    && moduleDownload.Origin?.Hash === goplsSource.originHash
+    && moduleDownload.Origin?.Ref === goplsSource.originRef
+    && typeof moduleDownload.Dir === 'string'
+}
+
 async function officialGoplsRuntime(platform) {
   const [goos, goarch] = platform.split('/')
   if (!['darwin', 'linux', 'windows'].includes(goos) || !['arm64', 'amd64'].includes(goarch)) {
@@ -457,27 +468,32 @@ async function officialGoplsRuntime(platform) {
   }
 
   const moduleReference = `${goplsSource.module}@v${goplsVersion}`
-  const { stdout: moduleDownloadOutput } = await execFileAsync(
+  const downloadModule = envOverrides => execFileAsync(
     'go',
     ['mod', 'download', '-json', moduleReference],
     {
       cwd: repositoryRoot,
       maxBuffer: 4 * 1024 * 1024,
       timeout: 120_000,
+      env: { ...process.env, ...envOverrides },
     },
-  )
-  const moduleDownload = JSON.parse(moduleDownloadOutput)
-  if (
-    moduleDownload.Path !== goplsSource.module
-    || moduleDownload.Version !== `v${goplsVersion}`
-    || moduleDownload.Sum !== goplsSource.moduleSum
-    || moduleDownload.GoModSum !== goplsSource.goModSum
-    || moduleDownload.Origin?.URL !== goplsSource.originURL
-    || moduleDownload.Origin?.Hash !== goplsSource.originHash
-    || moduleDownload.Origin?.Ref !== goplsSource.originRef
-    || typeof moduleDownload.Dir !== 'string'
-  ) {
-    throw new Error(`gopls source verification failed: ${moduleDownloadOutput}`)
+  ).then(result => JSON.parse(result.stdout))
+  const moduleDownload = await downloadModule({})
+  if (!verifiedGoplsDownload(moduleDownload)) {
+    // Third-party module proxies (for example goproxy.cn) omit the Origin
+    // provenance metadata, and the stripped .info then sticks in the shared
+    // module cache. Re-fetch through the official proxy into an isolated
+    // GOMODCACHE so verification stays hermetic and the user cache untouched.
+    const isolatedCache = join(repositoryRoot, 'build', 'sidecar-cache', 'gomodcache')
+    await mkdir(isolatedCache, { recursive: true })
+    const refetched = await downloadModule({
+      GOPROXY: 'https://proxy.golang.org,direct',
+      GOMODCACHE: isolatedCache,
+    })
+    if (!verifiedGoplsDownload(refetched)) {
+      throw new Error('gopls source verification failed: module proxy did not provide the pinned Origin metadata')
+    }
+    Object.assign(moduleDownload, refetched)
   }
   const sourceLicense = join(moduleDownload.Dir, 'LICENSE')
   if (!await exists(sourceLicense)) {
