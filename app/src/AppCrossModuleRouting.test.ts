@@ -71,14 +71,9 @@ function createMockConversations() {
     load: vi.fn(async () => undefined),
     listen: vi.fn(async () => undefined),
     startNew: vi.fn(() => {
-      const id = `coding-${conversationRows.value.length + 1}`
-      conversationRows.value.push(baseConversation({
-        id,
-        title: 'New Coding',
-        createdAt: Date.now(),
-      }))
-      activeId.value = id
-      return id
+      // Matches useConversations.startNew: blank draft with no active row.
+      activeId.value = null
+      return null
     }),
     ensureConversation: vi.fn((title: string, options: {
       conversationId?: string
@@ -422,17 +417,6 @@ vi.mock('@/components-vue/SettingsPage.vue', () => ({
   }),
 }))
 
-vi.mock('@/components-vue/StartupRecoveryBanner.vue', () => ({
-  __esModule: true,
-  default: defineComponent({
-    name: 'StartupRecoveryBanner',
-    emits: ['dismiss', 'openRecovery'],
-    setup() {
-      return () => h('section', { 'aria-label': 'mock recovery banner' }, 'Recovery')
-    },
-  }),
-}))
-
 const mountedApps: VueApp[] = []
 let localAccountStore = new Map<string, string>()
 
@@ -598,18 +582,21 @@ describe('App cross-module routing', () => {
     expect(hoisted.conversations?.send).not.toHaveBeenCalled()
   })
 
-  it('restores Coding navigation to the remembered non-CTF conversation after visiting a CTF Agent', async () => {
+  it('opens a blank Coding draft when navigating to Coding instead of restoring the last chat', async () => {
     const { host } = await mountApp()
 
     host.querySelector<HTMLButtonElement>('[aria-label="open CTF in coding"]')?.click()
     await flushAsyncComponents()
+    expect(hoisted.conversations?.activeId.value).toBe('ctf-job-1')
+
     host.querySelector<HTMLButtonElement>('[aria-label="navigate Coding"]')?.click()
     await flushAsyncComponents()
 
     expect(host.querySelector('[aria-label="mock Chat page"]')).not.toBeNull()
-    expect(host.querySelector('[data-chat-conversation]')?.textContent).toBe('coding-existing')
+    expect(hoisted.conversations?.startNew).toHaveBeenCalled()
+    // Blank draft: no active conversation until the user sends or picks history.
+    expect(hoisted.conversations?.activeId.value).toBeNull()
     expect(host.querySelector('[data-chat-ctf-session]')?.textContent).toBe('false')
-    expect(hoisted.conversations?.activeId.value).toBe('coding-existing')
   })
 
   it('routes an explicit linked Coding conversation through the existing conversation store', async () => {

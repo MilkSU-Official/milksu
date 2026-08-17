@@ -29,6 +29,8 @@ const emit = defineEmits<{
   deleteConversation: [id: string]
   navigateCtf: [value: CTFWorkspaceSection]
   openCodingContext: []
+  /** Collapse the open Coding history panel (button lives in the panel header). */
+  collapseCodingContext: []
 }>()
 
 const railSection = computed(() => props.activeSection)
@@ -68,13 +70,14 @@ const showCodingHistory = computed(() => (
         :conversations="conversations"
         :ctf-section="ctfSection"
         @new="$emit('new')"
+        @collapse="$emit('collapseCodingContext')"
         @select-conversation="$emit('selectConversation', $event)"
         @delete-conversation="$emit('deleteConversation', $event)"
         @navigate-ctf="$emit('navigateCtf', $event)"
       />
     </section>
 
-    <!-- Collapsed: expand only via Coding topbar (single control). -->
+    <!-- Collapsed: expand + new-task icons appear on the Coding topbar leading slot. -->
   </aside>
 </template>
 

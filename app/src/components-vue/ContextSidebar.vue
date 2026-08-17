@@ -6,10 +6,10 @@ import {
 } from '@felinic/ui'
 import {
   Boxes,
-  ChevronRight,
   Folder,
   Library,
   MessageSquarePlus,
+  PanelLeftClose,
   Radar,
   Search,
   Trash2,
@@ -35,6 +35,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   new: []
+  /** Collapse the Coding history panel (control lives in this header while open). */
+  collapse: []
   selectConversation: [id: string]
   deleteConversation: [id: string]
   navigateCtf: [value: CTFWorkspaceSection]
@@ -114,9 +116,27 @@ watch(
     </nav>
 
     <div v-else-if="codingContext" class="coding-context-content app-no-drag flex min-h-0 flex-1 flex-col overflow-hidden">
-      <!-- Collapse/expand lives only on the Coding topbar; history panel is content-only. -->
-      <div class="shrink-0 px-3 pt-2">
-        <div class="flex items-center gap-2">
+      <!--
+        Open history header:
+        1) collapse + compact new-task icon (same pair that parks on the topbar when closed)
+        2) full-width “新会话” button on the next row
+      -->
+      <div class="coding-history-header shrink-0 px-3 pt-2">
+        <div class="flex items-center gap-1.5">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            class="coding-history-toggle app-no-drag shrink-0"
+            data-testid="coding-history-toggle"
+            aria-label="收起会话历史"
+            title="收起会话历史"
+            :aria-expanded="true"
+            aria-controls="coding-context-sidebar"
+            @click="$emit('collapse')"
+          >
+            <PanelLeftClose class="size-4" />
+          </Button>
           <Button
             type="button"
             variant="ghost"
@@ -129,11 +149,13 @@ watch(
           >
             <MessageSquarePlus class="size-4" />
           </Button>
+        </div>
+        <div class="mt-2">
           <Button
             type="button"
             variant="outline"
             size="sm"
-            class="coding-new-session-button app-no-drag min-h-8 min-w-0 flex-1 justify-center"
+            class="coding-new-session-button app-no-drag min-h-8 w-full justify-center"
             @click="$emit('new')"
           >
             新会话
@@ -166,14 +188,14 @@ watch(
                 :title="group.paths.length ? group.paths.join('\n') : group.name"
                 @click="openSingleConversation($event, group)"
               >
-                <ChevronRight class="coding-project-chevron size-3.5 shrink-0 text-muted-foreground" />
                 <Folder class="size-4 shrink-0 text-muted-foreground" />
                 <span class="min-w-0 flex-1 truncate">{{ group.name }}</span>
                 <span class="coding-project-count font-normal tabular-nums text-muted-foreground">
                   {{ group.conversations.length }}
                 </span>
               </summary>
-              <div class="ml-5 mt-0.5 space-y-0.5 border-l border-border/70 pl-1.5">
+              <!-- Child title starts under the folder name (right of the folder icon). -->
+              <div class="coding-project-children mt-0.5 space-y-0.5">
                 <div
                   v-for="conversation in group.conversations"
                   :key="conversation.id"
@@ -184,7 +206,7 @@ watch(
                   <Button
                     variant="ghost"
                     size="sm"
-                    class="coding-project-row h-7 min-w-0 flex-1 justify-start pl-2"
+                    class="coding-project-row coding-project-child h-7 min-w-0 flex-1 justify-start"
                     @click.stop="$emit('selectConversation', conversation.id)"
                   >
                     <span class="truncate">{{ conversation.title }}</span>
@@ -215,13 +237,12 @@ watch(
               title="未绑定项目的编码任务"
               @click="openSingleConversation($event, temporaryGroup)"
             >
-              <ChevronRight class="coding-project-chevron size-3.5 shrink-0 text-muted-foreground" />
               <span class="min-w-0 flex-1 truncate">{{ temporaryGroup.name }}</span>
               <span class="coding-project-count font-normal tabular-nums text-muted-foreground">
                 {{ temporaryGroup.conversations.length }}
               </span>
             </summary>
-            <div class="mt-0.5 space-y-0.5 pl-5">
+            <div class="coding-project-children mt-0.5 space-y-0.5">
               <div
                 v-for="conversation in temporaryGroup.conversations"
                 :key="conversation.id"
@@ -232,7 +253,7 @@ watch(
                 <Button
                   variant="ghost"
                   size="sm"
-                  class="coding-project-row h-7 min-w-0 flex-1 justify-start pl-2"
+                  class="coding-project-row coding-project-child h-7 min-w-0 flex-1 justify-start"
                   @click.stop="$emit('selectConversation', conversation.id)"
                 >
                   <span class="truncate">{{ conversation.title }}</span>
@@ -267,6 +288,7 @@ watch(
   letter-spacing: var(--text-label--letter-spacing);
 }
 
+.coding-history-toggle,
 .coding-new-task-icon,
 .coding-new-session-button {
   -webkit-app-region: no-drag;
@@ -324,13 +346,14 @@ watch(
   letter-spacing: var(--text-control--letter-spacing);
 }
 
-.coding-project-group[open] > summary .coding-project-chevron,
-.coding-temporary-group[open] > summary .coding-project-chevron {
-  transform: rotate(90deg);
-}
-
-.coding-project-chevron {
-  transition: transform 140ms ease;
+/*
+ * Align nested task titles with the folder name column:
+ * parent summary uses px-3 + Folder(size-4) + gap-2 before the name.
+ * Override Button sm horizontal padding so the first glyph sits on that column.
+ */
+.coding-project-child {
+  padding-inline-start: calc(0.75rem + 1rem + 0.5rem) !important;
+  padding-inline-end: 0.5rem !important;
 }
 
 .context-nav-active {

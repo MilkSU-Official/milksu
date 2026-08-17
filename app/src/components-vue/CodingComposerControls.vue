@@ -26,12 +26,14 @@ import {
 import type { CodingApprovalPolicy } from '@/types'
 import {
   encodeComposerModelKey,
+  parseComposerModelKey,
   useModelCatalog,
 } from '@/modelCatalog'
+import ModelVendorIcon from '@/components-vue/ModelVendorIcon.vue'
 
 const { pickerGroups, pickerModelLabel } = useModelCatalog()
 
-defineProps<{
+const props = defineProps<{
   running: boolean
   ctfSession: boolean
   approvalPolicy: CodingApprovalPolicy
@@ -46,6 +48,15 @@ defineEmits<{
   changeModel: [value: string]
   showPermissions: []
 }>()
+
+/** Text fed to keyword matching for the closed trigger. */
+function triggerModelText() {
+  if (props.modelKey === 'auto') {
+    return `${props.automaticModelLabel} ${props.compactModelLabel}`
+  }
+  const parsed = parseComposerModelKey(props.modelKey)
+  return `${parsed.model ?? ''} ${props.compactModelLabel}`
+}
 </script>
 
 <template>
@@ -156,13 +167,21 @@ defineEmits<{
           ? '使用 MilkSU 默认模型；你可以仅为当前对话覆盖'
           : '当前对话固定使用所选模型'"
       >
-        <SelectValue>{{ compactModelLabel }}</SelectValue>
+        <SelectValue>
+          <span class="inline-flex min-w-0 items-center gap-1.5">
+            <ModelVendorIcon :model="triggerModelText()" class="opacity-90" />
+            <span class="min-w-0 truncate">{{ compactModelLabel }}</span>
+          </span>
+        </SelectValue>
       </SelectTrigger>
       <SelectContent size="sm" align="start" :align-offset="0" class="min-w-96">
         <SelectGroup>
           <SelectLabel>Default</SelectLabel>
           <SelectItem value="auto">
-            {{ automaticModelLabel }}
+            <span class="inline-flex min-w-0 items-center gap-2">
+              <ModelVendorIcon :model="automaticModelLabel" />
+              <span class="min-w-0 truncate">{{ automaticModelLabel }}</span>
+            </span>
           </SelectItem>
         </SelectGroup>
         <SelectSeparator v-if="pickerGroups.length" />
@@ -178,7 +197,13 @@ defineEmits<{
               :key="`${group.key}:${model}`"
               :value="encodeComposerModelKey(group.providerId, model, group.source)"
             >
-              {{ pickerModelLabel(group, model) }}
+              <span class="inline-flex min-w-0 items-center gap-2">
+                <ModelVendorIcon
+                  :model="model"
+                  :label="pickerModelLabel(group, model)"
+                />
+                <span class="min-w-0 truncate">{{ pickerModelLabel(group, model) }}</span>
+              </span>
             </SelectItem>
           </SelectGroup>
         </template>

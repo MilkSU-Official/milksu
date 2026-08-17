@@ -355,6 +355,11 @@ export function parseComposerModelKey(value: string): {
   return { mode: 'manual', providerId, model, source }
 }
 
+/**
+ * Label for one model row inside a picker group.
+ * Group headings already name the service (MilkSU 账户 / TokenFlux / custom relay),
+ * so rows only show the model display name — no repeated service prefix.
+ */
 export function pickerModelLabel(
   group: PickerServiceGroup,
   model: string,
@@ -362,8 +367,7 @@ export function pickerModelLabel(
 ): string {
   const catalogName = (catalog ?? credentialedCatalog(group.providerId))?.models
     .find(item => item.id === model)?.name
-  const modelName = catalogName || model
-  return `${group.label} · ${modelName}`
+  return catalogName || model
 }
 
 const providers = computed(() => callableProviders(

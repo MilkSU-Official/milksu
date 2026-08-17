@@ -72,8 +72,6 @@ import type {
   ModelProbeResult,
   ProviderConfig,
   ProviderInfo,
-  PreviousExitState,
-  StartupRecoveryStatus,
 } from '@/types'
 import {
   withAppSettingsDefaults,
@@ -88,6 +86,7 @@ import {
 } from '@/modelCatalog'
 import VulnerabilityIntelSettingsPanel from '@/components-vue/VulnerabilityIntelSettingsPanel.vue'
 import SecurityToolsSettingsPanel from '@/components-vue/SecurityToolsSettingsPanel.vue'
+import ModelVendorIcon from '@/components-vue/ModelVendorIcon.vue'
 import type { SecurityToolCodingHandoff } from '@/securityToolsTypes'
 import { useVulnerabilityDashboard, type VulnerabilityDashboard } from '@/composables/useVulnerabilityDashboard'
 import { CODING_SKILLS } from '@/codingSkills'
@@ -138,7 +137,6 @@ const localData = ref<LocalDataStatus | null>(null)
 const userArtifacts = ref<UserArtifactDirectoryStatus | null>(null)
 const computerUseStatus = ref<CodingComputerUseStatus | null>(null)
 const browserBridgeStatus = ref<NSSCTFWebBridgeStatus | null>(null)
-const recoveryStatus = ref<StartupRecoveryStatus | null>(null)
 const buildTracking = ref<BuildTracking | null>(null)
 const buildTrackingCopying = ref(false)
 const notice = ref<{ tone: 'ok' | 'error'; text: string } | null>(null)
@@ -181,18 +179,6 @@ const databaseStateLabels: Record<DatabaseCompatibilityState, string> = {
   newer: '数据库较新',
   corrupt: '损坏或不可读',
   remaining: '尚未纳入迁移',
-}
-
-const previousExitLabels: Record<PreviousExitState, string> = {
-  none: '首次启动',
-  clean: '正常退出',
-  abnormal: '异常退出',
-}
-
-const previousExitVariants: Record<PreviousExitState, 'secondary' | 'destructive' | 'outline'> = {
-  none: 'outline',
-  clean: 'secondary',
-  abnormal: 'destructive',
 }
 
 const databaseStateVariants: Record<DatabaseCompatibilityState, 'secondary' | 'destructive' | 'outline'> = {
@@ -667,12 +653,7 @@ function formatBytes(value: number) {
 async function loadLocalData() {
   localDataLoading.value = true
   try {
-    const [status, recovery] = await Promise.all([
-      invokeCommand<LocalDataStatus>('get_local_data_status'),
-      invokeCommand<StartupRecoveryStatus>('get_startup_recovery_status').catch(() => null),
-    ])
-    localData.value = status
-    recoveryStatus.value = recovery
+    localData.value = await invokeCommand<LocalDataStatus>('get_local_data_status')
   } catch (reason) {
     notice.value = { tone: 'error', text: `无法读取本地数据状态：${String(reason)}` }
   } finally {
@@ -738,38 +719,6 @@ async function copyBuildTracking() {
     buildTrackingCopying.value = false
   }
 }
-
-function formatLocalTimestamp(value?: string) {
-  if (!value) return ''
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString('zh-CN', { hour12: false })
-}
-
-const recoveryDescription = computed(() => {
-  const status = recoveryStatus.value
-  if (!status) return ''
-  const parts: string[] = []
-  if (status.previousExit === 'abnormal' && status.previousStartedAt) {
-    parts.push(`上次启动于 ${formatLocalTimestamp(status.previousStartedAt)}`)
-  }
-  if (status.lastCleanExitAt) {
-    parts.push(`上次正常退出 ${formatLocalTimestamp(status.lastCleanExitAt)}`)
-  }
-  if (status.previousPid) {
-    parts.push(`上次进程 ${status.previousPid}`)
-  }
-  if (status.consecutiveAbnormalExits > 0) {
-    parts.push(`连续 ${status.consecutiveAbnormalExits} 次异常退出`)
-  }
-  if (status.previousExit === 'none') {
-    parts.push('尚无历史启动记录')
-  }
-  if (status.startedAt) {
-    parts.push(`本次启动 ${formatLocalTimestamp(status.startedAt)}`)
-  }
-  return parts.join(' · ')
-})
 
 const computerUsePermissionsReady = computed(() => Boolean(
   computerUseStatus.value?.permissions.accessibility
@@ -1220,15 +1169,6 @@ async function saveProviderEditor(closeAfterSave: boolean) {
           </SettingsSection>
           <SettingsSection title="本地数据" class="mt-6">
             <SettingsRow
-              v-if="recoveryStatus"
-              label="启动与退出状态"
-              :description="recoveryDescription || '异常退出时会在下次启动提供恢复与诊断入口'"
-            >
-              <Badge :variant="previousExitVariants[recoveryStatus.previousExit]">
-                {{ previousExitLabels[recoveryStatus.previousExit] }}
-              </Badge>
-            </SettingsRow>
-            <SettingsRow
               stack="always"
               label="数据与备份"
               :description="localDataLoading
@@ -1574,13 +1514,27 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                   class="min-w-72"
                   aria-label="默认模型"
                 >
-                  <SelectValue>{{ defaultModelLabel }}</SelectValue>
+                  <SelectValue>
+                    <span class="inline-flex min-w-0 items-center gap-2">
+                      <ModelVendorIcon
+                        :model="working?.active_model ?? ''"
+                        :label="defaultModelLabel"
+                      />
+                      <span class="min-w-0 truncate">{{ defaultModelLabel }}</span>
+                    </span>
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent size="sm" align="start" class="min-w-96">
                   <SelectGroup v-if="!defaultModelAvailable && defaultModelKey">
                     <SelectLabel>当前选择</SelectLabel>
                     <SelectItem :value="defaultModelKey" disabled>
-                      {{ defaultModelLabel }}（当前不可用）
+                      <span class="inline-flex min-w-0 items-center gap-2">
+                        <ModelVendorIcon
+                          :model="working?.active_model ?? ''"
+                          :label="defaultModelLabel"
+                        />
+                        <span class="min-w-0 truncate">{{ defaultModelLabel }}（当前不可用）</span>
+                      </span>
                     </SelectItem>
                   </SelectGroup>
                   <SelectSeparator v-if="!defaultModelAvailable && availablePickerGroups.length" />
@@ -1596,7 +1550,13 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                         :key="`${group.key}:${model}`"
                         :value="encodePickerSelection(group.providerId, model, group.source)"
                       >
-                        {{ availablePickerModelLabel(group, model) }}
+                        <span class="inline-flex min-w-0 items-center gap-2">
+                          <ModelVendorIcon
+                            :model="model"
+                            :label="availablePickerModelLabel(group, model)"
+                          />
+                          <span class="min-w-0 truncate">{{ availablePickerModelLabel(group, model) }}</span>
+                        </span>
                       </SelectItem>
                     </SelectGroup>
                   </template>

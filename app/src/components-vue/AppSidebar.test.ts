@@ -70,7 +70,7 @@ describe('AppSidebar', () => {
     }]
     const closed = await mountSidebar('chat', conversations, 'dark', vi.fn(), false)
     expect(closed.querySelector('[data-testid="coding-context-drawer"]')).toBeNull()
-    // Collapsed history has no extra strip; expand lives on the Coding topbar only.
+    // Collapsed: no panel strip; expand + new-task live on the Coding topbar.
     expect(closed.querySelector('[aria-label="展开会话历史"]')).toBeNull()
     expect(closed.querySelector('[data-testid="coding-history-expand"]')).toBeNull()
     expect(closed.textContent).not.toContain('新会话')
@@ -89,22 +89,24 @@ describe('AppSidebar', () => {
     expect(panel?.className).toContain('coding-history-panel')
     expect(panel?.className).toContain('app-no-drag')
     expect(coding.querySelector('[aria-label="关闭 Coding 会话"]')).toBeNull()
-    // Collapse control is only on the Coding topbar, not inside the history panel.
-    expect(coding.querySelector('[aria-label="收起会话历史"]')).toBeNull()
+    // Open panel: collapse sits in the first header row; new-task one row below.
+    expect(coding.querySelector('[aria-label="收起会话历史"]')).not.toBeNull()
+    expect(coding.querySelector('[data-testid="coding-history-toggle"]')).not.toBeNull()
     expect(coding.querySelector('[data-testid="coding-new-task-button"]')).not.toBeNull()
     expect(appSidebarSource).not.toContain('coding-context-backdrop')
     expect(appSidebarSource).not.toContain('coding-history-toolbar')
     expect(appSidebarSource).not.toContain('left: 100%')
     expect(contextSidebarSource).toContain('coding-context-archive app-no-drag')
     expect(contextSidebarSource).not.toContain('Task archive')
-    expect(contextSidebarSource).not.toContain('收起会话历史')
+    expect(contextSidebarSource).toContain('收起会话历史')
+    expect(contextSidebarSource).toContain('coding-history-header')
   })
 
   it('keeps collapsed Coding history without a leftover expand strip', async () => {
     const host = await mountSidebar('chat', [], 'dark', vi.fn(), false)
     expect(host.querySelector('[data-testid="coding-context-drawer"]')).toBeNull()
     expect(host.querySelector('[data-testid="coding-history-expand"]')).toBeNull()
-    // Expand must come from Coding topbar, not a second control in the rail.
+    // Expand + new-task park on the Coding topbar, not a rail strip.
     expect(host.querySelector('[aria-label="展开会话历史"]')).toBeNull()
   })
 
@@ -119,6 +121,30 @@ describe('AppSidebar', () => {
     newTask?.click()
     await nextTick()
     expect(onNew).toHaveBeenCalledOnce()
+  })
+
+  it('emits collapse from the open-panel history toggle', async () => {
+    const onCollapse = vi.fn()
+    const host = document.createElement('div')
+    document.body.append(host)
+    const app = createApp(AppSidebar, {
+      activeSection: 'chat',
+      accountStatus: { configured: false, authenticated: false, state: 'unconfigured' },
+      activeConversationId: null,
+      conversations: [],
+      ctfSection: 'catalog',
+      codingContextOpen: true,
+      themeMode: 'dark',
+      onCollapseCodingContext: onCollapse,
+    })
+    app.mount(host)
+    mountedApps.push(app)
+    await nextTick()
+    const collapse = host.querySelector<HTMLButtonElement>('[aria-label="收起会话历史"]')
+    expect(collapse).not.toBeNull()
+    collapse?.click()
+    await nextTick()
+    expect(onCollapse).toHaveBeenCalledOnce()
   })
 
   it('keeps no-project tasks alone under the project tree without a folder icon', async () => {
@@ -145,6 +171,10 @@ describe('AppSidebar', () => {
     // No Folder icon inside the temporary block (projects still use lucide Folder).
     expect(temporary?.querySelector('svg.lucide-folder')).toBeNull()
     expect(host.querySelector('.coding-project-group svg.lucide-folder')).not.toBeNull()
+    // Flat hierarchy chrome: no chevron, no left tree rail under folders.
+    expect(host.querySelector('.coding-project-chevron')).toBeNull()
+    expect(host.querySelector('.coding-project-children.border-l')).toBeNull()
+    expect(host.querySelector('.coding-project-child')).not.toBeNull()
 
     const projectNames = [...host.querySelectorAll('.coding-project-group summary')]
       .map(node => node.textContent ?? '')

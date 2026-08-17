@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
 import AppSidebar from '@/components-vue/AppSidebar.vue'
-import StartupRecoveryBanner from '@/components-vue/StartupRecoveryBanner.vue'
 import UpdateNotification from '@/components-vue/UpdateNotification.vue'
 import { useConversations } from '@/composables/useConversations'
 import { invokeCommand, listenEvent } from '@/desktop'
@@ -19,11 +18,10 @@ import { executeVulnerabilityCodingHandoff } from '@/lib/vulnerabilityCodingHand
 import { buildCTFDomainTaskContext } from '@/lib/domainTaskContext'
 import {
   rememberWorkspaceConversation,
-  selectCodingConversationId,
   selectCTFResumePoint,
   selectReusableDomainConversationId,
 } from '@/lib/workspaceSessionRouting'
-import { withAppSettingsDefaults, type AccountStatus, type AppSettings, type CTFChatAction, type StartupRecoveryStatus, type UpdateStatus } from '@/types'
+import { withAppSettingsDefaults, type AccountStatus, type AppSettings, type CTFChatAction, type UpdateStatus } from '@/types'
 import type { ModelCatalogSnapshot } from '@/types'
 import { installAppModelSettings, installModelCatalog, loadModelCatalog } from '@/modelCatalog'
 import type { SecurityToolCodingHandoff } from '@/securityToolsTypes'
@@ -79,8 +77,6 @@ function writeLocalAccountMode(enabled: boolean) {
 }
 
 const continueWithoutAccount = ref(readLocalAccountMode())
-const recoveryStatus = ref<StartupRecoveryStatus | null>(null)
-const recoveryDismissed = ref(false)
 const updateStatus = ref<UpdateStatus | null>(null)
 const dismissedUpdateVersion = ref('')
 const themeMode = ref<ThemeMode>(readThemeMode())
@@ -223,11 +219,6 @@ function startSecurityToolCodingSetup(handoff: SecurityToolCodingHandoff) {
   section.value = 'chat'
 }
 
-function openRecovery() {
-  recoveryDismissed.value = true
-  openSettings('general')
-}
-
 function newConversation() {
   rememberActiveConversation()
   conversations.startNew()
@@ -259,19 +250,14 @@ function rememberActiveConversation() {
   lastCTFConversationId.value = remembered.ctfConversationId
 }
 
-function restoreCodingConversation() {
-  const nextId = selectCodingConversationId(
-    conversations.conversations.value,
-    conversations.activeId.value,
-    lastCodingConversationId.value,
-  )
-  if (nextId) {
-    conversations.activeId.value = nextId
-    lastCodingConversationId.value = nextId
-    return
-  }
+/**
+ * Entering Coding always opens a blank draft, not the last conversation.
+ * History stays in the left list; users reopen a prior task from there.
+ * CTF / CVE handoffs and explicit history clicks still open a concrete chat.
+ */
+function openBlankCodingWorkspace() {
   conversations.startNew()
-  lastCodingConversationId.value = null
+  activeVulnerabilityCodingConversationId.value = null
 }
 
 function restoreCTFWorkspaceResumePoint() {
@@ -292,7 +278,7 @@ function navigateSection(value: Section) {
     return
   }
   if (value === 'chat') {
-    restoreCodingConversation()
+    openBlankCodingWorkspace()
     section.value = value
     return
   }
@@ -525,13 +511,6 @@ onMounted(async () => {
     invokeCommand<UpdateStatus>('get_update_status').catch(() => null),
   )
   await conversations.listen()
-  try {
-    recoveryStatus.value = await timedStartupStep('rpc.get_startup_recovery_status', () =>
-      invokeCommand<StartupRecoveryStatus>('get_startup_recovery_status'),
-    )
-  } catch {
-    recoveryStatus.value = null
-  }
   startupLog(
     'renderer.firstPaintGateDone',
     `fromMount=${Math.round(performance.now() - mountedAt)}ms state=${accountStatus.value.state} provisional=${accountStatus.value.provisional === true}`,
@@ -556,12 +535,6 @@ onBeforeUnmount(() => {
     @continue-local="useLocalAccountMode"
   />
   <div v-else class="game-shell flex h-screen min-w-0 flex-col bg-surface-editor text-foreground">
-    <StartupRecoveryBanner
-      v-if="recoveryStatus && !recoveryDismissed"
-      :status="recoveryStatus"
-      @dismiss="recoveryDismissed = true"
-      @open-recovery="openRecovery"
-    />
     <UpdateNotification
       :status="updateStatus"
       :dismissed-version="dismissedUpdateVersion"
@@ -586,6 +559,7 @@ onBeforeUnmount(() => {
         @settings="openSettings('general')"
         @toggle-theme="toggleThemeMode"
         @open-coding-context="codingConversationDrawerOpen = true"
+        @collapse-coding-context="codingConversationDrawerOpen = false"
         @select-conversation="id => {
           conversations.activeId.value = id
           rememberActiveConversation()

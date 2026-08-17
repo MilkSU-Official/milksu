@@ -33,11 +33,16 @@ describe('Workspace visual contract', () => {
     expect(contextSidebarSource).toContain('line-height: var(--text-control--line-height)')
     expect(contextSidebarSource).toContain('data-testid="coding-new-task-button"')
     expect(contextSidebarSource).toContain('新会话')
-    expect(contextSidebarSource).not.toContain('收起会话历史')
+    // Open panel: collapse is the first header row; new-session is one row below.
+    expect(contextSidebarSource).toContain('收起会话历史')
+    expect(contextSidebarSource).toContain('coding-history-header')
     expect(contextSidebarSource).not.toContain('Task archive')
     expect(contextSidebarSource).toContain('px-3 py-1.5 text-label font-medium text-muted-foreground')
+    // Collapsed: expand + new-task park on the Coding topbar leading slot.
     expect(chatPageSource).toContain('data-testid="coding-history-toggle"')
-    expect(chatPageSource).toContain("conversationDrawerOpen ? '收起会话历史' : '展开会话历史'")
+    expect(chatPageSource).toContain('coding-history-collapsed-controls')
+    expect(chatPageSource).toContain('展开会话历史')
+    expect(chatPageSource).toContain('v-if="!conversationDrawerOpen"')
     expect(chatMessageItemSource).toContain('class="break-words text-control leading-7"')
     expect(chatComposerSource).toContain('font-size: var(--text-label)')
     expect(chatComposerSource).toContain('line-height: var(--text-label--line-height)')

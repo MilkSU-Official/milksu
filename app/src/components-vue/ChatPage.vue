@@ -37,7 +37,7 @@ import {
   KeyRound,
   LoaderCircle,
   MousePointer2,
-  PanelLeftClose,
+  MessageSquarePlus,
   PanelLeftOpen,
   PanelRightClose,
   PanelRightOpen,
@@ -1614,21 +1614,37 @@ watch(
       :title="topbarPresentation.title"
       :subtitle="topbarPresentation.subtitle"
     >
-      <template #leading>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          class="app-no-drag"
-          data-testid="coding-history-toggle"
-          :aria-label="conversationDrawerOpen ? '收起会话历史' : '展开会话历史'"
-          :title="conversationDrawerOpen ? '收起会话历史' : '展开会话历史'"
-          :aria-expanded="conversationDrawerOpen"
-          aria-controls="coding-context-sidebar"
-          @click="$emit('toggleConversationDrawer')"
-        >
-          <PanelLeftClose v-if="conversationDrawerOpen" class="size-4" />
-          <PanelLeftOpen v-else class="size-4" />
-        </Button>
+      <template v-if="!conversationDrawerOpen" #leading>
+        <!--
+          Collapsed history: the same two icons that sat in the sidebar header
+          park on the topbar leading edge so expand/new feel continuous.
+        -->
+        <div class="coding-history-collapsed-controls app-no-drag flex items-center gap-1.5">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            class="app-no-drag"
+            data-testid="coding-history-toggle"
+            aria-label="展开会话历史"
+            title="展开会话历史"
+            :aria-expanded="false"
+            aria-controls="coding-context-sidebar"
+            @click="$emit('toggleConversationDrawer')"
+          >
+            <PanelLeftOpen class="size-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            class="app-no-drag"
+            data-testid="coding-new-task-button"
+            aria-label="新建编码任务"
+            title="新建编码任务"
+            @click="$emit('newConversation')"
+          >
+            <MessageSquarePlus class="size-4" />
+          </Button>
+        </div>
       </template>
       <template v-if="ctfSession || vulnerabilitySession" #badge>
         <Badge variant="secondary" class="max-w-full truncate">

@@ -158,6 +158,9 @@ describe('ChatComposer', () => {
     expect(composerControlsSource).toContain('flex: 0 1 auto;')
     expect(composerControlsSource).toContain('margin-left: auto;')
     expect(composerControlsSource).not.toContain('flex: 1 1 12rem;')
+    // Closed trigger and every option show a keyword-matched vendor mark.
+    expect(composerControlsSource).toContain('ModelVendorIcon')
+    expect(composerControlsSource).toContain('triggerModelText')
     expect(composerControlsSource).not.toContain('aria-label="Coding 执行模式"')
     expect(composerControlsSource).not.toMatch(/\.composer-mode\s*\{/)
     expect(composerControlsSource).not.toMatch(/(?:^|\n)\.composer-permission \{[\s\S]*?\n\s*width: 7\.5rem;/)

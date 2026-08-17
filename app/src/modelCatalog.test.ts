@@ -238,7 +238,8 @@ describe('runtime model catalog', () => {
     ])
     const account = pickerGroups.value[0]
     const personal = pickerGroups.value[1]
-    expect(pickerModelLabel(account, 'grok-4.5')).toBe('MilkSU 账户 · Grok 4.5')
-    expect(pickerModelLabel(personal, 'x-ai/grok-4.6')).toBe('TokenFlux 中转站 · Grok 4.6')
+    // Rows omit the service prefix; SelectLabel already shows the group.
+    expect(pickerModelLabel(account, 'grok-4.5')).toBe('Grok 4.5')
+    expect(pickerModelLabel(personal, 'x-ai/grok-4.6')).toBe('Grok 4.6')
   })
 })

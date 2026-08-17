@@ -460,19 +460,18 @@ describe('SettingsPage database compatibility', () => {
     }
   })
 
-  it('renders abnormal-exit recovery status from the desktop runtime', async () => {
+  it('does not surface abnormal-exit recovery status to the user', async () => {
     await mountSettingsPage({
       directory: 'MilkSU 用户数据目录',
       fileCount: 0,
       bytes: 0,
     })
     const text = document.body.textContent ?? ''
-    expect(text).toContain('启动与退出状态')
-    expect(text).toContain('异常退出')
-    expect(text).toContain('连续 2 次异常退出')
-    expect(text).toContain('上次启动于')
-    expect(text).toContain('上次进程 4242')
-    expect(text).toContain('本次启动')
+    expect(text).not.toContain('启动与退出状态')
+    expect(text).not.toContain('异常退出')
+    expect(text).not.toContain('连续 2 次异常退出')
+    expect(text).not.toContain('上次 MilkSU 未正常退出')
+    expect(text).toContain('数据与备份')
   })
 
   it('rechecks Computer Use permissions from Settings without opening system grants', async () => {
@@ -815,11 +814,11 @@ describe('SettingsPage database compatibility', () => {
     await settle()
 
     const options = [...document.querySelectorAll<HTMLElement>('[role="option"]')]
-    // Flat groups: account and personal TokenFlux appear as separate service labels.
-    expect(options.some(option => option.textContent?.includes('MilkSU 账户 · Grok 4.5'))).toBe(true)
-    expect(options.some(option => option.textContent?.includes('TokenFlux 中转站 · Grok 4.5'))).toBe(true)
-    const custom = options.find(option => option.textContent?.includes('Team Relay · vendor/model:preview'))
+    // Group headings name the service; option rows are model names only.
+    expect(options.some(option => option.textContent?.includes('Grok 4.5'))).toBe(true)
+    const custom = options.find(option => option.textContent?.includes('vendor/model:preview'))
     expect(custom).toBeDefined()
+    expect(custom?.textContent ?? '').not.toContain('Team Relay ·')
     custom?.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, button: 0 }))
     await settle()
 
