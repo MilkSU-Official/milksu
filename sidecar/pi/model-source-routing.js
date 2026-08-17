@@ -32,6 +32,17 @@ export function modelSourceFallbackReason(error) {
     .map(String)
     .join(" ")
     .toLowerCase();
+  // Composite-key prefix failures mention "api key" but are model-id shape
+  // mismatches, not missing credentials. Classify them before auth checks.
+  if (
+    /\bmodel_not_found\b/u.test(message)
+    || /model[\s\S]{0,384}(not found|not supported|unsupported|unavailable)/u.test(message)
+    || /not supported by any configured account/u.test(message)
+    || /composite_key_model_prefix_required|composite api key model must use prefix\/model_id/u.test(message)
+    || /模型.{0,64}(不存在|不支持|不可用)/u.test(message)
+  ) {
+    return "model";
+  }
   if (/\b401\b|unauthori[sz]ed|authentication|api key|凭据|鉴权/u.test(message)) {
     return "authentication";
   }
@@ -40,14 +51,6 @@ export function modelSourceFallbackReason(error) {
   }
   if (/\b403\b|forbidden|suspended|disabled|暂停|禁用/u.test(message)) {
     return "access";
-  }
-  if (
-    /\bmodel_not_found\b/u.test(message)
-    || /model[\s\S]{0,384}(not found|not supported|unsupported|unavailable)/u.test(message)
-    || /not supported by any configured account/u.test(message)
-    || /模型.{0,64}(不存在|不支持|不可用)/u.test(message)
-  ) {
-    return "model";
   }
   if (/\b408\b|\b429\b|rate.?limit|timeout|timed out|temporar|network|fetch failed|econn|etimedout|enotfound|\b5\d\d\b/u.test(message)) {
     return "unavailable";

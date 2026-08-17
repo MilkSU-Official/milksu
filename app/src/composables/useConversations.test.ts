@@ -295,6 +295,11 @@ describe('Coding approval conversation recovery', () => {
       'both model sources',
     ],
     [
+      '400: {"code":"COMPOSITE_KEY_MODEL_PREFIX_REQUIRED","message":"composite api key model must use prefix/model_id"}',
+      '需要带厂商前缀的模型 ID',
+      'COMPOSITE_KEY_MODEL_PREFIX_REQUIRED',
+    ],
+    [
       'Provider milksu-route: "baseUrl" is required when defining custom models.',
       '当前模型连接尚未准备好',
       'baseUrl',

@@ -454,9 +454,11 @@ func accountCatalogModel(active string, models []modelcatalog.Model) string {
 	if available[active] {
 		return active
 	}
-	if strings.HasPrefix(active, "x-ai/grok-") {
-		if direct := strings.TrimPrefix(active, "x-ai/"); available[direct] {
-			return direct
+	// TokenFlux single-model keys list bare ids; composite keys list prefix/model.
+	// Align the saved selection to whichever shape the current key catalog uses.
+	for _, candidate := range tokenfluxCatalogModelAliases(active) {
+		if available[candidate] {
+			return candidate
 		}
 	}
 	for _, preferred := range []string{
@@ -474,6 +476,63 @@ func accountCatalogModel(active string, models []modelcatalog.Model) string {
 		}
 	}
 	return ""
+}
+
+// tokenfluxCatalogModelAliases maps a product model selection onto the bare and
+// vendor-prefixed ids TokenFlux may return for the same model under single-model
+// or composite API keys (Grok, GPT, Claude, Gemini, Qwen/Bailian, DeepSeek).
+func tokenfluxCatalogModelAliases(active string) []string {
+	active = strings.TrimSpace(active)
+	if active == "" {
+		return nil
+	}
+	result := make([]string, 0, 8)
+	seen := map[string]bool{}
+	add := func(value string) {
+		value = strings.TrimSpace(value)
+		if value == "" || seen[value] {
+			return
+		}
+		seen[value] = true
+		result = append(result, value)
+	}
+	add(active)
+	if slash := strings.IndexByte(active, '/'); slash > 0 {
+		prefix := active[:slash]
+		bare := active[slash+1:]
+		switch prefix {
+		case "x-ai", "openai", "anthropic", "google", "qwen", "bailian", "dashscope", "alibaba", "deepseek":
+			add(bare)
+		}
+		return result
+	}
+	switch {
+	case strings.HasPrefix(active, "grok"):
+		add("x-ai/" + active)
+	case strings.HasPrefix(active, "gpt"),
+		strings.HasPrefix(active, "o1"),
+		strings.HasPrefix(active, "o3"),
+		strings.HasPrefix(active, "o4"),
+		strings.HasPrefix(active, "chatgpt"),
+		strings.HasPrefix(active, "codex"):
+		add("openai/" + active)
+	case strings.HasPrefix(active, "claude"):
+		add("anthropic/" + active)
+	case strings.HasPrefix(active, "gemini"),
+		strings.HasPrefix(active, "gemma"):
+		add("google/" + active)
+	case strings.HasPrefix(active, "qwen"),
+		strings.HasPrefix(active, "qwq"),
+		strings.HasPrefix(active, "qvq"),
+		strings.HasPrefix(active, "wanx"),
+		strings.HasPrefix(active, "tongyi"):
+		add("qwen/" + active)
+		add("bailian/" + active)
+		add("dashscope/" + active)
+	case strings.HasPrefix(active, "deepseek"):
+		add("deepseek/" + active)
+	}
+	return result
 }
 
 func (a *App) ClearAccountModelCredential() error {

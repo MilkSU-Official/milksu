@@ -381,6 +381,12 @@ export function agentRuntimeErrorMessage(value: unknown) {
   ) {
     return '当前模型没有可用的账户或个人凭据。请刷新账户状态，或在“授权与模型”中配置并启用个人 API Key。'
   }
+  if (
+    /COMPOSITE_KEY_MODEL_PREFIX_REQUIRED|composite api key model must use prefix\/model_id/i
+      .test(raw)
+  ) {
+    return '当前 TokenFlux Key 需要带厂商前缀的模型 ID（例如 x-ai/grok-4.5、openai/gpt-4.1）。请刷新模型目录后重试；如果仍失败，请在设置中重新选择可用模型。'
+  }
   if (/\b401\b|unauthori[sz]ed|invalid api key|authentication failed/i.test(raw)) {
     return '当前模型凭据已失效或无权访问。请重新登录，或在设置中更新模型凭据后重试。'
   }

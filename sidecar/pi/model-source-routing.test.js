@@ -184,6 +184,12 @@ test("falls back when a source throws before emitting output", async () => {
 test("classifies only safe pre-output fallback failures", () => {
   assert.equal(modelSourceFallbackReason({ errorMessage: "429 rate limit" }), "unavailable");
   assert.equal(modelSourceFallbackReason({ errorMessage: "model not found" }), "model");
+  assert.equal(
+    modelSourceFallbackReason({
+      errorMessage: '400 {"code":"COMPOSITE_KEY_MODEL_PREFIX_REQUIRED","message":"composite api key model must use prefix/model_id"}',
+    }),
+    "model",
+  );
   assert.equal(modelSourceFallbackReason({ errorMessage: "invalid request body" }), "");
 });
 

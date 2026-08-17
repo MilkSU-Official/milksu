@@ -122,6 +122,7 @@ import {
   projectAssistantUsage,
   projectToolModelUsage,
 } from "./bridge-usage-view.js";
+import { withTokenFluxModelCompat } from "./tokenflux-model-compat.js";
 
 const {
   currentProviderDefinition,
@@ -669,7 +670,9 @@ function registerAccountModel(session, provider, model) {
     MILKSU_MODEL_CATALOG_PATH: process.env.MILKSU_MODEL_CATALOG_PATH,
   });
   const source = accountDefinition?.models?.find(item => item.id === accountModelID);
-  session.modelRuntime.registerProvider("milksu-account", {
+  // Account keys may be single-model or composite; rewrite the request model id
+  // only after TokenFlux rejects the catalog shape.
+  session.modelRuntime.registerProvider("milksu-account", withTokenFluxModelCompat({
     name: "MilkSU 账户分配模型",
     baseUrl: relayUrl,
     apiKey: relayKey,
@@ -684,7 +687,7 @@ function registerAccountModel(session, provider, model) {
       contextWindow: source?.contextWindow ?? 128000,
       maxTokens: source?.maxTokens ?? 16384,
     }],
-  });
+  }));
   return {
     id: accountModelID,
     model: session.modelRuntime.getModel("milksu-account", accountModelID),
@@ -700,7 +703,14 @@ function normalizeCommandModelSourceOrder(value) {
 function configureRuntimeModel(session, provider, model, conversationId, sourceOrder) {
   sessionConfiguredProviders.set(conversationId, String(provider ?? "").trim());
   const definition = currentProviderDefinition(provider, model);
-  if (definition) session.modelRuntime.registerProvider(provider, definition);
+  if (definition) {
+    // Personal TokenFlux keys may be single-model (bare id) or composite
+    // (prefix/model). Official providers keep their native ids unchanged.
+    session.modelRuntime.registerProvider(
+      provider,
+      provider === "tokenflux" ? withTokenFluxModelCompat(definition) : definition,
+    );
+  }
   const personalModel = session.modelRuntime.getModel(provider, model);
   const account = relayEnabled
     ? registerAccountModel(session, provider, model)
