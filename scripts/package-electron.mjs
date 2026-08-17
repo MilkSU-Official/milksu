@@ -196,6 +196,18 @@ async function writeBuilderConfig(trackingPath) {
 }
 
 async function buildApp() {
+  // This chain packages the macOS .app bundle: electron-builder --mac, then
+  // /usr/bin/codesign and /usr/bin/plutil inspection. On other hosts the bin
+  // shims are not executable and codesign does not exist, so fail fast with
+  // the native release chain instead of an opaque spawn ENOENT.
+  if (process.platform !== 'darwin') {
+    const releaseScript = process.platform === 'win32'
+      ? 'desktop:release:windows'
+      : 'desktop:release:linux'
+    throw new Error(
+      `desktop:build packages the macOS app bundle and cannot run on ${process.platform}; use npm run ${releaseScript} instead`,
+    )
+  }
   const tracking = await collectBuildTracking(root, {
     channel: channelConfig.channel,
     productName: channelConfig.productName,
