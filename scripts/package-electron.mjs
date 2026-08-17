@@ -36,8 +36,16 @@ const screenCaptureUsageDescription = [
 ].join('')
 
 function run(command, args, options = {}) {
+  let executable = command
+  let commandArgs = args
+  if (process.platform === 'win32' && command === 'npm') {
+    const npmCLI = String(process.env.npm_execpath ?? '').trim()
+    if (!npmCLI) throw new Error('npm_execpath is required for native Windows runs')
+    executable = process.execPath
+    commandArgs = [npmCLI, ...args]
+  }
   return new Promise((resolvePromise, reject) => {
-    const child = spawn(command, args, {
+    const child = spawn(executable, commandArgs, {
       cwd: root,
       stdio: 'inherit',
       ...options,
@@ -87,7 +95,8 @@ async function buildRuntime() {
       join(root, 'desktop', 'native', 'macos-screen-permission.m'),
     ])
   }
-  const backend = join(root, 'build', 'desktop', 'milksu-backend')
+  const backendName = process.platform === 'win32' ? 'milksu-backend.exe' : 'milksu-backend'
+  const backend = join(root, 'build', 'desktop', backendName)
   // Provenance is sealed as extraResources/build-tracking.json before codesign.
   // Do not embed tracking via ldflags. Strip debug symbols (-s -w) so the local
   // darwin linker does not require dsymutil under constrained agent sandboxes.
