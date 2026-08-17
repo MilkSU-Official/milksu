@@ -300,6 +300,11 @@ describe('Coding approval conversation recovery', () => {
       'COMPOSITE_KEY_MODEL_PREFIX_REQUIRED',
     ],
     [
+      '403: {"message":"This group is restricted to Claude Code clients (/v1/messages only)","type":"permission_error"}',
+      '只允许 Claude Code 客户端',
+      '/v1/messages only',
+    ],
+    [
       'Provider milksu-route: "baseUrl" is required when defining custom models.',
       '当前模型连接尚未准备好',
       'baseUrl',

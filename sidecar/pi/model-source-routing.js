@@ -49,7 +49,10 @@ export function modelSourceFallbackReason(error) {
   if (/\b402\b|balance|credit|quota|insufficient|余额|额度|限额/u.test(message)) {
     return "quota";
   }
-  if (/\b403\b|forbidden|suspended|disabled|暂停|禁用/u.test(message)) {
+  if (
+    /\b403\b|forbidden|suspended|disabled|permission_error|restricted to|\/v1\/messages only|暂停|禁用/u
+      .test(message)
+  ) {
     return "access";
   }
   if (/\b408\b|\b429\b|rate.?limit|timeout|timed out|temporar|network|fetch failed|econn|etimedout|enotfound|\b5\d\d\b/u.test(message)) {

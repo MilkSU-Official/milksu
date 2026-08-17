@@ -390,6 +390,19 @@ export function agentRuntimeErrorMessage(value: unknown) {
   ) {
     return '当前 TokenFlux Key 需要带厂商前缀的模型 ID（例如 x-ai/grok-4.5、openai/gpt-4.1）。请刷新模型目录后重试；如果仍失败，请在设置中重新选择可用模型。'
   }
+  // TokenFlux Claude Code-only groups reject OpenAI-compatible clients used by MilkSU/Pi.
+  if (
+    /restricted to Claude Code clients|\/v1\/messages only|Claude Code clients/i
+      .test(raw)
+  ) {
+    return '当前模型只允许 Claude Code 客户端（Anthropic /v1/messages），MilkSU 使用 OpenAI 兼容接口，无法调用。请改选 Grok、GPT 等 OpenAI 兼容模型，或换一个未限制客户端的 Claude 模型。'
+  }
+  if (
+    /\b403\b|permission_error|forbidden|this group is restricted/i
+      .test(raw)
+  ) {
+    return '当前模型或模型组拒绝了本次请求（权限/客户端限制）。请换一个可用模型，或检查 TokenFlux 控制台对该 Key/分组的访问限制。'
+  }
   if (/\b401\b|unauthori[sz]ed|invalid api key|authentication failed/i.test(raw)) {
     return '当前模型凭据已失效或无权访问。请重新登录，或在设置中更新模型凭据后重试。'
   }
