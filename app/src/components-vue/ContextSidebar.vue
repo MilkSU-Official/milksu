@@ -49,6 +49,8 @@ function openSingleConversation(event: MouseEvent, group: CodingConversationGrou
 const query = ref('')
 const conversationList = ref<HTMLElement | null>(null)
 const codingGroups = computed(() => groupCodingConversations(props.conversations, query.value))
+const projectGroups = computed(() => codingGroups.value.filter(group => !group.temporary))
+const temporaryGroup = computed(() => codingGroups.value.find(group => group.temporary) ?? null)
 const codingContext = computed(() => showsCodingHistory(props.activeSection))
 const ctfContext = computed(() => props.activeSection === 'ctf')
 const vulnContext = computed(() => props.activeSection === 'vuln')
@@ -141,28 +143,77 @@ watch(
 
       <div ref="conversationList" class="mt-3 min-h-0 flex-1 overflow-y-auto px-2">
         <p class="px-3 py-2 text-label font-medium text-muted-foreground">项目</p>
-        <div v-if="codingGroups.length" class="space-y-1">
+        <div v-if="projectGroups.length || temporaryGroup" class="flex flex-col">
+          <div v-if="projectGroups.length" class="space-y-1">
+            <details
+              v-for="group in projectGroups"
+              :key="group.key"
+              open
+              class="coding-project-group"
+            >
+              <summary
+                class="coding-project-row flex cursor-pointer list-none items-center gap-2 rounded-md px-3 py-1.5 font-medium hover:bg-accent/50"
+                :title="group.paths.length ? group.paths.join('\n') : group.name"
+                @click="openSingleConversation($event, group)"
+              >
+                <ChevronRight class="coding-project-chevron size-3.5 shrink-0 text-muted-foreground" />
+                <Folder class="size-4 shrink-0 text-muted-foreground" />
+                <span class="min-w-0 flex-1 truncate">{{ group.name }}</span>
+                <span class="coding-project-count font-normal tabular-nums text-muted-foreground">
+                  {{ group.conversations.length }}
+                </span>
+              </summary>
+              <div class="ml-5 mt-0.5 space-y-0.5 border-l border-border/70 pl-1.5">
+                <div
+                  v-for="conversation in group.conversations"
+                  :key="conversation.id"
+                  class="group flex items-center rounded-md"
+                  :data-ui-selected="activeConversationId === conversation.id ? '' : undefined"
+                  :data-active-conversation-row="activeConversationId === conversation.id ? '' : undefined"
+                >
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    class="coding-project-row h-7 min-w-0 flex-1 justify-start pl-2"
+                    @click.stop="$emit('selectConversation', conversation.id)"
+                  >
+                    <span class="truncate">{{ conversation.title }}</span>
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    class="mr-1 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                    aria-label="删除编码任务"
+                    @click.stop="$emit('deleteConversation', conversation.id)"
+                  >
+                    <Trash2 class="size-3.5" />
+                  </Button>
+                </div>
+              </div>
+            </details>
+          </div>
+
+          <!-- Scratch tasks sit alone under the project tree: no folder, no shared sort rank. -->
           <details
-            v-for="group in codingGroups"
-            :key="group.key"
+            v-if="temporaryGroup"
             open
-            class="coding-project-group"
+            class="coding-temporary-group mt-3"
+            data-testid="coding-temporary-group"
           >
             <summary
-              class="coding-project-row flex cursor-pointer list-none items-center gap-2 rounded-md px-3 py-1.5 font-medium hover:bg-accent/50"
-              :title="group.paths.length ? group.paths.join('\n') : '未绑定项目的编码任务'"
-              @click="openSingleConversation($event, group)"
+              class="coding-project-row flex cursor-pointer list-none items-center gap-2 rounded-md px-3 py-1.5 font-medium text-muted-foreground hover:bg-accent/50"
+              title="未绑定项目的编码任务"
+              @click="openSingleConversation($event, temporaryGroup)"
             >
               <ChevronRight class="coding-project-chevron size-3.5 shrink-0 text-muted-foreground" />
-              <Folder class="size-4 shrink-0 text-muted-foreground" />
-              <span class="min-w-0 flex-1 truncate">{{ group.name }}</span>
+              <span class="min-w-0 flex-1 truncate">{{ temporaryGroup.name }}</span>
               <span class="coding-project-count font-normal tabular-nums text-muted-foreground">
-                {{ group.conversations.length }}
+                {{ temporaryGroup.conversations.length }}
               </span>
             </summary>
-            <div class="ml-5 mt-0.5 space-y-0.5 border-l border-border/70 pl-1.5">
+            <div class="mt-0.5 space-y-0.5 pl-5">
               <div
-                v-for="conversation in group.conversations"
+                v-for="conversation in temporaryGroup.conversations"
                 :key="conversation.id"
                 class="group flex items-center rounded-md"
                 :data-ui-selected="activeConversationId === conversation.id ? '' : undefined"
@@ -252,7 +303,8 @@ watch(
   letter-spacing: var(--text-control--letter-spacing);
 }
 
-.coding-project-group[open] > summary .coding-project-chevron {
+.coding-project-group[open] > summary .coding-project-chevron,
+.coding-temporary-group[open] > summary .coding-project-chevron {
   transform: rotate(90deg);
 }
 

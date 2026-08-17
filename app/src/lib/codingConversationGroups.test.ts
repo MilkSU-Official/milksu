@@ -151,6 +151,31 @@ describe('Coding conversation groups', () => {
       .toEqual(['milk-older-active', 'milk-new-created'])
   })
 
+  it('pins no-project tasks below every real project regardless of activity', () => {
+    const groups = groupCodingConversations([
+      conversation('scratch-hot', '刚写的草稿', 10, {
+        messages: [
+          { id: 'message-scratch', role: 'user', content: '最新', timestamp: 2000 },
+        ],
+      }),
+      conversation('quiet-project', '安静项目', 100, {
+        workspacePath: '/Users/milksu/code/quiet',
+        messages: [
+          { id: 'message-quiet', role: 'assistant', content: '旧', timestamp: 50 },
+        ],
+      }),
+      conversation('hot-project', '活跃项目', 80, {
+        workspacePath: '/Users/milksu/code/hot',
+        messages: [
+          { id: 'message-hot', role: 'assistant', content: '中间', timestamp: 900 },
+        ],
+      }),
+    ])
+
+    expect(groups.map(group => group.name)).toEqual(['hot', 'quiet', '无项目任务'])
+    expect(groups.at(-1)).toMatchObject({ temporary: true, name: '无项目任务' })
+  })
+
   it('shows one newest Coding row for one CVE domain task', () => {
     const context = {
       kind: 'cve' as const,

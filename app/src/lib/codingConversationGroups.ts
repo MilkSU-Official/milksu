@@ -98,7 +98,9 @@ export function groupCodingConversations(
         : null
     })
     .filter((group): group is CodingConversationGroup => Boolean(group))
-    .sort((left, right) => (
-      right.lastActiveAt - left.lastActiveAt || left.name.localeCompare(right.name)
-    ))
+    .sort((left, right) => {
+      // Scratch/no-project tasks always sit alone at the bottom, outside project ordering.
+      if (left.temporary !== right.temporary) return left.temporary ? 1 : -1
+      return right.lastActiveAt - left.lastActiveAt || left.name.localeCompare(right.name)
+    })
 }
