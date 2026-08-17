@@ -419,6 +419,7 @@ describe('SettingsPage database compatibility', () => {
       relativePaths.some(path => li.textContent?.includes(path)),
     )
     expect(compatItems.length).toBeGreaterThanOrEqual(5)
+    expect(compatItems[0].closest('.mx-4')).not.toBeNull()
     const compatMarkup = compatItems.map(item => item.outerHTML).join('')
     expect(compatMarkup).not.toContain('凭据库')
 
