@@ -12,4 +12,19 @@ function electronNodeEnvironment(platform = process.platform, environment = proc
   return result
 }
 
-module.exports = { electronNodeEnvironment }
+function desktopBackendEnvironment(environment = process.env, options = {}) {
+  const hostPid = Number(options.hostPid)
+  if (!Number.isSafeInteger(hostPid) || hostPid <= 1) {
+    throw new Error('MilkSU desktop host PID must be a positive process id')
+  }
+  return {
+    ...environment,
+    MILKSU_CHANNEL: String(options.channel ?? ''),
+    MILKSU_DESKTOP_APP_ID: String(options.appId ?? ''),
+    // Always replace caller input with the actual Electron main-process PID.
+    // The Go runtime uses it only to exclude the controlling MilkSU window.
+    MILKSU_DESKTOP_HOST_PID: String(hostPid),
+  }
+}
+
+module.exports = { desktopBackendEnvironment, electronNodeEnvironment }

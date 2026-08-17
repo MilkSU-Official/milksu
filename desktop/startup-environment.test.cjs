@@ -3,7 +3,10 @@
 const assert = require('node:assert/strict')
 const test = require('node:test')
 
-const { electronNodeEnvironment } = require('./startup-environment.cjs')
+const {
+  desktopBackendEnvironment,
+  electronNodeEnvironment,
+} = require('./startup-environment.cjs')
 
 test('Windows Electron-as-Node probe receives only its required environment', () => {
   const environment = electronNodeEnvironment('win32', {
@@ -33,5 +36,28 @@ test('non-Windows Electron-as-Node probe preserves its minimal environment', () 
       OPENAI_API_KEY: 'must-not-leak',
     }),
     { ELECTRON_RUN_AS_NODE: '1' },
+  )
+})
+
+test('desktop backend receives the actual Electron host PID', () => {
+  const environment = desktopBackendEnvironment({
+    MILKSU_DESKTOP_HOST_PID: '7',
+    PATH: 'preserved-for-the-runtime',
+  }, {
+    channel: 'stable',
+    appId: 'com.milksu.app',
+    hostPid: 4321,
+  })
+
+  assert.equal(environment.MILKSU_CHANNEL, 'stable')
+  assert.equal(environment.MILKSU_DESKTOP_APP_ID, 'com.milksu.app')
+  assert.equal(environment.MILKSU_DESKTOP_HOST_PID, '4321')
+  assert.equal(environment.PATH, 'preserved-for-the-runtime')
+})
+
+test('desktop backend rejects an invalid Electron host PID', () => {
+  assert.throws(
+    () => desktopBackendEnvironment({}, { hostPid: 0 }),
+    /desktop host PID/u,
   )
 })

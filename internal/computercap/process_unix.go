@@ -3,10 +3,45 @@
 package computercap
 
 import (
+	"context"
+	"fmt"
+	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"syscall"
+	"time"
 )
+
+func runtimeRootForPlatform(string) string { return runtimeRoot }
+
+func endpointForSession(_ string, directory string, _ string) string {
+	return filepath.Join(directory, "driver.sock")
+}
+
+func driverExecutableName(string) string { return "cua-driver" }
+
+func waitForEndpoint(ctx context.Context, _ string, path string, exited <-chan error) error {
+	ticker := time.NewTicker(40 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		connection, err := net.DialTimeout("unix", path, 80*time.Millisecond)
+		if err == nil {
+			_ = connection.Close()
+			return nil
+		}
+		select {
+		case processError, open := <-exited:
+			if !open || processError == nil {
+				return fmt.Errorf("driver stopped before opening its private socket")
+			}
+			return processError
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+	}
+}
 
 func configureProcessGroup(command *exec.Cmd) {
 	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}

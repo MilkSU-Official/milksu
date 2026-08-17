@@ -167,6 +167,7 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 	// host systemPreferences rather than the Go runtime binary identity.
 	computerUseOptions := computercap.Options{
 		GrantDirectory: filepath.Join(dataDirectory, "computer-use", "task-authorizations"),
+		TargetPID:      desktopComputerUseHostPID(),
 	}
 	if host != nil {
 		computerUseOptions.PermissionProbe = desktopComputerUsePermissionProbe(host)

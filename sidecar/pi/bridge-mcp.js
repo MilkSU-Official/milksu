@@ -48,7 +48,10 @@ const packagedComputerUseProxyPath = join(bridgeDirectory, "computer-use-proxy.c
 const computerUseProxyPath = existsSync(packagedComputerUseProxyPath)
   ? packagedComputerUseProxyPath
   : resolve(bridgeDirectory, "..", "computer-use", "computer-use-proxy.js");
-const computerUseDriverPath = join(bridgeDirectory, "cua-driver");
+const computerUseDriverPath = join(
+  bridgeDirectory,
+  process.platform === "win32" ? "cua-driver.exe" : "cua-driver",
+);
 const browserUseExecutableCandidates = [
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
   "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
@@ -455,7 +458,9 @@ export function normalizeComputerUseDescriptor(value) {
     throw new Error("MilkSU rejected an invalid Computer Use session id");
   }
   const socketPath = String(value.socketPath ?? "").trim();
-  const expectedSocket = join(computerUseSocketRoot, sessionId, "driver.sock");
+  const expectedSocket = process.platform === "win32"
+    ? `\\\\.\\pipe\\milksu-computer-use-${sessionId}`
+    : join(computerUseSocketRoot, sessionId, "driver.sock");
   if (socketPath !== expectedSocket) {
     throw new Error("MilkSU rejected a Computer Use socket outside its private session");
   }
@@ -536,28 +541,76 @@ export function computerUseSandboxProfile(socketPath, runtimeRoot) {
 export async function createFirstPartyComputerUseMcpServer(descriptor) {
   const computerUse = normalizeComputerUseDescriptor(descriptor);
   if (!computerUse) return undefined;
-  const [proxyMetadata, driverMetadata, socketMetadata] = await Promise.all([
+  const [proxyMetadata, driverMetadata] = await Promise.all([
     lstat(computerUseProxyPath),
     lstat(computerUseDriverPath),
-    lstat(computerUse.socketPath),
   ]);
   if (
     proxyMetadata.isSymbolicLink()
     || !proxyMetadata.isFile()
     || driverMetadata.isSymbolicLink()
     || !driverMetadata.isFile()
-    || socketMetadata.isSymbolicLink()
-    || !socketMetadata.isSocket()
   ) {
     throw new Error("MilkSU packaged Computer Use runtime is unavailable");
   }
-  const runtimeRoot = dirname(computerUse.socketPath);
+  if (process.platform !== "win32") {
+    const socketMetadata = await lstat(computerUse.socketPath);
+    if (socketMetadata.isSymbolicLink() || !socketMetadata.isSocket()) {
+      throw new Error("MilkSU packaged Computer Use runtime is unavailable");
+    }
+  }
+  const runtimeRoot = process.platform === "win32"
+    ? join(tmpdir(), "milksu-computer-use", computerUse.sessionId)
+    : dirname(computerUse.socketPath);
   const runtimeHome = join(runtimeRoot, "home");
   const runtimeTemporary = join(runtimeRoot, "tmp");
   await Promise.all([
     mkdir(runtimeHome, { recursive: true, mode: 0o700 }),
     mkdir(runtimeTemporary, { recursive: true, mode: 0o700 }),
   ]);
+  const proxyArguments = [
+    computerUseProxyPath,
+    "--socket",
+    computerUse.socketPath,
+    "--session",
+    computerUse.sessionId,
+    "--target-name",
+    computerUse.targetName,
+    "--target-bundle-id",
+    computerUse.targetBundleId,
+    "--target-window-id",
+    String(computerUse.targetWindowId),
+    "--target-pid",
+    String(computerUse.targetPid),
+    "--driver",
+    computerUseDriverPath,
+  ];
+  if (process.platform === "win32") {
+    const systemRoot = process.env.SystemRoot || "C:\\Windows";
+    return {
+      computerUse,
+      server: {
+        command: process.execPath,
+        args: proxyArguments,
+        env: {
+          SystemRoot: systemRoot,
+          WINDIR: systemRoot,
+          USERPROFILE: runtimeHome,
+          APPDATA: join(runtimeHome, "AppData", "Roaming"),
+          LOCALAPPDATA: join(runtimeHome, "AppData", "Local"),
+          TEMP: runtimeTemporary,
+          TMP: runtimeTemporary,
+          PATH: join(systemRoot, "System32"),
+          CUA_DRIVER_EMBEDDED: "1",
+          CUA_DRIVER_RS_TELEMETRY_ENABLED: "false",
+          CUA_LOG: "warn",
+        },
+        cwd: runtimeRoot,
+        lifecycle: "lazy",
+        directTools: false,
+      },
+    };
+  }
   return {
     computerUse,
     server: {
@@ -574,21 +627,7 @@ export async function createFirstPartyComputerUseMcpServer(descriptor) {
         "CUA_DRIVER_EMBEDDED=1",
         "CUA_DRIVER_RS_TELEMETRY_ENABLED=false",
         process.execPath,
-        computerUseProxyPath,
-        "--socket",
-        computerUse.socketPath,
-        "--session",
-        computerUse.sessionId,
-        "--target-name",
-        computerUse.targetName,
-        "--target-bundle-id",
-        computerUse.targetBundleId,
-        "--target-window-id",
-        String(computerUse.targetWindowId),
-        "--target-pid",
-        String(computerUse.targetPid),
-        "--driver",
-        computerUseDriverPath,
+        ...proxyArguments,
       ],
       env: {},
       cwd: runtimeRoot,

@@ -84,9 +84,13 @@ const permissionsReady = computed(() => Boolean(
   && props.status.permissions.screenRecording,
 ))
 const signingStatus = computed(() => props.status?.signing ?? null)
+const windowsUserSession = computed(() => (
+  signingStatus.value?.signature === 'windows-user-session'
+))
 const signingIdentityLabel = computed(() => {
   const signing = signingStatus.value
   if (!signing) return '当前构建身份：未检测'
+  if (windowsUserSession.value) return '当前环境：Windows 普通用户会话'
   const signature = signing.signature === 'adhoc'
     ? 'ad-hoc'
     : signing.signature === 'signed'
@@ -100,6 +104,9 @@ const signingIdentityLabel = computed(() => {
 const signingDiagnostic = computed(() => {
   const signing = signingStatus.value
   if (!signing) return ''
+  if (windowsUserSession.value) {
+    return 'Windows 使用当前登录用户的 UI Automation、输入与窗口捕获能力；不会申请 macOS 权限或管理员权限。'
+  }
   if (signing.stableIdentity) {
     return `${signingIdentityLabel.value}，权限应绑定到稳定 App 身份。`
   }

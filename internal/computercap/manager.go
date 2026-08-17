@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -61,11 +60,12 @@ type SigningStatus struct {
 }
 
 type Target struct {
-	Name        string `json:"name"`
-	BundleID    string `json:"bundleId"`
-	PID         int    `json:"pid"`
-	WindowID    int64  `json:"windowId"`
-	WindowTitle string `json:"windowTitle,omitempty"`
+	Name           string `json:"name"`
+	BundleID       string `json:"bundleId"`
+	PID            int    `json:"pid"`
+	WindowID       int64  `json:"windowId"`
+	WindowTitle    string `json:"windowTitle,omitempty"`
+	executablePath string
 }
 
 type TargetSelection struct {
@@ -306,8 +306,8 @@ func (manager *Manager) RequestPermission(kind PermissionKind) (Status, error) {
 }
 
 func (manager *Manager) Targets() ([]Target, error) {
-	if manager.goos != "darwin" {
-		return nil, fmt.Errorf("Computer Use is currently available only on macOS")
+	if manager.goos != "darwin" && manager.goos != "windows" {
+		return nil, fmt.Errorf("Computer Use is unavailable on this platform")
 	}
 	targets, err := manager.targetProvider()
 	if err != nil {
@@ -349,10 +349,10 @@ func (manager *Manager) Start(
 			"Computer Use is already attached to another visible Coding task",
 		)
 	}
-	if manager.goos != "darwin" {
+	if manager.goos != "darwin" && manager.goos != "windows" {
 		status := manager.statusLocked(manager.permissionProbe(false))
 		manager.mu.Unlock()
-		return status, fmt.Errorf("Computer Use is currently available only on macOS")
+		return status, fmt.Errorf("Computer Use is unavailable on this platform")
 	}
 	permissions := manager.permissionProbe(false)
 	if !permissions.Ready() {
@@ -367,6 +367,12 @@ func (manager *Manager) Start(
 		status := manager.statusLocked(permissions)
 		manager.mu.Unlock()
 		return status, err
+	}
+	if manager.goos == "windows" &&
+		(strings.TrimSpace(target.executablePath) == "" || !filepath.IsAbs(target.executablePath)) {
+		status := manager.statusLocked(permissions)
+		manager.mu.Unlock()
+		return status, fmt.Errorf("选择的 Windows App 缺少稳定的可执行文件身份")
 	}
 	binaryPath, err := manager.resolveBinaryLocked()
 	if err != nil {
@@ -384,18 +390,19 @@ func (manager *Manager) Start(
 		manager.mu.Unlock()
 		return Status{}, fmt.Errorf("create Computer Use session id: %w", err)
 	}
-	directory := filepath.Join(runtimeRoot, sessionID)
-	if err := createRuntimeDirectory(directory); err != nil {
+	runtimeDirectoryRoot := runtimeRootForPlatform(manager.goos)
+	directory := filepath.Join(runtimeDirectoryRoot, sessionID)
+	if err := createRuntimeDirectory(runtimeDirectoryRoot, directory); err != nil {
 		manager.mu.Unlock()
 		return Status{}, err
 	}
 	manifestPath := filepath.Join(directory, "session-policy.yaml")
-	if err := os.WriteFile(manifestPath, []byte(sessionManifest(target.BundleID)), 0o600); err != nil {
-		_ = cleanupRuntimeDirectory(directory)
+	if err := os.WriteFile(manifestPath, []byte(sessionManifestForTarget(target, manager.goos)), 0o600); err != nil {
+		_ = cleanupRuntimeDirectory(runtimeDirectoryRoot, directory)
 		manager.mu.Unlock()
 		return Status{}, fmt.Errorf("write Computer Use bounded policy: %w", err)
 	}
-	socketPath := filepath.Join(directory, "driver.sock")
+	socketPath := endpointForSession(manager.goos, directory, sessionID)
 	hostBundle := manager.hostBundleID
 	if !validBundleID(hostBundle) {
 		hostBundle = defaultHostBundleID
@@ -414,12 +421,12 @@ func (manager *Manager) Start(
 		manifestPath,
 		"--approve-session-policy",
 	)
-	command.Env = driverEnvironment(directory, hostBundle)
+	command.Env = driverEnvironment(manager.goos, directory, hostBundle)
 	command.Stdout = io.Discard
 	command.Stderr = newLimitedBuffer(8 << 10)
 	configureProcessGroup(command)
 	if err := command.Start(); err != nil {
-		_ = cleanupRuntimeDirectory(directory)
+		_ = cleanupRuntimeDirectory(runtimeDirectoryRoot, directory)
 		manager.mu.Unlock()
 		return Status{}, fmt.Errorf("start embedded Computer Use driver: %w", err)
 	}
@@ -440,7 +447,7 @@ func (manager *Manager) Start(
 
 	waitContext, cancel := context.WithTimeout(ctx, manager.startTimeout)
 	defer cancel()
-	if err := waitForSocket(waitContext, socketPath, active.done); err != nil {
+	if err := waitForEndpoint(waitContext, manager.goos, socketPath, active.done); err != nil {
 		_, _ = manager.stop(conversationID, false)
 		return manager.StatusForConversation(conversationID), fmt.Errorf(
 			"start Computer Use private driver: %w",
@@ -514,7 +521,7 @@ func (manager *Manager) stop(conversationID string, revoke bool) (Status, error)
 		case <-time.After(time.Second):
 		}
 	}
-	if err := cleanupRuntimeDirectory(active.directory); err != nil {
+	if err := cleanupRuntimeDirectory(runtimeRootForPlatform(manager.goos), active.directory); err != nil {
 		return manager.Status(), err
 	}
 	manager.mu.Lock()
@@ -678,10 +685,10 @@ func (manager *Manager) statusLocked(permissions Permissions) Status {
 		Permissions:   permissions,
 		Signing:       signing,
 	}
-	if manager.goos != "darwin" {
+	if manager.goos != "darwin" && manager.goos != "windows" {
 		status.Available = false
 		status.Phase = "unavailable"
-		status.Problem = "Computer Use 当前仅支持 macOS。"
+		status.Problem = "Computer Use 当前不支持此平台。"
 		return status
 	}
 	if !status.Available {
@@ -726,12 +733,19 @@ func (manager *Manager) resolveBinaryLocked() (string, error) {
 	if executable, err := os.Executable(); err == nil {
 		candidates = append(
 			candidates,
+			filepath.Join(filepath.Dir(executable), driverExecutableName(manager.goos)),
+			filepath.Join(
+				filepath.Dir(executable),
+				"resources",
+				"milksu-sidecar",
+				driverExecutableName(manager.goos),
+			),
 			filepath.Join(
 				filepath.Dir(executable),
 				"..",
 				"Resources",
 				"milksu-sidecar",
-				"cua-driver",
+				driverExecutableName(manager.goos),
 			),
 		)
 	}
@@ -739,7 +753,7 @@ func (manager *Manager) resolveBinaryLocked() (string, error) {
 	// environment override remains a development fallback for `wails dev`, but
 	// cannot shadow the driver that shipped inside MilkSU.app.
 	if sidecarDirectory := strings.TrimSpace(os.Getenv("MILKSU_SIDECAR_DIR")); sidecarDirectory != "" {
-		candidates = append(candidates, filepath.Join(sidecarDirectory, "cua-driver"))
+		candidates = append(candidates, filepath.Join(sidecarDirectory, driverExecutableName(manager.goos)))
 	}
 	architecture := runtime.GOARCH
 	if architecture == "x86_64" {
@@ -752,8 +766,8 @@ func (manager *Manager) resolveBinaryLocked() (string, error) {
 				workingDirectory,
 				"build",
 				"sidecar",
-				"darwin-"+architecture,
-				"cua-driver",
+				manager.goos+"-"+architecture,
+				driverExecutableName(manager.goos),
 			),
 		)
 	}
@@ -769,7 +783,7 @@ func (manager *Manager) resolveBinaryLocked() (string, error) {
 		if err != nil ||
 			info.Mode()&os.ModeSymlink != 0 ||
 			!info.Mode().IsRegular() ||
-			info.Mode().Perm()&0o111 == 0 {
+			(manager.goos != "windows" && info.Mode().Perm()&0o111 == 0) {
 			continue
 		}
 		manager.binaryPath = filepath.Clean(canonical)
@@ -789,7 +803,7 @@ func (manager *Manager) verifyBinaryLocked(binaryPath string) error {
 		hostBundle = defaultHostBundleID
 	}
 	command := manager.commandFactory(binaryPath, "--version")
-	command.Env = driverEnvironment(filepath.Dir(binaryPath), hostBundle)
+	command.Env = driverEnvironment(manager.goos, filepath.Dir(binaryPath), hostBundle)
 	var output bytes.Buffer
 	command.Stdout = &output
 	command.Stderr = &output
@@ -856,21 +870,84 @@ deny:
 `, bundleID)
 }
 
-func driverEnvironment(directory string, hostBundleID string) []string {
+func sessionManifestForTarget(target Target, goos string) string {
+	if goos != "windows" {
+		return sessionManifest(target.BundleID)
+	}
+	executable := strings.ReplaceAll(
+		filepath.Clean(strings.TrimSpace(target.executablePath)),
+		"'",
+		"''",
+	)
+	return fmt.Sprintf(`version: 2
+mode: bounded
+expires_after: 8h
+idle_timeout: 30m
+resources:
+  apps:
+    - executable: '%s'
+      launch: false
+      windows: all
+      terminate: deny
+allow:
+  tools:
+    - check_permissions
+    - start_session
+    - get_session_state
+    - end_session
+    - list_windows
+    - get_window_state
+    - click
+    - type_text
+    - press_key
+    - scroll
+deny:
+  tools:
+    - get_desktop_state
+    - launch_app
+    - hotkey
+    - drag
+    - page
+    - browser_prepare
+    - escalate_session
+    - start_recording
+`, executable)
+}
+
+func driverEnvironment(goos string, directory string, hostBundleID string) []string {
 	hostBundleID = strings.TrimSpace(hostBundleID)
 	if !validBundleID(hostBundleID) {
 		hostBundleID = defaultHostBundleID
 	}
 	environment := []string{
-		"HOME=" + filepath.Join(directory, "home"),
-		"TMPDIR=" + filepath.Join(directory, "tmp"),
-		"PATH=/usr/bin:/bin:/usr/sbin:/sbin",
-		"LANG=en_US.UTF-8",
 		"CUA_DRIVER_EMBEDDED=1",
 		"CUA_DRIVER_HOST_BUNDLE_ID=" + hostBundleID,
 		"CUA_DRIVER_PERMISSION_MODE=bounded",
 		"CUA_DRIVER_RS_TELEMETRY_ENABLED=false",
 		"CUA_LOG=warn",
+	}
+	if goos == "windows" {
+		systemRoot := strings.TrimSpace(os.Getenv("SystemRoot"))
+		if systemRoot == "" {
+			systemRoot = `C:\Windows`
+		}
+		environment = append(environment,
+			"SystemRoot="+systemRoot,
+			"WINDIR="+systemRoot,
+			"USERPROFILE="+filepath.Join(directory, "home"),
+			"APPDATA="+filepath.Join(directory, "home", "AppData", "Roaming"),
+			"LOCALAPPDATA="+filepath.Join(directory, "home", "AppData", "Local"),
+			"TEMP="+filepath.Join(directory, "tmp"),
+			"TMP="+filepath.Join(directory, "tmp"),
+			"PATH="+filepath.Join(systemRoot, "System32"),
+		)
+	} else {
+		environment = append(environment,
+			"HOME="+filepath.Join(directory, "home"),
+			"TMPDIR="+filepath.Join(directory, "tmp"),
+			"PATH=/usr/bin:/bin:/usr/sbin:/sbin",
+			"LANG=en_US.UTF-8",
+		)
 	}
 	for _, directory := range []string{
 		filepath.Join(directory, "home"),
@@ -991,28 +1068,6 @@ func validBundleID(value string) bool {
 	return true
 }
 
-func waitForSocket(ctx context.Context, path string, exited <-chan error) error {
-	ticker := time.NewTicker(40 * time.Millisecond)
-	defer ticker.Stop()
-	for {
-		connection, err := net.DialTimeout("unix", path, 80*time.Millisecond)
-		if err == nil {
-			_ = connection.Close()
-			return nil
-		}
-		select {
-		case processError, open := <-exited:
-			if !open || processError == nil {
-				return fmt.Errorf("driver stopped before opening its private socket")
-			}
-			return processError
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-ticker.C:
-		}
-	}
-}
-
 func newSessionID() (string, error) {
 	var value [16]byte
 	if _, err := rand.Read(value[:]); err != nil {
@@ -1038,16 +1093,16 @@ func validConversationID(value string) bool {
 	return true
 }
 
-func createRuntimeDirectory(directory string) error {
+func createRuntimeDirectory(root string, directory string) error {
 	clean := filepath.Clean(directory)
-	if filepath.Dir(clean) != runtimeRoot ||
+	if filepath.Dir(clean) != filepath.Clean(root) ||
 		!strings.HasPrefix(filepath.Base(clean), "computer_") {
 		return fmt.Errorf("refusing to create an invalid Computer Use runtime directory")
 	}
-	if err := os.MkdirAll(runtimeRoot, 0o700); err != nil {
+	if err := os.MkdirAll(root, 0o700); err != nil {
 		return fmt.Errorf("create Computer Use runtime root: %w", err)
 	}
-	rootInfo, err := os.Lstat(runtimeRoot)
+	rootInfo, err := os.Lstat(root)
 	if err != nil {
 		return fmt.Errorf("inspect Computer Use runtime root: %w", err)
 	}
@@ -1056,22 +1111,22 @@ func createRuntimeDirectory(directory string) error {
 		!runtimeRootOwnerMatches(rootInfo) {
 		return fmt.Errorf("Computer Use runtime root is not a private app-owned directory")
 	}
-	if err := os.Chmod(runtimeRoot, 0o700); err != nil {
+	if err := os.Chmod(root, 0o700); err != nil {
 		return fmt.Errorf("protect Computer Use runtime root: %w", err)
 	}
 	if err := os.Mkdir(clean, 0o700); err != nil {
 		return fmt.Errorf("create Computer Use runtime directory: %w", err)
 	}
 	if err := os.Chmod(clean, 0o700); err != nil {
-		_ = cleanupRuntimeDirectory(clean)
+		_ = cleanupRuntimeDirectory(root, clean)
 		return fmt.Errorf("protect Computer Use runtime directory: %w", err)
 	}
 	return nil
 }
 
-func cleanupRuntimeDirectory(directory string) error {
+func cleanupRuntimeDirectory(root string, directory string) error {
 	clean := filepath.Clean(directory)
-	if filepath.Dir(clean) != runtimeRoot ||
+	if filepath.Dir(clean) != filepath.Clean(root) ||
 		!strings.HasPrefix(filepath.Base(clean), "computer_") {
 		return fmt.Errorf("refusing to clean an invalid Computer Use runtime directory")
 	}

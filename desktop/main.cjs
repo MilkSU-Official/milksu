@@ -51,7 +51,10 @@ const {
 } = require('./computer-use-permissions.cjs')
 const { requestMacOSScreenPermission } = require('./macos-screen-permission.cjs')
 const { openLocalPath } = require('./local-path.cjs')
-const { electronNodeEnvironment } = require('./startup-environment.cjs')
+const {
+  desktopBackendEnvironment,
+  electronNodeEnvironment,
+} = require('./startup-environment.cjs')
 
 const APP_ORIGIN = 'milksu://app'
 const METHOD_PATTERN = /^[A-Z][A-Za-z0-9]{0,80}$/u
@@ -276,11 +279,11 @@ class BackendRuntime {
     // Beta (and optional MILKSU_INSTANCE_ID) always get a userData-scoped Go
     // runtime root. Stable keeps historical appdata resolution unless the
     // caller already set MILKSU_APPDATA_DIR or requested an isolated instance.
-    const env = {
-      ...process.env,
-      MILKSU_CHANNEL: desktopIdentity.channel,
-      MILKSU_DESKTOP_APP_ID: desktopIdentity.appId,
-    }
+    const env = desktopBackendEnvironment(process.env, {
+      channel: desktopIdentity.channel,
+      appId: desktopIdentity.appId,
+      hostPid: process.pid,
+    })
     const runtimeAppDataDir = resolveRuntimeAppDataDir({
       channel: desktopIdentity.channel,
       isolatedInstance: channelIsolation.isolatedInstance,
@@ -789,6 +792,9 @@ async function handleHostRequest(method, payload = {}) {
     case 'browser.stop': return browserShell.stop(payload)
     case 'browser.closeAll': return browserShell.closeAll()
     case 'computerUse.permissions': {
+      if (process.platform === 'win32') {
+        return { accessibility: true, screenRecording: true, screenStatus: 'granted' }
+      }
       // Host-attributed TCC: Electron app identity, never invent grants.
       // Status/Start always probe with prompt=false; explicit UI opens Settings.
       const probe = probeComputerUsePermissions(systemPreferences, { prompt: false })
@@ -799,6 +805,7 @@ async function handleHostRequest(method, payload = {}) {
       }
     }
     case 'computerUse.openPermissions': {
+      if (process.platform === 'win32') return null
       const permission = String(payload?.permission ?? '')
       const url = computerUsePermissionsSettingsURL(permission)
       if (permission === 'screen-recording') {

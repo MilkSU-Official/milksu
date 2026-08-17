@@ -514,12 +514,14 @@ test("reserves the built-in Playwright server name from project MCP config", asy
 test("accepts only an exact immutable scoped Computer Use descriptor", () => {
   const valid = {
     sessionId: "computer_12345678",
-    socketPath: join(
-      shortRuntimeRoot,
-      "milksu-computer-use",
-      "computer_12345678",
-      "driver.sock",
-    ),
+    socketPath: process.platform === "win32"
+      ? "\\\\.\\pipe\\milksu-computer-use-computer_12345678"
+      : join(
+        shortRuntimeRoot,
+        "milksu-computer-use",
+        "computer_12345678",
+        "driver.sock",
+      ),
     targetBundleId: "com.openai.codex",
     targetName: "Codex",
     targetPid: 4242,

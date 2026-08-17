@@ -2,10 +2,23 @@ package main
 
 import (
 	"context"
+	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/MilkSU-Official/milksu/internal/computercap"
 )
+
+const desktopHostPIDEnv = "MILKSU_DESKTOP_HOST_PID"
+
+func desktopComputerUseHostPID() int {
+	value, err := strconv.Atoi(strings.TrimSpace(os.Getenv(desktopHostPIDEnv)))
+	if err != nil || value <= 1 {
+		return 0
+	}
+	return value
+}
 
 // desktopComputerUsePermissionProbe reads Accessibility / Screen Recording from
 // the Electron host (systemPreferences). The Go runtime binary is not the TCC

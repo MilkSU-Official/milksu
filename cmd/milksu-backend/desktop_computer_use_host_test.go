@@ -66,6 +66,20 @@ func TestDesktopComputerUsePermissionProbeUsesHostAndFailsClosed(t *testing.T) {
 	}
 }
 
+func TestDesktopComputerUseHostPIDUsesOnlyValidEnvironmentValue(t *testing.T) {
+	t.Setenv(desktopHostPIDEnv, "4321")
+	if got := desktopComputerUseHostPID(); got != 4321 {
+		t.Fatalf("desktop host PID = %d, want 4321", got)
+	}
+
+	for _, value := range []string{"", "not-a-pid", "1", "-7"} {
+		t.Setenv(desktopHostPIDEnv, value)
+		if got := desktopComputerUseHostPID(); got != 0 {
+			t.Fatalf("desktop host PID for %q = %d, want 0", value, got)
+		}
+	}
+}
+
 func TestDesktopComputerUsePermissionOpenCallsHost(t *testing.T) {
 	host := &stubDesktopHost{}
 	open := desktopComputerUsePermissionOpen(host)

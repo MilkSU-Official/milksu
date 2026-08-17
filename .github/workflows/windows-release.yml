@@ -49,6 +49,11 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: actions/cache@v4
+        with:
+          path: build/sidecar-cache/cua-windows-0.14.2/h
+          key: windows-cua-0.14.2-${{ hashFiles('scripts/build-windows-cua-driver.mjs', 'third_party/cua-driver/**') }}
       - name: Install dependencies
         shell: pwsh
         run: |
@@ -68,6 +73,10 @@ jobs:
           go test ./cmd/milksu-backend -run '^TestWindowsStartupDoesNotRequireGit$' -count=1
           node --test --test-isolation=none desktop/startup-environment.test.cjs desktop/package-files.test.cjs
           node --test sidecar/pi/current-provider-runtime.test.js sidecar/pi/model-source-routing.test.js
+          node scripts/build-windows-cua-driver.mjs verify
+          $env:MILKSU_TEST_CUA_DRIVER = (Resolve-Path 'build/sidecar-cache/cua-windows-0.14.2/r/cua-driver.exe').Path
+          go test ./internal/computercap -count=1
+          node --test sidecar/computer-use/computer-use-proxy.test.js
       - name: Build Windows installer
         shell: pwsh
         env:
@@ -92,6 +101,23 @@ jobs:
           $node = 'build/sidecar/windows-amd64/node.exe'
           $nodeVersion = (& $node --version).Trim()
           if ($nodeVersion -ne 'v24.18.0') { throw "unexpected Node runtime: $nodeVersion" }
+
+          $cuaDriver = 'build/sidecar/windows-amd64/cua-driver.exe'
+          $cuaVersion = (& $cuaDriver --version).Trim()
+          if ($cuaVersion -ne 'cua-driver 0.14.2') { throw "unexpected Cua Driver runtime: $cuaVersion" }
+          $cuaManifest = Get-Content 'build/sidecar/windows-amd64/manifest.json' | ConvertFrom-Json
+          $cua = $cuaManifest.extensions.cuaDriver
+          if ($cua.sourceCommit -ne 'ed9d5efcf5f261f4854bf2de0ba06a2b0b4419c4') { throw 'unexpected Cua source commit' }
+          if ($cua.patch.sha256 -ne '25811f122f48ebdf346139c13724ee6f7cfa4ab8e29afad5a49d5bcfe62a96d4') { throw 'unexpected Cua Windows patch' }
+          if ($null -ne $cua.archive -or $null -ne $cua.archiveSha256) { throw 'Windows Cua manifest must not claim an official binary archive' }
+          $cuaDigest = (Get-FileHash -Algorithm SHA256 $cuaDriver).Hash.ToLowerInvariant()
+          if ($cua.binarySha256 -ne $cuaDigest) { throw 'Cua manifest binary hash mismatch' }
+
+          $packagedCua = 'build/electron/windows/stable/win-unpacked/resources/milksu-sidecar/cua-driver.exe'
+          $packagedCuaDigest = (Get-FileHash -Algorithm SHA256 $packagedCua).Hash.ToLowerInvariant()
+          if ($packagedCuaDigest -ne $cuaDigest) { throw 'packaged Cua Driver differs from the verified Sidecar runtime' }
+          $packagedCuaVersion = (& $packagedCua --version).Trim()
+          if ($packagedCuaVersion -ne 'cua-driver 0.14.2') { throw "unexpected packaged Cua Driver: $packagedCuaVersion" }
 
           $backend = 'build/desktop/milksu-backend.exe'
           $stdout = Join-Path $env:RUNNER_TEMP 'milksu-backend.stdout'

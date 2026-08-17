@@ -11,8 +11,13 @@ on:
       - 'go.sum'
       - 'internal/appdata/**'
       - 'internal/codingcollab/**'
+      - 'internal/computercap/**'
       - 'internal/modelcatalog/**'
       - 'internal/userartifact/**'
+      - 'scripts/build-windows-cua-driver.mjs'
+      - 'scripts/package-sidecar.mjs'
+      - 'sidecar/computer-use/**'
+      - 'third_party/cua-driver/**'
   workflow_dispatch:
 
 permissions:
@@ -25,7 +30,7 @@ concurrency:
 jobs:
   startup:
     runs-on: windows-2025
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -35,6 +40,11 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: actions/cache@v4
+        with:
+          path: build/sidecar-cache/cua-windows-0.14.2/h
+          key: windows-cua-0.14.2-${{ hashFiles('scripts/build-windows-cua-driver.mjs', 'third_party/cua-driver/**') }}
       - name: Check backend formatting
         shell: pwsh
         run: |
@@ -59,3 +69,13 @@ jobs:
           go test ./cmd/milksu-backend
           -run '^(TestCodingCollaborationManager(IsDisabledOutsideDarwin|PreservesDarwinGitRequirement)|TestWindowsStartupDoesNotRequireGit)$'
           -count=1
+      - name: Build and verify the pinned Windows Cua Driver
+        shell: pwsh
+        run: node scripts/build-windows-cua-driver.mjs verify
+      - name: Probe the Windows Computer Use host boundary
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $env:MILKSU_TEST_CUA_DRIVER = (Resolve-Path 'build/sidecar-cache/cua-windows-0.14.2/r/cua-driver.exe').Path
+          go test ./internal/computercap -count=1
+          node --test sidecar/computer-use/computer-use-proxy.test.js

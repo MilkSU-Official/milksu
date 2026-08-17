@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -707,6 +708,9 @@ func normalizeComputerUseDescriptor(
 		sessionID,
 		"driver.sock",
 	)
+	if runtime.GOOS == "windows" {
+		expectedSocket = `\\.\pipe\milksu-computer-use-` + sessionID
+	}
 	if strings.TrimSpace(descriptor.SocketPath) != expectedSocket {
 		return nil, fmt.Errorf("invalid Computer Use socket path")
 	}
