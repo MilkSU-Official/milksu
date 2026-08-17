@@ -68,7 +68,9 @@ jobs:
           test -f "$package"
           test "$(dpkg-deb -f "$package" Architecture)" = 'amd64'
           test "$(dpkg-deb -f "$package" Version)" = "$version"
-          dpkg-deb --contents "$package" | grep -q '/opt/MilkSU/'
+          dpkg_contents="$RUNNER_TEMP/milksu-deb-contents.txt"
+          dpkg-deb --contents "$package" >"$dpkg_contents"
+          grep -q '/opt/MilkSU/' "$dpkg_contents"
           sha256sum "$package"
 
           node_runtime='build/sidecar/linux-amd64/node'
