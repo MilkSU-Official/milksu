@@ -95,7 +95,7 @@ func DefaultSettings() AppSettings {
 		ActiveModel:    "x-ai/grok-4.6",
 		ModelRouting: ModelRoutingConfig{
 			SourceOrder:  []string{ModelSourceAccount, ModelSourcePersonal},
-			AutoFallback: boolPointer(true),
+			AutoFallback: boolPointer(false),
 		},
 		Providers: make(map[string]ProviderConfig),
 	}
@@ -616,7 +616,8 @@ func withDefaults(value AppSettings) AppSettings {
 	}
 	value.ModelRouting.SourceOrder = normalizeModelSourceOrder(value.ModelRouting.SourceOrder)
 	if value.ModelRouting.AutoFallback == nil {
-		value.ModelRouting.AutoFallback = boolPointer(true)
+		// Off by default: the picker lists enabled services; do not silently hop sources.
+		value.ModelRouting.AutoFallback = boolPointer(false)
 	}
 	value.DisabledSkills = normalizeDisabledSkills(value.DisabledSkills)
 	value.SecurityTools = normalizeSecurityToolPreferences(value.SecurityTools)
@@ -656,7 +657,7 @@ func boolPointer(value bool) *bool {
 }
 
 func boolValue(value *bool) bool {
-	return value == nil || *value
+	return value != nil && *value
 }
 
 func normalizeModelSourceOrder(value []string) []string {

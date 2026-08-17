@@ -65,11 +65,19 @@ function runtimeTokenfluxModelCatalogSnapshot(environment = process.env) {
     models: tokenfluxModelCatalog,
     source: "",
     credentialSource: "",
+    keyShape: "",
+    accountModelIDs: [],
   };
   try {
     const snapshot = JSON.parse(fs.readFileSync(catalogPath, "utf8"));
     if (snapshot?.provider !== "tokenflux" || !Array.isArray(snapshot.models)) {
-      return { models: tokenfluxModelCatalog, source: "", credentialSource: "" };
+      return {
+        models: tokenfluxModelCatalog,
+        source: "",
+        credentialSource: "",
+        keyShape: "",
+        accountModelIDs: [],
+      };
     }
     const dynamic = snapshot.models.flatMap(item => {
       const id = String(item?.id ?? "").trim();
@@ -89,13 +97,24 @@ function runtimeTokenfluxModelCatalogSnapshot(environment = process.env) {
         input: input.includes("text") ? input : ["text", ...input],
       }];
     });
+    const accountModelIDs = Array.isArray(snapshot.account_model_ids)
+      ? snapshot.account_model_ids.map(id => String(id ?? "").trim()).filter(Boolean)
+      : [];
     return {
       models: dynamic.length > 0 ? dynamic : tokenfluxModelCatalog,
       source: String(snapshot.source ?? "").trim(),
       credentialSource: String(snapshot.credential_source ?? "").trim(),
+      keyShape: String(snapshot.key_shape ?? "").trim(),
+      accountModelIDs,
     };
   } catch {
-    return { models: tokenfluxModelCatalog, source: "", credentialSource: "" };
+    return {
+      models: tokenfluxModelCatalog,
+      source: "",
+      credentialSource: "",
+      keyShape: "",
+      accountModelIDs: [],
+    };
   }
 }
 
@@ -105,9 +124,22 @@ function runtimeTokenfluxModelCatalog(environment = process.env) {
 
 function tokenfluxAccountModelAvailability(model, environment = process.env) {
   const snapshot = runtimeTokenfluxModelCatalogSnapshot(environment);
-  const authoritative = snapshot.credentialSource === "account"
-    && (snapshot.source === "remote" || snapshot.source === "cache");
+  const source = String(snapshot.credentialSource ?? "").trim();
+  // Account entitlement is authoritative when the catalog came from the
+  // account key alone, or from a merged account+personal refresh that records
+  // which ids the account key can call.
+  const authoritative = (snapshot.source === "remote" || snapshot.source === "cache")
+    && (source === "account" || source === "merged");
   if (!authoritative) return { authoritative: false, model: undefined };
+  const accountIDs = Array.isArray(snapshot.accountModelIDs)
+    ? snapshot.accountModelIDs
+    : null;
+  if (source === "merged" && accountIDs) {
+    const allowed = new Set(accountIDs.map(id => String(id ?? "").trim()).filter(Boolean));
+    if (!allowed.has(String(model ?? "").trim())) {
+      return { authoritative: true, model: undefined };
+    }
+  }
   return {
     authoritative: true,
     model: snapshot.models.find(item => item.id === model),

@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  inferCompositePrefixedIDs,
   tokenfluxBareModelID,
   tokenfluxCompositePrefixRequired,
   tokenfluxRequestModelIDs,
@@ -9,58 +8,39 @@ import {
   tokenfluxRequestRetryable,
 } from "./tokenflux-model-id.cjs";
 
-test("maps bare Grok / GPT / Claude / Gemini / Qwen / DeepSeek ids to composite prefixes", () => {
-  assert.deepEqual(inferCompositePrefixedIDs("grok-4.5"), ["x-ai/grok-4.5"]);
-  assert.deepEqual(inferCompositePrefixedIDs("gpt-4.1"), ["openai/gpt-4.1"]);
-  assert.deepEqual(
-    inferCompositePrefixedIDs("claude-sonnet-4.6"),
-    ["anthropic/claude-sonnet-4.6"],
-  );
-  assert.deepEqual(
-    inferCompositePrefixedIDs("gemini-2.5-pro"),
-    ["google/gemini-2.5-pro"],
-  );
-  assert.deepEqual(
-    inferCompositePrefixedIDs("qwen3-coder-plus"),
-    ["qwen/qwen3-coder-plus", "bailian/qwen3-coder-plus", "dashscope/qwen3-coder-plus"],
-  );
-  assert.deepEqual(
-    inferCompositePrefixedIDs("deepseek-v4-flash"),
-    ["deepseek/deepseek-v4-flash"],
-  );
-});
-
-test("strips known vendor prefixes back to bare model ids", () => {
+test("strips a composite prefix without inventing vendor prefixes", () => {
+  assert.equal(tokenfluxBareModelID("GPT/gpt-5"), "gpt-5");
+  assert.equal(tokenfluxBareModelID("Claude/claude-sonnet-4"), "claude-sonnet-4");
   assert.equal(tokenfluxBareModelID("x-ai/grok-4.5"), "grok-4.5");
-  assert.equal(tokenfluxBareModelID("openai/gpt-4.1"), "gpt-4.1");
-  assert.equal(tokenfluxBareModelID("bailian/qwen3-coder-plus"), "qwen3-coder-plus");
-  assert.equal(tokenfluxBareModelID("vendor/custom-model"), "vendor/custom-model");
+  assert.equal(tokenfluxBareModelID("grok-4.5"), "grok-4.5");
 });
 
-test("request candidates try the catalog id first then the alternate shape", () => {
+test("request candidates prefer the catalog id and catalog-known alternates", () => {
   assert.deepEqual(
-    tokenfluxRequestModelIDs("grok-4.5"),
+    tokenfluxRequestModelIDs("GPT/gpt-5", ["GPT/gpt-5", "Claude/claude-sonnet-4"]),
+    ["GPT/gpt-5"],
+  );
+  assert.deepEqual(
+    tokenfluxRequestModelIDs("grok-4.5", ["grok-4.5", "x-ai/grok-4.5"]),
     ["grok-4.5", "x-ai/grok-4.5"],
   );
   assert.deepEqual(
-    tokenfluxRequestModelIDs("x-ai/grok-4.5"),
+    tokenfluxRequestModelIDs("x-ai/grok-4.5", ["x-ai/grok-4.5", "grok-4.5"]),
     ["x-ai/grok-4.5", "grok-4.5"],
   );
-  assert.deepEqual(
-    tokenfluxRequestModelIDs("openai/gpt-4.1"),
-    ["openai/gpt-4.1", "gpt-4.1"],
-  );
+  // Without a catalog, only strip an existing prefix — never invent x-ai/openai.
+  assert.deepEqual(tokenfluxRequestModelIDs("grok-4.5"), ["grok-4.5"]);
+  assert.deepEqual(tokenfluxRequestModelIDs("GPT/gpt-5"), ["GPT/gpt-5", "gpt-5"]);
 });
 
 test("request model objects keep the catalog selection while rewriting ids", () => {
-  const models = tokenfluxRequestModels({
-    id: "grok-4.5",
-    name: "Grok 4.5",
-    provider: "tokenflux",
-  });
-  assert.equal(models[0].id, "grok-4.5");
-  assert.equal(models[0].name, "Grok 4.5");
-  assert.equal(models[1].id, "x-ai/grok-4.5");
+  const models = tokenfluxRequestModels(
+    { id: "GPT/gpt-5", name: "GPT 5", provider: "tokenflux" },
+    ["GPT/gpt-5", "gpt-5"],
+  );
+  assert.equal(models[0].id, "GPT/gpt-5");
+  assert.equal(models[0].name, "GPT 5");
+  assert.equal(models[1].id, "gpt-5");
   assert.equal(models[1].provider, "tokenflux");
 });
 

@@ -72,5 +72,5 @@ func preferredModelSourceOrder(settings config.AppSettings, preference string) [
 }
 
 func modelSourceAutoFallback(settings config.AppSettings) bool {
-	return settings.ModelRouting.AutoFallback == nil || *settings.ModelRouting.AutoFallback
+	return settings.ModelRouting.AutoFallback != nil && *settings.ModelRouting.AutoFallback
 }

@@ -59,7 +59,7 @@ func TestWithDefaults(t *testing.T) {
 	if len(settings.ModelRouting.SourceOrder) != 2 ||
 		settings.ModelRouting.SourceOrder[0] != ModelSourceAccount ||
 		settings.ModelRouting.AutoFallback == nil ||
-		!*settings.ModelRouting.AutoFallback {
+		*settings.ModelRouting.AutoFallback {
 		t.Fatalf("unexpected model routing defaults: %#v", settings.ModelRouting)
 	}
 	if len(settings.DisabledSkills) != 2 ||
@@ -85,7 +85,7 @@ func TestCloneDoesNotShareMaps(t *testing.T) {
 	custom.Models[0] = "model-b"
 	copied.Providers["custom-relay-local"] = custom
 	copied.ModelRouting.SourceOrder[0] = ModelSourcePersonal
-	*copied.ModelRouting.AutoFallback = false
+	*copied.ModelRouting.AutoFallback = true
 	copied.DisabledSkills[0] = "review-security"
 	copied.SecurityTools["capa"] = SecurityToolPreference{Enabled: false}
 	if _, exists := original.Providers["openai"]; !exists {
@@ -96,7 +96,7 @@ func TestCloneDoesNotShareMaps(t *testing.T) {
 	}
 	if original.ModelRouting.SourceOrder[0] != ModelSourceAccount ||
 		original.ModelRouting.AutoFallback == nil ||
-		!*original.ModelRouting.AutoFallback {
+		*original.ModelRouting.AutoFallback {
 		t.Fatal("clone modified original model routing")
 	}
 	if original.DisabledSkills[0] != "product-design" {

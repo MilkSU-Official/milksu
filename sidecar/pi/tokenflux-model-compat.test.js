@@ -36,20 +36,40 @@ function stream(events) {
   return value;
 }
 
-test("retries bare Grok id as x-ai/grok when composite key requires a prefix", async () => {
+test("uses the catalog composite id without inventing a vendor prefix", async () => {
   const seen = [];
-  const done = message("x-ai/grok-4.5");
+  const done = message("GPT/gpt-5");
   const routed = streamTokenFluxModelWithCompat({
-    model: { id: "grok-4.5", provider: "tokenflux", api: "openai-completions" },
+    model: { id: "GPT/gpt-5", provider: "tokenflux", api: "openai-completions" },
     context: { systemPrompt: "", messages: [], tools: [] },
     options: {},
+    catalogModelIDs: ["GPT/gpt-5", "Claude/claude-sonnet-4"],
     open(model) {
       seen.push(model.id);
-      if (model.id === "grok-4.5") {
+      return stream([{ type: "done", reason: "stop", message: done }]);
+    },
+  });
+  for await (const _event of routed) {
+    // drain
+  }
+  assert.deepEqual(seen, ["GPT/gpt-5"]);
+});
+
+test("retries a catalog-known bare alternate when the prefixed form is rejected", async () => {
+  const seen = [];
+  const done = message("grok-4.5");
+  const routed = streamTokenFluxModelWithCompat({
+    model: { id: "x-ai/grok-4.5", provider: "tokenflux", api: "openai-completions" },
+    context: { systemPrompt: "", messages: [], tools: [] },
+    options: {},
+    catalogModelIDs: ["x-ai/grok-4.5", "grok-4.5"],
+    open(model) {
+      seen.push(model.id);
+      if (model.id === "x-ai/grok-4.5") {
         const failed = message(
-          "grok-4.5",
+          "x-ai/grok-4.5",
           "error",
-          '400: {"code":"COMPOSITE_KEY_MODEL_PREFIX_REQUIRED","message":"composite api key model must use prefix/model_id"}',
+          '404 {"type":"model_not_found","message":"Model \\"x-ai/grok-4.5\\" is not supported"}',
         );
         return stream([
           { type: "start", partial: failed },
@@ -61,38 +81,8 @@ test("retries bare Grok id as x-ai/grok when composite key requires a prefix", a
   });
   const events = [];
   for await (const event of routed) events.push(event);
-  assert.deepEqual(seen, ["grok-4.5", "x-ai/grok-4.5"]);
+  assert.deepEqual(seen, ["x-ai/grok-4.5", "grok-4.5"]);
   assert.equal(events.at(-1).type, "done");
-  assert.equal(events.some(event => event.type === "error"), false);
-});
-
-test("retries prefixed GPT id as bare when single-model key rejects the prefix", async () => {
-  const seen = [];
-  const done = message("gpt-4.1");
-  const routed = streamTokenFluxModelWithCompat({
-    model: { id: "openai/gpt-4.1", provider: "tokenflux", api: "openai-completions" },
-    context: { systemPrompt: "", messages: [], tools: [] },
-    options: {},
-    open(model) {
-      seen.push(model.id);
-      if (model.id === "openai/gpt-4.1") {
-        const failed = message(
-          "openai/gpt-4.1",
-          "error",
-          '404 {"type":"model_not_found","message":"Model \\"openai/gpt-4.1\\" is not supported by any configured account"}',
-        );
-        return stream([
-          { type: "start", partial: failed },
-          { type: "error", reason: "error", error: failed },
-        ]);
-      }
-      return stream([{ type: "done", reason: "stop", message: done }]);
-    },
-  });
-  for await (const _event of routed) {
-    // drain
-  }
-  assert.deepEqual(seen, ["openai/gpt-4.1", "gpt-4.1"]);
 });
 
 test("does not rewrite after the first content token", async () => {
@@ -102,6 +92,7 @@ test("does not rewrite after the first content token", async () => {
     model: { id: "grok-4.5", provider: "tokenflux", api: "openai-completions" },
     context: { systemPrompt: "", messages: [], tools: [] },
     options: {},
+    catalogModelIDs: ["grok-4.5", "x-ai/grok-4.5"],
     open(model) {
       seen.push(model.id);
       return stream([
@@ -124,29 +115,18 @@ test("withTokenFluxModelCompat wraps an existing streamSimple", async () => {
     api: "openai-completions",
     baseUrl: "https://tokenflux.dev/v1",
     apiKey: "test",
-    models: [{ id: "claude-sonnet-4.6" }],
+    models: [{ id: "Claude/claude-sonnet-4" }],
     streamSimple(model) {
       seen.push(model.id);
-      if (model.id === "claude-sonnet-4.6") {
-        const failed = message(
-          model.id,
-          "error",
-          "composite api key model must use prefix/model_id",
-        );
-        return stream([
-          { type: "start", partial: failed },
-          { type: "error", reason: "error", error: failed },
-        ]);
-      }
       return stream([{ type: "done", reason: "stop", message: message(model.id) }]);
     },
   });
   for await (const _event of definition.streamSimple(
-    { id: "claude-sonnet-4.6", provider: "tokenflux", api: "openai-completions" },
+    { id: "Claude/claude-sonnet-4", provider: "tokenflux", api: "openai-completions" },
     { systemPrompt: "", messages: [], tools: [] },
     {},
   )) {
     // drain
   }
-  assert.deepEqual(seen, ["claude-sonnet-4.6", "anthropic/claude-sonnet-4.6"]);
+  assert.deepEqual(seen, ["Claude/claude-sonnet-4"]);
 });

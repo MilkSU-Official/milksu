@@ -83,6 +83,27 @@ test("uses only an authoritative account catalog to reject unavailable models", 
     fs.writeFileSync(catalogPath, JSON.stringify({
       provider: "tokenflux",
       source: "remote",
+      credential_source: "merged",
+      account_model_ids: ["grok-4.5"],
+      models: [
+        { id: "grok-4.5", input: ["text"] },
+        { id: "GPT/gpt-5", input: ["text"] },
+      ],
+    }));
+    const mergedAccount = tokenfluxAccountModelAvailability("grok-4.5", {
+      MILKSU_MODEL_CATALOG_PATH: catalogPath,
+    });
+    assert.equal(mergedAccount.authoritative, true);
+    assert.equal(mergedAccount.model.id, "grok-4.5");
+    const personalOnly = tokenfluxAccountModelAvailability("GPT/gpt-5", {
+      MILKSU_MODEL_CATALOG_PATH: catalogPath,
+    });
+    assert.equal(personalOnly.authoritative, true);
+    assert.equal(personalOnly.model, undefined);
+
+    fs.writeFileSync(catalogPath, JSON.stringify({
+      provider: "tokenflux",
+      source: "remote",
       credential_source: "personal",
       models: [{ id: "grok-4.5", input: ["text"] }],
     }));

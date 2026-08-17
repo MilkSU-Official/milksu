@@ -4,7 +4,7 @@ import { createApp, nextTick, type App } from 'vue'
 import { afterEach, describe, expect, it } from 'vitest'
 import SettingsPage from './SettingsPage.vue'
 import type { CodingComputerUseStatus } from '@/codingEnvironmentTypes'
-import { installCustomProviderSettings, installModelCatalog } from '@/modelCatalog'
+import { installAppModelSettings, installCustomProviderSettings, installModelCatalog } from '@/modelCatalog'
 import {
   withAppSettingsDefaults,
   type AccountStatus,
@@ -64,7 +64,7 @@ async function mountSettingsPage(
   options: MountSettingsOptions = {},
 ) {
   const settings = options.settings ?? withAppSettingsDefaults({} as AppSettings)
-  installCustomProviderSettings(settings.providers)
+  installAppModelSettings(settings)
   const defaultComputerUseStatus: CodingComputerUseStatus = {
     available: true,
     enabled: false,
@@ -737,7 +737,7 @@ describe('SettingsPage database compatibility', () => {
     expect(persisted.active_model).toBe('grok-4.3')
     expect(persisted.model_routing).toEqual({
       source_order: ['account', 'personal'],
-      auto_fallback: true,
+      auto_fallback: false,
     })
   })
 
@@ -746,6 +746,12 @@ describe('SettingsPage database compatibility', () => {
     const settings = withAppSettingsDefaults({
       active_provider: 'tokenflux',
       active_model: 'grok-4.3',
+      relay: {
+        enabled: true,
+        url: 'https://tokenflux.dev/v1',
+        key: '',
+        has_key: true,
+      },
       providers: {
         deepseek: {
           api_key: '',
@@ -909,14 +915,14 @@ describe('SettingsPage database compatibility', () => {
     expect(persistedSettings.active_model).toBe('grok-4.5')
   })
 
-  it('uses the signed-in account-assigned Key without exposing it and allows personal fallback order', async () => {
+  it('uses the signed-in account-assigned Key without exposing it and only toggles enablement', async () => {
     let savedSettings: unknown = null
     const settings = withAppSettingsDefaults({
       active_provider: 'tokenflux',
       active_model: 'grok-4.5',
       model_routing: {
         source_order: ['account', 'personal'],
-        auto_fallback: true,
+        auto_fallback: false,
       },
       relay: {
         enabled: true,
@@ -968,15 +974,19 @@ describe('SettingsPage database compatibility', () => {
     const text = document.body.textContent ?? ''
     expect(text).toContain('MilkSU 账户')
     expect(text).toContain('TokenFlux 个人')
-    expect(text).toContain('已连接')
+    expect(text).toContain('已启用')
+    expect(text).not.toContain('备用')
+    expect(text).not.toContain('设为默认')
+    expect(text).not.toContain('来源不可用时自动切换')
     expect(document.querySelector('input[aria-label="TokenFlux 团队 API Key"]')).toBeNull()
 
     const personalRow = [...document.querySelectorAll<HTMLElement>('.model-service-row')]
       .find(row => row.textContent?.includes('TokenFlux 个人'))
-    const personalDefaultButton = [...(personalRow?.querySelectorAll<HTMLButtonElement>('button') ?? [])]
-      .find(button => button.textContent?.trim() === '备用')
-    expect(personalDefaultButton).toBeDefined()
-    personalDefaultButton?.click()
+    expect(personalRow).toBeDefined()
+    const personalSwitch = personalRow!.querySelector<HTMLButtonElement>('[role="switch"]')
+      ?? personalRow!.querySelector<HTMLButtonElement>('button[aria-label*="TokenFlux 个人"]')
+    expect(personalSwitch).toBeDefined()
+    personalSwitch?.click()
     await settle()
 
     const saveButton = [...document.querySelectorAll('button')]
@@ -984,7 +994,8 @@ describe('SettingsPage database compatibility', () => {
     saveButton?.click()
     for (let index = 0; index < 6; index += 1) await settle()
 
-    expect((savedSettings as AppSettings).model_routing.source_order)
-      .toEqual(['personal', 'account'])
+    const persisted = savedSettings as AppSettings
+    expect(persisted.providers.tokenflux.enabled).toBe(false)
+    expect(persisted.model_routing.auto_fallback).toBe(false)
   })
 })

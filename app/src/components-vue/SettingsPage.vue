@@ -70,7 +70,6 @@ import type {
   UserArtifactDirectoryStatus,
   LocalDiagnosticExport,
   ModelProbeResult,
-  ModelSource,
   ProviderConfig,
   ProviderInfo,
   PreviousExitState,
@@ -79,7 +78,7 @@ import type {
 import {
   withAppSettingsDefaults,
 } from '@/types'
-import { useModelCatalog } from '@/modelCatalog'
+import { installAppModelSettings, useModelCatalog } from '@/modelCatalog'
 import VulnerabilityIntelSettingsPanel from '@/components-vue/VulnerabilityIntelSettingsPanel.vue'
 import SecurityToolsSettingsPanel from '@/components-vue/SecurityToolsSettingsPanel.vue'
 import type { SecurityToolCodingHandoff } from '@/securityToolsTypes'
@@ -138,15 +137,26 @@ const buildTrackingCopying = ref(false)
 const notice = ref<{ tone: 'ok' | 'error'; text: string } | null>(null)
 const editingProviderID = ref<string | null>(null)
 const customModelInput = ref('')
-const providerSettings = computed(() => working.value?.providers ?? {})
+// Same callable-model surface as Coding composer (enabled services only).
+const pickerSettings = computed(() => ({
+  providers: working.value?.providers ?? {},
+  relay: working.value?.relay,
+}))
+// Service rows still need unconfigured built-ins so the user can enable them.
+const serviceSettings = computed(() => ({
+  providers: working.value?.providers ?? {},
+  relay: working.value?.relay,
+  includeUnconfigured: true,
+}))
 const {
   providers: modelProviders,
   providerModelLabel,
-} = useModelCatalog(providerSettings)
+} = useModelCatalog(serviceSettings)
 const {
+  providers: availableProviders,
   providerGroups: availableProviderGroups,
   providerModelLabel: availableProviderModelLabel,
-} = useModelCatalog()
+} = useModelCatalog(pickerSettings)
 const account = computed<AccountStatus>(() => props.accountStatus ?? ({ configured: false, authenticated: false, state: 'unconfigured' }))
 const accountStateLabel = computed(() => ({
   unconfigured: '未配置',
@@ -200,11 +210,15 @@ function cloneSettings(value: AppSettings): AppSettings {
 watch(() => props.settings, value => {
   working.value = value ? cloneSettings(withAppSettingsDefaults(value)) : null
   if (working.value) {
-    ensureProvider(working.value.active_provider)
     ensureAccountRoute()
+    alignDefaultModelToEnabledServices()
   }
 }, { immediate: true })
 watch(() => props.initialCategory, value => { category.value = value })
+// Draft edits should drive the shared picker the same way Coding reads saved settings.
+watch(working, value => {
+  if (value) installAppModelSettings(value)
+}, { deep: true })
 onMounted(() => {
   void loadLocalData()
   void loadUserArtifactDirectory()
@@ -271,17 +285,14 @@ const defaultModelKey = computed({
 
 const defaultModelAvailable = computed(() => {
   if (!working.value) return false
-  return availableProviderGroups.value.some(group => group.providers.some(provider => (
+  return availableProviders.value.some(provider => (
     provider.id === working.value?.active_provider
     && provider.models.includes(working.value.active_model)
-  )))
+  ))
 })
 
-const availableModelCount = computed(() => availableProviderGroups.value.reduce(
-  (total, group) => total + group.providers.reduce(
-    (providerTotal, provider) => providerTotal + provider.models.length,
-    0,
-  ),
+const availableModelCount = computed(() => availableProviders.value.reduce(
+  (total, provider) => total + provider.models.length,
   0,
 ))
 
@@ -292,6 +303,25 @@ const defaultModelLabel = computed(() => {
     working.value.active_model,
   )
 })
+
+/** Keep active_provider/model on an enabled callable service after toggles. */
+function alignDefaultModelToEnabledServices() {
+  if (!working.value) return
+  const callable = availableProviders.value
+  if (callable.length === 0) return
+  const current = callable.find(provider => (
+    provider.id === working.value?.active_provider
+    && provider.models.includes(working.value.active_model)
+  ))
+  if (current) return
+  const sameProvider = callable.find(provider => provider.id === working.value?.active_provider)
+  if (sameProvider?.models[0]) {
+    working.value.active_model = sameProvider.models[0]
+    return
+  }
+  working.value.active_provider = callable[0].id
+  working.value.active_model = callable[0].models[0] ?? ''
+}
 
 function skillEnabled(name: string): boolean {
   return !working.value?.disabled_skills?.includes(name)
@@ -448,17 +478,15 @@ type ModelServiceRow =
 
 const modelServiceRows = computed<ModelServiceRow[]>(() => {
   if (!working.value) return []
-  const activeProvider = modelProviders.value.find(item => item.id === working.value?.active_provider)
-  const routed = working.value.model_routing.source_order.flatMap<ModelServiceRow>(source => {
-    if (source === 'account') return [{ key: 'account', source: 'account' }]
-    return activeProvider
-      ? [{ key: `provider:${activeProvider.id}`, source: 'personal', provider: activeProvider }]
-      : []
-  })
-  const remaining = modelProviders.value
-    .filter(item => item.id !== activeProvider?.id)
-    .map<ModelServiceRow>(item => ({ key: `provider:${item.id}`, source: 'personal', provider: item }))
-  return [...routed, ...remaining]
+  const rows: ModelServiceRow[] = []
+  // Account first when TokenFlux is the product model route; then every provider service.
+  if (!provider.value?.custom) {
+    rows.push({ key: 'account', source: 'account' })
+  }
+  for (const item of modelProviders.value) {
+    rows.push({ key: `provider:${item.id}`, source: 'personal', provider: item })
+  }
+  return rows
 })
 
 const accountProviderInfo = computed(() => modelProviders.value.find(item => item.id === 'tokenflux'))
@@ -518,26 +546,32 @@ function providerServiceName(info: ProviderInfo): string {
 }
 
 function serviceStatus(row: ModelServiceRow): string {
-  if (row.source === 'account') return accountModelSourceReady.value && accountRoute.value?.enabled ? '已连接' : '未连接'
+  if (row.source === 'account') {
+    if (!accountModelSourceReady.value) return '未连接'
+    return accountRoute.value?.enabled ? '已启用' : '已停用'
+  }
   const config = providerConfig(row.provider.id)
   if (!config || !(config.has_api_key || config.api_key)) return '未配置'
   if (!config.enabled) return '已停用'
-  return '可用'
+  return '已启用'
 }
 
 function serviceStatusClass(row: ModelServiceRow): string {
   const status = serviceStatus(row)
-  if (status === '已连接' || status === '可用') return 'text-primary'
-  if (status === '未配置') return 'text-warning'
+  if (status === '已启用') return 'text-primary'
+  if (status === '未配置' || status === '未连接') return 'text-warning'
   return 'text-muted-foreground'
 }
 
-function servicePriorityLabel(row: ModelServiceRow): string {
-  if (!working.value) return ''
-  const sourceIsFirst = working.value.model_routing.source_order[0] === row.source
-  if (row.source === 'account') return sourceIsFirst && accountRoute.value?.enabled ? '默认' : '备用'
-  if (row.provider.id !== working.value.active_provider) return '设为默认'
-  return sourceIsFirst && provider.value?.enabled ? '默认' : '备用'
+function serviceIsActiveDefault(row: ModelServiceRow): boolean {
+  if (!working.value) return false
+  if (row.source === 'account') {
+    return working.value.active_provider === 'tokenflux'
+      && Boolean(accountRoute.value?.enabled)
+      && accountModelSourceReady.value
+  }
+  return working.value.active_provider === row.provider.id
+    && Boolean(providerConfig(row.provider.id)?.enabled)
 }
 
 function openProviderEditor(id: string) {
@@ -553,32 +587,9 @@ function setEditingProviderModel(value: string) {
   working.value.active_model = value
 }
 
-function setServiceDefault(row: ModelServiceRow) {
-  if (!working.value) return
-  if (row.source === 'account') {
-    ensureAccountRoute()
-    if (accountModelSourceReady.value) working.value.relay!.enabled = true
-    moveModelSource('account', working.value.model_routing.source_order[0])
-    return
-  }
-  ensureProvider(row.provider.id)
-  const config = ensureProviderConfig(row.provider.id)
-  if (config) config.enabled = true
-  moveModelSource('personal', working.value.model_routing.source_order[0])
-}
-
 function setModelServiceEnabled(row: ModelServiceRow, enabled: boolean) {
-  if (row.source === 'account') {
-    setModelSourceEnabled('account', enabled)
-    return
-  }
-  const config = ensureProviderConfig(row.provider.id)
-  if (config) config.enabled = enabled
-}
-
-function setModelSourceEnabled(source: ModelSource, enabled: boolean) {
   if (!working.value) return
-  if (source === 'account') {
+  if (row.source === 'account') {
     if (provider.value?.custom) return
     ensureAccountRoute()
     if (enabled && !accountModelSourceReady.value) {
@@ -586,21 +597,32 @@ function setModelSourceEnabled(source: ModelSource, enabled: boolean) {
       return
     }
     working.value.relay!.enabled = enabled
+    // Prefer account TokenFlux when it is turned on; otherwise leave personal order.
+    if (enabled) {
+      working.value.model_routing.source_order = ['account', 'personal']
+      working.value.model_routing.auto_fallback = false
+      if (working.value.active_provider !== 'tokenflux') {
+        working.value.active_provider = 'tokenflux'
+      }
+    }
+    alignDefaultModelToEnabledServices()
     return
   }
-  ensureProvider(working.value.active_provider)
-  working.value.providers[working.value.active_provider].enabled = enabled
-}
-
-function moveModelSource(source: ModelSource, target: ModelSource) {
-  if (!working.value || source === target) return
-  const order = [...working.value.model_routing.source_order]
-  const from = order.indexOf(source)
-  const to = order.indexOf(target)
-  if (from < 0 || to < 0) return
-  order.splice(from, 1)
-  order.splice(to, 0, source)
-  working.value.model_routing.source_order = order
+  const config = ensureProviderConfig(row.provider.id)
+  if (!config) return
+  config.enabled = enabled
+  if (enabled) {
+    // Enabling a personal service makes it the active path for that provider.
+    working.value.active_provider = row.provider.id
+    if (row.provider.id === 'tokenflux') {
+      working.value.model_routing.source_order = ['personal', 'account']
+    }
+    working.value.model_routing.auto_fallback = false
+    if (row.provider.models[0] && !row.provider.models.includes(working.value.active_model)) {
+      working.value.active_model = row.provider.models[0]
+    }
+  }
+  alignDefaultModelToEnabledServices()
 }
 
 function formatBytes(value: number) {
@@ -1528,14 +1550,21 @@ async function saveProviderEditor(closeAfterSave: boolean) {
               </Button>
             </div>
 
+            <p class="mt-1 text-caption text-muted-foreground">
+              默认模型列表来自下方已启用的服务；Coding 输入框使用同一套列表。
+            </p>
+
             <div class="model-service-list mt-4 overflow-hidden rounded-lg border border-border bg-card">
               <article
-                v-for="(row, index) in modelServiceRows"
+                v-for="row in modelServiceRows"
                 :key="row.key"
                 class="model-service-row grid min-h-20 grid-cols-[48px_minmax(170px,1fr)_minmax(180px,1.1fr)_90px_auto_auto] items-center gap-4 border-b border-border px-4 py-3 last:border-b-0"
-                :class="index === 0 ? 'model-service-row-primary' : ''"
+                :class="serviceIsActiveDefault(row) ? 'model-service-row-primary' : ''"
               >
-                <span class="model-service-icon grid size-11 place-items-center rounded-lg border border-border bg-muted/40" :class="row.source === 'account' || row.provider.id === working.active_provider ? 'text-primary' : 'text-foreground'">
+                <span
+                  class="model-service-icon grid size-11 place-items-center rounded-lg border border-border bg-muted/40"
+                  :class="serviceIsActiveDefault(row) ? 'text-primary' : 'text-foreground'"
+                >
                   <WalletCards v-if="row.source === 'account'" class="size-5" />
                   <Box v-else-if="row.provider.kind === 'relay'" class="size-5" />
                   <KeyRound v-else class="size-5" />
@@ -1545,28 +1574,41 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                   <p class="truncate font-medium">
                     {{ row.source === 'account' ? 'MilkSU 账户' : providerServiceName(row.provider) }}
                   </p>
+                  <p v-if="serviceIsActiveDefault(row)" class="text-caption text-primary">
+                    当前默认服务
+                  </p>
                 </div>
 
-                <p class="truncate text-caption text-muted-foreground" :title="row.source === 'account' ? accountModelsText() : providerModelsText(row.provider)">
+                <p
+                  class="truncate text-caption text-muted-foreground"
+                  :title="row.source === 'account' ? accountModelsText() : providerModelsText(row.provider)"
+                >
                   {{ row.source === 'account' ? accountModelsText() : providerModelsText(row.provider) }}
                 </p>
 
-                <span class="text-caption font-medium" :class="serviceStatusClass(row)">{{ serviceStatus(row) }}</span>
+                <span class="text-caption font-medium" :class="serviceStatusClass(row)">
+                  {{ serviceStatus(row) }}
+                </span>
 
                 <div class="flex items-center justify-end gap-2 whitespace-nowrap text-caption">
-                  <button
-                    type="button"
-                    class="text-link hover:underline"
-                    @click="setServiceDefault(row)"
-                  >
-                    {{ servicePriorityLabel(row) }}
-                  </button>
                   <template v-if="row.source === 'personal'">
+                    <button
+                      type="button"
+                      class="text-link hover:underline"
+                      @click="openProviderEditor(row.provider.id)"
+                    >
+                      编辑
+                    </button>
                     <span class="text-muted-foreground">/</span>
-                    <button type="button" class="text-link hover:underline" @click="openProviderEditor(row.provider.id)">编辑</button>
-                    <span class="text-muted-foreground">/</span>
-                    <button type="button" class="text-destructive hover:underline" @click="removeModelService(row.provider.id)">删除</button>
+                    <button
+                      type="button"
+                      class="text-destructive hover:underline"
+                      @click="removeModelService(row.provider.id)"
+                    >
+                      删除
+                    </button>
                   </template>
+                  <span v-else class="text-muted-foreground">—</span>
                 </div>
 
                 <Switch
@@ -1575,15 +1617,6 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                   @update:model-value="setModelServiceEnabled(row, Boolean($event))"
                 />
               </article>
-            </div>
-
-            <div class="mt-4 flex items-center justify-end gap-3">
-              <span class="text-caption text-muted-foreground">来源不可用时自动切换</span>
-              <Switch
-                :model-value="working.model_routing.auto_fallback"
-                aria-label="来源不可用时自动切换"
-                @update:model-value="working.model_routing.auto_fallback = Boolean($event)"
-              />
             </div>
           </section>
 

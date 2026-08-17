@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { computed } from 'vue'
-import { installCustomProviderSettings, installModelCatalog, providerModelLabel, useModelCatalog } from './modelCatalog'
+import {
+  installAppModelSettings,
+  installCustomProviderSettings,
+  installModelCatalog,
+  providerModelLabel,
+  useModelCatalog,
+} from './modelCatalog'
 import type { ProviderConfig } from './types'
 
 describe('runtime model catalog', () => {
@@ -24,6 +30,15 @@ describe('runtime model catalog', () => {
           context_window: 1050000, max_tokens: 32768, input: ['text'],
         },
       ],
+    })
+    installAppModelSettings({
+      providers: {},
+      relay: {
+        enabled: true,
+        url: 'https://tokenflux.dev/v1',
+        key: '',
+        has_key: true,
+      },
     })
 
     const { providers } = useModelCatalog()
@@ -76,13 +91,24 @@ describe('runtime model catalog', () => {
         enabled: true,
       },
     }
-    installCustomProviderSettings(settings)
+    installAppModelSettings({
+      providers: settings,
+      relay: {
+        enabled: true,
+        url: 'https://tokenflux.dev/v1',
+        key: '',
+        has_key: true,
+      },
+    })
 
     const runtime = useModelCatalog()
     expect(runtime.providerGroups.value.map(group => group.label)).toEqual(['中转站'])
     expect(runtime.providers.value.map(provider => provider.id)).toEqual(['tokenflux'])
 
-    const configurable = useModelCatalog(computed(() => settings))
+    const configurable = useModelCatalog(computed(() => ({
+      providers: settings,
+      includeUnconfigured: true,
+    })))
     expect(configurable.providers.value.some(provider => provider.id === 'openai')).toBe(true)
   })
 
@@ -91,7 +117,15 @@ describe('runtime model catalog', () => {
       id: 'grok-4.6', name: 'Grok 4.6',
       context_window: 500_000, max_tokens: 32_768, input: ['text'] as ('text' | 'image')[],
     }
-    installCustomProviderSettings({})
+    installAppModelSettings({
+      providers: {},
+      relay: {
+        enabled: true,
+        url: 'https://tokenflux.dev/v1',
+        key: '',
+        has_key: true,
+      },
+    })
 
     installModelCatalog({
       provider: 'tokenflux', source: 'bundled', credential_source: 'bundled',
@@ -110,5 +144,45 @@ describe('runtime model catalog', () => {
       refreshed_at: '2026-08-15T00:02:00Z', models: [model],
     })
     expect(useModelCatalog().providers.value.map(provider => provider.id)).toEqual(['tokenflux'])
+  })
+
+  it('lists only enabled services for the shared Coding and Settings picker', () => {
+    installModelCatalog({
+      provider: 'tokenflux',
+      source: 'remote',
+      credential_source: 'merged',
+      account_model_ids: ['grok-4.5'],
+      models: [
+        { id: 'grok-4.5', name: 'Grok 4.5', context_window: 128000, max_tokens: 32768, input: ['text', 'image'] },
+        { id: 'GPT/gpt-5', name: 'GPT 5', context_window: 128000, max_tokens: 32768, input: ['text'] },
+      ],
+    })
+    installAppModelSettings({
+      providers: {
+        tokenflux: {
+          api_key: '',
+          has_api_key: true,
+          enabled: false,
+          base_url: 'https://tokenflux.dev/v1',
+        },
+        deepseek: {
+          api_key: '',
+          has_api_key: true,
+          enabled: true,
+          base_url: 'https://api.deepseek.com',
+        },
+      },
+      relay: {
+        enabled: true,
+        url: 'https://tokenflux.dev/v1',
+        key: '',
+        has_key: true,
+      },
+    })
+
+    const { providers } = useModelCatalog()
+    expect(providers.value.map(provider => provider.id).sort()).toEqual(['deepseek', 'tokenflux'])
+    expect(providers.value.find(provider => provider.id === 'tokenflux')?.models).toEqual(['grok-4.5'])
+    expect(providers.value.find(provider => provider.id === 'deepseek')?.models).toContain('deepseek-v4-pro')
   })
 })

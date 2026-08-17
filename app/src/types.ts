@@ -196,7 +196,11 @@ export interface ModelCatalogSnapshot {
   models: ModelCatalogItem[]
   refreshed_at?: string
   source: 'remote' | 'cache' | 'bundled'
-  credential_source: 'account' | 'personal' | 'public' | 'bundled'
+  credential_source: 'account' | 'personal' | 'merged' | 'public' | 'bundled'
+  /** TokenFlux key shape inferred from /v1/models (single-group, composite, or mixed). */
+  key_shape?: 'single' | 'composite' | 'mixed' | 'unknown'
+  /** Model ids visible to the account key only when both account and personal catalogs are merged. */
+  account_model_ids?: string[]
 }
 
 export type ModelSource = 'account' | 'personal'
@@ -273,7 +277,8 @@ export function normalizeModelRouting(value?: Partial<ModelRoutingConfig>): Mode
   }
   return {
     source_order: sourceOrder,
-    auto_fallback: value?.auto_fallback ?? true,
+    // Default off: only one enabled service path is used unless the user opts in.
+    auto_fallback: value?.auto_fallback ?? false,
   }
 }
 

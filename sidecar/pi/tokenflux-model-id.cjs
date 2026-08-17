@@ -1,22 +1,12 @@
 "use strict";
 
-// TokenFlux accepts two key shapes on the same OpenAI-compatible endpoint:
-// 1. single-model keys: bare model ids (for example grok-4.5)
-// 2. composite keys: vendor prefix + model id (for example x-ai/grok-4.5)
-// MilkSU keeps the catalog id as the product selection and only rewrites the
-// request model id when a live response proves the other shape is required.
-
-const knownVendorPrefixes = Object.freeze([
-  "x-ai",
-  "openai",
-  "anthropic",
-  "google",
-  "qwen",
-  "deepseek",
-  "bailian",
-  "dashscope",
-  "alibaba",
-]);
+// TokenFlux key shapes (docs.tokenflux.dev/docs/tokenflux/composite-key):
+// 1. single-group keys: /v1/models returns bare model ids for that group
+// 2. composite keys: /v1/models returns prefix/model for each mapped group
+//
+// MilkSU treats the catalog id as authoritative. Request rewriting only tries
+// the bare form when the selected id already has a prefix separator, so a
+// stale composite selection can still work on a single-group key.
 
 function normalizeModelID(value) {
   return String(value ?? "").trim();
@@ -57,47 +47,21 @@ function tokenfluxModelNotFound(error) {
     /\bmodel_not_found\b/u.test(message)
     || /model[\s\S]{0,384}(not found|not supported|unsupported|unavailable)/u.test(message)
     || /not supported by any configured account/u.test(message)
+    || /COMPOSITE_KEY_PREFIX_NOT_FOUND|composite_key_prefix_not_found/u.test(message)
   );
 }
 
 function tokenfluxBareModelID(modelID) {
   const id = normalizeModelID(modelID);
-  if (!id.includes("/")) return id;
-  const prefix = id.slice(0, id.indexOf("/"));
-  if (!knownVendorPrefixes.includes(prefix)) return id;
-  return id.slice(id.indexOf("/") + 1);
+  const slash = id.indexOf("/");
+  if (slash <= 0 || slash >= id.length - 1) return id;
+  const prefix = id.slice(0, slash);
+  // Composite prefixes are 1-32 chars of [A-Za-z0-9_-] (TokenFlux docs).
+  if (prefix.length > 32 || !/^[A-Za-z0-9_-]+$/u.test(prefix)) return id;
+  return id.slice(slash + 1);
 }
 
-function inferCompositePrefixedIDs(bareModelID) {
-  const id = normalizeModelID(bareModelID);
-  if (!id || id.includes("/")) return [];
-  const result = [];
-  const add = prefix => {
-    const value = `${prefix}/${id}`;
-    if (!result.includes(value)) result.push(value);
-  };
-
-  // Grok / xAI
-  if (/^grok/iu.test(id)) add("x-ai");
-  // OpenAI GPT family and Codex-style ids
-  if (/^(?:gpt|o[1-9]|chatgpt|codex)/iu.test(id)) add("openai");
-  // Anthropic Claude
-  if (/^claude/iu.test(id)) add("anthropic");
-  // Google Gemini / Gemma
-  if (/^(?:gemini|gemma)/iu.test(id)) add("google");
-  // Alibaba Bailian / DashScope / Qwen family
-  if (/^(?:qwen|qwq|qvq|wanx|tongyi)/iu.test(id)) {
-    add("qwen");
-    add("bailian");
-    add("dashscope");
-  }
-  // DeepSeek
-  if (/^deepseek/iu.test(id)) add("deepseek");
-
-  return result;
-}
-
-function tokenfluxRequestModelIDs(modelID) {
+function tokenfluxRequestModelIDs(modelID, catalogModelIDs = []) {
   const id = normalizeModelID(modelID);
   if (!id) return [];
   const result = [id];
@@ -106,16 +70,36 @@ function tokenfluxRequestModelIDs(modelID) {
     if (next && !result.includes(next)) result.push(next);
   };
 
-  if (id.includes("/")) {
-    push(tokenfluxBareModelID(id));
-  } else {
-    for (const prefixed of inferCompositePrefixedIDs(id)) push(prefixed);
+  const catalog = new Set(
+    (Array.isArray(catalogModelIDs) ? catalogModelIDs : [])
+      .map(value => normalizeModelID(value))
+      .filter(Boolean),
+  );
+
+  // If the catalog lists an alternate bare/prefixed form of the same selection,
+  // try it after the exact id. Do not invent vendor prefixes — composite
+  // prefixes are user-defined (GPT, Claude, …).
+  if (catalog.size > 0) {
+    const bare = tokenfluxBareModelID(id);
+    if (bare !== id && catalog.has(bare)) push(bare);
+    for (const candidate of catalog) {
+      if (candidate === id) continue;
+      if (tokenfluxBareModelID(candidate) === bare || tokenfluxBareModelID(candidate) === id) {
+        push(candidate);
+      }
+    }
+    return result;
   }
+
+  // Without a catalog, only try stripping an existing composite prefix so a
+  // single-group key can accept a previously saved prefix/model selection.
+  const bare = tokenfluxBareModelID(id);
+  if (bare !== id) push(bare);
   return result;
 }
 
-function tokenfluxRequestModels(model) {
-  const ids = tokenfluxRequestModelIDs(model?.id);
+function tokenfluxRequestModels(model, catalogModelIDs = []) {
+  const ids = tokenfluxRequestModelIDs(model?.id, catalogModelIDs);
   if (ids.length === 0) return model ? [model] : [];
   return ids.map(id => (
     id === model.id
@@ -129,8 +113,6 @@ function tokenfluxRequestRetryable(error) {
 }
 
 module.exports = {
-  inferCompositePrefixedIDs,
-  knownVendorPrefixes,
   tokenfluxBareModelID,
   tokenfluxCompositePrefixRequired,
   tokenfluxModelNotFound,

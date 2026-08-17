@@ -25,7 +25,7 @@ import {
 } from '@/lib/workspaceSessionRouting'
 import { withAppSettingsDefaults, type AccountStatus, type AppSettings, type CTFChatAction, type StartupRecoveryStatus, type UpdateStatus } from '@/types'
 import type { ModelCatalogSnapshot } from '@/types'
-import { installCustomProviderSettings, installModelCatalog, loadModelCatalog } from '@/modelCatalog'
+import { installAppModelSettings, installModelCatalog, loadModelCatalog } from '@/modelCatalog'
 import type { SecurityToolCodingHandoff } from '@/securityToolsTypes'
 
 const ChatPage = defineAsyncComponent(() => import('@/components-vue/ChatPage.vue'))
@@ -145,7 +145,7 @@ async function loadSettings() {
 function applySettings(value: AppSettings) {
   const normalized = withAppSettingsDefaults(value)
   settings.value = normalized
-  installCustomProviderSettings(normalized.providers)
+  installAppModelSettings(normalized)
 }
 
 async function loadAccountStatus() {

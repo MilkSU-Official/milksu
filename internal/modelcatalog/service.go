@@ -27,8 +27,13 @@ const (
 	maxCatalogResponseBytes   = 8 << 20
 	CredentialSourceAccount   = "account"
 	CredentialSourcePersonal  = "personal"
+	CredentialSourceMerged    = "merged"
 	CredentialSourcePublic    = "public"
 	CredentialSourceBundled   = "bundled"
+	KeyShapeSingle            = "single"
+	KeyShapeComposite         = "composite"
+	KeyShapeMixed             = "mixed"
+	KeyShapeUnknown           = "unknown"
 )
 
 type Model struct {
@@ -46,6 +51,10 @@ type Snapshot struct {
 	RefreshedAt      string  `json:"refreshed_at,omitempty"`
 	Source           string  `json:"source"`
 	CredentialSource string  `json:"credential_source"`
+	KeyShape         string  `json:"key_shape,omitempty"`
+	// AccountModelIDs lists models visible to the account TokenFlux key only.
+	// Used so dual-source routing can skip the account path for personal-only models.
+	AccountModelIDs []string `json:"account_model_ids,omitempty"`
 }
 
 type Options struct {
@@ -116,33 +125,85 @@ func (s *Service) Snapshot() Snapshot {
 
 func (s *Service) Refresh(ctx context.Context) (Snapshot, error) {
 	candidates := catalogCandidates(s.settings(), s.publicCatalogURL)
-	var failures []error
+	var (
+		failures       []error
+		merged         []Model
+		accountIDs     []string
+		sources        []string
+		shapes         []string
+		usedCredential bool
+	)
 	for _, candidate := range candidates {
+		// Public fallback is only used when no credentialed catalog succeeded.
+		if candidate.credentialSource == CredentialSourcePublic && usedCredential {
+			continue
+		}
 		models, err := s.fetch(ctx, candidate)
 		if err != nil {
 			failures = append(failures, err)
 			continue
 		}
+		shape := detectKeyShape(models)
+		if candidate.credentialSource == CredentialSourceAccount ||
+			candidate.credentialSource == CredentialSourcePersonal {
+			usedCredential = true
+			sources = append(sources, candidate.credentialSource)
+			shapes = append(shapes, shape)
+			if candidate.credentialSource == CredentialSourceAccount {
+				accountIDs = modelIDs(models)
+			}
+			merged = mergeModels(merged, models)
+			// Keep collecting credentialed catalogs so the picker shows every
+			// model either the account or personal TokenFlux key can call.
+			continue
+		}
+		// Public or other unauthenticated catalog: use only when nothing else worked.
+		if len(merged) == 0 {
+			next := Snapshot{
+				Schema:           catalogSchema,
+				Provider:         ProviderTokenFlux,
+				Models:           models,
+				RefreshedAt:      s.now().UTC().Format(time.RFC3339),
+				Source:           "remote",
+				CredentialSource: candidate.credentialSource,
+				KeyShape:         shape,
+			}
+			if err := s.persist(next); err != nil {
+				return s.Snapshot(), err
+			}
+			return cloneSnapshot(next), nil
+		}
+	}
+	if len(merged) > 0 {
 		next := Snapshot{
 			Schema:           catalogSchema,
 			Provider:         ProviderTokenFlux,
-			Models:           models,
+			Models:           merged,
 			RefreshedAt:      s.now().UTC().Format(time.RFC3339),
 			Source:           "remote",
-			CredentialSource: candidate.credentialSource,
+			CredentialSource: mergeCredentialSources(sources),
+			KeyShape:         mergeKeyShapes(shapes),
+			AccountModelIDs:  accountIDs,
 		}
-		if err := writeSnapshot(s.cachePath, next); err != nil {
-			return s.Snapshot(), fmt.Errorf("cache model catalog: %w", err)
+		if err := s.persist(next); err != nil {
+			return s.Snapshot(), err
 		}
-		s.mu.Lock()
-		s.snapshot = next
-		s.mu.Unlock()
 		return cloneSnapshot(next), nil
 	}
 	if len(failures) == 0 {
 		return s.Snapshot(), errors.New("no model catalog endpoint is available")
 	}
 	return s.Snapshot(), fmt.Errorf("refresh TokenFlux model catalog: %w", errors.Join(failures...))
+}
+
+func (s *Service) persist(next Snapshot) error {
+	if err := writeSnapshot(s.cachePath, next); err != nil {
+		return fmt.Errorf("cache model catalog: %w", err)
+	}
+	s.mu.Lock()
+	s.snapshot = next
+	s.mu.Unlock()
+	return nil
 }
 
 type catalogCandidate struct {
@@ -309,12 +370,18 @@ func normalizeInput(values []string) []string {
 }
 
 func modelPriority(id string) int {
+	// Prefer bare and common catalog shapes first, then any remaining ids.
+	// User-defined composite prefixes (GPT/, Claude/, …) sort after known vendors.
 	for index, prefix := range []string{
 		"x-ai/grok-", "grok-", "openai/", "anthropic/", "deepseek/", "google/", "qwen/",
+		"bailian/", "dashscope/",
 	} {
 		if strings.HasPrefix(id, prefix) {
 			return index
 		}
+	}
+	if strings.Contains(id, "/") {
+		return 50
 	}
 	return 100
 }
@@ -333,8 +400,147 @@ func verifiedImageInputModel(id string) bool {
 	case "grok-4.5", "x-ai/grok-4.5":
 		return true
 	default:
+		// Composite keys may use a custom prefix; bare suffix still counts.
+		if slash := strings.IndexByte(id, '/'); slash > 0 {
+			return verifiedImageInputModel(id[slash+1:])
+		}
 		return false
 	}
+}
+
+// detectKeyShape classifies a TokenFlux /models response.
+// Composite keys return prefix/model ids (docs: composite-key.md). Single-group
+// keys usually return bare ids. Mixed lists are reported as mixed.
+func detectKeyShape(models []Model) string {
+	if len(models) == 0 {
+		return KeyShapeUnknown
+	}
+	prefixed := 0
+	for _, model := range models {
+		id := strings.TrimSpace(model.ID)
+		if isCompositeCatalogID(id) {
+			prefixed++
+		}
+	}
+	switch {
+	case prefixed == len(models):
+		return KeyShapeComposite
+	case prefixed == 0:
+		return KeyShapeSingle
+	default:
+		return KeyShapeMixed
+	}
+}
+
+func isCompositeCatalogID(id string) bool {
+	slash := strings.IndexByte(id, '/')
+	if slash <= 0 || slash >= len(id)-1 {
+		return false
+	}
+	prefix := id[:slash]
+	if len(prefix) > 32 {
+		return false
+	}
+	for _, r := range prefix {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '_', r == '-':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+func mergeModels(base, extra []Model) []Model {
+	if len(base) == 0 {
+		return cloneModels(extra)
+	}
+	if len(extra) == 0 {
+		return cloneModels(base)
+	}
+	seen := make(map[string]bool, len(base)+len(extra))
+	result := make([]Model, 0, len(base)+len(extra))
+	for _, model := range base {
+		id := strings.TrimSpace(model.ID)
+		if id == "" || seen[id] {
+			continue
+		}
+		seen[id] = true
+		result = append(result, model)
+	}
+	for _, model := range extra {
+		id := strings.TrimSpace(model.ID)
+		if id == "" || seen[id] {
+			continue
+		}
+		seen[id] = true
+		result = append(result, model)
+	}
+	sort.SliceStable(result, func(left, right int) bool {
+		leftPriority := modelPriority(result[left].ID)
+		rightPriority := modelPriority(result[right].ID)
+		if leftPriority != rightPriority {
+			return leftPriority < rightPriority
+		}
+		return result[left].ID < result[right].ID
+	})
+	return result
+}
+
+func modelIDs(models []Model) []string {
+	result := make([]string, 0, len(models))
+	seen := make(map[string]bool, len(models))
+	for _, model := range models {
+		id := strings.TrimSpace(model.ID)
+		if id == "" || seen[id] {
+			continue
+		}
+		seen[id] = true
+		result = append(result, id)
+	}
+	return result
+}
+
+func mergeCredentialSources(sources []string) string {
+	hasAccount := false
+	hasPersonal := false
+	for _, source := range sources {
+		switch source {
+		case CredentialSourceAccount:
+			hasAccount = true
+		case CredentialSourcePersonal:
+			hasPersonal = true
+		}
+	}
+	switch {
+	case hasAccount && hasPersonal:
+		return CredentialSourceMerged
+	case hasAccount:
+		return CredentialSourceAccount
+	case hasPersonal:
+		return CredentialSourcePersonal
+	default:
+		return CredentialSourcePublic
+	}
+}
+
+func mergeKeyShapes(shapes []string) string {
+	seen := map[string]bool{}
+	for _, shape := range shapes {
+		if shape == "" || shape == KeyShapeUnknown {
+			continue
+		}
+		seen[shape] = true
+	}
+	switch len(seen) {
+	case 0:
+		return KeyShapeUnknown
+	case 1:
+		for shape := range seen {
+			return shape
+		}
+	}
+	return KeyShapeMixed
 }
 
 func readSnapshot(path string) (Snapshot, error) {
@@ -352,7 +558,11 @@ func readSnapshot(path string) (Snapshot, error) {
 		!validCredentialSource(value.CredentialSource) {
 		return Snapshot{}, errors.New("cached model catalog is incomplete")
 	}
+	if value.KeyShape == "" {
+		value.KeyShape = detectKeyShape(value.Models)
+	}
 	value.Models = cloneModels(value.Models)
+	value.AccountModelIDs = append([]string(nil), value.AccountModelIDs...)
 	return value, nil
 }
 
@@ -405,12 +615,13 @@ func fallbackSnapshot() Snapshot {
 		Schema: catalogSchema, Provider: ProviderTokenFlux,
 		Models: models, Source: "bundled",
 		CredentialSource: CredentialSourceBundled,
+		KeyShape:         detectKeyShape(models),
 	}
 }
 
 func validCredentialSource(value string) bool {
 	switch value {
-	case CredentialSourceAccount, CredentialSourcePersonal,
+	case CredentialSourceAccount, CredentialSourcePersonal, CredentialSourceMerged,
 		CredentialSourcePublic, CredentialSourceBundled:
 		return true
 	default:
@@ -420,6 +631,7 @@ func validCredentialSource(value string) bool {
 
 func cloneSnapshot(value Snapshot) Snapshot {
 	value.Models = cloneModels(value.Models)
+	value.AccountModelIDs = append([]string(nil), value.AccountModelIDs...)
 	return value
 }
 

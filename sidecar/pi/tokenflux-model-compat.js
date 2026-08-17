@@ -1,13 +1,12 @@
 import { AssistantMessageEventStream } from "@earendil-works/pi-ai";
 import { streamSimple as defaultStreamSimple } from "@earendil-works/pi-ai/compat";
+import fs from "node:fs";
 import {
   tokenfluxRequestModels,
   tokenfluxRequestRetryable,
 } from "./tokenflux-model-id.cjs";
 
 export {
-  inferCompositePrefixedIDs,
-  knownVendorPrefixes,
   tokenfluxBareModelID,
   tokenfluxCompositePrefixRequired,
   tokenfluxModelNotFound,
@@ -20,18 +19,30 @@ function errorPayload(event, fallback) {
   return event?.error ?? event?.message ?? fallback;
 }
 
+function catalogModelIDsFromEnvironment(environment = process.env) {
+  const catalogPath = String(environment.MILKSU_MODEL_CATALOG_PATH ?? "").trim();
+  if (!catalogPath) return [];
+  try {
+    const snapshot = JSON.parse(fs.readFileSync(catalogPath, "utf8"));
+    if (snapshot?.provider !== "tokenflux" || !Array.isArray(snapshot.models)) return [];
+    return snapshot.models.map(item => String(item?.id ?? "").trim()).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
 /**
- * Try the catalog/request model id first. When TokenFlux rejects a bare id for
- * a composite key (or a prefixed id for a single-model key), retry with the
- * alternate id shape before any content is committed.
+ * Stream with the catalog/request model id first. Only retry with a catalog-
+ * known alternate bare/prefixed form before any content is committed.
  */
 export function streamTokenFluxModelWithCompat({
   model,
   context,
   options,
   open = defaultStreamSimple,
+  catalogModelIDs = catalogModelIDsFromEnvironment(),
 }) {
-  const candidates = tokenfluxRequestModels(model);
+  const candidates = tokenfluxRequestModels(model, catalogModelIDs);
   if (candidates.length === 0) {
     return open(model, context, options);
   }

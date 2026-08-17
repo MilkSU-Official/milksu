@@ -454,9 +454,9 @@ func accountCatalogModel(active string, models []modelcatalog.Model) string {
 	if available[active] {
 		return active
 	}
-	// TokenFlux single-model keys list bare ids; composite keys list prefix/model.
-	// Align the saved selection to whichever shape the current key catalog uses.
-	for _, candidate := range tokenfluxCatalogModelAliases(active) {
+	// TokenFlux single-group keys list bare ids; composite keys list prefix/model
+	// from /v1/models. Align a saved selection onto an exact catalog id.
+	for _, candidate := range tokenfluxCatalogModelAliases(active, models) {
 		if available[candidate] {
 			return candidate
 		}
@@ -478,15 +478,14 @@ func accountCatalogModel(active string, models []modelcatalog.Model) string {
 	return ""
 }
 
-// tokenfluxCatalogModelAliases maps a product model selection onto the bare and
-// vendor-prefixed ids TokenFlux may return for the same model under single-model
-// or composite API keys (Grok, GPT, Claude, Gemini, Qwen/Bailian, DeepSeek).
-func tokenfluxCatalogModelAliases(active string) []string {
+// tokenfluxCatalogModelAliases maps a saved selection onto catalog ids that may
+// represent the same model under a different key shape (bare vs prefix/model).
+func tokenfluxCatalogModelAliases(active string, models []modelcatalog.Model) []string {
 	active = strings.TrimSpace(active)
 	if active == "" {
 		return nil
 	}
-	result := make([]string, 0, 8)
+	result := make([]string, 0, 4)
 	seen := map[string]bool{}
 	add := func(value string) {
 		value = strings.TrimSpace(value)
@@ -497,42 +496,40 @@ func tokenfluxCatalogModelAliases(active string) []string {
 		result = append(result, value)
 	}
 	add(active)
-	if slash := strings.IndexByte(active, '/'); slash > 0 {
-		prefix := active[:slash]
-		bare := active[slash+1:]
-		switch prefix {
-		case "x-ai", "openai", "anthropic", "google", "qwen", "bailian", "dashscope", "alibaba", "deepseek":
-			add(bare)
-		}
-		return result
+	activeBare := tokenfluxBareModelID(active)
+	if activeBare != active {
+		add(activeBare)
 	}
-	switch {
-	case strings.HasPrefix(active, "grok"):
-		add("x-ai/" + active)
-	case strings.HasPrefix(active, "gpt"),
-		strings.HasPrefix(active, "o1"),
-		strings.HasPrefix(active, "o3"),
-		strings.HasPrefix(active, "o4"),
-		strings.HasPrefix(active, "chatgpt"),
-		strings.HasPrefix(active, "codex"):
-		add("openai/" + active)
-	case strings.HasPrefix(active, "claude"):
-		add("anthropic/" + active)
-	case strings.HasPrefix(active, "gemini"),
-		strings.HasPrefix(active, "gemma"):
-		add("google/" + active)
-	case strings.HasPrefix(active, "qwen"),
-		strings.HasPrefix(active, "qwq"),
-		strings.HasPrefix(active, "qvq"),
-		strings.HasPrefix(active, "wanx"),
-		strings.HasPrefix(active, "tongyi"):
-		add("qwen/" + active)
-		add("bailian/" + active)
-		add("dashscope/" + active)
-	case strings.HasPrefix(active, "deepseek"):
-		add("deepseek/" + active)
+	for _, model := range models {
+		id := strings.TrimSpace(model.ID)
+		if id == "" {
+			continue
+		}
+		if tokenfluxBareModelID(id) == activeBare || tokenfluxBareModelID(id) == active {
+			add(id)
+		}
 	}
 	return result
+}
+
+func tokenfluxBareModelID(id string) string {
+	id = strings.TrimSpace(id)
+	slash := strings.IndexByte(id, '/')
+	if slash <= 0 || slash >= len(id)-1 {
+		return id
+	}
+	prefix := id[:slash]
+	if len(prefix) == 0 || len(prefix) > 32 {
+		return id
+	}
+	for _, r := range prefix {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '_', r == '-':
+		default:
+			return id
+		}
+	}
+	return id[slash+1:]
 }
 
 func (a *App) ClearAccountModelCredential() error {
@@ -712,6 +709,7 @@ func (a *App) RevealUserArtifactDirectory() error {
 }
 
 func (a *App) SaveSettingsCmd(settings config.AppSettings) error {
+	previous := a.settings.Get()
 	err := a.settings.Save(settings)
 	if err != nil && !hasSessionOnlyCredential(a.settings.Get()) {
 		return err
@@ -721,7 +719,60 @@ func (a *App) SaveSettingsCmd(settings config.AppSettings) error {
 	// and makes a safe session-only fallback available to the next request.
 	a.engines.Close()
 	a.securityEngine.Restart()
+	// When TokenFlux credentials change, re-read /v1/models so the picker and
+	// dual-source routing use the models that key can actually call.
+	if tokenFluxCatalogInputsChanged(previous, a.settings.Get()) {
+		refreshContext, cancelRefresh := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancelRefresh()
+		if refreshedCatalog, refreshErr := a.modelCatalog.Refresh(refreshContext); refreshErr != nil {
+			a.diagnostics.Record("model-catalog", "warning", "model catalog refresh after settings save failed; retained last-known-good catalog")
+		} else {
+			a.diagnostics.Record("model-catalog", "info", "model catalog refreshed after settings save")
+			a.emitDesktopEvent("model-catalog-changed", refreshedCatalog)
+			if _, alignErr := a.alignAccountModelSelection(refreshedCatalog); alignErr != nil {
+				a.diagnostics.Record("model-catalog", "warning", "align account model selection after settings save failed")
+			}
+		}
+	}
 	return err
+}
+
+func tokenFluxCatalogInputsChanged(previous, next config.AppSettings) bool {
+	prevRelay := previous.Relay
+	nextRelay := next.Relay
+	prevRelayKey := ""
+	nextRelayKey := ""
+	prevRelayURL := ""
+	nextRelayURL := ""
+	prevRelayEnabled := false
+	nextRelayEnabled := false
+	if prevRelay != nil {
+		prevRelayKey = strings.TrimSpace(prevRelay.Key)
+		prevRelayURL = strings.TrimSpace(prevRelay.URL)
+		prevRelayEnabled = prevRelay.Enabled
+	}
+	if nextRelay != nil {
+		nextRelayKey = strings.TrimSpace(nextRelay.Key)
+		nextRelayURL = strings.TrimSpace(nextRelay.URL)
+		nextRelayEnabled = nextRelay.Enabled
+	}
+	if prevRelayEnabled != nextRelayEnabled || prevRelayKey != nextRelayKey || prevRelayURL != nextRelayURL {
+		return true
+	}
+	prevProvider := previous.Providers[modelcatalog.ProviderTokenFlux]
+	nextProvider := next.Providers[modelcatalog.ProviderTokenFlux]
+	prevBase := ""
+	nextBase := ""
+	if prevProvider.BaseURL != nil {
+		prevBase = strings.TrimSpace(*prevProvider.BaseURL)
+	}
+	if nextProvider.BaseURL != nil {
+		nextBase = strings.TrimSpace(*nextProvider.BaseURL)
+	}
+	return prevProvider.Enabled != nextProvider.Enabled ||
+		strings.TrimSpace(prevProvider.APIKey) != strings.TrimSpace(nextProvider.APIKey) ||
+		prevBase != nextBase ||
+		prevProvider.HasAPIKey != nextProvider.HasAPIKey
 }
 
 func hasSessionOnlyCredential(settings config.AppSettings) bool {

@@ -90,7 +90,7 @@ describe('model provider catalog', () => {
     expect(settings.active_model).toBe('x-ai/grok-4.6')
     expect(settings.model_routing).toEqual({
       source_order: ['account', 'personal'],
-      auto_fallback: true,
+      auto_fallback: false,
     })
     expect(settings.disabled_skills).toEqual([])
   })
@@ -99,7 +99,7 @@ describe('model provider catalog', () => {
     const settings = withAppSettingsDefaults({
       active_provider: 'deepseek',
       active_model: 'deepseek-v4-flash',
-      model_routing: { source_order: ['account', 'personal'], auto_fallback: true },
+      model_routing: { source_order: ['account', 'personal'], auto_fallback: false },
       providers: {},
       disabled_skills: [' product-design ', 'product-design', '../../untrusted', 'review-security'],
     })
@@ -107,13 +107,19 @@ describe('model provider catalog', () => {
     expect(settings.disabled_skills).toEqual(['product-design', 'review-security'])
   })
 
-  it('keeps an explicit personal-first order and disabled fallback', () => {
+  it('keeps an explicit personal-first order and disabled fallback by default', () => {
     expect(normalizeModelRouting({
       source_order: ['personal', 'personal'],
-      auto_fallback: false,
     })).toEqual({
       source_order: ['personal', 'account'],
       auto_fallback: false,
+    })
+    expect(normalizeModelRouting({
+      source_order: ['personal', 'account'],
+      auto_fallback: true,
+    })).toEqual({
+      source_order: ['personal', 'account'],
+      auto_fallback: true,
     })
   })
 })

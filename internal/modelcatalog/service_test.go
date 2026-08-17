@@ -88,14 +88,27 @@ func TestRefreshUpdatesCatalogAndRestartLoadsCache(t *testing.T) {
 	}
 }
 
-func TestRefreshUsesAccountCredentialBeforePersonalCredentialAtSameURL(t *testing.T) {
+func TestRefreshMergesAccountAndPersonalCatalogs(t *testing.T) {
 	var requested []string
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		requested = append(requested, request.Header.Get("Authorization"))
+		auth := request.Header.Get("Authorization")
+		requested = append(requested, auth)
 		writer.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(writer).Encode(map[string]any{
-			"data": []map[string]any{{"id": "grok-4.5", "type": "model"}},
-		})
+		switch auth {
+		case "Bearer account-secret":
+			_ = json.NewEncoder(writer).Encode(map[string]any{
+				"data": []map[string]any{{"id": "grok-4.5", "type": "model"}},
+			})
+		case "Bearer personal-secret":
+			_ = json.NewEncoder(writer).Encode(map[string]any{
+				"data": []map[string]any{
+					{"id": "GPT/gpt-5", "type": "model"},
+					{"id": "Claude/claude-sonnet-4", "type": "model"},
+				},
+			})
+		default:
+			http.Error(writer, "unexpected key", http.StatusUnauthorized)
+		}
 	}))
 	defer server.Close()
 
@@ -117,11 +130,49 @@ func TestRefreshUsesAccountCredentialBeforePersonalCredentialAtSameURL(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(requested) != 1 || requested[0] != "Bearer account-secret" {
-		t.Fatalf("catalog credential order = %#v, want account credential only", requested)
+	if len(requested) != 2 ||
+		requested[0] != "Bearer account-secret" ||
+		requested[1] != "Bearer personal-secret" {
+		t.Fatalf("catalog credential order = %#v, want account then personal", requested)
 	}
-	if refreshed.CredentialSource != CredentialSourceAccount {
-		t.Fatalf("credential source = %q, want account", refreshed.CredentialSource)
+	if refreshed.CredentialSource != CredentialSourceMerged {
+		t.Fatalf("credential source = %q, want merged", refreshed.CredentialSource)
+	}
+	if refreshed.KeyShape != KeyShapeMixed {
+		t.Fatalf("key shape = %q, want mixed", refreshed.KeyShape)
+	}
+	ids := make([]string, 0, len(refreshed.Models))
+	for _, model := range refreshed.Models {
+		ids = append(ids, model.ID)
+	}
+	if strings.Join(ids, ",") != "grok-4.5,Claude/claude-sonnet-4,GPT/gpt-5" &&
+		!containsAll(ids, "grok-4.5", "GPT/gpt-5", "Claude/claude-sonnet-4") {
+		t.Fatalf("merged models = %#v", ids)
+	}
+	if strings.Join(refreshed.AccountModelIDs, ",") != "grok-4.5" {
+		t.Fatalf("account model ids = %#v, want [grok-4.5]", refreshed.AccountModelIDs)
+	}
+}
+
+func containsAll(values []string, expected ...string) bool {
+	seen := map[string]bool{}
+	for _, value := range values {
+		seen[value] = true
+	}
+	for _, value := range expected {
+		if !seen[value] {
+			return false
+		}
+	}
+	return true
+}
+
+func TestDetectKeyShapeClassifiesCompositeCatalog(t *testing.T) {
+	if got := detectKeyShape([]Model{{ID: "GPT/gpt-5"}, {ID: "Claude/claude-sonnet-4"}}); got != KeyShapeComposite {
+		t.Fatalf("composite shape = %q", got)
+	}
+	if got := detectKeyShape([]Model{{ID: "grok-4.5"}, {ID: "grok-4.6"}}); got != KeyShapeSingle {
+		t.Fatalf("single shape = %q", got)
 	}
 }
 
