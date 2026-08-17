@@ -74,7 +74,6 @@ import type {
   ProviderInfo,
 } from '@/types'
 import {
-  customProviderInfo,
   withAppSettingsDefaults,
 } from '@/types'
 import {
@@ -143,7 +142,6 @@ const buildTrackingCopying = ref(false)
 const notice = ref<{ tone: 'ok' | 'error'; text: string } | null>(null)
 const editingProviderID = ref<string | null>(null)
 const customModelInput = ref('')
-const pendingCustomRelay = ref<{ id: string; config: ProviderConfig } | null>(null)
 // Same callable-model surface as Coding composer (enabled services only).
 const pickerSettings = computed(() => ({
   providers: working.value?.providers ?? {},
@@ -391,7 +389,7 @@ function customRelayID() {
   return `custom-relay-${random}`
 }
 
-function addModelService() {
+function addCustomRelay() {
   if (!working.value) return
   const count = Object.values(working.value.providers).filter(item => item.custom).length
   if (count >= 8) {
@@ -399,21 +397,30 @@ function addModelService() {
     return
   }
   const id = customRelayID()
-  pendingCustomRelay.value = {
-    id,
-    config: {
-      api_key: '',
-      has_api_key: false,
-      base_url: '',
-      enabled: true,
-      custom: true,
-      name: '我的中转站',
-      models: [],
-    },
+  working.value.providers[id] = {
+    api_key: '',
+    has_api_key: false,
+    base_url: '',
+    enabled: true,
+    custom: true,
+    name: '我的中转站',
+    models: [],
   }
-  editingProviderID.value = id
+  working.value.active_provider = id
+  working.value.active_model = ''
   customModelInput.value = ''
   notice.value = null
+}
+
+function addModelService() {
+  const previousProvider = working.value?.active_provider
+  addCustomRelay()
+  if (
+    working.value?.active_provider !== previousProvider
+    && working.value?.active_provider.startsWith('custom-relay-')
+  ) {
+    editingProviderID.value = working.value.active_provider
+  }
 }
 
 function removeModelService(id: string) {
@@ -481,6 +488,8 @@ function ensureAccountRoute() {
 }
 
 const accountModelSourceReady = computed(() => Boolean(
+  !provider.value?.custom
+  &&
   account.value.state === 'active'
   && account.value.tokenFluxLinked === true,
 ))
@@ -490,9 +499,11 @@ type ModelServiceRow =
 
 const modelServiceRows = computed<ModelServiceRow[]>(() => {
   if (!working.value) return []
-  const rows: ModelServiceRow[] = [
-    { key: 'account', source: 'account' },
-  ]
+  const rows: ModelServiceRow[] = []
+  // Account first when TokenFlux is the product model route; then every provider service.
+  if (!provider.value?.custom) {
+    rows.push({ key: 'account', source: 'account' })
+  }
   for (const item of modelProviders.value) {
     rows.push({ key: `provider:${item.id}`, source: 'personal', provider: item })
   }
@@ -500,19 +511,12 @@ const modelServiceRows = computed<ModelServiceRow[]>(() => {
 })
 
 const accountProviderInfo = computed(() => modelProviders.value.find(item => item.id === 'tokenflux'))
-const editingProviderInfo = computed(() => {
-  if (pendingCustomRelay.value?.id === editingProviderID.value) {
-    return customProviderInfo(pendingCustomRelay.value.id, pendingCustomRelay.value.config) ?? undefined
-  }
-  return modelProviders.value.find(item => item.id === editingProviderID.value)
-})
-const editingProvider = computed(() => {
-  if (!editingProviderID.value) return undefined
-  if (pendingCustomRelay.value?.id === editingProviderID.value) {
-    return pendingCustomRelay.value.config
-  }
-  return working.value?.providers[editingProviderID.value]
-})
+const editingProviderInfo = computed(() => (
+  modelProviders.value.find(item => item.id === editingProviderID.value)
+))
+const editingProvider = computed(() => (
+  editingProviderID.value ? working.value?.providers[editingProviderID.value] : undefined
+))
 const editingProviderModel = computed(() => {
   if (!editingProviderInfo.value || !working.value) return ''
   if (editingProviderID.value === working.value.active_provider) return working.value.active_model
@@ -527,7 +531,6 @@ const providerEditorOpen = computed({
   get: () => Boolean(editingProviderID.value),
   set: value => {
     if (!value) {
-      pendingCustomRelay.value = null
       editingProviderID.value = null
       customModelInput.value = ''
     }
@@ -609,6 +612,7 @@ function setEditingProviderModel(value: string) {
 function setModelServiceEnabled(row: ModelServiceRow, enabled: boolean) {
   if (!working.value) return
   if (row.source === 'account') {
+    if (provider.value?.custom) return
     ensureAccountRoute()
     if (enabled && !accountModelSourceReady.value) {
       working.value.relay!.enabled = false
@@ -952,23 +956,23 @@ async function refreshCallableModels() {
   alignDefaultModelToEnabledServices()
 }
 
-async function save(): Promise<boolean> {
-  if (!working.value) return false
+async function save() {
+  if (!working.value) return
   const incompleteCustomProvider = Object.values(working.value.providers).find(item => (
     item.custom && (!item.name?.trim() || !item.base_url?.trim() || !(item.models ?? []).length)
   ))
   if (incompleteCustomProvider) {
     if (!incompleteCustomProvider.name?.trim()) {
       notice.value = { tone: 'error', text: '请填写中转站名称。' }
-      return false
+      return
     }
     if (!incompleteCustomProvider.base_url?.trim()) {
       notice.value = { tone: 'error', text: '请填写 API 端点（Base URL）。' }
-      return false
+      return
     }
     if (!(incompleteCustomProvider.models ?? []).length) {
       notice.value = { tone: 'error', text: '请至少添加一个模型 ID 或关键词前缀。' }
-      return false
+      return
     }
   }
   saving.value = true
@@ -984,7 +988,7 @@ async function save(): Promise<boolean> {
         tone: 'ok',
         text: category.value === 'coding' ? 'Skills 设置已保存。' : '设置已保存。',
       }
-      return true
+      return
     }
     // Only probe when the active service can actually start (enabled + key).
     const active = working.value.providers[working.value.active_provider]
@@ -999,7 +1003,7 @@ async function save(): Promise<boolean> {
         tone: 'ok',
         text: '设置已保存。当前没有已启用且可用的模型服务，请启用账户或填写 TokenFlux / 自定义中转站后再验证。',
       }
-      return true
+      return
     }
     verifying.value = true
     try {
@@ -1012,7 +1016,6 @@ async function save(): Promise<boolean> {
         tone: 'ok',
         text: `已保存并验证 ${result.provider}/${result.model}，PI 响应 ${result.latencyMs} ms。`,
       }
-      return true
     } catch (reason) {
       await refreshCallableModels()
       const raw = String(reason)
@@ -1020,7 +1023,6 @@ async function save(): Promise<boolean> {
         ? '凭据已保存，但当前没有可用的账户或个人模型来源。请启用 MilkSU 账户或 TokenFlux 个人 Key 后重试。'
         : `凭据已保存，但 PI 模型验证失败：${raw}`
       notice.value = { tone: 'error', text: friendly }
-      return true
     } finally {
       verifying.value = false
     }
@@ -1039,7 +1041,6 @@ async function save(): Promise<boolean> {
     notice.value = { tone: 'error', text: sessionOnly
       ? `${String(reason)} 当前密钥仅保留在本次运行内，退出应用后需要重新输入。`
       : `设置未保存：${String(reason)}` }
-    return false
   } finally {
     saving.value = false
   }
@@ -1050,12 +1051,8 @@ async function saveProviderEditor(closeAfterSave: boolean) {
     await save()
     return
   }
-  const editingID = editingProviderID.value
-  const pending = pendingCustomRelay.value?.id === editingID ? pendingCustomRelay.value : null
-  if (pending) {
-    working.value.providers[pending.id] = pending.config
-  }
   // Probe the service being edited, not a stale active_provider from old official keys.
+  const editingID = editingProviderID.value
   const editing = working.value.providers[editingID]
   if (editing && (editing.has_api_key || String(editing.api_key ?? '').trim() || editingID === 'tokenflux')) {
     working.value.active_provider = editingID
@@ -1073,19 +1070,11 @@ async function saveProviderEditor(closeAfterSave: boolean) {
       }
     }
   }
-  const persisted = await save()
+  await save()
   // Catalog refresh happens inside save(); re-align default model to new list.
   alignDefaultModelToEnabledServices()
-  if (persisted) {
-    pendingCustomRelay.value = null
-    if (closeAfterSave && notice.value?.tone === 'ok') {
-      providerEditorOpen.value = false
-    }
-    return
-  }
-  if (pending) {
-    delete working.value.providers[pending.id]
-    pendingCustomRelay.value = pending
+  if (closeAfterSave && notice.value?.tone === 'ok') {
+    providerEditorOpen.value = false
   }
 }
 
