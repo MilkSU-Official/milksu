@@ -4,12 +4,16 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/MilkSU-Official/milksu/internal/codingcollab"
 )
 
 func TestAgentManagedCodingCollaborationPreparesAndReleasesCleanWriter(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("Agent-managed Coding collaboration is currently macOS-only")
+	}
 	repository := newAgentManagedTestRepository(t)
 	manager, err := codingcollab.New(filepath.Join(t.TempDir(), "collaboration"))
 	if err != nil {
