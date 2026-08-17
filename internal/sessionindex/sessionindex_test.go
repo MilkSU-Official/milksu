@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -41,7 +42,7 @@ func TestStoreInitializesMilkSUOwnedObeliskSchema(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stat session index: %v", err)
 	}
-	if info.Mode().Perm() != 0o600 {
+	if runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
 		t.Fatalf("session index mode = %o, want 0600", info.Mode().Perm())
 	}
 }

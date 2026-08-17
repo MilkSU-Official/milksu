@@ -3,6 +3,7 @@ package appdata
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -35,14 +36,14 @@ func TestAppendEventLogPersistsOnlyAllowlistedEvents(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.Mode().Perm() != 0o600 {
+	if runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
 		t.Fatalf("log permissions = %o, want 600", info.Mode().Perm())
 	}
 	directory, err := os.Stat(filepath.Dir(path))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if directory.Mode().Perm() != 0o700 {
+	if runtime.GOOS != "windows" && directory.Mode().Perm() != 0o700 {
 		t.Fatalf("log directory permissions = %o, want 700", directory.Mode().Perm())
 	}
 }

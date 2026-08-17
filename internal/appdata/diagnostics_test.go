@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -89,7 +90,9 @@ func TestExportDiagnosticsReportsHealthWithoutCopyingSecrets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.Mode().Perm() != 0o600 {
+	// Windows ACLs do not expose Unix permission bits; the 0o600 hardening
+	// contract is only assertable on Unix-like platforms.
+	if runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
 		t.Fatalf("diagnostic archive permissions = %o, want 600", info.Mode().Perm())
 	}
 

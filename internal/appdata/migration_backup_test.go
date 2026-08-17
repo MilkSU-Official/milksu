@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -66,14 +67,14 @@ func TestEnsurePreMigrationBackupCreatesCredentialFreeBackupAndReusesIt(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	if backupInfo.Mode().Perm() != 0o600 {
+	if runtime.GOOS != "windows" && backupInfo.Mode().Perm() != 0o600 {
 		t.Fatalf("migration backup mode = %o, want 600", backupInfo.Mode().Perm())
 	}
 	directoryInfo, err := os.Stat(filepath.Dir(result.Path))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if directoryInfo.Mode().Perm() != 0o700 {
+	if runtime.GOOS != "windows" && directoryInfo.Mode().Perm() != 0o700 {
 		t.Fatalf("migration backup directory mode = %o, want 700", directoryInfo.Mode().Perm())
 	}
 	validation, err := ValidateBackup(result.Path)

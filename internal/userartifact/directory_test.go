@@ -3,6 +3,7 @@ package userartifact
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -21,7 +22,7 @@ func TestEnsureCreatesVisibleSections(t *testing.T) {
 		if statErr != nil || !info.IsDir() {
 			t.Fatalf("artifact section %s was not created: %v", name, statErr)
 		}
-		if info.Mode().Perm() != 0o700 {
+		if runtime.GOOS != "windows" && info.Mode().Perm() != 0o700 {
 			t.Fatalf("artifact section %s mode = %o, want 700", name, info.Mode().Perm())
 		}
 	}
