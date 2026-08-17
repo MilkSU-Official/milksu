@@ -48,6 +48,7 @@ const {
   shouldRelaunchAfterScreenRecordingGrant,
 } = require('./computer-use-permissions.cjs')
 const { requestMacOSScreenPermission } = require('./macos-screen-permission.cjs')
+const { openLocalPath } = require('./local-path.cjs')
 
 const APP_ORIGIN = 'milksu://app'
 const METHOD_PATTERN = /^[A-Z][A-Za-z0-9]{0,80}$/u
@@ -540,6 +541,12 @@ async function handleHostRequest(method, payload = {}) {
       await shell.openExternal(url.toString())
       return null
     }
+    case 'shell.openPath':
+      await openLocalPath(payload.path, {
+        stat: target => fs.stat(target),
+        openPath: target => shell.openPath(target),
+      })
+      return null
     case 'window.show':
       if (mainWindow.isMinimized()) mainWindow.restore()
       mainWindow.show()

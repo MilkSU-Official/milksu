@@ -34,6 +34,7 @@
       "browser-view-attachment.cjs",
       "update-manager.cjs",
       "computer-use-permissions.cjs",
+      "local-path.cjs",
       "macos-screen-permission.cjs",
       "renderer-protocol.cjs",
       "package.json",

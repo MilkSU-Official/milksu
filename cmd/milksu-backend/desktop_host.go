@@ -90,6 +90,10 @@ func (a *App) openExternal(target string) error {
 	return a.desktopCall("shell.openExternal", map[string]string{"url": target}, nil)
 }
 
+func (a *App) openPath(target string) error {
+	return a.desktopCall("shell.openPath", map[string]string{"path": target}, nil)
+}
+
 type electronCodingHost struct {
 	host desktopHost
 }
