@@ -44,6 +44,12 @@ async function settle() {
   await nextTick()
 }
 
+function modelServiceRowTitles() {
+  return [...document.querySelectorAll('.model-service-row')].map(row => (
+    (row.querySelector('p.font-medium')?.textContent ?? '').trim()
+  ))
+}
+
 afterEach(() => {
   for (const app of mountedApps.splice(0)) app.unmount()
   document.body.innerHTML = ''
@@ -899,6 +905,133 @@ describe('SettingsPage database compatibility', () => {
       api_key: 'custom-test-secret',
     })
     expect(document.body.textContent).toContain('已保存并验证')
+    expect(modelServiceRowTitles()).toContain('MilkSU 账户')
+    expect(modelServiceRowTitles()).toContain('我的 Grok 中转站')
+  })
+
+  it('does not add a custom relay row until the editor is saved', async () => {
+    const settings = withAppSettingsDefaults({
+      active_provider: 'tokenflux',
+      active_model: 'grok-4.5',
+      providers: {},
+    } as AppSettings)
+    await mountSettingsPage({
+      directory: 'MilkSU 用户数据目录',
+      fileCount: 0,
+      bytes: 0,
+    }, {
+      initialCategory: 'apikeys',
+      settings,
+    })
+
+    document.querySelector<HTMLButtonElement>('button[aria-label="新增模型服务"]')?.click()
+    await settle()
+
+    expect(document.querySelector('.provider-editor-dialog')).not.toBeNull()
+    expect(modelServiceRowTitles()).toContain('MilkSU 账户')
+    expect(modelServiceRowTitles()).not.toContain('我的中转站')
+    expect(Object.keys(settings.providers).some(id => id.startsWith('custom-relay-'))).toBe(false)
+  })
+
+  it('discards an unsaved custom relay when the editor is closed', async () => {
+    let savedSettings: AppSettings | null = null
+    const settings = withAppSettingsDefaults({
+      active_provider: 'tokenflux',
+      active_model: 'grok-4.5',
+      providers: {},
+    } as AppSettings)
+    await mountSettingsPage({
+      directory: 'MilkSU 用户数据目录',
+      fileCount: 0,
+      bytes: 0,
+    }, {
+      initialCategory: 'apikeys',
+      settings,
+      appMethods: {
+        SaveSettingsCmd: async (value: unknown) => {
+          savedSettings = value as AppSettings
+        },
+        GetSettings: async () => savedSettings ?? settings,
+        TestAgentModel: async () => ({
+          provider: 'tokenflux',
+          model: 'grok-4.5',
+          ready: true,
+          latencyMs: 20,
+        }),
+      },
+    })
+
+    document.querySelector<HTMLButtonElement>('button[aria-label="新增模型服务"]')?.click()
+    await settle()
+    const nameInput = document.querySelector<HTMLInputElement>('input[aria-label="中转站名称"]')
+    expect(nameInput).not.toBeNull()
+    nameInput!.value = '未保存的中转站'
+    nameInput!.dispatchEvent(new Event('input', { bubbles: true }))
+    document.querySelector<HTMLButtonElement>('button[aria-label="Close"]')?.click()
+    await settle()
+
+    expect(document.querySelector('.provider-editor-dialog')).toBeNull()
+    expect(modelServiceRowTitles()).not.toContain('未保存的中转站')
+    expect(modelServiceRowTitles()).not.toContain('我的中转站')
+    expect(modelServiceRowTitles()).toContain('MilkSU 账户')
+
+    const saveButton = [...document.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.includes('保存并验证'))
+    saveButton?.click()
+    for (let index = 0; index < 6; index += 1) await settle()
+
+    expect(savedSettings).not.toBeNull()
+    expect(Object.keys(savedSettings!.providers).some(id => id.startsWith('custom-relay-'))).toBe(false)
+    expect(savedSettings!.active_provider).toBe('tokenflux')
+  })
+
+  it('keeps the MilkSU account row when a custom relay is the active default', async () => {
+    const settings = withAppSettingsDefaults({
+      active_provider: 'custom-relay-team',
+      active_model: 'vendor/model:preview',
+      relay: {
+        enabled: true,
+        url: 'https://tokenflux.dev/v1',
+        key: '',
+        has_key: true,
+      },
+      providers: {
+        'custom-relay-team': {
+          api_key: '',
+          has_api_key: true,
+          enabled: true,
+          custom: true,
+          name: 'Team Relay',
+          base_url: 'https://relay.example/v1',
+          models: ['vendor/model:preview'],
+        },
+      },
+    } as unknown as AppSettings)
+    await mountSettingsPage({
+      directory: 'MilkSU 用户数据目录',
+      fileCount: 0,
+      bytes: 0,
+    }, {
+      initialCategory: 'apikeys',
+      settings,
+      accountStatus: {
+        configured: true,
+        authenticated: true,
+        state: 'active',
+        tokenFluxLinked: true,
+        user: {
+          githubLogin: 'milksuofficial',
+          displayName: 'MilkSU',
+          avatarUrl: '',
+        },
+      },
+    })
+
+    expect(modelServiceRowTitles()).toContain('MilkSU 账户')
+    expect(modelServiceRowTitles()).toContain('Team Relay')
+    const accountRow = [...document.querySelectorAll<HTMLElement>('.model-service-row')]
+      .find(row => row.textContent?.includes('MilkSU 账户'))
+    expect(accountRow?.querySelector('[role="switch"]')).not.toBeNull()
   })
 
   it('edits TokenFlux personal without silently replacing the default model service', async () => {
