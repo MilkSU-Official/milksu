@@ -1,5 +1,11 @@
 import { ref } from 'vue'
 import { invokeCommand } from '@/desktop'
+import {
+  debugLog,
+  recordCacheHit,
+  recordLocalHit,
+  updateDebugState,
+} from '@/lib/debugMode'
 import type {
   NSSCTFCatalogQuery,
   NSSCTFCatalogSearchResult,
@@ -73,6 +79,7 @@ async function loadFullCatalog() {
   if (fullCatalogLoad) return fullCatalogLoad
 
   const generation = fullCatalogGeneration
+  const started = Date.now()
   const pending = (async (): Promise<NSSCTFCatalogSearchResult | null> => {
     try {
       const result = await invokeCommand<NSSCTFCatalogSearchResult>('list_nssctf_catalog', {
@@ -84,6 +91,11 @@ async function loadFullCatalog() {
       fullCatalog.value = result
       rememberProgress(result)
       clearCatalogSearchCache()
+      updateDebugState({
+        fullCatalogReady: true,
+        fullCatalogProblems: result.problems.length,
+      })
+      debugLog('full-catalog-loaded', `${result.problems.length} problems`, Date.now() - started)
       return result
     } catch {
       if (generation !== fullCatalogGeneration) {
@@ -103,6 +115,7 @@ async function loadFullCatalog() {
 
 async function refreshTrainingProgressSnapshot() {
   const generation = fullCatalogGeneration
+  const started = Date.now()
   try {
     const result = await invokeCommand<NSSCTFCatalogSearchResult>('list_nssctf_catalog', {
       query: FULL_CATALOG_QUERY,
@@ -116,6 +129,11 @@ async function refreshTrainingProgressSnapshot() {
         completedProblemIds: result.completedProblemIds,
       }
     }
+    updateDebugState({
+      fullCatalogReady: Boolean(fullCatalog.value),
+      fullCatalogProblems: fullCatalog.value?.problems.length ?? result.problems.length,
+    })
+    debugLog('training-progress-refreshed', `${result.completedProblemIds.length} completed`, Date.now() - started)
     return trainingProgress.value
   } catch {
     return trainingProgress.value
@@ -202,10 +220,18 @@ export function useNSSCTFCatalog() {
     const locallyServiceable = isLocalCatalogQuery(query)
     const full = locallyServiceable ? fullCatalog.value : null
     if (full) {
-      result.value = applyLocalCatalogSearch(query, full)
+      const next = applyLocalCatalogSearch(query, full)
+      result.value = next
       error.value = null
       loading.value = false
-      return result.value
+      recordLocalHit()
+      updateDebugState({
+        fullCatalogReady: true,
+        fullCatalogProblems: full.problems.length,
+        collectionProblems: next.total,
+      })
+      debugLog('catalog-search', `local view=${query.problemIds ? 'collection' : 'all'} ${next.total} visible`)
+      return next
     }
     const key = catalogSearchKey(query)
     const cached = catalogSearchCache.get(key)
@@ -213,6 +239,8 @@ export function useNSSCTFCatalog() {
       result.value = withCurrentProgress(cached)
       error.value = null
       loading.value = false
+      recordCacheHit()
+      debugLog('catalog-search', 'cache hit')
       return result.value
     }
 

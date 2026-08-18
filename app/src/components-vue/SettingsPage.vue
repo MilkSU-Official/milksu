@@ -91,6 +91,7 @@ import ModelVendorIcon from '@/components-vue/ModelVendorIcon.vue'
 import type { SecurityToolCodingHandoff } from '@/securityToolsTypes'
 import { useVulnerabilityDashboard, type VulnerabilityDashboard } from '@/composables/useVulnerabilityDashboard'
 import { CODING_SKILLS } from '@/codingSkills'
+import { buildDiagnosticText, isDebugMode, setDebugMode } from '@/lib/debugMode'
 
 type SettingsCategory = 'general' | 'apikeys' | 'ctf' | 'cve' | 'coding' | 'browser' | 'security-tools'
 
@@ -693,6 +694,23 @@ function formatBuildTrackingText(tracking: BuildTracking) {
   return lines.join('\n')
 }
 
+const debugModeOn = ref(isDebugMode())
+
+async function copyDebugDiagnostics() {
+  const text = buildDiagnosticText()
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text)
+  } else {
+    const area = document.createElement('textarea')
+    area.value = text
+    document.body.append(area)
+    area.select()
+    document.execCommand('copy')
+    area.remove()
+  }
+  notice.value = { tone: 'ok', text: '调试诊断已复制到剪贴板。' }
+}
+
 async function copyBuildTracking() {
   if (!buildTracking.value) return
   buildTrackingCopying.value = true
@@ -1122,6 +1140,22 @@ async function saveProviderEditor(closeAfterSave: boolean) {
         </Alert>
 
         <template v-if="working && category === 'general'">
+          <SettingsSection title="调试">
+            <SettingsRow
+              stack="always"
+              label="调试模式"
+              description="开启后在本机记录应用操作日志与状态（RPC 命令、页面切换、CTF 详情），用于排查偶发问题。日志不出设备，不含 API 密钥等信息。"
+            >
+              <Switch
+                :model-value="debugModeOn"
+                :aria-label="'开启调试模式'"
+                @update:model-value="value => { debugModeOn = value; setDebugMode(Boolean(value)) }"
+              />
+            </SettingsRow>
+            <div v-if="debugModeOn" class="mt-3">
+              <Button variant="outline" size="sm" @click="copyDebugDiagnostics">复制诊断</Button>
+            </div>
+          </SettingsSection>
           <SettingsSection title="账户">
             <SettingsRow
               label="GitHub 账户"
