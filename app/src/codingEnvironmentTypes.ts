@@ -268,6 +268,16 @@ export interface CodingComputerUseStatus {
   problem?: string
 }
 
+export interface CodingComputerUseDriverPrepareResult {
+  ready: boolean
+  source?: string
+  path?: string
+  version: string
+  problem?: string
+  recipe?: string
+  nextStep?: string
+}
+
 export interface CodingMCPServerSummary {
   name: string
   transport: string

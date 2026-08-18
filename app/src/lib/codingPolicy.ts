@@ -144,7 +144,8 @@ export function describePendingComputerUseCapability(
   if (!state.available) {
     return {
       status: 'unavailable',
-      detail: state.problem || 'Computer Use 当前不可用。',
+      detail: state.problem
+        || '打包的 Cua Driver 不可用。用户已请求 Computer Use 时，使用 prepare_computer_use_driver 把 MilkSU 审阅过的 Driver 放到本机。',
     }
   }
   if (state.attachedToOtherTask) {

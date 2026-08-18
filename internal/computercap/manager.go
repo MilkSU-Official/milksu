@@ -374,9 +374,20 @@ func (manager *Manager) Start(
 		manager.mu.Unlock()
 		return status, fmt.Errorf("选择的 Windows App 缺少稳定的可执行文件身份")
 	}
+	if _, resolveErr := manager.resolveBinaryLocked(); resolveErr != nil {
+		manager.mu.Unlock()
+		if _, prepErr := manager.Prepare(ctx, PrepareOptions{}); prepErr != nil {
+			status := manager.Status()
+			if strings.TrimSpace(status.Problem) == "" {
+				status.Problem = prepErr.Error()
+			}
+			return status, prepErr
+		}
+		manager.mu.Lock()
+	}
 	binaryPath, err := manager.resolveBinaryLocked()
 	if err != nil {
-		status := manager.statusLocked(permissions)
+		status := manager.statusLocked(manager.permissionProbe(false))
 		manager.mu.Unlock()
 		return status, err
 	}
@@ -693,7 +704,7 @@ func (manager *Manager) statusLocked(permissions Permissions) Status {
 	}
 	if !status.Available {
 		status.Phase = "unavailable"
-		status.Problem = "打包的 Cua Driver 不可用；MilkSU 不会回退到系统级全局控制。"
+		status.Problem = MissingDriverProblem
 	}
 	if manager.active == nil {
 		return status
@@ -770,6 +781,9 @@ func (manager *Manager) resolveBinaryLocked() (string, error) {
 				driverExecutableName(manager.goos),
 			),
 		)
+	}
+	if prepared := manager.preparedDriverCandidate(); prepared != "" {
+		candidates = append(candidates, prepared)
 	}
 	for _, candidate := range candidates {
 		if candidate == "" {

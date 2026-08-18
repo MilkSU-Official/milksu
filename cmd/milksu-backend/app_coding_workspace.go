@@ -37,6 +37,24 @@ func (a *App) handleCodingWorkspaceAction(conversationID, action, input string) 
 		action = request.Action
 	}
 	switch strings.TrimSpace(action) {
+	case "computer_use_driver_status":
+		result, err := a.PrepareCodingComputerUseDriver(false)
+		if err != nil && !result.Ready {
+			return encodeWorkspaceResult(result)
+		}
+		if err != nil {
+			return "", err
+		}
+		return encodeWorkspaceResult(result)
+	case "prepare_computer_use_driver":
+		result, err := a.PrepareCodingComputerUseDriver(true)
+		if err != nil && !result.Ready {
+			return encodeWorkspaceResult(result)
+		}
+		if err != nil {
+			return "", err
+		}
+		return encodeWorkspaceResult(result)
 	case "list_browser_tabs":
 		status, err := a.ensureWorkspaceBrowser(conversationID)
 		if err != nil {

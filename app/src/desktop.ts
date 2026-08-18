@@ -59,6 +59,7 @@ import type {
   CodingArtifactPreview,
   CodingBrowserStatus,
   CodingCompactionResult,
+  CodingComputerUseDriverPrepareResult,
   CodingComputerUseStatus,
   CodingComputerUseTarget,
   CodingDiffSnapshot,
@@ -316,6 +317,7 @@ interface DesktopAppBindings {
   RevealCodingBrowserEvidence(conversationId: string): Promise<void>
   ListCodingComputerUseTargets(): Promise<CodingComputerUseTarget[]>
   GetCodingComputerUseStatus(): Promise<CodingComputerUseStatus>
+  PrepareCodingComputerUseDriver(allowBuild: boolean): Promise<CodingComputerUseDriverPrepareResult>
   ActivateCodingComputerUse(conversationId: string): Promise<CodingComputerUseStatus>
   RequestCodingComputerUsePermissions(permission: string): Promise<CodingComputerUseStatus>
   RelaunchDesktopApp(): Promise<boolean>
@@ -725,6 +727,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         ) as Promise<T>
       case 'get_coding_computer_use_status':
         return app.GetCodingComputerUseStatus() as Promise<T>
+      case 'prepare_coding_computer_use_driver':
+        return app.PrepareCodingComputerUseDriver(Boolean(args?.allowBuild)) as Promise<T>
       case 'activate_coding_computer_use':
         return app.ActivateCodingComputerUse(args?.conversationId as string) as Promise<T>
       case 'list_coding_computer_use_targets':

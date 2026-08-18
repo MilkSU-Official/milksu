@@ -125,6 +125,13 @@ describe('Coding policy presentation', () => {
     expect(missingPermissions.status).toBe('unavailable')
     expect(missingPermissions.detail).toContain('辅助功能与屏幕录制')
 
+    const missingDriver = describePendingComputerUseCapability('go', 'workspace-auto', target, {
+      available: false,
+      permissionsReady: true,
+    })
+    expect(missingDriver.status).toBe('unavailable')
+    expect(missingDriver.detail).toContain('prepare_computer_use_driver')
+
     const noWindow = describePendingComputerUseCapability('go', 'workspace-auto', null, {
       available: true,
       permissionsReady: true,

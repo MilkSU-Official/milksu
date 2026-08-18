@@ -95,7 +95,7 @@
 - NSSCTF「全部 / 收藏」在完整本地目录预热后于前端筛选分页；同步丢弃飞行中的旧全量快照；训练进度从目录快照拆开，Judge/确认后重叠加（AsabaLazy / Luo，PR #8）。
 - 未打包 Windows 上补全 GitHub 登录回调（`996820e`）。新的正式 Windows 包尚未发行。
 - Windows 无 Git 启动收敛为两处宿主边界：非 macOS 不初始化仅供 macOS 使用的 Coding 协作管理器，Electron 私有端口探针只额外继承 `SystemRoot`。本地 Go/Desktop 定向测试已通过，空白用户目录下的打包 App 探针需由 Windows workflow 复验，尚未形成新发行。
-- Windows Computer Use 沿用 macOS 的有界 Cua 会话：按绝对可执行文件绑定目标、用 Electron 主进程 PID 排除宿主窗口、前后端都排除 Chrome/Edge 等用户浏览器。Start/Restore 生命周期与本机 Notepad 窗口枚举已覆盖。本机已用 sidecar 查找路径中的补丁版 `cua-driver 0.14.2` 对可见窗口完成 `observe -> type_text -> observe`，token 回读成功；用户不必单独安装 driver。官方未打补丁的 Windows 包无法在 bounded 策略下对上可执行文件身份。发行 Windows 包仍由 sidecar 源码构建并打入安装包，不是一次新的三端发行。macOS Computer Use 路径未改。
+- Windows Computer Use 沿用 macOS 的有界 Cua 会话：按绝对可执行文件绑定目标、用 Electron 主进程 PID 排除宿主窗口、前后端都排除 Chrome/Edge 等用户浏览器。Start/Restore 生命周期与本机 Notepad 窗口枚举已覆盖。本机已用 sidecar 查找路径中的补丁版 `cua-driver 0.14.2` 对可见窗口完成 `observe -> type_text -> observe`，token 回读成功。Driver 先走安装包/Sidecar 自带副本；缺失时用户启动 Computer Use 可由类型化 `prepare_computer_use_driver` 把 MilkSU 审阅过的 Driver 拷到本机配置目录或按仓库脚本构建，不运行 Cua 官方安装脚本，也不回退到系统级全局控制。官方未打补丁的 Windows 包无法在 bounded 策略下对上可执行文件身份。发行 Windows 包仍由 sidecar 源码构建并打入安装包，不是一次新的三端发行。macOS Computer Use 路径未改。
 - CTF / CVE 的模型操作工作台 UX 后置，不在本轮把 `milksu_workspace` 扩到那两个模块。
 
 ### 发行工具

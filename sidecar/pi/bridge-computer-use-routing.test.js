@@ -13,6 +13,8 @@ test("blocks shell and private protocol workarounds when Computer Use is unavail
   });
 
   assert.match(guidance, /Computer Use is not active/);
+  assert.match(guidance, /prepare_computer_use_driver/);
+  assert.match(guidance, /do not run Cua's public installer/);
   assert.match(guidance, /stop and tell the user/);
   assert.match(guidance, /Do not use bash/);
   assert.match(guidance, /screenshot directories/);
