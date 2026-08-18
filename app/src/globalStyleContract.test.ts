@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
-const indexCss = readFileSync(fileURLToPath(new URL('./index.css', import.meta.url)), 'utf8')
+const indexCss = readFileSync(fileURLToPath(new URL('./index.css', import.meta.url)), 'utf8').replaceAll('\r\n', '\n')
 
 describe('global style contract', () => {
   it('keeps compact form controls on one shared font scale', () => {

@@ -2,10 +2,10 @@
 
 import { createApp, nextTick, type App } from 'vue'
 import { afterEach, describe, expect, it } from 'vitest'
-import chatPageSource from './ChatPage.vue?raw'
+import chatPageSourceRaw from './ChatPage.vue?raw'
 import ctfEndpointAuthorizationSource from './CTFEndpointAuthorization.vue?raw'
 import ctfManualIntakeSource from './CTFManualIntake.vue?raw'
-import ctfPageSource from './CTFPage.vue?raw'
+import ctfPageSourceRaw from './CTFPage.vue?raw'
 import ctfWorkspaceHeaderSource from './CTFWorkspaceHeader.vue?raw'
 import vulnPageSource from './VulnPage.vue?raw'
 import WorkspaceModuleTopBar from './WorkspaceModuleTopBar.vue'
@@ -13,6 +13,9 @@ import workspaceModuleTopBarSource from './WorkspaceModuleTopBar.vue?raw'
 import workspaceTopBarSource from './WorkspaceTopBar.vue?raw'
 import WorkspaceTopBar from './WorkspaceTopBar.vue'
 import workspaceTopBarTitleSource from './WorkspaceTopBarTitle.vue?raw'
+
+const chatPageSource = chatPageSourceRaw.replaceAll('\r\n', '\n')
+const ctfPageSource = ctfPageSourceRaw.replaceAll('\r\n', '\n')
 
 const mountedApps: App[] = []
 
