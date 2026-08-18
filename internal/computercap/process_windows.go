@@ -20,6 +20,13 @@ var (
 	waitNamedPipe = kernel32.NewProc("WaitNamedPipeW")
 )
 
+func platformHostExecutable(pid int) string {
+	if pid <= 1 {
+		return ""
+	}
+	return processExecutablePath(uint32(pid))
+}
+
 func runtimeRootForPlatform(string) string {
 	return filepath.Join(os.TempDir(), "milksu-computer-use")
 }

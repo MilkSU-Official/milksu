@@ -286,5 +286,8 @@ describe('Coding policy presentation', () => {
     expect(isUserBrowserTarget({ name: 'Arc', bundleId: 'company.thebrowser.Browser' })).toBe(true)
     expect(isUserBrowserTarget({ name: 'Archive Utility', bundleId: 'com.apple.archiveutility' })).toBe(false)
     expect(isUserBrowserTarget({ name: 'Chromium Notes', bundleId: 'com.example.notes' })).toBe(false)
+    expect(isUserBrowserTarget({ name: 'chrome', bundleId: 'win32.chrome' })).toBe(true)
+    expect(isUserBrowserTarget({ name: 'msedge', bundleId: 'win32.msedge' })).toBe(true)
+    expect(isUserBrowserTarget({ name: 'Notepad', bundleId: 'win32.notepad' })).toBe(false)
   })
 })

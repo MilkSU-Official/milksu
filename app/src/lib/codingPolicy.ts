@@ -192,6 +192,15 @@ const browserBundleIDs = [
   'company.thebrowser.browser',
   'org.chromium.chromium',
   'org.mozilla.firefox',
+  'win32.chrome',
+  'win32.msedge',
+  'win32.msedgewebview2',
+  'win32.iexplore',
+  'win32.brave',
+  'win32.firefox',
+  'win32.opera',
+  'win32.vivaldi',
+  'win32.chromium',
 ]
 const browserNames = new Set([
   'arc',
@@ -203,6 +212,11 @@ const browserNames = new Set([
   'opera',
   'safari',
   'vivaldi',
+  'chrome',
+  'msedge',
+  'msedgewebview2',
+  'iexplore',
+  'brave',
 ])
 
 export function isUserBrowserTarget(

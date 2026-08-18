@@ -13,6 +13,8 @@ import (
 	"time"
 )
 
+func platformHostExecutable(int) string { return "" }
+
 func runtimeRootForPlatform(string) string { return runtimeRoot }
 
 func endpointForSession(_ string, directory string, _ string) string {

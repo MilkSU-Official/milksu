@@ -960,6 +960,7 @@ func driverEnvironment(goos string, directory string, hostBundleID string) []str
 
 func filterValidTargets(targets []Target, hostBundleID string, hostPID int) []Target {
 	hostBundleID = strings.TrimSpace(hostBundleID)
+	hostExecutable := strings.TrimSpace(platformHostExecutable(hostPID))
 	filtered := make([]Target, 0, len(targets))
 	seen := map[string]bool{}
 	for _, target := range targets {
@@ -975,6 +976,11 @@ func filterValidTargets(targets []Target, hostBundleID string, hostPID int) []Ta
 		// Exclude the running host identity only (exact bundle and/or host PID).
 		// Stable (com.milksu.app) must still list Beta (com.milksu.app.beta).
 		if isSelfComputerUseTarget(target, hostBundleID, hostPID) {
+			continue
+		}
+		if hostExecutable != "" &&
+			strings.TrimSpace(target.executablePath) != "" &&
+			strings.EqualFold(filepath.Clean(target.executablePath), filepath.Clean(hostExecutable)) {
 			continue
 		}
 		// Browser windows use the dedicated Browser / Browser Use surfaces. They
@@ -1006,6 +1012,15 @@ func isUserBrowserTarget(target Target) bool {
 		"company.thebrowser.browser",
 		"org.chromium.chromium",
 		"org.mozilla.firefox",
+		"win32.chrome",
+		"win32.msedge",
+		"win32.msedgewebview2",
+		"win32.iexplore",
+		"win32.brave",
+		"win32.firefox",
+		"win32.opera",
+		"win32.vivaldi",
+		"win32.chromium",
 	} {
 		if bundleID == candidate || strings.HasPrefix(bundleID, candidate+".") {
 			return true
@@ -1014,10 +1029,16 @@ func isUserBrowserTarget(target Target) bool {
 	for _, candidate := range []string{
 		"arc", "brave browser", "chromium", "firefox", "google chrome",
 		"microsoft edge", "opera", "safari", "vivaldi",
+		"chrome", "msedge", "msedgewebview2", "iexplore", "brave",
 	} {
 		if name == candidate {
 			return true
 		}
+	}
+	switch strings.ToLower(filepath.Base(strings.TrimSpace(target.executablePath))) {
+	case "chrome.exe", "msedge.exe", "msedgewebview2.exe", "iexplore.exe",
+		"brave.exe", "firefox.exe", "opera.exe", "vivaldi.exe", "chromium.exe":
+		return true
 	}
 	return false
 }
