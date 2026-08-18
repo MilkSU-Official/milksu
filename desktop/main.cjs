@@ -31,9 +31,10 @@ const {
 const { loadBuildTrackingView } = require('./build-tracking-view.cjs')
 const {
   AccountSession,
+  accountCallbackFromArgv,
   accountModelAuthorizationAction,
   accountModelAuthorizationRefreshRequired,
-  accountRedirectURL,
+  desktopProtocolClientRegistration,
   loadAccountConfig,
 } = require('./account-session.cjs')
 const { rendererHeaders } = require('./renderer-protocol.cjs')
@@ -157,7 +158,7 @@ let backend
 let browserShell
 let accountSession
 let updateManager
-let pendingAccountCallback = ''
+let pendingAccountCallback = accountCallbackFromArgv(process.argv, desktopChannel)
 let quitting = false
 let relaunchScheduled = false
 let screenRecordingRelaunchArm = null
@@ -980,7 +981,7 @@ app.on('second-instance', (_event, argv = []) => {
     mainWindow.show()
     mainWindow.focus()
   }
-  const callback = argv.find(value => String(value).startsWith(accountRedirectURL(desktopChannel)))
+  const callback = accountCallbackFromArgv(argv, desktopChannel)
   if (callback) {
     if (!accountSession) {
       pendingAccountCallback = callback
@@ -995,9 +996,23 @@ app.on('second-instance', (_event, argv = []) => {
 app.whenReady().then(async () => {
   startupLog('app.whenReady')
   await startupTime('installRendererProtocol', () => installRendererProtocol())
-  const accountRedirect = new URL(accountRedirectURL(desktopChannel))
-  if (app.isPackaged) {
-    app.setAsDefaultProtocolClient(accountRedirect.protocol.replace(':', ''))
+  const protocolClient = desktopProtocolClientRegistration({
+    channel: desktopChannel,
+    isPackaged: app.isPackaged,
+    defaultApp: Boolean(process.defaultApp),
+    execPath: process.execPath,
+    argv: process.argv,
+  })
+  if (protocolClient.register) {
+    const registered = protocolClient.execPath
+      ? app.setAsDefaultProtocolClient(protocolClient.scheme, protocolClient.execPath, protocolClient.args)
+      : app.setAsDefaultProtocolClient(protocolClient.scheme)
+    startupLog(
+      'protocolClient',
+      `${protocolClient.scheme} registered=${registered} packaged=${app.isPackaged}`,
+    )
+  } else {
+    startupLog('protocolClient', `${protocolClient.scheme} skipped unpackaged`)
   }
   const accountConfig = await startupTime('loadAccountConfig', () => loadAccountConfig({
     resourcesPath: process.resourcesPath,

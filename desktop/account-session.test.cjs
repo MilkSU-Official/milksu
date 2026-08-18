@@ -7,9 +7,11 @@ const { promises: fs } = require('node:fs')
 const test = require('node:test')
 const {
   AccountSession,
+  accountCallbackFromArgv,
   accountModelAuthorizationAction,
   accountModelAuthorizationRefreshRequired,
   accountRedirectURL,
+  desktopProtocolClientRegistration,
   loadAccountConfig,
 } = require('./account-session.cjs')
 
@@ -42,6 +44,46 @@ test('rejects non-HTTPS account endpoints and reports an unconfigured client', a
   assert.equal(config.configured, false)
   const session = new AccountSession({ config, userDataPath: os.tmpdir(), openExternal: async () => {} })
   assert.deepEqual(await session.status(), { configured: false, state: 'unconfigured', authenticated: false })
+})
+
+test('reads the Windows protocol callback from quoted process argv', () => {
+  assert.equal(
+    accountCallbackFromArgv([
+      'C:\\electron.exe',
+      'C:\\milksu\\desktop',
+      '"milksu://auth/callback?code=one-time"',
+    ], 'stable'),
+    'milksu://auth/callback?code=one-time',
+  )
+  assert.equal(accountCallbackFromArgv(['electron', 'milksu-beta://auth/callback?code=x'], 'beta'), 'milksu-beta://auth/callback?code=x')
+  assert.equal(accountCallbackFromArgv(['electron', 'milksu://auth/callback?code=x'], 'beta'), '')
+})
+
+test('registers unpackaged protocol clients with the Electron executable and app script', () => {
+  const unpackaged = desktopProtocolClientRegistration({
+    channel: 'stable',
+    isPackaged: false,
+    defaultApp: true,
+    execPath: 'C:\\electron\\electron.exe',
+    argv: ['C:\\electron\\electron.exe', 'C:\\milksu\\desktop'],
+  })
+  assert.deepEqual(unpackaged, {
+    scheme: 'milksu',
+    register: true,
+    execPath: 'C:\\electron\\electron.exe',
+    args: [path.resolve('C:\\milksu\\desktop')],
+  })
+  assert.deepEqual(desktopProtocolClientRegistration({
+    channel: 'beta',
+    isPackaged: true,
+  }), { scheme: 'milksu-beta', register: true })
+  assert.deepEqual(desktopProtocolClientRegistration({
+    channel: 'stable',
+    isPackaged: false,
+    defaultApp: true,
+    execPath: 'C:\\electron\\electron.exe',
+    argv: ['C:\\electron\\electron.exe'],
+  }), { scheme: 'milksu', register: false })
 })
 
 test('keeps Stable and Beta OAuth callbacks on separate protocol handlers', async () => {

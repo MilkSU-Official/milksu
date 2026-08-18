@@ -41,6 +41,46 @@ function accountRedirectURL(channel = 'stable') {
     : 'milksu://auth/callback'
 }
 
+function stripArgQuotes(value) {
+  return String(value ?? '').trim().replace(/^"+|"+$/gu, '')
+}
+
+function accountCallbackFromArgv(argv = [], channel = 'stable') {
+  const expected = accountRedirectURL(channel)
+  for (const raw of argv) {
+    const value = stripArgQuotes(raw)
+    if (value.toLowerCase().startsWith(expected.toLowerCase())) return value
+  }
+  return ''
+}
+
+function firstProtocolClientScript(argv = [], execPath = '') {
+  const resolvedExec = execPath ? path.resolve(execPath) : ''
+  return argv.find((value, index) => {
+    if (index === 0) return false
+    const text = stripArgQuotes(value)
+    if (!text || text.startsWith('-') || /:\/\//u.test(text)) return false
+    return !resolvedExec || path.resolve(text) !== resolvedExec
+  }) || ''
+}
+
+// Unpackaged Electron must pass execPath + the app script, otherwise Windows
+// registers a bare electron.exe handler and the GitHub callback never returns.
+function desktopProtocolClientRegistration({
+  channel = 'stable',
+  isPackaged = false,
+  defaultApp = false,
+  execPath = '',
+  argv = [],
+} = {}) {
+  const scheme = new URL(accountRedirectURL(channel)).protocol.replace(/:$/u, '')
+  if (isPackaged) return { scheme, register: true }
+  if (!defaultApp || !execPath) return { scheme, register: false }
+  const script = firstProtocolClientScript(argv, execPath)
+  if (!script) return { scheme, register: false }
+  return { scheme, register: true, execPath, args: [path.resolve(script)] }
+}
+
 function accountModelAuthorizationAction(status) {
   // Local bootstrap marks a provisional active session before /v1/account returns.
   // Keep any previously persisted account relay until the network status confirms.
@@ -472,8 +512,10 @@ class AccountSession {
 
 module.exports = {
   AccountSession,
+  accountCallbackFromArgv,
   accountModelAuthorizationAction,
   accountModelAuthorizationRefreshRequired,
   accountRedirectURL,
+  desktopProtocolClientRegistration,
   loadAccountConfig,
 }
