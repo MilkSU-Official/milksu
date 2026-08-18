@@ -85,6 +85,7 @@
 
 - NSSCTF「全部 / 收藏」在完整本地目录预热后于前端筛选分页；同步丢弃飞行中的旧全量快照；训练进度从目录快照拆开，Judge/确认后重叠加（AsabaLazy / Luo，PR #8）。
 - Windows 设置页“打开产物目录 / 数据目录”改为 Go 确定受信任路径、Electron `shell.openPath` 打开，不再写死 `/usr/bin/open`（荒景肆，PR #6）。新的正式 Windows 包尚未发行。
+- Windows 无 Git 启动收敛为两处宿主边界：非 macOS 不初始化仅供 macOS 使用的 Coding 协作管理器，Electron 私有端口探针只额外继承 `SystemRoot`。本地 Go/Desktop 定向测试已通过，空白用户目录下的打包 App 探针需由 Windows workflow 复验，尚未形成新发行。
 - 冷启动加快；macOS `⌘Q` 立即退出。
 - CTF / CVE 的模型操作工作台 UX 后置，不在本轮把 `milksu_workspace` 扩到那两个模块。
 

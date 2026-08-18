@@ -65,6 +65,8 @@ jobs:
           # exercises the routed model regression with native paths before
           # packaging and first launch.
           go test ./... -run '^$'
+          go test ./cmd/milksu-backend -run '^TestWindowsStartupDoesNotRequireGit$' -count=1
+          node --test --test-isolation=none desktop/startup-environment.test.cjs desktop/package-files.test.cjs
           node --test sidecar/pi/current-provider-runtime.test.js sidecar/pi/model-source-routing.test.js
       - name: Build Windows installer
         shell: pwsh
@@ -114,19 +116,81 @@ jobs:
             if (-not $backendProcess.HasExited) { Stop-Process -Id $backendProcess.Id -Force }
           }
 
-          $env:MILKSU_INSTANCE_ID = 'windows-release-smoke'
-          $appPath = 'build/electron/windows/stable/win-unpacked/MilkSU.exe'
-          $appProcess = Start-Process -FilePath $appPath -PassThru
+          $appPath = (Resolve-Path 'build/electron/windows/stable/win-unpacked/MilkSU.exe').Path
+          $smokeRoot = Join-Path $env:RUNNER_TEMP 'milksu-no-git-smoke'
+          $smokeProfile = Join-Path $smokeRoot 'profile'
+          $smokeAppData = Join-Path $smokeProfile 'AppData\Roaming'
+          $smokeLocalAppData = Join-Path $smokeProfile 'AppData\Local'
+          $smokeTemp = Join-Path $smokeLocalAppData 'Temp'
+          $smokeData = Join-Path $smokeRoot 'milksu-data'
+          $smokeArtifacts = Join-Path $smokeRoot 'milksu-artifacts'
+          New-Item -ItemType Directory -Force -Path `
+            $smokeAppData, $smokeLocalAppData, $smokeProfile, $smokeTemp, `
+            $smokeData, $smokeArtifacts | Out-Null
+
+          $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+          $startInfo.FileName = $appPath
+          $startInfo.WorkingDirectory = Split-Path -Parent $appPath
+          $startInfo.UseShellExecute = $false
+          # Model a blank user without copying job credentials or tool paths.
+          $startInfo.Environment.Clear()
+          $startInfo.Environment['SystemRoot'] = $env:SystemRoot
+          $startInfo.Environment['WINDIR'] = $env:WINDIR
+          $startInfo.Environment['ComSpec'] = $env:ComSpec
+          $startInfo.Environment['PATH'] = ''
+          $startInfo.Environment['APPDATA'] = $smokeAppData
+          $startInfo.Environment['LOCALAPPDATA'] = $smokeLocalAppData
+          $startInfo.Environment['USERPROFILE'] = $smokeProfile
+          $startInfo.Environment['HOME'] = $smokeProfile
+          $startInfo.Environment['HOMEDRIVE'] = (Split-Path -Qualifier $smokeProfile)
+          $startInfo.Environment['HOMEPATH'] = $smokeProfile.Substring(2)
+          $startInfo.Environment['TEMP'] = $smokeTemp
+          $startInfo.Environment['TMP'] = $smokeTemp
+          $startInfo.Environment['MILKSU_APPDATA_DIR'] = $smokeData
+          $startInfo.Environment['MILKSU_USER_ARTIFACTS_DIR'] = $smokeArtifacts
+          $startInfo.Environment['MILKSU_INSTANCE_ID'] = 'windows-release-no-git-smoke'
+
+          $appProcess = [System.Diagnostics.Process]::new()
+          $appProcess.StartInfo = $startInfo
+          if (-not $appProcess.Start()) { throw 'packaged MilkSU did not start' }
           try {
-            Start-Sleep -Seconds 12
-            if ($appProcess.HasExited) {
-              throw "packaged MilkSU exited during first-launch acceptance ($($appProcess.ExitCode))"
+            $startupReady = $false
+            $backendChildren = @()
+            $deadline = [DateTime]::UtcNow.AddSeconds(60)
+            while ([DateTime]::UtcNow -lt $deadline) {
+              Start-Sleep -Milliseconds 500
+              $appProcess.Refresh()
+              if ($appProcess.HasExited) {
+                throw "packaged MilkSU exited during no-Git startup ($($appProcess.ExitCode))"
+              }
+              $backendChildren = @(
+                Get-CimInstance Win32_Process -Filter "Name = 'milksu-backend.exe'" |
+                  Where-Object { $_.ParentProcessId -eq $appProcess.Id }
+              )
+              $windowReady = $appProcess.MainWindowHandle -ne 0 -and
+                $appProcess.MainWindowTitle -eq 'MilkSU'
+              if ($windowReady -and $backendChildren.Count -gt 0) {
+                $startupReady = $true
+                break
+              }
             }
-            $backendChildren = Get-Process -Name 'milksu-backend' -ErrorAction SilentlyContinue
-            if (-not $backendChildren) { throw 'packaged MilkSU did not start its Go runtime' }
+            if (-not $startupReady) {
+              throw "packaged MilkSU did not expose its main window and owned Go runtime within 60 seconds (title=$($appProcess.MainWindowTitle), backend_count=$($backendChildren.Count))"
+            }
           } finally {
-            Get-Process -Name 'MilkSU','milksu-backend' -ErrorAction SilentlyContinue |
-              Stop-Process -Force -ErrorAction SilentlyContinue
+            $ownedChildProcesses = @(
+              Get-CimInstance Win32_Process |
+                Where-Object { $_.ParentProcessId -eq $appProcess.Id }
+            )
+            $treeRoots = if ($appProcess.HasExited) {
+              @($ownedChildProcesses | ForEach-Object { $_.ProcessId })
+            } else {
+              @($appProcess.Id)
+            }
+            $taskkill = Join-Path $env:SystemRoot 'System32\taskkill.exe'
+            foreach ($treeRoot in $treeRoots) {
+              & $taskkill /PID $treeRoot /T /F 2>$null | Out-Null
+            }
           }
       - uses: actions/upload-artifact@v4
         with:

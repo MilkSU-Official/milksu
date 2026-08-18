@@ -51,6 +51,7 @@ const {
 } = require('./computer-use-permissions.cjs')
 const { requestMacOSScreenPermission } = require('./macos-screen-permission.cjs')
 const { openLocalPath } = require('./local-path.cjs')
+const { electronNodeEnvironment } = require('./startup-environment.cjs')
 
 const APP_ORIGIN = 'milksu://app'
 const METHOD_PATTERN = /^[A-Z][A-Za-z0-9]{0,80}$/u
@@ -117,7 +118,7 @@ function findFreePort() {
   ].join(';')
   const value = execFileSync(process.execPath, ['-e', source], {
     encoding: 'utf8',
-    env: { ELECTRON_RUN_AS_NODE: '1' },
+    env: electronNodeEnvironment(),
   }).trim()
   const port = Number(value)
   if (!Number.isInteger(port) || port <= 0 || port > 65535) {

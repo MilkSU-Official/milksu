@@ -1,0 +1,57 @@
+name: Windows startup without Git
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/windows-startup.yml'
+      - '.github/workflows/windows-release.yml'
+      - 'cmd/milksu-backend/**'
+      - 'desktop/**'
+      - 'go.mod'
+      - 'go.sum'
+      - 'internal/appdata/**'
+      - 'internal/codingcollab/**'
+      - 'internal/userartifact/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-startup-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  startup:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Check backend formatting
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $goFiles = Get-ChildItem 'cmd/milksu-backend' -Filter '*.go' -File |
+            ForEach-Object { $_.FullName }
+          $unformatted = @(gofmt -l $goFiles)
+          if ($unformatted.Count -gt 0) {
+            $unformatted | ForEach-Object { Write-Error "gofmt required: $_" }
+            throw 'cmd/milksu-backend is not gofmt-clean'
+          }
+      - name: Verify the private Electron probe environment
+        shell: pwsh
+        run: node --test --test-isolation=none desktop/startup-environment.test.cjs desktop/package-files.test.cjs
+      - name: Start the Windows backend without Git
+        shell: pwsh
+        run: >-
+          go test ./cmd/milksu-backend
+          -run '^(TestCodingCollaborationManager(IsDisabledOutsideDarwin|PreservesDarwinGitRequirement)|TestWindowsStartupDoesNotRequireGit)$'
+          -count=1
