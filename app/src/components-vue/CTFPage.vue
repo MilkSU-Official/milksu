@@ -816,10 +816,25 @@ watch([catalogQuery, catalogCategory], () => {
   }, 220)
 })
 
-watch([collectionView, ctfCollections.revision], () => {
+watch(collectionView, () => {
   if (activeBank.value !== 'nssctf' || screen.value !== 'challenge') return
   selectedProblem.value = null
-  void loadPublicCatalog(1)
+  void loadPublicCatalog(1).then(() => selectDefaultDeskProblem())
+})
+
+watch(ctfCollections.revision, () => {
+  if (activeBank.value !== 'nssctf' || screen.value !== 'challenge') return
+  const selected = selectedProblem.value
+  if (
+    selected
+    && collectionView.value !== ALL_COLLECTIONS_ID
+    && !ctfCollections.has(`nssctf:${selected.platformId}`, collectionView.value)
+  ) {
+    selectedProblem.value = null
+  }
+  if (collectionView.value !== ALL_COLLECTIONS_ID) {
+    void loadPublicCatalog(1)
+  }
 })
 
 watch(
@@ -1444,6 +1459,7 @@ async function sendIndependentStep(content: string) {
 async function refreshTrainingProgress() {
   await training.load()
   if (activeBank.value === 'nssctf') {
+    await publicCatalog.refreshProgress()
     await loadPublicCatalog(catalogPage.value)
   }
 }

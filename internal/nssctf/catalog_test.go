@@ -506,6 +506,36 @@ func TestCatalogSyncAndDashboard(t *testing.T) {
 	if noFavorites.Total != 0 || len(noFavorites.Problems) != 0 {
 		t.Fatalf("empty favorite catalog filter leaked problems: %+v", noFavorites)
 	}
+
+	for extra := 0; extra < 15; extra++ {
+		if _, err := service.db.ExecContext(context.Background(), `
+			INSERT INTO catalog_problems (
+				platform_id, source_url, title, category, points, difficulty, tags_json,
+				has_writeup, solved_count, wrong_answer_count, no_answer_count, is_open, synced_at, sync_run
+			)
+			SELECT ?, 'https://www.nssctf.cn/problem/' || ?, 'Extra ' || ?, category,
+				points, difficulty, tags_json, has_writeup, solved_count, wrong_answer_count,
+				no_answer_count, is_open, synced_at, sync_run
+			FROM catalog_problems WHERE platform_id = 101
+		`, 2001+extra, 2001+extra, 2001+extra); err != nil {
+			t.Fatalf("insert unpaged catalog fixture %d: %v", 2001+extra, err)
+		}
+	}
+	omitted, err := service.Search(context.Background(), CatalogQuery{Page: 1})
+	if err != nil {
+		t.Fatalf("search catalog with omitted page size: %v", err)
+	}
+	if omitted.Total != 26 || omitted.Page != 1 || omitted.PageSize != 20 || omitted.PageCount != 2 ||
+		len(omitted.Problems) != 20 {
+		t.Fatalf("omitted page size must stay paginated at 20: %+v", omitted)
+	}
+	unpaged, err := service.Search(context.Background(), CatalogQuery{Unpaged: true, Page: 2, PageSize: 20})
+	if err != nil {
+		t.Fatalf("search unpaged catalog: %v", err)
+	}
+	if unpaged.Total != 26 || unpaged.Page != 1 || unpaged.PageCount != 1 || len(unpaged.Problems) != 26 {
+		t.Fatalf("unpaged catalog must return every open row: %+v", unpaged)
+	}
 }
 
 func TestTrainingAcceptanceRequiresJudgeEvidenceAcrossEveryTrack(t *testing.T) {

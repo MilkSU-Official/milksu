@@ -9,13 +9,27 @@ import type {
 
 const CATALOG_URL = 'https://www.nssctf.cn/problem'
 
+const FULL_CATALOG_QUERY: NSSCTFCatalogQuery = {
+  query: '',
+  category: 'all',
+  page: 1,
+  pageSize: 20,
+  unpaged: true,
+}
+
 const dashboard = ref<NSSCTFTrainingDashboard | null>(null)
 const dashboardLoading = ref(false)
 const dashboardSyncing = ref(false)
 const dashboardError = ref<string | null>(null)
 const catalogSearchCache = new Map<string, NSSCTFCatalogSearchResult>()
 const fullCatalog = ref<NSSCTFCatalogSearchResult | null>(null)
-const fullCatalogLoading = ref(false)
+const trainingProgress = ref<{
+  attemptedProblemIds: number[]
+  completedProblemIds: number[]
+} | null>(null)
+
+let fullCatalogGeneration = 0
+let fullCatalogLoad: Promise<NSSCTFCatalogSearchResult | null> | null = null
 
 function catalogSearchKey(query: NSSCTFCatalogQuery) {
   return JSON.stringify({
@@ -23,26 +37,88 @@ function catalogSearchKey(query: NSSCTFCatalogQuery) {
     category: query.category,
     page: query.page,
     pageSize: query.pageSize,
+    unpaged: query.unpaged === true,
     problemIds: query.problemIds ? [...query.problemIds].sort((left, right) => left - right) : undefined,
   })
 }
 
 function isLocalCatalogQuery(query: NSSCTFCatalogQuery) {
-  return query.query.trim() === '' && (query.category === '' || query.category === 'all')
+  return query.query.trim() === '' && (query.category === '' || query.category === 'all') && query.unpaged !== true
+}
+
+function withCurrentProgress(result: NSSCTFCatalogSearchResult): NSSCTFCatalogSearchResult {
+  if (!trainingProgress.value) return result
+  return {
+    ...result,
+    attemptedProblemIds: trainingProgress.value.attemptedProblemIds,
+    completedProblemIds: trainingProgress.value.completedProblemIds,
+  }
+}
+
+function rememberProgress(result: NSSCTFCatalogSearchResult) {
+  trainingProgress.value = {
+    attemptedProblemIds: result.attemptedProblemIds,
+    completedProblemIds: result.completedProblemIds,
+  }
+}
+
+function invalidateFullCatalog() {
+  fullCatalogGeneration += 1
+  fullCatalog.value = null
+  fullCatalogLoad = null
 }
 
 async function loadFullCatalog() {
-  if (fullCatalog.value || fullCatalogLoading.value) return fullCatalog.value
-  fullCatalogLoading.value = true
+  if (fullCatalog.value) return fullCatalog.value
+  if (fullCatalogLoad) return fullCatalogLoad
+
+  const generation = fullCatalogGeneration
+  const pending = (async (): Promise<NSSCTFCatalogSearchResult | null> => {
+    try {
+      const result = await invokeCommand<NSSCTFCatalogSearchResult>('list_nssctf_catalog', {
+        query: FULL_CATALOG_QUERY,
+      })
+      if (generation !== fullCatalogGeneration) {
+        return fullCatalogLoad ?? fullCatalog.value
+      }
+      fullCatalog.value = result
+      rememberProgress(result)
+      clearCatalogSearchCache()
+      return result
+    } catch {
+      if (generation !== fullCatalogGeneration) {
+        return fullCatalogLoad ?? fullCatalog.value
+      }
+      return null
+    }
+  })()
+
+  fullCatalogLoad = pending
+  try {
+    return await pending
+  } finally {
+    if (fullCatalogLoad === pending) fullCatalogLoad = null
+  }
+}
+
+async function refreshTrainingProgressSnapshot() {
+  const generation = fullCatalogGeneration
   try {
     const result = await invokeCommand<NSSCTFCatalogSearchResult>('list_nssctf_catalog', {
-      query: { query: '', category: 'all', page: 1, pageSize: 0 },
+      query: FULL_CATALOG_QUERY,
     })
-    fullCatalog.value = result
-    clearCatalogSearchCache()
-    return result
-  } finally {
-    fullCatalogLoading.value = false
+    if (generation !== fullCatalogGeneration) return trainingProgress.value
+    rememberProgress(result)
+    if (fullCatalog.value) {
+      fullCatalog.value = {
+        ...fullCatalog.value,
+        attemptedProblemIds: result.attemptedProblemIds,
+        completedProblemIds: result.completedProblemIds,
+      }
+    }
+    return trainingProgress.value
+  } catch {
+    return trainingProgress.value
   }
 }
 
@@ -54,7 +130,7 @@ function applyLocalCatalogSearch(query: NSSCTFCatalogQuery, full: NSSCTFCatalogS
   const pageSize = query.pageSize || 20
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize))
   const page = Math.min(Math.max(1, query.page), pageCount)
-  return {
+  return withCurrentProgress({
     problems: filtered.slice((page - 1) * pageSize, page * pageSize),
     categories: full.categories,
     attemptedProblemIds: full.attemptedProblemIds,
@@ -63,7 +139,7 @@ function applyLocalCatalogSearch(query: NSSCTFCatalogQuery, full: NSSCTFCatalogS
     page,
     pageSize,
     pageCount,
-  }
+  })
 }
 
 function clearCatalogSearchCache() {
@@ -92,7 +168,7 @@ export function useNSSCTFTraining() {
         url: CATALOG_URL,
       })
       clearCatalogSearchCache()
-      fullCatalog.value = null
+      invalidateFullCatalog()
       void loadFullCatalog()
       await load()
       dashboardError.value = null
@@ -134,10 +210,10 @@ export function useNSSCTFCatalog() {
     const key = catalogSearchKey(query)
     const cached = catalogSearchCache.get(key)
     if (cached) {
-      result.value = cached
+      result.value = withCurrentProgress(cached)
       error.value = null
       loading.value = false
-      return cached
+      return result.value
     }
 
     loading.value = true
@@ -146,12 +222,11 @@ export function useNSSCTFCatalog() {
       const next = await invokeCommand<NSSCTFCatalogSearchResult>('list_nssctf_catalog', {
         query,
       })
+      if (generation !== requestGeneration) return result.value
       catalogSearchCache.set(key, next)
-      if (generation === requestGeneration) {
-        result.value = next
-        error.value = null
-      }
-      return next
+      result.value = withCurrentProgress(next)
+      error.value = null
+      return result.value
     } catch (reason) {
       if (generation === requestGeneration) {
         error.value = reason instanceof Error ? reason.message : String(reason)
@@ -162,5 +237,12 @@ export function useNSSCTFCatalog() {
     }
   }
 
-  return { result, loading, error, search, ensureLoaded: loadFullCatalog }
+  return {
+    result,
+    loading,
+    error,
+    search,
+    ensureLoaded: loadFullCatalog,
+    refreshProgress: refreshTrainingProgressSnapshot,
+  }
 }

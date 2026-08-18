@@ -162,6 +162,7 @@ type CatalogQuery struct {
 	Page       int    `json:"page"`
 	PageSize   int    `json:"pageSize"`
 	ProblemIDs []int  `json:"problemIds,omitempty"`
+	Unpaged    bool   `json:"unpaged,omitempty"`
 }
 
 type CatalogSearchResult struct {
@@ -672,10 +673,10 @@ func (s *CatalogService) Search(ctx context.Context, request CatalogQuery) (Cata
 		page = 1
 	}
 	pageSize := request.PageSize
-	if pageSize < 0 || (pageSize != 0 && pageSize != 10 && pageSize != 20 && pageSize != 40) {
+	if pageSize != 10 && pageSize != 20 && pageSize != 40 {
 		pageSize = 20
 	}
-	all := pageSize == 0
+	all := request.Unpaged
 	if all {
 		page = 1
 	}
