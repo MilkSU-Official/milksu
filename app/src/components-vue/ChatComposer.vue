@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, markRaw, nextTick, ref, watch, type Component } from 'vue'
+import { computed, markRaw, nextTick, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue'
 import {
   Button,
   DropdownMenu,
@@ -18,6 +18,7 @@ import {
   Bot,
   Cable,
   Check,
+  ChevronDown,
   Clock3,
   Compass,
   FileDiff,
@@ -119,6 +120,8 @@ const props = defineProps<{
   runElapsedLabel?: string
   workspaceReady?: boolean
   workspaceLocked?: boolean
+  workspaceName?: string
+  workspacePath?: string
   browserUseReady?: boolean
   computerUseReady?: boolean
   availableSkills?: string[]
@@ -377,6 +380,45 @@ const showProgressSummary = computed(() => Boolean(
 const showGoalDock = computed(() => Boolean(
   !props.ctfSession && (props.goal || props.goalMode || showProgressSummary.value),
 ))
+const goalPanelOpen = ref(false)
+const goalSlot = ref<HTMLElement | null>(null)
+watch(showGoalDock, visible => {
+  if (!visible) goalPanelOpen.value = false
+})
+watch(() => props.goal, goal => {
+  if (!goal) goalPanelOpen.value = false
+})
+function closeGoalPanelOnOutsideEvent(event: Event) {
+  if (!goalPanelOpen.value) return
+  if (event instanceof KeyboardEvent && event.key !== 'Escape') return
+  const slot = goalSlot.value
+  if (slot && !slot.contains(event.target as Node)) goalPanelOpen.value = false
+}
+onMounted(() => {
+  document.addEventListener('pointerdown', closeGoalPanelOnOutsideEvent)
+  document.addEventListener('keydown', closeGoalPanelOnOutsideEvent)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', closeGoalPanelOnOutsideEvent)
+  document.removeEventListener('keydown', closeGoalPanelOnOutsideEvent)
+})
+function toggleGoalChip() {
+  if (props.goal) {
+    goalPanelOpen.value = !goalPanelOpen.value
+  } else {
+    emit('consumeGoal')
+  }
+}
+const showWorkspaceChip = computed(() => Boolean(
+  !props.ctfSession && (props.workspaceName?.trim() || !props.workspaceLocked),
+))
+const workspaceChipLabel = computed(() => props.workspaceName?.trim() || '选择目录')
+const workspaceChipTitle = computed(() => {
+  if (props.workspaceLocked) {
+    return `${props.workspacePath || workspaceChipLabel.value} · 当前会话目录已固定，点击为新任务选择其他目录`
+  }
+  return props.workspacePath || '选择当前任务的会话目录'
+})
 
 const ctfActionOptions = computed(() => {
   const mode = props.ctfMode ?? 'copilot'
@@ -1122,136 +1164,6 @@ defineExpose({
         </button>
       </div>
 
-      <div
-        v-if="showGoalDock"
-        class="chat-composer__dock"
-        aria-label="任务与目标状态"
-      >
-        <div
-          v-if="showProgressSummary"
-          class="chat-composer__progress-pill"
-          aria-label="任务进度摘要"
-        >
-          <LoaderCircle
-            v-if="goal?.status === 'active'"
-            class="size-3.5 shrink-0 text-primary"
-            :class="{ 'animate-spin': running }"
-          />
-          <span v-if="goal?.iteration">第 {{ goal.iteration }} 轮</span>
-          <span v-if="goal?.iteration && showGitSummary" aria-hidden="true">·</span>
-          <HoverCard v-if="showGitSummary" :open-delay="120" :close-delay="80">
-            <HoverCardTrigger as-child>
-              <button
-                type="button"
-                class="chat-composer__git-trigger"
-                aria-label="查看代码变更"
-                @click="$emit('openChanges')"
-              >
-                <span>代码</span>
-                <span class="text-primary">+{{ gitSummary?.additions }}</span>
-                <span class="text-destructive">-{{ gitSummary?.deletions }}</span>
-              </button>
-            </HoverCardTrigger>
-            <HoverCardContent side="top" align="start" class="w-96 p-0">
-              <div class="border-b border-border px-3 py-2.5">
-                <p class="text-label font-medium">{{ gitSummary?.changedFiles }} 个文件已更改</p>
-                <p class="mt-0.5 text-caption text-muted-foreground">点击“代码”打开右侧变更面板</p>
-              </div>
-              <div class="max-h-64 overflow-y-auto px-2 py-2">
-                <button
-                  v-for="change in gitSummary?.changes ?? []"
-                  :key="`${change.indexStatus}${change.worktreeStatus}:${change.path}`"
-                  type="button"
-                  class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-caption hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  :aria-label="`在变更中打开 ${change.path}`"
-                  @click="$emit('openChanges', change.path)"
-                >
-                  <span class="w-14 shrink-0 text-muted-foreground">{{ gitChangeStatus(change) }}</span>
-                  <span class="min-w-0 flex-1 truncate font-mono" :title="change.path">{{ change.path }}</span>
-                  <span class="shrink-0 font-mono text-primary">+{{ change.additions ?? 0 }}</span>
-                  <span class="shrink-0 font-mono text-destructive">-{{ change.deletions ?? 0 }}</span>
-                </button>
-                <p v-if="!(gitSummary?.changes?.length)" class="px-2 py-2 text-caption text-muted-foreground">
-                  文件列表正在刷新；点击后可查看完整变更。
-                </p>
-                <p v-if="gitSummary?.changesTruncated" class="px-2 py-1 text-caption text-muted-foreground">
-                  仅显示前 {{ gitSummary?.changes?.length ?? 0 }} 项。
-                </p>
-              </div>
-            </HoverCardContent>
-          </HoverCard>
-        </div>
-
-        <section
-          v-if="goal || goalMode"
-          class="chat-composer__goal-panel"
-          aria-label="持续目标"
-        >
-          <Target class="size-4 shrink-0 text-primary" />
-          <span class="shrink-0 text-caption font-medium text-primary">
-            {{ goal ? goalStatusLabel : '正在设置' }}
-          </span>
-          <span class="min-w-0 flex-1 truncate text-body" :title="goal?.text">
-            {{ goal?.text || '下一条消息会成为持续目标。' }}
-          </span>
-          <span
-            v-if="goalUsageLabel"
-            class="hidden shrink-0 text-caption text-muted-foreground sm:inline"
-          >
-            {{ goalUsageLabel }}
-          </span>
-          <div class="flex shrink-0 items-center gap-1">
-            <Button
-              v-if="goal?.status === 'active'"
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              :disabled="aborting"
-              :aria-label="aborting ? '正在暂停目标' : '暂停目标'"
-              :title="aborting ? '正在等待当前回合停止' : '暂停持续目标'"
-              @click="$emit('controlGoal', 'pause')"
-            >
-              <LoaderCircle v-if="aborting" class="size-3.5 animate-spin" />
-              <Pause v-else class="size-3.5" />
-            </Button>
-            <Button
-              v-if="goal && resumableGoal"
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              :disabled="running"
-              aria-label="继续目标"
-              title="继续持续目标"
-              @click="$emit('controlGoal', 'resume')"
-            >
-              <Play class="size-3.5" />
-            </Button>
-            <Button
-              v-if="goal && !running"
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label="清除当前目标"
-              title="清除当前目标"
-              @click="$emit('controlGoal', 'clear')"
-            >
-              <Trash2 class="size-3.5" />
-            </Button>
-            <Button
-              v-else-if="goalMode && !goal"
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label="取消目标模式"
-              title="取消目标模式"
-              @click="$emit('consumeGoal')"
-            >
-              <X class="size-3.5" />
-            </Button>
-          </div>
-        </section>
-      </div>
-
       <section
         v-if="queuedGuidance?.length"
         class="chat-composer__queued-guidance"
@@ -1521,6 +1433,183 @@ defineExpose({
                 </DropdownMenuContent>
               </DropdownMenu>
             </template>
+            <template #status>
+              <div
+                v-if="showGoalDock"
+                ref="goalSlot"
+                class="chat-composer__goal-slot"
+                aria-label="持续目标"
+              >
+                <button
+                  type="button"
+                  class="chat-composer__chip chat-composer__chip--goal"
+                  :aria-haspopup="goal ? 'true' : undefined"
+                  :aria-expanded="goal ? goalPanelOpen : undefined"
+                  :title="goal
+                    ? `持续目标：${goal.text}（点击展开）`
+                    : '目标模式已开启；下一条消息会成为持续目标，点击退出'"
+                  @click="toggleGoalChip"
+                >
+                  <Target class="size-3.5 shrink-0" />
+                  <span class="chat-composer__chip__label">
+                    {{ goal ? goalStatusLabel : '目标' }}
+                  </span>
+                  <ChevronDown class="chat-composer__chip__chevron size-3 shrink-0 opacity-60" />
+                </button>
+                <div
+                  v-show="goalPanelOpen"
+                  class="chat-composer__goal-panel"
+                  aria-label="持续目标详情"
+                >
+                  <div class="flex items-center gap-2">
+                    <Target class="size-4 shrink-0 text-primary" />
+                    <span class="shrink-0 text-caption font-medium text-primary">
+                      {{ goal ? goalStatusLabel : '正在设置' }}
+                    </span>
+                    <span
+                      v-if="goalUsageLabel"
+                      class="ml-auto shrink-0 text-caption text-muted-foreground"
+                    >
+                      {{ goalUsageLabel }}
+                    </span>
+                  </div>
+                  <p class="mt-2 truncate text-body" :title="goal?.text">
+                    {{ goal?.text || '下一条消息会成为持续目标。' }}
+                  </p>
+                  <div class="mt-3 flex items-center gap-1">
+                    <Button
+                      v-if="goal?.status === 'active'"
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      :disabled="aborting"
+                      :aria-label="aborting ? '正在暂停目标' : '暂停目标'"
+                      :title="aborting ? '正在等待当前回合停止' : '暂停持续目标'"
+                      @click="$emit('controlGoal', 'pause')"
+                    >
+                      <LoaderCircle v-if="aborting" class="size-3.5 animate-spin" />
+                      <Pause v-else class="size-3.5" />
+                    </Button>
+                    <Button
+                      v-if="goal && resumableGoal"
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      :disabled="running"
+                      aria-label="继续目标"
+                      title="继续持续目标"
+                      @click="$emit('controlGoal', 'resume')"
+                    >
+                      <Play class="size-3.5" />
+                    </Button>
+                    <Button
+                      v-if="goal && !running"
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label="清除当前目标"
+                      title="清除当前目标"
+                      @click="$emit('controlGoal', 'clear')"
+                    >
+                      <Trash2 class="size-3.5" />
+                    </Button>
+                    <Button
+                      v-else-if="goalMode && !goal"
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label="取消目标模式"
+                      title="取消目标模式"
+                      @click="$emit('consumeGoal')"
+                    >
+                      <X class="size-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+              <button
+                v-if="!ctfSession && executionMode === 'plan'"
+                type="button"
+                class="chat-composer__chip chat-composer__chip--plan"
+                aria-label="计划模式已开启"
+                title="只分析和规划，不修改文件；点击退出计划模式"
+                @click="$emit('changeExecutionMode', 'go')"
+              >
+                <Lightbulb class="size-3.5 shrink-0" />
+                <span class="chat-composer__chip__label">计划</span>
+              </button>
+              <div
+                v-if="!ctfSession && showProgressSummary"
+                class="chat-composer__progress-pill"
+                aria-label="任务进度摘要"
+              >
+                <LoaderCircle
+                  v-if="goal?.status === 'active'"
+                  class="size-3.5 shrink-0 text-primary"
+                  :class="{ 'animate-spin': running }"
+                />
+                <span v-if="goal?.iteration">第 {{ goal.iteration }} 轮</span>
+                <span v-if="goal?.iteration && showGitSummary" aria-hidden="true">·</span>
+                <HoverCard v-if="showGitSummary" :open-delay="120" :close-delay="80">
+                  <HoverCardTrigger as-child>
+                    <button
+                      type="button"
+                      class="chat-composer__git-trigger"
+                      aria-label="查看代码变更"
+                      @click="$emit('openChanges')"
+                    >
+                      <span>代码</span>
+                      <span class="text-primary">+{{ gitSummary?.additions }}</span>
+                      <span class="text-destructive">-{{ gitSummary?.deletions }}</span>
+                    </button>
+                  </HoverCardTrigger>
+                  <HoverCardContent side="top" align="start" class="w-96 p-0">
+                    <div class="border-b border-border px-3 py-2.5">
+                      <p class="text-label font-medium">{{ gitSummary?.changedFiles }} 个文件已更改</p>
+                      <p class="mt-0.5 text-caption text-muted-foreground">点击“代码”打开右侧变更面板</p>
+                    </div>
+                    <div class="max-h-64 overflow-y-auto px-2 py-2">
+                      <button
+                        v-for="change in gitSummary?.changes ?? []"
+                        :key="`${change.indexStatus}${change.worktreeStatus}:${change.path}`"
+                        type="button"
+                        class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-caption hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        :aria-label="`在变更中打开 ${change.path}`"
+                        @click="$emit('openChanges', change.path)"
+                      >
+                        <span class="w-14 shrink-0 text-muted-foreground">{{ gitChangeStatus(change) }}</span>
+                        <span class="min-w-0 flex-1 truncate font-mono" :title="change.path">{{ change.path }}</span>
+                        <span class="shrink-0 font-mono text-primary">+{{ change.additions ?? 0 }}</span>
+                        <span class="shrink-0 font-mono text-destructive">-{{ change.deletions ?? 0 }}</span>
+                      </button>
+                      <p v-if="!(gitSummary?.changes?.length)" class="px-2 py-2 text-caption text-muted-foreground">
+                        文件列表正在刷新；点击后可查看完整变更。
+                      </p>
+                      <p v-if="gitSummary?.changesTruncated" class="px-2 py-1 text-caption text-muted-foreground">
+                        仅显示前 {{ gitSummary?.changes?.length ?? 0 }} 项。
+                      </p>
+                    </div>
+                  </HoverCardContent>
+                </HoverCard>
+              </div>
+            </template>
+            <template v-if="showWorkspaceChip" #context>
+              <button
+                type="button"
+                class="chat-composer__chip chat-composer__chip--workspace"
+                :disabled="running"
+                :aria-label="`会话目录：${workspaceChipLabel}`"
+                :title="workspaceChipTitle"
+                @click="$emit('chooseWorkspace')"
+              >
+                <FolderOpen class="size-3.5 shrink-0" />
+                <span class="chat-composer__chip__label">{{ workspaceChipLabel }}</span>
+                <ChevronDown
+                  v-if="!workspaceLocked"
+                  class="chat-composer__chip__chevron size-3 shrink-0 opacity-60"
+                />
+              </button>
+            </template>
           </CodingComposerControls>
           <Button
               v-if="running && (!draft.trim() || aborting)"
@@ -1673,45 +1762,110 @@ defineExpose({
   box-shadow: 0 0 0 2px var(--ring);
 }
 
-.chat-composer__dock {
-  display: flex;
+.chat-composer__goal-slot {
+  position: relative;
+  display: inline-flex;
   min-width: 0;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0 0.4rem 0.65rem;
 }
 
-.chat-composer__progress-pill,
+.chat-composer__chip {
+  display: inline-flex;
+  height: 2rem;
+  min-width: 0;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 9999px;
+  padding-inline: 0.6rem;
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+  color: var(--foreground);
+  transition: background-color 110ms ease, color 110ms ease;
+}
+
+.chat-composer__chip:hover:not(:disabled),
+.chat-composer__chip[aria-expanded='true'] {
+  background: var(--btn-ghost-hover);
+}
+
+.chat-composer__chip:disabled {
+  opacity: 0.55;
+}
+
+.chat-composer__chip__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-composer__chip--goal {
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  color: color-mix(in srgb, var(--primary) 72%, var(--foreground));
+}
+
+.chat-composer__chip--plan {
+  color: var(--muted-foreground);
+}
+
+.chat-composer__chip--plan:hover:not(:disabled) {
+  color: var(--foreground);
+}
+
+.chat-composer__chip--workspace {
+  max-width: 11rem;
+  color: var(--muted-foreground);
+}
+
+.chat-composer__chip--workspace:hover:not(:disabled) {
+  color: var(--foreground);
+}
+
 .chat-composer__goal-panel {
-  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
-  background: color-mix(in srgb, var(--card) 94%, transparent);
-  box-shadow: 0 6px 18px rgb(0 0 0 / 8%);
-  backdrop-filter: blur(14px);
+  position: absolute;
+  bottom: calc(100% + 0.5rem);
+  left: 0;
+  z-index: 30;
+  width: min(24rem, calc(100vw - 2rem));
+  border: 1px solid var(--border);
+  border-radius: 0.9rem;
+  background: var(--card);
+  padding: 0.75rem 0.85rem;
+  box-shadow:
+    0 18px 42px rgb(0 0 0 / 18%),
+    0 3px 10px rgb(0 0 0 / 10%);
 }
 
 .chat-composer__progress-pill {
   display: inline-flex;
-  min-height: 2.25rem;
+  min-height: 2rem;
   align-items: center;
   gap: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   border-radius: 999px;
-  padding: 0.4rem 0.85rem;
+  background: color-mix(in srgb, var(--card) 94%, transparent);
+  padding: 0.25rem 0.75rem;
   font-size: var(--text-caption);
   color: var(--muted-foreground);
 }
 
-.chat-composer__goal-panel {
-  display: inline-flex;
-  min-width: 0;
-  min-height: 2.25rem;
-  max-width: min(36rem, 100%);
-  flex: 0 1 auto;
-  align-items: center;
-  gap: 0.45rem;
-  border-radius: 9999px;
-  padding: 0.35rem 0.4rem 0.35rem 0.75rem;
+@container chat-main (max-width: 40rem) {
+  .chat-composer__chip--workspace {
+    max-width: 7rem;
+  }
+}
+
+@container chat-main (max-width: 36rem) {
+  .chat-composer__chip--workspace {
+    max-width: 2rem;
+    justify-content: center;
+    padding-inline: 0;
+  }
+
+  .chat-composer__chip--workspace .chat-composer__chip__label,
+  .chat-composer__chip--workspace .chat-composer__chip__chevron {
+    display: none;
+  }
 }
 
 .composer-add-option {

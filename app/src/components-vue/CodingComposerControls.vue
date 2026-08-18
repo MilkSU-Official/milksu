@@ -152,63 +152,67 @@ function triggerModelText() {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      <slot name="status" />
     </div>
 
-    <Select
-      :model-value="modelKey"
-      :disabled="running"
-      @update:model-value="value => $emit('changeModel', String(value ?? ''))"
-    >
-      <SelectTrigger
-        size="sm"
-        class="composer-control composer-model min-w-0 rounded-full border-0 bg-transparent shadow-none"
-        aria-label="选择本任务模型"
-        :title="modelKey === 'auto'
-          ? '使用 MilkSU 默认模型；你可以仅为当前对话覆盖'
-          : '当前对话固定使用所选模型'"
+    <div class="flex min-w-0 items-center gap-1.5">
+      <slot name="context" />
+      <Select
+        :model-value="modelKey"
+        :disabled="running"
+        @update:model-value="value => $emit('changeModel', String(value ?? ''))"
       >
-        <SelectValue>
-          <span class="inline-flex min-w-0 items-center gap-1.5">
-            <ModelVendorIcon :model="triggerModelText()" class="opacity-90" />
-            <span class="min-w-0 truncate">{{ compactModelLabel }}</span>
-          </span>
-        </SelectValue>
-      </SelectTrigger>
-      <SelectContent size="sm" align="start" :align-offset="0" class="min-w-96">
-        <SelectGroup>
-          <SelectLabel>Default</SelectLabel>
-          <SelectItem value="auto">
-            <span class="inline-flex min-w-0 items-center gap-2">
-              <ModelVendorIcon :model="automaticModelLabel" />
-              <span class="min-w-0 truncate">{{ automaticModelLabel }}</span>
-            </span>
-          </SelectItem>
-        </SelectGroup>
-        <SelectSeparator v-if="pickerGroups.length" />
-        <template
-          v-for="(group, groupIndex) in pickerGroups"
-          :key="group.key"
+        <SelectTrigger
+          size="sm"
+          class="composer-control composer-model min-w-0 rounded-full border-0 bg-transparent shadow-none"
+          aria-label="选择本任务模型"
+          :title="modelKey === 'auto'
+            ? '使用 MilkSU 默认模型；你可以仅为当前对话覆盖'
+            : '当前对话固定使用所选模型'"
         >
-          <SelectSeparator v-if="groupIndex > 0" />
+          <SelectValue>
+            <span class="inline-flex min-w-0 items-center gap-1.5">
+              <ModelVendorIcon :model="triggerModelText()" class="opacity-90" />
+              <span class="min-w-0 truncate">{{ compactModelLabel }}</span>
+            </span>
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent size="sm" align="start" :align-offset="0" class="min-w-96">
           <SelectGroup>
-            <SelectLabel>{{ group.label }}</SelectLabel>
-            <SelectItem
-              v-for="model in group.models"
-              :key="`${group.key}:${model}`"
-              :value="encodeComposerModelKey(group.providerId, model, group.source)"
-            >
+            <SelectLabel>Default</SelectLabel>
+            <SelectItem value="auto">
               <span class="inline-flex min-w-0 items-center gap-2">
-                <ModelVendorIcon
-                  :model="model"
-                  :label="pickerModelLabel(group, model)"
-                />
-                <span class="min-w-0 truncate">{{ pickerModelLabel(group, model) }}</span>
+                <ModelVendorIcon :model="automaticModelLabel" />
+                <span class="min-w-0 truncate">{{ automaticModelLabel }}</span>
               </span>
             </SelectItem>
           </SelectGroup>
-        </template>
-      </SelectContent>
-    </Select>
+          <SelectSeparator v-if="pickerGroups.length" />
+          <template
+            v-for="(group, groupIndex) in pickerGroups"
+            :key="group.key"
+          >
+            <SelectSeparator v-if="groupIndex > 0" />
+            <SelectGroup>
+              <SelectLabel>{{ group.label }}</SelectLabel>
+              <SelectItem
+                v-for="model in group.models"
+                :key="`${group.key}:${model}`"
+                :value="encodeComposerModelKey(group.providerId, model, group.source)"
+              >
+                <span class="inline-flex min-w-0 items-center gap-2">
+                  <ModelVendorIcon
+                    :model="model"
+                    :label="pickerModelLabel(group, model)"
+                  />
+                  <span class="min-w-0 truncate">{{ pickerModelLabel(group, model) }}</span>
+                </span>
+              </SelectItem>
+            </SelectGroup>
+          </template>
+        </SelectContent>
+      </Select>
+    </div>
   </div>
 </template>
 

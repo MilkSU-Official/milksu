@@ -10,7 +10,7 @@ describe('chatTopbarPresentation', () => {
       codingPolicyLabel: 'Go · 项目自动',
     })).toEqual({
       title: '修复导航',
-      subtitle: '/Users/milksu/code/milksu',
+      subtitle: 'milksu',
     })
   })
 
@@ -69,7 +69,7 @@ describe('chatTopbarPresentation', () => {
       codingPolicyLabel: 'Go · 项目自动',
     })).toEqual({
       title: 'CVE',
-      subtitle: 'CVE-2023-46604 研究接力 · /Users/milksu/code/milksu',
+      subtitle: 'CVE-2023-46604 研究接力 · milksu',
     })
   })
 
