@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { build } from 'esbuild'
 import { firstPartyCodingSkillNames } from '../sidecar/pi/bridge-skills.js'
+import { buildWindowsCuaDriver } from './build-windows-cua-driver.mjs'
 
 const execFileAsync = promisify(execFile)
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -867,11 +868,15 @@ async function verifyReviewedLspCodeActions({
 }
 
 async function buildSidecar(platform) {
-  const [goos] = platform.split('/')
+  const [goos, goarch] = platform.split('/')
   const runtime = await officialNodeRuntime(platform)
-  const cuaRuntime = goos === 'darwin'
-    ? await officialCuaDriverRuntime(platform)
-    : null
+  let cuaRuntime = null
+  if (goos === 'darwin') {
+    cuaRuntime = await officialCuaDriverRuntime(platform)
+  } else if (goos === 'windows') {
+    if (goarch !== 'amd64') throw new Error(`unsupported Cua Driver platform: ${platform}`)
+    cuaRuntime = await buildWindowsCuaDriver({ repositoryRoot })
+  }
   const goplsRuntime = await officialGoplsRuntime(platform)
   const output = join(repositoryRoot, 'build', 'sidecar', platform.replace('/', '-'))
   await mkdir(output, { recursive: true, mode: 0o700 })
@@ -892,7 +897,9 @@ async function buildSidecar(platform) {
   )
   const piSubagentSource = join(repositoryRoot, 'node_modules', 'pi-sub-agent')
   const piSubagentAgentsOutput = join(output, 'subagents', 'agents')
-  const cuaDriverOutput = goos === 'darwin' ? join(output, 'cua-driver') : ''
+  const cuaDriverOutput = cuaRuntime
+    ? join(output, goos === 'windows' ? 'cua-driver.exe' : 'cua-driver')
+    : ''
   const archifySource = join(repositoryRoot, 'third_party', 'archify', 'archify')
   const archifyOutput = join(output, 'skills', 'archify')
   const firstPartySkills = firstPartyCodingSkillNames.map(name => ({
@@ -1345,8 +1352,12 @@ async function buildSidecar(platform) {
           prerelease: true,
           tag: cuaRuntime.tag,
           sourceCommit: cuaRuntime.sourceCommit,
-          archive: cuaRuntime.archive.file,
-          archiveSha256: cuaRuntime.archive.sha256,
+          ...(cuaRuntime.archive ? {
+            archive: cuaRuntime.archive.file,
+            archiveSha256: cuaRuntime.archive.sha256,
+          } : {}),
+          ...(cuaRuntime.patch ? { patch: cuaRuntime.patch } : {}),
+          ...(cuaRuntime.build ? { build: cuaRuntime.build } : {}),
           binarySha256: await sha256(cuaDriverOutput),
           license: 'MIT',
           licenseFile: 'THIRD_PARTY-LICENSES/cua-MIT.txt',

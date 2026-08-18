@@ -10,8 +10,9 @@ import {
 } from "./computer-use-proxy.js";
 
 const options = {
-  socketPath:
-    "/private/tmp/milksu-computer-use/computer_12345678/driver.sock",
+  socketPath: process.platform === "win32"
+    ? "\\\\.\\pipe\\milksu-computer-use-computer_12345678"
+    : "/private/tmp/milksu-computer-use/computer_12345678/driver.sock",
   sessionId: "computer_12345678",
   targetName: "Codex",
   targetBundleId: "com.openai.codex",
@@ -43,7 +44,9 @@ test("normalizes only the immutable scoped proxy descriptor", () => {
   for (const argv of [
     [
       "--socket",
-      "/private/tmp/milksu-computer-use/computer_other/driver.sock",
+      process.platform === "win32"
+        ? "\\\\.\\pipe\\milksu-computer-use-computer_other"
+        : "/private/tmp/milksu-computer-use/computer_other/driver.sock",
       "--session",
       options.sessionId,
       "--target-name",

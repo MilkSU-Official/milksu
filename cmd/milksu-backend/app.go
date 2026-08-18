@@ -113,9 +113,7 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create Coding attachment store: %w", err)
 	}
-	codingCollab, err := codingcollab.New(
-		filepath.Join(dataDirectory, "agent-home", "coding-collaboration"),
-	)
+	codingCollab, err := newCodingCollaborationManager(dataDirectory, runtime.GOOS)
 	if err != nil {
 		return nil, fmt.Errorf("create Coding collaboration manager: %w", err)
 	}
@@ -169,6 +167,7 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 	// host systemPreferences rather than the Go runtime binary identity.
 	computerUseOptions := computercap.Options{
 		GrantDirectory: filepath.Join(dataDirectory, "computer-use", "task-authorizations"),
+		TargetPID:      desktopComputerUseHostPID(),
 	}
 	if host != nil {
 		computerUseOptions.PermissionProbe = desktopComputerUsePermissionProbe(host)

@@ -5,7 +5,6 @@ import {
   describeActiveComputerUseCapability,
   describePendingComputerUseCapability,
   isSelfComputerUseTarget,
-  isUserBrowserTarget,
   nextComputerUseTargetKey,
   normalizeCodingApprovalPolicy,
   normalizeCodingExecutionMode,
@@ -124,6 +123,13 @@ describe('Coding policy presentation', () => {
     })
     expect(missingPermissions.status).toBe('unavailable')
     expect(missingPermissions.detail).toContain('辅助功能与屏幕录制')
+
+    const missingDriver = describePendingComputerUseCapability('go', 'workspace-auto', target, {
+      available: false,
+      permissionsReady: true,
+    })
+    expect(missingDriver.status).toBe('unavailable')
+    expect(missingDriver.detail).toContain('prepare_computer_use_driver')
 
     const noWindow = describePendingComputerUseCapability('go', 'workspace-auto', null, {
       available: true,
@@ -279,12 +285,5 @@ describe('Coding policy presentation', () => {
     const betaHost = { hostBundleId: 'com.milksu.app.beta', hostPid: 2222 }
     expect(isSelfComputerUseTarget(beta, betaHost)).toBe(true)
     expect(isSelfComputerUseTarget(stableSelf, betaHost)).toBe(false)
-  })
-
-  it('separates browser windows from external App scopes without substring guesses', () => {
-    expect(isUserBrowserTarget({ name: 'Google Chrome', bundleId: 'com.google.Chrome' })).toBe(true)
-    expect(isUserBrowserTarget({ name: 'Arc', bundleId: 'company.thebrowser.Browser' })).toBe(true)
-    expect(isUserBrowserTarget({ name: 'Archive Utility', bundleId: 'com.apple.archiveutility' })).toBe(false)
-    expect(isUserBrowserTarget({ name: 'Chromium Notes', bundleId: 'com.example.notes' })).toBe(false)
   })
 })

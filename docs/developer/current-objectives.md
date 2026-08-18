@@ -6,7 +6,8 @@
 >
 > 本页只回答“当前处于什么阶段、下一条完成线是什么”。实现事实以当前代码、测试、Git 历史和原生 App 验收为准；历史设计与旧里程碑不作为任务队列。
 >
-> 发版改动与未发版改动必须分开写。有三端回执的正式内测包是 `26.817.3`；仓库版本线已经到 `26.818.1`，其中大部分产品改动尚未形成新的三端回执发行。
+> 发版改动与未发版改动必须分开写。有三端回执的正式内测包是今日首发的 `26.818.1`；
+> `main` 仍使用同一版本号，但已经超过发行源 `b92fcde`。不要把晚于该 tag 的提交写成已发版。
 
 ## 工作规则
 
@@ -17,7 +18,10 @@
 5. 自动审批不绕过付费、外部账户、Scope 扩大、不可逆外部效果与危险大目录删除确认。
 6. CTF、CVE、Coding 是同级工作区；通用会话、文件、Shell、浏览器、恢复与工具循环优先共享 Pi，领域事实、Evidence、Judge 与学习记录由 MilkSU 持有。
 7. UI/Runtime 修复必须回写本页；未打包或未由用户验收的能力不得写成已发行或已完成。
-8. 写发行声明时同时给出“正式发行基线”和“开发 HEAD”。`package.json` 的 `26.818.1` 与标签 `v26.818.1` 不等于三端回执发行。
+8. 写发行声明时同时给出“正式发行基线”和“开发 HEAD”。发版完成后必须立刻按
+   [三端打包与发版流程](release-process.md) 回写本页、[文档状态](document-status.md)、
+   [当前系统](../architecture/current-system.md)、`README.md` 和 `AGENTS.md`，不能把上一版回执留成“最新”。
+   版本号、空 tag 或本地 dirty 包仍然不等于已发版。
 
 ## 当前阶段与基线
 
@@ -25,10 +29,10 @@
 | --- | --- |
 | 阶段 | **内测迭代 / Agent Runtime 与跨平台发行收敛**。当前工作不再按 M3/M4 里程碑组织。 |
 | 历史基线 | M3 product-loop 已在 `108e0e3`（2026-08-05）合并，仅供追溯。 |
-| 正式发行基线 | `v26.817.3 / main@11760758926ab2a1f025cc32c2518d19afdeca35`。这是最近一次带 SHA-256 与三端 workflow 回执的内测发行；GitHub prerelease 只提供 DMG、EXE、DEB，R2/Admin current pointer 未发布。 |
-| 开发版本线 | 根目录与 `desktop/package.json` 已升到 `26.818.1`。标签 `v26.818.1` 落在测试提交 `b92fcde`，不是一次三端回执发行，不能当下载基线。 |
-| 当前开发 | `main` 晚于 `1176075`：先并入 `26.817.1`–`26.817.3` 的全部已发行改动，再叠加上面的未发版 Coding GUI、账户目录、CTF 本地目录、审批/压缩与发行工具。文档收口时 HEAD 含 `a2c71fb`（上下文约 85% 自动压缩）。 |
-| 平台边界 | `26.817.3`：macOS DMG 已签名、公证、staple、Gatekeeper；Windows 安装器完成原生 Runtime 与首次启动但未代码签名；Linux DEB 完成包结构、Sidecar、Go Runtime 与 Xvfb Electron 启动，仍无 Secret Service、本地 OCR、Computer Use。未发版还修了 Windows 目录 Reveal、冷启动和本机 Personal Vault 签名默认路径，尚未随新包发出。 |
+| 正式发行基线 | `v26.818.1 / b92fcded25e59805463af4ff718d73ed8776e3fb`（2026-08-18）。这是最近一次带 SHA-256 与三端产物的内测发行；GitHub prerelease 提供带版本号的 DMG、EXE、DEB 与 `SHA256SUMS`；R2/Admin current pointer 未发布。 |
+| 开发版本线 | 根目录与 `desktop/package.json` 仍是 `26.818.1`。`origin/main` 已晚于发行源 `b92fcde`，这些后续提交还没有新的三端回执。 |
+| 当前开发 | `origin/main@996820e`：未打包 Windows 的 GitHub 登录回调补全，以及 tag 之后的 Coding 工作台、审批/压缩、CTF 本地目录和发行工具。 |
+| 平台边界 | `26.818.1`：macOS DMG 本机 Developer ID 签名并公证；Windows 安装器完成原生 Runtime 与首次启动但未代码签名；Linux DEB 完成包结构、Sidecar、Go Runtime 与 Xvfb Electron 启动，仍无 Secret Service、本地 OCR、Computer Use。 |
 | 发行流水 | 下一发行从干净、已推送的 `main` 对 canonical Go/Vue/Sidecar/lint/生产与文档构建只验证一次；Windows/Linux 走云端，macOS 默认本机 `release:mac:local`。必须创建 GitHub Release 页并上传带版本号的 DMG/EXE/DEB 与 SHA256SUMS，不能只留空 tag。GitHub-only 不生成 OTA ZIP/metadata。 |
 
 ## 已发行改动：`26.817.1` → `26.818.1`
@@ -90,6 +94,8 @@
 
 - NSSCTF「全部 / 收藏」在完整本地目录预热后于前端筛选分页；同步丢弃飞行中的旧全量快照；训练进度从目录快照拆开，Judge/确认后重叠加（AsabaLazy / Luo，PR #8）。
 - 未打包 Windows 上补全 GitHub 登录回调（`996820e`）。新的正式 Windows 包尚未发行。
+- Windows 无 Git 启动收敛为两处宿主边界：非 macOS 不初始化仅供 macOS 使用的 Coding 协作管理器，Electron 私有端口探针只额外继承 `SystemRoot`。本地 Go/Desktop 定向测试已通过，空白用户目录下的打包 App 探针需由 Windows workflow 复验，尚未形成新发行。
+- Windows Computer Use 沿用 macOS 的有界 Cua 会话：按绝对可执行文件绑定目标、用 Electron 主进程 PID 排除宿主窗口。可见浏览器窗口也是合法 Computer Use 目标；隔离“浏览器”和 Browser Use 仍是另外两条表面，不互相替代。Start/Restore 生命周期与本机 Notepad 窗口枚举已覆盖。本机已用 sidecar 查找路径中的补丁版 `cua-driver 0.14.2` 对可见窗口完成 `observe -> type_text -> observe`，token 回读成功；同一 Driver 对独立 Chrome 窗口完成输入框输入和按钮点击，页面从 `idle` 变为 `visited hello cua`。Chrome 会丢弃后台键盘投递，需前台 `type_text`。Driver 先走安装包/Sidecar 自带副本；缺失时用户启动 Computer Use 可由类型化 `prepare_computer_use_driver` 把 MilkSU 审阅过的 Driver 拷到本机配置目录或按仓库脚本构建，不运行 Cua 官方安装脚本，也不回退到系统级全局控制。官方未打补丁的 Windows 包无法在 bounded 策略下对上可执行文件身份。发行 Windows 包仍由 sidecar 源码构建并打入安装包，不是一次新的三端发行。macOS Computer Use 路径未改。
 - CTF / CVE 的模型操作工作台 UX 后置，不在本轮把 `milksu_workspace` 扩到那两个模块。
 
 ### 发行工具
@@ -120,7 +126,7 @@
 ### 桌面产品表面
 
 - 桌面壳是 Electron/Chromium + Vue；Go 是受管 Runtime，Pi Sidecar 拥有通用模型会话、Compaction 与 Tool Loop。
-- 右栏“浏览器”、真实 Chrome/Edge 的 Browser Use、外部 App 的 Computer Use 是三个独立执行表面。折叠面板只改变观察视图，不应停止 Session。
+- 右栏“浏览器”、真实 Chrome/Edge 的 Browser Use、可见窗口的 Computer Use 是三个独立执行表面。Computer Use 可以锁定用户真实浏览器窗口做像素级操作；结构化标签页控制仍走隔离浏览器或 Browser Use。折叠面板只改变观察视图，不应停止 Session。
 - 用户可见产物写入各操作系统的用户文档目录下 `MilkSU/{Coding,CTF,CVE}`；无项目 Coding 临时工作区、Runtime、事件、Obelisk、浏览器 Profile 与凭据留在平台用户配置目录，不把 macOS 路径写死为产品契约。
 - Obelisk 会话索引底层继续保留；Coding 右栏与环境页已移除“相关历史”、搜索、过滤和图谱等单会话前端。学习记录/记忆系统如重新进入产品，应单独设计页面。
 - 日间/夜间模式共用中性纸面/暖石墨层级，酸绿只用于选择、主操作和活动强度；CTF、CVE、Coding 不以旧蓝黑色块区分。

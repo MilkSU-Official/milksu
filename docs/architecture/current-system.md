@@ -56,7 +56,7 @@ MilkSU 的桌面壳不是通用 Agent Loop 的另一份实现。Pi 仍负责会�
 | --- | --- | --- | --- |
 | 浏览器 | MilkSU 管理的会话隔离 `WebContentsView` | 同一页面、地址、导航、当前会话与停止动作 | 不是外部 Chrome，不复用用户日常登录态 |
 | Browser Use | 用户真实 Chrome/Edge 中明确选择的标签页 | Composer 中可删除的标签页 Scope、配对状态与撤销入口 | 不获得整个 Profile，也不替代 CTF 平台 Judge |
-| Computer Use | 明确选择的外部 App / PID / Window | 可见窗口 Scope、系统权限状态、运行轨迹与停止动作 | 不拿桌面视觉点击代替可结构化控制的浏览器或 MCP |
+| Computer Use | 明确选择的外部 App / PID / Window，含用户真实浏览器窗口 | 可见窗口 Scope、系统权限状态、运行轨迹与停止动作 | 像素级窗口操作不替代隔离浏览器或 Browser Use 的结构化标签页控制 |
 
 三种表面还共享一个生命周期不变量：**面板显隐只改变观察视图，不改变执行 Session**。右栏折叠、
 切换页面或用户回到聊天区时，已授权任务不应因此停止；用户重新展开后应看到同一会话的最新状态。
@@ -78,7 +78,7 @@ MilkSU 的桌面壳不是通用 Agent Loop 的另一份实现。Pi 仍负责会�
 | 安全工具目录 | **Verified setup chain / real binary task pending** | “设置 → 安全工具”使用真实 Desktop RPC 检测与持久化。IDA Pro/idalib 和 capa 具备可准备的固定版本适配器；就绪且启用后进入普通 Coding 的模型可选目录。“在 Coding 中配置”挂未发送草稿并预置 `Go · 完全访问`，发送后可准备用户级软件；本机 Stable 已安装 uv 与固定 idalib MCP、通过非交互健康检查并回到“可用”。CodeQL、Burp Suite、Shannon 目前仅做本机/前提检测，不会被误报为模型可用。尚未用真实 crackme/二进制完成任务回执，也未进入 CTF/CVE。 |
 | 内置浏览器 | **Verified packaged tasks; multi-tab on HEAD** | 产品 UI 只显示“浏览器”。每次 Coding 会话使用独立 `session.fromPath`，默认拒绝页面权限。`26.817.1` 起已有打包任务：Grok 只用浏览器完成顺序点击、表单提交和公开文档调研，右栏折叠后继续并保留同一页面终态。开发版本线改为普通 Coding Go 或打开右栏即自动就绪，不再要求设置或批准；标签栏 `+` 在启动前可见；每个标签是独立 `WebContentsView`，切换换页并更新地址。`ScopedCDPProxy` 仍只公布当前一个 Target。用户已在本地 dirty Stable 包确认点击与标签切换。 |
 | Browser Use | **Implemented UI / live pairing pending** | 真实用户 Chrome/Edge 复用固定 `@playwright/mcp --extension`，由用户选择准确标签页；不复用内置浏览器 profile。 |
-| Computer Use | **Verified self-bootstrap slice** | 只接受外部可见 App/PID/Window Scope；Calculator 与 Stable → MilkSU Beta 的 branch/commit/tracking 核验、click/scroll 及 CTF/CVE 任务连续性全程已验。Stable 排除自身，浏览器窗口在前后端都不进入该 Scope；任务授权可恢复，明确请求且只有一个合格目标时自动启动，准备期间的提交在就绪后自动续发，多目标仍需准确选择。右栏诊断和操作证据默认折叠。 |
+| Computer Use | **Verified self-bootstrap slice; Windows live type pending packaged installer** | 只接受外部可见 App/PID/Window Scope，含用户真实浏览器窗口；Calculator 与 Stable → MilkSU Beta 的 branch/commit/tracking 核验、click/scroll 及 CTF/CVE 任务连续性全程已验。Stable 排除自身；隔离浏览器与 Browser Use 仍是独立表面。任务授权可恢复，明确请求且只有一个合格目标时自动启动，准备期间的提交在就绪后自动续发，多目标仍需准确选择。右栏诊断和操作证据默认折叠。开发版本线为 Windows 补了有界会话和宿主 PID 排除；本机已用 sidecar 内嵌补丁版 `cua-driver 0.14.2` 完成窗口 `type_text` 回读。Driver 先走安装包/Sidecar；缺失时由类型化 `prepare_computer_use_driver` 准备 MilkSU 审阅副本，不走 Cua 官方安装脚本。正式 Windows 安装包仍待源码构建并打入该补丁版。 |
 | CTF Runtime | **Implemented / Daily receipt partial** | `internal/ctf` 持有 Challenge、Evidence、Candidate、Judge Receipt、Recovery、Memory 与学习事实；模型候选不能建立成功事实。CTF 通用文件与 Shell 复用 Pi 原生工具及用户系统权限，不再复制 workspace-only 沙箱；MilkSU 只保留题目域工具、精确站点能力、凭据隔离、Judge 和证据投影。模型输出达到长度上限时通过 Pi `agent_end` / `followUp` 扩展点继续。Daily 由规则筛选未完成候选，再复用 Pi 结合近期题目、关联 Coding 对话、已确认事实和 Memory 选择并解释；结果按本地日期固定并允许主动换题，模型不可用时规则兜底。代码与自动化已回归，真实签名包用户视角仍待复验。 |
 | CVE Learning / Tracking | **Verified signed tracking slice** | 用户界面只显示明确加入的公开 CVE、手工状态和关联 Coding 对话，默认文案为“想研究”。添加入口通过只读 Desktop RPC 搜索 NVD，用户选中后直接把当前结果和来源元数据写入本地追踪，不做第二次网络请求；参考资料按机构去重，完整集合仍由 NVD 承载。三个薄学习专题直接查询公共 NVD 数据；最终签名 App 已返回真实专题搜索结果。CVE → Coding 使用普通 Pi 文件/Shell 工具与当前权限档，不额外注入只读回合或“只输出启动前清单”的提示；外部资产实验、产品化真实复现和披露工作流仍后置。 |
 | Obelisk / 记忆底座 | **Implemented backend / UI deferred** | MilkSU 自有索引仍只处理本机 Coding/CTF/CVE 会话；当前产品不展示单会话历史面板或图谱。后续学习记录/记忆系统应作为独立页面进入，不移除或混写 Obelisk 与 CTF Memory 底层事实。 |
@@ -218,8 +218,9 @@ flowchart LR
   Target 或 Profile。裸域名按 HTTPS 导航，非 URL 文本按搜索处理。模型要找标签或切到产物/终端
   时走 `milksu_workspace`，不扫描用户句子，也不能用 Playwright 枚举任意内置产品页。
 - **Browser Use**：加载固定 Playwright MCP extension mode，复用用户明确选择的真实标签页和登录态。
-- **Computer Use**：视觉控制没有更成熟结构化接口的外部 App；不拿它操作内置浏览器，也不因
-  右栏显隐扩大或缩小已授权 Window Scope。
+- **Computer Use**：视觉控制用户授权的可见 App/Window，包括用户真实浏览器窗口；不拿它操作
+  MilkSU 内置隔离浏览器，也不因右栏显隐扩大或缩小已授权 Window Scope。结构化标签页控制仍走
+  隔离浏览器或 Browser Use。
 - **CTF Browser Bridge**：继续承担 NSSCTF/CTFshow 的题面、附件和独立 Judge 领域语义，不被通用
   Browser Use 取代。
 

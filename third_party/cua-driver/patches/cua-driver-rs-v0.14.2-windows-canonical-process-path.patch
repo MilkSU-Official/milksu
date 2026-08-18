@@ -1,0 +1,41 @@
+diff --git a/libs/cua-driver/rust/crates/platform-windows/src/browser_platform.rs b/libs/cua-driver/rust/crates/platform-windows/src/browser_platform.rs
+index c34fec2..c338e5e 100644
+--- a/libs/cua-driver/rust/crates/platform-windows/src/browser_platform.rs
++++ b/libs/cua-driver/rust/crates/platform-windows/src/browser_platform.rs
+@@ -262,6 +262,18 @@ fn process_identity(pid: u32) -> Result<(u64, Option<String>), BrowserRefusal> {
+     .filter(|_| path_len > 0)
+     .map(|_| String::from_utf16_lossy(&path_buf[..path_len as usize]));
+     let _ = unsafe { CloseHandle(handle) };
++    let path = path
++        .map(|path| {
++            std::fs::canonicalize(&path)
++                .map(|path| path.to_string_lossy().into_owned())
++                .map_err(|error| {
++                    refusal(
++                        BrowserRefusalCode::BrowserRouteUnavailable,
++                        format!("could not canonicalize process {pid} executable: {error}"),
++                    )
++                })
++        })
++        .transpose()?;
+     times.map_err(|error| {
+         refusal(
+             BrowserRefusalCode::BrowserRouteUnavailable,
+@@ -1316,6 +1328,17 @@ mod tests {
+     use std::sync::atomic::{AtomicUsize, Ordering};
+     use std::sync::Arc;
+ 
++    #[test]
++    fn process_identity_uses_manifest_canonical_executable_path() {
++        let (_, actual) = process_identity(std::process::id()).expect("current process identity");
++        let expected = std::fs::canonicalize(std::env::current_exe().expect("current executable"))
++            .expect("canonical current executable")
++            .to_string_lossy()
++            .into_owned();
++
++        assert_eq!(actual.as_deref(), Some(expected.as_str()));
++    }
++
+     #[test]
+     fn browser_cursor_tracker_shows_only_the_active_tabs_session_per_window() {
+         let mut tracker = BrowserCursorTracker::default();

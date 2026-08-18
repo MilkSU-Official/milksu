@@ -8,12 +8,20 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/MilkSU-Official/milksu/internal/config"
 )
+
+func testComputerUseSocket(sessionID string) string {
+	if runtime.GOOS == "windows" {
+		return `\\.\pipe\milksu-computer-use-` + sessionID
+	}
+	return filepath.Join("/private/tmp/milksu-computer-use", sessionID, "driver.sock")
+}
 
 func TestNormalizeAssistantDelta(t *testing.T) {
 	event := normalizeBridgeEvent(bridgeEvent{Type: "text_delta", ID: "session-1", Delta: "hello"})
@@ -1418,7 +1426,7 @@ func TestSendMessageIncludesComputerUseDescriptorOnlyForInteractiveCoding(t *tes
 	}
 	descriptor := &ComputerUseDescriptor{
 		SessionID:      "computer_external42",
-		SocketPath:     "/private/tmp/milksu-computer-use/computer_external42/driver.sock",
+		SocketPath:     testComputerUseSocket("computer_external42"),
 		TargetBundleID: "com.apple.TextEdit",
 		TargetName:     "TextEdit",
 		TargetPID:      os.Getpid() + 200,
@@ -1586,7 +1594,7 @@ func TestNormalizeCodingBrowserDescriptorRequiresExactLoopbackEndpoint(t *testin
 func TestNormalizeComputerUseDescriptorAcceptsExactVisibleTarget(t *testing.T) {
 	valid := &ComputerUseDescriptor{
 		SessionID:      "computer_12345678",
-		SocketPath:     "/private/tmp/milksu-computer-use/computer_12345678/driver.sock",
+		SocketPath:     testComputerUseSocket("computer_12345678"),
 		TargetBundleID: "com.openai.codex",
 		TargetName:     "Codex",
 		TargetPID:      os.Getpid() + 200,

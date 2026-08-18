@@ -20,6 +20,29 @@ func (a *App) GetCodingComputerUseStatus() computercap.Status {
 	return a.computerUse.Status()
 }
 
+func (a *App) PrepareCodingComputerUseDriver(allowBuild bool) (computercap.PrepareResult, error) {
+	if a.computerUse == nil {
+		return computercap.PrepareResult{
+			Version:  computercap.DriverVersion,
+			Problem:  "Computer Use service is unavailable.",
+			NextStep: "重启 MilkSU 后再试。",
+		}, fmt.Errorf("Computer Use service is unavailable")
+	}
+	prepareContext, cancel := context.WithTimeout(
+		a.commandContext(),
+		12*time.Minute,
+	)
+	defer cancel()
+	result, err := a.computerUse.Prepare(prepareContext, computercap.PrepareOptions{
+		AllowBuild: allowBuild,
+	})
+	if err != nil {
+		return result, err
+	}
+	a.diagnostics.Record("computer-use", "info", "reviewed Computer Use driver prepared locally")
+	return result, nil
+}
+
 func (a *App) ActivateCodingComputerUse(conversationID string) computercap.Status {
 	status, _, err := a.restoreCodingComputerUse(conversationID)
 	if err != nil {

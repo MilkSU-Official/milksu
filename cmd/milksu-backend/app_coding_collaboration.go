@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -11,6 +12,18 @@ import (
 	"github.com/MilkSU-Official/milksu/internal/codingenv"
 	"github.com/MilkSU-Official/milksu/internal/engine"
 )
+
+func newCodingCollaborationManager(
+	dataDirectory,
+	goos string,
+) (*codingcollab.Manager, error) {
+	if goos != "darwin" {
+		return nil, nil
+	}
+	return codingcollab.New(
+		filepath.Join(dataDirectory, "agent-home", "coding-collaboration"),
+	)
+}
 
 // ensureAgentManagedCodingCollaboration keeps worktree allocation behind the
 // Coding task boundary. A clean Git task receives one bounded writer slot on

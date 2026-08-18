@@ -66,7 +66,7 @@ Checkpoint 由 Git 历史与自动化重新生成，不再长期占用文档入�
   通过 JSONL RPC 提供应用服务；右栏“浏览器”是会话隔离的 `WebContentsView`，用户和 Agent
   操作同一当前 Target。旧 Wails/CEF 生产链已删除。
 - “浏览器”、Browser Use 与 Computer Use 是桌面 GUI 的三种独立执行表面：分别对应 MilkSU
-  管理页面、用户授权的真实标签页和用户授权的外部 App/Window。它们共享可见 Scope、可接管和
+  管理页面、用户授权的真实标签页和用户授权的可见 App/Window（含真实浏览器窗口）。它们共享可见 Scope、可接管和
   显式停止语义，但不共享 Profile 或权限；面板折叠不等于终止 Session。
 - Coding Composer 的“+”已经收敛为统一能力入口：附件、Goal、Plan、浏览器、
   Browser/Computer Scope、已审核 Pi Skills 与项目 MCP。选择 Scope/Skill 不直接发送，Skill

@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -71,7 +72,9 @@ func TestRefreshUpdatesCatalogAndRestartLoadsCache(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.Mode().Perm() != 0o600 {
+	// Go exposes only a limited Windows file-mode projection; it cannot be
+	// treated as a POSIX permission check for the underlying Windows ACL.
+	if runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
 		t.Fatalf("catalog cache permissions = %o, want 600", info.Mode().Perm())
 	}
 

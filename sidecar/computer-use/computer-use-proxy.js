@@ -146,7 +146,9 @@ export function normalizeComputerUseProxyOptions(argv = process.argv.slice(2)) {
   const targetPid = Number(argument(argv, "target-pid"));
   const driverPath = String(argument(argv, "driver") ?? "").trim();
   const expectedSocket = sessionId
-    ? `/private/tmp/milksu-computer-use/${sessionId}/driver.sock`
+    ? process.platform === "win32"
+      ? `\\\\.\\pipe\\milksu-computer-use-${sessionId}`
+      : `/private/tmp/milksu-computer-use/${sessionId}/driver.sock`
     : "";
   if (
     socketPath !== expectedSocket
@@ -545,7 +547,19 @@ export function createCuaCliRunner(options, environment = process.env) {
       options.driverPath,
       ["call", tool, JSON.stringify(args), "--socket", options.socketPath],
       {
-        env: {
+        env: process.platform === "win32" ? {
+          SystemRoot: environment.SystemRoot ?? "C:\\Windows",
+          WINDIR: environment.WINDIR ?? environment.SystemRoot ?? "C:\\Windows",
+          USERPROFILE: environment.USERPROFILE,
+          APPDATA: environment.APPDATA,
+          LOCALAPPDATA: environment.LOCALAPPDATA,
+          TEMP: environment.TEMP,
+          TMP: environment.TMP,
+          PATH: `${environment.SystemRoot ?? "C:\\Windows"}\\System32`,
+          CUA_DRIVER_EMBEDDED: "1",
+          CUA_DRIVER_RS_TELEMETRY_ENABLED: "false",
+          CUA_LOG: "warn",
+        } : {
           HOME: environment.HOME ?? "/private/tmp",
           TMPDIR: environment.TMPDIR ?? "/private/tmp",
           PATH: "/usr/bin:/bin:/usr/sbin:/sbin",

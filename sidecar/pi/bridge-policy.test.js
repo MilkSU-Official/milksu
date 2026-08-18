@@ -108,6 +108,7 @@ test("Coding sessions expose Pi native file and shell tools without MilkSU works
       "bg_status",
       "milksu_progress",
       "milksu_workspace",
+      "prepare_computer_use_driver",
       "milksu_archify",
       "lsp_diagnostics",
       "lsp_fix",

@@ -114,6 +114,7 @@ import {
   formatCodingWorkspaceInput,
   queueWorkspaceCompaction,
 } from "./bridge-workspace.js";
+import { createComputerUseDriverExtension } from "./bridge-computer-use-driver.js";
 import { reviewedCodingSkillPaths } from "./bridge-skills.js";
 import {
   projectSteeringQueue,
@@ -1044,6 +1045,11 @@ function createMilkSUResourceLoader(
           contextWindow: sessions.get(id)?.model?.contextWindow
             ?? sessionContextUsage.get(id)?.contextWindow,
         }),
+      ),
+      createComputerUseDriverExtension(
+        conversationId,
+        getPolicy,
+        request => workspaceActionBroker.request(request),
       ),
       piSubAgentExtension,
     );

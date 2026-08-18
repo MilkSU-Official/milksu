@@ -144,7 +144,8 @@ export function describePendingComputerUseCapability(
   if (!state.available) {
     return {
       status: 'unavailable',
-      detail: state.problem || 'Computer Use 当前不可用。',
+      detail: state.problem
+        || '打包的 Cua Driver 不可用。用户已请求 Computer Use 时，使用 prepare_computer_use_driver 把 MilkSU 审阅过的 Driver 放到本机。',
     }
   }
   if (state.attachedToOtherTask) {
@@ -180,39 +181,6 @@ export function describePendingComputerUseCapability(
 
 export function computerUseTargetKey(target: Pick<CodingComputerUseTarget, 'pid' | 'windowId'>): string {
   return `${target.pid}:${target.windowId}`
-}
-
-const browserBundleIDs = [
-  'com.apple.safari',
-  'com.brave.browser',
-  'com.google.chrome',
-  'com.microsoft.edgemac',
-  'com.operasoftware.opera',
-  'com.vivaldi.vivaldi',
-  'company.thebrowser.browser',
-  'org.chromium.chromium',
-  'org.mozilla.firefox',
-]
-const browserNames = new Set([
-  'arc',
-  'brave browser',
-  'chromium',
-  'firefox',
-  'google chrome',
-  'microsoft edge',
-  'opera',
-  'safari',
-  'vivaldi',
-])
-
-export function isUserBrowserTarget(
-  target: Pick<CodingComputerUseTarget, 'name' | 'bundleId'>,
-): boolean {
-  const bundleID = target.bundleId.trim().toLocaleLowerCase()
-  const name = target.name.trim().toLocaleLowerCase()
-  return browserBundleIDs.some(candidate => (
-    bundleID === candidate || bundleID.startsWith(`${candidate}.`)
-  )) || browserNames.has(name)
 }
 
 export function selectedComputerUseTarget(

@@ -114,7 +114,6 @@ import {
   computerUseStartArgs,
   describeActiveComputerUseCapability,
   describePendingComputerUseCapability,
-  isUserBrowserTarget,
   nextComputerUseTargetKey,
   normalizeCodingApprovalPolicy,
   normalizeCodingExecutionMode,
@@ -412,14 +411,7 @@ const computerUsePermissionsReady = computed(() => Boolean(
   computerUseStatus.value?.permissions.accessibility
   && computerUseStatus.value.permissions.screenRecording,
 ))
-const scopedComputerUseTargets = computed(() => (
-  computerUseTargets.value.filter(target => !isUserBrowserTarget(target))
-))
-const activeComputerUseTargetMatchesScope = computed(() => {
-  const target = computerUseStatus.value?.target
-  if (!target) return true
-  return !isUserBrowserTarget(target)
-})
+const scopedComputerUseTargets = computed(() => computerUseTargets.value)
 const browserUseReadyForCurrentTask = computed(() => Boolean(
   !props.ctfSession
   && props.workspacePath
@@ -428,8 +420,7 @@ const browserUseReadyForCurrentTask = computed(() => Boolean(
 ))
 const externalAppUseReadyForCurrentTask = computed(() => Boolean(
   computerUseReadyForCurrentTask.value
-  && computerUseStatus.value?.target
-  && !isUserBrowserTarget(computerUseStatus.value.target),
+  && computerUseStatus.value?.target,
 ))
 const selectedComputerUseTarget = computed(() => (
   resolveSelectedComputerUseTarget(
@@ -2571,7 +2562,6 @@ watch(
             :loading="computerUseLoading"
             :running="running"
             :owned-by-current-task="computerUseOwnedByCurrentTask"
-            :active-target-matches-scope="activeComputerUseTargetMatchesScope"
             :execution-mode="effectiveExecutionMode"
             :approval-policy="effectiveApprovalPolicy"
             :operation-evidence="computerUseOperationEvidence"

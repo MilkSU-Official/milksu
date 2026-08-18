@@ -26,6 +26,7 @@ export const codingWorkspaceAutoToolNames = [
   "bg_status",
   "milksu_progress",
   "milksu_workspace",
+  "prepare_computer_use_driver",
   "milksu_imagegen",
   "milksu_archify",
   "lsp_diagnostics",

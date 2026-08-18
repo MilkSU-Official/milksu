@@ -49,6 +49,11 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: actions/cache@v4
+        with:
+          path: build/sidecar-cache/cua-windows-0.14.2/h
+          key: windows-cua-0.14.2-${{ hashFiles('scripts/build-windows-cua-driver.mjs', 'third_party/cua-driver/**') }}
       - name: Install dependencies
         shell: pwsh
         run: |
@@ -65,7 +70,13 @@ jobs:
           # exercises the routed model regression with native paths before
           # packaging and first launch.
           go test ./... -run '^$'
+          go test ./cmd/milksu-backend -run '^TestWindowsStartupDoesNotRequireGit$' -count=1
+          node --test --test-isolation=none desktop/startup-environment.test.cjs desktop/package-files.test.cjs
           node --test sidecar/pi/current-provider-runtime.test.js sidecar/pi/model-source-routing.test.js
+          node scripts/build-windows-cua-driver.mjs verify
+          $env:MILKSU_TEST_CUA_DRIVER = (Resolve-Path 'build/sidecar-cache/cua-windows-0.14.2/r/cua-driver.exe').Path
+          go test ./internal/computercap -count=1
+          node --test sidecar/computer-use/computer-use-proxy.test.js
       - name: Build Windows installer
         shell: pwsh
         env:
@@ -91,6 +102,23 @@ jobs:
           $nodeVersion = (& $node --version).Trim()
           if ($nodeVersion -ne 'v24.18.0') { throw "unexpected Node runtime: $nodeVersion" }
 
+          $cuaDriver = 'build/sidecar/windows-amd64/cua-driver.exe'
+          $cuaVersion = (& $cuaDriver --version).Trim()
+          if ($cuaVersion -ne 'cua-driver 0.14.2') { throw "unexpected Cua Driver runtime: $cuaVersion" }
+          $cuaManifest = Get-Content 'build/sidecar/windows-amd64/manifest.json' | ConvertFrom-Json
+          $cua = $cuaManifest.extensions.cuaDriver
+          if ($cua.sourceCommit -ne 'ed9d5efcf5f261f4854bf2de0ba06a2b0b4419c4') { throw 'unexpected Cua source commit' }
+          if ($cua.patch.sha256 -ne '25811f122f48ebdf346139c13724ee6f7cfa4ab8e29afad5a49d5bcfe62a96d4') { throw 'unexpected Cua Windows patch' }
+          if ($null -ne $cua.archive -or $null -ne $cua.archiveSha256) { throw 'Windows Cua manifest must not claim an official binary archive' }
+          $cuaDigest = (Get-FileHash -Algorithm SHA256 $cuaDriver).Hash.ToLowerInvariant()
+          if ($cua.binarySha256 -ne $cuaDigest) { throw 'Cua manifest binary hash mismatch' }
+
+          $packagedCua = 'build/electron/windows/stable/win-unpacked/resources/milksu-sidecar/cua-driver.exe'
+          $packagedCuaDigest = (Get-FileHash -Algorithm SHA256 $packagedCua).Hash.ToLowerInvariant()
+          if ($packagedCuaDigest -ne $cuaDigest) { throw 'packaged Cua Driver differs from the verified Sidecar runtime' }
+          $packagedCuaVersion = (& $packagedCua --version).Trim()
+          if ($packagedCuaVersion -ne 'cua-driver 0.14.2') { throw "unexpected packaged Cua Driver: $packagedCuaVersion" }
+
           $backend = 'build/desktop/milksu-backend.exe'
           $stdout = Join-Path $env:RUNNER_TEMP 'milksu-backend.stdout'
           $stderr = Join-Path $env:RUNNER_TEMP 'milksu-backend.stderr'
@@ -114,19 +142,81 @@ jobs:
             if (-not $backendProcess.HasExited) { Stop-Process -Id $backendProcess.Id -Force }
           }
 
-          $env:MILKSU_INSTANCE_ID = 'windows-release-smoke'
-          $appPath = 'build/electron/windows/stable/win-unpacked/MilkSU.exe'
-          $appProcess = Start-Process -FilePath $appPath -PassThru
+          $appPath = (Resolve-Path 'build/electron/windows/stable/win-unpacked/MilkSU.exe').Path
+          $smokeRoot = Join-Path $env:RUNNER_TEMP 'milksu-no-git-smoke'
+          $smokeProfile = Join-Path $smokeRoot 'profile'
+          $smokeAppData = Join-Path $smokeProfile 'AppData\Roaming'
+          $smokeLocalAppData = Join-Path $smokeProfile 'AppData\Local'
+          $smokeTemp = Join-Path $smokeLocalAppData 'Temp'
+          $smokeData = Join-Path $smokeRoot 'milksu-data'
+          $smokeArtifacts = Join-Path $smokeRoot 'milksu-artifacts'
+          New-Item -ItemType Directory -Force -Path `
+            $smokeAppData, $smokeLocalAppData, $smokeProfile, $smokeTemp, `
+            $smokeData, $smokeArtifacts | Out-Null
+
+          $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+          $startInfo.FileName = $appPath
+          $startInfo.WorkingDirectory = Split-Path -Parent $appPath
+          $startInfo.UseShellExecute = $false
+          # Model a blank user without copying job credentials or tool paths.
+          $startInfo.Environment.Clear()
+          $startInfo.Environment['SystemRoot'] = $env:SystemRoot
+          $startInfo.Environment['WINDIR'] = $env:WINDIR
+          $startInfo.Environment['ComSpec'] = $env:ComSpec
+          $startInfo.Environment['PATH'] = ''
+          $startInfo.Environment['APPDATA'] = $smokeAppData
+          $startInfo.Environment['LOCALAPPDATA'] = $smokeLocalAppData
+          $startInfo.Environment['USERPROFILE'] = $smokeProfile
+          $startInfo.Environment['HOME'] = $smokeProfile
+          $startInfo.Environment['HOMEDRIVE'] = (Split-Path -Qualifier $smokeProfile)
+          $startInfo.Environment['HOMEPATH'] = $smokeProfile.Substring(2)
+          $startInfo.Environment['TEMP'] = $smokeTemp
+          $startInfo.Environment['TMP'] = $smokeTemp
+          $startInfo.Environment['MILKSU_APPDATA_DIR'] = $smokeData
+          $startInfo.Environment['MILKSU_USER_ARTIFACTS_DIR'] = $smokeArtifacts
+          $startInfo.Environment['MILKSU_INSTANCE_ID'] = 'windows-release-no-git-smoke'
+
+          $appProcess = [System.Diagnostics.Process]::new()
+          $appProcess.StartInfo = $startInfo
+          if (-not $appProcess.Start()) { throw 'packaged MilkSU did not start' }
           try {
-            Start-Sleep -Seconds 12
-            if ($appProcess.HasExited) {
-              throw "packaged MilkSU exited during first-launch acceptance ($($appProcess.ExitCode))"
+            $startupReady = $false
+            $backendChildren = @()
+            $deadline = [DateTime]::UtcNow.AddSeconds(60)
+            while ([DateTime]::UtcNow -lt $deadline) {
+              Start-Sleep -Milliseconds 500
+              $appProcess.Refresh()
+              if ($appProcess.HasExited) {
+                throw "packaged MilkSU exited during no-Git startup ($($appProcess.ExitCode))"
+              }
+              $backendChildren = @(
+                Get-CimInstance Win32_Process -Filter "Name = 'milksu-backend.exe'" |
+                  Where-Object { $_.ParentProcessId -eq $appProcess.Id }
+              )
+              $windowReady = $appProcess.MainWindowHandle -ne 0 -and
+                $appProcess.MainWindowTitle -eq 'MilkSU'
+              if ($windowReady -and $backendChildren.Count -gt 0) {
+                $startupReady = $true
+                break
+              }
             }
-            $backendChildren = Get-Process -Name 'milksu-backend' -ErrorAction SilentlyContinue
-            if (-not $backendChildren) { throw 'packaged MilkSU did not start its Go runtime' }
+            if (-not $startupReady) {
+              throw "packaged MilkSU did not expose its main window and owned Go runtime within 60 seconds (title=$($appProcess.MainWindowTitle), backend_count=$($backendChildren.Count))"
+            }
           } finally {
-            Get-Process -Name 'MilkSU','milksu-backend' -ErrorAction SilentlyContinue |
-              Stop-Process -Force -ErrorAction SilentlyContinue
+            $ownedChildProcesses = @(
+              Get-CimInstance Win32_Process |
+                Where-Object { $_.ParentProcessId -eq $appProcess.Id }
+            )
+            $treeRoots = if ($appProcess.HasExited) {
+              @($ownedChildProcesses | ForEach-Object { $_.ProcessId })
+            } else {
+              @($appProcess.Id)
+            }
+            $taskkill = Join-Path $env:SystemRoot 'System32\taskkill.exe'
+            foreach ($treeRoot in $treeRoots) {
+              & $taskkill /PID $treeRoot /T /F 2>$null | Out-Null
+            }
           }
       - uses: actions/upload-artifact@v4
         with:

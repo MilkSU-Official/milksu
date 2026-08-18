@@ -1,0 +1,81 @@
+name: Windows startup without Git
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/windows-startup.yml'
+      - '.github/workflows/windows-release.yml'
+      - 'cmd/milksu-backend/**'
+      - 'desktop/**'
+      - 'go.mod'
+      - 'go.sum'
+      - 'internal/appdata/**'
+      - 'internal/codingcollab/**'
+      - 'internal/computercap/**'
+      - 'internal/modelcatalog/**'
+      - 'internal/userartifact/**'
+      - 'scripts/build-windows-cua-driver.mjs'
+      - 'scripts/package-sidecar.mjs'
+      - 'sidecar/computer-use/**'
+      - 'third_party/cua-driver/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-startup-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  startup:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: actions/cache@v4
+        with:
+          path: build/sidecar-cache/cua-windows-0.14.2/h
+          key: windows-cua-0.14.2-${{ hashFiles('scripts/build-windows-cua-driver.mjs', 'third_party/cua-driver/**') }}
+      - name: Check backend formatting
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $goFiles = Get-ChildItem 'cmd/milksu-backend' -Filter '*.go' -File |
+            ForEach-Object { $_.FullName }
+          $unformatted = @(gofmt -l $goFiles)
+          if ($unformatted.Count -gt 0) {
+            $unformatted | ForEach-Object { Write-Error "gofmt required: $_" }
+            throw 'cmd/milksu-backend is not gofmt-clean'
+          }
+      - name: Verify model catalog behavior on Windows
+        shell: pwsh
+        run: go test ./internal/modelcatalog -count=1
+      - name: Verify the private Electron probe environment
+        shell: pwsh
+        run: node --test --test-isolation=none desktop/startup-environment.test.cjs desktop/package-files.test.cjs
+      - name: Start the Windows backend without Git
+        shell: pwsh
+        run: >-
+          go test ./cmd/milksu-backend
+          -run '^(TestCodingCollaborationManager(IsDisabledOutsideDarwin|PreservesDarwinGitRequirement)|TestWindowsStartupDoesNotRequireGit)$'
+          -count=1
+      - name: Build and verify the pinned Windows Cua Driver
+        shell: pwsh
+        run: node scripts/build-windows-cua-driver.mjs verify
+      - name: Probe the Windows Computer Use host boundary
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $env:MILKSU_TEST_CUA_DRIVER = (Resolve-Path 'build/sidecar-cache/cua-windows-0.14.2/r/cua-driver.exe').Path
+          go test ./internal/computercap -count=1
+          node --test sidecar/computer-use/computer-use-proxy.test.js

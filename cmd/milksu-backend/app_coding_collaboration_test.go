@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -9,6 +10,41 @@ import (
 
 	"github.com/MilkSU-Official/milksu/internal/codingcollab"
 )
+
+func TestCodingCollaborationManagerIsDisabledOutsideDarwin(t *testing.T) {
+	t.Setenv("PATH", "")
+	for _, goos := range []string{"windows", "linux"} {
+		t.Run(goos, func(t *testing.T) {
+			dataDirectory := t.TempDir()
+			manager, err := newCodingCollaborationManager(dataDirectory, goos)
+			if err != nil {
+				t.Fatalf("newCodingCollaborationManager(%q) error = %v", goos, err)
+			}
+			if manager != nil {
+				t.Fatalf("newCodingCollaborationManager(%q) returned a manager", goos)
+			}
+			collaborationDirectory := filepath.Join(
+				dataDirectory,
+				"agent-home",
+				"coding-collaboration",
+			)
+			if _, err := os.Stat(collaborationDirectory); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("unsupported platform created collaboration state: %v", err)
+			}
+		})
+	}
+}
+
+func TestCodingCollaborationManagerPreservesDarwinGitRequirement(t *testing.T) {
+	t.Setenv("PATH", "")
+	manager, err := newCodingCollaborationManager(t.TempDir(), "darwin")
+	if manager != nil {
+		t.Fatal("Darwin returned a Coding collaboration manager without Git")
+	}
+	if err == nil || err.Error() != "Git is not installed or unavailable" {
+		t.Fatalf("Darwin Git requirement error = %v", err)
+	}
+}
 
 func TestAgentManagedCodingCollaborationPreparesAndReleasesCleanWriter(t *testing.T) {
 	if runtime.GOOS != "darwin" {

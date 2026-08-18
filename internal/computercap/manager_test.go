@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -26,7 +27,9 @@ func TestComputerUseDriverHelper(t *testing.T) {
 	arguments := os.Args[separator+1:]
 	if arguments[0] == "--version" {
 		fmt.Printf("cua-driver %s\n", DriverVersion)
-		return
+		// Exit before the test harness prints PASS, so the production
+		// version check can match the driver output exactly.
+		os.Exit(0)
 	}
 	if arguments[0] != "serve" {
 		os.Exit(64)
@@ -40,6 +43,12 @@ func TestComputerUseDriverHelper(t *testing.T) {
 	}
 	if socketPath == "" {
 		os.Exit(64)
+	}
+	if strings.HasPrefix(socketPath, `\\.\pipe\`) {
+		if err := serveTestNamedPipe(socketPath); err != nil {
+			os.Exit(70)
+		}
+		return
 	}
 	listener, err := net.Listen("unix", socketPath)
 	if err != nil {
@@ -56,9 +65,6 @@ func TestComputerUseDriverHelper(t *testing.T) {
 }
 
 func helperCommand(_ string, arguments ...string) *exec.Cmd {
-	if len(arguments) == 1 && arguments[0] == "--version" {
-		return exec.Command("/bin/echo", "cua-driver "+DriverVersion)
-	}
 	values := []string{"-test.run=^TestComputerUseDriverHelper$", "--"}
 	values = append(values, arguments...)
 	return exec.Command(os.Args[0], values...)
@@ -66,23 +72,23 @@ func helperCommand(_ string, arguments ...string) *exec.Cmd {
 
 func failingServeCommand(_ string, arguments ...string) *exec.Cmd {
 	if len(arguments) == 1 && arguments[0] == "--version" {
-		return exec.Command("/bin/echo", "cua-driver "+DriverVersion)
+		return helperCommand("", arguments...)
 	}
-	return exec.Command("/usr/bin/false")
+	return helperCommand("", "fail")
 }
 
 func TestManagerStartsOneVisibleScopedSessionAndCleansIt(t *testing.T) {
-	target := Target{
+	target := lifecycleTarget(Target{
 		Name:        "Codex",
 		BundleID:    "com.openai.codex",
 		PID:         4242,
 		WindowID:    9001,
 		WindowTitle: "MilkSU task",
-	}
+	})
 	manager := New(Options{
 		BinaryPath:      os.Args[0],
 		TargetPID:       1111, // host PID must differ from external target PID 4242
-		GOOS:            "darwin",
+		GOOS:            lifecycleGOOS(),
 		PermissionProbe: func(bool) Permissions { return Permissions{true, true} },
 		TargetProvider:  func() ([]Target, error) { return []Target{target}, nil },
 		CommandFactory:  helperCommand,
@@ -120,11 +126,7 @@ func TestManagerStartsOneVisibleScopedSessionAndCleansIt(t *testing.T) {
 		descriptor.TargetName != target.Name ||
 		descriptor.TargetPID != target.PID ||
 		descriptor.TargetWindowID != target.WindowID ||
-		descriptor.SocketPath != filepath.Join(
-			runtimeRoot,
-			descriptor.SessionID,
-			"driver.sock",
-		) {
+		descriptor.SocketPath != expectedLifecycleEndpoint(descriptor.SessionID) {
 		t.Fatalf("unexpected descriptor: %#v, enabled=%v", descriptor, enabled)
 	}
 	if _, err := manager.Start(
@@ -142,7 +144,7 @@ func TestManagerStartsOneVisibleScopedSessionAndCleansIt(t *testing.T) {
 		t.Fatal("session ownership was not conversation-scoped")
 	}
 
-	directory := filepath.Join(runtimeRoot, descriptor.SessionID)
+	directory := filepath.Join(runtimeRootForPlatform(lifecycleGOOS()), descriptor.SessionID)
 	stopped, err := manager.Stop("conversation-1")
 	if err != nil {
 		t.Fatal(err)
@@ -163,13 +165,13 @@ func TestManagerStartsOneVisibleScopedSessionAndCleansIt(t *testing.T) {
 
 func TestManagerRestoresPersistedTaskAuthorizationAfterRestart(t *testing.T) {
 	grantDirectory := t.TempDir()
-	originalTarget := Target{
+	originalTarget := lifecycleTarget(Target{
 		Name:        "MilkSU Beta",
 		BundleID:    "com.milksu.app.beta",
 		PID:         4242,
 		WindowID:    9001,
 		WindowTitle: "MilkSU Beta",
-	}
+	})
 	newTarget := originalTarget
 	newTarget.PID = 4343
 	newTarget.WindowID = 9010
@@ -178,7 +180,7 @@ func TestManagerRestoresPersistedTaskAuthorizationAfterRestart(t *testing.T) {
 		return New(Options{
 			BinaryPath:      os.Args[0],
 			TargetPID:       1111,
-			GOOS:            "darwin",
+			GOOS:            lifecycleGOOS(),
 			PermissionProbe: func(bool) Permissions { return Permissions{true, true} },
 			TargetProvider:  func() ([]Target, error) { return []Target{target}, nil },
 			CommandFactory:  helperCommand,
@@ -230,17 +232,17 @@ func TestManagerRestoresPersistedTaskAuthorizationAfterRestart(t *testing.T) {
 }
 
 func TestManagerRestartsAnAuthorizedTaskAfterDriverFailure(t *testing.T) {
-	target := Target{
+	target := lifecycleTarget(Target{
 		Name:        "MilkSU Beta",
 		BundleID:    "com.milksu.app.beta",
 		PID:         4242,
 		WindowID:    9001,
 		WindowTitle: "MilkSU Beta",
-	}
+	})
 	manager := New(Options{
 		BinaryPath:      os.Args[0],
 		TargetPID:       1111,
-		GOOS:            "darwin",
+		GOOS:            lifecycleGOOS(),
 		PermissionProbe: func(bool) Permissions { return Permissions{true, true} },
 		TargetProvider:  func() ([]Target, error) { return []Target{target}, nil },
 		CommandFactory:  helperCommand,
@@ -498,18 +500,80 @@ func TestFilterValidTargetsExcludesOnlyHostIdentity(t *testing.T) {
 	}
 }
 
-func TestFilterValidTargetsExcludesUserBrowsersFromComputerUse(t *testing.T) {
+func TestFilterValidTargetsExcludesWindowsHostByElectronPID(t *testing.T) {
+	targets := []Target{
+		{Name: "MilkSU", BundleID: "win32.milksu", PID: 4321, WindowID: 10},
+		{Name: "milksu-computer-use-probe", BundleID: "win32.milksu-computer-use-probe", PID: 5001, WindowID: 11},
+	}
+
+	filtered := filterValidTargets(targets, defaultHostBundleID, 4321)
+	if len(filtered) != 1 || filtered[0].PID != 5001 {
+		t.Fatalf("Windows host window was not excluded by Electron PID: %#v", filtered)
+	}
+}
+
+func TestFilterValidTargetsKeepsUserBrowsersForComputerUse(t *testing.T) {
 	targets := []Target{
 		{Name: "Google Chrome", BundleID: "com.google.Chrome", PID: 101, WindowID: 1},
 		{Name: "Safari", BundleID: "com.apple.Safari.WebApp", PID: 102, WindowID: 2},
+		{Name: "MilkSU", BundleID: "com.milksu.app", PID: 100, WindowID: 9},
 		{Name: "MilkSU Beta", BundleID: "com.milksu.app.beta", PID: 103, WindowID: 3},
 		{Name: "Preview", BundleID: "com.apple.Preview", PID: 104, WindowID: 4},
+		{Name: "chrome", BundleID: "win32.chrome", PID: 105, WindowID: 5},
+		{Name: "msedge", BundleID: "win32.msedge", PID: 106, WindowID: 6},
+		{Name: "Notepad", BundleID: "win32.notepad", PID: 107, WindowID: 7},
+		{
+			Name:           "Helper",
+			BundleID:       "win32.helper",
+			PID:            108,
+			WindowID:       8,
+			executablePath: `C:\Program Files\Google\Chrome\Application\chrome.exe`,
+		},
 	}
 
 	filtered := filterValidTargets(targets, "com.milksu.app", 100)
-	if len(filtered) != 2 || filtered[0].Name != "MilkSU Beta" || filtered[1].Name != "Preview" {
-		t.Fatalf("Computer Use target list retained a browser: %#v", filtered)
+	if len(filtered) != 8 {
+		t.Fatalf("Computer Use target list dropped a visible window: %#v", filtered)
 	}
+	for _, target := range filtered {
+		if target.PID == 100 || target.BundleID == "com.milksu.app" {
+			t.Fatalf("Computer Use target list retained the host window: %#v", target)
+		}
+	}
+	if filtered[0].Name != "Google Chrome" ||
+		filtered[1].Name != "Safari" ||
+		filtered[2].Name != "MilkSU Beta" ||
+		filtered[3].Name != "Preview" ||
+		filtered[4].Name != "chrome" ||
+		filtered[5].Name != "msedge" ||
+		filtered[6].Name != "Notepad" ||
+		filtered[7].Name != "Helper" {
+		t.Fatalf("Computer Use target list lost a browser or app window: %#v", filtered)
+	}
+}
+
+func lifecycleGOOS() string {
+	if runtime.GOOS == "windows" {
+		return "windows"
+	}
+	return "darwin"
+}
+
+func lifecycleTarget(target Target) Target {
+	if runtime.GOOS != "windows" {
+		return target
+	}
+	executable, err := filepath.Abs(os.Args[0])
+	if err != nil {
+		panic(err)
+	}
+	target.executablePath = executable
+	return target
+}
+
+func expectedLifecycleEndpoint(sessionID string) string {
+	directory := filepath.Join(runtimeRootForPlatform(lifecycleGOOS()), sessionID)
+	return endpointForSession(lifecycleGOOS(), directory, sessionID)
 }
 
 func TestManagerUsesInjectedHostBundleID(t *testing.T) {
@@ -558,6 +622,160 @@ func TestSessionManifestDeniesDesktopAndUnreviewedTools(t *testing.T) {
 		if !strings.Contains(manifest, expected) {
 			t.Fatalf("bounded manifest is missing %q:\n%s", expected, manifest)
 		}
+	}
+}
+
+func TestWindowsStartAcceptsBrowserTargets(t *testing.T) {
+	executable, err := filepath.Abs(os.Args[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	browser := Target{
+		Name:           "chrome",
+		BundleID:       "win32.chrome",
+		PID:            4242,
+		WindowID:       9001,
+		executablePath: filepath.Join(filepath.Dir(executable), "chrome.exe"),
+	}
+	notepad := Target{
+		Name:           "Notepad",
+		BundleID:       "win32.notepad",
+		PID:            4343,
+		WindowID:       9002,
+		executablePath: executable,
+	}
+	manager := New(Options{
+		BinaryPath:      os.Args[0],
+		TargetPID:       1111,
+		GOOS:            "windows",
+		PermissionProbe: func(bool) Permissions { return Permissions{true, true} },
+		TargetProvider:  func() ([]Target, error) { return []Target{browser, notepad}, nil },
+		CommandFactory:  helperCommand,
+		StartTimeout:    2 * time.Second,
+	})
+	defer manager.Close()
+
+	status, err := manager.Start(
+		context.Background(),
+		"conversation-browser",
+		TargetSelection{PID: browser.PID, WindowID: browser.WindowID},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !status.Enabled || status.Target.BundleID != "win32.chrome" {
+		t.Fatalf("Windows Computer Use did not start on Chrome: %#v", status)
+	}
+	if _, err := manager.Stop("conversation-browser"); err != nil {
+		t.Fatal(err)
+	}
+	status, err = manager.Start(
+		context.Background(),
+		"conversation-notepad",
+		TargetSelection{PID: notepad.PID, WindowID: notepad.WindowID},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !status.Enabled || status.Target.BundleID != "win32.notepad" {
+		t.Fatalf("Windows Computer Use did not start on Notepad: %#v", status)
+	}
+}
+
+func TestWindowsComputerUseUsesExecutablePolicyAndPrivatePipe(t *testing.T) {
+	executable, err := filepath.Abs(os.Args[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := Target{
+		Name:           "Notepad",
+		BundleID:       "win32.notepad",
+		PID:            4242,
+		WindowID:       9001,
+		WindowTitle:    "Probe",
+		executablePath: executable,
+	}
+	manager := New(Options{
+		BinaryPath:      os.Args[0],
+		TargetPID:       1111,
+		GOOS:            "windows",
+		PermissionProbe: func(bool) Permissions { return Permissions{true, true} },
+		TargetProvider:  func() ([]Target, error) { return []Target{target}, nil },
+		CommandFactory:  helperCommand,
+	})
+	status := manager.Status()
+	if !status.Available || !status.Permissions.Ready() || status.Phase != "disabled" {
+		t.Fatalf("Windows ordinary-user status is not ready: %#v", status)
+	}
+	manifest := sessionManifestForTarget(target, "windows")
+	if !strings.Contains(manifest, "executable: '") ||
+		!strings.Contains(manifest, executable) ||
+		strings.Contains(manifest, "bundle_id:") {
+		t.Fatalf("Windows policy is not executable-bound:\n%s", manifest)
+	}
+	endpoint := endpointForSession("windows", t.TempDir(), "computer_12345678")
+	if endpoint != `\\.\pipe\milksu-computer-use-computer_12345678` {
+		t.Fatalf("unexpected Windows private endpoint: %q", endpoint)
+	}
+	for _, variable := range driverEnvironment("windows", t.TempDir(), defaultHostBundleID) {
+		upper := strings.ToUpper(variable)
+		if strings.Contains(upper, "API_KEY=") || strings.HasPrefix(upper, "NODE_OPTIONS=") {
+			t.Fatalf("sensitive parent environment entered driver env: %q", variable)
+		}
+	}
+}
+
+func TestWindowsRealDriverOpensPrivatePipeWithoutElevation(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("Windows integration probe")
+	}
+	driver := strings.TrimSpace(os.Getenv("MILKSU_TEST_CUA_DRIVER"))
+	if driver == "" {
+		t.Skip("MILKSU_TEST_CUA_DRIVER is not set")
+	}
+	executable, err := filepath.Abs(os.Args[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := Target{
+		Name:           "MilkSU Probe",
+		BundleID:       "win32.milksu-probe",
+		PID:            os.Getpid(),
+		WindowID:       9001,
+		WindowTitle:    "Isolated probe",
+		executablePath: executable,
+	}
+	manager := New(Options{
+		BinaryPath:      driver,
+		TargetPID:       os.Getpid() + 1000,
+		GOOS:            "windows",
+		PermissionProbe: func(bool) Permissions { return Permissions{true, true} },
+		TargetProvider:  func() ([]Target, error) { return []Target{target}, nil },
+		GrantDirectory:  t.TempDir(),
+		StartTimeout:    8 * time.Second,
+	})
+	defer manager.Close()
+	status, err := manager.Start(
+		context.Background(),
+		"windows-real-driver-probe",
+		TargetSelection{PID: target.PID, WindowID: target.WindowID},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !status.Enabled || status.Phase != "ready" {
+		t.Fatalf("real Windows driver did not become ready: %#v", status)
+	}
+	descriptor, ok := manager.Descriptor("windows-real-driver-probe")
+	if !ok || !strings.HasPrefix(descriptor.SocketPath, `\\.\pipe\milksu-computer-use-computer_`) {
+		t.Fatalf("unexpected Windows descriptor: %#v", descriptor)
+	}
+	stopped, err := manager.Stop("windows-real-driver-probe")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stopped.Enabled || stopped.ConversationID != "" {
+		t.Fatalf("Windows driver did not stop cleanly: %#v", stopped)
 	}
 }
 
