@@ -226,6 +226,18 @@ const dailyChallengeVisible = computed(() => (
     ? dailyChallenge.value
     : null
 ))
+
+// A selected problem only belongs to a filtered collection view when it is
+// actually in that collection; otherwise the daily challenge or a stale
+// recommendation could keep showing in an unrelated (even empty) view.
+const visibleSelectedNssctf = computed(() => {
+  const selected = selectedProblem.value
+  if (!selected) return null
+  if (collectionView.value === ALL_COLLECTIONS_ID) return selected
+  return ctfCollections.has(`nssctf:${selected.platformId}`, collectionView.value)
+    ? selected
+    : null
+})
 const catalogErrorMessage = computed(() => {
   const error = activeBank.value === 'nssctf'
     ? publicCatalog.error.value ?? training.error.value
@@ -796,12 +808,18 @@ watch(ctfshowPageCount, pageCount => {
   if (ctfshowPage.value > pageCount) ctfshowPage.value = pageCount
 })
 
-watch([catalogQuery, catalogCategory, collectionView, ctfCollections.revision], () => {
+watch([catalogQuery, catalogCategory], () => {
   if (activeBank.value !== 'nssctf' || screen.value !== 'challenge') return
   if (catalogSearchTimer) clearTimeout(catalogSearchTimer)
   catalogSearchTimer = setTimeout(() => {
     void loadPublicCatalog(1)
   }, 220)
+})
+
+watch([collectionView, ctfCollections.revision], () => {
+  if (activeBank.value !== 'nssctf' || screen.value !== 'challenge') return
+  selectedProblem.value = null
+  void loadPublicCatalog(1)
 })
 
 watch(
@@ -923,7 +941,8 @@ async function selectDefaultDeskProblem() {
     return
   }
   if (selectedProblem.value) return
-  const recommendation = catalogQuery.value.trim() === '' && catalogCategory.value === 'all'
+  const recommendation = collectionView.value === ALL_COLLECTIONS_ID
+    && catalogQuery.value.trim() === '' && catalogCategory.value === 'all'
     ? training.dashboard.value?.recommendations[0]
     : null
   const platformId = dailyChallengeVisible.value?.platformId
@@ -1636,6 +1655,7 @@ function refreshBridgePresence() {
 
 onMounted(async () => {
   document.addEventListener('pointerdown', closeHistoryMenuOnOutsidePointer)
+  void publicCatalog.ensureLoaded()
   await Promise.all([
     webBridge.refresh(),
     training.load(),
@@ -2432,7 +2452,7 @@ onBeforeUnmount(() => {
           :active-bank="activeCatalogBank"
           :nssctf-problems="publicCatalog.result.value?.problems ?? []"
           :ctfshow-problems="visibleCTFShowProblems"
-          :selected-nssctf="selectedProblem"
+          :selected-nssctf="visibleSelectedNssctf"
           :daily-problem="dailyChallengeVisible"
           :daily-reason="dailyChallengeReason"
           :selected-ctfshow="selectedCTFShowProblem"
