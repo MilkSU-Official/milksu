@@ -160,6 +160,10 @@ async function main() {
     }
     process.stdout.write(`Using local signing identity: ${identity}\n`)
 
+    const desktopPackage = JSON.parse(
+      await readFile(join(repositoryRoot, 'desktop', 'package.json'), 'utf8'),
+    )
+    const version = String(desktopPackage.version ?? '').trim()
     const env = {
       ...process.env,
       MILKSU_CODESIGN_IDENTITY: identity,
@@ -175,10 +179,6 @@ async function main() {
     }
 
     await run('npm', ['run', 'desktop:release:mac'], env)
-    const desktopPackage = JSON.parse(
-      await readFile(join(repositoryRoot, 'desktop', 'package.json'), 'utf8'),
-    )
-    const version = String(desktopPackage.version ?? '').trim()
     process.stdout.write(
       `${join(repositoryRoot, 'build', 'release', `MilkSU-macOS-arm64-${version}.dmg`)}\n`,
     )
