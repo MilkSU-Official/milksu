@@ -6,8 +6,8 @@
 >
 > 本页只回答“当前处于什么阶段、下一条完成线是什么”。实现事实以当前代码、测试、Git 历史和原生 App 验收为准；历史设计与旧里程碑不作为任务队列。
 >
-> 发版改动与未发版改动必须分开写。有三端回执的正式内测包是今日首发的 `26.818.1`；
-> `main` 仍使用同一版本号，但已经超过发行源 `b92fcde`。不要把晚于该 tag 的提交写成已发版。
+> 发版改动与未发版改动必须分开写。有三端回执的正式内测包是今日第二版 `26.818.2`。
+> 文档收口提交不移动该 tag。不要把晚于 `ea7d2ff` 的 HEAD 写成已发版。
 
 ## 工作规则
 
@@ -29,15 +29,15 @@
 | --- | --- |
 | 阶段 | **内测迭代 / Agent Runtime 与跨平台发行收敛**。当前工作不再按 M3/M4 里程碑组织。 |
 | 历史基线 | M3 product-loop 已在 `108e0e3`（2026-08-05）合并，仅供追溯。 |
-| 正式发行基线 | `v26.818.1 / b92fcded25e59805463af4ff718d73ed8776e3fb`（2026-08-18）。这是最近一次带 SHA-256 与三端产物的内测发行；GitHub prerelease 提供带版本号的 DMG、EXE、DEB 与 `SHA256SUMS`；R2/Admin current pointer 未发布。 |
-| 开发版本线 | 根目录与 `desktop/package.json` 仍是 `26.818.1`。`origin/main` 已晚于发行源 `b92fcde`，这些后续提交还没有新的三端回执。 |
-| 当前开发 | `origin/main@996820e`：未打包 Windows 的 GitHub 登录回调补全，以及 tag 之后的 Coding 工作台、审批/压缩、CTF 本地目录和发行工具。 |
-| 平台边界 | `26.818.1`：macOS DMG 本机 Developer ID 签名并公证；Windows 安装器完成原生 Runtime 与首次启动但未代码签名；Linux DEB 完成包结构、Sidecar、Go Runtime 与 Xvfb Electron 启动，仍无 Secret Service、本地 OCR、Computer Use。 |
+| 正式发行基线 | `v26.818.2 / ea7d2ff9c44aad3590b53fb71222269ab2c34b34`（2026-08-18 今日第二版）。这是最近一次带 SHA-256 与三端产物的内测发行；GitHub prerelease 提供带版本号的 DMG、EXE、DEB 与 `SHA256SUMS`；R2/Admin current pointer 未发布。 |
+| 开发版本线 | 根目录与 `desktop/package.json` 是 `26.818.2`。发行源是 `ea7d2ff`；之后只有文档收口提交，不移动该 tag。 |
+| 当前开发 | 今日第二版已发出。下一轮继续用这个安装包做 Agent GUI / Pi Runtime 回归，不要把文档提交写成新包。 |
+| 平台边界 | `26.818.2`：macOS DMG 本机 Developer ID 签名并公证；Windows 安装器完成原生 Runtime 与首次启动但未代码签名，并打入审阅过的 CUA Driver；Linux DEB 完成包结构、Sidecar、Go Runtime 与 Xvfb Electron 启动，仍无 Secret Service、本地 OCR、Computer Use。 |
 | 发行流水 | 下一发行从干净、已推送的 `main` 对 canonical Go/Vue/Sidecar/lint/生产与文档构建只验证一次；Windows/Linux 走云端，macOS 默认本机 `release:mac:local`。必须创建 GitHub Release 页并上传带版本号的 DMG/EXE/DEB 与 SHA256SUMS，不能只留空 tag。GitHub-only 不生成 OTA ZIP/metadata。 |
 
-## 已发行改动：`26.817.1` → `26.818.1`
+## 已发行改动：`26.817.1` → `26.818.2`
 
-`26.817.1`–`26.817.3` 是 8 月 16–17 日发出的内测线。今日首发、可从 Releases 下载的正式包能力以 `26.818.1` 为准。
+`26.817.1`–`26.817.3` 是 8 月 16–17 日发出的内测线。今日首发是 `26.818.1`；可从 Releases 下载的最新正式包能力以 `26.818.2` 为准。
 
 ### `26.817.1` / `main@783679f`
 
@@ -75,11 +75,7 @@
 - Pi：上下文溢出与可重试错误不再提前结束回合；abort 不再合成空白气泡。
 - 安装包文件名带版本号。GitHub prerelease 提供 DMG / EXE / DEB 与 `SHA256SUMS-26.818.1.txt`。
 
-## 未发版改动：晚于 `v26.818.1` / `b92fcde` 的 `main`
-
-这些已经在当前 `main` 里，版本号仍是 `26.818.1`，但**不在**今日发出的安装包中。不要把它们写进 `26.818.1` 下载说明，也不要把当前 HEAD 当成已经发出的包。
-
-### Coding 工作台
+### `26.818.2` / `ea7d2ff`（2026-08-18 今日第二版）
 
 - 日间模式会话高亮保持可见。
 - `+ → 本机文件或图片` 在 `pointerdown` 打开系统选择框；输入框自管 `⌘Z` / `⌘⇧Z`；右侧栏可拖宽并记住宽度。用户已在本地 dirty Stable 包确认 C9 / C15 / C20。
@@ -89,23 +85,20 @@
 - 工具行按 `toolCallId` 结束，不再只改最后一条同名调用；用户展开的工具组在后续流式输出中保持展开。
 - 新增类型化 `milksu_workspace`：列出/聚焦/关闭内置浏览器标签，列出/预览产物，打开环境、变更、终端和后台任务。设置、凭据、审批档和用户 Chrome 不在这个工具里。
 - 上下文用量达到窗口约 85% 且 Session 空闲时，走与 `/compact` 相同的 Pi 压缩；`compact_context` 只在达到阈值时调度。不在整回合结束后才第一次压缩，也不另建 MilkSU 摘要器。
-
-### CTF / CVE / 桌面宿主
-
+- 目标、计划和会话目录收进 Composer 控制栏 chips；窄栏收成图标，权限按钮按内容宽度。
 - NSSCTF「全部 / 收藏」在完整本地目录预热后于前端筛选分页；同步丢弃飞行中的旧全量快照；训练进度从目录快照拆开，Judge/确认后重叠加（AsabaLazy / Luo，PR #8）。
-- 未打包 Windows 上补全 GitHub 登录回调（`996820e`）。新的正式 Windows 包尚未发行。
-- Windows 无 Git 启动收敛为两处宿主边界：非 macOS 不初始化仅供 macOS 使用的 Coding 协作管理器，Electron 私有端口探针只额外继承 `SystemRoot`。本地 Go/Desktop 定向测试已通过，空白用户目录下的打包 App 探针需由 Windows workflow 复验，尚未形成新发行。
-- Windows Computer Use 沿用 macOS 的有界 Cua 会话：按绝对可执行文件绑定目标、用 Electron 主进程 PID 排除宿主窗口。可见浏览器窗口也是合法 Computer Use 目标；隔离“浏览器”和 Browser Use 仍是另外两条表面，不互相替代。Start/Restore 生命周期与本机 Notepad 窗口枚举已覆盖。本机已用 sidecar 查找路径中的补丁版 `cua-driver 0.14.2` 对可见窗口完成 `observe -> type_text -> observe`，token 回读成功；同一 Driver 对独立 Chrome 窗口完成输入框输入和按钮点击，页面从 `idle` 变为 `visited hello cua`。Chrome 会丢弃后台键盘投递，需前台 `type_text`。Driver 先走安装包/Sidecar 自带副本；缺失时用户启动 Computer Use 可由类型化 `prepare_computer_use_driver` 把 MilkSU 审阅过的 Driver 拷到本机配置目录或按仓库脚本构建，不运行 Cua 官方安装脚本，也不回退到系统级全局控制。官方未打补丁的 Windows 包无法在 bounded 策略下对上可执行文件身份。发行 Windows 包仍由 sidecar 源码构建并打入安装包，不是一次新的三端发行。macOS Computer Use 路径未改。
-- CTF / CVE 的模型操作工作台 UX 后置，不在本轮把 `milksu_workspace` 扩到那两个模块。
+- 未打包 Windows 上补全 GitHub 登录回调；无 Git 也能启动。
+- Windows Computer Use 沿用 macOS 的有界 Cua 会话：按绝对可执行文件绑定目标、用 Electron 主进程 PID 排除宿主窗口。可见浏览器窗口也是合法 Computer Use 目标；隔离“浏览器”和 Browser Use 仍是另外两条表面。Driver 先走安装包/Sidecar 自带副本；缺失时可由类型化 `prepare_computer_use_driver` 把 MilkSU 审阅过的 Driver 拷到本机配置目录或按仓库脚本构建，不运行 Cua 官方安装脚本。macOS Computer Use 路径未改。
+- 设置页增加默认关闭的应用级本地调试模式：内存环形日志、Desktop RPC 命令名计数和一键复制诊断，不采集凭据、路径或 RPC 参数。
+- 安装包文件名带版本号。GitHub prerelease 提供 DMG / EXE / DEB 与 `SHA256SUMS-26.818.2.txt`。
 
-### 设置 / 模型服务
+## 未发版改动：晚于 `v26.818.2` / `ea7d2ff` 的 `main`
 
-- 空 TokenFlux 目录时，删除或停用自定义中转站不会再把它的模型 ID 接到 TokenFlux 默认选择或「可用模型」里（#11）。
+这些已经在当前 `main` 里，版本号仍是 `26.818.2`，但**不在**今日第二版安装包中。不要把它们写进 `26.818.2` 下载说明，也不要把 `v26.818.2` 标签挪到更新的 HEAD 上。
 
-### 发行工具
-
-- 本机默认走 Personal Vault 签名；`release:github` 必须创建/刷新 GitHub Release 页。
-- 这些是发版管道后续提交，不是一次已经发出的新版本号。
+- 空 TokenFlux 目录时，删除或停用自定义中转站不会再把它的模型 ID 接到 TokenFlux 默认选择或「可用模型」里（#13 / #11）。
+- CTF / CVE 的模型操作工作台 UX 仍后置，不把 `milksu_workspace` 扩到那两个模块。
+- 本机默认走 Personal Vault 签名；`release:github` 必须创建/刷新 GitHub Release 页。这是发版管道，不是下一版本号。
 
 ## 当前产品事实
 
@@ -116,7 +109,7 @@
 - CVE → Coding 不再注入“只读检查”“只输出启动清单”等限制，使用普通 Pi 工具和当前权限档。普通产品回合不再被 MilkSU 的 90 秒无事件 watchdog 静默终止；用户主动停止和独立评测 deadline 仍保留。
 - 普通用户文字和回复风格交给 Pi/模型理解。GUI 一键动作只传 typed product action、界面语言和无凭据系统环境，不额外注入客服话术、固定长尾问题或关键词/正则意图路由。
 - 重启后失效的旧 Pi session ID 会清理并按普通消息重建，不能让 GUI 保持“运行中”而 Sidecar 已停止的分裂状态。
-- `26.817.3` 已在真实打包 Windows App 验证账户模型与 Pi 工具回合；`26.818.1` 继续收紧账户目录、错误文案和 Windows Reveal。
+- `26.817.3` 已在真实打包 Windows App 验证账户模型与 Pi 工具回合；`26.818.1` 继续收紧账户目录、错误文案和 Windows Reveal；`26.818.2` 把有界 Computer Use Driver、隔离浏览器多标签和调试模式打进正式包。
 - MilkSU 仍保留三项宿主必要边界：会话目录记录、Provider 凭据隔离、递归删除用户 Home/文件系统根/当前 cwd/大型目录时的二次确认。
 
 ### 模型、附件与网页查证
@@ -137,29 +130,28 @@
 
 ## 当前完成线
 
-### 已完成：`26.818.1` 今日首发三端内测发行
+### 已完成：`26.818.2` 今日第二版三端内测发行
 
-三端都从 `b92fcded25e59805463af4ff718d73ed8776e3fb` 构建。GitHub prerelease 为
-`v26.818.1`，没有上传 OTA ZIP；R2/Admin current pointer 未改变。macOS 走本机
-Developer ID 签名与公证；云端 macOS job 已取消。Windows / Linux 走成功的 Actions run。
+三端都从 `ea7d2ff9c44aad3590b53fb71222269ab2c34b34` 构建。GitHub prerelease 为
+`v26.818.2`，没有上传 OTA ZIP；R2/Admin current pointer 未改变。macOS 走本机
+Developer ID 签名与公证。Windows / Linux 走成功的 Actions run。
 
 | 平台 | Workflow | 用户安装包 | 大小 | SHA-256 | 结果 |
 | --- | --- | ---: | ---: | --- | --- |
-| macOS ARM64 | 本机 `release:mac:local` | `MilkSU-macOS-arm64-26.818.1.dmg` | 233,523,396 B | `cc328d86518ee6c9b0035b4ac1581fd80a1390bdb7b63d6c5326f880c25e9cc6` | Developer ID 签名、Apple 公证；云端 macOS job `32095636487` / `32095689774` 已取消 |
-| Windows x64 | `32095638823` | `MilkSU-Windows-x64-26.818.1-Setup.exe` | 172,663,691 B | `3cc5608a3bb4585656866b6c2b0ef601300c2440b97b5e08c588f5b41e6de5a5` | 原生 Windows 构建、打包 Runtime 与首次启动通过；安装器未代码签名 |
-| Linux x64 | `32095642259` | `MilkSU-Linux-x64-26.818.1.deb` | 174,505,248 B | `9265394a91d9490d18389f60c23992f22ffcdd732349df2d93e27880546f0669` | 原生 Ubuntu 包结构、Sidecar、Go Runtime 与 Xvfb Electron 首次启动通过；试用边界 |
+| macOS ARM64 | 本机 `release:mac:local` | `MilkSU-macOS-arm64-26.818.2.dmg` | 233,671,442 B | `c87135b33581b6fa25e84fcc87f8ad1ab449da79048e8cb08759989ce16c1a95` | Developer ID 签名、Apple 公证、staple、Gatekeeper |
+| Windows x64 | `32147251611` | `MilkSU-Windows-x64-26.818.2-Setup.exe` | 178,839,949 B | `a084857b70bb01eb568a375143fd4cefa584f2b8b936590d03fa9eb1cd080b18` | 原生 Windows 构建、打包 Runtime 与首次启动通过；安装器未代码签名 |
+| Linux x64 | `32147259223` | `MilkSU-Linux-x64-26.818.2.deb` | 174,536,780 B | `b9d067a431179c34f48b4201078682a110fd766f41b16137a96b3336dcb74c7a` | 原生 Ubuntu 包结构、Sidecar、Go Runtime 与 Xvfb Electron 首次启动通过；试用边界 |
 
-发行页：<https://github.com/MilkSU-Official/milksu/releases/tag/v26.818.1>
+发行页：<https://github.com/MilkSU-Official/milksu/releases/tag/v26.818.2>
 
 ### 下一完成线
 
-`26.818.1` 已是当前可下载基线。`main` 上晚于 `b92fcde` 的 Coding GUI、审批、压缩、
-CTF 目录和未打包 Windows 登录回调还不是一次新发行。
+`26.818.2` 已是当前可下载基线。文档收口提交不改变这个 tag。
 
 下一条完成线是：
 
-1. 继续用当前开发包做常用 Agent GUI 与 Pi Runtime 回归，失败项回到下面 P0 队列；
-2. 用户明确要求发下一版时，先升版本号，再从干净已推送的 `main` 跑 `release:verify` 并留下新的三端回执；不要把现有 `v26.818.1` 标签挪到更新的 HEAD 上。
+1. 继续用 `26.818.2` 安装包做常用 Agent GUI 与 Pi Runtime 回归，失败项回到下面 P0 队列；
+2. 用户明确要求发下一版时，先升版本号，再从干净已推送的 `main` 跑 `release:verify` 并留下新的三端回执；不要把现有 `v26.818.2` 标签挪到更新的 HEAD 上。
 
 Windows 签名、Linux 缺失能力、R2/OTA，以及 CTF/CVE 模型操作工作台 UX，分别保持为明确后续工作。
 
@@ -169,7 +161,7 @@ Windows 签名、Linux 缺失能力、R2/OTA，以及 CTF/CVE 模型操作工作
 | --- | --- | --- |
 | P0 | 常用 Agent GUI 回归 | 按 Coding 常用功能表覆盖中文任务、文件/Shell、附件、斜杠菜单、权限档、subagent、浏览器、Browser/Computer Use、终端、取消/恢复与错误展示；自动化通过后再由用户做真实 GUI 验收。C9 / C15 / C16 / C20 已由用户在本地 dirty Stable 包确认；C10 / C11 已修待复验。 |
 | P0 | Pi Runtime 用户验收 | 最新正式包中验证跨目录读写、CTF/CVE 交接、长输出续跑和重启恢复，不出现 MilkSU 自建 workspace 策略或旧 session ID。 |
-| P1 | 下一版三端回执发行 | 需要新的版本号、同一 source commit、三端产物、SHA-256 与平台验收。现有 `v26.818.1` 不够覆盖 `b92fcde` 之后的 `main`。 |
+| P1 | 下一版三端回执发行 | 需要新的版本号、同一 source commit、三端产物、SHA-256 与平台验收。现有 `v26.818.2` 只覆盖 `ea7d2ff`。 |
 | P1 | OTA 与私有 R2 | Admin 草稿/发布/暂停和 Desktop 更新提示已有；仍需一次受账户鉴权的真实旧签名版 → 新签名版升级回执。 |
 | P1 | 安全工具真实任务 | IDA/idalib 与 capa 已有设置、准备和健康检查；分别用受控本地样本保留真实任务回执后，才决定是否进入 CTF/CVE。CodeQL、Burp、Shannon 仍逐项准入。 |
 | P1 | Obelisk 学习记录 | 先定义可归因学习事实，再设计独立页面；不恢复已删除的单会话相关历史/图谱面板。 |
@@ -184,7 +176,7 @@ Windows 签名、Linux 缺失能力、R2/OTA，以及 CTF/CVE 模型操作工作
 - Wails/CEF 双壳、workspace-only 文件工具、Node 文件权限状态机、普通回合 watchdog、CVE 只读启动清单和客服式回复模板。
 - 用关键词或正则扫描用户句子来打开浏览器、切页或选工具。
 - MilkSU 自建余额、价格映射、扣费流水和模型代理计费。
-- 把晚于 `v26.818.1` 的 HEAD、同一版本号或本地 dirty 包写成已经发出的三端正式包。
+- 把晚于 `v26.818.2` 的 HEAD、同一版本号或本地 dirty 包写成已经发出的三端正式包。
 - M3/M4 旧百分比台账、历史 Beta 完成度和已删除 live smoke；需要考古时使用 Git history。
 
 ## 领域完成线

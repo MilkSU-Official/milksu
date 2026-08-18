@@ -2,7 +2,7 @@
 
 > 文档状态：Current
 >
-> 事实审计：2026-08-18；正式发行基线为 `v26.818.1 / b92fcde`；`main` 仍使用 `26.818.1` 版本号，但已经超过该发行源。
+> 事实审计：2026-08-18；正式发行基线为 `v26.818.2 / ea7d2ff`。文档收口提交不移动该 tag。
 >
 > 本页描述当前结构，不安排任务。动态进度、已发行与未发版分界以
 > [当前开发目标](/developer/current-objectives)、代码、测试和真实验收为准。
@@ -72,13 +72,13 @@ MilkSU 的桌面壳不是通用 Agent Loop 的另一份实现。Pi 仍负责会�
 | 个人资料 | **Implemented / packaged** | 左上角用户头像打开个人菜单；个人页按本机任务活动展示活跃格、CTF/CVE/Coding 模糊阶段和最近活动。工具调用不单独计数，全局六维雷达不再挂载。当前阶段不是独立能力评分；Obelisk 只提供历史线索，尚未成为可归因成长事实源。 |
 | 内测账户与模型来源 | **Deployed / desktop verified** | 系统浏览器 GitHub PKCE、稳定/测试版独立回调和 `0600` 本地不透明会话已实现；打包客户端指向 `accounts.milksu.org`。Admin 为每个用户保存一份加密的 TokenFlux 凭据，Electron 用账户会话取得后只交给 Go，Go 写入现有 `credentials.db`；Key 不返回 renderer，不进入日志、模型上下文或普通配置文件。模型请求直接发往 `https://tokenflux.dev/v1`，MilkSU 不再承载余额、价格映射、扣费流水、超限或代理计费。Go Model Catalog 获取与当前 Key 分组一致的模型并以 `0600` last-known-good 同时驱动设置、Composer 与 Pi；运行时隐藏未配置的原厂 Provider，并把旧 `x-ai/grok-4.6` 选择对齐为目录中的 `grok-4.6`。2026-08-15 本地 Stable 包经 Computer Use 使用账户分配模型完成真实 Coding 回合；非分组模型请求得到 `404 model_not_found`。用户仍可在设置中配置各原厂 Provider 或简单 OpenAI-compatible 中转站，元数据进入 `providers`，各 Key 进入同一 Credential Store；未配置的来源不进入任务模型列表。Admin 对应提交 `89b2037`，客户端链路已进入 `v26.817.1 / main@783679f` 正式内测发行。 |
 | 双来源模型路由 | **Implemented / packaged in 26.817.1, catalog rules in 26.818.1** | `milksu-route` 只负责账户与个人来源的选择和安全回退；外层占位认证不得进入具体 Provider。2026-08-16 修复转发时覆盖真实来源凭据的 `401`：路由在调用来源前移除外层 `apiKey` 与 `Authorization`，让 Pi 按所选来源重新解析凭据。两个来源的只读目录请求均为 `200`，真实 `grok-4.5` 双来源调用选择 `account` 并返回 `MILKSU_ROUTE_OK`；该修复已进入 `26.817.1 / main@783679f`。账户模型权限边界随后合入 `main`（东云，PR #3）：账户凭据优先产生带 `credential_source` 的权威目录，缺失模型在请求前跳过；目录未知时仍尝试来源，并在首个内容输出前把 TokenFlux `model_not_found` / `not supported by any configured account` 分类为安全回退。设置页与 Coding 共用同一可调用目录。这些目录规则已进入 `26.818.1` 正式内测包。 |
-| OTA 更新 | **Implemented / production upgrade pending** | Stable Electron 主进程在窗口可用后异步检查更新；只有账户会话有效时才把 Bearer header 交给 electron-updater，Vue 只接收版本、进度和可执行动作。Admin D1 保存草稿/当前/历史/暂停状态，Worker 验证账户仍受邀且访问正常后生成 feed 或从私有 R2 流式返回 ZIP/DMG；R2 key 不返回客户端。CI 已实现签名后上传、回读验哈希和建草稿，Admin 人工发布才改变 current pointer。`26.818.1` 的 macOS 签名、公证和三端 GitHub prerelease 已完成；本次显式不上传 OTA，R2/Admin current pointer 未改变。Beta 不启用 updater。 |
+| OTA 更新 | **Implemented / production upgrade pending** | Stable Electron 主进程在窗口可用后异步检查更新；只有账户会话有效时才把 Bearer header 交给 electron-updater，Vue 只接收版本、进度和可执行动作。Admin D1 保存草稿/当前/历史/暂停状态，Worker 验证账户仍受邀且访问正常后生成 feed 或从私有 R2 流式返回 ZIP/DMG；R2 key 不返回客户端。CI 已实现签名后上传、回读验哈希和建草稿，Admin 人工发布才改变 current pointer。`26.818.2` 的 macOS 签名、公证和三端 GitHub prerelease 已完成；本次显式不上传 OTA，R2/Admin current pointer 未改变。Beta 不启用 updater。 |
 | Go Runtime | **Implemented / concentrated** | `cmd/milksu-backend/main.go` 启动应用组合根和 JSONL RPC；同目录的 `desktop_rpc.go` 分派现有 App 方法并传递事件，`desktop_host.go` 把文件对话框、外链和浏览器宿主能力反向委托给 Electron。`app.go` 仍较集中，触碰时按纵切拆分。 |
-| Pi 通用 Agent | **Verified core / partial extensions** | Pi 继续拥有 Session、Compaction、模型、自然语言理解和通用 Tool Loop；MilkSU 监管 Sidecar、注入当前 Provider、投影事件并实施工作区/审批边界。MilkSU 不从普通 prompt 的关键词或格式推断 Agent 意图：GUI 一键动作和内部无工具投影分别使用 typed product action / typed turn policy。每回合向 Pi 注入无凭据的真实 OS、架构、路径和实际命令解释器事实；Windows 保持 Pi 上游 Bash backend，需要原生 cmdlet 时显式调用 `powershell.exe`。已审核 Coding Skill 只向 Pi 常驻名称与用途，完整内容按任务或显式选择加载；设置只能停用审核目录，CTF 角色不加载 Coding Skill。图片输入按当前模型能力自动路由：image input 原生透传，否则本地 OCR，不存在用户配置的辅助视觉会话。实时网页查证复用固定 Pi Web Extension 的 `web_search` / `web_fetch`，MilkSU 只把工具注册进 Coding 会话与现有工具档位，不再维护第二套搜索决策；真实联网测试已先搜索再读取 xAI 官方 Grok 4.5 文档。开发版本线上，Coding 另暴露类型化 `milksu_workspace`（标签、产物、环境/变更/终端）和 `compact_context`；上下文用量达到窗口约 85% 且 Session 空闲时走 Pi `/compact` 同一路径。`替我审批` 自动执行隔离浏览器；可授权工具支持本对话始终允许。CTF/CVE 模型操作工作台 UX 后置，不把 workspace 工具扩到那两个模块。TokenFlux `grok-4.5` 多模态和一次真实文档自举已验；完整功能自举仍未完成。 |
+| Pi 通用 Agent | **Verified core / partial extensions** | Pi 继续拥有 Session、Compaction、模型、自然语言理解和通用 Tool Loop；MilkSU 监管 Sidecar、注入当前 Provider、投影事件并实施工作区/审批边界。MilkSU 不从普通 prompt 的关键词或格式推断 Agent 意图：GUI 一键动作和内部无工具投影分别使用 typed product action / typed turn policy。每回合向 Pi 注入无凭据的真实 OS、架构、路径和实际命令解释器事实；Windows 保持 Pi 上游 Bash backend，需要原生 cmdlet 时显式调用 `powershell.exe`。已审核 Coding Skill 只向 Pi 常驻名称与用途，完整内容按任务或显式选择加载；设置只能停用审核目录，CTF 角色不加载 Coding Skill。图片输入按当前模型能力自动路由：image input 原生透传，否则本地 OCR，不存在用户配置的辅助视觉会话。实时网页查证复用固定 Pi Web Extension 的 `web_search` / `web_fetch`，MilkSU 只把工具注册进 Coding 会话与现有工具档位，不再维护第二套搜索决策；真实联网测试已先搜索再读取 xAI 官方 Grok 4.5 文档。`26.818.2` 起 Coding 另暴露类型化 `milksu_workspace`（标签、产物、环境/变更/终端）和 `compact_context`；上下文用量达到窗口约 85% 且 Session 空闲时走 Pi `/compact` 同一路径。`替我审批` 自动执行隔离浏览器；可授权工具支持本对话始终允许。CTF/CVE 模型操作工作台 UX 后置，不把 workspace 工具扩到那两个模块。TokenFlux `grok-4.5` 多模态和一次真实文档自举已验；完整功能自举仍未完成。 |
 | 安全工具目录 | **Verified setup chain / real binary task pending** | “设置 → 安全工具”使用真实 Desktop RPC 检测与持久化。IDA Pro/idalib 和 capa 具备可准备的固定版本适配器；就绪且启用后进入普通 Coding 的模型可选目录。“在 Coding 中配置”挂未发送草稿并预置 `Go · 完全访问`，发送后可准备用户级软件；本机 Stable 已安装 uv 与固定 idalib MCP、通过非交互健康检查并回到“可用”。CodeQL、Burp Suite、Shannon 目前仅做本机/前提检测，不会被误报为模型可用。尚未用真实 crackme/二进制完成任务回执，也未进入 CTF/CVE。 |
-| 内置浏览器 | **Verified packaged tasks; multi-tab on HEAD** | 产品 UI 只显示“浏览器”。每次 Coding 会话使用独立 `session.fromPath`，默认拒绝页面权限。`26.817.1` 起已有打包任务：Grok 只用浏览器完成顺序点击、表单提交和公开文档调研，右栏折叠后继续并保留同一页面终态。开发版本线改为普通 Coding Go 或打开右栏即自动就绪，不再要求设置或批准；标签栏 `+` 在启动前可见；每个标签是独立 `WebContentsView`，切换换页并更新地址。`ScopedCDPProxy` 仍只公布当前一个 Target。用户已在本地 dirty Stable 包确认点击与标签切换。 |
+| 内置浏览器 | **Verified packaged tasks; multi-tab in 26.818.2** | 产品 UI 只显示“浏览器”。每次 Coding 会话使用独立 `session.fromPath`，默认拒绝页面权限。`26.817.1` 起已有打包任务：Grok 只用浏览器完成顺序点击、表单提交和公开文档调研，右栏折叠后继续并保留同一页面终态。`26.818.2` 起普通 Coding Go 或打开右栏即自动就绪，不再要求设置或批准；标签栏 `+` 在启动前可见；每个标签是独立 `WebContentsView`，切换换页并更新地址。`ScopedCDPProxy` 仍只公布当前一个 Target。用户已在本地 dirty Stable 包确认点击与标签切换。 |
 | Browser Use | **Implemented UI / live pairing pending** | 真实用户 Chrome/Edge 复用固定 `@playwright/mcp --extension`，由用户选择准确标签页；不复用内置浏览器 profile。 |
-| Computer Use | **Verified self-bootstrap slice; Windows live type pending packaged installer** | 只接受外部可见 App/PID/Window Scope，含用户真实浏览器窗口；Calculator 与 Stable → MilkSU Beta 的 branch/commit/tracking 核验、click/scroll 及 CTF/CVE 任务连续性全程已验。Stable 排除自身；隔离浏览器与 Browser Use 仍是独立表面。任务授权可恢复，明确请求且只有一个合格目标时自动启动，准备期间的提交在就绪后自动续发，多目标仍需准确选择。右栏诊断和操作证据默认折叠。开发版本线为 Windows 补了有界会话和宿主 PID 排除；本机已用 sidecar 内嵌补丁版 `cua-driver 0.14.2` 完成窗口 `type_text` 回读。Driver 先走安装包/Sidecar；缺失时由类型化 `prepare_computer_use_driver` 准备 MilkSU 审阅副本，不走 Cua 官方安装脚本。正式 Windows 安装包仍待源码构建并打入该补丁版。 |
+| Computer Use | **Verified self-bootstrap slice; Windows bounded driver packaged in 26.818.2** | 只接受外部可见 App/PID/Window Scope，含用户真实浏览器窗口；Calculator 与 Stable → MilkSU Beta 的 branch/commit/tracking 核验、click/scroll 及 CTF/CVE 任务连续性全程已验。Stable 排除自身；隔离浏览器与 Browser Use 仍是独立表面。任务授权可恢复，明确请求且只有一个合格目标时自动启动，准备期间的提交在就绪后自动续发，多目标仍需准确选择。右栏诊断和操作证据默认折叠。`26.818.2` Windows 包打入有界会话、宿主 PID 排除和审阅过的 `cua-driver 0.14.2`。Driver 先走安装包/Sidecar；缺失时由类型化 `prepare_computer_use_driver` 准备 MilkSU 审阅副本，不走 Cua 官方安装脚本。 |
 | CTF Runtime | **Implemented / Daily receipt partial** | `internal/ctf` 持有 Challenge、Evidence、Candidate、Judge Receipt、Recovery、Memory 与学习事实；模型候选不能建立成功事实。CTF 通用文件与 Shell 复用 Pi 原生工具及用户系统权限，不再复制 workspace-only 沙箱；MilkSU 只保留题目域工具、精确站点能力、凭据隔离、Judge 和证据投影。模型输出达到长度上限时通过 Pi `agent_end` / `followUp` 扩展点继续。Daily 由规则筛选未完成候选，再复用 Pi 结合近期题目、关联 Coding 对话、已确认事实和 Memory 选择并解释；结果按本地日期固定并允许主动换题，模型不可用时规则兜底。代码与自动化已回归，真实签名包用户视角仍待复验。 |
 | CVE Learning / Tracking | **Verified signed tracking slice** | 用户界面只显示明确加入的公开 CVE、手工状态和关联 Coding 对话，默认文案为“想研究”。添加入口通过只读 Desktop RPC 搜索 NVD，用户选中后直接把当前结果和来源元数据写入本地追踪，不做第二次网络请求；参考资料按机构去重，完整集合仍由 NVD 承载。三个薄学习专题直接查询公共 NVD 数据；最终签名 App 已返回真实专题搜索结果。CVE → Coding 使用普通 Pi 文件/Shell 工具与当前权限档，不额外注入只读回合或“只输出启动前清单”的提示；外部资产实验、产品化真实复现和披露工作流仍后置。 |
 | Obelisk / 记忆底座 | **Implemented backend / UI deferred** | MilkSU 自有索引仍只处理本机 Coding/CTF/CVE 会话；当前产品不展示单会话历史面板或图谱。后续学习记录/记忆系统应作为独立页面进入，不移除或混写 Obelisk 与 CTF Memory 底层事实。 |
@@ -284,15 +284,15 @@ hardened runtime / Developer ID 签名、App/DMG 公证、staple、Gatekeeper �
 GitHub-only 模式不生成 updater ZIP 或元数据；显式选择 OTA 上传时，macOS 同一轮才额外生成二者，
 CI 通过 rclone 把 ZIP、DMG 和元数据写到私有 R2 的不可变版本路径，逐个回读校验 SHA-256，再用窄
 publisher token 在 Admin 建草稿；管理员发布后，已登录且访问正常的 Stable 客户端才可经 Worker 获取
-feed 和安装包。R2 没有公共下载地址，账户 Bearer token 只由 Electron 主进程持有。正式内测发行基线仍是
-`v26.818.1 / b92fcded25e59805463af4ff718d73ed8776e3fb`。仓库版本号仍是 `26.818.1`，
-但 `origin/main` 已晚于该发行源，不能把后续提交写成已发版。打包后的
+feed 和安装包。R2 没有公共下载地址，账户 Bearer token 只由 Electron 主进程持有。正式内测发行基线是
+`v26.818.2 / ea7d2ff9c44aad3590b53fb71222269ab2c34b34`。仓库版本号是 `26.818.2`。
+文档收口提交不改变该 tag，不能把后续 HEAD 写成已发版。打包后的
 Go Runtime 以自身所在 `resources` 目录直接定位同级 `milksu-sidecar/node.exe` 与 `chat-bridge.cjs`，
 不再把开发仓库根定位混入安装版资源查找。macOS
 ARM64 DMG 已完成 Developer ID 签名、Apple 公证、stapler、Gatekeeper 与本机下载后复验；Windows x64
 安装程序已在原生 Windows 完成打包 Runtime 与首次启动检查，但当前没有 Windows 代码签名；Linux x64
 DEB 已在原生 Ubuntu 完成包结构、Node/Pi Sidecar、Go Runtime 与 Xvfb Electron 启动检查。GitHub
-prerelease 只提供 DMG、EXE 与 DEB，没有 OTA ZIP。纯文档提交不改变 `v26.818.1` 的 source commit。
+prerelease 只提供 DMG、EXE 与 DEB，没有 OTA ZIP。纯文档提交不改变 `v26.818.2` 的 source commit。
 后续正式包应走 `release:verify` → 云端 Win/Linux + 本机 macOS → `release:github` 创建 Release 页。
 
 Linux 包已包含当前 CTF/CVE 与通用 Coding 的 Pi Runtime 收敛，但仍是试用边界：不接 Secret Service、
