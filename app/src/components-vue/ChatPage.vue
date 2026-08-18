@@ -84,7 +84,7 @@ import {
   presentRunTiming,
   type SessionTurnSnapshot,
 } from '@/lib/sessionTurnStatus'
-import AgentTaskSteps from '@/components-vue/AgentTaskSteps.vue'
+import AgentExecutionPlan from '@/components-vue/AgentExecutionPlan.vue'
 import {
   presentDomainTaskContext,
   refreshCTFDomainTaskContext,
@@ -384,6 +384,13 @@ const contextUsagePresentation = computed(() => presentContextUsage(effectiveTur
 const runTimingPresentation = computed(() => (
   presentRunTiming(effectiveTurnStatus.value, runClockNow.value)
 ))
+/** Composer strip: real last-call tokens when known; otherwise a quiet waiting hint while running. */
+const composerContextStrip = computed(() => {
+  if (contextUsagePresentation.value?.strip) return contextUsagePresentation.value.strip
+  if (props.compacting) return '上下文整理中…'
+  if (props.running) return 'Token 等待本轮用量…'
+  return undefined
+})
 const effectiveExecutionMode = computed(() => (
   normalizeCodingExecutionMode(props.executionMode)
 ))
@@ -1843,7 +1850,7 @@ watch(
       :automatic-model-label="automaticModelLabel"
       :compact-model-label="compactModelLabel"
       :compact-disabled="continuity.compactDisabled"
-      :context-strip="contextUsagePresentation?.strip"
+      :context-strip="composerContextStrip"
       :context-near-limit="contextUsagePresentation?.nearLimit"
       :run-elapsed-label="runTimingPresentation?.label"
       :workspace-ready="Boolean(workspacePath)"
@@ -2081,9 +2088,8 @@ watch(
 
         </template>
 
-        <AgentTaskSteps
+        <AgentExecutionPlan
           :messages="conversation?.messages ?? []"
-          :running="running"
         />
 
         <section class="border-b border-border px-4 py-4">
@@ -2120,35 +2126,23 @@ watch(
                 : '在模型列表中按服务选择' }}
             </span>
           </div>
-          <template v-if="contextUsagePresentation">
-            <div class="flex items-center justify-between gap-3">
-              <span class="text-muted-foreground">上下文</span>
-              <span
-                class="font-mono text-caption tabular-nums"
-                :class="contextUsagePresentation.nearLimit ? 'text-warning' : ''"
-                data-testid="agent-context-usage"
-              >
-                {{ contextUsagePresentation.windowLabel
-                  ? `${contextUsagePresentation.inputLabel} / ${contextUsagePresentation.windowLabel}`
-                  : contextUsagePresentation.totalLabel }}
-                <template v-if="contextUsagePresentation.percent !== undefined">
-                  · {{ contextUsagePresentation.percent }}%
-                </template>
-              </span>
-            </div>
-            <div class="flex items-center justify-between gap-3">
-              <span class="text-muted-foreground">Token</span>
-              <span
-                class="font-mono text-caption tabular-nums text-muted-foreground"
-                data-testid="agent-token-io"
-              >
+          <div class="flex items-center justify-between gap-3">
+            <span class="text-muted-foreground">Token</span>
+            <span
+              class="font-mono text-caption tabular-nums"
+              :class="contextUsagePresentation?.nearLimit ? 'text-warning' : 'text-muted-foreground'"
+              data-testid="agent-token-io"
+            >
+              <template v-if="contextUsagePresentation">
                 入 {{ contextUsagePresentation.inputLabel }} · 出 {{ contextUsagePresentation.outputLabel }}
-              </span>
-            </div>
-          </template>
-          <div v-else-if="compacting" class="flex items-center justify-between gap-3">
-            <span class="text-muted-foreground">上下文</span>
-            <span class="text-caption text-muted-foreground">整理中…</span>
+                <template v-if="contextUsagePresentation.windowLabel">
+                  · {{ contextUsagePresentation.inputLabel }}/{{ contextUsagePresentation.windowLabel }}
+                </template>
+              </template>
+              <template v-else-if="compacting">整理中…</template>
+              <template v-else-if="running">等待本轮用量…</template>
+              <template v-else>—</template>
+            </span>
           </div>
           <div class="flex items-start justify-between gap-3">
             <span class="shrink-0 text-muted-foreground">插件</span>

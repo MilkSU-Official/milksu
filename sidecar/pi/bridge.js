@@ -277,7 +277,7 @@ function createMilkSUWorkflowExtension(sessionRole, getPolicy, getSession) {
     pi.registerTool({
       name: "milksu_progress",
       label: "MilkSU progress",
-      description: "Publish or update a concise execution plan so the user can see what the Coding Agent is doing.",
+      description: "Publish or update a short execution plan (summary + up to 8 steps) so the desktop can show Codex-style progress. Call this when the task has multiple steps, and update statuses as you advance.",
       parameters: Type.Object({
         summary: Type.String({ minLength: 1, maxLength: 240 }),
         steps: Type.Array(Type.Object({
@@ -325,7 +325,8 @@ function createMilkSUWorkflowExtension(sessionRole, getPolicy, getSession) {
           + `\n\nRuntime context:\n${runtimeEnvironmentGuidance({
             uiLocale: policy?.uiLocale,
             modelInput: getSession?.()?.model?.input,
-          })}`,
+          })}`
+          + "\n\nWhen a task needs more than one concrete step, publish a concise plan with milksu_progress and keep the in-progress step updated. Skip the tool for trivial one-shot replies.",
       };
     });
   };
@@ -641,6 +642,22 @@ function formatToolInput(toolName, args) {
     return [args.action, args.id].map(value => String(value ?? "").trim())
       .filter(Boolean)
       .join(" · ");
+  }
+  if (toolName === "milksu_progress") {
+    // Same checklist shape as the tool result so the UI can project a live plan
+    // before the call settles.
+    const summary = String(args.summary ?? "").trim();
+    const steps = Array.isArray(args.steps) ? args.steps : [];
+    const lines = steps.map((step) => {
+      const status = step?.status === "completed"
+        ? "x"
+        : step?.status === "in_progress"
+          ? ">"
+          : " ";
+      const text = String(step?.text ?? "").trim();
+      return text ? `[${status}] ${text}` : "";
+    }).filter(Boolean);
+    return [summary, ...lines].filter(Boolean).join("\n");
   }
   const path = typeof args.path === "string" ? args.path : "";
   if (toolName === "read") {

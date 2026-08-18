@@ -91,18 +91,20 @@ describe('ChatPage routing contract', () => {
     expect(chatPageSource).not.toContain('相关历史')
   })
 
-  it('projects real tool steps, context usage and run timing on the right rail and composer', () => {
-    expect(chatPageSource).toContain("from '@/components-vue/AgentTaskSteps.vue'")
-    expect(chatPageSource).toContain('<AgentTaskSteps')
+  it('projects milksu_progress plans, token usage and run timing on the right rail and composer', () => {
+    expect(chatPageSource).toContain("from '@/components-vue/AgentExecutionPlan.vue'")
+    expect(chatPageSource).toContain('<AgentExecutionPlan')
     expect(chatPageSource).toContain('turnStatus?: SessionTurnSnapshot')
-    expect(chatPageSource).toContain(':context-strip=')
+    expect(chatPageSource).toContain(':context-strip="composerContextStrip"')
     expect(chatPageSource).toContain(':run-elapsed-label=')
-    expect(chatPageSource).toContain('data-testid="agent-context-usage"')
     expect(chatPageSource).toContain('data-testid="agent-token-io"')
     expect(chatPageSource).toContain('data-testid="agent-run-elapsed"')
-    // Decorative Mission phases stay on empty CTF/CVE canvas only — live steps
-    // come from real tool activity via AgentTaskSteps.
+    expect(chatPageSource).toContain('Token 等待本轮用量')
+    // Decorative Mission phases stay on empty CTF/CVE canvas only. Live plans
+    // come from milksu_progress; when the model has not published one, the rail
+    // stays empty instead of inventing fake phases or tool-call lists.
     expect(chatPageSource).toContain('MissionOperationPanel')
+    expect(chatPageSource).not.toContain('AgentTaskSteps')
   })
 
   it('owns Goal interaction in the composer instead of the environment sidebar', () => {

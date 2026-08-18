@@ -1867,7 +1867,10 @@ func (a *App) emitEngineEvent(event engine.Event) {
 	} else if usageChanged && a.ctx != nil {
 		a.emitDesktopEvent("model-usage-changed", struct{}{})
 	}
-	if event.Type != "usage.recorded" && a.ctx != nil {
+	// Forward usage.recorded to the desktop too: Coding UI needs the last call's
+	// token counts for the composer strip / Agent rail. CTF Agent recording below
+	// still skips usage rows (accounting only).
+	if a.ctx != nil {
 		a.emitDesktopEvent("engine-event", event)
 	}
 	if event.Type != "usage.recorded" && a.ctfAgent != nil {
