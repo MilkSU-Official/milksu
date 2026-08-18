@@ -1929,7 +1929,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
 </template>
 
 <style scoped>
-.settings-nav-surface { border-color: color-mix(in srgb, var(--border-hairline) 72%, transparent); background-color: rgb(17 18 15 / .68); background-image: var(--tactical-carbon-image); background-size: 640px 640px; box-shadow: inset -1px 0 0 rgb(255 255 255 / .025); }
+.settings-nav-surface { border-color: color-mix(in srgb, var(--border-hairline) 72%, transparent); background-color: rgb(17 18 15 / .68); box-shadow: inset -1px 0 0 rgb(255 255 255 / .025); }
 .settings-nav-item { position: relative; display: flex; min-height: 3rem; width: 100%; align-items: center; border: 0; background: transparent; padding: 0 1rem; color: var(--muted-foreground); text-align: left; cursor: pointer; }
 .settings-nav-item:hover { color: var(--foreground); background: var(--overlay-hover-light); }
 .settings-nav-item.active { color: var(--brand); background: var(--focus-panel); }

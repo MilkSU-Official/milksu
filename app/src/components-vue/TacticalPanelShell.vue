@@ -94,8 +94,6 @@ function startResize(event: PointerEvent) {
   isolation: isolate;
   border-left: 1px solid var(--night-border);
   background-color: var(--tactical-ink-2);
-  background-image: var(--tactical-carbon-image);
-  background-size: 640px 640px;
   color: var(--night-foreground);
   box-shadow: -18px 0 38px rgb(0 0 0 / .16);
 }

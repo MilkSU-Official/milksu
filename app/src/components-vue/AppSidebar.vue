@@ -60,7 +60,7 @@ const showCodingHistory = computed(() => (
     <section
       v-if="showCodingHistory"
       id="coding-context-sidebar"
-      class="coding-history-panel app-no-drag flex h-full min-h-0 w-[16.5rem] shrink-0 flex-col border-r border-[var(--night-border)] bg-[var(--tactical-ink)]"
+      class="coding-history-panel app-no-drag flex h-full min-h-0 w-[16.5rem] shrink-0 flex-col"
       aria-label="Coding 会话"
       data-testid="coding-context-drawer"
     >
@@ -83,15 +83,12 @@ const showCodingHistory = computed(() => (
 
 <style scoped>
 .workspace-navigation-shell {
-  --workspace-rail-width: 12rem;
-  /* Single edge against the main canvas; history panel has its own right border. */
+  --workspace-rail-width: 4.75rem;
   border-right: 1px solid var(--night-border);
+  background: var(--ak-surface-canvas, #111315);
 }
 .coding-history-panel {
   min-height: 0;
-  /* History sits between icon rail and chat; keep a hairline on the rail side. */
-  border-left: 1px solid color-mix(in srgb, var(--night-border) 80%, transparent);
-  background-image: var(--tactical-carbon-image);
-  background-size: 640px 640px;
+  background: transparent;
 }
 </style>

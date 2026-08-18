@@ -303,8 +303,6 @@ body {
 
 .game-shell {
   background-color: var(--tactical-ink);
-  background-image: var(--tactical-carbon-image);
-  background-size: 640px 640px;
 }
 
 .tactical-page,
@@ -312,8 +310,6 @@ body {
 .settings-page,
 .profile-page {
   background-color: var(--background);
-  background-image: var(--tactical-carbon-image);
-  background-size: 640px 640px;
 }
 
 :root[data-theme='light'] .tactical-page,
@@ -321,7 +317,6 @@ body {
 :root[data-theme='light'] .settings-page,
 :root[data-theme='light'] .profile-page {
   background-color: var(--background);
-  background-image: var(--tactical-paper-image);
 }
 
 .game-surface {
@@ -500,8 +495,6 @@ body {
   --surface-raised: var(--night-popover);
   --surface-sunken: var(--night-sunken);
   background-color: var(--tactical-ink-2) !important;
-  background-image: var(--tactical-carbon-image) !important;
-  background-size: 640px 640px !important;
   box-shadow: 0 22px 70px rgb(0 0 0 / .28), inset 0 1px 0 rgb(255 255 255 / .035);
 }
 
@@ -649,8 +642,6 @@ pre,
   position: relative;
   border: 1px solid var(--night-border);
   background-color: var(--tactical-ink-2);
-  background-image: var(--tactical-carbon-image);
-  background-size: 640px 640px;
   box-shadow: inset 0 1px 0 rgb(255 255 255 / .04);
 }
 
@@ -662,8 +653,6 @@ pre,
   --border: #aba9a1;
   border: 1px solid #aba9a1;
   background-color: var(--tactical-paper);
-  background-image: var(--tactical-paper-image);
-  background-size: 640px 640px;
 }
 
 /* Stacked paper layers retired: keep class for markup compatibility. */

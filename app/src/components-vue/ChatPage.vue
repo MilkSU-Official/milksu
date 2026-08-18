@@ -2753,8 +2753,6 @@ watch(
 
 .coding-browser-panel {
   background-color: var(--tactical-ink-2);
-  background-image: var(--tactical-carbon-image);
-  background-size: 640px 640px;
 }
 
 .coding-action-option {

@@ -95,13 +95,13 @@ function openSettings() {
 
 <template>
   <div
-    class="app-drag workspace-rail relative flex w-[12rem] shrink-0 flex-col"
+    class="app-drag workspace-rail relative flex w-[4.75rem] shrink-0 flex-col"
     :class="{ 'workspace-rail--collapsed': collapsed !== false }"
     data-shell-traffic-safe
   >
     <div
       ref="menuRoot"
-      class="workspace-rail-traffic-safe relative px-2"
+      class="workspace-rail-traffic-safe relative flex items-end justify-center px-1"
       @keydown.esc="menuOpen = false"
     >
       <button
@@ -111,20 +111,24 @@ function openSettings() {
         :aria-expanded="menuOpen"
         @click.stop="menuOpen = !menuOpen"
       >
-        <img
-          :src="avatarSource"
-          alt="用户头像"
-          class="workspace-rail-profile__mark"
-        >
-        <span class="workspace-rail-profile__copy">
-          <strong>{{ accountStatus.user?.displayName || accountStatus.user?.githubLogin || 'MilkSU' }}</strong>
-          <small>{{ isBetaChannel ? 'BETA' : '本机' }}</small>
+        <span class="relative">
+          <img
+            :src="avatarSource"
+            alt="用户头像"
+            class="workspace-rail-profile__mark"
+          >
+          <span
+            v-if="isBetaChannel"
+            class="pointer-events-none absolute -right-2 -top-2 bg-indigo-600 px-1 py-0.5 text-[9px] font-semibold leading-none tracking-wide text-white"
+            aria-label="Beta 渠道"
+            data-testid="beta-channel-badge"
+          >BETA</span>
         </span>
       </button>
 
       <section
         v-if="menuOpen"
-        class="app-no-drag absolute left-[12.25rem] top-10 z-50 w-52 overflow-hidden border border-border bg-popover p-1.5 text-popover-foreground shadow-xl"
+        class="app-no-drag absolute left-[4.6rem] top-10 z-50 w-52 overflow-hidden border border-border bg-popover p-1.5 text-popover-foreground shadow-xl"
         aria-label="用户菜单"
       >
         <button class="user-menu-item" @click="openProfile"><UserRound class="size-4" />个人资料</button>
@@ -140,16 +144,16 @@ function openSettings() {
         v-for="item in WORKSPACE_RAIL_ITEMS"
         :key="item.id"
         type="button"
-        class="ak-command workspace-rail-item"
-        :class="activeSection === item.id ? 'ak-command--cyan' : 'ak-command--dark'"
+        class="workspace-rail-item"
+        :class="{ 'is-current': activeSection === item.id }"
         :aria-label="item.label"
         :aria-current="activeSection === item.id ? 'page' : undefined"
         :title="item.label"
         :data-ui-selected="activeSection === item.id ? '' : undefined"
         @click="navigate(item.id)"
       >
-        <component :is="icons[item.id]" class="ak-command__watermark size-8" />
-        <strong class="ak-command__label">{{ item.label }}</strong>
+        <component :is="icons[item.id]" class="size-4" />
+        <span>{{ item.label }}</span>
       </button>
     </nav>
 
@@ -158,7 +162,7 @@ function openSettings() {
     <div class="app-no-drag workspace-rail-foot">
       <button
         type="button"
-        class="workspace-rail-control"
+        class="workspace-rail-item"
         :aria-label="themeToggleLabel"
         :title="themeToggleLabel"
         @click="emit('toggleTheme')"
@@ -169,22 +173,22 @@ function openSettings() {
 
       <button
         type="button"
-        class="ak-command workspace-rail-item"
-        :class="activeSection === 'settings' ? 'ak-command--paper' : 'ak-command--dark'"
+        class="workspace-rail-item"
+        :class="{ 'is-current': activeSection === 'settings' }"
         aria-label="设置"
         title="设置"
         :data-ui-selected="activeSection === 'settings' ? '' : undefined"
         @click="openSettings"
       >
-        <Settings class="ak-command__watermark size-8" />
-        <strong class="ak-command__label">设置</strong>
+        <Settings class="size-4" />
+        <span>设置</span>
       </button>
     </div>
   </div>
 </template>
 
 <style scoped>
-.workspace-rail-traffic-safe { box-sizing: border-box; min-height: 5.75rem; padding-top: 2.1rem; padding-bottom: .65rem; }
+.workspace-rail-traffic-safe { box-sizing: border-box; min-height: 5.75rem; padding-top: 2.1rem; padding-bottom: .45rem; }
 .workspace-rail {
   color: var(--night-foreground);
   --foreground: var(--night-foreground);
@@ -200,75 +204,52 @@ function openSettings() {
   --secondary-foreground: var(--night-foreground);
   --accent: var(--night-accent);
   --accent-foreground: var(--night-foreground);
-  padding: 0 .7rem .85rem;
   background: var(--ak-surface-canvas, #111315);
 }
 .workspace-rail-profile {
   display: grid;
-  width: 100%;
-  min-height: 3.4rem;
-  padding: .35rem .45rem;
+  width: 2.75rem;
+  height: 2.75rem;
   border: 0;
-  align-items: center;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: .65rem;
-  color: var(--foreground);
+  place-items: center;
   background: transparent;
-  text-align: left;
   cursor: pointer;
 }
 .workspace-rail-profile__mark {
-  width: 2.15rem;
-  height: 2.15rem;
-  border: 1px solid rgba(248, 248, 245, .35);
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid rgba(248, 248, 245, .28);
   background: #fff;
   object-fit: cover;
 }
-.workspace-rail-profile__copy { display: grid; min-width: 0; }
-.workspace-rail-profile__copy strong {
-  overflow: hidden;
-  font-family: "Noto Serif SC", serif;
-  font-size: 1rem;
-  font-weight: 900;
-  letter-spacing: -.04em;
-  line-height: 1.1;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.workspace-rail-profile__copy small {
-  color: var(--muted-foreground);
-  font-family: var(--ak-font-mono, ui-monospace, monospace);
-  font-size: .62rem;
-  font-weight: 700;
-  letter-spacing: .1em;
-  text-transform: uppercase;
-}
 .workspace-rail-nav,
-.workspace-rail-foot { display: grid; gap: .55rem; }
-.workspace-rail-nav { padding-top: .35rem; }
+.workspace-rail-foot { display: grid; gap: .15rem; padding: 0 .35rem .35rem; }
 .workspace-rail-item {
+  display: grid;
   width: 100%;
-  min-height: 4.35rem;
+  min-height: 3.15rem;
+  padding: .4rem .15rem;
+  border: 0;
+  place-items: center;
+  gap: .2rem;
+  color: var(--muted-foreground);
+  background: transparent;
+  cursor: pointer;
   font-size: var(--text-body);
   line-height: var(--text-body--line-height);
   letter-spacing: var(--text-body--letter-spacing);
 }
-.workspace-rail-item :deep(.ak-command__label) { font-size: 1.35rem; }
-.workspace-rail-item, .workspace-rail-control { --border-hairline: transparent; --selected-border: transparent; }
-.workspace-rail-control {
-  display: flex;
-  min-height: 2.4rem;
-  padding: 0 .55rem;
-  border: 0;
-  align-items: center;
-  gap: .5rem;
-  color: var(--muted-foreground);
-  background: transparent;
-  cursor: pointer;
-  font-size: var(--text-body);
+.workspace-rail-item span {
+  font-size: 10px;
+  line-height: 1.15;
 }
-.workspace-rail-control:hover,
-.workspace-rail-control:focus-visible { color: var(--foreground); }
+.workspace-rail-item.is-current {
+  color: #111315;
+  background: var(--brand);
+}
+.workspace-rail-item:not(.is-current):hover,
+.workspace-rail-item:not(.is-current):focus-visible { color: var(--foreground); background: var(--overlay-hover); }
+.workspace-rail-item, .workspace-rail-control { --border-hairline: transparent; --selected-border: transparent; }
 .user-menu-item { display: flex; width: 100%; align-items: center; gap: .65rem; border: 0; border-radius: 0; background: transparent; padding: .65rem .7rem; color: var(--foreground); font-size: var(--text-body); cursor: pointer; }
 .user-menu-item:hover:not(:disabled), .user-menu-item:focus-visible { background: var(--muted); outline: 0; }
 .user-menu-item:disabled { cursor: default; opacity: .55; }
