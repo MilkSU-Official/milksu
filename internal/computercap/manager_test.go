@@ -512,10 +512,11 @@ func TestFilterValidTargetsExcludesWindowsHostByElectronPID(t *testing.T) {
 	}
 }
 
-func TestFilterValidTargetsExcludesUserBrowsersFromComputerUse(t *testing.T) {
+func TestFilterValidTargetsKeepsUserBrowsersForComputerUse(t *testing.T) {
 	targets := []Target{
 		{Name: "Google Chrome", BundleID: "com.google.Chrome", PID: 101, WindowID: 1},
 		{Name: "Safari", BundleID: "com.apple.Safari.WebApp", PID: 102, WindowID: 2},
+		{Name: "MilkSU", BundleID: "com.milksu.app", PID: 100, WindowID: 9},
 		{Name: "MilkSU Beta", BundleID: "com.milksu.app.beta", PID: 103, WindowID: 3},
 		{Name: "Preview", BundleID: "com.apple.Preview", PID: 104, WindowID: 4},
 		{Name: "chrome", BundleID: "win32.chrome", PID: 105, WindowID: 5},
@@ -531,11 +532,23 @@ func TestFilterValidTargetsExcludesUserBrowsersFromComputerUse(t *testing.T) {
 	}
 
 	filtered := filterValidTargets(targets, "com.milksu.app", 100)
-	if len(filtered) != 3 ||
-		filtered[0].Name != "MilkSU Beta" ||
-		filtered[1].Name != "Preview" ||
-		filtered[2].Name != "Notepad" {
-		t.Fatalf("Computer Use target list retained a browser: %#v", filtered)
+	if len(filtered) != 8 {
+		t.Fatalf("Computer Use target list dropped a visible window: %#v", filtered)
+	}
+	for _, target := range filtered {
+		if target.PID == 100 || target.BundleID == "com.milksu.app" {
+			t.Fatalf("Computer Use target list retained the host window: %#v", target)
+		}
+	}
+	if filtered[0].Name != "Google Chrome" ||
+		filtered[1].Name != "Safari" ||
+		filtered[2].Name != "MilkSU Beta" ||
+		filtered[3].Name != "Preview" ||
+		filtered[4].Name != "chrome" ||
+		filtered[5].Name != "msedge" ||
+		filtered[6].Name != "Notepad" ||
+		filtered[7].Name != "Helper" {
+		t.Fatalf("Computer Use target list lost a browser or app window: %#v", filtered)
 	}
 }
 
@@ -612,7 +625,7 @@ func TestSessionManifestDeniesDesktopAndUnreviewedTools(t *testing.T) {
 	}
 }
 
-func TestWindowsStartRejectsBrowserTargets(t *testing.T) {
+func TestWindowsStartAcceptsBrowserTargets(t *testing.T) {
 	executable, err := filepath.Abs(os.Args[0])
 	if err != nil {
 		t.Fatal(err)
@@ -642,14 +655,21 @@ func TestWindowsStartRejectsBrowserTargets(t *testing.T) {
 	})
 	defer manager.Close()
 
-	if _, err := manager.Start(
+	status, err := manager.Start(
 		context.Background(),
 		"conversation-browser",
 		TargetSelection{PID: browser.PID, WindowID: browser.WindowID},
-	); err == nil {
-		t.Fatal("Windows Computer Use accepted a browser window")
+	)
+	if err != nil {
+		t.Fatal(err)
 	}
-	status, err := manager.Start(
+	if !status.Enabled || status.Target.BundleID != "win32.chrome" {
+		t.Fatalf("Windows Computer Use did not start on Chrome: %#v", status)
+	}
+	if _, err := manager.Stop("conversation-browser"); err != nil {
+		t.Fatal(err)
+	}
+	status, err = manager.Start(
 		context.Background(),
 		"conversation-notepad",
 		TargetSelection{PID: notepad.PID, WindowID: notepad.WindowID},

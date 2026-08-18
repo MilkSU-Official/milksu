@@ -5,7 +5,6 @@ import {
   describeActiveComputerUseCapability,
   describePendingComputerUseCapability,
   isSelfComputerUseTarget,
-  isUserBrowserTarget,
   nextComputerUseTargetKey,
   normalizeCodingApprovalPolicy,
   normalizeCodingExecutionMode,
@@ -286,15 +285,5 @@ describe('Coding policy presentation', () => {
     const betaHost = { hostBundleId: 'com.milksu.app.beta', hostPid: 2222 }
     expect(isSelfComputerUseTarget(beta, betaHost)).toBe(true)
     expect(isSelfComputerUseTarget(stableSelf, betaHost)).toBe(false)
-  })
-
-  it('separates browser windows from external App scopes without substring guesses', () => {
-    expect(isUserBrowserTarget({ name: 'Google Chrome', bundleId: 'com.google.Chrome' })).toBe(true)
-    expect(isUserBrowserTarget({ name: 'Arc', bundleId: 'company.thebrowser.Browser' })).toBe(true)
-    expect(isUserBrowserTarget({ name: 'Archive Utility', bundleId: 'com.apple.archiveutility' })).toBe(false)
-    expect(isUserBrowserTarget({ name: 'Chromium Notes', bundleId: 'com.example.notes' })).toBe(false)
-    expect(isUserBrowserTarget({ name: 'chrome', bundleId: 'win32.chrome' })).toBe(true)
-    expect(isUserBrowserTarget({ name: 'msedge', bundleId: 'win32.msedge' })).toBe(true)
-    expect(isUserBrowserTarget({ name: 'Notepad', bundleId: 'win32.notepad' })).toBe(false)
   })
 })

@@ -183,53 +183,6 @@ export function computerUseTargetKey(target: Pick<CodingComputerUseTarget, 'pid'
   return `${target.pid}:${target.windowId}`
 }
 
-const browserBundleIDs = [
-  'com.apple.safari',
-  'com.brave.browser',
-  'com.google.chrome',
-  'com.microsoft.edgemac',
-  'com.operasoftware.opera',
-  'com.vivaldi.vivaldi',
-  'company.thebrowser.browser',
-  'org.chromium.chromium',
-  'org.mozilla.firefox',
-  'win32.chrome',
-  'win32.msedge',
-  'win32.msedgewebview2',
-  'win32.iexplore',
-  'win32.brave',
-  'win32.firefox',
-  'win32.opera',
-  'win32.vivaldi',
-  'win32.chromium',
-]
-const browserNames = new Set([
-  'arc',
-  'brave browser',
-  'chromium',
-  'firefox',
-  'google chrome',
-  'microsoft edge',
-  'opera',
-  'safari',
-  'vivaldi',
-  'chrome',
-  'msedge',
-  'msedgewebview2',
-  'iexplore',
-  'brave',
-])
-
-export function isUserBrowserTarget(
-  target: Pick<CodingComputerUseTarget, 'name' | 'bundleId'>,
-): boolean {
-  const bundleID = target.bundleId.trim().toLocaleLowerCase()
-  const name = target.name.trim().toLocaleLowerCase()
-  return browserBundleIDs.some(candidate => (
-    bundleID === candidate || bundleID.startsWith(`${candidate}.`)
-  )) || browserNames.has(name)
-}
-
 export function selectedComputerUseTarget(
   targets: CodingComputerUseTarget[],
   selectedKey: string,

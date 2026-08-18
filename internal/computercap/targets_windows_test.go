@@ -5,13 +5,12 @@ package computercap
 import (
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
 
-func TestWindowsPlatformTargetsListNotepadAndExcludeBrowsers(t *testing.T) {
+func TestWindowsPlatformTargetsListNotepadAndExcludeHost(t *testing.T) {
 	notepad := exec.Command("notepad.exe")
 	if err := notepad.Start(); err != nil {
 		t.Fatalf("start notepad: %v", err)
@@ -41,15 +40,8 @@ func TestWindowsPlatformTargetsListNotepadAndExcludeBrowsers(t *testing.T) {
 	}
 
 	for _, target := range listed {
-		if isUserBrowserTarget(target) {
-			t.Fatalf("Windows Computer Use listed a browser window: %#v", target)
-		}
 		if target.PID == os.Getpid() {
 			t.Fatalf("Windows Computer Use listed the host process: %#v", target)
-		}
-		if strings.EqualFold(filepath.Base(target.executablePath), "chrome.exe") ||
-			strings.EqualFold(filepath.Base(target.executablePath), "msedge.exe") {
-			t.Fatalf("Windows Computer Use listed a browser executable: %#v", target)
 		}
 	}
 }
