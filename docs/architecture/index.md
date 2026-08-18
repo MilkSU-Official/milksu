@@ -2,9 +2,10 @@
 
 > 文档状态：Current
 >
-> 审阅日期：2026-08-10
+> 审阅日期：2026-08-18
 >
-> 范围：Post-M3 / M4 的当前 `main`。实现进度和任务以
+> 范围：当前 `main`。正式发行基线是 `v26.817.3`；开发版本线是 `26.818.1`。
+> 实现进度、已发行与未发版分界以
 > [当前开发目标](/developer/current-objectives)、当前代码、测试和真实验收为准。
 
 这组文档用于回答当前实现与未来解冻设计：
@@ -51,29 +52,28 @@ Checkpoint 由 Git 历史与自动化重新生成，不再长期占用文档入�
 
 - CTF 的产品内核已经成立：模型候选与权威 Judge 分离，事实进入追加式 Event Store，
   PI 轨迹和候选可以回流，用户复盘后才允许沉淀长期训练记忆。
-- M3 product-loop 已证明多条打包 App 纵切可用，包括 Session Index、Artifact Preview、
-  Computer Use 外部 App、后台任务恢复、CVE 多源同步/练习/写回和私有 PR 交付确认。当前最大
-  产品风险不再是底层完全缺失，而是真实外部 Provider 质量、长期主工作区自举、六赛道 CTF、
-  Memory 校准和发行门禁尚未形成完整矩阵。架构热点继续登记，但不启动独立清债冲刺。
+- M3 product-loop 已证明多条打包 App 纵切可用。当前最大产品风险不再是底层完全缺失，而是
+  真实外部 Provider 质量、长期主工作区自举、六赛道 CTF、Memory 校准和发行门禁尚未形成
+  完整矩阵。架构热点继续登记，但不启动独立清债冲刺。
 - 普通 Coding 会话已经在代码层接入固定版本 Archify、PI LSP、Goal、后台任务、MCP
   Adapter 和 Playwright MCP；Coding 核心的 Plan → Go、多轮修改、真实打包命令执行与
-  独立复验已经 **Verified**。Archify 一键动作和隔离 Coding Browser 已在原生包完成
-  真实验收；TypeScript/Vue/Go LSP 已随包并在原生 fixture 返回确定性诊断，
-  `lsp_fix` 已完成预览、精确 Diff、批准/自动应用与写后哈希复核；Artifact 预览、
-  ImageGen、Computer Use、PR、Session Index 和 worktree 也已有不同程度的工程主链或真实
-  打包验收。真实外部 Provider/更广系统权限矩阵和最终长期自举 Gate 仍未完成，不能把这些
-  写成整体替代成功。
+  独立复验已经 **Verified**。隔离 Coding Browser 已在 `26.817.x` 打包任务验收；开发版本线
+  上浏览器自动就绪且多标签独立，并增加 `milksu_workspace` 与 85% Pi 压缩。Artifact 预览、
+  ImageGen、Computer Use、PR 和 worktree 也已有不同程度的工程主链或真实打包验收。
+  Session Index 底层仍在，单会话相关历史/图谱前端已删除。真实外部 Provider/更广系统权限
+  矩阵和最终长期自举 Gate 仍未完成。
 - 桌面主壳已迁到 Electron/Chromium：Vue 运行在主 `BrowserWindow`，Go 作为受管本地 Runtime
   通过 JSONL RPC 提供应用服务；右栏“浏览器”是会话隔离的 `WebContentsView`，用户和 Agent
-  操作同一页面。旧 Wails/CEF 生产链已删除。打包 App + Grok 已真实只用浏览器工具读取页面。
+  操作同一当前 Target。旧 Wails/CEF 生产链已删除。
 - “浏览器”、Browser Use 与 Computer Use 是桌面 GUI 的三种独立执行表面：分别对应 MilkSU
   管理页面、用户授权的真实标签页和用户授权的外部 App/Window。它们共享可见 Scope、可接管和
   显式停止语义，但不共享 Profile 或权限；面板折叠不等于终止 Session。
 - Coding Composer 的“+”已经收敛为统一能力入口：附件、Goal、Plan、浏览器、
   Browser/Computer Scope、已审核 Pi Skills 与项目 MCP。选择 Scope/Skill 不直接发送，Skill
   复用 Pi 原生 `/skill:name`；未选择 Plan 时默认是 Go，不再维护 `/go` 或常驻 Plan/Go 下拉。
-- IDA Pro/idalib、Burp、radare2、Ghidra 与 Semgrep 仍是安全 MCP 试点候选，不是已打包资源。
-  它们必须先在 Coding 通过固定版本、最小权限、真实任务与拒绝路径，再决定是否进入 CTF/CVE。
+- IDA Pro/idalib 与 capa 已有设置、准备和健康检查，就绪且启用后进入普通 Coding 可选目录。
+  CodeQL、Burp、Shannon 仍只做检测。它们必须先在 Coding 通过真实任务与拒绝路径，再决定
+  是否进入 CTF/CVE。
 - Managed Labs 当前暂停，生产代码、桌面 RPC 入口和打包资源已移除；长期设计不能进入当前产品声明。
 - NYU CTF Bench 的只读元数据、Admission、DeepSeek one-shot Runner、两回合 Pi 只读
   Agent Runtime 和摘要 Judge 是 **Implemented / Verified for the narrow baseline**。

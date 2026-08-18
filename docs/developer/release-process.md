@@ -38,7 +38,7 @@ npm run docs:build
 
 ```bash
 npm run release:dispatch -- \
-  --release-title "MilkSU 26.817.2 内测版" \
+  --release-title "MilkSU 26.817.3 内测版" \
   --release-notes "本次内测说明"
 ```
 
@@ -47,7 +47,7 @@ workflow（避免 GitHub-hosted macOS 分钟费）。macOS 正式签名包在本
 
 ```bash
 npm run release:mac:local -- \
-  --release-title "MilkSU 26.817.2 内测版" \
+  --release-title "MilkSU 26.817.3 内测版" \
   --release-notes "本次内测说明"
 ```
 
@@ -80,7 +80,7 @@ gh run download <windows-run-id> -D build/release/github/windows -n MilkSU-Windo
 gh run download <linux-run-id> -D build/release/github/linux -n MilkSU-Linux-x64-deb-trial
 
 npm run release:github -- \
-  --release-title "MilkSU 26.817.2 内测版" \
+  --release-title "MilkSU 26.817.3 内测版" \
   --release-notes "本次内测说明"
 ```
 

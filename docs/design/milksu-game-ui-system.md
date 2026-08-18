@@ -93,7 +93,7 @@ MilkSU 使用一套任务型游戏界面语言：黑色指挥台承载操作与�
 | --- | --- |
 | [CTF 任务页](game-ui/qa/ctf-task-light.jpg) | 首屏只突出题面、手工状态、一个 Coding 入口；轨迹与证据默认收起 |
 | [CTF → Coding](game-ui/qa/ctf-coding-light.jpg) | 输入框只显示人类可读任务；完整结构化上下文仍交给 Agent；右栏保留来源、目标、材料与返回 |
-| [CVE 列表](game-ui/qa/cve-list-light.jpg) | 全部/收藏夹、搜索、手工状态与选中详情处于同一列表语境 |
+| [CVE 列表](../media/readme-cve.png) | 全部/收藏夹、搜索、手工状态与选中详情处于同一列表语境；旧蓝白 QA 图不再作为当前产品表面 |
 | [CVE → Coding](game-ui/qa/cve-coding-light.jpg) | 公开 CVE 摘要、研究目标与安全边界可读；不伪造自动项目状态 |
 | [个人资料](game-ui/qa/profile-light.jpg) | 圆形用户头像、真实活跃格、三个方向的模糊阶段，不显示伪精确分数 |
 | [设置夜间模式](game-ui/qa/settings-dark.jpg) | 二级导航稳定，构建追踪显示 branch、完整 commit、clean 与 tracking ID |

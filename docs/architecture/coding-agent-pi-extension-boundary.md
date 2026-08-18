@@ -2,7 +2,7 @@
 
 > 文档状态：Current engineering contract
 >
-> 事实审计：2026-08-13
+> 事实审计：2026-08-18
 >
 > Coding 核心交付、附件、统一 Composer 能力入口、PTY、后台任务、Git、Archify、隔离 Browser 和 LSP 已有真实或
 > 专项证据；Artifact Preview、Project MCP、Computer Use 外部 App slice、PR 发布确认、
@@ -81,13 +81,15 @@ flowchart LR
 | Pi Goal | 是；与桌面目标状态并存 | **否**；CTF 使用自己的进度与 Judge 语义 | 固定 Coding Extension |
 | 项目终端 / 后台任务 | 是；用户直接操作的多会话 PTY 由 Go Host 承担，后台任务复用固定 Pi Extension；两者按 Conversation 隔离，展示生命周期、输出和停止动作 | **否** | `creack/pty + xterm.js` Host Adapter；固定 Coding Extension + MilkSU 状态投影 |
 | 项目 MCP | 用户从 Composer “+”打开现有项目 MCP 管理面，再从 `.mcp.json` 明确选择；调用遵循当前权限档位，不能由 Agent 安装或扩大工具面 | **否** | 固定 Coding Extension + MilkSU Sandbox |
-| 浏览器 | 用户从右侧浏览器页或 Composer “+”显式打开会话隔离的内置 Chromium；用户与 Agent 共用同一 `WebContentsView`，工具调用遵循当前权限档位并保留页面、Console、Network 和截图证据 | **否** | Electron Browser Host + Scoped CDP Proxy + 固定 Playwright MCP |
+| 浏览器 | 普通 Coding Go 或打开右栏即自动拉起会话隔离的内置 Chromium；每个标签是独立 `WebContentsView`。用户与 Agent 共用当前 Target，工具调用遵循当前权限档位并保留页面、Console、Network 和截图证据。不扫描用户句子决定是否打开浏览器 | **否** | Electron Browser Host + Scoped CDP Proxy + 固定 Playwright MCP |
+| `milksu_workspace` | 类型化产品 UI 工具：列出/聚焦/关闭内置浏览器标签，列出/预览产物，打开环境、变更、终端和后台任务。不改设置、凭据、审批档，不附着用户 Chrome | **否**；CTF/CVE 工作台 UX 后置 | MilkSU first-party Extension + Desktop RPC |
+| 上下文压缩 | Pi 拥有 Compaction。用量达到窗口约 85% 且 Session 空闲时走与 `/compact` 相同的路径；`compact_context` 只在达到阈值时调度 | 复用同一 Pi 压缩，不另建摘要器 | Pi Session compact；MilkSU 只投影用量并在空闲点调度 |
 | Browser Use | 用户把可删除 Scope 加入本轮输入后，固定 Playwright extension mode 才能进入真实浏览器标签页配对路径；不复用沙箱 profile | **否** | 固定 Playwright MCP + 用户标签页授权 |
 | Artifact Preview | 工作区内 Markdown、HTML 和图片；HTML 使用隔离、CSP、禁网和大小限制 | **否** | Go Preview Policy + Vue right page |
 | ImageGen | 文生图和参考图编辑；用户明确发起付费动作，输出限制在项目资产范围并可预览 | **否** | 受控 Provider Adapter |
 | Computer Use | 用户选择当前可见的非浏览器 App / PID / Window 并锁定不可变 Scope；调用遵循当前权限档位，`workspace-auto` 不会隐式启用或扩大 Scope | **否** | Go Host + Computer Use Adapter |
 | PR / worktree | PR 发布前展示仓库、分支、提交和目标；写入 Agent 使用独立 worktree | **否** | Go Git/Platform Adapter |
-| 相关历史 | MilkSU 自有 Session Index 的列表与瞬态关系图；同条件过滤、来源会话回跳、明确点击后引用，不自动注入当前模型上下文 | **否** | Go Projection + Vue / G6；不属于 Pi Memory |
+| 相关历史 | 底层 Session Index 仍索引本机会话；单会话相关历史、过滤、搜索和图谱前端已删除，不再作为产品表面 | **否** | Go 索引保留；UI 后置 |
 | 文件 / 图片附件 | 是；复制到用户数据目录，纯文本模型可走本地 OCR 或已配置视觉模型 | 使用 CTF Material 管线，不复用 Coding 附件上下文 | MilkSU 附件桥 + 本地 OCR |
 | CTF 类型化工具 | 否 | 按 Role、Scope 和协作模式 | MilkSU CTF Harness |
 | 平台提交 | 否 | Agent 不能直接提交，只能写候选 | MilkSU Judge Gate |
@@ -122,7 +124,7 @@ JSONL Sidecar 传递。`sidecar/pi/bridge-policy.js` 每回合重新计算 allow
 | `Plan` | 任意 | `read/grep/find/ls/milksu_progress/lsp_diagnostics`；明确移除 `bash/edit/write/lsp_fix`。 |
 | `Go` | `Read-only` | 与 Plan 相同，只允许分析和诊断。 |
 | `Go` | `Ask` | 读取类工具直接执行；`bash/edit/write`、后台任务及项目 MCP 等有副作用调用会暂停，等待桌面单次批准或拒绝；`lsp_fix` 在暂停前先计算并展示完整统一 Diff。 |
-| `Go` | `替我审批`（存储值 `workspace-auto`） | 已启用的普通文件、命令、Browser、Computer Use、只读 MCP 和合规委托自动执行；文件与 Shell 使用 Pi 内置工具和当前系统用户权限。 |
+| `Go` | `替我审批`（存储值 `workspace-auto`） | 已启用的普通文件、命令、隔离浏览器（`milksu-playwright`）、Computer Use、只读 MCP 和合规委托自动执行；文件与 Shell 使用 Pi 内置工具和当前系统用户权限。请求批准档对可授权调用可给“本对话始终允许”；ImageGen、外部账户授权和破坏性删除仍每次确认。 |
 | `Go` | `完全访问`（存储值 `full-auto`） | 用户显式选择后，已启用能力自动执行；Provider Key、禁止工具、付费/发布/扩 Scope 和不可逆外部动作等硬边界不随档位消失。 |
 
 旧 Conversation 没有字段时使用已有的 `Go + workspace-auto` 语义，保持 Coding Agent
@@ -133,12 +135,11 @@ MilkSU 继续隔离 Provider 凭据，并在递归删除 Home、当前 cwd 或�
 
 MilkSU 已在 Sidecar 与桌面之间实现 Approval Broker：需要审批的工具调用带上稳定请求
 ID 暂停，桌面明确显示目标、参数和风险，并把一次性批准或拒绝结果送回原调用。
-项目 MCP、浏览器、Browser Use、Computer Use 和 ImageGen 都需要先显式启用相应能力面，不会因
+项目 MCP、Browser Use、Computer Use 和 ImageGen 都需要先显式启用相应能力面，不会因
 权限档位静默安装、登录账户或扩大 Scope；启用后的普通调用遵循当前权限档位，避免在“替我
-审批”和“完全访问”中制造无意义的逐次确认。浏览器只能由用户从右侧页面或 Composer “+”显式
-打开，使用 Conversation 隔离 Profile；Electron Host 只经 Go Runtime 向当前 Pi Session 注入
+审批”和“完全访问”中制造无意义的逐次确认。内置浏览器在普通 Coding Go 或用户打开右栏时自动就绪，使用 Conversation 隔离 Profile，不再要求设置页或额外批准；Electron Host 只经 Go Runtime 向当前 Pi Session 注入
 瞬态、限定单一 Target 的 loopback 描述符，
-不把 CDP 地址写进前端、SQLite 或项目配置。Browser Use 另走固定 Playwright extension mode 和
+不把 CDP 地址写进前端、SQLite 或项目配置。模型通过 `milksu_workspace` 列出或聚焦标签，不能用 Playwright 枚举任意产品页。Browser Use 另走固定 Playwright extension mode 和
 用户标签页批准，不继承沙箱 profile。Computer Use 已完成外部可见 App、bundle / PID / Window
 不可变 Scope、Calculator observe/click 和纯文本模型读取工具截图的辅助视觉小纵切；Developer ID
 正式签名包已通过，更多 App、权限拒绝与该正式身份下的 TCC 扩样仍未完成。Provider API Key

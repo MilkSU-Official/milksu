@@ -123,6 +123,33 @@ New pre-release code implements the clean current model directly. Do not add mig
 fallback or compatibility branches for abandoned pre-release designs. Existing working schema cleanup is
 deferred to one destructive pre-release consolidation after the product slices are stable.
 
+## Agent Intent and Product UI Tools
+
+- Do not scan user text with keywords or regular expressions to decide which tool, tab, page or
+  approval to run. The model understands natural language. GUI one-click actions send a typed
+  product action. Isolated browser starts because Coding Go or opening the rail calls
+  `EnsureCodingBrowser`, not because the prompt contained “打开浏览器”.
+- `milksu_workspace` is a typed Coding product-UI tool. It may list, focus or close isolated
+  browser tabs, list or preview artifacts, and open environment, diff, terminal or background-task
+  surfaces. It must not change settings, credentials, approval policy, or attach to the user's
+  Chrome. CTF/CVE workspace UI operations stay paused until product UX is designed.
+- Pi owns compaction. Auto-compact uses the same path as `/compact` when input plus cache-read
+  tokens reach about 85% of `contextWindow` and the session is idle. Do not wait until the whole
+  turn finishes, and do not add a second MilkSU summarizer.
+- `workspace-auto` auto-runs isolated `milksu-playwright`. Ask cards may grant conversation-wide
+  allow for grantable tools. ImageGen, external-account authorization and destructive deletes stay
+  per-call.
+
+## Release Claims
+
+- The last receipted three-platform internal release is `v26.817.3` at `1176075`. Write both that
+  baseline and the current development version line when HEAD is later.
+- `package.json` `26.818.1` and tag `v26.818.1` are not a receipted three-platform ship. The tag
+  sits on a test-only commit. Do not describe a version bump, empty tag or local dirty package as
+  published.
+- GitHub writes stay on the authorized MilkSU private remote and still require the product's
+  meaningful publish confirmation.
+
 ## Validation and Delivery
 
 - Use the canonical repository scripts instead of inventing parallel runners.

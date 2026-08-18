@@ -2,7 +2,7 @@
 
 > 状态：Current / Living
 >
-> 最后事实审计：2026-08-17
+> 最后事实审计：2026-08-18
 >
 > 产品开发目标：内测迭代 / Agent Runtime 与跨平台发行收敛
 
@@ -23,22 +23,24 @@
 
 | 事实 | 当前状态 |
 | --- | --- |
-| 发行源 | `v26.817.3 / main@11760758926ab2a1f025cc32c2518d19afdeca35`；标签固定在三端共同 source commit，后续 workflow/文档提交不移动标签。 |
-| 三端内测发行 | GitHub prerelease 已提供签名并公证的 macOS ARM64 DMG、未签名 Windows x64 EXE 和 Linux x64 试用 DEB；三端原生 workflow 均成功，R2/Admin current pointer 未发布。 |
-| Linux | `26.817.3` DEB 已包含当前 Pi Runtime 收敛并通过原生 Ubuntu 包结构、Node/Pi、Go Runtime 与 Xvfb Electron 启动；仍不含 Secret Service、本地 OCR 或 Computer Use。 |
-| Agent Harness | Pi 拥有 Session、Compaction、自然语言理解、通用文件/Shell 与 Tool Loop。MilkSU 已删除 workspace-only 文件工具、Node 文件权限状态机、普通回合 watchdog、CTF sandbox-exec、CVE 只读启动限制与客服式回复模板。 |
-| MilkSU 宿主边界 | 只保留会话目录记录、Provider 凭据隔离、桌面授权、领域事实/Judge，以及危险大目录删除二次确认。 |
-| 模型与附件 | 账户 TokenFlux 与本机 Provider 共用模型目录；图片由当前模型原生 image input 或本地 OCR 自动路由，附件通过统一可预览/移除队列进入 Pi。 |
+| 正式发行基线 | `v26.817.3 / main@11760758926ab2a1f025cc32c2518d19afdeca35`。这是最近一次带三端 workflow 与 SHA-256 的内测包；标签固定在该 source commit，后续 workflow/文档提交不移动标签。 |
+| 已发行线 | `26.817.1` 建立账户 TokenFlux / 双来源路由与 Pi 网页查证；`26.817.2` 补齐 Linux 试用 DEB 与 Windows 启动；`26.817.3` 修 Windows 账户授权恢复与打包 Sidecar 路径，并完成真实打包 Windows 的 Pi Agent 回合。 |
+| 开发版本线 | 仓库版本为 `26.818.1`。标签 `v26.818.1` 落在测试提交 `b92fcde`，不是三端回执发行。晚于 `1176075` 的 `main` 含账户可调用目录、Coding 多标签浏览器、`milksu_workspace`、对话级批准、85% 自动压缩、CTF 本地目录视图和发行页工具。 |
+| 三端内测发行 | GitHub prerelease `v26.817.3` 已提供签名并公证的 macOS ARM64 DMG、未签名 Windows x64 EXE 和 Linux x64 试用 DEB；R2/Admin current pointer 未发布。 |
+| Linux | `26.817.3` DEB 已包含当时的 Pi Runtime 收敛并通过原生 Ubuntu 包结构、Node/Pi、Go Runtime 与 Xvfb Electron 启动；仍不含 Secret Service、本地 OCR 或 Computer Use。 |
+| Agent Harness | Pi 拥有 Session、Compaction、自然语言理解、通用文件/Shell 与 Tool Loop。MilkSU 已删除 workspace-only 文件工具、Node 文件权限状态机、普通回合 watchdog、CTF sandbox-exec、CVE 只读启动限制与客服式回复模板。不扫描用户句子做关键词/正则意图路由。 |
+| MilkSU 宿主边界 | 只保留会话目录记录、Provider 凭据隔离、桌面授权、领域事实/Judge，以及危险大目录删除二次确认。Coding 另有类型化 `milksu_workspace` 与对话级批准，不替代 Pi 工具循环。 |
+| 模型与附件 | 账户 TokenFlux 与本机 Provider 共用可调用模型目录；图片由当前模型原生 image input 或本地 OCR 自动路由，附件通过统一可预览/移除队列进入 Pi。 |
 | 网页查证 | Coding 复用固定 revision 的 Pi `web_search` / `web_fetch` Extension，已保留真实搜索和官方页面读取回执。 |
 | Obelisk | 会话索引底层保留；Coding 右栏和环境页的单会话“相关历史”、过滤、搜索与图谱前端已经移除。 |
 | 最近发行回执 | macOS `32007817407`、Windows `32007690071`、Linux `32007693429` 均成功；文件名、大小和 SHA-256 记录在当前开发目标。Windows 真实打包 App 另已完成模型验证与 Pi Agent 工具回合。 |
-| 下一发行流水 | canonical 全仓验证只在干净且已推送的 source commit 上运行一次并写本地回执；三端 workflow 接收同一完整 commit，只运行平台原生打包与验收。GitHub-only 不构建 macOS OTA ZIP/metadata。 |
+| 下一发行流水 | canonical 全仓验证只在干净且已推送的 source commit 上运行一次并写本地回执；Windows/Linux 走云端，macOS 默认本机签名公证；必须创建 GitHub Release 页。GitHub-only 不构建 macOS OTA ZIP/metadata。 |
 
 ## Canonical 文档职责
 
 | 文档 | 状态 | 负责什么 | 不负责什么 |
 | --- | --- | --- | --- |
-| [当前开发目标](current-objectives.md) | Current / Canonical | 当前阶段、开发/发行基线、下一完成线、活跃队列和后置项 | 不保存完整聊天、微提交或旧验收过程 |
+| [当前开发目标](current-objectives.md) | Current / Canonical | 当前阶段、正式发行基线、开发版本线、已发行/未发版事实、下一完成线和后置项 | 不保存完整聊天、微提交或旧验收过程 |
 | [当前系统与分层](../architecture/current-system.md) | Current / Canonical | 当前运行结构、依赖方向、桌面表面、能力边界和发行结构 | 不安排任务优先级 |
 | 本文件 | Current / Living | 事实优先级、文档职责、生命周期和维护规则 | 不复制实现细节或测试日志 |
 | Evidence 文档 | Evidence | 可复现命令、截图、哈希、平台回执和失败证据 | 不自动升级为当前完成状态 |
@@ -53,6 +55,7 @@
 - 用户可见产物位于各操作系统用户文档目录的 `MilkSU` 子目录；Runtime、凭据、Obelisk、浏览器 Profile 和恢复数据位于平台用户配置目录。
 - CTF 成功必须来自独立 Judge 或用户明确确认；CVE 当前只做学习/追踪，不默认运行 PoC 或作用于外部资产。
 - Beta 只用于用户明确要求的 MilkSU 自举；普通开发、测试和发行准备不构建 Beta。
+- 下载页与对外状态以 `26.817.3` 回执为准；`26.818.1` 只描述当前仓库版本线。
 
 ## 文档生命周期
 
@@ -66,6 +69,6 @@
 
 1. 子功能完成后，先更新当前目标中的事实与完成线，再决定是否需要架构或 Evidence 文档。
 2. 新发行必须记录 tag、source commit、workflow、产物名、大小、SHA-256 和平台验收；平台未跑即写未跑。
-3. 当前代码晚于签名发行时，必须同时写“开发 HEAD”和“正式发行基线”，不能把 ad-hoc 包写成已发布。
+3. 当前代码晚于签名发行时，必须同时写“开发 HEAD / 版本线”和“正式发行基线”，不能把 ad-hoc 包、版本号或空 tag 写成已发布。
 4. 删除生产 UI 或防御层后，同时删除 Current 文档里的能力宣称；历史验收留 Git history 或 Evidence。
 5. 不恢复 `development-plan.md`，不把旧对话、压缩摘要、smoke 列表或 M3/M4 台账重新放回 Current 入口。
