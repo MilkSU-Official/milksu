@@ -151,10 +151,25 @@ function taskEntries(input) {
   return { mode, values };
 }
 
-export function validateSubagentInput(input, collaboration) {
-  if (!collaboration) {
-    throw new Error("prepare Coding collaboration worktrees before delegating");
+export function isReadOnlySubagent(agent) {
+  return readOnlyAgents.has(String(agent ?? "").trim());
+}
+
+export function codingSubagentGuidance() {
+  return [
+    "When the user asks to open a subagent or delegate a lookup, call the subagent tool.",
+    "Read-only roles: scout, planner, reviewer, security-auditor.",
+    "Do not treat the words subagent, sub-agent, or subapi as IDA Pro, idalib, or a security MCP.",
+    "IDA is only for a local binary the user named.",
+  ].join(" ");
+}
+
+export function validateSubagentInput(input, collaboration, workspace) {
+  const requestedRoot = String(workspace || collaboration?.workspace || "").trim();
+  if (!requestedRoot) {
+    throw new Error("Subagent workspace is required");
   }
+  const root = resolveRequestedCwd(requestedRoot, requestedRoot);
   if (input.agentScope !== undefined && input.agentScope !== "user") {
     throw new Error("MilkSU allows only reviewed bundled subagents");
   }
@@ -163,11 +178,11 @@ export function validateSubagentInput(input, collaboration) {
   }
   const { mode, values } = taskEntries(input);
   const allowedPaths = new Set([
-    collaboration.workspace,
-    ...collaboration.worktrees.map(worktree => worktree.path),
+    root,
+    ...(collaboration?.worktrees ?? []).map(worktree => worktree.path),
   ]);
   const worktreePaths = new Set(
-    collaboration.worktrees.map(worktree => worktree.path),
+    (collaboration?.worktrees ?? []).map(worktree => worktree.path),
   );
   const effectfulPaths = new Set();
   const tasks = values.map((entry, index) => {
@@ -183,14 +198,25 @@ export function validateSubagentInput(input, collaboration) {
     }
     const cwd = resolveRequestedCwd(
       entry.cwd ?? input.cwd,
-      collaboration.workspace,
+      root,
     );
-    if (!allowedPaths.has(cwd)) {
+    if (!collaboration) {
+      if (worktreeAgents.has(agent)) {
+        throw new Error(
+          "Effectful subagents require a prepared Git collaboration worktree",
+        );
+      }
+      if (cwd !== root) {
+        throw new Error(
+          `Subagent ${agent} must use the main workspace when collaboration is not prepared`,
+        );
+      }
+    } else if (!allowedPaths.has(cwd)) {
       throw new Error(
         `Subagent ${agent} must use the main workspace or a registered writer worktree`,
       );
     }
-    if (worktreeAgents.has(agent) && !worktreePaths.has(cwd)) {
+    if (collaboration && worktreeAgents.has(agent) && !worktreePaths.has(cwd)) {
       throw new Error(`Subagent ${agent} requires its own writer worktree`);
     }
     if (worktreeAgents.has(agent)) {
@@ -211,10 +237,10 @@ export function validateSubagentInput(input, collaboration) {
   return Object.freeze({ mode, tasks: Object.freeze(tasks) });
 }
 
-export function formatSubagentApproval(input, collaboration) {
-  const request = validateSubagentInput(input, collaboration);
+export function formatSubagentApproval(input, collaboration, workspace) {
+  const request = validateSubagentInput(input, collaboration, workspace);
   const rows = request.tasks.map(task => {
-    const worktree = collaboration.worktrees.find(value => value.path === task.cwd);
+    const worktree = collaboration?.worktrees.find(value => value.path === task.cwd);
     const location = worktree
       ? `${worktree.id} · ${worktree.branch}`
       : "主工作树（只读角色）";

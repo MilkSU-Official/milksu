@@ -149,6 +149,34 @@ func (h *electronCodingHost) Reload(sessionID string) error {
 	return h.call("browser.reload", sessionID, nil)
 }
 
+func (h *electronCodingHost) list(method, sessionID string, payload map[string]any) (browsercap.CodingHostTabList, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	request := map[string]any{"sessionId": strings.TrimSpace(sessionID)}
+	for key, value := range payload {
+		request[key] = value
+	}
+	var tabs browsercap.CodingHostTabList
+	err := h.host.Call(ctx, method, request, &tabs)
+	return tabs, err
+}
+
+func (h *electronCodingHost) ListTabs(sessionID string) (browsercap.CodingHostTabList, error) {
+	return h.list("browser.listTabs", sessionID, nil)
+}
+
+func (h *electronCodingHost) CreateTab(sessionID, targetURL string) (browsercap.CodingHostTabList, error) {
+	return h.list("browser.createTab", sessionID, map[string]any{"url": targetURL})
+}
+
+func (h *electronCodingHost) ActivateTab(sessionID, tabID string) (browsercap.CodingHostTabList, error) {
+	return h.list("browser.activateTab", sessionID, map[string]any{"tabId": tabID})
+}
+
+func (h *electronCodingHost) CloseTab(sessionID, tabID string) (browsercap.CodingHostTabList, error) {
+	return h.list("browser.closeTab", sessionID, map[string]any{"tabId": tabID})
+}
+
 func (h *electronCodingHost) Stop(sessionID string) error {
 	return h.call("browser.stop", sessionID, nil)
 }

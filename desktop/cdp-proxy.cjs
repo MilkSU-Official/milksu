@@ -39,6 +39,10 @@ class ScopedCDPProxy {
     this.port = 0
   }
 
+  setAllowedTarget(targetId) {
+    this.allowedTargetId = String(targetId ?? '')
+  }
+
   async start() {
     this.server = http.createServer((request, response) => {
       void this.handleHTTP(request, response)

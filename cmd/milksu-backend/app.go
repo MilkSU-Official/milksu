@@ -945,7 +945,17 @@ func (a *App) SendMessage(
 		return err
 	}
 	var codingBrowser *engine.CodingBrowserDescriptor
-	if sessionRole == "" && strings.TrimSpace(executionMode) != "plan" && a.browserBridge != nil {
+	if sessionRole == "" &&
+		strings.TrimSpace(executionMode) != "plan" &&
+		strings.TrimSpace(approvalPolicy) != "read-only" &&
+		a.browserBridge != nil {
+		if _, ensureErr := a.EnsureCodingBrowser(conversationID); ensureErr != nil {
+			a.diagnostics.Record(
+				"coding-browser",
+				"warning",
+				"auto-start isolated browser failed",
+			)
+		}
 		if descriptor, enabled := a.browserBridge.CodingDescriptor(conversationID); enabled {
 			codingBrowser = &engine.CodingBrowserDescriptor{
 				SessionID:   descriptor.SessionID,

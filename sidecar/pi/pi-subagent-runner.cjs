@@ -291,6 +291,19 @@ function reviewedPromptFiles(
   return promptFiles;
 }
 
+function rewriteRoutedModelArguments(argumentsList) {
+  const index = argumentsList.indexOf("--model");
+  if (index < 0 || typeof argumentsList[index + 1] !== "string") return argumentsList;
+  const selected = argumentsList[index + 1].trim();
+  if (!selected.startsWith("milksu-route/")) return argumentsList;
+  // The parent session uses a virtual milksu-route provider. The isolated
+  // child CLI does not register that provider, so map it to the account
+  // TokenFlux transport the parent already configured as milksu-relay.
+  const next = [...argumentsList];
+  next[index + 1] = `milksu-relay/${selected.slice("milksu-route/".length)}`;
+  return next;
+}
+
 function selectedModel(argumentsList) {
   const index = argumentsList.indexOf("--model");
   if (index < 0 || typeof argumentsList[index + 1] !== "string") return undefined;
@@ -331,7 +344,7 @@ function writeRuntimeModelConfig(
       apiKey: "MILKSU_CUSTOM_PROVIDER_KEY",
       baseUrl: "MILKSU_CUSTOM_PROVIDER_URL",
     };
-  } else if (selection.provider === "milksu-relay") {
+  } else if (selection.provider === "milksu-relay" || selection.provider === "milksu-route") {
     runtime = {
       api: "openai-completions",
       apiKey: "MILKSU_RELAY_KEY",
@@ -347,6 +360,7 @@ function writeRuntimeModelConfig(
   ).trim();
   const needsCustomProvider = customProvider
     || selection.provider === "milksu-relay"
+    || selection.provider === "milksu-route"
     || Boolean(baseUrl);
   if (!needsCustomProvider) return undefined;
   if (!/^https?:\/\/[^\s]+$/u.test(baseUrl)) {
@@ -377,9 +391,10 @@ function writeRuntimeModelConfig(
 }
 
 function run(argumentsList = process.argv.slice(2), environment = process.env) {
-  validateCLIArguments(argumentsList);
+  const resolvedArguments = rewriteRoutedModelArguments(argumentsList);
+  validateCLIArguments(resolvedArguments);
   const policy = prepareRunnerPolicy(environment, process.cwd());
-  const readableFiles = reviewedPromptFiles(argumentsList, environment);
+  const readableFiles = reviewedPromptFiles(resolvedArguments, environment);
   const temporaryDirectory = mkdtempSync(
     join(environment.TMPDIR || tmpdir(), "milksu-pi-subagent-"),
   );
@@ -387,7 +402,7 @@ function run(argumentsList = process.argv.slice(2), environment = process.env) {
   try {
     writeRuntimeModelConfig(
       agentDirectory,
-      argumentsList,
+      resolvedArguments,
       environment,
     );
   } catch (error) {
@@ -420,7 +435,7 @@ function run(argumentsList = process.argv.slice(2), environment = process.env) {
       }),
       process.execPath,
       policy.runtimeCli,
-      ...argumentsList,
+      ...resolvedArguments,
     ],
     {
       cwd: policy.cwd,
@@ -455,6 +470,7 @@ module.exports = {
   reviewedPromptFiles,
   sandboxProfile,
   validateCLIArguments,
+  rewriteRoutedModelArguments,
   writeRuntimeModelConfig,
 };
 

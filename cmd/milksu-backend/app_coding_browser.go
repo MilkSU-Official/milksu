@@ -26,9 +26,6 @@ func (a *App) StartCodingBrowser(
 		return browsercap.CodingBrowserStatus{}, fmt.Errorf("浏览器服务不可用")
 	}
 	initialURL = strings.TrimSpace(initialURL)
-	if initialURL == "" {
-		return browsercap.CodingBrowserStatus{}, fmt.Errorf("请输入要打开的 http 或 https 地址")
-	}
 	startContext, cancel := context.WithTimeout(
 		a.commandContext(),
 		codingBrowserStartTimeout,
@@ -43,6 +40,35 @@ func (a *App) StartCodingBrowser(
 		return browsercap.CodingBrowserStatus{}, err
 	}
 	a.diagnostics.Record("coding-browser", "info", "isolated Coding browser started")
+	a.emitDesktopEvent("coding-browser.ready", status)
+	return status, nil
+}
+
+func (a *App) EnsureCodingBrowser(
+	conversationID string,
+) (browsercap.CodingBrowserStatus, error) {
+	if a.browserBridge == nil {
+		return browsercap.CodingBrowserStatus{}, fmt.Errorf("浏览器服务不可用")
+	}
+	if descriptor, enabled := a.browserBridge.CodingDescriptor(conversationID); enabled && descriptor.SessionID != "" {
+		statusContext, cancel := context.WithTimeout(
+			a.commandContext(),
+			codingBrowserStatusTimeout,
+		)
+		defer cancel()
+		return a.browserBridge.CodingStatus(statusContext, conversationID)
+	}
+	startContext, cancel := context.WithTimeout(
+		a.commandContext(),
+		codingBrowserStartTimeout,
+	)
+	defer cancel()
+	status, err := a.browserBridge.EnsureCoding(startContext, conversationID)
+	if err != nil {
+		return browsercap.CodingBrowserStatus{}, err
+	}
+	a.diagnostics.Record("coding-browser", "info", "isolated Coding browser ready")
+	a.emitDesktopEvent("coding-browser.ready", status)
 	return status, nil
 }
 
@@ -95,6 +121,36 @@ func (a *App) ReloadCodingBrowser(conversationID string) error {
 		return fmt.Errorf("浏览器服务不可用")
 	}
 	return a.browserBridge.ReloadCoding(conversationID)
+}
+
+func (a *App) CreateCodingBrowserTab(
+	conversationID,
+	targetURL string,
+) (browsercap.CodingBrowserStatus, error) {
+	if a.browserBridge == nil {
+		return browsercap.CodingBrowserStatus{}, fmt.Errorf("浏览器服务不可用")
+	}
+	return a.browserBridge.CreateCodingTab(conversationID, targetURL)
+}
+
+func (a *App) ActivateCodingBrowserTab(
+	conversationID,
+	tabID string,
+) (browsercap.CodingBrowserStatus, error) {
+	if a.browserBridge == nil {
+		return browsercap.CodingBrowserStatus{}, fmt.Errorf("浏览器服务不可用")
+	}
+	return a.browserBridge.ActivateCodingTab(conversationID, tabID)
+}
+
+func (a *App) CloseCodingBrowserTab(
+	conversationID,
+	tabID string,
+) (browsercap.CodingBrowserStatus, error) {
+	if a.browserBridge == nil {
+		return browsercap.CodingBrowserStatus{}, fmt.Errorf("浏览器服务不可用")
+	}
+	return a.browserBridge.CloseCodingTab(conversationID, tabID)
 }
 
 func (a *App) GetCodingBrowserStatus(

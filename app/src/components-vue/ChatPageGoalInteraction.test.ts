@@ -11,6 +11,7 @@ vi.mock('@/desktop', () => ({
   invokeCommand: vi.fn(async () => {
     throw new Error('desktop runtime unavailable in component test')
   }),
+  listenEvent: vi.fn(async () => () => undefined),
 }))
 
 const mountedApps: App[] = []

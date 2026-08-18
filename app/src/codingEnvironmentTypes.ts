@@ -207,6 +207,13 @@ export interface CodingBrowserPage {
   type: string
 }
 
+export interface CodingBrowserTab {
+  id: string
+  title: string
+  url: string
+  active: boolean
+}
+
 export interface CodingBrowserStatus {
   enabled: boolean
   conversationId: string
@@ -217,6 +224,8 @@ export interface CodingBrowserStatus {
   startedAt?: string
   browserBinary?: string
   pages?: CodingBrowserPage[]
+  tabs?: CodingBrowserTab[]
+  activeTabId?: string
 }
 
 export interface CodingComputerUsePermissions {

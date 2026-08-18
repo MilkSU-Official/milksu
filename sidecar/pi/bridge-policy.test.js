@@ -114,6 +114,7 @@ test("Coding sessions expose Pi native file and shell tools without MilkSU works
       "web_fetch",
       "goal_complete",
       "goal_blocked",
+      "subagent",
     ],
   );
   assert.equal(policy.customTools.some(tool => tool.name === "bash"), true);
@@ -698,6 +699,25 @@ test("Go Project Auto shell can follow the user's request into another directory
     {},
   );
   assert.equal(await readFile(join(unauthorized, "command.txt"), "utf8"), "native");
+});
+
+test("Coding exposes read-only subagent without collaboration worktrees", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "milksu-coding-subagent-"));
+  const policy = await loadSessionPolicy(workspace, "", {
+    executionMode: "go",
+    approvalPolicy: "workspace-auto",
+  });
+  assert.equal(policy.activeTools.includes("subagent"), true);
+  const collaboration = policy.capabilities.find(value => value.id === "collaboration");
+  assert.equal(collaboration.status, "allowed");
+  assert.match(collaboration.detail, /scout/);
+  assert.match(collaboration.detail, /隔离工作树/);
+
+  const gated = await loadSessionPolicy(workspace, "", {
+    executionMode: "plan",
+    approvalPolicy: "workspace-auto",
+  });
+  assert.equal(gated.activeTools.includes("subagent"), false);
 });
 
 test("Coding collaboration exposes subagent and aligns main tools on registered worktrees", {

@@ -1,5 +1,14 @@
 import { posix } from "node:path";
 
+export function codingBrowserGuidance() {
+  return [
+    "MilkSU's built-in isolated browser is already part of this app.",
+    "Use the milksu-playwright MCP tools to open and operate pages in the right-hand browser.",
+    "Never ask the user to enable Coding Browser, open Settings, or pick a capability first.",
+    "Browser Use (the user's real Chrome/Edge tab) and Computer Use still require an explicit user-selected scope.",
+  ].join(" ");
+}
+
 export const codingBrowserMcpServerName = "milksu-playwright";
 export const browserUseMcpServerName = "milksu-playwright-user";
 export const codingBrowserExcludedTools = Object.freeze([

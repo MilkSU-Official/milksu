@@ -5,10 +5,16 @@ import {
   codingBrowserEvidenceFileBlockReason,
   codingBrowserEvidenceRelativePath,
   codingBrowserExcludedTools,
+  codingBrowserGuidance,
   codingBrowserMcpServerName,
   codingBrowserToolBlockReason,
   formatCodingBrowserApprovalInput,
 } from "./bridge-browser-policy.js";
+
+test("tells the model to use the built-in browser without asking the user to enable it", () => {
+  assert.match(codingBrowserGuidance(), /built-in isolated browser/);
+  assert.match(codingBrowserGuidance(), /Never ask the user to enable Coding Browser/);
+});
 
 test("blocks the unsafe Playwright code tool only on the built-in browser server", () => {
   assert.deepEqual(codingBrowserExcludedTools, ["browser_run_code_unsafe"]);

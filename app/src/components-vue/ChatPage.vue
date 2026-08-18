@@ -41,6 +41,7 @@ import {
   PanelLeftOpen,
   PanelRightClose,
   PanelRightOpen,
+  Plus,
   RefreshCw,
   Route,
   ShieldCheck,
@@ -49,7 +50,7 @@ import {
   Wrench,
   X,
 } from 'lucide-vue-next'
-import { invokeCommand } from '@/desktop'
+import { invokeCommand, listenEvent } from '@/desktop'
 import { nextChatAutoScrollPinned } from '@/lib/chatAutoScroll'
 import { isGeneratedScratchWorkspace } from '@/lib/codingConversationGroups'
 import ChatActivityGroup from '@/components-vue/ChatActivityGroup.vue'
@@ -76,6 +77,10 @@ import type {
   CodingMCPConfigSnapshot,
 } from '@/codingEnvironmentTypes'
 import { normalizeCodingBrowserAddress } from '@/codingBrowserAddress'
+import {
+  codingBrowserAddressFromStatus,
+  codingBrowserViewportSyncKey,
+} from '@/lib/codingBrowserTabs'
 import { readCodingRailWidth, writeCodingRailWidth } from '@/lib/codingRailWidth'
 import { buildChatTranscript } from '@/lib/chatActivity'
 import { chatTopbarPresentation } from '@/lib/chatTopbar'
@@ -567,9 +572,16 @@ const codingBrowserEvidencePath = computed(() => {
   const sessionID = codingBrowserStatus.value?.sessionId?.trim()
   return sessionID ? `.milksu/browser-evidence/${sessionID}` : ''
 })
+const codingBrowserTabs = computed(() => codingBrowserStatus.value?.tabs ?? [])
 const codingBrowserPage = computed(() => codingBrowserStatus.value?.pages?.[0] ?? null)
+const activeCodingBrowserTab = computed(() => (
+  codingBrowserTabs.value.find(tab => tab.active)
+  ?? codingBrowserTabs.value[0]
+  ?? null
+))
 const codingBrowserTabTitle = computed(() => (
-  codingBrowserPage.value?.title
+  activeCodingBrowserTab.value?.title
+  || codingBrowserPage.value?.title
   || codingBrowserStatus.value?.initialUrl
   || '新标签页'
 ))
@@ -877,7 +889,7 @@ function runSlashCommand(command: string) {
     return
   }
   if (command === 'browser') {
-    changeContextPanel('browser')
+    revealBuiltInBrowser()
     return
   }
   if (command === 'browser-use') {
@@ -1108,6 +1120,41 @@ async function refreshBrowserPanel() {
   computerUseLoading.value = false
 }
 
+function applyCodingBrowserAddress(status: CodingBrowserStatus | null | undefined) {
+  if (document.activeElement?.getAttribute('aria-label') === '浏览器地址') return
+  codingBrowserURL.value = codingBrowserAddressFromStatus(status)
+}
+
+async function ensureCodingBrowser() {
+  const conversationID = props.conversation?.id
+  if (!conversationID || props.ctfSession) return
+  if (codingBrowserStatus.value?.enabled) {
+    await refreshCodingBrowserState()
+    return
+  }
+  codingBrowserLoading.value = true
+  browserPanelError.value = ''
+  try {
+    codingBrowserStatus.value = await invokeCommand<CodingBrowserStatus>(
+      'ensure_coding_browser',
+      { conversationId: conversationID },
+    )
+    await refreshCodingBrowserState()
+  } catch (reason) {
+    browserPanelError.value = reason instanceof Error
+      ? reason.message
+      : '浏览器启动失败。'
+  } finally {
+    codingBrowserLoading.value = false
+  }
+}
+
+function revealBuiltInBrowser() {
+  contextPanel.value = 'browser'
+  environmentOpen.value = true
+  void ensureCodingBrowser()
+}
+
 async function startCodingBrowser() {
   browserPanelError.value = ''
   let initialURL = ''
@@ -1202,6 +1249,49 @@ async function navigateCodingBrowser() {
   }
 }
 
+async function mutateCodingBrowserTab(
+  command: 'create_coding_browser_tab' | 'activate_coding_browser_tab' | 'close_coding_browser_tab',
+  payload: Record<string, string> = {},
+) {
+  const conversationID = props.conversation?.id
+  if (!conversationID || !codingBrowserStatus.value?.enabled) return
+  browserPanelError.value = ''
+  try {
+    codingBrowserStatus.value = await invokeCommand<CodingBrowserStatus>(command, {
+      conversationId: conversationID,
+      ...payload,
+    })
+    lastCodingBrowserViewport = ''
+    applyCodingBrowserAddress(codingBrowserStatus.value)
+    await refreshCodingBrowserState()
+    await syncCodingBrowserViewport()
+  } catch (reason) {
+    browserPanelError.value = reason instanceof Error
+      ? reason.message
+      : '标签页操作失败。'
+  }
+}
+
+async function createCodingBrowserTab() {
+  if (!codingBrowserStatus.value?.enabled) {
+    await ensureCodingBrowser()
+    return
+  }
+  await mutateCodingBrowserTab('create_coding_browser_tab')
+}
+
+async function activateCodingBrowserTab(tabId: string) {
+  await mutateCodingBrowserTab('activate_coding_browser_tab', { tabId })
+}
+
+async function closeCodingBrowserTab(tabId: string) {
+  if (codingBrowserTabs.value.length <= 1) {
+    await stopCodingBrowser()
+    return
+  }
+  await mutateCodingBrowserTab('close_coding_browser_tab', { tabId })
+}
+
 async function runCodingBrowserNavigation(action: 'back' | 'forward' | 'reload') {
   const conversationID = props.conversation?.id
   if (!conversationID || !codingBrowserStatus.value?.enabled) return
@@ -1223,6 +1313,7 @@ async function runCodingBrowserNavigation(action: 'back' | 'forward' | 'reload')
 let codingBrowserResizeObserver: ResizeObserver | null = null
 let codingBrowserStatusTimer = 0
 let lastCodingBrowserViewport = ''
+let stopBrowserReady: (() => void) | undefined
 
 async function syncCodingBrowserViewport() {
   const conversationID = props.conversation?.id
@@ -1243,7 +1334,12 @@ async function syncCodingBrowserViewport() {
     height: rect.height,
     visible,
   }
-  const key = JSON.stringify(geometry)
+  const key = codingBrowserViewportSyncKey(
+    geometry,
+    codingBrowserStatus.value.activeTabId
+      || codingBrowserStatus.value.tabs?.find(tab => tab.active)?.id
+      || '',
+  )
   if (key === lastCodingBrowserViewport) return
   lastCodingBrowserViewport = key
   try {
@@ -1281,10 +1377,7 @@ async function refreshCodingBrowserState() {
       { conversationId: conversationID },
     )
     codingBrowserStatus.value = status
-    const pageURL = status.pages?.[0]?.url
-    if (pageURL && document.activeElement?.getAttribute('aria-label') !== '浏览器地址') {
-      codingBrowserURL.value = pageURL
-    }
+    applyCodingBrowserAddress(status)
     await syncCodingBrowserViewport()
   } catch {
     // The regular panel refresh reports actionable errors; polling stays quiet.
@@ -1512,6 +1605,14 @@ onMounted(() => {
   void scrollChatToBottom(true)
   if (props.conversation?.id && !props.running) void refreshBrowserPanel()
   window.addEventListener('focus', refreshComputerUseAfterSettings)
+  void listenEvent<CodingBrowserStatus>('coding-browser.ready', event => {
+    const status = event.payload
+    if (status?.conversationId && status.conversationId !== props.conversation?.id) return
+    if (status?.enabled) codingBrowserStatus.value = status
+    revealBuiltInBrowser()
+  }).then(stop => {
+    stopBrowserReady = stop
+  })
   if (typeof ResizeObserver !== 'undefined') {
     codingBrowserResizeObserver = new ResizeObserver(() => {
       lastCodingBrowserViewport = ''
@@ -1526,6 +1627,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  stopBrowserReady?.()
   void hideCodingBrowserViewport()
   window.removeEventListener('focus', refreshComputerUseAfterSettings)
   codingBrowserResizeObserver?.disconnect()
@@ -1634,7 +1736,7 @@ watch(contextPanel, (panel, previous) => {
   }
   if (['artifacts', 'changes'].includes(panel) && environmentOpen.value) void refreshEnvironment()
   if (panel === 'browser' && environmentOpen.value) {
-    void nextTick(() => syncCodingBrowserViewport())
+    void ensureCodingBrowser().then(() => nextTick(() => syncCodingBrowserViewport()))
   }
 })
 // Domain panel projection: conversation/job change only. Independent of running.
@@ -2256,20 +2358,49 @@ watch(
           </div>
 
           <div class="flex h-11 shrink-0 items-end gap-1 border-b border-border bg-muted/35 px-2 pt-1.5">
-            <div class="flex h-9 min-w-0 max-w-72 flex-1 items-center gap-2 rounded-t-lg border border-b-0 border-border bg-background px-3">
-              <Globe2 class="size-3.5 shrink-0 text-primary" />
-              <span class="min-w-0 flex-1 truncate text-control">{{ codingBrowserTabTitle }}</span>
-              <Button
-                v-if="codingBrowserStatus?.enabled"
-                variant="ghost"
-                size="icon-sm"
-                class="size-6 shrink-0"
-                aria-label="关闭浏览器"
-                @click="stopCodingBrowser"
+            <div class="flex min-w-0 flex-1 items-end gap-1 overflow-x-auto">
+              <button
+                v-for="tab in (codingBrowserTabs.length ? codingBrowserTabs : [{
+                  id: 'current',
+                  title: codingBrowserTabTitle,
+                  url: codingBrowserURL,
+                  active: true,
+                }])"
+                :key="tab.id"
+                type="button"
+                class="flex h-9 min-w-0 max-w-52 flex-1 items-center gap-2 rounded-t-lg border border-b-0 px-3"
+                :class="tab.active
+                  ? 'border-border bg-background'
+                  : 'border-transparent bg-transparent text-muted-foreground'"
+                :aria-current="tab.active ? 'page' : undefined"
+                :aria-label="tab.title || tab.url || '新标签页'"
+                @click="tab.id === 'current' ? undefined : activateCodingBrowserTab(tab.id)"
               >
-                <X class="size-3.5" />
-              </Button>
+                <Globe2 class="size-3.5 shrink-0 text-primary" />
+                <span class="min-w-0 flex-1 truncate text-left text-control">{{ tab.title || tab.url || '新标签页' }}</span>
+                <span
+                  v-if="codingBrowserStatus?.enabled"
+                  role="button"
+                  tabindex="0"
+                  class="grid size-5 shrink-0 place-items-center rounded-sm text-muted-foreground hover:text-foreground"
+                  :aria-label="codingBrowserTabs.length > 1 ? `关闭 ${tab.title || '标签页'}` : '关闭浏览器'"
+                  @click.stop="tab.id === 'current' ? stopCodingBrowser() : closeCodingBrowserTab(tab.id)"
+                  @keydown.enter.prevent="tab.id === 'current' ? stopCodingBrowser() : closeCodingBrowserTab(tab.id)"
+                >
+                  <X class="size-3.5" />
+                </span>
+              </button>
             </div>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              class="mb-1 size-7 shrink-0"
+              aria-label="新标签页"
+              :disabled="codingBrowserLoading || codingBrowserTabs.length >= 8"
+              @click="createCodingBrowserTab"
+            >
+              <Plus class="size-3.5" />
+            </Button>
           </div>
 
           <div class="flex h-12 shrink-0 items-center gap-1.5 border-b border-border bg-background px-2">

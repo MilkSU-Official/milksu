@@ -18,6 +18,7 @@ const test = require("node:test");
 const {
   prepareRunnerPolicy,
   reviewedPromptFiles,
+  rewriteRoutedModelArguments,
   sandboxProfile,
   validateCLIArguments,
   writeRuntimeModelConfig,
@@ -204,6 +205,34 @@ test("runner admits only the exact bundled role prompt from its temporary root",
     ),
     /unreviewed system prompt/,
   );
+});
+
+test("runner maps the parent milksu-route model onto the account relay transport", () => {
+  assert.deepEqual(
+    rewriteRoutedModelArguments([
+      "--model",
+      "milksu-route/claude/claude-opus-4-6",
+      "--no-extensions",
+    ]),
+    [
+      "--model",
+      "milksu-relay/claude/claude-opus-4-6",
+      "--no-extensions",
+    ],
+  );
+  assert.deepEqual(
+    rewriteRoutedModelArguments(["--model", "tokenflux/grok-4.6"]),
+    ["--model", "tokenflux/grok-4.6"],
+  );
+  const agentDirectory = join(mkdtempSync(join(tmpdir(), "milksu-models-")), "agent");
+  const path = writeRuntimeModelConfig(
+    agentDirectory,
+    rewriteRoutedModelArguments(["--model", "milksu-route/claude/claude-opus-4-6"]),
+    { MILKSU_RELAY_URL: "https://tokenflux.dev/v1" },
+  );
+  const config = JSON.parse(readFileSync(path, "utf8"));
+  assert.equal(config.providers["milksu-relay"].apiKey, "$MILKSU_RELAY_KEY");
+  assert.equal(config.providers["milksu-relay"].models[0].id, "claude/claude-opus-4-6");
 });
 
 test("runner configures Relay by environment reference without persisting its key", () => {

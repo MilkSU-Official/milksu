@@ -6,6 +6,7 @@ import { join } from "node:path";
 import test from "node:test";
 import {
   codingCollaborationChanged,
+  codingSubagentGuidance,
   formatSubagentApproval,
   normalizeCodingCollaboration,
   validateSubagentInput,
@@ -139,6 +140,31 @@ test("read-only roles can inspect main but project and unknown agents are reject
     }, descriptor),
     /working directory is unavailable|registered writer worktree/,
   );
+});
+
+test("read-only subagents work without collaboration worktrees", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "milksu-subagent-main-"));
+  const accepted = validateSubagentInput({
+    agent: "scout",
+    task: "Look up the public subapi documentation and summarize the endpoints.",
+  }, undefined, workspace);
+  assert.equal(accepted.tasks[0].agent, "scout");
+  assert.equal(accepted.tasks[0].access, "read-only");
+  assert.equal(accepted.tasks[0].cwd, await realpath(workspace));
+  assert.throws(
+    () => validateSubagentInput({
+      agent: "worker",
+      task: "edit the repo",
+    }, undefined, workspace),
+    /prepared Git collaboration/,
+  );
+  const summary = formatSubagentApproval({
+    agent: "scout",
+    task: "Look up the public subapi documentation.",
+  }, undefined, workspace);
+  assert.match(summary, /scout → 主工作树（只读角色）/);
+  assert.match(codingSubagentGuidance(), /subapi/);
+  assert.match(codingSubagentGuidance(), /IDA Pro/);
 });
 
 test("approval summary exposes role, mode, branch, and task", async () => {

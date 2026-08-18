@@ -1,6 +1,7 @@
 'use strict'
 
 const { execFileSync, spawn } = require('node:child_process')
+const { randomUUID } = require('node:crypto')
 const { promises: fs } = require('node:fs')
 const path = require('node:path')
 const readline = require('node:readline')
@@ -54,6 +55,8 @@ const APP_ORIGIN = 'milksu://app'
 const METHOD_PATTERN = /^[A-Z][A-Za-z0-9]{0,80}$/u
 const EVENT_PATTERN = /^[a-z][a-z0-9._-]{0,100}$/u
 const BROWSER_SESSION_PATTERN = /^browser_[0-9a-f-]{36}$/u
+const BROWSER_TAB_PATTERN = /^tab_[0-9a-f-]{36}$/u
+const MAX_BROWSER_TABS = 8
 const MAX_BACKEND_MESSAGE_BYTES = 128 << 20
 const BROWSER_USER_AGENT = [
   process.platform === 'win32'
@@ -448,18 +451,7 @@ class BrowserShell {
     return resolveAllowedProfilePath(profilePath, roots)
   }
 
-  async start(request) {
-    const sessionId = String(request?.sessionId ?? '')
-    const initialURL = new URL(String(request?.initialUrl ?? ''))
-    const profilePath = this.allowedProfilePath(String(request?.profilePath ?? ''))
-    if (!BROWSER_SESSION_PATTERN.test(sessionId) || !['http:', 'https:'].includes(initialURL.protocol) || !profilePath) {
-      throw new Error('invalid browser request')
-    }
-    await this.stop({ sessionId })
-    const partition = session.fromPath(profilePath)
-	partition.setUserAgent(BROWSER_USER_AGENT, 'zh-CN,zh;q=0.9,en;q=0.8')
-    partition.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
-    partition.setPermissionCheckHandler(() => false)
+  createView(sessionId, partition) {
     const view = new WebContentsView({
       webPreferences: {
         session: partition,
@@ -472,12 +464,14 @@ class BrowserShell {
     view.setVisible(false)
     view.webContents.setWindowOpenHandler(details => {
       if (details.url.startsWith('http://') || details.url.startsWith('https://')) {
-        void view.webContents.loadURL(details.url)
+        void this.createTab({ sessionId, url: details.url })
       }
       return { action: 'deny' }
     })
-    this.window.contentView.addChildView(view)
-    await view.webContents.loadURL(initialURL.toString())
+    return view
+  }
+
+  async identifyTarget(view) {
     let attached = false
     try {
       view.webContents.debugger.attach('1.3')
@@ -485,21 +479,76 @@ class BrowserShell {
       const info = await view.webContents.debugger.sendCommand('Target.getTargetInfo')
       const targetId = info?.targetInfo?.targetId
       if (!targetId) throw new Error('could not identify browser target')
+      return targetId
+    } finally {
+      if (attached) view.webContents.debugger.detach()
+    }
+  }
+
+  tabSnapshot(session, tabId) {
+    const tab = session.tabs.get(tabId)
+    if (!tab) throw new Error('browser tab is unavailable')
+    return {
+      id: tabId,
+      title: tab.view.webContents.getTitle() || '',
+      url: tab.view.webContents.getURL() || '',
+      active: session.activeTabId === tabId,
+    }
+  }
+
+  listTabs(request) {
+    const current = this.get(request)
+    return {
+      activeTabId: current.activeTabId,
+      tabs: [...current.tabs.keys()].map(tabId => this.tabSnapshot(current, tabId)),
+    }
+  }
+
+  async start(request) {
+    const sessionId = String(request?.sessionId ?? '')
+    const rawURL = String(request?.initialUrl ?? '').trim()
+    const profilePath = this.allowedProfilePath(String(request?.profilePath ?? ''))
+    if (!BROWSER_SESSION_PATTERN.test(sessionId) || !profilePath) {
+      throw new Error('invalid browser request')
+    }
+    let initialURL = null
+    if (rawURL) {
+      initialURL = new URL(rawURL)
+      if (!['http:', 'https:'].includes(initialURL.protocol)) {
+        throw new Error('invalid browser request')
+      }
+    }
+    await this.stop({ sessionId })
+    const partition = session.fromPath(profilePath)
+    partition.setUserAgent(BROWSER_USER_AGENT, 'zh-CN,zh;q=0.9,en;q=0.8')
+    partition.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
+    partition.setPermissionCheckHandler(() => false)
+    const view = this.createView(sessionId, partition)
+    this.window.contentView.addChildView(view)
+    await view.webContents.loadURL(initialURL ? initialURL.toString() : 'about:blank')
+    try {
+      const targetId = await this.identifyTarget(view)
       const proxy = new ScopedCDPProxy({
         upstreamEndpoint: this.upstreamEndpoint,
         targetId,
       })
       const cdpEndpoint = await proxy.start()
-      const current = { view, proxy, profilePath, attached: true }
-      detachBrowserView(this.window.contentView, current)
-      this.sessions.set(sessionId, current)
+      const tabId = `tab_${randomUUID()}`
+      const tab = { view, targetId, attached: true }
+      detachBrowserView(this.window.contentView, tab)
+      this.sessions.set(sessionId, {
+        partition,
+        profilePath,
+        proxy,
+        activeTabId: tabId,
+        tabs: new Map([[tabId, tab]]),
+        viewport: { x: 0, y: 0, width: 1, height: 1, visible: false },
+      })
       return { name: `Electron Chromium ${process.versions.chrome}`, cdpEndpoint }
     } catch (error) {
       this.window.contentView.removeChildView(view)
       view.webContents.close()
       throw error
-    } finally {
-      if (attached) view.webContents.debugger.detach()
     }
   }
 
@@ -510,43 +559,117 @@ class BrowserShell {
     return current
   }
 
+  activeTab(current) {
+    const tab = current.tabs.get(current.activeTabId)
+    if (!tab) throw new Error('browser tab is unavailable')
+    return tab
+  }
+
   setViewport(request) {
     const current = this.get(request)
     const viewport = request.viewport ?? {}
-    const visible = viewport.visible === true
-    if (!visible) {
-      detachBrowserView(this.window.contentView, current)
-      return
-    }
-    const bounds = {
+    current.viewport = {
       x: Math.max(0, Math.round(Number(viewport.x) || 0)),
       y: Math.max(0, Math.round(Number(viewport.y) || 0)),
       width: Math.max(1, Math.round(Number(viewport.width) || 1)),
       height: Math.max(1, Math.round(Number(viewport.height) || 1)),
+      visible: viewport.visible === true,
     }
-    attachBrowserView(this.window.contentView, current)
-    current.view.setBounds(bounds)
-    current.view.setVisible(true)
+    this.applyViewport(current)
+  }
+
+  applyViewport(current) {
+    const viewport = current.viewport ?? {
+      x: 0, y: 0, width: 1, height: 1, visible: false,
+    }
+    const bounds = {
+      x: viewport.x,
+      y: viewport.y,
+      width: viewport.width,
+      height: viewport.height,
+    }
+    for (const [tabId, tab] of current.tabs) {
+      const show = viewport.visible && tabId === current.activeTabId
+      if (!show) {
+        detachBrowserView(this.window.contentView, tab)
+        continue
+      }
+      attachBrowserView(this.window.contentView, tab)
+      tab.view.setBounds(bounds)
+      tab.view.setVisible(true)
+    }
   }
 
   navigate(request) {
     const url = new URL(String(request?.url ?? ''))
     if (!['http:', 'https:'].includes(url.protocol)) throw new Error('invalid browser URL')
-    return this.get(request).view.webContents.loadURL(url.toString())
+    return this.activeTab(this.get(request)).view.webContents.loadURL(url.toString())
   }
 
   back(request) {
-    const contents = this.get(request).view.webContents
+    const contents = this.activeTab(this.get(request)).view.webContents
     if (contents.navigationHistory.canGoBack()) contents.navigationHistory.goBack()
   }
 
   forward(request) {
-    const contents = this.get(request).view.webContents
+    const contents = this.activeTab(this.get(request)).view.webContents
     if (contents.navigationHistory.canGoForward()) contents.navigationHistory.goForward()
   }
 
   reload(request) {
-    this.get(request).view.webContents.reload()
+    this.activeTab(this.get(request)).view.webContents.reload()
+  }
+
+  async createTab(request) {
+    const current = this.get(request)
+    if (current.tabs.size >= MAX_BROWSER_TABS) {
+      throw new Error(`最多打开 ${MAX_BROWSER_TABS} 个标签页`)
+    }
+    const tabId = `tab_${randomUUID()}`
+    const view = this.createView(String(request.sessionId ?? ''), current.partition)
+    this.window.contentView.addChildView(view)
+    const rawURL = String(request?.url ?? '').trim()
+    if (rawURL) {
+      const url = new URL(rawURL)
+      if (!['http:', 'https:'].includes(url.protocol)) throw new Error('invalid browser URL')
+      await view.webContents.loadURL(url.toString())
+    }
+    const targetId = await this.identifyTarget(view)
+    const tab = { view, targetId, attached: true }
+    detachBrowserView(this.window.contentView, tab)
+    current.tabs.set(tabId, tab)
+    return this.activateTab({ sessionId: request.sessionId, tabId })
+  }
+
+  async activateTab(request) {
+    const current = this.get(request)
+    const tabId = String(request?.tabId ?? '')
+    if (!BROWSER_TAB_PATTERN.test(tabId) || !current.tabs.has(tabId)) {
+      throw new Error('browser tab is unavailable')
+    }
+    current.activeTabId = tabId
+    const tab = current.tabs.get(tabId)
+    current.proxy?.setAllowedTarget(tab.targetId)
+    this.applyViewport(current)
+    return this.listTabs(request)
+  }
+
+  async closeTab(request) {
+    const current = this.get(request)
+    const tabId = String(request?.tabId ?? '')
+    const tab = current.tabs.get(tabId)
+    if (!tab) return this.listTabs(request)
+    if (current.tabs.size === 1) {
+      throw new Error('最后一个标签页请使用关闭浏览器')
+    }
+    current.tabs.delete(tabId)
+    detachBrowserView(this.window.contentView, tab)
+    tab.view.webContents.close()
+    if (current.activeTabId === tabId) {
+      const nextId = [...current.tabs.keys()][0]
+      await this.activateTab({ sessionId: request.sessionId, tabId: nextId })
+    }
+    return this.listTabs(request)
   }
 
   async stop(request) {
@@ -554,9 +677,11 @@ class BrowserShell {
     const current = this.sessions.get(sessionId)
     if (!current) return
     this.sessions.delete(sessionId)
-    detachBrowserView(this.window.contentView, current)
+    for (const tab of current.tabs.values()) {
+      detachBrowserView(this.window.contentView, tab)
+      tab.view.webContents.close()
+    }
     await current.proxy.close()
-    current.view.webContents.close()
   }
 
   async closeAll() {
@@ -635,6 +760,10 @@ async function handleHostRequest(method, payload = {}) {
     case 'browser.back': return browserShell.back(payload)
     case 'browser.forward': return browserShell.forward(payload)
     case 'browser.reload': return browserShell.reload(payload)
+    case 'browser.listTabs': return browserShell.listTabs(payload)
+    case 'browser.createTab': return browserShell.createTab(payload)
+    case 'browser.activateTab': return browserShell.activateTab(payload)
+    case 'browser.closeTab': return browserShell.closeTab(payload)
     case 'browser.stop': return browserShell.stop(payload)
     case 'browser.closeAll': return browserShell.closeAll()
     case 'computerUse.permissions': {

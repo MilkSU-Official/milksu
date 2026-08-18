@@ -294,6 +294,7 @@ interface DesktopAppBindings {
     conversationId: string,
     initialUrl: string,
   ): Promise<CodingBrowserStatus>
+  EnsureCodingBrowser(conversationId: string): Promise<CodingBrowserStatus>
   GetCodingBrowserStatus(conversationId: string): Promise<CodingBrowserStatus>
   SetCodingBrowserViewport(
     conversationId: string,
@@ -307,6 +308,9 @@ interface DesktopAppBindings {
   CodingBrowserGoBack(conversationId: string): Promise<void>
   CodingBrowserGoForward(conversationId: string): Promise<void>
   ReloadCodingBrowser(conversationId: string): Promise<void>
+  CreateCodingBrowserTab(conversationId: string, targetUrl: string): Promise<CodingBrowserStatus>
+  ActivateCodingBrowserTab(conversationId: string, tabId: string): Promise<CodingBrowserStatus>
+  CloseCodingBrowserTab(conversationId: string, tabId: string): Promise<CodingBrowserStatus>
   StopCodingBrowser(conversationId: string): Promise<CodingBrowserStatus>
   RevealCodingBrowserEvidence(conversationId: string): Promise<void>
   ListCodingComputerUseTargets(): Promise<CodingComputerUseTarget[]>
@@ -658,7 +662,11 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
       case 'start_coding_browser':
         return app.StartCodingBrowser(
           args?.conversationId as string,
-          args?.initialUrl as string,
+          (args?.initialUrl as string) ?? '',
+        ) as Promise<T>
+      case 'ensure_coding_browser':
+        return app.EnsureCodingBrowser(
+          args?.conversationId as string,
         ) as Promise<T>
       case 'get_coding_browser_status':
         return app.GetCodingBrowserStatus(
@@ -689,6 +697,21 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
       case 'reload_coding_browser':
         return app.ReloadCodingBrowser(
           args?.conversationId as string,
+        ) as Promise<T>
+      case 'create_coding_browser_tab':
+        return app.CreateCodingBrowserTab(
+          args?.conversationId as string,
+          (args?.targetUrl as string) ?? '',
+        ) as Promise<T>
+      case 'activate_coding_browser_tab':
+        return app.ActivateCodingBrowserTab(
+          args?.conversationId as string,
+          args?.tabId as string,
+        ) as Promise<T>
+      case 'close_coding_browser_tab':
+        return app.CloseCodingBrowserTab(
+          args?.conversationId as string,
+          args?.tabId as string,
         ) as Promise<T>
       case 'stop_coding_browser':
         return app.StopCodingBrowser(

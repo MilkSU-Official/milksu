@@ -40,9 +40,21 @@ func (*codingHostFixture) SetViewport(string, CodingViewport) error { return nil
 func (*codingHostFixture) Navigate(string, string) error            { return nil }
 func (*codingHostFixture) Back(string) error                        { return nil }
 func (*codingHostFixture) Forward(string) error                     { return nil }
-func (*codingHostFixture) Reload(string) error                      { return nil }
-func (*codingHostFixture) Stop(string) error                        { return nil }
-func (*codingHostFixture) Close()                                   {}
+func (*codingHostFixture) Reload(string) error { return nil }
+func (*codingHostFixture) ListTabs(string) (CodingHostTabList, error) {
+	return CodingHostTabList{}, nil
+}
+func (*codingHostFixture) CreateTab(string, string) (CodingHostTabList, error) {
+	return CodingHostTabList{}, nil
+}
+func (*codingHostFixture) ActivateTab(string, string) (CodingHostTabList, error) {
+	return CodingHostTabList{}, nil
+}
+func (*codingHostFixture) CloseTab(string, string) (CodingHostTabList, error) {
+	return CodingHostTabList{}, nil
+}
+func (*codingHostFixture) Stop(string) error { return nil }
+func (*codingHostFixture) Close()            {}
 
 func TestCodingBrowserUsesUserFacingOriginWithoutSandboxLabel(t *testing.T) {
 	host := &codingHostFixture{}
@@ -68,6 +80,33 @@ func TestCodingBrowserUsesUserFacingOriginWithoutSandboxLabel(t *testing.T) {
 	}
 	if host.started.SessionID == "" || host.started.InitialURL != "https://example.com/docs" {
 		t.Fatalf("unexpected host request: %#v", host.started)
+	}
+}
+
+func TestEnsureCodingStartsBlankOnce(t *testing.T) {
+	host := &codingHostFixture{}
+	manager, err := NewWithCodingHost(t.TempDir(), host)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer manager.Close()
+
+	first, err := manager.EnsureCoding(context.Background(), "conversation-blank")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !first.Enabled || first.SessionID == "" || first.ProfileLabel != "浏览器" {
+		t.Fatalf("blank browser status = %#v", first)
+	}
+	if host.started.InitialURL != "" {
+		t.Fatalf("expected a blank start, got %#v", host.started)
+	}
+	second, err := manager.EnsureCoding(context.Background(), "conversation-blank")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.SessionID != first.SessionID {
+		t.Fatalf("ensure replaced the live session: %s -> %s", first.SessionID, second.SessionID)
 	}
 }
 

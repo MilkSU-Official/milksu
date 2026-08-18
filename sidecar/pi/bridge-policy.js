@@ -1445,10 +1445,10 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
   const browserAvailable = interactiveMcpAllowed
     && (Boolean(codingBrowser) || Boolean(browserUse) || projectMcpServers.length > 0);
   const computerUseAvailable = interactiveMcpAllowed && Boolean(computerUse);
-  const collaborationAvailable = !productAction
-    && Boolean(codingCollaboration)
+  const subagentAvailable = !productAction
     && normalized.executionMode === "go"
     && normalized.approvalPolicy !== "read-only";
+  const collaborationAvailable = subagentAvailable && Boolean(codingCollaboration);
   const automaticCapabilityApproval = ["workspace-auto", "full-auto"].includes(
     normalized.approvalPolicy,
   );
@@ -1459,7 +1459,7 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
   const activeTools = [...new Set([
     ...actionTools,
     ...(projectMcpAvailable || browserAvailable || computerUseAvailable ? ["mcp"] : []),
-    ...(collaborationAvailable ? [codingCollaborationToolName] : []),
+    ...(subagentAvailable ? [codingCollaborationToolName] : []),
   ])];
   const capabilities = normalized.capabilities.map(capability => (
     capability.id === "browser"
@@ -1482,9 +1482,9 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
                 + (automaticCapabilityApproval
                     ? "当前权限档会自动执行只读调用；替我审批仍会确认修改和外部账户授权。"
                     : "当前请求批准档会逐次确认调用。")
-            : mcpServers.length
-              ? "当前 Plan、只读或一键只读动作不会加载 MCP；切换到 Go 后可用。"
-            : "项目 .mcp.json 中的服务器仅在本任务“能力”菜单勾选后加载。",
+            : normalized.executionMode !== "go" || normalized.approvalPolicy === "read-only"
+              ? "当前 Plan 或只读策略不会加载内置浏览器。"
+              : "内置浏览器会在本回合自动打开，不要让用户去设置里启用。",
         }
       : capability.id === "imagegen"
         ? {
@@ -1516,17 +1516,18 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
         : capability.id === "collaboration"
           ? {
               ...capability,
-              status: collaborationAvailable
+              status: subagentAvailable
                 ? automaticCapabilityApproval ? "allowed" : "approval-required"
                 : "unavailable",
-              detail: collaborationAvailable
-                ? "Agent 已准备隔离执行环境；"
-                  + (automaticCapabilityApproval
-                      ? "当前权限档会自动执行通过边界校验的委托。"
-                      : "当前请求批准档会逐次展示角色和任务。")
-                : codingCollaboration
-                  ? "当前 Plan、只读或一键产品动作不会加载多 Agent；切换到普通 Go 后可用。"
-                  : "Agent 会在干净 Git 任务首次执行时自动准备隔离环境；主 Agent 负责审阅、集成和验证。",
+              detail: subagentAvailable
+                ? codingCollaboration
+                  ? "Agent 已准备隔离执行环境；"
+                    + (automaticCapabilityApproval
+                        ? "当前权限档会自动执行通过边界校验的委托。"
+                        : "当前请求批准档会逐次展示角色和任务。")
+                  : "可用只读子 Agent（scout / planner / reviewer / security-auditor）。"
+                    + "写入角色需要干净 Git 任务自动准备的隔离工作树。"
+                : "当前 Plan、只读或一键产品动作不会加载多 Agent；切换到普通 Go 后可用。",
             }
           : capability
   ));

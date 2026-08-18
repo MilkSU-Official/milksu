@@ -48,6 +48,18 @@ describe('ChatPage routing contract', () => {
     expect(chatPageSource).toContain('if (ctfSession && jobId && !running)')
   })
 
+  it('gives the isolated browser real tab create, switch, and close actions', () => {
+    expect(chatPageSource).toContain('aria-label="新标签页"')
+    expect(chatPageSource).toContain('create_coding_browser_tab')
+    expect(chatPageSource).toContain('activate_coding_browser_tab')
+    expect(chatPageSource).toContain('close_coding_browser_tab')
+    expect(chatPageSource).toContain('createCodingBrowserTab')
+    expect(chatPageSource).toContain('ensure_coding_browser')
+    expect(chatPageSource).toContain('coding-browser.ready')
+    expect(chatPageSource).toContain('codingBrowserViewportSyncKey')
+    expect(chatPageSource).toContain('codingBrowserAddressFromStatus')
+  })
+
   it('uses one right rail for domain context with text PiP collapse and draft-only handoff', () => {
     expect(chatPageSource).toContain('data-testid="single-right-context-rail"')
     expect(chatPageSource).toContain('data-testid="collapse-domain-to-pip"')

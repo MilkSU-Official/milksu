@@ -55,16 +55,25 @@ type Page struct {
 // CodingBrowserStatus is the frontend-safe state of an isolated browser owned
 // by one Coding conversation. The loopback CDP endpoint intentionally never
 // leaves the backend/Sidecar boundary.
+type CodingBrowserTab struct {
+	ID     string `json:"id"`
+	Title  string `json:"title"`
+	URL    string `json:"url"`
+	Active bool   `json:"active"`
+}
+
 type CodingBrowserStatus struct {
-	Enabled        bool      `json:"enabled"`
-	ConversationID string    `json:"conversationId"`
-	SessionID      string    `json:"sessionId,omitempty"`
-	Phase          string    `json:"phase"`
-	InitialURL     string    `json:"initialUrl,omitempty"`
-	ProfileLabel   string    `json:"profileLabel,omitempty"`
-	StartedAt      time.Time `json:"startedAt,omitempty"`
-	BrowserBinary  string    `json:"browserBinary,omitempty"`
-	Pages          []Page    `json:"pages,omitempty"`
+	Enabled        bool               `json:"enabled"`
+	ConversationID string             `json:"conversationId"`
+	SessionID      string             `json:"sessionId,omitempty"`
+	Phase          string             `json:"phase"`
+	InitialURL     string             `json:"initialUrl,omitempty"`
+	ProfileLabel   string             `json:"profileLabel,omitempty"`
+	StartedAt      time.Time          `json:"startedAt,omitempty"`
+	BrowserBinary  string             `json:"browserBinary,omitempty"`
+	Pages          []Page             `json:"pages,omitempty"`
+	Tabs           []CodingBrowserTab `json:"tabs,omitempty"`
+	ActiveTabID    string             `json:"activeTabId,omitempty"`
 }
 
 // CodingBrowserDescriptor is transient input for the trusted Sidecar adapter.
@@ -97,6 +106,11 @@ type CodingHostSession struct {
 
 // CodingHost is the narrow dependency from the Go capability boundary to the
 // Chromium shell. It intentionally contains no Electron types.
+type CodingHostTabList struct {
+	ActiveTabID string             `json:"activeTabId"`
+	Tabs        []CodingBrowserTab `json:"tabs"`
+}
+
 type CodingHost interface {
 	Start(context.Context, CodingHostStartRequest) (CodingHostSession, error)
 	SetViewport(string, CodingViewport) error
@@ -104,6 +118,10 @@ type CodingHost interface {
 	Back(string) error
 	Forward(string) error
 	Reload(string) error
+	ListTabs(string) (CodingHostTabList, error)
+	CreateTab(string, string) (CodingHostTabList, error)
+	ActivateTab(string, string) (CodingHostTabList, error)
+	CloseTab(string, string) (CodingHostTabList, error)
 	Stop(string) error
 	Close()
 }
@@ -369,18 +387,24 @@ func (m *Manager) StartCoding(
 			return CodingBrowserStatus{}, err
 		}
 	}
-	origin, err := originTarget(initialURL)
-	if err != nil {
-		return CodingBrowserStatus{}, err
-	}
-	grant, err := securitypolicy.NewGrant(
-		"sandbox-browser",
-		"authorized security learning",
-		[]securitypolicy.Target{origin},
-		8*time.Hour,
-	)
-	if err != nil {
-		return CodingBrowserStatus{}, err
+	initialURL = strings.TrimSpace(initialURL)
+	var grant securitypolicy.ScopeGrant
+	profileLabel := "浏览器"
+	if initialURL != "" {
+		origin, err := originTarget(initialURL)
+		if err != nil {
+			return CodingBrowserStatus{}, err
+		}
+		grant, err = securitypolicy.NewGrant(
+			"sandbox-browser",
+			"authorized security learning",
+			[]securitypolicy.Target{origin},
+			8*time.Hour,
+		)
+		if err != nil {
+			return CodingBrowserStatus{}, err
+		}
+		profileLabel = origin.Value
 	}
 	id := "browser_" + uuid.NewString()
 	profile := filepath.Join(m.root, "profiles", id)
@@ -397,7 +421,7 @@ func (m *Manager) StartCoding(
 	}
 	public := Session{
 		ID: id, Phase: "ready", InitialURL: initialURL,
-		ProfileLabel: origin.Value,
+		ProfileLabel: profileLabel,
 		Scope:        grant, StartedAt: time.Now().UTC(), BrowserBinary: hosted.Name,
 		port: port,
 	}
@@ -406,16 +430,23 @@ func (m *Manager) StartCoding(
 		public: public, conversationID: conversationID, hosted: true,
 	}
 	m.mu.Unlock()
-	return CodingBrowserStatus{
-		Enabled:        true,
-		ConversationID: conversationID,
-		SessionID:      public.ID,
-		Phase:          public.Phase,
-		InitialURL:     public.InitialURL,
-		ProfileLabel:   public.ProfileLabel,
-		StartedAt:      public.StartedAt,
-		BrowserBinary:  public.BrowserBinary,
-	}, nil
+	return m.CodingStatus(ctx, conversationID)
+}
+
+// EnsureCoding starts a blank isolated browser for the conversation when none
+// is running. It does not replace an already-ready session.
+func (m *Manager) EnsureCoding(
+	ctx context.Context,
+	conversationID string,
+) (CodingBrowserStatus, error) {
+	conversationID, err := normalizeCodingConversationID(conversationID)
+	if err != nil {
+		return CodingBrowserStatus{}, err
+	}
+	if existingID := m.codingSessionID(conversationID); existingID != "" {
+		return m.CodingStatus(ctx, conversationID)
+	}
+	return m.StartCoding(ctx, conversationID, "")
 }
 
 // CodingStatus returns only UI-safe state. Missing sessions are represented as
@@ -445,11 +476,7 @@ func (m *Manager) CodingStatus(
 			Phase:          "stopped",
 		}, nil
 	}
-	pages, pagesErr := m.Pages(ctx, sessionID)
-	if pagesErr != nil {
-		return CodingBrowserStatus{}, pagesErr
-	}
-	return CodingBrowserStatus{
+	status := CodingBrowserStatus{
 		Enabled:        true,
 		ConversationID: conversationID,
 		SessionID:      session.ID,
@@ -458,8 +485,17 @@ func (m *Manager) CodingStatus(
 		ProfileLabel:   session.ProfileLabel,
 		StartedAt:      session.StartedAt,
 		BrowserBinary:  session.BrowserBinary,
-		Pages:          pages,
-	}, nil
+	}
+	if pages, pagesErr := m.Pages(ctx, sessionID); pagesErr == nil {
+		status.Pages = pages
+	}
+	if m.codingHost != nil {
+		if tabs, tabsErr := m.codingHost.ListTabs(sessionID); tabsErr == nil {
+			status.Tabs = tabs.Tabs
+			status.ActiveTabID = tabs.ActiveTabID
+		}
+	}
+	return status, nil
 }
 
 // CodingDescriptor returns the private loopback endpoint only for backend
@@ -564,6 +600,41 @@ func (m *Manager) ReloadCoding(conversationID string) error {
 		return fmt.Errorf("Chromium desktop host is unavailable in this build")
 	}
 	return m.codingCommand(conversationID, m.codingHost.Reload)
+}
+
+func (m *Manager) CreateCodingTab(conversationID, targetURL string) (CodingBrowserStatus, error) {
+	return m.mutateCodingTabs(conversationID, func(sessionID string) (CodingHostTabList, error) {
+		return m.codingHost.CreateTab(sessionID, strings.TrimSpace(targetURL))
+	})
+}
+
+func (m *Manager) ActivateCodingTab(conversationID, tabID string) (CodingBrowserStatus, error) {
+	return m.mutateCodingTabs(conversationID, func(sessionID string) (CodingHostTabList, error) {
+		return m.codingHost.ActivateTab(sessionID, strings.TrimSpace(tabID))
+	})
+}
+
+func (m *Manager) CloseCodingTab(conversationID, tabID string) (CodingBrowserStatus, error) {
+	return m.mutateCodingTabs(conversationID, func(sessionID string) (CodingHostTabList, error) {
+		return m.codingHost.CloseTab(sessionID, strings.TrimSpace(tabID))
+	})
+}
+
+func (m *Manager) mutateCodingTabs(
+	conversationID string,
+	mutate func(string) (CodingHostTabList, error),
+) (CodingBrowserStatus, error) {
+	if m.codingHost == nil {
+		return CodingBrowserStatus{}, fmt.Errorf("Chromium desktop host is unavailable in this build")
+	}
+	sessionID := m.codingSessionID(conversationID)
+	if sessionID == "" {
+		return CodingBrowserStatus{}, fmt.Errorf("当前会话没有活跃的内嵌浏览器")
+	}
+	if _, err := mutate(sessionID); err != nil {
+		return CodingBrowserStatus{}, err
+	}
+	return m.CodingStatus(context.Background(), conversationID)
 }
 
 func (m *Manager) codingCommand(

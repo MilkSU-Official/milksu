@@ -66,6 +66,7 @@ import {
 import {
   codingBrowserEvidenceFileBlockReason,
   codingBrowserEvidenceRelativePath,
+  codingBrowserGuidance,
   codingBrowserToolBlockReason,
   formatCodingBrowserApprovalInput,
 } from "./bridge-browser-policy.js";
@@ -96,6 +97,7 @@ import {
   formatSubagentApproval,
   normalizeCodingCollaboration,
   validateSubagentInput,
+  codingSubagentGuidance,
 } from "./bridge-collaboration.js";
 import {
   authorizeImageGenToolCall,
@@ -319,6 +321,12 @@ function createMilkSUWorkflowExtension(sessionRole, getPolicy, getSession) {
             ? "Advance one falsifiable CTF hypothesis at a time and preserve evidence for the learner."
             : "";
       const policy = getPolicy?.();
+      const subagentGuidance = !sessionRole && policy?.activeTools?.includes("subagent")
+        ? `\n\n${codingSubagentGuidance()}`
+        : "";
+      const browserGuidance = !sessionRole && policy?.codingBrowser
+        ? `\n\n${codingBrowserGuidance()}`
+        : "";
       return {
         systemPrompt: `${event.systemPrompt}`
           + (roleGuidance ? `\n\n${roleGuidance}` : "")
@@ -326,6 +334,8 @@ function createMilkSUWorkflowExtension(sessionRole, getPolicy, getSession) {
             uiLocale: policy?.uiLocale,
             modelInput: getSession?.()?.model?.input,
           })}`
+          + subagentGuidance
+          + browserGuidance
           + "\n\nWhen a task needs more than one concrete step, publish a concise plan with milksu_progress and keep the in-progress step updated. Skip the tool for trivial one-shot replies.",
       };
     });
@@ -427,7 +437,11 @@ function createCodingPermissionExtension(
       if (imageGenDecision) return imageGenDecision;
       if (event.toolName === codingCollaborationToolName) {
         try {
-          validateSubagentInput(event.input, policy.codingCollaboration);
+          validateSubagentInput(
+            event.input,
+            policy.codingCollaboration,
+            policy.workspace,
+          );
         } catch (error) {
           return {
             block: true,
@@ -441,6 +455,7 @@ function createCodingPermissionExtension(
             content: formatSubagentApproval(
               event.input,
               policy.codingCollaboration,
+              policy.workspace,
             ),
             input: truncate(JSON.stringify(event.input ?? {}, null, 2), 16000),
           });
@@ -994,12 +1009,10 @@ function createMilkSUResourceLoader(
       ),
       createComputerUseVisionResultExtension(getSession),
       createSecurityToolsExtension(cwd, securityTools),
+      piSubAgentExtension,
     );
     if (mcpConfig) {
       extensionFactories.push(createMcpAdapter({ config: mcpConfig }));
-    }
-    if (getPolicy()?.codingCollaboration) {
-      extensionFactories.push(piSubAgentExtension);
     }
   }
   return new DefaultResourceLoader({
@@ -1140,7 +1153,6 @@ async function loadRuntimeSessionPolicy(cwd, command) {
 }
 
 function configureSubagentRuntime(cwd, collaboration) {
-  if (!collaboration) return;
   const launcher = join(bridgeDirectory, "pi-subagent-launcher.sh");
   const runner = join(bridgeDirectory, "pi-subagent-runner.cjs");
   const packagedCLI = join(bridgeDirectory, "pi-subagent-cli.cjs");
@@ -1239,9 +1251,7 @@ async function createSession(command) {
         ? sessionPolicy.activeTools
         : [
             ...codingSessionToolNames,
-            ...(sessionPolicy.codingCollaboration
-              ? [codingCollaborationToolName]
-              : []),
+            ...(!sessionPolicy.ctf ? [codingCollaborationToolName] : []),
             ...(sessionPolicy.mcpServers?.length ? ["mcp"] : []),
             ...(sessionPolicy.securityTools?.some(tool => tool.id === "capa")
               ? ["capa_analyze"]
