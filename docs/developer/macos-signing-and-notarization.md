@@ -31,31 +31,40 @@ staple 与 Gatekeeper 验证。签名资产只存在 Personal Vault 和 GitHub S
 
 本机的字段名和资产位置记录在 Personal Vault；不要复制到 issue、commit、PR、终端输出或聊天。
 
-## 构建一次正式候选包
+## 构建一次正式候选包（默认本机）
 
 1. 按[三端打包与发版流程](release-process.md)把准确版本提交并推送到私有 `main`，运行一次
    `npm run release:verify` 生成绑定完整 commit 的本地回执。
-2. 使用 `npm run release:dispatch -- --release-title ... --release-notes ...` 一次触发三端。脚本会给
-   macOS workflow 传入同一个 40 位 `source_commit`；默认 `upload_release=false`，不接触 R2 或 Admin。
-3. 审批 `macos-release` environment。
-4. 等待 job 完成，下载 `MilkSU-macOS-arm64-installer` artifact。GitHub-only 模式只生成给用户安装的
-   DMG，不再生成 electron-updater ZIP 或 `release-metadata.json`。
-5. 在一台未安装开发证书的 Mac 上下载并打开 DMG，核对设置页 branch、40 位 commit 和 tracking ID。
+2. 用 `npm run release:dispatch ...` 分发 Windows/Linux；macOS **默认不走云端**。
+3. 在维护者 Mac 上运行：
 
-Workflow 会在一次性 keychain 中导入 `.p12`，并依次执行：
-
-```text
-已验证 source commit → 构建 Stable → Hardened Runtime / Developer ID 签名
-→ App 公证、staple 与验证
-→ 生成并签名 DMG → DMG 公证、staple 与验证
-→ 验证 DMG 安装布局 → 上传 DMG workflow artifact
+```bash
+npm run release:mac:local -- \
+  --release-title "MilkSU … 内测版" \
+  --release-notes "…"
 ```
 
-全仓 Go、Vue、Sidecar、lint 和生产/文档构建已由 commit-bound 本地回执证明，macOS workflow 不重复
-执行。只有显式 `--upload-release` 时，App 公证后才额外生成 updater ZIP 与 release metadata。
+脚本从 Personal Vault 读取 `.p12` / `.p8` 与 `macos-signing-secrets.env`，导入一次性 Keychain，依次：
 
-任何签名、公证、staple 或 Gatekeeper 步骤失败，workflow 都不会上传可分发产物。这个 workflow 只构建
-Stable；Codex 进行普通功能开发和验收时不构建 Beta，Beta 只在 MilkSU 明确执行自举任务时使用。
+```text
+构建 Stable → Hardened Runtime / Developer ID 签名
+→ App 公证、staple 与验证
+→ 生成并签名 DMG → DMG 公证、staple 与验证
+→ 验证 DMG 安装布局 → 写出 build/release/MilkSU-macOS-arm64.dmg
+→ 删除临时 Keychain
+```
+
+4. 在一台未安装开发证书的 Mac 上打开 DMG，核对设置页 branch、40 位 commit 和 tracking ID。
+
+需要恢复云端 macOS（GitHub-hosted 或已注册 self-hosted）时，对 `release:dispatch` 显式加
+`--macos-cloud`（自托管再加 `--use-self-hosted`），并审批 `macos-release` environment。云端
+GitHub-only 模式仍只生成 DMG artifact，不默认生成 OTA ZIP。
+
+全仓 Go、Vue、Sidecar、lint 和生产/文档构建已由 commit-bound 本地回执证明，macOS 打包路径不重复
+执行。只有显式 `--upload-release` 时才额外生成 updater ZIP 与 release metadata。
+
+任何签名、公证、staple 或 Gatekeeper 步骤失败都不得分发产物。普通功能开发验收继续用 ad-hoc
+Stable；不要构建 Beta，除非用户明确要求自举。
 
 ## 上传私有 R2 并建立草稿
 

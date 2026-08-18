@@ -43,13 +43,16 @@ export function buildReleaseWorkflowDispatches({
   version,
   uploadRelease = false,
   useSelfHosted = false,
+  /** Opt into expensive GitHub-hosted / self-hosted macOS CI. Default: skip; use local macOS release. */
+  includeMacosCloud = false,
   releaseTitle = `MilkSU ${version} 内测版`,
   releaseNotes = `MilkSU ${version} 内测版`,
   minimumVersion = '0.1.0',
 }) {
   if (!fullCommitPattern.test(commit ?? '')) throw new Error('commit must be a full Git commit')
-  return [
-    {
+  const dispatches = []
+  if (includeMacosCloud) {
+    dispatches.push({
       workflow: 'macos-release.yml',
       args: [
         'workflow', 'run', 'macos-release.yml', '--ref', 'main',
@@ -60,7 +63,9 @@ export function buildReleaseWorkflowDispatches({
         '-f', `release_notes=${releaseNotes}`,
         '-f', `minimum_version=${minimumVersion}`,
       ],
-    },
+    })
+  }
+  dispatches.push(
     {
       workflow: 'windows-release.yml',
       args: [
@@ -75,5 +80,6 @@ export function buildReleaseWorkflowDispatches({
         '-f', `source_commit=${commit}`,
       ],
     },
-  ]
+  )
+  return dispatches
 }

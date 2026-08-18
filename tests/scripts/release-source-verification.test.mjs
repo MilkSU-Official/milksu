@@ -48,19 +48,33 @@ test('rejects dirty, unpushed or stale verification state', () => {
     .some(issue => issue.includes('canonical suite')))
 })
 
-test('dispatches all platforms with one immutable source commit', () => {
+test('dispatches Windows and Linux by default; macOS stays local', () => {
   const dispatches = buildReleaseWorkflowDispatches({
     commit: state.commit,
     version: state.rootVersion,
     uploadRelease: false,
   })
   assert.deepEqual(dispatches.map(dispatch => dispatch.workflow), [
-    'macos-release.yml',
     'windows-release.yml',
     'linux-release.yml',
   ])
   for (const dispatch of dispatches) {
     assert(dispatch.args.includes(`source_commit=${state.commit}`))
   }
+})
+
+test('opt-in cloud macOS still uses the same immutable source commit', () => {
+  const dispatches = buildReleaseWorkflowDispatches({
+    commit: state.commit,
+    version: state.rootVersion,
+    uploadRelease: false,
+    includeMacosCloud: true,
+  })
+  assert.deepEqual(dispatches.map(dispatch => dispatch.workflow), [
+    'macos-release.yml',
+    'windows-release.yml',
+    'linux-release.yml',
+  ])
+  assert(dispatches[0].args.includes(`source_commit=${state.commit}`))
   assert(dispatches[0].args.includes('upload_release=false'))
 })
