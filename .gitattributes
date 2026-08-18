@@ -1,2 +1,2 @@
-patches/*.patch -whitespace
-third_party/cua-driver/patches/*.patch -whitespace
+patches/*.patch text eol=lf
+third_party/cua-driver/patches/*.patch text eol=lf

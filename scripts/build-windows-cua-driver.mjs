@@ -212,7 +212,7 @@ async function run(command, args, options = {}) {
 async function verifyPatchAsset(repositoryRoot) {
   const path = join(repositoryRoot, patchRelativePath)
   if (!await exists(path)) throw new Error(`missing pinned Cua patch: ${path}`)
-  const digest = await sha256(path)
+  const digest = await normalizedTextSha256(path)
   if (digest !== expectedPatchSha256) {
     throw new Error(`Cua patch checksum mismatch: expected ${expectedPatchSha256}, got ${digest}`)
   }
