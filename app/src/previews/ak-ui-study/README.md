@@ -1,21 +1,11 @@
-# ak-ui 视觉研究
+# 视觉参考预览
 
-隔离预览，不进生产入口，也不进 `app/package.json`。
-
-当前壳：窄模块轨 + Coding 会话列表。不要和第一版大命令块搞混。
+只说明当前壳的层级和栏宽，不是完整产品稿。
 
 ```bash
 cd app && npm run dev
-# 当前研究预览
 # http://localhost:1420/ak-ui-study.html
 # http://localhost:1420/ak-ui-study.html?m=coding
-# http://localhost:1420/ak-ui-study.html?m=ctf
-# http://localhost:1420/ak-ui-study.html?m=settings
-# 加 &theme=light 看日间
-# 生产真页面
-# http://localhost:1420/
 ```
 
-样式钉在 `ak-ui.css` / `ak-ui-tokens.css`，来源见 `SOURCE.txt`（`@yunyoujun/ak-ui@0.2.1`）。
-
-采用计划见 [ADOPTION.md](./ADOPTION.md)。截图在 `shots/`。
+约定见 [ADOPTION.md](./ADOPTION.md)。样式用 `app/src/styles/ak-ui.css`（`@yunyoujun/ak-ui@0.2.1`）。

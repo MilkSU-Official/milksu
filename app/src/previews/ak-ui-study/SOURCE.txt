@@ -1,6 +1,1 @@
-Pinned from @yunyoujun/ak-ui@0.2.1 (MIT).
-Fetched 2026-08-18 from https://cdn.jsdelivr.net/npm/@yunyoujun/ak-ui@0.2.1/dist/ak-ui.css
-and tokens.css.
-
-Preview-only. Do not import from App.vue, main.ts, or any production Vue file.
-Do not add this package to app/package.json.
+CSS lives in app/src/styles/ (ak-ui 0.2.1). This folder is the reference preview only.

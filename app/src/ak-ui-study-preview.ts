@@ -1,4 +1,4 @@
-import '@/previews/ak-ui-study/ak-ui.css'
+import '@/styles/ak-ui.css'
 import '@/previews/ak-ui-study/study.css'
 
 import { createApp } from 'vue'
