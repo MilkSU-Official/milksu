@@ -4,6 +4,7 @@ import { createApp, nextTick, type App } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import ChatComposer from './ChatComposer.vue'
 import composerControlsSource from './CodingComposerControls.vue?raw'
+import composerSource from './ChatComposer.vue?raw'
 import type { CodingGoalState } from '@/types'
 
 const mountedApps: App[] = []
@@ -149,10 +150,11 @@ describe('ChatComposer', () => {
     expect(permission?.getAttribute('title')).toBe('替我审批')
 
     expect(composerControlsSource).toContain('background-color: var(--btn-ghost-hover) !important;')
-    expect(composerControlsSource).toContain('min-width: 7.75rem;')
+    expect(composerControlsSource).toMatch(/(?:^|\n)\.composer-permission \{[\s\S]*?\n\s*width: fit-content;/)
+    expect(composerControlsSource).not.toContain('min-width: 7.75rem;')
+    expect(composerControlsSource).not.toContain('min-width: 7.5rem;')
     expect(composerControlsSource).toContain('.composer-permission__label')
     expect(composerControlsSource).toContain('overflow: visible')
-    expect(composerControlsSource).toContain('width: auto;')
     expect(composerControlsSource).toContain('.composer-model {')
     expect(composerControlsSource).toContain('width: fit-content;')
     expect(composerControlsSource).toContain('flex: 0 1 auto;')
@@ -713,6 +715,69 @@ describe('ChatComposer', () => {
     expect(disabledGoal?.disabled).toBe(true)
     expect(disabledGoal?.getAttribute('aria-disabled')).toBe('true')
     expect(disabledGoal?.textContent).toContain('当前已有持续目标')
+  })
+
+  it('does not render the goal chip when only Git progress exists without a goal', async () => {
+    const result = mountComposer({
+      gitSummary: {
+        changedFiles: 3,
+        additions: 10,
+        deletions: 2,
+        changes: [],
+      },
+    })
+    await nextTick()
+
+    expect(result.host.querySelector('[aria-label="持续目标"]')).toBeNull()
+    expect(result.host.querySelector('[aria-label="任务进度摘要"]')).not.toBeNull()
+    expect(result.host.querySelector('[aria-label="任务进度摘要"]')?.textContent)
+      .toContain('代码')
+  })
+
+  it('closes the goal popover with Escape from keyboard focus and with outside pointer clicks', async () => {
+    const result = mountComposer({ goal: activeGoal })
+    await nextTick()
+
+    const chip = result.host.querySelector<HTMLButtonElement>('.chat-composer__chip--goal')
+    const panel = result.host.querySelector<HTMLElement>('.chat-composer__goal-panel')
+    expect(chip).not.toBeNull()
+    expect(panel?.style.display).toBe('none')
+
+    chip?.focus()
+    chip?.click()
+    await nextTick()
+    expect(panel?.style.display).not.toBe('none')
+
+    document.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Escape',
+      bubbles: true,
+      cancelable: true,
+    }))
+    await nextTick()
+    expect(panel?.style.display).toBe('none')
+
+    chip?.click()
+    await nextTick()
+    expect(panel?.style.display).not.toBe('none')
+
+    document.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))
+    await nextTick()
+    expect(panel?.style.display).toBe('none')
+  })
+
+  it('collapses the goal chip to an icon and lets the progress pill shrink in narrow containers', () => {
+    const source = composerSource.replace(/\r\n/g, '\n')
+    const narrowBlockStart = source.indexOf('@container chat-main (max-width: 36rem)')
+    expect(narrowBlockStart).toBeGreaterThan(-1)
+    const narrowBlock = source.slice(narrowBlockStart)
+
+    expect(narrowBlock).toContain('.chat-composer__chip--goal {\n    width: 2rem;')
+    expect(narrowBlock).toContain(
+      '.chat-composer__chip--goal .chat-composer__chip__label,\n'
+      + '  .chat-composer__chip--goal .chat-composer__chip__chevron {\n'
+      + '    display: none;\n  }',
+    )
+    expect(narrowBlock).toContain('.chat-composer__progress-pill {\n    min-width: 0;')
   })
 
   it('projects real goal and Git status above the composer with goal controls', async () => {

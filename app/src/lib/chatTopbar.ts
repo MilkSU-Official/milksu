@@ -15,6 +15,11 @@ function ctfModeLabel(mode: ChatTopbarInput['ctfMode']) {
   return '搭档'
 }
 
+function workspaceBaseName(path?: string) {
+  const value = (path || '').replace(/[/\\]+$/, '')
+  return value.split(/[/\\]/).at(-1) || ''
+}
+
 export function chatTopbarPresentation(input: ChatTopbarInput) {
   const workspacePath = isGeneratedScratchWorkspace(input.workspacePath)
     ? ''
@@ -26,15 +31,17 @@ export function chatTopbarPresentation(input: ChatTopbarInput) {
     }
   }
 
+  const workspaceLabel = workspacePath ? workspaceBaseName(workspacePath) : ''
+
   if (input.vulnerabilitySession) {
     return {
       title: 'CVE',
-      subtitle: `${input.conversationTitle || 'CVE 接力'} · ${workspacePath || `临时工作区 · ${input.codingPolicyLabel}`}`,
+      subtitle: `${input.conversationTitle || 'CVE 接力'} · ${workspaceLabel || `临时工作区 · ${input.codingPolicyLabel}`}`,
     }
   }
 
   return {
     title: input.conversationTitle || '新编码任务',
-    subtitle: workspacePath || `临时工作区 · ${input.codingPolicyLabel}`,
+    subtitle: workspaceLabel || `临时工作区 · ${input.codingPolicyLabel}`,
   }
 }

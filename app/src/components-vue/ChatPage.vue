@@ -557,8 +557,8 @@ const automaticScratchWorkspace = computed(() => (
 ))
 const workspaceName = computed(() => {
   if (automaticScratchWorkspace.value) return '无项目任务'
-  const value = props.workspacePath.replace(/\/+$/, '')
-  return value.split('/').at(-1) || '无项目任务'
+  const value = props.workspacePath.replace(/[/\\]+$/, '')
+  return value.split(/[/\\]/).at(-1) || '无项目任务'
 })
 const codingBrowserEvidencePath = computed(() => {
   const sessionID = codingBrowserStatus.value?.sessionId?.trim()
@@ -1939,7 +1939,7 @@ watch(
             选择项目目录
           </Button>
           <Badge v-else variant="outline" class="max-w-md truncate">
-            {{ domainTaskPresentation ? '任务工作区已就绪' : workspacePath }}
+            {{ domainTaskPresentation ? '任务工作区已就绪' : workspaceName }}
           </Badge>
           <Button v-if="!hasCredential" variant="outline" @click="$emit('openSettings')">
             <KeyRound class="size-4" />
@@ -1988,6 +1988,8 @@ watch(
       :run-elapsed-label="runTimingPresentation?.label"
       :workspace-ready="Boolean(workspacePath)"
       :workspace-locked="workspaceLocked"
+      :workspace-name="workspaceName"
+      :workspace-path="workspacePath"
       :browser-use-ready="browserUseReadyForCurrentTask"
       :computer-use-ready="externalAppUseReadyForCurrentTask"
       :available-skills="activeSkills"
