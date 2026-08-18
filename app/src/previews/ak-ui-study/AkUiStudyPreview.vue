@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { Code2, Flag, Moon, Settings, Sun } from 'lucide-vue-next'
 import CtfStudy from './CtfStudy.vue'
 import CodingStudy from './CodingStudy.vue'
 import SettingsStudy from './SettingsStudy.vue'
@@ -12,20 +13,28 @@ const initialModule = params.get('m')
 const initialTheme = params.get('theme')
 const moduleId = ref<ModuleId>(initialModule === 'coding' || initialModule === 'settings' ? initialModule : 'ctf')
 const theme = ref<Theme>(initialTheme === 'light' ? 'light' : 'dark')
+const activeConversation = ref('ez-uds')
 
-const modules: Array<{ id: ModuleId; label: string; meta: string }> = [
-  { id: 'ctf', label: 'CTF', meta: '题目与提交' },
-  { id: 'coding', label: 'Coding', meta: '会话与执行' },
-  { id: 'settings', label: '设置', meta: '账户与本机' },
+const modules: Array<{ id: ModuleId; label: string; icon: typeof Flag }> = [
+  { id: 'ctf', label: 'CTF', icon: Flag },
+  { id: 'coding', label: 'Coding', icon: Code2 },
+  { id: 'settings', label: '设置', icon: Settings },
+]
+
+const conversations = [
+  { id: 'ez-uds', title: 'EZ_UDS_PLUS', meta: '来自 CTF' },
+  { id: 'nc-work', title: 'Does your nc work?', meta: '今日' },
+  { id: 'local', title: '无项目任务', meta: '本机' },
 ]
 
 const titles: Record<ModuleId, { title: string; meta: string }> = {
-  ctf: { title: '挑战', meta: '当前重心：选中题目，然后交给 Coding' },
-  coding: { title: '任务', meta: '当前重心：写下一条指令并发送' },
-  settings: { title: '设置', meta: '当前重心：正在改的那一行' },
+  ctf: { title: '挑战', meta: '当前题，然后交给 Coding' },
+  coding: { title: '任务', meta: '输入和发送' },
+  settings: { title: '设置', meta: '正在改的那一行' },
 }
 
 const heading = computed(() => titles[moduleId.value])
+const ThemeIcon = computed(() => (theme.value === 'dark' ? Sun : Moon))
 
 watch(theme, value => {
   document.documentElement.dataset.akTheme = value
@@ -38,62 +47,76 @@ onMounted(() => {
 
 <template>
   <div class="study-shell">
-    <aside class="study-rail">
-      <div class="study-rail__brand">
-        <p class="study-rail__kicker">STUDY / AK-UI 0.2.1</p>
-        <p class="study-rail__name">MilkSU</p>
+    <aside class="study-nav" aria-label="导航">
+      <div class="study-rail">
+        <div class="study-rail__avatar" aria-hidden="true">M</div>
+        <nav class="study-rail__nav" aria-label="模块">
+          <button
+            v-for="item in modules.filter(item => item.id !== 'settings')"
+            :key="item.id"
+            type="button"
+            class="study-rail__item"
+            :class="{ 'is-current': moduleId === item.id }"
+            :aria-current="moduleId === item.id ? 'page' : undefined"
+            :title="item.label"
+            @click="moduleId = item.id"
+          >
+            <component :is="item.icon" class="size-4" />
+            <span>{{ item.label }}</span>
+          </button>
+        </nav>
+        <div class="study-rail__foot">
+          <button
+            type="button"
+            class="study-rail__item"
+            :title="theme === 'dark' ? '切换到日间' : '切换到夜间'"
+            :aria-label="theme === 'dark' ? '切换到日间' : '切换到夜间'"
+            @click="theme = theme === 'dark' ? 'light' : 'dark'"
+          >
+            <component :is="ThemeIcon" class="size-4" />
+            <span>{{ theme === 'dark' ? '日间' : '夜间' }}</span>
+          </button>
+          <button
+            type="button"
+            class="study-rail__item"
+            :class="{ 'is-current': moduleId === 'settings' }"
+            title="设置"
+            aria-label="设置"
+            @click="moduleId = 'settings'"
+          >
+            <Settings class="size-4" />
+            <span>设置</span>
+          </button>
+        </div>
       </div>
 
-      <nav class="study-rail__nav" aria-label="研究模块">
+      <section v-if="moduleId === 'coding'" class="study-history" aria-label="Coding 会话">
+        <header class="study-history__head">
+          <strong>会话</strong>
+          <button type="button" class="study-history__new">新会话</button>
+        </header>
         <button
-          v-for="item in modules"
+          v-for="item in conversations"
           :key="item.id"
           type="button"
-          class="ak-command"
-          :class="moduleId === item.id ? 'ak-command--cyan' : 'ak-command--dark'"
-          :aria-current="moduleId === item.id ? 'page' : undefined"
-          @click="moduleId = item.id"
+          class="study-history__item"
+          :class="{ 'is-current': activeConversation === item.id }"
+          @click="activeConversation = item.id"
         >
-          <span class="ak-command__label">{{ item.label }}</span>
-          <span class="ak-command__meta">{{ item.meta }}</span>
+          <strong>{{ item.title }}</strong>
+          <small>{{ item.meta }}</small>
         </button>
-      </nav>
-
-      <div class="study-rail__foot">
-        <div class="ak-status" :class="theme === 'dark' ? '' : 'ak-status--warning'">
-          <span class="ak-status__signal" />
-          <span class="ak-status__label">{{ theme === 'dark' ? 'Night' : 'Day' }}</span>
-          <span class="ak-status__detail">静态预览，无 Runtime</span>
-        </div>
-        <button
-          type="button"
-          class="ak-button ak-button--outline"
-          style="width: 100%"
-          @click="theme = theme === 'dark' ? 'light' : 'dark'"
-        >
-          <span class="ak-button__label">{{ theme === 'dark' ? '日间' : '夜间' }}</span>
-        </button>
-      </div>
+      </section>
     </aside>
 
     <main class="study-main">
       <header class="study-top">
         <div>
-          <h1 class="study-top__title ak-font-serif">{{ heading.title }}</h1>
+          <p class="study-top__kicker">STUDY / 当前壳</p>
+          <h1 class="study-top__title">{{ heading.title }}</h1>
           <p class="study-top__meta">{{ heading.meta }}</p>
         </div>
-        <div class="ak-segmented" role="group" aria-label="模块">
-          <button
-            v-for="item in modules"
-            :key="item.id"
-            type="button"
-            class="ak-segmented__item"
-            :aria-pressed="moduleId === item.id"
-            @click="moduleId = item.id"
-          >{{ item.label }}</button>
-        </div>
       </header>
-
       <section class="study-stage">
         <CtfStudy v-if="moduleId === 'ctf'" />
         <CodingStudy v-else-if="moduleId === 'coding'" />

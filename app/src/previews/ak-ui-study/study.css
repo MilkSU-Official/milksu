@@ -8,14 +8,14 @@ body,
 
 body {
   overflow: hidden;
-  background: var(--ak-surface-canvas);
+  background: #111315;
   color: var(--ak-text-primary);
   font-family: var(--ak-font-sans);
 }
 
 html[data-ak-theme='light'] {
-  --ak-surface-canvas: #ebe6d8;
-  --ak-surface-inverse: #f3f0e6;
+  --ak-surface-canvas: #ecece8;
+  --ak-surface-inverse: #f6f6f3;
   --ak-text-primary: #17191b;
   --ak-text-secondary: rgba(23, 25, 27, 0.62);
 }
@@ -24,68 +24,117 @@ html[data-ak-theme='light'] {
   display: grid;
   width: 100%;
   height: 100%;
-  grid-template-columns: 13.5rem minmax(0, 1fr);
-  background:
-    linear-gradient(180deg, rgba(17, 19, 21, 0.2), transparent 18%),
-    var(--ak-surface-canvas);
+  grid-template-columns: auto minmax(0, 1fr);
+  background: var(--ak-surface-canvas, #111315);
 }
 
-html[data-ak-theme='light'] .study-shell {
-  background:
-    linear-gradient(180deg, rgba(253, 253, 251, 0.35), transparent 22%),
-    var(--ak-surface-canvas);
+.study-nav {
+  display: flex;
+  min-height: 0;
+  border-right: 1px solid rgba(248, 248, 245, 0.12);
+  background: #111315;
+  color: #f8f8f5;
 }
 
 .study-rail {
   display: grid;
+  width: 4.75rem;
   min-height: 0;
-  padding: 1.1rem 0.85rem 0.85rem;
-  border-right: 1px solid rgba(243, 244, 239, 0.12);
+  padding: 2.1rem 0 0.45rem;
   grid-template-rows: auto 1fr auto;
-  gap: 1rem;
 }
 
-.study-rail__brand {
-  padding: 0.35rem 0.2rem 0.85rem;
-  border-bottom: 1px solid rgba(243, 244, 239, 0.12);
-}
-
-.study-rail__kicker {
-  margin: 0;
-  color: var(--ak-signal-info);
-  font-family: var(--ak-font-mono);
-  font-size: 0.625rem;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-}
-
-.study-rail__name {
-  margin: 0.35rem 0 0;
-  font-family: var(--ak-font-command);
-  font-size: 1.65rem;
-  font-weight: 900;
-  letter-spacing: -0.06em;
-  line-height: 1;
-}
-
-.study-rail__nav {
+.study-rail__avatar {
   display: grid;
-  align-content: start;
-  gap: 0.65rem;
+  width: 2rem;
+  height: 2rem;
+  margin: 0 auto 0.55rem;
+  place-items: center;
+  border: 1px solid rgba(248, 248, 245, 0.28);
+  background: #f3f4ef;
+  color: #111315;
+  font-size: 0.75rem;
+  font-weight: 800;
 }
 
-.study-rail .ak-command {
-  min-height: 4.75rem;
-  width: 100%;
-}
-
-.study-rail .ak-command .ak-command__label {
-  font-size: 1.35rem;
-}
-
+.study-rail__nav,
 .study-rail__foot {
   display: grid;
-  gap: 0.55rem;
+  align-content: start;
+  gap: 0.15rem;
+  padding: 0 0.35rem 0.35rem;
+}
+
+.study-rail__item {
+  display: grid;
+  width: 100%;
+  min-height: 3.15rem;
+  padding: 0.4rem 0.15rem;
+  border: 0;
+  place-items: center;
+  gap: 0.2rem;
+  color: rgba(248, 248, 245, 0.62);
+  background: transparent;
+  cursor: pointer;
+  font-size: 10px;
+  line-height: 1.15;
+}
+
+.study-rail__item.is-current {
+  color: #111315;
+  background: #05a7dc;
+}
+
+.study-history {
+  display: grid;
+  width: 16.5rem;
+  min-height: 0;
+  padding: 0.85rem 0.75rem;
+  align-content: start;
+  gap: 0.35rem;
+}
+
+.study-history__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.35rem;
+  color: rgba(248, 248, 245, 0.72);
+  font-size: 0.75rem;
+}
+
+.study-history__new,
+.study-history__item {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.study-history__new {
+  color: #22bbff;
+  font-size: 0.75rem;
+}
+
+.study-history__item {
+  display: grid;
+  width: 100%;
+  padding: 0.55rem 0.6rem;
+  gap: 0.15rem;
+}
+
+.study-history__item.is-current {
+  background: rgba(5, 167, 220, 0.16);
+}
+
+.study-history__item strong {
+  font-size: 0.88rem;
+}
+
+.study-history__item small {
+  color: rgba(248, 248, 245, 0.52);
+  font-size: 0.72rem;
 }
 
 .study-main {
@@ -111,13 +160,22 @@ html[data-ak-theme='light'] .study-top {
   border-bottom-color: rgba(23, 25, 27, 0.12);
 }
 
+.study-top__kicker {
+  margin: 0 0 0.25rem;
+  color: var(--ak-text-secondary);
+  font-family: var(--ak-font-mono);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+
 .study-top__title {
   margin: 0;
   font-family: var(--ak-font-command);
-  font-size: clamp(1.7rem, 3vw, 2.4rem);
+  font-size: 1.65rem;
   font-weight: 900;
-  letter-spacing: -0.06em;
-  line-height: 1;
+  letter-spacing: -0.05em;
+  line-height: 1.1;
 }
 
 .study-top__meta {
@@ -227,6 +285,11 @@ html[data-ak-theme='light'] .study-top {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 0.75rem;
   align-items: end;
+}
+
+.study-composer .ak-button {
+  width: 5.5rem;
+  height: 2.75rem;
 }
 
 html[data-ak-theme='light'] .study-composer {
