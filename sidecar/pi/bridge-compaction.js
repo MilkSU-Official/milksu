@@ -12,6 +12,20 @@
 // being reported as success.
 
 export const DEFAULT_COMPACTION_TIMEOUT_MS = 120_000;
+export const CONTEXT_COMPACTION_RATIO = 0.85;
+
+export function contextUsageSnapshot(usage, contextWindow) {
+  const input = Math.max(0, Number(usage?.inputTokens ?? 0))
+    + Math.max(0, Number(usage?.cacheReadTokens ?? 0));
+  const window = Math.max(0, Number(contextWindow ?? 0));
+  const ratio = window > 0 ? input / window : 0;
+  return {
+    inputTokens: input,
+    contextWindow: window,
+    percent: window > 0 ? Math.min(100, Math.round(ratio * 100)) : 0,
+    shouldCompact: window > 0 && ratio >= CONTEXT_COMPACTION_RATIO,
+  };
+}
 
 // Fixed structured instruction. Kept in Chinese because the product surface is
 // Chinese; the summarizer must retain every fact that changes later behaviour,

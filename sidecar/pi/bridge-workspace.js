@@ -1,4 +1,5 @@
 import { Type } from "typebox";
+import { contextUsageSnapshot } from "./bridge-compaction.js";
 
 export const codingWorkspaceToolName = "milksu_workspace";
 
@@ -37,7 +38,8 @@ export function codingWorkspaceGuidance() {
     "Close one tab or close_all_browser_tabs when the user wants the right-hand pages gone.",
     "List or preview workspace artifacts and show_panel to open 产物 / 浏览器 / 变更 / 环境.",
     "Use list_status for Git, model, permission, and context facts the environment panel shows.",
-    "Use compact_context to run the same Pi compaction as /compact; it waits until this turn is idle.",
+    "Context compaction is automatic at about 85% of the model window, using the same Pi compact path as /compact.",
+    "Use compact_context only to inspect usage or confirm that 85% threshold; do not wait for the whole turn if usage is still low.",
     "Use show_terminal / list_terminals / list_background_tasks for the bottom terminal and Agent background jobs.",
     "Do not scan the user message for keywords; choose these typed actions from the request.",
     "Do not change Settings, credentials, approval policy, Computer Use scope, or the user's real Chrome.",
@@ -74,15 +76,31 @@ export function formatCodingWorkspaceInput(input) {
   ].filter(Boolean).join(" · ");
 }
 
+export function describeWorkspaceCompaction(usage, contextWindow) {
+  const snapshot = contextUsageSnapshot(usage, contextWindow);
+  if (!snapshot.shouldCompact) {
+    return {
+      compacted: false,
+      scheduled: false,
+      percent: snapshot.percent,
+      threshold: 85,
+      detail: `当前上下文约 ${snapshot.percent}%。满 85% 时会自动用 Pi 压缩，现在不会整理。`,
+    };
+  }
+  return {
+    compacted: false,
+    scheduled: true,
+    percent: snapshot.percent,
+    threshold: 85,
+    detail: `当前上下文约 ${snapshot.percent}%，已超过 85%。会话空闲时立即用 Pi 压缩。`,
+  };
+}
+
 export function queueWorkspaceCompaction(pending, conversationId) {
   const id = String(conversationId ?? "").trim();
   if (!id) throw new Error("conversationId is required");
   pending.add(id);
-  return JSON.stringify({
-    queued: true,
-    when: "after_current_turn",
-    detail: "将在本回合结束后用 Pi 整理上下文，与 /compact 相同。",
-  });
+  return id;
 }
 
 export async function runQueuedWorkspaceCompaction(pending, conversationId, compact) {
@@ -148,6 +166,7 @@ export function createCodingWorkspaceExtension(
   getPolicy,
   requestAction,
   queueCompact,
+  inspectUsage,
 ) {
   return (pi) => {
     pi.registerTool({
@@ -188,11 +207,13 @@ export function createCodingWorkspaceExtension(
         const blocked = codingWorkspaceActionBlocked(action, getPolicy?.());
         if (blocked) throw new Error(blocked);
         if (action === "compact_context") {
-          if (!queueCompact) {
-            throw new Error("Context compaction is unavailable in this session");
+          const usage = inspectUsage?.(conversationId) ?? {};
+          const report = describeWorkspaceCompaction(usage.usage, usage.contextWindow);
+          if (report.scheduled && queueCompact) {
+            queueCompact(conversationId);
           }
           return {
-            content: [{ type: "text", text: queueCompact(conversationId) }],
+            content: [{ type: "text", text: JSON.stringify(report) }],
           };
         }
         const result = await requestAction({

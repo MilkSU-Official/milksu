@@ -80,6 +80,7 @@ import { disposeAgentSession } from "./bridge-session-lifecycle.js";
 import { createCTFTruncationContinuationExtension } from "./bridge-ctf-continuation.js";
 import {
   compactSession,
+  contextUsageSnapshot,
   projectCompactionEvent,
   trackCompaction,
   waitForCompaction,
@@ -112,7 +113,6 @@ import {
   createWorkspaceActionBroker,
   formatCodingWorkspaceInput,
   queueWorkspaceCompaction,
-  runQueuedWorkspaceCompaction,
 } from "./bridge-workspace.js";
 import { reviewedCodingSkillPaths } from "./bridge-skills.js";
 import {
@@ -224,6 +224,7 @@ function emitGoalState(conversationId, session) {
 const approvalBroker = createApprovalBroker(emit);
 const workspaceActionBroker = createWorkspaceActionBroker(emit);
 const pendingWorkspaceCompaction = new Set();
+const sessionContextUsage = new Map();
 const backgroundEffectfulActions = new Set(["spawn", "watch", "stop", "clear"]);
 
 function backgroundToolAction(toolName, input) {
@@ -911,7 +912,10 @@ function subscribeSession(
         provider: sessionConfiguredProviders.get(conversationId),
         source: sessionModelSources.get(conversationId),
       });
-      if (usage) emit(conversationId, "usage_recorded", { usage, module: usageModule });
+      if (usage) {
+        recordSessionContextUsage(conversationId, usage, session.model?.contextWindow);
+        emit(conversationId, "usage_recorded", { usage, module: usageModule });
+      }
       assistantTextStreamed = false;
       return;
     }
@@ -1035,6 +1039,11 @@ function createMilkSUResourceLoader(
         getPolicy,
         request => workspaceActionBroker.request(request),
         id => queueWorkspaceCompaction(pendingWorkspaceCompaction, id),
+        id => ({
+          usage: sessionContextUsage.get(id),
+          contextWindow: sessions.get(id)?.model?.contextWindow
+            ?? sessionContextUsage.get(id)?.contextWindow,
+        }),
       ),
       piSubAgentExtension,
     );
@@ -1466,6 +1475,11 @@ async function sendMessage(command) {
     // the next prompt so Pi never runs a prompt against a session that is
     // mid-compaction. Compaction is bounded, so this wait cannot hang forever.
     await waitForCompaction(compactionRuns, conversationId);
+    await compactIfContextNearLimit(
+      conversationId,
+      session,
+      sessionPolicies.get(conversationId),
+    );
     const attachmentRoot = process.env.MILKSU_CODING_ATTACHMENT_ROOT;
     const supportsImages = Array.isArray(session.model?.input)
       && session.model.input.includes("image");
@@ -1505,20 +1519,10 @@ async function sendMessage(command) {
       prompt,
       prepared.images.length ? { images: prepared.images } : undefined,
     ));
-    await runQueuedWorkspaceCompaction(
-      pendingWorkspaceCompaction,
+    await compactIfContextNearLimit(
       conversationId,
-      async () => {
-        try {
-          await compactSession(session);
-        } catch (error) {
-          emit(conversationId, "compaction_end", {
-            reason: "manual",
-            aborted: /cancelled|timed out|aborted/i.test(describeError(error)),
-            error: describeError(error),
-          });
-        }
-      },
+      session,
+      sessionPolicies.get(conversationId),
     );
   });
   promptQueues.set(conversationId, next.catch(() => undefined));
@@ -1582,6 +1586,7 @@ async function destroySession(command) {
   approvalBroker.clearConversationGrants(conversationId);
   workspaceActionBroker.cancelConversation(conversationId, "session destroyed");
   pendingWorkspaceCompaction.delete(conversationId);
+  sessionContextUsage.delete(conversationId);
   compactionRuns.delete(conversationId);
   compactionRequestIds.delete(conversationId);
   sessionTurnContracts.delete(conversationId);
@@ -1635,6 +1640,41 @@ function terminalCommandName(value, command) {
   if (explicit) return explicit.slice(0, 120);
   const firstLine = String(command ?? "").split(/\r?\n/, 1)[0].trim();
   return (firstLine || "终端命令").slice(0, 120);
+}
+
+function recordSessionContextUsage(conversationId, usage, contextWindow) {
+  const id = String(conversationId ?? "").trim();
+  if (!id) return;
+  sessionContextUsage.set(id, {
+    inputTokens: Number(usage?.inputTokens ?? 0),
+    cacheReadTokens: Number(usage?.cacheReadTokens ?? 0),
+    contextWindow: Number(contextWindow ?? usage?.contextWindow ?? 0),
+  });
+}
+
+async function compactIfContextNearLimit(conversationId, session, policy) {
+  if (policy?.ctf || !session) return;
+  const stored = sessionContextUsage.get(conversationId);
+  const snapshot = contextUsageSnapshot(
+    stored,
+    session.model?.contextWindow || stored?.contextWindow,
+  );
+  const forced = pendingWorkspaceCompaction.has(conversationId);
+  if (!snapshot.shouldCompact && !forced) return;
+  pendingWorkspaceCompaction.delete(conversationId);
+  try {
+    const result = await compactSession(session);
+    recordSessionContextUsage(conversationId, {
+      inputTokens: Number(result?.estimatedTokensAfter ?? 0),
+      cacheReadTokens: 0,
+    }, session.model?.contextWindow || stored?.contextWindow);
+  } catch (error) {
+    emit(conversationId, "compaction_end", {
+      reason: "auto",
+      aborted: /cancelled|timed out|aborted/i.test(describeError(error)),
+      error: describeError(error),
+    });
+  }
 }
 
 async function compactSessionCommand(command) {
