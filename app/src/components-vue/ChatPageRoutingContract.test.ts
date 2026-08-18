@@ -91,15 +91,15 @@ describe('ChatPage routing contract', () => {
     expect(chatPageSource).not.toContain('相关历史')
   })
 
-  it('projects milksu_progress plans, token usage and run timing on the right rail and composer', () => {
+  it('projects milksu_progress plans, context meter and run timing on the right rail and composer', () => {
     expect(chatPageSource).toContain("from '@/components-vue/AgentExecutionPlan.vue'")
     expect(chatPageSource).toContain('<AgentExecutionPlan')
+    expect(chatPageSource).toContain("from '@/components-vue/ContextUsageMeter.vue'")
     expect(chatPageSource).toContain('turnStatus?: SessionTurnSnapshot')
-    expect(chatPageSource).toContain(':context-strip="composerContextStrip"')
+    expect(chatPageSource).toContain(':context-usage="contextUsagePresentation"')
     expect(chatPageSource).toContain(':run-elapsed-label=')
-    expect(chatPageSource).toContain('data-testid="agent-token-io"')
     expect(chatPageSource).toContain('data-testid="agent-run-elapsed"')
-    expect(chatPageSource).toContain('Token 等待本轮用量')
+    expect(chatPageSource).not.toContain('等待本轮用量')
     // Decorative Mission phases stay on empty CTF/CVE canvas only. Live plans
     // come from milksu_progress; when the model has not published one, the rail
     // stays empty instead of inventing fake phases or tool-call lists.

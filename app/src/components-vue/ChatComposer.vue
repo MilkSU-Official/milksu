@@ -50,6 +50,7 @@ import {
   X,
 } from 'lucide-vue-next'
 import CodingComposerControls from '@/components-vue/CodingComposerControls.vue'
+import ContextUsageMeter from '@/components-vue/ContextUsageMeter.vue'
 import { invokeCommand } from '@/desktop'
 import type {
   CodingApprovalPolicy,
@@ -61,6 +62,7 @@ import type {
   CTFChatAction,
 } from '@/types'
 import type { CodingGitChange } from '@/codingEnvironmentTypes'
+import type { ContextUsagePresentation } from '@/lib/sessionTurnStatus'
 import { CODING_SKILLS } from '@/codingSkills'
 
 interface ComposerGitSummary {
@@ -111,9 +113,8 @@ const props = defineProps<{
   automaticModelLabel: string
   compactModelLabel: string
   compactDisabled?: boolean
-  /** One-line context / token strip above the toolbar (session last usage). */
-  contextStrip?: string
-  contextNearLimit?: boolean
+  /** Last model usage projection; meter shows ring + hover details when present. */
+  contextUsage?: ContextUsagePresentation | null
   /** Live model-run elapsed label, e.g. "1:05". */
   runElapsedLabel?: string
   workspaceReady?: boolean
@@ -1350,18 +1351,15 @@ defineExpose({
           @drop="handleComposerDrop"
         />
         <div
-          v-if="contextStrip || runElapsedLabel"
-          class="chat-composer__context-strip flex min-w-0 items-center justify-between gap-3 px-1 pb-0.5"
+          v-if="contextUsage || runElapsedLabel"
+          class="chat-composer__context-strip flex min-w-0 items-center justify-end gap-3 px-1 pb-0.5"
           data-testid="composer-context-strip"
         >
-          <p
-            v-if="contextStrip"
-            class="min-w-0 truncate font-mono text-caption tabular-nums"
-            :class="contextNearLimit ? 'text-warning' : 'text-muted-foreground'"
-            :title="contextStrip"
-          >
-            {{ contextStrip }}
-          </p>
+          <ContextUsageMeter
+            v-if="contextUsage"
+            :usage="contextUsage"
+            size="sm"
+          />
           <span
             v-if="runElapsedLabel"
             class="inline-flex shrink-0 items-center gap-1.5 font-mono text-caption tabular-nums text-muted-foreground"

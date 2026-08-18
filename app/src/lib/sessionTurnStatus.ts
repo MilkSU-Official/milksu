@@ -121,7 +121,7 @@ export function formatElapsedMs(elapsedMs: number | undefined): string {
 }
 
 export interface ContextUsagePresentation {
-  /** Short line for composer strip, e.g. "12k / 128k · 入 10k 出 2k". */
+  /** Short line for composer strip, e.g. "↑10k ↓1.8k · 12k/128k". */
   strip: string
   /** Percent of context window used by last prompt (input+cache), 0–100 when known. */
   percent?: number
@@ -131,6 +131,8 @@ export interface ContextUsagePresentation {
   outputLabel: string
   windowLabel: string
   totalLabel: string
+  /** Compact I/O line using up/down arrows. */
+  ioLabel: string
 }
 
 export function presentContextUsage(
@@ -145,23 +147,27 @@ export function presentContextUsage(
   const outputLabel = formatTokenCount(output)
   const totalLabel = formatTokenCount(usage.totalTokens || input + output)
   const windowLabel = window ? formatTokenCount(window) : ''
+  const ioLabel = `↑${inputLabel} ↓${outputLabel}`
   let percent: number | undefined
   let nearLimit = false
   if (window && window > 0) {
     percent = Math.min(100, Math.round((input / window) * 100))
     nearLimit = percent >= 85
   }
-  const ratio = windowLabel ? `${inputLabel} / ${windowLabel}` : totalLabel
-  const io = `入 ${inputLabel} 出 ${outputLabel}`
+  const ratio = windowLabel ? `${inputLabel}/${windowLabel}` : ''
   const compacting = snapshot.compacting ? ' · 整理中' : ''
+  const strip = ratio
+    ? `${ioLabel} · ${ratio}${compacting}`
+    : `${ioLabel}${compacting}`
   return {
-    strip: `${ratio} · ${io}${compacting}`,
+    strip,
     percent,
     nearLimit,
     inputLabel,
     outputLabel,
     windowLabel,
     totalLabel,
+    ioLabel,
   }
 }
 
