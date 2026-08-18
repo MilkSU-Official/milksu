@@ -19,8 +19,8 @@ func TestMissingDriverProblemForbidsOfficialInstaller(t *testing.T) {
 }
 
 func TestPrepareCopiesReviewedDriverIntoUserConfig(t *testing.T) {
-	if runtime.GOOS != "windows" && runtime.GOOS != "darwin" {
-		t.Skip("Computer Use prepare is macOS/Windows")
+	if runtime.GOOS != "windows" {
+		t.Skip("reviewed driver copy uses the Windows sidecar-cache layout")
 	}
 	workspace := t.TempDir()
 	t.Chdir(workspace)

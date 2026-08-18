@@ -713,9 +713,11 @@ func TestWindowsComputerUseUsesExecutablePolicyAndPrivatePipe(t *testing.T) {
 		strings.Contains(manifest, "bundle_id:") {
 		t.Fatalf("Windows policy is not executable-bound:\n%s", manifest)
 	}
-	endpoint := endpointForSession("windows", t.TempDir(), "computer_12345678")
-	if endpoint != `\\.\pipe\milksu-computer-use-computer_12345678` {
-		t.Fatalf("unexpected Windows private endpoint: %q", endpoint)
+	if runtime.GOOS == "windows" {
+		endpoint := endpointForSession("windows", t.TempDir(), "computer_12345678")
+		if endpoint != `\\.\pipe\milksu-computer-use-computer_12345678` {
+			t.Fatalf("unexpected Windows private endpoint: %q", endpoint)
+		}
 	}
 	for _, variable := range driverEnvironment("windows", t.TempDir(), defaultHostBundleID) {
 		upper := strings.ToUpper(variable)
