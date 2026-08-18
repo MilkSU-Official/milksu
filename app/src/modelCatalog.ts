@@ -392,6 +392,10 @@ function isScopedSettings(value: ModelCatalogScope): value is {
 }
 
 export function installModelCatalog(snapshot?: ModelCatalogSnapshot | null) {
+  if (snapshot === null) {
+    current.value = null
+    return
+  }
   if (!snapshot || snapshot.provider !== 'tokenflux' || !Array.isArray(snapshot.models)) return
   const seen = new Set<string>()
   const models = snapshot.models.filter(model => {

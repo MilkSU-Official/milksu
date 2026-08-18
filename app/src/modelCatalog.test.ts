@@ -71,6 +71,36 @@ describe('runtime model catalog', () => {
       .toBe('Team Relay · vendor/model:preview')
   })
 
+  it('clears the in-memory TokenFlux catalog when given null', () => {
+    installModelCatalog({
+      provider: 'tokenflux',
+      source: 'remote',
+      credential_source: 'account',
+      refreshed_at: '2026-08-18T00:00:00Z',
+      models: [
+        {
+          id: 'grok-4.5', name: 'Grok 4.5',
+          context_window: 500000, max_tokens: 32768, input: ['text', 'image'],
+        },
+      ],
+    })
+    installAppModelSettings({
+      providers: {},
+      relay: {
+        enabled: true,
+        url: 'https://tokenflux.dev/v1',
+        key: '',
+        has_key: true,
+      },
+    })
+    expect(useModelCatalog().providers.value.find(provider => provider.id === 'tokenflux')?.models)
+      .toEqual(['grok-4.5'])
+
+    installModelCatalog(null)
+    expect(useModelCatalog().providers.value.some(provider => provider.id === 'tokenflux'))
+      .toBe(false)
+  })
+
   it('hides unconfigured custom relays from runtime pickers', () => {
     installModelCatalog({
       provider: 'tokenflux',

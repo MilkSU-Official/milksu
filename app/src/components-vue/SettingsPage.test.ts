@@ -27,16 +27,18 @@ HTMLElement.prototype.scrollIntoView = () => undefined
 
 const mountedApps: App[] = []
 
-installModelCatalog({
-  provider: 'tokenflux',
-  source: 'remote',
-  credential_source: 'account',
+const defaultTokenFluxCatalog = {
+  provider: 'tokenflux' as const,
+  source: 'remote' as const,
+  credential_source: 'account' as const,
   refreshed_at: '2026-08-13T12:30:00Z',
   models: [
     { id: 'grok-4.5', name: 'Grok 4.5', context_window: 500000, max_tokens: 32768, input: ['text', 'image'] },
     { id: 'grok-4.3', name: 'Grok 4.3', context_window: 1000000, max_tokens: 32768, input: ['text'] },
   ],
-})
+}
+
+installModelCatalog(defaultTokenFluxCatalog)
 
 async function settle() {
   await Promise.resolve()
@@ -56,6 +58,7 @@ afterEach(() => {
   Reflect.deleteProperty(window, 'go')
   Reflect.deleteProperty(window, 'milksu')
   installCustomProviderSettings({})
+  installModelCatalog(defaultTokenFluxCatalog)
 })
 
 interface MountSettingsOptions {
@@ -1175,5 +1178,134 @@ describe('SettingsPage database compatibility', () => {
     const persisted = savedSettings as AppSettings
     expect(persisted.providers.tokenflux.enabled).toBe(false)
     expect(persisted.model_routing.auto_fallback).toBe(false)
+  })
+})
+
+describe('SettingsPage custom relay catalog isolation', () => {
+  function typeInto(input: HTMLInputElement | null, value: string) {
+    expect(input).not.toBeNull()
+    input!.value = value
+    input!.dispatchEvent(new Event('input', { bubbles: true }))
+  }
+
+  function buttonByText(label: string) {
+    return [...document.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.trim() === label)
+  }
+
+  async function addNamedCustomRelay(model: string, name: string) {
+    document.querySelector<HTMLButtonElement>('button[aria-label="新增模型服务"]')?.click()
+    await settle()
+    const dialog = document.querySelector<HTMLElement>('.provider-editor-dialog')
+    expect(dialog).not.toBeNull()
+    typeInto(dialog!.querySelector('input[aria-label="API 端点"]'), 'https://relay.example/v1')
+    typeInto(dialog!.querySelector('input[aria-label="中转站名称"]'), name)
+    typeInto(dialog!.querySelector('input[aria-label="模型 ID 或关键词前缀"]'), model)
+    buttonByText('添加')?.click()
+    await settle()
+    typeInto(dialog!.querySelector('input[aria-label="API Key"]'), 'custom-test-secret')
+    buttonByText('保存')?.click()
+    for (let index = 0; index < 8; index += 1) await settle()
+  }
+
+  async function openTokenFluxEditor() {
+    const row = [...document.querySelectorAll<HTMLElement>('.model-service-row')]
+      .find(item => item.textContent?.includes('TokenFlux 中转站'))
+    expect(row).toBeDefined()
+    const edit = [...row!.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.trim() === '编辑')
+    edit?.click()
+    await settle()
+    return document.querySelector<HTMLElement>('.provider-editor-dialog')
+  }
+
+  async function mountEmptyCatalogClient() {
+    installModelCatalog(null)
+    let savedSettings: AppSettings | null = null
+    const settings = withAppSettingsDefaults({
+      active_provider: 'tokenflux',
+      active_model: '',
+      providers: {},
+      relay: {
+        enabled: false,
+        url: 'https://tokenflux.dev/v1',
+        key: '',
+        has_key: false,
+      },
+    } as AppSettings)
+    await mountSettingsPage({
+      directory: 'MilkSU 用户数据目录',
+      fileCount: 0,
+      bytes: 0,
+    }, {
+      initialCategory: 'apikeys',
+      settings,
+      appMethods: {
+        GetModelCatalog: async () => ({
+          provider: 'tokenflux',
+          source: 'bundled',
+          credential_source: 'bundled',
+          models: [],
+        }),
+        SaveSettingsCmd: async (value: unknown) => {
+          savedSettings = value as AppSettings
+        },
+        GetSettings: async () => savedSettings ?? settings,
+        TestAgentModel: async () => ({
+          provider: (savedSettings ?? settings).active_provider,
+          model: (savedSettings ?? settings).active_model,
+          ready: true,
+          latencyMs: 12,
+        }),
+      },
+    })
+  }
+
+  it('does not park a deleted custom relay model under TokenFlux', async () => {
+    await mountEmptyCatalogClient()
+    await addNamedCustomRelay('222', '222')
+
+    const customRow = [...document.querySelectorAll<HTMLElement>('.model-service-row')]
+      .find(row => (row.querySelector('p.font-medium')?.textContent ?? '').trim() === '222')
+    expect(customRow).toBeDefined()
+    const remove = [...customRow!.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.trim() === '删除')
+    remove?.click()
+    await settle()
+
+    expect(modelServiceRowTitles()).not.toContain('222')
+    const defaultLabel = (document.querySelector('[aria-label="默认模型"]')?.textContent ?? '')
+      .replace(/\s+/g, ' ')
+      .trim()
+    expect(defaultLabel).not.toContain('222')
+    expect(defaultLabel).not.toContain('TokenFlux · 222')
+
+    const dialog = await openTokenFluxEditor()
+    expect(dialog?.textContent ?? '').not.toContain('222')
+    expect(dialog?.textContent ?? '').toContain('测试连接后显示可用模型')
+  })
+
+  it('does not park a disabled custom relay model under TokenFlux', async () => {
+    await mountEmptyCatalogClient()
+    await addNamedCustomRelay('33', '33')
+
+    const customRow = [...document.querySelectorAll<HTMLElement>('.model-service-row')]
+      .find(row => (row.querySelector('p.font-medium')?.textContent ?? '').trim() === '33')
+    expect(customRow).toBeDefined()
+    const toggle = customRow!.querySelector<HTMLElement>('[role="switch"]')
+    expect(toggle).not.toBeNull()
+    toggle?.click()
+    await settle()
+
+    expect(customRow!.textContent ?? '').toContain('已停用')
+    const defaultLabel = (document.querySelector('[aria-label="默认模型"]')?.textContent ?? '')
+      .replace(/\s+/g, ' ')
+      .trim()
+    expect(defaultLabel).not.toContain('33')
+    expect(defaultLabel).not.toContain('TokenFlux · 33')
+
+    const dialog = await openTokenFluxEditor()
+    expect(dialog?.textContent ?? '').not.toContain('33')
+    expect(dialog?.textContent ?? '').toContain('测试连接后显示可用模型')
   })
 })

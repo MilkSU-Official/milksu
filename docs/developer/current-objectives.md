@@ -98,6 +98,10 @@
 - Windows Computer Use 沿用 macOS 的有界 Cua 会话：按绝对可执行文件绑定目标、用 Electron 主进程 PID 排除宿主窗口。可见浏览器窗口也是合法 Computer Use 目标；隔离“浏览器”和 Browser Use 仍是另外两条表面，不互相替代。Start/Restore 生命周期与本机 Notepad 窗口枚举已覆盖。本机已用 sidecar 查找路径中的补丁版 `cua-driver 0.14.2` 对可见窗口完成 `observe -> type_text -> observe`，token 回读成功；同一 Driver 对独立 Chrome 窗口完成输入框输入和按钮点击，页面从 `idle` 变为 `visited hello cua`。Chrome 会丢弃后台键盘投递，需前台 `type_text`。Driver 先走安装包/Sidecar 自带副本；缺失时用户启动 Computer Use 可由类型化 `prepare_computer_use_driver` 把 MilkSU 审阅过的 Driver 拷到本机配置目录或按仓库脚本构建，不运行 Cua 官方安装脚本，也不回退到系统级全局控制。官方未打补丁的 Windows 包无法在 bounded 策略下对上可执行文件身份。发行 Windows 包仍由 sidecar 源码构建并打入安装包，不是一次新的三端发行。macOS Computer Use 路径未改。
 - CTF / CVE 的模型操作工作台 UX 后置，不在本轮把 `milksu_workspace` 扩到那两个模块。
 
+### 设置 / 模型服务
+
+- 空 TokenFlux 目录时，删除或停用自定义中转站不会再把它的模型 ID 接到 TokenFlux 默认选择或「可用模型」里（#11）。
+
 ### 发行工具
 
 - 本机默认走 Personal Vault 签名；`release:github` 必须创建/刷新 GitHub Release 页。
