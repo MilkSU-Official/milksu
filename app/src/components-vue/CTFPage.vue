@@ -81,6 +81,7 @@ import {
   parseCTFDailyChallengeRecord,
 } from '@/lib/ctfDailyChallenge'
 import { ALL_COLLECTIONS_ID, createItemCollectionStore } from '@/lib/itemCollections'
+import { debugLog, updateDebugState } from '@/lib/debugMode'
 import {
   ctfManualStatusFromJobStatus,
   ctfManualStatusLabel,
@@ -819,6 +820,11 @@ watch([catalogQuery, catalogCategory], () => {
 watch(collectionView, () => {
   if (activeBank.value !== 'nssctf' || screen.value !== 'challenge') return
   selectedProblem.value = null
+  debugLog('switch-collection', `view=${collectionView.value}`)
+  updateDebugState({
+    view: collectionView.value,
+    selectedPlatformId: null,
+  })
   void loadPublicCatalog(1).then(() => selectDefaultDeskProblem())
 })
 
@@ -937,12 +943,19 @@ async function loadPublicCatalog(page = catalogPage.value) {
         .filter(key => key.startsWith('nssctf:'))
         .map(key => Number(key.slice('nssctf:'.length)))
         .filter(Number.isFinite)
+  const started = Date.now()
   const result = await publicCatalog.search({
     query: catalogQuery.value,
     category: catalogCategory.value,
     page,
     pageSize: catalogPageSize,
     problemIds,
+  })
+  debugLog('load-catalog', `page=${page} view=${collectionView.value}`, Date.now() - started)
+  updateDebugState({
+    view: collectionView.value,
+    selectedPlatformId: selectedProblem.value?.platformId ?? null,
+    collectionProblems: problemIds ? problemIds.length : 0,
   })
   if (result) catalogPage.value = result.page
 }

@@ -15,6 +15,7 @@ import {
 } from '@/lib/themeMode'
 import { settingsReturnSection, type CTFWorkspaceSection } from '@/lib/workspaceNavigation'
 import { executeVulnerabilityCodingHandoff } from '@/lib/vulnerabilityCodingHandoff'
+import { debugLog } from '@/lib/debugMode'
 import { buildCTFDomainTaskContext } from '@/lib/domainTaskContext'
 import {
   rememberWorkspaceConversation,
@@ -271,6 +272,7 @@ function restoreCTFWorkspaceResumePoint() {
 }
 
 function navigateSection(value: Section) {
+  debugLog('section', value)
   rememberActiveConversation()
   if (value === 'ctf') {
     restoreCTFWorkspaceResumePoint()

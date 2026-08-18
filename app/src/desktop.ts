@@ -1,3 +1,4 @@
+import { recordRpcCall } from '@/lib/debugMode'
 import {
   type AccountStatus,
   type AppSettings,
@@ -446,6 +447,7 @@ export function hasDesktopRuntime(): boolean {
 }
 
 export async function invokeCommand<T = unknown>(command: string, args?: CommandArgs): Promise<T> {
+  recordRpcCall(command)
   const app = getDesktopApp()
   if (!app) {
     throw new Error(`MilkSU desktop runtime is unavailable for command: ${command}`)
