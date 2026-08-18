@@ -111,6 +111,8 @@ import {
   createCodingWorkspaceExtension,
   createWorkspaceActionBroker,
   formatCodingWorkspaceInput,
+  queueWorkspaceCompaction,
+  runQueuedWorkspaceCompaction,
 } from "./bridge-workspace.js";
 import { reviewedCodingSkillPaths } from "./bridge-skills.js";
 import {
@@ -221,6 +223,7 @@ function emitGoalState(conversationId, session) {
 
 const approvalBroker = createApprovalBroker(emit);
 const workspaceActionBroker = createWorkspaceActionBroker(emit);
+const pendingWorkspaceCompaction = new Set();
 const backgroundEffectfulActions = new Set(["spawn", "watch", "stop", "clear"]);
 
 function backgroundToolAction(toolName, input) {
@@ -1031,6 +1034,7 @@ function createMilkSUResourceLoader(
         conversationId,
         getPolicy,
         request => workspaceActionBroker.request(request),
+        id => queueWorkspaceCompaction(pendingWorkspaceCompaction, id),
       ),
       piSubAgentExtension,
     );
@@ -1501,6 +1505,21 @@ async function sendMessage(command) {
       prompt,
       prepared.images.length ? { images: prepared.images } : undefined,
     ));
+    await runQueuedWorkspaceCompaction(
+      pendingWorkspaceCompaction,
+      conversationId,
+      async () => {
+        try {
+          await compactSession(session);
+        } catch (error) {
+          emit(conversationId, "compaction_end", {
+            reason: "manual",
+            aborted: /cancelled|timed out|aborted/i.test(describeError(error)),
+            error: describeError(error),
+          });
+        }
+      },
+    );
   });
   promptQueues.set(conversationId, next.catch(() => undefined));
   try {
@@ -1518,6 +1537,7 @@ async function abortSession(command) {
   if (!session) return;
   approvalBroker.cancelConversation(conversationId, "turn aborted");
   workspaceActionBroker.cancelConversation(conversationId, "turn aborted");
+  pendingWorkspaceCompaction.delete(conversationId);
   abortedSessions.add(conversationId);
   await session.abort();
   // Do not synthesize empty message_done (it became a blank assistant bubble).
@@ -1561,6 +1581,7 @@ async function destroySession(command) {
   approvalBroker.cancelConversation(conversationId, "session destroyed");
   approvalBroker.clearConversationGrants(conversationId);
   workspaceActionBroker.cancelConversation(conversationId, "session destroyed");
+  pendingWorkspaceCompaction.delete(conversationId);
   compactionRuns.delete(conversationId);
   compactionRequestIds.delete(conversationId);
   sessionTurnContracts.delete(conversationId);

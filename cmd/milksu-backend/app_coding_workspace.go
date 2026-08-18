@@ -22,6 +22,8 @@ type codingWorkspaceReveal struct {
 	ConversationID string `json:"conversationId"`
 	Panel          string `json:"panel,omitempty"`
 	ArtifactPath   string `json:"artifactPath,omitempty"`
+	ChangePath     string `json:"changePath,omitempty"`
+	Terminal       string `json:"terminal,omitempty"`
 }
 
 func (a *App) handleCodingWorkspaceAction(conversationID, action, input string) (string, error) {
@@ -40,7 +42,7 @@ func (a *App) handleCodingWorkspaceAction(conversationID, action, input string) 
 		if err != nil {
 			return "", err
 		}
-		a.revealCodingWorkspace(conversationID, "browser", "")
+		a.revealCodingWorkspace(conversationID, "browser", "", "", "")
 		return encodeWorkspaceResult(map[string]any{
 			"tabs":        status.Tabs,
 			"activeTabId": status.ActiveTabID,
@@ -58,7 +60,7 @@ func (a *App) handleCodingWorkspaceAction(conversationID, action, input string) 
 		if err != nil {
 			return "", err
 		}
-		a.revealCodingWorkspace(conversationID, "browser", "")
+		a.revealCodingWorkspace(conversationID, "browser", "", "", "")
 		return encodeWorkspaceResult(map[string]any{
 			"focused":     tab.ID,
 			"tabs":        status.Tabs,
@@ -72,7 +74,7 @@ func (a *App) handleCodingWorkspaceAction(conversationID, action, input string) 
 		if err != nil {
 			return "", err
 		}
-		a.revealCodingWorkspace(conversationID, "browser", "")
+		a.revealCodingWorkspace(conversationID, "browser", "", "", "")
 		return encodeWorkspaceResult(map[string]any{
 			"tabs":        status.Tabs,
 			"activeTabId": status.ActiveTabID,
@@ -90,7 +92,7 @@ func (a *App) handleCodingWorkspaceAction(conversationID, action, input string) 
 		if err != nil {
 			return "", err
 		}
-		a.revealCodingWorkspace(conversationID, "browser", "")
+		a.revealCodingWorkspace(conversationID, "browser", "", "", "")
 		return encodeWorkspaceResult(map[string]any{
 			"closed":      tab.ID,
 			"tabs":        status.Tabs,
@@ -105,7 +107,7 @@ func (a *App) handleCodingWorkspaceAction(conversationID, action, input string) 
 			return "", err
 		}
 		a.emitDesktopEvent("coding-browser.ready", status)
-		a.revealCodingWorkspace(conversationID, "browser", "")
+		a.revealCodingWorkspace(conversationID, "browser", "", "", "")
 		return encodeWorkspaceResult(map[string]any{
 			"tabs":        status.Tabs,
 			"activeTabId": status.ActiveTabID,
@@ -119,7 +121,7 @@ func (a *App) handleCodingWorkspaceAction(conversationID, action, input string) 
 		if err != nil {
 			return "", err
 		}
-		a.revealCodingWorkspace(conversationID, "artifacts", "")
+		a.revealCodingWorkspace(conversationID, "artifacts", "", "", "")
 		return encodeWorkspaceResult(map[string]any{
 			"workspace": snapshot.WorkspaceName,
 			"artifacts": codingenv.SuggestedArtifactPaths(snapshot),
@@ -133,7 +135,7 @@ func (a *App) handleCodingWorkspaceAction(conversationID, action, input string) 
 		if err != nil {
 			return "", err
 		}
-		a.revealCodingWorkspace(conversationID, "artifacts", preview.RelativePath)
+		a.revealCodingWorkspace(conversationID, "artifacts", preview.RelativePath, "", "")
 		return encodeWorkspaceResult(map[string]any{
 			"path":      preview.RelativePath,
 			"kind":      preview.Kind,
@@ -144,7 +146,7 @@ func (a *App) handleCodingWorkspaceAction(conversationID, action, input string) 
 		if err := a.RevealUserArtifactDirectory(); err != nil {
 			return "", err
 		}
-		a.revealCodingWorkspace(conversationID, "artifacts", "")
+		a.revealCodingWorkspace(conversationID, "artifacts", "", "", "")
 		return encodeWorkspaceResult(map[string]any{"revealed": true})
 	case "show_panel":
 		panel := strings.TrimSpace(request.Panel)
@@ -154,8 +156,50 @@ func (a *App) handleCodingWorkspaceAction(conversationID, action, input string) 
 		if panel != "browser" && panel != "artifacts" && panel != "changes" && panel != "environment" {
 			return "", fmt.Errorf("unknown Coding panel")
 		}
-		a.revealCodingWorkspace(conversationID, panel, "")
-		return encodeWorkspaceResult(map[string]any{"panel": panel})
+		changePath := ""
+		if panel == "changes" {
+			changePath = strings.TrimSpace(request.Path)
+		}
+		a.revealCodingWorkspace(conversationID, panel, "", changePath, "")
+		return encodeWorkspaceResult(map[string]any{"panel": panel, "path": changePath})
+	case "list_status":
+		return a.listCodingWorkspaceStatus(conversationID)
+	case "show_terminal":
+		a.revealCodingWorkspace(conversationID, "", "", "", "open")
+		return encodeWorkspaceResult(map[string]any{"terminal": "open"})
+	case "hide_terminal":
+		a.revealCodingWorkspace(conversationID, "", "", "", "close")
+		return encodeWorkspaceResult(map[string]any{"terminal": "close"})
+	case "list_terminals":
+		sessions, err := a.ListCodingTerminals(conversationID)
+		if err != nil {
+			return "", err
+		}
+		rows := make([]map[string]any, 0, len(sessions))
+		for _, session := range sessions {
+			rows = append(rows, map[string]any{
+				"id":        session.ID,
+				"status":    session.Status,
+				"workspace": session.Workspace,
+				"pid":       session.PID,
+			})
+		}
+		return encodeWorkspaceResult(map[string]any{"terminals": rows})
+	case "list_background_tasks":
+		status := a.engines.StatusForSession(conversationID)
+		rows := make([]map[string]any, 0, len(status.BackgroundTasks))
+		for _, task := range status.BackgroundTasks {
+			rows = append(rows, map[string]any{
+				"id":      task.ID,
+				"name":    task.Name,
+				"status":  task.Status,
+				"command": task.Command,
+				"cwd":     task.Cwd,
+				"pid":     task.PID,
+				"ports":   task.Ports,
+			})
+		}
+		return encodeWorkspaceResult(map[string]any{"tasks": rows})
 	default:
 		return "", fmt.Errorf("unknown Coding workspace action")
 	}
@@ -169,7 +213,39 @@ func (a *App) workspaceForConversation(conversationID string) (string, error) {
 	return a.resolveConversationWorkspace(conversationID, "")
 }
 
-func (a *App) revealCodingWorkspace(conversationID, panel, artifactPath string) {
+func (a *App) listCodingWorkspaceStatus(conversationID string) (string, error) {
+	saved, err := a.conversations.Get(conversationID)
+	if err != nil {
+		return "", err
+	}
+	workspace, workspaceErr := a.workspaceForConversation(conversationID)
+	var git map[string]any
+	if workspaceErr == nil && strings.TrimSpace(workspace) != "" {
+		if snapshot, inspectErr := codingenv.Inspect(a.commandContext(), workspace); inspectErr == nil {
+			git = map[string]any{
+				"branch":       snapshot.Git.Branch,
+				"dirty":        snapshot.Git.Dirty,
+				"changedFiles": snapshot.Git.ChangedFiles,
+				"staged":       snapshot.Git.Staged,
+				"modified":     snapshot.Git.Modified,
+				"untracked":    snapshot.Git.Untracked,
+				"conflicts":    snapshot.Git.Conflicts,
+			}
+		}
+	}
+	a.revealCodingWorkspace(conversationID, "environment", "", "", "")
+	return encodeWorkspaceResult(map[string]any{
+		"title":          saved.Title,
+		"executionMode":  saved.ExecutionMode,
+		"approvalPolicy": saved.ApprovalPolicy,
+		"model":          strings.TrimSpace(saved.ModelProvider + "/" + saved.ModelID),
+		"workspace":      workspace,
+		"tools":          saved.AgentTools,
+		"git":            git,
+	})
+}
+
+func (a *App) revealCodingWorkspace(conversationID, panel, artifactPath, changePath, terminal string) {
 	if a.ctx == nil {
 		return
 	}
@@ -177,6 +253,8 @@ func (a *App) revealCodingWorkspace(conversationID, panel, artifactPath string) 
 		ConversationID: conversationID,
 		Panel:          panel,
 		ArtifactPath:   artifactPath,
+		ChangePath:     changePath,
+		Terminal:       terminal,
 	})
 }
 

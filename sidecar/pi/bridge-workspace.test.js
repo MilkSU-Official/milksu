@@ -9,6 +9,8 @@ import {
   createWorkspaceActionBroker,
   formatCodingWorkspaceInput,
   normalizeCodingWorkspaceAction,
+  queueWorkspaceCompaction,
+  runQueuedWorkspaceCompaction,
 } from "./bridge-workspace.js";
 
 test("workspace tool rejects unknown actions and plan mutations", () => {
@@ -30,12 +32,22 @@ test("workspace tool rejects unknown actions and plan mutations", () => {
     executionMode: "go",
     approvalPolicy: "workspace-auto",
   }), "");
+  assert.equal(codingWorkspaceActionBlocked("list_status", {
+    executionMode: "plan",
+    approvalPolicy: "workspace-auto",
+  }), "");
+  assert.equal(codingWorkspaceActionBlocked("compact_context", {
+    executionMode: "plan",
+    approvalPolicy: "workspace-auto",
+  }), "");
 });
 
 test("workspace guidance tells the model to use typed UI actions", () => {
   assert.match(codingWorkspaceGuidance(), /milksu_workspace/);
   assert.match(codingWorkspaceGuidance(), /tabId/);
   assert.match(codingWorkspaceGuidance(), /Do not scan the user message/);
+  assert.match(codingWorkspaceGuidance(), /compact_context/);
+  assert.match(codingWorkspaceGuidance(), /list_status/);
   assert.equal(
     formatCodingWorkspaceInput({
       action: "focus_browser_tab",
@@ -98,4 +110,35 @@ test("workspace extension registers one reviewed desktop tool", async () => {
   const result = await tools[0].execute("call-1", { action: "list_browser_tabs" });
   assert.equal(requested[0].action, "list_browser_tabs");
   assert.match(result.content[0].text, /tabs/);
+});
+
+test("compact_context queues Pi compaction until the turn is idle", async () => {
+  const pending = new Set();
+  const queued = queueWorkspaceCompaction(pending, "conversation-1");
+  assert.match(queued, /after_current_turn/);
+  assert.equal(pending.has("conversation-1"), true);
+  let compacted = 0;
+  const first = await runQueuedWorkspaceCompaction(pending, "conversation-1", async () => {
+    compacted += 1;
+    return { tokensBefore: 8000 };
+  });
+  assert.equal(compacted, 1);
+  assert.deepEqual(first, { tokensBefore: 8000 });
+  assert.equal(await runQueuedWorkspaceCompaction(pending, "conversation-1", async () => {
+    compacted += 1;
+  }), undefined);
+  assert.equal(compacted, 1);
+
+  const tools = [];
+  const extension = createCodingWorkspaceExtension(
+    "conversation-1",
+    () => ({ executionMode: "go", approvalPolicy: "ask" }),
+    async () => {
+      throw new Error("desktop should not compact mid-turn");
+    },
+    id => queueWorkspaceCompaction(pending, id),
+  );
+  extension({ registerTool(tool) { tools.push(tool); } });
+  const result = await tools[0].execute("call-compact", { action: "compact_context" });
+  assert.match(result.content[0].text, /queued/);
 });

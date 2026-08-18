@@ -7,6 +7,11 @@ export const codingWorkspaceReadActions = Object.freeze([
   "list_artifacts",
   "preview_artifact",
   "show_panel",
+  "list_status",
+  "list_terminals",
+  "list_background_tasks",
+  "show_terminal",
+  "hide_terminal",
 ]);
 
 export const codingWorkspaceMutatingActions = Object.freeze([
@@ -15,6 +20,7 @@ export const codingWorkspaceMutatingActions = Object.freeze([
   "close_browser_tab",
   "close_all_browser_tabs",
   "reveal_artifacts",
+  "compact_context",
 ]);
 
 const workspaceActions = new Set([
@@ -29,7 +35,10 @@ export function codingWorkspaceGuidance() {
     "Use milksu_workspace to operate the Coding desktop the way the user would.",
     "List browser tabs, then focus one by tabId (or a unique title/url query) before milksu-playwright clicks.",
     "Close one tab or close_all_browser_tabs when the user wants the right-hand pages gone.",
-    "List or preview workspace artifacts and show_panel to open 产物 / 浏览器 / 变更.",
+    "List or preview workspace artifacts and show_panel to open 产物 / 浏览器 / 变更 / 环境.",
+    "Use list_status for Git, model, permission, and context facts the environment panel shows.",
+    "Use compact_context to run the same Pi compaction as /compact; it waits until this turn is idle.",
+    "Use show_terminal / list_terminals / list_background_tasks for the bottom terminal and Agent background jobs.",
     "Do not scan the user message for keywords; choose these typed actions from the request.",
     "Do not change Settings, credentials, approval policy, Computer Use scope, or the user's real Chrome.",
   ].join(" ");
@@ -43,7 +52,9 @@ export function normalizeCodingWorkspaceAction(value) {
 export function codingWorkspaceActionBlocked(action, policy = {}) {
   const normalized = normalizeCodingWorkspaceAction(action);
   if (!normalized) return "MilkSU rejected an unknown Coding workspace action.";
-  if (codingWorkspaceReadActions.includes(normalized)) return "";
+  if (codingWorkspaceReadActions.includes(normalized) || normalized === "compact_context") {
+    return "";
+  }
   if (policy.executionMode !== "go" || policy.approvalPolicy === "read-only") {
     return "Plan 或只读策略不能改动 Coding 界面。先列出标签或产物。";
   }
@@ -58,9 +69,26 @@ export function formatCodingWorkspaceInput(input) {
     input?.tabId ? `标签 ${String(input.tabId).trim()}` : "",
     input?.query ? `查询 ${String(input.query).trim()}` : "",
     input?.url ? `地址 ${String(input.url).trim()}` : "",
-    input?.path ? `产物 ${String(input.path).trim()}` : "",
+    input?.path ? `路径 ${String(input.path).trim()}` : "",
     input?.panel && workspacePanels.has(input.panel) ? `面板 ${input.panel}` : "",
   ].filter(Boolean).join(" · ");
+}
+
+export function queueWorkspaceCompaction(pending, conversationId) {
+  const id = String(conversationId ?? "").trim();
+  if (!id) throw new Error("conversationId is required");
+  pending.add(id);
+  return JSON.stringify({
+    queued: true,
+    when: "after_current_turn",
+    detail: "将在本回合结束后用 Pi 整理上下文，与 /compact 相同。",
+  });
+}
+
+export async function runQueuedWorkspaceCompaction(pending, conversationId, compact) {
+  const id = String(conversationId ?? "").trim();
+  if (!id || !pending.delete(id)) return undefined;
+  return compact();
 }
 
 export function createWorkspaceActionBroker(emit, createID = () => crypto.randomUUID()) {
@@ -115,12 +143,17 @@ export function createWorkspaceActionBroker(emit, createID = () => crypto.random
   };
 }
 
-export function createCodingWorkspaceExtension(conversationId, getPolicy, requestAction) {
+export function createCodingWorkspaceExtension(
+  conversationId,
+  getPolicy,
+  requestAction,
+  queueCompact,
+) {
   return (pi) => {
     pi.registerTool({
       name: codingWorkspaceToolName,
       label: "MilkSU workspace",
-      description: "Operate the MilkSU Coding desktop: list/focus/close isolated browser tabs, list/preview artifacts, and open the right-hand 浏览器 / 产物 / 变更 panels. Use this when the user wants the UI itself changed, then use milksu-playwright on the focused tab.",
+      description: "Operate the MilkSU Coding desktop: isolated browser tabs, artifacts, environment/status, changes, context compaction, and the bottom terminal. Use typed actions instead of asking the user to click the UI, then use milksu-playwright on the focused tab.",
       parameters: Type.Object({
         action: Type.Union([
           Type.Literal("list_browser_tabs"),
@@ -132,6 +165,12 @@ export function createCodingWorkspaceExtension(conversationId, getPolicy, reques
           Type.Literal("preview_artifact"),
           Type.Literal("reveal_artifacts"),
           Type.Literal("show_panel"),
+          Type.Literal("list_status"),
+          Type.Literal("compact_context"),
+          Type.Literal("show_terminal"),
+          Type.Literal("hide_terminal"),
+          Type.Literal("list_terminals"),
+          Type.Literal("list_background_tasks"),
         ]),
         tabId: Type.Optional(Type.String({ maxLength: 80 })),
         query: Type.Optional(Type.String({ maxLength: 200 })),
@@ -148,6 +187,14 @@ export function createCodingWorkspaceExtension(conversationId, getPolicy, reques
         const action = normalizeCodingWorkspaceAction(params.action);
         const blocked = codingWorkspaceActionBlocked(action, getPolicy?.());
         if (blocked) throw new Error(blocked);
+        if (action === "compact_context") {
+          if (!queueCompact) {
+            throw new Error("Context compaction is unavailable in this session");
+          }
+          return {
+            content: [{ type: "text", text: queueCompact(conversationId) }],
+          };
+        }
         const result = await requestAction({
           conversationId,
           action,

@@ -1160,16 +1160,25 @@ function applyWorkspaceReveal(payload?: {
   conversationId?: string
   panel?: string
   artifactPath?: string
+  changePath?: string
+  terminal?: string
 }) {
   if (payload?.conversationId && payload.conversationId !== props.conversation?.id) return
   const panel = payload?.panel
   if (panel === 'browser' || panel === 'artifacts' || panel === 'changes' || panel === 'environment') {
     contextPanel.value = panel
+    environmentOpen.value = true
   }
-  environmentOpen.value = true
   if (payload?.artifactPath) {
     requestedArtifactPath.value = payload.artifactPath
   }
+  if (payload?.changePath) {
+    changesFocusPath.value = payload.changePath
+    contextPanel.value = 'changes'
+    environmentOpen.value = true
+  }
+  if (payload?.terminal === 'open') terminalOpen.value = true
+  if (payload?.terminal === 'close') terminalOpen.value = false
   if (panel === 'browser') void refreshCodingBrowserState()
 }
 
@@ -1636,6 +1645,8 @@ onMounted(() => {
     conversationId?: string
     panel?: string
     artifactPath?: string
+    changePath?: string
+    terminal?: string
   }>('coding-workspace.reveal', event => {
     applyWorkspaceReveal(event.payload)
   }).then(stop => {
