@@ -150,10 +150,11 @@ describe('ChatComposer', () => {
     expect(permission?.getAttribute('title')).toBe('替我审批')
 
     expect(composerControlsSource).toContain('background-color: var(--btn-ghost-hover) !important;')
-    expect(composerControlsSource).toContain('min-width: 7.75rem;')
+    expect(composerControlsSource).toMatch(/(?:^|\n)\.composer-permission \{[\s\S]*?\n\s*width: fit-content;/)
+    expect(composerControlsSource).not.toContain('min-width: 7.75rem;')
+    expect(composerControlsSource).not.toContain('min-width: 7.5rem;')
     expect(composerControlsSource).toContain('.composer-permission__label')
     expect(composerControlsSource).toContain('overflow: visible')
-    expect(composerControlsSource).toContain('width: auto;')
     expect(composerControlsSource).toContain('.composer-model {')
     expect(composerControlsSource).toContain('width: fit-content;')
     expect(composerControlsSource).toContain('flex: 0 1 auto;')

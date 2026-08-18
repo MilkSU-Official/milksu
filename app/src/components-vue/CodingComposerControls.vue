@@ -266,8 +266,8 @@ function triggerModelText() {
 }
 
 .composer-permission {
-  width: auto;
-  min-width: 7.75rem;
+  width: fit-content;
+  min-width: 0;
   max-width: 11rem;
   flex: 0 0 auto;
   padding-inline: 0.55rem 0.45rem;
@@ -342,10 +342,6 @@ function triggerModelText() {
   .composer-controls {
     flex-wrap: nowrap;
     gap: 0.25rem;
-  }
-
-  .composer-permission {
-    min-width: 7.5rem;
   }
 
   .composer-model {
