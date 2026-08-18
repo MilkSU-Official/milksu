@@ -60,6 +60,7 @@ function createMockConversations() {
     activeCompacting: computed(() => false),
     activeCompactedAt: computed(() => undefined),
     activeCompactionError: computed(() => ''),
+    activeTurnStatus: computed(() => ({ compacting: false })),
     selectedModelMode: ref<'auto' | 'manual'>('manual'),
     selectedModelProvider: ref('openai'),
     selectedModelId: ref('gpt-test'),
