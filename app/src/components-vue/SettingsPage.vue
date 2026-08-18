@@ -417,10 +417,29 @@ function addModelService() {
   notice.value = null
 }
 
+function tokenfluxCatalogModels(): string[] {
+  return modelProviders.value.find(item => item.id === 'tokenflux')?.models ?? []
+}
+
+/** After a custom relay is removed or disabled, do not park its model IDs on TokenFlux. */
+function rehomeDefaultAfterCustomServiceChange(serviceId: string, serviceModels: string[]) {
+  if (!working.value) return
+  alignDefaultModelToEnabledServices()
+  const leaked = new Set(serviceModels.map(model => String(model ?? '').trim()).filter(Boolean))
+  const stillOnService = working.value.active_provider === serviceId
+  const parkedOnTokenflux = working.value.active_provider === 'tokenflux'
+    && leaked.has(working.value.active_model)
+  if (!stillOnService && !parkedOnTokenflux) return
+  working.value.active_provider = 'tokenflux'
+  working.value.active_model = tokenfluxCatalogModels()[0] ?? ''
+}
+
 function removeModelService(id: string) {
   if (!working.value) return
   const config = working.value.providers[id] ?? ensureProviderConfig(id)
   if (!config) return
+  const removedModels = [...(config.models ?? [])]
+  const custom = Boolean(config.custom)
   if (config.custom) {
     delete working.value.providers[id]
   } else {
@@ -433,7 +452,12 @@ function removeModelService(id: string) {
       session_only: false,
     }
   }
-  if (working.value.active_provider === id) ensureProvider('tokenflux')
+  if (custom) {
+    rehomeDefaultAfterCustomServiceChange(id, removedModels)
+  } else if (working.value.active_provider === id) {
+    ensureProvider('tokenflux')
+    alignDefaultModelToEnabledServices()
+  }
   editingProviderID.value = null
   customModelInput.value = ''
 }
@@ -516,14 +540,16 @@ const editingProvider = computed(() => {
 })
 const editingProviderModel = computed(() => {
   if (!editingProviderInfo.value || !working.value) return ''
-  if (editingProviderID.value === working.value.active_provider) return working.value.active_model
-  return editingProviderInfo.value.models[0] ?? ''
+  const models = editingProviderInfo.value.models
+  if (
+    editingProviderID.value === working.value.active_provider
+    && models.includes(working.value.active_model)
+  ) {
+    return working.value.active_model
+  }
+  return models[0] ?? ''
 })
-const editingProviderModels = computed(() => {
-  const models = editingProviderInfo.value?.models ?? []
-  if (models.length || editingProviderID.value !== working.value?.active_provider || !working.value.active_model) return models
-  return [working.value.active_model]
-})
+const editingProviderModels = computed(() => editingProviderInfo.value?.models ?? [])
 const providerEditorOpen = computed({
   get: () => Boolean(editingProviderID.value),
   set: value => {
@@ -631,6 +657,12 @@ function setModelServiceEnabled(row: ModelServiceRow, enabled: boolean) {
     if (row.provider.models[0] && !row.provider.models.includes(working.value.active_model)) {
       working.value.active_model = row.provider.models[0]
     }
+    alignDefaultModelToEnabledServices()
+    return
+  }
+  if (row.provider.id !== 'tokenflux') {
+    rehomeDefaultAfterCustomServiceChange(row.provider.id, row.provider.models ?? config.models ?? [])
+    return
   }
   alignDefaultModelToEnabledServices()
 }
