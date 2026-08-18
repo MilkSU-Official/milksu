@@ -19,13 +19,14 @@ const apiKeyId = String(process.env.APPLE_API_KEY_ID ?? '').trim()
 const apiIssuer = String(process.env.APPLE_API_ISSUER ?? '').trim()
 const appPath = join(repositoryRoot, 'build', 'bin', 'MilkSU.app')
 const releaseDirectory = join(repositoryRoot, 'build', 'release')
-const dmgPath = join(releaseDirectory, 'MilkSU-macOS-arm64.dmg')
 const metadataPath = join(releaseDirectory, 'release-metadata.json')
 const dmgBackgroundSourcePath = join(repositoryRoot, 'desktop', 'build', 'dmg-background.svg')
 const dmgBackgroundPath = join(repositoryRoot, 'build', 'desktop', 'dmg-background.png')
 const dmgBuilderConfigPath = join(repositoryRoot, 'build', 'desktop', 'electron-builder.stable.dmg.json')
 const semverPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/u
 const buildOta = /^(1|true)$/iu.test(String(process.env.MILKSU_BUILD_OTA ?? '').trim())
+/** Filled after desktop package version is read — keep Win/Linux-style versioned names. */
+let dmgPath = ''
 
 function run(command, args, options = {}) {
   return new Promise((resolvePromise, reject) => {
@@ -88,7 +89,7 @@ async function digest(file, algorithm, encoding) {
   return hash.digest(encoding)
 }
 
-async function verifyDmgInstallLayout() {
+async function verifyDmgInstallLayout(targetDmgPath) {
   const mountPoint = await mkdtemp(join(tmpdir(), 'milksu-dmg-layout-'))
   let attached = false
   try {
@@ -97,7 +98,7 @@ async function verifyDmgInstallLayout() {
       '-readonly',
       '-nobrowse',
       '-mountpoint', mountPoint,
-      dmgPath,
+      targetDmgPath,
     ])
     attached = true
     await stat(join(mountPoint, 'MilkSU.app'))
@@ -135,6 +136,8 @@ const minimumVersion = String(process.env.MILKSU_MINIMUM_UPDATE_VERSION ?? '0.1.
 if (!semverPattern.test(version) || !semverPattern.test(minimumVersion)) {
   throw new Error('desktop package version and MILKSU_MINIMUM_UPDATE_VERSION must be stable semantic versions')
 }
+// Match Windows/Linux: platform-arch-version.ext (OTA zip already used this pattern).
+dmgPath = join(releaseDirectory, `MilkSU-macOS-arm64-${version}.dmg`)
 const zipPath = join(releaseDirectory, `MilkSU-macOS-arm64-${version}.zip`)
 const notaryZipPath = join(releaseDirectory, 'MilkSU-macOS-arm64.notary.zip')
 await rm(notaryZipPath, { force: true })
@@ -195,7 +198,7 @@ await run(process.execPath, [
     CSC_IDENTITY_AUTO_DISCOVERY: 'false',
   },
 })
-await verifyDmgInstallLayout()
+await verifyDmgInstallLayout(dmgPath)
 await run('/usr/bin/codesign', [
   '--force',
   '--timestamp',

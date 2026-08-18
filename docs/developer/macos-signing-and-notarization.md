@@ -50,7 +50,7 @@ npm run release:mac:local -- \
 构建 Stable → Hardened Runtime / Developer ID 签名
 → App 公证、staple 与验证
 → 生成并签名 DMG → DMG 公证、staple 与验证
-→ 验证 DMG 安装布局 → 写出 build/release/MilkSU-macOS-arm64.dmg
+→ 验证 DMG 安装布局 → 写出 build/release/MilkSU-macOS-arm64-<version>.dmg
 → 删除临时 Keychain
 ```
 
@@ -102,7 +102,7 @@ Electron 主进程；不得进入 Vue、日志、诊断或模型上下文。暂�
 codesign -dv --verbose=4 /Applications/MilkSU.app
 codesign --verify --deep --strict --verbose=4 /Applications/MilkSU.app
 spctl --assess --type execute --verbose=4 /Applications/MilkSU.app
-xcrun stapler validate /path/to/MilkSU-macOS-arm64.dmg
+xcrun stapler validate /path/to/MilkSU-macOS-arm64-<version>.dmg
 ```
 
 普通本地 Stable/Beta 构建保持显式 ad-hoc，不枚举 Developer ID。正式发行只走上述审批后的 CI。

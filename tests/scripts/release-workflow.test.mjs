@@ -43,3 +43,9 @@ test('GitHub-only macOS packaging skips updater ZIP and metadata', () => {
   assert.match(macReleaseScript, /if \(buildOta\) \{\n\s+await run\('\/usr\/bin\/ditto'/u)
   assert.match(macReleaseScript, /if \(buildOta\) \{\n\s+const tracking =/u)
 })
+
+test('macOS DMG artifact name includes the package version like Win/Linux', () => {
+  assert.match(macReleaseScript, /MilkSU-macOS-arm64-\$\{version\}\.dmg/u)
+  assert.match(macWorkflow, /path: build\/release\/MilkSU-macOS-arm64-\*\.dmg/u)
+  assert.doesNotMatch(macReleaseScript, /MilkSU-macOS-arm64\.dmg'/u)
+})

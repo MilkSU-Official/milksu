@@ -52,7 +52,7 @@ npm run release:mac:local -- \
 ```
 
 本机脚本从 Personal Vault 读取 Developer ID / Notary 资产，导入一次性 Keychain，构建、签名、公证、
-staple，完成后删除临时 Keychain；不把私钥写入仓库或日志。产物：`build/release/MilkSU-macOS-arm64.dmg`。
+staple，完成后删除临时 Keychain；不把私钥写入仓库或日志。产物：`build/release/MilkSU-macOS-arm64-<version>.dmg`（与 Win/Linux 一样带版本号）。
 
 | 平台 | 默认路径 | 保留的原生门禁 |
 | --- | --- | --- |
@@ -68,24 +68,40 @@ staple，完成后删除临时 Keychain；不把私钥写入仓库或日志。�
 npm run release:dispatch -- --dry-run
 ```
 
-## 4. GitHub 安装包与 OTA
+## 4. 创建 GitHub Release 页（必做）
 
-默认流程只生成内测用户需要的 DMG、EXE、DEB。macOS 默认不再额外压缩体积相近的 updater ZIP，
-也不生成 OTA metadata。
-
-确实要在同一轮上传私有 R2 并建立 Admin 草稿时，直接一次运行：
+Windows/Linux Actions 成功、本机 macOS DMG 就绪后，必须创建（或刷新）**Releases 页面**，
+不要只留一个空 tag。QQ 群分发、下载页和校验都以 Release 页为准：
 
 ```bash
-npm run release:dispatch -- --upload-release \
-  --release-title "MilkSU 26.817.2" \
-  --release-notes "本次更新说明"
+# 先把云端产物拉到本机（run id 换成本轮成功的 Windows / Linux workflow）
+mkdir -p build/release/github/windows build/release/github/linux
+gh run download <windows-run-id> -D build/release/github/windows -n MilkSU-Windows-x64-installer
+gh run download <linux-run-id> -D build/release/github/linux -n MilkSU-Linux-x64-deb-trial
+
+npm run release:github -- \
+  --release-title "MilkSU 26.817.2 内测版" \
+  --release-notes "本次内测说明"
 ```
 
-只有这个模式会在 macOS 签名构建中额外生成 updater ZIP 和 metadata。不要先跑一轮 GitHub-only，
-再为 OTA 重跑相同的签名构建。Admin 草稿仍需维护者审核发布，命令本身不改变 current pointer。
+该命令会：
 
-## 5. 发行记录
+1. 核对本地 `release:verify` 回执与当前 HEAD/版本；
+2. 收集版本化安装包：`MilkSU-macOS-arm64-<version>.dmg`、`MilkSU-Windows-x64-<version>-Setup.exe`、`MilkSU-Linux-x64-<version>.deb`；
+3. 用同一 source commit 创建或更新 `v<version>` **prerelease** 页面并上传安装包与 `SHA256SUMS-<version>.txt`；
+4. 清理旧的无版本号 macOS 资产名（若仍存在）。
 
-只使用 conclusion 为 success 且 source commit 与回执一致的产物。建立 tag/GitHub prerelease 时只附加
-DMG、EXE、DEB，不附加 OTA ZIP。最后在当前目标中记录 tag、source commit、workflow、文件名、大小、
-SHA-256 和各平台真实验收边界。
+## 5. 可选：私有 R2 / Admin OTA
+
+默认 GitHub Release 只提供 DMG、EXE、DEB。macOS 默认不再额外压缩 updater ZIP，也不生成 OTA
+metadata。
+
+确实要在同一轮上传私有 R2 并建立 Admin 草稿时，对 macOS 本机发版加 `--upload-release`（或对云端
+macOS 使用 `release:dispatch -- --macos-cloud --upload-release ...`）。Admin 草稿仍需维护者审核
+发布，命令本身不改变 current pointer。
+
+## 6. 发行记录
+
+只使用 conclusion 为 success 且 source commit 与回执一致的产物。GitHub prerelease 只附加
+DMG、EXE、DEB（加 SHA256SUMS），不附加 OTA ZIP。最后在当前目标中记录 tag、source commit、
+workflow、文件名、大小、SHA-256 和各平台真实验收边界。

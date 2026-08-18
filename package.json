@@ -27,6 +27,7 @@
     "test:sidecar": "node --test sidecar/pi/*.test.js sidecar/pi/*.test.cjs sidecar/security/*.test.js sidecar/computer-use/*.test.js browserextension/*.test.js desktop/*.test.cjs",
     "release:verify": "node scripts/verify-release-source.mjs",
     "release:dispatch": "node scripts/dispatch-three-platform-release.mjs",
+    "release:github": "node scripts/publish-github-prerelease.mjs",
     "test:coding-browser": "MILKSU_BROWSER_INTEGRATION=1 go test ./internal/browsercap -run TestManagedBrowserRoundTrip -count=1 -v",
     "test:local-delivery": "node scripts/test-local-delivery-baseline.mjs",
     "test:coding-delivery-report": "node --test tests/scripts/coding-delivery-report.test.mjs",

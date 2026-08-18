@@ -141,7 +141,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: MilkSU-macOS-arm64-installer
-          path: build/release/MilkSU-macOS-arm64.dmg
+          path: build/release/MilkSU-macOS-arm64-*.dmg
           if-no-files-found: error
           retention-days: 14
       - name: Install R2 uploader

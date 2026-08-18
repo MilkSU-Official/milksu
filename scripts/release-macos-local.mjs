@@ -175,7 +175,13 @@ async function main() {
     }
 
     await run('npm', ['run', 'desktop:release:mac'], env)
-    process.stdout.write(`${join(repositoryRoot, 'build', 'release', 'MilkSU-macOS-arm64.dmg')}\n`)
+    const desktopPackage = JSON.parse(
+      await readFile(join(repositoryRoot, 'desktop', 'package.json'), 'utf8'),
+    )
+    const version = String(desktopPackage.version ?? '').trim()
+    process.stdout.write(
+      `${join(repositoryRoot, 'build', 'release', `MilkSU-macOS-arm64-${version}.dmg`)}\n`,
+    )
   } finally {
     await cleanup()
   }
