@@ -4,6 +4,7 @@ import { createApp, nextTick, type App } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import ChatComposer from './ChatComposer.vue'
 import composerControlsSource from './CodingComposerControls.vue?raw'
+import composerSource from './ChatComposer.vue?raw'
 import type { CodingGoalState } from '@/types'
 
 const mountedApps: App[] = []
@@ -714,6 +715,21 @@ describe('ChatComposer', () => {
     document.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))
     await nextTick()
     expect(panel?.style.display).toBe('none')
+  })
+
+  it('collapses the goal chip to an icon and lets the progress pill shrink in narrow containers', () => {
+    const source = composerSource.replace(/\r\n/g, '\n')
+    const narrowBlockStart = source.indexOf('@container chat-main (max-width: 36rem)')
+    expect(narrowBlockStart).toBeGreaterThan(-1)
+    const narrowBlock = source.slice(narrowBlockStart)
+
+    expect(narrowBlock).toContain('.chat-composer__chip--goal {\n    width: 2rem;')
+    expect(narrowBlock).toContain(
+      '.chat-composer__chip--goal .chat-composer__chip__label,\n'
+      + '  .chat-composer__chip--goal .chat-composer__chip__chevron {\n'
+      + '    display: none;\n  }',
+    )
+    expect(narrowBlock).toContain('.chat-composer__progress-pill {\n    min-width: 0;')
   })
 
   it('projects real goal and Git status above the composer with goal controls', async () => {

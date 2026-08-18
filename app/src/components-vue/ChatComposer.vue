@@ -1870,6 +1870,23 @@ defineExpose({
   .chat-composer__chip--workspace .chat-composer__chip__chevron {
     display: none;
   }
+
+  .chat-composer__chip--goal {
+    width: 2rem;
+    justify-content: center;
+    padding-inline: 0;
+  }
+
+  .chat-composer__chip--goal .chat-composer__chip__label,
+  .chat-composer__chip--goal .chat-composer__chip__chevron {
+    display: none;
+  }
+
+  .chat-composer__progress-pill {
+    min-width: 0;
+    overflow: hidden;
+    padding-inline: 0.5rem;
+  }
 }
 
 .composer-add-option {
