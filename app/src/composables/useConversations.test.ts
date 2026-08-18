@@ -234,9 +234,7 @@ describe('Coding approval conversation recovery', () => {
   it('turns provider network failures into a recoverable offline message', () => {
     expect(agentErrorMessage(
       'Error: dial tcp 127.0.0.1:65533: connect: connection refused api_key=sk-test-secret',
-    )).toBe(
-      '模型或 Agent 网络连接失败。请检查网络、Provider Base URL、本地代理或服务状态；工作区、审批和恢复点已保留，可以稍后继续。',
-    )
+    )).toBe('模型或 Agent 网络连接失败。')
   })
 
   it('redacts provider credentials from unexpected engine errors', () => {
@@ -279,7 +277,7 @@ describe('Coding approval conversation recovery', () => {
 
   it('turns internal runtime stacks into a bounded recovery message', () => {
     const message = agentRuntimeErrorMessage('Error: internal module exploded at bridge.js:42')
-    expect(message).toContain('Agent 遇到本地运行时异常')
+    expect(message).toContain('本地 Agent 运行异常')
     expect(message).not.toContain('bridge.js')
   })
 
@@ -289,18 +287,18 @@ describe('Coding approval conversation recovery', () => {
     )
     expect(message).toContain('403')
     expect(message).toContain('model group rate limited for this key')
-    expect(message).not.toContain('Agent 遇到本地运行时异常')
+    expect(message).not.toContain('本地 Agent 运行异常')
   })
 
   it.each([
     [
       '401 status code (no body)',
-      '当前模型凭据已失效或无权访问',
+      '模型凭据无效或无权访问',
       '401',
     ],
     [
       'tokenflux/grok-4.6 cannot start because both model sources are unavailable; add a personal API key or connect the beta account quota in Settings',
-      '当前模型没有可用的账户或个人凭据',
+      '当前模型没有可用凭据',
       'both model sources',
     ],
     [
@@ -310,18 +308,23 @@ describe('Coding approval conversation recovery', () => {
     ],
     [
       '403: {"message":"This group is restricted to Claude Code clients (/v1/messages only)","type":"permission_error"}',
-      '只允许 Claude Code 客户端',
+      '仅支持 Claude Code 客户端',
       '/v1/messages only',
     ],
     [
       'Provider milksu-route: "baseUrl" is required when defining custom models.',
-      '当前模型连接尚未准备好',
+      '模型连接未就绪',
       'baseUrl',
     ],
     [
       'requested input exceeds the context window',
-      '当前对话上下文已满',
-      'context window',
+      '上下文过长，正在自动整理',
+      'requested input exceeds',
+    ],
+    [
+      'Context overflow recovery failed after one compact-and-retry attempt',
+      '自动整理上下文失败',
+      'compact-and-retry',
     ],
     [
       'AbortError: This operation was aborted',
@@ -330,17 +333,17 @@ describe('Coding approval conversation recovery', () => {
     ],
     [
       '明确的目录授权需要包含一个可解析的具体路径',
-      '具体的本地目录路径',
+      '具体目录路径',
       '可解析',
     ],
     [
       'Coding Agent cannot authorize a filesystem root or the whole user directory',
-      '不能把整个磁盘或用户主目录授权给 Agent',
+      '不能授权整个磁盘或用户主目录',
       'filesystem root',
     ],
     [
       'open Coding Agent project directory: no such file or directory',
-      'MilkSU 无法打开该目录',
+      '无法打开该目录',
       'no such file',
     ],
   ])('maps common runtime failure %s to an actionable message', (raw, expected, hidden) => {
@@ -353,7 +356,7 @@ describe('Coding approval conversation recovery', () => {
     const message = agentRuntimeErrorMessage(
       'Error: internal bridge.js:42 exploded with token=synthetic-secret-value',
     )
-    expect(message).toContain('Agent 遇到本地运行时异常')
+    expect(message).toContain('本地 Agent 运行异常')
     expect(message).not.toContain('bridge.js')
     expect(message).not.toContain('synthetic-secret-value')
   })

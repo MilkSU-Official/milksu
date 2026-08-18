@@ -78,7 +78,7 @@ async function generateReport() {
     report.value = await invokeCommand<CTFTrainingReportExport>('generate_ctf_training_report', {
       id: props.jobId,
     })
-    notice.value = '安全报告已生成；候选 Flag 不会写入可分享内容。'
+    notice.value = '安全报告已生成。'
   } catch (reason) {
     error.value = errorMessage(reason)
   } finally {

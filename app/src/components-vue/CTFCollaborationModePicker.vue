@@ -35,7 +35,7 @@ const descriptions: Array<{
     mode: 'coach',
     label: '教练',
     lead: '你主导解题',
-    detail: 'Agent 每轮只给一个最小提示并检查理解；不使用 Shell，也不会先替你交完整解法。',
+    detail: '每轮一个最小提示，并检查理解。',
   },
   {
     mode: 'copilot',

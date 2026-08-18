@@ -588,7 +588,7 @@ describe('ChatComposer', () => {
     await nextTick()
     expect(blocked.sent).toEqual([])
     expect(blockedEditor.textContent).toContain('检查这个页面')
-    expect(blocked.host.textContent).toContain('Browser Use 需要已选择项目')
+    expect(blocked.host.textContent).toContain('Browser Use 需要已选项目')
 
     const deleted = mountComposer({ workspaceReady: true, browserUseReady: true })
     await nextTick()

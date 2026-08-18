@@ -54,7 +54,7 @@ const matchingSubmissionMessage = computed(() => {
     case 'pass':
       return '这个候选已经被平台确认 Accepted，无需再次提交。'
     case 'fail':
-      return '这个候选已经被平台拒绝。请先根据证据修改候选，MilkSU 不会重复盲试。'
+      return '这个候选已被平台拒绝，请修改后再提交。'
     case 'needs_review':
       return '这个候选正在等待平台判题，不能并发重复提交。'
     case 'inconclusive':
@@ -83,20 +83,19 @@ function redacted(value: string) {
     <p class="mt-1 text-caption leading-5 text-muted-foreground">
       {{
         isArenaWorkspace
-          ? '由 Arena API 判题；错误次数受平台限制。'
+          ? '由 Arena API 判题。'
           : isCTFShowWorkspace
-            ? '通过已绑定的 CTFshow 标签页提交；只有平台回执能完成任务。'
+            ? '通过已绑定的 CTFshow 标签页提交。'
             : isWebWorkspace
-              ? '通过已绑定的 Chrome 标签页提交；只有 NSSCTF 回执能完成任务。'
-              : '复制到外部平台提交，再回来记录结果。'
+              ? '通过已绑定的 NSSCTF 标签页提交。'
+              : '复制到外部平台提交后，回来记录结果。'
       }}
     </p>
     <p
       v-if="activeStartCost"
       class="mt-3 rounded-md border border-border bg-muted/50 px-3 py-2 text-caption leading-5"
     >
-      NSSCTF 仍显示“开启环境”（{{ activeStartCost }} 金币）。请先在平台页面亲自开启；
-      MilkSU 不会自动扣币。开启后点击上方“检测连接”。
+      题目需先在 NSSCTF 开启环境（{{ activeStartCost }} 金币），开启后点“检测连接”。
     </p>
     <Input v-model="candidate" class="mt-4 font-mono" placeholder="flag{...}" />
     <Alert v-if="matchingSubmissionMessage" class="mt-3">

@@ -82,30 +82,30 @@ export function previewCodingCapabilities(
           ? 'approval-required'
           : 'unavailable',
       detail: executionMode !== 'go' || approvalPolicy === 'read-only'
-        ? '当前模式不提供付费 ImageGen 调用。'
+        ? '当前模式不可用。'
         : imageGenConfigured
-          ? '每次生成或参考图编辑都单独展示输入、输出、尺寸和费用后批准。'
-          : '需要先在设置中配置并启用 OpenAI；Provider Key 不会进入 Agent、终端或工具输出。',
+          ? '每次调用前确认输入与费用。'
+          : '需在设置中配置 OpenAI。',
     },
     {
       id: 'credentials',
       label: '凭据',
       status: fullAuto ? 'allowed' : 'blocked',
       detail: fullAuto
-        ? '终端可使用当前系统用户的凭据；模型 Provider Key 仍不进入子进程。'
-        : 'Provider Key 不进入模型上下文，项目自动也不能读取用户凭据目录。',
+        ? '可使用当前系统用户凭据。'
+        : 'Provider Key 不进入模型上下文。',
     },
     {
       id: 'browser',
       label: '浏览器 / MCP',
       status: 'unavailable',
-      detail: '仅在任务显式选择后加载；审批行为跟随当前 Coding 权限档位。',
+      detail: '任务显式选择后加载。',
     },
     {
       id: 'computer-use',
       label: 'Computer Use',
       status: 'unavailable',
-      detail: '仅在用户显式选择可见 App / 窗口并启动会话后可用；需要操作 GUI 时必须先停下引导启用，不能用 Shell、截图目录、SQLite、IPC 或私有协议绕过可见会话 Scope。',
+      detail: '选择可见窗口并启动会话后可用。',
     },
   ]
 }
@@ -119,14 +119,14 @@ export function describeActiveComputerUseCapability(
   if (executionMode !== 'go' || approvalPolicy === 'read-only') {
     return {
       status: 'blocked',
-      detail: `已锁定 ${targetLabel}；当前 Plan 或只读策略不会操作可见 App。切换到普通 Go 后才会按所选权限档执行。`,
+      detail: `已锁定 ${targetLabel}；需 Go 且非只读。`,
     }
   }
   return {
     status: approvalPolicy === 'ask' ? 'approval-required' : 'allowed',
     detail: approvalPolicy === 'ask'
-      ? `已锁定 ${targetLabel}；请求批准档会逐次确认观察和操作。`
-      : `已锁定 ${targetLabel}；当前权限档会自动执行观察和操作。`,
+      ? `已锁定 ${targetLabel}；操作前会确认。`
+      : `已锁定 ${targetLabel}。`,
   }
 }
 
@@ -144,37 +144,37 @@ export function describePendingComputerUseCapability(
   if (!state.available) {
     return {
       status: 'unavailable',
-      detail: state.problem || 'Computer Use 当前不可用；可先用 Browser 或产物预览验收。',
+      detail: state.problem || 'Computer Use 当前不可用。',
     }
   }
   if (state.attachedToOtherTask) {
     return {
       status: 'unavailable',
-      detail: '可见 App 会话正由另一个 Coding 任务使用；先回到该任务停止后再切换。',
+      detail: '可见会话正由另一个任务使用。',
     }
   }
   if (!state.permissionsReady) {
     return {
       status: 'unavailable',
-      detail: '需要先授权 macOS 辅助功能与屏幕录制；App 管理权限不能替代 Computer Use。',
+      detail: '需授权辅助功能与屏幕录制。',
     }
   }
   if (!target) {
     return {
       status: 'unavailable',
-      detail: '系统权限已具备；打开目标 App 窗口后，在 Browser/App 面板选择可见窗口。',
+      detail: '请选择一个可见窗口。',
     }
   }
   const targetLabel = `${target.name} (${target.bundleId})，PID ${target.pid}，Window ${target.windowId}`
   if (executionMode !== 'go' || approvalPolicy === 'read-only') {
     return {
       status: 'blocked',
-      detail: `已检测到 ${targetLabel}，但当前 Plan 或只读策略不会操作可见 App；切到 Go 后再启动会话。`,
+      detail: `已检测到 ${targetLabel}；需 Go 且非只读。`,
     }
   }
   return {
     status: 'approval-required',
-    detail: `已检测到 ${targetLabel}；打开 Browser/App 面板点击“启动可见会话”后才会锁定 Scope 并按当前权限档操作。`,
+    detail: `已检测到 ${targetLabel}；启动可见会话后锁定。`,
   }
 }
 

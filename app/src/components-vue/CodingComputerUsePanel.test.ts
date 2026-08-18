@@ -90,12 +90,12 @@ describe('CodingComputerUsePanel', () => {
 
     expect(text).toContain('Codex')
     expect(text).toContain('可启动')
-    expect(text).toContain('权限和窗口都已就绪')
-    expect(text).toContain('才算正式接入当前 Coding 任务')
-    expect(text).toContain('真实操作')
-    expect(text).toContain('observe 只表示看见窗口')
+    expect(text).toContain('权限与窗口已就绪')
+    expect(text).toContain('可启动可见会话')
+    expect(text).toContain('最近操作')
+    expect(text).toContain('暂无操作记录')
     expect(text).toContain('Go / 替我审批')
-    expect(text).toContain('普通观察、点击和输入会自动执行')
+    expect(text).toContain('普通操作自动执行')
     expect(text).toContain('此窗口会成为当前任务唯一的 Computer Use Scope')
     expect(text).toContain('com.openai.codex')
     expect(text).toContain('PID 4242')
@@ -163,7 +163,7 @@ describe('CodingComputerUsePanel', () => {
     const text = host.textContent ?? ''
 
     expect(text).toContain('待选择窗口')
-    expect(text).toContain('没有发现可选的可见窗口')
+    expect(text).toContain('没有可选窗口')
     expect(text).toContain('重新检测可见窗口')
     expect(text).not.toContain('未接入')
     const primary = host.querySelector<HTMLButtonElement>('button[aria-label="执行 Computer Use 下一步"]')
@@ -180,7 +180,7 @@ describe('CodingComputerUsePanel', () => {
       }),
     })
 
-    expect(host.textContent).toContain('可见会话正由另一个 Coding 任务使用')
+    expect(host.textContent).toContain('可见会话正由另一个任务使用')
     const primary = host.querySelector<HTMLButtonElement>('button[aria-label="执行 Computer Use 下一步"]')
     expect(primary?.textContent).toContain('等待其他任务释放')
     expect(primary?.disabled).toBe(true)
@@ -202,8 +202,8 @@ describe('CodingComputerUsePanel', () => {
 
     expect(text).toContain('已接入当前任务')
     expect(text).toContain('Go / 完全访问')
-    expect(text).toContain('普通观察、点击和输入会自动执行')
-    expect(text).toContain('危险、越界或未锁定 Scope 的操作仍会停下')
+    expect(text).toContain('普通操作自动执行')
+    expect(text).toContain('越界仍会停下')
     expect(text).not.toContain('正式接入/验收需要')
   })
 
@@ -219,7 +219,7 @@ describe('CodingComputerUsePanel', () => {
     const text = host.textContent ?? ''
 
     expect(text).toContain('已接入其他 Scope')
-    expect(text).toContain('不属于 Computer Use 外部 App Scope')
+    expect(text).toContain('请停止后重选')
     expect(text).not.toContain('已接入当前任务')
     const stop = [...host.querySelectorAll<HTMLButtonElement>('button')].find(
       button => button.textContent?.includes('停止当前其他 Scope'),
@@ -281,7 +281,7 @@ describe('CodingComputerUsePanel', () => {
     })
     const text = host.textContent ?? ''
 
-    expect(text).toContain('其他窗口的操作不会计入当前 Scope')
+    expect(text).toContain('最近操作来自其他窗口')
     expect(text).toContain('不匹配')
     expect(text).not.toContain('已记录真实操作')
     expect(text).not.toContain('正式接入/验收需要')
@@ -300,8 +300,7 @@ describe('CodingComputerUsePanel', () => {
     const text = host.textContent ?? ''
 
     expect(text).toContain('Plan / 替我审批')
-    expect(text).toContain('当前模式不会操作可见 App')
-    expect(text).toContain('切到 Go + 替我审批/完全访问')
+    expect(text).toContain('需 Go 且非只读才会操作可见 App')
     expect(text).not.toContain('正式接入/验收需要')
   })
 
@@ -317,11 +316,8 @@ describe('CodingComputerUsePanel', () => {
 
     expect(missing.host.textContent).toContain('辅助功能 未授权')
     expect(missing.host.textContent).toContain('缺系统权限')
-    expect(missing.host.textContent).toContain('App 管理')
     expect(missing.host.textContent).toContain('辅助功能设置')
     expect(missing.host.textContent).toContain('屏幕录制设置')
-    expect(missing.host.textContent).toContain('缺少或尚未对当前构建生效')
-    expect(missing.host.textContent).toContain('ad-hoc 重签')
     expect(missing.host.textContent).toContain('重新检测')
     const missingStart = [...missing.host.querySelectorAll<HTMLButtonElement>('button')].find(
       button => button.textContent?.includes('启动可见会话'),
@@ -409,7 +405,7 @@ describe('CodingComputerUsePanel', () => {
     expect(text).toContain('辅助功能设置')
     expect(text).toContain('屏幕录制设置')
     expect(text).toContain('重新检测')
-    expect(text).toContain('真实探针')
+    expect(text).toContain('授权后请重新检测')
     expect(text).not.toContain('待稳定签名复检')
     expect(text).not.toContain('先稳定签名再复检')
 

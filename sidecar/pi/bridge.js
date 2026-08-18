@@ -1469,7 +1469,11 @@ async function abortSession(command) {
   approvalBroker.cancelConversation(conversationId, "turn aborted");
   abortedSessions.add(conversationId);
   await session.abort();
-  emit(conversationId, "message_done", { reason: "aborted", content: "" });
+  // Do not synthesize empty message_done (it became a blank assistant bubble).
+  // If Pi already emitted agent_settled, a second turn_settled is harmless in
+  // the UI (finishRun is idempotent). If abort raced past agent_settled, this
+  // closes the desktop run clock without inventing assistant text.
+  emit(conversationId, "turn_settled");
 }
 
 async function destroySession(command) {

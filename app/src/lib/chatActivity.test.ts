@@ -4,6 +4,8 @@ import {
   buildChatTranscript,
   chatActivityEntrySummary,
   chatActivitySummary,
+  latestChatActivityBlock,
+  presentRecentActivitySteps,
 } from '@/lib/chatActivity'
 import type { Message } from '@/types'
 
@@ -226,5 +228,23 @@ describe('activity labels', () => {
     expect(entries[0]?.result?.id).toBe('bash-a-result')
     expect(entries[1]?.request?.id).toBe('bash-b-start')
     expect(entries[1]?.result?.id).toBe('bash-b-result')
+  })
+
+  it('projects the latest real tool block for the side-rail step list', () => {
+    const messages = [
+      message('u1', 'user', '做任务'),
+      message('a1', 'assistant', '开始'),
+      message('t1', 'tool', 'src/a.ts', { toolName: 'read', toolCallId: 'c1' }),
+      message('t2', 'tool', '$ npm test', {
+        toolName: 'bash',
+        toolCallId: 'c2',
+        status: 'running',
+      }),
+    ]
+    const block = latestChatActivityBlock(messages, true)
+    expect(block?.running).toBe(true)
+    const steps = presentRecentActivitySteps(messages, true)
+    expect(steps.map(step => step.toolName)).toEqual(['read', 'bash'])
+    expect(steps.at(-1)?.running).toBe(true)
   })
 })

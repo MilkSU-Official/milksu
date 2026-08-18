@@ -149,7 +149,7 @@ defineExpose({ open, resetAndClose })
             <h2 id="manual-ctf-title" class="text-lg font-semibold tracking-[-0.02em]">
               新建自定义题目
             </h2>
-            <p class="mt-0.5 text-caption text-muted-foreground">只创建 MilkSU 本地工作区，不会上传到平台</p>
+            <p class="mt-0.5 text-caption text-muted-foreground">在本机创建工作区</p>
           </div>
         </div>
         <Button type="button" variant="ghost" size="icon-sm" aria-label="关闭" @click="close">

@@ -79,6 +79,13 @@ import { normalizeCodingBrowserAddress } from '@/codingBrowserAddress'
 import { buildChatTranscript } from '@/lib/chatActivity'
 import { chatTopbarPresentation } from '@/lib/chatTopbar'
 import {
+  applySessionContextWindow,
+  presentContextUsage,
+  presentRunTiming,
+  type SessionTurnSnapshot,
+} from '@/lib/sessionTurnStatus'
+import AgentTaskSteps from '@/components-vue/AgentTaskSteps.vue'
+import {
   presentDomainTaskContext,
   refreshCTFDomainTaskContext,
   sharedCodingSessionKind,
@@ -148,6 +155,8 @@ const props = defineProps<{
   compacting: boolean
   compactedAt?: number
   compactionError?: string
+  /** Last model usage + run clock from Pi (session-scoped projection). */
+  turnStatus?: SessionTurnSnapshot
   ctfSession: boolean
   vulnerabilitySession?: boolean
   ctfMode?: 'coach' | 'copilot' | 'delegate'
@@ -269,7 +278,7 @@ const automaticModel = computed(() => {
 const effectiveModelMode = computed(() => (
   props.modelMode ?? 'auto'
 ))
-const { pickerGroups, pickerModelLabel } = useModelCatalog()
+const { pickerGroups, pickerModelLabel, snapshot: modelCatalogSnapshot } = useModelCatalog()
 const currentModelKey = computed(() => {
   if (!props.settings) return ''
   if (effectiveModelMode.value === 'auto') return 'auto'
@@ -322,6 +331,59 @@ const continuity = computed(() => codingContinuityPresentation({
   compactedAt: props.compactedAt,
   running: props.running,
 }))
+/** Tick so run elapsed labels update while the turn is active. */
+const runClockNow = ref(Date.now())
+let runClockTimer: number | undefined
+watch(
+  () => [props.running, props.turnStatus?.runStartedAt] as const,
+  ([running, startedAt]) => {
+    if (runClockTimer !== undefined) {
+      window.clearInterval(runClockTimer)
+      runClockTimer = undefined
+    }
+    if (running && startedAt !== undefined) {
+      runClockNow.value = Date.now()
+      runClockTimer = window.setInterval(() => {
+        runClockNow.value = Date.now()
+      }, 1000)
+    }
+  },
+  { immediate: true },
+)
+onBeforeUnmount(() => {
+  if (runClockTimer !== undefined) window.clearInterval(runClockTimer)
+})
+const effectiveTurnStatus = computed<SessionTurnSnapshot>(() => {
+  const base = props.turnStatus ?? { compacting: props.compacting }
+  const provider = effectiveModelMode.value === 'auto'
+    ? automaticModel.value?.provider
+    : props.modelProvider || props.settings?.active_provider
+  const model = effectiveModelMode.value === 'auto'
+    ? automaticModel.value?.model
+    : props.modelId || props.settings?.active_model
+  let contextWindow = base.contextWindow
+  if (provider && model) {
+    const catalog = modelCatalogSnapshot.value
+    if (catalog?.provider === provider) {
+      const match = catalog.models.find(entry => entry.id === model)
+      if (match?.context_window) contextWindow = match.context_window
+    }
+    // Usage payload may name a different model after source fallback.
+    const usageModel = base.usage?.model
+    if (!contextWindow && usageModel && catalog) {
+      const match = catalog.models.find(entry => entry.id === usageModel)
+      if (match?.context_window) contextWindow = match.context_window
+    }
+  }
+  return applySessionContextWindow(
+    { ...base, compacting: props.compacting || Boolean(base.compacting) },
+    contextWindow,
+  )
+})
+const contextUsagePresentation = computed(() => presentContextUsage(effectiveTurnStatus.value))
+const runTimingPresentation = computed(() => (
+  presentRunTiming(effectiveTurnStatus.value, runClockNow.value)
+))
 const effectiveExecutionMode = computed(() => (
   normalizeCodingExecutionMode(props.executionMode)
 ))
@@ -1710,8 +1772,8 @@ watch(
         <h2 class="mt-5 text-body font-medium">{{ topbarPresentation.title }}</h2>
         <p class="mt-2 max-w-lg text-body leading-6 text-muted-foreground">
           {{ ctfSession
-            ? '从 CTF 工作台启动 Agent 后，会在这里继续解题、工具协作和复盘。'
-            : '选择项目并描述目标。MilkSU 使用 PI，并由当前执行模式和权限策略决定可用工具。' }}
+            ? '从 CTF 工作台启动 Agent 后，在这里继续解题。'
+            : '选择项目并描述目标。' }}
         </p>
         <div class="mt-6 grid grid-cols-3 gap-3">
           <div class="rounded-md border border-border bg-card px-4 py-4">
@@ -1781,6 +1843,9 @@ watch(
       :automatic-model-label="automaticModelLabel"
       :compact-model-label="compactModelLabel"
       :compact-disabled="continuity.compactDisabled"
+      :context-strip="contextUsagePresentation?.strip"
+      :context-near-limit="contextUsagePresentation?.nearLimit"
+      :run-elapsed-label="runTimingPresentation?.label"
       :workspace-ready="Boolean(workspacePath)"
       :workspace-locked="workspaceLocked"
       :browser-use-ready="browserUseReadyForCurrentTask"
@@ -2016,6 +2081,11 @@ watch(
 
         </template>
 
+        <AgentTaskSteps
+          :messages="conversation?.messages ?? []"
+          :running="running"
+        />
+
         <section class="border-b border-border px-4 py-4">
         <p class="text-caption font-medium text-muted-foreground">Agent</p>
         <div class="mt-3 space-y-3 text-body">
@@ -2029,6 +2099,15 @@ watch(
               {{ running ? '执行中' : '空闲' }}
             </span>
           </div>
+          <div v-if="runTimingPresentation" class="flex items-center justify-between gap-3">
+            <span class="text-muted-foreground">本轮用时</span>
+            <span
+              class="font-mono text-caption tabular-nums"
+              data-testid="agent-run-elapsed"
+            >
+              {{ runTimingPresentation.label }}
+            </span>
+          </div>
           <div class="flex items-start justify-between gap-3">
             <span class="shrink-0 text-muted-foreground">模型</span>
             <span class="text-right text-caption leading-5">{{ activeModelLabel }}</span>
@@ -2040,6 +2119,36 @@ watch(
                 ? activeModelSourceLabel
                 : '在模型列表中按服务选择' }}
             </span>
+          </div>
+          <template v-if="contextUsagePresentation">
+            <div class="flex items-center justify-between gap-3">
+              <span class="text-muted-foreground">上下文</span>
+              <span
+                class="font-mono text-caption tabular-nums"
+                :class="contextUsagePresentation.nearLimit ? 'text-warning' : ''"
+                data-testid="agent-context-usage"
+              >
+                {{ contextUsagePresentation.windowLabel
+                  ? `${contextUsagePresentation.inputLabel} / ${contextUsagePresentation.windowLabel}`
+                  : contextUsagePresentation.totalLabel }}
+                <template v-if="contextUsagePresentation.percent !== undefined">
+                  · {{ contextUsagePresentation.percent }}%
+                </template>
+              </span>
+            </div>
+            <div class="flex items-center justify-between gap-3">
+              <span class="text-muted-foreground">Token</span>
+              <span
+                class="font-mono text-caption tabular-nums text-muted-foreground"
+                data-testid="agent-token-io"
+              >
+                入 {{ contextUsagePresentation.inputLabel }} · 出 {{ contextUsagePresentation.outputLabel }}
+              </span>
+            </div>
+          </template>
+          <div v-else-if="compacting" class="flex items-center justify-between gap-3">
+            <span class="text-muted-foreground">上下文</span>
+            <span class="text-caption text-muted-foreground">整理中…</span>
           </div>
           <div class="flex items-start justify-between gap-3">
             <span class="shrink-0 text-muted-foreground">插件</span>
@@ -2092,7 +2201,10 @@ watch(
               >
                 {{ capabilityStatusLabel(capability.status) }}
               </span>
-              <p class="col-span-2 text-caption leading-5 text-muted-foreground">
+              <p
+                v-if="capability.status !== 'allowed' && capability.detail"
+                class="col-span-2 text-caption leading-5 text-muted-foreground"
+              >
                 {{ capability.detail }}
               </p>
             </div>
@@ -2112,24 +2224,18 @@ watch(
               v-else-if="!mcpConfig?.configured || !mcpConfig.servers.length"
               class="mt-2 text-caption leading-5 text-muted-foreground"
             >
-              当前项目没有可选择的 .mcp.json 服务器。
+              当前项目没有 .mcp.json 服务器
             </p>
-            <template v-else>
-              <div class="mt-2 space-y-2">
-                <CodingMCPReviewCard
-                  v-for="server in mcpConfig.servers"
-                  :key="server.name"
-                  :server="server"
-                  :selected="selectedMCPServers.includes(server.name)"
-                  :running="running"
-                  @toggle="toggleMCPServer(server)"
-                />
-              </div>
-              <p class="mt-2 text-caption leading-5 text-muted-foreground">
-                只接入来源、固定版本、工具白名单和权限面均已审阅的服务器；选择仅绑定当前任务。
-                替我审批自动执行连接与只读调用，修改和外部账户授权仍确认。
-              </p>
-            </template>
+            <div v-else class="mt-2 space-y-2">
+              <CodingMCPReviewCard
+                v-for="server in mcpConfig.servers"
+                :key="server.name"
+                :server="server"
+                :selected="selectedMCPServers.includes(server.name)"
+                :running="running"
+                @toggle="toggleMCPServer(server)"
+              />
+            </div>
           </div>
         </section>
       </template>
@@ -2274,15 +2380,10 @@ watch(
               <div>
                 <p class="text-body font-medium">真实用户浏览器</p>
                 <p class="mt-1 text-caption leading-5 text-muted-foreground">
-                  使用项目已固定的 Playwright MCP 官方扩展，不复用 MilkSU 的 CTF Bridge，也不走桌面坐标点击。
+                  发送任务后，在 Chrome/Edge 中批准要操作的标签页。
                 </p>
               </div>
             </div>
-            <ol class="mt-4 space-y-2 text-caption leading-5 text-muted-foreground">
-              <li>1. 保留输入框里的 /browser-use 状态并发送任务。</li>
-              <li>2. 首次调用时，Chrome/Edge 会显示官方连接页。</li>
-              <li>3. 由你选择并批准准确标签页；Agent 只能操作该连接返回的页面。</li>
-            </ol>
             <Button
               variant="outline"
               size="sm"

@@ -111,6 +111,11 @@ const props = defineProps<{
   automaticModelLabel: string
   compactModelLabel: string
   compactDisabled?: boolean
+  /** One-line context / token strip above the toolbar (session last usage). */
+  contextStrip?: string
+  contextNearLimit?: boolean
+  /** Live model-run elapsed label, e.g. "1:05". */
+  runElapsedLabel?: string
   workspaceReady?: boolean
   workspaceLocked?: boolean
   browserUseReady?: boolean
@@ -854,8 +859,8 @@ function submit() {
       ? activeScopeToken
       : null
     attachmentError.value = activeScopeToken === 'browser-use'
-      ? 'Browser Use 需要已选择项目，并使用可调用工具的 Go 权限；当前输入不会被清空。'
-      : '请先在右栏锁定一个外部 App 窗口；当前输入不会被清空。'
+      ? 'Browser Use 需要已选项目，并使用 Go 权限。'
+      : '请先在右栏锁定一个外部 App 窗口。'
     emit('runSlashCommand', activeScopeToken)
     return
   }
@@ -1344,6 +1349,30 @@ defineExpose({
           @paste="handleComposerPaste"
           @drop="handleComposerDrop"
         />
+        <div
+          v-if="contextStrip || runElapsedLabel"
+          class="chat-composer__context-strip flex min-w-0 items-center justify-between gap-3 px-1 pb-0.5"
+          data-testid="composer-context-strip"
+        >
+          <p
+            v-if="contextStrip"
+            class="min-w-0 truncate font-mono text-caption tabular-nums"
+            :class="contextNearLimit ? 'text-warning' : 'text-muted-foreground'"
+            :title="contextStrip"
+          >
+            {{ contextStrip }}
+          </p>
+          <span
+            v-if="runElapsedLabel"
+            class="inline-flex shrink-0 items-center gap-1.5 font-mono text-caption tabular-nums text-muted-foreground"
+            data-testid="composer-run-elapsed"
+            :title="running ? '本轮模型已运行' : '上次运行时长'"
+          >
+            <LoaderCircle v-if="running" class="size-3 animate-spin" />
+            <Clock3 v-else class="size-3" />
+            {{ runElapsedLabel }}
+          </span>
+        </div>
         <div class="chat-composer__toolbar flex min-w-0 items-center gap-1.5">
           <CodingComposerControls
             :running="running"

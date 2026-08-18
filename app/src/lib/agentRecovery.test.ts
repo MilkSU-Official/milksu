@@ -80,8 +80,8 @@ describe('agent recovery', () => {
       'Agent 运行失败：context_length_exceeded',
       'Agent 运行失败：maximum context length exceeded',
       'Agent 运行失败：token limit exceeded',
-      'Agent 运行失败：上下文窗口已满，请整理后继续。',
-      'Agent 运行失败：上下文过长，本回合已停止。',
+      '自动整理上下文失败，请手动整理后再继续。',
+      '上下文过长，正在自动整理…',
     ]) {
       expect(recoverableAgentFailureId([
         message('recoverable', 'assistant', content),
@@ -111,7 +111,7 @@ describe('agent recovery', () => {
     expect(prompt).toContain('不要复用重启前的审批状态')
     expect(prompt).toContain('应用窗口')
     expect(prompt).toContain('外部发布')
-    expect(prompt).toContain('超时、取消或上下文过长')
-    expect(prompt).toContain('压缩/概括已完成事实')
+    expect(prompt).toContain('网络超时、取消或上下文整理')
+    expect(prompt).toContain('最小可验证')
   })
 })

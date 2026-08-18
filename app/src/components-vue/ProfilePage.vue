@@ -464,9 +464,8 @@ onBeforeUnmount(() => stopUsageEvents?.())
               </div>
               <div v-else class="panel-empty mt-5">
                 <strong>还没有 Coding Agent 用量记录</strong>
-                <p>完成真实的 Coding 对话后，这里会按日期显示模型、Token 与工具调用；不会补入示例数据。</p>
+                <p>完成 Coding 对话后，这里会按日期显示模型与 Token。</p>
               </div>
-              <p class="panel-disclaimer">仅统计本机 Coding Agent 的真实响应与工具完成事件，不等同于账户计费账单。</p>
             </template>
 
             <template v-else-if="activeTab === 'ctf'">
@@ -493,7 +492,7 @@ onBeforeUnmount(() => stopUsageEvents?.())
                 <strong>还没有 CTF 练习记录</strong>
                 <p>创建并推进真实 CTF 任务后，这里才会显示题型、来源与 Judge 结果。</p>
               </div>
-              <p class="panel-disclaimer">候选答案不代表成功；只有独立 Judge 或用户明确授权的人工结果才计为通过。</p>
+
             </template>
 
             <template v-else>
@@ -519,7 +518,7 @@ onBeforeUnmount(() => stopUsageEvents?.())
                 <strong>还没有跟踪的 CVE</strong>
                 <p>在 CVE 模块加入真实跟踪项后，这里会汇总研究活动、状态与资料来源。</p>
               </div>
-              <p class="panel-disclaimer">公开资料与本机研究记录不代表漏洞已复现、资产已受影响或披露流程已完成。</p>
+
             </template>
           </div>
         </section>
@@ -598,7 +597,6 @@ onBeforeUnmount(() => stopUsageEvents?.())
 .panel-empty { border: 1px solid var(--border); background: color-mix(in srgb, var(--muted) 35%, transparent); padding: 1.4rem; }
 .panel-empty strong { font-size: .92rem; }
 .panel-empty p { margin-top: .4rem; max-width: 38rem; color: var(--muted-foreground); font-size: .78rem; line-height: 1.6; }
-.panel-disclaimer { margin: 1rem -.3rem 0; border-top: 1px solid var(--border); padding: .85rem .3rem 0; color: var(--muted-foreground); font-size: .68rem; }
 .growth-panel { border-radius: .55rem; }
 .growth-list { position: relative; }
 .growth-list::before { content: ''; position: absolute; left: .25rem; top: 1.5rem; bottom: 1.5rem; width: 1px; background: var(--border); }

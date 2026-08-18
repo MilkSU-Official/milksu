@@ -16,6 +16,15 @@ import {
 } from '@/lib/codingPolicy'
 import { redactProviderCredentials } from '@/lib/redaction'
 import { normalizeDomainTaskContext } from '@/lib/domainTaskContext'
+import {
+  applySessionCompacting,
+  applySessionRunFinished,
+  applySessionRunStarted,
+  applySessionUsageRecorded,
+  emptySessionTurnSnapshot,
+  type SessionTurnSnapshot,
+  type SessionTurnUsage,
+} from '@/lib/sessionTurnStatus'
 import type {
   CodingApprovalPolicy,
   CodingAttachment,
@@ -157,6 +166,16 @@ interface AgentEvent {
   steering?: string[]
   followUp?: string[]
   modelSource?: 'account' | 'personal'
+  /** Credential-free model usage projection from Pi (usage.recorded). */
+  usage?: {
+    inputTokens?: number
+    outputTokens?: number
+    cacheReadTokens?: number
+    cacheWriteTokens?: number
+    totalTokens?: number
+    model?: string
+    provider?: string
+  }
 }
 
 interface RuntimeTurnDispatch {
@@ -375,16 +394,16 @@ export function agentProviderErrorDetail(value: unknown) {
 export function agentErrorMessage(value: unknown) {
   const message = agentProviderErrorDetail(value) || 'Agent engine failed'
   if (/no API key is configured|No API key for/i.test(message)) {
-    return '当前模型没有可用的 API Key，请在“授权与模型”中保存并验证。'
+    return '当前模型没有可用的 API Key。'
   }
   if (/Model not found/i.test(message)) {
-    return '当前模型不受 PI 运行时支持，请在“授权与模型”中更换模型并验证。'
+    return '当前模型不受支持，请更换模型。'
   }
   if (
     /ECONNREFUSED|ECONNRESET|ENOTFOUND|ETIMEDOUT|network is unreachable|connection refused|fetch failed|dial tcp/i
       .test(message)
   ) {
-    return '模型或 Agent 网络连接失败。请检查网络、Provider Base URL、本地代理或服务状态；工作区、审批和恢复点已保留，可以稍后继续。'
+    return '模型或 Agent 网络连接失败。'
   }
   return message
 }
@@ -398,62 +417,70 @@ export function agentRuntimeErrorMessage(value: unknown) {
   const detail = agentProviderErrorDetail(value)
   const normalized = agentErrorMessage(value)
   if (/具体路径|explicit path|可解析的具体路径/i.test(raw)) {
-    return '请告诉我一个具体的本地目录路径，例如 ~/code/project；确认后我会把它授权给当前会话。'
+    return '请提供具体目录路径，例如 ~/code/project。'
   }
   if (/filesystem root|whole user directory|整个用户目录|磁盘根目录/i.test(raw)) {
-    return '不能把整个磁盘或用户主目录授权给 Agent，请指定一个具体的项目目录。'
+    return '不能授权整个磁盘或用户主目录。'
   }
   if (/must have a primary workspace|还没有工作区/i.test(raw)) {
-    return '当前会话还没有工作区。请先选择或创建一个项目，再授权其他目录。'
+    return '当前会话还没有工作区。'
   }
   if (/CTF Agent directory scope/i.test(raw)) {
-    return 'CTF 会话不能扩大 Coding 目录权限；请在 Coding 中打开对应项目。'
+    return 'CTF 会话不能扩大 Coding 目录权限。'
   }
   if (/project access is (?:not|no longer) authorized|目录权限.*(?:未授权|已撤销)/i.test(raw)) {
-    return '当前会话没有这个目录的权限。请明确授权具体路径后再试。'
+    return '当前会话没有这个目录的权限。'
   }
   if (/supports at most 8 additional project directories|limited to 8 additional directories/i.test(raw)) {
-    return '当前会话最多可授权 8 个额外目录；请先撤销不再需要的目录。'
+    return '额外目录最多 8 个。'
   }
   if (/resolve Coding Agent project|open Coding Agent project|project must be a directory/i.test(raw)) {
-    return 'MilkSU 无法打开该目录。请确认路径存在、指向文件夹，并且当前用户可以访问。'
+    return '无法打开该目录。'
   }
   if (/Access to this API has been restricted|--allow-fs-(?:read|write)|ERR_ACCESS_DENIED/i.test(raw)) {
-    return '本地 Agent 权限组件启动失败。当前任务已保留，请重试；如果仍然失败，可以在设置中导出诊断。'
+    return '本地 Agent 权限组件启动失败，请重试。'
   }
   if (
     /both model sources are unavailable|enable the personal API key|add a personal API key|connect the beta account quota/i
       .test(raw)
   ) {
-    return '当前模型没有可用的账户或个人凭据。请在设置 → 授权与模型中启用 MilkSU 账户或 TokenFlux 中转站，并重新选择默认模型后重试。'
+    return '当前模型没有可用凭据。'
   }
   if (/model provider .* is not supported|provider .* is not supported by the local Agent runtime/i.test(raw)) {
-    return '当前默认模型仍指向已停用的原厂服务。请打开设置 → 授权与模型，把默认模型改成 TokenFlux 或自定义中转站后重试。'
+    return '当前默认模型不可用，请在设置中改选 TokenFlux 或中转站。'
   }
   if (
     /COMPOSITE_KEY_MODEL_PREFIX_REQUIRED|composite api key model must use prefix\/model_id/i
       .test(raw)
   ) {
-    return '当前 TokenFlux Key 需要带厂商前缀的模型 ID（例如 x-ai/grok-4.5、openai/gpt-4.1）。请刷新模型目录后重试；如果仍失败，请在设置中重新选择可用模型。'
+    return '当前 Key 需要带厂商前缀的模型 ID（例如 x-ai/grok-4.5）。'
   }
   // TokenFlux Claude Code-only groups reject OpenAI-compatible clients used by MilkSU/Pi.
   if (
     /restricted to Claude Code clients|\/v1\/messages only|Claude Code clients/i
       .test(raw)
   ) {
-    return '当前模型只允许 Claude Code 客户端（Anthropic /v1/messages），MilkSU 使用 OpenAI 兼容接口，无法调用。请改选 Grok、GPT 等 OpenAI 兼容模型，或换一个未限制客户端的 Claude 模型。'
+    return '该模型仅支持 Claude Code 客户端，请改选 OpenAI 兼容模型。'
   }
   if (/\b401\b|unauthori[sz]ed|invalid api key|authentication failed/i.test(raw)) {
-    return '当前模型凭据已失效或无权访问。请重新登录，或在设置中更新模型凭据后重试。'
+    return '模型凭据无效或无权访问。'
   }
   if (/baseUrl.*required|required.*baseUrl/i.test(raw)) {
-    return '当前模型连接尚未准备好。请刷新模型配置后重试；任务和工作区状态已保留。'
+    return '模型连接未就绪，请刷新配置后重试。'
   }
-  if (/context_length_exceeded|maximum context length|context (?:window|length)|token limit exceeded|too many tokens|上下文(?:窗口|过长|长度)/i.test(raw)) {
-    return '当前对话上下文已满。本轮已停止，整理上下文后可以从断点继续。'
+  // Overflow is normally recovered by Pi auto-compaction. This text is only a
+  // fallback if a rare path still surfaces the provider error to chat.
+  if (
+    /context overflow recovery failed|auto-compaction failed|context_length_exceeded|maximum context length|exceeds the context window|prompt is too long|token limit exceeded|too many tokens|上下文(?:窗口|过长|长度|已满)/i
+      .test(raw)
+  ) {
+    if (/recovery failed|auto-compaction failed|整理失败|压缩失败/i.test(raw)) {
+      return '自动整理上下文失败，请手动整理后再继续。'
+    }
+    return '上下文过长，正在自动整理…'
   }
   if (/abort(?:ed)?|cancel(?:led|ed)|interrupted|context canceled|用户已中断|用户取消/i.test(raw)) {
-    return '本轮已停止，已经完成的修改和工具结果都已保留。'
+    return '本轮已停止。'
   }
   if (
     /no API key is configured|No API key for|Model not found|ECONNREFUSED|ECONNRESET|ENOTFOUND|ETIMEDOUT|network is unreachable|connection refused|fetch failed|dial tcp/i
@@ -462,14 +489,13 @@ export function agentRuntimeErrorMessage(value: unknown) {
     return normalized
   }
 
-  // Provider / model / policy failures: show the concrete (redacted) detail.
-  // Only collapse obvious MilkSU/Node internals into the generic local message.
-  if (detail && !isInternalAgentStack(detail) && !isInternalAgentStack(raw)) {
-    // Cap length so chat stays readable; full text remains in Pi session logs.
-    const shown = detail.length > 480 ? `${detail.slice(0, 477)}…` : detail
-    return shown
+  // Prefer the concrete redacted detail whenever it is not an internal stack dump.
+  const candidate = detail || normalized
+  if (candidate && !isInternalAgentStack(candidate) && !isInternalAgentStack(raw)) {
+    return candidate.length > 480 ? `${candidate.slice(0, 477)}…` : candidate
   }
-  return 'Agent 遇到本地运行时异常。当前任务已保留，请重试；如果仍然失败，可以在设置中导出诊断。'
+  // Internal stack / empty detail only: keep a short recovery hint.
+  return '本地 Agent 运行异常，请重试。'
 }
 
 export function agentToolResultMessage(text: string, error?: string) {
@@ -527,6 +553,8 @@ export function useConversations() {
   const abortingIds = ref(new Set<string>())
   const messageQueues = ref(new Map<string, CodingMessageQueue>())
   const continuity = ref<CodingContinuityState>(createCodingContinuityState())
+  /** Per-session last usage + run clock; not persisted (session-scoped projection). */
+  const turnStatusById = ref(new Map<string, SessionTurnSnapshot>())
   const active = computed(() => conversations.value.find(item => item.id === activeId.value) ?? null)
   const workspacePath = computed(() => active.value?.workspacePath ?? pendingWorkspacePath.value)
   const activeRunning = computed(() => (
@@ -555,6 +583,28 @@ export function useConversations() {
   const activeCompactionError = computed(() => (
     activeId.value ? continuity.value.errors.get(activeId.value) : undefined
   ))
+  const activeTurnStatus = computed<SessionTurnSnapshot>(() => {
+    if (!activeId.value) return emptySessionTurnSnapshot()
+    const base = turnStatusById.value.get(activeId.value) ?? emptySessionTurnSnapshot()
+    // Keep compacting flag aligned with continuity without double-storing it.
+    return applySessionCompacting(base, activeCompacting.value)
+  })
+
+  function patchTurnStatus(
+    sessionId: string,
+    updater: (state: SessionTurnSnapshot) => SessionTurnSnapshot,
+  ) {
+    const previous = turnStatusById.value.get(sessionId) ?? emptySessionTurnSnapshot()
+    const next = updater(previous)
+    if (next === previous) return
+    const map = new Map(turnStatusById.value)
+    map.set(sessionId, next)
+    turnStatusById.value = map
+  }
+
+  function clearTurnRunClock(sessionId: string) {
+    patchTurnStatus(sessionId, applySessionRunFinished)
+  }
   const selectedModelMode = computed(() => active.value?.modelMode ?? pendingModelMode.value)
   const selectedModelProvider = computed(() => active.value?.modelProvider ?? pendingModelProvider.value)
   const selectedModelId = computed(() => active.value?.modelId ?? pendingModelId.value)
@@ -607,6 +657,7 @@ export function useConversations() {
   }
 
   function finishRun(id: string) {
+    clearTurnRunClock(id)
     const next = projectCodingRunFinished(
       runningIds.value,
       abortingIds.value,
@@ -1000,6 +1051,7 @@ export function useConversations() {
     }
 
     runningIds.value = new Set(runningIds.value).add(conversationId)
+    patchTurnStatus(conversationId, state => applySessionRunStarted(state))
     try {
       let conversation = conversations.value.find(item => item.id === conversationId)
       if (conversation && !conversation.workspacePath) {
@@ -1298,6 +1350,7 @@ export function useConversations() {
         steering,
         followUp,
         modelSource,
+        usage,
       } = event.payload
       if (!sessionId && (type === 'engine.stopped' || type === 'engine.protocol_error')) {
         activeTurnPolicies.clear()
@@ -1341,6 +1394,7 @@ export function useConversations() {
               }
             : conversation
         ))
+        for (const id of affected) clearTurnRunClock(id)
         runningIds.value = new Set()
         abortingIds.value = new Set()
         messageQueues.value = new Map()
@@ -1348,6 +1402,18 @@ export function useConversations() {
         return
       }
       if (!sessionId) return
+      if (type === 'usage.recorded' && usage) {
+        patchTurnStatus(sessionId, state => applySessionUsageRecorded(state, {
+          inputTokens: usage.inputTokens,
+          outputTokens: usage.outputTokens,
+          cacheReadTokens: usage.cacheReadTokens,
+          cacheWriteTokens: usage.cacheWriteTokens,
+          totalTokens: usage.totalTokens,
+          model: usage.model,
+          provider: usage.provider,
+        } satisfies Partial<SessionTurnUsage>))
+        return
+      }
       if (type === 'session.queue_updated') {
         const previousQueue = messageQueues.value.get(sessionId)
           ?? { steering: [], followUp: [] }
@@ -1440,6 +1506,11 @@ export function useConversations() {
           })
         } else if (type === 'assistant.started') {
           runningIds.value = new Set(runningIds.value).add(sessionId)
+          patchTurnStatus(sessionId, state => (
+            state.runStartedAt === undefined
+              ? applySessionRunStarted(state)
+              : state
+          ))
           return conversation
         }
         if (type === 'approval.requested' && requestId) {
@@ -1493,9 +1564,17 @@ export function useConversations() {
             })
           }
         } else if (type === 'assistant.completed') {
-          if (last?.role === 'assistant' && last.status === 'running') {
+          // Ignore empty aborted shells (legacy bridge synthesized message_done
+          // with reason=aborted and no content). Real abort settles via turn_settled.
+          const abortedEmpty = !String(text ?? '').trim()
+            && /abort/i.test(String(reason ?? ''))
+          if (abortedEmpty) {
+            if (last?.role === 'assistant' && last.status === 'running') {
+              messages[messages.length - 1] = { ...last, status: 'done' }
+            }
+          } else if (last?.role === 'assistant' && last.status === 'running') {
             messages[messages.length - 1] = { ...last, content: text || last.content, status: 'done' }
-          } else {
+          } else if (String(text ?? '').trim()) {
             messages.push({
               id: crypto.randomUUID(),
               role: 'assistant',
@@ -1565,11 +1644,30 @@ export function useConversations() {
           })
         }
         if (type === 'runtime.compaction_started' || type === 'runtime.compaction_completed') {
+          const compactError = error ? codingCompactionErrorMessage(error) : ''
           continuity.value = applyCodingContinuityEvent(
             continuity.value,
             sessionId,
-            { type, aborted, error: error ? codingCompactionErrorMessage(error) : '' },
+            { type, aborted, error: compactError },
           )
+          // Overflow recovery failed after Pi auto-compact: tell the user once.
+          // Successful auto-compact stays silent (no “上下文已满” toast/message).
+          if (
+            type === 'runtime.compaction_completed'
+            && compactError
+            && /自动整理上下文失败|overflow recovery failed|auto-compaction failed/i.test(
+              String(error ?? compactError),
+            )
+          ) {
+            messages.push({
+              id: crypto.randomUUID(),
+              role: 'assistant',
+              content: compactError,
+              timestamp: Date.now(),
+              status: 'done',
+            })
+            return { ...conversation, messages }
+          }
           return conversation
         }
         return { ...conversation, messages }
@@ -1627,5 +1725,6 @@ export function useConversations() {
     activeCompacting,
     activeCompactedAt,
     activeCompactionError,
+    activeTurnStatus,
   }
 }

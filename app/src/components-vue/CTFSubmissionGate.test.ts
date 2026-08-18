@@ -89,7 +89,7 @@ describe('CTFSubmissionGate', () => {
     const { host } = mountGate('NSSCTF{candidate}', data)
     await nextTick()
 
-    expect(host.textContent).toContain('已经被平台拒绝')
+    expect(host.textContent).toContain('已被平台拒绝')
     const submit = [...host.querySelectorAll<HTMLButtonElement>('button')].find(
       button => button.textContent?.includes('提交到 NSSCTF'),
     )

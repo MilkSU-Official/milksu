@@ -109,6 +109,9 @@ export function codingCompactionErrorMessage(value: unknown) {
   if (/compaction timed out/i.test(message)) {
     return '上下文压缩超时，已取消。'
   }
+  if (/context overflow recovery failed|auto-compaction failed/i.test(message)) {
+    return '自动整理上下文失败，请手动整理后再继续。'
+  }
   if (/context compaction stopped/i.test(message)) {
     return 'Agent 进程在整理上下文时停止，本次整理已中断。'
   }

@@ -103,6 +103,36 @@ function entryCount(entries: ChatActivityEntry[], tools: Set<string>) {
   return entries.filter(entry => tools.has(entry.toolName)).length
 }
 
+/**
+ * Latest tool-activity block for the right-rail step list (real tool calls only).
+ * Prefers the in-flight segment while the turn is running.
+ */
+export function latestChatActivityBlock(
+  messages: Message[],
+  conversationRunning: boolean,
+): ChatActivityBlock | null {
+  const blocks = buildChatTranscript(messages, conversationRunning)
+  const activities = blocks.filter((block): block is ChatActivityBlock => block.kind === 'activity')
+  if (!activities.length) return null
+  for (let index = activities.length - 1; index >= 0; index -= 1) {
+    if (activities[index].running) return activities[index]
+  }
+  return activities[activities.length - 1] ?? null
+}
+
+/** Bounded recent entries for the side rail (newest last, capped). */
+export function presentRecentActivitySteps(
+  messages: Message[],
+  conversationRunning: boolean,
+  limit = 12,
+): ChatActivityEntry[] {
+  const block = latestChatActivityBlock(messages, conversationRunning)
+  if (!block) return []
+  const entries = buildChatActivityEntries(block.messages)
+  if (entries.length <= limit) return entries
+  return entries.slice(-limit)
+}
+
 export function chatActivitySummary(messages: Message[]) {
   const entries = buildChatActivityEntries(messages)
   if (!entries.length) return '正在思考'

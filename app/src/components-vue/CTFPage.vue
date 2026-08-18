@@ -529,11 +529,11 @@ const externalPlatformStatusLabel = computed(() => {
 const externalPlatformSummary = computed(() => {
   switch (activeExternalPlatform.value?.id) {
     case 'hackthebox':
-      return 'HTB Labs 当前只提供人工训练入口。HTB 规则禁止把 Labs 内容或目标用于 AI 训练、评测、测试或开发；获得 HTB 书面许可或 AI Range 授权前，MilkSU 不会把题面、附件或靶机交给 Agent。'
+      return 'HTB Labs 目前仅支持人工训练入口。'
     case 'tryhackme':
-      return 'TryHackMe 目前只向 Business / Classroom 提供官方 API；个人版没有可依赖的完整题库与靶机接口。'
+      return 'TryHackMe 个人版暂无完整 API，需 Business / Classroom。'
     default:
-      return '该平台正在接入 MilkSU 的统一题库、工作区与 Judge 流程。'
+      return '该平台正在接入统一题库与 Judge。'
   }
 })
 const externalPlatformCapabilities = computed(() => {
@@ -638,12 +638,12 @@ const deskLoadingTitle = computed(() => {
 })
 const deskLoadingDetail = computed(() => {
   if (activeBank.value === 'ctfshow') {
-    return 'CTFshow 不会跟随 NSSCTF 自动同步。请在 CTFshow 题库页面点击 MilkSU 浏览器扩展，连接后题目会写入本地题库。'
+    return '在 CTFshow 题库页打开 MilkSU 扩展以同步题目。'
   }
   if (training.syncing.value) {
-    return '无需连接浏览器。MilkSU 正在读取 NSSCTF 公开题库并缓存到本地；遇到平台限流会自动退避，首次同步可能需要几分钟。'
+    return '正在同步 NSSCTF 公开题库，首次可能需要几分钟。'
   }
-  return 'MilkSU 正在读取本地缓存；不会在这个阶段启动题目环境或 Agent。'
+  return '正在读取本地题库缓存。'
 })
 const deskEmptyTitle = computed(() => {
   if (deskQuery.value.trim() || deskCategory.value !== 'all') return '没有匹配题目'
@@ -653,9 +653,9 @@ const deskEmptyTitle = computed(() => {
 const deskEmptyDetail = computed(() => {
   if (deskQuery.value.trim() || deskCategory.value !== 'all') return '换个题号、题名或分类试试。'
   if (activeBank.value === 'ctfshow') {
-    return 'CTFshow 不会跟随 NSSCTF 自动同步。请打开已登录的 CTFshow 题库页面，点击 MilkSU 浏览器扩展并选择“同步到 MilkSU”。'
+    return '打开已登录的 CTFshow 题库页，用 MilkSU 扩展同步。'
   }
-  return 'NSSCTF 会自动同步公开题库；也可以点击“重新同步”立即重试。'
+  return '可点击“重新同步”拉取 NSSCTF 公开题库。'
 })
 
 const modeItems = [
@@ -1492,7 +1492,7 @@ async function submitCandidate() {
     return
   }
   if (previousSubmission?.verdict === 'fail') {
-    outcomeNotice.value = '这个候选已经被平台拒绝。请先根据证据修改候选，MilkSU 不会重复盲试。'
+    outcomeNotice.value = '这个候选已被平台拒绝，请修改后再提交。'
     return
   }
   if (previousSubmission?.verdict === 'needs_review') {
@@ -1527,8 +1527,8 @@ async function submitCandidate() {
       await backend.adoptProjection(result.ctf)
       await refreshTrainingProgress()
       outcomeNotice.value = result.receipt.correct
-        ? `CTFshow #${result.receipt.problemId} 已确认 Accepted，Judge 回执已进入证据链。`
-        : `CTFshow #${result.receipt.problemId} 返回 Rejected；该候选不会被记为完成。`
+        ? `CTFshow #${result.receipt.problemId} Accepted。`
+        : `CTFshow #${result.receipt.problemId} Rejected。`
     } else {
       outcomeNotice.value = ctfshow.error.value ?? 'CTFshow Judge 没有返回可确认结果。'
       await backend.loadJobs()
@@ -1547,8 +1547,8 @@ async function submitCandidate() {
       await backend.adoptProjection(result.ctf)
       await refreshTrainingProgress()
       outcomeNotice.value = result.receipt.correct
-        ? `NSSCTF P${result.receipt.problemId} 已确认 Accepted，Judge 回执已进入证据链。`
-        : `NSSCTF P${result.receipt.problemId} 返回 Rejected；该候选不会被记为完成。`
+        ? `NSSCTF P${result.receipt.problemId} Accepted。`
+        : `NSSCTF P${result.receipt.problemId} Rejected。`
     } else {
       // An ambiguous or timed-out platform response is still persisted as a
       // receipt. Reload the projection so the user sees that evidence and can
@@ -1610,8 +1610,8 @@ async function recordPlatformResult(accepted: boolean) {
     await refreshTrainingProgress()
     platformReview.value = false
     outcomeNotice.value = accepted
-      ? `已记录${externalJudgeLabel.value} Accepted；成功来自真实判题，不是 Agent 自报。`
-      : `已记录${externalJudgeLabel.value} Rejected；不会伪造成解题成功。`
+      ? `已记录${externalJudgeLabel.value} Accepted。`
+      : `已记录${externalJudgeLabel.value} Rejected。`
   }
 }
 
@@ -1953,9 +1953,6 @@ onBeforeUnmount(() => {
               {{ startSelectedAction.label }}
               <ArrowRight class="size-4" />
             </Button>
-            <p class="basis-full text-caption text-muted-foreground">
-              打开 Coding 只挂载上下文与草稿，不发送回合、不要求模型凭据。
-            </p>
           </section>
 
           <section v-if="activeBank === 'ctfshow'" aria-labelledby="ctfshow-title">
@@ -2358,7 +2355,7 @@ onBeforeUnmount(() => {
                 自定义题目
               </h2>
               <p class="mt-2 max-w-2xl text-body leading-6 text-muted-foreground">
-                适合线下比赛、未接入平台或你自己整理的题目。导入后只会在 MilkSU 建立本地工作区，不会上传到任何 CTF 网站。
+                线下赛或自备题目，导入后在本机建立工作区。
               </p>
 
               <div class="mt-7 grid gap-3 sm:grid-cols-3">
@@ -2583,8 +2580,7 @@ onBeforeUnmount(() => {
                       已连接 NSSCTF P{{ activeBrowserPage?.nssctf.problemId }}；提交结果将由平台回执决定。
                     </p>
                     <p v-else-if="activeBrowserPage?.nssctf.needsStart">
-                      已连接 P{{ activeBrowserPage.nssctf.problemId }}，但题目尚未开启。请先在 NSSCTF 页面亲自开启；
-                      MilkSU 不会自动扣币。
+                      已连接 P{{ activeBrowserPage.nssctf.problemId }}，请先在 NSSCTF 开启环境。
                     </p>
                     <p v-else>
                       已连接 P{{ activeBrowserPage?.nssctf.problemId }}，但尚未检测到提交入口。

@@ -316,8 +316,9 @@ describe('SettingsPage user artifacts', () => {
 
     const path = document.querySelector('[data-testid="user-artifact-directory"]')
     expect(path?.textContent).toContain('/Users/test/Documents/MilkSU')
-    expect(document.body.textContent).toContain('Coding、CTF 和 CVE 生成的文件放在这里')
-    expect(document.body.textContent).toContain('会话、凭据和运行日志仍保存在应用数据目录')
+    expect(document.body.textContent).toContain('Coding、CTF 和 CVE 生成的文件')
+    expect(document.body.textContent).toContain('打开产物目录')
+    expect(document.body.textContent).toContain('打开数据目录')
 
     const button = [...document.querySelectorAll('button')]
       .find(value => value.textContent?.includes('打开产物目录'))
@@ -585,10 +586,9 @@ describe('SettingsPage database compatibility', () => {
     expect(text).toContain('外部 App 权限')
     expect(text).toContain('打开辅助功能设置')
     expect(text).toContain('打开屏幕录制设置')
-    expect(text).toContain('选择 /Applications/MilkSU.app')
+    expect(text).toContain('/Applications/MilkSU.app')
     expect(text).toContain('当前构建身份：ad-hoc · Team 未设置')
-    expect(text).toContain('Developer ID')
-    expect(text).toContain('真实 TCC 探针')
+    expect(text).toContain('构建身份不稳定')
     expect(text).not.toContain('先稳定签名再复检')
 
     const accessibility = [...document.querySelectorAll<HTMLButtonElement>('button')]
@@ -1017,7 +1017,7 @@ describe('SettingsPage database compatibility', () => {
     expect(text).toContain('MilkSU 账户')
     expect(text).toContain('TokenFlux 中转站')
     expect(text).toContain('已启用')
-    expect(text).toContain('平铺到上方默认模型列表')
+    expect(text).toContain('模型服务')
     expect(text).not.toContain('当前优先')
     expect(text).not.toContain('已启用备用')
     expect(text).not.toContain('设为默认')

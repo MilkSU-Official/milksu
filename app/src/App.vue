@@ -626,6 +626,7 @@ onBeforeUnmount(() => {
         :compacting="conversations.activeCompacting.value"
         :compacted-at="conversations.activeCompactedAt.value"
         :compaction-error="conversations.activeCompactionError.value"
+        :turn-status="conversations.activeTurnStatus.value"
         :ctf-session="activeCTFConversation"
         :vulnerability-session="activeVulnerabilityCodingConversation"
         :ctf-mode="conversations.active.value?.ctfMode"

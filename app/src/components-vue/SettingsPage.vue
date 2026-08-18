@@ -746,25 +746,19 @@ const computerUseSigningLabel = computed(() => {
     : '未设置'
   return `当前构建身份：${signature} · Team ${team}`
 })
-const computerUseSigningDiagnostic = computed(() => {
-  const signing = computerUseSigning.value
-  if (!signing) return ''
-  if (signing.stableIdentity) return '权限绑定到稳定 App 身份；正式版本更新会继续复用同一次授权。'
-  return signing.problem || '当前构建身份不稳定，macOS 可能无法稳定复用辅助功能/屏幕录制授权。'
-})
 const computerUseSigningUnstable = computed(() => Boolean(
   computerUseSigning.value && !computerUseSigning.value.stableIdentity,
 ))
 const computerUsePermissionSummary = computed(() => {
   const status = computerUseStatus.value
-  if (!status) return '尚未检测 Computer Use 权限。'
-  if (!status.available) return status.problem || 'Computer Use 当前不可用。'
-  if (computerUsePermissionsReady.value) return '辅助功能与屏幕录制已授权。'
+  if (!status) return '尚未检测'
+  if (!status.available) return status.problem || '当前不可用'
+  if (computerUsePermissionsReady.value) return '辅助功能与屏幕录制已授权'
   const missing = computerUseMissingPermissions.value.join('、') || '系统权限'
   if (computerUseSigningUnstable.value) {
-    return `${missing} 缺少或未对当前构建生效；当前构建身份不稳定（如 ad-hoc）。仍可显式打开系统权限设置做授权，授权后必须“重新检测”；Start 只接受真实 TCC 探针，不会伪造权限。`
+    return `${missing} 未生效；当前构建身份不稳定，授权后请重新检测`
   }
-  return `${missing} 缺少或未对当前构建生效；App 管理权限不能替代 Computer Use。`
+  return `${missing} 未授权`
 })
 const computerUsePermissionBadge = computed(() => {
   if (!computerUseStatus.value) return { label: '未检测', variant: 'outline' as const }
@@ -925,7 +919,7 @@ async function scheduleLocalDataRestore() {
     if (restore.cancelled) return
     notice.value = {
       tone: 'ok',
-      text: `已验证并暂存 ${restore.fileCount} 个文件（${formatBytes(restore.bytes)}）。关闭并重新打开 MilkSU 后应用；当前数据会保留为回滚快照，凭据与浏览器配对不会被覆盖。`,
+      text: `已验证并暂存 ${restore.fileCount} 个文件（${formatBytes(restore.bytes)}）。重新打开 MilkSU 后应用。`,
     }
   } catch (reason) {
     notice.value = { tone: 'error', text: `备份恢复失败：${String(reason)}` }
@@ -1137,21 +1131,18 @@ async function saveProviderEditor(closeAfterSave: boolean) {
           </SettingsSection>
 
           <SettingsSection title="应用" class="mt-6">
-            <SettingsRow label="界面语言" description="M3 MVP 默认使用简体中文">
+            <SettingsRow label="界面语言" description="默认简体中文">
               <NativeSelect v-model="working.locale" size="sm" aria-label="界面语言">
                 <NativeSelectOption value="zh">简体中文</NativeSelectOption>
                 <NativeSelectOption value="en">English</NativeSelectOption>
               </NativeSelect>
-            </SettingsRow>
-            <SettingsRow label="本地优先" description="会话与研究记录保留在本机，凭据不写入设置文件">
-              <ShieldCheck class="size-4 text-muted-foreground" />
             </SettingsRow>
           </SettingsSection>
           <SettingsSection title="产物" class="mt-6">
             <SettingsRow
               stack="always"
               label="工作产物"
-              description="Coding、CTF 和 CVE 生成的文件放在这里；会话、凭据和运行日志仍保存在应用数据目录"
+              description="Coding、CTF 和 CVE 生成的文件"
             >
               <p
                 v-if="userArtifacts?.directory"
@@ -1217,12 +1208,6 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                   导出诊断包
                 </Button>
               </div>
-              <p class="mt-3 text-caption leading-5 text-muted-foreground">
-                备份包含会话、训练记录、附件和一致的 SQLite 快照；恢复会在下次启动前应用，并先保留当前数据的回滚快照。凭据库、浏览器配对令牌和 PI 认证文件不会被导出或覆盖。
-              </p>
-              <p class="mt-1 text-caption leading-5 text-muted-foreground">
-                诊断包只包含版本、运行状态、数据库健康检查和脱敏错误事件，便于排查启动与连接问题。
-              </p>
             </SettingsRow>
             <div v-if="localData?.databases?.length" class="mt-4 min-w-0">
               <p class="text-control font-medium">数据库兼容性</p>
@@ -1267,7 +1252,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
             <SettingsRow
               stack="always"
               label="可复制构建追踪"
-              description="channel、真实 git branch、完整 40 位 commit、clean/dirty、fingerprint、build time 与 tracking ID。tracking ID 是字段完整性摘要，不是包签名或真实性证明。"
+              description="channel、branch、commit 与 tracking ID"
             >
               <div
                 v-if="buildTracking"
@@ -1299,7 +1284,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                 </div>
               </div>
               <p v-else class="text-caption text-muted-foreground">
-                未能读取构建追踪。打包检查器应拒绝缺少 sealed provenance 的发行包；开发壳会显示 development/unpackaged。
+                未能读取构建追踪。
               </p>
             </SettingsRow>
           </SettingsSection>
@@ -1321,10 +1306,6 @@ async function saveProviderEditor(closeAfterSave: boolean) {
             </SettingsRow>
           </SettingsSection>
 
-          <p class="mt-3 text-caption leading-5 text-muted-foreground">
-            Pi 只常驻已启用 Skill 的名称和用途，任务匹配或你主动选择后才读取完整内容。保存后从下一条 Coding 消息生效。
-          </p>
-
           <div class="mt-6 flex justify-end">
             <Button :loading="saving" @click="save">保存设置</Button>
           </div>
@@ -1335,12 +1316,9 @@ async function saveProviderEditor(closeAfterSave: boolean) {
             <SettingsRow
               stack="always"
               label="Playwright MCP 官方扩展"
-              description="用于 /browser-use；连接现有 Chrome/Edge，并由你在官方连接页选择准确标签页"
+              description="连接 Chrome/Edge 中你选择的标签页"
             >
-              <p class="text-caption leading-5 text-muted-foreground">
-                MilkSU 直接复用项目已固定的 Playwright MCP，不保存扩展 Token，也不会把这个入口降级成截图坐标点击。每次新连接仍由浏览器扩展显示可见的标签页授权。
-              </p>
-              <div class="mt-3 flex flex-wrap gap-2">
+              <div class="flex flex-wrap gap-2">
                 <Button
                   variant="outline"
                   size="sm"
@@ -1358,7 +1336,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
             <SettingsRow
               stack="always"
               label="MilkSU 本地扩展连接"
-              description="只负责 NSSCTF / CTFshow 的题面、附件和 Judge；不承担通用 Browser Use"
+              description="NSSCTF / CTFshow 题面、附件与 Judge"
             >
               <div class="flex flex-wrap items-center gap-2">
                 <Badge :variant="browserBridgeConnected ? 'secondary' : 'outline'">
@@ -1371,8 +1349,11 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                   配对码 {{ browserPairingReady ? '已就绪' : '未就绪' }}
                 </Badge>
               </div>
-              <p class="mt-3 text-caption leading-5 text-muted-foreground">
-                安装扩展后，在要授权的浏览器页面点击 MilkSU 并粘贴配对码。配对码仅复制到剪贴板，不在界面显示明文。
+              <p
+                v-if="!browserBridgeConnected"
+                class="mt-3 text-caption leading-5 text-muted-foreground"
+              >
+                在目标页面打开扩展并粘贴配对码（已复制到剪贴板）。
               </p>
               <div class="mt-3 flex flex-wrap gap-2">
                 <Button
@@ -1424,15 +1405,27 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                   屏幕录制 {{ computerUseStatus?.permissions.screenRecording ? '已授权' : '未授权' }}
                 </Badge>
               </div>
-              <p class="mt-3 break-all text-caption leading-5 text-muted-foreground">
-                {{ computerUseSigningLabel }}<template v-if="computerUseSigningDiagnostic">；{{ computerUseSigningDiagnostic }}</template>
+              <p
+                v-if="!computerUsePermissionsReady && computerUseSigningLabel"
+                class="mt-3 break-all text-caption leading-5 text-muted-foreground"
+              >
+                {{ computerUseSigningLabel }}
               </p>
-              <div class="mt-4 grid gap-3 sm:grid-cols-2" aria-label="Computer Use 权限设置">
+              <div
+                v-if="!computerUsePermissionsReady"
+                class="mt-4 grid gap-3 sm:grid-cols-2"
+                aria-label="Computer Use 权限设置"
+              >
                 <div class="rounded-lg border border-border bg-background/60 p-3">
                   <div class="flex items-start justify-between gap-3">
                     <div>
                       <p class="text-body font-medium">辅助功能</p>
-                      <p class="mt-1 text-caption leading-5 text-muted-foreground">打开准确设置后开启 MilkSU；系统会记住正式签名身份。</p>
+                      <p
+                        v-if="!computerUseStatus?.permissions.accessibility"
+                        class="mt-1 text-caption leading-5 text-muted-foreground"
+                      >
+                        在系统设置中开启 MilkSU
+                      </p>
                     </div>
                     <Badge :variant="computerUseStatus?.permissions.accessibility ? 'secondary' : 'outline'">
                       {{ computerUseStatus?.permissions.accessibility ? '已授权' : '待授权' }}
@@ -1455,7 +1448,12 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                   <div class="flex items-start justify-between gap-3">
                     <div>
                       <p class="text-body font-medium">屏幕录制</p>
-                      <p class="mt-1 text-caption leading-5 text-muted-foreground">若列表没有 MilkSU，点下方“+”并选择 /Applications/MilkSU.app；开启后按系统提示重新打开。</p>
+                      <p
+                        v-if="!computerUseStatus?.permissions.screenRecording"
+                        class="mt-1 text-caption leading-5 text-muted-foreground"
+                      >
+                        列表没有 MilkSU 时，添加 /Applications/MilkSU.app
+                      </p>
                     </div>
                     <Badge :variant="computerUseStatus?.permissions.screenRecording ? 'secondary' : 'outline'">
                       {{ computerUseStatus?.permissions.screenRecording ? '已授权' : '待授权' }}
@@ -1584,10 +1582,6 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                 <Plus class="size-4" />
               </Button>
             </div>
-
-            <p class="mt-1 text-caption text-muted-foreground">
-              下方已启用的服务会平铺到上方默认模型列表与 Coding 输入框：MilkSU 账户、TokenFlux 中转站和自定义中转站各自成组，可直接点选。
-            </p>
 
             <div class="model-service-list mt-4 overflow-hidden rounded-lg border border-border bg-card">
               <article

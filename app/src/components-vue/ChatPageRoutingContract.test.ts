@@ -91,6 +91,20 @@ describe('ChatPage routing contract', () => {
     expect(chatPageSource).not.toContain('相关历史')
   })
 
+  it('projects real tool steps, context usage and run timing on the right rail and composer', () => {
+    expect(chatPageSource).toContain("from '@/components-vue/AgentTaskSteps.vue'")
+    expect(chatPageSource).toContain('<AgentTaskSteps')
+    expect(chatPageSource).toContain('turnStatus?: SessionTurnSnapshot')
+    expect(chatPageSource).toContain(':context-strip=')
+    expect(chatPageSource).toContain(':run-elapsed-label=')
+    expect(chatPageSource).toContain('data-testid="agent-context-usage"')
+    expect(chatPageSource).toContain('data-testid="agent-token-io"')
+    expect(chatPageSource).toContain('data-testid="agent-run-elapsed"')
+    // Decorative Mission phases stay on empty CTF/CVE canvas only — live steps
+    // come from real tool activity via AgentTaskSteps.
+    expect(chatPageSource).toContain('MissionOperationPanel')
+  })
+
   it('owns Goal interaction in the composer instead of the environment sidebar', () => {
     expect(chatPageSource).toContain(':goal="activeGoal"')
     expect(chatPageSource).toContain(':git-summary="composerGitSummary"')

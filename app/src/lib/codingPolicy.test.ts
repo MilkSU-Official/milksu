@@ -60,16 +60,14 @@ describe('Coding policy presentation', () => {
     expect(capabilities.find(item => item.id === 'browser')?.status).toBe('unavailable')
     expect(capabilities.find(item => item.id === 'computer-use')?.status).toBe('unavailable')
     expect(capabilities.find(item => item.id === 'computer-use')?.detail)
-      .toMatch(/可见 App \/ 窗口/)
-    expect(capabilities.find(item => item.id === 'computer-use')?.detail)
-      .toMatch(/不能用 Shell、截图目录、SQLite、IPC 或私有协议绕过/)
+      .toContain('选择可见窗口并启动会话后可用')
     expect(capabilities.find(item => item.id === 'imagegen')?.status).toBe('approval-required')
   })
 
   it('does not advertise ImageGen when OpenAI is not configured', () => {
     const capabilities = previewCodingCapabilities('go', 'workspace-auto', false)
     expect(capabilities.find(item => item.id === 'imagegen')?.status).toBe('unavailable')
-    expect(capabilities.find(item => item.id === 'imagegen')?.detail).toMatch(/配置并启用 OpenAI/)
+    expect(capabilities.find(item => item.id === 'imagegen')?.detail).toContain('配置 OpenAI')
   })
 
   it('describes the selected external Computer Use app and immutable window scope', () => {
@@ -91,15 +89,15 @@ describe('Coding policy presentation', () => {
 
     const ask = describeActiveComputerUseCapability('go', 'ask', target)
     expect(ask.status).toBe('approval-required')
-    expect(ask.detail).toContain('逐次确认观察和操作')
+    expect(ask.detail).toContain('操作前会确认')
 
     const plan = describeActiveComputerUseCapability('plan', 'workspace-auto', target)
     expect(plan.status).toBe('blocked')
-    expect(plan.detail).toContain('当前 Plan 或只读策略不会操作可见 App')
+    expect(plan.detail).toContain('需 Go 且非只读')
 
     const readOnly = describeActiveComputerUseCapability('go', 'read-only', target)
     expect(readOnly.status).toBe('blocked')
-    expect(readOnly.detail).toContain('当前 Plan 或只读策略不会操作可见 App')
+    expect(readOnly.detail).toContain('需 Go 且非只读')
   })
 
   it('describes detected but not-yet-started Computer Use without calling it connected', () => {
@@ -117,8 +115,7 @@ describe('Coding policy presentation', () => {
     })
     expect(readyToStart.status).toBe('approval-required')
     expect(readyToStart.detail).toContain('已检测到 Codex')
-    expect(readyToStart.detail).toContain('启动可见会话')
-    expect(readyToStart.detail).toContain('才会锁定 Scope')
+    expect(readyToStart.detail).toContain('启动可见会话后锁定')
     expect(readyToStart.detail).not.toContain('已锁定')
 
     const missingPermissions = describePendingComputerUseCapability('go', 'workspace-auto', target, {
@@ -127,21 +124,20 @@ describe('Coding policy presentation', () => {
     })
     expect(missingPermissions.status).toBe('unavailable')
     expect(missingPermissions.detail).toContain('辅助功能与屏幕录制')
-    expect(missingPermissions.detail).toContain('App 管理权限不能替代')
 
     const noWindow = describePendingComputerUseCapability('go', 'workspace-auto', null, {
       available: true,
       permissionsReady: true,
     })
     expect(noWindow.status).toBe('unavailable')
-    expect(noWindow.detail).toContain('打开目标 App 窗口')
+    expect(noWindow.detail).toContain('请选择一个可见窗口')
 
     const plan = describePendingComputerUseCapability('plan', 'workspace-auto', target, {
       available: true,
       permissionsReady: true,
     })
     expect(plan.status).toBe('blocked')
-    expect(plan.detail).toContain('当前 Plan 或只读策略不会操作可见 App')
+    expect(plan.detail).toContain('需 Go 且非只读')
   })
 
   it('starts Computer Use only for the user-selected PID and window pair', () => {

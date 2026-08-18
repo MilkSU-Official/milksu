@@ -179,12 +179,12 @@ const approvalLabel = computed(() => (
 
 const approvalGuidance = computed(() => {
   if (props.executionMode !== 'go' || props.approvalPolicy === 'read-only') {
-    return `${approvalLabel.value}：当前模式不会操作可见 App；切到 Go + 替我审批/完全访问后才会自动完成普通可见操作。`
+    return `${approvalLabel.value}：需 Go 且非只读才会操作可见 App。`
   }
   if (props.approvalPolicy === 'ask') {
-    return `${approvalLabel.value}：观察、点击或输入前会暂停确认，适合第一次验证高风险 GUI。`
+    return `${approvalLabel.value}：操作前会确认。`
   }
-  return `${approvalLabel.value}：普通观察、点击和输入会自动执行；危险、越界或未锁定 Scope 的操作仍会停下。`
+  return `${approvalLabel.value}：普通操作自动执行，越界仍会停下。`
 })
 
 const guidance = computed(() => {
@@ -192,28 +192,28 @@ const guidance = computed(() => {
     return props.status?.problem || 'Computer Use 当前不可用。'
   }
   if (missingPermissions.value.length) {
-    const signingHint = signingDiagnostic.value || '开发期 ad-hoc 重签后，macOS 可能显示 MilkSU 已勾选但探针仍返回未授权。'
+    const base = `${missingPermissions.value.join('、')} 未授权`
     if (permissionProbeMayBeStale.value) {
-      return `${missingPermissions.value.join('、')} 缺少或尚未对当前构建生效；“App 管理”不能替代这两项。${signingHint} 仍可显式打开系统权限设置做首次授权；授权后必须回到本页“重新检测”，只有真实探针通过才能启动可见会话。若设置里已勾选但探针仍为 false，请退出并重新打开当前 App，或换用 Developer ID 签名版后再检测——不要伪造权限，也不要反复无意义点授权。`
+      return `${base}。授权后请重新检测；若仍失败可重启 App。`
     }
-    return `${missingPermissions.value.join('、')} 缺少或尚未对当前构建生效；“App 管理”不能替代这两项。${signingHint}`
+    return base
   }
   if (attachedToOtherTask.value) {
-    return '可见会话正由另一个 Coding 任务使用；请回到该任务停止后再切换。'
+    return '可见会话正由另一个任务使用。'
   }
   if (props.ownedByCurrentTask && props.activeTargetMatchesScope === false) {
-    return `当前任务锁定的是 ${effectiveTarget.value?.name || '另一个窗口'}，不属于 Computer Use 外部 App Scope；先停止当前 Scope，再选择正确窗口。`
+    return `当前锁定的是 ${effectiveTarget.value?.name || '另一个窗口'}，请停止后重选。`
   }
   if (!props.targets.length && !props.status?.target) {
-    return '没有发现可选的可见窗口；请打开目标 App 窗口，然后重新检测。'
+    return '没有可选窗口，请打开目标 App 后重新检测。'
   }
   if (!effectiveTarget.value) {
-    return '请选择一个当前可见窗口，MilkSU 会把 Computer Use 锁定到这个 App / PID / Window。'
+    return '请选择一个可见窗口。'
   }
   if (readyForCurrentTask.value) {
-    return `Computer Use 已锁定到当前任务；${approvalGuidance.value}`
+    return `已锁定到当前任务。${approvalGuidance.value}`
   }
-  return '权限和窗口都已就绪，点击“启动可见会话”后才算正式接入当前 Coding 任务。'
+  return '权限与窗口已就绪，可启动可见会话。'
 })
 
 const compactGuidance = computed(() => {
@@ -270,7 +270,7 @@ const primarySetupAction = computed<{
   if (!props.status?.available) {
     return {
       label: '重新检测 Computer Use',
-      detail: props.status?.problem || '当前运行时未报告可用；重新检测不会操作任何 App。',
+      detail: props.status?.problem || '当前运行时不可用。',
       action: 'refresh',
       variant: 'outline',
       disabled: props.loading || props.running,
@@ -490,10 +490,10 @@ function runPrimarySetupAction() {
                   {{ matchingOperationEvidence.summary }}
                 </template>
                 <template v-else-if="operationScopeMismatch">
-                  其他窗口的操作不会计入当前 Scope。
+                  最近操作来自其他窗口。
                 </template>
                 <template v-else>
-                  暂无；observe 只表示看见窗口，click、type、key 或 scroll 才记为真实操作。
+                  暂无操作记录。
                 </template>
               </p>
             </div>

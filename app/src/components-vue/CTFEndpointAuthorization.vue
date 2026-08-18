@@ -251,7 +251,7 @@ function submitRequest() {
       </div>
       <p class="mt-3 flex gap-2 text-caption leading-5 text-muted-foreground">
         <ShieldAlert class="mt-0.5 size-3.5 shrink-0" />
-        HTTP 不继承 Cookie 或浏览器会话；SSH 目前只读服务 Banner，不发送用户名、密钥或命令。
+        HTTP 不带浏览器会话；SSH 仅读取 Banner。
       </p>
     </div>
 

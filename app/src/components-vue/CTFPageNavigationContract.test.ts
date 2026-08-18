@@ -110,9 +110,8 @@ describe('CTFPage navigation contract', () => {
 
   it('explains the two different catalog synchronization paths while loading', () => {
     expect(ctfPageSource).toContain('正在首次同步 NSSCTF 公开题库')
-    expect(ctfPageSource).toContain('无需连接浏览器')
-    expect(ctfPageSource).toContain('CTFshow 不会跟随 NSSCTF 自动同步')
-    expect(ctfPageSource).toContain('点击 MilkSU 浏览器扩展')
+    expect(ctfPageSource).toContain('正在同步 NSSCTF 公开题库')
+    expect(ctfPageSource).toContain('在 CTFshow 题库页打开 MilkSU 扩展')
     expect(ctfChallengeDeskSource).toContain('data-testid="ctf-catalog-loading-state"')
     expect(ctfChallengeDeskSource).toContain('{{ loadingTitle }}')
     expect(ctfChallengeDeskSource).toContain('{{ loadingDetail }}')

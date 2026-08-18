@@ -39,13 +39,12 @@ describe('CTFWorkspaceHeader', () => {
       sourceUri: 'https://example.test/problem/3879',
     })
 
-    expect(host.textContent).toContain('返回题库')
     expect(host.textContent).toContain('解题会话')
-    expect(host.textContent).toContain('返回题库不会结束当前会话')
     expect(host.textContent).toContain('NSSCTF P3879')
     expect(host.textContent).toContain('打开题目')
     expect(host.querySelector('[aria-label="打开设置"]')).toBeNull()
     expect(host.textContent).not.toContain('查看复盘')
+    expect(host.textContent).not.toContain('不会结束当前会话')
     expect(host.querySelector('[data-module-topbar]')).not.toBeNull()
     expect(host.querySelector('[data-module-topbar]')?.getAttribute('data-workspace-module')).toBe('ctf')
     expect(host.querySelector('[data-workspace-topbar-title]')?.className).toContain('workspace-topbar__title')
@@ -81,7 +80,8 @@ describe('CTFWorkspaceHeader', () => {
   it('does not show a dead source button when a challenge has no URL', async () => {
     const { host } = await mountHeader({ challengeTitle: '离线附件题' })
 
-    expect(host.textContent).toContain('返回题库')
+    expect(host.textContent).toContain('离线附件题')
+    expect(host.querySelector('[aria-label="返回 CTF 题库"]')).not.toBeNull()
     expect(host.querySelector('[aria-label="打开当前 CTF 题目"]')).toBeNull()
   })
 })
