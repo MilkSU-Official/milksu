@@ -4,6 +4,8 @@ import test from "node:test";
 import {
   codingCollaborationRequiresApproval,
   codingMcpOperationRequiresApproval,
+  mcpConversationGrantKey,
+  resolveCodingMcpServer,
 } from "./bridge-auto-approval.js";
 
 test("Project Auto approves only reviewed local capability servers", () => {
@@ -81,6 +83,35 @@ test("Request Approval asks per operation while Full Access runs local MCP tools
   assert.equal(codingMcpOperationRequiresApproval(operation, "ask"), true);
   assert.equal(codingCollaborationRequiresApproval("full-auto"), false);
   assert.equal(codingMcpOperationRequiresApproval(operation, "full-auto"), false);
+});
+
+test("isolated browser tools resolve even when the MCP server field is omitted", () => {
+  assert.equal(
+    resolveCodingMcpServer(
+      { tool: "browser_click", args: { element: "Play" } },
+      { codingBrowser: { sessionId: "browser_test" }, mcpServers: ["milksu-playwright"] },
+    ),
+    "milksu-playwright",
+  );
+  assert.equal(
+    codingMcpOperationRequiresApproval(
+      { tool: "browser_click", args: { element: "Play" } },
+      "workspace-auto",
+      resolveCodingMcpServer(
+        { tool: "browser_click" },
+        { codingBrowser: { sessionId: "browser_test" }, mcpServers: ["milksu-playwright"] },
+      ),
+    ),
+    false,
+  );
+  assert.equal(
+    mcpConversationGrantKey({ tool: "browser_navigate" }, "milksu-playwright"),
+    "mcp:milksu-playwright",
+  );
+  assert.equal(
+    mcpConversationGrantKey({ server: "github", action: "auth-start" }, "github"),
+    "",
+  );
 });
 
 test("unknown policies fail closed and non-operations do not prompt", () => {

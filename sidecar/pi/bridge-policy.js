@@ -69,6 +69,7 @@ const codingProductReadOnlyToolNames = [
   "find",
   "ls",
   "milksu_progress",
+  "milksu_workspace",
   "lsp_diagnostics",
   ...codingWebResearchToolNames,
   ...codingGoalToolNames,
@@ -80,6 +81,7 @@ const codingProductTestToolNames = [
   "find",
   "ls",
   "milksu_progress",
+  "milksu_workspace",
   "lsp_diagnostics",
   ...codingWebResearchToolNames,
   ...codingGoalToolNames,
@@ -93,6 +95,7 @@ const codingProductFixToolNames = [
   "find",
   "ls",
   "milksu_progress",
+  "milksu_workspace",
   "lsp_diagnostics",
   "lsp_fix",
   ...codingWebResearchToolNames,
@@ -1476,8 +1479,8 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
               ? `MilkSU 隔离浏览器已为本任务启用`
                 + `${projectMcpServers.length ? `，另有 ${projectMcpServers.length} 个项目 MCP` : ""}；`
                 + (automaticCapabilityApproval
-                    ? "当前权限档会自动执行已选调用；固定会话边界和硬阻断保持有效。"
-                    : "当前请求批准档会逐次确认调用。")
+                    ? "当前权限档会自动执行内置浏览器调用；固定会话边界和硬阻断保持有效。"
+                    : "当前请求批准档会确认调用，也可对本对话始终允许同类内置浏览器操作。")
               : `${mcpServers.length} 个 MCP 服务器已为本任务启用；`
                 + (automaticCapabilityApproval
                     ? "当前权限档会自动执行只读调用；替我审批仍会确认修改和外部账户授权。"

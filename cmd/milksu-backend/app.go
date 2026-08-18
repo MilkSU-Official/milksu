@@ -162,6 +162,7 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 		_ = appdata.AppendEventLog(dataDirectory, appdata.PersistedMigrationBackupVerified)
 	}
 	application.engines = engine.NewSupervisor(application.emitEngineEvent)
+	application.engines.SetWorkspaceActionHandler(application.handleCodingWorkspaceAction)
 	application.codingPRs = codingenv.NewPullRequestPublisher()
 	// Packaged Electron owns the TCC principal for embedded Computer Use.
 	// When a desktop host is attached, permission probes/open must go through
@@ -1080,8 +1081,9 @@ func (a *App) RespondToolApproval(
 	conversationID,
 	requestID string,
 	approved bool,
+	scope string,
 ) error {
-	return a.engines.RespondToolApproval(conversationID, requestID, approved)
+	return a.engines.RespondToolApproval(conversationID, requestID, approved, scope)
 }
 
 func (a *App) GetCodingArtifactPreview(

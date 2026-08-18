@@ -14,6 +14,7 @@ import {
   normalizeCodingApprovalPolicy,
   normalizeCodingExecutionMode,
 } from '@/lib/codingPolicy'
+import { applyCodingToolEvent, settleRunningToolMessages } from '@/lib/chatActivity'
 import { redactProviderCredentials } from '@/lib/redaction'
 import { normalizeDomainTaskContext } from '@/lib/domainTaskContext'
 import {
@@ -159,6 +160,7 @@ interface AgentEvent {
   requestId?: string
   input?: string
   approved?: boolean
+  grantable?: boolean
   reason?: string
   goal?: CodingGoalState
   resumed?: boolean
@@ -332,6 +334,7 @@ export function normalizeConversation(raw: Record<string, unknown>): Conversatio
           ? message.approvalInput
           : undefined,
         approvalState,
+        approvalGrantable: message.approvalGrantable === true,
         approvalReason: approvalState === 'expired'
           ? '应用或 Agent 已重启，本次审批已失效'
           : typeof message.approvalReason === 'string'
@@ -1279,7 +1282,11 @@ export function useConversations() {
     }
   }
 
-  async function respondApproval(requestId: string, approved: boolean) {
+  async function respondApproval(
+    requestId: string,
+    approved: boolean,
+    scope: 'once' | 'conversation' = 'once',
+  ) {
     const conversation = conversations.value.find(item => (
       item.messages.some(message => (
         message.approvalRequestId === requestId
@@ -1287,11 +1294,13 @@ export function useConversations() {
       ))
     ))
     if (!conversation) return
+    const conversationGrant = approved && scope === 'conversation'
     try {
       await invokeCommand('respond_tool_approval', {
         conversationId: conversation.id,
         requestId,
         approved,
+        scope: conversationGrant ? 'conversation' : '',
       })
       update(conversation.id, current => ({
         ...current,
@@ -1301,7 +1310,11 @@ export function useConversations() {
                 ...message,
                 status: 'done',
                 approvalState: approved ? 'approved' : 'denied',
-                approvalReason: approved ? '已允许本次操作' : '已拒绝本次操作',
+                approvalReason: approved
+                  ? conversationGrant
+                    ? '已允许本对话后续同类操作'
+                    : '已允许本次操作'
+                  : '已拒绝本次操作',
               }
             : message
         )),
@@ -1343,6 +1356,7 @@ export function useConversations() {
         requestId,
         input,
         approved,
+        grantable,
         reason,
         goal,
         resumed,
@@ -1373,7 +1387,7 @@ export function useConversations() {
             ? {
                 ...conversation,
                 messages: [
-                  ...conversation.messages.map(item => (
+                  ...settleRunningToolMessages(conversation.messages).map(item => (
                     item.approvalState === 'pending'
                       ? {
                           ...item,
@@ -1524,19 +1538,26 @@ export function useConversations() {
             approvalRequestId: requestId,
             approvalInput: input,
             approvalState: 'pending',
+            approvalGrantable: grantable === true,
           })
         } else if (type === 'approval.resolved' && requestId) {
           const approvalIndex = messages.findIndex(message => (
             message.approvalRequestId === requestId
           ))
           if (approvalIndex >= 0) {
+            const conversationGrant = approved
+              && reason === 'approved for this conversation'
             messages[approvalIndex] = {
               ...messages[approvalIndex],
               status: 'done',
               approvalState: approved ? 'approved' : 'denied',
-              approvalReason: reason || (approved
-                ? '已允许本次操作'
-                : '已拒绝本次操作'),
+              approvalReason: reason === 'approved for this conversation'
+                ? '已允许本对话后续同类操作'
+                : reason || (approved
+                  ? conversationGrant
+                    ? '已允许本对话后续同类操作'
+                    : '已允许本次操作'
+                  : '已拒绝本次操作'),
             }
           }
         } else if (type === 'assistant.delta') {
@@ -1587,44 +1608,32 @@ export function useConversations() {
           if (last?.role === 'assistant' && last.status === 'running') {
             messages[messages.length - 1] = { ...last, status: 'done' }
           }
+          const settledTools = settleRunningToolMessages(messages)
+          if (settledTools !== messages) {
+            messages.splice(0, messages.length, ...settledTools)
+          }
           setMessageQueue(sessionId, { steering: [], followUp: [] })
           finishRun(sessionId)
         } else if (type === 'tool.started' || type === 'tool.completed') {
           const toolText = type === 'tool.completed'
             ? agentToolResultMessage(text, error)
             : text
-          if (
-            last?.role === 'tool'
-            && last.toolName === toolName
-            && last.status === 'running'
-            && (!toolCallId || !last.toolCallId || last.toolCallId === toolCallId)
-          ) {
-            messages[messages.length - 1] = {
-              ...last,
-              content: toolText
-                ? [last.content, toolText].filter(Boolean).join('\n\n')
-                : last.content,
-              toolCallId: toolCallId || last.toolCallId,
-              durationMs: type === 'tool.completed'
-                ? durationMs
-                : last.durationMs,
-              status: type === 'tool.completed' || done ? 'done' : 'running',
-            }
-          } else {
-            messages.push({
-              id: crypto.randomUUID(),
-              role: 'tool',
-              content: toolText,
-              timestamp: Date.now(),
-              toolName,
-              toolCallId,
-              durationMs: type === 'tool.completed' ? durationMs : undefined,
-              status: type === 'tool.completed' || done ? 'done' : 'running',
-            })
-          }
+          const nextMessages = applyCodingToolEvent(messages, {
+            type,
+            text: toolText,
+            toolName,
+            toolCallId,
+            durationMs,
+            done,
+          })
+          messages.splice(0, messages.length, ...nextMessages)
         } else if (type === 'engine.error') {
           setMessageQueue(sessionId, { steering: [], followUp: [] })
           finishRun(sessionId)
+          const settledTools = settleRunningToolMessages(messages)
+          if (settledTools !== messages) {
+            messages.splice(0, messages.length, ...settledTools)
+          }
           for (let index = 0; index < messages.length; index++) {
             if (messages[index].approvalState === 'pending') {
               messages[index] = {

@@ -16,15 +16,23 @@ async function mountMessage(
   message: Message,
   props: Partial<InstanceType<typeof ChatMessageItem>['$props']> = {},
 ) {
-  const responses: Array<{ requestId: string, approved: boolean }> = []
+  const responses: Array<{
+    requestId: string
+    approved: boolean
+    scope?: 'once' | 'conversation'
+  }> = []
   let retried = false
   const host = document.createElement('div')
   document.body.append(host)
   const app = createApp(ChatMessageItem, {
     message,
     ...props,
-    onRespondApproval: (requestId: string, approved: boolean) => {
-      responses.push({ requestId, approved })
+    onRespondApproval: (
+      requestId: string,
+      approved: boolean,
+      scope?: 'once' | 'conversation',
+    ) => {
+      responses.push({ requestId, approved, scope })
     },
     onRetry: () => {
       retried = true
@@ -65,7 +73,35 @@ describe('ChatMessageItem', () => {
     expect(allow).toBeDefined()
     allow?.click()
     await nextTick()
-    expect(responses).toEqual([{ requestId: 'approval-redaction', approved: true }])
+    expect(responses).toEqual([{
+      requestId: 'approval-redaction',
+      approved: true,
+      scope: 'once',
+    }])
+  })
+
+  it('offers a conversation-wide grant only when the request is grantable', async () => {
+    const { host, responses } = await mountMessage({
+      id: 'message-grantable',
+      role: 'tool',
+      content: '隔离 Coding Browser · 工具 browser_click',
+      timestamp: 1,
+      toolName: 'mcp:milksu-playwright',
+      approvalRequestId: 'approval-browser',
+      approvalState: 'pending',
+      approvalGrantable: true,
+    })
+
+    const always = [...host.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.includes('本对话始终允许'))
+    expect(always).toBeDefined()
+    always?.click()
+    await nextTick()
+    expect(responses).toEqual([{
+      requestId: 'approval-browser',
+      approved: true,
+      scope: 'conversation',
+    }])
   })
 
   it('shows context-specific recovery hints for resumable failures', async () => {

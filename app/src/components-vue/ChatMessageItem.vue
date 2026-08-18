@@ -17,7 +17,7 @@ const props = defineProps<{
 }>()
 
 defineEmits<{
-  respondApproval: [requestId: string, approved: boolean]
+  respondApproval: [requestId: string, approved: boolean, scope?: 'once' | 'conversation']
   retry: []
 }>()
 
@@ -51,7 +51,9 @@ function recoveryHint() {
             请求批准 · {{ message.toolName ?? 'tool' }}
           </p>
           <p class="mt-1 text-caption text-muted-foreground">
-            Agent 已暂停；只有允许本次操作后才会继续。
+            {{ message.approvalGrantable
+              ? 'Agent 已暂停。允许这一次只执行当前操作；本对话始终允许后，同类操作不再询问。'
+              : 'Agent 已暂停；只有允许本次操作后才会继续。' }}
           </p>
         </div>
         <Badge
@@ -93,11 +95,20 @@ function recoveryHint() {
         </Button>
         <Button
           type="button"
-          variant="brand"
+          :variant="message.approvalGrantable ? 'outline' : 'brand'"
           size="sm"
-          @click="$emit('respondApproval', message.approvalRequestId, true)"
+          @click="$emit('respondApproval', message.approvalRequestId, true, 'once')"
         >
           允许这一次
+        </Button>
+        <Button
+          v-if="message.approvalGrantable"
+          type="button"
+          variant="brand"
+          size="sm"
+          @click="$emit('respondApproval', message.approvalRequestId, true, 'conversation')"
+        >
+          本对话始终允许
         </Button>
       </div>
       <p v-else-if="message.approvalReason" class="mt-2 text-caption text-muted-foreground">

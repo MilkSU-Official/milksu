@@ -177,6 +177,10 @@ func (h *electronCodingHost) CloseTab(sessionID, tabID string) (browsercap.Codin
 	return h.list("browser.closeTab", sessionID, map[string]any{"tabId": tabID})
 }
 
+func (h *electronCodingHost) CloseAllTabs(sessionID string) (browsercap.CodingHostTabList, error) {
+	return h.list("browser.closeAllTabs", sessionID, nil)
+}
+
 func (h *electronCodingHost) Stop(sessionID string) error {
 	return h.call("browser.stop", sessionID, nil)
 }

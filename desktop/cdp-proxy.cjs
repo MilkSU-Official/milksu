@@ -40,7 +40,12 @@ class ScopedCDPProxy {
   }
 
   setAllowedTarget(targetId) {
-    this.allowedTargetId = String(targetId ?? '')
+    const next = String(targetId ?? '')
+    if (next === this.allowedTargetId) return
+    this.allowedTargetId = next
+    for (const client of this.webSocketServer.clients) {
+      client.close(4000, 'browser tab changed')
+    }
   }
 
   async start() {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import {
   ChevronDown,
   FilePenLine,
@@ -13,6 +13,7 @@ import {
   buildChatActivityEntries,
   chatActivityEntrySummary,
   chatActivitySummary,
+  detailsToggleOpen,
   type ChatActivityBlock,
   type ChatActivityEntry,
 } from '@/lib/chatActivity'
@@ -21,8 +22,25 @@ const props = defineProps<{
   activity: ChatActivityBlock
 }>()
 
+const groupOpen = ref(false)
+const openEntryIds = ref(new Set<string>())
 const summary = computed(() => chatActivitySummary(props.activity.messages))
 const toolEntries = computed(() => buildChatActivityEntries(props.activity.messages))
+
+function toggleGroup(event: Event) {
+  const open = detailsToggleOpen(event)
+  if (open === undefined) return
+  groupOpen.value = open
+}
+
+function toggleEntry(entryId: string, event: Event) {
+  const open = detailsToggleOpen(event)
+  if (open === undefined) return
+  const next = new Set(openEntryIds.value)
+  if (open) next.add(entryId)
+  else next.delete(entryId)
+  openEntryIds.value = next
+}
 const summaryIcon = computed(() => {
   const names = new Set(toolEntries.value.map(entry => entry.toolName))
   if (names.has('edit') || names.has('write') || names.has('lsp_fix')) return FilePenLine
@@ -69,7 +87,7 @@ function durationLabel(durationMs?: number) {
 </script>
 
 <template>
-  <details class="tool-activity mb-7">
+  <details class="tool-activity mb-7" :open="groupOpen" @toggle="toggleGroup">
     <summary class="tool-activity__summary">
       <component :is="summaryIcon" class="size-4 shrink-0 text-muted-foreground" />
       <span class="min-w-0 truncate">{{ summary }}</span>
@@ -82,6 +100,8 @@ function durationLabel(durationMs?: number) {
         v-for="entry in toolEntries"
         :key="entry.id"
         class="tool-activity-entry"
+        :open="openEntryIds.has(entry.id)"
+        @toggle="toggleEntry(entry.id, $event)"
       >
         <summary class="tool-activity-entry__summary">
           <component :is="entryIcon(entry)" class="size-3.5 shrink-0 text-muted-foreground" />

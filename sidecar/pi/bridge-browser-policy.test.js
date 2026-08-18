@@ -13,6 +13,7 @@ import {
 
 test("tells the model to use the built-in browser without asking the user to enable it", () => {
   assert.match(codingBrowserGuidance(), /built-in isolated browser/);
+  assert.match(codingBrowserGuidance(), /milksu_workspace/);
   assert.match(codingBrowserGuidance(), /Never ask the user to enable Coding Browser/);
 });
 

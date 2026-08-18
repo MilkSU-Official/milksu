@@ -53,6 +53,9 @@ func (*codingHostFixture) ActivateTab(string, string) (CodingHostTabList, error)
 func (*codingHostFixture) CloseTab(string, string) (CodingHostTabList, error) {
 	return CodingHostTabList{}, nil
 }
+func (*codingHostFixture) CloseAllTabs(string) (CodingHostTabList, error) {
+	return CodingHostTabList{}, nil
+}
 func (*codingHostFixture) Stop(string) error { return nil }
 func (*codingHostFixture) Close()            {}
 

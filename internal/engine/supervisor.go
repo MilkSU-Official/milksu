@@ -70,6 +70,7 @@ type Event struct {
 	Input           string                   `json:"input,omitempty"`
 	Reason          string                   `json:"reason,omitempty"`
 	Approved        *bool                    `json:"approved,omitempty"`
+	Grantable       bool                     `json:"grantable,omitempty"`
 	BackgroundTasks []BackgroundTask         `json:"backgroundTasks,omitempty"`
 	Goal            *CodingGoalState         `json:"goal,omitempty"`
 	Resumed         bool                     `json:"resumed,omitempty"`
@@ -228,9 +229,11 @@ type bridgeEvent struct {
 	ApprovalPolicy string                   `json:"approvalPolicy"`
 	Capabilities   []CodingCapabilityStatus `json:"capabilities"`
 	RequestID      string                   `json:"requestId"`
+	Action         string                   `json:"action"`
 	Input          string                   `json:"input"`
 	Reason         string                   `json:"reason"`
 	Approved       *bool                    `json:"approved"`
+	Grantable      bool                     `json:"grantable"`
 	Tasks          []BackgroundTask         `json:"tasks"`
 	Goal           *CodingGoalState         `json:"goal"`
 	Resumed        bool                     `json:"resumed"`
@@ -262,9 +265,18 @@ type Supervisor struct {
 	recoveryWaiters  map[string]map[chan Event]struct{}
 	recoveryFailures map[string]string
 	backgroundTasks  map[string][]BackgroundTask
-	securityTools    []securitytools.RuntimeTool
-	emit             func(Event)
-	sidecarDirectory string
+	securityTools     []securitytools.RuntimeTool
+	workspaceAction   WorkspaceActionHandler
+	emit              func(Event)
+	sidecarDirectory  string
+}
+
+type WorkspaceActionHandler func(sessionID, action, input string) (string, error)
+
+func (s *Supervisor) SetWorkspaceActionHandler(handler WorkspaceActionHandler) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.workspaceAction = handler
 }
 
 func NewSupervisor(emit func(Event)) *Supervisor {
@@ -942,6 +954,7 @@ func (s *Supervisor) RespondToolApproval(
 	sessionID,
 	requestID string,
 	approved bool,
+	scope string,
 ) error {
 	if strings.TrimSpace(sessionID) == "" {
 		return fmt.Errorf("session id is required")
@@ -957,12 +970,16 @@ func (s *Supervisor) RespondToolApproval(
 	if _, exists := s.sessions[sessionID]; !exists {
 		return fmt.Errorf("PI session not found: %s", sessionID)
 	}
-	return writeCommand(s.process.stdin, map[string]any{
+	command := map[string]any{
 		"action":         "approval_response",
 		"conversationId": sessionID,
 		"requestId":      requestID,
 		"approved":       approved,
-	})
+	}
+	if strings.TrimSpace(scope) == "conversation" {
+		command["scope"] = "conversation"
+	}
+	return writeCommand(s.process.stdin, command)
 }
 
 func (s *Supervisor) StartBackgroundTask(
@@ -1572,6 +1589,10 @@ func (s *Supervisor) readEvents(process *childProcess, stdout io.Reader) {
 			s.emitEvent(Event{Engine: "pi", Type: "engine.protocol_error", Error: err.Error()})
 			continue
 		}
+		if raw.Type == "workspace_action" {
+			s.handleWorkspaceAction(raw)
+			continue
+		}
 		event := normalizeBridgeEvent(raw)
 		s.observeRuntimeEvent(event)
 		if raw.ID != "" && (raw.Type == "error" || raw.Type == "session_destroyed") {
@@ -1770,6 +1791,7 @@ func normalizeBridgeEvent(raw bridgeEvent) Event {
 		Input:           raw.Input,
 		Reason:          raw.Reason,
 		Approved:        raw.Approved,
+		Grantable:       raw.Grantable,
 		BackgroundTasks: raw.Tasks,
 		Goal:            raw.Goal,
 		Resumed:         raw.Resumed,
@@ -1862,6 +1884,40 @@ func normalizeBridgeEvent(raw bridgeEvent) Event {
 		event.Type = "engine.raw." + raw.Type
 	}
 	return event
+}
+
+func (s *Supervisor) handleWorkspaceAction(raw bridgeEvent) {
+	s.mu.Lock()
+	handler := s.workspaceAction
+	process := s.process
+	s.mu.Unlock()
+	var result string
+	var err error
+	if handler == nil {
+		err = fmt.Errorf("workspace actions unavailable")
+	} else {
+		result, err = handler(raw.ID, raw.Action, raw.Input)
+	}
+	if process == nil {
+		return
+	}
+	response := map[string]any{
+		"action":         "workspace_action_response",
+		"conversationId": raw.ID,
+		"requestId":      raw.RequestID,
+		"ok":             err == nil,
+		"result":         result,
+	}
+	if err != nil {
+		response["error"] = err.Error()
+		response["ok"] = false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.process != process || process.stdin == nil {
+		return
+	}
+	_ = writeCommand(process.stdin, response)
 }
 
 func writeCommand(writer io.Writer, value any) error {

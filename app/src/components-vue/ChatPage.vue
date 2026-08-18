@@ -203,7 +203,7 @@ const emit = defineEmits<{
     approvalPolicy: CodingApprovalPolicy,
   ]
   changeMcpServers: [servers: string[], configDigest: string]
-  respondApproval: [requestId: string, approved: boolean]
+  respondApproval: [requestId: string, approved: boolean, scope?: 'once' | 'conversation']
   compactContext: []
   newConversation: []
   controlGoal: [action: 'pause' | 'resume' | 'clear']
@@ -246,6 +246,7 @@ const contextPanel = ref<ContextPanel>(
   props.ctfSession || props.vulnerabilitySession ? 'domain' : 'environment',
 )
 const artifactPanel = ref<InstanceType<typeof CodingArtifactPreviewPanel> | null>(null)
+const requestedArtifactPath = ref('')
 const environmentLoading = ref(false)
 const environmentError = ref('')
 const browserPanelError = ref('')
@@ -1155,6 +1156,23 @@ function revealBuiltInBrowser() {
   void ensureCodingBrowser()
 }
 
+function applyWorkspaceReveal(payload?: {
+  conversationId?: string
+  panel?: string
+  artifactPath?: string
+}) {
+  if (payload?.conversationId && payload.conversationId !== props.conversation?.id) return
+  const panel = payload?.panel
+  if (panel === 'browser' || panel === 'artifacts' || panel === 'changes' || panel === 'environment') {
+    contextPanel.value = panel
+  }
+  environmentOpen.value = true
+  if (payload?.artifactPath) {
+    requestedArtifactPath.value = payload.artifactPath
+  }
+  if (panel === 'browser') void refreshCodingBrowserState()
+}
+
 async function startCodingBrowser() {
   browserPanelError.value = ''
   let initialURL = ''
@@ -1314,6 +1332,7 @@ let codingBrowserResizeObserver: ResizeObserver | null = null
 let codingBrowserStatusTimer = 0
 let lastCodingBrowserViewport = ''
 let stopBrowserReady: (() => void) | undefined
+let stopWorkspaceReveal: (() => void) | undefined
 
 async function syncCodingBrowserViewport() {
   const conversationID = props.conversation?.id
@@ -1613,6 +1632,15 @@ onMounted(() => {
   }).then(stop => {
     stopBrowserReady = stop
   })
+  void listenEvent<{
+    conversationId?: string
+    panel?: string
+    artifactPath?: string
+  }>('coding-workspace.reveal', event => {
+    applyWorkspaceReveal(event.payload)
+  }).then(stop => {
+    stopWorkspaceReveal = stop
+  })
   if (typeof ResizeObserver !== 'undefined') {
     codingBrowserResizeObserver = new ResizeObserver(() => {
       lastCodingBrowserViewport = ''
@@ -1628,6 +1656,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   stopBrowserReady?.()
+  stopWorkspaceReveal?.()
   void hideCodingBrowserViewport()
   window.removeEventListener('focus', refreshComputerUseAfterSettings)
   codingBrowserResizeObserver?.disconnect()
@@ -1928,7 +1957,7 @@ watch(
             :message="item.message"
             :recoverable="item.message.id === recoverableFailureId"
             :recovery-context="ctfSession ? 'ctf' : 'coding'"
-            @respond-approval="(requestId, approved) => $emit('respondApproval', requestId, approved)"
+            @respond-approval="(requestId, approved, scope) => $emit('respondApproval', requestId, approved, scope)"
             @retry="resumeAfterFailure"
           />
         </template>
@@ -2347,6 +2376,7 @@ watch(
           ref="artifactPanel"
           :workspace-path="workspacePath"
           :environment="codingEnvironment"
+          :requested-path="requestedArtifactPath"
           @previewed="recordArtifactPreview"
         />
       </template>

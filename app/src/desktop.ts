@@ -212,6 +212,7 @@ interface DesktopAppBindings {
     conversationId: string,
     requestId: string,
     approved: boolean,
+    scope?: string,
   ): Promise<void>
   RefreshCodingBackgroundTasks(
     conversationId: string,
@@ -560,6 +561,7 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
           args?.conversationId as string,
           args?.requestId as string,
           args?.approved as boolean,
+          typeof args?.scope === 'string' ? args.scope : '',
         ) as Promise<T>
       case 'refresh_coding_background_tasks':
         return app.RefreshCodingBackgroundTasks(

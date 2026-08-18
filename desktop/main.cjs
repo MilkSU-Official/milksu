@@ -654,6 +654,25 @@ class BrowserShell {
     return this.listTabs(request)
   }
 
+  async closeAllTabs(request) {
+    const current = this.get(request)
+    const keepId = current.activeTabId && current.tabs.has(current.activeTabId)
+      ? current.activeTabId
+      : [...current.tabs.keys()][0]
+    for (const [tabId, tab] of [...current.tabs.entries()]) {
+      if (tabId === keepId) continue
+      current.tabs.delete(tabId)
+      detachBrowserView(this.window.contentView, tab)
+      tab.view.webContents.close()
+    }
+    if (keepId) {
+      await this.activateTab({ sessionId: request.sessionId, tabId: keepId })
+      const kept = this.activeTab(current)
+      await kept.view.webContents.loadURL('about:blank')
+    }
+    return this.listTabs(request)
+  }
+
   async closeTab(request) {
     const current = this.get(request)
     const tabId = String(request?.tabId ?? '')
@@ -764,6 +783,7 @@ async function handleHostRequest(method, payload = {}) {
     case 'browser.createTab': return browserShell.createTab(payload)
     case 'browser.activateTab': return browserShell.activateTab(payload)
     case 'browser.closeTab': return browserShell.closeTab(payload)
+    case 'browser.closeAllTabs': return browserShell.closeAllTabs(payload)
     case 'browser.stop': return browserShell.stop(payload)
     case 'browser.closeAll': return browserShell.closeAll()
     case 'computerUse.permissions': {

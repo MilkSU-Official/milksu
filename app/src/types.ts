@@ -64,6 +64,7 @@ export interface Message {
   approvalInput?: string
   approvalState?: 'pending' | 'approved' | 'denied' | 'expired'
   approvalReason?: string
+  approvalGrantable?: boolean
   attachments?: CodingAttachment[]
 }
 

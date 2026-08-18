@@ -1,3 +1,8 @@
+import {
+  browserUseMcpServerName,
+  codingBrowserMcpServerName,
+} from "./bridge-browser-policy.js";
+
 const approvalPolicies = new Set([
   "read-only",
   "ask",
@@ -5,7 +10,12 @@ const approvalPolicies = new Set([
   "full-auto",
 ]);
 const autoApprovedMcpServers = new Set([
-  "milksu-playwright",
+  codingBrowserMcpServerName,
+  "milksu-computer-use",
+]);
+const conversationGrantableMcpServers = new Set([
+  codingBrowserMcpServerName,
+  browserUseMcpServerName,
   "milksu-computer-use",
 ]);
 const hostedExternalMcpServers = new Set([
@@ -25,6 +35,31 @@ function normalizedApprovalPolicy(value) {
 
 export function codingCollaborationRequiresApproval(approvalPolicy) {
   return normalizedApprovalPolicy(approvalPolicy) === "ask";
+}
+
+export function resolveCodingMcpServer(input, policy = {}) {
+  const explicit = String(input?.server ?? input?.connect ?? "").trim();
+  if (explicit) return explicit;
+  const selected = Array.isArray(policy?.mcpServers) ? policy.mcpServers : [];
+  const tool = String(input?.tool ?? "").trim();
+  if (tool.includes("browser_")) {
+    const hasIsolated = Boolean(policy.codingBrowser)
+      || selected.includes(codingBrowserMcpServerName);
+    const hasUserBrowser = Boolean(policy.browserUse)
+      || selected.includes(browserUseMcpServerName);
+    if (hasIsolated && !hasUserBrowser) return codingBrowserMcpServerName;
+    if (hasUserBrowser && !hasIsolated) return browserUseMcpServerName;
+  }
+  return selected.length === 1 ? selected[0] : "";
+}
+
+export function mcpConversationGrantKey(input, selectedServer = "") {
+  if (!input || typeof input !== "object") return "";
+  const action = String(input.action ?? "").trim();
+  if (["auth-start", "auth-complete"].includes(action)) return "";
+  const server = String(selectedServer || input.server || input.connect || "").trim();
+  if (!server || hostedExternalMcpServers.has(server)) return "";
+  return conversationGrantableMcpServers.has(server) ? `mcp:${server}` : "";
 }
 
 export function codingMcpOperationRequiresApproval(

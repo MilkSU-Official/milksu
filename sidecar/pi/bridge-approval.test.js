@@ -113,3 +113,55 @@ test("approval broker expires every pending request when the approval channel cl
     /Unknown MilkSU approval request/,
   );
 });
+
+test("conversation grant skips later matching approvals and ignores paid or account tools", async () => {
+  const events = [];
+  const ids = ["approval-browser-1", "approval-image"];
+  const broker = createApprovalBroker(
+    (id, type, data) => events.push({ id, type, ...data }),
+    () => ids.shift(),
+  );
+
+  const first = broker.request({
+    conversationId: "conversation-1",
+    toolName: "mcp:milksu-playwright",
+    content: "隔离 Coding Browser · 工具 browser_click",
+    input: '{"tool":"browser_click"}',
+    grantKey: "mcp:milksu-playwright",
+  });
+  assert.equal(events[0].grantable, true);
+  broker.respond({
+    conversationId: "conversation-1",
+    requestId: "approval-browser-1",
+    approved: true,
+    scope: "conversation",
+  });
+  assert.equal(await first, true);
+  assert.equal(events[1].reason, "approved for this conversation");
+
+  const second = await broker.request({
+    conversationId: "conversation-1",
+    toolName: "mcp:milksu-playwright",
+    content: "隔离 Coding Browser · 工具 browser_navigate",
+    input: '{"tool":"browser_navigate"}',
+    grantKey: "mcp:milksu-playwright",
+  });
+  assert.equal(second, true);
+  assert.equal(events.filter(event => event.type === "approval_requested").length, 1);
+
+  const imageGen = broker.request({
+    conversationId: "conversation-1",
+    toolName: "imagegen",
+    content: "生成图片",
+    input: '{"prompt":"icon"}',
+  });
+  assert.equal(events.at(-1).grantable, undefined);
+  broker.respond({
+    conversationId: "conversation-1",
+    requestId: "approval-image",
+    approved: true,
+    scope: "conversation",
+  });
+  assert.equal(await imageGen, true);
+  assert.equal(events.at(-1).reason, "approved by user");
+});

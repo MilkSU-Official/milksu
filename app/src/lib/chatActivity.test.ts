@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
+  applyCodingToolEvent,
   buildChatActivityEntries,
   buildChatTranscript,
   chatActivityEntrySummary,
   chatActivitySummary,
+  detailsToggleOpen,
+  settleRunningToolMessages,
 } from '@/lib/chatActivity'
 import type { Message } from '@/types'
 
@@ -66,6 +69,54 @@ describe('buildChatTranscript', () => {
     ])
     expect(transcript[2]?.kind === 'activity' && transcript[2].messages.map(item => item.id))
       .toEqual(['t1', 't2'])
+    expect(transcript[2]?.kind === 'activity' && transcript[2].id).toBe('activity:t1')
+  })
+
+  it('keeps a live tool group key stable while later tools are appended', () => {
+    const first = buildChatTranscript([
+      message('u1', 'user', '查一下'),
+      message('t1', 'tool', '打开首页', {
+        toolName: 'mcp',
+        toolCallId: 'call-1',
+        status: 'running',
+      }),
+    ], true)
+    const second = buildChatTranscript([
+      message('u1', 'user', '查一下'),
+      message('t1', 'tool', '打开首页', {
+        toolName: 'mcp',
+        toolCallId: 'call-1',
+        status: 'done',
+      }),
+      message('t1-result', 'tool', 'ok', {
+        toolName: 'mcp',
+        toolCallId: 'call-1',
+      }),
+      message('t2', 'tool', '点击播放', {
+        toolName: 'mcp',
+        toolCallId: 'call-2',
+        status: 'running',
+      }),
+    ], true)
+
+    expect(first[1]?.kind === 'activity' && first[1].id).toBe('activity:t1')
+    expect(second[1]?.kind === 'activity' && second[1].id).toBe('activity:t1')
+    expect(second[1]?.kind === 'activity' && second[1].running).toBe(true)
+  })
+
+  it('stops the group spinner after paired tool results even if a start row lingered', () => {
+    const transcript = buildChatTranscript([
+      message('t1', 'tool', '打开首页', {
+        toolName: 'mcp',
+        toolCallId: 'call-1',
+        status: 'done',
+      }),
+      message('t1-result', 'tool', 'ok', {
+        toolName: 'mcp',
+        toolCallId: 'call-1',
+      }),
+    ], true)
+    expect(transcript[0]?.kind === 'activity' && transcript[0].running).toBe(false)
   })
 
   it('keeps a live assistant response visible after collapsed activity', () => {
@@ -226,5 +277,83 @@ describe('activity labels', () => {
     expect(entries[0]?.result?.id).toBe('bash-a-result')
     expect(entries[1]?.request?.id).toBe('bash-b-start')
     expect(entries[1]?.result?.id).toBe('bash-b-result')
+  })
+})
+
+describe('applyCodingToolEvent', () => {
+  it('completes an earlier running call without touching a later one', () => {
+    const started = [
+      applyCodingToolEvent([], {
+        type: 'tool.started',
+        text: '打开首页',
+        toolName: 'mcp',
+        toolCallId: 'call-a',
+      }, () => 'start-a'),
+    ].flat()
+    const both = applyCodingToolEvent(started, {
+      type: 'tool.started',
+      text: '点击播放',
+      toolName: 'mcp',
+      toolCallId: 'call-b',
+    }, () => 'start-b')
+    const completed = applyCodingToolEvent(both, {
+      type: 'tool.completed',
+      text: '首页已打开',
+      toolName: 'mcp',
+      toolCallId: 'call-a',
+      durationMs: 800,
+    }, () => 'result-a')
+
+    expect(completed.map(item => ({
+      id: item.id,
+      status: item.status,
+      toolCallId: item.toolCallId,
+    }))).toEqual([
+      { id: 'start-a', status: 'done', toolCallId: 'call-a' },
+      { id: 'start-b', status: 'running', toolCallId: 'call-b' },
+      { id: 'result-a', status: 'done', toolCallId: 'call-a' },
+    ])
+    const entries = buildChatActivityEntries(completed)
+    expect(entries[0]).toMatchObject({
+      request: { id: 'start-a' },
+      result: { id: 'result-a' },
+      running: false,
+    })
+    expect(entries[1]).toMatchObject({
+      request: { id: 'start-b' },
+      running: true,
+    })
+  })
+
+  it('clears leftover running tool rows when the turn settles', () => {
+    const settled = settleRunningToolMessages([
+      message('start', 'tool', '打开首页', {
+        toolName: 'mcp',
+        toolCallId: 'call-a',
+        status: 'running',
+      }),
+      message('approval', 'tool', '需要批准', {
+        toolName: 'bash',
+        approvalRequestId: 'approval-1',
+        approvalState: 'pending',
+        status: 'running',
+      }),
+    ])
+    expect(settled[0]?.status).toBe('done')
+    expect(settled[1]?.status).toBe('running')
+    expect(settled[1]?.approvalRequestId).toBe('approval-1')
+  })
+
+  it('ignores bubbled details toggles from nested entries', () => {
+    const parent = { open: true } as HTMLDetailsElement
+    const child = { open: false } as HTMLDetailsElement
+    expect(detailsToggleOpen({
+      target: child,
+      currentTarget: parent,
+    } as unknown as Event)).toBeUndefined()
+    expect(detailsToggleOpen({
+      target: parent,
+      currentTarget: parent,
+    } as unknown as Event)).toBe(true)
   })
 })

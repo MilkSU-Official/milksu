@@ -125,7 +125,7 @@ function triggerModelText() {
             <div class="min-w-0 flex-1">
               <p class="approval-option__title">替我审批</p>
               <p class="approval-option__description">
-                项目内自动执行；越过项目边界或高风险操作时拦截
+                项目内和内置浏览器自动执行；用户浏览器、外部账户或高风险操作仍会拦截
               </p>
             </div>
             <Check

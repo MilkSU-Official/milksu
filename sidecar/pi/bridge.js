@@ -29,6 +29,8 @@ import { createApprovalBroker } from "./bridge-approval.js";
 import {
   codingCollaborationRequiresApproval,
   codingMcpOperationRequiresApproval,
+  mcpConversationGrantKey,
+  resolveCodingMcpServer,
 } from "./bridge-auto-approval.js";
 import { createReviewedLspExtension } from "./bridge-lsp.js";
 import {
@@ -103,6 +105,13 @@ import {
   authorizeImageGenToolCall,
   codingImageGenToolName,
 } from "./bridge-imagegen.js";
+import {
+  codingWorkspaceGuidance,
+  codingWorkspaceToolName,
+  createCodingWorkspaceExtension,
+  createWorkspaceActionBroker,
+  formatCodingWorkspaceInput,
+} from "./bridge-workspace.js";
 import { reviewedCodingSkillPaths } from "./bridge-skills.js";
 import {
   projectSteeringQueue,
@@ -211,6 +220,7 @@ function emitGoalState(conversationId, session) {
 }
 
 const approvalBroker = createApprovalBroker(emit);
+const workspaceActionBroker = createWorkspaceActionBroker(emit);
 const backgroundEffectfulActions = new Set(["spawn", "watch", "stop", "clear"]);
 
 function backgroundToolAction(toolName, input) {
@@ -327,6 +337,10 @@ function createMilkSUWorkflowExtension(sessionRole, getPolicy, getSession) {
       const browserGuidance = !sessionRole && policy?.codingBrowser
         ? `\n\n${codingBrowserGuidance()}`
         : "";
+      const workspaceGuidance = !sessionRole
+        && policy?.activeTools?.includes(codingWorkspaceToolName)
+        ? `\n\n${codingWorkspaceGuidance()}`
+        : "";
       return {
         systemPrompt: `${event.systemPrompt}`
           + (roleGuidance ? `\n\n${roleGuidance}` : "")
@@ -336,6 +350,7 @@ function createMilkSUWorkflowExtension(sessionRole, getPolicy, getSession) {
           })}`
           + subagentGuidance
           + browserGuidance
+          + workspaceGuidance
           + "\n\nWhen a task needs more than one concrete step, publish a concise plan with milksu_progress and keep the in-progress step updated. Skip the tool for trivial one-shot replies.",
       };
     });
@@ -458,6 +473,7 @@ function createCodingPermissionExtension(
               policy.workspace,
             ),
             input: truncate(JSON.stringify(event.input ?? {}, null, 2), 16000),
+            grantKey: codingCollaborationToolName,
           });
           if (!approved) {
             return {
@@ -496,6 +512,7 @@ function createCodingPermissionExtension(
           toolName: event.toolName,
           content: formatToolInput(event.toolName, event.input),
           input: truncate(JSON.stringify(event.input ?? {}, null, 2), 16000),
+          grantKey: event.toolName,
         });
         if (!approved) {
           return {
@@ -518,6 +535,7 @@ function createCodingPermissionExtension(
           toolName: `mcp:${serverName}`,
           content: formatMcpApprovalInput(event.input, serverName),
           input: truncate(JSON.stringify(event.input ?? {}, null, 2), 16000),
+          grantKey: mcpConversationGrantKey(event.input, serverName),
         });
         if (!approved) {
           return {
@@ -580,10 +598,7 @@ function createComputerUseVisionResultExtension(getSession) {
 }
 
 function selectedMcpServer(policy, input) {
-  const explicit = String(input?.server ?? input?.connect ?? "").trim();
-  if (explicit) return explicit;
-  const selected = Array.isArray(policy?.mcpServers) ? policy.mcpServers : [];
-  return selected.length === 1 ? selected[0] : "已选择的 MCP 服务器";
+  return resolveCodingMcpServer(input, policy) || "已选择的 MCP 服务器";
 }
 
 function formatMcpApprovalInput(input, serverName) {
@@ -657,6 +672,9 @@ function formatToolInput(toolName, args) {
     return [args.action, args.id].map(value => String(value ?? "").trim())
       .filter(Boolean)
       .join(" · ");
+  }
+  if (toolName === codingWorkspaceToolName) {
+    return formatCodingWorkspaceInput(args);
   }
   if (toolName === "milksu_progress") {
     // Same checklist shape as the tool result so the UI can project a live plan
@@ -1009,6 +1027,11 @@ function createMilkSUResourceLoader(
       ),
       createComputerUseVisionResultExtension(getSession),
       createSecurityToolsExtension(cwd, securityTools),
+      createCodingWorkspaceExtension(
+        conversationId,
+        getPolicy,
+        request => workspaceActionBroker.request(request),
+      ),
       piSubAgentExtension,
     );
     if (mcpConfig) {
@@ -1494,6 +1517,7 @@ async function abortSession(command) {
   const session = sessions.get(conversationId);
   if (!session) return;
   approvalBroker.cancelConversation(conversationId, "turn aborted");
+  workspaceActionBroker.cancelConversation(conversationId, "turn aborted");
   abortedSessions.add(conversationId);
   await session.abort();
   // Do not synthesize empty message_done (it became a blank assistant bubble).
@@ -1535,6 +1559,8 @@ async function destroySession(command) {
     }
   }
   approvalBroker.cancelConversation(conversationId, "session destroyed");
+  approvalBroker.clearConversationGrants(conversationId);
+  workspaceActionBroker.cancelConversation(conversationId, "session destroyed");
   compactionRuns.delete(conversationId);
   compactionRequestIds.delete(conversationId);
   sessionTurnContracts.delete(conversationId);
@@ -1566,6 +1592,18 @@ function respondToolApproval(command) {
     conversationId,
     requestId,
     approved: command.approved === true,
+    scope: command.scope,
+  });
+}
+
+function respondWorkspaceAction(command) {
+  const requestId = String(command.requestId ?? "").trim();
+  if (!requestId) throw new Error("requestId is required");
+  workspaceActionBroker.respond({
+    requestId,
+    ok: command.ok !== false,
+    result: command.result,
+    error: command.error,
   });
 }
 
@@ -1779,6 +1817,9 @@ async function handleCommand(command) {
     case "approval_response":
       respondToolApproval(command);
       break;
+    case "workspace_action_response":
+      respondWorkspaceAction(command);
+      break;
     case "background_task_control":
       await controlBackgroundTask(command);
       break;
@@ -1832,6 +1873,14 @@ input.on("line", (line) => {
   if (command.action === "approval_response") {
     try {
       respondToolApproval(command);
+    } catch (error) {
+      emit(command.conversationId ?? null, "error", { error: describeError(error) });
+    }
+    return;
+  }
+  if (command.action === "workspace_action_response") {
+    try {
+      respondWorkspaceAction(command);
     } catch (error) {
       emit(command.conversationId ?? null, "error", { error: describeError(error) });
     }

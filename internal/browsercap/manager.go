@@ -122,6 +122,7 @@ type CodingHost interface {
 	CreateTab(string, string) (CodingHostTabList, error)
 	ActivateTab(string, string) (CodingHostTabList, error)
 	CloseTab(string, string) (CodingHostTabList, error)
+	CloseAllTabs(string) (CodingHostTabList, error)
 	Stop(string) error
 	Close()
 }
@@ -618,6 +619,10 @@ func (m *Manager) CloseCodingTab(conversationID, tabID string) (CodingBrowserSta
 	return m.mutateCodingTabs(conversationID, func(sessionID string) (CodingHostTabList, error) {
 		return m.codingHost.CloseTab(sessionID, strings.TrimSpace(tabID))
 	})
+}
+
+func (m *Manager) CloseAllCodingTabs(conversationID string) (CodingBrowserStatus, error) {
+	return m.mutateCodingTabs(conversationID, m.codingHost.CloseAllTabs)
 }
 
 func (m *Manager) mutateCodingTabs(

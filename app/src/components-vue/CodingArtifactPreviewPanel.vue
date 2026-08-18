@@ -27,6 +27,7 @@ import type {
 const props = defineProps<{
   workspacePath: string
   environment: CodingEnvironmentSnapshot | null
+  requestedPath?: string
 }>()
 
 const emit = defineEmits<{
@@ -159,6 +160,16 @@ watch(
     relativePath.value = ''
     preview.value = null
     error.value = ''
+  },
+)
+
+watch(
+  () => props.requestedPath,
+  path => {
+    const next = String(path ?? '').trim()
+    if (!next || next === relativePath.value) return
+    relativePath.value = next
+    void refresh()
   },
 )
 

@@ -3,7 +3,7 @@ import { posix } from "node:path";
 export function codingBrowserGuidance() {
   return [
     "MilkSU's built-in isolated browser is already part of this app.",
-    "Use the milksu-playwright MCP tools to open and operate pages in the right-hand browser.",
+    "Use milksu_workspace to list, focus, or close those tabs, then milksu-playwright to operate the focused page.",
     "Never ask the user to enable Coding Browser, open Settings, or pick a capability first.",
     "Browser Use (the user's real Chrome/Edge tab) and Computer Use still require an explicit user-selected scope.",
   ].join(" ");

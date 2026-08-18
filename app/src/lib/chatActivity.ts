@@ -50,7 +50,7 @@ function messageBlock(message: Message): ChatMessageBlock {
 function activityBlock(messages: Message[], running: boolean): ChatActivityBlock {
   return {
     kind: 'activity',
-    id: `activity:${messages[0]?.id ?? 'empty'}:${messages.at(-1)?.id ?? 'empty'}`,
+    id: `activity:${messages[0]?.id ?? 'empty'}`,
     messages,
     running,
   }
@@ -62,10 +62,123 @@ function flushToolSegment(
   conversationRunning: boolean,
 ) {
   if (!segment.length) return
+  const entries = buildChatActivityEntries(segment)
   blocks.push(activityBlock(
     segment,
-    conversationRunning && segment.some(message => message.status === 'running'),
+    conversationRunning && entries.some(entry => entry.running),
   ))
+}
+
+function lastMatchingToolIndex(
+  messages: Message[],
+  match: (message: Message) => boolean,
+) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]
+    if (message && match(message)) return index
+  }
+  return -1
+}
+
+export function applyCodingToolEvent(
+  messages: Message[],
+  event: {
+    type: 'tool.started' | 'tool.completed'
+    text: string
+    toolName?: string
+    toolCallId?: string
+    durationMs?: number
+    done?: boolean
+  },
+  createId: () => string = () => crypto.randomUUID(),
+): Message[] {
+  const completing = event.type === 'tool.completed' || event.done === true
+  const toolName = event.toolName
+  const toolCallId = event.toolCallId
+  const next = messages.slice()
+
+  if (!completing) {
+    const existing = toolCallId
+      ? lastMatchingToolIndex(next, message => (
+        message.role === 'tool'
+        && !message.approvalRequestId
+        && message.toolCallId === toolCallId
+        && message.status === 'running'
+      ))
+      : -1
+    if (existing >= 0) {
+      const current = next[existing]!
+      next[existing] = {
+        ...current,
+        content: event.text
+          ? [current.content, event.text].filter(Boolean).join('\n\n')
+          : current.content,
+        toolName: toolName || current.toolName,
+      }
+      return next
+    }
+    next.push({
+      id: createId(),
+      role: 'tool',
+      content: event.text,
+      timestamp: Date.now(),
+      toolName,
+      toolCallId,
+      status: 'running',
+    })
+    return next
+  }
+
+  const startIndex = lastMatchingToolIndex(next, message => {
+    if (message.role !== 'tool' || message.approvalRequestId || message.status !== 'running') {
+      return false
+    }
+    if (toolCallId) return message.toolCallId === toolCallId
+    return message.toolName === toolName && !message.toolCallId
+  })
+  if (startIndex >= 0) {
+    const start = next[startIndex]!
+    next[startIndex] = {
+      ...start,
+      status: 'done',
+      durationMs: event.durationMs ?? start.durationMs,
+      toolCallId: toolCallId || start.toolCallId,
+    }
+  }
+  next.push({
+    id: createId(),
+    role: 'tool',
+    content: event.text,
+    timestamp: Date.now(),
+    toolName,
+    toolCallId: toolCallId || (startIndex >= 0 ? next[startIndex]?.toolCallId : undefined),
+    durationMs: event.durationMs,
+    status: 'done',
+  })
+  return next
+}
+
+export function settleRunningToolMessages(messages: Message[]): Message[] {
+  if (!messages.some(message => (
+    message.role === 'tool'
+    && message.status === 'running'
+    && !message.approvalRequestId
+  ))) {
+    return messages
+  }
+  return messages.map(message => (
+    message.role === 'tool'
+    && message.status === 'running'
+    && !message.approvalRequestId
+      ? { ...message, status: 'done' as const }
+      : message
+  ))
+}
+
+export function detailsToggleOpen(event: Event): boolean | undefined {
+  if (event.target !== event.currentTarget) return undefined
+  const details = event.currentTarget as { open?: unknown } | null
+  return typeof details?.open === 'boolean' ? details.open : undefined
 }
 
 export function buildChatTranscript(
@@ -132,50 +245,48 @@ export function buildChatActivityEntries(messages: Message[]): ChatActivityEntry
   const pendingByCallID = new Map<string, ChatActivityEntry>()
   const pendingByToolName = new Map<string, ChatActivityEntry[]>()
 
+  const complete = (entry: ChatActivityEntry, message: Message) => {
+    if (entry.request?.toolCallId) pendingByCallID.delete(entry.request.toolCallId)
+    const queued = pendingByToolName.get(entry.toolName)
+    const queueIndex = queued?.indexOf(entry) ?? -1
+    if (queued && queueIndex >= 0) queued.splice(queueIndex, 1)
+    entry.result = message
+    entry.durationMs = message.durationMs
+    entry.running = false
+  }
+
   for (const message of messages) {
     if (message.role !== 'tool') continue
     const toolName = String(message.toolName ?? 'tool').toLowerCase()
-
-    if (message.status === 'running') {
-      const entry: ChatActivityEntry = {
-        id: `tool:${message.id}`,
-        toolName,
-        request: message,
-        running: true,
-      }
-      entries.push(entry)
-      if (message.toolCallId) {
-        pendingByCallID.set(message.toolCallId, entry)
-      }
-      const queue = pendingByToolName.get(toolName) ?? []
-      queue.push(entry)
-      pendingByToolName.set(toolName, queue)
-      continue
-    }
-
-    const queue = pendingByToolName.get(toolName)
-    const requestEntry = message.toolCallId
+    const queued = pendingByToolName.get(toolName)
+    const byCall = message.toolCallId
       ? pendingByCallID.get(message.toolCallId)
-      : queue?.[0]
-    if (requestEntry) {
-      if (requestEntry.request?.toolCallId) {
-        pendingByCallID.delete(requestEntry.request.toolCallId)
-      }
-      const queueIndex = queue?.indexOf(requestEntry) ?? -1
-      if (queue && queueIndex >= 0) queue.splice(queueIndex, 1)
-      requestEntry.result = message
-      requestEntry.durationMs = message.durationMs
-      requestEntry.running = false
+      : undefined
+    if (byCall) {
+      complete(byCall, message)
       continue
     }
 
-    entries.push({
+    if (message.status !== 'running') {
+      const requestEntry = !message.toolCallId ? queued?.[0] : undefined
+      if (requestEntry?.running) {
+        complete(requestEntry, message)
+        continue
+      }
+    }
+
+    const entry: ChatActivityEntry = {
       id: `tool:${message.id}`,
       toolName,
-      result: message,
-      durationMs: message.durationMs,
-      running: false,
-    })
+      request: message,
+      durationMs: message.status === 'running' ? undefined : message.durationMs,
+      running: message.status === 'running',
+    }
+    entries.push(entry)
+    if (message.toolCallId) pendingByCallID.set(message.toolCallId, entry)
+    const queue = queued ?? []
+    queue.push(entry)
+    pendingByToolName.set(toolName, queue)
   }
 
   return entries
@@ -236,6 +347,7 @@ export function chatActivityEntrySummary(messageOrEntry: Message | ChatActivityE
   if (name === 'find') return `查找${suffix || '文件'}`
   if (name === 'grep') return `搜索${suffix || '内容'}`
   if (name === 'milksu_progress') return '更新任务进度'
+  if (name === 'milksu_workspace') return subject || '操作 Coding 界面'
   if (name === 'milksu_archify') return '处理架构图'
   if (name === 'milksu_imagegen') {
     let outputPath = ''
