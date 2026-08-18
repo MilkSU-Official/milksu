@@ -672,8 +672,12 @@ func (s *CatalogService) Search(ctx context.Context, request CatalogQuery) (Cata
 		page = 1
 	}
 	pageSize := request.PageSize
-	if pageSize != 10 && pageSize != 20 && pageSize != 40 {
+	if pageSize < 0 || (pageSize != 0 && pageSize != 10 && pageSize != 20 && pageSize != 40) {
 		pageSize = 20
+	}
+	all := pageSize == 0
+	if all {
+		page = 1
 	}
 
 	where := []string{"is_open = 1"}
@@ -740,7 +744,11 @@ func (s *CatalogService) Search(ctx context.Context, request CatalogQuery) (Cata
 	}
 	pageCount := 0
 	if total > 0 {
-		pageCount = int(math.Ceil(float64(total) / float64(pageSize)))
+		if all {
+			pageCount = 1
+		} else {
+			pageCount = int(math.Ceil(float64(total) / float64(pageSize)))
+		}
 		if page > pageCount {
 			page = pageCount
 		}
@@ -749,6 +757,11 @@ func (s *CatalogService) Search(ctx context.Context, request CatalogQuery) (Cata
 	}
 
 	searchArgs := append(append(append([]any{}, args...), orderArgs...), pageSize, (page-1)*pageSize)
+	if all {
+		// SQLite treats a negative LIMIT as "no limit", used for the local full-catalog load.
+		searchArgs[len(searchArgs)-2] = -1
+		searchArgs[len(searchArgs)-1] = 0
+	}
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT platform_id, source_url, title, category, points, difficulty, tags_json,
 			has_writeup, solved_count, wrong_answer_count, no_answer_count, is_open, synced_at
