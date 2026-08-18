@@ -52,6 +52,12 @@ import {
 import CodingComposerControls from '@/components-vue/CodingComposerControls.vue'
 import ContextUsageMeter from '@/components-vue/ContextUsageMeter.vue'
 import { invokeCommand } from '@/desktop'
+import {
+  captureComposerSnapshot,
+  isComposerHistoryKey,
+  redoComposerHistory,
+  undoComposerHistory,
+} from '@/lib/composerHistory'
 import type {
   CodingApprovalPolicy,
   CodingAttachment,
@@ -158,6 +164,10 @@ const attachmentImporting = ref(false)
 const attachmentPreviewDialog = ref<HTMLDialogElement | null>(null)
 const attachmentPreview = ref<CodingAttachmentPreview | null>(null)
 const attachmentPreviewLoading = ref(false)
+const composerHistory = ref<string[]>([])
+const composerFuture = ref<string[]>([])
+let applyingComposerHistory = false
+let attachmentChooserStartedAt = 0
 const composing = ref(false)
 const compositionJustEnded = ref(false)
 const slashMenuDismissed = ref(false)
@@ -437,6 +447,21 @@ function gitChangeStatus(change: CodingGitChange) {
   return '修改'
 }
 
+function startCodingAttachmentChooser(event?: Event) {
+  if (props.running || props.ctfSession) return
+  if (event instanceof PointerEvent && event.button !== 0) return
+  // Start on pointerdown so Electron still has a user gesture for the native
+  // dialog. Keyboard activation still arrives as a select event.
+  if (event instanceof PointerEvent) {
+    event.preventDefault()
+    event.stopPropagation()
+  }
+  const now = Date.now()
+  if (now - attachmentChooserStartedAt < 500) return
+  attachmentChooserStartedAt = now
+  void chooseCodingAttachments()
+}
+
 async function chooseCodingAttachments() {
   if (props.running || props.ctfSession) return
   attachmentError.value = ''
@@ -592,6 +617,63 @@ function setCaretAfter(node: Node) {
   selection.addRange(range)
 }
 
+function composerHtml() {
+  return messageEditor.value?.innerHTML ?? ''
+}
+
+function rememberComposerSnapshot() {
+  if (applyingComposerHistory || composing.value) return
+  const remembered = captureComposerSnapshot(composerHistory.value, composerHtml())
+  if (remembered.history === composerHistory.value && remembered.future.length === 0) return
+  composerHistory.value = remembered.history
+  composerFuture.value = remembered.future
+}
+
+function applyComposerHtml(html: string) {
+  const editor = messageEditor.value
+  if (!editor) return
+  applyingComposerHistory = true
+  editor.innerHTML = html
+  const last = editor.lastChild
+  if (last) setCaretAfter(last)
+  else {
+    const selection = window.getSelection()
+    if (selection) {
+      const range = document.createRange()
+      range.selectNodeContents(editor)
+      range.collapse(false)
+      selection.removeAllRanges()
+      selection.addRange(range)
+    }
+  }
+  syncComposerInput()
+  applyingComposerHistory = false
+}
+
+function undoComposer() {
+  const next = undoComposerHistory(
+    composerHistory.value,
+    composerFuture.value,
+    composerHtml(),
+  )
+  if (!next) return
+  composerHistory.value = next.history
+  composerFuture.value = next.future
+  applyComposerHtml(next.html)
+}
+
+function redoComposer() {
+  const next = redoComposerHistory(
+    composerHistory.value,
+    composerFuture.value,
+    composerHtml(),
+  )
+  if (!next) return
+  composerHistory.value = next.history
+  composerFuture.value = next.future
+  applyComposerHtml(next.html)
+}
+
 function detectSlashQuery() {
   slashQuery.value = null
   slashQueryRange.value = null
@@ -639,6 +721,7 @@ function syncComposerInput() {
 }
 
 function removeSlashQueryText() {
+  rememberComposerSnapshot()
   const range = slashQueryRange.value
   if (range) {
     range.deleteContents()
@@ -711,6 +794,7 @@ function createInlineToken(
 function insertInlineToken(token: HTMLElement) {
   const editor = messageEditor.value
   if (!editor) return false
+  rememberComposerSnapshot()
 
   const range = slashQueryRange.value ?? document.createRange()
   if (!slashQueryRange.value) {
@@ -767,6 +851,7 @@ function insertSkillToken(name: string) {
 }
 
 function clearComposerInput() {
+  rememberComposerSnapshot()
   if (messageEditor.value) messageEditor.value.replaceChildren()
   draft.value = ''
   slashQuery.value = null
@@ -787,6 +872,7 @@ function handleComposerPaste(event: ClipboardEvent) {
   const text = event.clipboardData?.getData('text/plain') ?? ''
   if (!editor || !text) return
   event.preventDefault()
+  rememberComposerSnapshot()
   const selection = window.getSelection()
   const range = selection?.rangeCount ? selection.getRangeAt(0) : document.createRange()
   if (!editor.contains(range.commonAncestorContainer)) {
@@ -811,6 +897,7 @@ function handleComposerDrop(event: DragEvent) {
   const text = event.dataTransfer?.getData('text/plain') ?? ''
   event.preventDefault()
   if (!editor || !text) return
+  rememberComposerSnapshot()
   const range = document.caretRangeFromPoint?.(event.clientX, event.clientY)
     ?? document.createRange()
   if (!editor.contains(range.commonAncestorContainer)) {
@@ -964,6 +1051,14 @@ function handleComposerKeyDown(event: KeyboardEvent) {
     return
   }
 
+  const historyAction = isComposerHistoryKey(event)
+  if (historyAction) {
+    event.preventDefault()
+    if (historyAction === 'undo') undoComposer()
+    else redoComposer()
+    return
+  }
+
   if (slashMenuOpen.value) {
     if (event.key === 'Escape') {
       event.preventDefault()
@@ -1017,6 +1112,7 @@ function appendDraftText(text: string) {
   if (!normalized) return
   const editor = messageEditor.value
   if (!editor) return
+  rememberComposerSnapshot()
   if (readComposerText().trim() || scopeToken.value || skillToken.value) {
     editor.append(document.createElement('br'), document.createElement('br'))
   }
@@ -1343,6 +1439,7 @@ defineExpose({
           :data-placeholder="goalMode ? '写下一个可持续目标，MilkSU 会持续推进并保留恢复点' : ctfSession ? '告诉 Agent 你的观察、假设或下一步想法' : '描述你想让 MilkSU 完成的任务'"
           @compositionstart="composing = true"
           @compositionend="handleCompositionEnd"
+          @beforeinput="rememberComposerSnapshot"
           @keydown="handleComposerKeyDown"
           @input="syncComposerInput"
           @keyup="detectSlashQuery"
@@ -1408,8 +1505,8 @@ defineExpose({
                   </DropdownMenuLabel>
                   <DropdownMenuItem
                     class="composer-add-option app-no-drag cursor-pointer"
-                    @pointerdown.stop
-                    @select="chooseCodingAttachments"
+                    @pointerdown="startCodingAttachmentChooser"
+                    @select="startCodingAttachmentChooser"
                   >
                     <Paperclip class="size-4 shrink-0" />
                     <span class="min-w-0 flex-1">

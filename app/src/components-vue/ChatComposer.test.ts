@@ -430,9 +430,56 @@ describe('ChatComposer', () => {
     await nextTick()
     const item = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
       .find(value => value.textContent?.includes('本机文件或图片'))
-    item?.click()
+    item?.dispatchEvent(new PointerEvent('pointerdown', {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+    }))
     await nextTick()
     expect(invoke).toHaveBeenCalledWith('ChooseCodingAttachments', [])
+    invoke.mockClear()
+    item?.click()
+    await nextTick()
+    expect(invoke).not.toHaveBeenCalled()
+  })
+
+  it('undoes and redoes composer text after a programmatic edit', async () => {
+    const result = mountComposer()
+    await nextTick()
+    const editor = composerEditor(result.host)
+    setComposerText(editor, '先写这一句')
+    editor.dispatchEvent(new InputEvent('beforeinput', { bubbles: true, cancelable: true }))
+    setComposerText(editor, '先写这一句，再改成这样')
+    editor.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'z',
+      metaKey: true,
+      bubbles: true,
+      cancelable: true,
+    }))
+    await nextTick()
+    expect(editor.textContent).toBe('先写这一句')
+
+    editor.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'z',
+      metaKey: true,
+      shiftKey: true,
+      bubbles: true,
+      cancelable: true,
+    }))
+    await nextTick()
+    expect(editor.textContent).toBe('先写这一句，再改成这样')
+  })
+
+  it('activates a slash command when the user clicks an option', async () => {
+    const result = mountComposer({ workspaceReady: true })
+    await nextTick()
+    const editor = composerEditor(result.host)
+    setComposerText(editor, '/')
+    await nextTick()
+    result.host.querySelector<HTMLButtonElement>('#coding-slash-command-diff')?.click()
+    await nextTick()
+    expect(result.slashCommandActions).toEqual(['diff'])
+    expect(result.sent).toEqual([])
   })
 
   it('does not add a second workspace-authorization layer after cwd is fixed', async () => {

@@ -366,6 +366,7 @@ describe('ChatPage Goal interaction', () => {
 
     expect(result.host.querySelector('[aria-label="底部终端面板"]')).not.toBeNull()
     expect(result.host.querySelector('[data-testid="single-right-context-rail"]')).not.toBeNull()
+    expect(result.host.querySelector('[aria-label="调整右侧栏宽度"]')).not.toBeNull()
     expect(result.host.querySelector('[aria-label="关闭底部终端"]')).not.toBeNull()
     expect(result.host.querySelectorAll('[aria-label="关闭右侧栏"]')).toHaveLength(1)
 

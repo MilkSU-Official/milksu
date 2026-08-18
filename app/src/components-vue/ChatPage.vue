@@ -76,6 +76,7 @@ import type {
   CodingMCPConfigSnapshot,
 } from '@/codingEnvironmentTypes'
 import { normalizeCodingBrowserAddress } from '@/codingBrowserAddress'
+import { readCodingRailWidth, writeCodingRailWidth } from '@/lib/codingRailWidth'
 import { buildChatTranscript } from '@/lib/chatActivity'
 import { chatTopbarPresentation } from '@/lib/chatTopbar'
 import {
@@ -219,6 +220,7 @@ const lastChatScrollTop = ref(0)
 const workshopState = ref<CTFToolWorkshopState | null>(null)
 // Right context rail starts collapsed so the chat canvas stays wide.
 const environmentOpen = ref(false)
+const contextRailWidth = ref<number | null>(readCodingRailWidth())
 // Domain context is the primary right-rail content for CTF/CVE (one rail only).
 // Collapse to a floating PiP with a text control; reopen via the floating chip.
 const domainContextCollapsed = ref(false)
@@ -782,6 +784,10 @@ function toggleMCPServer(server: CodingMCPConfigSnapshot['servers'][number]) {
     [...selection].sort((left, right) => left.localeCompare(right)),
     mcpConfig.value.digest,
   )
+}
+
+function persistContextRailWidth(width: number) {
+  contextRailWidth.value = writeCodingRailWidth(width)
 }
 
 function showCodingPermissions() {
@@ -1875,9 +1881,12 @@ watch(
     as="aside"
     class="context-sidebar"
     size="wide"
+    resizable
+    :width="contextRailWidth"
     :body-mode="contextPanel === 'browser' ? 'viewport' : 'scroll'"
     :aria-label="contextPanelTitle"
     data-testid="single-right-context-rail"
+    @update:width="persistContextRailWidth"
   >
     <template #header>
     <div class="app-drag flex w-full items-center justify-between">

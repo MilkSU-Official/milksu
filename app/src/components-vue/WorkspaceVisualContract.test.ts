@@ -72,6 +72,9 @@ describe('Workspace visual contract', () => {
   it('uses one tactical shell for hidden Coding surfaces and adapts the task layout to its container', () => {
     expect(chatPageSource).toContain('<TacticalPanelShell')
     expect(tacticalPanelShellSource).toContain("data-panel-size='wide'")
+    expect(tacticalPanelShellSource).toContain('tactical-panel-shell__resize')
+    expect(tacticalPanelShellSource).toContain('调整右侧栏宽度')
+    expect(chatPageSource).toContain('persistContextRailWidth')
     expect(tacticalPanelShellSource).toContain('@container coding-workspace (max-width: 68rem)')
     expect(missionOperationSource).toContain('@container chat-main (max-width: 56rem)')
     expect(missionOperationSource).toContain('overflow-wrap: anywhere')

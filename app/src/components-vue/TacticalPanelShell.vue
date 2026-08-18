@@ -1,19 +1,57 @@
 <script setup lang="ts">
 import { computed, useSlots } from 'vue'
+import { clampCodingRailWidth } from '@/lib/codingRailWidth'
 
 const props = withDefaults(defineProps<{
   as?: string
   size?: 'compact' | 'wide' | 'drawer'
   bodyMode?: 'scroll' | 'viewport'
+  resizable?: boolean
+  width?: number | null
 }>(), {
   as: 'section',
   size: 'compact',
   bodyMode: 'scroll',
+  resizable: false,
+  width: null,
 })
+
+const emit = defineEmits<{
+  'update:width': [value: number]
+}>()
 
 const slots = useSlots()
 const hasHeader = computed(() => Boolean(slots.header))
 const hasFooter = computed(() => Boolean(slots.footer))
+const panelStyle = computed(() => (
+  props.width
+    ? { width: `${props.width}px`, maxWidth: '100%' }
+    : undefined
+))
+
+function startResize(event: PointerEvent) {
+  if (event.button !== 0) return
+  const handle = event.currentTarget as HTMLElement
+  const panel = handle.closest('.tactical-panel-shell')
+  if (!panel) return
+  event.preventDefault()
+  handle.setPointerCapture(event.pointerId)
+  const startX = event.clientX
+  const startWidth = panel.getBoundingClientRect().width
+
+  function onMove(move: PointerEvent) {
+    emit('update:width', clampCodingRailWidth(startWidth + (startX - move.clientX)))
+  }
+  function onUp(up: PointerEvent) {
+    handle.releasePointerCapture(up.pointerId)
+    handle.removeEventListener('pointermove', onMove)
+    handle.removeEventListener('pointerup', onUp)
+    handle.removeEventListener('pointercancel', onUp)
+  }
+  handle.addEventListener('pointermove', onMove)
+  handle.addEventListener('pointerup', onUp)
+  handle.addEventListener('pointercancel', onUp)
+}
 </script>
 
 <template>
@@ -22,7 +60,17 @@ const hasFooter = computed(() => Boolean(slots.footer))
     class="tactical-panel-shell tactical-dark-surface"
     :data-panel-size="size"
     :data-panel-body-mode="bodyMode"
+    :data-panel-resizable="resizable ? '' : undefined"
+    :style="panelStyle"
   >
+    <div
+      v-if="resizable"
+      class="tactical-panel-shell__resize app-no-drag"
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="调整右侧栏宽度"
+      @pointerdown="startResize"
+    />
     <header v-if="hasHeader" class="tactical-panel-shell__header">
       <slot name="header" />
     </header>
@@ -68,6 +116,29 @@ const hasFooter = computed(() => Boolean(slots.footer))
   width: clamp(22rem, 30cqi, 28rem);
 }
 .tactical-panel-shell[data-panel-size='drawer'] { width: clamp(16rem, 22vw, 19rem); }
+
+.tactical-panel-shell__resize {
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 2;
+  width: 8px;
+  margin-left: -3px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.tactical-panel-shell__resize::after {
+  position: absolute;
+  inset: 0 3px;
+  background: transparent;
+  content: '';
+}
+
+.tactical-panel-shell__resize:hover::after,
+.tactical-panel-shell__resize:focus-visible::after {
+  background: var(--tactical-acid);
+  opacity: .55;
+}
 
 .tactical-panel-shell__header {
   display: flex;
