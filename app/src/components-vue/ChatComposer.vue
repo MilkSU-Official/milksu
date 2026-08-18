@@ -378,7 +378,7 @@ const showProgressSummary = computed(() => Boolean(
   (props.goal?.iteration ?? 0) > 0 || showGitSummary.value,
 ))
 const showGoalDock = computed(() => Boolean(
-  !props.ctfSession && (props.goal || props.goalMode || showProgressSummary.value),
+  !props.ctfSession && (props.goal || props.goalMode),
 ))
 const goalPanelOpen = ref(false)
 const goalSlot = ref<HTMLElement | null>(null)
@@ -388,19 +388,23 @@ watch(showGoalDock, visible => {
 watch(() => props.goal, goal => {
   if (!goal) goalPanelOpen.value = false
 })
-function closeGoalPanelOnOutsideEvent(event: Event) {
+function closeGoalPanelOnEscape(event: KeyboardEvent) {
+  if (!goalPanelOpen.value || event.key !== 'Escape') return
+  event.preventDefault()
+  goalPanelOpen.value = false
+}
+function closeGoalPanelOnOutsidePointer(event: PointerEvent) {
   if (!goalPanelOpen.value) return
-  if (event instanceof KeyboardEvent && event.key !== 'Escape') return
   const slot = goalSlot.value
   if (slot && !slot.contains(event.target as Node)) goalPanelOpen.value = false
 }
 onMounted(() => {
-  document.addEventListener('pointerdown', closeGoalPanelOnOutsideEvent)
-  document.addEventListener('keydown', closeGoalPanelOnOutsideEvent)
+  document.addEventListener('pointerdown', closeGoalPanelOnOutsidePointer)
+  document.addEventListener('keydown', closeGoalPanelOnEscape)
 })
 onBeforeUnmount(() => {
-  document.removeEventListener('pointerdown', closeGoalPanelOnOutsideEvent)
-  document.removeEventListener('keydown', closeGoalPanelOnOutsideEvent)
+  document.removeEventListener('pointerdown', closeGoalPanelOnOutsidePointer)
+  document.removeEventListener('keydown', closeGoalPanelOnEscape)
 })
 function toggleGoalChip() {
   if (props.goal) {

@@ -668,6 +668,54 @@ describe('ChatComposer', () => {
     expect(disabledGoal?.textContent).toContain('当前已有持续目标')
   })
 
+  it('does not render the goal chip when only Git progress exists without a goal', async () => {
+    const result = mountComposer({
+      gitSummary: {
+        changedFiles: 3,
+        additions: 10,
+        deletions: 2,
+        changes: [],
+      },
+    })
+    await nextTick()
+
+    expect(result.host.querySelector('[aria-label="持续目标"]')).toBeNull()
+    expect(result.host.querySelector('[aria-label="任务进度摘要"]')).not.toBeNull()
+    expect(result.host.querySelector('[aria-label="任务进度摘要"]')?.textContent)
+      .toContain('代码')
+  })
+
+  it('closes the goal popover with Escape from keyboard focus and with outside pointer clicks', async () => {
+    const result = mountComposer({ goal: activeGoal })
+    await nextTick()
+
+    const chip = result.host.querySelector<HTMLButtonElement>('.chat-composer__chip--goal')
+    const panel = result.host.querySelector<HTMLElement>('.chat-composer__goal-panel')
+    expect(chip).not.toBeNull()
+    expect(panel?.style.display).toBe('none')
+
+    chip?.focus()
+    chip?.click()
+    await nextTick()
+    expect(panel?.style.display).not.toBe('none')
+
+    document.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Escape',
+      bubbles: true,
+      cancelable: true,
+    }))
+    await nextTick()
+    expect(panel?.style.display).toBe('none')
+
+    chip?.click()
+    await nextTick()
+    expect(panel?.style.display).not.toBe('none')
+
+    document.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))
+    await nextTick()
+    expect(panel?.style.display).toBe('none')
+  })
+
   it('projects real goal and Git status above the composer with goal controls', async () => {
     const active = mountComposer({
       goal: activeGoal,
