@@ -83,7 +83,7 @@ const showCodingHistory = computed(() => (
 
 <style scoped>
 .workspace-navigation-shell {
-  --workspace-rail-width: 4.75rem;
+  --workspace-rail-width: 12rem;
   /* Single edge against the main canvas; history panel has its own right border. */
   border-right: 1px solid var(--night-border);
 }
