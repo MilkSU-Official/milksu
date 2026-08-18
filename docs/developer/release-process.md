@@ -38,7 +38,7 @@ npm run docs:build
 
 ```bash
 npm run release:dispatch -- \
-  --release-title "MilkSU 26.817.3 内测版" \
+  --release-title "MilkSU 26.818.1 内测版" \
   --release-notes "本次内测说明"
 ```
 
@@ -47,7 +47,7 @@ workflow（避免 GitHub-hosted macOS 分钟费）。macOS 正式签名包在本
 
 ```bash
 npm run release:mac:local -- \
-  --release-title "MilkSU 26.817.3 内测版" \
+  --release-title "MilkSU 26.818.1 内测版" \
   --release-notes "本次内测说明"
 ```
 
@@ -80,7 +80,7 @@ gh run download <windows-run-id> -D build/release/github/windows -n MilkSU-Windo
 gh run download <linux-run-id> -D build/release/github/linux -n MilkSU-Linux-x64-deb-trial
 
 npm run release:github -- \
-  --release-title "MilkSU 26.817.3 内测版" \
+  --release-title "MilkSU 26.818.1 内测版" \
   --release-notes "本次内测说明"
 ```
 
@@ -103,5 +103,24 @@ macOS 使用 `release:dispatch -- --macos-cloud --upload-release ...`）。Admin
 ## 6. 发行记录
 
 只使用 conclusion 为 success 且 source commit 与回执一致的产物。GitHub prerelease 只附加
-DMG、EXE、DEB（加 SHA256SUMS），不附加 OTA ZIP。最后在当前目标中记录 tag、source commit、
-workflow、文件名、大小、SHA-256 和各平台真实验收边界。
+DMG、EXE、DEB（加 SHA256SUMS），不附加 OTA ZIP。
+
+## 7. 必做：回写并推送版本事实
+
+GitHub Release 页创建成功后，**同一轮**必须更新 Current 文档并推到私有 `main`。发版没有在文档
+里变成“最新”，就不算收口。不要把上一版回执留到第二天。
+
+必须同步这些入口，使“正式发行基线”与刚刚发出的 tag 一致：
+
+| 文件 | 必须改写的事实 |
+| --- | --- |
+| [当前开发目标](current-objectives.md) | 正式发行基线、已发行/未发版分界、完成线表格（tag、source commit、workflow、文件名、大小、SHA-256、平台边界） |
+| [文档状态](document-status.md) | 事实摘要里的发行基线、已发行线、开发版本线、三端产物和最近回执 |
+| [当前系统](../architecture/current-system.md) | 文首基线，以及刚打进安装包的能力状态 |
+| `README.md` | 下载徽章、下载链接和“当前状态”里的最新回执版本 |
+| `AGENTS.md` | Release Claims 中的最近一次三端回执 |
+
+同时把晚于该 tag 的 `main` 提交留在“未发版”，不要把同版本号的后续 HEAD 写成已经发出。
+平台未跑就写未跑；没有 SHA-256 就不要把空 tag 或 `package.json` 版本号当成已发布。
+
+文档提交不移动发行 tag。推送后核对 Downloads 页、当前目标和 README 写的是同一版本号。
