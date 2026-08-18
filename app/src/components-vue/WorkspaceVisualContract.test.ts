@@ -38,6 +38,8 @@ describe('Workspace visual contract', () => {
     expect(contextSidebarSource).toContain('coding-history-header')
     expect(contextSidebarSource).not.toContain('Task archive')
     expect(contextSidebarSource).toContain('px-3 py-1.5 text-label font-medium text-muted-foreground')
+    expect(contextSidebarSource).toContain('--overlay-hover-strong: rgb(255 255 255 / 0.13)')
+    expect(contextSidebarSource).toContain('--selected-bg: var(--overlay-hover-strong)')
     // Collapsed: expand + new-task park on the Coding topbar leading slot.
     expect(chatPageSource).toContain('data-testid="coding-history-toggle"')
     expect(chatPageSource).toContain('coding-history-collapsed-controls')

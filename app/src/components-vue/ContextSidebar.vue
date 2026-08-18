@@ -207,6 +207,7 @@ watch(
                     variant="ghost"
                     size="sm"
                     class="coding-project-row coding-project-child h-7 min-w-0 flex-1 justify-start"
+                    :aria-current="activeConversationId === conversation.id ? 'true' : undefined"
                     @click.stop="$emit('selectConversation', conversation.id)"
                   >
                     <span class="truncate">{{ conversation.title }}</span>
@@ -254,6 +255,7 @@ watch(
                   variant="ghost"
                   size="sm"
                   class="coding-project-row coding-project-child h-7 min-w-0 flex-1 justify-start"
+                  :aria-current="activeConversationId === conversation.id ? 'true' : undefined"
                   @click.stop="$emit('selectConversation', conversation.id)"
                 >
                   <span class="truncate">{{ conversation.title }}</span>
@@ -328,6 +330,16 @@ watch(
   --border: var(--night-border);
   --input: var(--night-input);
   --surface-sunken: var(--night-sunken);
+  /*
+   * This panel stays a dark carbon surface in day mode. Paper-theme overlays
+   * are dark-on-dark and hide the current-session fill; keep the night wash.
+   */
+  --overlay-hover-light: rgb(255 255 255 / 0.055);
+  --overlay-hover: rgb(255 255 255 / 0.09);
+  --overlay-hover-strong: rgb(255 255 255 / 0.13);
+  --overlay-active: rgb(255 255 255 / 0.155);
+  --overlay-active-strong: rgb(255 255 255 / 0.19);
+  --selected-bg: var(--overlay-hover-strong);
 }
 
 .coding-context-archive :deep([data-slot='input']) {

@@ -49,6 +49,8 @@ describe('global style contract', () => {
     expect(indexCss).toContain('--card-foreground: var(--night-foreground)')
     expect(indexCss).toContain('--popover-foreground: var(--night-foreground)')
     expect(indexCss).toContain('--muted-foreground: var(--night-muted-foreground)')
+    expect(indexCss).toContain('--overlay-hover-strong: rgb(255 255 255 / 0.13)')
+    expect(indexCss).toContain('--selected-bg: var(--overlay-hover-strong)')
   })
 
   it('limits paper colors to document surfaces in day mode', () => {

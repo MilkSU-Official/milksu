@@ -637,6 +637,12 @@ pre,
   --accent: var(--night-accent);
   --surface-raised: var(--night-popover);
   --surface-sunken: var(--night-sunken);
+  --overlay-hover-light: rgb(255 255 255 / 0.055);
+  --overlay-hover: rgb(255 255 255 / 0.09);
+  --overlay-hover-strong: rgb(255 255 255 / 0.13);
+  --overlay-active: rgb(255 255 255 / 0.155);
+  --overlay-active-strong: rgb(255 255 255 / 0.19);
+  --selected-bg: var(--overlay-hover-strong);
 }
 
 .tactical-command-surface {

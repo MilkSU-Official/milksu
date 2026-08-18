@@ -188,4 +188,32 @@ describe('AppSidebar', () => {
     expect(projectIdx).toBeGreaterThanOrEqual(0)
     expect(temporaryIdx).toBeGreaterThan(projectIdx)
   })
+
+  it('marks the current Coding conversation so day mode can reuse the night selected wash', async () => {
+    const conversations: Conversation[] = [
+      {
+        id: 'conversation-active',
+        title: '当前会话',
+        createdAt: 20,
+        workspacePath: '/Users/milksu/code/milksu',
+        messages: [],
+      },
+      {
+        id: 'conversation-other',
+        title: '另一个会话',
+        createdAt: 10,
+        workspacePath: '/Users/milksu/code/milksu',
+        messages: [],
+      },
+    ]
+    const host = await mountSidebar('chat', conversations, 'light', vi.fn(), true)
+    const selected = host.querySelectorAll('[data-active-conversation-row]')
+    expect(selected).toHaveLength(1)
+    expect(selected[0]?.getAttribute('data-ui-selected')).toBe('')
+    expect(selected[0]?.textContent).toContain('当前会话')
+    expect(host.querySelector('[aria-current="true"]')?.textContent).toContain('当前会话')
+    expect(host.querySelectorAll('.coding-conversation-list [data-ui-selected]')).toHaveLength(1)
+    expect(contextSidebarSource).toContain('--selected-bg: var(--overlay-hover-strong)')
+    expect(contextSidebarSource).toContain('--overlay-hover-strong: rgb(255 255 255 / 0.13)')
+  })
 })
