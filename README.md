@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/MilkSU-Official/milksu/releases"><img src="https://img.shields.io/badge/status-internal_beta-a6ef00?style=flat-square&labelColor=20211f" alt="Internal beta"></a>
-  <img src="https://img.shields.io/badge/latest_receipt-26.817.3-f3f0e8?style=flat-square&labelColor=20211f" alt="Latest receipted release 26.817.3">
+  <img src="https://img.shields.io/badge/latest_receipt-26.818.1-f3f0e8?style=flat-square&labelColor=20211f" alt="Latest receipted release 26.818.1">
   <img src="https://img.shields.io/badge/platform-macOS_Windows_Linux-f3f0e8?style=flat-square&labelColor=20211f" alt="macOS, Windows and Linux">
   <img src="https://img.shields.io/badge/desktop-Electron_%2B_Vue_%2B_Go-f3f0e8?style=flat-square&labelColor=20211f" alt="Electron, Vue and Go">
 </p>
@@ -29,7 +29,7 @@ MilkSU 把 Coding、CTF 和 CVE 放进同一个桌面工作台。你可以让 Ag
 
 它不是又一个只有输入框的聊天客户端。MilkSU 让 Agent 的工作对象真正出现在你面前：项目文件、内置浏览器、真实浏览器标签页和外部桌面应用都可以成为当前任务的一部分；你可以随时观察、补充要求、接管或停止。
 
-可下载的最新三端回执发行是 **26.817.3**。仓库版本线已经到 **26.818.1**，其中包含尚未打成新安装包的 Coding 工作台、账户目录和 CTF 目录修复。下载页以 [v26.817.3](https://github.com/MilkSU-Official/milksu/releases/tag/v26.817.3) 为准，不要把版本号或空 tag 当成已经发出的包。
+可下载的最新三端回执发行是 **26.818.1**。`main` 仍使用同一版本号，但已经超过发行源，其中包含尚未打进该安装包的 Coding 工作台、审批/压缩和 CTF 目录修复。下载页以 [v26.818.1](https://github.com/MilkSU-Official/milksu/releases/tag/v26.818.1) 为准，不要把同版本号的后续提交或空 tag 当成已经发出的包。
 
 ## 你可以用 MilkSU 做什么
 
@@ -41,7 +41,7 @@ MilkSU 把 Coding、CTF 和 CVE 放进同一个桌面工作台。你可以让 Ag
 - 按任务使用浏览器、Browser Use、Computer Use、MCP、LSP 和已审核 Skill；
 - 在干净 Git 项目中自动隔离修改，不打乱当前工作区。
 
-当前开发版本里，模型还可以通过类型化工作台动作列出或切换内置浏览器标签、打开产物、环境、变更和终端；上下文接近窗口上限约 85% 时会走与手动压缩相同的整理。这些尚未打进 `26.817.3` 安装包。
+当前开发版本里，模型还可以通过类型化工作台动作列出或切换内置浏览器标签、打开产物、环境、变更和终端；上下文接近窗口上限约 85% 时会走与手动压缩相同的整理。这些尚未打进 `26.818.1` 安装包。
 
 ### CTF
 
@@ -87,7 +87,7 @@ MilkSU 会把当前任务可用的能力告诉模型，再由模型按上下文�
 
 MilkSU 目前处于内测阶段。
 
-1. 从 [Releases](https://github.com/MilkSU-Official/milksu/releases/tag/v26.817.3) 下载 `26.817.3`：
+1. 从 [Releases](https://github.com/MilkSU-Official/milksu/releases/tag/v26.818.1) 下载 `26.818.1`：
    - **macOS Apple Silicon**：Developer ID 签名并经 Apple 公证的 DMG，正式支持；
    - **Windows x64**：未签名安装器，可能出现 SmartScreen 提示；打包 Runtime 与 Pi Agent 回合已在真实安装包验证；
    - **Linux x64**：试用 DEB，已验证包结构、Sidecar、Go Runtime 与 Xvfb 启动，不含 Secret Service、本地 OCR 或 Computer Use。
@@ -96,7 +96,7 @@ MilkSU 目前处于内测阶段。
 4. 由内测管理员为账户开通模型，或在“设置 → 模型与额度”中添加自己的 Provider / OpenAI-compatible 中转站；
 5. 选择 Coding、CTF 或 CVE，开始第一个任务。
 
-账户未分配模型额度时仍可登录和浏览本地功能，只是暂时不能发起模型任务。macOS 正式版本使用 Developer ID 签名与 Apple 公证；Stable 客户端支持登录后检查受保护的应用更新，但 `26.817.3` 没有发布 OTA。
+账户未分配模型额度时仍可登录和浏览本地功能，只是暂时不能发起模型任务。macOS 正式版本使用 Developer ID 签名与 Apple 公证；Stable 客户端支持登录后检查受保护的应用更新，但 `26.818.1` 没有发布 OTA。
 
 ## 本地优先
 
@@ -107,9 +107,9 @@ MilkSU 目前处于内测阶段。
 
 ## 当前状态
 
-最近一次带哈希回执的三端内测包是 **26.817.3**（2026-08-17）：账户 TokenFlux 与个人 Provider 双来源、Pi 网页查证、CTF/CVE 回到 Pi 原生工具循环、Windows 账户授权恢复，以及 Linux 试用 DEB。
+最近一次带哈希回执的三端内测包是 **26.818.1**（2026-08-18）：账户可调用模型目录、Windows 打开产物/数据目录、上下文圆环计量、自定义中转保存规则，以及今日三端安装包。
 
-仓库里已经合入、但还没有新三端回执的改动包括：账户可调用模型目录、Windows 打开产物/数据目录、CTF 本地目录收藏视图、内置浏览器自动就绪与多标签、替我审批下的隔离浏览器、本对话始终允许、工具活动稳定性、`milksu_workspace`，以及约 85% 上下文自动压缩。这些会进入下一版安装包，而不是改写 `26.817.3`。
+仓库里已经合入、但还没有进入 `26.818.1` 安装包的改动包括：CTF 本地目录收藏视图、内置浏览器自动就绪与多标签、替我审批下的隔离浏览器、本对话始终允许、工具活动稳定性、`milksu_workspace`、约 85% 上下文自动压缩，以及未打包 Windows 的 GitHub 登录回调。这些会进入下一版安装包，而不是改写 `26.818.1`。
 
 MilkSU 面向个人学习、授权研究和本地开发，不是互联网资产扫描器或无人值守的自动红队平台。
 

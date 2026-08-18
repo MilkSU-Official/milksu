@@ -25,12 +25,12 @@
 
 ## 本轮正式内测发行
 
-最初按 `26.817.1` 开表。之后同一发行线已收到 `26.817.2`、`26.817.3` 三端回执；最近一次可下载回执是 `v26.817.3 / main@1176075`。下表 C 项里标注“本地 dirty Stable 包”的修复属于 `26.818.1` 开发版本线，尚未形成新的三端回执。
+最初按 `26.817.1` 开表。之后同一发行线已收到 `26.817.2`、`26.817.3`、`26.818.1` 三端回执；最近一次可下载回执是 `v26.818.1 / b92fcde`。下表 C 项里标注“本地 dirty Stable 包”的修复晚于该发行源，尚未进入今日安装包。
 
 - 当时开表版本：`26.817.1`
 - Tag / 源码：`v26.817.1` / `main@783679f02e6586c624efc50164fa8c8c402bbda1`
 - 当时 GitHub Release：`https://github.com/MilkSU-Official/milksu/releases/tag/v26.817.1`
-- 当前回执发行：`https://github.com/MilkSU-Official/milksu/releases/tag/v26.817.3`
+- 当前回执发行：`https://github.com/MilkSU-Official/milksu/releases/tag/v26.818.1`
 - macOS ARM64 DMG SHA-256：`cb92f640132e984e2bf1139f19204c831b44e1d41da0733e918756ee6d08a60b`
 - Windows x64 EXE SHA-256：`22ccae2f67bee571e759e69a5390f2b0891b04e165d9dcddcc1f4327a3ee1c91`
 - macOS：标准拖拽安装布局、Developer ID 严格签名、Apple 公证、stapler 与 Gatekeeper 均通过。

@@ -31,9 +31,9 @@
 | 平台边界 | `26.817.3`：macOS DMG 已签名、公证、staple、Gatekeeper；Windows 安装器完成原生 Runtime 与首次启动但未代码签名；Linux DEB 完成包结构、Sidecar、Go Runtime 与 Xvfb Electron 启动，仍无 Secret Service、本地 OCR、Computer Use。未发版还修了 Windows 目录 Reveal、冷启动和本机 Personal Vault 签名默认路径，尚未随新包发出。 |
 | 发行流水 | 下一发行从干净、已推送的 `main` 对 canonical Go/Vue/Sidecar/lint/生产与文档构建只验证一次；Windows/Linux 走云端，macOS 默认本机 `release:mac:local`。必须创建 GitHub Release 页并上传带版本号的 DMG/EXE/DEB 与 SHA256SUMS，不能只留空 tag。GitHub-only 不生成 OTA ZIP/metadata。 |
 
-## 已发行改动：`26.817.1` → `26.817.3`
+## 已发行改动：`26.817.1` → `26.818.1`
 
-这三版是 8 月 16–17 日实际发出、可从 Releases 下载的内测线。用户装到的正式包能力以 `26.817.3` 为准。
+`26.817.1`–`26.817.3` 是 8 月 16–17 日发出的内测线。今日首发、可从 Releases 下载的正式包能力以 `26.818.1` 为准。
 
 ### `26.817.1` / `main@783679f`
 
@@ -56,22 +56,28 @@
 - Windows 账户服务瞬时失败时不再清空本地账户模型授权；首次发送被双来源拒绝时可安全刷新一次。
 - 打包 Go Runtime 在安装目录旁定位 Pi Sidecar，不再重复拼接 `resources`。
 - 真实打包 Windows App 完成账户模型验证，并跑通 Pi Agent 文件与 Shell 工具回合。
-- 三端 workflow 回执与 SHA-256 见下方完成线。标签固定在 `1176075`，后续文档/workflow 提交不移动该 tag。
+- 三端 workflow 回执与 SHA-256 已记录在当时的发行页；标签固定在 `1176075`，后续文档/workflow 提交不移动该 tag。
 
-## 未发版改动：`26.818.1` 版本线 / 晚于 `1176075` 的 `main`
-
-这些已经在当前代码里，内测用户从源码或本地 dirty 包可以碰到，但**还没有**新的三端回执发行。不要把它们写进 `26.817.3` 下载说明，也不要把 `v26.818.1` 写成已发版。
-
-### 账户、模型与设置
+### `26.818.1` / `b92fcde`（2026-08-18 今日首发）
 
 - 账户凭据优先产生带 `credential_source` 的权威目录；缺失模型在请求前跳过，TokenFlux `model_not_found` 可安全回退到个人来源。设置页默认模型与 Coding 共用同一可调用目录（东云，PR #3）。
 - 接受 TokenFlux 单模型与复合 Key 模型 ID；已启用服务的模型选择器与目录对齐。
 - 自定义中转站只在保存成功后进入列表；MilkSU 账户行不因当前默认是中转而消失（薄荷布丁 / SkyAerope，PR #7）。
 - Agent 出错时展示具体 Provider 限制（含 TokenFlux Claude Code 客户端限制），不再一律报“本地运行时异常”。
+- Windows 设置页“打开产物目录 / 数据目录”改为 Go 确定受信任路径、Electron `shell.openPath` 打开，不再写死 `/usr/bin/open`（荒景肆，PR #6）。
+- 冷启动加快；macOS `⌘Q` 立即退出。
+- 无项目任务钉在项目树下方；厂商图标、Coding 历史栏与启动噪音收敛。
+- Composer 旁的上下文用量改成可悬停的环状计量；`milksu_progress` 计划与 token 用量转发给 Coding。
+- Pi：上下文溢出与可重试错误不再提前结束回合；abort 不再合成空白气泡。
+- 安装包文件名带版本号。GitHub prerelease 提供 DMG / EXE / DEB 与 `SHA256SUMS-26.818.1.txt`。
+
+## 未发版改动：晚于 `v26.818.1` / `b92fcde` 的 `main`
+
+这些已经在当前 `main` 里，版本号仍是 `26.818.1`，但**不在**今日发出的安装包中。不要把它们写进 `26.818.1` 下载说明，也不要把当前 HEAD 当成已经发出的包。
 
 ### Coding 工作台
 
-- 日间模式会话高亮保持可见；历史入口收到顶栏；无项目任务钉在项目树下方；厂商图标与启动噪音收敛。
+- 日间模式会话高亮保持可见。
 - `+ → 本机文件或图片` 在 `pointerdown` 打开系统选择框；输入框自管 `⌘Z` / `⌘⇧Z`；右侧栏可拖宽并记住宽度。用户已在本地 dirty Stable 包确认 C9 / C15 / C20。
 - 普通 Coding Go 或打开右栏会自动拉起隔离浏览器，不再要求设置或批准。每个标签是独立 `WebContentsView`，切换换页并更新地址。用户已确认 C16。
 - 子 Agent 把父会话的虚拟 `milksu-route/模型` 改写成账户 `milksu-relay/`，避免独立 Pi CLI 报 Model not found。
@@ -79,20 +85,17 @@
 - 工具行按 `toolCallId` 结束，不再只改最后一条同名调用；用户展开的工具组在后续流式输出中保持展开。
 - 新增类型化 `milksu_workspace`：列出/聚焦/关闭内置浏览器标签，列出/预览产物，打开环境、变更、终端和后台任务。设置、凭据、审批档和用户 Chrome 不在这个工具里。
 - 上下文用量达到窗口约 85% 且 Session 空闲时，走与 `/compact` 相同的 Pi 压缩；`compact_context` 只在达到阈值时调度。不在整回合结束后才第一次压缩，也不另建 MilkSU 摘要器。
-- Composer 旁的上下文用量改成可悬停的环状计量；`milksu_progress` 计划与 token 用量转发给 Coding。
 
 ### CTF / CVE / 桌面宿主
 
 - NSSCTF「全部 / 收藏」在完整本地目录预热后于前端筛选分页；同步丢弃飞行中的旧全量快照；训练进度从目录快照拆开，Judge/确认后重叠加（AsabaLazy / Luo，PR #8）。
-- Windows 设置页“打开产物目录 / 数据目录”改为 Go 确定受信任路径、Electron `shell.openPath` 打开，不再写死 `/usr/bin/open`（荒景肆，PR #6）。新的正式 Windows 包尚未发行。
-- 冷启动加快；macOS `⌘Q` 立即退出。
+- 未打包 Windows 上补全 GitHub 登录回调（`996820e`）。新的正式 Windows 包尚未发行。
 - CTF / CVE 的模型操作工作台 UX 后置，不在本轮把 `milksu_workspace` 扩到那两个模块。
 
-### 发行工具（Hikaru 与后续 chore）
+### 发行工具
 
-- macOS 系统 Bash 兼容的发行 workflow；本机默认走 Personal Vault 签名。
-- 安装包文件名带版本号；`release:github` 必须创建/刷新 GitHub Release 页并上传 SHA256SUMS。
-- 这些是发版管道，不是一次已经发出的 `26.818.1` 三端包。
+- 本机默认走 Personal Vault 签名；`release:github` 必须创建/刷新 GitHub Release 页。
+- 这些是发版管道后续提交，不是一次已经发出的新版本号。
 
 ## 当前产品事实
 
@@ -103,7 +106,7 @@
 - CVE → Coding 不再注入“只读检查”“只输出启动清单”等限制，使用普通 Pi 工具和当前权限档。普通产品回合不再被 MilkSU 的 90 秒无事件 watchdog 静默终止；用户主动停止和独立评测 deadline 仍保留。
 - 普通用户文字和回复风格交给 Pi/模型理解。GUI 一键动作只传 typed product action、界面语言和无凭据系统环境，不额外注入客服话术、固定长尾问题或关键词/正则意图路由。
 - 重启后失效的旧 Pi session ID 会清理并按普通消息重建，不能让 GUI 保持“运行中”而 Sidecar 已停止的分裂状态。
-- `26.817.3` 已在真实打包 Windows App 验证账户模型与 Pi 工具回合；未发版继续收紧目录、错误文案和 Windows Reveal。
+- `26.817.3` 已在真实打包 Windows App 验证账户模型与 Pi 工具回合；`26.818.1` 继续收紧账户目录、错误文案和 Windows Reveal。
 - MilkSU 仍保留三项宿主必要边界：会话目录记录、Provider 凭据隔离、递归删除用户 Home/文件系统根/当前 cwd/大型目录时的二次确认。
 
 ### 模型、附件与网页查证
@@ -124,29 +127,29 @@
 
 ## 当前完成线
 
-### 已完成：`26.817.3` 三端同源内测发行
+### 已完成：`26.818.1` 今日首发三端内测发行
 
-三端都从 `main@11760758926ab2a1f025cc32c2518d19afdeca35` 构建并通过各自 workflow。GitHub
-prerelease 为 `v26.817.3`，没有上传 OTA ZIP；R2/Admin current pointer 未改变。macOS workflow
-从后续 `25e94c0` 的兼容修复重新调度，但构建输入仍锁定为同一 `1176075` 发行源。
+三端都从 `b92fcded25e59805463af4ff718d73ed8776e3fb` 构建。GitHub prerelease 为
+`v26.818.1`，没有上传 OTA ZIP；R2/Admin current pointer 未改变。macOS 走本机
+Developer ID 签名与公证；云端 macOS job 已取消。Windows / Linux 走成功的 Actions run。
 
 | 平台 | Workflow | 用户安装包 | 大小 | SHA-256 | 结果 |
 | --- | --- | ---: | ---: | --- | --- |
-| macOS ARM64 | `32007817407` | `MilkSU-macOS-arm64.dmg` | 235,820,745 B | `f32f9947d936782a9b2e904921a1338c77c4dc705a8b4881c2428e9e184c5b17` | Developer ID 签名、Apple 公证、staple、Gatekeeper、DMG 布局与 artifact 上传通过 |
-| Windows x64 | `32007690071` | `MilkSU-Windows-x64-26.817.3-Setup.exe` | 172,641,596 B | `3f8891046700d1d2f69a66a5acd9de2b533d8f5e24e7d86c0decdd21316e876d` | 原生 Windows 构建、打包 Runtime 与首次启动通过；真实打包 App 的 Pi Agent 回合另行复检通过；安装器未代码签名 |
-| Linux x64 | `32007693429` | `MilkSU-Linux-x64-26.817.3.deb` | 174,484,372 B | `768d7da28839a6d0a75848dda8676884f9e6cd8e923330f541ca4c7a14193a51` | 原生 Ubuntu 包结构、Sidecar、Go Runtime 与 Xvfb Electron 首次启动通过；试用边界 |
+| macOS ARM64 | 本机 `release:mac:local` | `MilkSU-macOS-arm64-26.818.1.dmg` | 233,523,396 B | `cc328d86518ee6c9b0035b4ac1581fd80a1390bdb7b63d6c5326f880c25e9cc6` | Developer ID 签名、Apple 公证；云端 macOS job `32095636487` / `32095689774` 已取消 |
+| Windows x64 | `32095638823` | `MilkSU-Windows-x64-26.818.1-Setup.exe` | 172,663,691 B | `3cc5608a3bb4585656866b6c2b0ef601300c2440b97b5e08c588f5b41e6de5a5` | 原生 Windows 构建、打包 Runtime 与首次启动通过；安装器未代码签名 |
+| Linux x64 | `32095642259` | `MilkSU-Linux-x64-26.818.1.deb` | 174,505,248 B | `9265394a91d9490d18389f60c23992f22ffcdd732349df2d93e27880546f0669` | 原生 Ubuntu 包结构、Sidecar、Go Runtime 与 Xvfb Electron 首次启动通过；试用边界 |
 
-发行页：<https://github.com/MilkSU-Official/milksu/releases/tag/v26.817.3>
+发行页：<https://github.com/MilkSU-Official/milksu/releases/tag/v26.818.1>
 
 ### 下一完成线
 
-`26.817.3` 已满足三端构建与分发门禁，且补充完成了 Windows 真实打包 App 的模型验证与 Pi Agent
-工具回合复检。`26.818.1` 版本线上的 Coding GUI、审批、压缩与目录修复还不是一次新发行。
+`26.818.1` 已是当前可下载基线。`main` 上晚于 `b92fcde` 的 Coding GUI、审批、压缩、
+CTF 目录和未打包 Windows 登录回调还不是一次新发行。
 
 下一条完成线是：
 
 1. 继续用当前开发包做常用 Agent GUI 与 Pi Runtime 回归，失败项回到下面 P0 队列；
-2. 用户明确要求发下一版时，从干净已推送的 `main` 跑 `release:verify` 并留下新的三端回执，而不是把现在的 `v26.818.1` 标签当成已经发出的包。
+2. 用户明确要求发下一版时，先升版本号，再从干净已推送的 `main` 跑 `release:verify` 并留下新的三端回执；不要把现有 `v26.818.1` 标签挪到更新的 HEAD 上。
 
 Windows 签名、Linux 缺失能力、R2/OTA，以及 CTF/CVE 模型操作工作台 UX，分别保持为明确后续工作。
 
@@ -156,7 +159,7 @@ Windows 签名、Linux 缺失能力、R2/OTA，以及 CTF/CVE 模型操作工作
 | --- | --- | --- |
 | P0 | 常用 Agent GUI 回归 | 按 Coding 常用功能表覆盖中文任务、文件/Shell、附件、斜杠菜单、权限档、subagent、浏览器、Browser/Computer Use、终端、取消/恢复与错误展示；自动化通过后再由用户做真实 GUI 验收。C9 / C15 / C16 / C20 已由用户在本地 dirty Stable 包确认；C10 / C11 已修待复验。 |
 | P0 | Pi Runtime 用户验收 | 最新正式包中验证跨目录读写、CTF/CVE 交接、长输出续跑和重启恢复，不出现 MilkSU 自建 workspace 策略或旧 session ID。 |
-| P1 | 下一版三端回执发行 | 需要新的 tag、同一 source commit、三端产物、SHA-256 与平台验收。现有 `26.818.1` 版本线不够。 |
+| P1 | 下一版三端回执发行 | 需要新的版本号、同一 source commit、三端产物、SHA-256 与平台验收。现有 `v26.818.1` 不够覆盖 `b92fcde` 之后的 `main`。 |
 | P1 | OTA 与私有 R2 | Admin 草稿/发布/暂停和 Desktop 更新提示已有；仍需一次受账户鉴权的真实旧签名版 → 新签名版升级回执。 |
 | P1 | 安全工具真实任务 | IDA/idalib 与 capa 已有设置、准备和健康检查；分别用受控本地样本保留真实任务回执后，才决定是否进入 CTF/CVE。CodeQL、Burp、Shannon 仍逐项准入。 |
 | P1 | Obelisk 学习记录 | 先定义可归因学习事实，再设计独立页面；不恢复已删除的单会话相关历史/图谱面板。 |
@@ -171,7 +174,7 @@ Windows 签名、Linux 缺失能力、R2/OTA，以及 CTF/CVE 模型操作工作
 - Wails/CEF 双壳、workspace-only 文件工具、Node 文件权限状态机、普通回合 watchdog、CVE 只读启动清单和客服式回复模板。
 - 用关键词或正则扫描用户句子来打开浏览器、切页或选工具。
 - MilkSU 自建余额、价格映射、扣费流水和模型代理计费。
-- 把 `v26.818.1` 或本地 dirty 包写成已经发出的三端正式包。
+- 把晚于 `v26.818.1` 的 HEAD、同一版本号或本地 dirty 包写成已经发出的三端正式包。
 - M3/M4 旧百分比台账、历史 Beta 完成度和已删除 live smoke；需要考古时使用 Git history。
 
 ## 领域完成线
