@@ -34,6 +34,7 @@
     "test:ctf-six-track-regression": "node scripts/validate-ctf-six-track-regression.mjs",
     "test:project-mcp": "node scripts/test-project-mcp-fixture.mjs",
     "test:computer-use-live": "node scripts/test-packaged-computer-use-live.mjs",
+    "test:windows-computer-use-live": "node scripts/test-windows-computer-use-live.mjs",
     "test:computer-use-agent-vision-live": "node scripts/test-packaged-computer-use-agent-vision-live.mjs",
     "test:github-pr-status-live": "node scripts/test-github-pr-status-live.mjs",
     "test:security-bridge": "printf '%s\\n' '{\"action\":\"protocol_info\",\"requestId\":\"protocol-test\"}' | node sidecar/security/security-bridge.js",
