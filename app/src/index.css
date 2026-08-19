@@ -1,10 +1,12 @@
 @import "tailwindcss";
 @import "@felinic/ui/style.css";
+@import "./styles/ak-ui.css";
+@import "./styles/ak-ui-flourish.css";
 @source "../node_modules/@felinic/ui/src";
 @source ".";
 
 :root {
-  font-family: "Inter Variable", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-family: "Noto Sans SC", "Inter Variable", "PingFang SC", "Microsoft YaHei", sans-serif;
   color-scheme: dark;
 
   /*
@@ -18,20 +20,20 @@
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
 
-  /* MilkSU neutral warm graphite night palette. */
-  --night-chrome: #11120f;
-  --night-canvas: #171815;
-  --night-card: #1f201c;
-  --night-popover: #24251f;
-  --night-muted: #272822;
-  --night-accent: #2d2e28;
-  --night-sunken: #12130f;
-  --night-foreground: #f1f3ec;
-  --night-muted-foreground: #a4a99f;
-  --night-border: #3a3c35;
-  --night-border-hairline: #46483f;
-  --night-border-elevated: #5a5c52;
-  --night-input: #55574d;
+  /* ak-ui terminal night: canvas #111315, not warm graphite or acid green. */
+  --night-chrome: #111315;
+  --night-canvas: #111315;
+  --night-card: #17191b;
+  --night-popover: #1b1d1f;
+  --night-muted: #222222;
+  --night-accent: #2a2c2e;
+  --night-sunken: #0e1012;
+  --night-foreground: #f8f8f5;
+  --night-muted-foreground: rgba(248, 248, 245, 0.68);
+  --night-border: #3a3d40;
+  --night-border-hairline: #4a4e52;
+  --night-border-elevated: #5c6166;
+  --night-input: #5a5f64;
 
   --background: var(--night-canvas);
   --background-chrome: var(--night-chrome);
@@ -58,30 +60,33 @@
   --sidebar-border: var(--night-border);
   --sidebar-accent: var(--overlay-hover);
   --sidebar-accent-foreground: var(--night-foreground);
-  --scrollbar-thumb: rgb(164 169 159 / 0.24);
-  --scrollbar-thumb-hover: rgb(159 239 0 / 0.42);
+  --scrollbar-thumb: rgb(248 248 245 / 0.22);
+  --scrollbar-thumb-hover: rgb(34 187 255 / 0.42);
 
   --primary: var(--brand);
   --primary-foreground: var(--brand-foreground);
-  --brand: #9fef00;
-  --brand-foreground: #14170f;
-  --brand-soft: rgb(159 239 0 / 0.13);
-  --brand-border: rgb(159 239 0 / 0.36);
-  --brand-hover: #b5f542;
+  --brand: #05a7dc;
+  --brand-foreground: #111315;
+  --brand-soft: rgb(5 167 220 / 0.16);
+  --brand-border: rgb(5 167 220 / 0.42);
+  --brand-hover: #3ff7ff;
   --sidebar-primary: var(--brand);
   --sidebar-primary-foreground: var(--brand-foreground);
   --sidebar-ring: var(--brand);
-  --btn-primary: #168dff;
-  --btn-primary-hover: #2e9aff;
-  --btn-primary-active: #0878df;
-  --action: #168dff;
-  --action-hover: #2e9aff;
-  --action-active: #0878df;
-  --action-foreground: #ffffff;
-  --action-soft: rgb(22 141 255 / 0.12);
-  --action-border: rgb(22 141 255 / 0.48);
-  --focus-panel: rgb(159 239 0 / 0.055);
-  --focus-panel-strong: rgb(159 239 0 / 0.11);
+  --btn-primary: #22bbff;
+  --btn-primary-hover: #3cc6ff;
+  --btn-primary-active: #05a7dc;
+  --action: #22bbff;
+  --action-hover: #3cc6ff;
+  --action-active: #05a7dc;
+  --action-foreground: #111315;
+  --action-soft: rgb(34 187 255 / 0.16);
+  --action-border: rgb(34 187 255 / 0.48);
+  --signal-gold: #f1c644;
+  --signal-gold-soft: rgb(241 198 68 / 0.16);
+  --signal-gold-border: rgb(241 198 68 / 0.42);
+  --focus-panel: rgb(241 198 68 / 0.14);
+  --focus-panel-strong: rgb(241 198 68 / 0.22);
   --grid-line: rgb(164 169 159 / 0.065);
   --surface-raised: var(--night-popover);
   --surface-sunken: var(--night-sunken);
@@ -96,17 +101,17 @@
   --segment-track: #22231e;
   --segment-thumb: #3a3c34;
 
-  --success: #9fef00;
-  --success-foreground: #c8ff5b;
-  --success-solid-foreground: #14170f;
-  --success-soft: rgb(159 239 0 / 0.13);
-  --success-border: rgb(159 239 0 / 0.34);
-  --warning: #f6c344;
-  --warning-foreground: #ffd979;
-  --warning-solid-foreground: #14170f;
-  --warning-soft: rgb(246 195 68 / 0.13);
-  --warning-border: rgb(246 195 68 / 0.34);
-  --info: #168dff;
+  --success: #46c47c;
+  --success-foreground: #8ee0ad;
+  --success-solid-foreground: #111315;
+  --success-soft: rgb(70 196 124 / 0.14);
+  --success-border: rgb(70 196 124 / 0.34);
+  --warning: #ffd802;
+  --warning-foreground: #ffe56a;
+  --warning-solid-foreground: #111315;
+  --warning-soft: rgb(255 216 2 / 0.14);
+  --warning-border: rgb(255 216 2 / 0.34);
+  --info: #22bbff;
   --info-foreground: #72baff;
   --info-soft: rgb(22 141 255 / 0.13);
   --info-border: rgb(22 141 255 / 0.38);
@@ -126,31 +131,30 @@
   --terminal-background: var(--night-sunken);
   --terminal-foreground: #e1e6dc;
   --terminal-cursor: var(--brand);
-  --terminal-selection: rgb(159 239 0 / 0.2);
+  --terminal-selection: rgb(34 187 255 / 0.22);
 
   --surface-editor: var(--background);
   --surface-chrome: var(--background-chrome);
   --surface-composer: var(--card);
-  --chat-user-bubble: rgb(159 239 0 / 0.13);
-  --chat-user-bubble-fg: #e5ffaf;
+  --chat-user-bubble: rgb(5 167 220 / 0.88);
+  --chat-user-bubble-fg: #f8f8f5;
 
-  /* Tactical archive visual contract: accepted neutral graphite concept #1. */
   --tactical-ink: var(--night-chrome);
-  --tactical-ink-2: #181915;
-  --tactical-ink-3: #22231e;
-  --tactical-paper: #e8e6df;
-  --tactical-paper-2: #d9d9d4;
+  --tactical-ink-2: #17191b;
+  --tactical-ink-3: #222222;
+  --tactical-paper: #f3f4ef;
+  --tactical-paper-2: #e6e7e1;
   --tactical-paper-ink: #111315;
-  --tactical-paper-muted: #62615c;
-  --tactical-blue: #087cf0;
-  --tactical-blue-strong: #006ad9;
-  --tactical-acid: #b7ef28;
-  --tactical-orange: #ff8618;
+  --tactical-paper-muted: #6d757a;
+  --tactical-blue: #05a7dc;
+  --tactical-blue-strong: #0075a8;
+  --tactical-acid: #22bbff;
+  --tactical-orange: #f6540e;
   --tactical-cut: 16px;
   --tactical-shadow: 0 24px 58px rgb(0 0 0 / .36);
   --tactical-paper-image: none;
   --tactical-carbon-image: none;
-  --font-display: 'Barlow Condensed', 'Arial Narrow', 'PingFang SC', sans-serif;
+  --font-display: "Noto Serif SC", "Source Han Serif SC", serif;
 }
 
 :root[data-theme='light'] {
@@ -175,7 +179,7 @@
   --border-menu: #a8a8a2;
   --border-menu-elevated: #91938f;
   --input: #9da09e;
-  --ring: #6b8e12;
+  --ring: #05a7dc;
   --sidebar: var(--night-chrome);
   --sidebar-foreground: var(--night-foreground);
   --sidebar-border: var(--night-border);
@@ -186,11 +190,11 @@
 
   --primary: var(--brand);
   --primary-foreground: var(--brand-foreground);
-  --brand: #5f9800;
+  --brand: #0075a8;
   --brand-foreground: #ffffff;
-  --brand-soft: rgb(125 219 0 / 0.18);
-  --brand-border: rgb(95 152 0 / 0.36);
-  --brand-hover: #4f8000;
+  --brand-soft: rgb(5 167 220 / 0.16);
+  --brand-border: rgb(0 117 168 / 0.36);
+  --brand-hover: #05a7dc;
   --sidebar-primary: var(--brand);
   --sidebar-primary-foreground: var(--brand-foreground);
   --sidebar-ring: var(--brand);
@@ -203,8 +207,11 @@
   --action-foreground: #ffffff;
   --action-soft: rgb(22 141 255 / 0.09);
   --action-border: rgb(8 126 232 / 0.34);
-  --focus-panel: rgb(95 152 0 / 0.045);
-  --focus-panel-strong: rgb(95 152 0 / 0.09);
+  --signal-gold: #f1c644;
+  --signal-gold-soft: rgb(241 198 68 / 0.18);
+  --signal-gold-border: rgb(184 150 24 / 0.46);
+  --focus-panel: rgb(241 198 68 / 0.16);
+  --focus-panel-strong: rgb(241 198 68 / 0.24);
   --grid-line: rgb(47 111 167 / 0.065);
   --surface-raised: #f4f2eb;
   --surface-sunken: #deddd6;
@@ -212,18 +219,18 @@
   --overlay-hover-light: rgb(23 32 27 / 0.045);
   --overlay-hover: rgb(23 32 27 / 0.075);
   --overlay-hover-strong: rgb(23 32 27 / 0.115);
-  --overlay-active: rgb(95 152 0 / 0.145);
-  --overlay-active-strong: rgb(95 152 0 / 0.2);
+  --overlay-active: rgb(5 167 220 / 0.145);
+  --overlay-active-strong: rgb(5 167 220 / 0.2);
   --action-card-hover: rgb(23 32 27 / 0.045);
-  --action-card-active: rgb(95 152 0 / 0.1);
+  --action-card-active: rgb(5 167 220 / 0.12);
   --segment-track: #d2d2cc;
   --segment-thumb: #f4f2eb;
 
-  --success: #5f9800;
-  --success-foreground: #426b00;
+  --success: #2f8a56;
+  --success-foreground: #1f5c38;
   --success-solid-foreground: #ffffff;
-  --success-soft: rgb(95 152 0 / 0.13);
-  --success-border: rgb(95 152 0 / 0.32);
+  --success-soft: rgb(47 138 86 / 0.13);
+  --success-border: rgb(47 138 86 / 0.32);
   --warning: #b87900;
   --warning-foreground: #8b5a00;
   --warning-solid-foreground: #ffffff;
@@ -249,13 +256,13 @@
   --terminal-background: #f8fbff;
   --terminal-foreground: #101c2b;
   --terminal-cursor: var(--brand);
-  --terminal-selection: rgb(125 219 0 / 0.24);
+  --terminal-selection: rgb(5 167 220 / 0.22);
 
   --surface-editor: var(--background);
   --surface-chrome: var(--background-chrome);
   --surface-composer: #ffffff;
-  --chat-user-bubble: rgb(22 141 255 / 0.10);
-  --chat-user-bubble-fg: #0a4f92;
+  --chat-user-bubble: rgb(5 167 220 / 0.16);
+  --chat-user-bubble-fg: #075fae;
 
   --tactical-ink: #161713;
   --tactical-ink-2: #1d1e1a;
@@ -266,7 +273,7 @@
   --tactical-paper-muted: #5d5d59;
   --tactical-blue: #087cf0;
   --tactical-blue-strong: #006ad9;
-  --tactical-acid: #78a600;
+  --tactical-acid: #05a7dc;
   --tactical-orange: #d46800;
   --tactical-shadow: 0 22px 48px rgb(17 18 15 / .18);
 }
@@ -303,8 +310,6 @@ body {
 
 .game-shell {
   background-color: var(--tactical-ink);
-  background-image: var(--tactical-carbon-image);
-  background-size: 640px 640px;
 }
 
 .tactical-page,
@@ -312,8 +317,6 @@ body {
 .settings-page,
 .profile-page {
   background-color: var(--background);
-  background-image: var(--tactical-carbon-image);
-  background-size: 640px 640px;
 }
 
 :root[data-theme='light'] .tactical-page,
@@ -321,7 +324,6 @@ body {
 :root[data-theme='light'] .settings-page,
 :root[data-theme='light'] .profile-page {
   background-color: var(--background);
-  background-image: var(--tactical-paper-image);
 }
 
 .game-surface {
@@ -386,27 +388,31 @@ body {
 
 .game-focus-panel {
   position: relative;
-  border: 1px solid color-mix(in srgb, var(--brand) 48%, var(--border));
+  border: 1px solid rgba(17, 19, 21, 0.24);
   border-radius: 0;
-  background:
-    linear-gradient(90deg, var(--focus-panel-strong), transparent 58%),
-    var(--card);
-  box-shadow: inset 3px 0 0 var(--brand);
+  color: #171a1d;
+  background: rgba(243, 244, 239, 0.94);
+  box-shadow: none;
+  --foreground: #171a1d;
+  --muted-foreground: #6d757a;
+  --card: #f3f4ef;
+  --border: #aba9a1;
 }
 
-.game-focus-panel::before,
-.game-focus-panel::after {
+.game-focus-panel::before {
   position: absolute;
-  left: -1px;
-  width: 14px;
-  height: 14px;
-  border-left: 1px solid var(--brand);
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 0.35rem;
+  background: var(--signal-gold);
   content: '';
   pointer-events: none;
 }
 
-.game-focus-panel::before { top: -1px; border-top: 1px solid var(--brand); }
-.game-focus-panel::after { bottom: -1px; border-bottom: 1px solid var(--brand); }
+.game-focus-panel::after {
+  display: none;
+}
 
 .game-grid {
   background-image:
@@ -442,7 +448,7 @@ body {
 [data-button][data-variant="primary"]::before,
 [data-button][data-variant="default"]::before {
   background-color: var(--tactical-acid) !important;
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--tactical-acid) 72%, white), 0 8px 26px rgb(183 239 40 / .14);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--tactical-acid) 72%, white), 0 8px 26px rgb(34 187 255 / .18);
 }
 
 [data-button][data-variant="brand"],
@@ -472,7 +478,7 @@ body {
 [data-slot="input"]:focus,
 [data-slot="select-trigger"][data-state="open"],
 [data-slot="native-select"]:focus {
-  box-shadow: inset 0 0 0 1px var(--tactical-acid), 0 0 0 3px rgb(183 239 40 / .12) !important;
+  box-shadow: inset 0 0 0 1px var(--tactical-acid), 0 0 0 3px rgb(34 187 255 / .16) !important;
 }
 
 [data-slot="dialog-content"],
@@ -500,8 +506,6 @@ body {
   --surface-raised: var(--night-popover);
   --surface-sunken: var(--night-sunken);
   background-color: var(--tactical-ink-2) !important;
-  background-image: var(--tactical-carbon-image) !important;
-  background-size: 640px 640px !important;
   box-shadow: 0 22px 70px rgb(0 0 0 / .28), inset 0 1px 0 rgb(255 255 255 / .035);
 }
 
@@ -649,8 +653,6 @@ pre,
   position: relative;
   border: 1px solid var(--night-border);
   background-color: var(--tactical-ink-2);
-  background-image: var(--tactical-carbon-image);
-  background-size: 640px 640px;
   box-shadow: inset 0 1px 0 rgb(255 255 255 / .04);
 }
 
@@ -662,8 +664,6 @@ pre,
   --border: #aba9a1;
   border: 1px solid #aba9a1;
   background-color: var(--tactical-paper);
-  background-image: var(--tactical-paper-image);
-  background-size: 640px 640px;
 }
 
 /* Stacked paper layers retired: keep class for markup compatibility. */
@@ -698,21 +698,25 @@ pre,
   background: var(--tactical-acid) !important;
   color: var(--brand-foreground) !important;
   border-radius: 2px !important;
-  box-shadow: 0 10px 28px rgb(183 239 40 / .18) !important;
+  box-shadow: 0 10px 28px rgb(34 187 255 / .18) !important;
 }
 
 .tactical-acid-panel {
-  border: 1px solid color-mix(in srgb, var(--tactical-acid) 68%, #202700);
-  background: color-mix(in srgb, var(--tactical-acid) 11%, var(--tactical-ink));
-  box-shadow: inset 4px 0 0 var(--tactical-acid), 0 0 24px rgb(183 239 40 / .06);
-  color: var(--foreground);
+  border: 1px solid rgba(17, 19, 21, 0.24);
+  background: rgba(243, 244, 239, 0.94);
+  box-shadow: inset 4px 0 0 var(--signal-gold);
+  color: #171a1d;
+  --foreground: #171a1d;
+  --muted-foreground: #6d757a;
+  --card: #f3f4ef;
+  --border: #aba9a1;
 }
 
 :root[data-theme='light'] .tactical-paper .tactical-acid-panel,
 :root[data-theme='light'] .tactical-paper-surface .tactical-acid-panel {
-  border-color: #859842;
-  background: color-mix(in srgb, var(--tactical-acid) 18%, var(--tactical-paper));
-  box-shadow: inset 4px 0 0 #789800;
+  border-color: rgba(17, 19, 21, 0.2);
+  background: #f3f4ef;
+  box-shadow: inset 4px 0 0 var(--signal-gold);
   color: var(--tactical-paper-ink);
 }
 
@@ -721,11 +725,16 @@ pre,
   transition: background-color 120ms ease, border-color 120ms ease, transform 120ms ease;
 }
 
-.tactical-row:hover { background: color-mix(in srgb, var(--primary) 4%, transparent); }
+.tactical-row:hover { background: color-mix(in srgb, var(--signal-gold) 6%, transparent); }
 .tactical-row[data-ui-selected],
 .tactical-row.is-selected {
-  border-left: 4px solid var(--tactical-acid);
-  background: color-mix(in srgb, var(--tactical-acid) 8%, var(--card));
+  border-left: 4px solid var(--signal-gold);
+  background: color-mix(in srgb, var(--signal-gold) 16%, var(--card));
+}
+
+.settings-focus-row {
+  background: color-mix(in srgb, var(--signal-gold) 14%, transparent);
+  box-shadow: inset 4px 0 0 var(--signal-gold);
 }
 
 .tactical-section-heading {

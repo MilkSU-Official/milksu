@@ -315,9 +315,7 @@ watch(
 
 .coding-context-archive {
   min-height: 0;
-  background-color: var(--tactical-ink-2);
-  background-image: var(--tactical-carbon-image);
-  background-size: 640px 640px;
+  background-color: transparent;
   color: var(--night-foreground);
   --foreground: var(--night-foreground);
   --card-foreground: var(--night-foreground);

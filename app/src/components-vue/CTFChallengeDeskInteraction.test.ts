@@ -227,6 +227,49 @@ describe('CTFChallengeDesk primary action', () => {
     expect(onChangeDaily).toHaveBeenCalledTimes(1)
   })
 
+  it('lets the user collapse the selected challenge', async () => {
+    const onClearSelection = vi.fn()
+    const host = document.createElement('div')
+    document.body.append(host)
+    const app = createApp(CTFChallengeDesk, {
+      activeBank: 'nssctf',
+      nssctfProblems: [],
+      ctfshowProblems: [],
+      selectedNssctf: selectedChallenge(),
+      selectedCtfshow: null,
+      dashboard: null,
+      nssctfAttemptedIds: [],
+      nssctfCompletedIds: [],
+      ctfshowAttemptedIds: [],
+      ctfshowCompletedIds: [],
+      page: 1,
+      pageCount: 1,
+      total: 1,
+      loading: false,
+      actionLoading: false,
+      collaborationMode: 'copilot',
+      selectedBrowserReady: false,
+      ctfshowBridgeReady: false,
+      attachmentError: '',
+      localMaterials: [],
+      catalogError: '',
+      modelVerified: false,
+      catalogReady: true,
+      judgeReady: false,
+      hasActiveTraining: false,
+      collectionStore: createItemCollectionStore('test.ctf.clear.collections'),
+      onClearSelection,
+    })
+    app.mount(host)
+    mountedApps.push(app)
+    await nextTick()
+    const clear = Array.from(host.querySelectorAll('button')).find(button => button.textContent?.includes('取消选中'))
+    expect(clear).toBeTruthy()
+    clear?.click()
+    await nextTick()
+    expect(onClearSelection).toHaveBeenCalledTimes(1)
+  })
+
   it('keeps open-Coding enabled while the catalog refreshes in background', async () => {
     const { action, onStartNssctf } = await mountDesk({
       catalogLoading: true,

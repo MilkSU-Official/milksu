@@ -49,13 +49,17 @@ const loginSignalCells = Array.from({ length: 19 * 15 }, (_, index) => {
 
       <div class="my-auto w-full max-w-[540px] py-14">
         <p class="game-kicker">Private Beta Access</p>
-        <h1 class="mt-3 text-5xl font-semibold tracking-[-0.05em]">
+        <h1 class="tactical-display mt-3 text-5xl">
           登录 <span class="text-primary">MilkSU</span>
         </h1>
         <p class="mt-5 text-lg leading-7 text-muted-foreground">{{ stateMessage }}</p>
-        <p v-if="error" class="mt-4 border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm leading-6 text-destructive" role="alert">
-          {{ error }}
-        </p>
+        <div v-if="error" class="ak-notice ak-notice--danger mt-4" role="alert">
+          <span class="ak-notice__code">AUTH<br />失败</span>
+          <div class="ak-notice__body">
+            <strong class="ak-notice__title">登录没有完成</strong>
+            <p class="ak-notice__message">{{ error }}</p>
+          </div>
+        </div>
 
         <Button
           size="lg"
@@ -70,7 +74,7 @@ const loginSignalCells = Array.from({ length: 19 * 15 }, (_, index) => {
         </Button>
 
         <div class="mt-9 space-y-4 text-sm text-muted-foreground">
-          <p class="flex items-center gap-3"><Globe2 class="size-4 text-info" />将在系统浏览器中完成登录</p>
+          <p class="flex items-center gap-3"><Globe2 class="size-4 text-primary" />将在系统浏览器中完成登录</p>
           <p class="flex items-center gap-3"><ShieldCheck class="size-4 text-primary" />MilkSU 不保存你的 GitHub 密码</p>
         </div>
 

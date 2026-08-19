@@ -80,10 +80,8 @@ const moduleKey = computed(() => props.module ?? props.title.trim().toLowerCase(
   isolation: isolate;
   margin: 0;
   border: 0;
-  border-bottom: 1px solid var(--night-border);
-  background-color: var(--tactical-ink-2);
-  background-image: var(--tactical-carbon-image);
-  background-size: 640px 640px;
+  border-bottom: 1px solid color-mix(in srgb, var(--night-foreground) 14%, transparent);
+  background: color-mix(in srgb, var(--ak-surface-canvas, #111315) 88%, #17191b);
   color: var(--night-foreground);
   overflow: visible;
 }
@@ -95,8 +93,11 @@ const moduleKey = computed(() => props.module ?? props.title.trim().toLowerCase(
   flex: none;
   align-items: center;
   justify-content: center;
-  color: var(--tactical-acid);
-  font-size: 1rem;
+  color: var(--brand);
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 900;
+  letter-spacing: -.06em;
 }
 
 .workspace-topbar__actions {

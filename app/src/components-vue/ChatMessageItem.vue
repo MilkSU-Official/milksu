@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { Badge, Button } from '@felinic/ui'
+import { computed } from 'vue'
+import { Button } from '@felinic/ui'
 import {
   FileText,
-  Hand,
-  LoaderCircle,
   RotateCcw,
 } from 'lucide-vue-next'
+import AkLoadingMark from '@/components-vue/AkLoadingMark.vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import { redactProviderCredentials } from '@/lib/redaction'
 import type { Message } from '@/types'
@@ -36,6 +36,31 @@ function recoveryHint() {
     ? '从已保留的 notes、证据、Judge 回执和工具结果继续'
     : '从已保留的工作区、Git 状态、工具结果和验证面板继续'
 }
+
+function userMessageTime(timestamp: number) {
+  if (!Number.isFinite(timestamp) || timestamp < 1_000_000_000_000) return ''
+  const date = new Date(timestamp)
+  if (Number.isNaN(date.getTime())) return ''
+  const now = new Date()
+  const sameDay = date.toDateString() === now.toDateString()
+  const timeOptions: Intl.DateTimeFormatOptions = {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }
+  return sameDay
+    ? date.toLocaleTimeString('zh-CN', timeOptions)
+    : date.toLocaleString('zh-CN', {
+      month: 'numeric',
+      day: 'numeric',
+      ...timeOptions,
+    })
+}
+
+const timeLabel = computed(() => (
+  props.message.role === 'user' ? userMessageTime(props.message.timestamp) : ''
+))
 </script>
 
 <template>
@@ -43,33 +68,51 @@ function recoveryHint() {
     class="mb-7"
     :class="message.role === 'user' ? 'ml-auto max-w-[82%]' : 'max-w-full'"
   >
-    <div v-if="message.role === 'tool'" class="rounded-lg border border-border bg-muted/30 px-4 py-3">
+    <div
+      v-if="timeLabel"
+      class="ak-divider chat-time-divider"
+      role="separator"
+    >
+      <span>{{ timeLabel }}</span>
+    </div>
+    <div
+      v-if="message.role === 'tool'"
+      class="ak-notice px-0"
+      :class="message.approvalState === 'pending'
+        ? 'ak-notice--warning'
+        : message.approvalState === 'approved'
+          ? 'ak-notice--success'
+          : 'ak-notice--danger'"
+    >
+      <span class="ak-notice__code">ASK<br />批准</span>
+      <div class="ak-notice__body">
       <div class="flex items-start justify-between gap-4">
         <div class="min-w-0">
-          <p class="flex items-center gap-2 text-body font-medium">
-            <Hand class="size-4 shrink-0 text-warning" />
-            请求批准 · {{ message.toolName ?? 'tool' }}
-          </p>
-          <p class="mt-1 text-caption text-muted-foreground">
+          <strong class="ak-notice__title">请求批准 · {{ message.toolName ?? 'tool' }}</strong>
+          <p class="ak-notice__message">
             {{ message.approvalGrantable
               ? 'Agent 已暂停。允许这一次只执行当前操作；本对话始终允许后，同类操作不再询问。'
               : 'Agent 已暂停；只有允许本次操作后才会继续。' }}
           </p>
         </div>
-        <Badge
-          :variant="message.approvalState === 'approved' ? 'secondary' : 'outline'"
-          :class="message.approvalState === 'denied' || message.approvalState === 'expired'
-            ? 'text-muted-foreground'
-            : ''"
+        <span
+          class="ak-status ak-status--compact shrink-0"
+          :class="message.approvalState === 'pending'
+            ? 'ak-status--warning'
+            : message.approvalState === 'approved'
+              ? ''
+              : 'ak-status--offline'"
         >
-          {{ message.approvalState === 'pending'
+          <span class="ak-status__signal" />
+          <span class="ak-status__label">{{ message.approvalState === 'pending' ? 'HOLD' : message.approvalState === 'approved' ? 'OK' : 'STOP' }}</span>
+          <span class="ak-status__detail">{{ message.approvalState === 'pending'
             ? '等待决定'
             : message.approvalState === 'approved'
               ? '已允许'
               : message.approvalState === 'denied'
                 ? '已拒绝'
-                : '已失效' }}
-        </Badge>
+                : '已失效' }}</span>
+        </span>
       </div>
       <pre
         v-if="message.content"
@@ -114,12 +157,14 @@ function recoveryHint() {
       <p v-else-if="message.approvalReason" class="mt-2 text-caption text-muted-foreground">
         {{ visibleApprovalText(message.approvalReason) }}
       </p>
+      </div>
     </div>
     <div
       v-else
       class="break-words text-control leading-7"
-      :class="message.role === 'user' ? 'rounded-xl bg-chat-user-bubble px-4 py-3 text-chat-user-bubble-fg' : ''"
+      :class="message.role === 'user' ? 'chat-bubble chat-bubble--user px-4 py-3' : 'chat-bubble chat-bubble--agent'"
     >
+      <span class="chat-bubble__who">{{ message.role === 'user' ? 'YOU' : 'MILKSU' }}</span>
       <div
         v-if="message.attachments?.length"
         class="mb-2 flex flex-wrap gap-2"
@@ -137,10 +182,9 @@ function recoveryHint() {
         </span>
       </div>
       <MarkdownContent :content="message.content" :compact="message.role === 'user'" />
-      <LoaderCircle
-        v-if="message.status === 'running'"
-        class="ml-2 inline size-3.5 animate-spin text-muted-foreground"
-      />
+      <p v-if="message.status === 'running'" class="chat-model-loading">
+        <AkLoadingMark label="正在回复" />
+      </p>
       <div
         v-if="recoverable"
         class="mt-3 flex flex-wrap items-center gap-2"
@@ -161,3 +205,17 @@ function recoveryHint() {
     </div>
   </article>
 </template>
+
+<style scoped>
+.chat-bubble--agent {
+  width: min(42rem, 100%);
+  padding: 0.9rem 1rem;
+  color: var(--foreground);
+  background: var(--card);
+}
+
+.chat-bubble--user {
+  color: var(--chat-user-bubble-fg);
+  background: var(--chat-user-bubble);
+}
+</style>

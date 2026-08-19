@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { Button } from '@felinic/ui'
 import {
   Bug,
   Code2,
@@ -102,12 +101,12 @@ function openSettings() {
   >
     <div
       ref="menuRoot"
-      class="workspace-rail-traffic-safe relative flex items-end justify-center border-b border-border px-2"
+      class="workspace-rail-traffic-safe relative flex items-end justify-center px-1"
       @keydown.esc="menuOpen = false"
     >
-      <Button
-        variant="ghost"
-        class="app-no-drag relative h-14 min-w-12 rounded-none p-1.5"
+      <button
+        type="button"
+        class="app-no-drag workspace-rail-profile"
         aria-label="打开用户菜单"
         :aria-expanded="menuOpen"
         @click.stop="menuOpen = !menuOpen"
@@ -116,21 +115,20 @@ function openSettings() {
           <img
             :src="avatarSource"
             alt="用户头像"
-            class="size-9 rounded-full border-2 border-primary bg-white object-cover"
+            class="workspace-rail-profile__mark"
           >
-          <i class="absolute bottom-0 right-0 size-3 rounded-full border-2 border-sidebar bg-primary" aria-hidden="true" />
           <span
             v-if="isBetaChannel"
-            class="pointer-events-none absolute -right-2 -top-2 rounded-md bg-indigo-600 px-1 py-0.5 text-[9px] font-semibold leading-none tracking-wide text-white"
+            class="pointer-events-none absolute -right-2 -top-2 bg-indigo-600 px-1 py-0.5 text-[9px] font-semibold leading-none tracking-wide text-white"
             aria-label="Beta 渠道"
             data-testid="beta-channel-badge"
           >BETA</span>
         </span>
-      </Button>
+      </button>
 
       <section
         v-if="menuOpen"
-        class="app-no-drag absolute left-[4.5rem] top-10 z-50 w-52 overflow-hidden rounded-lg border border-border bg-popover p-1.5 text-popover-foreground shadow-xl"
+        class="app-no-drag absolute left-[4.6rem] top-10 z-50 w-52 overflow-hidden border border-border bg-popover p-1.5 text-popover-foreground shadow-xl"
         aria-label="用户菜单"
       >
         <button class="user-menu-item" @click="openProfile"><UserRound class="size-4" />个人资料</button>
@@ -141,15 +139,13 @@ function openSettings() {
       </section>
     </div>
 
-    <nav class="app-no-drag flex flex-col gap-1.5 px-2 py-4" aria-label="全局工作区">
-      <Button
+    <nav class="app-no-drag workspace-rail-nav" aria-label="全局工作区">
+      <button
         v-for="item in WORKSPACE_RAIL_ITEMS"
         :key="item.id"
-        :variant="activeSection === item.id ? 'secondary' : 'ghost'"
-        :class="[
-          'workspace-rail-item relative h-auto min-h-14 flex-col gap-0.5 px-1 py-1.5',
-          activeSection === item.id ? 'workspace-rail-active' : '',
-        ]"
+        type="button"
+        class="workspace-rail-item"
+        :class="{ 'is-current': activeSection === item.id }"
         :aria-label="item.label"
         :aria-current="activeSection === item.id ? 'page' : undefined"
         :title="item.label"
@@ -157,48 +153,103 @@ function openSettings() {
         @click="navigate(item.id)"
       >
         <component :is="icons[item.id]" class="size-4" />
-        <span class="text-[10px] leading-tight">{{ item.label }}</span>
-      </Button>
+        <span>{{ item.label }}</span>
+      </button>
     </nav>
 
     <div class="flex-1" />
 
-    <div class="app-no-drag space-y-1.5 border-t border-border p-2">
-      <Button
-        variant="ghost"
-        class="workspace-rail-control relative h-12 w-full"
+    <div class="app-no-drag workspace-rail-foot">
+      <button
+        type="button"
+        class="workspace-rail-item"
         :aria-label="themeToggleLabel"
         :title="themeToggleLabel"
         @click="emit('toggleTheme')"
       >
         <component :is="ThemeToggleIcon" class="size-4" />
-      </Button>
+        <span>{{ props.themeMode === 'dark' ? '日间' : '夜间' }}</span>
+      </button>
 
-      <Button
-        :variant="activeSection === 'settings' ? 'secondary' : 'ghost'"
-        class="workspace-rail-control relative h-12 w-full"
-        :class="activeSection === 'settings' ? 'workspace-rail-active' : ''"
+      <button
+        type="button"
+        class="workspace-rail-item"
+        :class="{ 'is-current': activeSection === 'settings' }"
         aria-label="设置"
         title="设置"
         :data-ui-selected="activeSection === 'settings' ? '' : undefined"
         @click="openSettings"
       >
         <Settings class="size-4" />
-      </Button>
+        <span>设置</span>
+      </button>
     </div>
   </div>
 </template>
 
 <style scoped>
-.workspace-rail-traffic-safe { box-sizing: border-box; min-height: 5.75rem; padding-top: 2.1rem; padding-bottom: .5rem; }
-.workspace-rail { color: var(--night-foreground); --foreground: var(--night-foreground); --card-foreground: var(--night-foreground); --muted-foreground: var(--night-muted-foreground); --border: var(--night-border); --border-hairline: var(--night-border-hairline); --input: var(--night-input); --card: var(--night-card); --popover: var(--night-popover); --popover-foreground: var(--night-foreground); --secondary: var(--night-muted); --secondary-foreground: var(--night-foreground); --accent: var(--night-accent); --accent-foreground: var(--night-foreground); background-color: var(--tactical-ink); background-image: var(--tactical-carbon-image); background-size: 640px 640px; }
-.workspace-rail-item { font-size: var(--text-body); line-height: var(--text-body--line-height); letter-spacing: var(--text-body--letter-spacing); }
+.workspace-rail-traffic-safe { box-sizing: border-box; min-height: 5.75rem; padding-top: 2.1rem; padding-bottom: .45rem; }
+.workspace-rail {
+  color: var(--night-foreground);
+  --foreground: var(--night-foreground);
+  --card-foreground: var(--night-foreground);
+  --muted-foreground: var(--night-muted-foreground);
+  --border: var(--night-border);
+  --border-hairline: var(--night-border-hairline);
+  --input: var(--night-input);
+  --card: var(--night-card);
+  --popover: var(--night-popover);
+  --popover-foreground: var(--night-foreground);
+  --secondary: var(--night-muted);
+  --secondary-foreground: var(--night-foreground);
+  --accent: var(--night-accent);
+  --accent-foreground: var(--night-foreground);
+  background: var(--ak-surface-canvas, #111315);
+}
+.workspace-rail-profile {
+  display: grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 0;
+  place-items: center;
+  background: transparent;
+  cursor: pointer;
+}
+.workspace-rail-profile__mark {
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid rgba(248, 248, 245, .28);
+  background: #fff;
+  object-fit: cover;
+}
+.workspace-rail-nav,
+.workspace-rail-foot { display: grid; gap: .15rem; padding: 0 .35rem .35rem; }
+.workspace-rail-item {
+  display: grid;
+  width: 100%;
+  min-height: 3.15rem;
+  padding: .4rem .15rem;
+  border: 0;
+  place-items: center;
+  gap: .2rem;
+  color: var(--muted-foreground);
+  background: transparent;
+  cursor: pointer;
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+  letter-spacing: var(--text-body--letter-spacing);
+}
+.workspace-rail-item span {
+  font-size: 10px;
+  line-height: 1.15;
+}
+.workspace-rail-item.is-current {
+  color: #111315;
+  background: var(--brand);
+}
+.workspace-rail-item:not(.is-current):hover,
+.workspace-rail-item:not(.is-current):focus-visible { color: var(--foreground); background: var(--overlay-hover); }
 .workspace-rail-item, .workspace-rail-control { --border-hairline: transparent; --selected-border: transparent; }
-.workspace-rail-active { color: #fff; background: linear-gradient(100deg, var(--night-accent) 0 84%, var(--tactical-acid) 84% 100%); }
-.workspace-rail-active :deep(svg) { color: var(--brand); }
-.workspace-rail-control { color: var(--muted-foreground); }
-.workspace-rail-control:hover, .workspace-rail-control:focus-visible { color: var(--foreground); }
-.workspace-rail-active::after { position: absolute; inset-block: 0; inset-inline-start: 0; width: .2rem; background: var(--tactical-acid); content: ''; }
 .user-menu-item { display: flex; width: 100%; align-items: center; gap: .65rem; border: 0; border-radius: 0; background: transparent; padding: .65rem .7rem; color: var(--foreground); font-size: var(--text-body); cursor: pointer; }
 .user-menu-item:hover:not(:disabled), .user-menu-item:focus-visible { background: var(--muted); outline: 0; }
 .user-menu-item:disabled { cursor: default; opacity: .55; }

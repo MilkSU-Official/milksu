@@ -23,6 +23,7 @@ import {
   LoaderCircle,
   Plus,
   Search,
+  X,
 } from 'lucide-vue-next'
 import CollectionPicker from '@/components-vue/CollectionPicker.vue'
 import CollectionViewFilter from '@/components-vue/CollectionViewFilter.vue'
@@ -103,9 +104,9 @@ watch(pageCount, count => { if (page.value > count) page.value = count })
 watch(
   () => filteredItems.value.map(item => item.id).join('|'),
   () => {
-    if (!filteredItems.value.length) return
+    if (!dashboard.selectedId.value) return
     if (!filteredItems.value.some(item => item.id === dashboard.selectedId.value)) {
-      dashboard.selectedId.value = filteredItems.value[0].id
+      dashboard.selectedId.value = ''
     }
   },
   { flush: 'sync' },
@@ -119,11 +120,15 @@ function relatedConversations(cveId: string) {
 }
 
 function selectItem(id: string) {
-  dashboard.selectedId.value = id
+  dashboard.selectedId.value = dashboard.selectedId.value === id ? '' : id
+}
+
+function clearSelection() {
+  dashboard.selectedId.value = ''
 }
 
 function startCoding(item: VulnerabilityIntel) {
-  selectItem(item.id)
+  dashboard.selectedId.value = item.id
   const task = dashboard.codingTaskForSelected.value
   if (!task) return
   emit('startCodingTask', task, workspacePath => {
@@ -142,11 +147,16 @@ function severityVariant(severity: VulnerabilitySeverity) {
   return severity === 'critical' ? 'destructive' : severity === 'high' ? 'warning' : 'info'
 }
 
-function statusVariant(status: VulnerabilityStatus) {
-  if (status === '已验证') return 'success'
-  if (status === '研究中') return 'info'
-  if (status === '待复现') return 'warning'
-  return 'secondary'
+function severityTag(severity: VulnerabilitySeverity) {
+  if (severity === 'critical' || severity === 'high') return 'ak-tag--danger'
+  if (severity === 'medium') return 'ak-tag--advanced'
+  return ''
+}
+
+function statusTag(status: VulnerabilityStatus) {
+  if (status === '研究中') return 'ak-tag--advanced'
+  if (status === '待复现') return 'ak-tag--danger'
+  return 'ak-tag--neutral'
 }
 
 function recentResearch(item: VulnerabilityIntel) {
@@ -402,19 +412,21 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
               <span class="block truncate text-body">{{ item.vendor }}</span>
               <span class="mt-0.5 block truncate text-caption text-muted-foreground">{{ item.product }}</span>
             </span>
-            <span><Badge :variant="severityVariant(item.severity)" font="mono">{{ item.cvss.toFixed(1) }}</Badge></span>
-            <span><Badge :variant="statusVariant(item.status)">{{ vulnerabilityStatusLabel(item.status) }}</Badge></span>
+            <span class="ak-tag ak-tag--compact" :class="severityTag(item.severity)">{{ item.cvss.toFixed(1) }}</span>
+            <span class="ak-tag ak-tag--compact" :class="statusTag(item.status)">{{ vulnerabilityStatusLabel(item.status) }}</span>
             <CollectionPicker :item-key="item.id" :store="cveCollections" @click.stop />
             <span class="text-caption text-muted-foreground">{{ recentResearch(item) }}</span>
           </button>
 
-          <div v-if="item.id === dashboard.selectedId.value" class="game-focus-panel tactical-acid-panel border-b px-6 py-5">
-            <div class="flex flex-wrap items-start justify-between gap-5">
+          <div v-if="item.id === dashboard.selectedId.value" class="game-focus-panel ak-notice ak-notice--warning tactical-acid-panel border-b px-0">
+            <span class="ak-notice__code">FOCUS<br />当前项</span>
+            <div class="ak-notice__body flex flex-wrap items-start justify-between gap-5">
               <div class="min-w-0 flex-1">
-                <p class="max-w-4xl text-body leading-6 text-muted-foreground">{{ item.summary }}</p>
+                <strong class="ak-notice__title">{{ item.id }}</strong>
+                <p class="ak-notice__message max-w-4xl">{{ item.summary }}</p>
                 <div class="mt-4 flex flex-wrap items-center gap-5 text-caption">
                   <span class="inline-flex items-center gap-2"><Link2 class="size-4" />公开来源 {{ item.references.length }}</span>
-                  <span class="inline-flex items-center gap-2 text-info"><Code2 class="size-4" />关联对话 {{ relatedConversations(item.id).length }}</span>
+                  <span class="inline-flex items-center gap-2 text-muted-foreground"><Code2 class="size-4" />关联对话 {{ relatedConversations(item.id).length }}</span>
                 </div>
                 <div v-if="item.references.length" class="mt-3 flex flex-wrap gap-2">
                   <Button
@@ -443,6 +455,9 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
                 </div>
               </div>
               <div class="flex shrink-0 items-end gap-3">
+                <Button variant="ghost" size="sm" @click.stop="clearSelection">
+                  <X class="size-4" />取消选中
+                </Button>
                 <label class="min-w-40 text-caption text-muted-foreground">我的状态
                   <NativeSelect
                     :model-value="item.status"
@@ -462,21 +477,20 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
                   <ArrowRight class="size-4" />
                 </Button>
               </div>
-            </div>
-
-            <div v-if="relatedConversations(item.id).length" class="mt-4 border border-border bg-background/40">
-              <p class="border-b border-border px-4 py-3 text-caption font-medium text-muted-foreground">关联的 Coding 对话</p>
-              <button
-                v-for="conversation in relatedConversations(item.id)"
-                :key="conversation.id"
-                type="button"
-                class="flex w-full items-center gap-3 border-b border-border px-4 py-3 text-left last:border-b-0 hover:bg-muted/30"
-                @click="emit('openCodingConversation', conversation.id)"
-              >
-                <Code2 class="size-4 text-muted-foreground" />
-                <span class="min-w-0 flex-1 truncate text-body">{{ conversation.title }}</span>
-                <span class="text-caption text-muted-foreground">{{ recentResearch(item) }}</span>
-              </button>
+              <div v-if="relatedConversations(item.id).length" class="mt-4 w-full border border-border bg-background/40">
+                <p class="border-b border-border px-4 py-3 text-caption font-medium text-muted-foreground">关联的 Coding 对话</p>
+                <button
+                  v-for="conversation in relatedConversations(item.id)"
+                  :key="conversation.id"
+                  type="button"
+                  class="flex w-full items-center gap-3 border-b border-border px-4 py-3 text-left last:border-b-0 hover:bg-muted/30"
+                  @click="emit('openCodingConversation', conversation.id)"
+                >
+                  <Code2 class="size-4 text-muted-foreground" />
+                  <span class="min-w-0 flex-1 truncate text-body">{{ conversation.title }}</span>
+                  <span class="text-caption text-muted-foreground">{{ recentResearch(item) }}</span>
+                </button>
+              </div>
             </div>
           </div>
         </template>
@@ -503,7 +517,7 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
 
 <style scoped>
 .vuln-row { position: relative; transition: background-color 140ms ease; }
-.vuln-row-selected { background: var(--focus-panel); box-shadow: inset 3px 0 0 var(--brand); }
+.vuln-row-selected { background: var(--focus-panel); box-shadow: inset 4px 0 0 var(--signal-gold); }
 .tactical-table-head { font-family: 'SFMono-Regular', monospace; letter-spacing: .08em; text-transform: uppercase; }
 .cve-search-dialog { max-height: min(760px, calc(100vh - 3rem)); overflow: hidden; }
 .cve-search-results { max-height: min(470px, calc(100vh - 17rem)); overflow: auto; }

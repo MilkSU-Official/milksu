@@ -315,7 +315,7 @@ onBeforeUnmount(() => stopUsageEvents?.())
     <div class="mx-auto w-full max-w-[1280px] px-6 py-7 lg:px-9">
       <header class="flex items-center justify-between gap-5 pb-5">
         <div class="flex items-center gap-3">
-          <UserRound class="size-6 text-info" />
+          <UserRound class="size-6 text-primary" />
           <h1 class="tactical-display text-4xl">个人资料</h1>
           <span class="inline-flex items-center gap-1.5 text-caption text-success"><LockKeyhole class="size-3.5" />仅自己可见</span>
         </div>
@@ -355,7 +355,7 @@ onBeforeUnmount(() => stopUsageEvents?.())
       <div class="mt-4 grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <section
           class="profile-command-panel tactical-command-surface min-w-0"
-          data-palette="graphite-acid"
+          data-palette="graphite-cyan"
           aria-labelledby="profile-panel-heading"
         >
           <div class="profile-tabs" role="tablist" aria-label="成长模块">

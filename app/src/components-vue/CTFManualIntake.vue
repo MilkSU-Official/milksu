@@ -142,7 +142,7 @@ defineExpose({ open, resetAndClose })
     <form class="flex max-h-[calc(100vh-3rem)] flex-col" @submit.prevent="submit">
       <header class="game-grid flex shrink-0 items-center justify-between border-b border-border px-6 py-4">
         <div class="flex items-center gap-3">
-          <span class="grid size-9 place-items-center bg-action-soft text-info">
+          <span class="grid size-9 place-items-center bg-action-soft text-primary">
             <FilePlus2 class="size-4" />
           </span>
           <div>

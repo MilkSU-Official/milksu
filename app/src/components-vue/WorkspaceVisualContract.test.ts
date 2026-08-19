@@ -19,6 +19,7 @@ const appStylesSource = readFileSync(new URL('../index.css', import.meta.url), '
 describe('Workspace visual contract', () => {
   it('uses compact inline expansion for CTF and CVE instead of separate dashboards', () => {
     expect(ctfChallengeDeskSource).toContain('game-focus-panel')
+    expect(ctfChallengeDeskSource).toContain('ak-notice')
     expect(ctfChallengeDeskSource).toContain('交给 Coding')
     expect(vulnPageSource).toContain('game-focus-panel')
     expect(vulnPageSource).toContain('关联的 Coding 对话')
@@ -50,6 +51,9 @@ describe('Workspace visual contract', () => {
     expect(chatComposerSource).toContain('line-height: var(--text-label--line-height)')
     expect(chatComposerSource).toContain('class="chat-composer__goal-panel"')
     expect(chatComposerSource).toContain('border-radius: 9999px;')
+    expect(chatComposerSource).toContain('background-color: var(--card)')
+    expect(chatComposerSource).toContain('color: var(--foreground)')
+    expect(chatComposerSource).not.toContain('background-color: #f3f4ef')
     expect(workspaceRailSource).toContain('font-size: var(--text-body)')
     expect(workspaceRailSource).toContain('line-height: var(--text-body--line-height)')
   })
@@ -62,7 +66,7 @@ describe('Workspace visual contract', () => {
     expect(loginPageSource).toContain('background: var(--primary)')
     expect(loginPageSource).toContain('mask-image: radial-gradient')
     expect(settingsPageSource).toContain('settings-nav-surface tactical-dark-surface')
-    expect(settingsPageSource).toContain('background-color: rgb(17 18 15 / .68)')
+    expect(settingsPageSource).toContain('background-color: var(--night-card)')
     expect(settingsPageSource).not.toContain('bg-[#101418]')
     expect(chatPageSource).toContain("import TacticalPanelShell from '@/components-vue/TacticalPanelShell.vue'")
     expect(chatPageSource).toContain('class="context-sidebar"')

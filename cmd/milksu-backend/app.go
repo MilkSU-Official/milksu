@@ -949,13 +949,9 @@ func (a *App) SendMessage(
 		strings.TrimSpace(executionMode) != "plan" &&
 		strings.TrimSpace(approvalPolicy) != "read-only" &&
 		a.browserBridge != nil {
-		if _, ensureErr := a.EnsureCodingBrowser(conversationID); ensureErr != nil {
-			a.diagnostics.Record(
-				"coding-browser",
-				"warning",
-				"auto-start isolated browser failed",
-			)
-		}
+		// Do not start Chromium on an ordinary Go send. The isolated browser
+		// starts when the user opens the rail or the model calls a typed
+		// milksu_workspace browser action. Reuse an already-running session.
 		if descriptor, enabled := a.browserBridge.CodingDescriptor(conversationID); enabled {
 			codingBrowser = &engine.CodingBrowserDescriptor{
 				SessionID:   descriptor.SessionID,
