@@ -120,6 +120,7 @@ function recoveryHint() {
       class="break-words text-control leading-7"
       :class="message.role === 'user' ? 'chat-bubble chat-bubble--user px-4 py-3' : 'chat-bubble chat-bubble--agent'"
     >
+      <span class="chat-bubble__who">{{ message.role === 'user' ? 'YOU' : 'MILKSU' }}</span>
       <div
         v-if="message.attachments?.length"
         class="mb-2 flex flex-wrap gap-2"

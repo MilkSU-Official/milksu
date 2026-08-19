@@ -1,0 +1,97 @@
+/*
+ * Optional ak-ui signal on existing Felinic surfaces.
+ * Framework, layout and Desktop RPC stay unchanged.
+ * Remove this import from index.css to return to the quiet shell.
+ */
+
+[data-button][data-variant='brand']::before,
+[data-button][data-variant='primary']::before,
+[data-button][data-variant='default']::before {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--tactical-acid) 70%, white),
+    0 10px 28px rgb(34 187 255 / .3),
+    0 0 22px rgb(34 187 255 / .2) !important;
+}
+
+[data-button][data-variant='brand']:hover,
+[data-button][data-variant='primary']:hover,
+[data-button][data-variant='default']:hover {
+  transform: translateY(-1px);
+}
+
+.workspace-rail-item.is-current {
+  box-shadow: 0 0 1.4rem color-mix(in srgb, var(--brand) 48%, transparent);
+}
+
+.workspace-topbar[data-workspace-module='ctf'] .workspace-topbar__title,
+.workspace-topbar[data-workspace-module='cve'] .workspace-topbar__title {
+  font-size: 1.65rem;
+  font-weight: 900;
+  letter-spacing: -0.05em;
+}
+
+.game-focus-panel.ak-notice {
+  box-shadow:
+    0 1.1rem 2.2rem rgb(0 0 0 / .34),
+    0 0 0 1px color-mix(in srgb, var(--signal-gold) 28%, transparent);
+}
+
+.ak-status__signal {
+  box-shadow: 0 0 0.9rem color-mix(in srgb, var(--ak-status-signal, var(--brand)) 80%, transparent);
+}
+
+.challenge-row-selected,
+.vuln-row-selected {
+  background: color-mix(in srgb, var(--signal-gold) 22%, var(--card));
+}
+
+.collection-tab.active,
+.settings-nav-item.active {
+  box-shadow: 0 10px 22px rgb(0 0 0 / .2);
+}
+
+.chat-bubble--user {
+  clip-path: polygon(0 0, calc(100% - 0.7rem) 0, 100% 0.7rem, 100% 100%, 0 100%);
+  box-shadow: 0 14px 32px rgb(5 167 220 / .22);
+}
+
+.chat-bubble--agent {
+  clip-path: polygon(0 0, calc(100% - 0.7rem) 0, 100% 0.7rem, 100% 100%, 0 100%);
+  color: #17191b;
+  background: rgba(243, 244, 239, 0.94);
+  box-shadow: 0 14px 32px rgb(0 0 0 / .24);
+  --foreground: #17191b;
+  --muted-foreground: #6d757a;
+  --card: #f3f4ef;
+  --border: #aba9a1;
+}
+
+.chat-bubble__who {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-family: 'SFMono-Regular', 'Cascadia Code', monospace;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  opacity: 0.62;
+}
+
+.chat-composer__island:focus-within {
+  box-shadow:
+    inset 4px 0 0 var(--brand),
+    0 0 0 1px color-mix(in srgb, var(--brand) 42%, transparent),
+    0 0 22px rgb(34 187 255 / .16);
+}
+
+.tool-activity__summary {
+  min-height: 2.35rem;
+  padding: 0.35rem 0.65rem;
+  border-left: 3px solid color-mix(in srgb, var(--brand) 70%, transparent);
+  background: color-mix(in srgb, var(--brand) 8%, transparent);
+}
+
+.settings-focus-row {
+  box-shadow:
+    inset 4px 0 0 var(--signal-gold),
+    0 12px 28px rgb(0 0 0 / .16);
+}

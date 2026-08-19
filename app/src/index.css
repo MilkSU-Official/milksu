@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "@felinic/ui/style.css";
 @import "./styles/ak-ui.css";
+@import "./styles/ak-ui-flourish.css";
 @source "../node_modules/@felinic/ui/src";
 @source ".";
 
