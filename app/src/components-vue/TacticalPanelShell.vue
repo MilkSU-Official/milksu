@@ -101,10 +101,9 @@ function startResize(event: PointerEvent) {
 .tactical-panel-shell::before {
   position: absolute;
   inset: 0 auto 0 0;
-  width: 2px;
-  background: linear-gradient(180deg, var(--tactical-acid), transparent 32%);
+  width: 1px;
+  background: color-mix(in srgb, var(--night-foreground) 14%, transparent);
   content: '';
-  opacity: .72;
   pointer-events: none;
 }
 
@@ -134,7 +133,7 @@ function startResize(event: PointerEvent) {
 
 .tactical-panel-shell__resize:hover::after,
 .tactical-panel-shell__resize:focus-visible::after {
-  background: var(--tactical-acid);
+  background: var(--brand);
   opacity: .55;
 }
 

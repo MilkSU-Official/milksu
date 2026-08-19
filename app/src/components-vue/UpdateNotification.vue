@@ -33,8 +33,8 @@ const firstNote = computed(() => String(props.status?.notes ?? '').split(/\r?\n/
     data-testid="update-notification"
     data-shell-traffic-safe="x"
   >
-    <ArrowDownToLine v-if="status.state === 'available'" class="size-4 shrink-0 text-info" />
-    <RefreshCw v-else-if="status.state === 'downloading'" class="size-4 shrink-0 animate-spin text-info" />
+    <ArrowDownToLine v-if="status.state === 'available'" class="size-4 shrink-0 text-primary" />
+    <RefreshCw v-else-if="status.state === 'downloading'" class="size-4 shrink-0 animate-spin text-primary" />
     <CheckCircle2 v-else-if="status.state === 'downloaded'" class="size-4 shrink-0 text-success" />
     <RotateCcw v-else class="size-4 shrink-0 text-warning" />
 

@@ -118,7 +118,7 @@ function recoveryHint() {
     <div
       v-else
       class="break-words text-control leading-7"
-      :class="message.role === 'user' ? 'rounded-xl bg-chat-user-bubble px-4 py-3 text-chat-user-bubble-fg' : ''"
+      :class="message.role === 'user' ? 'chat-bubble chat-bubble--user px-4 py-3' : 'chat-bubble chat-bubble--agent'"
     >
       <div
         v-if="message.attachments?.length"
@@ -161,3 +161,17 @@ function recoveryHint() {
     </div>
   </article>
 </template>
+
+<style scoped>
+.chat-bubble--agent {
+  width: min(42rem, 100%);
+  padding: 0.9rem 1rem;
+  color: #17191b;
+  background: rgba(243, 244, 239, 0.94);
+}
+
+.chat-bubble--user {
+  color: var(--chat-user-bubble-fg);
+  background: var(--chat-user-bubble);
+}
+</style>

@@ -81,8 +81,11 @@
   --action-foreground: #111315;
   --action-soft: rgb(34 187 255 / 0.16);
   --action-border: rgb(34 187 255 / 0.48);
-  --focus-panel: rgb(5 167 220 / 0.1);
-  --focus-panel-strong: rgb(5 167 220 / 0.18);
+  --signal-gold: #f1c644;
+  --signal-gold-soft: rgb(241 198 68 / 0.16);
+  --signal-gold-border: rgb(241 198 68 / 0.42);
+  --focus-panel: rgb(241 198 68 / 0.14);
+  --focus-panel-strong: rgb(241 198 68 / 0.22);
   --grid-line: rgb(164 169 159 / 0.065);
   --surface-raised: var(--night-popover);
   --surface-sunken: var(--night-sunken);
@@ -175,7 +178,7 @@
   --border-menu: #a8a8a2;
   --border-menu-elevated: #91938f;
   --input: #9da09e;
-  --ring: #6b8e12;
+  --ring: #05a7dc;
   --sidebar: var(--night-chrome);
   --sidebar-foreground: var(--night-foreground);
   --sidebar-border: var(--night-border);
@@ -203,8 +206,11 @@
   --action-foreground: #ffffff;
   --action-soft: rgb(22 141 255 / 0.09);
   --action-border: rgb(8 126 232 / 0.34);
-  --focus-panel: rgb(5 167 220 / 0.08);
-  --focus-panel-strong: rgb(5 167 220 / 0.14);
+  --signal-gold: #f1c644;
+  --signal-gold-soft: rgb(241 198 68 / 0.18);
+  --signal-gold-border: rgb(184 150 24 / 0.46);
+  --focus-panel: rgb(241 198 68 / 0.16);
+  --focus-panel-strong: rgb(241 198 68 / 0.24);
   --grid-line: rgb(47 111 167 / 0.065);
   --surface-raised: #f4f2eb;
   --surface-sunken: #deddd6;
@@ -249,7 +255,7 @@
   --terminal-background: #f8fbff;
   --terminal-foreground: #101c2b;
   --terminal-cursor: var(--brand);
-  --terminal-selection: rgb(125 219 0 / 0.24);
+  --terminal-selection: rgb(5 167 220 / 0.22);
 
   --surface-editor: var(--background);
   --surface-chrome: var(--background-chrome);
@@ -381,27 +387,31 @@ body {
 
 .game-focus-panel {
   position: relative;
-  border: 1px solid color-mix(in srgb, var(--brand) 48%, var(--border));
+  border: 1px solid rgba(17, 19, 21, 0.24);
   border-radius: 0;
-  background:
-    linear-gradient(90deg, var(--focus-panel-strong), transparent 58%),
-    var(--card);
-  box-shadow: inset 3px 0 0 var(--brand);
+  color: #171a1d;
+  background: rgba(243, 244, 239, 0.94);
+  box-shadow: none;
+  --foreground: #171a1d;
+  --muted-foreground: #6d757a;
+  --card: #f3f4ef;
+  --border: #aba9a1;
 }
 
-.game-focus-panel::before,
-.game-focus-panel::after {
+.game-focus-panel::before {
   position: absolute;
-  left: -1px;
-  width: 14px;
-  height: 14px;
-  border-left: 1px solid var(--brand);
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 0.35rem;
+  background: var(--signal-gold);
   content: '';
   pointer-events: none;
 }
 
-.game-focus-panel::before { top: -1px; border-top: 1px solid var(--brand); }
-.game-focus-panel::after { bottom: -1px; border-bottom: 1px solid var(--brand); }
+.game-focus-panel::after {
+  display: none;
+}
 
 .game-grid {
   background-image:
@@ -691,17 +701,21 @@ pre,
 }
 
 .tactical-acid-panel {
-  border: 1px solid color-mix(in srgb, var(--tactical-acid) 68%, #202700);
-  background: color-mix(in srgb, var(--tactical-acid) 11%, var(--tactical-ink));
-  box-shadow: inset 4px 0 0 var(--tactical-acid), 0 0 24px rgb(34 187 255 / .08);
-  color: var(--foreground);
+  border: 1px solid rgba(17, 19, 21, 0.24);
+  background: rgba(243, 244, 239, 0.94);
+  box-shadow: inset 4px 0 0 var(--signal-gold);
+  color: #171a1d;
+  --foreground: #171a1d;
+  --muted-foreground: #6d757a;
+  --card: #f3f4ef;
+  --border: #aba9a1;
 }
 
 :root[data-theme='light'] .tactical-paper .tactical-acid-panel,
 :root[data-theme='light'] .tactical-paper-surface .tactical-acid-panel {
-  border-color: #4aa8c9;
-  background: color-mix(in srgb, var(--tactical-acid) 16%, var(--tactical-paper));
-  box-shadow: inset 4px 0 0 #05a7dc;
+  border-color: rgba(17, 19, 21, 0.2);
+  background: #f3f4ef;
+  box-shadow: inset 4px 0 0 var(--signal-gold);
   color: var(--tactical-paper-ink);
 }
 
@@ -710,11 +724,16 @@ pre,
   transition: background-color 120ms ease, border-color 120ms ease, transform 120ms ease;
 }
 
-.tactical-row:hover { background: color-mix(in srgb, var(--primary) 4%, transparent); }
+.tactical-row:hover { background: color-mix(in srgb, var(--signal-gold) 6%, transparent); }
 .tactical-row[data-ui-selected],
 .tactical-row.is-selected {
-  border-left: 4px solid var(--tactical-acid);
-  background: color-mix(in srgb, var(--tactical-acid) 8%, var(--card));
+  border-left: 4px solid var(--signal-gold);
+  background: color-mix(in srgb, var(--signal-gold) 16%, var(--card));
+}
+
+.settings-focus-row {
+  background: color-mix(in srgb, var(--signal-gold) 14%, transparent);
+  box-shadow: inset 4px 0 0 var(--signal-gold);
 }
 
 .tactical-section-heading {

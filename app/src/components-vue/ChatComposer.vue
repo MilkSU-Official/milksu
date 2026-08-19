@@ -1929,7 +1929,7 @@ defineExpose({
   z-index: 30;
   width: min(24rem, calc(100vw - 2rem));
   border: 1px solid var(--border);
-  border-radius: 0.9rem;
+  border-radius: 2px;
   background: var(--card);
   padding: 0.75rem 0.85rem;
   box-shadow:
@@ -2001,12 +2001,18 @@ defineExpose({
 }
 
 .chat-composer__island {
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  background-color: var(--card);
+  border: 1px solid #aeb4b9;
+  border-left: 4px solid #0098dc;
+  border-radius: 2px;
+  background-color: #f3f4ef;
   padding: .65rem .85rem .75rem;
   box-shadow: none;
-  color: var(--foreground);
+  color: #111315;
+}
+
+.chat-composer__island .chat-composer__input,
+.chat-composer__island :deep(.chat-composer__chip) {
+  color: #111315;
 }
 
 .chat-composer__toolbar {

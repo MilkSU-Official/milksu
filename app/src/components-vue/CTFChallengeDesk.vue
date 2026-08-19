@@ -215,26 +215,33 @@ function openCoding() {
               <span class="truncate text-control font-medium">{{ problem.title }}</span>
               <Badge v-if="dailyProblemID === problem.platformId" variant="outline" class="ml-3">每日挑战</Badge>
             </span>
-            <span class="text-caption text-info">{{ problem.category }}</span>
+            <span class="text-caption text-muted-foreground">{{ problem.category }}</span>
             <span class="text-caption" :class="difficultyClass(problem.difficulty)">{{ difficultyLabel(problem.difficulty) }}</span>
             <span class="text-caption" :class="statusFor(problem.platformId) === 'in_progress' ? 'text-primary' : 'text-muted-foreground'">{{ statusLabel(statusFor(problem.platformId)) }}</span>
             <CollectionPicker :item-key="collectionKey(problem.platformId)" :store="collectionStore" @click.stop />
-            <span class="text-caption text-info">{{ selectedID === problem.platformId ? '已展开' : statusFor(problem.platformId) === 'in_progress' ? '继续' : '开始' }}</span>
+            <span class="text-caption text-muted-foreground">{{ selectedID === problem.platformId ? '已展开' : statusFor(problem.platformId) === 'in_progress' ? '继续' : '开始' }}</span>
           </button>
 
-          <div v-if="selectedID === problem.platformId && selectedNssctf" class="game-focus-panel border-b bg-card px-6 py-5">
-            <div class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+          <div v-if="selectedID === problem.platformId && selectedNssctf" class="game-focus-panel ak-notice ak-notice--warning border-b px-0">
+            <span class="ak-notice__code">FOCUS<br />当前题</span>
+            <div class="ak-notice__body grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
               <div class="min-w-0">
+                <strong class="ak-notice__title">{{ selectedNssctf.title }}</strong>
                 <p class="text-caption font-medium text-muted-foreground">题目描述</p>
                 <p v-if="dailyProblemID === problem.platformId && dailyReason" class="mt-2 border-l-2 border-primary pl-3 text-caption leading-5 text-foreground">
                   今日推荐：{{ dailyReason }}
                 </p>
                 <MarkdownContent class="mt-2 max-h-32 overflow-y-auto text-body leading-6" :content="selectedNssctf.statement" />
+                <span class="ak-status mt-4">
+                  <span class="ak-status__signal" />
+                  <span class="ak-status__label">{{ selectedNssctf.category }}</span>
+                  <span class="ak-status__detail">{{ difficultyLabel(selectedNssctf.difficulty) }} · {{ statusLabel(statusFor(problem.platformId)) }}</span>
+                </span>
                 <div class="mt-4 flex flex-wrap items-center gap-5 text-caption">
                   <button v-if="selectedNssctf.hasAttachment || localMaterials.length" class="inline-flex items-center gap-2 text-foreground" @click.stop="emit('chooseLocalMaterials')">
                     <Paperclip class="size-4" />附件 {{ localMaterials.length || 1 }}
                   </button>
-                  <span class="inline-flex items-center gap-2 text-info"><MessagesSquare class="size-4" />关联对话 {{ relatedConversations.length }}</span>
+                  <span class="inline-flex items-center gap-2 text-muted-foreground"><MessagesSquare class="size-4" />关联对话 {{ relatedConversations.length }}</span>
                   <button class="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground" @click.stop="emit('openProblem')">
                     <ExternalLink class="size-4" />打开题目
                   </button>
@@ -276,17 +283,19 @@ function openCoding() {
           >
             <span class="font-mono text-caption text-muted-foreground">#{{ problem.platformId }}</span>
             <span class="truncate text-control font-medium">{{ problem.title }}</span>
-            <span class="text-caption text-info">{{ problem.category }}</span>
+            <span class="text-caption text-muted-foreground">{{ problem.category }}</span>
             <span class="text-caption text-primary">{{ problem.points }} 分</span>
             <span class="text-caption text-muted-foreground">{{ statusLabel(statusFor(problem.platformId)) }}</span>
             <CollectionPicker :item-key="collectionKey(problem.platformId)" :store="collectionStore" @click.stop />
-            <span class="text-caption text-info">{{ selectedID === problem.platformId ? '已展开' : '开始' }}</span>
+            <span class="text-caption text-muted-foreground">{{ selectedID === problem.platformId ? '已展开' : '开始' }}</span>
           </button>
-          <div v-if="selectedID === problem.platformId && selectedCtfshow" class="game-focus-panel border-b bg-card px-6 py-5">
-            <div class="flex flex-wrap items-end justify-between gap-5">
+          <div v-if="selectedID === problem.platformId && selectedCtfshow" class="game-focus-panel ak-notice ak-notice--warning border-b px-0">
+            <span class="ak-notice__code">FOCUS<br />当前题</span>
+            <div class="ak-notice__body flex flex-wrap items-end justify-between gap-5">
               <div>
-                <p class="text-body">从已连接的 CTFshow 页面读取题面和附件，再交给同一个 Coding Agent。</p>
-                <p class="mt-3 inline-flex items-center gap-2 text-caption text-info"><MessagesSquare class="size-4" />关联对话 {{ relatedConversations.length }}</p>
+                <strong class="ak-notice__title">{{ selectedCtfshow.title }}</strong>
+                <p class="ak-notice__message">从已连接的 CTFshow 页面读取题面和附件，再交给同一个 Coding Agent。</p>
+                <p class="mt-3 inline-flex items-center gap-2 text-caption text-muted-foreground"><MessagesSquare class="size-4" />关联对话 {{ relatedConversations.length }}</p>
               </div>
               <div class="flex items-end gap-3">
                 <NativeSelect :model-value="statusFor(problem.platformId)" size="sm" class="w-36" @change="handleStatusChange(problem.platformId, $event)">
@@ -353,5 +362,5 @@ function openCoding() {
 
 <style scoped>
 .challenge-row { position: relative; transition: background-color 140ms ease; }
-.challenge-row-selected { background: var(--focus-panel); box-shadow: inset 3px 0 0 var(--brand); }
+.challenge-row-selected { background: var(--focus-panel); box-shadow: inset 4px 0 0 var(--signal-gold); }
 </style>

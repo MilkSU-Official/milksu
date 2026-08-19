@@ -2,19 +2,18 @@
 
 关联：[#15](https://github.com/MilkSU-Official/milksu/issues/15) · [PR 18](https://github.com/MilkSU-Official/milksu/pull/18)
 
-研究预览和截图只说明层级、色和栏宽。真产品按钮、菜单、审批、浏览器、终端、筛选会多得多。按场景用 ak-ui 组件，不要临摹研究页。
+研究预览已删除。生产页按这个层级换视觉，不要再恢复预览页。
+
+## 层级
+
+- **视觉**：ak-ui 0.2.1 的 token 和场景 CSS。材质是石墨指挥面、纸面事实、青、金。酸绿不进产品。
+- **行为**：Felinic Vue 组件留下（按钮、输入、对话框、下拉、HoverCard、设置行）。换视觉，不是换组件运行时。
 
 ## 约定
 
-- 材质用 ak-ui：石墨指挥面、纸面事实、青、金。酸绿不进产品。
+- 青 = 当前模块 / 主操作。金 = 次级强调 / 当前焦点条。成功绿只表示成功。
 - 美学校准用谷歌 Material 的读法，不搬 Material 组件：层级先于装饰；颜色是关系；一屏一个焦点。
-- 青 = 当前模块 / 主操作。金 = 次级强调。成功绿只表示成功。
-- 一级模块轨 `4.75rem` 图标栏。Coding 会话列表贴在同一条导航上，不并排两块指挥台。
+- 一级模块轨 `4.75rem` 图标栏。Coding 会话列表贴在同一条导航上。
 - 不用纸纹、碳纹、官方 Showcase 的角色图 / 理智条 / 3D 菜单。
 - 功能、Desktop RPC、Judge、授权、Pi 工具循环不因换皮改语义。
-
-## 本 PR
-
-生产壳先改：去酸绿、去纹理、窄轨、顶栏收平。CSS 钉在 `app/src/styles/`，不进 `app/package.json`。不拆光 Felinic，不发版。
-
-下一步：CTF 题库内部（选中题 + 交给 Coding），再 Coding Composer，再设置。
+- CSS 钉在 `app/src/styles/`，不进 `app/package.json`。

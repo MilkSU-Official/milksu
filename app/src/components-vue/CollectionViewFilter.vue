@@ -125,8 +125,8 @@ function selectCollection(id: string) {
 .collection-tabs::-webkit-scrollbar { display: none; }
 .collection-tab { position: relative; display: inline-flex; height: 2.65rem; flex: none; align-items: center; gap: .45rem; border: 0; border-right: 1px solid var(--border); background: transparent; padding: 0 1rem; color: var(--muted-foreground); font-size: var(--text-body); cursor: pointer; }
 .collection-tab:hover { color: var(--foreground); background: var(--overlay-hover-light); }
-.collection-tab.active { color: var(--brand); background: var(--focus-panel); }
-.collection-tab.active::after { position: absolute; inset-inline: .75rem; bottom: 0; height: 2px; background: var(--brand); box-shadow: 0 0 12px color-mix(in srgb, var(--brand) 50%, transparent); content: ''; }
+.collection-tab.active { color: #111315; background: #f3f4ef; }
+.collection-tab.active::after { position: absolute; inset-inline: 0; bottom: 0; height: 0.25rem; background: var(--brand); content: ''; }
 .collection-tab-manage { border-right: 0; color: var(--foreground); }
 .tab-count { min-width: 1.2rem; border-radius: 999px; background: var(--muted); padding: .05rem .35rem; color: var(--muted-foreground); font-family: monospace; font-size: .68rem; text-align: center; }
 </style>

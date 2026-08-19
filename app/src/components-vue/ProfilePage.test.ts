@@ -114,7 +114,7 @@ describe('ProfilePage', () => {
     expect(host.textContent).toContain('Coding 活动与用量')
     expect(host.textContent).toContain('1,500 Token')
     expect(host.textContent).toContain('exec_command')
-    expect(host.querySelector<HTMLElement>('.profile-command-panel')?.dataset.palette).toBe('graphite-acid')
+    expect(host.querySelector<HTMLElement>('.profile-command-panel')?.dataset.palette).toBe('graphite-cyan')
 
     const ctfTab = host.querySelector<HTMLButtonElement>('#profile-tab-ctf')
     ctfTab?.click()

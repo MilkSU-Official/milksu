@@ -1208,12 +1208,14 @@ async function saveProviderEditor(closeAfterSave: boolean) {
           </SettingsSection>
 
           <SettingsSection title="应用" class="mt-6">
-            <SettingsRow label="界面语言" description="默认简体中文">
-              <NativeSelect v-model="working.locale" size="sm" aria-label="界面语言">
-                <NativeSelectOption value="zh">简体中文</NativeSelectOption>
-                <NativeSelectOption value="en">English</NativeSelectOption>
-              </NativeSelect>
-            </SettingsRow>
+            <div class="settings-focus-row px-3">
+              <SettingsRow label="界面语言" description="默认简体中文">
+                <NativeSelect v-model="working.locale" size="sm" aria-label="界面语言">
+                  <NativeSelectOption value="zh">简体中文</NativeSelectOption>
+                  <NativeSelectOption value="en">English</NativeSelectOption>
+                </NativeSelect>
+              </SettingsRow>
+            </div>
           </SettingsSection>
           <SettingsSection title="产物" class="mt-6">
             <SettingsRow
@@ -1579,7 +1581,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
         </template>
 
         <template v-else-if="working && category === 'apikeys'">
-          <section class="model-default-row flex items-start gap-8">
+          <section class="model-default-row settings-focus-row flex items-start gap-8 px-3">
             <label for="default-model" class="w-24 shrink-0 text-body font-medium">默认模型</label>
             <div>
               <Select
@@ -1929,11 +1931,11 @@ async function saveProviderEditor(closeAfterSave: boolean) {
 </template>
 
 <style scoped>
-.settings-nav-surface { border-color: color-mix(in srgb, var(--border-hairline) 72%, transparent); background-color: rgb(17 18 15 / .68); box-shadow: inset -1px 0 0 rgb(255 255 255 / .025); }
+.settings-nav-surface { border-color: color-mix(in srgb, var(--border-hairline) 72%, transparent); background-color: var(--night-card); box-shadow: inset -1px 0 0 rgb(255 255 255 / .025); }
 .settings-nav-item { position: relative; display: flex; min-height: 3rem; width: 100%; align-items: center; border: 0; background: transparent; padding: 0 1rem; color: var(--muted-foreground); text-align: left; cursor: pointer; }
 .settings-nav-item:hover { color: var(--foreground); background: var(--overlay-hover-light); }
-.settings-nav-item.active { color: var(--brand); background: var(--focus-panel); }
-.settings-nav-item.active::before { position: absolute; inset-block: .55rem; left: 0; width: 3px; background: var(--brand); box-shadow: 0 0 12px color-mix(in srgb, var(--brand) 45%, transparent); content: ''; }
+.settings-nav-item.active { color: #111315; background: #f3f4ef; }
+.settings-nav-item.active::before { position: absolute; inset-inline: 0; bottom: 0; height: 0.25rem; background: var(--brand); content: ''; }
 .settings-page :deep([data-slot="settings-section"]),
 .settings-page :deep(.rounded-menu-shell) { border-radius: .45rem; }
 .model-default-row { min-height: 3.25rem; }

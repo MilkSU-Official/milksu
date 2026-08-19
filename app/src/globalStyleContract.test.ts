@@ -58,12 +58,14 @@ describe('global style contract', () => {
     expect(indexCss).toContain('--card: #f4f2eb')
     expect(indexCss).toContain('.tactical-desk-head {')
     expect(indexCss).toContain(":root[data-theme='light'] .tactical-paper .tactical-acid-panel")
+    expect(indexCss).toContain('box-shadow: inset 4px 0 0 var(--signal-gold)')
     expect(indexCss).not.toContain('\n.tactical-paper .tactical-acid-panel,\n.tactical-paper-surface .tactical-acid-panel')
   })
 
   it('uses the ak-ui cyan action color instead of acid green or the old SaaS blue', () => {
     expect(indexCss).toContain('--brand: #05a7dc')
     expect(indexCss).toContain('--tactical-acid: #22bbff')
+    expect(indexCss).toContain('--signal-gold: #f1c644')
     expect(indexCss).toContain('background-color: var(--tactical-acid) !important')
     expect(indexCss).not.toContain('#9fef00')
     expect(indexCss).not.toContain('#b7ef28')

@@ -70,7 +70,7 @@ const loginSignalCells = Array.from({ length: 19 * 15 }, (_, index) => {
         </Button>
 
         <div class="mt-9 space-y-4 text-sm text-muted-foreground">
-          <p class="flex items-center gap-3"><Globe2 class="size-4 text-info" />将在系统浏览器中完成登录</p>
+          <p class="flex items-center gap-3"><Globe2 class="size-4 text-primary" />将在系统浏览器中完成登录</p>
           <p class="flex items-center gap-3"><ShieldCheck class="size-4 text-primary" />MilkSU 不保存你的 GitHub 密码</p>
         </div>
 
