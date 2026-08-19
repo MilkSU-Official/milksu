@@ -166,8 +166,8 @@ function recoveryHint() {
 .chat-bubble--agent {
   width: min(42rem, 100%);
   padding: 0.9rem 1rem;
-  color: #17191b;
-  background: rgba(243, 244, 239, 0.94);
+  color: var(--foreground);
+  background: var(--card);
 }
 
 .chat-bubble--user {

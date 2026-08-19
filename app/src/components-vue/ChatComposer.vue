@@ -2001,18 +2001,13 @@ defineExpose({
 }
 
 .chat-composer__island {
-  border: 1px solid #aeb4b9;
-  border-left: 4px solid #0098dc;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--brand);
   border-radius: 2px;
-  background-color: #f3f4ef;
+  background-color: var(--card);
   padding: .65rem .85rem .75rem;
   box-shadow: none;
-  color: #111315;
-}
-
-.chat-composer__island .chat-composer__input,
-.chat-composer__island :deep(.chat-composer__chip) {
-  color: #111315;
+  color: var(--foreground);
 }
 
 .chat-composer__toolbar {
