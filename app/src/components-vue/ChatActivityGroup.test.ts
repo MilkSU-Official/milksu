@@ -50,6 +50,7 @@ describe('ChatActivityGroup', () => {
 
     const group = host.querySelector<HTMLDetailsElement>('.tool-activity')
     expect(group?.open).toBe(false)
+    expect(host.querySelector('.ak-loading')).not.toBeNull()
     group?.querySelector('summary')?.click()
     await nextTick()
     expect(group?.open).toBe(true)

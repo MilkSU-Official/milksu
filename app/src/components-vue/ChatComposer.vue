@@ -50,6 +50,7 @@ import {
   Wrench,
   X,
 } from 'lucide-vue-next'
+import AkLoadingMark from '@/components-vue/AkLoadingMark.vue'
 import CodingComposerControls from '@/components-vue/CodingComposerControls.vue'
 import ContextUsageMeter from '@/components-vue/ContextUsageMeter.vue'
 import { invokeCommand } from '@/desktop'
@@ -1379,7 +1380,7 @@ defineExpose({
             data-testid="composer-run-elapsed"
             :title="running ? '本轮模型已运行' : '上次运行时长'"
           >
-            <LoaderCircle v-if="running" class="size-3 animate-spin" />
+            <AkLoadingMark v-if="running" label="本轮模型已运行" />
             <Clock3 v-else class="size-3" />
             {{ runElapsedLabel }}
           </span>
@@ -1644,10 +1645,9 @@ defineExpose({
                 class="chat-composer__progress-pill"
                 aria-label="任务进度摘要"
               >
-                <LoaderCircle
+                <AkLoadingMark
                   v-if="goal?.status === 'active'"
-                  class="size-3.5 shrink-0 text-primary"
-                  :class="{ 'animate-spin': running }"
+                  label="目标进行中"
                 />
                 <span v-if="goal?.iteration">第 {{ goal.iteration }} 轮</span>
                 <span v-if="goal?.iteration && showGitSummary" aria-hidden="true">·</span>
@@ -1742,8 +1742,8 @@ defineExpose({
       <p v-if="attachmentError" class="px-2 pt-1.5 text-caption text-destructive">
         {{ attachmentError }}
       </p>
-      <p v-else-if="attachmentImporting" class="px-2 pt-1.5 text-caption text-muted-foreground">
-        正在加入附件…
+      <p v-else-if="attachmentImporting" class="chat-model-loading px-2 pt-1.5">
+        <AkLoadingMark label="正在加入附件" show-label />
       </p>
     </div>
     <dialog
@@ -1767,8 +1767,8 @@ defineExpose({
           </Button>
         </header>
         <div class="min-h-0 flex-1 overflow-auto p-5">
-          <div v-if="attachmentPreviewLoading" class="grid min-h-48 place-items-center text-muted-foreground">
-            <LoaderCircle class="size-5 animate-spin" />
+          <div v-if="attachmentPreviewLoading" class="grid min-h-48 place-items-center">
+            <AkLoadingMark label="正在加载预览" show-label />
           </div>
           <img
             v-else-if="attachmentPreview?.kind === 'image' && attachmentPreview.dataUrl"

@@ -25,9 +25,8 @@ GitHub 登录、邀请制访问和用户级模型凭据管理；让 MilkSU 客�
 
 - 已实现并测试：个人资料、轻量 CTF/CVE、共享 Coding 上下文、真实 CTF Daily、公共数据驱动的
   CVE 学习专题、独立 Admin、用户级 TokenFlux Key 分配与客户端静默同步。
-- Desktop 与 Admin 已按[游戏化界面系统](../design/milksu-game-ui-system.md)完成全局迁移；共享布局、
-  列表、焦点面、表单、弹层、日夜主题和圆形头像使用同一套层级与状态语义。真实运行截图已纳入视觉
-  规范的“实际界面验收”章节。
+- Desktop 生产视觉已改为 ak-ui（石墨 / 纸面 / 青 / 金），Felinic 留下。旧「战术档案 / 酸绿」界面
+  系统已删除，不再作为实现或验收约束；当前约定见 [当前视觉约定](../design/current-visual.md)。
 - CTF/CVE 交给 Coding 时，输入框只显示一句可读的接力任务；完整结构化提示在发送时才交给 Agent，
   并绑定当前对话，避免内部工作区路径、Scope 编排和长提示直接暴露或跨任务串用。
 - 最终功能提交 `main@cfc9a102408b8e2017f339ddce08f246b6b67c02` 已由 workflow `31676876645`
@@ -66,16 +65,10 @@ GitHub 登录、邀请和模型来源已经接入；登录用户可以使用 Adm
 
 ## 已确认界面
 
-这些图片是视觉决策来源；完成度与验收以当前代码、测试和真实运行 App 为准：
+Desktop 视觉以 [当前视觉约定](../design/current-visual.md) 和当前生产页为准。旧战术档案稿、
+酸绿带和 `design-qa.md` 已删除，不得再作为新设计、实现或验收的参考。
 
-### 全局游戏化界面系统
-
-Desktop 与独立 Admin 的全部页面统一采用
-[MilkSU 游戏化界面系统](../design/milksu-game-ui-system.md)。Coding 任务、CTF/CVE 数据列表、个人页、
-设置页和 Admin 深浅色实际界面共同构成当前视觉契约。当前代码、共享界面系统以及真实运行验收图
-是视觉判断依据；迁移前的六张独立定稿图已经退役并删除，不得再作为新设计、实现或验收的参考。
-
-实现后的 Admin 视觉对照、凭据分配和 Cloudflare 版本截图保存在独立私有仓库
+Admin 视觉对照、凭据分配和 Cloudflare 版本截图保存在独立私有仓库
 `MilkSU-Official/milksu-admin` 的 `docs/evidence/`，不复制进对内测用户开放的桌面仓库。
 
 ## 验收记录

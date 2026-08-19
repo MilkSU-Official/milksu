@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ExternalLink,
+  X,
   LoaderCircle,
   MessagesSquare,
   Paperclip,
@@ -92,6 +93,7 @@ const emit = defineEmits<{
   startNssctf: []
   chooseLocalMaterials: []
   startCtfshow: [id: number]
+  clearSelection: []
   openProblem: []
   openCtfshow: []
   syncNssctf: []
@@ -171,6 +173,10 @@ function difficultyTag(value: number) {
 }
 
 function select(id: number) {
+  if (selectedID.value === id) {
+    emit('clearSelection')
+    return
+  }
   if (props.activeBank === 'nssctf') emit('selectNssctf', id)
   else emit('selectCtfshow', id)
 }
@@ -253,6 +259,9 @@ function openCoding() {
                 </div>
               </div>
               <div class="flex items-end justify-end gap-3">
+                <Button variant="ghost" size="sm" @click.stop="emit('clearSelection')">
+                  <X class="size-4" />取消选中
+                </Button>
                 <Button v-if="dailyProblemID === problem.platformId" variant="outline" size="sm" @click.stop="emit('changeDaily')">
                   换一道
                 </Button>
@@ -298,6 +307,9 @@ function openCoding() {
                 <p class="mt-3 inline-flex items-center gap-2 text-caption text-muted-foreground"><MessagesSquare class="size-4" />关联对话 {{ relatedConversations.length }}</p>
               </div>
               <div class="flex items-end gap-3">
+                <Button variant="ghost" size="sm" @click.stop="emit('clearSelection')">
+                  <X class="size-4" />取消选中
+                </Button>
                 <NativeSelect :model-value="statusFor(problem.platformId)" size="sm" class="w-36" @change="handleStatusChange(problem.platformId, $event)">
                   <NativeSelectOption value="not_started">未开始</NativeSelectOption>
                   <NativeSelectOption value="in_progress">进行中</NativeSelectOption>

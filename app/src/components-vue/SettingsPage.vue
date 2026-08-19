@@ -1148,18 +1148,23 @@ async function saveProviderEditor(closeAfterSave: boolean) {
 
     <div class="settings-layout flex min-h-0 flex-1">
       <nav class="settings-nav settings-nav-surface tactical-dark-surface app-no-drag w-56 shrink-0 border-r px-3 py-5" aria-label="设置分类">
-        <button
-          v-for="item in settingsCategories"
-          :key="item.value"
-          type="button"
-          class="settings-nav-item"
-          :class="category === item.value ? 'active' : ''"
-          :aria-current="category === item.value ? 'page' : undefined"
-          @click="category = item.value"
-        >
-          <component :is="item.icon" class="mr-3 size-4 shrink-0" />
-          <span>{{ item.label }}</span>
-        </button>
+        <div class="ak-tabs settings-ak-tabs">
+          <div class="ak-tabs__list">
+            <button
+              v-for="item in settingsCategories"
+              :key="item.value"
+              type="button"
+              class="ak-tabs__tab settings-nav-item"
+              :class="category === item.value ? 'active' : ''"
+              :aria-selected="category === item.value"
+              :aria-current="category === item.value ? 'page' : undefined"
+              @click="category = item.value"
+            >
+              <component :is="item.icon" class="mr-3 size-4 shrink-0" />
+              <span>{{ item.label }}</span>
+            </button>
+          </div>
+        </div>
       </nav>
 
       <div class="min-h-0 min-w-0 flex-1 overflow-y-auto px-6 py-8">
@@ -1581,9 +1586,16 @@ async function saveProviderEditor(closeAfterSave: boolean) {
         </template>
 
         <template v-else-if="working && category === 'apikeys'">
-          <section class="model-default-row settings-focus-row flex items-start gap-8 px-3">
-            <label for="default-model" class="w-24 shrink-0 text-body font-medium">默认模型</label>
-            <div>
+          <SettingsSection title="调用">
+            <div class="settings-focus-row">
+              <SettingsRow
+                label="默认模型"
+                :description="availableModelCount === 0
+                  ? '没有可用模型；请先连接账户或配置个人 API Key。'
+                  : !defaultModelAvailable
+                    ? '当前默认模型不可用，请选择一个已配置来源的模型。'
+                    : '设置页与 Coding 共用同一可调用目录。'"
+              >
               <Select
                 id="default-model"
                 v-model="defaultModelKey"
@@ -1591,7 +1603,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                 <SelectTrigger
                   id="default-model"
                   size="sm"
-                  class="min-w-72"
+                  class="w-72 max-w-full"
                   aria-label="默认模型"
                 >
                   <SelectValue>
@@ -1642,14 +1654,9 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                   </template>
                 </SelectContent>
               </Select>
-              <p v-if="availableModelCount === 0" class="mt-1 text-caption text-muted-foreground">
-                没有可用模型；请先连接账户或配置个人 API Key。
-              </p>
-              <p v-else-if="!defaultModelAvailable" class="mt-1 text-caption text-warning">
-                当前默认模型不可用，请选择一个已配置来源的模型。
-              </p>
+              </SettingsRow>
             </div>
-          </section>
+          </SettingsSection>
 
           <section class="mt-8">
             <div class="flex items-center justify-between gap-4">
@@ -1932,13 +1939,15 @@ async function saveProviderEditor(closeAfterSave: boolean) {
 
 <style scoped>
 .settings-nav-surface { border-color: color-mix(in srgb, var(--border-hairline) 72%, transparent); background-color: var(--night-card); box-shadow: inset -1px 0 0 rgb(255 255 255 / .025); }
-.settings-nav-item { position: relative; display: flex; min-height: 3rem; width: 100%; align-items: center; border: 0; background: transparent; padding: 0 1rem; color: var(--muted-foreground); text-align: left; cursor: pointer; }
+.settings-ak-tabs { width: 100%; border: 0; background: transparent; }
+.settings-ak-tabs .ak-tabs__list { display: grid; grid-auto-flow: row; border-bottom: 0; }
+.settings-ak-tabs .ak-tabs__tab + .ak-tabs__tab { border-left: 0; border-top: 1px solid rgba(243, 244, 239, 0.12); }
+.settings-nav-item { position: relative; display: flex; min-height: 3rem; width: 100%; align-items: center; justify-content: flex-start; border: 0; background: transparent; padding: 0 1rem; color: var(--muted-foreground); text-align: left; cursor: pointer; text-transform: none; letter-spacing: 0.02em; }
 .settings-nav-item:hover { color: var(--foreground); background: var(--overlay-hover-light); }
-.settings-nav-item.active { color: #111315; background: #f3f4ef; }
-.settings-nav-item.active::before { position: absolute; inset-inline: 0; bottom: 0; height: 0.25rem; background: var(--brand); content: ''; }
+.settings-nav-item.active,
+.settings-ak-tabs .ak-tabs__tab[aria-selected='true'] { color: #111315; background: #f3f4ef; }
 .settings-page :deep([data-slot="settings-section"]),
 .settings-page :deep(.rounded-menu-shell) { border-radius: .45rem; }
-.model-default-row { min-height: 3.25rem; }
 .model-service-row { transition: background-color 120ms ease, border-color 120ms ease; }
 .model-service-row:hover { background: var(--overlay-hover-light); }
 .model-service-row-primary { box-shadow: inset 3px 0 0 var(--brand); }

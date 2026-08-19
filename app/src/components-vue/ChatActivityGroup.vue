@@ -4,11 +4,11 @@ import {
   ChevronDown,
   FilePenLine,
   Image,
-  LoaderCircle,
   Search,
   Terminal,
   Wrench,
 } from 'lucide-vue-next'
+import AkLoadingMark from '@/components-vue/AkLoadingMark.vue'
 import {
   buildChatActivityEntries,
   chatActivityEntrySummary,
@@ -92,7 +92,7 @@ function durationLabel(durationMs?: number) {
       <component :is="summaryIcon" class="size-4 shrink-0 text-muted-foreground" />
       <span class="min-w-0 truncate">{{ summary }}</span>
       <span v-if="activity.running" class="ak-tag ak-tag--compact">RUN</span>
-      <LoaderCircle v-if="activity.running" class="size-3.5 shrink-0 animate-spin text-muted-foreground" />
+      <AkLoadingMark v-if="activity.running" label="工具进行中" />
       <ChevronDown class="tool-activity__chevron size-4 shrink-0 text-muted-foreground" />
     </summary>
 
@@ -115,9 +115,9 @@ function durationLabel(durationMs?: number) {
           >
             {{ durationLabel(entry.durationMs) }}
           </span>
-          <LoaderCircle
+          <AkLoadingMark
             v-if="entry.running"
-            class="size-3.5 shrink-0 animate-spin text-muted-foreground"
+            label="工具进行中"
           />
           <ChevronDown class="tool-activity-entry__chevron size-3.5 shrink-0 text-muted-foreground" />
         </summary>

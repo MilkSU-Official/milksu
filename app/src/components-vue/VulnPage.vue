@@ -23,6 +23,7 @@ import {
   LoaderCircle,
   Plus,
   Search,
+  X,
 } from 'lucide-vue-next'
 import CollectionPicker from '@/components-vue/CollectionPicker.vue'
 import CollectionViewFilter from '@/components-vue/CollectionViewFilter.vue'
@@ -103,9 +104,9 @@ watch(pageCount, count => { if (page.value > count) page.value = count })
 watch(
   () => filteredItems.value.map(item => item.id).join('|'),
   () => {
-    if (!filteredItems.value.length) return
+    if (!dashboard.selectedId.value) return
     if (!filteredItems.value.some(item => item.id === dashboard.selectedId.value)) {
-      dashboard.selectedId.value = filteredItems.value[0].id
+      dashboard.selectedId.value = ''
     }
   },
   { flush: 'sync' },
@@ -119,11 +120,15 @@ function relatedConversations(cveId: string) {
 }
 
 function selectItem(id: string) {
-  dashboard.selectedId.value = id
+  dashboard.selectedId.value = dashboard.selectedId.value === id ? '' : id
+}
+
+function clearSelection() {
+  dashboard.selectedId.value = ''
 }
 
 function startCoding(item: VulnerabilityIntel) {
-  selectItem(item.id)
+  dashboard.selectedId.value = item.id
   const task = dashboard.codingTaskForSelected.value
   if (!task) return
   emit('startCodingTask', task, workspacePath => {
@@ -450,6 +455,9 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
                 </div>
               </div>
               <div class="flex shrink-0 items-end gap-3">
+                <Button variant="ghost" size="sm" @click.stop="clearSelection">
+                  <X class="size-4" />取消选中
+                </Button>
                 <label class="min-w-40 text-caption text-muted-foreground">我的状态
                   <NativeSelect
                     :model-value="item.status"

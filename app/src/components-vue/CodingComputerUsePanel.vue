@@ -160,15 +160,6 @@ const connectionLabel = computed(() => {
   if (!effectiveTarget.value) return '待选择窗口'
   return '可启动'
 })
-const connectionVariant = computed(() => {
-  if (readyForCurrentTask.value) return 'secondary'
-  if (attachedToOtherTask.value) return 'outline'
-  if (!props.status?.available) return 'outline'
-  if (!permissionsReady.value) return 'outline'
-  if (!effectiveTarget.value) return 'outline'
-  return 'info'
-})
-
 function executionModeLabel(mode: CodingExecutionMode) {
   return mode === 'plan' ? 'Plan' : 'Go'
 }
@@ -336,9 +327,18 @@ function runPrimarySetupAction() {
           为当前任务锁定一个可见窗口。
         </p>
       </div>
-      <Badge :variant="connectionVariant" class="shrink-0">
-        {{ connectionLabel }}
-      </Badge>
+      <span
+        class="ak-status ak-status--compact shrink-0"
+        :class="readyForCurrentTask
+          ? ''
+          : attachedToOtherTask || !status?.available
+            ? 'ak-status--offline'
+            : 'ak-status--warning'"
+      >
+        <span class="ak-status__signal" />
+        <span class="ak-status__label">SCOPE</span>
+        <span class="ak-status__detail">{{ connectionLabel }}</span>
+      </span>
     </div>
 
     <div class="mt-4 rounded-xl border border-border bg-muted/25 p-3">

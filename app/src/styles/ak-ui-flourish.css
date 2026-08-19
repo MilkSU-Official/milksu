@@ -102,6 +102,121 @@
   font-size: 0.62rem;
 }
 
+.ak-status--compact {
+  min-height: 2rem;
+  padding: 0.28rem 0.55rem;
+  column-gap: 0.45rem;
+}
+
+.ak-status--compact .ak-status__signal {
+  width: 0.4rem;
+  height: 0.4rem;
+}
+
+.ak-status--compact .ak-status__label {
+  font-size: 0.58rem;
+}
+
+.ak-status--compact .ak-status__detail {
+  margin-top: 0.08rem;
+  font-size: 0.7rem;
+}
+
+.settings-ak-tabs .ak-tabs__tab[aria-selected='true']::after {
+  inset: 0 auto 0 0;
+  width: 0.25rem;
+  height: auto;
+}
+
+.ak-loading-host {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.85rem;
+  min-height: 1.85rem;
+  overflow: visible;
+  vertical-align: middle;
+}
+
+.ak-loading-host--labeled {
+  justify-content: flex-start;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.ak-loading-host__label {
+  color: var(--muted-foreground);
+  font-size: var(--text-caption);
+}
+
+.ak-loading--compact {
+  --ak-loading-color: var(--brand);
+  position: relative;
+  width: 0.85rem;
+  height: 0.85rem;
+  margin: 0;
+  flex: none;
+  border-width: 2px;
+  overflow: visible;
+  vertical-align: middle;
+}
+
+.ak-loading--compact::after {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0.85rem;
+  height: 0.85rem;
+  border-width: 2px;
+  transform: translate(-50%, -50%);
+  animation-name: ak-radio-compact;
+}
+
+@keyframes ak-radio-compact {
+  from {
+    width: 0.85rem;
+    height: 0.85rem;
+    opacity: 1;
+  }
+  to {
+    width: 1.85rem;
+    height: 1.85rem;
+    opacity: 0;
+  }
+}
+
+.chat-model-loading {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.35rem;
+  color: var(--muted-foreground);
+  font-size: var(--text-caption);
+}
+
+.chat-time-divider {
+  margin: 0 0 0.75rem;
+}
+
+.chat-time-divider span {
+  width: auto;
+  padding: 0 0.7rem;
+  font-family: 'SFMono-Regular', 'Cascadia Code', monospace;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+:root[data-theme='light'] .chat-time-divider::before,
+:root[data-theme='light'] .chat-time-divider::after {
+  background-color: rgba(17, 19, 21, 0.2);
+}
+
+:root[data-theme='light'] .chat-time-divider span {
+  color: rgba(17, 19, 21, 0.5);
+  filter: none;
+}
+
 .ak-segmented {
   flex: none;
   overflow: hidden;

@@ -92,6 +92,18 @@ const detailTitle = computed(() => (
       class="w-52 p-3"
     >
       <p class="text-caption font-medium text-muted-foreground">{{ detailTitle }}</p>
+      <div
+        v-if="hasRing"
+        class="ak-progress mt-2"
+        :class="{ 'ak-progress--warning': usage.nearLimit }"
+        :style="{ '--ak-progress-value': `${usage.percent}%` }"
+      >
+        <div class="ak-progress__header">
+          <span>CONTEXT</span>
+          <span class="ak-progress__value">{{ usage.percent }}%</span>
+        </div>
+        <div class="ak-progress__track"><span class="ak-progress__fill" /></div>
+      </div>
       <dl class="mt-2 space-y-1.5 font-mono text-caption tabular-nums">
         <div class="flex items-center justify-between gap-3">
           <dt class="text-muted-foreground">↑ 输入</dt>

@@ -53,6 +53,7 @@ import {
 import { invokeCommand, listenEvent } from '@/desktop'
 import { nextChatAutoScrollPinned } from '@/lib/chatAutoScroll'
 import { isGeneratedScratchWorkspace } from '@/lib/codingConversationGroups'
+import AkLoadingMark from '@/components-vue/AkLoadingMark.vue'
 import ChatActivityGroup from '@/components-vue/ChatActivityGroup.vue'
 import ChatComposer from '@/components-vue/ChatComposer.vue'
 import MissionOperationPanel from '@/components-vue/MissionOperationPanel.vue'
@@ -598,6 +599,13 @@ const computerUseOperationEvidence = computed(() => (
 const chatTranscript = computed(() => (
   buildChatTranscript(props.conversation?.messages ?? [], props.running)
 ))
+const waitingForModel = computed(() => {
+  if (!props.running) return false
+  const last = chatTranscript.value.at(-1)
+  if (!last) return true
+  if (last.kind === 'activity') return !last.running
+  return last.message.status !== 'running' && last.message.role !== 'assistant'
+})
 const recoverableFailureId = computed(() => (
   recoverableAgentFailureId(
     props.conversation?.messages ?? [],
@@ -1963,6 +1971,9 @@ watch(
             @retry="resumeAfterFailure"
           />
         </template>
+        <p v-if="waitingForModel" class="chat-model-loading">
+          <AkLoadingMark label="模型回复中" show-label />
+        </p>
       </div>
     </div>
 
@@ -2236,9 +2247,10 @@ watch(
           <div class="flex items-center justify-between gap-3">
             <span class="text-muted-foreground">状态</span>
             <span class="flex items-center gap-2">
+              <AkLoadingMark v-if="running" label="执行中" />
               <span
-                class="size-1.5 rounded-full"
-                :class="running ? 'animate-pulse bg-primary' : 'bg-muted-foreground'"
+                v-else
+                class="size-1.5 rounded-full bg-muted-foreground"
               />
               {{ running ? '执行中' : '空闲' }}
             </span>

@@ -137,4 +137,47 @@ describe('ChatMessageItem', () => {
 
     expect(ctf.host.textContent).toContain('notes、证据、Judge 回执和工具结果')
   })
+
+  it('places an ak-divider above user messages only', async () => {
+    const sentAt = Date.now()
+    const user = await mountMessage({
+      id: 'message-user-time',
+      role: 'user',
+      content: 'hi',
+      timestamp: sentAt,
+    })
+    const divider = user.host.querySelector('.ak-divider')
+    expect(divider).not.toBeNull()
+    expect(divider?.textContent?.trim()).toMatch(/\d{1,2}:\d{2}:\d{2}/)
+
+    const assistant = await mountMessage({
+      id: 'message-assistant-time',
+      role: 'assistant',
+      content: 'hello',
+      timestamp: sentAt,
+    })
+    expect(assistant.host.querySelector('.ak-divider')).toBeNull()
+  })
+
+  it('shows an ak-loading mark while the assistant is still running', async () => {
+    const running = await mountMessage({
+      id: 'message-assistant-running',
+      role: 'assistant',
+      content: '正在写',
+      timestamp: Date.now(),
+      status: 'running',
+    })
+    const mark = running.host.querySelector('.ak-loading')
+    expect(mark).not.toBeNull()
+    expect(running.host.querySelector('[aria-label="正在回复"]')).not.toBeNull()
+
+    const done = await mountMessage({
+      id: 'message-assistant-done',
+      role: 'assistant',
+      content: '写完了',
+      timestamp: Date.now(),
+      status: 'done',
+    })
+    expect(done.host.querySelector('.ak-loading')).toBeNull()
+  })
 })

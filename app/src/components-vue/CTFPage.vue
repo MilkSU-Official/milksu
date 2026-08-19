@@ -960,23 +960,13 @@ async function loadPublicCatalog(page = catalogPage.value) {
   if (result) catalogPage.value = result.page
 }
 
+function clearDeskSelection() {
+  selectedProblem.value = null
+  selectedCTFShowProblemID.value = null
+}
+
 async function selectDefaultDeskProblem() {
-  if (screen.value !== 'challenge') return
-  if (activeBank.value === 'ctfshow') {
-    if (selectedCTFShowProblemID.value !== null) return
-    const problem = visibleCTFShowProblems.value[0]
-    if (problem) previewCTFShowProblem(problem.platformId)
-    return
-  }
-  if (selectedProblem.value) return
-  const recommendation = collectionView.value === ALL_COLLECTIONS_ID
-    && catalogQuery.value.trim() === '' && catalogCategory.value === 'all'
-    ? training.dashboard.value?.recommendations[0]
-    : null
-  const platformId = dailyChallengeVisible.value?.platformId
-    ?? recommendation?.problem.platformId
-    ?? publicCatalog.result.value?.problems[0]?.platformId
-  if (platformId) await chooseCatalogProblem(platformId)
+  return
 }
 
 function dailyChallengeCandidates() {
@@ -1034,7 +1024,6 @@ async function refreshDailyChallenge(change = false) {
 
 async function changeDailyChallenge() {
   await refreshDailyChallenge(true)
-  if (dailyChallenge.value) await chooseCatalogProblem(dailyChallenge.value.platformId)
 }
 
 async function runDailyMission() {
@@ -1895,10 +1884,13 @@ onBeforeUnmount(() => {
         >
           <Cable class="size-4" />
           {{ browserBridgeConnected ? '浏览器已连接' : '连接浏览器' }}
-          <Circle
-            class="size-2.5"
-            :class="browserBridgeConnected ? 'fill-primary text-primary' : 'fill-muted-foreground text-muted-foreground'"
-          />
+          <span
+            class="ak-status ak-status--compact"
+            :class="browserBridgeConnected ? '' : 'ak-status--offline'"
+          >
+            <span class="ak-status__signal" />
+            <span class="ak-status__label">{{ browserBridgeConnected ? 'LIVE' : 'OFF' }}</span>
+          </span>
         </Button>
         <Button
         variant="ghost"
@@ -2515,6 +2507,7 @@ onBeforeUnmount(() => {
           :collection-store="ctfCollections"
           @select-nssctf="chooseCatalogProblem"
           @select-ctfshow="previewCTFShowProblem"
+          @clear-selection="clearDeskSelection"
           @previous-page="previousDeskPage"
           @next-page="nextDeskPage"
           @go-page="goDeskPage"

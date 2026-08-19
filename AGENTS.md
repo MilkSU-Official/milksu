@@ -44,12 +44,17 @@ one of those decisions.
 
 ## Product UI Color Boundary
 
-- Do not restore the old blue-black visual style for product panels, tabs, labels, badges or category states.
-  Night mode uses neutral warm graphite without an obvious blue, green or brown cast; day mode keeps the
-  paper theme's neutral tones. Acid green is reserved for selection, primary actions and activity intensity.
-  Blue is reserved for links and explicit execution or diagnostic states.
-- CTF, CVE and Coding tabs and labels must use the same charcoal-and-acid-green tonal system. Do not use
-  `--info`, blue borders or blue-filled surfaces to distinguish those three product modules.
+- Current visual contract: [docs/design/current-visual.md](docs/design/current-visual.md).
+  ak-ui tokens and scene CSS in `app/src/styles/`. Materials are graphite command surfaces, paper
+  facts, cyan and gold. Acid green does not enter the product. Felinic stays for Vue behavior.
+- Do not restore the old blue-black style, the retired tactical-archive / acid-green contract, paper
+  or carbon textures, Showcase character art, sanity bars or 3D menus. `docs/design/milksu-game-ui-system.md`
+  and `design-qa.md` are deleted and must not be recreated as current rules.
+- Night mode uses graphite without an obvious blue, green or brown cast; day mode keeps paper neutrals.
+  Cyan is current module and primary actions. Gold is secondary emphasis and the current focus bar.
+  Success green only means success. Blue is reserved for links and explicit execution or diagnostic states.
+- CTF, CVE and Coding tabs use the same charcoal-and-cyan system. Do not use `--info`, blue borders
+  or blue-filled surfaces to distinguish those three product modules.
 
 ## Beta Self-Bootstrap Boundary
 
@@ -127,8 +132,9 @@ deferred to one destructive pre-release consolidation after the product slices a
 
 - Do not scan user text with keywords or regular expressions to decide which tool, tab, page or
   approval to run. The model understands natural language. GUI one-click actions send a typed
-  product action. Isolated browser starts because Coding Go or opening the rail calls
-  `EnsureCodingBrowser`, not because the prompt contained “打开浏览器”.
+  product action. Isolated browser starts because the user opens the rail or the model
+  calls a typed `milksu_workspace` browser action (`EnsureCodingBrowser`), not because
+  the prompt contained “打开浏览器” and not because a Go greeting was sent.
 - `milksu_workspace` is a typed Coding product-UI tool. It may list, focus or close isolated
   browser tabs, list or preview artifacts, and open environment, diff, terminal or background-task
   surfaces. It must not change settings, credentials, approval policy, or attach to the user's
