@@ -142,11 +142,16 @@ function severityVariant(severity: VulnerabilitySeverity) {
   return severity === 'critical' ? 'destructive' : severity === 'high' ? 'warning' : 'info'
 }
 
-function statusVariant(status: VulnerabilityStatus) {
-  if (status === '已验证') return 'success'
-  if (status === '研究中') return 'info'
-  if (status === '待复现') return 'warning'
-  return 'secondary'
+function severityTag(severity: VulnerabilitySeverity) {
+  if (severity === 'critical' || severity === 'high') return 'ak-tag--danger'
+  if (severity === 'medium') return 'ak-tag--advanced'
+  return ''
+}
+
+function statusTag(status: VulnerabilityStatus) {
+  if (status === '研究中') return 'ak-tag--advanced'
+  if (status === '待复现') return 'ak-tag--danger'
+  return 'ak-tag--neutral'
 }
 
 function recentResearch(item: VulnerabilityIntel) {
@@ -402,8 +407,8 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
               <span class="block truncate text-body">{{ item.vendor }}</span>
               <span class="mt-0.5 block truncate text-caption text-muted-foreground">{{ item.product }}</span>
             </span>
-            <span><Badge :variant="severityVariant(item.severity)" font="mono">{{ item.cvss.toFixed(1) }}</Badge></span>
-            <span><Badge :variant="statusVariant(item.status)">{{ vulnerabilityStatusLabel(item.status) }}</Badge></span>
+            <span class="ak-tag ak-tag--compact" :class="severityTag(item.severity)">{{ item.cvss.toFixed(1) }}</span>
+            <span class="ak-tag ak-tag--compact" :class="statusTag(item.status)">{{ vulnerabilityStatusLabel(item.status) }}</span>
             <CollectionPicker :item-key="item.id" :store="cveCollections" @click.stop />
             <span class="text-caption text-muted-foreground">{{ recentResearch(item) }}</span>
           </button>

@@ -95,3 +95,23 @@
     inset 4px 0 0 var(--signal-gold),
     0 12px 28px rgb(0 0 0 / .16);
 }
+
+.ak-tag--compact {
+  min-height: 1.5rem;
+  padding: 0.22rem 0.55rem 0.22rem 0.75rem;
+  font-size: 0.62rem;
+}
+
+.ak-segmented {
+  flex: none;
+  overflow: hidden;
+}
+
+.ak-segmented__item {
+  min-width: 4.5rem;
+}
+
+.collection-tabs .ak-segmented__item {
+  text-transform: none;
+  letter-spacing: 0.04em;
+}

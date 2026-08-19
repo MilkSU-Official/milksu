@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Badge, Button, NativeSelect, NativeSelectOption } from '@felinic/ui'
+import { Button, NativeSelect, NativeSelectOption } from '@felinic/ui'
 import {
   ArrowRight,
   CalendarDays,
@@ -164,10 +164,10 @@ function difficultyLabel(value: number) {
   return '困难'
 }
 
-function difficultyClass(value: number) {
-  if (!value || value <= 2.4) return 'text-primary'
-  if (value <= 3.2) return 'text-warning'
-  return 'text-destructive'
+function difficultyTag(value: number) {
+  if (!value || value <= 2.4) return ''
+  if (value <= 3.2) return 'ak-tag--advanced'
+  return 'ak-tag--danger'
 }
 
 function select(id: number) {
@@ -213,10 +213,10 @@ function openCoding() {
             </span>
             <span class="min-w-0">
               <span class="truncate text-control font-medium">{{ problem.title }}</span>
-              <Badge v-if="dailyProblemID === problem.platformId" variant="outline" class="ml-3">每日挑战</Badge>
+              <span v-if="dailyProblemID === problem.platformId" class="ak-tag ak-tag--advanced ml-3">每日挑战</span>
             </span>
-            <span class="text-caption text-muted-foreground">{{ problem.category }}</span>
-            <span class="text-caption" :class="difficultyClass(problem.difficulty)">{{ difficultyLabel(problem.difficulty) }}</span>
+            <span class="ak-tag ak-tag--compact">{{ problem.category }}</span>
+            <span class="ak-tag ak-tag--compact" :class="difficultyTag(problem.difficulty)">{{ difficultyLabel(problem.difficulty) }}</span>
             <span class="text-caption" :class="statusFor(problem.platformId) === 'in_progress' ? 'text-primary' : 'text-muted-foreground'">{{ statusLabel(statusFor(problem.platformId)) }}</span>
             <CollectionPicker :item-key="collectionKey(problem.platformId)" :store="collectionStore" @click.stop />
             <span class="text-caption text-muted-foreground">{{ selectedID === problem.platformId ? '已展开' : statusFor(problem.platformId) === 'in_progress' ? '继续' : '开始' }}</span>
@@ -283,7 +283,7 @@ function openCoding() {
           >
             <span class="font-mono text-caption text-muted-foreground">#{{ problem.platformId }}</span>
             <span class="truncate text-control font-medium">{{ problem.title }}</span>
-            <span class="text-caption text-muted-foreground">{{ problem.category }}</span>
+            <span class="ak-tag ak-tag--compact">{{ problem.category }}</span>
             <span class="text-caption text-primary">{{ problem.points }} 分</span>
             <span class="text-caption text-muted-foreground">{{ statusLabel(statusFor(problem.platformId)) }}</span>
             <CollectionPicker :item-key="collectionKey(problem.platformId)" :store="collectionStore" @click.stop />

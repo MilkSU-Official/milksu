@@ -91,6 +91,7 @@ function durationLabel(durationMs?: number) {
     <summary class="tool-activity__summary">
       <component :is="summaryIcon" class="size-4 shrink-0 text-muted-foreground" />
       <span class="min-w-0 truncate">{{ summary }}</span>
+      <span v-if="activity.running" class="ak-tag ak-tag--compact">RUN</span>
       <LoaderCircle v-if="activity.running" class="size-3.5 shrink-0 animate-spin text-muted-foreground" />
       <ChevronDown class="tool-activity__chevron size-4 shrink-0 text-muted-foreground" />
     </summary>

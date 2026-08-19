@@ -28,11 +28,14 @@ const firstNote = computed(() => String(props.status?.notes ?? '').split(/\r?\n/
 <template>
   <section
     v-if="visible && status"
-    class="shell-traffic-light-safe-x flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-info-border bg-info-soft py-3 pr-5"
+    class="ak-notice shell-traffic-light-safe-x shrink-0 border-b py-0"
+    :class="status.state === 'error' ? 'ak-notice--danger' : status.state === 'downloaded' ? 'ak-notice--success' : 'ak-notice--warning'"
     role="status"
     data-testid="update-notification"
     data-shell-traffic-safe="x"
   >
+    <span class="ak-notice__code">OTA<br />更新</span>
+    <div class="ak-notice__body flex flex-wrap items-center gap-x-3 gap-y-2 py-3 pr-5">
     <ArrowDownToLine v-if="status.state === 'available'" class="size-4 shrink-0 text-primary" />
     <RefreshCw v-else-if="status.state === 'downloading'" class="size-4 shrink-0 animate-spin text-primary" />
     <CheckCircle2 v-else-if="status.state === 'downloaded'" class="size-4 shrink-0 text-success" />
@@ -46,9 +49,16 @@ const firstNote = computed(() => String(props.status?.notes ?? '').split(/\r?\n/
       <template v-else-if="status.state === 'downloading'">
         <span class="font-medium">正在下载 MilkSU {{ status.version }}</span>
         <span class="ml-2 text-muted-foreground">{{ progress.toFixed(0) }}%</span>
-        <span class="mt-2 block h-1.5 max-w-md overflow-hidden rounded-full bg-secondary">
-          <span class="block h-full bg-info transition-[width]" :style="{ width: `${progress}%` }" />
-        </span>
+        <div
+          class="ak-progress mt-2 max-w-md"
+          :style="{ '--ak-progress-value': `${progress}%` }"
+        >
+          <div class="ak-progress__header">
+            <span>DOWNLOAD</span>
+            <span class="ak-progress__value">{{ progress.toFixed(0) }}%</span>
+          </div>
+          <div class="ak-progress__track"><span class="ak-progress__fill" /></div>
+        </div>
       </template>
       <template v-else-if="status.state === 'downloaded'">
         <span class="font-medium">MilkSU {{ status.version }} 已准备好</span>
@@ -80,6 +90,7 @@ const firstNote = computed(() => String(props.status?.notes ?? '').split(/\r?\n/
       >
         <X class="size-4" />
       </Button>
+    </div>
     </div>
   </section>
 </template>

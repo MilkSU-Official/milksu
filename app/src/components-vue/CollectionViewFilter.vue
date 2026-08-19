@@ -53,31 +53,33 @@ function selectCollection(id: string) {
 </script>
 
 <template>
-  <div class="collection-tabs flex min-w-0 shrink items-center overflow-x-auto border border-border bg-card" role="tablist" aria-label="收藏夹">
-    <button
-      type="button"
-      class="collection-tab"
-      :class="modelValue === ALL_COLLECTIONS_ID ? 'active' : ''"
-      role="tab"
-      :aria-selected="modelValue === ALL_COLLECTIONS_ID"
-      @click="selectCollection(ALL_COLLECTIONS_ID)"
-    >
-      全部
-    </button>
-    <button
-      v-for="collection in store.collections.value"
-      :key="collection.id"
-      type="button"
-      class="collection-tab"
-      :class="modelValue === collection.id ? 'active' : ''"
-      role="tab"
-      :aria-selected="modelValue === collection.id"
-      @click="selectCollection(collection.id)"
-    >
-      {{ collection.name }}
-      <span v-if="collection.itemKeys.length" class="tab-count">{{ collection.itemKeys.length }}</span>
-    </button>
-    <button type="button" class="collection-tab collection-tab-manage" aria-label="管理收藏夹" @click="managerOpen = true">
+  <div class="collection-tabs flex min-w-0 shrink items-center gap-2 overflow-x-auto" role="tablist" aria-label="收藏夹">
+    <div class="ak-segmented">
+      <button
+        type="button"
+        class="ak-segmented__item"
+        :aria-pressed="modelValue === ALL_COLLECTIONS_ID"
+        role="tab"
+        :aria-selected="modelValue === ALL_COLLECTIONS_ID"
+        @click="selectCollection(ALL_COLLECTIONS_ID)"
+      >
+        全部
+      </button>
+      <button
+        v-for="collection in store.collections.value"
+        :key="collection.id"
+        type="button"
+        class="ak-segmented__item"
+        :aria-pressed="modelValue === collection.id"
+        role="tab"
+        :aria-selected="modelValue === collection.id"
+        @click="selectCollection(collection.id)"
+      >
+        {{ collection.name }}
+        <span v-if="collection.itemKeys.length" class="tab-count">{{ collection.itemKeys.length }}</span>
+      </button>
+    </div>
+    <button type="button" class="collection-tab-manage" aria-label="管理收藏夹" @click="managerOpen = true">
       <Plus class="size-4" />新建收藏夹
     </button>
     <span v-if="modelValue !== ALL_COLLECTIONS_ID" class="sr-only">当前收藏夹 {{ selectedCount }} 条</span>
@@ -121,12 +123,29 @@ function selectCollection(id: string) {
 </template>
 
 <style scoped>
-.collection-tabs { border-radius: 0; scrollbar-width: none; }
+.collection-tabs { scrollbar-width: none; }
 .collection-tabs::-webkit-scrollbar { display: none; }
-.collection-tab { position: relative; display: inline-flex; height: 2.65rem; flex: none; align-items: center; gap: .45rem; border: 0; border-right: 1px solid var(--border); background: transparent; padding: 0 1rem; color: var(--muted-foreground); font-size: var(--text-body); cursor: pointer; }
-.collection-tab:hover { color: var(--foreground); background: var(--overlay-hover-light); }
-.collection-tab.active { color: #111315; background: #f3f4ef; }
-.collection-tab.active::after { position: absolute; inset-inline: 0; bottom: 0; height: 0.25rem; background: var(--brand); content: ''; }
-.collection-tab-manage { border-right: 0; color: var(--foreground); }
-.tab-count { min-width: 1.2rem; border-radius: 999px; background: var(--muted); padding: .05rem .35rem; color: var(--muted-foreground); font-family: monospace; font-size: .68rem; text-align: center; }
+.collection-tab-manage {
+  display: inline-flex;
+  height: 2.65rem;
+  flex: none;
+  align-items: center;
+  gap: .45rem;
+  border: 0;
+  background: transparent;
+  padding: 0 .85rem;
+  color: var(--foreground);
+  font-size: var(--text-body);
+  cursor: pointer;
+}
+.tab-count {
+  min-width: 1.2rem;
+  margin-left: .35rem;
+  background: rgb(17 19 21 / .28);
+  padding: .05rem .35rem;
+  color: inherit;
+  font-family: monospace;
+  font-size: .68rem;
+  text-align: center;
+}
 </style>
