@@ -2,20 +2,20 @@
 
 > 文档状态：Current
 >
-> 审阅日期：2026-08-18
+> 审阅日期：2026-08-20
 >
 > 范围：当前 `main`。正式发行基线是 `v26.819.1 / eed1dac`。文档收口提交不移动该 tag。
 > 实现进度、已发行与未发版分界以
 > [当前开发目标](/developer/current-objectives)、当前代码、测试和真实验收为准。
 
-这组文档用于回答当前实现与未来解冻设计：
+这组文档用于回答当前实现与长期设计。尚未实现不是禁止实现：
 
 0. [Archify 当前架构规格](generated/milksu-current-system.architecture.json)：生成时描述 Coding
    主链、CTF 证据闭环、持久化和内部评测边界；交互式 HTML 由 Coding 的“架构图”动作
    按需重新生成和预览。JSON 是版本化规格快照，不替代当前代码事实。
 1. [当前系统与分层](current-system.md)：MilkSU 现在由哪些进程、容器和模块组成？
 2. [CTF 数据与时序](ctf-intake-agent-judge-memory.md)：一道题怎样从 Intake 进入 Agent、Judge 和训练记忆？
-3. [Coding Agent / Pi 扩展边界](coding-agent-pi-extension-boundary.md)：哪些能力复用 Pi，哪些能力属于 MilkSU，CTF 为什么不继承 Coding 插件？
+3. [Coding Agent / Pi 扩展边界](coding-agent-pi-extension-boundary.md)：哪些能力复用 Pi，哪些能力属于 MilkSU；CTF 当前少接了哪些 Coding 面（现有接线，不是禁令）？
 4. [当前开发目标](/developer/current-objectives)：唯一目标契约；M3 product-loop 已合并，后续
    从目标、代码和测试事实选择有界批次。
 5. [授权安全学习与研究平台](security-learning-and-research-platform.md)：CTF、Labs、CVE、
@@ -72,9 +72,8 @@ Checkpoint 由 Git 历史与自动化重新生成，不再长期占用文档入�
   Browser/Computer Scope、已审核 Pi Skills 与项目 MCP。选择 Scope/Skill 不直接发送，Skill
   复用 Pi 原生 `/skill:name`；未选择 Plan 时默认是 Go，不再维护 `/go` 或常驻 Plan/Go 下拉。
 - IDA Pro/idalib 与 capa 已有设置、准备和健康检查，就绪且启用后进入普通 Coding 可选目录。
-  CodeQL、Burp、Shannon 仍只做检测。它们必须先在 Coding 通过真实任务与拒绝路径，再决定
-  是否进入 CTF/CVE。
-- Managed Labs 当前暂停，生产代码、桌面 RPC 入口和打包资源已移除；长期设计不能进入当前产品声明。
+  CodeQL、Burp、Shannon 仍只做检测。接到 CTF/CVE 由当前切片决定，不需要先开“是否投影”的会。
+- Managed Labs 当前不在生产启动、桌面 RPC、Vue 入口或发行完成线里。这是现状，不是冻结。
 - NYU CTF Bench 的只读元数据、Admission、DeepSeek one-shot Runner、两回合 Pi 只读
   Agent Runtime 和摘要 Judge 是 **Implemented / Verified for the narrow baseline**。
   Agent Runtime 当前只有 5 个手选 static 样本：2 solved、1 unsolved、1 无效 JSON、

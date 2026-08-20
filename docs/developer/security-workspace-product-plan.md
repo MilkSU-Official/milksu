@@ -1,13 +1,16 @@
 # 个人安全工作台计划
 
-> 状态：Approved Product Plan
+> 状态：Historical product plan（2026-08-11 那一轮）
 >
 > 形成日期：2026-08-11
 >
-> 目标关联：Codex 任务 `019fe9ee-b865-75b3-903d-bada1266f254`（进行中）→ 本产品计划 →
-> [当前开发目标](current-objectives.md#进行中目标个人安全工作台)
+> 当时把 CTF/CVE 收薄、工具只接 Coding、披露暂缓，是那一轮的范围，不是现行禁令。
+> 现行口径以 [当前开发目标](current-objectives.md) 和 `AGENTS.md` 为准：尚未实现不是禁止实现。
 >
-> 本文是下一阶段产品目标，不是完成证据。执行时先读取
+> 目标关联：Codex 任务 `019fe9ee-b865-75b3-903d-bada1266f254` → 本产品计划 →
+> [当前开发目标](current-objectives.md)
+>
+> 本文保留当时决策和验收记录。执行时先读取
 > `current-objectives.md`、`product-code-admission.md`、`current-system.md` 和当前代码。
 
 ## 进行中目标
@@ -130,10 +133,10 @@ Obelisk 当前保存和检索 Coding、CTF、CVE 历史，只能帮助用户找�
 | 下一步 | Shannon 外部 Worker |
 | 后续连接 | Strix、用户已有 CAPEv2、用户已有 Assemblyline |
 | 学习或评测 | CAI、ARTEMIS、AgentRE-Bench、Agentic SOC |
-| 不进入产品 | BoxPwnr、PentAGI |
+| 当时未接 | BoxPwnr、PentAGI |
 
-工具只在 Coding 中提供能力，CTF/CVE 不复制工具面板或 Agent Loop。每项接入前按上游授权、
-权限范围和真实任务重新判断。
+当时工具先接到 Coding，CTF/CVE 不复制工具面板或 Agent Loop。这是 8 月 11 日那一轮的范围，
+不是“不准再接到 CTF/CVE”。每项接入仍按上游授权、权限范围和真实任务判断。
 
 ### 5. GitHub 内测账户
 
@@ -164,13 +167,11 @@ Obelisk 当前保存和检索 Coding、CTF、CVE 历史，只能帮助用户找�
 - 从干净提交构建 Beta，在设置页核对 branch、完整 commit 和 tracking ID 后再做原生 UI 回归。
 - CTF、CVE、个人资料、登录和模型来源全部通过后，才更新正式 App 和 Current 文档。
 
-## 本轮不做
+## 那一轮没做
 
-- 自动项目管理、自动改变 CTF/CVE 状态。
-- 把 Coding 产物复制成 CTF/CVE 的结构化展示系统。
-- 连续打卡、积分、排行榜和公开个人主页。
-- 漏洞披露提交追踪、自动联系厂商或自动提交漏洞。
-- 第二套通用 Agent Harness。
+当时没做自动项目管理、自动改 CTF/CVE 状态、打卡积分、披露提交追踪，也没做第二套通用 Agent
+Harness。这些不是永久禁令。第二套通用 Harness 仍然不要造；披露对外部平台的静默代交仍然不要做。
+CTF/CVE 工作台、本地复现和安全工具进安全工作区，按现行目标可以直接做。
 
 ## 附录：决策问答记录
 

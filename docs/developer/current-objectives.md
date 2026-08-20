@@ -22,6 +22,7 @@
    [三端打包与发版流程](release-process.md) 回写本页、[文档状态](document-status.md)、
    [当前系统](../architecture/current-system.md)、`README.md` 和 `AGENTS.md`，不能把上一版回执留成“最新”。
    版本号、空 tag 或本地 dirty 包仍然不等于已发版。
+9. **尚未实现不是禁止实现。** 不要在能力出现前写解冻清单、冻结门或“不准做 PoC / 不准扩工作台 / 不准进 CTF/CVE”。真边界只覆盖 Key、未授权外部目标、Judge 与把 smoke 写成完成。选中的产品切片可以直接做。
 
 ## 当前阶段与基线
 
@@ -105,7 +106,7 @@
 文档收口提交不移动该 tag。
 
 - Coding 工具活动组的展开状态提升为会话级 UI 状态：组件重建、活动分段变化不再丢失展开，会话切换不串联，过期条目状态会被清理；用户主动展开活动组或工具详情时局部滚动到最近可视范围，不复用新消息的滚到底部逻辑。空 assistant 壳不再拆分连续工具活动；仅一侧缺少 `toolCallId` 的唯一待完成调用会收敛为完成态，不遗留转圈（#17，未打包验收）。
-- CTF / CVE 的模型操作工作台 UX 仍后置，不把 `milksu_workspace` 扩到那两个模块。
+- 产品边界收口：文档不再把 CVE 纵深、本地复现/PoC、Labs、CTF/CVE 工作台和安全工具进 CTF/CVE 写成现行禁令。这些是未接线或未做完的方向。`sessionRole` 仍把浏览器、MCP、安全工具和 `milksu_workspace` 留在普通 Coding，这是现有实现，不是“不准扩展”。
 - 本机默认走 Personal Vault 签名；`release:github` 必须创建/刷新 GitHub Release 页。这是发版管道，不是下一版本号。
 
 ## 当前产品事实
@@ -161,7 +162,7 @@ Developer ID 签名与公证。Windows / Linux 走成功的 Actions run。
 1. 继续用 `26.819.1` 安装包做常用 Agent GUI 与 Pi Runtime 回归，失败项回到下面 P0 队列；
 2. 用户明确要求发下一版时，先升版本号，再从干净已推送的 `main` 跑 `release:verify` 并留下新的三端回执；不要把现有 `v26.819.1` 标签挪到更新的 HEAD 上。
 
-Windows 签名、Linux 缺失能力、R2/OTA，以及 CTF/CVE 模型操作工作台 UX，分别保持为明确后续工作。
+Windows 签名、Linux 缺失能力、R2/OTA 仍是发行后续，不是产品方向禁令。
 
 ### 后续队列
 
@@ -171,10 +172,9 @@ Windows 签名、Linux 缺失能力、R2/OTA，以及 CTF/CVE 模型操作工作
 | P0 | Pi Runtime 用户验收 | 最新正式包中验证跨目录读写、CTF/CVE 交接、长输出续跑和重启恢复，不出现 MilkSU 自建 workspace 策略或旧 session ID。 |
 | P1 | 下一版三端回执发行 | 需要新的版本号、同一 source commit、三端产物、SHA-256 与平台验收。现有 `v26.819.1` 只覆盖 `eed1dac`。 |
 | P1 | OTA 与私有 R2 | Admin 草稿/发布/暂停和 Desktop 更新提示已有；仍需一次受账户鉴权的真实旧签名版 → 新签名版升级回执。 |
-| P1 | 安全工具真实任务 | IDA/idalib 与 capa 已有设置、准备和健康检查；分别用受控本地样本保留真实任务回执后，才决定是否进入 CTF/CVE。CodeQL、Burp、Shannon 仍逐项准入。 |
+| P1 | 安全工具真实任务 | IDA/idalib 与 capa 已有设置、准备和健康检查；用受控本地样本留下真实任务回执。就绪工具可按切片接到 CTF/CVE，不需要先开一次“是否投影”的会。CodeQL、Burp、Shannon 仍逐项接入。 |
 | P1 | Obelisk 学习记录 | 先定义可归因学习事实，再设计独立页面；不恢复已删除的单会话相关历史/图谱面板。 |
-| 后置 | CTF/CVE 模型操作工作台 | 领域工具与 Coding 交接已有；不把 `milksu_workspace` 扩到 CTF/CVE，直到产品 UX 想清楚。 |
-| 后置 | 深度安全与 Labs | CVE 真实复现、外部资产实验、披露自动化和 Labs 不属于当前发行完成线。 |
+| 未接线 | CTF/CVE 工作台与安全深度 | `milksu_workspace`、隔离浏览器、安全工具目前只接到普通 Coding。CVE 纵深、本地复现/PoC、文件/二进制入口、Labs 都还没做。选中切片时直接做，不要先写解冻条件。 |
 
 ## 不要重复打开
 
@@ -189,8 +189,8 @@ Windows 签名、Linux 缺失能力、R2/OTA，以及 CTF/CVE 模型操作工作
 
 ## 领域完成线
 
-- **CTF**：模型只提出 Candidate；Judge 或用户明确授权结果才能建立成功事实。通用 Coding 能力走 Pi，MilkSU 保留题目、Evidence、Judge、Recovery 与 Memory。
-- **CVE**：当前只做公共数据搜索、用户主动追踪、手工状态和关联 Coding；不默认运行 PoC，不对外部资产采取行动。
+- **CTF**：模型只提出 Candidate；Judge 或用户明确授权结果才能建立成功事实。通用能力走 Pi，MilkSU 保留题目、Evidence、Judge、Recovery 与 Memory。CTF 会话今天比 Coding 少接浏览器/MCP/安全工具，这是现有接线，不是禁令。
+- **CVE**：当前发行面是公共数据搜索、用户主动追踪、手工状态和关联 Coding。本地复现、PoC、工作台、文件/二进制入口和披露草稿是未实现方向，不是禁令。对用户未授权的外部资产，仍需要可见、准确的授权。
 - **Memory**：Agent 代做不等于用户掌握。用户能力事实必须能链到 Judge、测试/提交、正式 Evidence 或用户确认。
 - **发行**：按钮、构建文件、版本号或空 tag 不等于可分发版本；必须保留对应平台真实产物和验收回执。
 

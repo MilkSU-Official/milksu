@@ -2,7 +2,7 @@
 
 > 文档状态：Current engineering contract
 >
-> 事实审计：2026-08-18
+> 事实审计：2026-08-20
 >
 > Coding 核心交付、附件、统一 Composer 能力入口、PTY、后台任务、Git、Archify、隔离 Browser 和 LSP 已有真实或
 > 专项证据；Artifact Preview、Project MCP、Computer Use 外部 App slice、PR 发布确认、
@@ -69,6 +69,10 @@ flowchart LR
 
 ## 普通 Coding 与 CTF 会话矩阵
 
+下表是 **2026-08-18 的现有接线**，不是产品禁令。当前 `sessionRole` 把浏览器、MCP、安全工具、
+Coding Skill 和 `milksu_workspace` 留在普通 Coding。CTF/CVE 需要这些面时可以直接接，不要先写
+解冻条件或“等 UX 想清楚”。
+
 | 能力 | 普通 Coding | CTF Solver / Tool Builder / Strategist | 归属 |
 | --- | --- | --- | --- |
 | Pi Session / Model / Tool Loop | 是 | 是 | Pi |
@@ -76,27 +80,27 @@ flowchart LR
 | `edit/write` | Pi 内置工具；`Go + 替我审批` 或 `完全访问` 按当前系统用户权限执行，Ask 档位仍逐次批准 | 按 CTF Role 裁剪 | Pi；CTF 另加 `sidecar/pi/bridge-policy.js` |
 | `bash` | Pi 内置 Bash，支持正常开发命令、Shell 组合、Git、网络和用户可访问目录；Provider Key 不传给子进程 | Coach/Strategist 无；Solver 模式按策略；Tool Builder 仅离线工作区 | Pi；CTF 另加 `sidecar/pi/bridge-policy.js` |
 | `milksu_progress` | 是 | 是，附角色 Guidance | MilkSU first-party Extension |
-| 已审核 Pi Skills | `frontend-visual-qa` 与 Archify 可从 Composer “+”作为可删除 Skill 状态加入；发送时使用 Pi 原生 `/skill:name` 展开 | **否** | 固定 Coding Skill；MilkSU 只投影选择状态 |
-| `lsp_diagnostics` / `lsp_fix` | 诊断可用；`lsp_fix` 先只读计算并校验项目内目标、统一 Diff 与文件哈希。请求批准展示完整 Diff；替我审批 / 完全访问在项目内自动应用并写后复核 | **否** | 固定 Coding Extension + MilkSU 审阅 Adapter |
-| Pi Goal | 是；与桌面目标状态并存 | **否**；CTF 使用自己的进度与 Judge 语义 | 固定 Coding Extension |
-| 项目终端 / 后台任务 | 是；用户直接操作的多会话 PTY 由 Go Host 承担，后台任务复用固定 Pi Extension；两者按 Conversation 隔离，展示生命周期、输出和停止动作 | **否** | `creack/pty + xterm.js` Host Adapter；固定 Coding Extension + MilkSU 状态投影 |
-| 项目 MCP | 用户从 Composer “+”打开现有项目 MCP 管理面，再从 `.mcp.json` 明确选择；调用遵循当前权限档位，不能由 Agent 安装或扩大工具面 | **否** | 固定 Coding Extension + MilkSU Sandbox |
-| 浏览器 | 普通 Coding Go 或打开右栏即自动拉起会话隔离的内置 Chromium；每个标签是独立 `WebContentsView`。用户与 Agent 共用当前 Target，工具调用遵循当前权限档位并保留页面、Console、Network 和截图证据。不扫描用户句子决定是否打开浏览器 | **否** | Electron Browser Host + Scoped CDP Proxy + 固定 Playwright MCP |
-| `milksu_workspace` | 类型化产品 UI 工具：列出/聚焦/关闭内置浏览器标签，列出/预览产物，打开环境、变更、终端和后台任务。不改设置、凭据、审批档，不附着用户 Chrome | **否**；CTF/CVE 工作台 UX 后置 | MilkSU first-party Extension + Desktop RPC |
+| 已审核 Pi Skills | `frontend-visual-qa` 与 Archify 可从 Composer “+”作为可删除 Skill 状态加入；发送时使用 Pi 原生 `/skill:name` 展开 | 当前未接线 | 固定 Coding Skill；MilkSU 只投影选择状态 |
+| `lsp_diagnostics` / `lsp_fix` | 诊断可用；`lsp_fix` 先只读计算并校验项目内目标、统一 Diff 与文件哈希。请求批准展示完整 Diff；替我审批 / 完全访问在项目内自动应用并写后复核 | 当前未接线 | 固定 Coding Extension + MilkSU 审阅 Adapter |
+| Pi Goal | 是；与桌面目标状态并存 | 当前未接线；CTF 已有自己的进度与 Judge 语义 | 固定 Coding Extension |
+| 项目终端 / 后台任务 | 是；用户直接操作的多会话 PTY 由 Go Host 承担，后台任务复用固定 Pi Extension；两者按 Conversation 隔离，展示生命周期、输出和停止动作 | 当前未接线 | `creack/pty + xterm.js` Host Adapter；固定 Coding Extension + MilkSU 状态投影 |
+| 项目 MCP | 用户从 Composer “+”打开现有项目 MCP 管理面，再从 `.mcp.json` 明确选择；调用遵循当前权限档位，不能由 Agent 安装或扩大工具面 | 当前未接线 | 固定 Coding Extension + MilkSU Sandbox |
+| 浏览器 | 普通 Coding 打开右栏或调用类型化 `milksu_workspace` 浏览器动作时拉起会话隔离的内置 Chromium；每个标签是独立 `WebContentsView`。用户与 Agent 共用当前 Target，工具调用遵循当前权限档位并保留页面、Console、Network 和截图证据。不扫描用户句子决定是否打开浏览器 | 当前未接线 | Electron Browser Host + Scoped CDP Proxy + 固定 Playwright MCP |
+| `milksu_workspace` | 类型化产品 UI 工具：列出/聚焦/关闭内置浏览器标签，列出/预览产物，打开环境、变更、终端和后台任务。不改设置、凭据、审批档，不附着用户 Chrome | 当前未接线；需要时可接到 CTF/CVE | MilkSU first-party Extension + Desktop RPC |
 | 上下文压缩 | Pi 拥有 Compaction。用量达到窗口约 85% 且 Session 空闲时走与 `/compact` 相同的路径；`compact_context` 只在达到阈值时调度 | 复用同一 Pi 压缩，不另建摘要器 | Pi Session compact；MilkSU 只投影用量并在空闲点调度 |
-| Browser Use | 用户把可删除 Scope 加入本轮输入后，固定 Playwright extension mode 才能进入真实浏览器标签页配对路径；不复用沙箱 profile | **否** | 固定 Playwright MCP + 用户标签页授权 |
-| Artifact Preview | 工作区内 Markdown、HTML 和图片；HTML 使用隔离、CSP、禁网和大小限制 | **否** | Go Preview Policy + Vue right page |
-| ImageGen | 文生图和参考图编辑；用户明确发起付费动作，输出限制在项目资产范围并可预览 | **否** | 受控 Provider Adapter |
-| Computer Use | 用户选择当前可见的非浏览器 App / PID / Window 并锁定不可变 Scope；调用遵循当前权限档位，`workspace-auto` 不会隐式启用或扩大 Scope | **否** | Go Host + Computer Use Adapter |
-| PR / worktree | PR 发布前展示仓库、分支、提交和目标；写入 Agent 使用独立 worktree | **否** | Go Git/Platform Adapter |
-| 相关历史 | 底层 Session Index 仍索引本机会话；单会话相关历史、过滤、搜索和图谱前端已删除，不再作为产品表面 | **否** | Go 索引保留；UI 后置 |
+| Browser Use | 用户把可删除 Scope 加入本轮输入后，固定 Playwright extension mode 才能进入真实浏览器标签页配对路径；不复用沙箱 profile | 当前未接线 | 固定 Playwright MCP + 用户标签页授权 |
+| Artifact Preview | 工作区内 Markdown、HTML 和图片；HTML 使用隔离、CSP、禁网和大小限制 | 当前未接线 | Go Preview Policy + Vue right page |
+| ImageGen | 文生图和参考图编辑；用户明确发起付费动作，输出限制在项目资产范围并可预览 | 当前未接线 | 受控 Provider Adapter |
+| Computer Use | 用户选择当前可见的非浏览器 App / PID / Window 并锁定不可变 Scope；调用遵循当前权限档位，`workspace-auto` 不会隐式启用或扩大 Scope | 当前未接线 | Go Host + Computer Use Adapter |
+| PR / worktree | PR 发布前展示仓库、分支、提交和目标；写入 Agent 使用独立 worktree | 当前未接线 | Go Git/Platform Adapter |
+| 相关历史 | 底层 Session Index 仍索引本机会话；单会话相关历史、过滤、搜索和图谱前端已删除，不再作为产品表面 | 当前无此 UI | Go 索引保留 |
 | 文件 / 图片附件 | 是；复制到用户数据目录，纯文本模型可走本地 OCR 或已配置视觉模型 | 使用 CTF Material 管线，不复用 Coding 附件上下文 | MilkSU 附件桥 + 本地 OCR |
 | CTF 类型化工具 | 否 | 按 Role、Scope 和协作模式 | MilkSU CTF Harness |
 | 平台提交 | 否 | Agent 不能直接提交，只能写候选 | MilkSU Judge Gate |
 
-这个隔离由 `sidecar/pi/bridge.js` 的 `sessionRole` 分支和 `scripts/package-sidecar.mjs` 的正/负 Smoke
-断言共同保护：普通 Coding 必须看到固定资源，CTF 必须看不到 frontend-visual-qa、Archify、LSP、Goal、
-后台任务和项目 MCP。
+当前隔离由 `sidecar/pi/bridge.js` 的 `sessionRole` 分支和 `scripts/package-sidecar.mjs` 的正/负 Smoke
+断言执行：普通 Coding 能看到固定资源，CTF 会话现在看不到 frontend-visual-qa、Archify、LSP、Goal、
+后台任务和项目 MCP。扩展 CTF/CVE 接线时一并改这些断言，不要把旧断言当成产品方向。
 
 ## Composer 能力状态
 
@@ -210,7 +214,7 @@ flowchart TB
 - 项目里的 `.pi` 或用户级 Pi 资源不能通过 Ambient Discovery 静默进入产品会话。
 - LSP 不读取项目 `.pi/pi-lsp.json`；实际 Server 通过 `/usr/bin/env -i` 启动，只继承
   `HOME/PATH/TMPDIR/LANG/LC_ALL`，不能看到 Provider 或 Relay Key。
-- 插件升级不能使用浮动版本；必须重新审阅许可、权限、正向能力和 CTF 负向隔离。
+- 插件升级不能使用浮动版本；必须重新审阅许可、权限和正向能力。CTF 现在少接 Coding 资源是现有接线，扩展时改断言，不要把负向隔离当成产品方向。
 - 扩展异常不能吞掉持久会话或让 UI 永久停在“运行中”。
 - 用户在右侧 PTY 中直接键入的命令以当前 macOS 用户权限运行；它不是 Agent 工具，也不受
   Plan/Go 自动执行策略伪装。Agent 自动命令仍走 Pi 与桌面审批，二者的权限语义不能混用。
@@ -225,8 +229,8 @@ flowchart TB
   恢复按各自真实验收缺口推进；
 - 最终结果是一次打包 MilkSU 的长时间 “MilkSU develops MilkSU”，不是插件数量或按钮
   数量；
-- CTF Session 必须继续看不到 frontend-visual-qa、Archify、LSP、Goal、后台任务、项目 MCP、沙箱 Browser
-  和其他普通 Coding 资源。
+- CTF Session 当前看不到 frontend-visual-qa、Archify、LSP、Goal、后台任务、项目 MCP、隔离 Browser
+  和其他普通 Coding 资源。这是现有接线；需要时可以直接接。
 
 当前正确说法是“Coding 核心和多项扩展已有工程主链或窄验收，但完整长时间自举尚未通过”，
 不能写成“插件体系已完成”或“与 Codex 等价”。

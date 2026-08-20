@@ -137,10 +137,10 @@
 能力包可以共享工具和操作方法，但不能替角色包宣布任务成功。
 
 MCP、Skill、插件和平台 CLI 是 Capability Package 的候选适配器，不是新的 Role，也不是连接后
-就自动成立的产品能力。IDA Pro/idalib、Burp、radare2、Ghidra 与 Semgrep 等安全 MCP 应先在
-Coding 中完成固定版本、最小工具清单、Scope、真实任务和越界拒绝验收；只有保留可审阅回执后，
-才能决定是否投影到 CTF 或 CVE。即使工具调用成功，CTF 仍只能由 Judge/授权人工建立成功事实，
-CVE 也仍只能由正式 Runtime 写入验证、学习或资产事实。
+就自动成立的产品能力。IDA Pro/idalib、Burp、radare2、Ghidra 与 Semgrep 等安全 MCP 用固定版本、
+最小工具清单和 Scope 接入当前切片即可；接到 Coding、CTF 还是 CVE 由产品切片决定，不要先开
+“是否投影”的会。即使工具调用成功，CTF 仍只能由 Judge/授权人工建立成功事实，CVE 也仍只能由
+正式 Runtime 写入验证、学习或资产事实。
 
 ## 不同角色各自需要什么
 

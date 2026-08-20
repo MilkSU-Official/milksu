@@ -208,8 +208,8 @@ Browser Use 与 Computer Use 也只是这里的执行能力，不是新的 Role 
 
 Composer 中的 `/` 或“+”只选择这些 Capability，不拥有执行语义：Goal/Plan 改变任务状态，
 产品 UI 中的“浏览器”和 MCP 打开既有管理面，Browser/Computer Scope 与 Pi Skill 先成为可删除状态，发送后才由
-Runtime 校验和展开。安全工具 MCP 也必须先在 Coding 以固定版本、最小权限和真实任务完成准入，
-再作为 Capability Package 迁入 CTF/CVE；连接一个 Server 不等于建立领域 Finding 或 Judge 结果。
+Runtime 校验和展开。安全工具 MCP 用固定版本和最小权限接到当前切片即可，不必先在 Coding 准入再
+开会决定是否迁入 CTF/CVE；连接一个 Server 不等于建立领域 Finding 或 Judge 结果。
 
 ### L4：Shared Security Runtime
 

@@ -18,7 +18,7 @@
 - [CTF Intake → Agent → Judge → Memory](/architecture/ctf-intake-agent-judge-memory)
 - [PI Resource Whitelist](/developer/pi-resource-whitelist)
 - [安全 Agent 与通用 Agent 的能力边界](/developer/security-agent-boundary)
-- [Browser 三面与 Coding → Security 能力迁移](/developer/adr/2026-08-09-browser-surfaces-and-security-transfer)
+- [Browser 三面与 Coding → Security 能力迁移](/developer/adr/2026-08-09-browser-surfaces-and-security-transfer)（已被 Electron 桌面壳 ADR 取代；其中“先 Coding 再决定进 CTF/CVE”不再是现行规则）
 - [核心架构：可验证安全任务运行时](/developer/architecture)
 - [Security Role Packages](/developer/role-packages)
 
@@ -34,15 +34,13 @@
 
 证据文档只证明记录中明确写出的范围；不能外推为整个产品完成。
 
-## 暂停或未来设计
+## 长期设计（不是禁令）
 
 - [授权安全学习与研究平台](/architecture/security-learning-and-research-platform)
 - [CTF Labs 设计](/architecture/ctf-labs-design)
 - [CVE 研究工作台设计](/architecture/cve-research-workbench-design)
 
-Lab 纵深闭环仍暂停，只保留外部 HTB/TryHackMe/pwn.college 辅助与进度追踪的未来计划。
-CVE 已有学习/追踪 MVP；纵深研究、外部资产实验、漏洞复现和披露闭环仍后置。设计存在不表示
-真实目标已经启用。
+Labs 和 CVE 纵深还不在发行包里。设计存在不表示已经做完，也不表示不准做。选中切片时直接做。
 
 ## 历史与研究
 

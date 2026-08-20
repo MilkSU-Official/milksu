@@ -1,8 +1,8 @@
 # 授权安全学习与研究平台：顶层设计
 
-> 文档状态：**Long-term Design / Partially Implemented**。本文定义长期架构和产品边界。
-> CTF、Coding 和 CVE 学习/追踪已有当前实现；Labs、CVE 纵深研究、外部资产实验、披露闭环
-> 以及 Red/Blue/AppSec/Malware 独立角色包仍不表示已进入当前计划。
+> 文档状态：**Long-term Design / Partially Implemented**。本文定义长期架构。
+> CTF、Coding 和 CVE 学习/追踪已有当前实现。Labs、CVE 纵深、本地复现和披露草稿还没做，
+> 不是禁令，也不需要先满足解冻清单。
 >
 > 设计日期：2026-08-01
 
@@ -61,10 +61,10 @@ flowchart LR
     memory --> profile
 ```
 
-### 2.1 Labs 解冻后的导航候选
+### 2.1 Labs 导航候选
 
-当前主导航是 `CTF / CVE / Coding`，产品表面没有 Labs 入口。下方结构只是 Labs 未来
-经当前目标明确解冻后的信息架构候选，不表示现在应把 Labs 接入 CTF：
+当前主导航是 `CTF / CVE / Coding`，产品表面还没有 Labs 入口。下方是一种信息架构候选，
+不是开工禁令：
 
 ```text
 CTF
@@ -89,8 +89,8 @@ CTF
 | 模块 | 核心问题 | 完成事实 | 不负责 |
 | --- | --- | --- | --- |
 | CTF | 这道题怎样被理解并正确解出？ | Platform/Local Judge 给出明确 Verdict | 管理任意容器、宣布真实漏洞成立 |
-| Labs | 怎样获得一个可控、可重置、可判定的训练环境？ | 环境 Ready；训练目标由独立 Judge/Evaluator 判定 | 让 Agent 直接操作 Docker、把 Ready 当 Solved |
-| CVE | 哪个授权目标值得研究，证据是否足以形成报告？ | Evidence Gate + Human Review；外部平台状态单独记录 | 无授权扫描、自动扩大范围、把候选当漏洞 |
+| Labs | 怎样获得一个可控、可重置、可判定的训练环境？ | 环境 Ready；训练目标由独立 Judge/Evaluator 判定 | 把环境 Ready 当成题目已解 |
+| CVE | 哪个授权目标值得研究，证据是否足以形成报告？ | Evidence Gate + Human Review；外部平台状态单独记录 | 无授权扫描、自动扩大范围、把候选当漏洞。授权范围内的复现和 PoC 可以做 |
 | Coding | 怎样完成通用软件工程工作？ | 测试、Diff、Git 和用户验收 | 代替 CTF Judge 或 CVE Evidence Gate |
 
 ## 4. 共享内核
@@ -188,20 +188,18 @@ Read-only fact collection
 7. Composer “+”只列已经审阅的附件、任务状态、Scope、Skill 与 MCP；`/` 是同一能力的快捷入口。
    选择动作不直接发送，也不能安装 Server 或扩大授权，Scope/Skill 必须可见且可移除。
 
-安全工具 MCP 先作为 Coding Capability Package 验收，再进入 CTF/CVE。工具连接成功只表示能力可用，
-不能建立 Challenge、Finding、Reproduction 或 Judge 事实；这些仍由领域 Runtime 和独立回执持有。
+安全工具接到哪个工作区，由当前切片决定。工具连接成功只表示能力可用，不能建立 Challenge、
+Finding、Reproduction 或 Judge 事实；这些仍由领域 Runtime 和独立回执持有。
 
-## 8. 发布与解冻条件
+## 8. 实现时要守的边界
 
-Labs 或 CVE 进入实现前必须同时满足：
+做 Labs 或 CVE 纵深时，在切片里带上用得上的授权、来源、审批、证据和恢复即可，不要把下面
+写成开工条件：
 
-1. 用户或项目提供明确授权边界；
-2. 目标来源、版本和许可证可固定；
-3. 网络、凭据、浏览器和环境能力可以单独审批；
-4. Candidate 与 Outcome 的 Judge/Evidence Gate 已定义；
-5. 失败、停止、重启和清理可恢复；
-6. 有不会访问真实目标的自动化 fixture；
-7. 产品文案不暗示无授权扫描或自动漏洞提交。
+- 对用户未授权的外部目标保持拒绝，文案不要暗示无授权扫描或静默代交披露；
+- 能固定的来源、版本和许可证就固定；
+- Candidate 不能当 Outcome；
+- 失败、停止和清理要能从当前切片恢复。
 
 详细设计分别见：
 

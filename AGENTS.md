@@ -76,9 +76,12 @@ code, configuration, test defaults or documentation.
 - Pi owns the generic model session, context compaction and tool loop.
 - MilkSU owns desktop authorization, workspace and credential boundaries, event projection and product UI.
 - The CTF domain owns Challenge, Evidence, Candidate, Judge Receipt, Recovery, Memory and learning facts.
-- Labs are paused designs, not current completion conditions.
-- CVE has a current learning/tracking MVP; CVE depth research, external-asset experiments, exploit
-  reproduction and disclosure workflows remain future work.
+- CTF, CVE and Coding are peer workspaces. What is shipped today is current fact, not a ceiling:
+  CVE tracking, the CTF challenge loop and the Coding agent may grow into first-pass audit, local
+  reproduction, Labs, disclosure drafts, binary/source intake and security-workspace UI.
+- Missing a surface is not a ban. Do not add thaw checklists, freeze gates or “don't do PoC”
+  product identity before the capability exists. “Not in this release line” only means it is not
+  the current ship claim; it does not forbid a selected slice.
 - NYU safe-static is a narrow developer evaluation, not a MilkSU CTF score.
 
 Apply an upstream-first implementation ladder: first use an existing platform or Pi capability, then a pinned
@@ -102,8 +105,10 @@ gap before admitting a replacement mechanism.
   authorized MilkSU private remote and still require the product's meaningful publish confirmation.
 - Full Access and automatic approval do not bypass paid actions, external-account authorization, Scope
   expansion, path confinement or irreversible external effects.
-- Security actions against external targets require visible, exact authorization. Do not add arbitrary
-  target lists, internet-range scanning, credential spraying, stealth/evasion or unapproved attack flows.
+- Security actions against targets the user has not authorized require visible, exact authorization.
+  Do not add arbitrary target lists, internet-range scanning, credential spraying or stealth/evasion
+  as product features. Authorized CTF challenges, user-selected local files/repos and user-authorized
+  research targets may include analysis, reproduction and PoC work.
 - Models may propose CTF candidates, but only an independent Judge or explicit authorized human result may
   establish success.
 - Do not describe partial smoke tests as complete Coding, CTF, Memory, NYU or release results.
@@ -135,10 +140,10 @@ deferred to one destructive pre-release consolidation after the product slices a
   product action. Isolated browser starts because the user opens the rail or the model
   calls a typed `milksu_workspace` browser action (`EnsureCodingBrowser`), not because
   the prompt contained “打开浏览器” and not because a Go greeting was sent.
-- `milksu_workspace` is a typed Coding product-UI tool. It may list, focus or close isolated
+- `milksu_workspace` is a typed product-UI tool. It may list, focus or close isolated
   browser tabs, list or preview artifacts, and open environment, diff, terminal or background-task
-  surfaces. It must not change settings, credentials, approval policy, or attach to the user's
-  Chrome. CTF/CVE workspace UI operations stay paused until product UX is designed.
+  surfaces. Coding is the current caller; CTF/CVE may grow the same kind of typed UI actions.
+  It must not change settings, credentials, approval policy, or attach to the user's Chrome.
 - Pi owns compaction. Auto-compact uses the same path as `/compact` when input plus cache-read
   tokens reach about 85% of `contextWindow` and the session is idle. Do not wait until the whole
   turn finishes, and do not add a second MilkSU summarizer.

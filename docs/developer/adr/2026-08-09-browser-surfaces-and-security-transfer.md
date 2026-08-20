@@ -6,6 +6,7 @@
 >
 > 后继：[Electron/Chromium 桌面壳与内置浏览器](./2026-08-10-electron-chromium-desktop-shell.md)。
 > 本文保留当时“先在 Wails 中验证 CEF”的决策背景，不再描述当前实现或任务。
+> 文中“安全工具先在 Coding 完成真实任务，再决定是否进入 CTF/CVE”不是现行规则。
 
 ## 背景
 
@@ -86,6 +87,5 @@ ID、数据目录与 TCC 身份。稳定版通过 Computer Use 操作 Beta 完�
 采用顺序保持：成熟平台/Pi → 固定 Skill/MCP/插件/CLI → 许可证兼容的最小上游机制 → 最小自有实现。
 领域事实、Judge 和学习归因始终由 MilkSU 持有。
 
-安全工具 MCP 按同一迁移门槛处理：IDA Pro/idalib、Burp、radare2、Ghidra 和 Semgrep 先在 Coding
-使用固定版本与最小工具面完成一项真实任务和一项越权拒绝，再决定是否进入 CTF/CVE。连接成功、
+当时安全工具 MCP 按同一迁移门槛处理。现行规则是：接到哪个工作区由当前切片决定；连接成功、
 工具可见或模型生成报告都不能替代 Challenge、Evidence、Finding、Reproduction 或 Judge Receipt。
