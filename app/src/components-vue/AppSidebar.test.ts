@@ -286,6 +286,8 @@ describe('AppSidebar', () => {
     await nextTick()
 
     expect(host.querySelector('[aria-label="运行中"]')).not.toBeNull()
+    expect(host.querySelector('[aria-label="运行中"]')?.parentElement?.classList)
+      .toContain('coding-session-status')
     expect(host.querySelector('[aria-label="有新消息"]')).toBeNull()
 
     runningIds.value = []

@@ -285,16 +285,18 @@ watch(
                     v-else
                     variant="ghost"
                     size="sm"
-                    class="coding-project-row coding-project-child h-7 min-w-0 flex-1 justify-start"
+                    class="coding-project-row coding-project-child relative h-7 min-w-0 flex-1 justify-start"
                     :aria-current="activeConversationId === conversation.id ? 'true' : undefined"
                     @click.stop="selectConversation(conversation.id)"
                   >
-                    <AkLoadingMark v-if="runningConversationIds.has(conversation.id)" label="运行中" />
-                    <span
-                      v-else-if="unreadConversationIds.has(conversation.id)"
-                      class="coding-session-complete size-1.5 shrink-0 rounded-full bg-primary"
-                      aria-label="有新消息"
-                    />
+                    <span class="coding-session-status">
+                      <AkLoadingMark v-if="runningConversationIds.has(conversation.id)" label="运行中" />
+                      <span
+                        v-else-if="unreadConversationIds.has(conversation.id)"
+                        class="coding-session-complete size-1.5 rounded-full bg-primary"
+                        aria-label="有新消息"
+                      />
+                    </span>
                     <span class="truncate">{{ conversation.title }}</span>
                   </Button>
                   <Button
@@ -359,16 +361,18 @@ watch(
                   v-else
                   variant="ghost"
                   size="sm"
-                  class="coding-project-row coding-project-child h-7 min-w-0 flex-1 justify-start"
+                  class="coding-project-row coding-project-child relative h-7 min-w-0 flex-1 justify-start"
                   :aria-current="activeConversationId === conversation.id ? 'true' : undefined"
                   @click.stop="selectConversation(conversation.id)"
                 >
-                  <AkLoadingMark v-if="runningConversationIds.has(conversation.id)" label="运行中" />
-                  <span
-                    v-else-if="unreadConversationIds.has(conversation.id)"
-                    class="coding-session-complete size-1.5 shrink-0 rounded-full bg-primary"
-                    aria-label="有新消息"
-                  />
+                  <span class="coding-session-status">
+                    <AkLoadingMark v-if="runningConversationIds.has(conversation.id)" label="运行中" />
+                    <span
+                      v-else-if="unreadConversationIds.has(conversation.id)"
+                      class="coding-session-complete size-1.5 rounded-full bg-primary"
+                      aria-label="有新消息"
+                    />
+                  </span>
                   <span class="truncate">{{ conversation.title }}</span>
                 </Button>
                 <Button
@@ -495,6 +499,24 @@ watch(
 .coding-project-child {
   padding-inline-start: calc(0.75rem + 1rem + 0.5rem) !important;
   padding-inline-end: 0.5rem !important;
+}
+
+.coding-session-status {
+  position: absolute;
+  inset-inline-start: 0.75rem;
+  top: 50%;
+  display: inline-flex;
+  width: 1rem;
+  height: 1rem;
+  align-items: center;
+  justify-content: center;
+  transform: translateY(-50%);
+}
+
+.coding-session-status :deep(.ak-loading-host) {
+  width: 1rem;
+  min-width: 1rem;
+  min-height: 1rem;
 }
 
 .context-nav-active {
