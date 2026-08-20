@@ -84,6 +84,15 @@ import {
 } from '@/lib/codingBrowserTabs'
 import { readCodingRailWidth, writeCodingRailWidth } from '@/lib/codingRailWidth'
 import { buildChatTranscript } from '@/lib/chatActivity'
+import {
+  chatActivityGroupOpen,
+  chatActivityOpenEntryIds,
+  createChatActivityExpansionState,
+  pruneChatActivityExpansion,
+  setChatActivityEntryOpen,
+  setChatActivityGroupOpen,
+  type ChatActivityExpansionState,
+} from '@/lib/chatActivityExpansion'
 import { chatTopbarPresentation } from '@/lib/chatTopbar'
 import {
   applySessionContextWindow,
@@ -599,6 +608,46 @@ const computerUseOperationEvidence = computed(() => (
 const chatTranscript = computed(() => (
   buildChatTranscript(props.conversation?.messages ?? [], props.running)
 ))
+const chatActivityExpansion = ref(new Map<string, ChatActivityExpansionState>())
+const emptyActivityExpansion = createChatActivityExpansionState()
+
+function currentActivityExpansion(): ChatActivityExpansionState {
+  return chatActivityExpansion.value.get(props.conversation?.id ?? '') ?? emptyActivityExpansion
+}
+
+function chatActivityGroupIsOpen(activityId: string): boolean {
+  return chatActivityGroupOpen(currentActivityExpansion(), activityId)
+}
+
+function chatActivityOpenEntries(activityId: string): ReadonlySet<string> {
+  return chatActivityOpenEntryIds(currentActivityExpansion(), activityId)
+}
+
+function applyActivityExpansion(next: ChatActivityExpansionState) {
+  const conversationId = props.conversation?.id ?? ''
+  const states = new Map(chatActivityExpansion.value)
+  states.set(conversationId, next)
+  chatActivityExpansion.value = states
+}
+
+function handleActivityGroupToggle(activityId: string, open: boolean) {
+  applyActivityExpansion(setChatActivityGroupOpen(currentActivityExpansion(), activityId, open))
+}
+
+function handleActivityEntryToggle(activityId: string, entryId: string, open: boolean) {
+  applyActivityExpansion(
+    setChatActivityEntryOpen(currentActivityExpansion(), activityId, entryId, open),
+  )
+}
+
+watch(chatTranscript, blocks => {
+  const conversationId = props.conversation?.id ?? ''
+  if (!conversationId) return
+  const current = chatActivityExpansion.value.get(conversationId)
+  if (!current) return
+  const pruned = pruneChatActivityExpansion(current, blocks)
+  if (pruned !== current) applyActivityExpansion(pruned)
+})
 const waitingForModel = computed(() => {
   if (!props.running) return false
   const last = chatTranscript.value.at(-1)
@@ -1961,6 +2010,10 @@ watch(
           <ChatActivityGroup
             v-if="item.kind === 'activity'"
             :activity="item"
+            :open="chatActivityGroupIsOpen(item.id)"
+            :open-entry-ids="chatActivityOpenEntries(item.id)"
+            @toggle-group="open => handleActivityGroupToggle(item.id, open)"
+            @toggle-entry="(entryId, open) => handleActivityEntryToggle(item.id, entryId, open)"
           />
           <ChatMessageItem
             v-else

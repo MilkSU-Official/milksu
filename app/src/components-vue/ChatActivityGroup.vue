@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import {
   ChevronDown,
   FilePenLine,
@@ -20,26 +20,44 @@ import {
 
 const props = defineProps<{
   activity: ChatActivityBlock
+  open: boolean
+  openEntryIds: ReadonlySet<string>
 }>()
 
-const groupOpen = ref(false)
-const openEntryIds = ref(new Set<string>())
+const emit = defineEmits<{
+  toggleGroup: [open: boolean]
+  toggleEntry: [entryId: string, open: boolean]
+}>()
+
 const summary = computed(() => chatActivitySummary(props.activity.messages))
 const toolEntries = computed(() => buildChatActivityEntries(props.activity.messages))
+const groupDetails = ref<HTMLDetailsElement | null>(null)
+const entryDetails = new Map<string, HTMLDetailsElement>()
+
+function setEntryDetails(entryId: string, element: unknown) {
+  if (element instanceof HTMLDetailsElement) entryDetails.set(entryId, element)
+  else entryDetails.delete(entryId)
+}
+
+function reveal(element: Element | null | undefined) {
+  if (!element || typeof element.scrollIntoView !== 'function') return
+  void nextTick(() => {
+    element.scrollIntoView({ block: 'nearest' })
+  })
+}
 
 function toggleGroup(event: Event) {
   const open = detailsToggleOpen(event)
   if (open === undefined) return
-  groupOpen.value = open
+  emit('toggleGroup', open)
+  if (open) reveal(groupDetails.value)
 }
 
 function toggleEntry(entryId: string, event: Event) {
   const open = detailsToggleOpen(event)
   if (open === undefined) return
-  const next = new Set(openEntryIds.value)
-  if (open) next.add(entryId)
-  else next.delete(entryId)
-  openEntryIds.value = next
+  emit('toggleEntry', entryId, open)
+  if (open) reveal(entryDetails.get(entryId))
 }
 const summaryIcon = computed(() => {
   const names = new Set(toolEntries.value.map(entry => entry.toolName))
@@ -87,7 +105,12 @@ function durationLabel(durationMs?: number) {
 </script>
 
 <template>
-  <details class="tool-activity mb-7" :open="groupOpen" @toggle="toggleGroup">
+  <details
+    ref="groupDetails"
+    class="tool-activity mb-7"
+    :open="open"
+    @toggle="toggleGroup"
+  >
     <summary class="tool-activity__summary">
       <component :is="summaryIcon" class="size-4 shrink-0 text-muted-foreground" />
       <span class="min-w-0 truncate">{{ summary }}</span>
@@ -100,6 +123,7 @@ function durationLabel(durationMs?: number) {
       <details
         v-for="entry in toolEntries"
         :key="entry.id"
+        :ref="element => setEntryDetails(entry.id, element)"
         class="tool-activity-entry"
         :open="openEntryIds.has(entry.id)"
         @toggle="toggleEntry(entry.id, $event)"
