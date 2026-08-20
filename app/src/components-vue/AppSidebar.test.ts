@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { createApp, nextTick, type App } from 'vue'
+import { createApp, h, nextTick, ref, type App } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import AppSidebar from './AppSidebar.vue'
 import appSidebarSource from './AppSidebar.vue?raw'
@@ -187,6 +187,78 @@ describe('AppSidebar', () => {
     const temporaryIdx = html.indexOf('coding-temporary-group')
     expect(projectIdx).toBeGreaterThanOrEqual(0)
     expect(temporaryIdx).toBeGreaterThan(projectIdx)
+  })
+
+  it('shows a completion reminder only after a background run finishes and clears it when opened', async () => {
+    const conversations: Conversation[] = [
+      {
+        id: 'conversation-active',
+        title: '当前会话',
+        createdAt: 20,
+        workspacePath: '/Users/milksu/code/milksu',
+        messages: [],
+      },
+      {
+        id: 'conversation-background',
+        title: '后台会话',
+        createdAt: 10,
+        workspacePath: '/Users/milksu/code/milksu',
+        messages: [],
+      },
+    ]
+    const runningIds = ref(['conversation-background'])
+    const selectedId = ref('conversation-active')
+    const host = document.createElement('div')
+    document.body.append(host)
+    const app = createApp({
+      setup: () => () => h(AppSidebar, {
+        activeSection: 'chat',
+        accountStatus: { configured: false, authenticated: false, state: 'unconfigured' },
+        activeConversationId: selectedId.value,
+        conversations,
+        runningConversationIds: runningIds.value,
+        ctfSection: 'catalog',
+        codingContextOpen: true,
+        themeMode: 'dark',
+        onSelectConversation: (id: string) => { selectedId.value = id },
+      }),
+    })
+    app.mount(host)
+    mountedApps.push(app)
+    await nextTick()
+
+    expect(host.querySelector('[aria-label="运行中"]')).not.toBeNull()
+    expect(host.querySelector('[aria-label="有新消息"]')).toBeNull()
+
+    runningIds.value = []
+    await nextTick()
+    expect(host.querySelector('[aria-label="有新消息"]')).not.toBeNull()
+
+    const background = [...host.querySelectorAll<HTMLButtonElement>('.coding-project-child')]
+      .find(button => button.textContent?.includes('后台会话'))
+    background?.click()
+    await nextTick()
+    expect(host.querySelector('[aria-label="有新消息"]')).toBeNull()
+  })
+
+  it('uses a hover-only plus action without project conversation counts', async () => {
+    const conversations: Conversation[] = [{
+      id: 'conversation-1',
+      title: '实现产品闭环',
+      createdAt: Date.now(),
+      workspacePath: '/Users/milksu/code/milksu',
+      messages: [],
+    }]
+    const host = await mountSidebar('chat', conversations, 'dark', vi.fn(), true)
+    const projectSummary = host.querySelector('.coding-project-group summary')
+    const add = projectSummary?.querySelector<HTMLButtonElement>('.coding-project-new-session')
+
+    expect(projectSummary?.textContent?.trim()).toBe('milksu')
+    expect(add?.querySelector('svg.lucide-plus')).not.toBeNull()
+    expect(add?.querySelector('svg.lucide-message-square-plus')).toBeNull()
+    expect(add?.className).toContain('opacity-0')
+    expect(add?.className).toContain('group-hover:opacity-100')
+    expect(contextSidebarSource).not.toContain('coding-project-count')
   })
 
   it('marks the current Coding conversation so day mode can reuse the night selected wash', async () => {

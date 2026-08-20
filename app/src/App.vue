@@ -16,6 +16,7 @@ import {
 import { settingsReturnSection, type CTFWorkspaceSection } from '@/lib/workspaceNavigation'
 import { executeVulnerabilityCodingHandoff } from '@/lib/vulnerabilityCodingHandoff'
 import { debugLog } from '@/lib/debugMode'
+import { groupCodingConversations } from '@/lib/codingConversationGroups'
 import { buildCTFDomainTaskContext } from '@/lib/domainTaskContext'
 import {
   rememberWorkspaceConversation,
@@ -81,6 +82,9 @@ const continueWithoutAccount = ref(readLocalAccountMode())
 const updateStatus = ref<UpdateStatus | null>(null)
 const dismissedUpdateVersion = ref('')
 const themeMode = ref<ThemeMode>(readThemeMode())
+const codingProjects = computed(() => groupCodingConversations(conversations.conversations.value)
+  .filter(group => !group.temporary && group.path)
+  .map(group => ({ name: group.name, path: group.path as string })))
 let unlistenAccount: (() => void) | undefined
 let unlistenModelCatalog: (() => void) | undefined
 let unlistenUpdate: (() => void) | undefined
@@ -311,6 +315,17 @@ async function chooseAgentWorkspaceForNewTask() {
   if (!workspacePath) return
   newConversation()
   conversations.setWorkspace(workspacePath)
+}
+
+function selectCodingProject(workspacePath: string) {
+  conversations.startNew()
+  conversations.setWorkspace(workspacePath)
+  section.value = 'chat'
+}
+
+function newCodingProjectSession(workspacePath: string) {
+  selectCodingProject(workspacePath)
+  codingConversationDrawerOpen.value = true
 }
 
 async function chooseVulnerabilityCodingWorkspace() {
@@ -549,6 +564,7 @@ onBeforeUnmount(() => {
         :active-section="sidebarSection"
         :active-conversation-id="conversations.activeId.value"
         :conversations="conversations.conversations.value"
+        :running-conversation-ids="conversations.runningConversationIds.value"
         :account-status="accountStatus"
         :ctf-section="ctfSection"
         :coding-context-open="codingConversationDrawerOpen"
@@ -569,6 +585,7 @@ onBeforeUnmount(() => {
           codingConversationDrawerOpen = true
         }"
         @delete-conversation="conversations.remove"
+        @new-project-session="newCodingProjectSession"
         @navigate-ctf="ctfSection = $event"
       />
 
@@ -619,6 +636,7 @@ onBeforeUnmount(() => {
         v-if="section === 'chat'"
         :conversation="conversations.active.value"
         :settings="settings"
+        :project-options="codingProjects"
         :workspace-path="conversations.workspacePath.value"
         :running="conversations.activeRunning.value"
         :aborting="conversations.activeAborting.value"
@@ -654,6 +672,7 @@ onBeforeUnmount(() => {
         @respond-approval="conversations.respondApproval"
         @choose-workspace="chooseAgentWorkspace"
         @choose-workspace-for-new-task="chooseAgentWorkspaceForNewTask"
+        @choose-project="selectCodingProject"
         @cancel-queued-guidance="conversations.cancelQueuedGuidance"
         @edit-queued-guidance="conversations.editQueuedGuidance"
         @change-model="changeModel"
