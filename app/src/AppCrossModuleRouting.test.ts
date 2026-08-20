@@ -585,7 +585,7 @@ describe('App cross-module routing', () => {
     expect(hoisted.conversations?.send).not.toHaveBeenCalled()
   })
 
-  it('opens a blank Coding draft when navigating to Coding instead of restoring the last chat', async () => {
+  it('restores the last Coding conversation when navigating back to Coding', async () => {
     const { host } = await mountApp()
 
     host.querySelector<HTMLButtonElement>('[aria-label="open CTF in coding"]')?.click()
@@ -596,9 +596,8 @@ describe('App cross-module routing', () => {
     await flushAsyncComponents()
 
     expect(host.querySelector('[aria-label="mock Chat page"]')).not.toBeNull()
-    expect(hoisted.conversations?.startNew).toHaveBeenCalled()
-    // Blank draft: no active conversation until the user sends or picks history.
-    expect(hoisted.conversations?.activeId.value).toBeNull()
+    expect(hoisted.conversations?.startNew).not.toHaveBeenCalled()
+    expect(hoisted.conversations?.activeId.value).toBe('coding-existing')
     expect(host.querySelector('[data-chat-ctf-session]')?.textContent).toBe('false')
   })
 
