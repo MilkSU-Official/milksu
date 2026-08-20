@@ -80,6 +80,26 @@ function lastMatchingToolIndex(
   return -1
 }
 
+function uniqueFallbackToolStartIndex(
+  messages: Message[],
+  toolName?: string,
+  toolCallId?: string,
+) {
+  const normalizedToolName = String(toolName ?? '').trim().toLowerCase()
+  if (!normalizedToolName) return -1
+
+  const matches = messages.flatMap((message, index) => (
+    message.role === 'tool'
+    && !message.approvalRequestId
+    && message.status === 'running'
+    && String(message.toolName ?? '').trim().toLowerCase() === normalizedToolName
+    && (!toolCallId || !message.toolCallId)
+      ? [index]
+      : []
+  ))
+  return matches.length === 1 ? matches[0]! : -1
+}
+
 export function applyCodingToolEvent(
   messages: Message[],
   event: {
@@ -129,13 +149,16 @@ export function applyCodingToolEvent(
     return next
   }
 
-  const startIndex = lastMatchingToolIndex(next, message => {
+  let startIndex = lastMatchingToolIndex(next, message => {
     if (message.role !== 'tool' || message.approvalRequestId || message.status !== 'running') {
       return false
     }
     if (toolCallId) return message.toolCallId === toolCallId
     return message.toolName === toolName && !message.toolCallId
   })
+  if (startIndex < 0) {
+    startIndex = uniqueFallbackToolStartIndex(next, toolName, toolCallId)
+  }
   if (startIndex >= 0) {
     const start = next[startIndex]!
     next[startIndex] = {
@@ -194,15 +217,14 @@ export function buildChatTranscript(
   }
 
   for (const message of messages) {
+    if (message.role === 'assistant' && !message.content.trim()) continue
+
     if (message.role === 'tool' && !isApproval(message)) {
       toolSegment.push(message)
       continue
     }
 
     flush()
-    if (message.role === 'assistant' && !message.content.trim()) {
-      continue
-    }
     if (message.role === 'user' || message.role === 'assistant' || isApproval(message)) {
       blocks.push(messageBlock(message))
     }
@@ -268,7 +290,12 @@ export function buildChatActivityEntries(messages: Message[]): ChatActivityEntry
     }
 
     if (message.status !== 'running') {
-      const requestEntry = !message.toolCallId ? queued?.[0] : undefined
+      const compatiblePending = queued?.filter(entry => (
+        !message.toolCallId || !entry.request?.toolCallId
+      )) ?? []
+      const requestEntry = compatiblePending.length === 1
+        ? compatiblePending[0]
+        : undefined
       if (requestEntry?.running) {
         complete(requestEntry, message)
         continue
