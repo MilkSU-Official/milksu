@@ -79,6 +79,41 @@ describe('ProfilePage', () => {
     app.unmount()
   })
 
+  it('does not save the profile while an IME confirms a candidate with Enter', async () => {
+    const invoke = vi.fn(async (method: string) => {
+      if (method === 'ListCTFJobs') return []
+      if (method === 'GetCodingUsageSnapshot') return { ...EMPTY_CODING_USAGE }
+      if (method === 'GetAccountStatus') return account
+      throw new Error(`unexpected method: ${method}`)
+    })
+    installDesktop(invoke)
+    const { app, host } = mountProfile()
+    await settle()
+
+    const edit = [...host.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.includes('编辑资料'))
+    edit?.click()
+    await settle()
+
+    const bio = host.querySelector<HTMLInputElement>('[aria-label="个人介绍"]')
+    expect(bio).not.toBeNull()
+    bio!.value = '正在组字'
+    bio!.dispatchEvent(new Event('input', { bubbles: true }))
+    bio!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', isComposing: true, bubbles: true }))
+    await settle()
+
+    // Still editing: the candidate confirmation must not close the form or persist.
+    expect(host.querySelector('[aria-label="个人介绍"]')).not.toBeNull()
+    expect(window.localStorage.getItem('milksu.profile.bio')).toBeNull()
+
+    bio!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    await settle()
+
+    expect(host.querySelector('[aria-label="个人介绍"]')).toBeNull()
+    expect(window.localStorage.getItem('milksu.profile.bio')).toBe('正在组字')
+    app.unmount()
+  })
+
   it('shows only recorded Coding usage and switches the shared panel between three modules', async () => {
     const usage: CodingUsageSnapshot = {
       ...EMPTY_CODING_USAGE,

@@ -170,3 +170,39 @@ func TestStorePreservesCTFLearningContext(t *testing.T) {
 		t.Fatalf("CTF learning context did not round-trip: %#v", got)
 	}
 }
+
+func TestStoreArchiveNeverLeavesTheConversationInBothDirectories(t *testing.T) {
+	store := &Store{directory: t.TempDir()}
+	value := StoredConversation{ID: "conversation-move", Title: "只应存在一处", CreatedAt: 7}
+	if err := store.Save(value); err != nil {
+		t.Fatalf("save conversation: %v", err)
+	}
+	if err := store.Archive(value.ID); err != nil {
+		t.Fatalf("archive conversation: %v", err)
+	}
+	live, err := store.List()
+	if err != nil {
+		t.Fatalf("list conversations: %v", err)
+	}
+	archived, err := store.ListArchived()
+	if err != nil {
+		t.Fatalf("list archived conversations: %v", err)
+	}
+	if len(live) != 0 {
+		t.Fatalf("archived conversation still listed as live: %v", live)
+	}
+	if len(archived) != 1 || archived[0].ArchivedAt == 0 {
+		t.Fatalf("archived conversation lost its stamp: %v", archived)
+	}
+	if err := store.Restore(value.ID); err != nil {
+		t.Fatalf("restore conversation: %v", err)
+	}
+	live, _ = store.List()
+	archived, _ = store.ListArchived()
+	if len(live) != 1 || live[0].ArchivedAt != 0 {
+		t.Fatalf("restored conversation kept an archive stamp: %v", live)
+	}
+	if len(archived) != 0 {
+		t.Fatalf("restored conversation still listed as archived: %v", archived)
+	}
+}

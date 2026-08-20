@@ -2,7 +2,6 @@ export const WORKSPACE_VIEW_STATE_STORAGE_KEY = 'milksu.workspace-view-state'
 
 export type PersistedWorkspaceSection = 'chat' | 'ctf' | 'vuln' | 'profile' | 'settings'
 export type PersistedCTFSection = 'catalog'
-export type PersistedSettingsCategory = 'general' | 'coding' | 'apikeys' | 'browser' | 'cve' | 'chats' | 'security-tools'
 
 export interface WorkspaceViewState {
   version: 1
@@ -10,16 +9,15 @@ export interface WorkspaceViewState {
   activeConversationId: string | null
   codingHistoryOpen: boolean
   ctfSection: PersistedCTFSection
-  settingsCategory: PersistedSettingsCategory
   settingsReturnTarget: Exclude<PersistedWorkspaceSection, 'settings'>
 }
 
 const sections = new Set<PersistedWorkspaceSection>(['chat', 'ctf', 'vuln', 'profile', 'settings'])
 const ctfSections = new Set<PersistedCTFSection>(['catalog'])
 const returnSections = new Set<Exclude<PersistedWorkspaceSection, 'settings'>>(['chat', 'ctf', 'vuln', 'profile'])
-const settingsCategories = new Set<PersistedSettingsCategory>([
-  'general', 'coding', 'apikeys', 'browser', 'cve', 'chats', 'security-tools',
-])
+// The settings category is not persisted: SettingsPage owns that state locally and
+// never reports the user's in-page navigation back, so a stored value would only
+// ever replay a programmatic entry point.
 
 export function readWorkspaceViewState(
   storage: Storage | null = safeStorage(),
@@ -38,9 +36,6 @@ export function readWorkspaceViewState(
       ctfSection: ctfSections.has(value.ctfSection as PersistedCTFSection)
         ? value.ctfSection as PersistedCTFSection
         : 'catalog',
-      settingsCategory: settingsCategories.has(value.settingsCategory as PersistedSettingsCategory)
-        ? value.settingsCategory as PersistedSettingsCategory
-        : 'general',
       settingsReturnTarget: returnSections.has(value.settingsReturnTarget as Exclude<PersistedWorkspaceSection, 'settings'>)
         ? value.settingsReturnTarget as Exclude<PersistedWorkspaceSection, 'settings'>
         : 'ctf',

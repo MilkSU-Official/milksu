@@ -15,20 +15,26 @@ afterEach(() => {
   document.body.innerHTML = ''
 })
 
+interface SidebarOptions {
+  conversations?: Conversation[]
+  runningConversationIds?: string[]
+  themeMode?: ThemeMode
+  codingContextOpen?: boolean
+  onToggleTheme?: () => void
+  onSelectConversation?: () => void
+  onNew?: () => void
+  onOpenCodingContext?: () => void
+  onDeleteConversation?: (id: string) => void
+  onDeleteConversationPermanently?: (id: string) => void
+  onRenameConversation?: (id: string, title: string) => void
+  conversationActionError?: string
+}
+
 async function mountSidebar(
   activeSection: 'ctf' | 'vuln' | 'chat' | 'profile',
-  conversations: Conversation[] = [],
-  themeMode: ThemeMode = 'dark',
-  onToggleTheme = vi.fn(),
-  codingContextOpen = false,
-  onSelectConversation = vi.fn(),
-  onNew = vi.fn(),
-  onOpenCodingContext = vi.fn(),
-  onDeleteConversation = vi.fn(),
-  runningConversationIds: string[] = [],
-  onRenameConversation = vi.fn(),
-  onDeleteConversationPermanently = vi.fn(),
+  options: SidebarOptions = {},
 ) {
+  const conversations = options.conversations ?? []
   const host = document.createElement('div')
   document.body.append(host)
   const app = createApp(AppSidebar, {
@@ -36,17 +42,18 @@ async function mountSidebar(
     accountStatus: { configured: false, authenticated: false, state: 'unconfigured' },
     activeConversationId: conversations[0]?.id ?? null,
     conversations,
-    runningConversationIds,
+    runningConversationIds: options.runningConversationIds ?? [],
+    conversationActionError: options.conversationActionError ?? '',
     ctfSection: 'catalog',
-    codingContextOpen,
-    themeMode,
-    onToggleTheme,
-    onOpenCodingContext,
-    onSelectConversation,
-    onNew,
-    onDeleteConversation,
-    onRenameConversation,
-    onDeleteConversationPermanently,
+    codingContextOpen: options.codingContextOpen ?? false,
+    themeMode: options.themeMode ?? 'dark',
+    onToggleTheme: options.onToggleTheme ?? vi.fn(),
+    onOpenCodingContext: options.onOpenCodingContext ?? vi.fn(),
+    onSelectConversation: options.onSelectConversation ?? vi.fn(),
+    onNew: options.onNew ?? vi.fn(),
+    onDeleteConversation: options.onDeleteConversation ?? vi.fn(),
+    onRenameConversation: options.onRenameConversation ?? vi.fn(),
+    onDeleteConversationPermanently: options.onDeleteConversationPermanently ?? vi.fn(),
   })
   app.mount(host)
   mountedApps.push(app)
@@ -76,20 +83,14 @@ describe('AppSidebar', () => {
       workspacePath: '/Users/milksu/code/milksu',
       messages: [],
     }]
-    const closed = await mountSidebar('chat', conversations, 'dark', vi.fn(), false)
+    const closed = await mountSidebar('chat', { conversations })
     expect(closed.querySelector('[data-testid="coding-context-drawer"]')).toBeNull()
     // Collapsed: no panel strip; expand + new-task live on the Coding topbar.
     expect(closed.querySelector('[aria-label="展开会话历史"]')).toBeNull()
     expect(closed.querySelector('[data-testid="coding-history-expand"]')).toBeNull()
     expect(closed.textContent).not.toContain('新会话')
 
-    const coding = await mountSidebar(
-      'chat',
-      conversations,
-      'dark',
-      vi.fn(),
-      true,
-    )
+    const coding = await mountSidebar('chat', { conversations, codingContextOpen: true })
     expect(coding.textContent).toContain('新会话')
     expect(coding.textContent).toContain('实现产品闭环')
     const panel = coding.querySelector('[data-testid="coding-context-drawer"]')
@@ -111,7 +112,7 @@ describe('AppSidebar', () => {
   })
 
   it('keeps collapsed Coding history without a leftover expand strip', async () => {
-    const host = await mountSidebar('chat', [], 'dark', vi.fn(), false)
+    const host = await mountSidebar('chat')
     expect(host.querySelector('[data-testid="coding-context-drawer"]')).toBeNull()
     expect(host.querySelector('[data-testid="coding-history-expand"]')).toBeNull()
     // Expand + new-task park on the Coding topbar, not a rail strip.
@@ -120,9 +121,7 @@ describe('AppSidebar', () => {
 
   it('makes the new-task icon a native no-drag click target', async () => {
     const onNew = vi.fn()
-    const host = await mountSidebar(
-      'chat', [], 'dark', vi.fn(), true, vi.fn(), onNew,
-    )
+    const host = await mountSidebar('chat', { codingContextOpen: true, onNew })
     const newTask = host.querySelector<HTMLButtonElement>('[data-testid="coding-new-task-button"]')
     expect(newTask).not.toBeNull()
     expect(newTask?.className).toContain('app-no-drag')
@@ -157,17 +156,11 @@ describe('AppSidebar', () => {
 
   it('requires confirmation before archiving a conversation', async () => {
     const onDeleteConversation = vi.fn()
-    const host = await mountSidebar(
-      'chat',
-      [{ id: 'archive-me', title: '待归档会话', createdAt: 1, messages: [] }],
-      'dark',
-      vi.fn(),
-      true,
-      vi.fn(),
-      vi.fn(),
-      vi.fn(),
+    const host = await mountSidebar('chat', {
+      conversations: [{ id: 'archive-me', title: '待归档会话', createdAt: 1, messages: [] }],
+      codingContextOpen: true,
       onDeleteConversation,
-    )
+    })
     host.querySelector<HTMLButtonElement>('[aria-label="会话操作"]')?.click()
     await nextTick()
     document.querySelector<HTMLElement>('[aria-label="归档编码任务"]')?.click()
@@ -181,21 +174,48 @@ describe('AppSidebar', () => {
     expect(onDeleteConversation).toHaveBeenCalledWith('archive-me')
   })
 
+  it('warns that archiving a running conversation stops the current turn', async () => {
+    const host = await mountSidebar('chat', {
+      conversations: [{ id: 'busy', title: '运行中的会话', createdAt: 1, messages: [] }],
+      runningConversationIds: ['busy'],
+      codingContextOpen: true,
+    })
+    host.querySelector<HTMLButtonElement>('[aria-label="会话操作"]')?.click()
+    await nextTick()
+    document.querySelector<HTMLElement>('[aria-label="归档编码任务"]')?.click()
+    await nextTick()
+    expect(document.body.textContent).toContain('该会话正在运行，本次操作会先中断当前回合。')
+  })
+
+  it('keeps the confirmation open and shows why archiving failed', async () => {
+    const onDeleteConversation = vi.fn()
+    const host = await mountSidebar('chat', {
+      conversations: [{ id: 'stuck', title: '归档失败的会话', createdAt: 1, messages: [] }],
+      codingContextOpen: true,
+      conversationActionError: '归档失败：磁盘只读',
+      onDeleteConversation,
+    })
+    host.querySelector<HTMLButtonElement>('[aria-label="会话操作"]')?.click()
+    await nextTick()
+    document.querySelector<HTMLElement>('[aria-label="归档编码任务"]')?.click()
+    await nextTick()
+    const confirm = [...document.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.trim() === '确认归档')
+    confirm?.click()
+    await nextTick()
+    expect(onDeleteConversation).toHaveBeenCalledWith('stuck')
+    // The row is still listed, so the dialog stays put with the reason visible.
+    expect(document.body.textContent).toContain('归档失败：磁盘只读')
+    expect(document.body.textContent).toContain('归档聊天？')
+  })
+
   it('renames a conversation inline and persists through the parent handler', async () => {
     const onRenameConversation = vi.fn()
-    const host = await mountSidebar(
-      'chat',
-      [{ id: 'rename-me', title: '旧标题', createdAt: 1, messages: [] }],
-      'dark',
-      vi.fn(),
-      true,
-      vi.fn(),
-      vi.fn(),
-      vi.fn(),
-      vi.fn(),
-      [],
+    const host = await mountSidebar('chat', {
+      conversations: [{ id: 'rename-me', title: '旧标题', createdAt: 1, messages: [] }],
+      codingContextOpen: true,
       onRenameConversation,
-    )
+    })
     host.querySelector<HTMLButtonElement>('[aria-label="会话操作"]')?.click()
     await nextTick()
     document.querySelector<HTMLElement>('[aria-label="重命名编码任务"]')?.click()
@@ -214,22 +234,44 @@ describe('AppSidebar', () => {
     expect(onRenameConversation).toHaveBeenCalledWith('rename-me', '新的会话标题')
   })
 
+  it('keeps editing while an IME confirms a candidate with Enter', async () => {
+    const onRenameConversation = vi.fn()
+    const host = await mountSidebar('chat', {
+      conversations: [{ id: 'ime', title: '旧标题', createdAt: 1, messages: [] }],
+      codingContextOpen: true,
+      onRenameConversation,
+    })
+    host.querySelector<HTMLButtonElement>('[aria-label="会话操作"]')?.click()
+    await nextTick()
+    document.querySelector<HTMLElement>('[aria-label="重命名编码任务"]')?.click()
+    await nextTick()
+    const input = host.querySelector<HTMLInputElement>('[aria-label="编辑会话标题"]')
+    input!.value = '中文'
+    input!.dispatchEvent(new Event('input', { bubbles: true }))
+    // Confirming the candidate list, not the rename.
+    input!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', isComposing: true, bubbles: true }))
+    await nextTick()
+    expect(onRenameConversation).not.toHaveBeenCalled()
+    expect(host.querySelector('[aria-label="编辑会话标题"]')).not.toBeNull()
+
+    // Escape during composition dismisses the candidate, it does not cancel the edit.
+    input!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', isComposing: true, bubbles: true }))
+    await nextTick()
+    expect(host.querySelector('[aria-label="编辑会话标题"]')).not.toBeNull()
+
+    // The next Enter is a real one.
+    input!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    await nextTick()
+    expect(onRenameConversation).toHaveBeenCalledWith('ime', '中文')
+  })
+
   it('requires confirmation before permanently deleting a conversation', async () => {
     const onDeleteConversationPermanently = vi.fn()
-    const host = await mountSidebar(
-      'chat',
-      [{ id: 'delete-me', title: '待删除会话', createdAt: 1, messages: [] }],
-      'dark',
-      vi.fn(),
-      true,
-      vi.fn(),
-      vi.fn(),
-      vi.fn(),
-      vi.fn(),
-      [],
-      vi.fn(),
+    const host = await mountSidebar('chat', {
+      conversations: [{ id: 'delete-me', title: '待删除会话', createdAt: 1, messages: [] }],
+      codingContextOpen: true,
       onDeleteConversationPermanently,
-    )
+    })
     host.querySelector<HTMLButtonElement>('[aria-label="会话操作"]')?.click()
     await nextTick()
     document.querySelector<HTMLElement>('[aria-label="永久删除编码任务"]')?.click()
@@ -259,7 +301,7 @@ describe('AppSidebar', () => {
         messages: [{ id: 'm2', role: 'assistant', content: '旧', timestamp: 50 }],
       },
     ]
-    const host = await mountSidebar('chat', conversations, 'dark', vi.fn(), true)
+    const host = await mountSidebar('chat', { conversations, codingContextOpen: true })
     const temporary = host.querySelector('[data-testid="coding-temporary-group"]')
     expect(temporary).not.toBeNull()
     expect(temporary?.textContent).toContain('无项目任务')
@@ -347,7 +389,7 @@ describe('AppSidebar', () => {
       workspacePath: '/Users/milksu/code/milksu',
       messages: [],
     }]
-    const host = await mountSidebar('chat', conversations, 'dark', vi.fn(), true)
+    const host = await mountSidebar('chat', { conversations, codingContextOpen: true })
     const projectSummary = host.querySelector('.coding-project-group summary')
     const add = projectSummary?.querySelector<HTMLButtonElement>('.coding-project-new-session')
 
@@ -376,7 +418,7 @@ describe('AppSidebar', () => {
         messages: [],
       },
     ]
-    const host = await mountSidebar('chat', conversations, 'light', vi.fn(), true)
+    const host = await mountSidebar('chat', { conversations, codingContextOpen: true, themeMode: 'light' })
     const selected = host.querySelectorAll('[data-active-conversation-row]')
     expect(selected).toHaveLength(1)
     expect(selected[0]?.getAttribute('data-ui-selected')).toBe('')

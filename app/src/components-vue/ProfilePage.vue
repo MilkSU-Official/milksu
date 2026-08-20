@@ -4,6 +4,7 @@ import { Button } from '@felinic/ui'
 import { LockKeyhole, Pencil, RotateCw, UserRound } from 'lucide-vue-next'
 import profileAvatar from '@/assets/ctf-learner-avatar.png'
 import { invokeCommand, listenEvent } from '@/desktop'
+import { isComposingKey } from '@/lib/imeComposition'
 import type { CTFSummary } from '@/ctfTypes'
 import { providerModelLabel } from '@/modelCatalog'
 import {
@@ -257,6 +258,12 @@ function saveProfile() {
   editing.value = false
 }
 
+function submitProfile(event: KeyboardEvent) {
+  if (isComposingKey(event)) return
+  event.preventDefault()
+  saveProfile()
+}
+
 function startEditingProfile() {
   if (!displayName.value.trim()) displayName.value = shownName.value
   editing.value = true
@@ -336,7 +343,7 @@ onBeforeUnmount(() => stopUsageEvents?.())
         <div class="min-w-[15rem] flex-1">
           <template v-if="editing">
             <input v-model="displayName" class="profile-name-input" aria-label="显示名称" maxlength="40">
-            <input v-model="bio" class="profile-bio-input" aria-label="个人介绍" maxlength="100" @keydown.enter="saveProfile">
+            <input v-model="bio" class="profile-bio-input" aria-label="个人介绍" maxlength="100" @keydown.enter="submitProfile">
             <div class="mt-3 flex gap-2"><Button size="sm" @click="saveProfile">保存</Button><Button variant="ghost" size="sm" @click="editing = false">取消</Button></div>
           </template>
           <template v-else>
