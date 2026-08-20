@@ -29,6 +29,7 @@ const emit = defineEmits<{
   selectConversation: [id: string]
   deleteConversation: [id: string]
   newProjectSession: [workspacePath: string]
+  renameConversation: [id: string, title: string]
   navigateCtf: [value: CTFWorkspaceSection]
   openCodingContext: []
   /** Collapse the open Coding history panel (button lives in the panel header). */
@@ -77,6 +78,7 @@ const showCodingHistory = computed(() => (
         @select-conversation="$emit('selectConversation', $event)"
         @delete-conversation="$emit('deleteConversation', $event)"
         @new-project-session="$emit('newProjectSession', $event)"
+        @rename-conversation="(id, title) => $emit('renameConversation', id, title)"
         @navigate-ctf="$emit('navigateCtf', $event)"
       />
     </section>

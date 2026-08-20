@@ -25,6 +25,8 @@ async function mountSidebar(
   onNew = vi.fn(),
   onOpenCodingContext = vi.fn(),
   onDeleteConversation = vi.fn(),
+  runningConversationIds: string[] = [],
+  onRenameConversation = vi.fn(),
 ) {
   const host = document.createElement('div')
   document.body.append(host)
@@ -33,6 +35,7 @@ async function mountSidebar(
     accountStatus: { configured: false, authenticated: false, state: 'unconfigured' },
     activeConversationId: conversations[0]?.id ?? null,
     conversations,
+    runningConversationIds,
     ctfSection: 'catalog',
     codingContextOpen,
     themeMode,
@@ -41,6 +44,7 @@ async function mountSidebar(
     onSelectConversation,
     onNew,
     onDeleteConversation,
+    onRenameConversation,
   })
   app.mount(host)
   mountedApps.push(app)
@@ -171,6 +175,34 @@ describe('AppSidebar', () => {
     confirm?.click()
     await nextTick()
     expect(onDeleteConversation).toHaveBeenCalledWith('archive-me')
+  })
+
+  it('renames a conversation inline and persists through the parent handler', async () => {
+    const onRenameConversation = vi.fn()
+    const host = await mountSidebar(
+      'chat',
+      [{ id: 'rename-me', title: '旧标题', createdAt: 1, messages: [] }],
+      'dark',
+      vi.fn(),
+      true,
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      [],
+      onRenameConversation,
+    )
+    host.querySelector<HTMLButtonElement>('[aria-label="重命名编码任务"]')?.click()
+    await nextTick()
+    const input = host.querySelector<HTMLInputElement>('[aria-label="编辑会话标题"]')
+    expect(input).not.toBeNull()
+    if (input) {
+      input.value = '新的会话标题'
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    }
+    await nextTick()
+    expect(onRenameConversation).toHaveBeenCalledWith('rename-me', '新的会话标题')
   })
 
   it('keeps no-project tasks alone under the project tree without a folder icon', async () => {
