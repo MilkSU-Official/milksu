@@ -181,9 +181,12 @@ interface DesktopAppBindings {
   SearchSessionHistory(request: SessionHistorySearchRequest): Promise<SessionHistorySearchResponse>
   GetSessionHistoryGraph(request: SessionHistoryGraphRequest): Promise<SessionHistoryGraphResponse>
   ListConversations(): Promise<unknown>
+  ListArchivedConversations(): Promise<unknown>
   SaveConversation(conversation: unknown): Promise<void>
   EnsureCodingArtifactWorkspace(conversationId: string): Promise<string>
-  DeleteConversation(id: string): Promise<void>
+  ArchiveConversation(id: string): Promise<void>
+  RestoreConversation(id: string): Promise<void>
+  DeleteArchivedConversation(id: string): Promise<void>
   GenerateConversationTitle(
     firstMessage: string,
     modelMode: string,
@@ -517,12 +520,18 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.GetSessionHistoryGraph(args?.request as SessionHistoryGraphRequest) as Promise<T>
       case 'list_conversations':
         return app.ListConversations() as Promise<T>
+      case 'list_archived_conversations':
+        return app.ListArchivedConversations() as Promise<T>
       case 'save_conversation':
         return app.SaveConversation(args?.conversation) as Promise<T>
       case 'ensure_coding_artifact_workspace':
         return app.EnsureCodingArtifactWorkspace(args?.conversationId as string) as Promise<T>
-      case 'delete_conversation':
-        return app.DeleteConversation(args?.id as string) as Promise<T>
+      case 'archive_conversation':
+        return app.ArchiveConversation(args?.id as string) as Promise<T>
+      case 'restore_conversation':
+        return app.RestoreConversation(args?.id as string) as Promise<T>
+      case 'delete_archived_conversation':
+        return app.DeleteArchivedConversation(args?.id as string) as Promise<T>
       case 'generate_conversation_title':
         return app.GenerateConversationTitle(
           args?.firstMessage as string,

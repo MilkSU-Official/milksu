@@ -24,6 +24,7 @@ async function mountSidebar(
   onSelectConversation = vi.fn(),
   onNew = vi.fn(),
   onOpenCodingContext = vi.fn(),
+  onDeleteConversation = vi.fn(),
 ) {
   const host = document.createElement('div')
   document.body.append(host)
@@ -39,6 +40,7 @@ async function mountSidebar(
     onOpenCodingContext,
     onSelectConversation,
     onNew,
+    onDeleteConversation,
   })
   app.mount(host)
   mountedApps.push(app)
@@ -145,6 +147,30 @@ describe('AppSidebar', () => {
     collapse?.click()
     await nextTick()
     expect(onCollapse).toHaveBeenCalledOnce()
+  })
+
+  it('requires confirmation before archiving a conversation', async () => {
+    const onDeleteConversation = vi.fn()
+    const host = await mountSidebar(
+      'chat',
+      [{ id: 'archive-me', title: '待归档会话', createdAt: 1, messages: [] }],
+      'dark',
+      vi.fn(),
+      true,
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      onDeleteConversation,
+    )
+    host.querySelector<HTMLButtonElement>('[aria-label="归档编码任务"]')?.click()
+    await nextTick()
+    expect(onDeleteConversation).not.toHaveBeenCalled()
+    expect(document.body.textContent).toContain('归档聊天？')
+    const confirm = [...document.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.trim() === '确认归档')
+    confirm?.click()
+    await nextTick()
+    expect(onDeleteConversation).toHaveBeenCalledWith('archive-me')
   })
 
   it('keeps no-project tasks alone under the project tree without a folder icon', async () => {

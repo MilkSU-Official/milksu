@@ -28,6 +28,7 @@ import {
 } from '@felinic/ui'
 import {
   AlertCircle,
+  Archive,
   ArrowLeft,
   Box,
   Bug,
@@ -88,6 +89,7 @@ import {
 import VulnerabilityIntelSettingsPanel from '@/components-vue/VulnerabilityIntelSettingsPanel.vue'
 import SecurityToolsSettingsPanel from '@/components-vue/SecurityToolsSettingsPanel.vue'
 import ModelVendorIcon from '@/components-vue/ModelVendorIcon.vue'
+import ArchivedConversationsSettings from '@/components-vue/ArchivedConversationsSettings.vue'
 import type { SecurityToolCodingHandoff } from '@/securityToolsTypes'
 import { useVulnerabilityDashboard, type VulnerabilityDashboard } from '@/composables/useVulnerabilityDashboard'
 import { CODING_SKILLS } from '@/codingSkills'
@@ -98,7 +100,7 @@ import {
 import ExternalEditorIcon from '@/components-vue/ExternalEditorIcon.vue'
 import { buildDiagnosticText, isDebugMode, setDebugMode } from '@/lib/debugMode'
 
-type SettingsCategory = 'general' | 'apikeys' | 'ctf' | 'cve' | 'coding' | 'browser' | 'security-tools'
+type SettingsCategory = 'general' | 'apikeys' | 'ctf' | 'cve' | 'coding' | 'chats' | 'browser' | 'security-tools'
 
 const settingsCategories = [
   { value: 'general', label: '通用', icon: Settings2 },
@@ -106,6 +108,7 @@ const settingsCategories = [
   { value: 'ctf', label: 'CTF', icon: Flag },
   { value: 'cve', label: 'CVE', icon: Bug },
   { value: 'coding', label: 'Coding', icon: Code2 },
+  { value: 'chats', label: '归档聊天', icon: Archive },
   { value: 'browser', label: '浏览器控制', icon: Globe2 },
   { value: 'security-tools', label: '安全工具', icon: ShieldCheck },
 ] as const
@@ -123,6 +126,7 @@ const emit = defineEmits<{
   accountLogin: []
   accountLogout: []
   securityToolCodingHandoff: [handoff: SecurityToolCodingHandoff]
+  conversationsChanged: []
 }>()
 
 const category = ref(props.initialCategory)
@@ -1431,6 +1435,12 @@ async function saveProviderEditor(closeAfterSave: boolean) {
           <div class="mt-6 flex justify-end">
             <Button :loading="saving" @click="save">保存设置</Button>
           </div>
+        </template>
+
+        <template v-else-if="category === 'chats'">
+          <SettingsSection title="归档聊天">
+            <ArchivedConversationsSettings @changed="$emit('conversationsChanged')" />
+          </SettingsSection>
         </template>
 
         <template v-else-if="working && category === 'browser'">

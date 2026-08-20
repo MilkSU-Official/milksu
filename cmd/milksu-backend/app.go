@@ -786,8 +786,48 @@ func (a *App) SaveConversation(value conversation.StoredConversation) error {
 	return a.conversations.Save(value)
 }
 
-func (a *App) DeleteConversation(id string) error {
+func (a *App) ListArchivedConversations() ([]conversation.StoredConversation, error) {
+	return a.conversations.ListArchived()
+}
+
+func (a *App) ArchiveConversation(id string) error {
+	a.engines.DetachSession(id)
+	if err := a.stopConversationResources(id); err != nil {
+		return err
+	}
+	if err := a.conversations.Archive(id); err != nil {
+		return err
+	}
+	return a.refreshConversationIndex()
+}
+
+func (a *App) RestoreConversation(id string) error {
+	if err := a.conversations.Restore(id); err != nil {
+		return err
+	}
+	return a.refreshConversationIndex()
+}
+
+func (a *App) DeleteArchivedConversation(id string) error {
 	a.engines.DestroySession(id)
+	if err := a.stopConversationResources(id); err != nil {
+		return err
+	}
+	if err := a.conversations.DeleteArchived(id); err != nil {
+		return err
+	}
+	return a.refreshConversationIndex()
+}
+
+func (a *App) refreshConversationIndex() error {
+	if a.sessionIndex == nil {
+		return nil
+	}
+	_, err := a.RefreshSessionIndex()
+	return err
+}
+
+func (a *App) stopConversationResources(id string) error {
 	if a.codingTerminals != nil {
 		a.codingTerminals.CloseConversation(id)
 	}
@@ -808,7 +848,7 @@ func (a *App) DeleteConversation(id string) error {
 	if err := a.releaseAgentManagedCodingCollaboration(id); err != nil {
 		return err
 	}
-	return a.conversations.Delete(id)
+	return nil
 }
 
 func (a *App) ChooseAgentWorkspace() (string, error) {

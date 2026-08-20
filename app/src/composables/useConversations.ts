@@ -801,8 +801,8 @@ export function useConversations() {
     messageQueues.value = next
   }
 
-  async function remove(id: string) {
-    await invokeCommand('delete_conversation', { id })
+  async function archive(id: string) {
+	await invokeCommand('archive_conversation', { id })
     conversations.value = conversations.value.filter(conversation => conversation.id !== id)
     titleGenerationAttemptedIds.delete(id)
     continuity.value = removeCodingContinuitySession(continuity.value, id)
@@ -1881,7 +1881,7 @@ export function useConversations() {
     compactContext,
     controlGoal,
     respondApproval,
-    remove,
+    archive,
     cancelQueuedGuidance,
     editQueuedGuidance,
     startNew,
