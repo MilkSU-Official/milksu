@@ -5,10 +5,10 @@ import {
   Code2,
   Flag,
   LogOut,
-  Monitor,
   Moon,
   Settings,
   Sun,
+  SunMoon,
   UserRound,
 } from 'lucide-vue-next'
 import profileAvatar from '@/assets/ctf-learner-avatar.png'
@@ -66,7 +66,7 @@ const themeToggleLabel = computed(() => (
       : '当前夜间模式，切换到跟随系统'
 ))
 const ThemeToggleIcon = computed(() => (
-  props.themeMode === 'system' ? Monitor : props.themeMode === 'light' ? Sun : Moon
+  props.themeMode === 'system' ? SunMoon : props.themeMode === 'light' ? Sun : Moon
 ))
 const themeModeLabel = computed(() => (
   props.themeMode === 'system' ? '跟随系统' : props.themeMode === 'light' ? '日间' : '夜间'
