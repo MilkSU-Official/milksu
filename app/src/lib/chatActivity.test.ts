@@ -119,6 +119,18 @@ describe('buildChatTranscript', () => {
     expect(transcript[0]?.kind === 'activity' && transcript[0].running).toBe(false)
   })
 
+  it('keeps one activity block across an empty assistant shell', () => {
+    const transcript = buildChatTranscript([
+      message('t1', 'tool', '$ npm test', { toolName: 'bash' }),
+      message('empty', 'assistant', '   ', { status: 'done' }),
+      message('t2', 'tool', '$ npm run build', { toolName: 'bash' }),
+    ], false)
+
+    expect(transcript).toHaveLength(1)
+    expect(transcript[0]?.kind === 'activity' && transcript[0].messages.map(item => item.id))
+      .toEqual(['t1', 't2'])
+  })
+
   it('keeps a live assistant response visible after collapsed activity', () => {
     const transcript = buildChatTranscript([
       message('u1', 'user', '完成任务'),
@@ -278,6 +290,27 @@ describe('activity labels', () => {
     expect(entries[1]?.request?.id).toBe('bash-b-start')
     expect(entries[1]?.result?.id).toBe('bash-b-result')
   })
+
+  it('settles a sole compatible call when one bridge event lacks a call id', () => {
+    const toolMessages = [
+      message('bash-start', 'tool', '$ npm test', {
+        toolName: 'bash',
+        status: 'running',
+      }),
+      message('bash-result', 'tool', 'tests ok', {
+        toolName: 'bash',
+        toolCallId: 'call-bash',
+      }),
+    ]
+    const entries = buildChatActivityEntries(toolMessages)
+
+    expect(entries).toHaveLength(1)
+    expect(entries[0]).toMatchObject({
+      request: { id: 'bash-start' },
+      result: { id: 'bash-result' },
+      running: false,
+    })
+  })
 })
 
 describe('applyCodingToolEvent', () => {
@@ -323,6 +356,55 @@ describe('applyCodingToolEvent', () => {
       request: { id: 'start-b' },
       running: true,
     })
+  })
+
+  it('settles a unique pending start when its completion supplies the missing call id', () => {
+    const started = applyCodingToolEvent([], {
+      type: 'tool.started',
+      text: '$ npm test',
+      toolName: 'bash',
+    }, () => 'start')
+    const completed = applyCodingToolEvent(started, {
+      type: 'tool.completed',
+      text: 'tests passed',
+      toolName: 'bash',
+      toolCallId: 'call-bash',
+    }, () => 'result')
+
+    expect(completed[0]).toMatchObject({
+      id: 'start',
+      status: 'done',
+      toolCallId: 'call-bash',
+    })
+    expect(buildChatActivityEntries(completed)[0]).toMatchObject({
+      request: { id: 'start' },
+      result: { id: 'result' },
+      running: false,
+    })
+  })
+
+  it('does not settle a concurrent same-tool call when the completion has no identity', () => {
+    const started = [
+      ...applyCodingToolEvent([], {
+        type: 'tool.started',
+        text: '$ npm test',
+        toolName: 'bash',
+        toolCallId: 'call-a',
+      }, () => 'start-a'),
+      ...applyCodingToolEvent([], {
+        type: 'tool.started',
+        text: '$ npm run build',
+        toolName: 'bash',
+        toolCallId: 'call-b',
+      }, () => 'start-b'),
+    ]
+    const completed = applyCodingToolEvent(started, {
+      type: 'tool.completed',
+      text: 'one result without an id',
+      toolName: 'bash',
+    }, () => 'result')
+
+    expect(completed.slice(0, 2).map(item => item.status)).toEqual(['running', 'running'])
   })
 
   it('clears leftover running tool rows when the turn settles', () => {
