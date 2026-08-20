@@ -37,7 +37,7 @@ describe('Workspace visual contract', () => {
     // Open panel: collapse is the first header row; new-session is one row below.
     expect(contextSidebarSource).toContain('收起会话历史')
     expect(contextSidebarSource).toContain('coding-history-header')
-    expect(contextSidebarSource).toContain('class="coding-history-toggle app-no-drag shrink-0 text-foreground"')
+    expect(contextSidebarSource).toContain(".coding-history-toggle[aria-expanded='true']:not(:hover)::before")
     expect(contextSidebarSource).not.toContain('Task archive')
     expect(contextSidebarSource).toContain('px-3 py-1.5 text-label font-medium text-muted-foreground')
     expect(contextSidebarSource).toContain('--overlay-hover-strong: rgb(255 255 255 / 0.13)')
