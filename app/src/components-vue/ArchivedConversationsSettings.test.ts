@@ -68,8 +68,7 @@ describe('ArchivedConversationsSettings', () => {
     const second = createApp(ArchivedConversationsSettings)
     second.mount(host)
     await settle()
-    const deleteButton = [...document.querySelectorAll<HTMLButtonElement>('button')]
-      .find(button => button.textContent?.trim() === '删除')
+    const deleteButton = document.querySelector<HTMLButtonElement>('[aria-label="永久删除归档聊天"]')
     deleteButton?.click()
     await settle()
     expect(remove).not.toHaveBeenCalled()

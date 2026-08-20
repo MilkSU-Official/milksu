@@ -8,6 +8,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  SettingsRow,
 } from '@felinic/ui'
 import { ArchiveRestore, Trash2 } from 'lucide-vue-next'
 import { invokeCommand } from '@/desktop'
@@ -49,35 +50,40 @@ async function confirmAction() {
 }
 
 function archivedTime(value: number | undefined) {
-  return value ? new Date(value).toLocaleString() : '归档时间未知'
+  return value ? `归档于 ${new Date(value).toLocaleString()}` : '归档时间未知'
 }
 
 onMounted(load)
 </script>
 
 <template>
-  <div class="space-y-3">
-    <p v-if="error" class="text-sm text-destructive">{{ error }}</p>
-    <p v-if="loading" class="text-sm text-muted-foreground">正在读取归档聊天…</p>
-    <p v-else-if="!conversations.length" class="text-sm text-muted-foreground">暂无归档聊天。</p>
-    <div
+  <div>
+    <p v-if="error" class="px-4 py-3 text-body text-destructive">{{ error }}</p>
+    <p v-if="loading" class="px-4 py-5 text-body text-muted-foreground">正在读取归档聊天…</p>
+    <p v-else-if="!conversations.length" class="px-4 py-5 text-body text-muted-foreground">暂无归档聊天</p>
+    <SettingsRow
       v-for="conversation in conversations"
       :key="conversation.id"
-      class="flex items-center gap-4 border-b border-border py-3 last:border-b-0"
+      :label="conversation.title"
+      :description="archivedTime(conversation.archivedAt)"
     >
-      <div class="min-w-0 flex-1">
-        <p class="truncate text-sm font-medium">{{ conversation.title }}</p>
-        <p class="mt-1 text-xs text-muted-foreground">{{ archivedTime(conversation.archivedAt) }}</p>
+      <div class="flex items-center gap-1">
+        <Button variant="ghost" size="sm" @click="confirmation = { action: 'restore', conversation }">
+          <ArchiveRestore class="size-3.5" />
+          恢复
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          class="text-destructive hover:text-destructive"
+          aria-label="永久删除归档聊天"
+          title="永久删除"
+          @click="confirmation = { action: 'delete', conversation }"
+        >
+          <Trash2 class="size-3.5" />
+        </Button>
       </div>
-      <Button variant="outline" size="sm" @click="confirmation = { action: 'restore', conversation }">
-        <ArchiveRestore class="size-4" />
-        恢复
-      </Button>
-      <Button variant="destructive" size="sm" @click="confirmation = { action: 'delete', conversation }">
-        <Trash2 class="size-4" />
-        删除
-      </Button>
-    </div>
+    </SettingsRow>
 
     <Dialog :open="Boolean(confirmation)" @update:open="open => { if (!open) confirmation = null }">
       <DialogContent class="sm:max-w-md">
