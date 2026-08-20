@@ -309,6 +309,12 @@ watch(
                     </span>
                     <span class="truncate">{{ conversation.title }}</span>
                   </Button>
+                  <span
+                    v-if="editingConversationId === conversation.id"
+                    class="mr-1 size-8 shrink-0"
+                    aria-hidden="true"
+                    data-testid="conversation-action-placeholder"
+                  />
                   <DropdownMenu v-if="editingConversationId !== conversation.id">
                     <DropdownMenuTrigger as-child>
                       <Button
@@ -395,6 +401,12 @@ watch(
                   </span>
                   <span class="truncate">{{ conversation.title }}</span>
                 </Button>
+                <span
+                  v-if="editingConversationId === conversation.id"
+                  class="mr-1 size-8 shrink-0"
+                  aria-hidden="true"
+                  data-testid="conversation-action-placeholder"
+                />
                 <DropdownMenu v-if="editingConversationId !== conversation.id">
                   <DropdownMenuTrigger as-child>
                     <Button

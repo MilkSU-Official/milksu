@@ -202,6 +202,8 @@ describe('AppSidebar', () => {
     await nextTick()
     const input = host.querySelector<HTMLInputElement>('[aria-label="编辑会话标题"]')
     expect(input).not.toBeNull()
+    expect(host.querySelector('[data-testid="conversation-action-placeholder"]')).not.toBeNull()
+    expect(host.querySelector('[aria-label="会话操作"]')).toBeNull()
     if (input) {
       input.value = '新的会话标题'
       input.dispatchEvent(new Event('input', { bubbles: true }))
