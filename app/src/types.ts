@@ -116,6 +116,7 @@ export interface Conversation {
   id: string
   title: string
   createdAt: number
+  archivedAt?: number
   workspacePath?: string
   modelMode?: 'auto' | 'manual'
   modelProvider?: string

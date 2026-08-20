@@ -3,9 +3,16 @@ import { computed, nextTick, ref, watch } from 'vue'
 import AkLoadingMark from '@/components-vue/AkLoadingMark.vue'
 import {
   Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   Input,
 } from '@felinic/ui'
 import {
+  Archive,
   Boxes,
   Folder,
   Library,
@@ -14,7 +21,6 @@ import {
   Plus,
   Radar,
   Search,
-  Trash2,
 } from 'lucide-vue-next'
 import {
   groupCodingConversations,
@@ -62,6 +68,7 @@ function openSingleConversation(event: MouseEvent, group: CodingConversationGrou
 
 const query = ref('')
 const conversationList = ref<HTMLElement | null>(null)
+const archiveTarget = ref<Conversation | null>(null)
 const codingGroups = computed(() => groupCodingConversations(props.conversations, query.value))
 const runningConversationIds = computed(() => new Set(props.runningConversationIds ?? []))
 const projectGroups = computed(() => codingGroups.value.filter(group => !group.temporary))
@@ -69,6 +76,12 @@ const temporaryGroup = computed(() => codingGroups.value.find(group => group.tem
 const codingContext = computed(() => showsCodingHistory(props.activeSection))
 const ctfContext = computed(() => props.activeSection === 'ctf')
 const vulnContext = computed(() => props.activeSection === 'vuln')
+
+function confirmArchive() {
+  if (!archiveTarget.value) return
+  emit('deleteConversation', archiveTarget.value.id)
+  archiveTarget.value = null
+}
 
 watch(
   () => props.runningConversationIds ?? [],
@@ -152,11 +165,7 @@ watch(
     </nav>
 
     <div v-else-if="codingContext" class="coding-context-content app-no-drag flex min-h-0 flex-1 flex-col overflow-hidden">
-      <!--
-        Open history header:
-        1) collapse + compact new-task icon (same pair that parks on the topbar when closed)
-        2) full-width “新会话” button on the next row
-      -->
+      <!-- Collapse and the single global new-task action share the open history header. -->
       <div class="coding-history-header shrink-0 px-3 pt-2">
         <div class="flex items-center gap-1.5">
           <Button
@@ -175,25 +184,13 @@ watch(
           </Button>
           <Button
             type="button"
-            variant="ghost"
-            size="icon-sm"
-            class="coding-new-task-icon app-no-drag shrink-0"
-            aria-label="新建编码任务"
-            title="新建编码任务"
+            variant="outline"
+            size="sm"
+            class="coding-new-session-button app-no-drag min-h-8 min-w-0 flex-1 justify-center"
             data-testid="coding-new-task-button"
             @click="$emit('new')"
           >
             <MessageSquarePlus class="size-4" />
-          </Button>
-        </div>
-        <div class="mt-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            class="coding-new-session-button app-no-drag min-h-8 w-full justify-center"
-            @click="$emit('new')"
-          >
             新会话
           </Button>
         </div>
@@ -266,10 +263,10 @@ watch(
                     variant="ghost"
                     size="icon-sm"
                     class="mr-1 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-                    aria-label="删除编码任务"
-                    @click.stop="$emit('deleteConversation', conversation.id)"
+                    aria-label="归档编码任务"
+                    @click.stop="archiveTarget = conversation"
                   >
-                    <Trash2 class="size-3.5" />
+                    <Archive class="size-3.5" />
                   </Button>
                 </div>
               </div>
@@ -317,10 +314,10 @@ watch(
                   variant="ghost"
                   size="icon-sm"
                   class="mr-1 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-                  aria-label="删除编码任务"
-                  @click.stop="$emit('deleteConversation', conversation.id)"
+                  aria-label="归档编码任务"
+                  @click.stop="archiveTarget = conversation"
                 >
-                  <Trash2 class="size-3.5" />
+                  <Archive class="size-3.5" />
                 </Button>
               </div>
             </div>
@@ -332,6 +329,21 @@ watch(
       </div>
     </div>
     <div v-else class="flex-1" />
+
+    <Dialog :open="Boolean(archiveTarget)" @update:open="open => { if (!open) archiveTarget = null }">
+      <DialogContent class="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>归档聊天？</DialogTitle>
+          <DialogDescription>
+            “{{ archiveTarget?.title }}”将从会话列表移到“设置 → 归档聊天”。之后可以恢复或永久删除。
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="ghost" @click="archiveTarget = null">取消</Button>
+          <Button @click="confirmArchive">确认归档</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
   </div>
 </template>

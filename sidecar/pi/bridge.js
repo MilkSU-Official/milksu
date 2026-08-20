@@ -1562,7 +1562,15 @@ async function destroySession(command) {
   if (!conversationId) throw new Error("conversationId is required");
 
   const session = sessions.get(conversationId);
-  const sessionFile = session?.sessionFile;
+  let sessionFile = session?.sessionFile;
+  if (!sessionFile && command.deletePersisted) {
+    const cwd = process.cwd();
+    const agentDir = process.env.MILKSU_PI_AGENT_DIR || join(cwd, ".milksu", "pi");
+    const sessionDir = join(agentDir, "sessions");
+    const persisted = (await SessionManager.list(cwd, sessionDir))
+      .find((value) => value.id === conversationId);
+    sessionFile = persisted?.path;
+  }
   const compactionRequestId = compactionRequestIds.get(conversationId);
   if (compactionRequestId) {
     emit(conversationId, "compaction_end", {

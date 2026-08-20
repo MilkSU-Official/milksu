@@ -46,6 +46,52 @@ func TestStoreGetReturnsTheSavedConversation(t *testing.T) {
 	}
 }
 
+func TestStoreArchivesRestoresAndPermanentlyDeletesConversation(t *testing.T) {
+	store := &Store{directory: t.TempDir()}
+	want := StoredConversation{
+		ID:        "conversation-archive",
+		Title:     "需要稍后继续",
+		CreatedAt: 42,
+		Messages: []StoredMessage{{
+			ID: "message-1", Role: "user", Content: "保留上下文", Timestamp: 43,
+		}},
+	}
+	if err := store.Save(want); err != nil {
+		t.Fatalf("save conversation: %v", err)
+	}
+	if err := store.Archive(want.ID); err != nil {
+		t.Fatalf("archive conversation: %v", err)
+	}
+	active, err := store.List()
+	if err != nil || len(active) != 0 {
+		t.Fatalf("archived conversation remained active: %#v, %v", active, err)
+	}
+	archived, err := store.ListArchived()
+	if err != nil || len(archived) != 1 || archived[0].ArchivedAt == 0 {
+		t.Fatalf("archived conversation was not listed: %#v, %v", archived, err)
+	}
+	if !reflect.DeepEqual(archived[0].Messages, want.Messages) {
+		t.Fatalf("archive did not preserve messages: %#v", archived[0].Messages)
+	}
+	if err := store.Restore(want.ID); err != nil {
+		t.Fatalf("restore conversation: %v", err)
+	}
+	restored, err := store.Get(want.ID)
+	if err != nil || restored.ArchivedAt != 0 || !reflect.DeepEqual(restored.Messages, want.Messages) {
+		t.Fatalf("restored conversation is invalid: %#v, %v", restored, err)
+	}
+	if err := store.Archive(want.ID); err != nil {
+		t.Fatalf("archive conversation again: %v", err)
+	}
+	if err := store.DeleteArchived(want.ID); err != nil {
+		t.Fatalf("delete archived conversation: %v", err)
+	}
+	archived, err = store.ListArchived()
+	if err != nil || len(archived) != 0 {
+		t.Fatalf("deleted archived conversation remained: %#v, %v", archived, err)
+	}
+}
+
 func TestStoreGetRejectsAMismatchedStoredConversation(t *testing.T) {
 	store := &Store{directory: t.TempDir()}
 	if err := os.WriteFile(

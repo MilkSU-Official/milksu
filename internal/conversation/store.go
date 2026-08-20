@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"time"
 
 	"github.com/MilkSU-Official/milksu/internal/appdata"
 )
@@ -80,6 +81,7 @@ type StoredConversation struct {
 	CTFRole           string             `json:"ctfRole,omitempty"`
 	DomainTaskContext map[string]any     `json:"domainTaskContext,omitempty"`
 	Messages          []StoredMessage    `json:"messages"`
+	ArchivedAt        uint64             `json:"archivedAt,omitempty"`
 }
 
 type Store struct {
@@ -95,11 +97,29 @@ func NewStore() (*Store, error) {
 	if err := os.MkdirAll(directory, 0o700); err != nil {
 		return nil, fmt.Errorf("create conversation directory: %w", err)
 	}
+	if err := os.MkdirAll(filepath.Join(directory, "archived"), 0o700); err != nil {
+		return nil, fmt.Errorf("create archived conversation directory: %w", err)
+	}
 	return &Store{directory: directory}, nil
 }
 
 func (s *Store) List() ([]StoredConversation, error) {
-	entries, err := os.ReadDir(s.directory)
+	return s.listDirectory(s.directory)
+}
+
+func (s *Store) ListArchived() ([]StoredConversation, error) {
+	values, err := s.listDirectory(s.archivedDirectory())
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(values, func(i, j int) bool {
+		return values[i].ArchivedAt > values[j].ArchivedAt
+	})
+	return values, nil
+}
+
+func (s *Store) listDirectory(directory string) ([]StoredConversation, error) {
+	entries, err := os.ReadDir(directory)
 	if err != nil {
 		return nil, fmt.Errorf("list conversations: %w", err)
 	}
@@ -109,7 +129,7 @@ func (s *Store) List() ([]StoredConversation, error) {
 		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
 			continue
 		}
-		data, err := os.ReadFile(filepath.Join(s.directory, entry.Name()))
+		data, err := os.ReadFile(filepath.Join(directory, entry.Name()))
 		if err != nil {
 			continue
 		}
@@ -122,6 +142,10 @@ func (s *Store) List() ([]StoredConversation, error) {
 		return values[i].CreatedAt > values[j].CreatedAt
 	})
 	return values, nil
+}
+
+func (s *Store) archivedDirectory() string {
+	return filepath.Join(s.directory, "archived")
 }
 
 func (s *Store) Get(id string) (StoredConversation, error) {
@@ -161,10 +185,78 @@ func (s *Store) Save(value StoredConversation) error {
 }
 
 func (s *Store) Delete(id string) error {
+	return s.deleteFromDirectory(s.directory, id)
+}
+
+func (s *Store) Archive(id string) error {
+	value, err := s.Get(id)
+	if err != nil {
+		return err
+	}
+	value.ArchivedAt = uint64(time.Now().UnixMilli())
+	if err := s.writeToDirectory(s.archivedDirectory(), value); err != nil {
+		return err
+	}
+	return s.deleteFromDirectory(s.directory, id)
+}
+
+func (s *Store) Restore(id string) error {
+	value, err := s.getFromDirectory(s.archivedDirectory(), id)
+	if err != nil {
+		return err
+	}
+	value.ArchivedAt = 0
+	if err := s.writeToDirectory(s.directory, value); err != nil {
+		return err
+	}
+	return s.deleteFromDirectory(s.archivedDirectory(), id)
+}
+
+func (s *Store) DeleteArchived(id string) error {
+	return s.deleteFromDirectory(s.archivedDirectory(), id)
+}
+
+func (s *Store) getFromDirectory(directory, id string) (StoredConversation, error) {
+	if !validID.MatchString(id) {
+		return StoredConversation{}, fmt.Errorf("invalid conversation id")
+	}
+	data, err := os.ReadFile(filepath.Join(directory, id+".json"))
+	if err != nil {
+		return StoredConversation{}, fmt.Errorf("read conversation: %w", err)
+	}
+	var value StoredConversation
+	if err := json.Unmarshal(data, &value); err != nil {
+		return StoredConversation{}, fmt.Errorf("decode conversation: %w", err)
+	}
+	if value.ID != id {
+		return StoredConversation{}, fmt.Errorf("conversation id does not match stored record")
+	}
+	return value, nil
+}
+
+func (s *Store) writeToDirectory(directory string, value StoredConversation) error {
+	if !validID.MatchString(value.ID) {
+		return fmt.Errorf("invalid conversation id")
+	}
+	if err := os.MkdirAll(directory, 0o700); err != nil {
+		return fmt.Errorf("create conversation directory: %w", err)
+	}
+	data, err := json.MarshalIndent(value, "", "  ")
+	if err != nil {
+		return fmt.Errorf("encode conversation: %w", err)
+	}
+	path := filepath.Join(directory, value.ID+".json")
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		return fmt.Errorf("write conversation: %w", err)
+	}
+	return os.Chmod(path, 0o600)
+}
+
+func (s *Store) deleteFromDirectory(directory, id string) error {
 	if !validID.MatchString(id) {
 		return fmt.Errorf("invalid conversation id")
 	}
-	err := os.Remove(filepath.Join(s.directory, id+".json"))
+	err := os.Remove(filepath.Join(directory, id+".json"))
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("delete conversation: %w", err)
 	}

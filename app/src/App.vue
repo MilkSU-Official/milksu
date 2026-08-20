@@ -52,7 +52,7 @@ const activeVulnerabilityCodingConversationId = ref<string | null>(null)
 // currently active Coding or CTF conversation workspace implicitly.
 const vulnerabilityCodingWorkspacePath = ref('')
 const settingsReturnTarget = ref<Exclude<Section, 'settings'>>('ctf')
-type SettingsCategory = 'general' | 'coding' | 'apikeys' | 'browser' | 'cve' | 'security-tools'
+type SettingsCategory = 'general' | 'coding' | 'apikeys' | 'browser' | 'cve' | 'chats' | 'security-tools'
 const settingsCategory = ref<SettingsCategory>('general')
 const settings = ref<AppSettings | null>(null)
 const accountStatus = ref<AccountStatus>({ configured: false, authenticated: false, state: 'unconfigured' })
@@ -584,7 +584,7 @@ onBeforeUnmount(() => {
           section = 'chat'
           codingConversationDrawerOpen = true
         }"
-        @delete-conversation="conversations.remove"
+        @delete-conversation="conversations.archive"
         @new-project-session="newCodingProjectSession"
         @navigate-ctf="ctfSection = $event"
       />
@@ -600,6 +600,7 @@ onBeforeUnmount(() => {
         @account-login="startAccountLogin"
         @account-logout="logoutAccount"
         @security-tool-coding-handoff="startSecurityToolCodingSetup"
+        @conversations-changed="conversations.load"
       />
       <ProfilePage
         v-else-if="section === 'profile'"
