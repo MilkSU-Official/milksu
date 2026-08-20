@@ -28,6 +28,7 @@ const emit = defineEmits<{
   toggleTheme: []
   selectConversation: [id: string]
   deleteConversation: [id: string]
+  deleteConversationPermanently: [id: string]
   newProjectSession: [workspacePath: string]
   renameConversation: [id: string, title: string]
   navigateCtf: [value: CTFWorkspaceSection]
@@ -77,6 +78,7 @@ const showCodingHistory = computed(() => (
         @collapse="$emit('collapseCodingContext')"
         @select-conversation="$emit('selectConversation', $event)"
         @delete-conversation="$emit('deleteConversation', $event)"
+        @delete-conversation-permanently="$emit('deleteConversationPermanently', $event)"
         @new-project-session="$emit('newProjectSession', $event)"
         @rename-conversation="(id, title) => $emit('renameConversation', id, title)"
         @navigate-ctf="$emit('navigateCtf', $event)"

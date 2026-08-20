@@ -812,6 +812,17 @@ func (a *App) DeleteArchivedConversation(id string) error {
 	return a.refreshConversationIndex()
 }
 
+func (a *App) DeleteConversation(id string) error {
+	a.engines.DestroySession(id)
+	if err := a.stopConversationResources(id); err != nil {
+		return err
+	}
+	if err := a.conversations.Delete(id); err != nil {
+		return err
+	}
+	return a.refreshConversationIndex()
+}
+
 func (a *App) refreshConversationIndex() error {
 	if a.sessionIndex == nil {
 		return nil

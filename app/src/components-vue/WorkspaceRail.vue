@@ -5,6 +5,7 @@ import {
   Code2,
   Flag,
   LogOut,
+  Monitor,
   Moon,
   Settings,
   Sun,
@@ -58,10 +59,17 @@ const isBetaChannel = computed(() => {
     && String(buildTracking.value?.appId ?? '') === 'com.milksu.app.beta'
 })
 const themeToggleLabel = computed(() => (
-  props.themeMode === 'dark' ? '切换到日间模式' : '切换到夜间模式'
+  props.themeMode === 'system'
+    ? '当前跟随系统，切换到日间模式'
+    : props.themeMode === 'light'
+      ? '当前日间模式，切换到夜间模式'
+      : '当前夜间模式，切换到跟随系统'
 ))
 const ThemeToggleIcon = computed(() => (
-  props.themeMode === 'dark' ? Sun : Moon
+  props.themeMode === 'system' ? Monitor : props.themeMode === 'light' ? Sun : Moon
+))
+const themeModeLabel = computed(() => (
+  props.themeMode === 'system' ? '跟随系统' : props.themeMode === 'light' ? '日间' : '夜间'
 ))
 
 function closeOnOutsidePointer(event: PointerEvent) {
@@ -168,7 +176,7 @@ function openSettings() {
         @click="emit('toggleTheme')"
       >
         <component :is="ThemeToggleIcon" class="size-4" />
-        <span>{{ props.themeMode === 'dark' ? '日间' : '夜间' }}</span>
+        <span>{{ themeModeLabel }}</span>
       </button>
 
       <button

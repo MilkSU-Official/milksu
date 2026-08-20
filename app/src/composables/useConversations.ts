@@ -703,7 +703,16 @@ export function useConversations() {
   }
 
   async function archive(id: string) {
-	await invokeCommand('archive_conversation', { id })
+    await invokeCommand('archive_conversation', { id })
+    discard(id)
+  }
+
+  async function remove(id: string) {
+    await invokeCommand('delete_conversation', { id })
+    discard(id)
+  }
+
+  function discard(id: string) {
     conversations.value = conversations.value.filter(conversation => conversation.id !== id)
     titleGenerationAttemptedIds.delete(id)
     continuity.value = removeCodingContinuitySession(continuity.value, id)
@@ -1724,6 +1733,7 @@ export function useConversations() {
     controlGoal,
     respondApproval,
     archive,
+    remove,
     rename,
     cancelQueuedGuidance,
     editQueuedGuidance,

@@ -27,6 +27,7 @@ async function mountSidebar(
   onDeleteConversation = vi.fn(),
   runningConversationIds: string[] = [],
   onRenameConversation = vi.fn(),
+  onDeleteConversationPermanently = vi.fn(),
 ) {
   const host = document.createElement('div')
   document.body.append(host)
@@ -45,6 +46,7 @@ async function mountSidebar(
     onNew,
     onDeleteConversation,
     onRenameConversation,
+    onDeleteConversationPermanently,
   })
   app.mount(host)
   mountedApps.push(app)
@@ -166,7 +168,9 @@ describe('AppSidebar', () => {
       vi.fn(),
       onDeleteConversation,
     )
-    host.querySelector<HTMLButtonElement>('[aria-label="归档编码任务"]')?.click()
+    host.querySelector<HTMLButtonElement>('[aria-label="会话操作"]')?.click()
+    await nextTick()
+    document.querySelector<HTMLElement>('[aria-label="归档编码任务"]')?.click()
     await nextTick()
     expect(onDeleteConversation).not.toHaveBeenCalled()
     expect(document.body.textContent).toContain('归档聊天？')
@@ -192,7 +196,9 @@ describe('AppSidebar', () => {
       [],
       onRenameConversation,
     )
-    host.querySelector<HTMLButtonElement>('[aria-label="重命名编码任务"]')?.click()
+    host.querySelector<HTMLButtonElement>('[aria-label="会话操作"]')?.click()
+    await nextTick()
+    document.querySelector<HTMLElement>('[aria-label="重命名编码任务"]')?.click()
     await nextTick()
     const input = host.querySelector<HTMLInputElement>('[aria-label="编辑会话标题"]')
     expect(input).not.toBeNull()
@@ -203,6 +209,35 @@ describe('AppSidebar', () => {
     }
     await nextTick()
     expect(onRenameConversation).toHaveBeenCalledWith('rename-me', '新的会话标题')
+  })
+
+  it('requires confirmation before permanently deleting a conversation', async () => {
+    const onDeleteConversationPermanently = vi.fn()
+    const host = await mountSidebar(
+      'chat',
+      [{ id: 'delete-me', title: '待删除会话', createdAt: 1, messages: [] }],
+      'dark',
+      vi.fn(),
+      true,
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      [],
+      vi.fn(),
+      onDeleteConversationPermanently,
+    )
+    host.querySelector<HTMLButtonElement>('[aria-label="会话操作"]')?.click()
+    await nextTick()
+    document.querySelector<HTMLElement>('[aria-label="永久删除编码任务"]')?.click()
+    await nextTick()
+    expect(onDeleteConversationPermanently).not.toHaveBeenCalled()
+    expect(document.body.textContent).toContain('永久删除聊天？')
+    const confirm = [...document.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.trim() === '确认永久删除')
+    confirm?.click()
+    await nextTick()
+    expect(onDeleteConversationPermanently).toHaveBeenCalledWith('delete-me')
   })
 
   it('keeps no-project tasks alone under the project tree without a folder icon', async () => {
