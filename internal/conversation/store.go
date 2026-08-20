@@ -188,28 +188,42 @@ func (s *Store) Delete(id string) error {
 	return s.deleteFromDirectory(s.directory, id)
 }
 
+// Archive and Restore move the record with a single rename so a conversation is
+// never listed in both places: the stamp is rewritten only after the move lands.
 func (s *Store) Archive(id string) error {
-	value, err := s.Get(id)
-	if err != nil {
+	if err := s.move(s.directory, s.archivedDirectory(), id); err != nil {
 		return err
 	}
-	value.ArchivedAt = uint64(time.Now().UnixMilli())
-	if err := s.writeToDirectory(s.archivedDirectory(), value); err != nil {
-		return err
-	}
-	return s.deleteFromDirectory(s.directory, id)
+	return s.stamp(s.archivedDirectory(), id, uint64(time.Now().UnixMilli()))
 }
 
 func (s *Store) Restore(id string) error {
-	value, err := s.getFromDirectory(s.archivedDirectory(), id)
+	if err := s.move(s.archivedDirectory(), s.directory, id); err != nil {
+		return err
+	}
+	return s.stamp(s.directory, id, 0)
+}
+
+func (s *Store) move(from, to, id string) error {
+	if !validID.MatchString(id) {
+		return fmt.Errorf("invalid conversation id")
+	}
+	if err := os.MkdirAll(to, 0o700); err != nil {
+		return fmt.Errorf("create conversation directory: %w", err)
+	}
+	if err := os.Rename(filepath.Join(from, id+".json"), filepath.Join(to, id+".json")); err != nil {
+		return fmt.Errorf("move conversation: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) stamp(directory, id string, archivedAt uint64) error {
+	value, err := s.getFromDirectory(directory, id)
 	if err != nil {
 		return err
 	}
-	value.ArchivedAt = 0
-	if err := s.writeToDirectory(s.directory, value); err != nil {
-		return err
-	}
-	return s.deleteFromDirectory(s.archivedDirectory(), id)
+	value.ArchivedAt = archivedAt
+	return s.writeToDirectory(directory, value)
 }
 
 func (s *Store) DeleteArchived(id string) error {

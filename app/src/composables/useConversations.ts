@@ -649,7 +649,14 @@ export function useConversations() {
 
   async function load() {
     const stored = await invokeCommand<Record<string, unknown>[]>('list_conversations')
-    conversations.value = stored.map(normalizeConversation)
+    // The stored snapshot lags behind: message deltas persist on a 400ms debounce.
+    // A reload triggered while another conversation streams must not roll it back,
+    // so the disk decides which conversations exist and memory keeps their content.
+    const loaded = new Map(conversations.value.map(conversation => [conversation.id, conversation]))
+    conversations.value = stored.map(value => {
+      const next = normalizeConversation(value)
+      return loaded.get(next.id) ?? next
+    })
   }
 
   function update(id: string, updater: (conversation: Conversation) => Conversation) {
@@ -702,13 +709,26 @@ export function useConversations() {
     messageQueues.value = next
   }
 
+  // The sidebar confirmation dialog renders this and stays open on failure, the
+  // same way the archived-chat settings panel reports its own errors.
+  const conversationActionError = ref('')
+
   async function archive(id: string) {
-    await invokeCommand('archive_conversation', { id })
-    discard(id)
+    await runConversationAction('归档', 'archive_conversation', id)
   }
 
   async function remove(id: string) {
-    await invokeCommand('delete_conversation', { id })
+    await runConversationAction('删除', 'delete_conversation', id)
+  }
+
+  async function runConversationAction(action: string, command: string, id: string) {
+    conversationActionError.value = ''
+    try {
+      await invokeCommand(command, { id })
+    } catch (cause) {
+      conversationActionError.value = `${action}失败：${cause instanceof Error ? cause.message : String(cause)}`
+      return
+    }
     discard(id)
   }
 
@@ -1735,6 +1755,7 @@ export function useConversations() {
     archive,
     remove,
     rename,
+    conversationActionError,
     cancelQueuedGuidance,
     editQueuedGuidance,
     startNew,

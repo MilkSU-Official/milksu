@@ -17,7 +17,6 @@ describe('workspaceViewState', () => {
       activeConversationId: 'conversation-1',
       codingHistoryOpen: false,
       ctfSection: 'catalog',
-      settingsCategory: 'chats',
       settingsReturnTarget: 'chat',
     }
 
@@ -37,14 +36,12 @@ describe('workspaceViewState', () => {
       activeConversationId: 123,
       codingHistoryOpen: 'yes',
       ctfSection: 'missing',
-      settingsCategory: 'missing',
       settingsReturnTarget: 'settings',
     }))
     expect(readWorkspaceViewState(storage)).toMatchObject({
       activeConversationId: null,
       codingHistoryOpen: true,
       ctfSection: 'catalog',
-      settingsCategory: 'general',
       settingsReturnTarget: 'ctf',
     })
   })

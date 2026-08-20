@@ -12,6 +12,7 @@ const props = defineProps<{
   activeConversationId: string | null
   conversations: Conversation[]
   runningConversationIds?: string[]
+  conversationActionError?: string
   ctfSection: CTFWorkspaceSection
   /** Coding history panel: fixed beside the rail, not a floating overlay. */
   codingContextOpen?: boolean
@@ -73,6 +74,7 @@ const showCodingHistory = computed(() => (
         :active-conversation-id="activeConversationId"
         :conversations="conversations"
         :running-conversation-ids="runningConversationIds"
+        :action-error="conversationActionError"
         :ctf-section="ctfSection"
         @new="$emit('new')"
         @collapse="$emit('collapseCodingContext')"

@@ -52,6 +52,8 @@ function createMockConversations() {
     activeId,
     active,
     workspacePath,
+    runningConversationIds: computed<string[]>(() => []),
+    conversationActionError: ref(''),
     activeRunning: computed(() => false),
     activeAborting: computed(() => false),
     activeMessageQueue: computed(() => ({ steering: [], followUp: [] })),

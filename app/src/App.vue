@@ -55,7 +55,7 @@ const activeVulnerabilityCodingConversationId = ref<string | null>(null)
 const vulnerabilityCodingWorkspacePath = ref('')
 const settingsReturnTarget = ref<Exclude<Section, 'settings'>>(restoredViewState?.settingsReturnTarget ?? 'ctf')
 type SettingsCategory = 'general' | 'coding' | 'apikeys' | 'browser' | 'cve' | 'chats' | 'security-tools'
-const settingsCategory = ref<SettingsCategory>(restoredViewState?.settingsCategory ?? 'general')
+const settingsCategory = ref<SettingsCategory>('general')
 const settings = ref<AppSettings | null>(null)
 const accountStatus = ref<AccountStatus>({ configured: false, authenticated: false, state: 'unconfigured' })
 const accountLoaded = ref(false)
@@ -102,13 +102,12 @@ function persistWorkspaceViewState() {
     activeConversationId: conversations.activeId.value,
     codingHistoryOpen: codingConversationDrawerOpen.value,
     ctfSection: ctfSection.value,
-    settingsCategory: settingsCategory.value,
     settingsReturnTarget: settingsReturnTarget.value,
   })
 }
 
 watch(
-  [section, codingConversationDrawerOpen, ctfSection, settingsCategory, settingsReturnTarget, conversations.activeId],
+  [section, codingConversationDrawerOpen, ctfSection, settingsReturnTarget, conversations.activeId],
   persistWorkspaceViewState,
 )
 
@@ -606,7 +605,8 @@ onBeforeUnmount(() => {
         :active-section="sidebarSection"
         :active-conversation-id="conversations.activeId.value"
         :conversations="conversations.conversations.value"
-        :running-conversation-ids="conversations.runningConversationIds?.value ?? []"
+        :running-conversation-ids="conversations.runningConversationIds.value"
+        :conversation-action-error="conversations.conversationActionError.value"
         :account-status="accountStatus"
         :ctf-section="ctfSection"
         :coding-context-open="codingConversationDrawerOpen"

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
+import { isComposingKey } from '@/lib/imeComposition'
 import AkLoadingMark from '@/components-vue/AkLoadingMark.vue'
 import {
   Button,
@@ -47,6 +48,8 @@ const props = defineProps<{
   activeConversationId: string | null
   conversations: Conversation[]
   runningConversationIds?: string[]
+  /** Set by the parent when archiving or deleting failed; keeps the dialog open. */
+  actionError?: string
   ctfSection: CTFWorkspaceSection
 }>()
 
@@ -79,8 +82,10 @@ function openSingleConversation(event: MouseEvent, group: CodingConversationGrou
 const query = ref('')
 const conversationList = ref<HTMLElement | null>(null)
 const pendingAction = ref<{ conversation: Conversation, action: 'archive' | 'delete' } | null>(null)
+const pendingActionRunning = ref(false)
 const editingConversationId = ref<string | null>(null)
 const editingTitle = ref('')
+const renameInput = ref<HTMLInputElement | null>(null)
 const codingGroups = computed(() => groupCodingConversations(props.conversations, query.value))
 const runningConversationIds = computed(() => new Set(props.runningConversationIds ?? []))
 const projectGroups = computed(() => codingGroups.value.filter(group => !group.temporary))
@@ -89,21 +94,33 @@ const codingContext = computed(() => showsCodingHistory(props.activeSection))
 const ctfContext = computed(() => props.activeSection === 'ctf')
 const vulnContext = computed(() => props.activeSection === 'vuln')
 
+// The parent owns the RPC, so the dialog stays open until the conversation leaves
+// the list (success) or an error arrives (failure).
 function confirmConversationAction() {
-  if (!pendingAction.value) return
+  if (!pendingAction.value || pendingActionRunning.value) return
   const { conversation, action } = pendingAction.value
+  pendingActionRunning.value = true
   if (action === 'archive') emit('deleteConversation', conversation.id)
   else emit('deleteConversationPermanently', conversation.id)
+}
+
+function closeConversationAction() {
   pendingAction.value = null
+  pendingActionRunning.value = false
+}
+
+function setRenameInput(element: unknown) {
+  const node = (element as { $el?: unknown } | null)?.$el ?? element
+  if (node instanceof HTMLInputElement) renameInput.value = node
+  else renameInput.value = (node as HTMLElement | null)?.querySelector?.('input') ?? null
 }
 
 function startRename(conversation: Conversation) {
   editingConversationId.value = conversation.id
   editingTitle.value = conversation.title
   void nextTick(() => {
-    const input = document.querySelector<HTMLInputElement>('[aria-label="编辑会话标题"]')
-    input?.focus()
-    input?.select()
+    renameInput.value?.focus()
+    renameInput.value?.select()
   })
 }
 
@@ -117,6 +134,29 @@ function finishRename(conversation: Conversation) {
 function cancelRename() {
   editingConversationId.value = null
 }
+
+function submitRename(event: KeyboardEvent, conversation: Conversation) {
+  if (isComposingKey(event)) return
+  event.preventDefault()
+  finishRename(conversation)
+}
+
+function abortRename(event: KeyboardEvent) {
+  if (isComposingKey(event)) return
+  event.preventDefault()
+  cancelRename()
+}
+
+watch(
+  () => props.conversations.some(conversation => conversation.id === pendingAction.value?.conversation.id),
+  present => {
+    if (pendingActionRunning.value && !present) closeConversationAction()
+  },
+)
+
+watch(() => props.actionError, value => {
+  if (value) pendingActionRunning.value = false
+})
 
 watch(
   () => props.runningConversationIds ?? [],
@@ -281,14 +321,15 @@ watch(
                 >
                   <Input
                     v-if="editingConversationId === conversation.id"
+                    :ref="setRenameInput"
                     v-model="editingTitle"
                     size="sm"
                     class="coding-project-title-input h-7 min-w-0 flex-1 rounded-none"
                     aria-label="编辑会话标题"
                     maxlength="40"
                     @click.stop
-                    @keydown.enter.prevent="finishRename(conversation)"
-                    @keydown.escape.prevent="cancelRename"
+                    @keydown.enter="submitRename($event, conversation)"
+                    @keydown.escape="abortRename($event)"
                     @blur="finishRename(conversation)"
                   />
                   <Button
@@ -373,14 +414,15 @@ watch(
               >
                 <Input
                   v-if="editingConversationId === conversation.id"
+                  :ref="setRenameInput"
                   v-model="editingTitle"
                   size="sm"
                   class="coding-project-title-input h-7 min-w-0 flex-1 rounded-none"
                   aria-label="编辑会话标题"
                   maxlength="40"
                   @click.stop
-                  @keydown.enter.prevent="finishRename(conversation)"
-                  @keydown.escape.prevent="cancelRename"
+                  @keydown.enter="submitRename($event, conversation)"
+                  @keydown.escape="abortRename($event)"
                   @blur="finishRename(conversation)"
                 />
                 <Button
@@ -447,7 +489,7 @@ watch(
     </div>
     <div v-else class="flex-1" />
 
-    <Dialog :open="Boolean(pendingAction)" @update:open="open => { if (!open) pendingAction = null }">
+    <Dialog :open="Boolean(pendingAction)" @update:open="open => { if (!open) closeConversationAction() }">
       <DialogContent class="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{{ pendingAction?.action === 'delete' ? '永久删除聊天？' : '归档聊天？' }}</DialogTitle>
@@ -458,11 +500,19 @@ watch(
             <template v-else>
               “{{ pendingAction?.conversation.title }}”将从会话列表移到“设置 → 归档聊天”。之后可以恢复或永久删除。
             </template>
+            <template v-if="pendingAction && runningConversationIds.has(pendingAction.conversation.id)">
+              该会话正在运行，本次操作会先中断当前回合。
+            </template>
           </DialogDescription>
         </DialogHeader>
+        <p v-if="actionError" class="text-body text-destructive">{{ actionError }}</p>
         <DialogFooter>
-          <Button variant="ghost" @click="pendingAction = null">取消</Button>
-          <Button :variant="pendingAction?.action === 'delete' ? 'destructive' : 'default'" @click="confirmConversationAction">
+          <Button variant="ghost" @click="closeConversationAction">取消</Button>
+          <Button
+            :variant="pendingAction?.action === 'delete' ? 'destructive' : 'default'"
+            :disabled="pendingActionRunning"
+            @click="confirmConversationAction"
+          >
             {{ pendingAction?.action === 'delete' ? '确认永久删除' : '确认归档' }}
           </Button>
         </DialogFooter>
