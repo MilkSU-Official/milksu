@@ -275,7 +275,7 @@ watch(
                 <div
                   v-for="conversation in group.conversations"
                   :key="conversation.id"
-                  class="group flex items-center rounded-md transition-colors hover:bg-accent/50"
+                  class="group flex items-center transition-colors hover:bg-accent/50"
                   :data-ui-selected="activeConversationId === conversation.id ? '' : undefined"
                   :data-active-conversation-row="activeConversationId === conversation.id ? '' : undefined"
                 >
@@ -283,7 +283,7 @@ watch(
                     v-if="editingConversationId === conversation.id"
                     v-model="editingTitle"
                     size="sm"
-                    class="ml-1 h-7 min-w-0 flex-1"
+                    class="ml-1 h-7 min-w-0 flex-1 rounded-none"
                     aria-label="编辑会话标题"
                     maxlength="40"
                     @click.stop
@@ -295,7 +295,7 @@ watch(
                     v-else
                     variant="quiet"
                     size="sm"
-                    class="coding-project-row coding-project-child relative h-7 min-w-0 flex-1 justify-start text-foreground"
+                    class="coding-project-row coding-project-child relative h-7 min-w-0 flex-1 justify-start rounded-none text-foreground"
                     :aria-current="activeConversationId === conversation.id ? 'true' : undefined"
                     @click.stop="selectConversation(conversation.id)"
                   >
@@ -320,7 +320,7 @@ watch(
                       <Button
                         variant="ghost"
                         size="icon-sm"
-                        class="mr-1 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
+                        class="mr-1 rounded-none opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
                         aria-label="会话操作"
                         @click.stop
                       >
@@ -367,7 +367,7 @@ watch(
               <div
                 v-for="conversation in temporaryGroup.conversations"
                 :key="conversation.id"
-                class="group flex items-center rounded-md transition-colors hover:bg-accent/50"
+                class="group flex items-center transition-colors hover:bg-accent/50"
                 :data-ui-selected="activeConversationId === conversation.id ? '' : undefined"
                 :data-active-conversation-row="activeConversationId === conversation.id ? '' : undefined"
               >
@@ -375,7 +375,7 @@ watch(
                   v-if="editingConversationId === conversation.id"
                   v-model="editingTitle"
                   size="sm"
-                  class="ml-1 h-7 min-w-0 flex-1"
+                  class="ml-1 h-7 min-w-0 flex-1 rounded-none"
                   aria-label="编辑会话标题"
                   maxlength="40"
                   @click.stop
@@ -387,7 +387,7 @@ watch(
                   v-else
                   variant="quiet"
                   size="sm"
-                  class="coding-project-row coding-project-child relative h-7 min-w-0 flex-1 justify-start text-foreground"
+                  class="coding-project-row coding-project-child relative h-7 min-w-0 flex-1 justify-start rounded-none text-foreground"
                   :aria-current="activeConversationId === conversation.id ? 'true' : undefined"
                   @click.stop="selectConversation(conversation.id)"
                 >
@@ -412,7 +412,7 @@ watch(
                     <Button
                       variant="ghost"
                       size="icon-sm"
-                      class="mr-1 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
+                      class="mr-1 rounded-none opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
                       aria-label="会话操作"
                       @click.stop
                     >
