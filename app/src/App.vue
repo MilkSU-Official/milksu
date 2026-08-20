@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AppSidebar from '@/components-vue/AppSidebar.vue'
 import UpdateNotification from '@/components-vue/UpdateNotification.vue'
 import { useConversations } from '@/composables/useConversations'
@@ -16,6 +16,7 @@ import {
 import { settingsReturnSection, type CTFWorkspaceSection } from '@/lib/workspaceNavigation'
 import { executeVulnerabilityCodingHandoff } from '@/lib/vulnerabilityCodingHandoff'
 import { debugLog } from '@/lib/debugMode'
+import { readWorkspaceViewState, writeWorkspaceViewState } from '@/lib/workspaceViewState'
 import { groupCodingConversations } from '@/lib/codingConversationGroups'
 import { buildCTFDomainTaskContext } from '@/lib/domainTaskContext'
 import {
@@ -37,12 +38,13 @@ const VulnPage = defineAsyncComponent(() => import('@/components-vue/VulnPage.vu
 
 type Section = 'chat' | 'ctf' | 'vuln' | 'profile' | 'settings'
 
+const restoredViewState = readWorkspaceViewState()
 const conversations = useConversations()
 const vulnerabilityDashboard = useVulnerabilityDashboard()
-const section = ref<Section>('ctf')
+const section = ref<Section>(restoredViewState?.section ?? 'ctf')
 // Coding history is a fixed left panel (not a floating drawer); open by default.
-const codingConversationDrawerOpen = ref(true)
-const ctfSection = ref<CTFWorkspaceSection>('catalog')
+const codingConversationDrawerOpen = ref(restoredViewState?.codingHistoryOpen ?? true)
+const ctfSection = ref<CTFWorkspaceSection>(restoredViewState?.ctfSection ?? 'catalog')
 const ctfResumeJobId = ref<string | null>(null)
 const vulnNavigationEpoch = ref(0)
 const lastCodingConversationId = ref<string | null>(null)
@@ -51,9 +53,9 @@ const activeVulnerabilityCodingConversationId = ref<string | null>(null)
 // CVE authorization is selected on the CVE surface. It must never inherit the
 // currently active Coding or CTF conversation workspace implicitly.
 const vulnerabilityCodingWorkspacePath = ref('')
-const settingsReturnTarget = ref<Exclude<Section, 'settings'>>('ctf')
+const settingsReturnTarget = ref<Exclude<Section, 'settings'>>(restoredViewState?.settingsReturnTarget ?? 'ctf')
 type SettingsCategory = 'general' | 'coding' | 'apikeys' | 'browser' | 'cve' | 'chats' | 'security-tools'
-const settingsCategory = ref<SettingsCategory>('general')
+const settingsCategory = ref<SettingsCategory>(restoredViewState?.settingsCategory ?? 'general')
 const settings = ref<AppSettings | null>(null)
 const accountStatus = ref<AccountStatus>({ configured: false, authenticated: false, state: 'unconfigured' })
 const accountLoaded = ref(false)
@@ -90,6 +92,25 @@ let unlistenModelCatalog: (() => void) | undefined
 let unlistenUpdate: (() => void) | undefined
 let systemThemeMedia: MediaQueryList | undefined
 let systemThemeListener: (() => void) | undefined
+const workspaceViewStateReady = ref(false)
+
+function persistWorkspaceViewState() {
+  if (!workspaceViewStateReady.value) return
+  writeWorkspaceViewState({
+    version: 1,
+    section: section.value,
+    activeConversationId: conversations.activeId.value,
+    codingHistoryOpen: codingConversationDrawerOpen.value,
+    ctfSection: ctfSection.value,
+    settingsCategory: settingsCategory.value,
+    settingsReturnTarget: settingsReturnTarget.value,
+  })
+}
+
+watch(
+  [section, codingConversationDrawerOpen, ctfSection, settingsCategory, settingsReturnTarget, conversations.activeId],
+  persistWorkspaceViewState,
+)
 
 applyThemeMode(themeMode.value)
 
@@ -257,13 +278,12 @@ function rememberActiveConversation() {
   lastCTFConversationId.value = remembered.ctfConversationId
 }
 
-/**
- * Entering Coding always opens a blank draft, not the last conversation.
- * History stays in the left list; users reopen a prior task from there.
- * CTF / CVE handoffs and explicit history clicks still open a concrete chat.
- */
-function openBlankCodingWorkspace() {
-  conversations.startNew()
+function restoreCodingWorkspace() {
+  const restored = conversations.conversations.value.find(conversation => (
+    conversation.id === lastCodingConversationId.value && !conversation.ctfJobId
+  ))
+  if (restored) conversations.activeId.value = restored.id
+  else conversations.startNew()
   activeVulnerabilityCodingConversationId.value = null
 }
 
@@ -286,7 +306,7 @@ function navigateSection(value: Section) {
     return
   }
   if (value === 'chat') {
-    openBlankCodingWorkspace()
+    restoreCodingWorkspace()
     section.value = value
     return
   }
@@ -533,6 +553,16 @@ onMounted(async () => {
     'renderer.parallelBootstrap',
     `wall=${parallelWallMs}ms catalog=${catalogMs}ms settings=${settingsMs}ms account=${accountMs}ms conversations=${conversationsMs}ms slowest=${slowest}ms accountLoaded=${accountLoaded.value} provisional=${accountStatus.value.provisional === true}`,
   )
+  if (restoredViewState) {
+    const restoredConversation = conversations.conversations.value.find(
+      conversation => conversation.id === restoredViewState.activeConversationId,
+    )
+    conversations.activeId.value = restoredConversation?.id ?? null
+    if (restoredConversation?.ctfJobId) lastCTFConversationId.value = restoredConversation.id
+    else if (restoredConversation) lastCodingConversationId.value = restoredConversation.id
+  }
+  workspaceViewStateReady.value = true
+  persistWorkspaceViewState()
   updateStatus.value = await timedStartupStep('rpc.get_update_status', () =>
     invokeCommand<UpdateStatus>('get_update_status').catch(() => null),
   )
