@@ -13,15 +13,17 @@ import {
 describe('themeMode', () => {
   beforeEach(() => {
     document.documentElement.removeAttribute('data-theme')
+    document.documentElement.removeAttribute('data-theme-mode')
     document.documentElement.removeAttribute('style')
   })
 
-  it('defaults to the day theme while preserving an explicit night choice', () => {
+  it('defaults to the system theme while preserving explicit choices', () => {
     const storage = createMemoryStorage()
     expect(normalizeThemeMode('dark')).toBe('dark')
     expect(normalizeThemeMode('light')).toBe('light')
-    expect(normalizeThemeMode('system')).toBe('light')
-    expect(readThemeMode(storage)).toBe('light')
+    expect(normalizeThemeMode('system')).toBe('system')
+    expect(normalizeThemeMode('unknown')).toBe('system')
+    expect(readThemeMode(storage)).toBe('system')
 
     storage.setItem(THEME_MODE_STORAGE_KEY, 'dark')
     expect(readThemeMode(storage)).toBe('dark')
@@ -29,14 +31,16 @@ describe('themeMode', () => {
 
   it('applies and persists the current mode', () => {
     const storage = createMemoryStorage()
-    applyThemeMode('light')
-    writeThemeMode('light', storage)
+    applyThemeMode('system', document.documentElement, true)
+    writeThemeMode('system', storage)
 
-    expect(document.documentElement.dataset.theme).toBe('light')
-    expect(document.documentElement.style.colorScheme).toBe('light')
-    expect(storage.getItem(THEME_MODE_STORAGE_KEY)).toBe('light')
+    expect(document.documentElement.dataset.theme).toBe('dark')
+    expect(document.documentElement.dataset.themeMode).toBe('system')
+    expect(document.documentElement.style.colorScheme).toBe('dark')
+    expect(storage.getItem(THEME_MODE_STORAGE_KEY)).toBe('system')
+    expect(nextThemeMode('system')).toBe('light')
     expect(nextThemeMode('light')).toBe('dark')
-    expect(nextThemeMode('dark')).toBe('light')
+    expect(nextThemeMode('dark')).toBe('system')
   })
 })
 

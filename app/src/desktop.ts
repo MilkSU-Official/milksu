@@ -187,6 +187,7 @@ interface DesktopAppBindings {
   ArchiveConversation(id: string): Promise<void>
   RestoreConversation(id: string): Promise<void>
   DeleteArchivedConversation(id: string): Promise<void>
+  DeleteConversation(id: string): Promise<void>
   GenerateConversationTitle(
     firstMessage: string,
     modelMode: string,
@@ -532,6 +533,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.RestoreConversation(args?.id as string) as Promise<T>
       case 'delete_archived_conversation':
         return app.DeleteArchivedConversation(args?.id as string) as Promise<T>
+      case 'delete_conversation':
+        return app.DeleteConversation(args?.id as string) as Promise<T>
       case 'generate_conversation_title':
         return app.GenerateConversationTitle(
           args?.firstMessage as string,

@@ -9,6 +9,11 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
   Input,
 } from '@felinic/ui'
 import {
@@ -17,11 +22,13 @@ import {
   Folder,
   Library,
   MessageSquarePlus,
+  MoreVertical,
   PanelLeftClose,
   Plus,
   Pencil,
   Radar,
   Search,
+  Trash2,
 } from 'lucide-vue-next'
 import {
   groupCodingConversations,
@@ -49,6 +56,7 @@ const emit = defineEmits<{
   collapse: []
   selectConversation: [id: string]
   deleteConversation: [id: string]
+  deleteConversationPermanently: [id: string]
   newProjectSession: [workspacePath: string]
   renameConversation: [id: string, title: string]
   navigateCtf: [value: CTFWorkspaceSection]
@@ -70,7 +78,7 @@ function openSingleConversation(event: MouseEvent, group: CodingConversationGrou
 
 const query = ref('')
 const conversationList = ref<HTMLElement | null>(null)
-const archiveTarget = ref<Conversation | null>(null)
+const pendingAction = ref<{ conversation: Conversation, action: 'archive' | 'delete' } | null>(null)
 const editingConversationId = ref<string | null>(null)
 const editingTitle = ref('')
 const codingGroups = computed(() => groupCodingConversations(props.conversations, query.value))
@@ -81,10 +89,12 @@ const codingContext = computed(() => showsCodingHistory(props.activeSection))
 const ctfContext = computed(() => props.activeSection === 'ctf')
 const vulnContext = computed(() => props.activeSection === 'vuln')
 
-function confirmArchive() {
-  if (!archiveTarget.value) return
-  emit('deleteConversation', archiveTarget.value.id)
-  archiveTarget.value = null
+function confirmConversationAction() {
+  if (!pendingAction.value) return
+  const { conversation, action } = pendingAction.value
+  if (action === 'archive') emit('deleteConversation', conversation.id)
+  else emit('deleteConversationPermanently', conversation.id)
+  pendingAction.value = null
 }
 
 function startRename(conversation: Conversation) {
@@ -299,25 +309,35 @@ watch(
                     </span>
                     <span class="truncate">{{ conversation.title }}</span>
                   </Button>
-                  <Button
-                    v-if="editingConversationId !== conversation.id"
-                    variant="ghost"
-                    size="icon-sm"
-                    class="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-                    aria-label="重命名编码任务"
-                    @click.stop="startRename(conversation)"
-                  >
-                    <Pencil class="size-3.5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    class="mr-1 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-                    aria-label="归档编码任务"
-                    @click.stop="archiveTarget = conversation"
-                  >
-                    <Archive class="size-3.5" />
-                  </Button>
+                  <DropdownMenu v-if="editingConversationId !== conversation.id">
+                    <DropdownMenuTrigger as-child>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        class="mr-1 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
+                        aria-label="会话操作"
+                        @click.stop
+                      >
+                        <MoreVertical class="size-3.5" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" :side-offset="4" class="w-40">
+                      <DropdownMenuItem aria-label="重命名编码任务" @select="startRename(conversation)">
+                        <Pencil class="size-4" />重命名
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem aria-label="归档编码任务" @select="pendingAction = { conversation, action: 'archive' }">
+                        <Archive class="size-4" />归档
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        class="text-destructive focus:text-destructive"
+                        aria-label="永久删除编码任务"
+                        @select="pendingAction = { conversation, action: 'delete' }"
+                      >
+                        <Trash2 class="size-4" />删除
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
             </details>
@@ -375,25 +395,35 @@ watch(
                   </span>
                   <span class="truncate">{{ conversation.title }}</span>
                 </Button>
-                <Button
-                  v-if="editingConversationId !== conversation.id"
-                  variant="ghost"
-                  size="icon-sm"
-                  class="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-                  aria-label="重命名编码任务"
-                  @click.stop="startRename(conversation)"
-                >
-                  <Pencil class="size-3.5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  class="mr-1 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-                  aria-label="归档编码任务"
-                  @click.stop="archiveTarget = conversation"
-                >
-                  <Archive class="size-3.5" />
-                </Button>
+                <DropdownMenu v-if="editingConversationId !== conversation.id">
+                  <DropdownMenuTrigger as-child>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      class="mr-1 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
+                      aria-label="会话操作"
+                      @click.stop
+                    >
+                      <MoreVertical class="size-3.5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" :side-offset="4" class="w-40">
+                    <DropdownMenuItem aria-label="重命名编码任务" @select="startRename(conversation)">
+                      <Pencil class="size-4" />重命名
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem aria-label="归档编码任务" @select="pendingAction = { conversation, action: 'archive' }">
+                      <Archive class="size-4" />归档
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      class="text-destructive focus:text-destructive"
+                      aria-label="永久删除编码任务"
+                      @select="pendingAction = { conversation, action: 'delete' }"
+                    >
+                      <Trash2 class="size-4" />删除
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
           </details>
@@ -405,17 +435,24 @@ watch(
     </div>
     <div v-else class="flex-1" />
 
-    <Dialog :open="Boolean(archiveTarget)" @update:open="open => { if (!open) archiveTarget = null }">
+    <Dialog :open="Boolean(pendingAction)" @update:open="open => { if (!open) pendingAction = null }">
       <DialogContent class="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>归档聊天？</DialogTitle>
+          <DialogTitle>{{ pendingAction?.action === 'delete' ? '永久删除聊天？' : '归档聊天？' }}</DialogTitle>
           <DialogDescription>
-            “{{ archiveTarget?.title }}”将从会话列表移到“设置 → 归档聊天”。之后可以恢复或永久删除。
+            <template v-if="pendingAction?.action === 'delete'">
+              “{{ pendingAction.conversation.title }}”的聊天记录将被永久删除，此操作无法撤销。项目文件不会被删除。
+            </template>
+            <template v-else>
+              “{{ pendingAction?.conversation.title }}”将从会话列表移到“设置 → 归档聊天”。之后可以恢复或永久删除。
+            </template>
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="ghost" @click="archiveTarget = null">取消</Button>
-          <Button @click="confirmArchive">确认归档</Button>
+          <Button variant="ghost" @click="pendingAction = null">取消</Button>
+          <Button :variant="pendingAction?.action === 'delete' ? 'destructive' : 'default'" @click="confirmConversationAction">
+            {{ pendingAction?.action === 'delete' ? '确认永久删除' : '确认归档' }}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

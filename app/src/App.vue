@@ -84,6 +84,8 @@ const themeMode = ref<ThemeMode>(readThemeMode())
 let unlistenAccount: (() => void) | undefined
 let unlistenModelCatalog: (() => void) | undefined
 let unlistenUpdate: (() => void) | undefined
+let systemThemeMedia: MediaQueryList | undefined
+let systemThemeListener: (() => void) | undefined
 
 applyThemeMode(themeMode.value)
 
@@ -496,6 +498,13 @@ onMounted(async () => {
   const mountedAt = performance.now()
   startupLog('renderer.onMounted')
   applyThemeMode(themeMode.value)
+  if (typeof window.matchMedia === 'function') {
+    systemThemeMedia = window.matchMedia('(prefers-color-scheme: dark)')
+    systemThemeListener = () => {
+      if (themeMode.value === 'system') applyThemeMode('system')
+    }
+    systemThemeMedia.addEventListener('change', systemThemeListener)
+  }
   // Subscribe before any RPC so background account.bootstrap → onChanged is not missed
   // (network status often completes right after first paint).
   unlistenAccount = await listenEvent<AccountStatus>('account.changed', event => {
@@ -554,6 +563,9 @@ onBeforeUnmount(() => {
   unlistenAccount?.()
   unlistenModelCatalog?.()
   unlistenUpdate?.()
+  if (systemThemeMedia && systemThemeListener) {
+    systemThemeMedia.removeEventListener('change', systemThemeListener)
+  }
 })
 </script>
 
@@ -601,6 +613,7 @@ onBeforeUnmount(() => {
           codingConversationDrawerOpen = true
         }"
         @delete-conversation="conversations.archive"
+        @delete-conversation-permanently="conversations.remove"
         @new-project-session="newCodingProjectSession"
         @rename-conversation="conversations.rename"
         @navigate-ctf="ctfSection = $event"
