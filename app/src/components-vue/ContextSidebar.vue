@@ -275,7 +275,7 @@ watch(
                 <div
                   v-for="conversation in group.conversations"
                   :key="conversation.id"
-                  class="group flex items-center rounded-md"
+                  class="group flex items-center rounded-md transition-colors hover:bg-accent/50"
                   :data-ui-selected="activeConversationId === conversation.id ? '' : undefined"
                   :data-active-conversation-row="activeConversationId === conversation.id ? '' : undefined"
                 >
@@ -293,9 +293,9 @@ watch(
                   />
                   <Button
                     v-else
-                    variant="ghost"
+                    variant="quiet"
                     size="sm"
-                    class="coding-project-row coding-project-child relative h-7 min-w-0 flex-1 justify-start"
+                    class="coding-project-row coding-project-child relative h-7 min-w-0 flex-1 justify-start text-foreground"
                     :aria-current="activeConversationId === conversation.id ? 'true' : undefined"
                     @click.stop="selectConversation(conversation.id)"
                   >
@@ -361,7 +361,7 @@ watch(
               <div
                 v-for="conversation in temporaryGroup.conversations"
                 :key="conversation.id"
-                class="group flex items-center rounded-md"
+                class="group flex items-center rounded-md transition-colors hover:bg-accent/50"
                 :data-ui-selected="activeConversationId === conversation.id ? '' : undefined"
                 :data-active-conversation-row="activeConversationId === conversation.id ? '' : undefined"
               >
@@ -379,9 +379,9 @@ watch(
                 />
                 <Button
                   v-else
-                  variant="ghost"
+                  variant="quiet"
                   size="sm"
-                  class="coding-project-row coding-project-child relative h-7 min-w-0 flex-1 justify-start"
+                  class="coding-project-row coding-project-child relative h-7 min-w-0 flex-1 justify-start text-foreground"
                   :aria-current="activeConversationId === conversation.id ? 'true' : undefined"
                   @click.stop="selectConversation(conversation.id)"
                 >
