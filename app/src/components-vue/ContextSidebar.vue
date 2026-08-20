@@ -205,9 +205,9 @@ watch(
         <div class="flex items-center gap-1.5">
           <Button
             type="button"
-            variant="quiet"
+            variant="ghost"
             size="icon-sm"
-            class="coding-history-toggle app-no-drag shrink-0 text-foreground"
+            class="coding-history-toggle app-no-drag shrink-0"
             data-testid="coding-history-toggle"
             aria-label="收起会话历史"
             title="收起会话历史"
@@ -483,6 +483,10 @@ watch(
 .coding-new-task-icon,
 .coding-new-session-button {
   -webkit-app-region: no-drag;
+}
+
+.coding-history-toggle[aria-expanded='true']:not(:hover)::before {
+  background-color: transparent !important;
 }
 
 .coding-new-session-button {
