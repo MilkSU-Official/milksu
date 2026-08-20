@@ -564,7 +564,7 @@ onBeforeUnmount(() => {
         :active-section="sidebarSection"
         :active-conversation-id="conversations.activeId.value"
         :conversations="conversations.conversations.value"
-        :running-conversation-ids="conversations.runningConversationIds.value"
+        :running-conversation-ids="conversations.runningConversationIds?.value ?? []"
         :account-status="accountStatus"
         :ctf-section="ctfSection"
         :coding-context-open="codingConversationDrawerOpen"
@@ -586,6 +586,7 @@ onBeforeUnmount(() => {
         }"
         @delete-conversation="conversations.archive"
         @new-project-session="newCodingProjectSession"
+        @rename-conversation="conversations.rename"
         @navigate-ctf="ctfSection = $event"
       />
 

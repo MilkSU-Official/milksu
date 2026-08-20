@@ -19,6 +19,7 @@ import {
   MessageSquarePlus,
   PanelLeftClose,
   Plus,
+  Pencil,
   Radar,
   Search,
 } from 'lucide-vue-next'
@@ -49,6 +50,7 @@ const emit = defineEmits<{
   selectConversation: [id: string]
   deleteConversation: [id: string]
   newProjectSession: [workspacePath: string]
+  renameConversation: [id: string, title: string]
   navigateCtf: [value: CTFWorkspaceSection]
 }>()
 
@@ -69,6 +71,8 @@ function openSingleConversation(event: MouseEvent, group: CodingConversationGrou
 const query = ref('')
 const conversationList = ref<HTMLElement | null>(null)
 const archiveTarget = ref<Conversation | null>(null)
+const editingConversationId = ref<string | null>(null)
+const editingTitle = ref('')
 const codingGroups = computed(() => groupCodingConversations(props.conversations, query.value))
 const runningConversationIds = computed(() => new Set(props.runningConversationIds ?? []))
 const projectGroups = computed(() => codingGroups.value.filter(group => !group.temporary))
@@ -81,6 +85,27 @@ function confirmArchive() {
   if (!archiveTarget.value) return
   emit('deleteConversation', archiveTarget.value.id)
   archiveTarget.value = null
+}
+
+function startRename(conversation: Conversation) {
+  editingConversationId.value = conversation.id
+  editingTitle.value = conversation.title
+  void nextTick(() => {
+    const input = document.querySelector<HTMLInputElement>('[aria-label="编辑会话标题"]')
+    input?.focus()
+    input?.select()
+  })
+}
+
+function finishRename(conversation: Conversation) {
+  if (editingConversationId.value !== conversation.id) return
+  const title = editingTitle.value.trim().slice(0, 40)
+  editingConversationId.value = null
+  if (title && title !== conversation.title) emit('renameConversation', conversation.id, title)
+}
+
+function cancelRename() {
+  editingConversationId.value = null
 }
 
 watch(
@@ -244,7 +269,20 @@ watch(
                   :data-ui-selected="activeConversationId === conversation.id ? '' : undefined"
                   :data-active-conversation-row="activeConversationId === conversation.id ? '' : undefined"
                 >
+                  <Input
+                    v-if="editingConversationId === conversation.id"
+                    v-model="editingTitle"
+                    size="sm"
+                    class="ml-1 h-7 min-w-0 flex-1"
+                    aria-label="编辑会话标题"
+                    maxlength="40"
+                    @click.stop
+                    @keydown.enter.prevent="finishRename(conversation)"
+                    @keydown.escape.prevent="cancelRename"
+                    @blur="finishRename(conversation)"
+                  />
                   <Button
+                    v-else
                     variant="ghost"
                     size="sm"
                     class="coding-project-row coding-project-child h-7 min-w-0 flex-1 justify-start"
@@ -258,6 +296,16 @@ watch(
                       aria-label="有新消息"
                     />
                     <span class="truncate">{{ conversation.title }}</span>
+                  </Button>
+                  <Button
+                    v-if="editingConversationId !== conversation.id"
+                    variant="ghost"
+                    size="icon-sm"
+                    class="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                    aria-label="重命名编码任务"
+                    @click.stop="startRename(conversation)"
+                  >
+                    <Pencil class="size-3.5" />
                   </Button>
                   <Button
                     variant="ghost"
@@ -295,7 +343,20 @@ watch(
                 :data-ui-selected="activeConversationId === conversation.id ? '' : undefined"
                 :data-active-conversation-row="activeConversationId === conversation.id ? '' : undefined"
               >
+                <Input
+                  v-if="editingConversationId === conversation.id"
+                  v-model="editingTitle"
+                  size="sm"
+                  class="ml-1 h-7 min-w-0 flex-1"
+                  aria-label="编辑会话标题"
+                  maxlength="40"
+                  @click.stop
+                  @keydown.enter.prevent="finishRename(conversation)"
+                  @keydown.escape.prevent="cancelRename"
+                  @blur="finishRename(conversation)"
+                />
                 <Button
+                  v-else
                   variant="ghost"
                   size="sm"
                   class="coding-project-row coding-project-child h-7 min-w-0 flex-1 justify-start"
@@ -309,6 +370,16 @@ watch(
                     aria-label="有新消息"
                   />
                   <span class="truncate">{{ conversation.title }}</span>
+                </Button>
+                <Button
+                  v-if="editingConversationId !== conversation.id"
+                  variant="ghost"
+                  size="icon-sm"
+                  class="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                  aria-label="重命名编码任务"
+                  @click.stop="startRename(conversation)"
+                >
+                  <Pencil class="size-3.5" />
                 </Button>
                 <Button
                   variant="ghost"

@@ -713,6 +713,12 @@ export function useConversations() {
     if (activeId.value === id) activeId.value = null
   }
 
+  function rename(id: string, title: string) {
+    const normalized = title.trim().slice(0, 40)
+    if (!normalized) return
+    update(id, conversation => ({ ...conversation, title: normalized }))
+  }
+
   const pendingComposerDraft = ref<PendingComposerDraft | null>(null)
 
   function stageComposerDraft(prompt: string, visibleText = prompt) {
@@ -1718,6 +1724,7 @@ export function useConversations() {
     controlGoal,
     respondApproval,
     archive,
+    rename,
     cancelQueuedGuidance,
     editQueuedGuidance,
     startNew,
