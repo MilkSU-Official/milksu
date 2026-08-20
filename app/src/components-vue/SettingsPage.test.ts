@@ -1261,6 +1261,44 @@ describe('SettingsPage custom relay catalog isolation', () => {
     })
   }
 
+  it('clears validation notices when switching settings categories', async () => {
+    const providers = Object.fromEntries(Array.from({ length: 7 }, (_, index) => [
+      `custom-relay-${index}`,
+      {
+        enabled: true,
+        custom: true,
+        name: `测试中转站 ${index}`,
+        base_url: 'https://relay.example/v1',
+        models: ['grok-4.5'],
+        api_key: '',
+        has_api_key: false,
+      },
+    ]))
+    const settings = withAppSettingsDefaults({
+      active_provider: 'custom-relay-0',
+      active_model: 'grok-4.5',
+      providers,
+    } as AppSettings)
+    await mountSettingsPage({ directory: 'MilkSU 用户数据目录', fileCount: 0, bytes: 0 }, {
+      initialCategory: 'apikeys',
+      settings,
+    })
+
+    document.querySelector<HTMLButtonElement>('button[aria-label="新增模型服务"]')?.click()
+    await settle()
+    const dialogSave = [...document.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.trim() === '保存')
+    dialogSave?.click()
+    await settle()
+    expect(document.body.textContent).toContain('请填写 API 端点（Base URL）。')
+
+    const generalTab = [...document.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.trim() === '通用')
+    generalTab?.click()
+    await settle()
+    expect(document.body.textContent).not.toContain('请填写 API 端点（Base URL）。')
+  })
+
   it('does not park a deleted custom relay model under TokenFlux', async () => {
     await mountEmptyCatalogClient()
     await addNamedCustomRelay('222', '222')
