@@ -202,6 +202,7 @@ describe('AppSidebar', () => {
     await nextTick()
     const input = host.querySelector<HTMLInputElement>('[aria-label="编辑会话标题"]')
     expect(input).not.toBeNull()
+    expect(input?.className).toContain('coding-project-title-input')
     expect(host.querySelector('[data-testid="conversation-action-placeholder"]')).not.toBeNull()
     expect(host.querySelector('[aria-label="会话操作"]')).toBeNull()
     if (input) {

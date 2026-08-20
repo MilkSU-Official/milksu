@@ -283,7 +283,7 @@ watch(
                     v-if="editingConversationId === conversation.id"
                     v-model="editingTitle"
                     size="sm"
-                    class="ml-1 h-7 min-w-0 flex-1 rounded-none"
+                    class="coding-project-title-input h-7 min-w-0 flex-1 rounded-none"
                     aria-label="编辑会话标题"
                     maxlength="40"
                     @click.stop
@@ -375,7 +375,7 @@ watch(
                   v-if="editingConversationId === conversation.id"
                   v-model="editingTitle"
                   size="sm"
-                  class="ml-1 h-7 min-w-0 flex-1 rounded-none"
+                  class="coding-project-title-input h-7 min-w-0 flex-1 rounded-none"
                   aria-label="编辑会话标题"
                   maxlength="40"
                   @click.stop
@@ -546,6 +546,11 @@ watch(
  * Override Button sm horizontal padding so the first glyph sits on that column.
  */
 .coding-project-child {
+  padding-inline-start: calc(0.75rem + 1rem + 0.5rem) !important;
+  padding-inline-end: 0.5rem !important;
+}
+
+.coding-project-title-input {
   padding-inline-start: calc(0.75rem + 1rem + 0.5rem) !important;
   padding-inline-end: 0.5rem !important;
 }
