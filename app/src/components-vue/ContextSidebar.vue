@@ -205,9 +205,9 @@ watch(
         <div class="flex items-center gap-1.5">
           <Button
             type="button"
-            variant="ghost"
+            variant="quiet"
             size="icon-sm"
-            class="coding-history-toggle app-no-drag shrink-0"
+            class="coding-history-toggle app-no-drag shrink-0 text-foreground"
             data-testid="coding-history-toggle"
             aria-label="收起会话历史"
             title="收起会话历史"
