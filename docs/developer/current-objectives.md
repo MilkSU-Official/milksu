@@ -107,6 +107,8 @@
 
 - Coding 工具活动组的展开状态提升为会话级 UI 状态：组件重建、活动分段变化不再丢失展开，会话切换不串联，过期条目状态会被清理；用户主动展开活动组或工具详情时局部滚动到最近可视范围，不复用新消息的滚到底部逻辑。空 assistant 壳不再拆分连续工具活动；仅一侧缺少 `toolCallId` 的唯一待完成调用会收敛为完成态，不遗留转圈（#17，未打包验收）。
 - 产品边界收口：文档不再把 CVE 纵深、本地复现/PoC、Labs、CTF/CVE 工作台和安全工具进 CTF/CVE 写成现行禁令。这些是未接线或未做完的方向。`sessionRole` 仍把浏览器、MCP、安全工具和 `milksu_workspace` 留在普通 Coding，这是现有实现，不是“不准扩展”。
+- `⌘Q` / 退出不再 `preventDefault` 拦截 Electron 退出路径，也不再为 Go/浏览器 teardown 等待约 3 秒；只给 Go 发一条 shutdown，由 stdin EOF 标记 clean exit。
+- 上下文压缩进行中在 Composer 上方显示「正在整理上下文」，用量环改为「整理中」；压缩失败回执不再只留在内部状态。Escape 在运行中或整理中会中断，对齐 Pi TUI 的 `app.interrupt`，不另建工具循环检测器（#14 / #16，未打包验收）。
 - 本机默认走 Personal Vault 签名；`release:github` 必须创建/刷新 GitHub Release 页。这是发版管道，不是下一版本号。
 
 ## 当前产品事实

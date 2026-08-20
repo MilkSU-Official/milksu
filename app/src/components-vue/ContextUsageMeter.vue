@@ -80,7 +80,8 @@ const detailTitle = computed(() => (
           aria-hidden="true"
         />
         <span class="font-mono text-caption tabular-nums">
-          <template v-if="hasRing">{{ usage.percent }}%</template>
+          <template v-if="usage.compacting">整理中</template>
+          <template v-else-if="hasRing">{{ usage.percent }}%</template>
           <template v-else>{{ usage.ioLabel }}</template>
         </span>
       </button>
@@ -92,6 +93,7 @@ const detailTitle = computed(() => (
       class="w-52 p-3"
     >
       <p class="text-caption font-medium text-muted-foreground">{{ detailTitle }}</p>
+      <p v-if="usage.compacting" class="mt-1 text-caption text-muted-foreground">正在整理上下文</p>
       <div
         v-if="hasRing"
         class="ak-progress mt-2"

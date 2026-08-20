@@ -133,6 +133,8 @@ export interface ContextUsagePresentation {
   totalLabel: string
   /** Compact I/O line using up/down arrows. */
   ioLabel: string
+  /** True while Pi is compacting the current session. */
+  compacting: boolean
 }
 
 export function presentContextUsage(
@@ -155,10 +157,11 @@ export function presentContextUsage(
     nearLimit = percent >= 85
   }
   const ratio = windowLabel ? `${inputLabel}/${windowLabel}` : ''
-  const compacting = snapshot.compacting ? ' · 整理中' : ''
+  const compacting = Boolean(snapshot.compacting)
+  const compactingMark = compacting ? ' · 整理中' : ''
   const strip = ratio
-    ? `${ioLabel} · ${ratio}${compacting}`
-    : `${ioLabel}${compacting}`
+    ? `${ioLabel} · ${ratio}${compactingMark}`
+    : `${ioLabel}${compactingMark}`
   return {
     strip,
     percent,
@@ -168,6 +171,7 @@ export function presentContextUsage(
     windowLabel,
     totalLabel,
     ioLabel,
+    compacting,
   }
 }
 

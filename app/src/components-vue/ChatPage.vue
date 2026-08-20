@@ -2024,16 +2024,32 @@ watch(
             @retry="resumeAfterFailure"
           />
         </template>
-        <p v-if="waitingForModel" class="chat-model-loading">
+        <p v-if="waitingForModel && !compacting" class="chat-model-loading">
           <AkLoadingMark label="模型回复中" show-label />
         </p>
       </div>
     </div>
 
+    <p
+      v-if="compacting"
+      class="chat-model-loading mx-auto w-full max-w-5xl px-4 pb-1"
+      data-testid="context-compaction-status"
+    >
+      <AkLoadingMark label="正在整理上下文" show-label />
+    </p>
+    <p
+      v-else-if="compactionError"
+      class="mx-auto w-full max-w-5xl px-4 pb-1 text-caption text-muted-foreground"
+      data-testid="context-compaction-error"
+    >
+      {{ compactionError }}
+    </p>
+
     <ChatComposer
       ref="composer"
       :running="running"
       :aborting="aborting"
+      :compacting="compacting"
       :queued-guidance="messageQueue?.steering ?? []"
       :ctf-session="ctfSession"
       :ctf-mode="ctfMode"

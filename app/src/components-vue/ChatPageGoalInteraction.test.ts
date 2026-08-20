@@ -62,6 +62,8 @@ function mountPage(options: {
   running?: boolean
   workspacePath?: string
   sessionReady?: boolean
+  compacting?: boolean
+  compactionError?: string
 } = {}) {
   const host = document.createElement('div')
   document.body.append(host)
@@ -78,7 +80,8 @@ function mountPage(options: {
     aborting: false,
     sessionReady: options.sessionReady ?? false,
     resumed: false,
-    compacting: false,
+    compacting: options.compacting ?? false,
+    compactionError: options.compactionError,
     ctfSession: false,
     ensureConversation: () => 'conversation-1',
     onControlGoal: (action: string) => controlledGoals.push(action),
@@ -179,6 +182,24 @@ describe('ChatPage Goal interaction', () => {
       cancelable: true,
     }))
     expect(panels.compactions()).toBe(1)
+  })
+
+  it('shows a live compaction status while Pi is compacting', async () => {
+    const page = mountPage({ compacting: true, sessionReady: true })
+    await nextTick()
+    const status = page.host.querySelector('[data-testid="context-compaction-status"]')
+    expect(status?.textContent).toContain('正在整理上下文')
+    expect(page.host.querySelector('[aria-label="停止整理上下文"]')).not.toBeNull()
+  })
+
+  it('surfaces a compaction error after the run ends', async () => {
+    const page = mountPage({
+      sessionReady: true,
+      compactionError: '上下文压缩超时，已取消。',
+    })
+    await nextTick()
+    expect(page.host.querySelector('[data-testid="context-compaction-error"]')?.textContent)
+      .toContain('上下文压缩超时')
   })
 
   it('uses interruption to pause a running Goal and Pi commands when it is idle', async () => {

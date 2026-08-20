@@ -947,6 +947,35 @@ describe('ChatComposer', () => {
     expect(stopped).toEqual([[]])
   })
 
+  it('aborts a running turn with Escape and exposes a stop control while compacting', async () => {
+    const stopped: unknown[][] = []
+    const running = mountComposer({
+      running: true,
+      onAbort: (...args: unknown[]) => stopped.push(args),
+    })
+    await nextTick()
+    const editor = composerEditor(running.host)
+    editor.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Escape',
+      bubbles: true,
+      cancelable: true,
+    }))
+    expect(stopped).toEqual([[]])
+
+    const compacting = mountComposer({
+      compacting: true,
+      onAbort: (...args: unknown[]) => stopped.push(args),
+    })
+    await nextTick()
+    expect(compacting.host.querySelector('[aria-label="停止整理上下文"]')).not.toBeNull()
+    composerEditor(compacting.host).dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Escape',
+      bubbles: true,
+      cancelable: true,
+    }))
+    expect(stopped).toEqual([[], []])
+  })
+
   it('sends text as Pi guidance while a turn is running and shows its queue', async () => {
     const running = mountComposer({
       running: true,

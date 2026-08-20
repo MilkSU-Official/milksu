@@ -1182,14 +1182,17 @@ export function useConversations() {
   }
 
   async function abort(id: string) {
+    const compacting = continuity.value.compacting.has(id)
     const requested = projectCodingAbortRequest(
       runningIds.value,
       abortingIds.value,
       id,
     )
-    if (!requested.accepted) return
-    runningIds.value = requested.running
-    abortingIds.value = requested.aborting
+    if (!requested.accepted && !compacting) return
+    if (requested.accepted) {
+      runningIds.value = requested.running
+      abortingIds.value = requested.aborting
+    }
     try {
       // AbortMessage only submits the interrupt to the Sidecar. Keep the task
       // visibly running until its terminal engine event proves Pi is idle.

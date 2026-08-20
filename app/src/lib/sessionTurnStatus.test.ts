@@ -32,6 +32,7 @@ describe('sessionTurnStatus', () => {
     expect(presented?.strip).toBe('↑10k ↓1.8k · 10k/128k')
     expect(presented?.percent).toBe(8)
     expect(presented?.nearLimit).toBe(false)
+    expect(presented?.compacting).toBe(false)
   })
 
   it('marks near-limit when prompt fills most of the window', () => {
@@ -54,6 +55,7 @@ describe('sessionTurnStatus', () => {
     })
     state = applySessionCompacting(state, true)
     expect(presentContextUsage(state)?.strip).toContain('整理中')
+    expect(presentContextUsage(state)?.compacting).toBe(true)
   })
 
   it('tracks run wall-clock timing and keeps last elapsed after finish', () => {

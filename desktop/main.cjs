@@ -411,12 +411,6 @@ class BackendRuntime {
       try { this.process.kill('SIGKILL') } catch {}
     }
   }
-
-  forceKill() {
-    if (!this.process || this.process.exitCode !== null) return
-    this.stopping = true
-    try { this.process.kill('SIGKILL') } catch {}
-  }
 }
 
 async function waitForDevTools() {
@@ -1112,41 +1106,8 @@ app.whenReady().then(async () => {
 
 app.on('window-all-closed', () => app.quit())
 
-function hideAllWindowsForQuit() {
-  // Immediate quit UX: hide before async browser/backend teardown.
-  for (const win of BrowserWindow.getAllWindows()) {
-    if (win.isDestroyed()) continue
-    try { win.hide() } catch {}
-  }
-}
-
-async function teardownDesktopRuntime({ force = false } = {}) {
-  if (force) {
-    backend?.forceKill?.()
-    app.exit(0)
-    return
-  }
-  try {
-    if (browserShell) {
-      await Promise.race([
-        browserShell.closeAll(),
-        new Promise(resolve => setTimeout(resolve, 1000)),
-      ])
-    }
-  } catch {}
-  try {
-    if (backend) await backend.stop()
-  } catch {}
-  app.exit(0)
-}
-
-app.on('before-quit', event => {
-  // Second Cmd+Q (or quit while still tearing down): force-kill and leave now.
-  if (quitting) {
-    event.preventDefault()
-    void teardownDesktopRuntime({ force: true })
-    return
-  }
+app.on('before-quit', () => {
+  if (quitting) return
   if (!relaunchScheduled) {
     const probe = probeComputerUsePermissions(systemPreferences, { prompt: false })
     if (shouldRelaunchAfterScreenRecordingGrant(
@@ -1158,11 +1119,12 @@ app.on('before-quit', event => {
     }
   }
   quitting = true
-  // Cancel Electron's default quit path so we can stop the supervised Go runtime;
-  // hide windows immediately so the first Cmd+Q already feels like quit.
-  event.preventDefault()
-  hideAllWindowsForQuit()
-  void teardownDesktopRuntime({ force: false })
+  // Do not preventDefault or wait for Go/browser teardown. Cmd+Q used to
+  // intercept quit, hide the window, then sit ~3s on shutdown+SIGTERM.
+  // stdin EOF / this shutdown line is enough for Go to mark a clean exit.
+  try {
+    backend?.send({ type: 'shutdown' }, { allowClosed: true })
+  } catch {}
 })
 
 process.on('SIGTERM', () => app.quit())

@@ -108,6 +108,7 @@ const reviewedComposerSkills: ComposerSkillOption[] = CODING_SKILLS.map(skill =>
 const props = defineProps<{
   running: boolean
   aborting: boolean
+  compacting?: boolean
   ctfSession: boolean
   ctfMode?: 'coach' | 'copilot' | 'delegate'
   ctfRole?: 'solver' | 'tool-builder' | 'strategist'
@@ -1131,6 +1132,12 @@ function handleComposerKeyDown(event: KeyboardEvent) {
     }
   }
 
+  if (event.key === 'Escape' && (props.running || props.compacting)) {
+    event.preventDefault()
+    emit('abort')
+    return
+  }
+
   if (
     event.key !== 'Enter'
     || event.shiftKey
@@ -1713,13 +1720,13 @@ defineExpose({
             </template>
           </CodingComposerControls>
           <Button
-              v-if="running && (!draft.trim() || aborting)"
+              v-if="compacting || (running && (!draft.trim() || aborting))"
               type="button"
               variant="destructive"
               size="icon"
               :disabled="aborting"
-              :aria-label="aborting ? '正在停止 Agent' : '停止 Agent'"
-              :title="aborting ? '正在等待 Agent 安全停止' : '停止当前 Agent 回合'"
+              :aria-label="aborting ? '正在停止 Agent' : compacting ? '停止整理上下文' : '停止 Agent'"
+              :title="aborting ? '正在等待 Agent 安全停止' : compacting ? '取消当前上下文整理' : '停止当前 Agent 回合'"
               @click="$emit('abort')"
             >
               <LoaderCircle v-if="aborting" class="size-3.5 animate-spin" />
