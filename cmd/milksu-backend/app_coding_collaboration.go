@@ -10,6 +10,7 @@ import (
 
 	"github.com/MilkSU-Official/milksu/internal/codingcollab"
 	"github.com/MilkSU-Official/milksu/internal/codingenv"
+	"github.com/MilkSU-Official/milksu/internal/ctf"
 	"github.com/MilkSU-Official/milksu/internal/engine"
 )
 
@@ -43,6 +44,11 @@ func (a *App) ensureAgentManagedCodingCollaboration(
 	// collaboration manager to resolve an empty project path first.
 	if strings.TrimSpace(workspacePath) == "" {
 		return nil, nil
+	}
+	// CTF challenge directories already isolate the task. Do not auto-wrap them.
+	// A user-selected Git project or an existing collaboration still goes through.
+	if ctf.IsAgentWorkspace(workspacePath) {
+		allowPrepare = false
 	}
 
 	descriptorContext, cancel := context.WithTimeout(a.commandContext(), 8*time.Second)

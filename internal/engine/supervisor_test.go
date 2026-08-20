@@ -1468,7 +1468,6 @@ func TestSendMessageIncludesComputerUseDescriptorOnlyForInteractiveCoding(t *tes
 	}{
 		{name: "plan", executionMode: "plan", approvalPolicy: "workspace-auto"},
 		{name: "read-only", executionMode: "go", approvalPolicy: "read-only"},
-		{name: "ctf", sessionRole: "solver", executionMode: "go", approvalPolicy: "workspace-auto"},
 	} {
 		if err := supervisor.SendMessage(
 			"coding-computer-"+blocked.name,
@@ -1491,6 +1490,28 @@ func TestSendMessageIncludesComputerUseDescriptorOnlyForInteractiveCoding(t *tes
 		if _, exists := command["computerUse"]; exists {
 			t.Fatalf("%s command unexpectedly loaded Computer Use: %#v", blocked.name, command)
 		}
+	}
+
+	if err := supervisor.SendMessage(
+		"coding-computer-ctf",
+		"load desktop controls for CTF",
+		workspace,
+		"solver",
+		"go",
+		"workspace-auto",
+		nil,
+		"",
+		nil,
+		descriptor,
+		nil,
+		nil,
+		settings,
+	); err != nil {
+		t.Fatal(err)
+	}
+	ctfCommand := readCommand()
+	if _, exists := ctfCommand["computerUse"]; !exists {
+		t.Fatalf("CTF solver unexpectedly dropped Computer Use: %#v", ctfCommand)
 	}
 }
 
@@ -1560,9 +1581,9 @@ func TestNormalizeCodingPolicyPreservesLegacyGoAndValidatesExplicitModes(t *test
 	if _, err := normalizeCodingPolicy("go", "always", ""); err == nil {
 		t.Fatal("expected unknown approval policy to be rejected")
 	}
-	ctfPolicy, err := normalizeCodingPolicy("unknown", "unknown", "solver")
-	if err != nil || ctfPolicy != (CodingPolicy{}) {
-		t.Fatalf("CTF session must ignore Coding policy fields: %#v, %v", ctfPolicy, err)
+	ctfPolicy, err := normalizeCodingPolicy("go", "workspace-auto", "solver")
+	if err != nil || ctfPolicy.ExecutionMode != "go" || ctfPolicy.ApprovalPolicy != "workspace-auto" {
+		t.Fatalf("CTF session must keep Coding policy fields: %#v, %v", ctfPolicy, err)
 	}
 }
 

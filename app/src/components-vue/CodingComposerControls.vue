@@ -64,7 +64,7 @@ function triggerModelText() {
     <div class="flex min-w-0 items-center gap-1.5">
       <slot name="leading" />
 
-      <DropdownMenu v-if="!ctfSession">
+      <DropdownMenu>
         <DropdownMenuTrigger as-child>
           <Button
             variant="ghost"

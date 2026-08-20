@@ -266,10 +266,10 @@ type Supervisor struct {
 	recoveryWaiters  map[string]map[chan Event]struct{}
 	recoveryFailures map[string]string
 	backgroundTasks  map[string][]BackgroundTask
-	securityTools     []securitytools.RuntimeTool
-	workspaceAction   WorkspaceActionHandler
-	emit              func(Event)
-	sidecarDirectory  string
+	securityTools    []securitytools.RuntimeTool
+	workspaceAction  WorkspaceActionHandler
+	emit             func(Event)
+	sidecarDirectory string
 }
 
 type WorkspaceActionHandler func(sessionID, action, input string) (string, error)
@@ -322,9 +322,7 @@ func normalizeCodingPolicy(
 	approvalPolicy,
 	sessionRole string,
 ) (CodingPolicy, error) {
-	if strings.TrimSpace(sessionRole) != "" {
-		return CodingPolicy{}, nil
-	}
+	_ = sessionRole
 	execution := strings.TrimSpace(executionMode)
 	if execution == "" {
 		execution = "go"
@@ -453,15 +451,14 @@ func (s *Supervisor) sendMessage(
 	if err != nil {
 		return err
 	}
-	if sessionRole != "" || codingPolicy.ExecutionMode != "go" {
+	if codingPolicy.ExecutionMode != "go" {
 		codingBrowser = nil
 	}
 	computerUse, err = normalizeComputerUseDescriptor(computerUse)
 	if err != nil {
 		return err
 	}
-	if sessionRole != "" ||
-		codingPolicy.ExecutionMode != "go" ||
+	if codingPolicy.ExecutionMode != "go" ||
 		codingPolicy.ApprovalPolicy == "read-only" {
 		computerUse = nil
 	}
@@ -488,17 +485,13 @@ func (s *Supervisor) sendMessage(
 	if err != nil {
 		return err
 	}
-	if sessionRole != "" ||
-		codingPolicy.ExecutionMode != "go" ||
+	if codingPolicy.ExecutionMode != "go" ||
 		codingPolicy.ApprovalPolicy == "read-only" {
 		codingCollaboration = nil
 	}
 	productAction, err = normalizeCodingProductActionDescriptor(productAction)
 	if err != nil {
 		return err
-	}
-	if sessionRole != "" {
-		productAction = nil
 	}
 
 	s.mu.Lock()

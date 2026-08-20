@@ -388,7 +388,7 @@ function createCodingPermissionExtension(
 
     pi.on("tool_call", async (event) => {
       const policy = getPolicy();
-      if (!policy || policy.ctf) return undefined;
+      if (!policy) return undefined;
       if (codingTurnContractBlocksTool(getTurnContract())) {
         return {
           block: true,
@@ -1014,8 +1014,7 @@ function createMilkSUResourceLoader(
   if (sessionRole) {
     extensionFactories.push(createCTFTruncationContinuationExtension(sessionRole));
   }
-  if (!sessionRole) {
-    extensionFactories.push(
+  extensionFactories.push(
       piGoalExtension,
       createReviewedBackgroundTasksExtension(conversationId),
       piWebResearchExtension,
@@ -1052,10 +1051,9 @@ function createMilkSUResourceLoader(
         request => workspaceActionBroker.request(request),
       ),
       piSubAgentExtension,
-    );
-    if (mcpConfig) {
-      extensionFactories.push(createMcpAdapter({ config: mcpConfig }));
-    }
+  );
+  if (mcpConfig) {
+    extensionFactories.push(createMcpAdapter({ config: mcpConfig }));
   }
   return new DefaultResourceLoader({
     cwd,
@@ -1072,7 +1070,7 @@ function createMilkSUResourceLoader(
 }
 
 function reviewedCodingResourceRoots(sessionRole = "", disabledSkills = []) {
-  if (sessionRole) return [];
+  void sessionRole;
   const attachmentRoot = process.env.MILKSU_CODING_ATTACHMENT_ROOT;
   return [
     ...reviewedCodingSkillPaths(
@@ -1086,8 +1084,7 @@ function reviewedCodingResourceRoots(sessionRole = "", disabledSkills = []) {
 
 function requestedBrowserUseDescriptor(command) {
   if (
-    command.sessionRole
-    || command.executionMode !== "go"
+    command.executionMode !== "go"
     || command.approvalPolicy === "read-only"
     || !Array.isArray(command.mcpServers)
     || !command.mcpServers.includes(browserUseMcpServerName)
@@ -1104,35 +1101,22 @@ async function loadRuntimeSessionPolicy(cwd, command) {
   if (command.productAction !== undefined && !productAction) {
     throw new Error("MilkSU rejected an invalid typed Coding product action");
   }
-  const codingCollaboration = command.sessionRole
-    ? undefined
-    : normalizeCodingCollaboration(
-        command.codingCollaboration,
-        command.conversationId,
-        cwd,
-      );
+  const codingCollaboration = normalizeCodingCollaboration(
+    command.codingCollaboration,
+    command.conversationId,
+    cwd,
+  );
   const browserUse = requestedBrowserUseDescriptor(command);
-  const securityTools = command.sessionRole
-    ? []
-    : await normalizeSecurityTools(command.securityTools);
-  const selectedMcp = command.sessionRole
-    ? {
-        selected: [],
-        projectSelected: [],
-        codingBrowser: undefined,
-        computerUse: undefined,
-        browserUse: undefined,
-        config: undefined,
-      }
-    : await loadCodingMcpConfig(
-        cwd,
-        command.mcpServers,
-        command.mcpConfigDigest,
-        command.codingBrowser,
-        command.computerUse,
-        browserUse,
-        securityTools,
-      );
+  const securityTools = await normalizeSecurityTools(command.securityTools);
+  const selectedMcp = await loadCodingMcpConfig(
+    cwd,
+    command.mcpServers,
+    command.mcpConfigDigest,
+    command.codingBrowser,
+    command.computerUse,
+    browserUse,
+    securityTools,
+  );
   let policy = await loadSessionPolicy(cwd, command.sessionRole, {
     executionMode: command.executionMode,
     approvalPolicy: command.approvalPolicy,
@@ -1161,7 +1145,7 @@ async function loadRuntimeSessionPolicy(cwd, command) {
     effectiveSessionRole,
     disabledSkills,
   );
-  if (!policy.ctf && codingResourceRoots.length) {
+  if (codingResourceRoots.length) {
     policy = await loadSessionPolicy(cwd, command.sessionRole, {
       executionMode: command.executionMode,
       approvalPolicy: command.approvalPolicy,
@@ -1179,7 +1163,7 @@ async function loadRuntimeSessionPolicy(cwd, command) {
   }
   policy.skillNames = codingSkillPaths.map(path => basename(path));
   policy.securityTools = securityTools;
-  if (!policy.ctf && securityTools.some(tool => tool.id === "capa")) {
+  if (securityTools.some(tool => tool.id === "capa")) {
     if (!policy.activeTools.includes("capa_analyze")) {
       policy.activeTools.push("capa_analyze");
     }
@@ -1250,10 +1234,8 @@ async function createSession(command) {
     mcpConfig,
     securityTools,
   } = await loadRuntimeSessionPolicy(cwd, command);
-  if (!effectiveSessionRole) {
-    applyCodingResourcePolicy();
-    configureSubagentRuntime(cwd, sessionPolicy.codingCollaboration);
-  }
+  applyCodingResourcePolicy();
+  configureSubagentRuntime(cwd, sessionPolicy.codingCollaboration);
   sessionPolicies.set(conversationId, sessionPolicy);
   if (mcpConfig) {
     await ensureMcpMetadataCache(agentDir);
@@ -1285,20 +1267,16 @@ async function createSession(command) {
       agentDir,
       sessionManager: await createSessionManager(cwd, agentDir, conversationId),
       resourceLoader,
-      // Coding conversations can switch Plan/Go and permission modes without
-      // recreating the session. Construct the reviewed superset once, then
-      // expose only the active policy subset below. CTF roles remain fixed to
-      // their manifest-derived tool catalog.
-      tools: sessionPolicy.ctf
-        ? sessionPolicy.activeTools
-        : [
-            ...codingSessionToolNames,
-            ...(!sessionPolicy.ctf ? [codingCollaborationToolName] : []),
-            ...(sessionPolicy.mcpServers?.length ? ["mcp"] : []),
-            ...(sessionPolicy.securityTools?.some(tool => tool.id === "capa")
-              ? ["capa_analyze"]
-              : []),
-          ],
+      tools: [...new Set([
+        ...codingSessionToolNames,
+        ...(sessionPolicy.ctf ? sessionPolicy.activeTools : []),
+        codingCollaborationToolName,
+        ...(sessionPolicy.mcpServers?.length || sessionPolicy.codingBrowser
+          || sessionPolicy.computerUse || sessionPolicy.browserUse ? ["mcp"] : []),
+        ...(sessionPolicy.securityTools?.some(tool => tool.id === "capa")
+          ? ["capa_analyze"]
+          : []),
+      ])],
       customTools: sessionPolicy.customTools,
     }));
     // Pi's SDK constructs the extension runner but deliberately leaves
@@ -1306,18 +1284,12 @@ async function createSession(command) {
     // available, while session_start handlers never run. Durable extensions
     // such as background tasks then cannot reconcile processes after a
     // Sidecar restart.
-    if (sessionPolicy.ctf) {
-      await session.bindExtensions({ mode: "print" });
-    } else {
-      await session.bindExtensions({ mode: "print" });
+    await session.bindExtensions({ mode: "print" });
+    const controller = sessionPolicyControllers.get(conversationId);
+    if (!controller) {
+      throw new Error("MilkSU Coding permission controller is unavailable");
     }
-    if (!sessionPolicy.ctf) {
-      const controller = sessionPolicyControllers.get(conversationId);
-      if (!controller) {
-        throw new Error("MilkSU Coding permission controller is unavailable");
-      }
-      controller.setActiveTools(sessionPolicy.activeTools);
-    }
+    controller.setActiveTools(sessionPolicy.activeTools);
     subscribeSession(
       conversationId,
       session,
@@ -1385,18 +1357,15 @@ async function sendMessage(command) {
   const previousProductAction = previousPolicy?.productAction;
   const productActionChanged = JSON.stringify(previousProductAction)
     !== JSON.stringify(requestedProductAction);
-  const requestedMcpServers = command.sessionRole ? [] : command.mcpServers;
+  const requestedMcpServers = command.mcpServers;
   const requestedProjectMcpServers = projectMcpServersFromSelection(requestedMcpServers);
-  const requestedCodingBrowser = command.sessionRole ? undefined : command.codingBrowser;
-  const requestedComputerUse = command.sessionRole ? undefined : command.computerUse;
+  const requestedCodingBrowser = command.codingBrowser;
+  const requestedComputerUse = command.computerUse;
   const requestedBrowserUse = requestedBrowserUseDescriptor(command);
-  const requestedCodingCollaboration = command.sessionRole
-    ? undefined
-    : command.codingCollaboration;
+  const requestedCodingCollaboration = command.codingCollaboration;
   if (
     existing
     && previousPolicy
-    && !previousPolicy.ctf
     && (
       (previousPolicy.approvalPolicy === "full-auto") !== requestedFullAccess
       || productActionChanged
@@ -1445,13 +1414,11 @@ async function sendMessage(command) {
   if (existing) {
     const { policy: sessionPolicy } = await loadRuntimeSessionPolicy(process.cwd(), command);
     sessionPolicies.set(conversationId, sessionPolicy);
-    if (!sessionPolicy.ctf) {
-      const controller = sessionPolicyControllers.get(conversationId);
-      if (!controller) {
-        throw new Error("MilkSU Coding permission controller is unavailable");
-      }
-      controller.setActiveTools(sessionPolicy.activeTools);
+    const controller = sessionPolicyControllers.get(conversationId);
+    if (!controller) {
+      throw new Error("MilkSU Coding permission controller is unavailable");
     }
+    controller.setActiveTools(sessionPolicy.activeTools);
     const effectiveModel = configureRuntimeModel(
       session,
       command.provider,

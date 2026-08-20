@@ -17,6 +17,27 @@ import (
 
 const AgentWorkspaceSchemaVersion = "ctf-workspace.milksu.dev/v1alpha2"
 
+// IsAgentWorkspace reports whether path is a MilkSU CTF challenge workspace.
+// Those directories already isolate the task, so Coding worktrees are not
+// auto-prepared. An existing or user-selected collaboration is still allowed.
+func IsAgentWorkspace(path string) bool {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return false
+	}
+	data, err := os.ReadFile(filepath.Join(path, "challenge.json"))
+	if err != nil {
+		return false
+	}
+	var manifest struct {
+		SchemaVersion string `json:"schemaVersion"`
+	}
+	if json.Unmarshal(data, &manifest) != nil {
+		return false
+	}
+	return strings.HasPrefix(strings.TrimSpace(manifest.SchemaVersion), "ctf-workspace.milksu.dev/")
+}
+
 const (
 	AgentWorkspaceRoleSolver      = "solver"
 	AgentWorkspaceRoleToolBuilder = "tool-builder"
@@ -577,7 +598,7 @@ func agentCollaborationPolicy(mode string) AgentWorkspacePolicy {
 			StartBehavior: "先让用户陈述现有观察或假设；每轮只给一个最小必要提示，并用问题检查理解后再推进。",
 			CandidateRule: "用户尚未给出自己的推理时，不主动交付完整解法或写入候选；形成候选后仍解释证据链。",
 			AllowedTools: []string{
-				"read", "edit", "write", "grep", "find", "ls",
+				"read", "bash", "edit", "write", "grep", "find", "ls",
 				"ctf_capabilities", "ctf_decode", "ctf_triage", "ctf_inspect",
 				"ctf_request_endpoint",
 			},
@@ -711,14 +732,13 @@ func agentToolBuilderPrompt() string {
 }
 
 func agentStrategistPrompt() string {
-	return "你是本题的独立策略 Agent，不是执行器，也不负责猜或提交 Flag。先阅读 TASK.md、notes.md、" +
-		"MEMORY.md、evidence/run.json（若存在）和最近的 evidence/trajectory.jsonl；只在确有必要时读取" +
-		"少量题目材料，避免重新吞入整个工作区。区分已确认事实、未验证假设、已证伪路线和纯猜测，检查" +
+	return "你是本题的策略 Agent。先阅读 TASK.md、notes.md、MEMORY.md、evidence/run.json（若存在）" +
+		"和最近的 evidence/trajectory.jsonl；需要核实时可以直接跑命令、读材料、用已授权的浏览器或" +
+		"题目工具。区分已确认事实、未验证假设、已证伪路线和纯猜测，检查" +
 		"解题 Agent 是否重复调用、过早收敛、忽略题型特征或缺少关键验证。把复盘覆盖写入 " +
 		"work/strategy-review.md，固定包含：证据快照、路线诊断、最多三个候选方向、信息增益最高的" +
 		"唯一下一步、成功/失败时各自如何转向。下一步必须具体到要验证的单一假设、输入、预期观察和" +
-		"停止条件。你只能读证据并写这份建议；不得修改 notes.md、candidate-flags.txt、工具请求或工具，" +
-		"不得运行 Shell、访问网络或把建议伪装成已经验证的事实。完成后用短摘要通知用户返回解题 Agent 验证。"
+		"停止条件。需要的话自己把这一步跑掉，再把结果写回笔记。"
 }
 
 func agentToolBuilderPolicy(base AgentWorkspacePolicy) AgentWorkspacePolicy {
@@ -738,16 +758,24 @@ func agentToolBuilderPolicy(base AgentWorkspacePolicy) AgentWorkspacePolicy {
 
 func agentStrategistPolicy(base AgentWorkspacePolicy) AgentWorkspacePolicy {
 	base.Label = "策略复盘"
-	base.Autonomy = "review-only"
-	base.StartBehavior = "独立审阅已有题面、轨迹与证据，只提出一个信息增益最高的下一步。"
-	base.CandidateRule = "不得生成、修改或提交候选；不得把未执行的建议写成事实。"
-	base.AllowedTools = []string{
-		"read", "write", "grep", "find", "ls",
-	}
+	base.Autonomy = "review"
+	base.StartBehavior = "审阅已有题面、轨迹与证据；需要核实时直接执行，再给出信息增益最高的下一步。"
+	base.CandidateRule = "可以验证、修改或提交候选；未跑过的建议不要写成已确认事实。"
+	base.AllowedTools = ensureAllowedTool(base.AllowedTools, "bash")
+	base.AllowedTools = ensureAllowedTool(base.AllowedTools, "edit")
 	base.Budget = AgentWorkspaceBudget{
 		MaxTurns: 6, MaxWallMinutes: 10, MaxWrongSubmissions: 1,
 	}
 	return base
+}
+
+func ensureAllowedTool(tools []string, name string) []string {
+	for _, existing := range tools {
+		if existing == name {
+			return tools
+		}
+	}
+	return append(append([]string{}, tools...), name)
 }
 
 func agentToolingInstructions() string {

@@ -950,15 +950,15 @@ test("Go Full Access automatically runs outside-project commands without leaking
   }
 });
 
-test("coach mode removes bash even if a manifest requests it", async () => {
+test("coach mode keeps bash and CTF domain tools", async () => {
   const workspace = await workspaceWithManifest(
     manifest("coach", ["read", "bash", "edit", "write", "grep", "find", "ls"]),
   );
   const policy = await loadSessionPolicy(workspace);
   assert.equal(policy.ctf, true);
-  assert.equal(policy.activeTools.includes("bash"), false);
+  assert.equal(policy.activeTools.includes("bash"), true);
   assert.equal(policy.activeTools.includes("milksu_progress"), true);
-  assert.equal(policy.customTools.some(tool => tool.name === "bash"), false);
+  assert.equal(policy.customTools.some(tool => tool.name === "bash"), true);
   assert.equal(policy.activeTools.includes("ctf_capabilities"), true);
 });
 
@@ -1127,7 +1127,7 @@ test("CTF HTTP uses exact granted origins without ambient redirects", async () =
     );
     const policy = await loadSessionPolicy(workspace);
     assert.equal(policy.activeTools.includes("ctf_http"), true);
-    assert.equal(policy.activeTools.includes("bash"), false);
+    assert.equal(policy.activeTools.includes("bash"), true);
     const http = policy.customTools.find(tool => tool.name === "ctf_http");
     const response = await http.execute(
       "http-post",
@@ -1445,7 +1445,7 @@ test("tool-builder never inherits solver Endpoint request or network scope", asy
   assert.equal(policy.customTools.some(tool => tool.name === "ctf_request_endpoint"), false);
 });
 
-test("strategist keeps its tool allowlist while file operations use Pi semantics", async () => {
+test("strategist can execute and still uses Pi file semantics", async () => {
   const workspace = await workspaceWithManifest(
     manifest(
       "delegate",
@@ -1460,13 +1460,9 @@ test("strategist keeps its tool allowlist while file operations use Pi semantics
 
   const policy = await loadSessionPolicy(workspace, "strategist");
   assert.equal(policy.ctf, true);
-  assert.deepEqual(
-    policy.activeTools,
-    ["read", "write", "grep", "find", "ls", "milksu_progress"],
-  );
-  assert.equal(policy.customTools.some(tool => tool.name === "bash"), false);
-  assert.equal(policy.customTools.some(tool => tool.name === "ctf_http"), false);
-  assert.equal(policy.customTools.some(tool => tool.name === "ctf_request_endpoint"), false);
+  assert.equal(policy.activeTools.includes("bash"), true);
+  assert.equal(policy.activeTools.includes("edit"), true);
+  assert.equal(policy.customTools.some(tool => tool.name === "bash"), true);
 
   const write = policy.customTools.find(tool => tool.name === "write");
   await write.execute(

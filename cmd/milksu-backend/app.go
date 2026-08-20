@@ -945,8 +945,7 @@ func (a *App) SendMessage(
 		return err
 	}
 	var codingBrowser *engine.CodingBrowserDescriptor
-	if sessionRole == "" &&
-		strings.TrimSpace(executionMode) != "plan" &&
+	if strings.TrimSpace(executionMode) != "plan" &&
 		strings.TrimSpace(approvalPolicy) != "read-only" &&
 		a.browserBridge != nil {
 		// Do not start Chromium on an ordinary Go send. The isolated browser
@@ -960,8 +959,7 @@ func (a *App) SendMessage(
 		}
 	}
 	var computerUse *engine.ComputerUseDescriptor
-	if sessionRole == "" &&
-		strings.TrimSpace(executionMode) != "plan" &&
+	if strings.TrimSpace(executionMode) != "plan" &&
 		strings.TrimSpace(approvalPolicy) != "read-only" &&
 		a.computerUse != nil {
 		if _, authorized, restoreErr := a.restoreCodingComputerUse(conversationID); restoreErr != nil {
@@ -981,18 +979,15 @@ func (a *App) SendMessage(
 			}
 		}
 	}
-	var codingCollaboration *engine.CodingCollaborationDescriptor
-	if sessionRole == "" {
-		allowPrepare := strings.TrimSpace(executionMode) != "plan" &&
-			strings.TrimSpace(approvalPolicy) != "read-only"
-		codingCollaboration, err = a.ensureAgentManagedCodingCollaboration(
-			conversationID,
-			workspacePath,
-			allowPrepare,
-		)
-		if err != nil {
-			return err
-		}
+	allowPrepare := strings.TrimSpace(executionMode) != "plan" &&
+		strings.TrimSpace(approvalPolicy) != "read-only"
+	codingCollaboration, err := a.ensureAgentManagedCodingCollaboration(
+		conversationID,
+		workspacePath,
+		allowPrepare,
+	)
+	if err != nil {
+		return err
 	}
 	a.engines.SetSecurityTools(a.securityTools.RuntimeTools(a.commandContext()))
 	return a.engines.SendMessageWithProductAction(

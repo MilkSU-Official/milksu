@@ -496,7 +496,7 @@ function gitChangeStatus(change: CodingGitChange) {
 }
 
 function startCodingAttachmentChooser(event?: Event) {
-  if (props.running || props.ctfSession) return
+  if (props.running) return
   if (event instanceof PointerEvent && event.button !== 0) return
   // Start on pointerdown so Electron still has a user gesture for the native
   // dialog. Keyboard activation still arrives as a select event.
@@ -511,7 +511,7 @@ function startCodingAttachmentChooser(event?: Event) {
 }
 
 async function chooseCodingAttachments() {
-  if (props.running || props.ctfSession) return
+  if (props.running) return
   attachmentError.value = ''
   try {
     const selected = await invokeCommand<CodingAttachment[]>('choose_coding_attachments')
@@ -1405,7 +1405,7 @@ defineExpose({
             @change-model="$emit('changeModel', $event)"
             @show-permissions="$emit('showPermissions')"
           >
-            <template v-if="!ctfSession" #leading>
+            <template #leading>
               <DropdownMenu>
                 <DropdownMenuTrigger as-child>
                   <Button

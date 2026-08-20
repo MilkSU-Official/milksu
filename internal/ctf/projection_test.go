@@ -164,7 +164,7 @@ func TestProjectionExposesOnlyScopedNetworkCapabilities(t *testing.T) {
 	if !containsString(tools, "ctf_capabilities") ||
 		!containsString(tools, "ctf_http") ||
 		!containsString(tools, "ctf_socket") ||
-		containsString(tools, "bash") {
+		!containsString(tools, "bash") {
 		t.Fatalf("projection hid or widened scoped Coach tools: %#v", tools)
 	}
 }

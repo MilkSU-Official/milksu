@@ -1176,7 +1176,7 @@ function applyCodingBrowserAddress(status: CodingBrowserStatus | null | undefine
 
 async function ensureCodingBrowser() {
   const conversationID = props.conversation?.id
-  if (!conversationID || props.ctfSession) return
+  if (!conversationID) return
   if (codingBrowserStatus.value?.enabled) {
     await refreshCodingBrowserState()
     return
@@ -2193,7 +2193,6 @@ watch(
           <div class="flex items-center justify-between gap-3">
             <p class="text-caption font-medium text-muted-foreground">工作区</p>
             <Button
-              v-if="!ctfSession"
               type="button"
               variant="ghost"
               size="sm"

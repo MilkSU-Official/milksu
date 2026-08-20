@@ -52,6 +52,9 @@ test("disabled reviewed skills are absent without opening arbitrary paths", () =
   );
 });
 
-test("CTF roles cannot inherit Coding skills", () => {
-  assert.deepEqual(reviewedCodingSkillPaths(repositoryRoot, "solver", []), []);
+test("CTF roles can load the same reviewed Coding skills", () => {
+  assert.deepEqual(
+    reviewedCodingSkillPaths(repositoryRoot, "solver", []),
+    reviewedCodingSkillPaths(repositoryRoot, "", []),
+  );
 });

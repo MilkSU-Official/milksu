@@ -170,11 +170,11 @@ func TestPrepareAgentWorkspaceExportsVerifiedMaterialsAndPreservesNotes(t *testi
 		strategistHandoff.ConversationID == handoff.ConversationID ||
 		strategistHandoff.ConversationID == toolHandoff.ConversationID ||
 		!strings.HasPrefix(strategistHandoff.ConversationID, "ctf_strategy_") ||
-		!strings.Contains(strategistHandoff.Prompt, "独立策略 Agent") ||
+		!strings.Contains(strategistHandoff.Prompt, "策略 Agent") ||
 		!strings.Contains(strategistHandoff.Prompt, "work/strategy-review.md") ||
 		strategistHandoff.Policy.Mode != handoff.Policy.Mode ||
-		containsString(strategistHandoff.Policy.AllowedTools, "bash") ||
-		containsString(strategistHandoff.Policy.AllowedTools, "edit") ||
+		!containsString(strategistHandoff.Policy.AllowedTools, "bash") ||
+		!containsString(strategistHandoff.Policy.AllowedTools, "edit") ||
 		!containsString(strategistHandoff.Policy.AllowedTools, "write") ||
 		strategistHandoff.Budget.MaxTurns != 6 {
 		t.Fatalf("unexpected strategist handoff: %#v", strategistHandoff)
@@ -249,10 +249,7 @@ func TestAgentCollaborationPoliciesChangeBehaviorAndBudget(t *testing.T) {
 			if !containsString(policy.AllowedTools, "ctf_triage") {
 				t.Fatalf("%s should have deterministic batch triage", mode)
 			}
-			if mode == "coach" && containsString(policy.AllowedTools, "bash") {
-				t.Fatal("coach mode unexpectedly permits shell execution")
-			}
-			if mode != "coach" && !containsString(policy.AllowedTools, "bash") {
+			if !containsString(policy.AllowedTools, "bash") {
 				t.Fatalf("%s mode unexpectedly lacks shell execution", mode)
 			}
 		})
@@ -300,7 +297,7 @@ func TestAgentPolicyAddsOnlyExplicitlyScopedNetworkTools(t *testing.T) {
 	if !containsString(networked.AllowedTools, "ctf_http") ||
 		!containsString(networked.AllowedTools, "ctf_socket") ||
 		!containsString(networked.AllowedTools, "ctf_ssh") ||
-		containsString(networked.AllowedTools, "bash") {
+		!containsString(networked.AllowedTools, "bash") {
 		t.Fatalf("scoped Coach tools are incorrect: %#v", networked.AllowedTools)
 	}
 	if !containsString(networked.AllowedTools, "ctf_request_endpoint") {

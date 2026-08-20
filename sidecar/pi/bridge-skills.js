@@ -26,8 +26,7 @@ export function reviewedCodingSkillPaths(
   disabledSkills = [],
   pathExists = existsSync,
 ) {
-  if (sessionRole) return [];
-
+  void sessionRole;
   const disabled = disabledSkillNames(disabledSkills);
   const firstParty = firstPartyCodingSkillNames.map(name => ({
     name,

@@ -115,12 +115,7 @@ const ctfToolNames = [
   ...ctfNetworkToolNames,
 ];
 const coachToolNames = [
-  "read",
-  "edit",
-  "write",
-  "grep",
-  "find",
-  "ls",
+  ...codingToolNames,
   "milksu_progress",
   "ctf_capabilities",
   "ctf_decode",
@@ -128,7 +123,6 @@ const coachToolNames = [
   "ctf_inspect",
   ctfEndpointRequestToolName,
 ];
-const strategistToolNames = ["read", "write", "grep", "find", "ls", "milksu_progress"];
 const defaultExecution = {
   maxToolEventOutputBytes: 60000,
 };
@@ -251,10 +245,9 @@ function normalizeActiveTools(manifest) {
     : [...ctfLocalToolNames, ctfEndpointRequestToolName];
   let values = Array.isArray(requested) && requested.length > 0 ? [...requested] : [...fallback];
   if (!values.includes("milksu_progress")) values.push("milksu_progress");
-  const reviewOnly = manifest?.policy?.mode === strategistRole;
-  const roleIsSolver = ![toolBuilderRole, strategistRole].includes(manifest?.policy?.mode);
-  if (!reviewOnly && !values.includes("ctf_capabilities")) values.push("ctf_capabilities");
-  if (!reviewOnly && !values.includes("ctf_decode")) values.push("ctf_decode");
+  const roleIsSolver = ![toolBuilderRole].includes(manifest?.policy?.mode);
+  if (!values.includes("ctf_capabilities")) values.push("ctf_capabilities");
+  if (!values.includes("ctf_decode")) values.push("ctf_decode");
   if (roleIsSolver && !values.includes(ctfEndpointRequestToolName)) {
     values.push(ctfEndpointRequestToolName);
   }
@@ -273,9 +266,7 @@ function normalizeActiveTools(manifest) {
   if (unsupported.length > 0) {
     throw new Error(`Unsupported CTF Agent tools: ${unsupported.join(", ")}`);
   }
-  const activeTools = manifest?.policy?.mode === "coach"
-    ? normalized.filter(value => value !== "bash")
-    : normalized;
+  const activeTools = normalized;
   if (activeTools.length === 0) {
     throw new Error("CTF Agent tool policy cannot be empty");
   }
@@ -1375,15 +1366,13 @@ export async function createCTFToolDefinitions(
     createCTFInspectTool(root, ensure),
     ...createCTFEndpointToolDefinitions(manifest),
   ];
-  if (!["coach", strategistRole].includes(manifest?.policy?.mode)) {
-    definitions.push(createBashToolDefinition(root, {
-      exposeSessionEnvironment: false,
-      spawnHook: context => ({
-        ...context,
-        env: fullAccessCommandEnvironment(context.env),
-      }),
-    }));
-  }
+  definitions.push(createBashToolDefinition(root, {
+    exposeSessionEnvironment: false,
+    spawnHook: context => ({
+      ...context,
+      env: fullAccessCommandEnvironment(context.env),
+    }),
+  }));
   return definitions;
 }
 
@@ -1584,7 +1573,6 @@ export async function loadSessionPolicy(
     return loadCodingSessionPolicy(workspace, codingPolicy);
   }
   const toolBuilder = sessionRole === toolBuilderRole;
-  const strategist = sessionRole === strategistRole;
   const effectiveManifest = toolBuilder
     ? {
         ...manifest,
@@ -1594,27 +1582,27 @@ export async function loadSessionPolicy(
           allowedTools: ctfLocalToolNames,
         },
       }
-    : strategist
-      ? {
-          ...manifest,
-          policy: {
-            ...manifest.policy,
-            mode: strategistRole,
-            allowedTools: strategistToolNames,
-          },
-        }
-      : manifest;
+    : manifest;
   const execution = normalizeExecution(effectiveManifest?.policy?.execution);
-  const activeTools = normalizeActiveTools(effectiveManifest);
+  const ctfActiveTools = normalizeActiveTools(effectiveManifest);
   const definitions = await createCTFToolDefinitions(
     workspace,
     effectiveManifest,
     sessionRole,
   );
+  const coding = await loadCodingSessionPolicy(workspace, codingPolicy);
+  const activeTools = [...new Set([...coding.activeTools, ...ctfActiveTools])];
+  const customByName = new Map();
+  for (const tool of [...coding.customTools, ...definitions]) {
+    if (tool?.name && (activeTools.includes(tool.name) || String(tool.name).startsWith("ctf_"))) {
+      customByName.set(tool.name, tool);
+    }
+  }
   return {
+    ...coding,
     ctf: true,
     activeTools,
-    customTools: definitions.filter(tool => activeTools.includes(tool.name)),
+    customTools: [...customByName.values()].filter(tool => activeTools.includes(tool.name)),
     maxToolEventOutputBytes: execution.maxToolEventOutputBytes,
   };
 }

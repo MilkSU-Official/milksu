@@ -897,7 +897,7 @@ describe('ChatComposer', () => {
     expect(result.sent).toEqual([['milksu', 'milksu', []]])
   })
 
-  it('keeps CTF collaboration actions without leaking Coding controls', async () => {
+  it('keeps CTF collaboration actions and Coding composer controls', async () => {
     const { host } = mountComposer({
       ctfSession: true,
       ctfRole: 'solver',
@@ -905,14 +905,9 @@ describe('ChatComposer', () => {
     })
     await nextTick()
 
-    expect(host.querySelector('[aria-label="Coding 执行模式"]')).toBeNull()
-    expect(host.querySelector('[aria-label="Coding 权限策略"]')).toBeNull()
+    expect(host.querySelector('[aria-label="Coding 权限策略"]')).not.toBeNull()
     expect(host.querySelector('[aria-label="选择本任务模型"]')).not.toBeNull()
-    expect(host.querySelector('[aria-label="添加文件或图片"]')).toBeNull()
-    const textarea = composerEditor(host)
-    setComposerText(textarea, '/')
-    await nextTick()
-    expect(host.querySelector('[aria-label="斜杠命令"]')).toBeNull()
+    expect(host.querySelector('[aria-label="添加内容与工具"]')).not.toBeNull()
     expect(host.querySelector('[aria-label="CTF 快捷协作"]')?.textContent)
       .toContain('梳理题面')
     expect(host.querySelector('[aria-label="CTF 快捷协作"]')?.textContent)
