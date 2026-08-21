@@ -1,8 +1,10 @@
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
 import { invokeCommand, listenEvent } from '@/desktop'
 import type { CodingCompactionResult } from '@/codingEnvironmentTypes'
 import {
   applyCodingContinuityEvent,
+  armCompactionErrorDismiss,
+  clearCodingContinuityError,
   codingCompactionErrorMessage,
   createCodingContinuityState,
   removeCodingContinuitySession,
@@ -14,13 +16,18 @@ import {
   normalizeCodingApprovalPolicy,
   normalizeCodingExecutionMode,
 } from '@/lib/codingPolicy'
-import { applyCodingToolEvent, settleRunningToolMessages } from '@/lib/chatActivity'
+import {
+  applyCodingToolEvent,
+  settleRunningToolMessages,
+  withoutBlankAssistantMessages,
+} from '@/lib/chatActivity'
 import { redactProviderCredentials } from '@/lib/redaction'
 import { normalizeDomainTaskContext } from '@/lib/domainTaskContext'
 import {
   applySessionCompacting,
   applySessionRunFinished,
   applySessionRunStarted,
+  applySessionUsageAfterCompaction,
   applySessionUsageRecorded,
   emptySessionTurnSnapshot,
   type SessionTurnSnapshot,
@@ -177,6 +184,10 @@ interface AgentEvent {
     totalTokens?: number
     model?: string
     provider?: string
+  }
+  compaction?: {
+    tokensBefore?: number
+    estimatedTokensAfter?: number
   }
 }
 
@@ -556,6 +567,14 @@ export function useConversations() {
   const abortingIds = ref(new Set<string>())
   const messageQueues = ref(new Map<string, CodingMessageQueue>())
   const continuity = ref<CodingContinuityState>(createCodingContinuityState())
+  const compactionErrorTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
+  function dismissCompactionErrorLater(sessionId: string) {
+    armCompactionErrorDismiss(compactionErrorTimers, sessionId, id => {
+      continuity.value = clearCodingContinuityError(continuity.value, id)
+    })
+  }
+
   /** Per-session last usage + run clock; not persisted (session-scoped projection). */
   const turnStatusById = ref(new Map<string, SessionTurnSnapshot>())
   const active = computed(() => conversations.value.find(item => item.id === activeId.value) ?? null)
@@ -1216,20 +1235,22 @@ export function useConversations() {
 
   async function compactContext() {
     const conversationId = activeId.value
-    if (
-      !conversationId
-      || runningIds.value.has(conversationId)
-      || continuity.value.compacting.has(conversationId)
-    ) return
+    if (!conversationId || continuity.value.compacting.has(conversationId)) return
+    // Manual /compact is not gated at 85%. Running turns are aborted by Pi
+    // compact itself; leftover GUI running flags must not swallow the click.
     continuity.value = applyCodingContinuityEvent(
       continuity.value,
       conversationId,
       { type: 'runtime.compaction_started' },
     )
+    await nextTick()
     try {
-      await invokeCommand<CodingCompactionResult>('compact_coding_session', {
+      const compacted = await invokeCommand<CodingCompactionResult>('compact_coding_session', {
         conversationId,
       })
+      patchTurnStatus(conversationId, state => (
+        applySessionUsageAfterCompaction(state, compacted?.estimatedTokensAfter)
+      ))
       continuity.value = applyCodingContinuityEvent(
         continuity.value,
         conversationId,
@@ -1244,6 +1265,7 @@ export function useConversations() {
           error: codingCompactionErrorMessage(reason),
         },
       )
+      dismissCompactionErrorLater(conversationId)
     }
   }
 
@@ -1368,6 +1390,7 @@ export function useConversations() {
         followUp,
         modelSource,
         usage,
+        compaction,
       } = event.payload
       if (!sessionId && (type === 'engine.stopped' || type === 'engine.protocol_error')) {
         activeTurnPolicies.clear()
@@ -1381,6 +1404,7 @@ export function useConversations() {
               error: 'Agent 进程已停止，本次整理已中断。',
             },
           )
+          dismissCompactionErrorLater(compactingId)
         }
         const message = type === 'engine.protocol_error'
           ? `Agent 通信异常：${agentRuntimeErrorMessage(error)}`
@@ -1564,21 +1588,26 @@ export function useConversations() {
             }
           }
         } else if (type === 'assistant.delta') {
+          const delta = String(text ?? '')
           if (last?.role === 'assistant' && last.status === 'running') {
-            messages[messages.length - 1] = { ...last, content: last.content + text }
-          } else {
+            if (delta) {
+              messages[messages.length - 1] = { ...last, content: last.content + delta }
+            }
+          } else if (delta.trim()) {
             messages.push({
               id: crypto.randomUUID(),
               role: 'assistant',
-              content: text,
+              content: delta,
               timestamp: Date.now(),
               status: 'running',
             })
           }
         } else if (type === 'assistant.segment_completed') {
           if (last?.role === 'assistant' && last.status === 'running') {
-            messages[messages.length - 1] = { ...last, content: text || last.content, status: 'done' }
-          } else if (text) {
+            const content = String(text || last.content)
+            if (!content.trim()) messages.pop()
+            else messages[messages.length - 1] = { ...last, content, status: 'done' }
+          } else if (String(text ?? '').trim()) {
             messages.push({
               id: crypto.randomUUID(),
               role: 'assistant',
@@ -1593,11 +1622,15 @@ export function useConversations() {
           const abortedEmpty = !String(text ?? '').trim()
             && /abort/i.test(String(reason ?? ''))
           if (abortedEmpty) {
-            if (last?.role === 'assistant' && last.status === 'running') {
+            if (last?.role === 'assistant' && last.status === 'running' && !last.content.trim()) {
+              messages.pop()
+            } else if (last?.role === 'assistant' && last.status === 'running') {
               messages[messages.length - 1] = { ...last, status: 'done' }
             }
           } else if (last?.role === 'assistant' && last.status === 'running') {
-            messages[messages.length - 1] = { ...last, content: text || last.content, status: 'done' }
+            const content = String(text || last.content)
+            if (!content.trim()) messages.pop()
+            else messages[messages.length - 1] = { ...last, content, status: 'done' }
           } else if (String(text ?? '').trim()) {
             messages.push({
               id: crypto.randomUUID(),
@@ -1609,11 +1642,13 @@ export function useConversations() {
           }
         } else if (type === 'assistant.settled') {
           if (last?.role === 'assistant' && last.status === 'running') {
-            messages[messages.length - 1] = { ...last, status: 'done' }
+            if (!last.content.trim()) messages.pop()
+            else messages[messages.length - 1] = { ...last, status: 'done' }
           }
           const settledTools = settleRunningToolMessages(messages)
-          if (settledTools !== messages) {
-            messages.splice(0, messages.length, ...settledTools)
+          const cleaned = withoutBlankAssistantMessages(settledTools)
+          if (cleaned !== messages) {
+            messages.splice(0, messages.length, ...cleaned)
           }
           setMessageQueue(sessionId, { steering: [], followUp: [] })
           finishRun(sessionId)
@@ -1621,21 +1656,25 @@ export function useConversations() {
           const toolText = type === 'tool.completed'
             ? agentToolResultMessage(text, error)
             : text
-          const nextMessages = applyCodingToolEvent(messages, {
-            type,
-            text: toolText,
-            toolName,
-            toolCallId,
-            durationMs,
-            done,
-          })
+          const nextMessages = applyCodingToolEvent(
+            withoutBlankAssistantMessages(messages),
+            {
+              type,
+              text: toolText,
+              toolName,
+              toolCallId,
+              durationMs,
+              done,
+            },
+          )
           messages.splice(0, messages.length, ...nextMessages)
         } else if (type === 'engine.error') {
           setMessageQueue(sessionId, { steering: [], followUp: [] })
           finishRun(sessionId)
           const settledTools = settleRunningToolMessages(messages)
-          if (settledTools !== messages) {
-            messages.splice(0, messages.length, ...settledTools)
+          const cleaned = withoutBlankAssistantMessages(settledTools)
+          if (cleaned !== messages) {
+            messages.splice(0, messages.length, ...cleaned)
           }
           for (let index = 0; index < messages.length; index++) {
             if (messages[index].approvalState === 'pending') {
@@ -1662,6 +1701,14 @@ export function useConversations() {
             sessionId,
             { type, aborted, error: compactError },
           )
+          if (type === 'runtime.compaction_completed' && compactError) {
+            dismissCompactionErrorLater(sessionId)
+          }
+          if (type === 'runtime.compaction_completed' && !compactError) {
+            patchTurnStatus(sessionId, state => (
+              applySessionUsageAfterCompaction(state, compaction?.estimatedTokensAfter)
+            ))
+          }
           // Overflow recovery failed after Pi auto-compact: tell the user once.
           // Successful auto-compact stays silent (no “上下文已满” toast/message).
           if (
@@ -1693,6 +1740,8 @@ export function useConversations() {
     activeTurnPolicies.clear()
     for (const timer of saveTimers.values()) window.clearTimeout(timer)
     saveTimers.clear()
+    for (const timer of compactionErrorTimers.values()) window.clearTimeout(timer)
+    compactionErrorTimers.clear()
   })
 
   return {

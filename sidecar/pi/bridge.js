@@ -20,6 +20,7 @@ import {
 } from "pi-better-background-tasks/src/runtime.ts";
 import { createMcpAdapter } from "pi-mcp-adapter";
 import piSubAgentExtension from "pi-sub-agent/extensions/index.ts";
+import { dropSendAfterAbort } from "./bridge-abort.js";
 import {
   codingSessionToolNames,
   loadSessionPolicy,
@@ -1343,6 +1344,12 @@ async function createSession(command) {
 async function sendMessage(command) {
   const conversationId = command.conversationId;
   if (!conversationId) throw new Error("conversationId is required");
+  // abort_session is handled immediately, while send_message is queued.
+  // A stop click right after Send can therefore arrive before createSession.
+  if (dropSendAfterAbort(abortedSessions, sessions, conversationId)) {
+    emit(conversationId, "turn_settled");
+    return;
+  }
 
   let existing = sessions.get(conversationId);
   const previousPolicy = sessionPolicies.get(conversationId);
@@ -1411,6 +1418,15 @@ async function sendMessage(command) {
     existing = undefined;
   }
   const session = existing ?? await createSession(command);
+  if (abortedSessions.delete(conversationId)) {
+    try {
+      await session.abort();
+    } catch {
+      // The desktop run clock still has to settle after a cancelled create.
+    }
+    emit(conversationId, "turn_settled");
+    return;
+  }
   if (existing) {
     const { policy: sessionPolicy } = await loadRuntimeSessionPolicy(process.cwd(), command);
     sessionPolicies.set(conversationId, sessionPolicy);
@@ -1444,6 +1460,14 @@ async function sendMessage(command) {
 
   const previous = promptQueues.get(conversationId) ?? Promise.resolve();
   const next = previous.then(async () => {
+    if (abortedSessions.delete(conversationId)) {
+      try {
+        await session.abort();
+      } catch {
+        // Queued prompt was cancelled before session.prompt.
+      }
+      return;
+    }
     // A manual compaction in flight for this conversation must finish before
     // the next prompt so Pi never runs a prompt against a session that is
     // mid-compaction. Compaction is bounded, so this wait cannot hang forever.
@@ -1510,12 +1534,15 @@ async function sendMessage(command) {
 async function abortSession(command) {
   const conversationId = command.conversationId;
   if (!conversationId) throw new Error("conversationId is required");
-  const session = sessions.get(conversationId);
-  if (!session) return;
+  abortedSessions.add(conversationId);
   approvalBroker.cancelConversation(conversationId, "turn aborted");
   workspaceActionBroker.cancelConversation(conversationId, "turn aborted");
   pendingWorkspaceCompaction.delete(conversationId);
-  abortedSessions.add(conversationId);
+  const session = sessions.get(conversationId);
+  if (!session) {
+    emit(conversationId, "turn_settled");
+    return;
+  }
   await session.abort();
   // Do not synthesize empty message_done (it became a blank assistant bubble).
   // If Pi already emitted agent_settled, a second turn_settled is harmless in
@@ -1670,7 +1697,11 @@ async function compactSessionCommand(command) {
     compactionRequestIds.set(conversationId, requestId);
     const run = (async () => {
       try {
-        await compactSession(session);
+        const result = await compactSession(session);
+        recordSessionContextUsage(conversationId, {
+          inputTokens: Number(result?.estimatedTokensAfter ?? 0),
+          cacheReadTokens: 0,
+        }, session.model?.contextWindow);
       } catch (error) {
         // AgentSession.compact normally emits Pi's native compaction_end even
         // on failure. Keep a fallback only for wrapper validation/runtime

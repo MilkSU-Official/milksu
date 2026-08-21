@@ -6,7 +6,9 @@ import {
   chatActivityEntrySummary,
   chatActivitySummary,
   detailsToggleOpen,
+  isBlankAssistantMessage,
   settleRunningToolMessages,
+  withoutBlankAssistantMessages,
 } from '@/lib/chatActivity'
 import type { Message } from '@/types'
 
@@ -117,6 +119,16 @@ describe('buildChatTranscript', () => {
       }),
     ], true)
     expect(transcript[0]?.kind === 'activity' && transcript[0].running).toBe(false)
+  })
+
+  it('drops blank assistant shells from the message list', () => {
+    const messages = [
+      message('t1', 'tool', '$ npm test', { toolName: 'bash' }),
+      message('empty', 'assistant', '   ', { status: 'running' }),
+      message('t2', 'tool', '$ npm run build', { toolName: 'bash' }),
+    ]
+    expect(isBlankAssistantMessage(messages[1]!)).toBe(true)
+    expect(withoutBlankAssistantMessages(messages).map(item => item.id)).toEqual(['t1', 't2'])
   })
 
   it('keeps one activity block across an empty assistant shell', () => {

@@ -107,7 +107,7 @@ export function projectAssistantMessageEnd(message, { textStreamed = false } = {
     && message.content.some(item => item.type === "toolCall");
   const events = [];
 
-  if (content || textStreamed) {
+  if (content.trim()) {
     events.push({
       type: stopReason === "toolUse" || hasToolCall
         ? "message_segment_done"

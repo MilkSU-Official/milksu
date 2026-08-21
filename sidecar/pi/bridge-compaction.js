@@ -6,10 +6,11 @@
 // structured instruction below, and persisted by AgentSession itself into the
 // session file (so it survives a Sidecar restart).
 //
-// The control action is deliberately bounded: only an existing, idle, non-CTF
-// Coding session may compact, and the summarization call is cancelled when it
-// exceeds the timeout. Failures are surfaced as explicit errors instead of
-// being reported as success.
+// The control action is deliberately bounded: only an existing, non-CTF
+// Coding session may compact. A busy session is passed through so Pi can abort
+// then compact, matching TUI /compact. The summarization call is cancelled
+// when it exceeds the timeout. Failures are surfaced as explicit errors
+// instead of being reported as success.
 
 export const DEFAULT_COMPACTION_TIMEOUT_MS = 120_000;
 export const CONTEXT_COMPACTION_RATIO = 0.85;
@@ -112,9 +113,6 @@ export function projectCompactionEvent(event, requestId) {
 
 function sessionStateProblem(session) {
   if (!session) return "Coding session is required";
-  if (!session.isIdle) {
-    return "Coding session is busy (streaming, retrying, or queued); wait for the current turn to finish";
-  }
   if (session.isCompacting) {
     return "Coding session is already compacting";
   }

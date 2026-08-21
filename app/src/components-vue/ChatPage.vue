@@ -2034,13 +2034,15 @@ watch(
       v-if="compacting"
       class="chat-model-loading mx-auto w-full max-w-5xl px-4 pb-1"
       data-testid="context-compaction-status"
+      role="status"
     >
       <AkLoadingMark label="正在整理上下文" show-label />
     </p>
     <p
       v-else-if="compactionError"
-      class="mx-auto w-full max-w-5xl px-4 pb-1 text-caption text-muted-foreground"
+      class="mx-auto w-full max-w-5xl px-4 pb-1 text-caption text-foreground"
       data-testid="context-compaction-error"
+      role="status"
     >
       {{ compactionError }}
     </p>

@@ -80,6 +80,18 @@ describe('ChatMessageItem', () => {
     }])
   })
 
+  it('does not render a blank assistant bubble', async () => {
+    const { host } = await mountMessage({
+      id: 'blank-assistant',
+      role: 'assistant',
+      content: '   ',
+      timestamp: 1,
+      status: 'running',
+    })
+    expect(host.querySelector('article')).toBeNull()
+    expect(host.textContent ?? '').not.toContain('MILKSU')
+  })
+
   it('offers a conversation-wide grant only when the request is grantable', async () => {
     const { host, responses } = await mountMessage({
       id: 'message-grantable',

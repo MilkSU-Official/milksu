@@ -90,6 +90,14 @@ test("does not invent a response for an empty non-error message", () => {
   }), []);
 });
 
+test("does not project a tool-only assistant turn as a blank message", () => {
+  assert.deepEqual(projectAssistantMessageEnd({
+    role: "assistant",
+    content: [{ type: "toolCall", name: "read" }],
+    stopReason: "toolUse",
+  }, { textStreamed: true }), []);
+});
+
 test("does not project context overflow as a terminal error so Pi can auto-compact", () => {
   assert.equal(
     isRecoverableContextOverflowError("Your input exceeds the context window of this model"),

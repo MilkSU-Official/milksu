@@ -268,7 +268,7 @@ const slashCommandCatalog = [
   {
     id: 'compact',
     label: '整理上下文',
-    description: '使用 Pi 压缩当前会话上下文',
+    description: '整理当前会话上下文',
     keywords: ['context', '上下文', 'summarize'],
     icon: markRaw(Shrink),
   },
@@ -325,10 +325,10 @@ const slashCommandCatalog = [
 
 function slashCommandDisabled(id: typeof slashCommandCatalog[number]['id']) {
   if (id === 'goal') return props.running || hasUnfinishedGoal.value
-  // Compact is invoked even before Pi session.ready; the compact path reports
-  // "no session yet" instead of swallowing the click. Native disabled buttons
-  // also drop pointer events, which lets IME cancel `/compact` on click.
-  if (id === 'compact') return props.running || Boolean(props.compacting)
+  // Compact is invoked even before Pi session.ready and while a turn is
+  // running. Native disabled buttons drop pointer events, which lets IME
+  // cancel `/compact` on click. Only skip when compaction is already live.
+  if (id === 'compact') return Boolean(props.compacting)
   if (id === 'new' || id === 'plan' || id === 'model' || id === 'permissions') {
     return props.running
   }
@@ -1727,20 +1727,21 @@ defineExpose({
             </template>
           </CodingComposerControls>
           <Button
-              v-if="compacting || (running && (!draft.trim() || aborting))"
+              v-if="running || compacting"
               type="button"
               variant="destructive"
               size="icon"
               :disabled="aborting"
               :aria-label="aborting ? '正在停止 Agent' : compacting ? '停止整理上下文' : '停止 Agent'"
               :title="aborting ? '正在等待 Agent 安全停止' : compacting ? '取消当前上下文整理' : '停止当前 Agent 回合'"
-              @click="$emit('abort')"
+              @pointerdown.prevent.stop="$emit('abort')"
+              @click.prevent.stop="$emit('abort')"
             >
               <LoaderCircle v-if="aborting" class="size-3.5 animate-spin" />
               <Square v-else class="size-3.5 fill-current" />
             </Button>
             <Button
-              v-else
+              v-if="!compacting && (!running || draft.trim() || pendingAttachments.length)"
               type="submit"
               variant="brand"
               size="icon"

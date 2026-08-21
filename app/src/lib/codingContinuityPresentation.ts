@@ -40,15 +40,15 @@ export function codingContinuityPresentation(
   const compactTitle = input.compacting
     ? '正在整理上下文'
     : !input.sessionReady
-      ? '发送消息并连接 Pi 会话后才能整理上下文'
+      ? '发送消息后再整理上下文'
       : input.running
-        ? 'Agent 正在执行回合，请等待当前回合结束再整理上下文'
-        : '手动触发 Pi 原生上下文压缩；整理中请等待，运行中不可用'
+        ? '将停止当前回合并整理上下文'
+        : '整理当前会话上下文'
 
   return {
     badges,
     title,
-    compactDisabled: !input.sessionReady || input.running || input.compacting,
+    compactDisabled: input.compacting,
     compactTitle,
     compactLabel: input.compacting ? '整理中…' : '整理上下文',
   }

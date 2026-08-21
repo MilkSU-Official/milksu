@@ -59,6 +59,29 @@ export function applySessionUsageRecorded(
   }
 }
 
+/** After Pi compact, the ring should show the estimated remaining context, not the last prompt. */
+export function applySessionUsageAfterCompaction(
+  state: SessionTurnSnapshot,
+  estimatedTokensAfter: number | undefined,
+  now = Date.now(),
+): SessionTurnSnapshot {
+  const inputTokens = nonNegativeInt(estimatedTokensAfter)
+  if (!inputTokens) return state
+  return {
+    ...state,
+    usage: {
+      inputTokens,
+      outputTokens: 0,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      totalTokens: inputTokens,
+      model: state.usage?.model,
+      provider: state.usage?.provider,
+      recordedAt: now,
+    },
+  }
+}
+
 export function applySessionContextWindow(
   state: SessionTurnSnapshot,
   contextWindow: number | undefined,
@@ -141,7 +164,20 @@ export function presentContextUsage(
   snapshot: SessionTurnSnapshot,
 ): ContextUsagePresentation | null {
   const usage = snapshot.usage
-  if (!usage) return null
+  const compacting = Boolean(snapshot.compacting)
+  if (!usage) {
+    if (!compacting) return null
+    return {
+      strip: '整理中',
+      nearLimit: false,
+      inputLabel: '—',
+      outputLabel: '—',
+      windowLabel: '',
+      totalLabel: '—',
+      ioLabel: '整理中',
+      compacting: true,
+    }
+  }
   const input = usage.inputTokens + usage.cacheReadTokens
   const output = usage.outputTokens
   const window = snapshot.contextWindow
@@ -157,7 +193,6 @@ export function presentContextUsage(
     nearLimit = percent >= 85
   }
   const ratio = windowLabel ? `${inputLabel}/${windowLabel}` : ''
-  const compacting = Boolean(snapshot.compacting)
   const compactingMark = compacting ? ' · 整理中' : ''
   const strip = ratio
     ? `${ioLabel} · ${ratio}${compactingMark}`

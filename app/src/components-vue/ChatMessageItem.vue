@@ -8,6 +8,7 @@ import {
 import AkLoadingMark from '@/components-vue/AkLoadingMark.vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import { redactProviderCredentials } from '@/lib/redaction'
+import { isBlankAssistantMessage } from '@/lib/chatActivity'
 import type { Message } from '@/types'
 
 const props = defineProps<{
@@ -65,6 +66,7 @@ const timeLabel = computed(() => (
 
 <template>
   <article
+    v-if="!isBlankAssistantMessage(message)"
     class="mb-7"
     :class="message.role === 'user' ? 'ml-auto max-w-[82%]' : 'max-w-full'"
   >

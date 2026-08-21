@@ -57,11 +57,18 @@ test("requires an existing session", async () => {
   await assert.rejects(compactSession(undefined), /Coding session is required/);
 });
 
-test("rejects a busy session before calling Pi compaction", async () => {
-  await assert.rejects(
-    compactSession({ isIdle: false }),
-    /busy \(streaming, retrying, or queued\)/,
-  );
+test("manual compact still calls Pi on a busy session so Pi can abort then compact", async () => {
+  let compacted = false;
+  const result = await compactSession({
+    isIdle: false,
+    isCompacting: false,
+    async compact() {
+      compacted = true;
+      return { tokensBefore: 3000, estimatedTokensAfter: 500 };
+    },
+  });
+  assert.equal(compacted, true);
+  assert.deepEqual(result, { tokensBefore: 3000, estimatedTokensAfter: 500 });
 });
 
 test("rejects an already-compacting session", async () => {

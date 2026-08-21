@@ -42,6 +42,14 @@ one of those decisions.
 - Explain relevant Agent Harness concepts when they materially help product decisions or the user's
   interview and presentation preparation.
 
+## User-visible language
+
+Product UI, chat bubbles, notices, errors, slash descriptions, button titles and tool-result
+`detail` text are for the user. Do not put agent-only implementation notes, harness comments,
+internal thresholds, or “this is not X / 不拦手动” explanations in that copy. Keep those facts
+in AGENTS.md, current-objectives, code comments, or model-only guidance such as
+`codingWorkspaceGuidance()`.
+
 ## Product UI Color Boundary
 
 - Current visual contract: [docs/design/current-visual.md](docs/design/current-visual.md).

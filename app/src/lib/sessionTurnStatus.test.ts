@@ -4,6 +4,7 @@ import {
   applySessionContextWindow,
   applySessionRunFinished,
   applySessionRunStarted,
+  applySessionUsageAfterCompaction,
   applySessionUsageRecorded,
   emptySessionTurnSnapshot,
   formatElapsedMs,
@@ -56,6 +57,28 @@ describe('sessionTurnStatus', () => {
     state = applySessionCompacting(state, true)
     expect(presentContextUsage(state)?.strip).toContain('整理中')
     expect(presentContextUsage(state)?.compacting).toBe(true)
+  })
+
+  it('replaces last-prompt occupancy with the compacted estimate', () => {
+    let state = applySessionContextWindow(emptySessionTurnSnapshot(), 100_000)
+    state = applySessionUsageRecorded(state, {
+      inputTokens: 90_000,
+      outputTokens: 1200,
+      cacheReadTokens: 0,
+      totalTokens: 91_200,
+    }, 1000)
+    state = applySessionUsageAfterCompaction(state, 12_000, 2000)
+    const presented = presentContextUsage(state)
+    expect(presented?.percent).toBe(12)
+    expect(presented?.inputLabel).toBe('12k')
+    expect(presented?.outputLabel).toBe('0')
+    expect(presented?.nearLimit).toBe(false)
+  })
+
+  it('shows compacting even before the first usage record', () => {
+    const state = applySessionCompacting(emptySessionTurnSnapshot(), true)
+    expect(presentContextUsage(state)?.compacting).toBe(true)
+    expect(presentContextUsage(state)?.strip).toBe('整理中')
   })
 
   it('tracks run wall-clock timing and keeps last elapsed after finish', () => {

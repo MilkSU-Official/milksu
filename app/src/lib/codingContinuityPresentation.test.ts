@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { codingContinuityPresentation } from '@/lib/codingContinuityPresentation'
 
 describe('Coding continuity presentation', () => {
-  it('shows disconnected sessions as not compactable', () => {
+  it('lets the user request compact before the Pi session is ready', () => {
     const presentation = codingContinuityPresentation({
       sessionReady: false,
       resumed: false,
@@ -12,8 +12,8 @@ describe('Coding continuity presentation', () => {
 
     expect(presentation.badges).toEqual(['待连接'])
     expect(presentation.title).toContain('尚未连接 Pi 会话')
-    expect(presentation.compactDisabled).toBe(true)
-    expect(presentation.compactTitle).toContain('连接 Pi 会话后才能整理')
+    expect(presentation.compactDisabled).toBe(false)
+    expect(presentation.compactTitle).toContain('发送消息后再整理')
     expect(presentation.compactLabel).toBe('整理上下文')
   })
 
@@ -28,7 +28,7 @@ describe('Coding continuity presentation', () => {
 
     expect(presentation.badges).toEqual(['待连接'])
     expect(presentation.title).toContain('尚未连接 Pi 会话')
-    expect(presentation.compactDisabled).toBe(true)
+    expect(presentation.compactDisabled).toBe(false)
   })
 
   it('distinguishes resumed Pi sessions from new sessions', () => {
@@ -51,7 +51,7 @@ describe('Coding continuity presentation', () => {
     expect(fresh.title).toContain('本任务是新会话')
   })
 
-  it('keeps compaction disabled while a turn or compaction is running', () => {
+  it('keeps compaction available during a turn and only disables it while compacting', () => {
     const running = codingContinuityPresentation({
       sessionReady: true,
       resumed: false,
@@ -65,8 +65,8 @@ describe('Coding continuity presentation', () => {
       running: false,
     })
 
-    expect(running.compactDisabled).toBe(true)
-    expect(running.compactTitle).toContain('当前回合结束')
+    expect(running.compactDisabled).toBe(false)
+    expect(running.compactTitle).toContain('停止当前回合')
     expect(compacting.badges).toEqual(['整理中'])
     expect(compacting.compactDisabled).toBe(true)
     expect(compacting.compactLabel).toBe('整理中…')

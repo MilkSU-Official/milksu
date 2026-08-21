@@ -39,7 +39,7 @@ export function codingWorkspaceGuidance() {
     "List or preview workspace artifacts and show_panel to open 产物 / 浏览器 / 变更 / 环境.",
     "Use list_status for Git, model, permission, and context facts the environment panel shows.",
     "Context compaction is automatic at about 85% of the model window, using the same Pi compact path as /compact.",
-    "Use compact_context only to inspect usage or confirm that 85% threshold; do not wait for the whole turn if usage is still low.",
+    "compact_context always queues that Pi compact path, even below 85%; 85% is only the automatic idle trigger.",
     "Use show_terminal / list_terminals / list_background_tasks for the bottom terminal and Agent background jobs.",
     "Do not scan the user message for keywords; choose these typed actions from the request.",
     "Do not change Settings, credentials, approval policy, Computer Use scope, or the user's real Chrome.",
@@ -78,21 +78,13 @@ export function formatCodingWorkspaceInput(input) {
 
 export function describeWorkspaceCompaction(usage, contextWindow) {
   const snapshot = contextUsageSnapshot(usage, contextWindow);
-  if (!snapshot.shouldCompact) {
-    return {
-      compacted: false,
-      scheduled: false,
-      percent: snapshot.percent,
-      threshold: 85,
-      detail: `当前上下文约 ${snapshot.percent}%。满 85% 时会自动用 Pi 压缩，现在不会整理。`,
-    };
-  }
   return {
     compacted: false,
     scheduled: true,
     percent: snapshot.percent,
     threshold: 85,
-    detail: `当前上下文约 ${snapshot.percent}%，已超过 85%。会话空闲时立即用 Pi 压缩。`,
+    autoCompact: snapshot.shouldCompact,
+    detail: `已排队整理上下文。当前占用约 ${snapshot.percent}%。`,
   };
 }
 

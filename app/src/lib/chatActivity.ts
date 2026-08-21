@@ -39,6 +39,17 @@ function isApproval(message: Message) {
   return Boolean(message.approvalRequestId)
 }
 
+export function isBlankAssistantMessage(message: Message) {
+  return message.role === 'assistant'
+    && !String(message.content ?? '').trim()
+    && !(message.attachments && message.attachments.length)
+}
+
+export function withoutBlankAssistantMessages(messages: Message[]) {
+  const next = messages.filter(message => !isBlankAssistantMessage(message))
+  return next.length === messages.length ? messages : next
+}
+
 function messageBlock(message: Message): ChatMessageBlock {
   return {
     kind: 'message',
@@ -217,7 +228,7 @@ export function buildChatTranscript(
   }
 
   for (const message of messages) {
-    if (message.role === 'assistant' && !message.content.trim()) continue
+    if (isBlankAssistantMessage(message)) continue
 
     if (message.role === 'tool' && !isApproval(message)) {
       toolSegment.push(message)

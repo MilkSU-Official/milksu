@@ -113,10 +113,12 @@ test("workspace extension registers one reviewed desktop tool", async () => {
   assert.match(result.content[0].text, /tabs/);
 });
 
-test("compact_context only schedules Pi compaction at 85 percent usage", async () => {
-  assert.equal(describeWorkspaceCompaction({
+test("compact_context queues Pi compaction below the 85 percent auto threshold", async () => {
+  const lowReport = describeWorkspaceCompaction({
     inputTokens: 40_000,
-  }, 100_000).scheduled, false);
+  }, 100_000);
+  assert.equal(lowReport.scheduled, true);
+  assert.equal(lowReport.autoCompact, false);
   assert.equal(describeWorkspaceCompaction({
     inputTokens: 90_000,
   }, 100_000).scheduled, true);
@@ -134,22 +136,23 @@ test("compact_context only schedules Pi compaction at 85 percent usage", async (
   );
   extension({ registerTool(tool) { tools.push(tool); } });
   const low = await tools[0].execute("call-compact-low", { action: "compact_context" });
-  assert.match(low.content[0].text, /现在不会整理/);
-  assert.equal(pending.has("conversation-1"), false);
+  assert.match(low.content[0].text, /已排队整理上下文/);
+  assert.equal(pending.has("conversation-1"), true);
 
   const highTools = [];
+  const highPending = new Set();
   const high = createCodingWorkspaceExtension(
     "conversation-1",
     () => ({ executionMode: "go", approvalPolicy: "ask" }),
     async () => {
       throw new Error("desktop should not compact mid-turn");
     },
-    id => queueWorkspaceCompaction(pending, id),
+    id => queueWorkspaceCompaction(highPending, id),
     () => ({ usage: { inputTokens: 90_000 }, contextWindow: 100_000 }),
   );
   high({ registerTool(tool) { highTools.push(tool); } });
   const result = await highTools[0].execute("call-compact-high", { action: "compact_context" });
   assert.match(result.content[0].text, /85/);
-  assert.equal(pending.has("conversation-1"), true);
-  assert.equal(await runQueuedWorkspaceCompaction(pending, "conversation-1", async () => "ok"), "ok");
+  assert.equal(highPending.has("conversation-1"), true);
+  assert.equal(await runQueuedWorkspaceCompaction(highPending, "conversation-1", async () => "ok"), "ok");
 });

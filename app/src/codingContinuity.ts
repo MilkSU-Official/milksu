@@ -77,6 +77,41 @@ export function applyCodingContinuityEvent(
   return state
 }
 
+export const COMPACTION_ERROR_VISIBLE_MS = 4000
+
+export function clearCodingContinuityError(
+  state: CodingContinuityState,
+  sessionId: string,
+): CodingContinuityState {
+  if (!sessionId || !state.errors.has(sessionId)) return state
+  const next = cloneCodingContinuityState(state)
+  next.errors.delete(sessionId)
+  return next
+}
+
+export function armCompactionErrorDismiss(
+  timers: Map<string, ReturnType<typeof setTimeout>>,
+  sessionId: string,
+  dismiss: (id: string) => void,
+  options?: {
+    delayMs?: number
+    setTimer?: typeof setTimeout
+    clearTimer?: typeof clearTimeout
+  },
+) {
+  const id = String(sessionId ?? '').trim()
+  if (!id) return
+  const setTimer = options?.setTimer ?? setTimeout
+  const clearTimer = options?.clearTimer ?? clearTimeout
+  const previous = timers.get(id)
+  if (previous !== undefined) clearTimer(previous)
+  const timer = setTimer(() => {
+    timers.delete(id)
+    dismiss(id)
+  }, options?.delayMs ?? COMPACTION_ERROR_VISIBLE_MS)
+  timers.set(id, timer)
+}
+
 export function removeCodingContinuitySession(
   state: CodingContinuityState,
   sessionId: string,
@@ -103,8 +138,8 @@ export function codingCompactionErrorMessage(value: unknown) {
   if (/session not found/i.test(message)) {
     return '当前任务还没有可整理的 Pi 会话；先发送一条消息创建会话后再整理。'
   }
-  if (/Nothing to compact|already compacted/i.test(message)) {
-    return '上下文还没有可压缩的内容（会话太小或已整理过）。'
+  if (/Nothing to compact|already compacted|session too small/i.test(message)) {
+    return '会话还太短或刚整理过，Pi 现在无法再压缩。'
   }
   if (/compaction timed out/i.test(message)) {
     return '上下文压缩超时，已取消。'

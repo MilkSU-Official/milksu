@@ -1,7 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   applyCodingContinuityEvent,
+  armCompactionErrorDismiss,
+  clearCodingContinuityError,
   codingCompactionErrorMessage,
+  COMPACTION_ERROR_VISIBLE_MS,
   createCodingContinuityState,
   removeCodingContinuitySession,
 } from '@/codingContinuity'
@@ -142,6 +145,34 @@ describe('Coding runtime continuity state', () => {
     )).toContain('还没有可整理的 Pi 会话')
     expect(codingCompactionErrorMessage(
       new Error('Nothing to compact (session too small)'),
-    )).toContain('没有可压缩的内容')
+    )).toBe('会话还太短或刚整理过，Pi 现在无法再压缩。')
+    expect(codingCompactionErrorMessage(
+      new Error('Nothing to compact (session too small)'),
+    )).not.toMatch(/85%|不拦手动/)
+  })
+
+  it('clears a compaction error after a short visible interval', () => {
+    vi.useFakeTimers()
+    try {
+      let state = applyCodingContinuityEvent(
+        createCodingContinuityState(),
+        'conversation-1',
+        {
+          type: 'runtime.compaction_completed',
+          error: '会话还太短或刚整理过，Pi 现在无法再压缩。',
+        },
+      )
+      const timers = new Map<string, ReturnType<typeof setTimeout>>()
+      armCompactionErrorDismiss(timers, 'conversation-1', id => {
+        state = clearCodingContinuityError(state, id)
+      })
+      expect(state.errors.get('conversation-1')).toContain('会话还太短')
+      vi.advanceTimersByTime(COMPACTION_ERROR_VISIBLE_MS - 1)
+      expect(state.errors.has('conversation-1')).toBe(true)
+      vi.advanceTimersByTime(1)
+      expect(state.errors.has('conversation-1')).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

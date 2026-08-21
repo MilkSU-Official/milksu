@@ -508,6 +508,34 @@ describe('ChatComposer', () => {
     expect(editor.textContent).toBe('')
   })
 
+  it('runs compact while a turn is marked running instead of swallowing the click', async () => {
+    const result = mountComposer({
+      workspaceReady: true,
+      running: true,
+    })
+    await nextTick()
+    const editor = composerEditor(result.host)
+    setComposerText(editor, '/compact')
+    await nextTick()
+    activateSlashOption(result.host, 'compact')
+    await nextTick()
+    expect(result.slashCommandActions).toEqual(['compact'])
+  })
+
+  it('does not queue a second compact while compaction is already live', async () => {
+    const result = mountComposer({
+      workspaceReady: true,
+      compacting: true,
+    })
+    await nextTick()
+    const editor = composerEditor(result.host)
+    setComposerText(editor, '/compact')
+    await nextTick()
+    activateSlashOption(result.host, 'compact')
+    await nextTick()
+    expect(result.slashCommandActions).toEqual([])
+  })
+
   it('confirms the slash menu with Enter even while IME is composing', async () => {
     const result = mountComposer({ workspaceReady: true })
     await nextTick()
@@ -967,7 +995,10 @@ describe('ChatComposer', () => {
 
     const stop = running.host.querySelector<HTMLButtonElement>('[aria-label="停止 Agent"]')
     expect(stop).not.toBeNull()
-    stop?.click()
+    stop?.dispatchEvent(new PointerEvent('pointerdown', {
+      bubbles: true,
+      cancelable: true,
+    }))
     expect(stopped).toEqual([[]])
 
     const aborting = mountComposer({
@@ -1027,7 +1058,7 @@ describe('ChatComposer', () => {
     setComposerText(editor, '不要改 API，先补回归测试。')
     await nextTick()
 
-    expect(running.host.querySelector('[aria-label="停止 Agent"]')).toBeNull()
+    expect(running.host.querySelector('[aria-label="停止 Agent"]')).not.toBeNull()
     const guide = running.host.querySelector<HTMLButtonElement>('[aria-label="发送引导"]')
     expect(guide).not.toBeNull()
     guide?.click()

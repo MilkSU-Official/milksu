@@ -87,7 +87,7 @@ Coding Skill 和 `milksu_workspace` 留在普通 Coding。CTF/CVE 需要这些�
 | 项目 MCP | 用户从 Composer “+”打开现有项目 MCP 管理面，再从 `.mcp.json` 明确选择；调用遵循当前权限档位，不能由 Agent 安装或扩大工具面 | 当前未接线 | 固定 Coding Extension + MilkSU Sandbox |
 | 浏览器 | 普通 Coding 打开右栏或调用类型化 `milksu_workspace` 浏览器动作时拉起会话隔离的内置 Chromium；每个标签是独立 `WebContentsView`。用户与 Agent 共用当前 Target，工具调用遵循当前权限档位并保留页面、Console、Network 和截图证据。不扫描用户句子决定是否打开浏览器 | 当前未接线 | Electron Browser Host + Scoped CDP Proxy + 固定 Playwright MCP |
 | `milksu_workspace` | 类型化产品 UI 工具：列出/聚焦/关闭内置浏览器标签，列出/预览产物，打开环境、变更、终端和后台任务。不改设置、凭据、审批档，不附着用户 Chrome | 当前未接线；需要时可接到 CTF/CVE | MilkSU first-party Extension + Desktop RPC |
-| 上下文压缩 | Pi 拥有 Compaction。用量达到窗口约 85% 且 Session 空闲时走与 `/compact` 相同的路径；`compact_context` 只在达到阈值时调度 | 复用同一 Pi 压缩，不另建摘要器 | Pi Session compact；MilkSU 只投影用量并在空闲点调度 |
+| 上下文压缩 | Pi 拥有 Compaction。用量达到窗口约 85% 且 Session 空闲时自动走与 `/compact` 相同的路径；用户 `/compact` 与 `compact_context` 立即排队该路径，不受 85% 限制 | 复用同一 Pi 压缩，不另建摘要器 | Pi Session compact；MilkSU 只投影用量并在空闲点调度自动整理 |
 | Browser Use | 用户把可删除 Scope 加入本轮输入后，固定 Playwright extension mode 才能进入真实浏览器标签页配对路径；不复用沙箱 profile | 当前未接线 | 固定 Playwright MCP + 用户标签页授权 |
 | Artifact Preview | 工作区内 Markdown、HTML 和图片；HTML 使用隔离、CSP、禁网和大小限制 | 当前未接线 | Go Preview Policy + Vue right page |
 | ImageGen | 文生图和参考图编辑；用户明确发起付费动作，输出限制在项目资产范围并可预览 | 当前未接线 | 受控 Provider Adapter |
