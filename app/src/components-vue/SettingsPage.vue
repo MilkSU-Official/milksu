@@ -210,7 +210,10 @@ watch(() => props.settings, value => {
     alignDefaultModelToEnabledServices()
   }
 }, { immediate: true })
-watch(() => props.initialCategory, value => { category.value = value })
+watch(() => props.initialCategory, value => {
+  category.value = value
+  notice.value = null
+})
 // Draft edits should drive the shared picker the same way Coding reads saved settings.
 watch(working, value => {
   if (value) installAppModelSettings(value)
@@ -231,6 +234,11 @@ onBeforeUnmount(() => {
 function refreshComputerUseAfterSettings() {
   if (category.value !== 'browser' || computerUsePermissionsReady.value) return
   void refreshComputerUseStatus({ silent: true })
+}
+
+function selectCategory(value: SettingsCategory) {
+  category.value = value
+  notice.value = null
 }
 
 async function loadUserArtifactDirectory() {
@@ -1158,7 +1166,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
               :class="category === item.value ? 'active' : ''"
               :aria-selected="category === item.value"
               :aria-current="category === item.value ? 'page' : undefined"
-              @click="category = item.value"
+              @click="selectCategory(item.value)"
             >
               <component :is="item.icon" class="mr-3 size-4 shrink-0" />
               <span>{{ item.label }}</span>
