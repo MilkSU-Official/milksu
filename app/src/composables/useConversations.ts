@@ -403,7 +403,7 @@ export function agentErrorMessage(value: unknown) {
     return '当前模型不受支持，请更换模型。'
   }
   if (
-    /ECONNREFUSED|ECONNRESET|ENOTFOUND|ETIMEDOUT|network is unreachable|connection refused|fetch failed|dial tcp/i
+    /ECONNREFUSED|ECONNRESET|ENOTFOUND|ETIMEDOUT|network is unreachable|connection refused|\bconnection error\b|fetch failed|dial tcp/i
       .test(message)
   ) {
     return '模型或 Agent 网络连接失败。'
@@ -486,7 +486,7 @@ export function agentRuntimeErrorMessage(value: unknown) {
     return '本轮已停止。'
   }
   if (
-    /no API key is configured|No API key for|Model not found|ECONNREFUSED|ECONNRESET|ENOTFOUND|ETIMEDOUT|network is unreachable|connection refused|fetch failed|dial tcp/i
+    /no API key is configured|No API key for|Model not found|ECONNREFUSED|ECONNRESET|ENOTFOUND|ETIMEDOUT|network is unreachable|connection refused|\bconnection error\b|fetch failed|dial tcp/i
       .test(raw)
   ) {
     return normalized

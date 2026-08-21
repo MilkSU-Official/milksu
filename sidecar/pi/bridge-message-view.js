@@ -51,6 +51,7 @@ const RETRYABLE_PROVIDER_PATTERNS = [
   /temporar(?:il)?y unavailable/i,
   /timeout|timed out/i,
   /ECONNRESET|ECONNREFUSED|ETIMEDOUT|ENOTFOUND|fetch failed/i,
+  /\bconnection error\b/i,
   /overloaded|capacity/i,
 ];
 

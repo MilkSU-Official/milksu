@@ -147,6 +147,17 @@ test("defers rate-limit and other retryable provider errors until the turn settl
     stopReason: "error",
     errorMessage: "Service unavailable: 503 upstream",
   }), []);
+
+  // TokenFlux / OpenAI-compatible clients report generic "Connection error."
+  // Pi retries it in-turn; desktop must not finishRun on the first blip.
+  assert.equal(isRetryableProviderError("Connection error."), true);
+  assert.equal(shouldDeferTerminalAssistantError("Connection error."), true);
+  assert.deepEqual(projectAssistantMessageEnd({
+    role: "assistant",
+    content: [],
+    stopReason: "error",
+    errorMessage: "Connection error.",
+  }), []);
 });
 
 test("still surfaces permanent model errors immediately", () => {

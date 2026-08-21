@@ -332,6 +332,11 @@ describe('Coding approval conversation recovery', () => {
       'AbortError',
     ],
     [
+      'Connection error.',
+      '模型或 Agent 网络连接失败',
+      'Connection error',
+    ],
+    [
       '明确的目录授权需要包含一个可解析的具体路径',
       '具体目录路径',
       '可解析',

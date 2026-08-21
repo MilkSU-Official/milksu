@@ -33,6 +33,10 @@ describe('agent recovery', () => {
       message('english-network', 'assistant', 'Agent 运行失败：dial tcp 127.0.0.1:65533: connect: connection refused'),
     ], false)).toBe('english-network')
 
+    expect(recoverableAgentFailureId([
+      message('connection-error', 'assistant', 'Agent 运行失败：Connection error.'),
+    ], false)).toBe('connection-error')
+
     for (const content of [
       'Agent 运行失败：context deadline exceeded',
       'Agent 运行失败：read tcp 127.0.0.1:65533: i/o timeout',
