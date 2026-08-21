@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/MilkSU-Official/milksu/internal/codingenv"
+	"github.com/MilkSU-Official/milksu/internal/externaleditor"
 )
 
 func (a *App) GetCodingEnvironment(workspacePath string) (codingenv.Snapshot, error) {
@@ -26,6 +27,14 @@ func (a *App) GetCodingDiff(
 	inspectContext, cancel := context.WithTimeout(a.commandContext(), 4*time.Second)
 	defer cancel()
 	return codingenv.InspectDiff(inspectContext, workspacePath, relativePath)
+}
+
+func (a *App) OpenCodingFileInEditor(workspacePath, relativePath string) error {
+	editorID := externaleditor.DefaultID
+	if a.settings != nil {
+		editorID = a.settings.Get().PreferredExternalEditor
+	}
+	return externaleditor.Open(workspacePath, relativePath, editorID)
 }
 
 func (a *App) ApplyCodingGitAction(

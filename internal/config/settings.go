@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/MilkSU-Official/milksu/internal/appdata"
+	"github.com/MilkSU-Official/milksu/internal/externaleditor"
 )
 
 const (
@@ -73,16 +74,17 @@ type SecurityToolPreference struct {
 }
 
 type AppSettings struct {
-	ActiveProvider string                            `json:"active_provider"`
-	ActiveModel    string                            `json:"active_model"`
-	ModelVerified  *ModelVerification                `json:"model_verification,omitempty"`
-	ModelRouting   ModelRoutingConfig                `json:"model_routing"`
-	Relay          *RelayConfig                      `json:"relay,omitempty"`
-	NSSCTFArena    *NSSCTFArenaConfig                `json:"nssctf_arena,omitempty"`
-	Locale         *string                           `json:"locale,omitempty"`
-	DisabledSkills []string                          `json:"disabled_skills"`
-	SecurityTools  map[string]SecurityToolPreference `json:"security_tools,omitempty"`
-	Providers      map[string]ProviderConfig         `json:"providers"`
+	ActiveProvider          string                            `json:"active_provider"`
+	ActiveModel             string                            `json:"active_model"`
+	ModelVerified           *ModelVerification                `json:"model_verification,omitempty"`
+	ModelRouting            ModelRoutingConfig                `json:"model_routing"`
+	Relay                   *RelayConfig                      `json:"relay,omitempty"`
+	NSSCTFArena             *NSSCTFArenaConfig                `json:"nssctf_arena,omitempty"`
+	Locale                  *string                           `json:"locale,omitempty"`
+	DisabledSkills          []string                          `json:"disabled_skills"`
+	PreferredExternalEditor string                            `json:"preferred_external_editor,omitempty"`
+	SecurityTools           map[string]SecurityToolPreference `json:"security_tools,omitempty"`
+	Providers               map[string]ProviderConfig         `json:"providers"`
 	// RuntimeModelCatalogPath is injected only into resolved settings so Pi can
 	// read the same refreshed public model metadata as the desktop UI. It is
 	// never persisted or returned across Desktop RPC.
@@ -643,6 +645,7 @@ func withDefaults(value AppSettings) AppSettings {
 		value.ModelRouting.AutoFallback = boolPointer(false)
 	}
 	value.DisabledSkills = normalizeDisabledSkills(value.DisabledSkills)
+	value.PreferredExternalEditor = externaleditor.Normalize(value.PreferredExternalEditor)
 	value.SecurityTools = normalizeSecurityToolPreferences(value.SecurityTools)
 	return value
 }

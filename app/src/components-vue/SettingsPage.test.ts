@@ -388,6 +388,52 @@ describe('SettingsPage Coding Agent Skills', () => {
     ])
     expect(document.body.textContent).toContain('Skills 设置已保存')
   })
+
+  it('defaults the file opener to VS Code and persists Cursor', async () => {
+    let savedSettings: AppSettings | null = null
+    const settings = withAppSettingsDefaults({
+      active_provider: 'tokenflux',
+      active_model: 'x-ai/grok-4.6',
+      model_routing: {
+        source_order: ['account', 'personal'],
+        auto_fallback: false,
+      },
+      providers: {},
+    })
+    await mountSettingsPage({
+      directory: 'MilkSU 用户数据目录',
+      fileCount: 0,
+      bytes: 0,
+    }, {
+      initialCategory: 'coding',
+      settings,
+      appMethods: {
+        SaveSettingsCmd: async (value: unknown) => {
+          savedSettings = value as AppSettings
+        },
+        GetSettings: async () => savedSettings ?? settings,
+      },
+    })
+
+    const select = document.querySelector<HTMLSelectElement>('[aria-label="打开文件的编辑器"]')
+    expect(select).not.toBeNull()
+    expect(select?.value).toBe('vscode')
+    expect(document.body.textContent).toContain('Cursor')
+    expect(document.body.textContent).toContain('Windsurf')
+    expect(document.body.textContent).toContain('Zed')
+    expect(document.body.textContent).not.toContain('建议默认')
+
+    select!.value = 'cursor'
+    select!.dispatchEvent(new Event('change', { bubbles: true }))
+    await settle()
+
+    const saveButton = [...document.querySelectorAll('button')]
+      .find(button => button.textContent?.includes('保存设置'))
+    saveButton?.click()
+    for (let index = 0; index < 4; index += 1) await settle()
+
+    expect((savedSettings as AppSettings | null)?.preferred_external_editor).toBe('cursor')
+  })
 })
 
 describe('SettingsPage database compatibility', () => {
@@ -650,7 +696,7 @@ describe('SettingsPage database compatibility', () => {
         TestAgentModel: async () => {
           probed = true
           throw new Error(
-            'PI model verification failed: dial tcp 127.0.0.1:65533: connect: connection refused api_key=[REDACTED]',
+            "Error invoking remote method 'milksu:invoke': Error: PI model verification failed: dial tcp 127.0.0.1:65533: connect: connection refused api_key=[REDACTED]",
           )
         },
       },
@@ -669,6 +715,7 @@ describe('SettingsPage database compatibility', () => {
     expect(text).toContain('127.0.0.1:65533')
     expect(text).toContain('connection refused')
     expect(text).toContain('[REDACTED]')
+    expect(text).not.toContain('milksu:invoke')
     expect(text).not.toContain('synthetic-secret-value')
   })
 

@@ -23,13 +23,10 @@ import {
   Activity,
   ArrowLeft,
   ArrowRight,
-  Bot,
   CircleDot,
   ExternalLink,
   FileDiff,
   FileImage,
-  FilePenLine,
-  Files,
   Flag,
   FolderOpen,
   GitBranch,
@@ -46,7 +43,6 @@ import {
   Route,
   ShieldCheck,
   SquareTerminal,
-  Terminal,
   Wrench,
   X,
 } from 'lucide-vue-next'
@@ -75,7 +71,9 @@ import type {
   CodingComputerUseTarget,
   CodingDiffSnapshot,
   CodingEnvironmentSnapshot,
+  CodingGitActionResult,
   CodingMCPConfigSnapshot,
+  CodingProjectMemory,
 } from '@/codingEnvironmentTypes'
 import { normalizeCodingBrowserAddress } from '@/codingBrowserAddress'
 import {
@@ -83,6 +81,16 @@ import {
   codingBrowserViewportSyncKey,
 } from '@/lib/codingBrowserTabs'
 import { readCodingRailWidth, writeCodingRailWidth } from '@/lib/codingRailWidth'
+import {
+  clampCodingTerminalHeight,
+  readCodingTerminalHeight,
+  writeCodingTerminalHeight,
+} from '@/lib/codingTerminalHeight'
+import {
+  codingWorkspaceLabel,
+  LOCAL_CODING_SHELL_ID,
+  shouldRememberCodingProject,
+} from '@/lib/codingProjectMemory'
 import { buildChatTranscript } from '@/lib/chatActivity'
 import {
   chatActivityGroupOpen,
@@ -94,6 +102,7 @@ import {
   type ChatActivityExpansionState,
 } from '@/lib/chatActivityExpansion'
 import { chatTopbarPresentation } from '@/lib/chatTopbar'
+import { resolveModelContextWindow } from '@/lib/knownContextWindow'
 import {
   applySessionContextWindow,
   presentContextUsage,
@@ -203,6 +212,9 @@ const emit = defineEmits<{
   abort: []
   chooseWorkspace: []
   chooseWorkspaceForNewTask: []
+  selectWorkspace: [path: string]
+  forgetWorkspace: [path: string]
+  clearWorkspace: []
   cancelQueuedGuidance: [index: number]
   editQueuedGuidance: [index: number]
   changeModel: [mode: 'auto' | 'manual', provider?: string, model?: string]
@@ -238,7 +250,12 @@ const contextRailWidth = ref<number | null>(readCodingRailWidth())
 // Domain context is the primary right-rail content for CTF/CVE (one rail only).
 // Collapse to a floating PiP with a text control; reopen via the floating chip.
 const domainContextCollapsed = ref(false)
+const contextRailVisible = computed(() => (
+  environmentOpen.value && !domainContextCollapsed.value
+))
 const terminalOpen = ref(false)
+const terminalHeight = ref(readCodingTerminalHeight())
+const terminalDockStyle = computed(() => ({ height: `${terminalHeight.value}px` }))
 const contextPanelValues = [
   'domain',
   'environment',
@@ -373,26 +390,19 @@ onBeforeUnmount(() => {
 })
 const effectiveTurnStatus = computed<SessionTurnSnapshot>(() => {
   const base = props.turnStatus ?? { compacting: props.compacting }
-  const provider = effectiveModelMode.value === 'auto'
-    ? automaticModel.value?.provider
-    : props.modelProvider || props.settings?.active_provider
   const model = effectiveModelMode.value === 'auto'
     ? automaticModel.value?.model
     : props.modelId || props.settings?.active_model
-  let contextWindow = base.contextWindow
-  if (provider && model) {
-    const catalog = modelCatalogSnapshot.value
-    if (catalog?.provider === provider) {
-      const match = catalog.models.find(entry => entry.id === model)
-      if (match?.context_window) contextWindow = match.context_window
-    }
-    // Usage payload may name a different model after source fallback.
-    const usageModel = base.usage?.model
-    if (!contextWindow && usageModel && catalog) {
-      const match = catalog.models.find(entry => entry.id === usageModel)
-      if (match?.context_window) contextWindow = match.context_window
-    }
-  }
+  const usageModel = base.usage?.model
+  const catalog = modelCatalogSnapshot.value
+  const catalogWindowFor = (id: string | undefined) => (
+    id ? catalog?.models.find(entry => entry.id === id)?.context_window : undefined
+  )
+  const catalogWindow = catalogWindowFor(model)
+    ?? catalogWindowFor(usageModel)
+    ?? base.contextWindow
+  const contextWindow = resolveModelContextWindow(usageModel || model, catalogWindow)
+    || base.contextWindow
   return applySessionContextWindow(
     { ...base, compacting: props.compacting || Boolean(base.compacting) },
     contextWindow,
@@ -510,6 +520,11 @@ const topbarModule = computed(() => (
       ? 'cve'
       : 'coding'
 ))
+const codingDraftIdle = computed(() => (
+  !props.ctfSession
+  && !props.vulnerabilitySession
+  && !(props.conversation?.messages.length)
+))
 const approvalMenuLabel = computed(() => (
   effectiveApprovalPolicy.value === 'full-auto'
     ? '完全访问'
@@ -565,11 +580,30 @@ const hasCredential = computed(() => {
 const automaticScratchWorkspace = computed(() => (
   isGeneratedScratchWorkspace(props.workspacePath)
 ))
+const projectMemory = ref<CodingProjectMemory | null>(null)
+const gitBranchError = ref('')
+const homeDirectory = computed(() => projectMemory.value?.homeDirectory ?? '')
+const recentProjects = computed(() => projectMemory.value?.recents ?? [])
+const gitBranches = computed(() => codingEnvironment.value?.git.localBranches ?? [])
+const gitBranch = computed(() => codingEnvironment.value?.git.branch ?? '')
+const gitRepository = computed(() => Boolean(codingEnvironment.value?.git.isRepository))
 const workspaceName = computed(() => {
   if (automaticScratchWorkspace.value) return '无项目任务'
-  const value = props.workspacePath.replace(/[/\\]+$/, '')
-  return value.split(/[/\\]/).at(-1) || '无项目任务'
+  return codingWorkspaceLabel(props.workspacePath, homeDirectory.value)
 })
+const selectedCodingProjectName = computed(() => {
+  if (!shouldRememberCodingProject(props.workspacePath)) return ''
+  return codingWorkspaceLabel(props.workspacePath, homeDirectory.value)
+})
+const codingEmptyHeading = computed(() => {
+  const name = selectedCodingProjectName.value
+  if (name && name !== '~') return `我们在 ${name} 中构建什么`
+  return '我们要构建什么'
+})
+const terminalConversationId = computed(() => (
+  props.conversation?.id || LOCAL_CODING_SHELL_ID
+))
+const terminalWorkspacePath = computed(() => props.workspacePath || homeDirectory.value)
 const codingBrowserEvidencePath = computed(() => {
   const sessionID = codingBrowserStatus.value?.sessionId?.trim()
   return sessionID ? `.milksu/browser-evidence/${sessionID}` : ''
@@ -851,6 +885,34 @@ function persistContextRailWidth(width: number) {
   contextRailWidth.value = writeCodingRailWidth(width)
 }
 
+function persistTerminalHeight(height: number) {
+  terminalHeight.value = writeCodingTerminalHeight(height)
+}
+
+function startTerminalResize(event: PointerEvent) {
+  if (event.button !== 0) return
+  const handle = event.currentTarget as HTMLElement
+  const dock = handle.closest('.coding-terminal-dock')
+  if (!dock) return
+  event.preventDefault()
+  handle.setPointerCapture(event.pointerId)
+  const startY = event.clientY
+  const startHeight = dock.getBoundingClientRect().height
+
+  function onMove(move: PointerEvent) {
+    persistTerminalHeight(clampCodingTerminalHeight(startHeight + (startY - move.clientY)))
+  }
+  function onUp(up: PointerEvent) {
+    handle.releasePointerCapture(up.pointerId)
+    handle.removeEventListener('pointermove', onMove)
+    handle.removeEventListener('pointerup', onUp)
+    handle.removeEventListener('pointercancel', onUp)
+  }
+  handle.addEventListener('pointermove', onMove)
+  handle.addEventListener('pointerup', onUp)
+  handle.addEventListener('pointercancel', onUp)
+}
+
 function showCodingPermissions() {
   contextPanel.value = 'environment'
   environmentOpen.value = true
@@ -964,6 +1026,48 @@ function chooseWorkspaceFromCurrentTask() {
     return
   }
   emit('chooseWorkspace')
+}
+
+async function loadProjectMemory() {
+  try {
+    projectMemory.value = await invokeCommand<CodingProjectMemory>('get_coding_project_memory')
+  } catch {
+    // New-chat recents stay empty until Desktop RPC is available.
+  }
+}
+
+function selectRecentProject(path: string) {
+  const next = path.trim()
+  if (!next) return
+  emit('selectWorkspace', next)
+}
+
+async function forgetRecentProject(path: string) {
+  try {
+    projectMemory.value = await invokeCommand<CodingProjectMemory>('forget_coding_project', { path })
+  } catch {
+    await loadProjectMemory()
+  }
+  emit('forgetWorkspace', path)
+}
+
+async function checkoutGitBranch(branch: string) {
+  const workspace = props.workspacePath
+  const next = branch.trim()
+  if (!workspace || !next || next === gitBranch.value || props.running) return
+  gitBranchError.value = ''
+  try {
+    const result = await invokeCommand<CodingGitActionResult>('apply_coding_git_action', {
+      workspacePath: workspace,
+      action: 'checkout',
+      relativePath: next,
+      message: '',
+    })
+    if (result?.snapshot) codingEnvironment.value = result.snapshot
+    else await refreshEnvironment()
+  } catch (reason) {
+    gitBranchError.value = reason instanceof Error ? reason.message : '无法切换分支。'
+  }
 }
 
 async function runCodingProductAction(kind: CodingProductActionKind) {
@@ -1678,6 +1782,7 @@ async function scrollChatToBottom(force = false) {
 }
 
 onMounted(() => {
+  void loadProjectMemory()
   void scrollChatToBottom(true)
   if (props.conversation?.id && !props.running) void refreshBrowserPanel()
   window.addEventListener('focus', refreshComputerUseAfterSettings)
@@ -1817,6 +1922,18 @@ watch(
   () => void refreshMCPConfig(),
   { immediate: true },
 )
+watch(
+  () => props.workspacePath,
+  path => {
+    if (!shouldRememberCodingProject(path)) return
+    void invokeCommand<CodingProjectMemory>('remember_coding_project', { path })
+      .then(memory => {
+        projectMemory.value = memory
+      })
+      .catch(() => undefined)
+  },
+  { immediate: true },
+)
 watch(contextPanel, (panel, previous) => {
   if (previous === 'browser' && panel !== 'browser') void hideCodingBrowserViewport()
   if (['browser', 'browser-use', 'computer-use'].includes(panel) && environmentOpen.value) {
@@ -1870,9 +1987,11 @@ watch(
   <div class="coding-workspace relative flex min-h-0 flex-1 overflow-hidden">
   <main class="chat-main flex min-w-0 flex-1 flex-col overflow-hidden bg-surface-editor">
     <WorkspaceModuleTopBar
+      v-if="!contextRailVisible"
       :module="topbarModule"
       :title="topbarPresentation.title"
       :subtitle="topbarPresentation.subtitle"
+      :hide-identity="codingDraftIdle"
     >
       <template v-if="!conversationDrawerOpen" #leading>
         <!--
@@ -1936,15 +2055,44 @@ watch(
         <Button
           variant="ghost"
           size="icon-sm"
-          :aria-label="environmentOpen ? '关闭右侧栏' : '打开右侧栏'"
-          :title="environmentOpen ? '关闭右侧栏' : '打开右侧栏'"
+          data-testid="coding-rail-toggle"
+          aria-label="打开右侧栏"
+          title="打开右侧栏"
           @click="toggleManualContextSidebar"
         >
-          <PanelRightClose v-if="environmentOpen" class="size-4" />
-          <PanelRightOpen v-else class="size-4" />
+          <PanelRightOpen class="size-4" />
         </Button>
       </template>
     </WorkspaceModuleTopBar>
+    <div
+      v-else-if="!conversationDrawerOpen"
+      class="coding-history-collapsed-controls app-drag flex items-center gap-1.5 px-3 py-2"
+    >
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        class="app-no-drag"
+        data-testid="coding-history-toggle"
+        aria-label="展开会话历史"
+        title="展开会话历史"
+        :aria-expanded="false"
+        aria-controls="coding-context-sidebar"
+        @click="$emit('toggleConversationDrawer')"
+      >
+        <PanelLeftOpen class="size-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        class="app-no-drag"
+        data-testid="coding-new-task-button"
+        aria-label="新建编码任务"
+        title="新建编码任务"
+        @click="$emit('newConversation')"
+      >
+        <MessageSquarePlus class="size-4" />
+      </Button>
+    </div>
 
     <div
       ref="scrollArea"
@@ -1965,44 +2113,14 @@ watch(
           </Button>
         </div>
       </div>
-      <div v-else-if="!conversation?.messages.length" class="mx-auto flex min-h-full max-w-3xl flex-col justify-center px-8 py-16">
-        <Bot class="size-6 text-muted-foreground" />
-        <h2 class="mt-5 text-body font-medium">{{ topbarPresentation.title }}</h2>
-        <p class="mt-2 max-w-lg text-body leading-6 text-muted-foreground">
-          {{ ctfSession
-            ? '从 CTF 工作台启动 Agent 后，在这里继续解题。'
-            : '选择项目并描述目标。' }}
-        </p>
-        <div class="mt-6 grid grid-cols-3 gap-3">
-          <div class="rounded-md border border-border bg-card px-4 py-4">
-            <Files class="size-4 text-muted-foreground" />
-            <p class="mt-3 text-body font-medium">理解项目</p>
-            <p class="mt-1 text-caption leading-5 text-muted-foreground">搜索并读取相关代码</p>
-          </div>
-          <div class="rounded-md border border-border bg-card px-4 py-4">
-            <FilePenLine class="size-4 text-muted-foreground" />
-            <p class="mt-3 text-body font-medium">修改文件</p>
-            <p class="mt-1 text-caption leading-5 text-muted-foreground">直接完成可审查的改动</p>
-          </div>
-          <div class="rounded-md border border-border bg-card px-4 py-4">
-            <Terminal class="size-4 text-muted-foreground" />
-            <p class="mt-3 text-body font-medium">运行命令</p>
-            <p class="mt-1 text-caption leading-5 text-muted-foreground">构建、测试与验证结果</p>
-          </div>
-        </div>
-        <div class="mt-6 flex items-center gap-2">
-          <Button v-if="!workspacePath" @click="$emit('chooseWorkspace')">
-            <FolderOpen class="size-4" />
-            选择项目目录
-          </Button>
-          <Badge v-else variant="outline" class="max-w-md truncate">
-            {{ domainTaskPresentation ? '任务工作区已就绪' : workspaceName }}
-          </Badge>
-          <Button v-if="!hasCredential" variant="outline" @click="$emit('openSettings')">
-            <KeyRound class="size-4" />
-            配置模型
-          </Button>
-        </div>
+      <div
+        v-else-if="!conversation?.messages.length"
+        class="flex min-h-full flex-col items-center justify-center px-8"
+      >
+        <h1 class="text-center text-2xl font-medium tracking-tight text-foreground">
+          {{ codingEmptyHeading }}
+        </h1>
+        <p v-if="gitBranchError" class="mt-3 text-center text-caption text-destructive">{{ gitBranchError }}</p>
       </div>
 
       <div v-else class="mx-auto max-w-3xl px-8 py-8">
@@ -2072,6 +2190,11 @@ watch(
       :workspace-locked="workspaceLocked"
       :workspace-name="workspaceName"
       :workspace-path="workspacePath"
+      :home-directory="homeDirectory"
+      :recent-projects="recentProjects"
+      :git-repository="gitRepository"
+      :git-branch="gitBranch"
+      :git-branches="gitBranches"
       :browser-use-ready="browserUseReadyForCurrentTask"
       :computer-use-ready="externalAppUseReadyForCurrentTask"
       :available-skills="activeSkills"
@@ -2085,6 +2208,10 @@ watch(
       @change-model="changeModel"
       @show-permissions="showCodingPermissions"
       @choose-workspace="chooseWorkspaceFromCurrentTask"
+      @select-workspace="selectRecentProject"
+      @forget-workspace="forgetRecentProject"
+      @clear-workspace="$emit('clearWorkspace')"
+      @checkout-branch="checkoutGitBranch"
       @cancel-queued-guidance="$emit('cancelQueuedGuidance', $event)"
       @edit-queued-guidance="$emit('editQueuedGuidance', $event)"
       @consume-goal="goalMode = false"
@@ -2158,17 +2285,25 @@ watch(
           收起
         </Button>
         <Button
-          v-if="contextPanel !== 'browser-use' && contextPanel !== 'domain'"
+          v-if="!ctfSession"
           variant="ghost"
           size="icon-sm"
-          :disabled="environmentLoading"
-          :aria-label="`刷新${contextPanelTitle}`"
-          @click="refreshContextPanel"
+          data-testid="coding-rail-terminal"
+          :aria-label="terminalOpen ? '关闭底部终端' : '打开底部终端'"
+          :title="terminalOpen ? '关闭底部终端' : '打开底部终端'"
+          @click="toggleTerminalPanel"
         >
-          <RefreshCw
-            class="size-4"
-            :class="{ 'animate-spin': environmentLoading }"
-          />
+          <SquareTerminal class="size-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          data-testid="coding-rail-toggle"
+          aria-label="关闭右侧栏"
+          title="关闭右侧栏"
+          @click="toggleManualContextSidebar"
+        >
+          <PanelRightClose class="size-4" />
         </Button>
       </div>
     </div>
@@ -2452,6 +2587,7 @@ watch(
           :environment="codingEnvironment"
           :running="running"
           :focus-path="changesFocusPath"
+          :preferred-editor="settings?.preferred_external_editor"
           @review="runCodingProductAction('review')"
           @refresh="refreshEnvironment"
         />
@@ -2798,15 +2934,22 @@ watch(
   />
   <div
     v-if="terminalOpen"
-    class="h-[34vh] min-h-56 min-w-0 max-h-96 shrink-0 overflow-hidden border-t border-border bg-card"
+    class="coding-terminal-dock min-w-0 shrink-0 overflow-hidden border-t border-border bg-card"
+    :style="terminalDockStyle"
     aria-label="底部终端面板"
   >
+    <div
+      class="coding-terminal-dock__resize app-no-drag"
+      role="separator"
+      aria-orientation="horizontal"
+      aria-label="调整终端高度"
+      @pointerdown="startTerminalResize"
+    />
     <CodingTerminalPanel
+      class="min-h-0 flex-1"
       :active="terminalOpen"
-      :conversation-id="conversation?.id ?? ''"
-      :workspace-path="workspacePath"
-      :execution-mode="effectiveExecutionMode"
-      :approval-policy="effectiveApprovalPolicy"
+      :conversation-id="terminalConversationId"
+      :workspace-path="terminalWorkspacePath"
       @close="terminalOpen = false"
     />
   </div>
@@ -2850,6 +2993,36 @@ watch(
   right: 1rem;
   bottom: 5.75rem;
   z-index: 30;
+}
+
+.coding-terminal-dock {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.coding-terminal-dock__resize {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 2;
+  height: 8px;
+  margin-top: -3px;
+  cursor: row-resize;
+  touch-action: none;
+}
+
+.coding-terminal-dock__resize::after {
+  position: absolute;
+  inset: 3px 0;
+  background: transparent;
+  content: '';
+}
+
+.coding-terminal-dock__resize:hover::after,
+.coding-terminal-dock__resize:focus-visible::after {
+  background: var(--brand);
+  opacity: .55;
 }
 
 </style>

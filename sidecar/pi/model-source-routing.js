@@ -1,4 +1,5 @@
 import { AssistantMessageEventStream } from "@earendil-works/pi-ai";
+import { resolveModelContextWindow } from "./known-context-window.cjs";
 
 export const accountSource = "account";
 export const personalSource = "personal";
@@ -191,7 +192,7 @@ export function createModelSourceRouteProvider({
       reasoning: source?.reasoning ?? false,
       input: source?.input ?? ["text"],
       cost: source?.cost ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      contextWindow: source?.contextWindow ?? 128000,
+      contextWindow: resolveModelContextWindow(model, source?.contextWindow),
       maxTokens: source?.maxTokens ?? 16384,
     }],
   };

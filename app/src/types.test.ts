@@ -36,6 +36,7 @@ describe('model provider catalog', () => {
       providers: {},
     } as AppSettings)
     expect(settings.active_model).toBe('x-ai/grok-4.6')
+    expect(settings.preferred_external_editor).toBe('vscode')
   })
 
   it('falls unknown official providers back to the TokenFlux daily model', () => {

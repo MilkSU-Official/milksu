@@ -1,3 +1,5 @@
+import { normalizePreferredExternalEditor } from '@/lib/externalEditor'
+
 export type MessageRole = 'user' | 'assistant' | 'tool'
 
 export interface AccountStatus {
@@ -138,7 +140,21 @@ export interface Conversation {
   ctfRole?: 'solver' | 'tool-builder' | 'strategist'
   /** Structured CTF/CVE domain snapshot for the shared Coding/Pi panel. */
   domainTaskContext?: import('@/lib/domainTaskContext').DomainTaskContext
+  /** Last occupancy shown on the composer ring; restored when the conversation is opened. */
+  lastContextUsage?: ConversationContextUsage
   messages: Message[]
+}
+
+export interface ConversationContextUsage {
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+  totalTokens: number
+  contextWindow?: number
+  model?: string
+  provider?: string
+  recordedAt: number
 }
 
 export interface CTFChatAction {
@@ -223,6 +239,7 @@ export interface AppSettings {
   nssctf_arena?: NSSCTFArenaConfig
   locale?: 'en' | 'zh'
   disabled_skills?: string[]
+  preferred_external_editor?: string
   security_tools?: Record<string, { enabled: boolean }>
   providers: Record<string, ProviderConfig>
 }
@@ -266,6 +283,7 @@ export function withAppSettingsDefaults(value: AppSettings): AppSettings {
     active_provider: activeProvider,
     active_model: activeModel,
     model_routing: normalizeModelRouting(value.model_routing),
+    preferred_external_editor: normalizePreferredExternalEditor(value.preferred_external_editor),
     disabled_skills: [...new Set((value.disabled_skills ?? [])
       .map(name => String(name).trim())
       .filter(name => /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(name)))],

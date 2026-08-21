@@ -51,7 +51,7 @@ import {
   Trash2,
   WalletCards,
 } from 'lucide-vue-next'
-import { invokeCommand } from '@/desktop'
+import { desktopErrorMessage, invokeCommand } from '@/desktop'
 import type {
   CodingComputerUsePermission,
   CodingComputerUseStatus,
@@ -91,6 +91,11 @@ import ModelVendorIcon from '@/components-vue/ModelVendorIcon.vue'
 import type { SecurityToolCodingHandoff } from '@/securityToolsTypes'
 import { useVulnerabilityDashboard, type VulnerabilityDashboard } from '@/composables/useVulnerabilityDashboard'
 import { CODING_SKILLS } from '@/codingSkills'
+import {
+  EXTERNAL_EDITORS,
+  normalizePreferredExternalEditor,
+} from '@/lib/externalEditor'
+import ExternalEditorIcon from '@/components-vue/ExternalEditorIcon.vue'
 import { buildDiagnosticText, isDebugMode, setDebugMode } from '@/lib/debugMode'
 
 type SettingsCategory = 'general' | 'apikeys' | 'ctf' | 'cve' | 'coding' | 'browser' | 'security-tools'
@@ -1067,7 +1072,7 @@ async function save(): Promise<boolean> {
       return true
     } catch (reason) {
       await refreshCallableModels()
-      const raw = String(reason)
+      const raw = desktopErrorMessage(reason)
       const friendly = /both model sources are unavailable|enable the personal API key/i.test(raw)
         ? '凭据已保存，但当前没有可用的账户或个人模型来源。请启用 MilkSU 账户或 TokenFlux 个人 Key 后重试。'
         : `凭据已保存，但 PI 模型验证失败：${raw}`
@@ -1089,8 +1094,8 @@ async function save(): Promise<boolean> {
       || refreshed.nssctf_arena?.session_only
     )
     notice.value = { tone: 'error', text: sessionOnly
-      ? `${String(reason)} 当前密钥仅保留在本次运行内，退出应用后需要重新输入。`
-      : `设置未保存：${String(reason)}` }
+      ? `${desktopErrorMessage(reason)} 当前密钥仅保留在本次运行内，退出应用后需要重新输入。`
+      : `设置未保存：${desktopErrorMessage(reason)}` }
     return false
   } finally {
     saving.value = false
@@ -1386,7 +1391,29 @@ async function saveProviderEditor(closeAfterSave: boolean) {
         </template>
 
         <template v-else-if="working && category === 'coding'">
-          <SettingsSection title="Skills">
+          <SettingsSection title="编辑器">
+            <SettingsRow label="打开文件">
+              <div class="flex items-center gap-2">
+                <ExternalEditorIcon :editor="working.preferred_external_editor" />
+                <NativeSelect
+                  :model-value="normalizePreferredExternalEditor(working.preferred_external_editor)"
+                  size="sm"
+                  aria-label="打开文件的编辑器"
+                  @update:model-value="working.preferred_external_editor = String($event)"
+                >
+                  <NativeSelectOption
+                    v-for="editor in EXTERNAL_EDITORS"
+                    :key="editor.id"
+                    :value="editor.id"
+                  >
+                    {{ editor.label }}
+                  </NativeSelectOption>
+                </NativeSelect>
+              </div>
+            </SettingsRow>
+          </SettingsSection>
+
+          <SettingsSection title="Skills" class="mt-6">
             <SettingsRow
               v-for="skill in CODING_SKILLS"
               :key="skill.name"

@@ -65,6 +65,7 @@ import type {
   CodingComputerUseTarget,
   CodingDiffSnapshot,
   CodingEnvironmentSnapshot,
+  CodingProjectMemory,
   CodingGitAction,
   CodingGitActionResult,
   CodingGitHunkAction,
@@ -190,6 +191,9 @@ interface DesktopAppBindings {
     modelId: string,
   ): Promise<string>
   ChooseAgentWorkspace(): Promise<string>
+  GetCodingProjectMemory(): Promise<CodingProjectMemory>
+  RememberCodingProject(path: string): Promise<CodingProjectMemory>
+  ForgetCodingProject(path: string): Promise<CodingProjectMemory>
   ChooseCTFMaterials(): Promise<CTFMaterialRequest[]>
   ChooseCodingAttachments(): Promise<CodingAttachment[]>
   ImportCodingAttachments(payloads: CodingAttachmentImport[]): Promise<CodingAttachment[]>
@@ -268,6 +272,7 @@ interface DesktopAppBindings {
   GetCodingEnvironment(workspacePath: string): Promise<CodingEnvironmentSnapshot>
   GetCodingMCPConfig(workspacePath: string): Promise<CodingMCPConfigSnapshot>
   GetCodingDiff(workspacePath: string, relativePath: string): Promise<CodingDiffSnapshot>
+  OpenCodingFileInEditor(workspacePath: string, relativePath: string): Promise<void>
   ApplyCodingGitAction(
     workspacePath: string,
     action: CodingGitAction,
@@ -446,6 +451,15 @@ export function hasDesktopRuntime(): boolean {
   return Boolean(window.milksu)
 }
 
+/** Strip Electron IPC wrapping so product UI can show the Go/Pi error. */
+export function desktopErrorMessage(reason: unknown) {
+  let message = String(reason ?? '').trim()
+  message = message.replace(/^(?:Error:\s*)+/g, '')
+  message = message.replace(/^Error invoking remote method '[^']+':\s*/g, '')
+  message = message.replace(/^(?:Error:\s*)+/g, '')
+  return message.trim()
+}
+
 export async function invokeCommand<T = unknown>(command: string, args?: CommandArgs): Promise<T> {
   recordRpcCall(command)
   const app = getDesktopApp()
@@ -518,6 +532,12 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         ) as Promise<T>
       case 'choose_agent_workspace':
         return app.ChooseAgentWorkspace() as Promise<T>
+      case 'get_coding_project_memory':
+        return app.GetCodingProjectMemory() as Promise<T>
+      case 'remember_coding_project':
+        return app.RememberCodingProject(args?.path as string) as Promise<T>
+      case 'forget_coding_project':
+        return app.ForgetCodingProject(args?.path as string) as Promise<T>
       case 'choose_ctf_materials':
         return app.ChooseCTFMaterials() as Promise<T>
       case 'choose_coding_attachments':
@@ -632,6 +652,11 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.GetCodingMCPConfig(args?.workspacePath as string) as Promise<T>
       case 'get_coding_diff':
         return app.GetCodingDiff(
+          args?.workspacePath as string,
+          args?.relativePath as string,
+        ) as Promise<T>
+      case 'open_coding_file_in_editor':
+        return app.OpenCodingFileInEditor(
           args?.workspacePath as string,
           args?.relativePath as string,
         ) as Promise<T>

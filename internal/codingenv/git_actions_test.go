@@ -306,6 +306,34 @@ func TestGitHunkActionsRejectStaleOrForeignPatch(t *testing.T) {
 	}
 }
 
+func TestGitActionCheckoutSwitchesLocalBranch(t *testing.T) {
+	requireGit(t)
+	workspace := initializedGitFixture(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	before, err := Inspect(ctx, workspace)
+	if err != nil || before.Git.Branch == "" {
+		t.Fatalf("inspect fixture branch: %#v %v", before.Git, err)
+	}
+	runGitFixture(t, workspace, "checkout", "-b", "feature")
+	switched, err := ApplyGitAction(ctx, workspace, GitActionCheckout, before.Git.Branch, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if switched.Snapshot.Git.Branch != before.Git.Branch {
+		t.Fatalf("checkout branch = %q, want %q", switched.Snapshot.Git.Branch, before.Git.Branch)
+	}
+	foundFeature := false
+	for _, name := range switched.Snapshot.Git.LocalBranches {
+		if name == "feature" || name == before.Git.Branch {
+			foundFeature = foundFeature || name == "feature"
+		}
+	}
+	if !foundFeature {
+		t.Fatalf("local branches missing feature: %#v", switched.Snapshot.Git.LocalBranches)
+	}
+}
+
 func TestSplitUnifiedDiffHunksRefusesAddedOrDeletedFiles(t *testing.T) {
 	added := strings.Join([]string{
 		"diff --git a/new.txt b/new.txt",

@@ -50,6 +50,11 @@ internal thresholds, or “this is not X / 不拦手动” explanations in that 
 in AGENTS.md, current-objectives, code comments, or model-only guidance such as
 `codingWorkspaceGuidance()`.
 
+Do not fill empty states with optional commentary, coaching, or “还没有 / 打开以后会出现”
+status copy. If the control is missing a value, leave the surface blank and show only the
+control’s own label, such as “选择项目”. The Coding new-conversation canvas may show the
+product heading “我们要构建什么” or “我们在 {project} 中构建什么”.
+
 ## Product UI Color Boundary
 
 - Current visual contract: [docs/design/current-visual.md](docs/design/current-visual.md).

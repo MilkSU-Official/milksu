@@ -105,6 +105,7 @@ func New(
 		snapshot:         fallbackSnapshot(),
 	}
 	if cached, err := readSnapshot(service.cachePath); err == nil {
+		applyKnownContextWindows(cached.Models)
 		cached.Source = "cache"
 		service.snapshot = cached
 	} else if err := writeSnapshot(service.cachePath, service.snapshot); err != nil {
@@ -120,7 +121,18 @@ func (s *Service) CachePath() string {
 func (s *Service) Snapshot() Snapshot {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return cloneSnapshot(s.snapshot)
+	next := cloneSnapshot(s.snapshot)
+	applyKnownContextWindows(next.Models)
+	return next
+}
+
+func applyKnownContextWindows(models []Model) {
+	for index := range models {
+		models[index].ContextWindow = resolveModelContextWindow(
+			models[index].ID,
+			models[index].ContextWindow,
+		)
+	}
 }
 
 func (s *Service) Refresh(ctx context.Context) (Snapshot, error) {
@@ -197,6 +209,7 @@ func (s *Service) Refresh(ctx context.Context) (Snapshot, error) {
 }
 
 func (s *Service) persist(next Snapshot) error {
+	applyKnownContextWindows(next.Models)
 	if err := writeSnapshot(s.cachePath, next); err != nil {
 		return fmt.Errorf("cache model catalog: %w", err)
 	}
@@ -287,27 +300,22 @@ func (s *Service) fetch(ctx context.Context, candidate catalogCandidate) ([]Mode
 	return models, nil
 }
 
-type tokenFluxResponse struct {
-	Data []struct {
-		ID            string `json:"id"`
-		Name          string `json:"name"`
-		Type          string `json:"type"`
-		ContextLength int    `json:"context_length"`
-		Architecture  struct {
-			InputModalities []string `json:"input_modalities"`
-		} `json:"architecture"`
-	} `json:"data"`
-}
-
-func normalizeModels(values []struct {
+type catalogModelRaw struct {
 	ID            string `json:"id"`
 	Name          string `json:"name"`
 	Type          string `json:"type"`
 	ContextLength int    `json:"context_length"`
+	ContextWindow int    `json:"context_window"`
 	Architecture  struct {
 		InputModalities []string `json:"input_modalities"`
 	} `json:"architecture"`
-}) []Model {
+}
+
+type tokenFluxResponse struct {
+	Data []catalogModelRaw `json:"data"`
+}
+
+func normalizeModels(values []catalogModelRaw) []Model {
 	result := make([]Model, 0, len(values))
 	seen := make(map[string]bool, len(values))
 	for _, value := range values {
@@ -330,10 +338,11 @@ func normalizeModels(values []struct {
 		if !contains(input, "text") {
 			continue
 		}
-		contextWindow := value.ContextLength
-		if contextWindow <= 0 {
-			contextWindow = 128_000
+		catalogWindow := value.ContextLength
+		if catalogWindow <= 0 {
+			catalogWindow = value.ContextWindow
 		}
+		contextWindow := resolveModelContextWindow(id, catalogWindow)
 		name := strings.TrimSpace(value.Name)
 		if name == "" {
 			name = id

@@ -1,6 +1,6 @@
 import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
 import { invokeCommand, listenEvent } from '@/desktop'
-import type { CodingCompactionResult } from '@/codingEnvironmentTypes'
+import type { CodingCompactionResult, CodingProjectMemory } from '@/codingEnvironmentTypes'
 import {
   applyCodingContinuityEvent,
   armCompactionErrorDismiss,
@@ -23,13 +23,18 @@ import {
 } from '@/lib/chatActivity'
 import { redactProviderCredentials } from '@/lib/redaction'
 import { normalizeDomainTaskContext } from '@/lib/domainTaskContext'
+import { shouldRememberCodingProject } from '@/lib/codingProjectMemory'
+import { resolveModelContextWindow } from '@/lib/knownContextWindow'
 import {
   applySessionCompacting,
+  applySessionContextWindow,
   applySessionRunFinished,
   applySessionRunStarted,
   applySessionUsageAfterCompaction,
   applySessionUsageRecorded,
   emptySessionTurnSnapshot,
+  snapshotFromStoredContextUsage,
+  storedContextUsageFromSnapshot,
   type SessionTurnSnapshot,
   type SessionTurnUsage,
 } from '@/lib/sessionTurnStatus'
@@ -258,6 +263,31 @@ export interface PendingComposerDraft {
   visibleText: string
 }
 
+function normalizeLastContextUsage(raw: unknown): Conversation['lastContextUsage'] {
+  if (!raw || typeof raw !== 'object') return undefined
+  const value = raw as Record<string, unknown>
+  const inputTokens = Math.max(0, Math.floor(Number(value.inputTokens) || 0))
+  const outputTokens = Math.max(0, Math.floor(Number(value.outputTokens) || 0))
+  const cacheReadTokens = Math.max(0, Math.floor(Number(value.cacheReadTokens) || 0))
+  const cacheWriteTokens = Math.max(0, Math.floor(Number(value.cacheWriteTokens) || 0))
+  const totalTokens = Math.max(0, Math.floor(Number(value.totalTokens) || 0))
+    || (inputTokens + outputTokens + cacheReadTokens + cacheWriteTokens)
+  const recordedAt = Math.max(0, Math.floor(Number(value.recordedAt) || 0))
+  if (totalTokens <= 0 && inputTokens <= 0) return undefined
+  const contextWindow = Math.max(0, Math.floor(Number(value.contextWindow) || 0))
+  return {
+    inputTokens,
+    outputTokens,
+    cacheReadTokens,
+    cacheWriteTokens,
+    totalTokens,
+    contextWindow: contextWindow || undefined,
+    model: typeof value.model === 'string' ? value.model : undefined,
+    provider: typeof value.provider === 'string' ? value.provider : undefined,
+    recordedAt,
+  }
+}
+
 export function normalizeConversation(raw: Record<string, unknown>): Conversation {
   const messages = (raw.messages as Record<string, unknown>[] | undefined) ?? []
   return {
@@ -315,6 +345,7 @@ export function normalizeConversation(raw: Record<string, unknown>): Conversatio
       ? raw.ctfRole as Conversation['ctfRole']
       : undefined,
     domainTaskContext: normalizeDomainTaskContext(raw.domainTaskContext),
+    lastContextUsage: normalizeLastContextUsage(raw.lastContextUsage),
     messages: messages.map(message => {
       const rawApprovalState = String(message.approvalState ?? '')
       const approvalState = rawApprovalState === 'pending'
@@ -654,6 +685,40 @@ export function useConversations() {
     void invokeCommand('save_conversation', { conversation }).catch(console.error)
   }
 
+  function sessionContextUsageRecord(sessionId: string): Conversation['lastContextUsage'] {
+    const snapshot = turnStatusById.value.get(sessionId)
+    const stored = storedContextUsageFromSnapshot(snapshot ?? emptySessionTurnSnapshot())
+    if (!stored) return undefined
+    const conversation = conversations.value.find(item => item.id === sessionId)
+    const contextWindow = resolveModelContextWindow(
+      stored.model || conversation?.modelId,
+      stored.contextWindow,
+    ) || stored.contextWindow
+    return {
+      ...stored,
+      contextWindow: contextWindow || undefined,
+    }
+  }
+
+  function persistSessionContextUsage(sessionId: string) {
+    const lastContextUsage = sessionContextUsageRecord(sessionId)
+    if (!lastContextUsage) return
+    conversations.value = conversations.value.map(item => (
+      item.id === sessionId ? { ...item, lastContextUsage } : item
+    ))
+    scheduleSave(sessionId)
+  }
+
+  function hydrateTurnStatus(conversation: Conversation): SessionTurnSnapshot | undefined {
+    const snapshot = snapshotFromStoredContextUsage(conversation.lastContextUsage)
+    if (!snapshot.usage) return undefined
+    const contextWindow = resolveModelContextWindow(
+      snapshot.usage.model || conversation.modelId,
+      snapshot.contextWindow,
+    ) || snapshot.contextWindow
+    return applySessionContextWindow(snapshot, contextWindow)
+  }
+
   function scheduleSave(conversationId: string) {
     const existingTimer = saveTimers.get(conversationId)
     if (existingTimer) window.clearTimeout(existingTimer)
@@ -668,6 +733,21 @@ export function useConversations() {
   async function load() {
     const stored = await invokeCommand<Record<string, unknown>[]>('list_conversations')
     conversations.value = stored.map(normalizeConversation)
+    const next = new Map<string, SessionTurnSnapshot>()
+    for (const conversation of conversations.value) {
+      const snapshot = hydrateTurnStatus(conversation)
+      if (snapshot) next.set(conversation.id, snapshot)
+    }
+    turnStatusById.value = next
+    if (!activeId.value && !pendingWorkspacePath.value) {
+      try {
+        const memory = await invokeCommand<CodingProjectMemory>('get_coding_project_memory')
+        const last = memory.recents?.[0]?.path || memory.lastWorkspacePath || ''
+        pendingWorkspacePath.value = shouldRememberCodingProject(last) ? last : ''
+      } catch {
+        pendingWorkspacePath.value = ''
+      }
+    }
   }
 
   function update(id: string, updater: (conversation: Conversation) => Conversation) {
@@ -728,6 +808,11 @@ export function useConversations() {
     activeTurnPolicies.delete(id)
     setMessageQueue(id, { steering: [], followUp: [] })
     finishRun(id)
+    if (turnStatusById.value.has(id)) {
+      const next = new Map(turnStatusById.value)
+      next.delete(id)
+      turnStatusById.value = next
+    }
     if (activeId.value === id) activeId.value = null
   }
 
@@ -752,8 +837,11 @@ export function useConversations() {
   }
 
   function startNew() {
+    const currentWorkspace = active.value?.workspacePath || pendingWorkspacePath.value
     activeId.value = null
-    pendingWorkspacePath.value = ''
+    pendingWorkspacePath.value = shouldRememberCodingProject(currentWorkspace)
+      ? String(currentWorkspace)
+      : pendingWorkspacePath.value
     pendingModelMode.value = undefined
     pendingModelProvider.value = undefined
     pendingModelId.value = undefined
@@ -838,11 +926,29 @@ export function useConversations() {
       pendingWorkspacePath.value = normalized
       pendingMCPServers.value = []
       pendingMCPConfigDigest.value = ''
+    } else {
+      update(activeId.value, conversation => ({
+        ...conversation,
+        workspacePath: normalized,
+        mcpServers: undefined,
+        mcpConfigDigest: undefined,
+      }))
+    }
+    if (shouldRememberCodingProject(normalized)) {
+      void invokeCommand('remember_coding_project', { path: normalized }).catch(() => undefined)
+    }
+  }
+
+  function clearWorkspace() {
+    if (!activeId.value) {
+      pendingWorkspacePath.value = ''
+      pendingMCPServers.value = []
+      pendingMCPConfigDigest.value = ''
       return
     }
     update(activeId.value, conversation => ({
       ...conversation,
-      workspacePath: normalized,
+      workspacePath: undefined,
       mcpServers: undefined,
       mcpConfigDigest: undefined,
     }))
@@ -1251,6 +1357,7 @@ export function useConversations() {
       patchTurnStatus(conversationId, state => (
         applySessionUsageAfterCompaction(state, compacted?.estimatedTokensAfter)
       ))
+      persistSessionContextUsage(conversationId)
       continuity.value = applyCodingContinuityEvent(
         continuity.value,
         conversationId,
@@ -1453,6 +1560,7 @@ export function useConversations() {
           model: usage.model,
           provider: usage.provider,
         } satisfies Partial<SessionTurnUsage>))
+        persistSessionContextUsage(sessionId)
         return
       }
       if (type === 'session.queue_updated') {
@@ -1708,6 +1816,10 @@ export function useConversations() {
             patchTurnStatus(sessionId, state => (
               applySessionUsageAfterCompaction(state, compaction?.estimatedTokensAfter)
             ))
+            const lastContextUsage = sessionContextUsageRecord(sessionId)
+            return lastContextUsage
+              ? { ...conversation, lastContextUsage }
+              : conversation
           }
           // Overflow recovery failed after Pi auto-compact: tell the user once.
           // Successful auto-compact stays silent (no “上下文已满” toast/message).
@@ -1773,6 +1885,7 @@ export function useConversations() {
     startNew,
     ensureConversation,
     setWorkspace,
+    clearWorkspace,
     setModelSelection,
     setModelSourcePreference,
     setCodingPolicy,

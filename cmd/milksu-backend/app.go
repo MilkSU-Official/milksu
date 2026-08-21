@@ -19,6 +19,7 @@ import (
 	"github.com/MilkSU-Official/milksu/internal/codingcollab"
 	"github.com/MilkSU-Official/milksu/internal/codingenv"
 	"github.com/MilkSU-Official/milksu/internal/codingterminal"
+	"github.com/MilkSU-Official/milksu/internal/codingworkspace"
 	"github.com/MilkSU-Official/milksu/internal/computercap"
 	"github.com/MilkSU-Official/milksu/internal/config"
 	"github.com/MilkSU-Official/milksu/internal/conversation"
@@ -48,6 +49,7 @@ type App struct {
 	codingCollab      *codingcollab.Manager
 	ctfMaterials      *localCTFMaterialStore
 	codingTerminals   *codingterminal.Manager
+	codingProjects    *codingworkspace.Store
 	codingPRs         *codingenv.PullRequestPublisher
 	computerUse       *computercap.Manager
 	engines           *engine.Supervisor
@@ -113,6 +115,10 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create Coding attachment store: %w", err)
 	}
+	codingProjects, err := codingworkspace.NewStore()
+	if err != nil {
+		return nil, fmt.Errorf("create Coding project memory: %w", err)
+	}
 	codingCollab, err := newCodingCollaborationManager(dataDirectory, runtime.GOOS)
 	if err != nil {
 		return nil, fmt.Errorf("create Coding collaboration manager: %w", err)
@@ -126,6 +132,7 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 		settings:          settings,
 		conversations:     conversations,
 		codingFiles:       codingFiles,
+		codingProjects:    codingProjects,
 		codingCollab:      codingCollab,
 		ctfMaterials:      newLocalCTFMaterialStore(),
 	}

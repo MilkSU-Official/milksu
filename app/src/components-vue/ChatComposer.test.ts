@@ -569,6 +569,51 @@ describe('ChatComposer', () => {
     expect(chosen).toHaveLength(0)
   })
 
+  it('locks the project chip after the conversation has started', async () => {
+    const chosen: unknown[][] = []
+    const cleared: unknown[][] = []
+    const result = mountComposer({
+      workspaceLocked: true,
+      workspacePath: '/Users/milksu/code/milksu',
+      workspaceName: 'milksu',
+      onChooseWorkspace: (...args: unknown[]) => chosen.push(args),
+      onClearWorkspace: (...args: unknown[]) => cleared.push(args),
+    })
+    await nextTick()
+
+    const chip = result.host.querySelector('[aria-label="会话目录：milksu"]')
+    expect(chip).not.toBeNull()
+    expect(chip?.tagName).not.toBe('BUTTON')
+    expect(result.host.querySelector('[aria-label="清空项目"]')).toBeNull()
+    expect(chip?.getAttribute('title')).toBe('/Users/milksu/code/milksu')
+    expect(result.host.textContent).not.toContain('当前会话目录已固定')
+    expect(result.host.textContent).not.toContain('点击为新任务选择其他目录')
+    chip?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await nextTick()
+    expect(chosen).toHaveLength(0)
+    expect(cleared).toHaveLength(0)
+  })
+
+  it('lets an idle new chat pick or clear a project', async () => {
+    const chosen: unknown[][] = []
+    const cleared: unknown[][] = []
+    const result = mountComposer({
+      workspaceLocked: false,
+      workspacePath: '/Users/milksu/code/milksu',
+      workspaceName: 'milksu',
+      onChooseWorkspace: (...args: unknown[]) => chosen.push(args),
+      onClearWorkspace: (...args: unknown[]) => cleared.push(args),
+    })
+    await nextTick()
+
+    result.host.querySelector<HTMLButtonElement>('[aria-label="会话目录：milksu"]')?.click()
+    await nextTick()
+    expect(chosen).toHaveLength(1)
+    result.host.querySelector<HTMLButtonElement>('[aria-label="清空项目"]')?.click()
+    await nextTick()
+    expect(cleared).toHaveLength(1)
+  })
+
   it('adds a reviewed Pi Skill to the draft and expands it only when the user sends', async () => {
     const result = mountComposer({
       workspaceReady: true,

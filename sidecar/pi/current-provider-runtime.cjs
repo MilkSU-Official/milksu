@@ -1,6 +1,7 @@
 "use strict";
 
 const fs = require("node:fs");
+const { resolveModelContextWindow } = require("./known-context-window.cjs");
 
 const providerRuntime = Object.freeze({
   anthropic: {
@@ -88,9 +89,10 @@ function runtimeTokenfluxModelCatalogSnapshot(environment = process.env) {
       return [{
         id,
         name: String(item?.name ?? id).trim() || id,
-        contextWindow: Number.isInteger(item?.context_window) && item.context_window > 0
-          ? item.context_window
-          : 128_000,
+        contextWindow: resolveModelContextWindow(
+          id,
+          Number.isInteger(item?.context_window) ? item.context_window : 0,
+        ),
         maxTokens: Number.isInteger(item?.max_tokens) && item.max_tokens > 0
           ? item.max_tokens
           : 16_384,
@@ -150,7 +152,7 @@ function tokenfluxModel(model, environment = process.env) {
   return runtimeTokenfluxModelCatalog(environment).find(item => item.id === model) ?? {
     id: model,
     name: model,
-    contextWindow: 128_000,
+    contextWindow: resolveModelContextWindow(model, 0),
     maxTokens: 16_384,
     input: verifiedImageInputModels.has(model) ? ["text", "image"] : ["text"],
   };
@@ -194,7 +196,7 @@ function currentProviderDefinition(provider, model, environment = process.env) {
         reasoning: false,
         input: ["text"],
         cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-        contextWindow: 128_000,
+        contextWindow: resolveModelContextWindow(model, 0),
         maxTokens: 16_384,
         compat: {
           supportsDeveloperRole: false,

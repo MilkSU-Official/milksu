@@ -30,6 +30,7 @@ export interface CodingGitStatus {
   problem?: string
   changes?: CodingGitChange[]
   changesTruncated?: boolean
+  localBranches?: string[]
 }
 
 export interface CodingEnvironmentSnapshot {
@@ -37,6 +38,19 @@ export interface CodingEnvironmentSnapshot {
   workspaceName: string
   capturedAt: string
   git: CodingGitStatus
+}
+
+export interface CodingRecentProject {
+  path: string
+  name: string
+  usedAt: number
+}
+
+export interface CodingProjectMemory {
+  lastWorkspacePath?: string
+  effectiveWorkspace: string
+  homeDirectory: string
+  recents: CodingRecentProject[]
 }
 
 export interface CodingGitDeliveryEvidence {
@@ -149,6 +163,7 @@ export type CodingGitAction =
   | 'discard-worktree'
   | 'commit'
   | 'push'
+  | 'checkout'
 
 export type CodingGitHunkAction =
   | 'stage-hunk'

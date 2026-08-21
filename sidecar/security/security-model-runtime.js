@@ -1,3 +1,5 @@
+import { resolveModelContextWindow } from "../pi/known-context-window.cjs";
+
 export function configureRelayModel(session, provider, model, relay = {}) {
   if (!relay.enabled) return { provider, model };
 
@@ -13,7 +15,7 @@ export function configureRelayModel(session, provider, model, relay = {}) {
       reasoning: source?.reasoning ?? false,
       input: source?.input ?? ["text"],
       cost: source?.cost ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      contextWindow: source?.contextWindow ?? 128000,
+      contextWindow: resolveModelContextWindow(model, source?.contextWindow),
       maxTokens: source?.maxTokens ?? 16384,
     }],
   });

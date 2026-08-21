@@ -125,8 +125,8 @@ describe('ChatPage Goal interaction', () => {
     const result = mountPage()
     await nextTick()
 
-    expect(result.host.querySelector('[data-workspace-topbar-title]')?.textContent)
-      .toBe('Goal interaction')
+    expect(result.host.querySelector('[data-workspace-topbar-title]')).toBeNull()
+    expect(result.host.textContent).toContain('我们要构建什么')
 
     // Right rail is collapsed by default; goal controls must not live there.
     expect(result.host.querySelector('aside[aria-label="环境信息"]')).toBeNull()
@@ -147,6 +147,13 @@ describe('ChatPage Goal interaction', () => {
     expect(document.activeElement).toBe(textarea)
     expect(result.host.querySelector('[aria-label="持续目标"]')?.textContent)
       .toContain('下一条消息会成为持续目标')
+  })
+
+  it('names the empty canvas after the selected project', async () => {
+    const panels = mountPage({ workspacePath: '/tmp/milksu', sessionReady: true })
+    await nextTick()
+    expect(panels.host.textContent).toContain('我们在 milksu 中构建什么')
+    expect(panels.host.textContent).not.toContain('我们要构建什么')
   })
 
   it('routes slash commands to existing Coding surfaces and parent actions', async () => {

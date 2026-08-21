@@ -7,6 +7,8 @@ import {
   applySessionUsageAfterCompaction,
   applySessionUsageRecorded,
   emptySessionTurnSnapshot,
+  snapshotFromStoredContextUsage,
+  storedContextUsageFromSnapshot,
   formatElapsedMs,
   formatTokenCount,
   presentContextUsage,
@@ -86,6 +88,28 @@ describe('sessionTurnStatus', () => {
     expect(presentRunTiming(state, 1000 + 65_000)).toEqual({ label: '1:05', running: true })
     state = applySessionRunFinished(state, 1000 + 65_000)
     expect(presentRunTiming(state, 9999)).toEqual({ label: '1:05', running: false })
+  })
+
+  it('round-trips last occupancy so reopen shows the ring immediately', () => {
+    const snapshot = snapshotFromStoredContextUsage({
+      inputTokens: 12_000,
+      outputTokens: 800,
+      cacheReadTokens: 2_000,
+      cacheWriteTokens: 0,
+      totalTokens: 14_800,
+      contextWindow: 500_000,
+      model: 'grok-4.6',
+      recordedAt: 42,
+    })
+    expect(presentContextUsage(snapshot)?.percent).toBe(3)
+    expect(presentContextUsage(snapshot)?.windowLabel).toBe('500k')
+    expect(storedContextUsageFromSnapshot(snapshot)).toMatchObject({
+      inputTokens: 12_000,
+      cacheReadTokens: 2_000,
+      contextWindow: 500_000,
+      model: 'grok-4.6',
+      recordedAt: 42,
+    })
   })
 
   it('formats token and elapsed helpers', () => {

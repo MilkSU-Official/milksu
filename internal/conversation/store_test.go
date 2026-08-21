@@ -32,7 +32,16 @@ func TestStoreGetReturnsTheSavedConversation(t *testing.T) {
 		Title:         "浏览器证据",
 		CreatedAt:     42,
 		WorkspacePath: "/tmp/milksu-workspace",
-		Messages:      []StoredMessage{},
+		LastContextUsage: &StoredContextUsage{
+			InputTokens:     40000,
+			OutputTokens:    1200,
+			CacheReadTokens: 10000,
+			TotalTokens:     51200,
+			ContextWindow:   500000,
+			Model:           "grok-4.6",
+			RecordedAt:      42,
+		},
+		Messages: []StoredMessage{},
 	}
 	if err := store.Save(want); err != nil {
 		t.Fatalf("save conversation: %v", err)

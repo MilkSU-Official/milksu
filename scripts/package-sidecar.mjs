@@ -1113,6 +1113,10 @@ async function buildSidecar(platform) {
       currentProviderRuntimeOutput,
     ),
     copyFile(
+      join(repositoryRoot, 'sidecar', 'pi', 'known-context-window.cjs'),
+      join(output, 'known-context-window.cjs'),
+    ),
+    copyFile(
       join(
         repositoryRoot,
         'node_modules',
@@ -1197,6 +1201,7 @@ async function buildSidecar(platform) {
     chmod(computerUseProxyOutput, 0o644),
     chmod(piSubagentLauncherOutput, 0o755),
     chmod(piSubagentRunnerOutput, 0o644),
+    chmod(join(output, 'known-context-window.cjs'), 0o644),
     chmod(piSubagentCliOutput, 0o644),
   ])
 
@@ -1421,6 +1426,7 @@ async function smokeSidecar(platform) {
     join(output, 'pi-subagent-launcher.sh'),
     join(output, 'pi-subagent-runner.cjs'),
     join(output, 'current-provider-runtime.cjs'),
+    join(output, 'known-context-window.cjs'),
     join(output, 'pi-subagent-cli.cjs'),
     join(output, 'dist', 'modes', 'interactive', 'theme', 'dark.json'),
     join(output, 'dist', 'modes', 'interactive', 'theme', 'light.json'),
@@ -2351,6 +2357,7 @@ async function installSidecar(platform, binaryPath) {
     'pi-subagent-launcher.sh',
     'pi-subagent-runner.cjs',
     'current-provider-runtime.cjs',
+    'known-context-window.cjs',
     'pi-subagent-cli.cjs',
     'cua-driver',
     'manifest.json',

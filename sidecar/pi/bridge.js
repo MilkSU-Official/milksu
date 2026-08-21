@@ -9,6 +9,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import { readFile, unlink } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { Type } from "typebox";
+import { resolveModelContextWindow } from "./known-context-window.cjs";
 import piGoalExtension from "@narumitw/pi-goal/src/index.ts";
 import piLspExtension from "@narumitw/pi-lsp/src/index.ts";
 import piBackgroundTasksExtension from "pi-better-background-tasks/src/index.ts";
@@ -173,7 +174,6 @@ const sidecarResourceDirectory = existsSync(join(bridgeDirectory, "skills"))
   ? bridgeDirectory
   : resolve(bridgeDirectory, "..", "..");
 const approvalRequiredCodingTools = new Set(["bash", "edit", "write"]);
-
 function emit(conversationId, type, data = {}) {
   process.stdout.write(`${JSON.stringify({ type, id: conversationId ?? null, ...data })}\n`);
 }
@@ -740,7 +740,7 @@ function registerAccountModel(session, provider, model) {
       reasoning: source?.reasoning ?? false,
       input: source?.input ?? ["text"],
       cost: source?.cost ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      contextWindow: source?.contextWindow ?? 128000,
+      contextWindow: resolveModelContextWindow(accountModelID, source?.contextWindow),
       maxTokens: source?.maxTokens ?? 16384,
     }],
   }));

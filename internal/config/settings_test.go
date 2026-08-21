@@ -53,6 +53,9 @@ func TestWithDefaults(t *testing.T) {
 	if settings.ActiveProvider != "tokenflux" || settings.ActiveModel != "x-ai/grok-4.6" {
 		t.Fatalf("unexpected defaults: %#v", settings)
 	}
+	if settings.PreferredExternalEditor != "vscode" {
+		t.Fatalf("expected default VS Code editor, got %q", settings.PreferredExternalEditor)
+	}
 	if settings.Providers == nil {
 		t.Fatal("providers map must be initialized")
 	}

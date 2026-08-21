@@ -2,7 +2,7 @@
 
 import { reactive } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { invokeCommand } from './desktop'
+import { desktopErrorMessage, invokeCommand } from './desktop'
 import {
   buildDiagnosticText,
   debugLogEntries,
@@ -17,6 +17,12 @@ afterEach(() => {
 })
 
 describe('desktop command adapter', () => {
+  it('unwraps Electron IPC envelopes from Go and Pi errors', () => {
+    expect(desktopErrorMessage(
+      new Error("Error invoking remote method 'milksu:invoke': Error: PI model verification failed: exit status 1"),
+    )).toBe('PI model verification failed: exit status 1')
+  })
+
   it('records each RPC invocation once in the local debug snapshot', async () => {
     setDebugMode(true)
     const invoke = vi.fn(async () => undefined)

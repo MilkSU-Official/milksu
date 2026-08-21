@@ -199,14 +199,14 @@ watch(
                 <div
                   v-for="conversation in group.conversations"
                   :key="conversation.id"
-                  class="group flex items-center rounded-md"
+                  class="group flex items-center rounded-md hover:bg-accent/50"
                   :data-ui-selected="activeConversationId === conversation.id ? '' : undefined"
                   :data-active-conversation-row="activeConversationId === conversation.id ? '' : undefined"
                 >
                   <Button
                     variant="ghost"
                     size="sm"
-                    class="coding-project-row coding-project-child h-7 min-w-0 flex-1 justify-start"
+                    class="coding-project-row coding-project-child h-7 min-w-0 flex-1 justify-start hover:bg-transparent"
                     :aria-current="activeConversationId === conversation.id ? 'true' : undefined"
                     @click.stop="$emit('selectConversation', conversation.id)"
                   >
@@ -247,14 +247,14 @@ watch(
               <div
                 v-for="conversation in temporaryGroup.conversations"
                 :key="conversation.id"
-                class="group flex items-center rounded-md"
+                class="group flex items-center rounded-md hover:bg-accent/50"
                 :data-ui-selected="activeConversationId === conversation.id ? '' : undefined"
                 :data-active-conversation-row="activeConversationId === conversation.id ? '' : undefined"
               >
                 <Button
                   variant="ghost"
                   size="sm"
-                  class="coding-project-row coding-project-child h-7 min-w-0 flex-1 justify-start"
+                  class="coding-project-row coding-project-child h-7 min-w-0 flex-1 justify-start hover:bg-transparent"
                   :aria-current="activeConversationId === conversation.id ? 'true' : undefined"
                   @click.stop="$emit('selectConversation', conversation.id)"
                 >
@@ -364,6 +364,11 @@ watch(
 .coding-project-child {
   padding-inline-start: calc(0.75rem + 1rem + 0.5rem) !important;
   padding-inline-end: 0.5rem !important;
+}
+
+.coding-project-children :deep([data-button][data-variant='ghost']:hover::before),
+.coding-project-children :deep([data-button][data-variant='ghost']:active::before) {
+  background-color: transparent;
 }
 
 .context-nav-active {

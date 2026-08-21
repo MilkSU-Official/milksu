@@ -5,6 +5,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import CodingChangesPanel from './CodingChangesPanel.vue'
 import type { CodingEnvironmentSnapshot } from '@/codingEnvironmentTypes'
 
+const openedFiles: string[] = []
+
 const mountedApps: App[] = []
 
 async function settle() {
@@ -16,7 +18,8 @@ async function settle() {
 afterEach(() => {
   for (const app of mountedApps.splice(0)) app.unmount()
   document.body.innerHTML = ''
-  delete (window as unknown as { go?: unknown }).go
+  openedFiles.length = 0
+  Reflect.deleteProperty(window, 'milksu')
   vi.unstubAllGlobals()
 })
 
@@ -60,24 +63,37 @@ async function mountChangesPanel(
     || (environment.git.changes?.length ?? 0) > 0
     || focusPath
   )) {
-    ;(window as unknown as { go?: unknown }).go = {
-      main: {
-        App: {
-          GetCodingDiff: async (path: string) => ({
-            path,
-            staged: '',
-            workingTree: '@@ -1 +1 @@\n-old\n+new\n',
-            truncated: false,
-          }),
+    Object.defineProperty(window, 'milksu', {
+      configurable: true,
+      value: {
+        invoke(method: string, args: unknown[]) {
+          if (method === 'GetCodingDiff') {
+            const relativePath = String(args[1] ?? args[0] ?? '')
+            return Promise.resolve({
+              path: relativePath,
+              staged: '',
+              workingTree: '@@ -1 +1 @@\n-old\n+new\n',
+              truncated: false,
+            })
+          }
+          if (method === 'OpenCodingFileInEditor') {
+            openedFiles.push(String(args[1] ?? ''))
+            return Promise.resolve()
+          }
+          throw new Error(`unexpected method ${method}`)
+        },
+        onEvent() {
+          return () => {}
         },
       },
-    }
+    })
   }
   Element.prototype.scrollIntoView = vi.fn()
   const app = createApp(CodingChangesPanel, {
     workspacePath: '/workspace',
     environment,
     focusPath,
+    preferredEditor: 'vscode',
   })
   app.mount(host)
   mountedApps.push(app)
@@ -174,16 +190,11 @@ describe('CodingChangesPanel PR-style file list', () => {
   })
 
   it('keeps desktop-runtime non-repository problems distinct from browser preview', async () => {
-    ;(window as unknown as { go?: unknown }).go = {
-      main: {
-        App: {},
-      },
-    }
     const host = await mountChangesPanel(cleanEnvironment({
       available: true,
       isRepository: false,
       problem: '当前目录不是 Git 仓库。',
-    }))
+    }), '', { desktopRuntime: true })
 
     expect(host.textContent).toContain('当前目录没有可显示的变更')
     expect(host.textContent).toContain('当前目录不是 Git 仓库。')
@@ -225,5 +236,34 @@ describe('CodingChangesPanel PR-style file list', () => {
     expect(host.textContent).toContain('+new')
     expect(host.textContent).not.toContain('暂存此块')
     expect(host.textContent).not.toContain('取消暂存')
+  })
+
+  it('opens a changed file in the preferred editor from the file-row icon', async () => {
+    const path = 'app/src/App.vue'
+    const host = await mountChangesPanel(cleanEnvironment({
+      dirty: true,
+      changedFiles: 1,
+      modified: 1,
+      additions: 1,
+      deletions: 1,
+      changes: [{
+        path,
+        indexStatus: ' ',
+        worktreeStatus: 'M',
+        staged: false,
+        modified: true,
+        untracked: false,
+        conflict: false,
+      }],
+    }))
+    await settle()
+
+    const openButton = host.querySelector<HTMLButtonElement>('[aria-label="用 VS Code 打开"]')
+    expect(openButton).not.toBeNull()
+    expect(openButton?.textContent?.trim()).toBe('')
+    expect(host.textContent).not.toContain('用其他应用打开')
+    openButton!.click()
+    await settle()
+    expect(openedFiles).toEqual([path])
   })
 })

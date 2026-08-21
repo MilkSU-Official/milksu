@@ -4,7 +4,6 @@ import { createApp, nextTick, type App } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import CodingTerminalPanel from './CodingTerminalPanel.vue'
 import type {
-  CodingRuntimeStatus,
   CodingTerminalSession,
 } from '@/codingEnvironmentTypes'
 
@@ -50,31 +49,6 @@ vi.mock('@xterm/addon-fit', () => ({
   },
 }))
 
-const runtimeStatus: CodingRuntimeStatus = {
-  defaultEngine: 'pi',
-  running: true,
-  sessionCount: 1,
-  protocol: 'pi',
-  workspace: '/Users/milksu/code/milksu',
-  backgroundRecovery: {
-    state: 'recovered',
-  },
-  backgroundTasks: [{
-    id: 'bg-restart',
-    kind: 'process',
-    status: 'running',
-    startedAt: Date.now() - 12_000,
-    command: 'OPENAI_API_KEY=sk-command-secret-123456789 npm run dev',
-    cwd: '/Users/milksu/code/milksu/app',
-    pid: 4321,
-    ports: [1420, 5173],
-    logPath: '/runtime/bg-restart.log',
-    logTail: 'Vite ready on http://127.0.0.1:1420 OPENAI_API_KEY=sk-bg-secret-123456789\n',
-    logTruncated: true,
-    error: 'last failure Bearer sk-bg-bearer-secret-123456789',
-  }],
-}
-
 function terminalSession(
   id: string,
   startedAt: number,
@@ -98,9 +72,7 @@ const invokeCommand = vi.fn(async (command: string, _args?: unknown) => {
     return startedTerminalSessions.value.shift()
       ?? terminalSession('term-auto', 1)
   }
-  if (command === 'stop_coding_terminal') return undefined
   if (command === 'close_coding_terminal') return undefined
-  if (command === 'refresh_coding_background_tasks') return runtimeStatus
   throw new Error(`unexpected command ${command}`)
 })
 
@@ -134,8 +106,6 @@ async function mountPanel() {
     active: true,
     conversationId: 'conversation-restart',
     workspacePath: '/Users/milksu/code/milksu',
-    executionMode: 'go',
-    approvalPolicy: 'workspace-auto',
   })
   app.mount(host)
   mountedApps.push(app)
@@ -168,6 +138,8 @@ describe('CodingTerminalPanel', () => {
     expect(text).toContain('milksu')
     expect(host.querySelector('[aria-label="新建项目 Shell"]')).not.toBeNull()
     expect(host.querySelector('[aria-label="关闭底部面板"]')).not.toBeNull()
+    expect(host.querySelector('[aria-label="停止当前 Shell"]')).toBeNull()
+    expect(host.textContent).not.toContain('后台任务')
   })
 
   it('appends new terminal tabs to the right without renumbering existing tabs', async () => {
@@ -249,41 +221,25 @@ describe('CodingTerminalPanel', () => {
     ).toBe('milksu')
   })
 
-  it('shows recovered background task status, process metadata, ports, and log tail', async () => {
+  it('does not expose a stop-current-shell control or a background-task pane', async () => {
+    listedTerminalSessions.value = [terminalSession('term-one', 10)]
     const host = await mountPanel()
-    const taskTab = [...host.querySelectorAll('button')]
-      .find(button => button.textContent?.includes('后台任务'))
-    expect(taskTab).toBeDefined()
 
-    taskTab!.click()
-    await settle()
-
-    expect(invokeCommand).toHaveBeenCalledWith(
-      'refresh_coding_background_tasks',
-      expect.objectContaining({
-        conversationId: 'conversation-restart',
-        workspacePath: '/Users/milksu/code/milksu',
-        executionMode: 'go',
-        approvalPolicy: 'workspace-auto',
-      }),
+    expect(host.querySelector('[aria-label="停止当前 Shell"]')).toBeNull()
+    expect(host.querySelector('[aria-label="刷新后台任务"]')).toBeNull()
+    expect(host.querySelector('[aria-label="后台任务命令"]')).toBeNull()
+    expect(host.textContent).not.toContain('后台任务')
+    expect(invokeCommand).not.toHaveBeenCalledWith(
+      'stop_coding_terminal',
+      expect.anything(),
     )
-    const text = host.textContent ?? ''
-    expect(text).toContain('已从磁盘恢复持久任务')
-    expect(text).toContain('1 运行中')
-    expect(text).toContain('OPENAI_API_KEY=[credential redacted] npm run dev')
-    expect(text).toContain('PID 4321')
-    expect(text).toContain(':1420')
-    expect(text).toContain(':5173')
-    expect(text).toContain('Vite ready on http://127.0.0.1:1420')
-    expect(text).toContain('OPENAI_API_KEY=[credential redacted]')
-    expect(text).toContain('Bearer [credential redacted]')
-    expect(text).not.toContain('sk-bg-secret')
-    expect(text).not.toContain('sk-bg-bearer-secret')
-    expect(text).not.toContain('sk-command-secret')
-    expect(text).toContain('仅显示日志末尾')
+    expect(invokeCommand).not.toHaveBeenCalledWith(
+      'refresh_coding_background_tasks',
+      expect.anything(),
+    )
   })
 
-  it('does not pretend browser preview can run or recover terminal tasks', async () => {
+  it('does not pretend browser preview can run a project shell', async () => {
     desktopRuntimeEnabled.value = false
     const host = await mountPanel()
 
@@ -292,21 +248,8 @@ describe('CodingTerminalPanel', () => {
       expect.anything(),
     )
     expect(terminalWrites.join('')).toContain('请在桌面 App 中新建 Shell')
-
-    const taskTab = [...host.querySelectorAll('button')]
-      .find(button => button.textContent?.includes('后台任务'))
-    expect(taskTab).toBeDefined()
-    taskTab!.click()
-    await settle()
-
-    const text = host.textContent ?? ''
-    expect(text).toContain('真实 Shell 仅在 MilkSU 桌面 App 中可用')
-    expect(text).toContain('浏览器预览不能读取后台任务')
-    expect(text).toContain('请打开桌面 App')
-    expect(host.querySelector<HTMLTextAreaElement>('[aria-label="后台任务命令"]')?.disabled).toBe(true)
-    expect(invokeCommand).not.toHaveBeenCalledWith(
-      'refresh_coding_background_tasks',
-      expect.anything(),
-    )
+    expect(host.textContent).toContain('真实 Shell 仅在 MilkSU 桌面 App 中可用')
+    expect(host.textContent).not.toContain('后台任务')
+    expect(host.querySelector('[aria-label="新建项目 Shell"]')?.hasAttribute('disabled')).toBe(true)
   })
 })

@@ -9,8 +9,13 @@ import {
   LoaderCircle,
   RefreshCw,
 } from 'lucide-vue-next'
-import { hasDesktopRuntime, invokeCommand } from '@/desktop'
+import { desktopErrorMessage, hasDesktopRuntime, invokeCommand } from '@/desktop'
 import CodingDiffHunks from '@/components-vue/CodingDiffHunks.vue'
+import ExternalEditorIcon from '@/components-vue/ExternalEditorIcon.vue'
+import {
+  externalEditorLabel,
+  normalizePreferredExternalEditor,
+} from '@/lib/externalEditor'
 import type {
   CodingDiffSnapshot,
   CodingEnvironmentSnapshot,
@@ -22,6 +27,7 @@ const props = defineProps<{
   environment: CodingEnvironmentSnapshot | null
   running?: boolean
   focusPath?: string
+  preferredEditor?: string
 }>()
 
 const emit = defineEmits<{
@@ -35,6 +41,8 @@ const fileDiffErrors = ref<Record<string, string>>({})
 const loadingPaths = ref<Record<string, boolean>>({})
 const loadingAll = ref(false)
 const error = ref('')
+const openingPaths = ref<string[]>([])
+const openErrors = ref<Record<string, string>>({})
 const desktopRuntime = hasDesktopRuntime()
 const scrollRoot = ref<HTMLElement | null>(null)
 
@@ -42,6 +50,9 @@ const git = computed(() => props.environment?.git)
 const changes = computed(() => git.value?.changes ?? [])
 const busy = computed(() => Boolean(props.running))
 const maxInlineDiffFiles = 40
+const editorId = computed(() => normalizePreferredExternalEditor(props.preferredEditor))
+const editorLabel = computed(() => externalEditorLabel(editorId.value))
+const openEditorAriaLabel = computed(() => `用 ${editorLabel.value} 打开`)
 
 function changeStatus(change: CodingGitChange): string {
   return `${change.indexStatus}${change.worktreeStatus}`
@@ -96,6 +107,27 @@ function fileCardId(path: string) {
 
 function escapeAttributeSelector(value: string) {
   return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+}
+
+async function openInEditor(path: string) {
+  if (!desktopRuntime || !props.workspacePath || openingPaths.value.includes(path)) return
+  openingPaths.value = [...openingPaths.value, path]
+  const nextErrors = { ...openErrors.value }
+  delete nextErrors[path]
+  openErrors.value = nextErrors
+  try {
+    await invokeCommand('open_coding_file_in_editor', {
+      workspacePath: props.workspacePath,
+      relativePath: path,
+    })
+  } catch (reason) {
+    openErrors.value = {
+      ...openErrors.value,
+      [path]: desktopErrorMessage(reason) || `无法用 ${editorLabel.value} 打开。`,
+    }
+  } finally {
+    openingPaths.value = openingPaths.value.filter(item => item !== path)
+  }
 }
 
 async function scrollToPath(path: string) {
@@ -238,7 +270,27 @@ watch(
               v-if="loadingPaths[change.path]"
               class="size-3.5 shrink-0 animate-spin text-muted-foreground"
             />
+            <button
+              type="button"
+              class="flex size-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-background/70 hover:text-foreground"
+              :disabled="!desktopRuntime || !workspacePath || openingPaths.includes(change.path)"
+              :aria-label="openEditorAriaLabel"
+              :title="openEditorAriaLabel"
+              @click="openInEditor(change.path)"
+            >
+              <LoaderCircle
+                v-if="openingPaths.includes(change.path)"
+                class="size-3.5 animate-spin"
+              />
+              <ExternalEditorIcon v-else :editor="editorId" />
+            </button>
           </header>
+          <p
+            v-if="openErrors[change.path]"
+            class="border-b border-destructive/30 bg-destructive/10 px-3 py-1.5 text-caption text-destructive"
+          >
+            {{ openErrors[change.path] }}
+          </p>
           <div class="px-2 py-2">
             <p
               v-if="fileDiffErrors[change.path]"

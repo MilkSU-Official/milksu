@@ -404,6 +404,33 @@ describe('Coding approval conversation recovery', () => {
       : '')).toContain('net-1')
   })
 
+  it('restores last context occupancy from persisted conversation state', () => {
+    const conversation = normalizeConversation({
+      id: 'conversation-occupancy',
+      title: 'Occupancy fixture',
+      createdAt: 1,
+      modelId: 'grok-4.6',
+      lastContextUsage: {
+        inputTokens: 40_000,
+        outputTokens: 1200,
+        cacheReadTokens: 10_000,
+        cacheWriteTokens: 0,
+        totalTokens: 51_200,
+        contextWindow: 128_000,
+        model: 'grok-4.6',
+        recordedAt: 42,
+      },
+      messages: [],
+    })
+    expect(conversation.lastContextUsage).toMatchObject({
+      inputTokens: 40_000,
+      cacheReadTokens: 10_000,
+      contextWindow: 128_000,
+      model: 'grok-4.6',
+      recordedAt: 42,
+    })
+  })
+
   it('restores structured CVE domainTaskContext without inventing network grants', () => {
     const conversation = normalizeConversation({
       id: 'cve-conversation-1',

@@ -10,6 +10,13 @@ import (
 	"time"
 )
 
+func TestParseLocalBranchesKeepsNewestFirstAndDropsDuplicates(t *testing.T) {
+	got := parseLocalBranches("feature\nmain\nfeature\n")
+	if len(got) != 2 || got[0] != "feature" || got[1] != "main" {
+		t.Fatalf("branches = %#v", got)
+	}
+}
+
 func TestParsePorcelainStatus(t *testing.T) {
 	status := parsePorcelainStatus(
 		"## codex/m3...origin/codex/m3 [ahead 2, behind 1]\n" +

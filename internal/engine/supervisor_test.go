@@ -2069,6 +2069,17 @@ func TestProbeFailureMessageRedactsCredentialsAndKeepsOfflineCause(t *testing.T)
 	}
 }
 
+func TestProbeFailureMessageKeepsSidecarExitDetail(t *testing.T) {
+	message := probeFailureMessage(Event{
+		Type:  "engine.stopped",
+		Error: "exit status 1: Error: Cannot find module './known-context-window.cjs'",
+	})
+	if !strings.Contains(message, "exit status 1") ||
+		!strings.Contains(message, "Cannot find module") {
+		t.Fatalf("sidecar crash lost its cause: %q", message)
+	}
+}
+
 func TestValidateModelAccessUsesPersonalKeyWhenAccountSourceHasNoKey(t *testing.T) {
 	settings := config.DefaultSettings()
 	settings.ActiveProvider = "deepseek"

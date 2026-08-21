@@ -6,6 +6,7 @@ const props = defineProps<{
   module?: 'coding' | 'ctf' | 'cve'
   title: string
   subtitle?: string
+  hideIdentity?: boolean
 }>()
 
 const moduleKey = computed(() => props.module ?? props.title.trim().toLowerCase())
@@ -17,14 +18,19 @@ const moduleKey = computed(() => props.module ?? props.title.trim().toLowerCase(
     data-module-topbar
     data-workspace-topbar
     :data-workspace-module="moduleKey"
+    :data-workspace-topbar-idle="hideIdentity ? '' : undefined"
   >
     <div class="flex min-w-0 items-center justify-between gap-4">
       <div class="flex min-w-0 items-center gap-3">
-        <span class="workspace-topbar__module-mark tactical-display" aria-hidden="true">{{ moduleKey === 'coding' ? '</>' : moduleKey.toUpperCase() }}</span>
+        <span
+          v-if="!hideIdentity"
+          class="workspace-topbar__module-mark tactical-display"
+          aria-hidden="true"
+        >{{ moduleKey === 'coding' ? '</>' : moduleKey.toUpperCase() }}</span>
         <div v-if="$slots.leading" class="workspace-topbar__leading app-no-drag shrink-0">
           <slot name="leading" />
         </div>
-        <div class="min-w-0">
+        <div v-if="!hideIdentity" class="min-w-0">
         <div class="flex min-w-0 items-center gap-2 overflow-hidden">
           <WorkspaceTopBarTitle :title="title" />
           <slot name="badge" />
@@ -84,6 +90,12 @@ const moduleKey = computed(() => props.module ?? props.title.trim().toLowerCase(
   background: color-mix(in srgb, var(--ak-surface-canvas, #111315) 88%, #17191b);
   color: var(--night-foreground);
   overflow: visible;
+}
+
+.workspace-topbar[data-workspace-topbar-idle] {
+  min-height: 2.75rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
 }
 
 .workspace-topbar__module-mark {

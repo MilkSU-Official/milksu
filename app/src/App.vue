@@ -313,6 +313,29 @@ async function chooseAgentWorkspaceForNewTask() {
   conversations.setWorkspace(workspacePath)
 }
 
+function selectCodingWorkspace(path: string) {
+  const next = path.trim()
+  if (!next) return
+  if (conversations.active.value?.messages.length) newConversation()
+  conversations.setWorkspace(next)
+}
+
+function clearCodingWorkspace() {
+  if (conversations.active.value?.messages.length) newConversation()
+  conversations.clearWorkspace()
+}
+
+async function forgetCodingWorkspace(path: string) {
+  const next = path.trim()
+  if (!next) return
+  try {
+    await invokeCommand('forget_coding_project', { path: next })
+    if (conversations.workspacePath.value === next) conversations.clearWorkspace()
+  } catch (reason) {
+    console.error(reason)
+  }
+}
+
 async function chooseVulnerabilityCodingWorkspace() {
   const workspacePath = await invokeCommand<string>('choose_agent_workspace')
   if (workspacePath) vulnerabilityCodingWorkspacePath.value = workspacePath
@@ -654,6 +677,9 @@ onBeforeUnmount(() => {
         @respond-approval="conversations.respondApproval"
         @choose-workspace="chooseAgentWorkspace"
         @choose-workspace-for-new-task="chooseAgentWorkspaceForNewTask"
+        @select-workspace="selectCodingWorkspace"
+        @forget-workspace="forgetCodingWorkspace"
+        @clear-workspace="clearCodingWorkspace"
         @cancel-queued-guidance="conversations.cancelQueuedGuidance"
         @edit-queued-guidance="conversations.editQueuedGuidance"
         @change-model="changeModel"

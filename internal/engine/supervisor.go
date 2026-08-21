@@ -253,6 +253,43 @@ type childProcess struct {
 	command   *exec.Cmd
 	stdin     io.WriteCloser
 	workspace string
+	stderr    *sidecarStderrBuffer
+}
+
+type sidecarStderrBuffer struct {
+	mu   sync.Mutex
+	max  int
+	data []byte
+}
+
+func newSidecarStderrBuffer() *sidecarStderrBuffer {
+	return &sidecarStderrBuffer{max: 8 << 10}
+}
+
+func (b *sidecarStderrBuffer) Write(payload []byte) (int, error) {
+	if b == nil {
+		return len(payload), nil
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.data = append(b.data, payload...)
+	if len(b.data) > b.max {
+		b.data = append([]byte(nil), b.data[len(b.data)-b.max:]...)
+	}
+	return len(payload), nil
+}
+
+func (b *sidecarStderrBuffer) tail() string {
+	if b == nil {
+		return ""
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	text := strings.TrimSpace(string(b.data))
+	if line, _, found := strings.Cut(text, "\n"); found {
+		return strings.TrimSpace(line)
+	}
+	return text
 }
 
 type Supervisor struct {
@@ -1287,7 +1324,7 @@ func (s *Supervisor) ProbeModel(settings config.AppSettings) (ModelProbeResult, 
 	if err := s.SendMessage(
 		sessionID,
 		"Reply with exactly OK.",
-		"",
+		s.currentWorkspace(),
 		"",
 		"",
 		"",
@@ -1515,6 +1552,15 @@ func (s *Supervisor) Close() {
 	}
 }
 
+func (s *Supervisor) currentWorkspace() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.process == nil {
+		return ""
+	}
+	return s.process.workspace
+}
+
 func (s *Supervisor) ensureProcessLocked(settings config.AppSettings, workspace string) error {
 	if s.process != nil && s.process.workspace == workspace {
 		return nil
@@ -1549,7 +1595,8 @@ func (s *Supervisor) ensureProcessLocked(settings config.AppSettings, workspace 
 	if err != nil {
 		return err
 	}
-	command.Stderr = os.Stderr
+	stderr := newSidecarStderrBuffer()
+	command.Stderr = io.MultiWriter(os.Stderr, stderr)
 
 	stdin, err := command.StdinPipe()
 	if err != nil {
@@ -1569,6 +1616,7 @@ func (s *Supervisor) ensureProcessLocked(settings config.AppSettings, workspace 
 		command:   command,
 		stdin:     stdin,
 		workspace: workspace,
+		stderr:    stderr,
 	}
 	s.process = process
 	go s.readEvents(process, stdout)
@@ -1620,6 +1668,13 @@ func (s *Supervisor) readEvents(process *childProcess, stdout io.Reader) {
 	}
 	if scanError := scanner.Err(); scanError != nil {
 		errorText = scanError.Error()
+	}
+	if tail := process.stderr.tail(); tail != "" {
+		if errorText == "" {
+			errorText = tail
+		} else {
+			errorText = errorText + ": " + tail
+		}
 	}
 	s.emitEvent(Event{Engine: "pi", Type: "engine.stopped", Error: errorText, Done: true})
 }

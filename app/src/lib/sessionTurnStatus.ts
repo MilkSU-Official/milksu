@@ -91,6 +91,36 @@ export function applySessionContextWindow(
   return { ...state, contextWindow: window }
 }
 
+/** Restore the composer occupancy ring from a persisted conversation row. */
+export function snapshotFromStoredContextUsage(
+  usage: (Partial<SessionTurnUsage> & { contextWindow?: number }) | null | undefined,
+  now = Date.now(),
+): SessionTurnSnapshot {
+  if (!usage) return emptySessionTurnSnapshot()
+  const recorded = applySessionUsageRecorded(
+    emptySessionTurnSnapshot(),
+    usage,
+    usage.recordedAt || now,
+  )
+  return applySessionContextWindow(recorded, usage.contextWindow)
+}
+
+export function storedContextUsageFromSnapshot(snapshot: SessionTurnSnapshot) {
+  const usage = snapshot.usage
+  if (!usage) return undefined
+  return {
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+    cacheReadTokens: usage.cacheReadTokens,
+    cacheWriteTokens: usage.cacheWriteTokens,
+    totalTokens: usage.totalTokens,
+    contextWindow: snapshot.contextWindow,
+    model: usage.model,
+    provider: usage.provider,
+    recordedAt: usage.recordedAt,
+  }
+}
+
 export function applySessionCompacting(
   state: SessionTurnSnapshot,
   compacting: boolean,

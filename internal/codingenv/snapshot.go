@@ -38,6 +38,7 @@ type GitStatus struct {
 	Problem          string      `json:"problem,omitempty"`
 	Changes          []GitChange `json:"changes,omitempty"`
 	ChangesTruncated bool        `json:"changesTruncated,omitempty"`
+	LocalBranches    []string    `json:"localBranches,omitempty"`
 }
 
 type GitChange struct {
@@ -118,6 +119,17 @@ func Inspect(ctx context.Context, workspace string) (Snapshot, error) {
 
 	if head, headErr := runGit(ctx, gitPath, resolved, "rev-parse", "--short=12", "HEAD"); headErr == nil {
 		snapshot.Git.Head = strings.TrimSpace(head)
+	}
+	if refs, refsErr := runGit(
+		ctx,
+		gitPath,
+		resolved,
+		"for-each-ref",
+		"--format=%(refname:short)",
+		"--sort=-committerdate",
+		"refs/heads/",
+	); refsErr == nil {
+		snapshot.Git.LocalBranches = parseLocalBranches(refs)
 	}
 	if numstat, numstatErr := runGit(ctx, gitPath, resolved, "diff", "--numstat", "HEAD", "--"); numstatErr == nil {
 		byPath := parseNumstatByPath(numstat)
@@ -257,6 +269,29 @@ func boundedProblem(err error) string {
 	return value
 }
 
+const maxLocalBranches = 80
+
+func parseLocalBranches(output string) []string {
+	lines := strings.Split(strings.ReplaceAll(output, "\r\n", "\n"), "\n")
+	branches := make([]string, 0, min(len(lines), maxLocalBranches))
+	seen := make(map[string]struct{}, len(lines))
+	for _, line := range lines {
+		name := strings.TrimSpace(line)
+		if name == "" {
+			continue
+		}
+		if _, exists := seen[name]; exists {
+			continue
+		}
+		seen[name] = struct{}{}
+		branches = append(branches, name)
+		if len(branches) >= maxLocalBranches {
+			break
+		}
+	}
+	return branches
+}
+
 func parsePorcelainStatus(output string) GitStatus {
 	status := GitStatus{Available: true, IsRepository: true}
 	lines := strings.Split(strings.ReplaceAll(output, "\r\n", "\n"), "\n")
@@ -360,6 +395,20 @@ func resolveGitPathspec(workspace, value string) (string, error) {
 		}
 	}
 	return filepath.ToSlash(relative), nil
+}
+
+// ResolveWorkspaceFile returns the absolute path of a workspace-relative file.
+// The path must stay inside the project workspace.
+func ResolveWorkspaceFile(workspace, relativePath string) (string, error) {
+	resolved, err := resolveWorkspace(workspace)
+	if err != nil {
+		return "", err
+	}
+	pathspec, err := resolveGitPathspec(resolved, relativePath)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(resolved, filepath.FromSlash(pathspec)), nil
 }
 
 func isMilkSUInternalPath(value string) bool {

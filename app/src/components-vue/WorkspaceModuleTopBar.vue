@@ -6,6 +6,7 @@ const props = defineProps<{
   module: 'coding' | 'ctf' | 'cve'
   title?: string
   subtitle?: string
+  hideIdentity?: boolean
 }>()
 
 const fallbackTitle = computed(() => ({
@@ -20,7 +21,8 @@ const resolvedTitle = computed(() => props.title?.trim() || fallbackTitle.value)
   <WorkspaceTopBar
     :module="module"
     :title="resolvedTitle"
-    :subtitle="subtitle"
+    :subtitle="hideIdentity ? undefined : subtitle"
+    :hide-identity="hideIdentity"
     data-workspace-module-topbar
   >
     <template v-if="$slots.leading" #leading>

@@ -60,6 +60,33 @@ describe('ChatPage routing contract', () => {
     expect(chatPageSource).toContain('codingBrowserAddressFromStatus')
   })
 
+  it('hides the Coding title until the first message is sent', () => {
+    expect(chatPageSource).toContain('const codingDraftIdle = computed')
+    expect(chatPageSource).toContain(':hide-identity="codingDraftIdle"')
+    expect(chatPageSource).not.toContain('<h2 class="mt-5 text-body font-medium">{{ topbarPresentation.title }}</h2>')
+  })
+
+  it('keeps new-chat project picking on the composer instead of a dashboard card', () => {
+    expect(chatPageSource).not.toContain('想做什么？')
+    expect(chatPageSource).not.toContain('还没有记住的项目')
+    expect(chatPageSource).toContain('const codingEmptyHeading = computed')
+    expect(chatPageSource).toContain('我们要构建什么')
+    expect(chatPageSource).toContain('我们在 ${name} 中构建什么')
+    expect(chatPageSource).toContain('clearWorkspace')
+    expect(chatPageSource).toContain('LOCAL_CODING_SHELL_ID')
+    expect(chatPageSource).toContain('terminalWorkspacePath')
+  })
+
+  it('hides the module topbar while the right rail is open and parks terminal plus close there', () => {
+    expect(chatPageSource).toContain('const contextRailVisible = computed')
+    expect(chatPageSource).toContain('v-if="!contextRailVisible"')
+    expect(chatPageSource).toContain('data-testid="coding-rail-terminal"')
+    expect(chatPageSource).toContain('data-testid="coding-rail-toggle"')
+    expect(chatPageSource).toContain('aria-label="关闭右侧栏"')
+    expect(chatPageSource).toContain('aria-label="打开右侧栏"')
+    expect(chatPageSource).not.toContain('刷新${contextPanelTitle}')
+  })
+
   it('uses one right rail for domain context with text PiP collapse and draft-only handoff', () => {
     expect(chatPageSource).toContain('data-testid="single-right-context-rail"')
     expect(chatPageSource).toContain('data-testid="collapse-domain-to-pip"')
@@ -108,6 +135,7 @@ describe('ChatPage routing contract', () => {
     expect(chatPageSource).toContain('<AgentExecutionPlan')
     expect(chatPageSource).toContain("from '@/components-vue/ContextUsageMeter.vue'")
     expect(chatPageSource).toContain('turnStatus?: SessionTurnSnapshot')
+    expect(chatPageSource).toContain('resolveModelContextWindow')
     expect(chatPageSource).toContain(':context-usage="contextUsagePresentation"')
     expect(chatPageSource).toContain(':run-elapsed-label=')
     expect(chatPageSource).toContain('data-testid="agent-run-elapsed"')
@@ -150,7 +178,8 @@ describe('ChatPage routing contract', () => {
     expect(chatPageSource).not.toContain('<PanelBottomClose')
     expect(chatPageSource).not.toContain("contextPanel === 'terminal'")
     expect(chatPageSource).not.toContain('<SelectItem v-if="!ctfSession" value="terminal">终端</SelectItem>')
-    expect(chatPageSource.match(/aria-label="关闭右侧栏"/g) ?? []).toHaveLength(0)
+    expect(chatPageSource).toContain('aria-label="调整终端高度"')
+    expect(chatPageSource).toContain('startTerminalResize')
   })
 
   it('automatically starts an explicitly requested Computer Use scope when one target is visible', () => {

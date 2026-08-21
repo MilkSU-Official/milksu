@@ -18,6 +18,7 @@ const (
 	GitActionDiscardWork = "discard-worktree"
 	GitActionCommit      = "commit"
 	GitActionPush        = "push"
+	GitActionCheckout    = "checkout"
 	GitActionStageHunk   = "stage-hunk"
 	GitActionUnstageHunk = "unstage-hunk"
 	GitActionDiscardHunk = "discard-hunk"
@@ -105,6 +106,19 @@ func ApplyGitAction(
 	case GitActionPush:
 		if err := pushCurrentBranch(ctx, gitPath, resolved); err != nil {
 			return GitActionResult{}, err
+		}
+	case GitActionCheckout:
+		branch, branchErr := validateGitBranchName(relativePath)
+		if branchErr != nil {
+			return GitActionResult{}, branchErr
+		}
+		if _, err := runGit(ctx, gitPath, resolved, "show-ref", "--verify", "--quiet", "refs/heads/"+branch); err != nil {
+			return GitActionResult{}, fmt.Errorf("Git branch not found: %s", branch)
+		}
+		if err := runGitMutation(ctx, gitPath, resolved, "switch branch", "switch", "--", branch); err != nil {
+			if err := runGitMutation(ctx, gitPath, resolved, "switch branch", "checkout", branch); err != nil {
+				return GitActionResult{}, err
+			}
 		}
 	default:
 		return GitActionResult{}, fmt.Errorf("unsupported Coding Git action: %s", action)
@@ -419,6 +433,22 @@ func gitHunkActionLabel(action string) string {
 	}
 }
 
+func validateGitBranchName(value string) (string, error) {
+	name := strings.TrimSpace(value)
+	if name == "" {
+		return "", errors.New("Git branch is required")
+	}
+	if strings.HasPrefix(name, "-") ||
+		strings.Contains(name, "..") ||
+		strings.ContainsAny(name, " \t\n\r\\~^:?*[") {
+		return "", errors.New("invalid Git branch")
+	}
+	if utf8.RuneCountInString(name) > 255 {
+		return "", errors.New("Git branch name is too long")
+	}
+	return name, nil
+}
+
 func sanitizedGitOutput(value string) string {
 	output := strings.TrimSpace(strings.ReplaceAll(value, "\x00", ""))
 	output = gitURLUserInfoPattern.ReplaceAllString(output, "${1}***@")
@@ -447,6 +477,11 @@ func gitActionMessage(action string, snapshot Snapshot) string {
 		return "已创建提交"
 	case GitActionPush:
 		return "已推送 " + snapshot.Git.Branch
+	case GitActionCheckout:
+		if snapshot.Git.Branch != "" {
+			return "已切换到 " + snapshot.Git.Branch
+		}
+		return "已切换分支"
 	case GitActionStageHunk:
 		return "已暂存所选代码块"
 	case GitActionUnstageHunk:

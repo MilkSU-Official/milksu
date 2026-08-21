@@ -78,8 +78,21 @@ type StoredConversation struct {
 	CTFJobID          string             `json:"ctfJobId,omitempty"`
 	CTFMode           string             `json:"ctfMode,omitempty"`
 	CTFRole           string             `json:"ctfRole,omitempty"`
-	DomainTaskContext map[string]any     `json:"domainTaskContext,omitempty"`
-	Messages          []StoredMessage    `json:"messages"`
+	DomainTaskContext map[string]any      `json:"domainTaskContext,omitempty"`
+	LastContextUsage  *StoredContextUsage `json:"lastContextUsage,omitempty"`
+	Messages          []StoredMessage     `json:"messages"`
+}
+
+type StoredContextUsage struct {
+	InputTokens      int64  `json:"inputTokens"`
+	OutputTokens     int64  `json:"outputTokens"`
+	CacheReadTokens  int64  `json:"cacheReadTokens"`
+	CacheWriteTokens int64  `json:"cacheWriteTokens"`
+	TotalTokens      int64  `json:"totalTokens"`
+	ContextWindow    int64  `json:"contextWindow,omitempty"`
+	Model            string `json:"model,omitempty"`
+	Provider         string `json:"provider,omitempty"`
+	RecordedAt       int64  `json:"recordedAt"`
 }
 
 type Store struct {

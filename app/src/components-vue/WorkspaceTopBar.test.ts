@@ -142,6 +142,8 @@ describe('WorkspaceTopBar', () => {
     expect(workspaceTopBarTitleSource).toContain('workspace-topbar__title truncate text-control')
     expect(workspaceTopBarTitleSource).toContain('<h1')
     expect(workspaceTopBarSource).toContain('<WorkspaceTopBarTitle :title="title" />')
+    expect(workspaceTopBarSource).toContain('hideIdentity')
+    expect(workspaceModuleTopBarSource).toContain('hideIdentity')
     expect(workspaceTopBarSource).not.toContain('<h1')
     expect(chatPageSource).not.toContain('<h1 class="mt-5 text-2xl')
   })

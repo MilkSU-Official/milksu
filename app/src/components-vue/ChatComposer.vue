@@ -24,6 +24,7 @@ import {
   FileDiff,
   FileText,
   FolderOpen,
+  GitBranch,
   Globe2,
   Lightbulb,
   LoaderCircle,
@@ -69,7 +70,7 @@ import type {
   CodingGoalState,
   CTFChatAction,
 } from '@/types'
-import type { CodingGitChange } from '@/codingEnvironmentTypes'
+import type { CodingGitChange, CodingRecentProject } from '@/codingEnvironmentTypes'
 import type { ContextUsagePresentation } from '@/lib/sessionTurnStatus'
 import { CODING_SKILLS } from '@/codingSkills'
 
@@ -130,6 +131,11 @@ const props = defineProps<{
   workspaceLocked?: boolean
   workspaceName?: string
   workspacePath?: string
+  homeDirectory?: string
+  recentProjects?: CodingRecentProject[]
+  gitRepository?: boolean
+  gitBranch?: string
+  gitBranches?: string[]
   browserUseReady?: boolean
   computerUseReady?: boolean
   availableSkills?: string[]
@@ -156,6 +162,10 @@ const emit = defineEmits<{
   runSlashCommand: [command: string]
   controlGoal: [action: 'pause' | 'resume' | 'clear']
   chooseWorkspace: []
+  selectWorkspace: [path: string]
+  forgetWorkspace: [path: string]
+  clearWorkspace: []
+  checkoutBranch: [branch: string]
   cancelQueuedGuidance: [index: number]
   editQueuedGuidance: [index: number]
 }>()
@@ -431,13 +441,11 @@ function toggleGoalChip() {
 const showWorkspaceChip = computed(() => Boolean(
   !props.ctfSession && (props.workspaceName?.trim() || !props.workspaceLocked),
 ))
-const workspaceChipLabel = computed(() => props.workspaceName?.trim() || '选择目录')
-const workspaceChipTitle = computed(() => {
-  if (props.workspaceLocked) {
-    return `${props.workspacePath || workspaceChipLabel.value} · 当前会话目录已固定，点击为新任务选择其他目录`
-  }
-  return props.workspacePath || '选择当前任务的会话目录'
-})
+const workspaceChipLabel = computed(() => props.workspaceName?.trim() || '选择项目')
+const hasSelectedWorkspace = computed(() => Boolean(props.workspacePath?.trim()))
+const workspaceChipTitle = computed(() => (
+  props.workspacePath || workspaceChipLabel.value
+))
 
 const ctfActionOptions = computed(() => {
   const mode = props.ctfMode ?? 'copilot'
@@ -1709,21 +1717,73 @@ defineExpose({
               </div>
             </template>
             <template v-if="showWorkspaceChip" #context>
-              <button
-                type="button"
-                class="chat-composer__chip chat-composer__chip--workspace"
-                :disabled="running"
-                :aria-label="`会话目录：${workspaceChipLabel}`"
-                :title="workspaceChipTitle"
-                @click="$emit('chooseWorkspace')"
+              <div
+                class="chat-composer__workspace"
+                :class="{ 'chat-composer__workspace--locked': workspaceLocked }"
               >
-                <FolderOpen class="size-3.5 shrink-0" />
-                <span class="chat-composer__chip__label">{{ workspaceChipLabel }}</span>
-                <ChevronDown
+                <button
                   v-if="!workspaceLocked"
-                  class="chat-composer__chip__chevron size-3 shrink-0 opacity-60"
-                />
-              </button>
+                  type="button"
+                  class="chat-composer__chip chat-composer__chip--workspace"
+                  :class="{
+                    'chat-composer__chip--workspace-empty': !hasSelectedWorkspace,
+                    'chat-composer__chip--workspace-split': hasSelectedWorkspace,
+                  }"
+                  :disabled="running"
+                  :aria-label="hasSelectedWorkspace ? `会话目录：${workspaceChipLabel}` : '选择项目'"
+                  :title="workspaceChipTitle"
+                  @click="$emit('chooseWorkspace')"
+                >
+                  <FolderOpen class="size-3.5 shrink-0" />
+                  <span class="chat-composer__chip__label">{{ workspaceChipLabel }}</span>
+                </button>
+                <span
+                  v-else
+                  class="chat-composer__chip chat-composer__chip--workspace"
+                  :aria-label="`会话目录：${workspaceChipLabel}`"
+                  :title="workspaceChipTitle"
+                >
+                  <FolderOpen class="size-3.5 shrink-0" />
+                  <span class="chat-composer__chip__label">{{ workspaceChipLabel }}</span>
+                </span>
+                <button
+                  v-if="hasSelectedWorkspace && !workspaceLocked"
+                  type="button"
+                  class="chat-composer__workspace-clear"
+                  :disabled="running"
+                  aria-label="清空项目"
+                  title="清空项目"
+                  @click.stop="$emit('clearWorkspace')"
+                >
+                  <X class="size-3.5" />
+                </button>
+              </div>
+              <DropdownMenu v-if="gitRepository && (gitBranches ?? []).length">
+                <DropdownMenuTrigger as-child>
+                  <button
+                    type="button"
+                    class="chat-composer__chip"
+                    :disabled="running"
+                    :aria-label="`当前分支：${gitBranch || '选择分支'}`"
+                    :title="gitBranch || '选择分支'"
+                  >
+                    <GitBranch class="size-3.5 shrink-0" />
+                    <span class="chat-composer__chip__label">{{ gitBranch || '分支' }}</span>
+                    <ChevronDown class="chat-composer__chip__chevron size-3 shrink-0 opacity-60" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" :side-offset="8" class="min-w-48 p-1">
+                  <DropdownMenuItem
+                    v-for="branch in gitBranches ?? []"
+                    :key="branch"
+                    class="cursor-pointer"
+                    @select="$emit('checkoutBranch', branch)"
+                  >
+                    <span class="min-w-0 flex-1 truncate">{{ branch }}</span>
+                    <Check v-if="branch === gitBranch" class="size-3.5 shrink-0" />
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </template>
           </CodingComposerControls>
           <Button
@@ -1933,6 +1993,10 @@ defineExpose({
   color: var(--muted-foreground);
 }
 
+.chat-composer__workspace .chat-composer__chip--workspace {
+  max-width: 12rem;
+}
+
 .chat-composer__chip--workspace:hover:not(:disabled) {
   color: var(--foreground);
 }
@@ -2023,6 +2087,53 @@ defineExpose({
   padding: .65rem .85rem .75rem;
   box-shadow: none;
   color: var(--foreground);
+}
+
+.chat-composer__workspace {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 14rem;
+  align-items: center;
+  border-radius: 9999px;
+}
+
+.chat-composer__workspace:not(.chat-composer__workspace--locked):hover .chat-composer__chip--workspace,
+.chat-composer__workspace:not(.chat-composer__workspace--locked):hover .chat-composer__workspace-clear {
+  background: var(--btn-ghost-hover);
+  color: var(--foreground);
+}
+
+.chat-composer__workspace--locked .chat-composer__chip--workspace {
+  cursor: default;
+}
+
+.chat-composer__workspace-clear {
+  display: inline-flex;
+  height: 2rem;
+  width: 1.6rem;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  margin-left: -0.35rem;
+  border: 0;
+  border-radius: 0 9999px 9999px 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+
+.chat-composer__workspace-clear:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.chat-composer__chip--workspace-empty {
+  color: var(--muted-foreground);
+}
+
+.chat-composer__chip--workspace-split {
+  border-radius: 9999px 0 0 9999px;
+  padding-inline-end: 0.35rem;
 }
 
 .chat-composer__toolbar {

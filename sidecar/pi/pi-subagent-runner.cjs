@@ -377,7 +377,7 @@ function writeRuntimeModelConfig(
         models: [{
           id: selection.model,
           name: selection.model,
-          contextWindow: 128000,
+          contextWindow: require("./known-context-window.cjs").resolveModelContextWindow(selection.model, 0),
           maxTokens: 32768,
         }],
       },
