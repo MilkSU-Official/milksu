@@ -336,6 +336,14 @@ async function forgetCodingWorkspace(path: string) {
   }
 }
 
+function newCodingProjectSession(workspacePath: string) {
+  const next = workspacePath.trim()
+  if (!next) return
+  newConversation()
+  conversations.setWorkspace(next)
+  codingConversationDrawerOpen.value = true
+}
+
 async function chooseVulnerabilityCodingWorkspace() {
   const workspacePath = await invokeCommand<string>('choose_agent_workspace')
   if (workspacePath) vulnerabilityCodingWorkspacePath.value = workspacePath
@@ -572,6 +580,7 @@ onBeforeUnmount(() => {
         :active-section="sidebarSection"
         :active-conversation-id="conversations.activeId.value"
         :conversations="conversations.conversations.value"
+        :running-conversation-ids="conversations.runningConversationIds.value"
         :account-status="accountStatus"
         :ctf-section="ctfSection"
         :coding-context-open="codingConversationDrawerOpen"
@@ -592,6 +601,7 @@ onBeforeUnmount(() => {
           codingConversationDrawerOpen = true
         }"
         @delete-conversation="conversations.remove"
+        @new-project-session="newCodingProjectSession"
         @navigate-ctf="ctfSection = $event"
       />
 

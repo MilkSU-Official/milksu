@@ -613,6 +613,7 @@ export function useConversations() {
   const activeRunning = computed(() => (
     activeId.value ? runningIds.value.has(activeId.value) : false
   ))
+  const runningConversationIds = computed(() => [...runningIds.value])
   const activeAborting = computed(() => (
     activeId.value ? abortingIds.value.has(activeId.value) : false
   ))
@@ -1862,6 +1863,7 @@ export function useConversations() {
     active,
     workspacePath,
     activeRunning,
+    runningConversationIds,
     activeAborting,
     activeMessageQueue,
     selectedModelMode,
