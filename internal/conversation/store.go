@@ -60,25 +60,25 @@ type StoredGoal struct {
 }
 
 type StoredConversation struct {
-	ID                string             `json:"id"`
-	Title             string             `json:"title"`
-	CreatedAt         uint64             `json:"createdAt"`
-	WorkspacePath     string             `json:"workspacePath,omitempty"`
-	ModelMode         string             `json:"modelMode,omitempty"`
-	ModelProvider     string             `json:"modelProvider,omitempty"`
-	ModelID           string             `json:"modelId,omitempty"`
-	ExecutionMode     string             `json:"executionMode,omitempty"`
-	ApprovalPolicy    string             `json:"approvalPolicy,omitempty"`
-	MCPServers        []string           `json:"mcpServers,omitempty"`
-	MCPConfigDigest   string             `json:"mcpConfigDigest,omitempty"`
-	AgentTools        []string           `json:"agentTools,omitempty"`
-	AgentExtensions   []string           `json:"agentExtensions,omitempty"`
-	AgentSkills       []string           `json:"agentSkills,omitempty"`
-	AgentCapabilities []StoredCapability `json:"agentCapabilities,omitempty"`
-	AgentGoal         *StoredGoal        `json:"agentGoal,omitempty"`
-	CTFJobID          string             `json:"ctfJobId,omitempty"`
-	CTFMode           string             `json:"ctfMode,omitempty"`
-	CTFRole           string             `json:"ctfRole,omitempty"`
+	ID                string              `json:"id"`
+	Title             string              `json:"title"`
+	CreatedAt         uint64              `json:"createdAt"`
+	WorkspacePath     string              `json:"workspacePath,omitempty"`
+	ModelMode         string              `json:"modelMode,omitempty"`
+	ModelProvider     string              `json:"modelProvider,omitempty"`
+	ModelID           string              `json:"modelId,omitempty"`
+	ExecutionMode     string              `json:"executionMode,omitempty"`
+	ApprovalPolicy    string              `json:"approvalPolicy,omitempty"`
+	MCPServers        []string            `json:"mcpServers,omitempty"`
+	MCPConfigDigest   string              `json:"mcpConfigDigest,omitempty"`
+	AgentTools        []string            `json:"agentTools,omitempty"`
+	AgentExtensions   []string            `json:"agentExtensions,omitempty"`
+	AgentSkills       []string            `json:"agentSkills,omitempty"`
+	AgentCapabilities []StoredCapability  `json:"agentCapabilities,omitempty"`
+	AgentGoal         *StoredGoal         `json:"agentGoal,omitempty"`
+	CTFJobID          string              `json:"ctfJobId,omitempty"`
+	CTFMode           string              `json:"ctfMode,omitempty"`
+	CTFRole           string              `json:"ctfRole,omitempty"`
 	DomainTaskContext map[string]any      `json:"domainTaskContext,omitempty"`
 	LastContextUsage  *StoredContextUsage `json:"lastContextUsage,omitempty"`
 	ArchivedAt        uint64              `json:"archivedAt,omitempty"`
