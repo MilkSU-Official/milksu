@@ -186,6 +186,7 @@ const props = defineProps<{
   mcpServers?: string[]
   mcpConfigDigest?: string
   ensureConversation: (title?: string) => string
+  projectOptions?: Array<{ name: string; path: string }>
   /** Unsent handoff draft staged by CTF/CVE open path; never auto-starts Pi. */
   pendingComposerDraft?: { prompt: string; visibleText: string } | null
   conversationDrawerOpen?: boolean
@@ -203,6 +204,7 @@ const emit = defineEmits<{
   abort: []
   chooseWorkspace: []
   chooseWorkspaceForNewTask: []
+  chooseProject: [workspacePath: string]
   cancelQueuedGuidance: [index: number]
   editQueuedGuidance: [index: number]
   changeModel: [mode: 'auto' | 'manual', provider?: string, model?: string]
@@ -2054,6 +2056,7 @@ watch(
       :workspace-locked="workspaceLocked"
       :workspace-name="workspaceName"
       :workspace-path="workspacePath"
+      :project-options="projectOptions"
       :browser-use-ready="browserUseReadyForCurrentTask"
       :computer-use-ready="externalAppUseReadyForCurrentTask"
       :available-skills="activeSkills"
@@ -2067,6 +2070,8 @@ watch(
       @change-model="changeModel"
       @show-permissions="showCodingPermissions"
       @choose-workspace="chooseWorkspaceFromCurrentTask"
+      @choose-workspace-for-new-task="$emit('chooseWorkspaceForNewTask')"
+      @choose-project="$emit('chooseProject', $event)"
       @cancel-queued-guidance="$emit('cancelQueuedGuidance', $event)"
       @edit-queued-guidance="$emit('editQueuedGuidance', $event)"
       @consume-goal="goalMode = false"

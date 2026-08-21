@@ -11,6 +11,7 @@ const props = defineProps<{
   accountStatus: AccountStatus
   activeConversationId: string | null
   conversations: Conversation[]
+  runningConversationIds?: string[]
   ctfSection: CTFWorkspaceSection
   /** Coding history panel: fixed beside the rail, not a floating overlay. */
   codingContextOpen?: boolean
@@ -27,6 +28,7 @@ const emit = defineEmits<{
   toggleTheme: []
   selectConversation: [id: string]
   deleteConversation: [id: string]
+  newProjectSession: [workspacePath: string]
   navigateCtf: [value: CTFWorkspaceSection]
   openCodingContext: []
   /** Collapse the open Coding history panel (button lives in the panel header). */
@@ -68,11 +70,13 @@ const showCodingHistory = computed(() => (
         active-section="chat"
         :active-conversation-id="activeConversationId"
         :conversations="conversations"
+        :running-conversation-ids="runningConversationIds"
         :ctf-section="ctfSection"
         @new="$emit('new')"
         @collapse="$emit('collapseCodingContext')"
         @select-conversation="$emit('selectConversation', $event)"
         @delete-conversation="$emit('deleteConversation', $event)"
+        @new-project-session="$emit('newProjectSession', $event)"
         @navigate-ctf="$emit('navigateCtf', $event)"
       />
     </section>

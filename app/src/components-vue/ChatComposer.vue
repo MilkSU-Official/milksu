@@ -129,6 +129,7 @@ const props = defineProps<{
   workspaceLocked?: boolean
   workspaceName?: string
   workspacePath?: string
+  projectOptions?: Array<{ name: string; path: string }>
   browserUseReady?: boolean
   computerUseReady?: boolean
   availableSkills?: string[]
@@ -155,6 +156,8 @@ const emit = defineEmits<{
   runSlashCommand: [command: string]
   controlGoal: [action: 'pause' | 'resume' | 'clear']
   chooseWorkspace: []
+  chooseWorkspaceForNewTask: []
+  chooseProject: [workspacePath: string]
   cancelQueuedGuidance: [index: number]
   editQueuedGuidance: [index: number]
 }>()
@@ -1695,21 +1698,37 @@ defineExpose({
               </div>
             </template>
             <template v-if="showWorkspaceChip" #context>
-              <button
-                type="button"
-                class="chat-composer__chip chat-composer__chip--workspace"
-                :disabled="running"
-                :aria-label="`会话目录：${workspaceChipLabel}`"
-                :title="workspaceChipTitle"
-                @click="$emit('chooseWorkspace')"
-              >
-                <FolderOpen class="size-3.5 shrink-0" />
-                <span class="chat-composer__chip__label">{{ workspaceChipLabel }}</span>
-                <ChevronDown
-                  v-if="!workspaceLocked"
-                  class="chat-composer__chip__chevron size-3 shrink-0 opacity-60"
-                />
-              </button>
+              <DropdownMenu>
+                <DropdownMenuTrigger as-child>
+                  <button
+                    type="button"
+                    class="chat-composer__chip chat-composer__chip--workspace"
+                    :disabled="running"
+                    :aria-label="`会话目录：${workspaceChipLabel}`"
+                    :title="workspaceChipTitle"
+                  >
+                    <FolderOpen class="size-3.5 shrink-0" />
+                    <span class="chat-composer__chip__label">{{ workspaceChipLabel }}</span>
+                    <ChevronDown class="chat-composer__chip__chevron size-3 shrink-0 opacity-60" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" :side-offset="8" class="w-64">
+                  <DropdownMenuLabel>选择项目</DropdownMenuLabel>
+                  <DropdownMenuItem
+                    v-for="project in projectOptions"
+                    :key="project.path"
+                    @select="$emit('chooseProject', project.path)"
+                  >
+                    <FolderOpen class="size-4 shrink-0" />
+                    <span class="truncate">{{ project.name }}</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator v-if="projectOptions?.length" />
+                  <DropdownMenuItem @select="$emit('chooseWorkspaceForNewTask')">
+                    <Plus class="size-4 shrink-0" />
+                    新建项目
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </template>
           </CodingComposerControls>
           <Button

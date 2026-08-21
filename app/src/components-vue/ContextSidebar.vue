@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
+import AkLoadingMark from '@/components-vue/AkLoadingMark.vue'
 import {
   Button,
   Input,
@@ -10,6 +11,7 @@ import {
   Library,
   MessageSquarePlus,
   PanelLeftClose,
+  Plus,
   Radar,
   Search,
   Trash2,
@@ -30,6 +32,7 @@ const props = defineProps<{
   activeSection: WorkspaceSection
   activeConversationId: string | null
   conversations: Conversation[]
+  runningConversationIds?: string[]
   ctfSection: CTFWorkspaceSection
 }>()
 
@@ -39,23 +42,56 @@ const emit = defineEmits<{
   collapse: []
   selectConversation: [id: string]
   deleteConversation: [id: string]
+  newProjectSession: [workspacePath: string]
   navigateCtf: [value: CTFWorkspaceSection]
 }>()
+
+const unreadConversationIds = ref(new Set<string>())
+let observedRunningIds: Set<string> | undefined
+
+function selectConversation(id: string) {
+  unreadConversationIds.value.delete(id)
+  emit('selectConversation', id)
+}
 
 function openSingleConversation(event: MouseEvent, group: CodingConversationGroup) {
   if (group.conversations.length !== 1) return
   event.preventDefault()
-  emit('selectConversation', group.conversations[0].id)
+  selectConversation(group.conversations[0].id)
 }
 
 const query = ref('')
 const conversationList = ref<HTMLElement | null>(null)
 const codingGroups = computed(() => groupCodingConversations(props.conversations, query.value))
+const runningConversationIds = computed(() => new Set(props.runningConversationIds ?? []))
 const projectGroups = computed(() => codingGroups.value.filter(group => !group.temporary))
 const temporaryGroup = computed(() => codingGroups.value.find(group => group.temporary) ?? null)
 const codingContext = computed(() => showsCodingHistory(props.activeSection))
 const ctfContext = computed(() => props.activeSection === 'ctf')
 const vulnContext = computed(() => props.activeSection === 'vuln')
+
+watch(
+  () => props.runningConversationIds ?? [],
+  (ids) => {
+    const next = new Set(ids)
+    if (observedRunningIds) {
+      for (const id of observedRunningIds) {
+        if (!next.has(id) && id !== props.activeConversationId) {
+          unreadConversationIds.value.add(id)
+        }
+      }
+    }
+    observedRunningIds = next
+  },
+  { immediate: true },
+)
+
+watch(
+  () => props.activeConversationId,
+  (id) => {
+    if (id) unreadConversationIds.value.delete(id)
+  },
+)
 
 watch(
   () => [props.activeConversationId, codingContext.value, codingGroups.value.length] as const,
@@ -184,15 +220,23 @@ watch(
               class="coding-project-group"
             >
               <summary
-                class="coding-project-row flex cursor-pointer list-none items-center gap-2 rounded-md px-3 py-1.5 font-medium hover:bg-accent/50"
+                class="coding-project-row group flex cursor-pointer list-none items-center gap-2 rounded-md px-3 py-1.5 font-medium hover:bg-accent/50"
                 :title="group.paths.length ? group.paths.join('\n') : group.name"
                 @click="openSingleConversation($event, group)"
               >
                 <Folder class="size-4 shrink-0 text-muted-foreground" />
                 <span class="min-w-0 flex-1 truncate">{{ group.name }}</span>
-                <span class="coding-project-count font-normal tabular-nums text-muted-foreground">
-                  {{ group.conversations.length }}
-                </span>
+                <Button
+                  v-if="group.path"
+                  variant="ghost"
+                  size="icon-sm"
+                  class="coding-project-new-session shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                  :aria-label="`在 ${group.name} 中新建会话`"
+                  :title="`在 ${group.name} 中新建会话`"
+                  @click.stop="$emit('newProjectSession', group.path)"
+                >
+                  <Plus class="size-3.5" />
+                </Button>
               </summary>
               <!-- Child title starts under the folder name (right of the folder icon). -->
               <div class="coding-project-children mt-0.5 space-y-0.5">
@@ -208,8 +252,14 @@ watch(
                     size="sm"
                     class="coding-project-row coding-project-child h-7 min-w-0 flex-1 justify-start"
                     :aria-current="activeConversationId === conversation.id ? 'true' : undefined"
-                    @click.stop="$emit('selectConversation', conversation.id)"
+                    @click.stop="selectConversation(conversation.id)"
                   >
+                    <AkLoadingMark v-if="runningConversationIds.has(conversation.id)" label="运行中" />
+                    <span
+                      v-else-if="unreadConversationIds.has(conversation.id)"
+                      class="coding-session-complete size-1.5 shrink-0 rounded-full bg-primary"
+                      aria-label="有新消息"
+                    />
                     <span class="truncate">{{ conversation.title }}</span>
                   </Button>
                   <Button
@@ -239,9 +289,6 @@ watch(
               @click="openSingleConversation($event, temporaryGroup)"
             >
               <span class="min-w-0 flex-1 truncate">{{ temporaryGroup.name }}</span>
-              <span class="coding-project-count font-normal tabular-nums text-muted-foreground">
-                {{ temporaryGroup.conversations.length }}
-              </span>
             </summary>
             <div class="coding-project-children mt-0.5 space-y-0.5">
               <div
@@ -256,8 +303,14 @@ watch(
                   size="sm"
                   class="coding-project-row coding-project-child h-7 min-w-0 flex-1 justify-start"
                   :aria-current="activeConversationId === conversation.id ? 'true' : undefined"
-                  @click.stop="$emit('selectConversation', conversation.id)"
+                  @click.stop="selectConversation(conversation.id)"
                 >
+                  <AkLoadingMark v-if="runningConversationIds.has(conversation.id)" label="运行中" />
+                  <span
+                    v-else-if="unreadConversationIds.has(conversation.id)"
+                    class="coding-session-complete size-1.5 shrink-0 rounded-full bg-primary"
+                    aria-label="有新消息"
+                  />
                   <span class="truncate">{{ conversation.title }}</span>
                 </Button>
                 <Button
@@ -350,11 +403,6 @@ watch(
   letter-spacing: var(--text-control--letter-spacing);
 }
 
-.coding-project-count {
-  font-size: var(--text-control);
-  line-height: var(--text-control--line-height);
-  letter-spacing: var(--text-control--letter-spacing);
-}
 
 /*
  * Align nested task titles with the folder name column:
