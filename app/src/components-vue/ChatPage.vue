@@ -633,7 +633,7 @@ const activeModelSourceLabel = computed(() => (
     ? 'MilkSU 账户'
     : props.conversation?.modelSource === 'personal'
       ? 'TokenFlux 中转站'
-      : '在模型列表中按服务选择'
+      : ''
 ))
 
 const computerUseOperationEvidence = computed(() => (
@@ -2345,10 +2345,14 @@ watch(
               <p class="truncate text-body font-medium">
                 {{ automaticScratchWorkspace ? workspaceName : codingEnvironment?.workspaceName || workspaceName }}
               </p>
-              <p class="mt-1 truncate font-mono text-caption text-muted-foreground" :title="workspacePath">
+              <p
+                v-if="automaticScratchWorkspace || workspacePath"
+                class="mt-1 truncate font-mono text-caption text-muted-foreground"
+                :title="workspacePath"
+              >
                 {{ automaticScratchWorkspace
                   ? '无项目任务 · MilkSU 本地临时工作区'
-                  : workspacePath || '尚未选择项目' }}
+                  : workspacePath }}
               </p>
             </div>
           </div>
@@ -2476,9 +2480,7 @@ watch(
           <div class="flex items-start justify-between gap-3">
             <span class="shrink-0 text-muted-foreground">来源</span>
             <span class="text-right text-caption leading-5">
-              {{ conversation?.modelSource
-                ? activeModelSourceLabel
-                : '在模型列表中按服务选择' }}
+              {{ activeModelSourceLabel }}
             </span>
           </div>
           <div
@@ -2494,7 +2496,7 @@ watch(
           <div class="flex items-start justify-between gap-3">
             <span class="shrink-0 text-muted-foreground">插件</span>
             <span class="text-right text-caption leading-5">
-              {{ activeExtensions.length ? activeExtensions.map(extensionLabel).join(' · ') : '启动后显示' }}
+              {{ activeExtensions.length ? activeExtensions.map(extensionLabel).join(' · ') : '' }}
             </span>
           </div>
           <div v-if="activeSkills.length" class="flex items-start justify-between gap-3">
@@ -2553,7 +2555,7 @@ watch(
           <div class="mt-4 border-t border-border/70 pt-4">
             <p class="text-caption font-medium text-muted-foreground">项目 MCP</p>
             <p v-if="mcpConfigLoading" class="mt-2 text-caption text-muted-foreground">
-              正在读取项目的 .mcp.json…
+              正在读取
             </p>
             <p
               v-else-if="mcpConfig?.problem"
@@ -2561,12 +2563,7 @@ watch(
             >
               {{ mcpConfig.problem }}
             </p>
-            <p
-              v-else-if="!mcpConfig?.configured || !mcpConfig.servers.length"
-              class="mt-2 text-caption leading-5 text-muted-foreground"
-            >
-              当前项目没有 .mcp.json 服务器
-            </p>
+
             <div v-else class="mt-2 space-y-2">
               <CodingMCPReviewCard
                 v-for="server in mcpConfig.servers"

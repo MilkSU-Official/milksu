@@ -55,15 +55,15 @@ const artifactNextStep = computed<{
   if (!desktopRuntime) {
     return {
       label: '打开桌面 App 验收产物',
-      detail: '浏览器预览只能验证入口；真实 Markdown、HTML 和图片读取必须在 MilkSU 桌面运行时完成。',
+      detail: '',
       cta: '桌面 App 中验收',
       disabled: true,
     }
   }
   if (preview.value) {
     return {
-      label: '把当前预览作为用户可见证据',
-      detail: `${artifactKindLabel(preview.value.kind)} · ${preview.value.relativePath} · ${formatBytes(preview.value.sizeBytes)}。如需真实交互，再补 Browser 或 Computer Use 证据。`,
+      label: preview.value.relativePath,
+      detail: `${artifactKindLabel(preview.value.kind)} · ${formatBytes(preview.value.sizeBytes)}`,
       cta: '重新预览',
       disabled: loading.value,
     }
@@ -71,14 +71,14 @@ const artifactNextStep = computed<{
   if (suggestions.value.length) {
     return {
       label: '预览第一个候选产物',
-      detail: `${suggestions.value.length} 个可预览候选；先打开 ${suggestions.value[0]}，再决定是否需要 Browser/Computer Use。`,
+      detail: `${suggestions.value.length} 个可预览候选`,
       cta: '预览候选',
       disabled: loading.value,
     }
   }
   return {
     label: '输入产物相对路径',
-    detail: '支持工作区内 Markdown、HTML、PNG、JPEG、GIF 或 WebP；没有产物候选时请手动填路径。',
+    detail: '',
     cta: '等待路径',
     disabled: true,
   }
@@ -223,9 +223,7 @@ defineExpose({ refresh })
           <span class="truncate">{{ redactPreviewText(path) }}</span>
         </Button>
       </div>
-      <p v-else class="mt-2 text-caption leading-5 text-muted-foreground">
-        可输入任意工作区内的 Markdown、HTML、PNG、JPEG、GIF 或 WebP 相对路径。
-      </p>
+
       <p
         v-if="!desktopRuntime"
         class="mt-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-caption leading-5 text-muted-foreground"
@@ -237,7 +235,7 @@ defineExpose({ refresh })
           <div class="min-w-0">
             <p class="text-caption font-medium text-muted-foreground">下一步</p>
             <p class="mt-1 text-body font-medium">{{ artifactNextStep.label }}</p>
-            <p class="mt-1 text-caption leading-5 text-muted-foreground">
+            <p v-if="artifactNextStep.detail" class="mt-1 text-caption leading-5 text-muted-foreground">
               {{ artifactNextStep.detail }}
             </p>
           </div>
@@ -309,10 +307,6 @@ defineExpose({ refresh })
       class="flex min-h-80 flex-1 flex-col items-center justify-center px-8 text-center"
     >
       <FileImage class="size-7 text-muted-foreground" />
-      <p class="mt-4 text-label font-medium">预览 Agent 交付的普通产物</p>
-      <p class="mt-2 max-w-sm text-body leading-6 text-muted-foreground">
-        文件必须位于当前工作区。HTML 会移除活动内容并在无脚本、无网络的隔离页面中渲染。
-      </p>
     </div>
   </section>
 </template>

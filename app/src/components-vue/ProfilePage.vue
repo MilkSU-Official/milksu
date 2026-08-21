@@ -392,9 +392,7 @@ onBeforeUnmount(() => stopUsageEvents?.())
                   {{ activeTab === 'coding' ? 'Coding 活动与用量' : activeTab === 'ctf' ? 'CTF 练习与验证' : 'CVE 研究与来源' }}
                 </h2>
               </div>
-              <p class="text-caption text-muted-foreground">
-                {{ activeTab === 'coding' ? '按真实模型响应与已完成工具调用统计' : activeTab === 'ctf' ? '每个任务只计一条练习记录' : '只显示本机跟踪与真实研究记录' }}
-              </p>
+
             </div>
 
             <div class="profile-metrics mt-4">
@@ -466,13 +464,10 @@ onBeforeUnmount(() => stopUsageEvents?.())
                       <strong>{{ tool.calls }} 次</strong>
                     </li>
                   </ul>
-                  <p v-else class="detail-empty">这一天有模型响应，但没有已完成的工具调用。</p>
+
                 </section>
               </div>
-              <div v-else class="panel-empty mt-5">
-                <strong>还没有 Coding Agent 用量记录</strong>
-                <p>完成 Coding 对话后，这里会按日期显示模型与 Token。</p>
-              </div>
+
             </template>
 
             <template v-else-if="activeTab === 'ctf'">
@@ -485,7 +480,7 @@ onBeforeUnmount(() => stopUsageEvents?.())
                       <strong>{{ job.experimentCount }} 次实验</strong>
                     </li>
                   </ul>
-                  <p v-else class="detail-empty">请选择有练习记录的日期。</p>
+
                 </section>
                 <section class="detail-column" aria-labelledby="ctf-distribution-heading">
                   <h3 id="ctf-distribution-heading">题型与来源</h3>
@@ -495,10 +490,7 @@ onBeforeUnmount(() => stopUsageEvents?.())
                   </div>
                 </section>
               </div>
-              <div v-else class="panel-empty mt-5">
-                <strong>还没有 CTF 练习记录</strong>
-                <p>创建并推进真实 CTF 任务后，这里才会显示题型、来源与 Judge 结果。</p>
-              </div>
+
 
             </template>
 
@@ -511,7 +503,7 @@ onBeforeUnmount(() => stopUsageEvents?.())
                       <span><b>{{ activity.title }}</b><small>{{ activity.detail }}</small></span>
                     </li>
                   </ul>
-                  <p v-else class="detail-empty">已有跟踪项，但还没有关联到真实 Coding 对话的研究记录。</p>
+
                 </section>
                 <section class="detail-column" aria-labelledby="vuln-sources-heading">
                   <h3 id="vuln-sources-heading">跟踪状态与资料来源</h3>
@@ -521,10 +513,7 @@ onBeforeUnmount(() => stopUsageEvents?.())
                   </div>
                 </section>
               </div>
-              <div v-else class="panel-empty mt-5">
-                <strong>还没有跟踪的 CVE</strong>
-                <p>在 CVE 模块加入真实跟踪项后，这里会汇总研究活动、状态与资料来源。</p>
-              </div>
+
 
             </template>
           </div>
@@ -532,8 +521,8 @@ onBeforeUnmount(() => stopUsageEvents?.())
 
         <section class="tactical-command-surface growth-panel px-5 py-5" aria-labelledby="growth-heading">
           <div class="border-b border-border pb-4"><p class="game-kicker">有结果来源</p><h2 id="growth-heading" class="mt-1 text-xl font-semibold">最近确认的成长</h2></div>
-          <div v-if="!recentGrowth.length" class="mt-6 border-l-2 border-border py-4 pl-5 text-body text-muted-foreground">完成有明确结果的 Coding 任务、CTF Judge 验证或手工确认的 CVE 研究后，这里会自动出现记录。</div>
-          <ol v-else class="growth-list mt-2">
+
+          <ol v-if="recentGrowth.length" class="growth-list mt-2">
             <li v-for="activity in recentGrowth" :key="activity.id" class="relative border-b border-border py-4 pl-5 last:border-b-0">
               <i class="growth-dot" aria-hidden="true" />
               <div class="flex items-center justify-between gap-3"><span class="growth-module" :class="moduleClass[activity.module]">{{ activity.module === 'vuln' ? 'CVE' : activity.module === 'coding' ? 'Coding' : 'CTF' }}</span><time class="text-caption text-muted-foreground">{{ formatDate(activity.timestamp) }}</time></div>

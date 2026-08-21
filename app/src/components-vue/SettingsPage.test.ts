@@ -325,7 +325,7 @@ describe('SettingsPage user artifacts', () => {
 
     const path = document.querySelector('[data-testid="user-artifact-directory"]')
     expect(path?.textContent).toContain('/Users/test/Documents/MilkSU')
-    expect(document.body.textContent).toContain('Coding、CTF 和 CVE 生成的文件')
+    expect(document.body.textContent).not.toContain('Coding、CTF 和 CVE 生成的文件')
     expect(document.body.textContent).toContain('打开产物目录')
     expect(document.body.textContent).toContain('打开数据目录')
 
@@ -1367,7 +1367,8 @@ describe('SettingsPage custom relay catalog isolation', () => {
 
     const dialog = await openTokenFluxEditor()
     expect(dialog?.textContent ?? '').not.toContain('222')
-    expect(dialog?.textContent ?? '').toContain('测试连接后显示可用模型')
+    expect(dialog?.textContent ?? '').toContain('可用模型')
+    expect(dialog?.textContent ?? '').not.toContain('测试连接后显示可用模型')
   })
 
   it('does not park a disabled custom relay model under TokenFlux', async () => {
@@ -1391,6 +1392,7 @@ describe('SettingsPage custom relay catalog isolation', () => {
 
     const dialog = await openTokenFluxEditor()
     expect(dialog?.textContent ?? '').not.toContain('33')
-    expect(dialog?.textContent ?? '').toContain('测试连接后显示可用模型')
+    expect(dialog?.textContent ?? '').toContain('可用模型')
+    expect(dialog?.textContent ?? '').not.toContain('测试连接后显示可用模型')
   })
 })

@@ -63,10 +63,10 @@ describe('CTFMemoryRecall', () => {
     await nextTick()
 
     const text = host.textContent ?? ''
-    expect(text).toContain('正确性证据和贡献归属分别标记')
+    expect(text).not.toContain('正确性证据和贡献归属分别标记')
     expect(text).toContain('Judge 验证')
     expect(text).toContain('Agent 代做 · 代理/未归属')
-    expect(text).toContain('可作为 Agent Memory，不增加用户独立完成计数。')
+    expect(text).not.toContain('可作为 Agent Memory，不增加用户独立完成计数。')
     expect(text).toContain('推荐依据：同为栈偏移枚举；旧题失败分支相似')
     expect(text).toContain('Judge 回执 receipt_1')
     expect(text).toContain('失败分支 branch_1')
@@ -116,7 +116,7 @@ describe('CTFMemoryRecall', () => {
 
     const text = host.textContent ?? ''
     expect(text).toContain('共同完成 · 搭档协作')
-    expect(text).toContain('可作为协作经验和 Memory，不等同于用户独立完成。')
+    expect(text).not.toContain('可作为协作经验和 Memory，不等同于用户独立完成。')
     expect(text).toContain('可核对证据：')
     expect(text).toContain('job:job_crypto_shared')
     expect(text).toContain('judge:receipt_crypto_1')
@@ -162,7 +162,7 @@ describe('CTFMemoryRecall', () => {
 
     const text = host.textContent ?? ''
     expect(text).toContain('用户完成 · 无协助')
-    expect(text).toContain('可作为用户独立完成能力证据。')
+    expect(text).not.toContain('可作为用户独立完成能力证据。')
     expect(text).toContain('Judge 回执 receipt_web_1')
     expect(text).not.toContain('不增加用户独立完成计数')
   })

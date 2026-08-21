@@ -142,10 +142,10 @@ describe('Coding runtime continuity state', () => {
   it('translates compaction failures without leaking a stack trace', () => {
     expect(codingCompactionErrorMessage(
       new Error('PI session not found: conversation-1'),
-    )).toContain('还没有可整理的 Pi 会话')
+    )).toBe('发送消息后再整理。')
     expect(codingCompactionErrorMessage(
       new Error('Nothing to compact (session too small)'),
-    )).toBe('会话还太短或刚整理过，Pi 现在无法再压缩。')
+    )).toBe('会话还太短或刚整理过。')
     expect(codingCompactionErrorMessage(
       new Error('Nothing to compact (session too small)'),
     )).not.toMatch(/85%|不拦手动/)

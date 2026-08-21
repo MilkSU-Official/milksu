@@ -653,23 +653,14 @@ const deskLoadingDetail = computed(() => {
   if (activeBank.value === 'ctfshow') {
     return '在 CTFshow 题库页打开 MilkSU 扩展以同步题目。'
   }
-  if (training.syncing.value) {
-    return '正在同步 NSSCTF 公开题库，首次可能需要几分钟。'
-  }
-  return '正在读取本地题库缓存。'
+  if (training.syncing.value) return '正在同步 NSSCTF 公开题库'
+  return ''
 })
 const deskEmptyTitle = computed(() => {
   if (deskQuery.value.trim() || deskCategory.value !== 'all') return '没有匹配题目'
-  if (activeBank.value === 'ctfshow') return '尚未同步 CTFshow 题库'
-  return '本地题库还是空的'
+  return ''
 })
-const deskEmptyDetail = computed(() => {
-  if (deskQuery.value.trim() || deskCategory.value !== 'all') return '换个题号、题名或分类试试。'
-  if (activeBank.value === 'ctfshow') {
-    return '打开已登录的 CTFshow 题库页，用 MilkSU 扩展同步。'
-  }
-  return '可点击“重新同步”拉取 NSSCTF 公开题库。'
-})
+const deskEmptyDetail = computed(() => '')
 
 const modeItems = [
   { value: 'coach' as const, label: '教练' },
@@ -1370,7 +1361,7 @@ async function requestEndpoint(request: CTFEndpointRequestInput) {
       request,
     })
     await backend.adoptProjection(projection)
-    outcomeNotice.value = 'Endpoint 只进入待确认列表；尚未给 Agent 或 Shell 增加任何网络权限。'
+    outcomeNotice.value = '已记录申请'
   } catch (reason) {
     outcomeNotice.value = `无法记录 Endpoint 申请：${String(reason)}`
   } finally {
@@ -1755,12 +1746,6 @@ onBeforeUnmount(() => {
             <span class="font-normal text-muted-foreground">仅保存在本机</span>
           </div>
           <div :class="menuSeparatorClass" />
-          <p
-            v-if="!backend.jobs.value.length"
-            class="px-3 py-5 text-center text-caption text-muted-foreground"
-          >
-            还没有做过题
-          </p>
           <button
             v-for="job in backend.jobs.value"
             :key="job.id"
@@ -2636,7 +2621,7 @@ onBeforeUnmount(() => {
                 <div v-else>
                   <p class="text-control font-medium">连接当前 NSSCTF 题目</p>
                   <p class="mt-1 text-caption leading-5 text-muted-foreground">
-                    在浏览器设置中安装并配对扩展，再到题目页点击 MilkSU；不必返回训练场。
+                    在浏览器设置中安装并配对扩展，再到题目页点击 MilkSU。
                   </p>
                   <div class="mt-3 flex flex-wrap gap-2">
                     <Button
@@ -2853,12 +2838,7 @@ onBeforeUnmount(() => {
                 v-if="!workspacePresentation?.hasReviewActivity"
                 class="max-w-3xl rounded-xl border border-border bg-card px-6 py-14 text-center"
               >
-                <Archive class="mx-auto size-6 text-muted-foreground" />
-                <h2 class="mt-4 text-label font-medium">还没有可复盘的记录</h2>
-                <p class="mx-auto mt-2 max-w-xl text-body leading-6 text-muted-foreground">
-                  开始解题后，实验、候选、Judge 回执、失败路线和你的实际贡献会在这里按证据汇总。
-                </p>
-                <Button class="mt-5" @click="workspaceMode = 'solve'">
+                <Button @click="workspaceMode = 'solve'">
                   返回解题
                 </Button>
               </section>
@@ -2984,8 +2964,6 @@ onBeforeUnmount(() => {
           <div v-else class="rounded-xl border border-border bg-card px-6 py-16 text-center">
             <LoaderCircle v-if="backend.loading.value" class="mx-auto size-5 animate-spin text-muted-foreground" />
             <template v-else>
-              <Bot class="mx-auto size-6 text-muted-foreground" />
-              <p class="mt-4 text-label font-medium">工作台还没有任务</p>
               <Button class="mt-5" @click="showProblems">选择一道题</Button>
             </template>
           </div>

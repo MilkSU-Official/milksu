@@ -60,7 +60,7 @@ describe('CTFDebrief contribution evidence', () => {
     mountedApps.push(app)
     await nextTick()
 
-    expect(host.textContent).toContain('Judge 只证明答案是否正确')
+    expect(host.textContent).not.toContain('Judge 只证明答案是否正确')
     expect(host.textContent).toContain('依赖提示')
     expect(host.textContent).toContain('用户在协助下 1 步')
 
@@ -145,7 +145,7 @@ describe('CTFDebrief contribution evidence', () => {
     expect(host.textContent).toContain('# MilkSU CTF 复盘接力棒')
     expect(host.textContent).toContain('Judge：Accepted')
     expect(host.textContent).toContain('贡献归属：用户与 Agent 共同完成；搭档协作')
-    expect(host.textContent).toContain('不能写成用户独立能力事实')
+    expect(host.textContent).not.toContain('不能写成用户独立能力事实')
 
     const copy = [...host.querySelectorAll<HTMLButtonElement>('button')]
       .find(button => button.textContent?.includes('复制复盘摘要'))
@@ -156,7 +156,7 @@ describe('CTFDebrief contribution evidence', () => {
     expect(writeText).toHaveBeenCalledOnce()
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('MilkSU CTF 复盘接力棒'))
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Judge：Accepted'))
-    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('不能写成用户独立能力事实'))
+    expect(writeText.mock.calls[0]?.[0]).not.toContain('不能写成用户独立能力事实')
     expect(host.textContent).toContain('已复制')
   })
 

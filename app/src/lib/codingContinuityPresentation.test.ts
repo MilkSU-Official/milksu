@@ -11,7 +11,7 @@ describe('Coding continuity presentation', () => {
     })
 
     expect(presentation.badges).toEqual(['待连接'])
-    expect(presentation.title).toContain('尚未连接 Pi 会话')
+    expect(presentation.title).toContain('发送消息后再整理')
     expect(presentation.compactDisabled).toBe(false)
     expect(presentation.compactTitle).toContain('发送消息后再整理')
     expect(presentation.compactLabel).toBe('整理上下文')
@@ -27,7 +27,7 @@ describe('Coding continuity presentation', () => {
     })
 
     expect(presentation.badges).toEqual(['待连接'])
-    expect(presentation.title).toContain('尚未连接 Pi 会话')
+    expect(presentation.title).toContain('发送消息后再整理')
     expect(presentation.compactDisabled).toBe(false)
   })
 
@@ -46,9 +46,9 @@ describe('Coding continuity presentation', () => {
     })
 
     expect(resumed.badges).toEqual(['从持久会话恢复'])
-    expect(resumed.title).toContain('持久化的 Pi 会话恢复')
+    expect(resumed.title).toContain('已从上次会话恢复')
     expect(fresh.badges).toEqual(['新会话'])
-    expect(fresh.title).toContain('本任务是新会话')
+    expect(fresh.title).toBe('新会话')
   })
 
   it('keeps compaction available during a turn and only disables it while compacting', () => {

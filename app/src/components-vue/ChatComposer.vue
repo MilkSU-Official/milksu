@@ -205,7 +205,7 @@ const availableSkillOptions = computed(() => {
     known.set(name, {
       name,
       label: name,
-      description: '当前会话已审核的 Pi Skill',
+      description: '',
       icon: markRaw(Plug),
     })
   }
@@ -213,7 +213,7 @@ const availableSkillOptions = computed(() => {
 })
 const selectedMcpDescription = computed(() => {
   const servers = props.selectedMcpServers ?? []
-  if (!servers.length) return '查看并选择项目中已审核的 MCP 服务'
+  if (!servers.length) return ''
   const names = servers.slice(0, 2).join('、')
   return `${servers.length} 个已接入${names ? `：${names}` : ''}`
 })
@@ -1450,7 +1450,6 @@ defineExpose({
                     <Paperclip class="size-4 shrink-0" />
                     <span class="min-w-0 flex-1">
                       <span class="block text-label font-medium">本机文件或图片</span>
-                      <span class="block text-caption text-muted-foreground">选择后以只读附件交给 Agent</span>
                     </span>
                   </DropdownMenuItem>
                   <DropdownMenuItem
@@ -1461,7 +1460,6 @@ defineExpose({
                     <FolderOpen class="size-4 shrink-0" />
                     <span class="min-w-0 flex-1">
                       <span class="block text-label font-medium">项目目录</span>
-                      <span class="block text-caption text-muted-foreground">选择当前任务的会话目录</span>
                     </span>
                   </DropdownMenuItem>
                   <DropdownMenuItem
@@ -1501,7 +1499,6 @@ defineExpose({
                     <Monitor class="size-4 shrink-0" />
                     <span class="min-w-0 flex-1">
                       <span class="block text-label font-medium">浏览器</span>
-                      <span class="block text-caption text-muted-foreground">打开 MilkSU 管理的隔离浏览器</span>
                     </span>
                   </DropdownMenuItem>
                   <DropdownMenuItem class="composer-add-option" @select="addInteractionScope('browser-use')">
@@ -1534,7 +1531,7 @@ defineExpose({
                     <component :is="skill.icon" class="size-4 shrink-0" />
                     <span class="min-w-0 flex-1">
                       <span class="block text-label font-medium">{{ skill.label }}</span>
-                      <span class="block text-caption text-muted-foreground">{{ skill.description }}</span>
+                      <span v-if="skill.description" class="block text-caption text-muted-foreground">{{ skill.description }}</span>
                     </span>
                     <Check v-if="skillToken === skill.name" class="size-4 shrink-0 text-primary" />
                   </DropdownMenuItem>
@@ -1550,7 +1547,7 @@ defineExpose({
                     <Plug class="size-4 shrink-0" />
                     <span class="min-w-0 flex-1">
                       <span class="block text-label font-medium">项目 MCP</span>
-                      <span class="block truncate text-caption text-muted-foreground">{{ selectedMcpDescription }}</span>
+                      <span v-if="selectedMcpDescription" class="block truncate text-caption text-muted-foreground">{{ selectedMcpDescription }}</span>
                     </span>
                     <Check v-if="selectedMcpServers?.length" class="size-4 shrink-0 text-primary" />
                   </DropdownMenuItem>
@@ -1689,7 +1686,6 @@ defineExpose({
                   <HoverCardContent side="top" align="start" class="w-96 p-0">
                     <div class="border-b border-border px-3 py-2.5">
                       <p class="text-label font-medium">{{ gitSummary?.changedFiles }} 个文件已更改</p>
-                      <p class="mt-0.5 text-caption text-muted-foreground">点击“代码”打开右侧变更面板</p>
                     </div>
                     <div class="max-h-64 overflow-y-auto px-2 py-2">
                       <button
@@ -1705,9 +1701,7 @@ defineExpose({
                         <span class="shrink-0 font-mono text-primary">+{{ change.additions ?? 0 }}</span>
                         <span class="shrink-0 font-mono text-destructive">-{{ change.deletions ?? 0 }}</span>
                       </button>
-                      <p v-if="!(gitSummary?.changes?.length)" class="px-2 py-2 text-caption text-muted-foreground">
-                        文件列表正在刷新；点击后可查看完整变更。
-                      </p>
+
                       <p v-if="gitSummary?.changesTruncated" class="px-2 py-1 text-caption text-muted-foreground">
                         仅显示前 {{ gitSummary?.changes?.length ?? 0 }} 项。
                       </p>

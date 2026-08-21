@@ -129,16 +129,16 @@ describe('CTFChallengeDesk primary action', () => {
       judgeReady: false,
       hasActiveTraining: false,
       collectionStore: createItemCollectionStore('test.ctf.empty.collections'),
-      emptyTitle: '尚未同步 CTFshow 题库',
-      emptyDetail: '请在 CTFshow 题库页面点击 MilkSU 浏览器扩展并选择“同步到 MilkSU”。',
+      emptyTitle: '',
+      emptyDetail: '',
     })
 
     app.mount(host)
     mountedApps.push(app)
     await nextTick()
 
-    expect(host.textContent).toContain('尚未同步 CTFshow 题库')
-    expect(host.textContent).toContain('同步到 MilkSU')
+    expect(host.textContent).not.toContain('尚未同步 CTFshow 题库')
+    expect(host.textContent).not.toContain('同步到 MilkSU')
     expect(host.textContent).toContain('打开 CTFshow')
 
   })

@@ -136,10 +136,10 @@ export function codingCompactionErrorMessage(value: unknown) {
     .replace(/^(?:Error:\s*)+/i, '')
     .trim()
   if (/session not found/i.test(message)) {
-    return '当前任务还没有可整理的 Pi 会话；先发送一条消息创建会话后再整理。'
+    return '发送消息后再整理。'
   }
   if (/Nothing to compact|already compacted|session too small/i.test(message)) {
-    return '会话还太短或刚整理过，Pi 现在无法再压缩。'
+    return '会话还太短或刚整理过。'
   }
   if (/compaction timed out/i.test(message)) {
     return '上下文压缩超时，已取消。'

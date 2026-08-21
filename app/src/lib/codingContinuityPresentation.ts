@@ -30,12 +30,12 @@ export function codingContinuityPresentation(
   }
 
   const title = input.compacting
-    ? '正在把当前会话上下文压缩为结构化摘要；完成后继续对话即可'
+    ? '正在整理上下文'
     : !input.sessionReady
-        ? '当前任务尚未连接 Pi 会话；发送消息后才能整理上下文'
+        ? '发送消息后再整理上下文'
         : input.resumed
-          ? '本任务从持久化的 Pi 会话恢复，历史与已整理摘要仍在会话文件中'
-          : '本任务是新会话；长任务可手动整理上下文以控制成本'
+          ? '已从上次会话恢复'
+          : '新会话'
 
   const compactTitle = input.compacting
     ? '正在整理上下文'

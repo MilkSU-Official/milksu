@@ -139,7 +139,7 @@ function renderEmptyTerminal() {
   terminal.options.disableStdin = true
   terminal.reset()
   terminal.clear()
-  terminal.write('\r\n\x1b[90m暂无 Shell，点击 + 新建。\x1b[0m\r\n')
+
 }
 
 function selectTerminal(identifier: string) {

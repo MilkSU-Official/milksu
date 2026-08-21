@@ -10,7 +10,7 @@ import {
   SegmentedControl,
   Textarea,
 } from '@felinic/ui'
-import { FilePlus2, Paperclip, ShieldCheck, X } from 'lucide-vue-next'
+import { FilePlus2, Paperclip, X } from 'lucide-vue-next'
 import { invokeCommand } from '@/desktop'
 import type {
   CTFChallengeRequest,
@@ -158,13 +158,6 @@ defineExpose({ open, resetAndClose })
       </header>
 
       <div class="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5">
-        <Alert>
-          <ShieldCheck class="size-4" />
-          <AlertDescription>
-            题面、连接信息和所选文件只用于这道题的本地 Agent 工作区。
-          </AlertDescription>
-        </Alert>
-
         <label class="block">
           <span class="mb-2 block text-label font-medium">题目名称</span>
           <Input

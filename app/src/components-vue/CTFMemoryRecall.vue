@@ -36,19 +36,6 @@ function assistanceLabel(memory: CTFTrainingMemory) {
   return '代理/未归属'
 }
 
-function abilityAttributionNotice(memory: CTFTrainingMemory) {
-  if (memory.actor === 'user' && memory.assistance === 'none') {
-    return '可作为用户独立完成能力证据。'
-  }
-  if (memory.actor === 'user' && memory.assistance === 'hint') {
-    return '可作为提示依赖能力证据，不计为独立完成。'
-  }
-  if (memory.actor === 'shared' || memory.assistance === 'copilot') {
-    return '可作为协作经验和 Memory，不等同于用户独立完成。'
-  }
-  return '可作为 Agent Memory，不增加用户独立完成计数。'
-}
-
 function fallbackEvidence(ref: string) {
   const separator = ref.indexOf(':')
   const kind = separator > 0 ? ref.slice(0, separator) : 'evidence'
@@ -104,11 +91,7 @@ function redactedEvidence(evidence: CTFTrainingMemoryEvidenceLink) {
     </summary>
 
     <div class="border-t border-border px-5 py-4">
-      <p class="text-caption leading-5 text-muted-foreground">
-        这些内容来自你明确保存的旧题复盘。正确性证据和贡献归属分别标记；
-        Agent 必须用当前材料重新验证，原始证据优先。
-      </p>
-      <div v-if="memories.length" class="mt-3 space-y-3">
+      <div v-if="memories.length" class="space-y-3">
         <article
           v-for="memory in memories"
           :key="memory.id"
@@ -126,7 +109,7 @@ function redactedEvidence(evidence: CTFTrainingMemoryEvidenceLink) {
             <Button
               variant="ghost"
               size="icon-sm"
-              title="停用这条综合记忆；不删除原始证据"
+              title="停用"
               :aria-label="`停用记忆：${redactMemoryText(memory.title)}`"
               @click="emit('archive', memory)"
             >
@@ -145,9 +128,6 @@ function redactedEvidence(evidence: CTFTrainingMemoryEvidenceLink) {
               {{ redactMemoryText(tag) }}
             </Badge>
           </div>
-          <p class="mt-2 text-caption leading-5 text-muted-foreground">
-            {{ abilityAttributionNotice(memory) }}
-          </p>
           <div
             v-if="memory.recall?.reasons?.length || evidenceLinks(memory).length"
             class="mt-3 rounded-md border border-border bg-background/60 p-2 text-caption leading-5 text-muted-foreground"

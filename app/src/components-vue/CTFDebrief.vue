@@ -44,15 +44,6 @@ const copyNotice = ref('')
 const canSaveMemory = computed(
   () => props.debrief.status !== 'in_progress' && props.debrief.reflectionCount > 0,
 )
-const memoryHint = computed(() => {
-  if (props.debrief.status === 'in_progress') {
-    return '题目结束后，再把 Judge 结果和解题复盘沉淀为记忆。'
-  }
-  if (props.debrief.reflectionCount === 0) {
-    return '先用你自己的话完成复盘，再保存为本机解题记忆。'
-  }
-  return '保存后，同分类题会把这条经验作为待验证先验交给 Agent。'
-})
 const handoffSummary = computed(() => [
   '# MilkSU CTF 复盘接力棒',
   `- 状态：${statusLabel(props.debrief.status)}`,
@@ -63,7 +54,6 @@ const handoffSummary = computed(() => [
   `- Agent/导入记录：Agent ${props.humanOutcome.contribution.agentRecords}；导入 ${props.humanOutcome.contribution.importedRecords}`,
   `- 提示依赖：${props.debrief.hintCount}；复盘 ${props.debrief.reflectionCount}`,
   `- 推荐下一步：${props.debrief.recommendedNextAction}`,
-  '- 边界：Judge 只证明答案是否正确；Agent 总结、代理完成和导入记录不能写成用户独立能力事实。',
 ].join('\n'))
 
 function submit() {
@@ -159,9 +149,7 @@ function verdictLabel(verdict: string) {
           <BookOpenCheck class="size-4" />
           证据复盘
         </h2>
-        <p class="mt-1 max-w-xl text-caption leading-5 text-muted-foreground">
-          只从 Runtime 的观察、失败、Judge 和学习记录生成，不让 Agent 自己给自己打分。
-        </p>
+
       </div>
       <Badge :variant="debrief.status === 'failed' ? 'destructive' : 'outline'">
         {{ statusLabel(debrief.status) }}
@@ -196,9 +184,7 @@ function verdictLabel(verdict: string) {
             <Handshake class="size-3.5" />
             贡献归属
           </p>
-          <p class="mt-1 text-caption leading-5 text-muted-foreground">
-            Judge 只证明答案是否正确；这里单独记录谁完成了关键步骤。
-          </p>
+
         </div>
         <div class="flex flex-wrap gap-2">
           <Badge variant="outline">
@@ -233,9 +219,7 @@ function verdictLabel(verdict: string) {
             <MarkdownContent class="min-w-0 flex-1" :content="item" compact />
           </li>
         </ul>
-        <p v-else class="mt-3 text-caption leading-5 text-muted-foreground">
-          还没有完整观察；下一次实验应明确记录“看到了什么”。
-        </p>
+
       </div>
 
       <div>
@@ -253,9 +237,7 @@ function verdictLabel(verdict: string) {
             <MarkdownContent class="min-w-0 flex-1" :content="item" compact />
           </li>
         </ul>
-        <p v-else class="mt-3 text-caption leading-5 text-muted-foreground">
-          暂无已确认的失败分支。
-        </p>
+
       </div>
     </div>
 
@@ -299,9 +281,6 @@ function verdictLabel(verdict: string) {
         :content="debrief.recommendedNextAction"
         compact
       />
-      <p class="mt-2 text-caption leading-5 text-muted-foreground">
-        {{ memoryHint }}
-      </p>
       <Button
         type="button"
         variant="outline"
@@ -322,8 +301,8 @@ function verdictLabel(verdict: string) {
       </summary>
       <pre class="mt-2 max-h-52 overflow-auto whitespace-pre-wrap break-words rounded-md bg-background px-3 py-2 font-mono text-caption leading-5">{{ handoffSummary }}</pre>
       <div class="mt-2 flex items-center justify-between gap-2">
-        <span class="text-caption text-muted-foreground">
-          {{ copyNotice || '复制后可交给下一位 Agent；不等价于用户独立能力事实。' }}
+        <span v-if="copyNotice" class="text-caption text-muted-foreground">
+          {{ copyNotice }}
         </span>
         <Button type="button" variant="outline" size="sm" @click="copyHandoffSummary">
           <Copy class="size-3.5" />
@@ -336,9 +315,6 @@ function verdictLabel(verdict: string) {
       <p class="flex items-center gap-2 text-control font-medium">
         <UserRoundCheck class="size-3.5" />
         记录我实际完成的步骤
-      </p>
-      <p class="mt-1 text-caption leading-5 text-muted-foreground">
-        只写你亲自执行或推导的具体步骤。Agent 的总结、猜测或代做结果不能登记为你的独立能力。
       </p>
       <Textarea
         v-model="independentStep"
@@ -369,9 +345,6 @@ function verdictLabel(verdict: string) {
       <p class="flex items-center gap-2 text-control font-medium">
         <Lightbulb class="size-3.5" />
         用你自己的话完成复盘
-      </p>
-      <p class="mt-1 text-caption leading-5 text-muted-foreground">
-        写下关键转折、失败原因和下次会先做什么；保存后可沉淀为本机解题记忆。
       </p>
       <Textarea
         v-model="reflection"

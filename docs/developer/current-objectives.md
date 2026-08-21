@@ -109,10 +109,11 @@
 - 设置页切换分类会清掉上一分类的提示（#24，PR #25，`fdfc762`）。
 - 产品边界收口：文档不再把 CVE 纵深、本地复现/PoC、Labs、CTF/CVE 工作台和安全工具进 CTF/CVE 写成现行禁令。CTF 解题/教练/策略复盘接上 Shell、浏览器、MCP、安全工具和 `milksu_workspace`。题目工作区默认不自动套 Coding worktree；用户选定的 Git 项目或已有协作不拦截。未授权目标仍要申请。
 - `⌘Q` / 退出不再 `preventDefault` 拦截 Electron 退出路径，也不再为 Go/浏览器 teardown 等待约 3 秒；只给 Go 发一条 shutdown，由 stdin EOF 标记 clean exit。
-- 上下文压缩成功后用量环改用 Pi 给出的压缩后估计 token，不再停在上一轮 prompt 占用。压缩进行中在 Composer 上方显示「正在整理上下文」，用量环改为「整理中」；压缩失败回执不再只留在内部状态。Escape 在运行中或整理中会中断，对齐 Pi TUI 的 `app.interrupt`，不另建工具循环检测器（#14 / #16，未打包验收）。手动 `/compact` 与 `compact_context` 不受 85% 自动门槛限制；85% 只用于空闲自动整理。忙碌回合交给 Pi 先中断再压缩，不再静默吞掉点击。会话太短时 Pi 仍会拒绝，前端只显示「会话还太短或刚整理过，Pi 现在无法再压缩。」并在数秒后消失，不把 85% 门槛解释给用户。
+- 上下文压缩成功后用量环改用 Pi 给出的压缩后估计 token，不再停在上一轮 prompt 占用。压缩进行中在 Composer 上方显示「正在整理上下文」，用量环改为「整理中」；压缩失败回执不再只留在内部状态。Escape 在运行中或整理中会中断，对齐 Pi TUI 的 `app.interrupt`，不另建工具循环检测器（#14 / #16，未打包验收）。手动 `/compact` 与 `compact_context` 不受 85% 自动门槛限制；85% 只用于空闲自动整理。忙碌回合交给 Pi 先中断再压缩，不再静默吞掉点击。会话太短时 Pi 仍会拒绝，前端只显示「会话还太短或刚整理过。」并在数秒后消失，不把 85% 门槛解释给用户。
 - Provider 的 `Connection error` 按可重试网络失败处理：同一 Pi 回合内不提前 `finishRun`，终态文案走「模型或 Agent 网络连接失败」，不再把英文原文留在聊天里。未打包验收。
 - `/compact` 等斜杠命令在 pointerdown 时就选定，中文输入法组字中的 Enter 也会确认菜单，避免点击后 `/compact` 被 IME 吃掉却不触发压缩。未打包验收。
 - 发送后运行中始终保留停止按钮；引导输入不再把停止换成发送。Sidecar 在 Pi 会话尚未创建时也记住 abort，避免刚发送就点停止被丢掉。未打包验收。
+- 产品 UI 去掉空状态「还没有 / 打开以后会出现」教练旁白、缺值控件的实现说明，以及 CTF 复盘/授权、设置页、安全工具、CVE 情报里的 harness 备注（SQLite / RPC / PI / 「这不是 X」）。未打包验收。
 - 本机默认走 Personal Vault 签名；`release:github` 必须创建/刷新 GitHub Release 页。这是发版管道，不是下一版本号。
 
 ## 当前产品事实

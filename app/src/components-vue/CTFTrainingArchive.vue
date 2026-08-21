@@ -145,9 +145,7 @@ function assistanceLabel(assistance: string) {
           <FileClock class="size-4" />
           训练档案
         </h2>
-        <p class="mt-1 max-w-xl text-caption leading-5 text-muted-foreground">
-          回看 PI 的真实工具轨迹，或生成默认隐去候选内容的面试复盘材料。
-        </p>
+
       </div>
       <div class="flex flex-wrap gap-2">
         <Button
@@ -166,10 +164,6 @@ function assistanceLabel(assistance: string) {
         </Button>
       </div>
     </div>
-
-    <p v-if="!replayAvailable" class="mt-4 text-caption leading-5 text-muted-foreground">
-      启动一次 PI 解题回合后即可查看逐事件回放；训练报告现在就可以生成。
-    </p>
 
     <Alert v-if="error" variant="destructive" class="mt-4">
       <ShieldCheck class="size-4" />
@@ -280,7 +274,7 @@ function assistanceLabel(assistance: string) {
           />
         </article>
       </div>
-      <p v-else class="mt-4 text-caption text-muted-foreground">工作区已建立，但还没有 PI 事件。</p>
+
 
       <Button
         v-if="replay.events.length > 6"

@@ -92,7 +92,7 @@ describe('SecurityToolsSettingsPanel', () => {
   it('renders real catalog status and explains model automatic selection', async () => {
     mountPanel()
     await settle()
-    expect(document.body.textContent).toContain('不需要在每个任务里手动选择')
+    expect(document.body.textContent).not.toContain('不需要在每个任务里手动选择')
     expect(document.querySelector('[data-testid="security-tool-detail"]')?.textContent).toContain('idalib MCP')
 
     ;(document.querySelector('[data-testid="security-tool-capa"]') as HTMLButtonElement).click()

@@ -1198,7 +1198,6 @@ async function saveProviderEditor(closeAfterSave: boolean) {
             <SettingsRow
               stack="always"
               label="调试模式"
-              description="开启后在本机记录应用操作日志与状态（RPC 命令、页面切换、CTF 详情），用于排查偶发问题。日志不出设备，不含 API 密钥等信息。"
             >
               <Switch
                 :model-value="debugModeOn"
@@ -1215,7 +1214,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
               label="GitHub 账户"
               :description="account.state === 'active'
                 ? `@${account.user?.githubLogin || 'GitHub'} · 内测用户`
-                : '登录后可使用管理员分配的模型；不登录也能继续使用自己的 API Key'"
+                : ''"
             >
               <div class="flex items-center gap-3">
                 <Badge :variant="account.state === 'active' ? 'secondary' : 'outline'">{{ accountStateLabel }}</Badge>
@@ -1231,7 +1230,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
 
           <SettingsSection title="应用" class="mt-6">
             <div class="settings-focus-row px-3">
-              <SettingsRow label="界面语言" description="默认简体中文">
+              <SettingsRow label="界面语言">
                 <NativeSelect v-model="working.locale" size="sm" aria-label="界面语言">
                   <NativeSelectOption value="zh">简体中文</NativeSelectOption>
                   <NativeSelectOption value="en">English</NativeSelectOption>
@@ -1243,7 +1242,6 @@ async function saveProviderEditor(closeAfterSave: boolean) {
             <SettingsRow
               stack="always"
               label="工作产物"
-              description="Coding、CTF 和 CVE 生成的文件"
             >
               <p
                 v-if="userArtifacts?.directory"
@@ -1267,7 +1265,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                 ? '正在统计本地数据'
                 : localData
                   ? `${localData.fileCount} 个文件 · ${formatBytes(localData.bytes)}`
-                  : '会话、训练记录与附件保存在当前用户目录'"
+                  : ''"
             >
               <p
                 v-if="localData?.directory"
@@ -1356,7 +1354,6 @@ async function saveProviderEditor(closeAfterSave: boolean) {
             <SettingsRow
               stack="always"
               label="可复制构建追踪"
-              description="channel、branch、commit 与 tracking ID"
             >
               <div
                 v-if="buildTracking"
@@ -1448,7 +1445,6 @@ async function saveProviderEditor(closeAfterSave: boolean) {
             <SettingsRow
               stack="always"
               label="Playwright MCP 官方扩展"
-              description="连接 Chrome/Edge 中你选择的标签页"
             >
               <div class="flex flex-wrap gap-2">
                 <Button
@@ -1468,7 +1464,6 @@ async function saveProviderEditor(closeAfterSave: boolean) {
             <SettingsRow
               stack="always"
               label="MilkSU 本地扩展连接"
-              description="NSSCTF / CTFshow 题面、附件与 Judge"
             >
               <div class="flex flex-wrap items-center gap-2">
                 <Badge :variant="browserBridgeConnected ? 'secondary' : 'outline'">
@@ -1635,11 +1630,9 @@ async function saveProviderEditor(closeAfterSave: boolean) {
             <div class="settings-focus-row">
               <SettingsRow
                 label="默认模型"
-                :description="availableModelCount === 0
-                  ? '没有可用模型；请先连接账户或配置个人 API Key。'
-                  : !defaultModelAvailable
-                    ? '当前默认模型不可用，请选择一个已配置来源的模型。'
-                    : '设置页与 Coding 共用同一可调用目录。'"
+                :description="!defaultModelAvailable && availableModelCount > 0
+                  ? '当前默认模型不可用'
+                  : ''"
               >
               <Select
                 id="default-model"
@@ -1794,7 +1787,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
 
           <div class="mt-6 flex justify-end">
             <Button :loading="saving || verifying" @click="save">
-              {{ verifying ? '正在验证 PI' : '保存并验证' }}
+              {{ verifying ? '正在验证' : '保存并验证' }}
             </Button>
           </div>
 
@@ -1846,9 +1839,6 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                       />
                       <Button variant="outline" @click="addCustomRelayModel">添加</Button>
                     </div>
-                    <p class="mt-1 text-caption text-muted-foreground">
-                      填写完整模型 ID，或可匹配的关键词前缀。
-                    </p>
                     <div v-if="editingProvider.models?.length" class="mt-2 flex flex-wrap gap-2">
                       <span
                         v-for="model in editingProvider.models"
@@ -1904,7 +1894,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                               editingProviderInfo.id,
                               editingProviderModel || editingProviderModels[0] || '',
                             )
-                            : '测试连接后显示可用模型' }}
+                            : '' }}
                         </SelectValue>
                       </SelectTrigger>
                       <SelectContent size="sm" align="start" class="min-w-96">
@@ -1920,12 +1910,6 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                         </SelectGroup>
                       </SelectContent>
                     </Select>
-                    <p
-                      v-if="!editingProviderModels.length"
-                      class="mt-1 text-caption text-muted-foreground"
-                    >
-                      填写 API Key 后点「测试连接」，可用模型会与默认模型列表同步刷新。
-                    </p>
                   </div>
                 </label>
 
@@ -1945,7 +1929,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
             <SettingsRow
               stack="always"
               label="Arena Token"
-              :description="working.nssctf_arena?.session_only ? '本地数据库写入失败；当前仅在本次运行可用' : working.nssctf_arena?.has_token ? '已保存在本机 SQLite 凭据库' : '保存在本机 SQLite 凭据库，用于真实限时题获取与 Flag 提交'"
+              :description="working.nssctf_arena?.session_only ? '本地数据库写入失败；当前仅在本次运行可用' : ''"
             >
               <Input
                 :model-value="working.nssctf_arena?.token ?? ''"

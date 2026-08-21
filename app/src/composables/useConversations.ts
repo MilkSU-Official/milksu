@@ -468,7 +468,7 @@ export function agentRuntimeErrorMessage(value: unknown) {
     return '不能授权整个磁盘或用户主目录。'
   }
   if (/must have a primary workspace|还没有工作区/i.test(raw)) {
-    return '当前会话还没有工作区。'
+    return '当前会话没有工作区。'
   }
   if (/CTF Agent directory scope/i.test(raw)) {
     return 'CTF 会话不能扩大 Coding 目录权限。'

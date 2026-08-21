@@ -66,7 +66,7 @@ describe('CTFEndpointAuthorization', () => {
     expect(host.textContent).toContain('challenge.example.test:2222')
     expect(host.textContent).toContain('Agent 从题目附件中发现')
     expect(host.textContent).toContain('只读检查 SSH 服务标识')
-    expect(host.textContent).toContain('通用 Shell 始终禁网')
+    expect(host.textContent).not.toContain('通用 Shell 始终禁网')
     expect(host.textContent).toContain('https://approved.example.test')
 
     const approve = [...host.querySelectorAll<HTMLButtonElement>('button')].find(

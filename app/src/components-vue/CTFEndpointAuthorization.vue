@@ -116,15 +116,7 @@ function submitRequest() {
                 : 'Endpoint 授权'
           }}
         </h2>
-        <p class="mt-1 text-caption leading-5 text-muted-foreground">
-          {{
-            pendingOnly
-              ? '这个地址仍只是一项申请。你批准后只生成一个协议、一个目标的 Scope；通用 Shell 仍然禁网。'
-              : reviewOnly
-                ? '这里只复核本题的准入 Scope 和已处理申请；新的地址必须回到解题流程逐条确认。'
-                : '新地址只会进入待确认列表。批准一项只生成一个协议、一个目标的 Scope；通用 Shell 始终禁网。'
-          }}
-        </p>
+
       </div>
       <Badge v-if="!reviewOnly && pending.length" variant="outline">{{ pending.length }} 待确认</Badge>
     </div>

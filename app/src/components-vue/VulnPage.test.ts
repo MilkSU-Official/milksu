@@ -80,7 +80,7 @@ describe('VulnPage thin workspace', () => {
   it('starts empty instead of presenting the public catalog as the user list', async () => {
     const { host } = await mountPage()
 
-    expect(host.textContent).toContain('还没有添加 CVE')
+    expect(host.textContent).not.toContain('还没有添加 CVE')
     expect(host.textContent).not.toContain('CVE-2024-3400')
   })
 

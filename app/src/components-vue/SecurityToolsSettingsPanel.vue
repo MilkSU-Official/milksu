@@ -170,10 +170,7 @@ onBeforeUnmount(() => unlistenSetup?.())
   <section class="security-tools-panel" aria-label="本机安全工具">
     <div class="mb-6 flex items-start justify-between gap-5">
       <div>
-        <p class="text-control text-muted-foreground">连接、准备并检查本机安全能力</p>
-        <p class="mt-1.5 max-w-3xl text-caption leading-5 text-muted-foreground">
-          准备完成后会自动加入 Coding 的可用能力目录；不需要在每个任务里手动选择，模型会按任务决定是否调用。
-        </p>
+        <p class="text-control text-muted-foreground">本机安全工具</p>
       </div>
       <Button variant="ghost" size="sm" :loading="loading" @click="loadTools">
         <RefreshCw class="size-3.5" />重新检测
@@ -243,9 +240,7 @@ onBeforeUnmount(() => unlistenSetup?.())
             </li>
           </ol>
 
-          <div class="mt-3 border border-border bg-muted/25 px-4 py-3 text-caption leading-5 text-muted-foreground">
-            完成后，该能力会自动加入新 Coding 会话的工具目录，模型在遇到对应任务时按需启动。
-          </div>
+
         </div>
       </article>
 
@@ -274,7 +269,7 @@ onBeforeUnmount(() => unlistenSetup?.())
         </dl>
 
         <section class="py-5" aria-labelledby="security-tool-capabilities">
-          <h3 id="security-tool-capabilities" class="text-base font-semibold">提供给模型的能力</h3>
+          <h3 id="security-tool-capabilities" class="text-base font-semibold">能力</h3>
           <div class="mt-4 grid gap-3.5">
             <div v-for="capability in selectedTool.capabilities" :key="capability" class="flex items-center gap-3 text-control">
               <span class="grid size-5 place-items-center border border-border text-primary">
@@ -320,8 +315,7 @@ onBeforeUnmount(() => unlistenSetup?.())
         </div>
 
         <section v-if="schemaOpen" class="mt-5 border-l-2 border-info px-4 py-3" aria-label="工具 Schema 摘要">
-          <p class="tactical-label text-info">Lazy tool schema</p>
-          <code class="mt-2 block whitespace-pre-wrap text-caption leading-6 text-muted-foreground">{{ selectedTool.schema.join('\n') }}</code>
+          <code class="block whitespace-pre-wrap text-caption leading-6 text-muted-foreground">{{ selectedTool.schema.join('\n') }}</code>
         </section>
       </article>
     </div>

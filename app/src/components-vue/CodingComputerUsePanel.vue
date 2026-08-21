@@ -177,7 +177,7 @@ const approvalLabel = computed(() => (
 
 const approvalGuidance = computed(() => {
   if (props.executionMode !== 'go' || props.approvalPolicy === 'read-only') {
-    return `${approvalLabel.value}：需 Go 且非只读才会操作可见 App。`
+    return `${approvalLabel.value}：当前模式不能操作外部 App。`
   }
   if (props.approvalPolicy === 'ask') {
     return `${approvalLabel.value}：操作前会确认。`
@@ -228,12 +228,12 @@ const compactGuidance = computed(() => {
     return '当前任务锁定了其他类型的可见 Scope，请先停止后再切换。'
   }
   if (!effectiveTarget.value) {
-    return '打开目标 App 后重新检测并选择窗口。'
+    return props.targets.length ? '' : '没有可选窗口'
   }
   if (readyForCurrentTask.value) {
-    return `已锁定 ${effectiveTarget.value.name}；Agent 只能操作这个 App / PID / Window。`
+    return `已锁定 ${effectiveTarget.value.name}`
   }
-  return '启动后，此窗口会成为当前任务唯一的 Computer Use Scope。'
+  return ''
 })
 
 const primarySetupAction = computed<{
@@ -372,8 +372,8 @@ function runPrimarySetupAction() {
           :class="readyForCurrentTask ? 'bg-primary' : 'bg-muted-foreground/60'"
         />
         <div class="min-w-0 flex-1">
-          <p class="truncate text-body font-medium">
-            {{ effectiveTarget?.name || '尚未选择窗口' }}
+          <p v-if="effectiveTarget?.name" class="truncate text-body font-medium">
+            {{ effectiveTarget.name }}
           </p>
           <p
             v-if="effectiveTarget?.windowTitle"
@@ -392,6 +392,7 @@ function runPrimarySetupAction() {
       </div>
 
       <p
+        v-if="compactGuidance"
         class="mt-3 text-caption leading-5"
         :class="status?.problem ? 'text-destructive' : 'text-muted-foreground'"
       >
@@ -499,9 +500,7 @@ function runPrimarySetupAction() {
                 <template v-else-if="operationScopeMismatch">
                   最近操作来自其他窗口。
                 </template>
-                <template v-else>
-                  暂无操作记录。
-                </template>
+                <template v-else />
               </p>
             </div>
             <Badge :variant="matchingOperationEvidence ? 'secondary' : 'outline'" class="shrink-0">

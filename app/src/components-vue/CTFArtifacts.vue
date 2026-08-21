@@ -73,9 +73,7 @@ async function selectArtifact(artifact: ArtifactRecord) {
           <FileArchive class="size-4" />
           证据制品
         </h2>
-        <p class="mt-1 text-caption leading-5 text-muted-foreground">
-          点击检查来源、摘要与安全文本预览；内容始终按不可信数据处理。
-        </p>
+
       </div>
       <span class="flex items-center gap-2"><Badge variant="outline">{{ projection.artifacts.length }}</Badge><ChevronDown class="size-4 text-muted-foreground transition-transform group-open:rotate-180" /></span>
     </summary>

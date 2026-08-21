@@ -118,8 +118,8 @@ describe('CodingArtifactPreviewPanel', () => {
     expect(text).toContain('预览第一个候选产物')
     expect(text).toContain('3 个可预览候选')
     expect(text).toContain('预览候选')
-    expect(text).toContain('HTML 会移除活动内容')
-    expect(text).toContain('无脚本、无网络')
+    expect(text).not.toContain('HTML 会移除活动内容')
+    expect(text).not.toContain('无脚本、无网络')
 
     const htmlSuggestion = [...host.querySelectorAll<HTMLButtonElement>('button')]
       .find(button => button.textContent?.includes('site/index.html'))
@@ -137,8 +137,7 @@ describe('CodingArtifactPreviewPanel', () => {
     expect(host.textContent).toContain('site/index.html')
     expect(host.textContent).toContain('HTML')
     expect(host.textContent).toContain('2.0 KiB')
-    expect(host.textContent).toContain('把当前预览作为用户可见证据')
-    expect(host.textContent).toContain('如需真实交互，再补 Browser 或 Computer Use 证据')
+    expect(host.textContent).toContain('site/index.html')
     const iframe = host.querySelector<HTMLIFrameElement>(
       'iframe[title="Coding HTML 产物预览"]',
     )
@@ -221,7 +220,7 @@ describe('CodingArtifactPreviewPanel', () => {
     expect(invokeCommand).toHaveBeenCalledTimes(1)
     expect(host.textContent).toContain('请输入工作区内支持的 Markdown、HTML、PNG、JPEG、GIF 或 WebP 相对路径')
     expect(host.querySelector('iframe[title="Coding HTML 产物预览"]')).toBeNull()
-    expect(host.textContent).toContain('预览 Agent 交付的普通产物')
+    expect(host.textContent).not.toContain('预览 Agent 交付的普通产物')
 
     input.value = 'notes.txt'
     input.dispatchEvent(new Event('input', { bubbles: true }))

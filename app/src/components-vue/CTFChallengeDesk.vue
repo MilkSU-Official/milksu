@@ -76,9 +76,9 @@ const props = withDefaults(defineProps<{
   catalogError: '',
   attachmentError: '',
   loadingTitle: '正在加载题库',
-  loadingDetail: 'MilkSU 正在读取本地题库状态。',
+  loadingDetail: '',
   emptyTitle: '没有匹配题目',
-  emptyDetail: '换个题号、题名或分类试试。',
+  emptyDetail: '',
   manualStatuses: () => ({}),
   conversations: () => [],
   relatedJobId: '',
@@ -331,7 +331,7 @@ function openCoding() {
         <div class="max-w-lg">
           <LoaderCircle class="mx-auto size-5 animate-spin text-primary" />
           <p class="mt-4 text-control font-medium">{{ loadingTitle }}</p>
-          <p class="mt-2 text-caption leading-5 text-muted-foreground">{{ loadingDetail }}</p>
+          <p v-if="loadingDetail" class="mt-2 text-caption leading-5 text-muted-foreground">{{ loadingDetail }}</p>
           <Button
             v-if="activeBank === 'ctfshow'"
             variant="outline"
@@ -353,8 +353,8 @@ function openCoding() {
       </div>
       <div v-else-if="!(activeBank === 'nssctf' ? displayedNssctfProblems.length : ctfshowProblems.length)" class="grid min-h-64 place-items-center px-8 text-center">
         <div>
-          <p class="text-control font-medium">{{ catalogError ? '题库暂时不可用' : emptyTitle }}</p>
-          <p class="mt-2 max-w-lg text-caption leading-5 text-muted-foreground">{{ catalogError || emptyDetail }}</p>
+          <p v-if="catalogError || emptyTitle" class="text-control font-medium">{{ catalogError ? '题库暂时不可用' : emptyTitle }}</p>
+          <p v-if="catalogError || emptyDetail" class="mt-2 max-w-lg text-caption leading-5 text-muted-foreground">{{ catalogError || emptyDetail }}</p>
           <Button v-if="activeBank === 'nssctf'" variant="outline" size="sm" class="mt-4" @click="emit('syncNssctf')"><RefreshCw class="size-4" />重新同步</Button>
           <Button v-else variant="outline" size="sm" class="mt-4" @click="emit('openCtfshow')"><ExternalLink class="size-4" />打开 CTFshow</Button>
         </div>

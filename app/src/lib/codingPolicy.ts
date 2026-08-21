@@ -37,18 +37,18 @@ export function previewCodingCapabilities(
       id: 'workspace-read',
       label: '文件读取',
       status: 'allowed',
-      detail: 'Pi 文件与终端工具使用当前系统用户可读的路径。',
+      detail: '读取当前用户可读的文件。',
     },
     {
       id: 'workspace-write',
       label: '文件写入',
       status: mutating ? 'allowed' : ask ? 'approval-required' : 'blocked',
       detail: fullAuto
-        ? 'Pi 文件与终端工具使用当前系统用户权限。'
+        ? '使用当前系统用户权限。'
         : workspaceAuto
-          ? 'Pi 文件与终端工具直接执行；大范围递归删除仍需单独确认。'
+          ? '大范围递归删除仍需单独确认。'
         : ask
-          ? '每次 edit / write 前暂停并展示参数；只有本次明确批准后执行。'
+          ? '每次改文件前会询问。'
           : '当前模式禁止修改文件。',
     },
     {
@@ -56,12 +56,12 @@ export function previewCodingCapabilities(
       label: '命令执行',
       status: mutating ? 'allowed' : ask ? 'approval-required' : 'blocked',
       detail: fullAuto
-        ? '命令自动执行，不受项目沙箱限制；模型 Provider Key 不传给子进程。'
+        ? '命令自动执行。'
         : workspaceAuto
-          ? '使用 Pi 原生命令工具运行开发命令和后台工具，支持网络。'
+          ? '可运行开发命令。'
         : ask
-          ? '每次 bash 调用前展示完整命令并等待批准。'
-          : '当前模式不提供 bash。',
+          ? '每次运行命令前会询问。'
+          : '当前模式不能运行命令。',
     },
     {
       id: 'network',
@@ -93,19 +93,19 @@ export function previewCodingCapabilities(
       status: fullAuto ? 'allowed' : 'blocked',
       detail: fullAuto
         ? '可使用当前系统用户凭据。'
-        : 'Provider Key 不进入模型上下文。',
+        : '当前模式不使用本机凭据。',
     },
     {
       id: 'browser',
       label: '浏览器 / MCP',
       status: 'unavailable',
-      detail: '任务显式选择后加载。',
+      detail: '选择后可用。',
     },
     {
       id: 'computer-use',
       label: 'Computer Use',
       status: 'unavailable',
-      detail: '选择可见窗口并启动会话后可用。',
+      detail: '选择窗口后可用。',
     },
   ]
 }
@@ -115,11 +115,11 @@ export function describeActiveComputerUseCapability(
   approvalPolicy: CodingApprovalPolicy,
   target: CodingComputerUseTarget,
 ): Pick<CodingCapability, 'status' | 'detail'> {
-  const targetLabel = `${target.name} (${target.bundleId})，PID ${target.pid}，Window ${target.windowId}`
+  const targetLabel = `${target.name}（${target.bundleId}）`
   if (executionMode !== 'go' || approvalPolicy === 'read-only') {
     return {
       status: 'blocked',
-      detail: `已锁定 ${targetLabel}；需 Go 且非只读。`,
+      detail: `已锁定 ${targetLabel}；当前模式不能操作外部 App。`,
     }
   }
   return {
@@ -145,7 +145,7 @@ export function describePendingComputerUseCapability(
     return {
       status: 'unavailable',
       detail: state.problem
-        || '打包的 Cua Driver 不可用。用户已请求 Computer Use 时，使用 prepare_computer_use_driver 把 MilkSU 审阅过的 Driver 放到本机。',
+        || 'Computer Use 当前不可用。',
     }
   }
   if (state.attachedToOtherTask) {
@@ -163,19 +163,19 @@ export function describePendingComputerUseCapability(
   if (!target) {
     return {
       status: 'unavailable',
-      detail: '请选择一个可见窗口。',
+      detail: '选择窗口',
     }
   }
-  const targetLabel = `${target.name} (${target.bundleId})，PID ${target.pid}，Window ${target.windowId}`
+  const targetLabel = `${target.name}（${target.bundleId}）`
   if (executionMode !== 'go' || approvalPolicy === 'read-only') {
     return {
       status: 'blocked',
-      detail: `已检测到 ${targetLabel}；需 Go 且非只读。`,
+      detail: `已检测到 ${targetLabel}；当前模式不能操作外部 App。`,
     }
   }
   return {
     status: 'approval-required',
-    detail: `已检测到 ${targetLabel}；启动可见会话后锁定。`,
+    detail: `已检测到 ${targetLabel}；启动后锁定。`,
   }
 }
 

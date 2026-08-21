@@ -130,13 +130,7 @@ function redacted(value: string) {
           <span>{{ redacted(warning) }}</span>
         </li>
       </ul>
-      <p class="mt-2 text-muted-foreground">
-        {{
-          activeStartCost
-            ? '这只是格式检查；请先亲自开启题目，平台提交入口可用后才能进入 Judge 闸门。'
-            : '这只是格式检查；点击提交后才会进入平台 Judge 闸门。'
-        }}
-      </p>
+
     </div>
     <Button
       block

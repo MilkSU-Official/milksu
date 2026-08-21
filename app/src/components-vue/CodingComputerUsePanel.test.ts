@@ -93,10 +93,10 @@ describe('CodingComputerUsePanel', () => {
     expect(text).toContain('权限与窗口已就绪')
     expect(text).toContain('可启动可见会话')
     expect(text).toContain('最近操作')
-    expect(text).toContain('暂无操作记录')
+    expect(text).not.toContain('暂无操作记录')
     expect(text).toContain('Go / 替我审批')
     expect(text).toContain('普通操作自动执行')
-    expect(text).toContain('此窗口会成为当前任务唯一的 Computer Use Scope')
+    expect(text).not.toContain('此窗口会成为当前任务唯一的 Computer Use Scope')
     expect(text).toContain('com.openai.codex')
     expect(text).toContain('PID 4242')
     expect(text).toContain('Window 9001')
@@ -300,7 +300,7 @@ describe('CodingComputerUsePanel', () => {
     const text = host.textContent ?? ''
 
     expect(text).toContain('Plan / 替我审批')
-    expect(text).toContain('需 Go 且非只读才会操作可见 App')
+    expect(text).toContain('当前模式不能操作外部 App')
     expect(text).not.toContain('正式接入/验收需要')
   })
 

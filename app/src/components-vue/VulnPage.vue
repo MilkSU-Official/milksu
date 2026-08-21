@@ -366,7 +366,7 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
         <p v-if="cveSearchError" class="text-caption text-destructive" role="alert">{{ cveSearchError }}</p>
 
         <div v-if="canAddDirectCve" class="flex flex-wrap items-center justify-between gap-3 border border-border bg-muted/30 px-4 py-3">
-          <p class="text-caption text-muted-foreground">NVD 暂无结果，可以先只记录 {{ directCveId }}，其他资料以后再补。</p>
+          <p class="font-mono text-caption">{{ directCveId }}</p>
           <Button size="sm" variant="outline" @click="addDirectCve">仅按编号加入</Button>
         </div>
 
@@ -497,8 +497,7 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
 
         <div v-if="!visibleItems.length" class="grid min-h-64 place-items-center px-8 text-center">
           <div>
-            <p class="text-control font-medium">{{ dashboard.tracked.value.length ? '没有匹配的 CVE' : '还没有添加 CVE' }}</p>
-            <p class="mt-2 text-caption text-muted-foreground">{{ dashboard.tracked.value.length ? (collectionView === ALL_COLLECTIONS_ID ? '换个关键词或状态试试。' : '这个收藏夹还是空的。') : '添加一个你想研究的公开 CVE。' }}</p>
+            <p v-if="dashboard.tracked.value.length" class="text-control font-medium">没有匹配的 CVE</p>
           </div>
         </div>
       </div>

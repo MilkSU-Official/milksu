@@ -482,8 +482,8 @@ watch(
             </div>
           </details>
         </div>
-        <p v-else class="px-3 py-3 text-body text-muted-foreground">
-          {{ query.trim() ? '没有匹配的 Coding 任务' : '还没有 Coding 项目' }}
+        <p v-else-if="query.trim()" class="px-3 py-3 text-body text-muted-foreground">
+          没有匹配的 Coding 任务
         </p>
       </div>
     </div>

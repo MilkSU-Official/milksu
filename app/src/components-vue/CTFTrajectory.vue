@@ -3,10 +3,8 @@ import { computed, ref } from 'vue'
 import { Badge, Button } from '@felinic/ui'
 import {
   Bot,
-  Check,
   ChevronDown,
   ChevronUp,
-  Circle,
   FileCode2,
   Flag,
   RotateCcw,
@@ -122,9 +120,7 @@ function statusLabel(status: string) {
           <RotateCcw class="size-4" />
           解题轨迹
         </h2>
-        <p class="mt-1 text-caption leading-5 text-muted-foreground">
-          每次 Agent 回合、确定性实验和 Judge 分支都来自 Runtime 事实。
-        </p>
+
       </div>
       <span class="flex items-center gap-2"><Badge variant="outline">{{ entries.length }} 步</Badge><ChevronDown class="size-4 text-muted-foreground transition-transform group-open:rotate-180" /></span>
     </summary>
@@ -171,11 +167,7 @@ function statusLabel(status: string) {
       </article>
     </div>
 
-    <div v-else class="mt-5 border-t border-border px-4 py-7 text-center">
-      <Circle class="mx-auto size-4 text-muted-foreground" />
-      <p class="mt-2 text-control font-medium">等待第一次可验证实验</p>
-      <p class="mt-1 text-caption text-muted-foreground">打开 PI 后，工具结果和失败原因会出现在这里。</p>
-    </div>
+    <div v-else class="mt-5 border-t border-border" />
 
     <Button
       v-if="entries.length > 5"
@@ -189,12 +181,6 @@ function statusLabel(status: string) {
       {{ expanded ? '只看最近 5 步' : `展开全部 ${entries.length} 步` }}
     </Button>
 
-    <p
-      v-if="projection.agentCandidates.length"
-      class="mt-5 flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2 text-caption leading-5"
-    >
-      <Check class="size-3.5 shrink-0" />
-      最新候选来自 PI 的显式候选文件；提交前仍需你确认。
-    </p>
+
   </details>
 </template>
