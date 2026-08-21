@@ -325,7 +325,10 @@ const slashCommandCatalog = [
 
 function slashCommandDisabled(id: typeof slashCommandCatalog[number]['id']) {
   if (id === 'goal') return props.running || hasUnfinishedGoal.value
-  if (id === 'compact') return props.running || props.compactDisabled
+  // Compact is invoked even before Pi session.ready; the compact path reports
+  // "no session yet" instead of swallowing the click. Native disabled buttons
+  // also drop pointer events, which lets IME cancel `/compact` on click.
+  if (id === 'compact') return props.running || Boolean(props.compacting)
   if (id === 'new' || id === 'plan' || id === 'model' || id === 'permissions') {
     return props.running
   }
@@ -1024,6 +1027,8 @@ function openComposerChooser(ariaLabel: string) {
 
 function chooseSlashCommand(command = activeSlashCommand.value) {
   if (!command || command.disabled) return
+  composing.value = false
+  compositionJustEnded.value = false
   slashMenuDismissed.value = false
   activeSlashCommandIndex.value = 0
 
@@ -1089,18 +1094,9 @@ function moveSlashCommandSelection(direction: 1 | -1) {
 }
 
 function handleComposerKeyDown(event: KeyboardEvent) {
-  if (
-    event.isComposing
-    || composing.value
-    || event.keyCode === 229
-  ) return
-  if (compositionJustEnded.value) {
-    if (event.key === 'Enter') event.preventDefault()
-    return
-  }
-
   const historyAction = isComposerHistoryKey(event)
   if (historyAction) {
+    if (event.isComposing || composing.value || event.keyCode === 229) return
     event.preventDefault()
     if (historyAction === 'undo') undoComposer()
     else redoComposer()
@@ -1114,6 +1110,7 @@ function handleComposerKeyDown(event: KeyboardEvent) {
       return
     }
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      if (event.isComposing || composing.value || event.keyCode === 229) return
       event.preventDefault()
       const direction = event.key === 'ArrowDown' ? 1 : -1
       moveSlashCommandSelection(direction)
@@ -1126,10 +1123,22 @@ function handleComposerKeyDown(event: KeyboardEvent) {
       && !event.altKey
       && !event.metaKey
     ) {
+      // Confirm the slash item even while IME is composing; otherwise Enter
+      // commits a candidate and `/compact` vanishes without running.
       event.preventDefault()
       chooseSlashCommand()
       return
     }
+  }
+
+  if (
+    event.isComposing
+    || composing.value
+    || event.keyCode === 229
+  ) return
+  if (compositionJustEnded.value) {
+    if (event.key === 'Enter') event.preventDefault()
+    return
   }
 
   if (event.key === 'Escape' && (props.running || props.compacting)) {
@@ -1254,10 +1263,8 @@ defineExpose({
           role="option"
           :aria-selected="index === activeSlashCommandIndex"
           :aria-disabled="command.disabled"
-          :disabled="command.disabled"
-          @mousedown.prevent
+          @pointerdown.prevent.stop="chooseSlashCommand(command)"
           @mouseenter="activeSlashCommandIndex = index"
-          @click="chooseSlashCommand(command)"
         >
           <component :is="command.icon" class="size-4 shrink-0" />
           <span class="min-w-0 text-left">

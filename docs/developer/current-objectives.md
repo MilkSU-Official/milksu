@@ -109,6 +109,8 @@
 - 产品边界收口：文档不再把 CVE 纵深、本地复现/PoC、Labs、CTF/CVE 工作台和安全工具进 CTF/CVE 写成现行禁令。CTF 解题/教练/策略复盘接上 Shell、浏览器、MCP、安全工具和 `milksu_workspace`。题目工作区默认不自动套 Coding worktree；用户选定的 Git 项目或已有协作不拦截。未授权目标仍要申请。
 - `⌘Q` / 退出不再 `preventDefault` 拦截 Electron 退出路径，也不再为 Go/浏览器 teardown 等待约 3 秒；只给 Go 发一条 shutdown，由 stdin EOF 标记 clean exit。
 - 上下文压缩进行中在 Composer 上方显示「正在整理上下文」，用量环改为「整理中」；压缩失败回执不再只留在内部状态。Escape 在运行中或整理中会中断，对齐 Pi TUI 的 `app.interrupt`，不另建工具循环检测器（#14 / #16，未打包验收）。
+- Provider 的 `Connection error` 按可重试网络失败处理：同一 Pi 回合内不提前 `finishRun`，终态文案走「模型或 Agent 网络连接失败」，不再把英文原文留在聊天里。未打包验收。
+- `/compact` 等斜杠命令在 pointerdown 时就选定，中文输入法组字中的 Enter 也会确认菜单，避免点击后 `/compact` 被 IME 吃掉却不触发压缩。未打包验收。
 - 本机默认走 Personal Vault 签名；`release:github` 必须创建/刷新 GitHub Release 页。这是发版管道，不是下一版本号。
 
 ## 当前产品事实

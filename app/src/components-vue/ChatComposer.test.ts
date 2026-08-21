@@ -15,6 +15,15 @@ function composerEditor(host: HTMLElement) {
   return editor
 }
 
+function activateSlashOption(host: HTMLElement, id: string) {
+  const option = host.querySelector<HTMLButtonElement>(`#coding-slash-command-${id}`)
+  if (!option) throw new Error(`missing slash option ${id}`)
+  option.dispatchEvent(new PointerEvent('pointerdown', {
+    bubbles: true,
+    cancelable: true,
+  }))
+}
+
 function setComposerText(editor: HTMLElement, text: string) {
   const node = document.createTextNode(text)
   editor.replaceChildren(node)
@@ -478,10 +487,42 @@ describe('ChatComposer', () => {
     const editor = composerEditor(result.host)
     setComposerText(editor, '/')
     await nextTick()
-    result.host.querySelector<HTMLButtonElement>('#coding-slash-command-diff')?.click()
+    activateSlashOption(result.host, 'diff')
     await nextTick()
     expect(result.slashCommandActions).toEqual(['diff'])
     expect(result.sent).toEqual([])
+  })
+
+  it('runs compact from pointerdown before IME can cancel the slash query', async () => {
+    const result = mountComposer({
+      workspaceReady: true,
+      compactDisabled: true,
+    })
+    await nextTick()
+    const editor = composerEditor(result.host)
+    setComposerText(editor, '/compact')
+    await nextTick()
+    activateSlashOption(result.host, 'compact')
+    await nextTick()
+    expect(result.slashCommandActions).toEqual(['compact'])
+    expect(editor.textContent).toBe('')
+  })
+
+  it('confirms the slash menu with Enter even while IME is composing', async () => {
+    const result = mountComposer({ workspaceReady: true })
+    await nextTick()
+    const editor = composerEditor(result.host)
+    setComposerText(editor, '/compact')
+    await nextTick()
+    editor.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Enter',
+      keyCode: 229,
+      isComposing: true,
+      bubbles: true,
+      cancelable: true,
+    }))
+    await nextTick()
+    expect(result.slashCommandActions).toEqual(['compact'])
   })
 
   it('does not add a second workspace-authorization layer after cwd is fixed', async () => {
@@ -712,9 +753,11 @@ describe('ChatComposer', () => {
     const disabledGoal = existing.host.querySelector<HTMLButtonElement>(
       '#coding-slash-command-goal',
     )
-    expect(disabledGoal?.disabled).toBe(true)
     expect(disabledGoal?.getAttribute('aria-disabled')).toBe('true')
     expect(disabledGoal?.textContent).toContain('当前已有持续目标')
+    activateSlashOption(existing.host, 'goal')
+    await nextTick()
+    expect(existing.startedGoals()).toBe(0)
   })
 
   it('does not render the goal chip when only Git progress exists without a goal', async () => {
