@@ -102,6 +102,33 @@ describe('VulnPage thin workspace', () => {
     expect(host.textContent).not.toContain('CVE-2024-3400')
   })
 
+  it('shows CVEs imported from a public feed in the list', async () => {
+    const { host, dashboard } = await mountList()
+    dashboard.importFeedSnapshotJSON(JSON.stringify({
+      title: 'CISA Known Exploited Vulnerabilities Catalog',
+      dateReleased: '2026-08-04T00:00:00Z',
+      vulnerabilities: [{
+        cveID: 'CVE-2026-42424',
+        vendorProject: 'Example Project',
+        product: 'example-gateway',
+        vulnerabilityName: 'Example Gateway unsafe parser',
+        dateAdded: '2026-08-03',
+        shortDescription: 'Example KEV-shaped item used to verify feed sync.',
+        dueDate: '2026-08-24',
+      }],
+    }), {
+      sourceName: 'CISA KEV',
+      sourceUrl: 'https://www.cisa.gov/known-exploited-vulnerabilities-catalog',
+      retrievedAt: '2026-08-04T01:02:03Z',
+    })
+    dashboard.selectedId.value = ''
+    await nextTick()
+
+    expect(host.textContent).toContain('CVE-2026-42424')
+    expect(host.textContent).toContain('Example Gateway unsafe parser')
+    expect(host.textContent).toContain('共 1 条')
+  })
+
   it('uses one public search field instead of asking the user to fill CVE metadata', async () => {
     const { host } = await mountPage()
 
