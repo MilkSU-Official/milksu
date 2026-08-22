@@ -43,8 +43,8 @@ export function buildReleaseWorkflowDispatches({
   version,
   uploadRelease = false,
   useSelfHosted = false,
-  /** Opt into expensive GitHub-hosted / self-hosted macOS CI. Default: skip; use local macOS release. */
-  includeMacosCloud = false,
+  /** GitHub-hosted macOS is the default packaging path. Set false only to skip macOS. */
+  includeMacosCloud = true,
   releaseTitle = `MilkSU ${version} 内测版`,
   releaseNotes = `MilkSU ${version} 内测版`,
   minimumVersion = '0.1.0',

@@ -35,7 +35,7 @@
 | 网页查证 | Coding 复用固定 revision 的 Pi `web_search` / `web_fetch` Extension，已保留真实搜索和官方页面读取回执。 |
 | Obelisk | 会话索引底层保留；Coding 右栏和环境页的单会话“相关历史”、过滤、搜索与图谱前端已经移除。 |
 | 最近发行回执 | macOS 本机签名公证 DMG；Windows `32588820764`、Linux `32588822563` 均成功。文件名、大小和 SHA-256 记录在当前开发目标。 |
-| 下一发行流水 | canonical 全仓验证只在干净且已推送的 source commit 上运行一次并写本地回执；Windows/Linux 走云端，macOS 默认本机签名公证；必须创建 GitHub Release 页。GitHub-only 不构建 macOS OTA ZIP/metadata。 |
+| 下一发行流水 | canonical 全仓验证只在干净且已推送的 source commit 上运行一次并写本地回执；macOS / Windows / Linux 都走 GitHub-hosted 云端；macOS 本机打包暂时关闭；必须创建 GitHub Release 页。GitHub-only 不构建 macOS OTA ZIP/metadata。 |
 
 ## Canonical 文档职责
 

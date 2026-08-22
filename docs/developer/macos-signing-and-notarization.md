@@ -32,34 +32,17 @@ staple 与 Gatekeeper 验证。签名资产只存在 Personal Vault 和 GitHub S
 
 本机的字段名和资产位置记录在 Personal Vault；不要复制到 issue、commit、PR、终端输出或聊天。
 
-## 构建一次正式候选包（默认本机）
+## 构建一次正式候选包（默认云端）
 
 1. 按[三端打包与发版流程](release-process.md)把准确版本提交并推送到 `main`，运行一次
-   `npm run release:verify` 生成绑定完整 commit 的本地回执。
-2. 用 `npm run release:dispatch ...` 分发 Windows/Linux；macOS **默认不走云端**。
-3. 在维护者 Mac 上运行：
+   `npm run release:verify` 生成绑定完整 commit 的本地回执。任意有 `gh` 的机器都可以。
+2. `npm run release:dispatch ...` 同时分发 macOS / Windows / Linux。macOS 走 GitHub-hosted
+   标准 runner，必须批准 `macos-release` environment 后才会注入证书与公证密钥。
+3. `npm run release:collect -- --wait` 把三端安装包拉到 `build/release/github/`。
 
-```bash
-npm run release:mac:local -- \
-  --release-title "MilkSU … 内测版" \
-  --release-notes "…"
-```
-
-脚本从 Personal Vault 读取 `.p12` / `.p8` 与 `macos-signing-secrets.env`，导入一次性 Keychain，依次：
-
-```text
-构建 Stable → Hardened Runtime / Developer ID 签名
-→ App 公证、staple 与验证
-→ 生成并签名 DMG → DMG 公证、staple 与验证
-→ 验证 DMG 安装布局 → 写出 build/release/MilkSU-macOS-arm64-<version>.dmg
-→ 删除临时 Keychain
-```
-
-4. 在一台未安装开发证书的 Mac 上打开 DMG，核对设置页 branch、40 位 commit 和 tracking ID。
-
-需要恢复云端 macOS（GitHub-hosted 或已注册 self-hosted）时，对 `release:dispatch` 显式加
-`--macos-cloud`（自托管再加 `--use-self-hosted`），并审批 `macos-release` environment。云端
-GitHub-only 模式仍只生成 DMG artifact，不默认生成 OTA ZIP。
+本机 `release:mac:local` 暂时关闭。只有云端公证不可用时才加 `--allow-local`，从 Personal Vault
+读取 `.p12` / `.p8`。云端 GitHub-only 模式仍只生成 DMG artifact，不默认生成 OTA ZIP。自托管
+runner 再加 `--use-self-hosted`。
 
 全仓 Go、Vue、Sidecar、lint 和生产/文档构建已由 commit-bound 本地回执证明，macOS 打包路径不重复
 执行。只有显式 `--upload-release` 时才额外生成 updater ZIP 与 release metadata。
