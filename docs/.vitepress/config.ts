@@ -54,10 +54,6 @@ export default defineConfig({
           text: '研究与历史（非计划）',
           collapsed: true,
           items: [
-            {
-              text: 'Wallbreaker Harness 调研',
-              link: '/developer/research/2026-08-03-wallbreaker-harness-review',
-            },
             { text: '开源项目基线', link: '/developer/industry-baseline' },
             { text: '题目接入研究', link: '/developer/challenge-intake-and-automation' },
           ],
