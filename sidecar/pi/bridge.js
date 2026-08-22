@@ -103,6 +103,7 @@ import {
   normalizeCodingCollaboration,
   validateSubagentInput,
   codingSubagentGuidance,
+  codingWorkspaceIdentityGuidance,
 } from "./bridge-collaboration.js";
 import {
   authorizeImageGenToolCall,
@@ -337,6 +338,12 @@ function createMilkSUWorkflowExtension(sessionRole, getPolicy, getSession) {
             ? "Advance one falsifiable CTF hypothesis at a time and preserve evidence for the learner."
             : "";
       const policy = getPolicy?.();
+      const workspaceIdentityGuidance = !sessionRole
+        ? codingWorkspaceIdentityGuidance(
+            policy?.workspace,
+            policy?.codingCollaboration,
+          )
+        : "";
       const subagentGuidance = !sessionRole && policy?.activeTools?.includes("subagent")
         ? `\n\n${codingSubagentGuidance()}`
         : "";
@@ -354,6 +361,9 @@ function createMilkSUWorkflowExtension(sessionRole, getPolicy, getSession) {
             uiLocale: policy?.uiLocale,
             modelInput: getSession?.()?.model?.input,
           })}`
+          + (workspaceIdentityGuidance
+            ? `\n\nWorkspace identity:\n${workspaceIdentityGuidance}`
+            : "")
           + subagentGuidance
           + browserGuidance
           + workspaceGuidance

@@ -1955,6 +1955,17 @@ func TestSidecarEnvironmentIncludesLocalOCRCacheWithoutVisionRoute(t *testing.T)
 	}
 }
 
+func TestSidecarEnvironmentEnablesLongPromptCacheRetention(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	environment, err := sidecarEnvironment(config.DefaultSettings())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !containsEnvironmentEntry(environment, "PI_CACHE_RETENTION=long") {
+		t.Fatalf("long prompt-cache retention missing from %#v", environment)
+	}
+}
+
 func TestSidecarEnvironmentPublishesCanonicalUserHomeWithoutGrantingIt(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
 	environment, err := sidecarEnvironment(config.DefaultSettings())
