@@ -992,6 +992,15 @@ func (a *App) SendMessage(
 			sessionRole = ctf.AgentWorkspaceRoleSolver
 		}
 	}
+	if sessionRole == "" {
+		if stored, err := a.conversations.Get(conversationID); err == nil && stored.DomainTaskContext != nil {
+			if kind, _ := stored.DomainTaskContext["kind"].(string); kind == "cve" {
+				sessionRole = "cve-research"
+			} else if kind == "lab" {
+				sessionRole = "lab-job"
+			}
+		}
+	}
 	settings, err := engine.ResolveTaskModel(
 		a.settings.GetResolved(),
 		sessionRole,
@@ -1084,6 +1093,17 @@ func (a *App) resolveConversationWorkspace(conversationID, requested string) (st
 		if cveID, _ := stored.DomainTaskContext["cveId"].(string); strings.TrimSpace(cveID) != "" {
 			label = cveID
 		}
+	} else if domainKind == "lab" {
+		kind = userartifact.KindLab
+		workspaceRoot = a.artifactDirectory
+		if title, _ := stored.DomainTaskContext["title"].(string); strings.TrimSpace(title) != "" {
+			label = title
+		} else {
+			label = "实验室作业"
+		}
+		if jobID, _ := stored.DomainTaskContext["jobId"].(string); strings.TrimSpace(jobID) != "" {
+			conversationID = "lab-job-" + strings.TrimSpace(jobID)
+		}
 	}
 	workspace, err := userartifact.Workspace(
 		workspaceRoot,
@@ -1093,6 +1113,16 @@ func (a *App) resolveConversationWorkspace(conversationID, requested string) (st
 	)
 	if err != nil {
 		return "", err
+	}
+	if kind == userartifact.KindCVE || kind == userartifact.KindLab {
+		if seedErr := userartifact.SeedReport(workspace, label); seedErr != nil {
+			return "", seedErr
+		}
+	}
+	if kind == userartifact.KindCVE {
+		if seedErr := userartifact.SeedRelated(workspace, label); seedErr != nil {
+			return "", seedErr
+		}
 	}
 	stored.WorkspacePath = workspace
 	if err := a.conversations.Save(stored); err != nil {

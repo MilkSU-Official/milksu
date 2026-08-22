@@ -16,7 +16,7 @@ const layers = [
     id: 'L3',
     name: 'Capability Packages',
     description: 'Source / Web / Net / Binary / Mobile / Forensics / Fuzz',
-    references: '接入 CodeQL、Burp、Ghidra、HexStrike MCP',
+    references: '设置里准备工具，实验室作业使用；不把 HexStrike 整包 MCP 做成产品页',
   },
   {
     id: 'L4',

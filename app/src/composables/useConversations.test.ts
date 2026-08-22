@@ -30,6 +30,32 @@ describe('Coding approval conversation recovery', () => {
     )).toEqual(reviewed)
   })
 
+  it('settles leftover running tool and assistant rows when a snapshot is reloaded', () => {
+    const conversation = normalizeConversation({
+      id: 'conversation-stale-run',
+      title: 'Stale run',
+      createdAt: 1,
+      messages: [
+        {
+          id: 'tool-1',
+          role: 'tool',
+          content: '正在把只读研究结论写入工作区交付',
+          timestamp: 2,
+          toolName: 'write',
+          status: 'running',
+        },
+        {
+          id: 'assistant-1',
+          role: 'assistant',
+          content: '还没写完',
+          timestamp: 3,
+          status: 'running',
+        },
+      ],
+    })
+    expect(conversation.messages.map(item => item.status)).toEqual(['done', 'done'])
+  })
+
   it('expires an approval that cannot survive an app or Sidecar restart', () => {
     const conversation = normalizeConversation({
       id: 'conversation-1',

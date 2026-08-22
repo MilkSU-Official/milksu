@@ -505,6 +505,12 @@ body {
   --input: var(--night-input);
   --surface-raised: var(--night-popover);
   --surface-sunken: var(--night-sunken);
+  --segment-track: #22231e;
+  --segment-thumb: #3a3c34;
+  --control-label: var(--night-muted-foreground);
+  --control-label-hover: var(--night-foreground);
+  --segment-overlay-hover: rgb(255 255 255 / 0.06);
+  --segment-overlay-active: rgb(255 255 255 / 0.1);
   background-color: var(--tactical-ink-2) !important;
   box-shadow: 0 22px 70px rgb(0 0 0 / .28), inset 0 1px 0 rgb(255 255 255 / .035);
 }

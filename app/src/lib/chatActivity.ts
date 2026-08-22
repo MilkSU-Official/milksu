@@ -192,17 +192,17 @@ export function applyCodingToolEvent(
   return next
 }
 
-export function settleRunningToolMessages(messages: Message[]): Message[] {
-  if (!messages.some(message => (
-    message.role === 'tool'
-    && message.status === 'running'
+export function hasIdleRunResidue(messages: Message[]): boolean {
+  return messages.some(message => (
+    message.status === 'running'
     && !message.approvalRequestId
-  ))) {
-    return messages
-  }
+  ))
+}
+
+export function settleRunningToolMessages(messages: Message[]): Message[] {
+  if (!hasIdleRunResidue(messages)) return messages
   return messages.map(message => (
-    message.role === 'tool'
-    && message.status === 'running'
+    message.status === 'running'
     && !message.approvalRequestId
       ? { ...message, status: 'done' as const }
       : message

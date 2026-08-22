@@ -18,7 +18,6 @@ import {
   SelectTrigger,
   SelectValue,
   SegmentedControl,
-  Textarea,
   buttonVariants,
   menuContentClass,
   menuItemClass,
@@ -31,7 +30,6 @@ import {
   ArrowLeft,
   ArrowRight,
   Bot,
-  BrainCircuit,
   Cable,
   Check,
   ChevronLeft,
@@ -47,11 +45,8 @@ import {
   LoaderCircle,
   Play,
   RefreshCw,
-  Send,
   ShieldCheck,
-  Sparkles,
   Target,
-  Trophy,
   Zap,
 } from 'lucide-vue-next'
 import CTFArtifacts from '@/components-vue/CTFArtifacts.vue'
@@ -65,6 +60,7 @@ import CTFTrainingArchive from '@/components-vue/CTFTrainingArchive.vue'
 import CTFTrajectory from '@/components-vue/CTFTrajectory.vue'
 import CTFWorkspaceHeader from '@/components-vue/CTFWorkspaceHeader.vue'
 import CollectionViewFilter from '@/components-vue/CollectionViewFilter.vue'
+import ConversationDock from '@/components-vue/ConversationDock.vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
 import { useCTFTrainingPlatforms } from '@/composables/useCTFTrainingPlatforms'
@@ -81,6 +77,7 @@ import {
   parseCTFDailyChallengeRecord,
 } from '@/lib/ctfDailyChallenge'
 import { ALL_COLLECTIONS_ID, createItemCollectionStore } from '@/lib/itemCollections'
+import { relatedDomainConversations } from '@/lib/workspaceSessionRouting'
 import { debugLog, updateDebugState } from '@/lib/debugMode'
 import {
   ctfManualStatusFromJobStatus,
@@ -109,9 +106,9 @@ import type {
   NSSCTFTrainingSeries,
 } from '@/nssctfTrainingTypes'
 import type { Conversation } from '@/types'
+import type { CodingAgentSendArgs, CodingAgentSurfaceBind } from '@/lib/codingAgentSurface'
 
-type Screen = 'source' | 'challenge' | 'workspace'
-type WorkspaceMode = 'solve' | 'review'
+type Screen = 'source' | 'challenge' | 'detail' | 'workspace'
 type QuestionBank = Extract<CTFTrainingPlatform['id'], 'nssctf' | 'ctfshow'>
 type TrainingSource = CTFTrainingPlatform['id'] | 'custom'
 defineOptions({ name: 'CTFPage' })
@@ -129,19 +126,84 @@ function formatCategory(value: string) {
   return labels[normalized] ?? value
 }
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   modelReady: boolean
   modelVerified: boolean
   arenaReady: boolean
   initialJobId?: string | null
   ctfSection: CTFWorkspaceSection
   conversations?: Conversation[]
-}>()
+  conversation?: Conversation | null
+  running?: boolean
+  aborting?: boolean
+  settings?: CodingAgentSurfaceBind['settings']
+  workspacePath?: string
+  messageQueue?: CodingAgentSurfaceBind['messageQueue']
+  sessionReady?: boolean
+  resumed?: boolean
+  compacting?: boolean
+  compactedAt?: number
+  compactionError?: string
+  turnStatus?: CodingAgentSurfaceBind['turnStatus']
+  ctfSession?: boolean
+  vulnerabilitySession?: boolean
+  ctfMode?: Conversation['ctfMode']
+  ctfRole?: Conversation['ctfRole']
+  modelMode?: Conversation['modelMode']
+  modelProvider?: string
+  modelId?: string
+  modelSourcePreference?: CodingAgentSurfaceBind['modelSourcePreference']
+  executionMode?: CodingAgentSurfaceBind['executionMode']
+  approvalPolicy?: CodingAgentSurfaceBind['approvalPolicy']
+  mcpServers?: string[]
+  mcpConfigDigest?: string
+  pendingComposerDraft?: CodingAgentSurfaceBind['pendingComposerDraft']
+  ensureConversation?: (title?: string) => string
+}>(), {
+  conversations: () => [],
+  conversation: null,
+  running: false,
+  aborting: false,
+  settings: null,
+  workspacePath: '',
+  sessionReady: false,
+  resumed: false,
+  compacting: false,
+  ctfSession: false,
+  vulnerabilitySession: false,
+  mcpServers: () => [],
+  pendingComposerDraft: null,
+  ensureConversation: () => '',
+})
 
 const emit = defineEmits<{
   openSettings: [category?: 'apikeys' | 'browser']
   startCodingAgent: [handoff: CTFAgentWorkspaceHandoff]
   openCodingConversation: [id: string]
+  send: CodingAgentSendArgs
+  abort: []
+  selectConversation: [id: string]
+  createConversation: []
+  expand: []
+  consumePendingDraft: []
+  ctfAction: [action: import('@/types').CTFChatAction]
+  compactContext: []
+  controlGoal: [action: 'pause' | 'resume' | 'clear']
+  respondApproval: [requestId: string, approved: boolean, scope?: 'once' | 'conversation']
+  changeModel: [mode: 'auto' | 'manual', provider?: string, model?: string]
+  changeModelSource: [preference: 'auto' | 'account' | 'personal']
+  changeCodingPolicy: [
+    executionMode: NonNullable<CodingAgentSurfaceBind['executionMode']>,
+    approvalPolicy: NonNullable<CodingAgentSurfaceBind['approvalPolicy']>,
+  ]
+  changeMcpServers: [servers: string[], configDigest: string]
+  chooseWorkspace: []
+  chooseWorkspaceForNewTask: []
+  selectWorkspace: [path: string]
+  forgetWorkspace: [path: string]
+  clearWorkspace: []
+  cancelQueuedGuidance: [index: number]
+  editQueuedGuidance: [index: number]
 }>()
 
 const backend = useCTFWorkspace()
@@ -154,7 +216,6 @@ const publicCatalog = useNSSCTFCatalog()
 const ctfshow = useCTFShowCatalog()
 const screen = ref<Screen>('challenge')
 const deactivatedFromWorkspace = ref(false)
-const workspaceMode = ref<WorkspaceMode>('solve')
 const ctfSection = computed(() => props.ctfSection)
 const workspaceScrollArea = ref<HTMLElement | null>(null)
 const storedTrainingSource = window.localStorage.getItem('milksu.ctf.question-bank')
@@ -181,7 +242,7 @@ const collaborationMode = ref<CTFCollaborationMode>(
     ? storedCollaborationMode
     : 'copilot',
 )
-const observation = ref('')
+
 const flagCandidate = ref('')
 const platformReview = ref(false)
 const outcomeNotice = ref('')
@@ -251,12 +312,22 @@ let dailyChallengeLoading = false
 
 const step = computed(() => screen.value === 'source' ? 1 : screen.value === 'challenge' ? 2 : 3)
 const activeProjection = computed(() => backend.projection.value)
+const dossierConversations = computed(() => relatedDomainConversations(
+  props.conversations ?? [],
+  props.conversation ?? null,
+))
 const isArenaWorkspace = computed(() => (
   activeProjection.value?.challenge.externalPlatform === 'nssctf-agent-arena'
 ))
 const isWebWorkspace = computed(() => (
   activeProjection.value?.challenge.externalPlatform === 'nssctf-web'
 ))
+const compactBridgeStatus = computed(() => {
+  if (!isWebWorkspace.value) return ''
+  const id = activeBrowserPage.value?.nssctf.problemId
+  if (activeBrowserReady.value) return id ? `已连接 P${id}` : '已连接'
+  return '扩展未连接'
+})
 const isCTFShowWorkspace = computed(() => (
   activeProjection.value?.challenge.externalPlatform === 'ctfshow-web'
 ))
@@ -348,21 +419,19 @@ function manualStatusForJob(job: Pick<CTFSummary, 'id' | 'status'>): CTFManualSt
   return manualStatuses.value[`job:${job.id}`] ?? ctfManualStatusFromJobStatus(job.status)
 }
 
+function updateCatalogProblemStatus(event: Event) {
+  const problem = selectedProblem.value
+  const status = (event.target as HTMLSelectElement | null)?.value as CTFManualStatus | undefined
+  if (!problem || !status || !['not_started', 'in_progress', 'paused', 'completed'].includes(status)) return
+  updateManualStatus(`nssctf:${problem.platformId}`, status)
+}
+
 function updateActiveJobManualStatus(event: Event) {
   const job = activeProjection.value?.job
   const status = (event.target as HTMLSelectElement | null)?.value as CTFManualStatus | undefined
   if (!job || !status || !['not_started', 'in_progress', 'paused', 'completed'].includes(status)) return
   updateManualStatus(`job:${job.id}`, status)
 }
-const canStartSelectedChallenge = computed(() => {
-  if (selectedActiveJob.value) return true
-  if (activeBank.value === 'nssctf') {
-    return Boolean(selectedProblem.value)
-  }
-  return activeBank.value === 'ctfshow'
-    && Boolean(selectedCTFShowProblemID.value)
-    && ctfshowBridgeReady.value
-})
 // Presentation-only readiness strips removed. Inline blockers only at the
 // action they gate: model gates Agent start, Judge gates submit, neither gates
 // opening Coding context.
@@ -371,13 +440,6 @@ const catalogAction = computed(() => (
     ? null
     : { label: '同步题库', action: 'catalog' as const }
 ))
-const startSelectedAction = computed(() => {
-  if (!canStartSelectedChallenge.value) return null
-  return {
-    label: selectedActiveJob.value ? '在 Coding 中打开' : '在 Coding 中打开',
-    action: 'open-coding' as const,
-  }
-})
 const activeStartCost = computed(() => (
   activeBrowserPage.value?.nssctf.needsStart
     ? activeBrowserPage.value.nssctf.startCost ?? 0
@@ -388,16 +450,6 @@ const canContinue = computed(() => {
   return Boolean(activeProjection.value && !['succeeded', 'failed', 'cancelled'].includes(status ?? ''))
 })
 const agentCheckpoint = computed(() => backend.agentRun.value)
-const agentProgress = computed(() => agentCheckpoint.value?.progress)
-const hasAgentRoute = computed(() => {
-  const progress = agentProgress.value
-  return Boolean(progress && (
-    progress.lastVerifiedFact
-    || progress.currentHypothesis
-    || progress.nextAction
-    || progress.needsReplan
-  ))
-})
 const hasAgentRecoveryPoint = computed(() => {
   const run = agentCheckpoint.value
   return Boolean(run && (
@@ -407,46 +459,7 @@ const hasAgentRecoveryPoint = computed(() => {
     || run.lastAssistantSummary
   ))
 })
-const agentCheckpointStatus = computed(() => {
-  switch (agentCheckpoint.value?.status) {
-    case 'running': return '上次运行未正常结束'
-    case 'awaiting-user': return '等待你继续'
-    case 'paused': return '已保存并暂停'
-    case 'failed': return '失败后已保存'
-    default: return '可以开始'
-  }
-})
-const agentCheckpointSummary = computed(() => {
-  const run = agentCheckpoint.value
-  if (!run) return ''
-  if (run.lastAssistantSummary?.trim()) return run.lastAssistantSummary.trim()
-  if (run.notesExcerpt?.trim()) return run.notesExcerpt.trim()
-  switch (run.exitReason) {
-    case 'same-tool-call-repeated':
-      return '检测到连续重复的工具调用；恢复后应先更换假设或实验方法。'
-    case 'same-tool-failure-repeated':
-      return '同一工具连续失败，MilkSU 已停止无效重试；恢复后先检查失败原因。'
-    case 'engine-error':
-      return '模型运行发生错误；已有笔记和工作文件仍保留在固定工作区。'
-    case 'session-destroyed':
-      return '上次会话中断；已有轨迹、笔记和工作文件可以继续使用。'
-    default:
-      return '已有固定工作区与运行检查点，可以从上次进度继续。'
-  }
-})
-// Workspace CTA only opens/reuses shared Coding context. It never auto-starts Pi.
-const agentActionLabel = computed(() => '在 Coding 中打开')
-const agentCapabilityLabels = computed(() => {
-  const tools = new Set(activeProjection.value?.challenge.agentPolicy.allowedTools ?? [])
-  return [
-    tools.has('ctf_triage') || tools.has('ctf_decode') ? '材料与解码' : '',
-    tools.has('ctf_http') ? 'HTTP 基线' : '',
-    tools.has('ctf_socket') ? 'TCP 交互' : '',
-    tools.has('ctf_ssh') ? 'SSH Banner' : '',
-    tools.has('ctf_request_endpoint') ? 'Endpoint 申请' : '',
-    tools.has('bash') ? '沙箱 Shell' : '',
-  ].filter(Boolean)
-})
+const agentActionLabel = computed(() => '开始解题')
 const agentBudgetStopMessage = computed(() => {
   const status = backend.agentBudget.value
   if (!status?.exhausted) return ''
@@ -667,10 +680,6 @@ const modeItems = [
   { value: 'copilot' as const, label: '搭档' },
   { value: 'delegate' as const, label: '代理' },
 ]
-const workspaceModeItems = [
-  { value: 'solve' as const, label: '解题' },
-  { value: 'review' as const, label: '复盘' },
-]
 const dailyMission = computed(() => {
   if (resumableJob.value) {
     return {
@@ -702,16 +711,6 @@ const dailyMission = computed(() => {
 
 function jobSummaryLabel(job: CTFSummary) {
   return ctfManualStatusLabel(manualStatusForJob(job))
-}
-
-function verdictLabel(verdict?: string) {
-  switch (verdict) {
-    case 'pass': return 'Accepted'
-    case 'fail': return 'Rejected'
-    case 'needs_review': return '等待平台判题'
-    case 'inconclusive': return '证据不足'
-    default: return '等待提交'
-  }
 }
 
 async function runCatalogAction() {
@@ -855,9 +854,7 @@ watch(
 watch(
   () => activeProjection.value?.job.id,
   async jobId => {
-    workspaceMode.value = 'solve'
     platformReview.value = false
-    observation.value = ''
     outcomeNotice.value = ''
     recalledMemories.value = []
     if (jobId) await loadMemoryContext(jobId)
@@ -866,7 +863,7 @@ watch(
 )
 
 watch(
-  () => [screen.value, workspaceMode.value, activeProjection.value?.job.id] as const,
+  () => [screen.value, activeProjection.value?.job.id] as const,
   () => { void resetWorkspaceViewport() },
   { flush: 'post' },
 )
@@ -885,7 +882,7 @@ watch(
 )
 
 async function resetWorkspaceViewport() {
-  if (screen.value !== 'workspace' || workspaceMode.value !== 'solve') return
+  if (screen.value !== 'workspace') return
   await nextTick()
   const area = workspaceScrollArea.value
   if (!area) return
@@ -1119,6 +1116,7 @@ async function chooseSeriesProblem(platformId: number) {
 async function chooseCatalogProblem(platformId: number) {
   selectedCTFShowProblemID.value = null
   await chooseSeriesProblem(platformId)
+  if (selectedProblem.value) screen.value = 'detail'
 }
 
 async function openProblem() {
@@ -1179,6 +1177,11 @@ function previewCTFShowProblem(problemId: number) {
   selectedCTFShowProblemID.value = problemId
   localMaterials.value = []
   attachmentError.value = ''
+  screen.value = 'detail'
+}
+
+function returnToCatalog() {
+  screen.value = 'challenge'
 }
 
 async function previousDeskPage() {
@@ -1324,31 +1327,10 @@ async function openCodingAgent() {
   if (!props.modelReady) {
     // Opening Coding context is allowed; only the Agent turn needs the model.
     await openCodingContext()
-    outcomeNotice.value = '已在 Coding 中打开本题上下文（未发送）。配置模型后，在 Coding 会话中再显式发送回合。'
+    outcomeNotice.value = '已打开本题对话。配置模型后再发送。'
     return
   }
   await openCodingContext()
-}
-
-async function openStrategistAgent() {
-  if (!activeProjection.value) return
-  // Strategist open is still “open Coding context”; model only needed to run the turn.
-  working.value = true
-  outcomeNotice.value = ''
-  try {
-    const handoff = await invokeCommand<CTFAgentWorkspaceHandoff>(
-      'prepare_ctf_strategist_workspace',
-      { id: activeProjection.value.job.id },
-    )
-    emit('startCodingAgent', handoff)
-    if (!props.modelReady) {
-      outcomeNotice.value = '已打开策略复盘 Coding 上下文（未发送）。配置模型后，在会话中再显式发送回合。'
-    }
-  } catch (reason) {
-    outcomeNotice.value = `无法打开策略复盘：${String(reason)}`
-  } finally {
-    working.value = false
-  }
 }
 
 async function requestEndpoint(request: CTFEndpointRequestInput) {
@@ -1404,21 +1386,6 @@ async function denyEndpoint(requestId: string) {
   } finally {
     working.value = false
   }
-}
-
-async function sendObservation() {
-  if (!activeProjection.value || !observation.value.trim()) return
-  working.value = true
-  const recorded = await backend.recordLearning(activeProjection.value.job.id, {
-    kind: 'observation',
-    content: observation.value.trim(),
-    concept: 'NSSCTF 平台观察',
-  })
-  if (recorded) {
-    observation.value = ''
-    outcomeNotice.value = '观察已写入训练记录；打开 PI Agent 后可把它作为下一步线索。'
-  }
-  working.value = false
 }
 
 async function sendDebriefReflection(content: string) {
@@ -1700,18 +1667,20 @@ onBeforeUnmount(() => {
       v-if="screen === 'workspace'"
       :challenge-title="activeProjection?.challenge.title"
       :source-uri="activeProjection?.challenge.source.uri"
-      :mode="workspaceMode"
-      :has-review-activity="Boolean(workspacePresentation?.hasReviewActivity)"
       @return-catalog="showProblems"
       @open-source="openActiveChallenge"
-      @switch-mode="workspaceMode = $event"
     />
 
     <WorkspaceModuleTopBar
       module="ctf"
       v-else
-      title="挑战"
+      :title="screen === 'detail' ? (selectedProblem?.title || selectedCTFShowProblem?.title || '题目') : '挑战'"
     >
+      <template v-if="screen === 'detail'" #leading>
+        <Button variant="ghost" size="icon-sm" aria-label="返回题库" @click="returnToCatalog">
+          <ArrowLeft class="size-4" />
+        </Button>
+      </template>
       <template #actions>
         <details
         v-if="ctfSection === 'catalog'"
@@ -1957,27 +1926,16 @@ onBeforeUnmount(() => {
           </div>
 
           <section
-            v-if="catalogAction || startSelectedAction"
+            v-if="catalogAction"
             class="mb-6 flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card px-4 py-3"
             aria-label="当前操作"
           >
             <Button
-              v-if="catalogAction"
               variant="outline"
               size="sm"
               @click="runCatalogAction"
             >
               {{ catalogAction.label }}
-            </Button>
-            <Button
-              v-if="startSelectedAction"
-              variant="brand"
-              size="sm"
-              :loading="working"
-              @click="openSelectedInCoding"
-            >
-              {{ startSelectedAction.label }}
-              <ArrowRight class="size-4" />
             </Button>
           </section>
 
@@ -2453,6 +2411,76 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
+        <section
+          v-else-if="ctfSection === 'catalog' && screen === 'detail'"
+          class="mx-auto max-w-5xl space-y-5"
+          aria-label="题目详情"
+        >
+          <section v-if="selectedProblem" class="rounded-xl border border-border bg-card p-6">
+            <div class="flex flex-wrap items-start justify-between gap-4">
+              <div class="min-w-0">
+                <div class="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline">{{ formatCategory(selectedProblem.category) }}</Badge>
+                  <NativeSelect
+                    :model-value="manualStatuses[`nssctf:${selectedProblem.platformId}`] ?? 'not_started'"
+                    size="sm"
+                    class="w-32"
+                    :aria-label="`${selectedProblem.title} 状态`"
+                    @change="updateCatalogProblemStatus"
+                  >
+                    <NativeSelectOption value="not_started">未开始</NativeSelectOption>
+                    <NativeSelectOption value="in_progress">进行中</NativeSelectOption>
+                    <NativeSelectOption value="paused">稍后继续</NativeSelectOption>
+                    <NativeSelectOption value="completed">已完成</NativeSelectOption>
+                  </NativeSelect>
+                </div>
+                <h1 class="mt-3 text-3xl font-semibold tracking-[-0.04em]">{{ selectedProblem.title }}</h1>
+                <p class="mt-2 font-mono text-caption text-muted-foreground">P{{ selectedProblem.platformId }}</p>
+              </div>
+              <div class="flex flex-wrap items-center gap-2">
+                <Button
+                  v-if="dailyChallengeVisible?.platformId === selectedProblem.platformId"
+                  variant="outline"
+                  size="sm"
+                  @click="changeDailyChallenge"
+                >
+                  换一道
+                </Button>
+                <Button variant="outline" size="sm" @click="openProblem">
+                  <ExternalLink class="size-4" />
+                  打开题目
+                </Button>
+                <Button variant="brand" size="sm" :loading="working" @click="openSelectedInCoding">
+                  开始解题
+                </Button>
+              </div>
+            </div>
+            <p
+              v-if="dailyChallengeVisible?.platformId === selectedProblem.platformId && dailyChallengeReason"
+              class="mt-4 border-l-2 border-primary pl-3 text-caption leading-5"
+            >
+              {{ dailyChallengeReason }}
+            </p>
+            <MarkdownContent
+              v-if="selectedProblem.statement"
+              class="mt-4 text-body leading-6"
+              :content="selectedProblem.statement"
+            />
+          </section>
+          <section v-else-if="selectedCTFShowProblem" class="rounded-xl border border-border bg-card p-6">
+            <div class="flex flex-wrap items-start justify-between gap-4">
+              <div class="min-w-0">
+                <Badge variant="outline">{{ selectedCTFShowProblem.category }}</Badge>
+                <h1 class="mt-3 text-3xl font-semibold tracking-[-0.04em]">{{ selectedCTFShowProblem.title }}</h1>
+                <p class="mt-2 text-caption text-muted-foreground">#{{ selectedCTFShowProblem.platformId }} · {{ selectedCTFShowProblem.points }} 分</p>
+              </div>
+              <Button variant="brand" size="sm" :loading="working" @click="openSelectedInCoding">
+                开始解题
+              </Button>
+            </div>
+          </section>
+        </section>
+
         <CTFChallengeDesk
           v-else-if="ctfSection === 'catalog' && screen === 'challenge'"
           :active-bank="activeCatalogBank"
@@ -2513,17 +2541,6 @@ onBeforeUnmount(() => {
 
 
         <section v-else-if="screen === 'workspace'" aria-labelledby="workspace-title">
-          <div class="mb-6 flex items-center justify-between gap-4">
-            <Button variant="ghost" size="sm" @click="showProblems">
-              <ArrowLeft class="size-4" />
-              题库
-            </Button>
-            <Button variant="ghost" size="sm" :loading="backend.loading.value" @click="backend.loadJobs">
-              <RefreshCw class="size-4" />
-              刷新记录
-            </Button>
-          </div>
-
           <Alert
             v-if="backend.error.value || arena.error.value || webBridge.error.value"
             variant="destructive"
@@ -2536,260 +2553,98 @@ onBeforeUnmount(() => {
           </Alert>
 
           <template v-if="activeProjection">
-            <div class="flex flex-wrap items-start justify-between gap-5">
-              <div class="min-w-0">
-                <div class="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline">{{ formatCategory(activeProjection.challenge.category) }}</Badge>
-                  <NativeSelect
-                    :model-value="manualStatusForJob(activeProjection.job)"
-                    size="sm"
-                    class="w-32"
-                    :aria-label="`${activeProjection.challenge.title} 状态`"
-                    @change="updateActiveJobManualStatus"
-                  >
-                    <NativeSelectOption value="not_started">未开始</NativeSelectOption>
-                    <NativeSelectOption value="in_progress">进行中</NativeSelectOption>
-                    <NativeSelectOption value="paused">稍后继续</NativeSelectOption>
-                    <NativeSelectOption value="completed">已完成</NativeSelectOption>
-                  </NativeSelect>
-                  <Badge v-if="isArenaWorkspace" variant="secondary">Agent Arena</Badge>
-                  <Badge v-if="isWebWorkspace" variant="secondary">Chrome Judge</Badge>
-                </div>
-                <h1 id="workspace-title" class="mt-3 text-3xl font-semibold tracking-[-0.04em]">
-                  {{ activeProjection.challenge.title }}
-                </h1>
-                <p class="mt-2 text-body text-muted-foreground">
-                  {{ activeProjection.challenge.trackName }} · {{ activeProjection.challenge.agentPolicy.label }}模式
-                </p>
-                <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-caption text-muted-foreground">
-                  <span class="flex items-center gap-1.5">
-                    <Target class="size-3.5" />
-                    {{ remainingAgentTurns }} 回合
-                  </span>
-                  <span class="flex items-center gap-1.5">
-                    <Clock3 class="size-3.5" />
-                    {{ remainingAgentMinutes }} 分钟
-                    {{ backend.agentBudget.value?.firstTurnStartedAt ? '剩余' : '（启动后计时）' }}
-                  </span>
-                  <span class="flex items-center gap-1.5">
-                    <Flag class="size-3.5" />
-                    {{ remainingWrongSubmissions }} 次错误提交额度
-                  </span>
-                  <span v-if="activeProjection.challenge.materials.length" class="flex items-center gap-1.5">
-                    <FileSearch class="size-3.5" />
-                    {{ activeProjection.challenge.materials.length }} 个附件
-                  </span>
-                </div>
-              </div>
-              <div class="flex flex-wrap items-center gap-2">
-                <SegmentedControl
-                  v-model="workspaceMode"
-                  aria-label="CTF 工作区模式"
-                  :items="workspaceModeItems"
-                />
-                <Button
-                  v-if="activeProjection.challenge.source.uri"
-                  variant="outline"
-                  @click="openActiveChallenge"
-                >
-                  <ExternalLink class="size-4" />
-                  打开题目
-                </Button>
-              </div>
-            </div>
-
-            <Alert v-if="isWebWorkspace" class="mt-5">
-              <Cable class="size-4" />
-              <AlertDescription>
-                <div v-if="activeBrowserReady" class="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p v-if="activeBrowserCanSubmit">
-                      已连接 NSSCTF P{{ activeBrowserPage?.nssctf.problemId }}；提交结果将由平台回执决定。
-                    </p>
-                    <p v-else-if="activeBrowserPage?.nssctf.needsStart">
-                      已连接 P{{ activeBrowserPage.nssctf.problemId }}，请先在 NSSCTF 开启环境。
-                    </p>
-                    <p v-else>
-                      已连接 P{{ activeBrowserPage?.nssctf.problemId }}，但尚未检测到提交入口。
-                    </p>
+            <div class="mx-auto max-w-5xl space-y-5">
+            <section class="rounded-xl border border-border bg-card p-6">
+              <div class="flex flex-wrap items-start justify-between gap-5">
+                <div class="min-w-0">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <Badge variant="outline">{{ formatCategory(activeProjection.challenge.category) }}</Badge>
+                    <NativeSelect
+                      :model-value="manualStatusForJob(activeProjection.job)"
+                      size="sm"
+                      class="w-32"
+                      :aria-label="`${activeProjection.challenge.title} 状态`"
+                      @change="updateActiveJobManualStatus"
+                    >
+                      <NativeSelectOption value="not_started">未开始</NativeSelectOption>
+                      <NativeSelectOption value="in_progress">进行中</NativeSelectOption>
+                      <NativeSelectOption value="paused">稍后继续</NativeSelectOption>
+                      <NativeSelectOption value="completed">已完成</NativeSelectOption>
+                    </NativeSelect>
+                    <Badge v-if="isArenaWorkspace" variant="secondary">Agent Arena</Badge>
+                    <Badge v-if="isWebWorkspace" variant="secondary">Chrome Judge</Badge>
                   </div>
-                  <Button variant="ghost" size="sm" :loading="webBridge.loading.value" @click="webBridge.refresh">
-                    <RefreshCw class="size-4" />
-                    检测连接
+                  <h1 id="workspace-title" class="mt-3 text-3xl font-semibold tracking-[-0.04em]">
+                    {{ activeProjection.challenge.title }}
+                  </h1>
+                  <p class="mt-2 text-body text-muted-foreground">
+                    {{ activeProjection.challenge.trackName }} · {{ activeProjection.challenge.agentPolicy.label }}模式
+                  </p>
+                  <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-caption text-muted-foreground">
+                    <span class="flex items-center gap-1.5">
+                      <Target class="size-3.5" />
+                      {{ remainingAgentTurns }} 回合
+                    </span>
+                    <span class="flex items-center gap-1.5">
+                      <Clock3 class="size-3.5" />
+                      {{ remainingAgentMinutes }} 分钟
+                      {{ backend.agentBudget.value?.firstTurnStartedAt ? '剩余' : '（启动后计时）' }}
+                    </span>
+                    <span class="flex items-center gap-1.5">
+                      <Flag class="size-3.5" />
+                      {{ remainingWrongSubmissions }} 次错误提交额度
+                    </span>
+                    <span v-if="activeProjection.challenge.materials.length" class="flex items-center gap-1.5">
+                      <FileSearch class="size-3.5" />
+                      {{ activeProjection.challenge.materials.length }} 个附件
+                    </span>
+                  </div>
+                </div>
+                <div class="flex flex-wrap items-center gap-2">
+                  <Button :loading="working" :disabled="working" variant="brand" size="sm" @click="openCodingAgent">
+                    {{ agentActionLabel }}
                   </Button>
                 </div>
-                <div v-else>
-                  <p class="text-control font-medium">连接当前 NSSCTF 题目</p>
-                  <p class="mt-1 text-caption leading-5 text-muted-foreground">
-                    在浏览器设置中安装并配对扩展，再到题目页点击 MilkSU。
-                  </p>
-                  <div class="mt-3 flex flex-wrap gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      @click="$emit('openSettings', 'browser')"
-                    >
-                      <Cable class="size-4" />
-                      前往浏览器设置
-                    </Button>
-                    <Button variant="ghost" size="sm" :loading="webBridge.loading.value" @click="webBridge.refresh">
-                      <RefreshCw class="size-4" />
-                      检测连接
-                    </Button>
-                  </div>
-                </div>
+              </div>
+              <p v-if="isWebWorkspace" class="mt-3 flex flex-wrap items-center gap-2 text-caption text-muted-foreground">
+                <Cable class="size-3.5" />
+                <span>{{ compactBridgeStatus }}</span>
+                <Button
+                  v-if="!activeBrowserReady"
+                  variant="ghost"
+                  size="sm"
+                  @click="$emit('openSettings', 'browser')"
+                >
+                  浏览器设置
+                </Button>
+                <Button variant="ghost" size="sm" :loading="webBridge.loading.value" @click="webBridge.refresh">
+                  检测
+                </Button>
+              </p>
+              <MarkdownContent
+                v-if="activeProjection.challenge.statement"
+                class="mt-5 text-body leading-6"
+                :content="activeProjection.challenge.statement"
+              />
+            </section>
+
+            <Alert v-if="agentBudgetStopMessage" variant="destructive">
+              <Circle class="size-4" />
+              <AlertDescription class="flex flex-wrap items-center justify-between gap-3">
+                <span>{{ agentBudgetStopMessage }}</span>
+                <Button variant="outline" size="sm" @click="showProblems">
+                  返回题库
+                </Button>
               </AlertDescription>
             </Alert>
 
             <div
-              v-if="workspaceMode === 'solve'"
-              class="mt-8 grid gap-5"
+              class="grid gap-5"
               :class="workspacePresentation?.showActionRail
                 ? 'lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,.65fr)]'
-                : 'max-w-5xl'"
+                : ''"
             >
               <div class="space-y-5">
-                <section class="rounded-xl border border-border bg-card p-6">
-                  <div class="flex items-center gap-2">
-                    <Trophy class="size-4 text-muted-foreground" />
-                    <h2 class="text-label font-medium">题面</h2>
-                  </div>
-                  <MarkdownContent
-                    class="mt-4 max-h-52 overflow-y-auto text-body leading-6"
-                    :content="activeProjection.challenge.statement"
-                  />
-                </section>
-
-                <section class="rounded-xl border border-border bg-card p-6">
-                  <div class="flex items-center justify-between gap-4">
-                    <div>
-                      <h2 class="flex items-center gap-2 text-label font-medium">
-                        <Bot class="size-4" />
-                        与 Agent 协作
-                      </h2>
-                      <p class="mt-1 text-caption text-muted-foreground">
-                        {{ activeProjection.challenge.agentPolicy.startBehavior }}
-                      </p>
-                      <details class="mt-2 text-caption text-muted-foreground">
-                        <summary class="cursor-pointer">本题工具与权限</summary>
-                        <div class="mt-2 flex flex-wrap items-center gap-1.5">
-                          <Badge
-                            v-for="capability in agentCapabilityLabels"
-                            :key="capability"
-                            variant="outline"
-                          >
-                            {{ capability }}
-                          </Badge>
-                        </div>
-                      </details>
-                    </div>
-                    <Button :loading="working" :disabled="working" @click="openCodingAgent">
-                      <Sparkles class="size-4" />
-                      {{ agentActionLabel }}
-                    </Button>
-                  </div>
-
-                  <div
-                    v-if="hasAgentRecoveryPoint && agentCheckpoint"
-                    class="mt-4 rounded-lg border border-border bg-muted/30 px-4 py-3"
-                  >
-                    <div class="flex items-start gap-3">
-                      <span class="mt-0.5 grid size-8 shrink-0 place-items-center rounded-md bg-background text-muted-foreground">
-                        <Target class="size-4" />
-                      </span>
-                      <div class="min-w-0 flex-1">
-                        <div class="flex flex-wrap items-center gap-2">
-                          <p class="text-control font-medium">
-                            {{ hasAgentRoute ? '当前路线' : '最近一次 Agent 记录' }}
-                          </p>
-                          <Badge variant="outline">
-                            {{ agentProgress?.phase || agentCheckpointStatus }}
-                          </Badge>
-                        </div>
-                        <div
-                          v-if="hasAgentRoute && agentProgress"
-                          class="mt-3 grid gap-2 leading-5"
-                        >
-                          <div
-                            v-if="agentProgress.lastVerifiedFact"
-                            class="grid gap-1 sm:grid-cols-[4.5rem_minmax(0,1fr)]"
-                          >
-                            <span class="text-muted-foreground">已确认</span>
-                            <p class="text-control">{{ agentProgress.lastVerifiedFact }}</p>
-                          </div>
-                          <div
-                            v-if="agentProgress.currentHypothesis"
-                            class="grid gap-1 sm:grid-cols-[4.5rem_minmax(0,1fr)]"
-                          >
-                            <span class="text-muted-foreground">当前假设</span>
-                            <p class="text-control">{{ agentProgress.currentHypothesis }}</p>
-                          </div>
-                          <div
-                            v-if="agentProgress.nextAction"
-                            class="grid gap-1 sm:grid-cols-[4.5rem_minmax(0,1fr)]"
-                          >
-                            <span class="text-muted-foreground">下一步</span>
-                            <p class="text-control">{{ agentProgress.nextAction }}</p>
-                          </div>
-                        </div>
-                        <p
-                          v-else
-                          class="mt-1 line-clamp-2 text-caption leading-5 text-muted-foreground"
-                        >
-                          {{ agentCheckpointSummary }}
-                        </p>
-                        <div class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-caption text-muted-foreground">
-                          <span>{{ agentCheckpoint.metrics.completedTurns }} 回合</span>
-                          <span>· {{ agentCheckpoint.metrics.toolCalls }} 次工具调用</span>
-                          <span>· {{ agentCheckpoint.candidateCount }} 个候选</span>
-                          <span v-if="agentProgress?.deadEnds.length">
-                            · 避开 {{ agentProgress.deadEnds.length }} 条失败路线
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    <div
-                      v-if="agentProgress?.needsReplan"
-                      class="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3"
-                    >
-                      <p class="text-caption text-muted-foreground">
-                        {{ agentProgress.replanReason }}，先让独立策略 Agent 换一条路线。
-                      </p>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        :loading="working"
-                        @click="openStrategistAgent"
-                      >
-                        <BrainCircuit class="size-4" />
-                        策略复盘
-                      </Button>
-                    </div>
-                  </div>
-
-                  <Alert v-if="agentBudgetStopMessage" variant="destructive" class="mt-4">
-                    <Circle class="size-4" />
-                    <AlertDescription class="flex flex-wrap items-center justify-between gap-3">
-                      <span>{{ agentBudgetStopMessage }}</span>
-                      <Button variant="outline" size="sm" @click="showProblems">
-                        返回题库
-                      </Button>
-                    </AlertDescription>
-                  </Alert>
-
-                  <form
-                    v-if="workspacePresentation?.showAgentComposer"
-                    class="mt-5 flex items-end gap-2 border-t border-border pt-4"
-                    @submit.prevent="sendObservation"
-                  >
-                    <Textarea v-model="observation" placeholder="告诉 Agent：我在页面、附件或环境里观察到了什么…" />
-                    <Button type="submit" variant="brand" :disabled="!observation.trim()">
-                      <Send class="size-4" />
-                      发给 Agent
-                    </Button>
-                  </form>
-                </section>
-
                 <CTFTrajectory
                   v-if="workspacePresentation?.showTrajectory"
                   :projection="activeProjection"
@@ -2800,6 +2655,21 @@ onBeforeUnmount(() => {
                   :projection="activeProjection"
                 />
 
+                <CTFDebrief
+                  v-if="workspacePresentation?.showDebrief"
+                  :debrief="activeProjection.debrief"
+                  :human-outcome="activeProjection.humanOutcome"
+                  :submitting="working"
+                  @submit-independent-step="sendIndependentStep"
+                  @submit-reflection="sendDebriefReflection"
+                  @save-memory="saveTrainingMemory"
+                />
+
+                <CTFTrainingArchive
+                  v-if="activeProjection.agentRuns.length || activeProjection.agentCandidates.length"
+                  :job-id="activeProjection.job.id"
+                  :replay-available="true"
+                />
               </div>
 
               <div v-if="workspacePresentation?.showActionRail" class="space-y-5">
@@ -2833,132 +2703,70 @@ onBeforeUnmount(() => {
               </div>
             </div>
 
-            <div v-else class="mt-8">
-              <section
-                v-if="!workspacePresentation?.hasReviewActivity"
-                class="max-w-3xl rounded-xl border border-border bg-card px-6 py-14 text-center"
-              >
-                <Button @click="workspaceMode = 'solve'">
-                  返回解题
-                </Button>
-              </section>
+            <CTFMemoryRecall
+              v-if="memoryLoading || recalledMemories.length"
+              :memories="recalledMemories"
+              :loading="memoryLoading"
+              @archive="archiveTrainingMemory"
+              @inspect-evidence="inspectTrainingMemoryEvidence"
+            />
 
-              <div
-                v-else
-                class="grid gap-5"
-                :class="workspacePresentation?.showReviewMain
-                  && (workspacePresentation.showReviewSidebar || memoryLoading || recalledMemories.length)
-                    ? 'lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,.65fr)]'
-                    : 'max-w-3xl'"
-              >
-                <div v-if="workspacePresentation?.showReviewMain" class="space-y-5">
-                  <CTFDebrief
-                    v-if="workspacePresentation.showDebrief"
-                    :debrief="activeProjection.debrief"
-                    :human-outcome="activeProjection.humanOutcome"
-                    :submitting="working"
-                    @submit-independent-step="sendIndependentStep"
-                    @submit-reflection="sendDebriefReflection"
-                    @save-memory="saveTrainingMemory"
-                  />
-
-                  <CTFArtifacts
-                    v-if="activeProjection.artifacts.length"
-                    :projection="activeProjection"
-                  />
-
-                  <CTFTrainingArchive
-                    v-if="activeProjection.agentRuns.length || activeProjection.agentCandidates.length"
-                    :job-id="activeProjection.job.id"
-                    :replay-available="true"
-                  />
-                </div>
-
-                <div
-                  v-if="workspacePresentation?.showReviewSidebar || memoryLoading || recalledMemories.length"
-                  class="space-y-5"
-                >
-                  <CTFMemoryRecall
-                    v-if="memoryLoading || recalledMemories.length"
-                    :memories="recalledMemories"
-                    :loading="memoryLoading"
-                    @archive="archiveTrainingMemory"
-                    @inspect-evidence="inspectTrainingMemoryEvidence"
-                  />
-
-                  <section
-                    v-if="workspacePresentation?.showEvidenceSummary"
-                    class="rounded-xl border border-border bg-card p-5"
-                  >
-                    <h2 class="text-label font-medium">证据摘要</h2>
-                    <dl class="mt-4 space-y-3 text-body">
-                      <div class="flex items-center justify-between">
-                        <dt class="text-muted-foreground">实验</dt>
-                        <dd class="font-mono">{{ activeProjection.experiments.length }}</dd>
-                      </div>
-                      <div class="flex items-center justify-between">
-                        <dt class="text-muted-foreground">证据</dt>
-                        <dd class="font-mono">{{ activeProjection.evidence.length }}</dd>
-                      </div>
-                      <div class="flex items-center justify-between">
-                        <dt class="text-muted-foreground">制品</dt>
-                        <dd class="font-mono">{{ activeProjection.artifacts.length }}</dd>
-                      </div>
-                      <div class="flex items-center justify-between">
-                        <dt class="text-muted-foreground">平台回执</dt>
-                        <dd class="font-mono">{{ activeProjection.judgeReceipts.length }}</dd>
-                      </div>
-                      <div class="flex items-center justify-between border-t border-border pt-3">
-                        <dt class="text-muted-foreground">Judge</dt>
-                        <dd class="font-mono">
-                          {{ verdictLabel(activeProjection.evaluations.at(-1)?.verdict) }}
-                        </dd>
-                      </div>
-                    </dl>
-                  </section>
-
-                  <details
-                    v-if="workspacePresentation?.showEndpointHistory"
-                    class="rounded-xl border border-border bg-card p-5"
-                  >
-                    <summary class="cursor-pointer text-label font-medium">Endpoint 与授权记录</summary>
-                    <CTFEndpointAuthorization
-                      class="mt-4"
-                      :source-scope="activeProjection.challenge.source.scope"
-                      :network-scopes="activeProjection.networkScopes"
-                      :requests="activeProjection.endpointRequests"
-                      :working="working"
-                      :terminal="Boolean(activeProjection.outcome)"
-                      embedded
-                      review-only
-                      @request="requestEndpoint"
-                      @approve="approveEndpoint"
-                      @deny="denyEndpoint"
-                    />
-                  </details>
-
-                  <p class="flex items-center gap-2 px-1 text-caption text-muted-foreground">
-                    <ShieldCheck class="size-3.5" />
-                    证据与训练记录只保存在本机
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <Alert v-if="outcomeNotice" class="mt-5">
+            <Alert v-if="outcomeNotice">
               <Check class="size-4" />
-              <AlertDescription class="flex flex-wrap items-center justify-between gap-3">
-                <span>{{ outcomeNotice }}</span>
-                <Button
-                  v-if="workspaceMode === 'solve' && workspacePresentation?.hasReviewActivity"
-                  variant="outline"
-                  size="sm"
-                  @click="workspaceMode = 'review'"
-                >
-                  查看复盘
-                </Button>
-              </AlertDescription>
+              <AlertDescription>{{ outcomeNotice }}</AlertDescription>
             </Alert>
+            </div>
+            <ConversationDock
+              :conversation="conversation ?? null"
+              :conversations="dossierConversations"
+              :running="running"
+              :aborting="aborting"
+              :settings="settings"
+              :workspace-path="workspacePath"
+              :message-queue="messageQueue"
+              :session-ready="sessionReady"
+              :resumed="resumed"
+              :compacting="compacting"
+              :compacted-at="compactedAt"
+              :compaction-error="compactionError"
+              :turn-status="turnStatus"
+              :ctf-session="ctfSession"
+              :vulnerability-session="vulnerabilitySession"
+              :ctf-mode="ctfMode"
+              :ctf-role="ctfRole"
+              :model-mode="modelMode"
+              :model-provider="modelProvider"
+              :model-id="modelId"
+              :model-source-preference="modelSourcePreference"
+              :execution-mode="executionMode"
+              :approval-policy="approvalPolicy"
+              :mcp-servers="mcpServers"
+              :mcp-config-digest="mcpConfigDigest"
+              :ensure-conversation="ensureConversation"
+              :pending-composer-draft="pendingComposerDraft"
+              @send="(...args) => $emit('send', ...args)"
+              @abort="$emit('abort')"
+              @select="$emit('selectConversation', $event)"
+              @create="$emit('createConversation')"
+              @expand="$emit('expand')"
+              @consume-pending-draft="$emit('consumePendingDraft')"
+              @ctf-action="$emit('ctfAction', $event)"
+              @compact-context="$emit('compactContext')"
+              @control-goal="$emit('controlGoal', $event)"
+              @respond-approval="(requestId, approved, scope) => $emit('respondApproval', requestId, approved, scope)"
+              @change-model="(mode, provider, model) => $emit('changeModel', mode, provider, model)"
+              @change-model-source="$emit('changeModelSource', $event)"
+              @change-coding-policy="(mode, policy) => $emit('changeCodingPolicy', mode, policy)"
+              @change-mcp-servers="(servers, digest) => $emit('changeMcpServers', servers, digest)"
+              @choose-workspace="$emit('chooseWorkspace')"
+              @choose-workspace-for-new-task="$emit('chooseWorkspaceForNewTask')"
+              @select-workspace="$emit('selectWorkspace', $event)"
+              @forget-workspace="$emit('forgetWorkspace', $event)"
+              @clear-workspace="$emit('clearWorkspace')"
+              @cancel-queued-guidance="$emit('cancelQueuedGuidance', $event)"
+              @edit-queued-guidance="$emit('editQueuedGuidance', $event)"
+              @open-settings="$emit('openSettings')"
+            />
           </template>
 
           <div v-else class="rounded-xl border border-border bg-card px-6 py-16 text-center">

@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import WorkspaceTopBarTitle from '@/components-vue/WorkspaceTopBarTitle.vue'
 
 const props = defineProps<{
-  module?: 'coding' | 'ctf' | 'cve'
+  module?: 'coding' | 'ctf' | 'cve' | 'lab'
   title: string
   subtitle?: string
   hideIdentity?: boolean
@@ -67,14 +67,6 @@ const moduleKey = computed(() => props.module ?? props.title.trim().toLowerCase(
 
 <style scoped>
 .workspace-topbar {
-  --foreground: var(--night-foreground);
-  --muted-foreground: var(--night-muted-foreground);
-  --border: var(--night-border);
-  --border-hairline: var(--night-border-hairline);
-  --card: var(--night-card);
-  --secondary: var(--night-muted);
-  --muted: var(--night-muted);
-  --surface-sunken: var(--night-sunken);
   --module-topbar-title-size: var(--text-control, 0.875rem);
   --module-topbar-title-line-height: var(--text-control--line-height, 1.25rem);
   --module-topbar-control-size: var(--text-control, 0.875rem);
@@ -86,9 +78,8 @@ const moduleKey = computed(() => props.module ?? props.title.trim().toLowerCase(
   isolation: isolate;
   margin: 0;
   border: 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--night-foreground) 14%, transparent);
-  background: color-mix(in srgb, var(--ak-surface-canvas, #111315) 88%, #17191b);
-  color: var(--night-foreground);
+  background: transparent;
+  color: inherit;
   overflow: visible;
 }
 
@@ -117,16 +108,14 @@ const moduleKey = computed(() => props.module ?? props.title.trim().toLowerCase(
 }
 
 .workspace-topbar[data-workspace-module="ctf"],
-.workspace-topbar[data-workspace-module="cve"] {
+.workspace-topbar[data-workspace-module="cve"],
+.workspace-topbar[data-workspace-module="lab"] {
   --module-topbar-title-size: 1.5rem;
   --module-topbar-title-line-height: 1.85rem;
   min-height: 4.75rem;
   padding-top: 0.9rem;
   padding-bottom: 0.85rem;
 }
-
-.workspace-topbar :deep([data-button]) { color: var(--night-foreground); }
-.workspace-topbar__subtitle { color: var(--night-muted-foreground); }
 
 .workspace-topbar__title,
 .workspace-topbar__subtitle {

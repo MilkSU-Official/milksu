@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   codingWorkspaceActionBlocked,
   codingWorkspaceGuidance,
+  researchReportGuidance,
   codingWorkspaceToolName,
   createCodingWorkspaceExtension,
   createWorkspaceActionBroker,
@@ -41,6 +42,15 @@ test("workspace tool rejects unknown actions and plan mutations", () => {
     executionMode: "plan",
     approvalPolicy: "workspace-auto",
   }), "");
+});
+
+test("research report guidance tells the model to edit report.md", () => {
+  assert.match(researchReportGuidance(), /report\.md/);
+  assert.match(researchReportGuidance(), /Status labels are not a report/);
+  assert.match(researchReportGuidance(), /Stay on the user-selected target/);
+  assert.doesNotMatch(researchReportGuidance("lab-job"), /related\.md/);
+  assert.match(researchReportGuidance("cve-research"), /related\.md/);
+  assert.match(researchReportGuidance("cve-research"), /上游/);
 });
 
 test("workspace guidance tells the model to use typed UI actions", () => {

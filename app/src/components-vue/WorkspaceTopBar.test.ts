@@ -7,6 +7,7 @@ import ctfEndpointAuthorizationSource from './CTFEndpointAuthorization.vue?raw'
 import ctfManualIntakeSource from './CTFManualIntake.vue?raw'
 import ctfPageSourceRaw from './CTFPage.vue?raw'
 import ctfWorkspaceHeaderSource from './CTFWorkspaceHeader.vue?raw'
+import labPageSource from './LabPage.vue?raw'
 import vulnPageSource from './VulnPage.vue?raw'
 import WorkspaceModuleTopBar from './WorkspaceModuleTopBar.vue'
 import workspaceModuleTopBarSource from './WorkspaceModuleTopBar.vue?raw'
@@ -43,7 +44,7 @@ async function mountTopBar() {
   return host
 }
 
-async function mountModuleTopBar(module: 'coding' | 'ctf' | 'cve') {
+async function mountModuleTopBar(module: 'coding' | 'ctf' | 'cve' | 'lab') {
   const host = document.createElement('div')
   document.body.append(host)
   const app = createApp({
@@ -81,11 +82,12 @@ describe('WorkspaceTopBar', () => {
     expect(host.querySelector('[data-workspace-topbar-filters]')?.className).toContain('text-control')
   })
 
-  it('uses the same module title element and font class for Coding, CTF, and CVE', async () => {
+  it('uses the same module title element and font class for Coding, CTF, CVE, and Lab', async () => {
     const modules = [
       ['coding', 'Coding'],
       ['ctf', 'CTF'],
       ['cve', 'CVE'],
+      ['lab', 'LAB'],
     ] as const
     const titleClasses = new Set<string>()
     const actionClasses = new Set<string>()
@@ -111,12 +113,13 @@ describe('WorkspaceTopBar', () => {
     expect(workspaceTopBarSource).toContain('--module-topbar-control-size')
   })
 
-  it('keeps Coding, CTF, and CVE module headers on the shared module topbar component', () => {
+  it('keeps Coding, CTF, CVE, and Lab module headers on the shared module topbar component', () => {
     const files = [
       ['Coding', chatPageSource],
       ['CTF catalog', ctfPageSource],
       ['CTF session', ctfWorkspaceHeaderSource],
       ['CVE', vulnPageSource],
+      ['Lab', labPageSource],
     ] as const
 
     for (const [surface, source] of files) {
@@ -133,9 +136,15 @@ describe('WorkspaceTopBar', () => {
     expect(ctfPageSource).toContain('module="ctf"')
     expect(ctfWorkspaceHeaderSource).toContain('module="ctf"')
     expect(vulnPageSource).toContain('module="cve"')
+    expect(labPageSource).toContain('module="lab"')
+    expect(workspaceTopBarSource).toContain('background: transparent')
+    expect(workspaceTopBarSource).not.toContain('border-bottom')
+    expect(workspaceTopBarSource).not.toContain('--foreground: var(--night-foreground)')
+    expect(workspaceTopBarSource).not.toContain('var(--ak-surface-canvas')
     expect(workspaceModuleTopBarSource).toContain("coding: 'Coding'")
     expect(workspaceModuleTopBarSource).toContain("ctf: 'CTF'")
     expect(workspaceModuleTopBarSource).toContain("cve: 'CVE'")
+    expect(workspaceModuleTopBarSource).toContain("lab: 'LAB'")
     expect(workspaceModuleTopBarSource).toContain('<WorkspaceTopBar')
     expect(workspaceModuleTopBarSource).toContain('data-workspace-module-topbar')
     expect(workspaceTopBarTitleSource).toContain('data-workspace-topbar-title')

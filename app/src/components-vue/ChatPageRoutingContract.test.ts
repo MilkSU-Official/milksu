@@ -12,12 +12,14 @@ describe('ChatPage routing contract', () => {
   it('shows a CVE handoff badge and return action while preserving a typed topbar module', () => {
     expect(chatPageSource).toContain('vulnerabilitySession?: boolean')
     expect(chatPageSource).toContain('returnVuln: []')
+    expect(chatPageSource).toContain('returnLab: []')
     expect(chatPageSource).toContain('vulnerabilitySession: props.vulnerabilitySession')
     expect(chatPageSource).toContain('const topbarModule = computed')
     expect(chatPageSource).toContain("? 'cve'")
-    expect(chatPageSource).toContain("{{ ctfSession ? ctfRoleLabel : 'CVE 接力' }}")
+    expect(chatPageSource).toContain("{{ ctfSession ? ctfRoleLabel : (domainTaskPresentation?.moduleLabel || 'CVE 接力') }}")
     expect(chatPageSource).toContain('domainTaskPresentation')
-    expect(chatPageSource).toContain("domainTaskPresentation.kind === 'ctf' ? $emit('returnCtf') : $emit('returnVuln')")
+    expect(chatPageSource).toContain('function returnToDomain()')
+    expect(chatPageSource).toContain("emit('returnLab')")
     expect(chatPageSource).toContain(':module="topbarModule"')
   })
 
@@ -79,7 +81,7 @@ describe('ChatPage routing contract', () => {
 
   it('hides the module topbar while the right rail is open and parks terminal plus close there', () => {
     expect(chatPageSource).toContain('const contextRailVisible = computed')
-    expect(chatPageSource).toContain('v-if="!contextRailVisible"')
+    expect(chatPageSource).toContain('v-if="!dockSurface && !contextRailVisible"')
     expect(chatPageSource).toContain('data-testid="coding-rail-terminal"')
     expect(chatPageSource).toContain('data-testid="coding-rail-toggle"')
     expect(chatPageSource).toContain('aria-label="关闭右侧栏"')
@@ -133,6 +135,7 @@ describe('ChatPage routing contract', () => {
   it('projects milksu_progress plans, context meter and run timing on the right rail and composer', () => {
     expect(chatPageSource).toContain("from '@/components-vue/AgentExecutionPlan.vue'")
     expect(chatPageSource).toContain('<AgentExecutionPlan')
+    expect(chatPageSource).toContain(':running="running"')
     expect(chatPageSource).toContain("from '@/components-vue/ContextUsageMeter.vue'")
     expect(chatPageSource).toContain('turnStatus?: SessionTurnSnapshot')
     expect(chatPageSource).toContain('resolveModelContextWindow')

@@ -438,6 +438,13 @@ describe('applyCodingToolEvent', () => {
     expect(settled[1]?.approvalRequestId).toBe('approval-1')
   })
 
+  it('also settles leftover running assistant shells when the turn is idle', () => {
+    const settled = settleRunningToolMessages([
+      message('a1', 'assistant', '还没说完', { status: 'running' }),
+    ])
+    expect(settled[0]?.status).toBe('done')
+  })
+
   it('ignores bubbled details toggles from nested entries', () => {
     const parent = { open: true } as HTMLDetailsElement
     const child = { open: false } as HTMLDetailsElement

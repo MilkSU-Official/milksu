@@ -51,6 +51,9 @@ describe('global style contract', () => {
     expect(indexCss).toContain('--muted-foreground: var(--night-muted-foreground)')
     expect(indexCss).toContain('--overlay-hover-strong: rgb(255 255 255 / 0.13)')
     expect(indexCss).toContain('--selected-bg: var(--overlay-hover-strong)')
+    expect(indexCss).toContain('--segment-track: #22231e')
+    expect(indexCss).toContain('--segment-thumb: #3a3c34')
+    expect(indexCss).toContain('--control-label: var(--night-muted-foreground)')
   })
 
   it('limits paper colors to document surfaces in day mode', () => {

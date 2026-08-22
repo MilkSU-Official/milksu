@@ -2,6 +2,7 @@
 
 > 文档状态：**Historical ADR**。保留 Coding 工作区建立原因；当前权限、能力与自举缺口见
 > [Coding / Pi 扩展边界](/architecture/coding-agent-pi-extension-boundary)、代码、测试和 Git 历史。
+> 当前一级导航已增加「实验室」；下文「固定为 CTF / CVE / Coding」只记录当时决策。
 >
 > 状态：Accepted（2026-07-31）
 

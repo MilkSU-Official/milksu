@@ -66,8 +66,8 @@ product heading “我们要构建什么” or “我们在 {project} 中构建�
 - Night mode uses graphite without an obvious blue, green or brown cast; day mode keeps paper neutrals.
   Cyan is current module and primary actions. Gold is secondary emphasis and the current focus bar.
   Success green only means success. Blue is reserved for links and explicit execution or diagnostic states.
-- CTF, CVE and Coding tabs use the same charcoal-and-cyan system. Do not use `--info`, blue borders
-  or blue-filled surfaces to distinguish those three product modules.
+- CTF, CVE, 实验室 and Coding tabs use the same charcoal-and-cyan system. Do not use `--info`, blue borders
+  or blue-filled surfaces to distinguish those product modules.
 
 ## Beta Self-Bootstrap Boundary
 
@@ -89,9 +89,9 @@ code, configuration, test defaults or documentation.
 - Pi owns the generic model session, context compaction and tool loop.
 - MilkSU owns desktop authorization, workspace and credential boundaries, event projection and product UI.
 - The CTF domain owns Challenge, Evidence, Candidate, Judge Receipt, Recovery, Memory and learning facts.
-- CTF, CVE and Coding are peer workspaces. What is shipped today is current fact, not a ceiling:
-  CVE tracking, the CTF challenge loop and the Coding agent may grow into first-pass audit, local
-  reproduction, Labs, disclosure drafts, binary/source intake and security-workspace UI.
+- CTF, CVE, 实验室 and Coding are peer workspaces. What is shipped today is current fact, not a ceiling:
+  CVE tracking and reproduction reports, the CTF challenge loop, laboratory probing and the Coding
+  agent may grow into first-pass audit, disclosure drafts, binary/source intake and security-workspace UI.
 - Missing a surface is not a ban. Do not add thaw checklists, freeze gates or “don't do PoC”
   product identity before the capability exists. “Not in this release line” only means it is not
   the current ship claim; it does not forbid a selected slice.

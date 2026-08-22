@@ -116,3 +116,14 @@ export function latestCodingPlan(messages: Message[]): CodingPlan | null {
   }
   return null
 }
+
+/** When the Agent turn is over, in-progress plan rows must not keep spinning. */
+export function settleIdleCodingPlan(plan: CodingPlan): CodingPlan {
+  if (!plan.steps.some(step => step.status === 'in_progress')) return plan
+  return {
+    ...plan,
+    steps: plan.steps.map(step => (
+      step.status === 'in_progress' ? { ...step, status: 'completed' as const } : step
+    )),
+  }
+}

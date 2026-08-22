@@ -37,10 +37,10 @@
 ## 长期设计（不是禁令）
 
 - [授权安全学习与研究平台](/architecture/security-learning-and-research-platform)
-- [CTF Labs 设计](/architecture/ctf-labs-design)
+- [CTF Labs 设计](/architecture/ctf-labs-design)（CTF 可重置环境，不是主导航实验室）
 - [CVE 研究工作台设计](/architecture/cve-research-workbench-design)
 
-Labs 和 CVE 纵深还不在发行包里。设计存在不表示已经做完，也不表示不准做。选中切片时直接做。
+主导航「实验室」和 CVE 档案复现已在开发线接线，尚未进入正式发行包。CTF 可重置环境仍未做。设计存在不表示已经做完。
 
 ## 历史与研究
 

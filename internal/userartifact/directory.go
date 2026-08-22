@@ -19,6 +19,7 @@ const (
 	KindCoding Kind = "Coding"
 	KindCTF    Kind = "CTF"
 	KindCVE    Kind = "CVE"
+	KindLab    Kind = "Lab"
 )
 
 var cveIDPattern = regexp.MustCompile(`(?i)^CVE-[0-9]{4}-[0-9]+$`)
@@ -40,6 +41,7 @@ func Ensure(root string) (string, error) {
 		filepath.Join(validated, string(KindCoding)),
 		filepath.Join(validated, string(KindCTF)),
 		filepath.Join(validated, string(KindCVE)),
+		filepath.Join(validated, string(KindLab)),
 	} {
 		if err := os.MkdirAll(directory, 0o700); err != nil {
 			return "", fmt.Errorf("create MilkSU artifact directory: %w", err)
@@ -63,8 +65,8 @@ func Section(root string, kind Kind) (string, error) {
 }
 
 func Workspace(root string, kind Kind, identity, label string) (string, error) {
-	if kind != KindCoding && kind != KindCVE {
-		return "", fmt.Errorf("MilkSU can only create Coding or CVE workspaces here")
+	if kind != KindCoding && kind != KindCVE && kind != KindLab {
+		return "", fmt.Errorf("MilkSU can only create Coding, CVE, or Lab workspaces here")
 	}
 	identity = strings.TrimSpace(identity)
 	if identity == "" {
@@ -133,7 +135,7 @@ func validateRoot(value string) (string, error) {
 }
 
 func validKind(kind Kind) bool {
-	return kind == KindCoding || kind == KindCTF || kind == KindCVE
+	return kind == KindCoding || kind == KindCTF || kind == KindCVE || kind == KindLab
 }
 
 func ensureWithin(root, target string) error {

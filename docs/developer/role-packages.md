@@ -1,8 +1,8 @@
 # Security Role Packages：CTF 与 Vulnerability Research
 
 > 文档状态：Target domain contract。CTF 已有真实 Web 窄路径；CVE 已有学习/追踪发行面。
-> 纵深研究、本地复现、披露草稿与 Labs 还没做，不是暂停禁令。Coding 是横向工程工作区，
-> 不应被误写成这些 Role。
+> CVE 档案复现与主导航实验室已在开发线接线。披露草稿与 CTF 可重置环境还没做，不是暂停禁令。
+> Coding 是横向工程工作区，不应被误写成这些 Role。
 
 Role Package 不是一段“扮演安全专家”的 Prompt，也不是工具列表。它定义一类任务的目标、长期状态、允许动作、证据要求和独立判分方式，回答：**这场任务怎样才算赢，用户又从中学会了什么。**
 
@@ -10,10 +10,10 @@ Role Package 不是一段“扮演安全专家”的 Prompt，也不是工具列
 
 **MilkSU 是一个一站式网络安全 AI 学习客户端，也是人与安全 Agent 共同工作的研究与训练环境。它既帮助用户在授权环境中完成更多真实学习任务，也通过可验证的实验、证据和复盘，让用户真正掌握完成这些任务的方法。**
 
-当前发行完成线里的安全 Role 是 CTF，以及 CVE 的学习/追踪面。Vulnerability Research 的纵深、
-本地复现和披露草稿可以按切片做；Red、Blue、AppSec 和 Malware 还在总架构坐标里，需要时再升级
+当前发行完成线里的安全 Role 是 CTF，以及 CVE 的学习/追踪面。CVE 档案复现和实验室探测已在
+开发线接线；披露草稿仍可后做。Red、Blue、AppSec 和 Malware 还在总架构坐标里，需要时再升级
 成独立 Role。产品同时包含 Coding，但 Coding 提供横向软件工程能力，不使用 CTF/Vuln 的领域
-Outcome；Labs 提供可重置环境，并由具体训练 Role 消费。
+Outcome；实验室是独立探测作业面。CTF 可重置环境仍是长期设计，由具体训练 Role 消费。
 
 未来的 Red/Blue 也首先是攻防学习 Workspace：练习范围、靶场或已授权资产必须可见，用户既要看到领域结果，也要学习攻击路径、检测推理、证据判断和复盘方法。它们不是对任意互联网资产批量作业的产品入口。
 

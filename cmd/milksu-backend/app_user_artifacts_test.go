@@ -53,6 +53,18 @@ func TestResolveConversationWorkspaceSeparatesCodingAndCVEArtifacts(t *testing.T
 			wantBase:    "CVE-2024-3400",
 			wantRoot:    artifactDirectory,
 		},
+		{
+			name: "lab",
+			conversation: conversation.StoredConversation{
+				ID: "lab-job-one", Title: "本机练习机",
+				DomainTaskContext: map[string]any{
+					"kind": "lab", "title": "本机练习机",
+				},
+				Messages: []conversation.StoredMessage{},
+			},
+			wantSection: string(userartifact.KindLab),
+			wantRoot:    artifactDirectory,
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			if err := conversations.Save(test.conversation); err != nil {
@@ -81,6 +93,18 @@ func TestResolveConversationWorkspaceSeparatesCodingAndCVEArtifacts(t *testing.T
 			}
 			if stored.WorkspacePath != workspace {
 				t.Fatalf("stored workspace = %q, want %q", stored.WorkspacePath, workspace)
+			}
+			if test.wantSection == string(userartifact.KindCVE) || test.wantSection == string(userartifact.KindLab) {
+				if _, err := os.Stat(filepath.Join(workspace, userartifact.ReportFileName)); err != nil {
+					t.Fatalf("seeded report missing: %v", err)
+				}
+			}
+			if test.wantSection == string(userartifact.KindCVE) {
+				if _, err := os.Stat(filepath.Join(workspace, userartifact.RelatedFileName)); err != nil {
+					t.Fatalf("seeded related CVE file missing: %v", err)
+				}
+			} else if _, err := os.Stat(filepath.Join(workspace, userartifact.RelatedFileName)); err == nil {
+				t.Fatal("non-CVE workspace unexpectedly seeded related.md")
 			}
 		})
 	}

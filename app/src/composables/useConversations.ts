@@ -1,4 +1,4 @@
-import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
+import { computed, getCurrentInstance, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { invokeCommand, listenEvent } from '@/desktop'
 import type { CodingCompactionResult, CodingProjectMemory } from '@/codingEnvironmentTypes'
 import {
@@ -18,6 +18,7 @@ import {
 } from '@/lib/codingPolicy'
 import {
   applyCodingToolEvent,
+  hasIdleRunResidue,
   settleRunningToolMessages,
   withoutBlankAssistantMessages,
 } from '@/lib/chatActivity'
@@ -346,7 +347,7 @@ export function normalizeConversation(raw: Record<string, unknown>): Conversatio
       : undefined,
     domainTaskContext: normalizeDomainTaskContext(raw.domainTaskContext),
     lastContextUsage: normalizeLastContextUsage(raw.lastContextUsage),
-    messages: messages.map(message => {
+    messages: settleRunningToolMessages(messages.map(message => {
       const rawApprovalState = String(message.approvalState ?? '')
       const approvalState = rawApprovalState === 'pending'
         ? 'expired'
@@ -384,7 +385,7 @@ export function normalizeConversation(raw: Record<string, unknown>): Conversatio
             : undefined,
         attachments: normalizeAttachments(message.attachments),
       }
-    }),
+    })),
   }
 }
 
@@ -782,6 +783,41 @@ export function useConversations() {
     abortingIds.value = next.aborting
   }
 
+  const IDLE_RECONCILE_MS = 12_000
+
+  function reconcileIdleConversation(conversationId: string) {
+    if (!conversationId || runningIds.value.has(conversationId)) return
+    const conversation = conversations.value.find(item => item.id === conversationId)
+    if (!conversation || !hasIdleRunResidue(conversation.messages)) return
+    update(conversationId, current => ({
+      ...current,
+      messages: settleRunningToolMessages(current.messages),
+    }))
+  }
+
+  function reconcileIdleConversations() {
+    for (const conversation of conversations.value) {
+      reconcileIdleConversation(conversation.id)
+    }
+  }
+
+  watch(activeId, id => {
+    if (id) reconcileIdleConversation(id)
+  })
+
+  function onVisibilityChange() {
+    if (document.visibilityState !== 'visible') return
+    if (activeId.value) reconcileIdleConversation(activeId.value)
+  }
+
+  const ownsIdleReconcile = Boolean(getCurrentInstance())
+  if (ownsIdleReconcile && typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', onVisibilityChange)
+  }
+  const idleReconcileTimer = ownsIdleReconcile && typeof window !== 'undefined'
+    ? window.setInterval(reconcileIdleConversations, IDLE_RECONCILE_MS)
+    : undefined
+
   async function invokeRuntimeTurn(
     conversationId: string,
     dispatch: RuntimeTurnDispatch,
@@ -900,12 +936,16 @@ export function useConversations() {
       domainTaskContext?: Conversation['domainTaskContext']
       conversationId?: string
       workspacePath?: string
+      ctfJobId?: Conversation['ctfJobId']
+      ctfMode?: Conversation['ctfMode']
+      ctfRole?: Conversation['ctfRole']
     } = {},
   ) {
     const requestedId = String(options.conversationId ?? '').trim()
     const hasWorkspaceOverride = Object.prototype.hasOwnProperty.call(options, 'workspacePath')
     const workspaceOverride = String(options.workspacePath ?? '').trim() || undefined
     const clearsCTFContext = options.domainTaskContext?.kind === 'cve'
+      || options.domainTaskContext?.kind === 'lab'
     if (requestedId) {
       const existing = conversations.value.find(item => item.id === requestedId)
       if (existing) {
@@ -915,9 +955,9 @@ export function useConversations() {
           title: title.trim().slice(0, 40) || conversation.title,
           workspacePath: hasWorkspaceOverride ? workspaceOverride : conversation.workspacePath,
           domainTaskContext: options.domainTaskContext ?? conversation.domainTaskContext,
-          ctfJobId: clearsCTFContext ? undefined : conversation.ctfJobId,
-          ctfMode: clearsCTFContext ? undefined : conversation.ctfMode,
-          ctfRole: clearsCTFContext ? undefined : conversation.ctfRole,
+          ctfJobId: clearsCTFContext ? undefined : (options.ctfJobId ?? conversation.ctfJobId),
+          ctfMode: clearsCTFContext ? undefined : (options.ctfMode ?? conversation.ctfMode),
+          ctfRole: clearsCTFContext ? undefined : (options.ctfRole ?? conversation.ctfRole),
         }))
         return existing.id
       }
@@ -952,6 +992,9 @@ export function useConversations() {
         ? pendingMCPConfigDigest.value
         : undefined,
       domainTaskContext: options.domainTaskContext,
+      ctfJobId: clearsCTFContext ? undefined : options.ctfJobId,
+      ctfMode: clearsCTFContext ? undefined : options.ctfMode,
+      ctfRole: clearsCTFContext ? undefined : options.ctfRole,
       messages: [],
     }
     conversations.value = [conversation, ...conversations.value]
@@ -1895,6 +1938,10 @@ export function useConversations() {
     saveTimers.clear()
     for (const timer of compactionErrorTimers.values()) window.clearTimeout(timer)
     compactionErrorTimers.clear()
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
+    if (idleReconcileTimer) window.clearInterval(idleReconcileTimer)
   })
 
   return {

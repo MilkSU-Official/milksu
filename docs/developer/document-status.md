@@ -49,11 +49,11 @@
 ## 当前边界
 
 - MilkSU 是 Electron/Chromium + Vue 桌面壳、受管 Go Runtime 和 Pi Sidecar；不再维护 Wails/CEF 双壳。
-- Coding、CTF、CVE 共用 Pi 通用能力；CTF/CVE 只增加领域上下文、事实、Evidence、Judge 与返回工作台。
+- Coding、CTF、CVE、实验室共用 Pi 通用能力；CTF 增加题目事实与 Judge，CVE/实验室增加档案或作业与活报告。
 - 浏览器、Browser Use、Computer Use 是三个不同 Scope；面板折叠只改变可见性，不应停止 Session。
 - Provider Key 不进入 renderer、模型上下文、Shell、后台任务、日志、诊断或文档。
 - 用户可见产物位于各操作系统用户文档目录的 `MilkSU` 子目录；Runtime、凭据、Obelisk、浏览器 Profile 和恢复数据位于平台用户配置目录。
-- CTF 成功必须来自独立 Judge 或用户明确确认。CVE 当前发行面是学习/追踪；纵深、本地复现/PoC、Labs 和工作台是未实现方向，不是禁令。对用户未授权的外部目标，仍需要可见、准确的授权。
+- CTF 成功必须来自独立 Judge 或用户明确确认。CVE 发行面仍是学习/追踪；开发线已有点进档案后的复现报告。「实验室」是独立一级入口，不是 CTF 可重置环境。对用户未授权的外部目标，仍需要可见、准确的授权。模型候选不能写成已确认漏洞。
 - Beta 只用于用户明确要求的 MilkSU 自举；普通开发、测试和发行准备不构建 Beta。
 - 下载页与对外状态以 `26.819.1` 回执为准；晚于 `eed1dac` 的 `main` 只描述当前仓库，不能改写该发行页。
 - 生产视觉以 [当前视觉约定](../design/current-visual.md) 为准。旧战术档案 / 酸绿稿和 `design-qa.md` 已删除，不再作为实现约束。

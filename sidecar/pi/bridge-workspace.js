@@ -31,6 +31,26 @@ const workspaceActions = new Set([
 
 const workspacePanels = new Set(["browser", "artifacts", "changes", "environment"]);
 
+export function researchReportGuidance(sessionRole = "") {
+  const lines = [
+    "The user is viewing report.md in this workspace as the lasting report.",
+    "Create and edit that Markdown file (or report.html) with Pi file tools.",
+    "Write process trees, network or HTTP activity, copy-paste steps, and impact when those facts exist.",
+    "A missed reproduction still needs a report of what was tried and observed.",
+    "Status labels are not a report.",
+    "Stay on the user-selected target for this job; do not scan unrelated hosts or internet ranges.",
+  ];
+  if (sessionRole === "cve-research") {
+    lines.push(
+      "The dossier also shows related.md as the related-CVE hook.",
+      "When you start this CVE job, and whenever the user asks about related, upstream, downstream, parent, child, or similar CVEs, create or update related.md with Pi file tools.",
+      "Keep headings 上游, 下游, and 同类.",
+      "Only record CVE IDs found in public sources; do not invent them.",
+    );
+  }
+  return lines.join(" ");
+}
+
 export function codingWorkspaceGuidance() {
   return [
     "Use milksu_workspace to operate the Coding desktop the way the user would.",

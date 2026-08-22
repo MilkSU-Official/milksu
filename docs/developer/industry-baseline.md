@@ -50,7 +50,7 @@
 | --- | --- | --- | --- |
 | L1 Surface | PentAGI、Agentic SOC、redamon、Strix | Run/Case 视图、暂停恢复、成本、审批 | 把 Dashboard 数量当差异化 |
 | L2 Role | Red: PentAGI/ARTEMIS；Blue: Agentic SOC；AppSec: Shannon；CTF: BoxPwnr；Vuln: Taskflow/Co-RedTeam | 角色状态、证据和成功条件 | 只换 system prompt 的角色人格 |
-| L3 Capability | CodeQL、Burp、HexStrike、Operant MCP | 结构化工具 Adapter、Artifact 和权限 | 运行时临时安装几十个未知工具 |
+| L3 Capability | CodeQL、Burp、capa、IDA/Ghidra | 结构化工具 Adapter、Artifact 和权限 | 运行时临时安装几十个未知工具；不把 HexStrike 整包 MCP 做成产品页 |
 | L4 Runtime | BoxPwnr、PentAGI、Taskflow、Shannon | Environment、Attempt、Trace、Effect、Judge、Recovery | 复制整个外部 Agent Loop |
 | L5 Agent Engine | Pi SDK、Codex 开源核心、Claude Code、CAI、PentAGI、Shannon、Strix | 内嵌可扩展基座、模型替换与黑盒委派 | 从 API 重写成熟的通用 Planner/Tool Loop |
 | L6 Integrity | Agentic Radar、Garak、PyRIT、RAMPART | Agent/MCP/Tool 的安全测试与策略回归 | 把 Agent Security 当成 Blue/Red Role |

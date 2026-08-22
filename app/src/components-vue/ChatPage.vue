@@ -198,6 +198,8 @@ const props = defineProps<{
   /** Unsent handoff draft staged by CTF/CVE open path; never auto-starts Pi. */
   pendingComposerDraft?: { prompt: string; visibleText: string } | null
   conversationDrawerOpen?: boolean
+  /** Floating dossier dock: keep the agent thread, hide terminal and the right rail. */
+  surface?: 'page' | 'dock'
 }>()
 
 const emit = defineEmits<{
@@ -232,11 +234,13 @@ const emit = defineEmits<{
   openConversation: [conversationId: string]
   returnCtf: []
   returnVuln: []
+  returnLab: []
   switchCtfAgent: [role: 'solver' | 'tool-builder' | 'strategist']
   consumePendingDraft: []
   toggleConversationDrawer: []
 }>()
 
+const dockSurface = computed(() => props.surface === 'dock')
 const goalMode = ref(false)
 const stagedComposerPrompt = ref<{ conversationId: string; prompt: string } | null>(null)
 const composer = ref<{ appendDraftText: (text: string) => void } | null>(null)
@@ -747,6 +751,13 @@ const domainTaskPresentation = computed(() => {
   const context = activeDomainTaskContext.value
   return context ? presentDomainTaskContext(context) : null
 })
+
+function returnToDomain() {
+  const kind = domainTaskPresentation.value?.kind
+  if (kind === 'ctf') emit('returnCtf')
+  else if (kind === 'lab') emit('returnLab')
+  else emit('returnVuln')
+}
 const workshopSummary = computed(() => {
   const state = workshopState.value
   if (!state) return '正在读取工具交接状态'
@@ -1315,6 +1326,7 @@ function applyWorkspaceReveal(payload?: {
   changePath?: string
   terminal?: string
 }) {
+  if (dockSurface.value) return
   if (payload?.conversationId && payload.conversationId !== props.conversation?.id) return
   const panel = payload?.panel
   if (panel === 'browser' || panel === 'artifacts' || panel === 'changes' || panel === 'environment') {
@@ -1725,6 +1737,7 @@ function changeContextPanel(value: string) {
 }
 
 function openChanges(path = '') {
+  if (dockSurface.value) return
   changesFocusPath.value = path
   changeContextPanel('changes')
 }
@@ -1983,11 +1996,15 @@ watch(
 </script>
 
 <template>
-  <section class="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-surface-editor">
+  <section
+    class="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-surface-editor"
+    :class="{ 'chat-surface-dock': dockSurface }"
+    :data-testid="dockSurface ? 'coding-agent-dock-surface' : undefined"
+  >
   <div class="coding-workspace relative flex min-h-0 flex-1 overflow-hidden">
   <main class="chat-main flex min-w-0 flex-1 flex-col overflow-hidden bg-surface-editor">
     <WorkspaceModuleTopBar
-      v-if="!contextRailVisible"
+      v-if="!dockSurface && !contextRailVisible"
       :module="topbarModule"
       :title="topbarPresentation.title"
       :subtitle="topbarPresentation.subtitle"
@@ -2027,7 +2044,7 @@ watch(
       </template>
       <template v-if="ctfSession || vulnerabilitySession" #badge>
         <Badge variant="secondary" class="max-w-full truncate">
-          {{ ctfSession ? ctfRoleLabel : 'CVE 接力' }}
+          {{ ctfSession ? ctfRoleLabel : (domainTaskPresentation?.moduleLabel || 'CVE 接力') }}
         </Badge>
       </template>
       <template #actions>
@@ -2036,7 +2053,7 @@ watch(
           variant="ghost"
           size="sm"
           :aria-label="domainTaskPresentation.returnAriaLabel"
-          @click="domainTaskPresentation.kind === 'ctf' ? $emit('returnCtf') : $emit('returnVuln')"
+          @click="returnToDomain"
         >
           <Flag v-if="domainTaskPresentation.kind === 'ctf'" class="size-4" />
           <ShieldCheck v-else class="size-4" />
@@ -2065,7 +2082,7 @@ watch(
       </template>
     </WorkspaceModuleTopBar>
     <div
-      v-else-if="!conversationDrawerOpen"
+      v-else-if="!dockSurface && !conversationDrawerOpen"
       class="coding-history-collapsed-controls app-drag flex items-center gap-1.5 px-3 py-2"
     >
       <Button
@@ -2099,7 +2116,7 @@ watch(
       class="min-h-0 flex-1 overflow-y-auto"
       @scroll.passive="handleChatScroll"
     >
-      <div v-if="!conversation?.messages.length && domainTaskPresentation" class="mx-auto flex min-h-full w-full max-w-5xl flex-col justify-center px-5 py-5 2xl:px-8">
+      <div v-if="!dockSurface && !conversation?.messages.length && domainTaskPresentation" class="mx-auto flex min-h-full w-full max-w-5xl flex-col justify-center px-5 py-5 2xl:px-8">
         <MissionOperationPanel :presentation="domainTaskPresentation" :running="running" />
         <div class="mt-4 flex items-center gap-2">
           <Button v-if="!workspacePath" class="tactical-action" @click="$emit('chooseWorkspace')">
@@ -2114,7 +2131,7 @@ watch(
         </div>
       </div>
       <div
-        v-else-if="!conversation?.messages.length"
+        v-else-if="!dockSurface && !conversation?.messages.length"
         class="flex min-h-full flex-col items-center justify-center px-8"
       >
         <h1 class="text-center text-2xl font-medium tracking-tight text-foreground">
@@ -2123,7 +2140,7 @@ watch(
         <p v-if="gitBranchError" class="mt-3 text-center text-caption text-destructive">{{ gitBranchError }}</p>
       </div>
 
-      <div v-else class="mx-auto max-w-3xl px-8 py-8">
+      <div v-else class="mx-auto max-w-3xl" :class="dockSurface ? 'px-4 py-4' : 'px-8 py-8'">
         <template v-for="item in chatTranscript" :key="item.id">
           <ChatActivityGroup
             v-if="item.kind === 'activity'"
@@ -2165,6 +2182,11 @@ watch(
       {{ compactionError }}
     </p>
 
+    <AgentExecutionPlan
+      v-if="dockSurface"
+      :messages="conversation?.messages ?? []"
+      :running="running"
+    />
     <ChatComposer
       ref="composer"
       :running="running"
@@ -2221,7 +2243,7 @@ watch(
     />
   </main>
   <TacticalPanelShell
-    v-if="environmentOpen && !domainContextCollapsed"
+    v-if="!dockSurface && environmentOpen && !domainContextCollapsed"
     as="aside"
     class="context-sidebar"
     size="wide"
@@ -2318,7 +2340,7 @@ watch(
           :presentation="domainTaskPresentation"
           :collapsed="false"
           @update:collapsed="domainContextCollapsed = $event"
-          @return-domain="domainTaskPresentation.kind === 'ctf' ? $emit('returnCtf') : $emit('returnVuln')"
+          @return-domain="returnToDomain"
         />
       </template>
       <template v-else-if="contextPanel === 'environment'">
@@ -2448,6 +2470,7 @@ watch(
 
         <AgentExecutionPlan
           :messages="conversation?.messages ?? []"
+          :running="running"
         />
 
         <section class="border-b border-border px-4 py-4">
@@ -2869,9 +2892,9 @@ watch(
           </div>
         </section>
         <section class="px-4 py-4">
-          <Button variant="outline" class="w-full justify-start" @click="$emit('returnCtf')">
+          <Button variant="outline" class="w-full justify-start" @click="returnToDomain">
             <Flag class="size-4" />
-            返回训练工作台
+            {{ domainTaskPresentation?.returnLabel || '返回 CTF' }}
           </Button>
         </section>
       </template>
@@ -2906,8 +2929,8 @@ watch(
           <p v-else class="mt-3 text-caption text-muted-foreground">尚无外部 Judge 回执。</p>
         </section>
         <section class="px-4 py-4">
-          <Button variant="outline" class="w-full justify-start" @click="$emit('returnCtf')">
-            查看完整轨迹与提交
+          <Button variant="outline" class="w-full justify-start" @click="returnToDomain">
+            {{ domainTaskPresentation?.returnLabel || '返回 CTF' }}
           </Button>
         </section>
       </template>
@@ -2915,7 +2938,7 @@ watch(
   </TacticalPanelShell>
   </div>
   <DomainTaskContextPanel
-    v-if="domainTaskPresentation && domainContextCollapsed"
+    v-if="!dockSurface && domainTaskPresentation && domainContextCollapsed"
     class="domain-task-context-pip"
     :presentation="domainTaskPresentation"
     :collapsed="true"
@@ -2927,10 +2950,10 @@ watch(
         contextPanel = 'domain'
       }
     }"
-    @return-domain="domainTaskPresentation.kind === 'ctf' ? $emit('returnCtf') : $emit('returnVuln')"
+    @return-domain="returnToDomain"
   />
   <div
-    v-if="terminalOpen"
+    v-if="!dockSurface && terminalOpen"
     class="coding-terminal-dock min-w-0 shrink-0 overflow-hidden border-t border-border bg-card"
     :style="terminalDockStyle"
     aria-label="底部终端面板"
@@ -2966,6 +2989,10 @@ watch(
 .chat-main {
   container-name: chat-main;
   container-type: inline-size;
+}
+
+.chat-surface-dock .chat-main {
+  background: transparent;
 }
 
 .coding-workspace {

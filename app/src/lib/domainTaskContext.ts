@@ -6,7 +6,7 @@
  * agent harness, and never by parsing free-form prompt text.
  */
 
-export type DomainTaskKind = 'ctf' | 'cve'
+export type DomainTaskKind = 'ctf' | 'cve' | 'lab'
 
 export interface DomainTaskFact {
   label: string
@@ -55,7 +55,15 @@ export interface CVEDomainTaskContext {
   roleLabel: string
 }
 
-export type DomainTaskContext = CTFDomainTaskContext | CVEDomainTaskContext
+export interface LabDomainTaskContext {
+  kind: 'lab'
+  jobId: string
+  title: string
+  scope: 'local' | 'remote'
+  request: string
+}
+
+export type DomainTaskContext = CTFDomainTaskContext | CVEDomainTaskContext | LabDomainTaskContext
 
 export interface DomainTaskContextPresentation {
   kind: DomainTaskKind
@@ -77,7 +85,9 @@ export interface DomainTaskContextPresentation {
 }
 
 export function domainTaskModuleLabel(kind: DomainTaskKind): string {
-  return kind === 'ctf' ? 'CTF' : 'CVE'
+  if (kind === 'ctf') return 'CTF'
+  if (kind === 'lab') return '实验室'
+  return 'CVE'
 }
 
 export function ctfRoleLabel(role: CTFDomainTaskContext['role'] | undefined): string {
@@ -337,6 +347,32 @@ export function refreshCTFDomainTaskContext(
 export function presentDomainTaskContext(
   context: DomainTaskContext,
 ): DomainTaskContextPresentation {
+  if (context.kind === 'lab') {
+    const title = context.title || context.request || '实验室作业'
+    const scopeLabel = context.scope === 'local' ? '本地' : '远程'
+    return {
+      kind: 'lab',
+      moduleLabel: '实验室',
+      title,
+      subtitle: scopeLabel,
+      ownership: '',
+      returnLabel: '返回实验室',
+      returnAriaLabel: '返回实验室',
+      collapsedLabel: `实验室 · ${title}`,
+      objectiveLabel: '范围',
+      objective: scopeLabel,
+      briefLabel: '作业',
+      brief: context.request || title,
+      meta: [scopeLabel],
+      materials: [],
+      detailsLabel: '报告',
+      facts: [
+        { label: '范围', value: scopeLabel, kind: 'scope' },
+        { label: '要求', value: context.request || title, kind: 'other' },
+      ],
+    }
+  }
+
   if (context.kind === 'ctf') {
     const title = context.challengeTitle
     const idLabel = context.challengeId || context.jobId
@@ -406,6 +442,9 @@ export function isDomainTaskContext(value: unknown): value is DomainTaskContext 
   if (record.kind === 'cve') {
     return typeof record.cveId === 'string' && typeof record.researchScope === 'string'
   }
+  if (record.kind === 'lab') {
+    return typeof record.jobId === 'string' && typeof record.title === 'string'
+  }
   return false
 }
 
@@ -439,6 +478,18 @@ export function normalizeDomainTaskContext(raw: unknown): DomainTaskContext | un
       artifactCount: Number(raw.artifactCount ?? 0) || 0,
       judgeState: String(raw.judgeState ?? '').trim() || '尚无 Judge 回执',
       liveProjection: raw.liveProjection !== false,
+    }
+  }
+  if (raw.kind === 'lab') {
+    const legacy = raw as LabDomainTaskContext & { protocol?: string; address?: string }
+    const request = String(legacy.request ?? '').trim()
+      || [legacy.protocol, legacy.address].map(value => String(value ?? '').trim()).filter(Boolean).join(' ')
+    return {
+      kind: 'lab',
+      jobId: String(raw.jobId ?? '').trim(),
+      title: String(raw.title ?? '').trim() || '实验室作业',
+      scope: raw.scope === 'local' ? 'local' : 'remote',
+      request,
     }
   }
   return {

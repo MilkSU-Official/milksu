@@ -4,7 +4,7 @@
 >
 > CTF 主链 **Implemented / Partial verification**；只有 Web 窄路径有真实 Judge 成功。
 > 六赛道、Memory 校准和用户体验缺口见[当前目标](/developer/current-objectives)、代码和测试。
-> 本文不包含已暂停的 Managed Labs。
+> 本文不包含 CTF 可重置环境；主导航「实验室」是另一条产品面。
 
 ## 数据模型
 
@@ -156,4 +156,4 @@ Memory 不复制原始 Flag、API Key、Bearer Token 或 URL Secret。新题召�
 - NYU CTF Bench 已接入固定索引、fail-closed safe-static one-shot Runner、两回合 Pi
   只读 Agent Runtime、Digest Judge 和静态报告；完整挑战 Runner、作用型 Agent 工具链与
   代表性真实成绩仍不存在。
-- Managed Labs 已暂停，不属于本时序的可用入口或完成条件。
+- CTF 可重置环境不属于本时序的可用入口或完成条件。主导航「实验室」是另一条产品面。

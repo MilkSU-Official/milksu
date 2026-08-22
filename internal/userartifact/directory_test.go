@@ -17,7 +17,7 @@ func TestEnsureCreatesVisibleSections(t *testing.T) {
 	if resolved != root {
 		t.Fatalf("Ensure() = %q, want %q", resolved, root)
 	}
-	for _, name := range []string{"Coding", "CTF", "CVE"} {
+	for _, name := range []string{"Coding", "CTF", "CVE", "Lab"} {
 		info, statErr := os.Stat(filepath.Join(root, name))
 		if statErr != nil || !info.IsDir() {
 			t.Fatalf("artifact section %s was not created: %v", name, statErr)
@@ -30,7 +30,7 @@ func TestEnsureCreatesVisibleSections(t *testing.T) {
 
 func TestEnsureKeepsAlreadyProtectedVisibleSections(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "MilkSU")
-	for _, directory := range []string{root, filepath.Join(root, "Coding"), filepath.Join(root, "CTF"), filepath.Join(root, "CVE")} {
+	for _, directory := range []string{root, filepath.Join(root, "Coding"), filepath.Join(root, "CTF"), filepath.Join(root, "CVE"), filepath.Join(root, "Lab")} {
 		if err := os.MkdirAll(directory, 0o700); err != nil {
 			t.Fatal(err)
 		}

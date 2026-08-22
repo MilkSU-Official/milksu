@@ -383,6 +383,7 @@ vi.mock('@/components-vue/ChatPage.vue', () => ({
       'openConversation',
       'returnCtf',
       'returnVuln',
+      'returnLab',
       'switchCtfAgent',
     ],
     setup(props, { emit }) {
@@ -517,9 +518,8 @@ describe('App cross-module routing', () => {
     host.querySelector<HTMLButtonElement>('[aria-label="open CTF in coding"]')?.click()
     await flushAsyncComponents()
 
-    expect(host.querySelector('[aria-label="mock Chat page"]')).not.toBeNull()
-    expect(host.querySelector('[data-chat-conversation]')?.textContent).toBe('ctf-job-1')
-    expect(host.querySelector('[data-chat-ctf-session]')?.textContent).toBe('true')
+    expect(host.querySelector('[aria-label="mock CTF page"]')).not.toBeNull()
+    expect(host.querySelector('[aria-label="mock Chat page"]')).toBeNull()
     expect(hoisted.conversations?.activeId.value).toBe('ctf-job-1')
     const opened = hoisted.conversations?.conversations.value.find(item => item.id === 'ctf-job-1')
     expect(opened?.domainTaskContext).toMatchObject({
@@ -555,6 +555,9 @@ describe('App cross-module routing', () => {
 
     host.querySelector<HTMLButtonElement>('[aria-label="open CTF in coding"]')?.click()
     await flushAsyncComponents()
+    host.querySelector<HTMLButtonElement>('[aria-label="navigate Coding"]')?.click()
+    await flushAsyncComponents()
+    expect(host.querySelector('[aria-label="mock Chat page"]')).not.toBeNull()
     host.querySelector<HTMLButtonElement>('[aria-label="return CTF workspace"]')?.click()
     await flushAsyncComponents()
 

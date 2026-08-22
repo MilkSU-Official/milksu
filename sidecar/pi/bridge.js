@@ -110,6 +110,7 @@ import {
 } from "./bridge-imagegen.js";
 import {
   codingWorkspaceGuidance,
+  researchReportGuidance,
   codingWorkspaceToolName,
   createCodingWorkspaceExtension,
   createWorkspaceActionBroker,
@@ -335,15 +336,18 @@ function createMilkSUWorkflowExtension(sessionRole, getPolicy, getSession) {
           ? "Treat the requested helper as a software deliverable and verify it."
           : sessionRole === "solver"
             ? "Advance one falsifiable CTF hypothesis at a time and preserve evidence for the learner."
-            : "";
+            : sessionRole === "cve-research" || sessionRole === "lab-job"
+              ? researchReportGuidance(sessionRole)
+              : "";
       const policy = getPolicy?.();
+      const researchSession = sessionRole === "cve-research" || sessionRole === "lab-job";
       const subagentGuidance = !sessionRole && policy?.activeTools?.includes("subagent")
         ? `\n\n${codingSubagentGuidance()}`
         : "";
-      const browserGuidance = !sessionRole && policy?.codingBrowser
+      const browserGuidance = (!sessionRole || researchSession) && policy?.codingBrowser
         ? `\n\n${codingBrowserGuidance()}`
         : "";
-      const workspaceGuidance = !sessionRole
+      const workspaceGuidance = (!sessionRole || researchSession)
         && policy?.activeTools?.includes(codingWorkspaceToolName)
         ? `\n\n${codingWorkspaceGuidance()}`
         : "";

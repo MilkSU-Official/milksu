@@ -4,6 +4,7 @@ import {
   Bug,
   Code2,
   Flag,
+  FlaskConical,
   LogOut,
   Moon,
   Settings,
@@ -41,6 +42,7 @@ const emit = defineEmits<{
 const icons = {
   ctf: Flag,
   vuln: Bug,
+  lab: FlaskConical,
   chat: Code2,
 } as const
 
@@ -253,7 +255,8 @@ function openSettings() {
 }
 .workspace-rail-item.is-current {
   color: #111315;
-  background: var(--brand);
+  background: #05a7dc;
+  box-shadow: 0 0 1.4rem color-mix(in srgb, #05a7dc 55%, transparent);
 }
 .workspace-rail-item:not(.is-current):hover,
 .workspace-rail-item:not(.is-current):focus-visible { color: var(--foreground); background: var(--overlay-hover); }

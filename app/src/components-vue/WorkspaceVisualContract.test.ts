@@ -17,12 +17,17 @@ import appSource from '../App.vue?raw'
 const appStylesSource = readFileSync(new URL('../index.css', import.meta.url), 'utf8')
 
 describe('Workspace visual contract', () => {
-  it('uses compact inline expansion for CTF and CVE instead of separate dashboards', () => {
-    expect(ctfChallengeDeskSource).toContain('game-focus-panel')
-    expect(ctfChallengeDeskSource).toContain('ak-notice')
-    expect(ctfChallengeDeskSource).toContain('交给 Coding')
-    expect(vulnPageSource).toContain('game-focus-panel')
-    expect(vulnPageSource).toContain('关联的 Coding 对话')
+  it('opens CTF and CVE into a dossier instead of expanding the list', () => {
+    expect(ctfChallengeDeskSource).not.toContain('game-focus-panel')
+    expect(vulnPageSource).not.toContain('game-focus-panel')
+    expect(vulnPageSource).toContain('开始复现')
+    expect(vulnPageSource).toContain('ResearchReportPanel')
+    expect(vulnPageSource).toContain('ConversationDock')
+    expect(vulnPageSource).toContain('RelatedCvePanel')
+    expect(vulnPageSource).toContain('data-testid="open-item"')
+    expect(chatPageSource).toContain("surface?: 'page' | 'dock'")
+    expect(chatPageSource).toContain("props.surface === 'dock'")
+    expect(vulnPageSource).toContain('rounded-xl border border-border bg-card p-6')
     expect(vulnPageSource).not.toContain('VulnerabilityLoopPanel')
     expect(vulnPageSource).not.toContain('当前下一步')
     expect(vulnPageSource).toContain('<WorkspaceModuleTopBar module="cve" title="漏洞">')
@@ -58,6 +63,8 @@ describe('Workspace visual contract', () => {
     expect(chatComposerSource).not.toContain('background-color: #f3f4ef')
     expect(workspaceRailSource).toContain('font-size: var(--text-body)')
     expect(workspaceRailSource).toContain('line-height: var(--text-body--line-height)')
+    expect(workspaceRailSource).toContain('FlaskConical')
+    expect(workspaceRailSource).toContain('lab: FlaskConical')
   })
 
   it('pins every persistent dark surface to its own readable theme roles', () => {
@@ -73,6 +80,9 @@ describe('Workspace visual contract', () => {
     expect(chatPageSource).toContain("import TacticalPanelShell from '@/components-vue/TacticalPanelShell.vue'")
     expect(chatPageSource).toContain('class="context-sidebar"')
     expect(workspaceRailSource).toContain('--foreground: var(--night-foreground)')
+    expect(workspaceRailSource).toContain('background: #05a7dc')
+    expect(workspaceRailSource).toContain('box-shadow: 0 0 1.4rem color-mix(in srgb, #05a7dc 55%, transparent)')
+    expect(workspaceRailSource).not.toContain('background: var(--brand)')
   })
 
   it('uses one tactical shell for hidden Coding surfaces and adapts the task layout to its container', () => {

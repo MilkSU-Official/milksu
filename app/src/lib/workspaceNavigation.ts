@@ -1,10 +1,11 @@
-export type WorkspaceSection = 'ctf' | 'vuln' | 'chat'
+export type WorkspaceSection = 'ctf' | 'vuln' | 'lab' | 'chat'
 export type CTFWorkspaceSection = 'catalog'
 export type AppSection = WorkspaceSection | 'profile' | 'settings'
 
 export const WORKSPACE_RAIL_ITEMS = [
   { id: 'ctf', label: 'CTF' },
   { id: 'vuln', label: 'CVE' },
+  { id: 'lab', label: '实验室' },
   { id: 'chat', label: 'Coding' },
 ] as const satisfies ReadonlyArray<{
   id: WorkspaceSection

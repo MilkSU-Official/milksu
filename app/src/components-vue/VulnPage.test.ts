@@ -29,6 +29,7 @@ async function mountPage(options: {
   conversations?: Conversation[]
   onStartCodingTask?: (...args: unknown[]) => void
   onOpenCodingConversation?: (id: string) => void
+  onRun?: (...args: unknown[]) => void
   trackedIds?: string[]
 } = {}) {
   const host = document.createElement('div')
@@ -49,6 +50,7 @@ async function mountPage(options: {
     conversations: options.conversations ?? [],
     onStartCodingTask: options.onStartCodingTask,
     onOpenCodingConversation: options.onOpenCodingConversation,
+    onRun: options.onRun,
   })
   app.mount(host)
   mountedApps.push(app)
@@ -56,25 +58,41 @@ async function mountPage(options: {
   return { host, dashboard }
 }
 
+async function mountList(options: Parameters<typeof mountPage>[0] = {}) {
+  const result = await mountPage(options)
+  result.dashboard.selectedId.value = ''
+  await nextTick()
+  return result
+}
+
 function buttonWithText(host: HTMLElement, text: string) {
   return [...host.querySelectorAll<HTMLButtonElement>('button')]
     .find(button => button.textContent?.includes(text))
 }
 
+function openTrackedRow(host: HTMLElement, text: string) {
+  const row = [...host.querySelectorAll<HTMLElement>('[data-testid="catalog-row"]')]
+    .find(item => item.textContent?.includes(text))
+  row?.querySelector<HTMLButtonElement>('[data-testid="open-item"]')?.click()
+}
+
 describe('VulnPage thin workspace', () => {
   it('shows a compact CVE list without the old automatic-loop dashboards', async () => {
-    const { host } = await mountPage({ trackedIds: ['CVE-2024-3400'] })
+    const { host } = await mountList({ trackedIds: ['CVE-2024-3400'] })
 
     expect(host.textContent).toContain('CVE-2024-3400')
     expect(host.textContent).toContain('学习专题')
     expect(host.textContent).toContain('添加 CVE')
-    expect(host.textContent).toContain('交给 Coding')
     expect(host.textContent).toContain('想研究')
     expect(host.textContent).not.toContain('待复现')
     expect(host.textContent).not.toContain('练习环境')
     expect(host.textContent).not.toContain('当前下一步')
     expect(host.textContent).not.toContain('闭环')
     expect(host.textContent).not.toContain('研究任务')
+    expect(host.querySelector('[aria-label="严重性"]')).not.toBeNull()
+    expect(host.querySelector('[aria-label="KEV"]')).not.toBeNull()
+    expect(host.querySelector('[aria-label="厂商"]')).not.toBeNull()
+    expect(host.querySelector('[aria-label="年份"]')).not.toBeNull()
   })
 
   it('starts empty instead of presenting the public catalog as the user list', async () => {
@@ -142,11 +160,12 @@ describe('VulnPage thin workspace', () => {
       ],
     })
     await nextTick()
+    openTrackedRow(host, 'CVE-2024-3094')
+    await nextTick()
 
-    const sourceLinks = [...host.querySelectorAll<HTMLAnchorElement>('.game-focus-panel a')]
-    expect(sourceLinks).toHaveLength(5)
-    expect(sourceLinks.map(link => link.textContent?.trim())).toEqual([
-      'NVD', 'CISA', 'Red Hat', 'Openwall', '在 NVD 查看全部',
+    const sourceLinks = [...host.querySelectorAll<HTMLAnchorElement>('a')]
+    expect(sourceLinks.map(link => link.textContent?.replace(/\s+/g, ' ').trim())).toEqual([
+      'NVD', 'CISA', 'Red Hat', 'Openwall',
     ])
     expect(host.textContent).not.toContain('secalert@redhat.com')
     expect(host.textContent).not.toContain('af854a3a-2127-422b-91ae-364da2661108')
@@ -154,6 +173,8 @@ describe('VulnPage thin workspace', () => {
 
   it('lets the user set CVE status manually', async () => {
     const { host, dashboard } = await mountPage({ trackedIds: ['CVE-2024-3400'] })
+    openTrackedRow(host, 'CVE-2024-3400')
+    await nextTick()
     const status = host.querySelector<HTMLSelectElement>('[aria-label="CVE-2024-3400 状态"]')
 
     expect(status).not.toBeNull()
@@ -164,60 +185,36 @@ describe('VulnPage thin workspace', () => {
     expect(dashboard.selected.value.status).toBe('已验证')
   })
 
-  it('hands the selected CVE to Coding without changing the manual status', async () => {
-    const tasks: unknown[][] = []
+  it('opens a dossier and starts reproduction without changing the manual status', async () => {
+    const runs: unknown[][] = []
     const { host, dashboard } = await mountPage({
       trackedIds: ['CVE-2024-3400'],
-      onStartCodingTask: (...args: unknown[]) => tasks.push(args),
+      onRun: (...args: unknown[]) => runs.push(args),
     })
     expect(dashboard.selected.value.status).toBe('待复现')
-
-    buttonWithText(host, '交给 Coding')?.click()
+    openTrackedRow(host, 'CVE-2024-3400')
     await nextTick()
-
-    expect(tasks).toHaveLength(1)
-    expect(tasks[0][0]).toMatchObject({
-      domainTaskContext: { kind: 'cve', cveId: 'CVE-2024-3400' },
-    })
-    const recordHandoff = tasks[0][1] as (workspacePath: string) => void
-    recordHandoff('/Users/milksu/code/milksu')
+    expect(host.textContent).toContain('开始复现')
+    buttonWithText(host, '开始复现')?.click()
+    await nextTick()
+    expect(runs).toHaveLength(1)
+    expect((runs[0][0] as { id: string }).id).toBe('CVE-2024-3400')
     expect(dashboard.selected.value.status).toBe('待复现')
+    expect(host.querySelector('[data-testid="related-cves"]')).not.toBeNull()
+    expect(host.textContent).toContain('关联 CVE')
   })
 
-  it('shows and opens Coding conversations linked to the same CVE', async () => {
-    const openConversation = vi.fn()
-    const conversation: Conversation = {
-      id: 'cve-conversation-1',
-      title: '分析 PAN-OS 补丁差异',
-      createdAt: Date.now(),
-      messages: [],
-      domainTaskContext: {
-        kind: 'cve',
-        cveId: 'CVE-2024-3400',
-        title: 'PAN-OS GlobalProtect Command Injection',
-        sourceEvidenceState: 'NVD',
-        sourceEvidenceCount: 1,
-        assetMatchState: '尚无用户确认资产匹配',
-        assetCount: 0,
-        researchScope: '当前会话与用户所选项目/材料',
-        safetyBoundary: '沿用 Coding Agent 当前权限档',
-        roleLabel: 'CVE 研究接力',
-      },
-    }
-    const { host } = await mountPage({
-      trackedIds: ['CVE-2024-3400'],
-      conversations: [conversation],
-      onOpenCodingConversation: openConversation,
-    })
-
-    expect(host.textContent).toContain('关联对话 1')
-    buttonWithText(host, conversation.title)?.click()
+  it('keeps list titles selectable instead of opening the dossier from the row', async () => {
+    const { host, dashboard } = await mountList({ trackedIds: ['CVE-2024-3400'] })
+    const title = [...host.querySelectorAll('span')].find(node => node.textContent?.includes('CVE-2024-3400'))
+    title?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await nextTick()
-    expect(openConversation).toHaveBeenCalledWith(conversation.id)
+    expect(dashboard.selectedId.value).toBe('')
+    expect(host.querySelector('[data-testid="open-item"]')).not.toBeNull()
   })
 
   it('searches public CVE data when the user opens a learning topic', async () => {
-    const { host, dashboard } = await mountPage({ trackedIds: ['CVE-2023-46604'] })
+    const { host, dashboard } = await mountList({ trackedIds: ['CVE-2023-46604'] })
     const search = vi.spyOn(dashboard, 'searchNvdCves').mockResolvedValueOnce([{
       id: 'CVE-2017-12149',
       title: 'JBoss Application Server deserialization RCE',
@@ -245,7 +242,7 @@ describe('VulnPage thin workspace', () => {
   })
 
   it('lets one CVE belong to several collection views', async () => {
-    const { host } = await mountPage({ trackedIds: ['CVE-2024-3400'] })
+    const { host } = await mountList({ trackedIds: ['CVE-2024-3400'] })
     const bookmark = host.querySelector<HTMLButtonElement>('[aria-label="收藏"]')
     expect(bookmark).not.toBeNull()
 
