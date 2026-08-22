@@ -161,6 +161,8 @@ npm --prefix app run build
 - [当前系统与分层](docs/architecture/current-system.md)
 - [架构索引](docs/architecture/index.md)
 
+## 鸣谢
+
 <p align="center">
   <a href="https://github.com/HikaruQwQ"><img src="https://github.com/HikaruQwQ.png?size=96" width="72" height="72" alt="HikaruQwQ"></a>
   &nbsp;
@@ -178,14 +180,6 @@ npm --prefix app run build
   &nbsp;
   <a href="https://github.com/shiluoshiro"><img src="https://github.com/shiluoshiro.png?size=96" width="72" height="72" alt="shiluoshiro"></a>
 </p>
-
-<p align="center">
-  <a href="https://github.com/MilkSU-Official/milksu/graphs/contributors">
-    <img src="https://contrib.rocks/image?repo=MilkSU-Official/milksu&max=24&columns=8" alt="贡献者">
-  </a>
-</p>
-
-## 鸣谢
 
 感谢在内测期间直接向仓库提交代码的同学。没有他们，三端包和工作台到不了 `26.822.1`。
 
