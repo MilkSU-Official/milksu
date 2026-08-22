@@ -73,3 +73,4 @@
 3. 当前代码晚于签名发行时，必须同时写“开发 HEAD / 版本线”和“正式发行基线”，不能把 ad-hoc 包、版本号、空 tag 或同版本号的后续提交写成已发布。
 4. 删除生产 UI 或防御层后，同时删除 Current 文档里的能力宣称；历史验收留 Git history 或 Evidence。
 5. 不恢复 `development-plan.md`，不把旧对话、压缩摘要、smoke 列表或 M3/M4 台账重新放回 Current 入口。
+6. 过期调研快照、日期验收截图和已放弃的设计稿图不留在 `docs/`；考古用 Git history。README 产品截图放在 `docs/media/`，随发行视觉更新。

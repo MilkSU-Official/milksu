@@ -25,7 +25,7 @@
 
 ![MilkSU Coding 工作台](docs/media/readme-coding.png)
 
-MilkSU 把 Coding、CTF 和 CVE 放进同一个桌面工作台。你可以让 Agent 阅读项目、修改文件、运行测试，也可以从一道 CTF 或一个 CVE 出发，把题面、材料、研究过程和最终产物留在同一个可回看的任务里。
+MilkSU 把 Coding、CTF、CVE 和实验室放进同一个桌面工作台。你可以让 Agent 阅读项目、修改文件、运行测试，也可以从一道 CTF、一个 CVE 或一次实验室作业出发，把题面、材料、研究过程和最终产物留在同一个可回看的任务里。
 
 它不是又一个只有输入框的聊天客户端。MilkSU 让 Agent 的工作对象真正出现在你面前：项目文件、内置浏览器、真实浏览器标签页和外部桌面应用都可以成为当前任务的一部分；你可以随时观察、补充要求、接管或停止。
 
@@ -41,7 +41,7 @@ MilkSU 把 Coding、CTF 和 CVE 放进同一个桌面工作台。你可以让 Ag
 - 按任务使用浏览器、Browser Use、Computer Use、MCP、LSP 和已审核 Skill；
 - 在干净 Git 项目中自动隔离修改，不打乱当前工作区。
 
-模型可以通过类型化工作台动作列出或切换内置浏览器标签、打开产物、环境、变更和终端，以及操作会话、实验室、CVE、CTF 记录；上下文接近窗口上限约 85% 时会走与手动压缩相同的整理。这些已经打进 `26.822.1` 安装包。
+模型可以通过类型化工作台动作列出或切换内置浏览器标签、打开产物、环境、变更和终端，以及操作会话、实验室、CVE、CTF 记录；上下文接近窗口上限约 85% 时会走与手动压缩相同的整理。
 
 ### CTF
 
@@ -56,17 +56,33 @@ MilkSU 把 Coding、CTF 和 CVE 放进同一个桌面工作台。你可以让 Ag
 - 按编号、产品或关键词搜索公开 CVE，并加入个人研究列表；
 - 汇总 NVD、CISA KEV、EPSS、OSV、GitHub Advisory 等公开来源；
 - 手动维护“想研究、研究中、已归档”等个人状态；
-- 将漏洞背景和来源一并交给 Coding，继续阅读代码或整理研究材料。
+- 点进档案后复现，报告写在工作区 `report.md`，对话留在右下角小窗。
+
+### 实验室
+
+- 给出本地或远程作业要求，开一次探测；
+- Agent 把过程写进同一份可继续改的报告；
+- 作业可以改名，对话同样走可拖放小窗。
 
 <table>
   <tr>
     <td width="50%">
       <img src="docs/media/readme-ctf.png" alt="MilkSU CTF 题库与每日挑战">
-      <p align="center"><sub>CTF 题库、每日挑战与 Coding 交接</sub></p>
+      <p align="center"><sub>CTF 题库与每日挑战</sub></p>
     </td>
     <td width="50%">
       <img src="docs/media/readme-cve.png" alt="MilkSU CVE 研究列表">
-      <p align="center"><sub>个人 CVE 研究列表与公开来源</sub></p>
+      <p align="center"><sub>CVE 列表、筛选与点进档案复现</sub></p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="docs/media/readme-lab.png" alt="MilkSU 实验室作业列表">
+      <p align="center"><sub>实验室作业列表与改名入口</sub></p>
+    </td>
+    <td width="50%">
+      <img src="docs/media/readme-settings.png" alt="MilkSU 安全工具设置">
+      <p align="center"><sub>设置里的本机安全工具</sub></p>
     </td>
   </tr>
 </table>
@@ -79,9 +95,7 @@ MilkSU 会把当前任务可用的能力告诉模型，再由模型按上下文�
 - **网页能力**：会话隔离的内置浏览器，以及用户明确选择的真实 Chrome / Edge 标签页；
 - **桌面能力**：针对准确 App 和窗口的 Computer Use；
 - **安全工具**：已经准备并启用的 IDA Pro / idalib、capa 等能力可以按需进入 Coding；
-- **压缩与工作台**：上下文接近上限时整理会话；开发版本里模型还可以直接操作标签、产物和右侧状态面。
-
-![MilkSU 安全工具设置](docs/design/audits/milksu-security-tools-settings-production.png)
+- **压缩与工作台**：上下文接近上限时整理会话；模型可以直接操作标签、产物、右侧状态面和产品记录。
 
 ## 开始使用
 
@@ -93,8 +107,8 @@ MilkSU 目前处于内测阶段。
    - **Linux x64**：试用 DEB，已验证包结构、Sidecar、Go Runtime 与 Xvfb 启动，不含 Secret Service、本地 OCR 或 Computer Use。
 2. 安装并打开 MilkSU；
 3. 使用 GitHub 登录；
-4. 由内测管理员为账户开通模型，或在“设置 → 模型与额度”中添加自己的 Provider / OpenAI-compatible 中转站；
-5. 选择 Coding、CTF 或 CVE，开始第一个任务。
+4. 由内测管理员为账户开通模型，或在“设置 → 模型”中添加自己的 Provider / OpenAI-compatible 中转站；
+5. 选择 Coding、CTF、CVE 或实验室，开始第一个任务。
 
 账户未分配模型额度时仍可登录和浏览本地功能，只是暂时不能发起模型任务。macOS 正式版本使用 Developer ID 签名与 Apple 公证；Stable 客户端支持登录后检查受保护的应用更新，但 `26.822.1` 没有发布 OTA。
 

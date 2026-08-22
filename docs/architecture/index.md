@@ -2,9 +2,9 @@
 
 > 文档状态：Current
 >
-> 审阅日期：2026-08-20
+> 审阅日期：2026-08-22
 >
-> 范围：当前 `main`。正式发行基线是 `v26.819.1 / eed1dac`。文档收口提交不移动该 tag。
+> 范围：当前 `main`。正式发行基线是 `v26.822.1 / 3db4615`。文档收口提交不移动该 tag。
 > 实现进度、已发行与未发版分界以
 > [当前开发目标](/developer/current-objectives)、当前代码、测试和真实验收为准。
 
@@ -71,7 +71,7 @@ Checkpoint 由 Git 历史与自动化重新生成，不再长期占用文档入�
   复用 Pi 原生 `/skill:name`；未选择 Plan 时默认是 Go，不再维护 `/go` 或常驻 Plan/Go 下拉。
 - IDA Pro/idalib 与 capa 已有设置、准备和健康检查，就绪且启用后进入普通 Coding 可选目录。
   CodeQL、Burp、Shannon 仍只做检测。接到实验室或 CVE 复现由当前切片决定，不需要先开“是否投影”的会。不把 HexStrike 整包 MCP 做成产品页。
-- 主导航「实验室」已在开发线接线（作业、报告、对话小窗），尚未进入正式发行包。CTF 可重置环境仍未做。
+- 主导航「实验室」已进入 `26.822.1`（作业、改名、报告、对话小窗）。CTF 可重置环境仍未做。
 - NYU CTF Bench 的只读元数据、Admission、DeepSeek one-shot Runner、两回合 Pi 只读
   Agent Runtime 和摘要 Judge 是 **Implemented / Verified for the narrow baseline**。
   Agent Runtime 当前只有 5 个手选 static 样本：2 solved、1 unsolved、1 无效 JSON、
