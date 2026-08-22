@@ -38,6 +38,7 @@
       "local-path.cjs",
       "macos-screen-permission.cjs",
       "renderer-protocol.cjs",
+      "renderer-reload.cjs",
       "package.json",
       "node_modules/ws/**/*",
       "node_modules/electron-updater/**/*",
