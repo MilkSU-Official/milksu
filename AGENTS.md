@@ -157,9 +157,14 @@ deferred to one destructive pre-release consolidation after the product slices a
   browser tabs, list or preview artifacts, and open environment, diff, terminal or background-task
   surfaces. Coding is the current caller; CTF/CVE may grow the same kind of typed UI actions.
   It must not change settings, credentials, approval policy, or attach to the user's Chrome.
-- Pi owns compaction. Auto-compact uses the same path as `/compact` when input plus cache-read
-  tokens reach about 85% of `contextWindow` and the session is idle. Do not wait until the whole
-  turn finishes, and do not add a second MilkSU summarizer.
+- Pi owns compaction. Auto-compact stays enabled for Coding, CTF, CVE and lab sessions.
+  Do not skip `/compact`, `compact_session`, or the 85% idle path by role. Auto-compact uses
+  the same path as `/compact` when input plus cache-read tokens reach about 85% of
+  `contextWindow` and the session is idle. Do not wait until the whole turn finishes, and
+  do not add a second MilkSU summarizer.
+- Tool results enter model context through Pi's `tool_result` bound (about 50KB or 2000
+  lines). Overflow is saved for `read` + offset. Do not dump full command, HTTP, or file
+  bodies into `content`.
 - `workspace-auto` auto-runs isolated `milksu-playwright`. Ask cards may grant conversation-wide
   allow for grantable tools. ImageGen, external-account authorization and destructive deletes stay
   per-call.

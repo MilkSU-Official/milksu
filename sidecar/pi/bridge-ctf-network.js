@@ -1,10 +1,18 @@
 import { createHash } from "node:crypto";
+import { mkdir, writeFile } from "node:fs/promises";
 import { createConnection } from "node:net";
+import { dirname, join } from "node:path";
 import { Type } from "typebox";
-import { defineTool } from "@earendil-works/pi-coding-agent";
+import {
+  DEFAULT_MAX_BYTES,
+  defineTool,
+  formatSize,
+} from "@earendil-works/pi-coding-agent";
 
 export const ctfEndpointRequestToolName = "ctf_request_endpoint";
 export const ctfNetworkToolNames = ["ctf_http", "ctf_socket", "ctf_ssh"];
+export const ctfHTTPModelMaxBytes = DEFAULT_MAX_BYTES;
+export const ctfHTTPAssetPreviewBytes = 4 * 1024;
 
 function manifestScopes(manifest) {
   return [
@@ -127,6 +135,57 @@ function boundedBody(data, contentType = "") {
     : { bodyEncoding: "base64", body: data.toString("base64") };
 }
 
+export function isCTFHTTPStaticAsset(contentType = "", url = "") {
+  return /javascript|ecmascript|css|wasm|font\b|image\//i.test(String(contentType))
+    || /\.(?:js|mjs|cjs|css|wasm|map|woff2?|ttf|png|jpe?g|gif|svg|ico)(?:\?|#|$)/i.test(String(url));
+}
+
+function clipUtf8(text, maxBytes) {
+  const buffer = Buffer.from(String(text), "utf8");
+  if (buffer.length <= maxBytes) {
+    return { text: String(text), truncated: false, bytes: buffer.length };
+  }
+  let slice = buffer.subarray(0, maxBytes);
+  while (slice.length > 0 && (slice[slice.length - 1] & 0xc0) === 0x80) {
+    slice = slice.subarray(0, slice.length - 1);
+  }
+  return { text: slice.toString("utf8"), truncated: true, bytes: slice.length };
+}
+
+export function projectCTFHTTPBody(data, contentType = "", url = "") {
+  const encoded = boundedBody(data, contentType);
+  const cap = isCTFHTTPStaticAsset(contentType, url)
+    ? ctfHTTPAssetPreviewBytes
+    : ctfHTTPModelMaxBytes;
+  if (encoded.bodyEncoding === "utf8") {
+    const clipped = clipUtf8(encoded.body, cap);
+    return {
+      bodyEncoding: "utf8",
+      body: clipped.text,
+      truncatedForModel: clipped.truncated,
+      previewBytes: clipped.bytes,
+      totalBytes: Buffer.byteLength(encoded.body, "utf8"),
+    };
+  }
+  const preview = encoded.body.length > cap ? encoded.body.slice(0, cap) : encoded.body;
+  return {
+    bodyEncoding: "base64",
+    body: preview,
+    truncatedForModel: encoded.body.length > cap,
+    previewBytes: preview.length,
+    totalBytes: encoded.body.length,
+  };
+}
+
+async function writeHTTPCapture(data) {
+  const digest = createHash("sha256").update(data).digest("hex");
+  const relative = join("work", "http-captures", `${digest}.bin`).replaceAll("\\", "/");
+  const absolute = join(process.cwd(), relative);
+  await mkdir(dirname(absolute), { recursive: true, mode: 0o700 });
+  await writeFile(absolute, data, { mode: 0o600 });
+  return relative;
+}
+
 const blockedHTTPHeaders = new Set([
   "connection",
   "content-length",
@@ -202,7 +261,10 @@ function createCTFHTTPTool(manifest) {
     label: "Request authorized CTF origin",
     description: "Send one bounded HTTP request only to an exact approved origin. "
       + "No browser cookie jar, platform session, SSH credential, or model-provider credential "
-      + "is inherited. Redirects are returned but never followed.",
+      + "is inherited. Redirects are returned but never followed. "
+      + "The model-visible body is a short excerpt (50KB for HTML/JSON, 4KB for JS/CSS/wasm). "
+      + "Overflow is saved under work/http-captures/ for the file read tool with offset. "
+      + "Do not fetch frontend bundles to discover APIs.",
     parameters: Type.Object({
       url: Type.String({ maxLength: 4096 }),
       method: Type.Optional(Type.Union([
@@ -220,7 +282,10 @@ function createCTFHTTPTool(manifest) {
       )),
       body: Type.Optional(Type.String({ maxLength: 262144 })),
       timeoutSeconds: Type.Optional(Type.Integer({ minimum: 1, maximum: 30 })),
-      maxResponseBytes: Type.Optional(Type.Integer({ minimum: 1024, maximum: 1048576 })),
+      maxResponseBytes: Type.Optional(Type.Integer({
+        minimum: 1024,
+        maximum: ctfHTTPModelMaxBytes,
+      })),
     }),
     execute: async (_toolCallId, params) => {
       const origins = authorizedOrigins(manifest);
@@ -245,7 +310,10 @@ function createCTFHTTPTool(manifest) {
       const headers = normalizeHTTPHeaders(params.headers);
       const body = params.body === undefined ? undefined : params.body;
       const timeoutSeconds = params.timeoutSeconds || 15;
-      const maxResponseBytes = params.maxResponseBytes || 262144;
+      const maxResponseBytes = Math.min(
+        params.maxResponseBytes || ctfHTTPModelMaxBytes,
+        ctfHTTPModelMaxBytes,
+      );
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), timeoutSeconds * 1000);
       try {
@@ -259,6 +327,12 @@ function createCTFHTTPTool(manifest) {
         const bounded = await readBoundedResponse(response, maxResponseBytes);
         const responseHeaders = {};
         for (const [name, value] of response.headers.entries()) responseHeaders[name] = value;
+        const contentType = response.headers.get("content-type") || "";
+        const projected = projectCTFHTTPBody(bounded.data, contentType, parsed.toString());
+        let capturePath;
+        if (projected.truncatedForModel || bounded.truncated) {
+          capturePath = await writeHTTPCapture(bounded.data);
+        }
         const result = {
           requestedUrl: parsed.toString(),
           responseUrl: response.url,
@@ -268,8 +342,19 @@ function createCTFHTTPTool(manifest) {
           redirected: response.status >= 300 && response.status < 400,
           headers: responseHeaders,
           bytesReturned: bounded.data.length,
-          truncated: bounded.truncated,
-          ...boundedBody(bounded.data, response.headers.get("content-type") || ""),
+          truncated: bounded.truncated || projected.truncatedForModel,
+          bodyEncoding: projected.bodyEncoding,
+          body: projected.body,
+          previewBytes: projected.previewBytes,
+          totalBytes: projected.totalBytes,
+          capturePath,
+          note: projected.truncatedForModel || bounded.truncated
+            ? `Model-visible body clipped to ${formatSize(projected.previewBytes)} of ${formatSize(projected.totalBytes)}. `
+              + (capturePath
+                ? `Fetched bytes are at ${capturePath}; use the file read tool with offset if a later step needs more. `
+                : "")
+              + "Do not fetch JS/CSS/wasm bundles to map APIs."
+            : undefined,
         };
         return {
           content: [{ type: "text", text: JSON.stringify(result, null, 2) }],

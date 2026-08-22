@@ -285,11 +285,59 @@ func (b *sidecarStderrBuffer) tail() string {
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	text := strings.TrimSpace(string(b.data))
-	if line, _, found := strings.Cut(text, "\n"); found {
-		return strings.TrimSpace(line)
+	return sidecarCrashDetail(string(b.data))
+}
+
+func sidecarCrashDetail(text string) string {
+	text = strings.TrimSpace(strings.ReplaceAll(text, "\r\n", "\n"))
+	if text == "" {
+		return ""
 	}
-	return text
+	var firstMeaningful string
+	for _, raw := range strings.Split(text, "\n") {
+		line := strings.TrimSpace(raw)
+		if line == "" || line == "^" {
+			continue
+		}
+		lower := strings.ToLower(line)
+		if strings.HasPrefix(lower, "node:") ||
+			strings.HasPrefix(lower, "throw er") ||
+			strings.Contains(lower, "unhandled 'error' event") ||
+			strings.HasPrefix(lower, "emitted 'error' event") ||
+			strings.HasPrefix(line, "at ") {
+			continue
+		}
+		if sidecarErrorLine(line) {
+			return boundSidecarCrashLine(line)
+		}
+		if firstMeaningful == "" {
+			firstMeaningful = line
+		}
+	}
+	if firstMeaningful != "" {
+		return boundSidecarCrashLine(firstMeaningful)
+	}
+	if line, _, found := strings.Cut(text, "\n"); found {
+		return boundSidecarCrashLine(line)
+	}
+	return boundSidecarCrashLine(text)
+}
+
+func sidecarErrorLine(line string) bool {
+	if strings.HasPrefix(line, "Error:") || strings.HasPrefix(line, "Error [") {
+		return true
+	}
+	kind, rest, found := strings.Cut(line, ":")
+	return found && strings.HasSuffix(kind, "Error") && strings.TrimSpace(rest) != ""
+}
+
+func boundSidecarCrashLine(line string) string {
+	line = strings.TrimSpace(line)
+	runes := []rune(line)
+	if len(runes) > 320 {
+		return string(runes[:320]) + "..."
+	}
+	return line
 }
 
 type Supervisor struct {

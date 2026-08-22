@@ -4,7 +4,9 @@ import test from "node:test";
 import {
   codingWorkspaceActionBlocked,
   codingWorkspaceGuidance,
+  isResearchSessionRole,
   researchReportGuidance,
+  resolveWorkflowSessionRole,
   codingWorkspaceToolName,
   createCodingWorkspaceExtension,
   createWorkspaceActionBroker,
@@ -57,6 +59,19 @@ test("workspace tool rejects unknown actions and plan mutations", () => {
     executionMode: "go",
     approvalPolicy: "workspace-auto",
   }), "");
+});
+
+test("CVE and lab keep research session roles so the Coding Pi loop still applies", () => {
+  assert.equal(resolveWorkflowSessionRole("", false), "");
+  assert.equal(resolveWorkflowSessionRole("solver", true), "solver");
+  assert.equal(resolveWorkflowSessionRole("", true), "solver");
+  assert.equal(resolveWorkflowSessionRole("cve-research", false), "cve-research");
+  assert.equal(resolveWorkflowSessionRole("lab-job", false), "lab-job");
+  assert.equal(resolveWorkflowSessionRole("cve-research", true), "cve-research");
+  assert.equal(isResearchSessionRole("cve-research"), true);
+  assert.equal(isResearchSessionRole("lab-job"), true);
+  assert.equal(isResearchSessionRole("solver"), false);
+  assert.equal(isResearchSessionRole(""), false);
 });
 
 test("research report guidance tells the model to edit report.md", () => {

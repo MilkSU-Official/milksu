@@ -7,6 +7,7 @@ import {
   createReadToolDefinition,
   createWriteToolDefinition,
   defineTool,
+  getShellConfig,
 } from "@earendil-works/pi-coding-agent";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -22,6 +23,7 @@ import {
   realpath,
   writeFile,
 } from "node:fs/promises";
+import { homedir, tmpdir } from "node:os";
 import {
   basename,
   dirname,
@@ -391,20 +393,55 @@ function killChildProcess(child) {
   }
 }
 
-function fullAccessCommandEnvironment(source = {}) {
+const windowsHostEnvironmentNames = [
+  "SystemRoot",
+  "WINDIR",
+  "USERPROFILE",
+  "HOMEDRIVE",
+  "HOMEPATH",
+  "TEMP",
+  "TMP",
+  "PATHEXT",
+  "COMSPEC",
+  "ProgramFiles",
+  "ProgramFiles(x86)",
+  "ProgramData",
+  "USERNAME",
+  "USERDOMAIN",
+];
+
+function hostEnvironmentValue(source, name) {
+  if (!source || typeof source !== "object") return undefined;
+  if (typeof source[name] === "string" && source[name]) return source[name];
+  if (process.platform !== "win32") return undefined;
+  const match = Object.keys(source).find(key => key.toLowerCase() === name.toLowerCase());
+  const value = match ? source[match] : undefined;
+  return typeof value === "string" && value ? value : undefined;
+}
+
+function fullAccessCommandEnvironment(source = {}, shellPath = "") {
   const environment = {
-    PATH: source.PATH || commandPath,
-    HOME: source.MILKSU_USER_HOME || source.HOME || "/",
-    TMPDIR: source.TMPDIR || "/tmp",
-    LANG: source.LANG || "en_US.UTF-8",
-    TERM: source.TERM || "dumb",
-    SHELL: source.SHELL || "/bin/bash",
+    PATH: hostEnvironmentValue(source, "PATH") || commandPath,
+    HOME: source.MILKSU_USER_HOME || hostEnvironmentValue(source, "HOME") || homedir() || "/",
+    TMPDIR: hostEnvironmentValue(source, "TMPDIR")
+      || hostEnvironmentValue(source, "TEMP")
+      || tmpdir(),
+    LANG: hostEnvironmentValue(source, "LANG") || "en_US.UTF-8",
+    TERM: hostEnvironmentValue(source, "TERM") || "dumb",
+    SHELL: shellPath || hostEnvironmentValue(source, "SHELL") || "/bin/bash",
   };
   for (const name of ["LC_ALL", "SSL_CERT_DIR", "SSL_CERT_FILE"]) {
-    if (source[name]) environment[name] = source[name];
+    const value = hostEnvironmentValue(source, name);
+    if (value) environment[name] = value;
   }
   if (source.MILKSU_USER_SSH_AUTH_SOCK) {
     environment.SSH_AUTH_SOCK = source.MILKSU_USER_SSH_AUTH_SOCK;
+  }
+  if (process.platform === "win32") {
+    for (const name of windowsHostEnvironmentNames) {
+      const value = hostEnvironmentValue(source, name);
+      if (value) environment[name] = value;
+    }
   }
   return environment;
 }
@@ -472,19 +509,29 @@ export function buildCodingBackgroundLaunch(
   reviewedBackgroundOutputPath(trustedOutputPath);
   const explicitEnvironment = sanitizedBackgroundEnvironment(specification.env);
   const direct = specification.shell === false;
-  const command = direct ? specification.argv?.[0] : "/bin/bash";
-  const argumentsList = direct
-    ? specification.argv.slice(1)
-    : ["--noprofile", "--norc", "-c", specification.command];
-
+  const shellConfig = direct ? undefined : getShellConfig();
+  const environment = {
+    ...fullAccessCommandEnvironment(process.env, shellConfig?.shell),
+    ...explicitEnvironment,
+  };
+  if (direct) {
+    return {
+      file: specification.argv[0],
+      arguments: specification.argv.slice(1),
+      cwd,
+      environment,
+    };
+  }
+  const commandFromStdin = shellConfig.commandTransport === "stdin";
+  const shellArguments = ["--noprofile", "--norc", ...shellConfig.args];
   return {
-    file: command,
-    arguments: argumentsList,
+    file: shellConfig.shell,
+    arguments: commandFromStdin
+      ? shellArguments
+      : [...shellArguments, specification.command],
+    stdin: commandFromStdin ? specification.command : undefined,
     cwd,
-    environment: {
-      ...fullAccessCommandEnvironment(process.env),
-      ...explicitEnvironment,
-    },
+    environment,
   };
 }
 

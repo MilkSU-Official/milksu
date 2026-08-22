@@ -40,6 +40,22 @@ const workspaceActions = new Set([
 const workspacePanels = new Set(["browser", "artifacts", "changes", "environment"]);
 const workspaceRecordKinds = new Set(["conversation", "lab", "cve", "ctf"]);
 
+export const researchSessionRoles = Object.freeze(["cve-research", "lab-job"]);
+
+export function isResearchSessionRole(sessionRole = "") {
+  return researchSessionRoles.includes(String(sessionRole ?? "").trim());
+}
+
+// CTF keeps solver/strategist/tool-builder. CVE and lab keep their research
+// roles so report.md guidance, workspace compact, and Pi length-followUp still
+// attach. Ordinary Coding stays empty.
+export function resolveWorkflowSessionRole(sessionRole = "", isCtf = false) {
+  const role = String(sessionRole ?? "").trim();
+  if (isCtf) return role || "solver";
+  if (isResearchSessionRole(role)) return role;
+  return "";
+}
+
 export function researchReportGuidance(sessionRole = "") {
   const lines = [
     "The user is viewing report.md in this workspace as the lasting report.",

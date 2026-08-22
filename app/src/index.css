@@ -6,7 +6,9 @@
 @source ".";
 
 :root {
-  font-family: "Noto Sans SC", "Inter Variable", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-sans: "Inter Variable", "Noto Sans SC Variable", "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", sans-serif;
+  --font-display: var(--font-sans);
+  font-family: var(--font-sans);
   color-scheme: dark;
 
   /*
@@ -154,7 +156,6 @@
   --tactical-shadow: 0 24px 58px rgb(0 0 0 / .36);
   --tactical-paper-image: none;
   --tactical-carbon-image: none;
-  --font-display: "Noto Serif SC", "Source Han Serif SC", serif;
 }
 
 :root[data-theme='light'] {
@@ -299,6 +300,7 @@ body {
   overflow: hidden;
   background: var(--surface-editor);
   color: var(--foreground);
+  font-family: var(--font-sans);
   font-weight: var(--font-weight-normal);
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: auto;

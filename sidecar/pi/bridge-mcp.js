@@ -56,7 +56,7 @@ const browserUseExecutableCandidates = [
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
   "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
 ];
-const safeChildEnvironmentNames = [
+const unixSafeChildEnvironmentNames = [
   "HOME",
   "PATH",
   "TMPDIR",
@@ -65,6 +65,21 @@ const safeChildEnvironmentNames = [
   "SSL_CERT_DIR",
   "SSL_CERT_FILE",
 ];
+const windowsSafeChildEnvironmentNames = [
+  ...unixSafeChildEnvironmentNames,
+  "SystemRoot",
+  "WINDIR",
+  "USERPROFILE",
+  "HOMEDRIVE",
+  "HOMEPATH",
+  "TEMP",
+  "TMP",
+  "PATHEXT",
+  "COMSPEC",
+];
+const safeChildEnvironmentNames = process.platform === "win32"
+  ? windowsSafeChildEnvironmentNames
+  : unixSafeChildEnvironmentNames;
 const protectedEnvironmentNames = new Set([
   "ANTHROPIC_API_KEY",
   "DEEPSEEK_API_KEY",
@@ -183,9 +198,45 @@ function validateEnvironmentName(name, label) {
   }
 }
 
+function hostEnvironmentValue(source, name) {
+  if (!source || typeof source !== "object") return undefined;
+  if (typeof source[name] === "string" && source[name]) return source[name];
+  if (process.platform !== "win32") return undefined;
+  const match = Object.keys(source).find(key => key.toLowerCase() === name.toLowerCase());
+  const value = match ? source[match] : undefined;
+  return typeof value === "string" && value ? value : undefined;
+}
+
+function environmentAssignmentsToObject(assignments) {
+  const environment = {};
+  for (const assignment of assignments) {
+    const index = assignment.indexOf("=");
+    if (index <= 0) continue;
+    environment[assignment.slice(0, index)] = assignment.slice(index + 1);
+  }
+  return environment;
+}
+
+function mcpRuntimeEnvironment(runtimeHome, runtimeTemporary) {
+  if (process.platform === "win32") {
+    return {
+      HOME: runtimeHome,
+      USERPROFILE: runtimeHome,
+      TMPDIR: runtimeTemporary,
+      TEMP: runtimeTemporary,
+      TMP: runtimeTemporary,
+    };
+  }
+  return {
+    HOME: runtimeHome,
+    TMPDIR: runtimeTemporary,
+  };
+}
+
 function safeChildEnvironment(definition, serverName, runtimeEnvironment = {}) {
   const assignments = safeChildEnvironmentNames.flatMap(name => {
-    const value = runtimeEnvironment[name] ?? process.env[name];
+    const value = hostEnvironmentValue(runtimeEnvironment, name)
+      ?? hostEnvironmentValue(process.env, name);
     return typeof value === "string" && value
       ? [`${name}=${value.replaceAll("\0", "")}`]
       : [];
@@ -252,29 +303,42 @@ function sanitizeLocalDefinition(
   const runtimeRoot = join(workspace, ".milksu", "mcp-runtime");
   const runtimeHome = join(runtimeRoot, "home");
   const runtimeTemporary = join(runtimeRoot, "tmp");
+  const childEnvironment = safeChildEnvironment(
+    definition,
+    serverName,
+    mcpRuntimeEnvironment(runtimeHome, runtimeTemporary),
+  );
+  if (process.platform === "darwin") {
+    return {
+      ...definition,
+      command: "/usr/bin/sandbox-exec",
+      args: [
+        "-p",
+        sandboxProfile(
+          workspace,
+          allowNetwork,
+          [],
+          false,
+          extraReadableRoots,
+          [runtimeHome, runtimeTemporary, ...extraWritableRoots],
+        ),
+        "/usr/bin/env",
+        "-i",
+        ...childEnvironment,
+        command,
+        ...args,
+      ],
+      env: {},
+      cwd: workspace,
+      lifecycle: "lazy",
+      directTools: false,
+    };
+  }
   return {
     ...definition,
-    command: "/usr/bin/sandbox-exec",
-    args: [
-      "-p",
-      sandboxProfile(
-        workspace,
-        allowNetwork,
-        [],
-        false,
-        extraReadableRoots,
-        [runtimeHome, runtimeTemporary, ...extraWritableRoots],
-      ),
-      "/usr/bin/env",
-      "-i",
-      ...safeChildEnvironment(definition, serverName, {
-        HOME: runtimeHome,
-        TMPDIR: runtimeTemporary,
-      }),
-      command,
-      ...args,
-    ],
-    env: {},
+    command,
+    args,
+    env: environmentAssignmentsToObject(childEnvironment),
     cwd: workspace,
     lifecycle: "lazy",
     directTools: false,

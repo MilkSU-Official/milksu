@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -628,22 +629,53 @@ func normalizedSize(columns, rows int) (int, int) {
 }
 
 func resolveShell() (string, error) {
-	candidates := []string{
-		strings.TrimSpace(os.Getenv("SHELL")),
-		"/bin/zsh",
-		"/bin/bash",
-		"/bin/sh",
+	candidates := []string{strings.TrimSpace(os.Getenv("SHELL"))}
+	if runtime.GOOS == "windows" {
+		candidates = append(candidates, windowsBashCandidates()...)
+	} else {
+		candidates = append(candidates, "/bin/zsh", "/bin/bash", "/bin/sh")
 	}
 	for _, candidate := range candidates {
-		if candidate == "" || !filepath.IsAbs(candidate) {
-			continue
-		}
-		info, err := os.Stat(candidate)
-		if err == nil && !info.IsDir() && info.Mode().Perm()&0o111 != 0 {
-			return candidate, nil
+		resolved, ok := resolveRunnableShell(candidate)
+		if ok {
+			return resolved, nil
 		}
 	}
 	return "", errors.New("no supported local shell is available")
+}
+
+func windowsBashCandidates() []string {
+	candidates := make([]string, 0, 4)
+	if programFiles := strings.TrimSpace(os.Getenv("ProgramFiles")); programFiles != "" {
+		candidates = append(candidates, filepath.Join(programFiles, "Git", "bin", "bash.exe"))
+	}
+	if programFilesX86 := strings.TrimSpace(os.Getenv("ProgramFiles(x86)")); programFilesX86 != "" {
+		candidates = append(candidates, filepath.Join(programFilesX86, "Git", "bin", "bash.exe"))
+	}
+	candidates = append(candidates, "bash.exe")
+	return candidates
+}
+
+func resolveRunnableShell(candidate string) (string, bool) {
+	candidate = strings.TrimSpace(candidate)
+	if candidate == "" {
+		return "", false
+	}
+	if !filepath.IsAbs(candidate) {
+		resolved, err := exec.LookPath(candidate)
+		if err != nil {
+			return "", false
+		}
+		candidate = resolved
+	}
+	info, err := os.Stat(candidate)
+	if err != nil || info.IsDir() {
+		return "", false
+	}
+	if runtime.GOOS != "windows" && info.Mode().Perm()&0o111 == 0 {
+		return "", false
+	}
+	return candidate, true
 }
 
 func terminalEnvironment(source []string) []string {
@@ -677,7 +709,15 @@ func terminalEnvironment(source []string) []string {
 		environment = append(environment, entry)
 	}
 	if !hasPath {
-		environment = append(environment, "PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin")
+		if runtime.GOOS == "windows" {
+			systemRoot := strings.TrimSpace(os.Getenv("SystemRoot"))
+			if systemRoot == "" {
+				systemRoot = `C:\Windows`
+			}
+			environment = append(environment, "PATH="+filepath.Join(systemRoot, "System32"))
+		} else {
+			environment = append(environment, "PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin")
+		}
 	}
 	environment = append(
 		environment,

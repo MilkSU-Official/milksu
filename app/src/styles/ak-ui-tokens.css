@@ -27,10 +27,10 @@
   --ak-signal-success: #46c47c;
   --ak-signal-danger: #e33b3b;
   --ak-signal-disabled: var(--ak-color-low);
-  --ak-font-sans: Noto Sans SC, Roboto, Arial, sans-serif;
-  --ak-font-serif: Noto Serif SC, serif;
+  --ak-font-sans: var(--font-sans);
+  --ak-font-serif: var(--font-sans);
   --ak-font-mono: SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  --ak-font-command: var(--ak-font-serif);
+  --ak-font-command: var(--font-sans);
   --ak-type-display-size: clamp(2.25rem, 5vw, 4.5rem);
   --ak-type-title-size: 3rem;
   --ak-type-label-size: 0.75rem;

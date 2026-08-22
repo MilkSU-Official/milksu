@@ -139,6 +139,9 @@ test("fixed instructions cover goal, constraints, progress, decisions, next step
     "关键上下文",
     "read files",
     "modified files",
+    "CTF",
+    "CVE",
+    "实验室",
   ]) {
     assert.ok(
       compactionInstructions.includes(part),

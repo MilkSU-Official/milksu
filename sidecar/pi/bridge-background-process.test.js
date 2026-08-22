@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { runCommandOnce, spawnCommand } from "./bridge-background-process.js";
+import { buildCodingBackgroundLaunch } from "./bridge-policy.js";
 
 async function waitFor(child) {
   return await new Promise((resolvePromise, rejectPromise) => {
@@ -11,6 +12,78 @@ async function waitFor(child) {
     child.once("close", (code, signal) => resolvePromise({ code, signal }));
   });
 }
+
+test("background shell:true uses Pi's host bash instead of a Unix-only /bin/bash path", async () => {
+  const workspace = await realpath(
+    await mkdtemp(join(tmpdir(), "milksu-background-shell-workspace-")),
+  );
+  const runtime = await realpath(
+    await mkdtemp(join(tmpdir(), "milksu-background-shell-runtime-")),
+  );
+  const previousRuntime = process.env.MILKSU_WORKSPACE_RUNTIME;
+  process.env.MILKSU_WORKSPACE_RUNTIME = runtime;
+  try {
+    const launch = buildCodingBackgroundLaunch(
+      {
+        command: "printf ready",
+        cwd: workspace,
+        shell: true,
+      },
+      join(runtime, "launch.log"),
+    );
+    if (process.platform === "win32") {
+      assert.notEqual(launch.file.replaceAll("\\", "/"), "/bin/bash");
+      assert.match(launch.file, /bash\.exe$/i);
+    } else {
+      assert.ok(launch.file.includes("bash") || launch.file.endsWith("sh"));
+    }
+    const spawned = spawnCommand(
+      {
+        command: "printf ready > ready.txt",
+        cwd: workspace,
+        shell: true,
+      },
+      join(runtime, "ok.log"),
+      true,
+    );
+    const result = await waitFor(spawned.child);
+    assert.equal(result.code, 0);
+    assert.equal(await readFile(join(workspace, "ready.txt"), "utf8"), "ready");
+  } finally {
+    if (previousRuntime === undefined) delete process.env.MILKSU_WORKSPACE_RUNTIME;
+    else process.env.MILKSU_WORKSPACE_RUNTIME = previousRuntime;
+  }
+});
+
+test("background spawn failures stay on the child and cannot crash the sidecar", async () => {
+  const workspace = await realpath(
+    await mkdtemp(join(tmpdir(), "milksu-background-missing-workspace-")),
+  );
+  const runtime = await realpath(
+    await mkdtemp(join(tmpdir(), "milksu-background-missing-runtime-")),
+  );
+  const previousRuntime = process.env.MILKSU_WORKSPACE_RUNTIME;
+  process.env.MILKSU_WORKSPACE_RUNTIME = runtime;
+  try {
+    const spawned = spawnCommand(
+      {
+        argv: [join(workspace, "missing-background-command")],
+        cwd: workspace,
+        shell: false,
+      },
+      join(runtime, "missing.log"),
+      true,
+    );
+    assert.ok(spawned.child.listenerCount("error") >= 1);
+    await new Promise(resolvePromise => {
+      spawned.child.once("close", () => resolvePromise());
+      setTimeout(() => resolvePromise(), 1000);
+    });
+  } finally {
+    if (previousRuntime === undefined) delete process.env.MILKSU_WORKSPACE_RUNTIME;
+    else process.env.MILKSU_WORKSPACE_RUNTIME = previousRuntime;
+  }
+});
 
 test("Pi background tasks preserve cwd and strip provider secrets", {
   skip: process.platform !== "darwin",

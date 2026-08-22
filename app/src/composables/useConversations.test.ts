@@ -307,6 +307,13 @@ describe('Coding approval conversation recovery', () => {
     expect(message).not.toContain('bridge.js')
   })
 
+  it('hides truncated Node unhandled-error dumps from chat', () => {
+    const message = agentRuntimeErrorMessage('exit status 1: node:events:487')
+    expect(message).toContain('本地 Agent 运行异常')
+    expect(message).not.toContain('node:events')
+    expect(message).not.toContain('487')
+  })
+
   it('surfaces provider HTTP bodies after credential redaction', () => {
     const message = agentRuntimeErrorMessage(
       '403: {"message":"model group rate limited for this key","type":"permission_error"}',

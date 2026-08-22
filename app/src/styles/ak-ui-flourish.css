@@ -66,6 +66,10 @@
   --muted-foreground: #6d757a;
   --card: #f3f4ef;
   --border: #aba9a1;
+  --muted: #e6e7e1;
+  --background: #f3f4ef;
+  --surface-editor: #e6e7e1;
+  --accent: #e6e7e1;
 }
 
 .chat-bubble__who {

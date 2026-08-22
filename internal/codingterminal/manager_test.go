@@ -2,12 +2,21 @@ package codingterminal
 
 import (
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 )
 
+func skipWithoutHostPTY(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("Coding terminal PTY is not supported on Windows")
+	}
+}
+
 func TestInteractiveTerminalIsConversationScopedAndStripsProviderKey(t *testing.T) {
+	skipWithoutHostPTY(t)
 	t.Setenv("SHELL", "/bin/sh")
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("DEEPSEEK_API_KEY", "must-not-reach-terminal")
@@ -82,6 +91,7 @@ func TestInteractiveTerminalIsConversationScopedAndStripsProviderKey(t *testing.
 }
 
 func TestInteractiveTerminalCanBeStopped(t *testing.T) {
+	skipWithoutHostPTY(t)
 	t.Setenv("SHELL", "/bin/sh")
 	t.Setenv("HOME", t.TempDir())
 	events := make(chan Event, 64)
@@ -107,6 +117,7 @@ func TestInteractiveTerminalCanBeStopped(t *testing.T) {
 }
 
 func TestInteractiveTerminalCanBeClosedAndRemoved(t *testing.T) {
+	skipWithoutHostPTY(t)
 	t.Setenv("SHELL", "/bin/sh")
 	t.Setenv("HOME", t.TempDir())
 	events := make(chan Event, 64)
@@ -188,6 +199,23 @@ func TestListReturnsTerminalTabsInStableCreationOrder(t *testing.T) {
 	}
 }
 
+func TestResolveShellFindsAHostBashCompatibleBinary(t *testing.T) {
+	t.Setenv("SHELL", "")
+	shell, err := resolveShell()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runtime.GOOS == "windows" {
+		if !strings.HasSuffix(strings.ToLower(shell), "bash.exe") {
+			t.Fatalf("Windows Coding terminal should use Git Bash, got %q", shell)
+		}
+		return
+	}
+	if !filepath.IsAbs(shell) {
+		t.Fatalf("Unix Coding terminal should use an absolute shell, got %q", shell)
+	}
+}
+
 func TestTerminalCreationTimestampsAreStrictlyMonotonic(t *testing.T) {
 	manager := NewManager(nil)
 	manager.mu.Lock()
@@ -200,6 +228,7 @@ func TestTerminalCreationTimestampsAreStrictlyMonotonic(t *testing.T) {
 }
 
 func TestManagerCloseEndsRunningTerminalsWithoutReconnect(t *testing.T) {
+	skipWithoutHostPTY(t)
 	t.Setenv("SHELL", "/bin/sh")
 	t.Setenv("HOME", t.TempDir())
 	events := make(chan Event, 64)

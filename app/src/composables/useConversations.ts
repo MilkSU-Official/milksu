@@ -404,7 +404,7 @@ export function normalizeConversation(raw: Record<string, unknown>): Conversatio
 /** True when the text looks like MilkSU/Node internals, not a provider reply. */
 function isInternalAgentStack(message: string) {
   return (
-    /node:internal|bridge\.js|Cannot find module|Uncaught Exception|TypeError:|ReferenceError:|SyntaxError:|internal module|stack trace|milksu-sidecar|at\s+\S+\.(?:js|cjs|mjs|ts|go):\d+/i
+    /node:internal|node:events|Unhandled ['"]error['"] event|bridge\.js|Cannot find module|Uncaught Exception|TypeError:|ReferenceError:|SyntaxError:|internal module|stack trace|milksu-sidecar|at\s+\S+\.(?:js|cjs|mjs|ts|go):\d+/i
       .test(message)
     || /Access to this API has been restricted|--allow-fs-(?:read|write)|ERR_ACCESS_DENIED/i
       .test(message)

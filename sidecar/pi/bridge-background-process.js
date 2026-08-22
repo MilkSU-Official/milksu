@@ -35,12 +35,18 @@ function reviewedLaunch(specification, trustedOutputPath = "") {
 }
 
 function spawnLaunch(launch, detached, stdio) {
-  return spawn(launch.file, launch.arguments, {
+  const child = spawn(launch.file, launch.arguments, {
     cwd: launch.cwd,
     env: launch.environment,
     detached,
     stdio,
+    windowsHide: true,
   });
+  if (launch.stdin != null) {
+    child.stdin?.on("error", () => {});
+    child.stdin?.end(launch.stdin);
+  }
+  return child;
 }
 
 export function spawnCommand(specification, logPath, detached) {
@@ -51,7 +57,11 @@ export function spawnCommand(specification, logPath, detached) {
   const descriptor = openSync(logPath, "a", 0o600);
   let child;
   try {
-    child = spawnLaunch(launch, detached, ["ignore", descriptor, descriptor]);
+    child = spawnLaunch(
+      launch,
+      detached,
+      [launch.stdin == null ? "ignore" : "pipe", descriptor, descriptor],
+    );
     writeSync(
       descriptor,
       `\n--- spawn ${new Date().toISOString()} pid=${child.pid ?? "unknown"} ---\n`,
@@ -59,6 +69,19 @@ export function spawnCommand(specification, logPath, detached) {
   } finally {
     closeSync(descriptor);
   }
+  child.on("error", error => {
+    const message = error instanceof Error ? error.message : String(error);
+    try {
+      appendFileSync(
+        logPath,
+        `\n--- spawn error ${new Date().toISOString()} ${message} ---\n`,
+        { mode: 0o600 },
+      );
+    } catch {
+      // Best-effort log only; never let a background spawn crash the sidecar.
+    }
+    process.stderr.write(`MilkSU background task failed to start: ${message}\n`);
+  });
   child.on("close", (code, signal) => {
     appendFileSync(
       logPath,
@@ -71,10 +94,11 @@ export function spawnCommand(specification, logPath, detached) {
 
 export function runCommandOnce(specification, maxBufferBytes = 1024 * 1024) {
   const startedAt = Date.now();
+  const launch = reviewedLaunch(specification);
   const child = spawnLaunch(
-    reviewedLaunch(specification),
+    launch,
     false,
-    ["ignore", "pipe", "pipe"],
+    [launch.stdin == null ? "ignore" : "pipe", "pipe", "pipe"],
   );
   let stdout = "";
   let stderr = "";
@@ -101,6 +125,13 @@ export function runCommandOnce(specification, maxBufferBytes = 1024 * 1024) {
 
 export function stopProcessGroup(pid, pgid) {
   const target = pgid ?? pid;
+  if (process.platform === "win32") {
+    spawn("taskkill", ["/F", "/T", "/PID", String(pid)], {
+      stdio: "ignore",
+      windowsHide: true,
+    });
+    return;
+  }
   try {
     process.kill(-target, "SIGTERM");
   } catch {

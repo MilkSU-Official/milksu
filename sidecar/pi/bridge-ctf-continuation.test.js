@@ -32,3 +32,18 @@ test("CTF does not continue completed responses and Coding does not install the 
   const coding = harness("");
   assert.equal(coding.listeners.has("agent_end"), false);
 });
+
+test("CVE and lab research sessions continue truncated replies via Pi follow-up", async () => {
+  for (const role of ["cve-research", "lab-job"]) {
+    const { listeners, sent } = harness(role);
+    await listeners.get("agent_end")({
+      messages: [{
+        role: "assistant",
+        stopReason: "length",
+        content: [{ type: "text", text: "报告" }],
+      }],
+    });
+    assert.equal(sent.length, 1, role);
+    assert.deepEqual(sent[0].options, { deliverAs: "followUp", triggerTurn: true });
+  }
+});

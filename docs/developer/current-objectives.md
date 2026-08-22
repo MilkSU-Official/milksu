@@ -2,7 +2,7 @@
 
 > 文档状态：Current / Canonical target contract
 >
-> 最后收口：2026-08-22
+> 最后收口：2026-08-23
 >
 > 本页只回答“当前处于什么阶段、下一条完成线是什么”。实现事实以当前代码、测试、Git 历史和原生 App 验收为准；历史设计与旧里程碑不作为任务队列。
 >
@@ -116,12 +116,20 @@
 文档收口提交不移动该 tag。
 
 - 设置页「同步公开源」写入的 CISA KEV 条目会进入 CVE 列表；内置样例目录仍不默认铺开。Vulhub 练习目录在 KEV 之后同步，才能匹配刚导入的 CVE。
+- 夜间模式 Agent 气泡里的 Markdown 代码块不再用夜间 `--surface-editor` 黑底叠纸面黑字；气泡隔离纸面 token，围栏代码跟气泡前景色。
+- Coding Sidecar 崩溃时不再把 Node `node:events:N` 第一行当成用户可见原因；stderr 抽出真正的 `Error:` 行，聊天把这类内部栈收成可重试提示。后台 spawn / stdin / stdout 的 `error` 事件不再弄死整个 Agent。
+- Windows 上 `bg_task` 不再硬编码 spawn `/bin/bash`。后台任务改用 Pi 的 `getShellConfig()`（Git Bash / PATH 上的 bash.exe），与前台 `bash` 工具同一套解析；缺 bash 时作为工具失败返回，而不是弄死 Sidecar。停止后台任务在 Windows 上用 `taskkill /T`。
+- 非 macOS 上项目 MCP / Playwright MCP 不再包一层 `/usr/bin/sandbox-exec`；直接跑原命令并过滤凭据环境。Coding 终端在 Windows 上解析 Git Bash，不再只找 `/bin/zsh`。交互式 PTY 终端本身仍是 Unix 能力（creack/pty）。
+- 产品 UI 标题、侧栏和正文共用 Inter Variable + Noto Sans SC Variable（SIL OFL）。去掉 Noto Serif SC / 系统 serif，Windows 上不再落到宋体。
+- 所有工具结果进入模型上下文前走 Pi `tool_result` 中间件：超过 50KB / 2000 行的正文截断并落到运行时 `tool-results/`，由 `read` + offset 按需续读。`ctf_http` 对 JS/CSS 再收紧到 4KB 摘录。Coding/CTF/CVE/实验室会话都强制 `setAutoCompactionEnabled(true)`，不再按角色关掉 Pi 自动压缩；85% 路径同样不跳过 CTF。CTF 任务 UI 的 `/compact` 不再抛 `cannot be compacted from the task UI`，与 Coding 走同一条 `compact_session`。CVE/实验室不再把 `cve-research` / `lab-job` 角色清掉，report.md 指引、长度截断走 Pi `followUp`、以及 `milksu_workspace` 压缩与 Coding 共用同一套 loop。Pi 原生压缩结束后回写用量，避免 85% 包装拿过期 token 再压一次。现场：`喝一杯茶吧ovo` 一次把 1.08MB `index-*.js` 整包塞进 `content`，9 回合打满 500k 窗口。
+- 产品窗口拦截 Ctrl+R / Cmd+R / F5，不再走 Chromium 刷新回到启动加载页。应用菜单去掉 View/Reload。账号状态在每次 did-finish-load 后重新推送。
 
 ## 当前产品事实
 
 ### Pi Runtime 收敛
 
 - 普通 Coding、CTF 与 CVE 的文件、Shell、会话生命周期和输出续跑已经回到 Pi 原生语义。MilkSU 不再复制 workspace-only 文件工具、`sandbox-exec`、持久化授权根、Node `--allow-fs-*` 权限状态机或后台授权令牌。
+- Coding、CTF、CVE 与实验室共用 Pi 自动压缩：会话创建/复用时 `setAutoCompactionEnabled(true)`，85% 空闲路径与任务 UI `/compact` 都不按角色跳过。工具结果进模型前走 Pi `tool_result` 截断。
 - CTF 删除了阻断通用任务的自建 sandbox-exec；仍保留 Challenge、Evidence、Candidate、Judge Receipt、Recovery、Memory、精确站点能力和凭据隔离。达到模型输出长度上限时走 Pi `agent_end` / `followUp`，不把半句当完成。
 - CVE → Coding 不再注入“只读检查”“只输出启动清单”等限制，使用普通 Pi 工具和当前权限档。普通产品回合不再被 MilkSU 的 90 秒无事件 watchdog 静默终止；用户主动停止和独立评测 deadline 仍保留。
 - 普通用户文字和回复风格交给 Pi/模型理解。GUI 一键动作只传 typed product action、界面语言和无凭据系统环境，不额外注入客服话术、固定长尾问题或关键词/正则意图路由。

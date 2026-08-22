@@ -2080,6 +2080,38 @@ func TestProbeFailureMessageKeepsSidecarExitDetail(t *testing.T) {
 	}
 }
 
+func TestSidecarCrashDetailPrefersNodeErrorLine(t *testing.T) {
+	detail := sidecarCrashDetail("" +
+		"node:events:487\n" +
+		"      throw er; // Unhandled 'error' event\n" +
+		"      ^\n" +
+		"\n" +
+		"Error: spawn /bin/bash ENOENT\n" +
+		"    at ChildProcess._handle.onexit (node:internal/child_process:286:12)\n" +
+		"Emitted 'error' event on ChildProcess instance at:\n" +
+		"    at Process.ChildProcess._handle.onexit (node:internal/child_process:292:12)\n")
+	if detail != "Error: spawn /bin/bash ENOENT" {
+		t.Fatalf("sidecar crash hid the spawn cause: %q", detail)
+	}
+}
+
+func TestSidecarCrashDetailKeepsSingleLineModuleErrors(t *testing.T) {
+	detail := sidecarCrashDetail("Error: Cannot find module './known-context-window.cjs'")
+	if detail != "Error: Cannot find module './known-context-window.cjs'" {
+		t.Fatalf("sidecar crash lost its module cause: %q", detail)
+	}
+}
+
+func TestSidecarStderrBufferTailUsesCrashDetail(t *testing.T) {
+	buffer := newSidecarStderrBuffer()
+	if _, err := buffer.Write([]byte("node:events:487\nError: write EPIPE\n")); err != nil {
+		t.Fatalf("write sidecar stderr: %v", err)
+	}
+	if got := buffer.tail(); got != "Error: write EPIPE" {
+		t.Fatalf("stderr tail kept the Node header: %q", got)
+	}
+}
+
 func TestValidateModelAccessUsesPersonalKeyWhenAccountSourceHasNoKey(t *testing.T) {
 	settings := config.DefaultSettings()
 	settings.ActiveProvider = "deepseek"

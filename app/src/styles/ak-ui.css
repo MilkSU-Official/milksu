@@ -27,10 +27,10 @@
   --ak-signal-success: #46c47c;
   --ak-signal-danger: #e33b3b;
   --ak-signal-disabled: var(--ak-color-low);
-  --ak-font-sans: Noto Sans SC, Roboto, Arial, sans-serif;
-  --ak-font-serif: Noto Serif SC, serif;
+  --ak-font-sans: var(--font-sans);
+  --ak-font-serif: var(--font-sans);
   --ak-font-mono: SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  --ak-font-command: var(--ak-font-serif);
+  --ak-font-command: var(--font-sans);
   --ak-type-display-size: clamp(2.25rem, 5vw, 4.5rem);
   --ak-type-title-size: 3rem;
   --ak-type-label-size: 0.75rem;
@@ -133,7 +133,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-family: Noto Sans SC, Roboto, Arial, sans-serif;
+  font-family: var(--ak-font-sans);
   outline: none;
   border: none;
   font-size: 1rem;
@@ -178,7 +178,7 @@
 }
 .ak-button__label {
   display: inline-flex;
-  font-family: Noto Sans SC, Roboto, Arial, sans-serif;
+  font-family: var(--ak-font-sans);
   line-height: 1;
 }
 .ak-button--block {
@@ -206,7 +206,7 @@
 }
 .ak-button--outline {
   border: 2px solid #fff;
-  font-family: Noto Sans SC, Roboto, Arial, sans-serif;
+  font-family: var(--ak-font-sans);
   box-shadow: 0 10px 15px rgba(0, 0, 0, 0.5);
 }
 .ak-button--action {
@@ -224,7 +224,7 @@
   height: 30px;
   background-color: rgba(0, 0, 0, 0.6);
   color: white;
-  font-family: Noto Sans SC, Roboto, Arial, sans-serif;
+  font-family: var(--ak-font-sans);
   display: flex;
   align-items: center;
   font-size: 1.2rem;
@@ -255,7 +255,7 @@
   position: absolute;
   top: 10px;
   left: 10px;
-  font-family: Noto Serif SC, serif;
+  font-family: var(--ak-font-sans);
   font-size: 2.8rem;
   font-weight: 900;
 }
@@ -335,7 +335,7 @@
 .ak-button-group .ak-button {
   color: black;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  font-family: Noto Sans SC, Roboto, Arial, sans-serif;
+  font-family: var(--ak-font-sans);
   font-size: x-large;
 }
 .ak-button-group--action {
@@ -373,7 +373,7 @@
   align-items: center;
 }
 .ak-button-group--action .button-group .ak-button__label {
-  font-family: Noto Serif SC, serif;
+  font-family: var(--ak-font-sans);
   font-size: 1.8rem;
   font-weight: 900;
 }
@@ -398,7 +398,7 @@
 }
 .ak-button-group--total .left .ak-button__label {
   padding-top: 1.8rem;
-  font-family: Noto Serif SC, serif;
+  font-family: var(--ak-font-sans);
   font-size: 2.5rem;
   font-weight: 900;
 }
@@ -426,7 +426,7 @@
   left: 10px;
   font-size: 12px;
   font-weight: 700;
-  font-family: "Syncopate", sans-serif;
+  font-family: var(--ak-font-sans);
 }
 .ak-button-group.with-small .small {
   position: absolute;
@@ -439,7 +439,7 @@
   padding-top: 0.8rem;
 }
 .ak-button-group.with-small .small .label {
-  font-family: Noto Serif SC, serif;
+  font-family: var(--ak-font-sans);
   color: white;
   font-size: 2rem;
   font-weight: 900;
@@ -464,7 +464,7 @@
 }
 .ak-card .ak-card__title {
   margin: 0;
-  font-family: Noto Serif SC, serif;
+  font-family: var(--ak-font-sans);
   font-size: 1.25rem;
   font-weight: 900;
   line-height: 1.3;
@@ -553,7 +553,7 @@
   background: var(--ak-command-surface);
   box-shadow: 0 1cqw 2cqw rgba(0, 0, 0, 0.3);
   cursor: pointer;
-  font-family: Noto Sans SC, Roboto, Arial, sans-serif;
+  font-family: var(--ak-font-sans);
   isolation: isolate;
   text-align: left;
   transition: filter 150ms ease, transform 150ms ease;
@@ -594,7 +594,7 @@
 .ak-command .ak-command__label {
   position: relative;
   z-index: 1;
-  font-family: Noto Serif SC, serif;
+  font-family: var(--ak-font-sans);
   font-size: clamp(1.1rem, 2.7cqw, 2.85rem);
   font-weight: 900;
   letter-spacing: -0.08em;
@@ -607,7 +607,7 @@
   margin-top: 0.42cqw;
   overflow: hidden;
   color: var(--ak-command-muted);
-  font-family: Noto Sans SC, Roboto, Arial, sans-serif;
+  font-family: var(--ak-font-sans);
   font-size: clamp(0.42rem, 0.58cqw, 0.62rem);
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -765,7 +765,7 @@
   z-index: 2;
   top: 0.28cqw;
   left: 1.1cqw;
-  font-family: Noto Serif SC, serif;
+  font-family: var(--ak-font-sans);
   font-size: clamp(0.85rem, 1.35cqw, 1.45rem);
   font-weight: 900;
   letter-spacing: 0.08em;
@@ -781,7 +781,7 @@
   border-right: 1px solid rgba(255, 255, 255, 0.36);
 }
 .ak-command-group--recruitment .ak-command--split .ak-command__label {
-  font-family: Noto Sans SC, Roboto, Arial, sans-serif;
+  font-family: var(--ak-font-sans);
   font-size: clamp(1.25rem, 2.08cqw, 1.875rem);
   letter-spacing: normal;
 }
@@ -821,7 +821,7 @@
   filter: drop-shadow(1px 1px 4px rgba(0, 0, 0, 0.6));
 }
 .ak-counter__content {
-  font-family: Noto Sans SC, Roboto, Arial, sans-serif;
+  font-family: var(--ak-font-sans);
   font-size: 1.8rem;
   text-shadow: 1px 1px 4px rgba(0, 0, 0, 0.6);
   margin-left: 0.4rem;
@@ -951,7 +951,7 @@
   background: #111315;
   color-scheme: dark;
   container-type: size;
-  font-family: Noto Sans SC, Roboto, Arial, sans-serif;
+  font-family: var(--ak-font-sans);
   isolation: isolate;
 }
 .ak-dashboard::after {
@@ -1026,7 +1026,7 @@
   position: relative;
   padding: 0;
   color: rgba(255, 255, 255, 0.72);
-  font-family: Noto Sans SC, Roboto, Arial, sans-serif;
+  font-family: var(--ak-font-sans);
   font-size: clamp(1rem, 1.875cqw, 1.7rem);
   font-weight: 500;
   letter-spacing: 0;
@@ -1187,7 +1187,7 @@
   background: rgba(13, 16, 18, 0.88);
   box-shadow: var(--ak-dashboard-shadow);
   cursor: pointer;
-  font-family: Noto Sans SC, Roboto, Arial, sans-serif;
+  font-family: var(--ak-font-sans);
   text-align: left;
 }
 .ak-dashboard .ak-dashboard__news::after, .ak-dashboard .ak-dashboard__utility::after {
@@ -1229,7 +1229,7 @@
   text-shadow: 0 0.18cqw 0.3cqw black;
 }
 .ak-dashboard .ak-dashboard__news-copy strong {
-  font-family: Noto Serif SC, serif;
+  font-family: var(--ak-font-sans);
   font-size: clamp(1rem, 1.65cqw, 1.7rem);
   font-weight: 900;
   line-height: 1;
@@ -1263,7 +1263,7 @@
   opacity: 0.76;
 }
 .ak-dashboard .ak-dashboard__utility strong {
-  font-family: Noto Serif SC, serif;
+  font-family: var(--ak-font-sans);
   font-size: clamp(0.75rem, 1.25cqw, 1.32rem);
   font-weight: 900;
 }
@@ -1436,7 +1436,7 @@
     filter: invert(1);
   }
   .ak-dashboard .ak-dashboard__rotate strong {
-    font-family: Noto Sans SC, Roboto, Arial, sans-serif;
+    font-family: var(--ak-font-sans);
     font-size: clamp(0.74rem, 3.7vw, 0.94rem);
     font-weight: 500;
     letter-spacing: 0;
@@ -1466,7 +1466,7 @@
   gap: 0.375rem;
   color: rgba(255, 255, 255, 0.8);
   font-size: 1rem;
-  font-family: Noto Sans SC, Roboto, Arial, sans-serif;
+  font-family: var(--ak-font-sans);
   filter: drop-shadow(2px 2px 1px rgba(0, 0, 0, 0.3));
 }
 .ak-divider span .ak-icon {
@@ -1495,7 +1495,7 @@
   background: #171a1d;
   box-shadow: 0 1.5rem 5rem rgba(0, 0, 0, 0.55);
   clip-path: polygon(0 0, calc(100% - 1.25rem) 0, 100% 1.25rem, 100% 100%, 0 100%);
-  font-family: Noto Sans SC, Roboto, Arial, sans-serif;
+  font-family: var(--ak-font-sans);
 }
 .ak-dialog::backdrop {
   background: rgba(5, 7, 8, 0.76);
@@ -1569,7 +1569,7 @@
   --ak-field-signal: #0098dc;
   display: grid;
   color: #111315;
-  font-family: Noto Sans SC, Roboto, Arial, sans-serif;
+  font-family: var(--ak-font-sans);
   gap: 0.5rem;
 }
 .ak-field__hint {
@@ -1605,7 +1605,7 @@
   color: #111315;
   background-color: #f3f4ef;
   caret-color: var(--ak-field-signal, #0098dc);
-  font-family: Noto Sans SC, Roboto, Arial, sans-serif;
+  font-family: var(--ak-font-sans);
   font-size: 1rem;
   line-height: 1.4;
   transition: border-color 140ms ease, box-shadow 140ms ease, background-color 140ms ease;
@@ -1671,7 +1671,7 @@
   align-items: center;
   color: #202428;
   cursor: pointer;
-  font-family: Noto Sans SC, Roboto, Arial, sans-serif;
+  font-family: var(--ak-font-sans);
   grid-template-columns: 1.5rem minmax(0, 1fr);
   gap: 0.7rem;
 }
@@ -1809,7 +1809,7 @@
 .ak-input-number .ak-input-number__max, .ak-input-number .ak-input-number__min {
   background-color: #444;
   box-shadow: 0 0 2px rgba(0, 0, 0, 0.3);
-  font-family: Roboto, sans-serif;
+  font-family: var(--ak-font-sans);
 }
 .ak-input-number .ak-input-number__increase, .ak-input-number .ak-input-number__decrease {
   background-color: #333;
@@ -1918,7 +1918,7 @@
   display: inline-block;
   width: 120px;
   text-align: center;
-  font-family: Noto Sans SC, Roboto, Arial, sans-serif;
+  font-family: var(--ak-font-sans);
   box-shadow: 0 2px 20px rgba(0, 0, 0, 0.6);
 }
 .ak-level .ak-level__label,
@@ -2015,7 +2015,7 @@
   top: -2.2rem;
   right: -5.3rem;
   color: var(--ak-loading-label-color, #016d8d);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--ak-font-sans);
   font-size: 1rem;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -2072,7 +2072,7 @@
   top: 1.1cqh;
   left: 0.7cqw;
   margin: 0;
-  font-family: "Noto Sans SC", sans-serif;
+  font-family: var(--ak-font-sans);
   font-size: clamp(0.75rem, 2cqh, 1.125rem);
   font-weight: 500;
   line-height: 1.15;
@@ -2099,7 +2099,7 @@
 }
 
 .ak-loading-screen__brand strong {
-  font-family: "Arial Narrow", Arial, sans-serif;
+  font-family: var(--ak-font-sans);
   font-size: clamp(2.8rem, 4.65cqw, 4.2rem);
   font-style: italic;
   font-weight: 900;
@@ -2110,7 +2110,7 @@
 
 .ak-loading-screen__brand small {
   margin-left: 0.15em;
-  font-family: "Arial Narrow", Arial, sans-serif;
+  font-family: var(--ak-font-sans);
   font-size: clamp(1rem, 1.75cqw, 1.6rem);
   font-style: italic;
   font-weight: 800;
@@ -2135,7 +2135,7 @@
 
 .ak-loading-screen__mark small {
   margin-top: -3.1cqw;
-  font-family: "Arial Narrow", Arial, sans-serif;
+  font-family: var(--ak-font-sans);
   font-size: clamp(0.72rem, 1.25cqw, 1.15rem);
   font-weight: 900;
   letter-spacing: 0.12em;
@@ -2284,7 +2284,7 @@
 }
 .ak-notice__title {
   display: block;
-  font-family: Noto Sans SC, Roboto, Arial, sans-serif;
+  font-family: var(--ak-font-sans);
   font-size: 1rem;
   font-weight: 900;
   line-height: 1.25;
@@ -2292,7 +2292,7 @@
 .ak-notice__message {
   margin: 0.45rem 0 0;
   color: rgba(17, 19, 21, 0.68);
-  font-family: Noto Sans SC, Roboto, Arial, sans-serif;
+  font-family: var(--ak-font-sans);
   font-size: 0.75rem;
   line-height: 1.55;
 }
@@ -2335,7 +2335,7 @@
   width: var(--cube-size, 100px);
   height: var(--cube-size, 100px);
   line-height: 2;
-  font-family: sans-serif;
+  font-family: var(--ak-font-sans);
   font-size: calc(var(--cube-size, 100px) / 2);
   text-align: center;
   color: var(--cube-color, rgba(34, 187, 255, 0.5));
@@ -2597,7 +2597,7 @@
   color: #f3f4ef;
   background: #171a1d;
   box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.4);
-  font-family: Noto Sans SC, Roboto, Arial, sans-serif;
+  font-family: var(--ak-font-sans);
 }
 
 .ak-popover {
@@ -2797,7 +2797,7 @@
   color: black;
   font-size: 4rem;
   font-weight: 900;
-  font-family: Noto Serif SC, serif;
+  font-family: var(--ak-font-sans);
 }
 .ak-san-container .info .cur {
   display: inline-block;
@@ -2809,7 +2809,7 @@
   margin: 1rem 0 0.4rem 0;
 }
 .ak-san-container .info .status {
-  font-family: Noto Sans SC, Roboto, Arial, sans-serif;
+  font-family: var(--ak-font-sans);
   font-size: 1.3rem;
 }
 .ak-san-container .info .ak-icon {
@@ -2910,7 +2910,7 @@
 .ak-san-container--compact .ak-san-container__title {
   margin-top: 0.3rem;
   overflow: hidden;
-  font-family: Noto Sans SC, Roboto, Arial, sans-serif;
+  font-family: var(--ak-font-sans);
   font-size: 1.15rem;
   font-weight: 900;
   line-height: 1.1;
@@ -3051,7 +3051,7 @@
   top: 8.5%;
   right: 10.3%;
   width: 82%;
-  font-family: Noto Sans SC, Roboto, Arial, sans-serif;
+  font-family: var(--ak-font-sans);
   font-size: 45cqh;
   font-weight: 700;
   letter-spacing: normal;
@@ -3071,7 +3071,7 @@
   padding: 1.7cqh 5.5%;
   color: white;
   background: rgba(44, 47, 49, 0.96);
-  font-family: Noto Sans SC, Roboto, Arial, sans-serif;
+  font-family: var(--ak-font-sans);
   font-size: 13.9cqh;
   font-weight: 500;
   letter-spacing: 0;
@@ -3183,7 +3183,7 @@
 .ak-status__detail {
   margin-top: 0.2rem;
   color: color-mix(in srgb, var(--ak-status-text) 72%, transparent);
-  font-family: Noto Sans SC, Roboto, Arial, sans-serif;
+  font-family: var(--ak-font-sans);
   font-size: 0.75rem;
   line-height: 1.2;
 }
@@ -3280,7 +3280,7 @@
 }
 .ak-tabs__title {
   margin: 0;
-  font-family: Noto Sans SC, Roboto, Arial, sans-serif;
+  font-family: var(--ak-font-sans);
   font-size: 1.35rem;
   line-height: 1.2;
 }
@@ -3288,7 +3288,7 @@
   max-width: 34rem;
   margin: 0.7rem 0 0;
   color: rgba(243, 244, 239, 0.65);
-  font-family: Noto Sans SC, Roboto, Arial, sans-serif;
+  font-family: var(--ak-font-sans);
   font-size: 0.8rem;
   line-height: 1.65;
 }
@@ -3339,11 +3339,11 @@
   }
 }
 .ak-font-serif {
-  font-family: var(--ak-font-serif, Noto Serif SC, serif);
+  font-family: var(--ak-font-sans);
 }
 
 .ak-font-sans-serif {
-  font-family: var(--ak-font-sans, Noto Sans SC, Roboto, Arial, sans-serif);
+  font-family: var(--ak-font-sans);
 }
 
 .ak-text--title {

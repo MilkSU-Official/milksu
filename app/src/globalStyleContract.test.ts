@@ -5,6 +5,13 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 const indexCss = readFileSync(fileURLToPath(new URL('./index.css', import.meta.url)), 'utf8').replaceAll('\r\n', '\n')
+const flourishCss = readFileSync(fileURLToPath(new URL('./styles/ak-ui-flourish.css', import.meta.url)), 'utf8').replaceAll('\r\n', '\n')
+const markdownContentSource = readFileSync(
+  fileURLToPath(new URL('./components-vue/MarkdownContent.vue', import.meta.url)),
+  'utf8',
+).replaceAll('\r\n', '\n')
+const mainTs = readFileSync(fileURLToPath(new URL('./main.ts', import.meta.url)), 'utf8').replaceAll('\r\n', '\n')
+const akUiCss = readFileSync(fileURLToPath(new URL('./styles/ak-ui.css', import.meta.url)), 'utf8').replaceAll('\r\n', '\n')
 
 describe('global style contract', () => {
   it('keeps compact form controls on one shared font scale', () => {
@@ -80,5 +87,28 @@ describe('global style contract', () => {
     expect(indexCss).toContain('--night-muted: #222222')
     expect(indexCss).toContain('--night-border: #3a3d40')
     expect(indexCss).not.toMatch(/#(?:0d1115|090c0f|111519|14191d|171c21|1b2026|20262c|11120f|171815)/i)
+  })
+
+  it('uses one OFL sans stack for titles, chrome and body instead of Songti/serif', () => {
+    expect(mainTs).toContain("import '@fontsource-variable/inter'")
+    expect(mainTs).toContain("import '@fontsource-variable/noto-sans-sc'")
+    expect(indexCss).toContain('--font-sans: "Inter Variable", "Noto Sans SC Variable"')
+    expect(indexCss).toContain('--font-display: var(--font-sans)')
+    expect(akUiCss).toContain('--ak-font-command: var(--font-sans)')
+    expect(akUiCss).toContain('--ak-font-serif: var(--font-sans)')
+    expect(indexCss).not.toContain('Noto Serif SC')
+    expect(akUiCss).not.toContain('Noto Serif SC')
+    expect(indexCss).not.toMatch(/--font-display:[^;]*serif/)
+  })
+
+  it('keeps night-mode agent bubbles on paper tokens so fenced code stays readable', () => {
+    const agentBubble = flourishCss.match(/\.chat-bubble--agent \{([\s\S]*?)\n\}/)?.[1]
+    expect(agentBubble).toContain('--foreground: #17191b')
+    expect(agentBubble).toContain('--card: #f3f4ef')
+    expect(agentBubble).toContain('--muted: #e6e7e1')
+    expect(agentBubble).toContain('--surface-editor: #e6e7e1')
+    expect(markdownContentSource).toContain('background: color-mix(in oklab, var(--surface-editor) 88%, var(--foreground));')
+    expect(markdownContentSource).toContain('color: var(--foreground);')
+    expect(markdownContentSource).not.toContain('color-mix(in oklab, var(--surface-editor) 82%, black)')
   })
 })

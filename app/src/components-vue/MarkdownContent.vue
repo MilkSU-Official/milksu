@@ -128,6 +128,7 @@ async function openLink(event: MouseEvent) {
   border: 1px solid color-mix(in oklab, var(--border) 82%, transparent);
   border-radius: 0.3rem;
   background: color-mix(in oklab, var(--muted) 72%, transparent);
+  color: inherit;
   padding: 0.08rem 0.32rem;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.88em;
@@ -138,7 +139,8 @@ async function openLink(event: MouseEvent) {
   overflow: auto;
   border: 1px solid var(--border);
   border-radius: 0.55rem;
-  background: color-mix(in oklab, var(--surface-editor) 82%, black);
+  background: color-mix(in oklab, var(--surface-editor) 88%, var(--foreground));
+  color: var(--foreground);
   padding: 0.85rem 1rem;
   line-height: 1.55;
 }
@@ -147,6 +149,7 @@ async function openLink(event: MouseEvent) {
   border: 0;
   border-radius: 0;
   background: transparent;
+  color: inherit;
   padding: 0;
   font-size: 0.82rem;
 }

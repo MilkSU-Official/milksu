@@ -2,7 +2,7 @@
 
 > 状态：Current / Living
 >
-> 最后事实审计：2026-08-22
+> 最后事实审计：2026-08-23
 >
 > 产品开发目标：内测迭代 / Agent Runtime 与跨平台发行收敛
 
@@ -28,7 +28,7 @@
 | 开发版本线 | 仓库版本为 `26.822.1`。正式发行源是 `3db4615`；文档收口提交不移动该 tag。 |
 | 三端内测发行 | GitHub prerelease `v26.822.1` 已提供签名并公证的 macOS ARM64 DMG、未签名 Windows x64 EXE 和 Linux x64 试用 DEB，以及 `SHA256SUMS-26.822.1.txt`；R2/Admin current pointer 未发布。 |
 | Linux | `26.822.1` DEB 已包含当前 Pi Runtime 收敛并通过原生 Ubuntu 包结构、Node/Pi、Go Runtime 与 Xvfb Electron 启动；仍不含 Secret Service、本地 OCR 或 Computer Use。 |
-| Agent Harness | Pi 拥有 Session、Compaction、自然语言理解、通用文件/Shell 与 Tool Loop。MilkSU 已删除 workspace-only 文件工具、Node 文件权限状态机、普通回合 watchdog、CTF sandbox-exec、CVE 只读启动限制与客服式回复模板。不扫描用户句子做关键词/正则意图路由。 |
+| Agent Harness | Pi 拥有 Session、Compaction、自然语言理解、通用文件/Shell 与 Tool Loop。MilkSU 已删除 workspace-only 文件工具、Node 文件权限状态机、普通回合 watchdog、CTF sandbox-exec、CVE 只读启动限制与客服式回复模板。不扫描用户句子做关键词/正则意图路由。开发 HEAD 起 Coding/CTF/CVE/实验室强制 Pi 自动压缩，工具结果进模型前截断到 Pi 的 50KB/2000 行；CTF 任务 UI `/compact` 不再拒绝。 |
 | MilkSU 宿主边界 | 只保留会话目录记录、Provider 凭据隔离、桌面授权、领域事实/Judge，以及危险大目录删除二次确认。Coding 另有类型化 `milksu_workspace` 与对话级批准，不替代 Pi 工具循环。 |
 | 模型与附件 | 账户 TokenFlux 与本机 Provider 共用可调用模型目录；图片由当前模型原生 image input 或本地 OCR 自动路由，附件通过统一可预览/移除队列进入 Pi。 |
 | 网页查证 | Coding 复用固定 revision 的 Pi `web_search` / `web_fetch` Extension，已保留真实搜索和官方页面读取回执。 |
