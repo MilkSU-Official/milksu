@@ -167,12 +167,12 @@ npm --prefix app run build
 
 | 同学 | 主要贡献 |
 | --- | --- |
-| Hikaru（HikaruQwQ） | Windows / Linux 启动与打包、账户授权恢复、Sidecar 安装路径、发行 workflow 与测试门禁 |
+| Hikaru（HikaruQwQ） | Windows / Linux 启动与打包（PR #4）、账户授权恢复、Sidecar 安装路径、发行 workflow 与测试门禁；Composer 目标/计划/目录 chips（PR #12）；工具活动组展开与完成态（PR #20）；项目会话后台完成提醒（PR #26）；前端 typecheck（PR #28） |
 | SuInk | 会话归档与恢复、行内改名、主题切换、回到 Coding 时恢复上次视图 |
 | 东云 | 账户模型可用性与可调用目录（PR #3） |
-| 荒景肆（ArakeiShi） | Windows 产物目录和数据目录打开（PR #6） |
+| 荒景肆（ArakeiShi） | Windows 无 Git 启动与 Computer Use 驱动（PR #5）；产物目录和数据目录打开（PR #6） |
 | 薄荷布丁（SkyAerope） | 自定义中转站保存与 MilkSU 账户行（PR #7） |
-| AsabaLazy（Aeko233）、Luo | CTF 收藏/全部视图改走本地目录（PR #8） |
-| shiluoshiro | 设置页切换分类时清掉上一分类提示（PR #24） |
+| AsabaLazy（Aeko233）、Luo | CTF 收藏/全部视图改走本地目录（PR #8）；Windows 源码换行测试（PR #9）；应用级本地调试模式（PR #10） |
+| shiluoshiro | 设置页切换分类时清掉上一分类提示（PR #25） |
 
 完整提交记录以 Git 历史为准。问题和产品建议可以继续提到 [GitHub Issues](https://github.com/MilkSU-Official/milksu/issues)，或发送邮件至 [milksu@proton.me](mailto:milksu@proton.me)。
