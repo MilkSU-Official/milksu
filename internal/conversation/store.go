@@ -86,15 +86,23 @@ type StoredConversation struct {
 }
 
 type StoredContextUsage struct {
-	InputTokens      int64  `json:"inputTokens"`
-	OutputTokens     int64  `json:"outputTokens"`
-	CacheReadTokens  int64  `json:"cacheReadTokens"`
-	CacheWriteTokens int64  `json:"cacheWriteTokens"`
-	TotalTokens      int64  `json:"totalTokens"`
-	ContextWindow    int64  `json:"contextWindow,omitempty"`
-	Model            string `json:"model,omitempty"`
-	Provider         string `json:"provider,omitempty"`
-	RecordedAt       int64  `json:"recordedAt"`
+	InputTokens             int64  `json:"inputTokens"`
+	OutputTokens            int64  `json:"outputTokens"`
+	CacheReadTokens         int64  `json:"cacheReadTokens"`
+	CacheWriteTokens        int64  `json:"cacheWriteTokens"`
+	ReasoningTokens         int64  `json:"reasoningTokens,omitempty"`
+	TotalTokens             int64  `json:"totalTokens"`
+	ContextWindow           int64  `json:"contextWindow,omitempty"`
+	Model                   string `json:"model,omitempty"`
+	Provider                string `json:"provider,omitempty"`
+	RecordedAt              int64  `json:"recordedAt"`
+	SessionInputTokens      int64  `json:"sessionInputTokens,omitempty"`
+	SessionOutputTokens     int64  `json:"sessionOutputTokens,omitempty"`
+	SessionCacheReadTokens  int64  `json:"sessionCacheReadTokens,omitempty"`
+	SessionCacheWriteTokens int64  `json:"sessionCacheWriteTokens,omitempty"`
+	SessionReasoningTokens  int64  `json:"sessionReasoningTokens,omitempty"`
+	SessionTotalTokens      int64  `json:"sessionTotalTokens,omitempty"`
+	SessionTurns            int64  `json:"sessionTurns,omitempty"`
 }
 
 type Store struct {

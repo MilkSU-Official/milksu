@@ -187,9 +187,11 @@ interface AgentEvent {
     outputTokens?: number
     cacheReadTokens?: number
     cacheWriteTokens?: number
+    reasoningTokens?: number
     totalTokens?: number
     model?: string
     provider?: string
+    recordId?: string
   }
   compaction?: {
     tokensBefore?: number
@@ -271,21 +273,31 @@ function normalizeLastContextUsage(raw: unknown): Conversation['lastContextUsage
   const outputTokens = Math.max(0, Math.floor(Number(value.outputTokens) || 0))
   const cacheReadTokens = Math.max(0, Math.floor(Number(value.cacheReadTokens) || 0))
   const cacheWriteTokens = Math.max(0, Math.floor(Number(value.cacheWriteTokens) || 0))
+  const reasoningTokens = Math.max(0, Math.floor(Number(value.reasoningTokens) || 0))
   const totalTokens = Math.max(0, Math.floor(Number(value.totalTokens) || 0))
     || (inputTokens + outputTokens + cacheReadTokens + cacheWriteTokens)
   const recordedAt = Math.max(0, Math.floor(Number(value.recordedAt) || 0))
   if (totalTokens <= 0 && inputTokens <= 0) return undefined
   const contextWindow = Math.max(0, Math.floor(Number(value.contextWindow) || 0))
+  const sessionTurns = Math.max(0, Math.floor(Number(value.sessionTurns) || 0))
   return {
     inputTokens,
     outputTokens,
     cacheReadTokens,
     cacheWriteTokens,
+    reasoningTokens: reasoningTokens || undefined,
     totalTokens,
     contextWindow: contextWindow || undefined,
     model: typeof value.model === 'string' ? value.model : undefined,
     provider: typeof value.provider === 'string' ? value.provider : undefined,
     recordedAt,
+    sessionInputTokens: sessionTurns ? Math.max(0, Math.floor(Number(value.sessionInputTokens) || 0)) : undefined,
+    sessionOutputTokens: sessionTurns ? Math.max(0, Math.floor(Number(value.sessionOutputTokens) || 0)) : undefined,
+    sessionCacheReadTokens: sessionTurns ? Math.max(0, Math.floor(Number(value.sessionCacheReadTokens) || 0)) : undefined,
+    sessionCacheWriteTokens: sessionTurns ? Math.max(0, Math.floor(Number(value.sessionCacheWriteTokens) || 0)) : undefined,
+    sessionReasoningTokens: sessionTurns ? Math.max(0, Math.floor(Number(value.sessionReasoningTokens) || 0)) : undefined,
+    sessionTotalTokens: sessionTurns ? Math.max(0, Math.floor(Number(value.sessionTotalTokens) || 0)) : undefined,
+    sessionTurns: sessionTurns || undefined,
   }
 }
 
@@ -1634,9 +1646,11 @@ export function useConversations() {
           outputTokens: usage.outputTokens,
           cacheReadTokens: usage.cacheReadTokens,
           cacheWriteTokens: usage.cacheWriteTokens,
+          reasoningTokens: usage.reasoningTokens,
           totalTokens: usage.totalTokens,
           model: usage.model,
           provider: usage.provider,
+          recordId: usage.recordId,
         } satisfies Partial<SessionTurnUsage>))
         persistSessionContextUsage(sessionId)
         return

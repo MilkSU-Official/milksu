@@ -151,11 +151,19 @@ export interface ConversationContextUsage {
   outputTokens: number
   cacheReadTokens: number
   cacheWriteTokens: number
+  reasoningTokens?: number
   totalTokens: number
   contextWindow?: number
   model?: string
   provider?: string
   recordedAt: number
+  sessionInputTokens?: number
+  sessionOutputTokens?: number
+  sessionCacheReadTokens?: number
+  sessionCacheWriteTokens?: number
+  sessionReasoningTokens?: number
+  sessionTotalTokens?: number
+  sessionTurns?: number
 }
 
 export interface CTFChatAction {

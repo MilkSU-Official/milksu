@@ -64,6 +64,18 @@ function composerEditor(host: HTMLElement) {
   return editor
 }
 
+function setComposerText(editor: HTMLElement, text: string) {
+  const node = document.createTextNode(text)
+  editor.replaceChildren(node)
+  const range = document.createRange()
+  range.setStart(node, text.length)
+  range.collapse(true)
+  const selection = window.getSelection()
+  selection?.removeAllRanges()
+  selection?.addRange(range)
+  editor.dispatchEvent(new Event('input', { bubbles: true }))
+}
+
 describe('ConversationDock', () => {
   it('sends from the Coding composer without opening Coding or the right rail', async () => {
     const send = vi.fn()
@@ -144,6 +156,43 @@ describe('ConversationDock', () => {
     host.querySelector<HTMLButtonElement>('[aria-label="进入 Coding"]')?.click()
     await nextTick()
     expect(expand).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows context usage and the slash menu on the dock composer', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    const app = createApp(ConversationDock, {
+      conversation: sampleConversation(),
+      workspacePath: '/Users/milksu/Documents/MilkSU/CVE/CVE-2023-46604',
+      turnStatus: {
+        compacting: false,
+        contextWindow: 128000,
+        usage: {
+          inputTokens: 12000,
+          outputTokens: 400,
+          cacheReadTokens: 0,
+          cacheWriteTokens: 0,
+          totalTokens: 12400,
+          recordedAt: Date.now(),
+        },
+      },
+    })
+    app.mount(host)
+    mountedApps.push(app)
+    await nextTick()
+    expect(host.querySelector('[data-testid="context-usage-meter"]')).not.toBeNull()
+    const editor = composerEditor(host)
+    setComposerText(editor, '/')
+    await nextTick()
+    const menu = host.querySelector('[aria-label="斜杠命令"]')
+    expect(menu).not.toBeNull()
+    expect(menu?.textContent).toContain('/compact')
+    expect(menu?.textContent).toContain('/mcp')
+    expect(menu?.textContent).toContain('/browser')
+    host.querySelector<HTMLButtonElement>('[aria-label="添加内容与工具"]')?.click()
+    await nextTick()
+    expect(document.body.textContent).toContain('前端视觉验收')
+    expect(document.body.textContent).toContain('项目 MCP')
   })
 
   it('minimizes to the bottom-right and restores without overflowing', async () => {

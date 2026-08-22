@@ -136,6 +136,8 @@ const props = defineProps<{
   computerUseReady?: boolean
   availableSkills?: string[]
   selectedMcpServers?: string[]
+  mcpCatalog?: Array<{ name: string; reviewReady: boolean }>
+  mcpConfigDigest?: string
   queuedGuidance?: string[]
 }>()
 
@@ -155,6 +157,7 @@ const emit = defineEmits<{
   consumeGoal: []
   startGoal: []
   runSlashCommand: [command: string]
+  changeMcpServers: [servers: string[], digest: string]
   controlGoal: [action: 'pause' | 'resume' | 'clear']
   chooseWorkspace: []
   selectWorkspace: [path: string]
@@ -308,9 +311,16 @@ const slashCommandCatalog = [
   {
     id: 'mcp',
     label: 'MCP',
-    description: '查看当前项目的 MCP 服务',
+    description: '查看或接入当前项目的 MCP 服务',
     keywords: ['tools', '工具'],
     icon: markRaw(Plug),
+  },
+  {
+    id: 'browser',
+    label: '浏览器',
+    description: '打开隔离浏览器',
+    keywords: ['playwright', '浏览器'],
+    icon: markRaw(Monitor),
   },
   {
     id: 'browser-use',
@@ -433,9 +443,11 @@ function toggleGoalChip() {
     emit('consumeGoal')
   }
 }
-const showWorkspaceChip = computed(() => Boolean(
-  !props.ctfSession && (props.workspaceName?.trim() || !props.workspaceLocked),
-))
+const workspaceFixed = computed(() => Boolean(props.workspaceLocked || props.ctfSession))
+const showWorkspaceChip = computed(() => {
+  if (props.ctfSession) return Boolean(props.workspacePath?.trim() || props.workspaceName?.trim())
+  return Boolean(props.workspaceName?.trim() || !props.workspaceLocked)
+})
 const workspaceChipLabel = computed(() => props.workspaceName?.trim() || '选择项目')
 const hasSelectedWorkspace = computed(() => Boolean(props.workspacePath?.trim()))
 const workspaceChipTitle = computed(() => (
@@ -1034,6 +1046,22 @@ function runComposerShortcut(command: 'browser' | 'mcp') {
   focusMessageInput()
 }
 
+function openAddMenu() {
+  openComposerChooser('添加内容与工具')
+}
+
+function toggleCatalogMcpServer(server: { name: string; reviewReady: boolean }) {
+  if (props.running || !server.reviewReady || !props.mcpConfigDigest) return
+  const selection = new Set(props.selectedMcpServers ?? [])
+  if (selection.has(server.name)) selection.delete(server.name)
+  else selection.add(server.name)
+  emit(
+    'changeMcpServers',
+    [...selection].sort((left, right) => left.localeCompare(right)),
+    props.mcpConfigDigest,
+  )
+}
+
 function addInteractionScope(value: ComposerScopeToken) {
   insertScopeToken(value)
 }
@@ -1175,6 +1203,7 @@ watch(slashCommands, commands => {
 
 defineExpose({
   appendDraftText,
+  openAddMenu,
 })
 </script>
 
@@ -1383,7 +1412,7 @@ defineExpose({
                     </span>
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    v-if="!workspaceLocked"
+                    v-if="!workspaceFixed"
                     class="composer-add-option"
                     @select="$emit('chooseWorkspace')"
                   >
@@ -1470,6 +1499,22 @@ defineExpose({
                     MCP
                   </DropdownMenuLabel>
                   <DropdownMenuItem
+                    v-for="server in mcpCatalog ?? []"
+                    :key="server.name"
+                    class="composer-add-option"
+                    :disabled="running || !server.reviewReady || !mcpConfigDigest"
+                    @select="toggleCatalogMcpServer(server)"
+                  >
+                    <Plug class="size-4 shrink-0" />
+                    <span class="min-w-0 flex-1">
+                      <span class="block text-label font-medium">{{ server.name }}</span>
+                      <span class="block text-caption text-muted-foreground">
+                        {{ server.reviewReady ? '为本任务接入' : '审阅信息不完整' }}
+                      </span>
+                    </span>
+                    <Check v-if="selectedMcpServers?.includes(server.name)" class="size-4 shrink-0 text-primary" />
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
                     class="composer-add-option"
                     :disabled="!workspaceReady"
                     @select="runComposerShortcut('mcp')"
@@ -1478,6 +1523,7 @@ defineExpose({
                     <span class="min-w-0 flex-1">
                       <span class="block text-label font-medium">项目 MCP</span>
                       <span v-if="selectedMcpDescription" class="block truncate text-caption text-muted-foreground">{{ selectedMcpDescription }}</span>
+                      <span v-else class="block text-caption text-muted-foreground">查看当前项目的 MCP 服务</span>
                     </span>
                     <Check v-if="selectedMcpServers?.length" class="size-4 shrink-0 text-primary" />
                   </DropdownMenuItem>
@@ -1643,10 +1689,10 @@ defineExpose({
             <template v-if="showWorkspaceChip" #context>
               <div
                 class="chat-composer__workspace"
-                :class="{ 'chat-composer__workspace--locked': workspaceLocked }"
+                :class="{ 'chat-composer__workspace--locked': workspaceFixed }"
               >
                 <button
-                  v-if="!workspaceLocked"
+                  v-if="!workspaceFixed"
                   type="button"
                   class="chat-composer__chip chat-composer__chip--workspace"
                   :class="{
@@ -1671,7 +1717,7 @@ defineExpose({
                   <span class="chat-composer__chip__label">{{ workspaceChipLabel }}</span>
                 </span>
                 <button
-                  v-if="hasSelectedWorkspace && !workspaceLocked"
+                  v-if="hasSelectedWorkspace && !workspaceFixed"
                   type="button"
                   class="chat-composer__workspace-clear"
                   :disabled="running"

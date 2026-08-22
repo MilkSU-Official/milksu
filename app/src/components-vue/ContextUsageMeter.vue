@@ -90,7 +90,7 @@ const detailTitle = computed(() => (
       side="top"
       align="start"
       :side-offset="8"
-      class="w-52 p-3"
+      class="w-64 p-3"
     >
       <p class="text-caption font-medium text-muted-foreground">{{ detailTitle }}</p>
       <p v-if="usage.compacting" class="mt-1 text-caption text-muted-foreground">正在整理上下文</p>
@@ -106,30 +106,104 @@ const detailTitle = computed(() => (
         </div>
         <div class="ak-progress__track"><span class="ak-progress__fill" /></div>
       </div>
-      <dl class="mt-2 space-y-1.5 font-mono text-caption tabular-nums">
-        <div class="flex items-center justify-between gap-3">
-          <dt class="text-muted-foreground">↑ 输入</dt>
-          <dd>{{ usage.inputLabel }}</dd>
-        </div>
-        <div class="flex items-center justify-between gap-3">
-          <dt class="text-muted-foreground">↓ 输出</dt>
-          <dd>{{ usage.outputLabel }}</dd>
-        </div>
-        <div
-          v-if="usage.windowLabel"
-          class="flex items-center justify-between gap-3 border-t border-border pt-1.5"
-        >
-          <dt class="text-muted-foreground">窗口</dt>
-          <dd>{{ usage.inputLabel }}/{{ usage.windowLabel }}</dd>
-        </div>
-        <div
-          v-if="usage.percent !== undefined"
-          class="flex items-center justify-between gap-3"
-        >
-          <dt class="text-muted-foreground">占用</dt>
-          <dd :class="{ 'text-warning': usage.nearLimit }">{{ usage.percent }}%</dd>
-        </div>
-      </dl>
+      <template v-if="usage.last">
+        <p class="mt-2 text-caption font-medium text-muted-foreground">本轮</p>
+        <dl class="mt-1 space-y-1.5 font-mono text-caption tabular-nums">
+          <div class="flex items-center justify-between gap-3">
+            <dt class="text-muted-foreground">未命中输入</dt>
+            <dd>{{ usage.last.uncachedLabel }}</dd>
+          </div>
+          <div class="flex items-center justify-between gap-3">
+            <dt class="text-muted-foreground">缓存命中</dt>
+            <dd>{{ usage.last.cacheReadLabel }}</dd>
+          </div>
+          <div class="flex items-center justify-between gap-3">
+            <dt class="text-muted-foreground">写入缓存</dt>
+            <dd>{{ usage.last.cacheWriteLabel }}</dd>
+          </div>
+          <div class="flex items-center justify-between gap-3">
+            <dt class="text-muted-foreground">输出</dt>
+            <dd>{{ usage.last.outputLabel }}</dd>
+          </div>
+          <div
+            v-if="usage.last.reasoningLabel !== '0'"
+            class="flex items-center justify-between gap-3"
+          >
+            <dt class="text-muted-foreground">推理</dt>
+            <dd>{{ usage.last.reasoningLabel }}</dd>
+          </div>
+          <div
+            v-if="usage.last.hitRateLabel"
+            class="flex items-center justify-between gap-3"
+          >
+            <dt class="text-muted-foreground">命中率</dt>
+            <dd>{{ usage.last.hitRateLabel }}</dd>
+          </div>
+          <div
+            v-if="usage.windowLabel"
+            class="flex items-center justify-between gap-3 border-t border-border pt-1.5"
+          >
+            <dt class="text-muted-foreground">窗口</dt>
+            <dd>{{ usage.inputLabel }}/{{ usage.windowLabel }}</dd>
+          </div>
+          <div
+            v-if="usage.percent !== undefined"
+            class="flex items-center justify-between gap-3"
+          >
+            <dt class="text-muted-foreground">占用</dt>
+            <dd :class="{ 'text-warning': usage.nearLimit }">{{ usage.percent }}%</dd>
+          </div>
+        </dl>
+      </template>
+      <template v-else>
+        <dl class="mt-2 space-y-1.5 font-mono text-caption tabular-nums">
+          <div class="flex items-center justify-between gap-3">
+            <dt class="text-muted-foreground">↑ 输入</dt>
+            <dd>{{ usage.inputLabel }}</dd>
+          </div>
+          <div class="flex items-center justify-between gap-3">
+            <dt class="text-muted-foreground">↓ 输出</dt>
+            <dd>{{ usage.outputLabel }}</dd>
+          </div>
+        </dl>
+      </template>
+      <template v-if="usage.session">
+        <p class="mt-3 text-caption font-medium text-muted-foreground">
+          本会话 · {{ usage.session.turns }} 次
+        </p>
+        <dl class="mt-1 space-y-1.5 font-mono text-caption tabular-nums">
+          <div class="flex items-center justify-between gap-3">
+            <dt class="text-muted-foreground">未命中输入</dt>
+            <dd>{{ usage.session.uncachedLabel }}</dd>
+          </div>
+          <div class="flex items-center justify-between gap-3">
+            <dt class="text-muted-foreground">缓存命中</dt>
+            <dd>{{ usage.session.cacheReadLabel }}</dd>
+          </div>
+          <div class="flex items-center justify-between gap-3">
+            <dt class="text-muted-foreground">写入缓存</dt>
+            <dd>{{ usage.session.cacheWriteLabel }}</dd>
+          </div>
+          <div class="flex items-center justify-between gap-3">
+            <dt class="text-muted-foreground">输出</dt>
+            <dd>{{ usage.session.outputLabel }}</dd>
+          </div>
+          <div
+            v-if="usage.session.reasoningLabel !== '0'"
+            class="flex items-center justify-between gap-3"
+          >
+            <dt class="text-muted-foreground">推理</dt>
+            <dd>{{ usage.session.reasoningLabel }}</dd>
+          </div>
+          <div
+            v-if="usage.session.hitRateLabel"
+            class="flex items-center justify-between gap-3"
+          >
+            <dt class="text-muted-foreground">命中率</dt>
+            <dd>{{ usage.session.hitRateLabel }}</dd>
+          </div>
+        </dl>
+      </template>
     </HoverCardContent>
   </HoverCard>
 </template>

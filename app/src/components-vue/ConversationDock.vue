@@ -2,7 +2,8 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Maximize2, Minus, Plus, Square } from 'lucide-vue-next'
 import ChatPage from '@/components-vue/ChatPage.vue'
-import type { SessionTurnSnapshot } from '@/lib/sessionTurnStatus'
+import ContextUsageMeter from '@/components-vue/ContextUsageMeter.vue'
+import { presentContextUsage, type SessionTurnSnapshot } from '@/lib/sessionTurnStatus'
 import type { CodingMessageQueue } from '@/composables/useConversations'
 import type { CodingAgentSendArgs, CodingAgentSurfaceBind } from '@/lib/codingAgentSurface'
 import type {
@@ -128,6 +129,13 @@ const dockCtfSession = computed(() => (
 const dockVulnerabilitySession = computed(() => (
   props.vulnerabilitySession || props.conversation?.domainTaskContext?.kind === 'cve'
 ))
+const dockContextUsage = computed(() => presentContextUsage({
+  compacting: Boolean(props.compacting || props.turnStatus?.compacting),
+  usage: props.turnStatus?.usage,
+  contextWindow: props.turnStatus?.contextWindow,
+  runStartedAt: props.turnStatus?.runStartedAt,
+  lastElapsedMs: props.turnStatus?.lastElapsedMs,
+}))
 
 function maxWidth() {
   return Math.max(MIN_WIDTH, window.innerWidth - MIN_LEFT - EDGE)
@@ -311,6 +319,12 @@ function forwardSend(...args: CodingAgentSendArgs) {
     <header class="conversation-dock__head" @pointerdown="startDrag">
       <strong>对话</strong>
       <span class="min-w-0 flex-1 truncate text-caption text-muted-foreground">{{ conversation?.title }}</span>
+      <ContextUsageMeter
+        v-if="dockContextUsage"
+        class="shrink-0"
+        :usage="dockContextUsage"
+        size="sm"
+      />
       <button
         type="button"
         class="conversation-dock__icon"
@@ -501,11 +515,15 @@ function forwardSend(...args: CodingAgentSendArgs) {
   min-width: 0;
   min-height: 0;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
 }
 .conversation-dock__thread :deep(.composer-model) {
   min-width: 9rem;
   flex: 0 0 auto;
+}
+.conversation-dock__thread :deep(.chat-composer__command-menu) {
+  z-index: 30;
+  max-height: min(18rem, 42vh);
 }
 .conversation-dock__resize {
   position: absolute;

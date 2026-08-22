@@ -123,7 +123,8 @@ describe('ChatPage routing contract', () => {
   })
 
   it('does not expose single-session related history in the Coding right rail', () => {
-    expect(chatPageSource).toContain('const composer = ref<{ appendDraftText')
+    expect(chatPageSource).toContain('appendDraftText: (text: string) => void')
+    expect(chatPageSource).toContain('openAddMenu: () => void')
     expect(chatPageSource).toContain("composer.value?.appendDraftText")
     expect(chatPageSource).not.toContain('SessionHistoryPanel')
     expect(chatPageSource).not.toContain('quoteSessionHistoryToComposer')

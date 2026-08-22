@@ -243,7 +243,10 @@ const emit = defineEmits<{
 const dockSurface = computed(() => props.surface === 'dock')
 const goalMode = ref(false)
 const stagedComposerPrompt = ref<{ conversationId: string; prompt: string } | null>(null)
-const composer = ref<{ appendDraftText: (text: string) => void } | null>(null)
+const composer = ref<{
+  appendDraftText: (text: string) => void
+  openAddMenu: () => void
+} | null>(null)
 const scrollArea = ref<HTMLElement | null>(null)
 const chatAutoScrollPinned = ref(true)
 const lastChatScrollTop = ref(0)
@@ -344,9 +347,7 @@ const activeExtensions = computed(() => (
 ))
 const selectedMCPServers = computed(() => props.mcpServers ?? [])
 const activeSkills = computed(() => (
-  props.ctfSession
-    ? []
-    : enabledCodingSkillNames(props.settings?.disabled_skills)
+  enabledCodingSkillNames(props.settings?.disabled_skills)
 ))
 const activeTools = computed(() => (
   props.conversation?.agentTools ?? []
@@ -593,6 +594,10 @@ const gitBranch = computed(() => codingEnvironment.value?.git.branch ?? '')
 const gitRepository = computed(() => Boolean(codingEnvironment.value?.git.isRepository))
 const workspaceName = computed(() => {
   if (automaticScratchWorkspace.value) return '无项目任务'
+  const context = props.conversation?.domainTaskContext
+  if (context?.kind === 'ctf' && context.challengeTitle.trim()) return context.challengeTitle.trim()
+  if (context?.kind === 'cve' && context.cveId.trim()) return context.cveId.trim()
+  if (context?.kind === 'lab' && context.title.trim()) return context.title.trim()
   return codingWorkspaceLabel(props.workspacePath, homeDirectory.value)
 })
 const selectedCodingProjectName = computed(() => {
@@ -847,7 +852,7 @@ function changeApprovalPolicy(value: string) {
 }
 
 async function refreshMCPConfig() {
-  if (props.ctfSession || !props.workspacePath) {
+  if (!props.workspacePath) {
     mcpConfig.value = null
     return
   }
@@ -1004,6 +1009,10 @@ function runSlashCommand(command: string) {
   }
   if (command === 'compact') {
     emit('compactContext')
+    return
+  }
+  if (command === 'mcp' && dockSurface.value) {
+    composer.value?.openAddMenu?.()
     return
   }
   if (['understand', 'test', 'review', 'fix', 'summary'].includes(command)) {
@@ -1724,7 +1733,7 @@ async function refreshContextPanel() {
   await Promise.all([
     refreshEnvironment(),
     loadWorkshopState(),
-    ...(props.ctfSession ? [] : [refreshMCPConfig()]),
+    refreshMCPConfig(),
   ])
 }
 
@@ -1997,12 +2006,18 @@ watch(
 
 <template>
   <section
-    class="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-surface-editor"
-    :class="{ 'chat-surface-dock': dockSurface }"
+    class="relative flex min-w-0 flex-1 flex-col bg-surface-editor"
+    :class="dockSurface ? 'chat-surface-dock overflow-visible' : 'overflow-hidden'"
     :data-testid="dockSurface ? 'coding-agent-dock-surface' : undefined"
   >
-  <div class="coding-workspace relative flex min-h-0 flex-1 overflow-hidden">
-  <main class="chat-main flex min-w-0 flex-1 flex-col overflow-hidden bg-surface-editor">
+  <div
+    class="coding-workspace relative flex min-h-0 flex-1"
+    :class="dockSurface ? 'overflow-visible' : 'overflow-hidden'"
+  >
+  <main
+    class="chat-main flex min-w-0 flex-1 flex-col bg-surface-editor"
+    :class="dockSurface ? 'overflow-visible' : 'overflow-hidden'"
+  >
     <WorkspaceModuleTopBar
       v-if="!dockSurface && !contextRailVisible"
       :module="topbarModule"
@@ -2219,6 +2234,8 @@ watch(
       :computer-use-ready="externalAppUseReadyForCurrentTask"
       :available-skills="activeSkills"
       :selected-mcp-servers="selectedMCPServers"
+      :mcp-catalog="mcpConfig?.servers ?? []"
+      :mcp-config-digest="mcpConfig?.digest ?? ''"
       @send="sendComposerMessage"
       @open-changes="openChanges"
       @abort="$emit('abort')"
@@ -2237,6 +2254,7 @@ watch(
       @start-goal="goalMode = true"
       @run-slash-command="runSlashCommand"
       @control-goal="controlComposerGoal"
+      @change-mcp-servers="(servers, digest) => $emit('changeMcpServers', servers, digest)"
     />
   </main>
   <TacticalPanelShell

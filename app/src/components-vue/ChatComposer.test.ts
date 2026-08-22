@@ -253,6 +253,7 @@ describe('ChatComposer', () => {
       'status',
       'diff',
       'mcp',
+      'browser',
       'browser-use',
       'computer-use',
     ])
@@ -294,6 +295,8 @@ describe('ChatComposer', () => {
         'custom-reviewed',
       ],
       selectedMcpServers: ['github'],
+      mcpCatalog: [{ name: 'github', reviewReady: true }],
+      mcpConfigDigest: 'd'.repeat(64),
     })
     await nextTick()
 
@@ -314,6 +317,7 @@ describe('ChatComposer', () => {
     expect(document.body.textContent).toContain('custom-reviewed')
     expect(document.body.textContent).toContain('项目 MCP')
     expect(document.body.textContent).toContain('1 个已接入：github')
+    expect(document.body.textContent).toContain('为本任务接入')
 
     const sandboxBrowserItem = [...document.querySelectorAll<HTMLDivElement>('[role="menuitem"]')]
       .find(item => item.textContent?.includes('浏览器'))
@@ -1029,6 +1033,27 @@ describe('ChatComposer', () => {
     expect(host.textContent).not.toContain('提示 1')
     expect(host.textContent).not.toContain('提示 2')
     expect(host.textContent).not.toContain('重新规划')
+  })
+
+  it('shows a locked CTF workspace chip instead of hiding the solving path', async () => {
+    const chosen: unknown[][] = []
+    const { host } = mountComposer({
+      ctfSession: true,
+      workspaceLocked: false,
+      workspacePath: '/Users/milksu/Documents/MilkSU/CTF/ab12cd34ef56',
+      workspaceName: '签到题',
+      onChooseWorkspace: (...args: unknown[]) => chosen.push(args),
+    })
+    await nextTick()
+
+    const chip = host.querySelector('[aria-label="会话目录：签到题"]')
+    expect(chip).not.toBeNull()
+    expect(chip?.tagName).not.toBe('BUTTON')
+    expect(chip?.getAttribute('title')).toBe('/Users/milksu/Documents/MilkSU/CTF/ab12cd34ef56')
+    expect(host.querySelector('[aria-label="清空项目"]')).toBeNull()
+    chip?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await nextTick()
+    expect(chosen).toHaveLength(0)
   })
 
   it('allows one stop request and shows the pending acknowledgement state', async () => {

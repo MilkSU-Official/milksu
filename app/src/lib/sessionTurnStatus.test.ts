@@ -10,6 +10,7 @@ import {
   snapshotFromStoredContextUsage,
   storedContextUsageFromSnapshot,
   formatElapsedMs,
+  formatHitRate,
   formatTokenCount,
   presentContextUsage,
   presentRunTiming,
@@ -118,5 +119,68 @@ describe('sessionTurnStatus', () => {
     expect(formatTokenCount(12_400)).toBe('12k')
     expect(formatElapsedMs(0)).toBe('0:00')
     expect(formatElapsedMs(3_600_000 + 5_000)).toBe('1:00:05')
+  })
+
+  it('breaks down last-call cache hits without folding them into uncached input', () => {
+    let state = applySessionContextWindow(emptySessionTurnSnapshot(), 128_000)
+    state = applySessionUsageRecorded(state, {
+      inputTokens: 120,
+      outputTokens: 40,
+      cacheReadTokens: 80,
+      cacheWriteTokens: 10,
+      reasoningTokens: 15,
+      totalTokens: 250,
+      recordId: 'usage-1',
+    })
+    const presented = presentContextUsage(state)
+    expect(presented?.last).toMatchObject({
+      uncachedLabel: '120',
+      cacheReadLabel: '80',
+      cacheWriteLabel: '10',
+      outputLabel: '40',
+      reasoningLabel: '15',
+      hitRateLabel: '40%',
+    })
+    expect(presented?.session).toBeUndefined()
+    expect(formatHitRate(0, 200)).toBe('0%')
+    expect(formatHitRate(1, 200)).toBe('0.5%')
+  })
+
+  it('accumulates session totals and ignores duplicate usage ids', () => {
+    let state = emptySessionTurnSnapshot()
+    state = applySessionUsageRecorded(state, {
+      inputTokens: 100,
+      outputTokens: 10,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 20,
+      totalTokens: 130,
+      recordId: 'usage-a',
+    }, 1)
+    state = applySessionUsageRecorded(state, {
+      inputTokens: 50,
+      outputTokens: 20,
+      cacheReadTokens: 150,
+      cacheWriteTokens: 0,
+      totalTokens: 220,
+      recordId: 'usage-a',
+    }, 2)
+    expect(state.session?.turns).toBe(1)
+    state = applySessionUsageRecorded(state, {
+      inputTokens: 50,
+      outputTokens: 20,
+      cacheReadTokens: 150,
+      cacheWriteTokens: 0,
+      reasoningTokens: 8,
+      totalTokens: 228,
+      recordId: 'usage-b',
+    }, 3)
+    expect(state.session?.turns).toBe(2)
+    expect(state.session?.cacheReadTokens).toBe(150)
+    expect(presentContextUsage(state)?.session).toMatchObject({
+      uncachedLabel: '150',
+      cacheReadLabel: '150',
+      hitRateLabel: '50%',
+      turns: 2,
+    })
   })
 })
