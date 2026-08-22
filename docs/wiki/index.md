@@ -11,4 +11,4 @@ Wiki 用树形词条解释文档中反复出现的概念。它不决定产品目
 ## 为什么只保留这棵树
 
 MilkSU 当前仍是内测。Wiki 不承担用户指南或进度页职责，只解释反复使用的概念；当前事实和目标由[文档状态登记](/developer/document-status)、
-[当前目标](/developer/current-objectives)、代码、测试和 Git 历史决定。最新三端回执是 `v26.822.1`。
+[当前目标](/developer/current-objectives)、代码、测试和 Git 历史决定。最新三端回执是 `v26.823.1`。
