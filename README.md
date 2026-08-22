@@ -181,7 +181,7 @@ npm --prefix app run build
   <a href="https://github.com/shiluoshiro"><img src="https://github.com/shiluoshiro.png?size=96" width="72" height="72" alt="shiluoshiro"></a>
 </p>
 
-感谢在内测期间直接向仓库提交代码的同学。没有他们，三端包和工作台到不了 `26.822.1`。
+感谢在内测期间直接向仓库提交代码的同学。没有他们，MilkSU 无法到今天这样基本可用的地步。
 
 | 同学 | 主要贡献 |
 | --- | --- |
