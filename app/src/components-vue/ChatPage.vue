@@ -439,8 +439,7 @@ const computerUsePermissionsReady = computed(() => Boolean(
 ))
 const scopedComputerUseTargets = computed(() => computerUseTargets.value)
 const browserUseReadyForCurrentTask = computed(() => Boolean(
-  !props.ctfSession
-  && props.workspacePath
+  props.workspacePath
   && effectiveExecutionMode.value === 'go'
   && effectiveApprovalPolicy.value !== 'read-only',
 ))
@@ -1175,39 +1174,38 @@ async function loadCTFDomainProjection() {
 
 async function refreshEnvironment() {
   environmentError.value = ''
+  const errors: string[] = []
   if (props.ctfSession) {
-    codingEnvironment.value = null
     const jobId = props.conversation?.ctfJobId
     if (!jobId) {
       ctfBudget.value = null
       ctfCheckpoint.value = null
-      ctfProjection.value = null
-      return
+    } else {
+      environmentLoading.value = true
+      const [budget, checkpoint] = await Promise.allSettled([
+        invokeCommand<CTFAgentBudgetStatus>('get_ctf_agent_budget_status', { id: jobId }),
+        invokeCommand<CTFAgentRunCheckpoint | null>('get_ctf_agent_run_checkpoint', { id: jobId }),
+      ])
+      // Domain projection is owned by loadCTFDomainProjection (running-agnostic).
+      await loadCTFDomainProjection()
+      ctfBudget.value = budget.status === 'fulfilled' ? budget.value : null
+      ctfCheckpoint.value = checkpoint.status === 'fulfilled' ? checkpoint.value : null
+      if (
+        [budget, checkpoint].every(result => result.status === 'rejected')
+        && !ctfProjection.value
+      ) {
+        errors.push('暂时无法读取解题环境。')
+      }
     }
-    environmentLoading.value = true
-    const [budget, checkpoint] = await Promise.allSettled([
-      invokeCommand<CTFAgentBudgetStatus>('get_ctf_agent_budget_status', { id: jobId }),
-      invokeCommand<CTFAgentRunCheckpoint | null>('get_ctf_agent_run_checkpoint', { id: jobId }),
-    ])
-    // Domain projection is owned by loadCTFDomainProjection (running-agnostic).
-    await loadCTFDomainProjection()
-    ctfBudget.value = budget.status === 'fulfilled' ? budget.value : null
-    ctfCheckpoint.value = checkpoint.status === 'fulfilled' ? checkpoint.value : null
-    if (
-      [budget, checkpoint].every(result => result.status === 'rejected')
-      && !ctfProjection.value
-    ) {
-      environmentError.value = '暂时无法读取解题环境。'
-    }
-    environmentLoading.value = false
-    return
+  } else {
+    ctfBudget.value = null
+    ctfCheckpoint.value = null
+    ctfProjection.value = null
   }
-
-  ctfBudget.value = null
-  ctfCheckpoint.value = null
-  ctfProjection.value = null
   if (!props.workspacePath) {
     codingEnvironment.value = null
+    environmentError.value = errors[0] ?? ''
+    environmentLoading.value = false
     return
   }
   environmentLoading.value = true
@@ -1218,12 +1216,13 @@ async function refreshEnvironment() {
     )
   } catch (reason) {
     codingEnvironment.value = null
-    environmentError.value = reason instanceof Error
+    errors.push(reason instanceof Error
       ? reason.message
-      : '暂时无法读取项目环境。'
+      : '暂时无法读取项目环境。')
   } finally {
     environmentLoading.value = false
   }
+  environmentError.value = errors[0] ?? ''
 }
 
 async function refreshBrowserPanel() {
@@ -2072,7 +2071,6 @@ watch(
           {{ domainTaskPresentation.returnLabel }}
         </Button>
         <Button
-          v-if="!ctfSession"
           variant="ghost"
           size="icon-sm"
           :aria-label="terminalOpen ? '关闭底部终端' : '打开底部终端'"
@@ -2291,8 +2289,8 @@ watch(
         <SelectContent size="sm" align="start" class="min-w-56">
           <SelectItem v-if="domainTaskPresentation" value="domain">领域上下文</SelectItem>
           <SelectItem value="environment">{{ ctfSession ? '解题环境' : '环境信息' }}</SelectItem>
-          <SelectItem v-if="!ctfSession" value="changes">变更</SelectItem>
-          <SelectItem v-if="!ctfSession" value="artifacts">产物</SelectItem>
+          <SelectItem value="changes">变更</SelectItem>
+          <SelectItem value="artifacts">产物</SelectItem>
           <SelectItem value="browser">浏览器</SelectItem>
           <template v-if="ctfSession">
             <SelectSeparator />
@@ -2319,7 +2317,6 @@ watch(
           收起
         </Button>
         <Button
-          v-if="!ctfSession"
           variant="ghost"
           size="icon-sm"
           data-testid="coding-rail-terminal"
@@ -2392,7 +2389,6 @@ watch(
           </div>
         </section>
 
-        <template v-if="!ctfSession">
         <section class="border-b border-border px-4 py-4">
           <div class="flex items-center justify-between">
             <p class="text-caption font-medium text-muted-foreground">Git</p>
@@ -2451,10 +2447,8 @@ watch(
             {{ codingEnvironment?.git.problem || '当前目录不是 Git 仓库。' }}
           </p>
         </section>
-        </template>
 
-        <template v-else>
-        <section class="border-b border-border px-4 py-4">
+        <section v-if="ctfSession" class="border-b border-border px-4 py-4">
           <p class="text-caption font-medium text-muted-foreground">当前解题</p>
           <div class="mt-3 space-y-3 text-body">
             <div class="flex items-center justify-between gap-3">
@@ -2477,8 +2471,6 @@ watch(
             </div>
           </div>
         </section>
-
-        </template>
 
         <AgentExecutionPlan
           :messages="conversation?.messages ?? []"
@@ -2557,7 +2549,7 @@ watch(
         </div>
         </section>
 
-        <section v-if="!ctfSession" class="border-b border-border px-4 py-4">
+        <section class="border-b border-border px-4 py-4">
           <div class="flex items-center justify-between gap-3">
             <p class="text-caption font-medium text-muted-foreground">执行与权限</p>
             <Badge variant="outline">{{ codingPolicyLabel }}</Badge>

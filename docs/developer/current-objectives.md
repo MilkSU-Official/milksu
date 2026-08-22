@@ -123,6 +123,7 @@
 - 产品 UI 标题、侧栏和正文共用 Inter Variable + Noto Sans SC Variable（SIL OFL）。去掉 Noto Serif SC / 系统 serif，Windows 上不再落到宋体。
 - 所有工具结果进入模型上下文前走 Pi `tool_result` 中间件：超过 50KB / 2000 行的正文截断并落到运行时 `tool-results/`，由 `read` + offset 按需续读。`ctf_http` 对 JS/CSS 再收紧到 4KB 摘录。Coding/CTF/CVE/实验室会话都强制 `setAutoCompactionEnabled(true)`，不再按角色关掉 Pi 自动压缩；85% 路径同样不跳过 CTF。CTF 任务 UI 的 `/compact` 不再抛 `cannot be compacted from the task UI`，与 Coding 走同一条 `compact_session`。CVE/实验室不再把 `cve-research` / `lab-job` 角色清掉，report.md 指引、长度截断走 Pi `followUp`、以及 `milksu_workspace` 压缩与 Coding 共用同一套 loop。Pi 原生压缩结束后回写用量，避免 85% 包装拿过期 token 再压一次。现场：`喝一杯茶吧ovo` 一次把 1.08MB `index-*.js` 整包塞进 `content`，9 回合打满 500k 窗口。
 - 产品窗口拦截 Ctrl+R / Cmd+R / F5，不再走 Chromium 刷新回到启动加载页。应用菜单去掉 View/Reload。账号状态在每次 did-finish-load 后重新推送。
+- CTF / CVE / 实验室不再比普通 Coding 少能力：Sidecar 不再按 `policy.ctf` 关掉后台任务、Goal、权限更新、LSP、Computer Use 指引或终端 spawn；CTF 角色同样注入 `milksu_workspace` / 浏览器 / 子 Agent 说明。任务 UI 在 CTF 会话显示终端、Git、变更、产物、执行权限和计划/目标芯片。领域工具、Judge、证据栏和绑定的题目工作区仍保留。
 
 ## 当前产品事实
 

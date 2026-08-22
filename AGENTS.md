@@ -155,8 +155,13 @@ deferred to one destructive pre-release consolidation after the product slices a
   the prompt contained “打开浏览器” and not because a Go greeting was sent.
 - `milksu_workspace` is a typed product-UI tool. It may list, focus or close isolated
   browser tabs, list or preview artifacts, and open environment, diff, terminal or background-task
-  surfaces. Coding is the current caller; CTF/CVE may grow the same kind of typed UI actions.
-  It must not change settings, credentials, approval policy, or attach to the user's Chrome.
+  surfaces. Coding, CTF, CVE and lab share this surface; domain tools and Judge sit on top
+  of the Coding loop instead of replacing it. It must not change settings, credentials,
+  approval policy, or attach to the user's Chrome.
+- Do not strip Coding capabilities from CTF, CVE or lab sessions. Those workspaces keep
+  the full Pi tool loop (files, shell, background tasks, browser, LSP, compact, goal,
+  subagent) plus domain extras. Bound challenge workspaces, unauthorized-target gates
+  and independent Judge stay.
 - Pi owns compaction. Auto-compact stays enabled for Coding, CTF, CVE and lab sessions.
   Do not skip `/compact`, `compact_session`, or the 85% idle path by role. Auto-compact uses
   the same path as `/compact` when input plus cache-read tokens reach about 85% of

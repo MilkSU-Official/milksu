@@ -110,7 +110,6 @@ import {
 } from "./bridge-imagegen.js";
 import {
   codingWorkspaceGuidance,
-  isResearchSessionRole,
   researchReportGuidance,
   resolveWorkflowSessionRole,
   codingWorkspaceToolName,
@@ -356,16 +355,13 @@ function createMilkSUWorkflowExtension(sessionRole, getPolicy, getSession) {
               ? researchReportGuidance(sessionRole)
               : "";
       const policy = getPolicy?.();
-      const researchSession = isResearchSessionRole(sessionRole);
-      const subagentGuidance = (!sessionRole || researchSession)
-        && policy?.activeTools?.includes("subagent")
+      const subagentGuidance = policy?.activeTools?.includes("subagent")
         ? `\n\n${codingSubagentGuidance()}`
         : "";
-      const browserGuidance = (!sessionRole || researchSession) && policy?.codingBrowser
+      const browserGuidance = policy?.codingBrowser
         ? `\n\n${codingBrowserGuidance()}`
         : "";
-      const workspaceGuidance = (!sessionRole || researchSession)
-        && policy?.activeTools?.includes(codingWorkspaceToolName)
+      const workspaceGuidance = policy?.activeTools?.includes(codingWorkspaceToolName)
         ? `\n\n${codingWorkspaceGuidance()}`
         : "";
       return {
@@ -1373,10 +1369,8 @@ async function createSession(command) {
       capabilities: sessionPolicy.capabilities,
       resumed: session.messages.length > 0,
     });
-    if (!sessionPolicy.ctf) {
-      emitBackgroundTasks(conversationId);
-      emitGoalState(conversationId, session);
-    }
+    emitBackgroundTasks(conversationId);
+    emitGoalState(conversationId, session);
     return session;
   } catch (error) {
     await disposeAgentSession(session, "create_failed");
@@ -1498,14 +1492,12 @@ async function sendMessage(command) {
       effectiveModel.provider,
       effectiveModel.model,
     );
-    if (!sessionPolicy.ctf) {
-      emit(conversationId, "policy_updated", {
-        tools: session.getActiveToolNames(),
-        executionMode: sessionPolicy.executionMode,
-        approvalPolicy: sessionPolicy.approvalPolicy,
-        capabilities: sessionPolicy.capabilities,
-      });
-    }
+    emit(conversationId, "policy_updated", {
+      tools: session.getActiveToolNames(),
+      executionMode: sessionPolicy.executionMode,
+      approvalPolicy: sessionPolicy.approvalPolicy,
+      capabilities: sessionPolicy.capabilities,
+    });
   }
 
   const previous = promptQueues.get(conversationId) ?? Promise.resolve();
@@ -1531,10 +1523,7 @@ async function sendMessage(command) {
       attachmentRoot,
       supportsImages,
     );
-    const policy = sessionPolicies.get(conversationId);
-    const contract = policy?.ctf
-      ? undefined
-      : normalizeCodingTurnContract(command.turnPolicy);
+    const contract = normalizeCodingTurnContract(command.turnPolicy);
     const analyzed = supportsImages
       ? { context: "" }
       : await analyzeTextOnlyImages(prepared.attachments);
@@ -1853,8 +1842,7 @@ async function controlBackgroundTask(command) {
         approvalPolicy: command.approvalPolicy,
       });
       if (
-        policy.ctf
-        || policy.executionMode !== "go"
+        policy.executionMode !== "go"
         || policy.approvalPolicy === "read-only"
       ) {
         throw new Error(

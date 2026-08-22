@@ -171,6 +171,15 @@ describe('ChatPage routing contract', () => {
     expect(chatPageSource).toContain('deletions: git.deletions')
   })
 
+  it('keeps Coding terminal, git, changes, artifacts and permissions on CTF sessions', () => {
+    expect(chatPageSource).not.toContain('v-if="!ctfSession" value="changes"')
+    expect(chatPageSource).not.toContain('v-if="!ctfSession" value="artifacts"')
+    expect(chatPageSource).not.toContain('v-if="!ctfSession"\n          variant="ghost"\n          size="icon-sm"\n          data-testid="coding-rail-terminal"')
+    expect(chatPageSource).not.toContain('<section v-if="!ctfSession" class="border-b border-border px-4 py-4">')
+    expect(chatPageSource).toContain('codingEnvironment.value = await invokeCommand<CodingEnvironmentSnapshot>')
+    expect(chatPageSource).not.toContain('if (props.ctfSession) {\n    codingEnvironment.value = null')
+  })
+
   it('keeps Terminal as an independent bottom dock instead of a sidebar page', () => {
     expect(chatPageSource).toContain('function toggleTerminalPanel()')
     expect(chatPageSource).toContain('terminalOpen.value = !terminalOpen.value')

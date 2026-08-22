@@ -408,7 +408,7 @@ const showProgressSummary = computed(() => Boolean(
   (props.goal?.iteration ?? 0) > 0 || showGitSummary.value,
 ))
 const showGoalDock = computed(() => Boolean(
-  !props.ctfSession && (props.goal || props.goalMode),
+  props.goal || props.goalMode,
 ))
 const goalPanelOpen = ref(false)
 const goalSlot = ref<HTMLElement | null>(null)
@@ -949,7 +949,7 @@ function submit() {
   const activeSkillToken = skillToken.value ?? undefined
   const prompt = props.running
     ? text
-    : !props.ctfSession && props.goalMode
+    : props.goalMode
     ? `/goal ${text}`
     : activeSkillToken
       ? `/skill:${activeSkillToken} ${text}`
@@ -1627,7 +1627,7 @@ defineExpose({
                 </div>
               </div>
               <button
-                v-if="!ctfSession && executionMode === 'plan'"
+                v-if="executionMode === 'plan'"
                 type="button"
                 class="chat-composer__chip chat-composer__chip--plan"
                 aria-label="计划模式已开启"
@@ -1638,7 +1638,7 @@ defineExpose({
                 <span class="chat-composer__chip__label">计划</span>
               </button>
               <div
-                v-if="!ctfSession && showProgressSummary"
+                v-if="showProgressSummary"
                 class="chat-composer__progress-pill"
                 aria-label="任务进度摘要"
               >

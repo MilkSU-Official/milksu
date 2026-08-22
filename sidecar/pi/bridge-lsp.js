@@ -74,7 +74,6 @@ export function createReviewedLspFixTool(
       const policy = getPolicy();
       if (
         !policy
-        || policy.ctf
         || policy.executionMode !== "go"
         || !["ask", "workspace-auto", "full-auto"].includes(policy.approvalPolicy)
         || !policy.activeTools.includes("lsp_fix")

@@ -9,7 +9,7 @@ export function isComputerUseMcpToolName(value) {
 }
 
 export function computerUseRoutingGuidance(policy) {
-  if (!policy || policy.ctf) return "";
+  if (!policy) return "";
   if (policy.computerUse) {
     return " Computer Use is active for one user-selected visible app/window. "
       + `The immutable target is ${policy.computerUse.targetName} `

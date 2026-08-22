@@ -41,6 +41,29 @@ test("reused Coding/CTF/CVE/lab sessions re-enable Pi auto-compaction", () => {
   );
 });
 
+test("CTF/CVE/lab sessions keep Coding loop surfaces instead of role-gating them off", () => {
+  assert.doesNotMatch(
+    bridgeSource,
+    /if \(!sessionPolicy\.ctf\) \{\s*emitBackgroundTasks/,
+  );
+  assert.doesNotMatch(
+    bridgeSource,
+    /if \(!sessionPolicy\.ctf\) \{\s*emit\(conversationId, "policy_updated"/,
+  );
+  assert.doesNotMatch(
+    bridgeSource,
+    /policy\?\.ctf\s*\n\s*\? undefined/,
+  );
+  assert.doesNotMatch(
+    bridgeSource,
+    /policy\.ctf\s*\|\|\s*policy\.executionMode !== "go"/,
+  );
+  assert.doesNotMatch(
+    bridgeSource,
+    /\(!sessionRole \|\| researchSession\)/,
+  );
+});
+
 test("tool results are bound through Pi's tool_result hook after MCP", () => {
   const boundIndex = bridgeSource.indexOf("createToolResultBoundExtension()");
   const mcpIndex = bridgeSource.lastIndexOf("createMcpAdapter(");
