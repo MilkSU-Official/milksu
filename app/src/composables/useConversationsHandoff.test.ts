@@ -21,7 +21,7 @@ describe('useConversations domain handoff attach', () => {
     invokeCommand.mockClear()
   })
 
-  it('CTF startWorkspaceTask stages draft and domain context without send or running', async () => {
+  it('CTF startWorkspaceTask attaches domain context without send, running, or a canned draft', async () => {
     const { useConversations } = await import('@/composables/useConversations')
     const conversations = useConversations()
     await conversations.startWorkspaceTask({
@@ -61,10 +61,7 @@ describe('useConversations domain handoff attach', () => {
     })
     expect(active?.messages ?? []).toEqual([])
     expect(conversations.activeRunning.value).toBe(false)
-    expect(conversations.pendingComposerDraft.value).toEqual({
-      prompt: 'proposed solver prompt',
-      visibleText: '继续解决 Exact challenge',
-    })
+    expect(conversations.pendingComposerDraft.value).toBeNull()
     expect(invokeCommand.mock.calls.some(call => call[0] === 'send_message')).toBe(false)
     expect(invokeCommand.mock.calls.some(call => call[0] === 'save_conversation')).toBe(true)
   })

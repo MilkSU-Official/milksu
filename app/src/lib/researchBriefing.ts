@@ -1,17 +1,3 @@
-export function cveBriefing(cveId: string) {
-  const id = cveId.trim()
-  return {
-    prompt: [
-      `先根据公开描述整理 ${id}。`,
-      '写清影响范围、利用条件、已有公开证据，以及接下来怎么在用户选定范围内验证。',
-      '把结论写入工作区 report.md 的摘要。',
-      '若查到上游、下游或同类 CVE，写入 related.md。',
-      '不要扫描未授权目标。',
-    ].join(''),
-    visible: `先整理 ${id} 的公开情况和接下来怎么验证。`,
-  }
-}
-
 export function labJobPrompt(input: {
   scope: 'local' | 'remote'
   request: string

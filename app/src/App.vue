@@ -21,7 +21,7 @@ import { executeVulnerabilityCodingHandoff } from '@/lib/vulnerabilityCodingHand
 import { debugLog } from '@/lib/debugMode'
 import { readWorkspaceViewState, writeWorkspaceViewState } from '@/lib/workspaceViewState'
 import { buildCTFDomainTaskContext, buildCVEDomainTaskContext } from '@/lib/domainTaskContext'
-import { cveBriefing, labBriefing } from '@/lib/researchBriefing'
+import { labBriefing } from '@/lib/researchBriefing'
 import {
   rememberWorkspaceConversation,
   selectCTFResumePoint,
@@ -467,20 +467,12 @@ function domainContextFromCTFHandoff(handoff: CTFAgentWorkspaceHandoff) {
   })
 }
 
-function visibleCTFDraft(handoff: CTFAgentWorkspaceHandoff) {
-  const title = String(handoff.title ?? '').replace(/^CTF\s*·\s*/u, '').trim() || '这道题'
-  if (handoff.role === 'strategist') return `复盘 ${title} 的当前路线，给出一个最值得验证的下一步。`
-  if (handoff.role === 'tool-builder') return `继续 ${title}：实现并验证当前待办的最小解题工具。`
-  return `继续解决 ${title}：检查已有材料和进度，完成下一个可验证步骤。`
-}
-
 async function startCTFAgent(handoff: CTFAgentWorkspaceHandoff & {
   domainTaskContext?: import('@/lib/domainTaskContext').DomainTaskContext
 }) {
   rememberActiveConversation()
   await conversations.startWorkspaceTask({
     ...handoff,
-    visibleText: visibleCTFDraft(handoff),
     domainTaskContext: handoff.domainTaskContext ?? domainContextFromCTFHandoff(handoff),
     autoSend: false,
   })
@@ -555,20 +547,10 @@ async function enterVulnerabilityDossier(item: VulnerabilityIntel) {
     }),
   )
   activeVulnerabilityCodingConversationId.value = conversations.activeId.value
-  const conversation = conversations.active.value
-  if (conversation && conversation.messages.length === 0) {
-    const briefing = cveBriefing(cveId)
-    await conversations.send(briefing.prompt, briefing.visible)
-  }
 }
 
 async function runVulnerabilityReproduction(item: VulnerabilityIntel) {
   await enterVulnerabilityDossier(item)
-  await conversations.send([
-    `按公开描述复现 ${item.id}。`,
-    '把结果写入工作区 report.md，包括摘要、环境、进程、网络和步骤。',
-    '打上或没打上都要留下报告。',
-  ].join(''))
 }
 
 async function runLabJob(job: LabJob) {
@@ -615,11 +597,8 @@ async function startVulnerabilityCodingTask(
       activeVulnerabilityCodingConversationId.value = id
     },
     setSection: value => { section.value = value },
-    stageDraft: (prompt, visibleText) => {
-      conversations.stageComposerDraft(prompt, visibleText)
-    },
   })
-  // recordHandoff = opened shared Coding with staged draft; not Agent started / network.
+  // recordHandoff = opened shared Coding; not Agent started / network.
   if (accepted) {
     recordHandoff?.(conversations.workspacePath.value)
   }
@@ -640,7 +619,6 @@ async function switchCTFAgent(role: 'solver' | 'tool-builder' | 'strategist') {
     })
     await conversations.startWorkspaceTask({
       ...handoff,
-      visibleText: visibleCTFDraft(handoff),
       domainTaskContext: domainContextFromCTFHandoff(handoff),
       autoSend: false,
     })

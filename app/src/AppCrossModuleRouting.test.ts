@@ -132,10 +132,6 @@ function createMockConversations() {
         existing.ctfRole = task.role ?? existing.ctfRole
         activeId.value = existing.id
         workspacePath.value = existing.workspacePath ?? ''
-        if (task.prompt) pendingComposerDraft.value = {
-          prompt: task.prompt,
-          visibleText: task.visibleText ?? task.prompt,
-        }
         return
       }
       conversationRows.value.push(baseConversation({
@@ -151,10 +147,6 @@ function createMockConversations() {
       }))
       activeId.value = id
       workspacePath.value = task.workspacePath?.trim() || ''
-      if (task.prompt) pendingComposerDraft.value = {
-        prompt: task.prompt,
-        visibleText: task.visibleText ?? task.prompt,
-      }
     }),
     stageComposerDraft: vi.fn((prompt: string, visibleText = prompt) => {
       pendingComposerDraft.value = { prompt, visibleText }
@@ -528,10 +520,7 @@ describe('App cross-module routing', () => {
       authorizedScope: expect.stringContaining('source-1'),
     })
     expect(opened?.messages ?? []).toEqual([])
-    expect(hoisted.conversations?.pendingComposerDraft.value?.prompt).toContain('solve with exact scope')
-    expect(hoisted.conversations?.pendingComposerDraft.value?.visibleText).toBe(
-      '继续解决 Web challenge：检查已有材料和进度，完成下一个可验证步骤。',
-    )
+    expect(hoisted.conversations?.pendingComposerDraft.value).toBeNull()
     expect(hoisted.conversations?.send).not.toHaveBeenCalled()
     expect(hoisted.conversations?.activeRunning.value).toBe(false)
 
@@ -567,7 +556,7 @@ describe('App cross-module routing', () => {
     expect(hoisted.conversations?.activeId.value).toBe('ctf-job-1')
   })
 
-  it('does not inherit a CTF workspace when CVE opens Coding and stages its draft', async () => {
+  it('does not inherit a CTF workspace when CVE opens Coding', async () => {
     const { host } = await mountApp()
 
     host.querySelector<HTMLButtonElement>('[aria-label="open CTF in coding"]')?.click()
@@ -586,7 +575,8 @@ describe('App cross-module routing', () => {
     expect(active?.ctfJobId).toBeUndefined()
     expect(active?.domainTaskContext).toMatchObject({ kind: 'cve', cveId: 'CVE-2024-3400' })
     expect(host.querySelector('[data-chat-vulnerability-session]')?.textContent).toBe('true')
-    expect(host.querySelector('[data-chat-draft]')?.textContent).toBe('接手 CVE-2024-3400')
+    expect(host.querySelector('[data-chat-draft]')?.textContent).toBe('')
+    expect(hoisted.conversations?.pendingComposerDraft.value).toBeNull()
     expect(hoisted.conversations?.send).not.toHaveBeenCalled()
   })
 

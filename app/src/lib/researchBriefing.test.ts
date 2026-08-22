@@ -1,16 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { cveBriefing, labBriefing } from './researchBriefing'
+import { labBriefing } from './researchBriefing'
 
 describe('researchBriefing', () => {
-  it('asks the CVE agent for a first-pass public analysis without scanning', () => {
-    const briefing = cveBriefing('CVE-2024-3400')
-    expect(briefing.visible).toBe('先整理 CVE-2024-3400 的公开情况和接下来怎么验证。')
-    expect(briefing.prompt).toContain('report.md')
-    expect(briefing.prompt).toContain('related.md')
-    expect(briefing.prompt).toContain('不要扫描未授权目标')
-    expect(briefing.visible).not.toContain('related.md')
-  })
-
   it('sends a local laboratory request for the agent to structure', () => {
     const briefing = labBriefing({
       scope: 'local',

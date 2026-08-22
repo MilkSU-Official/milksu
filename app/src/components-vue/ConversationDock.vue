@@ -88,15 +88,22 @@ const emit = defineEmits<{
 
 const DOCK_STORAGE_KEY = 'milksu.conversation-dock.v1'
 const MIN_WIDTH = 880
-const MIN_HEIGHT = 320
+const ASPECT_W = 4
+const ASPECT_H = 3
 const COLLAPSED_WIDTH = 256
 const COLLAPSED_HEIGHT = 36
 const EDGE = 20
 const MIN_LEFT = 76
 const MIN_TOP = 48
+
+function heightForWidth(nextWidth: number) {
+  return Math.max(1, Math.round(nextWidth * ASPECT_H / ASPECT_W))
+}
+
+const MIN_HEIGHT = heightForWidth(MIN_WIDTH)
 const collapsed = ref(false)
 const width = ref(960)
-const height = ref(420)
+const height = ref(heightForWidth(960))
 const left = ref<number | null>(null)
 const top = ref<number | null>(null)
 const dragging = ref(false)
@@ -140,7 +147,12 @@ function collapsedTop() {
 
 function clampGeometry() {
   width.value = Math.min(maxWidth(), Math.max(MIN_WIDTH, width.value))
-  height.value = Math.min(maxHeight(), Math.max(MIN_HEIGHT, height.value))
+  height.value = heightForWidth(width.value)
+  if (height.value > maxHeight()) {
+    height.value = maxHeight()
+    width.value = Math.min(maxWidth(), Math.max(MIN_WIDTH, Math.round(height.value * ASPECT_W / ASPECT_H)))
+    height.value = Math.min(maxHeight(), heightForWidth(width.value))
+  }
   const maxLeft = Math.max(MIN_LEFT, window.innerWidth - width.value - EDGE)
   const maxTop = Math.max(MIN_TOP, window.innerHeight - height.value - EDGE)
   left.value = Math.min(maxLeft, Math.max(MIN_LEFT, left.value ?? MIN_LEFT))
@@ -248,15 +260,19 @@ function startResize(corner: 'nw' | 'ne' | 'sw' | 'se', event: PointerEvent) {
     const dy = next.clientY - startY
     const growX = corner === 'ne' || corner === 'se' ? dx : -dx
     const growY = corner === 'sw' || corner === 'se' ? dy : -dy
-    const nextW = Math.min(maxWidth(), Math.max(MIN_WIDTH, originW + growX))
-    const nextH = Math.min(maxHeight(), Math.max(MIN_HEIGHT, originH + growY))
-    width.value = nextW
-    height.value = nextH
+    if (Math.abs(growY) > Math.abs(growX)) {
+      const nextH = Math.min(maxHeight(), Math.max(MIN_HEIGHT, originH + growY))
+      width.value = Math.round(nextH * ASPECT_W / ASPECT_H)
+      height.value = nextH
+    } else {
+      width.value = Math.min(maxWidth(), Math.max(MIN_WIDTH, originW + growX))
+      height.value = heightForWidth(width.value)
+    }
     if (corner === 'nw' || corner === 'sw') {
-      left.value = originLeft + originW - nextW
+      left.value = originLeft + originW - width.value
     }
     if (corner === 'nw' || corner === 'ne') {
-      top.value = originTop + originH - nextH
+      top.value = originTop + originH - height.value
     }
     clampGeometry()
   }

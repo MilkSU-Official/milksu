@@ -255,7 +255,7 @@ interface WorkspaceTask {
   }
   role: 'solver' | 'tool-builder' | 'strategist'
   domainTaskContext?: Conversation['domainTaskContext']
-  /** When false/omitted, attach session + draft only — never auto-start Pi. */
+  /** When false/omitted, attach session only — never auto-start Pi or fill the composer. */
   autoSend?: boolean
 }
 
@@ -1128,12 +1128,8 @@ export function useConversations() {
           domainTaskContext: task.domainTaskContext ?? conversation.domainTaskContext,
         }))
       }
-      if (autoSend) {
-        if (!runningIds.value.has(existing.id)) {
-          await send(task.prompt)
-        }
-      } else {
-        stageComposerDraft(task.prompt, task.visibleText)
+      if (autoSend && !runningIds.value.has(existing.id)) {
+        await send(task.prompt)
       }
       return
     }
@@ -1155,8 +1151,6 @@ export function useConversations() {
     persist(conversation)
     if (autoSend) {
       await send(task.prompt)
-    } else {
-      stageComposerDraft(task.prompt, task.visibleText)
     }
   }
 
