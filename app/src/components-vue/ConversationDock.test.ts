@@ -84,6 +84,9 @@ describe('ConversationDock', () => {
     expect(host.querySelector('[aria-label="收起对话"]')).not.toBeNull()
     expect(host.querySelector('[aria-label="进入 Coding"]')).not.toBeNull()
     expect(host.querySelector('[aria-label="左上角缩放"]')).not.toBeNull()
+    expect(host.querySelector('[aria-label="选择本任务模型"]')).not.toBeNull()
+    const dock = host.querySelector<HTMLElement>('[data-testid="conversation-dock"]')!
+    expect(Number.parseFloat(dock.style.width)).toBeGreaterThanOrEqual(880)
     const editor = composerEditor(host)
     editor.replaceChildren(document.createTextNode('把影响写清楚'))
     editor.dispatchEvent(new Event('input', { bubbles: true }))

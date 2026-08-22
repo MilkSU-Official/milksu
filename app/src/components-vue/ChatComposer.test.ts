@@ -1014,21 +1014,21 @@ describe('ChatComposer', () => {
     expect(result.sent).toEqual([['milksu', 'milksu', []]])
   })
 
-  it('keeps CTF collaboration actions and Coding composer controls', async () => {
+  it('keeps Coding composer controls without CTF shortcut chips', async () => {
     const { host } = mountComposer({
       ctfSession: true,
-      ctfRole: 'solver',
-      ctfMode: 'coach',
     })
     await nextTick()
 
     expect(host.querySelector('[aria-label="Coding 权限策略"]')).not.toBeNull()
     expect(host.querySelector('[aria-label="选择本任务模型"]')).not.toBeNull()
     expect(host.querySelector('[aria-label="添加内容与工具"]')).not.toBeNull()
-    expect(host.querySelector('[aria-label="CTF 快捷协作"]')?.textContent)
-      .toContain('梳理题面')
-    expect(host.querySelector('[aria-label="CTF 快捷协作"]')?.textContent)
-      .toContain('重新规划')
+    expect(host.querySelector('[aria-label="CTF 快捷协作"]')).toBeNull()
+    expect(host.textContent).not.toContain('快捷协作')
+    expect(host.textContent).not.toContain('梳理题面')
+    expect(host.textContent).not.toContain('提示 1')
+    expect(host.textContent).not.toContain('提示 2')
+    expect(host.textContent).not.toContain('重新规划')
   })
 
   it('allows one stop request and shows the pending acknowledgement state', async () => {

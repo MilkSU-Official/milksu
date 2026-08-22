@@ -44,7 +44,6 @@ import {
   ShieldCheck,
   Shrink,
   Square,
-  StickyNote,
   Target,
   Terminal,
   Trash2,
@@ -68,7 +67,6 @@ import type {
   CodingAttachmentPreview,
   CodingExecutionMode,
   CodingGoalState,
-  CTFChatAction,
 } from '@/types'
 import type { CodingGitChange, CodingRecentProject } from '@/codingEnvironmentTypes'
 import type { ContextUsagePresentation } from '@/lib/sessionTurnStatus'
@@ -111,8 +109,6 @@ const props = defineProps<{
   aborting: boolean
   compacting?: boolean
   ctfSession: boolean
-  ctfMode?: 'coach' | 'copilot' | 'delegate'
-  ctfRole?: 'solver' | 'tool-builder' | 'strategist'
   goalMode: boolean
   goal?: CodingGoalState
   gitSummary?: ComposerGitSummary
@@ -150,7 +146,6 @@ const emit = defineEmits<{
     attachments?: CodingAttachment[],
     scopeToken?: ComposerScopeToken,
   ]
-  ctfAction: [action: CTFChatAction]
   abort: []
   openChanges: [path?: string]
   changeExecutionMode: [value: string]
@@ -446,51 +441,6 @@ const hasSelectedWorkspace = computed(() => Boolean(props.workspacePath?.trim())
 const workspaceChipTitle = computed(() => (
   props.workspacePath || workspaceChipLabel.value
 ))
-
-const ctfActionOptions = computed(() => {
-  const mode = props.ctfMode ?? 'copilot'
-  const modeRule = mode === 'coach'
-    ? '保持教练模式，不要直接给完整解法或候选 Flag。'
-    : mode === 'delegate'
-      ? '保持代理模式，可以自主检查工作区，但不要向外部平台提交。'
-      : '保持搭档模式，每次只推进一个可复核实验。'
-  return [
-    {
-      label: '梳理题面',
-      icon: markRaw(Compass),
-      action: {
-        kind: 'orient',
-        prompt: `先暂停执行。结合 TASK.md、题面和材料，用三点说明目标、现有证据和最合理的第一步。${modeRule}`,
-      } satisfies CTFChatAction,
-    },
-    {
-      label: '提示 1',
-      icon: markRaw(Lightbulb),
-      action: {
-        kind: 'hint',
-        level: 1,
-        prompt: '我需要一级提示。只指出一个应该关注的证据、概念或材料，不给命令、完整解法或候选 Flag；最后问我一个检查理解的问题。',
-      } satisfies CTFChatAction,
-    },
-    {
-      label: '提示 2',
-      icon: markRaw(Route),
-      action: {
-        kind: 'hint',
-        level: 2,
-        prompt: '我需要二级提示。基于当前轨迹给出一个可执行且可验证的下一步实验，说明预期观察，但不要透露候选 Flag。',
-      } satisfies CTFChatAction,
-    },
-    {
-      label: '重新规划',
-      icon: markRaw(StickyNote),
-      action: {
-        kind: 'replan',
-        prompt: '暂停当前路线，读取 notes.md 和已有轨迹，列出已证伪假设、仍成立的证据和最多三个下一步；选择信息增益最高的一步再继续。',
-      } satisfies CTFChatAction,
-    },
-  ]
-})
 
 function formatAttachmentSize(size: number) {
   if (size >= 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`
@@ -1231,26 +1181,6 @@ defineExpose({
 <template>
   <div class="chat-composer shrink-0 border-t border-border bg-surface-editor px-4 pb-3 pt-2">
     <div ref="composerFrame" class="chat-composer__frame mx-auto w-full max-w-5xl">
-      <div
-        v-if="ctfSession && ctfRole === 'solver'"
-        class="mb-2 flex flex-wrap items-center gap-2 px-1"
-        aria-label="CTF 快捷协作"
-      >
-        <span class="mr-1 text-caption text-muted-foreground">快捷协作</span>
-        <Button
-          v-for="option in ctfActionOptions"
-          :key="option.label"
-          type="button"
-          variant="outline"
-          size="sm"
-          :disabled="running"
-          @click="$emit('ctfAction', option.action)"
-        >
-          <component :is="option.icon" class="size-3.5" />
-          {{ option.label }}
-        </Button>
-      </div>
-
       <div
         v-if="slashMenuOpen"
         id="coding-slash-command-menu"

@@ -87,7 +87,7 @@ const emit = defineEmits<{
 }>()
 
 const DOCK_STORAGE_KEY = 'milksu.conversation-dock.v1'
-const MIN_WIDTH = 520
+const MIN_WIDTH = 880
 const MIN_HEIGHT = 320
 const COLLAPSED_WIDTH = 256
 const COLLAPSED_HEIGHT = 36
@@ -95,7 +95,7 @@ const EDGE = 20
 const MIN_LEFT = 76
 const MIN_TOP = 48
 const collapsed = ref(false)
-const width = ref(640)
+const width = ref(960)
 const height = ref(420)
 const left = ref<number | null>(null)
 const top = ref<number | null>(null)
@@ -486,6 +486,10 @@ function forwardSend(...args: CodingAgentSendArgs) {
   min-height: 0;
   flex-direction: column;
   overflow: hidden;
+}
+.conversation-dock__thread :deep(.composer-model) {
+  min-width: 9rem;
+  flex: 0 0 auto;
 }
 .conversation-dock__resize {
   position: absolute;
