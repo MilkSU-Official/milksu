@@ -57,7 +57,7 @@
 - CTF 成功必须来自独立 Judge 或用户明确确认。CVE 发行面仍是学习/追踪；开发线已有点进档案后的复现报告。「实验室」是独立一级入口，不是 CTF 可重置环境。对用户未授权的外部目标，仍需要可见、准确的授权。模型候选不能写成已确认漏洞。
 - Beta 只用于用户明确要求的 MilkSU 自举；普通开发、测试和发行准备不构建 Beta。
 - 下载页与对外状态以 `26.823.1` 回执为准；晚于 `efeda10` 的 `main` 只描述当前仓库，不能改写该发行页。
-- 仓库已公开。签名 / 公证 / R2 材料只在 `macos-release` environment secrets 与本机 Personal Vault；Secret scanning 与 push protection 已打开。`macos-release` 需要 `MilkSU-Official` 审批，且只能从 `main` 部署。
+- 仓库已公开。签名 / 公证 / R2 材料只在 `macos-release` environment secrets 与本机 Personal Vault；Secret scanning 与 push protection 已打开。`macos-release` 需要 `MilkSU-Official` 审批，且只能从 `main` 部署。`main` 由 ruleset 保护：禁止强推和删分支，只有维护者可直接推送；协作者走 PR。
 - 生产视觉以 [当前视觉约定](../design/current-visual.md) 为准。旧战术档案 / 酸绿稿和 `design-qa.md` 已删除，不再作为实现约束。
 
 ## 文档生命周期
