@@ -156,7 +156,7 @@ describe('CTFDebrief contribution evidence', () => {
     expect(writeText).toHaveBeenCalledOnce()
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('MilkSU CTF 复盘接力棒'))
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Judge：Accepted'))
-    expect(writeText.mock.calls[0]?.[0]).not.toContain('不能写成用户独立能力事实')
+    expect(writeText).toHaveBeenCalledWith(expect.not.stringContaining('不能写成用户独立能力事实'))
     expect(host.textContent).toContain('已复制')
   })
 

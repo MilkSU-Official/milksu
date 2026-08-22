@@ -2564,7 +2564,7 @@ watch(
               {{ mcpConfig.problem }}
             </p>
 
-            <div v-else class="mt-2 space-y-2">
+            <div v-else-if="mcpConfig" class="mt-2 space-y-2">
               <CodingMCPReviewCard
                 v-for="server in mcpConfig.servers"
                 :key="server.name"
