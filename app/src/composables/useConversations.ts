@@ -902,7 +902,13 @@ export function useConversations() {
   function rename(id: string, title: string) {
     const normalized = title.trim().slice(0, 40)
     if (!normalized) return
-    update(id, conversation => ({ ...conversation, title: normalized }))
+    update(id, conversation => ({
+      ...conversation,
+      title: normalized,
+      domainTaskContext: conversation.domainTaskContext?.kind === 'lab'
+        ? { ...conversation.domainTaskContext, title: normalized }
+        : conversation.domainTaskContext,
+    }))
   }
 
   const pendingComposerDraft = ref<PendingComposerDraft | null>(null)

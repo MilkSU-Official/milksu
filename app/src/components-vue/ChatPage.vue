@@ -88,6 +88,7 @@ import {
 } from '@/lib/codingTerminalHeight'
 import {
   codingWorkspaceLabel,
+  isGenericWorkspaceLabel,
   LOCAL_CODING_SHELL_ID,
   shouldRememberCodingProject,
 } from '@/lib/codingProjectMemory'
@@ -605,8 +606,10 @@ const selectedCodingProjectName = computed(() => {
   return codingWorkspaceLabel(props.workspacePath, homeDirectory.value)
 })
 const codingEmptyHeading = computed(() => {
-  const name = selectedCodingProjectName.value
-  if (name && name !== '~') return `我们在 ${name} 中构建什么`
+  const name = selectedCodingProjectName.value || workspaceName.value
+  if (name && name !== '~' && name !== '无项目任务' && !isGenericWorkspaceLabel(name)) {
+    return `我们在 ${name} 中构建什么`
+  }
   return '我们要构建什么'
 })
 const terminalConversationId = computed(() => (
@@ -939,7 +942,7 @@ function toggleManualContextSidebar() {
     environmentOpen.value = false
     return
   }
-  contextPanel.value = 'browser'
+  contextPanel.value = domainTaskPresentation.value ? 'domain' : 'environment'
   environmentOpen.value = true
 }
 
@@ -2007,17 +2010,11 @@ watch(
 <template>
   <section
     class="relative flex min-w-0 flex-1 flex-col bg-surface-editor"
-    :class="dockSurface ? 'chat-surface-dock overflow-visible' : 'overflow-hidden'"
+    :class="dockSurface ? 'chat-surface-dock min-h-0 min-w-0 overflow-hidden' : 'overflow-hidden'"
     :data-testid="dockSurface ? 'coding-agent-dock-surface' : undefined"
   >
-  <div
-    class="coding-workspace relative flex min-h-0 flex-1"
-    :class="dockSurface ? 'overflow-visible' : 'overflow-hidden'"
-  >
-  <main
-    class="chat-main flex min-w-0 flex-1 flex-col bg-surface-editor"
-    :class="dockSurface ? 'overflow-visible' : 'overflow-hidden'"
-  >
+  <div class="coding-workspace relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
+  <main class="chat-main flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-editor">
     <WorkspaceModuleTopBar
       v-if="!dockSurface && !contextRailVisible"
       :module="topbarModule"
@@ -2128,7 +2125,7 @@ watch(
 
     <div
       ref="scrollArea"
-      class="min-h-0 flex-1 overflow-y-auto"
+      class="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto"
       @scroll.passive="handleChatScroll"
     >
       <div v-if="!dockSurface && !conversation?.messages.length && domainTaskPresentation" class="mx-auto flex min-h-full w-full max-w-5xl flex-col justify-center px-5 py-5 2xl:px-8">
@@ -2155,7 +2152,7 @@ watch(
         <p v-if="gitBranchError" class="mt-3 text-center text-caption text-destructive">{{ gitBranchError }}</p>
       </div>
 
-      <div v-else class="mx-auto max-w-3xl" :class="dockSurface ? 'px-4 py-4' : 'px-8 py-8'">
+      <div v-else class="mx-auto min-w-0 max-w-3xl" :class="dockSurface ? 'px-4 py-4' : 'px-8 py-8'">
         <template v-for="item in chatTranscript" :key="item.id">
           <ChatActivityGroup
             v-if="item.kind === 'activity'"
@@ -3006,6 +3003,14 @@ watch(
   container-type: inline-size;
 }
 
+.chat-surface-dock,
+.chat-surface-dock .coding-workspace,
+.chat-surface-dock .chat-main {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
 .chat-surface-dock .chat-main {
   background: transparent;
 }
@@ -3016,7 +3021,7 @@ watch(
 }
 
 .coding-browser-panel {
-  background-color: var(--tactical-ink-2);
+  background-color: var(--card);
 }
 
 .coding-action-option {

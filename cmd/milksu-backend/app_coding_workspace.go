@@ -10,12 +10,28 @@ import (
 )
 
 type codingWorkspaceRequest struct {
-	Action string `json:"action"`
-	TabID  string `json:"tabId"`
-	Query  string `json:"query"`
-	URL    string `json:"url"`
-	Path   string `json:"path"`
-	Panel  string `json:"panel"`
+	Action     string   `json:"action"`
+	TabID      string   `json:"tabId"`
+	Query      string   `json:"query"`
+	URL        string   `json:"url"`
+	Path       string   `json:"path"`
+	Panel      string   `json:"panel"`
+	Kind       string   `json:"kind"`
+	ID         string   `json:"id"`
+	IDs        []string `json:"ids"`
+	Title      string   `json:"title"`
+	Archived   bool     `json:"archived"`
+	Limit      int      `json:"limit"`
+	Scope      string   `json:"scope"`
+	Request    string   `json:"request"`
+	Statement  string   `json:"statement"`
+	Category   string   `json:"category"`
+	Summary    string   `json:"summary"`
+	CVEID      string   `json:"cveId"`
+	Vendor     string   `json:"vendor"`
+	Product    string   `json:"product"`
+	Affected   string   `json:"affected"`
+	SourceKind string   `json:"sourceKind"`
 }
 
 type codingWorkspaceReveal struct {
@@ -218,6 +234,8 @@ func (a *App) handleCodingWorkspaceAction(conversationID, action, input string) 
 			})
 		}
 		return encodeWorkspaceResult(map[string]any{"tasks": rows})
+	case "list_records", "get_record", "create_record", "update_record", "archive_records", "restore_records", "focus_record", "search_records":
+		return a.handleWorkspaceRecordAction(conversationID, action, request)
 	default:
 		return "", fmt.Errorf("unknown Coding workspace action")
 	}

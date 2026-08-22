@@ -57,7 +57,7 @@ function startResize(event: PointerEvent) {
 <template>
   <component
     :is="as"
-    class="tactical-panel-shell tactical-dark-surface"
+    class="tactical-panel-shell"
     :data-panel-size="size"
     :data-panel-body-mode="bodyMode"
     :data-panel-resizable="resizable ? '' : undefined"
@@ -92,17 +92,17 @@ function startResize(event: PointerEvent) {
   flex: none;
   flex-direction: column;
   isolation: isolate;
-  border-left: 1px solid var(--night-border);
-  background-color: var(--tactical-ink-2);
-  color: var(--night-foreground);
-  box-shadow: -18px 0 38px rgb(0 0 0 / .16);
+  border-left: 1px solid var(--border);
+  background-color: var(--card);
+  color: var(--foreground);
+  box-shadow: -18px 0 38px rgb(0 0 0 / .08);
 }
 
 .tactical-panel-shell::before {
   position: absolute;
   inset: 0 auto 0 0;
   width: 1px;
-  background: color-mix(in srgb, var(--night-foreground) 14%, transparent);
+  background: color-mix(in srgb, var(--foreground) 12%, transparent);
   content: '';
   pointer-events: none;
 }

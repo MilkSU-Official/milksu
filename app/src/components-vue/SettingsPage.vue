@@ -1154,7 +1154,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
 
 <template>
   <main class="settings-page tactical-page flex min-w-0 flex-1 flex-col bg-background">
-    <header class="app-drag settings-page-header flex h-14 shrink-0 items-center border-b border-border bg-[var(--tactical-ink-2)] px-5 text-white">
+    <header class="app-drag settings-page-header flex h-14 shrink-0 items-center border-b border-border bg-background px-5 text-foreground">
       <Button variant="ghost" size="icon-sm" class="app-no-drag mr-3" aria-label="返回" @click="$emit('close')">
         <ArrowLeft class="size-4" />
       </Button>
@@ -1164,7 +1164,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
     </header>
 
     <div class="settings-layout flex min-h-0 flex-1">
-      <nav class="settings-nav settings-nav-surface tactical-dark-surface app-no-drag w-56 shrink-0 border-r px-3 py-5" aria-label="设置分类">
+      <nav class="settings-nav settings-nav-surface app-no-drag w-56 shrink-0 border-r px-3 py-5" aria-label="设置分类">
         <div class="ak-tabs settings-ak-tabs">
           <div class="ak-tabs__list">
             <button
@@ -1946,6 +1946,16 @@ async function saveProviderEditor(closeAfterSave: boolean) {
               />
             </SettingsRow>
           </SettingsSection>
+          <SettingsSection title="题目浏览器扩展" class="mt-6">
+            <SettingsRow
+              label="连接"
+              :description="browserBridgeConnected ? '已连接' : '未连接'"
+            >
+              <Button variant="outline" size="sm" :loading="browserBridgeLoading" @click="refreshBrowserBridgeStatus()">
+                检测
+              </Button>
+            </SettingsRow>
+          </SettingsSection>
           <div class="mt-6 flex justify-end">
             <Button :loading="saving" @click="save">保存设置</Button>
           </div>
@@ -1967,14 +1977,18 @@ async function saveProviderEditor(closeAfterSave: boolean) {
 </template>
 
 <style scoped>
-.settings-nav-surface { border-color: color-mix(in srgb, var(--border-hairline) 72%, transparent); background-color: var(--night-card); box-shadow: inset -1px 0 0 rgb(255 255 255 / .025); }
+.settings-nav-surface { border-color: var(--border); background-color: var(--background); }
 .settings-ak-tabs { width: 100%; border: 0; background: transparent; }
 .settings-ak-tabs .ak-tabs__list { display: grid; grid-auto-flow: row; border-bottom: 0; }
-.settings-ak-tabs .ak-tabs__tab + .ak-tabs__tab { border-left: 0; border-top: 1px solid rgba(243, 244, 239, 0.12); }
+.settings-ak-tabs .ak-tabs__tab + .ak-tabs__tab { border-left: 0; border-top: 1px solid var(--border); }
 .settings-nav-item { position: relative; display: flex; min-height: 3rem; width: 100%; align-items: center; justify-content: flex-start; border: 0; background: transparent; padding: 0 1rem; color: var(--muted-foreground); text-align: left; cursor: pointer; text-transform: none; letter-spacing: 0.02em; }
-.settings-nav-item:hover { color: var(--foreground); background: var(--overlay-hover-light); }
+.settings-nav-item:hover { color: var(--foreground); background: var(--overlay-hover); }
 .settings-nav-item.active,
-.settings-ak-tabs .ak-tabs__tab[aria-selected='true'] { color: #111315; background: #f3f4ef; }
+.settings-ak-tabs .ak-tabs__tab[aria-selected='true'] {
+  color: #111315;
+  background: #05a7dc;
+  box-shadow: 0 0 1.4rem color-mix(in srgb, #05a7dc 45%, transparent);
+}
 .settings-page :deep([data-slot="settings-section"]),
 .settings-page :deep(.rounded-menu-shell) { border-radius: .45rem; }
 .model-service-row { transition: background-color 120ms ease, border-color 120ms ease; }

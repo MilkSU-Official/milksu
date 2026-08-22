@@ -195,6 +195,16 @@ describe('ChatComposer', () => {
     expect(result.consumedGoals()).toBe(1)
   })
 
+  it('opens the slash menu in a CTF session', async () => {
+    const result = mountComposer({ ctfSession: true })
+    await nextTick()
+    const textarea = composerEditor(result.host)
+    setComposerText(textarea, '/')
+    await nextTick()
+    expect(result.host.querySelector('[role="listbox"][aria-label="斜杠命令"]')).not.toBeNull()
+    expect(result.host.textContent).toContain('/compact')
+  })
+
   it('opens an accessible slash menu and selects Goal without sending slash text', async () => {
     const result = mountComposer()
     await nextTick()

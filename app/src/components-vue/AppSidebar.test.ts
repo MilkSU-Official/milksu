@@ -401,7 +401,7 @@ describe('AppSidebar', () => {
     expect(contextSidebarSource).not.toContain('coding-project-count')
   })
 
-  it('marks the current Coding conversation so day mode can reuse the night selected wash', async () => {
+  it('marks the current Coding conversation with the document selected state', async () => {
     const conversations: Conversation[] = [
       {
         id: 'conversation-active',
@@ -425,7 +425,7 @@ describe('AppSidebar', () => {
     expect(selected[0]?.textContent).toContain('当前会话')
     expect(host.querySelector('[aria-current="true"]')?.textContent).toContain('当前会话')
     expect(host.querySelectorAll('.coding-conversation-list [data-ui-selected]')).toHaveLength(1)
-    expect(contextSidebarSource).toContain('--selected-bg: var(--overlay-hover-strong)')
-    expect(contextSidebarSource).toContain('--overlay-hover-strong: rgb(255 255 255 / 0.13)')
+    expect(contextSidebarSource).toContain('color: var(--foreground)')
+    expect(contextSidebarSource).not.toContain('--overlay-hover-strong: rgb(255 255 255 / 0.13)')
   })
 })

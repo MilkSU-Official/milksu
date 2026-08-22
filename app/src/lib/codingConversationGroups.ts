@@ -34,6 +34,8 @@ export function isGeneratedScratchWorkspace(value?: string | null) {
   if (!path) return false
   return /\/MilkSU\/Coding\/(?:新编码任务|临时任务)-[a-f0-9]{8}$/u.test(path)
     || /\/agent-workspaces\/Coding\/无项目任务-[a-f0-9]{8}$/u.test(path)
+    || /\/MilkSU\/(?:Lab|CVE|CTF)\/[^/]+-[a-f0-9]{6,}$/u.test(path)
+    || /\/agent-workspaces\/(?:Lab|CVE|CTF)\//u.test(path)
 }
 
 function workspaceGroupKey(path: string | null) {

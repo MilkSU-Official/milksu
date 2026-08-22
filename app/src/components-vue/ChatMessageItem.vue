@@ -67,7 +67,7 @@ const timeLabel = computed(() => (
 <template>
   <article
     v-if="!isBlankAssistantMessage(message)"
-    class="mb-7"
+    class="mb-7 min-w-0"
     :class="message.role === 'user' ? 'ml-auto max-w-[82%]' : 'max-w-full'"
   >
     <div
@@ -163,7 +163,7 @@ const timeLabel = computed(() => (
     </div>
     <div
       v-else
-      class="break-words text-control leading-7"
+      class="min-w-0 overflow-x-auto break-words text-control leading-7"
       :class="message.role === 'user' ? 'chat-bubble chat-bubble--user px-4 py-3' : 'chat-bubble chat-bubble--agent'"
     >
       <span class="chat-bubble__who">{{ message.role === 'user' ? 'YOU' : 'MILKSU' }}</span>

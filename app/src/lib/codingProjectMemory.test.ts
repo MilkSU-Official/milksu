@@ -15,6 +15,12 @@ describe('codingProjectMemory', () => {
 
   it('does not remember generated scratch workspaces', () => {
     expect(shouldRememberCodingProject('/tmp/MilkSU/Coding/新编码任务-abcd1234')).toBe(false)
+    expect(shouldRememberCodingProject('/Users/milksu/Documents/MilkSU/Lab/de54a03a244266c4')).toBe(false)
     expect(shouldRememberCodingProject('/Users/milksu/code/milksu')).toBe(true)
+  })
+
+  it('does not use hash folders as project labels', () => {
+    expect(codingWorkspaceLabel('/Users/milksu/Documents/MilkSU/Lab/de54a03a244266c4')).toBe('')
+    expect(codingWorkspaceLabel('/Users/milksu/code/milksu', '/Users/milksu')).toBe('milksu')
   })
 })

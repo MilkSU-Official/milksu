@@ -19,6 +19,6 @@
 - 美学校准用谷歌 Material 的读法，不搬 Material 组件：层级先于装饰；颜色是关系；一屏一个焦点。
 - 一级模块轨 `4.75rem` 图标栏。Coding 会话列表贴在同一条导航上。
 - 不用纸纹、碳纹、官方 Showcase 的角色图 / 理智条 / 3D 菜单。
-- 命令面（输入框、工具栏、右栏控制）走主题 token；事实面（题面、Agent 气泡、通知）走纸面。
+- 命令面（侧栏、会话历史、设置分类、右栏、输入框和菜单）走当前主题 token；事实面（题面、Agent 气泡、通知）走纸面。日间不要再把指挥面钉成夜间石墨。
 - 功能、Desktop RPC、Judge、授权、Pi 工具循环不因换皮改语义。
 - CSS 钉在 `app/src/styles/`，不把 `@yunyoujun/ak-ui` 写进 `app/package.json`。

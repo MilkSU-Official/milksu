@@ -26,6 +26,7 @@ import (
 	"github.com/MilkSU-Official/milksu/internal/ctf"
 	"github.com/MilkSU-Official/milksu/internal/ctfshow"
 	"github.com/MilkSU-Official/milksu/internal/engine"
+	"github.com/MilkSU-Official/milksu/internal/lab"
 	"github.com/MilkSU-Official/milksu/internal/modelcatalog"
 	"github.com/MilkSU-Official/milksu/internal/modelusage"
 	"github.com/MilkSU-Official/milksu/internal/nssctf"
@@ -45,6 +46,7 @@ type App struct {
 	diagnostics       *appdata.DiagnosticRecorder
 	settings          *config.Store
 	conversations     *conversation.Store
+	labJobs           *lab.Store
 	codingFiles       *codingattachment.Store
 	codingCollab      *codingcollab.Manager
 	ctfMaterials      *localCTFMaterialStore
@@ -101,6 +103,10 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create conversation store: %w", err)
 	}
+	labJobs, err := lab.NewStore()
+	if err != nil {
+		return nil, fmt.Errorf("create lab job store: %w", err)
+	}
 	artifactDirectory, err := userartifact.Directory()
 	if err != nil {
 		return nil, fmt.Errorf("resolve user artifact directory: %w", err)
@@ -131,6 +137,7 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 		diagnostics:       appdata.NewDiagnosticRecorder(256),
 		settings:          settings,
 		conversations:     conversations,
+		labJobs:           labJobs,
 		codingFiles:       codingFiles,
 		codingProjects:    codingProjects,
 		codingCollab:      codingCollab,
@@ -791,7 +798,9 @@ func (a *App) ListArchivedConversations() ([]conversation.StoredConversation, er
 }
 
 func (a *App) ArchiveConversation(id string) error {
-	a.engines.DetachSession(id)
+	if a.engines != nil {
+		a.engines.DetachSession(id)
+	}
 	if err := a.stopConversationResources(id); err != nil {
 		return err
 	}

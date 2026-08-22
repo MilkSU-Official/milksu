@@ -180,7 +180,10 @@ describe('ConversationDock', () => {
     app.mount(host)
     mountedApps.push(app)
     await nextTick()
-    expect(host.querySelector('[data-testid="context-usage-meter"]')).not.toBeNull()
+    const strip = host.querySelector('[data-testid="composer-context-strip"]')
+    expect(strip).not.toBeNull()
+    expect(strip?.querySelector('[data-testid="context-usage-meter"]')).not.toBeNull()
+    expect(host.querySelector('.conversation-dock__head [data-testid="context-usage-meter"]')).toBeNull()
     const editor = composerEditor(host)
     setComposerText(editor, '/')
     await nextTick()
@@ -193,6 +196,32 @@ describe('ConversationDock', () => {
     await nextTick()
     expect(document.body.textContent).toContain('前端视觉验收')
     expect(document.body.textContent).toContain('项目 MCP')
+  })
+
+  it('keeps long messages inside the dock instead of stretching it', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    const conversation = sampleConversation()
+    conversation.messages = [{
+      id: 'm-long',
+      role: 'assistant',
+      content: `AAAA${'B'.repeat(4000)} https://example.test/${'c'.repeat(400)}`,
+      timestamp: Date.now(),
+    }]
+    const app = createApp(ConversationDock, { conversation })
+    app.mount(host)
+    mountedApps.push(app)
+    await nextTick()
+    const dock = host.querySelector<HTMLElement>('[data-testid="conversation-dock"]')!
+    const thread = host.querySelector<HTMLElement>('.conversation-dock__thread')!
+    const surface = host.querySelector<HTMLElement>('[data-testid="coding-agent-dock-surface"]')!
+    expect(Number.parseFloat(dock.style.width)).toBe(960)
+    expect(Number.parseFloat(dock.style.height)).toBe(720)
+    expect(dock.classList.contains('conversation-dock')).toBe(true)
+    expect(thread.classList.contains('conversation-dock__thread')).toBe(true)
+    expect(surface.className).toContain('overflow-hidden')
+    expect(surface.className).not.toContain('overflow-visible')
+    expect(host.querySelector('.chat-composer')).not.toBeNull()
   })
 
   it('minimizes to the bottom-right and restores without overflowing', async () => {

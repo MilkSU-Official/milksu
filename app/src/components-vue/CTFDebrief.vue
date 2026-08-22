@@ -41,6 +41,18 @@ const submittedAtStepCount = ref<number | null>(null)
 const reflection = ref('')
 const submittedAtCount = ref<number | null>(null)
 const copyNotice = ref('')
+function userFacingDebriefText(value: string) {
+  const text = value.trim()
+  if (/CTF engine propose|engine propose|context deadline exceeded|unavailable capability|i\/o timeout/i.test(text)) {
+    return '这一步没有完成'
+  }
+  return text
+}
+
+const visibleFailureBranches = computed(() => (
+  [...new Set(props.debrief.failureBranches.map(userFacingDebriefText).filter(Boolean))]
+))
+
 const canSaveMemory = computed(
   () => props.debrief.status !== 'in_progress' && props.debrief.reflectionCount > 0,
 )
@@ -227,9 +239,9 @@ function verdictLabel(verdict: string) {
           <Route class="size-3.5" />
           失败分支
         </h3>
-        <ul v-if="debrief.failureBranches.length" class="mt-3 space-y-2">
+        <ul v-if="visibleFailureBranches.length" class="mt-3 space-y-2">
           <li
-            v-for="item in debrief.failureBranches"
+            v-for="item in visibleFailureBranches"
             :key="item"
             class="flex gap-2 text-caption leading-5 text-muted-foreground"
           >

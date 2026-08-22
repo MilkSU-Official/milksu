@@ -94,8 +94,8 @@ const showCodingHistory = computed(() => (
 <style scoped>
 .workspace-navigation-shell {
   --workspace-rail-width: 4.75rem;
-  border-right: 1px solid var(--night-border);
-  background: var(--ak-surface-canvas, #111315);
+  border-right: 1px solid var(--border);
+  background: var(--background);
 }
 .coding-history-panel {
   min-height: 0;

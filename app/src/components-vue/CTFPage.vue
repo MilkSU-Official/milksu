@@ -113,6 +113,13 @@ type QuestionBank = Extract<CTFTrainingPlatform['id'], 'nssctf' | 'ctfshow'>
 type TrainingSource = CTFTrainingPlatform['id'] | 'custom'
 defineOptions({ name: 'CTFPage' })
 
+function catalogDifficultyLabel(value: number) {
+  if (!value || value <= 1.4) return '入门'
+  if (value <= 2.4) return '简单'
+  if (value <= 3.2) return '中等'
+  return '困难'
+}
+
 function formatCategory(value: string) {
   const normalized = value.trim().toLowerCase()
   const labels: Record<string, string> = {
@@ -2413,14 +2420,16 @@ onBeforeUnmount(() => {
 
         <section
           v-else-if="ctfSection === 'catalog' && screen === 'detail'"
-          class="mx-auto max-w-5xl space-y-5"
+          class="flex min-h-0 flex-1 flex-col overflow-auto"
           aria-label="题目详情"
         >
+          <div class="mx-auto w-full max-w-5xl space-y-5 px-6 py-6">
           <section v-if="selectedProblem" class="rounded-xl border border-border bg-card p-6">
             <div class="flex flex-wrap items-start justify-between gap-4">
               <div class="min-w-0">
                 <div class="flex flex-wrap items-center gap-2">
                   <Badge variant="outline">{{ formatCategory(selectedProblem.category) }}</Badge>
+                  <Badge v-if="selectedProblem.difficulty" variant="outline">{{ catalogDifficultyLabel(selectedProblem.difficulty) }}</Badge>
                   <NativeSelect
                     :model-value="manualStatuses[`nssctf:${selectedProblem.platformId}`] ?? 'not_started'"
                     size="sm"
@@ -2479,6 +2488,7 @@ onBeforeUnmount(() => {
               </Button>
             </div>
           </section>
+          </div>
         </section>
 
         <CTFChallengeDesk

@@ -42,6 +42,21 @@ test("workspace tool rejects unknown actions and plan mutations", () => {
     executionMode: "plan",
     approvalPolicy: "workspace-auto",
   }), "");
+  assert.equal(codingWorkspaceActionBlocked("list_records", {
+    executionMode: "plan",
+    approvalPolicy: "workspace-auto",
+  }), "");
+  assert.match(
+    codingWorkspaceActionBlocked("update_record", {
+      executionMode: "plan",
+      approvalPolicy: "workspace-auto",
+    }),
+    /只读|Plan/,
+  );
+  assert.equal(codingWorkspaceActionBlocked("update_record", {
+    executionMode: "go",
+    approvalPolicy: "workspace-auto",
+  }), "");
 });
 
 test("research report guidance tells the model to edit report.md", () => {
@@ -59,12 +74,23 @@ test("workspace guidance tells the model to use typed UI actions", () => {
   assert.match(codingWorkspaceGuidance(), /Do not scan the user message/);
   assert.match(codingWorkspaceGuidance(), /85%/);
   assert.match(codingWorkspaceGuidance(), /list_status/);
+  assert.match(codingWorkspaceGuidance(), /list_records/);
+  assert.match(codingWorkspaceGuidance(), /kind conversation/);
   assert.equal(
     formatCodingWorkspaceInput({
       action: "focus_browser_tab",
       query: "bilibili",
     }),
     "focus_browser_tab · 查询 bilibili",
+  );
+  assert.equal(
+    formatCodingWorkspaceInput({
+      action: "update_record",
+      kind: "lab",
+      id: "job-one",
+      title: "本地进程反病毒测试",
+    }),
+    "update_record · 类型 lab · 记录 job-one · 标题 本地进程反病毒测试",
   );
 });
 

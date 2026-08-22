@@ -180,11 +180,11 @@
   --border-menu-elevated: #91938f;
   --input: #9da09e;
   --ring: #05a7dc;
-  --sidebar: var(--night-chrome);
-  --sidebar-foreground: var(--night-foreground);
-  --sidebar-border: var(--night-border);
+  --sidebar: var(--background);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-border: var(--border);
   --sidebar-accent: var(--overlay-hover);
-  --sidebar-accent-foreground: #17201b;
+  --sidebar-accent-foreground: var(--foreground);
   --scrollbar-thumb: rgb(101 117 105 / 0.28);
   --scrollbar-thumb-hover: rgb(8 126 232 / 0.42);
 
@@ -309,7 +309,7 @@ body {
 }
 
 .game-shell {
-  background-color: var(--tactical-ink);
+  background-color: var(--background);
 }
 
 .tactical-page,
@@ -491,28 +491,9 @@ body {
 [data-slot="sheet-content"],
 [data-slot="hover-card-content"],
 .tactical-floating-surface {
-  color: var(--night-foreground);
-  --foreground: var(--night-foreground);
-  --popover-foreground: var(--night-foreground);
-  --muted-foreground: var(--night-muted-foreground);
-  --secondary: var(--night-muted);
-  --secondary-foreground: var(--night-foreground);
-  --muted: var(--night-muted);
-  --accent: var(--night-accent);
-  --accent-foreground: var(--night-foreground);
-  --border: var(--night-border-hairline);
-  --border-menu: var(--night-border-elevated);
-  --input: var(--night-input);
-  --surface-raised: var(--night-popover);
-  --surface-sunken: var(--night-sunken);
-  --segment-track: #22231e;
-  --segment-thumb: #3a3c34;
-  --control-label: var(--night-muted-foreground);
-  --control-label-hover: var(--night-foreground);
-  --segment-overlay-hover: rgb(255 255 255 / 0.06);
-  --segment-overlay-active: rgb(255 255 255 / 0.1);
-  background-color: var(--tactical-ink-2) !important;
-  box-shadow: 0 22px 70px rgb(0 0 0 / .28), inset 0 1px 0 rgb(255 255 255 / .035);
+  color: var(--popover-foreground);
+  background-color: var(--popover) !important;
+  box-shadow: 0 22px 70px rgb(0 0 0 / .18), inset 0 1px 0 rgb(255 255 255 / .04);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -626,7 +607,6 @@ pre,
  * Tactical archive primitives. Surfaces use the generated raster materials,
  * while CSS owns only layout, states and structural cuts.
  */
-.tactical-command-surface,
 .tactical-dark-surface {
   color: var(--night-foreground);
   --background: var(--night-canvas);
@@ -657,8 +637,8 @@ pre,
 
 .tactical-command-surface {
   position: relative;
-  border: 1px solid var(--night-border);
-  background-color: var(--tactical-ink-2);
+  border: 1px solid var(--border);
+  background-color: var(--card);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / .04);
 }
 

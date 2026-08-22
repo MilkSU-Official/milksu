@@ -559,32 +559,7 @@ watch(
 .coding-context-archive {
   min-height: 0;
   background-color: transparent;
-  color: var(--night-foreground);
-  --foreground: var(--night-foreground);
-  --card-foreground: var(--night-foreground);
-  --muted-foreground: var(--night-muted-foreground);
-  --secondary: var(--night-muted);
-  --secondary-foreground: var(--night-foreground);
-  --muted: var(--night-muted);
-  --accent: var(--night-accent);
-  --accent-foreground: var(--night-foreground);
-  --border: var(--night-border);
-  --input: var(--night-input);
-  --surface-sunken: var(--night-sunken);
-  /*
-   * This panel stays a dark carbon surface in day mode. Paper-theme overlays
-   * are dark-on-dark and hide the current-session fill; keep the night wash.
-   */
-  --overlay-hover-light: rgb(255 255 255 / 0.055);
-  --overlay-hover: rgb(255 255 255 / 0.09);
-  --overlay-hover-strong: rgb(255 255 255 / 0.13);
-  --overlay-active: rgb(255 255 255 / 0.155);
-  --overlay-active-strong: rgb(255 255 255 / 0.19);
-  --selected-bg: var(--overlay-hover-strong);
-}
-
-.coding-context-archive :deep([data-slot='input']) {
-  color: var(--night-foreground);
+  color: var(--foreground);
 }
 
 .coding-project-row {

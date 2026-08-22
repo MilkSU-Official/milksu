@@ -34,6 +34,7 @@ import type { CodingAgentSendArgs, CodingAgentSurfaceBind } from '@/lib/codingAg
 import { vulnerabilityStatusLabel, type VulnerabilityIntel, type VulnerabilitySeverity, type VulnerabilityStatus } from '@/vulnerabilityIntel'
 import { ALL_COLLECTIONS_ID, createItemCollectionStore } from '@/lib/itemCollections'
 import { relatedDomainConversations } from '@/lib/workspaceSessionRouting'
+import { presentVulnerabilityVendorProduct } from '@/lib/vulnerabilityFeedImport'
 
 defineOptions({ name: 'VulnPage' })
 
@@ -150,7 +151,7 @@ const learningTopics = [
 ] as const
 
 const vendorOptions = computed(() => (
-  [...new Set(dashboard.tracked.value.map(item => item.vendor.trim()).filter(Boolean))].sort((left, right) => (
+  [...new Set(dashboard.tracked.value.map(item => presentVendorProduct(item).vendor).filter(Boolean))].sort((left, right) => (
     left.localeCompare(right, 'zh-CN')
   ))
 ))
@@ -166,7 +167,7 @@ const filteredItems = computed(() => {
   return dashboard.tracked.value.filter(item => (
     (statusFilter.value === 'all' || item.status === statusFilter.value)
     && (kevFilter.value === 'all' || (kevFilter.value === 'kev' ? item.kev : !item.kev))
-    && (!vendorFilter.value || item.vendor === vendorFilter.value)
+    && (!vendorFilter.value || presentVendorProduct(item).vendor === vendorFilter.value)
     && (!yearFilter.value || item.id.toUpperCase().startsWith(`CVE-${yearFilter.value}-`))
     && (!allowed || allowed.has(item.id))
   ))
@@ -235,6 +236,15 @@ function startReproduction() {
   const item = selectedItem.value
   if (!item) return
   emit('run', item)
+}
+
+function presentVendorProduct(item: VulnerabilityIntel) {
+  return presentVulnerabilityVendorProduct({
+    vendor: item.vendor,
+    product: item.product,
+    title: item.title,
+    summary: item.summary,
+  })
 }
 
 function setStatus(id: string, event: Event) {
@@ -519,21 +529,28 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
     </Dialog>
 
     <section class="tactical-paper-surface min-h-0 flex-1 overflow-auto bg-card" aria-label="CVE 列表">
-      <div class="min-w-[1040px]">
-        <div class="tactical-desk-head tactical-table-head grid h-12 grid-cols-[170px_minmax(260px,1.2fr)_minmax(190px,.9fr)_100px_150px_42px_120px_72px] items-center gap-4 border-b border-border px-6 text-caption text-muted-foreground">
-          <span>CVE</span><span>漏洞</span><span>厂商/产品</span><span>严重性</span><span>我的状态</span><span class="sr-only">收藏</span><span>最近研究</span><span class="sr-only">打开</span>
+      <div class="min-w-[1120px]">
+        <div class="tactical-desk-head tactical-table-head grid h-12 grid-cols-[170px_minmax(240px,1.2fr)_minmax(160px,.9fr)_88px_132px_42px_minmax(7rem,1fr)_72px] items-center gap-4 border-b border-border px-6 text-caption text-muted-foreground">
+          <span class="whitespace-nowrap">CVE</span>
+          <span class="whitespace-nowrap">漏洞</span>
+          <span class="whitespace-nowrap">厂商/产品</span>
+          <span class="whitespace-nowrap">严重性</span>
+          <span class="whitespace-nowrap">我的状态</span>
+          <span class="sr-only">收藏</span>
+          <span class="whitespace-nowrap">最近研究</span>
+          <span class="sr-only">打开</span>
         </div>
 
         <template v-for="item in visibleItems" :key="item.id">
           <article
-            class="vuln-row tactical-row grid min-h-[72px] w-full grid-cols-[170px_minmax(260px,1.2fr)_minmax(190px,.9fr)_100px_150px_42px_120px_72px] items-center gap-4 px-6 text-left"
+            class="vuln-row tactical-row grid min-h-[72px] w-full grid-cols-[170px_minmax(240px,1.2fr)_minmax(160px,.9fr)_88px_132px_42px_minmax(7rem,1fr)_72px] items-center gap-4 px-6 text-left"
             data-testid="catalog-row"
           >
             <span class="font-mono text-body select-text">{{ item.id }}</span>
             <span class="min-w-0 truncate text-control font-medium select-text">{{ item.title }}</span>
             <span class="min-w-0">
-              <span class="block truncate text-body">{{ item.vendor }}</span>
-              <span class="mt-0.5 block truncate text-caption text-muted-foreground">{{ item.product }}</span>
+              <span class="block truncate text-body">{{ presentVendorProduct(item).vendor }}</span>
+              <span class="mt-0.5 block truncate text-caption text-muted-foreground">{{ presentVendorProduct(item).product }}</span>
             </span>
             <span class="ak-tag ak-tag--compact" :class="severityTag(item.severity)">{{ item.cvss.toFixed(1) }}</span>
             <span class="ak-tag ak-tag--compact" :class="statusTag(item.status)">{{ vulnerabilityStatusLabel(item.status) }}</span>

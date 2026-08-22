@@ -14,7 +14,13 @@ import {
   type ThemeMode,
 } from '@/lib/themeMode'
 import { settingsReturnSection, type CTFWorkspaceSection } from '@/lib/workspaceNavigation'
-import type { LabJob } from '@/composables/useLabJobs'
+import {
+  applyLabJobRecord,
+  hydrateLabJobsFromBackend,
+  removeLabJobIds,
+  useLabJobs,
+  type LabJob,
+} from '@/composables/useLabJobs'
 import type { CodingAgentSurfaceBind } from '@/lib/codingAgentSurface'
 import type { VulnerabilityIntel } from '@/vulnerabilityIntel'
 import { executeVulnerabilityCodingHandoff } from '@/lib/vulnerabilityCodingHandoff'
@@ -45,6 +51,7 @@ type Section = 'chat' | 'ctf' | 'vuln' | 'lab' | 'profile' | 'settings'
 const restoredViewState = readWorkspaceViewState()
 const conversations = useConversations()
 const vulnerabilityDashboard = useVulnerabilityDashboard()
+const labJobs = useLabJobs()
 const section = ref<Section>(restoredViewState?.section ?? 'ctf')
 // Coding history is a fixed left panel (not a floating drawer); open by default.
 const codingConversationDrawerOpen = ref(restoredViewState?.codingHistoryOpen ?? true)
@@ -92,6 +99,7 @@ const themeMode = ref<ThemeMode>(readThemeMode())
 let unlistenAccount: (() => void) | undefined
 let unlistenModelCatalog: (() => void) | undefined
 let unlistenUpdate: (() => void) | undefined
+let unlistenWorkspaceRecords: (() => void) | undefined
 let systemThemeMedia: MediaQueryList | undefined
 let systemThemeListener: (() => void) | undefined
 const workspaceViewStateReady = ref(false)
@@ -554,12 +562,102 @@ async function runVulnerabilityReproduction(item: VulnerabilityIntel) {
 }
 
 async function runLabJob(job: LabJob) {
-  await enterLabJob(job, { brief: false })
-  const briefing = labBriefing({ scope: job.scope, request: job.request })
-  await conversations.send(briefing.prompt, briefing.visible)
+  await enterLabJob(job)
+  const conversation = conversations.active.value
+  if (conversation && conversation.messages.length === 0) {
+    const briefing = labBriefing({ scope: job.scope, request: job.request })
+    await conversations.send(briefing.prompt, briefing.visible)
+  }
 }
 
-async function enterLabJob(job: LabJob, options: { brief?: boolean } = {}) {
+function renameLabJob(id: string, title: string) {
+  labJobs.rename(id, title)
+  conversations.rename(`lab-job-${id}`, title)
+}
+
+function applyWorkspaceRecord(payload: {
+  action?: string
+  kind?: string
+  id?: string
+  ids?: string[]
+  record?: Record<string, unknown>
+}) {
+  const action = String(payload.action ?? '').trim()
+  const kind = String(payload.kind ?? '').trim()
+  const record = payload.record ?? {}
+  const id = String(payload.id || record.id || '').trim()
+  if (action === 'focus') {
+    if (kind === 'lab' && id) {
+      labJobs.selectedId.value = id
+      const job = labJobs.jobs.value.find(item => item.id === id)
+      section.value = 'lab'
+      if (job) void enterLabJob(job)
+      return
+    }
+    if (kind === 'cve' && id) {
+      vulnerabilityDashboard.selectedId.value = id.toUpperCase()
+      section.value = 'vuln'
+      return
+    }
+    if (kind === 'ctf' && id) {
+      ctfResumeJobId.value = id
+      section.value = 'ctf'
+      return
+    }
+    if (kind === 'conversation' && id) {
+      conversations.activeId.value = id
+      section.value = 'chat'
+    }
+    return
+  }
+  if (kind === 'lab') {
+    if (action === 'archive') {
+      removeLabJobIds(payload.ids?.length ? payload.ids : (id ? [id] : []))
+      return
+    }
+    if (record.id) {
+      applyLabJobRecord(record)
+      if (record.title) conversations.rename(`lab-job-${String(record.id)}`, String(record.title))
+    }
+    return
+  }
+  if (kind === 'conversation') {
+    if (action === 'update' && id && record.title) {
+      conversations.rename(id, String(record.title))
+      return
+    }
+    void conversations.load()
+    return
+  }
+  if (kind === 'cve' && id) {
+    const tracking = {
+      id,
+      title: String(record.title ?? ''),
+      vendor: String(record.vendor ?? ''),
+      product: String(record.product ?? ''),
+      affected: String(record.affected ?? ''),
+      summary: String(record.summary ?? ''),
+      referenceHref: String(record.url ?? ''),
+    }
+    if (action === 'update') {
+      vulnerabilityDashboard.patchTrackingItem(id, {
+        title: tracking.title,
+        vendor: tracking.vendor,
+        product: tracking.product,
+        affected: tracking.affected,
+        summary: tracking.summary,
+      })
+      return
+    }
+    try {
+      vulnerabilityDashboard.addTrackingItem(tracking)
+    } catch {
+      vulnerabilityDashboard.patchTrackingItem(id, tracking)
+    }
+  }
+}
+
+async function enterLabJob(job: LabJob) {
   await bindDossierConversation(
     job.title,
     `lab-job-${job.id}`,
@@ -572,11 +670,6 @@ async function enterLabJob(job: LabJob, options: { brief?: boolean } = {}) {
     },
   )
   lastLabConversationId.value = conversations.activeId.value
-  const conversation = conversations.active.value
-  if ((options.brief ?? true) && conversation && conversation.messages.length === 0) {
-    const briefing = labBriefing({ scope: job.scope, request: job.request })
-    await conversations.send(briefing.prompt, briefing.visible)
-  }
 }
 
 async function startVulnerabilityCodingTask(
@@ -700,6 +793,15 @@ onMounted(async () => {
   unlistenUpdate = await listenEvent<UpdateStatus>('update.changed', event => {
     updateStatus.value = event.payload
   })
+  unlistenWorkspaceRecords = await listenEvent<{
+    action?: string
+    kind?: string
+    id?: string
+    ids?: string[]
+    record?: Record<string, unknown>
+  }>('workspace-record.changed', event => {
+    applyWorkspaceRecord(event.payload ?? {})
+  })
   // Four parallel RPCs; accountLoaded only flips after loadAccountStatus finishes.
   // After bootstrap, GetAccountStatus is non-blocking (provisional or cache).
   const parallelStarted = performance.now()
@@ -716,6 +818,7 @@ onMounted(async () => {
     measure('rpc.loadAccountStatus', () => loadAccountStatus()),
     measure('rpc.conversations.load', () => conversations.load()),
   ])
+  await hydrateLabJobsFromBackend()
   const parallelWallMs = Math.round(performance.now() - parallelStarted)
   const slowest = Math.max(catalogMs, settingsMs, accountMs, conversationsMs)
   startupLog(
@@ -746,6 +849,7 @@ onBeforeUnmount(() => {
   unlistenAccount?.()
   unlistenModelCatalog?.()
   unlistenUpdate?.()
+  unlistenWorkspaceRecords?.()
   if (systemThemeMedia && systemThemeListener) {
     systemThemeMedia.removeEventListener('change', systemThemeListener)
   }
@@ -753,7 +857,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div v-if="!accountLoaded" class="game-shell tactical-dark-surface grid h-screen place-items-center text-xl font-semibold text-white">MilkSU</div>
+  <div v-if="!accountLoaded" class="grid h-screen place-items-center bg-background text-xl font-semibold text-foreground">MilkSU</div>
   <AccountLoginPage
     v-else-if="showAccountGate"
     :status="accountStatus"
@@ -904,6 +1008,7 @@ onBeforeUnmount(() => {
           :ensure-conversation="conversations.ensureConversation"
           @enter="enterLabJob"
           @run="runLabJob"
+          @rename="renameLabJob"
           @send="conversations.send"
           @abort="abortConversation"
           @select-conversation="selectDossierConversation"

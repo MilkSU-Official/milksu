@@ -537,9 +537,9 @@ onBeforeUnmount(() => stopUsageEvents?.())
 
 <style scoped>
 .profile-page {
-  --profile-graphite: var(--night-canvas);
-  --profile-graphite-raised: var(--night-muted);
-  --profile-graphite-line: var(--night-border-hairline);
+  --profile-graphite: var(--card);
+  --profile-graphite-raised: var(--muted);
+  --profile-graphite-line: var(--border);
 }
 .profile-name-input { width: min(26rem, 100%); border: 0; border-bottom: 1px solid var(--border); background: transparent; padding: .25rem 0; font-size: 1.875rem; font-weight: 600; outline: 0; }
 .profile-bio-input { margin-top: .75rem; width: min(40rem, 100%); border: 0; border-bottom: 1px solid var(--border); background: transparent; padding: .35rem 0; color: var(--muted-foreground); outline: 0; }
@@ -551,7 +551,7 @@ onBeforeUnmount(() => stopUsageEvents?.())
   background-color: var(--profile-graphite);
 }
 .profile-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 11rem)); border-bottom: 1px solid color-mix(in srgb, var(--primary) 30%, var(--profile-graphite-line)); background: var(--profile-graphite); }
-.profile-tab { position: relative; min-height: 3.45rem; border-right: 1px solid var(--profile-graphite-line); background: var(--profile-graphite); color: var(--night-muted-foreground); font-size: .9rem; transition: color .16s ease, background .16s ease; }
+.profile-tab { position: relative; min-height: 3.45rem; border-right: 1px solid var(--profile-graphite-line); background: var(--profile-graphite); color: var(--muted-foreground); font-size: .9rem; transition: color .16s ease, background .16s ease; }
 .profile-tab:hover { background: color-mix(in srgb, var(--primary) 6%, var(--profile-graphite-raised)); color: var(--foreground); }
 .profile-tab.active { background: color-mix(in srgb, var(--primary) 13%, var(--profile-graphite-raised)); color: var(--primary); }
 .profile-tab.active::after { content: ''; position: absolute; inset: auto 0 -1px; height: 3px; background: var(--primary); }

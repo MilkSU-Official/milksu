@@ -1,4 +1,5 @@
 import { computed, ref, watch } from 'vue'
+import { invokeCommand } from '@/desktop'
 
 const STORAGE_KEY = 'milksu.lab-jobs.v1'
 
@@ -16,6 +17,7 @@ export interface LabJob {
 export interface LabJobDraft {
   scope: LabScope
   request: string
+  title?: string
 }
 
 function storage(): Storage | null {
@@ -37,6 +39,12 @@ export function labJobTitle(request: string) {
   return chars.length <= 24 ? line : `${chars.slice(0, 24).join('')}…`
 }
 
+function clipLabTitle(value: string, fallback = '') {
+  const line = String(value ?? '').replace(/\s+/g, ' ').trim()
+  if (!line) return fallback
+  return Array.from(line).slice(0, 40).join('')
+}
+
 function normalizeJob(raw: unknown): LabJob | null {
   if (!raw || typeof raw !== 'object') return null
   const record = raw as Record<string, unknown>
@@ -48,7 +56,7 @@ function normalizeJob(raw: unknown): LabJob | null {
   const updatedAt = Number(record.updatedAt)
   return {
     id,
-    title: String(record.title ?? '').trim() || labJobTitle(request),
+    title: clipLabTitle(String(record.title ?? ''), labJobTitle(request)) || labJobTitle(request),
     scope: record.scope === 'local' ? 'local' : 'remote',
     request,
     createdAt: Number.isFinite(createdAt) ? createdAt : Date.now(),
@@ -72,18 +80,68 @@ function readJobs(): LabJob[] {
   }
 }
 
-export function useLabJobs() {
-  const jobs = ref<LabJob[]>(readJobs())
-  const selectedId = ref('')
+const jobs = ref<LabJob[]>(readJobs())
+const selectedId = ref('')
 
-  watch(jobs, value => {
-    try {
-      storage()?.setItem(STORAGE_KEY, JSON.stringify({ jobs: value }))
-    } catch {
-      // Ignore quota failures.
+watch(jobs, value => {
+  try {
+    storage()?.setItem(STORAGE_KEY, JSON.stringify({ jobs: value }))
+  } catch {
+    // Ignore quota failures.
+  }
+}, { deep: true })
+
+async function persistJob(job: LabJob) {
+  try {
+    await invokeCommand('save_lab_job', { job })
+  } catch {
+    // Renderer tests and a missing Runtime keep the local list.
+  }
+}
+
+export async function hydrateLabJobsFromBackend() {
+  try {
+    const remote = await invokeCommand<unknown[]>('list_lab_jobs')
+    const next = Array.isArray(remote)
+      ? remote.flatMap(item => {
+          const job = normalizeJob(item)
+          return job ? [job] : []
+        })
+      : []
+    if (next.length) {
+      jobs.value = next
+      return
     }
-  }, { deep: true })
+    await Promise.all(jobs.value.map(job => persistJob(job)))
+  } catch {
+    // Keep the local cache when Desktop RPC is unavailable.
+  }
+}
 
+export function applyLabJobRecord(record: Partial<LabJob> & { id?: string }) {
+  const job = normalizeJob(record)
+  if (!job) return null
+  const existing = jobs.value.find(item => item.id === job.id)
+  jobs.value = existing
+    ? jobs.value.map(item => item.id === job.id ? { ...item, ...job, updatedAt: Date.now() } : item)
+    : [job, ...jobs.value]
+  void persistJob(jobs.value.find(item => item.id === job.id) ?? job)
+  return job
+}
+
+export function removeLabJobIds(ids: string[]) {
+  const targets = new Set(ids.map(id => id.trim()).filter(Boolean))
+  if (!targets.size) return
+  jobs.value = jobs.value.filter(job => !targets.has(job.id))
+  if (targets.has(selectedId.value)) selectedId.value = ''
+}
+
+export function resetLabJobsForTests() {
+  jobs.value = readJobs()
+  selectedId.value = ''
+}
+
+export function useLabJobs() {
   const selected = computed(() => jobs.value.find(job => job.id === selectedId.value) ?? null)
 
   function createJob(draft: LabJobDraft) {
@@ -91,7 +149,7 @@ export function useLabJobs() {
     const request = draft.request.trim()
     const job: LabJob = {
       id: crypto.randomUUID(),
-      title: labJobTitle(request),
+      title: clipLabTitle(draft.title ?? '', labJobTitle(request)) || labJobTitle(request),
       scope: draft.scope,
       request,
       createdAt: now,
@@ -99,7 +157,18 @@ export function useLabJobs() {
     }
     jobs.value = [job, ...jobs.value]
     selectedId.value = job.id
+    void persistJob(job)
     return job
+  }
+
+  function rename(id: string, title: string) {
+    const normalized = clipLabTitle(title)
+    if (!normalized) return
+    jobs.value = jobs.value.map(job => (
+      job.id === id ? { ...job, title: normalized, updatedAt: Date.now() } : job
+    ))
+    const updated = jobs.value.find(job => job.id === id)
+    if (updated) void persistJob(updated)
   }
 
   function touch(id: string) {
@@ -113,6 +182,7 @@ export function useLabJobs() {
     selectedId,
     selected,
     createJob,
+    rename,
     touch,
   }
 }

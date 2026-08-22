@@ -34,26 +34,22 @@ describe('global style contract', () => {
     expect(indexCss).toContain('-webkit-font-smoothing: auto')
   })
 
-  it('keeps day mode on the tactical paper palette with a persistent dark rail', () => {
+  it('keeps day mode on the tactical paper palette including chrome', () => {
     const lightTheme = indexCss.match(/:root\[data-theme='light'\]\s*\{([\s\S]*?)\n\}/)?.[1]
 
     expect(lightTheme).toContain('--background: #ebe9e2')
     expect(lightTheme).toContain('--background-chrome: #deddd6')
-    expect(lightTheme).toContain('--sidebar: var(--night-chrome)')
-    expect(lightTheme).toContain('--sidebar-foreground: var(--night-foreground)')
+    expect(lightTheme).toContain('--sidebar: var(--background)')
+    expect(lightTheme).toContain('--sidebar-foreground: var(--foreground)')
   })
 
-  it('keeps dark command surfaces readable inside the day-mode document', () => {
-    expect(indexCss).toContain('.tactical-command-surface,\n.tactical-dark-surface {')
-    expect(indexCss).toContain('--foreground: var(--night-foreground)')
-    expect(indexCss).toContain('--card-foreground: var(--night-foreground)')
-    expect(indexCss).toContain('--popover-foreground: var(--night-foreground)')
-    expect(indexCss).toContain('--muted-foreground: var(--night-muted-foreground)')
+  it('lets menus follow the document theme and keeps tactical-dark-surface as an optional night island', () => {
+    expect(indexCss).toContain('.tactical-dark-surface {')
+    expect(indexCss).toContain('.tactical-command-surface {')
+    expect(indexCss).toContain('background-color: var(--popover) !important')
+    expect(indexCss).toContain('.tactical-floating-surface {')
     expect(indexCss).toContain('--overlay-hover-strong: rgb(255 255 255 / 0.13)')
     expect(indexCss).toContain('--selected-bg: var(--overlay-hover-strong)')
-    expect(indexCss).toContain('--segment-track: #22231e')
-    expect(indexCss).toContain('--segment-thumb: #3a3c34')
-    expect(indexCss).toContain('--control-label: var(--night-muted-foreground)')
   })
 
   it('limits paper colors to document surfaces in day mode', () => {

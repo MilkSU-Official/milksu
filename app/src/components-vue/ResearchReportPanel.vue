@@ -53,7 +53,6 @@ watch(() => [props.workspacePath, props.refreshKey], load)
 
 <style scoped>
 .research-report {
-  min-height: 8rem;
   color: #171a1d;
 }
 .research-report__html {

@@ -698,7 +698,7 @@ function redoComposer() {
 function detectSlashQuery() {
   slashQuery.value = null
   slashQueryRange.value = null
-  if (props.ctfSession || props.goalMode) return
+  if (props.goalMode) return
   const editor = messageEditor.value
   if (!editor) return
 
@@ -1395,8 +1395,10 @@ defineExpose({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                   align="start"
+                  side="top"
                   :side-offset="8"
-                  class="composer-add-menu app-no-drag w-[31rem] max-w-[calc(100vw-2rem)] p-1"
+                  :collision-padding="16"
+                  class="composer-add-menu app-no-drag w-[31rem] max-w-[calc(100vw-2rem)] max-h-[min(24rem,calc(100vh-8rem))] overflow-y-auto p-1"
                 >
                   <DropdownMenuLabel class="px-3 pb-1.5 pt-2 text-caption">
                     添加

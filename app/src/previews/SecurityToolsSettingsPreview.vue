@@ -201,7 +201,7 @@ onBeforeUnmount(() => {
     />
 
     <main class="settings-page tactical-page flex min-w-0 flex-1 flex-col bg-background">
-      <header class="app-drag settings-page-header flex h-14 shrink-0 items-center border-b border-border bg-[var(--tactical-ink-2)] px-5 text-white">
+      <header class="app-drag settings-page-header flex h-14 shrink-0 items-center border-b border-border bg-background px-5 text-foreground">
         <Button variant="ghost" size="icon-sm" class="app-no-drag mr-3" aria-label="返回">
           <ArrowLeft class="size-4" />
         </Button>
@@ -212,7 +212,7 @@ onBeforeUnmount(() => {
       </header>
 
       <div class="flex min-h-0 flex-1">
-        <nav class="settings-nav settings-nav-surface tactical-dark-surface app-no-drag w-56 shrink-0 border-r px-3 py-5" aria-label="设置分类">
+        <nav class="settings-nav settings-nav-surface app-no-drag w-56 shrink-0 border-r px-3 py-5" aria-label="设置分类">
           <button v-for="label in ['通用', '模型', 'CTF', 'CVE', 'Coding', '浏览器控制', '安全工具']" :key="label" type="button" class="settings-nav-item">
             {{ label }}
           </button>

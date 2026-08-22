@@ -13,6 +13,10 @@ export const codingWorkspaceReadActions = Object.freeze([
   "list_background_tasks",
   "show_terminal",
   "hide_terminal",
+  "list_records",
+  "get_record",
+  "search_records",
+  "focus_record",
 ]);
 
 export const codingWorkspaceMutatingActions = Object.freeze([
@@ -22,6 +26,10 @@ export const codingWorkspaceMutatingActions = Object.freeze([
   "close_all_browser_tabs",
   "reveal_artifacts",
   "compact_context",
+  "create_record",
+  "update_record",
+  "archive_records",
+  "restore_records",
 ]);
 
 const workspaceActions = new Set([
@@ -30,6 +38,7 @@ const workspaceActions = new Set([
 ]);
 
 const workspacePanels = new Set(["browser", "artifacts", "changes", "environment"]);
+const workspaceRecordKinds = new Set(["conversation", "lab", "cve", "ctf"]);
 
 export function researchReportGuidance(sessionRole = "") {
   const lines = [
@@ -53,7 +62,9 @@ export function researchReportGuidance(sessionRole = "") {
 
 export function codingWorkspaceGuidance() {
   return [
-    "Use milksu_workspace to operate the Coding desktop the way the user would.",
+    "Use milksu_workspace to operate MilkSU the way the user would.",
+    "Product records are atomic: list_records, get_record, create_record, update_record, archive_records, restore_records, focus_record, and search_records, with kind conversation | lab | cve | ctf.",
+    "Compose those atoms instead of asking for a dedicated feature: rename with update_record, batch archive with archive_records ids, import a CVE with search_records then create_record, or open a page with open_browser_tab and later create_record for a custom CTF.",
     "List browser tabs, then focus one by tabId (or a unique title/url query) before milksu-playwright clicks.",
     "Close one tab or close_all_browser_tabs when the user wants the right-hand pages gone.",
     "List or preview workspace artifacts and show_panel to open 产物 / 浏览器 / 变更 / 环境.",
@@ -86,8 +97,18 @@ export function codingWorkspaceActionBlocked(action, policy = {}) {
 export function formatCodingWorkspaceInput(input) {
   const action = normalizeCodingWorkspaceAction(input?.action);
   if (!action) return "";
+  const kind = workspaceRecordKinds.has(String(input?.kind ?? "").trim())
+    ? String(input.kind).trim()
+    : "";
+  const ids = Array.isArray(input?.ids)
+    ? input.ids.map(value => String(value ?? "").trim()).filter(Boolean)
+    : [];
   return [
     action,
+    kind ? `类型 ${kind}` : "",
+    input?.id ? `记录 ${String(input.id).trim()}` : "",
+    ids.length ? `批量 ${ids.length}` : "",
+    input?.title ? `标题 ${String(input.title).trim()}` : "",
     input?.tabId ? `标签 ${String(input.tabId).trim()}` : "",
     input?.query ? `查询 ${String(input.query).trim()}` : "",
     input?.url ? `地址 ${String(input.url).trim()}` : "",
@@ -184,7 +205,7 @@ export function createCodingWorkspaceExtension(
     pi.registerTool({
       name: codingWorkspaceToolName,
       label: "MilkSU workspace",
-      description: "Operate the MilkSU Coding desktop: isolated browser tabs, artifacts, environment/status, changes, context compaction, and the bottom terminal. Use typed actions instead of asking the user to click the UI, then use milksu-playwright on the focused tab.",
+      description: "Operate MilkSU product data and the desktop: conversations, lab jobs, CVE and CTF records, isolated browser tabs, artifacts, environment/status, changes, context compaction, and the bottom terminal. Use atomic typed actions (list/get/create/update/archive/focus/search with a kind) instead of asking the user to click the UI, then use milksu-playwright on the focused tab.",
       parameters: Type.Object({
         action: Type.Union([
           Type.Literal("list_browser_tabs"),
@@ -202,6 +223,14 @@ export function createCodingWorkspaceExtension(
           Type.Literal("hide_terminal"),
           Type.Literal("list_terminals"),
           Type.Literal("list_background_tasks"),
+          Type.Literal("list_records"),
+          Type.Literal("get_record"),
+          Type.Literal("create_record"),
+          Type.Literal("update_record"),
+          Type.Literal("archive_records"),
+          Type.Literal("restore_records"),
+          Type.Literal("focus_record"),
+          Type.Literal("search_records"),
         ]),
         tabId: Type.Optional(Type.String({ maxLength: 80 })),
         query: Type.Optional(Type.String({ maxLength: 200 })),
@@ -212,6 +241,35 @@ export function createCodingWorkspaceExtension(
           Type.Literal("artifacts"),
           Type.Literal("changes"),
           Type.Literal("environment"),
+        ])),
+        kind: Type.Optional(Type.Union([
+          Type.Literal("conversation"),
+          Type.Literal("lab"),
+          Type.Literal("cve"),
+          Type.Literal("ctf"),
+        ])),
+        id: Type.Optional(Type.String({ maxLength: 128 })),
+        ids: Type.Optional(Type.Array(Type.String({ maxLength: 128 }), { maxItems: 50 })),
+        title: Type.Optional(Type.String({ maxLength: 120 })),
+        archived: Type.Optional(Type.Boolean()),
+        limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 100 })),
+        scope: Type.Optional(Type.Union([
+          Type.Literal("local"),
+          Type.Literal("remote"),
+        ])),
+        request: Type.Optional(Type.String({ maxLength: 4000 })),
+        statement: Type.Optional(Type.String({ maxLength: 12000 })),
+        category: Type.Optional(Type.String({ maxLength: 80 })),
+        summary: Type.Optional(Type.String({ maxLength: 1200 })),
+        cveId: Type.Optional(Type.String({ maxLength: 32 })),
+        vendor: Type.Optional(Type.String({ maxLength: 120 })),
+        product: Type.Optional(Type.String({ maxLength: 120 })),
+        affected: Type.Optional(Type.String({ maxLength: 240 })),
+        sourceKind: Type.Optional(Type.Union([
+          Type.Literal("text"),
+          Type.Literal("url"),
+          Type.Literal("socket"),
+          Type.Literal("ssh"),
         ])),
       }),
       async execute(_toolCallId, params) {

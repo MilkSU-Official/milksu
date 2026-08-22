@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import {
   Button,
   Dialog,
@@ -7,9 +7,15 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Input,
   SegmentedControl,
 } from '@felinic/ui'
-import { ArrowLeft, Plus } from 'lucide-vue-next'
+import { ArrowLeft, MoreVertical, Pencil, Plus } from 'lucide-vue-next'
+import { isComposingKey } from '@/lib/imeComposition'
 import ConversationDock from '@/components-vue/ConversationDock.vue'
 import ResearchReportPanel from '@/components-vue/ResearchReportPanel.vue'
 import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
@@ -68,6 +74,7 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   enter: [job: LabJob]
   run: [job: LabJob]
+  rename: [id: string, title: string]
   send: CodingAgentSendArgs
   abort: []
   selectConversation: [id: string]
@@ -99,10 +106,14 @@ const {
   selectedId,
   selected,
   createJob,
+  rename,
 } = useLabJobs()
 const showNew = ref(false)
 const draftScope = ref<LabScope>('local')
 const draftRequest = ref('')
+const editingJobId = ref<string | null>(null)
+const editingTitle = ref('')
+const renameInput = ref<HTMLInputElement | null>(null)
 const scopeItems = [
   { value: 'local' as const, label: '本地' },
   { value: 'remote' as const, label: '远程' },
@@ -142,6 +153,46 @@ function startJob() {
   if (!selected.value) return
   emit('run', selected.value)
 }
+
+function setRenameInput(element: unknown) {
+  const node = (element as { $el?: unknown } | null)?.$el ?? element
+  if (node instanceof HTMLInputElement) renameInput.value = node
+  else renameInput.value = (node as HTMLElement | null)?.querySelector?.('input') ?? null
+}
+
+function startRename(job: LabJob) {
+  editingJobId.value = job.id
+  editingTitle.value = job.title
+  void nextTick(() => {
+    renameInput.value?.focus()
+    renameInput.value?.select()
+  })
+}
+
+function finishRename(job: LabJob) {
+  if (editingJobId.value !== job.id) return
+  const title = editingTitle.value.trim().slice(0, 40)
+  editingJobId.value = null
+  if (!title || title === job.title) return
+  rename(job.id, title)
+  emit('rename', job.id, title)
+}
+
+function cancelRename() {
+  editingJobId.value = null
+}
+
+function submitRename(event: KeyboardEvent, job: LabJob) {
+  if (isComposingKey(event)) return
+  event.preventDefault()
+  finishRename(job)
+}
+
+function abortRename(event: KeyboardEvent) {
+  if (isComposingKey(event)) return
+  event.preventDefault()
+  cancelRename()
+}
 </script>
 
 <template>
@@ -158,18 +209,53 @@ function startJob() {
 
       <section class="tactical-paper-surface min-h-0 flex-1 overflow-auto bg-card" aria-label="实验室列表">
         <div class="min-w-[720px]">
-          <div class="tactical-desk-head tactical-table-head grid h-12 grid-cols-[minmax(220px,1fr)_80px_120px_72px] items-center gap-4 border-b border-border px-6 text-caption text-muted-foreground">
-            <span>作业</span><span>范围</span><span>最近</span><span class="sr-only">打开</span>
+          <div class="tactical-desk-head tactical-table-head grid h-12 grid-cols-[minmax(220px,1fr)_80px_120px_40px_72px] items-center gap-4 border-b border-border px-6 text-caption text-muted-foreground">
+            <span>作业</span><span>范围</span><span>最近</span><span class="sr-only">操作</span><span class="sr-only">打开</span>
           </div>
           <article
             v-for="job in labJobs"
             :key="job.id"
-            class="tactical-row grid min-h-[72px] w-full grid-cols-[minmax(220px,1fr)_80px_120px_72px] items-center gap-4 px-6 text-left"
+            class="tactical-row grid min-h-[72px] w-full grid-cols-[minmax(220px,1fr)_80px_120px_40px_72px] items-center gap-4 px-6 text-left"
             data-testid="catalog-row"
           >
-            <span class="truncate text-control font-medium select-text">{{ job.title }}</span>
+            <Input
+              v-if="editingJobId === job.id"
+              :ref="setRenameInput"
+              v-model="editingTitle"
+              size="sm"
+              class="h-8 min-w-0"
+              aria-label="编辑作业标题"
+              maxlength="40"
+              @keydown.enter="submitRename($event, job)"
+              @keydown.escape="abortRename($event)"
+              @blur="finishRename(job)"
+            />
+            <span
+              v-else
+              class="truncate text-control font-medium select-text"
+              data-testid="lab-job-title"
+              @dblclick.stop="startRename(job)"
+            >{{ job.title }}</span>
             <span class="text-body">{{ labScopeLabel(job.scope) }}</span>
             <span class="text-caption text-muted-foreground">{{ new Date(job.updatedAt).toLocaleDateString() }}</span>
+            <DropdownMenu v-if="editingJobId !== job.id">
+              <DropdownMenuTrigger as-child>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="作业操作"
+                  @click.stop
+                >
+                  <MoreVertical class="size-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" :side-offset="4" class="w-40">
+                <DropdownMenuItem aria-label="重命名作业" @select="startRename(job)">
+                  <Pencil class="size-4" />重命名
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <span v-else class="size-8" aria-hidden="true" />
             <Button size="sm" variant="outline" data-testid="open-item" @click="openJob(job)">打开</Button>
           </article>
         </div>
@@ -201,7 +287,7 @@ function startJob() {
             <h2 class="text-label font-medium">报告</h2>
             <ResearchReportPanel
               class="mt-4"
-              :workspace-path="conversation?.workspacePath ?? ''"
+              :workspace-path="workspacePath || conversation?.workspacePath || ''"
               :refresh-key="running ? 'run' : conversation?.messages.length"
             />
           </section>
