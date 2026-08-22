@@ -1,0 +1,31 @@
+MilkSU
+Copyright 2026 MilkSU contributors
+
+This product is licensed under the GNU Affero General Public License v3.0
+only. See LICENSE.
+
+MilkSU may incorporate AGPL-3.0 components, including Obelisk
+(https://github.com/tommy0103/obelisk). Those components keep their original
+copyright and AGPL-3.0 terms.
+
+This distribution also includes independently licensed third-party software.
+Those licenses remain in force for those files. Copies are kept under
+third_party/licenses/ and in the corresponding dependency packages.
+
+Third-party software includes, without limitation:
+
+- Pi Agent Harness (@earendil-works/pi-coding-agent, pi-ai, pi-tui)
+  Copyright Mario Zechner. MIT.
+- Pi extensions (pi-goal, pi-lsp, pi-mcp-adapter, pi-sub-agent,
+  pi-better-background-tasks). MIT.
+- Cua Computer Use driver. Copyright Cua AI, Inc. MIT.
+- Archify. MIT.
+- Playwright MCP. Apache-2.0.
+- Electron, Vue, xterm.js, AntV G6, and related desktop/UI libraries. MIT
+  or ISC as declared by each package.
+- TypeScript. Apache-2.0.
+- DOMPurify. MPL-2.0 OR Apache-2.0.
+- Inter Variable and Noto Sans SC Variable fonts. SIL Open Font License 1.1.
+
+Font files remain under the SIL Open Font License and are not relicensed by
+MilkSU's AGPL-3.0-only grant.

@@ -88,6 +88,7 @@ code, configuration, test defaults or documentation.
 
 - Pi owns the generic model session, context compaction and tool loop.
 - MilkSU owns desktop authorization, workspace and credential boundaries, event projection and product UI.
+- MilkSU is licensed AGPL-3.0-only so it can incorporate AGPL components such as Obelisk. Permissive MIT/Apache/BSD plugins remain usable with their notices kept. Do not add GPL-2.0-only, SSPL, or proprietary cores.
 - The CTF domain owns Challenge, Evidence, Candidate, Judge Receipt, Recovery, Memory and learning facts.
 - CTF, CVE, 实验室 and Coding are peer workspaces. What is shipped today is current fact, not a ceiling:
   CVE tracking and reproduction reports, the CTF challenge loop, laboratory probing and the Coding

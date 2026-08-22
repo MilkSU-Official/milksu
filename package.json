@@ -3,7 +3,7 @@
   "version": "26.823.1",
   "description": "MilkSU — one-stop cybersecurity AI learning client",
   "type": "module",
-  "license": "MIT",
+  "license": "AGPL-3.0-only",
   "scripts": {
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
