@@ -9,15 +9,14 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/MilkSU-Official/milksu/releases"><img src="https://img.shields.io/badge/status-internal_beta-a6ef00?style=flat-square&labelColor=20211f" alt="Internal beta"></a>
+  <a href="https://github.com/MilkSU-Official/milksu/releases/tag/v26.823.1"><img src="https://img.shields.io/badge/latest_release-26.823.1-f3f0e8?style=flat-square&labelColor=20211f" alt="Latest GitHub Release 26.823.1"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue?style=flat-square&labelColor=20211f" alt="AGPL-3.0-only"></a>
-  <img src="https://img.shields.io/badge/latest_receipt-26.823.1-f3f0e8?style=flat-square&labelColor=20211f" alt="Latest receipted release 26.823.1">
   <img src="https://img.shields.io/badge/platform-macOS_Windows_Linux-f3f0e8?style=flat-square&labelColor=20211f" alt="macOS, Windows and Linux">
   <img src="https://img.shields.io/badge/desktop-Electron_%2B_Vue_%2B_Go-f3f0e8?style=flat-square&labelColor=20211f" alt="Electron, Vue and Go">
 </p>
 
 <p align="center">
-  <a href="https://github.com/MilkSU-Official/milksu/releases">下载内测版</a>
+  <a href="https://github.com/MilkSU-Official/milksu/releases/tag/v26.823.1">下载</a>
   ·
   <a href="docs/architecture/current-system.md">了解系统</a>
   ·
@@ -30,7 +29,7 @@ MilkSU 把 Coding、CTF、CVE 和实验室放进同一个桌面工作台。你�
 
 它不是又一个只有输入框的聊天客户端。MilkSU 让 Agent 的工作对象真正出现在你面前：项目文件、内置浏览器、真实浏览器标签页和外部桌面应用都可以成为当前任务的一部分；你可以随时观察、补充要求、接管或停止。
 
-可下载的最新三端回执发行是 **26.823.1**。下载页以 [v26.823.1](https://github.com/MilkSU-Official/milksu/releases/tag/v26.823.1) 为准，不要把同版本号的后续提交或空 tag 当成已经发出的包。
+可下载的最新正式 GitHub Release 是 **26.823.1**。下载页以 [v26.823.1](https://github.com/MilkSU-Official/milksu/releases/tag/v26.823.1) 为准，不要把同版本号的后续提交或空 tag 当成已经发出的包。
 
 ## 你可以用 MilkSU 做什么
 
@@ -104,7 +103,7 @@ MilkSU 会把当前任务可用的能力告诉模型，再由模型按上下文�
 
 ## 开始使用
 
-MilkSU 目前处于内测阶段。
+当前 Latest 是 `26.823.1`。Windows 安装器尚未代码签名，Linux 仍是试用 DEB。
 
 1. 从 [Releases](https://github.com/MilkSU-Official/milksu/releases/tag/v26.823.1) 下载 `26.823.1`：
    - **macOS Apple Silicon**：Developer ID 签名并经 Apple 公证的 DMG，正式支持；
@@ -112,7 +111,7 @@ MilkSU 目前处于内测阶段。
    - **Linux x64**：试用 DEB，已验证包结构、Sidecar、Go Runtime 与 Xvfb 启动，不含 Secret Service、本地 OCR 或 Computer Use。
 2. 安装并打开 MilkSU；
 3. 使用 GitHub 登录；
-4. 由内测管理员为账户开通模型，或在“设置 → 模型”中添加自己的 Provider / OpenAI-compatible 中转站；
+4. 由管理员为账户开通模型，或在“设置 → 模型”中添加自己的 Provider / OpenAI-compatible 中转站；
 5. 选择 Coding、CTF、CVE 或实验室，开始第一个任务。
 
 账户未分配模型额度时仍可登录和浏览本地功能，只是暂时不能发起模型任务。macOS 正式版本使用 Developer ID 签名与 Apple 公证；Stable 客户端支持登录后检查受保护的应用更新，但 `26.823.1` 没有发布 OTA。
@@ -126,7 +125,7 @@ MilkSU 目前处于内测阶段。
 
 ## 当前状态
 
-最近一次带哈希回执的三端内测包是 **26.823.1**（2026-08-23）：CTF、CVE 和实验室与 Coding 共用完整工作循环，长任务会自动整理上下文，CVE 列表会显示同步进来的公开源条目。
+最近一次带哈希回执的三端正式 GitHub Release 是 **26.823.1**（2026-08-23）：CTF、CVE 和实验室与 Coding 共用完整工作循环，长任务会自动整理上下文，CVE 列表会显示同步进来的公开源条目。
 
 MilkSU 面向个人学习、授权研究和本地开发，不是互联网资产扫描器或无人值守的自动红队平台。
 

@@ -179,13 +179,13 @@ deferred to one destructive pre-release consolidation after the product slices a
 
 ## Release Claims
 
-- The last receipted three-platform internal release is `v26.823.1` at `efeda10`. Write both that
+- The last receipted three-platform GitHub Release is `v26.823.1` at `efeda10`. Write both that
   baseline and the current development version line when HEAD is later.
 - After every GitHub Release, immediately update and push `docs/developer/current-objectives.md`,
   `docs/developer/document-status.md`, `docs/architecture/current-system.md`, `README.md` and this
   section. Do not leave the previous receipt as "latest".
 - A version bump, empty tag, local dirty package or later `main` commits on the same version number
-  are still not a new ship. `26.823.1` is a receipted prerelease; commits after `efeda10` are not.
+  are still not a new ship. `26.823.1` is a receipted GitHub Release; commits after `efeda10` are not.
 - GitHub writes stay on the authorized MilkSU remote (`MilkSU-Official/milksu`) and still require
   the product's meaningful publish confirmation.
 

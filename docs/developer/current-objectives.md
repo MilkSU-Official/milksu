@@ -6,7 +6,7 @@
 >
 > 本页只回答“当前处于什么阶段、下一条完成线是什么”。实现事实以当前代码、测试、Git 历史和原生 App 验收为准；历史设计与旧里程碑不作为任务队列。
 >
-> 发版改动与未发版改动必须分开写。有三端回执的正式内测包是今日首发 `26.823.1`。
+> 发版改动与未发版改动必须分开写。有三端回执的正式 GitHub Release 是今日首发 `26.823.1`。
 > 文档收口提交不移动该 tag。不要把晚于 `efeda10` 的 HEAD 写成已发版。
 
 ## 工作规则
@@ -30,7 +30,7 @@
 | --- | --- |
 | 阶段 | **内测迭代 / Agent Runtime 与跨平台发行收敛**。当前工作不再按 M3/M4 里程碑组织。 |
 | 历史基线 | M3 product-loop 已在 `108e0e3`（2026-08-05）合并，仅供追溯。 |
-| 正式发行基线 | `v26.823.1 / efeda10af4f1e2cf55c4a8db1761cdbb486055a2`（2026-08-23 今日首发）。这是最近一次带 SHA-256 与三端产物的内测发行；GitHub prerelease 提供带版本号的 DMG、EXE、DEB 与 `SHA256SUMS`；R2/Admin current pointer 未发布。 |
+| 正式发行基线 | `v26.823.1 / efeda10af4f1e2cf55c4a8db1761cdbb486055a2`（2026-08-23 今日首发）。这是当前 GitHub Latest Release；提供带版本号的 DMG、EXE、DEB 与 `SHA256SUMS`；R2/Admin current pointer 未发布。 |
 | 开发版本线 | 根目录与 `desktop/package.json` 是 `26.823.1`。正式发行源是 `efeda10`；文档收口提交不移动该 tag。 |
 | 当前开发 | 正式包是 `26.823.1`。CTF / CVE / 实验室共用完整 Coding 循环、始终开启的上下文整理，以及 CVE 列表里的公开源条目，都已打进本包。 |
 | 平台边界 | `26.823.1`：macOS DMG 本机 Developer ID 签名并公证；Windows 安装器完成原生 Runtime 与首次启动但未代码签名，并打入审阅过的 CUA Driver；Linux DEB 完成包结构、Sidecar、Go Runtime 与 Xvfb Electron 启动，仍无 Secret Service、本地 OCR、Computer Use。 |
@@ -119,7 +119,7 @@
 - 夜间模式 Agent 气泡里的代码块跟气泡前景色；产品窗口拦截 Ctrl+R / Cmd+R / F5，不再回到启动加载页。
 - Windows 后台任务与前台 bash 用同一套解析，缺 bash 时作为工具失败返回。非 macOS 上项目 MCP 不再包一层 sandbox-exec。
 - 标题、侧栏和正文共用 Inter Variable + Noto Sans SC Variable。Sidecar 崩溃时不再把 Node 内部栈第一行当成用户可见原因。
-- GitHub prerelease 提供 DMG / EXE / DEB 与 `SHA256SUMS-26.823.1.txt`。
+- GitHub Release（Latest）提供 DMG / EXE / DEB 与 `SHA256SUMS-26.823.1.txt`。
 
 ## 未发版改动：晚于 `v26.823.1` / `efeda10` 的 `main`
 
@@ -158,9 +158,9 @@
 
 ## 当前完成线
 
-### 已完成：`26.823.1` 今日首发三端内测发行
+### 已完成：`26.823.1` 今日首发三端正式 GitHub Release
 
-三端都从 `efeda10af4f1e2cf55c4a8db1761cdbb486055a2` 构建。GitHub prerelease 为
+三端都从 `efeda10af4f1e2cf55c4a8db1761cdbb486055a2` 构建。GitHub Latest Release 为
 `v26.823.1`，没有上传 OTA ZIP；R2/Admin current pointer 未改变。macOS 走本机
 Developer ID 签名与公证。Windows / Linux 走成功的 Actions run。
 
