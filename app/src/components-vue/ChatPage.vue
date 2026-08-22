@@ -104,6 +104,10 @@ import {
 import { chatTopbarPresentation } from '@/lib/chatTopbar'
 import { resolveModelContextWindow } from '@/lib/knownContextWindow'
 import {
+  effectiveModelThinkingLevel,
+  resolveModelThinking,
+} from '@/lib/modelThinking'
+import {
   applySessionContextWindow,
   presentContextUsage,
   presentRunTiming,
@@ -154,6 +158,7 @@ import type {
   CodingProductActionRequest,
   Conversation,
   CTFChatAction,
+  ModelThinkingLevel,
 } from '@/types'
 import type { CodingMessageQueue } from '@/composables/useConversations'
 import {
@@ -189,6 +194,7 @@ const props = defineProps<{
   modelMode?: 'auto' | 'manual'
   modelProvider?: string
   modelId?: string
+  thinkingLevel?: ModelThinkingLevel
   modelSourcePreference?: 'auto' | 'account' | 'personal'
   executionMode?: CodingExecutionMode
   approvalPolicy?: CodingApprovalPolicy
@@ -218,6 +224,7 @@ const emit = defineEmits<{
   cancelQueuedGuidance: [index: number]
   editQueuedGuidance: [index: number]
   changeModel: [mode: 'auto' | 'manual', provider?: string, model?: string]
+  changeThinkingLevel: [level: ModelThinkingLevel]
   changeModelSource: [preference: 'auto' | 'account' | 'personal']
   changeCodingPolicy: [
     executionMode: CodingExecutionMode,
@@ -335,6 +342,23 @@ const automaticModelLabel = computed(() => {
   if (match) return `Default · ${pickerModelLabel(match, selection.model)}`
   return `Default · ${providerModelLabel(selection.provider, selection.model)}`
 })
+const currentModelSelection = computed(() => ({
+  provider: effectiveModelMode.value === 'auto'
+    ? automaticModel.value?.provider ?? ''
+    : props.modelProvider || props.settings?.active_provider || '',
+  model: effectiveModelMode.value === 'auto'
+    ? automaticModel.value?.model ?? ''
+    : props.modelId || props.settings?.active_model || '',
+}))
+const currentThinkingProfile = computed(() => resolveModelThinking(
+  props.settings,
+  currentModelSelection.value.provider,
+  currentModelSelection.value.model,
+))
+const currentThinkingLevel = computed(() => effectiveModelThinkingLevel(
+  currentThinkingProfile.value,
+  props.thinkingLevel,
+))
 const activeExtensions = computed(() => (
   props.conversation?.agentExtensions ?? []
 ))
@@ -2183,6 +2207,8 @@ watch(
       :model-key="currentModelKey"
       :automatic-model-label="automaticModelLabel"
       :compact-model-label="compactModelLabel"
+      :thinking-levels="currentThinkingProfile.levels"
+      :thinking-level="currentThinkingLevel"
       :compact-disabled="continuity.compactDisabled"
       :context-usage="contextUsagePresentation"
       :run-elapsed-label="runTimingPresentation?.label"
@@ -2206,6 +2232,7 @@ watch(
       @change-execution-mode="changeExecutionMode"
       @change-approval-policy="changeApprovalPolicy"
       @change-model="changeModel"
+      @change-thinking-level="$emit('changeThinkingLevel', $event)"
       @show-permissions="showCodingPermissions"
       @choose-workspace="chooseWorkspaceFromCurrentTask"
       @select-workspace="selectRecentProject"

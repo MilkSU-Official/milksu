@@ -315,6 +315,7 @@ function selectedModel(argumentsList) {
   const thinkingMatch = model.match(
     /:(off|minimal|low|medium|high|xhigh|max)$/,
   );
+  const thinkingLevel = thinkingMatch?.[1];
   if (thinkingMatch) model = model.slice(0, -thinkingMatch[0].length);
   if (
     !/^[a-z0-9][a-z0-9._-]{0,63}$/.test(provider)
@@ -324,7 +325,7 @@ function selectedModel(argumentsList) {
   ) {
     return undefined;
   }
-  return { model, provider };
+  return { model, provider, thinkingLevel };
 }
 
 function writeRuntimeModelConfig(
@@ -377,8 +378,21 @@ function writeRuntimeModelConfig(
         models: [{
           id: selection.model,
           name: selection.model,
+          reasoning: Boolean(selection.thinkingLevel),
+          thinkingLevelMap: selection.thinkingLevel
+            ? {
+                [selection.thinkingLevel]: selection.thinkingLevel === "off"
+                  ? "none"
+                  : selection.thinkingLevel,
+              }
+            : undefined,
           contextWindow: require("./known-context-window.cjs").resolveModelContextWindow(selection.model, 0),
           maxTokens: 32768,
+          compat: {
+            supportsDeveloperRole: false,
+            supportsReasoningEffort: Boolean(selection.thinkingLevel),
+            maxTokensField: "max_tokens",
+          },
         }],
       },
     },

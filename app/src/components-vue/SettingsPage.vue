@@ -71,6 +71,8 @@ import type {
   UserArtifactDirectoryStatus,
   LocalDiagnosticExport,
   ModelProbeResult,
+  ModelThinkingConfig,
+  ModelThinkingLevel,
   ProviderConfig,
   ProviderInfo,
 } from '@/types'
@@ -99,6 +101,13 @@ import {
 } from '@/lib/externalEditor'
 import ExternalEditorIcon from '@/components-vue/ExternalEditorIcon.vue'
 import { buildDiagnosticText, isDebugMode, setDebugMode } from '@/lib/debugMode'
+import {
+  builtInModelThinking,
+  MODEL_THINKING_LEVEL_LABELS,
+  MODEL_THINKING_LEVELS,
+  normalizeModelThinkingConfig,
+  resolveModelThinking,
+} from '@/lib/modelThinking'
 
 type SettingsCategory = 'general' | 'apikeys' | 'ctf' | 'cve' | 'coding' | 'chats' | 'browser' | 'security-tools'
 
@@ -328,6 +337,114 @@ const defaultModelLabel = computed(() => {
   )
 })
 
+const thinkingModelKey = ref('')
+const thinkingModelSelection = computed(() => (
+  parsePickerSelection(thinkingModelKey.value)
+))
+const thinkingModelProvider = computed(() => thinkingModelSelection.value?.providerId ?? '')
+const thinkingModelID = computed(() => thinkingModelSelection.value?.model ?? '')
+const thinkingModelLabel = computed(() => {
+  const selection = thinkingModelSelection.value
+  if (!selection) return '选择模型'
+  const group = availablePickerGroups.value.find(item => (
+    item.providerId === selection.providerId
+    && item.models.includes(selection.model)
+  ))
+  return group
+    ? availablePickerModelLabel(group, selection.model)
+    : availableProviderModelLabel(selection.providerId, selection.model)
+})
+const thinkingOverride = computed(() => (
+  working.value?.model_thinking?.[thinkingModelProvider.value]?.[thinkingModelID.value]
+))
+const thinkingProfile = computed(() => resolveModelThinking(
+  working.value,
+  thinkingModelProvider.value,
+  thinkingModelID.value,
+))
+
+watch([working, availablePickerGroups], () => {
+  const current = thinkingModelSelection.value
+  const stillAvailable = current && availablePickerGroups.value.some(group => (
+    group.providerId === current.providerId && group.models.includes(current.model)
+  ))
+  if (stillAvailable) return
+  const active = working.value
+    ? matchPickerGroup(working.value.active_provider, working.value.active_model)
+    : undefined
+  const fallback = active ?? availablePickerGroups.value[0]
+  const model = active
+    ? working.value?.active_model
+    : fallback?.models[0]
+  thinkingModelKey.value = fallback && model
+    ? encodePickerSelection(fallback.providerId, model, fallback.source)
+    : ''
+}, { immediate: true })
+
+function setThinkingOverride(config: ModelThinkingConfig) {
+  if (!working.value || !thinkingModelProvider.value || !thinkingModelID.value) return
+  const provider = thinkingModelProvider.value
+  working.value.model_thinking = {
+    ...(working.value.model_thinking ?? {}),
+    [provider]: {
+      ...(working.value.model_thinking?.[provider] ?? {}),
+      [thinkingModelID.value]: normalizeModelThinkingConfig(config),
+    },
+  }
+}
+
+function thinkingConfigForEdit(): ModelThinkingConfig {
+  if (thinkingOverride.value) return normalizeModelThinkingConfig(thinkingOverride.value)
+  const preset = builtInModelThinking(thinkingModelID.value)
+  return normalizeModelThinkingConfig(preset ?? {
+    enabled: true,
+    levels: ['low', 'medium', 'high'],
+    default_level: 'medium',
+  })
+}
+
+function setModelThinkingEnabled(enabled: boolean) {
+  const config = thinkingConfigForEdit()
+  setThinkingOverride({ ...config, enabled })
+}
+
+function toggleModelThinkingLevel(level: ModelThinkingLevel) {
+  const config = thinkingConfigForEdit()
+  const selected = new Set(config.levels)
+  if (selected.has(level)) {
+    if (selected.size === 1) return
+    selected.delete(level)
+  } else {
+    selected.add(level)
+  }
+  setThinkingOverride({
+    ...config,
+    enabled: true,
+    levels: MODEL_THINKING_LEVELS.filter(item => selected.has(item)),
+  })
+}
+
+function setModelThinkingDefault(level: string) {
+  if (!MODEL_THINKING_LEVELS.includes(level as ModelThinkingLevel)) return
+  const config = thinkingConfigForEdit()
+  setThinkingOverride({
+    ...config,
+    enabled: true,
+    default_level: level as ModelThinkingLevel,
+  })
+}
+
+function resetModelThinkingOverride() {
+  if (!working.value?.model_thinking?.[thinkingModelProvider.value]) return
+  const provider = thinkingModelProvider.value
+  const models = { ...working.value.model_thinking[provider] }
+  delete models[thinkingModelID.value]
+  const modelThinking = { ...working.value.model_thinking }
+  if (Object.keys(models).length) modelThinking[provider] = models
+  else delete modelThinking[provider]
+  working.value.model_thinking = Object.keys(modelThinking).length ? modelThinking : undefined
+}
+
 /** Keep active_provider/model on an enabled callable service after toggles. */
 function alignDefaultModelToEnabledServices() {
   if (!working.value) return
@@ -459,6 +576,7 @@ function removeModelService(id: string) {
   const custom = Boolean(config.custom)
   if (config.custom) {
     delete working.value.providers[id]
+    if (working.value.model_thinking) delete working.value.model_thinking[id]
   } else {
     working.value.providers[id] = {
       ...config,
@@ -504,6 +622,9 @@ function removeCustomRelayModel(model: string) {
   const target = editingProvider.value?.custom ? editingProvider.value : provider.value
   if (!working.value || !target?.custom) return
   target.models = (target.models ?? []).filter(item => item !== model)
+  if (editingProviderID.value && working.value.model_thinking?.[editingProviderID.value]) {
+    delete working.value.model_thinking[editingProviderID.value][model]
+  }
   if (working.value.active_provider === editingProviderID.value && working.value.active_model === model) {
     working.value.active_model = target.models[0] ?? ''
   }
@@ -1784,6 +1905,128 @@ async function saveProviderEditor(closeAfterSave: boolean) {
               </article>
             </div>
           </section>
+
+          <SettingsSection
+            title="模型能力"
+            class="mt-8"
+          >
+            <div class="rounded-lg border border-border bg-card p-4">
+              <div class="flex flex-wrap items-start justify-between gap-4">
+                <div class="min-w-0 flex-1">
+                  <p class="font-medium">思考层级</p>
+                  <p class="mt-1 text-caption text-muted-foreground">
+                    GPT 与 Claude Opus、Sonnet、Fable 使用内置预设；其他模型需要手动启用并选择实际支持的档位
+                  </p>
+                </div>
+                <Badge variant="outline">
+                  {{ thinkingProfile.source === 'preset'
+                    ? '内置预设'
+                    : thinkingProfile.source === 'manual'
+                      ? '手动配置'
+                      : '未启用' }}
+                </Badge>
+              </div>
+
+              <div class="mt-4 grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                <Select v-model="thinkingModelKey">
+                  <SelectTrigger
+                    size="sm"
+                    class="w-full"
+                    aria-label="配置思考层级的模型"
+                  >
+                    <SelectValue>
+                      <span class="inline-flex min-w-0 items-center gap-2">
+                        <ModelVendorIcon
+                          :model="thinkingModelID"
+                          :label="thinkingModelLabel"
+                        />
+                        <span class="min-w-0 truncate">{{ thinkingModelLabel }}</span>
+                      </span>
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent size="sm" align="start" class="min-w-96">
+                    <template
+                      v-for="(group, groupIndex) in availablePickerGroups"
+                      :key="`thinking:${group.key}`"
+                    >
+                      <SelectSeparator v-if="groupIndex > 0" />
+                      <SelectGroup>
+                        <SelectLabel>{{ group.label }}</SelectLabel>
+                        <SelectItem
+                          v-for="model in group.models"
+                          :key="`thinking:${group.key}:${model}`"
+                          :value="encodePickerSelection(group.providerId, model, group.source)"
+                        >
+                          <span class="inline-flex min-w-0 items-center gap-2">
+                            <ModelVendorIcon
+                              :model="model"
+                              :label="availablePickerModelLabel(group, model)"
+                            />
+                            <span class="min-w-0 truncate">{{ availablePickerModelLabel(group, model) }}</span>
+                          </span>
+                        </SelectItem>
+                      </SelectGroup>
+                    </template>
+                  </SelectContent>
+                </Select>
+
+                <div class="flex items-center justify-end gap-3">
+                  <button
+                    v-if="thinkingOverride"
+                    type="button"
+                    class="text-caption text-link hover:underline"
+                    @click="resetModelThinkingOverride"
+                  >
+                    恢复预设
+                  </button>
+                  <Switch
+                    :model-value="thinkingProfile.enabled"
+                    :disabled="!thinkingModelID"
+                    aria-label="启用模型思考层级"
+                    @update:model-value="setModelThinkingEnabled(Boolean($event))"
+                  />
+                </div>
+              </div>
+
+              <div v-if="thinkingProfile.enabled" class="mt-4 border-t border-border pt-4">
+                <p class="text-label font-medium text-muted-foreground">支持档位</p>
+                <div class="mt-2 flex flex-wrap gap-2">
+                  <button
+                    v-for="level in MODEL_THINKING_LEVELS"
+                    :key="level"
+                    type="button"
+                    class="inline-flex min-h-8 items-center gap-1.5 rounded-md border px-2.5 text-caption transition-colors"
+                    :class="thinkingProfile.levels.includes(level)
+                      ? 'border-primary bg-primary/10 text-foreground'
+                      : 'border-border text-muted-foreground hover:bg-muted/50'"
+                    :aria-pressed="thinkingProfile.levels.includes(level)"
+                    @click="toggleModelThinkingLevel(level)"
+                  >
+                    <Check v-if="thinkingProfile.levels.includes(level)" class="size-3.5" />
+                    {{ MODEL_THINKING_LEVEL_LABELS[level] }}
+                  </button>
+                </div>
+
+                <label class="mt-4 flex items-center justify-between gap-4 text-caption">
+                  <span class="text-muted-foreground">默认档位</span>
+                  <NativeSelect
+                    :model-value="thinkingProfile.defaultLevel"
+                    size="sm"
+                    aria-label="默认思考层级"
+                    @update:model-value="setModelThinkingDefault(String($event))"
+                  >
+                    <NativeSelectOption
+                      v-for="level in thinkingProfile.levels"
+                      :key="level"
+                      :value="level"
+                    >
+                      {{ MODEL_THINKING_LEVEL_LABELS[level] }}
+                    </NativeSelectOption>
+                  </NativeSelect>
+                </label>
+              </div>
+            </div>
+          </SettingsSection>
 
           <div class="mt-6 flex justify-end">
             <Button :loading="saving || verifying" @click="save">

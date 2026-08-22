@@ -1,4 +1,5 @@
 import { normalizePreferredExternalEditor } from '@/lib/externalEditor'
+import { normalizeModelThinkingSettings } from '@/lib/modelThinking'
 
 export type MessageRole = 'user' | 'assistant' | 'tool'
 
@@ -123,6 +124,8 @@ export interface Conversation {
   modelMode?: 'auto' | 'manual'
   modelProvider?: string
   modelId?: string
+  /** Request-level Pi thinking selection for this conversation. */
+  thinkingLevel?: ModelThinkingLevel
   /** Preferred credential source for this conversation; undefined means global order. */
   modelSourcePreference?: ModelSource
   /** Source that actually served the latest model turn. */
@@ -231,6 +234,14 @@ export interface ModelRoutingConfig {
   auto_fallback: boolean
 }
 
+export type ModelThinkingLevel = 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+
+export interface ModelThinkingConfig {
+  enabled: boolean
+  levels: ModelThinkingLevel[]
+  default_level?: ModelThinkingLevel
+}
+
 export interface AppSettings {
   active_provider: string
   active_model: string
@@ -242,6 +253,7 @@ export interface AppSettings {
   disabled_skills?: string[]
   preferred_external_editor?: string
   security_tools?: Record<string, { enabled: boolean }>
+  model_thinking?: Record<string, Record<string, ModelThinkingConfig>>
   providers: Record<string, ProviderConfig>
 }
 
@@ -288,6 +300,7 @@ export function withAppSettingsDefaults(value: AppSettings): AppSettings {
     disabled_skills: [...new Set((value.disabled_skills ?? [])
       .map(name => String(name).trim())
       .filter(name => /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(name)))],
+    model_thinking: normalizeModelThinkingSettings(value.model_thinking, configuredProviders),
     providers: configuredProviders,
   }
 }

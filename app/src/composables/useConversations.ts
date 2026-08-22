@@ -25,6 +25,7 @@ import { redactProviderCredentials } from '@/lib/redaction'
 import { normalizeDomainTaskContext } from '@/lib/domainTaskContext'
 import { shouldRememberCodingProject } from '@/lib/codingProjectMemory'
 import { resolveModelContextWindow } from '@/lib/knownContextWindow'
+import { MODEL_THINKING_LEVELS } from '@/lib/modelThinking'
 import {
   applySessionCompacting,
   applySessionContextWindow,
@@ -47,6 +48,7 @@ import type {
   CodingProductActionRequest,
   Conversation,
   Message,
+  ModelThinkingLevel,
 } from '@/types'
 
 const BROWSER_USE_MCP_SERVER = 'milksu-playwright-user'
@@ -300,6 +302,9 @@ export function normalizeConversation(raw: Record<string, unknown>): Conversatio
       : undefined,
     modelProvider: typeof raw.modelProvider === 'string' ? raw.modelProvider : undefined,
     modelId: typeof raw.modelId === 'string' ? raw.modelId : undefined,
+    thinkingLevel: MODEL_THINKING_LEVELS.includes(raw.thinkingLevel as ModelThinkingLevel)
+      ? raw.thinkingLevel as ModelThinkingLevel
+      : undefined,
     modelSourcePreference: raw.modelSourcePreference === 'account'
       || raw.modelSourcePreference === 'personal'
       ? raw.modelSourcePreference
@@ -589,6 +594,7 @@ export function useConversations() {
   const pendingModelMode = ref<'auto' | 'manual' | undefined>()
   const pendingModelProvider = ref<string | undefined>()
   const pendingModelId = ref<string | undefined>()
+  const pendingThinkingLevel = ref<ModelThinkingLevel | undefined>()
   const pendingModelSourcePreference = ref<'auto' | 'account' | 'personal'>('auto')
   const pendingExecutionMode = ref<CodingExecutionMode>(DEFAULT_CODING_EXECUTION_MODE)
   const pendingApprovalPolicy = ref<CodingApprovalPolicy>(DEFAULT_CODING_APPROVAL_POLICY)
@@ -662,6 +668,9 @@ export function useConversations() {
   const selectedModelMode = computed(() => active.value?.modelMode ?? pendingModelMode.value)
   const selectedModelProvider = computed(() => active.value?.modelProvider ?? pendingModelProvider.value)
   const selectedModelId = computed(() => active.value?.modelId ?? pendingModelId.value)
+  const selectedThinkingLevel = computed(() => (
+    active.value?.thinkingLevel ?? pendingThinkingLevel.value
+  ))
   const selectedModelSourcePreference = computed(() => (
     active.value?.modelSourcePreference ?? pendingModelSourcePreference.value
   ))
@@ -796,6 +805,7 @@ export function useConversations() {
       modelMode: conversation.modelMode ?? '',
       modelProvider: conversation.modelProvider ?? '',
       modelId: conversation.modelId ?? '',
+      thinkingLevel: conversation.thinkingLevel ?? '',
       modelSourcePreference: conversation.modelSourcePreference ?? 'auto',
       executionMode: conversation.executionMode ?? DEFAULT_CODING_EXECUTION_MODE,
       approvalPolicy: conversation.approvalPolicy ?? DEFAULT_CODING_APPROVAL_POLICY,
@@ -886,6 +896,7 @@ export function useConversations() {
     pendingModelMode.value = undefined
     pendingModelProvider.value = undefined
     pendingModelId.value = undefined
+    pendingThinkingLevel.value = undefined
     pendingModelSourcePreference.value = 'auto'
     pendingExecutionMode.value = DEFAULT_CODING_EXECUTION_MODE
     pendingApprovalPolicy.value = DEFAULT_CODING_APPROVAL_POLICY
@@ -942,6 +953,7 @@ export function useConversations() {
       modelMode: pendingModelMode.value,
       modelProvider: pendingModelProvider.value,
       modelId: pendingModelId.value,
+      thinkingLevel: pendingThinkingLevel.value,
       modelSourcePreference: pendingModelSourcePreference.value === 'auto'
         ? undefined
         : pendingModelSourcePreference.value,
@@ -1003,9 +1015,13 @@ export function useConversations() {
     const normalizedProvider = provider?.trim() || undefined
     const normalizedModel = model?.trim() || undefined
     if (!activeId.value) {
+      const changed = pendingModelMode.value !== mode
+        || pendingModelProvider.value !== normalizedProvider
+        || pendingModelId.value !== normalizedModel
       pendingModelMode.value = mode
       pendingModelProvider.value = mode === 'manual' ? normalizedProvider : undefined
       pendingModelId.value = mode === 'manual' ? normalizedModel : undefined
+      if (changed) pendingThinkingLevel.value = undefined
       return
     }
     update(activeId.value, conversation => ({
@@ -1013,7 +1029,21 @@ export function useConversations() {
       modelMode: mode,
       modelProvider: mode === 'manual' ? normalizedProvider : undefined,
       modelId: mode === 'manual' ? normalizedModel : undefined,
+      thinkingLevel: conversation.modelMode !== mode
+        || conversation.modelProvider !== normalizedProvider
+        || conversation.modelId !== normalizedModel
+        ? undefined
+        : conversation.thinkingLevel,
     }))
+  }
+
+  function setThinkingLevel(level: ModelThinkingLevel) {
+    if (!MODEL_THINKING_LEVELS.includes(level)) return
+    if (!activeId.value) {
+      pendingThinkingLevel.value = level
+      return
+    }
+    update(activeId.value, conversation => ({ ...conversation, thinkingLevel: level }))
   }
 
   function setModelSourcePreference(preference: 'auto' | 'account' | 'personal') {
@@ -1152,6 +1182,7 @@ export function useConversations() {
         modelMode: pendingModelMode.value,
         modelProvider: pendingModelProvider.value,
         modelId: pendingModelId.value,
+        thinkingLevel: pendingThinkingLevel.value,
         modelSourcePreference: pendingModelSourcePreference.value === 'auto'
           ? undefined
           : pendingModelSourcePreference.value,
@@ -1433,6 +1464,7 @@ export function useConversations() {
         modelMode: conversation.modelMode ?? '',
         modelProvider: conversation.modelProvider ?? '',
         modelId: conversation.modelId ?? '',
+        thinkingLevel: conversation.thinkingLevel ?? '',
         modelSourcePreference: conversation.modelSourcePreference ?? 'auto',
         executionMode: conversation.executionMode ?? DEFAULT_CODING_EXECUTION_MODE,
         approvalPolicy: conversation.approvalPolicy ?? DEFAULT_CODING_APPROVAL_POLICY,
@@ -1909,6 +1941,7 @@ export function useConversations() {
     selectedModelMode,
     selectedModelProvider,
     selectedModelId,
+    selectedThinkingLevel,
     selectedModelSourcePreference,
     selectedExecutionMode,
     selectedApprovalPolicy,
@@ -1932,6 +1965,7 @@ export function useConversations() {
     setWorkspace,
     clearWorkspace,
     setModelSelection,
+    setThinkingLevel,
     setModelSourcePreference,
     setCodingPolicy,
     setMCPSelection,

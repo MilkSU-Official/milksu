@@ -29,7 +29,7 @@
 | 三端内测发行 | GitHub prerelease `v26.819.1` 已提供签名并公证的 macOS ARM64 DMG、未签名 Windows x64 EXE 和 Linux x64 试用 DEB，以及 `SHA256SUMS-26.819.1.txt`；R2/Admin current pointer 未发布。 |
 | Linux | `26.819.1` DEB 已包含当时的 Pi Runtime 收敛并通过原生 Ubuntu 包结构、Node/Pi、Go Runtime 与 Xvfb Electron 启动；仍不含 Secret Service、本地 OCR 或 Computer Use。 |
 | Agent Harness | Pi 拥有 Session、Compaction、自然语言理解、通用文件/Shell 与 Tool Loop。MilkSU 已删除 workspace-only 文件工具、Node 文件权限状态机、普通回合 watchdog、CTF sandbox-exec、CVE 只读启动限制与客服式回复模板。不扫描用户句子做关键词/正则意图路由。 |
-| 上下文工程 | 当前未发版代码把经监督器校验的主会话 cwd 明确注入 Pi；writer worktree 仅属于独立 effectful subagent。Sidecar 通过 Pi 原生长缓存保留复用稳定会话前缀，压缩仍禁用一次性缓存写入。Go / Sidecar / Vue 对缺失或旧 `128000` 占位窗口应用一致的 GPT、Claude、Grok 型号族预设；远端明确窗口优先。自动化已通过，真实 Provider 命中率提升仍待用户授权的计费链路验收。 |
+| 上下文工程 | 当前未发版代码把经监督器校验的主会话 cwd 明确注入 Pi；writer worktree 仅属于独立 effectful subagent。Sidecar 通过 Pi 原生长缓存保留复用稳定会话前缀，压缩仍禁用一次性缓存写入。Go / Sidecar / Vue 对缺失或旧 `128000` 占位窗口应用一致的 GPT、Claude、Grok 型号族预设；远端明确窗口优先。GPT 与 Claude Opus / Sonnet / Fable 使用思考档位预设，其他模型在设置中手动声明；Composer 的对话级离散滑块经 Go 约束后调用 Pi 原生档位，最高为 `max`，子 Agent 同步继承。自动化已通过，真实 Provider 缓存命中率与 effort 请求仍待用户授权的计费链路验收。 |
 | MilkSU 宿主边界 | 只保留会话目录记录、Provider 凭据隔离、桌面授权、领域事实/Judge，以及危险大目录删除二次确认。Coding 另有类型化 `milksu_workspace` 与对话级批准，不替代 Pi 工具循环。 |
 | 模型与附件 | 账户 TokenFlux 与本机 Provider 共用可调用模型目录；图片由当前模型原生 image input 或本地 OCR 自动路由，附件通过统一可预览/移除队列进入 Pi。 |
 | 网页查证 | Coding 复用固定 revision 的 Pi `web_search` / `web_fetch` Extension，已保留真实搜索和官方页面读取回执。 |

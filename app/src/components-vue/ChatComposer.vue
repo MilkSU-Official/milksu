@@ -69,6 +69,7 @@ import type {
   CodingExecutionMode,
   CodingGoalState,
   CTFChatAction,
+  ModelThinkingLevel,
 } from '@/types'
 import type { CodingGitChange, CodingRecentProject } from '@/codingEnvironmentTypes'
 import type { ContextUsagePresentation } from '@/lib/sessionTurnStatus'
@@ -122,6 +123,8 @@ const props = defineProps<{
   modelKey: string
   automaticModelLabel: string
   compactModelLabel: string
+  thinkingLevels?: ModelThinkingLevel[]
+  thinkingLevel?: ModelThinkingLevel
   compactDisabled?: boolean
   /** Last model usage projection; meter shows ring + hover details when present. */
   contextUsage?: ContextUsagePresentation | null
@@ -156,6 +159,7 @@ const emit = defineEmits<{
   changeExecutionMode: [value: string]
   changeApprovalPolicy: [value: string]
   changeModel: [value: string]
+  changeThinkingLevel: [level: ModelThinkingLevel]
   showPermissions: []
   consumeGoal: []
   startGoal: []
@@ -1416,8 +1420,11 @@ defineExpose({
             :model-key="modelKey"
             :automatic-model-label="automaticModelLabel"
             :compact-model-label="compactModelLabel"
+            :thinking-levels="thinkingLevels"
+            :thinking-level="thinkingLevel"
             @change-approval-policy="$emit('changeApprovalPolicy', $event)"
             @change-model="$emit('changeModel', $event)"
+            @change-thinking-level="$emit('changeThinkingLevel', $event)"
             @show-permissions="$emit('showPermissions')"
           >
             <template #leading>

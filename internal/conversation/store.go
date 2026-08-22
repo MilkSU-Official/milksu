@@ -67,6 +67,7 @@ type StoredConversation struct {
 	ModelMode         string              `json:"modelMode,omitempty"`
 	ModelProvider     string              `json:"modelProvider,omitempty"`
 	ModelID           string              `json:"modelId,omitempty"`
+	ThinkingLevel     string              `json:"thinkingLevel,omitempty"`
 	ExecutionMode     string              `json:"executionMode,omitempty"`
 	ApprovalPolicy    string              `json:"approvalPolicy,omitempty"`
 	MCPServers        []string            `json:"mcpServers,omitempty"`
