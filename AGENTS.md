@@ -116,7 +116,9 @@ gap before admitting a replacement mechanism.
 - Never read, print, migrate or place Provider API keys in model context, tool output, logs, diagnostics,
   documentation or ordinary files.
 - Never publish to referenced open-source repositories. GitHub writes are limited to the explicitly
-  authorized MilkSU private remote and still require the product's meaningful publish confirmation.
+  authorized MilkSU GitHub remote (`MilkSU-Official/milksu`) and still require the product's
+  meaningful publish confirmation. Signing, notary and R2 secrets stay in the `macos-release`
+  environment / Personal Vault, never in the repository.
 - Full Access and automatic approval do not bypass paid actions, external-account authorization, Scope
   expansion, path confinement or irreversible external effects.
 - Security actions against targets the user has not authorized require visible, exact authorization.
@@ -184,8 +186,8 @@ deferred to one destructive pre-release consolidation after the product slices a
   section. Do not leave the previous receipt as "latest".
 - A version bump, empty tag, local dirty package or later `main` commits on the same version number
   are still not a new ship. `26.823.1` is a receipted prerelease; commits after `efeda10` are not.
-- GitHub writes stay on the authorized MilkSU private remote and still require the product's
-  meaningful publish confirmation.
+- GitHub writes stay on the authorized MilkSU remote (`MilkSU-Official/milksu`) and still require
+  the product's meaningful publish confirmation.
 
 ## Validation and Delivery
 
@@ -194,6 +196,6 @@ deferred to one destructive pre-release consolidation after the product slices a
   and Vue entrypoints as required by `docs/developer/product-code-admission.md`.
 - A capability is not complete because a button, package or fixture exists; retain one real-task result.
 - Preserve the user's unrelated working-tree changes.
-- Each selected vertical slice is reviewed, tested, committed and pushed only to MilkSU's private remote.
+- Each selected vertical slice is reviewed, tested, committed and pushed only to MilkSU's authorized remote.
 - Development-time documentation records tests, receipts, checkpoints and necessary ADRs. Final architecture,
   milestone, status and release claims are updated only during the final documentation closeout.

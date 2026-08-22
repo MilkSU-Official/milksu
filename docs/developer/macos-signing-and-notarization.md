@@ -10,9 +10,10 @@ staple 与 Gatekeeper 验证。签名资产只存在 Personal Vault 和 GitHub S
 
 ## 一次性配置
 
-1. 打开私有仓库的 **Settings → Environments → New environment**，创建 `macos-release`。
-2. 仓库套餐支持时给该 environment 添加 Required reviewers，只允许维护者手工批准发版。当前私有
-   仓库套餐不支持该保护规则，因此保留 `workflow_dispatch` 手工触发、私有仓库管理员权限和无自动发布。
+1. 打开仓库的 **Settings → Environments → New environment**，创建 `macos-release`。
+2. 仓库已公开：该 environment 必须启用 Required reviewers（当前审阅人 `MilkSU-Official`），
+   只允许维护者批准后才注入签名 / 公证 / R2 secrets；并把 deployment branch 限制为 `main`。
+   管理员不能绕过审批。`workflow_dispatch` 仍手工触发，不能自动发布到 R2 current pointer。
 3. 在 `macos-release` 的 Environment secrets 中创建：
 
 | Secret | 内容 |
@@ -33,7 +34,7 @@ staple 与 Gatekeeper 验证。签名资产只存在 Personal Vault 和 GitHub S
 
 ## 构建一次正式候选包（默认本机）
 
-1. 按[三端打包与发版流程](release-process.md)把准确版本提交并推送到私有 `main`，运行一次
+1. 按[三端打包与发版流程](release-process.md)把准确版本提交并推送到 `main`，运行一次
    `npm run release:verify` 生成绑定完整 commit 的本地回执。
 2. 用 `npm run release:dispatch ...` 分发 Windows/Linux；macOS **默认不走云端**。
 3. 在维护者 Mac 上运行：
