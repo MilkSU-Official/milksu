@@ -161,18 +161,42 @@ npm --prefix app run build
 - [当前系统与分层](docs/architecture/current-system.md)
 - [架构索引](docs/architecture/index.md)
 
+<p align="center">
+  <a href="https://github.com/HikaruQwQ"><img src="https://github.com/HikaruQwQ.png?size=96" width="72" height="72" alt="HikaruQwQ"></a>
+  &nbsp;
+  <a href="https://github.com/SuInk"><img src="https://github.com/SuInk.png?size=96" width="72" height="72" alt="SuInk"></a>
+  &nbsp;
+  <a href="https://github.com/2409324124"><img src="https://github.com/2409324124.png?size=96" width="72" height="72" alt="东云"></a>
+  &nbsp;
+  <a href="https://github.com/ArakeiShi"><img src="https://github.com/ArakeiShi.png?size=96" width="72" height="72" alt="荒景肆"></a>
+  &nbsp;
+  <a href="https://github.com/SkyAerope"><img src="https://github.com/SkyAerope.png?size=96" width="72" height="72" alt="薄荷布丁"></a>
+  &nbsp;
+  <a href="https://github.com/Aeko233"><img src="https://github.com/Aeko233.png?size=96" width="72" height="72" alt="AsabaLazy"></a>
+  &nbsp;
+  <a href="https://github.com/luo"><img src="https://github.com/luo.png?size=96" width="72" height="72" alt="Luo"></a>
+  &nbsp;
+  <a href="https://github.com/shiluoshiro"><img src="https://github.com/shiluoshiro.png?size=96" width="72" height="72" alt="shiluoshiro"></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/MilkSU-Official/milksu/graphs/contributors">
+    <img src="https://contrib.rocks/image?repo=MilkSU-Official/milksu&max=24&columns=8" alt="贡献者">
+  </a>
+</p>
+
 ## 鸣谢
 
 感谢在内测期间直接向仓库提交代码的同学。没有他们，三端包和工作台到不了 `26.822.1`。
 
 | 同学 | 主要贡献 |
 | --- | --- |
-| Hikaru（HikaruQwQ） | Windows / Linux 启动与打包（PR #4）、账户授权恢复、Sidecar 安装路径、发行 workflow 与测试门禁；Composer 目标/计划/目录 chips（PR #12）；工具活动组展开与完成态（PR #20）；项目会话后台完成提醒（PR #26）；前端 typecheck（PR #28） |
-| SuInk | 会话归档与恢复、行内改名、主题切换、回到 Coding 时恢复上次视图 |
-| 东云 | 账户模型可用性与可调用目录（PR #3） |
-| 荒景肆（ArakeiShi） | Windows 无 Git 启动与 Computer Use 驱动（PR #5）；产物目录和数据目录打开（PR #6） |
-| 薄荷布丁（SkyAerope） | 自定义中转站保存与 MilkSU 账户行（PR #7） |
-| AsabaLazy（Aeko233）、Luo | CTF 收藏/全部视图改走本地目录（PR #8）；Windows 源码换行测试（PR #9）；应用级本地调试模式（PR #10） |
-| shiluoshiro | 设置页切换分类时清掉上一分类提示（PR #25） |
+| [Hikaru（HikaruQwQ）](https://github.com/HikaruQwQ) | Windows / Linux 启动与打包（PR #4）、账户授权恢复、Sidecar 安装路径、发行 workflow 与测试门禁；Composer 目标/计划/目录 chips（PR #12）；工具活动组展开与完成态（PR #20）；项目会话后台完成提醒（PR #26）；前端 typecheck（PR #28） |
+| [SuInk](https://github.com/SuInk) | 会话归档与恢复、行内改名、主题切换、回到 Coding 时恢复上次视图 |
+| [东云](https://github.com/2409324124) | 账户模型可用性与可调用目录（PR #3） |
+| [荒景肆（ArakeiShi）](https://github.com/ArakeiShi) | Windows 无 Git 启动与 Computer Use 驱动（PR #5）；产物目录和数据目录打开（PR #6） |
+| [薄荷布丁（SkyAerope）](https://github.com/SkyAerope) | 自定义中转站保存与 MilkSU 账户行（PR #7） |
+| [AsabaLazy（Aeko233）](https://github.com/Aeko233)、[Luo](https://github.com/luo) | CTF 收藏/全部视图改走本地目录（PR #8）；Windows 源码换行测试（PR #9）；应用级本地调试模式（PR #10） |
+| [shiluoshiro](https://github.com/shiluoshiro) | 设置页切换分类时清掉上一分类提示（PR #25） |
 
 完整提交记录以 Git 历史为准。问题和产品建议可以继续提到 [GitHub Issues](https://github.com/MilkSU-Official/milksu/issues)，或发送邮件至 [milksu@proton.me](mailto:milksu@proton.me)。
