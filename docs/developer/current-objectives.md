@@ -31,7 +31,7 @@
 | 阶段 | **内测迭代 / Agent Runtime 与跨平台发行收敛**。当前工作不再按 M3/M4 里程碑组织。 |
 | 历史基线 | M3 product-loop 已在 `108e0e3`（2026-08-05）合并，仅供追溯。 |
 | 正式发行基线 | `v26.819.1 / eed1dac28a82453bf0a73b146a0416e961de46d9`（2026-08-19 今日首发）。这是最近一次带 SHA-256 与三端产物的内测发行；GitHub prerelease 提供带版本号的 DMG、EXE、DEB 与 `SHA256SUMS`；R2/Admin current pointer 未发布。 |
-| 开发版本线 | 根目录与 `desktop/package.json` 是 `26.819.1`。发行源是 `eed1dac`；之后只有文档收口提交，不移动该 tag。 |
+| 开发版本线 | 根目录与 `desktop/package.json` 是 `26.822.1`。正式发行源仍是 `eed1dac`；当前本地开发构建不移动该 tag，也不构成新的发行回执。 |
 | 当前开发 | 今日首发已发出。下一轮继续用这个安装包做 Agent GUI / Pi Runtime 回归，不要把文档提交写成新包。 |
 | 平台边界 | `26.819.1`：macOS DMG 本机 Developer ID 签名并公证；Windows 安装器完成原生 Runtime 与首次启动但未代码签名，并打入审阅过的 CUA Driver；Linux DEB 完成包结构、Sidecar、Go Runtime 与 Xvfb Electron 启动，仍无 Secret Service、本地 OCR、Computer Use。 |
 | 发行流水 | 下一发行从干净、已推送的 `main` 对 canonical Go/Vue/Sidecar/lint/生产与文档构建只验证一次；Windows/Linux 走云端，macOS 默认本机 `release:mac:local`。必须创建 GitHub Release 页并上传带版本号的 DMG/EXE/DEB 与 SHA256SUMS，不能只留空 tag。GitHub-only 不生成 OTA ZIP/metadata。 |
