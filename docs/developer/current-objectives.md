@@ -2,21 +2,21 @@
 
 > 文档状态：Current / Canonical target contract
 >
-> 最后收口：2026-08-22
+> 最后收口：2026-08-23
 >
 > 本页只回答“当前处于什么阶段、下一条完成线是什么”。实现事实以当前代码、测试、Git 历史和原生 App 验收为准；历史设计与旧里程碑不作为任务队列。
 >
-> 发版改动与未发版改动必须分开写。有三端回执的正式内测包是今日首发 `26.819.1`。
-> 文档收口提交不移动该 tag。不要把晚于 `eed1dac` 的 HEAD 写成已发版。
+> 发版改动与未发版改动必须分开写。有三端回执的正式 GitHub Release 是今日首发 `26.823.1`。
+> 文档收口提交不移动该 tag。不要把晚于 `efeda10` 的 HEAD 写成已发版。
 
 ## 工作规则
 
 1. 先读当前代码、Git 状态、本文件、[文档状态](document-status.md)和[当前系统](../architecture/current-system.md)，不要按旧对话重做已闭环事项。
 2. MilkSU 仍是 pre-release：新能力实现当前干净模型，不为已放弃的旧设计写迁移、双写或兼容层。
 3. 上游优先：平台/Pi → 固定可审阅 Skill、MCP、插件或 CLI → 最小自有实现。Pi 已拥有的通用 Coding 能力，不在 MilkSU 再造一套 harness。
-4. Provider Key 不进入模型上下文、工具输出、日志、诊断、文档或普通文件；只向 MilkSU 私有远端发布。
+4. Provider Key 不进入模型上下文、工具输出、日志、诊断、文档或普通文件；Git 只推到授权的 MilkSU 远端。
 5. 自动审批不绕过付费、外部账户、Scope 扩大、不可逆外部效果与危险大目录删除确认。
-6. CTF、CVE、Coding 是同级工作区；通用会话、文件、Shell、浏览器、恢复与工具循环优先共享 Pi，领域事实、Evidence、Judge 与学习记录由 MilkSU 持有。
+6. CTF、CVE、实验室、Coding 是同级工作区；通用会话、文件、Shell、浏览器、恢复与工具循环优先共享 Pi，领域事实、Evidence、Judge 与学习记录由 MilkSU 持有。
 7. UI/Runtime 修复必须回写本页；未打包或未由用户验收的能力不得写成已发行或已完成。
 8. 写发行声明时同时给出“正式发行基线”和“开发 HEAD”。发版完成后必须立刻按
    [三端打包与发版流程](release-process.md) 回写本页、[文档状态](document-status.md)、
@@ -30,15 +30,15 @@
 | --- | --- |
 | 阶段 | **内测迭代 / Agent Runtime 与跨平台发行收敛**。当前工作不再按 M3/M4 里程碑组织。 |
 | 历史基线 | M3 product-loop 已在 `108e0e3`（2026-08-05）合并，仅供追溯。 |
-| 正式发行基线 | `v26.819.1 / eed1dac28a82453bf0a73b146a0416e961de46d9`（2026-08-19 今日首发）。这是最近一次带 SHA-256 与三端产物的内测发行；GitHub prerelease 提供带版本号的 DMG、EXE、DEB 与 `SHA256SUMS`；R2/Admin current pointer 未发布。 |
-| 开发版本线 | 根目录与 `desktop/package.json` 是 `26.822.1`。正式发行源仍是 `eed1dac`；当前本地开发构建不移动该 tag，也不构成新的发行回执。 |
-| 当前开发 | 今日首发已发出。下一轮继续用这个安装包做 Agent GUI / Pi Runtime 回归，不要把文档提交写成新包。 |
-| 平台边界 | `26.819.1`：macOS DMG 本机 Developer ID 签名并公证；Windows 安装器完成原生 Runtime 与首次启动但未代码签名，并打入审阅过的 CUA Driver；Linux DEB 完成包结构、Sidecar、Go Runtime 与 Xvfb Electron 启动，仍无 Secret Service、本地 OCR、Computer Use。 |
-| 发行流水 | 下一发行从干净、已推送的 `main` 对 canonical Go/Vue/Sidecar/lint/生产与文档构建只验证一次；Windows/Linux 走云端，macOS 默认本机 `release:mac:local`。必须创建 GitHub Release 页并上传带版本号的 DMG/EXE/DEB 与 SHA256SUMS，不能只留空 tag。GitHub-only 不生成 OTA ZIP/metadata。 |
+| 正式发行基线 | `v26.823.1 / efeda10af4f1e2cf55c4a8db1761cdbb486055a2`（2026-08-23 今日首发）。这是当前 GitHub Latest Release；提供带版本号的 DMG、EXE、DEB 与 `SHA256SUMS`；R2/Admin current pointer 未发布。 |
+| 开发版本线 | 根目录与 `desktop/package.json` 是 `26.823.1`。正式发行源是 `efeda10`；文档收口提交不移动该 tag。 |
+| 当前开发 | 正式包是 `26.823.1`。CTF / CVE / 实验室共用完整 Coding 循环、始终开启的上下文整理，以及 CVE 列表里的公开源条目，都已打进本包。 |
+| 平台边界 | `26.823.1`：macOS DMG 本机 Developer ID 签名并公证；Windows 安装器完成原生 Runtime 与首次启动但未代码签名，并打入审阅过的 CUA Driver；Linux DEB 完成包结构、Sidecar、Go Runtime 与 Xvfb Electron 启动，仍无 Secret Service、本地 OCR、Computer Use。 |
+| 发行流水 | 下一发行从干净、已推送的 `main` 对 canonical Go/Vue/Sidecar/lint/生产与文档构建只验证一次；macOS / Windows / Linux 都走 GitHub-hosted 云端。macOS 本机打包暂时关闭。必须创建 GitHub Release 页并上传带版本号的 DMG/EXE/DEB 与 SHA256SUMS，不能只留空 tag。GitHub-only 不生成 OTA ZIP/metadata。 |
 
-## 已发行改动：`26.817.1` → `26.819.1`
+## 已发行改动：`26.817.1` → `26.823.1`
 
-`26.817.1`–`26.817.3` 是 8 月 16–17 日发出的内测线。`26.818.1` / `26.818.2` 是 8 月 18 日两版。可从 Releases 下载的最新正式包能力以 `26.819.1` 为准。
+`26.817.1`–`26.817.3` 是 8 月 16–17 日发出的内测线。`26.818.1` / `26.818.2` 是 8 月 18 日两版。`26.819.1` 是 8 月 19 日 ak-ui 生产视觉包。`26.822.1` 是 8 月 22 日档案复现与实验室包。可从 Releases 下载的最新正式包能力以 `26.823.1` 为准。
 
 ### `26.817.1` / `main@783679f`
 
@@ -101,27 +101,38 @@
 - 空 TokenFlux 目录时，删除或停用自定义中转站不会再把它的模型 ID 接到 TokenFlux 默认选择或「可用模型」里（#13 / #11）。
 - README 截图换成当前 CTF / CVE / Coding 页。GitHub prerelease 提供 DMG / EXE / DEB 与 `SHA256SUMS-26.819.1.txt`。
 
-## 未发版改动：晚于 `v26.819.1` / `eed1dac` 的 `main`
+### `26.822.1` / `3db4615`（2026-08-22 今日首发）
+
+- CVE 点进档案再复现；实验室是独立一级入口；两者共用可拖放对话小窗，工作区留下 Agent 可改的 `report.md`。
+- 实验室列表可双击标题或用行内菜单改名；作业记录写入 Go。
+- `milksu_workspace` 增加原子记录动作：`list_records` / `get_record` / `create_record` / `update_record` / `archive_records` / `restore_records` / `focus_record` / `search_records`（kind 为 conversation / lab / cve / ctf）。
+- 档案对话小窗默认 4:3；上下文用量与大窗 Composer 同一条；带斜杠菜单、Skills 和项目 MCP。
+- 日间模式侧栏、会话历史、设置跟随纸面主题；左上角头像为 Admin `ak-media--album` 相框。
+- 会话可归档与行内改名；上下文压缩、停止按钮、工具活动组展开状态和产品文案去掉 harness 备注一并打进本包。
+- GitHub prerelease 提供 DMG / EXE / DEB 与 `SHA256SUMS-26.822.1.txt`。
+
+### `26.823.1` / `efeda10`（2026-08-23 今日首发）
+
+- CTF、CVE 和实验室使用与 Coding 相同的完整工作循环：终端、Git、变更、产物、执行权限、隔离浏览器和工作台动作都在。领域工具、Judge、证据栏和绑定的题目工作区仍保留。
+- 长任务会自动整理上下文，CTF 任务里的 `/compact` 与 Coding 走同一条。过长的工具输出会被截断，需要时再读。
+- 设置页「同步公开源」写入的 CISA KEV 条目会进入 CVE 列表；内置样例目录仍不默认铺开。
+- 夜间模式 Agent 气泡里的代码块跟气泡前景色；产品窗口拦截 Ctrl+R / Cmd+R / F5，不再回到启动加载页。
+- Windows 后台任务与前台 bash 用同一套解析，缺 bash 时作为工具失败返回。非 macOS 上项目 MCP 不再包一层 sandbox-exec。
+- 标题、侧栏和正文共用 Inter Variable + Noto Sans SC Variable。Sidecar 崩溃时不再把 Node 内部栈第一行当成用户可见原因。
+- GitHub Release（Latest）提供 DMG / EXE / DEB 与 `SHA256SUMS-26.823.1.txt`。
+
+## 未发版改动：晚于 `v26.823.1` / `efeda10` 的 `main`
 
 文档收口提交不移动该 tag。
 
-- Coding 工具活动组的展开状态提升为会话级 UI 状态：组件重建、活动分段变化不再丢失展开，会话切换不串联，过期条目状态会被清理；用户主动展开活动组或工具详情时局部滚动到最近可视范围，不复用新消息的滚到底部逻辑。空 assistant 壳不再拆分连续工具活动，也不再画出空白气泡；仅一侧缺少 `toolCallId` 的唯一待完成调用会收敛为完成态，不遗留转圈（#17 / #23，未打包验收）。
-- 设置页切换分类会清掉上一分类的提示（#24，PR #25，`fdfc762`）。
-- 产品边界收口：文档不再把 CVE 纵深、本地复现/PoC、Labs、CTF/CVE 工作台和安全工具进 CTF/CVE 写成现行禁令。CTF 解题/教练/策略复盘接上 Shell、浏览器、MCP、安全工具和 `milksu_workspace`。题目工作区默认不自动套 Coding worktree；用户选定的 Git 项目或已有协作不拦截。未授权目标仍要申请。
-- `⌘Q` / 退出不再 `preventDefault` 拦截 Electron 退出路径，也不再为 Go/浏览器 teardown 等待约 3 秒；只给 Go 发一条 shutdown，由 stdin EOF 标记 clean exit。
-- 上下文压缩成功后用量环改用 Pi 给出的压缩后估计 token，不再停在上一轮 prompt 占用。压缩进行中在 Composer 上方显示「正在整理上下文」，用量环改为「整理中」；压缩失败回执不再只留在内部状态。Escape 在运行中或整理中会中断，对齐 Pi TUI 的 `app.interrupt`，不另建工具循环检测器（#14 / #16，未打包验收）。手动 `/compact` 与 `compact_context` 不受 85% 自动门槛限制；85% 只用于空闲自动整理。忙碌回合交给 Pi 先中断再压缩，不再静默吞掉点击。会话太短时 Pi 仍会拒绝，前端只显示「会话还太短或刚整理过。」并在数秒后消失，不把 85% 门槛解释给用户。
-- Agent 上下文工程收敛：普通 Coding 主会话逐回合声明经 Go / Sidecar 校验的权威工作目录，协作 writer worktree 只属于独立 effectful subagent 进程，不再能替换主会话 cwd。受管 Sidecar 启用 Pi 原生 `PI_CACHE_RETENTION=long`，沿用稳定会话 ID 与 Provider prompt cache，不增加 MilkSU 缓存状态机；Pi 的一次性压缩仍显式使用 `cacheRetention: none`。模型目录缺少窗口或仍给出旧 `128000` 占位时，Go、Sidecar 与 Vue 共用的型号族预设会补齐 GPT、Claude、Grok：已知精确型号优先，远端非占位目录值继续权威。GPT 与 Claude Opus / Sonnet / Fable 另有内置思考档位，其他模型须在设置页按实际 Provider 能力手动启用；Composer 用离散滑块写入对话级选择，Go 约束后交给 Pi 原生 `setThinkingLevel`，子 Agent 继承同一档位。当前 Pi 支持到 `max`；`ultra` 属于 Codex 多 Agent 编排语义，不伪装成 Provider effort。自动化已覆盖 cwd 身份、缓存环境、三层窗口解析和思考档位透传；真实 Provider 缓存命中率与 effort 请求仍待用户授权的计费链路验收，不写成完成回执。
-- Provider 的 `Connection error` 按可重试网络失败处理：同一 Pi 回合内不提前 `finishRun`，终态文案走「模型或 Agent 网络连接失败」，不再把英文原文留在聊天里。未打包验收。
-- `/compact` 等斜杠命令在 pointerdown 时就选定，中文输入法组字中的 Enter 也会确认菜单，避免点击后 `/compact` 被 IME 吃掉却不触发压缩。未打包验收。
-- 发送后运行中始终保留停止按钮；引导输入不再把停止换成发送。Sidecar 在 Pi 会话尚未创建时也记住 abort，避免刚发送就点停止被丢掉。未打包验收。
-- 产品 UI 去掉空状态「还没有 / 打开以后会出现」教练旁白、缺值控件的实现说明，以及 CTF 复盘/授权、设置页、安全工具、CVE 情报里的 harness 备注（SQLite / RPC / PI / 「这不是 X」）。未打包验收。
-- 本机默认走 Personal Vault 签名；`release:github` 必须创建/刷新 GitHub Release 页。这是发版管道，不是下一版本号。
+- Agent 上下文工程收敛：主会话逐回合声明经 Go / Sidecar 校验的权威工作目录，协作 writer worktree 只属于独立 effectful subagent 进程，不再能替换主会话 cwd。受管 Sidecar 启用 Pi 原生 `PI_CACHE_RETENTION=long`，沿用稳定会话 ID 与 Provider prompt cache，不增加 MilkSU 缓存状态机；Pi 的一次性压缩仍显式使用 `cacheRetention: none`。模型目录缺少窗口或仍给出旧 `128000` 占位时，Go、Sidecar 与 Vue 共用的型号族预设会补齐 GPT、Claude、Grok：已知精确型号优先，远端非占位目录值继续权威。GPT 与 Claude Opus / Sonnet / Fable 另有内置思考档位，其他模型须在设置页按实际 Provider 能力手动启用；Composer 用离散滑块写入对话级选择，chip 与档位只显示 `off / minimal / low / medium / high / xhigh / max` 标准英文，Go 约束后交给 Pi 原生 `setThinkingLevel`，子 Agent 继承同一档位。当前 Pi 支持到 `max`；`ultra` 属于 Codex 多 Agent 编排语义，不伪装成 Provider effort。自动化覆盖 cwd 身份、缓存环境、三层窗口解析和思考档位透传；真实 Provider 缓存命中率与 effort 请求仍待用户授权的计费链路验收，不写成完成回执。
 
 ## 当前产品事实
 
 ### Pi Runtime 收敛
 
 - 普通 Coding、CTF 与 CVE 的文件、Shell、会话生命周期和输出续跑已经回到 Pi 原生语义。MilkSU 不再复制 workspace-only 文件工具、`sandbox-exec`、持久化授权根、Node `--allow-fs-*` 权限状态机或后台授权令牌。
+- Coding、CTF、CVE 与实验室共用 Pi 自动压缩：会话创建/复用时 `setAutoCompactionEnabled(true)`，85% 空闲路径与任务 UI `/compact` 都不按角色跳过。工具结果进模型前走 Pi `tool_result` 截断。
 - CTF 删除了阻断通用任务的自建 sandbox-exec；仍保留 Challenge、Evidence、Candidate、Judge Receipt、Recovery、Memory、精确站点能力和凭据隔离。达到模型输出长度上限时走 Pi `agent_end` / `followUp`，不把半句当完成。
 - CVE → Coding 不再注入“只读检查”“只输出启动清单”等限制，使用普通 Pi 工具和当前权限档。普通产品回合不再被 MilkSU 的 90 秒无事件 watchdog 静默终止；用户主动停止和独立评测 deadline 仍保留。
 - 普通用户文字和回复风格交给 Pi/模型理解。GUI 一键动作只传 typed product action、界面语言和无凭据系统环境，不额外注入客服话术、固定长尾问题或关键词/正则意图路由。
@@ -142,36 +153,38 @@
 
 - 桌面壳是 Electron/Chromium + Vue；Go 是受管 Runtime，Pi Sidecar 拥有通用模型会话、Compaction 与 Tool Loop。
 - 右栏“浏览器”、真实 Chrome/Edge 的 Browser Use、可见窗口的 Computer Use 是三个独立执行表面。Computer Use 可以锁定用户真实浏览器窗口做像素级操作；结构化标签页控制仍走隔离浏览器或 Browser Use。折叠面板只改变观察视图，不应停止 Session。
-- 用户可见产物写入各操作系统的用户文档目录下 `MilkSU/{Coding,CTF,CVE}`；无项目 Coding 临时工作区、Runtime、事件、Obelisk、浏览器 Profile 与凭据留在平台用户配置目录，不把 macOS 路径写死为产品契约。
+- 用户可见产物写入各操作系统的用户文档目录下 `MilkSU/{Coding,CTF,CVE,Lab}`；无项目 Coding 临时工作区、Runtime、事件、Obelisk、浏览器 Profile 与凭据留在平台用户配置目录，不把 macOS 路径写死为产品契约。
 - Obelisk 会话索引底层继续保留；Coding 右栏与环境页已移除“相关历史”、搜索、过滤和图谱等单会话前端。学习记录/记忆系统如重新进入产品，应单独设计页面。
 - 进入 Coding 从“永远打开空白草稿”改为恢复上次会话：会话历史现在有归档、重命名与恢复入口，空白草稿不再是回到工作区的唯一入口，继续上一段任务比重新起草更常见。CTF/CVE 交接与显式历史点击仍然直接打开具体会话。
-- 当前开发分支将 Agent 会话的直接删除改为可恢复归档：侧栏归档前确认，设置页集中恢复或永久删除且两者均再次确认；永久删除同步清理 Pi 会话与 Obelisk 活动索引。Coding 会话列表同时支持行内改名，并沿用项目会话 PR 的运行标记与后台完成提醒。该能力已通过 Go、Vue 与 Sidecar 自动化，尚未进入正式发行包或用户 GUI 验收。
-- 生产视觉是 ak-ui：石墨指挥面、纸面事实、青主操作、金焦点。酸绿不进产品。CTF、CVE、Coding 用同一套石墨 + 青，不以旧蓝黑色块或酸绿带区分。旧战术档案稿不再是实现约束。
+- Agent 会话的直接删除改为可恢复归档：侧栏归档前确认，设置页集中恢复或永久删除且两者均再次确认；永久删除同步清理 Pi 会话与 Obelisk 活动索引。Coding 会话列表同时支持行内改名。该能力已进入 `26.822.1`。
+- 生产视觉是 ak-ui：石墨指挥面、纸面事实、青主操作、金焦点。酸绿不进产品。CTF、CVE、实验室、Coding 用同一套石墨 + 青，不以旧蓝黑色块或酸绿带区分。旧战术档案稿不再是实现约束。
 
 ## 当前完成线
 
-### 已完成：`26.819.1` 今日首发三端内测发行
+### 已完成：`26.823.1` 今日首发三端正式 GitHub Release
 
-三端都从 `eed1dac28a82453bf0a73b146a0416e961de46d9` 构建。GitHub prerelease 为
-`v26.819.1`，没有上传 OTA ZIP；R2/Admin current pointer 未改变。macOS 走本机
+三端都从 `efeda10af4f1e2cf55c4a8db1761cdbb486055a2` 构建。GitHub Latest Release 为
+`v26.823.1`，没有上传 OTA ZIP；R2/Admin current pointer 未改变。macOS 走本机
 Developer ID 签名与公证。Windows / Linux 走成功的 Actions run。
 
 | 平台 | Workflow | 用户安装包 | 大小 | SHA-256 | 结果 |
 | --- | --- | ---: | ---: | --- | --- |
-| macOS ARM64 | 本机 `release:mac:local` | `MilkSU-macOS-arm64-26.819.1.dmg` | 232,975,259 B | `2105a3ea407beb36d9f1360d3fa99d1715a91e5b3c30b6a73e5d773c4b2db28f` | Developer ID 签名、Apple 公证、staple、Gatekeeper |
-| Windows x64 | `32218308476` | `MilkSU-Windows-x64-26.819.1-Setup.exe` | 178,095,214 B | `50de981caabeb2253b236febb8babc377ceca0a209c2101bf334597c36d3c3b6` | 原生 Windows 构建、打包 Runtime 与首次启动通过；安装器未代码签名 |
-| Linux x64 | `32218311532` | `MilkSU-Linux-x64-26.819.1.deb` | 173,787,548 B | `02aad850c9dc1147af36dcd8175e5709f20a617fe0db6649eb46306a2a937cb1` | 原生 Ubuntu 包结构、Sidecar、Go Runtime 与 Xvfb Electron 首次启动通过；试用边界 |
+| macOS ARM64 | 本机 `release:mac:local` | `MilkSU-macOS-arm64-26.823.1.dmg` | 237,784,345 B | `fdce68aef5d3d6d2a55af1d8ef1d2046de6aaacfebb08e45adcf1558ac09e859` | Developer ID 签名、Apple 公证、staple、Gatekeeper |
+| Windows x64 | `32588820764` | `MilkSU-Windows-x64-26.823.1-Setup.exe` | 182,520,020 B | `ff21e869b9f71f4925542cf5b6e54509c08f5bf82c43a0a28bc34daf720d034d` | 原生 Windows 构建、打包 Runtime 与首次启动通过；安装器未代码签名 |
+| Linux x64 | `32588822563` | `MilkSU-Linux-x64-26.823.1.deb` | 178,292,984 B | `01bf16a110101c83fc93b72ff334e5f5476078cca96557e4dda880fd24846bce` | 原生 Ubuntu 包结构、Sidecar、Go Runtime 与 Xvfb Electron 首次启动通过；试用边界 |
 
-发行页：<https://github.com/MilkSU-Official/milksu/releases/tag/v26.819.1>
+发行页：<https://github.com/MilkSU-Official/milksu/releases/tag/v26.823.1>
+
+上一版 `v26.822.1 / 3db4615` 仍可下载，标签未移动。
 
 ### 下一完成线
 
-`26.819.1` 已是当前可下载基线。文档收口提交不改变这个 tag。
+`26.823.1` 已是当前可下载基线。文档收口提交不改变这个 tag。
 
 下一条完成线是：
 
-1. 继续用 `26.819.1` 安装包做常用 Agent GUI 与 Pi Runtime 回归，失败项回到下面 P0 队列；
-2. 用户明确要求发下一版时，先升版本号，再从干净已推送的 `main` 跑 `release:verify` 并留下新的三端回执；不要把现有 `v26.819.1` 标签挪到更新的 HEAD 上。
+1. 继续用 `26.823.1` 安装包做常用 Agent GUI 与 Pi Runtime 回归，失败项回到下面 P0 队列；
+2. 用户明确要求发下一版时，先升版本号，再从干净已推送的 `main` 跑 `release:verify` 并留下新的三端回执；不要把现有 `v26.823.1` 标签挪到更新的 HEAD 上。
 
 Windows 签名、Linux 缺失能力、R2/OTA 仍是发行后续，不是产品方向禁令。
 
@@ -181,22 +194,22 @@ Windows 签名、Linux 缺失能力、R2/OTA 仍是发行后续，不是产品�
 | --- | --- | --- |
 | P0 | 常用 Agent GUI 回归 | 按 Coding 常用功能表覆盖中文任务、文件/Shell、附件、斜杠菜单、权限档、subagent、浏览器、Browser/Computer Use、终端、取消/恢复与错误展示；自动化通过后再由用户做真实 GUI 验收。C9 / C15 / C16 / C20 已由用户在本地 dirty Stable 包确认；C10 / C11 已修待复验。 |
 | P0 | Pi Runtime 用户验收 | 最新正式包中验证跨目录读写、CTF/CVE 交接、长输出续跑和重启恢复，不出现 MilkSU 自建 workspace 策略或旧 session ID。 |
-| P1 | 下一版三端回执发行 | 需要新的版本号、同一 source commit、三端产物、SHA-256 与平台验收。现有 `v26.819.1` 只覆盖 `eed1dac`。 |
+| P1 | 下一版三端回执发行 | 需要新的版本号、同一 source commit、三端产物、SHA-256 与平台验收。现有 `v26.823.1` 只覆盖 `efeda10`。 |
 | P1 | OTA 与私有 R2 | Admin 草稿/发布/暂停和 Desktop 更新提示已有；仍需一次受账户鉴权的真实旧签名版 → 新签名版升级回执。 |
-| P1 | 安全工具真实任务 | IDA/idalib 与 capa 已有设置、准备和健康检查；用受控本地样本留下真实任务回执。就绪工具可按切片接到 CTF/CVE，不需要先开一次“是否投影”的会。CodeQL、Burp、Shannon 仍逐项接入。 |
+| P1 | 安全工具真实任务 | IDA/idalib 与 capa 已有设置、准备和健康检查；用受控本地样本留下真实任务回执。就绪工具接到实验室作业，窄工具也可进 CVE 复现；不需要先开一次“是否投影”的会。不把 HexStrike 整包 MCP 做成产品页或 Kali 应用商店。CodeQL、Burp、Shannon 仍逐项接入。 |
 | P1 | Obelisk 学习记录 | 先定义可归因学习事实，再设计独立页面；不恢复已删除的单会话相关历史/图谱面板。 |
-| 未接线 | CTF/CVE 工作台与安全深度 | `milksu_workspace`、隔离浏览器、安全工具目前只接到普通 Coding。下面两条产品里程碑选中后直接做，不要先写解冻条件。 |
+| 未接线 | 继续同一作业还是新开一轮 | 当前按同一 CVE/实验室作业复用同一会话和 `report.md`。新开一轮的产品决策还没定。 |
 
-### 产品里程碑（实验室 / 未开工）
+### 当前切片：CVE 复现档案 + 实验室报告
 
-2026-08-22 收口：教学工作台要长出 **授权安全测试**，不是更多 CTF 平台，也不是对外渗透业务。未授权外网不扫、不横向、模型候选不能写成已确认漏洞。
+实验室在界面上就叫**实验室**。完成面是 Agent 可继续改的报告，不是状态标签，也不是人签过字的 Finding 列表。未授权外网不扫、不横向、模型候选不能写成已确认漏洞。CTF 仍只当题。CTF 可重置环境（Juice Shop / Vulhub 一类）是另一份长期设计，不是这个实验室模块。
 
-| 里程碑 | 放哪 | 做什么 | 完成时能看见 |
+| 切片 | 放哪 | 做什么 | 现在能看见 |
 | --- | --- | --- | --- |
-| **CVE：复现已知洞** | CVE 档案进去 | 对已加入的 CVE 开复现作业；可配置靶机 / 环境 / 容器（用户启动，不默启外网）。Agent 按公开描述打，Evidence 写回该 CVE。人确认「复现成功 / 没复现上」。 | CVE 卡片上能选环境、跑一轮、档案里有带证据的复现状态，不是只有 NVD 摘要 |
-| **实验室：授权测试** | 独立实验室 / 授权测试作业面，不塞进 CVE 入口 | 对用户明确授权的靶扫描、做安全测试，找已知或未知洞。产出 Finding（候选 / 确认 / 误报）。确认后的洞可挂到已有 CVE 或先当未编号 Finding。capa/IDA 等已有安全工具接到这条任务。 | 选授权靶 → 工具打出去 → 一份人签过字的 Finding，不是 Flag、也不是聊天记录 |
+| **CVE：已知洞复现** | 点进 CVE 档案，不在列表卡片上做 | 按公开描述打一轮。Agent 编辑工作区 `report.md`（或 `report.html`）：摘要、环境、进程、网络、步骤。没打上也留报告。 | 列表点进去后能看摘要/来源、开始复现、报告和右下角对话小窗 |
+| **实验室** | 独立一级入口，不塞进 CVE | 用户给出协议和地址，开作业。Agent 对这个靶做探测，把发现写进同一份活报告。工具在设置里准备，在作业里使用。 | 新作业 → 报告 + 对话小窗；作业留在列表 |
 
-共用底层：授权靶、工具 loop、Finding 状态机。CVE 负责已知洞的档案和复现入口；未知发现从实验室起手。CTF 仍只当题。
+共用：Pi 会话、详情页 + 右下角对话小窗。CTF 不再把解题嵌进整页 Coding。同一 CVE / 题目 / 实验室作业可以新开对话，列表和 Coding 大窗共用同一会话。HexStrike 只作为以后实验室作业里可审阅的 CLI，不作为默认 MCP、不作为独立页面。
 
 ## 不要重复打开
 
@@ -206,14 +219,14 @@ Windows 签名、Linux 缺失能力、R2/OTA 仍是发行后续，不是产品�
 - Wails/CEF 双壳、workspace-only 文件工具、Node 文件权限状态机、普通回合 watchdog、CVE 只读启动清单和客服式回复模板。
 - 用关键词或正则扫描用户句子来打开浏览器、切页或选工具。
 - MilkSU 自建余额、价格映射、扣费流水和模型代理计费。
-- 把晚于 `v26.819.1` 的 HEAD、同一版本号或本地 dirty 包写成已经发出的三端正式包。
+- 把晚于 `v26.823.1` 的 HEAD、同一版本号或本地 dirty 包写成已经发出的三端正式包。
 - M3/M4 旧百分比台账、历史 Beta 完成度和已删除 live smoke；需要考古时使用 Git history。
 
 ## 领域完成线
 
-- **CTF**：模型只提出 Candidate；Judge 或用户明确授权结果才能建立成功事实。通用能力走 Pi，MilkSU 保留题目、Evidence、Judge、Recovery 与 Memory。CTF 会话今天比 Coding 少接浏览器/MCP/安全工具，这是现有接线，不是禁令。
-- **CVE**：当前发行面是公共数据搜索、用户主动追踪、手工状态和关联 Coding。里程碑「复现已知洞」要把本地环境/容器配置和人确认的复现状态做进档案；披露草稿仍可后做。对用户未授权的外部资产，仍需要可见、准确的授权。
-- **实验室 / 授权测试**：尚未接线。目标是授权靶上的安全测试（已知或未知 Finding），实验室功能，不是对外红队业务。
+- **CTF**：模型只提出 Candidate；Judge 或用户明确授权结果才能建立成功事实。通用能力走 Pi，MilkSU 保留题目、Evidence、Judge、Recovery 与 Memory。`26.823.1` 起 CTF / CVE / 实验室与 Coding 共用完整循环（终端、Git、浏览器、工作台动作）；领域工具叠在上面，不是禁令也不是替换。
+- **CVE**：发行面包含公共数据搜索、用户主动追踪、手工状态，以及点进档案后的复现报告。不以「复现成功 / 没复现上」当完成面。披露草稿仍可后做。对用户未授权的外部资产，仍需要可见、准确的授权。
+- **实验室**：`26.822.1` 已接线列表、改名、作业、报告和对话小窗。它是未知漏洞探测作业面，不是对外红队，也不是 CTF 题库里的环境包。
 - **Memory**：Agent 代做不等于用户掌握。用户能力事实必须能链到 Judge、测试/提交、正式 Evidence 或用户确认。
 - **发行**：按钮、构建文件、版本号或空 tag 不等于可分发版本；必须保留对应平台真实产物和验收回执。
 

@@ -39,9 +39,13 @@ function isApproval(message: Message) {
   return Boolean(message.approvalRequestId)
 }
 
+const leftoverDeliveryStatus = /^正在把只读研究结论写入工作区交付。?$/
+
 export function isBlankAssistantMessage(message: Message) {
+  const content = String(message.content ?? '').trim()
+  if (message.role === 'assistant' && leftoverDeliveryStatus.test(content)) return true
   return message.role === 'assistant'
-    && !String(message.content ?? '').trim()
+    && !content
     && !(message.attachments && message.attachments.length)
 }
 
@@ -192,17 +196,17 @@ export function applyCodingToolEvent(
   return next
 }
 
-export function settleRunningToolMessages(messages: Message[]): Message[] {
-  if (!messages.some(message => (
-    message.role === 'tool'
-    && message.status === 'running'
+export function hasIdleRunResidue(messages: Message[]): boolean {
+  return messages.some(message => (
+    message.status === 'running'
     && !message.approvalRequestId
-  ))) {
-    return messages
-  }
+  ))
+}
+
+export function settleRunningToolMessages(messages: Message[]): Message[] {
+  if (!hasIdleRunResidue(messages)) return messages
   return messages.map(message => (
-    message.role === 'tool'
-    && message.status === 'running'
+    message.status === 'running'
     && !message.approvalRequestId
       ? { ...message, status: 'done' as const }
       : message
@@ -385,7 +389,7 @@ export function chatActivityEntrySummary(messageOrEntry: Message | ChatActivityE
   if (name === 'find') return `查找${suffix || '文件'}`
   if (name === 'grep') return `搜索${suffix || '内容'}`
   if (name === 'milksu_progress') return '更新任务进度'
-  if (name === 'milksu_workspace') return subject || '操作 Coding 界面'
+  if (name === 'milksu_workspace') return subject || '操作 MilkSU'
   if (name === 'prepare_computer_use_driver') return subject || '准备 Computer Use Driver'
   if (name === 'milksu_archify') return '处理架构图'
   if (name === 'milksu_imagegen') {

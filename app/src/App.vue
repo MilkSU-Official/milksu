@@ -14,10 +14,20 @@ import {
   type ThemeMode,
 } from '@/lib/themeMode'
 import { settingsReturnSection, type CTFWorkspaceSection } from '@/lib/workspaceNavigation'
+import {
+  applyLabJobRecord,
+  hydrateLabJobsFromBackend,
+  removeLabJobIds,
+  useLabJobs,
+  type LabJob,
+} from '@/composables/useLabJobs'
+import type { CodingAgentSurfaceBind } from '@/lib/codingAgentSurface'
+import type { VulnerabilityIntel } from '@/vulnerabilityIntel'
 import { executeVulnerabilityCodingHandoff } from '@/lib/vulnerabilityCodingHandoff'
 import { debugLog } from '@/lib/debugMode'
 import { readWorkspaceViewState, writeWorkspaceViewState } from '@/lib/workspaceViewState'
-import { buildCTFDomainTaskContext } from '@/lib/domainTaskContext'
+import { buildCTFDomainTaskContext, buildCVEDomainTaskContext } from '@/lib/domainTaskContext'
+import { labBriefing } from '@/lib/researchBriefing'
 import {
   rememberWorkspaceConversation,
   selectCTFResumePoint,
@@ -34,12 +44,14 @@ const CTFPage = defineAsyncComponent(() => import('@/components-vue/CTFPage.vue'
 const ProfilePage = defineAsyncComponent(() => import('@/components-vue/ProfilePage.vue'))
 const SettingsPage = defineAsyncComponent(() => import('@/components-vue/SettingsPage.vue'))
 const VulnPage = defineAsyncComponent(() => import('@/components-vue/VulnPage.vue'))
+const LabPage = defineAsyncComponent(() => import('@/components-vue/LabPage.vue'))
 
-type Section = 'chat' | 'ctf' | 'vuln' | 'profile' | 'settings'
+type Section = 'chat' | 'ctf' | 'vuln' | 'lab' | 'profile' | 'settings'
 
 const restoredViewState = readWorkspaceViewState()
 const conversations = useConversations()
 const vulnerabilityDashboard = useVulnerabilityDashboard()
+const labJobs = useLabJobs()
 const section = ref<Section>(restoredViewState?.section ?? 'ctf')
 // Coding history is a fixed left panel (not a floating drawer); open by default.
 const codingConversationDrawerOpen = ref(restoredViewState?.codingHistoryOpen ?? true)
@@ -48,6 +60,7 @@ const ctfResumeJobId = ref<string | null>(null)
 const vulnNavigationEpoch = ref(0)
 const lastCodingConversationId = ref<string | null>(null)
 const lastCTFConversationId = ref<string | null>(null)
+const lastLabConversationId = ref<string | null>(null)
 const activeVulnerabilityCodingConversationId = ref<string | null>(null)
 // CVE authorization is selected on the CVE surface. It must never inherit the
 // currently active Coding or CTF conversation workspace implicitly.
@@ -86,6 +99,7 @@ const themeMode = ref<ThemeMode>(readThemeMode())
 let unlistenAccount: (() => void) | undefined
 let unlistenModelCatalog: (() => void) | undefined
 let unlistenUpdate: (() => void) | undefined
+let unlistenWorkspaceRecords: (() => void) | undefined
 let systemThemeMedia: MediaQueryList | undefined
 let systemThemeListener: (() => void) | undefined
 const workspaceViewStateReady = ref(false)
@@ -152,6 +166,32 @@ const activeVulnerabilityCodingConversation = computed(() => (
 const sidebarSection = computed(() => (
   section.value === 'chat' && activeCTFConversation.value ? 'ctf' : section.value
 ))
+const codingAgentBind = computed<CodingAgentSurfaceBind>(() => ({
+  settings: settings.value,
+  workspacePath: conversations.workspacePath.value,
+  running: conversations.activeRunning.value,
+  aborting: conversations.activeAborting.value,
+  messageQueue: conversations.activeMessageQueue.value,
+  sessionReady: conversations.activeSessionReady.value,
+  resumed: conversations.activeResumed.value,
+  compacting: conversations.activeCompacting.value,
+  compactedAt: conversations.activeCompactedAt.value,
+  compactionError: conversations.activeCompactionError.value,
+  turnStatus: conversations.activeTurnStatus.value,
+  ctfSession: activeCTFConversation.value,
+  vulnerabilitySession: conversations.active.value?.domainTaskContext?.kind === 'cve',
+  ctfMode: conversations.active.value?.ctfMode,
+  ctfRole: conversations.active.value?.ctfRole,
+  modelMode: conversations.selectedModelMode.value,
+  modelProvider: conversations.selectedModelProvider.value,
+  modelId: conversations.selectedModelId.value,
+  modelSourcePreference: conversations.selectedModelSourcePreference.value,
+  executionMode: conversations.selectedExecutionMode.value,
+  approvalPolicy: conversations.selectedApprovalPolicy.value,
+  mcpServers: conversations.selectedMCPServers.value,
+  mcpConfigDigest: conversations.selectedMCPConfigDigest.value,
+  pendingComposerDraft: conversations.pendingComposerDraft.value,
+}))
 
 // History open/closed is user-controlled; entering Coding does not force it open.
 
@@ -292,11 +332,20 @@ function restoreCTFWorkspaceResumePoint() {
   if (next.conversationId) lastCTFConversationId.value = next.conversationId
 }
 
+function restoreConversation(id: string | null) {
+  const conversationId = String(id ?? '').trim()
+  if (!conversationId) return
+  if (conversations.conversations.value.some(item => item.id === conversationId)) {
+    conversations.activeId.value = conversationId
+  }
+}
+
 function navigateSection(value: Section) {
   debugLog('section', value)
   rememberActiveConversation()
   if (value === 'ctf') {
     restoreCTFWorkspaceResumePoint()
+    restoreConversation(lastCTFConversationId.value)
     section.value = value
     return
   }
@@ -307,6 +356,14 @@ function navigateSection(value: Section) {
   }
   if (value === 'vuln') {
     vulnNavigationEpoch.value += 1
+    restoreConversation(activeVulnerabilityCodingConversationId.value)
+    section.value = value
+    return
+  }
+  if (value === 'lab') {
+    restoreConversation(lastLabConversationId.value)
+    section.value = value
+    return
   }
   section.value = value
 }
@@ -314,12 +371,33 @@ function navigateSection(value: Section) {
 function returnToCTFWorkspace() {
   rememberActiveConversation()
   restoreCTFWorkspaceResumePoint()
+  restoreConversation(lastCTFConversationId.value)
   section.value = 'ctf'
 }
 
 function returnToVulnerabilityWorkspace() {
   rememberActiveConversation()
+  restoreConversation(activeVulnerabilityCodingConversationId.value)
   section.value = 'vuln'
+}
+
+function returnToLabWorkspace() {
+  rememberActiveConversation()
+  restoreConversation(lastLabConversationId.value)
+  section.value = 'lab'
+}
+
+function expandDossierToCoding() {
+  rememberActiveConversation()
+  const active = conversations.active.value
+  if (active?.ctfJobId || active?.domainTaskContext?.kind === 'ctf') {
+    lastCTFConversationId.value = conversations.activeId.value
+  } else if (active?.domainTaskContext?.kind === 'lab') {
+    lastLabConversationId.value = conversations.activeId.value
+  } else {
+    activeVulnerabilityCodingConversationId.value = conversations.activeId.value
+  }
+  section.value = 'chat'
 }
 
 async function chooseAgentWorkspace() {
@@ -397,28 +475,201 @@ function domainContextFromCTFHandoff(handoff: CTFAgentWorkspaceHandoff) {
   })
 }
 
-function visibleCTFDraft(handoff: CTFAgentWorkspaceHandoff) {
-  const title = String(handoff.title ?? '').replace(/^CTF\s*·\s*/u, '').trim() || '这道题'
-  if (handoff.role === 'strategist') return `复盘 ${title} 的当前路线，给出一个最值得验证的下一步。`
-  if (handoff.role === 'tool-builder') return `继续 ${title}：实现并验证当前待办的最小解题工具。`
-  return `继续解决 ${title}：检查已有材料和进度，完成下一个可验证步骤。`
-}
-
 async function startCTFAgent(handoff: CTFAgentWorkspaceHandoff & {
   domainTaskContext?: import('@/lib/domainTaskContext').DomainTaskContext
 }) {
   rememberActiveConversation()
-  section.value = 'chat'
-  // Prefer structured domain snapshot when the caller already built one (tests /
-  // future prepare enrichment). Otherwise derive from handoff materials only.
-  // Never auto-send: opening Coding stages a draft only.
   await conversations.startWorkspaceTask({
     ...handoff,
-    visibleText: visibleCTFDraft(handoff),
     domainTaskContext: handoff.domainTaskContext ?? domainContextFromCTFHandoff(handoff),
     autoSend: false,
   })
   lastCTFConversationId.value = conversations.activeId.value
+}
+
+function selectDossierConversation(id: string) {
+  if (!conversations.conversations.value.some(item => item.id === id)) return
+  conversations.activeId.value = id
+  const active = conversations.active.value
+  if (active?.ctfJobId || active?.domainTaskContext?.kind === 'ctf') {
+    lastCTFConversationId.value = id
+  } else if (active?.domainTaskContext?.kind === 'lab') {
+    lastLabConversationId.value = id
+  } else {
+    activeVulnerabilityCodingConversationId.value = id
+  }
+}
+
+function createDossierConversation() {
+  const current = conversations.active.value
+  const context = current?.domainTaskContext
+  if (!current || !context) return
+  const title = context.kind === 'cve'
+    ? `${context.cveId} 复现`
+    : context.kind === 'lab'
+      ? context.title
+      : context.challengeTitle
+  const id = conversations.ensureConversation(title, {
+    conversationId: crypto.randomUUID(),
+    domainTaskContext: context,
+    workspacePath: current.workspacePath,
+    ctfJobId: current.ctfJobId,
+    ctfMode: current.ctfMode,
+    ctfRole: current.ctfRole,
+  })
+  selectDossierConversation(id)
+}
+
+async function bindDossierConversation(
+  title: string,
+  conversationId: string,
+  domainTaskContext: NonNullable<import('@/lib/domainTaskContext').DomainTaskContext>,
+) {
+  rememberActiveConversation()
+  conversations.ensureConversation(title, {
+    conversationId,
+    domainTaskContext,
+  })
+  try {
+    const workspace = await invokeCommand<string>('ensure_coding_artifact_workspace', {
+      conversationId: conversations.activeId.value,
+    })
+    if (workspace) conversations.setWorkspace(workspace)
+  } catch {
+    // Report preview stays empty until the first Agent turn creates the workspace.
+  }
+}
+
+async function enterVulnerabilityDossier(item: VulnerabilityIntel) {
+  const cveId = item.id.trim()
+  await bindDossierConversation(
+    `${cveId} 复现`,
+    `cve-research-${cveId.toLowerCase()}`,
+    buildCVEDomainTaskContext({
+      cveId,
+      title: item.title,
+      summary: item.summary,
+      vendor: item.vendor,
+      product: item.product,
+      affected: item.affected,
+    }),
+  )
+  activeVulnerabilityCodingConversationId.value = conversations.activeId.value
+}
+
+async function runVulnerabilityReproduction(item: VulnerabilityIntel) {
+  await enterVulnerabilityDossier(item)
+}
+
+async function runLabJob(job: LabJob) {
+  await enterLabJob(job)
+  const conversation = conversations.active.value
+  if (conversation && conversation.messages.length === 0) {
+    const briefing = labBriefing({ scope: job.scope, request: job.request })
+    await conversations.send(briefing.prompt, briefing.visible)
+  }
+}
+
+function renameLabJob(id: string, title: string) {
+  labJobs.rename(id, title)
+  conversations.rename(`lab-job-${id}`, title)
+}
+
+function applyWorkspaceRecord(payload: {
+  action?: string
+  kind?: string
+  id?: string
+  ids?: string[]
+  record?: Record<string, unknown>
+}) {
+  const action = String(payload.action ?? '').trim()
+  const kind = String(payload.kind ?? '').trim()
+  const record = payload.record ?? {}
+  const id = String(payload.id || record.id || '').trim()
+  if (action === 'focus') {
+    if (kind === 'lab' && id) {
+      labJobs.selectedId.value = id
+      const job = labJobs.jobs.value.find(item => item.id === id)
+      section.value = 'lab'
+      if (job) void enterLabJob(job)
+      return
+    }
+    if (kind === 'cve' && id) {
+      vulnerabilityDashboard.selectedId.value = id.toUpperCase()
+      section.value = 'vuln'
+      return
+    }
+    if (kind === 'ctf' && id) {
+      ctfResumeJobId.value = id
+      section.value = 'ctf'
+      return
+    }
+    if (kind === 'conversation' && id) {
+      conversations.activeId.value = id
+      section.value = 'chat'
+    }
+    return
+  }
+  if (kind === 'lab') {
+    if (action === 'archive') {
+      removeLabJobIds(payload.ids?.length ? payload.ids : (id ? [id] : []))
+      return
+    }
+    if (record.id) {
+      applyLabJobRecord(record)
+      if (record.title) conversations.rename(`lab-job-${String(record.id)}`, String(record.title))
+    }
+    return
+  }
+  if (kind === 'conversation') {
+    if (action === 'update' && id && record.title) {
+      conversations.rename(id, String(record.title))
+      return
+    }
+    void conversations.load()
+    return
+  }
+  if (kind === 'cve' && id) {
+    const tracking = {
+      id,
+      title: String(record.title ?? ''),
+      vendor: String(record.vendor ?? ''),
+      product: String(record.product ?? ''),
+      affected: String(record.affected ?? ''),
+      summary: String(record.summary ?? ''),
+      referenceHref: String(record.url ?? ''),
+    }
+    if (action === 'update') {
+      vulnerabilityDashboard.patchTrackingItem(id, {
+        title: tracking.title,
+        vendor: tracking.vendor,
+        product: tracking.product,
+        affected: tracking.affected,
+        summary: tracking.summary,
+      })
+      return
+    }
+    try {
+      vulnerabilityDashboard.addTrackingItem(tracking)
+    } catch {
+      vulnerabilityDashboard.patchTrackingItem(id, tracking)
+    }
+  }
+}
+
+async function enterLabJob(job: LabJob) {
+  await bindDossierConversation(
+    job.title,
+    `lab-job-${job.id}`,
+    {
+      kind: 'lab',
+      jobId: job.id,
+      title: job.title,
+      scope: job.scope,
+      request: job.request,
+    },
+  )
+  lastLabConversationId.value = conversations.activeId.value
 }
 
 async function startVulnerabilityCodingTask(
@@ -439,11 +690,8 @@ async function startVulnerabilityCodingTask(
       activeVulnerabilityCodingConversationId.value = id
     },
     setSection: value => { section.value = value },
-    stageDraft: (prompt, visibleText) => {
-      conversations.stageComposerDraft(prompt, visibleText)
-    },
   })
-  // recordHandoff = opened shared Coding with staged draft; not Agent started / network.
+  // recordHandoff = opened shared Coding; not Agent started / network.
   if (accepted) {
     recordHandoff?.(conversations.workspacePath.value)
   }
@@ -464,7 +712,6 @@ async function switchCTFAgent(role: 'solver' | 'tool-builder' | 'strategist') {
     })
     await conversations.startWorkspaceTask({
       ...handoff,
-      visibleText: visibleCTFDraft(handoff),
       domainTaskContext: domainContextFromCTFHandoff(handoff),
       autoSend: false,
     })
@@ -546,6 +793,15 @@ onMounted(async () => {
   unlistenUpdate = await listenEvent<UpdateStatus>('update.changed', event => {
     updateStatus.value = event.payload
   })
+  unlistenWorkspaceRecords = await listenEvent<{
+    action?: string
+    kind?: string
+    id?: string
+    ids?: string[]
+    record?: Record<string, unknown>
+  }>('workspace-record.changed', event => {
+    applyWorkspaceRecord(event.payload ?? {})
+  })
   // Four parallel RPCs; accountLoaded only flips after loadAccountStatus finishes.
   // After bootstrap, GetAccountStatus is non-blocking (provisional or cache).
   const parallelStarted = performance.now()
@@ -562,6 +818,7 @@ onMounted(async () => {
     measure('rpc.loadAccountStatus', () => loadAccountStatus()),
     measure('rpc.conversations.load', () => conversations.load()),
   ])
+  await hydrateLabJobsFromBackend()
   const parallelWallMs = Math.round(performance.now() - parallelStarted)
   const slowest = Math.max(catalogMs, settingsMs, accountMs, conversationsMs)
   startupLog(
@@ -592,6 +849,7 @@ onBeforeUnmount(() => {
   unlistenAccount?.()
   unlistenModelCatalog?.()
   unlistenUpdate?.()
+  unlistenWorkspaceRecords?.()
   if (systemThemeMedia && systemThemeListener) {
     systemThemeMedia.removeEventListener('change', systemThemeListener)
   }
@@ -599,7 +857,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div v-if="!accountLoaded" class="game-shell tactical-dark-surface grid h-screen place-items-center text-xl font-semibold text-white">MilkSU</div>
+  <div v-if="!accountLoaded" class="grid h-screen place-items-center bg-background text-xl font-semibold text-foreground">MilkSU</div>
   <AccountLoginPage
     v-else-if="showAccountGate"
     :status="accountStatus"
@@ -669,28 +927,109 @@ onBeforeUnmount(() => {
         :vulnerabilities="vulnerabilityDashboard.tracked.value"
         @account-status-change="accountStatus = $event"
       />
-      <KeepAlive include="CTFPage,VulnPage">
+      <KeepAlive include="CTFPage,VulnPage,LabPage">
         <CTFPage
           v-if="section === 'ctf'"
+          v-bind="codingAgentBind"
           :model-ready="modelReady"
           :model-verified="modelVerified"
           :arena-ready="arenaReady"
           :initial-job-id="ctfResumeJobId"
           :ctf-section="ctfSection"
           :conversations="conversations.conversations.value"
+          :conversation="conversations.active.value"
+          :ensure-conversation="conversations.ensureConversation"
           @open-settings="category => openSettings(category ?? 'apikeys')"
           @start-coding-agent="startCTFAgent"
           @open-coding-conversation="openHistoryConversation"
+          @send="conversations.send"
+          @abort="abortConversation"
+          @select-conversation="selectDossierConversation"
+          @create-conversation="createDossierConversation"
+          @expand="expandDossierToCoding"
+          @consume-pending-draft="conversations.consumeComposerDraft()"
+          @ctf-action="runCTFChatAction"
+          @compact-context="conversations.compactContext"
+          @control-goal="conversations.controlGoal"
+          @respond-approval="conversations.respondApproval"
+          @change-model="changeModel"
+          @change-model-source="conversations.setModelSourcePreference"
+          @change-coding-policy="conversations.setCodingPolicy"
+          @change-mcp-servers="conversations.setMCPSelection"
+          @choose-workspace="chooseAgentWorkspace"
+          @choose-workspace-for-new-task="chooseAgentWorkspaceForNewTask"
+          @select-workspace="selectCodingWorkspace"
+          @forget-workspace="forgetCodingWorkspace"
+          @clear-workspace="clearCodingWorkspace"
+          @cancel-queued-guidance="conversations.cancelQueuedGuidance"
+          @edit-queued-guidance="conversations.editQueuedGuidance"
         />
         <VulnPage
           v-else-if="section === 'vuln'"
+          v-bind="codingAgentBind"
           :dashboard="vulnerabilityDashboard"
           :coding-workspace-path="vulnerabilityCodingWorkspacePath"
           :navigation-epoch="vulnNavigationEpoch"
           :conversations="conversations.conversations.value"
+          :conversation="conversations.active.value"
+          :ensure-conversation="conversations.ensureConversation"
           @choose-coding-workspace="chooseVulnerabilityCodingWorkspace"
           @start-coding-task="startVulnerabilityCodingTask"
           @open-coding-conversation="openHistoryConversation"
+          @enter="enterVulnerabilityDossier"
+          @run="runVulnerabilityReproduction"
+          @send="conversations.send"
+          @abort="abortConversation"
+          @select-conversation="selectDossierConversation"
+          @create-conversation="createDossierConversation"
+          @expand="expandDossierToCoding"
+          @consume-pending-draft="conversations.consumeComposerDraft()"
+          @compact-context="conversations.compactContext"
+          @control-goal="conversations.controlGoal"
+          @respond-approval="conversations.respondApproval"
+          @change-model="changeModel"
+          @change-model-source="conversations.setModelSourcePreference"
+          @change-coding-policy="conversations.setCodingPolicy"
+          @change-mcp-servers="conversations.setMCPSelection"
+          @choose-workspace="chooseAgentWorkspace"
+          @choose-workspace-for-new-task="chooseAgentWorkspaceForNewTask"
+          @select-workspace="selectCodingWorkspace"
+          @forget-workspace="forgetCodingWorkspace"
+          @clear-workspace="clearCodingWorkspace"
+          @cancel-queued-guidance="conversations.cancelQueuedGuidance"
+          @edit-queued-guidance="conversations.editQueuedGuidance"
+          @open-settings="openSettings('apikeys')"
+        />
+        <LabPage
+          v-else-if="section === 'lab'"
+          v-bind="codingAgentBind"
+          :conversations="conversations.conversations.value"
+          :conversation="conversations.active.value"
+          :ensure-conversation="conversations.ensureConversation"
+          @enter="enterLabJob"
+          @run="runLabJob"
+          @rename="renameLabJob"
+          @send="conversations.send"
+          @abort="abortConversation"
+          @select-conversation="selectDossierConversation"
+          @create-conversation="createDossierConversation"
+          @expand="expandDossierToCoding"
+          @consume-pending-draft="conversations.consumeComposerDraft()"
+          @compact-context="conversations.compactContext"
+          @control-goal="conversations.controlGoal"
+          @respond-approval="conversations.respondApproval"
+          @change-model="changeModel"
+          @change-model-source="conversations.setModelSourcePreference"
+          @change-coding-policy="conversations.setCodingPolicy"
+          @change-mcp-servers="conversations.setMCPSelection"
+          @choose-workspace="chooseAgentWorkspace"
+          @choose-workspace-for-new-task="chooseAgentWorkspaceForNewTask"
+          @select-workspace="selectCodingWorkspace"
+          @forget-workspace="forgetCodingWorkspace"
+          @clear-workspace="clearCodingWorkspace"
+          @cancel-queued-guidance="conversations.cancelQueuedGuidance"
+          @edit-queued-guidance="conversations.editQueuedGuidance"
+          @open-settings="openSettings('apikeys')"
         />
       </KeepAlive>
       <ChatPage
@@ -747,6 +1086,7 @@ onBeforeUnmount(() => {
         @open-conversation="openHistoryConversation"
         @return-ctf="returnToCTFWorkspace"
         @return-vuln="returnToVulnerabilityWorkspace"
+        @return-lab="returnToLabWorkspace"
         @switch-ctf-agent="switchCTFAgent"
         @toggle-conversation-drawer="toggleCodingConversationDrawer"
       />

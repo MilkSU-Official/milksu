@@ -104,6 +104,23 @@ describe('domainTaskContext', () => {
     expect(view.ownership).toBe('')
   })
 
+  it('presents a laboratory job without authorization-test copy', () => {
+    const view = presentDomainTaskContext({
+      kind: 'lab',
+      jobId: 'job-1',
+      title: '本机练习机',
+      scope: 'local',
+      request: '扫一下本机进程',
+    })
+    expect(view.moduleLabel).toBe('实验室')
+    expect(view.returnLabel).toBe('返回实验室')
+    expect(view.objective).toBe('本地')
+    expect(view.facts[0]?.value).toBe('本地')
+    expect(view.brief).toBe('扫一下本机进程')
+    expect(JSON.stringify(view)).not.toContain('授权测试')
+    expect(JSON.stringify(view)).not.toContain('授权靶')
+  })
+
   it('maps session flags onto one shared Coding/Pi surface', () => {
     expect(sharedCodingSessionKind(true, false)).toBe('ctf')
     expect(sharedCodingSessionKind(false, true)).toBe('cve')

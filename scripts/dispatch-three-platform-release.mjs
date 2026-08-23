@@ -63,15 +63,15 @@ const state = await sourceState()
 const issues = validateReleaseVerificationReceipt(receipt, state)
 if (issues.length > 0) throw new Error(issues.join('; '))
 
-const includeMacosCloud = process.argv.includes('--macos-cloud')
+const includeMacosCloud = !process.argv.includes('--skip-macos')
 const dispatches = buildReleaseWorkflowDispatches({
   commit: state.commit,
   version: state.rootVersion,
   uploadRelease: process.argv.includes('--upload-release'),
   useSelfHosted: process.argv.includes('--use-self-hosted'),
   includeMacosCloud,
-  releaseTitle: option('release-title', `MilkSU ${state.rootVersion} 内测版`),
-  releaseNotes: option('release-notes', `MilkSU ${state.rootVersion} 内测版`),
+  releaseTitle: option('release-title', `MilkSU ${state.rootVersion}`),
+  releaseNotes: option('release-notes', `MilkSU ${state.rootVersion}`),
   minimumVersion: option('minimum-version', '0.1.0'),
 })
 
@@ -79,7 +79,7 @@ if (process.argv.includes('--dry-run')) {
   process.stdout.write(`${JSON.stringify({
     repository,
     source: state.commit,
-    macos: includeMacosCloud ? 'cloud' : 'local (npm run release:mac:local)',
+    macos: includeMacosCloud ? 'cloud (GitHub-hosted)' : 'skipped',
     dispatches,
   }, null, 2)}\n`)
   process.exit(0)
@@ -89,11 +89,9 @@ await run('gh', ['auth', 'status', '--hostname', 'github.com'])
 for (const dispatch of dispatches) {
   await run('gh', [...dispatch.args, '--repo', repository])
 }
-if (includeMacosCloud) {
-  process.stdout.write(`cloud release workflows dispatched for ${state.commit} (including macOS)\n`)
-} else {
-  process.stdout.write(
-    `Windows/Linux workflows dispatched for ${state.commit}. `
-    + 'macOS is local-only by default — run: npm run release:mac:local\n',
-  )
-}
+process.stdout.write(
+  `cloud release workflows dispatched for ${state.commit}`
+  + (includeMacosCloud
+    ? '. Approve the macos-release environment, then run: npm run release:collect -- --wait\n'
+    : ' (macOS skipped)\n'),
+)

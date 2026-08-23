@@ -20,11 +20,13 @@
 }
 
 .workspace-rail-item.is-current {
-  box-shadow: 0 0 1.4rem color-mix(in srgb, var(--brand) 48%, transparent);
+  /* Rail is graphite in both themes. Do not use page --brand: day mode darkens it and the glow disappears. */
+  box-shadow: 0 0 1.4rem color-mix(in srgb, #05a7dc 55%, transparent);
 }
 
 .workspace-topbar[data-workspace-module='ctf'] .workspace-topbar__title,
-.workspace-topbar[data-workspace-module='cve'] .workspace-topbar__title {
+.workspace-topbar[data-workspace-module='cve'] .workspace-topbar__title,
+.workspace-topbar[data-workspace-module='lab'] .workspace-topbar__title {
   font-size: 1.65rem;
   font-weight: 900;
   letter-spacing: -0.05em;
@@ -64,6 +66,10 @@
   --muted-foreground: #6d757a;
   --card: #f3f4ef;
   --border: #aba9a1;
+  --muted: #e6e7e1;
+  --background: #f3f4ef;
+  --surface-editor: #e6e7e1;
+  --accent: #e6e7e1;
 }
 
 .chat-bubble__who {

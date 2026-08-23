@@ -438,6 +438,26 @@ describe('applyCodingToolEvent', () => {
     expect(settled[1]?.approvalRequestId).toBe('approval-1')
   })
 
+  it('hides leftover read-only delivery status as a blank assistant shell', () => {
+    expect(isBlankAssistantMessage(message(
+      'stale',
+      'assistant',
+      '正在把只读研究结论写入工作区交付',
+    ))).toBe(true)
+    expect(isBlankAssistantMessage(message(
+      'ok',
+      'assistant',
+      '已经写完报告。',
+    ))).toBe(false)
+  })
+
+  it('also settles leftover running assistant shells when the turn is idle', () => {
+    const settled = settleRunningToolMessages([
+      message('a1', 'assistant', '还没说完', { status: 'running' }),
+    ])
+    expect(settled[0]?.status).toBe('done')
+  })
+
   it('ignores bubbled details toggles from nested entries', () => {
     const parent = { open: true } as HTMLDetailsElement
     const child = { open: false } as HTMLDetailsElement

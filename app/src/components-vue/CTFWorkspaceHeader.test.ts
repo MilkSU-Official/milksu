@@ -14,8 +14,6 @@ afterEach(() => {
 async function mountHeader(props: {
   challengeTitle?: string
   sourceUri?: string
-  mode?: 'solve' | 'review'
-  hasReviewActivity?: boolean
 } = {}) {
   const host = document.createElement('div')
   document.body.append(host)
@@ -24,7 +22,6 @@ async function mountHeader(props: {
     ...props,
     onReturnCatalog: () => events.push('returnCatalog'),
     onOpenSource: () => events.push('openSource'),
-    onSwitchMode: (mode: string) => events.push(`switchMode:${mode}`),
   })
   app.mount(host)
   mountedApps.push(app)
@@ -44,6 +41,7 @@ describe('CTFWorkspaceHeader', () => {
     expect(host.textContent).toContain('打开题目')
     expect(host.querySelector('[aria-label="打开设置"]')).toBeNull()
     expect(host.textContent).not.toContain('查看复盘')
+    expect(host.textContent).not.toContain('返回解题')
     expect(host.textContent).not.toContain('不会结束当前会话')
     expect(host.querySelector('[data-module-topbar]')).not.toBeNull()
     expect(host.querySelector('[data-module-topbar]')?.getAttribute('data-workspace-module')).toBe('ctf')
@@ -55,26 +53,13 @@ describe('CTFWorkspaceHeader', () => {
     expect(events).toEqual(['returnCatalog', 'openSource'])
   })
 
-  it('surfaces solve and review as top-level session modes when evidence exists', async () => {
-    const solve = await mountHeader({
+  it('does not split the workspace into solve and review modes', async () => {
+    const { host } = await mountHeader({
       challengeTitle: 'NSSCTF P3879',
-      mode: 'solve',
-      hasReviewActivity: true,
     })
-
-    expect(solve.host.textContent).toContain('查看复盘')
-    solve.host.querySelector<HTMLButtonElement>('[aria-label="查看 CTF 复盘模式"]')?.click()
-    expect(solve.events).toEqual(['switchMode:review'])
-
-    const review = await mountHeader({
-      challengeTitle: 'NSSCTF P3879',
-      mode: 'review',
-      hasReviewActivity: true,
-    })
-
-    expect(review.host.textContent).toContain('返回解题')
-    review.host.querySelector<HTMLButtonElement>('[aria-label="返回 CTF 解题模式"]')?.click()
-    expect(review.events).toEqual(['switchMode:solve'])
+    expect(host.textContent).not.toContain('查看复盘')
+    expect(host.textContent).not.toContain('返回解题')
+    expect(host.querySelector('[aria-label="查看 CTF 复盘模式"]')).toBeNull()
   })
 
   it('does not show a dead source button when a challenge has no URL', async () => {

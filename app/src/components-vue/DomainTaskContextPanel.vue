@@ -210,7 +210,7 @@ function toggleCollapsed() {
   min-height: 100%;
   flex-direction: column;
   overflow: hidden;
-  background: var(--night-canvas);
+  background: var(--background);
   container-name: domain-dossier;
   container-type: inline-size;
 }
@@ -231,12 +231,12 @@ function toggleCollapsed() {
   overflow: auto;
   border: 0;
   border-radius: 0;
-  color: var(--tactical-paper-ink);
+  color: var(--foreground);
 }
 .domain-mission-title { overflow-wrap: anywhere; font-size: clamp(1.9rem, 10cqi, 2.65rem); }
-.domain-dossier__header { border-bottom: 1px solid var(--night-border); color: var(--night-foreground); }
-.domain-dossier__footer { border-color: var(--night-border); color: var(--night-foreground); }
-.domain-material, .domain-facts { border-color: rgb(17 19 21 / .35); background: rgb(255 255 255 / .14); }
+.domain-dossier__header { border-bottom: 1px solid var(--border); color: var(--foreground); }
+.domain-dossier__footer { border-color: var(--border); color: var(--foreground); }
+.domain-material, .domain-facts { border-color: var(--border); background: var(--card); }
 .domain-facts dl { border-color: rgb(17 19 21 / .28); }
 
 @container domain-dossier (max-width: 25rem) {

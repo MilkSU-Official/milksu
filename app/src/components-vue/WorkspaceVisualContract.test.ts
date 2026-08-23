@@ -5,6 +5,7 @@ import chatComposerSource from './ChatComposer.vue?raw'
 import chatMessageItemSource from './ChatMessageItem.vue?raw'
 import contextSidebarSource from './ContextSidebar.vue?raw'
 import chatPageSource from './ChatPage.vue?raw'
+import conversationDockSource from './ConversationDock.vue?raw'
 import loginPageSource from './AccountLoginPage.vue?raw'
 import missionOperationSource from './MissionOperationPanel.vue?raw'
 import settingsPageSource from './SettingsPage.vue?raw'
@@ -17,12 +18,21 @@ import appSource from '../App.vue?raw'
 const appStylesSource = readFileSync(new URL('../index.css', import.meta.url), 'utf8')
 
 describe('Workspace visual contract', () => {
-  it('uses compact inline expansion for CTF and CVE instead of separate dashboards', () => {
-    expect(ctfChallengeDeskSource).toContain('game-focus-panel')
-    expect(ctfChallengeDeskSource).toContain('ak-notice')
-    expect(ctfChallengeDeskSource).toContain('交给 Coding')
-    expect(vulnPageSource).toContain('game-focus-panel')
-    expect(vulnPageSource).toContain('关联的 Coding 对话')
+  it('opens CTF and CVE into a dossier instead of expanding the list', () => {
+    expect(ctfChallengeDeskSource).not.toContain('game-focus-panel')
+    expect(vulnPageSource).not.toContain('game-focus-panel')
+    expect(vulnPageSource).toContain('开始复现')
+    expect(vulnPageSource).toContain('ResearchReportPanel')
+    expect(vulnPageSource).toContain('ConversationDock')
+    expect(vulnPageSource).toContain('RelatedCvePanel')
+    expect(vulnPageSource).toContain('data-testid="open-item"')
+    expect(chatPageSource).toContain("surface?: 'page' | 'dock'")
+    expect(chatPageSource).toContain("props.surface === 'dock'")
+    expect(chatPageSource).toContain(':context-usage="contextUsagePresentation"')
+    expect(conversationDockSource).toContain('surface="dock"')
+    expect(conversationDockSource).not.toContain("from '@/components-vue/ContextUsageMeter.vue'")
+    expect(chatComposerSource).toContain('data-testid="composer-context-strip"')
+    expect(vulnPageSource).toContain('rounded-xl border border-border bg-card p-6')
     expect(vulnPageSource).not.toContain('VulnerabilityLoopPanel')
     expect(vulnPageSource).not.toContain('当前下一步')
     expect(vulnPageSource).toContain('<WorkspaceModuleTopBar module="cve" title="漏洞">')
@@ -41,14 +51,13 @@ describe('Workspace visual contract', () => {
     expect(contextSidebarSource).not.toContain('Task archive')
     expect(contextSidebarSource).toContain('px-3 py-1.5 text-label font-medium text-muted-foreground')
     expect(contextSidebarSource).toContain('group flex items-center transition-colors hover:bg-accent/50')
-    expect(contextSidebarSource).toContain('--overlay-hover-strong: rgb(255 255 255 / 0.13)')
-    expect(contextSidebarSource).toContain('--selected-bg: var(--overlay-hover-strong)')
+    expect(contextSidebarSource).toContain('color: var(--foreground)')
     // Collapsed: expand + new-task park on the Coding topbar leading slot.
     expect(chatPageSource).toContain('data-testid="coding-history-toggle"')
     expect(chatPageSource).toContain('coding-history-collapsed-controls')
     expect(chatPageSource).toContain('展开会话历史')
     expect(chatPageSource).toContain('v-if="!conversationDrawerOpen"')
-    expect(chatMessageItemSource).toContain('class="break-words text-control leading-7"')
+    expect(chatMessageItemSource).toContain('break-words text-control leading-7')
     expect(chatComposerSource).toContain('font-size: var(--text-label)')
     expect(chatComposerSource).toContain('line-height: var(--text-label--line-height)')
     expect(chatComposerSource).toContain('class="chat-composer__goal-panel"')
@@ -58,21 +67,28 @@ describe('Workspace visual contract', () => {
     expect(chatComposerSource).not.toContain('background-color: #f3f4ef')
     expect(workspaceRailSource).toContain('font-size: var(--text-body)')
     expect(workspaceRailSource).toContain('line-height: var(--text-body--line-height)')
+    expect(workspaceRailSource).toContain('FlaskConical')
+    expect(workspaceRailSource).toContain('lab: FlaskConical')
+    expect(workspaceRailSource).toContain('ak-media--album workspace-rail-profile__album')
   })
 
-  it('pins every persistent dark surface to its own readable theme roles', () => {
-    expect(appSource).toContain('game-shell tactical-dark-surface grid h-screen')
+  it('lets chrome follow the document theme instead of pinning night graphite in day mode', () => {
     expect(appSource).not.toContain('bg-[#071524]')
-    expect(loginPageSource).toContain('game-shell tactical-dark-surface')
+    expect(appSource).toContain('bg-background text-xl font-semibold text-foreground')
     expect(loginPageSource).toContain('login-signal-field')
     expect(loginPageSource).toContain('background: var(--primary)')
     expect(loginPageSource).toContain('mask-image: radial-gradient')
-    expect(settingsPageSource).toContain('settings-nav-surface tactical-dark-surface')
-    expect(settingsPageSource).toContain('background-color: var(--night-card)')
+    expect(loginPageSource).not.toContain('tactical-dark-surface')
+    expect(settingsPageSource).toContain('settings-nav-surface')
+    expect(settingsPageSource).not.toContain('tactical-dark-surface')
+    expect(settingsPageSource).toContain('background-color: var(--background)')
     expect(settingsPageSource).not.toContain('bg-[#101418]')
     expect(chatPageSource).toContain("import TacticalPanelShell from '@/components-vue/TacticalPanelShell.vue'")
     expect(chatPageSource).toContain('class="context-sidebar"')
-    expect(workspaceRailSource).toContain('--foreground: var(--night-foreground)')
+    expect(workspaceRailSource).toContain('background: var(--background)')
+    expect(workspaceRailSource).toContain('background: #05a7dc')
+    expect(workspaceRailSource).toContain('box-shadow: 0 0 1.4rem color-mix(in srgb, #05a7dc 55%, transparent)')
+    expect(workspaceRailSource).not.toContain('background: var(--brand)')
   })
 
   it('uses one tactical shell for hidden Coding surfaces and adapts the task layout to its container', () => {

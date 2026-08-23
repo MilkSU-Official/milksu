@@ -12,12 +12,14 @@ describe('ChatPage routing contract', () => {
   it('shows a CVE handoff badge and return action while preserving a typed topbar module', () => {
     expect(chatPageSource).toContain('vulnerabilitySession?: boolean')
     expect(chatPageSource).toContain('returnVuln: []')
+    expect(chatPageSource).toContain('returnLab: []')
     expect(chatPageSource).toContain('vulnerabilitySession: props.vulnerabilitySession')
     expect(chatPageSource).toContain('const topbarModule = computed')
     expect(chatPageSource).toContain("? 'cve'")
-    expect(chatPageSource).toContain("{{ ctfSession ? ctfRoleLabel : 'CVE 接力' }}")
+    expect(chatPageSource).toContain("{{ ctfSession ? ctfRoleLabel : (domainTaskPresentation?.moduleLabel || 'CVE 接力') }}")
     expect(chatPageSource).toContain('domainTaskPresentation')
-    expect(chatPageSource).toContain("domainTaskPresentation.kind === 'ctf' ? $emit('returnCtf') : $emit('returnVuln')")
+    expect(chatPageSource).toContain('function returnToDomain()')
+    expect(chatPageSource).toContain("emit('returnLab')")
     expect(chatPageSource).toContain(':module="topbarModule"')
   })
 
@@ -79,7 +81,7 @@ describe('ChatPage routing contract', () => {
 
   it('hides the module topbar while the right rail is open and parks terminal plus close there', () => {
     expect(chatPageSource).toContain('const contextRailVisible = computed')
-    expect(chatPageSource).toContain('v-if="!contextRailVisible"')
+    expect(chatPageSource).toContain('v-if="!dockSurface && !contextRailVisible"')
     expect(chatPageSource).toContain('data-testid="coding-rail-terminal"')
     expect(chatPageSource).toContain('data-testid="coding-rail-toggle"')
     expect(chatPageSource).toContain('aria-label="关闭右侧栏"')
@@ -121,7 +123,8 @@ describe('ChatPage routing contract', () => {
   })
 
   it('does not expose single-session related history in the Coding right rail', () => {
-    expect(chatPageSource).toContain('const composer = ref<{ appendDraftText')
+    expect(chatPageSource).toContain('appendDraftText: (text: string) => void')
+    expect(chatPageSource).toContain('openAddMenu: () => void')
     expect(chatPageSource).toContain("composer.value?.appendDraftText")
     expect(chatPageSource).not.toContain('SessionHistoryPanel')
     expect(chatPageSource).not.toContain('quoteSessionHistoryToComposer')
@@ -133,6 +136,7 @@ describe('ChatPage routing contract', () => {
   it('projects milksu_progress plans, context meter and run timing on the right rail and composer', () => {
     expect(chatPageSource).toContain("from '@/components-vue/AgentExecutionPlan.vue'")
     expect(chatPageSource).toContain('<AgentExecutionPlan')
+    expect(chatPageSource).toContain(':running="running"')
     expect(chatPageSource).toContain("from '@/components-vue/ContextUsageMeter.vue'")
     expect(chatPageSource).toContain('turnStatus?: SessionTurnSnapshot')
     expect(chatPageSource).toContain('resolveModelContextWindow')
@@ -165,6 +169,15 @@ describe('ChatPage routing contract', () => {
     expect(chatPageSource).toContain('changedFiles: git.changedFiles')
     expect(chatPageSource).toContain('additions: git.additions')
     expect(chatPageSource).toContain('deletions: git.deletions')
+  })
+
+  it('keeps Coding terminal, git, changes, artifacts and permissions on CTF sessions', () => {
+    expect(chatPageSource).not.toContain('v-if="!ctfSession" value="changes"')
+    expect(chatPageSource).not.toContain('v-if="!ctfSession" value="artifacts"')
+    expect(chatPageSource).not.toContain('v-if="!ctfSession"\n          variant="ghost"\n          size="icon-sm"\n          data-testid="coding-rail-terminal"')
+    expect(chatPageSource).not.toContain('<section v-if="!ctfSession" class="border-b border-border px-4 py-4">')
+    expect(chatPageSource).toContain('codingEnvironment.value = await invokeCommand<CodingEnvironmentSnapshot>')
+    expect(chatPageSource).not.toContain('if (props.ctfSession) {\n    codingEnvironment.value = null')
   })
 
   it('keeps Terminal as an independent bottom dock instead of a sidebar page', () => {

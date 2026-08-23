@@ -1,6 +1,6 @@
 {
   "name": "milksu-desktop",
-  "version": "26.822.1",
+  "version": "26.823.1",
   "private": true,
   "description": "MilkSU Chromium desktop shell",
   "main": "main.cjs",
@@ -38,6 +38,7 @@
       "local-path.cjs",
       "macos-screen-permission.cjs",
       "renderer-protocol.cjs",
+      "renderer-reload.cjs",
       "package.json",
       "node_modules/ws/**/*",
       "node_modules/electron-updater/**/*",

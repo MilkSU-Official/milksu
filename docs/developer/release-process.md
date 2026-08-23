@@ -7,8 +7,9 @@
 
 ## 1. 冻结发行源
 
-先把版本号和待发代码提交并推送到私有 `main`，确保 tracked working tree 干净。根目录与
-`desktop/package.json` 的版本必须相同。
+先把版本号和待发代码提交并推送到 `main`，确保 tracked working tree 干净。根目录与
+`desktop/package.json` 的版本必须相同。任意已登录 `gh` 的机器都可以发这一轮，不要求本机有
+Developer ID 或 Apple 公证环境。
 
 ## 2. 全量验证一次
 
@@ -34,54 +35,49 @@ npm run docs:build
 需要人工体验时，可在同一提交上构建普通 Stable 验收包并由用户操作。不要构建 Beta；人工验收也不需要
 再次运行上述全量 suite。
 
-## 3. 分发：Windows/Linux 走云端，macOS 默认本机
+## 3. 分发：三端都走 GitHub-hosted 云端
+
+仓库已公开，标准 GitHub-hosted runner（含 macOS）不扣私有分钟额度。默认把同一个 40 位
+commit 分发给 **macOS / Windows / Linux** 三条 workflow。macOS 本机打包路径暂时关闭。
 
 ```bash
 npm run release:dispatch -- \
-  --release-title "MilkSU 26.818.1 内测版" \
-  --release-notes "本次内测说明"
+  --release-title "MilkSU 26.823.1" \
+  --release-notes "本次发行说明"
 ```
 
-命令先验证本地回执和当前 `main`，默认只把同一个 40 位 commit 分发给 **Windows** 与 **Linux**
-workflow（避免 GitHub-hosted macOS 分钟费）。macOS 正式签名包在本机完成：
+macOS 签名 job 使用 `macos-release` environment，必须由 `MilkSU-Official` 在 GitHub 上批准后
+才会注入 Developer ID / Notary secrets。批准后等待并拉取三端产物：
 
 ```bash
-npm run release:mac:local -- \
-  --release-title "MilkSU 26.818.1 内测版" \
-  --release-notes "本次内测说明"
+npm run release:collect -- --wait
 ```
 
-本机脚本从 Personal Vault 读取 Developer ID / Notary 资产，导入一次性 Keychain，构建、签名、公证、
-staple，完成后删除临时 Keychain；不把私钥写入仓库或日志。产物：`build/release/MilkSU-macOS-arm64-<version>.dmg`（与 Win/Linux 一样带版本号）。
-
-| 平台 | 默认路径 | 保留的原生门禁 |
-| --- | --- | --- |
-| macOS | 本机 `release:mac:local` | Stable 构建、Developer ID 签名、App/DMG 公证、staple、Gatekeeper、DMG 安装布局 |
-| Windows | GitHub Actions | 原生 Go 编译、关键 Sidecar 路由、NSIS 结构、打包 Runtime 与首次启动 |
-| Linux | GitHub Actions | 原生 Go 编译、关键 Sidecar 路由、DEB 结构、打包 Runtime 与 Xvfb 首次启动 |
-
-确需云端 macOS（自托管或托管）时显式加 `--macos-cloud`；自托管再加 `--use-self-hosted`。
-
-可先查看而不触发：
+产物落到 `build/release/github/{macos,windows,linux}/`。可先查看而不触发：
 
 ```bash
 npm run release:dispatch -- --dry-run
 ```
 
+| 平台 | 默认路径 | 保留的原生门禁 |
+| --- | --- | --- |
+| macOS | GitHub-hosted `macos-release.yml` | Stable 构建、Developer ID 签名、App/DMG 公证、staple、Gatekeeper、DMG 安装布局 |
+| Windows | GitHub Actions | 原生 Go 编译、关键 Sidecar 路由、NSIS 结构、打包 Runtime 与首次启动 |
+| Linux | GitHub Actions | 原生 Go 编译、关键 Sidecar 路由、DEB 结构、打包 Runtime 与 Xvfb 首次启动 |
+
+只有 GitHub-hosted macOS 无法公证时才允许本机例外：`npm run release:mac:local -- --allow-local`。
+自托管 runner 再加 `--use-self-hosted`。
+
 ## 4. 创建 GitHub Release 页（必做）
 
-Windows/Linux Actions 成功、本机 macOS DMG 就绪后，必须创建（或刷新）**Releases 页面**，
-不要只留一个空 tag。QQ 群分发、下载页和校验都以 Release 页为准：
+三端云端 Actions 成功后，必须创建（或刷新）**Releases 页面**，不要只留一个空 tag。QQ 群分发、
+下载页和校验都以 Release 页为准：
 
 ```bash
-# 先把云端产物拉到本机（run id 换成本轮成功的 Windows / Linux workflow）
-mkdir -p build/release/github/windows build/release/github/linux
-gh run download <windows-run-id> -D build/release/github/windows -n MilkSU-Windows-x64-installer
-gh run download <linux-run-id> -D build/release/github/linux -n MilkSU-Linux-x64-deb-trial
-
+npm run release:collect -- --wait
 npm run release:github -- \
-  --release-title "MilkSU 26.818.1 内测版" \
-  --release-notes "本次内测说明"
+  --release-title "MilkSU 26.823.1" \
+  --release-notes "本次发行说明"
 ```
 
 该命令会：
@@ -96,9 +92,9 @@ npm run release:github -- \
 默认 GitHub Release 只提供 DMG、EXE、DEB。macOS 默认不再额外压缩 updater ZIP，也不生成 OTA
 metadata。
 
-确实要在同一轮上传私有 R2 并建立 Admin 草稿时，对 macOS 本机发版加 `--upload-release`（或对云端
-macOS 使用 `release:dispatch -- --macos-cloud --upload-release ...`）。Admin 草稿仍需维护者审核
-发布，命令本身不改变 current pointer。
+确实要在同一轮上传私有 R2 并建立 Admin 草稿时，使用
+`release:dispatch -- --upload-release ...`。Admin 草稿仍需维护者审核发布，命令本身不改变
+current pointer。
 
 ## 6. 发行记录
 
@@ -107,7 +103,7 @@ DMG、EXE、DEB（加 SHA256SUMS），不附加 OTA ZIP。
 
 ## 7. 必做：回写并推送版本事实
 
-GitHub Release 页创建成功后，**同一轮**必须更新 Current 文档并推到私有 `main`。发版没有在文档
+GitHub Release 页创建成功后，**同一轮**必须更新 Current 文档并推到 `main`。发版没有在文档
 里变成“最新”，就不算收口。不要把上一版回执留到第二天。
 
 必须同步这些入口，使“正式发行基线”与刚刚发出的 tag 一致：

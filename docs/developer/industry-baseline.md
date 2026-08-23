@@ -11,9 +11,7 @@
 > [个人安全工作台计划：安全工具接入 Coding](./security-workspace-product-plan.md#4-安全工具接入-coding)。
 > BoxPwnr、PentAGI 已明确不进入产品；CAI 保留为思想和评测参考，Shannon 保留为外部 Worker 候选。
 >
-> 后续专项调研：
-> [Wallbreaker Harness 静态调研与 MilkSU 对照](./research/2026-08-03-wallbreaker-harness-review.md)。
-> 该项目当前只作 `adapt` / `benchmark-only` 参考，不进入依赖或 External Worker。
+> Wallbreaker Harness 只作 `adapt` / `benchmark-only` 参考，不进入依赖或 External Worker。过期调研稿不留在 `docs/`，考古用 Git history。
 
 ## 为什么单独维护这份基线
 
@@ -50,7 +48,7 @@
 | --- | --- | --- | --- |
 | L1 Surface | PentAGI、Agentic SOC、redamon、Strix | Run/Case 视图、暂停恢复、成本、审批 | 把 Dashboard 数量当差异化 |
 | L2 Role | Red: PentAGI/ARTEMIS；Blue: Agentic SOC；AppSec: Shannon；CTF: BoxPwnr；Vuln: Taskflow/Co-RedTeam | 角色状态、证据和成功条件 | 只换 system prompt 的角色人格 |
-| L3 Capability | CodeQL、Burp、HexStrike、Operant MCP | 结构化工具 Adapter、Artifact 和权限 | 运行时临时安装几十个未知工具 |
+| L3 Capability | CodeQL、Burp、capa、IDA/Ghidra | 结构化工具 Adapter、Artifact 和权限 | 运行时临时安装几十个未知工具；不把 HexStrike 整包 MCP 做成产品页 |
 | L4 Runtime | BoxPwnr、PentAGI、Taskflow、Shannon | Environment、Attempt、Trace、Effect、Judge、Recovery | 复制整个外部 Agent Loop |
 | L5 Agent Engine | Pi SDK、Codex 开源核心、Claude Code、CAI、PentAGI、Shannon、Strix | 内嵌可扩展基座、模型替换与黑盒委派 | 从 API 重写成熟的通用 Planner/Tool Loop |
 | L6 Integrity | Agentic Radar、Garak、PyRIT、RAMPART | Agent/MCP/Tool 的安全测试与策略回归 | 把 Agent Security 当成 Blue/Red Role |

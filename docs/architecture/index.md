@@ -2,9 +2,9 @@
 
 > 文档状态：Current
 >
-> 审阅日期：2026-08-20
+> 审阅日期：2026-08-23
 >
-> 范围：当前 `main`。正式发行基线是 `v26.819.1 / eed1dac`。文档收口提交不移动该 tag。
+> 范围：当前 `main`。正式发行基线是 `v26.823.1 / efeda10`。文档收口提交不移动该 tag。
 > 实现进度、已发行与未发版分界以
 > [当前开发目标](/developer/current-objectives)、当前代码、测试和真实验收为准。
 
@@ -18,12 +18,10 @@
 3. [Coding Agent / Pi 扩展边界](coding-agent-pi-extension-boundary.md)：哪些能力复用 Pi，哪些能力属于 MilkSU；CTF 当前少接了哪些 Coding 面（现有接线，不是禁令）？
 4. [当前开发目标](/developer/current-objectives)：唯一目标契约；M3 product-loop 已合并，后续
    从目标、代码和测试事实选择有界批次。
-5. [授权安全学习与研究平台](security-learning-and-research-platform.md)：CTF、Labs、CVE、
+5. [授权安全学习与研究平台](security-learning-and-research-platform.md)：CTF、实验室、CVE、
    Coding 怎样共享证据、授权、环境与学习底座？
-6. [CTF Labs 顶层与详细设计](ctf-labs-design.md)：未来怎样提供一键启动、可重置、
-   可判定的环境型训练？
-7. [CVE 研究工作台顶层与详细设计](cve-research-workbench-design.md)：未来怎样支撑
-   赏金猎人的情报、资产、研究、证据与披露日常？
+6. [CTF Labs 顶层与详细设计](ctf-labs-design.md)：CTF 可重置训练环境的长期设计；不是主导航「实验室」。
+7. [CVE 研究工作台顶层与详细设计](cve-research-workbench-design.md)：CVE 档案与复现报告的长期背景。
 8. [文档与任务状态登记](/developer/document-status)：跨文档的唯一当前口径与任务状态。
 
 ## 状态约定
@@ -72,8 +70,8 @@ Checkpoint 由 Git 历史与自动化重新生成，不再长期占用文档入�
   Browser/Computer Scope、已审核 Pi Skills 与项目 MCP。选择 Scope/Skill 不直接发送，Skill
   复用 Pi 原生 `/skill:name`；未选择 Plan 时默认是 Go，不再维护 `/go` 或常驻 Plan/Go 下拉。
 - IDA Pro/idalib 与 capa 已有设置、准备和健康检查，就绪且启用后进入普通 Coding 可选目录。
-  CodeQL、Burp、Shannon 仍只做检测。接到 CTF/CVE 由当前切片决定，不需要先开“是否投影”的会。
-- Managed Labs 当前不在生产启动、桌面 RPC、Vue 入口或发行完成线里。这是现状，不是冻结。
+  CodeQL、Burp、Shannon 仍只做检测。接到实验室或 CVE 复现由当前切片决定，不需要先开“是否投影”的会。不把 HexStrike 整包 MCP 做成产品页。
+- 主导航「实验室」已进入 `26.822.1`（作业、改名、报告、对话小窗）；`26.823.1` 起与 Coding 共用完整循环。CTF 可重置环境仍未做。
 - NYU CTF Bench 的只读元数据、Admission、DeepSeek one-shot Runner、两回合 Pi 只读
   Agent Runtime 和摘要 Judge 是 **Implemented / Verified for the narrow baseline**。
   Agent Runtime 当前只有 5 个手选 static 样本：2 solved、1 unsolved、1 无效 JSON、

@@ -4,6 +4,9 @@ import test from "node:test";
 import {
   codingWorkspaceActionBlocked,
   codingWorkspaceGuidance,
+  isResearchSessionRole,
+  researchReportGuidance,
+  resolveWorkflowSessionRole,
   codingWorkspaceToolName,
   createCodingWorkspaceExtension,
   createWorkspaceActionBroker,
@@ -41,6 +44,43 @@ test("workspace tool rejects unknown actions and plan mutations", () => {
     executionMode: "plan",
     approvalPolicy: "workspace-auto",
   }), "");
+  assert.equal(codingWorkspaceActionBlocked("list_records", {
+    executionMode: "plan",
+    approvalPolicy: "workspace-auto",
+  }), "");
+  assert.match(
+    codingWorkspaceActionBlocked("update_record", {
+      executionMode: "plan",
+      approvalPolicy: "workspace-auto",
+    }),
+    /只读|Plan/,
+  );
+  assert.equal(codingWorkspaceActionBlocked("update_record", {
+    executionMode: "go",
+    approvalPolicy: "workspace-auto",
+  }), "");
+});
+
+test("CVE and lab keep research session roles so the Coding Pi loop still applies", () => {
+  assert.equal(resolveWorkflowSessionRole("", false), "");
+  assert.equal(resolveWorkflowSessionRole("solver", true), "solver");
+  assert.equal(resolveWorkflowSessionRole("", true), "solver");
+  assert.equal(resolveWorkflowSessionRole("cve-research", false), "cve-research");
+  assert.equal(resolveWorkflowSessionRole("lab-job", false), "lab-job");
+  assert.equal(resolveWorkflowSessionRole("cve-research", true), "cve-research");
+  assert.equal(isResearchSessionRole("cve-research"), true);
+  assert.equal(isResearchSessionRole("lab-job"), true);
+  assert.equal(isResearchSessionRole("solver"), false);
+  assert.equal(isResearchSessionRole(""), false);
+});
+
+test("research report guidance tells the model to edit report.md", () => {
+  assert.match(researchReportGuidance(), /report\.md/);
+  assert.match(researchReportGuidance(), /Status labels are not a report/);
+  assert.match(researchReportGuidance(), /Stay on the user-selected target/);
+  assert.doesNotMatch(researchReportGuidance("lab-job"), /related\.md/);
+  assert.match(researchReportGuidance("cve-research"), /related\.md/);
+  assert.match(researchReportGuidance("cve-research"), /上游/);
 });
 
 test("workspace guidance tells the model to use typed UI actions", () => {
@@ -49,12 +89,23 @@ test("workspace guidance tells the model to use typed UI actions", () => {
   assert.match(codingWorkspaceGuidance(), /Do not scan the user message/);
   assert.match(codingWorkspaceGuidance(), /85%/);
   assert.match(codingWorkspaceGuidance(), /list_status/);
+  assert.match(codingWorkspaceGuidance(), /list_records/);
+  assert.match(codingWorkspaceGuidance(), /kind conversation/);
   assert.equal(
     formatCodingWorkspaceInput({
       action: "focus_browser_tab",
       query: "bilibili",
     }),
     "focus_browser_tab · 查询 bilibili",
+  );
+  assert.equal(
+    formatCodingWorkspaceInput({
+      action: "update_record",
+      kind: "lab",
+      id: "job-one",
+      title: "本地进程反病毒测试",
+    }),
+    "update_record · 类型 lab · 记录 job-one · 标题 本地进程反病毒测试",
   );
 });
 

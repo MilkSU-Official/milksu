@@ -1,16 +1,10 @@
 #!/usr/bin/env node
 
 /**
- * Local Developer ID macOS release.
+ * Local Developer ID macOS release. Paused: GitHub-hosted macOS is the default.
  *
- * Loads signing assets from the Personal Vault (never prints secret values),
- * imports the .p12 into an ephemeral Keychain, runs desktop:release:mac, then
- * deletes the temp Keychain. Prefer this over GitHub-hosted macOS runners.
- *
- * Usage (after release:verify on a clean pushed main):
- *   npm run release:mac:local -- \
- *     --release-title "MilkSU 26.818.1 内测版" \
- *     --release-notes "…"
+ * Usage only when cloud notarization cannot run:
+ *   npm run release:mac:local -- --allow-local --release-title "MilkSU …"
  */
 
 import { spawn, execFile } from 'node:child_process'
@@ -81,6 +75,17 @@ async function listUserKeychains() {
 }
 
 async function main() {
+  if (!process.argv.includes('--allow-local')) {
+    throw new Error(
+      'Local macOS packaging is paused. From any machine with gh auth, run:\n'
+      + '  npm run release:verify\n'
+      + '  npm run release:dispatch -- --release-title "MilkSU …" --release-notes "…"\n'
+      + 'Approve the macos-release environment, then:\n'
+      + '  npm run release:collect -- --wait\n'
+      + '  npm run release:github -- --release-title "MilkSU …" --release-notes "…"\n'
+      + 'Pass --allow-local only if GitHub-hosted macOS cannot notarize.',
+    )
+  }
   const vaultDir = option('vault', process.env.MILKSU_SIGNING_VAULT || defaultVault)
   const vault = await loadVaultEnv(vaultDir)
   const required = [

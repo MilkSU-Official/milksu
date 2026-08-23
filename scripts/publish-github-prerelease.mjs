@@ -6,8 +6,8 @@
  * A bare `git tag` is not enough for QQ / installer distribution — this step
  * creates the Releases page and attaches DMG / EXE / DEB (+ SHA256SUMS).
  *
- * Defaults look under build/release/ for the versioned macOS DMG and under
- * build/release/github/{windows,linux}/ for the CI installers.
+ * Defaults look under build/release/github/{macos,windows,linux}/ after
+ * `npm run release:collect`, and still accept a DMG in build/release/.
  *
  * Usage:
  *   npm run release:github -- \
@@ -74,6 +74,9 @@ async function resolveArtifacts(version) {
   const winExplicit = option('windows')
   const linuxExplicit = option('linux')
   const mac = macExplicit || await findOne(
+    join(stagingDir, 'macos'),
+    name => name === `MilkSU-macOS-arm64-${version}.dmg`,
+  ) || await findOne(
     releaseDir,
     name => name === `MilkSU-macOS-arm64-${version}.dmg`,
   )

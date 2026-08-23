@@ -6,8 +6,8 @@
 // structured instruction below, and persisted by AgentSession itself into the
 // session file (so it survives a Sidecar restart).
 //
-// The control action is deliberately bounded: only an existing, non-CTF
-// Coding session may compact. A busy session is passed through so Pi can abort
+// The control action is bounded to an existing Pi session. CTF and Coding share
+// the same Pi compact path: a busy session is passed through so Pi can abort
 // then compact, matching TUI /compact. The summarization call is cancelled
 // when it exceeds the timeout. Failures are surfaced as explicit errors
 // instead of being reported as success.
@@ -41,6 +41,8 @@ export const compactionInstructions = [
   "5. 关键决定：已经作出的关键设计与实现决定及其原因。",
   "6. 下一步：紧接着应执行的最小、可验证的下一步。",
   "7. 关键上下文：重要文件、命令、错误与发现；列出读取过的文件（read files）和修改过的文件（modified files）。",
+  "8. 若为 CTF：保留题面、授权范围、材料路径、已验证观察、失败实验、候选 Flag 与证据位置；不要把整页 HTML/JS 原文抄进摘要。",
+  "9. 若为 CVE 或实验室：保留选定目标、report.md 中的过程与观察、related.md 中已记录的公开 CVE ID；不要把整页 HTML/JS 或完整抓包抄进摘要。",
   "不要丢弃任何会改变后续行为的细节；保持精炼但完整。",
 ].join("\n");
 

@@ -108,6 +108,21 @@ func TestBuildDebriefUsesRuntimeEvidence(t *testing.T) {
 	if len(debrief.FailureBranches) == 0 || debrief.FailureBranches[len(debrief.FailureBranches)-1] != "Agent 尝试中断：model provider was unavailable" {
 		t.Fatalf("debrief did not preserve failure reason: %#v", debrief.FailureBranches)
 	}
+	harness := buildDebrief(
+		securityruntime.JobProjection{
+			Attempts: []securityruntime.Attempt{{
+				Status: securityruntime.AttemptInterrupted,
+				Reason: "CTF engine propose: context deadline exceeded",
+			}},
+		},
+		Challenge{},
+		nil,
+		nil,
+		HumanOutcomeView{},
+	)
+	if len(harness.FailureBranches) != 1 || harness.FailureBranches[0] != "这一步没有完成" {
+		t.Fatalf("debrief leaked harness failure: %#v", harness.FailureBranches)
+	}
 	if len(debrief.Candidates) != 1 || debrief.Candidates[0].Verdict != securityruntime.VerdictFail {
 		t.Fatalf("debrief did not preserve candidate verdict: %#v", debrief.Candidates)
 	}

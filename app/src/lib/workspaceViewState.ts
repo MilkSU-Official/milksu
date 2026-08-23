@@ -1,6 +1,6 @@
 export const WORKSPACE_VIEW_STATE_STORAGE_KEY = 'milksu.workspace-view-state'
 
-export type PersistedWorkspaceSection = 'chat' | 'ctf' | 'vuln' | 'profile' | 'settings'
+export type PersistedWorkspaceSection = 'chat' | 'ctf' | 'vuln' | 'lab' | 'profile' | 'settings'
 export type PersistedCTFSection = 'catalog'
 
 export interface WorkspaceViewState {
@@ -12,9 +12,9 @@ export interface WorkspaceViewState {
   settingsReturnTarget: Exclude<PersistedWorkspaceSection, 'settings'>
 }
 
-const sections = new Set<PersistedWorkspaceSection>(['chat', 'ctf', 'vuln', 'profile', 'settings'])
+const sections = new Set<PersistedWorkspaceSection>(['chat', 'ctf', 'vuln', 'lab', 'profile', 'settings'])
 const ctfSections = new Set<PersistedCTFSection>(['catalog'])
-const returnSections = new Set<Exclude<PersistedWorkspaceSection, 'settings'>>(['chat', 'ctf', 'vuln', 'profile'])
+const returnSections = new Set<Exclude<PersistedWorkspaceSection, 'settings'>>(['chat', 'ctf', 'vuln', 'lab', 'profile'])
 // The settings category is not persisted: SettingsPage owns that state locally and
 // never reports the user's in-page navigation back, so a stored value would only
 // ever replay a programmatic entry point.

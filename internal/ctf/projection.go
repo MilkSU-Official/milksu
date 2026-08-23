@@ -259,6 +259,21 @@ func Project(core securityruntime.JobProjection) (Projection, error) {
 	}, nil
 }
 
+func isHarnessFailure(reason string) bool {
+	lower := strings.ToLower(reason)
+	return strings.Contains(lower, "engine propose") ||
+		strings.Contains(lower, "context deadline") ||
+		strings.Contains(lower, "unavailable capability") ||
+		strings.Contains(lower, "i/o timeout")
+}
+
+func userFacingAttemptFailure(reason string) string {
+	if isHarnessFailure(reason) {
+		return "这一步没有完成"
+	}
+	return "Agent 尝试中断：" + reason
+}
+
 func buildDebrief(
 	core securityruntime.JobProjection,
 	challenge Challenge,
@@ -322,7 +337,7 @@ func buildDebrief(
 		if reason == "" {
 			reason = string(attempt.Status)
 		}
-		result.FailureBranches = appendTextUnique(result.FailureBranches, "Agent 尝试中断："+reason, 5)
+		result.FailureBranches = appendTextUnique(result.FailureBranches, userFacingAttemptFailure(reason), 5)
 	}
 	for _, submission := range submissions {
 		result.Candidates = append(result.Candidates, DebriefCandidate{

@@ -188,6 +188,11 @@ interface DesktopAppBindings {
   RestoreConversation(id: string): Promise<void>
   DeleteArchivedConversation(id: string): Promise<void>
   DeleteConversation(id: string): Promise<void>
+  ListLabJobs(): Promise<unknown>
+  ListArchivedLabJobs(): Promise<unknown>
+  SaveLabJob(job: unknown): Promise<void>
+  ArchiveLabJob(id: string): Promise<void>
+  RestoreLabJob(id: string): Promise<void>
   GenerateConversationTitle(
     firstMessage: string,
     modelMode: string,
@@ -536,6 +541,16 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.DeleteArchivedConversation(args?.id as string) as Promise<T>
       case 'delete_conversation':
         return app.DeleteConversation(args?.id as string) as Promise<T>
+      case 'list_lab_jobs':
+        return app.ListLabJobs() as Promise<T>
+      case 'list_archived_lab_jobs':
+        return app.ListArchivedLabJobs() as Promise<T>
+      case 'save_lab_job':
+        return app.SaveLabJob(args?.job) as Promise<T>
+      case 'archive_lab_job':
+        return app.ArchiveLabJob(args?.id as string) as Promise<T>
+      case 'restore_lab_job':
+        return app.RestoreLabJob(args?.id as string) as Promise<T>
       case 'generate_conversation_title':
         return app.GenerateConversationTitle(
           args?.firstMessage as string,

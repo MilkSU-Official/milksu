@@ -66,8 +66,8 @@ product heading “我们要构建什么” or “我们在 {project} 中构建�
 - Night mode uses graphite without an obvious blue, green or brown cast; day mode keeps paper neutrals.
   Cyan is current module and primary actions. Gold is secondary emphasis and the current focus bar.
   Success green only means success. Blue is reserved for links and explicit execution or diagnostic states.
-- CTF, CVE and Coding tabs use the same charcoal-and-cyan system. Do not use `--info`, blue borders
-  or blue-filled surfaces to distinguish those three product modules.
+- CTF, CVE, 实验室 and Coding tabs use the same charcoal-and-cyan system. Do not use `--info`, blue borders
+  or blue-filled surfaces to distinguish those product modules.
 
 ## Beta Self-Bootstrap Boundary
 
@@ -88,10 +88,11 @@ code, configuration, test defaults or documentation.
 
 - Pi owns the generic model session, context compaction and tool loop.
 - MilkSU owns desktop authorization, workspace and credential boundaries, event projection and product UI.
+- MilkSU is licensed AGPL-3.0-only so it can incorporate AGPL components such as Obelisk. Permissive MIT/Apache/BSD plugins remain usable with their notices kept. Do not add GPL-2.0-only, SSPL, or proprietary cores.
 - The CTF domain owns Challenge, Evidence, Candidate, Judge Receipt, Recovery, Memory and learning facts.
-- CTF, CVE and Coding are peer workspaces. What is shipped today is current fact, not a ceiling:
-  CVE tracking, the CTF challenge loop and the Coding agent may grow into first-pass audit, local
-  reproduction, Labs, disclosure drafts, binary/source intake and security-workspace UI.
+- CTF, CVE, 实验室 and Coding are peer workspaces. What is shipped today is current fact, not a ceiling:
+  CVE tracking and reproduction reports, the CTF challenge loop, laboratory probing and the Coding
+  agent may grow into first-pass audit, disclosure drafts, binary/source intake and security-workspace UI.
 - Missing a surface is not a ban. Do not add thaw checklists, freeze gates or “don't do PoC”
   product identity before the capability exists. “Not in this release line” only means it is not
   the current ship claim; it does not forbid a selected slice.
@@ -115,7 +116,9 @@ gap before admitting a replacement mechanism.
 - Never read, print, migrate or place Provider API keys in model context, tool output, logs, diagnostics,
   documentation or ordinary files.
 - Never publish to referenced open-source repositories. GitHub writes are limited to the explicitly
-  authorized MilkSU private remote and still require the product's meaningful publish confirmation.
+  authorized MilkSU GitHub remote (`MilkSU-Official/milksu`) and still require the product's
+  meaningful publish confirmation. Signing, notary and R2 secrets stay in the `macos-release`
+  environment / Personal Vault, never in the repository.
 - Full Access and automatic approval do not bypass paid actions, external-account authorization, Scope
   expansion, path confinement or irreversible external effects.
 - Security actions against targets the user has not authorized require visible, exact authorization.
@@ -155,26 +158,36 @@ deferred to one destructive pre-release consolidation after the product slices a
   the prompt contained “打开浏览器” and not because a Go greeting was sent.
 - `milksu_workspace` is a typed product-UI tool. It may list, focus or close isolated
   browser tabs, list or preview artifacts, and open environment, diff, terminal or background-task
-  surfaces. Coding is the current caller; CTF/CVE may grow the same kind of typed UI actions.
-  It must not change settings, credentials, approval policy, or attach to the user's Chrome.
-- Pi owns compaction. Auto-compact uses the same path as `/compact` when input plus cache-read
-  tokens reach about 85% of `contextWindow` and the session is idle. Do not wait until the whole
-  turn finishes, and do not add a second MilkSU summarizer.
+  surfaces. Coding, CTF, CVE and lab share this surface; domain tools and Judge sit on top
+  of the Coding loop instead of replacing it. It must not change settings, credentials,
+  approval policy, or attach to the user's Chrome.
+- Do not strip Coding capabilities from CTF, CVE or lab sessions. Those workspaces keep
+  the full Pi tool loop (files, shell, background tasks, browser, LSP, compact, goal,
+  subagent) plus domain extras. Bound challenge workspaces, unauthorized-target gates
+  and independent Judge stay.
+- Pi owns compaction. Auto-compact stays enabled for Coding, CTF, CVE and lab sessions.
+  Do not skip `/compact`, `compact_session`, or the 85% idle path by role. Auto-compact uses
+  the same path as `/compact` when input plus cache-read tokens reach about 85% of
+  `contextWindow` and the session is idle. Do not wait until the whole turn finishes, and
+  do not add a second MilkSU summarizer.
+- Tool results enter model context through Pi's `tool_result` bound (about 50KB or 2000
+  lines). Overflow is saved for `read` + offset. Do not dump full command, HTTP, or file
+  bodies into `content`.
 - `workspace-auto` auto-runs isolated `milksu-playwright`. Ask cards may grant conversation-wide
   allow for grantable tools. ImageGen, external-account authorization and destructive deletes stay
   per-call.
 
 ## Release Claims
 
-- The last receipted three-platform internal release is `v26.819.1` at `eed1dac`. Write both that
+- The last receipted three-platform GitHub Release is `v26.823.1` at `efeda10`. Write both that
   baseline and the current development version line when HEAD is later.
 - After every GitHub Release, immediately update and push `docs/developer/current-objectives.md`,
   `docs/developer/document-status.md`, `docs/architecture/current-system.md`, `README.md` and this
   section. Do not leave the previous receipt as "latest".
 - A version bump, empty tag, local dirty package or later `main` commits on the same version number
-  are still not a new ship. `26.819.1` is a receipted prerelease; commits after `eed1dac` are not.
-- GitHub writes stay on the authorized MilkSU private remote and still require the product's
-  meaningful publish confirmation.
+  are still not a new ship. `26.823.1` is a receipted GitHub Release; commits after `efeda10` are not.
+- GitHub writes stay on the authorized MilkSU remote (`MilkSU-Official/milksu`) and still require
+  the product's meaningful publish confirmation.
 
 ## Validation and Delivery
 
@@ -183,6 +196,6 @@ deferred to one destructive pre-release consolidation after the product slices a
   and Vue entrypoints as required by `docs/developer/product-code-admission.md`.
 - A capability is not complete because a button, package or fixture exists; retain one real-task result.
 - Preserve the user's unrelated working-tree changes.
-- Each selected vertical slice is reviewed, tested, committed and pushed only to MilkSU's private remote.
+- Each selected vertical slice is reviewed, tested, committed and pushed only to MilkSU's authorized remote.
 - Development-time documentation records tests, receipts, checkpoints and necessary ADRs. Final architecture,
   milestone, status and release claims are updated only during the final documentation closeout.

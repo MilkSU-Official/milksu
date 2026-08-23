@@ -28,19 +28,40 @@ function newestConversation(conversations: Conversation[]) {
 }
 
 export function conversationDomainIdentity(
-  conversation: Pick<Conversation, 'domainTaskContext'> & Partial<Pick<Conversation, 'title'>>,
+  conversation: Pick<Conversation, 'domainTaskContext'> & Partial<Pick<Conversation, 'title' | 'ctfJobId'>>,
 ) {
   const context = conversation.domainTaskContext
   if (context?.kind === 'cve') {
     const cveId = context.cveId.trim().toLocaleLowerCase()
     return cveId ? `cve:${cveId}` : null
   }
+  if (context?.kind === 'lab') {
+    const jobId = context.jobId.trim()
+    return jobId ? `lab:${jobId}` : null
+  }
+  if (context?.kind === 'ctf') {
+    const jobId = context.jobId.trim()
+    return jobId ? `ctf:${jobId}` : null
+  }
+  const ctfJobId = String(conversation.ctfJobId ?? '').trim()
+  if (ctfJobId) return `ctf:${ctfJobId}`
   const legacyCveTitle = conversation.title
     ?.trim()
     .match(/^(CVE-\d{4}-\d{4,})\s+研究接力$/iu)?.[1]
     ?.toLocaleLowerCase()
   if (legacyCveTitle) return `cve:${legacyCveTitle}`
   return null
+}
+
+export function relatedDomainConversations(
+  conversations: Conversation[],
+  conversation: Conversation | null | undefined,
+) {
+  const identity = conversationDomainIdentity(conversation ?? {})
+  if (!identity) return conversation ? [conversation] : []
+  return conversations
+    .filter(item => conversationDomainIdentity(item) === identity)
+    .sort((left, right) => conversationActivityAt(right) - conversationActivityAt(left))
 }
 
 export function selectReusableDomainConversationId(

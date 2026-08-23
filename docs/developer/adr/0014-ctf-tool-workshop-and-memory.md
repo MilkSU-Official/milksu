@@ -70,8 +70,7 @@ work/
 这一角色吸收了 [D-CIPHER](https://github.com/NYU-LLM-CTF/nyuctf_agents) 的
 Planner/Executor 分工、[CAI](https://github.com/aliasrobotics/cai) 的专业角色交接和
 [EnIGMA+](https://github.com/amazon-science/Cyber-Zero/tree/main/enigma-plus) 的证据保留思想，
-但不复制它们的源码或引入新运行时依赖。完整项目对照与取舍见
-[CTF Agent 开源项目调研](/developer/research/2026-07-31-ctf-agent-landscape)。
+但不复制它们的源码或引入新运行时依赖。开源对照快照已从现行文档删除，考古用 Git history。
 MilkSU 的策略 Agent 使用独立 Conversation ID，只得到
 `read / write / grep / find / ls`：
 

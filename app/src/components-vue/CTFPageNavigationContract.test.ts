@@ -5,7 +5,6 @@ import ctfPageSource from './CTFPage.vue?raw'
 describe('CTFPage navigation contract', () => {
   it('uses the strong catalog return path from CTF sessions', () => {
     expect(ctfPageSource).toContain('@return-catalog="showProblems"')
-    expect(ctfPageSource).toContain('<Button variant="ghost" size="sm" @click="showProblems">')
     expect(ctfPageSource).toContain('<Button variant="outline" size="sm" @click="showProblems">')
     expect(ctfPageSource).toContain('<Button class="mt-5" @click="showProblems">选择一道题</Button>')
   })
@@ -32,7 +31,10 @@ describe('CTFPage navigation contract', () => {
     expect(ctfChallengeDeskSource).not.toContain('acceptance.requiredTracks')
     expect(ctfChallengeDeskSource).not.toContain('acceptanceStatusText(track.status)')
     expect(ctfChallengeDeskSource).not.toContain('准备 {{ readiness }}/3')
-    expect(ctfChallengeDeskSource).toContain('交给 Coding')
+    expect(ctfChallengeDeskSource).not.toContain('交给 Coding')
+    expect(ctfChallengeDeskSource).not.toContain('game-focus-panel')
+    expect(ctfPageSource).toContain("screen.value = 'detail'")
+    expect(ctfPageSource).toContain('开始解题')
   })
 
   it('only labels the persisted date-based selection as the daily challenge', () => {
@@ -48,7 +50,11 @@ describe('CTFPage navigation contract', () => {
     expect(ctfPageSource).not.toContain('训练准备')
     expect(ctfPageSource).not.toContain('readinessCount')
     expect(ctfPageSource).not.toContain('{{ readinessCount }}/3')
-    expect(ctfPageSource).toContain("const agentActionLabel = computed(() => '在 Coding 中打开')")
+    expect(ctfPageSource).toContain("const agentActionLabel = computed(() => '开始解题')")
+    expect(ctfPageSource).toContain('ConversationDock')
+    expect(ctfPageSource).not.toContain('与 Agent 协作')
+    expect(ctfPageSource).not.toContain('刷新记录')
+    expect(ctfPageSource).not.toContain('查看复盘')
     expect(ctfPageSource).not.toContain('启动 CTF Agent')
     expect(ctfPageSource).not.toContain('恢复 CTF Agent')
     expect(ctfPageSource).not.toContain('配置模型后启动 Agent')
@@ -63,16 +69,12 @@ describe('CTFPage navigation contract', () => {
   it('keeps historical or budget-stopped CTF workspaces openable in Coding', () => {
     expect(ctfPageSource).not.toContain(':disabled="!canStartAgentTurn"')
     expect(ctfPageSource).not.toContain('if (backend.agentBudget.value?.exhausted)')
-    expect(ctfPageSource).toContain(':disabled="working" @click="openCodingAgent"')
+    expect(ctfPageSource).toContain(':disabled="working" variant="brand" size="sm" @click="openCodingAgent"')
   })
 
   it('does not block Coding context on an NSSCTF attachment or browser bridge', () => {
-    const readinessStart = ctfPageSource.indexOf('const canStartSelectedChallenge')
-    const readinessEnd = ctfPageSource.indexOf('const catalogAction', readinessStart)
-    const readinessBody = ctfPageSource.slice(readinessStart, readinessEnd)
-    expect(readinessBody).toContain('return Boolean(selectedProblem.value)')
-    expect(readinessBody).not.toContain('selectedProblem.value.hasAttachment')
-    expect(readinessBody).not.toContain('selectedBrowserReady.value')
+    expect(ctfPageSource).not.toContain('const canStartSelectedChallenge')
+    expect(ctfPageSource).not.toContain('selectedProblem.value.hasAttachment')
 
     const startStart = ctfPageSource.indexOf('async function startPublicWorkspace()')
     const startEnd = ctfPageSource.indexOf('async function startArenaWorkspace()', startStart)

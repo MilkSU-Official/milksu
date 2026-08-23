@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { latestCodingPlan, parseCodingPlanContent } from '@/lib/codingPlan'
+import { latestCodingPlan, parseCodingPlanContent, settleIdleCodingPlan } from '@/lib/codingPlan'
 import type { Message } from '@/types'
 
 function tool(id: string, content: string, status: Message['status'] = 'done'): Message {
@@ -72,5 +72,15 @@ describe('codingPlan', () => {
     expect(latestCodingPlan(messages)?.summary).toBe('新计划')
     expect(latestCodingPlan(messages)?.steps.map(step => step.status))
       .toEqual(['in_progress', 'pending'])
+  })
+
+  it('stops spinning in-progress steps after the Agent turn has ended', () => {
+    const plan = parseCodingPlanContent([
+      '复现已知洞',
+      '[>] 正在把只读研究结论写入工作区交付',
+      '[ ] 整理网络证据',
+    ].join('\n'))
+    expect(settleIdleCodingPlan(plan!).steps.map(step => step.status))
+      .toEqual(['completed', 'pending'])
   })
 })

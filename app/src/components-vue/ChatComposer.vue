@@ -44,7 +44,6 @@ import {
   ShieldCheck,
   Shrink,
   Square,
-  StickyNote,
   Target,
   Terminal,
   Trash2,
@@ -68,7 +67,6 @@ import type {
   CodingAttachmentPreview,
   CodingExecutionMode,
   CodingGoalState,
-  CTFChatAction,
   ModelThinkingLevel,
 } from '@/types'
 import type { CodingGitChange, CodingRecentProject } from '@/codingEnvironmentTypes'
@@ -112,8 +110,6 @@ const props = defineProps<{
   aborting: boolean
   compacting?: boolean
   ctfSession: boolean
-  ctfMode?: 'coach' | 'copilot' | 'delegate'
-  ctfRole?: 'solver' | 'tool-builder' | 'strategist'
   goalMode: boolean
   goal?: CodingGoalState
   gitSummary?: ComposerGitSummary
@@ -143,6 +139,8 @@ const props = defineProps<{
   computerUseReady?: boolean
   availableSkills?: string[]
   selectedMcpServers?: string[]
+  mcpCatalog?: Array<{ name: string; reviewReady: boolean }>
+  mcpConfigDigest?: string
   queuedGuidance?: string[]
 }>()
 
@@ -153,7 +151,6 @@ const emit = defineEmits<{
     attachments?: CodingAttachment[],
     scopeToken?: ComposerScopeToken,
   ]
-  ctfAction: [action: CTFChatAction]
   abort: []
   openChanges: [path?: string]
   changeExecutionMode: [value: string]
@@ -164,6 +161,7 @@ const emit = defineEmits<{
   consumeGoal: []
   startGoal: []
   runSlashCommand: [command: string]
+  changeMcpServers: [servers: string[], digest: string]
   controlGoal: [action: 'pause' | 'resume' | 'clear']
   chooseWorkspace: []
   selectWorkspace: [path: string]
@@ -317,9 +315,16 @@ const slashCommandCatalog = [
   {
     id: 'mcp',
     label: 'MCP',
-    description: '查看当前项目的 MCP 服务',
+    description: '查看或接入当前项目的 MCP 服务',
     keywords: ['tools', '工具'],
     icon: markRaw(Plug),
+  },
+  {
+    id: 'browser',
+    label: '浏览器',
+    description: '打开隔离浏览器',
+    keywords: ['playwright', '浏览器'],
+    icon: markRaw(Monitor),
   },
   {
     id: 'browser-use',
@@ -407,7 +412,7 @@ const showProgressSummary = computed(() => Boolean(
   (props.goal?.iteration ?? 0) > 0 || showGitSummary.value,
 ))
 const showGoalDock = computed(() => Boolean(
-  !props.ctfSession && (props.goal || props.goalMode),
+  props.goal || props.goalMode,
 ))
 const goalPanelOpen = ref(false)
 const goalSlot = ref<HTMLElement | null>(null)
@@ -442,59 +447,16 @@ function toggleGoalChip() {
     emit('consumeGoal')
   }
 }
-const showWorkspaceChip = computed(() => Boolean(
-  !props.ctfSession && (props.workspaceName?.trim() || !props.workspaceLocked),
-))
+const workspaceFixed = computed(() => Boolean(props.workspaceLocked || props.ctfSession))
+const showWorkspaceChip = computed(() => {
+  if (props.ctfSession) return Boolean(props.workspacePath?.trim() || props.workspaceName?.trim())
+  return Boolean(props.workspaceName?.trim() || !props.workspaceLocked)
+})
 const workspaceChipLabel = computed(() => props.workspaceName?.trim() || '选择项目')
 const hasSelectedWorkspace = computed(() => Boolean(props.workspacePath?.trim()))
 const workspaceChipTitle = computed(() => (
   props.workspacePath || workspaceChipLabel.value
 ))
-
-const ctfActionOptions = computed(() => {
-  const mode = props.ctfMode ?? 'copilot'
-  const modeRule = mode === 'coach'
-    ? '保持教练模式，不要直接给完整解法或候选 Flag。'
-    : mode === 'delegate'
-      ? '保持代理模式，可以自主检查工作区，但不要向外部平台提交。'
-      : '保持搭档模式，每次只推进一个可复核实验。'
-  return [
-    {
-      label: '梳理题面',
-      icon: markRaw(Compass),
-      action: {
-        kind: 'orient',
-        prompt: `先暂停执行。结合 TASK.md、题面和材料，用三点说明目标、现有证据和最合理的第一步。${modeRule}`,
-      } satisfies CTFChatAction,
-    },
-    {
-      label: '提示 1',
-      icon: markRaw(Lightbulb),
-      action: {
-        kind: 'hint',
-        level: 1,
-        prompt: '我需要一级提示。只指出一个应该关注的证据、概念或材料，不给命令、完整解法或候选 Flag；最后问我一个检查理解的问题。',
-      } satisfies CTFChatAction,
-    },
-    {
-      label: '提示 2',
-      icon: markRaw(Route),
-      action: {
-        kind: 'hint',
-        level: 2,
-        prompt: '我需要二级提示。基于当前轨迹给出一个可执行且可验证的下一步实验，说明预期观察，但不要透露候选 Flag。',
-      } satisfies CTFChatAction,
-    },
-    {
-      label: '重新规划',
-      icon: markRaw(StickyNote),
-      action: {
-        kind: 'replan',
-        prompt: '暂停当前路线，读取 notes.md 和已有轨迹，列出已证伪假设、仍成立的证据和最多三个下一步；选择信息增益最高的一步再继续。',
-      } satisfies CTFChatAction,
-    },
-  ]
-})
 
 function formatAttachmentSize(size: number) {
   if (size >= 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`
@@ -740,7 +702,7 @@ function redoComposer() {
 function detectSlashQuery() {
   slashQuery.value = null
   slashQueryRange.value = null
-  if (props.ctfSession || props.goalMode) return
+  if (props.goalMode) return
   const editor = messageEditor.value
   if (!editor) return
 
@@ -991,7 +953,7 @@ function submit() {
   const activeSkillToken = skillToken.value ?? undefined
   const prompt = props.running
     ? text
-    : !props.ctfSession && props.goalMode
+    : props.goalMode
     ? `/goal ${text}`
     : activeSkillToken
       ? `/skill:${activeSkillToken} ${text}`
@@ -1086,6 +1048,22 @@ function startGoalFromPlus() {
 function runComposerShortcut(command: 'browser' | 'mcp') {
   emit('runSlashCommand', command)
   focusMessageInput()
+}
+
+function openAddMenu() {
+  openComposerChooser('添加内容与工具')
+}
+
+function toggleCatalogMcpServer(server: { name: string; reviewReady: boolean }) {
+  if (props.running || !server.reviewReady || !props.mcpConfigDigest) return
+  const selection = new Set(props.selectedMcpServers ?? [])
+  if (selection.has(server.name)) selection.delete(server.name)
+  else selection.add(server.name)
+  emit(
+    'changeMcpServers',
+    [...selection].sort((left, right) => left.localeCompare(right)),
+    props.mcpConfigDigest,
+  )
 }
 
 function addInteractionScope(value: ComposerScopeToken) {
@@ -1229,32 +1207,13 @@ watch(slashCommands, commands => {
 
 defineExpose({
   appendDraftText,
+  openAddMenu,
 })
 </script>
 
 <template>
   <div class="chat-composer shrink-0 border-t border-border bg-surface-editor px-4 pb-3 pt-2">
     <div ref="composerFrame" class="chat-composer__frame mx-auto w-full max-w-5xl">
-      <div
-        v-if="ctfSession && ctfRole === 'solver'"
-        class="mb-2 flex flex-wrap items-center gap-2 px-1"
-        aria-label="CTF 快捷协作"
-      >
-        <span class="mr-1 text-caption text-muted-foreground">快捷协作</span>
-        <Button
-          v-for="option in ctfActionOptions"
-          :key="option.label"
-          type="button"
-          variant="outline"
-          size="sm"
-          :disabled="running"
-          @click="$emit('ctfAction', option.action)"
-        >
-          <component :is="option.icon" class="size-3.5" />
-          {{ option.label }}
-        </Button>
-      </div>
-
       <div
         v-if="slashMenuOpen"
         id="coding-slash-command-menu"
@@ -1443,8 +1402,10 @@ defineExpose({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                   align="start"
+                  side="top"
                   :side-offset="8"
-                  class="composer-add-menu app-no-drag w-[31rem] max-w-[calc(100vw-2rem)] p-1"
+                  :collision-padding="16"
+                  class="composer-add-menu app-no-drag w-[31rem] max-w-[calc(100vw-2rem)] max-h-[min(24rem,calc(100vh-8rem))] overflow-y-auto p-1"
                 >
                   <DropdownMenuLabel class="px-3 pb-1.5 pt-2 text-caption">
                     添加
@@ -1460,7 +1421,7 @@ defineExpose({
                     </span>
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    v-if="!workspaceLocked"
+                    v-if="!workspaceFixed"
                     class="composer-add-option"
                     @select="$emit('chooseWorkspace')"
                   >
@@ -1547,6 +1508,22 @@ defineExpose({
                     MCP
                   </DropdownMenuLabel>
                   <DropdownMenuItem
+                    v-for="server in mcpCatalog ?? []"
+                    :key="server.name"
+                    class="composer-add-option"
+                    :disabled="running || !server.reviewReady || !mcpConfigDigest"
+                    @select="toggleCatalogMcpServer(server)"
+                  >
+                    <Plug class="size-4 shrink-0" />
+                    <span class="min-w-0 flex-1">
+                      <span class="block text-label font-medium">{{ server.name }}</span>
+                      <span class="block text-caption text-muted-foreground">
+                        {{ server.reviewReady ? '为本任务接入' : '审阅信息不完整' }}
+                      </span>
+                    </span>
+                    <Check v-if="selectedMcpServers?.includes(server.name)" class="size-4 shrink-0 text-primary" />
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
                     class="composer-add-option"
                     :disabled="!workspaceReady"
                     @select="runComposerShortcut('mcp')"
@@ -1555,6 +1532,7 @@ defineExpose({
                     <span class="min-w-0 flex-1">
                       <span class="block text-label font-medium">项目 MCP</span>
                       <span v-if="selectedMcpDescription" class="block truncate text-caption text-muted-foreground">{{ selectedMcpDescription }}</span>
+                      <span v-else class="block text-caption text-muted-foreground">查看当前项目的 MCP 服务</span>
                     </span>
                     <Check v-if="selectedMcpServers?.length" class="size-4 shrink-0 text-primary" />
                   </DropdownMenuItem>
@@ -1656,7 +1634,7 @@ defineExpose({
                 </div>
               </div>
               <button
-                v-if="!ctfSession && executionMode === 'plan'"
+                v-if="executionMode === 'plan'"
                 type="button"
                 class="chat-composer__chip chat-composer__chip--plan"
                 aria-label="计划模式已开启"
@@ -1667,7 +1645,7 @@ defineExpose({
                 <span class="chat-composer__chip__label">计划</span>
               </button>
               <div
-                v-if="!ctfSession && showProgressSummary"
+                v-if="showProgressSummary"
                 class="chat-composer__progress-pill"
                 aria-label="任务进度摘要"
               >
@@ -1720,10 +1698,10 @@ defineExpose({
             <template v-if="showWorkspaceChip" #context>
               <div
                 class="chat-composer__workspace"
-                :class="{ 'chat-composer__workspace--locked': workspaceLocked }"
+                :class="{ 'chat-composer__workspace--locked': workspaceFixed }"
               >
                 <button
-                  v-if="!workspaceLocked"
+                  v-if="!workspaceFixed"
                   type="button"
                   class="chat-composer__chip chat-composer__chip--workspace"
                   :class="{
@@ -1748,7 +1726,7 @@ defineExpose({
                   <span class="chat-composer__chip__label">{{ workspaceChipLabel }}</span>
                 </span>
                 <button
-                  v-if="hasSelectedWorkspace && !workspaceLocked"
+                  v-if="hasSelectedWorkspace && !workspaceFixed"
                   type="button"
                   class="chat-composer__workspace-clear"
                   :disabled="running"

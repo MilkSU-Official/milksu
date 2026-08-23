@@ -46,6 +46,32 @@ describe('Coding approval conversation recovery', () => {
     )).toEqual(reviewed)
   })
 
+  it('settles leftover running tool and assistant rows when a snapshot is reloaded', () => {
+    const conversation = normalizeConversation({
+      id: 'conversation-stale-run',
+      title: 'Stale run',
+      createdAt: 1,
+      messages: [
+        {
+          id: 'tool-1',
+          role: 'tool',
+          content: '正在把只读研究结论写入工作区交付',
+          timestamp: 2,
+          toolName: 'write',
+          status: 'running',
+        },
+        {
+          id: 'assistant-1',
+          role: 'assistant',
+          content: '还没写完',
+          timestamp: 3,
+          status: 'running',
+        },
+      ],
+    })
+    expect(conversation.messages.map(item => item.status)).toEqual(['done', 'done'])
+  })
+
   it('expires an approval that cannot survive an app or Sidecar restart', () => {
     const conversation = normalizeConversation({
       id: 'conversation-1',
@@ -295,6 +321,13 @@ describe('Coding approval conversation recovery', () => {
     const message = agentRuntimeErrorMessage('Error: internal module exploded at bridge.js:42')
     expect(message).toContain('本地 Agent 运行异常')
     expect(message).not.toContain('bridge.js')
+  })
+
+  it('hides truncated Node unhandled-error dumps from chat', () => {
+    const message = agentRuntimeErrorMessage('exit status 1: node:events:487')
+    expect(message).toContain('本地 Agent 运行异常')
+    expect(message).not.toContain('node:events')
+    expect(message).not.toContain('487')
   })
 
   it('surfaces provider HTTP bodies after credential redaction', () => {

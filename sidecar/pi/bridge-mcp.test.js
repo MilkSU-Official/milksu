@@ -37,6 +37,15 @@ import {
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const shortRuntimeRoot = process.platform === "darwin" ? "/private/tmp" : tmpdir();
+const usesSandboxExec = process.platform === "darwin";
+
+function playwrightSocketAssignment(sessionId) {
+  return `PWTEST_SOCKETS_DIR=${join(
+    shortRuntimeRoot,
+    "milksu-playwright",
+    sessionId.slice(-12),
+  )}`;
+}
 
 test("loads only explicitly selected MCP servers and clears stdio inheritance", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "milksu-mcp-"));
@@ -68,17 +77,24 @@ test("loads only explicitly selected MCP servers and clears stdio inheritance", 
   );
   assert.deepEqual(loaded.selected, ["browser"]);
   assert.deepEqual(Object.keys(loaded.config.mcpServers), ["browser"]);
-  assert.equal(loaded.config.mcpServers.browser.command, "/usr/bin/sandbox-exec");
   assert.equal(loaded.config.mcpServers.browser.cwd, await realpath(workspace));
-  assert.ok(
-    loaded.config.mcpServers.browser.args.some(value => value.includes("(allow network*)")),
-  );
-  assert.ok(loaded.config.mcpServers.browser.args.includes("/usr/bin/env"));
-  assert.deepEqual(
-    loaded.config.mcpServers.browser.args.slice(-4),
-    ["FIXTURE_MODE=1", "npx", "-y", "browser-mcp"],
-  );
-  assert.deepEqual(loaded.config.mcpServers.browser.env, {});
+  if (usesSandboxExec) {
+    assert.equal(loaded.config.mcpServers.browser.command, "/usr/bin/sandbox-exec");
+    assert.ok(
+      loaded.config.mcpServers.browser.args.some(value => value.includes("(allow network*)")),
+    );
+    assert.ok(loaded.config.mcpServers.browser.args.includes("/usr/bin/env"));
+    assert.deepEqual(
+      loaded.config.mcpServers.browser.args.slice(-4),
+      ["FIXTURE_MODE=1", "npx", "-y", "browser-mcp"],
+    );
+    assert.deepEqual(loaded.config.mcpServers.browser.env, {});
+  } else {
+    assert.equal(loaded.config.mcpServers.browser.command, "npx");
+    assert.deepEqual(loaded.config.mcpServers.browser.args, ["-y", "browser-mcp"]);
+    assert.equal(loaded.config.mcpServers.browser.env.FIXTURE_MODE, "1");
+    assert.equal(loaded.config.mcpServers.browser.env.DEEPSEEK_API_KEY, undefined);
+  }
   assert.equal(loaded.config.mcpServers.browser.lifecycle, "lazy");
   assert.equal(loaded.config.settings.sampling, false);
   assert.equal(loaded.config.settings.elicitation, false);
@@ -210,14 +226,18 @@ test("builds the first-party Playwright server from a strict loopback descriptor
     sessionId: descriptor.sessionId,
     cdpEndpoint: "http://127.0.0.1:43127",
   });
-  assert.equal(builtIn.server.command, "/usr/bin/sandbox-exec");
   assert.equal(builtIn.server.cwd, await realpath(workspace));
-  assert.ok(
-    builtIn.server.args[1].includes(
-      `(subpath ${JSON.stringify(repositoryRoot)})`,
-    ),
-  );
-  assert.ok(builtIn.server.args.includes(process.execPath));
+  if (usesSandboxExec) {
+    assert.equal(builtIn.server.command, "/usr/bin/sandbox-exec");
+    assert.ok(
+      builtIn.server.args[1].includes(
+        `(subpath ${JSON.stringify(repositoryRoot)})`,
+      ),
+    );
+    assert.ok(builtIn.server.args.includes(process.execPath));
+  } else {
+    assert.equal(builtIn.server.command, process.execPath);
+  }
   assert.ok(
     builtIn.server.args.some(value => value.endsWith(join(
       "node_modules",
@@ -247,16 +267,17 @@ test("builds the first-party Playwright server from a strict loopback descriptor
     ],
   );
   assert.equal(builtIn.server.args.includes("npx"), false);
-  assert.ok(
-    builtIn.server.args.some(value => (
-      value === `PWTEST_SOCKETS_DIR=${join(
-        shortRuntimeRoot,
-        "milksu-playwright",
-        "123456789abc",
-      )}`
-    )),
-  );
-  assert.deepEqual(builtIn.server.env, {});
+  const socketAssignment = playwrightSocketAssignment(descriptor.sessionId);
+  if (usesSandboxExec) {
+    assert.ok(builtIn.server.args.includes(socketAssignment));
+    assert.deepEqual(builtIn.server.env, {});
+  } else {
+    assert.equal(
+      builtIn.server.env.PWTEST_SOCKETS_DIR,
+      socketAssignment.slice("PWTEST_SOCKETS_DIR=".length),
+    );
+    assert.equal(builtIn.server.env.DEEPSEEK_API_KEY, undefined);
+  }
   assert.equal(builtIn.server.lifecycle, "lazy");
   assert.equal(builtIn.server.directTools, false);
   assert.deepEqual(
@@ -276,10 +297,17 @@ test("builds Browser Use from the pinned Playwright extension mode", async () =>
     { executablePath: process.execPath },
   );
   assert.deepEqual(builtIn.browserUse, descriptor);
-  assert.equal(builtIn.server.command, "/usr/bin/sandbox-exec");
+  if (usesSandboxExec) {
+    assert.equal(builtIn.server.command, "/usr/bin/sandbox-exec");
+  } else {
+    assert.equal(builtIn.server.command, process.execPath);
+  }
   assert.ok(builtIn.server.args.includes("--extension"));
   assert.ok(builtIn.server.args.includes("--executable-path"));
-  assert.ok(builtIn.server.args.includes(process.execPath));
+  assert.ok(
+    builtIn.server.command === process.execPath
+    || builtIn.server.args.includes(process.execPath),
+  );
   assert.ok(builtIn.server.args.includes(join(
     await realpath(workspace),
     ".milksu",

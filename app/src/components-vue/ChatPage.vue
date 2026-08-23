@@ -88,6 +88,7 @@ import {
 } from '@/lib/codingTerminalHeight'
 import {
   codingWorkspaceLabel,
+  isGenericWorkspaceLabel,
   LOCAL_CODING_SHELL_ID,
   shouldRememberCodingProject,
 } from '@/lib/codingProjectMemory'
@@ -204,6 +205,8 @@ const props = defineProps<{
   /** Unsent handoff draft staged by CTF/CVE open path; never auto-starts Pi. */
   pendingComposerDraft?: { prompt: string; visibleText: string } | null
   conversationDrawerOpen?: boolean
+  /** Floating dossier dock: keep the agent thread, hide terminal and the right rail. */
+  surface?: 'page' | 'dock'
 }>()
 
 const emit = defineEmits<{
@@ -239,14 +242,19 @@ const emit = defineEmits<{
   openConversation: [conversationId: string]
   returnCtf: []
   returnVuln: []
+  returnLab: []
   switchCtfAgent: [role: 'solver' | 'tool-builder' | 'strategist']
   consumePendingDraft: []
   toggleConversationDrawer: []
 }>()
 
+const dockSurface = computed(() => props.surface === 'dock')
 const goalMode = ref(false)
 const stagedComposerPrompt = ref<{ conversationId: string; prompt: string } | null>(null)
-const composer = ref<{ appendDraftText: (text: string) => void } | null>(null)
+const composer = ref<{
+  appendDraftText: (text: string) => void
+  openAddMenu: () => void
+} | null>(null)
 const scrollArea = ref<HTMLElement | null>(null)
 const chatAutoScrollPinned = ref(true)
 const lastChatScrollTop = ref(0)
@@ -364,9 +372,7 @@ const activeExtensions = computed(() => (
 ))
 const selectedMCPServers = computed(() => props.mcpServers ?? [])
 const activeSkills = computed(() => (
-  props.ctfSession
-    ? []
-    : enabledCodingSkillNames(props.settings?.disabled_skills)
+  enabledCodingSkillNames(props.settings?.disabled_skills)
 ))
 const activeTools = computed(() => (
   props.conversation?.agentTools ?? []
@@ -457,8 +463,7 @@ const computerUsePermissionsReady = computed(() => Boolean(
 ))
 const scopedComputerUseTargets = computed(() => computerUseTargets.value)
 const browserUseReadyForCurrentTask = computed(() => Boolean(
-  !props.ctfSession
-  && props.workspacePath
+  props.workspacePath
   && effectiveExecutionMode.value === 'go'
   && effectiveApprovalPolicy.value !== 'read-only',
 ))
@@ -613,6 +618,10 @@ const gitBranch = computed(() => codingEnvironment.value?.git.branch ?? '')
 const gitRepository = computed(() => Boolean(codingEnvironment.value?.git.isRepository))
 const workspaceName = computed(() => {
   if (automaticScratchWorkspace.value) return '无项目任务'
+  const context = props.conversation?.domainTaskContext
+  if (context?.kind === 'ctf' && context.challengeTitle.trim()) return context.challengeTitle.trim()
+  if (context?.kind === 'cve' && context.cveId.trim()) return context.cveId.trim()
+  if (context?.kind === 'lab' && context.title.trim()) return context.title.trim()
   return codingWorkspaceLabel(props.workspacePath, homeDirectory.value)
 })
 const selectedCodingProjectName = computed(() => {
@@ -620,8 +629,10 @@ const selectedCodingProjectName = computed(() => {
   return codingWorkspaceLabel(props.workspacePath, homeDirectory.value)
 })
 const codingEmptyHeading = computed(() => {
-  const name = selectedCodingProjectName.value
-  if (name && name !== '~') return `我们在 ${name} 中构建什么`
+  const name = selectedCodingProjectName.value || workspaceName.value
+  if (name && name !== '~' && name !== '无项目任务' && !isGenericWorkspaceLabel(name)) {
+    return `我们在 ${name} 中构建什么`
+  }
   return '我们要构建什么'
 })
 const terminalConversationId = computed(() => (
@@ -771,6 +782,13 @@ const domainTaskPresentation = computed(() => {
   const context = activeDomainTaskContext.value
   return context ? presentDomainTaskContext(context) : null
 })
+
+function returnToDomain() {
+  const kind = domainTaskPresentation.value?.kind
+  if (kind === 'ctf') emit('returnCtf')
+  else if (kind === 'lab') emit('returnLab')
+  else emit('returnVuln')
+}
 const workshopSummary = computed(() => {
   const state = workshopState.value
   if (!state) return '正在读取工具交接状态'
@@ -860,7 +878,7 @@ function changeApprovalPolicy(value: string) {
 }
 
 async function refreshMCPConfig() {
-  if (props.ctfSession || !props.workspacePath) {
+  if (!props.workspacePath) {
     mcpConfig.value = null
     return
   }
@@ -947,7 +965,7 @@ function toggleManualContextSidebar() {
     environmentOpen.value = false
     return
   }
-  contextPanel.value = 'browser'
+  contextPanel.value = domainTaskPresentation.value ? 'domain' : 'environment'
   environmentOpen.value = true
 }
 
@@ -1017,6 +1035,10 @@ function runSlashCommand(command: string) {
   }
   if (command === 'compact') {
     emit('compactContext')
+    return
+  }
+  if (command === 'mcp' && dockSurface.value) {
+    composer.value?.openAddMenu?.()
     return
   }
   if (['understand', 'test', 'review', 'fix', 'summary'].includes(command)) {
@@ -1176,39 +1198,38 @@ async function loadCTFDomainProjection() {
 
 async function refreshEnvironment() {
   environmentError.value = ''
+  const errors: string[] = []
   if (props.ctfSession) {
-    codingEnvironment.value = null
     const jobId = props.conversation?.ctfJobId
     if (!jobId) {
       ctfBudget.value = null
       ctfCheckpoint.value = null
-      ctfProjection.value = null
-      return
+    } else {
+      environmentLoading.value = true
+      const [budget, checkpoint] = await Promise.allSettled([
+        invokeCommand<CTFAgentBudgetStatus>('get_ctf_agent_budget_status', { id: jobId }),
+        invokeCommand<CTFAgentRunCheckpoint | null>('get_ctf_agent_run_checkpoint', { id: jobId }),
+      ])
+      // Domain projection is owned by loadCTFDomainProjection (running-agnostic).
+      await loadCTFDomainProjection()
+      ctfBudget.value = budget.status === 'fulfilled' ? budget.value : null
+      ctfCheckpoint.value = checkpoint.status === 'fulfilled' ? checkpoint.value : null
+      if (
+        [budget, checkpoint].every(result => result.status === 'rejected')
+        && !ctfProjection.value
+      ) {
+        errors.push('暂时无法读取解题环境。')
+      }
     }
-    environmentLoading.value = true
-    const [budget, checkpoint] = await Promise.allSettled([
-      invokeCommand<CTFAgentBudgetStatus>('get_ctf_agent_budget_status', { id: jobId }),
-      invokeCommand<CTFAgentRunCheckpoint | null>('get_ctf_agent_run_checkpoint', { id: jobId }),
-    ])
-    // Domain projection is owned by loadCTFDomainProjection (running-agnostic).
-    await loadCTFDomainProjection()
-    ctfBudget.value = budget.status === 'fulfilled' ? budget.value : null
-    ctfCheckpoint.value = checkpoint.status === 'fulfilled' ? checkpoint.value : null
-    if (
-      [budget, checkpoint].every(result => result.status === 'rejected')
-      && !ctfProjection.value
-    ) {
-      environmentError.value = '暂时无法读取解题环境。'
-    }
-    environmentLoading.value = false
-    return
+  } else {
+    ctfBudget.value = null
+    ctfCheckpoint.value = null
+    ctfProjection.value = null
   }
-
-  ctfBudget.value = null
-  ctfCheckpoint.value = null
-  ctfProjection.value = null
   if (!props.workspacePath) {
     codingEnvironment.value = null
+    environmentError.value = errors[0] ?? ''
+    environmentLoading.value = false
     return
   }
   environmentLoading.value = true
@@ -1219,12 +1240,13 @@ async function refreshEnvironment() {
     )
   } catch (reason) {
     codingEnvironment.value = null
-    environmentError.value = reason instanceof Error
+    errors.push(reason instanceof Error
       ? reason.message
-      : '暂时无法读取项目环境。'
+      : '暂时无法读取项目环境。')
   } finally {
     environmentLoading.value = false
   }
+  environmentError.value = errors[0] ?? ''
 }
 
 async function refreshBrowserPanel() {
@@ -1339,6 +1361,7 @@ function applyWorkspaceReveal(payload?: {
   changePath?: string
   terminal?: string
 }) {
+  if (dockSurface.value) return
   if (payload?.conversationId && payload.conversationId !== props.conversation?.id) return
   const panel = payload?.panel
   if (panel === 'browser' || panel === 'artifacts' || panel === 'changes' || panel === 'environment') {
@@ -1736,7 +1759,7 @@ async function refreshContextPanel() {
   await Promise.all([
     refreshEnvironment(),
     loadWorkshopState(),
-    ...(props.ctfSession ? [] : [refreshMCPConfig()]),
+    refreshMCPConfig(),
   ])
 }
 
@@ -1749,6 +1772,7 @@ function changeContextPanel(value: string) {
 }
 
 function openChanges(path = '') {
+  if (dockSurface.value) return
   changesFocusPath.value = path
   changeContextPanel('changes')
 }
@@ -2007,11 +2031,15 @@ watch(
 </script>
 
 <template>
-  <section class="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-surface-editor">
-  <div class="coding-workspace relative flex min-h-0 flex-1 overflow-hidden">
-  <main class="chat-main flex min-w-0 flex-1 flex-col overflow-hidden bg-surface-editor">
+  <section
+    class="relative flex min-w-0 flex-1 flex-col bg-surface-editor"
+    :class="dockSurface ? 'chat-surface-dock min-h-0 min-w-0 overflow-hidden' : 'overflow-hidden'"
+    :data-testid="dockSurface ? 'coding-agent-dock-surface' : undefined"
+  >
+  <div class="coding-workspace relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
+  <main class="chat-main flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-editor">
     <WorkspaceModuleTopBar
-      v-if="!contextRailVisible"
+      v-if="!dockSurface && !contextRailVisible"
       :module="topbarModule"
       :title="topbarPresentation.title"
       :subtitle="topbarPresentation.subtitle"
@@ -2051,7 +2079,7 @@ watch(
       </template>
       <template v-if="ctfSession || vulnerabilitySession" #badge>
         <Badge variant="secondary" class="max-w-full truncate">
-          {{ ctfSession ? ctfRoleLabel : 'CVE 接力' }}
+          {{ ctfSession ? ctfRoleLabel : (domainTaskPresentation?.moduleLabel || 'CVE 接力') }}
         </Badge>
       </template>
       <template #actions>
@@ -2060,14 +2088,13 @@ watch(
           variant="ghost"
           size="sm"
           :aria-label="domainTaskPresentation.returnAriaLabel"
-          @click="domainTaskPresentation.kind === 'ctf' ? $emit('returnCtf') : $emit('returnVuln')"
+          @click="returnToDomain"
         >
           <Flag v-if="domainTaskPresentation.kind === 'ctf'" class="size-4" />
           <ShieldCheck v-else class="size-4" />
           {{ domainTaskPresentation.returnLabel }}
         </Button>
         <Button
-          v-if="!ctfSession"
           variant="ghost"
           size="icon-sm"
           :aria-label="terminalOpen ? '关闭底部终端' : '打开底部终端'"
@@ -2089,7 +2116,7 @@ watch(
       </template>
     </WorkspaceModuleTopBar>
     <div
-      v-else-if="!conversationDrawerOpen"
+      v-else-if="!dockSurface && !conversationDrawerOpen"
       class="coding-history-collapsed-controls app-drag flex items-center gap-1.5 px-3 py-2"
     >
       <Button
@@ -2120,10 +2147,10 @@ watch(
 
     <div
       ref="scrollArea"
-      class="min-h-0 flex-1 overflow-y-auto"
+      class="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto"
       @scroll.passive="handleChatScroll"
     >
-      <div v-if="!conversation?.messages.length && domainTaskPresentation" class="mx-auto flex min-h-full w-full max-w-5xl flex-col justify-center px-5 py-5 2xl:px-8">
+      <div v-if="!dockSurface && !conversation?.messages.length && domainTaskPresentation" class="mx-auto flex min-h-full w-full max-w-5xl flex-col justify-center px-5 py-5 2xl:px-8">
         <MissionOperationPanel :presentation="domainTaskPresentation" :running="running" />
         <div class="mt-4 flex items-center gap-2">
           <Button v-if="!workspacePath" class="tactical-action" @click="$emit('chooseWorkspace')">
@@ -2138,7 +2165,7 @@ watch(
         </div>
       </div>
       <div
-        v-else-if="!conversation?.messages.length"
+        v-else-if="!dockSurface && !conversation?.messages.length"
         class="flex min-h-full flex-col items-center justify-center px-8"
       >
         <h1 class="text-center text-2xl font-medium tracking-tight text-foreground">
@@ -2147,7 +2174,7 @@ watch(
         <p v-if="gitBranchError" class="mt-3 text-center text-caption text-destructive">{{ gitBranchError }}</p>
       </div>
 
-      <div v-else class="mx-auto max-w-3xl px-8 py-8">
+      <div v-else class="mx-auto min-w-0 max-w-3xl" :class="dockSurface ? 'px-4 py-4' : 'px-8 py-8'">
         <template v-for="item in chatTranscript" :key="item.id">
           <ChatActivityGroup
             v-if="item.kind === 'activity'"
@@ -2189,6 +2216,11 @@ watch(
       {{ compactionError }}
     </p>
 
+    <AgentExecutionPlan
+      v-if="dockSurface"
+      :messages="conversation?.messages ?? []"
+      :running="running"
+    />
     <ChatComposer
       ref="composer"
       :running="running"
@@ -2196,8 +2228,6 @@ watch(
       :compacting="compacting"
       :queued-guidance="messageQueue?.steering ?? []"
       :ctf-session="ctfSession"
-      :ctf-mode="ctfMode"
-      :ctf-role="ctfRole"
       :goal-mode="goalMode"
       :goal="activeGoal"
       :git-summary="composerGitSummary"
@@ -2225,9 +2255,10 @@ watch(
       :computer-use-ready="externalAppUseReadyForCurrentTask"
       :available-skills="activeSkills"
       :selected-mcp-servers="selectedMCPServers"
+      :mcp-catalog="mcpConfig?.servers ?? []"
+      :mcp-config-digest="mcpConfig?.digest ?? ''"
       @send="sendComposerMessage"
       @open-changes="openChanges"
-      @ctf-action="$emit('ctfAction', $event)"
       @abort="$emit('abort')"
       @change-execution-mode="changeExecutionMode"
       @change-approval-policy="changeApprovalPolicy"
@@ -2245,10 +2276,11 @@ watch(
       @start-goal="goalMode = true"
       @run-slash-command="runSlashCommand"
       @control-goal="controlComposerGoal"
+      @change-mcp-servers="(servers, digest) => $emit('changeMcpServers', servers, digest)"
     />
   </main>
   <TacticalPanelShell
-    v-if="environmentOpen && !domainContextCollapsed"
+    v-if="!dockSurface && environmentOpen && !domainContextCollapsed"
     as="aside"
     class="context-sidebar"
     size="wide"
@@ -2284,8 +2316,8 @@ watch(
         <SelectContent size="sm" align="start" class="min-w-56">
           <SelectItem v-if="domainTaskPresentation" value="domain">领域上下文</SelectItem>
           <SelectItem value="environment">{{ ctfSession ? '解题环境' : '环境信息' }}</SelectItem>
-          <SelectItem v-if="!ctfSession" value="changes">变更</SelectItem>
-          <SelectItem v-if="!ctfSession" value="artifacts">产物</SelectItem>
+          <SelectItem value="changes">变更</SelectItem>
+          <SelectItem value="artifacts">产物</SelectItem>
           <SelectItem value="browser">浏览器</SelectItem>
           <template v-if="ctfSession">
             <SelectSeparator />
@@ -2312,7 +2344,6 @@ watch(
           收起
         </Button>
         <Button
-          v-if="!ctfSession"
           variant="ghost"
           size="icon-sm"
           data-testid="coding-rail-terminal"
@@ -2345,7 +2376,7 @@ watch(
           :presentation="domainTaskPresentation"
           :collapsed="false"
           @update:collapsed="domainContextCollapsed = $event"
-          @return-domain="domainTaskPresentation.kind === 'ctf' ? $emit('returnCtf') : $emit('returnVuln')"
+          @return-domain="returnToDomain"
         />
       </template>
       <template v-else-if="contextPanel === 'environment'">
@@ -2385,7 +2416,6 @@ watch(
           </div>
         </section>
 
-        <template v-if="!ctfSession">
         <section class="border-b border-border px-4 py-4">
           <div class="flex items-center justify-between">
             <p class="text-caption font-medium text-muted-foreground">Git</p>
@@ -2444,10 +2474,8 @@ watch(
             {{ codingEnvironment?.git.problem || '当前目录不是 Git 仓库。' }}
           </p>
         </section>
-        </template>
 
-        <template v-else>
-        <section class="border-b border-border px-4 py-4">
+        <section v-if="ctfSession" class="border-b border-border px-4 py-4">
           <p class="text-caption font-medium text-muted-foreground">当前解题</p>
           <div class="mt-3 space-y-3 text-body">
             <div class="flex items-center justify-between gap-3">
@@ -2471,10 +2499,9 @@ watch(
           </div>
         </section>
 
-        </template>
-
         <AgentExecutionPlan
           :messages="conversation?.messages ?? []"
+          :running="running"
         />
 
         <section class="border-b border-border px-4 py-4">
@@ -2549,7 +2576,7 @@ watch(
         </div>
         </section>
 
-        <section v-if="!ctfSession" class="border-b border-border px-4 py-4">
+        <section class="border-b border-border px-4 py-4">
           <div class="flex items-center justify-between gap-3">
             <p class="text-caption font-medium text-muted-foreground">执行与权限</p>
             <Badge variant="outline">{{ codingPolicyLabel }}</Badge>
@@ -2896,9 +2923,9 @@ watch(
           </div>
         </section>
         <section class="px-4 py-4">
-          <Button variant="outline" class="w-full justify-start" @click="$emit('returnCtf')">
+          <Button variant="outline" class="w-full justify-start" @click="returnToDomain">
             <Flag class="size-4" />
-            返回训练工作台
+            {{ domainTaskPresentation?.returnLabel || '返回 CTF' }}
           </Button>
         </section>
       </template>
@@ -2933,8 +2960,8 @@ watch(
           <p v-else class="mt-3 text-caption text-muted-foreground">尚无外部 Judge 回执。</p>
         </section>
         <section class="px-4 py-4">
-          <Button variant="outline" class="w-full justify-start" @click="$emit('returnCtf')">
-            查看完整轨迹与提交
+          <Button variant="outline" class="w-full justify-start" @click="returnToDomain">
+            {{ domainTaskPresentation?.returnLabel || '返回 CTF' }}
           </Button>
         </section>
       </template>
@@ -2942,7 +2969,7 @@ watch(
   </TacticalPanelShell>
   </div>
   <DomainTaskContextPanel
-    v-if="domainTaskPresentation && domainContextCollapsed"
+    v-if="!dockSurface && domainTaskPresentation && domainContextCollapsed"
     class="domain-task-context-pip"
     :presentation="domainTaskPresentation"
     :collapsed="true"
@@ -2954,10 +2981,10 @@ watch(
         contextPanel = 'domain'
       }
     }"
-    @return-domain="domainTaskPresentation.kind === 'ctf' ? $emit('returnCtf') : $emit('returnVuln')"
+    @return-domain="returnToDomain"
   />
   <div
-    v-if="terminalOpen"
+    v-if="!dockSurface && terminalOpen"
     class="coding-terminal-dock min-w-0 shrink-0 overflow-hidden border-t border-border bg-card"
     :style="terminalDockStyle"
     aria-label="底部终端面板"
@@ -2995,13 +3022,25 @@ watch(
   container-type: inline-size;
 }
 
+.chat-surface-dock,
+.chat-surface-dock .coding-workspace,
+.chat-surface-dock .chat-main {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
+.chat-surface-dock .chat-main {
+  background: transparent;
+}
+
 .coding-workspace {
   container-name: coding-workspace;
   container-type: inline-size;
 }
 
 .coding-browser-panel {
-  background-color: var(--tactical-ink-2);
+  background-color: var(--card);
 }
 
 .coding-action-option {

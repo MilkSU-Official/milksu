@@ -11,6 +11,7 @@ const {
   desktopCapturer,
   dialog,
   ipcMain,
+  Menu,
   net,
   protocol,
   session,
@@ -55,6 +56,10 @@ const {
   desktopBackendEnvironment,
   electronNodeEnvironment,
 } = require('./startup-environment.cjs')
+const {
+  installRendererReloadGuard,
+  productApplicationMenuTemplate,
+} = require('./renderer-reload.cjs')
 
 const APP_ORIGIN = 'milksu://app'
 const METHOD_PATTERN = /^[A-Z][A-Za-z0-9]{0,80}$/u
@@ -893,6 +898,7 @@ function createWindow() {
   mainWindow.webContents.on('will-navigate', (event, url) => {
     if (!url.startsWith(`${APP_ORIGIN}/`)) event.preventDefault()
   })
+  installRendererReloadGuard(mainWindow.webContents)
   mainWindow.once('ready-to-show', () => {
     if (!mainWindow || mainWindow.isDestroyed()) return
     mainWindow.setTitle(lockedWindowTitle())
@@ -1049,6 +1055,7 @@ app.whenReady().then(async () => {
   }
   const upstreamEndpoint = await waitForDevTools()
   createWindow()
+  Menu.setApplicationMenu(Menu.buildFromTemplate(productApplicationMenuTemplate()))
   startupLog('createWindow')
   browserShell = new BrowserShell(mainWindow, upstreamEndpoint)
   const backendSpawnStarted = Date.now()
@@ -1093,8 +1100,8 @@ app.whenReady().then(async () => {
       }
     }
     void publishSettledAccount('post-loadURL')
-    mainWindow.webContents.once('did-finish-load', () => {
-      // One more pass after the document (and usually Vue) is up.
+    mainWindow.webContents.on('did-finish-load', () => {
+      // Re-publish after every document load, including a renderer refresh.
       void publishSettledAccount('did-finish-load')
     })
   }

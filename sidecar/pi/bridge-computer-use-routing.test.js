@@ -41,6 +41,16 @@ test("describes the immutable selected app/window when Computer Use is active", 
   assert.match(guidance, /do not switch to another app/);
 });
 
+test("CTF sessions still receive Computer Use routing instead of an empty skip", () => {
+  const guidance = computerUseRoutingGuidance({
+    ctf: true,
+    executionMode: "go",
+    approvalPolicy: "full-auto",
+  });
+  assert.match(guidance, /Computer Use is not active/);
+  assert.match(guidance, /prepare_computer_use_driver/);
+});
+
 test("recognizes raw and adapter-prefixed Computer Use MCP tool names", () => {
   assert.equal(isComputerUseMcpToolName("computer_use"), true);
   assert.equal(isComputerUseMcpToolName("milksu_computer_use_computer_use"), true);

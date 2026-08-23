@@ -111,6 +111,8 @@ import {
 } from "./bridge-imagegen.js";
 import {
   codingWorkspaceGuidance,
+  researchReportGuidance,
+  resolveWorkflowSessionRole,
   codingWorkspaceToolName,
   createCodingWorkspaceExtension,
   createWorkspaceActionBroker,
@@ -119,6 +121,7 @@ import {
 } from "./bridge-workspace.js";
 import { createComputerUseDriverExtension } from "./bridge-computer-use-driver.js";
 import { reviewedCodingSkillPaths } from "./bridge-skills.js";
+import { createToolResultBoundExtension } from "./bridge-tool-result-bound.js";
 import {
   projectSteeringQueue,
   removeQueuedMessage,
@@ -172,7 +175,20 @@ const sessionTurnContracts = new Map();
 const sessionModelSources = new Map();
 const sessionConfiguredProviders = new Map();
 const abortedSessions = new Set();
+function ignorePipeError(stream, label) {
+  stream?.on("error", error => {
+    const message = error instanceof Error ? error.message : String(error);
+    process.stderr.write(`MilkSU sidecar ${label} error: ${message}\n`);
+  });
+}
+
+ignorePipeError(process.stdin, "stdin");
+ignorePipeError(process.stdout, "stdout");
 const input = createInterface({ input: process.stdin });
+input.on("error", error => {
+  const message = error instanceof Error ? error.message : String(error);
+  process.stderr.write(`MilkSU sidecar input error: ${message}\n`);
+});
 let commandQueue = Promise.resolve();
 let steeringCommandQueue = Promise.resolve();
 const bridgeDirectory = dirname(fileURLToPath(import.meta.url));
@@ -341,22 +357,21 @@ function createMilkSUWorkflowExtension(sessionRole, getPolicy, getSession) {
           ? "Treat the requested helper as a software deliverable and verify it."
           : sessionRole === "solver"
             ? "Advance one falsifiable CTF hypothesis at a time and preserve evidence for the learner."
-            : "";
+            : sessionRole === "cve-research" || sessionRole === "lab-job"
+              ? researchReportGuidance(sessionRole)
+              : "";
       const policy = getPolicy?.();
-      const workspaceIdentityGuidance = !sessionRole
-        ? codingWorkspaceIdentityGuidance(
-            policy?.workspace,
-            policy?.codingCollaboration,
-          )
-        : "";
-      const subagentGuidance = !sessionRole && policy?.activeTools?.includes("subagent")
+      const workspaceIdentityGuidance = codingWorkspaceIdentityGuidance(
+        policy?.workspace,
+        policy?.codingCollaboration,
+      );
+      const subagentGuidance = policy?.activeTools?.includes("subagent")
         ? `\n\n${codingSubagentGuidance()}`
         : "";
-      const browserGuidance = !sessionRole && policy?.codingBrowser
+      const browserGuidance = policy?.codingBrowser
         ? `\n\n${codingBrowserGuidance()}`
         : "";
-      const workspaceGuidance = !sessionRole
-        && policy?.activeTools?.includes(codingWorkspaceToolName)
+      const workspaceGuidance = policy?.activeTools?.includes(codingWorkspaceToolName)
         ? `\n\n${codingWorkspaceGuidance()}`
         : "";
       return {
@@ -372,7 +387,8 @@ function createMilkSUWorkflowExtension(sessionRole, getPolicy, getSession) {
           + subagentGuidance
           + browserGuidance
           + workspaceGuidance
-          + "\n\nWhen a task needs more than one concrete step, publish a concise plan with milksu_progress and keep the in-progress step updated. Skip the tool for trivial one-shot replies.",
+          + "\n\nWhen a task needs more than one concrete step, publish a concise plan with milksu_progress and keep the in-progress step updated. Skip the tool for trivial one-shot replies."
+          + "\n\nTool results in model context follow Pi truncation (50KB or 2000 lines). Overflow is saved to a file named in the truncation notice; continue with the read tool and offset. Do not pull full command, HTTP, or file dumps into context.",
       };
     });
   };
@@ -891,6 +907,16 @@ function subscribeSession(
       if (event.type === "compaction_end" && requestId) {
         compactionRequestIds.delete(conversationId);
       }
+      if (
+        event.type === "compaction_end"
+        && !event.aborted
+        && event.result
+      ) {
+        recordSessionContextUsage(conversationId, {
+          inputTokens: Number(event.result.estimatedTokensAfter ?? 0),
+          cacheReadTokens: 0,
+        }, session.model?.contextWindow);
+      }
       if (projected) {
         emit(conversationId, projected.type, projected.data);
       }
@@ -1089,6 +1115,9 @@ function createMilkSUResourceLoader(
   if (mcpConfig) {
     extensionFactories.push(createMcpAdapter({ config: mcpConfig }));
   }
+  // Last: Pi tool_result middleware. Every tool, including MCP, is clipped to
+  // Pi's 50KB/2000-line contract before the result enters model context.
+  extensionFactories.push(createToolResultBoundExtension());
   return new DefaultResourceLoader({
     cwd,
     agentDir,
@@ -1164,9 +1193,10 @@ async function loadRuntimeSessionPolicy(cwd, command) {
     codingCollaboration,
     imageGenConfigured: Boolean(String(process.env.OPENAI_API_KEY ?? "").trim()),
   });
-  const effectiveSessionRole = policy.ctf
-    ? command.sessionRole || "solver"
-    : "";
+  const effectiveSessionRole = resolveWorkflowSessionRole(
+    command.sessionRole,
+    policy.ctf,
+  );
   const disabledSkills = Array.isArray(command.disabledSkills)
     ? command.disabledSkills
     : [];
@@ -1256,7 +1286,14 @@ async function createSession(command) {
   if (!conversationId) throw new Error("conversationId is required");
 
   const existing = sessions.get(conversationId);
-  if (existing) return existing;
+  if (existing) {
+    // Re-enable on every reuse. A persisted Pi settings file can leave
+    // compaction off; Coding / CTF / CVE / lab sessions must never run without it.
+    if (typeof existing.setAutoCompactionEnabled === "function") {
+      existing.setAutoCompactionEnabled(true);
+    }
+    return existing;
+  }
 
   const cwd = process.cwd();
   const agentDir = process.env.MILKSU_PI_AGENT_DIR || join(cwd, ".milksu", "pi");
@@ -1319,6 +1356,10 @@ async function createSession(command) {
     // such as background tasks then cannot reconcile processes after a
     // Sidecar restart.
     await session.bindExtensions({ mode: "print" });
+    // Pi owns auto-compaction. Never leave it off for Coding, CTF, CVE, or lab.
+    if (typeof session.setAutoCompactionEnabled === "function") {
+      session.setAutoCompactionEnabled(true);
+    }
     const controller = sessionPolicyControllers.get(conversationId);
     if (!controller) {
       throw new Error("MilkSU Coding permission controller is unavailable");
@@ -1361,10 +1402,8 @@ async function createSession(command) {
       capabilities: sessionPolicy.capabilities,
       resumed: session.messages.length > 0,
     });
-    if (!sessionPolicy.ctf) {
-      emitBackgroundTasks(conversationId);
-      emitGoalState(conversationId, session);
-    }
+    emitBackgroundTasks(conversationId);
+    emitGoalState(conversationId, session);
     return session;
   } catch (error) {
     await disposeAgentSession(session, "create_failed");
@@ -1463,6 +1502,9 @@ async function sendMessage(command) {
     return;
   }
   if (existing) {
+    if (typeof session.setAutoCompactionEnabled === "function") {
+      session.setAutoCompactionEnabled(true);
+    }
     const { policy: sessionPolicy } = await loadRuntimeSessionPolicy(process.cwd(), command);
     sessionPolicies.set(conversationId, sessionPolicy);
     const controller = sessionPolicyControllers.get(conversationId);
@@ -1485,14 +1527,12 @@ async function sendMessage(command) {
       effectiveModel.model,
       command.thinking,
     );
-    if (!sessionPolicy.ctf) {
-      emit(conversationId, "policy_updated", {
-        tools: session.getActiveToolNames(),
-        executionMode: sessionPolicy.executionMode,
-        approvalPolicy: sessionPolicy.approvalPolicy,
-        capabilities: sessionPolicy.capabilities,
-      });
-    }
+    emit(conversationId, "policy_updated", {
+      tools: session.getActiveToolNames(),
+      executionMode: sessionPolicy.executionMode,
+      approvalPolicy: sessionPolicy.approvalPolicy,
+      capabilities: sessionPolicy.capabilities,
+    });
   }
 
   const previous = promptQueues.get(conversationId) ?? Promise.resolve();
@@ -1509,11 +1549,7 @@ async function sendMessage(command) {
     // the next prompt so Pi never runs a prompt against a session that is
     // mid-compaction. Compaction is bounded, so this wait cannot hang forever.
     await waitForCompaction(compactionRuns, conversationId);
-    await compactIfContextNearLimit(
-      conversationId,
-      session,
-      sessionPolicies.get(conversationId),
-    );
+    await compactIfContextNearLimit(conversationId, session);
     const attachmentRoot = process.env.MILKSU_CODING_ATTACHMENT_ROOT;
     const supportsImages = Array.isArray(session.model?.input)
       && session.model.input.includes("image");
@@ -1522,10 +1558,7 @@ async function sendMessage(command) {
       attachmentRoot,
       supportsImages,
     );
-    const policy = sessionPolicies.get(conversationId);
-    const contract = policy?.ctf
-      ? undefined
-      : normalizeCodingTurnContract(command.turnPolicy);
+    const contract = normalizeCodingTurnContract(command.turnPolicy);
     const analyzed = supportsImages
       ? { context: "" }
       : await analyzeTextOnlyImages(prepared.attachments);
@@ -1553,11 +1586,7 @@ async function sendMessage(command) {
       prompt,
       prepared.images.length ? { images: prepared.images } : undefined,
     ));
-    await compactIfContextNearLimit(
-      conversationId,
-      session,
-      sessionPolicies.get(conversationId),
-    );
+    await compactIfContextNearLimit(conversationId, session);
   });
   promptQueues.set(conversationId, next.catch(() => undefined));
   try {
@@ -1697,8 +1726,12 @@ function recordSessionContextUsage(conversationId, usage, contextWindow) {
   });
 }
 
-async function compactIfContextNearLimit(conversationId, session, policy) {
-  if (policy?.ctf || !session) return;
+async function compactIfContextNearLimit(conversationId, session) {
+  if (!session) return;
+  if (typeof session.setAutoCompactionEnabled === "function") {
+    session.setAutoCompactionEnabled(true);
+  }
+  if (session.isCompacting) return;
   const stored = sessionContextUsage.get(conversationId);
   const snapshot = contextUsageSnapshot(
     stored,
@@ -1735,9 +1768,8 @@ async function compactSessionCommand(command) {
     if (!session) {
       throw new Error(`Coding session not found: ${conversationId}`);
     }
-    const policy = sessionPolicies.get(conversationId);
-    if (policy?.ctf) {
-      throw new Error("CTF agent sessions cannot be compacted from the task UI");
+    if (!sessionPolicies.get(conversationId)) {
+      throw new Error(`Coding session is not ready: ${conversationId}`);
     }
     compactionRequestIds.set(conversationId, requestId);
     const run = (async () => {
@@ -1845,8 +1877,7 @@ async function controlBackgroundTask(command) {
         approvalPolicy: command.approvalPolicy,
       });
       if (
-        policy.ctf
-        || policy.executionMode !== "go"
+        policy.executionMode !== "go"
         || policy.approvalPolicy === "read-only"
       ) {
         throw new Error(

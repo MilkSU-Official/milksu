@@ -44,12 +44,12 @@ function selectedChallenge(hasAttachment = false): NSSCTFChallenge {
 }
 
 async function mountDesk(options: { catalogLoading: boolean; actionLoading: boolean; hasAttachment?: boolean }) {
-  const onStartNssctf = vi.fn()
+  const onSelectNssctf = vi.fn()
   const host = document.createElement('div')
   document.body.append(host)
   const app = createApp(CTFChallengeDesk, {
     activeBank: 'nssctf',
-    nssctfProblems: [],
+    nssctfProblems: [dailyProblem()],
     ctfshowProblems: [],
     selectedNssctf: selectedChallenge(options.hasAttachment),
     selectedCtfshow: null,
@@ -74,15 +74,13 @@ async function mountDesk(options: { catalogLoading: boolean; actionLoading: bool
     judgeReady: false,
     hasActiveTraining: false,
     collectionStore: createItemCollectionStore('test.ctf.collections'),
-    onStartNssctf,
+    onSelectNssctf,
   })
   app.mount(host)
   mountedApps.push(app)
   await nextTick()
-  const action = Array.from(host.querySelectorAll('button')).find(button => (
-    button.textContent?.includes('交给 Coding')
-  )) as HTMLButtonElement | undefined
-  return { action, onStartNssctf }
+  const action = host.querySelector<HTMLButtonElement>('[data-testid="open-item"]')
+  return { action, onSelectNssctf, host }
 }
 
 function dailyProblem(): NSSCTFCatalogProblem {
@@ -221,57 +219,36 @@ describe('CTFChallengeDesk primary action', () => {
 
     expect(host.textContent).toContain('Daily')
     expect(host.textContent).toContain('每日挑战')
-    const change = Array.from(host.querySelectorAll('button')).find(button => button.textContent?.includes('换一道'))
-    change?.click()
-    await nextTick()
-    expect(onChangeDaily).toHaveBeenCalledTimes(1)
+    expect(host.textContent).not.toContain('换一道')
+    expect(host.textContent).not.toContain('取消选中')
   })
 
-  it('lets the user collapse the selected challenge', async () => {
-    const onClearSelection = vi.fn()
-    const host = document.createElement('div')
-    document.body.append(host)
-    const app = createApp(CTFChallengeDesk, {
-      activeBank: 'nssctf',
-      nssctfProblems: [],
-      ctfshowProblems: [],
-      selectedNssctf: selectedChallenge(),
-      selectedCtfshow: null,
-      dashboard: null,
-      nssctfAttemptedIds: [],
-      nssctfCompletedIds: [],
-      ctfshowAttemptedIds: [],
-      ctfshowCompletedIds: [],
-      page: 1,
-      pageCount: 1,
-      total: 1,
-      loading: false,
+  it('opens a catalog row into a detail selection instead of expanding it', async () => {
+    const { action, onSelectNssctf, host } = await mountDesk({
+      catalogLoading: false,
       actionLoading: false,
-      collaborationMode: 'copilot',
-      selectedBrowserReady: false,
-      ctfshowBridgeReady: false,
-      attachmentError: '',
-      localMaterials: [],
-      catalogError: '',
-      modelVerified: false,
-      catalogReady: true,
-      judgeReady: false,
-      hasActiveTraining: false,
-      collectionStore: createItemCollectionStore('test.ctf.clear.collections'),
-      onClearSelection,
     })
-    app.mount(host)
-    mountedApps.push(app)
+    expect(host.querySelector('[data-testid="catalog-row"]')).not.toBeNull()
+    expect(host.querySelector('[data-testid="catalog-row"]')?.tagName).toBe('ARTICLE')
+    expect(action).toBeTruthy()
+    action?.click()
     await nextTick()
-    const clear = Array.from(host.querySelectorAll('button')).find(button => button.textContent?.includes('取消选中'))
-    expect(clear).toBeTruthy()
-    clear?.click()
-    await nextTick()
-    expect(onClearSelection).toHaveBeenCalledTimes(1)
+    expect(onSelectNssctf).toHaveBeenCalledWith(3347)
   })
 
-  it('keeps open-Coding enabled while the catalog refreshes in background', async () => {
-    const { action, onStartNssctf } = await mountDesk({
+  it('does not enter detail when the title is selected', async () => {
+    const { onSelectNssctf, host } = await mountDesk({
+      catalogLoading: false,
+      actionLoading: false,
+    })
+    const title = [...host.querySelectorAll('span')].find(node => node.textContent?.includes('RSA 训练题'))
+    title?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await nextTick()
+    expect(onSelectNssctf).not.toHaveBeenCalled()
+  })
+
+  it('keeps catalog rows clickable while the catalog refreshes in background', async () => {
+    const { action, onSelectNssctf } = await mountDesk({
       catalogLoading: true,
       actionLoading: false,
     })
@@ -280,32 +257,6 @@ describe('CTFChallengeDesk primary action', () => {
     expect(action?.disabled).toBe(false)
     action?.click()
     await nextTick()
-    expect(onStartNssctf).toHaveBeenCalledTimes(1)
-  })
-
-  it('keeps missing NSSCTF attachments from blocking the Coding handoff', async () => {
-    const { action, onStartNssctf } = await mountDesk({
-      catalogLoading: false,
-      actionLoading: false,
-      hasAttachment: true,
-    })
-
-    expect(action).toBeTruthy()
-    expect(action?.disabled).toBe(false)
-    action?.click()
-    await nextTick()
-    expect(onStartNssctf).toHaveBeenCalledTimes(1)
-  })
-
-  it('blocks duplicate clicks only while the handoff itself is running', async () => {
-    const { action, onStartNssctf } = await mountDesk({
-      catalogLoading: false,
-      actionLoading: true,
-    })
-
-    expect(action?.disabled).toBe(true)
-    action?.click()
-    await nextTick()
-    expect(onStartNssctf).not.toHaveBeenCalled()
+    expect(onSelectNssctf).toHaveBeenCalledWith(3347)
   })
 })

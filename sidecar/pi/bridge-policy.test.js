@@ -958,6 +958,10 @@ test("coach mode keeps bash and CTF domain tools", async () => {
   assert.equal(policy.ctf, true);
   assert.equal(policy.activeTools.includes("bash"), true);
   assert.equal(policy.activeTools.includes("milksu_progress"), true);
+  assert.equal(policy.activeTools.includes("milksu_workspace"), true);
+  assert.equal(policy.activeTools.includes("subagent"), true);
+  assert.equal(policy.activeTools.includes("bg_task"), true);
+  assert.equal(policy.activeTools.includes("lsp_fix"), true);
   assert.equal(policy.customTools.some(tool => tool.name === "bash"), true);
   assert.equal(policy.activeTools.includes("ctf_capabilities"), true);
 });

@@ -60,7 +60,6 @@ onMounted(load)
   <div>
     <p v-if="error" class="px-4 py-3 text-body text-destructive">{{ error }}</p>
     <p v-if="loading" class="px-4 py-5 text-body text-muted-foreground">正在读取归档聊天…</p>
-    <p v-else-if="!conversations.length" class="px-4 py-5 text-body text-muted-foreground">暂无归档聊天</p>
     <SettingsRow
       v-for="conversation in conversations"
       :key="conversation.id"

@@ -17,11 +17,11 @@ Use one clean source commit and the repository workflows. Keep signing, notariza
 
 ## Build Stable
 
-Push the clean release commit to the authorized private `main`, then dispatch the platform workflows against that exact commit.
+Push the clean release commit to `main`, then dispatch **macOS, Windows and Linux** cloud workflows against that exact commit (`npm run release:dispatch`). Approve the `macos-release` environment, then `npm run release:collect -- --wait`. Do not use `release:mac:local` unless GitHub-hosted macOS cannot notarize (`--allow-local`).
 
 ### macOS ARM64
 
-Prefer a registered private self-hosted macOS ARM64 runner; use a GitHub-hosted Mac only when the local runner is unavailable or unsuitable. Do not restore or upload GitHub's remote Node/Go caches on the self-hosted path; reuse the runner's local tool and package caches instead. Use `macOS signed release` once. It must test, compile the App once, apply Developer ID signing and hardened runtime, notarize, staple, and verify Gatekeeper. Derive both deliverables from the same verified `.app`:
+Use GitHub-hosted `macOS signed release` (`macos-15` standard runner). Do not restore or upload GitHub's remote Node/Go caches on a self-hosted path; reuse the runner's local tool and package caches instead. It must compile the App once, apply Developer ID signing and hardened runtime, notarize, staple, and verify Gatekeeper. Derive both deliverables from the same verified `.app`:
 
 - DMG: user installer and GitHub Release asset;
 - ZIP plus updater metadata: authenticated OTA payload uploaded directly from the runner to private R2.

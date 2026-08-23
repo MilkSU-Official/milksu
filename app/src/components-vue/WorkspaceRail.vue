@@ -4,6 +4,7 @@ import {
   Bug,
   Code2,
   Flag,
+  FlaskConical,
   LogOut,
   Moon,
   Settings,
@@ -41,6 +42,7 @@ const emit = defineEmits<{
 const icons = {
   ctf: Flag,
   vuln: Bug,
+  lab: FlaskConical,
   chat: Code2,
 } as const
 
@@ -119,7 +121,7 @@ function openSettings() {
         :aria-expanded="menuOpen"
         @click.stop="menuOpen = !menuOpen"
       >
-        <span class="relative">
+        <span class="ak-media--album workspace-rail-profile__album">
           <img
             :src="avatarSource"
             alt="用户头像"
@@ -198,37 +200,45 @@ function openSettings() {
 <style scoped>
 .workspace-rail-traffic-safe { box-sizing: border-box; min-height: 5.75rem; padding-top: 2.1rem; padding-bottom: .45rem; }
 .workspace-rail {
-  color: var(--night-foreground);
-  --foreground: var(--night-foreground);
-  --card-foreground: var(--night-foreground);
-  --muted-foreground: var(--night-muted-foreground);
-  --border: var(--night-border);
-  --border-hairline: var(--night-border-hairline);
-  --input: var(--night-input);
-  --card: var(--night-card);
-  --popover: var(--night-popover);
-  --popover-foreground: var(--night-foreground);
-  --secondary: var(--night-muted);
-  --secondary-foreground: var(--night-foreground);
-  --accent: var(--night-accent);
-  --accent-foreground: var(--night-foreground);
-  background: var(--ak-surface-canvas, #111315);
+  color: var(--foreground);
+  background: var(--background);
 }
 .workspace-rail-profile {
   display: grid;
-  width: 2.75rem;
-  height: 2.75rem;
+  width: 2.9rem;
+  height: 2.9rem;
   border: 0;
   place-items: center;
   background: transparent;
   cursor: pointer;
 }
+.workspace-rail-profile__album {
+  margin: 0;
+  border-width: 3px;
+  border-color: #f8f7f2;
+  box-shadow: 0 5px 12px rgb(0 0 0 / .4);
+}
+.workspace-rail-profile__album::before {
+  top: 2px;
+  left: -5px;
+  border-width: 3px;
+  border-color: #f8f7f2;
+}
 .workspace-rail-profile__mark {
-  width: 2rem;
-  height: 2rem;
-  border: 1px solid rgba(248, 248, 245, .28);
-  background: #fff;
+  display: block;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  background: #222;
   object-fit: cover;
+}
+@media (prefers-reduced-motion: reduce) {
+  .workspace-rail-profile__album {
+    transform: none;
+  }
+  .workspace-rail-profile__album::before {
+    display: none;
+  }
 }
 .workspace-rail-nav,
 .workspace-rail-foot { display: grid; gap: .15rem; padding: 0 .35rem .35rem; }
@@ -253,7 +263,8 @@ function openSettings() {
 }
 .workspace-rail-item.is-current {
   color: #111315;
-  background: var(--brand);
+  background: #05a7dc;
+  box-shadow: 0 0 1.4rem color-mix(in srgb, #05a7dc 55%, transparent);
 }
 .workspace-rail-item:not(.is-current):hover,
 .workspace-rail-item:not(.is-current):focus-visible { color: var(--foreground); background: var(--overlay-hover); }

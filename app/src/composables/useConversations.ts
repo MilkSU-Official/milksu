@@ -1,4 +1,4 @@
-import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
+import { computed, getCurrentInstance, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { invokeCommand, listenEvent } from '@/desktop'
 import type { CodingCompactionResult, CodingProjectMemory } from '@/codingEnvironmentTypes'
 import {
@@ -18,6 +18,7 @@ import {
 } from '@/lib/codingPolicy'
 import {
   applyCodingToolEvent,
+  hasIdleRunResidue,
   settleRunningToolMessages,
   withoutBlankAssistantMessages,
 } from '@/lib/chatActivity'
@@ -188,9 +189,11 @@ interface AgentEvent {
     outputTokens?: number
     cacheReadTokens?: number
     cacheWriteTokens?: number
+    reasoningTokens?: number
     totalTokens?: number
     model?: string
     provider?: string
+    recordId?: string
   }
   compaction?: {
     tokensBefore?: number
@@ -256,7 +259,7 @@ interface WorkspaceTask {
   }
   role: 'solver' | 'tool-builder' | 'strategist'
   domainTaskContext?: Conversation['domainTaskContext']
-  /** When false/omitted, attach session + draft only — never auto-start Pi. */
+  /** When false/omitted, attach session only — never auto-start Pi or fill the composer. */
   autoSend?: boolean
 }
 
@@ -272,21 +275,31 @@ function normalizeLastContextUsage(raw: unknown): Conversation['lastContextUsage
   const outputTokens = Math.max(0, Math.floor(Number(value.outputTokens) || 0))
   const cacheReadTokens = Math.max(0, Math.floor(Number(value.cacheReadTokens) || 0))
   const cacheWriteTokens = Math.max(0, Math.floor(Number(value.cacheWriteTokens) || 0))
+  const reasoningTokens = Math.max(0, Math.floor(Number(value.reasoningTokens) || 0))
   const totalTokens = Math.max(0, Math.floor(Number(value.totalTokens) || 0))
     || (inputTokens + outputTokens + cacheReadTokens + cacheWriteTokens)
   const recordedAt = Math.max(0, Math.floor(Number(value.recordedAt) || 0))
   if (totalTokens <= 0 && inputTokens <= 0) return undefined
   const contextWindow = Math.max(0, Math.floor(Number(value.contextWindow) || 0))
+  const sessionTurns = Math.max(0, Math.floor(Number(value.sessionTurns) || 0))
   return {
     inputTokens,
     outputTokens,
     cacheReadTokens,
     cacheWriteTokens,
+    reasoningTokens: reasoningTokens || undefined,
     totalTokens,
     contextWindow: contextWindow || undefined,
     model: typeof value.model === 'string' ? value.model : undefined,
     provider: typeof value.provider === 'string' ? value.provider : undefined,
     recordedAt,
+    sessionInputTokens: sessionTurns ? Math.max(0, Math.floor(Number(value.sessionInputTokens) || 0)) : undefined,
+    sessionOutputTokens: sessionTurns ? Math.max(0, Math.floor(Number(value.sessionOutputTokens) || 0)) : undefined,
+    sessionCacheReadTokens: sessionTurns ? Math.max(0, Math.floor(Number(value.sessionCacheReadTokens) || 0)) : undefined,
+    sessionCacheWriteTokens: sessionTurns ? Math.max(0, Math.floor(Number(value.sessionCacheWriteTokens) || 0)) : undefined,
+    sessionReasoningTokens: sessionTurns ? Math.max(0, Math.floor(Number(value.sessionReasoningTokens) || 0)) : undefined,
+    sessionTotalTokens: sessionTurns ? Math.max(0, Math.floor(Number(value.sessionTotalTokens) || 0)) : undefined,
+    sessionTurns: sessionTurns || undefined,
   }
 }
 
@@ -351,7 +364,7 @@ export function normalizeConversation(raw: Record<string, unknown>): Conversatio
       : undefined,
     domainTaskContext: normalizeDomainTaskContext(raw.domainTaskContext),
     lastContextUsage: normalizeLastContextUsage(raw.lastContextUsage),
-    messages: messages.map(message => {
+    messages: settleRunningToolMessages(messages.map(message => {
       const rawApprovalState = String(message.approvalState ?? '')
       const approvalState = rawApprovalState === 'pending'
         ? 'expired'
@@ -389,14 +402,14 @@ export function normalizeConversation(raw: Record<string, unknown>): Conversatio
             : undefined,
         attachments: normalizeAttachments(message.attachments),
       }
-    }),
+    })),
   }
 }
 
 /** True when the text looks like MilkSU/Node internals, not a provider reply. */
 function isInternalAgentStack(message: string) {
   return (
-    /node:internal|bridge\.js|Cannot find module|Uncaught Exception|TypeError:|ReferenceError:|SyntaxError:|internal module|stack trace|milksu-sidecar|at\s+\S+\.(?:js|cjs|mjs|ts|go):\d+/i
+    /node:internal|node:events|Unhandled ['"]error['"] event|bridge\.js|Cannot find module|Uncaught Exception|TypeError:|ReferenceError:|SyntaxError:|internal module|stack trace|milksu-sidecar|at\s+\S+\.(?:js|cjs|mjs|ts|go):\d+/i
       .test(message)
     || /Access to this API has been restricted|--allow-fs-(?:read|write)|ERR_ACCESS_DENIED/i
       .test(message)
@@ -791,6 +804,41 @@ export function useConversations() {
     abortingIds.value = next.aborting
   }
 
+  const IDLE_RECONCILE_MS = 12_000
+
+  function reconcileIdleConversation(conversationId: string) {
+    if (!conversationId || runningIds.value.has(conversationId)) return
+    const conversation = conversations.value.find(item => item.id === conversationId)
+    if (!conversation || !hasIdleRunResidue(conversation.messages)) return
+    update(conversationId, current => ({
+      ...current,
+      messages: settleRunningToolMessages(current.messages),
+    }))
+  }
+
+  function reconcileIdleConversations() {
+    for (const conversation of conversations.value) {
+      reconcileIdleConversation(conversation.id)
+    }
+  }
+
+  watch(activeId, id => {
+    if (id) reconcileIdleConversation(id)
+  })
+
+  function onVisibilityChange() {
+    if (document.visibilityState !== 'visible') return
+    if (activeId.value) reconcileIdleConversation(activeId.value)
+  }
+
+  const ownsIdleReconcile = Boolean(getCurrentInstance())
+  if (ownsIdleReconcile && typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', onVisibilityChange)
+  }
+  const idleReconcileTimer = ownsIdleReconcile && typeof window !== 'undefined'
+    ? window.setInterval(reconcileIdleConversations, IDLE_RECONCILE_MS)
+    : undefined
+
   async function invokeRuntimeTurn(
     conversationId: string,
     dispatch: RuntimeTurnDispatch,
@@ -864,7 +912,13 @@ export function useConversations() {
   function rename(id: string, title: string) {
     const normalized = title.trim().slice(0, 40)
     if (!normalized) return
-    update(id, conversation => ({ ...conversation, title: normalized }))
+    update(id, conversation => ({
+      ...conversation,
+      title: normalized,
+      domainTaskContext: conversation.domainTaskContext?.kind === 'lab'
+        ? { ...conversation.domainTaskContext, title: normalized }
+        : conversation.domainTaskContext,
+    }))
   }
 
   const pendingComposerDraft = ref<PendingComposerDraft | null>(null)
@@ -911,12 +965,16 @@ export function useConversations() {
       domainTaskContext?: Conversation['domainTaskContext']
       conversationId?: string
       workspacePath?: string
+      ctfJobId?: Conversation['ctfJobId']
+      ctfMode?: Conversation['ctfMode']
+      ctfRole?: Conversation['ctfRole']
     } = {},
   ) {
     const requestedId = String(options.conversationId ?? '').trim()
     const hasWorkspaceOverride = Object.prototype.hasOwnProperty.call(options, 'workspacePath')
     const workspaceOverride = String(options.workspacePath ?? '').trim() || undefined
     const clearsCTFContext = options.domainTaskContext?.kind === 'cve'
+      || options.domainTaskContext?.kind === 'lab'
     if (requestedId) {
       const existing = conversations.value.find(item => item.id === requestedId)
       if (existing) {
@@ -926,9 +984,9 @@ export function useConversations() {
           title: title.trim().slice(0, 40) || conversation.title,
           workspacePath: hasWorkspaceOverride ? workspaceOverride : conversation.workspacePath,
           domainTaskContext: options.domainTaskContext ?? conversation.domainTaskContext,
-          ctfJobId: clearsCTFContext ? undefined : conversation.ctfJobId,
-          ctfMode: clearsCTFContext ? undefined : conversation.ctfMode,
-          ctfRole: clearsCTFContext ? undefined : conversation.ctfRole,
+          ctfJobId: clearsCTFContext ? undefined : (options.ctfJobId ?? conversation.ctfJobId),
+          ctfMode: clearsCTFContext ? undefined : (options.ctfMode ?? conversation.ctfMode),
+          ctfRole: clearsCTFContext ? undefined : (options.ctfRole ?? conversation.ctfRole),
         }))
         return existing.id
       }
@@ -964,6 +1022,9 @@ export function useConversations() {
         ? pendingMCPConfigDigest.value
         : undefined,
       domainTaskContext: options.domainTaskContext,
+      ctfJobId: clearsCTFContext ? undefined : options.ctfJobId,
+      ctfMode: clearsCTFContext ? undefined : options.ctfMode,
+      ctfRole: clearsCTFContext ? undefined : options.ctfRole,
       messages: [],
     }
     conversations.value = [conversation, ...conversations.value]
@@ -1115,12 +1176,8 @@ export function useConversations() {
           domainTaskContext: task.domainTaskContext ?? conversation.domainTaskContext,
         }))
       }
-      if (autoSend) {
-        if (!runningIds.value.has(existing.id)) {
-          await send(task.prompt)
-        }
-      } else {
-        stageComposerDraft(task.prompt, task.visibleText)
+      if (autoSend && !runningIds.value.has(existing.id)) {
+        await send(task.prompt)
       }
       return
     }
@@ -1142,8 +1199,6 @@ export function useConversations() {
     persist(conversation)
     if (autoSend) {
       await send(task.prompt)
-    } else {
-      stageComposerDraft(task.prompt, task.visibleText)
     }
   }
 
@@ -1629,9 +1684,11 @@ export function useConversations() {
           outputTokens: usage.outputTokens,
           cacheReadTokens: usage.cacheReadTokens,
           cacheWriteTokens: usage.cacheWriteTokens,
+          reasoningTokens: usage.reasoningTokens,
           totalTokens: usage.totalTokens,
           model: usage.model,
           provider: usage.provider,
+          recordId: usage.recordId,
         } satisfies Partial<SessionTurnUsage>))
         persistSessionContextUsage(sessionId)
         return
@@ -1927,6 +1984,10 @@ export function useConversations() {
     saveTimers.clear()
     for (const timer of compactionErrorTimers.values()) window.clearTimeout(timer)
     compactionErrorTimers.clear()
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
+    if (idleReconcileTimer) window.clearInterval(idleReconcileTimer)
   })
 
   return {

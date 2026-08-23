@@ -9,15 +9,30 @@ export interface SessionTurnUsage {
   outputTokens: number
   cacheReadTokens: number
   cacheWriteTokens: number
+  reasoningTokens: number
   totalTokens: number
   model?: string
   provider?: string
+  /** Stable usage.recorded id; duplicate events must not double-count session totals. */
+  recordId?: string
   /** Unix ms when this usage row was recorded. */
   recordedAt: number
 }
 
+export interface SessionTokenTotals {
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+  reasoningTokens: number
+  totalTokens: number
+  turns: number
+}
+
 export interface SessionTurnSnapshot {
   usage?: SessionTurnUsage
+  /** Sum of model calls in this conversation, for cache-hit diagnosis. */
+  session?: SessionTokenTotals
   /** Model context window in tokens, from the callable catalog when known. */
   contextWindow?: number
   compacting: boolean
@@ -31,31 +46,75 @@ export function emptySessionTurnSnapshot(): SessionTurnSnapshot {
   return { compacting: false }
 }
 
+function addSessionTotals(
+  current: SessionTokenTotals | undefined,
+  usage: SessionTurnUsage,
+): SessionTokenTotals {
+  return {
+    inputTokens: (current?.inputTokens ?? 0) + usage.inputTokens,
+    outputTokens: (current?.outputTokens ?? 0) + usage.outputTokens,
+    cacheReadTokens: (current?.cacheReadTokens ?? 0) + usage.cacheReadTokens,
+    cacheWriteTokens: (current?.cacheWriteTokens ?? 0) + usage.cacheWriteTokens,
+    reasoningTokens: (current?.reasoningTokens ?? 0) + usage.reasoningTokens,
+    totalTokens: (current?.totalTokens ?? 0) + usage.totalTokens,
+    turns: (current?.turns ?? 0) + 1,
+  }
+}
+
+function storedSessionTotals(usage: {
+  sessionInputTokens?: number
+  sessionOutputTokens?: number
+  sessionCacheReadTokens?: number
+  sessionCacheWriteTokens?: number
+  sessionReasoningTokens?: number
+  sessionTotalTokens?: number
+  sessionTurns?: number
+}): SessionTokenTotals | undefined {
+  const turns = nonNegativeInt(usage.sessionTurns)
+  if (!turns) return undefined
+  return {
+    inputTokens: nonNegativeInt(usage.sessionInputTokens),
+    outputTokens: nonNegativeInt(usage.sessionOutputTokens),
+    cacheReadTokens: nonNegativeInt(usage.sessionCacheReadTokens),
+    cacheWriteTokens: nonNegativeInt(usage.sessionCacheWriteTokens),
+    reasoningTokens: nonNegativeInt(usage.sessionReasoningTokens),
+    totalTokens: nonNegativeInt(usage.sessionTotalTokens),
+    turns,
+  }
+}
+
 export function applySessionUsageRecorded(
   state: SessionTurnSnapshot,
   usage: Partial<SessionTurnUsage> | null | undefined,
   now = Date.now(),
 ): SessionTurnSnapshot {
   if (!usage) return state
+  const recordId = String(usage.recordId ?? '').trim() || undefined
+  if (recordId && state.usage?.recordId === recordId) return state
   const inputTokens = nonNegativeInt(usage.inputTokens)
   const outputTokens = nonNegativeInt(usage.outputTokens)
   const cacheReadTokens = nonNegativeInt(usage.cacheReadTokens)
   const cacheWriteTokens = nonNegativeInt(usage.cacheWriteTokens)
+  const reasoningTokens = nonNegativeInt(usage.reasoningTokens)
   const totalTokens = nonNegativeInt(usage.totalTokens)
     || (inputTokens + outputTokens + cacheReadTokens + cacheWriteTokens)
   if (totalTokens <= 0 && inputTokens <= 0 && outputTokens <= 0) return state
+  const nextUsage: SessionTurnUsage = {
+    inputTokens,
+    outputTokens,
+    cacheReadTokens,
+    cacheWriteTokens,
+    reasoningTokens,
+    totalTokens,
+    model: usage.model ? String(usage.model) : state.usage?.model,
+    provider: usage.provider ? String(usage.provider) : state.usage?.provider,
+    recordId,
+    recordedAt: now,
+  }
   return {
     ...state,
-    usage: {
-      inputTokens,
-      outputTokens,
-      cacheReadTokens,
-      cacheWriteTokens,
-      totalTokens,
-      model: usage.model ? String(usage.model) : state.usage?.model,
-      provider: usage.provider ? String(usage.provider) : state.usage?.provider,
-      recordedAt: now,
-    },
+    usage: nextUsage,
+    session: addSessionTotals(state.session, nextUsage),
   }
 }
 
@@ -74,6 +133,7 @@ export function applySessionUsageAfterCompaction(
       outputTokens: 0,
       cacheReadTokens: 0,
       cacheWriteTokens: 0,
+      reasoningTokens: 0,
       totalTokens: inputTokens,
       model: state.usage?.model,
       provider: state.usage?.provider,
@@ -93,7 +153,16 @@ export function applySessionContextWindow(
 
 /** Restore the composer occupancy ring from a persisted conversation row. */
 export function snapshotFromStoredContextUsage(
-  usage: (Partial<SessionTurnUsage> & { contextWindow?: number }) | null | undefined,
+  usage: (Partial<SessionTurnUsage> & {
+    contextWindow?: number
+    sessionInputTokens?: number
+    sessionOutputTokens?: number
+    sessionCacheReadTokens?: number
+    sessionCacheWriteTokens?: number
+    sessionReasoningTokens?: number
+    sessionTotalTokens?: number
+    sessionTurns?: number
+  }) | null | undefined,
   now = Date.now(),
 ): SessionTurnSnapshot {
   if (!usage) return emptySessionTurnSnapshot()
@@ -102,7 +171,10 @@ export function snapshotFromStoredContextUsage(
     usage,
     usage.recordedAt || now,
   )
-  return applySessionContextWindow(recorded, usage.contextWindow)
+  return applySessionContextWindow({
+    ...recorded,
+    session: storedSessionTotals(usage) ?? recorded.session,
+  }, usage.contextWindow)
 }
 
 export function storedContextUsageFromSnapshot(snapshot: SessionTurnSnapshot) {
@@ -113,11 +185,19 @@ export function storedContextUsageFromSnapshot(snapshot: SessionTurnSnapshot) {
     outputTokens: usage.outputTokens,
     cacheReadTokens: usage.cacheReadTokens,
     cacheWriteTokens: usage.cacheWriteTokens,
+    reasoningTokens: usage.reasoningTokens,
     totalTokens: usage.totalTokens,
     contextWindow: snapshot.contextWindow,
     model: usage.model,
     provider: usage.provider,
     recordedAt: usage.recordedAt,
+    sessionInputTokens: snapshot.session?.inputTokens,
+    sessionOutputTokens: snapshot.session?.outputTokens,
+    sessionCacheReadTokens: snapshot.session?.cacheReadTokens,
+    sessionCacheWriteTokens: snapshot.session?.cacheWriteTokens,
+    sessionReasoningTokens: snapshot.session?.reasoningTokens,
+    sessionTotalTokens: snapshot.session?.totalTokens,
+    sessionTurns: snapshot.session?.turns,
   }
 }
 
@@ -173,6 +253,17 @@ export function formatElapsedMs(elapsedMs: number | undefined): string {
   return `${minutes}:${String(seconds).padStart(2, '0')}`
 }
 
+export interface ContextUsageBreakdown {
+  uncachedLabel: string
+  cacheReadLabel: string
+  cacheWriteLabel: string
+  outputLabel: string
+  reasoningLabel: string
+  /** Cache-read / (uncached input + cache-read). */
+  hitRateLabel?: string
+  turns?: number
+}
+
 export interface ContextUsagePresentation {
   /** Short line for composer strip, e.g. "↑10k ↓1.8k · 12k/128k". */
   strip: string
@@ -188,6 +279,36 @@ export interface ContextUsagePresentation {
   ioLabel: string
   /** True while Pi is compacting the current session. */
   compacting: boolean
+  last?: ContextUsageBreakdown
+  session?: ContextUsageBreakdown
+}
+
+/** Cache hit rate: cache-read tokens / last prompt (uncached + cache-read). */
+export function formatHitRate(cacheReadTokens: number, promptTokens: number): string | undefined {
+  const read = nonNegativeInt(cacheReadTokens)
+  const prompt = nonNegativeInt(promptTokens)
+  if (prompt <= 0) return undefined
+  const percent = (read / prompt) * 100
+  if (percent <= 0) return '0%'
+  if (percent >= 99.5 && read < prompt) return '99%'
+  if (percent >= 10) return `${Math.round(percent)}%`
+  return `${percent.toFixed(1).replace(/\.0$/, '')}%`
+}
+
+function presentUsageBreakdown(
+  usage: Pick<SessionTurnUsage, 'inputTokens' | 'outputTokens' | 'cacheReadTokens' | 'cacheWriteTokens' | 'reasoningTokens'>,
+  turns?: number,
+): ContextUsageBreakdown {
+  const prompt = usage.inputTokens + usage.cacheReadTokens
+  return {
+    uncachedLabel: formatTokenCount(usage.inputTokens),
+    cacheReadLabel: formatTokenCount(usage.cacheReadTokens),
+    cacheWriteLabel: formatTokenCount(usage.cacheWriteTokens),
+    outputLabel: formatTokenCount(usage.outputTokens),
+    reasoningLabel: formatTokenCount(usage.reasoningTokens),
+    hitRateLabel: formatHitRate(usage.cacheReadTokens, prompt),
+    turns,
+  }
 }
 
 export function presentContextUsage(
@@ -227,6 +348,10 @@ export function presentContextUsage(
   const strip = ratio
     ? `${ioLabel} · ${ratio}${compactingMark}`
     : `${ioLabel}${compactingMark}`
+  const last = presentUsageBreakdown(usage)
+  const session = snapshot.session && snapshot.session.turns > 1
+    ? presentUsageBreakdown(snapshot.session, snapshot.session.turns)
+    : undefined
   return {
     strip,
     percent,
@@ -237,6 +362,8 @@ export function presentContextUsage(
     totalLabel,
     ioLabel,
     compacting,
+    last,
+    session,
   }
 }
 

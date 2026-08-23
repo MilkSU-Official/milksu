@@ -13,25 +13,28 @@ import {
   NativeSelectOption,
 } from '@felinic/ui'
 import {
-  ArrowRight,
+  ArrowLeft,
   BookOpen,
   ChevronLeft,
   ChevronRight,
-  Code2,
   ExternalLink,
-  Link2,
   LoaderCircle,
   Plus,
   Search,
-  X,
 } from 'lucide-vue-next'
 import CollectionPicker from '@/components-vue/CollectionPicker.vue'
 import CollectionViewFilter from '@/components-vue/CollectionViewFilter.vue'
+import ConversationDock from '@/components-vue/ConversationDock.vue'
+import RelatedCvePanel from '@/components-vue/RelatedCvePanel.vue'
+import ResearchReportPanel from '@/components-vue/ResearchReportPanel.vue'
 import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
 import { useVulnerabilityDashboard, type VulnerabilityCodingTask, type VulnerabilityDashboard, type VulnerabilitySearchCandidate } from '@/composables/useVulnerabilityDashboard'
 import type { Conversation } from '@/types'
+import type { CodingAgentSendArgs, CodingAgentSurfaceBind } from '@/lib/codingAgentSurface'
 import { vulnerabilityStatusLabel, type VulnerabilityIntel, type VulnerabilitySeverity, type VulnerabilityStatus } from '@/vulnerabilityIntel'
 import { ALL_COLLECTIONS_ID, createItemCollectionStore } from '@/lib/itemCollections'
+import { relatedDomainConversations } from '@/lib/workspaceSessionRouting'
+import { presentVulnerabilityVendorProduct } from '@/lib/vulnerabilityFeedImport'
 
 defineOptions({ name: 'VulnPage' })
 
@@ -40,16 +43,81 @@ const props = withDefaults(defineProps<{
   codingWorkspacePath?: string
   navigationEpoch?: number
   conversations?: Conversation[]
+  conversation?: Conversation | null
+  running?: boolean
+  aborting?: boolean
+  settings?: CodingAgentSurfaceBind['settings']
+  workspacePath?: string
+  messageQueue?: CodingAgentSurfaceBind['messageQueue']
+  sessionReady?: boolean
+  resumed?: boolean
+  compacting?: boolean
+  compactedAt?: number
+  compactionError?: string
+  turnStatus?: CodingAgentSurfaceBind['turnStatus']
+  ctfSession?: boolean
+  vulnerabilitySession?: boolean
+  ctfMode?: Conversation['ctfMode']
+  ctfRole?: Conversation['ctfRole']
+  modelMode?: Conversation['modelMode']
+  modelProvider?: string
+  modelId?: string
+  modelSourcePreference?: CodingAgentSurfaceBind['modelSourcePreference']
+  executionMode?: CodingAgentSurfaceBind['executionMode']
+  approvalPolicy?: CodingAgentSurfaceBind['approvalPolicy']
+  mcpServers?: string[]
+  mcpConfigDigest?: string
+  pendingComposerDraft?: CodingAgentSurfaceBind['pendingComposerDraft']
+  ensureConversation?: (title?: string) => string
 }>(), {
   codingWorkspacePath: '',
   navigationEpoch: 0,
   conversations: () => [],
+  conversation: null,
+  running: false,
+  aborting: false,
+  settings: null,
+  workspacePath: '',
+  sessionReady: false,
+  resumed: false,
+  compacting: false,
+  ctfSession: false,
+  vulnerabilitySession: false,
+  mcpServers: () => [],
+  pendingComposerDraft: null,
+  ensureConversation: () => '',
 })
 
 const emit = defineEmits<{
   chooseCodingWorkspace: []
   startCodingTask: [task: VulnerabilityCodingTask, recordHandoff: (workspacePath: string) => void]
   openCodingConversation: [id: string]
+  enter: [item: VulnerabilityIntel]
+  run: [item: VulnerabilityIntel]
+  send: CodingAgentSendArgs
+  abort: []
+  selectConversation: [id: string]
+  createConversation: []
+  expand: []
+  consumePendingDraft: []
+  compactContext: []
+  controlGoal: [action: 'pause' | 'resume' | 'clear']
+  respondApproval: [requestId: string, approved: boolean, scope?: 'once' | 'conversation']
+  changeModel: [mode: 'auto' | 'manual', provider?: string, model?: string]
+  changeModelSource: [preference: 'auto' | 'account' | 'personal']
+  changeCodingPolicy: [
+    executionMode: NonNullable<CodingAgentSurfaceBind['executionMode']>,
+    approvalPolicy: NonNullable<CodingAgentSurfaceBind['approvalPolicy']>,
+  ]
+  changeMcpServers: [servers: string[], configDigest: string]
+  chooseWorkspace: []
+  chooseWorkspaceForNewTask: []
+  selectWorkspace: [path: string]
+  forgetWorkspace: [path: string]
+  clearWorkspace: []
+  cancelQueuedGuidance: [index: number]
+  editQueuedGuidance: [index: number]
+  openSettings: []
 }>()
 
 const dashboard = props.dashboard ?? useVulnerabilityDashboard()
@@ -63,6 +131,9 @@ const cveSearchAttempted = ref(false)
 const cveCollections = createItemCollectionStore('milksu.cve.collections.v1')
 const collectionView = ref(ALL_COLLECTIONS_ID)
 const statusFilter = ref<'all' | VulnerabilityStatus>('all')
+const kevFilter = ref<'all' | 'kev' | 'other'>('all')
+const vendorFilter = ref('')
+const yearFilter = ref('')
 const page = ref(1)
 const pageSize = 20
 
@@ -79,12 +150,25 @@ const learningTopics = [
   { title: '供应链与组件信任', query: 'supply chain' },
 ] as const
 
+const vendorOptions = computed(() => (
+  [...new Set(dashboard.tracked.value.map(item => presentVendorProduct(item).vendor).filter(Boolean))].sort((left, right) => (
+    left.localeCompare(right, 'zh-CN')
+  ))
+))
+const yearOptions = computed(() => (
+  [...new Set(dashboard.tracked.value.map(item => item.id.match(/^CVE-(\d{4})-/i)?.[1] ?? '').filter(Boolean))].sort((left, right) => (
+    right.localeCompare(left)
+  ))
+))
 const filteredItems = computed(() => {
   const allowed = collectionView.value === ALL_COLLECTIONS_ID
     ? null
     : new Set(cveCollections.itemKeysFor(collectionView.value))
   return dashboard.tracked.value.filter(item => (
     (statusFilter.value === 'all' || item.status === statusFilter.value)
+    && (kevFilter.value === 'all' || (kevFilter.value === 'kev' ? item.kev : !item.kev))
+    && (!vendorFilter.value || presentVendorProduct(item).vendor === vendorFilter.value)
+    && (!yearFilter.value || item.id.toUpperCase().startsWith(`CVE-${yearFilter.value}-`))
     && (!allowed || allowed.has(item.id))
   ))
 })
@@ -99,7 +183,7 @@ const canAddDirectCve = computed(() => (
   && !dashboard.watched.value.includes(directCveId.value)
 ))
 
-watch([() => dashboard.query.value, statusFilter], () => { page.value = 1 })
+watch([() => dashboard.query.value, statusFilter, () => dashboard.severity.value, kevFilter, vendorFilter, yearFilter], () => { page.value = 1 })
 watch(pageCount, count => { if (page.value > count) page.value = count })
 watch(
   () => filteredItems.value.map(item => item.id).join('|'),
@@ -119,20 +203,47 @@ function relatedConversations(cveId: string) {
   )).sort((left, right) => right.createdAt - left.createdAt)
 }
 
+const selectedItem = computed(() => (
+  dashboard.tracked.value.find(item => item.id === dashboard.selectedId.value) ?? null
+))
+
+const dossierConversations = computed(() => relatedDomainConversations(
+  props.conversations,
+  props.conversation ?? relatedConversations(selectedItem.value?.id ?? '')[0] ?? null,
+))
+
 function selectItem(id: string) {
-  dashboard.selectedId.value = dashboard.selectedId.value === id ? '' : id
+  const item = dashboard.tracked.value.find(candidate => candidate.id === id)
+  if (!item) return
+  dashboard.selectedId.value = id
 }
+
+watch(
+  () => selectedItem.value?.id,
+  id => {
+    const item = selectedItem.value
+    if (!item || !id) return
+    emit('enter', item)
+  },
+  { immediate: true },
+)
 
 function clearSelection() {
   dashboard.selectedId.value = ''
 }
 
-function startCoding(item: VulnerabilityIntel) {
-  dashboard.selectedId.value = item.id
-  const task = dashboard.codingTaskForSelected.value
-  if (!task) return
-  emit('startCodingTask', task, workspacePath => {
-    dashboard.recordCodingHandoff(item.id, task, workspacePath)
+function startReproduction() {
+  const item = selectedItem.value
+  if (!item) return
+  emit('run', item)
+}
+
+function presentVendorProduct(item: VulnerabilityIntel) {
+  return presentVulnerabilityVendorProduct({
+    vendor: item.vendor,
+    product: item.product,
+    title: item.title,
+    summary: item.summary,
   })
 }
 
@@ -259,7 +370,7 @@ function addDirectCve() {
       vendor: '',
       product: '',
       affected: '',
-      summary: 'NVD 暂未返回公开记录；已按 CVE 编号加入，后续可重新搜索或交给 Coding 核对公开材料。',
+      summary: 'NVD 暂未返回公开记录；已按 CVE 编号加入。',
     })
     showCveSearch.value = false
   } catch (cause) {
@@ -282,7 +393,7 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
 </script>
 
 <template>
-  <main class="tactical-page flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
+  <main v-if="!selectedItem" class="tactical-page flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
     <WorkspaceModuleTopBar module="cve" title="漏洞">
       <template #actions>
         <Button
@@ -320,6 +431,31 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
               {{ option.label }}
             </NativeSelectOption>
           </NativeSelect>
+          </div>
+          <div class="flex flex-wrap items-center gap-3">
+            <NativeSelect v-model="dashboard.severity.value" size="sm" class="w-40" aria-label="严重性">
+              <NativeSelectOption value="all">严重性：全部</NativeSelectOption>
+              <NativeSelectOption value="critical">严重</NativeSelectOption>
+              <NativeSelectOption value="high">高</NativeSelectOption>
+              <NativeSelectOption value="medium">中</NativeSelectOption>
+            </NativeSelect>
+            <NativeSelect v-model="kevFilter" size="sm" class="w-40" aria-label="KEV">
+              <NativeSelectOption value="all">KEV：全部</NativeSelectOption>
+              <NativeSelectOption value="kev">在 KEV</NativeSelectOption>
+              <NativeSelectOption value="other">不在 KEV</NativeSelectOption>
+            </NativeSelect>
+            <NativeSelect v-model="vendorFilter" size="sm" class="w-44" aria-label="厂商">
+              <NativeSelectOption value="">厂商：全部</NativeSelectOption>
+              <NativeSelectOption v-for="vendor in vendorOptions" :key="vendor" :value="vendor">
+                {{ vendor }}
+              </NativeSelectOption>
+            </NativeSelect>
+            <NativeSelect v-model="yearFilter" size="sm" class="w-36" aria-label="年份">
+              <NativeSelectOption value="">年份：全部</NativeSelectOption>
+              <NativeSelectOption v-for="year in yearOptions" :key="year" :value="year">
+                {{ year }}
+              </NativeSelectOption>
+            </NativeSelect>
           </div>
         </div>
       </template>
@@ -393,106 +529,35 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
     </Dialog>
 
     <section class="tactical-paper-surface min-h-0 flex-1 overflow-auto bg-card" aria-label="CVE 列表">
-      <div class="min-w-[1040px]">
-        <div class="tactical-desk-head tactical-table-head grid h-12 grid-cols-[170px_minmax(260px,1.2fr)_minmax(190px,.9fr)_100px_150px_42px_120px] items-center gap-4 border-b border-border px-6 text-caption text-muted-foreground">
-          <span>CVE</span><span>漏洞</span><span>厂商/产品</span><span>严重性</span><span>我的状态</span><span class="sr-only">收藏</span><span>最近研究</span>
+      <div class="min-w-[1120px]">
+        <div class="tactical-desk-head tactical-table-head grid h-12 grid-cols-[170px_minmax(240px,1.2fr)_minmax(160px,.9fr)_88px_132px_42px_minmax(7rem,1fr)_72px] items-center gap-4 border-b border-border px-6 text-caption text-muted-foreground">
+          <span class="whitespace-nowrap">CVE</span>
+          <span class="whitespace-nowrap">漏洞</span>
+          <span class="whitespace-nowrap">厂商/产品</span>
+          <span class="whitespace-nowrap">严重性</span>
+          <span class="whitespace-nowrap">我的状态</span>
+          <span class="sr-only">收藏</span>
+          <span class="whitespace-nowrap">最近研究</span>
+          <span class="sr-only">打开</span>
         </div>
 
         <template v-for="item in visibleItems" :key="item.id">
-          <button
-            type="button"
-            class="vuln-row tactical-row grid min-h-[72px] w-full grid-cols-[170px_minmax(260px,1.2fr)_minmax(190px,.9fr)_100px_150px_42px_120px] items-center gap-4 px-6 text-left"
-            :class="item.id === dashboard.selectedId.value ? 'vuln-row-selected' : ''"
-            :aria-expanded="item.id === dashboard.selectedId.value"
-            @click="selectItem(item.id)"
+          <article
+            class="vuln-row tactical-row grid min-h-[72px] w-full grid-cols-[170px_minmax(240px,1.2fr)_minmax(160px,.9fr)_88px_132px_42px_minmax(7rem,1fr)_72px] items-center gap-4 px-6 text-left"
+            data-testid="catalog-row"
           >
-            <span class="font-mono text-body" :class="item.id === dashboard.selectedId.value ? 'text-primary' : ''">{{ item.id }}</span>
-            <span class="min-w-0 truncate text-control font-medium">{{ item.title }}</span>
+            <span class="font-mono text-body select-text">{{ item.id }}</span>
+            <span class="min-w-0 truncate text-control font-medium select-text">{{ item.title }}</span>
             <span class="min-w-0">
-              <span class="block truncate text-body">{{ item.vendor }}</span>
-              <span class="mt-0.5 block truncate text-caption text-muted-foreground">{{ item.product }}</span>
+              <span class="block truncate text-body">{{ presentVendorProduct(item).vendor }}</span>
+              <span class="mt-0.5 block truncate text-caption text-muted-foreground">{{ presentVendorProduct(item).product }}</span>
             </span>
             <span class="ak-tag ak-tag--compact" :class="severityTag(item.severity)">{{ item.cvss.toFixed(1) }}</span>
             <span class="ak-tag ak-tag--compact" :class="statusTag(item.status)">{{ vulnerabilityStatusLabel(item.status) }}</span>
-            <CollectionPicker :item-key="item.id" :store="cveCollections" @click.stop />
+            <CollectionPicker :item-key="item.id" :store="cveCollections" />
             <span class="text-caption text-muted-foreground">{{ recentResearch(item) }}</span>
-          </button>
-
-          <div v-if="item.id === dashboard.selectedId.value" class="game-focus-panel ak-notice ak-notice--warning tactical-acid-panel border-b px-0">
-            <span class="ak-notice__code">FOCUS<br />当前项</span>
-            <div class="ak-notice__body flex flex-wrap items-start justify-between gap-5">
-              <div class="min-w-0 flex-1">
-                <strong class="ak-notice__title">{{ item.id }}</strong>
-                <p class="ak-notice__message max-w-4xl">{{ item.summary }}</p>
-                <div class="mt-4 flex flex-wrap items-center gap-5 text-caption">
-                  <span class="inline-flex items-center gap-2"><Link2 class="size-4" />公开来源 {{ item.references.length }}</span>
-                  <span class="inline-flex items-center gap-2 text-muted-foreground"><Code2 class="size-4" />关联对话 {{ relatedConversations(item.id).length }}</span>
-                </div>
-                <div v-if="item.references.length" class="mt-3 flex flex-wrap gap-2">
-                  <Button
-                    v-for="reference in keyReferences(item)"
-                    :key="reference.href"
-                    as="a"
-                    :href="reference.href"
-                    target="_blank"
-                    rel="noreferrer"
-                    variant="outline"
-                    size="sm"
-                  >
-                    {{ referenceLabel(reference.label, reference.href) }}<ExternalLink class="size-3" />
-                  </Button>
-                  <Button
-                    v-if="item.references.length > 5"
-                    as="a"
-                    :href="`https://nvd.nist.gov/vuln/detail/${item.id}`"
-                    target="_blank"
-                    rel="noreferrer"
-                    variant="outline"
-                    size="sm"
-                  >
-                    在 NVD 查看全部<ExternalLink class="size-3" />
-                  </Button>
-                </div>
-              </div>
-              <div class="flex shrink-0 items-end gap-3">
-                <Button variant="ghost" size="sm" @click.stop="clearSelection">
-                  <X class="size-4" />取消选中
-                </Button>
-                <label class="min-w-40 text-caption text-muted-foreground">我的状态
-                  <NativeSelect
-                    :model-value="item.status"
-                    size="sm"
-                    class="mt-2 w-full"
-                    :aria-label="`${item.id} 状态`"
-                    @change="setStatus(item.id, $event)"
-                  >
-                    <NativeSelectOption v-for="option in statusOptions" :key="option.value" :value="option.value">
-                      {{ option.label }}
-                    </NativeSelectOption>
-                  </NativeSelect>
-                </label>
-                <Button variant="brand" @click="startCoding(item)">
-                  <Code2 class="size-4" />
-                  交给 Coding
-                  <ArrowRight class="size-4" />
-                </Button>
-              </div>
-              <div v-if="relatedConversations(item.id).length" class="mt-4 w-full border border-border bg-background/40">
-                <p class="border-b border-border px-4 py-3 text-caption font-medium text-muted-foreground">关联的 Coding 对话</p>
-                <button
-                  v-for="conversation in relatedConversations(item.id)"
-                  :key="conversation.id"
-                  type="button"
-                  class="flex w-full items-center gap-3 border-b border-border px-4 py-3 text-left last:border-b-0 hover:bg-muted/30"
-                  @click="emit('openCodingConversation', conversation.id)"
-                >
-                  <Code2 class="size-4 text-muted-foreground" />
-                  <span class="min-w-0 flex-1 truncate text-body">{{ conversation.title }}</span>
-                  <span class="text-caption text-muted-foreground">{{ recentResearch(item) }}</span>
-                </button>
-              </div>
-            </div>
-          </div>
+            <Button size="sm" variant="outline" data-testid="open-item" @click="selectItem(item.id)">打开</Button>
+          </article>
         </template>
 
         <div v-if="!visibleItems.length" class="grid min-h-64 place-items-center px-8 text-center">
@@ -512,10 +577,121 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
       </div>
     </footer>
   </main>
+
+  <main v-else class="tactical-page flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
+    <WorkspaceModuleTopBar module="cve" :title="selectedItem.id" :subtitle="selectedItem.title">
+      <template #leading>
+        <Button variant="ghost" size="icon-sm" aria-label="返回漏洞列表" @click="clearSelection">
+          <ArrowLeft class="size-4" />
+        </Button>
+      </template>
+      <template #actions>
+        <NativeSelect
+          :model-value="selectedItem.status"
+          size="sm"
+          class="w-32"
+          :aria-label="`${selectedItem.id} 状态`"
+          @change="setStatus(selectedItem.id, $event)"
+        >
+          <NativeSelectOption v-for="option in statusOptions" :key="option.value" :value="option.value">
+            {{ option.label }}
+          </NativeSelectOption>
+        </NativeSelect>
+        <Button variant="brand" size="sm" @click="startReproduction">开始复现</Button>
+      </template>
+    </WorkspaceModuleTopBar>
+    <div class="min-h-0 flex-1 overflow-auto">
+      <div class="mx-auto max-w-5xl space-y-5 px-6 py-6">
+        <section class="rounded-xl border border-border bg-card p-6">
+          <p class="text-body leading-6 text-muted-foreground">{{ selectedItem.summary }}</p>
+          <div v-if="selectedItem.references.length" class="mt-4 flex flex-wrap gap-2">
+            <Button
+              v-for="reference in keyReferences(selectedItem)"
+              :key="reference.href"
+              as="a"
+              :href="reference.href"
+              target="_blank"
+              rel="noreferrer"
+              variant="outline"
+              size="sm"
+            >
+              {{ referenceLabel(reference.label, reference.href) }}<ExternalLink class="size-3" />
+            </Button>
+          </div>
+        </section>
+        <section class="rounded-xl border border-border bg-card p-6">
+          <h2 class="text-label font-medium">关联 CVE</h2>
+          <RelatedCvePanel
+            class="mt-4"
+            :workspace-path="conversation?.workspacePath ?? workspacePath"
+            :refresh-key="running ? 'run' : conversation?.messages.length"
+          />
+        </section>
+        <section class="rounded-xl border border-border bg-card p-6">
+          <h2 class="text-label font-medium">报告</h2>
+          <ResearchReportPanel
+            class="mt-4"
+            :workspace-path="conversation?.workspacePath ?? ''"
+            :refresh-key="running ? 'run' : conversation?.messages.length"
+          />
+        </section>
+      </div>
+    </div>
+    <ConversationDock
+      :conversation="conversation ?? null"
+      :conversations="dossierConversations"
+      :running="running"
+      :aborting="aborting"
+      :settings="settings"
+      :workspace-path="workspacePath"
+      :message-queue="messageQueue"
+      :session-ready="sessionReady"
+      :resumed="resumed"
+      :compacting="compacting"
+      :compacted-at="compactedAt"
+      :compaction-error="compactionError"
+      :turn-status="turnStatus"
+      :ctf-session="ctfSession"
+      :vulnerability-session="vulnerabilitySession"
+      :ctf-mode="ctfMode"
+      :ctf-role="ctfRole"
+      :model-mode="modelMode"
+      :model-provider="modelProvider"
+      :model-id="modelId"
+      :model-source-preference="modelSourcePreference"
+      :execution-mode="executionMode"
+      :approval-policy="approvalPolicy"
+      :mcp-servers="mcpServers"
+      :mcp-config-digest="mcpConfigDigest"
+      :ensure-conversation="ensureConversation"
+      :pending-composer-draft="pendingComposerDraft"
+      @send="(...args) => $emit('send', ...args)"
+      @abort="$emit('abort')"
+      @select="$emit('selectConversation', $event)"
+      @create="$emit('createConversation')"
+      @expand="$emit('expand')"
+      @consume-pending-draft="$emit('consumePendingDraft')"
+      @compact-context="$emit('compactContext')"
+      @control-goal="$emit('controlGoal', $event)"
+      @respond-approval="(requestId, approved, scope) => $emit('respondApproval', requestId, approved, scope)"
+      @change-model="(mode, provider, model) => $emit('changeModel', mode, provider, model)"
+      @change-model-source="$emit('changeModelSource', $event)"
+      @change-coding-policy="(mode, policy) => $emit('changeCodingPolicy', mode, policy)"
+      @change-mcp-servers="(servers, digest) => $emit('changeMcpServers', servers, digest)"
+      @choose-workspace="$emit('chooseWorkspace')"
+      @choose-workspace-for-new-task="$emit('chooseWorkspaceForNewTask')"
+      @select-workspace="$emit('selectWorkspace', $event)"
+      @forget-workspace="$emit('forgetWorkspace', $event)"
+      @clear-workspace="$emit('clearWorkspace')"
+      @cancel-queued-guidance="$emit('cancelQueuedGuidance', $event)"
+      @edit-queued-guidance="$emit('editQueuedGuidance', $event)"
+      @open-settings="$emit('openSettings')"
+    />
+  </main>
 </template>
 
 <style scoped>
-.vuln-row { position: relative; transition: background-color 140ms ease; }
+.vuln-row { position: relative; cursor: default; transition: background-color 140ms ease; }
 .vuln-row-selected { background: var(--focus-panel); box-shadow: inset 4px 0 0 var(--signal-gold); }
 .tactical-table-head { font-family: 'SFMono-Regular', monospace; letter-spacing: .08em; text-transform: uppercase; }
 .cve-search-dialog { max-height: min(760px, calc(100vh - 3rem)); overflow: hidden; }

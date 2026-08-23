@@ -18,7 +18,7 @@
 - [CTF Intake → Agent → Judge → Memory](/architecture/ctf-intake-agent-judge-memory)
 - [PI Resource Whitelist](/developer/pi-resource-whitelist)
 - [安全 Agent 与通用 Agent 的能力边界](/developer/security-agent-boundary)
-- [Browser 三面与 Coding → Security 能力迁移](/developer/adr/2026-08-09-browser-surfaces-and-security-transfer)（已被 Electron 桌面壳 ADR 取代；其中“先 Coding 再决定进 CTF/CVE”不再是现行规则）
+- [Electron/Chromium 桌面壳](/developer/adr/2026-08-10-electron-chromium-desktop-shell)
 - [核心架构：可验证安全任务运行时](/developer/architecture)
 - [Security Role Packages](/developer/role-packages)
 
@@ -37,24 +37,16 @@
 ## 长期设计（不是禁令）
 
 - [授权安全学习与研究平台](/architecture/security-learning-and-research-platform)
-- [CTF Labs 设计](/architecture/ctf-labs-design)
+- [CTF Labs 设计](/architecture/ctf-labs-design)（CTF 可重置环境，不是主导航实验室）
 - [CVE 研究工作台设计](/architecture/cve-research-workbench-design)
 
-Labs 和 CVE 纵深还不在发行包里。设计存在不表示已经做完，也不表示不准做。选中切片时直接做。
+主导航「实验室」和 CVE 档案复现已进入 `26.822.1`；`26.823.1` 起 CTF / CVE / 实验室与 Coding 共用完整循环。CTF 可重置环境仍未做。设计存在不表示已经做完。
 
-## 历史与研究
+## 历史
 
-`developer/adr/*`、`developer/research/*` 和保留的实际界面 QA
-记录当时的决策、调研或验收快照。它们保留原因和证据，但不是 backlog；顶部的
-Historical/Research/Evidence 标识优先于正文中的旧
-“下一步”或“未完成”列表。
+`developer/adr/*` 记录当时的决策原因，不是 backlog。顶部的 Historical/Evidence
+标识优先于正文中的旧“下一步”或“未完成”列表。过期调研快照和日期验收截图已删除，考古用 Git history。
 
 历史样本见[开源项目基线](/developer/industry-baseline)，当前接入顺序和拒绝项以
 [个人安全工作台计划：安全工具接入 Coding](/developer/security-workspace-product-plan#4-安全工具接入-coding)
 为准。项目写进调研表不等于已经进入产品；正式接入仍需经过许可证、供应链、权限面和真实任务验收。
-
-近期专项调研：
-
-- [Wallbreaker Harness 静态调研与 MilkSU 对照](/developer/research/2026-08-03-wallbreaker-harness-review)
-- [开源安全 Skills / Harness 生态调研快照（非 backlog）](/developer/research/2026-08-04-open-source-security-skills-ecosystem)
-- [reverse-skill 接入候选调研快照（非 backlog）](/developer/research/关于一个优秀%20skills%20包的接入调研和计划)

@@ -5,6 +5,13 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 const indexCss = readFileSync(fileURLToPath(new URL('./index.css', import.meta.url)), 'utf8').replaceAll('\r\n', '\n')
+const flourishCss = readFileSync(fileURLToPath(new URL('./styles/ak-ui-flourish.css', import.meta.url)), 'utf8').replaceAll('\r\n', '\n')
+const markdownContentSource = readFileSync(
+  fileURLToPath(new URL('./components-vue/MarkdownContent.vue', import.meta.url)),
+  'utf8',
+).replaceAll('\r\n', '\n')
+const mainTs = readFileSync(fileURLToPath(new URL('./main.ts', import.meta.url)), 'utf8').replaceAll('\r\n', '\n')
+const akUiCss = readFileSync(fileURLToPath(new URL('./styles/ak-ui.css', import.meta.url)), 'utf8').replaceAll('\r\n', '\n')
 
 describe('global style contract', () => {
   it('keeps compact form controls on one shared font scale', () => {
@@ -34,21 +41,20 @@ describe('global style contract', () => {
     expect(indexCss).toContain('-webkit-font-smoothing: auto')
   })
 
-  it('keeps day mode on the tactical paper palette with a persistent dark rail', () => {
+  it('keeps day mode on the tactical paper palette including chrome', () => {
     const lightTheme = indexCss.match(/:root\[data-theme='light'\]\s*\{([\s\S]*?)\n\}/)?.[1]
 
     expect(lightTheme).toContain('--background: #ebe9e2')
     expect(lightTheme).toContain('--background-chrome: #deddd6')
-    expect(lightTheme).toContain('--sidebar: var(--night-chrome)')
-    expect(lightTheme).toContain('--sidebar-foreground: var(--night-foreground)')
+    expect(lightTheme).toContain('--sidebar: var(--background)')
+    expect(lightTheme).toContain('--sidebar-foreground: var(--foreground)')
   })
 
-  it('keeps dark command surfaces readable inside the day-mode document', () => {
-    expect(indexCss).toContain('.tactical-command-surface,\n.tactical-dark-surface {')
-    expect(indexCss).toContain('--foreground: var(--night-foreground)')
-    expect(indexCss).toContain('--card-foreground: var(--night-foreground)')
-    expect(indexCss).toContain('--popover-foreground: var(--night-foreground)')
-    expect(indexCss).toContain('--muted-foreground: var(--night-muted-foreground)')
+  it('lets menus follow the document theme and keeps tactical-dark-surface as an optional night island', () => {
+    expect(indexCss).toContain('.tactical-dark-surface {')
+    expect(indexCss).toContain('.tactical-command-surface {')
+    expect(indexCss).toContain('background-color: var(--popover) !important')
+    expect(indexCss).toContain('.tactical-floating-surface {')
     expect(indexCss).toContain('--overlay-hover-strong: rgb(255 255 255 / 0.13)')
     expect(indexCss).toContain('--selected-bg: var(--overlay-hover-strong)')
   })
@@ -81,5 +87,28 @@ describe('global style contract', () => {
     expect(indexCss).toContain('--night-muted: #222222')
     expect(indexCss).toContain('--night-border: #3a3d40')
     expect(indexCss).not.toMatch(/#(?:0d1115|090c0f|111519|14191d|171c21|1b2026|20262c|11120f|171815)/i)
+  })
+
+  it('uses one OFL sans stack for titles, chrome and body instead of Songti/serif', () => {
+    expect(mainTs).toContain("import '@fontsource-variable/inter'")
+    expect(mainTs).toContain("import '@fontsource-variable/noto-sans-sc'")
+    expect(indexCss).toContain('--font-sans: "Inter Variable", "Noto Sans SC Variable"')
+    expect(indexCss).toContain('--font-display: var(--font-sans)')
+    expect(akUiCss).toContain('--ak-font-command: var(--font-sans)')
+    expect(akUiCss).toContain('--ak-font-serif: var(--font-sans)')
+    expect(indexCss).not.toContain('Noto Serif SC')
+    expect(akUiCss).not.toContain('Noto Serif SC')
+    expect(indexCss).not.toMatch(/--font-display:[^;]*serif/)
+  })
+
+  it('keeps night-mode agent bubbles on paper tokens so fenced code stays readable', () => {
+    const agentBubble = flourishCss.match(/\.chat-bubble--agent \{([\s\S]*?)\n\}/)?.[1]
+    expect(agentBubble).toContain('--foreground: #17191b')
+    expect(agentBubble).toContain('--card: #f3f4ef')
+    expect(agentBubble).toContain('--muted: #e6e7e1')
+    expect(agentBubble).toContain('--surface-editor: #e6e7e1')
+    expect(markdownContentSource).toContain('background: color-mix(in oklab, var(--surface-editor) 88%, var(--foreground));')
+    expect(markdownContentSource).toContain('color: var(--foreground);')
+    expect(markdownContentSource).not.toContain('color-mix(in oklab, var(--surface-editor) 82%, black)')
   })
 })

@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import WorkspaceTopBar from '@/components-vue/WorkspaceTopBar.vue'
 
 const props = defineProps<{
-  module: 'coding' | 'ctf' | 'cve'
+  module: 'coding' | 'ctf' | 'cve' | 'lab'
   title?: string
   subtitle?: string
   hideIdentity?: boolean
@@ -13,6 +13,7 @@ const fallbackTitle = computed(() => ({
   coding: 'Coding',
   ctf: 'CTF',
   cve: 'CVE',
+  lab: 'LAB',
 })[props.module])
 const resolvedTitle = computed(() => props.title?.trim() || fallbackTitle.value)
 </script>

@@ -1,8 +1,8 @@
 # 授权安全学习与研究平台：顶层设计
 
 > 文档状态：**Long-term Design / Partially Implemented**。本文定义长期架构。
-> CTF、Coding 和 CVE 学习/追踪已有当前实现。Labs、CVE 纵深、本地复现和披露草稿还没做，
-> 不是禁令，也不需要先满足解冻清单。
+> CTF、Coding、CVE 学习和主导航「实验室」已有当前实现或开发线切片。
+> CTF 可重置环境、CVE 披露草稿还没做，不是禁令，也不需要先满足解冻清单。
 >
 > 设计日期：2026-08-01
 
@@ -12,8 +12,8 @@ MilkSU 的长期价值不是替用户批量“扫洞”，而是把安全学习�
 可恢复、可验证、可复盘的个人工作系统：
 
 - **CTF** 用有明确答案的 Challenge 训练解题方法；
-- **Labs** 用可重置的环境训练连续实验、工具使用和系统理解；
-- **CVE** 用真实情报、资产范围、研究假设、证据和披露状态支撑赏金猎人的日常工作；
+- **实验室** 对用户给出的靶做未知漏洞探测，留下可继续编辑的报告；
+- **CVE** 用公开情报追踪已知洞，并在档案里做复现报告；
 - **Coding** 提供通用代码阅读、工具开发、测试、架构和 Git 能力。
 
 AI 会继续压低通用扫描和一次性脚本的价值。MilkSU 应强化更难被替代的部分：目标选择、
@@ -27,7 +27,7 @@ flowchart LR
 
     subgraph shell["MilkSU Workspace Shell"]
         ctf["CTF<br/>题目型训练"]
-        labs["Labs<br/>环境型训练"]
+        labs["实验室<br/>探测与报告"]
         cve["CVE<br/>情报与授权研究"]
         coding["Coding<br/>通用工程能力"]
         profile["能力与知识画像"]
@@ -61,37 +61,21 @@ flowchart LR
     memory --> profile
 ```
 
-### 2.1 Labs 导航候选
+### 2.1 当前导航
 
-当前主导航是 `CTF / CVE / Coding`，产品表面还没有 Labs 入口。下方是一种信息架构候选，
-不是开工禁令：
+当前主导航是 `CTF / CVE / 实验室 / Coding`。实验室是独立作业面，不塞进 CVE，也不挂在 CTF 题库下面。
 
-```text
-CTF
-├─ 题库：NSSCTF、CTFshow、自定义 Challenge
-├─ Labs：Juice Shop、WebGoat、Vulhub 白名单包
-├─ 训练历史
-└─ 能力画像
-```
-
-如果未来选择该候选，理由是：
-
-1. 用户进入 Labs 的首要目的仍是学习，而不是管理容器；
-2. Labs 与题库共享分类、难度、推荐、Hint Ladder、Agent、Judge 和复盘；
-3. Lab 不是一个“CTF 平台”，不能塞进 NSSCTF/CTFshow 的来源下拉；
-4. CVE 研究也能请求一个环境，但它消费的是底层 `Environment Broker`，不会跳进 CTF Labs UI。
-
-如果未来 Labs 的使用量和独立任务模型明显超过 CTF，再通过路由别名升为顶层入口；领域对象和
-代码包仍保持独立，不因导航变化改名。
+Juice Shop、WebGoat、Vulhub 一类可重置环境仍是 CTF 的长期设计，见
+[CTF Labs 设计](ctf-labs-design.md)。不要把那份设计当成当前实验室模块的约束。
 
 ## 3. 四个垂直模块的责任
 
 | 模块 | 核心问题 | 完成事实 | 不负责 |
 | --- | --- | --- | --- |
 | CTF | 这道题怎样被理解并正确解出？ | Platform/Local Judge 给出明确 Verdict | 管理任意容器、宣布真实漏洞成立 |
-| Labs | 怎样获得一个可控、可重置、可判定的训练环境？ | 环境 Ready；训练目标由独立 Judge/Evaluator 判定 | 把环境 Ready 当成题目已解 |
-| CVE | 哪个授权目标值得研究，证据是否足以形成报告？ | Evidence Gate + Human Review；外部平台状态单独记录 | 无授权扫描、自动扩大范围、把候选当漏洞。授权范围内的复现和 PoC 可以做 |
-| Coding | 怎样完成通用软件工程工作？ | 测试、Diff、Git 和用户验收 | 代替 CTF Judge 或 CVE Evidence Gate |
+| 实验室 | 对用户给出的靶，怎样做一轮探测并留下报告？ | Agent 编辑的 `report.md` / `report.html` | 未授权扫描、Kali 应用商店、把候选写成已确认漏洞 |
+| CVE | 已知洞怎样被读懂并复现成报告？ | 档案里的活报告；状态标签不是完成面 | 无授权扫描、自动扩大范围、把候选当漏洞 |
+| Coding | 怎样完成通用软件工程工作？ | 测试、Diff、Git 和用户验收 | 代替 CTF Judge 或 CVE 报告 |
 
 ## 4. 共享内核
 
@@ -119,7 +103,8 @@ erDiagram
 共享 Runtime 只保存不可争议的过程事实；垂直 Role 通过类型化事实描述自己的领域：
 
 - CTF：Challenge、Candidate、JudgeReceipt、Debrief；
-- Labs：LabPackage、Lease、InstanceState、Readiness、ResetReceipt；
+- 实验室：LabJob、Target、Report；
+- CTF Labs（长期）：LabPackage、Lease、InstanceState、Readiness、ResetReceipt；
 - CVE：Program、Asset、ResearchCase、Hypothesis、Reproduction、RootCause、Disclosure；
 - Coding：Conversation、Workspace、Diff、TestReceipt。
 

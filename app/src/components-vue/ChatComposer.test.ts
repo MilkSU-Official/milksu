@@ -212,6 +212,16 @@ describe('ChatComposer', () => {
     expect(result.consumedGoals()).toBe(1)
   })
 
+  it('opens the slash menu in a CTF session', async () => {
+    const result = mountComposer({ ctfSession: true })
+    await nextTick()
+    const textarea = composerEditor(result.host)
+    setComposerText(textarea, '/')
+    await nextTick()
+    expect(result.host.querySelector('[role="listbox"][aria-label="斜杠命令"]')).not.toBeNull()
+    expect(result.host.textContent).toContain('/compact')
+  })
+
   it('opens an accessible slash menu and selects Goal without sending slash text', async () => {
     const result = mountComposer()
     await nextTick()
@@ -270,6 +280,7 @@ describe('ChatComposer', () => {
       'status',
       'diff',
       'mcp',
+      'browser',
       'browser-use',
       'computer-use',
     ])
@@ -311,6 +322,8 @@ describe('ChatComposer', () => {
         'custom-reviewed',
       ],
       selectedMcpServers: ['github'],
+      mcpCatalog: [{ name: 'github', reviewReady: true }],
+      mcpConfigDigest: 'd'.repeat(64),
     })
     await nextTick()
 
@@ -331,6 +344,7 @@ describe('ChatComposer', () => {
     expect(document.body.textContent).toContain('custom-reviewed')
     expect(document.body.textContent).toContain('项目 MCP')
     expect(document.body.textContent).toContain('1 个已接入：github')
+    expect(document.body.textContent).toContain('为本任务接入')
 
     const sandboxBrowserItem = [...document.querySelectorAll<HTMLDivElement>('[role="menuitem"]')]
       .find(item => item.textContent?.includes('浏览器'))
@@ -1031,21 +1045,42 @@ describe('ChatComposer', () => {
     expect(result.sent).toEqual([['milksu', 'milksu', []]])
   })
 
-  it('keeps CTF collaboration actions and Coding composer controls', async () => {
+  it('keeps Coding composer controls without CTF shortcut chips', async () => {
     const { host } = mountComposer({
       ctfSession: true,
-      ctfRole: 'solver',
-      ctfMode: 'coach',
     })
     await nextTick()
 
     expect(host.querySelector('[aria-label="Coding 权限策略"]')).not.toBeNull()
     expect(host.querySelector('[aria-label="选择本任务模型"]')).not.toBeNull()
     expect(host.querySelector('[aria-label="添加内容与工具"]')).not.toBeNull()
-    expect(host.querySelector('[aria-label="CTF 快捷协作"]')?.textContent)
-      .toContain('梳理题面')
-    expect(host.querySelector('[aria-label="CTF 快捷协作"]')?.textContent)
-      .toContain('重新规划')
+    expect(host.querySelector('[aria-label="CTF 快捷协作"]')).toBeNull()
+    expect(host.textContent).not.toContain('快捷协作')
+    expect(host.textContent).not.toContain('梳理题面')
+    expect(host.textContent).not.toContain('提示 1')
+    expect(host.textContent).not.toContain('提示 2')
+    expect(host.textContent).not.toContain('重新规划')
+  })
+
+  it('shows a locked CTF workspace chip instead of hiding the solving path', async () => {
+    const chosen: unknown[][] = []
+    const { host } = mountComposer({
+      ctfSession: true,
+      workspaceLocked: false,
+      workspacePath: '/Users/milksu/Documents/MilkSU/CTF/ab12cd34ef56',
+      workspaceName: '签到题',
+      onChooseWorkspace: (...args: unknown[]) => chosen.push(args),
+    })
+    await nextTick()
+
+    const chip = host.querySelector('[aria-label="会话目录：签到题"]')
+    expect(chip).not.toBeNull()
+    expect(chip?.tagName).not.toBe('BUTTON')
+    expect(chip?.getAttribute('title')).toBe('/Users/milksu/Documents/MilkSU/CTF/ab12cd34ef56')
+    expect(host.querySelector('[aria-label="清空项目"]')).toBeNull()
+    chip?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await nextTick()
+    expect(chosen).toHaveLength(0)
   })
 
   it('allows one stop request and shows the pending acknowledgement state', async () => {

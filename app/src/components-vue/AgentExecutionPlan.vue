@@ -1,14 +1,21 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { Check, Circle, LoaderCircle } from 'lucide-vue-next'
-import { latestCodingPlan } from '@/lib/codingPlan'
+import { latestCodingPlan, settleIdleCodingPlan } from '@/lib/codingPlan'
 import type { Message } from '@/types'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   messages: Message[]
-}>()
+  running?: boolean
+}>(), {
+  running: false,
+})
 
-const plan = computed(() => latestCodingPlan(props.messages))
+const plan = computed(() => {
+  const current = latestCodingPlan(props.messages)
+  if (!current) return null
+  return props.running ? current : settleIdleCodingPlan(current)
+})
 </script>
 
 <template>
