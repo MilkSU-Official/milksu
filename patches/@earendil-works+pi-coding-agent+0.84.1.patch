@@ -1,8 +1,8 @@
 diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/core/tools/bash.js b/node_modules/@earendil-works/pi-coding-agent/dist/core/tools/bash.js
-index 8028dbf..d03c84b 100644
+index f274908..2e13c8e 100644
 --- a/node_modules/@earendil-works/pi-coding-agent/dist/core/tools/bash.js
 +++ b/node_modules/@earendil-works/pi-coding-agent/dist/core/tools/bash.js
-@@ -51,7 +51,19 @@ export function createLocalBashOperations(options) {
+@@ -55,7 +55,19 @@ export function createLocalBashOperations(options) {
                  throw new Error(`Working directory does not exist: ${cwd}\nCannot execute bash commands.`);
              }
              const commandFromStdin = shellConfig.commandTransport === "stdin";
@@ -24,7 +24,7 @@ index 8028dbf..d03c84b 100644
                  detached: process.platform !== "win32",
                  env: env ?? getShellEnv(),
 diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/core/trust-manager.js b/node_modules/@earendil-works/pi-coding-agent/dist/core/trust-manager.js
-index 17af938..c9cf3d5 100644
+index 17af938..7eb71e9 100644
 --- a/node_modules/@earendil-works/pi-coding-agent/dist/core/trust-manager.js
 +++ b/node_modules/@earendil-works/pi-coding-agent/dist/core/trust-manager.js
 @@ -147,6 +147,9 @@ function withTrustFileLock(path, fn) {
@@ -38,7 +38,7 @@ index 17af938..c9cf3d5 100644
      const userAgentsSkillsDir = join(homeDir, ".agents", "skills");
      let currentDir = canonicalizePath(resolvePath(cwd));
 diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/utils/shell.js b/node_modules/@earendil-works/pi-coding-agent/dist/utils/shell.js
-index 68e7e51..9e3caa4 100644
+index 68e7e51..089593e 100644
 --- a/node_modules/@earendil-works/pi-coding-agent/dist/utils/shell.js
 +++ b/node_modules/@earendil-works/pi-coding-agent/dist/utils/shell.js
 @@ -107,10 +107,35 @@ export function getShellEnv() {

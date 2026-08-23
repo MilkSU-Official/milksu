@@ -50,9 +50,9 @@
     "vitepress": "^1.6.4"
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "0.83.0",
-    "@earendil-works/pi-coding-agent": "0.83.0",
-    "@earendil-works/pi-tui": "0.83.0",
+    "@earendil-works/pi-ai": "0.84.1",
+    "@earendil-works/pi-coding-agent": "0.84.1",
+    "@earendil-works/pi-tui": "0.84.1",
     "@napi-rs/system-ocr": "1.1.0",
     "@narumitw/pi-goal": "0.43.0",
     "@narumitw/pi-lsp": "0.29.0",

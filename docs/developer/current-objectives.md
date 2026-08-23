@@ -123,8 +123,9 @@
 
 ## 未发版改动：晚于 `v26.823.1` / `efeda10` 的 `main`
 
-文档收口提交不移动该 tag。
+文档收口提交不移动该 tag。鸣谢与开源组件明细已在 `main`，不算产品改动。
 
+- Pi Runtime 从 `0.83.0` 钉到 `0.84.1`（`pi-coding-agent` / `pi-ai` / `pi-tui` 对齐）。rebase 了子 Agent Darwin 禁网、关闭项目资源发现、剥 Key 三处 patch。卫星扩展（lsp / goal / MCP / 后台任务）未动。Sidecar 单元测试 334 通过。未跟 Dependabot #30 升到 `0.84.2`：那一版主要是 TUI/`defaultTools`，且没有 rebase patch。
 - Agent 上下文工程收敛：主会话逐回合声明经 Go / Sidecar 校验的权威工作目录，协作 writer worktree 只属于独立 effectful subagent 进程，不再能替换主会话 cwd。受管 Sidecar 启用 Pi 原生 `PI_CACHE_RETENTION=long`，沿用稳定会话 ID 与 Provider prompt cache，不增加 MilkSU 缓存状态机；Pi 的一次性压缩仍显式使用 `cacheRetention: none`。模型目录缺少窗口或仍给出旧 `128000` 占位时，Go、Sidecar 与 Vue 共用的型号族预设会补齐 GPT、Claude、Grok：已知精确型号优先，远端非占位目录值继续权威。GPT 与 Claude Opus / Sonnet / Fable 另有内置思考档位，其他模型须在设置页按实际 Provider 能力手动启用；Composer 用离散滑块写入对话级选择，chip 与档位只显示 `off / minimal / low / medium / high / xhigh / max` 标准英文，Go 约束后交给 Pi 原生 `setThinkingLevel`，子 Agent 继承同一档位。当前 Pi 支持到 `max`；`ultra` 属于 Codex 多 Agent 编排语义，不伪装成 Provider effort。自动化覆盖 cwd 身份、缓存环境、三层窗口解析和思考档位透传；真实 Provider 缓存命中率与 effort 请求仍待用户授权的计费链路验收，不写成完成回执。
 
 ## 当前产品事实
