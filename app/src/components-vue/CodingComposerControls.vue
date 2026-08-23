@@ -193,7 +193,7 @@ function triggerModelText() {
             title="调整当前对话的思考层级"
           >
             <BrainCircuit class="size-3.5 shrink-0" />
-            <span>高级 · {{ thinkingLabel }}</span>
+            <span>{{ thinkingLabel }}</span>
             <ChevronDown class="size-3.5 shrink-0 text-muted-foreground opacity-50" />
           </Button>
         </DropdownMenuTrigger>
@@ -218,14 +218,13 @@ function triggerModelText() {
             @input="changeThinkingIndex(($event.target as HTMLInputElement).value)"
           >
           <div
-            class="mt-2 grid gap-1"
-            :style="{ gridTemplateColumns: `repeat(${thinkingLevels.length}, minmax(0, 1fr))` }"
+            class="mt-2 flex items-center justify-between gap-1"
           >
             <button
               v-for="level in thinkingLevels"
               :key="level"
               type="button"
-              class="truncate text-center text-[0.625rem] text-muted-foreground hover:text-foreground"
+              class="whitespace-nowrap text-center text-[0.625rem] text-muted-foreground hover:text-foreground"
               :class="{ 'font-semibold text-foreground': level === thinkingLevel }"
               @click.stop="emit('changeThinkingLevel', level)"
             >

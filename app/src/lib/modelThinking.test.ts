@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   effectiveModelThinkingLevel,
+  MODEL_THINKING_LEVEL_LABELS,
   normalizeModelThinkingConfig,
   resolveModelThinking,
 } from '@/lib/modelThinking'
@@ -11,6 +12,18 @@ const settings = (modelThinking?: AppSettings['model_thinking']) => ({
 })
 
 describe('model thinking profiles', () => {
+  it('uses the canonical English level names as user-visible labels', () => {
+    expect(MODEL_THINKING_LEVEL_LABELS).toEqual({
+      off: 'off',
+      minimal: 'minimal',
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: 'xhigh',
+      max: 'max',
+    })
+  })
+
   it('presets GPT and Claude reasoning-capable models', () => {
     expect(resolveModelThinking(settings(), 'tokenflux', 'openai/gpt-5.6')).toMatchObject({
       enabled: true,

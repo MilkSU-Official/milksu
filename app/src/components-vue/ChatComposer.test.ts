@@ -187,8 +187,9 @@ describe('ChatComposer', () => {
       thinkingLevel: 'high',
     })
     await nextTick()
-    const trigger = enabled.host.querySelector('[aria-label="思考层级：高"]')
-    expect(trigger?.textContent).toContain('高级 · 高')
+    const trigger = enabled.host.querySelector('[aria-label="思考层级：high"]')
+    expect(trigger?.textContent?.trim()).toBe('high')
+    expect(trigger?.textContent).not.toContain('高级')
     expect(composerControlsSource).toContain('type="range"')
     expect(composerControlsSource).toContain('thinking-slider')
     expect(composerControlsSource).toContain('MODEL_THINKING_LEVEL_LABELS')

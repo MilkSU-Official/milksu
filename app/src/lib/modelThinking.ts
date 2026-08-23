@@ -18,13 +18,13 @@ export interface ModelThinkingProfile {
 }
 
 export const MODEL_THINKING_LEVEL_LABELS: Record<ModelThinkingLevel, string> = {
-  off: '关闭',
-  minimal: '最少',
-  low: '低',
-  medium: '中',
-  high: '高',
-  xhigh: '极高',
-  max: '最大',
+  off: 'off',
+  minimal: 'minimal',
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  xhigh: 'xhigh',
+  max: 'max',
 }
 
 export function resolveModelThinking(
