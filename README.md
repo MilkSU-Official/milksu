@@ -163,6 +163,8 @@ npm --prefix app run build
 
 ## 鸣谢
 
+应用图标由 **奶噗** 绘制。
+
 <p align="center">
   <a href="https://github.com/HikaruQwQ"><img src="https://github.com/HikaruQwQ.png?size=96" width="72" height="72" alt="HikaruQwQ"></a>
   &nbsp;
@@ -194,6 +196,19 @@ npm --prefix app run build
 | [shiluoshiro](https://github.com/shiluoshiro) | 设置页切换分类时清掉上一分类提示（PR #25） |
 
 完整提交记录以 Git 历史为准。问题和产品建议可以继续提到 [GitHub Issues](https://github.com/MilkSU-Official/milksu/issues)，或发送邮件至 [milksu@proton.me](mailto:milksu@proton.me)。
+
+## 开源组件
+
+MilkSU 的 Agent 循环、记忆分层、视觉和界面行为分别建立在这些项目上。第三方保留各自原许可，完整文本见 [NOTICE](NOTICE) 和 `third_party/licenses/`。
+
+| 项目 | 在 MilkSU 中做什么 | 许可 |
+| --- | --- | --- |
+| [Pi](https://github.com/earendil-works/pi) | 通用 Agent 会话、上下文压缩和工具循环。当前固定 `@earendil-works/pi-coding-agent` 0.83.0 | MIT |
+| [Obelisk](https://github.com/tommy0103/obelisk) | 本地会话记忆与学习记录的分层参考。MilkSU 以 AGPL-3.0-only 发布，以便嵌入该组件 | AGPL-3.0 |
+| [ak-ui](https://github.com/YunYouJun/ak-ui) | 生产视觉：石墨指挥面、纸面事实、青与金。当前固定 0.2.1 的 token 与场景 CSS | MIT |
+| [Felinic](https://github.com/memohai/ui) | Vue 组件库与交互行为，以 `packages/ui` 子模块引入 `@felinic/ui` | 上游未附 SPDX |
+
+桌面壳还使用 Electron、Vue、xterm.js、Playwright MCP、Archify、Cua 等，详见 NOTICE。
 
 ## 许可证
 

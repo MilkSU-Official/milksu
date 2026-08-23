@@ -14,8 +14,20 @@ third_party/licenses/ and in the corresponding dependency packages.
 
 Third-party software includes, without limitation:
 
-- Pi Agent Harness (@earendil-works/pi-coding-agent, pi-ai, pi-tui)
+- Pi Agent Harness (@earendil-works/pi-coding-agent, pi-ai, pi-tui).
+  https://github.com/earendil-works/pi
   Copyright Mario Zechner. MIT.
+- Obelisk. https://github.com/tommy0103/obelisk
+  Copyright (C) 2026 tommy0103 and contributors. AGPL-3.0-only.
+  Planned memory component. MilkSU currently ships a first-party session
+  index inspired by its evidence / confirmed-memory layering.
+- Felinic UI (@felinic/ui, git submodule packages/ui).
+  https://github.com/memohai/ui
+  Vue component library and interaction runtime. The upstream repository
+  does not currently publish an SPDX license file.
+- ak-ui 0.2.1 (token and scene CSS copied into app/src/styles/).
+  https://github.com/YunYouJun/ak-ui
+  Copyright (c) 2019 云游君. MIT.
 - Pi extensions (pi-goal, pi-lsp, pi-mcp-adapter, pi-sub-agent,
   pi-better-background-tasks). MIT.
 - Cua Computer Use driver. Copyright Cua AI, Inc. MIT.
