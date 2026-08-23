@@ -31,7 +31,7 @@
 | 阶段 | **内测迭代 / Agent Runtime 与跨平台发行收敛**。当前工作不再按 M3/M4 里程碑组织。 |
 | 历史基线 | M3 product-loop 已在 `108e0e3`（2026-08-05）合并，仅供追溯。 |
 | 正式发行基线 | `v26.823.1 / efeda10af4f1e2cf55c4a8db1761cdbb486055a2`（2026-08-23 今日首发）。这是当前 GitHub Latest Release；提供带版本号的 DMG、EXE、DEB 与 `SHA256SUMS`；R2/Admin current pointer 未发布。 |
-| 开发版本线 | 根目录与 `desktop/package.json` 是 `26.823.1`。正式发行源是 `efeda10`；文档收口提交不移动该 tag。 |
+| 开发版本线 | 根目录与 `desktop/package.json` 是 `26.823.2`。正式发行基线仍是 `v26.823.1 / efeda10`；版本号提升和本地构建不移动该 tag，也不构成新的正式发行。 |
 | 当前开发 | 正式包是 `26.823.1`。CTF / CVE / 实验室共用完整 Coding 循环、始终开启的上下文整理，以及 CVE 列表里的公开源条目，都已打进本包。 |
 | 平台边界 | `26.823.1`：macOS DMG 本机 Developer ID 签名并公证；Windows 安装器完成原生 Runtime 与首次启动但未代码签名，并打入审阅过的 CUA Driver；Linux DEB 完成包结构、Sidecar、Go Runtime 与 Xvfb Electron 启动，仍无 Secret Service、本地 OCR、Computer Use。 |
 | 发行流水 | 下一发行从干净、已推送的 `main` 对 canonical Go/Vue/Sidecar/lint/生产与文档构建只验证一次；macOS / Windows / Linux 都走 GitHub-hosted 云端。macOS 本机打包暂时关闭。必须创建 GitHub Release 页并上传带版本号的 DMG/EXE/DEB 与 SHA256SUMS，不能只留空 tag。GitHub-only 不生成 OTA ZIP/metadata。 |
