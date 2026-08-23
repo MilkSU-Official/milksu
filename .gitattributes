@@ -1,2 +1,3 @@
+*.go text eol=lf
 patches/*.patch text eol=lf
 third_party/cua-driver/patches/*.patch text eol=lf

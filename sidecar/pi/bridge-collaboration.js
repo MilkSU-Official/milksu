@@ -164,6 +164,21 @@ export function codingSubagentGuidance() {
   ].join(" ");
 }
 
+export function codingWorkspaceIdentityGuidance(workspace, collaboration) {
+  const mainWorkspace = String(
+    workspace || collaboration?.workspace || "",
+  ).trim();
+  if (!mainWorkspace) return "";
+  return [
+    `The authoritative working directory for this main session is ${mainWorkspace}.`,
+    "Resolve relative paths and describe the current repository from that directory.",
+    collaboration?.worktrees?.length > 0
+      ? "Managed writer worktrees are separate working directories used only by effectful subagent processes; their paths never replace the main session working directory."
+      : "A path mentioned in conversation or collaboration metadata does not replace the main session working directory.",
+    "If a path-sensitive result matters, verify the current directory with the command tool before reporting it.",
+  ].join(" ");
+}
+
 export function validateSubagentInput(input, collaboration, workspace) {
   const requestedRoot = String(workspace || collaboration?.workspace || "").trim();
   if (!requestedRoot) {

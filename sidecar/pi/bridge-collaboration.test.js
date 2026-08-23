@@ -7,6 +7,7 @@ import test from "node:test";
 import {
   codingCollaborationChanged,
   codingSubagentGuidance,
+  codingWorkspaceIdentityGuidance,
   formatSubagentApproval,
   normalizeCodingCollaboration,
   validateSubagentInput,
@@ -56,6 +57,17 @@ test("normalizes a conversation-bound worktree descriptor", async () => {
   );
   assert.equal(codingCollaborationChanged(descriptor, descriptor), false);
   assert.equal(codingCollaborationChanged(undefined, descriptor), true);
+});
+
+test("main workspace identity cannot be replaced by writer worktree metadata", async () => {
+  const { descriptor, workspace, worktrees } = await fixture();
+  const guidance = codingWorkspaceIdentityGuidance(workspace, descriptor);
+  assert.match(guidance, new RegExp(workspace.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.match(guidance, /authoritative working directory for this main session/);
+  assert.match(guidance, /never replace the main session working directory/);
+  for (const worktree of worktrees) {
+    assert.equal(guidance.includes(worktree.path), false);
+  }
 });
 
 test("writing agents require distinct registered worktrees", async () => {

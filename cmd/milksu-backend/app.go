@@ -974,6 +974,7 @@ func (a *App) SendMessage(
 	modelMode,
 	modelProvider,
 	modelID,
+	thinkingLevel,
 	modelSourcePreference,
 	executionMode,
 	approvalPolicy,
@@ -1020,6 +1021,7 @@ func (a *App) SendMessage(
 	if err != nil {
 		return err
 	}
+	settings.RuntimeThinkingLevel = strings.TrimSpace(thinkingLevel)
 	var codingBrowser *engine.CodingBrowserDescriptor
 	if strings.TrimSpace(executionMode) != "plan" &&
 		strings.TrimSpace(approvalPolicy) != "read-only" &&

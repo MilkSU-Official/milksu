@@ -103,6 +103,7 @@ import {
   normalizeCodingCollaboration,
   validateSubagentInput,
   codingSubagentGuidance,
+  codingWorkspaceIdentityGuidance,
 } from "./bridge-collaboration.js";
 import {
   authorizeImageGenToolCall,
@@ -136,6 +137,11 @@ import {
   createModelSourceRouteProvider,
   normalizeModelSourceOrder,
 } from "./model-source-routing.js";
+import {
+  normalizeThinkingProfile,
+  withModelThinkingProfile,
+  withProviderThinkingProfile,
+} from "./bridge-thinking.js";
 import { projectAssistantMessageEnd } from "./bridge-message-view.js";
 import {
   projectAssistantUsage,
@@ -355,6 +361,10 @@ function createMilkSUWorkflowExtension(sessionRole, getPolicy, getSession) {
               ? researchReportGuidance(sessionRole)
               : "";
       const policy = getPolicy?.();
+      const workspaceIdentityGuidance = codingWorkspaceIdentityGuidance(
+        policy?.workspace,
+        policy?.codingCollaboration,
+      );
       const subagentGuidance = policy?.activeTools?.includes("subagent")
         ? `\n\n${codingSubagentGuidance()}`
         : "";
@@ -371,6 +381,9 @@ function createMilkSUWorkflowExtension(sessionRole, getPolicy, getSession) {
             uiLocale: policy?.uiLocale,
             modelInput: getSession?.()?.model?.input,
           })}`
+          + (workspaceIdentityGuidance
+            ? `\n\nWorkspace identity:\n${workspaceIdentityGuidance}`
+            : "")
           + subagentGuidance
           + browserGuidance
           + workspaceGuidance
@@ -732,7 +745,7 @@ function formatToolInput(toolName, args) {
   return truncate(JSON.stringify(args, null, 2), 4000);
 }
 
-function registerAccountModel(session, provider, model) {
+function registerAccountModel(session, provider, model, thinking) {
   const accountModelID = tokenfluxModelIDForProvider(provider, model);
   const availability = tokenfluxAccountModelAvailability(accountModelID);
   if (availability.authoritative && !availability.model) {
@@ -751,7 +764,7 @@ function registerAccountModel(session, provider, model) {
     baseUrl: relayUrl,
     apiKey: relayKey,
     api: "openai-completions",
-    models: [{
+    models: [withModelThinkingProfile({
       ...source,
       id: accountModelID,
       name: source?.name ?? accountModelID,
@@ -760,7 +773,7 @@ function registerAccountModel(session, provider, model) {
       cost: source?.cost ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
       contextWindow: resolveModelContextWindow(accountModelID, source?.contextWindow),
       maxTokens: source?.maxTokens ?? 16384,
-    }],
+    }, thinking)],
   }));
   return {
     id: accountModelID,
@@ -774,7 +787,14 @@ function normalizeCommandModelSourceOrder(value) {
   return [...new Set(source.filter(id => id === "account" || id === "personal"))];
 }
 
-function configureRuntimeModel(session, provider, model, conversationId, sourceOrder) {
+function configureRuntimeModel(
+  session,
+  provider,
+  model,
+  conversationId,
+  sourceOrder,
+  thinking,
+) {
   sessionConfiguredProviders.set(conversationId, String(provider ?? "").trim());
   const definition = currentProviderDefinition(provider, model);
   if (definition) {
@@ -782,12 +802,16 @@ function configureRuntimeModel(session, provider, model, conversationId, sourceO
     // (prefix/model). Official providers keep their native ids unchanged.
     session.modelRuntime.registerProvider(
       provider,
-      provider === "tokenflux" ? withTokenFluxModelCompat(definition) : definition,
+      withProviderThinkingProfile(
+        provider === "tokenflux" ? withTokenFluxModelCompat(definition) : definition,
+        model,
+        thinking,
+      ),
     );
   }
   const personalModel = session.modelRuntime.getModel(provider, model);
   const account = relayEnabled
-    ? registerAccountModel(session, provider, model)
+    ? registerAccountModel(session, provider, model, thinking)
     : { id: "", model: undefined, unavailable: false };
   const available = new Map([
     ["account", account.model],
@@ -844,7 +868,7 @@ function configureRuntimeModel(session, provider, model, conversationId, sourceO
   return { provider: "milksu-route", model };
 }
 
-async function setSessionModel(conversationId, session, provider, model) {
+async function setSessionModel(conversationId, session, provider, model, thinking) {
   if (!provider || !model) return;
 
   const desired = session.modelRuntime.getModel(provider, model);
@@ -852,7 +876,14 @@ async function setSessionModel(conversationId, session, provider, model) {
     throw new Error(`Model not found: ${provider}/${model}`);
   }
   await session.setModel(desired);
+  const profile = normalizeThinkingProfile(thinking);
+  session.setThinkingLevel(profile.enabled ? profile.level : "off");
   emit(conversationId, "model_selected", { provider, model });
+  emit(conversationId, "thinking_level_selected", {
+    enabled: profile.enabled,
+    levels: profile.levels,
+    level: session.thinkingLevel,
+  });
 }
 
 function subscribeSession(
@@ -1347,12 +1378,14 @@ async function createSession(command) {
       command.model,
       conversationId,
       command.modelSourceOrder,
+      command.thinking,
     );
     await setSessionModel(
       conversationId,
       session,
       effectiveModel.provider,
       effectiveModel.model,
+      command.thinking,
     );
 
     sessions.set(conversationId, session);
@@ -1485,12 +1518,14 @@ async function sendMessage(command) {
       command.model,
       conversationId,
       command.modelSourceOrder,
+      command.thinking,
     );
     await setSessionModel(
       conversationId,
       session,
       effectiveModel.provider,
       effectiveModel.model,
+      command.thinking,
     );
     emit(conversationId, "policy_updated", {
       tools: session.getActiveToolNames(),

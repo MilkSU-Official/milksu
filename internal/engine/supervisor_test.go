@@ -994,6 +994,9 @@ func TestSendMessageDoesNotSendAParallelWorkspaceScopeToPi(t *testing.T) {
 		supervisor.mu.Unlock()
 	}()
 
+	settings := modelSelectionSettings()
+	settings.ActiveModel = "openai/gpt-5.6"
+	settings.RuntimeThinkingLevel = "xhigh"
 	if err := supervisor.SendMessage(
 		"session-cross-project",
 		"compare both projects",
@@ -1007,7 +1010,7 @@ func TestSendMessageDoesNotSendAParallelWorkspaceScopeToPi(t *testing.T) {
 		nil,
 		nil,
 		nil,
-		modelSelectionSettings(),
+		settings,
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -1025,6 +1028,10 @@ func TestSendMessageDoesNotSendAParallelWorkspaceScopeToPi(t *testing.T) {
 	}
 	if _, exists := command["workspaceAccessPaths"]; exists {
 		t.Fatalf("Pi command must not receive a MilkSU workspace-only scope: %#v", command)
+	}
+	thinking, _ := command["thinking"].(map[string]any)
+	if thinking["enabled"] != true || thinking["level"] != "xhigh" {
+		t.Fatalf("Pi command lost the resolved thinking profile: %#v", command)
 	}
 }
 
@@ -1952,6 +1959,17 @@ func TestSidecarEnvironmentIncludesLocalOCRCacheWithoutVisionRoute(t *testing.T)
 	}
 	if !foundCache {
 		t.Fatalf("vision cache path missing from %#v", environment)
+	}
+}
+
+func TestSidecarEnvironmentEnablesLongPromptCacheRetention(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	environment, err := sidecarEnvironment(config.DefaultSettings())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !containsEnvironmentEntry(environment, "PI_CACHE_RETENTION=long") {
+		t.Fatalf("long prompt-cache retention missing from %#v", environment)
 	}
 }
 

@@ -13,6 +13,22 @@ import {
 } from '@/composables/useConversations'
 
 describe('Coding approval conversation recovery', () => {
+  it('restores only Pi-native thinking levels from persisted conversations', () => {
+    expect(normalizeConversation({
+      id: 'thinking-valid',
+      title: 'Thinking',
+      createdAt: 1,
+      thinkingLevel: 'xhigh',
+      messages: [],
+    }).thinkingLevel).toBe('xhigh')
+    expect(normalizeConversation({
+      id: 'thinking-invalid',
+      title: 'Thinking',
+      createdAt: 1,
+      thinkingLevel: 'ultra',
+      messages: [],
+    }).thinkingLevel).toBeUndefined()
+  })
   it('shows the no-tools contract and restores the reviewed tool set', () => {
     const reviewed = ['read', 'grep']
     let active = projectAgentTurnPolicy('session.turn_policy', false)

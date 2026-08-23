@@ -177,6 +177,24 @@ describe('ChatComposer', () => {
     expect(composerControlsSource).not.toMatch(/(?:^|\n)\.composer-permission \{[\s\S]*?\n\s*width: 7\.5rem;/)
   })
 
+  it('shows a discrete thinking shortcut only when the selected model enables it', async () => {
+    const unavailable = mountComposer()
+    await nextTick()
+    expect(unavailable.host.querySelector('[aria-label^="思考层级："]')).toBeNull()
+
+    const enabled = mountComposer({
+      thinkingLevels: ['low', 'medium', 'high', 'xhigh', 'max'],
+      thinkingLevel: 'high',
+    })
+    await nextTick()
+    const trigger = enabled.host.querySelector('[aria-label="思考层级：high"]')
+    expect(trigger?.textContent?.trim()).toBe('high')
+    expect(trigger?.textContent).not.toContain('高级')
+    expect(composerControlsSource).toContain('type="range"')
+    expect(composerControlsSource).toContain('thinking-slider')
+    expect(composerControlsSource).toContain('MODEL_THINKING_LEVEL_LABELS')
+  })
+
   it('submits a goal without exposing goal controls in the Composer', async () => {
     const result = mountComposer({ goalMode: true })
     await nextTick()

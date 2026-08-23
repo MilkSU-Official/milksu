@@ -190,10 +190,12 @@ export function createModelSourceRouteProvider({
       id: model,
       name: source?.name ?? model,
       reasoning: source?.reasoning ?? false,
+      thinkingLevelMap: source?.thinkingLevelMap,
       input: source?.input ?? ["text"],
       cost: source?.cost ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
       contextWindow: resolveModelContextWindow(model, source?.contextWindow),
       maxTokens: source?.maxTokens ?? 16384,
+      compat: source?.compat,
     }],
   };
 }

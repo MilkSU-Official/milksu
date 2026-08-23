@@ -788,6 +788,8 @@ describe('SettingsPage database compatibility', () => {
     expect(text).not.toContain('模型与额度')
     expect(text).toContain('默认模型')
     expect(text).toContain('模型服务')
+    expect(text).toContain('模型能力')
+    expect(text).toContain('思考层级')
     expect(text).toContain('TokenFlux 中转站')
     expect(text).toContain('MilkSU 账户')
     expect(text).not.toContain('DeepSeek 官方')
@@ -813,6 +815,64 @@ describe('SettingsPage database compatibility', () => {
       source_order: ['account', 'personal'],
       auto_fallback: false,
     })
+  })
+
+  it('lets a user explicitly enable and configure thinking for another model', async () => {
+    let savedSettings: AppSettings | null = null
+    const settings = withAppSettingsDefaults({
+      active_provider: 'tokenflux',
+      active_model: 'grok-4.3',
+      model_routing: { source_order: ['personal', 'account'], auto_fallback: false },
+      relay: {
+        enabled: false,
+        url: 'https://tokenflux.dev/v1',
+        key: '',
+        has_key: false,
+      },
+      providers: {
+        tokenflux: {
+          api_key: '',
+          has_api_key: true,
+          enabled: true,
+        },
+      },
+    } as AppSettings)
+    await mountSettingsPage({ directory: 'MilkSU 用户数据目录', fileCount: 0, bytes: 0 }, {
+      initialCategory: 'apikeys',
+      settings,
+      appMethods: {
+        SaveSettingsCmd: async (value: unknown) => {
+          savedSettings = value as AppSettings
+        },
+        GetSettings: async () => savedSettings ?? settings,
+        TestAgentModel: async () => ({
+          provider: 'tokenflux',
+          model: 'grok-4.3',
+          ready: true,
+          latencyMs: 42,
+        }),
+      },
+    })
+
+    const thinkingSwitch = document.querySelector<HTMLElement>(
+      '[aria-label="启用模型思考层级"]',
+    )
+    expect(thinkingSwitch?.getAttribute('data-state')).toBe('unchecked')
+    thinkingSwitch?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await settle()
+    expect(thinkingSwitch?.getAttribute('data-state')).toBe('checked')
+    expect(document.body.textContent).toContain('支持档位')
+
+    const saveButton = [...document.querySelectorAll('button')]
+      .find(button => button.textContent?.includes('保存并验证'))
+    saveButton?.click()
+    for (let index = 0; index < 6; index += 1) await settle()
+    expect((savedSettings as AppSettings | null)?.model_thinking?.tokenflux?.['grok-4.3'])
+      .toEqual({
+        enabled: true,
+        levels: ['low', 'medium', 'high'],
+        default_level: 'medium',
+      })
   })
 
   it('uses the same available provider groups as Coding and updates provider with the default model', async () => {

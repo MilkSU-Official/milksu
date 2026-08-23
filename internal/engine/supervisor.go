@@ -550,6 +550,12 @@ func (s *Supervisor) sendMessage(
 	if err := validateModelAccess(settings); err != nil {
 		return err
 	}
+	thinking := config.ResolveModelThinking(
+		settings,
+		settings.ActiveProvider,
+		settings.ActiveModel,
+		settings.RuntimeThinkingLevel,
+	)
 	workspace, err := resolveAgentWorkspace(workspacePath)
 	if err != nil {
 		return err
@@ -596,6 +602,7 @@ func (s *Supervisor) sendMessage(
 		"locale":          resolvedUserInterfaceLocale(settings),
 		"provider":        settings.ActiveProvider,
 		"model":           settings.ActiveModel,
+		"thinking":        thinking,
 		"sessionRole":     strings.TrimSpace(sessionRole),
 		"executionMode":   codingPolicy.ExecutionMode,
 		"approvalPolicy":  codingPolicy.ApprovalPolicy,

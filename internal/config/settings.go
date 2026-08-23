@@ -74,21 +74,23 @@ type SecurityToolPreference struct {
 }
 
 type AppSettings struct {
-	ActiveProvider          string                            `json:"active_provider"`
-	ActiveModel             string                            `json:"active_model"`
-	ModelVerified           *ModelVerification                `json:"model_verification,omitempty"`
-	ModelRouting            ModelRoutingConfig                `json:"model_routing"`
-	Relay                   *RelayConfig                      `json:"relay,omitempty"`
-	NSSCTFArena             *NSSCTFArenaConfig                `json:"nssctf_arena,omitempty"`
-	Locale                  *string                           `json:"locale,omitempty"`
-	DisabledSkills          []string                          `json:"disabled_skills"`
-	PreferredExternalEditor string                            `json:"preferred_external_editor,omitempty"`
-	SecurityTools           map[string]SecurityToolPreference `json:"security_tools,omitempty"`
-	Providers               map[string]ProviderConfig         `json:"providers"`
+	ActiveProvider          string                                    `json:"active_provider"`
+	ActiveModel             string                                    `json:"active_model"`
+	ModelVerified           *ModelVerification                        `json:"model_verification,omitempty"`
+	ModelRouting            ModelRoutingConfig                        `json:"model_routing"`
+	Relay                   *RelayConfig                              `json:"relay,omitempty"`
+	NSSCTFArena             *NSSCTFArenaConfig                        `json:"nssctf_arena,omitempty"`
+	Locale                  *string                                   `json:"locale,omitempty"`
+	DisabledSkills          []string                                  `json:"disabled_skills"`
+	PreferredExternalEditor string                                    `json:"preferred_external_editor,omitempty"`
+	SecurityTools           map[string]SecurityToolPreference         `json:"security_tools,omitempty"`
+	ModelThinking           map[string]map[string]ModelThinkingConfig `json:"model_thinking,omitempty"`
+	Providers               map[string]ProviderConfig                 `json:"providers"`
 	// RuntimeModelCatalogPath is injected only into resolved settings so Pi can
 	// read the same refreshed public model metadata as the desktop UI. It is
 	// never persisted or returned across Desktop RPC.
 	RuntimeModelCatalogPath string `json:"-"`
+	RuntimeThinkingLevel    string `json:"-"`
 }
 
 func DefaultSettings() AppSettings {
@@ -647,6 +649,7 @@ func withDefaults(value AppSettings) AppSettings {
 	value.DisabledSkills = normalizeDisabledSkills(value.DisabledSkills)
 	value.PreferredExternalEditor = externaleditor.Normalize(value.PreferredExternalEditor)
 	value.SecurityTools = normalizeSecurityToolPreferences(value.SecurityTools)
+	value.ModelThinking = normalizeModelThinkingOverrides(value.ModelThinking, value.Providers)
 	return value
 }
 
@@ -743,6 +746,17 @@ func clone(value AppSettings) AppSettings {
 			copy.SecurityTools[id] = preference
 		}
 	}
+	if value.ModelThinking != nil {
+		copy.ModelThinking = make(map[string]map[string]ModelThinkingConfig, len(value.ModelThinking))
+		for provider, models := range value.ModelThinking {
+			copyModels := make(map[string]ModelThinkingConfig, len(models))
+			for model, configured := range models {
+				configured.Levels = append([]string(nil), configured.Levels...)
+				copyModels[model] = configured
+			}
+			copy.ModelThinking[provider] = copyModels
+		}
+	}
 	if value.ModelRouting.AutoFallback != nil {
 		autoFallback := *value.ModelRouting.AutoFallback
 		copy.ModelRouting.AutoFallback = &autoFallback
@@ -783,6 +797,23 @@ func modelVerificationInvalidated(previous, next AppSettings) bool {
 	if boolValue(previous.ModelRouting.AutoFallback) != boolValue(next.ModelRouting.AutoFallback) ||
 		strings.Join(normalizeModelSourceOrder(previous.ModelRouting.SourceOrder), ",") !=
 			strings.Join(normalizeModelSourceOrder(next.ModelRouting.SourceOrder), ",") {
+		return true
+	}
+	previousThinking := ResolveModelThinking(
+		previous,
+		previous.ActiveProvider,
+		previous.ActiveModel,
+		"",
+	)
+	nextThinking := ResolveModelThinking(
+		next,
+		next.ActiveProvider,
+		next.ActiveModel,
+		"",
+	)
+	if previousThinking.Enabled != nextThinking.Enabled ||
+		previousThinking.Level != nextThinking.Level ||
+		strings.Join(previousThinking.Levels, ",") != strings.Join(nextThinking.Levels, ",") {
 		return true
 	}
 	active := next.Providers[next.ActiveProvider]

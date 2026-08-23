@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import {
   Button,
   DropdownMenu,
@@ -17,13 +18,15 @@ import {
 } from '@felinic/ui'
 import {
   Check,
+  BrainCircuit,
   ChevronDown,
   Hand,
   LockKeyhole,
   ShieldAlert,
   ShieldCheck,
 } from 'lucide-vue-next'
-import type { CodingApprovalPolicy } from '@/types'
+import type { CodingApprovalPolicy, ModelThinkingLevel } from '@/types'
+import { MODEL_THINKING_LEVEL_LABELS } from '@/lib/modelThinking'
 import {
   encodeComposerModelKey,
   parseComposerModelKey,
@@ -41,13 +44,35 @@ const props = defineProps<{
   modelKey: string
   automaticModelLabel: string
   compactModelLabel: string
+  thinkingLevels?: ModelThinkingLevel[]
+  thinkingLevel?: ModelThinkingLevel
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   changeApprovalPolicy: [value: string]
   changeModel: [value: string]
+  changeThinkingLevel: [level: ModelThinkingLevel]
   showPermissions: []
 }>()
+
+const thinkingLevels = computed(() => props.thinkingLevels ?? [])
+const thinkingIndex = computed(() => Math.max(
+  0,
+  thinkingLevels.value.indexOf(props.thinkingLevel ?? thinkingLevels.value[0]),
+))
+const thinkingProgress = computed(() => (
+  thinkingLevels.value.length <= 1
+    ? 100
+    : (thinkingIndex.value / (thinkingLevels.value.length - 1)) * 100
+))
+const thinkingLabel = computed(() => (
+  props.thinkingLevel ? MODEL_THINKING_LEVEL_LABELS[props.thinkingLevel] : ''
+))
+
+function changeThinkingIndex(value: string) {
+  const level = thinkingLevels.value[Number(value)]
+  if (level) emit('changeThinkingLevel', level)
+}
 
 /** Text fed to keyword matching for the closed trigger. */
 function triggerModelText() {
@@ -157,6 +182,57 @@ function triggerModelText() {
 
     <div class="flex min-w-0 items-center gap-1.5">
       <slot name="context" />
+      <DropdownMenu v-if="thinkingLevels.length">
+        <DropdownMenuTrigger as-child>
+          <Button
+            variant="ghost"
+            size="sm"
+            class="composer-control composer-thinking rounded-full"
+            :disabled="running"
+            :aria-label="`思考层级：${thinkingLabel}`"
+            title="调整当前对话的思考层级"
+          >
+            <BrainCircuit class="size-3.5 shrink-0" />
+            <span>{{ thinkingLabel }}</span>
+            <ChevronDown class="size-3.5 shrink-0 text-muted-foreground opacity-50" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="end"
+          :side-offset="8"
+          class="thinking-menu w-[21rem] max-w-[calc(100vw-2rem)] p-4"
+        >
+          <div class="flex items-center justify-between gap-4">
+            <p class="text-label font-medium">思考层级</p>
+            <span class="text-caption font-medium text-primary">{{ thinkingLabel }}</span>
+          </div>
+          <input
+            class="thinking-slider mt-4"
+            type="range"
+            min="0"
+            :max="Math.max(thinkingLevels.length - 1, 0)"
+            step="1"
+            :value="thinkingIndex"
+            :style="{ '--thinking-progress': `${thinkingProgress}%` }"
+            aria-label="当前对话思考层级"
+            @input="changeThinkingIndex(($event.target as HTMLInputElement).value)"
+          >
+          <div
+            class="mt-2 flex items-center justify-between gap-1"
+          >
+            <button
+              v-for="level in thinkingLevels"
+              :key="level"
+              type="button"
+              class="whitespace-nowrap text-center text-[0.625rem] text-muted-foreground hover:text-foreground"
+              :class="{ 'font-semibold text-foreground': level === thinkingLevel }"
+              @click.stop="emit('changeThinkingLevel', level)"
+            >
+              {{ MODEL_THINKING_LEVEL_LABELS[level] }}
+            </button>
+          </div>
+        </DropdownMenuContent>
+      </DropdownMenu>
       <Select
         :model-value="modelKey"
         :disabled="running"
@@ -338,6 +414,47 @@ function triggerModelText() {
   padding-inline: 0.65rem;
 }
 
+.composer-thinking {
+  flex: 0 0 auto;
+  padding-inline: 0.6rem 0.45rem;
+}
+
+.thinking-slider {
+  --thinking-progress: 0%;
+  width: 100%;
+  height: 1.5rem;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.thinking-slider::-webkit-slider-runnable-track {
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: linear-gradient(
+    to right,
+    var(--brand) 0 var(--thinking-progress),
+    var(--muted) var(--thinking-progress) 100%
+  );
+}
+
+.thinking-slider::-webkit-slider-thumb {
+  width: 1.35rem;
+  height: 1.35rem;
+  margin-top: -0.425rem;
+  appearance: none;
+  border: 1px solid var(--border);
+  border-radius: 9999px;
+  background: var(--background);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--foreground) 18%, transparent);
+}
+
+.thinking-slider:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 9999px;
+}
+
 @container chat-main (max-width: 52rem) {
   .composer-controls {
     flex-wrap: nowrap;
@@ -347,6 +464,16 @@ function triggerModelText() {
   .composer-model {
     width: fit-content;
     max-width: min(18rem, 100%);
+  }
+
+  .composer-thinking span,
+  .composer-thinking svg:last-child {
+    display: none;
+  }
+
+  .composer-thinking {
+    width: 2rem;
+    padding-inline: 0;
   }
 }
 

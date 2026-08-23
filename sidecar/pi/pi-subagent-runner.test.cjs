@@ -257,6 +257,15 @@ test("runner configures Relay by environment reference without persisting its ke
     config.providers["milksu-relay"].models[0].id,
     "example-model",
   );
+  assert.equal(config.providers["milksu-relay"].models[0].reasoning, true);
+  assert.equal(
+    config.providers["milksu-relay"].models[0].thinkingLevelMap.high,
+    "high",
+  );
+  assert.equal(
+    config.providers["milksu-relay"].models[0].compat.supportsReasoningEffort,
+    true,
+  );
 });
 
 test("runner configures an active custom relay without persisting its key", () => {

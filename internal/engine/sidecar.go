@@ -52,7 +52,8 @@ func sidecarEnvironment(settings config.AppSettings) ([]string, error) {
 	environment := engineEnvironment(settings)
 	filtered := environment[:0]
 	for _, entry := range environment {
-		if !strings.HasPrefix(entry, "HOME=") {
+		if !strings.HasPrefix(entry, "HOME=") &&
+			!strings.HasPrefix(entry, "PI_CACHE_RETENTION=") {
 			filtered = append(filtered, entry)
 		}
 	}
@@ -63,6 +64,9 @@ func sidecarEnvironment(settings config.AppSettings) ([]string, error) {
 		"MILKSU_CODING_ATTACHMENT_ROOT="+attachmentRoot,
 		"MILKSU_CODING_COLLABORATION_ROOT="+collaborationRoot,
 		"MILKSU_VISION_CACHE="+filepath.Join(runtimeHome, "vision-cache.json"),
+		// Keep Pi's provider-native prompt cache alive across normal human pauses.
+		// Explicit one-off compaction requests still override this with "none".
+		"PI_CACHE_RETENTION=long",
 		// Resolve the real user home in the supervised launcher so Pi policy can
 		// reject accidental broad grants without guessing from its isolated HOME.
 		"MILKSU_USER_HOME="+canonicalUserHome,
