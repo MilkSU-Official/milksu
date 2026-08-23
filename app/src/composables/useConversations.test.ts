@@ -341,6 +341,11 @@ describe('Coding approval conversation recovery', () => {
 
   it.each([
     [
+      'Error invoking remote method milksu:invoke: Error: MilkSU Go runtime is unavailable',
+      '本地运行时已停止，请重新打开应用',
+      'Go runtime is unavailable',
+    ],
+    [
       '401 status code (no body)',
       '模型凭据无效或无权访问',
       '401',

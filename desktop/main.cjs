@@ -4,7 +4,6 @@ const { execFileSync, spawn } = require('node:child_process')
 const { randomUUID } = require('node:crypto')
 const { promises: fs } = require('node:fs')
 const path = require('node:path')
-const readline = require('node:readline')
 const {
   app,
   BrowserWindow,
@@ -60,14 +59,13 @@ const {
   installRendererReloadGuard,
   productApplicationMenuTemplate,
 } = require('./renderer-reload.cjs')
+const { BackendRuntime } = require('./backend-runtime.cjs')
 
 const APP_ORIGIN = 'milksu://app'
-const METHOD_PATTERN = /^[A-Z][A-Za-z0-9]{0,80}$/u
 const EVENT_PATTERN = /^[a-z][a-z0-9._-]{0,100}$/u
 const BROWSER_SESSION_PATTERN = /^browser_[0-9a-f-]{36}$/u
 const BROWSER_TAB_PATTERN = /^tab_[0-9a-f-]{36}$/u
 const MAX_BROWSER_TABS = 8
-const MAX_BACKEND_MESSAGE_BYTES = 128 << 20
 const BROWSER_USER_AGENT = [
   process.platform === 'win32'
     ? 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
@@ -94,9 +92,6 @@ protocol.registerSchemesAsPrivileged([{
   },
 }])
 
-function isClosedPipeError(error) {
-  return error?.code === 'EPIPE' || error?.code === 'ERR_STREAM_DESTROYED'
-}
 
 // Startup stage timings: filter logs with `[startup]`.
 // Measures serial gates (DevTools → backend.ready → account status → loadURL → renderer RPCs).
@@ -270,152 +265,31 @@ async function installRendererProtocol() {
   })
 }
 
-class BackendRuntime {
-  constructor(executable, hostHandler, eventHandler) {
-    this.hostHandler = hostHandler
-    this.eventHandler = eventHandler
-    this.pending = new Map()
-    this.nextID = 0
-    this.stopping = false
-    this.readyPromise = new Promise((resolve, reject) => {
-      this.resolveReady = resolve
-      this.rejectReady = reject
-    })
-    // Beta (and optional MILKSU_INSTANCE_ID) always get a userData-scoped Go
-    // runtime root. Stable keeps historical appdata resolution unless the
-    // caller already set MILKSU_APPDATA_DIR or requested an isolated instance.
-    const env = desktopBackendEnvironment(process.env, {
-      channel: desktopIdentity.channel,
-      appId: desktopIdentity.appId,
-      hostPid: process.pid,
-    })
-    const runtimeAppDataDir = resolveRuntimeAppDataDir({
-      channel: desktopIdentity.channel,
-      isolatedInstance: channelIsolation.isolatedInstance,
-      existingAppDataDir: process.env.MILKSU_APPDATA_DIR,
-      userDataPath: app.getPath('userData'),
-    })
-    if (runtimeAppDataDir) env.MILKSU_APPDATA_DIR = runtimeAppDataDir
-    this.process = spawn(executable, [], {
-      stdio: ['pipe', 'pipe', 'pipe'],
-      env,
-    })
-    this.process.once('error', error => this.fail(error))
-    this.process.stdin.on('error', error => {
-      if (this.stopping && isClosedPipeError(error)) return
-      this.fail(error)
-    })
-    this.process.once('exit', (code, signal) => {
-      this.fail(new Error(`MilkSU Go runtime exited (${code ?? signal ?? 'unknown'})`))
-    })
-    this.process.stderr.pipe(process.stderr)
-    const lines = readline.createInterface({ input: this.process.stdout, crlfDelay: Infinity })
-    lines.on('line', line => {
-      if (Buffer.byteLength(line) > MAX_BACKEND_MESSAGE_BYTES) {
-        this.fail(new Error('MilkSU Go runtime exceeded the desktop message limit'))
-        return
-      }
-      this.handleLine(line)
-    })
-  }
-
-  handleLine(line) {
-    let message
-    try {
-      message = JSON.parse(line)
-    } catch {
-      this.fail(new Error('MilkSU Go runtime returned an invalid message'))
-      return
-    }
-    if (message.type === 'ready') {
-      this.resolveReady()
-      return
-    }
-    if (message.type === 'result') {
-      const pending = this.pending.get(message.id)
-      if (!pending) return
-      this.pending.delete(message.id)
-      if (message.error) pending.reject(new Error(message.error))
-      else pending.resolve(message.result)
-      return
-    }
-    if (message.type === 'event') {
-      this.eventHandler(message.event, message.payload)
-      return
-    }
-    if (message.type === 'host_request') {
-      void this.handleHostRequest(message)
-    }
-  }
-
-  async handleHostRequest(message) {
-    try {
-      const result = await this.hostHandler(message.method, message.payload)
-      this.send({ type: 'host_response', id: message.id, result: result ?? null })
-    } catch (error) {
-      this.send({ type: 'host_response', id: message.id, error: error.message })
-    }
-  }
-
-  send(message, { allowClosed = false } = {}) {
-    if (this.stopping && !allowClosed) return false
-    const stdin = this.process?.stdin
-    if (!stdin || stdin.destroyed || !stdin.writable) {
-      if (allowClosed) return false
-      throw new Error('MilkSU Go runtime is unavailable')
-    }
-    try {
-      return stdin.write(`${JSON.stringify(message)}\n`)
-    } catch (error) {
-      if (allowClosed && isClosedPipeError(error)) return false
-      throw error
-    }
-  }
-
-  async ready() {
-    return this.readyPromise
-  }
-
-  invoke(method, args) {
-    if (!METHOD_PATTERN.test(method) || !Array.isArray(args)) {
-      return Promise.reject(new Error('invalid desktop invocation'))
-    }
-    const id = `invoke-${++this.nextID}`
-    return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject })
-      this.send({ type: 'invoke', id, method, args })
-    })
-  }
-
-  fail(error) {
-    this.rejectReady(error)
-    for (const pending of this.pending.values()) pending.reject(error)
-    this.pending.clear()
-  }
-
-  async stop({
-    // Quit must feel instant; 15s made Cmd+Q look broken while the window stayed up.
-    gracefulMs = 2000,
-    termMs = 500,
-  } = {}) {
-    if (!this.process || this.process.exitCode !== null) return
-    this.stopping = true
-    this.send({ type: 'shutdown' }, { allowClosed: true })
-    await Promise.race([
-      new Promise(resolve => this.process.once('exit', resolve)),
-      new Promise(resolve => setTimeout(resolve, gracefulMs)),
-    ])
-    if (this.process.exitCode === null) {
-      try { this.process.kill('SIGTERM') } catch {}
-      await Promise.race([
-        new Promise(resolve => this.process.once('exit', resolve)),
-        new Promise(resolve => setTimeout(resolve, termMs)),
-      ])
-    }
-    if (this.process.exitCode === null) {
-      try { this.process.kill('SIGKILL') } catch {}
-    }
-  }
+function createDesktopBackend(executable, hostHandler, eventHandler) {
+  return new BackendRuntime({
+    hostHandler,
+    eventHandler,
+    spawnProcess: () => {
+      const env = desktopBackendEnvironment(process.env, {
+        channel: desktopIdentity.channel,
+        appId: desktopIdentity.appId,
+        hostPid: process.pid,
+      })
+      const runtimeAppDataDir = resolveRuntimeAppDataDir({
+        channel: desktopIdentity.channel,
+        isolatedInstance: channelIsolation.isolatedInstance,
+        existingAppDataDir: process.env.MILKSU_APPDATA_DIR,
+        userDataPath: app.getPath('userData'),
+      })
+      if (runtimeAppDataDir) env.MILKSU_APPDATA_DIR = runtimeAppDataDir
+      const child = spawn(executable, [], {
+        stdio: ['pipe', 'pipe', 'pipe'],
+        env,
+      })
+      child.stderr.pipe(process.stderr)
+      return child
+    },
+  })
 }
 
 async function waitForDevTools() {
@@ -1059,7 +933,7 @@ app.whenReady().then(async () => {
   startupLog('createWindow')
   browserShell = new BrowserShell(mainWindow, upstreamEndpoint)
   const backendSpawnStarted = Date.now()
-  backend = new BackendRuntime(backendExecutable(), handleHostRequest, emitRendererEvent)
+  backend = createDesktopBackend(backendExecutable(), handleHostRequest, emitRendererEvent)
   startupLog('backend.spawn', `${Date.now() - backendSpawnStarted}ms`)
   await startupTime('backend.ready', () => backend.ready())
   // Local session probe only — never block first paint on account API / credentials.
@@ -1130,6 +1004,7 @@ app.on('before-quit', () => {
   // intercept quit, hide the window, then sit ~3s on shutdown+SIGTERM.
   // stdin EOF / this shutdown line is enough for Go to mark a clean exit.
   try {
+    backend?.beginStop()
     backend?.send({ type: 'shutdown' }, { allowClosed: true })
   } catch {}
 })

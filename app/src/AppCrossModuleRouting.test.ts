@@ -176,6 +176,7 @@ function createMockConversations() {
     compactContext: vi.fn(),
     controlGoal: vi.fn(),
     respondApproval: vi.fn(),
+    settleRunsForRuntimeRecovery: vi.fn(),
   }
 }
 

@@ -23,6 +23,11 @@ import { createMcpAdapter } from "pi-mcp-adapter";
 import piSubAgentExtension from "pi-sub-agent/extensions/index.ts";
 import { dropSendAfterAbort } from "./bridge-abort.js";
 import {
+  createToolRepeatGuard,
+  toolBudgetPrompt,
+  toolBudgetToolName,
+} from "./bridge-tool-repeat.js";
+import {
   codingSessionToolNames,
   loadSessionPolicy,
   normalizeCodingProductAction,
@@ -401,8 +406,12 @@ function createCodingPermissionExtension(
   registerController,
 ) {
   return (pi) => {
+    const repeatGuard = createToolRepeatGuard();
     registerController({
       setActiveTools: names => pi.setActiveTools(names),
+    });
+    pi.on("before_agent_start", () => {
+      repeatGuard.reset();
     });
     pi.on("context", async (event) => {
       const messages = filterCodingTurnContractMessages(
@@ -581,6 +590,24 @@ function createCodingPermissionExtension(
           };
         }
       }
+      const repeat = repeatGuard.inspect(event.toolName, event.input);
+      if (repeat?.ask) {
+        const approved = await approvalBroker.request({
+          conversationId,
+          toolName: toolBudgetToolName,
+          content: toolBudgetPrompt(repeat.count),
+          input: String(repeat.count),
+        });
+        if (!approved) {
+          return {
+            block: true,
+            terminate: true,
+            reason: "本轮已停止。",
+          };
+        }
+        return undefined;
+      }
+      if (repeat) return repeat;
       return undefined;
     });
 

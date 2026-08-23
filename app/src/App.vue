@@ -37,6 +37,8 @@ import { withAppSettingsDefaults, type AccountStatus, type AppSettings, type CTF
 import type { ModelCatalogSnapshot } from '@/types'
 import { installAppModelSettings, installModelCatalog, loadModelCatalog } from '@/modelCatalog'
 import type { SecurityToolCodingHandoff } from '@/securityToolsTypes'
+import CodingToolBudgetDialog from '@/components-vue/CodingToolBudgetDialog.vue'
+import { toolBudgetToolName } from '@/lib/toolBudget'
 
 const ChatPage = defineAsyncComponent(() => import('@/components-vue/ChatPage.vue'))
 const AccountLoginPage = defineAsyncComponent(() => import('@/components-vue/AccountLoginPage.vue'))
@@ -100,6 +102,37 @@ let unlistenAccount: (() => void) | undefined
 let unlistenModelCatalog: (() => void) | undefined
 let unlistenUpdate: (() => void) | undefined
 let unlistenWorkspaceRecords: (() => void) | undefined
+let unlistenRuntime: (() => void) | undefined
+const runtimeStatus = ref<'ready' | 'starting' | 'recovering' | 'exited'>('ready')
+
+const toolBudgetPrompt = computed(() => {
+  for (const conversation of conversations.conversations.value) {
+    const pending = [...conversation.messages].reverse().find(message => (
+      message.toolName === toolBudgetToolName
+      && message.approvalState === 'pending'
+      && message.approvalRequestId
+    ))
+    if (!pending?.approvalRequestId) continue
+    const count = Number.parseInt(String(pending.approvalInput || '0'), 10)
+    return {
+      requestId: pending.approvalRequestId,
+      count: Number.isFinite(count) && count > 0 ? count : 150,
+    }
+  }
+  return null
+})
+
+function continueToolBudget() {
+  const prompt = toolBudgetPrompt.value
+  if (!prompt) return
+  void conversations.respondApproval(prompt.requestId, true, 'once')
+}
+
+function stopToolBudget() {
+  const prompt = toolBudgetPrompt.value
+  if (!prompt) return
+  void conversations.respondApproval(prompt.requestId, false)
+}
 let systemThemeMedia: MediaQueryList | undefined
 let systemThemeListener: (() => void) | undefined
 const workspaceViewStateReady = ref(false)
@@ -793,6 +826,15 @@ onMounted(async () => {
   unlistenUpdate = await listenEvent<UpdateStatus>('update.changed', event => {
     updateStatus.value = event.payload
   })
+  unlistenRuntime = await listenEvent<{ state?: string }>('runtime.status', event => {
+    const state = event.payload?.state
+    if (state === 'recovering' || state === 'starting' || state === 'exited' || state === 'ready') {
+      runtimeStatus.value = state
+    }
+    if (state === 'recovering' || state === 'exited') {
+      conversations.settleRunsForRuntimeRecovery()
+    }
+  })
   unlistenWorkspaceRecords = await listenEvent<{
     action?: string
     kind?: string
@@ -850,6 +892,7 @@ onBeforeUnmount(() => {
   unlistenModelCatalog?.()
   unlistenUpdate?.()
   unlistenWorkspaceRecords?.()
+  unlistenRuntime?.()
   if (systemThemeMedia && systemThemeListener) {
     systemThemeMedia.removeEventListener('change', systemThemeListener)
   }
@@ -874,6 +917,18 @@ onBeforeUnmount(() => {
       @download="downloadUpdate"
       @install="installUpdate"
     />
+    <p
+      v-if="runtimeStatus === 'recovering' || runtimeStatus === 'starting'"
+      class="shrink-0 border-b border-border bg-card px-4 py-2 text-caption text-foreground"
+    >
+      正在恢复运行时
+    </p>
+    <p
+      v-else-if="runtimeStatus === 'exited'"
+      class="shrink-0 border-b border-border bg-card px-4 py-2 text-caption text-foreground"
+    >
+      本地运行时已停止
+    </p>
     <div class="flex min-h-0 flex-1">
       <AppSidebar
         :active-section="sidebarSection"
@@ -1091,5 +1146,12 @@ onBeforeUnmount(() => {
         @toggle-conversation-drawer="toggleCodingConversationDrawer"
       />
     </div>
+    <CodingToolBudgetDialog
+      :open="Boolean(toolBudgetPrompt)"
+      :count="toolBudgetPrompt?.count ?? 150"
+      @update:open="open => { if (!open) stopToolBudget() }"
+      @continue="continueToolBudget"
+      @stop="stopToolBudget"
+    />
   </div>
 </template>

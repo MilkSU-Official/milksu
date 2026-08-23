@@ -27,6 +27,18 @@ const dashOffset = computed(() => {
   const percent = Math.min(100, Math.max(0, props.usage.percent ?? 0))
   return circumference.value * (1 - percent / 100)
 })
+const cacheLength = computed(() => (
+  circumference.value * Math.min(100, Math.max(0, props.usage.cachePercent ?? 0)) / 100
+))
+const uncachedLength = computed(() => (
+  circumference.value * Math.min(100, Math.max(0, props.usage.uncachedPercent ?? 0)) / 100
+))
+const hasSplit = computed(() => (
+  (props.usage.cachePercent ?? 0) > 0 && (props.usage.uncachedPercent ?? 0) > 0
+))
+const cacheOnly = computed(() => (
+  (props.usage.cachePercent ?? 0) > 0 && (props.usage.uncachedPercent ?? 0) <= 0
+))
 const hasRing = computed(() => props.usage.percent !== undefined)
 const detailTitle = computed(() => (
   props.usage.windowLabel
@@ -62,15 +74,39 @@ const detailTitle = computed(() => (
             :stroke-width="stroke"
           />
           <circle
+            v-if="!hasSplit"
             :cx="viewBox.center"
             :cy="viewBox.center"
             :r="radius"
             fill="none"
-            :class="usage.nearLimit ? 'stroke-warning' : 'stroke-primary'"
+            :class="usage.nearLimit ? 'stroke-warning' : cacheOnly ? 'context-usage-meter__cache' : 'stroke-primary'"
             :stroke-width="stroke"
             stroke-linecap="round"
             :stroke-dasharray="circumference"
             :stroke-dashoffset="dashOffset"
+          />
+          <circle
+            v-if="hasSplit"
+            :cx="viewBox.center"
+            :cy="viewBox.center"
+            :r="radius"
+            fill="none"
+            class="context-usage-meter__cache"
+            :stroke-width="stroke"
+            stroke-linecap="butt"
+            :stroke-dasharray="`${cacheLength} ${circumference}`"
+          />
+          <circle
+            v-if="hasSplit"
+            :cx="viewBox.center"
+            :cy="viewBox.center"
+            :r="radius"
+            fill="none"
+            class="context-usage-meter__fresh"
+            :stroke-width="stroke"
+            stroke-linecap="butt"
+            :stroke-dasharray="`${uncachedLength} ${circumference}`"
+            :stroke-dashoffset="-cacheLength"
           />
         </svg>
         <span
@@ -104,17 +140,41 @@ const detailTitle = computed(() => (
           <span>CONTEXT</span>
           <span class="ak-progress__value">{{ usage.percent }}%</span>
         </div>
-        <div class="ak-progress__track"><span class="ak-progress__fill" /></div>
+        <div class="ak-progress__track">
+          <span
+            v-if="!hasSplit"
+            class="ak-progress__fill"
+          />
+          <span
+            v-else
+            class="context-usage-meter__bar"
+          >
+            <span
+              class="context-usage-meter__bar-cache"
+              :style="{ width: `${usage.cachePercent}%` }"
+            />
+            <span
+              class="context-usage-meter__bar-fresh"
+              :style="{ width: `${usage.uncachedPercent}%` }"
+            />
+          </span>
+        </div>
       </div>
       <template v-if="usage.last">
         <p class="mt-2 text-caption font-medium text-muted-foreground">本轮</p>
         <dl class="mt-1 space-y-1.5 font-mono text-caption tabular-nums">
           <div class="flex items-center justify-between gap-3">
-            <dt class="text-muted-foreground">未命中输入</dt>
+            <dt class="flex items-center gap-1.5 text-muted-foreground">
+              <span class="context-usage-meter__swatch context-usage-meter__swatch--fresh" />
+              未命中输入
+            </dt>
             <dd>{{ usage.last.uncachedLabel }}</dd>
           </div>
           <div class="flex items-center justify-between gap-3">
-            <dt class="text-muted-foreground">缓存命中</dt>
+            <dt class="flex items-center gap-1.5 text-muted-foreground">
+              <span class="context-usage-meter__swatch context-usage-meter__swatch--cache" />
+              缓存命中
+            </dt>
             <dd>{{ usage.last.cacheReadLabel }}</dd>
           </div>
           <div class="flex items-center justify-between gap-3">
@@ -207,3 +267,39 @@ const detailTitle = computed(() => (
     </HoverCardContent>
   </HoverCard>
 </template>
+
+<style scoped>
+.context-usage-meter__cache {
+  stroke: var(--ak-signal-action, #f1c644);
+}
+.context-usage-meter__fresh {
+  stroke: var(--ak-color-primary, #4aabea);
+}
+.context-usage-meter__bar {
+  display: flex;
+  width: 100%;
+  height: 100%;
+}
+.context-usage-meter__bar-cache,
+.context-usage-meter__bar-fresh {
+  display: block;
+  height: 100%;
+}
+.context-usage-meter__bar-cache {
+  background: var(--ak-signal-action, #f1c644);
+}
+.context-usage-meter__bar-fresh {
+  background: var(--ak-color-primary, #4aabea);
+}
+.context-usage-meter__swatch {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+}
+.context-usage-meter__swatch--fresh {
+  background: var(--ak-color-primary, #4aabea);
+}
+.context-usage-meter__swatch--cache {
+  background: var(--ak-signal-action, #f1c644);
+}
+</style>

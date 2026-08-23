@@ -26,6 +26,7 @@
     },
     "files": [
       "main.cjs",
+      "backend-runtime.cjs",
       "startup-environment.cjs",
       "preload.cjs",
       "account-session.cjs",

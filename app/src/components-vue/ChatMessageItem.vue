@@ -9,6 +9,7 @@ import AkLoadingMark from '@/components-vue/AkLoadingMark.vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import { redactProviderCredentials } from '@/lib/redaction'
 import { isBlankAssistantMessage } from '@/lib/chatActivity'
+import { toolBudgetToolName } from '@/lib/toolBudget'
 import type { Message } from '@/types'
 
 const props = defineProps<{
@@ -66,7 +67,7 @@ const timeLabel = computed(() => (
 
 <template>
   <article
-    v-if="!isBlankAssistantMessage(message)"
+    v-if="!isBlankAssistantMessage(message) && !(message.toolName === toolBudgetToolName && message.approvalState === 'pending')"
     class="mb-7 min-w-0"
     :class="message.role === 'user' ? 'ml-auto max-w-[82%]' : 'max-w-full'"
   >

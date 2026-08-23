@@ -525,6 +525,15 @@ export function agentRuntimeErrorMessage(value: unknown) {
   ) {
     return '该模型仅支持 Claude Code 客户端，请改选 OpenAI 兼容模型。'
   }
+  if (/运行时正在启动/i.test(raw)) {
+    return '运行时正在启动，请稍候。'
+  }
+  if (/正在恢复运行时/i.test(raw)) {
+    return '正在恢复运行时。'
+  }
+  if (/Go runtime is unavailable|本地运行时已停止|本地运行时不可用/i.test(raw)) {
+    return '本地运行时已停止，请重新打开应用。'
+  }
   if (/\b401\b|unauthori[sz]ed|invalid api key|authentication failed/i.test(raw)) {
     return '模型凭据无效或无权访问。'
   }
@@ -1466,6 +1475,30 @@ export function useConversations() {
     }
   }
 
+  function settleRunsForRuntimeRecovery() {
+    const running = [...runningIds.value]
+    if (!running.length) return
+    for (const id of running) {
+      setMessageQueue(id, { steering: [], followUp: [] })
+      finishRun(id)
+      update(id, conversation => {
+        const messages = [...conversation.messages]
+        const settledTools = settleRunningToolMessages(messages)
+        const cleaned = withoutBlankAssistantMessages(settledTools)
+        if (cleaned[cleaned.length - 1]?.content !== '本轮已停止。') {
+          cleaned.push({
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: '本轮已停止。',
+            timestamp: Date.now(),
+            status: 'done',
+          })
+        }
+        return { ...conversation, messages: cleaned }
+      })
+    }
+  }
+
   async function compactContext() {
     const conversationId = activeId.value
     if (!conversationId || continuity.value.compacting.has(conversationId)) return
@@ -2012,6 +2045,7 @@ export function useConversations() {
     listen,
     send,
     abort,
+    settleRunsForRuntimeRecovery,
     compactContext,
     controlGoal,
     respondApproval,

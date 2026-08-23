@@ -12,6 +12,7 @@ import {
   formatElapsedMs,
   formatHitRate,
   formatTokenCount,
+  contextOccupancyShares,
   presentContextUsage,
   presentRunTiming,
 } from '@/lib/sessionTurnStatus'
@@ -181,6 +182,26 @@ describe('sessionTurnStatus', () => {
       cacheReadLabel: '150',
       hitRateLabel: '50%',
       turns: 2,
+    })
+  })
+
+  it('splits occupancy into uncached and cache-read shares that sum to percent', () => {
+    expect(contextOccupancyShares(12_000, 8_000, 100_000)).toEqual({
+      percent: 20,
+      uncachedPercent: 12,
+      cachePercent: 8,
+    })
+    let state = applySessionContextWindow(emptySessionTurnSnapshot(), 100_000)
+    state = applySessionUsageRecorded(state, {
+      inputTokens: 12_000,
+      outputTokens: 10,
+      cacheReadTokens: 8_000,
+      totalTokens: 20_010,
+    })
+    expect(presentContextUsage(state)).toMatchObject({
+      percent: 20,
+      uncachedPercent: 12,
+      cachePercent: 8,
     })
   })
 })

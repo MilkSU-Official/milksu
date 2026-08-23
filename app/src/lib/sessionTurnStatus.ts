@@ -269,6 +269,10 @@ export interface ContextUsagePresentation {
   strip: string
   /** Percent of context window used by last prompt (input+cache), 0–100 when known. */
   percent?: number
+  /** Uncached last-prompt share of the window, 0–percent. Sums with cachePercent. */
+  uncachedPercent?: number
+  /** Cache-read share of the window, 0–percent. Provider-native, not a file/search split. */
+  cachePercent?: number
   /** True when last usage is near the window. */
   nearLimit: boolean
   inputLabel: string
@@ -293,6 +297,29 @@ export function formatHitRate(cacheReadTokens: number, promptTokens: number): st
   if (percent >= 99.5 && read < prompt) return '99%'
   if (percent >= 10) return `${Math.round(percent)}%`
   return `${percent.toFixed(1).replace(/\.0$/, '')}%`
+}
+
+/** Split last-prompt occupancy into Provider-native uncached vs cache-read shares. */
+export function contextOccupancyShares(
+  uncachedTokens: number,
+  cacheReadTokens: number,
+  windowTokens: number,
+): { percent: number, uncachedPercent: number, cachePercent: number } | undefined {
+  const window = nonNegativeInt(windowTokens)
+  if (!window) return undefined
+  const uncached = nonNegativeInt(uncachedTokens)
+  const cacheRead = nonNegativeInt(cacheReadTokens)
+  const occupied = uncached + cacheRead
+  const percent = Math.min(100, Math.round((occupied / window) * 100))
+  if (percent <= 0) return { percent: 0, uncachedPercent: 0, cachePercent: 0 }
+  const cachePercent = occupied > 0
+    ? Math.min(percent, Math.round(percent * (cacheRead / occupied)))
+    : 0
+  return {
+    percent,
+    uncachedPercent: percent - cachePercent,
+    cachePercent,
+  }
 }
 
 function presentUsageBreakdown(
@@ -337,12 +364,11 @@ export function presentContextUsage(
   const totalLabel = formatTokenCount(usage.totalTokens || input + output)
   const windowLabel = window ? formatTokenCount(window) : ''
   const ioLabel = `↑${inputLabel} ↓${outputLabel}`
-  let percent: number | undefined
-  let nearLimit = false
-  if (window && window > 0) {
-    percent = Math.min(100, Math.round((input / window) * 100))
-    nearLimit = percent >= 85
-  }
+  const occupancy = window && window > 0
+    ? contextOccupancyShares(usage.inputTokens, usage.cacheReadTokens, window)
+    : undefined
+  const percent = occupancy?.percent
+  const nearLimit = (percent ?? 0) >= 85
   const ratio = windowLabel ? `${inputLabel}/${windowLabel}` : ''
   const compactingMark = compacting ? ' · 整理中' : ''
   const strip = ratio
@@ -355,6 +381,8 @@ export function presentContextUsage(
   return {
     strip,
     percent,
+    uncachedPercent: occupancy?.uncachedPercent,
+    cachePercent: occupancy?.cachePercent,
     nearLimit,
     inputLabel,
     outputLabel,
