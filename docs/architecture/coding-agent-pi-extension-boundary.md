@@ -170,7 +170,7 @@ flowchart TB
 
 | 资源 | 固定版本 | 当前代码证据 | 当前验收 |
 | --- | --- | --- | --- |
-| Pi Coding Agent | `0.83.0` | `package.json`、`scripts/package-sidecar.mjs` | Sidecar 打包 / Smoke 已有 |
+| Pi Coding Agent | `0.84.1` | `package.json`、`scripts/package-sidecar.mjs` | Sidecar 打包 / Smoke 已有 |
 | `frontend-visual-qa` | first-party | `skills/frontend-visual-qa`、`sidecar/pi/bridge-skills.js`、Composer Skill 状态 | **Verified narrow task**：要求测试、真实预览和沙箱 Browser 证据；打包 Sidecar 加载且 CTF 负向隔离 |
 | Archify | `2.12.0`，commit `7b49d0b…` | `third_party/archify`、`sidecar/pi/bridge.js`、Sidecar manifest、Composer 产品动作 | **Verified**：真实打包 App 一键生成固定 JSON/HTML、9/9、0 error、0 warning，并在右侧预览 |
 | `@narumitw/pi-lsp` | `0.29.0` | `sidecar/pi/bridge-resource-policy.js`、`sidecar/pi/bridge-lsp.js`、`sidecar/pi/bridge.js`、`package-lock.json`、Sidecar `lsp-runtime` | 项目命令覆盖和凭据继承已阻断；TypeScript `5.3.0`、Vue `3.3.9`、SDK `6.0.3` 与官方 `gopls 0.23.0` 固定随包；真实原生 fixture 分别返回 `TS2322 @ 1:14` 与 `compiler.IncompatibleAssign @ 3:21`；TypeScript `source.organizeImports` 已验自动应用、精确 Diff、批准/拒绝和写后复核 |

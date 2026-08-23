@@ -123,7 +123,9 @@
 
 ## 未发版改动：晚于 `v26.823.1` / `efeda10` 的 `main`
 
-文档收口提交不移动该 tag。目前没有晚于该 tag 的产品改动。
+文档收口提交不移动该 tag。鸣谢与开源组件明细已在 `main`，不算产品改动。
+
+- Pi Runtime 从 `0.83.0` 钉到 `0.84.1`（`pi-coding-agent` / `pi-ai` / `pi-tui` 对齐）。rebase 了子 Agent Darwin 禁网、关闭项目资源发现、剥 Key 三处 patch。卫星扩展（lsp / goal / MCP / 后台任务）未动。Sidecar 单元测试 334 通过。未跟 Dependabot #30 升到 `0.84.2`：那一版主要是 TUI/`defaultTools`，且没有 rebase patch。
 
 ## 当前产品事实
 
