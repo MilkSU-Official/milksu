@@ -78,6 +78,7 @@ async function ensureBetaIcon() {
 }
 
 async function buildRuntime() {
+  await run(managedNode, [join(root, 'scripts', 'build-plugins.mjs')])
   await run('npm', ['--prefix', 'app', 'run', 'build'])
   await mkdir(join(root, 'build', 'desktop'), { recursive: true })
   if (process.platform === 'darwin') {
@@ -344,12 +345,13 @@ async function buildApp() {
 }
 
 async function startDevelopment() {
-  await buildRuntime()
+  if (!process.argv.includes('--no-build')) await buildRuntime()
   await run('npm', ['--prefix', 'desktop', 'start'], {
     env: {
       ...process.env,
       MILKSU_CHANNEL: 'stable',
       MILKSU_DESKTOP_APP_ID: STABLE_APP_ID,
+      MILKSU_PLUGIN_DEV: '1',
     },
   })
 }

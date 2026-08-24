@@ -21,6 +21,9 @@ function desktopBackendEnvironment(environment = process.env, options = {}) {
     ...environment,
     MILKSU_CHANNEL: String(options.channel ?? ''),
     MILKSU_DESKTOP_APP_ID: String(options.appId ?? ''),
+    // Runtime compatibility checks use the application version, not the
+    // independently-built Go helper version.
+    MILKSU_APP_VERSION: String(options.appVersion ?? ''),
     // Always replace caller input with the actual Electron main-process PID.
     // The Go runtime uses it only to exclude the controlling MilkSU window.
     MILKSU_DESKTOP_HOST_PID: String(hostPid),

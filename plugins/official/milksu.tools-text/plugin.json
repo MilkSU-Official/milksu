@@ -1,0 +1,81 @@
+{
+  "id": "milksu.tools-text",
+  "name": "本地文本工具",
+  "version": "1.0.0",
+  "apiVersion": "milksu.plugin/v1",
+  "publisher": { "name": "MilkSU Official" },
+  "host": {
+    "minVersion": "26.823.1",
+    "requiredCapabilities": [
+      "runtime.typescript.v1",
+      "agent.read-tools.v1",
+      "mcp.external-read.v1"
+    ]
+  },
+  "storageVersion": 1,
+  "runtime": { "kind": "typescript", "entry": "main.mjs" },
+  "permissions": ["agent.tools", "mcp.external.read"],
+  "contributes": {
+    "tools": [
+      {
+        "name": "text_stats",
+        "description": "Count Unicode characters, UTF-8 bytes, words and lines in local text.",
+        "inputSchema": {
+          "type": "object",
+          "properties": { "text": { "type": "string", "maxLength": 262144 } },
+          "required": ["text"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "characters": { "type": "integer" },
+            "bytes": { "type": "integer" },
+            "words": { "type": "integer" },
+            "lines": { "type": "integer" }
+          },
+          "required": ["characters", "bytes", "words", "lines"],
+          "additionalProperties": false
+        },
+        "effect": "read",
+        "external": "read"
+      },
+      {
+        "name": "base64_encode",
+        "description": "Encode local UTF-8 text as standard Base64 without network access.",
+        "inputSchema": {
+          "type": "object",
+          "properties": { "text": { "type": "string", "maxLength": 262144 } },
+          "required": ["text"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": { "value": { "type": "string" } },
+          "required": ["value"],
+          "additionalProperties": false
+        },
+        "effect": "read",
+        "external": "read"
+      },
+      {
+        "name": "base64_decode",
+        "description": "Decode canonical standard Base64 into local UTF-8 text.",
+        "inputSchema": {
+          "type": "object",
+          "properties": { "value": { "type": "string", "maxLength": 349528 } },
+          "required": ["value"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": { "text": { "type": "string" } },
+          "required": ["text"],
+          "additionalProperties": false
+        },
+        "effect": "read",
+        "external": "read"
+      }
+    ]
+  }
+}

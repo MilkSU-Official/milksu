@@ -1,0 +1,9 @@
+{
+  "default": {
+    "background_opacity": 0.22,
+    "background_blur": 0,
+    "surface_opacity": 0.88
+  },
+  "light": {},
+  "dark": {}
+}

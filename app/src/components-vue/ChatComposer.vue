@@ -1212,7 +1212,7 @@ defineExpose({
 </script>
 
 <template>
-  <div class="chat-composer shrink-0 border-t border-border bg-surface-editor px-4 pb-3 pt-2">
+  <div class="chat-composer shrink-0 border-t border-border bg-surface-editor px-4 pb-3 pt-2" data-plugin-surface="chat-composer">
     <div ref="composerFrame" class="chat-composer__frame mx-auto w-full max-w-5xl">
       <div
         v-if="slashMenuOpen"

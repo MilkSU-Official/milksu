@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://milksu.dev/schemas/plugin/runtime-invocation-v1.schema.json",
+  "title": "MilkSU Runtime Invocation v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["abi", "input", "pluginId", "pluginVersion", "apiVersion", "hostVersion", "capabilities", "permissions", "source", "storageEnabled", "storage"],
+  "properties": {
+    "abi": { "enum": ["health_check", "call_ui", "call_tool", "migrate_storage"] },
+    "name": { "type": "string", "maxLength": 96 },
+    "input": {},
+    "pluginId": { "type": "string" },
+    "pluginVersion": { "type": "string" },
+    "apiVersion": { "enum": ["milksu.plugin/v1", "milksu.plugin/v1alpha1"] },
+    "hostVersion": { "type": "string" },
+    "capabilities": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "permissions": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "source": { "enum": ["official", "installed", "development"] },
+    "storageEnabled": { "type": "boolean" },
+    "storage": { "type": "object", "maxProperties": 64 }
+  }
+}

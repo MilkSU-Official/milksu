@@ -2,11 +2,11 @@
 import { ref } from 'vue'
 import AppSidebar from '@/components-vue/AppSidebar.vue'
 import SettingsPage from '@/components-vue/SettingsPage.vue'
-import { applyThemeMode, type ThemeMode } from '@/lib/themeMode'
+import { applyThemeMode, type ResolvedThemeMode } from '@/lib/themeMode'
 import { withAppSettingsDefaults, type AppSettings } from '@/types'
 import type { SecurityToolSetupSnapshot, SecurityToolSnapshot } from '@/securityToolsTypes'
 
-const theme = ref<ThemeMode>('dark')
+const theme = ref<ResolvedThemeMode>('dark')
 const settings = ref(withAppSettingsDefaults({} as AppSettings))
 const setupListeners = new Set<(value: unknown) => void>()
 
@@ -109,6 +109,7 @@ Object.defineProperty(window, 'milksu', {
     />
     <SettingsPage
       :settings="settings"
+      :resolved-theme="theme"
       initial-category="security-tools"
       @settings-change="settings = $event"
     />

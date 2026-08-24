@@ -321,11 +321,83 @@ body {
   background-color: var(--background);
 }
 
+.plugin-skin-background {
+  transform: scale(1.03);
+  transform-origin: center;
+}
+
+.plugin-skin-canvas {
+  background-color: var(--background);
+}
+
 :root[data-theme='light'] .tactical-page,
 :root[data-theme='light'] .chat-main,
 :root[data-theme='light'] .settings-page,
 :root[data-theme='light'] .profile-page {
   background-color: var(--background);
+}
+
+.plugin-wallpaper-active .chat-page,
+.plugin-wallpaper-active .chat-main,
+.plugin-wallpaper-active .ctf-page,
+.plugin-wallpaper-active .ctf-problem-surface,
+:root[data-theme='light'] .plugin-wallpaper-active .chat-page,
+:root[data-theme='light'] .plugin-wallpaper-active .chat-main,
+:root[data-theme='light'] .plugin-wallpaper-active .ctf-page,
+:root[data-theme='light'] .plugin-wallpaper-active .ctf-problem-surface {
+  background-color: transparent;
+}
+
+/* Stable MilkSU plugin/v1 surface anchors. Host-owned states (danger,
+   disabled, focus and selected rows) remain layered above these backgrounds. */
+.plugin-surface-workspace-list-active [data-plugin-surface='workspace-list'] {
+  background: var(--plugin-workspace-list-background, var(--card)) center / cover no-repeat !important;
+  color: var(--plugin-workspace-list-foreground, inherit);
+  backdrop-filter: blur(var(--plugin-workspace-list-blur, 0));
+}
+
+.plugin-surface-workspace-list-active [data-plugin-surface='workspace-list'] :is(
+  .challenge-row,
+  [data-slot='table-row'],
+  [data-slot='item'],
+  [data-slot='settings-section'],
+  [data-slot='settings-row'],
+  .rounded-menu-shell,
+  .plugin-settings-row
+) {
+  background-color: transparent;
+}
+
+.plugin-surface-control-button-active [data-button]:not([data-variant='destructive']):not([data-variant='link']):not([data-variant='link-static']):not([data-variant='link-draw']):not(:disabled) {
+  background: var(--plugin-control-button-background, var(--secondary)) center / cover no-repeat !important;
+  color: var(--plugin-control-button-foreground, currentColor);
+  backdrop-filter: blur(var(--plugin-control-button-blur, 0));
+}
+
+.plugin-surface-workspace-topbar-active [data-plugin-surface='workspace-topbar'] {
+  background: var(--plugin-workspace-topbar-background, var(--surface-editor)) center / cover no-repeat !important;
+  color: var(--plugin-workspace-topbar-foreground, inherit);
+  backdrop-filter: blur(var(--plugin-workspace-topbar-blur, 0));
+}
+
+:root.plugin-surface-overlay-menu-active :is(
+  [data-slot='select-content'],
+  [data-slot='dropdown-menu-content'],
+  [data-slot='dropdown-menu-sub-content'],
+  [data-slot='context-menu-content'],
+  [data-slot='context-menu-sub-content'],
+  [data-slot='popover-content'],
+  [data-slot='hover-card-content']
+) {
+  background: var(--plugin-overlay-menu-background, var(--popover)) center / cover no-repeat !important;
+  color: var(--plugin-overlay-menu-foreground, var(--popover-foreground));
+  backdrop-filter: blur(var(--plugin-overlay-menu-blur, 0));
+}
+
+.plugin-surface-chat-composer-active [data-plugin-surface='chat-composer'] {
+  background: var(--plugin-chat-composer-background, var(--surface-composer)) center / cover no-repeat !important;
+  color: var(--plugin-chat-composer-foreground, inherit);
+  backdrop-filter: blur(var(--plugin-chat-composer-blur, 0));
 }
 
 .game-surface {
@@ -759,4 +831,42 @@ pre,
 [data-slot="hover-card-content"],
 .tactical-floating-surface {
   border-radius: 2px !important;
+}
+
+/* Plugin/v1 button surface layering.
+ *
+ * The shared Button paints its resting and interaction chrome on ::before.
+ * A plugin image lives on the component box itself, so leaving that pseudo
+ * element opaque would cover the image with the original primary/brand color.
+ * Keep the image/solid as the component layer, then reuse the neutral UI
+ * overlays as a separate state layer above it. Focus, danger and disabled
+ * chrome intentionally remain host-owned and are excluded here. */
+.plugin-surface-control-button-active [data-button]
+  :where([data-button-content], [data-button-leading-spinner], [data-button-spinner]) {
+  color: inherit;
+}
+
+.plugin-surface-control-button-active [data-button]
+  :where([data-button-content], [data-button-leading-spinner], [data-button-spinner]) > * {
+  color: inherit;
+}
+
+.plugin-surface-control-button-active [data-button]:not([data-variant='destructive']):not([data-variant='link']):not([data-variant='link-static']):not([data-variant='link-draw']):not(:disabled) {
+  color: var(--plugin-control-button-foreground, var(--foreground)) !important;
+}
+
+.plugin-surface-control-button-active [data-button]:not([data-variant='destructive']):not([data-variant='link']):not([data-variant='link-static']):not([data-variant='link-draw']):not(:disabled)::before {
+  background-color: var(--overlay-clear) !important;
+}
+
+.plugin-surface-control-button-active [data-button]:not([data-variant='destructive']):not([data-variant='link']):not([data-variant='link-static']):not([data-variant='link-draw']):not(:disabled)[data-ui-selected]::before {
+  background-color: var(--selected-bg) !important;
+}
+
+.plugin-surface-control-button-active [data-button]:not([data-variant='destructive']):not([data-variant='link']):not([data-variant='link-static']):not([data-variant='link-draw']):not(:disabled):is(:hover, [data-state='open'], [aria-expanded='true'])::before {
+  background-color: var(--ui-hover) !important;
+}
+
+.plugin-surface-control-button-active [data-button]:not([data-variant='destructive']):not([data-variant='link']):not([data-variant='link-static']):not([data-variant='link-draw']):not(:disabled):active::before {
+  background-color: var(--ui-pressed) !important;
 }

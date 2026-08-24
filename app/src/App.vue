@@ -10,7 +10,9 @@ import {
   applyThemeMode,
   nextThemeMode,
   readThemeMode,
+  resolveThemeMode,
   writeThemeMode,
+  type ResolvedThemeMode,
   type ThemeMode,
 } from '@/lib/themeMode'
 import { settingsReturnSection, type CTFWorkspaceSection } from '@/lib/workspaceNavigation'
@@ -39,6 +41,12 @@ import { installAppModelSettings, installModelCatalog, loadModelCatalog } from '
 import type { SecurityToolCodingHandoff } from '@/securityToolsTypes'
 import CodingToolBudgetDialog from '@/components-vue/CodingToolBudgetDialog.vue'
 import { toolBudgetToolName } from '@/lib/toolBudget'
+import type {
+  ActivePluginTheme,
+  PluginSurfaceSlot,
+  PluginSurfaceStyle,
+  PluginThemeTokens,
+} from '@/pluginTypes'
 
 const ChatPage = defineAsyncComponent(() => import('@/components-vue/ChatPage.vue'))
 const AccountLoginPage = defineAsyncComponent(() => import('@/components-vue/AccountLoginPage.vue'))
@@ -51,10 +59,12 @@ const LabPage = defineAsyncComponent(() => import('@/components-vue/LabPage.vue'
 type Section = 'chat' | 'ctf' | 'vuln' | 'lab' | 'profile' | 'settings'
 
 const restoredViewState = readWorkspaceViewState()
+const openPluginSettingsOnStartup = typeof location !== 'undefined'
+  && new URLSearchParams(location.search).get('open-settings') === 'plugins'
 const conversations = useConversations()
 const vulnerabilityDashboard = useVulnerabilityDashboard()
 const labJobs = useLabJobs()
-const section = ref<Section>(restoredViewState?.section ?? 'ctf')
+const section = ref<Section>(openPluginSettingsOnStartup ? 'settings' : restoredViewState?.section ?? 'ctf')
 // Coding history is a fixed left panel (not a floating drawer); open by default.
 const codingConversationDrawerOpen = ref(restoredViewState?.codingHistoryOpen ?? true)
 const ctfSection = ref<CTFWorkspaceSection>(restoredViewState?.ctfSection ?? 'catalog')
@@ -68,8 +78,8 @@ const activeVulnerabilityCodingConversationId = ref<string | null>(null)
 // currently active Coding or CTF conversation workspace implicitly.
 const vulnerabilityCodingWorkspacePath = ref('')
 const settingsReturnTarget = ref<Exclude<Section, 'settings'>>(restoredViewState?.settingsReturnTarget ?? 'ctf')
-type SettingsCategory = 'general' | 'coding' | 'apikeys' | 'browser' | 'cve' | 'chats' | 'security-tools'
-const settingsCategory = ref<SettingsCategory>('general')
+type SettingsCategory = 'general' | 'coding' | 'apikeys' | 'browser' | 'ctf' | 'cve' | 'chats' | 'security-tools' | 'plugins'
+const settingsCategory = ref<SettingsCategory>(openPluginSettingsOnStartup ? 'plugins' : 'general')
 const settings = ref<AppSettings | null>(null)
 const accountStatus = ref<AccountStatus>({ configured: false, authenticated: false, state: 'unconfigured' })
 const accountLoaded = ref(false)
@@ -98,6 +108,27 @@ const continueWithoutAccount = ref(readLocalAccountMode())
 const updateStatus = ref<UpdateStatus | null>(null)
 const dismissedUpdateVersion = ref('')
 const themeMode = ref<ThemeMode>(readThemeMode())
+const systemDark = ref(false)
+function normalizeActivePluginTheme(value: ActivePluginTheme | null | undefined): ActivePluginTheme {
+  const slots: PluginSurfaceSlot[] = [
+    'content-wallpaper', 'workspace-list', 'control-button',
+    'workspace-topbar', 'overlay-menu', 'chat-composer',
+  ]
+  const surfaces = Object.fromEntries(slots.map(slot => [slot, { mode: 'inherit' }])) as Record<PluginSurfaceSlot, PluginSurfaceStyle>
+  if (!value) return { tokens: {}, surfaces }
+  Object.assign(surfaces, value.surfaces ?? {})
+  if (value.background_data_url && surfaces['content-wallpaper'].mode === 'inherit') {
+    surfaces['content-wallpaper'] = {
+      mode: 'image', asset_url: value.background_data_url,
+      image_opacity: value.background_opacity ?? value.tokens?.background_opacity ?? 0.22,
+      blur: value.tokens?.background_blur ?? 0,
+      light_mask: { color: '#ffffff', opacity: 0.12 },
+      dark_mask: { color: '#000000', opacity: 0.22 },
+    }
+  }
+  return { ...value, tokens: value.tokens ?? {}, surfaces }
+}
+const pluginTheme = ref<ActivePluginTheme>(normalizeActivePluginTheme(null))
 let unlistenAccount: (() => void) | undefined
 let unlistenModelCatalog: (() => void) | undefined
 let unlistenUpdate: (() => void) | undefined
@@ -133,9 +164,132 @@ function stopToolBudget() {
   if (!prompt) return
   void conversations.respondApproval(prompt.requestId, false)
 }
+let unlistenPluginTheme: (() => void) | undefined
 let systemThemeMedia: MediaQueryList | undefined
 let systemThemeListener: (() => void) | undefined
 const workspaceViewStateReady = ref(false)
+const resolvedTheme = computed<ResolvedThemeMode>(() => resolveThemeMode(themeMode.value, systemDark.value))
+
+const resolvedPluginTokens = computed<PluginThemeTokens>(() => {
+  return {
+    ...pluginTheme.value.tokens,
+    ...(resolvedTheme.value === 'dark' ? pluginTheme.value.dark_tokens : pluginTheme.value.light_tokens),
+  }
+})
+
+const pluginRootStyle = computed<Record<string, string>>(() => {
+  if (!pluginTheme.value.plugin_id) return {}
+  const tokens = resolvedPluginTokens.value
+  const style: Record<string, string> = {}
+  const assign = (names: string[], value?: string) => {
+    if (!value) return
+    for (const name of names) style[name] = value
+  }
+  assign(['--background', '--surface-editor'], tokens.canvas)
+  assign(['--card', '--popover', '--surface-composer'], tokens.surface)
+  assign(['--foreground', '--card-foreground', '--popover-foreground'], tokens.foreground)
+  assign(['--muted-foreground'], tokens.muted_foreground)
+  assign(['--brand', '--primary', '--ring'], tokens.accent)
+  assign(['--border', '--input', '--border-hairline'], tokens.border)
+  const surfaceOpacity = tokens.surface_opacity || 0.88
+  style['--plugin-surface-percent'] = `${Math.round(Math.min(1, Math.max(0.55, surfaceOpacity)) * 100)}%`
+  const fallback: Record<Exclude<PluginSurfaceSlot, 'content-wallpaper'>, string> = {
+    'workspace-list': 'var(--card)',
+    'control-button': 'var(--secondary)',
+    'workspace-topbar': 'var(--surface-editor)',
+    'overlay-menu': 'var(--popover)',
+    'chat-composer': 'var(--surface-composer)',
+  }
+  for (const slot of Object.keys(fallback) as Array<Exclude<PluginSurfaceSlot, 'content-wallpaper'>>) {
+    const surface = pluginTheme.value.surfaces?.[slot]
+    if (!surface || surface.mode === 'inherit') continue
+    const prefix = `--plugin-${slot}`
+    style[`${prefix}-background`] = surfaceBackground(surface, fallback[slot])
+    style[`${prefix}-foreground`] = surfaceForeground(surface)
+    style[`${prefix}-blur`] = `${Math.min(24, Math.max(0, surface.blur ?? 0))}px`
+  }
+  return style
+})
+
+const solidColors: Record<string, string> = {
+  paper: '#f4f1e8', graphite: '#252525', black: '#000000', cyan: '#008ccf',
+  gold: '#f5c842', gray: '#6b7280',
+}
+
+function surfaceColor(surface: PluginSurfaceStyle) {
+  return surface.solid === 'custom' ? surface.custom_color : solidColors[surface.solid ?? '']
+}
+
+function maskColor(surface: PluginSurfaceStyle) {
+  const mask = resolvedTheme.value === 'dark' ? surface.dark_mask : surface.light_mask
+  const color = /^#[0-9a-f]{6}$/iu.test(mask?.color ?? '') ? mask?.color : resolvedTheme.value === 'dark' ? '#000000' : '#ffffff'
+  const opacity = Math.min(1, Math.max(0, mask?.opacity ?? 0))
+  return `${color}${Math.round(opacity * 255).toString(16).padStart(2, '0')}`
+}
+
+function contrastingForeground(color?: string) {
+  if (!/^#[0-9a-f]{6}$/iu.test(color ?? '')) return resolvedTheme.value === 'dark' ? '#f8f8f5' : '#101c2b'
+  const channels = [1, 3, 5].map(offset => Number.parseInt(color!.slice(offset, offset + 2), 16) / 255)
+  const linear = channels.map(value => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4)
+  const luminance = 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+  return (luminance + 0.05) / 0.05 >= 1.05 / (luminance + 0.05) ? '#101c2b' : '#f8f8f5'
+}
+
+function surfaceForeground(surface: PluginSurfaceStyle) {
+  // A validated solid color may carry a host-computed foreground. Image
+  // foregrounds cannot be static: the same asset is recomposited with a
+  // different mask and base surface when the resolved theme changes.
+  if (surface.mode === 'solid') return surface.foreground || contrastingForeground(surfaceColor(surface))
+  const mask = resolvedTheme.value === 'dark' ? surface.dark_mask : surface.light_mask
+  // A strong mask, rather than the unknown pixels below it, owns contrast.
+  // With a lighter mask the theme foreground remains the predictable choice.
+  if ((mask?.opacity ?? 0) >= 0.45) return contrastingForeground(mask?.color)
+  return resolvedTheme.value === 'dark' ? '#f8f8f5' : '#101c2b'
+}
+
+function surfaceBackground(surface: PluginSurfaceStyle, fallback: string) {
+  if (surface.mode === 'solid') return surfaceColor(surface) || fallback
+  if (surface.mode !== 'image' || !surface.asset_url) return fallback
+  const visibility = Math.min(0.6, Math.max(0, surface.image_opacity ?? 0.22))
+  const cover = Math.round((1 - visibility) * 100)
+  return `linear-gradient(${maskColor(surface)}, ${maskColor(surface)}), linear-gradient(color-mix(in srgb, ${fallback} ${cover}%, transparent), color-mix(in srgb, ${fallback} ${cover}%, transparent)), url("${surface.asset_url}")`
+}
+
+const contentSurface = computed<PluginSurfaceStyle>(() => pluginTheme.value.surfaces?.['content-wallpaper'] ?? { mode: 'inherit' })
+const pluginBackgroundStyle = computed<Record<string, string>>(() => {
+  const surface = contentSurface.value
+  const style: Record<string, string> = {}
+  if (surface.mode !== 'image' || !surface.asset_url) return style
+  style.backgroundImage = `url("${surface.asset_url}")`
+  style.opacity = String(Math.min(0.6, Math.max(0, surface.image_opacity ?? 0.22)))
+  style.filter = `blur(${Math.min(24, Math.max(0, surface.blur ?? 0))}px)`
+  return style
+})
+const pluginContentMaskStyle = computed<Record<string, string>>(() => {
+  const surface = contentSurface.value
+  const style: Record<string, string> = {}
+  if (surface.mode === 'solid') style.backgroundColor = surfaceColor(surface) || 'var(--background)'
+  if (surface.mode === 'image') style.backgroundColor = maskColor(surface)
+  return style
+})
+
+function surfaceActive(slot: PluginSurfaceSlot) {
+  return (pluginTheme.value.surfaces?.[slot]?.mode ?? 'inherit') !== 'inherit'
+}
+
+const documentPluginSurfaceProperties = new Set<string>()
+function syncDocumentPluginSurfaces() {
+  if (typeof document === 'undefined') return
+  for (const property of documentPluginSurfaceProperties) document.documentElement.style.removeProperty(property)
+  documentPluginSurfaceProperties.clear()
+  for (const [property, value] of Object.entries(pluginRootStyle.value)) {
+    if (!property.startsWith('--plugin-')) continue
+    document.documentElement.style.setProperty(property, value)
+    documentPluginSurfaceProperties.add(property)
+  }
+  document.documentElement.classList.toggle('plugin-surface-overlay-menu-active', surfaceActive('overlay-menu'))
+}
+watch([pluginRootStyle, resolvedTheme], syncDocumentPluginSurfaces, { immediate: true })
 
 function persistWorkspaceViewState() {
   if (!workspaceViewStateReady.value) return
@@ -814,7 +968,9 @@ onMounted(async () => {
   applyThemeMode(themeMode.value)
   if (typeof window.matchMedia === 'function') {
     systemThemeMedia = window.matchMedia('(prefers-color-scheme: dark)')
+    systemDark.value = systemThemeMedia.matches
     systemThemeListener = () => {
+      systemDark.value = systemThemeMedia?.matches ?? false
       if (themeMode.value === 'system') applyThemeMode('system')
     }
     systemThemeMedia.addEventListener('change', systemThemeListener)
@@ -859,7 +1015,10 @@ onMounted(async () => {
   }>('workspace-record.changed', event => {
     applyWorkspaceRecord(event.payload ?? {})
   })
-  // Four parallel RPCs; accountLoaded only flips after loadAccountStatus finishes.
+  unlistenPluginTheme = await listenEvent<ActivePluginTheme | null>('plugin-theme-changed', event => {
+    pluginTheme.value = normalizeActivePluginTheme(event.payload)
+  })
+  // Parallel bootstrap RPCs; accountLoaded only flips after loadAccountStatus finishes.
   // After bootstrap, GetAccountStatus is non-blocking (provisional or cache).
   const parallelStarted = performance.now()
   async function measure(label: string, work: () => Promise<unknown>) {
@@ -869,18 +1028,21 @@ onMounted(async () => {
     startupLog(label, `${ms}ms`)
     return ms
   }
-  const [catalogMs, settingsMs, accountMs, conversationsMs] = await Promise.all([
+  const [catalogMs, settingsMs, accountMs, conversationsMs, pluginThemeMs] = await Promise.all([
     measure('rpc.loadModelCatalog', () => loadModelCatalog()),
     measure('rpc.loadSettings', () => loadSettings()),
     measure('rpc.loadAccountStatus', () => loadAccountStatus()),
     measure('rpc.conversations.load', () => conversations.load()),
+    measure('rpc.pluginTheme', () => invokeCommand<ActivePluginTheme | null>('get_active_plugin_theme')
+      .then(value => { pluginTheme.value = normalizeActivePluginTheme(value) })
+      .catch(() => {})),
   ])
   await hydrateLabJobsFromBackend()
   const parallelWallMs = Math.round(performance.now() - parallelStarted)
-  const slowest = Math.max(catalogMs, settingsMs, accountMs, conversationsMs)
+  const slowest = Math.max(catalogMs, settingsMs, accountMs, conversationsMs, pluginThemeMs)
   startupLog(
     'renderer.parallelBootstrap',
-    `wall=${parallelWallMs}ms catalog=${catalogMs}ms settings=${settingsMs}ms account=${accountMs}ms conversations=${conversationsMs}ms slowest=${slowest}ms accountLoaded=${accountLoaded.value} provisional=${accountStatus.value.provisional === true}`,
+    `wall=${parallelWallMs}ms catalog=${catalogMs}ms settings=${settingsMs}ms account=${accountMs}ms conversations=${conversationsMs}ms pluginTheme=${pluginThemeMs}ms slowest=${slowest}ms accountLoaded=${accountLoaded.value} provisional=${accountStatus.value.provisional === true}`,
   )
   if (restoredViewState) {
     const restoredConversation = conversations.conversations.value.find(
@@ -908,6 +1070,11 @@ onBeforeUnmount(() => {
   unlistenUpdate?.()
   unlistenWorkspaceRecords?.()
   unlistenRuntime?.()
+  unlistenPluginTheme?.()
+  if (typeof document !== 'undefined') {
+    for (const property of documentPluginSurfaceProperties) document.documentElement.style.removeProperty(property)
+    document.documentElement.classList.remove('plugin-surface-overlay-menu-active')
+  }
   if (systemThemeMedia && systemThemeListener) {
     systemThemeMedia.removeEventListener('change', systemThemeListener)
   }
@@ -924,8 +1091,34 @@ onBeforeUnmount(() => {
     @login="startAccountLogin"
     @continue-local="useLocalAccountMode"
   />
-  <div v-else class="game-shell flex h-screen min-w-0 flex-col bg-surface-editor text-foreground">
+  <div
+    v-else
+    class="game-shell relative flex h-screen min-w-0 flex-col overflow-hidden bg-surface-editor text-foreground"
+    :class="{
+      'plugin-skin-active': Boolean(pluginTheme.plugin_id),
+      'plugin-wallpaper-active': surfaceActive('content-wallpaper'),
+      'plugin-surface-workspace-list-active': surfaceActive('workspace-list'),
+      'plugin-surface-control-button-active': surfaceActive('control-button'),
+      'plugin-surface-workspace-topbar-active': surfaceActive('workspace-topbar'),
+      'plugin-surface-overlay-menu-active': surfaceActive('overlay-menu'),
+      'plugin-surface-chat-composer-active': surfaceActive('chat-composer'),
+    }"
+    :style="pluginRootStyle"
+  >
+    <div
+      v-if="contentSurface.mode === 'image'"
+      aria-hidden="true"
+      class="plugin-skin-background pointer-events-none absolute inset-[-24px] z-0 bg-cover bg-center bg-no-repeat"
+      :style="pluginBackgroundStyle"
+    />
+    <div
+      v-if="surfaceActive('content-wallpaper')"
+      aria-hidden="true"
+      class="plugin-skin-canvas pointer-events-none absolute inset-0 z-0"
+      :style="pluginContentMaskStyle"
+    />
     <UpdateNotification
+      class="relative z-10"
       :status="updateStatus"
       :dismissed-version="dismissedUpdateVersion"
       @dismiss="dismissedUpdateVersion = $event"
@@ -934,17 +1127,17 @@ onBeforeUnmount(() => {
     />
     <p
       v-if="runtimeStatus === 'recovering' || runtimeStatus === 'starting'"
-      class="shrink-0 border-b border-border bg-card px-4 py-2 text-caption text-foreground"
+      class="relative z-10 shrink-0 border-b border-border bg-card px-4 py-2 text-caption text-foreground"
     >
       正在恢复运行时
     </p>
     <p
       v-else-if="runtimeStatus === 'exited'"
-      class="shrink-0 border-b border-border bg-card px-4 py-2 text-caption text-foreground"
+      class="relative z-10 shrink-0 border-b border-border bg-card px-4 py-2 text-caption text-foreground"
     >
       本地运行时已停止
     </p>
-    <div class="flex min-h-0 flex-1">
+    <div class="relative z-10 flex min-h-0 flex-1">
       <AppSidebar
         :active-section="sidebarSection"
         :active-conversation-id="conversations.activeId.value"
@@ -983,6 +1176,7 @@ onBeforeUnmount(() => {
         :settings="settings"
         :account-status="accountStatus"
         :vulnerability-dashboard="vulnerabilityDashboard"
+        :resolved-theme="resolvedTheme"
         @close="async () => { await loadSettings(); section = settingsReturnTarget }"
         @settings-change="applySettings"
         @account-login="startAccountLogin"

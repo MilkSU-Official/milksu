@@ -137,7 +137,7 @@ function difficultyLabel(value: number) {
 }
 
 function difficultyTag(value: number) {
-  if (!value || value <= 2.4) return ''
+  if (!value || value <= 2.4) return 'ak-tag--neutral'
   if (value <= 3.2) return 'ak-tag--advanced'
   return 'ak-tag--danger'
 }
@@ -149,7 +149,7 @@ function select(id: number) {
 </script>
 
 <template>
-  <section class="tactical-paper-surface flex h-full min-h-0 flex-col bg-card" aria-label="CTF 挑战列表">
+  <section class="ctf-challenge-list tactical-paper-surface flex h-full min-h-0 flex-col bg-card" aria-label="CTF 挑战列表" data-plugin-surface="workspace-list">
     <div class="tactical-desk-head grid h-12 shrink-0 grid-cols-[92px_minmax(0,1fr)_140px_110px_130px_42px_72px] items-center gap-4 border-b border-border px-6 text-caption text-muted-foreground">
       <span>#</span><span>题目</span><span>类别</span><span>难度</span><span>我的状态</span><span class="sr-only">收藏</span><span class="sr-only">打开</span>
     </div>
@@ -167,10 +167,10 @@ function select(id: number) {
             </span>
             <span class="min-w-0 select-text">
               <span class="truncate text-control font-medium">{{ problem.title }}</span>
-              <span v-if="dailyProblemID === problem.platformId" class="ak-tag ak-tag--advanced ml-3">每日挑战</span>
+              <span v-if="dailyProblemID === problem.platformId" class="ctf-catalog-tag ctf-catalog-tag--daily ak-tag ak-tag--advanced ml-3">每日挑战</span>
             </span>
-            <span class="ak-tag ak-tag--compact">{{ problem.category }}</span>
-            <span class="ak-tag ak-tag--compact" :class="difficultyTag(problem.difficulty)">{{ difficultyLabel(problem.difficulty) }}</span>
+            <span class="ctf-catalog-tag ctf-catalog-tag--category ak-tag ak-tag--compact">{{ problem.category }}</span>
+            <span class="ctf-catalog-tag ctf-catalog-tag--difficulty ak-tag ak-tag--compact" :class="difficultyTag(problem.difficulty)">{{ difficultyLabel(problem.difficulty) }}</span>
             <span class="text-caption" :class="statusFor(problem.platformId) === 'in_progress' ? 'text-primary' : 'text-muted-foreground'">{{ statusLabel(statusFor(problem.platformId)) }}</span>
             <CollectionPicker :item-key="collectionKey(problem.platformId)" :store="collectionStore" />
             <Button size="sm" variant="outline" data-testid="open-item" @click="select(problem.platformId)">打开</Button>
@@ -186,7 +186,7 @@ function select(id: number) {
           >
             <span class="font-mono text-caption text-muted-foreground">#{{ problem.platformId }}</span>
             <span class="min-w-0 truncate text-control font-medium select-text">{{ problem.title }}</span>
-            <span class="ak-tag ak-tag--compact">{{ problem.category }}</span>
+            <span class="ctf-catalog-tag ctf-catalog-tag--category ak-tag ak-tag--compact">{{ problem.category }}</span>
             <span class="text-caption text-primary">{{ problem.points }} 分</span>
             <span class="text-caption text-muted-foreground">{{ statusLabel(statusFor(problem.platformId)) }}</span>
             <CollectionPicker :item-key="collectionKey(problem.platformId)" :store="collectionStore" />
@@ -245,5 +245,31 @@ function select(id: number) {
 </template>
 
 <style scoped>
+.ctf-challenge-list {
+  background-color: var(--card);
+}
+
+.ctf-catalog-tag {
+  --ak-tag-surface: var(--surface-raised);
+  --ak-tag-text: var(--foreground);
+}
+
+.ctf-catalog-tag--category {
+  --ak-tag-signal: var(--brand);
+}
+
+.ctf-catalog-tag--daily,
+.ctf-catalog-tag--difficulty.ak-tag--advanced {
+  --ak-tag-signal: var(--signal-gold);
+}
+
+.ctf-catalog-tag--difficulty.ak-tag--danger {
+  --ak-tag-signal: var(--destructive);
+}
+
+.ctf-catalog-tag--difficulty.ak-tag--neutral {
+  --ak-tag-signal: var(--muted-foreground);
+}
+
 .challenge-row { position: relative; cursor: default; transition: background-color 140ms ease; }
 </style>

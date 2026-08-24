@@ -46,6 +46,7 @@ import {
   KeyRound,
   LogOut,
   Plus,
+  Puzzle,
   RotateCcw,
   Settings2,
   ShieldCheck,
@@ -90,6 +91,7 @@ import {
 } from '@/modelCatalog'
 import VulnerabilityIntelSettingsPanel from '@/components-vue/VulnerabilityIntelSettingsPanel.vue'
 import SecurityToolsSettingsPanel from '@/components-vue/SecurityToolsSettingsPanel.vue'
+import PluginSettingsPanel from '@/components-vue/PluginSettingsPanel.vue'
 import ModelVendorIcon from '@/components-vue/ModelVendorIcon.vue'
 import ArchivedConversationsSettings from '@/components-vue/ArchivedConversationsSettings.vue'
 import type { SecurityToolCodingHandoff } from '@/securityToolsTypes'
@@ -108,8 +110,9 @@ import {
   normalizeModelThinkingConfig,
   resolveModelThinking,
 } from '@/lib/modelThinking'
+import type { ResolvedThemeMode } from '@/lib/themeMode'
 
-type SettingsCategory = 'general' | 'apikeys' | 'ctf' | 'cve' | 'coding' | 'chats' | 'browser' | 'security-tools'
+type SettingsCategory = 'general' | 'apikeys' | 'ctf' | 'cve' | 'coding' | 'chats' | 'browser' | 'security-tools' | 'plugins'
 
 const settingsCategories = [
   { value: 'general', label: '通用', icon: Settings2 },
@@ -120,6 +123,7 @@ const settingsCategories = [
   { value: 'chats', label: '归档聊天', icon: Archive },
   { value: 'browser', label: '浏览器控制', icon: Globe2 },
   { value: 'security-tools', label: '安全工具', icon: ShieldCheck },
+  { value: 'plugins', label: '插件', icon: Puzzle },
 ] as const
 
 const props = defineProps<{
@@ -127,6 +131,7 @@ const props = defineProps<{
   initialCategory: SettingsCategory
   accountStatus?: AccountStatus
   vulnerabilityDashboard?: VulnerabilityDashboard
+  resolvedTheme: ResolvedThemeMode
 }>()
 
 const emit = defineEmits<{
@@ -1285,7 +1290,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
     </header>
 
     <div class="settings-layout flex min-h-0 flex-1">
-      <nav class="settings-nav settings-nav-surface app-no-drag w-56 shrink-0 border-r px-3 py-5" aria-label="设置分类">
+      <nav class="settings-nav settings-nav-surface app-no-drag w-56 shrink-0 border-r px-3 py-5" aria-label="设置分类" data-plugin-surface="workspace-list">
         <div class="ak-tabs settings-ak-tabs">
           <div class="ak-tabs__list">
             <button
@@ -1306,7 +1311,10 @@ async function saveProviderEditor(closeAfterSave: boolean) {
       </nav>
 
       <div class="min-h-0 min-w-0 flex-1 overflow-y-auto px-6 py-8">
-      <div :class="category === 'cve' || category === 'security-tools' ? 'mx-auto w-full max-w-6xl' : category === 'apikeys' ? 'mx-auto w-full max-w-5xl' : 'mx-auto max-w-3xl'">
+      <div
+        data-plugin-surface="workspace-list"
+        :class="category === 'cve' || category === 'security-tools' || category === 'plugins' ? 'mx-auto w-full max-w-6xl' : category === 'apikeys' ? 'mx-auto w-full max-w-5xl' : 'mx-auto max-w-3xl'"
+      >
 
         <Alert v-if="notice" :variant="notice.tone === 'error' ? 'destructive' : 'default'" class="mb-5">
           <AlertCircle v-if="notice.tone === 'error'" class="size-4" />
@@ -2208,6 +2216,10 @@ async function saveProviderEditor(closeAfterSave: boolean) {
           <SecurityToolsSettingsPanel
             @coding-handoff="$emit('securityToolCodingHandoff', $event)"
           />
+        </template>
+
+        <template v-else-if="category === 'plugins'">
+          <PluginSettingsPanel :theme="resolvedTheme" />
         </template>
 
         <template v-else-if="category === 'cve'">

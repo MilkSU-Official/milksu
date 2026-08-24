@@ -18,6 +18,8 @@ const (
 	packagedSidecarDirectory      = "milksu-sidecar"
 	developmentChatBridgePath     = "sidecar/pi/bridge.js"
 	developmentSecurityBridgePath = "sidecar/security/security-bridge.js"
+	pluginMCPCommandEnvironment   = "MILKSU_PLUGIN_MCP_COMMAND"
+	pluginMCPAppDataEnvironment   = "MILKSU_PLUGIN_MCP_APPDATA"
 )
 
 type sidecarRuntime struct {
@@ -30,6 +32,14 @@ func sidecarEnvironment(settings config.AppSettings) ([]string, error) {
 	runtimeHome, err := sidecarRuntimeHome()
 	if err != nil {
 		return nil, err
+	}
+	pluginMCPCommand, err := canonicalCurrentExecutable()
+	if err != nil {
+		return nil, fmt.Errorf("resolve first-party Plugin MCP command: %w", err)
+	}
+	pluginMCPAppData, err := filepath.EvalSymlinks(filepath.Dir(runtimeHome))
+	if err != nil {
+		return nil, fmt.Errorf("resolve first-party Plugin MCP data directory: %w", err)
 	}
 	attachmentRoot := filepath.Join(runtimeHome, "attachments")
 	collaborationRoot := filepath.Join(runtimeHome, "coding-collaboration")
@@ -67,6 +77,11 @@ func sidecarEnvironment(settings config.AppSettings) ([]string, error) {
 		// Keep Pi's provider-native prompt cache alive across normal human pauses.
 		// Explicit one-off compaction requests still override this with "none".
 		"PI_CACHE_RETENTION=long",
+		// These two launcher-owned values are the complete Plugin MCP process
+		// descriptor. The renderer and project MCP configuration never choose
+		// its command, data root, arguments, or child environment.
+		pluginMCPCommandEnvironment+"="+pluginMCPCommand,
+		pluginMCPAppDataEnvironment+"="+pluginMCPAppData,
 		// Resolve the real user home in the supervised launcher so Pi policy can
 		// reject accidental broad grants without guessing from its isolated HOME.
 		"MILKSU_USER_HOME="+canonicalUserHome,
@@ -78,6 +93,29 @@ func sidecarEnvironment(settings config.AppSettings) ([]string, error) {
 		environment = append(environment, "MILKSU_USER_SSH_AUTH_SOCK="+socket)
 	}
 	return environment, nil
+}
+
+func canonicalCurrentExecutable() (string, error) {
+	executable, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	executable, err = filepath.Abs(executable)
+	if err != nil {
+		return "", err
+	}
+	executable, err = filepath.EvalSymlinks(executable)
+	if err != nil {
+		return "", err
+	}
+	info, err := os.Lstat(executable)
+	if err != nil {
+		return "", err
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+		return "", fmt.Errorf("current executable is not a regular file")
+	}
+	return filepath.Clean(executable), nil
 }
 
 func newSidecarCommand(packagedBridge, sourceBridge string) (*exec.Cmd, error) {
