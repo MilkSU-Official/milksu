@@ -25,7 +25,7 @@
 | --- | --- |
 | 正式发行基线 | `v26.823.1 / efeda10af4f1e2cf55c4a8db1761cdbb486055a2`（2026-08-23 今日首发）。这是当前 GitHub Latest Release；标签固定在该 source commit，后续 workflow/文档提交不移动标签。 |
 | 已发行线 | `26.817.1` 建立账户 TokenFlux / 双来源路由与 Pi 网页查证；`26.817.2` 补齐 Linux 试用 DEB 与 Windows 启动；`26.817.3` 修 Windows 账户授权恢复与打包 Sidecar 路径；`26.818.1` 发出账户可调用目录与当日首发包；`26.818.2` 发出 Coding 多标签浏览器、`milksu_workspace`、85% 自动压缩、CTF 本地目录、Windows Computer Use 与应用级调试模式；`26.819.1` 发出 ak-ui 生产视觉、目录不默认展开，以及普通 Go 不再自动启动隔离浏览器；`26.822.1` 发出 CVE 档案复现、实验室、对话小窗和原子 `milksu_workspace` 记录操作；`26.823.1` 发出 CTF/CVE/实验室完整 Coding 循环、始终开启的上下文整理，以及 CVE 列表里的公开源条目。 |
-| 开发版本线 | 仓库版本为 `26.824.1`。正式发行源仍是 `efeda10` / `v26.823.1`；本号尚未形成 GitHub Release。 |
+| 开发版本线 | 仓库版本为 `26.823.1`。正式发行源是 `efeda10`；文档收口提交不移动该 tag。 |
 | 许可证 | 主项目为 `AGPL-3.0-only`（`LICENSE` / `NOTICE`）。第三方仍保留原许可。Obelisk 作为计划嵌入的 AGPL 记忆组件与此兼容；尚未 vendored。 |
 | 三端正式发行 | GitHub Latest Release `v26.823.1` 已提供签名并公证的 macOS ARM64 DMG、未签名 Windows x64 EXE 和 Linux x64 试用 DEB，以及 `SHA256SUMS-26.823.1.txt`；R2/Admin current pointer 未发布。 |
 | Linux | `26.823.1` DEB 已包含当前 Pi Runtime 收敛并通过原生 Ubuntu 包结构、Node/Pi、Go Runtime 与 Xvfb Electron 启动；仍不含 Secret Service、本地 OCR 或 Computer Use。 |

@@ -289,7 +289,7 @@ GitHub-only 模式不生成 updater ZIP 或元数据；显式选择 OTA 上传�
 CI 通过 rclone 把 ZIP、DMG 和元数据写到私有 R2 的不可变版本路径，逐个回读校验 SHA-256，再用窄
 publisher token 在 Admin 建草稿；管理员发布后，已登录且访问正常的 Stable 客户端才可经 Worker 获取
 feed 和安装包。R2 没有公共下载地址，账户 Bearer token 只由 Electron 主进程持有。正式 GitHub Latest Release 是
-`v26.823.1 / efeda10af4f1e2cf55c4a8db1761cdbb486055a2`。仓库开发版本号是 `26.824.1`，尚未形成 GitHub Release，不能把本号写成已发版。
+`v26.823.1 / efeda10af4f1e2cf55c4a8db1761cdbb486055a2`。仓库开发版本号是 `26.823.1`，与该回执一致。
 文档收口提交不改变该 tag，不能把后续 HEAD 写成已发版。打包后的
 Go Runtime 以自身所在 `resources` 目录直接定位同级 `milksu-sidecar/node.exe` 与 `chat-bridge.cjs`，
 不再把开发仓库根定位混入安装版资源查找。macOS
