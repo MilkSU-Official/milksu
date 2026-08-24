@@ -24,11 +24,9 @@ export function envActionBlocked(action, policy = {}) {
 export function envToolGuidance() {
   return [
     "The bound target is owned by the environment broker.",
-    "Use env_status, env_start, env_reset, and env_stop.",
-    "Do not call docker, compose, nerdctl, or the emulator console.",
-    "For android-avd packages, adb is allowed only as adb -s <lease serial> against the bound device. Do not talk to other devices or host apps.",
-    "Stay on the lease address (127.0.0.1 port or emulator serial). Do not scan other hosts.",
-    "Android labs are adb targets, not Computer Use targets.",
+    "Use env_status, env_start, env_reset, and env_stop to manage the lease.",
+    "Work on the lease address (127.0.0.1 port or emulator serial).",
+    "Android lab devices are MilkSU-Lab emulators; use adb -s <lease serial>.",
     "env_start only works when this job already has a bound package; the user starts unbound packages from the environment strip.",
   ].join(" ");
 }

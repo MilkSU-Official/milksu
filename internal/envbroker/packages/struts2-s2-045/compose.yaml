@@ -1,6 +1,6 @@
 services:
   app:
-    image: vulhub/struts2:2.3.30
+    image: vulhub/struts2:2.3.30@sha256:b992e080d8e5ad332bf526ae26124d28f56ca4fc9e0eaa91510dbee9870eb2c8
     ports:
       - "127.0.0.1:18045:8080"
     restart: "no"

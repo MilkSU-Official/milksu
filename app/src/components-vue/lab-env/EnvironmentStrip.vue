@@ -17,6 +17,8 @@ const emit = defineEmits<{
   openTarget: []
   retry: []
   openDocker: []
+  occupyGo: []
+  occupyStop: []
 }>()
 
 const statusLabel = computed(() => {
@@ -81,6 +83,7 @@ const statusClass = computed(() => {
         <p v-if="lease.occupyJobTitle" class="text-caption text-muted-foreground">
           被作业「{{ lease.occupyJobTitle }}」占用
         </p>
+        <p v-if="lease.device" class="font-mono text-caption text-muted-foreground">{{ lease.device }}</p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <Button v-if="canStart" variant="brand" size="sm" data-testid="environment-start" @click="emit('start')">
@@ -100,6 +103,12 @@ const statusClass = computed(() => {
         </Button>
         <Button v-if="lease.state === 'docker-down' || lease.state === 'failed'" variant="brand" size="sm" data-testid="environment-retry" @click="emit('retry')">
           重试
+        </Button>
+        <Button v-if="lease.state === 'busy'" variant="brand" size="sm" data-testid="environment-occupy-go" @click="emit('occupyGo')">
+          去那边
+        </Button>
+        <Button v-if="lease.state === 'busy'" variant="outline" size="sm" data-testid="environment-occupy-stop" @click="emit('occupyStop')">
+          停那边
         </Button>
         <Button v-if="lease.state === 'pulling'" variant="ghost" size="sm" data-testid="environment-cancel" @click="emit('stop')">
           取消

@@ -16,7 +16,7 @@ type Service struct {
 	compose       composeRunner
 	android       androidRunner
 	apks          apkFetcher
-	waitReady     func(context.Context, string)
+	waitReady     func(context.Context, string) error
 	mu            sync.Mutex
 	inflight      map[string]context.CancelFunc
 }
@@ -67,6 +67,10 @@ func (s *Service) Get(owner Owner) Lease {
 	return emptyLease(owner)
 }
 
+func (s *Service) List() []Lease {
+	return s.store.All()
+}
+
 func (s *Service) Start(ctx context.Context, owner Owner, packageID string) (Lease, error) {
 	item, ok := PackageByID(packageID)
 	if !ok {
@@ -76,7 +80,7 @@ func (s *Service) Start(ctx context.Context, owner Owner, packageID string) (Lea
 		_ = s.store.Put(lease)
 		return lease, nil
 	}
-	if occupant, busy := s.store.Occupant(item.ID, item.Address, owner); busy {
+	if occupant, busy := s.store.Occupant(item, owner); busy {
 		lease := emptyLease(owner)
 		lease.State = "busy"
 		lease.PackageID = item.ID
@@ -85,7 +89,8 @@ func (s *Service) Start(ctx context.Context, owner Owner, packageID string) (Lea
 		lease.Surface = item.Surface
 		lease.Address = item.Address
 		lease.OccupyOwner = occupant.OwnerKind + ":" + occupant.OwnerID
-		lease.Error = "被作业 " + lease.OccupyOwner + " 占用"
+		lease.OccupyTitle = occupyTitle(occupant)
+		lease.Error = "被作业 " + lease.OccupyTitle + " 占用"
 		_ = s.store.Put(lease)
 		return lease, nil
 	}
@@ -130,6 +135,35 @@ func (s *Service) Start(ctx context.Context, owner Owner, packageID string) (Lea
 		return lease, nil
 	}
 	if item.Provider == "android-avd" {
+		if _, err := ensureLabAVD(ctx, s.android); err != nil {
+			lease.State = "failed"
+			lease.Error = err.Error()
+			_ = s.store.Put(lease)
+			return lease, nil
+		}
+		heldDevices, _, holder := s.store.HeldAndroid(owner)
+		names, listErr := listAvds(s.android)
+		if listErr != nil {
+			lease.State = "failed"
+			lease.Error = listErr.Error()
+			_ = s.store.Put(lease)
+			return lease, nil
+		}
+		hasFree := false
+		for _, name := range labAVDs(names) {
+			if !heldDevices[name] {
+				hasFree = true
+				break
+			}
+		}
+		if !hasFree && detectLabSystemImage() == "" {
+			lease.State = "busy"
+			lease.OccupyOwner = holder.OwnerKind + ":" + holder.OwnerID
+			lease.OccupyTitle = occupyTitle(holder)
+			lease.Error = "被作业 " + lease.OccupyTitle + " 占用"
+			_ = s.store.Put(lease)
+			return lease, nil
+		}
 		_ = s.store.Put(lease)
 		s.spawn(owner, func(run context.Context) {
 			s.runAndroidStart(run, item, lease)
@@ -142,54 +176,90 @@ func (s *Service) Start(ctx context.Context, owner Owner, packageID string) (Lea
 	return lease, nil
 }
 
+func occupyTitle(lease Lease) string {
+	if strings.TrimSpace(lease.OccupyTitle) != "" {
+		return lease.OccupyTitle
+	}
+	if strings.TrimSpace(lease.PackageName) != "" {
+		return lease.PackageName
+	}
+	if strings.TrimSpace(lease.OccupyOwner) != "" {
+		return lease.OccupyOwner
+	}
+	return lease.OwnerKind + ":" + lease.OwnerID
+}
+
 func (s *Service) runDockerStart(ctx context.Context, item Package, directory string, lease Lease) {
-	if err := startCompose(ctx, s.compose, directory, projectName(item)); err != nil {
+	if err := startCompose(ctx, s.compose, directory, projectName(item), func(line string) {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			return
+		}
+		lease.Detail = line
+		_ = s.store.Put(lease)
+	}); err != nil {
 		lease.State = "failed"
 		lease.Error = err.Error()
 		_ = s.store.Put(lease)
 		return
 	}
 	if s.waitReady != nil && item.Address != "" {
-		s.waitReady(ctx, item.Address)
+		if err := s.waitReady(ctx, item.Address); err != nil {
+			lease.State = "failed"
+			lease.Error = err.Error()
+			_ = s.store.Put(lease)
+			return
+		}
 	}
 	if ctx.Err() != nil {
 		return
 	}
 	lease.State = "ready"
 	lease.Error = ""
+	lease.Detail = item.Detail
 	_ = s.store.Put(lease)
 }
 
 func (s *Service) runAndroidStart(ctx context.Context, item Package, lease Lease) {
-	serial, err := startAndroid(ctx, s.android)
+	heldDevices, heldSerials, holder := s.store.HeldAndroid(Owner{Kind: lease.OwnerKind, ID: lease.OwnerID})
+	device, err := allocateAndroidDevice(ctx, s.android, heldDevices, heldSerials)
 	if err != nil {
+		if err == errAndroidBusy {
+			lease.State = "busy"
+			lease.OccupyOwner = holder.OwnerKind + ":" + holder.OwnerID
+			lease.OccupyTitle = occupyTitle(holder)
+			lease.Error = "被作业 " + lease.OccupyTitle + " 占用"
+			_ = s.store.Put(lease)
+			return
+		}
 		lease.State = "failed"
 		lease.Error = err.Error()
 		_ = s.store.Put(lease)
 		return
 	}
+	lease.Device = device.AVD
+	lease.Address = device.Serial
+	lease.Detail = device.AVD + " · " + device.Serial
+	_ = s.store.Put(lease)
 	if item.ApkURL != "" {
 		apkPath, cacheErr := cacheAndroidAPK(ctx, s.apks, s.dataDirectory, item)
 		if cacheErr != nil {
 			lease.State = "failed"
 			lease.Error = cacheErr.Error()
-			lease.Address = serial
 			_ = s.store.Put(lease)
 			return
 		}
-		if installErr := installAndroidLab(ctx, s.android, serial, apkPath, item.Launcher); installErr != nil {
+		if installErr := installAndroidLab(ctx, s.android, device.Serial, apkPath, item.Launcher); installErr != nil {
 			lease.State = "failed"
 			lease.Error = installErr.Error()
-			lease.Address = serial
 			_ = s.store.Put(lease)
 			return
 		}
-		lease.Detail = "已安装 " + item.Name + " · adb -s " + serial
+		lease.Detail = "已安装 " + item.Name + " · " + device.AVD + " · adb -s " + device.Serial
 	}
 	if ctx.Err() != nil {
 		return
 	}
-	lease.Address = serial
 	lease.State = "ready"
 	lease.Error = ""
 	_ = s.store.Put(lease)
@@ -232,7 +302,7 @@ func (s *Service) Status(ctx context.Context, owner Owner) Lease {
 	if !ok {
 		return lease
 	}
-	if lease.State == "pulling" || lease.State == "failed" || lease.State == "docker-down" || lease.State == "busy" {
+	if lease.State == "pulling" || lease.State == "busy" {
 		return lease
 	}
 	if item.Provider == "docker" {
@@ -249,17 +319,22 @@ func (s *Service) Status(ctx context.Context, owner Owner) Lease {
 		if err != nil {
 			lease.Detail = err.Error()
 		}
-		if state == "ready" || state == "stopped" {
-			lease.State = state
-			if state == "ready" {
+		if state == "ready" {
+			if item.Address != "" && !httpReady(ctx, item.Address) {
+				lease.State = "failed"
+				lease.Error = item.Address + " 未响应"
+			} else {
+				lease.State = "ready"
 				lease.Error = ""
 			}
+		} else if state == "stopped" {
+			lease.State = "stopped"
 		}
 		_ = s.store.Put(lease)
 		return lease
 	}
 	if item.Provider == "android-avd" {
-		serial, state, err := androidStatus(ctx, s.android)
+		serial, state, err := androidStatus(ctx, s.android, lease.Address)
 		if err != nil && state != "ready" {
 			lease.Error = err.Error()
 		}
@@ -268,8 +343,8 @@ func (s *Service) Status(ctx context.Context, owner Owner) Lease {
 		}
 		if state == "ready" && androidPackageName(item.Launcher) != "" {
 			if !androidPackageInstalled(ctx, s.android, serial, androidPackageName(item.Launcher)) {
-				lease.State = "stopped"
-				lease.Detail = "模拟器已启动，练习 APK 未安装"
+				lease.State = "failed"
+				lease.Error = "模拟器已启动，练习 APK 未安装"
 				_ = s.store.Put(lease)
 				return lease
 			}

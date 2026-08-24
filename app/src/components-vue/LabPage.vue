@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   Button,
   Dialog,
@@ -22,7 +22,7 @@ import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
 import { invokeCommand } from '@/desktop'
 import { labScopeLabel, useLabJobs, type LabJob, type LabScope } from '@/composables/useLabJobs'
 import { toStripLease, useEnvLease } from '@/composables/useEnvLease'
-import type { EnvPackage } from '@/envbroker'
+import type { EnvLease, EnvPackage } from '@/envbroker'
 import EnvironmentStrip from '@/components-vue/lab-env/EnvironmentStrip.vue'
 import TargetLivePane from '@/components-vue/lab-env/TargetLivePane.vue'
 import { relatedDomainConversations } from '@/lib/workspaceSessionRouting'
@@ -128,7 +128,10 @@ const {
   start: startEnv,
   stop: stopEnv,
   reset: resetEnv,
+  listLeases,
 } = useEnvLease(ownerKind, ownerId, packageId)
+const allLeases = ref<EnvLease[]>([])
+let leaseTimer: ReturnType<typeof setInterval> | null = null
 const editingJobId = ref<string | null>(null)
 const editingTitle = ref('')
 const renameInput = ref<HTMLInputElement | null>(null)
@@ -172,6 +175,57 @@ watch(selectedId, (id) => {
     targetOpen.value = false
     pendingOpen.value = false
   }
+})
+
+async function refreshAllLeases() {
+  allLeases.value = await listLeases()
+}
+
+function parseOccupyOwner(value?: string) {
+  const raw = String(value || '')
+  const index = raw.indexOf(':')
+  if (index <= 0) return { kind: '', id: '' }
+  return { kind: raw.slice(0, index), id: raw.slice(index + 1) }
+}
+
+function jobEnvDot(job: LabJob) {
+  if (!job.packageId) return { className: 'bg-muted-foreground/40', title: '未绑定' }
+  const lease = allLeases.value.find(item => item.ownerKind === 'lab' && item.ownerId === job.id)
+  switch (lease?.state) {
+    case 'ready':
+      return { className: 'bg-primary', title: '就绪' }
+    case 'pulling':
+      return { className: 'bg-accent', title: '启动中' }
+    case 'failed':
+    case 'docker-down':
+    case 'busy':
+      return { className: 'bg-destructive', title: lease.state === 'busy' ? '被占用' : '失败' }
+    default:
+      return { className: 'bg-muted-foreground/40', title: '已停止' }
+  }
+}
+
+function occupyGo() {
+  const occupy = parseOccupyOwner(envLease.value.occupyOwner)
+  if (occupy.kind === 'lab' && occupy.id) {
+    const job = labJobs.value.find(item => item.id === occupy.id)
+    if (job) openJob(job)
+  }
+}
+
+async function occupyStop() {
+  const occupy = parseOccupyOwner(envLease.value.occupyOwner)
+  if (!occupy.kind || !occupy.id) return
+  await invokeCommand('stop_env_lease', { ownerKind: occupy.kind, ownerId: occupy.id }).catch(() => undefined)
+  await startEnv(selected.value?.packageId || envLease.value.packageId)
+}
+
+onMounted(() => {
+  void refreshAllLeases()
+  leaseTimer = setInterval(() => { void refreshAllLeases() }, 2000)
+})
+onBeforeUnmount(() => {
+  if (leaseTimer) clearInterval(leaseTimer)
 })
 
 function openNew() {
@@ -349,8 +403,8 @@ function abortRename(event: KeyboardEvent) {
             <span class="text-body">{{ labScopeLabel(job.scope) }}</span>
             <span
               class="inline-block size-2 rounded-full"
-              :class="job.packageId ? 'bg-primary' : 'bg-muted-foreground/40'"
-              :title="job.packageId ? '已绑定练习包' : '未绑定'"
+              :class="jobEnvDot(job).className"
+              :title="jobEnvDot(job).title"
               data-testid="lab-env-dot"
             />
             <span class="text-caption text-muted-foreground">{{ new Date(job.updatedAt).toLocaleDateString() }}</span>
@@ -412,6 +466,8 @@ function abortRename(event: KeyboardEvent) {
               @open-target="openTarget"
               @retry="startEnv(selected.packageId || envLease.packageId)"
               @open-docker="openDocker"
+              @occupy-go="occupyGo"
+              @occupy-stop="occupyStop"
             />
             <section class="rounded-xl border border-border bg-card p-6">
               <h2 class="text-label font-medium">报告</h2>

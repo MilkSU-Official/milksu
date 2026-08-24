@@ -14,7 +14,8 @@ test("research sessions expose env tools and block mutations in plan", () => {
   assert.equal(envActionBlocked("env_stop", { executionMode: "go", approvalPolicy: "workspace-auto" }), "");
   assert.match(envToolGuidance(), /env_status/);
   assert.match(envToolGuidance(), /adb -s/);
-  assert.match(envToolGuidance(), /not Computer Use/);
+  assert.match(envToolGuidance(), /MilkSU-Lab/);
+  assert.doesNotMatch(envToolGuidance(), /Do not call docker/);
 });
 
 test("env extension registers tools only for lab and CVE sessions", () => {

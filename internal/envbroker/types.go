@@ -36,9 +36,11 @@ type Lease struct {
 	Surface         string `json:"surface,omitempty"`
 	State           string `json:"state"`
 	Address         string `json:"address,omitempty"`
+	Device          string `json:"device,omitempty"`
 	Detail          string `json:"detail,omitempty"`
 	Error           string `json:"error,omitempty"`
 	OccupyOwner     string `json:"occupyOwner,omitempty"`
+	OccupyTitle     string `json:"occupyTitle,omitempty"`
 	DockerAvailable bool   `json:"dockerAvailable,omitempty"`
 	UpdatedAt       string `json:"updatedAt"`
 }

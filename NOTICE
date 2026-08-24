@@ -42,6 +42,14 @@ Third-party software includes, without limitation:
   Copyright B3nac. Apache-2.0.
   MilkSU downloads the pinned GitHub Release APK into the local envbroker
   cache after a SHA-256 check. The APK is not vendored in this repository.
+- OWASP Juice Shop (bkimminich/juice-shop). MIT.
+  Downloaded as a digest-pinned Docker image at lab start; not vendored.
+- OWASP WebGoat (webgoat/webgoat). GNU GPL-2.0.
+  Downloaded as a digest-pinned Docker image at lab start and run as an
+  isolated target. It is not linked into the MilkSU binary.
+- Vulhub Struts2 S2-045 (vulhub/struts2). Image used as a digest-pinned
+  local reproduction target; upstream project licensing remains with Vulhub.
+- traefik/whoami. MIT. Digest-pinned Docker image used as a Linux lab target.
 
 Font files remain under the SIL Open Font License and are not relicensed by
 MilkSU's AGPL-3.0-only grant.

@@ -1,6 +1,6 @@
 services:
   app:
-    image: bkimminich/juice-shop:v17.1.1
+    image: bkimminich/juice-shop:v17.1.1@sha256:9e437b456e444ff001d1663e4f6f05c796fe02f1058dd2651d6791a15b43dfeb
     ports:
       - "127.0.0.1:3000:3000"
     restart: "no"

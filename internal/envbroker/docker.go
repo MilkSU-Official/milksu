@@ -1,6 +1,7 @@
 package envbroker
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"net/http"
@@ -23,10 +24,35 @@ func (execComposeRunner) LookPath(name string) (string, error) {
 }
 
 func (execComposeRunner) Run(ctx context.Context, executable string, args []string, directory string) ([]byte, error) {
+	return execComposeRunner{}.RunProgress(ctx, executable, args, directory, nil)
+}
+
+func (execComposeRunner) RunProgress(ctx context.Context, executable string, args []string, directory string, progress func(string)) ([]byte, error) {
 	command := exec.CommandContext(ctx, executable, args...)
 	command.Dir = directory
 	command.Env = os.Environ()
-	return command.CombinedOutput()
+	if progress == nil {
+		return command.CombinedOutput()
+	}
+	stdout, err := command.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+	command.Stderr = command.Stdout
+	if err := command.Start(); err != nil {
+		return nil, err
+	}
+	var collected strings.Builder
+	scanner := bufio.NewScanner(stdout)
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	for scanner.Scan() {
+		line := scanner.Text()
+		collected.WriteString(line)
+		collected.WriteByte('\n')
+		progress(line)
+	}
+	waitErr := command.Wait()
+	return []byte(collected.String()), waitErr
 }
 
 func dockerAvailable(runner composeRunner) error {
@@ -42,32 +68,62 @@ func dockerAvailable(runner composeRunner) error {
 	return nil
 }
 
-func waitHTTPReady(ctx context.Context, address string) {
+func waitHTTPReady(ctx context.Context, address string) error {
+	if strings.TrimSpace(address) == "" {
+		return nil
+	}
 	target := address
 	if !strings.Contains(target, "://") {
 		target = "http://" + target
 	}
 	client := &http.Client{Timeout: 2 * time.Second}
-	deadline := time.Now().Add(45 * time.Second)
+	deadline := time.Now().Add(90 * time.Second)
+	var last error
 	for time.Now().Before(deadline) {
 		request, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 		if err != nil {
-			return
+			return err
 		}
 		response, err := client.Do(request)
 		if err == nil {
 			_ = response.Body.Close()
-			return
+			return nil
 		}
+		last = err
 		select {
 		case <-ctx.Done():
-			return
+			return ctx.Err()
 		case <-time.After(800 * time.Millisecond):
 		}
 	}
+	if last == nil {
+		last = fmt.Errorf("等待超时")
+	}
+	return fmt.Errorf("%s 未就绪: %w", address, last)
 }
 
-func startCompose(ctx context.Context, runner composeRunner, directory, project string) error {
+func httpReady(ctx context.Context, address string) bool {
+	if strings.TrimSpace(address) == "" {
+		return false
+	}
+	target := address
+	if !strings.Contains(target, "://") {
+		target = "http://" + target
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+	if err != nil {
+		return false
+	}
+	client := &http.Client{Timeout: 2 * time.Second}
+	response, err := client.Do(request)
+	if err != nil {
+		return false
+	}
+	_ = response.Body.Close()
+	return true
+}
+
+func startCompose(ctx context.Context, runner composeRunner, directory, project string, progress func(string)) error {
 	docker, composeArgs, err := composeInvocation(runner)
 	if err != nil {
 		return err
@@ -75,11 +131,24 @@ func startCompose(ctx context.Context, runner composeRunner, directory, project 
 	args := append(append([]string{}, composeArgs...), "--project-name", project, "--file", "compose.yaml", "up", "--detach", "--remove-orphans")
 	commandContext, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
-	output, runErr := runner.Run(commandContext, docker, args, directory)
+	output, runErr := runCompose(runner, commandContext, docker, args, directory, progress)
 	if runErr != nil {
 		return fmt.Errorf("启动容器失败: %s", strings.TrimSpace(string(output)))
 	}
 	return nil
+}
+
+type composeProgressRunner interface {
+	RunProgress(ctx context.Context, executable string, args []string, directory string, progress func(string)) ([]byte, error)
+}
+
+func runCompose(runner composeRunner, ctx context.Context, executable string, args []string, directory string, progress func(string)) ([]byte, error) {
+	if progress != nil {
+		if streamed, ok := runner.(composeProgressRunner); ok {
+			return streamed.RunProgress(ctx, executable, args, directory, progress)
+		}
+	}
+	return runner.Run(ctx, executable, args, directory)
 }
 
 func composeStatus(ctx context.Context, runner composeRunner, directory, project string) (string, error) {

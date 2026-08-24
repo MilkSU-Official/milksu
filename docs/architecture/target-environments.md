@@ -206,7 +206,7 @@ CVE「开始复现」和「启动」分开：
 | 本机进程 | 评测 AutoPen 种子，不是产品定位 |
 | Docker 包 | 经纪已接实验室 / CVE 档案（开发 HEAD）：Juice Shop、WebGoat、S2-045、whoami；回环绑定、内部网络 |
 | 用户自带 URL | 实验室已有 |
-| Android AVD | 本机官方 AVD（开发 HEAD）：空白设备 + InjuredAndroid（SHA-256 钉死，受限 adb） |
+| Android AVD | 专用 `MilkSU-Lab` 设备池（开发 HEAD）：空白设备 + InjuredAndroid；多作业调度空闲模拟器，不拿日常 AVD |
 | Apple VM | 未做；iOS Simulator 不当研究级 iOS |
 | 真机 | 未做 |
 

@@ -17,6 +17,8 @@ export type EnvironmentLease = {
   state: EnvironmentLeaseState
   packageName?: string
   address?: string
+  device?: string
   detail?: string
+  occupyOwner?: string
   occupyJobTitle?: string
 }

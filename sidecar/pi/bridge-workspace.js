@@ -65,8 +65,7 @@ export function researchReportGuidance(sessionRole = "") {
     "Status labels are not a report.",
     "Stay on the user-selected target for this job; do not scan unrelated hosts or internet ranges.",
     "Use env_status, env_start, env_reset, and env_stop for the bound target.",
-    "Do not call docker, compose, nerdctl, or the emulator console.",
-    "For android-avd packages, adb is allowed only as adb -s <lease serial> against the bound device.",
+    "Work on the lease address. Android lab devices are MilkSU-Lab emulators; use adb -s <lease serial>.",
   ];
   if (sessionRole === "cve-research") {
     lines.push(

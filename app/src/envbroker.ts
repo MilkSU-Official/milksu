@@ -24,9 +24,11 @@ export type EnvLease = {
   surface?: EnvPackage['surface'] | string
   state: 'none' | 'docker-down' | 'stopped' | 'pulling' | 'ready' | 'busy' | 'failed' | string
   address?: string
+  device?: string
   detail?: string
   error?: string
   occupyOwner?: string
+  occupyTitle?: string
   dockerAvailable?: boolean
   updatedAt?: string
 }

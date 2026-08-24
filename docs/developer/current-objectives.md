@@ -130,7 +130,7 @@
 - 工具循环接到 Pi 原生 `tool_call`：完全相同命令连续 10 次或 bash `head N` / `grep -v` 族连续 25 次才结束本轮。单次回合满 150 次工具弹出「已经调用了 150 次工具，要继续吗？」；继续则再放行 150 次，停止则结束本轮。
 - 桌面 Go runtime 为每次 spawn 递增 generation。`milksu:invoke` 必须等 `ready`；进程意外退出会自动再拉起（最多 3 次），旧 generation 的结果丢弃，运行中的回合显示「本轮已停止。」。退出应用时 `beginStop` 禁止恢复。用户文案是「正在恢复运行时」/「本地运行时已停止」，不再抛 `MilkSU Go runtime is unavailable`。
 - Agent 上下文工程收敛：主会话逐回合声明经 Go / Sidecar 校验的权威工作目录，协作 writer worktree 只属于独立 effectful subagent 进程，不再能替换主会话 cwd。受管 Sidecar 启用 Pi 原生 `PI_CACHE_RETENTION=long`，沿用稳定会话 ID 与 Provider prompt cache，不增加 MilkSU 缓存状态机；Pi 的一次性压缩仍显式使用 `cacheRetention: none`。模型目录缺少窗口或仍给出旧 `128000` 占位时，Go、Sidecar 与 Vue 共用的型号族预设会补齐 GPT、Claude、Grok：已知精确型号优先，远端非占位目录值继续权威。GPT 与 Claude Opus / Sonnet / Fable 另有内置思考档位，其他模型须在设置页按实际 Provider 能力手动启用；Composer 用离散滑块写入对话级选择，chip 与档位只显示 `off / minimal / low / medium / high / xhigh / max` 标准英文，Go 约束后交给 Pi 原生 `setThinkingLevel`，子 Agent 继承同一档位。当前 Pi 支持到 `max`；`ultra` 属于 Codex 多 Agent 编排语义，不伪装成 Provider effort。自动化覆盖 cwd 身份、缓存环境、三层窗口解析和思考档位透传；真实 Provider 缓存命中率与 effort 请求仍待用户授权的计费链路验收，不写成完成回执。
-- 环境经纪（实验室 / CVE 档案）：`env_status` / `env_start` / `env_reset` / `env_stop`。Docker 练习包钉死镜像标签、只绑 `127.0.0.1`、默认内部网络。本机 AVD 走官方 emulator/adb；InjuredAndroid 1.0.12 按 SHA-256 缓存到用户数据目录后再 `adb install`，题目写在作业 brief 里。QEMU 窗口可以出现在 Computer Use 列表，但安卓靶的验收路径是受限 adb，不是按键模拟。切作业列表不再拆掉还在跑的靶；离开实验室 / CVE 模块仍停止当前租约。NOTICE 记录 InjuredAndroid Apache-2.0。未进发行。
+- 环境经纪（实验室 / CVE 档案）：`env_status` / `env_start` / `env_reset` / `env_stop`。Docker 练习包钉死镜像 digest、只绑 `127.0.0.1`、默认内部网络；HTTP 端口未响应不算就绪。安卓只用专用 `MilkSU-Lab` 设备池，多作业按空闲模拟器调度，不拿用户日常 AVD。作业表圆点反映租约状态；占用显示作业名，可去那边或停那边。NOTICE 记录 Juice Shop / WebGoat / Vulhub / whoami / InjuredAndroid。未进发行。
 
 ## 当前产品事实
 

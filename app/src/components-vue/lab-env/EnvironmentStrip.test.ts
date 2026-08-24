@@ -23,6 +23,8 @@ function mountLease(lease: EnvironmentLease) {
     onStop: () => events.push('stop'),
     onRetry: () => events.push('retry'),
     onOpenDocker: () => events.push('docker'),
+    onOccupyGo: () => events.push('occupyGo'),
+    onOccupyStop: () => events.push('occupyStop'),
   })
   app.mount(host)
   mounted.push(app)
@@ -74,6 +76,21 @@ describe('EnvironmentStrip', () => {
     expect(host.textContent).toContain('Docker 未运行')
     host.querySelector<HTMLButtonElement>('[data-testid="environment-open-docker"]')?.click()
     expect(events).toEqual(['docker'])
+  })
+
+  it('lets a busy lease jump to the occupying job or stop it', async () => {
+    const { host, events } = mountLease({
+      provider: 'docker',
+      state: 'busy',
+      packageName: 'OWASP Juice Shop',
+      occupyJobTitle: 'CVE-2017-5638',
+      occupyOwner: 'cve:CVE-2017-5638',
+    })
+    await nextTick()
+    expect(host.textContent).toContain('CVE-2017-5638')
+    host.querySelector<HTMLButtonElement>('[data-testid="environment-occupy-go"]')?.click()
+    host.querySelector<HTMLButtonElement>('[data-testid="environment-occupy-stop"]')?.click()
+    expect(events).toEqual(['occupyGo', 'occupyStop'])
   })
 
   it('lets a bound but never started package start', async () => {

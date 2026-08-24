@@ -17,8 +17,10 @@ export function toStripLease(lease: EnvLease, bound?: { name?: string; provider?
     state: (lease.state as EnvironmentLease['state']) || 'none',
     packageName: lease.packageName || bound?.name,
     address: lease.address,
+    device: lease.device,
     detail: lease.error || lease.detail,
-    occupyJobTitle: lease.occupyOwner,
+    occupyOwner: lease.occupyOwner,
+    occupyJobTitle: lease.occupyTitle || lease.occupyOwner,
   }
 }
 
@@ -138,6 +140,14 @@ export function useEnvLease(ownerKind: Ref<EnvOwnerKind>, ownerId: Ref<string>, 
     else stopPoll()
   })
 
+  async function listLeases() {
+    try {
+      return await invokeCommand<EnvLease[]>('list_env_leases')
+    } catch {
+      return [] as EnvLease[]
+    }
+  }
+
   onMounted(() => {
     void loadPackages()
     void refresh()
@@ -147,5 +157,5 @@ export function useEnvLease(ownerKind: Ref<EnvOwnerKind>, ownerId: Ref<string>, 
     stopPoll()
   })
 
-  return { lease, packages, busy, refresh, loadPackages, start, stop, reset }
+  return { lease, packages, busy, refresh, loadPackages, listLeases, start, stop, reset }
 }

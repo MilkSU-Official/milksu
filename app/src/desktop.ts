@@ -431,6 +431,7 @@ interface DesktopAppBindings {
   GetVulnerabilityPracticeStatus(request: VulnerabilityPracticeRequest): Promise<VulnerabilityPracticeRun>
   StopVulnerabilityPractice(request: VulnerabilityPracticeRequest): Promise<VulnerabilityPracticeRun>
   ListLabPackages(): Promise<import('@/envbroker').EnvPackage[]>
+  ListEnvLeases(): Promise<import('@/envbroker').EnvLease[]>
   GetEnvLease(request: import('@/envbroker').EnvOwnerRequest): Promise<import('@/envbroker').EnvLease>
   GetEnvPackageForCVE(cveId: string): Promise<{ found: boolean; package: import('@/envbroker').EnvPackage }>
   StartEnvLease(request: import('@/envbroker').EnvOwnerRequest): Promise<import('@/envbroker').EnvLease>
@@ -996,6 +997,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.StopVulnerabilityPractice(args?.request as VulnerabilityPracticeRequest) as Promise<T>
       case 'list_lab_packages':
         return app.ListLabPackages() as Promise<T>
+      case 'list_env_leases':
+        return app.ListEnvLeases() as Promise<T>
       case 'get_env_lease':
         return app.GetEnvLease(args as never) as Promise<T>
       case 'get_env_package_for_cve':

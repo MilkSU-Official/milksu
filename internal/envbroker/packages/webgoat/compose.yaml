@@ -1,6 +1,6 @@
 services:
   app:
-    image: webgoat/webgoat:v2023.8
+    image: webgoat/webgoat:v2023.8@sha256:01672eb9aeba60d042ae1131d6de683b98fa64e9da60fa5d3daad2642a6795dd
     ports:
       - "127.0.0.1:18081:8080"
     environment:

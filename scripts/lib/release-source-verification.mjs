@@ -1,7 +1,7 @@
 export const RELEASE_VERIFICATION_SCHEMA = 'milksu.release-source-verification/v1'
 
 export const RELEASE_VERIFICATION_STEPS = Object.freeze([
-  Object.freeze({ id: 'go-test', command: 'go', args: ['test', './...'] }),
+  Object.freeze({ id: 'go-test', command: 'node', args: ['scripts/test-go-product.mjs'] }),
   Object.freeze({ id: 'app-test', command: 'npm', args: ['--prefix', 'app', 'test'] }),
   Object.freeze({ id: 'sidecar-test', command: 'npm', args: ['run', 'test:sidecar'] }),
   Object.freeze({ id: 'app-lint', command: 'npm', args: ['--prefix', 'app', 'run', 'lint'] }),

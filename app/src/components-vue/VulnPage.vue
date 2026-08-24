@@ -31,7 +31,6 @@ import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
 import EnvironmentStrip from '@/components-vue/lab-env/EnvironmentStrip.vue'
 import TargetLivePane from '@/components-vue/lab-env/TargetLivePane.vue'
 import { invokeCommand } from '@/desktop'
-import { requestComputerUseReveal } from '@/lib/computerUseHandoff'
 import { toStripLease, useEnvLease } from '@/composables/useEnvLease'
 import type { EnvPackage } from '@/envbroker'
 import { useVulnerabilityDashboard, type VulnerabilityCodingTask, type VulnerabilityDashboard, type VulnerabilitySearchCandidate } from '@/composables/useVulnerabilityDashboard'
@@ -242,10 +241,7 @@ function selectItem(id: string) {
 
 watch(
   () => selectedItem.value?.id,
-  (id, prev) => {
-    if (prev && prev !== id) {
-      void invokeCommand('stop_env_lease', { ownerKind: 'cve', ownerId: prev }).catch(() => undefined)
-    }
+  (id) => {
     targetOpen.value = false
     pendingOpen.value = false
     showStartEnv.value = false
@@ -269,11 +265,23 @@ function clearSelection() {
   dashboard.selectedId.value = ''
 }
 
-function attachComputerUse() {
-  const conversationId = props.conversation?.id || props.ensureConversation?.(selectedItem.value?.id)
-  if (!conversationId) return
-  requestComputerUseReveal({ preferEmulator: envLease.value.surface === 'emulator' })
-  emit('expand')
+function parseOccupyOwner(value?: string) {
+  const raw = String(value || '')
+  const index = raw.indexOf(':')
+  if (index <= 0) return { kind: '', id: '' }
+  return { kind: raw.slice(0, index), id: raw.slice(index + 1) }
+}
+
+function occupyGo() {
+  const occupy = parseOccupyOwner(envLease.value.occupyOwner)
+  if (occupy.kind === 'cve' && occupy.id) selectItem(occupy.id)
+}
+
+async function occupyStop() {
+  const occupy = parseOccupyOwner(envLease.value.occupyOwner)
+  if (!occupy.kind || !occupy.id) return
+  await invokeCommand('stop_env_lease', { ownerKind: occupy.kind, ownerId: occupy.id }).catch(() => undefined)
+  await startEnv(cvePackageId.value || envLease.value.packageId)
 }
 
 function openTarget() {
@@ -718,6 +726,8 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
             @open-target="openTarget"
             @retry="startEnv(cvePackageId || envLease.packageId)"
             @open-docker="openDocker"
+            @occupy-go="occupyGo"
+            @occupy-stop="occupyStop"
           />
           <section class="rounded-xl border border-border bg-card p-6">
             <h2 class="text-label font-medium">关联 CVE</h2>
@@ -794,7 +804,6 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
         v-if="targetOpen && envLease.state === 'ready'"
         :lease="envLease"
         :conversation-id="conversation?.id"
-        @attach-computer-use="attachComputerUse"
       />
     </div>
     <ConversationDock

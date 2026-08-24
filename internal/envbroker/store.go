@@ -46,24 +46,68 @@ func (s *Store) Put(lease Lease) error {
 	return s.persistLocked()
 }
 
-func (s *Store) Occupant(packageID, address string, except Owner) (Lease, bool) {
+func (s *Store) All() []Lease {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]Lease, 0, len(s.leases))
+	for _, lease := range s.leases {
+		out = append(out, lease)
+	}
+	return out
+}
+
+func leaseHoldsResource(lease Lease) bool {
+	switch lease.State {
+	case "ready", "pulling", "failed":
+		return true
+	default:
+		return false
+	}
+}
+
+func (s *Store) Occupant(item Package, except Owner) (Lease, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for key, lease := range s.leases {
-		if key == except.Key() {
+		if key == except.Key() || !leaseHoldsResource(lease) {
 			continue
 		}
-		if lease.State != "ready" && lease.State != "pulling" {
+		if item.Provider == "docker" {
+			if item.ID != "" && lease.PackageID == item.ID {
+				return lease, true
+			}
+			if item.Address != "" && lease.Address == item.Address {
+				return lease, true
+			}
 			continue
 		}
-		if packageID != "" && lease.PackageID == packageID {
-			return lease, true
-		}
-		if address != "" && lease.Address == address {
-			return lease, true
+		if item.Provider == "android-avd" && lease.Provider == "android-avd" {
+			continue
 		}
 	}
 	return Lease{}, false
+}
+
+func (s *Store) HeldAndroid(except Owner) (devices map[string]bool, serials map[string]bool, holder Lease) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	devices = map[string]bool{}
+	serials = map[string]bool{}
+	for key, lease := range s.leases {
+		if key == except.Key() || lease.Provider != "android-avd" || !leaseHoldsResource(lease) {
+			continue
+		}
+		if lease.Device != "" {
+			devices[lease.Device] = true
+		}
+		if lease.Address != "" {
+			serials[lease.Address] = true
+		}
+		if holder.OwnerID == "" {
+			holder = lease
+		}
+	}
+	return devices, serials, holder
 }
 
 func (s *Store) load() error {

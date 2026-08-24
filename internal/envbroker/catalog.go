@@ -18,9 +18,9 @@ const strutsBrief = `Struts2 S2-045（CVE-2017-5638）在 127.0.0.1:18045。按�
 const whoamiBrief = `Whoami 是最小 HTTP 服务，127.0.0.1:18080。用 shell 探测这个靶，不是 Web 教学页。
 过程写进 report.md。没有自动 Judge。`
 
-const androidAVDBrief = `本机官方 Android 模拟器，空白设备。受限 adb 只打租约串口。不要打宿主机其它 App。`
+const androidAVDBrief = `专用实验室模拟器 MilkSU-Lab，空白设备。租约会给出串口，用 adb -s <串口> 操作这台设备。`
 
-const androidLabBrief = `InjuredAndroid（Apache-2.0，B3nac）装在本机 AVD 上。用 adb 打，不要打宿主机其它 App。
+const androidLabBrief = `InjuredAndroid（Apache-2.0，B3nac）装在专用实验室模拟器 MilkSU-Lab 上。
 
 设备：adb -s <租约串口>
 包名：b3nac.injuredandroid
@@ -34,7 +34,7 @@ const androidLabBrief = `InjuredAndroid（Apache-2.0，B3nac）装在本机 AVD 
 5. Flag 7 SQLite（run-as 或备份）
 6. Flag 11 Deep Link：adb shell am start -a android.intent.action.VIEW -d flag11://...
 
-过程写进 report.md。没有自动 Judge。QEMU 窗口不是 Computer Use 靶。`
+过程写进 report.md。没有自动 Judge。`
 
 func Catalog() []Package {
 	return []Package{
@@ -91,21 +91,19 @@ func Catalog() []Package {
 			ID:        "android-avd",
 			Name:      "Android 模拟器",
 			KindLabel: "模拟器",
-			Detail:    "本机官方 AVD · 空白设备 · 受限 adb",
+			Detail:    "专用 MilkSU-Lab · 空白设备",
 			Brief:     androidAVDBrief,
 			Provider:  "android-avd",
 			Surface:   "emulator",
-			Address:   "emulator-5554",
 		},
 		{
 			ID:        "android-lab",
 			Name:      "InjuredAndroid",
 			KindLabel: "安卓题",
-			Detail:    "本机 AVD · 12 道 Flag · 受限 adb",
+			Detail:    "专用 MilkSU-Lab · 12 道 Flag",
 			Brief:     androidLabBrief,
 			Provider:  "android-avd",
 			Surface:   "emulator",
-			Address:   "emulator-5554",
 			Challenges: []string{
 				"Flag 1 登录绕过",
 				"Flag 2 导出 Activity",

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -72,6 +73,24 @@ func (f *fakeAndroid) CombinedOutput(_ context.Context, name string, args ...str
 			return []byte("List of devices\nemulator-5554\tdevice\n"), nil
 		}
 		return []byte("List of devices\n"), nil
+	}
+	if strings.Contains(joined, "emu avd name") {
+		name := labAVDPrefix
+		for _, avd := range f.avds {
+			if strings.HasPrefix(avd, labAVDPrefix) {
+				name = avd
+				break
+			}
+		}
+		return []byte(name + "\nOK\n"), nil
+	}
+	if len(args) > 0 && args[0] == "create" {
+		for i, arg := range args {
+			if arg == "--name" && i+1 < len(args) {
+				f.avds = append(f.avds, args[i+1])
+			}
+		}
+		return []byte("created"), nil
 	}
 	if strings.Contains(joined, "getprop sys.boot_completed") {
 		if f.booted {
@@ -184,7 +203,7 @@ func TestOccupancyBlocksSecondOwner(t *testing.T) {
 
 func TestAndroidLeaseUsesHostEmulator(t *testing.T) {
 	t.Parallel()
-	android := &fakeAndroid{avds: []string{"Pixel_7_API_34"}}
+	android := &fakeAndroid{avds: []string{"MilkSU-Lab"}}
 	service, err := NewForTest(t.TempDir(), &fakeCompose{dockerDown: true}, android)
 	if err != nil {
 		t.Fatal(err)
@@ -198,7 +217,7 @@ func TestAndroidLeaseUsesHostEmulator(t *testing.T) {
 		t.Fatalf("android lease: %+v", lease)
 	}
 	lease = waitLease(t, service, owner, "ready")
-	if lease.Surface != "emulator" || lease.Address != "emulator-5554" {
+	if lease.Surface != "emulator" || lease.Address != "emulator-5554" || lease.Device != "MilkSU-Lab" {
 		t.Fatalf("android lease: %+v", lease)
 	}
 }
@@ -263,7 +282,7 @@ func TestAndroidLabInstallsAPKWhenEmulatorAlreadyUp(t *testing.T) {
 		t.Fatal(err)
 	}
 	sum := sha256.Sum256(payload)
-	android := &fakeAndroid{avds: []string{"Pixel_10_Pro"}, booted: true}
+	android := &fakeAndroid{avds: []string{"MilkSU-Lab"}, booted: true}
 	root := t.TempDir()
 	service, err := NewForTest(root, &fakeCompose{dockerDown: true}, android)
 	if err != nil {
@@ -311,7 +330,10 @@ func TestAndroidLabInstallsAPKWhenEmulatorAlreadyUp(t *testing.T) {
 
 func TestAndroidLabAndBlankAVDShareOccupancy(t *testing.T) {
 	t.Parallel()
-	android := &fakeAndroid{avds: []string{"Pixel_10_Pro"}}
+	previous := detectLabSystemImage
+	detectLabSystemImage = func() string { return "" }
+	t.Cleanup(func() { detectLabSystemImage = previous })
+	android := &fakeAndroid{avds: []string{"MilkSU-Lab"}}
 	service, err := NewForTest(t.TempDir(), &fakeCompose{dockerDown: true}, android)
 	if err != nil {
 		t.Fatal(err)
@@ -329,7 +351,7 @@ func TestAndroidLabAndBlankAVDShareOccupancy(t *testing.T) {
 
 func TestAndroidLabStatusRequiresInstalledAPK(t *testing.T) {
 	t.Parallel()
-	android := &fakeAndroid{avds: []string{"Pixel"}, booted: true}
+	android := &fakeAndroid{avds: []string{"MilkSU-Lab"}, booted: true}
 	service, err := NewForTest(t.TempDir(), &fakeCompose{dockerDown: true}, android)
 	if err != nil {
 		t.Fatal(err)
@@ -349,8 +371,8 @@ func TestAndroidLabStatusRequiresInstalledAPK(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := service.Status(context.Background(), owner)
-	if got.State != "stopped" {
-		t.Fatalf("expected stopped until APK is installed, got %+v", got)
+	if got.State != "failed" {
+		t.Fatalf("expected failed until APK is installed, got %+v", got)
 	}
 }
 
@@ -386,9 +408,76 @@ func TestComposePinsLoopbackAndInternalNetwork(t *testing.T) {
 		if !strings.Contains(text, "internal: true") {
 			t.Fatalf("%s missing internal network", id)
 		}
+		if !strings.Contains(text, "@sha256:") {
+			t.Fatalf("%s missing image digest pin", id)
+		}
 		if item.Brief == "" {
 			t.Fatalf("%s missing brief", id)
 		}
+	}
+}
+
+func TestAndroidRefusesHostPhoneAVD(t *testing.T) {
+	t.Parallel()
+	previous := detectLabSystemImage
+	detectLabSystemImage = func() string { return "" }
+	t.Cleanup(func() { detectLabSystemImage = previous })
+	android := &fakeAndroid{avds: []string{"Pixel_10_Pro"}}
+	service, err := NewForTest(t.TempDir(), &fakeCompose{dockerDown: true}, android)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lease, err := service.Start(context.Background(), Owner{Kind: "lab", ID: "phone"}, "android-avd")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if lease.State != "failed" {
+		lease = waitLease(t, service, Owner{Kind: "lab", ID: "phone"}, "failed")
+	}
+	if !strings.Contains(lease.Error, "MilkSU") {
+		t.Fatalf("expected dedicated lab AVD error, got %+v", lease)
+	}
+}
+
+func TestAndroidSchedulesSecondLabDevice(t *testing.T) {
+	t.Parallel()
+	android := &fakeAndroid{avds: []string{"MilkSU-Lab", "MilkSU-Lab-2"}}
+	service, err := NewForTest(t.TempDir(), &fakeCompose{dockerDown: true}, android)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := Owner{Kind: "lab", ID: "one"}
+	if _, err := service.Start(context.Background(), first, "android-avd"); err != nil {
+		t.Fatal(err)
+	}
+	waitLease(t, service, first, "ready")
+	second := Owner{Kind: "lab", ID: "two"}
+	if _, err := service.Start(context.Background(), second, "android-avd"); err != nil {
+		t.Fatal(err)
+	}
+	lease := waitLease(t, service, second, "ready")
+	if lease.Device != "MilkSU-Lab-2" {
+		t.Fatalf("expected second lab device, got %+v", lease)
+	}
+}
+
+func TestDockerHTTPNotReadyFails(t *testing.T) {
+	t.Parallel()
+	compose := &fakeCompose{}
+	service, err := NewForTest(t.TempDir(), compose, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service.waitReady = func(context.Context, string) error {
+		return fmt.Errorf("127.0.0.1:3000 未就绪: timeout")
+	}
+	owner := Owner{Kind: "lab", ID: "slow"}
+	if _, err := service.Start(context.Background(), owner, "juice-shop"); err != nil {
+		t.Fatal(err)
+	}
+	lease := waitLease(t, service, owner, "failed")
+	if !strings.Contains(lease.Error, "未就绪") {
+		t.Fatalf("%+v", lease)
 	}
 }
 

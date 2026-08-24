@@ -22,11 +22,22 @@ func (a *App) ListLabPackages() []envbroker.Package {
 	return a.envBroker.Catalog()
 }
 
+func (a *App) ListEnvLeases() []envbroker.Lease {
+	if a.envBroker == nil {
+		return nil
+	}
+	leases := a.envBroker.List()
+	for i := range leases {
+		leases[i] = a.decorateLease(leases[i])
+	}
+	return leases
+}
+
 func (a *App) GetEnvLease(request envOwnerRequest) envbroker.Lease {
 	if a.envBroker == nil {
 		return envbroker.Lease{State: "none", OwnerKind: request.OwnerKind, OwnerID: request.OwnerID}
 	}
-	return a.envBroker.Status(a.commandContext(), envbroker.Owner{Kind: request.OwnerKind, ID: request.OwnerID})
+	return a.decorateLease(a.envBroker.Status(a.commandContext(), envbroker.Owner{Kind: request.OwnerKind, ID: request.OwnerID}))
 }
 
 type envCVEPackage struct {
@@ -43,21 +54,48 @@ func (a *App) StartEnvLease(request envOwnerRequest) (envbroker.Lease, error) {
 	if a.envBroker == nil {
 		return envbroker.Lease{State: "failed", Error: "环境经纪不可用"}, nil
 	}
-	return a.envBroker.Start(a.commandContext(), envbroker.Owner{Kind: request.OwnerKind, ID: request.OwnerID}, request.PackageID)
+	lease, err := a.envBroker.Start(a.commandContext(), envbroker.Owner{Kind: request.OwnerKind, ID: request.OwnerID}, request.PackageID)
+	return a.decorateLease(lease), err
 }
 
 func (a *App) StopEnvLease(request envOwnerRequest) (envbroker.Lease, error) {
 	if a.envBroker == nil {
 		return envbroker.Lease{State: "none"}, nil
 	}
-	return a.envBroker.Stop(a.commandContext(), envbroker.Owner{Kind: request.OwnerKind, ID: request.OwnerID})
+	lease, err := a.envBroker.Stop(a.commandContext(), envbroker.Owner{Kind: request.OwnerKind, ID: request.OwnerID})
+	return a.decorateLease(lease), err
 }
 
 func (a *App) ResetEnvLease(request envOwnerRequest) (envbroker.Lease, error) {
 	if a.envBroker == nil {
 		return envbroker.Lease{State: "none"}, nil
 	}
-	return a.envBroker.Reset(a.commandContext(), envbroker.Owner{Kind: request.OwnerKind, ID: request.OwnerID})
+	lease, err := a.envBroker.Reset(a.commandContext(), envbroker.Owner{Kind: request.OwnerKind, ID: request.OwnerID})
+	return a.decorateLease(lease), err
+}
+
+func (a *App) decorateLease(lease envbroker.Lease) envbroker.Lease {
+	if strings.TrimSpace(lease.OccupyOwner) == "" {
+		return lease
+	}
+	kind, id, ok := strings.Cut(lease.OccupyOwner, ":")
+	if !ok {
+		return lease
+	}
+	switch kind {
+	case "lab":
+		if a.labJobs != nil {
+			if job, err := a.labJobs.Get(id); err == nil && strings.TrimSpace(job.Title) != "" {
+				lease.OccupyTitle = job.Title
+			}
+		}
+	case "cve":
+		lease.OccupyTitle = id
+	}
+	if strings.TrimSpace(lease.OccupyTitle) == "" {
+		lease.OccupyTitle = lease.OccupyOwner
+	}
+	return lease
 }
 
 func (a *App) ProbeEnvLease(request envOwnerRequest) (string, error) {
@@ -144,7 +182,7 @@ func (a *App) handleEnvWorkspaceAction(conversationID, action string) (string, e
 	}
 	switch action {
 	case "env_status":
-		lease := a.envBroker.Status(a.commandContext(), owner)
+		lease := a.decorateLease(a.envBroker.Status(a.commandContext(), owner))
 		return encodeWorkspaceResult(lease)
 	case "env_start":
 		packageID := a.boundPackageID(owner)
@@ -153,21 +191,21 @@ func (a *App) handleEnvWorkspaceAction(conversationID, action string) (string, e
 		}
 		lease, startErr := a.envBroker.Start(a.commandContext(), owner, packageID)
 		if startErr != nil {
-			return encodeWorkspaceResult(lease)
+			return encodeWorkspaceResult(a.decorateLease(lease))
 		}
-		return encodeWorkspaceResult(lease)
+		return encodeWorkspaceResult(a.decorateLease(lease))
 	case "env_reset":
 		lease, resetErr := a.envBroker.Reset(a.commandContext(), owner)
 		if resetErr != nil {
-			return encodeWorkspaceResult(lease)
+			return encodeWorkspaceResult(a.decorateLease(lease))
 		}
-		return encodeWorkspaceResult(lease)
+		return encodeWorkspaceResult(a.decorateLease(lease))
 	case "env_stop":
 		lease, stopErr := a.envBroker.Stop(a.commandContext(), owner)
 		if stopErr != nil {
-			return encodeWorkspaceResult(lease)
+			return encodeWorkspaceResult(a.decorateLease(lease))
 		}
-		return encodeWorkspaceResult(lease)
+		return encodeWorkspaceResult(a.decorateLease(lease))
 	default:
 		return "", fmt.Errorf("unknown environment action")
 	}
